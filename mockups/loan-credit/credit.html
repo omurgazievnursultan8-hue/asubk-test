@@ -1019,6 +1019,18 @@ table.grid tbody tr.sel td{ background:var(--asubk-nav-active); }
   background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--radius-md);
   display:flex; align-items:center; justify-content:center; color:var(--text-muted); cursor:pointer; }
 .tabbar-chevron:hover{ background:var(--surface-hover); }
+/* subtabs — вкладки ВНУТРИ карточки (журнал условий: разбор по траншам).
+   Мельче .dtab, живут в развороте строки, не в шапке детали. */
+.subtabs{ display:flex; gap:2px; flex-wrap:wrap; border-bottom:1px solid var(--border-default); margin:2px 0 10px; }
+.subtab{ flex:none; border:none; background:transparent; padding:7px 12px; cursor:pointer;
+  font:var(--weight-medium) var(--text-sm)/1 var(--asubk-font); color:var(--text-muted);
+  border-bottom:2px solid transparent; margin-bottom:-1px; white-space:nowrap; }
+.subtab:hover{ color:var(--text-body); }
+.subtab.active{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:var(--weight-semibold); }
+.subtab .cnt{ color:var(--text-placeholder); font-weight:var(--weight-regular); margin-left:4px; }
+/* mx2 — две зоны сводной матрицы внутри одной карточки (левая/правая) */
+.mx2{ display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; }
+@media (max-width:1180px){ .mx2{ grid-template-columns:1fr; } }
 .panel-wrap{ padding:18px 24px 8px; }
 .detail-panel{ display:none; }
 .detail-panel.active{ display:block; }
@@ -1133,6 +1145,10 @@ table.grid tbody tr.sel td{ background:var(--asubk-nav-active); }
 .pcard{ border:1px solid var(--border-default); border-radius:var(--radius-md);
   background:var(--surface-card); padding:16px 18px; }
 .pcard.wide{ grid-column:1 / -1; }
+/* Стопка карточек, занимающая одну колонку сетки (волна 03.08.2026): нужна, когда
+   в колонке должно стоять несколько карточек подряд, а не по одной в ряд —
+   иначе row-flow сетки разложил бы их по соседним колонкам. */
+.pcol{ display:grid; gap:16px; align-content:start; }
 .pcard > .section-h{ margin:0 0 4px; }
 .pcard > .section-note{ margin:0 0 12px; max-width:none; }
 .pcard .f2, .pcard .f4{ gap:14px 24px; max-width:none; }
@@ -1480,6 +1496,12 @@ const PARAMS = [
     options:['факт/365','факт/360','факт/факт','30/365','30/360','30/факт'] }
 ];
 const PARAM_KEYS = PARAMS.map(p => p.key);
+/* Зоны сводной матрицы условий: те же смысловые группы, что у карточек условий
+   («Ставки» + «Льготные периоды» слева, «Погашение» справа). Ключи, не попавшие
+   в RATES, уходят в REPAY автоматически — новый параметр не потеряется. */
+const MATRIX_ZONE_RATES = ['rate','reserveRate','penaltyMain','penaltyInt',
+  'graceMain','graceInterest','graceIntDistFrom','graceIntDistTo','graceAccrual'];
+const MATRIX_ZONE_REPAY = PARAM_KEYS.filter(k => !MATRIX_ZONE_RATES.includes(k));
 const paramLabel = k => (PARAMS.find(p => p.key === k) || {}).label || k;
 
 /* Типы основания. owned=false → документ живёт в другом модуле, кредит только
@@ -5080,7 +5102,7 @@ if (typeof document !== 'undefined') {
     detailTab = tab && DTABS.includes(tab) ? tab : 'Договор';
     detailTrancheNo = (c.tranches[0] && c.tranches[0].no) || 1;
     calcConsolidated = false;
-    condScope = 'credit'; cardAsOf = TODAY; condBasisFilter = 'all'; condOpenGroup = null;
+    condScope = 'credit'; cardAsOf = TODAY; condBasisFilter = 'all'; condOpenGroup = null; condOpenTranche = null; condMatrixTranche = null;
     planYear = pd(TODAY).getFullYear(); planOpenMonth = null;   // состояние вкладки «План и исполнение» — своё на каждую карточку
     document.getElementById('view-list').style.display = 'none';
     const dv = document.getElementById('view-detail');
@@ -5178,6 +5200,8 @@ if (typeof document !== 'undefined') {
   let planOpenMonth = null;                 // 'YYYY-MM' развёрнутой строки (журнал правок)
   let condBasisFilter = 'all';      // фильтр журнала по типу основания
   let condOpenGroup   = null;       // g.key развёрнутой группы журнала (basisGroups — единственный источник ключа)
+  let condOpenTranche = null;       // № транша активной вкладки внутри разворота; null/чужой → первый транш группы
+  let condMatrixTranche = null;     // № транша активной вкладки сводной матрицы (свой, независимо от журнала)
   let condMatrixOpen = false, condTemplateOpen = false;
   const DTABS =['Договор','Условия','Транши и освоение','Расчёты','Платежи','План и исполнение','Обеспечение','Проблемные','Досье'];
 
@@ -5559,14 +5583,34 @@ if (typeof document !== 'undefined') {
                говорит, что перевод долга в записи НЕ идёт, он меняет субъекта, а не
                параметр, значит и в глоссарном смысле «Условием» не является). -->
           ${dt?`<div class="f2">${fld('Прежний заёмщик', esc(dt.from&&dt.from.name))}${fld('Новый заёмщик', esc(dt.newBorrower&&dt.newBorrower.name))}
-                ${fld('Соглашение', esc(dt.agreement&&dt.agreement.num)+(dt.agreement&&dt.agreement.registered?' <span class="pill low">зарегистрировано</span>':''))}${fld('Дата перевода', esc(dt.date))}</div>`
-            :`<p class="section-note" style="margin-bottom:0">Перевода долга не было. Смена заёмщика оформляется только зарегистрированным соглашением.</p>`}
+                ${fld('Соглашение', esc(dt.agreement&&dt.agreement.num)+(dt.agreement&&dt.agreement.registered?' <span class="pill low">зарегистрировано</span>':''))}${fld('Дата перевода', esc(dt.date))}</div>`:''}
           <div class="gtoolbar">${actBtn(c,'transferDebt',{},'Оформить перевод долга','CR.openTransferModal()')}</div>
         </div>
       </div>`;
   }
 
   /* ---- ВКЛАДКА 2: Условия ---- */
+  /* condGroupDetail — разворот строки журнала изменений условий.
+     Один транш в группе → одна таблица, как было (колонка «Транш» остаётся:
+     она отвечает на «чей это транш», а не служит разделителем).
+     Два и больше → вкладка на транш, в таблице колонка «Транш» лишняя.
+     Критерий — g.trancheNos (транши ЭТОЙ группы), а не число траншей кредита:
+     документ может править один транш из трёх, и тогда вкладки не нужны. */
+  function condGroupDetail(g){
+    const row = i => `<tr><td>${esc(paramLabel(i.param))}</td>
+      <td><span class="diff-old">${esc(i.from===undefined?'—':i.from)}</span></td>
+      <td><span class="diff-new">${esc(i.to)}</span></td>
+      <td>${esc(i.effectiveFrom)}</td>${g.trancheNos.length>1?'':`<td>№${i.trancheNo}</td>`}<td>${esc(i.note||'')}</td></tr>`;
+    const cols = [{h:'Параметр'},{h:'Было'},{h:'Стало'},{h:'Вступает'}]
+      .concat(g.trancheNos.length>1?[]:[{h:'Транш'}]).concat([{h:'Примечание'}]);
+    if (g.trancheNos.length <= 1) return cgrid(cols, g.items.map(row));
+    const sel = g.trancheNos.includes(condOpenTranche) ? condOpenTranche : g.trancheNos[0];
+    const bar = `<div class="subtabs">${g.trancheNos.map(n=>{
+      const cnt = g.items.filter(i=>i.trancheNo===n).length;
+      return `<button class="subtab${n===sel?' active':''}" onclick="CR.setCondTranche(${n})">Транш №${n}<span class="cnt">(${cnt})</span></button>`;
+    }).join('')}</div>`;
+    return bar + cgrid(cols, g.items.filter(i=>i.trancheNo===sel).map(row));
+  }
   function tabUsloviya(c,d){
     const b=c.baseConditions;
     const locked = !gate(c,'editConditions',{}).ok;                 // Г-9: не «Проект» → только зарегистрированным основанием
@@ -5664,6 +5708,12 @@ if (typeof document !== 'undefined') {
         })()}
       </div>
       <div class="pcards">
+        <!-- Раскладка 03.08.2026: левая колонка — «Ставки» и «Приостановки начисления»
+             стопкой (.pcol), правая — «Погашение». Погашение длиннее ставок (до 11 полей
+             с грейсом), поэтому одиночная карточка справа уравновешивает две слева;
+             приостановки — про начисление, читаются следом за ставками, а не после
+             графика платежей. -->
+        <div class="pcol">
         <div class="pcard">
           <div class="section-h">Ставки</div>
           <div class="f2">
@@ -5683,6 +5733,19 @@ if (typeof document !== 'undefined') {
         </div>
 
         <div class="pcard">
+          <div class="section-h">Приостановки начисления</div>
+          <!-- Карточка с действием (holdAccrual — единственный вход в модалку) остаётся
+               видимой всегда, даже без единой записи (grill 2026-07-31): скрыть значило бы
+               спрятать и кнопку. Без записей карточка пустая — заголовок и кнопка, без
+               таблицы-заглушки (волна 03.08.2026, как «Перевод долга» в «Договоре»).
+               Таблица — вся история интервалов, не только активные на cardAsOf
+               (holdIsActive тут не фильтр, а другой юзкейс — риск/оверлеи). -->
+          ${holdRows.length?cgrid([{h:'С'},{h:'По'},{h:'Основание'},{h:'Документ'}], holdRows):''}
+          <div class="gtoolbar">${roleBtn('holdAccrual','Приостановить начисление','CR.openHoldModal()')}</div>
+        </div>
+        </div>
+
+        <div class="pcard">
           <div class="section-h">Погашение</div>
           <div class="f2">
             ${cf('term')}
@@ -5694,16 +5757,6 @@ if (typeof document !== 'undefined') {
             ${cf('lastPaymentAnchor')}
             ${hasGrace?`${cf('graceMain')}${cf('graceInterest')}${hasGraceInt?`${cf('graceIntDistFrom')}${cf('graceIntDistTo')}`:''}${cf('graceAccrual')}`:''}
           </div>
-        </div>
-
-        <div class="pcard">
-          <div class="section-h">Приостановки начисления</div>
-          <!-- Карточка с действием (holdAccrual — единственный вход в модалку) остаётся
-               видимой всегда, даже без единой записи (grill 2026-07-31): скрыть значило бы
-               спрятать и кнопку. Таблица — вся история интервалов, не только активные на
-               cardAsOf (holdIsActive тут не фильтр, а другой юзкейс — риск/оверлеи). -->
-          ${cgrid([{h:'С'},{h:'По'},{h:'Основание'},{h:'Документ'}], holdRows, {empty:'Приостановок не было'})}
-          <div class="gtoolbar">${roleBtn('holdAccrual','Приостановить начисление','CR.openHoldModal()')}</div>
         </div>
 
         <!-- Карточка без действия (чисто информационная) скрывается целиком, когда
@@ -5743,8 +5796,6 @@ if (typeof document !== 'undefined') {
 
         <div class="pcard wide">
           <div class="section-h">Журнал изменений условий</div>
-          <p class="section-note">Каждая строка — документ-основание; «Изменено» и «было → стало» —
-            производные от записей условий. Записи не удаляются: отмена — новая запись.</p>
           <div class="gtoolbar">
             ${['all','agreement','court','govAct','application'].map(k=>{
               const lbl = k==='all'?'все':BASIS_KINDS[k].label;
@@ -5763,11 +5814,7 @@ if (typeof document !== 'undefined') {
                 <td>${esc(changed)}</td><td>${g.trancheNos.map(n=>'№'+n).join(', ')}</td>
                 <td>${condOpenGroup===g.key?'▾':'▸'}</td></tr>`);
               if (condOpenGroup===g.key) trs.push(`<tr><td colspan="6" style="background:var(--surface-panel)">
-                ${cgrid([{h:'Параметр'},{h:'Было'},{h:'Стало'},{h:'Вступает'},{h:'Транш'},{h:'Примечание'}],
-                  g.items.map(i=>`<tr><td>${esc(paramLabel(i.param))}</td>
-                    <td><span class="diff-old">${esc(i.from===undefined?'—':i.from)}</span></td>
-                    <td><span class="diff-new">${esc(i.to)}</span></td>
-                    <td>${esc(i.effectiveFrom)}</td><td>№${i.trancheNo}</td><td>${esc(i.note||'')}</td></tr>`))}
+                ${condGroupDetail(g)}
                 </td></tr>`);
             }
             return cgrid([{h:'Документ'},{h:'Дата док.'},{h:'Вступает'},{h:'Изменено'},{h:'Транши'},{h:''}],
@@ -5790,18 +5837,38 @@ if (typeof document !== 'undefined') {
           <div class="section-h" style="cursor:pointer" onclick="CR.toggleCondMatrix()">
             ${condMatrixOpen?'▾':'▸'} Сводная матрица условий (параметр × дата вступления)</div>
           ${condMatrixOpen?(()=>{
-            const recs=c.tranches.flatMap(t=>(t.conditionRecords||[]).map(r=>({t,r})));
-            const dates=[...new Set(recs.map(x=>x.r.effectiveFrom))].sort((a,b)=>pd(a)-pd(b));
-            const cols=[{h:'Параметр'}].concat(dates.map(d=>({h:d})));
-            const trs=PARAMS.map(p=>{
-              const cells=dates.map(d=>{ const hit=recs.filter(x=>x.r.param===p.key && x.r.effectiveFrom===d);
-                if(!hit.length) return '<td style="color:var(--text-placeholder)">·</td>';
-                const vals=[...new Set(hit.map(x=>String(x.r.value)))].join(' / ');
-                return `<td>${esc(vals)}<br><span class="src">${esc(hit[0].r.basis.ref||'')}</span></td>`; }).join('');
-              return `<tr><td>${esc(p.label)}</td>${cells}</tr>`; });
+            /* Раскладка 03.08.2026: одна таблица на всю ширину распадалась на «параметр
+               и лес точек». Делим на две зоны — левая «Ставки и льготы», правая
+               «Погашение» (те же смысловые группы, что у карточек условий выше), у каждой
+               свой набор дат: колонка появляется, только если в эту дату менялся параметр
+               ЭТОЙ зоны. Транши разводим вкладками, как в журнале изменений: склейка
+               «7 / 9» в одной ячейке не говорила, чьё какое. */
+            const multi=c.tranches.length>1;
+            const selNo=multi?(c.tranches.some(t=>t.no===condMatrixTranche)?condMatrixTranche:c.tranches[0].no):null;
+            const src=multi?c.tranches.filter(t=>t.no===selNo):c.tranches;
+            const recs=src.flatMap(t=>(t.conditionRecords||[]).map(r=>({t,r})));
+            const zone=(title,keys)=>{
+              const zr=recs.filter(x=>keys.includes(x.r.param));
+              const dates=[...new Set(zr.map(x=>x.r.effectiveFrom))].sort((a,b)=>pd(a)-pd(b));
+              const cols=[{h:'Параметр'}].concat(dates.map(d=>({h:d})));
+              const trs=PARAMS.filter(p=>keys.includes(p.key)).map(p=>{
+                const cells=dates.map(d=>{ const hit=zr.filter(x=>x.r.param===p.key && x.r.effectiveFrom===d);
+                  if(!hit.length) return '<td style="color:var(--text-placeholder)">·</td>';
+                  const vals=[...new Set(hit.map(x=>String(x.r.value)))].join(' / ');
+                  return `<td>${esc(vals)}<br><span class="src">${esc(hit[0].r.basis.ref||'')}</span></td>`; }).join('');
+                return `<tr><td>${esc(p.label)}</td>${cells}</tr>`; });
+              return `<div><div class="section-h" style="font-size:13px;margin-bottom:6px">${esc(title)}</div>
+                ${dates.length?cgrid(cols, trs, {empty:'Записей нет'})
+                             :`<p class="section-note" style="margin:0">Ни один параметр этой зоны не менялся${multi?' по траншу №'+selNo:''}.</p>`}</div>`;
+            };
+            const bar=multi?`<div class="subtabs">${c.tranches.map(t=>{
+              const cnt=(t.conditionRecords||[]).length;
+              return `<button class="subtab${t.no===selNo?' active':''}" onclick="CR.setCondMatrixTranche(${t.no})">Транш №${t.no}<span class="cnt">(${cnt})</span></button>`;
+            }).join('')}</div>`:'';
             return `<p class="section-note">У каждого условия своя дата вступления
               и своё основание. Пустая ячейка — в эту дату параметр не менялся.</p>
-              ${cgrid(cols, trs, {empty:'Записей нет'})}`;
+              ${bar}
+              <div class="mx2">${zone('Ставки и льготы', MATRIX_ZONE_RATES)}${zone('Погашение', MATRIX_ZONE_REPAY)}</div>`;
           })():''}
         </div>
 
@@ -6410,8 +6477,10 @@ if (typeof document !== 'undefined') {
   CR.selectDetailTranche=function(no){ detailTrancheNo=no; rerenderDetail(); };
   CR.setCondScope=function(v){ condScope = (v==='credit'?'credit':+v); rerenderDetail(); };
   CR.setCondFilter=function(v){ condBasisFilter=v; rerenderDetail(); };
-  CR.toggleCondGroup=function(ref){ condOpenGroup = (condOpenGroup===ref?null:ref); rerenderDetail(); };
+  CR.toggleCondGroup=function(ref){ condOpenGroup = (condOpenGroup===ref?null:ref); condOpenTranche = null; rerenderDetail(); };
+  CR.setCondTranche=function(n){ condOpenTranche = +n; rerenderDetail(); };
   CR.toggleCondMatrix=function(){ condMatrixOpen=!condMatrixOpen; rerenderDetail(); };
+  CR.setCondMatrixTranche=function(n){ condMatrixTranche=+n; rerenderDetail(); };
   CR.toggleCondTemplate=function(){ condTemplateOpen=!condTemplateOpen; rerenderDetail(); };
   CR.goToCalc=function(){ detailTab='Расчёты'; rerenderDetail(); };
   /* §0.3 «не молча»: маска дд.мм.гггг пропускала 99.99.9999 и молча подменяла дату
