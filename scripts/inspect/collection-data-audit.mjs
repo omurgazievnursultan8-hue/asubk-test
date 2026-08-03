@@ -211,8 +211,11 @@ const out = await p.evaluate(() => {
         .map((m,i)=>({m,i,t:D(evd(m))||0})).sort((a,b)=>(a.t-b.t)||(a.i-b.i)).map(x=>x.m);
       for(let i=0;i<mine.length;i++){
         pr.measures = mine.slice(0,i);
-        const why = sequenceReason(r, mine[i].kind);
-        if(why) add('B1-последовательность', `${W} · требование ${r.id} · мера ${mine[i].num||''} «${mine[i].kind}» от ${evd(mine[i])}`, why);
+        /* B1 (sequenceReason) снят — наряд п.5б-i (ADR-0045) заменил его гейтом
+           предусловий вида (gateReason, B2 ниже); собственно sequenceReason больше
+           не существует в collection.html, и этот аудит с тех пор падал на
+           ReferenceError, не дойдя даже до C/D/E/F/G — обнаружено при тройном прогоне
+           наряда п.7. */
         const g = gateReason(r, mine[i].kind);
         if(g) add('B2-гейт', `${W} · требование ${r.id} · мера ${mine[i].num||''} «${mine[i].kind}»`, g);
       }
