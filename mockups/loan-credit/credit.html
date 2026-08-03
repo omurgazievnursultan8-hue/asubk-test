@@ -6,7 +6,7 @@
 <title>Кредиты · АСУБК</title>
 <!--
   MOCKUP (single-file, interactive) — TO-BE модуля «Кредиты» (реестр кредитов →
-  карточка кредита, 9 вкладок). Образец для команды разработки, не прод-код.
+  карточка кредита, 11 вкладок). Образец для команды разработки, не прод-код.
 
   ЭТО НЕ КЛОН ЖИВОГО СТЕНДА: файл — TO-BE, спроектирован заново. Токены/паттерны
   сверены с collection.html и restructuring.html.
@@ -409,6 +409,58 @@
        472 вкладки и 80 открытий модалок в песочнице с минимальным DOM. Именно отсутствие
        второго блока позволило дефектам групп A и B пережить 16 шагов слияния.
 
+   ВОЛНА 03.08.2026 · РАЗДЕЛЕНИЕ «РАСЧЁТОВ» И ПЕРЕИМЕНОВАНИЕ ВКЛАДКИ ТРАНШЕЙ:
+     Причина. «Транши и освоение» — единственное двухуровневое имя там, где освоения
+       ВЛОЖЕНЫ в транш (Р-1/Р-6), а слово «Освоение» уже занято сквозным реестром-видом;
+       имя называло оба уровня иерархии сразу. Параллельно «Расчёты» несли два разных
+       предмета — ПЛАН возврата (график: версии, позиции, прогноз) и ФАКТ начисления
+       (свод, детальный расчёт, резерв).
+     СДЕЛАНО: вкладка «Транши и освоение» → «Транши». Из «Расчётов» выделена вкладка
+       «График» (tabGrafik) — плитки свода графика, версии, позиции, прогноз, кнопка
+       «Сформировать график», плашка Д-5. DTABS 9 → 10, «График» встал между
+       «Траншами» и «Расчётами».
+     ОСТАЛОСЬ В «РАСЧЁТАХ»: свод по статьям, детальный расчёт (леджер), резерв за
+       неполное освоение. Селектор транша и тумблер «консолидировано» переехали к
+       леджеру, которым и управляют (тумблер к графику отношения не имел вовсе).
+       Состояние общее — detailTrancheNo один на карточку, вкладки не расходятся.
+     Плашка Д-5 стоит теперь на обеих вкладках: на «Графике» — «сформируйте заново»,
+       в «Расчётах» — «расчёт построен по прежним условиям» + переход на «График».
+       CR.goToCalc → CR.goToSchedule (кнопка на «Условиях» ведёт к перегенерации).
+     Модель не менялась: график как принадлежал траншу (Р-1), так и принадлежит.
+
+   ВОЛНА 03.08.2026 (вторая) · ВКЛАДКА «ПРОГНОЗ» И СОКРАЩЕНИЕ ИМЕНИ «ПЛАНА»:
+     Причина. Разделение «Расчётов» довели до конца. На «Графике» остались лежать два
+       предмета сразу — КОНТРАКТ транша (версии, позиции: что обязаны вернуть, хранится,
+       меняется действием) и ОЖИДАНИЕ по нему (те же даты, пересчитанные суммы: что
+       соберём фактически, не хранится вовсе). Тот же довод, что и у Р-29: три ориентира
+       друг на друга не ссылаются, значит и на одной вкладке жить не должны.
+       Параллельно имя «План и исполнение» ставило исполнение вровень с планом, хотя
+       исполнение — производная плана (факт/план), а не второй предмет вкладки.
+     СДЕЛАНО: из tabGrafik выделен tabPrognoz — своя вкладка «Прогноз» между «Графиком»
+       и «Расчётами»: селектор транша, 4 плитки (ждём впереди · ближайший платёж ·
+       непокрытый хвост прошлого · отклонение от графика) и таблица позиций «по графику /
+       прогноз / Δ / статус». Вкладка «План и исполнение» → «План». DTABS 10 → 11.
+     ГРАНУЛЯРНОСТЬ РАЗВЕДЕНА: «Прогноз» — транш (Р-1, trancheForecastRows); помесячный
+       прогноз по кредиту (forecastByMonth) остался КОЛОНКОЙ во вкладке «План», где он
+       и нужен — как ориентир при постановке цели и предзаполнение формы (ADR-0042 §2).
+     Модель не менялась: прогноз как был производной без хранения, так и остался.
+
+   ВОЛНА 03.08.2026 (третья) · ПЛИТКИ «ГРАФИКА» — ПО ВЫБРАННОМУ ТРАНШУ И ПОД МЕТОД:
+     Причина. Плитки шапки вкладки брались из консолидированного d.scheduleTotals — по
+       ВСЕМ траншам, тогда как всё остальное на вкладке (версии, позиции) — по ВЫБРАННОМУ.
+       Второй перекос — «Регулярный платёж»: постоянная величина взноса есть только у
+       аннуитета. При «равными долями» платёж убывает, и медиана выдавала середину
+       лестницы за платёж; при «в конце срока» платёж вообще один, а медиана давала ≈0.
+       Плюс консолидация складывала медианы разных траншей — сумма, которой никто не платит.
+     СДЕЛАНО: trancheScheduleTotals(t, asOf) — итоги по одному траншу; подпись и значение
+       плитки платежа выводятся из метода погашения условий транша на дату (conditionsAt):
+       аннуитет → «Регулярный платёж» (медиана полных периодов), равными долями →
+       «Платёж: первый → последний» (диапазон), в конце срока → «Платёж в конце срока».
+       Консолидированный computeScheduleTotals остался в derive (контракт scheduleTotals,
+       ТЗ §05) — его потребляют шапка карточки и fullRepayDate.
+     Заодно убраны пояснение под заголовком «График погашения» и подпись «Транш» над
+       селектором: и то и другое дублировало то, что и так видно (решение пользователя).
+
   СПРОЕКТИРОВАНО, НО НЕ ОЖИВЛЕНО (осознанно, КВ-11 — оживлялось то, от чего зависят гейты)
    • Печатные формы (7 шт.) — формирование документов вне объёма макета.
    • Переходы в соседние модули (заёмщик, залог, платежи, взыскание, реструктуризация,
@@ -542,7 +594,7 @@
    Р-29 ПЛАН · ПРОГНОЗ · ИСПОЛНЕНИЕ ПЛАНА (01.08.2026, ADR-0042, CONTEXT.md).
         Три ориентира на будущее, и они НЕ ссылаются друг на друга. График — контракт
         транша. Прогноз — те же даты, пересчитанные суммы: производная от остатка ОД
-        на дату среза и непокрытого хвоста прошлого, живёт на «Расчётах». План — цель
+        на дату среза и непокрытого хвоста прошлого, живёт на своей вкладке «Прогноз». План — цель
         на месяц по кредиту целиком: ЕДИНСТВЕННАЯ вводимая величина среди трёх и явное
         исключение из ADR-0001. Заводится не с нуля — предзаполняется прогнозом, но
         после сохранения от него не зависит: иначе % исполнения плавал бы от досрочного
@@ -634,7 +686,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-03 · 97/97 PASS
+ SMOKE (node) 2026-08-03 · 98/98 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -711,6 +763,7 @@
    #65 ✓
    #66 ✓
    #67 ✓
+   #53a ✓
    #53 ✓
    #54 ✓
    #55 ✓
@@ -1367,7 +1420,7 @@ table.dl-grid tr.overdue td:last-child{ font-weight:var(--weight-semibold); }
       </section>
       <!-- ============ КАРТОЧКА КРЕДИТА ============ -->
       <section class="view" id="view-detail">
-        <!-- наполняется в Task 2+ (карточка §5.2–5.3, 9 вкладок) -->
+        <!-- наполняется в Task 2+ (карточка §5.2–5.3, 11 вкладок) -->
       </section>
     </div>
   </div>
@@ -1713,7 +1766,7 @@ function basisGroups(credit){
 }
 /* retroFlags — Д-5: записи, вступившие в силу раньше дня своего создания.
    Автопересчёта нет: флаги питают красную плашку «требуется перегенерация
-   графика» на вкладке «Условия» и бейдж на «Расчётах». */
+   графика» на вкладке «Условия» и близнецов на «Графике» и «Расчётах». */
 function retroFlags(credit){
   const out = [];
   for (const t of credit.tranches) for (const r of (t.conditionRecords || [])){
@@ -3809,6 +3862,33 @@ function computeScheduleTotals(c){
            regularPay:round2(regularPay), total:round2(total) };
 }
 
+/* итоги активной версии графика по ОДНОМУ траншу — для вкладки «График», где всё
+   остальное (версии, позиции) тоже по выбранному траншу; консолидированный
+   computeScheduleTotals остаётся в derive для шапки и прочих потребителей.
+   Подпись платежа зависит от метода погашения: «регулярный платёж» — величина
+   аннуитета, при равных долях платёж убывает (показываем диапазон), при погашении
+   в конце срока платёж вообще один. */
+function trancheScheduleTotals(t, asOf){
+  const rows = t ? trancheScheduleRows(t) : [];
+  const method = (t ? (conditionsAt(t, asOf || TODAY) || {}).method : '') || 'аннуитет';
+  let principalSum = 0, interestSum = 0, total = 0;
+  for (const r of rows){ principalSum += r.principal; interestSum += r.interest; total += r.total; }
+  const paying = rows.filter(r => (r.principal || 0) > 0);
+  let payLabel = 'Регулярный платёж', payValue = '—';
+  if (method === 'в конце срока'){
+    payLabel = 'Платёж в конце срока';
+    if (rows.length) payValue = money(rows[rows.length - 1].total);
+  } else if (method === 'равными долями' || method === 'дифференцированный'){
+    payLabel = 'Платёж: первый → последний';
+    if (paying.length) payValue = `${money(paying[0].total)} → ${money(paying[paying.length - 1].total)}`;
+  } else if (paying.length){
+    const sorted = paying.map(r => r.total).sort((a,b) => a - b);
+    payValue = money(sorted[Math.floor(sorted.length / 2)]);   // медиана — устойчива к хвостовому платежу
+  }
+  return { count:rows.length, principalSum:round2(principalSum), interestSum:round2(interestSum),
+           total:round2(total), method, payLabel, payValue };
+}
+
 /* активен ли транш (не soft-closed) — для агрегатов срока (Р-13) */
 function activeTranche(t){ return !t.closed; }
 
@@ -5095,7 +5175,7 @@ if (typeof document !== 'undefined') {
     if (body) [...body.children].forEach(tr => tr.classList && tr.classList.toggle('sel', tr.dataset.id===id));
     renderRole();
   }
-  /* двойной клик / Просмотр / Изменить — карточка кредита (§5.2 шапка + §5.3 9 вкладок, Task 7) */
+  /* двойной клик / Просмотр / Изменить — карточка кредита (§5.2 шапка + §5.3 11 вкладок, Task 7) */
   function openDetail(id, tab){
     const c = CR.db.credits.find(x=>x.id===id); if (!c) return;
     selectedId = id; CR._sel = id; detailId = id;
@@ -5103,7 +5183,7 @@ if (typeof document !== 'undefined') {
     detailTrancheNo = (c.tranches[0] && c.tranches[0].no) || 1;
     calcConsolidated = false;
     condScope = 'credit'; cardAsOf = TODAY; condBasisFilter = 'all'; condOpenGroup = null; condOpenTranche = null; condMatrixTranche = null;
-    planYear = pd(TODAY).getFullYear(); planOpenMonth = null;   // состояние вкладки «План и исполнение» — своё на каждую карточку
+    planYear = pd(TODAY).getFullYear(); planOpenMonth = null;   // состояние вкладки «План» — своё на каждую карточку
     document.getElementById('view-list').style.display = 'none';
     const dv = document.getElementById('view-detail');
     dv.style.display = 'flex';
@@ -5183,7 +5263,7 @@ if (typeof document !== 'undefined') {
   }
 
   /* ============================================================
-     КАРТОЧКА КРЕДИТА — §5.2 шапка + §5.3 9 вкладок (Task 7; девятая — «План и исполнение», 01.08.2026).
+     КАРТОЧКА КРЕДИТА — §5.2 шапка + §5.3 11 вкладок (Task 7; «План» — 01.08.2026, «График» и «Прогноз» — 03.08.2026).
      Всё из derive()/gate()/canRole() в рантайме (Р-11 — кэш запрещён). Зеркала
      (Р-5…Р-10, Р-16) — read-only с замком и подписью источника. Любая мутация
      идёт через CR.* и завершается rerenderDetail() → derive() пересчитывается заново.
@@ -5196,14 +5276,20 @@ if (typeof document !== 'undefined') {
      раздела своей даты не бывает» (КР-29). Теперь она живёт в шапке и управляет всеми
      выводимыми величинами: долгом, просрочкой, категорией, условиями, расчётом. */
   let cardAsOf  = TODAY;
-  let planYear = pd(TODAY).getFullYear();   // год на вкладке «План и исполнение»
+  let planYear = pd(TODAY).getFullYear();   // год на вкладке «План»
   let planOpenMonth = null;                 // 'YYYY-MM' развёрнутой строки (журнал правок)
   let condBasisFilter = 'all';      // фильтр журнала по типу основания
   let condOpenGroup   = null;       // g.key развёрнутой группы журнала (basisGroups — единственный источник ключа)
   let condOpenTranche = null;       // № транша активной вкладки внутри разворота; null/чужой → первый транш группы
   let condMatrixTranche = null;     // № транша активной вкладки сводной матрицы (свой, независимо от журнала)
   let condMatrixOpen = false, condTemplateOpen = false;
-  const DTABS =['Договор','Условия','Транши и освоение','Расчёты','Платежи','План и исполнение','Обеспечение','Проблемные','Досье'];
+  /* Волна 03.08.2026: «Транши и освоение» → «Транши», из «Расчётов» выделена вкладка
+     «График» (план возврата). Три предмета — три вкладки: Транши (сколько выдали) ·
+     График (что должны вернуть) · Расчёты (что начислено и погашено).
+     Волна 03.08.2026 (вторая): из «Графика» выделен «Прогноз» — контракт транша и
+     ожидание по нему суть разные предметы (Р-29), а вкладка «План и исполнение»
+     сокращена до «План»: исполнение — производная плана, а не второй предмет. */
+  const DTABS =['Договор','Условия','Транши','График','Прогноз','Расчёты','Платежи','План','Обеспечение','Проблемные','Досье'];
 
   function currentCredit(){ return CR.db.credits.find(x => x.id === detailId); }
   function jsAttr(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
@@ -5364,7 +5450,7 @@ if (typeof document !== 'undefined') {
   }
 
   /* Плитка «Ближайший платёж» (шаг 11): самый частый вопрос куратора — когда и сколько.
-     Раньше ответ лежал в «Расчёты → График — позиции», три клика вглубь. Значение —
+     Раньше ответ лежал в «График → позиции», три клика вглубь. Значение —
      сумма позиции, основание — дата, статус и транш. Просроченная позиция подсвечена:
      она первая по дате и требует действия раньше предстоящей. */
   function tileNextPay(c,d){
@@ -5691,7 +5777,7 @@ if (typeof document !== 'undefined') {
           требуется перегенерация. Предупреждение снимется, когда активная версия графика
           будет построена заново (позже этой записи).
           <div class="gtoolbar" style="margin-top:8px"><button class="btn btn-secondary btn-sm"
-            onclick="CR.goToCalc()">Перейти к перегенерации графика</button></div>
+            onclick="CR.goToSchedule()">Перейти к перегенерации графика</button></div>
         </div></div>`; })()}
       <div class="gtoolbar" style="margin-bottom:14px">
         ${c.tranches.length>1?`<div class="control" style="max-width:280px"><select onchange="CR.setCondScope(this.value)">
@@ -5883,7 +5969,7 @@ if (typeof document !== 'undefined') {
       </div>`;
   }
 
-  /* ---- ВКЛАДКА 3: Транши и освоение ---- */
+  /* ---- ВКЛАДКА 3: Транши ---- */
   function tabTranshi(c,d){
     const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0];
     const cur=c.currency, isFx=cur!=='KGS', fx=FX[cur]||1;              // мультивалюта: курс/≈KGS только для не-KGS
@@ -5934,10 +6020,101 @@ if (typeof document !== 'undefined') {
       ${cgrid(dbCols, dbRows, {empty:'Освоений нет'})}`;
   }
 
-  /* ---- ВКЛАДКА 4: Расчёты ---- */
+  /* ---- ВКЛАДКА 4: График (план возврата) ----
+     Выделена из «Расчётов» волной 03.08.2026. Предмет вкладки — КОНТРАКТ: чем кредит
+     обязан ответить на выданное. Версии и позиции принадлежат ТРАНШУ
+     (Р-1: buildSchedule строится на транше), поэтому селектор транша здесь свой,
+     но состояние общее с «Траншами» и «Расчётами» (detailTrancheNo). Факт начисления
+     и погашения остался в «Расчётах» — их предмет иной; прогноз по этому графику
+     уехал на свою вкладку «Прогноз» (вторая волна 03.08.2026). */
+  function tabGrafik(c,d){
+    const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0];
+    const st=trancheScheduleTotals(sel, cardAsOf);   // плитки — по выбранному траншу, как версии и позиции ниже
+    const stPill={'Оплачена':'low','Просрочена':'high','Наступила':'mid','Предстоит':'neutral'};
+    const verRows=((sel&&sel.schedules)||[]).slice().sort((a,b)=>b.ver-a.ver).map(s=>`<tr class="${s.active?'diff-changed':''}"><td>v${s.ver}</td><td>${s.active?'<span class="pill low">активна</span>':'<span class="pill neutral">архив</span>'}</td><td>${esc(s.generatedFrom)}</td><td style="text-align:right">${s.rows.length}</td></tr>`);
+    /* Статус позиции — от построенного расчёта (d.ledger.index), а не от засеянных строк */
+    const posRows=(sel?trancheScheduleRows(sel):[]).map(r=>{
+      const s=scheduleRowStatus(r, d.ledger.index.get(ledgerKey(sel.no, r.no)), cardAsOf);
+      return `<tr><td>№${r.no}</td><td>${esc(r.date)}</td><td style="text-align:right">${money(r.principal)}</td><td style="text-align:right">${money(r.interest)}</td>${(r.accrued!=null&&Math.abs(r.accrued-r.interest)>0.005)?`<td style="text-align:right" title="начислено за период, но не включено в платёж (льгота по %)">${money(r.accrued)}</td>`:'<td style="text-align:right">—</td>'}<td style="text-align:right">${money(r.total)}</td><td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td></tr>`;});
+    return `
+      ${(()=>{ const rf=retroPendingFlags(c); if(!rf.length) return '';   // Д-5: тот же признак, что на «Условиях»
+        return `<div class="warn-inline">${svgInfo()}<div>
+          Условия изменены задним числом (с ${esc(rf[0].effectiveFrom)}, ${esc(rf[0].basisLabel)}).
+          Действующая версия графика построена по прежним условиям — сформируйте заново (Д-5).</div></div>`; })()}
+      <div class="section-h">График погашения</div>
+      <div class="gtoolbar">
+        <div class="field" style="max-width:320px"><div class="control"><select onchange="CR.selectDetailTranche(+this.value)">${c.tranches.map(t=>`<option value="${t.no}"${sel&&t.no===sel.no?' selected':''}>Транш №${t.no}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+        <span class="spacer"></span>
+        ${actBtn(c,'buildSchedule',{tranche:sel},'Сформировать график','CR.openSchedModal()','btn btn-primary btn-sm')}
+      </div>
+      <div class="phead-dims" style="grid-template-columns:repeat(5,1fr);margin-top:6px">
+        <div class="dim"><div class="dl">Платежей в графике</div><div class="dv">${st.count}</div></div>
+        <div class="dim" title="метод погашения — ${esc(st.method)}"><div class="dl">${esc(st.payLabel)}</div><div class="dv">${esc(st.payValue)}</div></div>
+        <div class="dim"><div class="dl">Σ основной долг</div><div class="dv">${money(st.principalSum)}</div></div>
+        <div class="dim"><div class="dl">Σ проценты</div><div class="dv">${money(st.interestSum)}</div></div>
+        <div class="dim"><div class="dl">Итого к погашению</div><div class="dv">${money(st.total)}</div></div>
+      </div>
+      <div class="section-h" style="margin-top:22px">Версии графика (транш №${sel?sel.no:'—'})</div>
+      ${cgrid([{h:'Версия'},{h:'Статус'},{h:'От даты'},{h:'Строк',r:1}], verRows, {empty:'Версий графика нет — сформируйте'})}
+      <div class="section-h" style="margin-top:22px">График — позиции (транш №${sel?sel.no:'—'})</div>
+      ${cgrid([{h:'№'},{h:'Дата'},{h:'Осн. сумма',r:1},{h:'Проценты в платеже',r:1},{h:'Начислено %',r:1},{h:'Платёж',r:1},{h:'Статус'}], posRows, {empty:'Позиций нет — сформируйте график'})}`;
+  }
+
+  /* ---- ВКЛАДКА 5: Прогноз (ADR-0042, Р-29) ----
+     Выделен из «Графика» волной 03.08.2026 (вторая). Причина та же, по которой сам
+     график был выделен из «Расчётов»: на одной вкладке лежали два разных предмета —
+     КОНТРАКТ транша (версии, позиции: что обязаны вернуть) и ОЖИДАНИЕ по нему (те же
+     даты, пересчитанные суммы: что соберём на самом деле). Первое хранится и меняется
+     действием, второе выводится при каждом рендере и не хранится вовсе.
+     Гранулярность — транш (Р-1), селектор общий с «Траншами»/«Графиком»/«Расчётами»
+     (detailTrancheNo). Помесячный прогноз по кредиту целиком — во вкладке «План»,
+     колонкой рядом с планом: там он служит ориентиром при постановке цели. */
+  function tabPrognoz(c,d){
+    const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0];
+    const stPill={'Оплачена':'low','Просрочена':'high','Наступила':'mid','Предстоит':'neutral'};
+    const fr = sel ? trancheForecastRows(sel, d.ledger.index, cardAsOf) : [];
+    const fut = fr.filter(r=>!r.past), past = fr.filter(r=>r.past);
+    const futSum   = round2(fut.reduce((a,r)=>a+r.forecast,0));
+    const futSched = round2(fut.reduce((a,r)=>a+r.scheduled,0));
+    const tail     = round2(past.reduce((a,r)=>a+r.forecast,0));   // непокрытый хвост прошлого
+    const dl       = round2(futSum - futSched);
+    const nxt = fut[0];
+    const rws = fr.map(r=>{
+      const s = scheduleRowStatus({date:r.date}, d.ledger.index.get(ledgerKey(sel.no, r.no)), cardAsOf);
+      const rd = r.delta;
+      return `<tr${r.past?' class="text-muted"':''}><td>№${r.no}</td><td>${esc(r.date)}</td>
+        <td style="text-align:right">${money(r.scheduled)}</td>
+        <td style="text-align:right"><b>${money(r.forecast)}</b></td>
+        <td style="text-align:right;color:${Math.abs(rd)>0.005?(rd>0?'var(--asubk-red)':'var(--text-muted)'):'inherit'}">${Math.abs(rd)>0.005?(rd>0?'+':'')+money(rd):'—'}</td>
+        <td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td></tr>`;});
+    return `
+      <div class="section-h">Прогноз ${derivedHtml()}</div>
+      <p class="section-note">Прогноз — предположение о том, как график сложится <b>фактически</b>: даты те же,
+        суммы пересчитаны от остатка основного долга на дату среза и непокрытого хвоста прошлого.
+        Контракт он не подменяет (сам контракт — во вкладке «График»), в начислении не участвует
+        и в исполнение плана не входит — исполнение сверяет факт с <b>планом</b> (ADR-0042).
+        Весь непокрытый хвост прошлых позиций отнесён к ближайшей будущей. Ничего не хранится:
+        таблица строится заново при каждом рендере (Д-9 — порядок сумм, не банковская копейка).</p>
+      <div class="gtoolbar">
+        <div class="field" style="max-width:320px"><span class="flabel">Транш</span><div class="control"><select onchange="CR.selectDetailTranche(+this.value)">${c.tranches.map(t=>`<option value="${t.no}"${sel&&t.no===sel.no?' selected':''}>Транш №${t.no}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+      </div>
+      <div class="phead-dims" style="grid-template-columns:repeat(4,1fr);margin-top:6px">
+        <div class="dim"><div class="dl">Ждём впереди</div><div class="dv">${money(futSum)}</div><div class="src">${fut.length} позиц. после ${esc(cardAsOf)}</div></div>
+        ${/* не «Ближайший платёж»: так называется плитка шапки, а там — сумма ПО ГРАФИКУ
+              ближайшей ненаступившей позиции. Здесь — прогноз по ближайшей БУДУЩЕЙ, и в него
+              свален весь непокрытый хвост прошлого: цифры разные по построению. */''}
+        <div class="dim"><div class="dl">Ждём ближайшим платежом</div><div class="dv">${nxt?money(nxt.forecast):'—'}</div><div class="src">${nxt?esc(nxt.date)+' · позиция №'+nxt.no+(tail>0.005?' · включая хвост '+money(tail):''):'будущих позиций нет'}</div></div>
+        <div class="dim"><div class="dl">Непокрытый хвост прошлого</div><div class="dv" style="color:${tail>0.005?'var(--asubk-red)':'inherit'}">${money(tail)}</div><div class="src">отнесён к ближайшей будущей позиции</div></div>
+        <div class="dim"><div class="dl">Отклонение от графика</div><div class="dv" style="color:${Math.abs(dl)>0.005?(dl>0?'var(--asubk-red)':'var(--text-muted)'):'inherit'}">${Math.abs(dl)>0.005?(dl>0?'+':'')+money(dl):'—'}</div><div class="src">по будущим позициям</div></div>
+      </div>
+      <div class="section-h" style="margin-top:22px">Прогноз — позиции (транш №${sel?sel.no:'—'})</div>
+      ${cgrid([{h:'№'},{h:'Дата'},{h:'По графику',r:1},{h:'Прогноз',r:1},{h:'Δ',r:1},{h:'Статус'}], rws,
+        {empty:'Графика нет — прогнозировать нечего'})}`;
+  }
+
+  /* ---- ВКЛАДКА 6: Расчёты ---- */
   function tabRaschety(c,d){
     const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0];
-    const st=d.scheduleTotals;
     const cur=c.currency, isFx=cur!=='KGS', fx=FX[cur]||1;
     const repaid=DEBT_ARTICLES.reduce((a,x)=>a+d.debt[x.key].paid,0);
     const svod=`
@@ -5975,7 +6152,6 @@ if (typeof document !== 'undefined') {
         ${d.debt.penalty.disputed>0?`<tr><td>Спорная пеня</td><td colspan="4" class="text-muted" style="font:var(--font-label)">пеня за период сторнированного платежа: вычислена, но до решения комиссии в требование не входит и категорию не двигает</td><td style="text-align:right">${money(d.debt.penalty.disputed)}</td></tr>`:''}
         ${d.overpay.total>0?`<tr><td>Переплата</td><td colspan="4" class="text-muted" style="font:var(--font-label)">разнесено больше, чем начислено${d.overpay.interest>0?' (проценты '+money(d.overpay.interest)+')':''} — идёт обратной очередью ОД → проценты → штрафы → возврат заёмщику; правило принадлежит модулю платежей</td><td style="text-align:right">${money(d.overpay.total)}</td></tr>`:''}
       </tbody></table></div>`;
-    const verRows=((sel&&sel.schedules)||[]).slice().sort((a,b)=>b.ver-a.ver).map(s=>`<tr class="${s.active?'diff-changed':''}"><td>v${s.ver}</td><td>${s.active?'<span class="pill low">активна</span>':'<span class="pill neutral">архив</span>'}</td><td>${esc(s.generatedFrom)}</td><td style="text-align:right">${s.rows.length}</td></tr>`);
     /* Детальный расчёт СТРОИТСЯ (ADR-0010): позиции графика, наступившие на дату среза,
        с разнесением подтверждённых погашений и начислением пени. Прежде грид читал
        засеянный ledger, в котором у всех кредитов была ровно одна строка (КР-8). */
@@ -6004,55 +6180,22 @@ if (typeof document !== 'undefined') {
       <p class="section-note">Начисляется на недоосвоенный остаток от плановой даты (ставка ${res.rate}%). Всего: <b>${money(res.totalAmount)}</b> на базу ${money(res.totalBase)}.</p>
       ${cgrid([{h:'Транш'},{h:'База',r:1},{h:'Ставка, %',r:1},{h:'Дней',r:1},{h:'Сумма',r:1}], res.perTranche.map(p=>`<tr><td>${esc(p.trancheId)}</td><td style="text-align:right">${money(p.base)}</td><td style="text-align:right">${esc(p.rate)}</td><td style="text-align:right">${esc(p.days)}</td><td style="text-align:right">${money(p.amount)}</td></tr>`))}`:'';
     const bc=c.baseConditions;                                   // шаг 14: метод дней + очередь погашения переехали сюда из «Условий»
-    const stPill={'Оплачена':'low','Просрочена':'high','Наступила':'mid','Предстоит':'neutral'};
-    /* Статус позиции — от построенного расчёта (d.ledger.index), а не от засеянных строк */
-    const posRows=(sel?trancheScheduleRows(sel):[]).map(r=>{
-      const s=scheduleRowStatus(r, d.ledger.index.get(ledgerKey(sel.no, r.no)), cardAsOf);
-      return `<tr><td>№${r.no}</td><td>${esc(r.date)}</td><td style="text-align:right">${money(r.principal)}</td><td style="text-align:right">${money(r.interest)}</td>${(r.accrued!=null&&Math.abs(r.accrued-r.interest)>0.005)?`<td style="text-align:right" title="начислено за период, но не включено в платёж (льгота по %)">${money(r.accrued)}</td>`:'<td style="text-align:right">—</td>'}<td style="text-align:right">${money(r.total)}</td><td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td></tr>`;});
     return `
       ${svod}
       ${(()=>{ const rf=retroPendingFlags(c); if(!rf.length) return '';   // Д-5: тот же признак, что на «Условиях»
         return `<div class="warn-inline" style="margin-top:14px">${svgInfo()}<div>
           Условия изменены задним числом (с ${esc(rf[0].effectiveFrom)}, ${esc(rf[0].basisLabel)}).
-          Расчёт ниже построен по прежним условиям — сформируйте график заново (Д-5).</div></div>`; })()}
-      <div class="section-h" style="margin-top:22px">График погашения</div>
-      <div class="gtoolbar">
+          Расчёт ниже построен по прежним условиям — сформируйте график заново (Д-5).
+          <div class="gtoolbar" style="margin-top:8px"><button class="btn btn-secondary btn-sm"
+            onclick="CR.goToSchedule()">Перейти к графику</button></div></div></div>`; })()}
+      <div class="section-h" style="margin-top:22px">Детальный расчёт ${calcConsolidated?'(консолидировано)':'(транш №'+(sel?sel.no:'—')+')'}</div>
+      <p class="section-note">Начисление разложено по позициям <b>плана</b> — сам план (версии, позиции)
+        живёт во вкладке «График», ожидание по нему — во вкладке «Прогноз». Параметры движка — те же, что и на вкладке «Условия», читаются вместе
+        с цифрами, которые объясняют. Это условия договора: правка — только зарегистрированным основанием.</p>
+      <div class="gtoolbar" style="margin-bottom:12px">
         <div class="field" style="max-width:320px"><span class="flabel">Транш</span><div class="control"><select onchange="CR.selectDetailTranche(+this.value)">${c.tranches.map(t=>`<option value="${t.no}"${sel&&t.no===sel.no?' selected':''}>Транш №${t.no}</option>`).join('')}</select><span class="caret">▾</span></div></div>
         <div class="retro-toggle" onclick="CR.setCalcMode(${!calcConsolidated})"><input type="checkbox" ${calcConsolidated?'checked':''} onclick="event.preventDefault()"> консолидировано по кредиту</div>
-        <span class="spacer"></span>
-        ${actBtn(c,'buildSchedule',{tranche:sel},'Сформировать график','CR.openSchedModal()','btn btn-primary btn-sm')}
       </div>
-      <div class="phead-dims" style="grid-template-columns:repeat(5,1fr);margin-top:6px">
-        <div class="dim"><div class="dl">Платежей в графике</div><div class="dv">${st.count}</div></div>
-        <div class="dim"><div class="dl">Регулярный платёж</div><div class="dv">${money(st.regularPay)}</div></div>
-        <div class="dim"><div class="dl">Σ основной долг</div><div class="dv">${money(st.principalSum)}</div></div>
-        <div class="dim"><div class="dl">Σ проценты</div><div class="dv">${money(st.interestSum)}</div></div>
-        <div class="dim"><div class="dl">Итого к погашению</div><div class="dv">${money(st.total)}</div></div>
-      </div>
-      <div class="section-h" style="margin-top:22px">Версии графика (транш №${sel?sel.no:'—'})</div>
-      ${cgrid([{h:'Версия'},{h:'Статус'},{h:'От даты'},{h:'Строк',r:1}], verRows, {empty:'Версий графика нет — сформируйте'})}
-      <div class="section-h" style="margin-top:22px">График — позиции (транш №${sel?sel.no:'—'})</div>
-      ${cgrid([{h:'№'},{h:'Дата'},{h:'Осн. сумма',r:1},{h:'Проценты в платеже',r:1},{h:'Начислено %',r:1},{h:'Платёж',r:1},{h:'Статус'}], posRows, {empty:'Позиций нет — сформируйте график'})}
-      <div class="section-h" style="margin-top:22px">Прогноз (транш №${sel?sel.no:'—'}) ${derivedHtml()}</div>
-      <p class="section-note">Прогноз — предположение о том, как график сложится <b>фактически</b>: даты те же,
-        суммы пересчитаны от остатка основного долга на дату среза и непокрытого хвоста прошлого.
-        Контракт он не подменяет, в начислении не участвует и в исполнение плана не входит — исполнение
-        сверяет факт с <b>планом</b> (ADR-0042). Весь непокрытый хвост прошлых позиций отнесён к ближайшей будущей.</p>
-      ${(()=>{ const fr = sel ? trancheForecastRows(sel, d.ledger.index, cardAsOf) : [];
-        const rws = fr.map(r=>{
-          const s = scheduleRowStatus({date:r.date}, d.ledger.index.get(ledgerKey(sel.no, r.no)), cardAsOf);
-          const dl = r.delta;
-          return `<tr${r.past?' class="text-muted"':''}><td>№${r.no}</td><td>${esc(r.date)}</td>
-            <td style="text-align:right">${money(r.scheduled)}</td>
-            <td style="text-align:right"><b>${money(r.forecast)}</b></td>
-            <td style="text-align:right;color:${Math.abs(dl)>0.005?(dl>0?'var(--asubk-red)':'var(--text-muted)'):'inherit'}">${Math.abs(dl)>0.005?(dl>0?'+':'')+money(dl):'—'}</td>
-            <td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td></tr>`;});
-        return cgrid([{h:'№'},{h:'Дата'},{h:'По графику',r:1},{h:'Прогноз',r:1},{h:'Δ',r:1},{h:'Статус'}], rws,
-          {empty:'Графика нет — прогнозировать нечего'});
-      })()}
-      <div class="section-h" style="margin-top:22px">Детальный расчёт ${calcConsolidated?'(консолидировано)':'(транш №'+(sel?sel.no:'—')+')'}</div>
-      <p class="section-note">Параметры движка — те же, что и на вкладке «Условия», читаются вместе с цифрами, которые объясняют.
-        Это условия договора: правка — только зарегистрированным основанием.</p>
       <div class="f2" style="max-width:760px;margin-bottom:12px">
         ${fld('Метод дней', esc(sel ? conditionsAt(sel, cardAsOf).dayMethod : bc.dayMethod))}
         ${fld('Очередь погашения', esc(bc.queue))}
@@ -6061,7 +6204,7 @@ if (typeof document !== 'undefined') {
       ${resBlock}`;
   }
 
-  /* ---- ВКЛАДКА 5: Платежи (зеркало модуля платежей, Р-5) ---- */
+  /* ---- ВКЛАДКА 7: Платежи (зеркало модуля платежей, Р-5) ---- */
   function tabPlatezhi(c,d){
     const pays=(c.mirror.payments||[]);
     const ptot={amount:0,principal:0,interest:0,penalty:0};
@@ -6127,9 +6270,13 @@ if (typeof document !== 'undefined') {
       </div>`;
   }
 
-  /* ---- ВКЛАДКА 6: План и исполнение (ADR-0042) ----
+  /* ---- ВКЛАДКА 8: План (ADR-0042) ----
      План — единственная ВВОДИМАЯ величина среди трёх ориентиров, и это явное исключение
-     из ADR-0001, поэтому подписано прямо на вкладке. Исполнение и прогноз — производные. */
+     из ADR-0001, поэтому подписано прямо на вкладке. Исполнение и прогноз — производные.
+     Имя вкладки сокращено до «План» волной 03.08.2026 (вторая): исполнение — не второй
+     предмет вкладки, а способ прочитать план, и двойное имя ставило его вровень с планом.
+     Прогноз здесь остаётся КОЛОНКОЙ — ориентиром при постановке цели (предзаполнение формы,
+     ADR-0042 §2); сам прогноз как предмет живёт на своей вкладке, гранулярностью транша. */
   function tabPlan(c,d){
     const pe  = (planYear === d.planExec.year) ? d.planExec : planExecOf(c, cardAsOf, d.ledger.index, planYear);
     const cur = c.currency;
@@ -6170,14 +6317,16 @@ if (typeof document !== 'undefined') {
       <td style="text-align:right">${money(pe.total.fact)}</td>
       <td style="text-align:right">${pctPill(pe.total.pct)}</td></tr>`);
     return `
-      <div class="section-h">План и исполнение ${derivedHtml()}</div>
+      <div class="section-h">План и его исполнение ${derivedHtml()}</div>
       <p class="section-note">План — <b>вводимая</b> величина: цель на месяц, поставленная в момент N, и от прогноза
         после сохранения она не зависит (ADR-0042). Это единственное исключение из правила «производные не хранятся».
         Исполнение — производная: факт месяца / план месяца, по всем четырём статьям долга кредита;
         расходы по обращению взыскания в факт не входят. <b>Месяц без плана в расчёт не входит</b> — ни сам,
         ни в квартальной, ни в годовой сумме. <b>Ненаступивший месяц процента не имеет</b>: его нулевой факт означает
         «срок не подошёл», а не «ничего не собрали», — поэтому в процент квартала и года он не входит, а его план
-        подписан отдельно («впереди»). Показатель для отображения: на категорию риска, гейты и подгруппу не влияет (И-18).</p>
+        подписан отдельно («впереди»). Показатель для отображения: на категорию риска, гейты и подгруппу не влияет (И-18).
+        Колонка «Прогноз» здесь — ориентир при постановке цели (им же предзаполняется форма): помесячная сумма
+        по кредиту целиком. Сам прогноз, с разбором по позициям транша, — во вкладке «Прогноз».</p>
       <div class="phead-dims" style="grid-template-columns:repeat(4,1fr)">
         ${dimTile(`План за ${pe.year}`, pe.total.plan?money(pe.total.plan):'—',
           esc(cur) + (pe.total.planAhead?` · впереди ${money(pe.total.planAhead)}`:''))}
@@ -6197,7 +6346,7 @@ if (typeof document !== 'undefined') {
       ${cgrid([{h:'Период'},{h:'План',r:1},{h:'Факт',r:1},{h:'Исполнение',r:1}], qRows)}`;
   }
 
-  /* ---- ВКЛАДКА 7: Обеспечение (зеркало залогового модуля, Р-7) ---- */
+  /* ---- ВКЛАДКА 9: Обеспечение (зеркало залогового модуля, Р-7) ---- */
   function tabObespechenie(c,d){
     const cov=d.coverage, light=cov.ok?'var(--asubk-green)':'var(--asubk-red)';
     /* Волна 03.08.2026 (КР-56): оба основания освобождения от порога — owned-поля кредита, живут во вкладке
@@ -6279,7 +6428,7 @@ if (typeof document !== 'undefined') {
       </div>`;
   }
 
-  /* ---- ВКЛАДКА 8: Проблемные ---- */
+  /* ---- ВКЛАДКА 10: Проблемные ---- */
   function tabProblemnye(c,d){
     /* КР-6 · вкладка БОЛЬШЕ НЕ СЧИТАЕТ категорию сама. Прежде она пересчитывала worst-of
        своими двумя строками и не применяла послабление: у K-C16 (220 дн.) и K-C19 (210 дн.)
@@ -6365,7 +6514,7 @@ if (typeof document !== 'undefined') {
       </div>`;
   }
 
-  /* ---- ВКЛАДКА 9: Досье ---- */
+  /* ---- ВКЛАДКА 11: Досье ---- */
   function docState(s){
     const map={'принят':'low','не требуется':'neutral','на проверке':'info','загружен':'info','требуется':'mid','отклонён':'high','просрочен':'high'};
     return `<span class="pill ${map[s]||'neutral'}">${esc(s||'—')}</span>`;
@@ -6452,10 +6601,12 @@ if (typeof document !== 'undefined') {
     switch(name){
       case 'Договор': return tabDogovor(c, d);
       case 'Условия': return tabUsloviya(c, d);
-      case 'Транши и освоение': return tabTranshi(c, d);
+      case 'Транши': return tabTranshi(c, d);
+      case 'График': return tabGrafik(c, d);
+      case 'Прогноз': return tabPrognoz(c, d);
       case 'Расчёты': return tabRaschety(c, d);
       case 'Платежи': return tabPlatezhi(c, d);
-      case 'План и исполнение': return tabPlan(c, d);
+      case 'План': return tabPlan(c, d);
       case 'Обеспечение': return tabObespechenie(c, d);
       case 'Проблемные': return tabProblemnye(c, d);
       case 'Досье': return tabDosye(c, d);
@@ -6482,7 +6633,7 @@ if (typeof document !== 'undefined') {
   CR.toggleCondMatrix=function(){ condMatrixOpen=!condMatrixOpen; rerenderDetail(); };
   CR.setCondMatrixTranche=function(n){ condMatrixTranche=+n; rerenderDetail(); };
   CR.toggleCondTemplate=function(){ condTemplateOpen=!condTemplateOpen; rerenderDetail(); };
-  CR.goToCalc=function(){ detailTab='Расчёты'; rerenderDetail(); };
+  CR.goToSchedule=function(){ detailTab='График'; rerenderDetail(); };   // Д-5: перегенерация живёт на «Графике» (волна 03.08.2026)
   /* §0.3 «не молча»: маска дд.мм.гггг пропускала 99.99.9999 и молча подменяла дату
      срезом «сегодня». Круговая проверка fd(pd(s))===s ловит и маску, и несуществующий
      день (31.02.2026 → 03.03.2026 ≠ ввод), отказ объявляется тостом. */
@@ -7230,7 +7381,7 @@ if (typeof document !== 'undefined') {
   });
 
   renderNav();
-  renderList();          // реестр §5.1 (Р-19); карточка (9 вкладок) — Task 7
+  renderList();          // реестр §5.1 (Р-19); карточка (11 вкладок) — Task 7
   openFromHash();        // восстановить экран (кредит+вкладка) после F5 — по location.hash
   window.addEventListener('hashchange', openFromHash);
 }

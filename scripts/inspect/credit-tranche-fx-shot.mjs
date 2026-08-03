@@ -1,4 +1,4 @@
-// Проверка вкладки «Транши и освоение» после слияния (шаг 5): FX-колонки + итог-строка.
+// Проверка вкладки «Транши» после слияния (шаг 5): FX-колонки + итог-строка.
 // Открывает валютный (USD) фон-кредит K-B2 и KGS-кредит K-1, дампит шапки таблиц.
 //   node scripts/inspect/credit-tranche-fx-shot.mjs
 import { chromium } from 'playwright-core';
@@ -22,7 +22,7 @@ await page.goto(pathToFileURL(resolve('mockups/loan-credit/credit.html')).href, 
 await page.waitForTimeout(300);
 
 const dump = async (id) => {
-  await page.evaluate(i => { CR.openDetail(i); CR.selectDetailTab && CR.selectDetailTab('Транши и освоение'); }, id);
+  await page.evaluate(i => { CR.openDetail(i); CR.selectDetailTab && CR.selectDetailTab('Транши'); }, id);
   // клик по вкладке через DOM, если нет API
   await page.evaluate(() => { const t=[...document.querySelectorAll('.dtab')].find(x=>/Транши/.test(x.textContent)); t&&t.click(); });
   await page.waitForTimeout(200);
