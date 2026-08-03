@@ -29,8 +29,9 @@
      подтверждения принимающей стороной (п. 98). ГРУППА платёжеспособности выводится из
      стадии/состояния лица открытых требований (ADR-0023 §5), а не из передачи.
 
-  3. МАШИНА ФАЗ — СЕМЬ КОНТУРОВ К0…К7 (§3.1), а не одна цепочка. Таймлайн рисует контур
-     текущей фазы. Безакцептное списание — УСЛОВНАЯ ветка К1 (§3.4): в таймлайне только
+  3. МАШИНА ФАЗ — СЕМЬ КОНТУРОВ К0…К7 (§3.1), а не одна цепочка. Одна лестница на весь
+     ROUTE_ORDER (наряд п.5б-i, МП-6): вне-маршрутные фазы (К2/К5/К6/К7) в ней не входят.
+     Безакцептное списание — УСЛОВНАЯ ветка К1 (§3.4): в лестнице только
      если у кредита охвата bezakceptRight:true. Терминалы (§3.3): Полное погашение ·
      Признана безнадёжной · Списана · Завершена процедура банкротства.
 
@@ -2261,55 +2262,116 @@ function gateReason(r, kind){
   return `${head} Вопрос ${questionState(latest).k === 'scheduled' ? `назначен на заседание ${latest.meetingDate}, решение не внесено` : 'вынесен, дата заседания не назначена'}.`;
 }
 
-/* ГЕЙТ ПОСЛЕДОВАТЕЛЬНОСТИ (§3.1 + дизайн-док §5): веха-мера не регистрируется в обход
-   порядка. Две проверки, данные из CONTOURS (выдуманного графа переходов нет):
-   (а) ВНУТРИ контура — фаза φ на позиции i требует предыдущей фазы φ(i−1);
-   (б) ВХОД в контур (i=0) — требует пройденной предыдущей СТАДИИ эскалации: досудебная
-       (К1) до принудительной (К2/К3), суд/залог до исполнительного (К4), исполнительное
-       до банкротства (К6) и безнадёжной (К7). Иначе иск/банкротство можно было бы подать
-       из свежей досудебки, минуя претензионный порядок. Уровень = ступень эскалации;
-       разрешён вход на текущую ступень или следующую (curL ≥ tgtL−1).
-   Не-вехи не гейтятся. null → разрешено; строка → причина. */
+/* CONTOUR_LEVEL/SECTION_CLEVEL — LEGACY, наряд п.5б-ii (МП-6, ADR-0045). Раньше несли
+   гейт последовательности (sequenceReason, ступень эскалации раздела/контура, «нельзя
+   подать иск из свежей досудебки») — сама функция снята нарядом п.5б-i, заменена
+   `preconditionReason` (ниже, числовые пороги там — снимок ESCALATION_LEVEL/PRECONDITIONS,
+   не рантайм-чтение этих констант). «Стадии»/старая вкладка-перестановка «Предусловий» на
+   #settings, последние читатели, сняты нарядом п.5б-ii. Оставлены физически как есть
+   (решение той же карты) — на случай будущего использования (отчёты, другой экран), сейчас
+   не читаются НИГДЕ. */
 const CONTOUR_LEVEL = { 'К0':0, 'К1':1, 'К2':2, 'К3':2, 'К5':2, 'К4':3, 'К6':4, 'К7':5 };
-/* Ступень эскалации РАЗДЕЛА (не только вех) — по контуру раздела. Гейт применяется ко
-   ВСЕМ видам меры: судебные жалобы/уточнения, заявление на банкротство и т.п. — тоже
-   вне досудебной стадии, а не только вехи. */
-/* ЗС/ДС-М3: было 5 — безнадёжность стояла ВЫШЕ банкротства, и признать задолженность
-   безнадёжной можно было только пройдя процедуру банкротства. Для ликвидированного
-   юрлица, умершего заёмщика и приговора это бессмыслица: ступень 4 — параллельно
-   банкротству, после исполнительного производства. */
 const SECTION_CLEVEL = { 'Досудебный':1, 'Внесудебный залог':2, 'Судебный':2, 'Правопреемство':2, 'Исполнительное':3, 'Банкротство':4, 'Безнадёжная':4 };
+/* Ступень эскалации ФАЗЫ (не раздела) — снимок сегодняшних значений CONTOUR_LEVEL/
+   SECTION_CLEVEL на момент наряда п.5б-i, не рантайм-чтение снимаемой структуры (см.
+   комментарий у CONTOUR_LEVEL выше). Читает `preconditionReason` (минимальный порог
+   регистрации вида, ниже) — сама шкала константа, редактируется только `minLevel`
+   конкретного вида на #settings (наряд п.5б-ii, ADR-0045). */
+const ESCALATION_LEVEL = {
+  'Досудебное урегулирование': 0,
+  'Претензия': 1, 'Повторная претензия': 1, 'Безакцептное списание': 1,
+  'Извещение': 2, 'Иск': 2, 'Решение суда': 2, 'Исполнительный лист': 2,
+  'Заявление об установлении правопреемника': 2, 'Решение суда (отсутствие правопреемника)': 2,
+  'На исполнении': 3,
+  'Инициирование банкротства': 4, 'Признано банкротом': 4, 'Завершена процедура банкротства': 4,
+  /* К7 нормализован на уровень 4 (было CONTOUR_LEVEL['К7']=5): обе его фазы терминальны —
+     isClosedReq рубит регистрацию раньше, чем этот порог вообще смотрится, разница
+     безопасна (проверено throwaway-смоуком, .scratch-карта collection-gejt-predusloviy). */
+  'Признана безнадёжной': 4, 'Списана': 4,
+};
+/* ЗАПИСЬ ПРЕДУСЛОВИЯ ВИДА (`ADR-0026`, наряд п.5б-i, разбор — .scratch/collection-gejt-
+   predusloviy/issues/02): требуемая фаза (`requiredPhase`, точный предшественник на
+   маршруте) · порог эскалации (`minLevel`) · требуемый факт (`basis` — жива мера-
+   основание из `kindOf(kind).basisKinds`) · запрещающие фазы (`blockIfPhaseIn` — «уже
+   неактуальна», не даёт зарегистрировать вторично то, что само открывает пройденный
+   контур). Сеятель ниже — исходные значения на день ввода (30 видов из 59 в справочнике
+   размечены; виды без записи — либо «внешний акт», предусловия к которым не применяются
+   §3.4, либо чисто информационные документы). Как СЕЯТЕЛЬ, а не как то, чем реально
+   пользуется гейт: та точка — `RULES.preconditions` (наряд п.5б-ii) — запись живая,
+   правится экраном #settings, а не только релизом (`ADR-0033`). */
+const PRECONDITIONS = {
+  // корзина A (карта issues/02) — маршрут, точный предшественник
+  'Повторная претензия':                      { requiredPhase: 'Претензия' },
+  'Безакцептное списание':                    { requiredPhase: 'Повторная претензия' },
+  // корзина B — маршрут, первая веха своего контура (порог тривиален — «Досудебный»
+  // cLevel 1, curL≥0 всегда истинно — но группа «уже вошли» всё равно нужна: без нее
+  // «Первичная претензия» осталась бы доступна и на фазе «Повторная претензия»/
+  // «Безакцептное списание», регрессия найдена смоуком, было BLOCKED-ALREADY-PAST
+  // у sequenceReason (2a), исходный черновик тикета это пропустил).
+  'Первичная претензия':            { blockIfPhaseIn: ['Претензия', 'Повторная претензия', 'Безакцептное списание'] },
+  'Требование поручителю':          { blockIfPhaseIn: ['Претензия', 'Повторная претензия', 'Безакцептное списание'] },
+  'Требование гаранту':             { blockIfPhaseIn: ['Претензия', 'Повторная претензия', 'Безакцептное списание'] },
+  'Требование отраслевому госоргану': { blockIfPhaseIn: ['Претензия', 'Повторная претензия', 'Безакцептное списание'] },
+  // корзина D — вне маршрута, первая веха своего контура (числовой порог + группа
+  // «уже вошли в этот контур» — см. blockIfPhaseIn в preconditionReason ниже)
+  'Извещение об обращении на залог':          { minLevel: 1, blockIfPhaseIn: ['Извещение'] },
+  'Заявление об установлении правопреемника': { minLevel: 1, blockIfPhaseIn: ['Заявление об установлении правопреемника', 'Решение суда (отсутствие правопреемника)'] },
+  'Заключение комиссии о безнадёжности':      { minLevel: 3, blockIfPhaseIn: ['Признана безнадёжной', 'Списана'] },
+  // корзина F — без определённой фазы, наш документ, без basisKinds (числовой порог)
+  'Исковое заявление':                          { minLevel: 1 },
+  'Заявление о выдаче судебного приказа':       { minLevel: 1 },
+  'Исковое заявление на понуждение':            { minLevel: 1 },
+  'Заявление о восстановлении пропущенных сроков': { minLevel: 1 },
+  'Заявление на банкротство':                   { minLevel: 3 },
+  'Письмо в правоохранительные органы':         { minLevel: 1 },
+  'Письмо в ПССИ':                              { minLevel: 2 },
+  // корзина E — без определённой фазы, наш документ, есть basisKinds (живая мера-основание)
+  'Уточнение исковых требований':                          { basis: true },
+  'Увеличение исковых требований':                         { basis: true },
+  'Уменьшение исковых требований':                         { basis: true },
+  'Заявление об изменении способа и порядка исполнения':   { basis: true },
+  'Заявление о выдаче исполнительных листов':              { basis: true },
+  'Заявление по вновь открывшимся обстоятельствам':        { basis: true },
+  'Заявление по новым обстоятельствам':                    { basis: true },
+  'Исковое возражение':                                    { basis: true },
+  'Возражение на апелляционную жалобу':                    { basis: true },
+  'Возражение на кассационную жалобу':                     { basis: true },
+  'Частная жалоба':                                        { basis: true },
+  'Апелляционная жалоба':                                  { basis: true },
+  'Кассационная жалоба':                                   { basis: true },
+  'Соглашение о добровольном исполнении':                  { basis: true },
+};
 /* ============================================================
    RULES — ЖИВОЙ СЛОЙ ПРАВИЛ доступности мер (редактируется на #settings).
    Сид = глубокие копии констант выше; RULES_DEFAULTS заморожен → источник сброса.
    Все гейты и рендеры читают RULES.*, а не литералы. Персист — ключ RULES_KEY.
-   CONTOUR_LEVEL не редактируется (остаётся константой). ============ */
+   CONTOUR_LEVEL/CONTOURS не редактируются (легаси, наряд п.5б-ii ниже). ============ */
 const deepClone = o => JSON.parse(JSON.stringify(o));
 function deepFreeze(o){ Object.values(o).forEach(v=>{ if(v && typeof v==='object') deepFreeze(v); }); return Object.freeze(o); }
 const RULES_DEFAULTS = deepFreeze({
-  measureSubdiv: deepClone(MEASURE_SUBDIV),
-  sectionSubdiv: deepClone(SECTION_SUBDIV),
-  roleSubdiv:    deepClone(ROLE_SUBDIV),
-  sectionClevel: deepClone(SECTION_CLEVEL),
-  gates:         deepClone(GATES),
-  contourPhases: Object.fromEntries(Object.keys(CONTOURS).map(c=>[c, CONTOURS[c].phases.slice()])),
+  measureSubdiv:  deepClone(MEASURE_SUBDIV),
+  sectionSubdiv:  deepClone(SECTION_SUBDIV),
+  roleSubdiv:     deepClone(ROLE_SUBDIV),
+  gates:          deepClone(GATES),
+  preconditions:  deepClone(PRECONDITIONS),
 });
 let RULES = deepClone(RULES_DEFAULTS);
 /* Журнал правок правил (НП-9) живёт рядом с правилами, но не входит в RULES_DEFAULTS:
    сброс правил к дефолту не стирает историю — он в неё дописывается. */
 RULES.log = [];
-const phasesOf = c => (RULES.contourPhases[c] || (CONTOURS[c] ? CONTOURS[c].phases : []));
+/* Наряд п.5б-ii: RULES.contourPhases снят вместе со старой вкладкой-перестановкой фаз
+   (была доказанно без единого наблюдаемого эффекта с 5б-i — ни один гейт порядок фаз
+   внутри контура не читает, только принадлежность множеству). phasesOf читает CONTOURS
+   напрямую; сама эта функция и contourOf/contourOfPhase ниже — legacy (см. комментарий
+   у CONTOUR_LEVEL выше), потребителей у них не осталось нигде в коде. */
+const phasesOf = c => (CONTOURS[c] ? CONTOURS[c].phases : []);
 function contourOfPhase(ph){ for(const c in CONTOURS){ if(phasesOf(c).includes(ph)) return c; } return null; }
-/* Контур — физически остаётся (экран #settings, карта 5б-ii), но гейт регистрации на
-   нём больше не стоит — наряд п.5б-i (МП-6) снял sequenceReason, заменил
-   preconditionReason (ниже), который CONTOURS/contourOf не читает вовсе. */
 const contourOf = r => contourOfPhase(phaseOf(r)) || 'К0';
 /* Ранг фазы для максимума (наряд п.5а, МП5-12). Наряд п.5б-i (МП-6) упростил: финальная
    формула phaseSetter (выше по файлу) вызывает phaseRank ТОЛЬКО на маршрутных фазах —
    вне-маршрутная ветка (К2/К5/К6/К7) возвращает последнюю веху напрямую, до вызова
    phaseRank вовсе (см. её комментарий) — поэтому ранг сводится к чистой позиции в
-   ROUTE_ORDER, без обращения к CONTOURS/CONTOUR_LEVEL (сняты из машины гейта этой
-   картой, физически остаются только ради экрана #settings, карта 5б-ii). */
+   ROUTE_ORDER, без обращения к CONTOURS/CONTOUR_LEVEL. */
 function phaseRank(ph){ return ROUTE_ORDER.indexOf(ph); }
 
 /* СТ-4/СТ-5 (ADR-0040) — состояние лица: банкротство/правопреемство читаются прямо из
@@ -2375,68 +2437,9 @@ const STAGE_RANK = { 'Наблюдение':0, 'Досудебный поряд�
    на маршруте) · порог эскалации (`minLevel`, числом — там, где сегодняшний гейт не
    различал фазу внутри раздела, только раздел целиком) · требуемый факт (`basis` —
    жива мера-основание одного из `kindOf(kind).basisKinds`, по ЭТОЙ ЖЕ цели, ADR-0029).
-   Разбор всех ~56 видов (throwaway анализатор, наряд-карта .scratch/collection-gejt-
-   predusloviy/issues/02) свёлся в PRECONDITIONS ниже; кинды без записи — без предусловия
-   (чисто информационные виды либо виды, чей сегодняшний порог тривиален — раздел
-   «Досудебный», curL≥0 всегда истинно).
-   CONTOURS/CONTOUR_LEVEL/RULES.sectionClevel/RULES.contourPhases физически НЕ удалены —
-   их всё ещё читает экран #settings («Стадии»/«Предусловия», карта 5б-ii, следующая) —
-   но эта функция и её вызовы их больше не консультируют: числовые пороги ниже — снимок
-   тех же сегодняшних значений (ESCALATION_LEVEL), не рантайм-чтение снимаемой структуры. */
-const ESCALATION_LEVEL = {
-  'Досудебное урегулирование': 0,
-  'Претензия': 1, 'Повторная претензия': 1, 'Безакцептное списание': 1,
-  'Извещение': 2, 'Иск': 2, 'Решение суда': 2, 'Исполнительный лист': 2,
-  'Заявление об установлении правопреемника': 2, 'Решение суда (отсутствие правопреемника)': 2,
-  'На исполнении': 3,
-  'Инициирование банкротства': 4, 'Признано банкротом': 4, 'Завершена процедура банкротства': 4,
-  /* К7 нормализован на уровень 4 (было CONTOUR_LEVEL['К7']=5): обе его фазы терминальны —
-     isClosedReq рубит регистрацию раньше, чем этот порог вообще смотрится, разница
-     безопасна (проверено throwaway-смоуком, .scratch-карта issues/02). */
-  'Признана безнадёжной': 4, 'Списана': 4,
-};
-const PRECONDITIONS = {
-  // корзина A (карта issues/02) — маршрут, точный предшественник
-  'Повторная претензия':                      { requiredPhase: 'Претензия' },
-  'Безакцептное списание':                    { requiredPhase: 'Повторная претензия' },
-  // корзина B — маршрут, первая веха своего контура (порог тривиален — «Досудебный»
-  // cLevel 1, curL≥0 всегда истинно — но группа «уже вошли» всё равно нужна: без нее
-  // «Первичная претензия» осталась бы доступна и на фазе «Повторная претензия»/
-  // «Безакцептное списание», регрессия найдена смоуком, было BLOCKED-ALREADY-PAST
-  // у sequenceReason (2a), исходный черновик тикета это пропустил).
-  'Первичная претензия':            { blockIfPhaseIn: ['Претензия', 'Повторная претензия', 'Безакцептное списание'] },
-  'Требование поручителю':          { blockIfPhaseIn: ['Претензия', 'Повторная претензия', 'Безакцептное списание'] },
-  'Требование гаранту':             { blockIfPhaseIn: ['Претензия', 'Повторная претензия', 'Безакцептное списание'] },
-  'Требование отраслевому госоргану': { blockIfPhaseIn: ['Претензия', 'Повторная претензия', 'Безакцептное списание'] },
-  // корзина D — вне маршрута, первая веха своего контура (числовой порог + группа
-  // «уже вошли в этот контур» — см. blockIfPhaseIn в preconditionReason ниже)
-  'Извещение об обращении на залог':          { minLevel: 1, blockIfPhaseIn: ['Извещение'] },
-  'Заявление об установлении правопреемника': { minLevel: 1, blockIfPhaseIn: ['Заявление об установлении правопреемника', 'Решение суда (отсутствие правопреемника)'] },
-  'Заключение комиссии о безнадёжности':      { minLevel: 3, blockIfPhaseIn: ['Признана безнадёжной', 'Списана'] },
-  // корзина F — без определённой фазы, наш документ, без basisKinds (числовой порог)
-  'Исковое заявление':                          { minLevel: 1 },
-  'Заявление о выдаче судебного приказа':       { minLevel: 1 },
-  'Исковое заявление на понуждение':            { minLevel: 1 },
-  'Заявление о восстановлении пропущенных сроков': { minLevel: 1 },
-  'Заявление на банкротство':                   { minLevel: 3 },
-  'Письмо в правоохранительные органы':         { minLevel: 1 },
-  'Письмо в ПССИ':                              { minLevel: 2 },
-  // корзина E — без определённой фазы, наш документ, есть basisKinds (живая мера-основание)
-  'Уточнение исковых требований':                          { basis: true },
-  'Увеличение исковых требований':                         { basis: true },
-  'Уменьшение исковых требований':                         { basis: true },
-  'Заявление об изменении способа и порядка исполнения':   { basis: true },
-  'Заявление о выдаче исполнительных листов':              { basis: true },
-  'Заявление по вновь открывшимся обстоятельствам':        { basis: true },
-  'Заявление по новым обстоятельствам':                    { basis: true },
-  'Исковое возражение':                                    { basis: true },
-  'Возражение на апелляционную жалобу':                    { basis: true },
-  'Возражение на кассационную жалобу':                     { basis: true },
-  'Частная жалоба':                                        { basis: true },
-  'Апелляционная жалоба':                                  { basis: true },
-  'Кассационная жалоба':                                   { basis: true },
-  'Соглашение о добровольном исполнении':                  { basis: true },
-};
+   Данные записи — `PRECONDITIONS`/`ESCALATION_LEVEL`, теперь выше по файлу, перед
+   `RULES_DEFAULTS` (наряд п.5б-ii): запись живёт в живом слое `RULES.preconditions`,
+   правится экраном #settings (вкладка «Предусловия»), а не только релизом. */
 /* Живая мера одного из видов-оснований, целящая в ЭТУ ЖЕ цель (ADR-0029 — по
    пересечению целей, не по делу целиком). liveMeasuresOf(r) уже отфильтрован и по
    targets(r.id), и по !storno — готовый строительный блок, не новый обход журнала. */
@@ -2444,7 +2447,7 @@ const basisLiveFor = (r, kinds) => liveMeasuresOf(r).some(m => kinds.includes(m.
 function preconditionReason(r, kind){
   const kd = kindOf(kind);
   if(!kd || kd.source === 'внешний акт') return null;   // §3.4: предусловия к входящим документам не применяются
-  const pc = PRECONDITIONS[kind];
+  const pc = RULES.preconditions[kind];
   if(!pc) return null;                                  // нет записи — требуемого нет
   const cur = phaseOf(r);
   /* «Уже пройдено» (было sequenceReason 2a) — для видов позиции 0 своего контура
@@ -7973,7 +7976,7 @@ function resetDemo(){ try{ localStorage.removeItem(STORE_KEY); }catch(e){} locat
    ремень безопасности: он дешевле, чем гарантия, что миграция нигде не промахнётся.
    ============================================================ */
 const RULES_KEY='asubk-collection-rules-v1';
-const RULES_SCHEMA=2;                                   // 2 — волна НП: roleSubdiv стал массивом, добавлен log
+const RULES_SCHEMA=3;                                   // 3 — наряд п.5б-ii: sectionClevel/contourPhases сняты, добавлен preconditions
 function persistRules(){ try{ localStorage.setItem(RULES_KEY, JSON.stringify({ v:RULES_SCHEMA, rules:RULES })); }catch(e){} }
 /* Слияние одного раздела: ключи берём у дефолта (чужие отбрасываем), значения — у
    сохранённого, если оно годное. valid(k, saved, def) → значение либо null. */
@@ -7994,17 +7997,32 @@ function mergeRules(saved){
     sv => uniq(Object.keys(RULES_DEFAULTS.measureSubdiv).concat(Object.keys(sv).filter(k=>MEASURE_KIND_NAMES.includes(k)))));
   RULES.sectionSubdiv = mergeSection('sectionSubdiv', saved.sectionSubdiv, (k,v)=>codesOnly(v));
   RULES.roleSubdiv    = mergeSection('roleSubdiv',    saved.roleSubdiv,    (k,v)=>codesOnly(v));
-  RULES.sectionClevel = mergeSection('sectionClevel', saved.sectionClevel, (k,v)=>Number.isInteger(v)&&v>=0&&v<=5?v:null);
   /* Гейт сливается ПОЛЕМ: из сохранённого берётся только выключатель, предмет/орган/
      пункт всегда приходят из справочника — они не редактируются (НП-10). */
   RULES.gates = mergeSection('gates', saved.gates, (k,v,def)=> (v&&typeof v==='object') ? { ...deepClone(def), off:!!v.off } : null);
-  /* Порядок фаз: сохранённый порядок уважается, но состав фаз — дефолтный. Незнакомая
-     фаза отбрасывается, недостающая дописывается в хвост: контур не может остаться
-     без фазы, которую добавила новая версия. */
-  RULES.contourPhases = mergeSection('contourPhases', saved.contourPhases, (k,v,def)=>{
-    if(!Array.isArray(v)) return null;
-    const keep=v.filter(ph=>def.includes(ph));
-    return keep.concat(def.filter(ph=>!keep.includes(ph)));
+  /* Предусловие сливается ПОЛЕМ, но, в отличие от гейта, редактируются ВСЕ четыре поля
+     (наряд п.5б-ii, decision 4) — не только выключатель. Каждое поле валидируется
+     отдельно и независимо от остальных трёх; негодное поле молча отбрасывается, годные
+     остаются — одна плохая правка не рушит всю запись вида. Пустой результат ({}) —
+     легитимное состояние: администратор снял все требования у вида целиком, и
+     preconditionReason уже воспринимает такую запись как «требуемого нет» (falls through
+     все проверки → null), то же самое, что и полное отсутствие ключа. */
+  RULES.preconditions = mergeSection('preconditions', saved.preconditions, (k,v)=>{
+    if(!v || typeof v!=='object') return null;
+    const out={};
+    if(typeof v.requiredPhase==='string' && ESCALATION_LEVEL[v.requiredPhase]!=null) out.requiredPhase=v.requiredPhase;
+    if(Number.isInteger(v.minLevel) && v.minLevel>=0 && v.minLevel<=4) out.minLevel=v.minLevel;
+    if(typeof v.basis==='boolean') out.basis=v.basis;
+    /* PHASE_UNIVERSE, не uniq(): uniq сортирует по алфавиту (см. её определение) — на
+       массиве, где порядок семантически не важен для preconditionReason (только
+       .includes), это не баг поведения, НО ломает isChanged: JSON.stringify-сравнение
+       считает переупорядоченный при каждом restoreRules массив «изменённым» против
+       дефолта даже без единой правки администратора — ложный «изменено» после
+       перезагрузки страницы. Канонический порядок PHASE_UNIVERSE устойчив к перезагрузке
+       и совпадает с порядком в исходном PRECONDITIONS/toggle-редактором (найдено этим же
+       регрессионным смоуком, наряд п.5б-ii). */
+    if(Array.isArray(v.blockIfPhaseIn)) out.blockIfPhaseIn=PHASE_UNIVERSE.filter(ph=>v.blockIfPhaseIn.includes(ph));
+    return out;
   });
   RULES.log = Array.isArray(saved.log) ? saved.log.filter(e=>e&&typeof e==='object') : [];
 }
@@ -9477,11 +9495,15 @@ function resetFilters(){ filterState={}; curPage=1; renderFilterBar(); renderLis
    Правила действуют ВПЕРЁД: уже зарегистрированные меры они не отменяют (НП-8).
    ============================================================ */
 let settingsTab='v9';
-const SETTINGS_TABS=[['v9','В-9 «Кому»'],['stage','Стадии'],['gates','Гейты'],['phases','Предусловия']];
-const SETTINGS_TAB_SECTIONS={ v9:['measureSubdiv','sectionSubdiv','roleSubdiv'], stage:['sectionClevel'],
-  gates:['gates'], phases:['contourPhases'] };
+/* Наряд п.5б-ii (МП-6, ADR-0045): вкладка «Стадии» снята вместе с RULES.sectionClevel —
+   ступени эскалации раздела больше нет, есть предусловие вида. «Предусловия» теперь
+   ведёт на настоящую запись (RULES.preconditions), не на старую вкладку-перестановку
+   фаз внутри контура (была подписана этим именем ошибочно, §14.4 ⚠️-врезка). */
+const SETTINGS_TABS=[['v9','В-9 «Кому»'],['gates','Гейты'],['preconditions','Предусловия']];
+const SETTINGS_TAB_SECTIONS={ v9:['measureSubdiv','sectionSubdiv','roleSubdiv'],
+  gates:['gates'], preconditions:['preconditions'] };
 const RULES_SECTION_LABEL={ measureSubdiv:'В-9: правила видов', sectionSubdiv:'В-9: правила разделов',
-  roleSubdiv:'Роль → подразделение', sectionClevel:'Стадии', gates:'Гейты', contourPhases:'Порядок фаз' };
+  roleSubdiv:'Роль → подразделение', gates:'Гейты', preconditions:'Предусловия' };
 const setState={ changedOnly:false };
 let ruleLogOpen=false, SET_BUILT=false;
 const jsq = s => String(s).replace(/'/g,"\\'");
@@ -9502,9 +9524,7 @@ const changedAll=()=>SETTINGS_TABS.reduce((a,[k])=>a+changedInTab(k),0);
 /* ---- РАДИУС ПРАВКИ (НП-7): сколько живых требований и мер правило задевает.
    Всё считается из тех же функций, которыми работают гейты, — счётчиков не храним. ---- */
 const measuresOfKind = kind => PROCESSES.reduce((a,p)=>a+(p.measures||[]).filter(m=>m.kind===kind&&!m.storno).length,0);
-const openAtLevel    = lvl  => allReqs().filter(r=>((CONTOUR_LEVEL[contourOf(r)] ?? 0)+1) >= lvl).length;
 const reqsInPhase    = ph   => allReqs().filter(r=>phaseOf(r)===ph).length;
-const reqsInContour  = c    => allReqs().filter(r=>contourOf(r)===c).length;
 const kindsOfSection = sec  => MEASURE_KIND_NAMES.filter(k=>sectionOf(k)===sec);
 const inheritedOf    = sec  => kindsOfSection(sec).filter(k=>!RULES.measureSubdiv[k]).length;
 /* Гейт считаем контрфактически: сколько требований он держал БЫ включённым. Иначе у
@@ -9621,15 +9641,8 @@ function setClear(id){
 let SET_N=[0,0];
 function setCount(shown, total){ SET_N=[shown, total]; }
 function setPrintCount(){ setEl('setCount').innerHTML = `показано <b>${SET_N[0]}</b> из ${SET_N[1]}`; }
-/* Фильтр по разделу к фазам не применяется: контуры К0…К7 — не разделы справочника. */
-function setToolbarFor(tab){
-  const on = tab!=='phases';
-  ['setSecLbl','setSecWrap'].forEach(id=>{ const el=setEl(id); if(el) el.style.display=on?'':'none'; });
-  if(!on && setEl('setSec')) setEl('setSec').value='';
-}
 function setRefresh(){
-  setToolbarFor(settingsTab);
-  const body={v9:renderSettingsV9,stage:renderSettingsStage,gates:renderSettingsGates,phases:renderSettingsPhases}[settingsTab]();
+  const body={v9:renderSettingsV9,gates:renderSettingsGates,preconditions:renderSettingsPreconditions}[settingsTab]();
   setEl('settingsHost').innerHTML=body;
   setPrintCount(); setChips();
 }
@@ -9783,47 +9796,6 @@ function resetRuleKey(section, key, label){
   editRule(section, key, def===undefined?undefined:deepClone(def), `Возврат к дефолту: ${label}`);
 }
 
-/* ============ ВКЛАДКА «Стадии» ============
-   Ступень называется ИМЕНЕМ контура, а не числом 0…5: «раздел открыт с досудебной
-   стадии» читается, «1» — нет. Радиус — сколько требований раздел видят сейчас и
-   сколько увидят после правки; закрытие раздела для всех подтверждается отдельно. */
-const CLEVEL_STEPS=[[0,'с самого начала (К0)'],[1,'с досудебной (К1)'],[2,'с принудительной (К2/К3/К5)'],
-  [3,'с исполнительной (К4)'],[4,'с банкротной (К6)'],[5,'с безнадёжной (К7)']];
-const clevelLabel = n => (CLEVEL_STEPS.find(s=>s[0]===n)||[n,String(n)])[1];
-function renderSettingsStage(){
-  let shown=0;
-  const rows=SECTION_ORDER.map(sec=>{
-    const cur=RULES.sectionClevel[sec] ?? 1, changed=isChanged('sectionClevel',sec);
-    if(!setPass(sec, sec, changed)) return '';
-    shown++;
-    const opts=CLEVEL_STEPS.map(([n,l])=>`<option value="${n}" ${cur===n?'selected':''}>${l}</option>`).join('');
-    const n=openAtLevel(cur), kinds=kindsOfSection(sec).length;
-    return `<tr class="${changed?'row-changed':''}">
-      <td>${sec}<div class="radius">${kinds} ${plural(kinds,'вид','вида','видов')} меры</div></td>
-      <td><select${roAttr()} onchange="setSectionClevel('${jsq(sec)}',this.value)">${opts}</select></td>
-      <td class="radius">${n?`доступен ${n} ${plural(n,'требованию','требованиям','требованиям')} из ${allReqs().length}`:'<b>не доступен никому</b>'}</td>
-      <td>${changed?`<button class="btn btn-tint btn-sm"${roAttr()} onclick="resetRuleKey('sectionClevel','${jsq(sec)}','стадия раздела «${jsq(sec)}»')">вернуть дефолт</button>`:'<span class="radius">дефолт</span>'}</td></tr>`;
-  }).join('');
-  setCount(shown,SECTION_ORDER.length);
-  return `<p class="section-note">Ступень эскалации, начиная с которой раздел доступен: раздел открывается, когда контур требования её достиг (разрешён вход на текущую ступень или следующую). Ступень названа контуром, а не номером. Правило действует на регистрацию новых мер — уже зарегистрированные оно не отменяет.</p>
-    <table class="settings-grid" style="max-width:900px"><thead><tr><th>Раздел</th><th>Доступен</th><th>Радиус</th><th></th></tr></thead>
-    <tbody>${rows||`<tr><td colspan="4" class="radius">Под фильтр не попал ни один раздел.</td></tr>`}</tbody></table>
-    ${tabResetBtn('stage')}`;
-}
-function setSectionClevel(section, level){
-  if(!rulesGuard()){ renderSettings(); return; }
-  const next=Number(level), was=RULES.sectionClevel[section] ?? 1;
-  if(next===was) return;
-  const before=openAtLevel(was), after=openAtLevel(next);
-  /* Подтверждение спрашиваем на СУЖЕНИЕ доступа, а не только на полный ноль: ступеней
-     шесть, и «ноль» ими недостижим (самая высокая, К7, оставляет 10 требований) —
-     проверка на ноль осталась бы мёртвой веткой. Сужение же видно всегда и называется
-     числом: «раздел уйдёт у 39 требований» — это и есть то, что теряется. */
-  if(after<before && !confirm(`Раздел «${section}» станет доступен ${after} требованиям вместо ${before}: он уйдёт у ${before-after} ${plural(before-after,'требования','требований','требований')}.${after?'':'\n\nПосле правки раздел не будет доступен НИ ОДНОМУ требованию.'}\n\nПродолжить?`)){ renderSettings(); return; }
-  editRule('sectionClevel', section, next, `Стадия: «${section}» — ${clevelLabel(was)} → ${clevelLabel(next)} (доступен ${before} → ${after})`);
-  toast(`«${section}»: ${clevelLabel(next)}. Доступен требованиям: ${before} → ${after}`, after?'ok':'warn');
-}
-
 /* ============ ВКЛАДКА «Гейты» ============
    Пять колонок: вид · включён · ПРЕДМЕТ вопроса · орган · пункт. Предмет показан,
    потому что именно по нему гейт ищет решение органа (КР-10) — раньше в таблице
@@ -9865,49 +9837,116 @@ function toggleGate(kind){
   toast(`Гейт «${kind}» ${next.off?'отключён':'включён'}`, next.off?'warn':'ok');
 }
 
-/* ============ ВКЛАДКА «Предусловия» ============
-   Правит только ПОРЯДОК фаз внутри контура — требование последовательности для будущих
-   вех. Перестановка остаётся разрешённой: журнал прошлого она не трогает (фаза — свёртка
-   журнала, ADR-0003), но требования, стоящие в этих фазах сейчас, посчитаны и показаны —
-   вслепую переставлять нечего. Свёртка «вид меры × исход → фаза» здесь НЕ редактируется:
-   она живёт в справочнике `MEASURE_KINDS[].outcomes[].setsPhase` и меняется релизом, не
-   настройкой (ADR-0033 — граница живого слоя правил: предусловия правятся, свёртка — нет). */
-function renderSettingsPhases(){
-  let shown=0, total=0;
-  const blocks=Object.keys(CONTOURS).map(c=>{
-    const phases=phasesOf(c), changed=isChanged('contourPhases',c), inC=reqsInContour(c);
-    const items=phases.map((ph,i)=>{
-      total++;
-      if(!setPass(ph+' '+c+' '+CONTOURS[c].name, null, changed)) return '';
-      shown++;
-      const n=reqsInPhase(ph);
-      return `<tr class="${changed?'row-changed':''}">
-        <td style="text-align:left">${i+1}. ${ph}</td>
-        <td class="radius">${n?`в этой фазе ${n} ${plural(n,'требование','требования','требований')}`:'требований нет'}</td>
-        <td><button class="btn btn-tint btn-sm" ${i===0?'disabled':roAttr()} onclick="movePhase('${c}',${i},-1)" title="Вверх">↑</button>
-            <button class="btn btn-tint btn-sm" ${i===phases.length-1?'disabled':roAttr()} onclick="movePhase('${c}',${i},1)" title="Вниз">↓</button></td></tr>`;
-    }).join('');
-    if(!items) return '';
-    return `<div class="phase-contour" style="margin-bottom:16px">
-      <p class="section-h">${c} · ${CONTOURS[c].name}
-        <span class="radius" style="font-weight:400"> · требований в контуре: ${inC}${changed?' · порядок изменён':''}</span>
-        ${changed?`<button class="btn btn-tint btn-sm" style="margin-left:8px"${roAttr()} onclick="resetRuleKey('contourPhases','${c}','порядок фаз контура ${c}')">вернуть дефолт</button>`:''}</p>
-      <table class="settings-grid" style="max-width:760px"><tbody>${items}</tbody></table></div>`;
-  }).join('');
-  setCount(shown,total);
-  return `<p class="section-note">Порядок вех внутри контура задаёт последовательность-предусловие для будущих мер-вех: веха на позиции i требует предыдущей фазы φ(i−1). Состав фаз закрыт — только перестановка. Перестановка действует вперёд: фаза требования — свёртка его журнала мер, поэтому уже зарегистрированные вехи она не переписывает и требования по фазам не перекладывает. Соответствие «вид меры × исход → фаза» здесь не редактируется — оно в справочнике видов мер и меняется релизом.</p>
-    ${blocks||`<p class="radius">Под фильтр не попала ни одна фаза.</p>`}
-    ${tabResetBtn('phases')}`;
+/* ============ ВКЛАДКА «Предусловия» (наряд п.5б-ii, МП-6, ADR-0045/0026) ============
+   Настоящая запись предусловия вида — не порядок фаз внутри контура (была здесь ошибочно
+   до этой карты, §14.4 ⚠️-врезка). Показывает ВСЕ 59 видов (паритет с В-9/Гейтами):
+   вид с записью (`RULES.preconditions[k]`) — контролы; «внешний акт» (25) — предусловия к
+   входящим документам не применяются (§3.4); внутренний вид без записи (4) — «без
+   предусловия». Новую запись экран не заводит — только правит существующие (decision 5).
+   Все четыре поля записи редактируются НЕЗАВИСИМО (decision 4): требуемая фаза, порог
+   эскалации, требуемый факт-основание, запрещающие фазы. Механизм-тип (какое из трёх
+   первых полей у вида есть) берётся из ДЕФОЛТА (`RULES_DEFAULTS`, не текущего значения) —
+   он не меняется правкой, меняется только значение внутри. */
+const PHASE_UNIVERSE = Object.keys(ESCALATION_LEVEL);
+const PRECOND_LEVELS = [
+  [0, 'с самого начала (Наблюдение)'],
+  [1, 'с досудебной (претензия / повторная / безакцепт)'],
+  [2, 'с судебной или внесудебного залога (иск, решение суда, ИЛ, извещение, правопреемство)'],
+  [3, 'с исполнительного производства'],
+  [4, 'с банкротства или безнадёжности'],
+];
+const precondLevelLabel = n => (PRECOND_LEVELS.find(s=>s[0]===n)||[n,String(n)])[1];
+const preconditionKindOf = k => {
+  const d=RULES_DEFAULTS.preconditions[k]; if(!d) return null;
+  if(d.requiredPhase) return 'phase'; if(d.minLevel!=null) return 'level'; if(d.basis) return 'basis';
+  return null;
+};
+const preconditionHolds = kind => allReqs().filter(r=>preconditionReason(r,kind)).length;
+/* Контрфактика по образцу gateWouldHold, но без снятия/возврата флага — у предусловия нет
+   выключателя целиком, его роль тут не нужна: временно подставляем НОВОЕ значение поля,
+   считаем, возвращаем старое — тот же приём, другая точка приложения. */
+function withPrecondition(kind, next, fn){
+  const prev=RULES.preconditions[kind];
+  RULES.preconditions[kind]=next;
+  const out=fn();
+  RULES.preconditions[kind]=prev;
+  return out;
 }
-function movePhase(contour, i, dir){
+function editPrecondition(kind, next, what){
+  const before=preconditionHolds(kind);
+  const after=withPrecondition(kind, next, ()=>preconditionHolds(kind));
+  editRule('preconditions', kind, next, `${what} (держит ${before} → ${after})`);
+  toast(`«${kind}»: ${what.split(':')[1]||what}. Держит требований: ${before} → ${after}`, after>before?'warn':'ok');
+}
+function setPreconditionPhase(kind, phase){
   if(!rulesGuard()){ renderSettings(); return; }
-  const arr=(RULES.contourPhases[contour]||[]).slice();
-  const j=i+dir; if(j<0 || j>=arr.length) return;
-  const inC=reqsInContour(contour), a=arr[i], b=arr[j];
-  const nA=reqsInPhase(a), nB=reqsInPhase(b);
-  if((inC||nA||nB) && !confirm(`Поменять местами фазы «${a}» и «${b}» контура ${contour}?\n\nВ контуре сейчас ${inC} ${plural(inC,'требование','требования','требований')} (в этих двух фазах — ${nA+nB}). Порядок задаёт предусловие для БУДУЩИХ вех; фазы уже зарегистрированных мер не изменятся.`)){ renderSettings(); return; }
-  [arr[i],arr[j]]=[arr[j],arr[i]];
-  editRule('contourPhases', contour, arr, `Порядок фаз ${contour}: «${a}» ↔ «${b}» (в контуре ${inC} ${plural(inC,'требование','требования','требований')})`);
+  const cur=RULES.preconditions[kind]||{};
+  if((phase||undefined)===cur.requiredPhase) return;
+  const next=phase?{...cur, requiredPhase:phase}:Object.fromEntries(Object.entries(cur).filter(([k])=>k!=='requiredPhase'));
+  editPrecondition(kind, next, `Предусловие «${kind}»: требуемая фаза «${cur.requiredPhase||'—'}» → «${phase||'—'}»`);
+}
+function setPreconditionLevel(kind, level){
+  if(!rulesGuard()){ renderSettings(); return; }
+  const cur=RULES.preconditions[kind]||{}, next={...cur, minLevel:Number(level)};
+  if(next.minLevel===cur.minLevel) return;
+  editPrecondition(kind, next, `Предусловие «${kind}»: порог «${precondLevelLabel(cur.minLevel)}» → «${precondLevelLabel(next.minLevel)}»`);
+}
+function togglePreconditionBasis(kind){
+  if(!rulesGuard()){ renderSettings(); return; }
+  const cur=RULES.preconditions[kind]||{}, next={...cur, basis:!cur.basis};
+  editPrecondition(kind, next, `Предусловие «${kind}»: требуемый факт-основание ${next.basis?'включён':'выключен'}`);
+}
+function togglePreconditionBlock(kind, phase){
+  if(!rulesGuard()){ renderSettings(); return; }
+  const cur=RULES.preconditions[kind]||{}, list=(cur.blockIfPhaseIn||[]).slice();
+  const i=list.indexOf(phase);
+  if(i>=0) list.splice(i,1); else list.push(phase);
+  const next=list.length?{...cur, blockIfPhaseIn:PHASE_UNIVERSE.filter(p=>list.includes(p))}
+                        :Object.fromEntries(Object.entries(cur).filter(([k])=>k!=='blockIfPhaseIn'));
+  editPrecondition(kind, next, `Предусловие «${kind}»: «уже неактуальна на» ${next.blockIfPhaseIn?next.blockIfPhaseIn.join(' / '):'снято'}`);
+}
+function renderSettingsPreconditions(){
+  let shown=0;
+  const rows=MEASURE_KIND_NAMES.map(k=>{
+    const kd=kindOf(k), sec=sectionOf(k), changed=isChanged('preconditions',k);
+    if(!setPass(k, sec, changed)) return '';
+    shown++;
+    if(kd.source==='внешний акт')
+      return `<tr><td>${k}<div class="radius">${sec}</div></td>
+        <td colspan="2" class="radius">входящий документ — предусловия не применяются (§3.4)</td>
+        <td></td><td></td></tr>`;
+    const pc=RULES.preconditions[k], kind2=preconditionKindOf(k);
+    if(!kind2)
+      return `<tr class="${changed?'row-changed':''}"><td>${k}<div class="radius">${sec}</div></td>
+        <td colspan="2" class="radius">без предусловия</td><td class="radius">—</td><td></td></tr>`;
+    const what = kind2==='phase'
+      ? `<span class="radius">Требуемая фаза</span><br><select${roAttr()} onchange="setPreconditionPhase('${jsq(k)}',this.value)">
+          <option value="">— нет —</option>${PHASE_UNIVERSE.map(ph=>`<option value="${escAttr(ph)}" ${pc.requiredPhase===ph?'selected':''}>${ph}</option>`).join('')}</select>`
+      : kind2==='level'
+      ? `<span class="radius">Порог эскалации</span><br><select${roAttr()} onchange="setPreconditionLevel('${jsq(k)}',this.value)">
+          ${PRECOND_LEVELS.map(([n,l])=>`<option value="${n}" ${pc.minLevel===n?'selected':''}>${l}</option>`).join('')}</select>`
+      : `<label><input type="checkbox" ${pc.basis?'checked':''}${roAttr()} onchange="togglePreconditionBasis('${jsq(k)}')"> требует живую меру-основание</label>
+          <div class="radius">${(kd.basisKinds||[]).join(' / ')||'—'}</div>`;
+    const blockList = pc.blockIfPhaseIn||[];
+    /* Чекбоксы, не <select multiple>: переключение независимо для каждой фазы одним
+       кликом. Мульти-select без Ctrl/Cmd снимает остальные выделения при клике — для
+       быстрого вкл/выкл одной фазы это неверная модель взаимодействия. */
+    const blockUi = `<div style="display:flex;flex-wrap:wrap;gap:2px 10px;max-width:280px">${PHASE_UNIVERSE.map(ph=>
+      `<label style="white-space:nowrap"><input type="checkbox" ${blockList.includes(ph)?'checked':''}${roAttr()} onchange="togglePreconditionBlock('${jsq(k)}','${jsq(ph)}')"> ${ph}</label>`
+    ).join('')}</div>`;
+    const n=preconditionHolds(k);
+    return `<tr class="${changed?'row-changed':''}">
+      <td>${k}<div class="radius">${sec}</div></td>
+      <td>${what}</td>
+      <td>${blockUi}</td>
+      <td class="radius">${n?`держит ${n} ${plural(n,'требование','требования','требований')}`:'никого не держит'}</td>
+      <td>${changed?`<button class="btn btn-tint btn-sm"${roAttr()} onclick="resetRuleKey('preconditions','${jsq(k)}','предусловие «${jsq(k)}»')">вернуть дефолт</button>`:'<span class="radius">дефолт</span>'}</td></tr>`;
+  }).join('');
+  setCount(shown,MEASURE_KIND_NAMES.length);
+  return `<p class="section-note">Предусловие вида — требуемая фаза, порог эскалации либо требуемый факт-основание (ровно один из трёх, задаётся справочником) плюс независимый список «уже неактуальна на» — фазы, где повторная регистрация не имеет смысла (эта же мера их открыла, или дело ушло дальше). Правило действует вперёд: уже зарегистрированные меры оно не отменяет.</p>
+    <table class="settings-grid"><thead><tr><th>Вид меры</th><th>Требуется</th><th>Уже неактуальна на</th><th>Радиус</th><th></th></tr></thead>
+    <tbody>${rows||`<tr><td colspan="5" class="radius">Под фильтр не попал ни один вид.</td></tr>`}</tbody></table>
+    ${tabResetBtn('preconditions')}`;
 }
 
 renderRoleSel(); restoreRules(); restoreState(); restoreNav(); renderNav(); renderFilterBar(); renderChips(); renderList(); restoreFromHash();
