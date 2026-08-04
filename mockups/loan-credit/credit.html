@@ -5183,6 +5183,7 @@ if (typeof document !== 'undefined') {
     detailTrancheNo = (c.tranches[0] && c.tranches[0].no) || 1;
     calcConsolidated = false;
     condScope = 'credit'; cardAsOf = TODAY; condBasisFilter = 'all'; condOpenGroup = null; condOpenTranche = null; condMatrixTranche = null;
+    dogovorExtraTab = 'subject';
     planYear = pd(TODAY).getFullYear(); planOpenMonth = null;   // состояние вкладки «План» — своё на каждую карточку
     document.getElementById('view-list').style.display = 'none';
     const dv = document.getElementById('view-detail');
@@ -5283,6 +5284,7 @@ if (typeof document !== 'undefined') {
   let condOpenTranche = null;       // № транша активной вкладки внутри разворота; null/чужой → первый транш группы
   let condMatrixTranche = null;     // № транша активной вкладки сводной матрицы (свой, независимо от журнала)
   let condMatrixOpen = false, condTemplateOpen = false;
+  let dogovorExtraTab = 'subject';  // активная вкладка тройки «Предмет/Освобождение/Перевод» под «Основанием выдачи»
   /* Волна 03.08.2026: «Транши и освоение» → «Транши», из «Расчётов» выделена вкладка
      «График» (план возврата). Три предмета — три вкладки: Транши (сколько выдали) ·
      График (что должны вернуть) · Расчёты (что начислено и погашено).
@@ -5640,38 +5642,36 @@ if (typeof document !== 'undefined') {
           </div>
         </div>
 
-        <div class="pcard wide">
-          <div class="section-h">Предмет кредита</div>
-          ${cgrid([{h:'Вид'},{h:'Наименование'},{h:'Кол-во',r:1},{h:'Стоимость',r:1}].concat(subjEditableDirect?[{h:''}]:[]), subjRows, {empty:'Предмет не задан'})}
-          <div class="gtoolbar">${subjEditableDirect
-            ? roleBtn('editSubject','Добавить предмет','CR.openSubjectAddModal()')
-            : roleBtn('addSubjectRecords','Изменить предмет кредита (доп. соглашением)','CR.openSubjectAgrModal()')}</div>
-        </div>
-
-        <!-- Раскладка 03.08.2026 (решение пользователя): «Основание выдачи» ушло на всю
-             ширину — четыре ссылки на внешние сущности читаются в строку, а не в столбик
-             по две. Два действия-исключения — «Освобождение от порога» и «Перевод долга» —
-             сведены в нижнюю строку парой: оба редки, оба меняют не реквизит, а режим
-             (порог обеспечения / субъект долга), и оба не нужны при обычном чтении
-             карточки. Верх вкладки остался паспортом договора. -->
-        <div class="pcard">
-          <div class="section-h">Освобождение от порога обеспечения</div>
-          ${km?`<div class="f2">${fld('Вид решения', esc(km.kind))}${fld('Номер', esc(km.num))}${fld('Дата', esc(km.date))}${fld('Порог по решению', km.coverPct==null?null:(esc(km.coverPct)+' %'+(+km.coverPct===0?' — полное освобождение':'')))}${fld('Скан', esc(km.scan))}</div>`:''}
-          ${wv?`<div class="f2"${km?' style="margin-top:12px"':''}>${fld('Waiver комиссии по залогу',
-              'выдан '+esc(wv.when)+(d.coverage.ok?' <span class="pill neutral">не требуется — порог пройден</span>':' <span class="pill info">применён</span>'))}${fld('Обоснование', esc(wv.reason), {span:true, wrap:true})}</div>`:''}
-          <div class="gtoolbar">${roleBtn('setKmDecision','Указать решение КМ','CR.openKmModal()')}${roleBtn('waiver','Waiver залоговой комиссии','CR.openWaiverModal()')}</div>
-        </div>
-
-        <div class="pcard">
-          <div class="section-h">Перевод долга — смена заёмщика</div>
-          <!-- Шаг 17: вернулось из «Условий» (шаг 11 переносил сюда же, шаг 14 — обратно
-               в «Условия» «новых аргументов нет»; аргумент нашёлся шагом 15 — Р-21 прямо
-               говорит, что перевод долга в записи НЕ идёт, он меняет субъекта, а не
-               параметр, значит и в глоссарном смысле «Условием» не является). -->
-          ${dt?`<div class="f2">${fld('Прежний заёмщик', esc(dt.from&&dt.from.name))}${fld('Новый заёмщик', esc(dt.newBorrower&&dt.newBorrower.name))}
-                ${fld('Соглашение', esc(dt.agreement&&dt.agreement.num)+(dt.agreement&&dt.agreement.registered?' <span class="pill low">зарегистрировано</span>':''))}${fld('Дата перевода', esc(dt.date))}</div>`:''}
-          <div class="gtoolbar">${actBtn(c,'transferDebt',{},'Оформить перевод долга','CR.openTransferModal()')}</div>
-        </div>
+        <!-- Волна 04.08.2026 (решение пользователя): «Предмет кредита», «Освобождение от
+             порога» и «Перевод долга» были тремя отдельными карточками нижней раскладки
+             (см. историю ниже) — сведены в одну карточку-таб на всю ширину: три предмета
+             редкого/справочного чтения, показывать разом не нужно, а места на полке
+             «Основание выдачи» ↓ [таб] это экономит. -->
+        ${(()=>{
+          const tabs = [
+            { id:'subject', label:'Предмет кредита', body:
+              `${subjRows.length?cgrid([{h:'Вид'},{h:'Наименование'},{h:'Кол-во',r:1},{h:'Стоимость',r:1}].concat(subjEditableDirect?[{h:''}]:[]), subjRows):''}
+               <div class="gtoolbar">${subjEditableDirect
+                 ? roleBtn('editSubject','Добавить предмет','CR.openSubjectAddModal()')
+                 : roleBtn('addSubjectRecords','Изменить предмет кредита (доп. соглашением)','CR.openSubjectAgrModal()')}</div>` },
+            { id:'km', label:'Освобождение от порога обеспечения', body:
+              `${km?`<div class="f2">${fld('Вид решения', esc(km.kind))}${fld('Номер', esc(km.num))}${fld('Дата', esc(km.date))}${fld('Порог по решению', km.coverPct==null?null:(esc(km.coverPct)+' %'+(+km.coverPct===0?' — полное освобождение':'')))}${fld('Скан', esc(km.scan))}</div>`:''}
+               ${wv?`<div class="f2"${km?' style="margin-top:12px"':''}>${fld('Waiver комиссии по залогу',
+                   'выдан '+esc(wv.when)+(d.coverage.ok?' <span class="pill neutral">не требуется — порог пройден</span>':' <span class="pill info">применён</span>'))}${fld('Обоснование', esc(wv.reason), {span:true, wrap:true})}</div>`:''}
+               <div class="gtoolbar">${roleBtn('setKmDecision','Указать решение КМ','CR.openKmModal()')}${roleBtn('waiver','Waiver залоговой комиссии','CR.openWaiverModal()')}</div>` },
+            { id:'transfer', label:'Перевод долга — смена заёмщика', body:
+              /* Шаг 17: вернулось из «Условий» (шаг 11 переносил сюда же, шаг 14 — обратно
+                 в «Условия» «новых аргументов нет»; аргумент нашёлся шагом 15 — Р-21 прямо
+                 говорит, что перевод долга в записи НЕ идёт, он меняет субъекта, а не
+                 параметр, значит и в глоссарном смысле «Условием» не является). */
+              `${dt?`<div class="f2">${fld('Прежний заёмщик', esc(dt.from&&dt.from.name))}${fld('Новый заёмщик', esc(dt.newBorrower&&dt.newBorrower.name))}
+                    ${fld('Соглашение', esc(dt.agreement&&dt.agreement.num)+(dt.agreement&&dt.agreement.registered?' <span class="pill low">зарегистрировано</span>':''))}${fld('Дата перевода', esc(dt.date))}</div>`:''}
+               <div class="gtoolbar">${actBtn(c,'transferDebt',{},'Оформить перевод долга','CR.openTransferModal()')}</div>` },
+          ];
+          const sel = tabs.find(t=>t.id===dogovorExtraTab) ? dogovorExtraTab : tabs[0].id;
+          const bar = `<div class="subtabs">${tabs.map(t=>`<button class="subtab${t.id===sel?' active':''}" onclick="CR.setDogovorExtraTab('${t.id}')">${esc(t.label)}</button>`).join('')}</div>`;
+          return `<div class="pcard wide">${bar}${tabs.find(t=>t.id===sel).body}</div>`;
+        })()}
       </div>`;
   }
 
@@ -6630,6 +6630,7 @@ if (typeof document !== 'undefined') {
   CR.setCondFilter=function(v){ condBasisFilter=v; rerenderDetail(); };
   CR.toggleCondGroup=function(ref){ condOpenGroup = (condOpenGroup===ref?null:ref); condOpenTranche = null; rerenderDetail(); };
   CR.setCondTranche=function(n){ condOpenTranche = +n; rerenderDetail(); };
+  CR.setDogovorExtraTab=function(id){ dogovorExtraTab = id; rerenderDetail(); };
   CR.toggleCondMatrix=function(){ condMatrixOpen=!condMatrixOpen; rerenderDetail(); };
   CR.setCondMatrixTranche=function(n){ condMatrixTranche=+n; rerenderDetail(); };
   CR.toggleCondTemplate=function(){ condTemplateOpen=!condTemplateOpen; rerenderDetail(); };
