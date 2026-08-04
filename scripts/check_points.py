@@ -56,6 +56,7 @@ SCANNED = [
     "scripts/inspect/collection-check.mjs",
     "STATUS.md",
     "TODO.md",
+    "CONTEXT.md",
 ]
 
 # Files already carried over to the numbering in force. They are still checked for
@@ -73,6 +74,7 @@ MIGRATED = {
     "TODO.md",
     "mockups/collection/collection.html",
     "scripts/inspect/collection-check.mjs",
+    "CONTEXT.md",
 }
 
 # Deliberately out of scope, with the reason — printed so the exclusion stays honest.
