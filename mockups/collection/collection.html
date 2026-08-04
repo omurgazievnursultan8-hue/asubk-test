@@ -1635,10 +1635,12 @@ const MEASURE_KIND_NAMES = MEASURE_KINDS.map(k => k.name);
 /* Слой долга (§8.5, МП-1/МП-4→МП5-1/МП5-2): рождается ТОЛЬКО этими видами —
    не любым исходом с setsPhase:'Решение суда' (у «Постановление апелляционной
    инстанции» тот же setsPhase на двух исходах, но апелляция ревизует слой, не
-   рождает новый, — МП-2, вне этой карты, поэтому список ИМЁН, а не скан setsPhase).
+   рождает новый — МП-2, `ADR-0043`, карта `collection-apellyacia-sloy`; список
+   ИМЁН, а не скан setsPhase, ровно поэтому апелляция сюда НЕ входит).
    «Дополнительное решение суда» (наряд «выручка/очередь», МП5-10, ADR-0049 §3) —
    единственный вид, чья награда СКЛАДЫВАЕТСЯ с актом-основанием, не заменяет его
-   (см. relation.type==='adds' у layerOf/effectiveAward ниже). */
+   (см. relation.type==='adds' у layerOf/effectiveAward ниже); апелляция вводит
+   четвёртый тип отношения — 'corrects' — построчная ЗАМЕНА, не сложение (МП-2). */
 const AWARD_KINDS = new Set(['Решение суда','Судебный приказ','Определение об утверждении мирового соглашения','Дополнительное решение суда']);
 /* Смерть слоя (ADR-0049 §3, наряд «выручка/очередь», МП5-10): акт отмены не
    присуждает (нет m.awards) — гасит слой, рождённый отменяемым приказом. Входит
@@ -1844,22 +1846,29 @@ function repOf(proc, creditId){
   return rep;
 }
 /* Присуждённое актом с учётом отношения к прежнему слою (ADR-0049 §3, наряд
-   «выручка/очередь», грилинг Q8/Q13): type:'adds' («Дополнительное решение
-   суда») складывает статьи с актом-основанием (relation.of, номер меры, один
-   уровень поиска — без цепочек, довесок практически всегда один на дело);
-   new/absorbs — чисто информационная связь, сумма самого акта как есть. Пусто
-   ≠ ноль по статье сохраняется: складываются только статьи, тронутые хотя бы
-   одним из двух актов. Общий хелпер — layerOf ниже и claimsReconcileHtml. */
+   «выручка/очередь», грилинг Q8/Q13; МП-2/ADR-0043, карта `collection-apellyacia-sloy`
+   тикет 01 вопрос 5): type:'adds' («Дополнительное решение суда») складывает статьи с
+   актом-основанием; type:'corrects' («Постановление апелляционной инстанции», исход
+   «изменено») ЗАМЕНЯЕТ статьи актом-основанием — построчно, не суммой. Оба читают
+   relation.of (номер меры, один уровень поиска — без цепочек). new/absorbs — чисто
+   информационная связь, сумма самого акта как есть. Пусто ≠ ноль по статье сохраняется
+   на обоих уровнях: тронутая статья акта побеждает (или складывается — adds), нетронутая
+   наследует статью акта-основания. Общий хелпер — layerOf ниже и claimsReconcileHtml. */
 function effectiveAward(measures, m, reqId){
   const award = m.awards && m.awards[reqId];
   if(!award) return null;
-  if(!(award.relation && award.relation.type === 'adds' && award.relation.of)) return award;
+  const relType = award.relation && award.relation.type;
+  if(!((relType === 'adds' || relType === 'corrects') && award.relation.of)) return award;
   const base = measures.find(x => x.num === award.relation.of);
   const baseAward = base && base.awards && base.awards[reqId];
   if(!baseAward) return award;
   const merged = { ...award };
   CLAIM_KEYS.forEach(k => {
-    if(award[k] !== undefined || baseAward[k] !== undefined) merged[k] = (award[k] || 0) + (baseAward[k] || 0);
+    if(relType === 'adds'){
+      if(award[k] !== undefined || baseAward[k] !== undefined) merged[k] = (award[k] || 0) + (baseAward[k] || 0);
+    } else { // corrects — построчная замена, не сложение
+      merged[k] = award[k] !== undefined ? award[k] : baseAward[k];
+    }
   });
   return merged;
 }
@@ -1872,7 +1881,16 @@ function effectiveAward(measures, m, reqId){
    Акт отмены приказа (AWARD_DEATH_KINDS) входит в ТУ ЖЕ свёртку по дате — если
    он побеждает (последний, живой), слой гаснет: layerOf возвращает null, не
    пытается откатиться на более раннюю меру (ADR-0049 §3: «разрез переезжает,
-   факт остаётся», наряд «выручка/очередь», Q7). */
+   факт остаётся», наряд «выручка/очередь», Q7).
+   МП-2/ADR-0043 (карта `collection-apellyacia-sloy`, тикет 01): апелляция
+   («Постановление апелляционной инстанции») входит в ТУ ЖЕ свёртку двумя
+   условиями — исход «изменено» с `m.awards` (правка, relation.type==='corrects')
+   и `isAppealReversal` (оба исхода «отменено», по `m.targets` — смерть, тот же
+   приём, что отмена приказа). Апелляция НЕ входит в AWARD_KINDS — она не
+   источник слоя (design-doc МП-2, довод 1: ИЛ выдаётся по акту первой инстанции,
+   апелляции нет в его basisKinds). Если побеждает правящая апелляция, `act`
+   ответа — БАЗОВОЕ решение (`relation.of`), не сама апелляция: слой остаётся
+   актом первой инстанции и по дате начисления, и по тождеству для ИЛ. */
 function layerOf(proc, creditId){
   const rep = repOf(proc, creditId);
   if(!rep) return null;
@@ -1880,15 +1898,20 @@ function layerOf(proc, creditId){
   const acts = measures
     .filter(m => isLiveFor(m, rep.id) && (
       (AWARD_KINDS.has(m.kind) && m.awards && m.awards[rep.id]) ||
-      (AWARD_DEATH_KINDS.has(m.kind) && (m.targets || []).includes(rep.id))
+      (AWARD_DEATH_KINDS.has(m.kind) && (m.targets || []).includes(rep.id)) ||
+      (m.kind === APPEAL_REVERSAL_KIND && m.outcome === 'изменено' && m.awards && m.awards[rep.id]) ||
+      (isAppealReversal(m) && (m.targets || []).includes(rep.id))
     ))
     .map((m, i) => ({ m, i, t: (ruD(m.dates && (m.dates.event || m.dates.registered)) || 0) }))
     .sort((a, b) => (a.t - b.t) || (a.i - b.i));
   if(!acts.length) return null;
   const last = acts[acts.length - 1].m;
-  if(AWARD_DEATH_KINDS.has(last.kind)) return null;
+  if(AWARD_DEATH_KINDS.has(last.kind) || isAppealReversal(last)) return null;
+  const lastAward = last.awards[rep.id];
+  const isCorrection = last.kind === APPEAL_REVERSAL_KIND && lastAward.relation && lastAward.relation.type === 'corrects';
+  const act = isCorrection ? (measures.find(x => x.num === lastAward.relation.of) || last) : last;
   const award = effectiveAward(measures, last, rep.id);
-  return { sum: claimsEntryTotal(award), relation: last.awards[rep.id].relation, act: last, rep };
+  return { sum: claimsEntryTotal(award), relation: lastAward.relation, act, rep, correctedBy: isCorrection ? last : null };
 }
 
 /* ============================================================
@@ -7559,7 +7582,7 @@ function panelDebt(){
      всех солидарных строках, тем же принципом, что solNote выше). Пусто, пока нет
      живой меры AWARD_KINDS с присуждением по представителю (layerOf). */
   const layer = layerOf(p, req.credit);
-  const layerTitle = !layer ? '' : `${layer.act.kind} №${escAttr(layer.act.num||'')} от ${escAttr((layer.act.dates&&(layer.act.dates.event||layer.act.dates.registered))||'')}${layer.relation && layer.relation.type==='absorbs' ? ` · поглощает слой меры №${escAttr(layer.relation.of)}` : layer.relation && layer.relation.type==='adds' ? ` · добавляет к слою меры №${escAttr(layer.relation.of)}` : ''}`;
+  const layerTitle = !layer ? '' : `${layer.act.kind} №${escAttr(layer.act.num||'')} от ${escAttr((layer.act.dates&&(layer.act.dates.event||layer.act.dates.registered))||'')}${layer.relation && layer.relation.type==='absorbs' ? ` · поглощает слой меры №${escAttr(layer.relation.of)}` : layer.relation && layer.relation.type==='adds' ? ` · добавляет к слою меры №${escAttr(layer.relation.of)}` : ''}${layer.correctedBy ? ` · изменено определением апелляции №${escAttr(layer.correctedBy.num||'')} от ${escAttr((layer.correctedBy.dates&&(layer.correctedBy.dates.event||layer.correctedBy.dates.registered))||'')}` : ''}`;
   const layerBadge = !layer ? '' : `<span class="cright" title="${escAttr(layerTitle)}"><span class="amt">${fmtKGS(layer.sum)}</span><span class="aml">слой</span></span>`;
   /* Доля в реализации (ADR-0054, наряд «выручка/очередь», Q11) — сумма всех
      ОПУБЛИКОВАННЫХ распределений (c.realization.distribution) по этому кредиту,
@@ -7602,7 +7625,14 @@ function panelDebt(){
    же принцип «последняя по дате события», что layerOf выше). Ветвится цепочка —
    несколько живых корней на одну цель — своя пара на каждый (тикет «Точки интеграции»,
    вопрос 3). Обход цепочки forward — по m.basedOn (номер документа, ADR-0029 п.1), не
-   по basisKinds справочника: basedOn называет ИМЕННО ту меру, на которую ссылается акт. */
+   по basisKinds справочника: basedOn называет ИМЕННО ту меру, на которую ссылается акт.
+   МП-2/ADR-0043 (карта `collection-apellyacia-sloy`, тикет 01, вопрос 8): апелляция
+   («Постановление апелляционной инстанции» — потомок «Апелляционной жалобы», та потомок
+   решения) входит в тот же fold параллельно layerOf — правка (исход «изменено» + awards)
+   и смерть (isAppealReversal, оба «отменено») — акт без awards, effectiveAward вернёт
+   null, строка честно покажет «присудили — нет». Пробел с «Определение об отмене
+   судебного приказа» в ЭТОЙ функции — НЕ этой карты (найдено при кодировании, layerOf
+   его уже видит, здесь — нет; отдельная будущая находка, см. issues/02). */
 function claimChainsFor(r){
   const all=(r._proc.measures||[]).filter(m => isLiveFor(m, r.id) && (m.targets||[]).includes(r.id));
   const byNum={}; all.forEach(m => { if(m.num) byNum[m.num]=m; });
@@ -7616,6 +7646,8 @@ function claimChainsFor(r){
       for(const ch of childrenOf(cur)){
         if(seen.has(ch)) continue; seen.add(ch); queue.push(ch);
         if(AWARD_KINDS.has(ch.kind) && ch.awards && ch.awards[r.id]) acts.push(ch);
+        else if(ch.kind===APPEAL_REVERSAL_KIND && ch.outcome==='изменено' && ch.awards && ch.awards[r.id]) acts.push(ch);
+        else if(isAppealReversal(ch) && (ch.targets||[]).includes(r.id)) acts.push(ch);
       }
     }
     acts.sort((a,b)=>(ruD(a.dates&&(a.dates.event||a.dates.registered))||0)-(ruD(b.dates&&(b.dates.event||b.dates.registered))||0));
@@ -9072,30 +9104,43 @@ function openAnnotationModal(mi){
      ранний живой слой) отношение к нему. Пусто ≠ ноль ПО СТРОКЕ (тикет «Точки
      интеграции», вопрос 5, растянуто с одного поля на пять): нетронутая статья не
      пишется в m.awards вовсе (суд мог присудить основную сумму и не присудить пеню),
-     «0» пишет статью с суммой 0 (акт был, по этой статье присудил ноль). */
-  const awardTargets = AWARD_KINDS.has(m.kind) ? (m.targets||[]).map(id=>REQ_INDEX[id]).filter(Boolean) : [];
+     «0» пишет статью с суммой 0 (акт был, по этой статье присудил ноль).
+     МП-2/ADR-0043 (карта `collection-apellyacia-sloy`, тикет 01, вопросы 2-3): секция
+     видна и для апелляции (гейт по виду, тот же приём, что AWARD_KINDS) — но апелляция
+     НЕ в AWARD_KINDS (она не источник слоя, только правит существующий), поэтому её
+     relation-меню ниже предлагает ТОЛЬКО 'corrects', без 'новый слой'. */
+  const isAppealAward = m.kind === APPEAL_REVERSAL_KIND;
+  const awardTargets = (AWARD_KINDS.has(m.kind) || isAppealAward) ? (m.targets||[]).map(id=>REQ_INDEX[id]).filter(Boolean) : [];
   const awardSection = !awardTargets.length ? '' : `
     <p class="section-h" style="font-size:15px;margin:10px 0 4px">Присуждено</p>
-    <p class="section-note">Пять статей (§4, МП5-18), по строке на цель. Пустое поле — статья не присуждалась (не значит ноль).</p>
+    <p class="section-note">Пять статей (§4, МП5-18), по строке на цель. Пустое поле — статья не присуждалась (не значит ноль).${isAppealAward?' Апелляция слоя не заводит — только исправляет присуждение по акту первой инстанции.':''}</p>
     <div class="mform">
       ${awardTargets.map(x=>{
         const cur = m.awards && m.awards[x.id];
         const priorActs = (p.measures||[]).filter(pm => pm!==m && AWARD_KINDS.has(pm.kind) && isLiveFor(pm, x.id) && pm.awards && pm.awards[x.id]);
         /* 'adds' (наряд «выручка/очередь», Q8) — «Дополнительное решение суда»
            складывает статьи с актом-основанием, не заменяет (effectiveAward).
-           Значение select кодирует тип:номер («absorbs:NNN»/«adds:NNN») — до
-           этого второй вариант отношения не существовал, кодировать было
-           незачем (сохранение — ниже, saveAnnotation). */
-        const relField = !priorActs.length ? '' : `
+           'corrects' (МП-2/ADR-0043, тикет 01 вопросы 1/3) — апелляция, ЗАМЕНЯЕТ
+           статьи, а не new/absorbs/adds: меню для неё содержит только эти
+           варианты, без «новый слой» (апелляция слой не заводит). Значение select
+           кодирует тип:номер («absorbs:NNN»/«adds:NNN»/«corrects:NNN») — сохранение
+           ниже, saveAnnotation. */
+        const relField = isAppealAward
+          ? (!priorActs.length
+              ? `<div class="field col-span"><div class="hint-inline">Нет присуждения к исправлению — сначала внесите «Присуждено» на акте первой инстанции.</div></div>`
+              : `<div class="field col-span"><span class="flabel">Исправляет присуждение по акту — ${escAttr(x.id)}</span><div class="control grey"><select id="aRelation_${escAttr(x.id)}">
+            ${priorActs.map(pm=>`<option value="corrects:${escAttr(pm.num)}"${cur && cur.relation && cur.relation.type==='corrects' && cur.relation.of===pm.num?' selected':''}>исправляет присуждение по акту №${escAttr(pm.num)} от ${escAttr((pm.dates&&(pm.dates.event||pm.dates.registered))||'')}</option>`).join('')}
+          </select>${caret()}</div></div>`)
+          : (!priorActs.length ? '' : `
           <div class="field col-span"><span class="flabel">Отношение к прежнему слою — ${escAttr(x.id)}</span><div class="control grey"><select id="aRelation_${escAttr(x.id)}">
             <option value="new"${(!cur || !cur.relation || cur.relation.type==='new')?' selected':''}>новый слой</option>
             ${priorActs.map(pm=>`<option value="absorbs:${escAttr(pm.num)}"${cur && cur.relation && cur.relation.type==='absorbs' && cur.relation.of===pm.num?' selected':''}>поглощает слой меры №${escAttr(pm.num)} от ${escAttr((pm.dates&&(pm.dates.event||pm.dates.registered))||'')}</option>`).join('')}
             ${priorActs.map(pm=>`<option value="adds:${escAttr(pm.num)}"${cur && cur.relation && cur.relation.type==='adds' && cur.relation.of===pm.num?' selected':''}>добавляет к слою меры №${escAttr(pm.num)} от ${escAttr((pm.dates&&(pm.dates.event||pm.dates.registered))||'')}</option>`).join('')}
-          </select>${caret()}</div></div>`;
+          </select>${caret()}</div></div>`);
         return `<div class="field col-span"><span class="flabel">Присуждено — ${escAttr(x.id)} · ${escAttr(personOf(x).name)} (${escAttr(x.role)})</span></div>
         <div class="tgtbox" style="display:flex;gap:8px;flex-wrap:wrap">${CLAIM_KEYS.map(k=>`<label style="display:flex;flex-direction:column;gap:2px;font-size:12px"><span>${CLAIM_LABELS[k]}</span><input style="width:110px" id="aAward_${escAttr(x.id)}_${k}" value="${cur&&cur[k]!==undefined?escAttr(String(cur[k])):''}" placeholder="—"></label>`).join('')}</div>
         ${relField}
-        ${cur?`<div class="field col-span"><div class="hint-inline">Уже внесено: ${fmtKGS(claimsEntryTotal(cur))}${cur.relation&&cur.relation.type==='absorbs'?` · поглощает слой меры №${escAttr(cur.relation.of)}`:cur.relation&&cur.relation.type==='adds'?` · добавляет к слою меры №${escAttr(cur.relation.of)}`:''} · поставил ${escAttr(cur.by||'')} ${cur.at||''}</div></div>`:''}`;
+        ${cur?`<div class="field col-span"><div class="hint-inline">Уже внесено: ${fmtKGS(claimsEntryTotal(cur))}${cur.relation&&cur.relation.type==='absorbs'?` · поглощает слой меры №${escAttr(cur.relation.of)}`:cur.relation&&cur.relation.type==='adds'?` · добавляет к слою меры №${escAttr(cur.relation.of)}`:cur.relation&&cur.relation.type==='corrects'?` · исправляет присуждение по акту №${escAttr(cur.relation.of)}`:''} · поставил ${escAttr(cur.by||'')} ${cur.at||''}</div></div>`:''}`;
       }).join('')}
     </div>`;
   /* МС (ADR-0047, наряд МП-11, тикет «Точки интеграции» вопрос 3): график погашения —
@@ -9189,13 +9234,19 @@ function saveAnnotation(mi){
         opensPravopreemstvo=true;
     }
   }
-  if(kd && AWARD_KINDS.has(m.kind)){
+  const isAppealAward = m.kind === APPEAL_REVERSAL_KIND;
+  if(kd && (AWARD_KINDS.has(m.kind) || isAppealAward)){
     const targets=(m.targets||[]).map(id=>REQ_INDEX[id]).filter(Boolean);
     for(const x of targets){
       const prevAward=m.awards && m.awards[x.id];
       const relSel=document.getElementById(`aRelation_${x.id}`);
-      /* Значение select — «absorbs:NNN»/«adds:NNN» (наряд «выручка/очередь», Q8) —
-         или «new» без номера. */
+      /* МП-2/ADR-0043 (тикет 01, вопрос 3): апелляция не заводит слой — без
+         рендеренного select (нет кандидата на исправление) ввод в поля сумм
+         игнорируется целиком, «new» ей не подставляется никогда. */
+      if(isAppealAward && !relSel) continue;
+      /* Значение select — «absorbs:NNN»/«adds:NNN»/«corrects:NNN» (наряд
+         «выручка/очередь», Q8; МП-2/ADR-0043) — или «new» без номера
+         (недоступно апелляции — её меню «new» не содержит). */
       const relation = (relSel && relSel.value!=='new')
         ? { type: relSel.value.split(':')[0], of: relSel.value.slice(relSel.value.indexOf(':')+1) }
         : { type:'new' };
