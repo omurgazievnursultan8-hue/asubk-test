@@ -1321,8 +1321,9 @@ const DELIVERY_CHANNELS_CLAIM = ['СЭД','Почта','Нарочно'];
    заканчивающий дело» — ОДИН источник для ДВУХ мест, что раньше несли его копиями,
    разошедшимися на одном виде («Судебный приказ») в разные стороны на двух раундах
    ревью подряд: basisKinds «Соглашения о добровольном исполнении» (ниже) и
-   msHasCourtAct() (гейт МС-5, регистрация соглашения — далеко внизу по файлу,
-   читает эту же константу вместо своего regex). Судебный приказ — тот же по
+   msHasCourtAct() (гейт МС-5 — снят наряд МП-11/ADR-0047, МС-5 теперь PRECONDITIONS-
+   запись у «Проекта мирового соглашения», регекс тут ни при чём с самого начала).
+   Судебный приказ — тот же по
    существу акт, что решение суда (kindPhase → «Решение суда», basisKinds
    «Исполнительного листа» уже его принимает) — расходиться этим двум местам
    больше негде: у обоих один и тот же список.
@@ -1338,11 +1339,15 @@ const DELIVERY_CHANNELS_CLAIM = ['СЭД','Почта','Нарочно'];
    добровольное исполнение поверх такого акта лишено смысла: исполнять уже
    некому. basisKinds «Заявления о выдаче исполнительных листов» — единственное
    другое место, что раньше тоже мог бы матчить этот же regex — своего списка не
-   меняет, у него basisKinds:['Решение суда','Судебный приказ','Мировое
-   соглашение'] задан отдельным литералом (не через эту константу), не тронут.
+   меняет, у него basisKinds:['Решение суда','Судебный приказ','Определение об
+   утверждении мирового соглашения'] задан отдельным литералом (не через эту
+   константу), не тронут (переименован наряд МП-11 вместе с этой константой).
    Tasks 7–8 сеют дела именно в К5/К7 с этими двумя видами — сужение здесь
    касается их напрямую, не абстрактный край. */
-const COURT_ACT_BASIS_KINDS = ['Решение суда', 'Судебный приказ', 'Мировое соглашение', 'Исполнительный лист'];
+/* ADR-0047, наряд МП-11: «Мировое соглашение» расщеплено на три вида (см. запись в
+   MEASURE_KINDS ниже) — акт, что раньше играл роль судебного акта здесь, теперь
+   «Определение об утверждении мирового соглашения». */
+const COURT_ACT_BASIS_KINDS = ['Решение суда', 'Судебный приказ', 'Определение об утверждении мирового соглашения', 'Исполнительный лист'];
 const MEASURE_KINDS = [
   // ---- Досудебный ----
   { name:'Первичная претензия', source:'наш документ', resultIsDocument:false,
@@ -1420,7 +1425,7 @@ const MEASURE_KINDS = [
     outcomes:null, needsDelivery:false, deliveryChannels:null, basisKinds:null },
   { name:'Заявление о выдаче исполнительных листов', source:'наш документ', resultIsDocument:true,
     outcomes:null, needsDelivery:false, deliveryChannels:null,
-    basisKinds:['Решение суда','Судебный приказ','Мировое соглашение'] },
+    basisKinds:['Решение суда','Судебный приказ','Определение об утверждении мирового соглашения'] },
   { name:'Заявление по вновь открывшимся обстоятельствам', source:'наш документ', resultIsDocument:true,
     outcomes:null, needsDelivery:false, deliveryChannels:null, basisKinds:['Решение суда'] },
   { name:'Заявление по новым обстоятельствам', source:'наш документ', resultIsDocument:true,
@@ -1498,9 +1503,21 @@ const MEASURE_KINDS = [
   { name:'Определение о повороте исполнения', source:'внешний акт', resultIsDocument:false,
     outcomes:null, needsDelivery:false, deliveryChannels:null,
     basisKinds:['Определение об отмене судебного приказа','Решение суда'] },
-  { name:'Мировое соглашение', source:'внешний акт', resultIsDocument:false,
-    outcomes:[{value:'утверждено судом',setsPhase:'Решение суда'}],
-    needsDelivery:false, deliveryChannels:null, basisKinds:null },
+  /* ADR-0047, наряд МП-11: было одним видом «Мировое соглашение» (внешний акт,
+     единственный исход «утверждено судом») — модель не различала проект/утверждение/
+     нарушение, из-за чего рядом жила вторая, параллельная бухгалтерия (p.agreements[],
+     msApprove/msReject/msBreach) для тех же трёх фактов. Теперь три вида журнала —
+     утверждение переиспользует AWARD_KINDS/layerOf (наряд п.2/п.3) целиком, отдельной
+     денежной машины не заводим. */
+  { name:'Проект мирового соглашения', source:'наш документ', resultIsDocument:false,
+    outcomes:[{value:'направлен на утверждение'}],
+    needsDelivery:false, deliveryChannels:null, basisKinds:['Исковое заявление'] },
+  { name:'Определение об утверждении мирового соглашения', source:'внешний акт', resultIsDocument:false,
+    outcomes:[{value:'утверждено',setsPhase:'Решение суда'},{value:'отказано в утверждении'}],
+    needsDelivery:false, deliveryChannels:null, basisKinds:['Проект мирового соглашения'] },
+  { name:'Констатация нарушения мирового соглашения', source:'наш документ', resultIsDocument:false,
+    outcomes:[{value:'нарушено'}],
+    needsDelivery:false, deliveryChannels:null, basisKinds:['Определение об утверждении мирового соглашения'] },
   /* Task 6 (K3-ДОБРОВОЛЬНОЕ): basisKinds было null — но ситуация сама сформулирована как
      «соглашение НА ОСНОВЕ судебного акта» (п. 37), а builder-ветка (buildSeed, agreement.
      type==='dobrovolnoe') адресует basedOn РОВНО на акт, которым закончилось дело у суда.
@@ -1516,7 +1533,7 @@ const MEASURE_KINDS = [
     basisKinds:COURT_ACT_BASIS_KINDS },
   { name:'Исполнительный лист', source:'внешний акт', resultIsDocument:false,
     outcomes:[{value:'выдан',setsPhase:'Исполнительный лист'}],
-    needsDelivery:false, deliveryChannels:null, basisKinds:['Решение суда','Судебный приказ','Мировое соглашение'] },
+    needsDelivery:false, deliveryChannels:null, basisKinds:['Решение суда','Судебный приказ','Определение об утверждении мирового соглашения'] },
   // ---- Исполнительное ----
   { name:'Постановление на исполнении', source:'внешний акт', resultIsDocument:false,
     outcomes:[{value:'принято к исполнению',setsPhase:'На исполнении'}],
@@ -1619,7 +1636,7 @@ const MEASURE_KIND_NAMES = MEASURE_KINDS.map(k => k.name);
    не любым исходом с setsPhase:'Решение суда' (у «Постановление апелляционной
    инстанции» тот же setsPhase на двух исходах, но апелляция ревизует слой, не
    рождает новый, — МП-2, вне этой карты, поэтому список ИМЁН, а не скан setsPhase). */
-const AWARD_KINDS = new Set(['Решение суда','Судебный приказ','Мировое соглашение']);
+const AWARD_KINDS = new Set(['Решение суда','Судебный приказ','Определение об утверждении мирового соглашения']);
 /* РАЗДЕЛ — производная от вида меры (каждый вид принадлежит ровно одному разделу),
    вручную не задаётся — как «фаза из журнала». Ключи покрывают все MEASURE_KINDS;
    раздел согласован с контурами К0…К7 (Исполнительный лист → Судебный: устанавливает
@@ -1648,7 +1665,8 @@ const KIND_SECTION = {
   'Определение об оставлении искового заявления без рассмотрения':'Судебный',
   'Определение об отказе в принятии искового заявления':'Судебный',
   'Определение суда (прочее)':'Судебный',
-  'Мировое соглашение':'Судебный','Соглашение о добровольном исполнении':'Судебный',
+  'Проект мирового соглашения':'Судебный','Определение об утверждении мирового соглашения':'Судебный',
+  'Констатация нарушения мирового соглашения':'Судебный','Соглашение о добровольном исполнении':'Судебный',
   'Исполнительный лист':'Судебный',
   // Исполнительное
   'Постановление на исполнении':'Исполнительное','Письмо в ПССИ':'Исполнительное','Постановление о возврате ИЛ':'Исполнительное',
@@ -1939,7 +1957,7 @@ function pauseOpenerOf(r){
 const SUD_OPENERS = ['Исковое заявление', 'Определение о принятии искового заявления к производству',
   'Заявление о выдаче судебного приказа', 'Определение об отмене судебного приказа'];
 const SUD_CLOSERS = [
-  'Решение суда', 'Судебный приказ', 'Мировое соглашение',
+  'Решение суда', 'Судебный приказ', 'Определение об утверждении мирового соглашения',
   'Определение о возвращении искового заявления',
   'Определение об оставлении искового заявления без рассмотрения',
   'Определение об отказе в принятии искового заявления',
@@ -2115,7 +2133,8 @@ const MEASURE_SUBDIV = {
   'Служебная записка в ДПО':         ['ОД'],
   'Исковое заявление':               ['ОПК'],
   'Апелляционная жалоба':            ['ОПК'], 'Кассационная жалоба':['ОПК'], 'Частная жалоба':['ОПК'],
-  'Мировое соглашение':              ['ОПК'],
+  'Проект мирового соглашения':       ['ОПК'],
+  'Констатация нарушения мирового соглашения': ['ОПК'],
   'Заявление об изменении способа и порядка исполнения': ['ОПК'],
   'Первичная претензия':             ['ДАК','ОД','РП'], 'Повторная претензия':['ДАК','ОД','РП'],
   // Task4-раунд2 п.2: у «Требование поручителю» была явная запись, у двух других видов
@@ -2404,6 +2423,11 @@ const PRECONDITIONS = {
   'Апелляционная жалоба':                                  { basis: true },
   'Кассационная жалоба':                                   { basis: true },
   'Соглашение о добровольном исполнении':                  { basis: true },
+  // МП-11 (ADR-0047): МС-5 (п. 22, «подан иск») — живая мера-основание, тем же
+  // приёмом, что и «Соглашение о добровольном исполнении» выше. «Определение об
+  // утверждении…» — внешний акт, предусловия к нему не применяются (§3.4).
+  'Проект мирового соглашения':                             { basis: true },
+  'Констатация нарушения мирового соглашения':               { basis: true },
   // корзина G (наряд п.7а, МП5-14, `ADR-0051` §2) — живая мера-основание + окно ожидания
   // (windowTpl — номер каталожного шаблона срока, preconditionReason читает его term
   // напрямую, шаблон в DEADLINE_DERIVED не участвует)
@@ -3097,18 +3121,14 @@ function termToCalendarDays(term){
 /* Коллекционные поля дела, которые extra ДОПОЛНЯЕТ конкатенацией, а не затирает
    (ревью №1, п.6): было только у deadlines/history — дело с обеспечителями или
    вторым кредитом (extra.credits/extra.measures/…) тихо теряло бы выведенное. */
-/* Task 6 (K3-МС/K3-ДОБРОВОЛЬНОЕ): 'agreements' дописан — первые кейсы, объявляющие
-   extra.agreements (карточка МС/СДИ на вкладке «Особые состояния», форма как у
-   agSave()/msApprove()). Без записи здесь общий цикл слияния extra падает в ветку
-   «остальное — присваиванием»: массив копируется НЕ поэлементно (copyArr), а самой
-   ссылкой на литерал SEED — тот же класс дыры мутации, что и весь этот список чинит
-   для шести своих полей (комментарий выше). */
 /* Task 9 (ВЕД-ПЕРЕДАЧА): 'procHistory' дописан — первые кейсы, объявляющие журнал
    передач требования (п. 98). Без записи здесь массив падал в ветку «остальное —
    присваиванием» и уезжал в PROCESSES САМОЙ ССЫЛКОЙ на литерал SEED (Array.isArray
    отсекает и мелкую копию объекта) — тот же класс дыры, что этот список чинит для
-   остальных своих полей. */
-const EXTRA_ARRAY_KEYS = ['credits','measures','committeeQuestions','hearings','colls','deadlines','history','agreements','procHistory','handovers'];
+   остальных своих полей.
+   ADR-0047 (наряд МП-11): 'agreements' (Task 6) снят — extra.agreements/p.agreements[]
+   больше не существуют, мировое/добровольное живут в журнале мер. */
+const EXTRA_ARRAY_KEYS = ['credits','measures','committeeQuestions','hearings','colls','deadlines','history','procHistory','handovers'];
 /* Мелкая копия каждого элемента (ревью №3, минор п.5): normalize()/normColl() мутируют
    объекты мер/залогов НА МЕСТЕ (m._proc, m.targets, coll.realStage, coll.torgiFails,
    coll.credit, credit.overdueDays/factors/coll — см. normalize() ниже по файлу). Без
@@ -3808,30 +3828,47 @@ function buildCredit(c, cr, stop, age){
       history.push({ when:`${dt2} 10:00`, what:`Мера «Постановление апелляционной инстанции» ${numPa} зарегистрирована — исход «${opt('appeal')}»`, who:respPa });
     }
 
-    /* Task 6 (K3-МС / K3-ДОБРОВОЛЬНОЕ). c.agreement управляет мерой в хребте:
-       мировое соглашение попадает в журнал ТОЛЬКО утверждённым судом (проект — без
-       меры, виден лишь карточкой extra.agreements, п. 22–24); добровольное исполнение —
-       наш документ поверх уже вынесенного судебного акта (п. 37), basedOn — на НЕГО.
-       extra.agreements (проброшено через derived.extra ниже) несёт полную карточку для
-       вкладки «Особые состояния» — форма полей как у agSave()/msApprove() демо-обвязки. */
+    /* Task 6 (K3-МС / K3-ДОБРОВОЛЬНОЕ), ADR-0047 наряд МП-11. c.agreement управляет
+       мерами в хребте: мировое соглашение ВСЕГДА кладёт «Проект…» (п. 22, живой иск
+       обязателен — basisKinds), и, только когда status='утверждено судом', ДОБАВЛЯЕТ
+       «Определение об утверждении…» — basedOn на проект, m.awards по представителю
+       (заёмщику, единственная цель по умолчанию — см. normalize()) из графика (весь в
+       principal — текущие кейсы несут rate:0), m.schedule/m.rate на самой мере
+       утверждения (МС-специфичные реквизиты, не общий реквизит). Вторая бухгалтерия
+       (p.agreements[]/extra.agreements) не заводится — это единственный источник
+       факта. Добровольное исполнение — наш документ поверх уже вынесенного судебного
+       акта (п. 37), basedOn — на НЕГО; без второй бухгалтерии тоже. */
     if(opt('agreement')){
       const a = opt('agreement');
-      if(a.type === 'mirovoe' && a.status === 'утверждено судом'){
-        /* Ревью раунд1, MINOR 6: mirovoe был единственной новой веткой без именованных
-           throw — опечатка/неполная декларация тихо давала бы A9 (нет approvedAt → нет
-           даты) вместо явной ошибки сборки. Тот же guard-стиль, что у iskRefused/appeal/
-           dobrovolnoe рядом: мировое утверждается на судебной стадии (п. 22) — без
-           «Искового заявления» в цепочке утверждать нечего. */
+      if(a.type === 'mirovoe'){
         if(!measures.some(m => m.kind === 'Исковое заявление'))
-          throw new Error(`SEED: дело ${c.id} — agreement.type='mirovoe' status='утверждено судом' задан, а меры «Исковое заявление» в цепочке нет (мировое утверждается на судебной стадии, п. 22)`);
-        if(!a.approvedAt)
-          throw new Error(`SEED: дело ${c.id} — agreement.type='mirovoe' status='утверждено судом' задан без approvedAt — датировать меру не от чего`);
-        const dt = a.approvedAt;
-        const respMs = respFor('Мировое соглашение');
-        measures.push({ sec:sectionOf('Мировое соглашение'), kind:'Мировое соглашение', dates:D(dt, dt),
-          received:{ date:dt }, num:a.num, purpose:'утверждение мирового соглашения судом',
-          outcome:'утверждено судом', sum:sumBy(curScope, dt), responsible:respMs });
-        history.push({ when:`${dt} 10:00`, what:`Мера «Мировое соглашение» ${a.num} зарегистрирована — утверждено судом`, who:respMs });
+          throw new Error(`SEED: дело ${c.id} — agreement.type='mirovoe' задан, а меры «Исковое заявление» в цепочке нет (МС-5, п. 22 — мировое заключается на судебной стадии)`);
+        if(!a.projectAt)
+          throw new Error(`SEED: дело ${c.id} — agreement.type='mirovoe' задан без projectAt — датировать «Проект мирового соглашения» не от чего`);
+        const isk = measures.find(m => m.kind === 'Исковое заявление');
+        const dtP = a.projectAt, respProj = respFor('Проект мирового соглашения');
+        measures.push({ sec:sectionOf('Проект мирового соглашения'), kind:'Проект мирового соглашения',
+          dates:D(dtP, dtP), num:a.num, purpose:'проект мирового соглашения', basedOn:isk.num,
+          outcome:'направлен на утверждение', sum:sumBy(curScope, dtP), responsible:respProj,
+          ms:{ expiredTerms:!!a.expiredTerms, estimatedYears:a.estimatedYears ?? null,
+            notWorse:{ attested:true, basis:a.notWorseBasis||'' }, draftedBy:a.draftedBy||'ОПК', scheduleBy:a.scheduleBy||'' } });
+        history.push({ when:`${dtP} 10:00`, what:`Мера «Проект мирового соглашения» ${a.num} зарегистрирована`, who:respProj });
+        if(a.status === 'утверждено судом'){
+          if(!a.approvedAt)
+            throw new Error(`SEED: дело ${c.id} — agreement.type='mirovoe' status='утверждено судом' задан без approvedAt — датировать «Определение об утверждении…» не от чего`);
+          if(!a.schedule || !a.schedule.length)
+            throw new Error(`SEED: дело ${c.id} — agreement.type='mirovoe' status='утверждено судом' задан без schedule — графика для «Определения…» нет`);
+          const dtA = a.approvedAt, respAppr = respFor('Определение об утверждении мирового соглашения');
+          const numAppr = `${a.num}-У`, total = a.schedule.reduce((s,x)=>s+(+x.principal||0),0);
+          const reqIdBorrower = `${c.id}/${cr.id}/з`;
+          measures.push({ sec:sectionOf('Определение об утверждении мирового соглашения'),
+            kind:'Определение об утверждении мирового соглашения', dates:D(dtA, dtA), received:{ date:dtA },
+            num:numAppr, purpose:'утверждение мирового соглашения судом', basedOn:a.num,
+            outcome:'утверждено', sum:sumBy(curScope, dtA), responsible:respAppr,
+            schedule:a.schedule.map(x=>({...x})), rate:a.rate||0,
+            awards:{ [reqIdBorrower]: { principal:total, relation:{type:'new'}, by:respAppr, at:dtA } } });
+          history.push({ when:`${dtA} 10:00`, what:`Мера «Определение об утверждении мирового соглашения» ${numAppr} зарегистрирована — утверждено, слой ${fmtKGS(total)}`, who:respAppr });
+        }
       }
       if(a.type === 'dobrovolnoe'){
         const rsM = measures.find(m => m.kind === 'Решение суда');
@@ -4539,9 +4576,6 @@ function buildSeed(seed){
       const stateAddressed = x => x && x.on === 'все';
       if(c.extra && c.extra.settlement !== undefined && !stateAddressed(c.extra.settlement))
         throw new Error(`SEED: дело ${c.id} — extra.settlement на многокредитном деле без on:'все': состояние обязательства раздаётся по РОЛИ (stateTargets) и прилипло бы ко ВСЕМ договорам дела молча. Скажите адрес вслух (on:'все') либо объявите паузу на однокредитном деле — координаты кредита у состояния в модели нет (М-11)`);
-      for(const a of (c.extra && c.extra.agreements || []))
-        if(!stateAddressed(a))
-          throw new Error(`SEED: дело ${c.id} — extra.agreements[«${a.num||a.type||'?'}»] на многокредитном деле без on:'все': состояние прилипло бы ко ВСЕМ договорам дела. Скажите адрес вслух (on:'все'), либо объявите agreement НА КРЕДИТЕ внутри credits:[…] — тогда мера мирового/СДИ целится поимённо`);
     }
     /* Fix round 1 (ревью, Minor 3): stop/age читаются ТЕМ ЖЕ правилом, что overdue/
        costs/credits0 внутри buildCredit — «объявлено на кредите → побеждает, иначе
@@ -4764,26 +4798,12 @@ function msTermGate(expiredTerms, termYears){
    Соглашение заключается по ТРЕБОВАНИЮ (М-1): стадия и охват берутся у него, а не у папки. */
 function msExpiredDefault(r){ return scopeOf(r).volume==='полный остаток' || liveMeasuresOf(r).some(m=>m.accelerated); }
 
-/* МС-5: стадийная допустимость регистрации. */
-const MS_SUIT_PHASES = new Set(['Иск','Решение суда']);
-function msHasSuit(r){ return MS_SUIT_PHASES.has(phaseOf(r)) || liveMeasuresOf(r).some(m=>/иск/i.test(m.kind)); }
-/* Ревью раунд2: читает COURT_ACT_BASIS_KINDS (объявлена у MEASURE_KINDS, тот же
-   список, что basisKinds «Соглашения о добровольном исполнении») вместо своего
-   regex — было ДВЕ независимые копии одного перечня, разошедшиеся на «Судебный
-   приказ» в разные стороны на двух раундах ревью подряд. Один источник — расходиться
-   больше негде. */
-function msHasCourtAct(r){ return liveMeasuresOf(r).some(m=>COURT_ACT_BASIS_KINDS.includes(m.kind)); }
-function msStageEligible(r, type){
-  if(type==='mirovoe')
-    return msHasSuit(r) ? { ok:true, reason:'' }
-      : { ok:false, reason:'Мировое соглашение заключается на судебной стадии — по этому требованию нет поданного иска (п. 22).' };
-  return msHasCourtAct(r) ? { ok:true, reason:'' }
-    : { ok:false, reason:'Соглашение о добровольном исполнении возможно только при наличии судебного акта по требованию (п. 37).' };
-}
-
-/* МС-2 / МС-4: гейты-предусловия утверждения. */
-function msNotWorseOk(a){ return !!(a.notWorse && a.notWorse.attested); }
-function msScheduleReady(a){ return !!(a.scheduleBy && Array.isArray(a.schedule) && a.schedule.length>0); }
+/* ADR-0047, наряд МП-11: msHasSuit/msHasCourtAct/msStageEligible (МС-5) сняты —
+   единственный потребитель был agSync()/бесподочный гейт бывшей формы «Регистрация
+   соглашения», которую заменил обычный `openMeasureModal`. МС-5 (подан иск) и
+   аналогичное предусловие «Соглашения о добровольном исполнении» (живой судебный акт)
+   теперь настоящие PRECONDITIONS-записи (`basis:true`, читают `basisLiveFor` —
+   §9 у preconditionReason выше), не отдельные функции. */
 
 /* МС-1: производные строки графика (дни/проценты/платёж/остаток) — аналог _computeRows заявки. */
 function msComputeRows(a, opts){
@@ -4801,6 +4821,31 @@ function msComputeRows(a, opts){
     open=close; start=pay;
     return row;
   });
+}
+
+/* ADR-0032 п.1 / ADR-0047 (наряд МП-11): «действует МС» — та же свёртка журнала мер,
+   что судебный/исполнительный трек (комментарий у SUD_OPENERS выше) — открыватель/
+   закрыватель читаются из живых мер напрямую, БЕЗ записи в r.states (в отличие от
+   guarantee_letter/restructuring — те не имеют вида в MEASURE_KINDS и потому обязаны
+   жить в r.states; мировое — обычный вид, у него есть журнал). Это НАМЕРЕННОЕ
+   расхождение с исходным текстом карты (`.scratch/collection-mirovoe-soglashenie/
+   map.md`), нашедшим PAUSE_KINDS/r.states неподходящим местом при реализации:
+   toolbar «Снять паузу с требования» — ручной closer над ХРАНИМОЙ записью
+   (liftPause/pauseOpenerOf), а закрыватель МС — только «Констатация нарушения»,
+   ручного снятия нет; общая запись путала бы эти два разных closer'а. */
+function mirovoeApprovalOf(r){
+  const ms = liveMeasuresOf(r).filter(m => m.kind==='Определение об утверждении мирового соглашения' && m.outcome==='утверждено');
+  if(!ms.length) return null;
+  return ms.slice().sort((a,b)=>(ruD(a.dates&&a.dates.event)||0)-(ruD(b.dates&&b.dates.event)||0)).pop();
+}
+function mirovoeBreachOf(r, appr){
+  if(!appr) return null;
+  return liveMeasuresOf(r).find(m => m.kind==='Констатация нарушения мирового соглашения' && m.basedOn===appr.num) || null;
+}
+/* Карточки «Особые состояния» — по корню «Проект…» (msCards), не по утверждению: у
+   проекта, ещё не утверждённого, «Определения…» нет вовсе. */
+function mirovoeProjectsOf(r){
+  return liveMeasuresOf(r).filter(m => m.kind==='Проект мирового соглашения');
 }
 
 /* K0-ЗАКР 205: дата закрытия окна отметкой куратора — ЕДИНЫЙ источник, которым в кейсе
@@ -5301,9 +5346,10 @@ const SEED = [
 
   // ── K3-МС · мировое соглашение — утверждено судом с графиком / проект под утверждением (2) ──
   // 120 — заседание проведено (ответчик явился), затем стороны пришли к мировому;
-  // approvedAt=10.07.2026 — после заседания (16.06.2026) и определения о принятии
-  // (22.05.2026), до TODAY. extra.agreements несёт карточку для «Особые состояния»
-  // (форма — как у msApprove(): status/approvedAt/notWorse/draftedBy/scheduleBy/schedule).
+  // projectAt=16.06.2026 — датой самого заседания, где стороны заявили о намерении
+  // (ADR-0047, наряд МП-11, тикет «Точки интеграции» вопрос 4 — правдоподобный якорь,
+  // не выдуманная дата с нуля: он уже стоит в hearings[] ниже). approvedAt=10.07.2026 —
+  // после заседания и определения о принятии (22.05.2026), до TODAY.
   // Ревью раунд1, IMPORTANT 4: заседания заданы ВРУЧНУЮ (не автогенерацией по c.court/
   // defendantAppeared) — единственный способ дать «Судебному процессу» 16.06 РЕАЛЬНЫЙ
   // исход (авто-ветка либо оставляет '' при явке, либо жёстко «отложено — неявка»;
@@ -5323,32 +5369,27 @@ const SEED = [
         when:'16.06.2026 14:00', participants:['Эрнисов Б.Т. (представитель ФКФ)', 'Ответчик явился'],
         outcome:'судебное разбирательство отложено — стороны заявили о намерении заключить мировое соглашение' },
     ],
-    agreement:{ type:'mirovoe', num:'МС-120', status:'утверждено судом', approvedAt:'10.07.2026' },
-    extra:{ agreements:[{ type:'mirovoe', num:'МС-120', status:'утверждено судом', expiredTerms:true,
-      on:'заёмщик',
-      notWorse:{ attested:true, by:'ОПК',
-        basis:'Сопоставлено с условиями МС по аналогичным делам ОПК за 2026 год, протокол внутреннего согласования от 08.07.2026' },
-      draftedBy:'ОПК', scheduleBy:'ДАК', rate:0, breached:false,
+    agreement:{ type:'mirovoe', num:'МС-120', status:'утверждено судом', projectAt:'16.06.2026', approvedAt:'10.07.2026',
+      expiredTerms:true, estimatedYears:1,
+      notWorseBasis:'Сопоставлено с условиями МС по аналогичным делам ОПК за 2026 год, протокол внутреннего согласования от 08.07.2026',
+      draftedBy:'ОПК', scheduleBy:'ДАК', rate:0,
       schedule:[{ pay:'10.10.2026', principal:65000 }, { pay:'10.01.2027', principal:65000 },
-                { pay:'10.04.2027', principal:65000 }, { pay:'10.07.2027', principal:62000 }],
-      approvedAt:'10.07.2026', note:'утверждено судом · погашение по графику МС (пп. 22–24)' }] } },
-  // 344 — проект: график и «не льготнее» готовы (msScheduleReady/msNotWorseOk — true),
-  // но суд ещё не утвердил (status:'проект') — c.agreement не задан: мировая мера в
-  // хребет попадает ТОЛЬКО утверждённой (buildSeed, Шаг 4), у проекта её нет.
+                { pay:'10.04.2027', principal:65000 }, { pay:'10.07.2027', principal:62000 }] } },
+  // 344 — проект: график и «не льготнее» готовы (данные, что раньше несла отдельная
+  // extra.agreements-карточка, — реквизиты «Проекта…», п. ms в MEASURE_KINDS), но суд
+  // ещё не утвердил (status:'проект', approvedAt не задан) — билдер кладёт ТОЛЬКО
+  // «Проект мирового соглашения», без «Определения…» (ADR-0047, наряд МП-11 — было
+  // c.agreement не задан вовсе, тем же путём отсекалась старая мера).
   { sit:'K3-МС', id:'344', borrower:'ОсОО «Ысык-Ата Агро»', inn:'01607201800818',
     region:'Чуйская область / Ысык-Атинский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Жээнбеков Н.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
     credit:{ id:'344', num:'Дог. №344 от 16.04.2024', subdiv:'ОПК',
              debt:{ principal:205000, interest:9800, penalty:4900, paid:0, principalOverdue:165000 } },
     stop:'иск', age:20,
-    extra:{ agreements:[{ type:'mirovoe', num:'МС-344', status:'проект', expiredTerms:true,
-      on:'заёмщик',
-      notWorse:{ attested:true, by:'ОПК',
-        basis:'Сопоставлено с условиями МС по аналогичным делам ОПК, протокол внутреннего согласования от 15.07.2026' },
-      draftedBy:'ОПК', scheduleBy:'ДАК', rate:0, breached:false,
-      schedule:[{ pay:'21.10.2026', principal:55000 }, { pay:'21.01.2027', principal:55000 },
-                { pay:'21.04.2027', principal:55000 }, { pay:'21.07.2027', principal:54700 }],
-      note:'проект · график от отраслевого · подлежит утверждению судом (пп. 22–24)' }] } },
+    agreement:{ type:'mirovoe', num:'МС-344', status:'проект', projectAt:'18.07.2026',
+      expiredTerms:true, estimatedYears:1,
+      notWorseBasis:'Сопоставлено с условиями МС по аналогичным делам ОПК, протокол внутреннего согласования от 15.07.2026',
+      draftedBy:'ОПК', scheduleBy:'ДАК' } },
 
   // ── K3-ДОБРОВОЛЬНОЕ · соглашение о добровольном исполнении поверх решения суда (2) ──
   { sit:'K3-ДОБРОВОЛЬНОЕ', id:'142', borrower:'ОсОО «Токтогул-Строй»', inn:'01607202000820',
@@ -5357,20 +5398,14 @@ const SEED = [
     credit:{ id:'142', num:'Дог. №142 от 25.01.2024', subdiv:'ОПК',
              debt:{ principal:232000, interest:11200, penalty:5800, paid:0, principalOverdue:185000 } },
     stop:'решение', age:40,
-    agreement:{ type:'dobrovolnoe', num:'СДИ-142', signedAt:'05.07.2026' },
-    extra:{ agreements:[{ type:'dobrovolnoe', num:'СДИ-142', status:'заключено', breached:false,
-      on:'заёмщик',
-      note:'заключено после вынесения акта · судом не утверждается · при неисполнении — принудительное исполнение (п. 37)' }] } },
+    agreement:{ type:'dobrovolnoe', num:'СДИ-142', signedAt:'05.07.2026' } },
   { sit:'K3-ДОБРОВОЛЬНОЕ', id:'345', borrower:'ОсОО «Кербен-Курулуш»', inn:'01502201900819',
     region:'Джалал-Абадская область / Аксыйский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Токтосунова Б.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
     credit:{ id:'345', num:'Дог. №345 от 08.06.2023', subdiv:'ОПК',
              debt:{ principal:178000, interest:8300, penalty:4100, paid:0, principalOverdue:142000 } },
     stop:'решение', age:45,
-    agreement:{ type:'dobrovolnoe', num:'СДИ-345', signedAt:'01.07.2026' },
-    extra:{ agreements:[{ type:'dobrovolnoe', num:'СДИ-345', status:'заключено', breached:false,
-      on:'заёмщик',
-      note:'заключено после вынесения акта · судом не утверждается · при неисполнении — принудительное исполнение (п. 37)' }] } },
+    agreement:{ type:'dobrovolnoe', num:'СДИ-345', signedAt:'01.07.2026' } },
 
   /* ============================================================
      КОНТУР К4 — ИСПОЛНИТЕЛЬНОЕ ПРОИЗВОДСТВО (Task 7, fix-round1). Три ситуации, 6 дел.
@@ -6132,7 +6167,7 @@ function normalize(p){
      migrateProcedureToHandover ниже; журнал живёт на ТРЕБОВАНИИ (r.handovers,
      заводится в mkReq). Пустой массив на каждом деле создавал бы второе, похожее
      на журнал поле там, где передач не объявляли вовсе. */
-  for(const k of ['credits','measures','hearings','colls','deadlines','committeeQuestions','history','procHistory','agreements','obligors']) p[k] ??= [];
+  for(const k of ['credits','measures','hearings','colls','deadlines','committeeQuestions','history','procHistory','obligors']) p[k] ??= [];
   p.procedure ??= null; p.window ??= null; p.settlement ??= null; p.conflict ??= null;
   p.realization ??= null; p.phaseStatus ??= null;
   for(const c of p.credits){ c.overdueDays ??= 0; c.factors ??= []; c.coll ??= '—'; }
@@ -6239,9 +6274,9 @@ function normalize(p){
   if(p.settlement) for(const r of stateTargets(p.settlement.on))
     r.states.push({ kind:p.settlement.type, point:p.settlement.point, since:p.settlement.since || null,
                     until:p.settlement.until, note:p.settlement.note, breached:p.settlement.breached || false });
-  for(const a of p.agreements) for(const r of stateTargets(a.on))
-    r.states.push({ kind:a.type, point:a.type==='mirovoe'?'22–24':'37', since:a.approvedAt || null, until:null,
-                    active:!a.breached, note:a.note, agreement:a });
+  /* ADR-0047 (наряд МП-11): цикл по p.agreements снят — мировое/добровольное больше не
+     пишут в r.states (мировое — вычисляемая пауза, mirovoeApprovalOf; добровольное —
+     обычная мера без блокирующего эффекта, см. комментарий у msBanner). */
   return p;
 }
 PROCESSES.forEach(normalize);
@@ -6910,7 +6945,7 @@ function boundToReq(r, measureNum){
 /* courtActs[] демонтирован (Task 3, ADR-0027/0031) — акт инстанции теперь мера
    расщеплённого судебного вида со ссылкой `basedOn` на породившую иск/жалобу.
    Здесь просто фильтруем меры вида «судебный акт» по наличию basedOn. */
-const COURT_ACT_KINDS = new Set(['Решение суда','Судебный приказ','Мировое соглашение',
+const COURT_ACT_KINDS = new Set(['Решение суда','Судебный приказ','Определение об утверждении мирового соглашения',
   'Определение о принятии искового заявления к производству','Определение о возвращении искового заявления',
   'Определение об оставлении искового заявления без рассмотрения','Определение об отказе в принятии искового заявления',
   'Определение суда (прочее)']);
@@ -7058,7 +7093,7 @@ function childGapDeadlines(p){
    давность по всем требованиям этого кредита). label называет источник для base-текста
    записи очереди (тем же приёмом, что childGapDeadlines задаёт свой base). */
 const DAVNOST_INTERRUPT_KINDS = { 'Соглашение о добровольном исполнении':'соглашение о добровольном исполнении',
-  'Мировое соглашение':'утверждение мирового соглашения', 'Исковое заявление':'подача искового заявления' };
+  'Определение об утверждении мирового соглашения':'утверждение мирового соглашения', 'Исковое заявление':'подача искового заявления' };
 function davnostBaseOf(r){
   if(!r._credit) return null;
   const cands = [{ date: ruSub(TODAY, r._credit.overdueDays), label:'начало просрочки' }];
@@ -7142,7 +7177,7 @@ function secondCounterBadge(r){
 }
 /* Счётчик вкладки «Особые состояния» = ровно то, что на ней показано: строки таблицы
    (обязательство + лицо + ведение дела) плюс карточки мировых соглашений. */
-const stateCount  = r => stateRows(r).length + (r.states||[]).filter(s=>s.kind==='mirovoe').length;
+const stateCount  = r => stateRows(r).length + mirovoeProjectsOf(r).length;
 /* Пометка строки, привязка которой не выводится: показываем, но честно называем уровень. */
 const dealLevelPill = '<span class="pill mid" title="Ссылки на меру нет — строка относится ко всему делу">по делу</span>';
 
@@ -7203,11 +7238,13 @@ function headerBanners(p, r){
     <span><b>Лицо:</b> ${per.name} — ${per.state.label || per.state.type} с ${per.state.since}. Состояние задевает ВСЕ требования к этому лицу.</span></div>`;
   for(const s of (r ? r.states : [])){
     if(!stateActive(s)) continue;
-    if(s.agreement){ out += msBanner(s.agreement); continue; }
     out += `<div class="phead-banner warn">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>
       <span><b>Требование:</b> пауза (${s.kind==='restructuring'?'рассмотрение реструктуризации, п. 19':'гарантийное письмо, п. 18'})${s.since?` с ${s.since}`:''} до ${s.until} · фаза не сбрасывается${s.kind==='restructuring'?' · отображается как «Рассмотрение вопроса реструктуризации» · подавление 181-го дня':''} · пени начисляются (М-7). Другие требования дела не приостановлены.</span></div>`;
   }
+  /* ADR-0047 (наряд МП-11): баннер МС — по живой мере, не по r.states (mirovoe там
+     больше не хранится, см. mirovoeApprovalOf). */
+  if(r && mirovoeProjectsOf(r).length) out += msBanner(r);
   /* МП5-11 (`ADR-0051` §3, наряд п.7в): порог обязательства достигнут — отдельный
      заметный баннер поверх лёгкой пилюли в «Фазе» (тот же дуэт «бейдж в строке + баннер
      в шапке», что уже несёт пауза guarantee_letter/restructuring выше). */
@@ -7898,18 +7935,18 @@ function saveDecision(idx){
      лицо          → субъект     (смерть, банкротство — задевает все требования к нему)
      ведение дела  → дело        (конфликт интересов, отстранение куратора)
    Область действия видна в таблице колонкой «Уровень». */
+/* ADR-0047 (наряд МП-11): mirovoe/dobrovolnoe убраны — ни один больше не пишется в
+   r.states (мировое — вычисляемая пауза, mirovoeApprovalOf; добровольное — обычная
+   мера без второй бухгалтерии, см. комментарий у msBanner выше). */
 const STATE_LABEL = {
   restructuring:'Рассмотрение реструктуризации (п. 19)',
   guarantee_letter:'Отсрочка по гарантийному письму (п. 18)',
-  mirovoe:'Мировое соглашение (пп. 22–24)',
-  dobrovolnoe:'Соглашение о добровольном исполнении (п. 37)',
 };
 function stateRows(r){
   const p=r._proc, per=personOf(r), rows=[];
   const lvl = (cls,txt,scope)=>`<td><span class="lvl ${cls}">${txt}</span><br><span class="src">${scope}</span></td>`;
   /* 1. состояния ОБЯЗАТЕЛЬСТВА — только этого требования */
   for(const s of (r.states||[])){
-    if(s.kind==='mirovoe') continue;                                    // мировое — карточками ниже
     const dead = !stateActive(s);
     rows.push(`<tr${dead?' class="off"':''}>
       ${lvl('lvl-req','обязательство', `требование ${r.id}`)}
@@ -7944,13 +7981,12 @@ function panelSpecial(){
   const sol=solidaryWith(r);
   return `<div class="panel-wrap">
     <p class="section-h">Особые состояния</p>
-    <p class="section-note">Состояния разделены по природе: <b>обязательство</b> — пауза и соглашения, живут на требовании; <b>лицо</b> — состояние субъекта, задевает все требования к нему; <b>ведение дела</b> — конфликт интересов, окно ожидания. Пауза по заёмщику не приостанавливает работу с поручителем. Смерть заёмщика — контур К5, не оверлей. Мировое соглашение: срок производный из графика; «не льготнее» — аттестация; статусы проект/утверждено/отказано; проект — ОПК, график — отраслевой отдел; регистрация на судебной стадии.</p>
+    <p class="section-note">Состояния разделены по природе: <b>обязательство</b> — пауза и мировое соглашение, живут на требовании; <b>лицо</b> — состояние субъекта, задевает все требования к нему; <b>ведение дела</b> — конфликт интересов, окно ожидания. Пауза по заёмщику не приостанавливает работу с поручителем. Смерть заёмщика — контур К5, не оверлей. Мировое соглашение (пп. 22–24, ADR-0047): проект/утверждение/нарушение — обычные меры журнала (кнопка «Зарегистрировать меру» ниже), не отдельная форма; срок и «не льготнее» — реквизиты проекта; график погашения — пометка утверждения.</p>
     <div class="gtoolbar">
       ${paused
         ? `<button class="btn btn-tint btn-sm" onclick="liftPause()">Снять паузу с требования</button>`
         : `<button class="btn btn-tint btn-sm" onclick="openPauseModal()">Поставить требование на паузу</button>`}
-      <button class="btn btn-tint btn-sm" onclick="openAgreementModal()">Соглашение</button>
-      <span class="hint-inline">Действия применяются к требованию ${r.id} (${r.role} ${escAttr(personOf(r).name)})${sol.length?`, солидарные соседи (${sol.length}) не затрагиваются, кроме соглашения — обязательство одно`:''}.</span>
+      <span class="hint-inline">Действия применяются к требованию ${r.id} (${r.role} ${escAttr(personOf(r).name)})${sol.length?`, солидарные соседи (${sol.length}) не затрагиваются`:''}.</span>
     </div>
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Уровень</th><th>Основание / пункт</th><th>Примечание</th><th>Срок</th></tr></thead>
@@ -7960,106 +7996,73 @@ function panelSpecial(){
   </div>`;
 }
 
-/* Баннер соглашения в шапке — статус-зависимый (МС-3/МС-7). */
-function msBanner(a){
+/* ADR-0047 (наряд МП-11): баннер/статус/карточки читаются по живым мерам требования
+   (mirovoeApprovalOf/mirovoeBreachOf/mirovoeProjectsOf выше), не по p.agreements[] —
+   вторая бухгалтерия и её переходы (msApprove/msReject/msBreach/msSyncStates/
+   attachAgreementState/openAgreementModal/agSave) сняты целиком. Регистрация «Проекта
+   мирового соглашения»/«Определения…»/«Констатации нарушения…» — обычной кнопкой
+   «Зарегистрировать меру» (тело формы, наряд ниже), карточка — только чтение. */
+function msBanner(r){
   const doc=`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`;
   const warn=`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>`;
-  if(a.type==='dobrovolnoe') return `<div class="phead-banner info">${doc}<span>Соглашение о добровольном исполнении ${a.num}: ${a.note}</span></div>`;
-  if(a.breached) return `<div class="phead-banner danger">${warn}<span>Мировое соглашение ${a.num} нарушено — истребование исполнительного листа по условиям МС, принудительное исполнение (п. 37).</span></div>`;
-  const t=msTermYears(a.schedule);
-  if(a.status==='утверждено судом') return `<div class="phead-banner ok">${doc}<span>Мировое соглашение ${a.num} утверждено судом · график ≈ ${t??'?'} лет · погашение по графику МС (пп. 22–24).</span></div>`;
-  if(a.status==='отказано в утверждении') return `<div class="phead-banner danger">${warn}<span>В утверждении мирового соглашения ${a.num} отказано — взыскание продолжается.</span></div>`;
-  return `<div class="phead-banner warn">${warn}<span>Мировое соглашение ${a.num}: проект, не утверждён судом — погашение по графику МС начнётся после утверждения; взыскание продолжается.</span></div>`;
+  const appr=mirovoeApprovalOf(r);
+  if(appr){
+    if(mirovoeBreachOf(r, appr)) return `<div class="phead-banner danger">${warn}<span>Мировое соглашение ${escAttr(appr.num||'')} нарушено — истребование исполнительного листа по условиям МС, принудительное исполнение (п. 37).</span></div>`;
+    const t=msTermYears(appr.schedule);
+    return `<div class="phead-banner ok">${doc}<span>Мировое соглашение ${escAttr(appr.num||'')} утверждено судом · график ≈ ${t??'?'} лет · погашение по графику МС (пп. 22–24).</span></div>`;
+  }
+  const proj=mirovoeProjectsOf(r).slice().sort((a,b)=>(ruD(a.dates&&a.dates.event)||0)-(ruD(b.dates&&b.dates.event)||0)).pop();
+  if(!proj) return '';
+  const refused=liveMeasuresOf(r).some(m=>m.kind==='Определение об утверждении мирового соглашения' && m.basedOn===proj.num && m.outcome==='отказано в утверждении');
+  if(refused) return `<div class="phead-banner danger">${warn}<span>В утверждении мирового соглашения ${escAttr(proj.num||'')} отказано — взыскание продолжается.</span></div>`;
+  return `<div class="phead-banner warn">${warn}<span>Мировое соглашение ${escAttr(proj.num||'')}: проект, не утверждён судом — погашение по графику МС начнётся после утверждения; взыскание продолжается.</span></div>`;
 }
-
-function msStatusPill(a){
-  if(a.breached) return '<span class="pill high">нарушено</span>';
-  if(a.status==='утверждено судом') return '<span class="pill low">утверждено судом</span>';
-  if(a.status==='отказано в утверждении') return '<span class="pill high">отказано</span>';
+function msStatusPill(status){
+  if(status==='нарушено') return '<span class="pill high">нарушено</span>';
+  if(status==='утверждено') return '<span class="pill low">утверждено судом</span>';
+  if(status==='отказано') return '<span class="pill high">отказано</span>';
   return '<span class="pill mid">проект</span>';
 }
-
-/* МС-1: таблица графика с производными колонками. */
-function msSchedTable(a){
-  const total=(a.schedule||[]).reduce((s,r)=>s+(+r.principal||0),0);
-  const rows=msComputeRows(a,{ rate:a.rate||0, base:365, start:a.approvedAt||(a.schedule&&a.schedule[0]&&a.schedule[0].pay), principalTotal:total });
+/* МС-1: таблица графика с производными колонками — читает «Определение…» (schedule/
+   rate — пометка утверждения, см. openAnnotationModal), не «Проект…». */
+function msSchedTable(m){
+  const total=(m.schedule||[]).reduce((s,r)=>s+(+r.principal||0),0);
+  const rows=msComputeRows(m,{ rate:m.rate||0, base:365, start:(m.dates&&m.dates.event)||(m.schedule&&m.schedule[0]&&m.schedule[0].pay), principalTotal:total });
   if(!rows.length) return '<div class="cgrid-empty">График не приложен</div>';
   const body=rows.map(r=>`<tr><td>${r.k}</td><td>${r.pay}</td><td style="text-align:right">${fmtKGS(r.open)}</td><td style="text-align:right">${fmtKGS(r.interest)}</td><td style="text-align:right">${fmtKGS(r.principal)}</td><td style="text-align:right">${fmtKGS(r.total)}</td><td style="text-align:right">${fmtKGS(r.close)}</td></tr>`).join('');
   return `<div class="cgrid-wrap"><table class="cgrid">
     <thead><tr><th>№</th><th>Дата платежа</th><th style="text-align:right">Остаток на начало</th><th style="text-align:right">Проценты</th><th style="text-align:right">Осн. долг</th><th style="text-align:right">Платёж ИТОГО</th><th style="text-align:right">Остаток на конец</th></tr></thead>
     <tbody>${body}</tbody></table></div>`;
 }
-
-/* Карточки мировых соглашений: авторство, гейты (МС-1/МС-2/МС-4), график, переходы (МС-3/МС-7), пометка МС-6. */
+/* Карточки мировых соглашений: по корню «Проект…» — вся цепочка проект→утверждение/
+   отказ→нарушение (basedOn), одна карточка на корень. */
 function msCards(p, r){
-  /* Мировое — состояние обязательства: показываем соглашения текущего требования,
-     унаследованные (без поля req) считаем относящимися к требованию заёмщика. */
-  const mir=(p.agreements||[]).filter(a=>a.type==='mirovoe')
-    .filter(a=>!r || (a.req ? a.req===r.id : (r.states||[]).some(s=>s.agreement===a)));
-  if(!mir.length) return '';
-  return mir.map(a=>{
-    const t=msTermYears(a.schedule), tg=msTermGate(a.expiredTerms, t);
+  const roots=mirovoeProjectsOf(r);
+  if(!roots.length) return '';
+  return roots.map(proj=>{
+    const appr=liveMeasuresOf(r).find(m=>m.kind==='Определение об утверждении мирового соглашения' && m.basedOn===proj.num) || null;
+    const breach=appr && appr.outcome==='утверждено' ? mirovoeBreachOf(r, appr) : null;
+    const refused=appr && appr.outcome==='отказано в утверждении';
+    const status=breach?'нарушено':(appr&&appr.outcome==='утверждено')?'утверждено':refused?'отказано':'проект';
+    const ms=proj.ms||{};
+    const t=ms.estimatedYears, tg=msTermGate(ms.expiredTerms, t);
     const termPill = tg.level==='block'?`<span class="pill high">≈ ${t} лет · превышает 5 (п. 24)</span>` : tg.level==='warn'?`<span class="pill mid">≈ ${t} лет</span>` : `<span class="pill low">≈ ${t??'?'} лет</span>`;
-    const att = msNotWorseOk(a) ? `<span class="pill low">подтверждено</span>${a.notWorse.basis?` · <span class="src">${escAttr(a.notWorse.basis)}</span>`:''}` : '<span class="pill high">не подтверждено</span>';
-    const schedGate = msScheduleReady(a) ? '' : `<div class="warn-inline" style="margin-top:8px">${warnIcon()}<span>График от отраслевого отдела не приложен (п. 23) — МС нельзя утвердить.</span></div>`;
-    let acts='';
-    if(a.status==='проект'){
-      const canApprove = msScheduleReady(a) && msNotWorseOk(a) && tg.level!=='block';
-      acts=`<button class="btn btn-tint btn-sm" ${canApprove?'':'disabled'} onclick="msApprove('${escAttr(a.num)}')">Утвердить судом</button>
-            <button class="btn btn-tint btn-sm danger" onclick="msReject('${escAttr(a.num)}')">Отказ в утверждении</button>`;
-    } else if(a.status==='утверждено судом' && !a.breached){
-      acts=`<button class="btn btn-tint btn-sm danger" onclick="msBreach('${escAttr(a.num)}')">Зафиксировать нарушение МС</button>`;
-    }
+    const att = (ms.notWorse && ms.notWorse.attested) ? `<span class="pill low">подтверждено</span>${ms.notWorse.basis?` · <span class="src">${escAttr(ms.notWorse.basis)}</span>`:''}` : '<span class="pill high">не подтверждено</span>';
     const flag6=`<div class="section-note" style="margin-top:8px">⚑ Открытый вопрос: утверждение МС судом = судебный акт ⇒ прекращение начисления неустойки на дату утверждения? — на согласовании (платежи).</div>`;
     return `<div class="ms-card">
-      <div class="ms-card-h"><span class="mt">Мировое соглашение ${a.num}</span>${msStatusPill(a)}<span class="pill info">пп. 22–24</span></div>
+      <div class="ms-card-h"><span class="mt">Мировое соглашение ${escAttr(proj.num||'')}</span>${msStatusPill(status)}<span class="pill info">пп. 22–24</span></div>
       <div class="ms-meta">
-        <div><b>Проект (ОПК, п. 23):</b> ${escAttr(a.draftedBy||'—')}</div>
-        <div><b>График (отраслевой отдел, п. 23):</b> ${escAttr(a.scheduleBy||'—')}</div>
-        <div><b>Обязательства с истёкшими сроками:</b> ${a.expiredTerms?'да':'нет'}</div>
-        <div><b>Срок (из графика, МС-1):</b> ${termPill}</div>
+        <div><b>Проект (ОПК, п. 23):</b> ${escAttr(ms.draftedBy||'—')}</div>
+        <div><b>График (отраслевой отдел, п. 23):</b> ${escAttr(ms.scheduleBy||'—')}</div>
+        <div><b>Обязательства с истёкшими сроками:</b> ${ms.expiredTerms?'да':'нет'}</div>
+        <div><b>Срок (заявлен в проекте, МС-1):</b> ${termPill}</div>
         <div style="grid-column:1/-1"><b>Не льготнее ранее принятых (п. 24):</b> ${att}</div>
       </div>
       ${tg.level==='block'?`<div class="gate-inline">${alertIcon()}<span>${tg.msg}</span></div>`:tg.level==='warn'?`<div class="warn-inline">${warnIcon()}<span>${tg.msg}</span></div>`:''}
-      ${schedGate}
-      <p class="section-h" style="margin-top:12px">График погашения по мировому соглашению</p>
-      ${msSchedTable(a)}
+      ${appr && appr.outcome==='утверждено' ? `<p class="section-h" style="margin-top:12px">График погашения по мировому соглашению</p>${msSchedTable(appr)}` : `<div class="hint-inline" style="margin-top:8px">График вносится вместе с исходом «Определения…» после утверждения (пометка меры).</div>`}
       ${flag6}
-      ${acts?`<div class="ms-acts">${acts}</div>`:''}
     </div>`;
   }).join('');
-}
-
-/* МС-3 / МС-7: переходы статуса. */
-function _msFind(num){ return (curProc.agreements||[]).find(a=>a.num===num); }
-/* Состояния обязательства ссылаются на соглашение — держим активность в согласии с ним. */
-function msSyncStates(a){
-  for(const r of curProc.requirements)
-    for(const s of (r.states||[])) if(s.agreement===a){ s.active=!a.breached; s.note=a.note; s.since=a.approvedAt||s.since; }
-}
-function msApprove(num){
-  const a=_msFind(num); if(!a) return;
-  if(!(msScheduleReady(a)&&msNotWorseOk(a))){ toast('Нельзя утвердить: нужен график отраслевого и подтверждение «не льготнее»','err'); return; }
-  const tg=msTermGate(a.expiredTerms, msTermYears(a.schedule));
-  if(tg.level==='block'){ toast(tg.msg,'err'); return; }
-  a.status='утверждено судом'; a.approvedAt=TODAY; a.note='утверждено судом · погашение по графику МС (пп. 22–24)';
-  msSyncStates(a);
-  curProc.history.unshift({ when:TODAY+' 12:00', what:`Мировое соглашение ${num} утверждено судом → погашение по графику МС (пп. 22–24)`, who:'ОПК' });
-  renderPanels(); toast('МС утверждено судом (демо)','ok');
-}
-function msReject(num){
-  const a=_msFind(num); if(!a) return;
-  a.status='отказано в утверждении'; a.note='в утверждении отказано · взыскание продолжается';
-  msSyncStates(a);
-  curProc.history.unshift({ when:TODAY+' 12:00', what:`В утверждении мирового соглашения ${num} отказано → взыскание продолжается`, who:'Суд/ОПК' });
-  renderPanels(); toast('В утверждении МС отказано (демо)','warn');
-}
-function msBreach(num){
-  const a=_msFind(num); if(!a || a.status!=='утверждено судом') return;
-  a.breached=true; a.note='нарушено · истребование ИЛ по условиям МС (принудительное исполнение)';
-  msSyncStates(a);
-  curProc.history.unshift({ when:TODAY+' 12:00', what:`Нарушение мирового соглашения ${num} → истребование исполнительного листа по условиям МС, принудительное исполнение (п. 37)`, who:'ОПК' });
-  renderPanels(); toast('Нарушение МС зафиксировано — задача на истребование ИЛ (демо)','warn');
 }
 /* Типы паузы — поведением управляет type, не метка (В-4). guarantee_letter п.18 /
    restructuring п.19; для реструктуризации шапка сама включает оверлей и подавление. */
@@ -8314,20 +8317,19 @@ function renderPanels(){
 /* ДЕМО-ПЕРСИСТ (localStorage): внесённые в макете данные переживают F5.
    Сброс к сид-данным — кнопкой «Сбросить демо» или ?reset в URL. Версия в ключе:
    при изменении структуры сида поднять, чтобы старый снимок не перекрывал новый. */
-const STORE_KEY='asubk-collection-state-v2';   // v2: снимок разделён на дела и требования (М-1)
+const STORE_KEY='asubk-collection-state-v3';   // v3 (ADR-0047, наряд МП-11): p.agreements/r.states.agreement сняты — старый снимок нёс agRef на несуществующую больше структуру
 /* Требования — производные (пересобираются normalize), но собственные поля у них есть:
    расходы, состояния обязательства. Их сохраняем отдельной таблицей по id, иначе после
    F5 пропадут внесённые расходы и снятые паузы. Охвата среди них больше нет (ADR-0025) —
    он свёртка с мер, а меры уже часть PROCESSES/p.measures и сохраняются вместе с делом.
-   Ссылки _proc/_credit и agreement выкидываются: они циклические и восстанавливаются
-   связыванием. */
+   Ссылка _proc/_credit выкидывается: она циклическая и восстанавливается связыванием. */
 function persistState(){
   try{
     const drop=new Set(['_proc','_credit','_src','requirements','borrowerId']);
     const procs=JSON.parse(JSON.stringify(PROCESSES, (k,v)=> drop.has(k) ? undefined : v));
     const reqs={};
     for(const r of allReqs()) reqs[r.id]={ costs:r.costs||[], handovers:r.handovers||[],
-      states:(r.states||[]).map(s=>{ const {agreement,_src,...rest}=s; return agreement?{...rest,agRef:agreement.num}:rest; }) };
+      states:(r.states||[]).map(s=>{ const {_src,...rest}=s; return rest; }) };
     localStorage.setItem(STORE_KEY, JSON.stringify({procs, reqs}));
   }catch(e){}
 }
@@ -8345,11 +8347,7 @@ function restoreState(){
       const r=REQ_INDEX[id]; if(!r) continue;
       r.costs=saved.costs||[];
       if(saved.handovers){ r.handovers=saved.handovers; applyHandoverOwner(r); }
-      r.states=(saved.states||[]).map(s=>{
-        if(!s.agRef) return s;
-        const {agRef,...rest}=s;
-        return { ...rest, agreement:(r._proc.agreements||[]).find(a=>a.num===agRef) || null };
-      });
+      r.states=saved.states||[];
     }
   }catch(e){}
 }
@@ -8475,6 +8473,15 @@ function measureGate(r, kind){
     return { kind:'window', reason:`Окно ожидания зачисления открыто до ${p.window.until}: регистрация первичной претензии заблокирована. Закройте окно отметкой куратора или дождитесь истечения.` };
   const st = (r.states||[]).find(s=>stateActive(s));
   if(st) return { kind:'pause', reason:`По требованию активна пауза (${st.kind==='restructuring'?'рассмотрение реструктуризации, п. 19':st.kind==='guarantee_letter'?'гарантийное письмо, п. 18':'соглашение'})${st.until?` до ${st.until}`:''}: меры принуждения приостановлены. Другие требования дела не затронуты (М-11).` };
+  /* ADR-0047 (наряд МП-11): действующее МС — отдельная, полностью вычисляемая пауза
+     (mirovoeApprovalOf выше), не запись r.states — см. комментарий там. Закрыватель
+     («Констатация нарушения…») исключён из своей же паузы — иначе тупик: пауза не
+     снимается никогда, если мера, что её закрывает, сама заблокирована паузой. */
+  if(kind!=='Констатация нарушения мирового соглашения'){
+    const msAppr = mirovoeApprovalOf(r);
+    if(msAppr && !mirovoeBreachOf(r, msAppr))
+      return { kind:'pause', reason:`По требованию действует мировое соглашение (пп. 22–24, утверждено ${(msAppr.dates&&msAppr.dates.event)||''}): меры принуждения приостановлены до нарушения. Другие требования дела не затронуты (М-11).` };
+  }
   const kd = kindOf(kind);
   if(kd && kd.source === 'внешний акт') return null;   // ADR-0027 п.3 — предусловия-гейты к внешним актам неприменимы
   const sub=subdivReason(kind); if(sub) return { kind:'subdiv', reason:sub };
@@ -8555,6 +8562,7 @@ function openMeasureModal(){
       <div class="field col-span" id="mScopeWrap"></div>
       <div class="field col-span" id="mClaimsWrap"></div>
       <div class="field col-span" id="mBasedOnWrap"></div>
+      <div class="field col-span" id="mMsWrap"></div>
     </div>
     <p class="section-h">Пометки</p>
     <p class="section-note">Пусты при регистрации — получение, доставка и исход дозаполняются позже, по мере наступления, действием «Внести/изменить пометку» в журнале мер (доступно и после закрытия требования).</p>
@@ -8629,22 +8637,72 @@ function renderMAnnoPreview(kind){
   if(kd && kd.outcomes) bits.push(`<div class="field col-span"><span class="flabel">Исход</span><div class="hint-inline">Значения: ${kd.outcomes.filter(o=>o.value!=='').map(o=>escAttr(o.value)).join(' · ')}. Вносится позже, тем же действием.</div></div>`);
   wrap.innerHTML = bits.length ? bits.join('') : `<div class="field col-span"><div class="hint-inline">У вида «${escAttr(kind)}» пометок нет — доставка/исход не применимы (${kd&&kd.resultIsDocument?'результат придёт дочерней мерой-документом, ADR-0035':'вид без модели результата'}).</div></div>`;
 }
+/* МС-1/2/4 (ADR-0047, наряд МП-11, тикет «Точки интеграции» вопрос 1): бесподочные
+   in-form поля «Проекта мирового соглашения» — не полноценное предусловие вида (у
+   него нет отдельной записи PRECONDITIONS, читаются как обычные поля тела). Срок
+   графика здесь — ЗАЯВЛЕННЫЙ куратором ориентир (число, не таблица): фактический
+   график — реквизит утверждения (mMsWrap ничего не знает о m.schedule, тот вносится
+   пометкой у «Определения…», см. openAnnotationModal). */
+const MS_PROJECT_KIND = 'Проект мирового соглашения';
+/* wrap.innerHTML перестраивается ТОЛЬКО когда меняется вид меры (renderMMs — из
+   syncMeasureWarnings, вызывается по onchange у mKind). Поля внутри секции (чекбоксы/
+   срок) вызывают лёгкий refreshMsGate() ниже, не полный ре-рендер — иначе разметка
+   секции перестраивалась бы на каждый клик и сбрасывала бы только что поставленную
+   галочку/введённое значение (тот же класс дыры, что и «форма теряет ввод»). */
+function renderMMs(kind, r){
+  const wrap=document.getElementById('mMsWrap'); if(!wrap) return;
+  if(kind!==MS_PROJECT_KIND){ wrap.innerHTML=''; return; }
+  const expiredDefault = r ? msExpiredDefault(r) : false;
+  wrap.innerHTML=`<span class="flabel">Мировое соглашение (пп. 22–24)</span>
+    <label class="chk-row"><span><input type="checkbox" id="mMsExpired"${expiredDefault?' checked':''} onchange="refreshMsGate()"> Обязательства с истёкшими сроками исполнения (п. 24)</span><span></span><span></span></label>
+    <div class="mform" style="margin-top:8px">
+      <div class="field"><span class="flabel">Предполагаемый срок графика, лет</span><div class="control"><input id="mMsYears" type="text" value="3" oninput="refreshMsGate()"></div></div>
+      <div class="field"><span class="flabel">Проект подготовил (ОПК, п. 23)</span><div class="control"><input id="mMsDraftedBy" value="ОПК"></div></div>
+      <div class="field"><span class="flabel">График предоставит (отраслевой отдел, п. 23)</span><div class="control"><input id="mMsScheduleBy" value=""></div></div>
+    </div>
+    <div id="mMsTermGate"></div>
+    <label class="chk-row" style="margin-top:8px"><span><input type="checkbox" id="mMsNotWorse" onchange="refreshMsGate()"> Условия МС не льготнее ранее принятых обязательств (п. 24)</span><span></span><span></span></label>
+    <div class="field col-span"><span class="flabel">Обоснование «не льготнее»</span><div class="control"><input id="mMsNotWorseBasis" value=""></div></div>`;
+  refreshMsGate();
+}
+/* Save блокируется, если срок сверх 5 лет при истёкших сроках (жёсткий блок п. 24)
+   ИЛИ «не льготнее» не отмечено — тем же духом, что бывший agSync().ok. */
+function msProjectFormOk(){
+  const el=document.getElementById('mMsExpired'); if(!el) return true;   // секция не отрисована — не наш вид
+  const expired=el.checked, years=parseFloat((document.getElementById('mMsYears')||{}).value)||null;
+  if(msTermGate(expired, years).level==='block') return false;
+  return document.getElementById('mMsNotWorse').checked;
+}
+/* Гейт проверяется по КАЖДОЙ отмеченной цели: мера сохраняется целиком либо не
+   сохраняется. Общая точка для «вид сменился» (syncMeasureWarnings) и «поле МС-секции
+   тронули» (refreshMsGate) — обе кончаются одним и тем же решением save.disabled. */
+function refreshSaveGate(){
+  const kind=document.getElementById('mKind').value;
+  const box=document.getElementById('mGate'); const save=document.getElementById('mSave');
+  const blocked=measureTargets().map(r=>({r, g:measureGate(r,kind)})).filter(x=>x.g);
+  if(blocked.length){
+    box.innerHTML=blocked.map(({r,g})=>`<div class="gate-inline">${alertIcon()}<span>${blocked.length>1?`<b>${r.role} ${escAttr(personOf(r).name)}:</b> `:''}${g.reason}</span></div>`).join('');
+    save.disabled=true;
+  } else { box.innerHTML=''; save.disabled=!msProjectFormOk(); }
+}
+function refreshMsGate(){
+  const expired=document.getElementById('mMsExpired').checked;
+  const years=parseFloat((document.getElementById('mMsYears')||{}).value)||null;
+  const tg=msTermGate(expired, years);
+  document.getElementById('mMsTermGate').innerHTML = tg.level==='block'?`<div class="gate-inline">${alertIcon()}<span>${tg.msg}</span></div>` : tg.level==='warn'?`<div class="warn-inline">${warnIcon()}<span>${tg.msg}</span></div>` : '';
+  refreshSaveGate();
+}
 function syncMeasureWarnings(){
   const kind=document.getElementById('mKind').value;
   const secEl=document.getElementById('mSection'); if(secEl) secEl.value=sectionOf(kind);   // раздел выводится из вида меры
   renderMScope(kind);
   renderMClaims(kind, curReq);
   renderMBasedOn(kind);
+  renderMMs(kind, curReq);
   renderMAnnoPreview(kind);
   document.getElementById('mWarnPhase').style.display=isMilestone(kind)?'flex':'none';
   document.getElementById('mWarnDelivery').style.display=needsDelivery(kind)?'flex':'none';
-  const box=document.getElementById('mGate'); const save=document.getElementById('mSave');
-  /* Гейт проверяется по КАЖДОЙ отмеченной цели: мера сохраняется целиком либо не сохраняется. */
-  const blocked=measureTargets().map(r=>({r, g:measureGate(r,kind)})).filter(x=>x.g);
-  if(blocked.length){
-    box.innerHTML=blocked.map(({r,g})=>`<div class="gate-inline">${alertIcon()}<span>${blocked.length>1?`<b>${r.role} ${escAttr(personOf(r).name)}:</b> `:''}${g.reason}</span></div>`).join('');
-    save.disabled=true;
-  } else { box.innerHTML=''; save.disabled=false; }
+  refreshSaveGate();
 }
 function saveMeasure(){
   const kind=document.getElementById('mKind').value;
@@ -8697,9 +8755,17 @@ function saveMeasure(){
     if(!okBasis){ toast('Основание не подходит: нет ни одной общей цели с указанной мерой (ADR-0029 п.2)','err'); return; }
     basedOnInfo = { basedOn:basedOnSel };
   }
+  /* МС-1/2/4 (ADR-0047, наряд МП-11): реквизиты «Проекта…» — тело, фиксируется здесь
+     (не пометка, не PRECONDITIONS-запись — тикет «Точки интеграции» вопрос 1). */
+  const msInfo = kind===MS_PROJECT_KIND ? { ms:{
+    expiredTerms: document.getElementById('mMsExpired').checked,
+    estimatedYears: parseFloat((document.getElementById('mMsYears')||{}).value)||null,
+    notWorse:{ attested: document.getElementById('mMsNotWorse').checked, basis: val('mMsNotWorseBasis') },
+    draftedBy: val('mMsDraftedBy'), scheduleBy: val('mMsScheduleBy'),
+  } } : {};
   p.measures.unshift({
     sec:sectionOf(kind), kind, dates:D(ev,reg), num:val('mNum'),
-    purpose:val('mPurpose'), ...scopeInfo, ...basedOnInfo,
+    purpose:val('mPurpose'), ...scopeInfo, ...basedOnInfo, ...msInfo,
     docs:[], sum, claims, responsible:role, targets:targets.map(r=>r.id),
   });
   /* СК-13: обязательство закрывается ФАКТОМ. Раньше p.deadlines не менялся ничем —
@@ -8873,6 +8939,23 @@ function openAnnotationModal(mi){
         ${cur?`<div class="field col-span"><div class="hint-inline">Уже внесено: ${fmtKGS(claimsEntryTotal(cur))}${cur.relation&&cur.relation.type==='absorbs'?` · поглощает слой меры №${escAttr(cur.relation.of)}`:''} · поставил ${escAttr(cur.by||'')} ${cur.at||''}</div></div>`:''}`;
       }).join('')}
     </div>`;
+  /* МС (ADR-0047, наряд МП-11, тикет «Точки интеграции» вопрос 3): график погашения —
+     реквизит УТВЕРЖДЕНИЯ, не проекта, и вносится здесь же, как и присуждённое (§8.5) —
+     реализует только когда есть чем платить, т.е. существует до утверждения ему
+     неоткуда. НЕ синхронизируется с «Присуждено» выше (разные вопросы — сколько / когда,
+     решение вопроса 3): итог графика вводится отдельным числом, не читает aAward_*. */
+  const isMsAward = m.kind==='Определение об утверждении мирового соглашения';
+  const scheduleSection = !isMsAward ? '' : `
+    <p class="section-h" style="font-size:15px;margin:10px 0 4px">График погашения по мировому соглашению</p>
+    <p class="section-note">Реквизит утверждения (не проекта) — материализуется равными платежами; итог — сумма графика, не читается из «Присуждено» выше (вносятся раздельно).</p>
+    <div class="mform">
+      <div class="field"><span class="flabel">Ставка, % год.</span><div class="control"><input id="aMsRate" value="${escAttr(String(m.rate!=null?m.rate:0))}"></div></div>
+      ${dinp('Первый платёж', ruToIso((m.schedule&&m.schedule[0]&&m.schedule[0].pay)||''), 'aMsStart')}
+      <div class="field"><span class="flabel">Шаг, мес.</span><div class="control"><input id="aMsStep" value="3"></div></div>
+      <div class="field"><span class="flabel">Число платежей</span><div class="control"><input id="aMsCount" value="${(m.schedule&&m.schedule.length)||4}"></div></div>
+      <div class="field col-span"><span class="flabel">Итого (осн. долг)</span><div class="control"><input id="aMsTotal" value="${escAttr(String((m.schedule||[]).reduce((s,r)=>s+(+r.principal||0),0)))}"></div></div>
+    </div>
+    ${m.schedule&&m.schedule.length?`<div class="hint-inline">Уже внесено: ${m.schedule.length} платежей, ${fmtKGS(m.schedule.reduce((s,r)=>s+(+r.principal||0),0))} основного долга.</div>`:''}`;
   host.innerHTML=`<div class="modal form">
     <div class="modal-h"><span class="mt">Пометка меры · ${escAttr(m.num||m.kind)}</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
     <div class="modal-b">
@@ -8881,6 +8964,7 @@ function openAnnotationModal(mi){
       ${deliverySection}
       ${outcomeSection}
       ${awardSection}
+      ${scheduleSection}
       <div class="mform" style="margin-top:10px"><div class="field col-span req"><span class="flabel">Причина правки (обязательна, если меняете уже внесённое значение)</span><div class="control"><input id="aReason" value=""></div></div></div>
     </div>
     <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" onclick="saveAnnotation(${mi})">Сохранить пометку</button></div>
@@ -8972,6 +9056,25 @@ function saveAnnotation(mi){
         if(wasSet && !reason){ toast('Меняете уже внесённое присуждение — укажите причину правки','warn'); return; }
         m.awards=m.awards||{};
         m.awards[x.id]={ ...entry, relation, by:role, at:TODAY, ...(wasSet?{reason}:{}) };
+        changed=true; if(wasSet) correcting=true;
+      }
+    }
+  }
+  /* МС (ADR-0047, наряд МП-11): график — реквизит «Определения…», не проекта; вводится
+     отдельно от «Присуждено» (вопрос 3 тикета «Точки интеграции» — не синхронизируется). */
+  if(m.kind==='Определение об утверждении мирового соглашения' && document.getElementById('aMsStart')){
+    const rate=msNum(val('aMsRate'));
+    const start=ruDate(val('aMsStart')), step=Math.max(1,Math.round(msNum(val('aMsStep')))||3),
+      count=Math.max(1,Math.round(msNum(val('aMsCount')))||1), total=msNum(val('aMsTotal'));
+    if(start && total>0){
+      const schedule=msSeedSchedule(start, step, count, total);
+      const prevTotal=(m.schedule||[]).reduce((s,r)=>s+(+r.principal||0),0);
+      const differs = !m.schedule || !m.schedule.length || prevTotal!==total || m.schedule.length!==schedule.length || (m.rate||0)!==rate;
+      if(differs){
+        const wasSet=!!(m.schedule && m.schedule.length);
+        if(wasSet && !reason){ toast('Меняете уже внесённый график — укажите причину правки','warn'); return; }
+        m.schedule=schedule; m.rate=rate;
+        m.scheduleMeta={ by:role, at:TODAY, ...(wasSet?{reason}:{}) };
         changed=true; if(wasSet) correcting=true;
       }
     }
@@ -9094,90 +9197,10 @@ function doProcChange(reqId){
   r._proc.history.unshift({when:TODAY+' 11:00', what:`Требование ${r.id} передано в ${to}, ожидает подтверждения (5 р.д., п. 98)`, who:'Текущая роль'});
   closeModal(); renderPanels(); toast('Требование передано — ожидает подтверждения','ok');
 }
-/* Регистрация соглашения (МС-1 срок·гейт · МС-2 аттестация · МС-4 авторство · МС-5 стадия). */
-function openAgreementModal(){
-  const p=curProc; const host=document.getElementById('modalHost');
-  host.innerHTML=`<div class="modal form">
-    <div class="modal-h"><span class="mt">Регистрация соглашения</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
-    <div class="modal-b">
-      <div class="mform">
-        ${sel('Тип','Мировое соглашение',['Мировое соглашение','Соглашение о добровольном исполнении'],'agType')}
-        ${inp('Номер','','agNum')}
-      </div>
-      <div id="agStage"></div>
-      <div id="agMirovoe">
-        <div class="mform" style="margin-top:8px">
-          ${inp('Проект подготовил (ОПК, п. 23)','ОПК · ','agDrafted')}
-          ${inp('График предоставил (отраслевой отдел, п. 23)','','agSchedBy')}
-          ${inp('Срок графика, лет','6','agYears')}
-        </div>
-        <label class="chk-row" style="margin-top:8px"><span><input type="checkbox" id="agExpired"> Обязательства с истёкшими сроками исполнения (п. 24)</span><span></span><span></span></label>
-        <div id="agTermGate"></div>
-        <label class="chk-row" style="margin-top:8px"><span><input type="checkbox" id="agNotWorse"> Условия МС не льготнее ранее принятых обязательств (п. 24)</span><span></span><span></span></label>
-        ${inp('Обоснование «не льготнее»','','agBasis')}
-        <div id="agAttGate"></div>
-      </div>
-    </div>
-    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" id="agSave" onclick="agSave()">Сохранить</button></div>
-  </div>`; host.classList.add('open');
-  document.getElementById('agExpired').checked = msExpiredDefault(curReq);
-  host.querySelectorAll('input,select').forEach(i=>{ i.oninput=agSync; i.onchange=agSync; });
-  agSync();
-}
-function agSync(){
-  const type = document.getElementById('agType').value==='Мировое соглашение' ? 'mirovoe' : 'dobrovolnoe';
-  document.getElementById('agMirovoe').style.display = type==='mirovoe' ? '' : 'none';
-  const st=msStageEligible(curReq, type);                               // МС-5 — по требованию
-  document.getElementById('agStage').innerHTML = st.ok ? '' : `<div class="gate-inline">${alertIcon()}<span>${st.reason}</span></div>`;
-  let ok=st.ok;
-  if(type==='mirovoe'){
-    const expired=document.getElementById('agExpired').checked;
-    const years=parseFloat((document.getElementById('agYears')||{}).value)||null;
-    const tg=msTermGate(expired, years);                               // МС-1
-    document.getElementById('agTermGate').innerHTML = tg.level==='block'?`<div class="gate-inline">${alertIcon()}<span>${tg.msg}</span></div>` : tg.level==='warn'?`<div class="warn-inline">${warnIcon()}<span>${tg.msg}</span></div>` : '';
-    const misses=[];                                                    // МС-2 + МС-4
-    if(!document.getElementById('agNotWorse').checked) misses.push('подтвердите «условия не льготнее ранее принятых» (п. 24)');
-    if(!(document.getElementById('agSchedBy')||{}).value.trim()) misses.push('укажите отраслевой отдел, предоставивший график (п. 23)');
-    document.getElementById('agAttGate').innerHTML = misses.length?`<div class="warn-inline">${warnIcon()}<span>Перед сохранением: ${misses.join('; ')}.</span></div>`:'';
-    if(tg.level==='block' || misses.length) ok=false;
-  }
-  document.getElementById('agSave').disabled = !ok;
-}
-/* М-11: соглашение — состояние ОБЯЗАТЕЛЬСТВА. Кладём его на требование (и на солидарных
-   соседей: обязательство одно), а не на дело — иначе оно накрывало бы чужие кредиты. */
-function attachAgreementState(a, r){
-  for(const x of [r, ...solidaryWith(r)])
-    (x.states=x.states||[]).push({ kind:a.type, point:a.type==='mirovoe'?'22–24':'37',
-      since:a.approvedAt||null, until:null, active:!a.breached, note:a.note, agreement:a });
-}
-function agSave(){
-  const p=curProc, r=curReq;
-  const type = document.getElementById('agType').value==='Мировое соглашение' ? 'mirovoe' : 'dobrovolnoe';
-  const role = document.getElementById('roleSel')?document.getElementById('roleSel').value:'—';
-  p.agreements=p.agreements||[];
-  if(type==='mirovoe'){
-    const num=(document.getElementById('agNum')||{}).value || 'МС-новый';
-    const expired=document.getElementById('agExpired').checked;
-    const years=Math.max(0.5, parseFloat((document.getElementById('agYears')||{}).value)||1);
-    const drafted=(document.getElementById('agDrafted')||{}).value||'ОПК';
-    const schedBy=(document.getElementById('agSchedBy')||{}).value||'';
-    const basis=(document.getElementById('agBasis')||{}).value||'';
-    const total=claimOf(r);                                    // М-4: сумма графика — проекция долга требования
-    const schedule=msSeedSchedule(TODAY, 6, Math.max(2, Math.round(years*2)), total);   // график ≈ years, срок далее ПРОИЗВОДНЫЙ
-    const a={ type:'mirovoe', num, status:'проект', expiredTerms:expired, on:r.role, req:r.id,
-      notWorse:{ attested:true, basis, by:role }, draftedBy:drafted, scheduleBy:schedBy, rate:0, breached:false,
-      schedule, note:'проект · график от отраслевого · подлежит утверждению судом (пп. 22–24)' };
-    p.agreements.push(a); attachAgreementState(a, r);
-    p.history.unshift({ when:TODAY+' 12:30', what:`Проект мирового соглашения ${num} по требованию ${r.id} (срок ≈ ${msTermYears(schedule)} лет; график — отраслевой отдел; не льготнее — подтверждено), подлежит утверждению судом`, who:role });
-  } else {
-    const num=(document.getElementById('agNum')||{}).value || 'СДИ-новый';
-    const a={ type:'dobrovolnoe', num, status:'заключено', breached:false, on:r.role, req:r.id,
-      note:'заключено после вынесения акта · судом не утверждается · при неисполнении — принудительное исполнение (п. 37)' };
-    p.agreements.push(a); attachAgreementState(a, r);
-    p.history.unshift({ when:TODAY+' 12:30', what:`Соглашение о добровольном исполнении ${num} по требованию ${r.id} (п. 37)`, who:role });
-  }
-  closeModal(); renderPanels(); toast('Соглашение зарегистрировано (демо)','ok');
-}
+/* ADR-0047 (наряд МП-11): openAgreementModal/agSync/attachAgreementState/agSave сняты
+   целиком — «Проект мирового соглашения»/«Соглашение о добровольном исполнении»
+   регистрируются обычной формой (openMeasureModal/saveMeasure), как любая другая мера;
+   вторая бухгалтерия (p.agreements[]/r.states.agreement) не заводится. */
 
 /* ============================================================
    КРОСС-ПРОЦЕССНЫЕ РЕЕСТРЫ — ВОЛНА КР
