@@ -1458,6 +1458,13 @@ const MEASURE_KINDS = [
               {value:'иск удовлетворён частично',setsPhase:'Решение суда'},
               {value:'в иске отказано',setsPhase:'Решение суда'}],
     needsDelivery:false, deliveryChannels:null, basisKinds:['Исковое заявление','Исковое заявление на понуждение'] },
+  /* ADR-0046, наряд п.1: единственный акт, прибавляющий к присуждённой сумме
+     существующего слоя, не поглощая и не заводя новый (в отличие от отмен/пересмотров,
+     которые слой гасят). Справочник — декларативно; саму слоевую арифметику достроит
+     наряд п.2 (ключ слоя), здесь вид просто ещё не встретится в затравке. */
+  { name:'Дополнительное решение суда', source:'внешний акт', resultIsDocument:false,
+    outcomes:[{value:'вынесено',setsPhase:'Решение суда'}], needsDelivery:false, deliveryChannels:null,
+    basisKinds:['Решение суда'] },
   { name:'Судебный приказ', source:'внешний акт', resultIsDocument:false,
     outcomes:[{value:'вынесен',setsPhase:'Решение суда'}],
     /* МП5-17: приказ выносится по заявлению о его выдаче, не по иску — было
@@ -1485,6 +1492,12 @@ const MEASURE_KINDS = [
   { name:'Определение суда (прочее)', source:'внешний акт', resultIsDocument:false,
     outcomes:null, needsDelivery:false, deliveryChannels:null,
     basisKinds:['Исковое заявление','Апелляционная жалоба','Кассационная жалоба','Частная жалоба'] },
+  /* ADR-0049, наряд п.1: если в иске отказано (или приказ/решение отменены/пересмотрены),
+     а взыскание по погашенному слою уже было — излишек. Мы регистрируем факт мерой, сам
+     возврат ведёт модуль платежей (§8.5 спеки, «взыскание своего возврата не считает»). */
+  { name:'Определение о повороте исполнения', source:'внешний акт', resultIsDocument:false,
+    outcomes:null, needsDelivery:false, deliveryChannels:null,
+    basisKinds:['Определение об отмене судебного приказа','Решение суда'] },
   { name:'Мировое соглашение', source:'внешний акт', resultIsDocument:false,
     outcomes:[{value:'утверждено судом',setsPhase:'Решение суда'}],
     needsDelivery:false, deliveryChannels:null, basisKinds:null },
