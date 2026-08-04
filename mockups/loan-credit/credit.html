@@ -3890,20 +3890,36 @@ function trancheScheduleTotals(t, asOf){
 }
 
 /* Итоги графика по ВСЕМ траншам — плитки вкладки «График» при области «по кредиту»
-   (КВ-17). Складываются только аддитивные величины. Метод погашения аддитивным не
-   является: медиана аннуитета и первый-последний платёж равных долей — величины
-   разной природы, и их сумма не платится никем. Разошлись — гасим значение. */
+   (КВ-17). Складываются только аддитивные величины (count/principalSum/interestSum/
+   total). payValue НЕ складывается ни в одном случае — это отформатированная строка
+   (money(...) либо «a → b»), и даже как число сумма была бы неверна: у каждого
+   транша свой график и свои даты, и сумма их платежей — величина, которую никто не
+   платит одной суммой в одну дату. Три исхода (payNote — подпись-пояснение, либо null):
+     1) в агрегате ровно один активный транш (второй soft-closed) — платёж настоящий,
+        берём его как есть, подписи нет;
+     2) активных траншей несколько, метод общий — payLabel остаётся точным (называет
+        метод), а payValue гасим: платёж у каждого транша свой, одним числом не
+        выразить; подпись «у каждого транша свой платёж»;
+     3) активных траншей несколько, методы разошлись — payLabel/payValue тоже гасим;
+        подпись «несколько методов погашения» (текст фиксирован спекой). */
 function scheduleTotalsAll(credit, asOf){
   const ts = credit.tranches.filter(activeTranche);
   const parts = ts.map(t => trancheScheduleTotals(t, asOf));
   const sum = k => round2(parts.reduce((a,p) => a + p[k], 0));
   const methods = [...new Set(parts.map(p => p.method))];
-  const one = methods.length === 1 ? parts[0] : null;
+  const sameMethod = methods.length === 1;
+  let payLabel = 'Регулярный платёж', payValue = '—', payNote = null;
+  if (parts.length === 1){
+    payLabel = parts[0].payLabel; payValue = parts[0].payValue;
+  } else if (parts.length > 1 && sameMethod){
+    payLabel = parts[0].payLabel; payNote = 'у каждого транша свой платёж';
+  } else if (parts.length > 1){
+    payNote = 'несколько методов погашения';
+  }
   return { count: parts.reduce((a,p) => a + p.count, 0),
            principalSum: sum('principalSum'), interestSum: sum('interestSum'), total: sum('total'),
-           method: one ? one.method : null,
-           payLabel: one ? one.payLabel : 'Регулярный платёж',
-           payValue: one ? one.payValue : '—' };
+           method: sameMethod ? methods[0] : null,
+           payLabel, payValue, payNote };
 }
 
 /* активен ли транш (не soft-closed) — для агрегатов срока (Р-13) */
@@ -6088,7 +6104,7 @@ if (typeof document !== 'undefined') {
       </div>
       <div class="phead-dims" style="grid-template-columns:repeat(5,1fr);margin-top:6px">
         <div class="dim"><div class="dl">Платежей в графике</div><div class="dv">${st.count}</div></div>
-        <div class="dim"${st.method?` title="метод погашения — ${esc(st.method)}"`:''}><div class="dl">${esc(st.payLabel)}</div><div class="dv">${esc(st.payValue)}</div>${st.method?'':'<div class="src">несколько методов погашения</div>'}</div>
+        <div class="dim"${st.method?` title="метод погашения — ${esc(st.method)}"`:''}><div class="dl">${esc(st.payLabel)}</div><div class="dv">${esc(st.payValue)}</div>${st.payNote?`<div class="src">${esc(st.payNote)}</div>`:''}</div>
         <div class="dim"><div class="dl">Σ основной долг</div><div class="dv">${money(st.principalSum)}</div></div>
         <div class="dim"><div class="dl">Σ проценты</div><div class="dv">${money(st.interestSum)}</div></div>
         <div class="dim"><div class="dl">Итого к погашению</div><div class="dv">${money(st.total)}</div></div>

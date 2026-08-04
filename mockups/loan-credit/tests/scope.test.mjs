@@ -1,4 +1,4 @@
-import { load, multiCredit, test, ok, no, eq, has, hasNot, report } from './harness.mjs';
+import { load, multiCredit, sameMethodCredit, test, ok, no, eq, has, hasNot, report } from './harness.mjs';
 
 test('S0: файл грузится, шов CR доступен, сид отработал', () => {
   const { CR } = load();
@@ -132,6 +132,18 @@ test('T3-6: однотраншевый кредит слитого вида не
   const h = CR.renderTab('График', c);
   has(h, 'транш №1', 'при одном транше вкладка обязана остаться обычной');
   hasNot(h, 'несколько методов погашения', 'расхождению не с чем возникать');
+});
+
+test('T3-7: несколько траншей, метод общий — платёж не суммируется', () => {
+  const { CR } = load();
+  const c = sameMethodCredit(CR);
+  CR.openDetail('K-1');
+  CR.setCardScope('credit');
+  const h = CR.renderTab('График', c);
+  has(h, 'у каждого транша свой платёж',
+      'при общем методе плитка платежа обязана сказать, что платёж не общий');
+  hasNot(h, 'несколько методов погашения',
+      'методы совпадают — расхождению взяться неоткуда');
 });
 
 report();

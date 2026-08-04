@@ -38,6 +38,21 @@ export function multiCredit(CR) {
   return c;
 }
 
+/* Второй многотраншевый фикстур с построенными графиками — в отличие от multiCredit
+   (K-C40, методы расходятся нарочно), у K-1 оба транша «аннуитет»: общий случай
+   addTranche (новый транш сеет условия от того же credit-level baseConditions, что
+   и первый), а не исключение. Нужен T3-7 — случаю «метод общий, платёж свой у
+   каждого» ничто больше не соответствует. Транш №1 уже освоен в сиде (18.05.2026);
+   транш №2 досеиваем освоением здесь же, как multiCredit делает для K-C40. */
+export function sameMethodCredit(CR) {
+  const c = CR.db.credits.find(x => x.id === 'K-1');
+  if (!c) throw new Error('фикстура K-1 исчезла из сида');
+  CR.addDisbursement(c, { trancheNo: 2, amount: c.tranches[1].amount, date: '01.09.2026' });
+  CR.generateSchedule(c, 1, { from: '18.05.2026' });
+  CR.generateSchedule(c, 2, { from: '01.09.2026' });
+  return c;
+}
+
 let passed = 0, failed = 0; const fails = [];
 export function test(name, fn){ try { fn(); passed++; } catch(e){ failed++; fails.push(`  ✗ ${name}\n    ${e.message}`); } }
 export function eq(a,b,msg){ if(a!==b) throw new Error(`${msg||'eq'}: expected ${JSON.stringify(b)}, got ${JSON.stringify(a)}`); }
