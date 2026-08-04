@@ -2907,14 +2907,1138 @@ function modalNewReturn(){
    VIEW: РЕЕСТР ЦК
    ============================================================ */
 /* @@VIEW:registry@@ */
-function viewRegistry(){ return stubView('Реестр ЦК', 'Внешний факт: отдельная неизменяемая запись, дедупликация, сводные строки.', 'ПТ-Д13, ПТ-Д15'); }
+/* ------------------------------------------------------------
+   РЕЕСТР ЦК — ВНЕШНИЙ ФАКТ (ADR-0058, спека §2.5).
+   Строка реестра — отдельная НЕИЗМЕНЯЕМАЯ запись, а не наш платёж:
+   мы её не правим, мы с ней сопоставляемся. Разошлась сумма — правится
+   НАША запись, и направление названо явно: наша подтягивается к сумме ЦК,
+   не наоборот (ПТ-Д13). До сопоставления действует наша сумма, после — ЦК.
+
+   Дедупликация — на ВХОДЕ, ключом «№ документа + дата + сумма». Ключ
+   относится к ПОСТУПЛЕНИЮ, а не к платежу: сводная строка остаётся одной,
+   сколько бы платежей из неё ни нарезали (спека §2.5, ADR-0056).
+
+   Импорт идёт шагами: привязка → распределение → сопоставление → заморозка.
+   Шаг распределения (куратор подтверждает рассчитанное разнесение) в прежнем
+   макете отсутствовал — ПТ-Д15. Сопоставление здесь ВТОРАЯ проверка, а не
+   способ опознать деньги: опознание живёт на поступлении.
+
+   Закрывает: ПТ-Д13, ПТ-Д15 (+ случаи волны из ПТ-Д22 — сводная строка ЦК
+   на трёх заёмщиков и повторная присылка уточнённого реестра).
+   ------------------------------------------------------------ */
+
+/* ---- мелкая инфраструктура экрана ---- */
+const REG_I = {
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5h.01"/>',
+  warn: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
+  up:   '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5-5 5 5"/><path d="M12 5v12"/>',
+  arrow:'<path d="M5 12h14M13 6l6 6-6 6"/>',
+  x:    '<path d="M18 6L6 18M6 6l12 12"/>',
+  chev: '<path d="M6 9l6 6 6-6"/>',
+};
+const regIco = (d,s) => `<svg width="${s||16}" height="${s||16}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const regBan = (kind, html) => `<div class="banner ${kind}">${regIco(REG_I[(kind==='warn'||kind==='err')?'warn':'info'])}<div>${html}</div></div>`;
+const regVal = id => { const e = document.getElementById(id); return e ? String(e.value||'').trim() : ''; };
+
+/* пилюли строки реестра — состояние ПАРЫ, а не состояние наших денег */
+const REG_P = {
+  matched:  { t:'Сопоставлена',        cls:'ok'      },
+  none:     { t:'Нет нашей записи',    cls:'err'     },
+  dup:      { t:'Дубль отсеян',        cls:'neutral' },
+  mismatch: { t:'Расхождение суммы',   cls:'warn'    },
+  split:    { t:'Сводная строка',      cls:'purple'  },
+};
+
+/* ============================================================
+   ВЫВОДЫ ПО РЕЕСТРУ (ничего не хранится — ADR-0001)
+   Признак дубля НЕ берётся из флага: он выводится ключом, потому
+   что работу делает ключ, а не пометка в файле.
+   ============================================================ */
+const regKey = x => `№${x.doc} · ${x.date} · ${money(x.amount)}`;
+
+function regFeed(){
+  const seen = {};
+  return DATA.registry.map((x,i)=>{
+    const key = regKey(x), firstAt = seen[key];
+    if(firstAt===undefined) seen[key] = i;
+    const dup = firstAt!==undefined;
+    const r   = x.matched ? DATA.receipts.find(y=>y.id===x.matched) : null;
+    const diff = (!dup && r) ? +(x.amount - r.amount).toFixed(2) : 0;
+    const split = (!dup && r) ? paymentsOf(r).filter(p=>!p.void) : [];
+    return { x, i, key, dup, firstAt, r, diff, split };
+  });
+}
+const regAt = i => regFeed()[i] || null;
+
+let regFilter = 'all';
+function setRegFilter(f){ regFilter = f; render(); }
+
+const REG_FILTERS = [
+  { id:'all',      t:'Все',              f:()=>true },
+  { id:'matched',  t:'Сопоставленные',   f:o=>!o.dup && !!o.r },
+  { id:'none',     t:'Несопоставленные', f:o=>!o.dup && !o.r },
+  { id:'dup',      t:'Дубли',            f:o=>o.dup },
+  { id:'mismatch', t:'Расхождения',      f:o=>!o.dup && !!o.diff },
+];
+
+/* ============================================================
+   ЛЕНТА СТРОК
+   ============================================================ */
+function regRow(o){
+  const x = o.x, r = o.r;
+  const marks = o.dup ? pill(REG_P.dup)
+    : (r ? pill(REG_P.matched) : pill(REG_P.none))
+      + (o.diff ? ' '+pill(REG_P.mismatch) : '')
+      + (o.split.length>1 ? ' '+pill(REG_P.split) : '');
+
+  /* к чему привязано: id нашего поступления либо честное «нет нашей записи» */
+  const bound = o.dup
+    ? `<span class="src-tag">в сопоставление не идёт</span>`
+    : r
+      ? `<span class="rowlink" onclick="event.stopPropagation();openReceipt('${r.id}')">${r.number}</span>
+         <div class="src-tag" style="margin-top:4px">наше поступление от ${r.date}${o.split.length?` · платежей ${o.split.length}`:' · платежей нет'}</div>`
+      : `<b style="color:var(--asubk-red)">нет нашей записи</b>
+         <div class="src-tag" style="margin-top:4px">держит закрытие периода</div>`;
+
+  const act = o.dup
+    ? `<span class="src-tag">—</span>`
+    : o.diff
+      ? `<button class="btn btn-sm ${can.correct()?'btn-primary':'btn-secondary'}"
+           onclick="event.stopPropagation();regCorrect(${o.i})">Корректировать нашу запись</button>`
+      : r
+        ? `<span class="src-tag">совпало 1:1</span>`
+        : `<button class="btn btn-sm ${can.bind()?'btn-tint':'btn-secondary'}"
+             onclick="event.stopPropagation();regCreateModal(${o.i})">Создать поступление по строке</button>`;
+
+  const click = (!o.dup && r) ? ` onclick="openReceipt('${r.id}')"` : ' style="cursor:default"';
+
+  /* подстрочники: дубль · расщепление сводной · расхождение суммы */
+  const sub = [];
+  if(o.dup) sub.push(`Ключ дедупликации совпал: <b>${o.key}</b> — та же строка уже принята (позиция ${o.firstAt+1} ленты).
+    Повторная присылка реестра <b>не удваивает деньги</b>: второго поступления не создаётся, наша запись остаётся одна.`);
+  if(o.split.length>1) sub.push(`Одна строка ЦК — ${o.split.length} платежа:
+    ${o.split.map(p=>`<span class="rowlink" onclick="openPayment('${p.id}')">${p.number}</span> ${money(paidOf(p))}
+      (${(creditOf(p.credit)||{}).borrower||p.credit})`).join(' · ')}.
+    Расщепление живёт у поступления <span class="rowlink" onclick="openReceipt('${r.id}')">${r.number}</span>,
+    а строка реестра остаётся <b>одной</b>.`);
+  if(o.diff) sub.push(`У нас <b>${money(r.amount)}</b>, в ЦК <b>${money(x.amount)}</b>, разница
+    <b style="color:var(--asubk-red)">${money(Math.abs(o.diff))}</b>. После сопоставления действует сумма ЦК:
+    <b>наша запись подтягивается к ЦК</b>, строка реестра не правится.`);
+
+  return `<tr class="${o.dup?'muted':''}"${click}>
+    <td><span class="mono">№${x.doc}</span><div style="margin-top:4px">${marks}</div></td>
+    <td class="mono">${x.date}</td>
+    <td class="r mono">${money(x.amount)}<div class="src-tag" style="text-align:right">сумма ЦК</div></td>
+    <td class="r mono"${o.diff?' style="color:var(--asubk-red);font-weight:600"':''}>${(!o.dup&&r)?money(r.amount):'—'}
+      <div class="src-tag" style="text-align:right">${o.dup?'в учёт не берётся':r?'наша сумма':'нашей записи нет'}</div></td>
+    <td>${x.payer}</td>
+    <td style="white-space:normal;max-width:240px">${x.note||'—'}</td>
+    <td>${(DATA.periods.find(p=>p.id===x.period)||{}).label || x.period}</td>
+    <td>${bound}</td>
+    <td class="r">${act}</td>
+  </tr>${sub.map(s=>`<tr class="muted" style="cursor:default"><td colspan="9" style="white-space:normal">${s}</td></tr>`).join('')}`;
+}
+
+function regTable(rows){
+  if(!rows.length) return `<div class="cgrid-wrap"><div class="cgrid-empty">Строк реестра в этом отборе нет</div></div>`;
+  return `<div class="cgrid-wrap"><table class="cgrid"><thead><tr>
+    <th>Строка ЦК</th><th>Дата документа</th><th class="r">Сумма ЦК</th><th class="r">Наша сумма</th>
+    <th>Плательщик</th><th>Назначение</th><th>Период</th><th>К чему привязано</th><th class="r">Действие</th>
+    </tr></thead><tbody>${rows.map(regRow).join('')}</tbody></table></div>`;
+}
+
+/* ---- группировка по периоду с итогами; дубли в сумму не входят ---- */
+function regGroups(list){
+  const order = DATA.periods.map(p=>p.id);
+  const ids = [...new Set(list.map(o=>o.x.period))]
+    .sort((a,b)=>((order.indexOf(a)<0?99:order.indexOf(a)) - (order.indexOf(b)<0?99:order.indexOf(b))));
+  if(!ids.length) return regTable([]);
+  return ids.map(pid=>{
+    const rows = list.filter(o=>o.x.period===pid);
+    const per  = DATA.periods.find(p=>p.id===pid) || { label:pid, state:'open' };
+    const keep = rows.filter(o=>!o.dup);
+    const sum  = +keep.reduce((s,o)=>s+o.x.amount,0).toFixed(2);
+    const dupN = rows.length - keep.length;
+    const noneN = keep.filter(o=>!o.r).length;
+    return `<div class="gtoolbar" style="margin:22px 0 8px">
+        <span class="section-h" style="margin:0">${per.label}</span>${pill(PSTATE[per.state])}
+        ${noneN?pill({t:'без нашей пары: '+noneN, cls:'err'}):''}
+        <span class="spacer"></span>
+        <span class="src-tag">строк ${rows.length} · к учёту ${keep.length} на
+          <b style="color:var(--text-heading)">${money(sum)}</b>${dupN?` · дублей отсеяно ${dupN} — в сумму не входят`:''}</span>
+      </div>${regTable(rows)}`;
+  }).join('');
+}
+
+/* ---- итог по всей ленте ---- */
+function regInvTop(f){
+  const dup  = f.filter(o=>o.dup), keep = f.filter(o=>!o.dup);
+  const sum  = +keep.reduce((s,o)=>s+o.x.amount,0).toFixed(2);
+  const dsum = +dup.reduce((s,o)=>s+o.x.amount,0).toFixed(2);
+  const none = keep.filter(o=>!o.r), mis = keep.filter(o=>o.diff);
+  return `<div class="inv">
+    <span class="iv">Строк реестра: <b>${f.length}</b></span>
+    <span class="iv">К учёту после дедупликации: <b>${keep.length}</b> на <b>${money(sum)}</b></span>
+    <span class="iv">Отсеяно дублей: <b>${dup.length}</b> на <b>${money(dsum)}</b> — деньги не удвоились</span>
+    <span class="iv${none.length?' bad':''}">Без нашей записи: <b>${none.length}</b></span>
+    <span class="iv${mis.length?' bad':''}">С расхождением суммы: <b>${mis.length}</b></span>
+  </div>`;
+}
+
+/* ============================================================
+   РАЗБОРЫ ПОД ЛЕНТОЙ
+   ============================================================ */
+
+/* ---- 1 · дедупликация: работает ключ, а не пометка в файле ---- */
+function regDedupBlock(all){
+  const dup = all.filter(o=>o.dup);
+  return `<div class="section-h" style="margin-top:26px">Дедупликация повторной присылки</div>
+    <p class="section-note">Реестр за один период приходит и повторно — уточнённым либо исправленным. Ключ дедупликации:
+      <b>№ документа + дата + сумма</b>. Ключ относится к <b>поступлению</b>, а не к платежу: сколько платежей нарезано
+      из сводной строки, на дедупликацию не влияет. Без ключа уточнённый реестр задваивает деньги.</p>
+    ${dup.length ? `<div class="gate">${dup.map(o=>{
+        const first = regAt(o.firstAt);
+        return `<div class="grow">
+          <span class="gkind">Дубль строки №${o.x.doc}</span>
+          <span class="gwhat">ключ <b>${o.key}</b> совпал с принятой строкой (позиция ${o.firstAt+1}); присылка —
+            «${o.x.note||'—'}». Второе поступление не создано, сумма ${money(o.x.amount)} в итог периода не вошла.</span>
+          ${first && first.r ? `<span class="gid" onclick="openReceipt('${first.r.id}')">${first.r.number} →</span>`
+                             : `<span class="src-tag">пары нет</span>`}
+        </div>`;
+      }).join('')}</div>`
+      : regBan('ok', `Повторных присылок в текущем реестре нет — ключ проверяется всё равно, на каждой загрузке.`)}
+    ${regBan('info', `<b>Идемпотентность — свойство загрузки, а не ручной внимательности.</b> Строка реестра неизменяема:
+      исправить её нельзя даже дублем — можно только <b>перезагрузить реестр и пересопоставить</b>. Отсеянный дубль
+      из ленты не прячется: он виден со своим ключом, чтобы было понятно, почему сумма периода не выросла.`)}`;
+}
+
+/* ---- 2 · сводная строка: одна строка ЦК — несколько платежей ---- */
+function regSplitBlock(all){
+  const sp = all.filter(o=>o.split.length>1);
+  if(!sp.length) return '';
+  return sp.map(o=>{
+    const r = o.r, sum = +o.split.reduce((s,p)=>s+paidOf(p),0).toFixed(2);
+    const ok = Math.abs(sum - r.amount) < 0.005;
+    return `<div class="section-h" style="margin-top:26px">Сводная строка №${o.x.doc}: одна строка ЦК — ${o.split.length} заёмщика</div>
+      <p class="section-note">ЦК прислал одну сумму на нескольких заёмщиков («${o.x.note||'—'}»). Строка реестра от этого
+        не делится: расщепление — <b>наша трактовка</b>, и живёт оно у поступления
+        <span class="rowlink" onclick="openReceipt('${r.id}')">${r.number}</span>, а строка реестра остаётся <b>одной</b>.</p>
+      <div class="cgrid-wrap"><table class="cgrid"><thead><tr>
+        <th>Платёж</th><th>Заёмщик · кредит</th><th>Транш — область разнесения</th><th class="r">Сумма</th><th>Основание расщепления</th>
+        </tr></thead><tbody>
+        ${o.split.map(p=>{
+          const c = creditOf(p.credit) || {};
+          const t = ((c.tranches)||[]).find(y=>y.id===p.tranche);
+          return `<tr onclick="openPayment('${p.id}')">
+            <td><span class="rowlink">${p.number}</span></td>
+            <td>${c.borrower||'—'}<div class="src-tag" style="margin-top:4px">${c.title||p.credit}</div></td>
+            <td>${t?`<span class="trn">${t.label}</span>`:'<span class="trn">оба транша кредита</span>'}</td>
+            <td class="r mono">${cur(p.amount,p.currency)}</td>
+            <td style="white-space:normal;max-width:360px">${p.basis||'—'}</td></tr>`;
+        }).join('')}
+        <tr class="total" style="cursor:default"><td colspan="3">Итого платежей поступления ${r.number}</td>
+          <td class="r mono">${money(sum)}</td><td>строка ЦК — ${money(o.x.amount)}</td></tr>
+      </tbody></table></div>
+      <div class="inv">
+        <span class="iv">Строка реестра ЦК: <b>${money(o.x.amount)}</b> — одна запись, неизменяемая</span>
+        <span class="iv">Поступление ${r.number}: <b>${money(r.amount)}</b> — один факт денег</span>
+        <span class="iv${ok?'':' bad'}">Σ платежей расщепления: <b>${money(sum)}</b> ${ok?'— сходится':'— не сходится'}</span>
+        <span class="iv">Дедупликация считает это <b>одной</b> строкой: число платежей на ключ не влияет</span>
+      </div>
+      ${regBan('info', `<b>Сопоставление 1:1 сохраняется.</b> Пара строится «строка ЦК ↔ поступление», а не «строка ЦК ↔ платёж»:
+        поэтому сводная строка не порождает ни трёх строк реестра, ни трёх поступлений. Разнесение каждого платежа —
+        отдельный вывод по очереди погашения своего кредита.`)}`;
+  }).join('');
+}
+
+/* ---- 3 · расхождение суммы: направление корректировки названо явно (ПТ-Д13) ---- */
+function regMismatchBlock(all){
+  const ms = all.filter(o=>!o.dup && o.diff);
+  if(!ms.length) return `<div class="section-h" style="margin-top:26px">Расхождение суммы</div>
+    ${regBan('ok', `Расхождений сейчас нет: по всем сопоставленным строкам наша сумма совпала с суммой ЦК.
+      Правило действует всё равно — <b>до сопоставления действует наша сумма, после сопоставления действует сумма ЦК</b>.`)}`;
+  return ms.map(o=>{
+    const r = o.r, x = o.x;
+    return `<div class="section-h" style="margin-top:26px">Расхождение суммы: строка №${x.doc} и поступление ${r.number}</div>
+      <p class="section-note">Обе суммы показаны рядом и ни одна не спрятана. Правило одно и оно про время, а не про
+        авторитет: <b>до сопоставления действует наша сумма, после сопоставления — сумма ЦК</b> (ADR-0058).</p>
+      <div class="recon-split">
+        <div class="recon-col"><h4>Строка реестра ЦК — внешний факт ${pill({t:'источник после сопоставления',cls:'info'})}</h4>
+          <dl class="kv">
+            <dt>Документ</dt><dd>№${x.doc}</dd>
+            <dt>Дата</dt><dd class="mono">${x.date}</dd>
+            <dt>Сумма</dt><dd class="diff">${money(x.amount)}</dd>
+            <dt>Плательщик</dt><dd>${x.payer}</dd>
+            <dt>Назначение</dt><dd>${x.note||'—'}</dd>
+            <dt>Правится ли</dt><dd>Нет. Запись неизменяема — только перезагрузка реестра и пересопоставление.</dd>
+          </dl></div>
+        <div class="recon-mid">${regIco(REG_I.arrow,18)}</div>
+        <div class="recon-col"><h4>Наша запись — поступление ${pill({t:'подтягивается к ЦК',cls:'warn'})}</h4>
+          <dl class="kv">
+            <dt>Поступление</dt><dd><span class="rowlink" onclick="openReceipt('${r.id}')">${r.number}</span></dd>
+            <dt>Дата факта</dt><dd class="mono">${r.date}</dd>
+            <dt>Сумма</dt><dd class="diff">${money(r.amount)}</dd>
+            <dt>Разница</dt><dd class="diff">${money(Math.abs(o.diff))} ${o.diff>0?'(у нас меньше)':'(у нас больше)'}</dd>
+            <dt>Сопоставление</dt><dd>${pill(MATCH[r.match])}</dd>
+            <dt>Правится ли</dt><dd>Да, и правится именно она — корректировкой с основанием.</dd>
+          </dl></div>
+      </div>
+      ${regBan('warn', `<b>Направление корректировки: сумма ЦК → наша запись.</b> Наоборот не бывает: строку реестра мы
+        не правим и «привести ЦК к нам» нечем. Пока корректировка не проведена, платёж носит <b>нашу</b> сумму —
+        расхождение видно, а не спрятано; разница ${money(Math.abs(o.diff))} после корректировки станет
+        нераспределённой, и разнесёт её куратор. Корректировка не гасит платежи: это не сторно.
+        <div class="gtoolbar" style="margin:10px 0 0">
+          <button class="btn btn-sm ${can.correct()?'btn-primary':'btn-secondary'}" onclick="regCorrect(${o.i})">
+            Корректировать нашу запись с основанием</button>
+          ${roleHint(can.correct(),'корректировка суммы — факт денег, бухгалтер')}
+          <button class="btn btn-sm btn-tint" onclick="go('recon')">Открыть сопоставление</button>
+        </div>`)}`;
+  }).join('');
+}
+
+/* ---- 4 · несопоставленные строки: чем они держат месяц ---- */
+function regUnmatchedBlock(all){
+  const ns = all.filter(o=>!o.dup && !o.r);
+  return `<div class="section-h" style="margin-top:26px">Несопоставленные строки — «есть в ЦК, нет у нас»</div>
+    <p class="section-note">Деньги у ЦК прошли, а нашей записи под них нет. Такая строка <b>держит закрытие периода</b>:
+      месяц, в котором внешний факт не имеет пары, итога не имеет. Убрать препятствие можно только там, где оно живёт, —
+      внести поступление по строке либо сопоставить со своим.</p>
+    ${ns.length ? `<div class="gate">${ns.map(o=>`<div class="grow">
+        <span class="gkind">Строка №${o.x.doc} от ${o.x.date}</span>
+        <span class="gwhat">${money(o.x.amount)} от «${o.x.payer}», назначение «${o.x.note||'—'}» ·
+          период ${(DATA.periods.find(p=>p.id===o.x.period)||{}).label||o.x.period} — держит закрытие</span>
+        <span class="gid" onclick="go('period')">гейт периода →</span>
+      </div>`).join('')}</div>
+      <div class="gtoolbar" style="margin-top:12px">
+        ${ns.map(o=>`<button class="btn btn-sm ${can.bind()?'btn-tint':'btn-secondary'}" onclick="regCreateModal(${o.i})">
+          Создать поступление по строке №${o.x.doc}</button>`).join('')}
+        ${roleHint(can.bind(),'внесение по списку ЦК — куратор: список ЦК и есть основание ввода')}
+      </div>
+      ${regBan('warn', `<b>Строка реестра сама себя не исправит.</b> Внесённое по ней поступление придёт на общий счёт ЦК —
+        объект счётом не опознан, значит оно ляжет <b>невыясненным</b>. Гейт периода от этого не опустеет: препятствие
+        сменит вид (несопоставленная строка ЦК → невыясненное поступление) и уйдёт только после опознания объекта.
+        Это честнее, чем «закрыть» строку и потерять деньги из виду.`)}`
+      : regBan('ok', `Несопоставленных строк нет: у каждой строки реестра есть наша пара. По этому виду препятствий
+        гейт закрытия периода чист — <span class="rowlink" onclick="go('period')">проверить остальные</span>.`)}`;
+}
+
+/* ============================================================
+   САМ ЭКРАН
+   ============================================================ */
+function viewRegistry(){
+  const all  = regFeed();
+  const flt  = REG_FILTERS.find(x=>x.id===regFilter) || REG_FILTERS[0];
+  const list = all.filter(flt.f);
+  const segs = `<div class="seg">${REG_FILTERS.map(x=>
+    `<button class="${x.id===regFilter?'on':''}" onclick="setRegFilter('${x.id}')">${x.t} · ${all.filter(x.f).length}</button>`).join('')}</div>`;
+
+  return `<div class="page-pad">
+    <div class="section-h">Реестр ЦК</div>
+    <p class="section-note">Реестр Центрального казначейства — <b>внешний факт</b>. Каждая строка здесь — отдельная
+      <b>неизменяемая</b> запись, а не наш платёж: мы её не правим, мы с ней сопоставляемся. Наш учёт и реестр ЦК —
+      разные объекты, и схлопывать их в одну запись со статусом нельзя, иначе исходы «есть у нас, нет в ЦК» и
+      «есть в ЦК, нет у нас» становятся невыразимыми (ADR-0058, ADR-0056).</p>
+
+    ${regBan('info', `<b>Строку реестра править нечем — правится наша запись.</b> Если сумма разошлась, корректируется
+      <b>поступление</b>, а строка ЦК остаётся как есть. Единственный способ изменить строку — <b>перезагрузить реестр
+      и пересопоставить</b>. Само сопоставление — <b>вторая проверка</b>, а не способ опознать деньги: опознание объекта
+      живёт на поступлении, четыре исхода сверки — на экране
+      <span class="rowlink" onclick="go('recon')">«Сопоставление (сверка)»</span>.`)}
+
+    ${regBan('info', `<b>Порядок работы задаёт канал.</b> Импорт реестра ЦК приносит голый факт, и куратор проходит шаги
+      отдельно: <b>привязка → распределение → сопоставление → заморозка</b> (шаг распределения — подтверждение куратором
+      рассчитанного разнесения по слоям и статьям долга). <b>Дедупликация выполняется на входе</b>, до привязки.
+      Ручной ввод и шлюз этих шагов не проходят: они приносят поступление уже привязанным и разнесённым.`)}
+
+    <div class="gtoolbar">${segs}<span class="spacer"></span>
+      <button class="btn btn-primary btn-sm" onclick="modalLoadRegistry()">${regIco(REG_I.up,15)}Загрузить реестр</button>
+    </div>
+    <p class="section-note" style="margin:-6px 0 12px">Сегменты — виды одной ленты, а не разбиение:
+      «расхождения» — подмножество сопоставленных. Дубли из ленты не исчезают: отсеянная строка видна со своим ключом.</p>
+
+    ${regInvTop(all)}
+    ${regGroups(list)}
+
+    <div class="legend">
+      <span>${pill(REG_P.matched)} у строки есть наша запись — пара строится «строка ЦК ↔ поступление»</span>
+      <span>${pill(REG_P.none)} нашей записи нет — строка держит закрытие периода</span>
+      <span>${pill(REG_P.dup)} ключ «№ документа + дата + сумма» уже встречался — в сопоставление не идёт</span>
+      <span>${pill(REG_P.mismatch)} суммы разошлись — после сопоставления действует сумма ЦК</span>
+      <span>${pill(REG_P.split)} одна строка ЦК на нескольких заёмщиков — расщеплена в платежи у поступления</span>
+    </div>
+
+    ${regDedupBlock(all)}
+    ${regSplitBlock(all)}
+    ${regMismatchBlock(all)}
+    ${regUnmatchedBlock(all)}
+  </div>`;
+}
+
+/* ============================================================
+   ДЕЙСТВИЯ
+   ============================================================ */
+
+/** Корректировка НАШЕЙ записи по сумме ЦК. Операция уровня факта денег —
+    бухгалтер; сама модалка и проводка живут на экране поступлений. */
+function regCorrect(i){
+  const o = regAt(i);
+  if(!o || !o.r) return toast('Корректировать нечего: у строки нет нашей пары','warn');
+  if(!can.correct()) return toast('Корректировка суммы — факт денег: её проводит бухгалтер. Правится наша запись, строка ЦК неизменяема','warn');
+  if(!o.diff) return toast('Суммы совпадают — корректировать нечего');
+  recAct('correct', o.r.id);
+}
+
+/** Внесение поступления по строке ЦК: список ЦК и есть основание ввода (спека §1),
+    поэтому строку разбирает куратор. Поступление ляжет невыясненным — общий счёт
+    ЦК объекта не опознаёт; препятствие гейта сменит вид, а не исчезнет. */
+function regCreateModal(i){
+  const o = regAt(i);
+  if(!o) return;
+  if(o.dup)  return toast('Это дубль: деньги уже приняты строкой выше. Повторная присылка второго поступления не создаёт','warn');
+  if(o.r)    return toast('У строки уже есть наша запись — '+o.r.number,'warn');
+  if(!can.bind()) return toast('Внесение по строке реестра — работа куратора: список ЦК и есть основание ввода','warn');
+  const per = DATA.periods.find(p=>p.id===o.x.period) || {};
+  if(per.state==='closed') return toast('Период «'+(per.label||o.x.period)+'» закрыт: новые записи не принимаются. Сначала открытие периода по решению комиссии','warn');
+
+  openModal(`<div class="modal-h"><span class="mt">Поступление по строке №${o.x.doc}</span>
+      <button class="modal-x" onclick="closeModal()">${regIco(REG_I.x,20)}</button></div>
+    <div class="modal-b">
+      ${regBan('info', `<b>Заводится наша запись, а не копия строки.</b> Строка ЦК остаётся неизменяемой; поступление —
+        отдельный объект с тремя своими осями. Сумма и дата берутся из строки: <b>${money(o.x.amount)}</b> от
+        <b>${o.x.date}</b>, плательщик «${o.x.payer}», назначение «${o.x.note||'—'}».`)}
+      ${regBan('warn', `<b>Оно ляжет невыясненным.</b> Деньги пришли на общий счёт ЦК, а общий счёт объекта не опознаёт —
+        платежей у поступления не будет, пока куратор не опознает заёмщика. Гейт закрытия периода не опустеет:
+        препятствие сменит вид — «несопоставленная строка ЦК» уйдёт, «невыясненное поступление» появится.`)}
+      <div class="field req"><label class="flabel">Основание внесения</label>
+        <textarea class="note-area" id="regBasis" placeholder="реестр ЦК за ${(per.label||o.x.period)}, строка №${o.x.doc} от ${o.x.date}"></textarea></div>
+    </div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="regCreateDo(${o.i})">Внести поступление</button></div>`);
+}
+
+function regCreateDo(i){
+  const o = regAt(i);
+  if(!o || o.r || o.dup) return;
+  const basis = regVal('regBasis');
+  if(!basis) return toast('Без основания запись не заводится: у поступления по строке ЦК основание — сам реестр','warn');
+  const seq = 400 + DATA.receipts.length;
+  const id  = 'R-'+seq;
+  DATA.receipts.push({
+    id, number:'ПС-'+seq, date:o.x.date, amount:o.x.amount, currency:'KGS', period:o.x.period,
+    channel:'cbk', match:'confirmed', frozen:'open',
+    account:'1298 0000 0000 0001', accountObject:'Общий счёт ЦК (объект не опознан счётом)',
+    payerName:o.x.payer, note:o.x.note,
+    unresolvedReason:'внесено по строке реестра ЦК: счёт общий, объект им не опознан',
+    candidates:[], surplus:'queue_back', deadline:'—', daysLeft:null,
+    hist:[ hrow('Внесено по строке реестра ЦК №'+o.x.doc+' от '+o.x.date+'. Основание: '+basis+
+      '. Строка реестра не изменена — она внешний факт; создана наша отдельная запись.','Куратор · демо') ]
+  });
+  o.x.matched = id;
+  closeModal(); render();
+  toast('Создано поступление ПС-'+seq+' на '+money(o.x.amount)+'. Строка №'+o.x.doc+
+    ' сопоставлена, но поступление невыясненное — гейт периода теперь держит оно, до опознания объекта','warn');
+}
+
+/* ============================================================
+   ЗАГРУЗКА РЕЕСТРА
+   Импорт: привязка → распределение → сопоставление → заморозка.
+   Дедупликация выполняется НА ВХОДЕ, до привязки (спека §2.5, ПТ-Д15).
+   ============================================================ */
+const REG_STEPS = [
+  ['Привязка',      'куратор: чьи это деньги — кредит и, если счёт опознал, транш. Общий счёт ЦК не опознаёт ничего — такие строки идут в невыясненные'],
+  ['Распределение', 'куратор подтверждает рассчитанное разнесение: слой → статья долга → срочность, по очереди погашения, которую публикует кредит'],
+  ['Сопоставление', 'вторая проверка: наша запись против строки ЦК, четыре исхода. Опознать деньги этим шагом нельзя — он только сверяет'],
+  ['Заморозка',     'бухгалтер по положительной сверке: снимок разнесения материализуется, дальше трактовку правит только он'],
+];
+
+function regSteps(){
+  const dots = REG_STEPS.map(([t],n)=>`<div class="tl-step">
+      <span class="tl-dot ${n===0?'cur':'todo'}">${n+1}</span>
+      <span class="tl-lbl${n===0?'':' todo'}">${t}</span></div>`)
+    .join(`<span class="tl-arrow">${regIco(REG_I.arrow,14)}</span>`);
+  return `<div class="timeline">${dots}</div>
+    <dl class="kv" style="padding:12px 0">
+      ${REG_STEPS.map(([t,h],n)=>`<dt>${n+1} · ${t}</dt><dd>${h}</dd>`).join('')}
+    </dl>`;
+}
+
+function regPickFile(){
+  const e = document.getElementById('regFile');
+  if(e){ e.value = 'reestr_ck_'+((DATA.periods.find(p=>p.id===regVal('regPeriod'))||{}).id||'2026-07')+'.xlsx'; }
+  toast('Демо: файл выбран. В бою здесь либо файл из почты, либо интеграция с ЦК');
+}
+
+function modalLoadRegistry(){
+  if(ROLE==='viewer') return toast('Наблюдатель реестр не загружает','warn');
+  const opts = DATA.periods.map(p=>
+    `<option value="${p.id}"${p.state==='open'&&p.id==='2026-07'?' selected':''}>${p.label}${p.state==='closed'?' — закрыт':''}</option>`).join('');
+  openModal(`<div class="modal-h"><span class="mt">Загрузка реестра ЦК</span>
+      <button class="modal-x" onclick="closeModal()">${regIco(REG_I.x,20)}</button></div>
+    <div class="modal-b">
+      ${regBan('info', `<b>Загружается внешний факт.</b> Реестр не правит наши записи — он даёт то, <b>с чем</b> мы
+        сопоставляемся. Строки неизменяемы; исправленный реестр не редактирует старые строки, а перезагружается целиком
+        и пересопоставляется.`)}
+      <div class="f2">
+        <div class="field req"><label class="flabel">Период</label>
+          <div class="control"><select id="regPeriod">${opts}</select>
+            <span class="caret">${regIco(REG_I.chev,14)}</span></div></div>
+        <div class="field req"><label class="flabel">Файл реестра</label>
+          <div class="control"><input id="regFile" placeholder="reestr_ck_2026-07.xlsx"></div></div>
+      </div>
+      <div class="dropzone" onclick="regPickFile()">${regIco(REG_I.up,22)}
+        <div>Перетащите файл реестра ЦК либо нажмите, чтобы выбрать</div>
+        <div class="src-tag" style="justify-content:center;margin-top:6px">то же самое приносит интеграция с ЦК — ручного ввода строк реестра нет</div></div>
+      ${regBan('warn', `<b>Дедупликация — на входе, до привязки.</b> Ключ: <b>№ документа + дата + сумма</b>, и относится он
+        к <b>поступлению</b>, а не к платежу: сводная строка приходит одной записью и остаётся одной, сколько бы платежей
+        из неё ни нарезали. Без ключа уточнённый реестр задваивает деньги.`)}
+      <div class="section-h" style="font-size:16px;margin-top:6px">Что идёт после загрузки</div>
+      <p class="section-note">Загрузка приносит голый факт — строки. Дальше четыре шага, и <b>шаг распределения
+        отдельный</b>: куратор подтверждает рассчитанное разнесение, а не получает его молча вместе с привязкой.</p>
+      ${regSteps()}
+      <p class="section-note">Ручной ввод и шлюз этих шагов не проходят: они приносят поступление уже привязанным
+        и разнесённым — вносящий знает, чьи это деньги. Импорт ЦК приносит факт без трактовки.</p>
+    </div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="doLoadRegistry()">Загрузить и дедуплицировать</button></div>`);
+}
+
+function doLoadRegistry(){
+  const pid  = regVal('regPeriod'), file = regVal('regFile');
+  const per  = DATA.periods.find(p=>p.id===pid) || {};
+  if(!file) return toast('Укажите файл реестра: строки реестра ЦК вручную не заводятся — только файл либо интеграция','warn');
+  if(per.state==='closed') return toast('Период «'+(per.label||pid)+'» закрыт: новые записи не принимаются. Сначала открытие периода по решению комиссии','warn');
+  const rows = regFeed().filter(o=>o.x.period===pid);
+  const dups = rows.filter(o=>o.dup).length;
+  const none = rows.filter(o=>!o.dup && !o.r).length;
+  const mis  = rows.filter(o=>!o.dup && o.diff).length;
+  closeModal(); render();
+  toast('Демо: реестр «'+(per.label||pid)+'» принят ('+file+'). Строк '+rows.length+
+    ', дедупликация на входе отсеяла '+dups+' по ключу «№ документа + дата + сумма». Без нашей пары: '+none+
+    ' · с расхождением суммы: '+mis+'. Дальше — привязка, распределение, сопоставление, заморозка',
+    (none||mis) ? 'warn' : 'ok');
+}
 /* @@END:registry@@ */
 
 /* ============================================================
    VIEW: СОПОСТАВЛЕНИЕ (СВЕРКА)
    ============================================================ */
 /* @@VIEW:recon@@ */
-function viewRecon(){ return stubView('Сопоставление (сверка)', 'Четыре исхода; при расхождении после сопоставления действует сумма ЦК; шаг распределения — подтверждение рассчитанного.', 'ПТ-Д13, ПТ-Д15, ПТ-Д16'); }
+/* ------------------------------------------------------------
+   СОПОСТАВЛЕНИЕ (СВЕРКА) — четвёртый шов модуля.
+   Сверка даёт ЧЕТЫРЕ исхода, а не два: совпало · расхождение суммы ·
+   есть у нас, нет в ЦК · есть в ЦК, нет у нас. Схлопывание в «сошлось /
+   не сошлось» прячет два исхода из четырёх, и именно они держат месяц.
+
+   Экран держит три тезиса:
+   • ПТ-Д13 — ЧЬЯ СУММА ДЕЙСТВУЕТ. До сопоставления — наша, после —
+     сумма ЦК (ADR-0058). Направление правки одно и названо: наша запись
+     приводится к сумме ЦК. Обратного направления нет — реестр ЦК внешний
+     факт, его не правит никто.
+   • ПТ-Д15 — ШАГ РАЗНЕСЕНИЯ, которого в интерфейсе не было вовсе.
+     Импорт реестра — четыре шага: привязка → разнесение → сопоставление →
+     заморозка. Шаг разнесения — ПОДТВЕРЖДЕНИЕ рассчитанного, а не ввод
+     сумм руками: разрез выводится из очереди погашения, которую публикует
+     КРЕДИТ (ADR-0057, ADR-0060), куратор соглашается с выводом.
+   • ПТ-Д16 — ПРАВА ПРИНЦИПОМ, а не перечнем: факт денег — бухгалтер,
+     трактовка — куратор, граница — заморозка. Матрицы «роль × действие»
+     на экране нет намеренно.
+   ------------------------------------------------------------ */
+
+/* ---- локальная инфраструктура экрана ---- */
+const RC_I = {
+  info:  '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 7.5h.01"/>',
+  warn:  '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
+  arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  chev:  '<path d="M9 6l6 6-6 6"/>',
+  link:  '<path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>',
+};
+const rcIco = d => `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const rcBan = (kind, html) => `<div class="banner ${kind}">${rcIco(RC_I[(kind==='warn'||kind==='err')?'warn':'info'])}<div>${html}</div></div>`;
+const RC_DIM = 'color:var(--text-muted)';
+const RC_OFF = 'color:var(--text-placeholder)';
+const RC_URG = { over:'просрочено', cur:'текущее', acc:'начисленное' };
+
+/* ---- ПРАВА ВЫВЕДЕНЫ ИЗ ПРИНЦИПА (ПТ-Д16) ----
+   На экране два права, и оба — следствие одной границы, а не пункты списка:
+   величина нашей записи есть ФАКТ ДЕНЕГ (бухгалтер), а кому и во что легли
+   деньги — ТРАКТОВКА (куратор). Третьего вида прав здесь нет. */
+const rcMoney   = () => can.correct();    // факт денег: наша сумма, внесение недостающей записи
+const rcMeaning = () => can.allocate();   // трактовка: подтверждение разнесения и поправка внутри вывода
+const rcMatch   = () => can.match();      // сопоставление строки ЦК с нашей записью — тоже трактовка
+
+/* ---- производные экрана (ничего не хранится) ---- */
+const rcReceipt = id => id ? (DATA.receipts.find(r => r.id === id) || null) : null;
+const rcReg     = doc => doc ? (DATA.registry.find(x => x.doc === doc && !x.dup)
+                             || DATA.registry.find(x => x.doc === doc) || null) : null;
+const rcDup     = doc => doc ? (DATA.registry.find(x => x.doc === doc && x.dup) || null) : null;
+const rcSign    = v => (v > 0 ? '+' : '') + money(v);
+const rcPeriod  = pid => (DATA.periods.find(p => p.id === pid) || {});
+/** строки реестра ЦК без нашей пары; дубли в сопоставление не идут */
+const rcOrphanRegs = () => DATA.registry.filter(x => !x.matched && !x.dup);
+
+/* исход · как он выглядит · что он означает одним словом.
+   Короткая подпись не повторяет заголовок, а добавляет к нему следствие. */
+const RC_OUT = {
+  ok:        { t:'Совпало 1:1',          cls:'ok',     sign:'=', mid:'суммы равны',        short:'сверка положительная' },
+  mismatch:  { t:'Расхождение суммы',    cls:'warn',   sign:'≠', mid:'разница',            short:'действует сумма ЦК' },
+  ours_only: { t:'Есть у нас, нет в ЦК', cls:'purple', sign:'→', mid:'сравнивать не с чем', short:'идёт таймаут' },
+  cbk_only:  { t:'Есть в ЦК, нет у нас', cls:'err',    sign:'←', mid:'сравнивать не с чем', short:'держит закрытие периода' },
+};
+const rcShort = o => pill({ t:o.short, cls:o.cls });
+
+/* ============================================================
+   СВОДКА СВЕРКИ
+   ============================================================ */
+function reconTally(){
+  const by = o => DATA.recon.filter(m => m.outcome === o);
+  return { ok:by('ok'), mismatch:by('mismatch'), ours:by('ours_only'), cbk:by('cbk_only') };
+}
+
+function reconSummary(){
+  const t = reconTally();
+  const orphans = rcOrphanRegs();
+  const dups    = DATA.registry.filter(x => x.dup);
+  const holdP   = DATA.periods.filter(p => p.state === 'open' && periodBlockers(p.id).length);
+
+  const tile = (n, label, o, src) => `<div class="dim">
+    <div class="dl">${label}</div>
+    <div class="dv"><b class="num" style="font:var(--weight-bold) 22px/1 var(--asubk-font);color:var(--text-heading)">${n}</b>
+      ${rcShort(o)}</div>
+    <div class="src">${src}</div></div>`;
+
+  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:16px">
+      ${tile(t.ok.length, 'Сошлось 1:1', RC_OUT.ok,
+        'Реквизиты и сумма совпали. Это и есть основание заморозки — её ставит бухгалтер на карточке поступления.')}
+      ${tile(t.mismatch.length, 'Расхождение суммы', RC_OUT.mismatch,
+        'Наша сумма и сумма ЦК разошлись. После сопоставления действует сумма ЦК — нужна корректировка нашей записи.')}
+      ${tile(t.ours.length, 'Ждёт подтверждения ЦК', RC_OUT.ours_only,
+        `Наша запись есть, строки реестра нет. Идёт таймаут ${DATA.timeoutDays} рабочих дней, по истечении — обратимое автосторно.`)}
+      ${tile(t.cbk.length, 'Строк ЦК без нашей записи', RC_OUT.cbk_only,
+        'Деньги в реестре есть, факта у нас нет. Строку реестра мы не правим — вносим недостающее у себя.')}
+    </div>
+
+    <div class="inv">
+      <span class="iv">Строк реестра ЦК всего: <b>${DATA.registry.length}</b></span>
+      <span class="iv">из них дублей: <b>${dups.length}</b> <span style="${RC_DIM}">(повтор опознан и в сопоставление не идёт)</span></span>
+      <span class="iv${orphans.length ? ' bad' : ''}">без нашей пары: <b>${orphans.length}</b></span>
+      <span class="iv">исходов сверки в работе: <b>${DATA.recon.filter(m => m.outcome !== 'ok').length}</b> из ${DATA.recon.length}</span>
+      <span class="iv">Исходов четыре, а не два: «сошлось / не сошлось» прячет ровно те два, что держат месяц</span>
+    </div>
+
+    ${rcBan(orphans.length ? 'warn' : 'ok', orphans.length
+      ? `<b>Несопоставленные строки держат закрытие периода.</b> Каждая строка реестра ЦК без нашей пары —
+         именованное препятствие в гейте закрытия (ADR-0064): ${orphans.map(x =>
+           `<b>№${x.doc}</b> от ${x.date} на ${money(x.amount)} («${x.payer}») — период ${rcPeriod(x.period).label || x.period}`).join(' · ')}.
+         ${holdP.length ? `Сейчас не закрываются: ${holdP.map(p => `<b>${p.label}</b> (препятствий ${periodBlockers(p.id).length})`).join(' · ')}. ` : ''}
+         Убрать препятствие можно только там, где оно живёт, — но увидеть весь гейт целиком удобнее на экране
+         <span class="rowlink" onclick="go('period')">закрытия периода</span>.`
+      : `<b>Строк реестра ЦК без нашей пары нет.</b> По этому виду препятствий гейт
+         <span class="rowlink" onclick="go('period')">закрытия периода</span> чист.`)}`;
+}
+
+/* ============================================================
+   КАРТОЧКА ИСХОДА — четыре исхода одним рендером
+   ============================================================ */
+
+/* пустая сторона рисуется ЯВНО: «записи нет» — это исход, а не пропуск */
+function rcEmptyCol(title, why){
+  return `<div class="recon-col">
+    <h4>${title} ${pill({ t:'записи нет', cls:'neutral' })}</h4>
+    <div style="padding:14px">
+      <div class="cgrid-empty" style="min-height:88px;border:1.5px dashed var(--border-strong);border-radius:var(--radius-md)">
+        Записи нет</div>
+      <p class="section-note" style="margin:12px 0 0">${why}</p>
+    </div></div>`;
+}
+
+function rcOursCol(r, diff){
+  const per = rcPeriod(r.period);
+  return `<div class="recon-col">
+    <h4>Наша запись — поступление ${pill({ t:'факт денег', cls:'neutral' })}</h4>
+    <dl class="kv">
+      <dt>Поступление</dt><dd><span class="rowlink" onclick="openReceipt('${r.id}')">${r.number}</span></dd>
+      <dt>Дата факта</dt><dd class="num">${r.date}<div style="${RC_DIM};font-weight:400">дата фактического поступления, не дата ввода</div></dd>
+      <dt>Сумма</dt><dd class="num mono${diff ? ' diff' : ''}">${cur(r.amount, r.currency)}</dd>
+      <dt>Плательщик</dt><dd>${r.payerName || '—'}</dd>
+      <dt>Назначение</dt><dd>${r.note || '—'}</dd>
+      <dt>Счёт зачисления</dt><dd class="mono">${r.account}<div style="${RC_DIM};font-weight:400">${r.accountObject}</div></dd>
+      <dt>Период</dt><dd>${per.label || r.period} ${pill(PSTATE[per.state] || PSTATE.open)}</dd>
+      <dt>Оси состояния</dt><dd>${axes(r)}</dd>
+    </dl></div>`;
+}
+
+function rcCbkCol(g, diff){
+  const per = rcPeriod(g.period);
+  const pair = g.matched ? (DATA.receipts.find(r => r.id === g.matched) || null) : null;
+  return `<div class="recon-col">
+    <h4>Строка реестра ЦК — внешний факт ${pill({ t:'мы её не правим', cls:'info' })}</h4>
+    <dl class="kv">
+      <dt>Документ</dt><dd class="mono">№${g.doc}</dd>
+      <dt>Дата</dt><dd class="num">${g.date}</dd>
+      <dt>Сумма</dt><dd class="num mono${diff ? ' diff' : ''}">${money(g.amount)}</dd>
+      <dt>Плательщик</dt><dd>${g.payer}</dd>
+      <dt>Назначение</dt><dd>${g.note || '—'}</dd>
+      <dt>Период</dt><dd>${per.label || g.period} ${pill(PSTATE[per.state] || PSTATE.open)}</dd>
+      <dt>Наша пара</dt><dd>${pair
+        ? `<span class="rowlink" onclick="openReceipt('${pair.id}')">${pair.number}</span>`
+        : '<i>пары нет — строка держит закрытие периода</i>'}</dd>
+    </dl></div>`;
+}
+
+function reconCard(m){
+  const r = rcReceipt(m.receipt), g = rcReg(m.reg), dup = rcDup(m.reg);
+  const o = RC_OUT[m.outcome] || RC_OUT.ok;
+  const diff = (r && g) ? +(g.amount - r.amount).toFixed(2) : null;
+
+  const mid = `<div class="recon-mid">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;padding:6px">
+      <span style="font:var(--weight-bold) 24px/1 var(--asubk-font)">${o.sign}</span>
+      <span style="font:var(--font-label);${RC_DIM}">${diff
+        ? 'разница<br><b class="mono" style="color:var(--asubk-red)">' + rcSign(diff) + '</b>'
+        : diff === 0 ? 'разницы нет' : o.mid}</span>
+    </div></div>`;
+
+  const cols = `<div class="recon-split" style="grid-template-columns:1fr 120px 1fr">
+      ${r ? rcOursCol(r, diff) : rcEmptyCol('Наша запись — поступление',
+        `Деньги по строке реестра прошли, а факта у нас нет: поступление не внесено и не импортировано.
+         Пустая сторона — это исход сверки, а не сбой отображения.`)}
+      ${mid}
+      ${g ? rcCbkCol(g, diff) : rcEmptyCol('Строка реестра ЦК — внешний факт',
+        `Подтверждение из ЦК ещё не пришло. Пока строки нет, сравнивать не с чем — и действует наша сумма.`)}
+    </div>`;
+
+  return `<div class="phead" style="margin-bottom:18px">
+    <div class="phead-top">
+      <div>
+        <div class="phead-name">
+          <span class="nm">${m.title}</span>${rcShort(o)}
+          ${r ? `<span class="amt num">${cur(r.amount, r.currency)}</span>` : ''}
+          ${g && !r ? `<span class="amt num">${money(g.amount)}</span>` : ''}
+        </div>
+        <div class="phead-sub">${m.detail}</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+        ${r ? `<button class="btn btn-tint btn-sm" onclick="openReceipt('${r.id}')">Открыть ${r.number}</button>` : ''}
+        <button class="btn btn-tint btn-sm" onclick="go('registry')">Реестр ЦК</button>
+      </div>
+    </div>
+    ${cols}
+    ${dup ? rcBan('info', `<b>Строка №${dup.doc} приходила повторно</b> («${dup.note}»). Дубль опознан и в сопоставление
+      не идёт: реестр неизменяем, повтор не порождает второй нашей записи.`) : ''}
+    ${reconOutcomeBlock(m, r, g, diff)}
+  </div>`;
+}
+
+/* ---- что делать при каждом исходе: правило текстом, потом кнопка ---- */
+function reconOutcomeBlock(m, r, g, diff){
+
+  /* СОВПАЛО 1:1 */
+  if(m.outcome === 'ok'){
+    return rcBan('ok', `<b>Сверка положительная — спорить о сумме не о чем.</b> Наша ${money(r.amount)} и сумма ЦК
+        ${money(g.amount)} совпали, поэтому вопрос «чья сумма действует» здесь не возникает вовсе.
+        Совпадение 1:1 — это <b>основание заморозки</b>: её ставит бухгалтер на карточке поступления, однократно
+        и только по положительной сверке.`)
+      + (r.frozen === 'open'
+        ? rcBan('warn', `<b>Заморозки ещё нет.</b> Сверка положительная, а снимок разнесения не материализован —
+            поступление ${r.number} стоит в гейте <span class="rowlink" onclick="go('period')">закрытия периода</span>
+            как «незамороженное». Заморозка — факт денег: ставит бухгалтер, здесь она не дублируется.`)
+        : rcBan('info', `<b>Заморозка стоит.</b> Разнесение материализовано снимком; трактовку после этой границы
+            правит только бухгалтер и только после разморозки по решению комиссии.`));
+  }
+
+  /* РАСХОЖДЕНИЕ СУММЫ — ПТ-Д13 */
+  if(m.outcome === 'mismatch'){
+    const live = paymentsOf(r).filter(p => !p.void);
+    return rcBan('warn', `<b>Чья сумма действует.</b> Правило одно и работает по времени, а не по спору:
+        <b>до сопоставления действует НАША сумма</b> — ${money(r.amount)}, она внесена по факту денег;
+        <b>после сопоставления действует СУММА ЦК</b> — ${money(g.amount)} (ADR-0058). Реестр ЦК — внешний факт,
+        мы с ним сопоставляемся, а не правим его.`)
+      + rcBan('err', `<b>Направление правки названо и оно одно:</b> наша запись приводится к сумме ЦК —
+        ${money(r.amount)} <b>→</b> ${money(g.amount)} (${rcSign(diff)}, документ №${g.doc} от ${g.date}).
+        Обратного направления не существует: строку реестра ЦК не редактирует никто, включая бухгалтера.
+        Пока корректировка не проведена, ${live.length ? 'платёж ' + live[0].number : 'платёж поступления'} носит
+        <b>нашу</b> сумму — расхождение видно, а не спрятано. После корректировки разница ${money(Math.abs(diff))}
+        станет нераспределённой, и разнесёт её куратор: величина факта поменялась, трактовка — отдельная работа.
+        Платежи корректировка не гасит — это не сторно.
+        <div class="gtoolbar" style="margin:12px 0 0">
+          <button class="btn btn-sm btn-primary" onclick="reconCorrect('${r.id}')">Корректировать нашу запись с основанием</button>
+          ${roleHint(rcMoney(), 'величина нашей записи — факт денег: бухгалтер')}
+          <span class="src-tag">без основания операция не проводится</span>
+        </div>`);
+  }
+
+  /* ЕСТЬ У НАС, НЕТ В ЦК */
+  if(m.outcome === 'ours_only'){
+    const soon = r.daysLeft != null && r.daysLeft <= DATA.warnDays;
+    return rcBan(soon ? 'warn' : 'info', `<b>Подтверждения ЦК ещё нет.</b> Наша запись есть, строки реестра нет —
+        значит, действует <b>наша</b> сумма ${cur(r.amount, r.currency)}: приводить её не к чему, сумма ЦК появляется
+        только вместе со строкой. Таймаут — <b>${DATA.timeoutDays} рабочих дней</b> (счёт в рабочих, не в календарных):
+        до <b>${r.deadline}</b>, осталось <b>${r.daysLeft} раб. дн.</b>${soon
+          ? ` Порог предупреждения (${DATA.warnDays} раб. дн.) пройден.` : ''}
+        Пока таймаут идёт, поступление стоит в гейте
+        <span class="rowlink" onclick="go('period')">закрытия периода</span> как «ожидает подтверждения ЦК» —
+        вручную таймаут не ускоряется.`)
+      + rcBan('ok', `<b>Автосторно обратимо — это отложенная гипотеза, а не приговор.</b> Если ${r.deadline} подтверждение
+        так и не придёт, поступление уйдёт в сторно: платежи погасятся, начисление продолжится задним числом.
+        Позднее подтверждение ЦК <b>восстановит поступление исходной датой ${r.date}</b> — не датой подтверждения;
+        платежи оживут той же датой, разнесение выведется заново, а пеня спорного периода уйдёт на решение комиссии.
+        Поэтому сторнированная запись не удаляется и из ленты не исчезает.
+        <div class="gtoolbar" style="margin:12px 0 0">
+          <button class="btn btn-sm btn-secondary" onclick="reconAct('ask','${r.id}')">Запросить подтверждение в ЦК</button>
+          <button class="btn btn-sm btn-tint" onclick="openReceipt('${r.id}')">Открыть ${r.number}</button>
+          <span class="src-tag">сторно и восстановление — факт денег: бухгалтер, на карточке поступления</span>
+        </div>`);
+  }
+
+  /* ЕСТЬ В ЦК, НЕТ У НАС */
+  return rcBan('err', `<b>Нашей записи нет — а деньги в ЦК есть.</b> Документ №${g.doc} от ${g.date} на
+      <b>${money(g.amount)}</b>, плательщик «${g.payer}», назначение «${g.note || '—'}».
+      Строку реестра мы не правим и не удаляем: она останется внешним фактом, что бы мы у себя ни сделали.
+      Пока пары нет, строка держит <span class="rowlink" onclick="go('period')">закрытие периода</span>
+      ${rcPeriod(g.period).label || g.period}.`)
+    + rcBan('info', `<b>Два пути, и они разного рода — это и есть граница ролей.</b>
+      Внести недостающее поступление — <b>факт денег</b> (бухгалтер): у нас появляется запись о том, что деньги пришли;
+      если объект счётом не опознан, она ляжет в невыясненные, и это норма банковского канала.
+      Сопоставить строку с уже существующим нашим поступлением — <b>трактовка</b> (куратор): факт не создаётся,
+      называется соответствие.
+      <div class="gtoolbar" style="margin:12px 0 0">
+        <button class="btn btn-sm btn-primary" onclick="reconAct('adopt','${g.doc}')">Внести поступление по строке ЦК</button>
+        ${roleHint(rcMoney(), 'внесение факта денег — бухгалтер')}
+        <button class="btn btn-sm btn-secondary" onclick="reconAct('pair','${g.doc}')">Сопоставить с нашим поступлением</button>
+        ${roleHint(rcMatch(), 'сопоставление — трактовка: куратор')}
+      </div>`);
+}
+
+/* ============================================================
+   ПРАВА — ПРИНЦИПОМ, А НЕ ПЕРЕЧНЕМ (ПТ-Д16)
+   ============================================================ */
+function reconRoles(){
+  const row = (on, kind, what, mark) => `<div class="grow" style="${on ? 'background:var(--asubk-blue-tint)' : ''}">
+      <span class="gkind">${on ? '▶ ' : ''}${kind}</span>
+      <span class="gwhat">${what}</span>
+      <span class="gid"><span class="src-tag">${mark}</span></span></div>`;
+
+  return `<div class="section-h" style="margin-top:26px">Кто что может — это выводится, а не перечисляется</div>
+    <p class="section-note">В модуле одна граница и три слова: <b>факт денег — бухгалтер</b>,
+      <b>трактовка — куратор</b>, <b>граница — заморозка</b>. Матрицы «роль × действие» здесь нет намеренно:
+      перечень устаревает на каждом новом действии, а принцип — нет. Ниже не список прав, а три следствия
+      принципа применительно к этому экрану.</p>
+    <div class="gate">
+      ${row(rcMoney(), 'Факт денег — бухгалтер',
+        `Величина нашей записи — это факт: столько денег пришло на счёт. Отсюда сразу следует, что приводить нашу сумму
+         к сумме ЦК и вносить недостающее поступление по строке реестра может только бухгалтер. Отсюда же следует, что
+         <b>строку реестра ЦК не правит никто</b>: это чужой факт, а не наша величина.`,
+        rcMoney() ? 'применяется к вашей роли' : 'другая роль')}
+      ${row(rcMeaning(), 'Трактовка — куратор',
+        `Кому и во что легли деньги — трактовка. Отсюда следует, что подтверждение разнесения, поправка внутри вывода
+         и сопоставление строки ЦК с нашим поступлением — за куратором. И отсюда же — что на шаге разнесения
+         <b>не вводятся цифры</b>: подтверждается рассчитанное, а рассчитывает его вывод из очереди погашения.`,
+        rcMeaning() ? 'применяется к вашей роли' : 'другая роль')}
+      ${row(false, 'Граница — заморозка',
+        `До заморозки трактовку правит куратор; после — разнесение материализовано снимком, и войти в него можно только
+         через разморозку бухгалтером по решению комиссии. Поэтому на замороженном поступлении кнопки закрыты
+         <b>состоянием, а не ролью</b>: куратору здесь не «мало прав» — работа этого шага уже закончена.`,
+        'состояние, а не роль')}
+    </div>
+    <p class="section-note" style="margin-top:10px">Проверить принцип легко: переключите роль в шапке — подсветится
+      другая строка, и ровно те кнопки, что относятся к чужому виду работы, объяснят себя подсказкой рядом.
+      Ни одна кнопка при этом не исчезает: скрытая кнопка ничего не объясняет, а подсказка называет, чья это работа.</p>`;
+}
+
+/* ============================================================
+   ШАГ РАЗНЕСЕНИЯ — ПОДТВЕРЖДЕНИЕ РАССЧИТАННОГО (ПТ-Д15)
+   ============================================================ */
+let rcStage = 'R-311';
+function setRcStage(id){ rcStage = id; render(); }
+/* демо-след подтверждений: сам вывод не хранится, хранится согласие человека */
+const RC_CONFIRMED = {};
+
+const RC_STAGE_IDS = [
+  { id:'R-311', t:'шлюз · ждёт ЦК' },
+  { id:'R-305', t:'сводная строка на трёх заёмщиков' },
+  { id:'R-290', t:'заморожено · адресный резерв' },
+];
+
+/* четыре шага импорта; состояние каждого выводится из самого поступления */
+function reconSteps(r){
+  const bound   = paymentsOf(r).filter(p => !p.void).length > 0;
+  const spread  = !!RC_CONFIRMED[r.id] || r.frozen === 'frozen';
+  const matched = r.match === 'confirmed' || r.match === 'restored';
+  const frozen  = r.frozen === 'frozen';
+  const state   = [bound, spread, matched, frozen];
+  const first   = state.indexOf(false);
+  const cls     = i => state[i] ? 'done' : (i === first ? 'cur' : 'todo');
+  const dot     = i => state[i] ? '✓' : String(i + 1);
+
+  const step = (i, lbl, sub) => `<div class="tl-step">
+      <span class="tl-dot ${cls(i)}">${dot(i)}</span>
+      <span class="tl-lbl${cls(i) === 'todo' ? ' todo' : ''}"><b>${lbl}</b><br><span class="src-tag">${sub}</span></span>
+    </div>`;
+  const arrow = `<span class="tl-arrow">${rcIco(RC_I.arrow)}</span>`;
+
+  const conf = RC_CONFIRMED[r.id];
+  return `<div class="timeline">
+    ${step(0, '1 · Привязка', bound
+      ? `кому: платежей ${paymentsOf(r).filter(p => !p.void).length} · куратор`
+      : 'объект счётом не опознан — невыясненное, разносить нечего')}
+    ${arrow}
+    ${step(1, '2 · Разнесение', spread
+      ? (frozen ? 'материализовано снимком на заморозке' : `подтверждено ${conf ? conf.when + ' · ' + conf.who : ''}`)
+      : 'во что: слой → статья долга → срочность · подтверждает куратор')}
+    ${arrow}
+    ${step(2, '3 · Сопоставление', `${(MATCH[r.match] || {}).t || '—'} · после него действует сумма ЦК`)}
+    ${arrow}
+    ${step(3, '4 · Заморозка', frozen ? 'снимок материализован · бухгалтер' : 'граница ролей · бухгалтер по положительной сверке')}
+  </div>`;
+}
+
+/* выведенный разрез поступления: слой → статья долга → срочность, транш в каждой строке */
+function reconCut(a){
+  if(!a) return `<div style="padding:14px"><span class="src-tag">разнесение не выведено</span></div>`;
+  if(!a.layers.length) return `<div style="padding:14px"><span class="src-tag">разносить нечего: сумма снята сторно</span></div>`;
+  const cy = a.currency;
+  return `<div style="overflow-x:auto"><table class="mxg">
+    <thead><tr><th>Слой · статья долга</th><th>Транш</th><th>Срочность</th><th class="r">Сумма</th></tr></thead>
+    <tbody>${a.layers.map(L => L.articles.map(A => A.rows.map(row => `<tr>
+      <td>${L.name}<div style="${RC_DIM};font-size:12px">${A.article} · ${row.label}</div></td>
+      <td><span class="trn">${row.tranche}</span></td>
+      <td><span class="urg ${row.urg}">${RC_URG[row.urg] || row.urg}</span></td>
+      <td class="r">${cur(row.v, cy)}</td></tr>`).join('')).join('')).join('')}</tbody>
+  </table></div>`;
+}
+
+/* очередь погашения публикует КРЕДИТ; ненаступившее видно, но серым */
+function reconQueue(p){
+  const c = creditOf(p.credit) || {}, q = DATA.queue[p.credit];
+  const h = `<h4>Очередь погашения ${pill({ t:'публикует КРЕДИТ', cls:'info' })}</h4>`;
+  if(!q) return `<div class="recon-col">${h}
+    <div style="padding:14px"><p class="section-note" style="margin:0">Перечень непогашенного по
+      <b>${c.title || p.credit}</b> кредитным модулем не опубликован. Модуль платежей его <b>не составляет</b>:
+      сверить выведенный разрез со сроками графика здесь не с чем, и подтверждать разнесение вслепую нельзя.</p></div></div>`;
+
+  const rows = q.rows.map(x => {
+    const ln = ((c.layers || []).find(l => l.id === x.layer) || {}).name || x.layer;
+    const tn = ((c.tranches || []).find(t => t.id === x.tranche) || {}).label || x.tranche;
+    return `<tr style="${x.future ? RC_OFF : ''}">
+      <td class="num">${x.due}${x.future ? '' : `<div><span class="urg ${x.urg}">${RC_URG[x.urg] || x.urg}</span></div>`}</td>
+      <td>${ln}<div><span class="trn">${tn}</span></div></td>
+      <td>${x.article}${x.future ? '<div style="font-size:12px">не наступило — матрица не трогает</div>' : ''}</td>
+      <td class="r">${money(x.amount)}</td></tr>`;
+  }).join('');
+
+  return `<div class="recon-col">${h}
+    <div style="padding:10px 14px;border-bottom:1px solid var(--asubk-grid-line)">
+      <span class="src-tag">непогашенное на ${q.asOf} · ${c.title || p.credit}</span></div>
+    <div style="overflow-x:auto"><table class="mxg">
+      <thead><tr><th>Срок</th><th>Слой · транш</th><th>Статья долга</th><th class="r">Сумма</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    <div style="padding:12px 14px">
+      <p class="section-note" style="margin:0">Обычные строки — <b>наступившее</b> на дату: только их и разносит
+        матрица (ADR-0057).</p>
+      <p class="section-note" style="margin:4px 0 0;${RC_OFF}">Серые — <b>не наступило</b>: видно, но матрица не трогает.</p>
+    </div></div>`;
+}
+
+/* пара «вывод ↔ источник вывода» по одному платежу поступления */
+function reconAllocPair(p){
+  const a = allocOf(p.snapshot || p.derived);
+  const c = creditOf(p.credit) || {};
+  const r = receiptOf(p);
+  const mode = (a && a.surplusMode) || r.surplus;
+  const cy = a && a.currency;
+  const q  = DATA.queue[p.credit];
+  const day = s => String(s || '').split(' (')[0];
+  /* даты среза у вывода и у очереди свои: кредит публикует перечень на свою дату */
+  const skew = (a && q && day(a.asOf) !== day(q.asOf))
+    ? `<p class="section-note" style="margin:8px 0 0">Очередь опубликована кредитом на <b>${q.asOf}</b>, разрез выведен
+       на <b>${day(a.asOf)}</b> — даты среза разные, поэтому построчного равенства сумм между колонками не будет
+       и быть не должно. Сравнивается <b>структура</b>: какие слои и статьи долга наступили и в каком порядке их
+       берёт лестница.</p>` : '';
+  return `<div style="margin-top:14px">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:16px;align-items:start">
+      <div class="recon-col">
+        <h4>Выведенный разрез поступления ${pill(p.snapshot ? { t:'снимок', cls:'neutral' } : { t:'производная', cls:'info' })}</h4>
+        <div style="padding:10px 14px;border-bottom:1px solid var(--asubk-grid-line)">
+          <span class="src-tag">платёж <span class="rowlink" onclick="openPayment('${p.id}')">${p.number}</span> ·
+            ${c.borrower || ''} · ${c.title || p.credit} · выведено на ${a ? a.asOf : '—'}</span></div>
+        ${reconCut(a)}
+      </div>
+      ${reconQueue(p)}
+    </div>
+    ${a ? `<div class="inv">
+      <span class="iv">Разнесено всего: <b>${cur(a.total, cy)}</b></span>
+      <span class="iv">Наступившее на ${a.asOf}: <b>${cur(a.due, cy)}</b></span>
+      <span class="iv${a.surplusLeft ? ' bad' : ''}">Остаток сверх наступившего: <b>${cur(a.surplusLeft, cy)}</b></span>
+      ${a.surplusLeft ? `<span class="iv">Режим остатка: ${pill(SURPLUS[mode])} <span style="${RC_DIM}">${SURPLUS[mode].hint}</span></span>` : ''}
+      <span class="iv">Цифры <b>выведены</b>, полей для ввода на этом шаге нет</span>
+    </div>` : ''}${skew}</div>`;
+}
+
+function reconAllocStage(){
+  const r = rcReceipt(rcStage) || DATA.receipts[0];
+  const ps = paymentsOf(r).filter(p => !p.void);
+  const frozen = r.frozen === 'frozen';
+  const conf = RC_CONFIRMED[r.id];
+
+  const segs = `<div class="seg">${RC_STAGE_IDS.map(x => {
+    const rr = rcReceipt(x.id);
+    return rr ? `<button class="${x.id === r.id ? 'on' : ''}" onclick="setRcStage('${x.id}')">${rr.number} · ${x.t}</button>` : '';
+  }).join('')}</div>`;
+
+  const state = frozen
+    ? rcBan('info', `<b>Шаг уже пройден и захлопнут.</b> Поступление ${r.number} заморожено: разнесение материализовано
+        снимком, подтверждать и поправлять нечего. Это закрыто <b>состоянием, а не ролью</b> — вернуться внутрь можно
+        только разморозкой бухгалтером по решению комиссии.`)
+    : conf
+      ? rcBan('ok', `<b>Разнесение подтверждено ${conf.when} (${conf.who}).</b> Подтверждено <b>согласие</b> с выводом —
+          сам вывод остался выводом и на следующую дату среза пересоберётся заново (ADR-0001). Хранится то, что сделал
+          человек, а не то, что посчитала система.`)
+      : rcBan('warn', `<b>Разнесение ещё не подтверждено.</b> Разрез слева уже выведен — его не нужно вводить, с ним нужно
+          согласиться. Если вывод расходится с тем, что человек знает о деле, ответ не «переписать матрицу», а
+          <b>поправка внутри вывода</b> с основанием — блок ниже.`);
+
+  return `<div class="section-h" style="margin-top:26px">Шаг разнесения — подтверждение рассчитанного</div>
+    <p class="section-note">Импорт реестра — не одна кнопка, а четыре шага:
+      <b>привязка → разнесение → сопоставление → заморозка</b>. Шага разнесения в интерфейсе не было вовсе (ПТ-Д15),
+      и из-за этого он читался так, будто суммы кто-то набивает руками. Здесь <b>ничего не вводится</b>: разрез
+      выводится из очереди погашения, которую публикует КРЕДИТ (ADR-0057, ADR-0060), а куратор подтверждает вывод.
+      В формулировке дефекта шаг назван «распределением» — в интерфейсе у него одно имя: <b>разнесение</b>
+      (единый язык: одно понятие — одно слово).</p>
+
+    ${reconSteps(r)}
+
+    <div class="gtoolbar" style="margin-top:14px">${segs}<span class="spacer"></span>
+      <span class="src-tag">поступление ${r.number} · ${cur(r.amount, r.currency)} · ${r.date} ·
+        платежей ${ps.length} · ${(MATCH[r.match] || {}).t || '—'}</span></div>
+
+    ${state}
+
+    ${ps.length
+      ? ps.map(reconAllocPair).join('')
+      : rcBan('err', `<b>Разносить нечего: платежей ноль.</b> Поступление невыясненное — сначала первый шаг, привязка.
+          Опознание объекта живёт в карточке поступления, вкладка «Разбор».`)}
+
+    <div class="gtoolbar" style="margin-top:16px">
+      <button class="btn btn-primary btn-sm" onclick="reconConfirmAlloc('${r.id}')">Подтвердить разнесение</button>
+      ${roleHint(rcMeaning(), 'подтверждение разнесения — трактовка: куратор')}
+      ${frozen ? roleHint(false, 'закрыто состоянием: поступление заморожено') : ''}
+      <span class="spacer"></span>
+      <span class="src-tag">подтверждается вывод целиком — отдельных полей суммы на шаге нет и не будет</span>
+    </div>
+    <p class="section-note" style="margin-top:10px">Подтверждение — это <b>согласие человека с выводом</b>, а не ввод цифр
+      и не сохранение матрицы. Разнесение живого платежа остаётся производной: изменится очередь погашения или состав
+      слоёв — вывод пересоберётся сам, и об этом уведомят. Материализуется он ровно один раз — на заморозке.</p>
+
+    ${reconAdjustBlock(r, ps)}`;
+}
+
+/* ---- ручная поправка: директива ВНУТРИ вывода ---- */
+function reconAdjustBlock(r, ps){
+  const frozen = r.frozen === 'frozen';
+  return `<div class="section-h" style="font-size:16px;margin-top:24px">Ручная поправка к выведенному разрезу</div>
+    <div class="gtoolbar">
+      <button class="btn btn-secondary btn-sm" onclick="reconAdjust('${r.id}')">Внести поправку внутрь вывода</button>
+      ${roleHint(rcMeaning(), 'поправку вносит куратор — это трактовка')}
+      ${frozen ? roleHint(false, 'на замороженном поступлении поправка запрещена') : ''}
+    </div>
+    <p class="section-note">Поправка не отменяет вывод и не превращает матрицу в таблицу для ручного заполнения.
+      Она сохраняется <b>отдельной директивой с основанием</b> и участвует в каждом следующем выводе наравне с очередью
+      погашения и режимом остатка — вывод остаётся выводом и продолжает пересобираться (ADR-0001).
+      Основание обязательно: строка, поправленная руками, обязана быть объяснима без человека, который её поправил.
+      ${frozen
+        ? '<b>Здесь поправка запрещена:</b> разнесение материализовано снимком, а снимок — зафиксированный факт трактовки. Сначала разморозка бухгалтером по решению комиссии.'
+        : ps.length ? '' : '<b>Поправлять нечего:</b> платежей у поступления нет.'}</p>`;
+}
+
+/* ============================================================
+   ДЕЙСТВИЯ ЭКРАНА (демонстрационные)
+   ============================================================ */
+
+/** Корректировка нашей записи по сумме ЦК. Модалка с основанием живёт на экране
+    поступлений — здесь она не дублируется, вызывается та же операция. */
+function reconCorrect(id){
+  const r = rcReceipt(id);
+  if(!r) return;
+  if(!rcMoney()) return toast('Величина нашей записи — факт денег: корректировку проводит бухгалтер. Куратор правит трактовку, а не сумму','warn');
+  recAct('correct', r.id);
+}
+
+function reconConfirmAlloc(id){
+  const r = rcReceipt(id);
+  if(!r) return;
+  if(!rcMeaning())  return toast('Подтверждение разнесения — трактовка: подтверждает куратор. Бухгалтер ведёт факт денег','warn');
+  if(r.frozen === 'frozen') return toast('Поступление заморожено: разнесение материализовано снимком — подтверждать нечего. Это закрыто состоянием, а не ролью','warn');
+  if(isReversed(r)) return toast('Поступление сторнировано: сумма снята сторно, разносить нечего','warn');
+  if(isUnresolved(r)) return toast('Объект не опознан: сначала привязка (шаг 1), иначе разносить нечего','warn');
+  if(RC_CONFIRMED[r.id]) return toast('Разнесение уже подтверждено. Повторное согласие ничего не добавляет — вывод всё равно пересобирается на дату среза');
+  RC_CONFIRMED[r.id] = { who:'Куратор · Ж.Осмонова', when:DATA.today };
+  r.hist.push(hrow('Разнесение подтверждено на шаге импорта: куратор согласился с выведенным разрезом (слой → статья долга → срочность, транш в каждой строке). Суммы не вводились — подтверждён вывод на дату среза.','Куратор · Ж.Осмонова'));
+  render();
+  toast('Разнесение подтверждено. Вывод остался выводом — на следующую дату среза он пересоберётся сам','ok');
+}
+
+/** Поправка внутри вывода. Форма с основанием живёт на карточке платежа — переиспользуется. */
+function reconAdjust(id){
+  const r = rcReceipt(id);
+  if(!r) return;
+  if(!rcMeaning())  return toast('Поправка внутри вывода — трактовка: её вносит куратор','warn');
+  if(r.frozen === 'frozen') return toast('На замороженном поступлении поправка запрещена: разнесение материализовано снимком. Сначала разморозка бухгалтером по решению комиссии','warn');
+  const p = paymentsOf(r).filter(x => !x.void)[0];
+  if(!p) return toast('Поправлять нечего: платежей у поступления нет — сначала привязка','warn');
+  payAdjust(p.id);
+}
+
+function reconAct(kind, arg){
+  if(kind === 'ask'){
+    const r = rcReceipt(arg);
+    return toast('Демо: запрос подтверждения отправлен в ЦК по ' + (r ? r.number : '') +
+      '. Таймаут этим не ускоряется — он считается в рабочих днях и идёт своим ходом','ok');
+  }
+  if(kind === 'adopt'){
+    const g = rcReg(arg);
+    if(!rcMoney()) return toast('Внесение недостающего поступления — факт денег: это делает бухгалтер','warn');
+    toast('Строка ЦК №' + (g ? g.doc : '') + ': вносится ФАКТ денег, а не трактовка. Если счёт не опознает объект, запись ляжет в невыясненные','ok');
+    return modalNewReceipt();
+  }
+  if(kind === 'pair'){
+    const g = rcReg(arg);
+    if(!rcMatch()) return toast('Сопоставление — трактовка: соответствие называет куратор','warn');
+    return toast('Демо: подходящего поступления не нашлось. Плательщик «' + (g ? g.payer : '') +
+      '» ни с одним кредитом не связан — значит, путь другой: недостающий факт вносит бухгалтер','warn');
+  }
+}
+
+/* ============================================================
+   САМ ЭКРАН
+   ============================================================ */
+function viewRecon(){
+  return `<div class="page-pad">
+    <div class="section-h">Сопоставление (сверка)</div>
+    <p class="section-note">Сверка — это сопоставление <b>двух фактов</b>: нашей записи о деньгах и строки реестра ЦК.
+      Исходов у неё <b>четыре</b>, а не два: совпало 1:1 · расхождение суммы · есть у нас, нет в ЦК · есть в ЦК,
+      нет у нас. Два последних — не «ошибки импорта», а нормальные исходы, и именно они держат закрытие месяца.
+      Реестр ЦК — внешний неизменяемый факт: мы с ним сопоставляемся, а не правим его.</p>
+
+    ${reconSummary()}
+
+    <div class="section-h" style="margin-top:22px">Исходы сверки</div>
+    <p class="section-note">Каждая карточка показывает обе стороны рядом. Сторона, которой нет, рисуется явно —
+      «записи нет»: отсутствие факта это тоже факт, и пропуск на его месте прочитался бы как недогруженные данные.</p>
+    ${DATA.recon.map(reconCard).join('')}
+
+    ${reconAllocStage()}
+
+    ${reconRoles()}
+
+    <div class="legend" style="margin-top:18px">
+      <span>${pill(RC_OUT.ok)} наша запись и строка ЦК сошлись — основание заморозки</span>
+      <span>${pill(RC_OUT.mismatch)} суммы разошлись — после сопоставления действует сумма ЦК</span>
+      <span>${pill(RC_OUT.ours_only)} подтверждения ЦК нет — идёт таймаут ${DATA.timeoutDays} рабочих дней</span>
+      <span>${pill(RC_OUT.cbk_only)} нашей записи нет — строка держит закрытие периода</span>
+      <span style="${RC_OFF}">серые строки очереди — не наступило: матрица их не трогает</span>
+    </div>
+  </div>`;
+}
 /* @@END:recon@@ */
 
 /* ============================================================
@@ -3276,9 +4400,689 @@ function doOpenPeriod(pid){
    VIEW: АКТЫ СВЕРКИ
    ============================================================ */
 /* @@VIEW:acts@@ */
+/* ------------------------------------------------------------
+   АКТЫ СВЕРКИ. Под одним словом живут ДВА РАЗНЫХ документа (ПТ-Д11):
+
+   • ВНУТРЕННИЙ акт (kind:'internal') — рабочий документ Холдинга по периоду.
+     Строится по ЗАКРЫТОМУ месяцу: цифры месяца неподвижны, поэтому под ними
+     есть что подписывать. По открытому месяцу акт допустим только с пометкой
+     «предварительно» и подписи не несёт.
+   • ДВУСТОРОННИЙ акт с заёмщиком (kind:'bilateral') — не рабочий документ,
+     а ПРИЗНАНИЕ ДОЛГА: прерывает срок исковой давности (ADR-0051) и
+     принадлежит журналу мер взыскания. Здесь он только виден.
+
+   Круга «акт ↔ заморозка» НЕТ (ПТ-Д10). Первична заморозка: акт ничего не
+   морозит — он собирается из УЖЕ замороженных поступлений периода.
+   Формулировки «подписанный акт является основанием заморозки» в модуле нет.
+   ------------------------------------------------------------ */
 const ACT_STATE = { draft:['Предварительный','neutral'], formed:['Сформирован','warn'], agreed:['Согласован','info'], signed:['Подписан','ok'] };
-function viewActs(){ return stubView('Акты сверки', 'Внутренний акт строится по ЗАКРЫТОМУ периоду; двусторонний — мера взыскания.', 'ПТ-Д10, ПТ-Д11'); }
-function actDetail(a){ return stubView('Акт '+a.id, 'Первична заморозка: акт ничего не морозит.', 'ПТ-Д10, ПТ-Д11'); }
+
+/* два документа — две пилюли; вид виден в ленте с одного взгляда */
+const ACT_KIND = {
+  internal:  { t:'Внутренний',   cls:'info',   full:'Внутренний акт Холдинга',
+               why:'рабочий документ по периоду: свод замороженных поступлений месяца' },
+  bilateral: { t:'Двусторонний', cls:'purple', full:'Двусторонний акт с заёмщиком',
+               why:'признание долга: прерывает срок исковой давности (ADR-0051)' },
+};
+
+const ACT_ACTOR_CUR = 'Куратор · Ж.Осмонова';
+const ACT_ACTOR_ACC = 'Бухгалтер · А.Иманкулова';
+
+const ACT_ICO_I = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>';
+const ACT_ARROW = '<span class="tl-arrow"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>';
+
+/* ---- мелкие выводы (ADR-0001: ничего из этого не хранится) ---- */
+const actState     = a => ACT_STATE[a.state] || ['—','neutral'];
+const actPill      = a => pill({ t:actState(a)[0], cls:actState(a)[1] });
+const actKindPill  = k => pill(ACT_KIND[k] || { t:k, cls:'neutral' });
+const actPeriodOf  = a => DATA.periods.find(p=>p.id===a.period) || { id:a.period, label:a.period, state:'open' };
+/** акт по НЕзакрытому периоду — только «предварительно»: цифры месяца ещё двигаются */
+const actIsPrelim  = a => actPeriodOf(a).state !== 'closed';
+
+/** заёмщик поступления выводится из живых платежей; если платежей нет — из плательщика документа */
+function actBorrowersOf(r){
+  const b = [...new Set(paymentsOf(r).filter(p=>!p.void).map(p=>(creditOf(p.credit)||{}).borrower).filter(Boolean))];
+  return b.length ? b : (r.payerName ? [r.payerName] : []);
+}
+const actHasBorrower = (r, who) => actBorrowersOf(r).indexOf(who) >= 0;
+
+/** СОСТАВ АКТА — производная: замороженные поступления периода по этому заёмщику.
+    Отдельным списком акт свой состав не хранит, он пересобирается из данных периода. */
+function actComposition(a){
+  const mine = DATA.receipts.filter(r => r.period===a.period && actHasBorrower(r, a.borrower));
+  const inn  = mine.filter(r => r.frozen==='frozen');   // вошли: заморожены
+  const out  = mine.filter(r => r.frozen!=='frozen');   // не вошли: заморозки нет
+  const credited = r => +paymentsOf(r)
+    .filter(p => !p.void && (creditOf(p.credit)||{}).borrower === a.borrower)
+    .reduce((s,p)=>s+paidOf(p),0).toFixed(2);
+  const back = r => +returnsOf(r).filter(v=>v.state==='executed').reduce((s,v)=>s+v.amount,0).toFixed(2);
+  return { mine, inn, out, credited, back,
+    gross: +inn.reduce((s,r)=>s+r.amount,0).toFixed(2),
+    sum:   +inn.reduce((s,r)=>s+credited(r),0).toFixed(2),
+    ret:   +inn.reduce((s,r)=>s+back(r),0).toFixed(2) };
+}
+
+/** «1 замороженное поступление» / «2 замороженных поступления» — счётная форма */
+function actPlur(n){
+  const a = Math.abs(n) % 100, b = a % 10;
+  if(a > 10 && a < 20) return n + ' замороженных поступлений';
+  if(b === 1)          return n + ' замороженное поступление';
+  if(b > 1 && b < 5)   return n + ' замороженных поступления';
+  return n + ' замороженных поступлений';
+}
+
+/** ЧЬИ цифры показывать. Период ЗАКРЫТ — цифры месяца неподвижны, и акт держит их сам:
+    показываем зафиксированное при формировании. Период ОТКРЫТ — акт предварительный,
+    величина ещё двигается: показываем текущий вывод, а зафиксированное — рядом. */
+function actShown(a, comp){
+  return actIsPrelim(a)
+    ? { n:comp.inn.length, sum:comp.sum, src:'выведено на '+DATA.today, fixed:true }
+    : { n:a.frozenCount,   sum:a.sum,   src:'зафиксировано в акте: период закрыт', fixed:false };
+}
+
+/** почему поступление периода в акт НЕ вошло — причина выводится, а не пишется руками */
+function actWhyOut(r){
+  if(isReversed(r))   return 'Сторнировано: платежи погашены, сумма не разнесена. Операция обратима — при позднем подтверждении ЦК поступление восстановится исходной датой, и состав акта соберётся заново сам.';
+  if(isUnresolved(r)) return 'Невыясненное: платежей ноль, объект не опознан — включать в акт нечего. Держит закрытие периода.';
+  if(r.match==='mismatch')  return 'Расхождение с реестром ЦК: после сопоставления действует сумма ЦК, до корректировки бухгалтером замораживать нечего.';
+  if(r.match==='pending')   return 'Ждёт подтверждения ЦК: пока таймаут ' + DATA.timeoutDays + ' рабочих дней идёт, исход не определён и заморозки нет.';
+  if(r.match==='confirmed') return 'Сверка положительная, а заморозки нет. Порядок односторонний: сначала заморозка (бухгалтер), потом акт — не наоборот.';
+  return 'Не заморожено — в акт не входит.';
+}
+
+/* ---- цепочка ПТ-Д10: стрелка одна и смотрит в одну сторону ---- */
+function actChain(){
+  const steps = ['1. Положительная сверка','2. Заморозка поступления','3. Закрытие периода','4. Акт сверки'];
+  return steps.map((t,i)=>`<span class="trn"${i===steps.length-1
+      ? ' style="border-color:var(--asubk-blue);color:var(--asubk-blue);font-weight:600"' : ''}>${t}</span>`)
+    .join('<span style="color:var(--text-placeholder);margin:0 7px">→</span>');
+}
+
+/** ГЛАВНЫЙ блок-объяснение: круга нет, первична заморозка (ПТ-Д10) */
+function actNoLoopBlock(short){
+  return `<div class="banner ok">${ACT_ICO_I}<div>
+      <b>Круга «акт ↔ заморозка» нет: первична заморозка.</b>
+      <div style="margin:8px 0 6px">${actChain()}</div>
+      Акт <b>ничего не морозит</b> и основанием заморозки не является — он собирается из поступлений,
+      <b>уже замороженных</b> по положительной сверке, и по месяцу, уже закрытому.
+      ${short ? '' : `Обратной стрелки нет ни одной: заморозку ставит бухгалтер по сверке с реестром ЦК, месяц закрывается
+      по гейту, и только после этого есть что сводить в акт. Если бы заморозка ждала подписанного акта, а акт —
+      заморозки, не наступило бы ни одно из двух.`}</div></div>`;
+}
+
+/* ---- сравнение двух документов (ПТ-Д11) ---- */
+function actTwoDocs(){
+  const r2 = (a,b,c) => `<tr style="cursor:default"><td style="color:var(--text-muted)">${a}</td><td>${b}</td><td>${c}</td></tr>`;
+  return `<div class="section-h">Два документа, а не два состояния одного</div>
+  <p class="section-note">Слово «акт сверки» в модуле означает две разные вещи. Их нельзя вести одним жизненным циклом:
+    у внутреннего акта нет второй стороны, а двусторонний не является отчётом периода.</p>
+  <div class="cgrid-wrap" style="margin-bottom:22px">
+    <table class="cgrid" style="white-space:normal">
+      <thead><tr><th style="width:150px">Сравнение</th>
+        <th style="width:38%">${actKindPill('internal')} акт Холдинга</th>
+        <th>${actKindPill('bilateral')} акт с заёмщиком</th></tr></thead>
+      <tbody>
+        ${r2('Что это','Рабочий документ: свод замороженных поступлений заёмщика за период.','Документ отношений с заёмщиком: <b>признание долга</b>.')}
+        ${r2('Зачем','Чтобы у месяца был итог, под которым есть что подписывать.','Чтобы <b>прервать срок исковой давности</b> (ADR-0051): после подписи давность течёт заново.')}
+        ${r2('На чём строится','Только на <b>ЗАКРЫТОМ</b> периоде. По открытому — с пометкой «предварительно» и <b>без подписи</b>.','На тех же замороженных цифрах, но документ не отчётный: он фиксирует, что заёмщик долг признал.')}
+        ${r2('Кто инициирует','Куратор (<code>can.initAct()</code>) — это трактовка, а не факт денег.','Куратор: двусторонний акт — <b>мера взыскания</b>, а меры ведёт куратор.')}
+        ${r2('Чем заканчивается','Подписью внутри Холдинга после согласования цифр бухгалтерией.','<b>Подписью заёмщика.</b> Без неё документа нет: несогласованный акт правового эффекта не даёт.')}
+        ${r2('Где живёт','Здесь, в модуле платежей.','В <b>журнале мер взыскания</b>. Здесь только виден — модуль платежей даёт ему цифры, и не более.')}
+        ${r2('Отношение к заморозке','Собирается из уже замороженных поступлений. Сам не морозит ничего.','Заморозки <b>не касается вовсе</b>: он про давность, а не про учёт месяца.')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+/* ============================================================
+   ЛЕНТА АКТОВ
+   ============================================================ */
+function actRow(a){
+  const per   = actPeriodOf(a);
+  const comp  = actComposition(a);
+  const prel  = actIsPrelim(a);
+  const sh    = actShown(a, comp);
+  const dN    = prel && comp.inn.length !== a.frozenCount;          // разошлось число
+  const dS    = prel && Math.abs(comp.sum - a.sum) > 0.004;         // разошлась сумма
+  const bl    = prel ? periodBlockers(a.period) : [];
+  return `<tr onclick="openAct('${a.id}')">
+    <td><span class="rowlink">${a.id}</span>
+      <div class="src-tag" style="margin-top:4px">создан ${a.created}</div></td>
+    <td>${actKindPill(a.kind)}
+      <div class="src-tag" style="margin-top:4px;white-space:normal;max-width:230px">${(ACT_KIND[a.kind]||{}).why||''}</div></td>
+    <td>${per.label}
+      <div style="margin-top:4px">${pill(PSTATE[per.state]||PSTATE.open)}</div>
+      ${prel?`<div class="src-tag" style="margin-top:4px">препятствий: ${bl.length}</div>`:''}</td>
+    <td>${a.borrower}</td>
+    <td class="r"><b class="num">${sh.n}</b>
+      <div class="src-tag" style="text-align:right">${sh.src}</div>
+      ${dN?`<div class="src-tag" style="text-align:right">в акте: ${a.frozenCount}</div>`:''}</td>
+    <td class="r mono">${money(sh.sum)}
+      ${dS?`<div class="src-tag" style="text-align:right">в акте: ${money(a.sum)}</div>`:''}</td>
+    <td>${a.initiator}</td>
+    <td>${actPill(a)}
+      ${prel?`<div class="src-tag" style="margin-top:4px">период открыт — только «предварительно»</div>`:''}</td>
+  </tr>`;
+}
+
+function viewActs(){
+  const internal  = DATA.acts.filter(a=>a.kind==='internal');
+  const bilateral = DATA.acts.filter(a=>a.kind==='bilateral');
+  const prelim    = DATA.acts.filter(actIsPrelim);
+
+  return `<div class="page-pad">
+    <div class="section-h">Акты сверки</div>
+    <p class="section-note">Экран разводит два документа, которые в живой практике смешаны в один:
+      <b>внутренний</b> акт Холдинга по периоду и <b>двусторонний</b> акт с заёмщиком. Первый — рабочая сводка
+      закрытого месяца, второй — <b>признание долга</b> и мера взыскания. Состав акта здесь не хранится списком:
+      он <b>выводится</b> из замороженных поступлений периода (ADR-0001). По закрытому месяцу показаны цифры самого
+      акта — они неподвижны; по открытому — текущий вывод, а зафиксированное при формировании стоит рядом,
+      и расхождение не прячется.
+      <span class="src-tag">Демо-ограничение набора: исторические поступления июня 2026 заведены не полностью,
+      поэтому у <span class="rowlink" onclick="openAct('AS-14')">AS-14</span> выведенный состав пуст,
+      а цифры взяты из самого акта.</span></p>
+
+    ${actNoLoopBlock()}
+
+    ${actTwoDocs()}
+
+    <div class="section-h">Лента актов</div>
+    <p class="section-note">Вид документа — отдельной пилюлей: путать их нельзя. Период показан вместе со своим
+      состоянием, потому что именно оно решает, может ли акт нести подпись.</p>
+
+    <div class="gtoolbar">
+      <button class="btn btn-primary btn-sm" onclick="actDo('init')">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Инициировать акт</button>
+      ${roleHint(can.initAct(),'акт инициирует куратор — это трактовка, а не факт денег')}
+      <span class="spacer"></span>
+      <span class="src-tag">внутренних: ${internal.length} · двусторонних: ${bilateral.length} ·
+        предварительных: ${prelim.length} · состояние на ${DATA.today}</span>
+    </div>
+
+    <div class="cgrid-wrap">
+      <table class="cgrid"><thead><tr>
+        <th>Акт</th><th>Вид документа</th><th>Период</th><th>Заёмщик</th>
+        <th class="r">Вошло замороженных</th><th class="r">Сумма, вошедшая в акт</th>
+        <th>Инициатор</th><th>Состояние</th>
+      </tr></thead>
+      <tbody>${DATA.acts.map(actRow).join('') || '<tr><td colspan="8" class="cgrid-empty">Актов нет</td></tr>'}</tbody>
+      </table>
+    </div>
+
+    <div class="banner warn" style="margin-top:14px">${ACT_ICO_I}<div>
+      <b>Предварительный акт подписи не несёт.</b>
+      <span class="rowlink" onclick="openAct('AS-15')">AS-15</span> построен по <b>июлю</b>, а июль не закрыт:
+      препятствий ${periodBlockers('2026-07').length} — <span class="rowlink" onclick="go('period')">экран закрытия периода</span>.
+      Пока месяц открыт, любая новая запись сдвигает его итог, и подписывать нечего. Такой акт остаётся рабочим
+      расчётом с пометкой «предварительно».</div></div>
+
+    <div class="banner info">${ACT_ICO_I}<div>
+      <b>Двусторонний акт живёт не здесь.</b>
+      <span class="rowlink" onclick="openAct('AS-16')">AS-16</span> — признание долга: он прерывает срок исковой
+      давности (ADR-0051) и принадлежит <b>журналу мер взыскания</b>. Модуль платежей отдаёт ему цифры и показывает
+      состояние; сроки, последствия и связь с процедурой взыскания живут в журнале мер.
+      Заморозки такой акт <b>не касается</b>.</div></div>
+
+    <div class="legend">
+      <span>${actKindPill('internal')} рабочий документ Холдинга по периоду</span>
+      <span>${actKindPill('bilateral')} признание долга, мера взыскания</span>
+      <span>${pill({t:ACT_STATE.draft[0],  cls:ACT_STATE.draft[1]})} период не закрыт: цифры ещё двигаются</span>
+      <span>${pill({t:ACT_STATE.formed[0], cls:ACT_STATE.formed[1]})} состав собран по закрытому месяцу</span>
+      <span>${pill({t:ACT_STATE.agreed[0], cls:ACT_STATE.agreed[1]})} цифры приняты</span>
+      <span>${pill({t:ACT_STATE.signed[0], cls:ACT_STATE.signed[1]})} подписан</span>
+    </div>
+  </div>`;
+}
+
+/* ============================================================
+   КАРТОЧКА АКТА
+   ============================================================ */
+function actDetail(a){
+  const per  = actPeriodOf(a);
+  const comp = actComposition(a);
+  const prel = actIsPrelim(a);
+  const sh   = actShown(a, comp);
+  const bl   = prel ? periodBlockers(a.period) : [];
+
+  const banner = prel
+    ? `<div class="banner warn">${ACT_ICO_I}<div><b>Акт предварительный: период «${per.label}» не закрыт.</b>
+        Подписи такой акт не несёт — цифры месяца ещё двигаются: препятствий ${bl.length}, каждое из них
+        может изменить итог. Это рабочий расчёт, и в нём так и написано.
+        <span class="rowlink" onclick="go('period')">Экран закрытия периода</span>.</div></div>`
+    : a.kind==='bilateral'
+      ? `<div class="banner info">${ACT_ICO_I}<div><b>Двусторонний акт — признание долга, а не отчёт.</b>
+          Он прерывает срок исковой давности (ADR-0051) и принадлежит <b>журналу мер взыскания</b>: здесь он
+          только виден. Заморозки не касается — из учёта месяца берёт лишь цифры.</div></div>`
+      : `<div class="banner ok">${ACT_ICO_I}<div><b>Период «${per.label}» закрыт ${per.closedAt||'—'}.</b>
+          Цифры месяца неподвижны, поэтому под ними есть что подписывать: состав акта задним числом не пересобирается,
+          а поздний факт потребует открытия периода по решению комиссии.</div></div>`;
+
+  return `<div class="page-pad">
+    <div class="gtoolbar">
+      <button class="btn btn-tint btn-sm" onclick="back()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+        К ленте актов</button>
+      <span class="spacer"></span>${actActionBar(a)}
+    </div>
+
+    ${banner}
+
+    <div class="phead">
+      <div class="phead-top">
+        <div>
+          <div class="phead-name">
+            <span class="nm">Акт ${a.id}</span>
+            <span class="amt">${money(sh.sum)}</span>
+            ${actKindPill(a.kind)}${actPill(a)}
+          </div>
+          <div class="phead-sub">${(ACT_KIND[a.kind]||{}).full||''} · период <b>${per.label}</b>
+            (${(PSTATE[per.state]||{}).t||'—'}) · заёмщик <b>${a.borrower}</b> · инициатор <b>${a.initiator}</b>,
+            ${a.created}<br>${a.note||''}</div>
+        </div>
+        ${pill(PSTATE[per.state]||PSTATE.open)}
+      </div>
+      <div class="phead-dims">
+        <div class="dim"><div class="dl">Что это за документ</div>
+          <div class="dv">${actKindPill(a.kind)}</div>
+          <div class="src">${a.kind==='bilateral'
+            ? 'Признание долга: прерывает срок исковой давности (ADR-0051). Живёт в журнале мер взыскания.'
+            : 'Рабочий документ Холдинга: свод замороженных поступлений заёмщика за период.'}</div></div>
+        <div class="dim"><div class="dl">Период и его состояние</div>
+          <div class="dv">${pill(PSTATE[per.state]||PSTATE.open)}</div>
+          <div class="src">${per.state==='closed'
+            ? 'Закрыл: '+(per.closedBy||'—')+', '+(per.closedAt||'—')+'. Цифры месяца неподвижны.'
+            : 'Месяц открыт: препятствий '+bl.length+' — акт только «предварительно», подписи не несёт.'}</div></div>
+        <div class="dim"><div class="dl">Состав акта</div>
+          <div class="dv"><b class="num">${sh.n}</b>
+            <span style="font:var(--font-label)">${actPlur(sh.n).replace(String(sh.n)+' ','')} на ${money(sh.sum)}</span></div>
+          <div class="src">${sh.src}. Состав выводится из данных периода, отдельным списком не хранится (ADR-0001).
+            ${comp.out.length?'Не вошло: '+comp.out.length+' — ниже, с причиной.':'Незамороженных поступлений периода по заёмщику нет.'}</div></div>
+      </div>
+    </div>
+
+    ${actTimeline(a)}
+    ${actNoLoopBlock(true)}
+    ${actCompositionBlock(a, comp)}
+    ${actNumbersBlock(a, comp)}
+    ${a.kind==='bilateral' ? actBilateralBlock(a) : actInternalBlock(a)}
+
+    <div class="section-h" style="margin-top:24px">След акта</div>
+    <p class="section-note">Хранится только то, что положил человек: инициатива, согласование, подпись.
+      Состав и суммы не хранятся — они пересобираются из замороженных поступлений периода.</p>
+    ${actHistBlock(a, comp)}
+  </div>`;
+}
+
+/* ---- ЖИЗНЕННЫЙ ЦИКЛ: у двустороннего он кончается подписью ЗАЁМЩИКА ---- */
+function actTimeline(a){
+  const order = ['draft','formed','agreed','signed'];
+  const idx   = Math.max(0, order.indexOf(a.state));
+  const prel  = actIsPrelim(a);
+  const steps = a.kind==='bilateral'
+    ? [['Предварительный','расчёт по данным периода; подписи не несёт'],
+       ['Сформирован','состав собран из замороженных поступлений'],
+       ['Согласован с заёмщиком','стороны сверили цифры'],
+       ['Подписан заёмщиком','признание долга: срок исковой давности прерывается и течёт заново (ADR-0051)']]
+    : [['Предварительный','пока месяц открыт — только «предварительно»'],
+       ['Сформирован','по ЗАКРЫТОМУ периоду: цифры месяца неподвижны'],
+       ['Согласован','бухгалтерия приняла цифры месяца'],
+       ['Подписан','внутренний рабочий документ Холдинга; второй стороны у него нет']];
+
+  const html = steps.map(([lbl,sub],i)=>{
+    const cls = i < idx ? 'done' : i === idx ? 'cur' : 'todo';
+    const dot = i < idx ? '✓' : String(i+1);
+    return `<div class="tl-step"><span class="tl-dot ${cls}">${dot}</span>
+      <span class="tl-lbl${cls==='todo'?' todo':''}"><b>${lbl}</b><br><span class="src-tag">${sub}</span></span></div>`;
+  }).join(ACT_ARROW);
+
+  return `<div class="section-h" style="margin-top:22px">Жизненный цикл
+      ${a.kind==='bilateral'?actKindPill('bilateral')+' '+pill({t:'Мера взыскания',cls:'purple'}):actKindPill('internal')}</div>
+    <p class="section-note">${a.kind==='bilateral'
+      ? 'Цикл заканчивается <b>подписью заёмщика</b>: она и есть смысл документа. Без неё признания долга нет, давность не прерывается, и акт остаётся бумагой. Документ отмечен как <b>мера взыскания</b> и учитывается в журнале мер, а не в отчётности месяца.'
+      : 'Внутренний цикл: вторая сторона не участвует. Подпись возможна только по закрытому периоду — предварительный акт до неё не доходит и не должен.'}
+      ${prel?' <b>Сейчас месяц открыт</b>, поэтому цикл стоит на первом шаге.':''}</p>
+    <div class="timeline">${html}</div>`;
+}
+
+/* ---- СОСТАВ: замороженные поступления периода этого заёмщика ---- */
+function actCompositionBlock(a, comp){
+  const per = actPeriodOf(a);
+  const inRows = comp.inn.map(r=>`<tr onclick="openReceipt('${r.id}')">
+      <td><span class="rowlink">${r.number}</span></td>
+      <td class="mono">${r.date}<div class="src-tag" style="margin-top:4px">дата фактического поступления</div></td>
+      <td class="r mono">${cur(r.amount, r.currency)}</td>
+      <td class="r mono">${money(comp.credited(r))}</td>
+      <td class="r mono">${comp.back(r)>0.004?'&minus; '+money(comp.back(r)):'—'}
+        ${comp.back(r)>0.004?'<div class="src-tag" style="text-align:right">деньги ушли наружу</div>':''}</td>
+      <td>${pill(FRZ[r.frozen])}<div class="src-tag" style="margin-top:4px">${pill(MATCH[r.match])}</div></td>
+      <td style="white-space:normal;max-width:300px">${r.accountObject}
+        <div class="src-tag" style="margin-top:4px">${r.note||''}</div></td>
+    </tr>`).join('');
+
+  const outRows = comp.out.map(r=>`<tr onclick="openReceipt('${r.id}')">
+      <td><span class="rowlink">${r.number}</span></td>
+      <td class="mono">${r.date}</td>
+      <td class="r mono">${cur(r.amount, r.currency)}</td>
+      <td>${axes(r)}</td>
+      <td style="white-space:normal;max-width:520px">${actWhyOut(r)}</td>
+    </tr>`).join('');
+
+  return `<div class="section-h" style="margin-top:24px">Состав акта — только замороженные поступления периода</div>
+    <p class="section-note">Отбор один и проверяемый: поступления периода <b>${per.label}</b>, у которых заёмщик —
+      <b>${a.borrower}</b> и заморозка стоит. Ничего «включить в акт вручную» здесь нет: незамороженное в акт не попадает,
+      и добавить его можно единственным способом — <b>заморозить</b> (бухгалтер), а не подписать акт.</p>
+    ${comp.inn.length ? `<div class="cgrid-wrap"><table class="cgrid"><thead><tr>
+        <th>Поступление</th><th>Дата факта</th><th class="r">Сумма поступления</th>
+        <th class="r">Вошло в акт</th><th class="r">Возвраты исполненные</th>
+        <th>Оси состояния</th><th>Что опознал счёт</th>
+      </tr></thead><tbody>${inRows}
+        <tr class="total"><td colspan="2">Итого вошло замороженных: ${comp.inn.length}</td>
+          <td class="r mono">${money(comp.gross)}</td>
+          <td class="r mono">${money(comp.sum)}</td>
+          <td class="r mono">${comp.ret>0.004?'&minus; '+money(comp.ret):'—'}</td>
+          <td colspan="2" style="white-space:normal">«Вошло в акт» — это Σ платежей заёмщика, а не сумма поступления:
+            исполненный возврат в погашение не идёт и в акт не попадает.</td></tr>
+      </tbody></table></div>`
+      : `<div class="cgrid-wrap"><div class="cgrid-empty">Замороженных поступлений периода по этому заёмщику
+          в демо-наборе нет</div></div>
+        <p class="section-note" style="margin-top:10px">При формировании акт зафиксировал
+          <b>${actPlur(a.frozenCount)}</b> на <b>${money(a.sum)}</b>; поступления
+          «${per.label}» по этому заёмщику в демо-набор заведены не полностью, поэтому выводить состав не из чего.
+          В рабочей системе таблица строится тем же отбором и всегда сходится с шапкой.</p>`}
+
+    ${comp.out.length ? `<div class="section-h" style="margin-top:22px">Не вошло в акт — с причиной</div>
+      <p class="section-note">Поступления периода того же заёмщика, которых в акте нет. Причина <b>выводится</b> из осей
+        состояния, а не пишется руками: «не вошло» без объяснения — дефект интерфейса, а не строка отчёта.</p>
+      <div class="cgrid-wrap"><table class="cgrid"><thead><tr>
+        <th>Поступление</th><th>Дата факта</th><th class="r">Сумма</th><th>Оси состояния</th><th>Почему не вошло</th>
+      </tr></thead><tbody>${outRows}</tbody></table></div>` : ''}`;
+}
+
+/* ---- цифры акта: зафиксированное при формировании против текущего вывода ---- */
+function actNumbersBlock(a, comp){
+  const per   = actPeriodOf(a);
+  const diff  = Math.abs(comp.sum - a.sum) > 0.004 || comp.inn.length !== a.frozenCount;
+  if(!actIsPrelim(a))
+    return `<div class="banner ok" style="margin-top:14px">${ACT_ICO_I}<div>
+      <b>Цифры акта неподвижны: период «${per.label}» закрыт.</b> Месяц захлопнут, новые записи в него не принимаются,
+      поэтому состав акта не может «уехать» после подписи. Поздний факт закрытый месяц сам не двигает — нужно
+      открытие периода по решению комиссии, и тогда акт переиздаётся, а не правится.</div></div>`;
+
+  const bl = periodBlockers(a.period);
+  return `<div class="section-h" style="margin-top:24px">Почему подписи нет: цифры месяца ещё двигаются</div>
+    <p class="section-note">Предварительный акт показывает обе величины сразу — ту, что зафиксирована в нём при
+      формировании, и ту, что выводится сейчас. Расхождение не прячется и не «выравнивается»: оно и есть довод в пользу
+      того, что подписывать нечего.</p>
+    <div class="drift">
+      <div class="dcol snap"><div class="dhead">Зафиксировано в акте ${a.created}</div>
+        <dl class="kv">
+          <dt>Замороженных поступлений</dt><dd class="num">${a.frozenCount}</dd>
+          <dt>Сумма</dt><dd class="num mono">${money(a.sum)}</dd>
+          <dt>Что это</dt><dd>Предварительный расчёт. Подписи не несёт.</dd>
+        </dl></div>
+      <div class="dcol live"><div class="dhead">Выведено сейчас на ${DATA.today}</div>
+        <dl class="kv">
+          <dt>Замороженных поступлений</dt><dd class="num">${comp.inn.length}</dd>
+          <dt>Сумма</dt><dd class="num mono${diff?' diff':''}">${money(comp.sum)}</dd>
+          <dt>Что держит месяц</dt><dd>Препятствий ${bl.length} ·
+            <span class="rowlink" onclick="go('period')">экран закрытия периода</span></dd>
+        </dl></div>
+    </div>
+    ${actGate(a.period)}
+    <p class="section-note" style="margin-top:12px">Операции «пересчитать акт» не существует: величина изменилась сама,
+      человека уведомили. Как только гейт опустеет и месяц закроют, акт можно будет сформировать — уже с подписью.</p>`;
+}
+
+/* ---- гейт периода поимённо: убрать препятствие можно только там, где оно живёт ---- */
+function actGate(pid){
+  const bl = periodBlockers(pid);
+  if(!bl.length) return '';
+  return `<div class="gate">${bl.map(b=>`<div class="grow">
+      <span class="gkind">${b.kind}</span>
+      <span class="gwhat">${b.what}</span>
+      <span class="gid" onclick="go('period')" title="К закрытию периода">${b.id} →</span>
+    </div>`).join('')}</div>`;
+}
+
+/* ---- двусторонний: принадлежит журналу мер взыскания ---- */
+function actBilateralBlock(a){
+  return `<div class="section-h" style="margin-top:24px">Где этот акт живёт на самом деле</div>
+    <p class="section-note">Двусторонний акт — <b>мера взыскания</b>, а не документ учёта месяца. Модуль платежей
+      показывает его состояние и отдаёт цифры; всё остальное — журнал мер.</p>
+    <div class="recon-split">
+      <div class="recon-col">
+        <h4>Модуль платежей ${pill({t:'только видит',cls:'neutral'})}</h4>
+        <dl class="kv">
+          <dt>Что даёт</dt><dd>Состав из замороженных поступлений периода и суммы, вошедшие в погашение.</dd>
+          <dt>Что решает</dt><dd>Ничего: подпись заёмщика — не операция учёта.</dd>
+          <dt>Заморозка</dt><dd>Не затрагивается. Акт не морозит и не размораживает ни одного поступления.</dd>
+          <dt>Закрытие месяца</dt><dd>Не держит и не ускоряет: гейт периода про этот документ не знает.</dd>
+        </dl>
+      </div>
+      <div class="recon-mid">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+      </div>
+      <div class="recon-col">
+        <h4>Журнал мер взыскания ${pill({t:'владелец документа',cls:'purple'})}</h4>
+        <dl class="kv">
+          <dt>Правовой эффект</dt><dd>Признание долга: срок исковой давности <b>прерывается</b> и течёт заново (ADR-0051).</dd>
+          <dt>Что хранится там</dt><dd>Дата подписи, экземпляр документа, связь с процедурой и фазой взыскания.</dd>
+          <dt>Кто ведёт</dt><dd>Куратор: меры взыскания — трактовка, а не факт денег.</dd>
+          <dt>Если подписи нет</dt><dd>Меры нет. Несогласованный акт давность не прерывает.</dd>
+        </dl>
+      </div>
+    </div>
+    <div class="gtoolbar" style="margin-top:12px">
+      <button class="btn btn-secondary btn-sm" onclick="toast('Демо-макет: журнал мер взыскания живёт вне модуля платежей — там срок давности, экземпляр акта и связь с процедурой','ok')">Открыть в журнале мер взыскания</button>
+      <span class="src-tag">переход за пределы модуля платежей</span>
+    </div>`;
+}
+
+/* ---- внутренний: чем он полезен и чего не делает ---- */
+function actInternalBlock(a){
+  const per = actPeriodOf(a);
+  const row = (w,c,o) => `<tr style="cursor:default"><td style="color:var(--text-muted)">${w}</td><td>${c}</td><td>${o}</td></tr>`;
+  return `<div class="section-h" style="margin-top:24px">Что внутренний акт даёт и чего он не делает</div>
+    <p class="section-note">Границы документа названы прямо, чтобы его не начали использовать как рычаг учёта.</p>
+    <div class="cgrid-wrap">
+      <table class="cgrid" style="white-space:normal">
+        <thead><tr><th style="width:26%">Вопрос</th><th style="width:37%">Период ЗАКРЫТ</th><th>Период ОТКРЫТ</th></tr></thead>
+        <tbody>
+          ${row('Может ли акт нести подпись','Да: цифры месяца неподвижны.','Нет. Только пометка «предварительно» — итог месяца ещё сдвинется.')}
+          ${row('Что он сводит','Замороженные поступления заёмщика за месяц и суммы, вошедшие в погашение.','То же, но как рабочий расчёт на дату среза.')}
+          ${row('Морозит ли он что-нибудь','Нет. Никогда и ничего: заморозка стоит раньше него.','Нет. Незамороженное в акт просто не попадает.')}
+          ${row('Держит ли он закрытие месяца','Нет: гейт закрытия про акты не знает.','Нет. Наоборот — это закрытие месяца открывает дорогу акту.')}
+          ${row('Что если цифры изменились','Акт переиздаётся; закрытый месяц правится только через открытие периода по решению комиссии.','Пересобрать предварительный расчёт — и увидеть новую величину.')}
+        </tbody>
+      </table>
+    </div>
+    <p class="section-note" style="margin-top:12px">Текущий период акта — <b>${per.label}</b>,
+      ${(PSTATE[per.state]||{}).t||'—'}${per.state==='closed'?', закрыл '+(per.closedBy||'—')+' '+(per.closedAt||''):''}.</p>`;
+}
+
+/* ---- след ---- */
+function actHistBlock(a, comp){
+  const per  = actPeriodOf(a);
+  const rows = [];
+  rows.push({ when:a.created, cls:'',
+    what:`Акт инициирован: ${(ACT_KIND[a.kind]||{}).full||a.kind} по периоду «${per.label}», заёмщик ${a.borrower}`,
+    who:a.initiator });
+  rows.push({ when: per.state==='closed' ? (per.closedAt||'—') : '—',
+    cls: per.state==='closed' ? 'res' : 'rev',
+    what: per.state==='closed'
+      ? 'Период закрыт: цифры месяца неподвижны — акт может нести подпись.'
+      : `Период не закрыт: препятствий ${periodBlockers(a.period).length}. Акт остаётся предварительным и подписи не несёт.`,
+    who: per.state==='closed' ? (per.closedBy||'—') : 'гейт закрытия периода (вывод)' });
+  rows.push({ when:'—', cls:'',
+    what:`Состав выведен из данных периода: ${actPlur(comp.inn.length)} на ${money(comp.sum)}` +
+         (comp.out.length?`; не вошло ${comp.out.length} — заморозки нет`:'') + '. Заморозка стоит раньше акта — акт её не ставит.',
+    who:'вывод (не хранится)' });
+  if(a.state==='agreed' || a.state==='signed')
+    rows.push({ when:'—', cls:'',
+      what: a.kind==='bilateral' ? 'Цифры согласованы с заёмщиком.' : 'Цифры согласованы бухгалтерией.',
+      who: a.kind==='bilateral' ? a.borrower + ' и ' + a.initiator : ACT_ACTOR_ACC });
+  if(a.state==='signed')
+    rows.push({ when:'—', cls:'res',
+      what: a.kind==='bilateral'
+        ? 'Подписан заёмщиком: долг признан, срок исковой давности прерван (ADR-0051). Запись ушла в журнал мер взыскания.'
+        : 'Подписан как внутренний документ Холдинга по закрытому периоду.',
+      who: a.kind==='bilateral' ? a.borrower : ACT_ACTOR_ACC });
+  if(a.note) rows.push({ when:'—', cls:'', what:a.note, who:'примечание акта' });
+  return `<div class="hist">${rows.map(h=>`<div class="hrow ${h.cls}">
+      <div class="hwhen">${h.when}</div><div class="hwhat">${h.what}</div><div class="hwho">${h.who}</div>
+    </div>`).join('')}</div>`;
+}
+
+/* ============================================================
+   ДЕЙСТВИЯ: инициатива и формирование — куратор, согласование цифр —
+   бухгалтерия, подпись внутреннего — бухгалтер, подпись заёмщика в
+   двустороннем фиксирует куратор (это мера взыскания).
+   ============================================================ */
+const actCanAgree = () => ROLE === 'accountant';
+const actCanSign  = a => a.kind==='bilateral' ? can.initAct() : ROLE === 'accountant';
+
+function actActionBar(a){
+  const per = actPeriodOf(a);
+  let b = '';
+  if(a.state==='draft'){
+    if(per.state==='closed'){
+      b += `<button class="btn btn-primary btn-sm" onclick="actDo('form','${a.id}')">Сформировать по закрытому периоду</button>
+        ${roleHint(can.initAct(),'формирует куратор')}`;
+    } else {
+      b += `<button class="btn btn-secondary btn-sm" onclick="actDo('prelim','${a.id}')">Пересобрать предварительный расчёт</button>
+        ${roleHint(can.initAct(),'предварительный расчёт собирает куратор')}`;
+      b += `<button class="btn btn-tint btn-sm" onclick="actDo('form','${a.id}')">Сформировать с подписью</button>
+        ${roleHint(false,'закрыто: месяц «'+per.label+'» ещё открыт')}`;
+    }
+  } else if(a.state==='formed'){
+    b += `<button class="btn btn-primary btn-sm" onclick="actDo('agree','${a.id}')">${a.kind==='bilateral'?'Согласовать с заёмщиком':'Согласовать (бухгалтерия)'}</button>
+      ${roleHint(actCanAgree(),'цифры принимает бухгалтерия')}`;
+  } else if(a.state==='agreed'){
+    b += `<button class="btn btn-primary btn-sm" onclick="actDo('sign','${a.id}')">${a.kind==='bilateral'?'Зафиксировать подпись заёмщика':'Подписать'}</button>
+      ${roleHint(actCanSign(a), a.kind==='bilateral'?'подпись заёмщика фиксирует куратор — это мера взыскания':'подпись под цифрами месяца — бухгалтер')}`;
+  } else {
+    b += pill({ t:'Подписан '+(a.kind==='bilateral'?'заёмщиком':'Холдингом'), cls:'ok' });
+    b += `<button class="btn btn-tint btn-sm" onclick="toast('Демо: печатная форма акта ${a.id}','ok')">Печатная форма</button>`;
+  }
+  return b;
+}
+
+function actDo(kind, id){
+  if(kind==='init') return actInitModal();
+  const a = DATA.acts.find(x=>x.id===id);
+  if(!a) return;
+  const per  = actPeriodOf(a);
+  const comp = actComposition(a);
+
+  if(kind==='prelim'){
+    if(!can.initAct()) return toast('Акт — трактовка: собирает куратор','warn');
+    a.frozenCount = comp.inn.length;
+    a.sum         = comp.sum;
+    a.note        = 'Предварительный расчёт пересобран ' + DATA.today + '. Период не закрыт — подписи акт не несёт.';
+    render();
+    return toast('Предварительный расчёт пересобран: замороженных '+comp.inn.length+' на '+money(comp.sum)+
+      '. Это рабочая величина — пока «'+per.label+'» открыт, она ещё сдвинется.','warn');
+  }
+
+  if(kind==='form'){
+    if(!can.initAct()) return toast('Акт формирует куратор — это трактовка, а не факт денег','warn');
+    if(a.state!=='draft') return toast('Акт уже сформирован: состояние «'+actState(a)[0]+'»','warn');
+    if(per.state!=='closed'){
+      const bl = periodBlockers(a.period);
+      return toast('«'+per.label+'» не закрыт: препятствий '+bl.length+
+        '. По открытому месяцу акт возможен только предварительно и подписи не несёт — цифры ещё двигаются.','warn');
+    }
+    a.state       = 'formed';
+    a.frozenCount = comp.inn.length;
+    a.sum         = comp.sum;
+    a.note        = 'Сформирован по ЗАКРЫТОМУ периоду ' + DATA.today + ': состав собран из замороженных поступлений месяца.';
+    render();
+    return toast('Акт '+a.id+' сформирован по закрытому периоду. Заморозку он не ставил — она стояла раньше него','ok');
+  }
+
+  if(kind==='agree'){
+    if(!actCanAgree()) return toast('Цифры месяца принимает бухгалтерия','warn');
+    if(a.state!=='formed') return toast('Согласовывать нечего: состояние «'+actState(a)[0]+'»','warn');
+    a.state = 'agreed';
+    render();
+    return toast(a.kind==='bilateral'
+      ? 'Цифры согласованы с заёмщиком. Правовой эффект даст только его подпись'
+      : 'Цифры приняты бухгалтерией. Осталась подпись','ok');
+  }
+
+  if(kind==='sign'){
+    if(!actCanSign(a)) return toast(a.kind==='bilateral'
+      ? 'Подпись заёмщика фиксирует куратор: двусторонний акт — мера взыскания'
+      : 'Подпись под цифрами месяца ставит бухгалтер','warn');
+    if(a.state!=='agreed') return toast('Подписывать рано: состояние «'+actState(a)[0]+'»','warn');
+    if(a.kind==='internal' && per.state!=='closed')
+      return toast('Подпись возможна только по закрытому периоду: пока «'+per.label+'» открыт, итог месяца ещё сдвинется','warn');
+    a.state = 'signed';
+    render();
+    return toast(a.kind==='bilateral'
+      ? 'Демо: подпись заёмщика зафиксирована. Долг признан — срок исковой давности прерван (ADR-0051), запись ушла в журнал мер взыскания'
+      : 'Демо: акт '+a.id+' подписан по закрытому периоду. Ни одно поступление он при этом не заморозил','ok');
+  }
+}
+
+/* ---- инициатива акта: куратор выбирает документ, период и заёмщика ---- */
+function actInitModal(){
+  if(!can.initAct()) return toast('Акт сверки инициирует куратор — это трактовка, а не факт денег','warn');
+  const pers = DATA.periods.map(p=>`<option value="${p.id}">${p.label} · ${(PSTATE[p.state]||{}).t||''}</option>`).join('');
+  const brs  = [...new Set(DATA.credits.map(c=>c.borrower))].map(b=>`<option>${b}</option>`).join('');
+  const caret = `<span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>`;
+  openModal(`<div class="modal-h"><span class="mt">Инициировать акт сверки</span>
+    <button class="modal-x" onclick="closeModal()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
+  <div class="modal-b">
+    <div class="banner info" style="margin-bottom:14px">${ACT_ICO_I}<div>Сначала выберите, <b>какой</b> это документ.
+      <b>Внутренний</b> — рабочая сводка периода. <b>Двусторонний</b> — признание долга, мера взыскания (ADR-0051):
+      он уйдёт в журнал мер, а здесь останется виден.</div></div>
+    <div class="f2">
+      <div class="field col-span req"><label class="flabel">Вид документа</label>
+        <div class="control"><select id="actKind">
+          <option value="internal">Внутренний акт Холдинга — рабочий документ по периоду</option>
+          <option value="bilateral">Двусторонний акт с заёмщиком — признание долга (мера взыскания)</option>
+        </select>${caret}</div></div>
+      <div class="field req"><label class="flabel">Период</label>
+        <div class="control"><select id="actPeriod">${pers}</select>${caret}</div></div>
+      <div class="field req"><label class="flabel">Заёмщик</label>
+        <div class="control"><select id="actBorrower">${brs}</select>${caret}</div></div>
+      <div class="field col-span"><label class="flabel">Примечание</label>
+        <textarea id="actNote" class="note-area" placeholder="зачем нужен акт: сверка перед подписанием графика, подготовка претензии, признание долга"></textarea></div>
+    </div>
+    <div class="banner warn" style="margin-top:14px">${ACT_ICO_I}<div>
+      <b>По открытому месяцу выйдет только «предварительно».</b> Акт строится по <b>закрытому</b> периоду:
+      пока месяц открыт, любая новая запись сдвигает итог, и подписывать нечего.
+      Состав соберётся сам — из <b>уже замороженных</b> поступлений периода; заморозку акт не ставит.</div></div>
+  </div>
+  <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+    <button class="btn btn-primary" onclick="actCreate()">Инициировать</button></div>`);
+}
+
+function actCreate(){
+  const val = id => ((document.getElementById(id)||{}).value||'').trim();
+  const kind = val('actKind') || 'internal';
+  const pid  = val('actPeriod') || DATA.periods[0].id;
+  const who  = val('actBorrower') || (DATA.credits[0]||{}).borrower || '—';
+  const per  = DATA.periods.find(p=>p.id===pid) || { label:pid, state:'open' };
+  const n    = DATA.acts.reduce((m,x)=>Math.max(m, +String(x.id).replace(/\D/g,'')||0), 0) + 1;
+  const a = { id:'AS-'+n, kind, period:pid, borrower:who, state:'draft', created:DATA.today,
+    frozenCount:0, sum:0, initiator:ACT_ACTOR_CUR, note:val('actNote') || '' };
+  const comp = actComposition(a);
+  a.frozenCount = comp.inn.length;
+  a.sum         = comp.sum;
+  if(!a.note) a.note = per.state==='closed'
+    ? 'Построен по ЗАКРЫТОМУ периоду — цифры месяца неподвижны.'
+    : 'Период не закрыт — акт только «предварительно», подписи не несёт.';
+  DATA.acts.unshift(a);
+  closeModal();
+  openAct(a.id);
+  toast(per.state==='closed'
+    ? 'Акт '+a.id+' заведён по закрытому периоду: состав собран из '+comp.inn.length+' замороженных поступлений на '+money(comp.sum)
+    : 'Акт '+a.id+' заведён предварительным: «'+per.label+'» не закрыт, подписи такой акт не несёт',
+    per.state==='closed' ? 'ok' : 'warn');
+}
 /* @@END:acts@@ */
 
 const hrow = (what,who) => ({when:'сейчас (демо)', what, who, cls: what.indexOf('Сторн')===0?'rev':what.indexOf('Восстанов')===0?'res':''});
