@@ -532,6 +532,11 @@ const SURPLUS = {                                // режимы остатка 
   advance:    { t:'Аванс',            cls:'info',    hint:'безадресный: ждёт наступления сроков' },
   reserve:    { t:'Адресный резерв',  cls:'purple',  hint:'закреплён за строками графика; гасит факт, не план' },
 };
+const ORDERING = {                               // источник очерёдности статей (ADR-0059, ПТ-13)
+  contract:    { t:'Порядок по договору',      cls:'neutral' },
+  norm:        { t:'Нормативный порядок',      cls:'info' },
+  bankruptcy:  { t:'Очерёдность в банкротстве',cls:'purple' },
+};
 const RET_STATE = {                              // возврат (ADR-0056, спека §8.5)
   draft:    { t:'Черновик',      cls:'neutral' },
   based:    { t:'Основание есть',cls:'warn' },
@@ -889,7 +894,8 @@ const DATA = {
      Живое (derived) пересобирается на дату среза; снимок (snapshot) — застыл.
      ============================================================ */
   alloc: {
-    'AL-2041': { total:42600, asOf:'04.08.2026', due:42600, surplusLeft:0, layers:[
+    'AL-2041': { total:42600, asOf:'04.08.2026', due:42600, surplusLeft:0,
+      ordering:{ source:'contract', note:'Порядок статей взят из договора №56, раздел «Очерёдность погашения».', excluded:[] }, layers:[
       { name:'Свободный слой', mode:'по договору: проценты + график + пеня', sum:42600, articles:[
         { article:'Пеня',          rows:[ {tranche:'Транш №2', urg:'over', label:'просроченная', v:2600} ] },
         { article:'Проценты',      rows:[ {tranche:'Транш №2', urg:'over', label:'просроченные', v:40000} ] },
@@ -910,7 +916,9 @@ const DATA = {
         { article:'Основной долг', rows:[ {tranche:'Транш №1', urg:'over', label:'просроченный', v:62000} ] },
       ]},
     ]},
-    'AL-2054': { total:100000, asOf:'30.07.2026', due:100000, surplusLeft:0, layers:[
+    'AL-2054': { total:100000, asOf:'30.07.2026', due:100000, surplusLeft:0,
+      ordering:{ source:'contract', note:'Порядок задан условиями мирового соглашения от 14.03.2026.',
+        excluded:[{ article:'Пеня', why:'начисление приостановлено мировым соглашением — приоритет ноль, статья в разнесении не участвует' }] }, layers:[
       { name:'Слой мирового соглашения', mode:'график мирового; пеня приостановлена', sum:100000, articles:[
         { article:'Основной долг', rows:[ {tranche:'Транш №1', urg:'over', label:'просроченный (график мирового)', v:100000} ] },
       ]},
@@ -931,12 +939,16 @@ const DATA = {
       ]},
     ]},
 
-    'AL-2044S': { total:500000, asOf:'12.07.2026 (снимок)', due:500000, surplusLeft:0, layers:[
+    'AL-2044S': { total:500000, asOf:'12.07.2026 (снимок)', due:500000, surplusLeft:0,
+      ordering:{ source:'norm', note:'Взыскание по исполнительному листу: порядок задаёт норма, а не договор.',
+        excluded:[{ article:'Проценты и пеня', why:'приостановлены решением суда с 05.09.2025' }] }, layers:[
       { name:'Слой решения №2 (ИЛ №2)', mode:'проценты и пеня приостановлены', sum:500000, articles:[
         { article:'Основной долг (присуждённый)', rows:[ {tranche:'Транш №2', urg:'over', label:'по ИЛ №2', v:500000} ] },
       ]},
     ]},
-    'AL-2044L': { total:500000, asOf:'04.08.2026 (текущий вывод)', due:500000, surplusLeft:0, layers:[
+    'AL-2044L': { total:500000, asOf:'04.08.2026 (текущий вывод)', due:500000, surplusLeft:0,
+      ordering:{ source:'norm', note:'Взыскание по исполнительному листу: порядок задаёт норма, а не договор.',
+        excluded:[{ article:'Проценты и пеня', why:'приостановлены решением суда с 05.09.2025' }] }, layers:[
       { name:'Слой решения №1 (ИЛ №1)', mode:'проценты идут, пеня приостановлена', sum:180000, articles:[
         { article:'Основной долг (присуждённый)', rows:[ {tranche:'Транш №1', urg:'over', label:'поглощено актом 28.07', v:180000} ] },
       ]},
@@ -945,7 +957,9 @@ const DATA = {
       ]},
     ]},
 
-    'AL-2043': { total:105000, asOf:'03.07.2026', due:105000, surplusLeft:0, layers:[
+    'AL-2043': { total:105000, asOf:'03.07.2026', due:105000, surplusLeft:0,
+      ordering:{ source:'norm', note:'Реализация залога: расходы по обращению взыскания идут впереди присуждённого долга по нормативному порядку, а не по договорному.',
+        excluded:[] }, layers:[
       { name:'Слой решения №2 (ИЛ №2)', mode:'проценты и пеня приостановлены', sum:105000, articles:[
         { article:'Расходы по обращению взыскания', rows:[ {tranche:'Транш №1', urg:'over', label:'по нормативному порядку', v:15000} ] },
         { article:'Основной долг (присуждённый)',   rows:[ {tranche:'Транш №1', urg:'over', label:'по ИЛ №2', v:90000} ] },
@@ -1964,7 +1978,7 @@ function payPanelAlloc(p){
   return `<div class="banner info">${PAY_INFO}<div><b>Матрица разносит только наступившее на дату среза</b>, по всем слоям сразу (ADR-0057).
       Уровни матрицы — <b>слой → статья долга → срочность</b>. Транш назван в каждой строке, потому что транш — это
       <b>область</b> разнесения, а не четвёртый уровень: порядок строк задаёт срок, а не номер транша (ADR-0060).</div></div>
-    ${invBar}${reserve}
+    ${invBar}${reserve}${payOrderingBlock(a)}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:16px;align-items:start;margin-top:14px">
       <div>
         ${payMatrix(a, p)}
@@ -1975,6 +1989,26 @@ function payPanelAlloc(p){
     ${payDriftBlock(p)}
     ${payWriteOffBlock(p)}
     ${payAdjustBlock(p)}`;
+}
+
+/* источник очерёдности статей и исключённые статьи (ПТ-Д6, ADR-0059) */
+function payOrderingBlock(a){
+  const o = a && a.ordering;
+  if(!o) return '';
+  const exc = (o.excluded||[]).map(x=>`<div class="grow">
+      <span class="gkind">${x.article} — исключённая статья</span>
+      <span class="gwhat">${x.why}</span>
+      <span class="gid" style="cursor:default">приоритет 0</span></div>`).join('');
+  return `<div class="gate" style="margin-top:12px">
+    <div class="grow">
+      <span class="gkind">Источник очерёдности</span>
+      <span class="gwhat">${o.note}</span>
+      <span class="gid" style="cursor:default">${pill(ORDERING[o.source])}</span>
+    </div>${exc}
+    <div class="grow"><span class="gwhat" style="${MUT}">Порядок статей задаёт не только договор: у взыскания и банкротства он <b>нормативный</b>
+      и договорный перебивает. <b>Исключённая статья</b> — не ноль в сумме, а нулевой приоритет: матрица её пропускает,
+      начисление по ней живёт своей жизнью у владельца (ADR-0059).</span></div>
+  </div>`;
 }
 
 /* матрица слой → статья долга → срочность; транш — в каждой строке (ПТ-Д3) */
