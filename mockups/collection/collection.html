@@ -1632,11 +1632,18 @@ for(const kd of MEASURE_KINDS){
 const KIND_BY_NAME = Object.fromEntries(MEASURE_KINDS.map(k => [k.name, k]));
 const kindOf = name => KIND_BY_NAME[name] || null;
 const MEASURE_KIND_NAMES = MEASURE_KINDS.map(k => k.name);
-/* Слой долга (§8.5, МП-1/МП-4→МП5-1/МП5-2): рождается ТОЛЬКО этими тремя видами —
+/* Слой долга (§8.5, МП-1/МП-4→МП5-1/МП5-2): рождается ТОЛЬКО этими видами —
    не любым исходом с setsPhase:'Решение суда' (у «Постановление апелляционной
    инстанции» тот же setsPhase на двух исходах, но апелляция ревизует слой, не
-   рождает новый, — МП-2, вне этой карты, поэтому список ИМЁН, а не скан setsPhase). */
-const AWARD_KINDS = new Set(['Решение суда','Судебный приказ','Определение об утверждении мирового соглашения']);
+   рождает новый, — МП-2, вне этой карты, поэтому список ИМЁН, а не скан setsPhase).
+   «Дополнительное решение суда» (наряд «выручка/очередь», МП5-10, ADR-0049 §3) —
+   единственный вид, чья награда СКЛАДЫВАЕТСЯ с актом-основанием, не заменяет его
+   (см. relation.type==='adds' у layerOf/effectiveAward ниже). */
+const AWARD_KINDS = new Set(['Решение суда','Судебный приказ','Определение об утверждении мирового соглашения','Дополнительное решение суда']);
+/* Смерть слоя (ADR-0049 §3, наряд «выручка/очередь», МП5-10): акт отмены не
+   присуждает (нет m.awards) — гасит слой, рождённый отменяемым приказом. Входит
+   в свёртку layerOf отдельным условием (по m.targets, не по m.awards). */
+const AWARD_DEATH_KINDS = new Set(['Определение об отмене судебного приказа']);
 /* РАЗДЕЛ — производная от вида меры (каждый вид принадлежит ровно одному разделу),
    вручную не задаётся — как «фаза из журнала». Ключи покрывают все MEASURE_KINDS;
    раздел согласован с контурами К0…К7 (Исполнительный лист → Судебный: устанавливает
@@ -1827,27 +1834,61 @@ function phaseSource(r){
   if(r.continuesReq){ const pr = REQ_INDEX[r.continuesReq]; if(pr) return `продолжает требование ${pr.id} — ${phaseSource(pr)}`; }
   return 'мер-вех нет — фаза открытия';
 }
-/* Слой долга (§8.5) — не запись, а строка связи «мера-решение × кредит» (ADR-0049).
-   Рождается ТОЛЬКО AWARD_KINDS (МП-1/МП5-1); сумма — по представителю кредита
-   (rep[r.credit]-паттерн tileMoney, МП5-2): если представитель не среди целей
-   конкретной меры, эта мера слоя не даёт вовсе — фолбэка на другую цель нет
-   (наряд п.2, тикет «Точки интеграции», вопрос 1). «Последняя» мера — тем же
-   правилом, что liveMilestones выше: по дате СОБЫТИЯ (m.dates.event/registered),
-   не по дате внесения пометки — задержанный по вводу акт не должен обгонять более
-   раннюю по факту веху. */
-function layerOf(proc, creditId){
+/* Представитель кредита — rep[]-паттерн tileMoney (МП5-2), общий для layerOf,
+   effectiveAward и делёжа выручки (наряд «выручка/очередь»): предпочитает роль
+   «заёмщик» среди требований кредита, иначе первое попавшееся. */
+function repOf(proc, creditId){
   const reqs = (proc.requirements || []).filter(x => x.credit === creditId);
   let rep = null;
   for(const r of reqs){ if(!rep || (r.role === 'заёмщик' && rep.role !== 'заёмщик')) rep = r; }
+  return rep;
+}
+/* Присуждённое актом с учётом отношения к прежнему слою (ADR-0049 §3, наряд
+   «выручка/очередь», грилинг Q8/Q13): type:'adds' («Дополнительное решение
+   суда») складывает статьи с актом-основанием (relation.of, номер меры, один
+   уровень поиска — без цепочек, довесок практически всегда один на дело);
+   new/absorbs — чисто информационная связь, сумма самого акта как есть. Пусто
+   ≠ ноль по статье сохраняется: складываются только статьи, тронутые хотя бы
+   одним из двух актов. Общий хелпер — layerOf ниже и claimsReconcileHtml. */
+function effectiveAward(measures, m, reqId){
+  const award = m.awards && m.awards[reqId];
+  if(!award) return null;
+  if(!(award.relation && award.relation.type === 'adds' && award.relation.of)) return award;
+  const base = measures.find(x => x.num === award.relation.of);
+  const baseAward = base && base.awards && base.awards[reqId];
+  if(!baseAward) return award;
+  const merged = { ...award };
+  CLAIM_KEYS.forEach(k => {
+    if(award[k] !== undefined || baseAward[k] !== undefined) merged[k] = (award[k] || 0) + (baseAward[k] || 0);
+  });
+  return merged;
+}
+/* Слой долга (§8.5) — не запись, а строка связи «мера-решение × кредит» (ADR-0049).
+   Рождается ТОЛЬКО AWARD_KINDS (МП-1/МП5-1); сумма — по представителю кредита
+   (repOf, МП5-2): если представитель не среди целей конкретной меры, эта мера
+   слоя не даёт вовсе — фолбэка на другую цель нет (наряд п.2, тикет «Точки
+   интеграции», вопрос 1). «Последняя» мера — тем же правилом, что liveMilestones
+   выше: по дате СОБЫТИЯ (m.dates.event/registered), не по дате внесения пометки.
+   Акт отмены приказа (AWARD_DEATH_KINDS) входит в ТУ ЖЕ свёртку по дате — если
+   он побеждает (последний, живой), слой гаснет: layerOf возвращает null, не
+   пытается откатиться на более раннюю меру (ADR-0049 §3: «разрез переезжает,
+   факт остаётся», наряд «выручка/очередь», Q7). */
+function layerOf(proc, creditId){
+  const rep = repOf(proc, creditId);
   if(!rep) return null;
-  const acts = (proc.measures || [])
-    .filter(m => AWARD_KINDS.has(m.kind) && isLiveFor(m, rep.id) && m.awards && m.awards[rep.id])
+  const measures = proc.measures || [];
+  const acts = measures
+    .filter(m => isLiveFor(m, rep.id) && (
+      (AWARD_KINDS.has(m.kind) && m.awards && m.awards[rep.id]) ||
+      (AWARD_DEATH_KINDS.has(m.kind) && (m.targets || []).includes(rep.id))
+    ))
     .map((m, i) => ({ m, i, t: (ruD(m.dates && (m.dates.event || m.dates.registered)) || 0) }))
     .sort((a, b) => (a.t - b.t) || (a.i - b.i));
   if(!acts.length) return null;
   const last = acts[acts.length - 1].m;
-  const award = last.awards[rep.id];
-  return { sum: claimsEntryTotal(award), relation: award.relation, act: last, rep };
+  if(AWARD_DEATH_KINDS.has(last.kind)) return null;
+  const award = effectiveAward(measures, last, rep.id);
+  return { sum: claimsEntryTotal(award), relation: last.awards[rep.id].relation, act: last, rep };
 }
 
 /* ============================================================
@@ -2736,16 +2777,51 @@ function claimsSnapshot(r, scopeVolume, asOf){
    статья не участвует в сумме, а не считается нулевой суммой. */
 function claimsEntryTotal(entry){ return CLAIM_KEYS.reduce((s,k) => s + (entry && entry[k] !== undefined ? entry[k] : 0), 0); }
 
-/* п. 49: расходы → залогодержатель → возврат залогодателю. */
-function distributeRealization(proceeds, r){
-  const d = debtOf(r);
-  let rest = proceeds;
-  const toCosts = Math.min(rest, d.costs); rest -= toCosts;
-  const holderNeed = d.totalLeft - d.costs;
-  const toHolder = Math.min(rest, holderNeed); rest -= toHolder;
-  const giveBack = Math.max(0, rest);
-  const uncovered = Math.max(0, holderNeed - toHolder);
-  return { toCosts, toHolder, giveBack, uncovered };
+/* ADR-0054 шаг2, наряд «выручка/очередь» (Q1/Q2/Q5): делёж выручки предмета
+   залога МЕЖДУ кредитами — прежняя distributeRealization(proceeds, r) мерила
+   долг ОДНОГО требования, модель v2, спека её явно отменяет (§16 М-12).
+   Предмет с credit:null обеспечивает всё дело — раскрывается в полный список
+   кредитов дела (Q5). */
+function collCredits(c, proc){
+  if(c.credit != null) return [c.credit];
+  return uniq((proc.requirements || []).map(r => r.credit));
+}
+/* ADR-0008: очерёдность залогодержателей — только НАШИ договоры, по дате
+   регистрации (раньше зарегистрирован — первая очередь). Дата уже есть текстом
+   в credit.num ("Дог. №N от DD.MM.YYYY", без исключений на 103 экз., Q2/Q3) —
+   отдельного структурного поля ранга не заводим. */
+function creditRegDate(proc, creditId){
+  const rep = repOf(proc, creditId);
+  const m = rep && rep._credit && /от (\d{2}\.\d{2}\.\d{4})/.exec(rep._credit.num || '');
+  return m ? (ruD(m[1]) || 0) : 0;
+}
+/* п. 49: по очереди приоритета — забрать «полный остаток» представителя кредита
+   (расходы, наша пятая статья, уже внутри claimOf — Q9/Q14, второй раз не
+   вычитаем); остаток после всей очереди — возврат залогодателю (Q10/Q15,
+   адресат — свободный текст, вводится при публикации, не здесь). */
+function distributeProceeds(c, proc){
+  const credits = collCredits(c, proc).slice().sort((a, b) => creditRegDate(proc, a) - creditRegDate(proc, b));
+  let pot = (c.realization && c.realization.proceeds) || 0;
+  const perCredit = credits.map(creditId => {
+    const rep = repOf(proc, creditId);
+    const need = rep ? claimOf(rep, 'полный остаток') : 0;
+    const amount = Math.max(0, Math.min(pot, need));
+    pot -= amount;
+    return { credit: creditId, rep, need, amount };
+  });
+  return { perCredit, giveBack: Math.max(0, pot) };
+}
+/* Непокрытый остаток после ОПУБЛИКОВАННОГО делёжа (ADR-0043/ADR-0054, наряд
+   «выручка/очередь») — не хранится, читается сравнением опубликованной доли с
+   живым «полным остатком» представителя; остаётся долгом (п. 33) и живёт
+   свободным слоем без отдельного действия. Общий текст — панель «Залог»
+   (panelZalog) и модалка (realizationDistributionHtml). */
+function distributionUncoveredNote(proc, dist){
+  const uncovered = dist.perCredit.some(row => {
+    const rep = repOf(proc, row.credit);
+    return rep && row.amount < claimOf(rep, 'полный остаток');
+  });
+  return uncovered ? 'Непокрытый остаток по кредиту остаётся долгом (п. 33) и живёт свободным слоем (ADR-0043) — отдельного действия не требует.' : '';
 }
 
 /* Сумма меры-вехи текущей фазы (инвариант сумм привязан к ней). */
@@ -6169,7 +6245,7 @@ function normalize(p){
      на журнал поле там, где передач не объявляли вовсе. */
   for(const k of ['credits','measures','hearings','colls','deadlines','committeeQuestions','history','procHistory','obligors']) p[k] ??= [];
   p.procedure ??= null; p.window ??= null; p.settlement ??= null; p.conflict ??= null;
-  p.realization ??= null; p.phaseStatus ??= null;
+  p.phaseStatus ??= null;
   for(const c of p.credits){ c.overdueDays ??= 0; c.factors ??= []; c.coll ??= '—'; }
   for(const c of p.colls) normColl(c);
 
@@ -7483,8 +7559,21 @@ function panelDebt(){
      всех солидарных строках, тем же принципом, что solNote выше). Пусто, пока нет
      живой меры AWARD_KINDS с присуждением по представителю (layerOf). */
   const layer = layerOf(p, req.credit);
-  const layerTitle = !layer ? '' : `${layer.act.kind} №${escAttr(layer.act.num||'')} от ${escAttr((layer.act.dates&&(layer.act.dates.event||layer.act.dates.registered))||'')}${layer.relation && layer.relation.type==='absorbs' ? ` · поглощает слой меры №${escAttr(layer.relation.of)}` : ''}`;
+  const layerTitle = !layer ? '' : `${layer.act.kind} №${escAttr(layer.act.num||'')} от ${escAttr((layer.act.dates&&(layer.act.dates.event||layer.act.dates.registered))||'')}${layer.relation && layer.relation.type==='absorbs' ? ` · поглощает слой меры №${escAttr(layer.relation.of)}` : layer.relation && layer.relation.type==='adds' ? ` · добавляет к слою меры №${escAttr(layer.relation.of)}` : ''}`;
   const layerBadge = !layer ? '' : `<span class="cright" title="${escAttr(layerTitle)}"><span class="amt">${fmtKGS(layer.sum)}</span><span class="aml">слой</span></span>`;
+  /* Доля в реализации (ADR-0054, наряд «выручка/очередь», Q11) — сумма всех
+     ОПУБЛИКОВАННЫХ распределений (c.realization.distribution) по этому кредиту,
+     по всем предметам залога дела (один кредит может обеспечиваться несколькими
+     предметами — сумма, не «последний»). Долг (debtOf) публикацией не трогается
+     (Q12) — тайл информационный, до проведения платежами. */
+  const shares = (p.colls || []).flatMap(c => {
+    const dist = c.realization && c.realization.distribution;
+    const row = dist && dist.perCredit.find(x => x.credit === req.credit);
+    return row && row.amount > 0 ? [{ item:c.item, amount:row.amount, date:dist.date, basis:dist.basis }] : [];
+  });
+  const shareTotal = shares.reduce((s,x)=>s+x.amount, 0);
+  const shareTitle = shares.map(x => `${x.item}: ${fmtKGS(x.amount)} (${x.basis}, ${x.date})`).join(' · ');
+  const shareBadge = !shares.length ? '' : `<span class="cright" title="${escAttr(shareTitle)}"><span class="amt">${fmtKGS(shareTotal)}</span><span class="aml">доля в реализации</span></span>`;
   const card = `<details class="credit-card" open>
       <summary class="credit-head">
         <span class="tw">▸</span>
@@ -7492,33 +7581,19 @@ function panelDebt(){
         <span class="csub">охват: ${scopeLabel(scopeOf(req))} · ${inputs} · обеспечение: ${req._credit.coll}${req._credit.bezakceptRight?' <span class="pill info">безакцепт по договору</span>':''}</span>
         <span class="cright"><span class="amt" title="${escAttr(moneyTitle(req))}">${fmtKGS(claimOf(req))}</span><span class="aml">сумма требования</span></span>
         ${layerBadge}
+        ${shareBadge}
       </summary>
       <div class="credit-body">${debtTableHtml(req)}</div>
     </details>`;
   const note = solNote;
   const cards = card;
-  let realBlk='';
-  if(p.realization){
-    const dr=distributeRealization(p.realization.proceeds,req);
-    realBlk=`<p class="section-h" style="margin-top:20px">Распределение выручки от реализации залога (п. 49)</p>
-    <p class="section-note">${p.realization.note}. Порядок: расходы по обращению взыскания → требования залогодержателя → остаток возвращается залогодателю (строка обязательна, даже при нуле).</p>
-    <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Направление</th><th style="text-align:right">Сумма</th></tr></thead>
-      <tbody>
-        <tr><td>Выручка от реализации</td><td style="text-align:right">${fmtKGS(p.realization.proceeds)}</td></tr>
-        <tr><td>1. Расходы по обращению взыскания и реализации</td><td style="text-align:right">${fmtKGS(dr.toCosts)}</td></tr>
-        <tr><td>2. Требования залогодержателя (основной долг, проценты, санкции)</td><td style="text-align:right">${fmtKGS(dr.toHolder)}</td></tr>
-        <tr class="giveback"><td>3. Возврат залогодателю (остаток)</td><td style="text-align:right">${fmtKGS(dr.giveBack)}</td></tr>
-      </tbody></table></div>
-      ${dr.uncovered>0?`<div class="gate-inline" style="margin-top:12px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg><span>Непокрытый остаток ${fmtKGS(dr.uncovered)} обращается на иное имущество заёмщика и (или) поручителя (п. 33). <span class="rowlink" onclick="createOtherPropertyMeasure(${dr.uncovered})">Создать соответствующую меру</span></span></div>`:''}`;
-  }
   return `<div class="panel-wrap">
     <p class="section-h">Долг требования ${req.id}</p>
     <p class="section-note">Требование = договор × обязанное лицо. Долг не хранится во взыскании: четыре статьи читаются у модуля кредита снимком с его датой, пятая (расходы по обращению взыскания) — собственная. Сумма требования считается из охвата и потому не может разойтись с источником — копии, которая устаревает, здесь нет.</p>
     ${note}
     ${cards}
     <div class="gtoolbar" style="margin-top:14px"><button class="btn btn-tint btn-sm" onclick="openCostModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Внести расход по обращению взыскания</button></div>
-    ${realBlk}</div>`;
+    </div>`;
 }
 /* Сверка «требовали → присудили» (§4, часть самого МП5-18, наряд п.3) — не сравнение с
    живым долгом (debtOf), а пара двух ЗАМОРОЖЕННЫХ снимков одной цепочки оснований:
@@ -7556,7 +7631,7 @@ function claimsReconcileHtml(r){
   const actLabel = m => `${m.kind}${m.num?` №${escAttr(m.num)}`:''}${m.dates?` от ${escAttr(m.dates.event||m.dates.registered||'')}`:''}`;
   const blocks = chains.map(({root,award}) => {
     const claims = root.claims[r.id];
-    const awards = award ? award.awards[r.id] : null;
+    const awards = award ? effectiveAward(r._proc.measures || [], award, r.id) : null;
     const rows = CLAIM_KEYS.map(k=>{
       const c = claims[k];
       const aVal = awards && awards[k]!==undefined ? awards[k] : null;
@@ -8149,12 +8224,33 @@ function panelZalog(){
     <td>${c.snapshotAt?`${c.snapshotAt}${collSnapshotStale(c)?` <span class="pill high" title="Снимок старше ${COLL_SNAPSHOT_STALE_DAYS} к.д. — данные модуля обеспечения могли устареть">устарел</span>`:''}`:'<span class="pill high" title="Обязательный реквизит зеркала — без него закрытие требования нельзя доверять">даты нет</span>'}</td>
     <td><button class="btn-tint btn-sm" onclick="openRealizationModal(${ci})">Управление</button></td></tr>`;}).join('')
     :`<tr><td colspan="8"><div class="cgrid-empty">Залога по договору ${escAttr(r._credit.num)} нет — ${r._credit.coll && r._credit.coll!=='—' ? `обеспечение этого требования: ${escAttr(r._credit.coll)}` : 'обеспечение по договору не указано'}. Обращение взыскания на залог по нему не ведётся.</div></td></tr>`;
+  /* Делёж выручки между кредитами (ADR-0054 шаг2, наряд «выручка/очередь», Q11)
+     — виден под таблицей без открытия модалки, по каждому уже реализованному
+     предмету этого договора. Ещё не опубликованный делёж — заметка-приглашение,
+     не таблица (предпросчёт правится только в модалке, тут только факт). */
+  const realBlocks = mine.filter(c => c.realization).map(c => {
+    const ci = p.colls.indexOf(c);
+    const dist = c.realization.distribution;
+    if(!dist) return `<p class="section-note" style="margin-top:10px">${escAttr(c.item)}: реализовано, выручка ${fmtKGS(c.realization.proceeds)} — делёж между кредитами ещё не опубликован (кнопка «Управление»).</p>`;
+    const distRows = dist.perCredit.map(row => {
+      const rep = repOf(p, row.credit);
+      return `<tr><td>${rep ? escAttr(rep._credit.num) : escAttr(String(row.credit))}</td><td style="text-align:right">${fmtKGS(row.amount)}</td></tr>`;
+    }).join('');
+    const note = distributionUncoveredNote(p, dist);
+    return `<p class="section-h" style="margin-top:14px">${escAttr(c.item)} — делёж выручки между кредитами (п. 49)</p>
+      <div class="cgrid-wrap"><table class="cgrid">
+        <thead><tr><th>Кредит</th><th style="text-align:right">Доля</th></tr></thead>
+        <tbody>${distRows}<tr class="giveback"><td>Возврат залогодателю${dist.addressee?` — ${escAttr(dist.addressee)}`:''}</td><td style="text-align:right">${fmtKGS(dist.giveBack)}</td></tr></tbody>
+      </table></div>
+      ${note?`<p class="section-note" style="margin-top:4px">${note}</p>`:''}`;
+  }).join('');
   return `<div class="panel-wrap">
     <p class="section-h">Залог / реализация по договору ${r._credit.num}</p>
     <p class="section-note">Предмет залога обеспечивает кредитный договор, поэтому виден на всех требованиях по этому договору — и к заёмщику, и к обеспечителям. Внесудебный порядок ЖЁСТКО запрещён для единственного жилья, имущества значительной культурной ценности и предприятия как имущественного комплекса. Начальная продажная цена — из отчёта независимого оценщика. ЖЦ реализации: порядок обращения → нач. цена → торги → реализовано либо принято на баланс (2 несостоявшихся торгов). Раздел — зеркало модуля обеспечения: колонка «Снимок» несёт обязательную дату, на которую эти сведения были верны в модуле-источнике; устаревший снимок — сигнал не доверять статусу при закрытии требования, а не тихая правда.</p>
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Предмет залога</th><th>Вид</th><th style="text-align:right">Залоговая стоимость</th><th>Порядок обращения</th><th>Статус реализации</th><th>Начальная продажная цена (п. 48)</th><th>Снимок (ADR-0032)</th><th>Действие</th></tr></thead>
-      <tbody>${rows}</tbody></table></div></div>`;
+      <tbody>${rows}</tbody></table></div>
+    ${realBlocks}</div>`;
 }
 /* ===== Залог: порядок обращения (п. 42) + типизированный ЖЦ реализации (п. 48/49) ===== */
 function logColl(ci, what){
@@ -8197,16 +8293,82 @@ function acceptOnBalance(ci){
   c.realStage='принято на баланс'; logColl(ci, 'реализация — принято на баланс (торги не состоялись 2 раза)');
   renderPanels(); openRealizationModal(ci);
 }
+/* Факт реализации — на ПРЕДМЕТЕ (c.realization), не на процессе (наряд
+   «выручка/очередь», Q1): один предмет обеспечивает несколько кредитов (§13).
+   costs — шаг1 P13 («расходы реализации: оценка, торги, публикация»),
+   информационные, в делёж не идут (Q9) — не путать с r.costs[] (наша пятая
+   статья), которую вычитает делёж шагом 2 (distributeProceeds). */
 function markRealized(ci){
   const c=curProc.colls[ci];
-  const el=document.getElementById('realProceeds');
-  const proceeds=parseSum((el?el.value:'')||'0');
+  const val=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+  const proceeds=parseSum(val('realProceeds')||'0');
   if(!proceeds){ toast('Укажите выручку от реализации','warn'); return; }
+  const costs=parseSum(val('realCosts')||'0');
   c.realStage='реализовано';
-  curProc.realization={proceeds, note:'выручка от реализации предмета залога (п. 49)'};
+  c.realization={proceeds, costs, date:TODAY};
   logColl(ci, `реализовано на торгах, выручка ${fmtKGS(proceeds)}`);
+  renderPanels(); openRealizationModal(ci);
+  toast('Предмет реализован — распределите выручку между кредитами ниже (п. 49)','ok');
+}
+/* Делёж выручки между кредитами — публикуемая величина (ADR-0054, «своя дата и
+   документ-основание», наряд «выручка/очередь», Q6/Q11): предпросчёт
+   (distributeProceeds) заполняет форму значениями по умолчанию, но публикуется
+   то, что реально стоит в полях — реальный документ может разойтись с формулой
+   (округление, судья решил иначе). После публикации не пересчитывается
+   (ADR-0054: «взыскание по ней ничего не начисляет и ничего не гасит»). */
+function saveDistribution(ci){
+  const c=curProc.colls[ci]; if(!c || !c.realization) return;
+  const proc=curProc;
+  const preview=distributeProceeds(c, proc);
+  const val=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+  const basis=val('realBasis');
+  if(!basis){ toast('Укажите документ-основание распределения','warn'); return; }
+  const perCredit=preview.perCredit.map(row => ({
+    credit: row.credit,
+    amount: parseSum(val(`realDist_${row.credit}`) || String(row.amount))
+  }));
+  const giveBack=parseSum(val('realGiveBack') || String(preview.giveBack));
+  const addressee=val('realAddressee');
+  c.realization.distribution={ perCredit, giveBack, addressee: addressee||null, basis, date:TODAY };
+  logColl(ci, `распределение выручки опубликовано, основание «${basis}» (п. 49)`);
   closeModal(); renderPanels();
-  toast('Предмет реализован — распределение выручки во вкладке «Кредиты» (п. 49)','ok');
+  toast('Распределение выручки опубликовано — доля кредита видна во вкладке «Долг»','ok');
+}
+/* Блок модалки при стадии «реализовано» — предпросчитанный делёж (черновик,
+   правится вручную) до публикации, read-only сводка после (наряд
+   «выручка/очередь», Q11). */
+function realizationDistributionHtml(ci){
+  const c=curProc.colls[ci], proc=curProc;
+  const dist=c.realization.distribution;
+  const head=`<p class="pill low" style="margin-bottom:8px">реализовано — терминальная стадия</p>
+    <p class="section-note">Выручка ${fmtKGS(c.realization.proceeds)}${c.realization.costs?` · расходы реализации (шаг 1, обеспечение) ${fmtKGS(c.realization.costs)} — информационно, в делёж не идут (ADR-0054)`:''}, дата ${c.realization.date}.</p>`;
+  if(dist){
+    const rows=dist.perCredit.map(row => {
+      const rep=repOf(proc, row.credit);
+      return `<tr><td>${rep?escAttr(rep._credit.num):escAttr(String(row.credit))}</td><td style="text-align:right">${fmtKGS(row.amount)}</td></tr>`;
+    }).join('');
+    const note=distributionUncoveredNote(proc, dist);
+    return `${head}<p class="section-h" style="margin-top:12px">Распределение между кредитами (п. 49) — опубликовано</p>
+      <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Кредит</th><th style="text-align:right">Доля</th></tr></thead>
+      <tbody>${rows}<tr class="giveback"><td>Возврат залогодателю${dist.addressee?` — ${escAttr(dist.addressee)}`:''}</td><td style="text-align:right">${fmtKGS(dist.giveBack)}</td></tr></tbody></table></div>
+      <p class="section-note" style="margin-top:6px">Основание: ${escAttr(dist.basis)} от ${dist.date}. Величина опубликована, взыскание её не пересчитывает (ADR-0054).${note?' '+note:''}</p>`;
+  }
+  const preview=distributeProceeds(c, proc);
+  const rows=preview.perCredit.map(row => `<div class="field col-span" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <span class="flabel" style="flex:1">${row.rep?escAttr(row.rep._credit.num):escAttr(String(row.credit))} <span style="color:var(--text-placeholder)">(потребность ${fmtKGS(row.need)})</span></span>
+      <div class="control" style="width:140px"><input id="realDist_${escAttr(String(row.credit))}" value="${row.amount}"></div>
+    </div>`).join('');
+  return `${head}<p class="section-h" style="margin-top:12px">Распределение между кредитами (п. 49) — черновик</p>
+    <p class="section-note">Очередь — по дате регистрации договора (ADR-0008). Цифры ниже — предпросчёт, правьте вручную при расхождении с документом.</p>
+    <div class="mform">${rows}
+      <div class="field col-span" style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <span class="flabel" style="flex:1">Возврат залогодателю</span>
+        <div class="control" style="width:140px"><input id="realGiveBack" value="${preview.giveBack}"></div>
+      </div>
+      <div class="field col-span"><span class="flabel">Адресат возврата</span><div class="control"><input id="realAddressee" placeholder="залогодатель"></div></div>
+      <div class="field col-span"><span class="flabel">Документ-основание</span><div class="control"><input id="realBasis" placeholder="постановление о распределении либо наш акт"></div></div>
+    </div>
+    <button class="btn btn-primary btn-sm" onclick="saveDistribution(${ci})" style="margin-top:8px">Опубликовать распределение</button>`;
 }
 /* М-4 · ADR-0004: пятая статья — расходы по обращению взыскания — СОБСТВЕННАЯ.
    Четыре статьи читаются у модуля кредита и здесь не редактируются; расходы несёт
@@ -8244,17 +8406,6 @@ function saveCost(){
   curProc.history.unshift({when:TODAY+' 11:00', what:`Расход по требованию ${r.id}: ${val('costKind')} ${fmtKGS(amount)} — востребованная сумма пересчитана`, who:role});
   closeModal(); renderPanels(); toast('Расход внесён — сумма требования пересчитана','ok');
 }
-function createOtherPropertyMeasure(uncovered){
-  const r=curReq;
-  curProc.measures=curProc.measures||[];
-  curProc.measures.unshift({sec:'Исполнительное', kind:'Обращение взыскания на иное имущество (п. 33)', dates:D(TODAY,TODAY), num:'', purpose:'обращение на иное имущество заёмщика/поручителя', sum:fmtKGS(uncovered), responsible:'—',
-    targets:[r, ...solidaryWith(r)].map(x=>x.id)});   // п. 33: и заёмщик, и поручитель — вид вне справочника (В-3), исхода/вручения не несёт
-  const role=document.getElementById('roleSel')?document.getElementById('roleSel').value:'—';
-  curProc.history=curProc.history||[];
-  curProc.history.unshift({when:TODAY+' 10:00', what:`Создана мера: обращение на иное имущество (п. 33), непокрытый остаток ${fmtKGS(uncovered)}`, who:role});
-  renderPanels();
-  toast('Мера на иное имущество создана — см. «Журнал мер» (п. 33)','ok');
-}
 function openRealizationModal(ci){
   const c=curProc.colls[ci]; if(!c) return;
   const host=document.getElementById('modalHost');
@@ -8273,14 +8424,16 @@ function openRealizationModal(ci){
   else if(stage==='подготовка к торгам') actions=`<button class="btn btn-primary btn-sm" onclick="advanceReal(${ci},'торги назначены')">Назначить торги</button><p class="section-note" style="margin-top:6px">Требуется начальная продажная цена.</p>`;
   else if(stage==='торги назначены'){
     const fails=c.torgiFails||0;
-    actions=`<div class="mform"><div class="field col-span"><span class="flabel">Выручка от реализации</span><div class="control grey"><input id="realProceeds" placeholder="сумма при продаже"></div></div></div>
+    actions=`<div class="mform"><div class="field col-span"><span class="flabel">Выручка от реализации</span><div class="control grey"><input id="realProceeds" placeholder="сумма при продаже"></div></div>
+      <div class="field col-span"><span class="flabel">Расходы реализации (оценка, торги, публикация — обеспечение, ADR-0054)</span><div class="control grey"><input id="realCosts" placeholder="сумма, необязательно"></div></div></div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
         <button class="btn btn-primary btn-sm" onclick="markRealized(${ci})">Торги состоялись — реализовано</button>
         ${fails<2?`<button class="btn btn-tint btn-sm" onclick="torgiFailed(${ci})">Торги не состоялись (${fails}/2)</button>`:''}
         ${fails>=2?`<button class="btn btn-tint btn-sm" onclick="acceptOnBalance(${ci})">Принять на баланс</button>`:''}
       </div>`;
   }
-  else actions=`<span class="pill ${stage==='реализовано'?'low':'mid'}">${stage} — терминальная стадия</span>`;
+  else if(stage==='реализовано') actions=realizationDistributionHtml(ci);
+  else actions=`<span class="pill mid">${stage} — терминальная стадия</span>`;
   host.innerHTML=`<div class="modal form">
     <div class="modal-h"><span class="mt">Обращение взыскания: ${c.item}</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
     <div class="modal-b">
@@ -8928,15 +9081,21 @@ function openAnnotationModal(mi){
       ${awardTargets.map(x=>{
         const cur = m.awards && m.awards[x.id];
         const priorActs = (p.measures||[]).filter(pm => pm!==m && AWARD_KINDS.has(pm.kind) && isLiveFor(pm, x.id) && pm.awards && pm.awards[x.id]);
+        /* 'adds' (наряд «выручка/очередь», Q8) — «Дополнительное решение суда»
+           складывает статьи с актом-основанием, не заменяет (effectiveAward).
+           Значение select кодирует тип:номер («absorbs:NNN»/«adds:NNN») — до
+           этого второй вариант отношения не существовал, кодировать было
+           незачем (сохранение — ниже, saveAnnotation). */
         const relField = !priorActs.length ? '' : `
           <div class="field col-span"><span class="flabel">Отношение к прежнему слою — ${escAttr(x.id)}</span><div class="control grey"><select id="aRelation_${escAttr(x.id)}">
             <option value="new"${(!cur || !cur.relation || cur.relation.type==='new')?' selected':''}>новый слой</option>
-            ${priorActs.map(pm=>`<option value="${escAttr(pm.num)}"${cur && cur.relation && cur.relation.type==='absorbs' && cur.relation.of===pm.num?' selected':''}>поглощает слой меры №${escAttr(pm.num)} от ${escAttr((pm.dates&&(pm.dates.event||pm.dates.registered))||'')}</option>`).join('')}
+            ${priorActs.map(pm=>`<option value="absorbs:${escAttr(pm.num)}"${cur && cur.relation && cur.relation.type==='absorbs' && cur.relation.of===pm.num?' selected':''}>поглощает слой меры №${escAttr(pm.num)} от ${escAttr((pm.dates&&(pm.dates.event||pm.dates.registered))||'')}</option>`).join('')}
+            ${priorActs.map(pm=>`<option value="adds:${escAttr(pm.num)}"${cur && cur.relation && cur.relation.type==='adds' && cur.relation.of===pm.num?' selected':''}>добавляет к слою меры №${escAttr(pm.num)} от ${escAttr((pm.dates&&(pm.dates.event||pm.dates.registered))||'')}</option>`).join('')}
           </select>${caret()}</div></div>`;
         return `<div class="field col-span"><span class="flabel">Присуждено — ${escAttr(x.id)} · ${escAttr(personOf(x).name)} (${escAttr(x.role)})</span></div>
         <div class="tgtbox" style="display:flex;gap:8px;flex-wrap:wrap">${CLAIM_KEYS.map(k=>`<label style="display:flex;flex-direction:column;gap:2px;font-size:12px"><span>${CLAIM_LABELS[k]}</span><input style="width:110px" id="aAward_${escAttr(x.id)}_${k}" value="${cur&&cur[k]!==undefined?escAttr(String(cur[k])):''}" placeholder="—"></label>`).join('')}</div>
         ${relField}
-        ${cur?`<div class="field col-span"><div class="hint-inline">Уже внесено: ${fmtKGS(claimsEntryTotal(cur))}${cur.relation&&cur.relation.type==='absorbs'?` · поглощает слой меры №${escAttr(cur.relation.of)}`:''} · поставил ${escAttr(cur.by||'')} ${cur.at||''}</div></div>`:''}`;
+        ${cur?`<div class="field col-span"><div class="hint-inline">Уже внесено: ${fmtKGS(claimsEntryTotal(cur))}${cur.relation&&cur.relation.type==='absorbs'?` · поглощает слой меры №${escAttr(cur.relation.of)}`:cur.relation&&cur.relation.type==='adds'?` · добавляет к слою меры №${escAttr(cur.relation.of)}`:''} · поставил ${escAttr(cur.by||'')} ${cur.at||''}</div></div>`:''}`;
       }).join('')}
     </div>`;
   /* МС (ADR-0047, наряд МП-11, тикет «Точки интеграции» вопрос 3): график погашения —
@@ -9035,7 +9194,11 @@ function saveAnnotation(mi){
     for(const x of targets){
       const prevAward=m.awards && m.awards[x.id];
       const relSel=document.getElementById(`aRelation_${x.id}`);
-      const relation = (relSel && relSel.value!=='new') ? {type:'absorbs', of:relSel.value} : {type:'new'};
+      /* Значение select — «absorbs:NNN»/«adds:NNN» (наряд «выручка/очередь», Q8) —
+         или «new» без номера. */
+      const relation = (relSel && relSel.value!=='new')
+        ? { type: relSel.value.split(':')[0], of: relSel.value.slice(relSel.value.indexOf(':')+1) }
+        : { type:'new' };
       /* Пять статей, пусто ≠ ноль ПО СТРОКЕ (тикет «Точки интеграции», вопрос 5):
          нетронутая статья наследует то, что уже стояло (или остаётся не присуждённой,
          если раньше не стояла вовсе) — правка одной статьи не стирает соседние.
