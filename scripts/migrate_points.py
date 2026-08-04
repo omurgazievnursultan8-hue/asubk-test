@@ -30,19 +30,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
-from check_points import (
-    ADR_NEARBY,
-    CITATION,
-    IGNORE_END,
-    IGNORE_LINE,
-    IGNORE_START,
-    MAPPING,
-    MIGRATED,
-    NUMBER,
-    POINT_FIELD,
-    PROJECT_BASIS,
-    ROOT,
-)
+from check_points import MAPPING, PROJECT_BASIS, ROOT, Scanner, is_migrated
 
 DASHES = "–—-"
 
@@ -55,46 +43,33 @@ NO_ANALOGUE = {k for k, v in MAPPING.items() if v is None}
 AMBIGUOUS = {"20"}
 
 
-def plan_line(line):
-    """→ (new_line, [(old, new)], [(value, reason)]) for one line."""
+def plan_line(line, spans):
+    """→ (new_line, [(old, new)], [(value, reason)]) for one already-scanned line."""
     edits, manual = [], []
 
-    def resolve(value, span):
+    for start, end, value, _kind in spans:
         if PROJECT_BASIS.match(value):
-            return
+            continue
         if value in NO_ANALOGUE:
             manual.append((value, "аналога в редакции нет — переписать формулировку"))
-            return
+            continue
         if value in AMBIGUOUS:
             manual.append((value, "старый п. 20 разошёлся на 19 и 20 — решить по смыслу"))
-            return
+            continue
         new = MAPPING.get(value)
         if new is None or new == value:
-            return
-        edits.append((span, value, new))
-
-    for m in CITATION.finditer(line):
-        if ADR_NEARBY.search(line[: m.start()]):
             continue
-        base = m.start(1)
-        nums = [
-            (base + num.start(), base + num.end(), num.group(0))
-            for num in NUMBER.finditer(m.group(1))
-        ]
-        for start, end, value in nums:
-            resolve(value, (start, end))
-        # «пп. 48–49» would come out as «пп. 48–48»: a range whose ends land on the
-        # same point is no longer a range, and only the prose says what to write.
-        by_span = {span: new for span, _, new in edits}
-        for left, right in zip(nums, nums[1:]):
-            joined = any(d in line[left[1]:right[0]] for d in DASHES)
-            new_l, new_r = by_span.get(left[:2]), by_span.get(right[:2])
-            if joined and new_l and new_l == new_r:
-                manual.append((f"{left[2]}–{right[2]}", f"диапазон схлопывается в {new_l}"))
-                edits[:] = [e for e in edits if e[0] not in (left[:2], right[:2])]
+        edits.append(((start, end), value, new))
 
-    for m in POINT_FIELD.finditer(line):
-        resolve(m.group(1), m.span(1))
+    # «пп. 48–49» would come out as «пп. 48–48»: a range whose ends land on the same
+    # point is no longer a range, and only the prose says what to write.
+    by_span = {span: new for span, _, new in edits}
+    for left, right in zip(spans, spans[1:]):
+        joined = any(d in line[left[1]:right[0]] for d in DASHES)
+        new_l, new_r = by_span.get(left[:2]), by_span.get(right[:2])
+        if joined and new_l and new_l == new_r:
+            manual.append((f"{left[2]}–{right[2]}", f"диапазон схлопывается в {new_l}"))
+            edits = [e for e in edits if e[0] not in (left[:2], right[:2])]
 
     out = line
     for (start, end), _, new in sorted(edits, key=lambda e: e[0][0], reverse=True):
@@ -102,21 +77,21 @@ def plan_line(line):
     return out, [(old, new) for _, old, new in edits], manual
 
 
-def migrate(path, dry_run):
+def migrate(path, dry_run, kinds=None):
     """→ (changed_lines, [(line_no, old, new)], [(line_no, value, reason)])."""
     rel = path.relative_to(ROOT)
     lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
-    out, edits, manual, skipping, touched = [], [], [], False, 0
+    out, edits, manual, touched = [], [], [], 0
+    scanner = Scanner()
 
     for n, raw in enumerate(lines, 1):
         line = raw.rstrip("\n")
         tail = raw[len(line):]
-        if IGNORE_START in line:
-            skipping = True
-        elif IGNORE_END in line:
-            skipping = False
-        elif not skipping and IGNORE_LINE not in line:
-            new_line, line_edits, line_manual = plan_line(line)
+        spans = scanner.feed(line)
+        if kinds:
+            spans = [s for s in spans if s[3] in kinds]
+        if spans:
+            new_line, line_edits, line_manual = plan_line(line, spans)
             edits += [(n, old, new) for old, new in line_edits]
             manual += [(n, value, why) for value, why in line_manual]
             if new_line != line:
@@ -131,24 +106,11 @@ def migrate(path, dry_run):
 
 def stats(path):
     rel = path.relative_to(ROOT)
-    counter, skipping = Counter(), False
+    counter, scanner = Counter(), Scanner()
     for raw in path.read_text(encoding="utf-8").splitlines():
-        if IGNORE_START in raw:
-            skipping = True
-            continue
-        if IGNORE_END in raw:
-            skipping = False
-            continue
-        if skipping or IGNORE_LINE in raw:
-            continue
-        for m in CITATION.finditer(raw):
-            if ADR_NEARBY.search(raw[: m.start()]):
-                continue
-            for num in NUMBER.finditer(m.group(1)):
-                counter[num.group(0)] += 1
-        for m in POINT_FIELD.finditer(raw):
-            if not PROJECT_BASIS.match(m.group(1)):
-                counter[m.group(1)] += 1
+        for _, _, value, _kind in scanner.feed(raw):
+            if not PROJECT_BASIS.match(value):
+                counter[value] += 1
     print(f"\n{rel}")
     for value, count in sorted(counter.items(), key=lambda kv: (-kv[1], kv[0])):
         target = MAPPING.get(value, "?")
@@ -171,6 +133,11 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="показать правки, ничего не писать")
     ap.add_argument("--stats", action="store_true", help="что цитируется в файле, без правок")
     ap.add_argument("--force", action="store_true", help="разрешить файл, уже помеченный MIGRATED")
+    # Догоняющий проход по одному виду цитат: проза уже переведена, а голые номера
+    # в колонке «пункт» вскрылись позже. Без него пришлось бы гнать файл целиком —
+    # и проза уехала бы вторым сдвигом.
+    ap.add_argument("--kind", action="append", choices=["текст", "point:", "таблица"],
+                    help="переводить только цитаты этого вида (можно повторять)")
     args = ap.parse_args()
 
     paths = []
@@ -179,7 +146,7 @@ def main():
         if not path.exists():
             sys.exit(f"нет файла: {raw}")
         rel = str(path.relative_to(ROOT))
-        if rel in MIGRATED and not (args.force or args.stats):
+        if is_migrated(rel) and not (args.force or args.stats):
             sys.exit(f"{rel} уже переведён (MIGRATED) — повторный проход сдвинет номера второй раз")
         paths.append(path)
 
@@ -190,7 +157,7 @@ def main():
 
     total_edits, total_manual = 0, 0
     for path in paths:
-        rel, touched, edits, manual = migrate(path, args.dry_run)
+        rel, touched, edits, manual = migrate(path, args.dry_run, args.kind)
         head = "БЫЛО БЫ" if args.dry_run else "ПЕРЕВЕДЕНО"
         print(f"\n{rel} — {head}: {len(edits)} цитат в {touched} строках")
         moves = Counter((old, new) for _, old, new in edits)

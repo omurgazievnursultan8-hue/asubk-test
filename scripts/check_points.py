@@ -37,6 +37,7 @@ Usage:
 import argparse
 import re
 import sys
+from fnmatch import fnmatch
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -63,6 +64,7 @@ SCANNED = [
 MIGRATED = {
     "docs/voprosy-zakazchiku/2026-08-04-vzyskanie.md",
     "mockups/collection/ASUBK-vzyskanie-logika.md",
+    "docs/adr/*.md",
 }
 
 # Deliberately out of scope, with the reason — printed so the exclusion stays honest.
@@ -126,10 +128,23 @@ MAPPING = {
     "72": "61",
     "83": "62",        # признание безнадёжной — теперь пп. 62–63
     "88": "64",
+    # Основания безнадёжности («умершие субъекты», «отсутствующие / недееспособные»)
+    # редакция №41 не перечисляет: п. 62 отсылает к отдельному Порядку признания
+    # задолженности безнадёжной к взысканию, утверждаемому Минфином. Документа у нас
+    # нет — он запрошен письмом от 04.08.2026, часть III.
+    "79": None,
+    "80": None,
+    "87": None,
     "92": None,        # конфликт интересов: гл. 15 без процедуры (§4.10)
     "98": None,        # общего рукопожатия при передаче не существует (§4.11)
     "99": None,        # в редакции 69 пунктов
 }
+
+
+def is_migrated(rel):
+    """MIGRATED holds paths and globs — `docs/adr/*.md` moves 25 files at once."""
+    return any(fnmatch(str(rel), pattern) for pattern in MIGRATED)
+
 
 # Values of `point:` that are project decisions, not norm — not an error.
 PROJECT_BASIS = re.compile(r"^(Р-\d+|ADR-\d{4}.*|—|-)$")
@@ -156,6 +171,14 @@ CITATION = re.compile(
 NUMBER = re.compile(_NUM)
 POINT_FIELD = re.compile(r"point:\s*'([^']*)'")
 ADR_NEARBY = re.compile(r"ADR[-\s]?\d{4}[^.;)]{0,20}$")
+
+# A markdown table whose column is headed «пункт» carries the numbers bare — «17.5»,
+# «22–24» — with no «п.» to key on. Three such tables in the spec survived the first
+# sweep untouched while the checker called the file clean, which is exactly the
+# failure mode this script exists to prevent.
+TABLE_HEADS = {"пункт", "пункты", "пункт порядка", "п."}
+CELL_IS_POINTS = re.compile(r"^[\s\d.,;–—-]*\d[\s\d.,;–—-]*$")
+SEPARATOR_CELL = re.compile(r"^:?-{2,}:?$")
 
 
 # Page 1 of the PDF has no text layer (it is the approval page). It carries
@@ -221,26 +244,78 @@ def iter_files():
                 yield path
 
 
-def citations(path):
-    """Yield (line_no, raw_citation, kind) for one file."""
-    skipping = False
-    for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+def row_cells(line):
+    """→ [(start, end, text)] for a markdown table row, else None."""
+    if not line.lstrip().startswith("|"):
+        return None
+    cells, pos = [], line.index("|") + 1
+    while (nxt := line.find("|", pos)) != -1:
+        cells.append((pos, nxt, line[pos:nxt]))
+        pos = nxt + 1
+    return cells or None
+
+
+class Scanner:
+    """Per-file scanner yielding (start, end, value, kind) spans within a line.
+
+    Both the checker and the migrator read a file through this, so the set of
+    citations one validates is by construction the set the other rewrites. It is
+    stateful because two things span lines: the ignore blocks, and the header of a
+    markdown table that tells which column holds point numbers.
+    """
+
+    def __init__(self):
+        self.skipping = False
+        self.prev_cells = None
+        self.point_cols = ()
+
+    def feed(self, line):
         if IGNORE_START in line:
-            skipping = True
-            continue
+            self.skipping = True
+            return []
         if IGNORE_END in line:
-            skipping = False
-            continue
-        if skipping or IGNORE_LINE in line:
-            continue
+            self.skipping = False
+            return []
+        if self.skipping or IGNORE_LINE in line:
+            return []
+
+        found = []
         for m in CITATION.finditer(line):
             # `ADR-0053` п. 2 cites an ADR clause, not the Порядок.
             if ADR_NEARBY.search(line[: m.start()]):
                 continue
+            base = m.start(1)
             for num in NUMBER.finditer(m.group(1)):
-                yield n, num.group(0), "текст"
+                found.append((base + num.start(), base + num.end(), num.group(0), "текст"))
         for m in POINT_FIELD.finditer(line):
-            yield n, m.group(1), "point:"
+            found.append((*m.span(1), m.group(1), "point:"))
+
+        cells = row_cells(line)
+        if cells is None:
+            self.prev_cells, self.point_cols = None, ()
+        elif all(SEPARATOR_CELL.match(c.strip()) for _, _, c in cells) and self.prev_cells:
+            self.point_cols = tuple(
+                i for i, (_, _, c) in enumerate(self.prev_cells)
+                if c.strip().lower() in TABLE_HEADS
+            )
+        else:
+            for i in self.point_cols:
+                if i >= len(cells):
+                    continue
+                start, _, text = cells[i]
+                if CELL_IS_POINTS.match(text):
+                    for num in NUMBER.finditer(text):
+                        found.append((start + num.start(), start + num.end(), num.group(0), "таблица"))
+            self.prev_cells = cells
+        return sorted(found)
+
+
+def citations(path):
+    """Yield (line_no, raw_citation, kind) for one file."""
+    scanner = Scanner()
+    for n, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+        for _, _, value, kind in scanner.feed(line):
+            yield n, value, kind
 
 
 def classify(value, points, subpoints, migrated=False):
@@ -290,7 +365,7 @@ def main():
     done = 0
     for path in iter_files():
         rel = path.relative_to(ROOT)
-        migrated = str(rel) in MIGRATED
+        migrated = is_migrated(rel)
         done += migrated
         total = 0
         for line_no, value, kind in citations(path):
