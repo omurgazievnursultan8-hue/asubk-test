@@ -73,4 +73,65 @@ test('T2-6: сброс при открытии карточки — област
   has(CR.renderTab('Расчёты', c), 'консолидировано', 'при повторном входе область должна быть «по кредиту»');
 });
 
+test('T3-1: «График» при «по кредиту» — слитая таблица с колонкой «Транш»', () => {
+  const { CR } = load();
+  const c = multiCredit(CR);
+  CR.openDetail('K-C40');
+  CR.setCardScope('credit');
+  const h = CR.renderTab('График', c);
+  has(h, '>Транш<', 'в шапке таблицы позиций должна появиться колонка «Транш»');
+  has(h, 'по кредиту', 'заголовки секций должны сказать «по кредиту», а не «транш №N»');
+  hasNot(h, 'транш №1)', 'заголовок не должен называть один транш');
+});
+
+test('T3-2: слитая таблица содержит позиции ОБОИХ траншей', () => {
+  const { CR } = load();
+  const c = multiCredit(CR);
+  CR.openDetail('K-C40');
+  const rowsAt = scope => { CR.setCardScope(scope); return (CR.renderTab('График', c).match(/<tr/g) || []).length; };
+  const n1 = rowsAt(1), n2 = rowsAt(2), nAll = rowsAt('credit');
+  ok(nAll > n1 && nAll > n2, `слитая (${nAll}) должна быть длиннее каждой отдельной (${n1}/${n2})`);
+});
+
+test('T3-3: плитки — суммы по траншам', () => {
+  const { CR } = load();
+  const c = multiCredit(CR);
+  CR.openDetail('K-C40');
+  const t1 = CR.trancheScheduleRows(c.tranches[0]).length;
+  const t2 = CR.trancheScheduleRows(c.tranches[1]).length;
+  CR.setCardScope('credit');
+  has(CR.renderTab('График', c), '>' + (t1 + t2) + '<', `плитка «Платежей в графике» должна показать ${t1+t2}`);
+});
+
+test('T3-4: расхождение методов — плитка платежа гасится подписью', () => {
+  const { CR } = load();
+  const c = multiCredit(CR);
+  CR.openDetail('K-C40');
+  CR.setCardScope('credit');
+  has(CR.renderTab('График', c), 'несколько методов погашения',
+      'при разных методах траншей плитка платежа обязана это сказать');
+});
+
+test('T3-5: «Сформировать график» при «по кредиту» неактивна', () => {
+  const { CR } = load();
+  const c = multiCredit(CR);
+  CR.openDetail('K-C40');
+  CR.setCardScope('credit');
+  has(CR.renderTab('График', c), 'График принадлежит траншу — выберите транш в шапке',
+      'кнопка построения должна быть погашена с этой причиной');
+  CR.setCardScope(1);
+  hasNot(CR.renderTab('График', c), 'График принадлежит траншу — выберите транш в шапке',
+      'на конкретном транше кнопка обязана ожить');
+});
+
+test('T3-6: однотраншевый кредит слитого вида не получает', () => {
+  const { CR } = load();
+  const c = CR.db.credits.find(x => x.id === 'K-3');
+  CR.openDetail('K-3');
+  CR.setCardScope('credit');
+  const h = CR.renderTab('График', c);
+  has(h, 'транш №1', 'при одном транше вкладка обязана остаться обычной');
+  hasNot(h, 'несколько методов погашения', 'расхождению не с чем возникать');
+});
+
 report();

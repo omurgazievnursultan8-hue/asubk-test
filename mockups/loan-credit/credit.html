@@ -3889,6 +3889,23 @@ function trancheScheduleTotals(t, asOf){
            total:round2(total), method, payLabel, payValue };
 }
 
+/* Итоги графика по ВСЕМ траншам — плитки вкладки «График» при области «по кредиту»
+   (КВ-17). Складываются только аддитивные величины. Метод погашения аддитивным не
+   является: медиана аннуитета и первый-последний платёж равных долей — величины
+   разной природы, и их сумма не платится никем. Разошлись — гасим значение. */
+function scheduleTotalsAll(credit, asOf){
+  const ts = credit.tranches.filter(activeTranche);
+  const parts = ts.map(t => trancheScheduleTotals(t, asOf));
+  const sum = k => round2(parts.reduce((a,p) => a + p[k], 0));
+  const methods = [...new Set(parts.map(p => p.method))];
+  const one = methods.length === 1 ? parts[0] : null;
+  return { count: parts.reduce((a,p) => a + p.count, 0),
+           principalSum: sum('principalSum'), interestSum: sum('interestSum'), total: sum('total'),
+           method: one ? one.method : null,
+           payLabel: one ? one.payLabel : 'Регулярный платёж',
+           payValue: one ? one.payValue : '—' };
+}
+
 /* активен ли транш (не soft-closed) — для агрегатов срока (Р-13) */
 function activeTranche(t){ return !t.closed; }
 
@@ -6037,16 +6054,23 @@ if (typeof document !== 'undefined') {
      и погашения остался в «Расчётах» — их предмет иной; прогноз по этому графику
      уехал на свою вкладку «Прогноз» (вторая волна 03.08.2026). */
   function tabGrafik(c,d){
-    /* КВ-17, временно: слитый вид при области «по кредиту» приходит задачами 3 и 4;
-       до тех пор вкладка откатывается на первый транш. */
-    const sel=scopeTranche(c)||c.tranches[0];
-    const st=trancheScheduleTotals(sel, cardAsOf);   // плитки — по выбранному траншу, как версии и позиции ниже
+    const sel=scopeTranche(c);                        // null → область «по кредиту» (КВ-17)
+    const st = sel ? trancheScheduleTotals(sel, cardAsOf) : scheduleTotalsAll(c, cardAsOf);
     const stPill={'Оплачена':'low','Просрочена':'high','Наступила':'mid','Предстоит':'neutral'};
-    const verRows=((sel&&sel.schedules)||[]).slice().sort((a,b)=>b.ver-a.ver).map(s=>`<tr class="${s.active?'diff-changed':''}"><td>v${s.ver}</td><td>${s.active?'<span class="pill low">активна</span>':'<span class="pill neutral">архив</span>'}</td><td>${esc(s.generatedFrom)}</td><td style="text-align:right">${s.rows.length}</td></tr>`);
+    const scope = sel ? 'транш №'+sel.no : 'по кредиту';
+    /* Слитый вид: те же две таблицы, но по всем активным траншам, каждая с колонкой
+       «Транш» — идиома консолидированного расчёта («Расчёты»), а не вторая трактовка
+       «по кредиту». Позиции сортируются по дате: агрегат отвечает на вопрос «что платим
+       следующим», и порядок по траншам этот вопрос ломает. */
+    const srcTranches = sel ? [sel] : c.tranches.filter(activeTranche);
+    const verRows = srcTranches.flatMap(t => ((t.schedules)||[]).slice().sort((a,b)=>b.ver-a.ver)
+      .map(s=>`<tr class="${s.active?'diff-changed':''}"><td>v${s.ver}</td>${sel?'':`<td>№${t.no}</td>`}<td>${s.active?'<span class="pill low">активна</span>':'<span class="pill neutral">архив</span>'}</td><td>${esc(s.generatedFrom)}</td><td style="text-align:right">${s.rows.length}</td></tr>`));
     /* Статус позиции — от построенного расчёта (d.ledger.index), а не от засеянных строк */
-    const posRows=(sel?trancheScheduleRows(sel):[]).map(r=>{
-      const s=scheduleRowStatus(r, d.ledger.index.get(ledgerKey(sel.no, r.no)), cardAsOf);
-      return `<tr><td>№${r.no}</td><td>${esc(r.date)}</td><td style="text-align:right">${money(r.principal)}</td><td style="text-align:right">${money(r.interest)}</td>${(r.accrued!=null&&Math.abs(r.accrued-r.interest)>0.005)?`<td style="text-align:right" title="начислено за период, но не включено в платёж (льгота по %)">${money(r.accrued)}</td>`:'<td style="text-align:right">—</td>'}<td style="text-align:right">${money(r.total)}</td><td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td></tr>`;});
+    const posSrc = srcTranches.flatMap(t => trancheScheduleRows(t).map(r => ({ r, t })))
+      .sort((a,b) => pd(a.r.date) - pd(b.r.date) || a.t.no - b.t.no);
+    const posRows = posSrc.map(({r,t})=>{
+      const s=scheduleRowStatus(r, d.ledger.index.get(ledgerKey(t.no, r.no)), cardAsOf);
+      return `<tr><td>№${r.no}</td>${sel?'':`<td>№${t.no}</td>`}<td>${esc(r.date)}</td><td style="text-align:right">${money(r.principal)}</td><td style="text-align:right">${money(r.interest)}</td>${(r.accrued!=null&&Math.abs(r.accrued-r.interest)>0.005)?`<td style="text-align:right" title="начислено за период, но не включено в платёж (льгота по %)">${money(r.accrued)}</td>`:'<td style="text-align:right">—</td>'}<td style="text-align:right">${money(r.total)}</td><td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td></tr>`;});
     return `
       ${(()=>{ const rf=retroPendingFlags(c); if(!rf.length) return '';   // Д-5: тот же признак, что на «Условиях»
         return `<div class="warn-inline">${svgInfo()}<div>
@@ -6054,21 +6078,25 @@ if (typeof document !== 'undefined') {
           Действующая версия графика построена по прежним условиям — сформируйте заново (Д-5).</div></div>`; })()}
       <div class="section-h">График погашения</div>
       <div class="gtoolbar">
-        <div class="field" style="max-width:320px"><div class="control"><select onchange="CR.setCardScope(+this.value)">${c.tranches.map(t=>`<option value="${t.no}"${sel&&t.no===sel.no?' selected':''}>Транш №${t.no}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+        <div class="field" style="max-width:320px"><span class="flabel">Область</span><div class="control"><select onchange="CR.setCardScope(this.value)">
+          ${c.tranches.length>1?`<option value="credit"${cardScope==='credit'?' selected':''}>по кредиту</option>`:''}
+          ${c.tranches.map(t=>`<option value="${t.no}"${cardScope===t.no?' selected':''}>Транш №${t.no}</option>`).join('')}
+        </select><span class="caret">▾</span></div></div>
         <span class="spacer"></span>
-        ${actBtn(c,'buildSchedule',{tranche:sel},'Сформировать график','CR.openSchedModal()','btn btn-primary btn-sm')}
+        ${sel ? actBtn(c,'buildSchedule',{tranche:sel},'Сформировать график','CR.openSchedModal()','btn btn-primary btn-sm')
+              : disabledBtn('Сформировать график','График принадлежит траншу — выберите транш в шапке','btn btn-primary btn-sm')}
       </div>
       <div class="phead-dims" style="grid-template-columns:repeat(5,1fr);margin-top:6px">
         <div class="dim"><div class="dl">Платежей в графике</div><div class="dv">${st.count}</div></div>
-        <div class="dim" title="метод погашения — ${esc(st.method)}"><div class="dl">${esc(st.payLabel)}</div><div class="dv">${esc(st.payValue)}</div></div>
+        <div class="dim"${st.method?` title="метод погашения — ${esc(st.method)}"`:''}><div class="dl">${esc(st.payLabel)}</div><div class="dv">${esc(st.payValue)}</div>${st.method?'':'<div class="src">несколько методов погашения</div>'}</div>
         <div class="dim"><div class="dl">Σ основной долг</div><div class="dv">${money(st.principalSum)}</div></div>
         <div class="dim"><div class="dl">Σ проценты</div><div class="dv">${money(st.interestSum)}</div></div>
         <div class="dim"><div class="dl">Итого к погашению</div><div class="dv">${money(st.total)}</div></div>
       </div>
-      <div class="section-h" style="margin-top:22px">Версии графика (транш №${sel?sel.no:'—'})</div>
-      ${cgrid([{h:'Версия'},{h:'Статус'},{h:'От даты'},{h:'Строк',r:1}], verRows, {empty:'Версий графика нет — сформируйте'})}
-      <div class="section-h" style="margin-top:22px">График — позиции (транш №${sel?sel.no:'—'})</div>
-      ${cgrid([{h:'№'},{h:'Дата'},{h:'Осн. сумма',r:1},{h:'Проценты в платеже',r:1},{h:'Начислено %',r:1},{h:'Платёж',r:1},{h:'Статус'}], posRows, {empty:'Позиций нет — сформируйте график'})}`;
+      <div class="section-h" style="margin-top:22px">Версии графика (${esc(scope)})</div>
+      ${cgrid([{h:'Версия'}].concat(sel?[]:[{h:'Транш'}]).concat([{h:'Статус'},{h:'От даты'},{h:'Строк',r:1}]), verRows, {empty:'Версий графика нет — сформируйте'})}
+      <div class="section-h" style="margin-top:22px">График — позиции (${esc(scope)})</div>
+      ${cgrid([{h:'№'}].concat(sel?[]:[{h:'Транш'}]).concat([{h:'Дата'},{h:'Осн. сумма',r:1},{h:'Проценты в платеже',r:1},{h:'Начислено %',r:1},{h:'Платёж',r:1},{h:'Статус'}]), posRows, {empty:'Позиций нет — сформируйте график'})}`;
   }
 
   /* ---- ВКЛАДКА 5: Прогноз (ADR-0042, Р-29) ----
