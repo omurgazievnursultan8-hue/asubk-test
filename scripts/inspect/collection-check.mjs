@@ -327,7 +327,7 @@ ok('расход увеличивает сумму требования и не 
    предмет залога»). Модель — наряд «выручка/очередь» (ADR-0054): факт реализации и
    делёж между кредитами живут на ПРЕДМЕТЕ (c.realization/.distribution), не на процессе
    (p.realization снят); делёж — на вкладке «Залог», не «Долг». Проверяется то же правило:
-   п. 49 — строка возврата залогодателю обязательна даже при нуле, непокрытый остаток
+   п. 48 — строка возврата залогодателю обязательна даже при нуле, непокрытый остаток
    назван пунктом 33. */
 { const m = mk();
   /* Ссылка на предмет пересобирается заново в КАЖДОМ m.ev() (индексом 0, не
@@ -338,7 +338,7 @@ ok('расход увеличивает сумму требования и не 
     PROCESSES.find(p=>p.id==='326').colls[0].realization = { proceeds: 50000, costs: 0, date: '21.07.2026' };
   `);
   m.ev(`openDetail('326/326/з')`); m.ev(`switchTab(${TAB.zalog})`);
-  ok('п. 49 · делёж не опубликован — заметка-приглашение видна (326)',
+  ok('п. 48 · делёж не опубликован — заметка-приглашение видна (326)',
      /делёж между кредитами ещё не опубликован/.test(m.active().textContent));
   m.ev(`
     openRealizationModal(0);
@@ -346,7 +346,7 @@ ok('расход увеличивает сумму требования и не 
     saveDistribution(0);
   `);
   m.ev(`switchTab(${TAB.zalog})`);
-  ok('п. 49 · строка возврата залогодателю при реализации залога (326)',
+  ok('п. 48 · строка возврата залогодателю при реализации залога (326)',
      /Возврат залогодателю/.test(m.active().textContent));
   ok('п. 33 · непокрытый остаток назван пунктом (326)', /п\. 33/.test(m.active().textContent)); }
 
@@ -441,7 +441,7 @@ ok('состояния обязательства живут на требова
 ok('пауза стоит на требовании заёмщика, не на солидарном поручителе', mk().ev(`(() => {
   openDetail('307/307/з');
   openPauseModal();
-  document.getElementById('pauseType').value = 'Гарантийное письмо (п. 18)';
+  document.getElementById('pauseType').value = 'Гарантийное письмо (п. 17)';
   document.getElementById('pauseFrom').value = '2026-07-21';
   document.getElementById('pauseUntil').value = '2026-08-20';
   savePause();
@@ -478,7 +478,7 @@ ok('таблица состояний даёт уровень обязатель
 ok('пауза ставится и снимается на требовании', mk().ev(`(() => {
   openDetail('201/201/з');
   openPauseModal();
-  document.getElementById('pauseType').value = 'Гарантийное письмо (п. 18)';
+  document.getElementById('pauseType').value = 'Гарантийное письмо (п. 17)';
   document.getElementById('pauseFrom').value = '2026-07-21';
   document.getElementById('pauseUntil').value = '2026-08-20';
   savePause();
@@ -513,7 +513,7 @@ ok('отстранение куратора блокирует всё по де�
      && m.ev(`(() => {
        openDetail('307/307/з');
        openPauseModal();
-       document.getElementById('pauseType').value = 'Гарантийное письмо (п. 18)';
+       document.getElementById('pauseType').value = 'Гарантийное письмо (п. 17)';
        document.getElementById('pauseFrom').value = '2026-07-21';
        document.getElementById('pauseUntil').value = '2026-08-20';
        savePause();
@@ -551,9 +551,9 @@ ok('кнопок назначения / переназначения / прод�
      return !/Назначить исполнителя|Переназначить|Продлить срок/i.test(m.allTabsText()); })());
 /* Позиций в диалоге ровно столько, сколько их в чек-листе передачи (у 390 затравка ЗС
    даёт три) — и все они галочки с data-item, а не поле свободного текста: отклонение
-   по-прежнему структурное (п. 20.2). */
+   по-прежнему структурное (п. 19.2). */
 { const m = mk(); m.ev(`openDetail('390/390/з')`); m.ev(`openRejectProc('390/390/з')`);
-  ok('чек-лист структурный: отклонение перечисляет позиции чек-листа передачи (п. 20.2)',
+  ok('чек-лист структурный: отклонение перечисляет позиции чек-листа передачи (п. 19.2)',
      m.$$('#modalHost .rejChk').length === m.ev(`REQ_INDEX['390/390/з'].handovers.slice(-1)[0].checklist.length`)
      && m.$$('#modalHost .rejChk').length === 3
      && m.$$('#modalHost .rejChk').every(c => c.type === 'checkbox' && !!c.getAttribute('data-item'))
@@ -682,7 +682,7 @@ ok('вкладки разделены: 3 дела + 6 требования',
      && m.dhead().querySelectorAll('.phead-dims input, .phead-dims select').length === 0
      && m.dhead().querySelectorAll('.phead-dims .dim .src').length === 4); }
 /* Передача, ждущая приёма, живёт в ситуации ВЕД-ПЕРЕДАЧА и на многокредитном 402:
-   у 402 счётчик п. 98 показывает 3 р.д. из 5, у 390 — 2 р.д. */
+   у 402 счётчик приёма показывает 3 р.д. из 5, у 390 — 2 р.д. */
 ok('счётчик приёма передачи работает (402/570/з — осталось 3 р.д.)', g.ev(`(() => {
   const r = REQ_INDEX['402/570/з']; const h = r.handovers[r.handovers.length-1];
   return h.state==='ждёт' && h.leftRd === 3 && h.deadlineRd === 5;
@@ -1091,7 +1091,7 @@ ok('МС-1 · гейт блок при >5 лет и истёкших срока�
 ok('МС-1 · гейт warn (не блок) при >5 лет без истёкших', g.ev('msTermGate(false,6).level') === 'warn');
 ok('МС-1 · гейт ok при ≤5 лет',
    g.ev('msTermGate(true,5).level') === 'ok' && g.ev('msTermGate(true,3.5).level') === 'ok');
-ok('МС-1 · дефолт истёкших сроков — из охвата требования (п. 114)',
+ok('МС-1 · дефолт истёкших сроков — из охвата требования (п. 20.1)',
    g.ev(`msExpiredDefault(${R('120/120/з')})`) === true && g.ev(`msExpiredDefault(${R('201/201/з')})`) === false);
 ok('МС-1 · каскад графика «Определения…»: последний остаток 0, сумма тела == итог', g.ev(`(()=>{
   const m = ${P('120')}.measures.find(x=>x.kind==='Определение об утверждении мирового соглашения');
@@ -1379,7 +1379,7 @@ ok('значения «залог» и «смешанный» как значе�
    !/смешанный/.test(HTML_SRC) && !/volume:'залог'/.test(HTML_SRC));
 /* Список устанавливающих видов больше не переписывается сюда руками: он ЕСТЬ в самом
    макете (SCOPE_KIND_DEFAULT) — восемь видов, плюс «Извещение об обращении на залог»,
-   которому охват ставит отдельный шаг applyIzveschenie (В-8, п. 20.4). Размер словаря
+   которому охват ставит отдельный шаг applyIzveschenie (В-8, п. 20.1). Размер словаря
    зафиксирован, чтобы тихое пополнение справочника было видно. */
 ok('scope на мере встречается только у устанавливающих видов (SCOPE_KIND_DEFAULT + извещение)', g.ev(`(() => {
   const ESTABLISHING = new Set([...Object.keys(SCOPE_KIND_DEFAULT), 'Извещение об обращении на залог']);
@@ -1819,10 +1819,10 @@ ok('группа и куратор — в заголовке дела, стар�
    && /группа /.test(D.doc.querySelector('.dhead-run').textContent)
    && /куратор Тукинова/.test(D.doc.querySelector('.dhead-run').textContent)
    && !/Работа с судебными органами|Взыскание задолженности/.test(D.doc.querySelector('.dhead-run').textContent));
-ok('счётчик п. 98 приёма передачи виден в журнале передач вкладки «Дело» (402/570/з)', (() => {
+ok('счётчик приёма передачи виден в журнале передач вкладки «Дело» (402/570/з)', (() => {
   const m = mk(); m.ev(`openDetail('402/570/з')`);
   m.ev(`switchTab(TABS.findIndex(t=>t.slug==='obschee'))`);
-  return /осталось 3 р\.д\. \(п\. 98\)/.test(m.active().textContent); })());
+  return /осталось 3 р\.д\. \(срок подтверждения\)/.test(m.active().textContent); })());
 ok('раскрытие worst-of работает из шапки',
    (D.ev('catOpen=false; toggleCat()'), D.dhead().querySelectorAll('.cat-expand .row').length > 0));
 
@@ -1890,7 +1890,7 @@ ok('фильтр пропускает непривязанное, а не выб
 
 head('КД-6 · срок принадлежит требованию');
 ok('у срока есть цели', D.ev(`PROCESSES.every(p=>p.deadlines.every(d=>Array.isArray(d.targets)))`));
-ok('дело-уровневые сроки (п. 98, конфликт) целей не получили',
+ok('дело-уровневые сроки (приём передачи, конфликт) целей не получили',
    D.ev(`PROCESSES.flatMap(p=>p.deadlines).filter(d=>!d.targets.length)
          .every(d=>/статуса? процедуры|конфликт/i.test(dlAction(d)))`));
 ok('срок виден требованию из своих целей (336 — апелляция по его решению суда)',
@@ -2276,7 +2276,7 @@ ok('у каждого срока либо шаблон, либо метка «в
    S.ev(`PROCESSES.flatMap(p=>p.deadlines).every(d=>d.tpl ? !!TPL_BY_N[d.tpl] : !!d.action)`));
 ok('пять недостающих шаблонов добавлены (40–44)',
    S.ev(`[40,41,42,43,44].every(n=>!!TPL_BY_N[n])`)
-   && S.ev(`[40,41,42,43,44].map(n=>TPL_BY_N[n].point).join('/')`) === 'Р-8/17.6/44/37/92');
+   && S.ev(`[40,41,42,43,44].map(n=>TPL_BY_N[n].point).join('/')`) === 'Р-8/19.2/44/38/Р-12');
 ok('строковой связи со справочником больше нет', !/templTerm/.test(HTML.replace(/templTerm искала[\s\S]*?dlPoint\./,'')));
 ok('шаблон находится у всех сроков Порядка (было «—» у 15 из 45)',
    S.ev(`PROCESSES.flatMap(p=>p.deadlines).filter(d=>d.tpl).every(d=>!!dlTerm(d) && !!dlPoint(d))`));
@@ -2292,7 +2292,7 @@ ok('«вне Порядка» помечено, а не выброшено',
              S.ev(`dlSetHorizon('7')`); return has; })());
 ok('«п. —» больше не рисуется (СК-Д13)',     !sRows().some(r=>/п\. —/.test(r.textContent)));
 ok('Р-8 подписан без «п.» — это решение проекта, не пункт Порядка',
-   S.ev(`dlPointLabel({tpl:40}) === 'Р-8' && dlPointLabel({tpl:5}) === 'п. 17.2'`));
+   S.ev(`dlPointLabel({tpl:40}) === 'Р-8' && dlPointLabel({tpl:5}) === 'п. 16.2'`));
 
 head('СК-13 · срок снимается фактом, а не отметкой');
 ok('кнопки «выполнено» у срока нет',         !/выполнено/i.test(S.$('#view-deadlines').innerHTML));
@@ -2316,7 +2316,7 @@ ok('saveMeasure зовёт снятие срока и пишет это в ис�
 
 head('СК-14 · блок сроков в карточке — та же арифметика');
 /* Дело 304 (K1-ПРЕТ2) — требование со сроками в карточке: обе претензии просрочены,
-   первая на −47 (шаблон №6, п. 17.2). Прежнее 142 в затравке ЗС сроков не несёт вовсе. */
+   первая на −47 (шаблон №6, п. 16.2). Прежнее 142 в затравке ЗС сроков не несёт вовсе. */
 { const m = mk(); m.ev(`openDetail('304/304/з', TAB_BY_SLUG('obzor'))`);
   const th = [...m.$('.dl-grid').querySelectorAll('th')].map(t=>t.textContent.trim());
   const tr = m.$('.dl-grid tbody tr');
@@ -2326,7 +2326,7 @@ head('СК-14 · блок сроков в карточке — та же ари�
   ok('в карточке тот же производный остаток',    () => /−47 · просрочен/.test(tr.textContent)
      && tr.querySelectorAll('td')[2].textContent.trim()
         === '−' + Math.abs(m.ev(`daysLeft(PROCESSES.find(p=>p.id==='304').deadlines[0])`)) + ' · просрочен');
-  ok('подсказка карточки называет шаблон номером', () => /шаблон №6 \(п\. 17\.2\)/.test(tr.getAttribute('title')));
+  ok('подсказка карточки называет шаблон номером', () => /шаблон №6 \(п\. 16\.2\)/.test(tr.getAttribute('title')));
   ok('горизонта и фильтров в карточке нет',      () => !m.$('.dl-grid').closest('.panel-wrap').querySelector('#dlSeg')); }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -2419,10 +2419,10 @@ ok('семь колонок, ось — вручение',
    rCols(C,'claims').join('|') === 'Вид|Номер|Отправлена|Вручение|Заёмщик|Требование|Сумма');
 ok('мёртвой колонки «Статус» нет',           !rCols(C,'claims').includes('Статус'));
 /* НАХОДКА ВОЛНЫ ЗС (отчёт Task 11): претензий без подтверждённого вручения затравка не
-   содержит вовсе — у каждой живой претензии есть served.date, счётчик п. 20.2 равен нулю.
+   содержит вовсе — у каждой живой претензии есть served.date, счётчик п. 19.2 равен нулю.
    Правило (подсветка + отбор сегментом) поэтому показывается синтетикой в отдельном DOM:
    у одной вручённой претензии снимаем served и ждём и подсветку, и её же в сегменте. */
-ok('невручённых в затравке нет — счётчик п. 20.2 честно нулевой',
+ok('невручённых в затравке нет — счётчик п. 19.2 честно нулевой',
    rRows(C,'claims').filter(r=>r.classList.contains('mrow-undelivered')).length === 0
    && C.ev(`REGS.claims.all().filter(x=>!x.m.storno && !(x.m.served&&x.m.served.date)).length === 0`));
 ok('невручённое подсвечено независимо от сегмента и им же отбирается', mk().ev(`(() => {
@@ -2431,7 +2431,7 @@ ok('невручённое подсвечено независимо от сег
   delete x.m.served; regRefresh('claims');
   const rows = () => [...document.querySelectorAll('#claimsBody tr')].filter(r=>!r.classList.contains('rowempty'));
   const hl  = rows().filter(r=>r.classList.contains('mrow-undelivered')).length;
-  const txt = rows().filter(r=>/не подтверждено \\(п\\. 20\\.2\\)/.test(r.textContent)).length;
+  const txt = rows().filter(r=>/не подтверждено \\(п\\. 19\\.2\\)/.test(r.textContent)).length;
   regSetSeg('claims','undelivered'); const seg = rows().length;
   return hl === 1 && txt === 1 && seg === 1;
 })()`));
@@ -2447,7 +2447,7 @@ ok('сумма документа не пересчитана, расхожде�
 ok('дельта суммы нигде не хранится (ADR-0001)',
    C.ev(`PROCESSES.flatMap(p=>p.measures||[]).every(m=>m.sumNow===undefined && m.delta===undefined)`));
 ok('рамка считает вручение, сторно и расхождение',   // счётчики сняты с #claimsFrame
-   /без подтверждения вручения <b>0<\/b> \(п\. 20\.2\) · сторнировано <b>2<\/b> · сумма документа разошлась с требованием у <b>112<\/b>/
+   /без подтверждения вручения <b>0<\/b> \(п\. 19\.2\) · сторнировано <b>2<\/b> · сумма документа разошлась с требованием у <b>112<\/b>/
      .test(C.$('#claimsFrame').innerHTML));
 
 head('КР-8/КР-9/КР-11 · вопросы: состояние выводится в одном месте');

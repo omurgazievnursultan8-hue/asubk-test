@@ -53,6 +53,7 @@ SCANNED = [
     "docs/tasks/p14-collection-tasks.html",
     "docs/adr/*.md",
     "docs/voprosy-zakazchiku/2026-08-04-vzyskanie.md",
+    "scripts/inspect/collection-check.mjs",
     "STATUS.md",
     "TODO.md",
 ]
@@ -70,6 +71,8 @@ MIGRATED = {
     "docs/tasks/p14-collection-tasks.html",
     "STATUS.md",
     "TODO.md",
+    "mockups/collection/collection.html",
+    "scripts/inspect/collection-check.mjs",
 }
 
 # Deliberately out of scope, with the reason — printed so the exclusion stays honest.
@@ -170,8 +173,10 @@ _NUM = r"\d+(?:\.\d+)?"
 # ends the enumeration there.
 _NOT_UNIT = r"(?!\s*(?:р\.\s*д|к\.\s*д|дн|дней|день|%|мес|лет|год))"
 _ITEM = rf"{_NUM}{_NOT_UNIT}(?:\s*[–—-]\s*{_NUM}{_NOT_UNIT})?"
+# Косая черта — то же перечисление: «п. 42/48/49», «пп. 18/19». Дважды за проход
+# оно оставляло после себя ссылку, переведённую наполовину.
 CITATION = re.compile(
-    rf"(?<![\w–—-])(?:пп?\.|пункт(?:а|ом|у|ы|ах|ов)?)\s*№?\s*({_ITEM}(?:\s*,\s*{_ITEM})*)"
+    rf"(?<![\w–—-])(?:пп?\.|пункт(?:а|ом|у|ы|ах|ов)?)\s*№?\s*({_ITEM}(?:\s*[,/]\s*{_ITEM})*)"
 )
 NUMBER = re.compile(_NUM)
 POINT_FIELD = re.compile(r"point:\s*'([^']*)'")
@@ -371,7 +376,6 @@ def main():
     for path in iter_files():
         rel = path.relative_to(ROOT)
         migrated = is_migrated(rel)
-        done += migrated
         total = 0
         for line_no, value, kind in citations(path):
             total += 1
@@ -382,6 +386,7 @@ def main():
                 buckets[bucket] += 1
         if total:
             per_file.append((rel, total, migrated))
+            done += migrated
 
     width = max((len(str(r)) for r, _, _ in per_file), default=10)
     for rel, total, migrated in per_file:
