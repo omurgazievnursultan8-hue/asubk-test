@@ -65,6 +65,11 @@ MIGRATED = {
     "docs/voprosy-zakazchiku/2026-08-04-vzyskanie.md",
     "mockups/collection/ASUBK-vzyskanie-logika.md",
     "docs/adr/*.md",
+    "mockups/collection/ASUBK-status-razrabotki.md",
+    "requirements/tz/13-collection.html",
+    "docs/tasks/p14-collection-tasks.html",
+    "STATUS.md",
+    "TODO.md",
 }
 
 # Deliberately out of scope, with the reason — printed so the exclusion stays honest.
