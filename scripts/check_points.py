@@ -62,6 +62,7 @@ SCANNED = [
 # sweep moves files in here one at a time, and the count below is the progress bar.
 MIGRATED = {
     "docs/voprosy-zakazchiku/2026-08-04-vzyskanie.md",
+    "mockups/collection/ASUBK-vzyskanie-logika.md",
 }
 
 # Deliberately out of scope, with the reason — printed so the exclusion stays honest.
@@ -140,11 +141,19 @@ IGNORE_LINE = "check_points:ignore"
 IGNORE_START = "check_points:ignore-start"
 IGNORE_END = "check_points:ignore-end"
 
+# One citation may name several points — «пп. 62–63», «п. 21, 65», «пп. 60, 72, Р-11».
+# The whole enumeration is captured as one group and the numbers are pulled out of it
+# afterwards; matching them separately would miss every number after the first, and a
+# half-renumbered list («пп. 60, 72») is worse than an untouched one.
+_NUM = r"\d+(?:\.\d+)?"
+# «п. 98, 5 р.д.» — the 5 is a term, not a second point. A unit right after a number
+# ends the enumeration there.
+_NOT_UNIT = r"(?!\s*(?:р\.\s*д|к\.\s*д|дн|дней|день|%|мес|лет|год))"
+_ITEM = rf"{_NUM}{_NOT_UNIT}(?:\s*[–—-]\s*{_NUM}{_NOT_UNIT})?"
 CITATION = re.compile(
-    r"(?<![\w–—-])(?:пп?\.|пункт(?:а|ом|у|ы|ах)?)\s*№?\s*"
-    r"(\d+(?:\.\d+)?)"
-    r"(?:\s*[–—-]\s*(\d+(?:\.\d+)?))?"
+    rf"(?<![\w–—-])(?:пп?\.|пункт(?:а|ом|у|ы|ах|ов)?)\s*№?\s*({_ITEM}(?:\s*,\s*{_ITEM})*)"
 )
+NUMBER = re.compile(_NUM)
 POINT_FIELD = re.compile(r"point:\s*'([^']*)'")
 ADR_NEARBY = re.compile(r"ADR[-\s]?\d{4}[^.;)]{0,20}$")
 
@@ -228,9 +237,8 @@ def citations(path):
             # `ADR-0053` п. 2 cites an ADR clause, not the Порядок.
             if ADR_NEARBY.search(line[: m.start()]):
                 continue
-            for value in (m.group(1), m.group(2)):
-                if value:
-                    yield n, value, "текст"
+            for num in NUMBER.finditer(m.group(1)):
+                yield n, num.group(0), "текст"
         for m in POINT_FIELD.finditer(line):
             yield n, m.group(1), "point:"
 
