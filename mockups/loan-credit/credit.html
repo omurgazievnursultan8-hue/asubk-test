@@ -5327,6 +5327,11 @@ if (typeof document !== 'undefined') {
      ожидание по нему суть разные предметы (Р-29), а вкладка «План и исполнение»
      сокращена до «План»: исполнение — производная плана, а не второй предмет. */
   const DTABS =['Договор','Условия','Транши','График','Прогноз','Расчёты','Платежи','План','Обеспечение','Проблемные','Досье'];
+  /* Вкладки, читающие область (КВ-17). Остальные шесть — Договор, Платежи, План,
+     Обеспечение, Проблемные, Досье — всегда показывают кредит целиком, и на них
+     контрол гасится, а не прячется: шапка не должна дёргаться при смене вкладки,
+     а выбранное значение остаётся на виду. */
+  const SCOPED_TABS = ['Условия','Транши','График','Прогноз','Расчёты'];
 
   function currentCredit(){ return CR.db.credits.find(x => x.id === detailId); }
   /* Транш, к которому относится вкладка. При области «по кредиту» — null (агрегат/сводка).
@@ -5574,6 +5579,22 @@ if (typeof document !== 'undefined') {
       ? `<span class="pill high"${d.calcStopped?` title="${jsAttr('Начисление остановлено '+d.calcUntil)}"`:''}>${esc(c.lifecycle)} · просрочка ${d.overdueDays} дн.${d.calcStopped?' на '+esc(d.calcUntil):''}</span>`
       : `<span class="pill info">${esc(c.lifecycle)}</span>`;
 
+    /* ЕДИНЫЙ ПЕРЕКЛЮЧАТЕЛЬ ОБЛАСТИ (КВ-17) — в шапке, перед датой среза: сначала
+       «что смотрим», потом «на когда». Прежде область набиралась пятью контролами
+       внутри вкладок (селекты на Условиях/Графике/Прогнозе/Расчётах, клик по строке
+       на Траншах) и двумя разными словами — «агрегат» и «консолидировано».
+       Кредит с одним траншем контрол не получает: «по кредиту» и «Транш №1» там
+       неразличимы, и выбор был бы ложным. */
+    const scopeInert = !SCOPED_TABS.includes(detailTab);
+    const scopeBox = c.tranches.length > 1 ? `<div style="display:flex;align-items:center;gap:6px">
+        <span class="flabel">Область</span>
+        <div class="control" style="width:170px"${scopeInert?` title="${jsAttr('Вкладка «'+detailTab+'» — всегда по кредиту целиком')}"`:''}>
+          <select onchange="CR.setCardScope(this.value)"${scopeInert?' disabled':''}>
+            <option value="credit"${cardScope==='credit'?' selected':''}>По кредиту</option>
+            ${c.tranches.map(t=>`<option value="${t.no}"${cardScope===t.no?' selected':''}>Транш №${t.no}${t.closed?' · закрыт':''}</option>`).join('')}
+          </select><span class="caret">▾</span></div>
+      </div>` : '';
+
     /* ЕДИНАЯ дата среза карточки (КВ-10) — в шапке, рядом с действиями: она управляет
        всем, что ниже. Раньше жила на одной вкладке «Условия» и остальным не управляла. */
     const isoAsOf = cardAsOf.split('.').reverse().join('-');
@@ -5601,6 +5622,7 @@ if (typeof document !== 'undefined') {
             ${d.subgroup ? ` · <span class="pill low" title="${jsAttr('Подгруппа заёмщика: ' + (d.subgroupLabel||''))}">${esc(d.subgroup)} ${esc(d.subgroupLabel||'')}</span>` : ''}</div>
         </div>
         <div class="phead-acts">
+          ${scopeBox}
           ${asOfBox}
           ${lcBtn}
           ${printMenuHtml()}
@@ -5620,6 +5642,7 @@ if (typeof document !== 'undefined') {
         ${tileRelief(c,d)}
         ${tileFlags(c,d)}
       </div>
+      ${cardScope!=='credit' && c.tranches.length>1 ? `<p class="section-note" style="margin:6px 0 0">Плитки — по кредиту целиком; область «Транш №${esc(String(cardScope))}» действует на вкладки ниже.</p>` : ''}
     </div>`;
   }
   function tabbarHtml(){
@@ -5822,10 +5845,6 @@ if (typeof document !== 'undefined') {
             onclick="CR.goToSchedule()">Перейти к перегенерации графика</button></div>
         </div></div>`; })()}
       <div class="gtoolbar" style="margin-bottom:14px">
-        ${c.tranches.length>1?`<div class="control" style="max-width:280px"><select onchange="CR.setCardScope(this.value)">
-            <option value="credit"${cardScope==='credit'?' selected':''}>по кредиту (агрегат)</option>
-            ${c.tranches.map(t=>`<option value="${t.no}"${cardScope===t.no?' selected':''}>Транш №${t.no}</option>`).join('')}
-          </select><span class="caret">▾</span></div>`:''}
         ${(()=>{ const cls='btn btn-primary btn-sm', label='Изменить условия';
           if(isTerminal(c)) return disabledBtn(label, terminalReason(c), cls);
           if(!canRole(currentRole,'addConditionRecords'))
@@ -6094,10 +6113,6 @@ if (typeof document !== 'undefined') {
           Действующая версия графика построена по прежним условиям — сформируйте заново (Д-5).</div></div>`; })()}
       <div class="section-h">График погашения</div>
       <div class="gtoolbar">
-        <div class="field" style="max-width:320px"><span class="flabel">Область</span><div class="control"><select onchange="CR.setCardScope(this.value)">
-          ${c.tranches.length>1?`<option value="credit"${cardScope==='credit'?' selected':''}>по кредиту</option>`:''}
-          ${c.tranches.map(t=>`<option value="${t.no}"${cardScope===t.no?' selected':''}>Транш №${t.no}</option>`).join('')}
-        </select><span class="caret">▾</span></div></div>
         <span class="spacer"></span>
         ${sel ? actBtn(c,'buildSchedule',{tranche:sel},'Сформировать график','CR.openSchedModal()','btn btn-primary btn-sm')
               : disabledBtn('Сформировать график','График принадлежит траншу — выберите транш в шапке','btn btn-primary btn-sm')}
@@ -6155,12 +6170,6 @@ if (typeof document !== 'undefined') {
         и в исполнение плана не входит — исполнение сверяет факт с <b>планом</b> (ADR-0042).
         Весь непокрытый хвост прошлых позиций отнесён к ближайшей будущей. Ничего не хранится:
         таблица строится заново при каждом рендере (Д-9 — порядок сумм, не банковская копейка).</p>
-      <div class="gtoolbar">
-        <div class="field" style="max-width:320px"><span class="flabel">Область</span><div class="control"><select onchange="CR.setCardScope(this.value)">
-          ${c.tranches.length>1?`<option value="credit"${cardScope==='credit'?' selected':''}>по кредиту</option>`:''}
-          ${c.tranches.map(t=>`<option value="${t.no}"${cardScope===t.no?' selected':''}>Транш №${t.no}</option>`).join('')}
-        </select><span class="caret">▾</span></div></div>
-      </div>
       <div class="phead-dims" style="grid-template-columns:repeat(4,1fr);margin-top:6px">
         <div class="dim"><div class="dl">Ждём впереди</div><div class="dv">${money(futSum)}</div><div class="src">${fut.length} позиц. после ${esc(cardAsOf)}</div></div>
         ${/* не «Ближайший платёж»: так называется плитка шапки, а там — сумма ПО ГРАФИКУ
@@ -6255,12 +6264,6 @@ if (typeof document !== 'undefined') {
       <p class="section-note">Начисление разложено по позициям <b>плана</b> — сам план (версии, позиции)
         живёт во вкладке «График», ожидание по нему — во вкладке «Прогноз». Параметры движка — те же, что и на вкладке «Условия», читаются вместе
         с цифрами, которые объясняют. Это условия договора: правка — только зарегистрированным основанием.</p>
-      <div class="gtoolbar" style="margin-bottom:12px">
-        <div class="field" style="max-width:320px"><span class="flabel">Область</span><div class="control"><select onchange="CR.setCardScope(this.value)">
-          <option value="credit"${cardScope==='credit'?' selected':''}>по кредиту (консолидировано)</option>
-          ${c.tranches.map(t=>`<option value="${t.no}"${cardScope===t.no?' selected':''}>Транш №${t.no}</option>`).join('')}
-        </select><span class="caret">▾</span></div></div>
-      </div>
       <div class="f2" style="max-width:760px;margin-bottom:12px">
         ${fld('Метод дней', esc(sel ? conditionsAt(sel, cardAsOf).dayMethod : bc.dayMethod))}
         ${fld('Очередь погашения', esc(bc.queue))}

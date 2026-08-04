@@ -177,4 +177,70 @@ test('T4-3: на конкретном транше «Прогноз» колон
   has(h, 'Прогноз — позиции (транш №2)', 'заголовок должен назвать транш');
 });
 
+test('T5-1: контрол области — в шапке, внутри вкладок его нет', () => {
+  const { CR, win } = load();
+  const c = multiCredit(CR);
+  CR.openDetail('K-C40');
+  CR.openTab('График');
+  const head = win.document.querySelector('.phead-acts').innerHTML;
+  has(head, 'CR.setCardScope', 'переключатель обязан быть в шапке');
+  has(head, 'Область', 'у переключателя должна быть подпись «Область»');
+  for (const tab of ['Условия','График','Прогноз','Расчёты'])
+    hasNot(CR.renderTab(tab, c), 'CR.setCardScope', `на вкладке «${tab}» свой селект должен исчезнуть`);
+});
+
+test('T5-2: область читается раньше даты среза', () => {
+  const { CR, win } = load();
+  multiCredit(CR);
+  CR.openDetail('K-C40');
+  const head = win.document.querySelector('.phead-acts').innerHTML;
+  ok(head.indexOf('CR.setCardScope') < head.indexOf('По состоянию на'),
+     '«Область» должна стоять перед «По состоянию на»');
+});
+
+test('T5-3: на инертных вкладках контрол погашен с подсказкой', () => {
+  const { CR, win } = load();
+  multiCredit(CR);
+  CR.openDetail('K-C40');
+  CR.openTab('Договор');
+  const head = win.document.querySelector('.phead-acts').innerHTML;
+  has(head, 'disabled', 'на вкладке «Договор» контрол обязан быть неактивен');
+  has(head, 'Вкладка «Договор» — всегда по кредиту целиком', 'подсказка обязана назвать вкладку');
+  CR.openTab('Расчёты');
+  hasNot(win.document.querySelector('.phead-acts').innerHTML, 'disabled',
+         'на вкладке «Расчёты» контрол обязан ожить');
+});
+
+test('T5-4: у кредита с одним траншем контрола нет вовсе', () => {
+  const { CR, win } = load();
+  CR.openDetail('K-3');
+  hasNot(win.document.querySelector('.phead-acts').innerHTML, 'CR.setCardScope',
+         'при одном транше выбирать нечего — контрол не рендерится');
+});
+
+test('T5-5: при выбранном транше под плитками стоит подпись про шапку', () => {
+  const { CR, win } = load();
+  multiCredit(CR);
+  CR.openDetail('K-C40');
+  CR.setCardScope(2);
+  // Scoped to #cr-card-body (renderDetail's mount point), not document.body: the
+  // inline <script> is itself a body child, and jsdom (like any DOM) serializes a
+  // <script>'s raw source text into body.innerHTML — the caption string sits in that
+  // source once no matter the scope, so hasNot() against body.innerHTML could never
+  // pass. #cr-card-body holds only the rendered card, not the script tag.
+  const card = () => win.document.getElementById('cr-card-body').innerHTML;
+  has(card(), 'Плитки — по кредиту целиком',
+      'подпись, снимающая ложное обещание плиток, обязана появиться');
+  CR.setCardScope('credit');
+  hasNot(card(), 'Плитки — по кредиту целиком',
+         'при области «по кредиту» подпись избыточна');
+});
+
+test('T5-6: закрытый транш в списке помечен', () => {
+  const { CR, win } = load();
+  CR.openDetail('K-C41');       // транш №2 закрыт (Г-17)
+  const head = win.document.querySelector('.phead-acts').innerHTML;
+  has(head, 'Транш №2 · закрыт', 'закрытый транш обязан быть виден и помечен');
+});
+
 report();
