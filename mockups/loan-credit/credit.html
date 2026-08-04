@@ -5364,6 +5364,14 @@ if (typeof document !== 'undefined') {
     if (c.tranches.length === 1) return c.tranches[0];
     return cardScope === 'credit' ? null : (c.tranches.find(t => t.no === cardScope) || null);
   }
+  /* Транш-АДРЕСАТ действия, когда область его не назвала (КВ-17, «Решение» 1: предвыбор
+     берут из scopeTranche(c), при null — ПЕРВЫЙ АКТИВНЫЙ транш). Это не вторая область:
+     умолчание нужно там, где у действия обязан быть адрес, а окончательный выбор делает
+     селект в модалке. Именно поэтому «первый активный», а не «первый по списку»: по
+     закрытому траншу действие запрещено (Г-17), и предлагать его умолчанием — врать. */
+  function actionTranche(c){
+    return scopeTranche(c) || c.tranches.find(activeTranche) || c.tranches[0] || null;
+  }
   function jsAttr(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
   function svgInfo(){ return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>'; }
   function svgPencil(){ return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>'; }
@@ -6117,17 +6125,24 @@ if (typeof document !== 'undefined') {
         Неосвоенный остаток <b>${money(c.closure.disbClosed.amount)}</b> закрыт <b>${esc(c.closure.disbClosed.date)}</b>
         (${esc(c.closure.disbClosed.reason)}). Дальнейшее освоение по кредиту заблокировано;
         сам кредит продолжает действовать.</div></div>`:''}
-      ${/* АДРЕСНЫЕ действия при области «по кредиту» гасятся с причиной — так же, как
-            «Сформировать график» на «Графике» (КВ-17). Прежде обе кнопки мерили гейт
-            по `scopeTranche(c)||c.tranches[0]`, то есть по траншу №1: в состоянии по
-            умолчанию «Закрыть транш №—» была активна и закрывала транш №1, которого
-            не называла. Освоение и закрытие принадлежат ТРАНШУ (Р-1/Р-6/Г-17), агрегата
-            у них нет. «Добавить транш» и «Закрыть неосвоенный остаток» — уровня кредита,
-            их область не касается. */''}
+      ${/* Обе кнопки адресуют ТРАНШ, но при области «по кредиту» ведут себя по-разному —
+            и разводит их ЯРЛЫК (КВ-17).
+            «Закрыть транш №N» ИМЕНУЕТ транш. При области «по кредиту» имени нет: кнопка
+              рисовалась как «Закрыть транш №—», гейт мерила по `scopeTranche(c)||
+              c.tranches[0]`, то есть по траншу №1, и закрывала его же — называя прочерк.
+              Гасим с причиной, как «Сформировать график» на «Графике»: агрегата у
+              закрытия нет, а выбрать транш можно только в шапке.
+            «Внести освоение» транша НЕ именует — его спрашивает модалка своим селектом,
+              предвыбранным по спеке («Решение» 1: scopeTranche(c), при null — первый
+              АКТИВНЫЙ транш). Кнопка ничего не обещает и ни о чём не врёт, поэтому живёт
+              и при области «по кредиту»: карточка в ней и открывается, а освоение —
+              главное действие вкладки. Гейт мерится тем же actionTranche, что предвыбирает
+              модалка, — иначе кнопка разрешала бы то, чего форма не даст отправить.
+            «Добавить транш» и «Закрыть неосвоенный остаток» — уровня кредита, их область
+              не касается вовсе. */''}
       <div class="gtoolbar" style="margin-top:12px">
         ${roleBtn('addTranche','Добавить транш','CR.openTrancheModal()')}
-        ${sel ? actBtn(c,'addDisbursement',{trancheNo:sel.no,amount:0},'Внести освоение','CR.openDisbModal()','btn btn-primary btn-sm')
-              : disabledBtn('Внести освоение','Освоение — действие по траншу; выберите транш в шапке','btn btn-primary btn-sm')}
+        ${actBtn(c,'addDisbursement',{trancheNo:(actionTranche(c)||{}).no,amount:0},'Внести освоение','CR.openDisbModal()','btn btn-primary btn-sm')}
         ${actBtn(c,'closeDisbursement',{reason:'—'},'Закрыть неосвоенный остаток','CR.openCloseDisbModal()')}
         ${sel ? actBtn(c,'closeTranche',{trancheNo:sel.no,reason:'—'},'Закрыть транш №'+sel.no,'CR.openCloseTrancheModal()')
               : disabledBtn('Закрыть транш','Закрытие — действие по траншу; выберите транш в шапке')}
@@ -6829,7 +6844,9 @@ if (typeof document !== 'undefined') {
   CR.openDisbModal=function(){ const c=modalGuard('addDisbursement'); if(!c) return;
     const body=`<p class="section-note">Освоение — действие кредита, на транше. Проверяется: сумма не превышает остаток транша · жизненный цикл кредита · покрытие/КМ/waiver.</p>
       <div class="mform">
-        <div class="field"><span class="flabel">Транш</span><div class="control"><select id="disbTranche">${c.tranches.map(t=>`<option value="${t.no}"${t.no===(scopeTranche(c)||c.tranches[0]||{}).no?' selected':''}>№${t.no} · сумма ${money(t.amount)} · освоено ${money(disbursedSum(t))}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+        ${/* Предвыбор — actionTranche: тот же транш, по которому мерился гейт кнопки на
+              «Траншах», иначе кнопка разрешала бы то, чего форма не даст отправить (КВ-17). */''}
+        <div class="field"><span class="flabel">Транш</span><div class="control"><select id="disbTranche">${c.tranches.map(t=>`<option value="${t.no}"${t.no===(actionTranche(c)||{}).no?' selected':''}>№${t.no} · сумма ${money(t.amount)} · освоено ${money(disbursedSum(t))}</option>`).join('')}</select><span class="caret">▾</span></div></div>
         <div class="field req"><span class="flabel">Сумма освоения</span><div class="control"><input id="disbAmount" type="number" min="0" placeholder="0"></div></div>
         <div class="field"><span class="flabel">Дата освоения</span><div class="control"><input id="disbDate" type="date" value="${esc(toISO(CR.TODAY))}"></div></div>
         <div class="field"><span class="flabel">Плат. поручение</span><div class="control"><input id="disbOrder" placeholder="ПП-..."></div></div>
