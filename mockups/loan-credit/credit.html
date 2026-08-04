@@ -420,10 +420,12 @@
        «Сформировать график», плашка Д-5. DTABS 9 → 10, «График» встал между
        «Траншами» и «Расчётами».
      ОСТАЛОСЬ В «РАСЧЁТАХ»: свод по статьям, детальный расчёт (леджер), резерв за
-       неполное освоение. Селектор транша и тумблер «консолидировано» переехали к
-       леджеру, которым и управляют (тумблер к графику отношения не имел вовсе).
-       Состояние общее — cardScope один на карточку, вкладки не расходятся (КВ-17;
-       было три переменные, включая detailTrancheNo — см. ниже, у смены области).
+       неполное освоение. Селектор транша и тумблер «консолидировано» этой волной были
+       переставлены к леджеру, которым и управляли (тумблер к графику отношения не имел
+       вовсе). До наших дней ни тот, ни другой не дожили: КВ-17 (04.08.2026) свёл область
+       к ОДНОМУ контролу в шапке и одной переменной cardScope (было три, включая
+       detailTrancheNo, — см. ниже, у смены области), а слово «консолидировано» заменил
+       на «по кредиту» — тем же, каким область называет шапка.
      Плашка Д-5 стоит теперь на обеих вкладках: на «Графике» — «сформируйте заново»,
        в «Расчётах» — «расчёт построен по прежним условиям» + переход на «График».
        CR.goToCalc → CR.goToSchedule (кнопка на «Условиях» ведёт к перегенерации).
@@ -567,6 +569,20 @@
         управляет всеми выводимыми величинами. У отдельной вкладки своей даты не бывает.
         Величины, пришедшие зеркалом, ей НЕ подчиняются: у них своя дата снимка, и она
         подписывается явно.
+   Р-30 ОБЛАСТЬ ПРОСМОТРА (волна 04.08.2026, КВ-17). Второй параметр среза рядом с Р-24 и
+        по той же причине: одна на карточку целиком, живёт в шапке и управляет телом всех
+        вкладок, которые её читают. Своей области у вкладки не бывает — было три
+        переменные и пять контролов, дававших одному понятию два имени («агрегат» на
+        «Условиях», «консолидировано» на «Расчётах»). Значения два: «по кредиту» и транш.
+        «ПО КРЕДИТУ» = ВСЕ транши, ЗАКРЫТЫЕ ВКЛЮЧИТЕЛЬНО: закрытие — soft-close (Г-17),
+        история закрытого транша остаётся историей кредита. Слитый вид — одна таблица с
+        колонкой «Транш», отсортированная по дате (идиома консолидированного расчёта);
+        стопки секций по траншу нет. Плитки шапки области НЕ подчиняются — они всегда по
+        кредиту целиком (долг, категория, обеспеченность на транш не считаются), и при
+        выбранном транше это сказано подписью под ними. АДРЕСНОЕ действие агрегата не
+        имеет: «Сформировать график», «Внести освоение», «Закрыть транш» при области
+        «по кредиту» гасятся с причиной. Модалки свои селекты транша сохраняют — там транш
+        параметр действия, а не область; по подтверждении область встаёт на транш действия.
    Р-25 ВЗЫСКАНИЕ ЗЕРКАЛИТСЯ ТРЕБОВАНИЯМИ (волна 27.07.2026, КВ-14, ADR-0002/0003).
         Строка = требование = процесс × кредит × обязанное лицо; по одному процессу их
         бывает несколько (заёмщик, поручитель, залогодатель). Фаза приходит свёрнутой из
@@ -3896,16 +3912,22 @@ function trancheScheduleTotals(t, asOf){
    (money(...) либо «a → b»), и даже как число сумма была бы неверна: у каждого
    транша свой график и свои даты, и сумма их платежей — величина, которую никто не
    платит одной суммой в одну дату. Три исхода (payNote — подпись-пояснение, либо null):
-     1) в агрегате ровно один активный транш (второй soft-closed) — платёж настоящий,
+     1) в агрегате ровно один транш (у кредита он единственный) — платёж настоящий,
         берём его как есть, подписи нет;
-     2) активных траншей несколько, метод общий — payLabel остаётся точным (называет
-        метод), а payValue гасим: платёж у каждого транша свой, одним числом не
-        выразить; подпись «у каждого транша свой платёж»;
-     3) активных траншей несколько, методы разошлись — payLabel/payValue тоже гасим;
-        подпись «несколько методов погашения» (текст фиксирован спекой). */
+     2) траншей несколько, метод общий — payLabel остаётся точным (называет метод),
+        а payValue гасим: платёж у каждого транша свой, одним числом не выразить;
+        подпись «у каждого транша свой платёж»;
+     3) траншей несколько, методы разошлись — payLabel/payValue тоже гасим;
+        подпись «несколько методов погашения» (текст фиксирован спекой).
+   Закрытый (soft-closed) транш из агрегата НЕ выпадает (см. комментарий в теле, КВ-17). */
 function scheduleTotalsAll(credit, asOf){
-  const ts = credit.tranches.filter(activeTranche);
-  const parts = ts.map(t => trancheScheduleTotals(t, asOf));
+  /* «По кредиту» — это ВСЕ транши кредита, ЗАКРЫТЫЕ ВКЛЮЧИТЕЛЬНО (КВ-17). Закрытый транш
+     сохраняет освоения и график в истории (Г-17: soft-close, не удаление), и его история —
+     часть истории кредита; консолидированный расчёт («Расчёты», buildLedger) всегда читал
+     `c.tranches` целиком, а это та вкладка, чью идиому слияния копируют «График»/«Прогноз».
+     Фильтр activeTranche стоял здесь до правки и давал ДВА разных смысла у одного контрола.
+     Сам activeTranche не трогаем — у него своя работа в агрегатах срока (Р-13). */
+  const parts = credit.tranches.map(t => trancheScheduleTotals(t, asOf));
   const sum = k => round2(parts.reduce((a,p) => a + p[k], 0));
   const methods = [...new Set(parts.map(p => p.method))];
   const sameMethod = methods.length === 1;
@@ -5643,7 +5665,10 @@ if (typeof document !== 'undefined') {
         ${tileRelief(c,d)}
         ${tileFlags(c,d)}
       </div>
-      ${cardScope!=='credit' && c.tranches.length>1 ? `<p class="section-note" style="margin:6px 0 0">Плитки — по кредиту целиком; область «Транш №${esc(String(cardScope))}» действует на вкладки ниже.</p>` : ''}
+      ${/* Подпись — только там, где область ЧИТАЕТСЯ: на шести инертных вкладках она
+            спорила бы с подсказкой погашенного контрола («Вкладка … — всегда по кредиту
+            целиком»), обещая действие, которого на этой вкладке нет. */''}
+      ${cardScope!=='credit' && c.tranches.length>1 && SCOPED_TABS.includes(detailTab) ? `<p class="section-note" style="margin:6px 0 0">Плитки — по кредиту целиком; область «Транш №${esc(String(cardScope))}» действует на вкладки ниже.</p>` : ''}
     </div>`;
   }
   function tabbarHtml(){
@@ -5747,8 +5772,12 @@ if (typeof document !== 'undefined') {
      она отвечает на «чей это транш», а не служит разделителем).
      Два и больше → вкладка на транш, в таблице колонка «Транш» лишняя.
      Критерий — g.trancheNos (транши ЭТОЙ группы), а не число траншей кредита:
-     документ может править один транш из трёх, и тогда вкладки не нужны. */
-  function condGroupDetail(g){
+     документ может править один транш из трёх, и тогда вкладки не нужны.
+     СТАРТ вкладки — от области карточки (КВ-17): пока пользователь свою вкладку не выбрал,
+     разворот показывает транш из шапки, а не первый попавшийся. Это навигация ВНУТРИ
+     вкладки, как клик по строке на «Траншах»: она следует за шапкой, но не подменяет её —
+     явный выбор (condOpenTranche) область перебивает. */
+  function condGroupDetail(g, c){
     const row = i => `<tr><td>${esc(paramLabel(i.param))}</td>
       <td><span class="diff-old">${esc(i.from===undefined?'—':i.from)}</span></td>
       <td><span class="diff-new">${esc(i.to)}</span></td>
@@ -5756,7 +5785,9 @@ if (typeof document !== 'undefined') {
     const cols = [{h:'Параметр'},{h:'Было'},{h:'Стало'},{h:'Вступает'}]
       .concat(g.trancheNos.length>1?[]:[{h:'Транш'}]).concat([{h:'Примечание'}]);
     if (g.trancheNos.length <= 1) return cgrid(cols, g.items.map(row));
-    const sel = g.trancheNos.includes(condOpenTranche) ? condOpenTranche : g.trancheNos[0];
+    const scoped = scopeTranche(c);
+    const sel = g.trancheNos.includes(condOpenTranche) ? condOpenTranche
+              : (scoped && g.trancheNos.includes(scoped.no) ? scoped.no : g.trancheNos[0]);
     const bar = `<div class="subtabs">${g.trancheNos.map(n=>{
       const cnt = g.items.filter(i=>i.trancheNo===n).length;
       return `<button class="subtab${n===sel?' active':''}" onclick="CR.setCondTranche(${n})">Транш №${n}<span class="cnt">(${cnt})</span></button>`;
@@ -5962,7 +5993,7 @@ if (typeof document !== 'undefined') {
                 <td>${esc(changed)}</td><td>${g.trancheNos.map(n=>'№'+n).join(', ')}</td>
                 <td>${condOpenGroup===g.key?'▾':'▸'}</td></tr>`);
               if (condOpenGroup===g.key) trs.push(`<tr><td colspan="6" style="background:var(--surface-panel)">
-                ${condGroupDetail(g)}
+                ${condGroupDetail(g, c)}
                 </td></tr>`);
             }
             return cgrid([{h:'Документ'},{h:'Дата док.'},{h:'Вступает'},{h:'Изменено'},{h:'Транши'},{h:''}],
@@ -5992,7 +6023,13 @@ if (typeof document !== 'undefined') {
                ЭТОЙ зоны. Транши разводим вкладками, как в журнале изменений: склейка
                «7 / 9» в одной ячейке не говорила, чьё какое. */
             const multi=c.tranches.length>1;
-            const selNo=multi?(c.tranches.some(t=>t.no===condMatrixTranche)?condMatrixTranche:c.tranches[0].no):null;
+            /* Стартовая вкладка — от области карточки (КВ-17), как и в журнале выше:
+               контрол в шапке объявлен КАРТОЧНЫМ, значит собственного стартового транша
+               у вкладки быть не может. Явный выбор пользователя (condMatrixTranche)
+               область перебивает — это навигация внутри вкладки, не вторая область. */
+            const mxScoped=scopeTranche(c);
+            const selNo=multi?(c.tranches.some(t=>t.no===condMatrixTranche)?condMatrixTranche
+                              :(mxScoped?mxScoped.no:c.tranches[0].no)):null;
             const src=multi?c.tranches.filter(t=>t.no===selNo):c.tranches;
             const recs=src.flatMap(t=>(t.conditionRecords||[]).map(r=>({t,r})));
             const zone=(title,keys)=>{
@@ -6056,8 +6093,16 @@ if (typeof document !== 'undefined') {
       <td colspan="2">Итого освоено</td><td style="text-align:right">${money(tot.amt)}</td><td></td>
       <td style="text-align:right">${money(tot.dis)}</td><td style="text-align:right">${money(tot.rest)}</td>
       ${isFx?`<td></td><td style="text-align:right">${money0(toKgs(tot.amt,cur))}</td>`:''}<td></td></tr>`:'';
-    const dbCols=[{h:'Дата'},{h:'Сумма',r:1}].concat(isFx?[{h:'≈KGS',r:1}]:[]).concat([{h:'Плат. поручение'},{h:'Назначение'},{h:'Документ'}]);
-    const dbRows=((sel&&sel.disbursements)||[]).map(x=>`<tr><td>${esc(x.date)}</td><td style="text-align:right">${money(x.amount)}</td>${isFx?`<td style="text-align:right">${money0(toKgs(x.amount,cur))}</td>`:''}<td>${esc(x.order)}</td><td>${esc(x.purpose)}</td><td>${esc(x.doc)}</td></tr>`);
+    /* Освоения при области «по кредиту» — та же идиома слияния, что на «Графике»,
+       «Прогнозе» и в детальном расчёте: строки ВСЕХ траншей в одной таблице, колонка
+       «Транш», сортировка по дате (КВ-17). Прежде тут стоял `sel && sel.disbursements`,
+       и в состоянии по умолчанию (область «по кредиту») вкладка показывала
+       «Освоение транша №—» над пустым гридом. */
+    const dbCols=[{h:'Дата'}].concat(sel?[]:[{h:'Транш'}]).concat([{h:'Сумма',r:1}])
+      .concat(isFx?[{h:'≈KGS',r:1}]:[]).concat([{h:'Плат. поручение'},{h:'Назначение'},{h:'Документ'}]);
+    const dbSrc=(sel?[sel]:c.tranches).flatMap(t=>(t.disbursements||[]).map(x=>({x,t})))
+      .sort((a,b)=>pd(a.x.date)-pd(b.x.date)||a.t.no-b.t.no);
+    const dbRows=dbSrc.map(({x,t})=>`<tr><td>${esc(x.date)}</td>${sel?'':`<td>№${t.no}</td>`}<td style="text-align:right">${money(x.amount)}</td>${isFx?`<td style="text-align:right">${money0(toKgs(x.amount,cur))}</td>`:''}<td>${esc(x.order)}</td><td>${esc(x.purpose)}</td><td>${esc(x.doc)}</td></tr>`);
     return `
       <div class="section-h">Распределение суммы договора</div>
       <div class="phead-dims" style="grid-template-columns:repeat(4,1fr)">
@@ -6072,13 +6117,22 @@ if (typeof document !== 'undefined') {
         Неосвоенный остаток <b>${money(c.closure.disbClosed.amount)}</b> закрыт <b>${esc(c.closure.disbClosed.date)}</b>
         (${esc(c.closure.disbClosed.reason)}). Дальнейшее освоение по кредиту заблокировано;
         сам кредит продолжает действовать.</div></div>`:''}
+      ${/* АДРЕСНЫЕ действия при области «по кредиту» гасятся с причиной — так же, как
+            «Сформировать график» на «Графике» (КВ-17). Прежде обе кнопки мерили гейт
+            по `scopeTranche(c)||c.tranches[0]`, то есть по траншу №1: в состоянии по
+            умолчанию «Закрыть транш №—» была активна и закрывала транш №1, которого
+            не называла. Освоение и закрытие принадлежат ТРАНШУ (Р-1/Р-6/Г-17), агрегата
+            у них нет. «Добавить транш» и «Закрыть неосвоенный остаток» — уровня кредита,
+            их область не касается. */''}
       <div class="gtoolbar" style="margin-top:12px">
         ${roleBtn('addTranche','Добавить транш','CR.openTrancheModal()')}
-        ${actBtn(c,'addDisbursement',{trancheNo:(scopeTranche(c)||c.tranches[0]||{}).no,amount:0},'Внести освоение','CR.openDisbModal()','btn btn-primary btn-sm')}
+        ${sel ? actBtn(c,'addDisbursement',{trancheNo:sel.no,amount:0},'Внести освоение','CR.openDisbModal()','btn btn-primary btn-sm')
+              : disabledBtn('Внести освоение','Освоение — действие по траншу; выберите транш в шапке','btn btn-primary btn-sm')}
         ${actBtn(c,'closeDisbursement',{reason:'—'},'Закрыть неосвоенный остаток','CR.openCloseDisbModal()')}
-        ${actBtn(c,'closeTranche',{trancheNo:(scopeTranche(c)||c.tranches[0]||{}).no,reason:'—'},'Закрыть транш №'+(sel?sel.no:'—'),'CR.openCloseTrancheModal()')}
+        ${sel ? actBtn(c,'closeTranche',{trancheNo:sel.no,reason:'—'},'Закрыть транш №'+sel.no,'CR.openCloseTrancheModal()')
+              : disabledBtn('Закрыть транш','Закрытие — действие по траншу; выберите транш в шапке')}
       </div>
-      <div class="section-h" style="margin-top:22px">Освоение транша №${sel?sel.no:'—'}</div>
+      <div class="section-h" style="margin-top:22px">Освоение ${sel?'транша №'+sel.no:'(по кредиту)'}</div>
       ${cgrid(dbCols, dbRows, {empty:'Освоений нет'})}`;
   }
 
@@ -6094,11 +6148,14 @@ if (typeof document !== 'undefined') {
     const st = sel ? trancheScheduleTotals(sel, cardAsOf) : scheduleTotalsAll(c, cardAsOf);
     const stPill={'Оплачена':'low','Просрочена':'high','Наступила':'mid','Предстоит':'neutral'};
     const scope = sel ? 'транш №'+sel.no : 'по кредиту';
-    /* Слитый вид: те же две таблицы, но по всем активным траншам, каждая с колонкой
-       «Транш» — идиома консолидированного расчёта («Расчёты»), а не вторая трактовка
-       «по кредиту». Позиции сортируются по дате: агрегат отвечает на вопрос «что платим
-       следующим», и порядок по траншам этот вопрос ломает. */
-    const srcTranches = sel ? [sel] : c.tranches.filter(activeTranche);
+    /* Слитый вид: те же две таблицы, но по всем траншам, каждая с колонкой «Транш» —
+       идиома консолидированного расчёта («Расчёты»), а не вторая трактовка «по кредиту».
+       Позиции сортируются по дате: агрегат отвечает на вопрос «что платим следующим»,
+       и порядок по траншам этот вопрос ломает.
+       «По кредиту» = ВСЕ транши, ЗАКРЫТЫЕ ВКЛЮЧИТЕЛЬНО (КВ-17): закрытый транш хранит
+       свой график в истории (Г-17), и «Расчёты» его показывают — фильтр activeTranche
+       здесь разводил две вкладки в разные смыслы одного контрола. */
+    const srcTranches = sel ? [sel] : c.tranches;
     const verRows = srcTranches.flatMap(t => ((t.schedules)||[]).slice().sort((a,b)=>b.ver-a.ver)
       .map(s=>`<tr class="${s.active?'diff-changed':''}"><td>v${s.ver}</td>${sel?'':`<td>№${t.no}</td>`}<td>${s.active?'<span class="pill low">активна</span>':'<span class="pill neutral">архив</span>'}</td><td>${esc(s.generatedFrom)}</td><td style="text-align:right">${s.rows.length}</td></tr>`));
     /* Статус позиции — от построенного расчёта (d.ledger.index), а не от засеянных строк */
@@ -6145,16 +6202,26 @@ if (typeof document !== 'undefined') {
     const stPill={'Оплачена':'low','Просрочена':'high','Наступила':'mid','Предстоит':'neutral'};
     const scope = sel ? 'транш №'+sel.no : 'по кредиту';
     /* Та же идиома слияния, что на «Графике» и в консолидированном расчёте: строки всех
-       активных траншей в одной таблице, колонка «Транш», сортировка по дате. */
-    const srcTranches = sel ? [sel] : c.tranches.filter(activeTranche);
+       траншей в одной таблице, колонка «Транш», сортировка по дате.
+       «По кредиту» = ВСЕ транши, ЗАКРЫТЫЕ ВКЛЮЧИТЕЛЬНО (КВ-17), — тем же составом, каким
+       читает buildLedger: один контрол не может означать на соседних вкладках разное. */
+    const srcTranches = sel ? [sel] : c.tranches;
     const fr = srcTranches.flatMap(t => trancheForecastRows(t, d.ledger.index, cardAsOf).map(r => ({...r, _t:t})))
       .sort((a,b) => pd(a.date) - pd(b.date) || a._t.no - b._t.no);
     const fut = fr.filter(r=>!r.past), past = fr.filter(r=>r.past);
     const futSum   = round2(fut.reduce((a,r)=>a+r.forecast,0));
     const futSched = round2(fut.reduce((a,r)=>a+r.scheduled,0));
-    const tail     = round2(past.reduce((a,r)=>a+r.forecast,0));   // непокрытый хвост прошлого
+    const tail     = round2(past.reduce((a,r)=>a+r.forecast,0));   // непокрытый хвост прошлого — ИТОГ по области
     const dl       = round2(futSum - futSched);
     const nxt = fut[0];
+    /* ХВОСТ РАСПРЕДЕЛЁН ПО ТРАНШАМ, а не свален в первую строку слитой таблицы:
+       trancheForecastRows валит непокрытое прошлое транша в первую будущую позицию
+       ЭТОГО транша (k===0), и приёмников ровно столько, сколько траншей. Величина
+       tail верна как ИТОГ (её и показывает плитка), но подписывать ею ОДНУ строку
+       нельзя: до правки подпись «включая хвост» под ближайшим платежом называла
+       кредитную сумму, которая эту строку превышала. */
+    const tailOf = no => round2(past.filter(r=>r._t.no===no).reduce((a,r)=>a+r.forecast,0));
+    const nxtTail = nxt ? tailOf(nxt._t.no) : 0;
     const rws = fr.map(r=>{
       const s = scheduleRowStatus({date:r.date}, d.ledger.index.get(ledgerKey(r._t.no, r.no)), cardAsOf);
       const rd = r.delta;
@@ -6169,15 +6236,17 @@ if (typeof document !== 'undefined') {
         суммы пересчитаны от остатка основного долга на дату среза и непокрытого хвоста прошлого.
         Контракт он не подменяет (сам контракт — во вкладке «График»), в начислении не участвует
         и в исполнение плана не входит — исполнение сверяет факт с <b>планом</b> (ADR-0042).
-        Весь непокрытый хвост прошлых позиций отнесён к ближайшей будущей. Ничего не хранится:
+        ${sel?'Весь непокрытый хвост прошлых позиций отнесён к ближайшей будущей.'
+             :'Непокрытый хвост прошлых позиций распределён по ближайшей будущей позиции каждого транша.'} Ничего не хранится:
         таблица строится заново при каждом рендере (Д-9 — порядок сумм, не банковская копейка).</p>
       <div class="phead-dims" style="grid-template-columns:repeat(4,1fr);margin-top:6px">
         <div class="dim"><div class="dl">Ждём впереди</div><div class="dv">${money(futSum)}</div><div class="src">${fut.length} позиц. после ${esc(cardAsOf)}</div></div>
         ${/* не «Ближайший платёж»: так называется плитка шапки, а там — сумма ПО ГРАФИКУ
-              ближайшей ненаступившей позиции. Здесь — прогноз по ближайшей БУДУЩЕЙ, и в него
-              свален весь непокрытый хвост прошлого: цифры разные по построению. */''}
-        <div class="dim"><div class="dl">Ждём ближайшим платежом</div><div class="dv">${nxt?money(nxt.forecast):'—'}</div><div class="src">${nxt?esc(nxt.date)+' · позиция №'+nxt.no+(sel?'':' · транш №'+nxt._t.no)+(tail>0.005?' · включая хвост '+money(tail):''):'будущих позиций нет'}</div></div>
-        <div class="dim"><div class="dl">Непокрытый хвост прошлого</div><div class="dv" style="color:${tail>0.005?'var(--asubk-red)':'inherit'}">${money(tail)}</div><div class="src">отнесён к ближайшей будущей позиции</div></div>
+              ближайшей ненаступившей позиции. Здесь — прогноз по ближайшей БУДУЩЕЙ, и в неё
+              свален непокрытый хвост ЕЁ транша (nxtTail, не кредитный tail): цифры разные
+              по построению. */''}
+        <div class="dim"><div class="dl">Ждём ближайшим платежом</div><div class="dv">${nxt?money(nxt.forecast):'—'}</div><div class="src">${nxt?esc(nxt.date)+' · позиция №'+nxt.no+(sel?'':' · транш №'+nxt._t.no)+(nxtTail>0.005?' · включая хвост '+money(nxtTail):''):'будущих позиций нет'}</div></div>
+        <div class="dim"><div class="dl">Непокрытый хвост прошлого</div><div class="dv" style="color:${tail>0.005?'var(--asubk-red)':'inherit'}">${money(tail)}</div><div class="src">${sel?'отнесён к ближайшей будущей позиции':'распределён по ближайшей будущей позиции каждого транша'}</div></div>
         <div class="dim"><div class="dl">Отклонение от графика</div><div class="dv" style="color:${Math.abs(dl)>0.005?(dl>0?'var(--asubk-red)':'var(--text-muted)'):'inherit'}">${Math.abs(dl)>0.005?(dl>0?'+':'')+money(dl):'—'}</div><div class="src">по будущим позициям</div></div>
       </div>
       <div class="section-h" style="margin-top:22px">Прогноз — позиции (${esc(scope)})</div>
@@ -6261,7 +6330,9 @@ if (typeof document !== 'undefined') {
           Расчёт ниже построен по прежним условиям — сформируйте график заново (Д-5).
           <div class="gtoolbar" style="margin-top:8px"><button class="btn btn-secondary btn-sm"
             onclick="CR.goToSchedule()">Перейти к графику</button></div></div></div>`; })()}
-      <div class="section-h" style="margin-top:22px">Детальный расчёт ${!sel?'(консолидировано)':'(транш №'+sel.no+')'}</div>
+      ${/* «(по кредиту)», а не «(консолидировано)»: второе имя той же области было последним
+            уцелевшим после КВ-17 — шапка говорит «По кредиту», «График» и «Прогноз» тоже. */''}
+      <div class="section-h" style="margin-top:22px">Детальный расчёт ${!sel?'(по кредиту)':'(транш №'+sel.no+')'}</div>
       <p class="section-note">Начисление разложено по позициям <b>плана</b> — сам план (версии, позиции)
         живёт во вкладке «График», ожидание по нему — во вкладке «Прогноз». Параметры движка — те же, что и на вкладке «Условия», читаются вместе
         с цифрами, которые объясняют. Это условия договора: правка — только зарегистрированным основанием.</p>
