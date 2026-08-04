@@ -3,15 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Задачи по модулю «Взыскание задолженности» · P14 · АСУБК</title>
+<title>Взыскание задолженности · редакция 2 · P14 · АСУБК</title>
 <!--
-  Читаемое представление бэклога модуля «Взыскание задолженности», задачи P14-R1…P14-R20.
-  Источник истины — TODO.md (раздел «### Взыскание задолженности»).
-  Здесь та же информация человеческим языком: в чём боль → что сделать.
-  Технические подробности (имена функций/справочников мокапа) спрятаны
-  в раскрывашку «Для разработчика» в каждой карточке.
-  Порядок карточек = порядок сборки: разработчик идёт сверху вниз (порядок строгий).
-  Сгенерировано 2026-07-22. При правке TODO.md — обновить и этот файл.
+  Формат — docs/tasks/FORMAT.md. Данные лежат JSON-островом (#tasks-data), проверка —
+  python3 scripts/check_tasks.py docs/tasks/p14-collection-tasks.html. Пакет передачи —
+  этот файл + mockups/collection/collection.html + requirements/tz/13-collection.html,
+  все ссылки внутри — по голому имени файла (папка передаётся поштучно).
+  Первый файл в новом формате (FORMAT.md п.9) — образца для следующих переизданий ещё нет,
+  поэтому рендер написан с нуля под контракт §8 FORMAT.md.
 -->
 <style>
 :root{
@@ -24,7 +23,7 @@
   --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
   --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
   --asubk-blue-tint:rgba(0,106,245,0.08);
-  --asubk-red-tint:#FCE6E6; --asubk-green-tint:rgba(21,132,67,0.10);
+  --asubk-green-tint:rgba(21,132,67,0.10);
   --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
   --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
   --border-default:var(--asubk-border-base);
@@ -35,31 +34,59 @@
 *{ box-sizing:border-box; }
 html,body{ margin:0; }
 body{ font:400 16px/1.5 var(--asubk-font); color:var(--text-body); background:var(--asubk-gray-100); }
-
 .wrap{ max-width:1160px; margin:0 auto; padding:0 24px 64px; }
 
-/* ---- шапка ---- */
 .hero{ background:var(--asubk-white); border-bottom:1px solid var(--border-default); padding:28px 0 22px; margin-bottom:20px; }
 .hero .wrap{ padding-bottom:0; }
 .crumbs{ font-size:13px; color:var(--text-muted); margin-bottom:8px; }
 h1{ font:600 26px/1.25 var(--asubk-font); color:var(--text-heading); margin:0 0 8px; }
-.lead{ color:var(--text-muted); font-size:15px; max-width:78ch; margin:0 0 18px; }
+.lead{ color:var(--text-muted); font-size:15px; max-width:82ch; margin:0 0 14px; }
 .lead code{ background:var(--asubk-gray-150); padding:1px 5px; border-radius:3px; font-size:13px; }
 .lead b{ color:var(--text-body); }
+.revbar{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:16px; }
+.revchip{ font:600 12px/1 var(--asubk-font); padding:6px 10px; border-radius:var(--radius-pill); background:var(--asubk-blue-tint); color:var(--asubk-link); }
+.revchip.replaces{ background:var(--asubk-gray-150); color:var(--text-muted); }
 
-/* ---- плитки ---- */
 .tiles{ display:flex; flex-wrap:wrap; gap:10px; }
 .tile{ appearance:none; cursor:pointer; text-align:left; background:var(--asubk-white);
-  border:1px solid var(--border-default); border-radius:var(--radius-lg); padding:10px 16px; min-width:132px;
+  border:1px solid var(--border-default); border-radius:var(--radius-lg); padding:10px 16px; min-width:120px;
   font:inherit; color:inherit; transition:border-color .12s, box-shadow .12s; }
 .tile:hover{ border-color:var(--asubk-border-strong); }
 .tile.on{ border-color:var(--asubk-blue); box-shadow:0 0 0 2px var(--asubk-blue-tint); }
-.tile .n{ display:block; font:600 24px/1.15 var(--asubk-font); color:var(--text-heading); }
-.tile .l{ display:block; font-size:13px; color:var(--text-muted); margin-top:2px; }
-.tile.crit .n{ color:var(--asubk-red); }
-.tile.major .n{ color:var(--asubk-amber); }
+.tile .n{ display:block; font:600 22px/1.15 var(--asubk-font); color:var(--text-heading); }
+.tile .l{ display:block; font-size:12.5px; color:var(--text-muted); margin-top:2px; }
 
-/* ---- панель фильтров ---- */
+section.panel{ background:var(--asubk-white); border:1px solid var(--border-default); border-radius:var(--radius-lg);
+  padding:18px 20px; margin:20px 0; box-shadow:var(--shadow-card); }
+section.panel > h2{ font:600 16px/1.3 var(--asubk-font); color:var(--text-heading); margin:0 0 10px; }
+section.panel > h2 .sub{ font-weight:400; color:var(--text-muted); font-size:13px; }
+.panel p{ margin:6px 0; font-size:14.5px; }
+.panel ul{ margin:6px 0; padding-left:20px; font-size:14.5px; }
+.panel li{ margin-bottom:4px; }
+
+.journal-grid{ display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+@media (max-width:760px){ .journal-grid{ grid-template-columns:1fr; } }
+.journal-grid h4{ font:600 12px/1 var(--asubk-font); text-transform:uppercase; letter-spacing:.05em;
+  color:var(--asubk-ink-45); margin:0 0 8px; }
+.jl{ list-style:none; margin:0; padding:0; }
+.jl li{ font-size:13.5px; padding:5px 0; border-bottom:1px dashed var(--asubk-gray-150); }
+.jl li:last-child{ border-bottom:none; }
+.jl .jid{ font:600 12px/1 var(--asubk-font); color:var(--asubk-link); background:var(--asubk-blue-tint);
+  padding:2px 6px; border-radius:3px; margin-right:6px; white-space:nowrap; }
+table.idmap{ width:100%; border-collapse:collapse; font-size:13px; margin-top:6px; }
+table.idmap th,table.idmap td{ text-align:left; padding:5px 8px; border-bottom:1px solid var(--asubk-gray-150); }
+table.idmap th{ color:var(--asubk-ink-45); font-weight:600; font-size:11.5px; text-transform:uppercase; letter-spacing:.04em; }
+
+.guide-item{ padding:12px 0; border-bottom:1px solid var(--asubk-gray-150); }
+.guide-item:last-child{ border-bottom:none; }
+.guide-item h3{ font:600 14.5px/1.3 var(--asubk-font); color:var(--asubk-blue-hover); margin:0 0 6px; }
+
+.openq{ display:flex; gap:10px; align-items:baseline; padding:8px 0; border-bottom:1px dashed var(--asubk-gray-150); font-size:13.5px; }
+.openq:last-child{ border-bottom:none; }
+.openq a{ color:var(--asubk-link); text-decoration:none; font-weight:600; white-space:nowrap; }
+.openq a:hover{ text-decoration:underline; }
+.openq .oq-default{ color:var(--text-muted); }
+
 .bar{ position:sticky; top:0; z-index:5; background:var(--asubk-gray-100);
   padding:14px 0 12px; margin-bottom:4px; border-bottom:1px solid var(--border-default); }
 .bar .row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
@@ -75,34 +102,22 @@ select{ height:36px; padding:0 8px; font:inherit; font-size:14px; background:var
 .btn-p:hover{ background:var(--asubk-blue-hover); }
 .count{ font-size:13px; color:var(--text-muted); margin-left:auto; white-space:nowrap; }
 
-/* ---- группа темы ---- */
 .group{ margin-top:26px; }
 .group > h2{ font:600 15px/1.3 var(--asubk-font); color:var(--text-muted); margin:0 0 10px;
   text-transform:uppercase; letter-spacing:.05em; display:flex; align-items:center; gap:8px; }
 .group > h2 .g-n{ font-weight:400; color:var(--asubk-ink-45); text-transform:none; letter-spacing:0; }
 
-/* ---- карточка ---- */
-.card{ background:var(--asubk-white); border:1px solid var(--border-default); border-left:3px solid var(--asubk-gray-200);
-  border-radius:var(--radius-lg); padding:16px 18px; margin-bottom:10px; box-shadow:var(--shadow-card); }
-.card.p-crit{ border-left-color:var(--asubk-red); }
-.card.p-major{ border-left-color:var(--asubk-amber); }
-.card.p-minor{ border-left-color:var(--asubk-blue); }
-.card.p-cosm{ border-left-color:var(--asubk-gray-200); }
-
+.card{ background:var(--asubk-white); border:1px solid var(--border-default); border-left:3px solid var(--asubk-blue);
+  border-radius:var(--radius-lg); padding:16px 18px; margin-bottom:10px; box-shadow:var(--shadow-card); scroll-margin-top:70px; }
 .c-head{ display:flex; flex-wrap:wrap; align-items:baseline; gap:10px; }
 .id{ font:600 13px/1 var(--asubk-font); letter-spacing:.02em; color:var(--asubk-link);
   background:var(--asubk-blue-tint); padding:5px 8px; border-radius:var(--radius-md); white-space:nowrap; }
 .step{ font:600 12px/1 var(--asubk-font); color:var(--asubk-ink-45); background:var(--asubk-gray-100);
   border:1px solid var(--border-default); padding:5px 8px; border-radius:var(--radius-md); white-space:nowrap; }
 .c-title{ font:600 17px/1.35 var(--asubk-font); color:var(--text-heading); flex:1; min-width:260px; margin:0; }
-
 .chip{ font-size:12px; line-height:1; padding:5px 9px; border-radius:var(--radius-pill); white-space:nowrap; font-weight:500; }
-.chip-crit{ background:var(--asubk-red-tint); color:#9E1F1F; }
-.chip-major{ background:var(--asubk-amber-tint); color:#8A6508; }
-.chip-minor{ background:var(--asubk-blue-tint); color:#04479E; }
-.chip-cosm{ background:var(--asubk-gray-150); color:var(--text-muted); }
-.chip-mock{ background:var(--asubk-green-tint); color:#0E5C2F; }
-.chip-open{ background:var(--asubk-gray-150); color:var(--text-muted); }
+.chip-new{ background:var(--asubk-green-tint); color:#0E5C2F; }
+.chip-changed{ background:var(--asubk-amber-tint); color:#8A6508; }
 
 .blk{ margin-top:12px; }
 .blk .lbl{ font:600 12px/1 var(--asubk-font); text-transform:uppercase; letter-spacing:.06em;
@@ -110,16 +125,26 @@ select{ height:36px; padding:0 8px; font:inherit; font-size:14px; background:var
 .blk p{ margin:0; font-size:15px; }
 .blk ul{ margin:0; padding-left:20px; font-size:15px; }
 .blk li{ margin-bottom:4px; }
-.blk li:last-child{ margin-bottom:0; }
-.pain{ color:var(--text-muted); }
-.pain b{ color:var(--text-body); font-weight:600; }
+.why{ color:var(--text-muted); }
+.subh{ font:600 13.5px/1.3 var(--asubk-font); color:var(--text-body); margin:8px 0 3px; }
+
+.look{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:13px; }
+.look a{ color:var(--asubk-link); text-decoration:none; background:var(--asubk-blue-tint); padding:4px 9px; border-radius:var(--radius-pill); }
+.look a:hover{ text-decoration:underline; }
+.look .route{ color:var(--text-muted); }
+.look .defect{ color:#9E1F1F; background:#FCE6E6; padding:4px 9px; border-radius:var(--radius-pill); }
+
+.openbox{ background:var(--asubk-amber-tint); border-left:3px solid var(--asubk-amber); border-radius:0 var(--radius-md) var(--radius-md) 0;
+  padding:9px 12px; margin-top:6px; font-size:13.5px; }
+.openbox b{ color:#8A6508; }
 
 .c-foot{ margin-top:13px; padding-top:11px; border-top:1px solid var(--asubk-gray-150);
   display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
 .tag{ font-size:12px; color:var(--text-muted); background:var(--asubk-gray-100);
   border:1px solid var(--border-default); border-radius:var(--radius-pill); padding:3px 9px; }
-.dep{ font-size:12px; color:var(--asubk-link); background:var(--asubk-white);
+.dep{ font-size:12px; color:var(--asubk-link); background:var(--asubk-white); text-decoration:none;
   border:1px solid rgba(0,106,245,0.25); border-radius:var(--radius-pill); padding:3px 9px; }
+.dep:hover{ background:var(--asubk-blue-tint); }
 
 details{ margin-top:11px; border-top:1px solid var(--asubk-gray-150); padding-top:9px; }
 details summary{ cursor:pointer; font-size:13px; color:var(--text-muted); list-style:none; user-select:none; }
@@ -127,16 +152,14 @@ details summary::-webkit-details-marker{ display:none; }
 details summary::before{ content:'▸ '; color:var(--asubk-ink-45); }
 details[open] summary::before{ content:'▾ '; }
 details summary:hover{ color:var(--asubk-link); }
-.dev{ margin-top:8px; font-size:13.5px; color:var(--text-muted); background:var(--asubk-gray-50);
+.traps{ margin-top:8px; font-size:13.5px; color:var(--text-muted); background:var(--asubk-gray-50);
   border:1px solid var(--asubk-gray-150); border-radius:var(--radius-md); padding:10px 12px; }
-.dev ul{ margin:0; padding-left:18px; }
-.dev li{ margin-bottom:4px; }
-.dev code{ background:var(--asubk-gray-150); padding:1px 5px; border-radius:3px;
-  font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; color:var(--asubk-ink); }
+.traps ul{ margin:0; padding-left:18px; }
+.traps li{ margin-bottom:4px; }
 
 .empty{ text-align:center; padding:48px 0; color:var(--text-muted); font-size:15px; }
-.legend{ margin-top:32px; font-size:13px; color:var(--text-muted); border-top:1px solid var(--border-default); padding-top:14px; }
-.legend b{ color:var(--text-body); }
+.footerbar{ margin-top:32px; font-size:13px; color:var(--text-muted); border-top:1px solid var(--border-default); padding-top:14px; }
+code{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; }
 @media print{ .bar{ position:static; } details{ display:none; } .card{ break-inside:avoid; } }
 </style>
 </head>
@@ -144,355 +167,944 @@ details summary:hover{ color:var(--asubk-link); }
 
 <header class="hero">
   <div class="wrap">
-    <div class="crumbs">АСУБК · Модуль «Взыскание задолженности» · Бэклог</div>
-    <h1>Взыскание задолженности — задачи для команды разработки</h1>
-    <p class="lead">
-      20 задач, выстроенных <b>в строгом порядке сборки</b>: разработчик идёт сверху вниз —
-      сначала ядро (каркас, модель «только факты», две ведущие оси, машина фаз, категория),
-      затем виды, затем меры, сроки, гейты и особые состояния. Не начинать следующую, пока не
-      закрыта предыдущая. Это <b>сквозной модуль</b>, живущий поверх любого кредита в просрочке,
-      а не одна фаза кредитного цикла; живого экрана в приложении нет — модуль проектируется
-      с нуля, поэтому дефектов стенда по нему тоже нет. Источник истины — <code>TODO.md</code>,
-      раздел «Взыскание задолженности» (P14-R1…P14-R20); он <b>разворачивает старый P9-R1…R9</b>
-      (фаза 9) до фундамент-первого плана. Здесь то же самое человеческим языком:
-      <b>в чём боль → что сделать</b>. Эталон интерфейса и поведения — готовый макет
-      <code>mockups/collection/collection.html</code> v2 (проверка — <code>node
-      scripts/inspect/collection-check.mjs</code>, jsdom).
-    </p>
+    <div class="crumbs">АСУБК · Модуль «Взыскание задолженности» · Постановка задач для разработки</div>
+    <h1 id="hero-title">Взыскание задолженности — задачи для команды разработки</h1>
+    <div class="revbar" id="revbar"></div>
+    <p class="lead" id="hero-lead"></p>
     <div class="tiles" id="tiles"></div>
   </div>
 </header>
 
 <div class="wrap">
+  <section class="panel" id="panel-journal">
+    <h2>Журнал редакции <span class="sub">что изменилось против редакции 1 (22.07.2026)</span></h2>
+    <div class="journal-grid" id="journal-grid"></div>
+    <h4 style="margin-top:16px">Старый ID → новый</h4>
+    <table class="idmap" id="idmap-table"></table>
+  </section>
+
+  <section class="panel" id="panel-guide">
+    <h2>Справка модуля <span class="sub">модель и границы — читается один раз, не карточка</span></h2>
+    <div id="guide-list"></div>
+  </section>
+
+  <section class="panel" id="panel-open">
+    <h2>Открытые вопросы <span class="sub">умолчания, на которых строим; ответ ГФХ переносит в следующую редакцию</span></h2>
+    <div id="openq-list"></div>
+  </section>
+
   <div class="bar">
     <div class="row">
       <input class="search" id="q" type="search" placeholder="Поиск по номеру, заголовку, тексту…" autocomplete="off">
-      <select id="fTheme"><option value="">Все этапы</option></select>
-      <select id="fPrio">
-        <option value="">Любой приоритет</option>
-        <option value="crit">🔴 Блокер</option>
-        <option value="major">🟠 Важно</option>
-        <option value="minor">🟡 Средне</option>
-      </select>
+      <select id="fStage"><option value="">Все этапы</option></select>
       <button class="btn" id="reset">Сбросить</button>
-      <button class="btn btn-p" id="expand">Раскрыть тех. детали</button>
+      <button class="btn btn-p" id="expand">Раскрыть ловушки</button>
       <span class="count" id="count"></span>
     </div>
   </div>
 
   <div id="list"></div>
 
-  <div class="legend">
-    <p><b>Приоритет:</b> 🔴 блокер (без этого модуль не работает) · 🟠 важно · 🟡 средне.</p>
-    <p><b>Порядок сборки — строгий.</b> Номер шага в начале карточки — обязательная очерёдность;
-       нумерация = порядок зависимостей: каждая задача опирается на уже сделанные и ни на одну из
-       будущих. Ядро (шаги 1–7) — фундамент; без него меры, сроки, гейты и особые состояния некуда вешать.
-       Значок <span class="chip chip-mock">Есть эталон в макете</span> значит, что поведение уже
-       отрисовано и проверено в <code>mockups/collection/collection.html</code> — разработке
-       остаётся перенести его на боевую платформу (Jmix).</p>
-    <p>Дефектов живого стенда по этому модулю нет: экрана в приложении не существует,
-       модуль спроектирован с нуля по нормативу «Порядок мониторинга, взыскания и урегулирования
-       задолженности» (99 п.) + ТЗ АСУБК-3, разд. 2.5.</p>
+  <div class="footerbar">
+    <p><b>Порядок сборки — по этапам, не строгой очередью.</b> Внутри этапа карточки независимы и
+       берутся в любом порядке; между этапами — барьер и приёмка пачкой. Зависимость (значок
+       <span class="dep" style="display:inline">↔ P14-Rn</span>) указывает только назад — на уже
+       готовую карточку.</p>
+    <p><b>Разделение источников.</b> Модель, правила, приёмка и границы живут только здесь. Приоритет
+       и статус исполнения — в <code>TODO.md</code> (реестр). Расхождение по логике модуля решает эта
+       постановка, расхождение по виду интерфейса — макет <code>collection.html</code>.</p>
+    <p>Вопросы по постановке — общий чат команды. Ответ, полученный там, попадает в карточку и журнал
+       редакции следующего выпуска этого файла (см. «Версионирование», <code>FORMAT.md</code> §6).</p>
   </div>
 </div>
 
+<script type="application/json" id="tasks-data">
+{
+  "meta": {
+    "module": "collection",
+    "title": "Взыскание задолженности",
+    "phase": 14,
+    "revision": 2,
+    "date": "2026-08-04",
+    "replaces": { "revision": 1, "date": "2026-07-22" },
+    "registry": "### Взыскание задолженности",
+    "package": ["collection.html", "13-collection.html"]
+  },
+
+  "changelog": {
+    "added": ["P14-R12", "P14-R13", "P14-R14"],
+    "changed": [
+      { "id": "P14-R2", "what": "процесс → требование (М-1); дело стало папкой без фазы/охвата/суммы" },
+      { "id": "P14-R4", "what": "контурная лестница снята — предусловия вида (P14-R15); терминалов семь, не четыре; добавлен карантин закрытия" },
+      { "id": "P14-R6", "what": "строка списка — требование, не процесс; группировка по делу, сумма один раз на кредит" },
+      { "id": "P14-R7", "what": "карточка — дело и требование на одной странице, вкладки двумя группами" },
+      { "id": "P14-R9", "what": "мера целит в требования массивом targets, не дублируется на каждого ответчика" },
+      { "id": "P14-R15", "what": "гейт «пересечение судебных процессов» снят — у заёмщика одно дело; гейт читает последнее решение по паре «лицо × кредит»" },
+      { "id": "P14-R16", "what": "ускорение долга меняет охват у требования и солидарных по тому же договору, не у дела" },
+      { "id": "P14-R17", "what": "добавлен слой долга: представитель, предел ответственности, симметричная разбивка по статьям; закрытие — по семи терминалам" },
+      { "id": "P14-R18", "what": "делёж выручки — три шага, три владельца (обеспечение/взыскание/платежи), не одна функция" },
+      { "id": "P14-R19", "what": "мировое соглашение вынесено из таблицы состояний в отдельную задачу P14-R13; добавлена заморозка начисления" },
+      { "id": "P14-R21", "what": "добавлена исковая давность, срок предъявления исполнительного листа и второй счётчик непредъявленной просрочки" }
+    ]
+  },
+
+  "idmap": [
+    { "old": "P14-R1",  "new": "P14-R1"  },
+    { "old": "P14-R2",  "new": "P14-R2"  },
+    { "old": "P14-R3",  "new": "P14-R3"  },
+    { "old": "P14-R4",  "new": "P14-R4"  },
+    { "old": "P14-R5",  "new": "P14-R5"  },
+    { "old": "P14-R6",  "new": "P14-R6"  },
+    { "old": "P14-R7",  "new": "P14-R7"  },
+    { "old": "P14-R8",  "new": "P14-R8"  },
+    { "old": "P14-R9",  "new": "P14-R9"  },
+    { "old": "P14-R10", "new": "P14-R10" },
+    { "old": "P14-R11", "new": "P14-R11" },
+    { "old": "P14-R12", "new": "P14-R21" },
+    { "old": "P14-R13", "new": "P14-R15" },
+    { "old": "P14-R14", "new": "P14-R16" },
+    { "old": "P14-R15", "new": "P14-R17" },
+    { "old": "P14-R16", "new": "P14-R19" },
+    { "old": "P14-R17", "new": "P14-R18" },
+    { "old": "P14-R18", "new": "P14-R20" },
+    { "old": "P14-R19", "new": "P14-R22" },
+    { "old": "P14-R20", "new": "P14-R23" }
+  ],
+
+  "guide": [
+    { "h": "Единица работы — требование", "items": [
+      "Требование = пара «кредитный договор × обязанное лицо» внутри дела; обязанное лицо — заёмщик, поручитель или гарант. ID читается глазами: <code>дело/кредит/роль</code>.",
+      "Дело — папка по ОДНОМУ заёмщику (ИНН — якорь): у него нет ни фазы, ни охвата, ни суммы, ни статуса. Всё перечисленное — свойства требования.",
+      "Солидарность не задваивает деньги: в строке сумма полная, в любом итоге — один раз на кредит (<code>claimTotal</code>)."
+    ]},
+    { "h": "Что не хранится никогда", "items": [
+      "Полей «фаза», «статус», «категория», «стадия», «группа», «сумма требования», «слой» — нет ни у одной сущности.",
+      "Всё это функции: <code>phaseOf</code>, <code>displayPhase</code>, <code>stageOf</code>, <code>catOf*</code>, <code>groupOf</code>, <code>debtOf</code>, <code>claimOf</code>, <code>layerOf</code>, <code>effectiveAward</code>.",
+      "Правило простое: если значение можно вывести из журнала мер и справочников — оно не поле."
+    ]},
+    { "h": "Слой долга (по акту суда)", "items": [
+      "Слой — присуждённая по акту суда сумма, ключ «акт-веха × кредит» (не «акт × требование» — иначе солидарная пара давала бы два слоя на один долг).",
+      "Представитель — чья строка равна сумме слоя (роль заёмщика → единственная цель → старейшее требование); остальные цели получают предел ответственности той же разбивкой, не участвующий в начислении.",
+      "Апелляция правит существующий слой построчно, оба варианта «отменено» гасят его целиком; отмена после взыскания не переписывает прошлый платёж — поворот исполнения регистрируется новой мерой."
+    ]},
+    { "h": "Машина фаз и терминалы", "items": [
+      "Фаза = свёртка журнала мер требования (вид последней непросторнированной вехи по дате события), не хранимое поле; сторно вехи откатывает фазу само.",
+      "Семь контуров К0…К7, семь терминалов (было четыре) — Полное погашение · Признана безнадёжной · Списана · Завершена процедура банкротства · Реструктурирована · Обеспечение прекращено · Правопреемство.",
+      "Проверка треков — на КАЖДОМ терминале: живое исполнительное производство или залоговое обременение держат требование открытым даже после акта."
+    ]},
+    { "h": "Основание открытия и карантин", "items": [
+      "Основание — реквизит ТРЕБОВАНИЯ (пять видов: просрочка · банкротство · ликвидация/смерть/безвестное отсутствие · ускорение · обеспечительный договор), не дела.",
+      "Карантин — дело остаётся открытым и принимает новые требования; применим только к терминалам, где новая просрочка структурно возможна (Полное погашение, Реструктурирована)."
+    ]},
+    { "h": "Правопреемство", "items": [
+      "Дело НЕ мигрирует — остаётся на линии исходного заёмщика с чипом «правопреемник».",
+      "Один правопреемник — новый сегмент линии; несколько — требование разветвляется на N требований со своими линиями и пределами ответственности. Слой не разветвляется."
+    ]},
+    { "h": "Гейты по предусловиям", "items": [
+      "Каждый вид меры несёт свои предусловия (требуемая фаза · факты · запрещающие обстоятельства), проверяются по цели меры — не по номеру контура и не по делу целиком.",
+      "Гейт коллегиального органа читает последнее решение по паре «обязанное лицо × кредит»: отказ закрывает не навсегда, отзыв положительного решения закрывает только вперёд."
+    ]},
+    { "h": "Сроки: давность и два счётчика", "items": [
+      "Исковая давность и сроки предъявления/возврата исполнительного листа — экземпляры того же шаблона (<code>{tpl, due, base}</code>), что и сроки Порядка, не отдельные поля.",
+      "Прерывание/приостановление давности выводится из журнала мер (признание долга, частичная оплата, утверждение мирового), не хранится флагом.",
+      "Второй счётчик — «дни непредъявленной просрочки»: от самой ранней части, не покрытой ни живым слоем, ни живой судебной подачей."
+    ]},
+    { "h": "Заморозка начисления", "items": [
+      "Атрибут состояния ЛИЦА (не слоя, не дела), три значения: нет · проценты · проценты и пеня.",
+      "Применяется по лицу — банкротство заёмщика не задевает собственное обязательство поручителя. Снимается только вперёд, задним числом не досчитывается."
+    ]}
+  ],
+
+  "stages": [
+    { "n": 1, "title": "Каркас и модель дела/требования" },
+    { "n": 2, "title": "Реестр и карточка" },
+    { "n": 3, "title": "Открытие и журнал мер" },
+    { "n": 4, "title": "Суд, соглашения, правопреемство, гейты" },
+    { "n": 5, "title": "Долг и залог" },
+    { "n": 6, "title": "Особые состояния" },
+    { "n": 7, "title": "Передача, сроки, настройки, история" }
+  ],
+
+  "cards": [
+    {
+      "id": "P14-R1", "stage": 1,
+      "title": "Каркас модуля: три вида, сайдбар, фильтр стадии, сохранение состояния",
+      "why": "Точка входа модуля — страница с переключением видов и общими контролами; на неё позже вешаются реестр, карточка и настройки. Без каркаса и сохранения состояния в хэше каждый переход между видами роняет F5 на пустой экран.",
+      "look": { "mock": "collection.html", "route": "Взыскание → сайдбар модуля",
+        "tz": "13-collection.html#s7" },
+      "rules": [
+        { "h": "Каркас", "items": [
+          "Сайдбар «Взыскание» + топбар; виды — Реестр требований, Карточка (дело + требование), Настройки правил, плюс кросс-процессные Реестры.",
+          "Навигация — фильтр стадии по <code>stageOf(phase)</code>, не по наличию меры.",
+          "Вид/карточка/вкладка сохраняются в URL-хэше и переживают F5; id требования содержит кириллицу — сравнение хэша только после <code>decodeURIComponent</code>."
+        ]}
+      ],
+      "accept": [
+        "Переключение между тремя видами не теряет фильтры активного вида.",
+        "F5 на любом виде возвращает тот же экран, а не список по умолчанию.",
+        "Фильтр стадии в сайдбаре построен на <code>stageOf</code>, не на признаке наличия меры.",
+        "Хэш с кириллическим id требования открывает правильную карточку после перезагрузки.",
+        "Прямой переход по ссылке на несуществующий id показывает понятную заглушку, а не пустой экран."
+      ],
+      "notIn": ["Колонки и фильтры реестра — P14-R6", "Содержимое карточки — P14-R7", "Экран настроек — P14-R22"],
+      "deps": []
+    },
+    {
+      "id": "P14-R2", "stage": 1,
+      "title": "Модель-факты: требование = дело × кредит × обязанное лицо",
+      "why": "Рабочая единица — требование, а не дело: у поручителя свои фаза, срок и журнал, хотя обязательство общее. Хранить производное (фазу, категорию, сумму) полем — обречь модель на рассинхрон при каждой мере и платеже.",
+      "look": { "mock": "collection.html", "route": "модель данных — не отдельный экран",
+        "tz": "13-collection.html#s3" },
+      "model": [
+        { "h": "Сущности", "items": [
+          "Дело: заёмщик (ИНН-якорь), регион, куратор, процедура, журнал мер (хранится тут, целит в требования).",
+          "Требование: дело × кредит × роль обязанного лица; охват, ведущее подразделение, основание открытия.",
+          "Обязанное лицо: состояния субъекта (смерть, ликвидация, банкротство) — задевают все требования лица, включая другие дела."
+        ]},
+        { "h": "Чего нет", "items": [
+          "Полей «фаза», «статус», «категория», «стадия», «группа», «сумма требования» — ни у одной сущности."
+        ]}
+      ],
+      "accept": [
+        "id требования читается как <code>дело/кредит/роль</code> и уникален.",
+        "У дела нет ни одного поля фазы/суммы/охвата — эти данные видны только на требовании.",
+        "Сумма в строке списка полная, а в любом кросс-требованческом итоге посчитана один раз на кредит.",
+        "Удаление всех мер с требования не ломает вычисление фазы — оно откатывается к «Досудебное урегулирование».",
+        "Два требования одного дела (заёмщик и поручитель по одному кредиту) имеют независимые фазы."
+      ],
+      "notIn": ["Основание открытия — P14-R8", "Слой долга — P14-R17"],
+      "deps": []
+    },
+    {
+      "id": "P14-R3", "stage": 1,
+      "title": "Две ведущие оси: фаза и процедура (группа выводится)",
+      "why": "Юридический факт (фаза требования) и оргсостояние (процедура дела) — разные оси, слитые в один «статус» они рано или поздно разойдутся: фаза может стоять на «Иск», а дело физически ещё лежит у куратора.",
+      "look": { "mock": "collection.html", "route": "модель данных — не отдельный экран",
+        "tz": "13-collection.html#s4" },
+      "rules": [
+        { "h": "Фаза (требование)", "items": [
+          "Двигается ТОЛЬКО регистрацией меры-вехи, целящей в это требование; селектора фазы в UI нет."
+        ]},
+        { "h": "Процедура (дело)", "items": [
+          "Закрытый словарь статусов; смена — запись в журнал с ожиданием подтверждения принимающей стороны (п. 98).",
+          "Группа платёжеспособности выводится из ПОДТВЕРЖДЁННОЙ процедуры, вручную не задаётся."
+        ]}
+      ],
+      "accept": [
+        "Смена процедуры без подтверждения принимающей стороны не меняет группу платёжеспособности.",
+        "У фазы и процедуры в шапке — независимые подписи источника значения.",
+        "Отклонение принимающей стороной оставляет процедуру и группу прежними, причина видна в журнале.",
+        "Ни фаза, ни процедура не редактируются напрямую полем ввода.",
+        "Группа пересчитывается сама при подтверждении новой процедуры, без ручного действия."
+      ],
+      "notIn": ["Эстафета передачи по подразделениям — P14-R20", "Машина фаз и контуры — P14-R4"],
+      "deps": ["P14-R2"]
+    },
+    {
+      "id": "P14-R4", "stage": 1,
+      "title": "Машина фаз — семь контуров, семь терминалов, карантин закрытия",
+      "why": "Фазы — не одна цепочка, а семь контуров с терминалами; терминалов теперь семь, не четыре, и на каждом проверяются открытые треки, а не только на полном погашении. Карантин держит дело открытым там, где новая просрочка ещё возможна — иначе плательщик с новым долгом не находит своё старое дело.",
+      "look": { "mock": "collection.html", "route": "таймлайн фазы — карточка требования, вкладка «Обзор»",
+        "tz": "13-collection.html#s5" },
+      "model": [
+        { "h": "Контуры и терминалы", "items": [
+          "Семь контуров К0…К7 (безакцептное списание — условная ветка К1 при <code>bezakceptRight:true</code>; смерть — контур К5, не оверлей).",
+          "Семь терминалов: Полное погашение · Признана безнадёжной · Списана · Завершена процедура банкротства · Реструктурирована · Обеспечение прекращено · Правопреемство."
+        ]}
+      ],
+      "rules": [
+        { "h": "Карантин", "items": [
+          "Применим только к терминалам «Полное погашение» и «Реструктурирована» — где новая просрочка структурно возможна.",
+          "Новое событие просрочки сбрасывает карантин; длительность — настраиваемый ключ RULES (P14-R22).",
+          "Дело в карантине принимает новые требования и в реестре не показывается строкой, только счётчиком."
+        ]},
+        { "h": "Проверка треков", "items": [
+          "На каждом из семи терминалов, не только на полном погашении: живое исполнительное производство или залоговое обременение держат требование открытым с пометкой «списана, взыскание идёт»."
+        ]}
+      ],
+      "accept": [
+        "Таймлайн рисует ровно контур текущей фазы требования, не всю линейку К0…К7.",
+        "Сторно меры-вехи откатывает фазу автоматически, без ручного действия.",
+        "Все семь терминалов доступны как исходы соответствующих актов, не только погашение.",
+        "Дело с живым исполнительным производством не закрывается после акта о списании — виден баннер «взыскание идёт».",
+        "Дело в карантине после полного погашения принимает новое требование без создания нового дела.",
+        "Новое событие просрочки на деле в карантине сбрасывает карантин."
+      ],
+      "notIn": ["Стадия и отображаемая фаза — считаются функциями внутри этой же задачи", "Правопреемство как терминал — механика ветвления в P14-R14"],
+      "deps": ["P14-R3"],
+      "traps": ["Контурная лестница (<code>CONTOUR_LEVEL</code>, <code>sequenceReason</code>) в макете помечена как выведенный из употребления код — не переносить, гейт последовательности теперь по предусловиям вида (P14-R15)."]
+    },
+    {
+      "id": "P14-R5", "stage": 1,
+      "title": "Категория риска — worst-of на уровне кредита",
+      "why": "Категория должна считаться снизу вверх (день → кредит → дело), а не как функция дней на деле — иначе категория расходится с реальностью по отдельным кредитам заёмщика.",
+      "look": { "mock": "collection.html", "route": "плитка «Категория» — шапка карточки требования",
+        "tz": "13-collection.html#s6" },
+      "rules": [
+        { "h": "Расчёт", "items": [
+          "<code>catByDays</code> (0–5 норма / 6–180 средний / 181+ высокий) → <code>catOfCredit</code> (worst-of с подавлением 181-го + факторы) → <code>catOfReq</code> → <code>catOfProcess</code> (worst-of по кредитам дела).",
+          "Подавление 181-го дня — на уровне КРЕДИТА, до worst-of; категория показывается честно (по дням / после подавления)."
+        ]}
+      ],
+      "accept": [
+        "Категория требования равна категории его кредита, без отдельного хранимого значения.",
+        "Дело с двумя кредитами показывает категорию как наихудшую из двух.",
+        "181-й день просрочки подавляется до объединения по кредитам, не после.",
+        "Плитка «Категория» раскрывает входы worst-of покредитно.",
+        "Полей <code>cat</code>/<code>catDays</code> нет ни на деле, ни на требовании."
+      ],
+      "notIn": ["Стадия — P14-R4", "Группа платёжеспособности — P14-R3"],
+      "deps": ["P14-R2"]
+    },
+    {
+      "id": "P14-R6", "stage": 2,
+      "title": "Вид «Реестр требований» — строка = требование, группировка по делу",
+      "why": "Строка списка должна быть однозначной: одна пара «договор × обязанное лицо». Папка из нескольких договоров на одной строке врёт в колонках «Охват» и «Сумма» — заёмщик с двумя кредитами превращается в один расплывчатый итог.",
+      "look": { "mock": "collection.html", "route": "Взыскание → Реестр требований",
+        "tz": "13-collection.html#s7-1" },
+      "rules": [
+        { "h": "Строка и группировка", "items": [
+          "Требования одного дела идут подряд, перед ними — заголовок «заёмщик · требований N · по делу СУММА» (сумма один раз на кредит); солидарная строка — сумма полная с пометкой «сол.».",
+          "Плитки-фильтры — истинное разбиение (сумма плиток равна «Всего»); фильтр стадии — по <code>stageOf</code>.",
+          "Полевой фильтр — панель, чипы, зависимые селекты, живой пересчёт без кнопки «Применить»."
+        ]}
+      ],
+      "accept": [
+        "Клик по строке открывает требование, а не папку дела.",
+        "Сумма над группой дела равна сумме по кредитам этого дела, посчитанной один раз на кредит.",
+        "Сумма всех плиток-фильтров равна счётчику «Всего».",
+        "Фильтр стадии совпадает с <code>stageOf</code> при любых расхождениях по мерам.",
+        "Пустой результат фильтра показывает понятную плашку, а не пустую таблицу.",
+        "Изменение любого поля фильтра пересчитывает список без отдельного клика «Применить»."
+      ],
+      "notIn": ["Карточка требования — P14-R7", "Кросс-процессные реестры (сроки, заседания) — P14-R23"],
+      "deps": ["P14-R1", "P14-R4", "P14-R5"]
+    },
+    {
+      "id": "P14-R7", "stage": 2,
+      "title": "Вид «Карточка» — дело и требование на одной странице",
+      "why": "Контейнер карточки: заголовок дела, чипы требований, пять плиток и вкладки двумя группами; на него вешаются задачи открытия, журнала мер, суда и особых состояний. Без деления «дело/требование» пользователь не понимает, к какому уровню относится то, что он смотрит.",
+      "look": { "mock": "collection.html", "route": "Реестр → строка требования",
+        "tz": "13-collection.html#s7-2" },
+      "rules": [
+        { "h": "Заголовок и переключение", "items": [
+          "Заголовок — дело; под ним чипы требований, переключение без ухода со страницы (глубина 2 клика)."
+        ]},
+        { "h": "Шапка и вкладки", "items": [
+          "Пять плиток выбранного требования: Стадия · Фаза · Процедура · Категория · Группа — ни одна не редактируется, у каждой подпись источника.",
+          "Вкладки одной лентой, двумя группами: ДЕЛО (Дело · Ведение дела · Согласования · История) и ТРЕБОВАНИЕ (Обзор · Долг · Журнал мер · Суд · Особые состояния · Залог/реализация).",
+          "Карточка read-only; кнопки «Закрыть требование» нет — закрытие производно (P14-R17)."
+        ]}
+      ],
+      "accept": [
+        "Переключение чипа требования не перезагружает страницу и не сбрасывает выбранную вкладку дела.",
+        "Каждая из пяти плиток показывает подпись источника значения по клику/наведению.",
+        "Плитка «Категория» раскрывается в покредитный расчёт worst-of.",
+        "Вкладки визуально разделены на группу «Дело» и группу «Требование».",
+        "Нигде на карточке нет кнопки или пункта меню «Закрыть».",
+        "Хэш карточки содержит id требования и активную вкладку, переживает F5."
+      ],
+      "notIn": ["Содержимое каждой вкладки — отдельные задачи стадий 3–7", "Баннеры особых состояний — наполнение в P14-R19"],
+      "deps": ["P14-R1", "P14-R3", "P14-R4", "P14-R5", "P14-R6"]
+    },
+    {
+      "id": "P14-R8", "stage": 3,
+      "title": "Открытие требования, основание, окно ожидания зачисления",
+      "why": "Требование открывается само на 6-й день просрочки с нулём мер — это нормальное состояние, а не пустое дело-ошибка. До зачисления платежа претензия под гейтом — иначе претензия улетает по уже пришедшим деньгам.",
+      "look": { "mock": "collection.html", "route": "автоматически, по расписанию просрочки; ручное открытие — по одному из пяти оснований",
+        "tz": "13-collection.html#s8-1" },
+      "model": [
+        { "h": "Основание (реквизит требования)", "items": [
+          "Пять оснований: просрочка 6 дней (система) · банкротство · ликвидация/смерть/безвестное отсутствие · решение об ускорении · привлечение по обеспечительному договору (последние четыре — вручную).",
+          "Для субсидиарного поручительства пятое основание закрыто предусловием, пока не подтверждён отказ основного должника."
+        ]}
+      ],
+      "rules": [
+        { "h": "Окно ожидания", "items": [
+          "До 14 к.д. (по умолчанию 5): пока открыто, гейт первичной претензии закрыт.",
+          "Закрывается по истечении срока либо отметкой куратора «переговоры проведены, платёж не подтверждён» (п. 17.2)."
+        ]}
+      ],
+      "accept": [
+        "На 6-й день просрочки требование открывается автоматически в фазе «Досудебное урегулирование» с нулём мер.",
+        "Претензию нельзя зарегистрировать, пока окно ожидания открыто.",
+        "Отметка куратора закрывает окно раньше истечения 14 к.д. с указанием причины.",
+        "Второе требование того же дела, открытое основанием «банкротство», не зависит от окна ожидания первого.",
+        "Основание пятое недоступно для субсидиарного поручителя без подтверждённого отказа основного должника.",
+        "Ретроспективно закрытое дело скрыто из рабочего списка по умолчанию."
+      ],
+      "notIn": ["Регистрация самой претензии как меры — P14-R9", "Ускорение долга (полный остаток вместо просроченной суммы) — P14-R16"],
+      "deps": ["P14-R2", "P14-R4"]
+    },
+    {
+      "id": "P14-R9", "stage": 3,
+      "title": "Вкладка «Журнал мер» — регистрация, три оси результата",
+      "why": "Мера — атом взыскания. Её результат раскладывается на три независимые оси, а допустимость — на матрицы; схлопнуть оси значит потерять входы расчётных показателей ТЗ, зашить допустимость в код — заблокировать любое изменение норматива без релиза.",
+      "look": { "mock": "collection.html", "route": "карточка требования → вкладка «Журнал мер»",
+        "tz": "13-collection.html#s9-1" },
+      "rules": [
+        { "h": "Регистрация", "items": [
+          "Мера хранится на ДЕЛЕ с целями <code>targets:[требование]</code> — один иск ко всем ответчикам (п. 32) есть одна мера с несколькими целями, не копия на каждого.",
+          "Три независимые оси результата: <code>result</code> · <code>resultKind</code> · <code>execStage</code> — не схлопывать.",
+          "Допустимость — конфигурация, не код: справочник видов (пополняемый), матрица «фаза ← вид меры-вехи», матрица «вид меры × подразделение», живой слой RULES (P14-R22)."
+        ]}
+      ],
+      "accept": [
+        "Один иск на заёмщика и поручителя регистрируется одной мерой с двумя целями, не двумя мерами.",
+        "Гейт допустимости меры проверяется по конкретной цели, а не по делу целиком.",
+        "Изменение вида меры-вехи в матрице «фаза ← вид» на #settings сразу видно в форме регистрации, без релиза.",
+        "Три оси результата заполняются независимо друг от друга в одной форме.",
+        "Мера, недопустимая для подразделения текущего пользователя по матрице В-9, не предлагается в списке.",
+        "Справочник видов меры содержит акты апелляции/кассации, мирового соглашения, правопреемства и поворота исполнения."
+      ],
+      "notIn": ["Подтверждение вручения — P14-R10", "Сторно — P14-R11", "Гейт коллегиального органа — P14-R15"],
+      "deps": ["P14-R4", "P14-R8"]
+    },
+    {
+      "id": "P14-R10", "stage": 3,
+      "title": "Подтверждение вручения меры",
+      "why": "Мера без подтверждения вручения не исполнена и не годится доказательством в суде — иск разваливается на «а вы точно вручили претензию?».",
+      "look": { "mock": "collection.html", "route": "карточка меры в журнале мер",
+        "tz": "13-collection.html#s9-2" },
+      "rules": [
+        { "h": "Вручение", "items": [
+          "Для претензий, требований обеспечителям и извещений — способ + тип + дата + скан.",
+          "До подтверждения мера не двигает фазу-веху и помечается неисполненной.",
+          "Загрузка скана — демо-заглушка (тост)."
+        ]}
+      ],
+      "accept": [
+        "Претензия без подтверждённого вручения не переводит фазу требования дальше.",
+        "Форма вручения требует способ, тип, дату; без даты сохранение блокируется.",
+        "Неподтверждённая мера визуально помечена «не исполнена» в журнале.",
+        "Подтверждение задним числом (дата вручения раньше даты регистрации) допускается и не выдаёт ошибку.",
+        "Загрузка скана показывает тост об успехе без реального файла на сервере."
+      ],
+      "notIn": ["Сама регистрация меры — P14-R9", "Сторно уже врученной меры — P14-R11"],
+      "deps": ["P14-R9"]
+    },
+    {
+      "id": "P14-R11", "stage": 3,
+      "title": "Сторно и иммутабельность отправленного документа",
+      "why": "Ошибочную меру нельзя тихо удалить — она уже в истории и, возможно, в суде. Отправленный документ переписывать нельзя, иначе теряется доказательная цепочка.",
+      "look": { "mock": "collection.html", "route": "карточка меры в журнале мер → «Сторнировать»",
+        "tz": "13-collection.html#s9-3" },
+      "rules": [
+        { "h": "Сторно", "items": [
+          "Запись, не удаление; если сторнируется веха — фаза откатывается сама пересчётом свёртки, ручного отката в коде нет."
+        ]},
+        { "h": "Иммутабельность", "items": [
+          "Отправленный документ read-only: расхождение суммы помечается, сумма не переписывается."
+        ]}
+      ],
+      "accept": [
+        "Сторнированная мера остаётся видимой в журнале с пометкой «сторно», не исчезает.",
+        "Сторно меры-вехи откатывает фазу требования автоматически.",
+        "Сторнировать уже сторнированную запись нельзя — кнопка недоступна.",
+        "Отправленный документ нельзя отредактировать напрямую — только пометить расхождение суммы.",
+        "След сторно виден на вкладке «История» (P14-R23)."
+      ],
+      "notIn": ["Регистрация меры — P14-R9", "Подтверждение вручения — P14-R10"],
+      "deps": ["P14-R9"]
+    },
+    {
+      "id": "P14-R12", "stage": 4,
+      "title": "Вкладка «Суд» — акты, апелляция и кассация правят слой",
+      "why": "Апелляция и кассация — обычные акты суда, но их исход правит уже существующий слой первой инстанции, а не создаёт новый; спутать «правит» с «создаёт» — задвоить долг после любой апелляции.",
+      "look": { "mock": "collection.html", "route": "карточка требования → вкладка «Суд»",
+        "tz": "13-collection.html#s12-2" },
+      "model": [
+        { "h": "Слой (см. Справку модуля)", "items": [
+          "Акты первой инстанции рождают/растят слой; апелляция и кассация — <code>corrects</code> (построчная правка) либо <code>reverses</code> (гашение целиком)."
+        ]}
+      ],
+      "rules": [
+        { "h": "Правила", "items": [
+          "«Изменено» построчно заменяет присуждённые суммы слоя; оба варианта «отменено» гасят слой целиком, без отката к более раннему акту.",
+          "Режим начисления остаётся привязан к дате решения ПЕРВОЙ инстанции независимо от исхода апелляции.",
+          "Срок на апелляцию/кассацию — шаблон в реестре сроков (P14-R21), считается от вынесения; истребование ИЛ — от вступления в силу."
+        ]}
+      ],
+      "accept": [
+        "Апелляция с исходом «изменено» меняет присуждённую сумму слоя, не создаёт второй слой.",
+        "Апелляция с любым «отменено» гасит слой целиком; сумма долга возвращается к статьям проекции.",
+        "Начисление процентов/пени после отмены апелляцией продолжается от даты решения первой инстанции.",
+        "Акты суда показаны в общем списке вкладки в хронологии, без отдельной панели «апелляции».",
+        "Срок подачи апелляции виден и подсвечивается как близкий/просроченный."
+      ],
+      "notIn": ["Формирование слоя решением первой инстанции — P14-R17", "Мировое соглашение — P14-R13", "Гейты подачи иска — P14-R15"],
+      "deps": ["P14-R9"]
+    },
+    {
+      "id": "P14-R13", "stage": 4,
+      "title": "Мировое соглашение и добровольное исполнение — акты журнала",
+      "why": "Волна «МП» отменила модель соглашения как сущности с флагами: три вида меры в общем журнале вместо отдельного объекта с полем <code>active</code>. Сущность с флагом расходится с журналом при первом же сторно; акт в журнале — нет.",
+      "look": { "mock": "collection.html", "route": "карточка требования → вкладка «Особые состояния», блок мирового соглашения",
+        "tz": "13-collection.html#s14" },
+      "model": [
+        { "h": "Три вида меры", "items": [
+          "Проект мирового соглашения (наш документ) → исход «направлен на утверждение», гейт: подан иск + отраслевой график + «не льготнее» + срок ≤5 лет при истёкших обязательствах.",
+          "Определение об утверждении (акт суда) → «утверждено» переводит фазу на «Решение суда» и ОБРАЗУЕТ СЛОЙ датой утверждения; «отказано в утверждении» — без последствий.",
+          "Констатация нарушения (наш документ) → «нарушено» запускает 10 р.д. на принудительное исполнение (п. 37)."
+        ]}
+      ],
+      "accept": [
+        "Проект мирового недоступен, если по требованию ещё не подан иск.",
+        "Утверждение мирового формирует слой долга с датой утверждения и суммой из определения, без пересчёта.",
+        "Отказ в утверждении не меняет фазу и не создаёт слой.",
+        "Констатация нарушения показывает обратный отсчёт 10 р.д. на принудительное исполнение.",
+        "Соглашение о добровольном исполнении регистрируется тем же путём, но не создаёт слой.",
+        "Непокрытая соглашением часть долга видна как свободный слой, не как отдельный иск."
+      ],
+      "notIn": ["Слой долга общей модели — P14-R17", "Паузы (гарантийное письмо, реструктуризация) — P14-R19"],
+      "deps": ["P14-R9"]
+    },
+    {
+      "id": "P14-R14", "stage": 4,
+      "title": "Правопреемство — дело не мигрирует, требование разветвляется",
+      "why": "Дело держится за линию заёмщика, где было открыто, даже если сторону сменил правопреемник; несколько правопреемников — не повод завести несколько дел, а повод разветвить одно требование.",
+      "look": { "mock": "collection.html", "route": "карточка требования → акт «Определение о замене стороны правопреемником»",
+        "tz": "13-collection.html#s17" },
+      "rules": [
+        { "h": "Один правопреемник", "items": [
+          "Новый сегмент той же линии — требование продолжается."
+        ]},
+        { "h": "Несколько правопреемников", "items": [
+          "Требование разветвляется на N требований, у каждого своя линия и предел ответственности, связь «продолжает требование X».",
+          "Слой долга НЕ разветвляется — остаётся один на кредит.",
+          "Меры предшественника не копируются в ветки; фаза ветки на старте наследует свёртку журнала предшественника до собственной первой меры.",
+          "Предшественник закрывается терминалом «Правопреемство» (без карантина)."
+        ]}
+      ],
+      "accept": [
+        "Замена стороны с одним правопреемником не создаёт новое требование, только продолжает линию.",
+        "Замена с тремя правопреемниками создаёт три требования со ссылкой на предшественника.",
+        "Слой долга после ветвления остаётся один, виден на карточке кредита, не на каждой ветке отдельно.",
+        "Дело в шапке показывает исходного заёмщика и чип «правопреемник» после замены.",
+        "Поиск по фамилии правопреемника находит дело, открытое на исходного заёмщика.",
+        "Предшественник переходит в терминал «Правопреемство» без карантина — новое требование по нему не откроется."
+      ],
+      "notIn": ["Терминалы и карантин общей машины фаз — P14-R4", "Эстафета передачи дела — P14-R20"],
+      "deps": ["P14-R9"]
+    },
+    {
+      "id": "P14-R15", "stage": 4,
+      "title": "Коллегиальные органы и гейты по предусловиям",
+      "why": "Необратимые действия блокируются до положительного решения профильного органа; органов ровно пять. Прежний гейт по номеру контура снят волной «МП» — сегодня у каждого вида меры свои предусловия, проверяемые по цели.",
+      "look": { "mock": "collection.html", "route": "карточка требования → вкладки «Суд» и «Согласования»",
+        "tz": "13-collection.html#s11" },
+      "rules": [
+        { "h": "Гейты", "items": [
+          "Пять органов (закрытый справочник), не абстрактное «решение комитета»; подача иска — поручение Председателя (п. 21).",
+          "Гейт читает ПОСЛЕДНЕЕ решение по паре «обязанное лицо × кредит»: отказ закрывает не навсегда, повторное обращение — новая запись со ссылкой на прежнюю.",
+          "Отзыв уже принятого положительного решения закрывает гейт только ВПЕРЁД — прошлые действия не откатываются.",
+          "Гейта «пересечение судебных процессов» больше нет — у заёмщика одно дело."
+        ]}
+      ],
+      "accept": [
+        "Необратимое действие недоступно без положительного решения органа, причина блокировки — текстом.",
+        "Повторное обращение после отказа создаёт новую запись решения со ссылкой на предыдущую, не перезаписывает её.",
+        "Отзыв положительного решения не откатывает уже поданный иск, но блокирует следующее действие.",
+        "Список пяти органов закрыт — добавить шестой через UI нельзя.",
+        "На карточке нет гейта, блокирующего действие из-за другого судебного процесса того же заёмщика."
+      ],
+      "notIn": ["Регистрация самой меры — P14-R9", "Предусловия по срокам давности/ИЛ — P14-R21"],
+      "deps": ["P14-R9"]
+    },
+    {
+      "id": "P14-R16", "stage": 5,
+      "title": "Ускорение долга при извещении",
+      "why": "Регистрация извещения об обращении на залог влечёт досрочное наступление всего долга — требуемая сумма должна пересчитаться на клике с просроченной части на полный остаток, а не остаться прежней.",
+      "look": { "mock": "collection.html", "route": "карточка требования → вкладка «Журнал мер» → регистрация извещения",
+        "tz": "13-collection.html#s12" },
+      "rules": [
+        { "h": "Пересчёт", "items": [
+          "На клике меняется ОХВАТ требования и всех солидарных требований по тому же договору (обязательство одно) — с «просроченной суммы» на «полный остаток».",
+          "Долг пересчитывается проекцией (п. 20.4); хранимых сумм не переписывается ни одной.",
+          "При наличии живого слоя погашение сначала направляется на сумму по судебному акту."
+        ]}
+      ],
+      "accept": [
+        "После регистрации извещения охват требования меняется на «полный остаток» без ручного действия.",
+        "Солидарное требование по тому же договору получает тот же охват одновременно.",
+        "Требование по ДРУГОМУ договору того же заёмщика не меняет охват.",
+        "Долг на вкладке «Долг» показывает сумму «до» и «после» ускорения.",
+        "Ни одна хранимая сумма не переписана — расчёт остаётся проекцией."
+      ],
+      "notIn": ["Вкладка «Долг» целиком — P14-R17", "Регистрация извещения как меры — P14-R9"],
+      "deps": ["P14-R9"]
+    },
+    {
+      "id": "P14-R17", "stage": 5,
+      "title": "Вкладка «Долг» — статьи, слой, производное закрытие",
+      "why": "Долг во взыскании не хранится — копия неизбежно расходится с источником. С момента судебного акта добавляется слой (присуждённая сумма) со своим ключом и представителем; закрытие требования нельзя нажимать рукой, иначе возможна «сирота» в 0,01 сома.",
+      "look": { "mock": "collection.html", "route": "карточка требования → вкладка «Долг»",
+        "tz": "13-collection.html#s12-1" },
+      "model": [
+        { "h": "Проекция + слой", "items": [
+          "Четыре статьи читаются у модуля кредита снимком со своей датой среза; пятая — «Расходы» — собственная статья взыскания, принадлежит требованию.",
+          "Слой — присуждённая по акту сумма, ключ «акт-веха × кредит», публикуется по тем же пяти статьям симметрично: и требуемая, и присуждённая суммы.",
+          "Представитель (чья строка = сумма слоя) — по цепочке: роль заёмщика → единственная цель → старейшее требование; остальные цели — предел ответственности."
+        ]}
+      ],
+      "rules": [
+        { "h": "Закрытие (М-9)", "items": [
+          "Нулевой остаток закрывает требование сам — «Полное погашение» (карантин есть).",
+          "Остальные шесть терминалов ставит веха с документом-основанием; трек-проверка на каждом (P14-R4).",
+          "Дело закрыто ⟺ закрыты все его требования, показывает сильнейший исход. Кнопки «Закрыть» нет нигде."
+        ]}
+      ],
+      "accept": [
+        "Сумма статей на вкладке равна проекции модуля кредита на дату среза, показанную рядом.",
+        "После акта суда появляется слой с суммой по акту и представителем, отдельно от статей проекции.",
+        "Поглощение прежнего слоя новым актом декларируется явно, не молча.",
+        "Нулевой остаток закрывает требование автоматически исходом «Полное погашение».",
+        "Требование с актом о списании, но живым исполнительным производством, остаётся открытым.",
+        "Дело закрывается только когда закрыты все его требования, показывает сильнейший из исходов.",
+        "Нигде на экране нет кнопки или пункта «Закрыть требование» / «Закрыть дело»."
+      ],
+      "notIn": ["Апелляция правит слой — P14-R12", "Мировое соглашение образует слой — P14-R13", "Делёж выручки от реализации — P14-R18", "Ускорение долга — P14-R16"],
+      "deps": ["P14-R2", "P14-R9", "P14-R12", "P14-R13", "P14-R16"]
+    },
+    {
+      "id": "P14-R18", "stage": 5,
+      "title": "Вкладка «Залог / реализация» — ЖЦ и делёж выручки между кредитами",
+      "why": "Реализация залога — типизированный жизненный цикл, стыкованный с модулем обеспечения. Выручка теперь делится в три шага тремя владельцами: смешать шаг взыскания с шагом платежей — значит один модуль начнёт решать за другой.",
+      "look": { "mock": "collection.html", "route": "карточка требования → вкладка «Залог / реализация»",
+        "tz": "13-collection.html#s15" },
+      "rules": [
+        { "h": "Три шага, три владельца", "items": [
+          "Обеспечение (P13) публикует факт реализации: выручку и расходы реализации — раздельно, с датой.",
+          "Взыскание делит выручку МЕЖДУ КРЕДИТАМИ (п. 49): расходы → залогодержатели по очерёдности регистрации → возврат остатка залогодателю.",
+          "Платежи распределяют долю каждого кредита ВНУТРИ него обычным waterfall — здесь взыскание уже не участвует."
+        ]}
+      ],
+      "accept": [
+        "Факт реализации от модуля обеспечения показывает выручку и расходы реализации раздельно.",
+        "Делёж между двумя кредитами одного заёмщика соблюдает очерёдность регистрации залогодержателей.",
+        "Остаток после расходов и залогодержателей публикуется как возврат залогодателю с суммой и адресатом.",
+        "Непокрытый остаток после делёжки остаётся долгом — виден как свободный слой на вкладке «Долг».",
+        "Доля кредита, опубликованная взысканием, не пересчитывается модулем платежей — только распределяется внутри."
+      ],
+      "notIn": ["Пятая статья «расходы» в общей модели долга — P14-R17", "Публикация факта реализации — модуль обеспечения P13"],
+      "deps": ["P14-R17"]
+    },
+    {
+      "id": "P14-R19", "stage": 6,
+      "title": "Вкладка «Особые состояния» — три уровня по природе, заморозка начисления",
+      "why": "Область действия состояния определяется его природой: пауза по заёмщику не должна останавливать работу с поручителем, а банкротство лица задевает все его требования, включая чужие дела. Мировое соглашение из этой таблицы выведено — оно акты журнала (P14-R13), не состояние-флаг.",
+      "look": { "mock": "collection.html", "route": "карточка требования/дела → вкладка «Особые состояния»",
+        "tz": "13-collection.html#s13" },
+      "rules": [
+        { "h": "Три уровня", "items": [
+          "Обязательство → требование: паузы (гарантийное письмо / реструктуризация); фаза сохранена, счётчик дней не заморожен; реструктуризация даёт оверлей <code>displayPhase</code> + подавление 181-го.",
+          "Лицо → обязанное лицо: смерть, ликвидация, безвестное отсутствие, недееспособность, заморозка начисления — задевают ВСЕ требования лица.",
+          "Ведение дела → дело: конфликт интересов (отстранение куратора до решения Правления), окно ожидания зачисления."
+        ]},
+        { "h": "Заморозка начисления", "items": [
+          "Три значения: нет · проценты · проценты и пеня; сегодня третье — только у банкротства.",
+          "Снимается только ВПЕРЁД при прекращении процедуры — замороженный период не досчитывается задним числом."
+        ]}
+      ],
+      "accept": [
+        "Таблица состояний показывает колонку «Уровень» для каждой строки.",
+        "Пауза по заёмщику не блокирует регистрацию мер по требованию поручителя того же дела.",
+        "Банкротство обязанного лица видно на всех его требованиях, включая требования в других делах.",
+        "При заморозке «проценты и пеня» ни один из двух видов начисления не растёт в замороженном периоде.",
+        "Прекращение банкротства возобновляет начисление с даты прекращения, не пересчитывает задним числом.",
+        "Конфликт интересов блокирует все действия регистрации для отстранённого куратора.",
+        "Мировое соглашение и добровольное исполнение НЕ отображаются в этой таблице состояний."
+      ],
+      "notIn": ["Мировое соглашение и добровольное исполнение — P14-R13", "Правопреемство — P14-R14", "Баннеры — каркас из P14-R7"],
+      "deps": ["P14-R7", "P14-R9"],
+      "open": [
+        { "default": "ликвидация не замораживает начисление (значение «нет»), как и большинство состояний лица сегодня",
+          "ask": "замораживает ли ликвидация начисление процентов/пени так же, как банкротство",
+          "impact": "меняется одна строка справочника состояний лица; расчёт заморозки не переписывается" }
+      ]
+    },
+    {
+      "id": "P14-R20", "stage": 7,
+      "title": "Вкладки «Ведение дела» / «Согласования» — эстафета передачи дела",
+      "why": "Дело идёт по подразделениям эстафетой; приём пакета подтверждается или отклоняется принимающей стороной с причиной — иначе дело «уходит в никуда» между отделами.",
+      "look": { "mock": "collection.html", "route": "карточка дела → вкладки «Ведение дела», «Согласования»",
+        "tz": "13-collection.html#s16" },
+      "rules": [
+        { "h": "Эстафета", "items": [
+          "Куратор → ДПО → отдел проблемных кредитов → ПССИ / сектор активов.",
+          "Передача — с подтверждением или отклонением пакета принимающей стороной (паттерн «четырёх глаз», п. 98, срок 5 р.д.); причина отклонения текстом.",
+          "Смена процедуры (P14-R3) отражается записью в журнал с ожиданием подтверждения; правопреемство (P14-R14) на эстафету не влияет."
+        ]}
+      ],
+      "accept": [
+        "Передача пакета следующему подразделению создаёт запись «ожидает подтверждения», процедура пока не меняется.",
+        "Подтверждение принимающей стороной переводит процедуру и группу платёжеспособности.",
+        "Отклонение возвращает пакет отправителю с текстовой причиной, процедура не меняется.",
+        "Просрочка 5 р.д. без ответа видна как индикатор на карточке.",
+        "Порядок эстафеты соблюдается — ПССИ не может принять пакет напрямую от куратора, минуя ДПО и отдел."
+      ],
+      "notIn": ["Сама ось «процедура» — P14-R3", "Конфликт интересов — P14-R19"],
+      "deps": ["P14-R3"]
+    },
+    {
+      "id": "P14-R21", "stage": 7,
+      "title": "Сроки порядка, исковая давность и два счётчика просрочки",
+      "why": "Срок — расчётное поле от базы шаблона, а не сущность-задание с продлениями. Волна «МП» добавила в тот же механизм исковую давность, сроки исполнительного листа и второй счётчик — дни задолженности, ещё не предъявленной в суде.",
+      "look": { "mock": "collection.html", "route": "карточка требования, реестр сроков (кросс-процессный)",
+        "tz": "13-collection.html#s10" },
+      "model": [
+        { "h": "Шаблон и даты", "items": [
+          "<code>DEADLINE_TEMPLATES</code>: база отсчёта, пункт норматива, атрибут «происхождение» (норма Порядка / закон / вне Порядка).",
+          "Три даты внешнего факта: <code>event</code> / <code>received</code> / <code>registered</code> — остаток считается от базы шаблона, не от даты ввода."
+        ]}
+      ],
+      "rules": [
+        { "h": "Давность и второй счётчик", "items": [
+          "Исковая давность — экземпляр того же шаблона на требовании; прерывание/приостановление выводится из журнала мер, не хранится флагом.",
+          "Второй счётчик «дни непредъявленной просрочки» — от самой ранней части, не покрытой живым слоем или живой судебной подачей; покрытие определяется датой отсечения документа."
+        ]}
+      ],
+      "accept": [
+        "Остаток любого срока считается от базы шаблона, а не от даты ввода в систему.",
+        "Признание долга мерой в журнале сдвигает (прерывает) исковую давность без ручного действия.",
+        "Живой слой долга покрывает второй счётчик — он не растёт, пока слой жив.",
+        "Отменённый (мёртвый) слой не покрывает второй счётчик даже задним числом.",
+        "Просроченный и близкий срок подсвечены в карточке и в кросс-процессном реестре сроков.",
+        "Сущности «задание» с продлениями и назначениями в модели нет."
+      ],
+      "notIn": ["Предусловия гейта по срокам ИЛ — P14-R15", "Апелляция как акт — P14-R12"],
+      "deps": ["P14-R9"],
+      "open": [
+        { "default": "окно до повторного предъявления ИЛ и предельный срок подачи берутся из общегражданского норматива (Порядка, п. не фиксирован), пока не подтверждено иное",
+          "ask": "точные величины срока предъявления/возврата исполнительного листа",
+          "impact": "меняются две строки справочника шаблонов сроков, механизм расчёта тот же" },
+        { "default": "порог обязанности предъявить иск по непредъявленной просрочке — 3 просроченных платежа или 90 дней, что раньше",
+          "ask": "верен ли порог «3 платежа или 90 дней» из норматива",
+          "impact": "меняется один настраиваемый ключ RULES (P14-R22), логика счётчика не переписывается" }
+      ]
+    },
+    {
+      "id": "P14-R22", "stage": 7,
+      "title": "Экран «Настройки правил» (#settings) — живой слой RULES",
+      "why": "Доступность мер, матрицы, предусловия и длительность карантина — конфигурация, а не код. Зашить их в код — превратить каждое изменение норматива в релиз.",
+      "look": { "mock": "collection.html", "route": "Взыскание → сайдбар → Настройки правил (#settings)",
+        "tz": "13-collection.html#s18" },
+      "rules": [
+        { "h": "Экран", "items": [
+          "Четыре вкладки; каждая правит одну ось живого слоя RULES: допустимость мер, предусловия видов, длительность карантина, справочники (виды меры / органы / шаблоны сроков).",
+          "Изменение правил сразу влияет на гейты регистрации (P14-R9, P14-R15) — без релиза."
+        ]}
+      ],
+      "accept": [
+        "Изменение матрицы «вид меры × подразделение» на #settings сразу отражается в форме регистрации меры.",
+        "Изменение длительности карантина влияет на новые случаи закрытия, не пересчитывает уже закрытые дела задним числом.",
+        "Редактирование справочника видов меры доступно без обращения к разработке.",
+        "Смена значения любой оси RULES не требует перезагрузки приложения.",
+        "Права на редактирование #settings ограничены ролью, не доступны рядовому куратору."
+      ],
+      "notIn": ["Сами гейты и матрицы как логика — P14-R9, P14-R15", "Кросс-процессные реестры — P14-R23"],
+      "deps": ["P14-R9", "P14-R15"]
+    },
+    {
+      "id": "P14-R23", "stage": 7,
+      "title": "Вкладка «История», кросс-процессные реестры",
+      "why": "Каждое действие должно оставлять след, а дела — сводиться в кросс-реестры для контроля руководством. Завершающая задача, замыкающая P14-R1…R22.",
+      "look": { "mock": "collection.html", "route": "карточка дела → вкладка «История»; сайдбар → Реестры",
+        "tz": "13-collection.html#s18" },
+      "rules": [
+        { "h": "История и реестры", "items": [
+          "Таймлайн событий дела: открытие, меры, сторно, смена процедуры, паузы/соглашения, передачи, правопреемство. Запись о фазе формулируется как свёртка, ручного отката в журнале не бывает.",
+          "Кросс-процессные реестры: заседания / претензии / вопросы на коллегиальные органы / сроки — поверх всех дел; у реестра претензий адресат — обязанное лицо, клик ведёт в требование-цель.",
+          "Сохранение состояния экрана (P14-R1): закрытие карточки корректно уводит в список с прежними фильтрами."
+        ]}
+      ],
+      "accept": [
+        "Каждое сторно, смена процедуры и передача видны на вкладке «История» с датой и автором.",
+        "Запись о смене фазы читается как «→ фаза «…» (свёртка журнала)», не как ручное присвоение.",
+        "Клик по строке реестра претензий открывает требование-цель, а не папку дела.",
+        "Реестр сроков показывает просроченные и близкие сроки по всем делам одновременно.",
+        "Закрытие карточки возвращает в реестр требований с теми же фильтрами, что были до перехода."
+      ],
+      "notIn": ["Сами события (меры, процедуры, паузы) — соответствующие задачи стадий 3–6"],
+      "deps": ["P14-R1", "P14-R9", "P14-R20"]
+    }
+  ]
+}
+</script>
+
 <script>
-/* ── Данные. Порядок = строгий порядок сборки (как в TODO.md). ──────────── */
-const THEMES = {
-  core:    'Шаг 1–5 · Ядро: каркас, факты, две оси, машина фаз, категория',
-  list:    'Шаг 6 · Список процессов',
-  card:    'Шаг 7 · Карточка: шапка и вкладки',
-  open:    'Шаг 8 · Открытие и окно ожидания',
-  measure: 'Шаг 9–11 · Меры: регистрация, вручение, сторно',
-  legal:   'Шаг 12–14 · Сроки, органы, ускорение долга',
-  money:   'Шаг 15 · Расчёт долга',
-  special: 'Шаг 16–17 · Особые состояния и залог',
-  flow:    'Шаг 18–20 · Передача, правила, история',
-};
+const DATA = JSON.parse(document.getElementById('tasks-data').textContent);
+const { meta, changelog, idmap, guide, stages, cards } = DATA;
 
-const T = [
-{ id:'P14-R1', step:'Шаг 1', prio:'crit', theme:'core', state:'mock',
-  title:'Каркас модуля: три вида, сайдбар, фильтр стадии, сохранение состояния',
-  pain:'Это точка входа в модуль. Пока нет каркаса — страницы с переключением видов и сайдбаром — остальные задачи некуда вешать. Поэтому делается первой.',
-  todo:['Каркас: сайдбар «Взыскание» + топбар; три вида — <b>Список процессов</b> (P14-R6) · <b>Карточка процесса</b> (P14-R7) · <b>Настройки правил</b> (P14-R19); плюс кросс-процессные <b>Реестры</b> (P14-R20).',
-        'Сайдбар-навигация с фильтром <b>стадии</b> — по <code>stageOf(phase)</code>, НЕ по наличию меры (закрывает Д-4).',
-        'Сохранение вида / карточки / вкладки в URL-хэше — переживает F5.'],
-  deps:['P14-R4','P14-R6','P14-R7','P14-R19','P14-R20'],
-  dev:['Эталон — <code>mockups/collection/collection.html</code>. Вид в хэше — <code>setHash()</code>; фильтр стадии — по <code>stageOf</code>, не по мерам (Д-4).'] },
+document.title = `Взыскание задолженности · редакция ${meta.revision} · P14 · АСУБК`;
+document.getElementById('hero-title').textContent =
+  `${meta.title} — задачи для команды разработки`;
 
-{ id:'P14-R2', step:'Шаг 2', prio:'crit', theme:'core', state:'mock',
-  title:'Модель-факты: процесс ↔ заёмщик ↔ кредиты («Охват»)',
-  pain:'Единица работы — процесс взыскания на одного заёмщика. Если хранить категорию/стадию/группу полями, они разойдутся с фактами при каждой мере и платеже. Всё производное считается, а не хранится.',
-  todo:['<b>Процесс</b> привязан к ОДНОМУ заёмщику (ИНН — якорь); связь <b>процесс ↔ кредиты — многие-ко-многим</b>, различаются предметом требования и суммой («Охват»).',
-        'В данных — только факты: процессы (<code>PROCESSES</code>), кредиты охвата, меры, платежи, справочники. Полей «статус» / «категория» / «стадия» / «группа» нет ни у одной сущности.',
-        'Всё производное — функции (фаза-производные, <code>catOf*</code>, <code>stageOf</code>, <code>groupOf</code>, <code>displayPhase</code>) — в модели не хранится.',
-        'Процесс ссылается на заёмщика и кредиты, ФИО/сумму не дублирует.'],
-  deps:[],
-  dev:['<code>PROCESSES</code> + связь процесс↔кредиты (many-to-many) с полем «Охват». Всё производное — чистые функции, полей <code>cat</code>/<code>stage</code>/<code>group</code> нет.'] },
+document.getElementById('revbar').innerHTML = `
+  <span class="revchip">Редакция ${meta.revision} · ${meta.date}</span>
+  ${meta.replaces ? `<span class="revchip replaces">заменяет редакцию ${meta.replaces.revision} от ${meta.replaces.date}</span>` : ''}
+  <span class="revchip replaces">${cards.length} задач · ${stages.length} этапов</span>
+`;
 
-{ id:'P14-R3', step:'Шаг 3', prio:'crit', theme:'core', state:'mock',
-  title:'Две ведущие оси: ФАЗА и ПРОЦЕДУРА (группа выводится)',
-  pain:'Юридический факт (фаза) и орг-состояние дела (процедура) — разные оси. Слить их в один «статус» — как в кадрах слить приказ и доступ: рано или поздно разойдётся (Р-1).',
-  todo:['<b>Фаза</b> — юр. факт, двигается ТОЛЬКО регистрацией меры-вехи; селектора фаз в UI нет.',
-        '<b>Процедура</b> — орг. состояние (закрытый словарь статусов); смена = запись в журнал с <b>ожиданием подтверждения принимающей стороны</b> (п. 98).',
-        '<b>Группа платёжеспособности</b> ВЫВОДИТСЯ из подтверждённого статуса процедуры (<code>groupOf</code>), вручную не задаётся.',
-        'Подпись источника у каждой оси (откуда значение).'],
-  deps:['P14-R2'],
-  dev:['<code>PROCEDURE_DICT</code> (закрытый словарь) + <code>procConfirmed</code>/<code>confirmProc</code>/<code>doRejectProc</code> (п. 98). <code>groupOf</code> считает группу из подтверждённой процедуры, не хранит.'] },
-
-{ id:'P14-R4', step:'Шаг 4', prio:'crit', theme:'core', state:'mock',
-  title:'Машина фаз — семь контуров К0…К7, стадия и отображаемая фаза',
-  pain:'Фазы — не одна цепочка, а семь контуров с терминалами. Стадия и «что показать в шапке» — производные от фазы; хранить их полем нельзя, иначе снова рассинхрон.',
-  todo:['<b>Семь контуров К0…К7</b> (§3.1); таймлайн рисует контур текущей фазы. Безакцептное списание — УСЛОВНАЯ ветка К1 (§3.4), в таймлайне только при <code>bezakceptRight:true</code> у кредита. Смерть заёмщика — контур К5, НЕ оверлей.',
-        'Терминалы (§3.3): Полное погашение · Признана безнадёжной · Списана · Завершена процедура банкротства.',
-        '<b>Стадия</b> = <code>stageOf(phase)</code>, 4 значения (§3.5): Досудебный порядок · Судебный порядок · Исполнительное производство · Отчуждение активов.',
-        '<b>Отображаемая фаза</b> (<code>displayPhase</code>, §3.6): хранятся <code>phase</code> + <code>overlay</code>; при оверлее реструктуризации показывается «Рассмотрение вопроса реструктуризации». <code>displayPhase</code> вызывается ВЕЗДЕ, где показывается фаза.'],
-  deps:['P14-R3'],
-  dev:['<code>CONTOURS</code>/<code>CONTOUR_LEVEL</code>/<code>contourOfPhase</code>, <code>PHASE_STAGE</code>→<code>stageOf</code>, <code>displayPhase</code>. Веху ставит только мера-веха (<code>MILESTONE_PHASE</code>, P14-R9).'] },
-
-{ id:'P14-R5', step:'Шаг 5', prio:'crit', theme:'core', state:'mock',
-  title:'Категория риска — worst-of на уровне кредита',
-  pain:'Категория должна считаться снизу вверх (день → кредит → процесс), а не как функция дней на процессе — иначе получаются Д-1/Д-2 (категория не бьётся с реальностью по кредитам).',
-  todo:['<code>catByDays</code> (0–5 норма / 6–180 средний / 181+ высокий) · <code>catOfCredit</code> (worst-of дней с подавлением 181-го + факторы, п. 12) · <code>catOfProcess</code> (worst-of по кредитам).',
-        '<b>Подавление 181-го дня — на уровне КРЕДИТА</b>, до worst-of; категория показывается честно («по дням 214 → высокий, подавлен → средний»).',
-        'Полей <code>cat</code>/<code>catDays</code> на процессе НЕТ.'],
-  deps:['P14-R2'],
-  dev:['<code>catByDays</code>/<code>catLevelOfCredit</code>/<code>catOfCredit</code>/<code>catOfProcess</code>, <code>CAT_RANK</code>. Подавление 181-го — до worst-of, на уровне кредита. Раскрытие входов в шапке — <code>catExpand</code>.'] },
-
-{ id:'P14-R6', step:'Шаг 6', prio:'major', theme:'list', state:'mock',
-  title:'Вид «Список процессов» — колонки, плитки-фильтры, полевой фильтр',
-  pain:'Без рабочего списка процесс не найти и в карточку не войти. Фильтры живые, без кнопки «Применить».',
-  todo:['Колонки списка (В-11) на дату, плитки-фильтры (счётчики по стадии/категории), фильтр стадии — по <code>stageOf</code> (Д-4).',
-        'Полевой фильтр: панель, чипы, зависимые селекты, живой пересчёт.',
-        'Клик по строке → карточка (P14-R7); пустой результат — понятная плашка.'],
-  deps:['P14-R4','P14-R5','P14-R7'],
-  dev:['<code>visibleProcesses</code> + плитки-фильтры; фильтр стадии через <code>stageOf</code>, не через наличие меры (Д-4). Фильтр живой, без «Применить».'] },
-
-{ id:'P14-R7', step:'Шаг 7', prio:'major', theme:'card', state:'mock',
-  title:'Вид «Карточка» — шапка (5 плиток) + лента 9 вкладок',
-  pain:'Контейнер карточки: пять плиток-индикаторов и переключение вкладок; на него вешаются R8–R18.',
-  todo:['Шапка — <b>пять плиток</b>: Стадия · Фаза · Процедура · Категория · Группа; ни одна не редактируется, у каждой подпись источника; плитка «Категория» раскрывает входы worst-of покредитно (паттерн <code>borrower.html</code>).',
-        'Лента <b>девяти вкладок</b>: Общая информация · Кредиты · Журнал мер · Суд · Ведение дела · Согласования · Особые состояния · Залог / реализация · История; навигация ← →.',
-        'Карточка read-only → в футере только «Закрыть».',
-        'Баннеры особых состояний (<code>headerBanners</code>) — каркас (наполнение в R16).'],
-  deps:['P14-R6'],
-  dev:['<code>TABS</code> (9 вкладок), <code>phaseHeader</code> (5 плиток), <code>headerBanners</code>. Плитки read-only, каждая с подписью источника; «Категория» → <code>catExpand</code>.'] },
-
-{ id:'P14-R8', step:'Шаг 8', prio:'major', theme:'open', state:'mock',
-  title:'Открытие процесса и окно ожидания зачисления',
-  pain:'Процесс должен открываться сам на 6-й день просрочки с нулём мер (нормальное состояние). До зачисления платежа первичная претензия под гейтом — иначе шлём претензию по уже пришедшим деньгам (Р-4/Р-8).',
-  todo:['<b>Авто-открытие</b> (Р-4) на 6-й день просрочки, фаза «Досудебное урегулирование», ноль мер.',
-        '<b>Окно ожидания зачисления</b> (Р-8, ≤14 к.д., по умолч. 5): пока открыто — гейт первичной претензии закрыт; закрывается по истечении либо отметкой куратора (п. 17.2).',
-        'Ретроспективное закрытие (Р-9) — процесс скрыт по умолчанию.'],
-  deps:['P14-R7'],
-  dev:['Окно — на процессе (<code>window.open</code>/<code>until</code>); закрытие отметкой — <code>closeWindowMark()</code>. Гейт первичной претензии открывается по истечении окна или отметке.'] },
-
-{ id:'P14-R9', step:'Шаг 9', prio:'major', theme:'measure', state:'mock',
-  title:'Вкладка «Журнал мер» — регистрация меры, три оси результата, матрицы',
-  pain:'Мера — атом взыскания. Её результат раскладывается на три независимые оси, а допустимость задаётся матрицами. Схлопнуть оси или прописать допустимость в коде — потерять входы расчётных показателей ТЗ (В-2/В-3/В-9).',
-  todo:['Справочник видов меры (В-3, пополняемый) + матрица «фаза ← вид меры-вехи» (веха двигает фазу) + матрица «вид меры × подразделение» (В-9).',
-        'Регистрация меры с <b>тремя осями результата</b>: <code>result</code> · <code>resultKind</code> · <code>execStage</code> — не схлопывать.',
-        'Слой правил доступности мер (<code>RULES</code>) — какие меры разрешены в текущем состоянии (правится на #settings, P14-R19).'],
-  deps:['P14-R4'],
-  dev:['<code>MEASURE_KINDS</code>/<code>MEASURE_SUBDIV</code>/<code>MILESTONE_PHASE</code>, три оси <code>RESULT_GROUPS</code>/<code>EXEC_STAGES</code>. <code>openMeasureModal</code>/<code>saveMeasure</code>; допустимость — <code>canRegisterMeasures</code>/<code>measureGate</code>.'] },
-
-{ id:'P14-R10', step:'Шаг 10', prio:'major', theme:'measure', state:'mock',
-  title:'Подтверждение вручения меры',
-  pain:'Мера без подтверждения вручения не исполнена и не годится как доказательство в суде — иск разваливается на «а вы точно вручили претензию?».',
-  todo:['Для претензий, требований обеспечителям и извещений — подтверждение вручения (способ + тип + дата + скан).',
-        'До подтверждения мера не двигает фазу-веху и помечается неисполненной.',
-        'Загрузка скана — демо-заглушка (тост).'],
-  deps:['P14-R9'],
-  dev:['Реквизиты вручения на мере; веха (<code>movePhase</code>) не срабатывает, пока вручение не подтверждено. Скан — демо (тост).'] },
-
-{ id:'P14-R11', step:'Шаг 11', prio:'major', theme:'measure', state:'mock',
-  title:'Сторно и иммутабельность отправленного документа',
-  pain:'Ошибочную меру нельзя тихо удалить — она уже в истории и, возможно, в суде. Отправленный документ переписывать нельзя, иначе теряется доказательная цепочка (И-1/И-3).',
-  todo:['<b>Сторно</b> вместо аннулирования (И-3): запись, не удаление; если сторнируется веха — откат фазы.',
-        'Отправленный документ иммутабелен (И-1): расхождение суммы <b>помечается</b>, сумма не переписывается.',
-        'След сторно виден в журнале мер и истории (P14-R20).'],
-  deps:['P14-R9'],
-  dev:['<code>openStornoModal</code>/<code>doStorno</code> — запись сторно, не delete; веха → откат фазы. Отправленный документ read-only, расхождение суммы помечается, не переписывается.'] },
-
-{ id:'P14-R12', step:'Шаг 12', prio:'minor', theme:'legal', state:'mock',
-  title:'Сроки порядка — расчётное поле, шаблоны, три даты факта',
-  pain:'Срок — не сущность-задание с назначениями и продлениями, а расчёт от базы шаблона. Заводить «задания» — раздуть модель и считать остаток от даты ввода, а не от факта (Р-3 вариант 3Б / Р-7).',
-  todo:['Справочник шаблонов <code>DEADLINE_TEMPLATES</code> (§5.3) с базой отсчёта и пунктом; <b>без</b> сущности «задание»/назначений/продлений.',
-        'Три даты внешнего факта (Р-7): <code>event</code> / <code>received</code> / <code>registered</code>; остаток срока — от базы шаблона, не от даты ввода.',
-        'Индикация просроченного / близкого срока в карточке и списке.'],
-  deps:['P14-R9'],
-  dev:['<code>DEADLINE_TEMPLATES</code> — только расчётное поле (вариант 3Б). Остаток — от базы шаблона по трём датам факта (<code>event</code>/<code>received</code>/<code>registered</code>).'] },
-
-{ id:'P14-R13', step:'Шаг 13', prio:'major', theme:'legal', state:'mock',
-  title:'Коллегиальные органы и гейты необратимых действий',
-  pain:'Необратимые действия (иск, безакцепт, списание, внесудебное обращение) должны блокироваться до положительного решения профильного органа. Абстрактное «решение комитета» — мало: органов ровно пять (Р-6).',
-  todo:['Справочник <b>пяти органов</b> (Р-6, закрытый), не абстрактное «решение комитета».',
-        '<b>Гейты</b> необратимых действий (§6.3): блокировка до положительного решения, причина текстом; подача иска — поручение Председателя (п. 21).',
-        'Гейт пересечения на судебной стадии; вкладки «Суд» / «Согласования» показывают статусы решений.'],
-  deps:['P14-R9'],
-  dev:['<code>GATES</code>/<code>gateBlocked</code>/<code>gateReason</code>/<code>toggleGate</code>, <code>openDecisionModal</code>/<code>openCommitteeQuestionModal</code>. Судебный гейт пересечения — <code>schedGate</code>/<code>msHasSuit</code>.'] },
-
-{ id:'P14-R14', step:'Шаг 14', prio:'minor', theme:'legal', state:'mock',
-  title:'Ускорение долга при извещении (В-8)',
-  pain:'Регистрация извещения влечёт досрочное наступление всего долга — требуемая сумма должна пересчитаться с просроченной части на полный остаток прямо на клике, а не остаться прежней (В-8, п. 20.4).',
-  todo:['При регистрации извещения — пересчёт требуемой суммы с просроченной части на полный остаток (на клике).',
-        'При наличии решения суда погашение сначала направляется на сумму по судебному акту.',
-        'Показать до / после в расчёте долга (P14-R15).'],
-  deps:['P14-R9','P14-R15'],
-  dev:['Флаг <code>accelerated</code> на кредите/процессе; пересчёт требуемой суммы на клике извещения (В-8). При судебном акте — приоритет суммы по акту в распределении (§9.2).'] },
-
-{ id:'P14-R15', step:'Шаг 15', prio:'major', theme:'money', state:'mock',
-  title:'Вкладка «Расчёт долга» — пять статей, два распределения',
-  pain:'Долг раскладывается на пять статей, а погашение распределяется по-разному: обычный waterfall и выручка от реализации залога (расходы → залогодержатель → возврат залогодателю). Один порядок на всё — ошибка в деньгах (§9).',
-  todo:['<b>Пять статей</b> долга (+<code>costs</code> «Расходы по обращению взыскания и реализации»), финразбивка по буквам обязательства.',
-        '<b>Два распределения</b> (§9.2): обычный waterfall и выручка от реализации залога (п. 49: расходы → залогодержатель → ВОЗВРАТ залогодателю).',
-        'Непокрытый остаток → п. 33; интерактивное распределение погашения (оба режима).'],
-  deps:['P14-R2'],
-  dev:['<code>DEBT_BUCKETS</code>/<code>DEBT_LABELS</code>/<code>debtTotals</code>/<code>debtLeft</code>; два распределения — обычный waterfall и <code>distributeRealization</code> (п. 49). Непокрытый остаток → п. 33.'] },
-
-{ id:'P14-R16', step:'Шаг 16', prio:'major', theme:'special', state:'mock',
-  title:'Вкладка «Особые состояния» — паузы, соглашения, смерть, конфликт интересов',
-  pain:'Особые состояния нельзя сливать с фазой: пауза и соглашение сохраняют фазу, смерть — это контур К5, а конфликт интересов отстраняет куратора. Свалить всё в «статус» — потерять типизацию (Р-10, гл. 16).',
-  todo:['<b>Паузы</b> типизированы: гарантийное письмо (п. 18) / реструктуризация (п. 19); фаза сохранена, счётчик дней НЕ заморожен; реструктуризация даёт оверлей <code>displayPhase</code> + подавление 181-го.',
-        '<b>Два соглашения</b>: мировое (пп. 22–24) / добровольное исполнение (п. 37) — новый график и мониторинг, не пауза.',
-        '<b>Конфликт интересов</b> (гл. 16): отстранение куратора до решения Правления (п. 92), все действия регистрации для роли заблокированы.',
-        'Баннеры особых состояний в шапке (наполнение каркаса R7).'],
-  deps:['P14-R7','P14-R4'],
-  dev:['<code>openPauseModal</code>/<code>savePause</code>/<code>liftPause</code>/<code>onPauseTypeChange</code>; соглашения — <code>openAgreementModal</code>. Смерть = контур К5 (не оверлей). Конфликт — <code>conflict.curatorSuspended</code> в <code>headerBanners</code>.'] },
-
-{ id:'P14-R17', step:'Шаг 17', prio:'major', theme:'special', state:'mock',
-  title:'Вкладка «Залог / реализация» — порядок обращения и ЖЦ реализации',
-  pain:'Обращение взыскания на залог и реализация — типизированный жизненный цикл, стыкованный с модулем обеспечения (P13). Без типизации ЖЦ выручка и расходы попадают в расчёт долга как попало.',
-  todo:['Порядок обращения взыскания (п. 42) и типизированный ЖЦ реализации (п. 48/49).',
-        'Стык с модулем обеспечения (P13): трек по предметам залога процесса.',
-        'Выручка от реализации уходит в распределение §9.2 (P14-R15).'],
-  deps:['P14-R15'],
-  dev:['<code>panelZalog</code>, <code>openRealizationModal</code>/<code>markRealized</code>/<code>distributeRealization</code> (п. 48/49). Стык с модулем обеспечения P13 (трек по предметам).'] },
-
-{ id:'P14-R18', step:'Шаг 18', prio:'minor', theme:'flow', state:'mock',
-  title:'Вкладки «Ведение дела» / «Согласования» — эстафета передачи дела',
-  pain:'Дело идёт по подразделениям эстафетой; приём пакета должен подтверждаться или отклоняться принимающей стороной с причиной — иначе дело «уходит в никуда» (п. 98).',
-  todo:['Эстафета: куратор → ДПО → отдел проблемных кредитов → ПССИ / сектор активов.',
-        'Передача с <b>подтверждением или отклонением</b> пакета (паттерн «четырёх глаз», п. 98, срок 5 р.д.), причина отклонения текстом.',
-        'Смена процедуры (P14-R3) отражается записью в журнал с ожиданием подтверждения.'],
-  deps:['P14-R3'],
-  dev:['<code>openProcChangeModal</code>/<code>doProcChange</code>/<code>openRejectProc</code>/<code>doRejectProc</code> (п. 98, «четыре глаза»). Эстафета подразделений — из справочника оргструктуры.'] },
-
-{ id:'P14-R19', step:'Шаг 19', prio:'major', theme:'flow', state:'mock',
-  title:'Экран «Настройки правил» (#settings) — живой слой RULES',
-  pain:'Доступность мер и матрицы — конфигурация, а не код. Зашить их в код — каждое изменение норматива через релиз.',
-  todo:['Экран настроек (#settings), четыре вкладки; каждая правит одну ось <code>RULES</code> (живой слой доступности мер).',
-        'Справочники видов меры / органов / шаблонов сроков — редактируемы отсюда.',
-        'Изменение правил сразу влияет на гейты регистрации (P14-R9/R13).'],
-  deps:['P14-R9','P14-R13'],
-  dev:['<code>SETTINGS_TABS</code>, <code>renderSettingsGates</code>/<code>renderSettingsPhases</code>; <code>RULES_DEFAULTS</code>/<code>RULES_KEY</code> — живой слой, правится без релиза, сразу влияет на <code>measureGate</code>.'] },
-
-{ id:'P14-R20', step:'Шаг 20', prio:'minor', theme:'flow', state:'mock',
-  title:'Вкладка «История», кросс-процессные реестры, сохранение состояния',
-  pain:'Каждое действие должно оставлять след, а процессы — сводиться в кросс-реестры. Завершающая задача, замыкающая R1–R19.',
-  todo:['Вкладка «История» — таймлайн событий процесса (открытие, меры, сторно, смена процедуры, паузы/соглашения, передачи).',
-        'Кросс-процессные <b>реестры</b> (мер / сроков / согласований / залога) поверх всех процессов.',
-        'Сохранение состояния экрана (см. P14-R1): после закрытия карточки корректно уводить в список.'],
-  deps:['P14-R1','P14-R11'],
-  dev:['Таймлайн истории на карточке; кросс-процессные реестры поверх <code>PROCESSES</code>. Состояние экрана — в хэше (см. P14-R1).'] },
-];
-
-/* ── Рендер ───────────────────────────────────────────────────────────── */
-const PRIO_META = {
-  crit:  { chip:'🔴 Блокер',    cls:'chip-crit'  },
-  major: { chip:'🟠 Важно',     cls:'chip-major' },
-  minor: { chip:'🟡 Средне',    cls:'chip-minor' },
-};
-const STATE_META = {
-  mock: { chip:'Есть эталон в макете', cls:'chip-mock' },
-  open: { chip:'Только постановка',    cls:'chip-open' },
-};
-
-const F = { q:'', theme:'', prio:'', state:'' };
-
-const themeSel = document.getElementById('fTheme');
-Object.entries(THEMES).forEach(([k,v]) => {
-  const n = T.filter(t => t.theme === k).length;
-  themeSel.insertAdjacentHTML('beforeend', `<option value="${k}">${v} (${n})</option>`);
-});
+document.getElementById('hero-lead').innerHTML = `
+  ${cards.length} задач, собранных в ${stages.length} этапов (не строгую очередь — см. подвал страницы).
+  Это <b>сквозной модуль</b>, живущий поверх любого кредита в просрочке. Эталон интерфейса и
+  поведения — макет <code>${meta.package[0]}</code>
+  (проверка — <code>node scripts/inspect/collection-check.mjs</code>, jsdom). Модель — ТЗ
+  <code>${meta.package[1]}</code>. Технические имена функций макета в карточках не используются —
+  см. «Ловушки» там, где это неизбежно.
+`;
 
 function tiles(){
   const data = [
-    { k:'', l:'Всего задач', n:T.length, cls:'' },
-    { k:'crit',  l:'🔴 Блокеры', n:T.filter(t=>t.prio==='crit').length,  cls:'crit' },
-    { k:'major', l:'🟠 Важные',  n:T.filter(t=>t.prio==='major').length, cls:'major' },
-    { k:'minor', l:'🟡 Средние', n:T.filter(t=>t.prio==='minor').length, cls:'' },
+    { l:'Задач', n:cards.length },
+    { l:'Этапов', n:stages.length },
+    { l:'Новых с ред. 1', n:(changelog.added||[]).length },
+    { l:'Открытых вопросов', n:cards.reduce((a,c)=>a+(c.open||[]).length,0) },
   ];
   document.getElementById('tiles').innerHTML = data.map(d =>
-    `<button class="tile ${d.cls} ${F.prio===d.k && d.k ? 'on':''}" data-prio="${d.k}">
-       <span class="n">${d.n}</span><span class="l">${d.l}</span></button>`).join('');
-  document.querySelectorAll('.tile').forEach(b => b.onclick = () => {
-    const p = b.dataset.prio;
-    F.prio = (F.prio === p || !p) ? '' : p;
-    document.getElementById('fPrio').value = F.prio;
-    render();
-  });
+    `<div class="tile"><span class="n">${d.n}</span><span class="l">${d.l}</span></div>`).join('');
+}
+tiles();
+
+// Журнал редакции
+(function renderJournal(){
+  const added = (changelog.added||[]).map(id =>
+    `<li><span class="jid">${id}</span>${(cards.find(c=>c.id===id)||{}).title||''}</li>`).join('') || '<li>—</li>';
+  const changed = (changelog.changed||[]).map(row =>
+    `<li><span class="jid">${row.id}</span>${row.what}</li>`).join('') || '<li>—</li>';
+  document.getElementById('journal-grid').innerHTML = `
+    <div><h4>Новое (не было в редакции 1)</h4><ul class="jl">${added}</ul></div>
+    <div><h4>Изменилось по существу</h4><ul class="jl">${changed}</ul></div>
+  `;
+  document.getElementById('idmap-table').innerHTML =
+    '<tr><th>Старый ID</th><th>Новый ID</th></tr>' +
+    (idmap||[]).map(r => `<tr><td>${r.old}</td><td>${r.new}</td></tr>`).join('');
+})();
+
+// Справка модуля
+document.getElementById('guide-list').innerHTML = (guide||[]).map(g => `
+  <div class="guide-item">
+    <h3>${g.h}</h3>
+    <ul>${(g.items||[]).map(i=>`<li>${i}</li>`).join('')}</ul>
+  </div>`).join('');
+
+// Открытые вопросы — сводка по всем карточкам
+(function renderOpenQ(){
+  const rows = [];
+  cards.forEach(c => (c.open||[]).forEach(o => rows.push({...o, cid:c.id, title:c.title})));
+  document.getElementById('openq-list').innerHTML = rows.length
+    ? rows.map(o => `
+        <div class="openq">
+          <a href="#card-${o.cid}">${o.cid}</a>
+          <span><b>${o.ask}</b> — умолчание: <span class="oq-default">${o.default}</span></span>
+        </div>`).join('')
+    : '<p style="color:var(--text-muted)">Открытых вопросов нет.</p>';
+})();
+
+// Фильтр этапов
+const stageSel = document.getElementById('fStage');
+stages.forEach(s => {
+  const n = cards.filter(c => c.stage === s.n).length;
+  stageSel.insertAdjacentHTML('beforeend', `<option value="${s.n}">Этап ${s.n} · ${s.title} (${n})</option>`);
+});
+
+const F = { q:'', stage:'' };
+
+function depChip(id){
+  const c = cards.find(x=>x.id===id);
+  return `<a class="dep" href="#card-${id}" title="${c?c.title:''}">↔ ${id}</a>`;
 }
 
-function card(t){
-  const pm = PRIO_META[t.prio], sm = STATE_META[t.state];
-  const dev = t.dev && t.dev.length
-    ? `<details><summary>Для разработчика — эталон и ловушки</summary>
-         <div class="dev"><ul>${t.dev.map(d=>`<li>${d}</li>`).join('')}</ul></div></details>` : '';
-  const deps = (t.deps||[]).map(d=>`<span class="dep">↔ ${d}</span>`).join('');
-  return `<article class="card p-${t.prio}" data-id="${t.id}">
+function groupsHtml(groups){
+  if(!groups) return '';
+  return groups.map(g => `<div class="subh">${g.h}</div><ul>${(g.items||[]).map(i=>`<li>${i}</li>`).join('')}</ul>`).join('');
+}
+
+function lookHtml(look){
+  if(!look) return '';
+  const parts = [];
+  if(look.mock) parts.push(`<a href="${look.mock}" target="_blank" rel="noopener">${look.mock.split('#')[0]}</a>`);
+  if(look.route) parts.push(`<span class="route">${look.route}</span>`);
+  if(look.mockNote) parts.push(`<span class="route">${look.mockNote}</span>`);
+  if(look.tz) parts.push(`<a href="${look.tz}" target="_blank" rel="noopener">ТЗ ${look.tz.split('#')[1]?('· '+look.tz.split('#')[1]):''}</a>`);
+  if(look.defect) parts.push(`<span class="defect">дефект ${look.defect}</span>`);
+  return `<div class="look">${parts.join('')}</div>`;
+}
+
+function openHtml(open){
+  if(!open || !open.length) return '';
+  return open.map(o => `
+    <div class="openbox">
+      <b>Решения нет:</b> ${o.ask}. Умолчание — ${o.default}. При другом ответе: ${o.impact}.
+    </div>`).join('');
+}
+
+function trapsHtml(traps){
+  if(!traps || !traps.length) return '';
+  return `<details><summary>Ловушки</summary><div class="traps"><ul>${traps.map(t=>`<li>${t}</li>`).join('')}</ul></div></details>`;
+}
+
+function isNew(id){ return (changelog.added||[]).includes(id); }
+function isChanged(id){ return (changelog.changed||[]).some(r=>r.id===id); }
+
+function card(c){
+  const badge = isNew(c.id) ? '<span class="chip chip-new">новая</span>'
+              : isChanged(c.id) ? '<span class="chip chip-changed">изменилась</span>' : '';
+  return `<article class="card" id="card-${c.id}" data-id="${c.id}" data-stage="${c.stage}">
     <div class="c-head">
-      <span class="id">${t.id}</span>
-      <span class="step">${t.step}</span>
-      <h3 class="c-title">${t.title}</h3>
-      <span class="chip ${pm.cls}">${pm.chip}</span>
-      <span class="chip ${sm.cls}">${sm.chip}</span>
+      <span class="id">${c.id}</span>
+      <span class="step">Этап ${c.stage}</span>
+      <h3 class="c-title">${c.title}</h3>
+      ${badge}
     </div>
-    <div class="blk"><span class="lbl">В чём проблема</span><p class="pain">${t.pain}</p></div>
-    <div class="blk"><span class="lbl">Что сделать</span><ul>${t.todo.map(x=>`<li>${x}</li>`).join('')}</ul></div>
-    <div class="c-foot"><span class="tag">${THEMES[t.theme]}</span>${deps}</div>
-    ${dev}
+    <div class="blk"><p class="why">${c.why}</p></div>
+    ${lookHtml(c.look) ? `<div class="blk">${lookHtml(c.look)}</div>` : ''}
+    ${c.model ? `<div class="blk"><span class="lbl">Модель</span>${groupsHtml(c.model)}</div>` : ''}
+    ${c.rules ? `<div class="blk"><span class="lbl">Правила</span>${groupsHtml(c.rules)}</div>` : ''}
+    <div class="blk"><span class="lbl">Приёмка</span><ul>${(c.accept||[]).map(a=>`<li>${a}</li>`).join('')}</ul></div>
+    ${openHtml(c.open)}
+    <div class="blk"><span class="lbl">Не в этой задаче</span><ul>${(c.notIn||[]).map(a=>`<li>${a}</li>`).join('')}</ul></div>
+    <div class="c-foot">
+      <span class="tag">${stages.find(s=>s.n===c.stage).title}</span>
+      ${(c.deps||[]).map(depChip).join('')}
+    </div>
+    ${trapsHtml(c.traps)}
   </article>`;
 }
 
 function render(){
   const q = F.q.trim().toLowerCase();
-  const sel = T.filter(t => {
-    if (F.theme && t.theme !== F.theme) return false;
-    if (F.prio  && t.prio  !== F.prio)  return false;
+  const sel = cards.filter(c => {
+    if (F.stage && String(c.stage) !== String(F.stage)) return false;
     if (!q) return true;
-    const hay = (t.id + ' ' + t.title + ' ' + t.pain + ' ' + t.todo.join(' ') + ' ' + (t.dev||[]).join(' ')).toLowerCase();
+    const hay = JSON.stringify(c).toLowerCase();
     return hay.includes(q);
   });
-
   const list = document.getElementById('list');
-  if (!sel.length){ list.innerHTML = '<div class="empty">Ничего не найдено. Сбросьте фильтры.</div>'; }
+  if(!sel.length){ list.innerHTML = '<div class="empty">Ничего не найдено. Сбросьте фильтры.</div>'; }
   else {
-    const order = Object.keys(THEMES);
-    list.innerHTML = order.filter(k => sel.some(t => t.theme === k)).map(k => {
-      const rows = sel.filter(t => t.theme === k);
-      return `<section class="group"><h2>${THEMES[k]} <span class="g-n">· ${rows.length}</span></h2>
+    list.innerHTML = stages.filter(s => sel.some(c=>c.stage===s.n)).map(s => {
+      const rows = sel.filter(c => c.stage === s.n);
+      return `<section class="group"><h2>Этап ${s.n} · ${s.title} <span class="g-n">· ${rows.length}</span></h2>
               ${rows.map(card).join('')}</section>`;
     }).join('');
   }
-  document.getElementById('count').textContent = `Показано ${sel.length} из ${T.length}`;
-  tiles();
+  document.getElementById('count').textContent = `Показано ${sel.length} из ${cards.length}`;
 }
 
-document.getElementById('q').oninput       = e => { F.q = e.target.value; render(); };
-document.getElementById('fTheme').onchange = e => { F.theme = e.target.value; render(); };
-document.getElementById('fPrio').onchange  = e => { F.prio  = e.target.value; render(); };
-document.getElementById('reset').onclick   = () => {
-  F.q=''; F.theme=''; F.prio=''; F.state='';
-  document.getElementById('q').value=''; document.getElementById('fTheme').value='';
-  document.getElementById('fPrio').value='';
+document.getElementById('q').oninput      = e => { F.q = e.target.value; render(); };
+document.getElementById('fStage').onchange= e => { F.stage = e.target.value; render(); };
+document.getElementById('reset').onclick  = () => {
+  F.q=''; F.stage='';
+  document.getElementById('q').value=''; document.getElementById('fStage').value='';
   render();
 };
 let expanded = false;
 document.getElementById('expand').onclick = e => {
   expanded = !expanded;
   document.querySelectorAll('details').forEach(d => d.open = expanded);
-  e.target.textContent = expanded ? 'Свернуть тех. детали' : 'Раскрыть тех. детали';
+  e.target.textContent = expanded ? 'Свернуть ловушки' : 'Раскрыть ловушки';
 };
 
 render();
