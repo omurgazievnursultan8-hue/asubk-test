@@ -243,4 +243,70 @@ test('T5-6: закрытый транш в списке помечен', () => {
   has(head, 'Транш №2 · закрыт', 'закрытый транш обязан быть виден и помечен');
 });
 
+test('T6-1: модалка освоения предвыбрана областью', () => {
+  const { CR, win } = load();
+  multiCredit(CR);
+  CR.openDetail('K-C40');
+  CR.setCardScope(2);
+  CR.openDisbModal();
+  const sel = win.document.getElementById('disbTranche');
+  ok(sel, 'селект транша в модалке освоения обязан существовать');
+  eq(sel.value, '2', 'предвыбор должен прийти из области карточки');
+});
+
+// Брифовский вариант (multiCredit() → область=2 → цель освоения=1) не может пройти ни
+// при какой реализации: транш №1 у K-C40 освоен ПОЛНОСТЬЮ уже в сиде (300000 из 300000,
+// см. seedDb/mkScen, disb:'partial' у этого сценария означает «первый транш — целиком,
+// второй — нисколько», а не частичное освоение внутри транша), а multiCredit() сверху
+// добивает и транш №2 до 100% — цели для довнесения не остаётся ни на одном из двух
+// (проверено эмпирически через CR.addDisbursement: гейт «Σ освоений транша не может
+// превышать сумму транша» срабатывает на обоих траншах после multiCredit()). Тест
+// зеркалим: цель — транш №2 (в сырых данных сеида свободен на все 200000, multiCredit()
+// не зовём, чтобы не занять его), старт области — транш №1. Проверяемое поведение то
+// же самое — выбор ДРУГОГО транша в модалке освоения после подтверждения передвигает
+// область карточки на него.
+test('T6-2: выбор другого транша в модалке двигает область карточки', () => {
+  const { CR, win } = load();
+  const c = CR.db.credits.find(x => x.id === 'K-C40');
+  CR.openDetail('K-C40');
+  CR.setCardScope(1);
+  CR.openDisbModal();
+  win.document.getElementById('disbTranche').value = '2';
+  win.document.getElementById('disbAmount').value = '1000';
+  CR.submitDisb();
+  has(CR.renderTab('Расчёты', c), 'транш №2', 'после освоения область обязана встать на транш действия');
+});
+
+test('T6-3: смена области не сбрасывает дату среза и наоборот', () => {
+  const { CR, win } = load();
+  multiCredit(CR);
+  CR.openDetail('K-C40');
+  CR.setCardAsOf('01.06.2026');
+  CR.setCardScope(2);
+  has(win.document.body.innerHTML, '01.06.2026', 'дата среза обязана пережить смену области');
+  CR.setCardAsOf('01.07.2026');
+  has(win.document.querySelector('.phead-acts').innerHTML, 'value="2" selected',
+      'область обязана пережить смену даты');
+});
+
+// T6-4: не из брифа — брифовский план ошибочно считал submitPayment уже симметричным
+// submitDisb/submitSched (см. дефект в отчёте задачи 6); контроллер поручил исправить
+// здесь же. Форма та же, что у T6-2, но через платёжную модалку: роль по умолчанию
+// («Кредитный специалист») права savePayment не имеет — только «Бухгалтер» и
+// «Начальник отдела», поэтому роль переключаем перед открытием модалки.
+test('T6-4: выбор другого транша в модалке платежа двигает область карточки', () => {
+  const { CR, win } = load();
+  win.document.getElementById('roleSel').value = 'Бухгалтер';
+  CR.onRoleChange();
+  const c = multiCredit(CR);
+  CR.openDetail('K-C40');
+  CR.setCardScope(2);
+  CR.openPaymentModal();
+  win.document.getElementById('payTranche').value = '1';
+  win.document.getElementById('payAmount').value = '1000';
+  win.document.getElementById('payDate').value = CR.TODAY.split('.').reverse().join('-');
+  CR.submitPayment();
+  has(CR.renderTab('Расчёты', c), 'транш №1', 'после платежа область обязана встать на транш действия');
+});
+
 report();

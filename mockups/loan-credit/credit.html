@@ -422,7 +422,8 @@
      ОСТАЛОСЬ В «РАСЧЁТАХ»: свод по статьям, детальный расчёт (леджер), резерв за
        неполное освоение. Селектор транша и тумблер «консолидировано» переехали к
        леджеру, которым и управляют (тумблер к графику отношения не имел вовсе).
-       Состояние общее — detailTrancheNo один на карточку, вкладки не расходятся.
+       Состояние общее — cardScope один на карточку, вкладки не расходятся (КВ-17;
+       было три переменные, включая detailTrancheNo — см. ниже, у смены области).
      Плашка Д-5 стоит теперь на обеих вкладках: на «Графике» — «сформируйте заново»,
        в «Расчётах» — «расчёт построен по прежним условиям» + переход на «График».
        CR.goToCalc → CR.goToSchedule (кнопка на «Условиях» ведёт к перегенерации).
@@ -6962,7 +6963,11 @@ if (typeof document !== 'undefined') {
     const amount=+document.getElementById('payAmount').value||0;
     const date=toDMY(document.getElementById('payDate').value);
     const r=CR.addPayment(c,{amount,date,trancheNo}); if(!r.ok){ CR.modalErr(r.reasons); return; }
-    CR.closeModal(); toast('Платёж отправлен — статус «Ожидает ЦК»','ok'); rerenderDetail(); };
+    /* КВ-17: платёж — тоже действие на транше, как освоение и график; область карточки
+       обязана встать на транш, на который он введён, теми же правилами, что и у соседей
+       (submitDisb/submitSched выше). До этой правки не ставила — единственная асимметрия
+       из трёх модалок. */
+    CR.closeModal(); cardScope=trancheNo; toast('Платёж отправлен — статус «Ожидает ЦК»','ok'); rerenderDetail(); };
 
   /* 6) KM-decision (setKmDecision, Р-8) — разблокирует освоение с провалом покрытия (К-5) */
   CR.openKmModal=function(){ const c=modalGuard('setKmDecision'); if(!c) return;
