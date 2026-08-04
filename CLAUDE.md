@@ -100,6 +100,13 @@ python3 scripts/build_tz_html.py requirements/tz/03-zayavka-komissiya.md [out.ht
 # Validate dev task files against docs/tasks/FORMAT.md before handing them over.
 python3 scripts/check_tasks.py                       # all files that carry a JSON island
 python3 scripts/check_tasks.py docs/tasks/<file>.html
+
+# Validate every «п. NN» citation against the Порядок redaction in force
+# (№41 of 06.07.2026, docs/normativ/). Fails on points that no longer exist.
+python3 scripts/check_points.py            # report + exit 1 on dead citations
+python3 scripts/check_points.py --strict   # moved-but-existing points fail too
+python3 scripts/check_points.py --map      # the renumbering table
+python3 scripts/check_points.py --list     # points parsed out of the source
 ```
 
 `build_tz_html.py` gotcha: the banner kick-line and the routes strip are **hardcoded to
