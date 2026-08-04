@@ -6125,11 +6125,14 @@ if (typeof document !== 'undefined') {
      (cardScope). Помесячный прогноз по кредиту целиком — во вкладке «План»,
      колонкой рядом с планом: там он служит ориентиром при постановке цели. */
   function tabPrognoz(c,d){
-    /* КВ-17, временно: слитый вид при области «по кредиту» приходит задачами 3 и 4;
-       до тех пор вкладка откатывается на первый транш. */
-    const sel=scopeTranche(c)||c.tranches[0];
+    const sel=scopeTranche(c);                        // null → область «по кредиту» (КВ-17)
     const stPill={'Оплачена':'low','Просрочена':'high','Наступила':'mid','Предстоит':'neutral'};
-    const fr = sel ? trancheForecastRows(sel, d.ledger.index, cardAsOf) : [];
+    const scope = sel ? 'транш №'+sel.no : 'по кредиту';
+    /* Та же идиома слияния, что на «Графике» и в консолидированном расчёте: строки всех
+       активных траншей в одной таблице, колонка «Транш», сортировка по дате. */
+    const srcTranches = sel ? [sel] : c.tranches.filter(activeTranche);
+    const fr = srcTranches.flatMap(t => trancheForecastRows(t, d.ledger.index, cardAsOf).map(r => ({...r, _t:t})))
+      .sort((a,b) => pd(a.date) - pd(b.date) || a._t.no - b._t.no);
     const fut = fr.filter(r=>!r.past), past = fr.filter(r=>r.past);
     const futSum   = round2(fut.reduce((a,r)=>a+r.forecast,0));
     const futSched = round2(fut.reduce((a,r)=>a+r.scheduled,0));
@@ -6137,9 +6140,9 @@ if (typeof document !== 'undefined') {
     const dl       = round2(futSum - futSched);
     const nxt = fut[0];
     const rws = fr.map(r=>{
-      const s = scheduleRowStatus({date:r.date}, d.ledger.index.get(ledgerKey(sel.no, r.no)), cardAsOf);
+      const s = scheduleRowStatus({date:r.date}, d.ledger.index.get(ledgerKey(r._t.no, r.no)), cardAsOf);
       const rd = r.delta;
-      return `<tr${r.past?' class="text-muted"':''}><td>№${r.no}</td><td>${esc(r.date)}</td>
+      return `<tr${r.past?' class="text-muted"':''}><td>№${r.no}</td>${sel?'':`<td>№${r._t.no}</td>`}<td>${esc(r.date)}</td>
         <td style="text-align:right">${money(r.scheduled)}</td>
         <td style="text-align:right"><b>${money(r.forecast)}</b></td>
         <td style="text-align:right;color:${Math.abs(rd)>0.005?(rd>0?'var(--asubk-red)':'var(--text-muted)'):'inherit'}">${Math.abs(rd)>0.005?(rd>0?'+':'')+money(rd):'—'}</td>
@@ -6153,19 +6156,22 @@ if (typeof document !== 'undefined') {
         Весь непокрытый хвост прошлых позиций отнесён к ближайшей будущей. Ничего не хранится:
         таблица строится заново при каждом рендере (Д-9 — порядок сумм, не банковская копейка).</p>
       <div class="gtoolbar">
-        <div class="field" style="max-width:320px"><span class="flabel">Транш</span><div class="control"><select onchange="CR.setCardScope(+this.value)">${c.tranches.map(t=>`<option value="${t.no}"${sel&&t.no===sel.no?' selected':''}>Транш №${t.no}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+        <div class="field" style="max-width:320px"><span class="flabel">Область</span><div class="control"><select onchange="CR.setCardScope(this.value)">
+          ${c.tranches.length>1?`<option value="credit"${cardScope==='credit'?' selected':''}>по кредиту</option>`:''}
+          ${c.tranches.map(t=>`<option value="${t.no}"${cardScope===t.no?' selected':''}>Транш №${t.no}</option>`).join('')}
+        </select><span class="caret">▾</span></div></div>
       </div>
       <div class="phead-dims" style="grid-template-columns:repeat(4,1fr);margin-top:6px">
         <div class="dim"><div class="dl">Ждём впереди</div><div class="dv">${money(futSum)}</div><div class="src">${fut.length} позиц. после ${esc(cardAsOf)}</div></div>
         ${/* не «Ближайший платёж»: так называется плитка шапки, а там — сумма ПО ГРАФИКУ
               ближайшей ненаступившей позиции. Здесь — прогноз по ближайшей БУДУЩЕЙ, и в него
               свален весь непокрытый хвост прошлого: цифры разные по построению. */''}
-        <div class="dim"><div class="dl">Ждём ближайшим платежом</div><div class="dv">${nxt?money(nxt.forecast):'—'}</div><div class="src">${nxt?esc(nxt.date)+' · позиция №'+nxt.no+(tail>0.005?' · включая хвост '+money(tail):''):'будущих позиций нет'}</div></div>
+        <div class="dim"><div class="dl">Ждём ближайшим платежом</div><div class="dv">${nxt?money(nxt.forecast):'—'}</div><div class="src">${nxt?esc(nxt.date)+' · позиция №'+nxt.no+(sel?'':' · транш №'+nxt._t.no)+(tail>0.005?' · включая хвост '+money(tail):''):'будущих позиций нет'}</div></div>
         <div class="dim"><div class="dl">Непокрытый хвост прошлого</div><div class="dv" style="color:${tail>0.005?'var(--asubk-red)':'inherit'}">${money(tail)}</div><div class="src">отнесён к ближайшей будущей позиции</div></div>
         <div class="dim"><div class="dl">Отклонение от графика</div><div class="dv" style="color:${Math.abs(dl)>0.005?(dl>0?'var(--asubk-red)':'var(--text-muted)'):'inherit'}">${Math.abs(dl)>0.005?(dl>0?'+':'')+money(dl):'—'}</div><div class="src">по будущим позициям</div></div>
       </div>
-      <div class="section-h" style="margin-top:22px">Прогноз — позиции (транш №${sel?sel.no:'—'})</div>
-      ${cgrid([{h:'№'},{h:'Дата'},{h:'По графику',r:1},{h:'Прогноз',r:1},{h:'Δ',r:1},{h:'Статус'}], rws,
+      <div class="section-h" style="margin-top:22px">Прогноз — позиции (${esc(scope)})</div>
+      ${cgrid([{h:'№'}].concat(sel?[]:[{h:'Транш'}]).concat([{h:'Дата'},{h:'По графику',r:1},{h:'Прогноз',r:1},{h:'Δ',r:1},{h:'Статус'}]), rws,
         {empty:'Графика нет — прогнозировать нечего'})}`;
   }
 

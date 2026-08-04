@@ -146,4 +146,35 @@ test('T3-7: несколько траншей, метод общий — пла�
       'методы совпадают — расхождению взяться неоткуда');
 });
 
+test('T4-1: «Прогноз» при «по кредиту» — слитая таблица с колонкой «Транш»', () => {
+  const { CR } = load();
+  const c = multiCredit(CR);
+  CR.openDetail('K-C40');
+  CR.setCardScope('credit');
+  const h = CR.renderTab('Прогноз', c);
+  has(h, '>Транш<', 'в шапке таблицы прогноза должна появиться колонка «Транш»');
+  has(h, 'Прогноз — позиции (по кредиту)', 'заголовок должен назвать область');
+});
+
+test('T4-2: плитки прогноза складываются по траншам', () => {
+  const { CR } = load();
+  const c = multiCredit(CR);
+  const idx = CR.derive(c, CR.TODAY).ledger.index;
+  const cnt = t => CR.trancheForecastRows(t, idx, CR.TODAY).filter(r => !r.past).length;
+  const all = cnt(c.tranches[0]) + cnt(c.tranches[1]);
+  CR.openDetail('K-C40');
+  CR.setCardScope('credit');
+  has(CR.renderTab('Прогноз', c), all + ' позиц.', `плитка «Ждём впереди» должна насчитать ${all} позиций`);
+});
+
+test('T4-3: на конкретном транше «Прогноз» колонки «Транш» не показывает', () => {
+  const { CR } = load();
+  const c = multiCredit(CR);
+  CR.openDetail('K-C40');
+  CR.setCardScope(2);
+  const h = CR.renderTab('Прогноз', c);
+  hasNot(h, '>Транш<', 'на одном транше колонка «Транш» избыточна');
+  has(h, 'Прогноз — позиции (транш №2)', 'заголовок должен назвать транш');
+});
+
 report();
