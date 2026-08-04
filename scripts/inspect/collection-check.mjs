@@ -231,9 +231,25 @@ head('Р-5 · категория риска');
 ok('catOfCredit → «высокий» при нуле дней и факторе high (397, договор 398)',
    g.ev(`catOfCredit(${P('397')}.credits[1]).days`) === 0
    && g.ev(`catOfCredit(${P('397')}.credits[1]).level`) === 'high');
-ok('подавление 181-го применяется до worst-of (391)',
-   g.ev(`catOfCredit(${P('391')}.credits[0]).suppressed`) === true
-   && g.ev(`catOfCredit(${P('391')}.credits[0]).daysEff`) === 'mid');
+/* Шаг 3 наряда (ADR-0064): отложение — свёртка живого рассмотрения, а не флаг кредита.
+   Проверяем и результат (до worst-of, категория средняя), и ИСТОЧНИК: хранимого
+   suppress181 в данных не осталось нигде, а отложение указывает на то самое состояние. */
+ok('отложение 181-го применяется до worst-of и выводится из состояния (391)',
+   g.ev(`catOfCredit(${P('391')}.credits[0]).deferred`) === true
+   && g.ev(`catOfCredit(${P('391')}.credits[0]).daysEff`) === 'mid'
+   && g.ev(`catOfCredit(${P('391')}.credits[0]).defer.kind`) === 'restructuring'
+   && g.ev(`PROCESSES.every(p => p.credits.every(c => !('suppress181' in c)))`));
+/* Зафиксированный отказ (п. 19.1) снимает отложение НЕ в свой день, а на следующий:
+   на дату фиксации категория ещё средняя. Проверяется на копии затравки — состояние
+   правится прямо в ней, поэтому вычисление обязано смотреть на данные, а не на кэш. */
+ok('отказ в реструктуризации: в день фиксации — средний, назавтра — высокий', mk().ev(`(() => {
+  const c = ${P('391')}.credits[0];
+  const s = REQ_INDEX['391/391/з'].states.find(x => x.kind === 'restructuring');
+  s.refusedAt = TODAY;
+  const sameDay = catOfCredit(c).level;
+  s.refusedAt = ruSub(TODAY, 1);
+  return sameDay === 'mid' && catOfCredit(c).level === 'high';
+})()`));
 ok('категория дела = worst-of по кредитам (397 → high при mid+high, 391 → mid)',
    g.ev(`catOfProcess(${P('397')})`) === 'high' && g.ev(`catOfProcess(${P('391')})`) === 'mid');
 /* catOfReq ОПРЕДЕЛЕНА как catLevelOfCredit(r._credit) — сверять её с собственным
@@ -256,9 +272,13 @@ ok('категория требования берётся у его креди�
 { const m = mk(); m.ev(`openDetail('397/397/з')`); m.ev('catOpen=false; toggleCat()');
   ok('раскрытие показывает входы покредитно (2 кредита + worst-of)',
      m.dhead().querySelectorAll('.cat-expand .row').length === 3); }
+/* Шаг 3 наряда (ADR-0064): «подавлен» ушло вместе с послаблением — раскрытие обязано
+   называть отложенный ПЕРЕВОД и предел, до которого он отложен, иначе на витрине снова
+   получится «высокий, которому сделали скидку». */
 { const m = mk(); m.ev(`openDetail('391/391/з')`); m.ev('catOpen=false; toggleCat()');
-  ok('честная категория видна при подавлении («подавлен»)',
-     /подавлен/.test(m.dhead().querySelector('.cat-expand').textContent)); }
+  const t = m.dhead().querySelector('.cat-expand').textContent;
+  ok('честная категория видна при отложенном переводе («перевод отложен» + предел)',
+     /перевод отложен/.test(t) && /20\.08\.2026/.test(t) && !/подавлен/.test(t)); }
 ok('сортировка по категории идёт по тяжести (rank), не по алфавиту',
    g.ev(`sortVal(${R('351/351/з')},'cat')`) === g.ev('CAT_RANK.high'));
 
@@ -438,14 +458,26 @@ ok('состояния обязательства живут на требова
 /* Затравка ЗС держит паузу только на однотребовательных делах (K1-ПАУЗА-ГП 317 · 318,
    K1-ПАУЗА-РЕСТР 319 · 210), поэтому «не задевает солидарного соседа» показывается на
    паре 307: пауза ставится тем же путём, что и в интерфейсе, и остаётся у заёмщика. */
+/* Шаг 3 наряда (ADR-0063): пауза по п. 17 ставится РЕШЕНИЕМ комитета — форма без его
+   реквизитов состояния не пишет вовсе, поэтому сценарий заполняет их наравне с датами. */
 ok('пауза стоит на требовании заёмщика, не на солидарном поручителе', mk().ev(`(() => {
   openDetail('307/307/з');
   openPauseModal();
   document.getElementById('pauseType').value = 'Гарантийное письмо (п. 17)';
   document.getElementById('pauseFrom').value = '2026-07-21';
   document.getElementById('pauseUntil').value = '2026-08-20';
+  document.getElementById('pauseDecision').value = 'протокол ПРОТ-307/БА от 21.07.2026';
   savePause();
   return !!pausedState(REQ_INDEX['307/307/з']) && !pausedState(REQ_INDEX['307/307/п']);
+})()`));
+ok('пауза по п. 17 без реквизитов решения комитета не ставится', mk().ev(`(() => {
+  openDetail('307/307/з');
+  openPauseModal();
+  document.getElementById('pauseType').value = 'Гарантийное письмо (п. 17)';
+  document.getElementById('pauseFrom').value = '2026-07-21';
+  document.getElementById('pauseUntil').value = '2026-08-20';
+  savePause();
+  return !pausedState(REQ_INDEX['307/307/з']);
 })()`));
 ok('оверлей подменяет надпись фазы, саму фазу не трогает',
    g.ev(`displayPhase(${R('210/210/з')})`) === 'Рассмотрение вопроса реструктуризации'
@@ -475,14 +507,18 @@ ok('таблица состояний даёт уровень обязатель
    ЦЕЛИКОМ обычный measureTargetsHtml()/measureTargets(), уже покрытый другими
    проверками этого файла для прочих видов меры; Проект/Определение/Констатация
    мирового ничего своего в этот механизм не добавляют — отдельного теста не нужно. */
+/* Гейт проверяется мерой ИЗ ПРЕДМЕТА приостановки: гарантийное письмо (п. 17)
+   останавливает безакцептное списание и НЕ трогает повторную претензию (ADR-0063) —
+   раньше здесь стояла именно претензия, и проверка подтверждала слишком широкую паузу. */
 ok('пауза ставится и снимается на требовании', mk().ev(`(() => {
   openDetail('201/201/з');
   openPauseModal();
   document.getElementById('pauseType').value = 'Гарантийное письмо (п. 17)';
   document.getElementById('pauseFrom').value = '2026-07-21';
   document.getElementById('pauseUntil').value = '2026-08-20';
+  document.getElementById('pauseDecision').value = 'протокол ПРОТ-201/БА от 21.07.2026';
   savePause();
-  const on = !!pausedState(curReq) && measureGate(curReq,'Повторная претензия').kind === 'pause';
+  const on = !!pausedState(curReq) && measureGate(curReq,'Безакцептное списание').kind === 'pause';
   liftPause();
   return on && !pausedState(curReq);
 })()`));
@@ -509,17 +545,28 @@ ok('отстранение куратора блокирует всё по де�
    заёмщику, у солидарного поручителя гейта нет. */
 { const m = mk();
   ok('пауза требования блокирует только его',
-     g.ev(`measureGate(${R('210/210/з')}, 'Акт сверки').kind`) === 'pause'
+     g.ev(`measureGate(${R('210/210/з')}, 'Повторная претензия').kind`) === 'pause'
      && m.ev(`(() => {
        openDetail('307/307/з');
        openPauseModal();
        document.getElementById('pauseType').value = 'Гарантийное письмо (п. 17)';
        document.getElementById('pauseFrom').value = '2026-07-21';
        document.getElementById('pauseUntil').value = '2026-08-20';
+       document.getElementById('pauseDecision').value = 'протокол ПРОТ-307/БА от 21.07.2026';
        savePause();
-       return measureGate(REQ_INDEX['307/307/з'], 'Акт сверки').kind === 'pause'
-           && !measureGate(REQ_INDEX['307/307/п'], 'Акт сверки');
+       const g1 = measureGate(REQ_INDEX['307/307/з'], 'Безакцептное списание');
+       const g2 = measureGate(REQ_INDEX['307/307/п'], 'Безакцептное списание');
+       return g1 && g1.kind === 'pause' && (!g2 || g2.kind !== 'pause');
      })()`)); }
+/* ADR-0063 · ШИРИНА паузы, а не сам факт блокировки: у каждой паузы свой предмет.
+   Гарантийное письмо (п. 17) останавливает безакцепт и не трогает претензию; рассмотрение
+   реструктуризации (п. 18) останавливает меры п. 16 и не трогает судебный трек. */
+ok('гарантийное письмо останавливает безакцепт, но не претензию (317)',
+   g.ev(`measureGate(${R('317/317/з')}, 'Безакцептное списание').kind`) === 'pause'
+   && g.ev(`(measureGate(${R('317/317/з')}, 'Повторная претензия')||{}).kind !== 'pause'`));
+ok('рассмотрение реструктуризации останавливает меры п. 16, но не иск (210)',
+   g.ev(`measureGate(${R('210/210/з')}, 'Безакцептное списание').kind`) === 'pause'
+   && g.ev(`(measureGate(${R('210/210/з')}, 'Исковое заявление')||{}).kind !== 'pause'`));
 ok('безакцепт заблокирован без решения комитета (310, K1-БА-ГЕЙТ)',
    g.ev(`gateReason(${R('310/310/з')}, 'Безакцептное списание')`) !== null);
 { const m = mk(); m.setRole('Отдел проблемных кредитов (ОПК)');
@@ -1292,10 +1339,10 @@ ok('находка 3: метка расхождения стоит только 
     && withMark.every(r => catDivergeMark(r).includes('catmark'))
     && withoutMark.every(r => catDivergeMark(r) === '');
 })()`));
-ok('находка 3: подсказка метки называет причину — подавление 181 или фактор комитета', L.ev(`(() => {
-  const r = allReqs().find(r => catOfCredit(r._credit).suppressed);
-  const r2 = allReqs().find(r => { const c = catOfCredit(r._credit); return c.level !== c.raw && !c.suppressed; });
-  return !!r && /Подавление 181-го дня/.test(catDivergeMark(r))
+ok('находка 3: подсказка метки называет причину — отложенный перевод или фактор комитета', L.ev(`(() => {
+  const r = allReqs().find(r => catOfCredit(r._credit).deferred);
+  const r2 = allReqs().find(r => { const c = catOfCredit(r._credit); return c.level !== c.raw && !c.deferred; });
+  return !!r && /Перевод на 181-й день отложен/.test(catDivergeMark(r))
       && !!r2 && /Фактор комитета/.test(catDivergeMark(r2));
 })()`));
 
