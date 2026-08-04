@@ -5180,9 +5180,7 @@ if (typeof document !== 'undefined') {
     const c = CR.db.credits.find(x=>x.id===id); if (!c) return;
     selectedId = id; CR._sel = id; detailId = id;
     detailTab = tab && DTABS.includes(tab) ? tab : 'Договор';
-    detailTrancheNo = (c.tranches[0] && c.tranches[0].no) || 1;
-    calcConsolidated = false;
-    condScope = 'credit'; cardAsOf = TODAY; condBasisFilter = 'all'; condOpenGroup = null; condOpenTranche = null; condMatrixTranche = null;
+    cardScope = 'credit'; cardAsOf = TODAY; condBasisFilter = 'all'; condOpenGroup = null; condOpenTranche = null; condMatrixTranche = null;
     dogovorExtraTab = 'subject';
     planYear = pd(TODAY).getFullYear(); planOpenMonth = null;   // состояние вкладки «План» — своё на каждую карточку
     document.getElementById('view-list').style.display = 'none';
@@ -5269,9 +5267,13 @@ if (typeof document !== 'undefined') {
      (Р-5…Р-10, Р-16) — read-only с замком и подписью источника. Любая мутация
      идёт через CR.* и завершается rerenderDetail() → derive() пересчитывается заново.
      ============================================================ */
-  let detailId = null, detailTab = 'Договор', detailTrancheNo = 1;
-  let calcConsolidated = false;
-  let condScope = 'credit';         // 'credit' | номер транша — область просмотра условий (Д-7)
+  let detailId = null, detailTab = 'Договор';
+  /* ЕДИНАЯ ОБЛАСТЬ ПРОСМОТРА карточки (КВ-17). Были три переменные: detailTrancheNo
+     (Транши/График/Прогноз/Расчёты), condScope (Условия) и calcConsolidated (чекбокс
+     «консолидировано» на «Расчётах» — тот же смысл третьим типом контрола). Область —
+     второй параметр среза рядом с cardAsOf, и по той же причине, что КВ-10 свёл дату
+     (КР-29), она одна на карточку целиком. */
+  let cardScope = 'credit';         // 'credit' | номер транша
   /* ЕДИНАЯ дата среза карточки (КВ-10). Была `cardAsOf` — срез ОДНОЙ вкладки «Условия»,
      хотя CONTEXT.md прямо говорит: дата среза «одна на карточку целиком; у отдельного
      раздела своей даты не бывает» (КР-29). Теперь она живёт в шапке и управляет всеми
@@ -5294,6 +5296,13 @@ if (typeof document !== 'undefined') {
   const DTABS =['Договор','Условия','Транши','График','Прогноз','Расчёты','Платежи','План','Обеспечение','Проблемные','Досье'];
 
   function currentCredit(){ return CR.db.credits.find(x => x.id === detailId); }
+  /* Транш, к которому относится вкладка. При области «по кредиту» — null (агрегат/сводка).
+     Кредит с одним траншем: «по кредиту» и «Транш №1» неразличимы, поэтому транш отдаётся
+     всегда — иначе однотраншевый кредит без нужды уходил бы в агрегатную ветку. */
+  function scopeTranche(c){
+    if (c.tranches.length === 1) return c.tranches[0];
+    return cardScope === 'credit' ? null : (c.tranches.find(t => t.no === cardScope) || null);
+  }
   function jsAttr(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
   function svgInfo(){ return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>'; }
   function svgPencil(){ return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>'; }
@@ -5725,10 +5734,10 @@ if (typeof document !== 'undefined') {
       const ic=BASIS_KINDS[r.basis.kind]||{};
       return `<span class="src">${esc(ic.icon||'')} ${esc(r.basis.ref||ic.label||'')} · с ${esc(r.effectiveFrom)}</span>`; };
     const condCell=(param)=>{
-      if (condScope!=='credit'){
-        const t=c.tranches.find(x=>x.no===condScope)||c.tranches[0];
-        const v=conditionsAt(t,cardAsOf)[param];
-        return `<div class="val">${esc(v===undefined?'—':v)}</div>${srcLine(t,param)}`;
+      const st = scopeTranche(c);
+      if (st){
+        const v=conditionsAt(st,cardAsOf)[param];
+        return `<div class="val">${esc(v===undefined?'—':v)}</div>${srcLine(st,param)}`;
       }
       const agg=creditConditionsAt(c,cardAsOf)[param]||{};
       if (agg.divergent){
@@ -5746,9 +5755,9 @@ if (typeof document !== 'undefined') {
     const cf=(param)=>`<div class="field"><span class="flabel">${esc(paramLabel(param))}${locked?' '+lockG9:''}</span>
       <div class="lookup cond-lookup"${locked?` title="${jsAttr(g9)}"`:''}>${condCell(param)}</div></div>`;
     const paramVal=(param)=>{
-      if (condScope!=='credit'){
-        const t=c.tranches.find(x=>x.no===condScope)||c.tranches[0];
-        return Number(conditionsAt(t,cardAsOf)[param])||0;
+      const st = scopeTranche(c);
+      if (st){
+        return Number(conditionsAt(st,cardAsOf)[param])||0;
       }
       const agg=creditConditionsAt(c,cardAsOf)[param]||{};
       return agg.divergent ? Math.max(...agg.values.map(v=>Number(v.value)||0)) : Number(agg.value)||0;
@@ -5757,9 +5766,9 @@ if (typeof document !== 'undefined') {
        freq, где условная видимость (payMonths при «по конкретным месяцам»)
        зависит от ТЕКСТА значения, а paramVal коэрцирует в число. */
     const paramRaw=(param)=>{
-      if (condScope!=='credit'){
-        const t=c.tranches.find(x=>x.no===condScope)||c.tranches[0];
-        return conditionsAt(t,cardAsOf)[param];
+      const st = scopeTranche(c);
+      if (st){
+        return conditionsAt(st,cardAsOf)[param];
       }
       const agg=creditConditionsAt(c,cardAsOf)[param]||{};
       return agg.divergent ? (agg.values[0]&&agg.values[0].value) : agg.value;
@@ -5780,9 +5789,9 @@ if (typeof document !== 'undefined') {
             onclick="CR.goToSchedule()">Перейти к перегенерации графика</button></div>
         </div></div>`; })()}
       <div class="gtoolbar" style="margin-bottom:14px">
-        ${c.tranches.length>1?`<div class="control" style="max-width:280px"><select onchange="CR.setCondScope(this.value)">
-            <option value="credit"${condScope==='credit'?' selected':''}>по кредиту (агрегат)</option>
-            ${c.tranches.map(t=>`<option value="${t.no}"${condScope===t.no?' selected':''}>Транш №${t.no}</option>`).join('')}
+        ${c.tranches.length>1?`<div class="control" style="max-width:280px"><select onchange="CR.setCardScope(this.value)">
+            <option value="credit"${cardScope==='credit'?' selected':''}>по кредиту (агрегат)</option>
+            ${c.tranches.map(t=>`<option value="${t.no}"${cardScope===t.no?' selected':''}>Транш №${t.no}</option>`).join('')}
           </select><span class="caret">▾</span></div>`:''}
         ${(()=>{ const cls='btn btn-primary btn-sm', label='Изменить условия';
           if(isTerminal(c)) return disabledBtn(label, terminalReason(c), cls);
@@ -5854,7 +5863,7 @@ if (typeof document !== 'undefined') {
              скрывали только по структуре, при 0 расхождений на дату держали
              пустое состояние внутри — несогласовано с правилом карточки-без-действия. -->
         ${(()=>{
-          if (condScope!=='credit' || c.tranches.length<=1) return '';
+          if (scopeTranche(c) || c.tranches.length<=1) return '';
           const rows=divergenceRows(c,cardAsOf);
           if (!rows.length) return '';
           // TODO при появлении закрытых траншей: колонки строятся по ВСЕМ траншам
@@ -5971,7 +5980,7 @@ if (typeof document !== 'undefined') {
 
   /* ---- ВКЛАДКА 3: Транши ---- */
   function tabTranshi(c,d){
-    const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0];
+    const sel=scopeTranche(c);
     const cur=c.currency, isFx=cur!=='KGS', fx=FX[cur]||1;              // мультивалюта: курс/≈KGS только для не-KGS
     const trRows=c.tranches.map(t=>{
       const s=disbursedSum(t), rest=(t.amount||0)-s, on=sel&&t.no===sel.no;
@@ -5981,7 +5990,7 @@ if (typeof document !== 'undefined') {
       const st = t.closed
         ? `<span class="pill neutral" title="${jsAttr('Закрыт '+(t.closed.date||'')+': '+(t.closed.reason||''))}">Закрыт ${esc(t.closed.date||'')}</span>`
         : esc(trancheState(t));
-      return `<tr style="cursor:pointer${on?';background:var(--asubk-nav-active)':''}${t.closed?';opacity:.6':''}" onclick="CR.selectDetailTranche(${t.no})">
+      return `<tr style="cursor:pointer${on?';background:var(--asubk-nav-active)':''}${t.closed?';opacity:.6':''}" onclick="CR.setCardScope(${t.no})">
         <td>№${t.no}</td><td>${esc(t.subject.name)}<br><span style="color:var(--text-muted);font-size:11px">ИНН ${esc(t.subject.inn)}</span></td>
         <td style="text-align:right">${money(t.amount)}${isFx?` <span style="color:var(--text-muted);font-size:11px">${esc(cur)}</span>`:''}</td><td>${esc(t.plannedDate)}</td>
         <td style="text-align:right">${money(s)}</td><td style="text-align:right">${money(rest)}</td>
@@ -6012,9 +6021,9 @@ if (typeof document !== 'undefined') {
         сам кредит продолжает действовать.</div></div>`:''}
       <div class="gtoolbar" style="margin-top:12px">
         ${roleBtn('addTranche','Добавить транш','CR.openTrancheModal()')}
-        ${actBtn(c,'addDisbursement',{trancheNo:detailTrancheNo,amount:0},'Внести освоение','CR.openDisbModal()','btn btn-primary btn-sm')}
+        ${actBtn(c,'addDisbursement',{trancheNo:(scopeTranche(c)||c.tranches[0]||{}).no,amount:0},'Внести освоение','CR.openDisbModal()','btn btn-primary btn-sm')}
         ${actBtn(c,'closeDisbursement',{reason:'—'},'Закрыть неосвоенный остаток','CR.openCloseDisbModal()')}
-        ${actBtn(c,'closeTranche',{trancheNo:detailTrancheNo,reason:'—'},'Закрыть транш №'+(sel?sel.no:'—'),'CR.openCloseTrancheModal()')}
+        ${actBtn(c,'closeTranche',{trancheNo:(scopeTranche(c)||c.tranches[0]||{}).no,reason:'—'},'Закрыть транш №'+(sel?sel.no:'—'),'CR.openCloseTrancheModal()')}
       </div>
       <div class="section-h" style="margin-top:22px">Освоение транша №${sel?sel.no:'—'}</div>
       ${cgrid(dbCols, dbRows, {empty:'Освоений нет'})}`;
@@ -6024,11 +6033,13 @@ if (typeof document !== 'undefined') {
      Выделена из «Расчётов» волной 03.08.2026. Предмет вкладки — КОНТРАКТ: чем кредит
      обязан ответить на выданное. Версии и позиции принадлежат ТРАНШУ
      (Р-1: buildSchedule строится на транше), поэтому селектор транша здесь свой,
-     но состояние общее с «Траншами» и «Расчётами» (detailTrancheNo). Факт начисления
+     но состояние общее с «Траншами» и «Расчётами» (cardScope). Факт начисления
      и погашения остался в «Расчётах» — их предмет иной; прогноз по этому графику
      уехал на свою вкладку «Прогноз» (вторая волна 03.08.2026). */
   function tabGrafik(c,d){
-    const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0];
+    /* КВ-17, временно: слитый вид при области «по кредиту» приходит задачами 3 и 4;
+       до тех пор вкладка откатывается на первый транш. */
+    const sel=scopeTranche(c)||c.tranches[0];
     const st=trancheScheduleTotals(sel, cardAsOf);   // плитки — по выбранному траншу, как версии и позиции ниже
     const stPill={'Оплачена':'low','Просрочена':'high','Наступила':'mid','Предстоит':'neutral'};
     const verRows=((sel&&sel.schedules)||[]).slice().sort((a,b)=>b.ver-a.ver).map(s=>`<tr class="${s.active?'diff-changed':''}"><td>v${s.ver}</td><td>${s.active?'<span class="pill low">активна</span>':'<span class="pill neutral">архив</span>'}</td><td>${esc(s.generatedFrom)}</td><td style="text-align:right">${s.rows.length}</td></tr>`);
@@ -6043,7 +6054,7 @@ if (typeof document !== 'undefined') {
           Действующая версия графика построена по прежним условиям — сформируйте заново (Д-5).</div></div>`; })()}
       <div class="section-h">График погашения</div>
       <div class="gtoolbar">
-        <div class="field" style="max-width:320px"><div class="control"><select onchange="CR.selectDetailTranche(+this.value)">${c.tranches.map(t=>`<option value="${t.no}"${sel&&t.no===sel.no?' selected':''}>Транш №${t.no}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+        <div class="field" style="max-width:320px"><div class="control"><select onchange="CR.setCardScope(+this.value)">${c.tranches.map(t=>`<option value="${t.no}"${sel&&t.no===sel.no?' selected':''}>Транш №${t.no}</option>`).join('')}</select><span class="caret">▾</span></div></div>
         <span class="spacer"></span>
         ${actBtn(c,'buildSchedule',{tranche:sel},'Сформировать график','CR.openSchedModal()','btn btn-primary btn-sm')}
       </div>
@@ -6067,10 +6078,12 @@ if (typeof document !== 'undefined') {
      даты, пересчитанные суммы: что соберём на самом деле). Первое хранится и меняется
      действием, второе выводится при каждом рендере и не хранится вовсе.
      Гранулярность — транш (Р-1), селектор общий с «Траншами»/«Графиком»/«Расчётами»
-     (detailTrancheNo). Помесячный прогноз по кредиту целиком — во вкладке «План»,
+     (cardScope). Помесячный прогноз по кредиту целиком — во вкладке «План»,
      колонкой рядом с планом: там он служит ориентиром при постановке цели. */
   function tabPrognoz(c,d){
-    const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0];
+    /* КВ-17, временно: слитый вид при области «по кредиту» приходит задачами 3 и 4;
+       до тех пор вкладка откатывается на первый транш. */
+    const sel=scopeTranche(c)||c.tranches[0];
     const stPill={'Оплачена':'low','Просрочена':'high','Наступила':'mid','Предстоит':'neutral'};
     const fr = sel ? trancheForecastRows(sel, d.ledger.index, cardAsOf) : [];
     const fut = fr.filter(r=>!r.past), past = fr.filter(r=>r.past);
@@ -6096,7 +6109,7 @@ if (typeof document !== 'undefined') {
         Весь непокрытый хвост прошлых позиций отнесён к ближайшей будущей. Ничего не хранится:
         таблица строится заново при каждом рендере (Д-9 — порядок сумм, не банковская копейка).</p>
       <div class="gtoolbar">
-        <div class="field" style="max-width:320px"><span class="flabel">Транш</span><div class="control"><select onchange="CR.selectDetailTranche(+this.value)">${c.tranches.map(t=>`<option value="${t.no}"${sel&&t.no===sel.no?' selected':''}>Транш №${t.no}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+        <div class="field" style="max-width:320px"><span class="flabel">Транш</span><div class="control"><select onchange="CR.setCardScope(+this.value)">${c.tranches.map(t=>`<option value="${t.no}"${sel&&t.no===sel.no?' selected':''}>Транш №${t.no}</option>`).join('')}</select><span class="caret">▾</span></div></div>
       </div>
       <div class="phead-dims" style="grid-template-columns:repeat(4,1fr);margin-top:6px">
         <div class="dim"><div class="dl">Ждём впереди</div><div class="dv">${money(futSum)}</div><div class="src">${fut.length} позиц. после ${esc(cardAsOf)}</div></div>
@@ -6114,7 +6127,7 @@ if (typeof document !== 'undefined') {
 
   /* ---- ВКЛАДКА 6: Расчёты ---- */
   function tabRaschety(c,d){
-    const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0];
+    const sel=scopeTranche(c);
     const cur=c.currency, isFx=cur!=='KGS', fx=FX[cur]||1;
     const repaid=DEBT_ARTICLES.reduce((a,x)=>a+d.debt[x.key].paid,0);
     const svod=`
@@ -6155,11 +6168,11 @@ if (typeof document !== 'undefined') {
     /* Детальный расчёт СТРОИТСЯ (ADR-0010): позиции графика, наступившие на дату среза,
        с разнесением подтверждённых погашений и начислением пени. Прежде грид читал
        засеянный ledger, в котором у всех кредитов была ровно одна строка (КР-8). */
-    const ledSrc = calcConsolidated ? d.ledger.rows : d.ledger.rows.filter(r=>sel&&r.trancheNo===sel.no);
+    const ledSrc = sel ? d.ledger.rows.filter(r=>r.trancheNo===sel.no) : d.ledger.rows;
     const ledRows=ledSrc.map(l=>`<tr>
       <td style="position:sticky;left:0;background:var(--surface-card)">№${l.no}</td>
       <td style="position:sticky;left:52px;background:var(--surface-card)">${esc(l.date)}</td>
-      ${calcConsolidated?`<td>№${l.trancheNo}</td>`:''}
+      ${!sel?`<td>№${l.trancheNo}</td>`:''}
       <td style="text-align:right">${money(l.received)}</td>
       <td style="text-align:right">${money(l.principalDue)}</td><td style="text-align:right">${money(l.principalPaid)}</td><td style="text-align:right;color:${l.principalOverdue>0?'var(--asubk-red)':'inherit'}">${money(l.principalOverdue)}</td>
       <td style="text-align:right">${esc(l.days)}</td>
@@ -6170,10 +6183,10 @@ if (typeof document !== 'undefined') {
       <td>${(()=>{const st=scheduleRowStatus({date:l.date},l,cardAsOf);
         const p={'Оплачена':'low','Просрочена':'high','Наступила':'mid'}[st]||'neutral';
         return `<span class="pill ${p}">${esc(st)}</span>`;})()}</td></tr>`);
-    const nCols = calcConsolidated?17:16;
+    const nCols = !sel?17:16;
     const led=`<div class="cgrid-wrap"><table class="cgrid"><thead>
-      <tr><th colspan="${calcConsolidated?3:2}" style="position:sticky;left:0;background:var(--surface-card)">Позиция</th><th>Получено</th><th colspan="4">Основной долг</th><th colspan="3">Проценты</th><th colspan="4">Пеня</th><th>Итого</th><th>Статус</th></tr>
-      <tr><th style="position:sticky;left:0;background:var(--surface-card)">№</th><th style="position:sticky;left:52px;background:var(--surface-card)">Дата</th>${calcConsolidated?'<th>Транш</th>':''}<th>Оплата</th><th>К оплате</th><th>Погашено</th><th>Просрочено</th><th>Дней</th><th>Начислено</th><th>Оплачено</th><th>Просрочено</th><th>Ставка ОД/%</th><th>Начислено</th><th>Оплачено</th><th>Остаток</th><th>Оплачено всего</th><th></th></tr>
+      <tr><th colspan="${!sel?3:2}" style="position:sticky;left:0;background:var(--surface-card)">Позиция</th><th>Получено</th><th colspan="4">Основной долг</th><th colspan="3">Проценты</th><th colspan="4">Пеня</th><th>Итого</th><th>Статус</th></tr>
+      <tr><th style="position:sticky;left:0;background:var(--surface-card)">№</th><th style="position:sticky;left:52px;background:var(--surface-card)">Дата</th>${!sel?'<th>Транш</th>':''}<th>Оплата</th><th>К оплате</th><th>Погашено</th><th>Просрочено</th><th>Дней</th><th>Начислено</th><th>Оплачено</th><th>Просрочено</th><th>Ставка ОД/%</th><th>Начислено</th><th>Оплачено</th><th>Остаток</th><th>Оплачено всего</th><th></th></tr>
       </thead><tbody>${ledRows.length?ledRows.join(''):`<tr><td colspan="${nCols+2}"><div class="cgrid-empty">На дату среза ${esc(cardAsOf)} не наступила ни одна позиция графика — начислять нечего</div></td></tr>`}</tbody></table></div>`;
     const res=d.reserveAccrual;
     const resBlock=res.applies?`<div class="section-h" style="margin-top:22px">Резерв за неполное освоение</div>
@@ -6188,13 +6201,15 @@ if (typeof document !== 'undefined') {
           Расчёт ниже построен по прежним условиям — сформируйте график заново (Д-5).
           <div class="gtoolbar" style="margin-top:8px"><button class="btn btn-secondary btn-sm"
             onclick="CR.goToSchedule()">Перейти к графику</button></div></div></div>`; })()}
-      <div class="section-h" style="margin-top:22px">Детальный расчёт ${calcConsolidated?'(консолидировано)':'(транш №'+(sel?sel.no:'—')+')'}</div>
+      <div class="section-h" style="margin-top:22px">Детальный расчёт ${!sel?'(консолидировано)':'(транш №'+sel.no+')'}</div>
       <p class="section-note">Начисление разложено по позициям <b>плана</b> — сам план (версии, позиции)
         живёт во вкладке «График», ожидание по нему — во вкладке «Прогноз». Параметры движка — те же, что и на вкладке «Условия», читаются вместе
         с цифрами, которые объясняют. Это условия договора: правка — только зарегистрированным основанием.</p>
       <div class="gtoolbar" style="margin-bottom:12px">
-        <div class="field" style="max-width:320px"><span class="flabel">Транш</span><div class="control"><select onchange="CR.selectDetailTranche(+this.value)">${c.tranches.map(t=>`<option value="${t.no}"${sel&&t.no===sel.no?' selected':''}>Транш №${t.no}</option>`).join('')}</select><span class="caret">▾</span></div></div>
-        <div class="retro-toggle" onclick="CR.setCalcMode(${!calcConsolidated})"><input type="checkbox" ${calcConsolidated?'checked':''} onclick="event.preventDefault()"> консолидировано по кредиту</div>
+        <div class="field" style="max-width:320px"><span class="flabel">Область</span><div class="control"><select onchange="CR.setCardScope(this.value)">
+          <option value="credit"${cardScope==='credit'?' selected':''}>по кредиту (консолидировано)</option>
+          ${c.tranches.map(t=>`<option value="${t.no}"${cardScope===t.no?' selected':''}>Транш №${t.no}</option>`).join('')}
+        </select><span class="caret">▾</span></div></div>
       </div>
       <div class="f2" style="max-width:760px;margin-bottom:12px">
         ${fld('Метод дней', esc(sel ? conditionsAt(sel, cardAsOf).dayMethod : bc.dayMethod))}
@@ -6625,8 +6640,9 @@ if (typeof document !== 'undefined') {
 
   /* ---- обвязка действий карточки (onclick-строки живут в глобальной области → CR.*) ---- */
   CR.renderDetail=renderDetail; CR.renderTab=renderTab; CR.openTab=openTab; CR.rerenderDetail=rerenderDetail;
-  CR.selectDetailTranche=function(no){ detailTrancheNo=no; rerenderDetail(); };
-  CR.setCondScope=function(v){ condScope = (v==='credit'?'credit':+v); rerenderDetail(); };
+  /* КВ-17: единственная точка смены области. 'credit' приходит строкой из <select>,
+     номер транша — строкой или числом, поэтому нормализуем здесь, а не у вызывающих. */
+  CR.setCardScope=function(v){ cardScope = (v==='credit' ? 'credit' : +v); rerenderDetail(); };
   CR.setCondFilter=function(v){ condBasisFilter=v; rerenderDetail(); };
   CR.toggleCondGroup=function(ref){ condOpenGroup = (condOpenGroup===ref?null:ref); condOpenTranche = null; rerenderDetail(); };
   CR.setCondTranche=function(n){ condOpenTranche = +n; rerenderDetail(); };
@@ -6643,7 +6659,6 @@ if (typeof document !== 'undefined') {
     cardAsOf = s || TODAY; rerenderDetail(); };
   CR.scrollToDivergence=function(){ const el=document.getElementById('condDivergence');
     if(el) el.scrollIntoView({behavior:'smooth',block:'center'}); };
-  CR.setCalcMode=function(v){ calcConsolidated=!!v; rerenderDetail(); };
   CR.setPlanYear=function(y){ planYear=+y||planYear; planOpenMonth=null; rerenderDetail(); };
   CR.togglePlanMonth=function(mk){ planOpenMonth = (planOpenMonth===mk?null:mk); rerenderDetail(); };
   /* CR.stubAction удалён: канон §0.1 запрещает заглушки, а она обслуживала три кнопки
@@ -6689,7 +6704,7 @@ if (typeof document !== 'undefined') {
   CR.openDisbModal=function(){ const c=modalGuard('addDisbursement'); if(!c) return;
     const body=`<p class="section-note">Освоение — действие кредита, на транше. Проверяется: сумма не превышает остаток транша · жизненный цикл кредита · покрытие/КМ/waiver.</p>
       <div class="mform">
-        <div class="field"><span class="flabel">Транш</span><div class="control"><select id="disbTranche">${c.tranches.map(t=>`<option value="${t.no}"${t.no===detailTrancheNo?' selected':''}>№${t.no} · сумма ${money(t.amount)} · освоено ${money(disbursedSum(t))}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+        <div class="field"><span class="flabel">Транш</span><div class="control"><select id="disbTranche">${c.tranches.map(t=>`<option value="${t.no}"${t.no===(scopeTranche(c)||c.tranches[0]||{}).no?' selected':''}>№${t.no} · сумма ${money(t.amount)} · освоено ${money(disbursedSum(t))}</option>`).join('')}</select><span class="caret">▾</span></div></div>
         <div class="field req"><span class="flabel">Сумма освоения</span><div class="control"><input id="disbAmount" type="number" min="0" placeholder="0"></div></div>
         <div class="field"><span class="flabel">Дата освоения</span><div class="control"><input id="disbDate" type="date" value="${esc(toISO(CR.TODAY))}"></div></div>
         <div class="field"><span class="flabel">Плат. поручение</span><div class="control"><input id="disbOrder" placeholder="ПП-..."></div></div>
@@ -6704,11 +6719,11 @@ if (typeof document !== 'undefined') {
     const date=toDMY(document.getElementById('disbDate').value)||CR.TODAY;
     const order=document.getElementById('disbOrder').value, purpose=document.getElementById('disbPurpose').value;
     const r=CR.addDisbursement(c,{trancheNo:no,amount,order,purpose,date}); if(!r.ok){ CR.modalErr(r.reasons); return; }
-    CR.closeModal(); detailTrancheNo=no; toast('Освоение внесено: '+money(amount),'ok'); rerenderDetail(); };
+    CR.closeModal(); cardScope=no; toast('Освоение внесено: '+money(amount),'ok'); rerenderDetail(); };
 
   /* 3) schedule-params (generateSchedule, Г-8) — апгрейд: параметры → предпросмотр (1·2·посл.) → новая версия */
   CR.openSchedModal=function(previewFrom){ const c=modalGuard('buildSchedule'); if(!c) return;
-    const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0]; const cnd=CR.conditionsAt(sel,CR.TODAY);
+    const sel=scopeTranche(c)||c.tranches[0]; const cnd=CR.conditionsAt(sel,CR.TODAY);
     previewFrom=toDMY(previewFrom);
     const from=(previewFrom!=null?previewFrom:((sel.disbursements[0]&&sel.disbursements[0].date)||''));
     let preview;
@@ -6718,7 +6733,7 @@ if (typeof document !== 'undefined') {
         ${cgrid([{h:'№'},{h:'Дата'},{h:'Платёж',r:1},{h:'ОД',r:1},{h:'%',r:1}], show.map(r=>`<tr><td>№${r.no}</td><td>${esc(r.date)}</td><td style="text-align:right">${money(r.total)}</td><td style="text-align:right">${money(r.principal)}</td><td style="text-align:right">${money(r.interest)}</td></tr>`))}`;
     } else { preview=`<div class="warn-inline">${svgInfo()}<div>График строится только от фактической даты освоения транша. У выбранного транша нет освоения либо не задана дата.</div></div>`; }
     const body=`<div class="mform">
-        <div class="field"><span class="flabel">Транш</span><div class="control"><select id="schedTranche" onchange="CR.selectDetailTranche(+this.value);CR.openSchedModal()">${c.tranches.map(t=>`<option value="${t.no}"${t.no===sel.no?' selected':''}>Транш №${t.no}${t.disbursements.length?'':' (не освоен)'}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+        <div class="field"><span class="flabel">Транш</span><div class="control"><select id="schedTranche" onchange="CR.setCardScope(+this.value);CR.openSchedModal()">${c.tranches.map(t=>`<option value="${t.no}"${t.no===sel.no?' selected':''}>Транш №${t.no}${t.disbursements.length?'':' (не освоен)'}</option>`).join('')}</select><span class="caret">▾</span></div></div>
         <div class="field req"><span class="flabel">Дата освоения (старт графика)</span><div class="control"><input id="schedFrom" type="date" value="${esc(toISO(from))}"></div></div>
         <div class="field"><span class="flabel">Периодичность</span><div class="control"><input value="${esc(cnd.freq||'ежемесячно')}" readonly></div></div>
         <div class="field"><span class="flabel">Метод погашения</span><div class="control"><input value="${esc(cnd.method||'аннуитет')}" readonly></div></div>
@@ -6734,7 +6749,7 @@ if (typeof document !== 'undefined') {
   CR.submitSched=function(){ const c=modalGuard('buildSchedule'); if(!c) return;
     const no=+document.getElementById('schedTranche').value, from=toDMY(document.getElementById('schedFrom').value);
     const r=CR.generateSchedule(c,no,{from}); if(r&&r.ok===false){ CR.modalErr(r.reasons); return; }
-    CR.closeModal(); detailTrancheNo=no; toast('График сформирован: версия v'+(r.ver||'?'),'ok'); rerenderDetail(); };
+    CR.closeModal(); cardScope=no; toast('График сформирован: версия v'+(r.ver||'?'),'ok'); rerenderDetail(); };
 
   /* 4) конструктор условий (addConditionRecords, Р-21 · Г-10 · Г-18…Г-20):
      основание → дата вступления → транши → параметры → предпросмотр «было → станет». */
@@ -6882,7 +6897,7 @@ if (typeof document !== 'undefined') {
     const body=`<div class="info-plate">${svgInfo()}<div>Форма модуля платежей. Ручной ввод повисает «Ожидает ЦК» и НЕ двигает остатки/долг — подтверждённые остатки двигает только ЦК своим потоком.</div></div>
       <div class="mform">
         <div class="field"><span class="flabel">Кредит</span><div class="control"><input value="№ ${esc(c.num)} · ${esc(c.borrower.name)}" readonly></div></div>
-        <div class="field"><span class="flabel">Транш</span><div class="control"><select id="payTranche">${c.tranches.map(t=>`<option value="${t.no}"${t.no===detailTrancheNo?' selected':''}>№${t.no} · ${esc(t.subject.name)}</option>`).join('')}</select><span class="caret">▾</span></div></div>
+        <div class="field"><span class="flabel">Транш</span><div class="control"><select id="payTranche">${c.tranches.map(t=>`<option value="${t.no}"${t.no===(scopeTranche(c)||c.tranches[0]||{}).no?' selected':''}>№${t.no} · ${esc(t.subject.name)}</option>`).join('')}</select><span class="caret">▾</span></div></div>
         <div class="field req"><span class="flabel">Сумма платежа</span><div class="control"><input id="payAmount" type="number" min="0" placeholder="0"></div></div>
         <div class="field req"><span class="flabel">Дата платежа</span><div class="control"><input id="payDate" type="date" value="${esc(toISO(CR.TODAY))}"></div></div>
       </div>`;
@@ -7161,7 +7176,7 @@ if (typeof document !== 'undefined') {
 
   /* 15) soft-close транша (closeTranche, Г-17) — удаления нет, есть закрытие с основанием */
   CR.openCloseTrancheModal=function(){ const c=modalGuard('closeTranche'); if(!c) return;
-    const sel=c.tranches.find(t=>t.no===detailTrancheNo)||c.tranches[0];
+    const sel=scopeTranche(c)||c.tranches[0];
     const body=`<p class="section-note">Транши не удаляются. Закрытый транш выпадает из агрегатов срока и условий, но остаётся в истории со своими освоениями и графиком. Последний активный транш закрыть нельзя.</p>
       <div class="mform">
         <div class="field"><span class="flabel">Транш</span><div class="control"><select id="ctNo">${c.tranches.filter(t=>!t.closed).map(t=>`<option value="${t.no}"${sel&&t.no===sel.no?' selected':''}>№${t.no} · сумма ${money(t.amount)} · освоено ${money(disbursedSum(t))}</option>`).join('')}</select><span class="caret">▾</span></div></div>
