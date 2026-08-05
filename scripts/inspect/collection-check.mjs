@@ -2173,8 +2173,11 @@ ok('умолчание — горизонт 7 дней',            S.ev(`dlHori
 /* Шаг 4 наряда (§4.6, `ADR-0067`): 86 → 85. Из словаря оснований ушло «решение об
    ускорении п.20.1», и дело 582, сеявшее ровно его, закрывать стало нечего — оно снято
    вместе со своим сроком тпл 5. Просроченных по-прежнему 58: снятый срок был предстоящим. */
+/* §4.8 сверки (`ADR-0077`): 85 → 87 и 58 → 59 просроченных. Затравка получила дело 327 —
+   второй полюс развилки п. 16.5 (региональный проект с ожидающим гейтом безакцепта);
+   его цепочка «повторная, age 11» несёт два срока, один из которых уже просрочен. */
 ok('предстоящие сроки показаны, а не только просроченные',
-   sRows().length === 85 && sRows().filter(r=>/просрочен/.test(r.textContent)).length === 58);
+   sRows().length === 87 && sRows().filter(r=>/просрочен/.test(r.textContent)).length === 59);
 ok('горизонт «всё» даёт все 112 сроков',     (()=>{ S.ev(`dlSetHorizon('all')`); return sRows().length === 112; })());
 ok('просроченное проходит любой горизонт',   (()=>{ S.ev(`dlSetHorizon('7')`);
    return S.ev(`dlAll().filter(x=>x.n<0).every(dlPass)`); })());
@@ -2234,8 +2237,10 @@ ok('отрисованные строки идут по возрастанию �
      дней осталось бы 178 и подавлять 181-й день стало бы нечего. Дальний — +7:
      сроки тпл 5 у дел K0 подтянулись в горизонт вместе с открытием.
      Шаг 4 наряда (§4.6): 86 → 85 вместе с делом 582 (см. комментарий у «предстоящие
-     сроки показаны» выше); края не сдвинулись — снятый срок не был ни тем, ни другим. */
-  return a.length === 85 && a.every((v,i) => i === 0 || a[i-1] <= v) && a[0] === -155 && a[a.length-1] === 7; })());
+     сроки показаны» выше); края не сдвинулись — снятый срок не был ни тем, ни другим.
+     §4.8 сверки (`ADR-0077`): 85 → 87 вместе с делом 327; края опять те же — сроки
+     свежей повторной претензии не глубже 391 и не дальше +7. */
+  return a.length === 87 && a.every((v,i) => i === 0 || a[i-1] <= v) && a[0] === -155 && a[a.length-1] === 7; })());
 ok('клик по колонке меняет ключ и направление', (()=>{
   S.ev(`dlSortBy('due')`); const up = S.ev(`dlSort.k==='due' && dlSort.dir===1`);
   S.ev(`dlSortBy('due')`); const down = S.ev(`dlSort.dir===-1`);
@@ -2794,7 +2799,7 @@ head('КР-8/КР-9/КР-11 · вопросы: состояние выводит
 ok('семь колонок, состояние первым',
    rCols(Q,'committee').join('|') === 'Состояние|Предмет|Орган|Заёмщик|Договоры|Инициатор|Заседание');
 ok('умолчание — ждут решения',               Q.ev(`regState.committee.seg`) === 'pending'
-   && rRows(Q,'committee').length === 6 && Q.ev(`REGS.committee.all().length`) === 73);   // 6 нерешённых из 73 (было 72 — наряд п.7в добавил кейс 701, у него свой решённый вопрос комиссии)
+   && rRows(Q,'committee').length === 7 && Q.ev(`REGS.committee.all().length`) === 74);   // 7 нерешённых из 74 (было 6 из 73 — §4.8 сверки добавила дело 327, второй полюс развилки п. 16.5: тот же ожидающий гейт безакцепта, но региональный проект и другой комитет)
 ok('состояний ровно четыре',                 Q.ev(`Object.keys(CQ_STATE).join('/')`) === 'pending/scheduled/positive/negative');
 ok('заглушки в поле решения решением больше не считаются',
    Q.ev(`CQ_NON_DECISION.size === 4`)
@@ -2814,16 +2819,16 @@ ok('вопрос без даты заседания назван «не назн
       && rows.filter(r=>/не назначено/.test(r.textContent)).length === 1
       && !rows.some(r=>/—/.test(r.querySelectorAll('td')[6].textContent));
 })()`));
-ok('гейтовый вопрос называет, какое действие держит',   // все шесть нерешённых держат действие
-   rRows(Q,'committee').filter(r=>/блокирует: /.test(r.textContent)).length === 6);
+ok('гейтовый вопрос называет, какое действие держит',   // все семь нерешённых держат действие (было шесть — дело 327, §4.8)
+   rRows(Q,'committee').filter(r=>/блокирует: /.test(r.textContent)).length === 7);
 ok('протокол и решение — подписями, отдельных колонок нет',
    !rCols(Q,'committee').includes('Протокол') && !rCols(Q,'committee').includes('Решение')
    && Q.ev(`regSetSeg('committee','decided')`) === undefined
    && rRows(Q,'committee').some(r=>/протокол /.test(r.textContent)));
 ok('рамка считает очередь, безадресные и заблокированные действия', (()=>{
    Q.ev(`regSetSeg('committee','pending')`);
-   return /ждут решения <b>6<\/b> · из них без даты заседания <b>0<\/b> · отказов <b>0<\/b> · держат заблокированным действие <b>6<\/b>/
-     .test(Q.$('#committeeFrame').innerHTML); })());   // счётчики сняты с #committeeFrame
+   return /ждут решения <b>7<\/b> · из них без даты заседания <b>0<\/b> · отказов <b>0<\/b> · держат заблокированным действие <b>7<\/b>/
+     .test(Q.$('#committeeFrame').innerHTML); })());   // счётчики сняты с #committeeFrame; 6 → 7 — дело 327 (§4.8)
 ok('прочерк вместо номера протокола убран из затравки',
    Q.ev(`PROCESSES.flatMap(p=>p.committeeQuestions).filter(q=>q.protocolNo === '—').length === 0`));
 
@@ -2954,7 +2959,7 @@ ok('отказов органа в затравке нет — все решён
    && Q.ev(`REGS.committee.all().filter(x=>x.st.k === 'positive').length === 67`));   // было 66 — наряд п.7в, кейс 701
 ok('нерешённые вопросы все назначены — вопроса без даты заседания в затравке нет',
    Q.ev(`REGS.committee.all().filter(x=>x.st.k === 'pending').length === 0`)
-   && Q.ev(`REGS.committee.all().filter(x=>x.st.k === 'scheduled').length === 6`));
+   && Q.ev(`REGS.committee.all().filter(x=>x.st.k === 'scheduled').length === 7`));   // 6 → 7: дело 327 (§4.8)
 
 head('КР-15 · карточка и реестр читают одно и то же');
 /* Заседания живут на делах 332…334 и 120; дело 333 (K3-ИСК) — с заседаниями и живой
@@ -3360,6 +3365,87 @@ ok('свёрнутость переживает перезагрузку (localS
      toggleNav();
      return saved === '1' && localStorage.getItem('asubk.collection.navCollapsed') === '0';
    })()`));
+
+/* ═══ §4.8 сверки · РАЗВИЛКА БЕЗАКЦЕПТА ПО ТИПУ ПРОЕКТА (п. 16.5, `ADR-0077`) ═══════ */
+head('§4.8 · безакцепт — два комитета по типу проекта (п. 16.5, ADR-0077)');
+ok('справочник типов проекта — два значения, третьего норма не даёт',
+   g.ev(`PROJECT_TYPES.join('/')`) === 'ДАК/региональный');
+ok('тип проекта объявлен у КАЖДОГО кредита затравки — умолчания нет',
+   g.ev(`PROCESSES.flatMap(p=>p.credits||[]).every(c=>PROJECT_TYPES.includes(c.projectType))`)
+   && g.ev(`PROCESSES.flatMap(p=>p.credits||[]).length`) >= 100);
+ok('тип проекта НЕ выводится из ведущего подразделения — поля разные',
+   /* Ровно та ловушка, ради которой поле и заведено: subdiv едет по эстафете, и у
+      эскалированных кредитов происхождения в нём уже нет. Проверка ищет кредиты, где
+      subdiv вне {ДАК}, а тип проекта при этом объявлен — вывести его из subdiv нечем. */
+   g.ev(`PROCESSES.flatMap(p=>p.credits||[]).filter(c=>['ОПК','ДПО','САК'].includes(c.subdiv) && c.projectType).length`) > 0);
+ok('развилочный гейт ровно один — безакцепт (п. 16.5)',
+   g.ev(`Object.keys(GATES).filter(k=>GATES[k].organByProject).join('|')`) === 'Безакцептное списание'
+   && g.ev(`Object.keys(GATES).filter(k=>GATES[k].organ && GATES[k].organByProject).length`) === 0);
+ok('развилочный гейт своего единственного органа не имеет — только пару',
+   g.ev(`GATES['Безакцептное списание'].organ === undefined`)
+   && g.ev(`gateOrgans(GATES['Безакцептное списание']).length`) === 2);
+ok('оба комитета п. 16.5 берутся из закрытого справочника ORGANS',
+   g.ev(`gateOrgan(GATES['Безакцептное списание'],'ДАК') === ORGANS[0]`)
+   && g.ev(`gateOrgan(GATES['Безакцептное списание'],'региональный') === ORGANS[1]`));
+ok('неизвестный тип проекта органа НЕ получает — молчаливого умолчания нет',
+   g.ev(`gateOrgan(GATES['Безакцептное списание'], undefined) === null`)
+   && g.ev(`gateOrgan(GATES['Безакцептное списание'], 'иной') === null`));
+/* Два полюса на живых данных: 310 — проект ДАК, 327 — региональный; ожидающий гейт
+   безакцепта у обоих, а орган вопроса разный. Без дела 327 развилка жила бы в коде. */
+ok('вопрос затравки уходит в комитет, назначенный ТИПОМ ПРОЕКТА',
+   g.ev(`PROCESSES.find(p=>p.id==='310').credits[0].projectType`) === 'ДАК'
+   && g.ev(`PROCESSES.find(p=>p.id==='310').committeeQuestions[0].organ`) === g.ev(`ORGANS[0]`)
+   && g.ev(`PROCESSES.find(p=>p.id==='327').credits[0].projectType`) === 'региональный'
+   && g.ev(`PROCESSES.find(p=>p.id==='327').committeeQuestions[0].organ`) === g.ev(`ORGANS[1]`));
+ok('причина блокировки называет ТОТ комитет, что назначен типу проекта',
+   /администрированию бюджетных кредитов/.test(g.ev(`gateReason(REQ_INDEX['310/310/з'],'Безакцептное списание')`))
+   && /региональному развитию/.test(g.ev(`gateReason(REQ_INDEX['327/327/з'],'Безакцептное списание')`))
+   && !/региональному развитию/.test(g.ev(`gateReason(REQ_INDEX['310/310/з'],'Безакцептное списание')`)));
+ok('дело-уровневый вызов кредита не знает и называет ОБА через слэш',
+   g.ev(`gateOrgansLabel(GATES['Безакцептное списание'])`) === g.ev(`ORGANS[0]+' / '+ORGANS[1]`));
+ok('экран правил печатает оба органа и подписывает, чем они разводятся', (()=>{
+   const m = mk(); m.asAdmin(); m.ev(`navClick('Настройки правил'); settingsTab='gates'; renderSettings()`);
+   const t = m.doc.getElementById('view-settings').textContent;
+   return /Комитет по администрированию бюджетных кредитов \/ Комитет по региональному развитию/.test(t)
+       && /по типу проекта \(ДАК \/ региональный\), п\. 16\.5/.test(t); })());
+/* Один вопрос — один орган. Смешанный набор кредитов ни органа не подставляет, ни
+   сохраняться не должен: половина записи адресовалась бы чужому комитету, и гейт
+   открылся бы всем по решению органа без компетенции. */
+ok('смешанный набор типов проекта форма не подставляет и не сохраняет', mk().ev(`(() => {
+  const p = PROCESSES.find(x=>x.id==='412');
+  p.credits[0].projectType = 'ДАК'; p.credits[1].projectType = 'региональный';
+  openDetail('412/560/з', TAB_BY_SLUG('soglasovaniya'));
+  openCommitteeQuestionModal();
+  document.getElementById('cqSubject').value = 'Запуск безакцептного списания';
+  onCqSubjectChange();
+  const note = document.getElementById('cqOrganNote').textContent;
+  const before = (p.committeeQuestions||[]).length;
+  saveCommitteeQuestion();
+  return /разных типов проекта/.test(note) && (p.committeeQuestions||[]).length === before;
+})()`));
+ok('однородный набор орган подставляет сам и сохранение проходит', mk().ev(`(() => {
+  const p = PROCESSES.find(x=>x.id==='412');
+  p.credits.forEach(c => c.projectType = 'региональный');
+  openDetail('412/560/з', TAB_BY_SLUG('soglasovaniya'));
+  openCommitteeQuestionModal();
+  document.getElementById('cqSubject').value = 'Запуск безакцептного списания';
+  onCqSubjectChange();
+  return document.getElementById('cqOrgan').value === ORGANS[1]
+      && /типом проекта/.test(document.getElementById('cqOrganNote').textContent);
+})()`));
+/* Шаблоны сроков ветви Б: строка 13 стояла «5 р.д. от получения документов от РП» —
+   ни срока, ни базы в п. 16.5 нет. Норма даёт куратору 10 р.д. от той же базы, что и
+   ветви А, — дня повторного направления требований. */
+ok('обе ветви п. 16.5 считаются от одной базы, выдуманных 5 р.д. больше нет', (()=>{
+   const t = n => g.ev(`JSON.stringify(DEADLINE_TEMPLATES.find(x=>x.n===${n}))`);
+   const j = n => JSON.parse(t(n));
+   return j(11).term === '10 р.д.' && j(11).base === 'дата повторного направления требований'
+       && j(12).term === '3 р.д.'  && j(12).base === 'дата повторного направления требований'
+       && j(13).term === '10 р.д.' && j(13).base === 'дата повторного направления требований'
+       && [11,12,13,14].every(n => j(n).point === '16.5'); })());
+ok('шаблоны ветвей называют СВОЙ комитет, а не «Комитет» вообще',
+   /комитет по администрированию кредитов/.test(g.ev(`DEADLINE_TEMPLATES.find(x=>x.n===11).action`))
+   && /комитет по региональному развитию/.test(g.ev(`DEADLINE_TEMPLATES.find(x=>x.n===13).action`)));
 
 console.log(`\nОШИБОК КОНСОЛИ (jsdomError): ${g.errs.length}`);
 g.errs.forEach(e => console.log('  ' + e));

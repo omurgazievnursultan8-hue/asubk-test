@@ -2263,7 +2263,11 @@ function pauseClosed(s){
    работу с должником целиком, а названную процедуру:
      п. 17 — «ПРОЦЕДУРА БЕЗАКЦЕПТНОГО СПИСАНИЯ может быть временно отложена или
        приостановлена по решению соответствующего комитета…»: гарантийное письмо не
-       останавливает ни претензии, ни иск, ни обращение на залог;
+       останавливает ни претензии, ни иск, ни обращение на залог. «Соответствующего» —
+       того самого, что развилка п. 16.5 назначила этому проекту (`ADR-0077`): пауза
+       принадлежит процедуре, а процедуру решает комитет по типу проекта. Отдельным гейтом
+       пауза не выражена (записи паузы органа не несут), поэтому развилка сюда не
+       переносится машинерией — только текстом;
      п. 18 — «досудебные и принудительные меры взыскания, ЗАПУЩЕННЫЕ В РАМКАХ ПУНКТА 16,
        временно приостанавливаются»: рамка главы «средний риск», а не журнал целиком —
        судебный и залоговый треки (гл. 7) рассмотрение реструктуризации не трогает.
@@ -2568,11 +2572,26 @@ const ORGANS = [
   'Постоянно действующая комиссия по вопросам признания задолженности безнадёжной к взысканию',
   'Председатель Правления',
 ];
+/* ТИП ПРОЕКТА (п. 16.5, `ADR-0077`) — ФАКТ КРЕДИТА, а не производное ведущего
+   подразделения. Норма разводит безакцепт по нему на два комитета, и разводит НАВСЕГДА:
+   «проекты Департамента администрирования кредитов» ↔ «региональные проекты». Соблазн
+   прочитать тип из `credit.subdiv` (кто ведёт) ломается ровно там, где безакцепт и нужен:
+   ведущее подразделение едет по эстафете (ОД → ОПК → ДПО → САК), и у большинства
+   эскалированных кредитов затравки происхождение из него уже не восстанавливается.
+   Значений ДВА: норма третьей ветви не даёт, и не-ДАК трактуется региональным — буквальное
+   чтение ветви Б, где вопрос выносит куратор «соответствующего отраслевого департамента»
+   именно на комитет по региональному развитию. Существует ли проект отраслевого
+   департамента вне региональной сети — вопрос 17 письма ГФХ; ответ переключается затравкой
+   и справочником, устройства не меняет. */
+const PROJECT_TYPES = ['ДАК', 'региональный'];
 /* topic — ПРЕДМЕТ вопроса, которым гейт открывается. Ключ карты — вид меры, label —
    действие для таблицы гейтов; предмет вынесен отдельным полем, потому что совпадение
-   идёт по нему (КР-10), а не по органу и не по виду документа. */
+   идёт по нему (КР-10), а не по органу и не по виду документа.
+   organ — ОДИН орган; organByProject — развилка по типу проекта (п. 16.5). Взаимно
+   исключены: читатели ходят через gateOrgan/gateOrgans, а не через `.organ` напрямую. */
 const GATES = {
-  'Безакцептное списание':          { organ:ORGANS[0], point:'16.5', label:'Запуск безакцептного списания',
+  'Безакцептное списание':          { organByProject:{ 'ДАК':ORGANS[0], 'региональный':ORGANS[1] },
+                                      point:'16.5', label:'Запуск безакцептного списания',
                                       topic:'Запуск безакцептного списания' },
   'Извещение об обращении на залог': { organ:ORGANS[2], point:'44',   label:'Начало внесудебного обращения взыскания на залог',
                                       topic:'Начало внесудебного обращения взыскания на залог' },
@@ -2594,9 +2613,23 @@ const GATES = {
    лица)», …). Разнобой ничего не ломал ровно потому, что гейт совпадал по ОРГАНУ и
    предмет не читал вовсе. Теперь предмет — ключ совпадения, и справочник строится из
    самих гейтов: разъехаться этим двум спискам больше негде. */
+/* Орган гейта. Развилочный гейт без известного типа проекта органа не имеет — вернуть
+   тут ORGANS[0] «по умолчанию» значило бы молча увести региональный проект не в тот
+   комитет, поэтому не-развилочный ход один: gateOrgans (оба) для списков и заголовков,
+   gateOrgan (один) там, где кредит на руках. Парная запись «А/Б» — не наша выдумка:
+   сама норма пишет «комитета по администрированию бюджетных кредитов/региональному
+   развитию» ещё в девяти пунктах помимо 16.5. */
+const gateOrgans = g => g ? (g.organByProject ? PROJECT_TYPES.map(t => g.organByProject[t]) : [g.organ]) : [];
+const gateOrgansLabel = g => gateOrgans(g).join(' / ');
+function gateOrgan(g, projectType){
+  if(!g) return '';
+  if(!g.organByProject) return g.organ;
+  return g.organByProject[projectType] || null;   // null — тип проекта неизвестен, орган не выбран
+}
 const CQ_FREE = 'Другое (иной вопрос)';
 const CQ_SUBJECTS = [
-  ...Object.keys(GATES).map(k => ({ topic:GATES[k].topic, organ:GATES[k].organ, gate:true,
+  ...Object.keys(GATES).map(k => ({ topic:GATES[k].topic, organ:GATES[k].organ || null,
+                                    organByProject:GATES[k].organByProject || null, gate:true,
                                     action:GATES[k].label, point:GATES[k].point })),
   { topic:'Списание задолженности',                          organ:ORGANS[4] },
   { topic:CQ_FREE, organ:'', free:true },
@@ -2662,6 +2695,9 @@ function gateReason(r, kind){
   if(g.poruchenie) return p.poruchenie ? null
     : `Регистрация «${kind}» требует поручения Председателя Правления (п. ${g.point}). Поручение не выдано.`;
   const credit  = r._credit ? r.credit : null;             // дело-уровневый вызов кредита не знает
+  /* Развилка п. 16.5 (`ADR-0077`): орган выбирает ТИП ПРОЕКТА кредита. Дело-уровневый
+     вызов кредита не знает — там называем оба через слэш, как это делает сама норма. */
+  const organ = (credit != null && gateOrgan(g, r._credit.projectType)) || gateOrgansLabel(g);
   /* Task 9 fix round 3 (ревью, Important 4): гейт совпадает по СТРОКЕ предмета, поэтому
      вопрос со СВОБОДНЫМ предметом (free:true — пользователь сформулировал его сам) не
      считается гейтовым, даже если текст совпал: иначе необратимое действие
@@ -2673,7 +2709,7 @@ function gateReason(r, kind){
     : onTopic.filter(q => !(q.credits||[]).length || q.credits.includes(credit));
   const lastMine = lastDecidedOf(mine);
   if(lastMine && lastMine.positive) return null;
-  const head  = `${g.label} требует решения органа «${g.organ}» (п. ${g.point}).`;
+  const head  = `${g.label} требует решения органа «${organ}» (п. ${g.point}).`;
   const lastOther = lastDecidedOf(onTopic.filter(q => !mine.includes(q)));
   if(lastOther && lastOther.positive) return `${head} Решение есть, но по другому кредиту (${creditLabels(p, lastOther.credits)}) — на «${creditLabel(p, credit)}» оно не распространяется.`;
   if(!mine.length) return `${head} Вопрос не вынесен.`;
@@ -3235,9 +3271,15 @@ const DEADLINE_TEMPLATES = [
   { n:8,  action:'Срок исполнения повторной претензии', term:'14 к.д.', base:'дата направления', resp:'заёмщик', point:'16.3' },
   { n:9,  action:'Требования обеспечителям, первое', term:'одновременно', base:'дата повторной претензии', resp:'куратор', point:'16.4' },
   { n:10, action:'Требования обеспечителям, повторное', term:'10 р.д.', base:'истечение срока по строке 8', resp:'куратор', point:'16.4' },
-  { n:11, action:'Вынос безакцепта на Комитет (проекты ДАК)', term:'10 р.д.', base:'дата повторного направления требований', resp:'куратор ДАК', point:'16.5' },
+  { n:11, action:'Вынос безакцепта на комитет по администрированию кредитов (проекты ДАК)', term:'10 р.д.', base:'дата повторного направления требований', resp:'куратор ДАК', point:'16.5' },
+  /* Ветвь Б п. 16.5 — не «РП вместо куратора», а ДВА равноправных хода к одному комитету:
+     либо РП за 3 р.д. собирает документы на месте и передаёт куратору отраслевого
+     департамента, либо куратор САМ за 10 р.д. выносит вопрос. Обе строки считаются от
+     одной базы — дня повторного направления требований. Строка 13 стояла «5 р.д. от
+     получения документов от РП»: ни срока 5, ни этой базы в п. 16.5 нет — величина была
+     нашей (`ADR-0077`, шаг §4.8). */
   { n:12, action:'Сбор документов на месте (региональные проекты)', term:'3 р.д.', base:'дата повторного направления требований', resp:'РП', point:'16.5' },
-  { n:13, action:'Вынос безакцепта на Комитет по региональному развитию', term:'5 р.д.', base:'получение документов от РП', resp:'куратор ОД', point:'16.5' },
+  { n:13, action:'Вынос безакцепта на комитет по региональному развитию (региональные проекты)', term:'10 р.д.', base:'дата повторного направления требований', resp:'куратор ОД', point:'16.5' },
   { n:14, action:'Платёжные требования в обслуживающие банки', term:'10 р.д.', base:'дата решения комитета', resp:'куратор', point:'16.5' },
   { n:15, action:'Отсрочка по гарантийному письму', term:'≤ 70 к.д.', base:'дата направления письма в ГФХ', resp:'—', point:'17' },
   { n:16, action:'Возобновление безакцепта при нарушении гарантийного письма', term:'10 р.д.', base:'факт нарушения условий письма', resp:'куратор ОД', point:'17' },
@@ -3685,6 +3727,16 @@ function buildCredit(c, cr, stop, age){
       throw new Error(`SEED: кредит id='${cr.id}' (дело ${c.id}) не объявляет credit.subdiv — подразделение кредита ведёт развилку подписанта (respFor / В-9, п. 19.2): без него КАЖДАЯ мера дела, включая меры чужих подразделений, подписывалась бы куратором дела`);
     if(!SUBDIV_BY_CODE[cr.subdiv])
       throw new Error(`SEED: кредит id='${cr.id}' (дело ${c.id}) — credit.subdiv='${cr.subdiv}' не входит в справочник SUBDIVS [${SUBDIV_CODES.join(', ')}]`);
+    /* ТИП ПРОЕКТА (п. 16.5, `ADR-0077`) — обязателен и объявляется явно. Умолчание тут
+       было бы не удобством, а тихим выбором комитета: незаявленный проект уехал бы на
+       «региональный» и решение о безакцепте принял бы не тот орган. Тем же гардом, что
+       и subdiv выше: дело не собирается. Из subdiv тип НЕ выводится — subdiv едет по
+       эстафете, тип проекта не меняется никогда. */
+    if(!cr.project)
+      throw new Error(`SEED: кредит id='${cr.id}' (дело ${c.id}) не объявляет credit.project — тип проекта ведёт развилку комитета по безакцепту (п. 16.5): без него вопрос ушёл бы в орган по умолчанию, а не в тот, что назначен нормой. Значения: [${PROJECT_TYPES.join(', ')}]`);
+    if(!PROJECT_TYPES.includes(cr.project))
+      throw new Error(`SEED: кредит id='${cr.id}' (дело ${c.id}) — credit.project='${cr.project}' вне справочника типов проекта [${PROJECT_TYPES.join(', ')}] (п. 16.5 третьей ветви не даёт — вопрос 17 письма ГФХ)`);
+    const projectType = cr.project;
     /* Fix round 3 (ревью, Important 2): ОДНО правило чтения на ВСЕ поля кейса, что
        ведут ветки билдера, — «объявлено на кредите → побеждает, иначе с кейса».
        До правки так читались только stop/age/overdue/costs/credits0, а остальные
@@ -4899,7 +4951,7 @@ function buildCredit(c, cr, stop, age){
       if(!m) continue;
       const at = ruSub(m.dates.event, 10);
       const protoSuf = (c.credits && !g.poruchenie) ? `/${cr.id}` : '';
-      committeeQuestions.push({ organ:g.organ, initiator:cr.subdiv || 'ОД', topic:g.topic,
+      committeeQuestions.push({ organ:gateOrgan(g, projectType), initiator:cr.subdiv || 'ОД', topic:g.topic,
         credits:[cr.num], meetingDate:at,
         decision: g.poruchenie ? 'поручение выдано' : 'разрешено', positive:true,
         protocolNo:`ПРОТ-${c.id}/${g.point}${protoSuf}`, protocolDate:at });
@@ -4921,7 +4973,7 @@ function buildCredit(c, cr, stop, age){
       if(!g)
         throw new Error(`SEED: дело ${c.id} — gatePending='${gatePending}' не входит в GATES [${Object.keys(GATES).join(', ')}]`);
       const at = ruSub(TODAY, 6);
-      committeeQuestions.push({ organ:g.organ, initiator:cr.subdiv || 'ОД', topic:g.topic,
+      committeeQuestions.push({ organ:gateOrgan(g, projectType), initiator:cr.subdiv || 'ОД', topic:g.topic,
         credits:[cr.num], meetingDate:at, decision:'', positive:false,
         protocolNo:null, protocolDate:null });
     }
@@ -4959,7 +5011,7 @@ function buildCredit(c, cr, stop, age){
        Р-11), не замена базовых. Без списка допустимых ключей будущий кейс мог бы тихо
        затереть id/num/overdueDays/subdiv/bezakceptRight, которые кредит несёт по контракту
        выше, — единственный merge-точка билдера без throw на конфликт (ревью раунда 1). */
-    const CREDITS0_ALLOWED = ['treasuryDelay'];
+    const CREDITS0_ALLOWED = ['treasuryDelay'];   // projectType сюда не пускаем — он в базовом контракте выше
     if(credits0){
       const bad = Object.keys(credits0).filter(k => !CREDITS0_ALLOWED.includes(k));
       if(bad.length)
@@ -5049,7 +5101,7 @@ function buildCredit(c, cr, stop, age){
       throw new Error(`SEED: дело ${c.id} — credit.suppress181 снят (ADR-0064): отложение перевода на 181-й день выводится из состояния 'restructuring' на требовании этого кредита, объявите паузу п. 18 через extra.settlement`);
 
     const credit = Object.assign({ id:cr.id, num:cr.num, overdueDays,
-                     subdiv:cr.subdiv, bezakceptRight:cr.bezakcept },
+                     subdiv:cr.subdiv, projectType, bezakceptRight:cr.bezakcept },
                      cr.factors ? { factors:cr.factors.map(f => ({...f})) } : {},
                      cr.overdueInstallments ? { overdueInstallments:cr.overdueInstallments.map(x => ({...x})) } : {},
                      credits0 || {});
@@ -5447,19 +5499,19 @@ const SEED = [
   // ── K0-ОКНО · окно ожидания зачисления открыто, гейт претензии закрыт ──
   { sit:'K0-ОКНО', id:'201', borrower:'ОсОО «Жаны-Баштоо»', inn:'02501202400118',
     region:'г. Бишкек / Свердловский', owner:'Куратор ОД', curator:'Асанова Ж.Т.',
-    credit:{ id:'201', num:'Дог. №201 от 02.03.2025', subdiv:'ОД',
+    credit:{ id:'201', num:'Дог. №201 от 02.03.2025', subdiv:'ОД', project:'региональный',
              debt:{ principal:120000, interest:6000, penalty:2000, paid:0 } },
     stop:null, overdue:8,
     extra:{ window:{ open:true, days:5, closedBy:null, gateDay:'6', claimDay:'15' } } },
   { sit:'K0-ОКНО', id:'202', borrower:'ОсОО «Кыял Ломбард»', inn:'01605202400225',
     region:'г. Ош / Ошская область', owner:'Куратор ОД', curator:'Молдалиев Т.К.',
-    credit:{ id:'202', num:'Дог. №202 от 15.04.2025', subdiv:'ОД',
+    credit:{ id:'202', num:'Дог. №202 от 15.04.2025', subdiv:'ОД', project:'региональный',
              debt:{ principal:85000, interest:4000, penalty:1200, paid:0 } },
     stop:null, overdue:7,
     extra:{ window:{ open:true, days:5, closedBy:null, gateDay:'6', claimDay:'15' } } },
   { sit:'K0-ОКНО', id:'203', borrower:'Сыдыков Бакыт Асанович', inn:'21512199400512',
     region:'Чуйская область / Аламудунский', owner:'Куратор ОД', curator:'Тукинова А.С.',
-    credit:{ id:'203', num:'Дог. №203 от 28.02.2025', subdiv:'ОД',
+    credit:{ id:'203', num:'Дог. №203 от 28.02.2025', subdiv:'ОД', project:'региональный',
              debt:{ principal:64000, interest:3200, penalty:800, paid:0 } },
     stop:null, overdue:9,
     extra:{ window:{ open:true, days:5, closedBy:null, gateDay:'6', claimDay:'15' } } },
@@ -5469,7 +5521,7 @@ const SEED = [
   // opened+days (комментарий у derived.window.until, ~2506) — здесь просто не задан.
   { sit:'K0-ЗАКР', id:'204', borrower:'ИП Мамытова А.', inn:'21903198500071',
     region:'Чуйская область / Сокулукский', owner:'Куратор ОД', curator:'Осмоналиев Т.',
-    credit:{ id:'204', num:'Дог. №204 от 18.01.2025', subdiv:'ОД',
+    credit:{ id:'204', num:'Дог. №204 от 18.01.2025', subdiv:'ОД', project:'региональный',
              debt:{ principal:86000, interest:3000, penalty:900, paid:0 } },
     stop:null, overdue:13,
     extra:{ window:{ open:false, days:5, closedBy:'истечение срока' } } },
@@ -5478,7 +5530,7 @@ const SEED = [
   // и запись истории — их нельзя было набрать порознь без риска разойтись.
   { sit:'K0-ЗАКР', id:'205', borrower:'ОсОО «Кен-Сай»', inn:'01808202100263',
     region:'Ошская область / Кара-Суйский', owner:'Куратор ОД', curator:'Жээнбеков Н.',
-    credit:{ id:'205', num:'Дог. №205 от 05.05.2024', subdiv:'ОД',
+    credit:{ id:'205', num:'Дог. №205 от 05.05.2024', subdiv:'ОД', project:'региональный',
              debt:{ principal:54000, interest:2100, penalty:600, paid:0 } },
     stop:null, overdue:11,
     extra:{ window:{ open:false, days:5, until:K0_ZAKR_205_CLOSED, closedBy:'отметка куратора' },
@@ -5491,7 +5543,7 @@ const SEED = [
   // (overdue:9 → opened 17.07.2026 для 206; overdue:10 → opened 16.07.2026 для 207).
   { sit:'K0-РЕТРО', id:'206', borrower:'ОсОО «Кут-Инвест»', inn:'01502201700882',
     region:'Иссык-Кульская область / Джети-Огузский', owner:'Куратор ОД', curator:'Осмонов К.',
-    credit:{ id:'206', num:'Дог. №206 от 12.02.2025', subdiv:'ОД',
+    credit:{ id:'206', num:'Дог. №206 от 12.02.2025', subdiv:'ОД', project:'региональный',
              debt:{ principal:74000, interest:0, penalty:0, paid:74000 } },
     stop:null, overdue:9,
     extra:{ retro:true,
@@ -5499,7 +5551,7 @@ const SEED = [
       history:[{ when:'20.07.2026 09:15', what:'Платёж подтверждён задним числом (задержка казначейства 12 дн, ПП-4471) → процесс закрыт ретроспективно (Р-9), скрыт из рабочего списка', who:'СРМК' }] } },
   { sit:'K0-РЕТРО', id:'207', borrower:'ОсОО «Ак-Жол Строй»', inn:'01704201900397',
     region:'Нарынская область / Ак-Талинский', owner:'Куратор ОД', curator:'Дуйшеева Р.',
-    credit:{ id:'207', num:'Дог. №207 от 03.04.2025', subdiv:'ОД',
+    credit:{ id:'207', num:'Дог. №207 от 03.04.2025', subdiv:'ОД', project:'региональный',
              debt:{ principal:48000, interest:0, penalty:0, paid:48000 } },
     stop:null, overdue:10,
     extra:{ retro:true,
@@ -5517,12 +5569,12 @@ const SEED = [
   //    переехало в K4-ВОЗВРАТ третьим кейсом — туда, где шаг 4 добавил маршрут п. 36. ──
   { sit:'K0-ОСНОВАНИЕ', id:'580', borrower:'ОсОО «Ала-Тоо Курулуш»', inn:'01203202400580',
     region:'Чуйская область / Ысык-Атинский', owner:'Отдел проблемных кредитов (ОПК)', curator:'Тукинова А.С.',
-    credit:{ id:'580', num:'Дог. №580 от 09.02.2024', subdiv:'ОПК',
+    credit:{ id:'580', num:'Дог. №580 от 09.02.2024', subdiv:'ОПК', project:'региональный',
              debt:{ principal:210000, interest:9000, penalty:0, paid:0 } },
     stop:null, overdue:6, basis:OSNOVANIE_KINDS[1] },
   { sit:'K0-ОСНОВАНИЕ', id:'581', borrower:'ОсОО «Кемин-Строй» (в стадии ликвидации)', inn:'01705202400581',
     region:'Чуйская область / Кеминский', owner:'Отдел проблемных кредитов (ОПК)', curator:'Молдалиев Т.К.',
-    credit:{ id:'581', num:'Дог. №581 от 21.06.2023', subdiv:'ОПК',
+    credit:{ id:'581', num:'Дог. №581 от 21.06.2023', subdiv:'ОПК', project:'региональный',
              debt:{ principal:158000, interest:6200, penalty:0, paid:0 } },
     stop:null, overdue:7, basis:OSNOVANIE_KINDS[2] },
 
@@ -5534,12 +5586,12 @@ const SEED = [
   //    минимально (без цепочки мер, тот же приём, что K0-ОСНОВАНИЕ выше). ──
   { sit:'K0-ПРАВОПРЕЕМСТВО', id:'583', borrower:'ОсОО «Беш-Сары»', inn:'01912202400583',
     region:'Чуйская область / Аламудунский', owner:'Отдел проблемных кредитов (ОПК)', curator:'Тукинова А.С.',
-    credit:{ id:'583', num:'Дог. №583 от 14.03.2023', subdiv:'ОПК',
+    credit:{ id:'583', num:'Дог. №583 от 14.03.2023', subdiv:'ОПК', project:'региональный',
              debt:{ principal:340000, interest:15000, penalty:0, paid:0 } },
     stop:null, overdue:6 },
   { sit:'K0-ПРАВОПРЕЕМСТВО', id:'584', borrower:'ОсОО «Кен-Тор»', inn:'02207202400584',
     region:'Чуйская область / Сокулукский', owner:'Куратор ОД', curator:'Асанова Ж.Т.',
-    credit:{ id:'584', num:'Дог. №584 от 02.09.2023', subdiv:'ОД',
+    credit:{ id:'584', num:'Дог. №584 от 02.09.2023', subdiv:'ОД', project:'региональный',
              debt:{ principal:120000, interest:5000, penalty:0, paid:0 } },
     stop:null, overdue:7 },
 
@@ -5553,24 +5605,24 @@ const SEED = [
   // ── K1-ПРЕТ1 · первичная претензия, срок исполнения 14 к.д. идёт (age < 14) ──
   { sit:'K1-ПРЕТ1', id:'301', borrower:'ОсОО «Береке-Агро»', inn:'02804202000441',
     region:'Чуйская область / Сокулукский', owner:'Куратор ДАК', curator:'Токтосунова Б.',
-    credit:{ id:'301', num:'Дог. №301 от 14.03.2025', subdiv:'ДАК',
+    credit:{ id:'301', num:'Дог. №301 от 14.03.2025', subdiv:'ДАК', project:'ДАК',
              debt:{ principal:64000, interest:2600, penalty:800, paid:0, principalOverdue:50000 } },
     stop:'претензия', age:6, channel:'СЭД' },
   { sit:'K1-ПРЕТ1', id:'302', borrower:'ОсОО «Тоо-Строй Инвест»', inn:'01912201812345',
     region:'Чуйская область / Панфиловский', owner:'Куратор ДАК', curator:'Токтосунова Б.',
-    credit:{ id:'302', num:'Дог. №302 от 22.05.2025', subdiv:'ДАК',
+    credit:{ id:'302', num:'Дог. №302 от 22.05.2025', subdiv:'ДАК', project:'ДАК',
              debt:{ principal:58000, interest:2400, penalty:700, paid:0, principalOverdue:45000 } },
     stop:'претензия', age:4 },
   { sit:'K1-ПРЕТ1', id:'303', borrower:'Молдогазиев Э. Т.', inn:'21808199200456',
     region:'Иссык-Кульская область / Тонский', owner:'Куратор ДАК', curator:'Тукинова А.С.',
-    credit:{ id:'303', num:'Дог. №303 от 05.02.2025', subdiv:'ДАК',
+    credit:{ id:'303', num:'Дог. №303 от 05.02.2025', subdiv:'ДАК', project:'ДАК',
              debt:{ principal:39000, interest:1500, penalty:500, paid:0, principalOverdue:30000 } },
     stop:'претензия', age:11, channel:'Нарочно' },
 
   // ── K1-ПРЕТ2 · повторная претензия, срок истёк, записка в ДПО (stop:'записка') ──
   { sit:'K1-ПРЕТ2', id:'304', borrower:'ОсОО «Ак-Кеме Трейд»', inn:'01912201610558',
     region:'г. Ош / Ошский', owner:'Куратор ДАК', curator:'Токтосунова Б.',
-    credit:{ id:'304', num:'Дог. №304 от 02.11.2024', subdiv:'ДАК',
+    credit:{ id:'304', num:'Дог. №304 от 02.11.2024', subdiv:'ДАК', project:'ДАК',
              debt:{ principal:112000, interest:5400, penalty:2600, paid:0, principalOverdue:90000 } },
     // subdiv:'ДАК', но записку в ДПО обязан подготовить куратор ОД (MEASURE_SUBDIV, п.19.2/тпл 41) —
     // deptCurators называет его явно, по подразделению (ревью Task4 п.5 / Task5 раунд2).
@@ -5578,20 +5630,20 @@ const SEED = [
     stop:'записка', age:9 },
   { sit:'K1-ПРЕТ2', id:'305', borrower:'ОсОО «Джалал-Абад Курулуш»', inn:'01502201900771',
     region:'Джалал-Абадская область / Сузакский', owner:'Куратор ДАК', curator:'Бекболотов Р.',
-    credit:{ id:'305', num:'Дог. №305 от 19.08.2024', subdiv:'ДАК',
+    credit:{ id:'305', num:'Дог. №305 от 19.08.2024', subdiv:'ДАК', project:'ДАК',
              debt:{ principal:96000, interest:4300, penalty:2000, paid:0, principalOverdue:78000 } },
     deptCurators:{ 'ОД':'Асанова Ж.Т.' },
     stop:'записка', age:15 },
   { sit:'K1-ПРЕТ2', id:'306', borrower:'ИП Раимбекова С.', inn:'21703199800112',
     region:'Таласская область / Таласский', owner:'Куратор ОД', curator:'Осмоналиев Т.',
-    credit:{ id:'306', num:'Дог. №306 от 27.01.2025', subdiv:'ОД',
+    credit:{ id:'306', num:'Дог. №306 от 27.01.2025', subdiv:'ОД', project:'региональный',
              debt:{ principal:51000, interest:2100, penalty:900, paid:0, principalOverdue:40000 } },
     stop:'записка', age:20 },
 
   // ── K1-ОБЕСП · требование поручителю/гаранту/отраслевому госоргану (третья координата требования, М-1) ──
   { sit:'K1-ОБЕСП', id:'307', borrower:'ОсОО «Бек Кабель»', inn:'01912201610212',
     region:'г. Бишкек / Первомайский', owner:'Куратор ДАК', curator:'Тукинова А.С.',
-    credit:{ id:'307', num:'Дог. №307 от 10.04.2024', subdiv:'ДАК',
+    credit:{ id:'307', num:'Дог. №307 от 10.04.2024', subdiv:'ДАК', project:'ДАК',
              debt:{ principal:140000, interest:6000, penalty:6300, paid:0, principalOverdue:110000 } },
     stop:'повторная', age:11,
     obligors:[{ id:'п-307', name:'Асанов Т. М.', inn:'22505198700345', kind:'физлицо',
@@ -5599,7 +5651,7 @@ const SEED = [
     guarantorClaim:{ kind:'Требование поручителю', num:'ТП-307' } },
   { sit:'K1-ОБЕСП', id:'308', borrower:'ОсОО «Кара-Кол Агро»', inn:'01704202000933',
     region:'Иссык-Кульская область / Каракольский', owner:'Куратор ДАК', curator:'Дуйшеева Р.',
-    credit:{ id:'308', num:'Дог. №308 от 15.05.2024', subdiv:'ДАК',
+    credit:{ id:'308', num:'Дог. №308 от 15.05.2024', subdiv:'ДАК', project:'ДАК',
              debt:{ principal:176000, interest:7200, penalty:5100, paid:0, principalOverdue:140000 } },
     stop:'повторная', age:13,
     obligors:[{ id:'г-308', name:'ОсОО «Гарант-Финанс»', inn:'01911201700884', kind:'юрлицо',
@@ -5607,7 +5659,7 @@ const SEED = [
     guarantorClaim:{ kind:'Требование гаранту', num:'ТГ-308' } },
   { sit:'K1-ОБЕСП', id:'309', borrower:'Садыков Н. К.', inn:'21504198600678',
     region:'Чуйская область / Московский', owner:'Куратор ОД', curator:'Осмоналиев Т.',
-    credit:{ id:'309', num:'Дог. №309 от 03.09.2024', subdiv:'ОД',
+    credit:{ id:'309', num:'Дог. №309 от 03.09.2024', subdiv:'ОД', project:'региональный',
              debt:{ principal:62000, interest:2700, penalty:1400, paid:0, principalOverdue:48000 } },
     stop:'повторная', age:9,
     // третий вид требования обеспечителю (реестр требований, §17.4) — отраслевой госорган,
@@ -5621,14 +5673,23 @@ const SEED = [
   // ── K1-БА-ГЕЙТ · право на безакцепт есть по договору, комитет ещё не решил ──
   { sit:'K1-БА-ГЕЙТ', id:'310', borrower:'ОсОО «Манас-Ресурс»', inn:'01808202100264',
     region:'г. Бишкек / Свердловский', owner:'Куратор ДАК', curator:'Токтосунова Б.',
-    credit:{ id:'310', num:'Дог. №310 от 08.08.2024', subdiv:'ДАК', bezakcept:true,
+    credit:{ id:'310', num:'Дог. №310 от 08.08.2024', subdiv:'ДАК', project:'ДАК', bezakcept:true,
              debt:{ principal:98000, interest:4200, penalty:1900, paid:0, principalOverdue:78000 } },
     stop:'повторная', age:8, gatePending:'Безакцептное списание' },
   { sit:'K1-БА-ГЕЙТ', id:'311', borrower:'ОсОО «Токмок-Мебель»', inn:'01704201800556',
     region:'Чуйская область / Токмокский', owner:'Куратор ДАК', curator:'Молдалиев Т.К.',
-    credit:{ id:'311', num:'Дог. №311 от 21.11.2024', subdiv:'ДАК', bezakcept:true,
+    credit:{ id:'311', num:'Дог. №311 от 21.11.2024', subdiv:'ДАК', project:'ДАК', bezakcept:true,
              debt:{ principal:71000, interest:3000, penalty:1300, paid:0, principalOverdue:56000 } },
     stop:'повторная', age:14, gatePending:'Безакцептное списание' },
+  /* 327 — ВТОРАЯ ВЕТВЬ п. 16.5 (`ADR-0077`): тот же ожидающий гейт безакцепта, но проект
+     РЕГИОНАЛЬНЫЙ, и вопрос уходит в «Комитет по региональному развитию», а не в тот, что
+     у 310/311. Без этого дела развилка существовала бы только в коде: все пять кредитов
+     затравки с bezakcept:true — проекты ДАК, и любой прогон открывал бы ровно один орган. */
+  { sit:'K1-БА-ГЕЙТ', id:'327', borrower:'ОсОО «Ысык-Көл Агро»', inn:'01203201900318',
+    region:'Иссык-Кульская область / Тюпский', owner:'Куратор ОД', curator:'Сартбаев Э.',
+    credit:{ id:'327', num:'Дог. №327 от 14.10.2024', subdiv:'ОД', project:'региональный', bezakcept:true,
+             debt:{ principal:64000, interest:2700, penalty:1100, paid:0, principalOverdue:51000 } },
+    stop:'повторная', age:11, gatePending:'Безакцептное списание' },
 
   // ── K1-БА-ИСП · гейт пройден, платёжное требование в банк + списание, три исхода ──
   // Деньги различают исходы (ревью Task4 п.9): paid — то, что списание фактически
@@ -5637,17 +5698,17 @@ const SEED = [
   // просрочки строго монотонно: 2 000 ≪ 30 000 ≪ 44 000.
   { sit:'K1-БА-ИСП', id:'312', borrower:'ОсОО «Чуй-Дан»', inn:'02902201900155',
     region:'Чуйская область / Аламудунский', owner:'Куратор ДАК', curator:'Токтосунова Б.',
-    credit:{ id:'312', num:'Дог. №312 от 21.09.2024', subdiv:'ДАК', bezakcept:true,
+    credit:{ id:'312', num:'Дог. №312 от 21.09.2024', subdiv:'ДАК', project:'ДАК', bezakcept:true,
              debt:{ principal:76000, interest:3100, penalty:1200, paid:25000, principalOverdue:30000 } },
     stop:'повторная', age:34, bezakceptOutcome:'частично исполнено' },
   { sit:'K1-БА-ИСП', id:'313', borrower:'ОсОО «Ноокат-Агро»', inn:'01502201600447',
     region:'Ошская область / Ноокатский', owner:'Куратор ДАК', curator:'Бекболотов Р.',
-    credit:{ id:'313', num:'Дог. №313 от 02.06.2024', subdiv:'ДАК', bezakcept:true,
+    credit:{ id:'313', num:'Дог. №313 от 02.06.2024', subdiv:'ДАК', project:'ДАК', bezakcept:true,
              debt:{ principal:88000, interest:3600, penalty:1600, paid:70000, principalOverdue:2000 } },
     stop:'повторная', age:40, bezakceptOutcome:'исполнено' },
   { sit:'K1-БА-ИСП', id:'314', borrower:'Абдрахманов У. Ж.', inn:'21309198500334',
     region:'Баткенская область / Кызыл-Кийский', owner:'Куратор ДАК', curator:'Осмонов К.',
-    credit:{ id:'314', num:'Дог. №314 от 17.03.2025', subdiv:'ДАК', bezakcept:true,
+    credit:{ id:'314', num:'Дог. №314 от 17.03.2025', subdiv:'ДАК', project:'ДАК', bezakcept:true,
              debt:{ principal:46000, interest:1900, penalty:700, paid:0, principalOverdue:44000 } },
     stop:'повторная', age:35, bezakceptOutcome:'не исполнено' },
 
@@ -5655,19 +5716,19 @@ const SEED = [
   //    условная ветка §3.4 не срабатывает (ни ПТ, ни списания в цепочке) ──
   { sit:'K1-БА-НЕТ', id:'315', borrower:'ОсОО «Кемин-Строй»', inn:'01808201900221',
     region:'Чуйская область / Кеминский', owner:'Куратор ДАК', curator:'Жээнбеков Н.',
-    credit:{ id:'315', num:'Дог. №315 от 09.07.2024', subdiv:'ДАК',
+    credit:{ id:'315', num:'Дог. №315 от 09.07.2024', subdiv:'ДАК', project:'ДАК',
              debt:{ principal:54000, interest:2200, penalty:900, paid:0, principalOverdue:42000 } },
     stop:'повторная', age:12 },
   { sit:'K1-БА-НЕТ', id:'316', borrower:'ИП Турсунов Б.', inn:'21601199700889',
     region:'Ошская область / Кара-Суйский', owner:'Куратор ДАК', curator:'Тукинова А.С.',
-    credit:{ id:'316', num:'Дог. №316 от 25.10.2024', subdiv:'ДАК',
+    credit:{ id:'316', num:'Дог. №316 от 25.10.2024', subdiv:'ДАК', project:'ДАК',
              debt:{ principal:33000, interest:1300, penalty:500, paid:0, principalOverdue:25000 } },
     stop:'повторная', age:16 },
 
   // ── K1-ПАУЗА-ГП · гарантийное письмо, п. 17 (отсрочка ≤70 к.д.) ──
   { sit:'K1-ПАУЗА-ГП', id:'317', borrower:'ОсОО «Ынтымак-Курулуш»', inn:'01502201700340',
     region:'г. Бишкек / Первомайский', owner:'Куратор ДАК', curator:'Токтосунова Б.',
-    credit:{ id:'317', num:'Дог. №317 от 12.06.2024', subdiv:'ДАК',
+    credit:{ id:'317', num:'Дог. №317 от 12.06.2024', subdiv:'ДАК', project:'ДАК',
              debt:{ principal:54000, interest:2400, penalty:1100, paid:0, principalOverdue:42000 } },
     stop:'повторная', age:15,
     // since→until = 69 к.д. — внутри потолка ≤70 к.д. п.17 (ревью Task4 п.8: без since
@@ -5680,7 +5741,7 @@ const SEED = [
       note:'заёмщик направил гарантийное письмо; комитет отложил безакцептное списание, отсрочка ≤70 к.д. При нарушении — возобновление безакцепта в 10 р.д.' } } },
   { sit:'K1-ПАУЗА-ГП', id:'318', borrower:'ОсОО «Кант-Сахар»', inn:'01607201900447',
     region:'Чуйская область / Кантский', owner:'Куратор ДАК', curator:'Осмоналиев Т.',
-    credit:{ id:'318', num:'Дог. №318 от 30.04.2024', subdiv:'ДАК',
+    credit:{ id:'318', num:'Дог. №318 от 30.04.2024', subdiv:'ДАК', project:'ДАК',
              debt:{ principal:87000, interest:3600, penalty:1900, paid:0, principalOverdue:68000 } },
     stop:'повторная', age:18,
     // since→until = 69 к.д.
@@ -5691,7 +5752,7 @@ const SEED = [
   // ── K1-ПАУЗА-РЕСТР · реструктуризация, п. 18 (письмо в уполномоченный госорган) ──
   { sit:'K1-ПАУЗА-РЕСТР', id:'319', borrower:'ОсОО «Кара-Балта Кант»', inn:'01607201800623',
     region:'Чуйская область / Московский', owner:'Куратор ОД', curator:'Осмоналиев Т.',
-    credit:{ id:'319', num:'Дог. №319 от 04.04.2024', subdiv:'ОД',
+    credit:{ id:'319', num:'Дог. №319 от 04.04.2024', subdiv:'ОД', project:'региональный',
              debt:{ principal:230000, interest:11000, penalty:5400, paid:0, principalOverdue:180000 } },
     stop:'повторная', age:20,
     // since→until = 69 к.д. — потолок п.18 такой же ≤70 к.д. (тпл 19); шаг 3 наряда
@@ -5700,7 +5761,7 @@ const SEED = [
       note:'обращение заёмщика о реструктуризации, письмо в уполномоченный госорган направлено' } } },
   { sit:'K1-ПАУЗА-РЕСТР', id:'210', borrower:'ОсОО «Нарын-Мал»', inn:'01704202000112',
     region:'Нарынская область / Нарынский', owner:'Куратор ОД', curator:'Дуйшеева Р.',
-    credit:{ id:'210', num:'Дог. №210 от 21.02.2024', subdiv:'ОД',
+    credit:{ id:'210', num:'Дог. №210 от 21.02.2024', subdiv:'ОД', project:'региональный',
              debt:{ principal:140000, interest:6000, penalty:2600, paid:0, principalOverdue:110000 } },
     stop:'повторная', age:24,
     // Было until:'30.09.2026' без since — от TODAY считалось 71 к.д., за потолком п.18
@@ -5712,12 +5773,12 @@ const SEED = [
   // ── K1-СТОРНО · дубль повторной претензии сторнирован (И-3: строка зачёркнута, фазу не двигает) ──
   { sit:'K1-СТОРНО', id:'320', borrower:'ОсОО «Ош-Курулуш»', inn:'01502201700701',
     region:'г. Ош / Ошский', owner:'Куратор ДАК', curator:'Бекболотов Р.',
-    credit:{ id:'320', num:'Дог. №320 от 19.05.2024', subdiv:'ДАК',
+    credit:{ id:'320', num:'Дог. №320 от 19.05.2024', subdiv:'ДАК', project:'ДАК',
              debt:{ principal:47000, interest:1900, penalty:700, paid:0, principalOverdue:36000 } },
     stop:'повторная', age:10, storno:true },
   { sit:'K1-СТОРНО', id:'321', borrower:'Жумабекова К. Т.', inn:'21902199400778',
     region:'Чуйская область / Жайылский', owner:'Куратор ОД', curator:'Молдалиев Т.К.',
-    credit:{ id:'321', num:'Дог. №321 от 08.01.2025', subdiv:'ОД',
+    credit:{ id:'321', num:'Дог. №321 от 08.01.2025', subdiv:'ОД', project:'региональный',
              debt:{ principal:41000, interest:1700, penalty:600, paid:0, principalOverdue:32000 } },
     stop:'повторная', age:13, storno:true },
 
@@ -5735,7 +5796,7 @@ const SEED = [
   { sit:'K2-ГЕЙТ', id:'322', borrower:'ОсОО «Кен-Булак Майнинг»', inn:'01808202100265',
     region:'Ошская область / Кара-Суйский', owner:'Куратор ДАК',
     curator:'Эрнисов Б.Т.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'322', num:'Дог. №322 от 06.02.2024', subdiv:'ДАК',
+    credit:{ id:'322', num:'Дог. №322 от 06.02.2024', subdiv:'ДАК', project:'ДАК',
              debt:{ principal:310000, interest:14000, penalty:7200, paid:0, principalOverdue:245000 } },
     stop:'записка', age:12, gatePending:'Извещение об обращении на залог',
     colls:[{ item:'Дробильный комплекс', kind:'Оборудование', pledge:'340 000,00',
@@ -5743,7 +5804,7 @@ const SEED = [
   { sit:'K2-ГЕЙТ', id:'323', borrower:'ОсОО «Ат-Башы Курулуш»', inn:'01704202100574',
     region:'Нарынская область / Ат-Башинский', owner:'Куратор ДАК',
     curator:'Жумабекова А.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'323', num:'Дог. №323 от 19.03.2024', subdiv:'ДАК',
+    credit:{ id:'323', num:'Дог. №323 от 19.03.2024', subdiv:'ДАК', project:'ДАК',
              debt:{ principal:198000, interest:8600, penalty:3900, paid:0, principalOverdue:158000 } },
     stop:'записка', age:9, gatePending:'Извещение об обращении на залог',
     colls:[{ item:'Складское здание, с. Ат-Баши', kind:'Недвижимость', pledge:'260 000,00',
@@ -5762,7 +5823,7 @@ const SEED = [
     // ОД, а само извещение — ДПО (MEASURE_SUBDIV). Одно поле deptCurator раньше отдало
     // бы обеим мерам одного подписанта — карта именует каждое отдельно.
     deptCurators:{ 'ОД':'Асанова Ж.Т.', 'ДПО':'Нурланова Г.' },
-    credit:{ id:'324', num:'Дог. №324 от 15.01.2024', subdiv:'САК',
+    credit:{ id:'324', num:'Дог. №324 от 15.01.2024', subdiv:'САК', project:'региональный',
              debt:{ principal:420000, interest:19000, penalty:9800, paid:0, principalOverdue:330000 } },
     stop:'записка', age:38,   // overdueDays=104 (>90, C2 не бьёт)
     izvesh:true, channel:'Нарочно',
@@ -5775,7 +5836,7 @@ const SEED = [
     curator:'Абдиев Э.',
     // та же пара, что 324: записка → ОД, извещение → ДПО.
     deptCurators:{ 'ОД':'Асанова Ж.Т.', 'ДПО':'Нурланова Г.' },
-    credit:{ id:'325', num:'Дог. №325 от 02.02.2024', subdiv:'ДАК',
+    credit:{ id:'325', num:'Дог. №325 от 02.02.2024', subdiv:'ДАК', project:'ДАК',
              debt:{ principal:265000, interest:11500, penalty:5200, paid:0, principalOverdue:205000 } },
     stop:'записка', age:40,   // overdueDays=106 (>90, C2 не бьёт)
     izvesh:true, channel:'Нарочно',
@@ -5789,7 +5850,7 @@ const SEED = [
     region:'Джалал-Абадская область / Аксыйский', owner:'Отраслевой департамент (ОД)',
     // memo совпадает с subdiv:'ОД' нативно — deptCurators нужен только для 'ДПО' (извещение).
     curator:'Осмонов К.', deptCurators:{ 'ДПО':'Нурланова Г.' },
-    credit:{ id:'326', num:'Дог. №326 от 27.06.2024', subdiv:'ОД',
+    credit:{ id:'326', num:'Дог. №326 от 27.06.2024', subdiv:'ОД', project:'региональный',
              debt:{ principal:540000, interest:24000, penalty:12000, paid:0, principalOverdue:430000 } },
     stop:'записка', age:45,   // overdueDays=111 (>90, C2 не бьёт)
     izvesh:true, channel:'Нарочно',
@@ -5813,7 +5874,7 @@ const SEED = [
      MEASURE_SUBDIV=['ОД']), поэтому deptCurators:{'ОД':…} объявлен на каждом. Судебные
      меры (раздел «Судебный») сами — MEASURE_SUBDIV['Исковое заявление']=['ОПК'] и
      фолбэк SECTION_SUBDIV['Судебный']=['ОПК'] у остальных — не требуют deptCurators
-     отдельно: credit.subdiv:'ОПК' у каждого кейса уже совпадает.
+     отдельно: credit.subdiv:'ОПК', project:'региональный' у каждого кейса уже совпадает.
      K3-ИСК-ЖДЁМ и K3-ИСК-ВОЗВРАТ — известная законная дыра (ADR-0035): «Исковое
      заявление» resultIsDocument, само фазу не ставит, «Определение о возвращении/
      отказе» тоже без setsPhase — требование стоит в К1 (фаза «Повторная претензия») с
@@ -5825,13 +5886,13 @@ const SEED = [
   { sit:'K3-ИСК-ЖДЁМ', id:'330', borrower:'ОсОО «Узген-Текстиль»', inn:'02902201900801',
     region:'Ошская область / Узгенский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Тукинова А.С.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'330', num:'Дог. №330 от 03.03.2024', subdiv:'ОПК',
+    credit:{ id:'330', num:'Дог. №330 от 03.03.2024', subdiv:'ОПК', project:'региональный',
              debt:{ principal:186000, interest:9200, penalty:4100, paid:0, principalOverdue:150000 } },
     stop:'иск', age:6 },
   { sit:'K3-ИСК-ЖДЁМ', id:'331', borrower:'ОсОО «Ноокен-Мебель»', inn:'01808202100811',
     region:'Джалал-Абадская область / Ноокенский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Бекболотов Р.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'331', num:'Дог. №331 от 18.11.2023', subdiv:'ОПК',
+    credit:{ id:'331', num:'Дог. №331 от 18.11.2023', subdiv:'ОПК', project:'региональный',
              debt:{ principal:142000, interest:6800, penalty:3100, paid:0, principalOverdue:115000 } },
     stop:'иск', age:9 },
 
@@ -5844,19 +5905,19 @@ const SEED = [
   { sit:'K3-ИСК', id:'332', borrower:'ОсОО «Ош-Текстиль»', inn:'01912201610560',
     region:'г. Ош / Ошский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Тукинова А.С.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'332', num:'Дог. №332 от 18.12.2023', subdiv:'ОПК',
+    credit:{ id:'332', num:'Дог. №332 от 18.12.2023', subdiv:'ОПК', project:'региональный',
              debt:{ principal:264000, interest:12600, penalty:6300, paid:0, principalOverdue:210000 } },
     stop:'определение', age:30, court:'Ошский городской суд', defendantAppeared:false },
   { sit:'K3-ИСК', id:'333', borrower:'ОсОО «Кант-Курулуш»', inn:'01607201900812',
     region:'Чуйская область / Кантский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Молдалиев Т.К.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'333', num:'Дог. №333 от 09.02.2024', subdiv:'ОПК',
+    credit:{ id:'333', num:'Дог. №333 от 09.02.2024', subdiv:'ОПК', project:'региональный',
              debt:{ principal:198000, interest:9400, penalty:4700, paid:0, principalOverdue:160000 } },
     stop:'определение', age:8, court:'Кантский районный суд', defendantAppeared:true },
   { sit:'K3-ИСК', id:'334', borrower:'ИП Жумашев Т.А.', inn:'21504198800345',
     region:'Чуйская область / Московский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Осмоналиев Т.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'334', num:'Дог. №334 от 22.06.2023', subdiv:'ОПК',
+    credit:{ id:'334', num:'Дог. №334 от 22.06.2023', subdiv:'ОПК', project:'региональный',
              debt:{ principal:156000, interest:7100, penalty:3400, paid:0, principalOverdue:125000 } },
     stop:'определение', age:36, court:'Московский районный суд', defendantAppeared:false },
 
@@ -5864,13 +5925,13 @@ const SEED = [
   { sit:'K3-ИСК-ВОЗВРАТ', id:'335', borrower:'ОсОО «Каракол-Строй»', inn:'01704202000813',
     region:'Иссык-Кульская область / Каракольский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Дуйшеева Р.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'335', num:'Дог. №335 от 14.09.2023', subdiv:'ОПК',
+    credit:{ id:'335', num:'Дог. №335 от 14.09.2023', subdiv:'ОПК', project:'региональный',
              debt:{ principal:121000, interest:5600, penalty:2600, paid:0, principalOverdue:95000 } },
     stop:'иск', age:25, iskRefused:'возврат' },
   { sit:'K3-ИСК-ВОЗВРАТ', id:'339', borrower:'ИП Садыкова Н.Б.', inn:'21601199300456',
     region:'Ошская область / Араванский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Бекболотов Р.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'339', num:'Дог. №339 от 30.01.2024', subdiv:'ОПК',
+    credit:{ id:'339', num:'Дог. №339 от 30.01.2024', subdiv:'ОПК', project:'региональный',
              debt:{ principal:168000, interest:7900, penalty:3800, paid:0, principalOverdue:135000 } },
     stop:'иск', age:25, iskRefused:'отказ' },
 
@@ -5878,19 +5939,19 @@ const SEED = [
   { sit:'K3-РЕШЕНИЕ', id:'336', borrower:'ОсОО «Лейлек-Строй»', inn:'01502201700341',
     region:'Баткенская область / Лейлекский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Тукинова А.С.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'336', num:'Дог. №336 от 22.07.2023', subdiv:'ОПК',
+    credit:{ id:'336', num:'Дог. №336 от 22.07.2023', subdiv:'ОПК', project:'региональный',
              debt:{ principal:198000, interest:9600, penalty:5200, paid:0, principalOverdue:160000 } },
     stop:'решение', age:18, verdict:'иск удовлетворён частично' },
   { sit:'K3-РЕШЕНИЕ', id:'337', borrower:'ОсОО «Талас-Агро»', inn:'01502201900814',
     region:'Таласская область / Таласский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Осмонов К.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'337', num:'Дог. №337 от 11.04.2024', subdiv:'ОПК',
+    credit:{ id:'337', num:'Дог. №337 от 11.04.2024', subdiv:'ОПК', project:'региональный',
              debt:{ principal:224000, interest:10800, penalty:5600, paid:0, principalOverdue:180000 } },
     stop:'решение', age:22, verdict:'в иске отказано' },
   { sit:'K3-РЕШЕНИЕ', id:'338', borrower:'ИП Молдалиев А.К.', inn:'21203198600678',
     region:'Чуйская область / Панфиловский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Токтосунова Б.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'338', num:'Дог. №338 от 05.03.2024', subdiv:'ОПК',
+    credit:{ id:'338', num:'Дог. №338 от 05.03.2024', subdiv:'ОПК', project:'региональный',
              debt:{ principal:176000, interest:8200, penalty:4000, paid:0, principalOverdue:140000 } },
     stop:'решение', age:26 },   // verdict не задан — умолчание SPINE «иск удовлетворён полностью»
 
@@ -5904,13 +5965,13 @@ const SEED = [
   { sit:'K3-АПЕЛЛЯЦИЯ', id:'340', borrower:'ОсОО «Ак-Суу Агро»', inn:'01704201900815',
     region:'Иссык-Кульская область / Ак-Суйский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Абдиев Э.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'340', num:'Дог. №340 от 19.05.2023', subdiv:'ОПК',
+    credit:{ id:'340', num:'Дог. №340 от 19.05.2023', subdiv:'ОПК', project:'региональный',
              debt:{ principal:312000, interest:15000, penalty:8100, paid:0, principalOverdue:250000 } },
     stop:'решение', age:65, verdict:'иск удовлетворён частично', appeal:'оставлено в силе' },
   { sit:'K3-АПЕЛЛЯЦИЯ', id:'341', borrower:'ОсОО «Кадамжай-Мал»', inn:'01808201800816',
     region:'Баткенская область / Кадамжайский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Осмонов К.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'341', num:'Дог. №341 от 27.08.2023', subdiv:'ОПК',
+    credit:{ id:'341', num:'Дог. №341 от 27.08.2023', subdiv:'ОПК', project:'региональный',
              debt:{ principal:268000, interest:12900, penalty:6700, paid:0, principalOverdue:215000 } },
     stop:'решение', age:70, verdict:'в иске отказано', appeal:'отменено, на новое рассмотрение' },
 
@@ -5925,13 +5986,13 @@ const SEED = [
   { sit:'K3-ИЛ', id:'342', borrower:'ОсОО «Нарын-Курулуш»', inn:'01704202000817',
     region:'Нарынская область / Нарынский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Дуйшеева Р.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'342', num:'Дог. №342 от 12.02.2024', subdiv:'ОПК',
+    credit:{ id:'342', num:'Дог. №342 от 12.02.2024', subdiv:'ОПК', project:'региональный',
              debt:{ principal:145000, interest:6900, penalty:3300, paid:0, principalOverdue:115000 } },
     stop:'ил', age:10 },
   { sit:'K3-ИЛ', id:'343', borrower:'ИП Бекова Ж.С.', inn:'21902199500678',
     region:'Чуйская область / Жайылский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Молдалиев Т.К.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'343', num:'Дог. №343 от 03.10.2023', subdiv:'ОПК',
+    credit:{ id:'343', num:'Дог. №343 от 03.10.2023', subdiv:'ОПК', project:'региональный',
              debt:{ principal:189000, interest:8800, penalty:4200, paid:0, principalOverdue:150000 } },
     stop:'ил', age:15 },
 
@@ -5950,7 +6011,7 @@ const SEED = [
   { sit:'K3-МС', id:'120', borrower:'ИП Сыдыков А.', inn:'20308197700219',
     region:'Джалал-Абадская область / Сузакский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Эрнисов Б.Т.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'120', num:'Дог. №120 от 11.09.2023', subdiv:'ОПК',
+    credit:{ id:'120', num:'Дог. №120 от 11.09.2023', subdiv:'ОПК', project:'региональный',
              debt:{ principal:240000, interest:11000, penalty:6000, paid:0, principalOverdue:190000 } },
     stop:'определение', age:60,
     hearings:[
@@ -5974,7 +6035,7 @@ const SEED = [
   { sit:'K3-МС', id:'344', borrower:'ОсОО «Ысык-Ата Агро»', inn:'01607201800818',
     region:'Чуйская область / Ысык-Атинский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Жээнбеков Н.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'344', num:'Дог. №344 от 16.04.2024', subdiv:'ОПК',
+    credit:{ id:'344', num:'Дог. №344 от 16.04.2024', subdiv:'ОПК', project:'региональный',
              debt:{ principal:205000, interest:9800, penalty:4900, paid:0, principalOverdue:165000 } },
     stop:'иск', age:20,
     agreement:{ type:'mirovoe', num:'МС-344', status:'проект', projectAt:'18.07.2026',
@@ -5986,14 +6047,14 @@ const SEED = [
   { sit:'K3-ДОБРОВОЛЬНОЕ', id:'142', borrower:'ОсОО «Токтогул-Строй»', inn:'01607202000820',
     region:'Джалал-Абадская область / Токтогульский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Абдиев Э.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'142', num:'Дог. №142 от 25.01.2024', subdiv:'ОПК',
+    credit:{ id:'142', num:'Дог. №142 от 25.01.2024', subdiv:'ОПК', project:'региональный',
              debt:{ principal:232000, interest:11200, penalty:5800, paid:0, principalOverdue:185000 } },
     stop:'решение', age:40,
     agreement:{ type:'dobrovolnoe', num:'СДИ-142', signedAt:'05.07.2026' } },
   { sit:'K3-ДОБРОВОЛЬНОЕ', id:'345', borrower:'ОсОО «Кербен-Курулуш»', inn:'01502201900819',
     region:'Джалал-Абадская область / Аксыйский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Токтосунова Б.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'345', num:'Дог. №345 от 08.06.2023', subdiv:'ОПК',
+    credit:{ id:'345', num:'Дог. №345 от 08.06.2023', subdiv:'ОПК', project:'региональный',
              debt:{ principal:178000, interest:8300, penalty:4100, paid:0, principalOverdue:142000 } },
     stop:'решение', age:45,
     agreement:{ type:'dobrovolnoe', num:'СДИ-345', signedAt:'01.07.2026' } },
@@ -6021,7 +6082,7 @@ const SEED = [
   { sit:'K4-ИСПОЛН', id:'350', borrower:'ОсОО «Кара-Балта Цемент»', inn:'01912202400831',
     region:'Чуйская область / Жайылский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Тукинова А.С.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'350', num:'Дог. №350 от 14.02.2023', subdiv:'ОПК',
+    credit:{ id:'350', num:'Дог. №350 от 14.02.2023', subdiv:'ОПК', project:'региональный',
              debt:{ principal:220000, interest:9800, penalty:4900, paid:0, principalOverdue:175000 } },
     stop:'постановление', age:20,
     colls:[{ item:'Производственная линия, цех №2', kind:'Оборудование', pledge:'240 000,00',
@@ -6034,7 +6095,7 @@ const SEED = [
   { sit:'K4-ИСПОЛН', id:'349', borrower:'ОсОО «Ак-Суу Мал Инвест»', inn:'01912202400846',
     region:'Иссык-Кульская область / Ак-Суйский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Мурзаева Н.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'349', num:'Дог. №349 от 30.03.2023', subdiv:'ОПК',
+    credit:{ id:'349', num:'Дог. №349 от 30.03.2023', subdiv:'ОПК', project:'региональный',
              debt:{ principal:195000, interest:8600, penalty:4300, paid:0, principalOverdue:155000 } },
     stop:'постановление', age:12,
     colls:[{ item:'Складское помещение, с. Ак-Суу', kind:'Недвижимость', pledge:'210 000,00',
@@ -6051,7 +6112,7 @@ const SEED = [
   { sit:'K4-ТОРГИ', id:'351', borrower:'ОсОО «Ак-Тилек Логистика»', inn:'01607202400832',
     region:'г. Бишкек / Октябрьский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Молдалиев Т.К.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'351', num:'Дог. №351 от 22.05.2023', subdiv:'ОПК',
+    credit:{ id:'351', num:'Дог. №351 от 22.05.2023', subdiv:'ОПК', project:'региональный',
              debt:{ principal:240000, interest:10800, penalty:5400, paid:0, principalOverdue:190000 } },
     stop:'постановление', age:55, torgi:'не состоялись',
     colls:[{ item:'Грузовой автопарк, 6 ед.', kind:'Автотранспорт', pledge:'260 000,00',
@@ -6061,7 +6122,7 @@ const SEED = [
   { sit:'K4-ТОРГИ', id:'352', borrower:'ОсОО «Чуй-Пром Актив»', inn:'01704202400833',
     region:'Чуйская область / Московский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Дуйшеева Р.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'352', num:'Дог. №352 от 09.01.2023', subdiv:'ОПК',
+    credit:{ id:'352', num:'Дог. №352 от 09.01.2023', subdiv:'ОПК', project:'региональный',
              debt:{ principal:300000, interest:13500, penalty:6800, paid:0, principalOverdue:240000 } },
     stop:'постановление', age:100, torgi:'дважды',
     colls:[{ item:'Складской комплекс, п. Чалдовар', kind:'Недвижимость', pledge:'320 000,00',
@@ -6071,7 +6132,7 @@ const SEED = [
   { sit:'K4-ТОРГИ', id:'353', borrower:'ОсОО «Ноокат Дан»', inn:'01502202400834',
     region:'Ошская область / Ноокатский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Бекболотов Р.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'353', num:'Дог. №353 от 17.11.2022', subdiv:'ОПК',
+    credit:{ id:'353', num:'Дог. №353 от 17.11.2022', subdiv:'ОПК', project:'региональный',
              debt:{ principal:260000, interest:11700, penalty:5900, paid:0, principalOverdue:205000 } },
     stop:'постановление', age:110, torgi:'дважды',
     colls:[{ item:'Зерновой элеватор', kind:'Недвижимость', pledge:'280 000,00',
@@ -6084,13 +6145,13 @@ const SEED = [
   { sit:'K4-ВОЗВРАТ', id:'354', borrower:'ОсОО «Талас Курулуш Инвест»', inn:'01607202400835',
     region:'Таласская область / Таласский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Осмонов К.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'354', num:'Дог. №354 от 03.04.2023', subdiv:'ОПК',
+    credit:{ id:'354', num:'Дог. №354 от 03.04.2023', subdiv:'ОПК', project:'региональный',
              debt:{ principal:205000, interest:9000, penalty:4500, paid:0, principalOverdue:165000 } },
     stop:'постановление', age:85, ilReturned:true },
   { sit:'K4-ВОЗВРАТ', id:'355', borrower:'ИП Жумабеков Р.С.', inn:'21603198800836',
     region:'Ошская область / Кара-Суйский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Токтосунова Б.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'355', num:'Дог. №355 от 19.09.2022', subdiv:'ОПК',
+    credit:{ id:'355', num:'Дог. №355 от 19.09.2022', subdiv:'ОПК', project:'региональный',
              debt:{ principal:195000, interest:8500, penalty:4200, paid:0, principalOverdue:155000 } },
     stop:'постановление', age:90, ilReturned:true },
 
@@ -6110,14 +6171,14 @@ const SEED = [
   { sit:'K5-ПРАВОПР', id:'356', borrower:'Сыдыков Марат Асанович', inn:'21708197800837',
     region:'Чуйская область / Сокулукский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Осмоналиев Т.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'356', num:'Дог. №356 от 11.03.2024', subdiv:'ОПК',
+    credit:{ id:'356', num:'Дог. №356 от 11.03.2024', subdiv:'ОПК', project:'региональный',
              debt:{ principal:210000, interest:9000, penalty:4200, paid:0, principalOverdue:170000 } },
     stop:'решение', age:100, succession:'заявление',
     extra:{ personState:{ label:'смерть заёмщика', since:'22.04.2026' } } },
   { sit:'K5-ПРАВОПР', id:'357', borrower:'Абдиева Нурила Т.', inn:'21205198300838',
     region:'Иссык-Кульская область / Тюпский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Жээнбеков Н.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'357', num:'Дог. №357 от 26.07.2023', subdiv:'ОПК',
+    credit:{ id:'357', num:'Дог. №357 от 26.07.2023', subdiv:'ОПК', project:'региональный',
              debt:{ principal:195000, interest:8200, penalty:3900, paid:0, principalOverdue:155000 } },
     stop:'решение', age:105, succession:'заявление',
     extra:{ personState:{ label:'смерть заёмщика', since:'17.04.2026' } } },
@@ -6126,14 +6187,14 @@ const SEED = [
   { sit:'K5-НЕТ-ПРАВОПР', id:'358', borrower:'Осмонов Таалай Б.', inn:'21809197500839',
     region:'Нарынская область / Нарынский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Абдиев Э.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'358', num:'Дог. №358 от 08.10.2022', subdiv:'ОПК',
+    credit:{ id:'358', num:'Дог. №358 от 08.10.2022', subdiv:'ОПК', project:'региональный',
              debt:{ principal:230000, interest:10000, penalty:4800, paid:0, principalOverdue:185000 } },
     stop:'решение', age:150, succession:'нет правопреемника',
     extra:{ personState:{ label:'смерть заёмщика', since:'03.03.2026' } } },
   { sit:'K5-НЕТ-ПРАВОПР', id:'359', borrower:'Молдогазиева Айгуль К.', inn:'21403198900840',
     region:'Джалал-Абадская область / Сузакский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Эрнисов Б.Т.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'359', num:'Дог. №359 от 15.06.2022', subdiv:'ОПК',
+    credit:{ id:'359', num:'Дог. №359 от 15.06.2022', subdiv:'ОПК', project:'региональный',
              debt:{ principal:205000, interest:8800, penalty:4100, paid:0, principalOverdue:165000 } },
     stop:'решение', age:155, succession:'нет правопреемника',
     extra:{ personState:{ label:'смерть заёмщика', since:'26.02.2026' } } },
@@ -6144,7 +6205,7 @@ const SEED = [
      завершена процедура). Все стоят на stop:'постановление' — банкротство возбуждается
      ПОВЕРХ уже идущего исполнительного производства (СТ-4/СТ-5, ADR-0040), не вместо
      него. Банкротные меры — полномочие САК (MEASURE_SUBDIV/SECTION_SUBDIV['Банкротство']),
-     дело ведёт ОПК (subdiv:'ОПК', как и К3/К4) — deptCurators несёт ОБА чужих
+     дело ведёт ОПК (subdiv:'ОПК', project:'региональный', как и К3/К4) — deptCurators несёт ОБА чужих
      подразделения ('ОД' записке, 'САК' банкротным мерам), тем же приёмом, что и 324
      (K2-ИЗВЕЩ) выше. «Признание банкротом» несёт accelerated:true + scope:{volume:
      'полный остаток',...} (fix-round1, Important 2 — п. 60 «все обязательства
@@ -6163,13 +6224,13 @@ const SEED = [
   { sit:'K6-ИНИЦ', id:'360', borrower:'ОсОО «Ысык-Көл Мал Плюс»', inn:'01912202400841',
     region:'Иссык-Кульская область / Иссык-Кульский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Тукинова А.С.', deptCurators:{ 'ОД':'Асанова Ж.Т.', 'САК':'Сагындыков М.' },
-    credit:{ id:'360', num:'Дог. №360 от 12.12.2022', subdiv:'ОПК',
+    credit:{ id:'360', num:'Дог. №360 от 12.12.2022', subdiv:'ОПК', project:'региональный',
              debt:{ principal:240000, interest:11000, penalty:5600, paid:0, principalOverdue:195000 } },
     stop:'постановление', age:150, ilReturned:true, bankrot:'инициировано' },
   { sit:'K6-ИНИЦ', id:'361', borrower:'ОсОО «Кызыл-Кыя Курулуш»', inn:'01704202400842',
     region:'Баткенская область / Кызыл-Кийский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Молдалиев Т.К.', deptCurators:{ 'ОД':'Асанова Ж.Т.', 'САК':'Сагындыков М.' },
-    credit:{ id:'361', num:'Дог. №361 от 24.08.2022', subdiv:'ОПК',
+    credit:{ id:'361', num:'Дог. №361 от 24.08.2022', subdiv:'ОПК', project:'региональный',
              debt:{ principal:265000, interest:12200, penalty:6100, paid:0, principalOverdue:212000 } },
     stop:'постановление', age:155, ilReturned:true, bankrot:'инициировано' },
 
@@ -6178,13 +6239,13 @@ const SEED = [
   { sit:'K6-ПРИЗНАН', id:'362', borrower:'ОсОО «Джалал-Абад Агро Холдинг»', inn:'01502202400843',
     region:'Джалал-Абадская область / Сузакский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Бекболотов Р.', deptCurators:{ 'ОД':'Асанова Ж.Т.', 'САК':'Сагындыков М.' },
-    credit:{ id:'362', num:'Дог. №362 от 05.06.2022', subdiv:'ОПК',
+    credit:{ id:'362', num:'Дог. №362 от 05.06.2022', subdiv:'ОПК', project:'региональный',
              debt:{ principal:310000, interest:14200, penalty:7100, paid:0, principalOverdue:248000 } },
     stop:'постановление', age:215, ilReturned:true, bankrot:'признан' },
   { sit:'K6-ПРИЗНАН', id:'363', borrower:'ОсОО «Баткен Мал Плюс»', inn:'01607202400844',
     region:'Баткенская область / Баткенский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Дуйшеева Р.', deptCurators:{ 'ОД':'Асанова Ж.Т.', 'САК':'Сагындыков М.' },
-    credit:{ id:'363', num:'Дог. №363 от 19.03.2022', subdiv:'ОПК',
+    credit:{ id:'363', num:'Дог. №363 от 19.03.2022', subdiv:'ОПК', project:'региональный',
              debt:{ principal:280000, interest:12900, penalty:6500, paid:0, principalOverdue:224000 } },
     stop:'постановление', age:225, ilReturned:true, bankrot:'признан' },
 
@@ -6192,7 +6253,7 @@ const SEED = [
   { sit:'K6-ЗАВЕРШЕНО', id:'364', borrower:'ОсОО «Нарын Курулуш Актив»', inn:'01808202400845',
     region:'Нарынская область / Ак-Талинский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Осмонов К.', deptCurators:{ 'ОД':'Асанова Ж.Т.', 'САК':'Сагындыков М.' },
-    credit:{ id:'364', num:'Дог. №364 от 07.10.2021', subdiv:'ОПК',
+    credit:{ id:'364', num:'Дог. №364 от 07.10.2021', subdiv:'ОПК', project:'региональный',
              debt:{ principal:340000, interest:15600, penalty:7800, paid:0, principalOverdue:272000 } },
     stop:'постановление', age:335, ilReturned:true, bankrot:'завершено' },
   // Task 10 (добор тонкой ситуации): второй экземпляр — другой заёмщик/ИНН/регион/
@@ -6200,7 +6261,7 @@ const SEED = [
   { sit:'K6-ЗАВЕРШЕНО', id:'365', borrower:'ОсОО «Узген Дан Курулуш»', inn:'01704202400847',
     region:'Ошская область / Узгенский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Абдиев Э.', deptCurators:{ 'ОД':'Асанова Ж.Т.', 'САК':'Сагындыков М.' },
-    credit:{ id:'365', num:'Дог. №365 от 14.01.2022', subdiv:'ОПК',
+    credit:{ id:'365', num:'Дог. №365 от 14.01.2022', subdiv:'ОПК', project:'региональный',
              debt:{ principal:360000, interest:16500, penalty:8200, paid:0, principalOverdue:288000 } },
     stop:'постановление', age:385, ilReturned:true, bankrot:'завершено' },
 
@@ -6224,13 +6285,13 @@ const SEED = [
   { sit:'K7-ЛИКВИД', id:'370', borrower:'ОсОО «Ноокен-Кант» (ликвидировано)', inn:'02804202000805',
     region:'Джалал-Абадская область / Ноокенский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Тукинова А.С.', deptCurators:{ 'ОД':'Асанова Ж.Т.', 'САК':'Сагындыков М.' },
-    credit:{ id:'370', num:'Дог. №370 от 14.06.2022', subdiv:'ОПК',
+    credit:{ id:'370', num:'Дог. №370 от 14.06.2022', subdiv:'ОПК', project:'региональный',
              debt:{ principal:310000, interest:22000, penalty:14000, paid:0, principalOverdue:248000 } },
     stop:'постановление', age:120, hopeless:'вынесено', hopelessFact:'ликвидация' },
   { sit:'K7-ЛИКВИД', id:'371', borrower:'ОсОО «Кербен-Мал» (ликвидировано)', inn:'02702202100716',
     region:'Джалал-Абадская область / Аксыйский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Молдалиев Т.К.', deptCurators:{ 'ОД':'Асанова Ж.Т.', 'САК':'Сагындыков М.' },
-    credit:{ id:'371', num:'Дог. №371 от 22.09.2021', subdiv:'ОПК',
+    credit:{ id:'371', num:'Дог. №371 от 22.09.2021', subdiv:'ОПК', project:'региональный',
              debt:{ principal:265000, interest:18500, penalty:9200, paid:0, principalOverdue:212000 } },
     stop:'постановление', age:140, hopeless:'вынесено', hopelessFact:'ликвидация' },
 
@@ -6238,13 +6299,13 @@ const SEED = [
   { sit:'K7-УМЕРШИЙ', id:'372', borrower:'Сыдыков Марат Абдиевич', inn:'21203197200231',
     region:'Ошская область / Кара-Суйский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Бекболотов Р.', deptCurators:{ 'ОД':'Асанова Ж.Т.', 'САК':'Сагындыков М.' },
-    credit:{ id:'372', num:'Дог. №372 от 11.03.2022', subdiv:'ОПК',
+    credit:{ id:'372', num:'Дог. №372 от 11.03.2022', subdiv:'ОПК', project:'региональный',
              debt:{ principal:185000, interest:9800, penalty:4600, paid:0, principalOverdue:148000 } },
     stop:'постановление', age:95, hopeless:'вынесено', hopelessFact:'умерший' },
   { sit:'K7-УМЕРШИЙ', id:'373', borrower:'Осмонова Гулбарчын Дуйшеновна', inn:'20805196800419',
     region:'Таласская область / Таласский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Дуйшеева Р.', deptCurators:{ 'ОД':'Асанова Ж.Т.', 'САК':'Сагындыков М.' },
-    credit:{ id:'373', num:'Дог. №373 от 05.11.2021', subdiv:'ОПК',
+    credit:{ id:'373', num:'Дог. №373 от 05.11.2021', subdiv:'ОПК', project:'региональный',
              debt:{ principal:152000, interest:8200, penalty:3900, paid:0, principalOverdue:121000 } },
     stop:'постановление', age:105, hopeless:'вынесено', hopelessFact:'умерший' },
 
@@ -6252,13 +6313,13 @@ const SEED = [
   { sit:'K7-ПРИГОВОР', id:'375', borrower:'Тагаев Нурбек Асанович', inn:'21907198100562',
     region:'Чуйская область / Панфиловский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Осмонов К.', deptCurators:{ 'ОД':'Асанова Ж.Т.', 'САК':'Сагындыков М.' },
-    credit:{ id:'375', num:'Дог. №375 от 18.07.2022', subdiv:'ОПК',
+    credit:{ id:'375', num:'Дог. №375 от 18.07.2022', subdiv:'ОПК', project:'региональный',
              debt:{ principal:210000, interest:12500, penalty:6100, paid:0, principalOverdue:168000 } },
     stop:'постановление', age:130, hopeless:'вынесено', hopelessFact:'приговор' },
   { sit:'K7-ПРИГОВОР', id:'376', borrower:'Жумабеков Эркин Токтосунович', inn:'21411197900345',
     region:'Ошская область / Араванский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Токтосунова Б.', deptCurators:{ 'ОД':'Асанова Ж.Т.', 'САК':'Сагындыков М.' },
-    credit:{ id:'376', num:'Дог. №376 от 02.04.2022', subdiv:'ОПК',
+    credit:{ id:'376', num:'Дог. №376 от 02.04.2022', subdiv:'ОПК', project:'региональный',
              debt:{ principal:178000, interest:9700, penalty:4400, paid:0, principalOverdue:142000 } },
     stop:'постановление', age:100, hopeless:'вынесено', hopelessFact:'приговор' },
 
@@ -6266,13 +6327,13 @@ const SEED = [
   { sit:'K7-КОМИССИЯ', id:'097', borrower:'ОсОО «Нарын-Агро»', inn:'02211199100154',
     region:'Нарынская область / Нарынский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Тукинова А.С.', deptCurators:{ 'ОД':'Асанова Ж.Т.', 'САК':'Сагындыков М.' },
-    credit:{ id:'097', num:'Дог. №097 от 03.02.2022', subdiv:'ОПК',
+    credit:{ id:'097', num:'Дог. №097 от 03.02.2022', subdiv:'ОПК', project:'региональный',
              debt:{ principal:275000, interest:19000, penalty:11000, paid:0, principalOverdue:220000 } },
     stop:'постановление', age:90, hopeless:'на рассмотрении' },
   { sit:'K7-КОМИССИЯ', id:'379', borrower:'ОсОО «Ак-Талаа Курулуш»', inn:'01907202200637',
     region:'Нарынская область / Ак-Талинский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Абдиев Э.', deptCurators:{ 'ОД':'Асанова Ж.Т.', 'САК':'Сагындыков М.' },
-    credit:{ id:'379', num:'Дог. №379 от 27.01.2023', subdiv:'ОПК',
+    credit:{ id:'379', num:'Дог. №379 от 27.01.2023', subdiv:'ОПК', project:'региональный',
              debt:{ principal:198000, interest:13200, penalty:6300, paid:0, principalOverdue:158000 } },
     stop:'постановление', age:85, hopeless:'на рассмотрении' },
 
@@ -6283,13 +6344,13 @@ const SEED = [
   { sit:'K7-СПИСАНА', id:'377', borrower:'ОсОО «Кызыл-Суу Мал»', inn:'01502202300719',
     region:'Иссык-Кульская область / Тонский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Эрнисов Б.Т.', deptCurators:{ 'ОД':'Асанова Ж.Т.', 'САК':'Сагындыков М.' },
-    credit:{ id:'377', num:'Дог. №377 от 14.05.2021', subdiv:'ОПК',
+    credit:{ id:'377', num:'Дог. №377 от 14.05.2021', subdiv:'ОПК', project:'региональный',
              debt:{ principal:320000, interest:21000, penalty:10500, paid:0, principalOverdue:256000 } },
     stop:'постановление', age:150, hopeless:'вынесено', hopelessFact:'ликвидация', writeOff:'кабмин' },
   { sit:'K7-СПИСАНА', id:'378', borrower:'Сарыбаев Данияр Токтогулович', inn:'21102197700398',
     region:'Нарынская область / Ат-Башинский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Жээнбеков Н.', deptCurators:{ 'ОД':'Асанова Ж.Т.', 'САК':'Сагындыков М.' },
-    credit:{ id:'378', num:'Дог. №378 от 09.09.2021', subdiv:'ОПК',
+    credit:{ id:'378', num:'Дог. №378 от 09.09.2021', subdiv:'ОПК', project:'региональный',
              debt:{ principal:289000, interest:18700, penalty:9100, paid:0, principalOverdue:231000 } },
     stop:'постановление', age:160, hopeless:'вынесено', hopelessFact:'умерший', writeOff:'госорган' },
 
@@ -6310,13 +6371,13 @@ const SEED = [
   // ветке c.repaid — sumBy(curScope,dt) перестала бы давать '0,00').
   { sit:'T-ПОГАШЕНИЕ', id:'208', borrower:'ИП Нуркеева Г.', inn:'22607199300512',
     region:'Баткенская область / Кадамжайский', owner:'Куратор ОД', curator:'Асанова Ж.Т.',
-    credit:{ id:'208', num:'Дог. №208 от 20.02.2025', subdiv:'ОД',
+    credit:{ id:'208', num:'Дог. №208 от 20.02.2025', subdiv:'ОД', project:'региональный',
              debt:{ principal:45000, interest:0, penalty:0, principalOverdue:36000,
                     payments:[{ date:ruSub(TODAY, 10), amount:45000 }] } },
     stop:'повторная', age:40, repaidAge:10, repaid:true },
   { sit:'T-ПОГАШЕНИЕ', id:'380', borrower:'Садыкова Айгуль Токтосуновна', inn:'21704199500218',
     region:'Чуйская область / Кеминский', owner:'Куратор ОД', curator:'Осмоналиев Т.',
-    credit:{ id:'380', num:'Дог. №380 от 03.06.2025', subdiv:'ОД',
+    credit:{ id:'380', num:'Дог. №380 от 03.06.2025', subdiv:'ОД', project:'региональный',
              debt:{ principal:62000, interest:0, penalty:0, principalOverdue:49000,
                     payments:[{ date:ruSub(TODAY, 15), amount:62000 }] } },
     stop:'повторная', age:45, repaidAge:15, repaid:true },
@@ -6353,7 +6414,7 @@ const SEED = [
   { sit:'ВЕД-ПЕРЕДАЧА', id:'390', borrower:'ОсОО «Бакай-Ата Агро»', inn:'01912201610563',
     region:'Таласская область / Бакай-Атинский', owner:'Куратор ОД', curator:'Мурзаева Н.',
     deptCurators:{ 'ОД':'Мурзаева Н.' },
-    credit:{ id:'390', num:'Дог. №390 от 10.02.2024', subdiv:'ОД',
+    credit:{ id:'390', num:'Дог. №390 от 10.02.2024', subdiv:'ОД', project:'региональный',
              debt:{ principal:58000, interest:2400, penalty:900, paid:0, principalOverdue:46000 } },
     stop:'повторная', age:16,
     extra:{ procedure:{ since:ruSub(TODAY, 5), by:'ОД', receiving:'ОПК',
@@ -6374,7 +6435,7 @@ const SEED = [
   { sit:'ВЕД-ПЕРЕДАЧА', id:'392', borrower:'ОсОО «Кадамжай-Сурьма»', inn:'01502201700343',
     region:'Баткенская область / Кадамжайский', owner:'Сектор по работе с активами (САК)',
     curator:'Сагындыков М.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'392', num:'Дог. №392 от 05.06.2023', subdiv:'ОПК',
+    credit:{ id:'392', num:'Дог. №392 от 05.06.2023', subdiv:'ОПК', project:'региональный',
              debt:{ principal:270000, interest:14000, penalty:8000, paid:0, principalOverdue:215000 } },
     stop:'постановление', age:120, torgi:'дважды',
     colls:[{ item:'Обогатительная фабрика, участок №1', kind:'Недвижимость', pledge:'295 000,00',
@@ -6400,7 +6461,7 @@ const SEED = [
   { sit:'ВЕД-ПЕРЕДАЧА', id:'393', borrower:'ОсОО «Сокулук-Агро Плюс»', inn:'01607202100393',
     region:'Чуйская область / Сокулукский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Тукинова А.С.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'393', num:'Дог. №393 от 17.08.2023', subdiv:'ОПК',
+    credit:{ id:'393', num:'Дог. №393 от 17.08.2023', subdiv:'ОПК', project:'региональный',
              debt:{ principal:164000, interest:7600, penalty:3500, paid:0, principalOverdue:131000 } },
     stop:'постановление', age:60,
     extra:{ procHistory:[
@@ -6416,7 +6477,7 @@ const SEED = [
   // due — 10 р.д. от заявления (12.07.2026): termToCalendarDays даёт 14 к.д. → 26.07.2026.
   { sit:'ВЕД-КОНФЛИКТ', id:'395', borrower:'ОсОО «Мурас-Строй»', inn:'01502201700339',
     region:'г. Ош / Ошский', owner:'Куратор ОД', curator:'Бекболотов Р.',
-    credit:{ id:'395', num:'Дог. №395 от 03.03.2024', subdiv:'ОД',
+    credit:{ id:'395', num:'Дог. №395 от 03.03.2024', subdiv:'ОД', project:'региональный',
              debt:{ principal:41200, interest:1800, penalty:600, paid:0, principalOverdue:33000 } },
     stop:'повторная', age:22,
     extra:{ conflict:{ declared:true, date:'12.07.2026', basis:'близкий родственник учредителя',
@@ -6432,7 +6493,7 @@ const SEED = [
   // не эмитируется — обязательство исполнено решением.
   { sit:'ВЕД-КОНФЛИКТ', id:'396', borrower:'ОсОО «Нарын-Курулуш»', inn:'01704202000396',
     region:'Нарынская область / Нарынский', owner:'Куратор ДАК', curator:'Токтосунова Б.',
-    credit:{ id:'396', num:'Дог. №396 от 28.09.2024', subdiv:'ДАК',
+    credit:{ id:'396', num:'Дог. №396 от 28.09.2024', subdiv:'ДАК', project:'ДАК',
              debt:{ principal:73000, interest:3100, penalty:1100, paid:0, principalOverdue:58000 } },
     stop:'повторная', age:12,
     extra:{ conflict:{ declared:true, date:'22.06.2026', basis:'бывший работник заёмщика в составе семьи куратора',
@@ -6457,11 +6518,11 @@ const SEED = [
     curator:'Тукинова А.С.', deptCurators:{ 'ОД':'Асанова Ж.Т.', 'ОПК':'Тукинова А.С.' },
     extra:{ handovers:[{ credit:'560', from:'ОПК', to:'САК', when:'06.04.2026', state:'принято' }] },
     credits:[
-      { id:'560', num:'Дог. №560 от 11.03.2023', subdiv:'ОПК', stop:'постановление', age:25,
+      { id:'560', num:'Дог. №560 от 11.03.2023', subdiv:'ОПК', project:'региональный', stop:'постановление', age:25,
         debt:{ principal:320000, interest:15000, penalty:7000, paid:0, principalOverdue:250000 } },
-      { id:'561', num:'Дог. №561 от 26.07.2023', subdiv:'ДПО', stop:'определение', age:95,
+      { id:'561', num:'Дог. №561 от 26.07.2023', subdiv:'ДПО', project:'региональный', stop:'определение', age:95,
         debt:{ principal:180000, interest:8600, penalty:3900, paid:0, principalOverdue:145000 } },
-      { id:'562', num:'Дог. №562 от 04.04.2025', subdiv:'ОД', stop:'претензия', age:9,
+      { id:'562', num:'Дог. №562 от 04.04.2025', subdiv:'ОД', project:'региональный', stop:'претензия', age:9,
         debt:{ principal:96000, interest:4200, penalty:1300, paid:0, principalOverdue:74000 } }] },
 
   /* ── ВЕД-МНОГО · три договора, одно ведущее подразделение, передача всего дела ──
@@ -6473,11 +6534,11 @@ const SEED = [
     region:'Таласская область / Таласский', owner:'Куратор ОД', curator:'Мурзаева Н.',
     deptCurators:{ 'ОД':'Мурзаева Н.' },
     credits:[
-      { id:'570', num:'Дог. №570 от 12.05.2024', subdiv:'ОД', stop:'повторная', age:18,
+      { id:'570', num:'Дог. №570 от 12.05.2024', subdiv:'ОД', project:'региональный', stop:'повторная', age:18,
         debt:{ principal:130000, interest:6200, penalty:1800, paid:0, principalOverdue:104000 } },
-      { id:'571', num:'Дог. №571 от 30.01.2025', subdiv:'ОД', stop:'претензия', age:5,
+      { id:'571', num:'Дог. №571 от 30.01.2025', subdiv:'ОД', project:'региональный', stop:'претензия', age:5,
         debt:{ principal:88000, interest:3900, penalty:1100, paid:0, principalOverdue:70000 } },
-      { id:'572', num:'Дог. №572 от 08.08.2023', subdiv:'ОД', stop:'повторная', age:30,
+      { id:'572', num:'Дог. №572 от 08.08.2023', subdiv:'ОД', project:'региональный', stop:'повторная', age:30,
         debt:{ principal:152000, interest:7400, penalty:2300, paid:0, principalOverdue:120000 } }],
     extra:{ procedure:{ since:ruSub(TODAY, 4), by:'ОД', receiving:'ОПК',
               confirm:{ state:'ожидает', at:null, deadlineRd:5, leftRd:3 },
@@ -6506,9 +6567,9 @@ const SEED = [
     region:'г. Бишкек / Свердловский', owner:'Куратор ОД', curator:'Асанова Ж.Т.',
     deptCurators:{ 'ОД':'Асанова Ж.Т.' },
     credits:[
-      { id:'397', num:'Дог. №397 от 12.01.2025', subdiv:'ОД', stop:'повторная', age:12,
+      { id:'397', num:'Дог. №397 от 12.01.2025', subdiv:'ОД', project:'региональный', stop:'повторная', age:12,
         debt:{ principal:64000, interest:2900, penalty:800, paid:0, principalOverdue:51000 } },
-      { id:'398', num:'Дог. №398 от 05.03.2026', subdiv:'ОД', stop:null, overdue:0,
+      { id:'398', num:'Дог. №398 от 05.03.2026', subdiv:'ОД', project:'региональный', stop:null, overdue:0,
         debt:{ principal:150000, interest:0, penalty:0, paid:0, principalOverdue:0 },
         // Шаг 3 наряда (ADR-0065): вид фактора — из справочника п. 11 (RISK_FACTORS),
         // уровень оттуда же; на записи остаются только вид и реквизиты решения.
@@ -6534,7 +6595,7 @@ const SEED = [
      календарём, и кредит станет высоким по дням сам, без единой записи. */
   { sit:'РИСК', id:'391', borrower:'ОсОО «Ат-Башы Мал»', inn:'01907201900391',
     region:'Нарынская область / Ат-Башинский', owner:'Куратор ОД', curator:'Дуйшеева Р.',
-    credit:{ id:'391', num:'Дог. №391 от 19.04.2023', subdiv:'ОД',
+    credit:{ id:'391', num:'Дог. №391 от 19.04.2023', subdiv:'ОД', project:'региональный',
              debt:{ principal:210000, interest:9600, penalty:4400, paid:0, principalOverdue:168000 } },
     /* age:145 (было 140): с переходом на 1-й день просрочки (п. 16.1) цепочка стала
        на пять дней короче, и при 140 дней вышло бы 178 — откладывать было бы нечего
@@ -6555,9 +6616,9 @@ const SEED = [
     region:'Ошская область / Кара-Кулджинский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Молдалиев Т.К.', deptCurators:{ 'ОД':'Асанова Ж.Т.', 'ОПК':'Тукинова А.С.' },
     credits:[
-      { id:'394', num:'Дог. №394 от 02.06.2025', subdiv:'ОД', stop:'повторная', age:10,
+      { id:'394', num:'Дог. №394 от 02.06.2025', subdiv:'ОД', project:'региональный', stop:'повторная', age:10,
         debt:{ principal:76000, interest:3400, penalty:1000, paid:0, principalOverdue:60000 } },
-      { id:'399', num:'Дог. №399 от 15.11.2022', subdiv:'ОПК', stop:'постановление', age:30,
+      { id:'399', num:'Дог. №399 от 15.11.2022', subdiv:'ОПК', project:'региональный', stop:'постановление', age:30,
         debt:{ principal:210000, interest:9800, penalty:4600, paid:0, principalOverdue:168000 } }] },
 
   /* ── МП5-11 · второй счётчик, наряд п.7в (`ADR-0051` §3) ──
@@ -6576,7 +6637,7 @@ const SEED = [
   { sit:'K3-НЕПРЕДЪЯВЛЕНО', id:'701', borrower:'ОсОО «Токтогул-Агро»', inn:'01512202600701',
     region:'Джалал-Абадская область / Токтогульский', owner:'Отдел проблемных кредитов (ОПК)',
     curator:'Тукинова А.С.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
-    credit:{ id:'701', num:'Дог. №701 от 10.01.2024', subdiv:'ОПК',
+    credit:{ id:'701', num:'Дог. №701 от 10.01.2024', subdiv:'ОПК', project:'региональный',
              debt:{ principal:400000, interest:18000, penalty:9000, paid:0, principalOverdue:120000 },
              overdueInstallments:[
                { due:'15.02.2026', amount:15000 }, { due:'15.03.2026', amount:15000 },
@@ -8447,21 +8508,31 @@ function committeeCreditRows(){
     /* КР-10: пишем ИДЕНТИФИКАТОР кредита, а не подпись. Форма писала полное имя договора
        («Дог. №311 от 02.03.2025»), затравка — короткую подпись («Дог. №56»), а требование
        знает свой кредит как '311' — сравнить их было нечем, и поле оставалось украшением. */
+    /* Тип проекта виден прямо в строке выбора (`ADR-0077`): орган гейтового вопроса
+       определяется им, и выбрать кредиты вслепую, а потом получить неожиданный
+       комитет — ровно то, чего развилка п. 16.5 не должна допускать. */
+    const pt = `<span class="pill ${c.projectType==='ДАК'?'info':'mid'}">${escAttr(c.projectType||'тип не задан')}</span>`;
     return `<label class="cpick-row">
-      <input type="checkbox" class="ccCredit" value="${escAttr(c.id)}" onchange="syncCreditAll()" checked>
+      <input type="checkbox" class="ccCredit" value="${escAttr(c.id)}" data-project="${escAttr(c.projectType||'')}" onchange="syncCreditAll()" checked>
       <span class="cpick-main"><span class="cpick-num">${escAttr(c.num)}</span>${reqs[0]?`<span class="cpick-sub"> · ${escAttr(scopeLabel(scopeOf(reqs[0])))}</span>`:''}${n}</span>
-      <span class="cpick-claim">требование ${fmtKGS(claimTotal(reqs))}</span>${od}</label>`;
+      <span class="cpick-claim">требование ${fmtKGS(claimTotal(reqs))}</span>${pt}${od}</label>`;
   }).join('');
   return `<div class="cpick">${all}${rows}</div>`;
 }
 /* «Выбрать все» ↔ строки-чекбоксы кредитов. */
-function toggleAllCredits(cb){ document.querySelectorAll('.ccCredit').forEach(x=>x.checked=cb.checked); }
+function toggleAllCredits(cb){ document.querySelectorAll('.ccCredit').forEach(x=>x.checked=cb.checked); cqSyncOrgan(); }
 function syncCreditAll(){
-  const all=document.getElementById('ccAll'); if(!all) return;
-  const boxes=[...document.querySelectorAll('.ccCredit')];
-  all.checked=boxes.every(x=>x.checked);
-  all.indeterminate=!all.checked && boxes.some(x=>x.checked);
+  const all=document.getElementById('ccAll');
+  if(all){
+    const boxes=[...document.querySelectorAll('.ccCredit')];
+    all.checked=boxes.every(x=>x.checked);
+    all.indeterminate=!all.checked && boxes.some(x=>x.checked);
+  }
+  cqSyncOrgan();   // отметка кредита двигает орган у развилочного гейта (п. 16.5)
 }
+/* Типы проекта отмеченных кредитов — множеством. Пустое = ничего не отмечено. */
+const cqCheckedProjects = () => new Set([...document.querySelectorAll('.ccCredit:checked')]
+  .map(x => x.dataset.project).filter(Boolean));
 function openCommitteeQuestionModal(){
   const host=document.getElementById('modalHost');
   const role=document.getElementById('roleSel')?document.getElementById('roleSel').value:'';
@@ -8471,7 +8542,7 @@ function openCommitteeQuestionModal(){
     <div class="mform">
       <div class="field col-span"><span class="flabel">Предмет</span><div class="control grey"><select id="cqSubject" onchange="onCqSubjectChange()">${CQ_SUBJECTS.map(s=>`<option value="${escAttr(s.topic)}">${s.topic}${s.gate?' · открывает гейт §6.3':''}</option>`).join('')}</select>${caret()}</div></div>
       <div class="field col-span" id="cqFreeWrap" style="display:none"><span class="flabel">Предмет (текст)</span><div class="control grey"><input id="cqSubjectFree" placeholder="сформулируйте вопрос"></div></div>
-      <div class="field"><span class="flabel">Орган</span><div class="control grey"><select id="cqOrgan">${ORGANS.map(o=>`<option>${o}</option>`).join('')}</select>${caret()}</div></div>
+      <div class="field"><span class="flabel">Орган</span><div class="control grey"><select id="cqOrgan">${ORGANS.map(o=>`<option>${o}</option>`).join('')}</select>${caret()}</div><span class="section-note" id="cqOrganNote"></span></div>
       ${inp('Инициатор (подразделение)',role,'cqInit')}
       <div class="field col-span"><span class="flabel">Кредиты</span>${committeeCreditRows()}</div>
     </div></div>
@@ -8488,8 +8559,34 @@ function onCqSubjectChange(){
   const organSel=document.getElementById('cqOrgan');
   const isFree=!!(meta&&meta.free);
   freeWrap.style.display=isFree?'':'none';
-  if(!isFree&&meta&&meta.organ) organSel.value=meta.organ;   // автоподстановка органа
   organSel.disabled=!isFree&&!!(meta&&meta.gate);            // гейтовый орган не редактируется
+  cqSyncOrgan();
+}
+/* АВТОПОДСТАНОВКА ОРГАНА (`ADR-0077`). У обычного гейта орган — константа предмета.
+   У развилочного (п. 16.5) он выводится из ТИПА ПРОЕКТА отмеченных кредитов, поэтому
+   пересчитывается и при смене предмета, и при отметке кредита. Смешанный набор органа
+   не имеет: один вопрос — один орган, и два типа проекта в нём означали бы, что половина
+   кредитов уедет в чужой комитет. Форма это говорит и не подставляет ничего; save
+   добивает тем же условием (правило в одном месте, но проверяется на обеих границах —
+   поле disabled не есть валидация). */
+function cqSyncOrgan(){
+  const subj=document.getElementById('cqSubject'); if(!subj) return;
+  const meta=CQ_SUBJECTS.find(s=>s.topic===subj.value);
+  const organSel=document.getElementById('cqOrgan');
+  const note=document.getElementById('cqOrganNote');
+  const setNote=t=>{ if(note) note.textContent=t||''; };
+  if(!meta||meta.free){ setNote(''); return; }
+  if(!meta.organByProject){ if(meta.organ) organSel.value=meta.organ; setNote(''); return; }
+  const types=cqCheckedProjects();
+  if(types.size===1){
+    const t=[...types][0];
+    organSel.value=meta.organByProject[t];
+    setNote(`Орган выбран типом проекта («${t}», п. ${meta.point}).`);
+  } else if(types.size>1){
+    setNote(`Отмечены кредиты разных типов проекта (${[...types].join(', ')}) — п. ${meta.point} назначает им РАЗНЫЕ комитеты. Вынесите вопрос отдельно по каждому типу.`);
+  } else {
+    setNote(`Орган назначается типом проекта (п. ${meta.point}): ${gateOrgansLabel(meta)}. Отметьте кредиты.`);
+  }
 }
 function saveCommitteeQuestion(){
   const val=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
@@ -8505,6 +8602,17 @@ function saveCommitteeQuestion(){
      вопрос открыл бы необратимое действие мимо выбора предмета из списка. */
   if(subjSel===CQ_FREE && CQ_BY_TOPIC[val('cqSubjectFree')]){
     toast(`«${val('cqSubjectFree')}» есть в справочнике предметов — выберите его в списке, а не свободным текстом`,'warn'); return; }
+  /* Развилка п. 16.5 (`ADR-0077`): вопрос несёт ОДИН орган, а тип проекта назначает
+     разные. Смешанный набор кредитов дал бы запись, половина которой адресована не тому
+     комитету, — и gateReason открыл бы гейт всем по решению, принятому чужим органом. */
+  const forkMeta=CQ_BY_TOPIC[subjSel];
+  if(forkMeta && forkMeta.organByProject){
+    const types=cqCheckedProjects();
+    if(types.size>1){
+      toast(`Отмечены кредиты разных типов проекта (${[...types].join(', ')}) — п. ${forkMeta.point} назначает им разные комитеты. Вынесите вопрос отдельно по каждому типу`,'warn'); return; }
+    if(types.size===1 && organ!==forkMeta.organByProject[[...types][0]]){
+      toast(`Орган «${organ}» не соответствует типу проекта «${[...types][0]}» (п. ${forkMeta.point})`,'warn'); return; }
+  }
   curProc.committeeQuestions=curProc.committeeQuestions||[];
   /* КР-9: вопрос рождается НЕ решённым — состояние выводится, в поле решения его не пишем.
      Task 9 fix round 2: форма пишет в topic СФОРМУЛИРОВАННЫЙ текст (CQ_FREE — только
@@ -8722,7 +8830,7 @@ function openPauseModal(){
   const host=document.getElementById('modalHost');
   host.innerHTML=`<div class="modal form">
     <div class="modal-h"><span class="mt">Постановка на паузу · требование ${r.id}</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
-    <div class="modal-b"><p class="section-note">Пауза ставится на <b>требование</b> (${r.role} ${escAttr(personOf(r).name)}), а не на дело: другие обязанные лица по договору остаются в работе. Тип определяет <b>предмет приостановки</b> (ADR-0063): гарантийное письмо (п. 17) — только процедура безакцептного списания, по решению комитета, ≤70 к.д.; рассмотрение реструктуризации (п. 18) — только меры п. 16 (претензии, требования обеспечителям, безакцепт), ≤70 к.д., плюс оверлей фазы и отложение перевода на 181-й день. Судебный и залоговый треки не приостанавливает ни одна. Счётчик дней не замораживается.</p><div class="mform">
+    <div class="modal-b"><p class="section-note">Пауза ставится на <b>требование</b> (${r.role} ${escAttr(personOf(r).name)}), а не на дело: другие обязанные лица по договору остаются в работе. Тип определяет <b>предмет приостановки</b> (ADR-0063): гарантийное письмо (п. 17) — только процедура безакцептного списания, по решению того же комитета, что назначен проекту развилкой п. 16.5, ≤70 к.д.; рассмотрение реструктуризации (п. 18) — только меры п. 16 (претензии, требования обеспечителям, безакцепт), ≤70 к.д., плюс оверлей фазы и отложение перевода на 181-й день. Судебный и залоговый треки не приостанавливает ни одна. Счётчик дней не замораживается.</p><div class="mform">
       ${sel('Тип паузы',PAUSE_TYPES[0].label,PAUSE_TYPES.map(t=>t.label),'pauseType')}
       ${dinp('Действует с',ruToIso(TODAY),'pauseFrom')}
       ${dinp('Действует до','','pauseUntil')}
@@ -11088,10 +11196,14 @@ function renderSettingsGates(){
   const rows=keys.map(k=>{
     const g=RULES.gates[k], changed=isChanged('gates',k);
     const sec=sectionOf(k);
-    if(!setPass(k+' '+(g.topic||'')+' '+(g.organ||''), sec, changed)) return '';
+    if(!setPass(k+' '+(g.topic||'')+' '+gateOrgans(g).join(' '), sec, changed)) return '';
     shown++;
     const hold=gateWouldHold(k);
-    const req=g.poruchenie?'поручение Председателя Правления':(g.organ||'решение органа');
+    /* Развилочный гейт называет ОБА органа через слэш и подписывает, чем они разводятся:
+       строка «Комитет по администрированию…» одна, а органов за ней два (`ADR-0077`). */
+    const req=g.poruchenie?'поручение Председателя Правления'
+             :(g.organByProject?`${gateOrgansLabel(g)} — по типу проекта (${PROJECT_TYPES.join(' / ')}), п. ${g.point}`
+             :(g.organ||'решение органа'));
     return `<tr class="${changed?'row-changed':''}">
       <td>${k}<div class="radius">${sec}</div></td>
       <td><input type="checkbox" ${g.off?'':'checked'}${roAttr()} onchange="toggleGate('${jsq(k)}')"></td>
