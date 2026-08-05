@@ -711,10 +711,23 @@ ok('счёт опознаёт ОБЪЕКТ (кредит либо транш), �
    ══════════════════════════════════════════════════════════════════════════ */
 head('ПТ-Д21 · рендер восьми экранов и карточек в трёх ролях');
 ok('экранов восемь: пять прежних + поступления, возвраты, закрытие периода',
-   g.ev('NAV.length') === 8 && g.ev('Object.keys(VIEW_TITLES).length') === 8
-   && g.ev(`NAV.map(x=>x.id).sort().join(',')`) === [...VIEWS].sort().join(','));
+   g.ev('NAV.flatMap(g=>g.items).length') === 8 && g.ev('Object.keys(VIEW_TITLES).length') === 8
+   && g.ev(`NAV.flatMap(g=>g.items).map(x=>x.id).sort().join(',')`) === [...VIEWS].sort().join(','));
 ok('заглушек этапа 1 не осталось: ни один экран не переписывается',
    !/Экран переписывается/.test(UI));
+// Порядок меню — решение спеки §12, а не вкус: платежи главная лента,
+// поступления служебная и стоят у реестра ЦК (ADR-0056), период раньше акта (§8.6).
+ok('меню разбито на три блока и упорядочено по спеке §12',
+   g.ev(`NAV.map(x=>x.items.map(i=>i.id).join('>')).join(' | ')`)
+   === 'pay>unresolved>returns | receipts>registry>recon | period>acts');
+ok('стартовый экран — «Платежи», главная лента куратора, а не «Поступления»',
+   mk().ev('CUR_VIEW') === 'pay');
+ok('счётчик схлопнутой подгруппы поднят на её заголовок — свёрнутый узел не прячет препятствие',
+   (() => { const m = mk();
+     const sum = m.ev(`NAV[2].items.reduce((s,n)=>s+(n.badge?n.badge():0),0)`);
+     m.ev(`navToggle('g-period')`);
+     const head = m.$$('#nav .nav-sub:not(.open) > .nav-toggle .cnt').map(e=>e.textContent);
+     return sum > 0 && head.includes(String(sum)); })());
 const renderFails = [];
 for(const r of ROLES){
   for(const v of VIEWS){
@@ -751,8 +764,8 @@ for(const r of ROLES){
 ok('карточки поступления, платежа, возврата и акта — все вкладки, все роли, без грязи'
    + (cardFails.length ? ' — ' + cardFails.slice(0,4).join(' · ') : ''), cardFails.length === 0);
 ok('счётчики бокового меню считаются из данных, а не проставлены руками',
-   g.ev(`NAV.find(x=>x.id==='unresolved').badge()`) === g.ev('unresolvedReceipts().length')
-   && g.ev(`NAV.find(x=>x.id==='period').badge()`)
+   g.ev(`NAV.flatMap(g=>g.items).find(x=>x.id==='unresolved').badge()`) === g.ev('unresolvedReceipts().length')
+   && g.ev(`NAV.flatMap(g=>g.items).find(x=>x.id==='period').badge()`)
       === g.ev(`DATA.periods.filter(p=>p.state==='open'&&periodBlockers(p.id).length).length`));
 ok('хлебная крошка карточки называет открытый объект, а не экран',
    (() => { g.rec('R-311','alloc','curator');

@@ -110,19 +110,22 @@ a{ color:inherit; }
 .nav-toggle{ display:flex; align-items:center; gap:8px; width:100%; appearance:none;
   border:none; background:transparent; color:rgba(24,39,57,0.82); cursor:pointer; text-align:left; }
 .nav-group > .nav-toggle{ padding:9px 16px; font:var(--weight-semibold) 15px/1.3 var(--asubk-font); }
+.nav-sub > .nav-toggle{ padding:8px 16px 8px 32px; font:var(--weight-semibold) 14px/1.3 var(--asubk-font);
+  color:rgba(24,39,57,0.66); }
 .nav-toggle:hover{ background:rgba(24,39,57,0.04); }
 .nav-toggle .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5);
   transition:transform 120ms ease; flex:none; }
-.nav-group.open > .nav-toggle .chev{ transform:rotate(90deg); }
+.nav-group.open > .nav-toggle .chev, .nav-sub.open > .nav-toggle .chev{ transform:rotate(90deg); }
 .nav-toggle .lbl{ flex:1; }
 .nav-children{ display:none; }
-.nav-group.open > .nav-children{ display:block; }
+.nav-group.open > .nav-children, .nav-sub.open > .nav-children{ display:block; }
 .nav-item{ display:flex; align-items:center; gap:8px; padding:7px 16px 7px 40px; text-decoration:none;
   color:rgba(27,43,65,0.69); font:var(--weight-regular) var(--text-base)/1.5 var(--asubk-font); cursor:pointer; }
+.nav-sub .nav-item{ padding-left:52px; }
 .nav-item:hover{ background:rgba(24,39,57,0.05); }
 .nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); }
-.nav-item .cnt{ margin-left:auto; font:var(--weight-semibold) 11px/1 var(--asubk-font);
-  background:var(--asubk-red); color:#fff; border-radius:var(--radius-pill); padding:3px 6px; }
+.nav-item .cnt, .nav-toggle .cnt{ margin-left:auto; font:var(--weight-semibold) 11px/1 var(--asubk-font);
+  background:var(--asubk-red); color:#fff; border-radius:var(--radius-pill); padding:3px 6px; flex:none; }
 .nav-item .cnt.mut{ background:var(--asubk-ink-26); }
 .sidebar-foot{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; color:var(--text-muted); }
 .sidebar-foot span{ font:var(--weight-regular) 14px/1.2 var(--asubk-font); }
@@ -461,15 +464,27 @@ const can = {
   match:       () => ROLE==='curator',      // сопоставление подтверждает куратор
 };
 
+/* Порядок меню — по спеке §12 «Новые экраны»:
+   ПЛАТЕЖИ — главная лента куратора, поэтому первый блок и стартовый экран;
+   ПОСТУПЛЕНИЯ — служебная лента, живёт рядом с реестром ЦК, а не над платежами
+   (`ADR-0056`: два похожих списка подряд — куратор не знает, в каком работать);
+   ПЕРИОД И АКТЫ — последним, потому что внутренний акт строится по ЗАКРЫТОМУ
+   периоду (§8.6), то есть закрытие предшествует акту и в меню тоже. */
 const NAV = [
-  { id:'receipts',   label:'Поступления',            icon:'inbox' },
-  { id:'unresolved', label:'Невыясненные',           icon:'help',  badge:()=>unresolvedReceipts().length },
-  { id:'pay',        label:'Платежи',                icon:'coin' },
-  { id:'returns',    label:'Возвраты',               icon:'back',  badge:()=>DATA.returns.filter(v=>v.state!=='executed').length },
-  { id:'registry',   label:'Реестр ЦК',              icon:'file' },
-  { id:'recon',      label:'Сопоставление (сверка)', icon:'link',  badge:()=>DATA.recon.filter(r=>r.outcome!=='ok').length },
-  { id:'period',     label:'Закрытие периода',       icon:'lock',  badge:()=>DATA.periods.filter(p=>p.state==='open'&&periodBlockers(p.id).length).length },
-  { id:'acts',       label:'Акты сверки',            icon:'check' },
+  { id:'g-pay', label:'Платежи и возвраты', open:true, items:[
+    { id:'pay',        label:'Платежи',                icon:'coin' },
+    { id:'unresolved', label:'Невыясненные',           icon:'help',  badge:()=>unresolvedReceipts().length },
+    { id:'returns',    label:'Возвраты',               icon:'back',  badge:()=>DATA.returns.filter(v=>v.state!=='executed').length },
+  ]},
+  { id:'g-cbk', label:'Поступления и сверка с ЦК', open:true, items:[
+    { id:'receipts',   label:'Поступления',            icon:'inbox' },
+    { id:'registry',   label:'Реестр ЦК',              icon:'file' },
+    { id:'recon',      label:'Сопоставление (сверка)', icon:'link',  badge:()=>DATA.recon.filter(r=>r.outcome!=='ok').length },
+  ]},
+  { id:'g-period', label:'Период и акты', open:true, items:[
+    { id:'period',     label:'Закрытие периода',       icon:'lock',  badge:()=>DATA.periods.filter(p=>p.state==='open'&&periodBlockers(p.id).length).length },
+    { id:'acts',       label:'Акты сверки',            icon:'check' },
+  ]},
 ];
 const ICONS = {
   coin:'<circle cx="12" cy="12" r="9"/><path d="M12 7v10M9.5 9.5h4a1.5 1.5 0 0 1 0 3h-3a1.5 1.5 0 0 0 0 3h4"/>',
@@ -481,8 +496,13 @@ const ICONS = {
   back:'<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-5"/>',
   lock:'<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/>',
 };
+/* Раскрытость узлов живёт вне разметки: render() перерисовывает сайдбар целиком,
+   и без этого набора любое действие схлопывало бы то, что открыл пользователь. */
+const NAV_OPEN = new Set(['m-pay', ...NAV.filter(g=>g.open).map(g=>g.id)]);
+function navToggle(id){ NAV_OPEN.has(id) ? NAV_OPEN.delete(id) : NAV_OPEN.add(id); renderNav(); }
 function renderNav(){
   const nav = document.getElementById('nav');
+  const chev = s => `<span class="chev"><svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>`;
   const item = n => {
     const badge = n.badge ? n.badge() : 0;
     const b = badge ? `<span class="cnt${n.id==='unresolved'?' mut':''}">${badge}</span>` : '';
@@ -490,16 +510,25 @@ function renderNav(){
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[n.icon]}</svg>
       <span>${n.label}</span>${b}</a>`;
   };
-  const grp = (lbl,open,inner) => `<div class="nav-group${open?' open':''}">
-      <button class="nav-toggle" onclick="this.parentNode.classList.toggle('open')">
-        <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
-        <span class="lbl">${lbl}</span>
-      </button><div class="nav-children">${inner}</div></div>`;
+  // Счётчик схлопнутой подгруппы поднимается на её заголовок: свёрнутый узел
+  // не имеет права спрятать препятствие закрытия периода.
+  const sub = g => {
+    const open = NAV_OPEN.has(g.id);
+    const sum = g.items.reduce((s,n)=>s + (n.badge ? n.badge() : 0), 0);
+    const b = (!open && sum) ? `<span class="cnt">${sum}</span>` : '';
+    return `<div class="nav-sub${open?' open':''}">
+      <button class="nav-toggle" onclick="navToggle('${g.id}')">${chev(14)}<span class="lbl">${g.label}</span>${b}</button>
+      <div class="nav-children">${g.items.map(item).join('')}</div></div>`;
+  };
+  const grp = (id,lbl,inner) => `<div class="nav-group${NAV_OPEN.has(id)?' open':''}">
+      <button class="nav-toggle" onclick="navToggle('${id}')">${chev(14)}<span class="lbl">${lbl}</span></button>
+      <div class="nav-children">${inner}</div></div>`;
+  const stub = lbl => `<a class="nav-item" onclick="toast('Демо-макет: активен модуль платежей')">${lbl}</a>`;
   nav.innerHTML =
-    grp('Учёт и сверка платежей', true, NAV.map(item).join('')) +
-    grp('Кредиты и транши', false, '<a class="nav-item" onclick="toast(\'Демо-макет: активен модуль платежей\')">Кредиты</a>') +
-    grp('Взыскание задолженности', false, '<a class="nav-item" onclick="toast(\'Демо-макет: активен модуль платежей\')">Процессы взыскания</a>') +
-    grp('Справочники', false, '<a class="nav-item" onclick="toast(\'Демо-макет: активен модуль платежей\')">Справочники</a>');
+    grp('m-pay',        'Учёт и сверка платежей',  NAV.map(sub).join('')) +
+    grp('m-credit',     'Кредиты и транши',        stub('Кредиты')) +
+    grp('m-collection', 'Взыскание задолженности', stub('Процессы взыскания')) +
+    grp('m-dict',       'Справочники',             stub('Справочники'));
 }
 
 /* ============================================================
@@ -979,7 +1008,7 @@ const DATA = {
 /* ============================================================
    VIEW ROUTER — восемь экранов (шов №1: поступление · платёж · возврат)
    ============================================================ */
-let CUR_VIEW = 'receipts';
+let CUR_VIEW = 'pay';            // главная лента куратора (спека §12), не «Поступления»
 let curReceipt = null, curPayment = null, curReturn = null, curAct = null;
 
 function go(v){ CUR_VIEW = v; curReceipt=null; curPayment=null; curReturn=null; curAct=null; render(); }
