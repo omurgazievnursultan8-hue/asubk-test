@@ -172,9 +172,17 @@ ok('карточка поступления печатает инвариант 
 ok('в карточке R-280 числа инварианта сходятся в разметке',
    (() => { const t = g.textOf(g.rec('R-280','alloc','curator'));
      return t.includes('150 000,00') && t.includes('105 000,00') && t.includes('45 000,00'); })());
-ok('лента поступлений сводит тот же инвариант итогом и не сообщает о неразнесённых',
-   (() => { const t = g.textOf(g.view('receipts','curator'));
-     return /Итог по ленте/.test(t) && /остатков, требующих распределения, нет/.test(t); })());
+/* Итог стоит подвалом таблицы, а не полосой над ней: каждая величина обязана быть в
+   своей колонке, иначе три числа читаются как несвязанные. Проверяем и место, и то,
+   что складывается вся выборка, а не видимая страница. */
+ok('лента поступлений сводит тот же инвариант подвалом таблицы, каждую величину в свою колонку',
+   (() => { g.view('receipts','curator');
+     const foot = g.q('table.grid[data-t="rec"] tfoot tr'); if(!foot) return false;
+     const cells = [...foot.children];
+     const sum = g.ev(`feedSlice('rec').hits.reduce((s,r)=>s+r.amount,0)`);
+     return /Итого по выборке/.test(cells[0].textContent)
+       && cells[1].textContent.replace(/\s/g,'') === g.ev(`money(${sum})`).replace(/\s/g,'')
+       && /Σ платежей/.test(foot.textContent) && /исполненные возвраты/.test(foot.textContent); })());
 
 /* ══════════════════════════════════════════════════════════════════════════
    §4.1–4.2 — СТОРНО ЛЕЧИТ ПОСТУПЛЕНИЕ, А НЕ ПЛАТЁЖ
@@ -241,9 +249,15 @@ ok('шапка таблицы у обоих экранов одна и та же
        return [...d.querySelectorAll('th')].map(x=>x.textContent).join('|'); };
      const a = th(g.view('receipts','curator')), b = th(g.view('unresolved','curator'));
      return a === b && b.includes('Счёт и что опознал'); })());
-ok('экран невыясненных — сегмент той же ленты, отдельного справочника нет',
-   (() => { const t = g.textOf(g.view('unresolved','curator'));
-     return /Вся лента/.test(t) && /Невыясненные/.test(t); })());
+/* Возврат к полной ленте даёт навигация — кнопкой её не дублируем. Отдельным
+   справочником экран не является: он держит ту же таблицу и ТОТ ЖЕ фильтр (feed 'rec'),
+   отличаясь только базой. Своих условий у вида быть не может. */
+ok('экран невыясненных — вид той же ленты: та же таблица и тот же фильтр, отдельного справочника нет',
+   (() => { g.view('unresolved','curator');
+     const tb = g.q('table.grid[data-t="rec"]'), fb = g.q('#fp-rec');
+     const ids = g.ev(`unresolvedReceipts().map(r=>r.id)`);
+     return !!tb && !!fb && g.ev(`FEEDS.ret !== FEEDS.rec`)
+       && g.ev(`feedSlice('rec').hits.map(r=>r.id).join()`) === ids.join(); })());
 ok('невыясненные держат закрытие периода, а по сроку никуда не списываются (ПТ-27)',
    (() => { const t = g.textOf(g.view('unresolved','curator')) + g.textOf(g.rec('R-296','alloc','curator'));
      return /держ[аи]т закрытие периода/i.test(t) && !/списыва[а-яё]*\s+в\s+доход/i.test(t); })());
@@ -508,6 +522,83 @@ ok('у чужих денег основание кладёт бухгалтер,
 ok('в карточке возврата возврат стоит отдельным слагаемым инварианта поступления',
    (() => { const t = g.textOf(g.ret('V-3','curator'));
      return /Инвариант поступления/.test(t) && /Σ платежей/.test(t) && /исполненные возвраты/.test(t); })());
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ЛЕНТА ВОЗВРАТОВ — тот же движок, что у платежей и поступлений
+   ══════════════════════════════════════════════════════════════════════════ */
+head('лента возвратов · поиск, условия, итог');
+/* ПТ-Д22: правило без случая в данных не проверяется. Фильтр по состоянию и по виду
+   получателя нечем проверить, если затравка держит не все значения. */
+ok('затравка держит все четыре состояния возврата и оба вида получателя',
+   g.ev(`Object.keys(RET_STATE).every(k => DATA.returns.some(v=>v.state===k))`)
+   && g.ev(`DATA.returns.some(retIsThirdParty) && DATA.returns.some(v=>!retIsThirdParty(v))`));
+ok('лента возвратов — на общем движке лент, база = DATA.returns',
+   g.ev(`!!FEEDS.ret && FEEDS.ret.base().length === DATA.returns.length`));
+ok('своих осей и своего периода у возврата нет: период читается через поступление (ADR-0056)',
+   g.ev(`DATA.returns.every(v => !('period' in v) && !('channel' in v) && !('match' in v))`)
+   && g.ev(`!!RET_CONDS.find(c=>c.key==='period')`));
+ok('условие «Состояние» сужает выборку до того же числа, что даёт модель', (() => {
+  const m = mk(); m.view('returns','curator');
+  return Object.keys(m.ev(`RET_STATE`)).every(k => {
+    m.ev(`feedSet('ret','state','',${JSON.stringify(k)})`);
+    return m.ev(`feedSlice('ret').hits.length`) === m.ev(`DATA.returns.filter(v=>v.state===${JSON.stringify(k)}).length`);
+  });
+})());
+/* Условие ≠ поле: диапазон «от—до» на двух контролах остаётся ОДНИМ условием,
+   иначе бейдж врёт. Проверяем и AND-комбинацию, и счётчик. */
+ok('условия комбинируются по AND, а бейдж считает условия, а не заполненные поля', (() => {
+  const m = mk(); m.view('returns','curator');
+  m.ev(`feedSet('ret','third','','borrower')`);
+  m.ev(`feedSet('ret','basis','','yes')`);
+  m.ev(`feedSet('ret','amount','from','1000')`);
+  m.ev(`feedSet('ret','amount','to','200000')`);
+  const hits = m.ev(`feedSlice('ret').hits.map(v=>v.id).join()`);
+  const want = m.ev(`DATA.returns.filter(v => !retIsThirdParty(v) && !!v.basis
+      && v.amount >= 1000 && v.amount <= 200000).map(v=>v.id).join()`);
+  return hits === want && m.ev(`feedActive(FEEDS.ret).length`) === 3;
+})());
+ok('поиск берёт номер поступления и плательщика, а не только реквизиты возврата', (() => {
+  const m = mk(); m.view('returns','curator');
+  const num = m.ev(`receiptOf(DATA.returns.find(v=>v.id==='V-6')).number`);
+  m.ev(`feedSet('ret','q','',${JSON.stringify(num.toLowerCase())})`);
+  return m.ev(`feedSlice('ret').hits.every(v=>receiptOf(v).number===${JSON.stringify(num)})`)
+      && m.ev(`feedSlice('ret').hits.some(v=>v.id==='V-6')`);
+})());
+ok('× снимает условие целиком, «Сбросить фильтры» возвращает всю ленту', (() => {
+  const m = mk(); m.view('returns','curator');
+  m.ev(`feedSet('ret','execAt','from','2026-07-01')`);
+  m.ev(`feedSet('ret','execAt','to','2026-07-31')`);
+  const narrowed = m.ev(`feedSlice('ret').hits.length`);
+  m.ev(`feedClear('ret','execAt')`);
+  const cleared = m.ev(`feedActive(FEEDS.ret).length`);
+  m.ev(`feedSet('ret','state','','draft')`); m.ev(`feedReset('ret')`);
+  return narrowed < m.ev(`DATA.returns.length`) && cleared === 0
+      && m.ev(`feedSlice('ret').hits.length`) === m.ev(`DATA.returns.length`);
+})());
+ok('итог ленты стоит подвалом таблицы: Σ в колонке «Сумма», равенство — в средней ячейке', (() => {
+  const m = mk(); m.view('returns','curator');
+  const foot = m.q('table.grid[data-t="ret"] tfoot tr'); if(!foot) return false;
+  const cells = [...foot.children];
+  const sum = m.ev(`DATA.returns.reduce((s,v)=>s+v.amount,0)`);
+  return /Итого по выборке/.test(cells[0].textContent)
+    && cells[0].getAttribute('colspan') === '2'
+    && cells[1].textContent.replace(/\s/g,'') === m.ev(`money(${sum})`).replace(/\s/g,'')
+    && /исполнено/.test(cells[2].textContent) && /ждут исполнения/.test(cells[2].textContent);
+})());
+ok('итог считается по всей выборке, а не по видимой странице', (() => {
+  const m = mk(); m.view('returns','curator');
+  const total = m.ev(`feedSlice('ret').hits.length`), size = m.ev(`FEEDS.ret.size`);
+  if(total <= size) return false;                       // иначе проверка ничего не значит
+  const shown = m.$$('table.grid[data-t="ret"] tbody tr').length;
+  const foot  = m.q('table.grid[data-t="ret"] tfoot tr').children[0].textContent;
+  return shown === size && foot.includes(String(total));
+})());
+ok('пустота различает две причины: возвратов нет — или их отсеяли условия', (() => {
+  const m = mk(); m.view('returns','curator');
+  m.ev(`feedSet('ret','q','','заведомо-несуществующее')`);
+  const t = m.q('table.grid[data-t="ret"] tbody').textContent;
+  return /Ничего не найдено по фильтрам/.test(t);
+})());
 
 /* ══════════════════════════════════════════════════════════════════════════
    ADR-0061 (ПТ-Д4) — КУРС НБ КР: ПРОИЗВОДНАЯ, ПОДПИСАННАЯ ДАТОЙ
@@ -892,13 +983,14 @@ ok('сортировка идёт по всей выборке, а не по в�
   return firstAsc === minId;
 })());
 
-ok('состояние сортировки живёт у таблицы, а не у ленты: у возвратов и актов лент нет', (() => {
+ok('состояние сортировки живёт у таблицы, а не у ленты: у реестра ЦК и актов лент нет', (() => {
   const m = mk();
-  m.view('returns', 'curator');
-  m.ev(`gsort('ret','amount')`);
-  const a = m.$$('table.grid[data-t="ret"] tbody tr').map(tr => tr.children[2].textContent.trim());
-  m.ev(`gsort('ret','amount')`);
-  const b = m.$$('table.grid[data-t="ret"] tbody tr').map(tr => tr.children[2].textContent.trim());
+  m.view('acts', 'curator');
+  if(m.ev(`!!FEEDS.act`)) return false;                  // ленты у актов действительно нет
+  m.ev(`gsort('act','sum')`);
+  const a = m.$$('table.grid[data-t="act"] tbody tr').map(tr => tr.children[5].textContent.trim());
+  m.ev(`gsort('act','sum')`);
+  const b = m.$$('table.grid[data-t="act"] tbody tr').map(tr => tr.children[5].textContent.trim());
   return a.length > 1 && a[0] !== b[0];
 })());
 

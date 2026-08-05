@@ -309,6 +309,15 @@ table.grid tbody tr:last-child td{ border-bottom:none; }
 table.grid tbody tr.note td{ white-space:normal; cursor:default;
   padding-top:0; color:var(--text-muted); font-size:12px; line-height:1.45; }
 table.grid tbody tr.note{ cursor:default; }
+/* итоговая строка: стоит подвалом таблицы, чтобы величина оказалась в СВОЕЙ колонке,
+   а не в тулбаре над реестром. Липнет к нижней кромке скролл-обёртки. */
+table.grid tfoot td{ position:sticky; bottom:0; z-index:1;
+  padding:7px 12px; background:var(--asubk-gray-100);
+  border-top:1px solid var(--border-strong);
+  font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading);
+  white-space:nowrap; }
+table.grid tfoot td.r{ text-align:right; }
+table.grid tfoot td.lbl{ font-weight:var(--weight-regular); color:var(--text-muted); }
 /* денежная ячейка */
 .grid td.num{ font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1; }
 .grid td.bal{ font-weight:var(--weight-medium); color:var(--text-heading); }
@@ -984,6 +993,57 @@ const DATA = {
         'Остаток сверх наступившего закреплён режимом «адресный резерв» за взносом 05.09.2026.' ] },
       execBy:null, execAt:null,
       note:'Возврат не отклонён человеком — он недопустим по состоянию долга. Снимется, когда состояние изменится' },
+
+    /* Ниже — неисполненные возвраты. Исполненный вычитается из нераспределённого
+       остатка поступления (unallocated), а он у затравки уже сведён к нулю: новый
+       executed пришлось бы заводить вместе со своим поступлением. Три источника
+       отдачи денег наружу по ADR-0056 §2 представлены все: переплата сверх
+       начисленного (§7.2), поворот исполнения (ADR-0049), доля залогодателя
+       в выручке (ADR-0054); плюс возврат плательщику невыясненных денег —
+       случай «привязки к кредиту может не быть вовсе» из того же ADR. */
+    { id:'V-5', receiptId:'R-311', amount:4300.00, currency:'KGS', state:'draft',
+      recipient:{ name:'ОсОО «Бек Кабель»', kind:'Заёмщик', requisites:'р/с 1122 3344 5566 7788, ОАО «Оптима Банк»' },
+      basisBy:null, basis:null,
+      admissibility:{ ok:true, checked:'04.08.2026', blockers:[] },
+      execBy:null, execAt:null,
+      note:'Переплата сверх начисленного по траншу №2. Основания ещё нет — заявление заёмщика не приложено' },
+
+    { id:'V-6', receiptId:'R-284', amount:118000.00, currency:'KGS', state:'based',
+      recipient:{ name:'ОсОО «Тянь-Шань Строй»', kind:'Заёмщик', requisites:'р/с 4400 1122 3344 5566, ОАО «Айыл Банк»' },
+      basisBy:'Куратор · Ж.Осмонова', basis:'Постановление апелляции от 24.07.2026: в иске отказано полностью — поворот исполнения',
+      admissibility:{ ok:true, checked:'04.08.2026', blockers:[] },
+      execBy:null, execAt:null,
+      note:'Взысканное по ИЛ №2 возвращается заёмщику: слой решения суда отменён (ADR-0049)' },
+
+    { id:'V-7', receiptId:'R-296', amount:64000.00, currency:'KGS', state:'draft',
+      recipient:{ name:'Бакиров Н.А.', kind:'Третье лицо (плательщик)', requisites:'р/с 7788 9900 1122 3344, ОАО «РСК Банк»' },
+      basisBy:null, basis:null,
+      admissibility:{ ok:true, checked:'04.08.2026', blockers:[] },
+      execBy:null, execAt:null,
+      note:'Невыясненное поступление: заёмщик не опознан, привязки к кредиту нет вовсе. Основание кладёт бухгалтер — деньги чужие' },
+
+    { id:'V-8', receiptId:'R-298', amount:3200.00, currency:'KGS', state:'based',
+      recipient:{ name:'ОсОО «Ак-Суу Агро»', kind:'Заёмщик', requisites:'р/с 7801 2233 4455 6677, ОАО «Бакай Банк»' },
+      basisBy:'Куратор · Ж.Осмонова', basis:'Заявление заёмщика от 30.07.2026 о возврате переплаты по дог.78',
+      admissibility:{ ok:true, checked:'04.08.2026', blockers:[] },
+      execBy:null, execAt:null,
+      note:'Валютный кредит: сумма к возврату определена в сомах по курсу на дату поступления' },
+
+    { id:'V-9', receiptId:'R-268', amount:120000.00, currency:'KGS', state:'blocked',
+      recipient:{ name:'ИП Асанов Т.К.', kind:'Заёмщик', requisites:'р/с 9876 5432 1098 7654, ОАО «РСК Банк»' },
+      basisBy:'Бухгалтер · А.Иманкулова', basis:'Заявление заёмщика от 02.07.2026 о возврате ошибочного платежа',
+      admissibility:{ ok:false, checked:'04.08.2026', blockers:[
+        'Поступление снято автосторно 29.06.2026 — денег на нём не числится.',
+        'Спорная пеня 3 180,00 за период сторно не урегулирована.' ] },
+      execBy:null, execAt:null,
+      note:'Операция сторно обратима: при позднем подтверждении ЦК поступление оживёт, и препятствие снимется само' },
+
+    { id:'V-10', receiptId:'R-255', amount:500.00, currency:'KGS', state:'based',
+      recipient:{ name:'КХ «Джерге-Тал»', kind:'Заёмщик', requisites:'р/с 9001 5566 7788 9900, ОАО «Айыл Банк»' },
+      basisBy:'Куратор · Ж.Осмонова', basis:'Корректировка суммы до 18 500,00 по реестру ЦК — переплата 500,00',
+      admissibility:{ ok:true, checked:'04.08.2026', blockers:[] },
+      execBy:null, execAt:null,
+      note:'После сопоставления действует сумма ЦК: разница сверх начисленного возвращается заёмщику' },
   ],
 
   /* ============================================================
@@ -1150,7 +1210,7 @@ DATA.payments.forEach(p => {
 });
 
 /* ============================================================
-   ФИЛЬТР ЛЕНТЫ — один движок на две ленты (поступления · платежи)
+   ФИЛЬТР ЛЕНТЫ — один движок на три ленты (поступления · платежи · возвраты)
 
    Паттерн взят из реестра кредитов (mockups/loan-credit/credit.html, §Р-19):
    ярус 1 — быстрая строка (поиск + частые условия + «⚙ Фильтры» с бейджем),
@@ -1224,9 +1284,9 @@ function feedApply(f, list){
    СОРТИРОВКА ГРИДА — общая для лент и обычных таблиц
 
    Взято из реестра кредитов: ↕ стоит у КАЖДОЙ колонки всегда, клик по шапке
-   переключает ↑/↓. Состояние сортировки — не свойство ленты: у возвратов, реестра ЦК
-   и актов ленты нет, а шапка та же. Поэтому ключ состояния — ИМЯ ТАБЛИЦЫ (pay · rec ·
-   ret · reg · act), а сортеры — аксессоры на строку, объявленные рядом со своей таблицей.
+   переключает ↑/↓. Состояние сортировки — не свойство ленты: у реестра ЦК и актов
+   ленты нет, а шапка та же. Поэтому ключ состояния — ИМЯ ТАБЛИЦЫ (pay · rec · ret ·
+   reg · act), а сортеры — аксессоры на строку, объявленные рядом со своей таблицей.
 
    Перерисовка разная по той же причине, что и у фильтров: у ленты есть точечный
    feedRows() (иначе слетит страница и фокус), у остальных таблиц — полный render().
@@ -1478,21 +1538,24 @@ function recInv(r){
     <span class="iv">${tail}</span></div>`;
 }
 
-/** тот же инвариант итогом по видимой ленте */
-function recInvTotal(list){
+/** Тот же инвариант итогом по видимой выборке — но подвалом таблицы, чтобы каждая
+    величина стояла в СВОЕЙ колонке: сумма под «Суммой», остаток под «Нераспределено»,
+    число платежей под «Платежей». Средняя ячейка держит само равенство, иначе итог
+    читается как три несвязанных числа. */
+function recInvFoot(list){
   const sum  = +list.reduce((s,r)=>s+r.amount,0).toFixed(2);
   const paid = +list.reduce((s,r)=>s+recPaidSum(r),0).toFixed(2);
   const ret  = +list.reduce((s,r)=>s+recRetSum(r),0).toFixed(2);
   const left = +(sum-paid-ret).toFixed(2);
   const bad  = list.filter(r=>recLeftLabel(r).bad).length;
-  return `<div class="inv">
-    <span class="iv">Итог по ленте (${list.length} поступл.): <b>сумма</b> = Σ платежей + исполненные возвраты + нераспределённое</span>
-    <span class="iv">сумма <b>${money(sum)}</b></span>
-    <span class="iv">Σ платежей <b>${money(paid)}</b></span>
-    <span class="iv">возвраты исполненные <b>${money(ret)}</b></span>
-    <span class="iv${bad?' bad':''}">нераспределённое <b>${money(left)}</b></span>
-    <span class="iv">${bad ? 'поступлений с нераспределённым остатком: <b>'+bad+'</b>'
-      : 'остатков, требующих распределения, нет'}</span></div>`;
+  const pays = list.reduce((s,r)=>s+paymentsOf(r).filter(p=>!p.void).length, 0);
+  return `<tr>
+    <td class="lbl">Итого по выборке<span class="sub">${list.length} поступл.</span></td>
+    <td class="r num">${money(sum)}</td>
+    <td colspan="4" class="lbl">= Σ платежей ${money(paid)} + исполненные возвраты ${money(ret)}
+      + нераспределённое${bad ? ` · с остатком: ${bad}` : ''}</td>
+    <td class="r num">${pays}</td>
+    <td class="r num${bad?' bad':''}">${money(left)}</td></tr>`;
 }
 
 /* ---- строка ленты: один рендер и для «Поступлений», и для «Невыясненных» ---- */
@@ -1532,7 +1595,7 @@ const recRowsHtml = list => list.length ? list.map(recRow).join('')
                    документа, а не из нашей трактовки;
      остальные пары (счёт → что опознал, период → его состояние, остаток → его подпись)
      уже жили подстрочником src-tag и просто переехали в .sub. */
-function recTable(list){
+function recTable(list, hits){
   return `<div class="grid-wrap"><table class="grid" data-t="rec" style="min-width:1290px">
     <colgroup>
       <col style="width:150px"><col style="width:120px"><col style="width:250px"><col style="width:190px">
@@ -1542,7 +1605,8 @@ function recTable(list){
       ${gth('rec','number','Поступление')}${gth('rec','amount','Сумма','r')}${gth('rec','axes','Оси состояния')}
       ${gth('rec','account','Счёт и что опознал')}${gth('rec','payer','Плательщик')}
       ${gth('rec','period','Период')}${gth('rec','pays','Платежей','r')}${gth('rec','left','Нераспределено','r')}
-    </tr></thead><tbody id="rec-body">${recRowsHtml(list)}</tbody></table></div>`;
+    </tr></thead><tbody id="rec-body">${recRowsHtml(list)}</tbody>
+    <tfoot id="rec-foot">${recInvFoot(hits||list)}</tfoot></table></div>`;
 }
 
 const REC_LEGEND = `<div class="legend">
@@ -1551,22 +1615,26 @@ const REC_LEGEND = `<div class="legend">
   <span>${pill(FRZ.frozen)} заморозка</span>
   <span>${pill({t:'Невыясненное',cls:'warn'})} платежей нет</span></div>`;
 
-/* ---- каркас ленты; «Невыясненные» — этот же каркас с другим заголовком ----
+/* ---- каркас ленты; «Невыясненные» — этот же каркас, отличается только базой ----
+   Своего заголовка у ленты нет: имя экрана уже стоит в шапке страницы (VIEW_TITLES).
    Фильтр у обеих лент ОДИН (feed 'rec'): невыясненные — вид ленты поступлений,
    а не отдельная сущность, и своих условий у них быть не может. Отбор вида
    применяется до условий, условия — внутри вида. */
 function recFeed(o){
   const s = feedSlice('rec');
+  /* «Внести поступление» — действие ленты поступлений, а не «Невыясненных»: сюда
+     заходят опознавать уже пришедшие деньги (вкладка «Разбор» в карточке), а не
+     заводить новые. Внесённое поступление в этот список само не попадает. */
+  const add = o.add === false ? '' :
+    `<button class="btn btn-primary btn-sm" onclick="modalNewReceipt()">${recIco(REC_I.plus)}Внести поступление</button>`;
+  const bar = (o.segs || add)
+    ? `<div class="gtoolbar">${o.segs||''}<span class="spacer"></span>${add}</div>` : '';
   return `<div class="page-pad">
-    <div class="section-h">${o.title}</div>
     ${o.banners||''}
-    <div class="gtoolbar">${o.segs||''}<span class="spacer"></span>
-      <button class="btn btn-primary btn-sm" onclick="modalNewReceipt()">${recIco(REC_I.plus)}Внести поступление</button>
-    </div>
+    ${bar}
     ${feedBar('rec')}
-    ${recTable(s.page)}
+    ${recTable(s.page, s.hits)}
     ${feedPagerHtml(s)}
-    <div id="rec-inv">${recInvTotal(s.hits)}</div>
     ${REC_LEGEND}</div>`;
 }
 
@@ -1618,7 +1686,7 @@ defFeed('rec', {
   /* итог инварианта считается по ВСЕЙ выборке, а не по странице: это итог ленты */
   paint: s => {
     const b = document.getElementById('rec-body'); if(b) b.innerHTML = recRowsHtml(s.page);
-    const inv = document.getElementById('rec-inv'); if(inv) inv.innerHTML = recInvTotal(s.hits);
+    const f = document.getElementById('rec-foot'); if(f) f.innerHTML = recInvFoot(s.hits);
   },
 });
 
@@ -1640,17 +1708,16 @@ function viewReceipts(){
         `<span class="rowlink" onclick="openReceipt('${r.id}')">${r.number}</span> — ${r.deadline}, осталось ${r.daysLeft} раб. дн.`).join(' · ')}.`) : '')
     + (unresolvedReceipts().length ? recBan('warn', `<b>Невыясненных: ${unresolvedReceipts().length}.</b>
         Держат закрытие периода. Разбор — в карточке поступления, вкладка «Разбор».`) : '');
-  return recFeed({ title:'Поступления', banners:bans, segs });
+  return recFeed({ banners:bans, segs });
 }
 
 function viewUnresolved(){
   const list = unresolvedReceipts();
-  const segs = `<div class="seg">
-    <button onclick="go('receipts')">Вся лента (${DATA.receipts.length})</button>
-    <button class="on">Невыясненные (${list.length})</button></div>`;
+  /* Сегментов нет: «Вся лента» — это соседний пункт меню, а не вид внутри экрана.
+     Возврат к полной ленте даёт навигация, дублировать её кнопкой незачем. */
   const bans = list.length ? recBan('warn', `<b>Невыясненных: ${list.length}.</b> Держат закрытие периода.
       Опознание — вкладка «Разбор» в карточке поступления.`) : '';
-  return recFeed({ title:'Невыясненные поступления', banners:bans, segs });
+  return recFeed({ banners:bans, add:false });
 }
 
 /* ============================================================
@@ -2115,9 +2182,7 @@ function recDo(kind, id, arg){
    и единый язык ПТ-Д18…ПТ-Д20 (заморозка · статья долга · разбивка).
    ------------------------------------------------------------ */
 let payTab = 'req';
-let payFilter = 'all';
 function setPayTab(t){ payTab = t; render(); }
-function setPayFilter(f){ payFilter = f; FEEDS.pay.page = 1; render(); }
 
 /* ---- локальные словари и иконки ---- */
 const URG_T   = { over:'просрочено', cur:'текущее', acc:'начисленное' };
@@ -2154,27 +2219,9 @@ const payAsOfDate = s => s == null ? '' : String(s).split(' (')[0];
    ЛЕНТА ПЛАТЕЖЕЙ
    ============================================================ */
 function viewPayments(){
-  const all  = DATA.payments;
-  const live = all.filter(p => !p.void);
-  const dead = all.filter(p => p.void);
-
-  /* Счётчики сегментов — по всей ленте, а не по выборке: сегмент говорит о ленте,
-     а не о том, что осталось после условий фильтра. */
-  const seg = `<div class="seg">
-    <button class="${payFilter==='all'?'on':''}"  onclick="setPayFilter('all')">Все · ${all.length}</button>
-    <button class="${payFilter==='live'?'on':''}" onclick="setPayFilter('live')">Живые · ${live.length}</button>
-    <button class="${payFilter==='void'?'on':''}" onclick="setPayFilter('void')">Сторнированные · ${dead.length}</button>
-  </div>`;
-
   const s = feedSlice('pay');
 
   return `<div class="page-pad">
-    <div class="section-h">Платежи</div>
-
-    <div class="gtoolbar">${seg}<span class="spacer"></span>
-      <span class="src-tag" id="pay-total">${payTotalHtml(s.hits)}</span>
-    </div>
-
     ${feedBar('pay')}
 
     <!-- Формат реестра кредитов (§Р-19): фиксированные ширины, ↕ у каждой колонки,
@@ -2193,6 +2240,11 @@ function viewPayments(){
         ${gth('pay','alloc','Разбивка платежа')}${gth('pay','axes','Оси состояния')}${gth('pay','receipt','Из поступления')}
       </tr></thead>
       <tbody id="pay-body">${payRowsHtml(s.page)}</tbody>
+      <tfoot><tr>
+        <td colspan="2" class="lbl">Итого по выборке</td>
+        <td class="r num" id="pay-total">${payTotalHtml(s.hits)}</td>
+        <td colspan="3"></td>
+      </tr></tfoot>
     </table></div>
     ${feedPagerHtml(s)}
   </div>`;
@@ -2210,7 +2262,7 @@ function payRow(p){
     <td title="${esc(c.borrower)} · ${esc(c.title)} · ${esc(scope)}"><span class="cell-name">${c.borrower}</span
       ><span class="sub">${c.title} · ${scope}</span></td>
     <td><span class="mono">${p.number}</span>${p.void?' '+pill({t:'Сторнирован',cls:'err'}):''}<span class="sub">${r.date}</span></td>
-    <td class="r num">${cur(p.amount, p.currency)}${p.paidKGS?`<span class="sub">пришло ${money(p.paidKGS)} сом</span>`:''}</td>
+    <td class="r num">${cur(p.amount, p.currency)}${p.paidKGS?`<span class="sub">${money(p.paidKGS)} сом</span>`:''}</td>
     <td>${alloc}<span class="sub">${a ? ('на ' + payAsOfDate(a.asOf)) : '—'}</span></td>
     <td>${axes(r)}</td>
     <td><span class="rowlink" onclick="event.stopPropagation();openReceipt('${r.id}')">${r.number}</span></td>
@@ -2221,10 +2273,9 @@ const payRowsHtml = list => list.length ? list.map(payRow).join('')
   : `<tr><td colspan="${PAY_COLS}"><div class="grid-empty">${
       feedActive(FEEDS.pay).length ? 'Ничего не найдено по фильтрам' : 'Платежей в выборке нет'}</div></td></tr>`;
 /* Итог по видимой выборке за вычетом сторнированных: их сумма снята, складывать её
-   с живыми деньгами нельзя. В выборке «Сторнированные» итога нет вовсе. */
-const payTotalHtml = hits => payFilter==='void' ? ''
-  : `Итого: <b class="num" style="color:var(--text-heading)">${
-      money(hits.filter(p=>!p.void).reduce((s,p)=>s+paidOf(p), 0))} сом</b>`;
+   с живыми деньгами нельзя. Живёт в подвале таблицы, в колонке «Сумма». */
+const payTotalHtml = hits =>
+  `${money(hits.filter(p=>!p.void).reduce((s,p)=>s+paidOf(p), 0))} сом`;
 
 /* Условия ленты платежей. Платёж своих осей и своей даты не имеет — он наследует их
    у поступления (ADR-0056), поэтому «Дата факта» и «Период» читаются через receiptOf(). */
@@ -2236,9 +2287,11 @@ const PAY_CONDS = [
     ph:'Номер платежа, заёмщик, № договора, поступление',
     test:(p,v)=>{ const r = receiptOf(p), c = creditOf(p.credit);
       return (`${p.number} ${c.borrower} ${c.inn} ${c.title} ${r.number} ${r.payerName||''}`).toLowerCase().includes(v); } },
-  { key:'borrower', kind:'select', zone:'quick', label:'Заёмщик', width:230,
-    options:()=>uniqv(DATA.payments.map(p=>creditOf(p.credit).borrower)),
-    test:(p,v)=>creditOf(p.credit).borrower===v },
+  /* Заёмщика отдельным селектом не держим: он уже входит в поле поиска выше —
+     два входа в одну величину дают выборку, которую пользователь не может прочитать
+     по чипам. В быстрой зоне вместо него стоит период — измерение, поиском не берущееся. */
+  { key:'period', kind:'select', zone:'quick', label:'Период', width:230,
+    options:()=>DATA.periods.map(x=>({ v:x.id, t:x.label })), test:(p,v)=>receiptOf(p).period===v },
   { key:'kind', kind:'select', zone:'quick', label:'Вид платежа', width:200,
     options:()=>uniqv(DATA.payments.map(p=>p.kind)), test:(p,v)=>p.kind===v },
   /* Каскад «кредит → транш» — одно условие на двух селектах, как Область→Район в
@@ -2255,8 +2308,6 @@ const PAY_CONDS = [
     options:()=>[{ v:'live', t:'Динамическая' }, { v:'snap', t:'Зафиксированная' },
                  { v:'drift', t:'Разошлась с текущей' }],
     test:(p,v)=>v==='live' ? !p.snapshot : v==='snap' ? !!p.snapshot : !!snapshotDrift(p) },
-  { key:'period', kind:'select', label:'Период',
-    options:()=>DATA.periods.map(x=>({ v:x.id, t:x.label })), test:(p,v)=>receiptOf(p).period===v },
   { key:'date', kind:'range', input:'date', label:'Дата факта',
     test:(p,v)=>{ const iso = toISO(receiptOf(p).date);
       return !(v.from && (!iso || iso < v.from)) && !(v.to && (!iso || iso > v.to)); } },
@@ -2280,8 +2331,7 @@ defFeed('pay', {
                      return `${MATCH[r.match].t} ${FRZ[r.frozen].t} ${CHAN[r.channel].t}`; },
     receipt:  p => receiptOf(p).number,
   },
-  base: () => payFilter==='live' ? DATA.payments.filter(p=>!p.void)
-            : payFilter==='void' ? DATA.payments.filter(p=>p.void) : DATA.payments,
+  base: () => DATA.payments,
   paint: s => {
     const b = document.getElementById('pay-body'); if(b) b.innerHTML = payRowsHtml(s.page);
     const t = document.getElementById('pay-total'); if(t) t.innerHTML = payTotalHtml(s.hits);
@@ -2847,47 +2897,15 @@ const RET_ICO_I = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" s
    ЛЕНТА ВОЗВРАТОВ
    ============================================================ */
 function viewReturns(){
-  const sum  = arr => arr.reduce((s,v)=>s+v.amount,0);
-  const done = DATA.returns.filter(v=>v.state==='executed');
-  const wait = DATA.returns.filter(v=>v.state!=='executed');
-  const blk  = DATA.returns.filter(v=>v.state==='blocked');
-
-  const rows = gapply('ret', DATA.returns, RET_SORTERS).map(v=>{
-    const r = receiptOf(v);
-    const third = retIsThirdParty(v);
-    return `<tr onclick="openReturn('${v.id}')">
-      <td><span class="mono">${v.id}</span></td>
-      <td>${r ? `<span class="rowlink" onclick="event.stopPropagation();openReceipt('${r.id}')">${r.number}</span>
-              <span class="sub">${r.date} · ${money(r.amount)} · ${r.period}</span>` : '—'}</td>
-      <td class="r num"><span class="mono">${cur(v.amount, v.currency)}</span></td>
-      <td title="${esc(v.recipient.name)} · ${esc(v.recipient.requisites)}"><span class="cell-name">${v.recipient.name}</span
-        ><span class="sub">${v.recipient.requisites}</span></td>
-      <td>${pill(third ? {t:'Третье лицо', cls:'purple'} : {t:'Заёмщик', cls:'neutral'})}
-          <span class="sub">${third ? 'не заёмщик' : 'совпал с заёмщиком'}</span></td>
-      <td>${pill(RET_STATE[v.state])}</td>
-      <td title="${esc(v.basis || 'основания нет')}">${v.basis || '<i>основания нет</i>'}
-          <span class="sub">${v.basisBy || '—'}</span></td>
-      <td>${v.execBy ? `${v.execBy}<span class="sub">${v.execAt}</span>`
-                     : `<span class="sub">не исполнен</span>`}</td>
-    </tr>`;
-  }).join('');
-
+  const s = feedSlice('ret');
   return `<div class="page-pad">
-    <div class="section-h">Возвраты</div>
-
     <div class="gtoolbar">
+      <span class="spacer"></span>
       <button class="btn btn-primary btn-sm" onclick="modalNewReturn()">
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
         Новый возврат</button>
-      <span class="spacer"></span>
-      <span class="src-tag">${DATA.returns.length} записей · состояние на ${DATA.today}</span>
     </div>
-
-    <div class="inv">
-      <span class="iv">Исполнено (деньги ушли): <b>${money(sum(done))}</b></span>
-      <span class="iv">Ждут исполнения: <b>${money(sum(wait))}</b></span>
-      <span class="iv${blk.length?' bad':''}">Недопустимы по состоянию долга: <b>${money(sum(blk))}</b></span>
-    </div>
+    ${feedBar('ret')}
 
     <div class="grid-wrap">
       <table class="grid" data-t="ret" style="min-width:1300px">
@@ -2900,9 +2918,11 @@ function viewReturns(){
           ${gth('ret','recipient','Получатель')}${gth('ret','third','Вид получателя')}${gth('ret','state','Состояние')}
           ${gth('ret','basis','Основание')}${gth('ret','exec','Исполнил')}
         </tr></thead>
-        <tbody>${rows || '<tr><td colspan="8"><div class="grid-empty">Возвратов нет</div></td></tr>'}</tbody>
+        <tbody id="ret-body">${retRowsHtml(s.page)}</tbody>
+        <tfoot id="ret-foot">${retFoot(s.hits)}</tfoot>
       </table>
     </div>
+    ${feedPagerHtml(s)}
 
     <div class="legend">
       <span>${pill(RET_STATE.draft)} основания ещё нет</span>
@@ -2912,6 +2932,91 @@ function viewReturns(){
     </div>
   </div>`;
 }
+
+/* ---- строка ленты возвратов ---- */
+function retRow(v){
+  const r = receiptOf(v);
+  const third = retIsThirdParty(v);
+  return `<tr onclick="openReturn('${v.id}')">
+    <td><span class="mono">${v.id}</span></td>
+    <td>${r ? `<span class="rowlink" onclick="event.stopPropagation();openReceipt('${r.id}')">${r.number}</span>
+            <span class="sub">${r.date} · ${money(r.amount)} · ${r.period}</span>` : '—'}</td>
+    <td class="r num"><span class="mono">${cur(v.amount, v.currency)}</span></td>
+    <td title="${esc(v.recipient.name)} · ${esc(v.recipient.requisites)}"><span class="cell-name">${v.recipient.name}</span
+      ><span class="sub">${v.recipient.requisites}</span></td>
+    <td>${pill(third ? {t:'Третье лицо', cls:'purple'} : {t:'Заёмщик', cls:'neutral'})}
+        <span class="sub">${third ? 'не заёмщик' : 'совпал с заёмщиком'}</span></td>
+    <td>${pill(RET_STATE[v.state])}</td>
+    <td title="${esc(v.basis || 'основания нет')}">${v.basis || '<i>основания нет</i>'}
+        <span class="sub">${v.basisBy || '—'}</span></td>
+    <td>${v.execBy ? `${v.execBy}<span class="sub">${v.execAt}</span>`
+                   : `<span class="sub">не исполнен</span>`}</td>
+  </tr>`;
+}
+const RET_COLS = 8;
+/* Пустота различает две причины: возвратов нет вовсе — или их отсеяли условия. */
+const retRowsHtml = list => list.length ? list.map(retRow).join('')
+  : `<tr><td colspan="${RET_COLS}"><div class="grid-empty">${
+      feedActive(FEEDS.ret).length ? 'Ничего не найдено по фильтрам' : 'Возвратов нет'}</div></td></tr>`;
+
+/** Итог по видимой выборке подвалом таблицы: Σ стоит в СВОЕЙ колонке «Сумма», средняя
+    ячейка держит само равенство. Три величины разной природы — «деньги ушли», «ещё не
+    ушли», «не уйдут, пока не изменится состояние долга» — тремя несвязанными числами
+    не читаются. Считается по всей выборке, а не по странице: это итог ленты. */
+function retFoot(list){
+  const sum  = a => +a.reduce((s,v)=>s+v.amount,0).toFixed(2);
+  const done = list.filter(v=>v.state==='executed');
+  const wait = list.filter(v=>v.state!=='executed');
+  const blk  = list.filter(v=>v.state==='blocked');
+  return `<tr>
+    <td colspan="2" class="lbl">Итого по выборке<span class="sub">${list.length} возвр.</span></td>
+    <td class="r num">${money(sum(list))}</td>
+    <td colspan="5" class="lbl">= исполнено ${money(sum(done))} + ждут исполнения ${money(sum(wait))}${
+      blk.length ? ` · из них недопустимы ${money(sum(blk))}` : ''}</td></tr>`;
+}
+
+/* Условия ленты возвратов. Осей поступления возврат не наследует — у него их нет вовсе
+   (ADR-0056 §2): разнесения нет, заморозка удостоверяет разнесение и к возврату не
+   относится. Своих даты и периода у него тоже нет, поэтому «Период» читается через
+   receiptOf(), как «Дата факта» у платежей.
+   «Допустимость» стоит отдельным условием от «Состояния» намеренно: blocked — снимок
+   вывода на момент проверки, а сам вывод перепроверяется и у исполненного возврата
+   (кнопка «Проверить допустимость заново» в карточке). */
+const RET_CONDS = [
+  { key:'q', kind:'text', zone:'quick', label:'Поиск', width:330,
+    ph:'Возврат, поступление, получатель, основание',
+    test:(v,s)=>{ const r = receiptOf(v) || {};
+      return (`${v.id} ${r.number||''} ${r.payerName||''} ${v.recipient.name} ${v.recipient.requisites||''} ${v.basis||''}`)
+        .toLowerCase().includes(s); } },
+  { key:'state', kind:'select', zone:'quick', label:'Состояние', width:185,
+    options:()=>Object.keys(RET_STATE).map(k=>({ v:k, t:RET_STATE[k].t })), test:(v,s)=>v.state===s },
+  { key:'third', kind:'select', zone:'quick', label:'Вид получателя', width:185,
+    options:()=>[{ v:'third', t:'Третье лицо' }, { v:'borrower', t:'Заёмщик' }],
+    test:(v,s)=>retIsThirdParty(v) === (s==='third') },
+  { key:'period', kind:'select', label:'Период поступления',
+    options:()=>DATA.periods.map(p=>({ v:p.id, t:p.label })), test:(v,s)=>(receiptOf(v)||{}).period===s },
+  { key:'basis', kind:'select', label:'Основание',
+    options:()=>[{ v:'yes', t:'положено' }, { v:'no', t:'нет' }],
+    test:(v,s)=>!!v.basis === (s==='yes') },
+  { key:'adm', kind:'select', label:'Допустимость',
+    options:()=>[{ v:'ok', t:'допустим' }, { v:'no', t:'недопустим' }],
+    test:(v,s)=>v.admissibility.ok === (s==='ok') },
+  { key:'execAt', kind:'range', input:'date', label:'Дата исполнения',
+    test:(v,s)=>{ const iso = toISO(v.execAt);
+      return !(s.from && (!iso || iso < s.from)) && !(s.to && (!iso || iso > s.to)); } },
+  { key:'amount', kind:'range', input:'number', label:'Сумма возврата',
+    test:(v,s)=>!(s.from!=='' && v.amount < +s.from) && !(s.to!=='' && v.amount > +s.to) },
+];
+
+defFeed('ret', {
+  conds: RET_CONDS,
+  sorters: RET_SORTERS,
+  base: () => DATA.returns,
+  paint: s => {
+    const b = document.getElementById('ret-body'); if(b) b.innerHTML = retRowsHtml(s.page);
+    const f = document.getElementById('ret-foot'); if(f) f.innerHTML = retFoot(s.hits);
+  },
+});
 
 /* ============================================================
    КАРТОЧКА ВОЗВРАТА
