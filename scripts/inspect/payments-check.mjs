@@ -722,6 +722,17 @@ ok('меню разбито на три блока и упорядочено п�
    === 'pay>unresolved>returns | receipts>registry>recon | period>acts');
 ok('стартовый экран — «Платежи», главная лента куратора, а не «Поступления»',
    mk().ev('CUR_VIEW') === 'pay');
+// Бургер шапки был декоративным: cursor:pointer и title без обработчика.
+ok('бургер шапки сворачивает и разворачивает сайдбар, переключение переживает render()',
+   (() => { const m = mk();
+     const app = m.q('.app'), b = m.q('.topbar .menu');
+     b.dispatchEvent(new m.w.MouseEvent('click', { bubbles:true }));
+     const off = app.classList.contains('nav-off') && b.getAttribute('aria-expanded') === 'false';
+     m.ev(`go('receipts')`);                       // перерисовка не должна вернуть сайдбар
+     const survives = app.classList.contains('nav-off');
+     b.dispatchEvent(new m.w.MouseEvent('click', { bubbles:true }));
+     return off && survives && !app.classList.contains('nav-off')
+        && b.getAttribute('aria-expanded') === 'true'; })());
 ok('счётчик схлопнутой подгруппы поднят на её заголовок — свёрнутый узел не прячет препятствие',
    (() => { const m = mk();
      const sum = m.ev(`NAV[2].items.reduce((s,n)=>s+(n.badge?n.badge():0),0)`);

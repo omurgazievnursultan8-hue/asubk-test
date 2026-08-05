@@ -103,7 +103,12 @@ a{ color:inherit; }
 
 /* ---- sidebar ---- */
 .sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
-  display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+  display:flex; flex-direction:column; border-right:1px solid var(--border-default);
+  transition:width 160ms ease; }
+/* Свёрнутый сайдбар: ширина в ноль, содержимое клипается. Пункты меню при этом
+   перестают ловить фокус — иначе табом можно уехать в невидимую навигацию. */
+.app.nav-off .sidebar{ width:0; border-right:none; overflow:hidden; }
+.app.nav-off .sidebar *{ visibility:hidden; }
 .brand{ padding:18px 16px 14px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
   color:var(--text-heading); letter-spacing:0.04em; }
 .nav{ flex:1; overflow-y:auto; padding-bottom:8px; }
@@ -413,7 +418,9 @@ table.mxg td.r{ text-align:right; font:var(--weight-medium) 13px/1.4 var(--mono)
 
   <div class="main">
     <header class="topbar">
-      <span class="menu" title="Меню">
+      <span class="menu" title="Меню" role="button" tabindex="0" aria-label="Свернуть меню"
+            aria-expanded="true" onclick="toggleSidebar()"
+            onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleSidebar();}">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
       </span>
       <span class="crumb-title" id="crumbTitle">Платежи</span>
@@ -500,6 +507,15 @@ const ICONS = {
    и без этого набора любое действие схлопывало бы то, что открыл пользователь. */
 const NAV_OPEN = new Set(['m-pay', ...NAV.filter(g=>g.open).map(g=>g.id)]);
 function navToggle(id){ NAV_OPEN.has(id) ? NAV_OPEN.delete(id) : NAV_OPEN.add(id); renderNav(); }
+/* Свёрнутость сайдбара живёт классом на .app, а не в состоянии рендера:
+   render() перерисовывает только #nav и #content, поэтому переключение переживает
+   любое действие пользователя и не требует места в модели. */
+function toggleSidebar(){
+  const off = document.querySelector('.app').classList.toggle('nav-off');
+  const b = document.querySelector('.topbar .menu');
+  b.setAttribute('aria-expanded', String(!off));
+  b.setAttribute('aria-label', off ? 'Развернуть меню' : 'Свернуть меню');
+}
 function renderNav(){
   const nav = document.getElementById('nav');
   const chev = s => `<span class="chev"><svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>`;
