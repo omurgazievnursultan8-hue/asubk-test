@@ -237,8 +237,8 @@ ok('экран «Невыясненные» — тот же рендер стр�
 ok('шапка таблицы у обоих экранов одна и та же',
    (() => { const th = h => { const d = g.doc.createElement('div'); d.innerHTML = h;
        return [...d.querySelectorAll('th')].map(x=>x.textContent).join('|'); };
-     return th(g.view('receipts','curator')).startsWith(th(g.view('unresolved','curator')).split('|')[0])
-       && th(g.view('unresolved','curator')).includes('Счёт зачисления и что он опознал'); })());
+     const a = th(g.view('receipts','curator')), b = th(g.view('unresolved','curator'));
+     return a === b && b.includes('Счёт и что опознал'); })());
 ok('экран прямо называет себя видом ленты, а не буфером-справочником',
    /вид ленты поступлений/i.test(g.textOf(g.view('unresolved','curator'))));
 ok('срока годности у чужих денег нет: автосписание в доход не обещано (ПТ-27)',
@@ -799,6 +799,117 @@ ok('роль переключается селектором шапки и пе�
    (() => { const m = mk();
      m.ev(`go('receipts'); document.getElementById('roleSel').value='viewer'; onRoleChange();`);
      return m.ev('ROLE') === 'viewer' && m.$$('#content .role-hint').length >= 0; })());
+
+/* ============================================================
+   ФОРМАТ РЕЕСТРА КРЕДИТОВ — пять лент носят грид из mockups/loan-credit/credit.html §Р-19
+   ============================================================ */
+head('формат грида — как в реестре кредитов');
+
+/* лента → экран, на котором она живёт */
+const GRIDS = [['pay','pay'], ['rec','receipts'], ['ret','returns'], ['reg','registry'], ['act','acts']];
+
+const gridOf = t => { const el = g.q(`table.grid[data-t="${t}"]`); return el; };
+const gridFails = [];
+for(const [t, view] of GRIDS){
+  g.view(view, 'curator');
+  const tb = gridOf(t);
+  if(!tb){ gridFails.push(`${t}: грида нет`); continue; }
+  const cols = tb.querySelectorAll('colgroup col').length;
+  const ths  = tb.querySelectorAll('thead th').length;
+  const tds  = (tb.querySelector('tbody tr') || { children:[] }).children.length;
+  if(!cols)        gridFails.push(`${t}: нет colgroup`);
+  if(cols !== ths) gridFails.push(`${t}: колонок ${cols}, шапок ${ths}`);
+  if(tds && tds !== ths && tds !== 1) gridFails.push(`${t}: ячеек в строке ${tds}, шапок ${ths}`);
+}
+ok('пять лент (платежи · поступления · возвраты · реестр ЦК · акты) — на table.grid,'
+   + ' colgroup совпадает с числом шапок и ячеек'
+   + (gridFails.length ? ' — ' + gridFails.slice(0,4).join(' · ') : ''), gridFails.length === 0);
+/* Фиксированные ширины (table-layout:fixed) режут колонку молча: если сумма колонок
+   ушла заметно выше min-width таблицы или за ширину контентной области, крайняя
+   колонка просто не видна и об этом никто не узнает. */
+const WIDTH_BUDGET = 1330;   // контентная область при окне 1680 = 1680 − сайдбар 320 − поля 48
+const widthFails = [];
+for(const [t, view] of GRIDS){
+  g.view(view, 'curator');
+  const tb = gridOf(t); if(!tb) continue;
+  const sum = [...tb.querySelectorAll('colgroup col')]
+    .reduce((s, c) => s + (parseInt(c.style.width, 10) || 0), 0);
+  const min = parseInt(tb.style.minWidth, 10) || 0;
+  if(!sum || !min)                  widthFails.push(`${t}: ширины не заданы`);
+  else if(Math.abs(sum - min) > min * 0.05) widthFails.push(`${t}: колонок на ${sum}, min-width ${min}`);
+  else if(sum > WIDTH_BUDGET)       widthFails.push(`${t}: ${sum} > бюджета ${WIDTH_BUDGET}`);
+}
+ok('сумма колонок сходится с min-width таблицы и влезает в контентную область'
+   + (widthFails.length ? ' — ' + widthFails.join(' · ') : ''), widthFails.length === 0);
+
+const sortFails = [];
+for(const [t, view] of GRIDS){
+  g.view(view, 'curator');
+  const tb = gridOf(t);
+  if(!tb) continue;
+  const sortable = [...tb.querySelectorAll('thead th[data-k]')];
+  if(!sortable.length){ sortFails.push(`${t}: сортируемых колонок нет`); continue; }
+  const noArrow = sortable.filter(th => !th.querySelector('.sort'));
+  if(noArrow.length) sortFails.push(`${t}: без стрелки ${noArrow.length}`);
+}
+ok('↕ стоит у каждой сортируемой колонки всегда, а не по наведению'
+   + (sortFails.length ? ' — ' + sortFails.slice(0,4).join(' · ') : ''), sortFails.length === 0);
+
+ok('клик по шапке сортирует ленту и переключает направление', (() => {
+  const m = mk();
+  m.view('pay', 'curator');
+  const amounts = () => m.$$('#pay-body tr').map(tr => tr.children[2] && tr.children[2].textContent);
+  m.ev(`gsort('pay','amount')`);
+  const up = amounts();
+  m.ev(`gsort('pay','amount')`);
+  const down = amounts();
+  return up.length > 1 && down.length > 1 && up[0] !== down[0]
+      && m.ev(`sortState('pay').dir`) === -1;
+})());
+
+ok('сортировка идёт по всей выборке, а не по видимой странице', (() => {
+  const m = mk();
+  m.view('pay', 'curator');
+  m.ev(`gsort('pay','amount')`);                 // по возрастанию
+  const firstAsc = m.ev(`feedSlice('pay').page[0].id`);
+  const minId    = m.ev(`feedSlice('pay').hits.reduce((a,b)=>paidOf(b)<paidOf(a)?b:a).id`);
+  return firstAsc === minId;
+})());
+
+ok('состояние сортировки живёт у таблицы, а не у ленты: у возвратов и актов лент нет', (() => {
+  const m = mk();
+  m.view('returns', 'curator');
+  m.ev(`gsort('ret','amount')`);
+  const a = m.$$('table.grid[data-t="ret"] tbody tr').map(tr => tr.children[2].textContent.trim());
+  m.ev(`gsort('ret','amount')`);
+  const b = m.$$('table.grid[data-t="ret"] tbody tr').map(tr => tr.children[2].textContent.trim());
+  return a.length > 1 && a[0] !== b[0];
+})());
+
+ok('вторая строка ячейки — .sub, а не свёрстанный руками div со стилем', (() => {
+  let bad = 0;
+  for(const [t, view] of GRIDS){
+    g.view(view, 'curator');
+    const tb = gridOf(t); if(!tb) continue;
+    if(!tb.querySelectorAll('tbody td .sub').length) bad++;
+    bad += tb.querySelectorAll('tbody td div[style*="color:var(--text-muted)"]').length;
+    bad += tb.querySelectorAll('tbody td .src-tag').length;
+  }
+  return bad === 0;
+})());
+
+ok('строки реестра ЦК полосатятся вручную: пояснение под строкой не сбивает зебру', (() => {
+  g.view('registry', 'curator');
+  const tb = gridOf('reg'); if(!tb) return false;
+  if(!tb.classList.contains('man-zeb')) return false;
+  /* пояснение носит класс строки-владельца: .note и .zeb совпадают попарно */
+  const rows = [...tb.querySelectorAll('tbody tr')];
+  const notes = rows.filter(r => r.classList.contains('note'));
+  return notes.length > 0 && notes.every(nr => {
+    const prev = rows[rows.indexOf(nr) - 1];
+    return prev && prev.classList.contains('zeb') === nr.classList.contains('zeb');
+  });
+})());
 
 console.log(`\nОШИБОК КОНСОЛИ (jsdomError): ${g.errs.length}`);
 g.errs.forEach(e => console.log('  ' + e));

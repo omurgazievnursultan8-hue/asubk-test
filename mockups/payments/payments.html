@@ -67,7 +67,7 @@
   --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
   --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
   --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
-  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE; --asubk-gray-300:#D6DCE5;
   --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
   --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
   --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
@@ -265,6 +265,70 @@ table.cgrid tbody tr.total td{ font-weight:var(--weight-bold); color:var(--text-
 table.cgrid tbody tr.muted td{ color:var(--text-muted); font-style:italic; }
 table.cgrid tbody tr:last-child td{ border-bottom:none; }
 .cgrid-empty{ display:flex; align-items:center; justify-content:center; min-height:120px; color:var(--text-placeholder); font:var(--font-label); }
+
+/* ---- РЕЕСТРОВЫЙ ГРИД (.grid) — формат реестра кредитов, mockups/loan-credit/credit.html §Р-19.
+   Ленты платежей/поступлений/возвратов, реестр ЦК и лента актов стоят с реестром кредитов в
+   одном конвейере и обязаны читаться как один продукт. Отсюда всё, что отличает .grid от .cgrid:
+     • тёмная липкая шапка 14px и ↕ у КАЖДОЙ колонки — сортировка всегда на виду, а не угадывается;
+     • фиксированные ширины через <colgroup> + table-layout:fixed — колонки не пляшут от выборки,
+       длинное значение обрезается в «…», полное остаётся в title ячейки;
+     • зебра — чтобы взгляд не съезжал по строке в широкой таблице;
+     • вторая строка ячейки .sub вместо отдельной колонки (сюда ушли src-tag-подстрочники);
+     • деньги — вправо табличными цифрами: разряды обязаны стоять в столбик.
+   Обёртка .grid-wrap оставлена в рамке .cgrid-wrap: у кредитов реестр — вся страница, здесь
+   таблица стоит среди баннеров и пояснений и должна читаться отдельным блоком. ---- */
+.grid-wrap{ border:1px solid var(--border-default); border-radius:var(--radius-md);
+  overflow:auto; min-height:80px; background:var(--surface-card); }
+table.grid{ width:100%; table-layout:fixed; border-collapse:separate; border-spacing:0; font:var(--font-label); }
+table.grid thead th{ position:sticky; top:0; z-index:2; background:var(--asubk-gray-300);
+  text-align:left; padding:7px 12px; vertical-align:middle;
+  border-bottom:1px solid var(--border-strong);
+  font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  cursor:pointer; user-select:none; }
+table.grid thead th.nos{ cursor:default; }   /* колонка без сортировки — например, «Действие» */
+table.grid thead th .sort{ margin-left:4px; font-size:11px; color:var(--text-placeholder); }
+table.grid thead th.sorted{ color:var(--asubk-blue); }
+table.grid thead th.sorted .sort{ color:var(--asubk-blue); }
+table.grid thead th.r, table.grid tbody td.r{ text-align:right; }
+table.grid tbody td{ padding:5px 12px; border-bottom:1px solid var(--border-default);
+  color:var(--text-body); vertical-align:top;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+table.grid tbody tr{ cursor:pointer; }
+table.grid tbody tr:nth-child(even) td{ background:var(--asubk-gray-50); }
+/* реестр ЦК: под строкой живут пояснительные строки, и полосатость по nth-child врёт —
+   там зебра проставляется вручную классом .zeb на всей группе строк одной записи */
+table.grid.man-zeb tbody tr:nth-child(even) td{ background:none; }
+table.grid tbody tr.zeb td{ background:var(--asubk-gray-50); }
+/* ховер и выбор перебивают зебру — поэтому ниже по каскаду */
+table.grid tbody tr:hover td{ background:var(--asubk-gray-150); }
+table.grid tbody tr.sel td{ background:var(--asubk-nav-active); }
+table.grid tbody tr.muted td{ color:var(--text-muted); font-style:italic; }
+table.grid tbody tr:last-child td{ border-bottom:none; }
+/* пояснение под строкой — не строка данных: курсора-указателя и обрезки у неё нет */
+table.grid tbody tr.note td{ white-space:normal; cursor:default;
+  padding-top:0; color:var(--text-muted); font-size:12px; line-height:1.45; }
+table.grid tbody tr.note{ cursor:default; }
+/* денежная ячейка */
+.grid td.num{ font-variant-numeric:tabular-nums; font-feature-settings:"tnum" 1; }
+.grid td.bal{ font-weight:var(--weight-medium); color:var(--text-heading); }
+.grid td.bad, .grid td.bad .num{ color:var(--asubk-red); font-weight:var(--weight-semibold); }
+/* главная строка ячейки-имени */
+.grid td .cell-name{ font-weight:var(--weight-medium); color:var(--text-heading); }
+/* вторая строка ячейки: дата, реквизит, пояснение — то, что было отдельной колонкой или src-tag */
+.grid td .sub{ display:block; margin-top:1px; color:var(--text-muted);
+  font-weight:var(--weight-regular); font-size:12px; line-height:1.25;
+  font-variant-numeric:tabular-nums;
+  overflow:hidden; text-overflow:ellipsis; }
+.grid td .sub.inline{ display:inline; margin-top:0; margin-left:6px; }
+/* подстрочник из пилюль (метки строки реестра ЦК): их бывает две-три, и обрезка в «…»
+   съела бы вторую метку целиком — здесь перенос честнее многоточия */
+.grid td .sub.wrap{ white-space:normal; }
+/* пилюли в ячейке грида плотнее: строка 5px-паддинга, пилюля не должна её распирать */
+.grid td .pill{ vertical-align:baseline; }
+.grid-empty{ display:flex; align-items:center; justify-content:center; min-height:120px;
+  color:var(--text-placeholder); font:var(--font-label); white-space:normal; }
+
 .rowlink{ color:var(--text-link); cursor:pointer; }
 .rowlink:hover{ text-decoration:underline; }
 .mono{ font:var(--weight-medium) 13px/1.4 var(--mono); }
@@ -1126,7 +1190,8 @@ const blankOf = c => c.kind==='range' ? { from:'', to:'' } : c.kind==='pair' ? {
     size 5 — демонстрационный: в тестовых данных 10 строк, при 10 пейджер себя не
     покажет. В проде дефолт 10, как в реестре кредитов. */
 function defFeed(name, o){
-  const f = { name, conds:o.conds, base:o.base, paint:o.paint, size:o.size||5, page:1, open:false, st:{} };
+  const f = { name, conds:o.conds, base:o.base, paint:o.paint, sorters:o.sorters||{},
+              size:o.size||5, page:1, open:false, st:{} };
   f.conds.forEach(c => f.st[c.key] = blankOf(c));
   FEEDS[name] = f;
   return f;
@@ -1155,10 +1220,57 @@ function feedApply(f, list){
   const on = feedActive(f).map(x=>x.c);
   return list.filter(row => on.every(c => c.test(row, c.kind==='text' ? String(f.st[c.key]).trim().toLowerCase() : f.st[c.key])));
 }
+/* ============================================================
+   СОРТИРОВКА ГРИДА — общая для лент и обычных таблиц
+
+   Взято из реестра кредитов: ↕ стоит у КАЖДОЙ колонки всегда, клик по шапке
+   переключает ↑/↓. Состояние сортировки — не свойство ленты: у возвратов, реестра ЦК
+   и актов ленты нет, а шапка та же. Поэтому ключ состояния — ИМЯ ТАБЛИЦЫ (pay · rec ·
+   ret · reg · act), а сортеры — аксессоры на строку, объявленные рядом со своей таблицей.
+
+   Перерисовка разная по той же причине, что и у фильтров: у ленты есть точечный
+   feedRows() (иначе слетит страница и фокус), у остальных таблиц — полный render().
+   Сортировка применяется ДО пагинации: иначе сортировался бы только текущий лист.
+   ============================================================ */
+const SORTS = {};
+const sortState = t => SORTS[t] || (SORTS[t] = { key:null, dir:1 });
+/** шапка-колонка со стрелкой; cls — доп. классы ячейки (r — правое выравнивание) */
+function gth(t, key, label, cls){
+  const s = sortState(t), on = s.key === key;
+  const cl = [cls||'', on?'sorted':''].filter(Boolean).join(' ');
+  return `<th data-k="${key}"${cl?` class="${cl}"`:''} onclick="gsort('${t}','${key}')"
+    >${label}<span class="sort">${on ? (s.dir===1?'↑':'↓') : '↕'}</span></th>`;
+}
+function gsort(t, key){
+  const s = sortState(t);
+  if(s.key === key) s.dir = -s.dir; else { s.key = key; s.dir = 1; }
+  if(FEEDS[t]){ FEEDS[t].page = 1; feedRows(t); gsyncHead(t); } else render();
+}
+/** отразить состояние сортировки на стрелках шапки (лента шапку не перерисовывает) */
+function gsyncHead(t){
+  const s = sortState(t);
+  document.querySelectorAll(`table.grid[data-t="${t}"] thead th[data-k]`).forEach(th=>{
+    const on = th.getAttribute('data-k') === s.key;
+    th.classList.toggle('sorted', on);
+    const sp = th.querySelector('.sort');
+    if(sp) sp.textContent = on ? (s.dir===1?'↑':'↓') : '↕';
+  });
+}
+/** применить сортировку таблицы t; числа — арифметически, остальное — localeCompare('ru') */
+function gapply(t, list, sorters){
+  const s = sortState(t), get = sorters && sorters[s.key];
+  if(!get) return list;
+  return list.slice().sort((a,b)=>{
+    const x = get(a), y = get(b);
+    if(typeof x==='number' && typeof y==='number') return (x-y) * s.dir;
+    return String(x==null?'':x).localeCompare(String(y==null?'':y), 'ru', { numeric:true }) * s.dir;
+  });
+}
+
 /** выборка + страница; страница зажимается, если выборка усохла */
 function feedSlice(name){
   const f = FEEDS[name];
-  const hits = feedApply(f, f.base());
+  const hits = gapply(name, feedApply(f, f.base()), f.sorters);
   const pages = Math.max(1, Math.ceil(hits.length / f.size));
   if(f.page > pages) f.page = pages;
   const from = (f.page - 1) * f.size;
@@ -1391,33 +1503,45 @@ function recRow(r){
              : isUnresolved(r) ? pill({t:'Невыясненное', cls:'warn'}) : '';
   const per = (DATA.periods.find(p=>p.id===r.period)||{});
   const wait = r.match==='pending' && r.daysLeft!=null
-    ? `<div class="src-tag" style="margin-top:4px">до автосторно ${r.daysLeft} раб. дн. · ${r.deadline}</div>` : '';
+    ? `<span class="sub">до автосторно ${r.daysLeft} раб. дн. · ${r.deadline}</span>` : '';
   return `<tr onclick="openReceipt('${r.id}')">
-    <td><span class="rowlink">${r.number}</span>${mark?'<div style="margin-top:4px">'+mark+'</div>':''}</td>
-    <td class="mono">${r.date}<div class="src-tag" style="margin-top:4px">дата фактического поступления</div></td>
-    <td class="r mono">${cur(r.amount, r.currency)}</td>
+    <td><span class="rowlink">${r.number}</span><span class="sub">${r.date}</span>${mark?`<span class="sub">${mark}</span>`:''}</td>
+    <td class="r num">${cur(r.amount, r.currency)}</td>
     <td>${axes(r)}${wait}</td>
-    <td><span class="mono">${r.account}</span><div class="src-tag" style="margin-top:4px">${r.accountObject}</div></td>
-    <td>${r.payerName || '—'}</td>
-    <td style="white-space:normal;max-width:280px">${r.note || '—'}</td>
-    <td>${per.label || r.period}<div class="src-tag" style="margin-top:4px">${(PSTATE[per.state]||{}).t||''}</div></td>
-    <td class="r">${live}${dead?`<div class="src-tag">+${dead} погашен сторно</div>`:''}</td>
-    <td class="r mono"${L.bad?' style="color:var(--asubk-red);font-weight:600"':''}>${money(left)}
-      <div class="src-tag" style="text-align:right">${L.t}</div></td></tr>`;
+    <td title="${esc(r.account)} · ${esc(r.accountObject||'')}"><span class="mono">${r.account}</span
+      ><span class="sub">${r.accountObject}</span></td>
+    <td title="${esc(r.payerName||'—')} · ${esc(r.note||'—')}"><span class="cell-name">${r.payerName || '—'}</span
+      ><span class="sub">${r.note || '—'}</span></td>
+    <td>${per.label || r.period}<span class="sub">${(PSTATE[per.state]||{}).t||''}</span></td>
+    <td class="r num">${live}${dead?`<span class="sub">+${dead} погашен сторно</span>`:''}</td>
+    <td class="r num${L.bad?' bad':''}">${money(left)}<span class="sub">${L.t}</span></td></tr>`;
 }
 
-const REC_COLS = 10;
+const REC_COLS = 8;
 /* Пусто по двум разным причинам, и путать их нельзя: в виде ленты нет строк вообще —
    или их отсеяли условия фильтра. Второе снимается кнопкой «Сбросить», первое нет. */
 const recRowsHtml = list => list.length ? list.map(recRow).join('')
-  : `<tr><td colspan="${REC_COLS}"><div class="cgrid-empty">${
+  : `<tr><td colspan="${REC_COLS}"><div class="grid-empty">${
       feedActive(FEEDS.rec).length ? 'Ничего не найдено по фильтрам' : 'В этом виде ленты поступлений нет'}</div></td></tr>`;
 
+/* Формат реестра кредитов (§Р-19). Десять колонок слиты в восемь — пары, которые
+   читаются как одно:
+     Поступление = номер (+ метка) над датой факта — дата как измерение выборки
+                   закрыта условием «Дата факта», как дата договора у кредитов;
+     Плательщик  = имя над примечанием документа: и то и другое пришло из банковского
+                   документа, а не из нашей трактовки;
+     остальные пары (счёт → что опознал, период → его состояние, остаток → его подпись)
+     уже жили подстрочником src-tag и просто переехали в .sub. */
 function recTable(list){
-  return `<div class="cgrid-wrap"><table class="cgrid"><thead><tr>
-    <th>Поступление</th><th>Дата факта</th><th class="r">Сумма</th><th>Оси состояния</th>
-    <th>Счёт зачисления и что он опознал</th><th>Плательщик</th><th>Примечание документа</th>
-    <th>Период</th><th class="r">Платежей</th><th class="r">Нераспределено</th>
+  return `<div class="grid-wrap"><table class="grid" data-t="rec" style="min-width:1290px">
+    <colgroup>
+      <col style="width:150px"><col style="width:120px"><col style="width:250px"><col style="width:190px">
+      <col style="width:210px"><col style="width:115px"><col style="width:105px"><col style="width:160px">
+    </colgroup>
+    <thead><tr>
+      ${gth('rec','number','Поступление')}${gth('rec','amount','Сумма','r')}${gth('rec','axes','Оси состояния')}
+      ${gth('rec','account','Счёт и что опознал')}${gth('rec','payer','Плательщик')}
+      ${gth('rec','period','Период')}${gth('rec','pays','Платежей','r')}${gth('rec','left','Нераспределено','r')}
     </tr></thead><tbody id="rec-body">${recRowsHtml(list)}</tbody></table></div>`;
 }
 
@@ -1476,6 +1600,19 @@ const REC_CONDS = [
 
 defFeed('rec', {
   conds: REC_CONDS,
+  /* Сортеры — по величине из ячейки. Колонка «Поступление» сортируется по номеру
+     (дата в ней подстрочник и закрыта условием «Дата факта»), «Нераспределено» — по
+     самой сумме остатка, а не по её подписи. */
+  sorters: {
+    number:  r => r.number,
+    amount:  r => r.amount,
+    axes:    r => `${MATCH[r.match].t} ${FRZ[r.frozen].t} ${CHAN[r.channel].t}`,
+    account: r => r.account,
+    payer:   r => r.payerName || '',
+    period:  r => r.period,
+    pays:    r => paymentsOf(r).filter(p=>!p.void).length,
+    left:    r => unallocated(r),
+  },
   /* база = отбор ВИДА: экран «Невыясненные» или выбранный сегмент общей ленты */
   base: () => CUR_VIEW==='unresolved' ? unresolvedReceipts()
             : DATA.receipts.filter((RFILTERS.find(x=>x.id===rFilter) || RFILTERS[0]).f),
@@ -2105,11 +2242,20 @@ function viewPayments(){
 
     ${feedBar('pay')}
 
-    <div class="cgrid-wrap"><table class="cgrid">
+    <!-- Формат реестра кредитов (§Р-19): фиксированные ширины, ↕ у каждой колонки,
+         подстрочник .sub вместо отдельной колонки. Слитые пары:
+           Заёмщик = имя над «кредит · область разбивки»
+           Платёж  = номер над датой факта (дата — из поступления, ADR-0056)
+           Сумма   = сумма долга над пришедшими сомами (валютный платёж)
+           Разбивка = вид разбивки над датой среза -->
+    <div class="grid-wrap"><table class="grid" data-t="pay" style="min-width:1300px">
+      <colgroup>
+        <col style="width:260px"><col style="width:190px"><col style="width:150px">
+        <col style="width:200px"><col style="width:330px"><col style="width:170px">
+      </colgroup>
       <thead><tr>
-        <th style="min-width:340px">Заёмщик ·<br>кредит</th>
-        <th>Номер и дата<br>платежа</th><th class="r">Сумма</th>
-        <th>Разбивка<br>платежа</th><th>Оси состояния</th><th>Из поступления</th>
+        ${gth('pay','borrower','Заёмщик')}${gth('pay','number','Платёж')}${gth('pay','amount','Сумма','r')}
+        ${gth('pay','alloc','Разбивка платежа')}${gth('pay','axes','Оси состояния')}${gth('pay','receipt','Из поступления')}
       </tr></thead>
       <tbody id="pay-body">${payRowsHtml(s.page)}</tbody>
     </table></div>
@@ -2124,18 +2270,20 @@ function payRow(p){
   const alloc = p.snapshot
     ? pill({ t:'Зафиксированная', cls:'neutral' }) + (d ? ' ' + pill({ t:'Разошлась с текущей', cls:'warn' }) : '')
     : pill({ t:'Динамическая', cls:'info' });
+  const scope = payTrancheLabel(p) || 'Оба транша кредита';
   return `<tr class="${p.void?'muted':''}" onclick="openPayment('${p.id}')">
-    <td>${c.borrower}<div style="${MUT};margin-top:2px">${c.title} ${payScopeTag(p)}</div></td>
-    <td><span class="mono">${p.number}</span><div class="num" style="${MUT};font-size:12px">${r.date}</div>${p.void?'<div>'+pill({t:'Сторнирован',cls:'err'})+'</div>':''}</td>
-    <td class="r num">${cur(p.amount, p.currency)}${p.paidKGS?'<div style="'+MUT+';font-size:12px">пришло '+money(p.paidKGS)+' сом</div>':''}</td>
-    <td>${alloc}<div style="${MUT};font-size:12px">${a ? ('на ' + payAsOfDate(a.asOf)) : '—'}</div></td>
+    <td title="${esc(c.borrower)} · ${esc(c.title)} · ${esc(scope)}"><span class="cell-name">${c.borrower}</span
+      ><span class="sub">${c.title} · ${scope}</span></td>
+    <td><span class="mono">${p.number}</span>${p.void?' '+pill({t:'Сторнирован',cls:'err'}):''}<span class="sub">${r.date}</span></td>
+    <td class="r num">${cur(p.amount, p.currency)}${p.paidKGS?`<span class="sub">пришло ${money(p.paidKGS)} сом</span>`:''}</td>
+    <td>${alloc}<span class="sub">${a ? ('на ' + payAsOfDate(a.asOf)) : '—'}</span></td>
     <td>${axes(r)}</td>
     <td><span class="rowlink" onclick="event.stopPropagation();openReceipt('${r.id}')">${r.number}</span></td>
   </tr>`;
 }
 const PAY_COLS = 6;
 const payRowsHtml = list => list.length ? list.map(payRow).join('')
-  : `<tr><td colspan="${PAY_COLS}"><div class="cgrid-empty">${
+  : `<tr><td colspan="${PAY_COLS}"><div class="grid-empty">${
       feedActive(FEEDS.pay).length ? 'Ничего не найдено по фильтрам' : 'Платежей в выборке нет'}</div></td></tr>`;
 /* Итог по видимой выборке за вычетом сторнированных: их сумма снята, складывать её
    с живыми деньгами нельзя. В выборке «Сторнированные» итога нет вовсе. */
@@ -2181,8 +2329,22 @@ const PAY_CONDS = [
     test:(p,v)=>!(v.from!=='' && p.amount < +v.from) && !(v.to!=='' && p.amount > +v.to) },
 ];
 
+/* Сортеры ленты платежей — по той же величине, что стоит в ячейке.
+   Дата в колонке «Платёж» — подстрочник, сортируется колонка по номеру (как «Договор»
+   в реестре кредитов); дата как измерение выборки закрыта условием «Дата факта».
+   Сумма сортируется по пришедшим деньгам (paidOf), а не по величине долга: в ленте
+   лежат платежи в разных валютах, и 1 000 USD не должна вставать ниже 42 600 сом. */
 defFeed('pay', {
   conds: PAY_CONDS,
+  sorters: {
+    borrower: p => creditOf(p.credit).borrower,
+    number:   p => p.number,
+    amount:   p => paidOf(p),
+    alloc:    p => !p.snapshot ? 0 : snapshotDrift(p) ? 2 : 1,
+    axes:     p => { const r = receiptOf(p);
+                     return `${MATCH[r.match].t} ${FRZ[r.frozen].t} ${CHAN[r.channel].t}`; },
+    receipt:  p => receiptOf(p).number,
+  },
   base: () => payFilter==='live' ? DATA.payments.filter(p=>!p.void)
             : payFilter==='void' ? DATA.payments.filter(p=>p.void) : DATA.payments,
   paint: s => {
@@ -2749,6 +2911,21 @@ function payDisputeSave(pid){
 /* получатель — реквизит возврата, а не производная кредита (ПТ-Д2) */
 const retIsThirdParty = v => /трет/i.test(v.recipient.kind);
 
+/* Сортеры ленты возвратов. Состояние сортируется по порядку жизни возврата
+   (черновик → основание → недопустим → исполнен), а не по алфавиту подписи:
+   алфавит здесь ничего не значит, порядок стадий — значит. */
+const RET_ORDER = Object.keys(RET_STATE);
+const RET_SORTERS = {
+  id:        v => v.id,
+  receipt:   v => (receiptOf(v)||{}).number || '',
+  amount:    v => v.amount,
+  recipient: v => v.recipient.name,
+  third:     v => retIsThirdParty(v) ? 1 : 0,
+  state:     v => RET_ORDER.indexOf(v.state),
+  basis:     v => v.basis || '',
+  exec:      v => v.execBy || '',
+};
+
 /* заёмщик по поступлению выводится из живых платежей; чужие деньги заёмщика не имеют */
 function retBorrowers(v){
   const r = receiptOf(v); if(!r) return [];
@@ -2787,22 +2964,23 @@ function viewReturns(){
   const wait = DATA.returns.filter(v=>v.state!=='executed');
   const blk  = DATA.returns.filter(v=>v.state==='blocked');
 
-  const rows = DATA.returns.map(v=>{
+  const rows = gapply('ret', DATA.returns, RET_SORTERS).map(v=>{
     const r = receiptOf(v);
     const third = retIsThirdParty(v);
     return `<tr onclick="openReturn('${v.id}')">
       <td><span class="mono">${v.id}</span></td>
       <td>${r ? `<span class="rowlink" onclick="event.stopPropagation();openReceipt('${r.id}')">${r.number}</span>
-              <div class="src-tag">${r.date} · ${money(r.amount)} · ${r.period}</div>` : '—'}</td>
-      <td class="r"><span class="mono">${cur(v.amount, v.currency)}</span></td>
-      <td>${v.recipient.name}<div class="src-tag">${v.recipient.requisites}</div></td>
+              <span class="sub">${r.date} · ${money(r.amount)} · ${r.period}</span>` : '—'}</td>
+      <td class="r num"><span class="mono">${cur(v.amount, v.currency)}</span></td>
+      <td title="${esc(v.recipient.name)} · ${esc(v.recipient.requisites)}"><span class="cell-name">${v.recipient.name}</span
+        ><span class="sub">${v.recipient.requisites}</span></td>
       <td>${pill(third ? {t:'Третье лицо', cls:'purple'} : {t:'Заёмщик', cls:'neutral'})}
-          <div class="src-tag">${third ? 'из кредита не выводится' : 'совпал с заёмщиком по этому поступлению'}</div></td>
+          <span class="sub">${third ? 'из кредита не выводится' : 'совпал с заёмщиком по этому поступлению'}</span></td>
       <td>${pill(RET_STATE[v.state])}</td>
-      <td style="white-space:normal;max-width:340px">${v.basis || '<i>основания нет</i>'}
-          <div class="src-tag">${v.basisBy || '—'}</div></td>
-      <td>${v.execBy ? `${v.execBy}<div class="src-tag">${v.execAt}</div>`
-                     : `<span class="src-tag">не исполнен</span>`}</td>
+      <td title="${esc(v.basis || 'основания нет')}">${v.basis || '<i>основания нет</i>'}
+          <span class="sub">${v.basisBy || '—'}</span></td>
+      <td>${v.execBy ? `${v.execBy}<span class="sub">${v.execAt}</span>`
+                     : `<span class="sub">не исполнен</span>`}</td>
     </tr>`;
   }).join('');
 
@@ -2829,13 +3007,18 @@ function viewReturns(){
       <span class="iv">В Σ платежей возвраты <b>не входят</b> — это отдельное слагаемое инварианта</span>
     </div>
 
-    <div class="cgrid-wrap">
-      <table class="cgrid">
+    <div class="grid-wrap">
+      <table class="grid" data-t="ret" style="min-width:1300px">
+        <colgroup>
+          <col style="width:95px"><col style="width:175px"><col style="width:130px"><col style="width:200px">
+          <col style="width:175px"><col style="width:150px"><col style="width:250px"><col style="width:145px">
+        </colgroup>
         <thead><tr>
-          <th>Возврат</th><th>Из поступления</th><th class="r">Сумма</th>
-          <th>Получатель</th><th>Вид получателя</th><th>Состояние</th><th>Основание</th><th>Исполнил</th>
+          ${gth('ret','id','Возврат')}${gth('ret','receipt','Из поступления')}${gth('ret','amount','Сумма','r')}
+          ${gth('ret','recipient','Получатель')}${gth('ret','third','Вид получателя')}${gth('ret','state','Состояние')}
+          ${gth('ret','basis','Основание')}${gth('ret','exec','Исполнил')}
         </tr></thead>
-        <tbody>${rows || '<tr><td colspan="8" class="cgrid-empty">Возвратов нет</td></tr>'}</tbody>
+        <tbody>${rows || '<tr><td colspan="8"><div class="grid-empty">Возвратов нет</div></td></tr>'}</tbody>
       </table>
     </div>
 
@@ -3401,8 +3584,11 @@ const REG_FILTERS = [
 /* ============================================================
    ЛЕНТА СТРОК
    ============================================================ */
-function regRow(o){
+/* i — порядок строки В ОТОБРАЖЁННОМ списке, а не в ленте: зебра здесь проставляется
+   вручную (класс .zeb), потому что под строкой живут пояснения и nth-child врёт. */
+function regRow(o, i){
   const x = o.x, r = o.r;
+  const zeb = (i % 2) ? ' zeb' : '';
   const marks = o.dup ? pill(REG_P.dup)
     : (r ? pill(REG_P.matched) : pill(REG_P.none))
       + (o.diff ? ' '+pill(REG_P.mismatch) : '')
@@ -3410,20 +3596,20 @@ function regRow(o){
 
   /* к чему привязано: id нашего поступления либо честное «нет нашей записи» */
   const bound = o.dup
-    ? `<span class="src-tag">в сопоставление не идёт</span>`
+    ? `<span class="sub">в сопоставление не идёт</span>`
     : r
       ? `<span class="rowlink" onclick="event.stopPropagation();openReceipt('${r.id}')">${r.number}</span>
-         <div class="src-tag" style="margin-top:4px">наше поступление от ${r.date}${o.split.length?` · платежей ${o.split.length}`:' · платежей нет'}</div>`
+         <span class="sub">наше от ${r.date}${o.split.length?` · платежей ${o.split.length}`:' · платежей нет'}</span>`
       : `<b style="color:var(--asubk-red)">нет нашей записи</b>
-         <div class="src-tag" style="margin-top:4px">держит закрытие периода</div>`;
+         <span class="sub">держит закрытие периода</span>`;
 
   const act = o.dup
-    ? `<span class="src-tag">—</span>`
+    ? `<span class="sub">—</span>`
     : o.diff
       ? `<button class="btn btn-sm ${can.correct()?'btn-primary':'btn-secondary'}"
            onclick="event.stopPropagation();regCorrect(${o.i})">Корректировать нашу запись</button>`
       : r
-        ? `<span class="src-tag">совпало 1:1</span>`
+        ? `<span class="sub">совпало 1:1</span>`
         : `<button class="btn btn-sm ${can.bind()?'btn-tint':'btn-secondary'}"
              onclick="event.stopPropagation();regCreateModal(${o.i})">Создать поступление по строке</button>`;
 
@@ -3442,26 +3628,50 @@ function regRow(o){
     <b style="color:var(--asubk-red)">${money(Math.abs(o.diff))}</b>. После сопоставления действует сумма ЦК:
     <b>наша запись подтягивается к ЦК</b>, строка реестра не правится.`);
 
-  return `<tr class="${o.dup?'muted':''}"${click}>
-    <td><span class="mono">№${x.doc}</span><div style="margin-top:4px">${marks}</div></td>
+  /* Наша сумма ушла подстрочником под сумму ЦК: это не две независимые величины, а
+     одна сверка — глазу нужно видеть их в одной ячейке, а не в двух колонках. */
+  const ours = o.dup ? 'в учёт не берётся' : r ? `наша ${money(r.amount)}` : 'нашей записи нет';
+  return `<tr class="${o.dup?'muted':''}${zeb}"${click}>
+    <td><span class="mono">№${x.doc}</span><span class="sub wrap">${marks}</span></td>
     <td class="mono">${x.date}</td>
-    <td class="r mono">${money(x.amount)}<div class="src-tag" style="text-align:right">сумма ЦК</div></td>
-    <td class="r mono"${o.diff?' style="color:var(--asubk-red);font-weight:600"':''}>${(!o.dup&&r)?money(r.amount):'—'}
-      <div class="src-tag" style="text-align:right">${o.dup?'в учёт не берётся':r?'наша сумма':'нашей записи нет'}</div></td>
-    <td>${x.payer}</td>
-    <td style="white-space:normal;max-width:240px">${x.note||'—'}</td>
+    <td class="r num${o.diff?' bad':''}">${money(x.amount)}<span class="sub">${ours}</span></td>
+    <td title="${esc(x.payer)} · ${esc(x.note||'—')}"><span class="cell-name">${x.payer}</span
+      ><span class="sub">${x.note||'—'}</span></td>
     <td>${(DATA.periods.find(p=>p.id===x.period)||{}).label || x.period}</td>
     <td>${bound}</td>
     <td class="r">${act}</td>
-  </tr>${sub.map(s=>`<tr class="muted" style="cursor:default"><td colspan="9" style="white-space:normal">${s}</td></tr>`).join('')}`;
+  </tr>${sub.map(s=>`<tr class="note muted${zeb}"><td colspan="${REG_COLS}">${s}</td></tr>`).join('')}`;
 }
 
+const REG_COLS = 7;
+/* Сортеры реестра ЦК. Сумма — по сумме ЦК: после сопоставления действует именно она.
+   «К чему привязано» сортируется по состоянию привязки (нет записи → дубль → есть пара),
+   а не по номеру нашего поступления: в этой колонке ищут не номер, а дыры. */
+const REG_SORTERS = {
+  doc:    o => o.x.doc,
+  date:   o => toISO(o.x.date),
+  amount: o => o.x.amount,
+  payer:  o => o.x.payer,
+  period: o => o.x.period,
+  bound:  o => o.dup ? 1 : o.r ? 2 : 0,
+};
+
+/* Девять колонок реестра ЦК слиты в семь — по тому же правилу, что и у кредитов:
+   «Сумма ЦК» + «Наша сумма» = одна ячейка сверки, «Плательщик» + «Назначение» =
+   один банковский документ. Зебра здесь ручная (.man-zeb + .zeb): под строкой живут
+   пояснения (дубль · расщепление · расхождение), и полосатость по nth-child сбилась бы. */
 function regTable(rows){
-  if(!rows.length) return `<div class="cgrid-wrap"><div class="cgrid-empty">Строк реестра в этом отборе нет</div></div>`;
-  return `<div class="cgrid-wrap"><table class="cgrid"><thead><tr>
-    <th>Строка ЦК</th><th>Дата документа</th><th class="r">Сумма ЦК</th><th class="r">Наша сумма</th>
-    <th>Плательщик</th><th>Назначение</th><th>Период</th><th>К чему привязано</th><th class="r">Действие</th>
-    </tr></thead><tbody>${rows.map(regRow).join('')}</tbody></table></div>`;
+  if(!rows.length) return `<div class="grid-wrap"><div class="grid-empty">Строк реестра в этом отборе нет</div></div>`;
+  return `<div class="grid-wrap"><table class="grid man-zeb" data-t="reg" style="min-width:1300px">
+    <colgroup>
+      <col style="width:195px"><col style="width:150px"><col style="width:165px"><col style="width:230px">
+      <col style="width:120px"><col style="width:210px"><col style="width:250px">
+    </colgroup>
+    <thead><tr>
+      ${gth('reg','doc','Строка ЦК')}${gth('reg','date','Дата документа')}${gth('reg','amount','Сумма ЦК / наша','r')}
+      ${gth('reg','payer','Плательщик')}${gth('reg','period','Период')}${gth('reg','bound','К чему привязано')}
+      <th class="nos">Действие</th>
+    </tr></thead><tbody>${gapply('reg', rows, REG_SORTERS).map(regRow).join('')}</tbody></table></div>`;
 }
 
 /* ---- группировка по периоду с итогами; дубли в сумму не входят ---- */
@@ -4963,24 +5173,35 @@ function actRow(a){
   const dS    = prel && Math.abs(comp.sum - a.sum) > 0.004;         // разошлась сумма
   const bl    = prel ? periodBlockers(a.period) : [];
   return `<tr onclick="openAct('${a.id}')">
-    <td><span class="rowlink">${a.id}</span>
-      <div class="src-tag" style="margin-top:4px">создан ${a.created}</div></td>
-    <td>${actKindPill(a.kind)}
-      <div class="src-tag" style="margin-top:4px;white-space:normal;max-width:230px">${(ACT_KIND[a.kind]||{}).why||''}</div></td>
+    <td><span class="rowlink">${a.id}</span><span class="sub">создан ${a.created}</span></td>
+    <td title="${esc((ACT_KIND[a.kind]||{}).why||'')}">${actKindPill(a.kind)}
+      <span class="sub">${(ACT_KIND[a.kind]||{}).why||''}</span></td>
     <td>${per.label}
-      <div style="margin-top:4px">${pill(PSTATE[per.state]||PSTATE.open)}</div>
-      ${prel?`<div class="src-tag" style="margin-top:4px">препятствий: ${bl.length}</div>`:''}</td>
-    <td>${a.borrower}</td>
-    <td class="r"><b class="num">${sh.n}</b>
-      <div class="src-tag" style="text-align:right">${sh.src}</div>
-      ${dN?`<div class="src-tag" style="text-align:right">в акте: ${a.frozenCount}</div>`:''}</td>
-    <td class="r mono">${money(sh.sum)}
-      ${dS?`<div class="src-tag" style="text-align:right">в акте: ${money(a.sum)}</div>`:''}</td>
-    <td>${a.initiator}</td>
+      <span class="sub">${pill(PSTATE[per.state]||PSTATE.open)}</span>
+      ${prel?`<span class="sub">препятствий: ${bl.length}</span>`:''}</td>
+    <td title="${esc(a.borrower)}"><span class="cell-name">${a.borrower}</span></td>
+    <td class="r num"><b>${sh.n}</b><span class="sub">${sh.src}</span>
+      ${dN?`<span class="sub">в акте: ${a.frozenCount}</span>`:''}</td>
+    <td class="r num">${money(sh.sum)}
+      ${dS?`<span class="sub">в акте: ${money(a.sum)}</span>`:''}</td>
+    <td title="${esc(a.initiator)}">${a.initiator}</td>
     <td>${actPill(a)}
-      ${prel?`<div class="src-tag" style="margin-top:4px">период открыт — только «предварительно»</div>`:''}</td>
+      ${prel?`<span class="sub">период открыт — только «предварительно»</span>`:''}</td>
   </tr>`;
 }
+
+/* Сортеры ленты актов. «Состояние» сортируется по подписи состояния, а «Период» — по
+   его id (2026-06 < 2026-07): в ISO-подобном id лексика совпадает с хронологией. */
+const ACT_SORTERS = {
+  id:        a => a.id,
+  kind:      a => (ACT_KIND[a.kind]||{}).t || a.kind,
+  period:    a => a.period,
+  borrower:  a => a.borrower,
+  frozen:    a => actShown(a, actComposition(a)).n,
+  sum:       a => actShown(a, actComposition(a)).sum,
+  initiator: a => a.initiator,
+  state:     a => actState(a)[0],
+};
 
 function viewActs(){
   const internal  = DATA.acts.filter(a=>a.kind==='internal');
@@ -5017,13 +5238,21 @@ function viewActs(){
         предварительных: ${prelim.length} · состояние на ${DATA.today}</span>
     </div>
 
-    <div class="cgrid-wrap">
-      <table class="cgrid"><thead><tr>
-        <th>Акт</th><th>Вид документа</th><th>Период</th><th>Заёмщик</th>
-        <th class="r">Вошло замороженных</th><th class="r">Сумма, вошедшая в акт</th>
-        <th>Инициатор</th><th>Состояние</th>
-      </tr></thead>
-      <tbody>${DATA.acts.map(actRow).join('') || '<tr><td colspan="8" class="cgrid-empty">Актов нет</td></tr>'}</tbody>
+    <div class="grid-wrap">
+      <table class="grid" data-t="act" style="min-width:1300px">
+        <colgroup>
+          <col style="width:150px"><col style="width:170px"><col style="width:155px"><col style="width:200px">
+          <col style="width:140px"><col style="width:145px"><col style="width:185px"><col style="width:180px">
+        </colgroup>
+        <!-- Шапки сокращены до слова: «Вошло замороженных» и «Сумма, вошедшая в акт» в
+             фиксированной колонке обрезались в «…», а обрезанная шапка не называет колонку. -->
+        <thead><tr>
+          ${gth('act','id','Акт')}${gth('act','kind','Вид документа')}${gth('act','period','Период')}
+          ${gth('act','borrower','Заёмщик')}${gth('act','frozen','Замороженных','r')}
+          ${gth('act','sum','Сумма акта','r')}${gth('act','initiator','Инициатор')}${gth('act','state','Состояние')}
+        </tr></thead>
+      <tbody>${gapply('act', DATA.acts, ACT_SORTERS).map(actRow).join('')
+        || '<tr><td colspan="8"><div class="grid-empty">Актов нет</div></td></tr>'}</tbody>
       </table>
     </div>
 
