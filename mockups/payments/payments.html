@@ -205,6 +205,50 @@ a{ color:inherit; }
 .search input:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
 .search svg{ position:absolute; left:8px; top:8px; color:var(--text-placeholder); }
 
+/* ---- фильтр ленты: два яруса, чипы, пейджер (паттерн реестра кредитов) ----
+   Ярус 1 всегда виден: поиск — самое частое действие в ленте, за клик его не прячут.
+   Ярус 2 свёрнут: это редкие условия, они не должны занимать экран каждый вход.
+   Ширины полей — по содержимому контрола, а не поровну; свободное место уходит
+   в разрыв перед кнопкой «⚙ Фильтры». */
+.tb-quick{ display:flex; align-items:flex-end; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
+.tb-quick .field{ min-width:0; }
+.tb-quick .q-more{ margin-left:auto; }
+.filter-body{ display:none; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px 16px;
+  padding:12px 14px; margin-bottom:10px; border:1px solid var(--border-default);
+  border-radius:var(--radius-md); background:var(--surface-card); }
+.filter-body.open{ display:grid; }
+.filter-body .field{ min-width:0; }
+.range-pair{ display:flex; align-items:center; gap:8px; }
+.range-pair .control{ flex:1; min-width:0; }
+.range-pair input{ width:100%; height:var(--control-h); border-radius:var(--radius-md);
+  background:var(--surface-card); border:1px solid var(--border-strong); color:var(--text-body);
+  font:var(--font-body); font-weight:var(--weight-medium); outline:none; padding:0 var(--space-2); }
+.range-pair input:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
+.filter-actions{ grid-column:2 / -1; display:flex; justify-content:flex-end; align-items:flex-end; gap:10px; }
+.filter-chips{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+.filter-chips:empty{ display:none; }
+.fchip{ display:inline-flex; align-items:center; gap:4px; background:var(--asubk-blue-tint); color:var(--asubk-blue);
+  border-radius:var(--radius-pill); padding:3px 4px 3px 10px; font:var(--font-label); }
+.fchip button{ border:none; background:none; cursor:pointer; color:inherit; font-size:15px; line-height:1;
+  padding:0 4px; border-radius:var(--radius-pill); }
+.fchip button:hover{ background:rgba(255,255,255,0.5); }
+/* бейдж считает УСЛОВИЯ, а не поля: диапазон «от—до» — одно условие на двух контролах */
+.fbadge{ margin-left:6px; padding:1px 7px; border-radius:var(--radius-pill);
+  background:var(--status-info-bg); color:var(--asubk-blue);
+  font:var(--weight-medium) 12px/1.6 var(--asubk-font); }
+.pager{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:12px;
+  font:var(--font-label); color:var(--text-muted); }
+.pager .pinfo{ margin-right:auto; }
+.pager .pages{ display:flex; align-items:center; gap:4px; }
+.pager .pg{ min-width:28px; height:28px; padding:0 6px; display:inline-flex; align-items:center; justify-content:center;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--surface-card);
+  color:var(--text-body); cursor:pointer; user-select:none; }
+.pager .pg:hover{ background:var(--surface-hover); }
+.pager .pg.active{ background:var(--action-primary); border-color:var(--action-primary); color:#fff; cursor:default; }
+.pager .pg.dis{ color:var(--text-disabled); cursor:default; background:var(--asubk-disabled-fill); }
+.pager .psize select{ height:28px; min-width:72px; margin-left:6px; border:1px solid var(--border-default);
+  border-radius:var(--radius-md); background:var(--surface-card); color:var(--text-body); font:var(--font-label); }
+
 /* ---- grid ---- */
 .cgrid-wrap{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:auto; min-height:80px; background:var(--surface-card); }
 table.cgrid{ width:100%; border-collapse:collapse; font:var(--font-label); white-space:nowrap; }
@@ -1042,6 +1086,181 @@ DATA.payments.forEach(p => {
 });
 
 /* ============================================================
+   ФИЛЬТР ЛЕНТЫ — один движок на две ленты (поступления · платежи)
+
+   Паттерн взят из реестра кредитов (mockups/loan-credit/credit.html, §Р-19):
+   ярус 1 — быстрая строка (поиск + частые условия + «⚙ Фильтры» с бейджем),
+   ярус 2 — свёрнутая панель редких условий, под ними чипы активных условий.
+
+   Отличие от кредитов — в механике рендера. Там реестр живёт в своём DOM и
+   строки перерисовываются точечно; здесь render() пересобирает весь #content,
+   поэтому:
+     • источник истины — состояние в JS (feed.st), контролы рисуются ИЗ него;
+       читать значения из DOM нельзя — после ререндера их там уже нет;
+     • ввод в поиск зовёт не render(), а feedRows() — точечную перерисовку
+       строк, чипов, бейджа, пейджера и итоговой полосы. Полный render() на
+       каждой букве уносил бы фокус и каретку из поля.
+   Клик по чипу и «Сбросить фильтры» — наоборот, полный render(): фокус в этот
+   момент не в поле, а значения надо вернуть в сами контролы.
+
+   Условие ≠ поле: диапазон «от—до» и каскад «кредит → транш» — это ОДНО
+   условие на двух контролах. Иначе бейдж врёт: заполненный диапазон дал бы 2.
+   Сегменты-виды ленты («Все · Живые · Сторнированные») фильтром не являются:
+   это отбор, внутри которого работают условия. Они складываются по AND.
+   ============================================================ */
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+const uniqv = arr => [...new Set(arr)].filter(Boolean).sort((a,b)=>String(a).localeCompare(String(b),'ru'));
+/* модель хранит даты как дд.мм.гггг, <input type="date"> говорит только в ISO.
+   В ISO лексикографический порядок совпадает с хронологическим — сравниваем в нём. */
+const toISO = s => /^\d{2}\.\d{2}\.\d{4}$/.test(s||'') ? String(s).split('.').reverse().join('-') : '';
+const toDMY = s => /^\d{4}-\d{2}-\d{2}$/.test(s||'') ? String(s).split('-').reverse().join('.') : (s||'');
+
+const FEEDS = {};
+const normOpt = o => typeof o==='string' ? { v:o, t:o } : o;
+const optLabel = (list, v) => { const o = list.map(normOpt).find(x=>x.v===v); return o ? o.t : v; };
+const optHtml = (list, sel) => ['<option value="">— все —</option>'].concat(
+  list.map(normOpt).map(o=>`<option value="${esc(o.v)}"${o.v===sel?' selected':''}>${esc(o.t)}</option>`)).join('');
+const blankOf = c => c.kind==='range' ? { from:'', to:'' } : c.kind==='pair' ? { a:'', b:'' } : '';
+
+/** дескриптор ленты: откуда строки (base), чем их рисовать (paint), какие условия.
+    size 5 — демонстрационный: в тестовых данных 10 строк, при 10 пейджер себя не
+    покажет. В проде дефолт 10, как в реестре кредитов. */
+function defFeed(name, o){
+  const f = { name, conds:o.conds, base:o.base, paint:o.paint, size:o.size||5, page:1, open:false, st:{} };
+  f.conds.forEach(c => f.st[c.key] = blankOf(c));
+  FEEDS[name] = f;
+  return f;
+}
+
+/** задано ли условие (не «заполнено ли поле») */
+function condSet(c, v){
+  if(c.kind==='range') return v.from!=='' || v.to!=='';
+  if(c.kind==='pair')  return !!(v.a || v.b);
+  return String(v).trim() !== '';
+}
+/** подпись условия в чипе */
+function condText(c, v){
+  if(c.fmt) return c.fmt(v);
+  if(c.kind==='text')   return v.trim();
+  if(c.kind==='select') return optLabel(c.options(), v);
+  if(c.kind==='pair')   return [v.a && optLabel(c.options(), v.a), v.b && optLabel(c.optionsB(v.a), v.b)]
+                                .filter(Boolean).join(' · ');
+  const f = c.input==='date' ? toDMY(v.from) : v.from, t = c.input==='date' ? toDMY(v.to) : v.to;
+  return `${f||'…'}—${t||'…'}`;
+}
+/** активные условия ленты — [{c, text}] */
+const feedActive = f => f.conds.filter(c=>condSet(c, f.st[c.key])).map(c=>({ c, text:condText(c, f.st[c.key]) }));
+/** AND-комбинация: незаданное условие выборку не сужает */
+function feedApply(f, list){
+  const on = feedActive(f).map(x=>x.c);
+  return list.filter(row => on.every(c => c.test(row, c.kind==='text' ? String(f.st[c.key]).trim().toLowerCase() : f.st[c.key])));
+}
+/** выборка + страница; страница зажимается, если выборка усохла */
+function feedSlice(name){
+  const f = FEEDS[name];
+  const hits = feedApply(f, f.base());
+  const pages = Math.max(1, Math.ceil(hits.length / f.size));
+  if(f.page > pages) f.page = pages;
+  const from = (f.page - 1) * f.size;
+  return { f, hits, pages, from, page: hits.slice(from, from + f.size) };
+}
+
+/* ---- контролы условий ---- */
+function feedCtl(f, c){
+  const id = `f-${f.name}-${c.key}`, v = f.st[c.key];
+  const w = c.width ? ` style="width:${c.width}px"` : '';
+  const lab = `<span class="flabel">${esc(c.label)}</span>`;
+  const set = (part, ev) => `${ev}="feedSet('${f.name}','${c.key}','${part}',this.value)"`;
+  if(c.kind==='text') return `<div class="field"${w}>${lab}<div class="control">
+      <input id="${id}" type="search" placeholder="${esc(c.ph||'')}" value="${esc(v)}" ${set('','oninput')}></div></div>`;
+  if(c.kind==='select') return `<div class="field"${w}>${lab}<div class="control">
+      <select id="${id}" ${set('','onchange')}>${optHtml(c.options(), v)}</select>
+      <span class="caret">▾</span></div></div>`;
+  if(c.kind==='pair') return `<div class="field"${w}>${lab}<div class="range-pair">
+      <div class="control"><select id="${id}-a" ${set('a','onchange')}>${optHtml(c.options(), v.a)}</select><span class="caret">▾</span></div>
+      <div class="control"><select id="${id}-b" ${set('b','onchange')}>${optHtml(c.optionsB(v.a), v.b)}</select><span class="caret">▾</span></div>
+    </div></div>`;
+  const t = c.input || 'number', ev = t==='date' ? 'onchange' : 'oninput';
+  const ph = t==='number' ? [' placeholder="от"',' placeholder="до"'] : ['',''];
+  return `<div class="field"${w}>${lab}<div class="range-pair">
+      <input id="${id}-from" type="${t}"${ph[0]} value="${esc(v.from)}" ${set('from',ev)}>
+      <span>—</span>
+      <input id="${id}-to" type="${t}"${ph[1]} value="${esc(v.to)}" ${set('to',ev)}>
+    </div></div>`;
+}
+
+/** оба яруса + чипы; right — что прижать вправо в быстрой строке */
+function feedBar(name, right){
+  const f = FEEDS[name];
+  const n = feedActive(f).length;
+  const quick = f.conds.filter(c=>c.zone==='quick'), panel = f.conds.filter(c=>c.zone!=='quick');
+  return `<div class="tb-quick">
+      ${quick.map(c=>feedCtl(f,c)).join('')}
+      <button class="btn btn-secondary btn-sm q-more" onclick="feedToggle('${name}')">⚙ Фильтры<span
+        class="fbadge" id="fb-${name}"${n?'':' hidden'}>${n?'·'+n:''}</span></button>
+      ${right||''}
+    </div>
+    <div class="filter-body${f.open?' open':''}" id="fp-${name}">
+      ${panel.map(c=>feedCtl(f,c)).join('')}
+      <div class="filter-actions"><button class="btn btn-secondary btn-sm" onclick="feedReset('${name}')">Сбросить фильтры</button></div>
+    </div>
+    <div class="filter-chips" id="fc-${name}">${feedChips(f)}</div>`;
+}
+/* × снимает условие целиком: обе границы диапазона, оба селекта каскада */
+const feedChips = f => feedActive(f).map(({c, text}) =>
+  `<span class="fchip">${esc(c.label)}: ${esc(text)}<button title="Снять условие"
+     onclick="feedClear('${f.name}','${c.key}')">×</button></span>`).join('');
+
+function feedPagerInner(f, total, pages, from, shown){
+  const btn = (label, to, dis) => dis ? `<span class="pg dis">${label}</span>`
+    : `<span class="pg" onclick="feedPage('${f.name}',${to})">${label}</span>`;
+  const nums = [];
+  for(let i=1;i<=pages;i++) nums.push(i===f.page ? `<span class="pg active">${i}</span>` : btn(i, i, false));
+  return `<span class="pinfo">${total ? `Показано ${from+1}–${from+shown} из ${total}` : 'Ничего не найдено'}</span>
+    <span class="pages">${btn('‹', f.page-1, f.page<=1)}${nums.join('')}${btn('›', f.page+1, f.page>=pages)}</span>
+    <span class="psize">На странице<select onchange="feedSize('${f.name}',this.value)">${
+      [5,10,25].map(n=>`<option${n===f.size?' selected':''}>${n}</option>`).join('')}</select></span>`;
+}
+const feedPagerHtml = s => `<div class="pager" id="fpg-${s.f.name}">${
+  feedPagerInner(s.f, s.hits.length, s.pages, s.from, s.page.length)}</div>`;
+
+/* ---- действия ---- */
+function feedSet(name, key, part, value){
+  const f = FEEDS[name], c = f.conds.find(x=>x.key===key);
+  if(part) f.st[key][part] = value; else f.st[key] = value;
+  f.page = 1;
+  if(c.kind==='pair' && part==='a'){          // каскад: старший селект пересобирает младший
+    f.st[key].b = '';
+    const b = document.getElementById(`f-${name}-${key}-b`);
+    if(b) b.innerHTML = optHtml(c.optionsB(value), '');
+  }
+  feedRows(name);
+}
+function feedToggle(name){
+  const f = FEEDS[name]; f.open = !f.open;
+  const el = document.getElementById(`fp-${name}`); if(el) el.classList.toggle('open', f.open);
+}
+function feedClear(name, key){
+  const f = FEEDS[name]; f.st[key] = blankOf(f.conds.find(c=>c.key===key)); f.page = 1; render();
+}
+function feedReset(name){
+  const f = FEEDS[name]; f.conds.forEach(c=>f.st[c.key] = blankOf(c)); f.page = 1; render();
+}
+function feedPage(name, to){ FEEDS[name].page = to; feedRows(name); }
+function feedSize(name, v){ const f = FEEDS[name]; f.size = +v; f.page = 1; feedRows(name); }
+
+/** точечная перерисовка: строки и итоги — дело ленты, чипы/бейдж/пейджер — движка */
+function feedRows(name){
+  const s = feedSlice(name);
+  s.f.paint(s);
+  const chips = document.getElementById('fc-'+name); if(chips) chips.innerHTML = feedChips(s.f);
+  const badge = document.getElementById('fb-'+name);
+  if(badge){ const n = feedActive(s.f).length; badge.textContent = n ? '·'+n : ''; badge.hidden = !n; }
+  const pg = document.getElementById('fpg-'+name);
+  if(pg) pg.innerHTML = feedPagerInner(s.f, s.hits.length, s.pages, s.from, s.page.length);
+}
+
+/* ============================================================
    VIEW ROUTER — восемь экранов (шов №1: поступление · платёж · возврат)
    ============================================================ */
 let CUR_VIEW = 'pay';            // главная лента куратора (спека §12), не «Поступления»
@@ -1099,7 +1318,7 @@ const stubView = (title, note, defects) => `<div class="page-pad">
 let rTab = 'alloc';
 function setRTab(t){ rTab = t; render(); }
 let rFilter = 'all';
-function setRFilter(f){ rFilter = f; render(); }
+function setRFilter(f){ rFilter = f; FEEDS.rec.page = 1; render(); }
 
 /* ---- мелкая инфраструктура экрана ---- */
 const recIco = d => `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
@@ -1187,13 +1406,19 @@ function recRow(r){
       <div class="src-tag" style="text-align:right">${L.t}</div></td></tr>`;
 }
 
+const REC_COLS = 10;
+/* Пусто по двум разным причинам, и путать их нельзя: в виде ленты нет строк вообще —
+   или их отсеяли условия фильтра. Второе снимается кнопкой «Сбросить», первое нет. */
+const recRowsHtml = list => list.length ? list.map(recRow).join('')
+  : `<tr><td colspan="${REC_COLS}"><div class="cgrid-empty">${
+      feedActive(FEEDS.rec).length ? 'Ничего не найдено по фильтрам' : 'В этом виде ленты поступлений нет'}</div></td></tr>`;
+
 function recTable(list){
-  if(!list.length) return `<div class="cgrid-wrap"><div class="cgrid-empty">В этом виде ленты поступлений нет</div></div>`;
   return `<div class="cgrid-wrap"><table class="cgrid"><thead><tr>
     <th>Поступление</th><th>Дата факта</th><th class="r">Сумма</th><th>Оси состояния</th>
     <th>Счёт зачисления и что он опознал</th><th>Плательщик</th><th>Примечание документа</th>
     <th>Период</th><th class="r">Платежей</th><th class="r">Нераспределено</th>
-    </tr></thead><tbody>${list.map(recRow).join('')}</tbody></table></div>`;
+    </tr></thead><tbody id="rec-body">${recRowsHtml(list)}</tbody></table></div>`;
 }
 
 const REC_LEGEND = `<div class="legend">
@@ -1202,8 +1427,12 @@ const REC_LEGEND = `<div class="legend">
   <span>${pill(FRZ.frozen)} заморозка — граница ролей: после неё трактовку правит только бухгалтер</span>
   <span>${pill({t:'Невыясненное',cls:'warn'})} поступление с нулём платежей</span></div>`;
 
-/* ---- каркас ленты; «Невыясненные» — этот же каркас с другим заголовком ---- */
+/* ---- каркас ленты; «Невыясненные» — этот же каркас с другим заголовком ----
+   Фильтр у обеих лент ОДИН (feed 'rec'): невыясненные — вид ленты поступлений,
+   а не отдельная сущность, и своих условий у них быть не может. Отбор вида
+   применяется до условий, условия — внутри вида. */
 function recFeed(o){
+  const s = feedSlice('rec');
   return `<div class="page-pad">
     <div class="section-h">${o.title}</div>
     <p class="section-note">${o.note}</p>
@@ -1211,10 +1440,51 @@ function recFeed(o){
     <div class="gtoolbar">${o.segs||''}<span class="spacer"></span>
       <button class="btn btn-primary btn-sm" onclick="modalNewReceipt()">${recIco(REC_I.plus)}Внести поступление</button>
     </div>
-    ${recTable(o.list)}
-    ${recInvTotal(o.list)}
+    ${feedBar('rec')}
+    ${recTable(s.page)}
+    ${feedPagerHtml(s)}
+    <div id="rec-inv">${recInvTotal(s.hits)}</div>
     ${REC_LEGEND}</div>`;
 }
+
+/* Условия ленты поступлений. Ярус 1 — то, чем сужают выборку каждый вход
+   (поиск по реквизитам, канал, период); ярус 2 — редкое.
+   Сверка и заморозка дублируют часть сегментов намеренно: сегмент — готовый вид
+   одним кликом, условие — произвольная комбинация (например «банк + расхождение
+   + июль»), которую сегментами не собрать. */
+const REC_CONDS = [
+  { key:'q', kind:'text', zone:'quick', label:'Поиск', width:340,
+    ph:'Номер, плательщик, счёт, примечание',
+    test:(r,v)=>(`${r.number} ${r.payerName||''} ${r.account} ${r.accountObject||''} ${r.note||''}`).toLowerCase().includes(v) },
+  { key:'channel', kind:'select', zone:'quick', label:'Канал', width:170,
+    options:()=>Object.keys(CHAN).map(k=>({ v:k, t:CHAN[k].t })), test:(r,v)=>r.channel===v },
+  { key:'period', kind:'select', zone:'quick', label:'Период', width:170,
+    options:()=>DATA.periods.map(p=>({ v:p.id, t:p.label })), test:(r,v)=>r.period===v },
+  { key:'match', kind:'select', label:'Сопоставление с ЦК',
+    options:()=>uniqv(DATA.receipts.map(r=>r.match)).map(k=>({ v:k, t:MATCH[k].t })), test:(r,v)=>r.match===v },
+  { key:'frozen', kind:'select', label:'Заморозка',
+    options:()=>Object.keys(FRZ).map(k=>({ v:k, t:FRZ[k].t })), test:(r,v)=>r.frozen===v },
+  { key:'left', kind:'select', label:'Нераспределённый остаток',
+    options:()=>[{ v:'yes', t:'есть' }, { v:'no', t:'нет' }],
+    test:(r,v)=>(Math.abs(unallocated(r)) > 0.004) === (v==='yes') },
+  { key:'date', kind:'range', input:'date', label:'Дата факта',
+    test:(r,v)=>{ const iso = toISO(r.date);
+      return !(v.from && (!iso || iso < v.from)) && !(v.to && (!iso || iso > v.to)); } },
+  { key:'amount', kind:'range', input:'number', label:'Сумма поступления',
+    test:(r,v)=>!(v.from!=='' && r.amount < +v.from) && !(v.to!=='' && r.amount > +v.to) },
+];
+
+defFeed('rec', {
+  conds: REC_CONDS,
+  /* база = отбор ВИДА: экран «Невыясненные» или выбранный сегмент общей ленты */
+  base: () => CUR_VIEW==='unresolved' ? unresolvedReceipts()
+            : DATA.receipts.filter((RFILTERS.find(x=>x.id===rFilter) || RFILTERS[0]).f),
+  /* итог инварианта считается по ВСЕЙ выборке, а не по странице: это итог ленты */
+  paint: s => {
+    const b = document.getElementById('rec-body'); if(b) b.innerHTML = recRowsHtml(s.page);
+    const inv = document.getElementById('rec-inv'); if(inv) inv.innerHTML = recInvTotal(s.hits);
+  },
+});
 
 const RFILTERS = [
   { id:'all',        t:'Все',            f:()=>true },
@@ -1225,8 +1495,6 @@ const RFILTERS = [
 ];
 
 function viewReceipts(){
-  const flt  = RFILTERS.find(x=>x.id===rFilter) || RFILTERS[0];
-  const list = DATA.receipts.filter(flt.f);
   const segs = `<div class="seg">${RFILTERS.map(x=>
     `<button class="${x.id===rFilter?'on':''}" onclick="setRFilter('${x.id}')">${x.t} (${DATA.receipts.filter(x.f).length})</button>`).join('')}</div>`;
   const waiting = DATA.receipts.filter(r=>r.match==='pending');
@@ -1248,7 +1516,7 @@ function viewReceipts(){
       платежах, деньги наружу — в возвратах. Три оси состояния (канал · сопоставление · заморозка) живут здесь;
       платёж их наследует и своих не имеет. Счёт зачисления сам опознаёт объект: счёт транша даёт транш, общий счёт ЦК
       не опознаёт ничего — отсюда невыясненные, это норма банковского канала, а не редкость.`,
-    banners:bans, segs, list });
+    banners:bans, segs });
 }
 
 function viewUnresolved(){
@@ -1267,7 +1535,7 @@ function viewUnresolved(){
     title:'Невыясненные поступления',
     note:`Тот же рендер строки, что и в ленте поступлений: номер, дата фактического поступления, сумма, оси состояния,
       счёт зачисления и что он опознал, плательщик, примечание документа, период. Отбор — <code>unresolvedReceipts()</code>.`,
-    banners:bans, segs, list });
+    banners:bans, segs });
 }
 
 /* ============================================================
@@ -1777,7 +2045,7 @@ function recDo(kind, id, arg){
 let payTab = 'req';
 let payFilter = 'all';
 function setPayTab(t){ payTab = t; render(); }
-function setPayFilter(f){ payFilter = f; render(); }
+function setPayFilter(f){ payFilter = f; FEEDS.pay.page = 1; render(); }
 
 /* ---- локальные словари и иконки ---- */
 const URG_T   = { over:'просрочено', cur:'текущее', acc:'начисленное' };
@@ -1817,39 +2085,25 @@ function viewPayments(){
   const all  = DATA.payments;
   const live = all.filter(p => !p.void);
   const dead = all.filter(p => p.void);
-  const rows = payFilter === 'live' ? live : payFilter === 'void' ? dead : all;
-  /* Итог считается по видимой выборке за вычетом сторнированных: их сумма снята,
-     складывать её с живыми деньгами нельзя. В выборке «Сторнированные» итога нет. */
-  const sum  = rows.filter(p => !p.void).reduce((s,p) => s + paidOf(p), 0);
 
+  /* Счётчики сегментов — по всей ленте, а не по выборке: сегмент говорит о ленте,
+     а не о том, что осталось после условий фильтра. */
   const seg = `<div class="seg">
     <button class="${payFilter==='all'?'on':''}"  onclick="setPayFilter('all')">Все · ${all.length}</button>
     <button class="${payFilter==='live'?'on':''}" onclick="setPayFilter('live')">Живые · ${live.length}</button>
     <button class="${payFilter==='void'?'on':''}" onclick="setPayFilter('void')">Сторнированные · ${dead.length}</button>
   </div>`;
 
-  const tr = p => {
-    const r = receiptOf(p), c = creditOf(p.credit), d = snapshotDrift(p);
-    const a = allocOf(p.snapshot || p.derived);   // у замороженного дата среза — дата фиксации
-    const alloc = p.snapshot
-      ? pill({ t:'Зафиксированная', cls:'neutral' }) + (d ? ' ' + pill({ t:'Разошлась с текущей', cls:'warn' }) : '')
-      : pill({ t:'Динамическая', cls:'info' });
-    return `<tr class="${p.void?'muted':''}" onclick="openPayment('${p.id}')">
-      <td>${c.borrower}<div style="${MUT};margin-top:2px">${c.title} ${payScopeTag(p)}</div></td>
-      <td><span class="mono">${p.number}</span><div class="num" style="${MUT};font-size:12px">${r.date}</div>${p.void?'<div>'+pill({t:'Сторнирован',cls:'err'})+'</div>':''}</td>
-      <td class="r num">${cur(p.amount, p.currency)}${p.paidKGS?'<div style="'+MUT+';font-size:12px">пришло '+money(p.paidKGS)+' сом</div>':''}</td>
-      <td>${alloc}<div style="${MUT};font-size:12px">${a ? ('на ' + payAsOfDate(a.asOf)) : '—'}</div></td>
-      <td>${axes(r)}</td>
-      <td><span class="rowlink" onclick="event.stopPropagation();openReceipt('${r.id}')">${r.number}</span></td>
-    </tr>`;
-  };
+  const s = feedSlice('pay');
 
   return `<div class="page-pad">
     <div class="section-h">Платежи</div>
 
     <div class="gtoolbar">${seg}<span class="spacer"></span>
-      ${payFilter==='void' ? '' : `<span class="src-tag">Итого: <b class="num" style="color:var(--text-heading)">${money(sum)} сом</b></span>`}
+      <span class="src-tag" id="pay-total">${payTotalHtml(s.hits)}</span>
     </div>
+
+    ${feedBar('pay')}
 
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr>
@@ -1857,10 +2111,85 @@ function viewPayments(){
         <th>Номер и дата<br>платежа</th><th class="r">Сумма</th>
         <th>Разбивка<br>платежа</th><th>Оси состояния</th><th>Из поступления</th>
       </tr></thead>
-      <tbody>${rows.map(tr).join('') || '<tr><td colspan="6"><div class="cgrid-empty">Платежей в выборке нет</div></td></tr>'}</tbody>
+      <tbody id="pay-body">${payRowsHtml(s.page)}</tbody>
     </table></div>
+    ${feedPagerHtml(s)}
   </div>`;
 }
+
+/* ---- строка ленты платежей ---- */
+function payRow(p){
+  const r = receiptOf(p), c = creditOf(p.credit), d = snapshotDrift(p);
+  const a = allocOf(p.snapshot || p.derived);   // у замороженного дата среза — дата фиксации
+  const alloc = p.snapshot
+    ? pill({ t:'Зафиксированная', cls:'neutral' }) + (d ? ' ' + pill({ t:'Разошлась с текущей', cls:'warn' }) : '')
+    : pill({ t:'Динамическая', cls:'info' });
+  return `<tr class="${p.void?'muted':''}" onclick="openPayment('${p.id}')">
+    <td>${c.borrower}<div style="${MUT};margin-top:2px">${c.title} ${payScopeTag(p)}</div></td>
+    <td><span class="mono">${p.number}</span><div class="num" style="${MUT};font-size:12px">${r.date}</div>${p.void?'<div>'+pill({t:'Сторнирован',cls:'err'})+'</div>':''}</td>
+    <td class="r num">${cur(p.amount, p.currency)}${p.paidKGS?'<div style="'+MUT+';font-size:12px">пришло '+money(p.paidKGS)+' сом</div>':''}</td>
+    <td>${alloc}<div style="${MUT};font-size:12px">${a ? ('на ' + payAsOfDate(a.asOf)) : '—'}</div></td>
+    <td>${axes(r)}</td>
+    <td><span class="rowlink" onclick="event.stopPropagation();openReceipt('${r.id}')">${r.number}</span></td>
+  </tr>`;
+}
+const PAY_COLS = 6;
+const payRowsHtml = list => list.length ? list.map(payRow).join('')
+  : `<tr><td colspan="${PAY_COLS}"><div class="cgrid-empty">${
+      feedActive(FEEDS.pay).length ? 'Ничего не найдено по фильтрам' : 'Платежей в выборке нет'}</div></td></tr>`;
+/* Итог по видимой выборке за вычетом сторнированных: их сумма снята, складывать её
+   с живыми деньгами нельзя. В выборке «Сторнированные» итога нет вовсе. */
+const payTotalHtml = hits => payFilter==='void' ? ''
+  : `Итого: <b class="num" style="color:var(--text-heading)">${
+      money(hits.filter(p=>!p.void).reduce((s,p)=>s+paidOf(p), 0))} сом</b>`;
+
+/* Условия ленты платежей. Платёж своих осей и своей даты не имеет — он наследует их
+   у поступления (ADR-0056), поэтому «Дата факта» и «Период» читаются через receiptOf(). */
+const PAY_CONDS = [
+  /* Одно поле на несколько токенов, включая плательщика поступления: по «Бек» находятся
+     и три платежа, расщеплённые из сводной строки «ОсОО «Бек Кабель» и др.». Это не
+     ложное совпадение — платежи действительно пришли одной суммой от этого плательщика. */
+  { key:'q', kind:'text', zone:'quick', label:'Поиск', width:360,
+    ph:'Номер платежа, заёмщик, № договора, поступление',
+    test:(p,v)=>{ const r = receiptOf(p), c = creditOf(p.credit);
+      return (`${p.number} ${c.borrower} ${c.inn} ${c.title} ${r.number} ${r.payerName||''}`).toLowerCase().includes(v); } },
+  { key:'borrower', kind:'select', zone:'quick', label:'Заёмщик', width:230,
+    options:()=>uniqv(DATA.payments.map(p=>creditOf(p.credit).borrower)),
+    test:(p,v)=>creditOf(p.credit).borrower===v },
+  { key:'kind', kind:'select', zone:'quick', label:'Вид платежа', width:200,
+    options:()=>uniqv(DATA.payments.map(p=>p.kind)), test:(p,v)=>p.kind===v },
+  /* Каскад «кредит → транш» — одно условие на двух селектах, как Область→Район в
+     реестре кредитов. Платёж без транша (область разбивки — весь кредит, ADR-0060)
+     под условие транша не попадает: сужайте по кредиту. */
+  { key:'scope', kind:'pair', label:'Кредит / транш',
+    options:()=>DATA.credits.map(c=>({ v:c.id, t:c.title })),
+    optionsB:(cid)=>(cid ? [creditOf(cid)].filter(Boolean) : DATA.credits)
+      .flatMap(c=>(c.tranches||[]).map(t=>({ v:t.id, t: cid ? t.label : `${t.label} · ${c.title}` }))),
+    test:(p,v)=>(!v.a || p.credit===v.a) && (!v.b || p.tranche===v.b) },
+  { key:'currency', kind:'select', label:'Валюта',
+    options:()=>uniqv(DATA.payments.map(p=>p.currency)), test:(p,v)=>p.currency===v },
+  { key:'alloc', kind:'select', label:'Разбивка',
+    options:()=>[{ v:'live', t:'Динамическая' }, { v:'snap', t:'Зафиксированная' },
+                 { v:'drift', t:'Разошлась с текущей' }],
+    test:(p,v)=>v==='live' ? !p.snapshot : v==='snap' ? !!p.snapshot : !!snapshotDrift(p) },
+  { key:'period', kind:'select', label:'Период',
+    options:()=>DATA.periods.map(x=>({ v:x.id, t:x.label })), test:(p,v)=>receiptOf(p).period===v },
+  { key:'date', kind:'range', input:'date', label:'Дата факта',
+    test:(p,v)=>{ const iso = toISO(receiptOf(p).date);
+      return !(v.from && (!iso || iso < v.from)) && !(v.to && (!iso || iso > v.to)); } },
+  { key:'amount', kind:'range', input:'number', label:'Сумма платежа',
+    test:(p,v)=>!(v.from!=='' && p.amount < +v.from) && !(v.to!=='' && p.amount > +v.to) },
+];
+
+defFeed('pay', {
+  conds: PAY_CONDS,
+  base: () => payFilter==='live' ? DATA.payments.filter(p=>!p.void)
+            : payFilter==='void' ? DATA.payments.filter(p=>p.void) : DATA.payments,
+  paint: s => {
+    const b = document.getElementById('pay-body'); if(b) b.innerHTML = payRowsHtml(s.page);
+    const t = document.getElementById('pay-total'); if(t) t.innerHTML = payTotalHtml(s.hits);
+  },
+});
 
 /* ============================================================
    КАРТОЧКА ПЛАТЕЖА
