@@ -1782,7 +1782,9 @@ function viewPayments(){
   const live = all.filter(p => !p.void);
   const dead = all.filter(p => p.void);
   const rows = payFilter === 'live' ? live : payFilter === 'void' ? dead : all;
-  const sum  = live.reduce((s,p) => s + paidOf(p), 0);
+  /* Итог считается по видимой выборке за вычетом сторнированных: их сумма снята,
+     складывать её с живыми деньгами нельзя. В выборке «Сторнированные» итога нет. */
+  const sum  = rows.filter(p => !p.void).reduce((s,p) => s + paidOf(p), 0);
 
   const seg = `<div class="seg">
     <button class="${payFilter==='all'?'on':''}"  onclick="setPayFilter('all')">Все · ${all.length}</button>
@@ -1797,10 +1799,10 @@ function viewPayments(){
       ? pill({ t:'Снимок', cls:'neutral' }) + (d ? ' ' + pill({ t:'Расхождение', cls:'warn' }) : '')
       : pill({ t:'Производная', cls:'info' });
     return `<tr class="${p.void?'muted':''}" onclick="openPayment('${p.id}')">
-      <td><span class="mono">${p.number}</span>${p.void?'<div>'+pill({t:'Сторнирован — снято сторно',cls:'err'})+'</div>':''}</td>
+      <td><span class="mono">${p.number}</span>${p.void?'<div>'+pill({t:'Сторнирован',cls:'err'})+'</div>':''}</td>
       <td class="num">${r.date}</td>
       <td>${c.borrower}<div style="${MUT}">${c.title}</div></td>
-      <td>${payScopeTag(p)}${p.tranche?'':'<div style="'+MUT+';font-size:12px">транш счётом не опознан</div>'}</td>
+      <td>${payScopeTag(p)}</td>
       <td class="r num">${cur(p.amount, p.currency)}${p.paidKGS?'<div style="'+MUT+';font-size:12px">пришло '+money(p.paidKGS)+' сом</div>':''}</td>
       <td>${alloc}<div style="${MUT};font-size:12px">${a ? ('на ' + payAsOfDate(a.asOf)) : '—'}</div></td>
       <td>${axes(r)}</td>
@@ -1810,33 +1812,19 @@ function viewPayments(){
 
   return `<div class="page-pad">
     <div class="section-h">Платежи</div>
-    <p class="section-note">Платёж — <b>трактовка</b> поступления: кому (кредит и транш) и во что (статьи долга по слоям).
-      Факт денег живёт на поступлении, поэтому <b>дата платежа берётся у поступления-родителя</b>, а три оси состояния
-      (канал · сопоставление · заморозка) платёж <b>наследует</b> и своих не имеет (ADR-0056).
-      Сумма показана в валюте долга; если долг валютный, а деньги пришли в сомах — сомовая сумма подписана отдельно.</p>
-
-    <div class="banner info">${PAY_INFO}<div><b>Сторнированные платежи из ленты не исчезают.</b>
-      Сторно поступления погашает платёж, но не удаляет его: при позднем подтверждении ЦК поступление
-      восстанавливается исходной датой и платёж оживает. Его сумма — <b>снята сторно</b>, а не «нераспределена».</div></div>
 
     <div class="gtoolbar">${seg}<span class="spacer"></span>
-      <span class="src-tag">Итого живых платежей, в валюте поступлений: <b class="num" style="color:var(--text-heading)">${money(sum)} сом</b></span>
+      ${payFilter==='void' ? '' : `<span class="src-tag">Итого: <b class="num" style="color:var(--text-heading)">${money(sum)} сом</b></span>`}
     </div>
 
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr>
         <th>Платёж</th><th>Дата поступления</th><th>Заёмщик · кредит</th>
-        <th>Транш — область разнесения</th><th class="r">Сумма</th>
-        <th>Разнесение</th><th>Оси состояния (наследованы)</th><th>Поступление</th>
+        <th>Транш</th><th class="r">Сумма</th>
+        <th>Разнесение</th><th>Оси состояния</th><th>Поступление</th>
       </tr></thead>
       <tbody>${rows.map(tr).join('') || '<tr><td colspan="8"><div class="cgrid-empty">Платежей в выборке нет</div></td></tr>'}</tbody>
     </table></div>
-
-    <div class="legend">
-      <span>${pill({t:'Производная',cls:'info'})} разнесение живого платежа выводится на дату среза и не хранится</span>
-      <span>${pill({t:'Снимок',cls:'neutral'})} у замороженного платежа разнесение материализовано</span>
-      <span>${pill({t:'Расхождение',cls:'warn'})} снимок разошёлся с текущим выводом — показано в карточке</span>
-    </div>
   </div>`;
 }
 
