@@ -407,12 +407,15 @@ const ARTICLES = [
 const ARTICLE_LABEL = Object.fromEntries(ARTICLES.map(a=>[a.key,a.name]));
 const DISP_LABEL = { cap:'Капитализация', forgive:'Прощение', spread:'Распределение по периодам', none:'Без распоряжения' };
 const URG = [ { key:'over', name:'просроченное' }, { key:'cur', name:'текущее' } ];    // срочность сжата до двух значений (РС-13)
-const STAGES = ['Регистрация обращения','Анализ','Комитет','Направлено в Минфин','Решение Минфина','Оформление'];
+/* Семь стадий текстом спеки (issues/04 реш.1): «Минфин» ушёл из лейблов — норма говорит про
+   уполномоченный орган, не про конкретное министерство. Терминал «Закрыта» — не автомат по факту
+   ДС, а свёртка трёх гейтов оформления (см. stageOf). */
+const STAGES = ['Регистрация обращения','Анализ','Комитет','Письмо направлено','Решение уполномоченного органа','Оформление','Закрыта'];
 const ROLES  = ['Куратор ОД','Заключант СРМиК','Заключант ДПО','Секретарь комитета','Администратор','Наблюдатель'];
 
 /* права роли → действия (Р-17) */
 const RIGHTS = {
-  'Куратор ОД':      ['createApp','addCredit','toggleDoc','startAnalysis','returnApp','addConcl','fixLetter','fixMinfin','editVersion','regDS','waiver'],
+  'Куратор ОД':      ['createApp','addCredit','toggleDoc','startAnalysis','returnApp','addConcl','fixLetter','fixMinfin','editVersion','editBase','regDS','waiver'],
   'Заключант СРМиК': ['editConcl:СРМиК'],
   'Заключант ДПО':   ['editConcl:ДПО'],
   'Секретарь комитета':['fixCommittee'],
@@ -420,17 +423,22 @@ const RIGHTS = {
   'Наблюдатель':     []
 };
 
-/* Справочник видов (Р-3). params — множество разрешённых ключей; overdueMode 1|2 (Р-10). */
+/* Справочник видов (Р-3). params — множество разрешённых ключей версии. allowedDispositions —
+   коды распоряжений (issues/04 реш.4, заменяет overdueMode): какие распоряжения вид вообще
+   допускает curator'у выбрать на статье; поля вне объединения по заявке рендерятся read-only
+   «вид не разрешает» (pCalcBase). 'none' (без распоряжения) не перечисляется — доступен всегда. */
 function seedKinds(){ return [
   { id:'K1', name:'Пролонгация', params:['term','schedule','nonworking'],
-    docs:['Заявление','Обоснование причин','Финансовый прогноз'], overdueMode:1, limits:'Не более +24 мес. к сроку' },
+    docs:['Заявление','Обоснование причин','Финансовый прогноз'], allowedDispositions:['spread'], limits:'Не более +24 мес. к сроку' },
   { id:'K2', name:'Изменение графика', params:['schedule','grace','dayMethod','repayMethod'],
-    docs:['Заявление','График-предложение'], overdueMode:2, limits:'Тело долга не меняется' },
+    docs:['Заявление','График-предложение'], allowedDispositions:['spread'], limits:'Тело долга не меняется' },
   { id:'K3', name:'Льготный период', params:['grace','schedule'],
-    docs:['Заявление','Обоснование причин'], overdueMode:1, limits:'Льгота ≤6 мес.' },
+    docs:['Заявление','Обоснование причин'], allowedDispositions:['spread'], limits:'Льгота ≤6 мес.' },
   { id:'K4', name:'Капитализация + прощение штрафов', params:['capInterest','capPenalty','forgive','term'],
-    docs:['Заявление','Акт сверки','Решение комитета'], overdueMode:2, limits:'Прощение только по санкциям' }
+    docs:['Заявление','Акт сверки','Решение комитета'], allowedDispositions:['cap','forgive'], limits:'Прощение только по санкциям' }
 ]; }
+/* объединение разрешённых распоряжений выбранных видов заявки (issues/04 реш.4, тот же приём, что allowedParams) */
+function allowedDispositions(app){ const s=new Set(); (app.kindIds||[]).forEach(id=>{ const k=kindById(id); if(k) (k.allowedDispositions||[]).forEach(d=>s.add(d)); }); return s; }
 
 /* Транш и долг — базовый сев (Модель демо §01, реш.1-3): остаток НЕ хранится, выводится balanceAt
    поверх ops; шесть статей сеются данными, седьмая (principal) выводится. Базовые кредиты — один
@@ -468,36 +476,39 @@ function seedAudit(cr){                            // историч. ДС до 
     detail:'историч., до начала демо-периода', mirror:false
   }));
 }
-/* Кредиты (зеркала; остаток/просрочка read-only). requiredCoverPct — порог покрытия (Р-15). */
+/* Кредиты (зеркала; остаток/просрочка read-only). coverSnapshot — чужой ответ (Залог), не
+   собственный расчёт (issues/04 реш.2): {cover,required,date,source}, тот же приём, что снимок
+   взыскания (collection.html, collSnapshotAge/collSnapshotStale). Числа cover ниже сохраняют
+   прежнее соотношение collateralValue/balance один в один (не регрессия, только смена формы). */
 function seedCredits(){
   const base = [
   { id:'CR-60540', no:'КД-60540', inn:'02508199700123', borrower:'ОсОО «Ак-Жол Агро»',
     balance:4200000, odDays:96, odSum:512000, collProc:'ВЗ-734', restructCount:1,
-    collateralValue:6100000, requiredCoverPct:120, insuredUntil:'2027-03-01', tech:true, techAgeYears:6, techMaxAge:12,
+    coverSnapshot:{cover:145, required:120, date:'2026-07-05', source:'Залог'}, insuredUntil:'2027-03-01', tech:true, techAgeYears:6, techMaxAge:12,
     snapshot:{ principal:4200000, overduePrincipal:380000, accruedInterest:118000, overdueInterest:118000, penalty:73000 },
     paid:{ principalPaid:800000, interestPaid:340000, penaltyPaid:0 }, remainingTermMonths:22,
     terms:{term:36,schedule:'ежемесячно',rate:8,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
   { id:'CR-60541', no:'КД-60541', inn:'02508199700123', borrower:'ОсОО «Ак-Жол Агро»',
     balance:1850000, odDays:96, odSum:210000, collProc:'ВЗ-734', restructCount:1,
-    collateralValue:2050000, requiredCoverPct:120, insuredUntil:'2026-10-01', tech:true, techAgeYears:9, techMaxAge:12,
+    coverSnapshot:{cover:111, required:120, date:'2026-07-08', source:'Залог'}, insuredUntil:'2026-10-01', tech:true, techAgeYears:9, techMaxAge:12,
     snapshot:{ principal:1850000, overduePrincipal:150000, accruedInterest:52000, overdueInterest:52000, penalty:31000 },
     paid:{ principalPaid:300000, interestPaid:120000, penaltyPaid:0 }, remainingTermMonths:14,
     terms:{term:24,schedule:'ежемесячно',rate:9,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
   { id:'CR-58120', no:'КД-58120', inn:'01703198800077', borrower:'ИП Садыков Т.',
     balance:980000, odDays:34, odSum:44000, collProc:null, restructCount:0,
-    collateralValue:1400000, requiredCoverPct:120, insuredUntil:'2028-01-01', tech:false, techAgeYears:0, techMaxAge:0,
+    coverSnapshot:{cover:143, required:120, date:'2026-07-10', source:'Залог'}, insuredUntil:'2028-01-01', tech:false, techAgeYears:0, techMaxAge:0,
     snapshot:{ principal:980000, overduePrincipal:40000, accruedInterest:18000, overdueInterest:18000, penalty:9000 },
     paid:{ principalPaid:120000, interestPaid:60000, penaltyPaid:0 }, remainingTermMonths:10,
     terms:{term:18,schedule:'ежемесячно',rate:10,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
   { id:'CR-59003', no:'КД-59003', inn:'01703198800077', borrower:'ИП Садыков Т.',
     balance:2650000, odDays:220, odSum:390000, collProc:'ВЗ-701', restructCount:2,
-    collateralValue:3300000, requiredCoverPct:120, insuredUntil:'2027-06-01', tech:false, techAgeYears:0, techMaxAge:0,
+    coverSnapshot:{cover:125, required:120, date:'2026-06-20', source:'Залог'}, insuredUntil:'2027-06-01', tech:false, techAgeYears:0, techMaxAge:0,
     snapshot:{ principal:2650000, overduePrincipal:620000, accruedInterest:96000, overdueInterest:96000, penalty:84000 },
     paid:{ principalPaid:500000, interestPaid:210000, penaltyPaid:15000 }, remainingTermMonths:16,
     terms:{term:30,schedule:'ежемесячно',rate:8,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
   { id:'CR-61200', no:'КД-61200', inn:'02508199700123', borrower:'ОсОО «Ак-Жол Агро»',
     balance:3100000, odDays:12, odSum:0, collProc:null, restructCount:0,
-    collateralValue:4000000, requiredCoverPct:120, insuredUntil:'2029-01-01', tech:false, techAgeYears:0, techMaxAge:0,
+    coverSnapshot:{cover:129, required:120, date:'2026-07-12', source:'Залог'}, insuredUntil:'2029-01-01', tech:false, techAgeYears:0, techMaxAge:0,
     snapshot:{ principal:3100000, overduePrincipal:0, accruedInterest:41000, overdueInterest:0, penalty:0 },
     paid:{ principalPaid:200000, interestPaid:90000, penaltyPaid:0 }, remainingTermMonths:40,
     terms:{term:48,schedule:'ежемесячно',rate:7,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} }
@@ -648,6 +659,8 @@ function validateDS(ds){
   if(!packetGate(ds.app).ok) reasons.push('Пакет документов не собран');
   if(!conclGate(ds.app).ok)  reasons.push('Не все заключения завизированы');
   if(!minfinGate(ds.app).ok) reasons.push('Нет решения Минфина');
+  const lg=limitsGate(ds.params, ds.credit, ds.date); if(!lg.ok) reasons.push(...lg.messages);                 // жёсткий, без waiver (issues/04)
+  const cg=consentGateApp(ds.app); if(!cg.ok) reasons.push('Не получено согласие обеспечителя(ей): '+cg.pending.join(', '));  // жёсткий, без waiver
   const draft=draftSchedule(ds.sourceTranche, ds);
   const sumPrincipal=round2((draft.rows||[]).reduce((s,r)=>s+(r.principal||0),0));
   if(Math.abs(sumPrincipal-Number(ds.transferSum||0))>0.5)
@@ -710,27 +723,71 @@ function allowedParams(app){ const s=new Set(); app.kindIds.forEach(id=>{ const 
 /* объединение требуемых документов (Р-3, гейт стадии 1) */
 function requiredDocs(app){ const s=new Set(); app.kindIds.forEach(id=>{ const k=kindById(id); if(k) k.docs.forEach(d=>s.add(d)); }); return [...s]; }
 
-/* стадия — производная от owned-фактов (Р-4) */
+/* стадия — производная от owned-фактов (Р-4). ДС зарегистрировано ≠ «Закрыта» (issues/04 реш.1,
+   ИР-9): терминал наступает только когда все три гейта оформления (согласия РС-17, покрытие/waiver
+   РС-18, регуляторные пределы РС-19) пройдены — иначе стадия честно остаётся «Оформление», хоть
+   ДС уже стоит. formalGatesOk читает те же три гейта, что и вкладка «Оформление». */
+function formalGatesOk(app){
+  return consentGateApp(app).ok && limitsGateApp(app).ok && (coverGateApp(app).ok || !!(app.waiver && app.waiver.granted));
+}
 function stageOf(app){
   if(app.outcome==='возврат') return {idx:0, closed:true, label:'Возвращена без рассмотрения'};
-  if(app.ds && app.ds.no)     return {idx:5, closed:true, label:'Закрыта (оформлена)'};
+  if(app.ds && app.ds.no){
+    return formalGatesOk(app)
+      ? {idx:6, closed:true, label:'Закрыта'}
+      : {idx:5, closed:false, label:'Оформление'};    // ДС стоит, но не все гейты закрытия пройдены — честно не терминал
+  }
   if(app.outcome==='отказ')   return {idx:4, closed:true, label:'Отказ Минфина'};
   if(app.minfin && app.minfin.fixed) return {idx:5, closed:false, label:'Оформление'};
-  if(app.letterSent && app.letterSent.fixed) return {idx:3, closed:false, label:'Направлено в Минфин'};
+  if(app.letterSent && app.letterSent.fixed) return {idx:3, closed:false, label:'Письмо направлено'};
   if(app.committee && app.committee.fixed)   return {idx:2, closed:false, label:'Комитет'};
   if(app.analysisStarted)     return {idx:1, closed:false, label:'Анализ'};
   return {idx:0, closed:false, label:'Регистрация обращения'};
 }
 
-/* дедлайн активной стадии (Р-7) */
+/* Норма-справочник (issues/04 реш.2, ADR-0086, ИР-10): запись — величина+пункт+редакция+дата
+   начала действия, не голое число в коде. Расширяет прецедент DEADLINE_TEMPLATES (collection.html)
+   двумя полями (edition/dateFrom). Смена редакции — НОВАЯ запись поверх старой (normAt берёт
+   последнюю applicable на дату), старую не правим. edition:null — редакция Положения (гл.9,
+   пп.89/92) не подтверждена (письмо заказчику вопрос 8, «не выдумывать номер»): гейты, читающие
+   termCap/rateFloor, обязаны показать «пункт не подтверждён» рядом с числом (normNote). Три
+   регламентных срока читают Порядок №41 от 06.07.2026 — та же редакция, что уже в шапке спеки. */
+const NORM_REFERENCE = [
+  { code:'termCap', point:'90', origin:'Положение о работе с бюджетными кредитами, гл.9', edition:null, dateFrom:null,
+    value:[ {upTo:1000000, months:36}, {upTo:10000000, months:84}, {upTo:20000000, months:120}, {upTo:50000000, months:144}, {upTo:Infinity, months:180} ] },
+  { code:'rateFloor', point:'92', origin:'Положение о работе с бюджетными кредитами, гл.9', edition:null, dateFrom:null,
+    value:0.5 },
+  { code:'deadlineAnalysis', point:'18', origin:'Порядок мониторинга, взыскания и урегулирования задолженности', edition:'№41', dateFrom:'2026-07-06',
+    value:{n:30, unit:'к.д.', label:'Анализ'} },
+  { code:'deadlineLetter', point:'18', origin:'Порядок мониторинга, взыскания и урегулирования задолженности', edition:'№41', dateFrom:'2026-07-06',
+    value:{n:5, unit:'р.д.', label:'Письмо уполномоченному органу'} },
+  { code:'deadlineDecision', point:'18', origin:'Порядок мониторинга, взыскания и урегулирования задолженности', edition:'№41', dateFrom:'2026-07-06',
+    value:{n:70, unit:'к.д.', label:'Решение уполномоченного органа'} }
+];
+function normAt(code, date){                      // запись, действующая на дату — последняя applicable, не первая по массиву
+  const recs=NORM_REFERENCE.filter(r=>r.code===code);
+  const applicable=recs.filter(r=>!r.dateFrom || r.dateFrom<=date);
+  if(!applicable.length) return recs[0]||null;
+  return applicable.reduce((a,b)=> (!a.dateFrom || (b.dateFrom && b.dateFrom>a.dateFrom)) ? b : a);
+}
+function normNote(rec){                            // цитата для UI — «не подтверждён», если редакция неизвестна
+  if(!rec) return 'норма не найдена';
+  return rec.edition
+    ? `п. ${rec.point}, ред. ${rec.edition} от ${rec.dateFrom}`
+    : `п. ${rec.point} — пункт не подтверждён (редакция не установлена, письмо заказчику, вопрос 8)`;
+}
+function termCapFor(sum, date){ const rec=normAt('termCap', date); const step=(rec.value||[]).find(s=>sum<s.upTo); return { months:(step||rec.value[rec.value.length-1]).months, rec }; }
+function rateFloorFor(origRate, date){ const rec=normAt('rateFloor', date); return { floor: round2((Number(origRate)||0)*rec.value), rec }; }
+
+/* дедлайн активной стадии (Р-7), сроки — из норма-справочника, не литералы */
 function deadline(app){
   const st = stageOf(app); if(st.closed) return null;
-  if(st.idx===1) { const due=addCalDays(app.regDate,30); return mkDl('Анализ',30,'к.д.',app.regDate,due); }
-  if(st.idx===2) { if(app.committee&&app.committee.date){ const due=addWorkDays(app.committee.date,5); return mkDl('Письмо в Минфин',5,'р.д.',app.committee.date,due);} return null; }
-  if(st.idx===3) { if(app.letterSent&&app.letterSent.date){ const due=addCalDays(app.letterSent.date,70); return mkDl('Решение Минфина',70,'к.д.',app.letterSent.date,due);} return null; }
+  if(st.idx===1) { const rec=normAt('deadlineAnalysis',app.regDate); const due=addCalDays(app.regDate,rec.value.n); return mkDl(rec,app.regDate,due); }
+  if(st.idx===2) { if(app.committee&&app.committee.date){ const rec=normAt('deadlineLetter',app.committee.date); const due=addWorkDays(app.committee.date,rec.value.n); return mkDl(rec,app.committee.date,due);} return null; }
+  if(st.idx===3) { if(app.letterSent&&app.letterSent.date){ const rec=normAt('deadlineDecision',app.letterSent.date); const due=addCalDays(app.letterSent.date,rec.value.n); return mkDl(rec,app.letterSent.date,due);} return null; }
   return null;
 }
-function mkDl(name,limit,unit,anchor,due){ const rem=daysBetween(TODAY,due); return {name,limit,unit,anchor,due,remaining:rem,overdue:rem<0}; }
+function mkDl(rec,anchor,due){ const rem=daysBetween(TODAY,due); return {name:rec.value.label,limit:rec.value.n,unit:rec.value.unit,anchor,due,remaining:rem,overdue:rem<0,rec}; }
 
 /* гейты (Р-19: производные предикаты) */
 function packetGate(app){ const req=requiredDocs(app); const missing=req.filter(d=>!app.packetDocs[d]); return {ok:missing.length===0 && req.length>0, missing, req}; }
@@ -740,19 +797,76 @@ function dsGate(app){ const d=app.ds||{}; return {ok:!!(d.no&&d.no.trim()) && !!
 
 /* остаток на новых условиях (демо-упрощение): тело то же, влияет срок/ставка на maturity */
 function newMaturity(app,cr){ const term=(app.version&&app.version.params.term)||cr.terms.term; return addCalDays(app.regDate, term*30); }
+/* Устарелость снимка покрытия (issues/04 реш.2: «покрытие — чужой ответ, не свой расчёт»), тот
+   же приём, что COLL_SNAPSHOT_STALE_DAYS/collSnapshotStale в collection.html — независимый
+   демо-порог этого домена, не то же число по смыслу. Устаревший снимок гейт не пропускает молча
+   (тот же принцип, что не даёт «сироте 0,01 сома» E2E-13/14 пройти на устаревших данных). */
+const COVER_SNAPSHOT_STALE_DAYS = 60;
+const coverSnapshotAge = cr => daysBetween((cr.coverSnapshot||{}).date||TODAY, TODAY);
+const coverSnapshotStale = cr => !cr.coverSnapshot || coverSnapshotAge(cr) > COVER_SNAPSHOT_STALE_DAYS;
 function coverGate(app,cr){
-  const required = cr.requiredCoverPct;
-  const cover = Math.round(cr.collateralValue / cr.balance * 100);
-  const coverOk = cover >= required;
+  const snap = cr.coverSnapshot||{};
+  const stale = coverSnapshotStale(cr);
+  const required = snap.required, cover = snap.cover;
+  const coverOk = !stale && cover!=null && required!=null && cover >= required;
   const mat = newMaturity(app,cr);
   const ageOk = !cr.tech || (cr.techAgeYears + Math.ceil(((app.version&&app.version.params.term)||cr.terms.term)/12) <= cr.techMaxAge);
   const insured = daysBetween(mat, cr.insuredUntil) >= 0;
   const waived = !!(app.waiver && app.waiver.granted);
   const ok = (coverOk && ageOk && insured) || waived;
-  return {required,cover,coverOk,ageOk,insured,waived,ok,maturity:mat};
+  return {required,cover,coverOk,ageOk,insured,waived,ok,maturity:mat,stale,snapshotDate:snap.date,source:snap.source};
 }
 /* агрегат гейта обеспечения по всем кредитам заявки */
 function coverGateApp(app){ const rows=app.creditIds.map(id=>({cr:creditById(id),g:coverGate(app,creditById(id))})); const ok=rows.every(r=>r.g.ok); return {rows,ok}; }
+
+/* Пределы (issues/04 реш.2/3, ADR-0086, ИР-10, РС-19): жёсткий гейт, без waiver — срок и ставка
+   новых условий сверяются с норма-справочником на дату операции. База предела срока — баланс
+   кредита (cr.balance, тот же приём, что coverGate несколькими строками выше), а не сумма
+   конкретного переноса: предел — свойство кредита в целом, а партиционный перенос (ADR-0079)
+   моложе самой нормы — цена операции внутри кредита её не меняет. */
+function limitsGate(params, credit, date){
+  const term=Number(params&&params.term)||0;
+  const rate=(params&&params.rate!=null) ? Number(params.rate) : null;
+  const cap=termCapFor(credit.balance, date), floor=rateFloorFor(credit.terms.rate, date);
+  const termOk = term>0 && term<=cap.months;
+  const rateOk = rate!=null && rate>=floor.floor;
+  const messages=[];
+  if(!termOk) messages.push('Срок '+term+' мес. превышает предел '+cap.months+' мес. для баланса '+fmt(credit.balance)+' ('+normNote(cap.rec)+')');
+  if(!rateOk) messages.push('Ставка '+(rate==null?'не задана':rate+'%')+' ниже минимума '+floor.floor+'% ('+normNote(floor.rec)+')');
+  return { ok:termOk&&rateOk, termOk, rateOk, cap:cap.months, floor:floor.floor, capRec:cap.rec, floorRec:floor.rec, messages };
+}
+/* превью гейта на уровне заявки — до ДС читает черновик version.params, после ДС читает
+   зафиксированные app.ds.params, чтобы терминал (formalGatesOk) не «моргал» после факта */
+function limitsGateApp(app){
+  const credit=creditById(app.creditIds[0]); if(!credit) return { ok:true, pending:true, messages:['Кредит не выбран'] };
+  const fixed=app.ds&&app.ds.no;
+  const params = fixed ? app.ds.params : (app.version&&app.version.params);
+  const date = fixed ? app.ds.date : app.regDate;
+  if(!params) return { ok:true, pending:true, messages:['Условия ещё не выбраны — гейт неприменим до расчёта'] };
+  return limitsGate(params, credit, date);
+}
+
+/* Согласия обеспечителей (issues/04 реш.2, ADR-0085, ИР-8): зеркало чужого домена (Обеспечение) —
+   тот же приём, что COLL_PROCS чуть выше по файлу: демо-данные здесь, не вызов чужого API. Жёсткий
+   гейт, без waiver (в отличие от покрытия) — по каждому кредиту заявки все обеспечители обязаны
+   быть в статусе «согласовано». */
+const GUARANTEES = {
+  'CR-60540': [ {name:'Иванов И.И. (поручитель)', status:'согласовано', date:'2026-03-15'} ],
+  'CR-60541': [ {name:'Иванов И.И. (поручитель)', status:'согласовано', date:'2026-04-20'} ],
+  'CR-58120': [],
+  'CR-59003': [ {name:'ОсОО «Гарант-Строй» (залогодатель)', status:'согласовано', date:'2026-06-01'} ],
+  'CR-61200': [ {name:'Петров П.П. (поручитель)', status:'запрошено', date:'2026-07-05'} ]   // демо блокировки ИР-8: одно неурегулированное согласие
+};
+function consentGate(creditId){
+  const list=GUARANTEES[creditId]||[];
+  const pending=list.filter(g=>g.status!=='согласовано').map(g=>g.name);
+  return { ok:pending.length===0, list, pending };
+}
+function consentGateApp(app){
+  const rows=(app.creditIds||[]).map(id=>({cr:creditById(id), g:consentGate(id)}));
+  const ok=rows.every(r=>r.g.ok);
+  return { ok, rows, pending:rows.flatMap(r=>r.g.pending) };
+}
 
 /* активная заявка на кредите (Р-2): любая незакрытая заявка, кроме текущей */
 function activeAppOnCredit(creditId, exceptAppId){
@@ -809,6 +923,139 @@ function defaultDispositions(base){
 }
 function dispositionFor(dispositions, article, urgency){
   return (dispositions||[]).find(d=>d.article===article && d.urgency===urgency) || null;
+}
+/* Материализация базы/распоряжений при первом живом действии куратора (issues/02 реш.1/4,
+   тикет 07 — честная дыра #2 из Answer тикета 06). До первого клика app.base/app.dispositions
+   пустые — панель считает defaultBase/defaultDispositions на лету, не хранит (Р-19); первое
+   переключение строки или смена распоряжения обязано зафиксировать снимок в app, иначе правка
+   потеряется на следующем рендере, откатившись к умолчанию. */
+function ensureBaseDispositions(app){
+  const date = app.ds ? app.ds.date : TODAY;
+  if(!app.base || !app.base.length) app.base = defaultBase(app, date);
+  if(!app.dispositions || !app.dispositions.length) app.dispositions = defaultDispositions(app.base);
+}
+/* Переключение строки — «включена» ↔ «снята куратором» (issues/02 реш.1). Спорная пеня
+   (blockedBy='disputed') не переключаема — мёртвая галка это состояние, а не UI-заглушка
+   (ИР-6). Снятие строки убирает её распоряжение (issues/02 реш.4: распоряжение живёт только
+   на включённой строке); включение заводит распоряжение kind:'none' на всю сумму — то же
+   умолчание, что defaultDispositions даёт при первом расчёте. */
+function toggleBaseRow(appId, article, urgency){
+  if(!guard('editBase')) return; const app=appById(appId);
+  ensureBaseDispositions(app);
+  const row = app.base.find(r=>r.article===article && r.urgency===urgency);
+  if(!row || row.blockedBy) return;
+  row.included = !row.included;
+  if(row.included){
+    if(!dispositionFor(app.dispositions, article, urgency)) app.dispositions.push({article,urgency,kind:'none',amount:row.amount,periods:null});
+  } else {
+    app.dispositions = app.dispositions.filter(d=>!(d.article===article && d.urgency===urgency));
+  }
+  app._t=TODAY; render();
+}
+/* Смена распоряжения на строке (issues/02 реш.4). Значения вне allowedDispositions(app) —
+   мёртвые пункты списка с подписью «вид не разрешает», та же механика дохлой галки решения 1
+   (issues/02: «а не второй способ говорить то же самое») — сервер-сторона всё равно отбивает
+   запрещённое значение молча, а не доверяет disabled-атрибуту разметки. */
+function setDisposition(appId, article, urgency, kind){
+  if(!guard('editBase')) return; const app=appById(appId);
+  ensureBaseDispositions(app);
+  if(kind!=='none' && !allowedDispositions(app).has(kind)){ toast('Вид не разрешает это распоряжение','err'); return; }
+  const d = dispositionFor(app.dispositions, article, urgency); if(!d) return;
+  d.kind = kind;
+  app._t=TODAY; render();
+}
+
+/* Кандидаты в транш-источник расчёта — открытые транши с положительным остатком по каждому
+   кредиту охвата заявки (тикет 07 — честная дыра #3 из Answer тикета 06: выбор транша не был
+   вручную сделан, стоял только демо-сидом). Закрытый или обнулённый транш не кандидат — его
+   не из чего дальше делить. */
+function trancheCandidates(app){
+  const list=[];
+  (app.creditIds||[]).forEach(cid=>{ const cr=creditById(cid); if(!cr) return;
+    (cr.tranches||[]).forEach(t=>{ if(!t.closed && round2(balanceAt(t,TODAY))>0) list.push({cr,t}); });
+  });
+  return list;
+}
+function pickTrancheBlock(app){
+  const cands=trancheCandidates(app);
+  const canEdit=canX('editVersion');
+  if(!cands.length) return '<div class="op-empty">Нет открытых траншей с остатком по кредитам охвата — выбирать не из чего.</div>';
+  if(!canEdit) return '<div class="op-empty">Транш-источник не выбран. Роль «'+esc(state.role)+'» выбор не делает — только Куратор ОД.</div>';
+  const opts=cands.map(({cr,t})=>`<option value="${t.id}">${esc(t.no)} · ${esc(cr.no)} · остаток ${fmt(balanceAt(t,TODAY))}</option>`).join('');
+  return `<div class="f2" style="max-width:640px"><div class="field" style="flex:1"><span class="flabel">Транш-источник</span>
+    <select id="calctr-${app.id}"><option value="">— выберите транш —</option>${opts}</select></div></div>
+    <div style="margin-top:8px"><button class="btn btn-primary btn-sm" onclick="RS.setCalcTranche('${app.id}', document.getElementById('calctr-${app.id}').value)">Выбрать транш-источник</button></div>`;
+}
+/* Фиксация транша-источника — заводит app.version черновиком условий кредита, если версии ещё
+   нет (draftVersion, issues/05 задача 5). Выбор меняется свободно до ДС: пере-выбор просто
+   переставляет calcTranche, версия не трогается повторной инициализацией (issues/01, ADR-0042:
+   черновик — исторический объект заявки, не пересоздаётся молча). */
+function setCalcTranche(appId, trancheId){
+  if(!guard('editVersion')) return;
+  if(!trancheId){ toast('Выберите транш','err'); return; }
+  const app=appById(appId);
+  let found=null;
+  (app.creditIds||[]).forEach(cid=>{ if(found) return; const cr=creditById(cid); if(!cr) return;
+    const t=(cr.tranches||[]).find(x=>x.id===trancheId); if(t) found={cr,t}; });
+  if(!found){ toast('Транш не найден','err'); return; }
+  app.calcTranche=found.t;
+  if(!app.version) app.version=draftVersion(found.cr,{});
+  app._t=TODAY; H(app,'Транш-источник расчёта выбран: '+found.t.no+' (кредит '+found.cr.no+').',state.role);
+  toast('Транш-источник выбран','ok'); render();
+}
+/* Правка параметров черновика ДС (issues/05 задача 5, тикет 07 — та же честная дыра #3).
+   Открыта, пока ДС не зарегистрировано: после регистрации app.ds.params — исторический
+   реквизит вступившего соглашения, версия дальше не переигрывается (комментарий у coverGate
+   про «не моргать» после терминала — то же соображение). */
+function setVersionParam(appId, key, val){
+  if(!guard('editVersion')) return;
+  const app=appById(appId);
+  if(app.ds && app.ds.no){ toast('ДС уже зарегистрировано — версия закрыта','err'); return; }
+  if(!app.version) app.version=draftVersion(creditById(app.creditIds[0]),{});
+  const p=app.version.params;
+  if(key==='term') p.term=Number(val)||0;
+  else if(key==='rate') p.rate=val===''?null:Number(val);
+  else if(key==='schedule') p.schedule=val;
+  else if(key==='method') p.method=val;
+  app._t=TODAY; render();
+}
+/* Предварительный расчёт — предпросмотр черновика графика на текущих base/dispositions,
+   не пишет ДС (draftSchedule — чистая функция, issues/01 реш.5). Ровно та кнопка, что
+   pCalcSched давно анонсировал в своей заглушке как «вне охвата тикета 06». */
+function recalcPlan(appId){
+  if(!guard('editVersion')) return;
+  const app=appById(appId);
+  if(!app.calcTranche || !app.version){ toast('Сначала выберите транш-источник','err'); return; }
+  const r=run(app, TODAY);
+  app.version.plan=draftSchedule(app.calcTranche,{date:TODAY,transferSum:r.transferSum,params:app.version.params});
+  app._t=TODAY; H(app,'Предварительный расчёт: черновой график пересчитан.',state.role);
+  toast('Черновой график пересчитан','ok'); render();
+}
+/* Форма параметров черновика — term/rate/schedule/method держат amortize (issues/01 реш.5);
+   graceBlocks вне охвата (никакая демо-заявка их не требует — пустой честный список, не UI-стаб).
+   Закрыта после регистрации ДС: app.ds.params — реквизит вступившего соглашения дальше живёт
+   своей жизнью (issues/01, ADR-0042), версия-черновик его больше не переигрывает. */
+function versionParamsBlock(app){
+  if(!app.version) return '<div class="op-empty">Выберите транш-источник — черновик условий заведётся автоматически.</div>';
+  const p=app.version.params;
+  const fixed = !!(app.ds && app.ds.no);
+  const canEdit = canX('editVersion') && !fixed;
+  const dis = canEdit ? '' : 'disabled';
+  const lockNote = fixed
+    ? '<span class="mode-tag">ДС '+esc(app.ds.no)+' зарегистрировано — версия стала историей, правка закрыта.</span>'
+    : (canX('editVersion') ? '' : '<span class="mode-tag">роль «'+esc(state.role)+'» правку не делает — только Куратор ОД.</span>');
+  return `<div class="f2" style="max-width:640px">
+      <div class="field"><span class="flabel">Срок, мес.</span><input type="number" min="1" value="${p.term!=null?p.term:''}" ${dis} onchange="RS.setVersionParam('${app.id}','term',this.value)"></div>
+      <div class="field"><span class="flabel">Ставка, %</span><input type="number" step="0.1" min="0" value="${p.rate!=null?p.rate:''}" ${dis} onchange="RS.setVersionParam('${app.id}','rate',this.value)"></div>
+      <div class="field"><span class="flabel">Периодичность</span><select ${dis} onchange="RS.setVersionParam('${app.id}','schedule',this.value)">
+        ${['ежемесячно','ежеквартально','раз в полугодие','ежегодно'].map(s=>`<option value="${s}" ${(p.schedule||'ежемесячно')===s?'selected':''}>${s}</option>`).join('')}
+      </select></div>
+      <div class="field"><span class="flabel">Метод</span><select ${dis} onchange="RS.setVersionParam('${app.id}','method',this.value)">
+        <option value="аннуитет" ${p.method!=='дифференцированный'?'selected':''}>аннуитет</option>
+        <option value="дифференцированный" ${p.method==='дифференцированный'?'selected':''}>дифференцированный</option>
+      </select></div>
+    </div>
+    <div style="margin-top:8px">${canEdit?`<button class="btn btn-primary btn-sm" onclick="RS.recalcPlan('${app.id}')">Предварительный расчёт — пересчитать черновой график</button>`:''} ${lockNote}</div>`;
 }
 
 /* Порядок конвейера — константа-массив шагов, прогон reduce (issues/02 реш.6, ИР-7 живёт
@@ -1032,13 +1279,14 @@ function buildDemoApps(){
 
 function seedRestructChain(){
   const cr=creditById('CR-59003'), T1=cr.tranches[0];
-  function mkChainApp(id,no,T,date,partial){
+  function mkChainApp(id,no,T,date,partial,demoNote){
     const app=baseApp(id,cr.inn,cr.borrower,['K1'],[cr.id],addCalDays(date,-10));
     fillDocs(app); app.analysisStarted=true; app.calcTranche=T;
     app.conclusions=defaultConclusions().map(c=>({...c,visa:true,visaDate:addCalDays(date,-6)}));
     app.committee={fixed:true,position:'одобрено',date:addCalDays(date,-5)};
     app.letterSent={fixed:true,date:addCalDays(date,-3)};
     AppSide.fixCutoff(app, app.letterSent.date);
+    if(demoNote){ app._t=app.cutoff.date; H(app,demoNote,'Демо-данные','auto'); }
     app.minfin={fixed:true,decision:'изм',letterRef:'МФ-'+id,date:addCalDays(date,-1)};
     app.version=draftVersion(cr,{term:12});
     const full=round2(CreditSide.balanceAt(T,date));
@@ -1053,7 +1301,8 @@ function seedRestructChain(){
   }
   const d1=addCalDays(TODAY,-60), d2=addCalDays(TODAY,-30), d3=TODAY;
   const l1=mkChainApp('RS-1005','ДС-59003/3',T1,d1,true);
-  const l2=mkChainApp('RS-1006','ДС-59003/4',l1.tranche,d2,false);
+  const l2=mkChainApp('RS-1006','ДС-59003/4',l1.tranche,d2,false,
+    'Контрольная точка §14 «расчёт долга на дату между первой и второй реструктуризацией»: срез этой заявки ('+addCalDays(d2,-3)+') лежит строго между регистрацией ДС-59003/3 ('+d1+') и ДС-59003/4 ('+d2+') — долг на нём посчитан по тому же траншу T2, что реструктуризация #1 произвела, а #2 сейчас закрывает.');
   const l3=mkChainApp('RS-1007','ДС-59003/5',l2.tranche,d3,false);
   return [l1.app,l2.app,l3.app];
 }
@@ -1109,7 +1358,7 @@ function renderList(){
   v.innerHTML = `
     <div class="filter-head">
       <div class="fl">Стадия <select onchange="RS.setFilter('stage',this.value)">
-        ${['','Регистрация обращения','Анализ','Комитет','Направлено в Минфин','Оформление','Закрыта'].map(s=>`<option value="${s}" ${state.filterStage===s?'selected':''}>${s||'все'}</option>`).join('')}
+        ${[''].concat(STAGES).map(s=>`<option value="${s}" ${state.filterStage===s?'selected':''}>${s||'все'}</option>`).join('')}
       </select></div>
       <div class="fl">Исход <select onchange="RS.setFilter('outcome',this.value)">
         ${['','в работе','одобрена','изм','отказ','возврат'].map(s=>`<option value="${s}" ${state.filterOutcome===s?'selected':''}>${s||'все'}</option>`).join('')}
@@ -1260,25 +1509,39 @@ function pConcl(app){
 }
 
 /* 4. База и распоряжения (issues/05, вариант B) — семь статей, два датированных числа, производный транш.
-   Гейты Пределы/Согласия — не подключены (тикет 07, issues/04): справочник норм и реестр согласий появляются
-   там же. Флажки/распоряжения — read-only показ по умолчанию (issues/02 задал состав, интерактивная правка
-   куратором — тикет 07, issues/05 просит только раскладку). */
+   Гейты Пределы/Согласия подключены (тикет 07): норма-справочник (limitsGate) и зеркало GUARANTEES
+   (consentGate) — оба жёсткие, без waiver. Флажки/распоряжения — read-only показ по умолчанию
+   (issues/02 задал состав, интерактивная правка куратором — тикет 07, issues/05 просит только
+   раскладку). */
 function gateChipsRow(app){
-  const cga=coverGateApp(app);
-  return `<span class="pill neutral">Пределы — не подключено (тикет 07)</span>
-    <span class="pill neutral">Согласия — не подключено (тикет 07)</span>
+  const cga=coverGateApp(app), lga=limitsGateApp(app), coa=consentGateApp(app);
+  return `${lga.pending?'<span class="pill neutral">Пределы — расчёт не выбран</span>':`<span class="gatechip ${lga.ok?'ok':'no'}">Пределы ${lga.ok?'OK':'блок'}</span>`}
+    <span class="gatechip ${coa.ok?'ok':'no'}">Согласия ${coa.ok?'OK':'блок'}</span>
     <span class="gatechip ${cga.ok?'ok':'no'}">Покрытие ${cga.ok?'OK':'блок (мягкий)'}</span>`;
 }
 function coverBody(app){
   const cga=coverGateApp(app);
-  const rows=cga.rows.map(({cr,g})=>`<div class="mrow"><span>${cr.no}</span><span>${g.cover}% из требуемых ${g.required}%${g.coverOk?'':' — недостаточно'}</span></div>`).join('') || '<div class="mrow"><span>—</span><span>кредиты не выбраны</span></div>';
+  const rows=cga.rows.map(({cr,g})=>`<div class="mrow"><span>${cr.no}</span><span>${g.cover}% из требуемых ${g.required}% (${esc(g.source||'Залог')}, снимок ${esc(g.snapshotDate||'—')}${g.stale?` <span class="pill high" title="Снимок старше ${COVER_SNAPSHOT_STALE_DAYS} к.д. — данные модуля залога могли устареть">устарел</span>`:''})${g.coverOk?'':' — недостаточно'}</span></div>`).join('') || '<div class="mrow"><span>—</span><span>кредиты не выбраны</span></div>';
   return `<div class="mirror">${rows}</div>` + (cga.ok?'':`<div class="warnline">Недостаточно покрытия по одному или нескольким кредитам — мягкий гейт, снимается waiver-ом комиссии по залогу (вкладка «Оформление»).</div>`);
 }
+function limitsBody(app){
+  const lga=limitsGateApp(app);
+  if(lga.pending) return `<div class="op-empty">${esc(lga.messages[0])}</div>`;
+  return `<div class="mrow"><span>Срок</span><span>предел ${lga.cap} мес. (${esc(normNote(lga.capRec))})${lga.termOk?'':' — превышен'}</span></div>
+    <div class="mrow"><span>Ставка</span><span>минимум ${lga.floor}% (${esc(normNote(lga.floorRec))})${lga.rateOk?'':' — ниже минимума'}</span></div>`
+    + (lga.ok?'':`<div class="warnline">${lga.messages.map(esc).join('<br>')} — жёсткий гейт, без waiver.</div>`);
+}
+function consentBody(app){
+  const coa=consentGateApp(app);
+  const rows=coa.rows.flatMap(({cr,g})=>g.list.map(x=>`<div class="mrow"><span>${cr.no} · ${esc(x.name)}</span><span>${esc(x.status)} (${x.date})</span></div>`));
+  return `<div class="mirror">${rows.join('')||'<div class="mrow"><span>—</span><span>обеспечителей нет</span></div>'}</div>`
+    + (coa.ok?'':`<div class="warnline">Не согласовано: ${coa.pending.map(esc).join(', ')} — жёсткий гейт, без waiver.</div>`);
+}
 function gateDetails(app){
-  const cga=coverGateApp(app);
+  const cga=coverGateApp(app), lga=limitsGateApp(app), coa=consentGateApp(app);
   return `
-  <details class="gate-d"><summary><span class="pill neutral">Пределы</span> не подключено</summary><div class="gate-body"><div class="mode-tag">Норма-справочник пределов (пол ставки, предел срока — ADR-0086) не подключён в этом тикете, гейт не проверяется. Заводит тикет 07 (issues/04).</div></div></details>
-  <details class="gate-d"><summary><span class="pill neutral">Согласия</span> не подключено</summary><div class="gate-body"><div class="mode-tag">Реестр согласий обеспечителей (ADR-0085) не подключён, гейт не проверяется. Заводит тикет 07 (issues/04).</div></div></details>
+  <details class="gate-d"><summary>${lga.pending?'<span class="pill neutral">Пределы</span>':`<span class="gatechip ${lga.ok?'ok':'no'}">Пределы</span>`} жёсткий, норма-справочник</summary><div class="gate-body">${limitsBody(app)}</div></details>
+  <details class="gate-d"><summary><span class="gatechip ${coa.ok?'ok':'no'}">Согласия</span> жёсткий, ответ Обеспечения</summary><div class="gate-body">${consentBody(app)}</div></details>
   <details class="gate-d"><summary><span class="gatechip ${cga.ok?'ok':'no'}">Покрытие</span> мягкий, ответ Залога</summary><div class="gate-body">${coverBody(app)}</div></details>`;
 }
 /* производный транш по итогам ДС — единственный признак связи назад к door: ops[0].basis (issues/03). */
@@ -1294,7 +1557,8 @@ function pCalcBase(app){
   if(!cr) return `<div class="detail-panel active"><div class="op-empty">Добавьте кредит в охват — расчёт строится по транш-источнику.</div></div>`;
   if(!app.calcTranche) return `<div class="detail-panel active">
     <div class="gatebar-slim">${gateChipsRow(app)}</div>
-    <div class="op-empty">Транш-источник расчёта не выбран. Выбор транша в этом тикете — вручную не сделан (нет UI), заводит тикет 07 (issues/05, тикет 06 — Answer).</div>
+    <div class="section-h" style="margin-top:0">Транш-источник расчёта</div>
+    ${pickTrancheBlock(app)}
     ${gateDetails(app)}
   </div>`;
 
@@ -1316,13 +1580,25 @@ function pCalcBase(app){
     const ia=ARTICLES.findIndex(x=>x.key===a.article), ib=ARTICLES.findIndex(x=>x.key===b.article);
     return ia!==ib ? ia-ib : (a.urgency==='over'?-1:1)-(b.urgency==='over'?-1:1);
   });
+  const canEdit = canX('editBase');
+  const allowed = allowedDispositions(app);
   const rows = ordered.map(r=>{
     const d=dispositionFor(dispositions,r.article,r.urgency);
     const urg=(URG.find(u=>u.key===r.urgency)||{}).name||r.urgency;
     const dead = r.blockedBy==='disputed';
-    const chk=`<label class="chk ${dead?'dead':''}"><input type="checkbox" disabled ${r.included?'checked':''}><span class="lbl">${r.included?'включена':'снята'}</span></label>`;
-    const disp = d ? `${DISP_LABEL[d.kind]||d.kind}${d.kind==='spread'&&d.periods?' · '+d.periods+' период(ов)':''}` : '<span class="mode-tag">без распоряжения</span>';
-    return `<tr><td>${esc(ARTICLE_LABEL[r.article]||r.article)}</td><td>${urg}</td><td class="numcell">${fmt(r.amount)}</td><td>${chk}</td><td>${disp}</td></tr>`;
+    const chk = dead
+      ? `<label class="chk dead"><input type="checkbox" disabled ${r.included?'checked':''}><span class="lbl">спорная — решает комиссия</span></label>`
+      : `<label class="chk"><input type="checkbox" ${r.included?'checked':''} ${canEdit?'':'disabled'} onchange="RS.toggleBaseRow('${app.id}','${r.article}','${r.urgency}')"><span class="lbl">${r.included?'включена':'снята куратором'}</span></label>`;
+    const disp = r.included
+      ? `<select ${canEdit?'':'disabled'} onchange="RS.setDisposition('${app.id}','${r.article}','${r.urgency}',this.value)">
+          ${['none','cap','forgive','spread'].map(k=>{
+            const ok = k==='none' || allowed.has(k);
+            return `<option value="${k}" ${d&&d.kind===k?'selected':''} ${ok?'':'disabled'}>${DISP_LABEL[k]}${ok?'':' — вид не разрешает'}</option>`;
+          }).join('')}
+        </select>`
+      : '<span class="mode-tag">без распоряжения (строка снята)</span>';
+    const rowCls = dead ? 'art-blocked' : (!r.included ? 'art-removed' : '');
+    return `<tr class="${rowCls}"><td>${esc(ARTICLE_LABEL[r.article]||r.article)}</td><td>${urg}</td><td class="numcell">${fmt(r.amount)}</td><td>${chk}</td><td>${disp}</td></tr>`;
   }).join('') || '<tr><td colspan="5" class="op-empty">Долг по траншу пуст на выбранную дату</td></tr>';
 
   const derived=resultTranche(app);
@@ -1361,7 +1637,7 @@ function pCalcBase(app){
     </div>
 
     <div class="section-h">База — статьи долга, распоряжения</div>
-    <div class="section-note">Порядок строк — константа конвейера PIPELINE (issues/02 реш.6): расходы взыскания → сборы → накопленные проценты → накопленная пеня → пеня → проценты → основной долг. Флажки и распоряжения показаны как приняты по умолчанию — интерактивная правка куратором вне охвата тикета 06 (issues/02 текст спеки её предполагает, заводит тикет 07).</div>
+    <div class="section-note">Порядок строк — константа конвейера PIPELINE (issues/02 реш.6): расходы взыскания → сборы → накопленные проценты → накопленная пеня → пеня → проценты → основной долг. Галка и распоряжение — живые (issues/02 реш.1/4, тикет 07): куратор снимает строку или меняет распоряжение прямо здесь; спорная пеня (ИР-6) и распоряжения, которых вид не допускает, — мёртвые пункты с подписью, не скрытые.${canEdit?'':' <span class="mode-tag">роль «'+esc(state.role)+'» правку не делает — только Куратор ОД.</span>'}</div>
     <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Статья</th><th>Срочность</th><th class="numcell">Сумма</th><th>Включена</th><th>Распоряжение</th></tr></thead><tbody>${rows}</tbody></table></div>
 
     <div class="section-h">Производный транш</div>
@@ -1377,7 +1653,8 @@ function pCalcSched(app){
   if(!cr) return `<div class="detail-panel active"><div class="op-empty">Добавьте кредит в охват — расчёт строится по транш-источнику.</div></div>`;
   if(!app.calcTranche) return `<div class="detail-panel active">
     <div class="gatebar-slim">${gateChipsRow(app)}</div>
-    <div class="op-empty">Транш-источник расчёта не выбран — график недоступен. Выбор транша — тикет 07.</div>
+    <div class="section-h" style="margin-top:0">Транш-источник расчёта</div>
+    <div class="op-empty">Транш-источник не выбран — график недоступен. Выбор — на вкладке «База и распоряжения».</div>
     ${gateDetails(app)}
   </div>`;
 
@@ -1404,7 +1681,8 @@ function pCalcSched(app){
 
   const derivedBlock = draftBlock
     ? tbl((derived?derived.no:'производный транш'), draftBlock.pill, draftBlock.rows.slice(0,6), 'график пуст')
-    : `<div class="op-empty">Черновой график не рассчитан — заведётся при регистрации ДС или предварительном расчёте (тикет 07 — предварительный расчёт до вкладки «Оформление» вне охвата тикета 06).</div>`;
+    : `<div class="op-empty">Черновой график не рассчитан — задайте параметры ниже и нажмите «Предварительный расчёт», или дождитесь регистрации ДС.</div>`;
+  const paramsBlock = derived ? '' : `<div class="section-h">Условия черновика ДС</div>${versionParamsBlock(app)}`;
   const activeBlock = tbl(src.no+' — действующий, не тронут переносом', '<span class="pill low">Действующий</span>', activeRows, 'график транша не оцифрован в демо-сиде (schedules[0].rows пуст) — не факт отсутствия платежей');
 
   const runRes=run(app, app.ds?app.ds.date:TODAY);
@@ -1421,6 +1699,7 @@ function pCalcSched(app){
     <div class="section-h" style="margin-top:0">Черновой график против действующего</div>
     ${derivedBlock}
     <div class="section-note">${draftBlock?draftBlock.note:''}</div>
+    ${paramsBlock}
     ${activeBlock}
 
     <div class="section-h">Частичная реструктуризация</div>
@@ -1445,7 +1724,8 @@ function pMinfin(app){
   if(c.fixed){
     letterBlock = l.fixed
       ? `<div class="okline">Письмо в Минфин направлено ${l.date}. Включена пауза взыскания + дедлайн решения 70 к.д. (см. вкладку История / блок «Автоматика» ниже).</div>`
-      : `<div class="warnline">Дедлайн письма: ${dl?(dl.overdue?`<span class="dl-red">просрочен ${-dl.remaining} дн.</span>`:`осталось ${dl.remaining} дн.`):'5 р.д.'} (флаг, не блокировка). Письмо направляется при любой позиции.</div>
+      : `<div class="warnline">Дедлайн письма: ${dl?(dl.overdue?`<span class="dl-red">просрочен ${-dl.remaining} дн.</span>`:`осталось ${dl.remaining} дн.`):'5 р.д.'} (флаг, не блокировка). Письмо направляется при любой позиции.
+         <span class="mode-tag">${esc(dl?normNote(dl.rec):normNote(normAt('deadlineLetter',c.date||TODAY)))} · срок в рабочих днях, производственный календарь (праздники) не учтён — считаются только сб/вс</span></div>
          <button class="btn btn-primary btn-sm" onclick="RS.fixLetter('${app.id}')">Зафиксировать отправку письма</button>`;
   }
   let minfinBlock='';
@@ -1478,7 +1758,7 @@ function automationBlock(app){
   const paused = app.letterSent&&app.letterSent.fixed && !(app.outcome==='отказ'||(app.ds&&app.ds.no));
   const mirror = proc ? `<div class="mirror">
       <div class="mh">Зеркало процесса взыскания ${proc.id} (read-only)</div>
-      ${paused?`<div class="mbanner">⏸ Пауза (scope: весь процесс, дедлайн 70 к.д.) — источник: заявка <span class="rowlink" onclick="RS.openApp('${app.id}')">${app.id}</span></div>`:''}
+      ${paused?`<div class="mbanner">⏸ Пауза (предмет — меры п. 16, ADR-0063: обе претензии, требования поручителю/гаранту/госоргану, безакцепт; судебный и залоговый треки идут своим ходом; дедлайн 70 к.д.) — источник: заявка <span class="rowlink" onclick="RS.openApp('${app.id}')">${app.id}</span></div>`:''}
       <div class="mrow"><span>Фаза</span><span>${proc.phase}</span></div>
       <div class="mrow"><span>Дней в категории</span><span>${proc.catDays}</span></div>
       <div class="mrow"><span>Заёмщик (ИНН)</span><span>${proc.inn}</span></div>
@@ -1501,18 +1781,26 @@ function pFormal(app){
     <td>${g.coverOk?'<span class="gatechip ok">покрытие ✓</span>':'<span class="gatechip no">покрытие ✗</span>'}</td>
     <td>${cr.tech?(g.ageOk?'<span class="gatechip ok">возраст ✓</span>':'<span class="gatechip no">возраст ✗</span>'):'<span class="mode-tag">не техника</span>'}</td>
     <td>${g.insured?'<span class="gatechip ok">страховка ✓</span>':'<span class="gatechip no">страховка ✗</span>'}</td>
+    <td>${esc(g.source||'Залог')}, ${esc(g.snapshotDate||'—')}${g.stale?` <span class="pill high" title="Снимок старше ${COVER_SNAPSHOT_STALE_DAYS} к.д. — данные модуля залога могли устареть">устарел</span>`:''}</td>
   </tr>`).join('');
   const waived = app.waiver&&app.waiver.granted;
   let gateLine;
   if(cga.ok && !waived) gateLine=`<div class="okline">Гейт обеспечения пройден по всем кредитам. Регистрация доп. соглашения доступна.</div>`;
   else if(waived) gateLine=`<div class="warnline">Гейт обеспечения снят WAIVER-ом комиссии по залогу. Основание: ${esc(app.waiver.reason)} (${app.waiver.date}).</div>`;
   else gateLine=`<div class="flagline">Гейт обеспечения не пройден — регистрация доп. соглашения заблокирована. Разблокировка — «Решение комиссии по залогу» с обязательным основанием.</div>`;
+  const lga=limitsGateApp(app), coa=consentGateApp(app);
+  const limitsLine = lga.pending ? '<div class="op-empty">Расчёт (транш-источник/условия) ещё не выбран — гейт неприменим.</div>'
+    : lga.ok ? `<div class="okline">Срок и ставка новых условий в пределах нормы (${esc(normNote(lga.capRec))}).</div>`
+    : `<div class="flagline">${lga.messages.map(esc).join('<br>')} — жёсткий гейт, без waiver.</div>`;
+  const consentLine = coa.ok ? '<div class="okline">Согласия всех обеспечителей получены.</div>'
+    : `<div class="flagline">Не согласовано: ${coa.pending.map(esc).join(', ')} — жёсткий гейт, без waiver.</div>`;
   const done = app.ds&&app.ds.no;
+  const canReg = (cga.ok||waived) && lga.ok && coa.ok;
   const dsBlock = done
     ? `<div class="okline">Доп. соглашение <b>${esc(app.ds.no)}</b> зарегистрировано. Версия «действует» с ${app.ds.date}. Счётчик реструктуризаций кредитов +1.</div>`
     : `<div class="gtoolbar">
         ${(!cga.ok && !waived)?`<button class="btn btn-danger btn-sm" onclick="RS.openWaiver('${app.id}')">Решение комиссии по залогу (waiver)</button>`:''}
-        <button class="btn btn-primary btn-sm" ${(cga.ok||waived)?'':'disabled'} onclick="RS.openDS('${app.id}')">Зарегистрировать доп. соглашение</button>
+        <button class="btn btn-primary btn-sm" ${canReg?'':'disabled'} onclick="RS.openDS('${app.id}')">Зарегистрировать доп. соглашение</button>
       </div>`;
   const dispRows = (app.dispositions||[]).filter(d=>d.kind!=='none');
   const kindLabel = k => k==='cap'?'Капитализация':k==='forgive'?'Прощение':k==='spread'?'Распределение по периодам':k;
@@ -1520,10 +1808,16 @@ function pFormal(app){
     ? `<div class="ops-list">${dispRows.map(d=>`<div class="op-row"><span class="op-t"><b>${kindLabel(d.kind)}</b> — ${esc(ARTICLE_LABEL[d.article]||d.article)} (${esc((URG.find(u=>u.key===d.urgency)||{}).name||d.urgency)})</span><span class="mode-tag">${fmt(d.amount)}</span></div>`).join('')}</div>`
     : '<div class="op-empty">Распоряжений нет — база и распоряжения задаются на вкладке «База и распоряжения».</div>';
   return `<div class="detail-panel active">
-    <div class="section-h">Гейт обеспечения (на новых условиях)</div>
+    <div class="section-h">Гейт пределов (жёсткий, без waiver)</div>
+    <div class="section-note">Срок и ставка новых условий против норма-справочника (ADR-0086) на дату операции.</div>
+    ${limitsLine}
+    <div class="section-h" style="margin-top:18px">Гейт согласий обеспечителей (жёсткий, без waiver)</div>
+    <div class="section-note">Ответ Обеспечения (ADR-0085) — зеркало, не собственный расчёт.</div>
+    ${consentLine}
+    <div class="section-h" style="margin-top:18px">Гейт обеспечения (мягкий, снимается waiver-ом)</div>
     <div class="section-note">Покрытие = залоговая стоимость / остаток ≥ порог. Возраст техники против нового срока. Страховка на новый срок (Р-15).</div>
     ${gateLine}
-    <div class="cgrid-wrap" style="max-width:760px"><table class="cgrid"><thead><tr><th>Кредит</th><th class="numcell">Покрытие</th><th>Покрытие</th><th>Возраст</th><th>Страховка</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="cgrid-wrap" style="max-width:900px"><table class="cgrid"><thead><tr><th>Кредит</th><th class="numcell">Покрытие</th><th>Гейт</th><th>Возраст</th><th>Страховка</th><th>Снимок</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="section-h" style="margin-top:18px">Доп. соглашение</div>${dsBlock}
     <div class="section-h" style="margin-top:18px">Операции на дату вступления</div>${ops}
   </div>`;
@@ -1548,7 +1842,7 @@ function renderDict(){
     <td><b>${esc(k.name)}</b></td>
     <td>${[...k.params].map(p=>PARAM_LABEL[p]||p).join(', ')}</td>
     <td>${k.docs.map(esc).join(', ')}</td>
-    <td>${k.overdueMode===1?'(1) в новый график + обнуление':'(2) сохраняется'}</td>
+    <td>${(k.allowedDispositions||[]).map(d=>DISP_LABEL[d]||d).join(', ')||'<span class="mode-tag">только «без распоряжения»</span>'}</td>
     <td>${esc(k.limits||'')}</td>
   </tr>`).join('');
   v.innerHTML=`
@@ -1558,7 +1852,7 @@ function renderDict(){
       <span class="mode-tag">Конструктор — роль Администратор. Новый вид сразу доступен в заявках.</span>
     </div>
     <div class="grid-wrap"><table class="grid"><thead><tr>
-      <th>Вид</th><th>Разрешённые параметры</th><th>Документы</th><th>Режим просрочки</th><th>Ограничения</th>
+      <th>Вид</th><th>Разрешённые параметры</th><th>Документы</th><th>Разрешённые распоряжения</th><th>Ограничения</th>
     </tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
@@ -1622,6 +1916,10 @@ function openDS(appId){
   if(!guard('regDS')) return; const app=appById(appId);
   const cga=coverGateApp(app);
   if(!cga.ok && !(app.waiver&&app.waiver.granted)){ toast('Гейт обеспечения не пройден — сначала waiver','err'); return; }
+  const lga=limitsGateApp(app);
+  if(!lga.ok){ toast('Гейт пределов не пройден: '+lga.messages.join('; '),'err'); return; }               // жёсткий, без waiver
+  const coa=consentGateApp(app);
+  if(!coa.ok){ toast('Гейт согласий не пройден: не согласовано — '+coa.pending.join(', '),'err'); return; }  // жёсткий, без waiver
   modal(`<div class="modal">${mhead('Регистрация доп. соглашения')}<div class="modal-b"><div class="mform">
     <div class="field req"><span class="flabel">Номер доп. соглашения</span><input id="dsno" placeholder="ДС-…"></div>
     <div class="field req"><span class="flabel">Дата</span><input id="dsdate" type="date" value="${TODAY}"></div>
@@ -1651,11 +1949,12 @@ function regDS(appId){
 function openNewKind(){
   if(!guard('manageDict')) return;
   const chks=PARAM_KEYS.map(([k,l])=>`<label class="chk"><input type="checkbox" value="${k}" class="npk"> ${l}</label>`).join('');
+  const dchks=Object.keys(DISP_LABEL).filter(d=>d!=='none').map(d=>`<label class="chk"><input type="checkbox" value="${d}" class="ndk"> ${DISP_LABEL[d]}</label>`).join('');
   modal(`<div class="modal wide">${mhead('Новый вид реструктуризации')}<div class="modal-b"><div class="mform">
     <div class="field req col-span"><span class="flabel">Название</span><input id="nkname"></div>
     <div class="field col-span"><span class="flabel">Разрешённые параметры</span><div class="f2" style="grid-template-columns:1fr 1fr 1fr">${chks}</div></div>
     <div class="field col-span"><span class="flabel">Требуемые документы (через запятую)</span><input id="nkdocs" value="Заявление"></div>
-    <div class="field req"><span class="flabel">Режим просрочки</span><select id="nkmode"><option value="1">(1) в новый график + обнуление счётчика</option><option value="2">(2) просрочка сохраняется</option></select></div>
+    <div class="field col-span"><span class="flabel">Разрешённые распоряжения <span class="ro-tag">(issues/04; «без распоряжения» доступно всегда)</span></span><div class="f2" style="grid-template-columns:1fr 1fr 1fr">${dchks}</div></div>
     <div class="field"><span class="flabel">Ограничения</span><input id="nklim"></div>
   </div></div><div class="modal-f"><button class="btn btn-secondary" onclick="RS.closeModal()">Отмена</button>
     <button class="btn btn-primary" onclick="RS.addKind()">Создать вид</button></div></div>`);
@@ -1664,9 +1963,10 @@ function addKind(){
   const name=(document.getElementById('nkname').value||'').trim(); if(!name){ toast('Название обязательно','err'); return; }
   const params=[...document.querySelectorAll('.npk:checked')].map(x=>x.value);
   const docs=(document.getElementById('nkdocs').value||'').split(',').map(s=>s.trim()).filter(Boolean);
-  const mode=+document.getElementById('nkmode').value; const limits=(document.getElementById('nklim').value||'').trim();
+  const dispositions=[...document.querySelectorAll('.ndk:checked')].map(x=>x.value);
+  const limits=(document.getElementById('nklim').value||'').trim();
   const id='K'+(state.kinds.length+1)+'_'+Date.now().toString(36);
-  state.kinds.push({id,name,params,docs,overdueMode:mode,limits});
+  state.kinds.push({id,name,params,docs,allowedDispositions:dispositions,limits});
   closeModal(); toast('Вид создан — доступен в заявках','ok'); render();
 }
 
@@ -1674,7 +1974,7 @@ function showMirror(procId,appId){
   const p=state.procs[procId]; if(!p) return;
   const app=appById(appId); const paused=app&&app.letterSent&&app.letterSent.fixed&&!(app.outcome==='отказ'||(app.ds&&app.ds.no));
   modal(`<div class="modal">${mhead('Процесс взыскания '+procId+' (read-only)')}<div class="modal-b">
-    ${paused?`<div class="warnline">⏸ Пауза (весь процесс, 70 к.д.) — источник: заявка ${appId}</div>`:''}
+    ${paused?`<div class="warnline">⏸ Пауза (предмет — меры п. 16, ADR-0063; судебный и залоговый треки идут своим ходом; 70 к.д.) — источник: заявка ${appId}</div>`:''}
     <div class="mirror"><div class="mrow"><span>Фаза</span><span>${p.phase}</span></div>
     <div class="mrow"><span>Дней в категории</span><span>${p.catDays}</span></div>
     <div class="mrow"><span>Заёмщик (ИНН)</span><span>${p.inn}</span></div></div>
@@ -1697,9 +1997,9 @@ function fixCommittee(appId){ if(!guard('fixCommittee')) return; const app=appBy
 function fixLetter(appId){ if(!guard('fixLetter')) return; const app=appById(appId);
   app.letterSent={fixed:true,date:TODAY}; app._t=TODAY;
   const cr=creditById(app.creditIds[0]);
-  app.automation.push({when:TODAY,kind:'pause',text:'Пауза поставлена в процессе взыскания '+(cr&&cr.collProc||'—')+' (scope: весь процесс, дедлайн 70 к.д.)'});
+  app.automation.push({when:TODAY,kind:'pause',text:'Пауза поставлена в процессе взыскания '+(cr&&cr.collProc||'—')+' (предмет — меры п.16, ADR-0063; судебный/залоговый треки своим ходом; дедлайн 70 к.д.)'});
   if(cr) app.automation.push({when:TODAY,kind:'overlay',text:'Оверлей подавления 181-го дня поставлен на кредит '+cr.no});
-  H(app,'Письмо в Минфин направлено. Пауза взыскания (весь процесс, 70 к.д.) + оверлей 181-го дня.','Куратор ОД','auto');
+  H(app,'Письмо в Минфин направлено. Пауза взыскания по мерам п.16 (ADR-0063, 70 к.д.) + оверлей 181-го дня.','Куратор ОД','auto');
   toast('Отправка письма зафиксирована — автоматика паузы включена','ok'); render(); }
 function fixMinfin(appId){ if(!guard('fixMinfin')) return; const app=appById(appId);
   const dec=document.getElementById('mdec').value; const ref=(document.getElementById('mref').value||'').trim();
@@ -1797,8 +2097,12 @@ const RS = {
   openAddCredit, addCredit, fixCommittee, fixLetter, fixMinfin, advance,
   openWaiver, grantWaiver, openDS, regDS, openNewKind, addKind, showMirror,
   get state(){ return state; }, seed, stageOf, deadline, packetGate, conclGate, minfinGate, dsGate,
-  coverGate, coverGateApp, allowedParams, requiredDocs, activeAppOnCredit, canAdvance, canX,
+  coverGate, coverGateApp, allowedParams, allowedDispositions, requiredDocs, activeAppOnCredit, canAdvance, canX,
   appById, creditById, kindById, amortize, periodMonths, round2, addCalDays,
+  normAt, normNote, termCapFor, rateFloorFor, limitsGate, limitsGateApp,
+  consentGate, consentGateApp, coverSnapshotAge, coverSnapshotStale,
+  toggleBaseRow, setDisposition, ensureBaseDispositions, dispositionFor, defaultBase, defaultDispositions,
+  trancheCandidates, setCalcTranche, setVersionParam, recalcPlan,
   TODAY, STAGES, ROLES,
   __baseApp: baseApp
 };
