@@ -3,7 +3,7 @@
 **Статус:** принято · 2026-08-05 · модуль «Реструктуризация» · форма
 [ADR-0014](./0014-shov-s-kreditnym-modulem.md) · соседствует с
 [ADR-0074](./0074-dosrochka-grafik-po-zayavleniyu.md) · опирается на
-[ADR-0079](./0079-restrukturizaciya-delit-transh-perenos-datirovan.md)
+[ADR-0092](./0092-restrukturizaciya-delit-transh-perenos-datirovan.md)
 
 Регистрация допсоглашения меняет в кредите шесть вещей: создаёт производный транш, переносит
 базу, пишет записи условий, кладёт версию графика, закрывает опустошённый транш, поднимает

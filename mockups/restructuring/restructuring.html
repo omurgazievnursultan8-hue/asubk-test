@@ -676,7 +676,7 @@ function validateDS(ds){
 function closeIfEmptied(tranche, ds){
   if(round2(balanceAt(tranche, ds.date))<=0) tranche.closed={ date:ds.date, by:ds.no, reason:'перенос' };
 }
-/* Единственная пишущая дверь (ADR-0083, issues/03): валидация → 1 производный транш → 2 перенос
+/* Единственная пишущая дверь (ADR-0096, issues/03): валидация → 1 производный транш → 2 перенос
    (зеркальная пара transfer_out/transfer_in) → 3 версия графика на новый транш → 4 условия (несутся
    вместе с траншем в conditionRecords) → 5 закрытие опустошённого источника → 6 счётчик + одна запись
    аудита. `tranche.ops.push` вне этой функции быть не должно (граница grep-проверяема). */
@@ -745,7 +745,7 @@ function stageOf(app){
   return {idx:0, closed:false, label:'Регистрация обращения'};
 }
 
-/* Норма-справочник (issues/04 реш.2, ADR-0086, ИР-10): запись — величина+пункт+редакция+дата
+/* Норма-справочник (issues/04 реш.2, ADR-0099, ИР-10): запись — величина+пункт+редакция+дата
    начала действия, не голое число в коде. Расширяет прецедент DEADLINE_TEMPLATES (collection.html)
    двумя полями (edition/dateFrom). Смена редакции — НОВАЯ запись поверх старой (normAt берёт
    последнюю applicable на дату), старую не правим. edition:null — редакция Положения (гл.9,
@@ -819,10 +819,10 @@ function coverGate(app,cr){
 /* агрегат гейта обеспечения по всем кредитам заявки */
 function coverGateApp(app){ const rows=app.creditIds.map(id=>({cr:creditById(id),g:coverGate(app,creditById(id))})); const ok=rows.every(r=>r.g.ok); return {rows,ok}; }
 
-/* Пределы (issues/04 реш.2/3, ADR-0086, ИР-10, РС-19): жёсткий гейт, без waiver — срок и ставка
+/* Пределы (issues/04 реш.2/3, ADR-0099, ИР-10, РС-19): жёсткий гейт, без waiver — срок и ставка
    новых условий сверяются с норма-справочником на дату операции. База предела срока — баланс
    кредита (cr.balance, тот же приём, что coverGate несколькими строками выше), а не сумма
-   конкретного переноса: предел — свойство кредита в целом, а партиционный перенос (ADR-0079)
+   конкретного переноса: предел — свойство кредита в целом, а партиционный перенос (ADR-0092)
    моложе самой нормы — цена операции внутри кредита её не меняет. */
 function limitsGate(params, credit, date){
   const term=Number(params&&params.term)||0;
@@ -846,7 +846,7 @@ function limitsGateApp(app){
   return limitsGate(params, credit, date);
 }
 
-/* Согласия обеспечителей (issues/04 реш.2, ADR-0085, ИР-8): зеркало чужого домена (Обеспечение) —
+/* Согласия обеспечителей (issues/04 реш.2, ADR-0098, ИР-8): зеркало чужого домена (Обеспечение) —
    тот же приём, что COLL_PROCS чуть выше по файлу: демо-данные здесь, не вызов чужого API. Жёсткий
    гейт, без waiver (в отличие от покрытия) — по каждому кредиту заявки все обеспечители обязаны
    быть в статусе «согласовано». */
@@ -1117,7 +1117,7 @@ function run(app, date){
 /* Расхождение среза и факта — колонка-дельта, порог мягкий (issues/02 реш.3): флаг + запись в
    журнал, ничего не блокирует — жёсткий гейт на непоказуемое число противоречил бы дисциплине
    «не выдумывать номер» (map.md). */
-const CUTOFF_DRIFT_PCT = 0.05;   // (по умолч., настройка) — origin: ADR-0082, письмо вопрос 1, п. не подтверждён
+const CUTOFF_DRIFT_PCT = 0.05;   // (по умолч., настройка) — origin: ADR-0095, письмо вопрос 1, п. не подтверждён
 function cutoffDrift(app){
   if(!app.cutoff || !app.cutoff.rows || !app.ds || !app.ds.fact) return null;
   const cutoffSum = round2(app.cutoff.rows.reduce((s,r)=>s+r.amount,0));
@@ -1809,10 +1809,10 @@ function pFormal(app){
     : '<div class="op-empty">Распоряжений нет — база и распоряжения задаются на вкладке «База и распоряжения».</div>';
   return `<div class="detail-panel active">
     <div class="section-h">Гейт пределов (жёсткий, без waiver)</div>
-    <div class="section-note">Срок и ставка новых условий против норма-справочника (ADR-0086) на дату операции.</div>
+    <div class="section-note">Срок и ставка новых условий против норма-справочника (ADR-0099) на дату операции.</div>
     ${limitsLine}
     <div class="section-h" style="margin-top:18px">Гейт согласий обеспечителей (жёсткий, без waiver)</div>
-    <div class="section-note">Ответ Обеспечения (ADR-0085) — зеркало, не собственный расчёт.</div>
+    <div class="section-note">Ответ Обеспечения (ADR-0098) — зеркало, не собственный расчёт.</div>
     ${consentLine}
     <div class="section-h" style="margin-top:18px">Гейт обеспечения (мягкий, снимается waiver-ом)</div>
     <div class="section-note">Покрытие = залоговая стоимость / остаток ≥ порог. Возраст техники против нового срока. Страховка на новый срок (Р-15).</div>
@@ -1927,7 +1927,7 @@ function openDS(appId){
   </div></div><div class="modal-f"><button class="btn btn-secondary" onclick="RS.closeModal()">Отмена</button>
     <button class="btn btn-primary" onclick="RS.regDS('${appId}')">Зарегистрировать</button></div></div>`);
 }
-/* Единственное место в оболочке, которое зовёт дверь CreditSide.restructureApplied (ADR-0083,
+/* Единственное место в оболочке, которое зовёт дверь CreditSide.restructureApplied (ADR-0096,
    issues/03) — раньше applyEntryOps писал app.ops мимо двери, теперь пишущий путь один. */
 function regDS(appId){
   const app=appById(appId); const no=(document.getElementById('dsno').value||'').trim(); const date=(document.getElementById('dsdate').value||'').trim();
