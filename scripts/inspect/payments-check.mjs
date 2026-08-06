@@ -1,7 +1,8 @@
 // Проверка мокапа платежей (mockups/payments/payments.html) на jsdom.
-// Модель: ADR-0055…0061 и ADR-0073…0076 поверх ADR-0001 «производные не хранятся».
-// Швы: №1 три сущности (поступление · платёж · возврат) · №2 разнесение = производная
-// у живого платежа и снимок у замороженного · №4 матрица разносит только наступившее ·
+// Модель: ADR-0055…0061 и 0073…0076 поверх ADR-0001 «производные не хранятся».
+// Швы: №1 три сущности (поступление · платёж · возврат) · №2 разбивка платежа —
+// динамическая у живого платежа и зафиксированная у замороженного · №4 матрица
+// разносит только наступившее ·
 // №5 транш — область, а не уровень · №6 три режима остатка · №7 два уровня заморозки ·
 // №8 списание не платёж, курс — производная.
 // Спецификация: mockups/payments/ASUBK-platezhi-logika.md (§4.2, §5, §7, §8);
@@ -89,7 +90,7 @@ ok('поступления, упомянутые в смоуке, есть в н
 ok('платежи, упомянутые в смоуке, есть в наборе'     + (gonePay.length?` — нет: ${gonePay.join(' ')}`:''), gonePay.length === 0);
 ok('возвраты, упомянутые в смоуке, есть в наборе'    + (goneRet.length?` — нет: ${goneRet.join(' ')}`:''), goneRet.length === 0);
 ok('акты, упомянутые в смоуке, есть в наборе'        + (goneAct.length?` — нет: ${goneAct.join(' ')}`:''), goneAct.length === 0);
-ok('разнесения, упомянутые в смоуке, есть в наборе'  + (goneAl.length ?` — нет: ${goneAl.join(' ')}` :''), goneAl.length  === 0);
+ok('разбивки, упомянутые в смоуке, есть в наборе'  + (goneAl.length ?` — нет: ${goneAl.join(' ')}` :''), goneAl.length  === 0);
 ok('кредиты, упомянутые в смоуке, есть в наборе'     + (goneCr.length ?` — нет: ${goneCr.join(' ')}` :''), goneCr.length  === 0);
 ok('периоды, упомянутые в смоуке, есть в наборе'     + (gonePer.length?` — нет: ${gonePer.join(' ')}`:''), gonePer.length === 0);
 /* ПТ-Д22: правило без случая в данных не проверяется — набор обязан держать случаи волны. */
@@ -120,8 +121,10 @@ ok('у платежа собственных осей нет — он их на�
    g.ev(`DATA.payments.every(p => !('channel' in p) && !('match' in p) && !('frozen' in p))`));
 ok('своей даты у платежа нет: дата = дата фактического поступления (§7.1)',
    g.ev(`DATA.payments.every(p => !('date' in p))`));
-ok('карточка платежа так и подписывает дату',
-   g.textOf(g.pay('P-2041','req','curator')).includes('дата платежа = дата фактического поступления'));
+ok('карточка платежа печатает дату фактического поступления родителя',
+   (() => { const t = g.textOf(g.pay('P-2041','req','curator'));
+     const d = g.ev(`receiptOf(DATA.payments.find(p=>p.id==='P-2041')).date`);
+     return /дата фактического поступления/i.test(t) && t.includes(d); })());
 ok('возврат — не платёж: ни один возврат не числится платежом',
    g.ev(`DATA.returns.every(v => !DATA.payments.some(p => p.id===v.id))`));
 ok('получатель возврата — реквизит возврата, а не производная кредита (ПТ-Д2)',
@@ -169,9 +172,17 @@ ok('карточка поступления печатает инвариант 
 ok('в карточке R-280 числа инварианта сходятся в разметке',
    (() => { const t = g.textOf(g.rec('R-280','alloc','curator'));
      return t.includes('150 000,00') && t.includes('105 000,00') && t.includes('45 000,00'); })());
-ok('лента поступлений сводит тот же инвариант итогом и не сообщает о неразнесённых',
-   (() => { const t = g.textOf(g.view('receipts','curator'));
-     return /Итог по ленте/.test(t) && /остатков, требующих разнесения, нет/.test(t); })());
+/* Итог стоит подвалом таблицы, а не полосой над ней: каждая величина обязана быть в
+   своей колонке, иначе три числа читаются как несвязанные. Проверяем и место, и то,
+   что складывается вся выборка, а не видимая страница. */
+ok('лента поступлений сводит тот же инвариант подвалом таблицы, каждую величину в свою колонку',
+   (() => { g.view('receipts','curator');
+     const foot = g.q('table.grid[data-t="rec"] tfoot tr'); if(!foot) return false;
+     const cells = [...foot.children];
+     const sum = g.ev(`feedSlice('rec').hits.reduce((s,r)=>s+r.amount,0)`);
+     return /Итого по выборке/.test(cells[0].textContent)
+       && cells[1].textContent.replace(/\s/g,'') === g.ev(`money(${sum})`).replace(/\s/g,'')
+       && /Σ платежей/.test(foot.textContent) && /исполненные возвраты/.test(foot.textContent); })());
 
 /* ══════════════════════════════════════════════════════════════════════════
    §4.1–4.2 — СТОРНО ЛЕЧИТ ПОСТУПЛЕНИЕ, А НЕ ПЛАТЁЖ
@@ -184,14 +195,14 @@ ok('и обратно: погашенный платёж бывает тольк
    g.ev(`DATA.payments.filter(p=>p.void).every(p => isReversed(receiptOf(p)))`));
 ok('сторнированное не удалено — платёж остался видимым в карточке с меткой',
    /Погашен сторно/.test(g.textOf(g.rec('R-268','alloc','accountant'))));
-ok('разнесение сторнированного платежа пусто, а не «снято каскадом» (ПТ-Д8)',
+ok('разбивка сторнированного платежа пуста, а не «снята каскадом» (ПТ-Д8)',
    g.ev(`allocOf(DATA.payments.find(p=>p.id==='P-2038').derived).layers.length`) === 0
    && g.ev(`allocOf(DATA.payments.find(p=>p.id==='P-2038').derived).total`) === 0);
 ok('сторнированное поступление невыясненным не считается (иначе гейт назовёт его дважды)',
    g.ev(`DATA.receipts.filter(isReversed).every(r => isUnresolved(r) === false)`));
 ok('сторно обратимо: карточка обещает восстановление ИСХОДНОЙ датой поступления',
    (() => { const t = g.textOf(g.rec('R-268','alloc','accountant'));
-     return /обратим/i.test(t) && t.includes('14.06.2026'); })());
+     return /[Вв]осстановлен/.test(t) && t.includes('14.06.2026'); })());
 ok('сторно живёт на поступлении: кнопка есть в карточке поступления',
    g.ev(`(openReceipt('R-311'), [...document.querySelectorAll('#content button')].map(b=>b.textContent.trim()))`)
      .some(t => /^Сторно поступления$/.test(t)));
@@ -205,7 +216,7 @@ ok('три разные ошибки — три разные кнопки: ст�
          && b.some(t=>/Перепривязать/.test(t)); })());
 ok('таймаут считается в РАБОЧИХ днях и настраивается (§4.2)',
    g.ev('DATA.timeoutDays') === 10 && g.ev('DATA.warnDays') === 3
-   && /рабочих дней/.test(g.textOf(g.rec('R-311','alloc','curator'))));
+   && /раб\. дн\./.test(g.textOf(g.rec('R-311','alloc','curator'))));
 ok('спорная пеня висит на поступлении сторно и хранит только решение комиссии (ПТ-Д14)',
    g.ev(`DATA.receipts.filter(r=>r.dispute).every(r => isReversed(r) && !('from' in r.dispute) && !('to' in r.dispute))`));
 
@@ -236,17 +247,25 @@ ok('экран «Невыясненные» — тот же рендер стр�
 ok('шапка таблицы у обоих экранов одна и та же',
    (() => { const th = h => { const d = g.doc.createElement('div'); d.innerHTML = h;
        return [...d.querySelectorAll('th')].map(x=>x.textContent).join('|'); };
-     return th(g.view('receipts','curator')).startsWith(th(g.view('unresolved','curator')).split('|')[0])
-       && th(g.view('unresolved','curator')).includes('Счёт зачисления и что он опознал'); })());
-ok('экран прямо называет себя видом ленты, а не буфером-справочником',
-   /вид ленты поступлений/i.test(g.textOf(g.view('unresolved','curator'))));
-ok('срока годности у чужих денег нет: автосписание в доход не обещано (ПТ-27)',
-   (() => { const t = g.textOf(g.view('unresolved','curator'));
-     return /по сроку не списываются/i.test(t) && /держит закрытие периода/i.test(t); })());
+     const a = th(g.view('receipts','curator')), b = th(g.view('unresolved','curator'));
+     return a === b && b.includes('Счёт и что опознал'); })());
+/* Возврат к полной ленте даёт навигация — кнопкой её не дублируем. Отдельным
+   справочником экран не является: он держит ту же таблицу и ТОТ ЖЕ фильтр (feed 'rec'),
+   отличаясь только базой. Своих условий у вида быть не может. */
+ok('экран невыясненных — вид той же ленты: та же таблица и тот же фильтр, отдельного справочника нет',
+   (() => { g.view('unresolved','curator');
+     const tb = g.q('table.grid[data-t="rec"]'), fb = g.q('#fp-rec');
+     const ids = g.ev(`unresolvedReceipts().map(r=>r.id)`);
+     return !!tb && !!fb && g.ev(`FEEDS.ret !== FEEDS.rec`)
+       && g.ev(`feedSlice('rec').hits.map(r=>r.id).join()`) === ids.join(); })());
+ok('невыясненные держат закрытие периода, а по сроку никуда не списываются (ПТ-27)',
+   (() => { const t = g.textOf(g.view('unresolved','curator')) + g.textOf(g.rec('R-296','alloc','curator'));
+     return /держ[аи]т закрытие периода/i.test(t) && !/списыва[а-яё]*\s+в\s+доход/i.test(t); })());
 ok('опознание рождает платёж, а не правит поле: разбор даёт кандидатов и причину',
    (() => { const t = g.textOf(g.rec('R-296','parse','curator'));
-     return /с нулём платежей/i.test(t) && /Опознание не «переводит из буфера»/.test(t)
-       && t.includes('Бакиров Нурлан Асанович') && t.includes('Бакиров Нуртай Акматович'); })());
+     return /Объект не опознан/i.test(t) && /Кандидаты/.test(t)
+       && t.includes('Бакиров Нурлан Асанович') && t.includes('Бакиров Нуртай Акматович')
+       && g.$$('#content button').some(b=>/Привязать/.test(b.textContent)); })());
 ok('у невыясненного без реквизитов кандидатов нет — и это показано (R-294)',
    g.ev(`(DATA.receipts.find(r=>r.id==='R-294').candidates||[]).length`) === 0
    && g.rec('R-294','parse','curator').length > 0);
@@ -254,12 +273,12 @@ ok('у невыясненного без реквизитов кандидато
 /* ══════════════════════════════════════════════════════════════════════════
    §8.2 (ПТ-Д9) — ЗАМОРОЗКА МАТЕРИАЛИЗУЕТ СНИМОК; РАСХОЖДЕНИЕ ВИДНО
    ══════════════════════════════════════════════════════════════════════════ */
-head('§8.2 · снимок замороженного и расхождение с выводом');
-ok('снимок есть ровно у платежей замороженного поступления',
+head('§8.2 · зафиксированная разбивка замороженного и расхождение с текущей');
+ok('зафиксированная разбивка есть ровно у платежей замороженного поступления',
    g.ev(`DATA.payments.filter(p=>!p.void).every(p => (receiptOf(p).frozen==='frozen') === !!p.snapshot)`));
-ok('живой платёж снимка не имеет — разнесение выводится (ADR-0001)',
+ok('живой платёж зафиксированной разбивки не имеет — она выводится (ADR-0001)',
    g.ev(`DATA.payments.filter(p=>receiptOf(p).frozen==='open').every(p => p.snapshot === null)`));
-ok('замороженный платёж за слоями не следует: снимок P-2044 ≠ текущий вывод',
+ok('замороженный платёж за слоями не следует: зафиксированная P-2044 ≠ текущая',
    g.ev(`DATA.payments.find(p=>p.id==='P-2044').snapshot`) === 'AL-2044S'
    && g.ev(`DATA.payments.find(p=>p.id==='P-2044').derived`) === 'AL-2044L'
    && !!g.ev(`snapshotDrift(DATA.payments.find(p=>p.id==='P-2044'))`));
@@ -271,22 +290,23 @@ ok('у расхождения названа причина, а не «каск�
    /поглотил часть требований/i.test(g.ev(`snapshotDrift(DATA.payments.find(p=>p.id==='P-2044')).reason`) || ''));
 ok('расхождение ВИДНО в разметке карточки: обе колонки, обе даты, причина',
    (() => { const t = g.textOf(g.pay('P-2044','alloc','curator'));
-     return /Снимок и текущий вывод разошлись/.test(t) && /Снимок на заморозке · 12\.07\.2026/.test(t)
-       && /Текущий вывод · 04\.08\.2026/.test(t) && /Причина расхождения/.test(t); })());
+     return /Зафиксированная и текущая разбивка разошлись/.test(t) && /Зафиксирована на заморозке · 12\.07\.2026/.test(t)
+       && /Текущая разбивка · 04\.08\.2026/.test(t) && /Причина расхождения/.test(t); })());
 ok('расхождение помечено и в шапке карточки, и на вкладке',
    (() => { const h = g.pay('P-2044','alloc','curator');
-     return /Снимок разошёлся с выводом/.test(g.textOf(h)) && /расхождение/.test(g.textOf(h)); })());
-ok('снимок в разметке не подменяется текущим выводом (разные суммы по слоям)',
+     return /Разбивка разошлась с текущей/.test(g.textOf(h)) && /расхождение/.test(g.textOf(h)); })());
+ok('зафиксированная в разметке не подменяется текущей (разные суммы по слоям)',
    (() => { const t = g.textOf(g.pay('P-2044','alloc','curator'));
      return t.includes('180 000,00') && t.includes('320 000,00') && t.includes('500 000,00'); })());
 ok('расхождение показывается ровно там, где оно есть (только P-2044)',
    g.ev(`DATA.payments.filter(p=>snapshotDrift(p)).map(p=>p.id).join(',')`) === 'P-2044');
 ok('у замороженного без расхождения карточка это и говорит',
-   /Текущий вывод от снимка не отличается/.test(g.textOf(g.pay('P-2043','alloc','accountant'))));
-ok('у живого платежа карточка говорит «снимка нет и не должно быть»',
-   /Снимка нет и не должно быть/.test(g.textOf(g.pay('P-2041','alloc','curator'))));
-ok('на замороженном платеже поправка к разнесению запрещена — сперва разморозка',
-   /На замороженном платеже поправка запрещена/.test(g.textOf(g.pay('P-2044','alloc','curator'))));
+   /Текущая от неё не отличается/.test(g.textOf(g.pay('P-2043','alloc','accountant'))));
+ok('у живого платежа карточка называет разбивку динамической, а не зафиксированной',
+   (() => { const t = g.textOf(g.pay('P-2041','alloc','curator'));
+     return /Разбивка динамическая/.test(t) && /не заморожен/.test(t); })());
+ok('на замороженном платеже поправка к разбивке запрещена — сперва разморозка',
+   /поправка запрещена/i.test(g.textOf(g.pay('P-2044','alloc','curator'))));
 ok('замороженное поступление даёт кнопку разморозки, незамороженное — заморозки',
    (() => { g.rec('R-284','alloc','accountant');
      const a = g.$$('#content button').map(x=>x.textContent.trim());
@@ -300,21 +320,21 @@ ok('разморозка — по решению комиссии, и это с�
 /* ══════════════════════════════════════════════════════════════════════════
    §5 (ПТ-Д3/Д5/Д6) — МАТРИЦА: СЛОЙ → СТАТЬЯ → СРОЧНОСТЬ, ТРАНШ В КАЖДОЙ СТРОКЕ
    ══════════════════════════════════════════════════════════════════════════ */
-head('§5 · матрица разнесения');
-ok('у каждого разнесения сходится: наступившее + остаток сверх = всего',
+head('§5 · матрица разбивки');
+ok('у каждой разбивки сходится: наступившее + остаток сверх = всего',
    g.ev(`Object.values(DATA.alloc).every(a => Math.abs((a.due + a.surplusLeft) - a.total) < 0.005)`));
 ok('сумма строк матрицы равна НАСТУПИВШЕМУ, а не всей сумме платежа',
    g.ev(`Object.values(DATA.alloc).every(a => {
       const s = a.layers.flatMap(L=>L.articles.flatMap(A=>A.rows)).reduce((x,r)=>x+r.v,0);
       return Math.abs(s - a.due) < 0.005; })`));
-ok('сумма разнесения не превышает наступившего ни в одном разнесении',
+ok('сумма разбивки не превышает наступившего ни в одной разбивке',
    g.ev(`Object.values(DATA.alloc).every(a => {
       const s = a.layers.flatMap(L=>L.articles.flatMap(A=>A.rows)).reduce((x,r)=>x+r.v,0);
       return s <= a.due + 0.005; })`));
 ok('итог слоя равен сумме его строк',
    g.ev(`Object.values(DATA.alloc).every(a => a.layers.every(L =>
       Math.abs(L.sum - L.articles.flatMap(A=>A.rows).reduce((x,r)=>x+r.v,0)) < 0.005))`));
-ok('КАЖДАЯ строка разнесения называет транш',
+ok('КАЖДАЯ строка разбивки называет транш',
    g.ev(`Object.values(DATA.alloc).every(a => a.layers.every(L => L.articles.every(A =>
       A.rows.every(r => typeof r.tranche === 'string' && r.tranche.trim().length > 0))))`));
 ok('названный транш принадлежит кредиту платежа, а не выдуман',
@@ -325,7 +345,7 @@ ok('транш назван в разметке каждой строки мат
    PAYS.filter(id => id !== 'P-2038').every(id => { g.pay(id,'alloc','curator');
      const rows = g.$$('#content .matrix tbody tr');
      return rows.length > 0 && rows.every(tr => (tr.querySelector('.trn')||{}).textContent); }));
-ok('число строк матрицы в разметке равно числу строк разнесения',
+ok('число строк матрицы в разметке равно числу строк разбивки',
    PAYS.every(id => { g.pay(id,'alloc','curator');
      const want = g.ev(`(()=>{const a=allocOf(DATA.payments.find(p=>p.id===${JSON.stringify(id)}).derived);
         return a.layers.flatMap(L=>L.articles.flatMap(A=>A.rows)).length;})()`);
@@ -368,9 +388,7 @@ ok('расходы по обращению взыскания идут впер�
 ok('просрочка показана по слоям и статьям, а не одним числом дней (ПТ-Д17)',
    (() => { const t = g.textOf(g.pay('P-2044','alloc','curator'));
      return /Что именно просрочено/.test(t) && /просрочены статьи долга/.test(t)
-       && /Одного числа «дней просрочки» у кредита нет/.test(t); })());
-ok('«категория» звучит только в связке с категорией риска',
-   /Категория риска/.test(g.textOf(g.pay('P-2044','alloc','curator'))));
+       && !/дн[а-яё]*\s+просрочки/i.test(t); })());
 
 /* ══════════════════════════════════════════════════════════════════════════
    ADR-0057/0060 — ОЧЕРЕДЬ ПУБЛИКУЕТ КРЕДИТ; МАТРИЦА НЕ ТРОГАЕТ НЕНАСТУПИВШЕЕ
@@ -381,12 +399,12 @@ ok('очередь погашения — данные КРЕДИТА, а не �
    && g.ev(`Object.values(DATA.queue).every(q => !!q.asOf && q.rows.length > 0)`));
 ok('в очереди есть и наступившее, и ненаступившее — иначе правило непроверяемо',
    g.ev(`Object.values(DATA.queue).every(q => q.rows.some(x=>x.future) && q.rows.some(x=>!x.future))`));
-ok('наступившее на дату по разнесению не больше наступившего по очереди',
+ok('наступившее на дату по разбивке не больше наступившего по очереди',
    g.ev(`Object.entries(DATA.queue).every(([cid,q]) => {
       const dueSum = q.rows.filter(x=>!x.future).reduce((s,x)=>s+x.amount,0);
       return DATA.payments.filter(p=>p.credit===cid && !p.void)
         .every(p => (allocOf(p.derived)||{due:0}).due <= dueSum + 0.005); })`));
-ok('строки очереди с future:true в разнесение не попадают (ни статьёй, ни суммой)',
+ok('строки очереди с future:true в разбивку не попадают (ни статьёй, ни суммой)',
    g.ev(`Object.entries(DATA.queue).every(([cid,q]) => {
       const fut = q.rows.filter(x=>x.future);
       return DATA.payments.filter(p=>p.credit===cid).every(p => {
@@ -394,25 +412,35 @@ ok('строки очереди с future:true в разнесение не по
         const rows = a.layers.flatMap(L=>L.articles.flatMap(A=>A.rows.map(r=>({a:A.article, v:r.v, l:r.label}))));
         return rows.every(r => !fut.some(f => f.article===r.a && Math.abs(f.amount-r.v) < 0.005))
             && rows.every(r => fut.every(f => r.l.indexOf(f.due.slice(0,5)) < 0)); }); })`));
-ok('на общей дате среза матрица = ровно наступившие строки очереди (P-2046 и P-2052)',
+/* Якорь — пара «платёж → его кредит», а не совпадение подписей даты. Дата среза живого
+   вывода не хранится и всегда «сегодня» (ADR-0001), очередь в затравке подписана своей
+   датой — сравнивать по подписи стало не с чем, а сравнивать надо СОДЕРЖАНИЕ.
+   P-2046 и P-2052 гасят ровно наступившее своего кредита: их матрица обязана совпасть
+   со списком наступивших строк очереди по паре «статья + сумма». */
+ok('матрица платежа, гасящего наступившее, = ровно наступившие строки очереди (P-2046 и P-2052)',
    (() => {
-     const hit = g.ev(`Object.entries(DATA.queue).flatMap(([cid,q]) =>
-        DATA.payments.filter(p=>p.credit===cid).filter(p => {
-          const a = allocOf(p.derived); return a && payAsOfDate(a.asOf) === q.asOf; }).map(p=>p.id))`);
-     const same = g.ev(`Object.entries(DATA.queue).every(([cid,q]) =>
-        DATA.payments.filter(p=>p.credit===cid).every(p => {
-          const a = allocOf(p.derived); if(!a || payAsOfDate(a.asOf) !== q.asOf) return true;
-          const key = x => x.article + '|' + x.amount.toFixed(2);
-          const rows = a.layers.flatMap(L=>L.articles.flatMap(A=>A.rows.map(r=>A.article+'|'+r.v.toFixed(2)))).sort().join(',');
-          return rows === q.rows.filter(x=>!x.future).map(key).sort().join(','); }))`);
-     return same && hit.length >= 2; })());
-ok('ненаступившие строки в разметке видны и помечены «матрица не трогает»',
+     const same = (pid, cid) => g.ev(`(() => {
+        const a = allocOf(DATA.payments.find(p=>p.id===${JSON.stringify(pid)}).derived); if(!a) return false;
+        const key = x => x.article + '|' + x.amount.toFixed(2);
+        const rows = a.layers.flatMap(L=>L.articles.flatMap(A=>A.rows.map(r=>A.article+'|'+r.v.toFixed(2)))).sort().join(',');
+        return rows === DATA.queue[${JSON.stringify(cid)}].rows.filter(x=>!x.future).map(key).sort().join(','); })()`);
+     return same('P-2046','C-112') && same('P-2052','C-56'); })());
+/* Обратная сторона того же: раз дата среза живого вывода всегда «сегодня», а очередь
+   кредит публикует на свою дату, расхождение дат стало нормой, а не исключением.
+   Макет обязан называть его словами — иначе колонки «разрез» и «очередь» читаются
+   как расходящиеся по суммам, то есть как поломка. */
+ok('разные даты среза разреза и очереди названы прямо, а не спрятаны',
+   (() => { g.ev(`setRcStage('R-305')`);
+     const t = g.textOf(g.view('recon','curator'));
+     g.ev(`setRcStage('R-311')`);
+     return /Очередь опубликована на/.test(t) && /даты среза разные/.test(t); })());
+ok('ненаступившие строки в разметке видны и помечены «не наступило»',
    (() => { g.pay('P-2046','alloc','curator');
      const t = g.textOf(g.html());
-     const grey = (g.html().match(/не наступило — матрица не трогает/g)||[]).length;
-     return /публикует КРЕДИТ/.test(t) && grey === g.ev(`DATA.queue['C-112'].rows.filter(x=>x.future).length`); })());
+     const grey = (g.html().match(/не наступило<\/div>/g)||[]).length;
+     return /очередь погашения/i.test(t) && grey === g.ev(`DATA.queue['C-112'].rows.filter(x=>x.future).length`); })());
 ok('у кредита без опубликованной очереди это сказано прямо, а не подменено пустой таблицей',
-   /кредитным модулем не опубликована/.test(g.textOf(g.pay('P-2043','alloc','curator'))));
+   /Очередь погашения по кредиту .* не опубликована/.test(g.textOf(g.pay('P-2043','alloc','curator'))));
 
 /* ══════════════════════════════════════════════════════════════════════════
    §7.2 (ADR-0073) — ОСТАТОК СВЕРХ НАСТУПИВШЕГО: ТРИ РЕЖИМА
@@ -428,7 +456,7 @@ ok('остаток сверх наступившего есть ровно та�
    g.ev(`Object.entries(DATA.alloc).filter(([k,a])=>a.surplusLeft>0).map(([k])=>k).join(',')`) === 'AL-2046'
    && g.ev(`allocOf('AL-2046').surplusLeft`) === 70000
    && g.ev(`allocOf('AL-2046').surplusMode`) === 'reserve');
-ok('режим разнесения совпадает с режимом поступления (директива, а не правка результата)',
+ok('режим разбивки совпадает с режимом поступления (директива, а не правка результата)',
    g.ev(`DATA.payments.filter(p=>{const a=allocOf(p.derived); return a && a.surplusMode;})
         .every(p => allocOf(p.derived).surplusMode === receiptOf(p).surplus)`));
 ok('адресный резерв закреплён за НЕнаступившими строками графика',
@@ -436,13 +464,19 @@ ok('адресный резерв закреплён за НЕнаступивш
       const fut = DATA.queue['C-112'].rows.filter(x=>x.future);
       return (r.reserveRows||[]).length > 0 && r.reserveRows.every(x =>
         fut.some(f => f.due===x.due && f.article===x.article && Math.abs(f.amount-x.amount) < 0.005)); })()`));
-ok('резерв гасит ФАКТ, а не план: график не перестраивается без заявления (ADR-0074)',
-   (() => { const t = g.textOf(g.rec('R-290','parse','curator'));
-     return /Резерв гасит ФАКТ, а не план/.test(t) && /только по заявлению заёмщика/i.test(t); })());
-ok('режим ставится ДО разнесения — разбор говорит это прямо',
-   /ставится ДО разнесения/i.test(g.textOf(g.rec('R-311','parse','curator'))));
-ok('на замороженном поступлении режим задним числом не ставится',
-   /директива задним числом не ставится/i.test(g.textOf(g.rec('R-290','parse','accountant'))));
+ok('адресный резерв в разбивке платежа назван строками графика, а не суммой навалом',
+   (() => { const t = g.textOf(g.pay('P-2046','alloc','curator'));
+     const rows = g.ev(`DATA.receipts.find(x=>x.id==='R-290').reserveRows`) || [];
+     return /Адресный резерв закреплён за строками графика/.test(t)
+       && rows.length > 0 && rows.every(x => t.includes(x.due) && t.includes(x.article)); })());
+ok('у замороженного поступления кнопки смены режима закрыты состоянием',
+   (() => { const t = g.textOf(g.rec('R-290','parse','accountant'));
+     return /заморожено/i.test(t) && /разморозки по решению комиссии/i.test(t); })());
+ok('смена режима на замороженном поступлении отклоняется операцией, а не только текстом',
+   (() => { g.role('curator');
+     const was = g.ev(`DATA.receipts.find(x=>x.id==='R-290').surplus`);
+     g.ev(`recAct('surplus','R-290','advance')`);
+     return g.ev(`DATA.receipts.find(x=>x.id==='R-290').surplus`) === was; })());
 ok('три режима показаны выбором, а не одним исходом (ПТ-Д23)',
    (() => { const t = g.textOf(g.rec('R-311','parse','curator'));
      return /Обратная очередь/.test(t) && /Аванс/.test(t) && /Адресный резерв/.test(t); })());
@@ -456,7 +490,7 @@ ok('доля залогодателя не попала в погашения: �
       const p = paymentsOf(r).filter(x=>!x.void), v = returnsOf(r).filter(x=>x.state==='executed');
       return p.length===1 && p[0].amount===105000 && v.length===1 && v[0].amount===45000
         && Math.abs(r.amount - (p[0].amount + v[0].amount)) < 0.005; })()`));
-ok('45 000 нет ни в одной строке разнесения — доля залогодателя не разносилась',
+ok('45 000 нет ни в одной строке разбивки — доля залогодателя не распределялась',
    g.ev(`allocOf('AL-2043').layers.flatMap(L=>L.articles.flatMap(A=>A.rows)).every(r => r.v !== 45000)`)
    && g.ev(`allocOf('AL-2043').total`) === 105000);
 ok('получатель V-3 — третье лицо и ни один заёмщик системы',
@@ -485,8 +519,86 @@ ok('у чужих денег основание кладёт бухгалтер,
       ROLE='curator';
       const b = !retOwnerless(DATA.returns.find(v=>v.id==='V-4')) && retBasisAllowed(DATA.returns.find(v=>v.id==='V-4'));
       return a && b; })()`));
-ok('в ленте возвратов возвраты стоят отдельным слагаемым инварианта',
-   /В Σ платежей возвраты не входят/.test(g.textOf(g.view('returns','curator'))));
+ok('в карточке возврата возврат стоит отдельным слагаемым инварианта поступления',
+   (() => { const t = g.textOf(g.ret('V-3','curator'));
+     return /Инвариант поступления/.test(t) && /Σ платежей/.test(t) && /исполненные возвраты/.test(t); })());
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ЛЕНТА ВОЗВРАТОВ — тот же движок, что у платежей и поступлений
+   ══════════════════════════════════════════════════════════════════════════ */
+head('лента возвратов · поиск, условия, итог');
+/* ПТ-Д22: правило без случая в данных не проверяется. Фильтр по состоянию и по виду
+   получателя нечем проверить, если затравка держит не все значения. */
+ok('затравка держит все четыре состояния возврата и оба вида получателя',
+   g.ev(`Object.keys(RET_STATE).every(k => DATA.returns.some(v=>v.state===k))`)
+   && g.ev(`DATA.returns.some(retIsThirdParty) && DATA.returns.some(v=>!retIsThirdParty(v))`));
+ok('лента возвратов — на общем движке лент, база = DATA.returns',
+   g.ev(`!!FEEDS.ret && FEEDS.ret.base().length === DATA.returns.length`));
+ok('своих осей и своего периода у возврата нет: период читается через поступление (ADR-0056)',
+   g.ev(`DATA.returns.every(v => !('period' in v) && !('channel' in v) && !('match' in v))`)
+   && g.ev(`!!RET_CONDS.find(c=>c.key==='period')`));
+ok('условие «Состояние» сужает выборку до того же числа, что даёт модель', (() => {
+  const m = mk(); m.view('returns','curator');
+  return Object.keys(m.ev(`RET_STATE`)).every(k => {
+    m.ev(`feedSet('ret','state','',${JSON.stringify(k)})`);
+    return m.ev(`feedSlice('ret').hits.length`) === m.ev(`DATA.returns.filter(v=>v.state===${JSON.stringify(k)}).length`);
+  });
+})());
+/* Условие ≠ поле: диапазон «от—до» на двух контролах остаётся ОДНИМ условием,
+   иначе бейдж врёт. Проверяем и AND-комбинацию, и счётчик. */
+ok('условия комбинируются по AND, а бейдж считает условия, а не заполненные поля', (() => {
+  const m = mk(); m.view('returns','curator');
+  m.ev(`feedSet('ret','third','','borrower')`);
+  m.ev(`feedSet('ret','basis','','yes')`);
+  m.ev(`feedSet('ret','amount','from','1000')`);
+  m.ev(`feedSet('ret','amount','to','200000')`);
+  const hits = m.ev(`feedSlice('ret').hits.map(v=>v.id).join()`);
+  const want = m.ev(`DATA.returns.filter(v => !retIsThirdParty(v) && !!v.basis
+      && v.amount >= 1000 && v.amount <= 200000).map(v=>v.id).join()`);
+  return hits === want && m.ev(`feedActive(FEEDS.ret).length`) === 3;
+})());
+ok('поиск берёт номер поступления и плательщика, а не только реквизиты возврата', (() => {
+  const m = mk(); m.view('returns','curator');
+  const num = m.ev(`receiptOf(DATA.returns.find(v=>v.id==='V-6')).number`);
+  m.ev(`feedSet('ret','q','',${JSON.stringify(num.toLowerCase())})`);
+  return m.ev(`feedSlice('ret').hits.every(v=>receiptOf(v).number===${JSON.stringify(num)})`)
+      && m.ev(`feedSlice('ret').hits.some(v=>v.id==='V-6')`);
+})());
+ok('× снимает условие целиком, «Сбросить фильтры» возвращает всю ленту', (() => {
+  const m = mk(); m.view('returns','curator');
+  m.ev(`feedSet('ret','execAt','from','2026-07-01')`);
+  m.ev(`feedSet('ret','execAt','to','2026-07-31')`);
+  const narrowed = m.ev(`feedSlice('ret').hits.length`);
+  m.ev(`feedClear('ret','execAt')`);
+  const cleared = m.ev(`feedActive(FEEDS.ret).length`);
+  m.ev(`feedSet('ret','state','','draft')`); m.ev(`feedReset('ret')`);
+  return narrowed < m.ev(`DATA.returns.length`) && cleared === 0
+      && m.ev(`feedSlice('ret').hits.length`) === m.ev(`DATA.returns.length`);
+})());
+ok('итог ленты стоит подвалом таблицы: Σ в колонке «Сумма», равенство — в средней ячейке', (() => {
+  const m = mk(); m.view('returns','curator');
+  const foot = m.q('table.grid[data-t="ret"] tfoot tr'); if(!foot) return false;
+  const cells = [...foot.children];
+  const sum = m.ev(`DATA.returns.reduce((s,v)=>s+v.amount,0)`);
+  return /Итого по выборке/.test(cells[0].textContent)
+    && cells[0].getAttribute('colspan') === '2'
+    && cells[1].textContent.replace(/\s/g,'') === m.ev(`money(${sum})`).replace(/\s/g,'')
+    && /исполнено/.test(cells[2].textContent) && /ждут исполнения/.test(cells[2].textContent);
+})());
+ok('итог считается по всей выборке, а не по видимой странице', (() => {
+  const m = mk(); m.view('returns','curator');
+  const total = m.ev(`feedSlice('ret').hits.length`), size = m.ev(`FEEDS.ret.size`);
+  if(total <= size) return false;                       // иначе проверка ничего не значит
+  const shown = m.$$('table.grid[data-t="ret"] tbody tr').length;
+  const foot  = m.q('table.grid[data-t="ret"] tfoot tr').children[0].textContent;
+  return shown === size && foot.includes(String(total));
+})());
+ok('пустота различает две причины: возвратов нет — или их отсеяли условия', (() => {
+  const m = mk(); m.view('returns','curator');
+  m.ev(`feedSet('ret','q','','заведомо-несуществующее')`);
+  const t = m.q('table.grid[data-t="ret"] tbody').textContent;
+  return /Ничего не найдено по фильтрам/.test(t);
+})());
 
 /* ══════════════════════════════════════════════════════════════════════════
    ADR-0061 (ПТ-Д4) — КУРС НБ КР: ПРОИЗВОДНАЯ, ПОДПИСАННАЯ ДАТОЙ
@@ -504,7 +616,7 @@ ok('курс берётся из справочника и в платеже н�
 ok('справочник даёт разные значения на разные даты — иначе подпись датой бессмысленна',
    g.ev(`Object.keys(DATA.rates.USD).length`) >= 2
    && g.ev(`new Set(Object.values(DATA.rates.USD)).size`) >= 2);
-ok('сумма платежа — в валюте ДОЛГА, разнесение тоже (AL-2049 в USD)',
+ok('сумма платежа — в валюте ДОЛГА, разбивка тоже (AL-2049 в USD)',
    g.ev(`allocOf('AL-2049').currency`) === 'USD'
    && g.ev(`allocOf('AL-2049').total`) === g.ev(`DATA.payments.find(p=>p.id==='P-2049').amount`));
 ok('карточка печатает и курс, и его дату, и проверку умножения',
@@ -532,11 +644,11 @@ ok('у поступления не больше одной несдублиро�
 ok('дубль реестра помечен и в гейт закрытия не идёт',
    g.ev(`DATA.registry.some(x=>x.dup)`)
    && g.ev(`DATA.periods.every(p => periodBlockers(p.id).every(b => b.id !== '№3455'))`));
-ok('при расхождении действует сумма ЦК, и это сказано словами (ПТ-Д13)',
-   (() => { const t = g.textOf(g.rec('R-255','alloc','curator'));
-     return /действует сумма ЦК/.test(t) && t.includes('18 000,00') && t.includes('18 500,00'); })());
+ok('при расхождении обе суммы названы и направление правки — к сумме ЦК (ПТ-Д13)',
+   (() => { const t = g.textOf(g.rec('R-255','recon','curator'));
+     return /сумма ЦК/.test(t) && t.includes('18 000,00') && t.includes('18 500,00'); })());
 ok('до корректировки платёж носит НАШУ сумму — карточка платежа это признаёт',
-   /до корректировки бухгалтером с основанием платёж носит нашу сумму/i.test(g.textOf(g.pay('P-2036','req','curator'))));
+   /до корректировки платёж носит нашу сумму/i.test(g.textOf(g.pay('P-2036','req','curator'))));
 ok('несопоставленная строка ЦК держит закрытие своего периода',
    g.ev(`periodBlockers('2026-07').some(b => b.kind === 'Несопоставленная строка реестра ЦК' && b.id === '№3470')`));
 
@@ -571,10 +683,15 @@ ok('период с непустым гейтом закрыть нельзя �
 ok('у закрытого периода — «Открыть период», и это уровень разморозки',
    (() => { const t = g.textOf(g.view('period','accountant'));
      return /Открыть период/.test(t) && /по решению комиссии/i.test(t); })());
-ok('закрытие периода платежи НЕ морозит — оно проверяет, что они заморожены',
-   /Платежи не морозит/i.test(g.textOf(g.view('period','accountant'))));
-ok('два уровня заморозки не подменяют друг друга (ADR-0075)',
-   /Два уровня заморозки не подменяют друг друга/.test(g.textOf(g.view('period','accountant'))));
+ok('закрытие периода платежи НЕ морозит — оно проверяет, что они уже заморожены',
+   (() => { const m = mk();
+     const before = m.ev(`DATA.receipts.filter(r=>r.period==='2026-06').map(r=>r.frozen).join(',')`);
+     m.role('accountant'); m.ev(`closePeriod('2026-06')`);
+     const after = m.ev(`DATA.receipts.filter(r=>r.period==='2026-06').map(r=>r.frozen).join(',')`);
+     return before === after; })());
+ok('два уровня заморозки различены: гейт периода называет незамороженные поимённо',
+   g.ev(`periodBlockers('2026-07').some(b => b.kind === 'Незамороженное поступление')`)
+   && /Незамороженное поступление/.test(g.textOf(g.view('period','accountant'))));
 ok('закрытие и открытие периода — бухгалтер',
    g.ev(`(()=>{ROLE='accountant'; const a=can.closePeriod(); ROLE='curator'; const c=can.closePeriod();
         ROLE='viewer'; const v=can.closePeriod(); return a && !c && !v;})()`));
@@ -595,14 +712,15 @@ ok('состав акта — только замороженные поступ
    g.ev(`DATA.acts.every(a => actComposition(a).inn.every(r => r.frozen === 'frozen'))`));
 ok('у не вошедшего поступления причина выводится, а не пишется руками',
    g.ev(`DATA.acts.flatMap(a => actComposition(a).out).every(r => (actWhyOut(r)||'').length > 20)`));
-ok('круга «акт ↔ заморозка» нет: первична заморозка',
-   (() => { const t = g.textOf(g.view('acts','curator'));
-     return /Круга «акт ↔ заморозка» нет: первична заморозка/.test(t) && /Акт ничего не морозит/.test(t); })());
-ok('цепочка одна и смотрит в одну сторону: сверка → заморозка → закрытие → акт',
-   (() => { const t = g.textOf(g.view('acts','curator'));
-     const i = s => t.indexOf(s);
-     return i('1. Положительная сверка') >= 0 && i('1. Положительная сверка') < i('2. Заморозка поступления')
-       && i('2. Заморозка поступления') < i('3. Закрытие периода') && i('3. Закрытие периода') < i('4. Акт сверки'); })());
+ok('круга «акт ↔ заморозка» нет: формирование акта ничего не морозит',
+   (() => { const m = mk(); m.role('curator');
+     const before = m.ev(`DATA.receipts.map(r=>r.frozen).join(',')`);
+     m.ev(`actDo('prelim','AS-15')`); m.ev(`actDo('form','AS-14')`);
+     return before === m.ev(`DATA.receipts.map(r=>r.frozen).join(',')`); })());
+ok('акт по незакрытому периоду подписи не получает: цикл упирается в состояние месяца',
+   (() => { const m = mk(); m.role('accountant');
+     m.ev(`actDo('agree','AS-15'); actDo('sign','AS-15')`);
+     return m.ev(`DATA.acts.find(a=>a.id==='AS-15').state`) !== 'signed'; })());
 ok('двусторонний акт — мера взыскания и живёт в журнале мер (ADR-0051)',
    (() => { const t = g.textOf(g.act('AS-16','curator'));
      return /признание долга/i.test(t) && /журнал/i.test(t) && /давност/i.test(t); })());
@@ -621,14 +739,14 @@ ok('списание не привязано к поступлению и в п�
    g.ev(`DATA.writeOffs.every(w => !('receiptId' in w) && !DATA.payments.some(p => p.id === w.id))`));
 ok('списание владельцу принадлежит (кредит либо взыскание), модуль его не порождает',
    g.ev(`DATA.writeOffs.every(w => !!w.owner && !!w.basis)`));
-ok('сумма списания не попала ни в одну строку разнесения по этому кредиту',
+ok('сумма списания не попала ни в одну строку разбивки по этому кредиту',
    g.ev(`DATA.writeOffs.every(w => DATA.payments.filter(p=>p.credit===w.credit)
       .every(p => [p.derived,p.snapshot].filter(Boolean).every(k =>
         DATA.alloc[k].layers.flatMap(L=>L.articles.flatMap(A=>A.rows)).every(r => r.v !== w.amount))))`));
 ok('карточка платежа показывает ссылку на списание и отличает его от погашения',
-   (() => { const t = g.textOf(g.pay('P-2054','alloc','curator'));
-     return /Списание уменьшило НАЧИСЛЕННОЕ, погашением не является/.test(t)
-       && /в матрицу разнесения не попадает/.test(t); })());
+   (() => { const h = g.pay('P-2054','alloc','curator'), t = g.textOf(h);
+     return /Списания по кредиту/.test(t) && /в матрицу разбивки\s+не попадает/.test(t)
+       && /payOpenWriteOff\(/.test(h); })());
 
 /* ══════════════════════════════════════════════════════════════════════════
    §8.1 (ПТ-Д16) — ПРАВА: ФАКТ ДЕНЕГ — БУХГАЛТЕР, ТРАКТОВКА — КУРАТОР
@@ -638,7 +756,7 @@ const FACT = ['reverse','correct','freeze','unfreeze','closePeriod','execReturn'
 const MEAN = ['bind','allocate','surplus','returnBasis','initAct','dispute','match'];
 ok('факт денег (сторно · корректировка · заморозка · период · исполнение возврата) — бухгалтер',
    g.ev(`(()=>{ROLE='accountant'; return ${JSON.stringify(FACT)}.every(k=>can[k]());})()`));
-ok('трактовка (привязка · разнесение · режим остатка · основание · акт · спор) — куратор',
+ok('трактовка (привязка · разбивка · режим остатка · основание · акт · спор) — куратор',
    g.ev(`(()=>{ROLE='curator'; return ${JSON.stringify(MEAN)}.every(k=>can[k]());})()`));
 ok('роли не пересекаются: каждая способность ровно у одной роли',
    g.ev(`Object.keys(can).every(k => ['curator','accountant','viewer']
@@ -675,7 +793,7 @@ const UI = (() => {
 const hits = re => (UI.match(new RegExp(re.source, 'gi')) || []).length;
 ok('«крыжение» в пользовательском тексте не звучит — говорим «заморозка» (ПТ-Д18)',
    hits(/крыж/) === 0);
-ok('«перераспределение» в пользовательском тексте не звучит — говорим «разнесение» (ПТ-Д20)',
+ok('«перераспределение» в пользовательском тексте не звучит — говорим «разбивка» (ПТ-Д20)',
    hits(/перераспределен/) === 0);
 /* «Каскад пересчёта» — отменённая механика (ПТ-Д8). Спека называет её только затем,
    чтобы отвергнуть (§10 так и озаглавлен), и мокап делает то же самое одной фразой
@@ -696,25 +814,49 @@ ok('«каскад пересчёта» не звучит ни в баннере
        PAYS.forEach(id => PTABS.forEach(tb => { m.pay(id, tb, r); scan(); }));
      }
      return bad.length === 0; })());
-ok('«категория» звучит только в связке с категорией риска (ПТ-Д19)',
-   hits(/категори[а-яё]*/) > 0
-   && [...UI.matchAll(/категори[а-яё]*/gi)].every(m => /^категори[а-яё]*\s+риска/i.test(UI.slice(m.index, m.index + 40))));
-ok('единый язык присутствует положительно: заморозка · разнесение · статья долга',
-   hits(/заморозк/) > 0 && hits(/разнесени/) > 0 && hits(/стать[а-яё]* долга/) > 0);
+ok('«категория» на второй уровень матрицы не пущена: он всюду зовётся статьёй долга (ПТ-Д19)',
+   [...UI.matchAll(/категори[а-яё]*/gi)].every(m => /^категори[а-яё]*\s+риска/i.test(UI.slice(m.index, m.index + 40))));
+ok('единый язык присутствует положительно: заморозка · разбивка · статья долга',
+   hits(/заморозк/) > 0 && hits(/разбивк/) > 0 && hits(/стать[а-яё]* долга/) > 0);
 ok('«счёт зачисления шлюза (намерение заёмщика)» и три счёта шлюза изъяты (ПТ-Д7)',
    hits(/намерение заёмщика/) === 0 && hits(/три счёта/) === 0);
-ok('счёт опознаёт ОБЪЕКТ (кредит либо транш), и это сказано словами',
-   /Счёт опознал/.test(UI) && /Опознание объекта — не догадка по ФИО, а свойство счёта/.test(UI));
+ok('счёт опознаёт ОБЪЕКТ (кредит либо транш), и это названо в карточке и в ленте',
+   /Счёт опознал/.test(UI) && /Счёт и что опознал/.test(UI)
+   && g.ev(`DATA.receipts.every(r => typeof r.accountObject === 'string' && r.accountObject.length > 0)`));
 
 /* ══════════════════════════════════════════════════════════════════════════
    ПТ-Д21 — РЕНДЕР: ВОСЕМЬ ЭКРАНОВ И ЧЕТЫРЕ КАРТОЧКИ В ТРЁХ РОЛЯХ
    ══════════════════════════════════════════════════════════════════════════ */
 head('ПТ-Д21 · рендер восьми экранов и карточек в трёх ролях');
 ok('экранов восемь: пять прежних + поступления, возвраты, закрытие периода',
-   g.ev('NAV.length') === 8 && g.ev('Object.keys(VIEW_TITLES).length') === 8
-   && g.ev(`NAV.map(x=>x.id).sort().join(',')`) === [...VIEWS].sort().join(','));
+   g.ev('NAV.flatMap(g=>g.items).length') === 8 && g.ev('Object.keys(VIEW_TITLES).length') === 8
+   && g.ev(`NAV.flatMap(g=>g.items).map(x=>x.id).sort().join(',')`) === [...VIEWS].sort().join(','));
 ok('заглушек этапа 1 не осталось: ни один экран не переписывается',
    !/Экран переписывается/.test(UI));
+// Порядок меню — решение спеки §12, а не вкус: платежи главная лента,
+// поступления служебная и стоят у реестра ЦК (ADR-0056), период раньше акта (§8.6).
+ok('меню разбито на три блока и упорядочено по спеке §12',
+   g.ev(`NAV.map(x=>x.items.map(i=>i.id).join('>')).join(' | ')`)
+   === 'pay>unresolved>returns | receipts>registry>recon | period>acts');
+ok('стартовый экран — «Платежи», главная лента куратора, а не «Поступления»',
+   mk().ev('CUR_VIEW') === 'pay');
+// Бургер шапки был декоративным: cursor:pointer и title без обработчика.
+ok('бургер шапки сворачивает и разворачивает сайдбар, переключение переживает render()',
+   (() => { const m = mk();
+     const app = m.q('.app'), b = m.q('.topbar .menu');
+     b.dispatchEvent(new m.w.MouseEvent('click', { bubbles:true }));
+     const off = app.classList.contains('nav-off') && b.getAttribute('aria-expanded') === 'false';
+     m.ev(`go('receipts')`);                       // перерисовка не должна вернуть сайдбар
+     const survives = app.classList.contains('nav-off');
+     b.dispatchEvent(new m.w.MouseEvent('click', { bubbles:true }));
+     return off && survives && !app.classList.contains('nav-off')
+        && b.getAttribute('aria-expanded') === 'true'; })());
+ok('счётчик схлопнутой подгруппы поднят на её заголовок — свёрнутый узел не прячет препятствие',
+   (() => { const m = mk();
+     const sum = m.ev(`NAV[2].items.reduce((s,n)=>s+(n.badge?n.badge():0),0)`);
+     m.ev(`navToggle('g-period')`);
+     const head = m.$$('#nav .nav-sub:not(.open) > .nav-toggle .cnt').map(e=>e.textContent);
+     return sum > 0 && head.includes(String(sum)); })());
 const renderFails = [];
 for(const r of ROLES){
   for(const v of VIEWS){
@@ -751,8 +893,8 @@ for(const r of ROLES){
 ok('карточки поступления, платежа, возврата и акта — все вкладки, все роли, без грязи'
    + (cardFails.length ? ' — ' + cardFails.slice(0,4).join(' · ') : ''), cardFails.length === 0);
 ok('счётчики бокового меню считаются из данных, а не проставлены руками',
-   g.ev(`NAV.find(x=>x.id==='unresolved').badge()`) === g.ev('unresolvedReceipts().length')
-   && g.ev(`NAV.find(x=>x.id==='period').badge()`)
+   g.ev(`NAV.flatMap(g=>g.items).find(x=>x.id==='unresolved').badge()`) === g.ev('unresolvedReceipts().length')
+   && g.ev(`NAV.flatMap(g=>g.items).find(x=>x.id==='period').badge()`)
       === g.ev(`DATA.periods.filter(p=>p.state==='open'&&periodBlockers(p.id).length).length`));
 ok('хлебная крошка карточки называет открытый объект, а не экран',
    (() => { g.rec('R-311','alloc','curator');
@@ -764,6 +906,118 @@ ok('роль переключается селектором шапки и пе�
    (() => { const m = mk();
      m.ev(`go('receipts'); document.getElementById('roleSel').value='viewer'; onRoleChange();`);
      return m.ev('ROLE') === 'viewer' && m.$$('#content .role-hint').length >= 0; })());
+
+/* ============================================================
+   ФОРМАТ РЕЕСТРА КРЕДИТОВ — пять лент носят грид из mockups/loan-credit/credit.html §Р-19
+   ============================================================ */
+head('формат грида — как в реестре кредитов');
+
+/* лента → экран, на котором она живёт */
+const GRIDS = [['pay','pay'], ['rec','receipts'], ['ret','returns'], ['reg','registry'], ['act','acts']];
+
+const gridOf = t => { const el = g.q(`table.grid[data-t="${t}"]`); return el; };
+const gridFails = [];
+for(const [t, view] of GRIDS){
+  g.view(view, 'curator');
+  const tb = gridOf(t);
+  if(!tb){ gridFails.push(`${t}: грида нет`); continue; }
+  const cols = tb.querySelectorAll('colgroup col').length;
+  const ths  = tb.querySelectorAll('thead th').length;
+  const tds  = (tb.querySelector('tbody tr') || { children:[] }).children.length;
+  if(!cols)        gridFails.push(`${t}: нет colgroup`);
+  if(cols !== ths) gridFails.push(`${t}: колонок ${cols}, шапок ${ths}`);
+  if(tds && tds !== ths && tds !== 1) gridFails.push(`${t}: ячеек в строке ${tds}, шапок ${ths}`);
+}
+ok('пять лент (платежи · поступления · возвраты · реестр ЦК · акты) — на table.grid,'
+   + ' colgroup совпадает с числом шапок и ячеек'
+   + (gridFails.length ? ' — ' + gridFails.slice(0,4).join(' · ') : ''), gridFails.length === 0);
+/* Фиксированные ширины (table-layout:fixed) режут колонку молча: если сумма колонок
+   ушла заметно выше min-width таблицы или за ширину контентной области, крайняя
+   колонка просто не видна и об этом никто не узнает. */
+const WIDTH_BUDGET = 1330;   // контентная область при окне 1680 = 1680 − сайдбар 320 − поля 48
+const widthFails = [];
+for(const [t, view] of GRIDS){
+  g.view(view, 'curator');
+  const tb = gridOf(t); if(!tb) continue;
+  const sum = [...tb.querySelectorAll('colgroup col')]
+    .reduce((s, c) => s + (parseInt(c.style.width, 10) || 0), 0);
+  const min = parseInt(tb.style.minWidth, 10) || 0;
+  if(!sum || !min)                  widthFails.push(`${t}: ширины не заданы`);
+  else if(Math.abs(sum - min) > min * 0.05) widthFails.push(`${t}: колонок на ${sum}, min-width ${min}`);
+  else if(sum > WIDTH_BUDGET)       widthFails.push(`${t}: ${sum} > бюджета ${WIDTH_BUDGET}`);
+}
+ok('сумма колонок сходится с min-width таблицы и влезает в контентную область'
+   + (widthFails.length ? ' — ' + widthFails.join(' · ') : ''), widthFails.length === 0);
+
+const sortFails = [];
+for(const [t, view] of GRIDS){
+  g.view(view, 'curator');
+  const tb = gridOf(t);
+  if(!tb) continue;
+  const sortable = [...tb.querySelectorAll('thead th[data-k]')];
+  if(!sortable.length){ sortFails.push(`${t}: сортируемых колонок нет`); continue; }
+  const noArrow = sortable.filter(th => !th.querySelector('.sort'));
+  if(noArrow.length) sortFails.push(`${t}: без стрелки ${noArrow.length}`);
+}
+ok('↕ стоит у каждой сортируемой колонки всегда, а не по наведению'
+   + (sortFails.length ? ' — ' + sortFails.slice(0,4).join(' · ') : ''), sortFails.length === 0);
+
+ok('клик по шапке сортирует ленту и переключает направление', (() => {
+  const m = mk();
+  m.view('pay', 'curator');
+  const amounts = () => m.$$('#pay-body tr').map(tr => tr.children[2] && tr.children[2].textContent);
+  m.ev(`gsort('pay','amount')`);
+  const up = amounts();
+  m.ev(`gsort('pay','amount')`);
+  const down = amounts();
+  return up.length > 1 && down.length > 1 && up[0] !== down[0]
+      && m.ev(`sortState('pay').dir`) === -1;
+})());
+
+ok('сортировка идёт по всей выборке, а не по видимой странице', (() => {
+  const m = mk();
+  m.view('pay', 'curator');
+  m.ev(`gsort('pay','amount')`);                 // по возрастанию
+  const firstAsc = m.ev(`feedSlice('pay').page[0].id`);
+  const minId    = m.ev(`feedSlice('pay').hits.reduce((a,b)=>paidOf(b)<paidOf(a)?b:a).id`);
+  return firstAsc === minId;
+})());
+
+ok('состояние сортировки живёт у таблицы, а не у ленты: у реестра ЦК и актов лент нет', (() => {
+  const m = mk();
+  m.view('acts', 'curator');
+  if(m.ev(`!!FEEDS.act`)) return false;                  // ленты у актов действительно нет
+  m.ev(`gsort('act','sum')`);
+  const a = m.$$('table.grid[data-t="act"] tbody tr').map(tr => tr.children[5].textContent.trim());
+  m.ev(`gsort('act','sum')`);
+  const b = m.$$('table.grid[data-t="act"] tbody tr').map(tr => tr.children[5].textContent.trim());
+  return a.length > 1 && a[0] !== b[0];
+})());
+
+ok('вторая строка ячейки — .sub, а не свёрстанный руками div со стилем', (() => {
+  let bad = 0;
+  for(const [t, view] of GRIDS){
+    g.view(view, 'curator');
+    const tb = gridOf(t); if(!tb) continue;
+    if(!tb.querySelectorAll('tbody td .sub').length) bad++;
+    bad += tb.querySelectorAll('tbody td div[style*="color:var(--text-muted)"]').length;
+    bad += tb.querySelectorAll('tbody td .src-tag').length;
+  }
+  return bad === 0;
+})());
+
+ok('строки реестра ЦК полосатятся вручную: пояснение под строкой не сбивает зебру', (() => {
+  g.view('registry', 'curator');
+  const tb = gridOf('reg'); if(!tb) return false;
+  if(!tb.classList.contains('man-zeb')) return false;
+  /* пояснение носит класс строки-владельца: .note и .zeb совпадают попарно */
+  const rows = [...tb.querySelectorAll('tbody tr')];
+  const notes = rows.filter(r => r.classList.contains('note'));
+  return notes.length > 0 && notes.every(nr => {
+    const prev = rows[rows.indexOf(nr) - 1];
+    return prev && prev.classList.contains('zeb') === nr.classList.contains('zeb');
+  });
+})());
 
 console.log(`\nОШИБОК КОНСОЛИ (jsdomError): ${g.errs.length}`);
 g.errs.forEach(e => console.log('  ' + e));
