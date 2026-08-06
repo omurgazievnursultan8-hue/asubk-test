@@ -1593,8 +1593,13 @@ const MEASURE_KINDS = [
     /* Обе стороны выходят в апелляцию к одному и тому же акту (шаг 6 наряда): наша
        жалоба (п. 30.2) и жалоба заёмщика (п. 30.4) — оба законных основания. */
     needsDelivery:false, deliveryChannels:null, basisKinds:['Апелляционная жалоба','Апелляционная жалоба заёмщика'] },
+  /* ADR-0079: основание было ['Решение суда','Определение суда (прочее)'] — кассация на
+     акт ПЕРВОЙ инстанции, минуя апелляцию. П. 30.3 называет предметом кассационной жалобы
+     «судебный акт апелляционной инстанции», и тпл 28 отсчитывает три месяца ровно от него
+     («дата вынесения акта апелляционной инстанции») — справочник противоречил собственному
+     шаблону срока. Зеркало у жалобы заёмщика (п. 30.5) было записано верно с шага 6. */
   { name:'Кассационная жалоба', source:'наш документ', resultIsDocument:true,
-    outcomes:null, needsDelivery:false, deliveryChannels:null, basisKinds:['Решение суда','Определение суда (прочее)'] },
+    outcomes:null, needsDelivery:false, deliveryChannels:null, basisKinds:['Постановление апелляционной инстанции'] },
   /* Сверка §4.15, пп. 30.4/30.5 (шаг 6 наряда, `ADR-0071`): жалоба ЗАЁМЩИКА — входящий
      акт, а не наш документ. До неё оба возражения ссылались основанием на НАШУ жалобу
      того же названия («Апелляционная жалоба» / «Кассационная жалоба», source:'наш
@@ -1612,6 +1617,26 @@ const MEASURE_KINDS = [
   { name:'Кассационная жалоба заёмщика', source:'внешний акт', resultIsDocument:false,
     outcomes:[{value:'подана'}], needsDelivery:false, deliveryChannels:null,
     basisKinds:['Постановление апелляционной инстанции'] },
+  /* ADR-0079. Парного акта у кассации не было: `ADR-0071` завёл обе кассационные жалобы,
+     но акт вышестоящей инстанции по ним оставил на будущий разбор — «заводить одинокий акт
+     без разбора значило бы гадать о его исходах и о том, что они делают со слоем». Разбор
+     проведён здесь. Исходы Порядком не заданы (он обязывает подать жалобу — п. 30.3 — и
+     молчит о результате), как не заданы и исходы апелляции: и те и другие — процессуальные,
+     проектное решение модели. Четыре исхода зеркальны апелляционным, пятый — свой и есть
+     причина, по которой ветвь нельзя было закрыть копией: кассация вправе отменить ТОЛЬКО
+     акт апелляционной инстанции, оставив в силе решение первой. Это не смерть слоя (общий
+     `isReviewReversal` ниже погасил бы его), а смерть ОДНОГО акта — поэтому исход назван так,
+     чтобы не начинаться со слова «отменено», и вынесен в константу. */
+  { name:'Постановление кассационной инстанции', source:'внешний акт', resultIsDocument:false,
+    outcomes:[{value:'оставлено в силе',setsPhase:'Решение суда'},
+              {value:'изменено',setsPhase:'Решение суда'},
+              {value:'апелляция отменена, решение первой инстанции в силе',setsPhase:'Решение суда'},
+              {value:'отменено, на новое рассмотрение',setsPhase:'Иск'},
+              {value:'отменено, в иске отказано',setsPhase:'Иск'}],
+    /* Обе стороны выходят в кассацию к одному акту — тот же приём, что у апелляции:
+       наша жалоба (п. 30.3) и жалоба заёмщика (п. 30.5). */
+    needsDelivery:false, deliveryChannels:null,
+    basisKinds:['Кассационная жалоба','Кассационная жалоба заёмщика'] },
   { name:'Письмо в правоохранительные органы', source:'наш документ', resultIsDocument:false,
     outcomes:null, needsDelivery:false, deliveryChannels:null, basisKinds:null },
   { name:'Иск стороны в отношении Фонда', source:'внешний акт', resultIsDocument:false,
@@ -1924,7 +1949,8 @@ const KIND_SECTION = {
   'Заявление по новым обстоятельствам':'Судебный','Исковое возражение':'Судебный',
   'Возражение на апелляционную жалобу':'Судебный','Возражение на кассационную жалобу':'Судебный','Частная жалоба':'Судебный',
   'Апелляционная жалоба':'Судебный','Постановление апелляционной инстанции':'Судебный',
-  'Кассационная жалоба':'Судебный','Письмо в правоохранительные органы':'Судебный',
+  'Кассационная жалоба':'Судебный','Постановление кассационной инстанции':'Судебный',
+  'Письмо в правоохранительные органы':'Судебный',
   // пп. 30.4/30.5 (шаг 6 наряда): жалобы заёмщика — тот же судебный раздел, что и наши.
   'Апелляционная жалоба заёмщика':'Судебный','Кассационная жалоба заёмщика':'Судебный',
   'Иск стороны в отношении Фонда':'Судебный','Решение суда':'Судебный','Судебный приказ':'Судебный',
@@ -2091,14 +2117,34 @@ function liveMilestones(r){
        рендера, тем же приёмом, каким contourOf уже ссылается назад на phaseOf). `>=` — при
        равенстве ранга выигрывает более поздняя по времени запись. Здесь и только здесь
        формула расходится со старой («последняя по времени») — ровно сценарий §3.2. */
-const APPEAL_REVERSAL_KIND = 'Постановление апелляционной инстанции';
-const isAppealReversal = m => m.kind === APPEAL_REVERSAL_KIND && String(m.outcome || '').indexOf('отменено') === 0;
+/* ADR-0079: акт пересмотра стал ПАРОЙ видов — апелляционный и кассационный. Константа
+   была одной строкой (`APPEAL_REVERSAL_KIND`), потому что кассационного акта в справочнике
+   не существовало вовсе; оба вида ведут себя в свёртке одинаково, и различие сидит только
+   в пятом, кассационном исходе (isCassationRestore ниже). Признак отмены прежний —
+   исход НАЧИНАЕТСЯ со слова «отменено»: у кассации восстанавливающий исход назван так,
+   чтобы под этот префикс не попасть, и это не случайность формулировки, а условие. */
+const APPEAL_ACT_KIND = 'Постановление апелляционной инстанции';
+const CASSATION_ACT_KIND = 'Постановление кассационной инстанции';
+const REVIEW_ACT_KINDS = new Set([APPEAL_ACT_KIND, CASSATION_ACT_KIND]);
+const CASSATION_RESTORE_OUTCOME = 'апелляция отменена, решение первой инстанции в силе';
+const isReviewReversal = m => REVIEW_ACT_KINDS.has(m.kind) && String(m.outcome || '').indexOf('отменено') === 0;
+const isCassationRestore = m => m.kind === CASSATION_ACT_KIND && m.outcome === CASSATION_RESTORE_OUTCOME;
+/* ADR-0079 — общий приём обеих свёрток слоя (layerOf и claimChainsFor ниже). Пул уже
+   отсортирован по дате события, поэтому «апелляционные акты не позже восстановления» —
+   это просто индексы левее. Восстановление убирает из пула СЕБЯ (оно ничего не присуждает)
+   и отменённую им апелляцию; побеждает то, что осталось, — акт первой инстанции. */
+function dropRestoredAppeals(sortedMeasures){
+  let cut = -1;
+  sortedMeasures.forEach((m, i) => { if(isCassationRestore(m)) cut = i; });
+  if(cut < 0) return sortedMeasures;
+  return sortedMeasures.filter((m, i) => !isCassationRestore(m) && !(m.kind === APPEAL_ACT_KIND && i < cut));
+}
 function phaseSetter(r){
   const ms = liveMilestones(r);
   if(!ms.length) return null;
   const last = ms[ms.length - 1];
   if(!ROUTE_PHASES.has(measureSetsPhase(last))) return last;
-  if(isAppealReversal(last)) return last;
+  if(isReviewReversal(last)) return last;
   const routeMs = ms.filter(m => ROUTE_PHASES.has(measureSetsPhase(m)));
   return routeMs.reduce((best, m) => phaseRank(measureSetsPhase(m)) >= phaseRank(measureSetsPhase(best)) ? m : best);
 }
@@ -2167,8 +2213,12 @@ function effectiveAward(measures, m, reqId){
    МП-2/ADR-0043 (карта `collection-apellyacia-sloy`, тикет 01): апелляция
    («Постановление апелляционной инстанции») входит в ТУ ЖЕ свёртку двумя
    условиями — исход «изменено» с `m.awards` (правка, relation.type==='corrects')
-   и `isAppealReversal` (оба исхода «отменено», по `m.targets` — смерть, тот же
-   приём, что отмена приказа). Апелляция НЕ входит в AWARD_KINDS — она не
+   и `isReviewReversal` (оба исхода «отменено», по `m.targets` — смерть, тот же
+   приём, что отмена приказа). ADR-0079: те же два условия читает и кассационный
+   акт (`REVIEW_ACT_KINDS`), и к ним прибавляется ТРЕТЬЕ — восстановление
+   (`isCassationRestore`, по `m.targets`): акт сам ничего не присуждает, но должен
+   попасть в пул, чтобы `dropRestoredAppeals` увидел его и убрал отменённую им
+   апелляцию. Ни один акт пересмотра НЕ входит в AWARD_KINDS — он не
    источник слоя (design-doc МП-2, довод 1: ИЛ выдаётся по акту первой инстанции,
    апелляции нет в его basisKinds). Если побеждает правящая апелляция, `act`
    ответа — БАЗОВОЕ решение (`relation.of`), не сама апелляция: слой остаётся
@@ -2181,16 +2231,18 @@ function layerOf(proc, creditId){
     .filter(m => isLiveFor(m, rep.id) && (
       (AWARD_KINDS.has(m.kind) && m.awards && m.awards[rep.id]) ||
       (AWARD_DEATH_KINDS.has(m.kind) && (m.targets || []).includes(rep.id)) ||
-      (m.kind === APPEAL_REVERSAL_KIND && m.outcome === 'изменено' && m.awards && m.awards[rep.id]) ||
-      (isAppealReversal(m) && (m.targets || []).includes(rep.id))
+      (REVIEW_ACT_KINDS.has(m.kind) && m.outcome === 'изменено' && m.awards && m.awards[rep.id]) ||
+      (isReviewReversal(m) && (m.targets || []).includes(rep.id)) ||
+      (isCassationRestore(m) && (m.targets || []).includes(rep.id))
     ))
     .map((m, i) => ({ m, i, t: (ruD(m.dates && (m.dates.event || m.dates.registered)) || 0) }))
     .sort((a, b) => (a.t - b.t) || (a.i - b.i));
-  if(!acts.length) return null;
-  const last = acts[acts.length - 1].m;
-  if(AWARD_DEATH_KINDS.has(last.kind) || isAppealReversal(last)) return null;
+  const pool = dropRestoredAppeals(acts.map(a => a.m));
+  if(!pool.length) return null;
+  const last = pool[pool.length - 1];
+  if(AWARD_DEATH_KINDS.has(last.kind) || isReviewReversal(last)) return null;
   const lastAward = last.awards[rep.id];
-  const isCorrection = last.kind === APPEAL_REVERSAL_KIND && lastAward.relation && lastAward.relation.type === 'corrects';
+  const isCorrection = REVIEW_ACT_KINDS.has(last.kind) && lastAward.relation && lastAward.relation.type === 'corrects';
   const act = isCorrection ? (measures.find(x => x.num === lastAward.relation.of) || last) : last;
   const award = effectiveAward(measures, last, rep.id);
   return { sum: claimsEntryTotal(award), relation: lastAward.relation, act, rep, correctedBy: isCorrection ? last : null };
@@ -2403,7 +2455,7 @@ function trackBadges(r){
    продвинутом деле (найдено регрессионным смоуком на реальной затравке). Сигнал
    именно повторного независимого искового — ДВЕ ИЛИ БОЛЕЕ живых вехи с фазой «Иск»
    одновременно (§8.5, ADR-0046 — несколько судебных решений подряд на одном кредите);
-   апелляционный откат (`isAppealReversal`, phaseSetter выше) тоже ставит фазу «Иск», но
+   откат пересмотра (`isReviewReversal`, phaseSetter выше) тоже ставит фазу «Иск», но
    это не второе исковое — исключается явно, иначе req 341 (одна веха-основание + один
    откат) ложно считался бы задвоением. «Исковое заявление» само фазу не ставит
    (outcomes:null, resultIsDocument — обёртка над актом); фазу «Иск» ставит определение
@@ -2417,7 +2469,7 @@ function trackBadges(r){
    сценарий теперь достижим через интерфейс, проверено смоуком (.scratch/collection-
    gejt-predusloviy/issues/02). */
 function newClaimBadge(r){
-  const iskMs = liveMilestones(r).filter(m => measureSetsPhase(m) === 'Иск' && !isAppealReversal(m));
+  const iskMs = liveMilestones(r).filter(m => measureSetsPhase(m) === 'Иск' && !isReviewReversal(m));
   if(iskMs.length < 2 || phaseRank(phaseOf(r)) <= phaseRank('Иск')) return '';
   const fresh = iskMs[iskMs.length - 1];
   return ` <span class="pill mid" title="Мера «${escAttr(fresh.num||fresh.kind)}» от ${escAttr((fresh.dates&&fresh.dates.event)||'')} — живая, но дело уже прошло дальше по прежнему решению (§3.2)">новый иск</span>`;
@@ -2535,8 +2587,8 @@ const MEASURE_SUBDIV = {
    раньше молча доставались права наблюдателя. Значение — массив, потому что «Куратор
    ОД / ДАК / РП» — это три подразделения, а не строка с косыми чертами (НП-4). */
 const ROLE_SUBDIV = Object.fromEntries(ROLES.map(r => [r.role, r.subdivs.slice()]));
-/* Ответственное подразделение ПО РАЗДЕЛУ — покрывает все 80 видов меры (В-9 без белых пятен):
-   своего правила нет у 63 из них, MEASURE_SUBDIV держит 17. Явная запись перекрывает этот
+/* Ответственное подразделение ПО РАЗДЕЛУ — покрывает все 81 вид меры (В-9 без белых пятен):
+   своего правила нет у 64 из них, MEASURE_SUBDIV держит 17. Явная запись перекрывает этот
    дефолт по конкретному виду; до волны НП этот этаж правила на экране настроек не показывался.
    (Числа были «55 / 41» — снимок шестью волнами раньше; счёт не выводится из справочника,
    потому и разошёлся молча.) */
@@ -4211,6 +4263,13 @@ function buildCredit(c, cr, stop, age){
         m.outcome = (s.kind === 'Решение суда' && opt('verdict')) ? opt('verdict') : s.outcome;
         if(s.kind === 'Решение суда') verdictApplied = m.outcome;
       }
+      /* ADR-0079: присуждение НА САМОМ решении — до этой волны затравка не показывала
+         слой от судебного акта ни разу (awards нёс единственный вид — акт утверждения
+         мирового соглашения), а значит и апелляционную правку МП-2 проверять было не на
+         чем. Ставится только по явной опции кейса: общая денежная картина затравки не
+         трогается, слой заводится там, где он и разбирается. */
+      if(s.kind === 'Решение суда' && opt('judgedAward') != null)
+        m.awards = { [`${c.id}/${cr.id}/з`]: { principal:opt('judgedAward'), relation:{type:'new'}, by:responsible, at:dates[i] } };
       if(s.scope)   m.scope = { volume:s.scope, method:opt('method') || 'деньгами' };
       if(kd.source === 'внешний акт') m.received = { date:dates[i] };
       if(kd.needsDelivery){
@@ -4431,19 +4490,19 @@ function buildCredit(c, cr, stop, age){
 
     /* Task 6 (K3-АПЕЛЛЯЦИЯ). ADR-0031 п.3: жалоба (resultIsDocument) фазу не двигает —
        фазу двигает АКТ вышестоящей инстанции, отдельной мерой поверх жалобы (basedOn).
-       ИЗВЕСТНЫЙ ПРОБЕЛ МОДЕЛИ (ревью раунд3, MINOR — намеренно НЕ чинится в Task 6):
-       «Апелляционная жалоба» в справочнике — ВСЕГДА наш документ (MEASURE_KINDS,
-       source:'наш документ') — своего вида «жалоба ОТ ДОЛЖНИКА» не существует. Guard
-       ниже (verdictApplied === FAVORABLE_VERDICT → throw) из этого прямо следует:
-       раз жалобу подаём только мы, appeal возможен ТОЛЬКО при неблагоприятном для
-       ФКФ исходе — а stop дальше 'решение' (ил/постановление) уже требует
-       БЛАГОПРИЯТНОГО verdict (проверка в шапке buildSeed) — opt('appeal') физически
-       совместим ТОЛЬКО с stop:'решение' ровно. Следствие: самая обычная в жизни
-       форма «мы выиграли полностью, должник подал апелляцию» — НЕВЫРАЗИМА в текущей
-       модели ни при каком сочетании полей, не только gated этим guard'ом. Не
-       чинить здесь (не Task 6) — при появлении своего вида «жалоба от другой
-       стороны» (source:'внешний акт' по аналогии с «Иск стороны в отношении
-       Фонда») или отдельного флага «кто подал» эта ветка потребует пересмотра. */
+       Guard ниже (verdictApplied === FAVORABLE_VERDICT → throw): этот блок кладёт НАШУ
+       апелляционную жалобу, а обжаловать собственный полный выигрыш нечего — значит
+       appeal требует неблагоприятного исхода, а stop дальше 'решение' требует
+       благоприятного (проверка в шапке buildSeed), и opt('appeal') совместим ровно
+       со stop:'решение'.
+       СТАТУС ПРОБЕЛА ИЗМЕНИЛСЯ (было: «жалобы ОТ ДОЛЖНИКА не существует»). Шаг 6
+       наряда сверки (`ADR-0071`) завёл «Апелляционную жалобу заёмщика» и «Кассационную
+       жалобу заёмщика» — оба внешние акты, пп. 30.4/30.5, и «Постановление апелляционной
+       инстанции» уже принимает обе стороны основанием. Невыразимого в СПРАВОЧНИКЕ не
+       осталось; не хватает ЗАТРАВКИ: билдер жалобу заёмщика не кладёт ни в одном деле,
+       и обязанность возразить (оба «Возражения») ни разу не поднята. Это последний
+       хвост пп. 30.4/30.5 — он остался и после `ADR-0079`, который разбирал акт
+       кассационной инстанции, а не подателя жалобы. */
     if(opt('appeal')){
       const rs = measures.find(m => m.kind === 'Решение суда');
       if(!rs)
@@ -4466,11 +4525,46 @@ function buildCredit(c, cr, stop, age){
       const dt2 = ruAdd(dt, 40);
       const numPa = `ПА-${cr.id}`;
       const respPa = respFor('Постановление апелляционной инстанции');
-      measures.push({ sec:sectionOf('Постановление апелляционной инстанции'), kind:'Постановление апелляционной инстанции',
+      const mPa = { sec:sectionOf('Постановление апелляционной инстанции'), kind:'Постановление апелляционной инстанции',
         dates:D(dt2, dt2), received:{ date:dt2 }, num:numPa,
         purpose:'акт апелляционной инстанции', basedOn:numAj,
-        outcome:opt('appeal'), sum:sumBy(curScope, dt2), responsible:respPa });
+        outcome:opt('appeal'), sum:sumBy(curScope, dt2), responsible:respPa };
+      /* МП-2/ADR-0043 — правка присуждения апелляцией ('corrects'): построчная ЗАМЕНА
+         статей акта первой инстанции, не сложение. Требует judgedAward (иначе исправлять
+         нечего) и исход «изменено» — ровно тот, при котором апелляция вообще трогает деньги. */
+      if(opt('appealAward') != null){
+        if(opt('appeal') !== 'изменено')
+          throw new Error(`SEED: дело ${c.id} — appealAward задан при appeal='${opt('appeal')}': присуждение правит только исход «изменено»`);
+        if(opt('judgedAward') == null)
+          throw new Error(`SEED: дело ${c.id} — appealAward задан без judgedAward: 'corrects' ссылается на присуждение акта первой инстанции, а его нет`);
+        mPa.awards = { [`${c.id}/${cr.id}/з`]: { principal:opt('appealAward'), relation:{type:'corrects', of:rs.num}, by:respPa, at:dt2 } };
+      }
+      measures.push(mPa);
       history.push({ when:`${dt2} 10:00`, what:`Мера «Постановление апелляционной инстанции» ${numPa} зарегистрирована — исход «${opt('appeal')}»`, who:respPa });
+
+      /* ADR-0079 — кассационная ветвь. П. 30.3 отсчитывает три месяца от акта апелляционной
+         инстанции и его же называет предметом жалобы, поэтому кассация возможна ТОЛЬКО
+         поверх апелляции — блок вложен, а не самостоятелен. Названный нормой повод один
+         (апелляция оставила решение в силе, нашу жалобу отклонила), но п. 30 открывается
+         оговоркой «включая, но не ограничиваясь», и повод «апелляция изменила присуждение
+         не в нашу пользу» ею покрыт — на нём и стоит восстанавливающий исход. */
+      if(opt('cassation')){
+        const dt3 = ruAdd(dt2, 30);
+        const numKj = `КЖ-${cr.id}`;
+        const respKj = respFor('Кассационная жалоба');
+        measures.push({ sec:sectionOf('Кассационная жалоба'), kind:'Кассационная жалоба', dates:D(dt3, dt3),
+          num:numKj, purpose:'обжалование акта апелляционной инстанции', basedOn:numPa,
+          sum:sumBy(curScope, dt3), responsible:respKj });
+        history.push({ when:`${dt3} 10:00`, what:`Мера «Кассационная жалоба» ${numKj} зарегистрирована`, who:respKj });
+        const dt4 = ruAdd(dt3, 60);
+        const numPk = `ПК-${cr.id}`;
+        const respPk = respFor('Постановление кассационной инстанции');
+        measures.push({ sec:sectionOf('Постановление кассационной инстанции'), kind:'Постановление кассационной инстанции',
+          dates:D(dt4, dt4), received:{ date:dt4 }, num:numPk,
+          purpose:'акт кассационной инстанции', basedOn:numKj,
+          outcome:opt('cassation'), sum:sumBy(curScope, dt4), responsible:respPk });
+        history.push({ when:`${dt4} 10:00`, what:`Мера «Постановление кассационной инстанции» ${numPk} зарегистрирована — исход «${opt('cassation')}»`, who:respPk });
+      }
     }
 
     /* Task 6 (K3-МС / K3-ДОБРОВОЛЬНОЕ), ADR-0047 наряд МП-11. c.agreement управляет
@@ -6104,6 +6198,33 @@ const SEED = [
     credit:{ id:'341', num:'Дог. №341 от 27.08.2023', subdiv:'ОПК', project:'региональный',
              debt:{ principal:268000, interest:12900, penalty:6700, paid:0, principalOverdue:215000 } },
     stop:'решение', age:70, verdict:'в иске отказано', appeal:'отменено, на новое рассмотрение' },
+
+  // ── K3-КАССАЦИЯ · акт апелляционной инстанции обжалован в кассацию (2, ADR-0079) ──
+  // Два полюса кассационного акта. 346 — денежный: решение первой инстанции присудило
+  // 300 000, апелляция ЗАМЕНИЛА присуждение на 180 000 ('corrects', МП-2), кассация
+  // отменила апелляцию и оставила решение первой инстанции в силе — слой обязан
+  // вернуться к 300 000, а НЕ погаснуть (ровно тот исход, ради которого ветвь
+  // разбиралась, а не копировалась с апелляционной). 347 — маршрутный: повод дословно
+  // по п. 30.3 (апелляция оставила решение в силе, нашу жалобу отклонила), кассация
+  // отменяет и возвращает на новое рассмотрение — фаза откатывается на «Иск», слой
+  // гаснет общим правилом отмены (isReviewReversal). Обе — единственные дела затравки,
+  // где судебный акт вообще несёт присуждение (judgedAward).
+  { sit:'K3-КАССАЦИЯ', id:'346', borrower:'ОсОО «Талас Сүт»', inn:'02905202100817',
+    region:'Таласская область / Таласский', owner:'Отдел проблемных кредитов (ОПК)',
+    curator:'Абдиев Э.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
+    credit:{ id:'346', num:'Дог. №346 от 14.03.2023', subdiv:'ОПК', project:'региональный',
+             debt:{ principal:340000, interest:16800, penalty:9200, paid:0, principalOverdue:300000 } },
+    stop:'решение', age:150, verdict:'иск удовлетворён частично',
+    appeal:'изменено', judgedAward:300000, appealAward:180000,
+    cassation:'апелляция отменена, решение первой инстанции в силе' },
+  { sit:'K3-КАССАЦИЯ', id:'347', borrower:'ОсОО «Нарын Тоо-Таш»', inn:'01203202000818',
+    region:'Нарынская область / Ат-Башынский', owner:'Отдел проблемных кредитов (ОПК)',
+    curator:'Осмонов К.', deptCurators:{ 'ОД':'Асанова Ж.Т.' },
+    credit:{ id:'347', num:'Дог. №347 от 08.09.2023', subdiv:'ОПК', project:'ДАК',
+             debt:{ principal:295000, interest:14100, penalty:7400, paid:0, principalOverdue:260000 } },
+    stop:'решение', age:155, verdict:'иск удовлетворён частично',
+    appeal:'оставлено в силе', judgedAward:260000,
+    cassation:'отменено, на новое рассмотрение' },
 
   // ── K3-ИЛ · исполнительный лист выдан (2) ──
   // Task 7: М-4 «пятая статья с исполнительного листа» — общее правило buildSeed
@@ -8390,7 +8511,8 @@ function panelDebt(){
    МП-2/ADR-0043 (карта `collection-apellyacia-sloy`, тикет 01, вопрос 8): апелляция
    («Постановление апелляционной инстанции» — потомок «Апелляционной жалобы», та потомок
    решения) входит в тот же fold параллельно layerOf — правка (исход «изменено» + awards)
-   и смерть (isAppealReversal, оба «отменено») — акт без awards, effectiveAward вернёт
+   и смерть (isReviewReversal, оба «отменено»; ADR-0079 — то же и для кассационного акта,
+   плюс восстановление isCassationRestore той же свёрткой dropRestoredAppeals) — акт без awards, effectiveAward вернёт
    null, строка честно покажет «присудили — нет». Пробел с «Определение об отмене
    судебного приказа» в ЭТОЙ функции — НЕ этой карты (найдено при кодировании, layerOf
    его уже видит, здесь — нет; отдельная будущая находка, см. issues/02). */
@@ -8407,12 +8529,14 @@ function claimChainsFor(r){
       for(const ch of childrenOf(cur)){
         if(seen.has(ch)) continue; seen.add(ch); queue.push(ch);
         if(AWARD_KINDS.has(ch.kind) && ch.awards && ch.awards[r.id]) acts.push(ch);
-        else if(ch.kind===APPEAL_REVERSAL_KIND && ch.outcome==='изменено' && ch.awards && ch.awards[r.id]) acts.push(ch);
-        else if(isAppealReversal(ch) && (ch.targets||[]).includes(r.id)) acts.push(ch);
+        else if(REVIEW_ACT_KINDS.has(ch.kind) && ch.outcome==='изменено' && ch.awards && ch.awards[r.id]) acts.push(ch);
+        else if(isReviewReversal(ch) && (ch.targets||[]).includes(r.id)) acts.push(ch);
+        else if(isCassationRestore(ch) && (ch.targets||[]).includes(r.id)) acts.push(ch);
       }
     }
     acts.sort((a,b)=>(ruD(a.dates&&(a.dates.event||a.dates.registered))||0)-(ruD(b.dates&&(b.dates.event||b.dates.registered))||0));
-    return { root, award: acts.length ? acts[acts.length-1] : null };
+    const kept = dropRestoredAppeals(acts);
+    return { root, award: kept.length ? kept[kept.length-1] : null };
   });
 }
 /* Отдельная таблица (тикет «Точки интеграции», вопрос 4) — НЕ debtTableHtml: та
@@ -9996,12 +10120,13 @@ function openAnnotationModal(mi){
      МП-2/ADR-0043 (карта `collection-apellyacia-sloy`, тикет 01, вопросы 2-3): секция
      видна и для апелляции (гейт по виду, тот же приём, что AWARD_KINDS) — но апелляция
      НЕ в AWARD_KINDS (она не источник слоя, только правит существующий), поэтому её
-     relation-меню ниже предлагает ТОЛЬКО 'corrects', без 'новый слой'. */
-  const isAppealAward = m.kind === APPEAL_REVERSAL_KIND;
-  const awardTargets = (AWARD_KINDS.has(m.kind) || isAppealAward) ? (m.targets||[]).map(id=>REQ_INDEX[id]).filter(Boolean) : [];
+     relation-меню ниже предлагает ТОЛЬКО 'corrects', без 'новый слой'.
+     ADR-0079: то же верно для кассационного акта — гейт читает пару REVIEW_ACT_KINDS. */
+  const isReviewAward = REVIEW_ACT_KINDS.has(m.kind);
+  const awardTargets = (AWARD_KINDS.has(m.kind) || isReviewAward) ? (m.targets||[]).map(id=>REQ_INDEX[id]).filter(Boolean) : [];
   const awardSection = !awardTargets.length ? '' : `
     <p class="section-h" style="font-size:15px;margin:10px 0 4px">Присуждено</p>
-    <p class="section-note">Пять статей (§4, МП5-18), по строке на цель. Пустое поле — статья не присуждалась (не значит ноль).${isAppealAward?' Апелляция слоя не заводит — только исправляет присуждение по акту первой инстанции.':''}</p>
+    <p class="section-note">Пять статей (§4, МП5-18), по строке на цель. Пустое поле — статья не присуждалась (не значит ноль).${isReviewAward?' Инстанция пересмотра слоя не заводит — только исправляет присуждение по акту первой инстанции.':''}</p>
     <div class="mform">
       ${awardTargets.map(x=>{
         const cur = m.awards && m.awards[x.id];
@@ -10013,7 +10138,7 @@ function openAnnotationModal(mi){
            варианты, без «новый слой» (апелляция слой не заводит). Значение select
            кодирует тип:номер («absorbs:NNN»/«adds:NNN»/«corrects:NNN») — сохранение
            ниже, saveAnnotation. */
-        const relField = isAppealAward
+        const relField = isReviewAward
           ? (!priorActs.length
               ? `<div class="field col-span"><div class="hint-inline">Нет присуждения к исправлению — сначала внесите «Присуждено» на акте первой инстанции.</div></div>`
               : `<div class="field col-span"><span class="flabel">Исправляет присуждение по акту — ${escAttr(x.id)}</span><div class="control grey"><select id="aRelation_${escAttr(x.id)}">
@@ -10157,8 +10282,8 @@ function saveAnnotation(mi){
         opensPravopreemstvo=true;
     }
   }
-  const isAppealAward = m.kind === APPEAL_REVERSAL_KIND;
-  if(kd && (AWARD_KINDS.has(m.kind) || isAppealAward)){
+  const isReviewAward = REVIEW_ACT_KINDS.has(m.kind);   // ADR-0079: апелляция + кассация
+  if(kd && (AWARD_KINDS.has(m.kind) || isReviewAward)){
     const targets=(m.targets||[]).map(id=>REQ_INDEX[id]).filter(Boolean);
     for(const x of targets){
       const prevAward=m.awards && m.awards[x.id];
@@ -10166,7 +10291,7 @@ function saveAnnotation(mi){
       /* МП-2/ADR-0043 (тикет 01, вопрос 3): апелляция не заводит слой — без
          рендеренного select (нет кандидата на исправление) ввод в поля сумм
          игнорируется целиком, «new» ей не подставляется никогда. */
-      if(isAppealAward && !relSel) continue;
+      if(isReviewAward && !relSel) continue;
       /* Значение select — «absorbs:NNN»/«adds:NNN»/«corrects:NNN» (наряд
          «выручка/очередь», Q8; МП-2/ADR-0043) — или «new» без номера
          (недоступно апелляции — её меню «new» не содержит). */
