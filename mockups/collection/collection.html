@@ -11660,6 +11660,16 @@ let SET_N=[0,0];
 function setCount(shown, total){ SET_N=[shown, total]; }
 function setPrintCount(){ setEl('setCount').innerHTML = `показано <b>${SET_N[0]}</b> из ${SET_N[1]}`; }
 function setRefresh(){
+  /* НП-13: фильтр по разделу прячется там, где раздела у строк нет. Требование было
+     записано под снятую `ADR-0045` вкладку «Фазы» и вместе с ней потерялось, а вкладка
+     «Порог МП5-11» (`ADR-0051` §3) держит правило ОДНО на модуль — `setPass` получает
+     sec=null, и выставленный раздел молча вычищал таблицу целиком. Прячем сам фильтр и
+     снимаем его значение: невидимый, но действующий фильтр — худшая из форм. */
+  const secWrap=setEl('setSecWrap'), hasSec=settingsTab!=='secondCounter';
+  if(secWrap){
+    secWrap.style.display=hasSec?'':'none';
+    if(!hasSec && setEl('setSec') && setEl('setSec').value) setEl('setSec').value='';
+  }
   const body={v9:renderSettingsV9,gates:renderSettingsGates,preconditions:renderSettingsPreconditions,secondCounter:renderSettingsSecondCounter}[settingsTab]();
   setEl('settingsHost').innerHTML=body;
   setPrintCount(); setChips();
@@ -11671,7 +11681,7 @@ function renderSettings(){
     return `<button class="settings-tab${k===settingsTab?' active':''}" onclick="showSettingsTab('${k}')">${l}${n?` <span class="chg-badge" title="изменённых правил: ${n}">${n}</span>`:''}</button>`;
   }).join('');
   const total=changedAll();
-  setEl('settingsFrame').innerHTML=`Правила доступности мер на <b>${TODAY}</b>: кто какую меру регистрирует (В-9), с какой стадии открыт раздел, что требует решения органа и в каком порядке идут фазы. Радиус каждой правки считается по живым данным — ${allReqs().length} требований, ${PROCESSES.length} дел.`;
+  setEl('settingsFrame').innerHTML=`Правила доступности мер на <b>${TODAY}</b>: кто какую меру регистрирует (В-9), что требует решения органа, что требуется до регистрации вида и с какого порога просрочка требует нового иска. Радиус каждой правки считается по живым данным — ${allReqs().length} требований, ${PROCESSES.length} дел.`;
   setEl('settingsBanner').innerHTML=renderSettingsBanner();
   setEl('settingsJournal').innerHTML=renderRuleLog();
   setEl('settingsFoot').innerHTML=`

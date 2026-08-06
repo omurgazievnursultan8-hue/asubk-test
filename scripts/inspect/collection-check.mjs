@@ -807,26 +807,39 @@ ok('реестр претензий ведёт на требование-адр�
 head('RULES · правила и настройки');
 ok('RULES.measureSubdiv идентичен литералу MEASURE_SUBDIV',
    g.ev('JSON.stringify(RULES.measureSubdiv)===JSON.stringify(MEASURE_SUBDIV)'));
-ok('RULES.sectionClevel идентичен литералу SECTION_CLEVEL',
-   g.ev('JSON.stringify(RULES.sectionClevel)===JSON.stringify(SECTION_CLEVEL)'));
-ok('RULES.contourPhases.К1 совпадает с CONTOURS.К1.phases',
-   g.ev(`JSON.stringify(RULES.contourPhases['К1'])===JSON.stringify(CONTOURS['К1'].phases)`));
-ok('phasesOf(К1) читает порядок из RULES',
+/* `ADR-0045` (наряд п.5б-i/ii) снял контурную лестницу, а вместе с ней ключи
+   RULES.sectionClevel и RULES.contourPhases, вкладки «Стадии»/«Фазы» и sequenceReason.
+   Десять проверок этой секции сверяли живой слой со снятыми литералами и падали с самого
+   перехода на схему правил 3 — «старый долг» смоука. Переписаны под нынешний слой (правило
+   наряда: ожидание переписывают под новое поведение, а не отключают): сверяется то, что в
+   RULES ЕСТЬ, и отдельной проверкой — что снятого в нём НЕТ. */
+ok('RULES.preconditions идентичен литералу PRECONDITIONS',
+   g.ev('JSON.stringify(RULES.preconditions)===JSON.stringify(PRECONDITIONS)'));
+ok('снятых ключей лестницы в живом слое нет — оси ровно те же, что в дефолте',
+   g.ev(`(() => { const k = Object.keys(RULES).filter(x => x !== 'log').sort();
+     return k.join() === Object.keys(RULES_DEFAULTS).sort().join()
+       && !('sectionClevel' in RULES) && !('contourPhases' in RULES); })()`));
+/* phasesOf пережил снятие лестницы легаси-свёрткой и читает CONTOURS напрямую, а не RULES
+   (`collection.html`, комментарий у CONTOUR_LEVEL). Проверка та же, название — правдивое. */
+ok('phasesOf(К1) читает порядок из CONTOURS — свёртка пережила снятие лестницы легаси',
    g.ev(`phasesOf('К1').join('>')`) === 'Претензия>Повторная претензия>Безакцептное списание');
 ok('RULES_DEFAULTS заморожен', g.ev('Object.isFrozen(RULES_DEFAULTS)') === true);
 { const m = mk();
+  /* Механика персиста и сброса прежняя, правится другой ключ: sectionClevel снят
+     `ADR-0045`. Живой скаляр той же природы — RULES.secondCounter (`ADR-0051` §3): он
+     есть в RULES_DEFAULTS, его правит экран, и он не участвует в проверках рядом. */
   ok('persistRules пишет версию схемы и правила', m.ev(`(()=>{
-    RULES.sectionClevel['Досудебный']=3; persistRules();
+    RULES.secondCounter.days=120; persistRules();
     const box=JSON.parse(localStorage.getItem(RULES_KEY));
-    return box.v===RULES_SCHEMA && box.rules.sectionClevel['Досудебный']===3;
+    return box.v===RULES_SCHEMA && box.rules.secondCounter.days===120;
   })()`));
   ok('resetRulesAll восстанавливает дефолт', m.ev(`(()=>{
-    RULES.sectionClevel['Досудебный']=3; resetRulesAll();
-    return RULES.sectionClevel['Досудебный']===RULES_DEFAULTS.sectionClevel['Досудебный'];
+    RULES.secondCounter.days=120; resetRulesAll();
+    return RULES.secondCounter.days===RULES_DEFAULTS.secondCounter.days;
   })()`));
   ok('resetRulesSection сбрасывает одну ось', m.ev(`(()=>{
-    RULES.gates={}; RULES.sectionClevel['Судебный']=5; resetRulesSection('gates');
-    return Object.keys(RULES.gates).length>0 && RULES.sectionClevel['Судебный']===5;
+    RULES.gates={}; RULES.secondCounter.days=120; resetRulesSection('gates');
+    return Object.keys(RULES.gates).length>0 && RULES.secondCounter.days===120;
   })()`)); }
 { const m = mk(); m.ev(`showView('settings')`);
   ok('showView(settings) показывает экран и пишет hash со вкладкой',
@@ -851,14 +864,18 @@ ok('RULES_DEFAULTS заморожен', g.ev('Object.isFrozen(RULES_DEFAULTS)') 
   m.asAdmin();   /* предыдущая проверка переключила роль на куратора — правила правит админ */
   ok('toggleRoleSubdiv меняет роль→подразделения',
      m.ev(`(()=>{ toggleRoleSubdiv('Наблюдатель','ОД'); return RULES.roleSubdiv['Наблюдатель'].join()==='ОД'; })()`)); }
-{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('stage')`);
-  ok('вкладка Стадии рендерит селект на каждый раздел',
-     m.$$('#settingsHost .settings-grid tbody tr select').length === m.ev('SECTION_ORDER.length'));
-  ok('повышение sectionClevel блокирует меру раздела на низкой ступени', m.ev(`(()=>{
-    const r = allReqs().find(x => contourOf(x)==='К1');
-    const before = sequenceReason(r,'Акт сверки');
-    setSectionClevel('Досудебный',4);
-    return !before && !!sequenceReason(r,'Акт сверки');
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings')`);
+  /* Вкладки «Стадии» нет с `ADR-0045`, проверять на ней нечего. Обе проверки развёрнуты в
+     обратную сторону: экран не должен вернуть снятую вкладку молча, а блокировка по
+     ступени эскалации переехала со ступени РАЗДЕЛА на порог ВИДА (`minLevel`). */
+  ok('вкладок настроек четыре, снятых «Стадии» и «Фазы» среди них нет',
+     m.ev(`SETTINGS_TABS.map(t=>t[0]).join()`) === 'v9,gates,preconditions,secondCounter'
+     && m.ev(`typeof renderSettingsStage`) === 'undefined');
+  ok('повышение порога эскалации у вида блокирует меру на низкой ступени', m.ev(`(()=>{
+    const r = allReqs().find(x => !preconditionReason(x,'Исковое заявление'));
+    if(!r) return false;
+    setPreconditionLevel('Исковое заявление',4);
+    return !!preconditionReason(r,'Исковое заявление');
   })()`)); }
 { const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('gates')`);
   ok('вкладка Гейты рендерит строку на каждый гейт',
@@ -869,20 +886,26 @@ ok('RULES_DEFAULTS заморожен', g.ev('Object.isFrozen(RULES_DEFAULTS)') 
     toggleGate('Исковое заявление');
     return !gateReason(r,'Исковое заявление');
   })()`)); }
-{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('phases')`);
-  ok('вкладка Предусловия рендерит блок на каждый контур',
-     m.$$('#settingsHost .phase-contour').length === m.ev('Object.keys(CONTOURS).length'));
-  ok('movePhase меняет порядок в RULES.contourPhases', m.ev(`(()=>{
-    movePhase('К1',0,1);
-    return phasesOf('К1')[0]==='Повторная претензия' && phasesOf('К1')[1]==='Претензия';
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('preconditions')`);
+  /* Вкладка «Предусловия» строится по ВИДАМ меры, а не по контурам (их она не знает вовсе),
+     и правит запись вида, а не порядок фаз: movePhase и sequenceReason сняты `ADR-0045`.
+     Смысл трёх проверок сохранён — экран показывает все виды и его правка меняет ответ
+     гейта, — точка приложения переписана с перестановки фаз на запись предусловия. */
+  ok('вкладка Предусловия рендерит строку на каждый вид меры',
+     m.$$('#settingsHost .settings-grid tbody tr').length === m.ev('MEASURE_KIND_NAMES.length'));
+  ok('правка записи предусловия ложится в RULES.preconditions', m.ev(`(()=>{
+    togglePreconditionBlock('Повторная претензия','Претензия');
+    return (RULES.preconditions['Повторная претензия'].blockIfPhaseIn||[]).includes('Претензия')
+       !== (PRECONDITIONS['Повторная претензия'].blockIfPhaseIn||[]).includes('Претензия');
   })()`));
-  ok('переупорядочивание меняет предусловие sequenceReason', m.ev(`(()=>{
-    resetRulesSection('contourPhases');
-    const r = allReqs().find(x => phaseOf(x)==='Претензия');
-    const before = sequenceReason(r,'Повторная претензия');
-    movePhase('К1',0,1);
-    const after = sequenceReason(r,'Повторная претензия');
-    resetRulesSection('contourPhases');
+  ok('смена требуемой фазы меняет ответ preconditionReason', m.ev(`(()=>{
+    resetRulesSection('preconditions');
+    const r = allReqs().find(x => !preconditionReason(x,'Повторная претензия'));
+    if(!r) return false;
+    const before = preconditionReason(r,'Повторная претензия');
+    setPreconditionPhase('Повторная претензия','Признано банкротом');
+    const after = preconditionReason(r,'Повторная претензия');
+    resetRulesSection('preconditions');
     return !before && !!after;
   })()`)); }
 
@@ -981,7 +1004,7 @@ head('НП-1…НП-16 · настройки правил');
     return changedAll()===0;
   })()`));
   ok('НП-6 откат вкладки и экрана считает правила', m.ev(`(()=>{
-    toggleV9('Акт сверки','ОПК'); setSectionClevel('Судебный',3);
+    toggleV9('Акт сверки','ОПК'); setPreconditionLevel('Исковое заявление',3);
     const two=changedAll()===2;
     resetTabRules('v9');
     const one=changedAll()===1 && changedInTab('v9')===0;
@@ -989,15 +1012,17 @@ head('НП-1…НП-16 · настройки правил');
     return two && one && changedAll()===0;
   })()`)); }
 /* НП-7 · радиус правки: кого правило задевает сейчас */
-{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('stage')`);
-  ok('НП-7 радиус стадии считается на лету и совпадает с проверкой доступа', m.ev(`(()=>{
-    const L=RULES.sectionClevel['Исполнительное производство'] ?? 1;
-    return openAtLevel(L)===allReqs().filter(r=>!sequenceReason(r,'Заявление о выдаче исполнительного листа')||
-      !/стадии/.test(sequenceReason(r,'Заявление о выдаче исполнительного листа')||'')).length ||
-      openAtLevel(L)>0;
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('preconditions')`);
+  /* Радиус считался по ступени РАЗДЕЛА (openAtLevel/sequenceReason) — обе свёртки сняты
+     `ADR-0045` вместе с лестницей. Носитель радиуса теперь запись предусловия ВИДА, и
+     проверка та же по сути: показанное число обязано совпасть с ответом самого гейта. */
+  ok('НП-7 радиус предусловия считается на лету и совпадает с проверкой доступа', m.ev(`(()=>{
+    const k='Заявление на банкротство';
+    return preconditionHolds(k)===allReqs().filter(r=>!!preconditionReason(r,k)).length
+      && preconditionHolds(k)>0;
   })()`));
-  ok('НП-7 радиус стадии показан в таблице',
-     m.$('#settingsHost').textContent.includes('доступен'));
+  ok('НП-7 радиус предусловия показан в таблице',
+     m.$('#settingsHost').textContent.includes('держит'));
   m.ev(`showSettingsTab('gates')`);
   ok('НП-7 радиус гейта = число требований, которые он держит', m.ev(`(()=>{
     const k='Исковое заявление';
@@ -1059,36 +1084,54 @@ head('НП-1…НП-16 · настройки правил');
     return !RULES.gates['Безакцептное списание'].off && changedAll()===0;
   })()`)); }
 /* НП-11 · стадии: ступень названа контуром, закрытие для всех предупреждает */
-{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('stage')`);
-  ok('НП-11 ступень подписана именем контура, а не числом',
-     m.$('#settingsHost').textContent.includes('с безнадёжной (К7)') &&
-     m.$('#settingsHost').textContent.includes('с самого начала (К0)'));
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('preconditions')`);
+  /* Вкладки «Стадии» нет с `ADR-0045`; НП-11 переносится на её наследницу — вкладку
+     предусловий. Две проверки сохраняют смысл прямо (требуемое названо словами, радиус
+     пишется в журнал «до → после»), третья меняет ЛИЦО осознанно: у предусловия нет
+     подтверждения при сужении — оно есть только у отключения гейта (НП-10, единственное
+     место с confirm). Взамен проверяется то, чем предусловие действительно защищено:
+     радиусом в журнале и обратимостью правки. */
+  ok('НП-11 требуемое подписано словами, а не числом',
+     m.$('#settingsHost').textContent.includes('Требуемая фаза') &&
+     m.$('#settingsHost').textContent.includes('Порог эскалации'));
   ok('НП-11 радиус называет «до → после» в журнале правок', m.ev(`(()=>{
-    setSectionClevel('Судебный',3);
-    return /доступен \\d+ → \\d+/.test(RULES.log[0].what);
+    setPreconditionLevel('Исковое заявление',3);
+    return /держит \\d+ → \\d+/.test(RULES.log[0].what);
   })()`));
-  ok('НП-11 сужение доступа спрашивает подтверждение и без него не проходит', m.ev(`(()=>{
-    __ok=false; const was=RULES.sectionClevel['Досудебный'];
-    setSectionClevel('Досудебный',4); __ok=true;
-    return openAtLevel(4)<openAtLevel(was) && RULES.sectionClevel['Досудебный']===was;
+  ok('НП-11 сужение предусловия обратимо из журнала — подтверждения оно не спрашивает', m.ev(`(()=>{
+    const was=RULES.preconditions['Исковое заявление'].minLevel;
+    __ok=false; setPreconditionLevel('Исковое заявление',4); __ok=true;
+    const narrowed = RULES.preconditions['Исковое заявление'].minLevel===4;
+    undoRuleEdit(0);
+    return narrowed && RULES.preconditions['Исковое заявление'].minLevel===was;
   })()`));
-  ok('НП-11 расширение доступа проходит без вопроса', m.ev(`(()=>{
-    __ok=false; setSectionClevel('Безнадёжная',0); __ok=true;
-    return RULES.sectionClevel['Безнадёжная']===0 && openAtLevel(0)===allReqs().length;
-  })()`)); }
+  ok('НП-11 confirm живёт только у гейта и сбросов, не у предусловия',
+     m.ev(`(()=>{ const src=String(setPreconditionLevel)+String(editPrecondition)+String(editRule);
+       return !/confirm\\(/.test(src) && /confirm\\(/.test(String(toggleGate)); })()`)); }
 /* НП-12 · фазы: счётчик требований и предупреждение при перестановке */
-{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('phases')`);
-  ok('НП-12 у каждой фазы показано, сколько требований в ней стоит сейчас',
-     m.$('#settingsHost').textContent.includes('в этой фазе') &&
-     m.$('#settingsHost').textContent.includes('требований в контуре'));
-  ok('НП-12 отказ в подтверждении оставляет порядок прежним', m.ev(`(()=>{
-    __ok=false; movePhase('К1',0,1); __ok=true;
-    return phasesOf('К1')[0]==='Претензия' && changedAll()===0;
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('preconditions')`);
+  /* Порядок фаз правилом не правится с `ADR-0045` (movePhase снят), и вместе с ним ушли
+     обе проверки перестановки. Смысл НП-12 — «видно, кого правило задевает» и «правка
+     правил не перекладывает уже стоящие требования» — сохранён на живой оси. */
+  /* «никого не держит» на живой затравке не появляется — каждое заведённое предусловие
+     задевает хотя бы одно требование; поэтому проверяется пара «есть радиус у записи ·
+     назван прочерк там, где записи нет», а не обе половины формулировки радиуса. */
+  ok('НП-12 у каждой строки показано, сколько требований правило держит сейчас',
+     m.$('#settingsHost').textContent.includes('держит') &&
+     m.$('#settingsHost').textContent.includes('без предусловия') &&
+     m.$('#settingsHost').textContent.includes(String(m.ev(`preconditionHolds('Заявление на банкротство')`))));
+  ok('НП-12 отказ в подтверждении сброса оставляет правила прежними', m.ev(`(()=>{
+    setPreconditionLevel('Исковое заявление',3);
+    __ok=false; resetTabRules('preconditions'); __ok=true;
+    return RULES.preconditions['Исковое заявление'].minLevel===3 && changedAll()===1;
   })()`));
-  ok('НП-12 перестановка не перекладывает требования по фазам', m.ev(`(()=>{
+  ok('НП-12 правка предусловия не перекладывает требования по фазам', m.ev(`(()=>{
+    resetRulesSection('preconditions');
     const before=allReqs().map(phaseOf).join('|');
-    movePhase('К1',0,1);
-    return phasesOf('К1')[0]==='Повторная претензия' && allReqs().map(phaseOf).join('|')===before;
+    setPreconditionPhase('Повторная претензия','Признано банкротом');
+    const after=allReqs().map(phaseOf).join('|');
+    resetRulesSection('preconditions');
+    return RULES.preconditions['Повторная претензия'].requiredPhase==='Претензия' && after===before;
   })()`)); }
 /* НП-13 · тулбар как на реестрах и дип-линк вкладки */
 { const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('v9')`);
@@ -1110,9 +1153,13 @@ head('НП-1…НП-16 · настройки правил');
     setClear('setSec');
     return n === kindsOfSection('Судебный').length + 1;
   })()`));
-  ok('НП-13 фильтр по разделу прячется на вкладке фаз', m.ev(`(()=>{
-    showSettingsTab('phases');
-    return document.getElementById('setSecWrap').style.display==='none';
+  /* Вкладка «Фазы» снята `ADR-0045`; требование НП-13 «фильтр прячется там, где раздела у
+     строк нет» переехало на «Порог МП5-11» — правило там одно на модуль (`ADR-0051` §3). */
+  ok('НП-13 фильтр по разделу прячется на вкладке без разделов', m.ev(`(()=>{
+    showSettingsTab('secondCounter');
+    const hidden=document.getElementById('setSecWrap').style.display==='none';
+    showSettingsTab('v9');
+    return hidden && document.getElementById('setSecWrap').style.display!=='none';
   })()`));
   const m2 = mk(); m2.w.location.hash = '#settings/gates'; m2.ev('restoreFromHash()');
   ok('НП-13 дип-линк открывает нужную вкладку',
@@ -1122,21 +1169,27 @@ head('НП-1…НП-16 · настройки правил');
 /* НП-14 · персист: слияние по полям + версия схемы */
 { const m = mk();
   ok('НП-14 правила чужой версии сбрасываются, а не домысливаются', m.ev(`(()=>{
-    localStorage.setItem(RULES_KEY, JSON.stringify({ v:1, rules:{ sectionClevel:{'Досудебный':4} } }));
+    localStorage.setItem(RULES_KEY, JSON.stringify({ v:1, rules:{ preconditions:{'Исковое заявление':{minLevel:4}} } }));
     RULES=deepClone(RULES_DEFAULTS); RULES.log=[];
     restoreRules();
-    return RULES.sectionClevel['Досудебный']===RULES_DEFAULTS.sectionClevel['Досудебный'] &&
+    return RULES.preconditions['Исковое заявление'].minLevel===RULES_DEFAULTS.preconditions['Исковое заявление'].minLevel &&
            localStorage.getItem(RULES_KEY)===null;
   })()`));
   ok('НП-14 незнакомый ключ и чужой код подразделения в живые правила не попадают', m.ev(`(()=>{
     localStorage.setItem(RULES_KEY, JSON.stringify({ v:RULES_SCHEMA, rules:{
       measureSubdiv:{ 'Мера, которой нет':['ОД'], 'Акт сверки':['ОД','ЧУЖОЕ'] },
-      contourPhases:{ 'К1':['Повторная претензия','Фаза, которой нет'] } } }));
+      preconditions:{ 'Мера, которой нет':{minLevel:2}, 'Исковое заявление':{minLevel:9, basis:true, чужое:'поле'} } } }));
     RULES=deepClone(RULES_DEFAULTS); RULES.log=[];
     restoreRules();
+    /* Третий подставной ключ был contourPhases (снят решением ADR-0045) — та же проверка
+       на живой оси: незнакомый вид меры не заводится, негодная величина и чужое поле
+       теряются, а годная часть записи выживает. */
     return !RULES.measureSubdiv['Мера, которой нет'] &&
            (RULES.measureSubdiv['Акт сверки']||[]).join()==='ОД' &&
-           RULES.contourPhases['К1'].join('>')==='Повторная претензия>Претензия>Безакцептное списание';
+           !RULES.preconditions['Мера, которой нет'] &&
+           RULES.preconditions['Исковое заявление'].minLevel===undefined &&
+           RULES.preconditions['Исковое заявление'].basis===true &&
+           !('чужое' in RULES.preconditions['Исковое заявление']);
   })()`));
   ok('НП-14 предмет и орган гейта всегда приходят из справочника', m.ev(`(()=>{
     localStorage.setItem(RULES_KEY, JSON.stringify({ v:RULES_SCHEMA, rules:{
