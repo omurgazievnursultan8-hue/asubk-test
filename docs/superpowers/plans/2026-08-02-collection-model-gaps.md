@@ -9,8 +9,9 @@
 > (`:2079`) и запись «Ревизия статуса МП» в `ASUBK-status-razrabotki.md`. Итог: 18/20
 > решений сделаны, 1 частично (правопреемство/`ADR-0052`, `TODO.md:P14-R14`), 1 не сделано
 > (карантин закрытия дела, Task 6 Step 3/`ADR-0044`, `TODO.md:P14-R4`) — плюс отдельно от
-> таблицы решений: формула `reqId` для двух поручителей одной роли (Task 8 Step 1/`ADR-0024`,
-> `МП-О1`) не исправлена, коллизия жива (`collection.html:7224`).
+> таблицы решений: формула `reqId` для двух обеспечителей одной роли (Task 8 Step 1/`ADR-0024`,
+> `МП-О1`) исправлена 06.08.2026 — третий сегмент id теперь `personId`, а не код роли
+> (`collection.html:7224`); запись — «Правка reqId-коллизии» в `ASUBK-status-razrabotki.md`.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: superpowers:subagent-driven-development
 > (рекомендуется) либо superpowers:executing-plans — задача за задачей, шаги отмечаются

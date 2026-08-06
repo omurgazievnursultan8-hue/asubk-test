@@ -7220,8 +7220,13 @@ const subdivOfOwner = o => OWNER_SUBDIV[o] || 'ОД';
 function mkReq(p, c, personId, role, basis, contractRef){
   if(!OSNOVANIE_KINDS.includes(basis))
     throw new Error(`SEED: требование ${p.id}/${c.id} (роль '${role}') — basis='${basis}' не входит в словарь оснований OSNOVANIE_KINDS [${OSNOVANIE_KINDS.join(' | ')}]`);
+  /* МП-О1: третий сегмент был кодом РОЛИ (ROLE_CODE), а не лица — двое поручителей на
+     одном кредите получали один и тот же id и схлопывались в REQ_INDEX (последний
+     затирал первого). Заёмщик на кредите всегда один — за ним код 'з' оставлен, это
+     держит совместимость с reqIdBorrower (см. ~4800). Для обеспечителей сегмент — сам
+     personId: он уже уникален (ключ PERSONS) и уже передаётся в функцию. */
   const r = {
-    id: `${p.id}/${c.id}/${ROLE_CODE[role] || 'з'}`,
+    id: `${p.id}/${c.id}/${role==='заёмщик' ? 'з' : personId}`,
     proc: p.id, credit: c.id, obligor: personId, role,
     // ADR-0025/ADR-0028 п.3: охвата на кредите больше нет — он живёт на устанавливающей
     // мере (scopeOf(r), свёртка рядом с phaseOf выше). Своего хранимого поля у требования нет.

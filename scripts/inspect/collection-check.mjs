@@ -63,7 +63,7 @@ const P = id => `PROCESSES.find(x=>x.id==='${id}')`;
    PROCESSES/REQ_INDEX — исчезнувший id становится одной названной находкой со списком,
    а не молчаливым undefined в середине выражения. */
 const SELF = readFileSync(new URL(import.meta.url), 'utf8');
-const srcReqIds  = [...new Set([...SELF.matchAll(/'(\d{3}\/[^'\/]+\/[зпго])'/g)].map(m => m[1]))];
+const srcReqIds  = [...new Set([...SELF.matchAll(/'(\d{3}\/[^'\/]+\/(?:[зпго]|[зпго]-\d+))'/g)].map(m => m[1]))];
 const srcProcIds = [...new Set([...SELF.matchAll(/(?:P\('|id===')(\d{3})'/g)].map(m => m[1]))];
 const goneReqs  = srcReqIds.filter(id => !g.ev(`!!REQ_INDEX[${JSON.stringify(id)}]`));
 const goneProcs = srcProcIds.filter(id => !g.ev(`PROCESSES.some(p=>p.id===${JSON.stringify(id)})`));
@@ -80,8 +80,8 @@ const TAB = Object.fromEntries(g.ev(`TABS.map(t=>t.slug)`).map((s,i)=>[s,i]));
 head('М-1 · требование — единица работы');
 ok('требований больше, чем дел',            g.ev('allReqs().length') > g.ev('PROCESSES.length'));
 ok('индекс требований полон и без коллизий', g.ev('Object.keys(REQ_INDEX).length') === g.ev('allReqs().length'));
-ok('id требования = дело/кредит/роль',
-   g.ev(`allReqs().every(r => r.id === r.proc+'/'+r.credit+'/'+({'заёмщик':'з','поручитель':'п','гарант':'г','госорган':'о'}[r.role]))`));
+ok('id требования = дело/кредит/(роль заёмщика | personId обеспечителя) — МП-О1',
+   g.ev(`allReqs().every(r => r.id === r.proc+'/'+r.credit+'/'+(r.role==='заёмщик' ? 'з' : r.obligor))`));
 ok('у каждого требования есть кредит и обязанное лицо',
    g.ev(`allReqs().every(r => !!r._credit && !!PERSONS[r.obligor])`));
 ok('пара (кредит × лицо) в деле уникальна',
@@ -98,7 +98,7 @@ ok('ведущее подразделение — на требовании',  g
 ok('дело 307 — два требования по одному договору',
    g.ev(`${P('307')}.requirements.map(r=>r.role).join(',')`) === 'заёмщик,поручитель');
 ok('солидарный сосед заёмщика — поручитель',
-   g.ev(`solidaryWith(${R('307/307/з')}).map(r=>r.id).join(',')`) === '307/307/п');
+   g.ev(`solidaryWith(${R('307/307/з')}).map(r=>r.id).join(',')`) === '307/307/п-307');
 ok('обеспечение бывает трёх ролей — поручитель, гарант, отраслевой госорган (K1-ОБЕСП)',
    g.ev(`['307','308','309'].map(id=>PROCESSES.find(p=>p.id===id).requirements[1].role).join(',')`)
      === 'поручитель,гарант,госорган');
@@ -327,7 +327,7 @@ ok('смена охвата (новая устанавливающая мера 
 ok('§2.2 · агрегат по делу считается один раз на кредит',
    g.ev(`claimTotal(${P('307')}.requirements)`) === 122300);
 ok('§2.2 · солидарная строка показывает полную сумму',
-   g.ev(`claimOf(${R('307/307/п')})`) === g.ev(`claimOf(${R('307/307/з')})`));
+   g.ev(`claimOf(${R('307/307/п-307')})`) === g.ev(`claimOf(${R('307/307/з')})`));
 ok('§2.2 · по многокредитному делу суммы кредитов складываются',
    g.ev(`claimSum(${P('402')})`) === g.ev(`${P('402')}.requirements.reduce((s,r)=>s+claimOf(r),0)`));
 /* У солидарной пары 307 охват «просроченная сумма», а расход входит в притязание только
@@ -338,13 +338,13 @@ ok('расход увеличивает сумму требования и не 
   openDetail('307/307/з');
   curProc.measures.push({ sec:'Судебный', kind:'Исковое заявление', dates:D('20.07.2026','20.07.2026','20.07.2026'),
     num:'ТЕСТ-ИСК-307', scope:{volume:'полный остаток',method:'деньгами'}, sum:'152 300,00', targets:[curReq.id] });
-  const before = claimOf(curReq), sol = claimOf(REQ_INDEX['307/307/п']);
+  const before = claimOf(curReq), sol = claimOf(REQ_INDEX['307/307/п-307']);
   openCostModal();
   document.getElementById('costAmount').value = '1 000,00';
   document.getElementById('costKind').value = 'Государственная пошлина';
   saveCost();
   return before === 152300 && sol === 122300
-      && claimOf(curReq) === before + 1000 && claimOf(REQ_INDEX['307/307/п']) === sol;
+      && claimOf(curReq) === before + 1000 && claimOf(REQ_INDEX['307/307/п-307']) === sol;
 })()`));
 /* Затравка ЗС состоявшихся реализаций залога не содержит (c.realization нет ни у одного
    предмета — торги в K4-ТОРГИ доведены только до акта несостоявшихся торгов), поэтому
@@ -396,10 +396,10 @@ ok('акт по общему иску двигает фазу обоих сол�
     dates:D('20.07.2026','20.07.2026','20.07.2026'), num:'ТЕСТ-ОПР-307',
     outcome:'принято к производству', sum:'122 300,00', targets:t });
   return t.length === 2
-      && phaseOf(REQ_INDEX['307/307/з']) === 'Иск' && phaseOf(REQ_INDEX['307/307/п']) === 'Иск';
+      && phaseOf(REQ_INDEX['307/307/з']) === 'Иск' && phaseOf(REQ_INDEX['307/307/п-307']) === 'Иск';
 })()`));
 ok('требование поручителю двигает только его требование',
-   g.ev(`${P('307')}.measures.find(m=>m.num==='ТП-307').targets.join(',')`) === '307/307/п');
+   g.ev(`${P('307')}.measures.find(m=>m.num==='ТП-307').targets.join(',')`) === '307/307/п-307');
 ok('три оси результата упразднены (ADR-0028 п.1) — единый outcome, resultIsDocument-вид его не несёт (иск 142)',
    g.ev(`(()=>{
   const isk = ${P('142')}.measures.find(x=>x.kind==='Исковое заявление');
@@ -499,7 +499,7 @@ ok('пауза стоит на требовании заёмщика, не на 
   document.getElementById('pauseUntil').value = '2026-08-20';
   document.getElementById('pauseDecision').value = 'протокол ПРОТ-307/БА от 21.07.2026';
   savePause();
-  return !!pausedState(REQ_INDEX['307/307/з']) && !pausedState(REQ_INDEX['307/307/п']);
+  return !!pausedState(REQ_INDEX['307/307/з']) && !pausedState(REQ_INDEX['307/307/п-307']);
 })()`));
 ok('пауза по п. 17 без реквизитов решения комитета не ставится', mk().ev(`(() => {
   openDetail('307/307/з');
@@ -590,7 +590,7 @@ ok('отстранение куратора блокирует всё по де�
        document.getElementById('pauseDecision').value = 'протокол ПРОТ-307/БА от 21.07.2026';
        savePause();
        const g1 = measureGate(REQ_INDEX['307/307/з'], 'Безакцептное списание');
-       const g2 = measureGate(REQ_INDEX['307/307/п'], 'Безакцептное списание');
+       const g2 = measureGate(REQ_INDEX['307/307/п-307'], 'Безакцептное списание');
        return g1 && g1.kind === 'pause' && (!g2 || g2.kind !== 'pause');
      })()`)); }
 /* ADR-0063 · ШИРИНА паузы, а не сам факт блокировки: у каждой паузы свой предмет.
@@ -728,7 +728,7 @@ ok('В-8/§4.6 · регистрация извещения зовёт уско�
    в массиве). Деньги ускорены, надпись — нет; здесь проверяется то, что модель делает. */
 ok('извещение ускоряет охват всех солидарных требований (мера, не поле — ADR-0025)', mk().ev(`(() => {
   openDetail('307/307/з'); applyIzveschenie();
-  const z = REQ_INDEX['307/307/з'], p = REQ_INDEX['307/307/п'], veha = liveMilestones(z).slice(-1)[0];
+  const z = REQ_INDEX['307/307/з'], p = REQ_INDEX['307/307/п-307'], veha = liveMilestones(z).slice(-1)[0];
   return scopeOf(z).volume === 'полный остаток' && veha.accelerated === true
       && veha.targets.includes(p.id) && z.scope === undefined && p.scope === undefined
       && claimOf(z) === 152300 && claimOf(p) === 152300;
@@ -802,7 +802,7 @@ ok('счётчик приёма передачи работает (402/570/з �
   ok('словарь принимающих подразделений закрыт (селектор из DEPARTMENTS)',
      m.ev('DEPARTMENTS.length') >= 7 && m.$$('#newDept option').length === m.ev("DEPARTMENTS.length - 1")); }
 ok('карточка открывается по id требования', mk().ev(`(() => {
-  openDetail('307/307/п'); return curReq.id === '307/307/п' && curProc.id === '307';
+  openDetail('307/307/п-307'); return curReq.id === '307/307/п-307' && curProc.id === '307';
 })()`));
 ok('карточка по id дела берёт первое требование', mk().ev(`(() => {
   openDetail('307'); return curProc.id === '307' && curReq.id === '307/307/з';
@@ -813,15 +813,15 @@ ok('все девять панелей рендерятся без ошибок'
   return s.errs.length === 0;
 })());
 ok('переключение требования не уводит с карточки', mk().ev(`(() => {
-  openDetail('307/307/з'); pickReq('307/307/п');
-  return curReq.id === '307/307/п' && document.getElementById('view-detail').style.display === 'flex';
+  openDetail('307/307/з'); pickReq('307/307/п-307');
+  return curReq.id === '307/307/п-307' && document.getElementById('view-detail').style.display === 'flex';
 })()`));
 ok('хеш переживает кириллический id требования', mk().ev(`(() => {
-  openDetail('307/307/п'); return curHash() === 'detail/307/307/п/' + TABS[curTab].slug;
+  openDetail('307/307/п-307'); return curHash() === 'detail/307/307/п-307/' + TABS[curTab].slug;
 })()`));
 ok('возврат по хешу открывает то же требование', mk().ev(`(() => {
-  openDetail('307/307/п'); showView('list'); location.hash = 'detail/307/307/п'; restoreFromHash();
-  return curReq.id === '307/307/п';
+  openDetail('307/307/п-307'); showView('list'); location.hash = 'detail/307/307/п-307'; restoreFromHash();
+  return curReq.id === '307/307/п-307';
 })()`));
 ok('реестр претензий ведёт на требование-адресат', mk().ev(`(() => {
   regRender('claims');
@@ -2029,7 +2029,7 @@ ok('акт к обоим ответчикам виден обоим требов
   const act = p.measures.find(m=>m.num==='ТЕСТ-ОПР-307');
   return basedOnValid(act)
       && courtActsOf(REQ_INDEX['307/307/з']).length === 1
-      && courtActsOf(REQ_INDEX['307/307/п']).length === 1;
+      && courtActsOf(REQ_INDEX['307/307/п-307']).length === 1;
 })()`));
 ok('чужой судебный процесс в требование не протекает', D.ev(`(()=>{
   /* ОПР-561 — акт по договору 561 того же многокредитного дела 412 */
@@ -2086,9 +2086,9 @@ ok('срок с двумя целями виден обоим адресатам
    а то, что targets не пересекаются. */
 ok('сроки заёмщика в сроки поручителя не текут (раздельные targets, не общий счёт)',
    D.ev(`deadlinesOf(REQ_INDEX['307/307/з']).length`) === 4
-   && D.ev(`deadlinesOf(REQ_INDEX['307/307/п']).length`) === 1
-   && D.ev(`!deadlinesOf(REQ_INDEX['307/307/п']).some(d => (d.targets||[]).includes('307/307/з'))`)
-   && D.ev(`!deadlinesOf(REQ_INDEX['307/307/з']).some(d => (d.targets||[]).includes('307/307/п'))`));
+   && D.ev(`deadlinesOf(REQ_INDEX['307/307/п-307']).length`) === 1
+   && D.ev(`!deadlinesOf(REQ_INDEX['307/307/п-307']).some(d => (d.targets||[]).includes('307/307/з'))`)
+   && D.ev(`!deadlinesOf(REQ_INDEX['307/307/з']).some(d => (d.targets||[]).includes('307/307/п-307'))`));
 ok('блок сроков стоит на «Обзоре» и назван уровнем', (() => {
   const m = mk(); m.ev(`openDetail('307/307/з')`); m.ev(`switchTab(${TAB.obzor})`);
   return /Сроки на контроле по требованию/.test(m.active().textContent); })());
@@ -2109,19 +2109,19 @@ ok('на вкладке дела чипы приглушены (обещание
   m.ev(`switchTab(${TAB.mery})`);
   return on && !m.dhead().classList.contains('deal-tab'); })());
 ok('переключение требования вкладку сохраняет', mk().ev(`(() => {
-  openDetail('307/307/з'); switchTab(${TAB.dolg}); pickReq('307/307/п');
-  return TABS[curTab].slug === 'dolg' && curReq.id === '307/307/п'; })()`));
+  openDetail('307/307/з'); switchTab(${TAB.dolg}); pickReq('307/307/п-307');
+  return TABS[curTab].slug === 'dolg' && curReq.id === '307/307/п-307'; })()`));
 
 head('КД-8 · вкладка в URL слагом');
 ok('хеш содержит слаг вкладки', /detail\/307\/307\/з\/sud$/.test(
    mk().ev(`(() => { openDetail('307/307/з'); switchTab(${TAB.sud}); return curHash(); })()`)));
 ok('F5 возвращает ту же вкладку и то же требование', mk().ev(`(() => {
-  openDetail('307/307/п'); switchTab(${TAB.zalog}); const h = curHash();
+  openDetail('307/307/п-307'); switchTab(${TAB.zalog}); const h = curHash();
   showView('list'); location.hash = h; restoreFromHash();
-  return curReq.id === '307/307/п' && TABS[curTab].slug === 'zalog'; })()`));
+  return curReq.id === '307/307/п-307' && TABS[curTab].slug === 'zalog'; })()`));
 ok('хеш без слага открывает умолчание', mk().ev(`(() => {
-  location.hash = 'detail/307/307/п'; restoreFromHash();
-  return curReq.id === '307/307/п' && TABS[curTab].slug === 'obzor'; })()`));
+  location.hash = 'detail/307/307/п-307'; restoreFromHash();
+  return curReq.id === '307/307/п-307' && TABS[curTab].slug === 'obzor'; })()`));
 ok('слаг, а не индекс: перестановка вкладок старых ссылок не ломает',
    g.ev(`TABS.every(t=>/^[a-z]+$/.test(t.slug))`) && new Set(slugs()).size === 9);
 
