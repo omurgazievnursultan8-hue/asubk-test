@@ -37,26 +37,35 @@
   5. Транш — ОБЛАСТЬ разбивки, не четвёртый уровень матрицы (ADR-0060). Счёт опознаёт
      объект: шлюз генерирует счёт на транш, банк даёт общий счёт ЦК с примечанием и ФИО
      (поэтому невыясненные — основной поток банковского канала, а не редкость).
-  6. Остаток сверх наступившего — ТРИ режима (ADR-0073): обратная очередь (дефолт), аванс,
-     адресный резерв. Режим — директива на входе вывода, ставится ДО разбивки.
+  6. Очерёдность НАЗВАНА (ADR-0087): расходы → комиссия → ОД → проценты → пеня. Владеет ею
+     программа, снимок берётся решением по заявке, после подписания неподвижна. У остатка
+     сверх наступившего ДВА режима — аванс и адресный резерв (ADR-0073); «обратной очереди»
+     нет, она совпала с прямой. Режим — директива на входе вывода, ставится ДО разбивки.
      Досрочка график не трогает; перестроение — только по заявлению заёмщика (ADR-0074).
   7. Заморозка ДВУХУРОВНЕВАЯ (ADR-0075): заморозка поступления по положительной сверке
      и закрытие периода по гейту (невыясненные · несопоставленные строки ЦК ·
-     незамороженные поступления · платежи с неистёкшим таймаутом).
+     незамороженные поступления · платежи в ожидании подтверждения). Автосторно по таймауту
+     НЕ СУЩЕСТВУЕТ (ADR-0088): ожидание бессрочно, сторно решает бухгалтер при закрытии.
   8. Списание уменьшает НАЧИСЛЕННОЕ и платежом не является (ADR-0076) — в модуле только
      ссылка на операцию у владельца начисления. Курс НБ на дату поступления — производная,
-     сомовый эквивалент подписан датой курса (ADR-0061).
+     сомовый эквивалент подписан датой курса (ADR-0061); источник справочника — сам НБ КР,
+     при отсутствии на дату действует последний установленный (ADR-0090). Копейку разбивка
+     не оставляет: порог 0,01 поглощается в обе стороны, кредит закрывается нулём (ADR-0091).
+
+  ДВА ЗАМКА (ADR-0089): спорную пеню решает Комиссия по спорным начислениям (шестая строка
+  справочника органов Р-6, источник «внутренний акт»); разморозку платежа и открытие
+  закрытого периода разрешает бухгалтерия — журналом и распоряжением соответственно.
 
   Роли (селектор в шапке меняет доступные действия):
     • Куратор — ТРАКТОВКА: привязка и перепривязка, разбивка, режим остатка,
-      основание возврата, инициатива акта, решение комиссии по спорной пене.
+      основание возврата, инициатива акта, решение органа по спорной пене.
     • Бухгалтер — ФАКТ ДЕНЕГ: сторно поступления, корректировка суммы по ЦК, заморозка
       и разморозка, закрытие и открытие периода, исполнение возврата, основание у чужих денег.
     • Наблюдатель — только чтение.
   Граница между ролями — заморозка (ADR-0055, спека §8.1).
 
   ДЕМО-ОГРАНИЧЕНИЯ: часть производных подана готовой в данных, а не считается в рантайме.
-  Комиссия вне АСУБК — вносится только результат её решения.
+  Заседание органа вне АСУБК — вносится только результат его решения.
 -->
 <style>
 :root{
@@ -581,7 +590,7 @@ const can = {
   reverse:     () => ROLE==='accountant',   // сторно поступления (денег не было)
   correct:     () => ROLE==='accountant',   // корректировка суммы по реестру ЦК
   freeze:      () => ROLE==='accountant',   // заморозка поступления по положительной сверке
-  unfreeze:    () => ROLE==='accountant',   // разморозка — по решению комиссии
+  unfreeze:    () => ROLE==='accountant',   // разморозка — решение бухгалтера, журнал (ADR-0089)
   closePeriod: () => ROLE==='accountant',   // закрытие / открытие периода (ADR-0075)
   execReturn:  () => ROLE==='accountant',   // исполнение возврата
   ownerless:   () => ROLE==='accountant',   // основание возврата у чужих денег (нет заёмщика)
@@ -591,7 +600,7 @@ const can = {
   surplus:     () => ROLE==='curator',      // режим остатка сверх наступившего (ADR-0073)
   returnBasis: () => ROLE==='curator',      // основание возврата (заявление заёмщика)
   initAct:     () => ROLE==='curator',      // акт сверки инициирует куратор
-  dispute:     () => ROLE==='curator',      // решение комиссии по спорной пене вносит куратор
+  dispute:     () => ROLE==='curator',      // решение органа по спорной пене вносит куратор
   match:       () => ROLE==='curator',      // сопоставление подтверждает куратор
 };
 
@@ -683,7 +692,7 @@ const CHAN = {                                   // канал поступле�
 const MATCH = {
   pending:   { t:'Ожидает ЦК',       cls:'warn' },
   confirmed: { t:'Подтверждено ЦК',  cls:'ok' },
-  reversed:  { t:'Сторно (таймаут)', cls:'err' },
+  reversed:  { t:'Сторно (решение бухгалтера)', cls:'err' },
   restored:  { t:'Восстановлено',    cls:'ok' },
   mismatch:  { t:'Расхождение',      cls:'warn' },
   none:      { t:'Не сопоставлено',  cls:'neutral' },
@@ -697,14 +706,17 @@ const PSTATE = {                                 // состояние пери�
   closed: { t:'Период закрыт', cls:'ok' },
 };
 const SURPLUS = {                                // режимы остатка сверх наступившего (ADR-0073)
-  queue_back: { t:'Обратная очередь', cls:'neutral', hint:'дефолт: ОД → проценты → штрафы → возврат' },
+  queue_back: { t:'По общей очерёдности', cls:'neutral', hint:'дефолт: расходы → комиссия → ОД → проценты → пеня, хвост — возврат' },
   advance:    { t:'Аванс',            cls:'info',    hint:'безадресный: ждёт наступления сроков' },
   reserve:    { t:'Адресный резерв',  cls:'purple',  hint:'закреплён за строками графика; гасит факт, не план' },
 };
-const ORDERING = {                               // источник очерёдности статей (ADR-0059, ПТ-13)
-  contract:    { t:'Порядок по договору',      cls:'neutral' },
+/* Источник очерёдности статей (ADR-0087). Источников ДВА: очерёдность программы (снимок
+   решением по заявке) и норма — место расходов. Отдельного банкротного порядка нет: доля
+   из процедуры разносится той же очерёдностью, а исключённых статей не образуется, потому
+   что заморозка начисления (ADR-0048) не даёт им возникнуть. */
+const ORDERING = {
+  contract:    { t:'Очерёдность программы',    cls:'neutral' },
   norm:        { t:'Нормативный порядок',      cls:'info' },
-  bankruptcy:  { t:'Очерёдность в банкротстве',cls:'purple' },
 };
 const RET_STATE = {                              // возврат (ADR-0056, спека §8.5)
   draft:    { t:'Черновик',      cls:'neutral' },
@@ -742,7 +754,27 @@ const isUnresolved = r => paymentsOf(r).length===0 && !isReversed(r);
 const unresolvedReceipts = () => DATA.receipts.filter(isUnresolved);
 
 /** курс НБ на дату поступления — производная (ADR-0061) */
-function rateOn(code, date){ return (DATA.rates[code]||{})[date] ?? null; }
+/* Курса ровно на дату может не быть — выходной, праздник, день без публикации.
+   Действует ПОСЛЕДНИЙ УСТАНОВЛЕННЫЙ на дату или ранее (ADR-0090): курс живёт до
+   следующего, поэтому такие дни дырами не являются. Настоящая дыра одна — дата раньше
+   начала истории; там расчёт не выполняется, справочник надо дозалить. */
+function dnum(d){ const [dd,mm,yy] = String(d).split('.'); return +(yy+mm+dd); }
+function rateOn(code, date){
+  const tbl = DATA.rates[code] || {};
+  if(tbl[date] != null) return tbl[date];
+  const want = dnum(date);
+  let best = null, bestN = -1;
+  for(const dt in tbl){ const n = dnum(dt); if(n <= want && n > bestN){ bestN = n; best = tbl[dt]; } }
+  return best;
+}
+function rateDateOn(code, date){
+  const tbl = DATA.rates[code] || {};
+  if(tbl[date] != null) return date;
+  const want = dnum(date);
+  let best = null, bestN = -1;
+  for(const dt in tbl){ const n = dnum(dt); if(n <= want && n > bestN){ bestN = n; best = dt; } }
+  return best;
+}
 function kgsEquiv(p){
   if(p.currency==='KGS') return p.amount;
   const r = rateOn(p.currency, p.rateDate);
@@ -768,7 +800,7 @@ function periodBlockers(pid){
   DATA.receipts.filter(r=>inP(r)&&r.frozen==='open'&&r.match==='confirmed'&&!isUnresolved(r)).forEach(r=>
     b.push({ kind:'Незамороженное поступление', id:r.number, what:`сверка положительная, заморозки нет`, go:()=>openReceipt(r.id) }));
   DATA.receipts.filter(r=>inP(r)&&r.match==='pending').forEach(r=>
-    b.push({ kind:'Ожидает подтверждения ЦК', id:r.number, what:`таймаут до ${r.deadline} (${r.daysLeft} раб. дн.)`, go:()=>openReceipt(r.id) }));
+    b.push({ kind:'Ожидает подтверждения ЦК', id:r.number, what:`ждёт ${r.waitDays} раб. дн. — решить при закрытии`, go:()=>openReceipt(r.id) }));
   return b;
 }
 
@@ -781,8 +813,9 @@ function periodBlockers(pid){
    ============================================================ */
 const DATA = {
   today: '04.08.2026',
-  timeoutDays: 10,   // РАБОЧИХ дней до автосторно (ПТ-30, спека §4.2) — настраиваемый параметр
-  warnDays:    3,    // за сколько рабочих дней предупредить куратора
+  // Автосторно по таймауту УПРАЗДНЕНО (ADR-0088): ожидание бессрочно, сторно — решение
+  // бухгалтера при закрытии периода. Осталась одна безобидная настройка — напоминание.
+  remindDays:  3,    // рабочих дней ожидания, после которых куратору идёт напоминание (повтор еженедельно)
 
   /* ---- периоды учёта (второй уровень заморозки, ADR-0075) ---- */
   periods: [
@@ -837,14 +870,14 @@ const DATA = {
       channel:'gateway', match:'pending', frozen:'open',
       account:'1298 0000 0000 5602', accountObject:'Транш №2 кредита №56',
       payerName:'ОсОО «Бек Кабель»', note:'Оплата по дог.56, транш 2',
-      surplus:'queue_back', deadline:'18.08.2026', daysLeft:8,
+      surplus:'queue_back', waitDays:2,
       hist:[ {when:'04.08.2026 11:14', what:'Поступление по шлюзу зачтено датой фактического поступления. Счёт опознал транш №2 — привязка выведена, не угадана.', who:'система (шлюз)', cls:''} ] },
 
     { id:'R-305', number:'ПС-305', date:'30.07.2026', amount:300000.00, currency:'KGS', period:'2026-07',
       channel:'bank', match:'confirmed', frozen:'open',
       account:'1298 0000 0000 0001', accountObject:'Общий счёт ЦК (объект не опознан счётом)',
       payerName:'ОсОО «Бек Кабель» и др.', note:'сводное п/п №3455: Бек Кабель дог.56, Джерге-Тал дог.90, Асанов дог.112',
-      surplus:'queue_back', deadline:'—', daysLeft:null,
+      surplus:'queue_back', waitDays:null,
       hist:[ {when:'30.07.2026', what:'Сводная строка реестра ЦК: одна сумма на трёх заёмщиков. Расщеплена куратором на три платежа.', who:'Куратор · Ж.Осмонова', cls:''},
              {when:'31.07.2026', what:'Сопоставлено 1:1 со строкой реестра №3455. Заморозки ещё нет — держит закрытие июля.', who:'Куратор · Ж.Осмонова', cls:''} ] },
 
@@ -852,7 +885,7 @@ const DATA = {
       channel:'bank', match:'confirmed', frozen:'frozen',
       account:'1298 0000 0000 7801', accountObject:'Транш №1 кредита №78 (валютный)',
       payerName:'ОсОО «Ак-Суу Агро»', note:'взнос за июль, дог.78',
-      surplus:'queue_back', deadline:'—', daysLeft:null,
+      surplus:'queue_back', waitDays:null,
       hist:[ {when:'24.07.2026', what:'Деньги пришли в сомах по валютному кредиту. Курс НБ на дату поступления 87,50 — эквивалент 1 000,00 USD.', who:'система', cls:''},
              {when:'27.07.2026', what:'Заморожено по положительной сверке.', who:'Бухгалтер · А.Иманкулова', cls:''} ] },
 
@@ -863,7 +896,7 @@ const DATA = {
       unresolvedReason:'ФИО не распознано (возможны однофамильцы), назначение без номера договора',
       candidates:[ { credit:'C-61', title:'Дог. №61 от 08.07.2024', borrower:'Бакиров Нурлан Асанович', score:'ФИО частично' },
                    { credit:'C-73', title:'Дог. №73 от 19.10.2024', borrower:'Бакиров Нуртай Акматович', score:'ФИО частично' } ],
-      surplus:'queue_back', deadline:'—', daysLeft:null,
+      surplus:'queue_back', waitDays:null,
       hist:[ {when:'22.07.2026', what:'Банковский канал: деньги на общем счёте ЦК, объект счётом не опознан. Ожидает опознания — срока годности у чужих денег нет.', who:'система (импорт ЦК)', cls:''} ] },
 
     { id:'R-294', number:'ПС-294', date:'20.07.2026', amount:9500.00, currency:'KGS', period:'2026-07',
@@ -872,7 +905,7 @@ const DATA = {
       payerName:'—', note:'без назначения',
       unresolvedReason:'ничего не распознано: ни плательщика, ни назначения',
       candidates:[],
-      surplus:'queue_back', deadline:'—', daysLeft:null,
+      surplus:'queue_back', waitDays:null,
       hist:[ {when:'20.07.2026', what:'Поступление без реквизитов — висит до опознания и держит закрытие июля.', who:'система (импорт ЦК)', cls:''} ] },
 
     { id:'R-290', number:'ПС-290', date:'15.07.2026', amount:250000.00, currency:'KGS', period:'2026-07',
@@ -882,16 +915,16 @@ const DATA = {
       surplus:'reserve',
       reserveRows:[ { due:'05.09.2026', article:'Основной долг', amount:52000.00 },
                     { due:'05.09.2026', article:'Проценты',      amount:18000.00 } ],
-      deadline:'—', daysLeft:null,
+      waitDays:null,
       hist:[ {when:'15.07.2026', what:'Наступившее на дату — 180 000,00. Остаток 70 000,00 сверх наступившего.', who:'система', cls:''},
-             {when:'15.07.2026', what:'Куратор поставил режим остатка «адресный резерв» ДО разбивки: закрепить за взносом 05.09.2026. Дефолт (обратная очередь) не применялся.', who:'Куратор · Ж.Осмонова', cls:''},
+             {when:'15.07.2026', what:'Куратор поставил режим остатка «адресный резерв» ДО разбивки: закрепить за взносом 05.09.2026. Дефолт (гашение по общей очерёдности) не применялся.', who:'Куратор · Ж.Осмонова', cls:''},
              {when:'18.07.2026', what:'Заморожено по положительной сверке. График не перестраивался — заявления заёмщика нет.', who:'Бухгалтер · А.Иманкулова', cls:''} ] },
 
     { id:'R-284', number:'ПС-284', date:'08.07.2026', amount:500000.00, currency:'KGS', period:'2026-07',
       channel:'cbk', match:'confirmed', frozen:'frozen',
       account:'1298 0000 0000 4402', accountObject:'Транш №2 кредита №44',
       payerName:'ОсОО «Тянь-Шань Строй»', note:'ПССИ, ИЛ №2 по реш. суда от 12.03.2026',
-      surplus:'queue_back', deadline:'—', daysLeft:null,
+      surplus:'queue_back', waitDays:null,
       hist:[ {when:'08.07.2026', what:'Загружено из реестра ЦК. Назначение указывает ИЛ №2 — адресация источника перебивает дефолтную очередь.', who:'система (импорт ЦК)', cls:''},
              {when:'12.07.2026', what:'Заморожено. Разбивка платежей зафиксирована.', who:'Бухгалтер · А.Иманкулова', cls:''},
              {when:'29.07.2026', what:'Слой ИЛ №1 поглотил часть требований (акт от 28.07). Текущая разбивка разошлась с зафиксированной — расхождение показано, зафиксированная не двигалась.', who:'система', cls:''} ] },
@@ -900,7 +933,7 @@ const DATA = {
       channel:'bank', match:'confirmed', frozen:'frozen',
       account:'1298 0000 0000 0001', accountObject:'Общий счёт ЦК',
       payerName:'ОсОО «Кен-Таш» (залогодатель)', note:'реализация залога по дог.44, доля залогодателя выделена',
-      surplus:'queue_back', deadline:'—', daysLeft:null,
+      surplus:'queue_back', waitDays:null,
       hist:[ {when:'03.07.2026', what:'Выручка от реализации залога третьего лица. 105 000,00 — в погашение, 45 000,00 — доля залогодателя.', who:'Куратор · Ж.Осмонова', cls:''},
              {when:'05.07.2026', what:'Заморожено по положительной сверке.', who:'Бухгалтер · А.Иманкулова', cls:''} ] },
 
@@ -908,17 +941,17 @@ const DATA = {
       channel:'gateway', match:'reversed', frozen:'open',
       account:'1298 0000 0001 1201', accountObject:'Транш №1 кредита №112',
       payerName:'ИП Асанов Т.К.', note:'Погашение 112',
-      surplus:'queue_back', deadline:'29.06.2026', daysLeft:-24,
+      surplus:'queue_back', waitDays:null,
       dispute:{ amount:3180.00, status:'pending', note:'период спора: с даты сторно по дату восстановления' },
       hist:[ {when:'14.06.2026 09:02', what:'Поступление по шлюзу зачтено датой фактического поступления.', who:'система (шлюз)', cls:''},
-             {when:'24.06.2026', what:'Предупреждение куратору: до автосторно 3 рабочих дня, подтверждение ЦК не пришло.', who:'система', cls:''},
-             {when:'29.06.2026 03:00', what:'Автосторно по таймауту (10 рабочих дней). Платежи поступления погашены, начисление продолжилось задним числом, пеня периода помечена спорной. Операция ОБРАТИМА: при позднем подтверждении поступление восстановится исходной датой 14.06.2026.', who:'система', cls:'rev'} ] },
+             {when:'24.06.2026', what:'Напоминание куратору: подтверждение ЦК не пришло, ожидание идёт 8 рабочих дней.', who:'система', cls:''},
+             {when:'29.06.2026', what:'Сторно при закрытии периода: подтверждение ЦК так и не пришло, решение принято по сводке неподтверждённых. Платежи поступления погашены, начисление продолжилось задним числом, пеня периода помечена спорной. Операция ОБРАТИМА: при позднем подтверждении поступление восстановится исходной датой 14.06.2026.', who:'Бухгалтер · А.Иманкулова', cls:'rev'} ] },
 
     { id:'R-255', number:'ПС-255', date:'02.06.2026', amount:18000.00, currency:'KGS', period:'2026-06',
       channel:'manual', match:'mismatch', frozen:'open',
       account:'1298 0000 0000 9001', accountObject:'Транш №1 кредита №90',
       payerName:'КХ «Джерге-Тал»', note:'п/д ЦК №3288',
-      surplus:'queue_back', deadline:'—', daysLeft:null,
+      surplus:'queue_back', waitDays:null,
       hist:[ {when:'02.06.2026', what:'Внесено куратором со списка ЦК (почта). Сумма 18 000,00 — наша.', who:'Куратор · Ж.Осмонова', cls:''},
              {when:'09.06.2026', what:'Реестр ЦК даёт 18 500,00 — требуется корректировка суммы бухгалтером с основанием.', who:'Куратор · Ж.Осмонова', cls:'rev'} ] },
   ],
@@ -1033,7 +1066,7 @@ const DATA = {
       recipient:{ name:'ИП Асанов Т.К.', kind:'Заёмщик', requisites:'р/с 9876 5432 1098 7654, ОАО «РСК Банк»' },
       basisBy:'Бухгалтер · А.Иманкулова', basis:'Заявление заёмщика от 02.07.2026 о возврате ошибочного платежа',
       admissibility:{ ok:false, checked:'04.08.2026', blockers:[
-        'Поступление снято автосторно 29.06.2026 — денег на нём не числится.',
+        'Поступление сторнировано 29.06.2026 решением бухгалтера — денег на нём не числится.',
         'Спорная пеня 3 180,00 за период сторно не урегулирована.' ] },
       execBy:null, execAt:null,
       note:'Операция сторно обратима: при позднем подтверждении ЦК поступление оживёт, и препятствие снимется само' },
@@ -1064,7 +1097,7 @@ const DATA = {
   recon: [
     { id:'M1', outcome:'ok',        receipt:'R-298', reg:'3461', title:'Совпало 1:1', detail:'Реквизиты поступления и записи ЦК идентичны.' },
     { id:'M2', outcome:'mismatch',  receipt:'R-255', reg:'3288', title:'Расхождение суммы', detail:'У нас 18 000,00 · в ЦК 18 500,00. После сопоставления действует сумма ЦК: корректировка бухгалтером с основанием.' },
-    { id:'M3', outcome:'ours_only', receipt:'R-311', reg:null,   title:'Есть у нас, нет в ЦК', detail:'Шлюз. Подтверждение ЦК не пришло; таймаут 10 рабочих дней ещё идёт.' },
+    { id:'M3', outcome:'ours_only', receipt:'R-311', reg:null,   title:'Есть у нас, нет в ЦК', detail:'Шлюз. Подтверждение ЦК не пришло; ожидание идёт, срока у него нет.' },
     { id:'M4', outcome:'cbk_only',  receipt:null,    reg:'3470', title:'Есть в ЦК, нет у нас', detail:'Плательщик «Мамытов К.С.» — объект не опознан. Строка держит закрытие июля.' },
   ],
 
@@ -1084,7 +1117,7 @@ const DATA = {
   /* ---- списания: уменьшают НАЧИСЛЕННОЕ, платежами не являются (ADR-0076) ---- */
   writeOffs: [
     { id:'WO-1', credit:'C-112', layer:'peace', article:'Пеня', amount:80000.00, date:'12.06.2026',
-      owner:'Кредит', basis:'Решение комиссии №14 от 12.06.2026', note:'Операция ведётся у владельца начисления' },
+      owner:'Кредит', basis:'Решение уполномоченного органа №14 от 12.06.2026', note:'Операция ведётся у владельца начисления' },
   ],
 
   /* ============================================================
@@ -1115,7 +1148,7 @@ const DATA = {
      ============================================================ */
   alloc: {
     'AL-2041': { total:42600, asOf:'04.08.2026', due:42600, surplusLeft:0,
-      ordering:{ source:'contract', note:'Порядок статей взят из договора №56, раздел «Очерёдность погашения».', excluded:[] }, layers:[
+      ordering:{ source:'contract', note:'Расходы → комиссия → ОД → проценты → пеня. Снимок очерёдности программы, взятый решением по заявке; после подписания неподвижен.', excluded:[] }, layers:[
       { name:'Свободный слой', mode:'по договору: проценты + график + пеня', sum:42600, articles:[
         { article:'Пеня',          rows:[ {tranche:'Транш №2', urg:'over', label:'просроченная', v:2600} ] },
         { article:'Проценты',      rows:[ {tranche:'Транш №2', urg:'over', label:'просроченные', v:40000} ] },
@@ -1565,8 +1598,8 @@ function recRow(r){
   const mark = isReversed(r)   ? pill({t:'Сторнировано', cls:'err'})
              : isUnresolved(r) ? pill({t:'Невыясненное', cls:'warn'}) : '';
   const per = (DATA.periods.find(p=>p.id===r.period)||{});
-  const wait = r.match==='pending' && r.daysLeft!=null
-    ? `<span class="sub">до автосторно ${r.daysLeft} раб. дн. · ${r.deadline}</span>` : '';
+  const wait = r.match==='pending' && r.waitDays!=null
+    ? `<span class="sub">ждёт ${r.waitDays} раб. дн.</span>` : '';
   return `<tr onclick="openReceipt('${r.id}')">
     <td><span class="rowlink">${r.number}</span><span class="sub">${r.date}</span>${mark?`<span class="sub">${mark}</span>`:''}</td>
     <td class="r num">${cur(r.amount, r.currency)}</td>
@@ -1702,10 +1735,11 @@ function viewReceipts(){
   const segs = `<div class="seg">${RFILTERS.map(x=>
     `<button class="${x.id===rFilter?'on':''}" onclick="setRFilter('${x.id}')">${x.t} (${DATA.receipts.filter(x.f).length})</button>`).join('')}</div>`;
   const waiting = DATA.receipts.filter(r=>r.match==='pending');
-  const soon    = waiting.filter(r=>r.daysLeft!=null && r.daysLeft<=DATA.warnDays);
+  const soon    = waiting.filter(r=>r.waitDays!=null && r.waitDays>=DATA.remindDays);
   const bans =
-    (soon.length ? recBan('warn', `<b>Скоро автосторно:</b> ${soon.map(r=>
-        `<span class="rowlink" onclick="openReceipt('${r.id}')">${r.number}</span> — ${r.deadline}, осталось ${r.daysLeft} раб. дн.`).join(' · ')}.`) : '')
+    (soon.length ? recBan('warn', `<b>Ждут подтверждения ЦК дольше ${DATA.remindDays} раб. дн.:</b> ${soon.map(r=>
+        `<span class="rowlink" onclick="openReceipt('${r.id}')">${r.number}</span> — ${r.waitDays} раб. дн.`).join(' · ')}.
+        Автоотмены нет: судьбу решает бухгалтер при закрытии периода.`) : '')
     + (unresolvedReceipts().length ? recBan('warn', `<b>Невыясненных: ${unresolvedReceipts().length}.</b>
         Держат закрытие периода. Разбор — в карточке поступления, вкладка «Разбор».`) : '');
   return recFeed({ banners:bans, segs });
@@ -1728,15 +1762,16 @@ function receiptDetail(r){
   const regs = recRegOf(r), reg = regs.find(x=>!x.dup) || regs[0] || null;
   const ps   = paymentsOf(r), live = ps.filter(p=>!p.void);
   const bans =
-    (isReversed(r) ? recBan('err', `<b>Сторно по таймауту ${r.deadline}.</b> Платежи погашены.
+    (isReversed(r) ? recBan('err', `<b>Сторнировано решением бухгалтера.</b> Платежи погашены.
         Восстановление вернёт исходную дату ${r.date}.`) : '')
-    + (r.match==='pending' ? recBan(r.daysLeft!=null && r.daysLeft<=DATA.warnDays ? 'warn':'info',
-        `<b>Ожидает подтверждения ЦК.</b> Таймаут до <b>${r.deadline}</b> — осталось <b>${r.daysLeft} раб. дн.</b>`) : '')
+    + (r.match==='pending' ? recBan(r.waitDays!=null && r.waitDays>=DATA.remindDays ? 'warn':'info',
+        `<b>Ожидает подтверждения ЦК</b> — <b>${r.waitDays} раб. дн.</b> Срока у ожидания нет;
+         сторнировать или ждать дальше, решает бухгалтер при закрытии периода.`) : '')
     + (isUnresolved(r) ? recBan('warn', `<b>Невыясненное:</b> платежей нет. Держит закрытие периода.
         Разбор — на вкладке «Разбор».`) : '')
     + (r.match==='mismatch' && reg ? recBan('warn', `<b>Расхождение с реестром ЦК.</b> У нас ${money(r.amount)},
         в ЦК ${money(reg.amount)}. Требуется корректировка суммы — вкладка «Сверка».`) : '')
-    + (r.dispute ? recBan('info', `<b>Спорная пеня ${money(r.dispute.amount)}.</b> Ожидает решения комиссии.`) : '');
+    + (r.dispute ? recBan('info', `<b>Спорная пеня ${money(r.dispute.amount)}.</b> Ожидает решения Комиссии по спорным начислениям.`) : '');
 
   const tabs = [
     ['alloc','Платежи ('+live.length+')'],
@@ -1768,12 +1803,12 @@ function receiptDetail(r){
         <div class="dim"><div class="dl">Сопоставление с реестром ЦК</div>
           <div class="dv">${pill(MATCH[r.match])}</div>
           <div class="src">${reg ? 'строка ЦК №'+reg.doc+' от '+reg.date+' на '+money(reg.amount)
-            : r.match==='pending' ? 'подтверждение не пришло; таймаут до '+r.deadline+' ('+r.daysLeft+' раб. дн.)'
+            : r.match==='pending' ? 'подтверждение не пришло; ждёт '+r.waitDays+' раб. дн., срока нет'
             : 'строки реестра нет'}</div></div>
         <div class="dim"><div class="dl">Заморозка</div>
           <div class="dv">${pill(FRZ[r.frozen])}</div>
           <div class="src">${r.frozen==='frozen'
-            ? 'Разбивка платежей зафиксирована. Правка — только через разморозку по решению комиссии.'
+            ? 'Разбивка платежей зафиксирована. Правка — только через разморозку бухгалтером.'
             : 'Ставится по положительной сверке.'}</div></div>
       </div>
     </div>
@@ -1800,7 +1835,7 @@ function recActionBar(r){
     b += `<button class="btn btn-sm btn-secondary" onclick="recAct('freeze','${r.id}')">${recIco(REC_I.lock)}Заморозить</button>
       ${roleHint(can.freeze(),'только бухгалтер')}`;
   } else {
-    b += `<button class="btn btn-sm btn-secondary" onclick="recAct('unfreeze','${r.id}')">Разморозить по решению комиссии</button>
+    b += `<button class="btn btn-sm btn-secondary" onclick="recAct('unfreeze','${r.id}')">Разморозить</button>
       ${roleHint(can.unfreeze(),'только бухгалтер')}`;
   }
   return b;
@@ -1881,7 +1916,7 @@ function recParsePanel(r){
         </tbody></table></div></div></div>` : '';
 
   return `${frozen ? recBan('info', `<b>Поступление заморожено.</b> Разбивка зафиксирована,
-        смена режима — только после разморозки по решению комиссии.`) : ''}
+        смена режима — только после разморозки бухгалтером.`) : ''}
     ${isReversed(r) ? recBan('warn', `Поступление сторнировано: разбивки нет, режим вступит в силу при восстановлении.`) : ''}
     ${rows.length ? `<div class="cgrid-wrap"><table class="cgrid"><thead><tr>
         <th>Платёж</th><th>Дата среза вывода</th><th class="r">Наступившее на дату</th>
@@ -1925,7 +1960,7 @@ function recReconPanel(r){
   const head = m ? `<p class="section-note">Исход сопоставления: <b>${m.title}</b> — ${m.detail}</p>` : '';
   if(!reg) return head + recBan(r.match==='pending'?'warn':'info',
     r.match==='pending'
-      ? `<b>Строки реестра ЦК пока нет.</b> Таймаут до <b>${r.deadline}</b>, осталось <b>${r.daysLeft} раб. дн.</b>`
+      ? `<b>Строки реестра ЦК пока нет.</b> Ждёт <b>${r.waitDays} раб. дн.</b> — срока у ожидания нет`
       : `<b>Строки реестра ЦК нет.</b> Сопоставление не выполнялось: ${(MATCH[r.match]||{}).t||'—'}.`);
   const diff = +(reg.amount - r.amount).toFixed(2);
   return head + `<div class="recon-split">
@@ -2025,20 +2060,19 @@ function recAct(kind, id, arg){
     if(!can.unfreeze())   return toast('Разморозку проводит бухгалтер','warn');
     if(r.frozen!=='frozen') return toast('Поступление не заморожено','warn');
     return recModal('Разморозка поступления '+r.number,
-      recBan('warn', `<b>Разморозка — только по решению комиссии.</b> Фиксация разбивки снимется,
-        трактовку снова правит куратор.`)
+      recBan('warn', `<b>Разморозка — решение бухгалтера, коллегиального органа не требует</b>
+        (ADR-0089): она трогает один платёж. Операция попадает в журнал с автором, датой и
+        основанием. Фиксация разбивки снимется, трактовку снова правит куратор.`)
       + `<div class="f2">
-          <div class="field req"><label class="flabel">Номер решения комиссии</label><div class="control"><input id="recDecNo" placeholder="№…"></div></div>
-          <div class="field req"><label class="flabel">Дата решения</label><div class="control"><input id="recDecDate" placeholder="дд.мм.гггг"></div></div>
-          <div class="field col-span req"><label class="flabel">Суть решения</label>
-            <textarea class="note-area" id="recBasis" placeholder="что именно разрешено пересмотреть"></textarea></div>
+          <div class="field col-span req"><label class="flabel">Основание</label>
+            <textarea class="note-area" id="recBasis" placeholder="почему разбивку нужно пересмотреть"></textarea></div>
         </div>`,
       'Разморозить', `recDo('unfreeze','${r.id}')`, true);
   }
 
   if(kind==='surplus'){
     if(!can.surplus()) return toast('Режим остатка ставит куратор','warn');
-    if(r.frozen==='frozen') return toast('Поступление заморожено: сначала разморозка по решению комиссии','warn');
+    if(r.frozen==='frozen') return toast('Поступление заморожено: сначала разморозка бухгалтером','warn');
     if(r.surplus===arg) return toast('Этот режим уже стоит');
     const from = SURPLUS[r.surplus].t, to = SURPLUS[arg].t;
     r.surplus = arg;
@@ -2068,7 +2102,7 @@ function recRebind(pid){
   const r = receiptOf(p);
   if(!can.bind()) return toast('Перепривязку делает куратор','warn');
   if(p.void) return toast('Платёж погашен сторно: перепривязывать нечего','warn');
-  if(r && r.frozen==='frozen') return toast('Поступление заморожено: сначала разморозка по решению комиссии','warn');
+  if(r && r.frozen==='frozen') return toast('Поступление заморожено: сначала разморозка бухгалтером','warn');
   const opts = DATA.credits.map(c=>`<option value="${c.id}"${c.id===p.credit?' selected':''}>${c.title} — ${c.borrower}</option>`).join('');
   recModal('Перепривязка платежа '+p.number,
     recBan('info', `Факт поступления ${r?r.number:''} не меняется — меняется адресат платежа.
@@ -2134,13 +2168,12 @@ function recDo(kind, id, arg){
   }
 
   if(kind==='unfreeze'){
-    const no = recVal('recDecNo'), dt = recVal('recDecDate');
-    if(!no || !dt) return toast('Нужны реквизиты решения комиссии: номер и дата','warn');
+    if(!basis) return toast('Нужно основание разморозки — оно уходит в журнал','warn');
     r.frozen = 'open';
     paymentsOf(r).forEach(p=>{ p.snapshot = null; });
-    r.hist.push(hrow('Разморозка по решению комиссии №'+no+' от '+dt+'. '+basis+'. Фиксация разбивки снята.','Бухгалтер · А.Иманкулова'));
+    r.hist.push(hrow('Разморозка бухгалтером. Основание: '+basis+'. Фиксация разбивки снята.','Бухгалтер · А.Иманкулова'));
     closeModal(); render();
-    return toast('Разморожено по решению комиссии №'+no+' от '+dt,'ok');
+    return toast('Разморожено, запись в журнале','ok');
   }
 
   if(kind==='bind'){
@@ -2186,8 +2219,8 @@ function setPayTab(t){ payTab = t; render(); }
 
 /* ---- локальные словари и иконки ---- */
 const URG_T   = { over:'просрочено', cur:'текущее', acc:'начисленное' };
-const DSP_ST  = { pending:{ t:'Ожидает решения комиссии', cls:'warn' },
-                  resolved:{ t:'Решение комиссии внесено', cls:'ok' } };
+const DSP_ST  = { pending:{ t:'Ожидает решения органа', cls:'warn' },
+                  resolved:{ t:'Решение органа внесено', cls:'ok' } };
 const PAY_CHEV  = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
 const PAY_ARROW = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>';
 const PAY_INFO  = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg>';
@@ -2468,10 +2501,14 @@ function payRateBlock(p){
   <div class="inv">
     <span class="iv">Сумма в валюте долга: <b>${cur(p.amount, p.currency)}</b></span>
     <span class="iv">Пришло в сомах: <b>${money(p.paidKGS)}</b></span>
-    <span class="iv">Курс НБ КР: <b>${rate == null ? '—' : money(rate)}</b> на <b>${p.rateDate}</b></span>
+    <span class="iv">Курс НБ КР: <b>${rate == null ? '—' : money(rate)}</b> на <b>${p.rateDate}</b>${
+      rateDateOn(p.currency, p.rateDate) && rateDateOn(p.currency, p.rateDate) !== p.rateDate
+        ? ` <span class="sub">(установлен ${rateDateOn(p.currency, p.rateDate)}, действует до следующего)</span>` : ''}</span>
     <span class="iv ${okEq ? '' : 'bad'}">Проверка: ${cur(p.amount, p.currency)} × ${money(rate)} = <b>${money(eq)} сом</b></span>
   </div>
-  <p class="section-note">Курс из справочника НБ КР на дату поступления ${r.date}.
+  <p class="section-note">Курс из справочника НБ КР на дату поступления ${r.date}. Справочник
+    наполняется от первичного источника — самого НБ КР; загрузка файлом остаётся резервным путём
+    (ADR-0090). На дату без публикации действует последний установленный ранее.
     ${other.length ? 'На другие даты справочника: ' + other.map(dt => money(rateOn(p.currency, dt)) + ' на ' + dt).join('; ') + '.' : ''}</p>`;
 }
 
@@ -2524,6 +2561,13 @@ function payOrderingBlock(a){
       <span class="gwhat">${o.note}</span>
       <span class="gid" style="cursor:default">${pill(ORDERING[o.source])}</span>
     </div>${exc}
+    <div class="grow">
+      <span class="gkind">Порог копейки</span>
+      <span class="gwhat">Остаток статьи меньше 0,01 в валюте долга поглощается этим же платежом —
+        в обе стороны: недобор закрывает статью, перебор не порождает возврата. Хвоста нет, поэтому
+        кредит закрывается строгим нулём и операция списания копейки не нужна (ADR-0091).</span>
+      <span class="gid" style="cursor:default">0,01</span>
+    </div>
   </div>`;
 }
 
@@ -2635,7 +2679,7 @@ function payDriftBlock(p){
   </div>
   <p class="section-note" style="margin-top:12px"><b>Причина расхождения.</b> ${d.reason}</p>
   <p class="section-note">Сумма платежа не изменилась (${money(d.snapTotal)}) — изменился состав слоёв.
-    Закрыть расхождение по существу можно только разморозкой по решению комиссии.</p>`;
+    Закрыть расхождение по существу можно только разморозкой бухгалтером.</p>`;
 }
 
 /* компактный вид разбивки для колонок расхождения */
@@ -2678,7 +2722,7 @@ function payAdjustBlock(p){
     ${frozen ? roleHint(false, 'платёж заморожен') : ''}
   </div>
   <p class="section-note">Основание поправки обязательно.
-    ${frozen ? '<b>На замороженном платеже поправка запрещена:</b> сначала разморозка по решению комиссии.' : ''}</p>`;
+    ${frozen ? '<b>На замороженном платеже поправка запрещена:</b> сначала разморозка бухгалтером.' : ''}</p>`;
 }
 
 /* ---------- вкладка: СПОРНАЯ ПЕНЯ (ПТ-Д14) ---------- */
@@ -2703,8 +2747,13 @@ function payPanelDispute(p){
       <span class="tl-lbl"><b>Период спора:</b> ${iv.list.map(x => x.from + ' — ' + (x.to || DATA.today + ' (открыт)')).join(' · ')}, итого ${iv.days} дн.</span></div>
   </div>`;
 
-  const form = `<div class="section-h" style="font-size:16px;margin-top:24px">Решение комиссии</div>
+  const form = `<div class="section-h" style="font-size:16px;margin-top:24px">Решение органа</div>
     <div class="f2">
+      <div class="field req"><label class="flabel">Орган</label><div class="control">
+        <select id="dspBody">
+          <option>Комиссия по спорным начислениям</option>
+        </select><span class="caret">${PAY_CHEV}</span></div>
+        <div class="fhint">Справочник органов Р-6, шестая строка · источник «внутренний акт»</div></div>
       <div class="field req"><label class="flabel">Решение</label><div class="control">
         <select id="dspDecision">
           <option value="Спорная пеня списана полностью">Спорную пеню списать полностью</option>
@@ -2712,17 +2761,19 @@ function payPanelDispute(p){
           <option value="Начисление признано правомерным">Начисление признать правомерным</option>
         </select><span class="caret">${PAY_CHEV}</span></div></div>
       <div class="field req"><label class="flabel">Документ решения</label>
-        <div class="control"><input id="dspDoc" placeholder="№ и дата протокола комиссии"></div></div>
+        <div class="control"><input id="dspDoc" placeholder="№ и дата протокола"></div></div>
       <div class="field col-span"><label class="flabel">Комментарий</label>
         <div class="control"><input id="dspNote" placeholder="что именно решено по спорной сумме"></div></div>
     </div>
     <div class="gtoolbar" style="margin-top:14px">
-      <button class="btn btn-primary btn-sm" onclick="payDisputeSave('${p.id}')">Внести решение комиссии</button>
+      <button class="btn btn-primary btn-sm" onclick="payDisputeSave('${p.id}')">Внести решение органа</button>
       ${roleHint(can.dispute(), 'вносит куратор')}
     </div>`;
 
   return `<div class="banner warn">${PAY_INFO}<div><b>Пеня за период спора помечена спорной.</b>
-      Окончательное решение принимает комиссия.</div></div>
+      Решает <b>Комиссия по спорным начислениям</b> (ADR-0089) — заседает вне АСУБК, сюда
+      вносится только результат. Гейт необратимым не является: при позднем подтверждении
+      платежа пеня снимается вообще без органа.</div></div>
 
     <div class="inv">
       <span class="iv">Спорная пеня: <b>${money(dsp.amount)}</b></span>
@@ -2778,7 +2829,7 @@ function payAdjust(pid){
   const p = DATA.payments.find(x => x.id === pid), r = receiptOf(p);
   if(!can.allocate()) return toast('Поправку вносит куратор', 'warn');
   if(p.void)          return toast('Платёж погашен сторно — разносить нечего', 'warn');
-  if(r.frozen === 'frozen') return toast('Платёж заморожен: сначала разморозка по решению комиссии', 'warn');
+  if(r.frozen === 'frozen') return toast('Платёж заморожен: сначала разморозка бухгалтером', 'warn');
   openModal(`<div class="modal-h"><span class="mt">Поправка к разбивке ${p.number}</span>
     <button class="modal-x" onclick="closeModal()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
   <div class="modal-b">
@@ -2814,19 +2865,19 @@ function payAdjustSave(pid){
 
 function payDisputeSave(pid){
   const p = DATA.payments.find(x => x.id === pid), r = receiptOf(p);
-  if(!can.dispute()) return toast('Решение комиссии вносит куратор', 'warn');
+  if(!can.dispute()) return toast('Решение органа вносит куратор', 'warn');
   if(!r.dispute)     return toast('Спорной пени по этому поступлению нет', 'warn');
   const dec = (document.getElementById('dspDecision') || {}).value || '';
   const doc = ((document.getElementById('dspDoc') || {}).value || '').trim();
   const nte = ((document.getElementById('dspNote') || {}).value || '').trim();
-  if(!doc) return toast('Нужен документ решения комиссии', 'warn');
+  if(!doc) return toast('Нужен документ решения органа', 'warn');
   r.dispute.status = 'resolved';
   r.dispute.decision = dec;
   r.dispute.doc = doc;
-  r.hist.push(hrow('Внесено решение комиссии по спорной пене: ' + dec + ' (' + doc + ')' + (nte ? '. ' + nte : '') + '.',
+  r.hist.push(hrow('Внесено решение Комиссии по спорным начислениям: ' + dec + ' (' + doc + ')' + (nte ? '. ' + nte : '') + '.',
     'Куратор · Ж.Осмонова'));
   render();
-  toast('Решение комиссии внесено', 'ok');
+  toast('Решение органа внесено', 'ok');
 }
 /* @@END:payments@@ */
 
@@ -2885,7 +2936,7 @@ function retAlloc(r){
 
 /* дефолтный режим остатка сверх наступившего: возврат стоит ПОСЛЕДНИМ (ADR-0073) */
 function retQueueChain(){
-  const steps = ['Основной долг','Проценты','Штрафы','Возврат'];
+  const steps = ['Расходы','Комиссия','Основной долг','Проценты','Пеня','Возврат'];
   return steps.map((t,i)=>`<span class="trn"${i===steps.length-1
       ? ' style="border-color:var(--asubk-purple);color:var(--asubk-purple);font-weight:600"' : ''}>${i+1}. ${t}</span>`)
     .join('<span style="color:var(--text-placeholder);margin:0 7px">→</span>');
@@ -3212,7 +3263,7 @@ function retSurplusBlock(v){
   const left = A ? A.a.surplusLeft : 0;
 
   const chain = `<div class="banner info">${RET_ICO_I}<div>
-      <b>Порядок при обратной очереди:</b>
+      <b>Порядок по общей очерёдности (ADR-0087) — хвост после неё возвращается:</b>
       <div style="margin:8px 0 0">${retQueueChain()}</div></div></div>`;
 
   /* случай остатка, закреплённого адресным резервом (V-4 · ПС-290) */
@@ -3810,7 +3861,7 @@ function regCreateModal(i){
   if(o.r)    return toast('У строки уже есть наша запись — '+o.r.number,'warn');
   if(!can.bind()) return toast('Внесение по строке реестра — работа куратора','warn');
   const per = DATA.periods.find(p=>p.id===o.x.period) || {};
-  if(per.state==='closed') return toast('Период «'+(per.label||o.x.period)+'» закрыт: сначала открытие периода по решению комиссии','warn');
+  if(per.state==='closed') return toast('Период «'+(per.label||o.x.period)+'» закрыт: сначала открытие периода распоряжением гл. бухгалтера','warn');
 
   openModal(`<div class="modal-h"><span class="mt">Поступление по строке №${o.x.doc}</span>
       <button class="modal-x" onclick="closeModal()">${regIco(REG_I.x,20)}</button></div>
@@ -3839,7 +3890,7 @@ function regCreateDo(i){
     account:'1298 0000 0000 0001', accountObject:'Общий счёт ЦК (объект не опознан счётом)',
     payerName:o.x.payer, note:o.x.note,
     unresolvedReason:'внесено по строке реестра ЦК — общий счёт объект не опознаёт',
-    candidates:[], surplus:'queue_back', deadline:'—', daysLeft:null,
+    candidates:[], surplus:'queue_back', waitDays:null,
     hist:[ hrow('Внесено по строке реестра ЦК №'+o.x.doc+' от '+o.x.date+'. Основание: '+basis+'.','Куратор · Ж.Осмонова') ]
   });
   o.x.matched = id;
@@ -3905,7 +3956,7 @@ function doLoadRegistry(){
   const pid  = regVal('regPeriod'), file = regVal('regFile');
   const per  = DATA.periods.find(p=>p.id===pid) || {};
   if(!file) return toast('Укажите файл реестра','warn');
-  if(per.state==='closed') return toast('Период «'+(per.label||pid)+'» закрыт: сначала открытие периода по решению комиссии','warn');
+  if(per.state==='closed') return toast('Период «'+(per.label||pid)+'» закрыт: сначала открытие периода распоряжением гл. бухгалтера','warn');
   const rows = regFeed().filter(o=>o.x.period===pid);
   const dups = rows.filter(o=>o.dup).length;
   const none = rows.filter(o=>!o.dup && !o.r).length;
@@ -3979,7 +4030,7 @@ const rcOrphanRegs = () => DATA.registry.filter(x => !x.matched && !x.dup);
 const RC_OUT = {
   ok:        { t:'Совпало 1:1',          cls:'ok',     sign:'=', mid:'суммы равны',        short:'сверка положительная' },
   mismatch:  { t:'Расхождение суммы',    cls:'warn',   sign:'≠', mid:'разница',            short:'действует сумма ЦК' },
-  ours_only: { t:'Есть у нас, нет в ЦК', cls:'purple', sign:'→', mid:'сравнивать не с чем', short:'идёт таймаут' },
+  ours_only: { t:'Есть у нас, нет в ЦК', cls:'purple', sign:'→', mid:'сравнивать не с чем', short:'ждёт ЦК' },
   cbk_only:  { t:'Есть в ЦК, нет у нас', cls:'err',    sign:'←', mid:'сравнивать не с чем', short:'держит закрытие периода' },
 };
 const rcShort = o => pill({ t:o.short, cls:o.cls });
@@ -4010,7 +4061,7 @@ function reconSummary(){
       ${tile(t.mismatch.length, 'Расхождение суммы', RC_OUT.mismatch,
         'Нужна корректировка нашей записи по сумме ЦК.')}
       ${tile(t.ours.length, 'Ждёт подтверждения ЦК', RC_OUT.ours_only,
-        `Идёт таймаут ${DATA.timeoutDays} рабочих дней.`)}
+        'Срока у ожидания нет: держит закрытие периода, там же решается судьба.')}
       ${tile(t.cbk.length, 'Строк ЦК без нашей записи', RC_OUT.cbk_only,
         'Деньги в реестре есть, факта у нас нет.')}
     </div>
@@ -4151,10 +4202,10 @@ function reconOutcomeBlock(m, r, g, diff){
 
   /* ЕСТЬ У НАС, НЕТ В ЦК */
   if(m.outcome === 'ours_only'){
-    const soon = r.daysLeft != null && r.daysLeft <= DATA.warnDays;
+    const soon = r.waitDays != null && r.waitDays >= DATA.remindDays;
     return rcBan(soon ? 'warn' : 'info', `<b>Подтверждения ЦК ещё нет</b> — действует наша сумма
-        ${cur(r.amount, r.currency)}. Таймаут до <b>${r.deadline}</b>, осталось <b>${r.daysLeft} раб. дн.</b>${soon
-          ? ` Порог предупреждения (${DATA.warnDays} раб. дн.) пройден.` : ''}
+        ${cur(r.amount, r.currency)}. Ждёт <b>${r.waitDays} раб. дн.</b>, срока у ожидания нет.${soon
+          ? ` Напоминание куратору отправлено (порог ${DATA.remindDays} раб. дн.).` : ''}
         Поступление стоит в <span class="rowlink" onclick="go('period')">гейте закрытия периода</span>.
         <div class="gtoolbar" style="margin:12px 0 0">
           <button class="btn btn-sm btn-secondary" onclick="reconAct('ask','${r.id}')">Запросить подтверждение в ЦК</button>
@@ -4314,7 +4365,7 @@ function reconAllocStage(){
 
   const state = frozen
     ? rcBan('info', `<b>Шаг пройден.</b> Поступление ${r.number} заморожено: разбивка зафиксирована.
-        Вернуться внутрь можно только разморозкой по решению комиссии.`)
+        Вернуться внутрь можно только разморозкой бухгалтером.`)
     : conf
       ? rcBan('ok', `<b>Разбивка подтверждена ${conf.when} (${conf.who}).</b>`)
       : rcBan('warn', `<b>Разбивка ещё не подтверждена.</b> Разрез слева выведен — с ним нужно согласиться либо
@@ -4355,7 +4406,7 @@ function reconAdjustBlock(r, ps){
     </div>
     <p class="section-note">Основание поправки обязательно.
       ${frozen
-        ? '<b>Здесь поправка запрещена:</b> сначала разморозка по решению комиссии.'
+        ? '<b>Здесь поправка запрещена:</b> сначала разморозка бухгалтером.'
         : ps.length ? '' : '<b>Поправлять нечего:</b> платежей у поступления нет.'}</p>`;
 }
 
@@ -4391,7 +4442,7 @@ function reconAdjust(id){
   const r = rcReceipt(id);
   if(!r) return;
   if(!rcMeaning())  return toast('Поправку вносит куратор','warn');
-  if(r.frozen === 'frozen') return toast('Поступление заморожено: сначала разморозка по решению комиссии','warn');
+  if(r.frozen === 'frozen') return toast('Поступление заморожено: сначала разморозка бухгалтером','warn');
   const p = paymentsOf(r).filter(x => !x.void)[0];
   if(!p) return toast('Поправлять нечего: платежей у поступления нет','warn');
   payAdjust(p.id);
@@ -4400,7 +4451,7 @@ function reconAdjust(id){
 function reconAct(kind, arg){
   if(kind === 'ask'){
     const r = rcReceipt(arg);
-    return toast('Запрос подтверждения отправлен в ЦК по ' + (r ? r.number : '') + '. Таймаут не ускоряется','ok');
+    return toast('Запрос подтверждения отправлен в ЦК по ' + (r ? r.number : ''),'ok');
   }
   if(kind === 'adopt'){
     const g = rcReg(arg);
@@ -4433,7 +4484,7 @@ function viewRecon(){
     <div class="legend" style="margin-top:18px">
       <span>${pill(RC_OUT.ok)} наша запись и строка ЦК сошлись</span>
       <span>${pill(RC_OUT.mismatch)} суммы разошлись</span>
-      <span>${pill(RC_OUT.ours_only)} подтверждения ЦК нет — идёт таймаут</span>
+      <span>${pill(RC_OUT.ours_only)} подтверждения ЦК нет — ждём</span>
       <span>${pill(RC_OUT.cbk_only)} нашей записи нет</span>
       <span style="${RC_OFF}">серые строки очереди — не наступило</span>
     </div>
@@ -4459,12 +4510,12 @@ const PERIOD_ACTOR = 'Бухгалтер · А.Иманкулова';
 
 /* Журнал закрытий и открытий ведётся всегда: и закрытие, и открытие —
    именованные операции с автором, датой и основанием. Открытие — ещё и
-   с реквизитами решения комиссии. */
+   с реквизитами распоряжения главного бухгалтера и вложенным документом (ADR-0089). */
 let PERIOD_LOG = [
   { when:'10.07.2026', act:'Закрытие', period:'Июнь 2026', who:PERIOD_ACTOR, decision:'—',
-    why:'Гейт пуст: три невыясненных разобраны, строки реестра ЦК сопоставлены, таймауты закрыты.' },
+    why:'Гейт пуст: три невыясненных разобраны, строки реестра ЦК сопоставлены, неподтверждённых не осталось.' },
   { when:'02.07.2026', act:'Открытие', period:'Май 2026', who:PERIOD_ACTOR,
-    decision:'Решение комиссии №11 от 01.07.2026',
+    decision:'Распоряжение гл. бухгалтера №11 от 01.07.2026 · rasporyazhenie-11.pdf',
     why:'Позднее подтверждение ЦК по сторнированному поступлению: понадобилась корректировка внутри уже закрытого месяца.' },
   { when:'30.06.2026', act:'Закрытие', period:'Май 2026', who:PERIOD_ACTOR, decision:'—',
     why:'Гейт пуст.' },
@@ -4512,7 +4563,7 @@ function periodCard(p){
     ? `<div class="banner ok" style="margin:14px 0 0">
          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
          <div>Месяц закрыт: новые записи не принимаются. Поздний факт требует открытия периода
-           по решению комиссии.</div></div>`
+           распоряжением главного бухгалтера.</div></div>`
     : bl.length
       ? `<div class="banner err" style="margin:14px 0 0">
            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9L2.6 17a2 2 0 0 0 1.7 3h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>
@@ -4580,7 +4631,7 @@ function periodDrift(){
     <div class="dcol live">
       <div class="dhead">Текущий вывод на ${DATA.today}</div>
       <dl class="kv">
-        <dt>Событие</dt><dd>${rev.length?`Сторно по таймауту: <span class="rowlink" onclick="openReceipt('${rev[0].id}')">${rev[0].number}</span> от ${rev[0].date}`:'Событий после закрытия не было'}</dd>
+        <dt>Событие</dt><dd>${rev.length?`Сторно решением бухгалтера: <span class="rowlink" onclick="openReceipt('${rev[0].id}')">${rev[0].number}</span> от ${rev[0].date}`:'Событий после закрытия не было'}</dd>
         <dt>Обратимость</dt><dd>При позднем подтверждении ЦК поступление восстановится <b>исходной датой</b> — внутри уже закрытого месяца.</dd>
         <dt>Что произойдёт</dt><dd>Снимок июня останется прежним; корректировка запишется отдельно.</dd>
       </dl>
@@ -4624,7 +4675,7 @@ function viewPeriod(){
 }
 
 /* ============================================================
-   ДЕЙСТВИЯ: закрытие · отказ поимённо · открытие по решению комиссии
+   ДЕЙСТВИЯ: закрытие · отказ поимённо · открытие распоряжением гл. бухгалтера
    ============================================================ */
 
 /** Закрытие месяца. Кнопка неактивна, пока гейт не пуст; отказ — всегда поимённый. */
@@ -4642,7 +4693,7 @@ function closePeriod(pid){
   p.closedAt = DATA.today;
   p.note     = 'Гейт был пуст.';
   PERIOD_LOG.unshift({ when:DATA.today, act:'Закрытие', period:p.label, who:PERIOD_ACTOR, decision:'—',
-    why:'Гейт пуст: невыясненных нет, строки реестра ЦК сопоставлены, положительные сверки заморожены, таймауты закрыты.' });
+    why:'Гейт пуст: невыясненных нет, строки реестра ЦК сопоставлены, положительные сверки заморожены, неподтверждённых не осталось.' });
   render();
   toast(`«${p.label}» закрыт`,'ok');
 }
@@ -4661,22 +4712,27 @@ function modalBlockers(pid){
   <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Понятно</button></div>`);
 }
 
-/** Открытие закрытого месяца — операция уровня разморозки: только по решению комиссии. */
+/** Открытие закрытого месяца — распоряжение ГЛАВНОГО БУХГАЛТЕРА: номер, дата и вложенный
+    документ (ADR-0089). Тяжелее разморозки не по вредности: из закрытого месяца отчётность
+    уже ушла наружу, и «на основании чего изменились сданные цифры» спрашивает проверяющий. */
 function modalOpenPeriod(pid){
   const p = DATA.periods.find(x=>x.id===pid);
   if(!p) return;
-  if(!can.closePeriod()) return toast('Период открывает бухгалтер по решению комиссии','warn');
+  if(!can.closePeriod()) return toast('Период открывает главный бухгалтер распоряжением','warn');
   openModal(`<div class="modal-h"><span class="mt">Открыть период «${p.label}»</span>
     <button class="modal-x" onclick="closeModal()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg></button></div>
   <div class="modal-b">
     <div class="banner warn" style="margin-bottom:14px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0"/></svg>
-      <div>Открытие возможно только <b>по решению комиссии</b> — реквизиты обязательны.
-        Запись уйдёт в журнал закрытий и открытий.</div></div>
+      <div>Открытие — <b>распоряжение главного бухгалтера</b>. Номер, дата и <b>вложенный
+        документ</b> обязательны: отчётность за месяц уже ушла наружу. Запись уйдёт в журнал
+        закрытий и открытий.</div></div>
     <div class="f2">
-      <div class="field req"><label class="flabel">Номер решения комиссии</label>
+      <div class="field req"><label class="flabel">Номер распоряжения</label>
         <div class="control"><input id="poNum" placeholder="например, 17"></div></div>
-      <div class="field req"><label class="flabel">Дата решения</label>
+      <div class="field req"><label class="flabel">Дата распоряжения</label>
         <div class="control"><input id="poDate" value="${DATA.today}" placeholder="дд.мм.гггг"></div></div>
+      <div class="field col-span req"><label class="flabel">Файл распоряжения</label>
+        <div class="control"><input id="poFile" placeholder="скан или PDF — имя файла"></div></div>
       <div class="field col-span req"><label class="flabel">Причина открытия</label>
         <textarea id="poWhy" class="note-area" placeholder="что требуется отразить внутри закрытого месяца"></textarea></div>
     </div>
@@ -4690,18 +4746,19 @@ function doOpenPeriod(pid){
   const p = DATA.periods.find(x=>x.id===pid);
   if(!p) return;
   const val = id => ((document.getElementById(id)||{}).value||'').trim();
-  const num = val('poNum'), dt = val('poDate'), why = val('poWhy');
-  if(!num || !dt) return toast('Нужны номер и дата решения комиссии','warn');
+  const num = val('poNum'), dt = val('poDate'), why = val('poWhy'), file = val('poFile');
+  if(!num || !dt) return toast('Нужны номер и дата распоряжения','warn');
+  if(!file)       return toast('Нужен вложенный документ распоряжения','warn');
   const wasBy = p.closedBy, wasAt = p.closedAt;
   p.state    = 'open';
   p.closedBy = null;
   p.closedAt = null;
-  p.note     = `Открыт по решению комиссии №${num} от ${dt}. Ранее закрыт: ${wasBy||'—'}, ${wasAt||'—'}.`;
+  p.note     = `Открыт распоряжением главного бухгалтера №${num} от ${dt} (${file}). Ранее закрыт: ${wasBy||'—'}, ${wasAt||'—'}.`;
   PERIOD_LOG.unshift({ when:DATA.today, act:'Открытие', period:p.label, who:PERIOD_ACTOR,
-    decision:`Решение комиссии №${num} от ${dt}`,
+    decision:`Распоряжение гл. бухгалтера №${num} от ${dt} · ${file}`,
     why: why || 'Причина не указана.' });
   closeModal(); render();
-  toast(`«${p.label}» открыт по решению комиссии №${num}`,'ok');
+  toast(`«${p.label}» открыт распоряжением №${num}`,'ok');
 }
 /* @@END:period@@ */
 
@@ -4794,7 +4851,7 @@ function actWhyOut(r){
   if(isReversed(r))   return 'Сторнировано: платежи погашены, сумма не распределена.';
   if(isUnresolved(r)) return 'Невыясненное: платежей нет, объект не опознан.';
   if(r.match==='mismatch')  return 'Расхождение с реестром ЦК: до корректировки замораживать нечего.';
-  if(r.match==='pending')   return 'Ждёт подтверждения ЦК: таймаут ещё идёт, заморозки нет.';
+  if(r.match==='pending')   return 'Ждёт подтверждения ЦК: срока у ожидания нет, заморозки нет.';
   if(r.match==='confirmed') return 'Сверка положительная, а заморозки нет.';
   return 'Не заморожено — в акт не входит.';
 }
@@ -5044,7 +5101,7 @@ function actNumbersBlock(a, comp){
   if(!actIsPrelim(a))
     return `<div class="banner ok" style="margin-top:14px">${ACT_ICO_I}<div>
       <b>Цифры акта неподвижны: период «${per.label}» закрыт.</b> Поздний факт потребует открытия периода
-      по решению комиссии.</div></div>`;
+      распоряжением главного бухгалтера.</div></div>`;
 
   const bl = periodBlockers(a.period);
   return `<div class="section-h" style="margin-top:24px">Почему подписи нет: цифры месяца ещё двигаются</div>
