@@ -2378,6 +2378,7 @@ function paymentDetail(p){
   const r = receiptOf(p), c = creditOf(p.credit);
   const a = allocOf(p.derived), d = snapshotDrift(p);
   const dsp = r.dispute;
+  const per = DATA.periods.find(x => x.id === r.period) || { state:'open', label:r.period };
 
   const snapA = p.snapshot ? allocOf(p.snapshot) : null;
   const allocPill = p.snapshot ? pill({ t:'Зафиксированная', cls:'neutral' }) : pill({ t:'Динамическая', cls:'info' });
@@ -2408,7 +2409,7 @@ function paymentDetail(p){
           </div>
           <div class="phead-sub">${c.borrower} · <b>${c.title}</b> · ${payScopeTag(p)} ·
             поступление <span class="rowlink" onclick="openReceipt('${r.id}')">${r.number}</span> от <b>${r.date}</b>
-            · период учёта <b>${r.period}</b></div>
+            · период учёта <b>${per.label || r.period}</b> ${pill(PSTATE[per.state])}</div>
         </div>
       </div>
       <div class="phead-dims">
@@ -2447,7 +2448,6 @@ function paymentDetail(p){
 /* ---------- вкладка: РЕКВИЗИТЫ ---------- */
 function payPanelReq(p){
   const r = receiptOf(p), c = creditOf(p.credit);
-  const per = DATA.periods.find(x => x.id === r.period) || { state:'open', label:r.period };
 
   const warn = p.void
     ? `<div class="banner err">${PAY_INFO}<div><b>Платёж погашен сторно поступления.</b> Сумма снята сторно.</div></div>`
@@ -2461,14 +2461,12 @@ function payPanelReq(p){
     <div class="recon-col">
       <h4>Поступление — факт денег</h4>
       <dl class="kv">
-        <dt>Поступление</dt><dd><span class="rowlink" onclick="openReceipt('${r.id}')">${r.number}</span></dd>
         <dt>Дата</dt><dd class="num">${r.date}<div style="${MUT};font-weight:400">дата фактического поступления</div></dd>
         <dt>Сумма поступления</dt><dd class="num">${cur(r.amount, r.currency)}</dd>
         <dt>Канал</dt><dd>${pill(CHAN[r.channel])}</dd>
         <dt>Счёт зачисления</dt><dd><span class="mono">${r.account}</span><div style="${MUT};font-weight:400">${r.accountObject}</div></dd>
         <dt>Плательщик</dt><dd>${r.payerName}</dd>
-        <dt>Примечание документа</dt><dd>${r.note || '—'}</dd>
-        <dt>Период учёта</dt><dd>${per.label || r.period} ${pill(PSTATE[per.state])}</dd>
+        <dt>Примечание ЦК</dt><dd>${r.note || '—'}</dd>
       </dl>
     </div>
     <div class="recon-mid">${PAY_ARROW}</div>
@@ -2477,7 +2475,7 @@ function payPanelReq(p){
       <dl class="kv">
         <dt>Платёж</dt><dd><span class="mono">${p.number}</span></dd>
         <dt>Сумма платежа</dt><dd class="num">${cur(p.amount, p.currency)}</dd>
-        <dt>Кредит</dt><dd>${c.title}<div style="${MUT};font-weight:400">${c.borrower} · ИНН ${c.inn}</div></dd>
+        <dt>ИНН</dt><dd><span class="mono">${c.inn}</span></dd>
         <dt>Транш</dt><dd>${payScopeTag(p)}<div style="${MUT};font-weight:400">${payScopeNote(p)}</div></dd>
         <dt>Вид погашения</dt><dd>${p.kind}</dd>
         <dt>Основание привязки</dt><dd>${p.basis}</dd>
@@ -2586,7 +2584,7 @@ function payMatrix(a, p){
       </div>
       <div class="mx-body">
         <table class="mxg">
-          <thead><tr><th>Статья долга</th><th>Транш — область</th><th>Срочность</th><th class="r">Сумма</th></tr></thead>
+          <thead><tr><th>Статья долга</th><th>Транш</th><th>Срочность</th><th class="r">Сумма</th></tr></thead>
           <tbody>${L.articles.map(A => A.rows.map(row => `<tr>
             <td>${A.article}<div style="${MUT};font-size:12px">${row.label}</div></td>
             <td><span class="trn">${row.tranche}</span></td>
@@ -2617,10 +2615,10 @@ function payOverdueByLayer(a){
     </div>`).join('')}</div>`;
 }
 
-/* область разбивки: очередь погашения публикует КРЕДИТ (ПТ-Д5, ADR-0060) */
+/* очередь погашения публикует КРЕДИТ, не платёж (ПТ-Д5, ADR-0060) */
 function payQueueBlock(p){
   const c = creditOf(p.credit), q = DATA.queue[p.credit];
-  const h = `<h4>Область разбивки — очередь погашения</h4>`;
+  const h = `<h4>Очередь погашения ${pill({ t:'публикует КРЕДИТ', cls:'info' })}</h4>`;
 
   if(!q) return `<div class="recon-col">${h}
     <div style="padding:14px"><p class="section-note" style="margin:0">Очередь погашения по кредиту <b>${c.title}</b>
