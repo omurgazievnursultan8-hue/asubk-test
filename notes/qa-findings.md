@@ -1128,3 +1128,58 @@ gating. Routes: list `/loansCredit`, detail `/loan-credits/{id}`, view
     primary button, border, container padding) are uniform and match the mockup
     design system.
   - **Expected:** one font-size / row-height across all dictionary grids. → P8-R6.
+
+---
+
+## Phase 11 — Org structure (Оргструктура)
+
+> Dev-reported-complete module, verified 2026-08-06 against mockup
+> `mockups/org-structure/org-structure.html` and spec `TODO.md` P11-R1…R13, via
+> `scripts/inspect/orgstruct-*.mjs` (validate/final/leaf/export/csv-check/verify-contradiction)
+> at `https://fkftest.okmot.kg/org-structure-mgmt`. Passed as spec'd: Обзор KPI tiles,
+> Подразделения tree+card, Ставок floor at 1 (P11-R7/R10), Экспорт структуры CSV
+> (byte-verified UTF-8 BOM + `;` + 7-column header, P11-R13), Паспорт на дату HTML
+> (both confirmed real downloads via `page.waitForEvent('download')`, not silent
+> no-ops). Not verified this pass — no pass/fail signal obtained, not logged as
+> defects: 183-day и.о. cap (`orgstruct-validate.mjs` date-picker selector broke
+> twice, dialog state lost); one-head-per-unit, one-main-job-per-employee,
+> duplicate-unit-name, territory-overlap validations; Переименовать / Переподчинить /
+> Территория / Изменить тип modals (buttons present, not exercised); Дата среза
+> recompute-on-change; Наблюдатель read-only role (no second credential per
+> CLAUDE.md); Должности required-name / delete-blocked-if-in-use; Освободить /
+> И.о.:продлить/прекратить (buttons present, not clicked); P11-R12 integration
+> events (not observable via black-box UI testing).
+
+- **P11-01** — Подразделения › card › Закрытие tab — 🔴 blocker — _verified 2026-08-06_
+  - **Issue:** leaf unit **«Отдел бухгалтерского учёта»** (confirmed childless via
+    full tree dump and its own «Прямые подчинённые: нет») is blocked from
+    liquidation with the message **«Закрытие заблокировано: есть действующие или
+    будущие штатные единицы; есть действующие или будущие назначения либо и.о.»**
+    and a disabled «Ликвидировать» button — while the SAME unit's own Обзор tab
+    states **«Штат (по подразделению): 0 из 0 (0%)»** and its Штатное расписание
+    grid is empty (headers only, 0 rows). Double-verified via independent script
+    runs (`orgstruct-leaf.mjs`, `orgstruct-verify-contradiction.mjs`) and cross-checked
+    against the P11-R11 gate spec itself («есть действующие дочерние узлы · есть
+    действующие назначения · это корень · события после даты закрытия») — none of
+    those four conditions hold for this unit, yet the gate fires citing exactly the
+    staff/assignment conditions that are objectively false for it.
+  - **Expected:** a unit with 0 staff units, 0 assignments, 0 children, and not the
+    root should pass the Закрытие gate and allow liquidation.
+  - **Actual:** gate blocks unconditionally (or on stale/miscomputed state) — no unit
+    tried during this pass could be liquidated, so the R11 workflow is unverifiable
+    end-to-end and, for this unit class, non-functional. → P11-R11.
+
+- **P11-02** — Подразделения › card, 4th tab — 🔵 cosmetic — _verified 2026-08-06_
+  - **Issue:** spec (P11-R4) names the unit card's 4th tab **«Ликвидация»**; live app
+    labels it **«Закрытие»**. Tab content/gate terminology otherwise matches R11
+    (which itself mixes «закрытие узла» as process name and «Ликвидировать» as the
+    button/action) — reads as a labeling drift, not a functional gap.
+  - **Expected:** tab name matches spec («Ликвидация») or spec is updated to match
+    the shipped name, for consistency across docs and UI. → P11-R4.
+
+- **P11-03** — top-level tabs — 🔵 cosmetic / doc gap — _verified 2026-08-06_
+  - **Issue:** live app ships **4** top-level tabs (Обзор · Подразделения · Должности
+    · **Типы подразделений**); spec (P11-R1) states **3** («Обзор · Подразделения ·
+    Должности»). The extra tab is a working classifier CRUD screen, not broken UI.
+  - **Expected:** either drop the extra tab or update P11-R1's spec text to record it
+    as in-scope — currently the shipped surface is undocumented. → P11-R1.
