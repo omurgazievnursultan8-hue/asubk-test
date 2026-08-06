@@ -63,7 +63,7 @@ const P = id => `PROCESSES.find(x=>x.id==='${id}')`;
    PROCESSES/REQ_INDEX — исчезнувший id становится одной названной находкой со списком,
    а не молчаливым undefined в середине выражения. */
 const SELF = readFileSync(new URL(import.meta.url), 'utf8');
-const srcReqIds  = [...new Set([...SELF.matchAll(/'(\d{3}\/[^'\/]+\/[зпго])'/g)].map(m => m[1]))];
+const srcReqIds  = [...new Set([...SELF.matchAll(/'(\d{3}\/[^'\/]+\/(?:[зпго]|[зпго]-\d+))'/g)].map(m => m[1]))];
 const srcProcIds = [...new Set([...SELF.matchAll(/(?:P\('|id===')(\d{3})'/g)].map(m => m[1]))];
 const goneReqs  = srcReqIds.filter(id => !g.ev(`!!REQ_INDEX[${JSON.stringify(id)}]`));
 const goneProcs = srcProcIds.filter(id => !g.ev(`PROCESSES.some(p=>p.id===${JSON.stringify(id)})`));
@@ -80,8 +80,8 @@ const TAB = Object.fromEntries(g.ev(`TABS.map(t=>t.slug)`).map((s,i)=>[s,i]));
 head('М-1 · требование — единица работы');
 ok('требований больше, чем дел',            g.ev('allReqs().length') > g.ev('PROCESSES.length'));
 ok('индекс требований полон и без коллизий', g.ev('Object.keys(REQ_INDEX).length') === g.ev('allReqs().length'));
-ok('id требования = дело/кредит/роль',
-   g.ev(`allReqs().every(r => r.id === r.proc+'/'+r.credit+'/'+({'заёмщик':'з','поручитель':'п','гарант':'г','госорган':'о'}[r.role]))`));
+ok('id требования = дело/кредит/(роль заёмщика | personId обеспечителя) — МП-О1',
+   g.ev(`allReqs().every(r => r.id === r.proc+'/'+r.credit+'/'+(r.role==='заёмщик' ? 'з' : r.obligor))`));
 ok('у каждого требования есть кредит и обязанное лицо',
    g.ev(`allReqs().every(r => !!r._credit && !!PERSONS[r.obligor])`));
 ok('пара (кредит × лицо) в деле уникальна',
@@ -98,7 +98,7 @@ ok('ведущее подразделение — на требовании',  g
 ok('дело 307 — два требования по одному договору',
    g.ev(`${P('307')}.requirements.map(r=>r.role).join(',')`) === 'заёмщик,поручитель');
 ok('солидарный сосед заёмщика — поручитель',
-   g.ev(`solidaryWith(${R('307/307/з')}).map(r=>r.id).join(',')`) === '307/307/п');
+   g.ev(`solidaryWith(${R('307/307/з')}).map(r=>r.id).join(',')`) === '307/307/п-307');
 ok('обеспечение бывает трёх ролей — поручитель, гарант, отраслевой госорган (K1-ОБЕСП)',
    g.ev(`['307','308','309'].map(id=>PROCESSES.find(p=>p.id===id).requirements[1].role).join(',')`)
      === 'поручитель,гарант,госорган');
@@ -193,7 +193,12 @@ ok('Р-7 · веха с более поздней датой побеждает 
   return phaseOf(r);
 })()`) === 'На исполнении');
 { const m = mk(); m.ev(`openDetail('364/364/з')`); m.ev(`switchTab(${TAB.mery})`);
-  ok('таймлайн К6 показывает три шага банкротства', m.active().querySelectorAll('.tl-step').length === 3); }
+  /* Наряд п.5б-i (МП-6): лестница ТЕКУЩЕГО КОНТУРА (3 шага К6) снята вместе с контурами —
+     теперь одна лестница на весь ROUTE_ORDER (§3.3), а вне-маршрутная фаза (тут банкротство,
+     К6) названа отдельной строкой под ней. 8 фаз маршрута минус условная «Безакцепт» без
+     права по договору у этого кредита = 7 шагов. */
+  ok('таймлайн 364/364/з рисует лестницу маршрута (7 шагов без безакцепта), а не контур К6',
+     m.active().querySelectorAll('.tl-step').length === 7); }
 { const a = mk(), b = mk();
   /* ЗС: право безакцепта несёт кредит (bezakceptRight) — оно есть у K1-БА-ГЕЙТ (310)
      и нет у K1-БА-НЕТ (315); прежние 204/205 стали делами окна ожидания (K0-ЗАКР). */
@@ -225,15 +230,31 @@ for(const b of ['Выписка о ликвидации юр. лица','Реш�
    Р-5 — КАТЕГОРИЯ РИСКА НА КРЕДИТЕ, worst-of вверх
    ══════════════════════════════════════════════════════════════════════════ */
 head('Р-5 · категория риска');
-/* Ситуация РИСК волны ЗС: 397 — два кредита (55 дней mid + 0 дней с фактором комитета
+/* Ситуация РИСК волны ЗС: 397 — два кредита (50 дней mid + 0 дней с фактором комитета
    high), 391 — подавление 181-го дня, 394 — два кредита разной тяжести. Прежние 209/210
    этой роли больше не несут (210 стало делом паузы-реструктуризации). */
 ok('catOfCredit → «высокий» при нуле дней и факторе high (397, договор 398)',
    g.ev(`catOfCredit(${P('397')}.credits[1]).days`) === 0
    && g.ev(`catOfCredit(${P('397')}.credits[1]).level`) === 'high');
-ok('подавление 181-го применяется до worst-of (391)',
-   g.ev(`catOfCredit(${P('391')}.credits[0]).suppressed`) === true
-   && g.ev(`catOfCredit(${P('391')}.credits[0]).daysEff`) === 'mid');
+/* Шаг 3 наряда (ADR-0064): отложение — свёртка живого рассмотрения, а не флаг кредита.
+   Проверяем и результат (до worst-of, категория средняя), и ИСТОЧНИК: хранимого
+   suppress181 в данных не осталось нигде, а отложение указывает на то самое состояние. */
+ok('отложение 181-го применяется до worst-of и выводится из состояния (391)',
+   g.ev(`catOfCredit(${P('391')}.credits[0]).deferred`) === true
+   && g.ev(`catOfCredit(${P('391')}.credits[0]).daysEff`) === 'mid'
+   && g.ev(`catOfCredit(${P('391')}.credits[0]).defer.kind`) === 'restructuring'
+   && g.ev(`PROCESSES.every(p => p.credits.every(c => !('suppress181' in c)))`));
+/* Зафиксированный отказ (п. 19.1) снимает отложение НЕ в свой день, а на следующий:
+   на дату фиксации категория ещё средняя. Проверяется на копии затравки — состояние
+   правится прямо в ней, поэтому вычисление обязано смотреть на данные, а не на кэш. */
+ok('отказ в реструктуризации: в день фиксации — средний, назавтра — высокий', mk().ev(`(() => {
+  const c = ${P('391')}.credits[0];
+  const s = REQ_INDEX['391/391/з'].states.find(x => x.kind === 'restructuring');
+  s.refusedAt = TODAY;
+  const sameDay = catOfCredit(c).level;
+  s.refusedAt = ruSub(TODAY, 1);
+  return sameDay === 'mid' && catOfCredit(c).level === 'high';
+})()`));
 ok('категория дела = worst-of по кредитам (397 → high при mid+high, 391 → mid)',
    g.ev(`catOfProcess(${P('397')})`) === 'high' && g.ev(`catOfProcess(${P('391')})`) === 'mid');
 /* catOfReq ОПРЕДЕЛЕНА как catLevelOfCredit(r._credit) — сверять её с собственным
@@ -256,9 +277,13 @@ ok('категория требования берётся у его креди�
 { const m = mk(); m.ev(`openDetail('397/397/з')`); m.ev('catOpen=false; toggleCat()');
   ok('раскрытие показывает входы покредитно (2 кредита + worst-of)',
      m.dhead().querySelectorAll('.cat-expand .row').length === 3); }
+/* Шаг 3 наряда (ADR-0064): «подавлен» ушло вместе с послаблением — раскрытие обязано
+   называть отложенный ПЕРЕВОД и предел, до которого он отложен, иначе на витрине снова
+   получится «высокий, которому сделали скидку». */
 { const m = mk(); m.ev(`openDetail('391/391/з')`); m.ev('catOpen=false; toggleCat()');
-  ok('честная категория видна при подавлении («подавлен»)',
-     /подавлен/.test(m.dhead().querySelector('.cat-expand').textContent)); }
+  const t = m.dhead().querySelector('.cat-expand').textContent;
+  ok('честная категория видна при отложенном переводе («перевод отложен» + предел)',
+     /перевод отложен/.test(t) && /20\.08\.2026/.test(t) && !/подавлен/.test(t)); }
 ok('сортировка по категории идёт по тяжести (rank), не по алфавиту',
    g.ev(`sortVal(${R('351/351/з')},'cat')`) === g.ev('CAT_RANK.high'));
 
@@ -302,7 +327,7 @@ ok('смена охвата (новая устанавливающая мера 
 ok('§2.2 · агрегат по делу считается один раз на кредит',
    g.ev(`claimTotal(${P('307')}.requirements)`) === 122300);
 ok('§2.2 · солидарная строка показывает полную сумму',
-   g.ev(`claimOf(${R('307/307/п')})`) === g.ev(`claimOf(${R('307/307/з')})`));
+   g.ev(`claimOf(${R('307/307/п-307')})`) === g.ev(`claimOf(${R('307/307/з')})`));
 ok('§2.2 · по многокредитному делу суммы кредитов складываются',
    g.ev(`claimSum(${P('402')})`) === g.ev(`${P('402')}.requirements.reduce((s,r)=>s+claimOf(r),0)`));
 /* У солидарной пары 307 охват «просроченная сумма», а расход входит в притязание только
@@ -313,13 +338,13 @@ ok('расход увеличивает сумму требования и не 
   openDetail('307/307/з');
   curProc.measures.push({ sec:'Судебный', kind:'Исковое заявление', dates:D('20.07.2026','20.07.2026','20.07.2026'),
     num:'ТЕСТ-ИСК-307', scope:{volume:'полный остаток',method:'деньгами'}, sum:'152 300,00', targets:[curReq.id] });
-  const before = claimOf(curReq), sol = claimOf(REQ_INDEX['307/307/п']);
+  const before = claimOf(curReq), sol = claimOf(REQ_INDEX['307/307/п-307']);
   openCostModal();
   document.getElementById('costAmount').value = '1 000,00';
   document.getElementById('costKind').value = 'Государственная пошлина';
   saveCost();
   return before === 152300 && sol === 122300
-      && claimOf(curReq) === before + 1000 && claimOf(REQ_INDEX['307/307/п']) === sol;
+      && claimOf(curReq) === before + 1000 && claimOf(REQ_INDEX['307/307/п-307']) === sol;
 })()`));
 /* Затравка ЗС состоявшихся реализаций залога не содержит (c.realization нет ни у одного
    предмета — торги в K4-ТОРГИ доведены только до акта несостоявшихся торгов), поэтому
@@ -327,7 +352,7 @@ ok('расход увеличивает сумму требования и не 
    предмет залога»). Модель — наряд «выручка/очередь» (ADR-0054): факт реализации и
    делёж между кредитами живут на ПРЕДМЕТЕ (c.realization/.distribution), не на процессе
    (p.realization снят); делёж — на вкладке «Залог», не «Долг». Проверяется то же правило:
-   п. 49 — строка возврата залогодателю обязательна даже при нуле, непокрытый остаток
+   п. 48 — строка возврата залогодателю обязательна даже при нуле, непокрытый остаток
    назван пунктом 33. */
 { const m = mk();
   /* Ссылка на предмет пересобирается заново в КАЖДОМ m.ev() (индексом 0, не
@@ -338,7 +363,7 @@ ok('расход увеличивает сумму требования и не 
     PROCESSES.find(p=>p.id==='326').colls[0].realization = { proceeds: 50000, costs: 0, date: '21.07.2026' };
   `);
   m.ev(`openDetail('326/326/з')`); m.ev(`switchTab(${TAB.zalog})`);
-  ok('п. 49 · делёж не опубликован — заметка-приглашение видна (326)',
+  ok('п. 48 · делёж не опубликован — заметка-приглашение видна (326)',
      /делёж между кредитами ещё не опубликован/.test(m.active().textContent));
   m.ev(`
     openRealizationModal(0);
@@ -346,7 +371,7 @@ ok('расход увеличивает сумму требования и не 
     saveDistribution(0);
   `);
   m.ev(`switchTab(${TAB.zalog})`);
-  ok('п. 49 · строка возврата залогодателю при реализации залога (326)',
+  ok('п. 48 · строка возврата залогодателю при реализации залога (326)',
      /Возврат залогодателю/.test(m.active().textContent));
   ok('п. 33 · непокрытый остаток назван пунктом (326)', /п\. 33/.test(m.active().textContent)); }
 
@@ -371,10 +396,10 @@ ok('акт по общему иску двигает фазу обоих сол�
     dates:D('20.07.2026','20.07.2026','20.07.2026'), num:'ТЕСТ-ОПР-307',
     outcome:'принято к производству', sum:'122 300,00', targets:t });
   return t.length === 2
-      && phaseOf(REQ_INDEX['307/307/з']) === 'Иск' && phaseOf(REQ_INDEX['307/307/п']) === 'Иск';
+      && phaseOf(REQ_INDEX['307/307/з']) === 'Иск' && phaseOf(REQ_INDEX['307/307/п-307']) === 'Иск';
 })()`));
 ok('требование поручителю двигает только его требование',
-   g.ev(`${P('307')}.measures.find(m=>m.num==='ТП-307').targets.join(',')`) === '307/307/п');
+   g.ev(`${P('307')}.measures.find(m=>m.num==='ТП-307').targets.join(',')`) === '307/307/п-307');
 ok('три оси результата упразднены (ADR-0028 п.1) — единый outcome, resultIsDocument-вид его не несёт (иск 142)',
    g.ev(`(()=>{
   const isk = ${P('142')}.measures.find(x=>x.kind==='Исковое заявление');
@@ -411,24 +436,50 @@ ok('дело закрыто ⟺ закрыты все его требовани�
    g.ev(`PROCESSES.every(p => !!outcomeOfProc(p) === p.requirements.every(isClosedReq))`));
 ok('сироты нет: у открытого требования всегда есть остаток',
    g.ev(`allReqs().filter(r=>!isClosedReq(r)).every(r => debtOf(r).totalLeft > 0)`));
-ok('нулевой остаток закрывает требование сам',
+/* `ADR-0053`/МП-О4: нулевой остаток — кандидат в терминал «Полное погашение», не
+   автоматическое закрытие — тот же гейт треков (tracksClosedFor), что и у остальных
+   шести терминалов. На затравке ЗС все четыре нулевых требования (206·207·208·380)
+   и без гейта, и с ним закрыты — прежняя формулировка держалась только на этом
+   совпадении и молчала бы, доведись гейту когда-нибудь сработать. Второй ассерт
+   заводит трек синтетически (открыватель без закрывателя) и проверяет гейт по
+   существу: нулевой остаток при открытом судебном треке требование не закрывает. */
+ok('нулевой остаток закрывает требование при закрытых треках (МП-О4/ADR-0053)',
    g.ev(`allReqs().filter(r => debtOf(r).totalLeft <= 0).every(isClosedReq)`));
+ok('нулевой остаток НЕ закрывает требование, пока открыт судебный трек', mk().ev(`(() => {
+  const r = REQ_INDEX['208/208/з'];
+  const before = isClosedReq(r);
+  r._proc.measures.push({sec:'Судебный', kind:'Исковое заявление',
+    dates:{event:TODAY, received:TODAY, registered:TODAY}, num:'ТЕСТ-МП-О4', targets:[r.id]});
+  const afterOpen = !isClosedReq(r) && !tracksClosedFor(r);
+  r._proc.measures.pop();
+  return before === true && afterOpen;
+})()`));
 ok('исход дела — сильнейший из исходов требований',
    g.ev(`PROCESSES.filter(outcomeOfProc).every(p => outcomeOfProc(p) ===
      p.requirements.map(outcomeOf).sort((a,b)=>TERMINAL_RANK[b]-TERMINAL_RANK[a])[0])`));
 /* Пересчитано по затравке ЗС: закрыты 14 требований (T-ПОГАШЕНИЕ 208 · 380, K0-РЕТРО
    206 · 207, K6-ЗАВЕРШЕНО 364 · 365, K7 370…378) и ровно те же 14 дел — все они
    однотребовательные, поэтому числа совпадают. */
-ok('закрытых требований 14, закрытых дел 14',
-   g.ev(`allReqs().filter(isClosedReq).length`) === 14 && g.ev(`PROCESSES.filter(isClosed).length`) === 14);
+/* `ADR-0053`: гейт треков (`tracksClosedFor`) стал общим для всех семи терминалов,
+   а не только нулевого остатка — часть затравки, что раньше закрывалась по одному
+   терминальному факту, держит открытый суд/ИЛ трек и больше не закрывается. Число
+   упало 14 → 6, но однотребовательность дел сохранена — счётчики по-прежнему равны. */
+ok('закрытых требований 6, закрытых дел 6',
+   g.ev(`allReqs().filter(isClosedReq).length`) === 6 && g.ev(`PROCESSES.filter(isClosed).length`) === 6);
 ok('Р-9 · ретро-закрытое дело скрыто из списка по умолчанию (K0-РЕТРО 206)',
    g.ev(`baseSet().some(r => r.proc==='206')`) === false);
 /* ADR-0023 §5: группа больше не зависит от подтверждения передачи — источник теперь
    терминальный исход / состояние лица / худшая стадия открытых требований. */
-ok('терминальный исход даёт группу «Погашенные» (208)', g.ev(`groupOf(${P('208')})`) === 'Погашенные');
+/* §4.14: значения групп — коды нормы, а не наши имена. 208 стоял «Погашенные» —
+   теперь «5.1» (п. 64); 402 стоял «Досудебный порядок» — имя СТАДИИ, группой Порядок
+   его не называет вовсе, и досудебная работа по норме остаётся «1.1» (п. 14 присвоил,
+   п. 21 переведёт только на иске). Стадия при этом никуда не делась — она отдельная ось
+   и своим фильтром показывается по-прежнему. */
+ok('терминальный исход даёт группу «5.1 Погашенные» (208)', g.ev(`groupOf(${P('208')})`) === '5.1'
+   && g.ev(`groupLabelOf(${P('208')})`) === '5.1 Погашенные');
 ok('группа выводится и при ждущей приёма передаче — по стадии открытых требований (402)',
    g.ev(`${P('402')}.requirements.every(r=>handoverPending(r))`)
-   && g.ev(`groupOf(${P('402')})`) === 'Досудебный порядок');
+   && g.ev(`groupOf(${P('402')})`) === '1.1' && g.ev(`stageOfReq(${P('402')}.requirements[0])`) === 'Досудебный порядок');
 
 /* ══════════════════════════════════════════════════════════════════════════
    М-11 — СОСТОЯНИЯ ПО ПРИРОДЕ: обязательство · лицо · ведение дела
@@ -438,14 +489,26 @@ ok('состояния обязательства живут на требова
 /* Затравка ЗС держит паузу только на однотребовательных делах (K1-ПАУЗА-ГП 317 · 318,
    K1-ПАУЗА-РЕСТР 319 · 210), поэтому «не задевает солидарного соседа» показывается на
    паре 307: пауза ставится тем же путём, что и в интерфейсе, и остаётся у заёмщика. */
+/* Шаг 3 наряда (ADR-0063): пауза по п. 17 ставится РЕШЕНИЕМ комитета — форма без его
+   реквизитов состояния не пишет вовсе, поэтому сценарий заполняет их наравне с датами. */
 ok('пауза стоит на требовании заёмщика, не на солидарном поручителе', mk().ev(`(() => {
   openDetail('307/307/з');
   openPauseModal();
-  document.getElementById('pauseType').value = 'Гарантийное письмо (п. 18)';
+  document.getElementById('pauseType').value = 'Гарантийное письмо (п. 17)';
+  document.getElementById('pauseFrom').value = '2026-07-21';
+  document.getElementById('pauseUntil').value = '2026-08-20';
+  document.getElementById('pauseDecision').value = 'протокол ПРОТ-307/БА от 21.07.2026';
+  savePause();
+  return !!pausedState(REQ_INDEX['307/307/з']) && !pausedState(REQ_INDEX['307/307/п-307']);
+})()`));
+ok('пауза по п. 17 без реквизитов решения комитета не ставится', mk().ev(`(() => {
+  openDetail('307/307/з');
+  openPauseModal();
+  document.getElementById('pauseType').value = 'Гарантийное письмо (п. 17)';
   document.getElementById('pauseFrom').value = '2026-07-21';
   document.getElementById('pauseUntil').value = '2026-08-20';
   savePause();
-  return !!pausedState(REQ_INDEX['307/307/з']) && !pausedState(REQ_INDEX['307/307/п']);
+  return !pausedState(REQ_INDEX['307/307/з']);
 })()`));
 ok('оверлей подменяет надпись фазы, саму фазу не трогает',
    g.ev(`displayPhase(${R('210/210/з')})`) === 'Рассмотрение вопроса реструктуризации'
@@ -475,14 +538,18 @@ ok('таблица состояний даёт уровень обязатель
    ЦЕЛИКОМ обычный measureTargetsHtml()/measureTargets(), уже покрытый другими
    проверками этого файла для прочих видов меры; Проект/Определение/Констатация
    мирового ничего своего в этот механизм не добавляют — отдельного теста не нужно. */
+/* Гейт проверяется мерой ИЗ ПРЕДМЕТА приостановки: гарантийное письмо (п. 17)
+   останавливает безакцептное списание и НЕ трогает повторную претензию (ADR-0063) —
+   раньше здесь стояла именно претензия, и проверка подтверждала слишком широкую паузу. */
 ok('пауза ставится и снимается на требовании', mk().ev(`(() => {
   openDetail('201/201/з');
   openPauseModal();
-  document.getElementById('pauseType').value = 'Гарантийное письмо (п. 18)';
+  document.getElementById('pauseType').value = 'Гарантийное письмо (п. 17)';
   document.getElementById('pauseFrom').value = '2026-07-21';
   document.getElementById('pauseUntil').value = '2026-08-20';
+  document.getElementById('pauseDecision').value = 'протокол ПРОТ-201/БА от 21.07.2026';
   savePause();
-  const on = !!pausedState(curReq) && measureGate(curReq,'Повторная претензия').kind === 'pause';
+  const on = !!pausedState(curReq) && measureGate(curReq,'Безакцептное списание').kind === 'pause';
   liftPause();
   return on && !pausedState(curReq);
 })()`));
@@ -500,8 +567,12 @@ ok('закрытое требование мер не регистрирует',
 ok('окно ожидания блокирует первичную претензию',
    g.ev(`measureGate(${R('201/201/з')}, 'Первичная претензия').kind`) === 'window'
    && /Окно ожидания/.test(g.ev(`measureGate(${R('201/201/з')}, 'Первичная претензия').reason`)));
+/* Проба сменена со «Служебной записки в ДПО» на «Акт сверки» (§4.14): у записки теперь
+   своё предусловие — вручение претензии (п. 20.1, servedKinds), и на деле 201 претензии
+   ещё нет вовсе, так что гейт вернулся бы не пустой. Проверяется по-прежнему то же:
+   окно ожидания держит ТОЛЬКО первичную претензию, соседние виды ему не подчиняются. */
 ok('окно ожидания не блокирует прочие виды',
-   g.ev(`!measureGate(${R('201/201/з')}, 'Служебная записка в ДПО')`));
+   g.ev(`!measureGate(${R('201/201/з')}, 'Акт сверки')`));
 ok('окно нигде не превышает 14 к.д.',   g.ev(`PROCESSES.every(p => !p.window || p.window.days <= 14)`));
 ok('отстранение куратора блокирует всё по делу',
    g.ev(`measureGate(${R('395/395/з')}, 'Повторная претензия').kind`) === 'conflict');
@@ -509,17 +580,28 @@ ok('отстранение куратора блокирует всё по де�
    заёмщику, у солидарного поручителя гейта нет. */
 { const m = mk();
   ok('пауза требования блокирует только его',
-     g.ev(`measureGate(${R('210/210/з')}, 'Акт сверки').kind`) === 'pause'
+     g.ev(`measureGate(${R('210/210/з')}, 'Повторная претензия').kind`) === 'pause'
      && m.ev(`(() => {
        openDetail('307/307/з');
        openPauseModal();
-       document.getElementById('pauseType').value = 'Гарантийное письмо (п. 18)';
+       document.getElementById('pauseType').value = 'Гарантийное письмо (п. 17)';
        document.getElementById('pauseFrom').value = '2026-07-21';
        document.getElementById('pauseUntil').value = '2026-08-20';
+       document.getElementById('pauseDecision').value = 'протокол ПРОТ-307/БА от 21.07.2026';
        savePause();
-       return measureGate(REQ_INDEX['307/307/з'], 'Акт сверки').kind === 'pause'
-           && !measureGate(REQ_INDEX['307/307/п'], 'Акт сверки');
+       const g1 = measureGate(REQ_INDEX['307/307/з'], 'Безакцептное списание');
+       const g2 = measureGate(REQ_INDEX['307/307/п-307'], 'Безакцептное списание');
+       return g1 && g1.kind === 'pause' && (!g2 || g2.kind !== 'pause');
      })()`)); }
+/* ADR-0063 · ШИРИНА паузы, а не сам факт блокировки: у каждой паузы свой предмет.
+   Гарантийное письмо (п. 17) останавливает безакцепт и не трогает претензию; рассмотрение
+   реструктуризации (п. 18) останавливает меры п. 16 и не трогает судебный трек. */
+ok('гарантийное письмо останавливает безакцепт, но не претензию (317)',
+   g.ev(`measureGate(${R('317/317/з')}, 'Безакцептное списание').kind`) === 'pause'
+   && g.ev(`(measureGate(${R('317/317/з')}, 'Повторная претензия')||{}).kind !== 'pause'`));
+ok('рассмотрение реструктуризации останавливает меры п. 16, но не иск (210)',
+   g.ev(`measureGate(${R('210/210/з')}, 'Безакцептное списание').kind`) === 'pause'
+   && g.ev(`(measureGate(${R('210/210/з')}, 'Исковое заявление')||{}).kind !== 'pause'`));
 ok('безакцепт заблокирован без решения комитета (310, K1-БА-ГЕЙТ)',
    g.ev(`gateReason(${R('310/310/з')}, 'Безакцептное списание')`) !== null);
 { const m = mk(); m.setRole('Отдел проблемных кредитов (ОПК)');
@@ -531,9 +613,11 @@ ok('безакцепт заблокирован без решения комит
    воспроизвести старый сценарий «повторная регистрация уже пройденной вехи». Контур К1 —
    единственный, целиком состоящий из наших документов; 304 (K1-ПРЕТ2) стоит на «Повторной
    претензии» и паузой не прикрыт, поэтому виден именно гейт последовательности. */
+/* `ADR-0045`: отдельный гейт kind:'sequence' снят целиком — «повторная регистрация уже
+   пройденной вехи» теперь тот же precondition-гейт, что и остальные предусловия. */
 { const m = mk(); m.setRole('Куратор ОД / ДАК / РП');
   ok('пройденная веха не регистрируется повторно (304/304/з уже на фазе «Повторная претензия»)',
-     m.ev(`measureGate(${R('304/304/з')}, 'Первичная претензия').kind`) === 'sequence'); }
+     m.ev(`measureGate(${R('304/304/з')}, 'Первичная претензия').kind`) === 'precondition'); }
 { const m = mk(); m.setRole('Отраслевой департамент (ОД)');
   ok('В-9 · извещение недоступно отраслевому департаменту (полномочие ДПО)',
      /ДПО/.test(m.ev(`subdivReason('Извещение об обращении на залог')`))); }
@@ -542,8 +626,16 @@ ok('каждый гейт называет причину и пункт',
 ok('внесудебный порядок недоступен для имущественного комплекса (жёсткая блокировка)',
    g.ev(`${P('326')}.colls.some(c => /имущественный комплекс/.test(c.ban))`));
 ok('гейта «пересечение» в коде нет',   !/crossingOnCourt/.test(HTML));
+/* §4.14: снятого окна претензии больше не хватает — п. 16.2 требует ещё и телефонных
+   переговоров. Фикстура регистрирует их и ждёт ПУСТОЙ гейт: проверяется по-прежнему то
+   же самое, но теперь полный состав условий нормы, а не одно окно. */
 ok('закрытие окна отметкой открывает гейт', mk().ev(`(() => {
   openDetail('201/201/з'); closeWindowMark();
+  openMeasureModal();
+  document.getElementById('mKind').value = 'Телефонные переговоры с заёмщиком';
+  syncMeasureWarnings();
+  document.getElementById('mNum').value = 'ТЕСТ-ТП';
+  saveMeasure();
   return curProc.window.open === false && !measureGate(curReq, 'Первичная претензия');
 })()`));
 ok('кнопок назначения / переназначения / продления заданий нет',
@@ -551,9 +643,9 @@ ok('кнопок назначения / переназначения / прод�
      return !/Назначить исполнителя|Переназначить|Продлить срок/i.test(m.allTabsText()); })());
 /* Позиций в диалоге ровно столько, сколько их в чек-листе передачи (у 390 затравка ЗС
    даёт три) — и все они галочки с data-item, а не поле свободного текста: отклонение
-   по-прежнему структурное (п. 20.2). */
+   по-прежнему структурное (п. 19.2). */
 { const m = mk(); m.ev(`openDetail('390/390/з')`); m.ev(`openRejectProc('390/390/з')`);
-  ok('чек-лист структурный: отклонение перечисляет позиции чек-листа передачи (п. 20.2)',
+  ok('чек-лист структурный: отклонение перечисляет позиции чек-листа передачи (п. 19.2)',
      m.$$('#modalHost .rejChk').length === m.ev(`REQ_INDEX['390/390/з'].handovers.slice(-1)[0].checklist.length`)
      && m.$$('#modalHost .rejChk').length === 3
      && m.$$('#modalHost .rejChk').every(c => c.type === 'checkbox' && !!c.getAttribute('data-item'))
@@ -563,8 +655,10 @@ ok('кнопок назначения / переназначения / прод�
    СРОКИ — Р-3: вычисление от базы шаблона, сущности «задание» нет
    ══════════════════════════════════════════════════════════════════════════ */
 head('Р-3 · сроки порядка');
-ok('шаблонов сроков 48, у каждого база, срок и пункт',   // было 45 — наряд п.7 добавил строки 46/47 (7а) и 48 (7б)
+ok('шаблонов сроков 48, у каждого база, срок и пункт',   // было 45 — наряд п.7 добавил строки 46/47 (7а) и 48 (7б); 49 — шаг 4 наряда сверки, п. 37 (`ADR-0068`); 49 → 48 — `ADR-0081` снял ДУБЛЬ того же п. 37 (строки 29 и 49 несли один абзац нормы)
    g.ev('DEADLINE_TEMPLATES.length') === 48 && g.ev(`DEADLINE_TEMPLATES.every(t => t.base && t.term && t.point)`));
+ok('на п. 37 остался ровно один шаблон — дубля больше нет',
+   g.ev(`DEADLINE_TEMPLATES.filter(t => t.point === '37').map(t=>t.n).join(',') === '29'`));
 /* Апелляционный срок волны ЗС живёт в K3-РЕШЕНИЕ (336 · 337): база — дата ВЫНЕСЕНИЯ
    решения, не дата ввода записи. Разыменование внутри ev — исчезнувшее дело даёт провал
    проверки, а не обрыв прогона. */
@@ -578,6 +672,13 @@ ok('остаток срока считается от базы шаблона, �
 head('интерактив');
 ok('регистрация вехи двигает фазу свёрткой', mk().ev(`(() => {
   openDetail('201/201/з'); closeWindowMark();
+  /* §4.14: переговоры п. 16.2 — предусловие претензии; сами они вехой не являются
+     (ни один их исход не несёт setsPhase), так что фазу по-прежнему двигает претензия. */
+  openMeasureModal();
+  document.getElementById('mKind').value = 'Телефонные переговоры с заёмщиком';
+  syncMeasureWarnings();
+  document.getElementById('mNum').value = 'ТЕСТ-ТП';
+  saveMeasure();
   openMeasureModal();
   document.getElementById('mKind').value = 'Первичная претензия';
   syncMeasureWarnings();
@@ -605,10 +706,20 @@ ok('регистрация вехи двигает фазу свёрткой', m
      но документ не пересчитывается (И-1). */
   ok('И-1 · сумма документа иммутабельна, расхождение только помечается',
      g.ev(`${P('142')}.measures.find(x=>x.kind==='Исковое заявление').sum`) === '249 000,00'); }
-ok('В-8 · пересчёт при извещении выполняется на клике (диалог с новой суммой)', mk().ev(`(() => {
-  openDetail('307/307/з'); recalcOnIzveschenie();
-  return /пересчита/i.test(document.getElementById('modalHost').textContent);
+/* Шаг 4 наряда, §4.6 (`ADR-0067`): ускорение — следствие регистрации извещения, а не
+   отдельный клик. Прежняя проверка сторожила ровно обратное («пересчёт выполняется на
+   клике»): диалог с парой «Отмена / Зарегистрировать и пересчитать» позволял оставить
+   долг неускоренным, чего п. 20.1 не допускает. Теперь модалка только сообщает — у неё
+   одна кнопка, и слова «Отмена» в ней нет. */
+ok('В-8/§4.6 · извещение ускоряет долг само — модалка сообщает, а не спрашивает', mk().ev(`(() => {
+  openDetail('307/307/з'); noticeIzveschenie(applyIzveschenie());
+  const t = document.getElementById('modalHost').textContent;
+  return /наступили в день регистрации/i.test(t) && !/Отмена/.test(t)
+      && document.querySelectorAll('#modalHost .modal-f button').length === 1;
 })()`));
+ok('В-8/§4.6 · регистрация извещения зовёт ускорение прямо, без промежуточного согласия',
+   /if\(kind==='Извещение об обращении на залог'\)\{ const res=applyIzveschenie\(\)/.test(HTML)
+   && !/recalcOnIzveschenie/.test(HTML));
 /* Ускорение живёт НА МЕРЕ (accelerated + scope), а не полем требования: после клика
    веха несёт обе цели, и притязание обоих солидарных требований становится полным
    остатком. ВНИМАНИЕ (находка волны ЗС, отчёт Task 11): у поручителя ярлык охвата при
@@ -617,7 +728,7 @@ ok('В-8 · пересчёт при извещении выполняется н
    в массиве). Деньги ускорены, надпись — нет; здесь проверяется то, что модель делает. */
 ok('извещение ускоряет охват всех солидарных требований (мера, не поле — ADR-0025)', mk().ev(`(() => {
   openDetail('307/307/з'); applyIzveschenie();
-  const z = REQ_INDEX['307/307/з'], p = REQ_INDEX['307/307/п'], veha = liveMilestones(z).slice(-1)[0];
+  const z = REQ_INDEX['307/307/з'], p = REQ_INDEX['307/307/п-307'], veha = liveMilestones(z).slice(-1)[0];
   return scopeOf(z).volume === 'полный остаток' && veha.accelerated === true
       && veha.targets.includes(p.id) && z.scope === undefined && p.scope === undefined
       && claimOf(z) === 152300 && claimOf(p) === 152300;
@@ -682,7 +793,7 @@ ok('вкладки разделены: 3 дела + 6 требования',
      && m.dhead().querySelectorAll('.phead-dims input, .phead-dims select').length === 0
      && m.dhead().querySelectorAll('.phead-dims .dim .src').length === 4); }
 /* Передача, ждущая приёма, живёт в ситуации ВЕД-ПЕРЕДАЧА и на многокредитном 402:
-   у 402 счётчик п. 98 показывает 3 р.д. из 5, у 390 — 2 р.д. */
+   у 402 счётчик приёма показывает 3 р.д. из 5, у 390 — 2 р.д. */
 ok('счётчик приёма передачи работает (402/570/з — осталось 3 р.д.)', g.ev(`(() => {
   const r = REQ_INDEX['402/570/з']; const h = r.handovers[r.handovers.length-1];
   return h.state==='ждёт' && h.leftRd === 3 && h.deadlineRd === 5;
@@ -691,7 +802,7 @@ ok('счётчик приёма передачи работает (402/570/з �
   ok('словарь принимающих подразделений закрыт (селектор из DEPARTMENTS)',
      m.ev('DEPARTMENTS.length') >= 7 && m.$$('#newDept option').length === m.ev("DEPARTMENTS.length - 1")); }
 ok('карточка открывается по id требования', mk().ev(`(() => {
-  openDetail('307/307/п'); return curReq.id === '307/307/п' && curProc.id === '307';
+  openDetail('307/307/п-307'); return curReq.id === '307/307/п-307' && curProc.id === '307';
 })()`));
 ok('карточка по id дела берёт первое требование', mk().ev(`(() => {
   openDetail('307'); return curProc.id === '307' && curReq.id === '307/307/з';
@@ -702,15 +813,15 @@ ok('все девять панелей рендерятся без ошибок'
   return s.errs.length === 0;
 })());
 ok('переключение требования не уводит с карточки', mk().ev(`(() => {
-  openDetail('307/307/з'); pickReq('307/307/п');
-  return curReq.id === '307/307/п' && document.getElementById('view-detail').style.display === 'flex';
+  openDetail('307/307/з'); pickReq('307/307/п-307');
+  return curReq.id === '307/307/п-307' && document.getElementById('view-detail').style.display === 'flex';
 })()`));
 ok('хеш переживает кириллический id требования', mk().ev(`(() => {
-  openDetail('307/307/п'); return curHash() === 'detail/307/307/п/' + TABS[curTab].slug;
+  openDetail('307/307/п-307'); return curHash() === 'detail/307/307/п-307/' + TABS[curTab].slug;
 })()`));
 ok('возврат по хешу открывает то же требование', mk().ev(`(() => {
-  openDetail('307/307/п'); showView('list'); location.hash = 'detail/307/307/п'; restoreFromHash();
-  return curReq.id === '307/307/п';
+  openDetail('307/307/п-307'); showView('list'); location.hash = 'detail/307/307/п-307'; restoreFromHash();
+  return curReq.id === '307/307/п-307';
 })()`));
 ok('реестр претензий ведёт на требование-адресат', mk().ev(`(() => {
   regRender('claims');
@@ -723,26 +834,39 @@ ok('реестр претензий ведёт на требование-адр�
 head('RULES · правила и настройки');
 ok('RULES.measureSubdiv идентичен литералу MEASURE_SUBDIV',
    g.ev('JSON.stringify(RULES.measureSubdiv)===JSON.stringify(MEASURE_SUBDIV)'));
-ok('RULES.sectionClevel идентичен литералу SECTION_CLEVEL',
-   g.ev('JSON.stringify(RULES.sectionClevel)===JSON.stringify(SECTION_CLEVEL)'));
-ok('RULES.contourPhases.К1 совпадает с CONTOURS.К1.phases',
-   g.ev(`JSON.stringify(RULES.contourPhases['К1'])===JSON.stringify(CONTOURS['К1'].phases)`));
-ok('phasesOf(К1) читает порядок из RULES',
+/* `ADR-0045` (наряд п.5б-i/ii) снял контурную лестницу, а вместе с ней ключи
+   RULES.sectionClevel и RULES.contourPhases, вкладки «Стадии»/«Фазы» и sequenceReason.
+   Десять проверок этой секции сверяли живой слой со снятыми литералами и падали с самого
+   перехода на схему правил 3 — «старый долг» смоука. Переписаны под нынешний слой (правило
+   наряда: ожидание переписывают под новое поведение, а не отключают): сверяется то, что в
+   RULES ЕСТЬ, и отдельной проверкой — что снятого в нём НЕТ. */
+ok('RULES.preconditions идентичен литералу PRECONDITIONS',
+   g.ev('JSON.stringify(RULES.preconditions)===JSON.stringify(PRECONDITIONS)'));
+ok('снятых ключей лестницы в живом слое нет — оси ровно те же, что в дефолте',
+   g.ev(`(() => { const k = Object.keys(RULES).filter(x => x !== 'log').sort();
+     return k.join() === Object.keys(RULES_DEFAULTS).sort().join()
+       && !('sectionClevel' in RULES) && !('contourPhases' in RULES); })()`));
+/* phasesOf пережил снятие лестницы легаси-свёрткой и читает CONTOURS напрямую, а не RULES
+   (`collection.html`, комментарий у CONTOUR_LEVEL). Проверка та же, название — правдивое. */
+ok('phasesOf(К1) читает порядок из CONTOURS — свёртка пережила снятие лестницы легаси',
    g.ev(`phasesOf('К1').join('>')`) === 'Претензия>Повторная претензия>Безакцептное списание');
 ok('RULES_DEFAULTS заморожен', g.ev('Object.isFrozen(RULES_DEFAULTS)') === true);
 { const m = mk();
+  /* Механика персиста и сброса прежняя, правится другой ключ: sectionClevel снят
+     `ADR-0045`. Живой скаляр той же природы — RULES.secondCounter (`ADR-0051` §3): он
+     есть в RULES_DEFAULTS, его правит экран, и он не участвует в проверках рядом. */
   ok('persistRules пишет версию схемы и правила', m.ev(`(()=>{
-    RULES.sectionClevel['Досудебный']=3; persistRules();
+    RULES.secondCounter.days=120; persistRules();
     const box=JSON.parse(localStorage.getItem(RULES_KEY));
-    return box.v===RULES_SCHEMA && box.rules.sectionClevel['Досудебный']===3;
+    return box.v===RULES_SCHEMA && box.rules.secondCounter.days===120;
   })()`));
   ok('resetRulesAll восстанавливает дефолт', m.ev(`(()=>{
-    RULES.sectionClevel['Досудебный']=3; resetRulesAll();
-    return RULES.sectionClevel['Досудебный']===RULES_DEFAULTS.sectionClevel['Досудебный'];
+    RULES.secondCounter.days=120; resetRulesAll();
+    return RULES.secondCounter.days===RULES_DEFAULTS.secondCounter.days;
   })()`));
   ok('resetRulesSection сбрасывает одну ось', m.ev(`(()=>{
-    RULES.gates={}; RULES.sectionClevel['Судебный']=5; resetRulesSection('gates');
-    return Object.keys(RULES.gates).length>0 && RULES.sectionClevel['Судебный']===5;
+    RULES.gates={}; RULES.secondCounter.days=120; resetRulesSection('gates');
+    return Object.keys(RULES.gates).length>0 && RULES.secondCounter.days===120;
   })()`)); }
 { const m = mk(); m.ev(`showView('settings')`);
   ok('showView(settings) показывает экран и пишет hash со вкладкой',
@@ -767,14 +891,18 @@ ok('RULES_DEFAULTS заморожен', g.ev('Object.isFrozen(RULES_DEFAULTS)') 
   m.asAdmin();   /* предыдущая проверка переключила роль на куратора — правила правит админ */
   ok('toggleRoleSubdiv меняет роль→подразделения',
      m.ev(`(()=>{ toggleRoleSubdiv('Наблюдатель','ОД'); return RULES.roleSubdiv['Наблюдатель'].join()==='ОД'; })()`)); }
-{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('stage')`);
-  ok('вкладка Стадии рендерит селект на каждый раздел',
-     m.$$('#settingsHost .settings-grid tbody tr select').length === m.ev('SECTION_ORDER.length'));
-  ok('повышение sectionClevel блокирует меру раздела на низкой ступени', m.ev(`(()=>{
-    const r = allReqs().find(x => contourOf(x)==='К1');
-    const before = sequenceReason(r,'Акт сверки');
-    setSectionClevel('Досудебный',4);
-    return !before && !!sequenceReason(r,'Акт сверки');
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings')`);
+  /* Вкладки «Стадии» нет с `ADR-0045`, проверять на ней нечего. Обе проверки развёрнуты в
+     обратную сторону: экран не должен вернуть снятую вкладку молча, а блокировка по
+     ступени эскалации переехала со ступени РАЗДЕЛА на порог ВИДА (`minLevel`). */
+  ok('вкладок настроек четыре, снятых «Стадии» и «Фазы» среди них нет',
+     m.ev(`SETTINGS_TABS.map(t=>t[0]).join()`) === 'v9,gates,preconditions,secondCounter'
+     && m.ev(`typeof renderSettingsStage`) === 'undefined');
+  ok('повышение порога эскалации у вида блокирует меру на низкой ступени', m.ev(`(()=>{
+    const r = allReqs().find(x => !preconditionReason(x,'Исковое заявление'));
+    if(!r) return false;
+    setPreconditionLevel('Исковое заявление',4);
+    return !!preconditionReason(r,'Исковое заявление');
   })()`)); }
 { const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('gates')`);
   ok('вкладка Гейты рендерит строку на каждый гейт',
@@ -785,20 +913,26 @@ ok('RULES_DEFAULTS заморожен', g.ev('Object.isFrozen(RULES_DEFAULTS)') 
     toggleGate('Исковое заявление');
     return !gateReason(r,'Исковое заявление');
   })()`)); }
-{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('phases')`);
-  ok('вкладка Предусловия рендерит блок на каждый контур',
-     m.$$('#settingsHost .phase-contour').length === m.ev('Object.keys(CONTOURS).length'));
-  ok('movePhase меняет порядок в RULES.contourPhases', m.ev(`(()=>{
-    movePhase('К1',0,1);
-    return phasesOf('К1')[0]==='Повторная претензия' && phasesOf('К1')[1]==='Претензия';
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('preconditions')`);
+  /* Вкладка «Предусловия» строится по ВИДАМ меры, а не по контурам (их она не знает вовсе),
+     и правит запись вида, а не порядок фаз: movePhase и sequenceReason сняты `ADR-0045`.
+     Смысл трёх проверок сохранён — экран показывает все виды и его правка меняет ответ
+     гейта, — точка приложения переписана с перестановки фаз на запись предусловия. */
+  ok('вкладка Предусловия рендерит строку на каждый вид меры',
+     m.$$('#settingsHost .settings-grid tbody tr').length === m.ev('MEASURE_KIND_NAMES.length'));
+  ok('правка записи предусловия ложится в RULES.preconditions', m.ev(`(()=>{
+    togglePreconditionBlock('Повторная претензия','Претензия');
+    return (RULES.preconditions['Повторная претензия'].blockIfPhaseIn||[]).includes('Претензия')
+       !== (PRECONDITIONS['Повторная претензия'].blockIfPhaseIn||[]).includes('Претензия');
   })()`));
-  ok('переупорядочивание меняет предусловие sequenceReason', m.ev(`(()=>{
-    resetRulesSection('contourPhases');
-    const r = allReqs().find(x => phaseOf(x)==='Претензия');
-    const before = sequenceReason(r,'Повторная претензия');
-    movePhase('К1',0,1);
-    const after = sequenceReason(r,'Повторная претензия');
-    resetRulesSection('contourPhases');
+  ok('смена требуемой фазы меняет ответ preconditionReason', m.ev(`(()=>{
+    resetRulesSection('preconditions');
+    const r = allReqs().find(x => !preconditionReason(x,'Повторная претензия'));
+    if(!r) return false;
+    const before = preconditionReason(r,'Повторная претензия');
+    setPreconditionPhase('Повторная претензия','Признано банкротом');
+    const after = preconditionReason(r,'Повторная претензия');
+    resetRulesSection('preconditions');
     return !before && !!after;
   })()`)); }
 
@@ -897,7 +1031,7 @@ head('НП-1…НП-16 · настройки правил');
     return changedAll()===0;
   })()`));
   ok('НП-6 откат вкладки и экрана считает правила', m.ev(`(()=>{
-    toggleV9('Акт сверки','ОПК'); setSectionClevel('Судебный',3);
+    toggleV9('Акт сверки','ОПК'); setPreconditionLevel('Исковое заявление',3);
     const two=changedAll()===2;
     resetTabRules('v9');
     const one=changedAll()===1 && changedInTab('v9')===0;
@@ -905,15 +1039,17 @@ head('НП-1…НП-16 · настройки правил');
     return two && one && changedAll()===0;
   })()`)); }
 /* НП-7 · радиус правки: кого правило задевает сейчас */
-{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('stage')`);
-  ok('НП-7 радиус стадии считается на лету и совпадает с проверкой доступа', m.ev(`(()=>{
-    const L=RULES.sectionClevel['Исполнительное производство'] ?? 1;
-    return openAtLevel(L)===allReqs().filter(r=>!sequenceReason(r,'Заявление о выдаче исполнительного листа')||
-      !/стадии/.test(sequenceReason(r,'Заявление о выдаче исполнительного листа')||'')).length ||
-      openAtLevel(L)>0;
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('preconditions')`);
+  /* Радиус считался по ступени РАЗДЕЛА (openAtLevel/sequenceReason) — обе свёртки сняты
+     `ADR-0045` вместе с лестницей. Носитель радиуса теперь запись предусловия ВИДА, и
+     проверка та же по сути: показанное число обязано совпасть с ответом самого гейта. */
+  ok('НП-7 радиус предусловия считается на лету и совпадает с проверкой доступа', m.ev(`(()=>{
+    const k='Заявление на банкротство';
+    return preconditionHolds(k)===allReqs().filter(r=>!!preconditionReason(r,k)).length
+      && preconditionHolds(k)>0;
   })()`));
-  ok('НП-7 радиус стадии показан в таблице',
-     m.$('#settingsHost').textContent.includes('доступен'));
+  ok('НП-7 радиус предусловия показан в таблице',
+     m.$('#settingsHost').textContent.includes('держит'));
   m.ev(`showSettingsTab('gates')`);
   ok('НП-7 радиус гейта = число требований, которые он держит', m.ev(`(()=>{
     const k='Исковое заявление';
@@ -975,36 +1111,54 @@ head('НП-1…НП-16 · настройки правил');
     return !RULES.gates['Безакцептное списание'].off && changedAll()===0;
   })()`)); }
 /* НП-11 · стадии: ступень названа контуром, закрытие для всех предупреждает */
-{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('stage')`);
-  ok('НП-11 ступень подписана именем контура, а не числом',
-     m.$('#settingsHost').textContent.includes('с безнадёжной (К7)') &&
-     m.$('#settingsHost').textContent.includes('с самого начала (К0)'));
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('preconditions')`);
+  /* Вкладки «Стадии» нет с `ADR-0045`; НП-11 переносится на её наследницу — вкладку
+     предусловий. Две проверки сохраняют смысл прямо (требуемое названо словами, радиус
+     пишется в журнал «до → после»), третья меняет ЛИЦО осознанно: у предусловия нет
+     подтверждения при сужении — оно есть только у отключения гейта (НП-10, единственное
+     место с confirm). Взамен проверяется то, чем предусловие действительно защищено:
+     радиусом в журнале и обратимостью правки. */
+  ok('НП-11 требуемое подписано словами, а не числом',
+     m.$('#settingsHost').textContent.includes('Требуемая фаза') &&
+     m.$('#settingsHost').textContent.includes('Порог эскалации'));
   ok('НП-11 радиус называет «до → после» в журнале правок', m.ev(`(()=>{
-    setSectionClevel('Судебный',3);
-    return /доступен \\d+ → \\d+/.test(RULES.log[0].what);
+    setPreconditionLevel('Исковое заявление',3);
+    return /держит \\d+ → \\d+/.test(RULES.log[0].what);
   })()`));
-  ok('НП-11 сужение доступа спрашивает подтверждение и без него не проходит', m.ev(`(()=>{
-    __ok=false; const was=RULES.sectionClevel['Досудебный'];
-    setSectionClevel('Досудебный',4); __ok=true;
-    return openAtLevel(4)<openAtLevel(was) && RULES.sectionClevel['Досудебный']===was;
+  ok('НП-11 сужение предусловия обратимо из журнала — подтверждения оно не спрашивает', m.ev(`(()=>{
+    const was=RULES.preconditions['Исковое заявление'].minLevel;
+    __ok=false; setPreconditionLevel('Исковое заявление',4); __ok=true;
+    const narrowed = RULES.preconditions['Исковое заявление'].minLevel===4;
+    undoRuleEdit(0);
+    return narrowed && RULES.preconditions['Исковое заявление'].minLevel===was;
   })()`));
-  ok('НП-11 расширение доступа проходит без вопроса', m.ev(`(()=>{
-    __ok=false; setSectionClevel('Безнадёжная',0); __ok=true;
-    return RULES.sectionClevel['Безнадёжная']===0 && openAtLevel(0)===allReqs().length;
-  })()`)); }
+  ok('НП-11 confirm живёт только у гейта и сбросов, не у предусловия',
+     m.ev(`(()=>{ const src=String(setPreconditionLevel)+String(editPrecondition)+String(editRule);
+       return !/confirm\\(/.test(src) && /confirm\\(/.test(String(toggleGate)); })()`)); }
 /* НП-12 · фазы: счётчик требований и предупреждение при перестановке */
-{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('phases')`);
-  ok('НП-12 у каждой фазы показано, сколько требований в ней стоит сейчас',
-     m.$('#settingsHost').textContent.includes('в этой фазе') &&
-     m.$('#settingsHost').textContent.includes('требований в контуре'));
-  ok('НП-12 отказ в подтверждении оставляет порядок прежним', m.ev(`(()=>{
-    __ok=false; movePhase('К1',0,1); __ok=true;
-    return phasesOf('К1')[0]==='Претензия' && changedAll()===0;
+{ const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('preconditions')`);
+  /* Порядок фаз правилом не правится с `ADR-0045` (movePhase снят), и вместе с ним ушли
+     обе проверки перестановки. Смысл НП-12 — «видно, кого правило задевает» и «правка
+     правил не перекладывает уже стоящие требования» — сохранён на живой оси. */
+  /* «никого не держит» на живой затравке не появляется — каждое заведённое предусловие
+     задевает хотя бы одно требование; поэтому проверяется пара «есть радиус у записи ·
+     назван прочерк там, где записи нет», а не обе половины формулировки радиуса. */
+  ok('НП-12 у каждой строки показано, сколько требований правило держит сейчас',
+     m.$('#settingsHost').textContent.includes('держит') &&
+     m.$('#settingsHost').textContent.includes('без предусловия') &&
+     m.$('#settingsHost').textContent.includes(String(m.ev(`preconditionHolds('Заявление на банкротство')`))));
+  ok('НП-12 отказ в подтверждении сброса оставляет правила прежними', m.ev(`(()=>{
+    setPreconditionLevel('Исковое заявление',3);
+    __ok=false; resetTabRules('preconditions'); __ok=true;
+    return RULES.preconditions['Исковое заявление'].minLevel===3 && changedAll()===1;
   })()`));
-  ok('НП-12 перестановка не перекладывает требования по фазам', m.ev(`(()=>{
+  ok('НП-12 правка предусловия не перекладывает требования по фазам', m.ev(`(()=>{
+    resetRulesSection('preconditions');
     const before=allReqs().map(phaseOf).join('|');
-    movePhase('К1',0,1);
-    return phasesOf('К1')[0]==='Повторная претензия' && allReqs().map(phaseOf).join('|')===before;
+    setPreconditionPhase('Повторная претензия','Признано банкротом');
+    const after=allReqs().map(phaseOf).join('|');
+    resetRulesSection('preconditions');
+    return RULES.preconditions['Повторная претензия'].requiredPhase==='Претензия' && after===before;
   })()`)); }
 /* НП-13 · тулбар как на реестрах и дип-линк вкладки */
 { const m = mk(); m.asAdmin(); m.ev(`showView('settings'); showSettingsTab('v9')`);
@@ -1026,9 +1180,13 @@ head('НП-1…НП-16 · настройки правил');
     setClear('setSec');
     return n === kindsOfSection('Судебный').length + 1;
   })()`));
-  ok('НП-13 фильтр по разделу прячется на вкладке фаз', m.ev(`(()=>{
-    showSettingsTab('phases');
-    return document.getElementById('setSecWrap').style.display==='none';
+  /* Вкладка «Фазы» снята `ADR-0045`; требование НП-13 «фильтр прячется там, где раздела у
+     строк нет» переехало на «Порог МП5-11» — правило там одно на модуль (`ADR-0051` §3). */
+  ok('НП-13 фильтр по разделу прячется на вкладке без разделов', m.ev(`(()=>{
+    showSettingsTab('secondCounter');
+    const hidden=document.getElementById('setSecWrap').style.display==='none';
+    showSettingsTab('v9');
+    return hidden && document.getElementById('setSecWrap').style.display!=='none';
   })()`));
   const m2 = mk(); m2.w.location.hash = '#settings/gates'; m2.ev('restoreFromHash()');
   ok('НП-13 дип-линк открывает нужную вкладку',
@@ -1038,21 +1196,27 @@ head('НП-1…НП-16 · настройки правил');
 /* НП-14 · персист: слияние по полям + версия схемы */
 { const m = mk();
   ok('НП-14 правила чужой версии сбрасываются, а не домысливаются', m.ev(`(()=>{
-    localStorage.setItem(RULES_KEY, JSON.stringify({ v:1, rules:{ sectionClevel:{'Досудебный':4} } }));
+    localStorage.setItem(RULES_KEY, JSON.stringify({ v:1, rules:{ preconditions:{'Исковое заявление':{minLevel:4}} } }));
     RULES=deepClone(RULES_DEFAULTS); RULES.log=[];
     restoreRules();
-    return RULES.sectionClevel['Досудебный']===RULES_DEFAULTS.sectionClevel['Досудебный'] &&
+    return RULES.preconditions['Исковое заявление'].minLevel===RULES_DEFAULTS.preconditions['Исковое заявление'].minLevel &&
            localStorage.getItem(RULES_KEY)===null;
   })()`));
   ok('НП-14 незнакомый ключ и чужой код подразделения в живые правила не попадают', m.ev(`(()=>{
     localStorage.setItem(RULES_KEY, JSON.stringify({ v:RULES_SCHEMA, rules:{
       measureSubdiv:{ 'Мера, которой нет':['ОД'], 'Акт сверки':['ОД','ЧУЖОЕ'] },
-      contourPhases:{ 'К1':['Повторная претензия','Фаза, которой нет'] } } }));
+      preconditions:{ 'Мера, которой нет':{minLevel:2}, 'Исковое заявление':{minLevel:9, basis:true, чужое:'поле'} } } }));
     RULES=deepClone(RULES_DEFAULTS); RULES.log=[];
     restoreRules();
+    /* Третий подставной ключ был contourPhases (снят решением ADR-0045) — та же проверка
+       на живой оси: незнакомый вид меры не заводится, негодная величина и чужое поле
+       теряются, а годная часть записи выживает. */
     return !RULES.measureSubdiv['Мера, которой нет'] &&
            (RULES.measureSubdiv['Акт сверки']||[]).join()==='ОД' &&
-           RULES.contourPhases['К1'].join('>')==='Повторная претензия>Претензия>Безакцептное списание';
+           !RULES.preconditions['Мера, которой нет'] &&
+           RULES.preconditions['Исковое заявление'].minLevel===undefined &&
+           RULES.preconditions['Исковое заявление'].basis===true &&
+           !('чужое' in RULES.preconditions['Исковое заявление']);
   })()`));
   ok('НП-14 предмет и орган гейта всегда приходят из справочника', m.ev(`(()=>{
     localStorage.setItem(RULES_KEY, JSON.stringify({ v:RULES_SCHEMA, rules:{
@@ -1091,7 +1255,7 @@ ok('МС-1 · гейт блок при >5 лет и истёкших срока�
 ok('МС-1 · гейт warn (не блок) при >5 лет без истёкших', g.ev('msTermGate(false,6).level') === 'warn');
 ok('МС-1 · гейт ok при ≤5 лет',
    g.ev('msTermGate(true,5).level') === 'ok' && g.ev('msTermGate(true,3.5).level') === 'ok');
-ok('МС-1 · дефолт истёкших сроков — из охвата требования (п. 114)',
+ok('МС-1 · дефолт истёкших сроков — из охвата требования (п. 20.1)',
    g.ev(`msExpiredDefault(${R('120/120/з')})`) === true && g.ev(`msExpiredDefault(${R('201/201/з')})`) === false);
 ok('МС-1 · каскад графика «Определения…»: последний остаток 0, сумма тела == итог', g.ev(`(()=>{
   const m = ${P('120')}.measures.find(x=>x.kind==='Определение об утверждении мирового соглашения');
@@ -1156,7 +1320,7 @@ ok('снимок не роняется круговыми ссылками и в
   restoreState();
   const r = REQ_INDEX['142/142/з'];
   return !!r && scopeLabel(scopeOf(r)) === scopeBefore && r.costs.some(c => c.amount === 2500)
-      && r._proc.id === '142' && allReqs().length === 100;   // затравка ЗС: 91 дело · 100 требований
+      && r._proc.id === '142' && allReqs().length === 116;   // затравка ЗС выросла волнами: 107 дел · 116 требований
 })()`));
 ok('после восстановления живое МС снова определяется по мерам (ADR-0047 — не по r.states.agreement, снятому вместе с p.agreements[])', mk().ev(`(() => {
   openDetail('120/120/з'); persistState(); restoreState();
@@ -1292,10 +1456,10 @@ ok('находка 3: метка расхождения стоит только 
     && withMark.every(r => catDivergeMark(r).includes('catmark'))
     && withoutMark.every(r => catDivergeMark(r) === '');
 })()`));
-ok('находка 3: подсказка метки называет причину — подавление 181 или фактор комитета', L.ev(`(() => {
-  const r = allReqs().find(r => catOfCredit(r._credit).suppressed);
-  const r2 = allReqs().find(r => { const c = catOfCredit(r._credit); return c.level !== c.raw && !c.suppressed; });
-  return !!r && /Подавление 181-го дня/.test(catDivergeMark(r))
+ok('находка 3: подсказка метки называет причину — отложенный перевод или фактор комитета', L.ev(`(() => {
+  const r = allReqs().find(r => catOfCredit(r._credit).deferred);
+  const r2 = allReqs().find(r => { const c = catOfCredit(r._credit); return c.level !== c.raw && !c.deferred; });
+  return !!r && /Перевод на 181-й день отложен/.test(catDivergeMark(r))
       && !!r2 && /Фактор комитета/.test(catDivergeMark(r2));
 })()`));
 
@@ -1378,12 +1542,13 @@ ok('словарь охвата — объём × способ (ADR-0025), не 
 ok('значения «залог» и «смешанный» как значения объёма в данных больше нет (ADR-0037/ADR-0025)',
    !/смешанный/.test(HTML_SRC) && !/volume:'залог'/.test(HTML_SRC));
 /* Список устанавливающих видов больше не переписывается сюда руками: он ЕСТЬ в самом
-   макете (SCOPE_KIND_DEFAULT) — восемь видов, плюс «Извещение об обращении на залог»,
-   которому охват ставит отдельный шаг applyIzveschenie (В-8, п. 20.4). Размер словаря
-   зафиксирован, чтобы тихое пополнение справочника было видно. */
+   макете (SCOPE_KIND_DEFAULT) — девять видов (восемь + «Признание банкротом», Task 7
+   fix-round2), плюс «Извещение об обращении на залог», которому охват ставит отдельный
+   шаг applyIzveschenie (В-8, п. 20.1). Размер словаря зафиксирован, чтобы тихое
+   пополнение справочника было видно. */
 ok('scope на мере встречается только у устанавливающих видов (SCOPE_KIND_DEFAULT + извещение)', g.ev(`(() => {
   const ESTABLISHING = new Set([...Object.keys(SCOPE_KIND_DEFAULT), 'Извещение об обращении на залог']);
-  return Object.keys(SCOPE_KIND_DEFAULT).length === 8
+  return Object.keys(SCOPE_KIND_DEFAULT).length === 9
       && PROCESSES.flatMap(p=>p.measures||[]).filter(m=>m.scope).every(m => ESTABLISHING.has(m.kind));
 })()`));
 ok('нет требования без определённого охвата (умолчание открытия ловит пустые случаи)',
@@ -1819,10 +1984,10 @@ ok('группа и куратор — в заголовке дела, стар�
    && /группа /.test(D.doc.querySelector('.dhead-run').textContent)
    && /куратор Тукинова/.test(D.doc.querySelector('.dhead-run').textContent)
    && !/Работа с судебными органами|Взыскание задолженности/.test(D.doc.querySelector('.dhead-run').textContent));
-ok('счётчик п. 98 приёма передачи виден в журнале передач вкладки «Дело» (402/570/з)', (() => {
+ok('счётчик приёма передачи виден в журнале передач вкладки «Дело» (402/570/з)', (() => {
   const m = mk(); m.ev(`openDetail('402/570/з')`);
   m.ev(`switchTab(TABS.findIndex(t=>t.slug==='obschee'))`);
-  return /осталось 3 р\.д\. \(п\. 98\)/.test(m.active().textContent); })());
+  return /осталось 3 р\.д\. \(срок подтверждения\)/.test(m.active().textContent); })());
 ok('раскрытие worst-of работает из шапки',
    (D.ev('catOpen=false; toggleCat()'), D.dhead().querySelectorAll('.cat-expand .row').length > 0));
 
@@ -1864,7 +2029,7 @@ ok('акт к обоим ответчикам виден обоим требов
   const act = p.measures.find(m=>m.num==='ТЕСТ-ОПР-307');
   return basedOnValid(act)
       && courtActsOf(REQ_INDEX['307/307/з']).length === 1
-      && courtActsOf(REQ_INDEX['307/307/п']).length === 1;
+      && courtActsOf(REQ_INDEX['307/307/п-307']).length === 1;
 })()`));
 ok('чужой судебный процесс в требование не протекает', D.ev(`(()=>{
   /* ОПР-561 — акт по договору 561 того же многокредитного дела 412 */
@@ -1890,7 +2055,7 @@ ok('фильтр пропускает непривязанное, а не выб
 
 head('КД-6 · срок принадлежит требованию');
 ok('у срока есть цели', D.ev(`PROCESSES.every(p=>p.deadlines.every(d=>Array.isArray(d.targets)))`));
-ok('дело-уровневые сроки (п. 98, конфликт) целей не получили',
+ok('дело-уровневые сроки (приём передачи, конфликт) целей не получили',
    D.ev(`PROCESSES.flatMap(p=>p.deadlines).filter(d=>!d.targets.length)
          .every(d=>/статуса? процедуры|конфликт/i.test(dlAction(d)))`));
 ok('срок виден требованию из своих целей (336 — апелляция по его решению суда)',
@@ -1921,9 +2086,9 @@ ok('срок с двумя целями виден обоим адресатам
    а то, что targets не пересекаются. */
 ok('сроки заёмщика в сроки поручителя не текут (раздельные targets, не общий счёт)',
    D.ev(`deadlinesOf(REQ_INDEX['307/307/з']).length`) === 4
-   && D.ev(`deadlinesOf(REQ_INDEX['307/307/п']).length`) === 1
-   && D.ev(`!deadlinesOf(REQ_INDEX['307/307/п']).some(d => (d.targets||[]).includes('307/307/з'))`)
-   && D.ev(`!deadlinesOf(REQ_INDEX['307/307/з']).some(d => (d.targets||[]).includes('307/307/п'))`));
+   && D.ev(`deadlinesOf(REQ_INDEX['307/307/п-307']).length`) === 1
+   && D.ev(`!deadlinesOf(REQ_INDEX['307/307/п-307']).some(d => (d.targets||[]).includes('307/307/з'))`)
+   && D.ev(`!deadlinesOf(REQ_INDEX['307/307/з']).some(d => (d.targets||[]).includes('307/307/п-307'))`));
 ok('блок сроков стоит на «Обзоре» и назван уровнем', (() => {
   const m = mk(); m.ev(`openDetail('307/307/з')`); m.ev(`switchTab(${TAB.obzor})`);
   return /Сроки на контроле по требованию/.test(m.active().textContent); })());
@@ -1944,19 +2109,19 @@ ok('на вкладке дела чипы приглушены (обещание
   m.ev(`switchTab(${TAB.mery})`);
   return on && !m.dhead().classList.contains('deal-tab'); })());
 ok('переключение требования вкладку сохраняет', mk().ev(`(() => {
-  openDetail('307/307/з'); switchTab(${TAB.dolg}); pickReq('307/307/п');
-  return TABS[curTab].slug === 'dolg' && curReq.id === '307/307/п'; })()`));
+  openDetail('307/307/з'); switchTab(${TAB.dolg}); pickReq('307/307/п-307');
+  return TABS[curTab].slug === 'dolg' && curReq.id === '307/307/п-307'; })()`));
 
 head('КД-8 · вкладка в URL слагом');
 ok('хеш содержит слаг вкладки', /detail\/307\/307\/з\/sud$/.test(
    mk().ev(`(() => { openDetail('307/307/з'); switchTab(${TAB.sud}); return curHash(); })()`)));
 ok('F5 возвращает ту же вкладку и то же требование', mk().ev(`(() => {
-  openDetail('307/307/п'); switchTab(${TAB.zalog}); const h = curHash();
+  openDetail('307/307/п-307'); switchTab(${TAB.zalog}); const h = curHash();
   showView('list'); location.hash = h; restoreFromHash();
-  return curReq.id === '307/307/п' && TABS[curTab].slug === 'zalog'; })()`));
+  return curReq.id === '307/307/п-307' && TABS[curTab].slug === 'zalog'; })()`));
 ok('хеш без слага открывает умолчание', mk().ev(`(() => {
-  location.hash = 'detail/307/307/п'; restoreFromHash();
-  return curReq.id === '307/307/п' && TABS[curTab].slug === 'obzor'; })()`));
+  location.hash = 'detail/307/307/п-307'; restoreFromHash();
+  return curReq.id === '307/307/п-307' && TABS[curTab].slug === 'obzor'; })()`));
 ok('слаг, а не индекс: перестановка вкладок старых ссылок не ломает',
    g.ev(`TABS.every(t=>/^[a-z]+$/.test(t.slug))`) && new Set(slugs()).size === 9);
 
@@ -2106,12 +2271,30 @@ const sCols  = () => S.$$('#dlHead th').map(t => t.textContent.replace(/[↑↓�
    затравки, 76/70/54 — от затравки ЗС до вывода сроков.
    Наряд МП-11 (ADR-0047): дыра тпл 45 у ИСК-344 (была просрочена — «дыра просрочена…»
    выше) закрылась живой мерой «Проект мирового соглашения» (basedOn на иск, миграция
-   SEED дела 344) — минус одна запись очереди, и она же просроченная: 80→79, 59→58. */
+   SEED дела 344) — минус одна запись очереди, и она же просроченная: 80→79, 59→58.
+   Шаг 2 наряда (1-й день просрочки, п. 16.1): длина очереди 79 → 86. Записей столько
+   же (112), но у дел K0 открытие сместилось на пять дней НАЗАД (opened = начало
+   просрочки, а не пятый день после него), и семь сроков тпл 5, стоявших за горизонтом
+   7 дней, вошли в него. Просроченных по-прежнему 58 — сместились только предстоящие. */
 head('СК-1/СК-6 · очередь с горизонтом, а не список просроченного');
 ok('умолчание — горизонт 7 дней',            S.ev(`dlHorizon`) === '7' && /Горизонт: 7 дней/.test(sFrame()));
+/* Шаг 4 наряда (§4.6, `ADR-0067`): 86 → 85. Из словаря оснований ушло «решение об
+   ускорении п.20.1», и дело 582, сеявшее ровно его, закрывать стало нечего — оно снято
+   вместе со своим сроком тпл 5. Просроченных по-прежнему 58: снятый срок был предстоящим. */
+/* §4.8 сверки (`ADR-0077`): 85 → 87 и 58 → 59 просроченных. Затравка получила дело 327 —
+   второй полюс развилки п. 16.5 (региональный проект с ожидающим гейтом безакцепта);
+   его цепочка «повторная, age 11» несёт два срока, один из которых уже просрочен. */
+/* §4.14 сверки: 87 → 91 и 59 → 62 просроченных. Затравка получила два дела нового кода
+   K1-ПАУЗА-ПРОГ (328 · 329) — второе основание паузы п. 17, риски срыва программ, оба
+   полюса развилки комитета; их цепочки «повторная» несут по два срока. */
+/* `ADR-0080`: 91 → 92 и 62 → 63 просроченных. Затравка получила два дела кода
+   K3-ЖАЛОБА-ЗАЁМЩИКА (366 · 367); срок даёт только 367 — оно старше (age 190) и его
+   цепочка успевает выйти за горизонт, у 366 (age 140) непогашенного срока не остаётся. */
 ok('предстоящие сроки показаны, а не только просроченные',
-   sRows().length === 79 && sRows().filter(r=>/просрочен/.test(r.textContent)).length === 58);
-ok('горизонт «всё» даёт все 112 сроков',     (()=>{ S.ev(`dlSetHorizon('all')`); return sRows().length === 112; })());
+   sRows().length === 92 && sRows().filter(r=>/просрочен/.test(r.textContent)).length === 63);
+/* Затравка выросла волнами ADR-0077…0081 (МП3/МП4/кассация/жалоба заёмщика/акты
+   пересмотра) — горизонт «всё» считает сроки по всем требованиям, не только К3. */
+ok('горизонт «всё» даёт все 237 сроков',     (()=>{ S.ev(`dlSetHorizon('all')`); return sRows().length === 237; })());
 ok('просроченное проходит любой горизонт',   (()=>{ S.ev(`dlSetHorizon('7')`);
    return S.ev(`dlAll().filter(x=>x.n<0).every(dlPass)`); })());
 ok('сегмент показывает выбранный горизонт',  S.$('#dlSeg button.on').dataset.h === '7');
@@ -2131,8 +2314,8 @@ ok('остаток считается из даты срока и даты от�
    Хранимых leftDays затравка ЗС не содержит вовсе (проверка строкой выше), поэтому
    правило показывается на живых записях: глубина в очереди целиком производна от даты
    срока и даты отсчёта. Числа сняты со страницы: у дела 304 обе претензии дают −47 и −23,
-   у дела 391 — −150 и −126 (прежние 205 · 142 · 206 сроков больше не несут).
-   Волна ЗС-2: у 391 появилась ТРЕТЬЯ строка −112 — тпл 41 «Служебная записка в ДПО о
+   у дела 391 — −155 и −131 (прежние 205 · 142 · 206 сроков больше не несут).
+   Волна ЗС-2: у 391 появилась ТРЕТЬЯ строка −117 — тпл 41 «Служебная записка в ДПО о
    судебном взыскании», due 31.03.2026, выведенный от истечения срока повторной претензии
    (srcMeasure ПР-391/2); записки в журнале 391 нет, поэтому обязательство осталось в
    очереди. У 304 записка есть — его две строки не изменились. */
@@ -2140,9 +2323,9 @@ ok('глубина просрочки производна, а не взята �
   const of = no => sRows().filter(r=>new RegExp('В-2026-000'+no).test(r.textContent))
                           .map(r=>r.querySelectorAll('td')[1].textContent.trim());
   return of('304').join('|') === '−47 · просрочен|−23 · просрочен'
-      && of('391').join('|') === '−150 · просрочен|−126 · просрочен|−112 · просрочен'; });
-ok('глубина просрочки честная: дело 391 — −150, а не −1',
-   () => /−150 · просрочен/.test(sRows().find(r=>/В-2026-000391/.test(r.textContent)).textContent));
+      && of('391').join('|') === '−155 · просрочен|−131 · просрочен|−117 · просрочен'; });
+ok('глубина просрочки честная: дело 391 — −155, а не −1',
+   () => /−155 · просрочен/.test(sRows().find(r=>/В-2026-000391/.test(r.textContent)).textContent));
 
 head('СК-3/СК-4 · семь колонок, дата вместо длительности');
 ok('колонки в заданном порядке',
@@ -2164,8 +2347,21 @@ ok('отрисованные строки идут по возрастанию �
      горизонт 7 дней); оба края не сдвинулись — ни один выведенный срок не глубже
      первичной претензии 391 и не дальше +6. Наряд МП-11: 80 → 79 (дыра ИСК-344
      закрылась — см. комментарий у «предстоящие сроки показаны» выше); края те же,
-     удалённая запись не была ни самой глубокой, ни самой дальней. */
-  return a.length === 79 && a.every((v,i) => i === 0 || a[i-1] <= v) && a[0] === -150 && a[a.length-1] === 6; })());
+     удалённая запись не была ни самой глубокой, ни самой дальней.
+     Шаг 2 наряда (1-й день просрочки): 79 → 86, и сдвинулись ОБА края. Глубокий —
+     −155: у дела 391 age поднят 140 → 145, иначе после укорочения цепочки на пять
+     дней осталось бы 178 и подавлять 181-й день стало бы нечего. Дальний — +7:
+     сроки тпл 5 у дел K0 подтянулись в горизонт вместе с открытием.
+     Шаг 4 наряда (§4.6): 86 → 85 вместе с делом 582 (см. комментарий у «предстоящие
+     сроки показаны» выше); края не сдвинулись — снятый срок не был ни тем, ни другим.
+     §4.8 сверки (`ADR-0077`): 85 → 87 вместе с делом 327; края опять те же — сроки
+     свежей повторной претензии не глубже 391 и не дальше +7.
+     §4.14 сверки: 87 → 91 вместе с делами 328 · 329; края опять те же по той же причине.
+     `ADR-0080`: 91 → 92 вместе с делом 367 (второе новое, 366, своего срока не даёт), и
+     ГЛУБОКИЙ край сдвинулся −155 → −160: 367 старше дела 391 на пять дней (age 190
+     против 145 у 391 при более короткой цепочке), и его непогашенный срок оказался
+     самым просроченным в очереди. Дальний край прежний +7. */
+  return a.length === 92 && a.every((v,i) => i === 0 || a[i-1] <= v) && a[0] === -160 && a[a.length-1] === 7; })());
 ok('клик по колонке меняет ключ и направление', (()=>{
   S.ev(`dlSortBy('due')`); const up = S.ev(`dlSort.k==='due' && dlSort.dir===1`);
   S.ev(`dlSortBy('due')`); const down = S.ev(`dlSort.dir===-1`);
@@ -2174,8 +2370,8 @@ ok('клик по колонке меняет ключ и направление
 head('СК-7/СК-12 · рамка со счётчиками, пустое состояние с причиной');
 ok('плиток на экране сроков нет',            S.$('#view-deadlines .tile') === null);
 ok('рамка считает очередь и называет дату отсчёта',   // счётчики сняты с #dlFrame живой страницы
-   // Волна ЗС-2: «показано 70 из 76 · просрочено 54» → «показано 80 из 112 · просрочено 59».
-   /показано 80 из 112 · просрочено 59 · истекает сегодня 1 · отсчёт от 21\.07\.2026/.test(sFrame()));
+   // Волна ADR-0077…0081: «показано 80 из 112 · просрочено 59» → «показано 92 из 237 · просрочено 63».
+   /показано 92 из 237 · просрочено 63 · истекает сегодня 1 · отсчёт от 21\.07\.2026/.test(sFrame()));
 ok('пустое состояние называет условия и даёт их снять', (()=>{
   S.doc.getElementById('dlQ').value = 'такого-заёмщика-нет'; S.ev(`dlRefresh()`);
   const e = S.$('#deadlinesBody .list-empty');
@@ -2211,10 +2407,16 @@ ok('подразделение берётся из шаблона, а не из 
    и на живых данных «из шаблона» действительно было неотличимо от «из требования».
    Второй конъюнкт и есть правило: на КАЖДОЙ такой строке dlResponsible обязан вернуть
    подразделение шаблона, а не требования. */
+/* Волна ADR-0077…0081 подняла dlAll() до 237 записей. Расклад сместился: тпл 5 ×9 ·
+   7 ×2 · 22 ×2 · 41 ×14 · 47 ×2 (было 22 без 47/48) — плюс новый доминант, тпл 48
+   «Исковая давность» (ADR-0051 §1) ×85: срок сеется почти на каждом требовании
+   (DEADLINE_TEMPLATES) с постоянным resp «куратор ОД», и расходится с ведущим
+   подразделением требования всюду, где оно не ОД — та же механика правила, просто
+   на порядок более частый случай, а не отдельное исключение. */
 ok('на живых данных подразделение шаблона побеждает подразделение требования', S.ev(`(() => {
   const rows = dlAll().filter(x => { const t = subdivInText((dlTpl(x.d)||{}).resp);
     return t && x.reqs[0] && t !== x.reqs[0].subdivision; });
-  return rows.length === 22
+  return rows.length === 114
       && rows.every(x => x.resp.kind === 'subdiv' && x.resp.subdiv === subdivInText(dlTpl(x.d).resp));
 })()`));
 /* В затравке ЗС «не выведено» остался ровно один срок — решение по конфликту интересов
@@ -2276,7 +2478,7 @@ ok('у каждого срока либо шаблон, либо метка «в
    S.ev(`PROCESSES.flatMap(p=>p.deadlines).every(d=>d.tpl ? !!TPL_BY_N[d.tpl] : !!d.action)`));
 ok('пять недостающих шаблонов добавлены (40–44)',
    S.ev(`[40,41,42,43,44].every(n=>!!TPL_BY_N[n])`)
-   && S.ev(`[40,41,42,43,44].map(n=>TPL_BY_N[n].point).join('/')`) === 'Р-8/17.6/44/37/92');
+   && S.ev(`[40,41,42,43,44].map(n=>TPL_BY_N[n].point).join('/')`) === 'Р-8/19.2/44/38/Р-12');
 ok('строковой связи со справочником больше нет', !/templTerm/.test(HTML.replace(/templTerm искала[\s\S]*?dlPoint\./,'')));
 ok('шаблон находится у всех сроков Порядка (было «—» у 15 из 45)',
    S.ev(`PROCESSES.flatMap(p=>p.deadlines).filter(d=>d.tpl).every(d=>!!dlTerm(d) && !!dlPoint(d))`));
@@ -2292,7 +2494,7 @@ ok('«вне Порядка» помечено, а не выброшено',
              S.ev(`dlSetHorizon('7')`); return has; })());
 ok('«п. —» больше не рисуется (СК-Д13)',     !sRows().some(r=>/п\. —/.test(r.textContent)));
 ok('Р-8 подписан без «п.» — это решение проекта, не пункт Порядка',
-   S.ev(`dlPointLabel({tpl:40}) === 'Р-8' && dlPointLabel({tpl:5}) === 'п. 17.2'`));
+   S.ev(`dlPointLabel({tpl:40}) === 'Р-8' && dlPointLabel({tpl:5}) === 'п. 16.2'`));
 
 head('СК-13 · срок снимается фактом, а не отметкой');
 ok('кнопки «выполнено» у срока нет',         !/выполнено/i.test(S.$('#view-deadlines').innerHTML));
@@ -2314,9 +2516,283 @@ ok('чужая мера чужой срок не трогает',
 ok('saveMeasure зовёт снятие срока и пишет это в историю',
    /closeDeadlinesBy\(p, kind, targets\.map/.test(HTML) && /снят с контроля/.test(HTML));
 
+/* Шаг 4 наряда сверки №41, §4.5 (`ADR-0066`) — маршрут после возврата ИЛ. Норма (п. 36)
+   называет два выхода, которых в справочнике не было вовсе; МП5-14 объявил три других,
+   ни один из которых нормой не назван. Проверяется состав выходов и то, что оба
+   нормативных вида действительно заведены и рождаются постановлением о возврате. */
+head('§4.5 · выходы после возврата ИЛ — норма п. 36 (шаг 4 наряда)');
+ok('оба выхода п. 36 заведены видами мер',
+   S.ev(`MEASURE_KIND_NAMES.includes('Жалоба на акты судебного исполнителя')
+      && MEASURE_KIND_NAMES.includes('Направление материалов в САК на банкротство')`));
+ok('оба рождаются постановлением о возврате ИЛ (basisKinds), а не открываются на пустом месте',
+   S.ev(`['Жалоба на акты судебного исполнителя','Направление материалов в САК на банкротство']
+          .every(k => (kindOf(k).basisKinds||[]).includes('Постановление о возврате ИЛ'))`));
+/* Жалоба — resultIsDocument той же природы, что «Частная жалоба»: фазу двигает акт ПО
+   жалобе, а не сама жалоба (ADR-0031 п.3). Направление материалов фазу не двигает тоже:
+   контур К6 открывает «Инициирование банкротства», ему направление лишь предшествует. */
+ok('ни один из двух выходов фазу не двигает',
+   S.ev(`!isMilestone('Жалоба на акты судебного исполнителя')
+      && !isMilestone('Направление материалов в САК на банкротство')`));
+ok('срок 47 закрывают пять выходов — два по норме п. 36, один по закону об ИП, два под оговоркой «в том числе»',
+   S.ev(`DEADLINE_CLOSERS[47].length === 5
+      && ['Жалоба на акты судебного исполнителя','Направление материалов в САК на банкротство',
+          'Повторное предъявление ИЛ','Извещение об обращении на залог','Заключение комиссии о безнадёжности']
+         .every(k => DEADLINE_CLOSERS[47].includes(k))`));
+/* Признание безнадёжной держит срок не только «в том числе»-оговоркой, но и технически:
+   без него у безнадёжного требования снять срок 47 стало бы нечем. */
+ok('признание безнадёжной осталось закрывателем — иначе срок 47 у безнадёжного требования не снять ничем',
+   S.ev(`DEADLINE_CLOSERS[47].includes('Заключение комиссии о безнадёжности')`));
+
+/* Шаг 4 наряда, §4.11 (`ADR-0068`) — общего рукопожатия п. 98 в редакции №41 нет. check_points:ignore
+   Подтверждения точечные, срок норма даёт ровно одному переходу (п. 37, 3 р.д.);
+   рукопожатие модели остаётся ПРОЕКТНЫМ и подписано `ADR-0023`, а не пунктом Порядка. */
+head('§4.11 · подтверждение передачи — точечное по норме, общее по проекту (шаг 4 наряда)');
+/* `ADR-0081`: строка переехала 49 → 29 (снят дубль), ответственный записан кодом
+   подразделения 'ОД' — тем же словарём, что и остальные строки, а не прозой. */
+ok('срок п. 37 заведён: 3 р.д., ответственный — отраслевой департамент',
+   S.ev(`TPL_BY_N[29] && TPL_BY_N[29].term === '3 р.д.' && TPL_BY_N[29].point === '37'
+      && TPL_BY_N[29].resp === 'ОД' && !TPL_BY_N[49]`));
+ok('проектное рукопожатие (тпл 34) подписано ADR-0023, а не пунктом Порядка',
+   S.ev(`TPL_BY_N[34].point === 'ADR-0023' && dlPointLabel({tpl:34}) === 'ADR-0023'`));
+ok('срок п. 37 подписан пунктом — это норма, а не решение проекта',
+   S.ev(`dlPointLabel({tpl:29}) === 'п. 37'`));
+ok('база срока п. 37 — нормативная, а не действие куратора из первого абзаца',
+   S.ev(`TPL_BY_N[29].base === 'полное погашение задолженности по судебному акту'`));
+ok('мёртвого п. 98 в макете не осталось ни в одном шаблоне срока',   // check_points:ignore
+   S.ev(`DEADLINE_TEMPLATES.every(t => t.point !== '98')`));
+
+/* Шаг 5 наряда, §4.12 (`ADR-0069`) — глава 10 (пп. 50–54): не одно заявление, а цепочка.
+   Два входящих документа, предложение родственникам и — только при отказе — два запроса. */
+head('§4.12 · смерть заёмщика — цепочка главы 10 (шаг 5 наряда)');
+ok('пять видов главы 10 заведены и лежат в разделе «Правопреемство»',
+   S.ev(`['Свидетельство о смерти','Справка о составе семьи','Предложение родственникам о добровольном принятии задолженности',
+          'Запрос в нотариальные органы','Запрос в государственную регистрационную службу']
+         .every(k => MEASURE_KIND_NAMES.includes(k) && sectionOf(k) === 'Правопреемство')`));
+ok('свидетельство и справка — входящие документы: их получают, предусловия к ним не применяются (§3.4)',
+   S.ev(`['Свидетельство о смерти','Справка о составе семьи'].every(k => kindOf(k).source === 'внешний акт')`));
+ok('предложение родственникам требует справки о составе семьи (п. 51.3 «после получения справки»)',
+   S.ev(`(kindOf('Предложение родственникам о добровольном принятии задолженности').basisKinds||[])
+          .includes('Справка о составе семьи')
+      && RULES.preconditions['Предложение родственникам о добровольном принятии задолженности'].basis === true`));
+/* П. 52 разрешает запросы «в случае ОТКАЗА близких родственников» — предусловие читает
+   пару вид×исход, а не сам факт предложения: принятое предложение запросов не открывает. */
+ok('запросы нотариусу и в ГРС требуют именно исхода «отказ», а не самого предложения',
+   S.ev(`['Запрос в нотариальные органы','Запрос в государственную регистрационную службу'].every(k => {
+     const f = RULES.preconditions[k].facts;
+     return f.length === 1 && f[0].outcome === 'отказ' && f[0].point === '52'
+         && f[0].kinds.includes('Предложение родственникам о добровольном принятии задолженности'); })`));
+/* П. 53 «после сбора всех необходимых документов» — но только в ветви смерти: правопреемство
+   бывает и при реорганизации, и требовать там нотариуса значило бы запретить законный переход. */
+ok('заявление о правопреемнике требует обоих запросов только при живом свидетельстве о смерти', S.ev(`(() => {
+  const f = RULES.preconditions['Заявление об установлении правопреемника'].facts;
+  return f.length === 2 && f.every(x => (x.onlyIfKinds||[]).includes('Свидетельство о смерти') && x.point === '53');
+})()`));
+ok('на живом требовании: без свидетельства заявление не держится главой 10, со свидетельством — держится', mk().ev(`(() => {
+  const r = REQ_INDEX['361/361/з'], p = r._proc;         // K6-ИНИЦ: исполнительное производство пройдено, порог 1 взят
+  const base = preconditionReason(r, 'Заявление об установлении правопреемника');
+  const fake = {sec:'Правопреемство', kind:'Свидетельство о смерти', dates:D(TODAY,TODAY),
+                num:'ТЕСТ-СС', outcome:'получено', targets:[r.id]};
+  p.measures.push(fake);
+  const after = preconditionReason(r, 'Заявление об установлении правопреемника');
+  p.measures.pop();
+  return base === null && /п\\. 53/.test(after||'') && /Запрос в нотариальные органы/.test(after||'');
+})()`));
+
+/* Шаг 5 наряда, §4.13 (`ADR-0070`) — банкротство получило жёсткие предусловия: три факта
+   (пп. 55, 56, 57) плюс порог долга ст. 9-1 Закона о банкротстве. */
+head('§4.13 · предусловия банкротства — пп. 55–57 и порог ст. 9-1 (шаг 5 наряда)');
+ok('оба входа банкротной ветви заведены видами: уведомление п. 55 и признание долга п. 56',
+   S.ev(`['Уведомление о намерении инициировать банкротство','Признание долга должником в судебном заседании']
+          .every(k => MEASURE_KIND_NAMES.includes(k) && sectionOf(k) === 'Банкротство')`));
+ok('у заявления на банкротство три требуемых факта, и каждый подписан своим пунктом',
+   S.ev(`(() => { const f = RULES.preconditions['Заявление на банкротство'].facts;
+     return f.length === 3 && f.map(x=>x.point).join(',') === '56,57,55'; })()`));
+ok('ИЛИ-ветвь п. 56 внутри одной группы: судебный акт ЛИБО письменное признание должника',
+   S.ev(`(() => { const g = RULES.preconditions['Заявление на банкротство'].facts[0];
+     return g.kinds.includes('Решение суда') && g.kinds.includes('Признание долга должником в судебном заседании'); })()`));
+ok('п. 57 требует постановления о возврате ИЛ — «Постановление на исполнении» его не заменяет',
+   S.ev(`(() => { const g = RULES.preconditions['Заявление на банкротство'].facts[1];
+     return g.kinds.length === 1 && g.kinds[0] === 'Постановление о возврате ИЛ'; })()`));
+/* ПЕРЕВЁРНУТО ШАГОМ 6. До пересева дело 361 (K6-ИНИЦ) стояло на «Постановлении на
+   исполнении», постановления о ВОЗВРАТЕ ИЛ и уведомления п. 55 в цепочке не было, и
+   проверка утверждала обратное — что гейт НЕ молчит. Для той затравки это было верно.
+   Пересев (ilReturned:true + направление материалов в САК + уведомление п. 55) закрыл
+   долг шага 5: затравка теперь показывает норму, а не противоречит ей. */
+ok('затравка банкротной ветви удовлетворяет предусловиям пп. 55–57 — на живом требовании гейт молчит',
+   S.ev(`preconditionReason(${R('361/361/з')}, 'Заявление на банкротство') === null`));
+ok('и молчит не потому, что гейт слеп: снятие любого из трёх фактов возвращает его пункт', mk().ev(`(() => {
+  const r = REQ_INDEX['361/361/з'], p = r._proc;
+  const probes = [['Постановление о возврате ИЛ','57'],
+                  ['Уведомление о намерении инициировать банкротство','55'],
+                  ['Решение суда','56']];
+  return probes.every(([kind, point]) => {
+    const hidden = p.measures.filter(m => m.kind === kind);
+    const kept = p.measures.slice();
+    p.measures = p.measures.filter(m => m.kind !== kind);
+    const why = preconditionReason(r, 'Заявление на банкротство');
+    p.measures = kept;
+    return hidden.length > 0 && new RegExp('п\\\\. ' + point).test(why || '');
+  });
+})()`));
+ok('направление материалов в САК требует живого постановления о возврате ИЛ (п. 36/57)',
+   S.ev(`RULES.preconditions['Направление материалов в САК на банкротство'].basis === true`));
+/* Порог — величина ЗАКОНА, не Порядка: пока не задан, предусловие молчит. Выдуманное
+   число заблокировало бы работу и выглядело бы нормой (`ADR-0070`). */
+ok('порог ст. 9-1 в записи есть, но не задан — и потому не блокирует',
+   S.ev(`'minDebt' in RULES_DEFAULTS.preconditions['Заявление на банкротство']
+      && RULES_DEFAULTS.preconditions['Заявление на банкротство'].minDebt === null`));
+ok('заданный порог начинает держать требование и называет обе суммы', mk().ev(`(() => {
+  const r = REQ_INDEX['361/361/з'];
+  RULES.preconditions['Заявление на банкротство'] = { ...RULES.preconditions['Заявление на банкротство'], facts: [], minDebt: 1 };
+  const low = preconditionReason(r, 'Заявление на банкротство');
+  RULES.preconditions['Заявление на банкротство'] = { ...RULES.preconditions['Заявление на банкротство'], minDebt: claimOf(r) + 1000 };
+  const high = preconditionReason(r, 'Заявление на банкротство');
+  return low === null && /ст\\. 9-1/.test(high||'') && /п\\. 56/.test(high||'');
+})()`));
+/* Состав фактов и окно ожидания приходят из справочника, а не из localStorage: слияние
+   правил раньше знало только четыре поля и роняло `windowTpl` при первой перезагрузке. */
+ok('перезагрузка правил не теряет требуемые факты и окно ожидания', mk().ev(`(() => {
+  persistRules();
+  const saved = JSON.parse(localStorage.getItem(RULES_KEY));
+  delete saved.rules.preconditions['Заявление на банкротство'].facts;   // как если бы правила сохранила прежняя версия
+  delete saved.rules.preconditions['Повторное предъявление ИЛ'].windowTpl;
+  mergeRules(saved.rules);
+  return RULES.preconditions['Заявление на банкротство'].facts.length === 3
+      && RULES.preconditions['Повторное предъявление ИЛ'].windowTpl === 46;
+})()`));
+/* Проверки складываются, а не выбирают одну: до шага 5 совпавшая requiredPhase/minLevel
+   возвращала null сразу, и всё, что ниже в записи, до проверки не доходило. */
+ok('порог и факты проверяются вместе — ранний выход по достигнутому порогу снят',
+   !/if\(cur === pc\.requiredPhase\) return null;/.test(HTML)
+   && /pc\.requiredPhase && cur !== pc\.requiredPhase/.test(HTML));
+
+/* Шаг 6 наряда, §4.15 (`ADR-0071`) — три оставшиеся строки таблицы «видов, которых нет в
+   справочнике». Две из трёх оказались не дырой в возражении, а дырой в ЖАЛОБЕ: возражения
+   были, но ссылались основанием на НАШУ жалобу того же названия. */
+head('§4.15 · жалоба заёмщика и имя п. 30.6 (шаг 6 наряда)');
+ok('обе жалобы заёмщика заведены входящими видами судебного раздела',
+   S.ev(`['Апелляционная жалоба заёмщика','Кассационная жалоба заёмщика'].every(k =>
+     MEASURE_KIND_NAMES.includes(k) && kindOf(k).source === 'внешний акт' && sectionOf(k) === 'Судебный')`));
+/* Кассационную заёмщик подаёт на акт АПЕЛЛЯЦИОННОЙ инстанции (п. 30.5), а не на решение
+   первой — разные основания у пары, а не копия одного. */
+ok('основания пары разведены: апелляционная — от решения суда, кассационная — от акта апелляции',
+   S.ev(`kindOf('Апелляционная жалоба заёмщика').basisKinds.join(',') === 'Решение суда'
+      && kindOf('Кассационная жалоба заёмщика').basisKinds.join(',') === 'Постановление апелляционной инстанции'`));
+ok('оба возражения (пп. 30.4/30.5) основаны теперь на жалобе ЗАЁМЩИКА, а не на нашей',
+   S.ev(`kindOf('Возражение на апелляционную жалобу').basisKinds.join(',') === 'Апелляционная жалоба заёмщика'
+      && kindOf('Возражение на кассационную жалобу').basisKinds.join(',') === 'Кассационная жалоба заёмщика'`));
+/* Акт апелляционной инстанции выносится по жалобе ЛЮБОЙ стороны — иначе обжалование
+   заёмщиком заканчивалось бы актом без законного основания в журнале. */
+ok('акт апелляционной инстанции принимает обе жалобы — нашу и заёмщика',
+   S.ev(`kindOf('Постановление апелляционной инстанции').basisKinds.join(',')
+      === 'Апелляционная жалоба,Апелляционная жалоба заёмщика'`));
+/* Наши жалобы остаются НАШИМИ документами со своими сроками подачи (тпл 27, 28) —
+   расщепление по подателю ничего у них не отняло. */
+ok('наши жалоба и сроки не тронуты: тпл 27/28 по-прежнему закрываются нашими жалобами',
+   S.ev(`kindOf('Апелляционная жалоба').source === 'наш документ'
+      && DEADLINE_CLOSERS[27].join(',') === 'Апелляционная жалоба'
+      && DEADLINE_CLOSERS[28].join(',') === 'Кассационная жалоба'`));
+/* Срока для возражения норма не даёт («в соответствии с процессуальным законодательством») —
+   пустая строка шаблона была бы мнимым обязательством (`ADR-0068`). */
+ok('шаблона срока под возражение нет — норма его не называет',
+   S.ev(`DEADLINE_TEMPLATES.every(t => !/^Возражение/.test(t.action))`));
+ok('имя п. 30.6 приведено к норме, старого в справочнике не осталось',
+   S.ev(`MEASURE_KIND_NAMES.includes('Заявление о восстановлении пропущенного процессуального срока')
+      && !MEASURE_KIND_NAMES.includes('Заявление о восстановлении пропущенных сроков')`));
+ok('заявление п. 30.6 и парный акт МП-3 сошлись в названии предмета',
+   S.ev(`kindOf('Определение о восстановлении процессуального срока').basisKinds.join(',')
+      === 'Заявление о восстановлении пропущенного процессуального срока'`));
+
+/* Шаг 6 наряда, МП-3 (`ADR-0072`) — долг модели, объявленный разбором 02.08.2026 и не
+   реализованный ни одной последующей волной: восемь видов с `resultIsDocument:true`, ни
+   один из которых не назван ничьим основанием, — срок по ним не закрыть никогда. */
+head('МП-3 · восемь видов без ответа закрыты (шаг 6 наряда)');
+ok('четыре акта-ответа заведены видами судебного раздела',
+   S.ev(`['Определение об отмене решения по вновь открывшимся обстоятельствам',
+          'Определение об отмене решения по новым обстоятельствам',
+          'Определение об изменении способа и порядка исполнения',
+          'Определение о восстановлении процессуального срока'].every(k =>
+     MEASURE_KIND_NAMES.includes(k) && kindOf(k).source === 'внешний акт' && sectionOf(k) === 'Судебный')`));
+ok('каждый отвечает своему обращению, а не catch-all «Определению суда (прочее)»',
+   S.ev(`[['Определение об отмене решения по вновь открывшимся обстоятельствам','Заявление по вновь открывшимся обстоятельствам'],
+          ['Определение об отмене решения по новым обстоятельствам','Заявление по новым обстоятельствам'],
+          ['Определение об изменении способа и порядка исполнения','Заявление об изменении способа и порядка исполнения'],
+          ['Определение о восстановлении процессуального срока','Заявление о восстановлении пропущенного процессуального срока']]
+     .every(([act, req]) => kindOf(act).basisKinds.join(',') === req)`));
+/* Системное следствие двух отмен — денежное: слой гаснет (`ADR-0043`/`ADR-0049`). Свёртка
+   layerOf кинд-уровневая, поэтому у обоих единственный исход — вид с двумя гасил бы слой
+   и отрицательным тоже. */
+ok('две отмены гасят слой и несут ровно один исход',
+   S.ev(`['Определение об отмене решения по вновь открывшимся обстоятельствам',
+          'Определение об отмене решения по новым обстоятельствам'].every(k =>
+     AWARD_DEATH_KINDS.has(k) && kindOf(k).outcomes.length === 1)`));
+ok('три уточнения иска потеряли resultIsDocument и получили свой исход',
+   S.ev(`['Уточнение исковых требований','Увеличение исковых требований','Уменьшение исковых требований']
+     .every(k => kindOf(k).resultIsDocument === false
+              && kindOf(k).outcomes.map(o=>o.value).join(',') === 'принято судом,отклонено'
+              && kindOf(k).outcomes.every(o => !o.setsPhase))`));
+/* ГЛАВНЫЙ инвариант МП-3, а не перечисление: НИ ОДИН вид с resultIsDocument:true не остался
+   без вида, называющего его своим основанием. Именно это и есть определение задачи. */
+ok('ни один вид с resultIsDocument не остался без отвечающего акта', S.ev(`(() => {
+  const named = new Set(MEASURE_KINDS.flatMap(k => k.basisKinds || []));
+  const orphans = MEASURE_KINDS.filter(k => k.resultIsDocument && !named.has(k.name)).map(k => k.name);
+  return orphans.length === 0;
+})()`));
+
+/* Шаг 6 наряда — пересев затравки: долг, оставленный шагом 5. Правило действует вперёд и
+   прошлого не отменяет, но затравка обязана показывать норму, а не противоречить ей. */
+head('пересев · глава 10 и предусловия банкротства в затравке (шаг 6 наряда)');
+ok('дело 356 несёт цепочку главы 10 целиком и в порядке нормы', S.ev(`(() => {
+  const p = PROCESSES.find(x => x.id === '356');
+  const chain = ['Свидетельство о смерти','Справка о составе семьи',
+                 'Предложение родственникам о добровольном принятии задолженности',
+                 'Запрос в нотариальные органы','Запрос в государственную регистрационную службу',
+                 'Заявление об установлении правопреемника'];
+  const got = p.measures.filter(m => chain.includes(m.kind)).map(m => m.kind);
+  return got.join('|') === chain.join('|');
+})()`));
+/* Исход предложения — «отказ»: только он открывает запросы п. 52 у гейта, и только отказ
+   ведёт дело дальше в суд за правопреемником. */
+ok('предложение родственникам в затравке отказано — иначе запросы п. 52 гейт бы не пустил',
+   S.ev(`PROCESSES.find(x=>x.id==='356').measures
+     .find(m => m.kind === 'Предложение родственникам о добровольном принятии задолженности').outcome === 'отказ'`));
+/* Гейт проверяется на 356 БЕЗ уже зарегистрированного заявления: с ним требование стоит на
+   фазе «Заявление об установлении правопреемника», и первым отвечает blockIfPhaseIn
+   («повторная регистрация не предусмотрена») — фактов главы 10 он тогда просто не смотрит.
+   Снимаем заявление, спрашиваем гейт, возвращаем. */
+ok('на живом требовании 356 цепочка главы 10 открывает заявление о правопреемнике', mk().ev(`(() => {
+  const r = REQ_INDEX['356/356/з'], p = r._proc;
+  const kept = p.measures.slice();
+  p.measures = p.measures.filter(m => m.kind !== 'Заявление об установлении правопреемника');
+  const openWhy = preconditionReason(r, 'Заявление об установлении правопреемника');
+  p.measures = p.measures.filter(m => m.kind !== 'Запрос в нотариальные органы');
+  const cutWhy = preconditionReason(r, 'Заявление об установлении правопреемника');
+  p.measures = kept;
+  return openWhy === null && /п\\. 53/.test(cutWhy||'') && /Запрос в нотариальные органы/.test(cutWhy||'');
+})()`));
+/* Цепочка строится только в ветви СМЕРТИ: правопреемство бывает и при реорганизации, и
+   требование п. 53 у гейта условно ровно поэтому (`ADR-0069`). */
+ok('цепочка привязана к смерти, а не к правопреемству вообще', S.ev(`(() => {
+  const withDeath = PROCESSES.filter(p => (p.measures||[]).some(m => m.kind === 'Свидетельство о смерти')).map(p=>p.id).sort();
+  return withDeath.join(',') === '356,357,358,359';
+})()`));
+ok('банкротные дела стоят на возврате ИЛ, направлении в САК и уведомлении п. 55', S.ev(`(() => {
+  const need = ['Постановление о возврате ИЛ','Направление материалов в САК на банкротство',
+                'Уведомление о намерении инициировать банкротство','Заявление на банкротство'];
+  return ['360','361','362','363','364','365'].every(id => {
+    const ms = (PROCESSES.find(x=>x.id===id).measures||[]).map(m=>m.kind);
+    return need.every(k => ms.includes(k));
+  });
+})()`));
+/* Срок 47 («Предельный срок повторного предъявления ИЛ») отсчитывается от постановления о
+   возврате — без направления материалов в САК шесть банкротных дел висели бы с открытым
+   обязательством, которого они никогда не исполнят. */
+ok('направление материалов в САК снимает срок 47 у банкротных дел',
+   S.ev(`DEADLINE_CLOSERS[47].includes('Направление материалов в САК на банкротство')`));
+
 head('СК-14 · блок сроков в карточке — та же арифметика');
 /* Дело 304 (K1-ПРЕТ2) — требование со сроками в карточке: обе претензии просрочены,
-   первая на −47 (шаблон №6, п. 17.2). Прежнее 142 в затравке ЗС сроков не несёт вовсе. */
+   первая на −47 (шаблон №6, п. 16.2). Прежнее 142 в затравке ЗС сроков не несёт вовсе. */
 { const m = mk(); m.ev(`openDetail('304/304/з', TAB_BY_SLUG('obzor'))`);
   const th = [...m.$('.dl-grid').querySelectorAll('th')].map(t=>t.textContent.trim());
   const tr = m.$('.dl-grid tbody tr');
@@ -2326,7 +2802,7 @@ head('СК-14 · блок сроков в карточке — та же ари�
   ok('в карточке тот же производный остаток',    () => /−47 · просрочен/.test(tr.textContent)
      && tr.querySelectorAll('td')[2].textContent.trim()
         === '−' + Math.abs(m.ev(`daysLeft(PROCESSES.find(p=>p.id==='304').deadlines[0])`)) + ' · просрочен');
-  ok('подсказка карточки называет шаблон номером', () => /шаблон №6 \(п\. 17\.2\)/.test(tr.getAttribute('title')));
+  ok('подсказка карточки называет шаблон номером', () => /шаблон №6 \(п\. 16\.2\)/.test(tr.getAttribute('title')));
   ok('горизонта и фильтров в карточке нет',      () => !m.$('.dl-grid').closest('.panel-wrap').querySelector('#dlSeg')); }
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -2419,10 +2895,10 @@ ok('семь колонок, ось — вручение',
    rCols(C,'claims').join('|') === 'Вид|Номер|Отправлена|Вручение|Заёмщик|Требование|Сумма');
 ok('мёртвой колонки «Статус» нет',           !rCols(C,'claims').includes('Статус'));
 /* НАХОДКА ВОЛНЫ ЗС (отчёт Task 11): претензий без подтверждённого вручения затравка не
-   содержит вовсе — у каждой живой претензии есть served.date, счётчик п. 20.2 равен нулю.
+   содержит вовсе — у каждой живой претензии есть served.date, счётчик п. 19.2 равен нулю.
    Правило (подсветка + отбор сегментом) поэтому показывается синтетикой в отдельном DOM:
    у одной вручённой претензии снимаем served и ждём и подсветку, и её же в сегменте. */
-ok('невручённых в затравке нет — счётчик п. 20.2 честно нулевой',
+ok('невручённых в затравке нет — счётчик п. 20.1 честно нулевой',
    rRows(C,'claims').filter(r=>r.classList.contains('mrow-undelivered')).length === 0
    && C.ev(`REGS.claims.all().filter(x=>!x.m.storno && !(x.m.served&&x.m.served.date)).length === 0`));
 ok('невручённое подсвечено независимо от сегмента и им же отбирается', mk().ev(`(() => {
@@ -2431,7 +2907,7 @@ ok('невручённое подсвечено независимо от сег
   delete x.m.served; regRefresh('claims');
   const rows = () => [...document.querySelectorAll('#claimsBody tr')].filter(r=>!r.classList.contains('rowempty'));
   const hl  = rows().filter(r=>r.classList.contains('mrow-undelivered')).length;
-  const txt = rows().filter(r=>/не подтверждено \\(п\\. 20\\.2\\)/.test(r.textContent)).length;
+  const txt = rows().filter(r=>/не подтверждено \\(п\\. 20\\.1\\)/.test(r.textContent)).length;
   regSetSeg('claims','undelivered'); const seg = rows().length;
   return hl === 1 && txt === 1 && seg === 1;
 })()`));
@@ -2441,20 +2917,20 @@ ok('сегмент «Сторнированные» отбирает сторн�
    C.ev(`regSetSeg('claims','all')`);         return n === 0 && s === 2; })());
 ok('три даты Р-7 и результат — в подсказке строки',
    /Событие .+ · поступление .+ · регистрация .+ · результат: /.test(rRows(C,'claims')[0].getAttribute('title')));
-ok('сумма документа не пересчитана, расхождение подписано «сейчас …»',   // 112 из 180 строк (было 110 из 178 — наряд п.7в добавил кейс 701, SPINE-цепочка несёт обе свои претензии — первичную и повторную)
-   rRows(C,'claims').filter(r=>/сейчас /.test(r.textContent)).length === 112
+ok('сумма документа не пересчитана, расхождение подписано «сейчас …»',   // 128 из 202 строк (было 120 из 194 — `ADR-0081` добавил четыре дела МП-3: 368 · 369 · 374 · 381; было 116 из 190 — `ADR-0080`, дела 366/367; было 112 из 180 — `ADR-0079`, дела 346/347; было 110 из 178 — наряд п.7в, кейс 701)
+   rRows(C,'claims').filter(r=>/сейчас /.test(r.textContent)).length === 128
    && C.ev(`REGS.claims.all().every(x=>x.doc === parseSum(x.m.sum))`));
 ok('дельта суммы нигде не хранится (ADR-0001)',
    C.ev(`PROCESSES.flatMap(p=>p.measures||[]).every(m=>m.sumNow===undefined && m.delta===undefined)`));
 ok('рамка считает вручение, сторно и расхождение',   // счётчики сняты с #claimsFrame
-   /без подтверждения вручения <b>0<\/b> \(п\. 20\.2\) · сторнировано <b>2<\/b> · сумма документа разошлась с требованием у <b>112<\/b>/
+   /без подтверждения вручения <b>0<\/b> \(п\. 20\.1\) · сторнировано <b>2<\/b> · сумма документа разошлась с требованием у <b>128<\/b>/
      .test(C.$('#claimsFrame').innerHTML));
 
 head('КР-8/КР-9/КР-11 · вопросы: состояние выводится в одном месте');
 ok('семь колонок, состояние первым',
    rCols(Q,'committee').join('|') === 'Состояние|Предмет|Орган|Заёмщик|Договоры|Инициатор|Заседание');
 ok('умолчание — ждут решения',               Q.ev(`regState.committee.seg`) === 'pending'
-   && rRows(Q,'committee').length === 6 && Q.ev(`REGS.committee.all().length`) === 73);   // 6 нерешённых из 73 (было 72 — наряд п.7в добавил кейс 701, у него свой решённый вопрос комиссии)
+   && rRows(Q,'committee').length === 7 && Q.ev(`REGS.committee.all().length`) === 82);   // 7 нерешённых из 82 (было 7 из 78 — `ADR-0081` добавил четыре дела МП-3; было 7 из 76 — `ADR-0080`, дела 366/367; было 7 из 74 — `ADR-0079`, дела 346/347)
 ok('состояний ровно четыре',                 Q.ev(`Object.keys(CQ_STATE).join('/')`) === 'pending/scheduled/positive/negative');
 ok('заглушки в поле решения решением больше не считаются',
    Q.ev(`CQ_NON_DECISION.size === 4`)
@@ -2474,16 +2950,16 @@ ok('вопрос без даты заседания назван «не назн
       && rows.filter(r=>/не назначено/.test(r.textContent)).length === 1
       && !rows.some(r=>/—/.test(r.querySelectorAll('td')[6].textContent));
 })()`));
-ok('гейтовый вопрос называет, какое действие держит',   // все шесть нерешённых держат действие
-   rRows(Q,'committee').filter(r=>/блокирует: /.test(r.textContent)).length === 6);
+ok('гейтовый вопрос называет, какое действие держит',   // все семь нерешённых держат действие (было шесть — дело 327, §4.8)
+   rRows(Q,'committee').filter(r=>/блокирует: /.test(r.textContent)).length === 7);
 ok('протокол и решение — подписями, отдельных колонок нет',
    !rCols(Q,'committee').includes('Протокол') && !rCols(Q,'committee').includes('Решение')
    && Q.ev(`regSetSeg('committee','decided')`) === undefined
    && rRows(Q,'committee').some(r=>/протокол /.test(r.textContent)));
 ok('рамка считает очередь, безадресные и заблокированные действия', (()=>{
    Q.ev(`regSetSeg('committee','pending')`);
-   return /ждут решения <b>6<\/b> · из них без даты заседания <b>0<\/b> · отказов <b>0<\/b> · держат заблокированным действие <b>6<\/b>/
-     .test(Q.$('#committeeFrame').innerHTML); })());   // счётчики сняты с #committeeFrame
+   return /ждут решения <b>7<\/b> · из них без даты заседания <b>0<\/b> · отказов <b>0<\/b> · держат заблокированным действие <b>7<\/b>/
+     .test(Q.$('#committeeFrame').innerHTML); })());   // счётчики сняты с #committeeFrame; 6 → 7 — дело 327 (§4.8)
 ok('прочерк вместо номера протокола убран из затравки',
    Q.ev(`PROCESSES.flatMap(p=>p.committeeQuestions).filter(q=>q.protocolNo === '—').length === 0`));
 
@@ -2611,10 +3087,10 @@ ok('есть требование гаранту и сам гарант обяз
    && C.ev(`REGS.claims.all().some(x=>x.m.kind === 'Требование гаранту')`));
 ok('отказов органа в затравке нет — все решённые вопросы положительные',
    Q.ev(`REGS.committee.all().filter(x=>x.st.k === 'negative').length === 0`)
-   && Q.ev(`REGS.committee.all().filter(x=>x.st.k === 'positive').length === 67`));   // было 66 — наряд п.7в, кейс 701
+   && Q.ev(`REGS.committee.all().filter(x=>x.st.k === 'positive').length === 75`));   // было 71 — `ADR-0081`, четыре дела МП-3; 69 — `ADR-0080`, дела 366/367; 67 — `ADR-0079`, дела 346/347
 ok('нерешённые вопросы все назначены — вопроса без даты заседания в затравке нет',
    Q.ev(`REGS.committee.all().filter(x=>x.st.k === 'pending').length === 0`)
-   && Q.ev(`REGS.committee.all().filter(x=>x.st.k === 'scheduled').length === 6`));
+   && Q.ev(`REGS.committee.all().filter(x=>x.st.k === 'scheduled').length === 7`));   // 6 → 7: дело 327 (§4.8)
 
 head('КР-15 · карточка и реестр читают одно и то же');
 /* Заседания живут на делах 332…334 и 120; дело 333 (K3-ИСК) — с заседаниями и живой
@@ -2648,11 +3124,15 @@ ok('прошедшее без исхода помечено и в карточк
      !/>\s*310\s*</.test(a.innerHTML) && /Дог\. №/.test(a.textContent)); }
 
 head('КР-16 · границы волны');
+/* МП5-17 добавила пятый гейт («Заявление о выдаче судебного приказа», п.21 приказная
+   ветвь), а «Безакцептное списание» с п.16.5 несёт organByProject (развилка по типу
+   проекта), не organ — обе формы органа проверяются через gateOrgans (§6.3), а не
+   через голое `.organ`. */
 ok('вкладка «Гейты» настроек по-прежнему читается',
-   g.ev(`Object.keys(RULES.gates).length === 4`)
-   && g.ev(`Object.keys(RULES.gates).every(k=>!!RULES.gates[k].organ && !!RULES.gates[k].point && !!RULES.gates[k].topic)`));
-ok('реестр требований и карточка волной не тронуты',   // затравка ЗС: 9 вкладок (КД-4) · 100 требований
-   g.ev(`TABS.length === 9`) && g.ev(`allReqs().length === 100`));
+   g.ev(`Object.keys(RULES.gates).length === 5`)
+   && g.ev(`Object.keys(RULES.gates).every(k=>gateOrgans(RULES.gates[k]).length && !!RULES.gates[k].point && !!RULES.gates[k].topic)`));
+ok('реестр требований и карточка волной не тронуты',   // затравка ЗС выросла волнами: 9 вкладок (КД-4) · 116 требований
+   g.ev(`TABS.length === 9`) && g.ev(`allReqs().length === 116`));
 
 /* ADR-0031: жалоба фазу не двигает — состояние иска остаётся неопределённым до акта
    вышестоящей инстанции; фазу двигает именно акт (Task 4). В затравке ЗС этот сценарий
@@ -2683,8 +3163,14 @@ ok('basedOn на несуществующий в деле номер — деф�
 ok('пустое пересечение targets меры и её основания — дефект',
    g.ev(`!basedOnValid({basedOn:'ПР-142/1', targets:['307/307/з'], _proc: PROCESSES.find(x=>x.id==='142')})`)
    && g.ev(`basedOnValid({basedOn:'ПР-142/1', targets:['142/142/з'], _proc: PROCESSES.find(x=>x.id==='142')})`));
-ok('ИЛ ссылается на решение суда / приказ / определение об утверждении мирового соглашения (ПМ-Д6, переименован наряд МП-11/ADR-0047)',
-   g.ev(`kindOf('Исполнительный лист').basisKinds.join(',')`) === 'Решение суда,Судебный приказ,Определение об утверждении мирового соглашения');
+/* Шаг 6 наряда (МП-3, `ADR-0072`): четвёртым основанием встало «Заявление о выдаче
+   исполнительных листов» — ответ на него И ЕСТЬ сам лист. Три СЛОЕОБРАЗУЮЩИХ вида
+   (решение · приказ · определение об утверждении МС) при этом не изменились: следующая
+   строка проверяет именно их, отдельно от полного списка оснований. */
+ok('ИЛ ссылается на решение суда / приказ / определение об утверждении мирового соглашения + заявление о выдаче (ПМ-Д6, наряд МП-11/ADR-0047, дополнен МП-3/ADR-0072)',
+   g.ev(`kindOf('Исполнительный лист').basisKinds.join(',')`) === 'Решение суда,Судебный приказ,Определение об утверждении мирового соглашения,Заявление о выдаче исполнительных листов');
+ok('слоеобразующая тройка от этого не выросла: AWARD_KINDS по-прежнему четыре вида присуждения',
+   g.ev(`[...AWARD_KINDS].join(',')`) === 'Решение суда,Судебный приказ,Определение об утверждении мирового соглашения,Дополнительное решение суда');
 /* Мер с двумя целями затравка ЗС не содержит вовсе (см. М-5), поэтому построчное сторно
    показывается на синтетической мере солидарной пары 307 — там две цели по одному
    договору, и сторно одной из них не должно гасить меру для второй. */
@@ -2811,14 +3297,17 @@ ok('сторно на мере-родителе снимает дыру — resp
 /* Дыр в затравке было три (ИСК-330 · ИСК-331 · ИСК-344) — наряд МП-11 (ADR-0047) закрыл
    третью: 344 получил живую «Проект мирового соглашения», basedOn на ИСК-344 (миграция
    SEED, комментарий выше) — дочерняя мера у иска теперь есть, дыра не показывается.
-   Осталось две; все ОСТАЛЬНЫЕ 49 исков (было 47 — наряд п.7в добавил 701 с ответом суда
-   в цепочке; было 48 до наряда МП-11) свой ответ/прогресс уже получили. */
+   Осталось две; все ОСТАЛЬНЫЕ 57 исков (было 53 — `ADR-0081` добавил четыре дела МП-3
+   368 · 369 · 374 · 381; было 51 — `ADR-0080` добавил 366/367 кода
+   K3-ЖАЛОБА-ЗАЁМЩИКА, оба с решением суда в цепочке; было 49 — `ADR-0079`, дела 346/347;
+   было 47 — наряд п.7в добавил 701; было 48 до наряда МП-11) свой ответ/прогресс уже
+   получили. */
 ok('иски с уже зарегистрированным живым ответом суда (basedOn) дыр не показывают',
    g.ev(`(() => {
      const gaps = new Set(PROCESSES.flatMap(p => dlOf(p).filter(d=>d._childGapOf).map(d=>d._childGapOf.num)));
      const all  = PROCESSES.flatMap(p => (p.measures||[]).filter(m=>m.kind==='Исковое заявление').map(m=>m.num));
      return [...gaps].sort().join(',') === 'ИСК-330,ИСК-331'
-         && all.length === 51 && all.filter(n=>!gaps.has(n)).length === 49;
+         && all.length === 59 && all.filter(n=>!gaps.has(n)).length === 57;
    })()`));
 ok('карта дыр покрывает только «Исковое заявление» — другие resultIsDocument-виды (напр. «Апелляционная жалоба») дыр не генерируют',
    g.ev(`PROCESSES.every(p => dlOf(p).every(d => !d._childGapOf || d._childGapOf.kind === 'Исковое заявление'))`));
@@ -2834,6 +3323,13 @@ head('РМ-Д4 · ADR-0036 — форма регистрации: тело/по�
 {
   const m = mk();   // роль по умолчанию «Куратор ОД / ДАК / РП» — в матрице В-9 претензии (subdivs ОД/ДАК/РП)
   m.ev(`openDetail('201/201/з'); closeWindowMark();`);
+  /* §4.14: претензия требует переговоров (п. 16.2) — без них тело меры не появится
+     вовсе и весь блок пометок остался бы без предмета. */
+  m.ev(`openMeasureModal()`);
+  m.doc.getElementById('mKind').value = 'Телефонные переговоры с заёмщиком';
+  m.ev(`syncMeasureWarnings()`);
+  m.doc.getElementById('mNum').value = 'ТЕСТ-ТП-ПОМЕТКА';
+  m.ev(`saveMeasure()`);
   m.ev(`openMeasureModal()`);
   ok('форма регистрации не содержит инпутов доставки/исхода (сняты Task 9 — #mDeliver/#mResult)',
      m.ev(`document.getElementById('mDeliver')`) === null && m.ev(`document.getElementById('mResult')`) === null);
@@ -2969,8 +3465,8 @@ ok('MEASURE_KINDS — структурный справочник объекто
      && typeof k.needsDelivery==='boolean'
      && (k.deliveryChannels===null || Array.isArray(k.deliveryChannels))
      && (k.basisKinds===null || Array.isArray(k.basisKinds)))`));
-ok('видов мер 64 (было 51 — Task 2/4 расщепили «Определение суда» на 5 + добавили «Постановление апелляционной инстанции»; было 59 до наряда п.7 — п.7а добавил «Повторное предъявление ИЛ»; было 60 до наряда п.1 — добавил «Дополнительное решение суда» (ADR-0046) и «Определение о повороте исполнения» (ADR-0049); было 62 до наряда МП-11 — ADR-0047 расщепил «Мировое соглашение» на «Проект…»/«Определение об утверждении…»/«Констатация нарушения…», −1+3)',
-   g.ev('MEASURE_KINDS.length') === 64);
+ok('видов мер 81 (было 51 — Task 2/4 расщепили «Определение суда» на 5 + добавили «Постановление апелляционной инстанции»; было 59 до наряда п.7 — п.7а добавил «Повторное предъявление ИЛ»; было 60 до наряда п.1 — добавил «Дополнительное решение суда» (ADR-0046) и «Определение о повороте исполнения» (ADR-0049); было 62 до наряда МП-11 — ADR-0047 расщепил «Мировое соглашение» на «Проект…»/«Определение об утверждении…»/«Констатация нарушения…», −1+3; было 64 до шага 4 наряда сверки — `ADR-0066` добавил два выхода п. 36: «Жалоба на акты судебного исполнителя» и «Направление материалов в САК на банкротство»; было 66 до шага 5 — `ADR-0069` добавил пять видов главы 10 (свидетельство о смерти · справка о составе семьи · предложение родственникам · запрос нотариусу · запрос в ГРС), `ADR-0070` — два входа банкротной ветви (уведомление п. 55 · признание долга п. 56); было 73 до шага 6 — `ADR-0071` добавил две жалобы ЗАЁМЩИКА (апелляционную и кассационную, пп. 30.4/30.5), `ADR-0072` — четыре акта-ответа МП-3 (две отмены решения по вновь открывшимся / новым обстоятельствам, определение об изменении способа и порядка исполнения, определение о восстановлении процессуального срока); было 79 до §4.14 — заведены «Телефонные переговоры с заёмщиком», п. 16.2; было 80 до кассационной ветви — `ADR-0079` завёл «Постановление кассационной инстанции», парный акт к обеим кассационным жалобам)',
+   g.ev('MEASURE_KINDS.length') === 81);
 /* Видов-вех 22: 17 прежних + К7 переписан волной ЗС (заключение комиссии → «Признана
    безнадёжной» и два акта о списании → «Списана» вместо трёх снятых вех-фактов) плюс
    разделённые «Решение суда (отсутствие правопреемника)» и «Заявление об установлении
@@ -2979,7 +3475,7 @@ ok('видов мер 64 (было 51 — Task 2/4 расщепили «Опре
    MEASURE_KINDS с непустым kindPhase. */
 ok('видов-вех 22 (свёртка kindPhase, MILESTONE_KINDS как отдельный справочник снят — ADR-0033/0038)',
    g.ev(`MEASURE_KINDS.filter(k=>kindPhase(k.name)).length`) === 22);
-ok('шаблонов сроков 48',        g.ev('DEADLINE_TEMPLATES.length') === 48);
+ok('шаблонов сроков 48',        g.ev('DEADLINE_TEMPLATES.length') === 48);   // 49 → 48: `ADR-0081` снял дубль п. 37
 ok('контуров К0…К7 — восемь',   g.ev('Object.keys(CONTOURS).length') === 8);
 ok('разделов мер семь',         g.ev('SECTION_ORDER.length') === 7);
 ok('редактор правил на месте',  g.ev(`typeof RULES === 'object' && typeof resetRulesAll === 'function'`));
@@ -3014,6 +3510,503 @@ ok('свёрнутость переживает перезагрузку (localS
      toggleNav();
      return saved === '1' && localStorage.getItem('asubk.collection.navCollapsed') === '0';
    })()`));
+
+/* ═══ §4.8 сверки · РАЗВИЛКА БЕЗАКЦЕПТА ПО ТИПУ ПРОЕКТА (п. 16.5, `ADR-0077`) ═══════ */
+head('§4.8 · безакцепт — два комитета по типу проекта (п. 16.5, ADR-0077)');
+ok('справочник типов проекта — два значения, третьего норма не даёт',
+   g.ev(`PROJECT_TYPES.join('/')`) === 'ДАК/региональный');
+ok('тип проекта объявлен у КАЖДОГО кредита затравки — умолчания нет',
+   g.ev(`PROCESSES.flatMap(p=>p.credits||[]).every(c=>PROJECT_TYPES.includes(c.projectType))`)
+   && g.ev(`PROCESSES.flatMap(p=>p.credits||[]).length`) >= 100);
+ok('тип проекта НЕ выводится из ведущего подразделения — поля разные',
+   /* Ровно та ловушка, ради которой поле и заведено: subdiv едет по эстафете, и у
+      эскалированных кредитов происхождения в нём уже нет. Проверка ищет кредиты, где
+      subdiv вне {ДАК}, а тип проекта при этом объявлен — вывести его из subdiv нечем. */
+   g.ev(`PROCESSES.flatMap(p=>p.credits||[]).filter(c=>['ОПК','ДПО','САК'].includes(c.subdiv) && c.projectType).length`) > 0);
+ok('развилочный гейт ровно один — безакцепт (п. 16.5)',
+   g.ev(`Object.keys(GATES).filter(k=>GATES[k].organByProject).join('|')`) === 'Безакцептное списание'
+   && g.ev(`Object.keys(GATES).filter(k=>GATES[k].organ && GATES[k].organByProject).length`) === 0);
+ok('развилочный гейт своего единственного органа не имеет — только пару',
+   g.ev(`GATES['Безакцептное списание'].organ === undefined`)
+   && g.ev(`gateOrgans(GATES['Безакцептное списание']).length`) === 2);
+ok('оба комитета п. 16.5 берутся из закрытого справочника ORGANS',
+   g.ev(`gateOrgan(GATES['Безакцептное списание'],'ДАК') === ORGANS[0]`)
+   && g.ev(`gateOrgan(GATES['Безакцептное списание'],'региональный') === ORGANS[1]`));
+ok('неизвестный тип проекта органа НЕ получает — молчаливого умолчания нет',
+   g.ev(`gateOrgan(GATES['Безакцептное списание'], undefined) === null`)
+   && g.ev(`gateOrgan(GATES['Безакцептное списание'], 'иной') === null`));
+/* Два полюса на живых данных: 310 — проект ДАК, 327 — региональный; ожидающий гейт
+   безакцепта у обоих, а орган вопроса разный. Без дела 327 развилка жила бы в коде. */
+ok('вопрос затравки уходит в комитет, назначенный ТИПОМ ПРОЕКТА',
+   g.ev(`PROCESSES.find(p=>p.id==='310').credits[0].projectType`) === 'ДАК'
+   && g.ev(`PROCESSES.find(p=>p.id==='310').committeeQuestions[0].organ`) === g.ev(`ORGANS[0]`)
+   && g.ev(`PROCESSES.find(p=>p.id==='327').credits[0].projectType`) === 'региональный'
+   && g.ev(`PROCESSES.find(p=>p.id==='327').committeeQuestions[0].organ`) === g.ev(`ORGANS[1]`));
+ok('причина блокировки называет ТОТ комитет, что назначен типу проекта',
+   /администрированию бюджетных кредитов/.test(g.ev(`gateReason(REQ_INDEX['310/310/з'],'Безакцептное списание')`))
+   && /региональному развитию/.test(g.ev(`gateReason(REQ_INDEX['327/327/з'],'Безакцептное списание')`))
+   && !/региональному развитию/.test(g.ev(`gateReason(REQ_INDEX['310/310/з'],'Безакцептное списание')`)));
+ok('дело-уровневый вызов кредита не знает и называет ОБА через слэш',
+   g.ev(`gateOrgansLabel(GATES['Безакцептное списание'])`) === g.ev(`ORGANS[0]+' / '+ORGANS[1]`));
+ok('экран правил печатает оба органа и подписывает, чем они разводятся', (()=>{
+   const m = mk(); m.asAdmin(); m.ev(`navClick('Настройки правил'); settingsTab='gates'; renderSettings()`);
+   const t = m.doc.getElementById('view-settings').textContent;
+   return /Комитет по администрированию бюджетных кредитов \/ Комитет по региональному развитию/.test(t)
+       && /по типу проекта \(ДАК \/ региональный\), п\. 16\.5/.test(t); })());
+/* Один вопрос — один орган. Смешанный набор кредитов ни органа не подставляет, ни
+   сохраняться не должен: половина записи адресовалась бы чужому комитету, и гейт
+   открылся бы всем по решению органа без компетенции. */
+ok('смешанный набор типов проекта форма не подставляет и не сохраняет', mk().ev(`(() => {
+  const p = PROCESSES.find(x=>x.id==='412');
+  p.credits[0].projectType = 'ДАК'; p.credits[1].projectType = 'региональный';
+  openDetail('412/560/з', TAB_BY_SLUG('soglasovaniya'));
+  openCommitteeQuestionModal();
+  document.getElementById('cqSubject').value = 'Запуск безакцептного списания';
+  onCqSubjectChange();
+  const note = document.getElementById('cqOrganNote').textContent;
+  const before = (p.committeeQuestions||[]).length;
+  saveCommitteeQuestion();
+  return /разных типов проекта/.test(note) && (p.committeeQuestions||[]).length === before;
+})()`));
+ok('однородный набор орган подставляет сам и сохранение проходит', mk().ev(`(() => {
+  const p = PROCESSES.find(x=>x.id==='412');
+  p.credits.forEach(c => c.projectType = 'региональный');
+  openDetail('412/560/з', TAB_BY_SLUG('soglasovaniya'));
+  openCommitteeQuestionModal();
+  document.getElementById('cqSubject').value = 'Запуск безакцептного списания';
+  onCqSubjectChange();
+  return document.getElementById('cqOrgan').value === ORGANS[1]
+      && /типом проекта/.test(document.getElementById('cqOrganNote').textContent);
+})()`));
+/* Шаблоны сроков ветви Б: строка 13 стояла «5 р.д. от получения документов от РП» —
+   ни срока, ни базы в п. 16.5 нет. Норма даёт куратору 10 р.д. от той же базы, что и
+   ветви А, — дня повторного направления требований. */
+ok('обе ветви п. 16.5 считаются от одной базы, выдуманных 5 р.д. больше нет', (()=>{
+   const t = n => g.ev(`JSON.stringify(DEADLINE_TEMPLATES.find(x=>x.n===${n}))`);
+   const j = n => JSON.parse(t(n));
+   return j(11).term === '10 р.д.' && j(11).base === 'дата повторного направления требований'
+       && j(12).term === '3 р.д.'  && j(12).base === 'дата повторного направления требований'
+       && j(13).term === '10 р.д.' && j(13).base === 'дата повторного направления требований'
+       && [11,12,13,14].every(n => j(n).point === '16.5'); })());
+ok('шаблоны ветвей называют СВОЙ комитет, а не «Комитет» вообще',
+   /комитет по администрированию кредитов/.test(g.ev(`DEADLINE_TEMPLATES.find(x=>x.n===11).action`))
+   && /комитет по региональному развитию/.test(g.ev(`DEADLINE_TEMPLATES.find(x=>x.n===13).action`)));
+
+head('§4.14 · мелочи с ценой — семь точек редакции №41');
+
+/* 1 · тпл 38, п. 9 — «в срок до 1 сентября текущего календарного года». */
+ok('акт сверки на 1 января подписывается до 1 сентября, не до 1 июля', (()=>{
+   const t = JSON.parse(g.ev(`JSON.stringify(DEADLINE_TEMPLATES.find(x=>x.n===38))`));
+   return t.term === 'до 1 сентября' && t.base === '1 января' && t.point === '9'; })());
+
+/* 2 · телефонные переговоры, п. 16.2 — вид, ступень хребта и предусловие претензии. */
+ok('телефонные переговоры заведены видом досудебного раздела',
+   g.ev(`!!kindOf('Телефонные переговоры с заёмщиком')`)
+   && g.ev(`sectionOf('Телефонные переговоры с заёмщиком')`) === 'Досудебный'
+   && g.ev(`kindOf('Телефонные переговоры с заёмщиком').needsDelivery`) === false);
+ok('переговоры вехой не являются — маршрут двигает претензия, а не звонок',
+   g.ev(`isMilestone('Телефонные переговоры с заёмщиком')`) === false
+   && g.ev(`kindOf('Телефонные переговоры с заёмщиком').outcomes.every(o=>!o.setsPhase && !o.setsTerminal)`));
+ok('исход «связь не установлена» существует — недоступный заёмщик взыскание не останавливает',
+   g.ev(`kindOf('Телефонные переговоры с заёмщиком').outcomes.some(o=>/связь с заёмщиком не установлена/.test(o.value))`));
+ok('первичная претензия требует факта переговоров (п. 16.2), исхода не требует', (()=>{
+   const pc = JSON.parse(g.ev(`JSON.stringify(RULES.preconditions['Первичная претензия'])`));
+   const f  = (pc.facts||[]).find(x=>x.kinds.includes('Телефонные переговоры с заёмщиком'));
+   return !!f && f.point === '16.2' && f.outcome === undefined; })());
+ok('гейт претензии без переговоров называет пункт и вид', (()=>{
+   const r = g.ev(`(() => {
+     const p = PROCESSES.find(x=>x.id==='201');
+     p.window.open = false;
+     return preconditionReason(REQ_INDEX['201/201/з'], 'Первичная претензия') || '';
+   })()`);
+   return /Телефонные переговоры с заёмщиком/.test(r) && /п\. 16\.2/.test(r); })());
+ok('переговоры стоят первой ступенью хребта и открывают дело в тот же день',
+   g.ev(`SPINE[0].kind`) === 'Телефонные переговоры с заёмщиком' && g.ev(`SPINE[0].gap`) === 0
+   && g.ev(`SPINE_KEYS[0]`) === 'переговоры');
+/* Сверка ПО КРЕДИТУ, не по делу: у многокредитных дел (412 · 402 · 394) цепочки
+   независимы, и переговоры одного кредита законно позже претензии другого. Номер
+   ступени несёт id кредита — им и связываются пары. */
+ok('в затравке переговоры предшествуют претензии по каждому кредиту',
+   g.ev(`(() => {
+     const all = PROCESSES.flatMap(p=>p.measures||[]);
+     const claims = all.filter(m=>m.kind==='Первичная претензия');
+     return claims.length > 0 && claims.every(c => {
+       const id = c.num.replace(/^ПР-/,'').replace(/\\/1$/,'');
+       const t = all.find(m=>m.num === 'ТЛФ-'+id);
+       return !!t && ruD(t.dates.event) <= ruD(c.dates.event);
+     });
+   })()`));
+ok('шаблон 5 называет обе обязанности одного срока (п. 16.2)',
+   /Телефонные переговоры и первичная претензия/.test(g.ev(`DEADLINE_TEMPLATES.find(x=>x.n===5).action`)));
+
+/* 3 · доказательство доставки — реквизит КАНАЛА, не одна строка на все (п. 16). */
+ok('справочник доказательств покрывает все каналы претензий',
+   g.ev(`DELIVERY_CHANNELS_CLAIM.every(c => (DELIVERY_PROOF[c]||{}).docs && DELIVERY_PROOF[c].docs.length)`));
+ok('СЭД бумажного уведомления не требует, бумажные каналы — требуют',
+   g.ev(`DELIVERY_PROOF['СЭД'].paper`) === false
+   && g.ev(`DELIVERY_PROOF['Почта'].paper && DELIVERY_PROOF['Нарочно'].paper`)
+   && /электронный отчёт СЭД/.test(g.ev(`DELIVERY_PROOF['СЭД'].docs[0]`)));
+ok('бумага даёт нормой названную пару — уведомление либо отметка о получении',
+   g.ev(`DELIVERY_PROOF['Почта'].docs.length`) === 2
+   && /почтовое уведомление о вручении/.test(g.ev(`DELIVERY_PROOF['Почта'].docs[0]`))
+   && /отметка заёмщика \(залогодателя\) о получении/.test(g.ev(`DELIVERY_PROOF['Почта'].docs[1]`))
+   && g.ev(`DELIVERY_PROOF['Нарочно'].docs.join('')`) === 'отметка заёмщика (залогодателя) о получении');
+ok('выдуманных «акта вручения нарочно» и «квитанции СЭД» в данных не осталось',
+   g.ev(`PROCESSES.flatMap(p=>p.measures||[]).every(m => !m.served || !/акт вручения нарочно|квитанция СЭД/.test(m.served.doc||''))`)
+   && g.ev(`Object.values(DELIVERY_PROOF).every(c => c.docs.every(d => !/акт вручения|квитанция СЭД/.test(d)))`));
+ok('умолчание затравки берётся из справочника, а не отдельным литералом',
+   g.ev(`DELIVERY_CHANNELS_CLAIM.every(c => deliveryDocFor(c) === DELIVERY_PROOF[c].docs[0])`));
+ok('вся затравка вручена документом из набора своего канала',
+   g.ev(`PROCESSES.flatMap(p=>p.measures||[]).filter(m=>m.served && m.served.doc)
+          .every(m => deliveryProofsFor(m.sent && m.sent.channel).includes(m.served.doc))`));
+ok('поле документа — справочник канала, а не свободный текст', (()=>{
+   const m = mk();
+   m.ev(`openDetail('317/317/з'); (()=>{ const i=curProc.measures.findIndex(x=>x.kind==='Первичная претензия'); openAnnotationModal(i); })()`);
+   const sel = m.doc.getElementById('aServedDoc');
+   const opts = [...sel.options].map(o=>o.value).filter(Boolean);
+   m.ev(`document.getElementById('aChannel').value='СЭД'; onDeliveryChannelChange()`);
+   const sed = [...m.doc.getElementById('aServedDoc').options].map(o=>o.value).filter(Boolean);
+   return sel.tagName === 'SELECT' && opts.length > 0
+       && sed.length === 1 && /электронный отчёт СЭД/.test(sed[0])
+       && /СЭД/.test(m.doc.getElementById('aProofNote').textContent); })());
+ok('вручение без документа не сохраняется', (()=>{
+   const m = mk();
+   const i = m.ev(`openDetail('317/317/з'); curProc.measures.findIndex(x=>x.kind==='Первичная претензия')`);
+   const before = m.ev(`JSON.stringify(curProc.measures[${i}].served)`);
+   m.ev(`openAnnotationModal(${i})`);
+   m.doc.getElementById('aServedDate').value = '2026-07-18';
+   m.doc.getElementById('aServedDoc').value = '';
+   m.doc.getElementById('aReason').value = 'проверка гарда';
+   m.ev(`saveAnnotation(${i})`);
+   return m.ev(`JSON.stringify(curProc.measures[${i}].served)`) === before; })());
+
+/* 4 · направление ≠ вручение: срок должника от направления, пакет ДПО — от вручения. */
+ok('ось вручения ссылается на п. 20.1, а не на п. 19.2 (там о вручении нет ни слова)',
+   !/не подтверждено \(п\. 19\.2\)/.test(HTML) && !/вручения <b>\$\{bad\}<\/b> \(п\. 19\.2\)/.test(HTML)
+   && /не подтверждено \(п\. 20\.1\)/.test(HTML));
+ok('«мера не исполнена» из-за невручения больше нигде не утверждается',
+   !/не исполнена: нет подтверждения вручения/.test(HTML));
+ok('записка в ДПО требует вручённой претензии (п. 20.1)', (()=>{
+   const pc = JSON.parse(g.ev(`JSON.stringify(RULES.preconditions['Служебная записка в ДПО'])`));
+   return !!pc.servedKinds && pc.servedKinds.point === '20.1'
+       && pc.servedKinds.kinds.join('|') === 'Первичная претензия|Повторная претензия'; })());
+ok('снятое вручение закрывает записку в ДПО и называет причину', mk().ev(`(() => {
+  const p = PROCESSES.find(x=>x.id==='317'), r = REQ_INDEX['317/317/з'];
+  const cl = p.measures.find(m=>m.kind==='Повторная претензия'), pr = p.measures.find(m=>m.kind==='Первичная претензия');
+  const было = preconditionReason(r, 'Служебная записка в ДПО');
+  delete cl.served; delete pr.served;
+  const стало = preconditionReason(r, 'Служебная записка в ДПО') || '';
+  return было === null && /вручени/.test(стало) && /п\\. 20\\.1/.test(стало);
+})()`));
+ok('срок должника по-прежнему считается от направления, вручения не спрашивает',
+   g.ev(`DEADLINE_TEMPLATES.find(x=>x.n===6).base`) === 'дата направления'
+   && g.ev(`DEADLINE_TEMPLATES.find(x=>x.n===8).base`) === 'дата направления'
+   && g.ev(`DEADLINE_TEMPLATES.every(t => !/вручен/i.test(t.base))`));
+
+/* 5 + 6 · группы платёжеспособности — закрытый справочник нормы; п. 14 даёт базовую. */
+ok('групп ровно девять, все с кодом, именем и пунктом',
+   g.ev(`PAY_GROUPS.length`) === 9
+   && g.ev(`PAY_GROUPS.every(x => x.code && x.name && x.point)`)
+   && g.ev(`PAY_GROUPS.map(x=>x.code).join(' ')`) === '1.1 2.1 2.2 2.3 3.1 3.2 4 5.1 5.2');
+ok('имена групп — нормы, не наши', (()=>{
+   const n = c => g.ev(`PAY_GROUP_BY_CODE['${c}'].name`);
+   return n('1.1') === 'Производят погашение по графику' && n('2.1') === 'Работа с судебными органами'
+       && n('2.2') === 'Проводится работа по исполнительным листам' && n('2.3') === 'Работа по инициированию банкротства'
+       && n('3.1') === 'Проводится процедура банкротства' && n('3.2') === 'Процедура банкротства завершена'
+       && n('4') === 'Безнадёжные долги' && n('5.1') === 'Погашенные' && n('5.2') === 'Списанные'; })());
+ok('всякая выведенная группа — из справочника, имён стадий среди них нет',
+   g.ev(`PROCESSES.map(groupOf).filter(Boolean).every(c => !!PAY_GROUP_BY_CODE[c])`)
+   && g.ev(`PROCESSES.map(groupOf).every(c => !Object.keys(STAGE_RANK).includes(c))`));
+/* П. 14 — «при первичном внесении сведений заёмщику автоматически присваивается статус
+   «Группа 1.1»»; следующий перевод норма называет только на иске (п. 21). Отсюда 1.1 и
+   у наблюдения, и у досудебной работы, и у дела без открытых требований. */
+ok('досудебная работа и наблюдение читаются как 1.1 (п. 14 присвоил, п. 21 переведёт)',
+   g.ev(`STAGE_GROUP['Наблюдение']`) === '1.1' && g.ev(`STAGE_GROUP['Досудебный порядок']`) === '1.1'
+   && g.ev(`STAGE_GROUP['Судебный порядок']`) === '2.1'
+   && g.ev(`STAGE_GROUP['Исполнительное производство']`) === '2.2');
+ok('банкротство разведено: инициирование 2.3, признание 3.1',
+   g.ev(`BANKRUPTCY_GROUP['Инициирование банкротства']`) === '2.3'
+   && g.ev(`BANKRUPTCY_GROUP['Признание банкротом']`) === '3.1');
+ok('завершённое банкротство больше не «безнадёжное», списание — своя группа',
+   g.ev(`TERMINAL_GROUP['Завершена процедура банкротства']`) === '3.2'
+   && g.ev(`TERMINAL_GROUP['Признана безнадёжной']`) === '4'
+   && g.ev(`TERMINAL_GROUP['Списана']`) === '5.2'
+   && g.ev(`TERMINAL_GROUP['Полное погашение']`) === '5.1');
+ok('подпись группы несёт и код, и имя — во всех читателях одна функция',
+   g.ev(`payGroupLabel('2.2')`) === '2.2 Проводится работа по исполнительным листам'
+   && g.ev(`payGroupLabel('9.9')`) === null
+   && (HTML.match(/groupLabelOf\(/g)||[]).length >= 5);
+/* Две группы справочника недостижимы, и до разведки 05.08.2026 здесь стояла неверная
+   причина: «у затравки нет ни одного дела с таким терминалом». Дела есть, и не два, а
+   ВОСЕМЬ. terminalCandidateOf возвращает «Признана безнадёжной» на 370/371 (ликвидация),
+   372/373 (умерший) и 375/376 (приговор) и «Списана» на 377/378. Все восемь отсекает
+   вторая половина outcomeOf: tracksClosedFor === false — судебный и исполнительный треки
+   дела не закрыты, требование закрытым не считается, дело валится в 2.2.
+   Это расхождение ПО СУЩЕСТВУ, а не дыра данных: дело с актом Кабинета Министров о
+   списании числится в группе «2.2. Проводится работа по исполнительным листам».
+   097/379 (`K7-КОМИССИЯ`) сюда не относятся и терминала законно не имеют — заключение у
+   них ещё «на рассмотрении», меры нет вовсе. */
+ok('затравка достаёт семь групп из девяти — 4 и 5.2 недостижимы',
+   g.ev(`[...new Set(PROCESSES.map(groupOf).filter(Boolean))].sort().join(' ')`)
+     === '1.1 2.1 2.2 2.3 3.1 3.2 5.1');
+ok('причина одна на обе группы — незакрытые треки, а не отсутствие дел',
+   g.ev(`(() => { const blocked = PROCESSES.flatMap(p => (p.requirements||[])
+       .filter(r => ['Признана безнадёжной','Списана'].includes(terminalCandidateOf(r)))
+       .map(r => ({ id:p.id, tracks:tracksClosedFor(r), grp:groupOf(p) })));
+     return blocked.length === 8 && blocked.every(x => x.tracks === false && x.grp === '2.2')
+       && [...new Set(blocked.map(x=>x.id))].sort().join(' ') === '370 371 372 373 375 376 377 378'; })()`));
+ok('дела на рассмотрении комиссии терминала законно не имеют — их в счёт не берём',
+   g.ev(`['097','379'].every(id => PROCESSES.find(x=>x.id===id).requirements.every(r => terminalCandidateOf(r) === null))`));
+ok('следствие видно в реестре: дело с актом о списании числится по исполнительным листам',
+   g.ev(`groupOf(PROCESSES.find(x=>x.id==='377'))`) === '2.2'
+   && g.ev(`(PROCESSES.find(x=>x.id==='377').measures||[]).some(m=>/о списании/.test(m.kind) && m.outcome==='списана')`));
+
+/* 7 · второе основание паузы п. 17 — риски срыва программ. */
+ok('оснований паузы по п. 17 два, предмет у них один — безакцепт',
+   g.ev(`PAUSE_KINDS.has('program_risk')`)
+   && g.ev(`PAUSE_SCOPE.program_risk.point`) === '17'
+   && g.ev(`[...PAUSE_SCOPE.program_risk.kinds].sort().join('|') === [...PAUSE_SCOPE.guarantee_letter.kinds].sort().join('|')`));
+ok('70 к.д. привязаны к письму — у рисков срыва программ предела норма не назвала',
+   g.ev(`PAUSE_TYPES.find(t=>t.type==='guarantee_letter').limit`) === 70
+   && g.ev(`PAUSE_TYPES.find(t=>t.type==='restructuring').limit`) === 70
+   && g.ev(`PAUSE_TYPES.find(t=>t.type==='program_risk').limit`) === null);
+ok('решение комитета обязательно для обоих оснований п. 17',
+   g.ev(`PAUSE_TYPES.filter(t=>t.point==='17').every(t=>t.needsDecision)`)
+   && g.ev(`PAUSE_TYPES.filter(t=>t.point==='17').length`) === 2);
+ok('затравка несёт обе стороны развилки комитета на новом основании', (()=>{
+   const st = k => g.ev(`(() => {
+     const r = PROCESSES.find(p=>p.id==='${k}').requirements[0];
+     const s = (r.states||[]).find(x=>x.kind==='program_risk');
+     return s ? s.committee + ' | ' + ((ruD(s.until)-ruD(s.since))/864e5) : '';
+   })()`);
+   const a = st('328'), b = st('329');
+   return /Комитет по региональному развитию/.test(a) && /Комитет по администрированию бюджетных кредитов/.test(b)
+       && Number(a.split('| ')[1]) > 70 && Number(b.split('| ')[1]) > 70; })());
+ok('пауза по рискам блокирует безакцепт и не трогает претензии',
+   g.ev(`measureGate(REQ_INDEX['328/328/з'], 'Безакцептное списание').kind`) === 'pause'
+   && g.ev(`(measureGate(REQ_INDEX['328/328/з'], 'Исковое заявление')||{}).kind !== 'pause'`));
+ok('своя подпись у нового основания есть в таблице состояний и в пилюле реестра',
+   g.ev(`STATE_LABEL.program_risk`) === 'Отсрочка по рискам срыва программ (п. 17)'
+   && g.ev(`PAUSE_PILL.program_risk`) === 'риски срыва программ');
+
+/* ============================================================
+   ADR-0079 · КАССАЦИОННАЯ ВЕТВЬ — акт, основание жалобы и второй разворот слоя.
+   `ADR-0071` завёл обе кассационные ЖАЛОБЫ и сознательно оставил парный АКТ на разбор:
+   «заводить одинокий акт без разбора значило бы гадать о его исходах и о том, что они
+   делают со слоем». Разбор проведён — проверки ниже держат обе его половины: справочник
+   (вид, основания, пять исходов) и деньги (восстановление против отмены). */
+head('ADR-0079 · кассационная ветвь');
+
+// 1. Справочник
+ok('парный акт кассации заведён — внешний акт поверх обеих кассационных жалоб',
+   g.ev(`(() => { const k = kindOf('Постановление кассационной инстанции');
+     return !!k && k.source === 'внешний акт' && k.resultIsDocument === false
+       && k.basisKinds.join(' / ') === 'Кассационная жалоба / Кассационная жалоба заёмщика'; })()`));
+ok('исходов пять — четыре зеркальны апелляционным, пятый свой',
+   g.ev(`kindOf('Постановление кассационной инстанции').outcomes.map(o=>o.value).join(' | ')`)
+   === 'оставлено в силе | изменено | апелляция отменена, решение первой инстанции в силе | отменено, на новое рассмотрение | отменено, в иске отказано');
+ok('маршрут исходов тот же, что у апелляции: пересмотр по существу держит «Решение суда», отмена откатывает на «Иск»',
+   g.ev(`kindOf('Постановление кассационной инстанции').outcomes.filter(o=>o.setsPhase==='Решение суда').length === 3
+      && kindOf('Постановление кассационной инстанции').outcomes.filter(o=>o.setsPhase==='Иск').length === 2`));
+/* Не про формулировку, а про условие: `isReviewReversal` узнаёт отмену по префиксу
+   «отменено», и восстанавливающий исход обязан под него НЕ попасть — иначе слой погаснет
+   там, где норма его сохраняет. Переименуют исход неосторожно — падает здесь, а не в
+   деньгах через две волны. */
+ok('восстанавливающий исход не читается общей отменой',
+   g.ev(`isReviewReversal({kind:CASSATION_ACT_KIND, outcome:CASSATION_RESTORE_OUTCOME}) === false
+      && isCassationRestore({kind:CASSATION_ACT_KIND, outcome:CASSATION_RESTORE_OUTCOME}) === true
+      && isReviewReversal({kind:CASSATION_ACT_KIND, outcome:'отменено, на новое рассмотрение'}) === true`));
+ok('актов пересмотра ровно два и оба судебного раздела',
+   g.ev(`REVIEW_ACT_KINDS.size === 2 && [...REVIEW_ACT_KINDS].every(k=>KIND_SECTION[k]==='Судебный')`));
+ok('ни один акт пересмотра слоя не заводит — только правит существующий',
+   g.ev(`[...REVIEW_ACT_KINDS].every(k=>!AWARD_KINDS.has(k) && !AWARD_DEATH_KINDS.has(k))`));
+
+// 2. Основание нашей кассационной жалобы (п. 30.3)
+/* Справочник противоречил собственному шаблону срока: тпл 28 отсчитывал три месяца от
+   акта апелляционной инстанции, а вид разрешал кассацию прямо на решение первой. */
+ok('кассационная жалоба идёт на акт апелляционной инстанции, а не на решение первой (п. 30.3)',
+   g.ev(`kindOf('Кассационная жалоба').basisKinds.join('/')`) === 'Постановление апелляционной инстанции'
+   && g.ev(`kindOf('Кассационная жалоба заёмщика').basisKinds.join('/')`) === 'Постановление апелляционной инстанции');
+ok('вид и шаблон срока называют одно и то же основание',
+   g.ev(`(() => { const t = DEADLINE_TEMPLATES.find(x=>x.n===28);
+     return t.point === '30.3' && /акта апелляционной инстанции/.test(t.base)
+       && kindOf('Кассационная жалоба').basisKinds.includes(APPEAL_ACT_KIND); })()`));
+
+// 3. Деньги — восстановление против отмены
+/* Дело 346: решение первой инстанции присудило 300 000, апелляция ЗАМЕНИЛА присуждение
+   на 180 000 ('corrects', МП-2), кассация отменила апелляцию. Слой обязан вернуться к
+   акту первой инстанции — не к 180 000 (тогда восстановление ничего не делает) и не в
+   null (тогда оно читается общей отменой). */
+ok('до кассации слой был апелляционным — правка 180 000 отношением corrects',
+   g.ev(`(() => { const p = PROCESSES.find(x=>x.id==='346');
+     const pa = p.measures.find(m=>m.num==='ПА-346'); const a = pa.awards['346/346/з'];
+     return pa.outcome === 'изменено' && a.principal === 180000
+       && a.relation.type === 'corrects' && a.relation.of === 'РС-346'; })()`));
+ok('кассационное восстановление возвращает слой акту первой инстанции, а не гасит его',
+   g.ev(`(() => { const p = PROCESSES.find(x=>x.id==='346'); const L = layerOf(p, '346');
+     return !!L && L.sum === 300000 && L.act.num === 'РС-346' && L.correctedBy === null; })()`));
+ok('в пуле свёртки восстановление убирает себя и апелляцию, решение оставляет',
+   g.ev(`(() => { const p = PROCESSES.find(x=>x.id==='346');
+     const chain = ['РС-346','ПА-346','ПК-346'].map(n=>p.measures.find(m=>m.num===n));
+     return dropRestoredAppeals(chain).map(m=>m.num).join(',') === 'РС-346'; })()`));
+ok('обычная кассационная отмена слой гасит и откатывает фазу на «Иск»',
+   g.ev(`(() => { const p = PROCESSES.find(x=>x.id==='347');
+     return layerOf(p, '347') === null && phaseOf(p.requirements[0]) === 'Иск'; })()`));
+/* Сверка «требовали → присудили» ходит по basedOn ОТДЕЛЬНОЙ свёрткой (claimChainsFor) —
+   она обязана прийти к тому же акту, что layerOf, иначе карточка и деньги разойдутся.
+   `ADR-0080`: снимается на ЖИВЫХ данных — до этой волны `m.claims` не нёс ни один из 101
+   дела, и проверка стояла на подставленном объекте с откатом (единственное, чем её тогда
+   можно было поднять). Затравка получила опцию claimed на пяти исках, поэтому подстановки
+   больше нет: расходись свёртки — провалится на настоящем деле. */
+ok('сверка «требовали → присудили» ходит той же свёрткой, что и слой',
+   g.ev(`(() => { const r = REQ_INDEX['346/346/з'];
+     const ch = claimChainsFor(r).filter(x=>x.award);
+     return ch.length === 1 && ch[0].root.num === 'ИСК-346' && ch[0].award.num === 'РС-346'; })()`));
+ok('требуемое по статьям несут ровно шесть исков затравки — по одному на состояние сверки',
+   g.ev(`(() => { const withClaims = PROCESSES.flatMap(p=>(p.measures||[]).filter(m=>m.claims).map(m=>m.num));
+     return withClaims.sort().join(',') === 'ИСК-332,ИСК-346,ИСК-347,ИСК-366,ИСК-367,ИСК-368'; })()`));
+ok('иск без присуждения даёт цепочку с пустой правой колонкой, а не пустую сверку',
+   g.ev(`(() => { const r = REQ_INDEX['332/332/з']; const ch = claimChainsFor(r);
+     return ch.length === 1 && ch[0].root.num === 'ИСК-332' && ch[0].award === null
+       && ch[0].root.claims[r.id].principal === 264000; })()`));
+ok('экран сверки на живой затравке рисует таблицу, а не заглушку «сверять пока нечего»',
+   g.ev(`(() => { const html = claimsReconcileHtml(REQ_INDEX['346/346/з']);
+     return /<table/.test(html) && !/сверять пока нечего/.test(html)
+       && /сверять пока нечего/.test(claimsReconcileHtml(REQ_INDEX['330/330/з'])); })()`));
+
+// 4. Границы затравки — названы, чтобы не сойти за полноту
+ok('присуждение на судебном акте несут шесть дел — кассация, жалоба заёмщика и пересмотр',
+   g.ev(`(() => { const withAward = PROCESSES.flatMap(p=>(p.measures||[]).filter(m=>m.kind==='Решение суда' && m.awards).map(m=>m.num));
+     return withAward.sort().join(',') === 'РС-346,РС-347,РС-366,РС-367,РС-368,РС-369'; })()`));
+ok('кассационного акта без апелляционного в затравке нет — кассация возможна только поверх апелляции',
+   g.ev(`PROCESSES.every(p => { const ms = p.measures||[];
+     return !ms.some(m=>m.kind===CASSATION_ACT_KIND) || ms.some(m=>m.kind===APPEAL_ACT_KIND); })`));
+
+head('ADR-0080 · жалоба заёмщика, возражение и требуемое по статьям');
+
+// 1. Справочник — зеркало нашей ветки, не копия
+ok('граница жалобы заёмщика взята из справочника исходов, а не написана строкой',
+   g.ev(`REJECTED_VERDICT === 'в иске отказано'
+     && kindOf('Решение суда').outcomes.some(o=>o.value === REJECTED_VERDICT)`));
+ok('основания жалоб заёмщика зеркальны нашим — решение и акт апелляции',
+   g.ev(`JSON.stringify(kindOf('Апелляционная жалоба заёмщика').basisKinds) === JSON.stringify(['Решение суда'])
+     && JSON.stringify(kindOf('Кассационная жалоба заёмщика').basisKinds) === JSON.stringify([APPEAL_ACT_KIND])`));
+ok('оба возражения — НАШ документ на основании жалобы ЗАЁМЩИКА',
+   g.ev(`['Возражение на апелляционную жалобу','Возражение на кассационную жалобу'].every(n => {
+     const k = kindOf(n); return k.source === 'наш документ' && k.basisKinds.length === 1
+       && /жалоба заёмщика/.test(k.basisKinds[0]); })`));
+/* П. 30.4/30.5 дают обязанность возразить и НЕ дают срока («в соответствии с процессуальным
+   законодательством») — шаблона поэтому нет ни одного, и это условие, а не пропуск (ADR-0068). */
+ok('у возражения срока в справочнике нет — норма его не назначает',
+   g.ev(`DEADLINE_TEMPLATES.every(t => !/озражени/.test(t.action + ' ' + t.base))`));
+
+// 2. Маршрут: жалоба заёмщика → наше возражение → акт инстанции
+ok('дело 366 несёт полную цепочку п. 30.4 — жалоба заёмщика, возражение, акт апелляции',
+   g.ev(`(() => { const ms = PROCESSES.find(p=>p.id==='366').measures;
+     const n = k => (ms.find(m=>m.kind===k)||{}).num;
+     return n('Апелляционная жалоба заёмщика') === 'АЖЗ-366'
+       && n('Возражение на апелляционную жалобу') === 'ВАЖ-366'
+       && n(APPEAL_ACT_KIND) === 'ПА-366'; })()`));
+/* Акт выносится ПО ЖАЛОБЕ; возражение — довод в том же деле, а не основание акта.
+   Если basedOn уедет на возражение, цепочка оснований разорвётся: у возражения свой корень. */
+ok('акт инстанции ссылается на жалобу заёмщика, а не на наше возражение',
+   g.ev(`(() => { const ms = PROCESSES.find(p=>p.id==='366').measures;
+     const pa = ms.find(m=>m.num==='ПА-366'), vaj = ms.find(m=>m.num==='ВАЖ-366');
+     return pa.basedOn === 'АЖЗ-366' && vaj.basedOn === 'АЖЗ-366'; })()`));
+ok('кассационная ветвь заёмщика ссылается на акт апелляции (п. 30.5), а не на решение',
+   g.ev(`(() => { const ms = PROCESSES.find(p=>p.id==='367').measures;
+     const kjz = ms.find(m=>m.num==='КЖЗ-367'), vkj = ms.find(m=>m.num==='ВКЖ-367'), pk = ms.find(m=>m.num==='ПК-367');
+     return kjz.basedOn === 'ПА-367' && vkj.basedOn === 'КЖЗ-367' && pk.basedOn === 'КЖЗ-367'; })()`));
+ok('обязанность возразить поднята на КАЖДОЙ жалобе заёмщика затравки, а не на образцовой',
+   g.ev(`PROCESSES.every(p => (p.measures||[]).every(m => {
+     if(!/^(Апелляционная|Кассационная) жалоба заёмщика$/.test(m.kind)) return true;
+     const answer = m.kind === 'Апелляционная жалоба заёмщика'
+       ? 'Возражение на апелляционную жалобу' : 'Возражение на кассационную жалобу';
+     return (p.measures||[]).some(x => x.kind === answer && x.basedOn === m.num); }))`));
+ok('жалобы заёмщика зарегистрированы как внешний акт с исходом «подана»',
+   g.ev(`PROCESSES.flatMap(p=>p.measures||[]).filter(m=>/жалоба заёмщика$/.test(m.kind))
+     .every(m => m.outcome === 'подана' && !!m.received && !!m.received.date)`));
+
+// 3. Полярность повода — обратная нашей
+ok('п. 30.4: жалоба заёмщика стоит только там, где иск удовлетворён',
+   g.ev(`PROCESSES.every(p => { const ms = p.measures||[];
+     if(!ms.some(m=>m.kind==='Апелляционная жалоба заёмщика')) return true;
+     const rs = ms.find(m=>m.kind==='Решение суда');
+     return !!rs && rs.outcome !== REJECTED_VERDICT; })`));
+ok('на одном решении затравка держит жалобу одной стороны — цепочки не смешаны',
+   g.ev(`PROCESSES.every(p => { const ms = p.measures||[];
+     return !(ms.some(m=>m.kind==='Апелляционная жалоба') && ms.some(m=>m.kind==='Апелляционная жалоба заёмщика')); })`));
+
+// 4. Деньги: чужая жалоба слоя не двигает, чужая отмена — гасит
+ok('апелляция по жалобе заёмщика слоя не заводит — он остаётся на акте первой инстанции',
+   g.ev(`(() => { const L = layerOf(PROCESSES.find(p=>p.id==='366'), '366');
+     return !!L && L.sum === 240000 && L.act.num === 'РС-366' && L.correctedBy === null; })()`));
+ok('кассация по жалобе заёмщика отменяет так же, как наша — слой гаснет, фаза откатывается',
+   g.ev(`(() => { const p = PROCESSES.find(x=>x.id==='367');
+     return layerOf(p, '367') === null && phaseOf(p.requirements[0]) === 'Иск'; })()`));
+ok('после отмены сверка обрывается актом отмены — правая колонка пуста, а не нулевая',
+   g.ev(`(() => { const r = REQ_INDEX['367/367/з']; const ch = claimChainsFor(r);
+     return ch.length === 1 && ch[0].award.num === 'ПК-367'
+       && !effectiveAward(r._proc.measures, ch[0].award, r.id); })()`));
+
+head('ADR-0081 · затравка под четыре акта МП-3 и дубль срока п. 37');
+
+/* 1. Три акта-ответа подняты данными; ЧЕТВЁРТЫЙ («по новым обстоятельствам»)
+   в затравке намеренно отсутствует — дело 369 держит обращение без ответа суда,
+   и ассерт ниже проверяет именно эту дыру. Число 3, а не 4, здесь осознанное. */
+ok('три акта МП-3 подняты данными, четвёртый оставлен без ответа суда',
+   g.ev(`(() => { const kinds = new Set(PROCESSES.flatMap(p=>(p.measures||[]).map(m=>m.kind)));
+     return ['Определение об отмене решения по вновь открывшимся обстоятельствам',
+             'Определение об отмене решения по новым обстоятельствам',
+             'Определение об изменении способа и порядка исполнения',
+             'Определение о восстановлении процессуального срока'].filter(k=>kinds.has(k)).length === 3; })()`));
+ok('акт стоит на СВОЁМ обращении — basedOn сходится с basisKinds справочника',
+   g.ev(`PROCESSES.every(p => { const ms = p.measures||[];
+     const byNum = Object.fromEntries(ms.filter(m=>m.num).map(m=>[m.num,m]));
+     return ms.every(m => { const kd = kindOf(m.kind);
+       if(!kd || !kd.basisKinds || !m.basedOn) return true;
+       const b = byNum[m.basedOn];
+       return !b || kd.basisKinds.includes(b.kind); }); })`));
+
+// 2. Деньги: отмена гасит слой, два других акта его не трогают
+ok('отмена по вновь открывшимся гасит слой, хотя решение присуждало 250 000',
+   g.ev(`(() => { const p = PROCESSES.find(x=>x.id==='368');
+     const rs = p.measures.find(m=>m.num==='РС-368');
+     return !!rs.awards && rs.awards['368/368/з'].principal === 250000 && layerOf(p, '368') === null; })()`));
+ok('слой гасится правилом ВИДА (AWARD_DEATH_KINDS), а не общей отменой инстанции',
+   g.ev(`AWARD_DEATH_KINDS.has('Определение об отмене решения по вновь открывшимся обстоятельствам')
+     && AWARD_DEATH_KINDS.has('Определение об отмене решения по новым обстоятельствам')
+     && !REVIEW_ACT_KINDS.has('Определение об отмене решения по вновь открывшимся обстоятельствам')`));
+ok('пока суд не ответил, слой стоит на решении — обращение само по себе денег не трогает',
+   g.ev(`(() => { const p = PROCESSES.find(x=>x.id==='369'); const L = layerOf(p, '369');
+     return !!L && L.sum === 200000 && L.act.num === 'РС-369'; })()`));
+ok('затравка показывает и обращение без ответа — заявление есть, акта нет',
+   g.ev(`(() => { const ms = PROCESSES.find(p=>p.id==='369').measures;
+     return ms.some(m=>m.kind==='Заявление по новым обстоятельствам')
+       && !ms.some(m=>m.kind==='Определение об отмене решения по новым обстоятельствам'); })()`));
+ok('восстановление срока и изменение способа денег не трогают — ни один не гасит и не присуждает',
+   g.ev(`['Определение о восстановлении процессуального срока','Определение об изменении способа и порядка исполнения']
+     .every(k => !AWARD_DEATH_KINDS.has(k) && !AWARD_KINDS.has(k))
+     && PROCESSES.filter(p=>['374','381'].includes(p.id))
+          .every(p => (p.measures||[]).every(m => !m.awards))`));
+/* `ADR-0072` сознательно не дал актам setsPhase: откат фазы в модели не построен.
+   Ассерт держит это решение — иначе «отмена решения» тихо получила бы маршрутный эффект. */
+ok('ни один акт МП-3 фазу не двигает — откат фазы решением ADR-0072 не строился',
+   g.ev(`['Определение об отмене решения по вновь открывшимся обстоятельствам',
+          'Определение об отмене решения по новым обстоятельствам',
+          'Определение об изменении способа и порядка исполнения',
+          'Определение о восстановлении процессуального срока']
+     .every(k => (kindOf(k).outcomes||[]).every(o => !o.setsPhase))`));
+
+// 3. Одновременность п. 30.6 и основание изменения способа
+ok('п. 30.6: заявление о восстановлении подано ТЕМ ЖЕ днём, что и жалоба',
+   g.ev(`(() => { const ms = PROCESSES.find(p=>p.id==='374').measures;
+     const zv = ms.find(m=>m.num==='ЗВС-374'), aj = ms.find(m=>m.kind==='Апелляционная жалоба');
+     return !!zv && !!aj && zv.dates.event === aj.dates.event; })()`));
+ok('изменение способа исполнения стоит на исполнительном листе, а не на решении',
+   g.ev(`(() => { const ms = PROCESSES.find(p=>p.id==='381').measures;
+     const zi = ms.find(m=>m.num==='ЗИС-381'), oi = ms.find(m=>m.num==='ОИС-381');
+     return zi.basedOn === 'ИЛ-381' && oi.basedOn === 'ЗИС-381' && oi.outcome === 'способ изменён'; })()`));
 
 console.log(`\nОШИБОК КОНСОЛИ (jsdomError): ${g.errs.length}`);
 g.errs.forEach(e => console.log('  ' + e));
