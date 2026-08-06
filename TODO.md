@@ -1209,7 +1209,7 @@ _Сквозной модуль (не одна фаза кредитного ци
 только реестр: ID, заголовок, приоритет, статус. Заменяет редакцию 1 (22.07.2026, `P14-R1…R20`);
 таблица «старый ID → новый» — в шапке HTML. ТЗ — `requirements/tz/13-collection.html` (редакция 2).
 Эталон поведения — `mockups/collection/collection.html` (проверка — `node
-scripts/inspect/collection-check.mjs`, jsdom, 809 ассертов; `collection-data-audit.mjs`,
+scripts/inspect/collection-check.mjs`, jsdom, 810 ассертов; `collection-data-audit.mjs`,
 `collection-seed-coverage.mjs` — 0 находок). Спецификация — `mockups/collection/ASUBK-vzyskanie-logika.md`;
 необратимые решения — `docs/adr/0002…0004` + волна «МП» `0043…0054` (18 решений, наряд §30)
 + приведение к редакции Порядка №41 `0062…0072` (наряд сверки), `0077` (§4.8 — тип проекта
