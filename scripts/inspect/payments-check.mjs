@@ -214,10 +214,16 @@ ok('три разные ошибки — три разные кнопки: ст�
      const b = g.$$('#content button').map(x=>x.textContent.trim());
      return b.some(t=>/Сторно поступления/.test(t)) && b.some(t=>/Корректировка суммы/.test(t))
          && b.some(t=>/Перепривязать/.test(t)); })());
-ok('таймаут считается в РАБОЧИХ днях и настраивается (§4.2)',
-   g.ev('DATA.timeoutDays') === 10 && g.ev('DATA.warnDays') === 3
-   && /раб\. дн\./.test(g.textOf(g.rec('R-311','alloc','curator'))));
-ok('спорная пеня висит на поступлении сторно и хранит только решение комиссии (ПТ-Д14)',
+ok('автосторно по таймауту упразднено: параметра нет, ожидание бессрочно (ADR-0088)',
+   g.ev('typeof DATA.timeoutDays') === 'undefined' && g.ev('typeof DATA.warnDays') === 'undefined'
+   && g.ev('DATA.remindDays') === 3
+   && g.ev(`DATA.receipts.every(r => !('deadline' in r) && !('daysLeft' in r))`));
+ok('карточка ждущего поступления говорит про срок ожидания, а не про таймаут',
+   (() => { const t = g.textOf(g.rec('R-311','alloc','curator'));
+     return /раб\. дн\./.test(t) && /срока у ожидания нет/i.test(t) && !/таймаут/i.test(t); })());
+ok('судьбу неподтверждённого решает бухгалтер при закрытии периода',
+   /при закрытии периода/i.test(g.textOf(g.rec('R-311','alloc','accountant'))));
+ok('спорная пеня висит на поступлении сторно и хранит только решение органа (ПТ-Д14)',
    g.ev(`DATA.receipts.filter(r=>r.dispute).every(r => isReversed(r) && !('from' in r.dispute) && !('to' in r.dispute))`));
 
 /* ══════════════════════════════════════════════════════════════════════════
@@ -312,10 +318,11 @@ ok('замороженное поступление даёт кнопку раз
      const a = g.$$('#content button').map(x=>x.textContent.trim());
      g.rec('R-311','alloc','accountant');
      const b = g.$$('#content button').map(x=>x.textContent.trim());
-     return a.some(t=>/Разморозить по решению комиссии/.test(t)) && !a.some(t=>/^Заморозить$/.test(t))
+     return a.some(t=>/^Разморозить$/.test(t)) && !a.some(t=>/^Заморозить$/.test(t))
         && b.some(t=>/Заморозить/.test(t)) && !b.some(t=>/Разморозить/.test(t)); })());
-ok('разморозка — по решению комиссии, и это сказано в карточке',
-   /решению комиссии/i.test(g.textOf(g.rec('R-284','alloc','accountant'))));
+ok('разморозка — решение бухгалтера, не органа, и это сказано в карточке (ADR-0089)',
+   (() => { const t = g.textOf(g.rec('R-284','alloc','accountant'));
+     return /разморозк\S* бухгалтером/i.test(t) && !/по решению комиссии/i.test(t); })());
 
 /* ══════════════════════════════════════════════════════════════════════════
    §5 (ПТ-Д3/Д5/Д6) — МАТРИЦА: СЛОЙ → СТАТЬЯ → СРОЧНОСТЬ, ТРАНШ В КАЖДОЙ СТРОКЕ
@@ -445,12 +452,15 @@ ok('у кредита без опубликованной очереди это 
 /* ══════════════════════════════════════════════════════════════════════════
    §7.2 (ADR-0073) — ОСТАТОК СВЕРХ НАСТУПИВШЕГО: ТРИ РЕЖИМА
    ══════════════════════════════════════════════════════════════════════════ */
-head('§7.2 · три режима остатка сверх наступившего');
-ok('режимов ровно три: обратная очередь · аванс · адресный резерв',
+head('§7.2 · остаток сверх наступившего: дефолт и два режима-директивы');
+ok('«обратной очереди» в словаре нет — дефолт назван общей очерёдностью (ADR-0087)',
+   g.ev(`SURPLUS.queue_back.t`) === 'По общей очерёдности'
+   && !/обратн/i.test(g.ev(`SURPLUS.queue_back.hint`)));
+ok('дефолт + два режима-директивы: аванс и адресный резерв',
    g.ev(`Object.keys(SURPLUS).join(',')`) === 'queue_back,advance,reserve');
 ok('у каждого поступления режим задан и берётся из словаря',
    g.ev(`DATA.receipts.every(r => !!SURPLUS[r.surplus])`));
-ok('дефолт — обратная очередь; директива стоит только там, где её ставили',
+ok('дефолт — гашение по общей очерёдности; директива стоит только там, где её ставили',
    g.ev(`DATA.receipts.filter(r=>r.surplus!=='queue_back').map(r=>r.id).join(',')`) === 'R-290');
 ok('остаток сверх наступившего есть ровно там, где режим не дефолтный (R-290: 70 000)',
    g.ev(`Object.entries(DATA.alloc).filter(([k,a])=>a.surplusLeft>0).map(([k])=>k).join(',')`) === 'AL-2046'
@@ -471,15 +481,15 @@ ok('адресный резерв в разбивке платежа назва�
        && rows.length > 0 && rows.every(x => t.includes(x.due) && t.includes(x.article)); })());
 ok('у замороженного поступления кнопки смены режима закрыты состоянием',
    (() => { const t = g.textOf(g.rec('R-290','parse','accountant'));
-     return /заморожено/i.test(t) && /разморозки по решению комиссии/i.test(t); })());
+     return /заморожено/i.test(t) && /разморозки бухгалтером/i.test(t); })());
 ok('смена режима на замороженном поступлении отклоняется операцией, а не только текстом',
    (() => { g.role('curator');
      const was = g.ev(`DATA.receipts.find(x=>x.id==='R-290').surplus`);
      g.ev(`recAct('surplus','R-290','advance')`);
      return g.ev(`DATA.receipts.find(x=>x.id==='R-290').surplus`) === was; })());
-ok('три режима показаны выбором, а не одним исходом (ПТ-Д23)',
+ok('дефолт и два режима показаны выбором, а не одним исходом (ПТ-Д23)',
    (() => { const t = g.textOf(g.rec('R-311','parse','curator'));
-     return /Обратная очередь/.test(t) && /Аванс/.test(t) && /Адресный резерв/.test(t); })());
+     return /По общей очерёдности/.test(t) && /Аванс/.test(t) && /Адресный резерв/.test(t); })());
 
 /* ══════════════════════════════════════════════════════════════════════════
    §7.3 / §8.5 (ADR-0054, ADR-0056) — ВОЗВРАТ: ДЕНЬГИ НАРУЖУ
@@ -670,7 +680,7 @@ ok('невыясненные держат закрытие июля поимён
      === 'ПС-296,ПС-294');
 ok('незамороженное поступление с положительной сверкой держит закрытие (ПС-305)',
    g.ev(`periodBlockers('2026-07').some(b => b.kind==='Незамороженное поступление' && b.id==='ПС-305')`));
-ok('неистёкший таймаут держит закрытие своего периода (ПС-311, август)',
+ok('неподтверждённое поступление держит закрытие своего периода (ПС-311, август)',
    g.ev(`periodBlockers('2026-08').map(b=>b.kind+'|'+b.id).join(',')`) === 'Ожидает подтверждения ЦК|ПС-311');
 ok('каждое препятствие названо в разметке экрана закрытия',
    (() => { const t = g.textOf(g.view('period','accountant'));
@@ -680,9 +690,10 @@ ok('период с непустым гейтом закрыть нельзя �
    (() => { g.view('period','accountant');
      const btns = g.$$('#content button').filter(b => /Закрыть период/.test(b.textContent));
      return btns.length > 0 && btns.every(b => b.hasAttribute('disabled')); })());
-ok('у закрытого периода — «Открыть период», и это уровень разморозки',
+ok('у закрытого периода — «Открыть период», и это распоряжение главного бухгалтера',
    (() => { const t = g.textOf(g.view('period','accountant'));
-     return /Открыть период/.test(t) && /по решению комиссии/i.test(t); })());
+     return /Открыть период/.test(t) && /распоряжени\S* (гл\.|главного) бухгалтера/i.test(t)
+        && !/по решению комиссии/i.test(t); })());
 ok('закрытие периода платежи НЕ морозит — оно проверяет, что они уже заморожены',
    (() => { const m = mk();
      const before = m.ev(`DATA.receipts.filter(r=>r.period==='2026-06').map(r=>r.frozen).join(',')`);
@@ -1018,6 +1029,62 @@ ok('строки реестра ЦК полосатятся вручную: по
     return prev && prev.classList.contains('zeb') === nr.classList.contains('zeb');
   });
 })());
+
+/* ══════════════════════════════════════════════════════════════════════════
+   ВОЛНА 4 (ADR-0087…0091) — ОЧЕРЁДНОСТЬ · АВТОСТОРНО · ДВА ЗАМКА · КУРС · ПОРОГ
+   ══════════════════════════════════════════════════════════════════════════ */
+head('волна 4 · очерёдность названа, автосторно нет, замка два');
+
+ok('очерёдность — расходы → комиссия → ОД → проценты → пеня, хвост возвращается (ADR-0087)',
+   (() => { const t = g.ev(`retQueueChain()`) || '';
+     const order = ['Расходы','Комиссия','Основной долг','Проценты','Пеня','Возврат'];
+     let at = -1;
+     return order.every(x => { const i = t.indexOf(x); if(i <= at) return false; at = i; return true; }); })());
+
+ok('источников очерёдности два: программа и норма — банкротного порядка нет (ADR-0087)',
+   g.ev(`Object.keys(ORDERING).join(',')`) === 'contract,norm'
+   && g.ev(`DATA.payments.every(p => { const a = allocOf(p.derived);
+        return !a || !a.ordering || !!ORDERING[a.ordering.source]; })`));
+
+ok('исключённая статья остаётся у суда и мирового, но банкротством не мотивирована (ADR-0087)',
+   g.ev(`Object.values(DATA.alloc).flatMap(a => (a.ordering && a.ordering.excluded) || [])
+        .every(x => !/банкрот/i.test(x.why))`));
+
+ok('порог копейки назван в разбивке и живёт там, а не при закрытии кредита (ADR-0091)',
+   (() => { const t = g.textOf(g.pay('P-2044','alloc','curator'));
+     return /Порог копейки/.test(t) && /0,01/.test(t) && /в обе стороны/i.test(t); })());
+
+ok('«обратная очередь» из пользовательского текста ушла целиком (ADR-0087)',
+   (() => VIEWS.every(v => ROLES.every(r => !/обратн\S* очеред/i.test(g.textOf(g.view(v, r))))))());
+
+ok('курс на дату без публикации берёт последний установленный ранее (ADR-0090)',
+   g.ev(`rateOn('USD','02.08.2026')`) === g.ev(`rateOn('USD','30.07.2026')`)
+   && g.ev(`rateDateOn('USD','02.08.2026')`) === '30.07.2026');
+
+ok('дата раньше начала истории курсом не закрывается — это дыра, а не допущение',
+   g.ev(`rateOn('USD','01.01.2026')`) === null);
+
+ok('спорную пеню решает орган из справочника — Комиссия по спорным начислениям (ADR-0089)',
+   (() => { const pid = g.ev(`(DATA.payments.find(p => (receiptOf(p)||{}).dispute)||{}).id`);
+     const t = g.textOf(g.pay(pid,'dispute','curator'));
+     return /Комиссия по спорным начислениям/.test(t) && /Р-6|справочник органов/i.test(t)
+        && !/решение комиссии/i.test(t); })());
+
+ok('открытие закрытого периода требует номера, даты И вложенного документа (ADR-0089)',
+   (() => { g.view('period','accountant');
+     const closed = g.ev(`(DATA.periods.find(p=>p.state==='closed')||{}).id`);
+     g.ev(`modalOpenPeriod(${JSON.stringify('')}||'${'' }')`);
+     g.ev(`modalOpenPeriod('${closed}')`);
+     const has = id => !!g.q('#' + id);
+     const before = g.ev(`(DATA.periods.find(p=>p.id==='${closed}')||{}).state`);
+     g.ev(`(function(){ const set=(i,v)=>{const e=document.getElementById(i); if(e) e.value=v;};
+        set('poNum','99'); set('poDate','06.08.2026'); set('poWhy','проверка'); set('poFile','');
+        doOpenPeriod('${closed}'); })()`);
+     const stillClosed = g.ev(`(DATA.periods.find(p=>p.id==='${closed}')||{}).state`) === 'closed';
+     return has('poNum') && has('poDate') && has('poFile') && before === 'closed' && stillClosed; })());
+
+ok('журнал периодов называет распоряжение, а не решение органа',
+   g.ev(`PERIOD_LOG.filter(x=>x.act==='Открытие').every(x => /Распоряжение/.test(x.decision))`));
 
 console.log(`\nОШИБОК КОНСОЛИ (jsdomError): ${g.errs.length}`);
 g.errs.forEach(e => console.log('  ' + e));
