@@ -9114,8 +9114,8 @@ function panelSud(){
       :n!=null&&n<0?(hApplicable(h)?'<span class="pill high">исход не внесён</span>':'<span class="dl-muted">без исхода — уведомление</span>')
       :`<span class="pill info">предстоит${n!=null?` · через ${n} к.д.`:''}</span>`;
     return `<tr>
-    <td>${h.measureNum}${boundToReq(r,h.measureNum)===null?' '+dealLevelPill:''}</td><td>${h.kind}</td><td>${h.place}</td><td>${h.when}</td>
-    <td>${(h.participants||[]).join('<br>')||'<span class="dl-muted">не указаны</span>'}</td><td>${out}</td></tr>`;}).join('')
+    <td>${h.measureNum}${boundToReq(r,h.measureNum)===null?' '+dealLevelPill:''}</td><td>${h.kind}</td><td>${escAttr(h.place)}</td><td>${h.when}</td>
+    <td>${(h.participants||[]).map(escAttr).join('<br>')||'<span class="dl-muted">не указаны</span>'}</td><td>${out}</td></tr>`;}).join('')
     || `<tr><td colspan="6"><div class="cgrid-empty">Заседаний по требованию нет — иск по нему в суд не подавался либо дата ещё не назначена. Сводно по всем делам — реестр <span class="rowlink" onclick="navClick('Заседания (реестр)')">«Заседания»</span>.</div></td></tr>`;
   return `<div class="panel-wrap">
     <p class="section-h">Судебные акты по требованию ${r.id}</p>
@@ -11168,7 +11168,7 @@ defReg({
       <td class="dl-act">${x.h.kind}</td>
       ${borrCell(x.p)}
       <td>${reqCell(x.reqs, 'мера ' + (x.h.measureNum || '—'))}</td>
-      <td class="dl-act">${x.h.place}</td>
+      <td class="dl-act">${escAttr(x.h.place)}</td>
       <td>${x.rep ? x.rep : '<span class="dl-muted">не назначен</span>'}</td>
       <td class="dl-act">${out}</td></tr>`;
   },
