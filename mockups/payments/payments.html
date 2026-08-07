@@ -3509,7 +3509,13 @@ function regFeed(){
 const regAt = i => regFeed()[i] || null;
 
 let regFilter = 'all';
-function setRegFilter(f){ regFilter = f; render(); }
+function setRegFilter(f){ regFilter = f; FEEDS.reg.page = 1; render(); }
+
+/* Лента (просмотр всего, feedBar) / Разбор (рабочая очередь — только нерешённое,
+   ре-дериваж 07.08.2026: сопоставление — два слоя, разбор живёт над верхним,
+   человеческим; дубль и сводная строка резолвятся сами, действия не просят). */
+let regTab = 'feed';
+function setRegTab(t){ regTab = t; render(); }
 
 const REG_FILTERS = [
   { id:'all',      t:'Все',              f:()=>true },
@@ -3555,7 +3561,9 @@ function regRow(o, i){
 
   /* подстрочники: дубль · расщепление сводной · расхождение суммы */
   const sub = [];
-  if(o.dup) sub.push(`Ключ дедупликации совпал: <b>${o.key}</b> — та же строка уже принята (позиция ${o.firstAt+1} ленты).`);
+  if(o.dup){ const first = regAt(o.firstAt);
+    sub.push(`Ключ дедупликации совпал: <b>${o.key}</b> — та же строка уже принята (позиция ${o.firstAt+1} ленты).` +
+      (first && first.r ? ` Пара — <span class="rowlink" onclick="event.stopPropagation();openReceipt('${first.r.id}')">${first.r.number}</span>.` : ' У первой строки пары тоже нет.')); }
   if(o.split.length>1) sub.push(`Одна строка ЦК — ${o.split.length} платежа:
     ${o.split.map(p=>`<span class="rowlink" onclick="openPayment('${p.id}')">${p.number}</span> ${money(paidOf(p))}
       (${(creditOf(p.credit)||{}).borrower||p.credit})`).join(' · ')}.
@@ -3591,12 +3599,47 @@ const REG_SORTERS = {
   bound:  o => o.dup ? 1 : o.r ? 2 : 0,
 };
 
+/* Условия ленты реестра. Период — фильтр, не граница загрузки (ре-дериваж 07.08.2026):
+   строка живёт в непрерывном потоке, период — производная от её даты документа. */
+const REG_CONDS = [
+  { key:'q', kind:'text', zone:'quick', label:'Поиск', width:340,
+    ph:'Номер документа, плательщик, назначение, наш номер',
+    test:(o,v)=>{ const x=o.x, r=o.r;
+      return (`${x.doc} ${x.payer} ${x.note||''} ${r?r.number:''}`).toLowerCase().includes(v); } },
+  { key:'period', kind:'select', zone:'quick', label:'Период', width:210,
+    options:()=>DATA.periods.map(p=>({ v:p.id, t:p.label })), test:(o,v)=>o.x.period===v },
+  { key:'amount', kind:'range', input:'number', label:'Сумма ЦК',
+    test:(o,v)=>!(v.from!=='' && o.x.amount < +v.from) && !(v.to!=='' && o.x.amount > +v.to) },
+  { key:'date', kind:'range', input:'date', label:'Дата документа',
+    test:(o,v)=>{ const iso = toISO(o.x.date);
+      return !(v.from && (!iso || iso < v.from)) && !(v.to && (!iso || iso > v.to)); } },
+];
+/* base — уже прошедшие сегмент (regFilter) строки; сегмент и поиск — два независимых
+   яруса сужения, как «Вид платежа» и текстовый поиск в ленте платежей. */
+defFeed('reg', {
+  conds: REG_CONDS,
+  sorters: REG_SORTERS,
+  base: () => { const flt = REG_FILTERS.find(x=>x.id===regFilter) || REG_FILTERS[0];
+                return regFeed().filter(flt.f); },
+  paint: s => {
+    const b = document.getElementById('reg-body'); if(b) b.innerHTML = regRowsHtml(s.page);
+    const t = document.getElementById('reg-total'); if(t) t.innerHTML = regTotalHtml(s.hits);
+  },
+});
+
 /* Девять колонок реестра ЦК слиты в семь — по тому же правилу, что и у кредитов:
    «Сумма ЦК» + «Наша сумма» = одна ячейка сверки, «Плательщик» + «Назначение» =
    один банковский документ. Зебра здесь ручная (.man-zeb + .zeb): под строкой живут
    пояснения (дубль · расщепление · расхождение), и полосатость по nth-child сбилась бы. */
-function regTable(rows){
-  if(!rows.length) return `<div class="grid-wrap"><div class="grid-empty">Строк реестра в этом отборе нет</div></div>`;
+const regRowsHtml = list => list.length ? list.map(regRow).join('')
+  : `<tr><td colspan="${REG_COLS}"><div class="grid-empty">${
+      feedActive(FEEDS.reg).length ? 'Ничего не найдено по фильтрам' : 'Строк реестра в этом отборе нет'}</div></td></tr>`;
+/* Итог по выборке до пагинации, дубли не в счёт — они и без того «в учёт не берутся». */
+const regTotalHtml = hits => { const keep = hits.filter(o=>!o.dup);
+  return `${money(keep.reduce((s,o)=>s+o.x.amount,0))}${
+    hits.length>keep.length ? ` <span class="sub">без ${hits.length-keep.length} дублей</span>` : ''}`; };
+
+function regTable(page, hits){
   return `<div class="grid-wrap"><table class="grid man-zeb" data-t="reg" style="min-width:1300px">
     <colgroup>
       <col style="width:195px"><col style="width:150px"><col style="width:165px"><col style="width:230px">
@@ -3606,30 +3649,12 @@ function regTable(rows){
       ${gth('reg','doc','Строка ЦК')}${gth('reg','date','Дата документа')}${gth('reg','amount','Сумма ЦК / наша','r')}
       ${gth('reg','payer','Плательщик')}${gth('reg','period','Период')}${gth('reg','bound','К чему привязано')}
       <th class="nos">Действие</th>
-    </tr></thead><tbody>${gapply('reg', rows, REG_SORTERS).map(regRow).join('')}</tbody></table></div>`;
-}
-
-/* ---- группировка по периоду с итогами; дубли в сумму не входят ---- */
-function regGroups(list){
-  const order = DATA.periods.map(p=>p.id);
-  const ids = [...new Set(list.map(o=>o.x.period))]
-    .sort((a,b)=>((order.indexOf(a)<0?99:order.indexOf(a)) - (order.indexOf(b)<0?99:order.indexOf(b))));
-  if(!ids.length) return regTable([]);
-  return ids.map(pid=>{
-    const rows = list.filter(o=>o.x.period===pid);
-    const per  = DATA.periods.find(p=>p.id===pid) || { label:pid, state:'open' };
-    const keep = rows.filter(o=>!o.dup);
-    const sum  = +keep.reduce((s,o)=>s+o.x.amount,0).toFixed(2);
-    const dupN = rows.length - keep.length;
-    const noneN = keep.filter(o=>!o.r).length;
-    return `<div class="gtoolbar" style="margin:22px 0 8px">
-        <span class="section-h" style="margin:0">${per.label}</span>${pill(PSTATE[per.state])}
-        ${noneN?pill({t:'без нашей пары: '+noneN, cls:'err'}):''}
-        <span class="spacer"></span>
-        <span class="src-tag">строк ${rows.length} · к учёту ${keep.length} на
-          <b style="color:var(--text-heading)">${money(sum)}</b>${dupN?` · дублей отсеяно ${dupN} — в сумму не входят`:''}</span>
-      </div>${regTable(rows)}`;
-  }).join('');
+    </tr></thead>
+    <tbody id="reg-body">${regRowsHtml(page)}</tbody>
+    <tfoot><tr><td colspan="2" class="lbl">Итого по выборке</td>
+      <td class="r num" id="reg-total">${regTotalHtml(hits)}</td>
+      <td colspan="4"></td></tr></tfoot>
+  </table></div>`;
 }
 
 /* ---- итог по всей ленте ---- */
@@ -3648,62 +3673,14 @@ function regInvTop(f){
 }
 
 /* ============================================================
-   РАЗБОРЫ ПОД ЛЕНТОЙ
+   РАЗБОР — рабочая очередь (ре-дериваж 07.08.2026)
+
+   Только нерешённое: дубль и сводная строка резолвятся сами (объяснение — подстрочником
+   в regRow на Ленте, действия там не требуется), сюда попадают лишь расхождение суммы и
+   строки без нашей пары — то, что реально ждёт решения куратора/бухгалтера.
    ============================================================ */
 
-/* ---- 1 · дедупликация: работает ключ, а не пометка в файле ---- */
-function regDedupBlock(all){
-  const dup = all.filter(o=>o.dup);
-  return `<div class="section-h" style="margin-top:26px">Дедупликация повторной присылки</div>
-    <p class="section-note">Ключ дедупликации: <b>№ документа + дата + сумма</b>.</p>
-    ${dup.length ? `<div class="gate">${dup.map(o=>{
-        const first = regAt(o.firstAt);
-        return `<div class="grow">
-          <span class="gkind">Дубль строки №${o.x.doc}</span>
-          <span class="gwhat">ключ <b>${o.key}</b> совпал с принятой строкой (позиция ${o.firstAt+1}); присылка —
-            «${o.x.note||'—'}». Сумма ${money(o.x.amount)} в итог периода не вошла.</span>
-          ${first && first.r ? `<span class="gid" onclick="openReceipt('${first.r.id}')">${first.r.number} →</span>`
-                             : `<span class="src-tag">пары нет</span>`}
-        </div>`;
-      }).join('')}</div>`
-      : regBan('ok', `Повторных присылок в текущем реестре нет.`)}`;
-}
-
-/* ---- 2 · сводная строка: одна строка ЦК — несколько платежей ---- */
-function regSplitBlock(all){
-  const sp = all.filter(o=>o.split.length>1);
-  if(!sp.length) return '';
-  return sp.map(o=>{
-    const r = o.r, sum = +o.split.reduce((s,p)=>s+paidOf(p),0).toFixed(2);
-    const ok = Math.abs(sum - r.amount) < 0.005;
-    return `<div class="section-h" style="margin-top:26px">Сводная строка №${o.x.doc}: одна строка ЦК — ${o.split.length} заёмщика</div>
-      <p class="section-note">ЦК прислал одну сумму на нескольких заёмщиков («${o.x.note||'—'}»). Расщепление живёт
-        у поступления <span class="rowlink" onclick="openReceipt('${r.id}')">${r.number}</span>.</p>
-      <div class="cgrid-wrap"><table class="cgrid"><thead><tr>
-        <th>Платёж</th><th>Заёмщик · кредит</th><th>Транш — область разбивки</th><th class="r">Сумма</th><th>Основание расщепления</th>
-        </tr></thead><tbody>
-        ${o.split.map(p=>{
-          const c = creditOf(p.credit) || {};
-          const t = ((c.tranches)||[]).find(y=>y.id===p.tranche);
-          return `<tr onclick="openPayment('${p.id}')">
-            <td><span class="rowlink">${p.number}</span></td>
-            <td>${c.borrower||'—'}<div class="src-tag" style="margin-top:4px">${c.title||p.credit}</div></td>
-            <td>${t?`<span class="trn">${t.label}</span>`:'<span class="trn">оба транша кредита</span>'}</td>
-            <td class="r mono">${cur(p.amount,p.currency)}</td>
-            <td style="white-space:normal;max-width:360px">${p.basis||'—'}</td></tr>`;
-        }).join('')}
-        <tr class="total" style="cursor:default"><td colspan="3">Итого платежей поступления ${r.number}</td>
-          <td class="r mono">${money(sum)}</td><td>строка ЦК — ${money(o.x.amount)}</td></tr>
-      </tbody></table></div>
-      <div class="inv">
-        <span class="iv">Строка реестра ЦК: <b>${money(o.x.amount)}</b></span>
-        <span class="iv">Поступление ${r.number}: <b>${money(r.amount)}</b></span>
-        <span class="iv${ok?'':' bad'}">Σ платежей расщепления: <b>${money(sum)}</b> ${ok?'— сходится':'— не сходится'}</span>
-      </div>`;
-  }).join('');
-}
-
-/* ---- 3 · расхождение суммы: направление корректировки названо явно (ПТ-Д13) ---- */
+/* ---- 1 · расхождение суммы: направление корректировки названо явно (ПТ-Д13) ---- */
 function regMismatchBlock(all){
   const ms = all.filter(o=>!o.dup && o.diff);
   if(!ms.length) return `<div class="section-h" style="margin-top:26px">Расхождение суммы</div>
@@ -3743,7 +3720,7 @@ function regMismatchBlock(all){
   }).join('');
 }
 
-/* ---- 4 · несопоставленные строки: чем они держат месяц ---- */
+/* ---- 2 · несопоставленные строки: чем они держат месяц ---- */
 function regUnmatchedBlock(all){
   const ns = all.filter(o=>!o.dup && !o.r);
   return `<div class="section-h" style="margin-top:26px">Несопоставленные строки — «есть в ЦК, нет у нас»</div>
@@ -3770,33 +3747,40 @@ function regUnmatchedBlock(all){
    ============================================================ */
 function viewRegistry(){
   const all  = regFeed();
-  const flt  = REG_FILTERS.find(x=>x.id===regFilter) || REG_FILTERS[0];
-  const list = all.filter(flt.f);
   const segs = `<div class="seg">${REG_FILTERS.map(x=>
     `<button class="${x.id===regFilter?'on':''}" onclick="setRegFilter('${x.id}')">${x.t} · ${all.filter(x.f).length}</button>`).join('')}</div>`;
+  const todo = all.filter(o=>!o.dup && (!o.r || o.diff)).length;
+  const s = feedSlice('reg');
+
+  const tab = (id, label) => `<button class="dtab ${regTab===id?'active':''}" onclick="setRegTab('${id}')">${label}${
+    id==='triage' && todo ? ` <span class="urg over" style="margin-left:6px">${todo}</span>` : ''}</button>`;
 
   return `<div class="page-pad">
     <div class="section-h">Реестр ЦК</div>
-
-    <div class="gtoolbar">${segs}<span class="spacer"></span>
-      <button class="btn btn-primary btn-sm" onclick="modalLoadRegistry()">${regIco(REG_I.up,15)}Загрузить реестр</button>
-    </div>
-
     ${regInvTop(all)}
-    ${regGroups(list)}
 
-    <div class="legend">
-      <span>${pill(REG_P.matched)} у строки есть наша запись</span>
-      <span>${pill(REG_P.none)} нашей записи нет — держит закрытие периода</span>
-      <span>${pill(REG_P.dup)} ключ уже встречался — в сопоставление не идёт</span>
-      <span>${pill(REG_P.mismatch)} суммы разошлись</span>
-      <span>${pill(REG_P.split)} одна строка ЦК на нескольких заёмщиков</span>
+    <div class="detail-tabbar">${tab('feed','Лента')}${tab('triage','Разбор')}</div>
+
+    <div class="dpanel ${regTab==='feed'?'active':''}">
+      <div class="gtoolbar">${segs}<span class="spacer"></span>
+        <button class="btn btn-primary btn-sm" onclick="modalLoadRegistry()">${regIco(REG_I.up,15)}Загрузить реестр</button>
+      </div>
+      ${feedBar('reg')}
+      ${regTable(s.page, s.hits)}
+      ${feedPagerHtml(s)}
+      <div class="legend">
+        <span>${pill(REG_P.matched)} у строки есть наша запись</span>
+        <span>${pill(REG_P.none)} нашей записи нет — держит закрытие периода</span>
+        <span>${pill(REG_P.dup)} ключ уже встречался — в сопоставление не идёт</span>
+        <span>${pill(REG_P.mismatch)} суммы разошлись</span>
+        <span>${pill(REG_P.split)} одна строка ЦК на нескольких заёмщиков</span>
+      </div>
     </div>
 
-    ${regDedupBlock(all)}
-    ${regSplitBlock(all)}
-    ${regMismatchBlock(all)}
-    ${regUnmatchedBlock(all)}
+    <div class="dpanel ${regTab==='triage'?'active':''}">
+      ${regMismatchBlock(all)}
+      ${regUnmatchedBlock(all)}
+    </div>
   </div>`;
 }
 
