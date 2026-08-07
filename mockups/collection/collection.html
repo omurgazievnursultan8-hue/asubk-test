@@ -714,6 +714,12 @@ table.cgrid td.org-cell{ white-space:normal; max-width:220px; }
   display:flex; flex-direction:column; box-shadow:0 24px 70px rgba(16,28,46,0.4); }
 .modal.form{ width:min(760px,100%); }
 .modal.narrow{ width:min(560px,100%); }
+.modal.measure{ width:min(1240px,100%); }
+/* Охват+Требуемое (renderMScopeClaims) — 8 колонок, «Цель» и заголовки денежных статей
+   длиннее своих данных: без переноса .cgrid's global white-space:nowrap раздувает
+   колонки текстом заголовка, а не шириной инпута/селекта под ним. */
+table.cgrid.mscc thead th{ white-space:normal; }
+table.cgrid.mscc td:first-child, table.cgrid.mscc th:first-child{ white-space:normal; max-width:240px; }
 .modal-h{ padding:18px 24px 12px; display:flex; align-items:center; gap:10px; }
 .modal-h .mt{ font:var(--weight-bold) 20px/1.2 var(--asubk-font); color:var(--text-heading); flex:1; }
 .modal-x{ border:none; background:transparent; cursor:pointer; color:var(--text-muted); display:flex; padding:4px; }
@@ -871,12 +877,26 @@ tr.off td{ opacity:.6; text-decoration:line-through; text-decoration-color:rgba(
 .hint-inline{ font-size:11px; color:var(--text-muted); line-height:1.45; }
 .gtoolbar .hint-inline{ align-self:center; }
 
+/* ⓘ-раскрытие: hint-toggle оборачивает section-note/hint-inline объяснения формы
+   регистрации меры (см. hintToggle()) — закрыто по умолчанию, клик-раскрытие. */
+.hint-toggle{ margin:2px 0 6px; }
+.hint-toggle > summary{ display:inline-flex; align-items:center; justify-content:center;
+  width:20px; height:20px; border-radius:50%; background:rgba(24,39,57,0.05);
+  color:var(--text-link); cursor:pointer; list-style:none; }
+.hint-toggle > summary::-webkit-details-marker{ display:none; }
+.hint-toggle > summary::marker{ content:""; }
+.hint-toggle > summary:hover{ background:var(--asubk-blue-tint); }
+.hint-toggle[open] > summary{ color:#fff; background:var(--asubk-blue); }
+.hint-toggle > .hint-inline, .hint-toggle > .section-note{ margin-top:6px; }
+
 /* цели меры в модале */
 .tgtbox{ border:1px solid var(--border-strong); border-radius:var(--radius-md,6px); padding:8px 10px; background:#fff; }
 .tgtbox .tgt{ display:flex; align-items:center; gap:8px; padding:4px 0; font:var(--font-body); }
 .tgtbox .tgt-name{ flex:1; }
 .tgtbox .tgt-sum{ font-variant-numeric:tabular-nums; color:var(--text-muted); }
 .tgtbox .hint-inline{ margin-top:6px; }
+.tgtbox .tgt-gate-note{ color:var(--asubk-red); font:var(--font-label); padding:0 0 4px 26px; }
+.tgtbox .tgt-gate-note:empty{ display:none; }
 
 /* сегментный переключатель (журнал мер: требование / дело) */
 .segbtn{ display:inline-flex; border:1px solid var(--border-strong); border-radius:var(--radius-md,6px); overflow:hidden; }
@@ -1231,7 +1251,7 @@ const TERMINAL_RANK = { 'Полное погашение':1, 'Завершена
    слой (layerOf !== null — прокси «решение вступило в силу», вопрос 1: новый факт в
    модель не заводим); нулевой остаток — фолбэк, как и раньше. Ранжируется TERMINAL_RANK. */
 function terminalCandidateOf(r){
-  const found = liveMeasuresOf(r).map(measureSetsTerminal).filter(Boolean);
+  const found = liveMeasuresOf(r).map(m => measureSetsTerminal(m, r.id)).filter(Boolean);
   if(RESTRUCTURING_APPROVALS[r.credit]) found.push('Реструктурирована');
   if(SECURITY_TERMINATIONS[r.credit] && layerOf(r._proc, r.credit) === null) found.push('Обеспечение прекращено');
   if(found.length) return found.sort((a,b)=> TERMINAL_RANK[b] - TERMINAL_RANK[a])[0];
@@ -2062,9 +2082,9 @@ const liveMeasuresOf = r => measuresOf(r).filter(m => isLiveFor(m, r.id));
    регистрации меры, а конкретное значение её исхода — у видов без outcomes (resultIsDocument
    либо вид без модели результата) либо у меры с ещё не заполненным/несовпавшим исходом
    свёртка её не читает вовсе (ADR-0028 п.2 — пустой исход «результат не наступил»). */
-function measureSetsPhase(m){
+function measureSetsPhase(m, reqId){
   const kd = kindOf(m.kind); if(!kd || !kd.outcomes) return null;
-  const hit = kd.outcomes.find(o => o.value === (m.outcome || ''));   // не заполнено ⇔ пустое значение
+  const hit = kd.outcomes.find(o => o.value === ((m.outcomes && m.outcomes[reqId]) || ''));   // не заполнено ⇔ пустое значение
   return hit ? (hit.setsPhase || null) : null;
 }
 /* МП-О3 (карта «терминалы и треки»): TERMINAL_BY_MEASURE (ниже по файлу, :1165)
@@ -2074,9 +2094,9 @@ function measureSetsPhase(m){
    один читатель (:3973, деадлайн-глушилка реестра «Сроки на контроле»),
    сознательно более грубый (любая живая мера вида, не исход) и вне наряда этой
    волны — outcomeOf() этот объект больше не читает, только measureSetsTerminal. */
-function measureSetsTerminal(m){
+function measureSetsTerminal(m, reqId){
   const kd = kindOf(m.kind); if(!kd || !kd.outcomes) return null;
-  const hit = kd.outcomes.find(o => o.value === (m.outcome || ''));
+  const hit = kd.outcomes.find(o => o.value === ((m.outcomes && m.outcomes[reqId]) || ''));
   if(!hit) return null;
   /* Наряд п.6б (`ADR-0052` §2): «Определение о замене стороны правопреемником» закрывает
      требование терминалом, ТОЛЬКО когда правопреемников больше одного (разветвление) —
@@ -2089,7 +2109,7 @@ function measureSetsTerminal(m){
    акт, поступивший с задержкой, не должен обгонять более раннюю по факту веху. */
 function liveMilestones(r){
   return measuresOf(r)
-    .filter(m => isLiveFor(m, r.id) && measureSetsPhase(m))
+    .filter(m => isLiveFor(m, r.id) && measureSetsPhase(m, r.id))
     .map((m, i) => ({ m, i, t: (ruD(m.dates && (m.dates.event || m.dates.registered)) || 0) }))
     .sort((a, b) => (a.t - b.t) || (a.i - b.i))
     .map(x => x.m);
@@ -2127,26 +2147,26 @@ const APPEAL_ACT_KIND = 'Постановление апелляционной �
 const CASSATION_ACT_KIND = 'Постановление кассационной инстанции';
 const REVIEW_ACT_KINDS = new Set([APPEAL_ACT_KIND, CASSATION_ACT_KIND]);
 const CASSATION_RESTORE_OUTCOME = 'апелляция отменена, решение первой инстанции в силе';
-const isReviewReversal = m => REVIEW_ACT_KINDS.has(m.kind) && String(m.outcome || '').indexOf('отменено') === 0;
-const isCassationRestore = m => m.kind === CASSATION_ACT_KIND && m.outcome === CASSATION_RESTORE_OUTCOME;
+const isReviewReversal = (m, reqId) => REVIEW_ACT_KINDS.has(m.kind) && String((m.outcomes && m.outcomes[reqId]) || '').indexOf('отменено') === 0;
+const isCassationRestore = (m, reqId) => m.kind === CASSATION_ACT_KIND && (m.outcomes && m.outcomes[reqId]) === CASSATION_RESTORE_OUTCOME;
 /* ADR-0079 — общий приём обеих свёрток слоя (layerOf и claimChainsFor ниже). Пул уже
    отсортирован по дате события, поэтому «апелляционные акты не позже восстановления» —
    это просто индексы левее. Восстановление убирает из пула СЕБЯ (оно ничего не присуждает)
    и отменённую им апелляцию; побеждает то, что осталось, — акт первой инстанции. */
-function dropRestoredAppeals(sortedMeasures){
+function dropRestoredAppeals(sortedMeasures, reqId){
   let cut = -1;
-  sortedMeasures.forEach((m, i) => { if(isCassationRestore(m)) cut = i; });
+  sortedMeasures.forEach((m, i) => { if(isCassationRestore(m, reqId)) cut = i; });
   if(cut < 0) return sortedMeasures;
-  return sortedMeasures.filter((m, i) => !isCassationRestore(m) && !(m.kind === APPEAL_ACT_KIND && i < cut));
+  return sortedMeasures.filter((m, i) => !isCassationRestore(m, reqId) && !(m.kind === APPEAL_ACT_KIND && i < cut));
 }
 function phaseSetter(r){
   const ms = liveMilestones(r);
   if(!ms.length) return null;
   const last = ms[ms.length - 1];
-  if(!ROUTE_PHASES.has(measureSetsPhase(last))) return last;
-  if(isReviewReversal(last)) return last;
-  const routeMs = ms.filter(m => ROUTE_PHASES.has(measureSetsPhase(m)));
-  return routeMs.reduce((best, m) => phaseRank(measureSetsPhase(m)) >= phaseRank(measureSetsPhase(best)) ? m : best);
+  if(!ROUTE_PHASES.has(measureSetsPhase(last, r.id))) return last;
+  if(isReviewReversal(last, r.id)) return last;
+  const routeMs = ms.filter(m => ROUTE_PHASES.has(measureSetsPhase(m, r.id)));
+  return routeMs.reduce((best, m) => phaseRank(measureSetsPhase(m, r.id)) >= phaseRank(measureSetsPhase(best, r.id)) ? m : best);
 }
 /* Наряд п.6б (`ADR-0052` §2): у ветви разветвления (`continuesReq`) БЕЗ своей меры-вехи
    фаза наследуется свёрткой предшественника — рекурсивно, до первой СОБСТВЕННОЙ меры
@@ -2154,7 +2174,7 @@ function phaseSetter(r){
    так не наследуется — треки раздельны, один из трёх доводов ADR за само разветвление. */
 function phaseOf(r){
   const m = phaseSetter(r);
-  if(m) return measureSetsPhase(m);
+  if(m) return measureSetsPhase(m, r.id);
   if(r.continuesReq){ const pr = REQ_INDEX[r.continuesReq]; if(pr) return phaseOf(pr); }
   return OPEN_PHASE;
 }
@@ -2231,16 +2251,16 @@ function layerOf(proc, creditId){
     .filter(m => isLiveFor(m, rep.id) && (
       (AWARD_KINDS.has(m.kind) && m.awards && m.awards[rep.id]) ||
       (AWARD_DEATH_KINDS.has(m.kind) && (m.targets || []).includes(rep.id)) ||
-      (REVIEW_ACT_KINDS.has(m.kind) && m.outcome === 'изменено' && m.awards && m.awards[rep.id]) ||
-      (isReviewReversal(m) && (m.targets || []).includes(rep.id)) ||
-      (isCassationRestore(m) && (m.targets || []).includes(rep.id))
+      (REVIEW_ACT_KINDS.has(m.kind) && (m.outcomes && m.outcomes[rep.id]) === 'изменено' && m.awards && m.awards[rep.id]) ||
+      (isReviewReversal(m, rep.id) && (m.targets || []).includes(rep.id)) ||
+      (isCassationRestore(m, rep.id) && (m.targets || []).includes(rep.id))
     ))
     .map((m, i) => ({ m, i, t: (ruD(m.dates && (m.dates.event || m.dates.registered)) || 0) }))
     .sort((a, b) => (a.t - b.t) || (a.i - b.i));
-  const pool = dropRestoredAppeals(acts.map(a => a.m));
+  const pool = dropRestoredAppeals(acts.map(a => a.m), rep.id);
   if(!pool.length) return null;
   const last = pool[pool.length - 1];
-  if(AWARD_DEATH_KINDS.has(last.kind) || isReviewReversal(last)) return null;
+  if(AWARD_DEATH_KINDS.has(last.kind) || isReviewReversal(last, rep.id)) return null;
   const lastAward = last.awards[rep.id];
   const isCorrection = REVIEW_ACT_KINDS.has(last.kind) && lastAward.relation && lastAward.relation.type === 'corrects';
   const act = isCorrection ? (measures.find(x => x.num === lastAward.relation.of) || last) : last;
@@ -2262,18 +2282,22 @@ function layerOf(proc, creditId){
 const DEFAULT_SCOPE = { volume:'просроченная сумма', method:'деньгами' };
 /* Task 6, ревью раунд3: закрытый список допустимых значений `volume` — единственный
    источник вместо литерала ['просроченная сумма','полный остаток'], который раньше
-   стоял только в форме регистрации меры (renderMScope). Теперь читает и она, и
+   стоял только в форме регистрации меры (renderMScopeClaims). Теперь читает и она, и
    debtOf/claimOf/claimTotal ниже (валидация scopeVolume). */
 const SCOPE_VOLUMES = ['просроченная сумма', 'полный остаток'];
+/* ADR-0025/Task4: охват — реквизит связи мера↔цель (m.scopes[reqId]), не самой меры —
+   тем же паттерном, что и исход (ADR-0103). Мера с осью Б бьёт по нескольким кредитам
+   разом, и объём×способ у них может разойтись (иск на все кредиты «полным остатком»,
+   но по одному из них уже действует извещение об обращении на залог). */
 function liveScopeMeasures(r){
   return measuresOf(r)
-    .filter(m => isLiveFor(m, r.id) && m.scope)
+    .filter(m => isLiveFor(m, r.id) && m.scopes && m.scopes[r.id])
     .map((m, i) => ({ m, i, t: (ruD(m.dates && (m.dates.event || m.dates.registered)) || 0) }))
     .sort((a, b) => (a.t - b.t) || (a.i - b.i))
     .map(x => x.m);
 }
 function scopeSetter(r){ const ms = liveScopeMeasures(r); return ms.length ? ms[ms.length - 1] : null; }
-function scopeOf(r){ const m = scopeSetter(r); return m ? m.scope : DEFAULT_SCOPE; }
+function scopeOf(r){ const m = scopeSetter(r); return m ? m.scopes[r.id] : DEFAULT_SCOPE; }
 function scopeSource(r){ const m = scopeSetter(r); return m ? `по документу-основанию: ${m.num}` : 'устанавливающих мер нет — умолчание открытия дела'; }
 const scopeLabel = s => `${s.volume} / ${s.method}`;
 
@@ -2469,7 +2493,7 @@ function trackBadges(r){
    сценарий теперь достижим через интерфейс, проверено смоуком (.scratch/collection-
    gejt-predusloviy/issues/02). */
 function newClaimBadge(r){
-  const iskMs = liveMilestones(r).filter(m => measureSetsPhase(m) === 'Иск' && !isReviewReversal(m));
+  const iskMs = liveMilestones(r).filter(m => measureSetsPhase(m, r.id) === 'Иск' && !isReviewReversal(m, r.id));
   if(iskMs.length < 2 || phaseRank(phaseOf(r)) <= phaseRank('Иск')) return '';
   const fresh = iskMs[iskMs.length - 1];
   return ` <span class="pill mid" title="Мера «${escAttr(fresh.num||fresh.kind)}» от ${escAttr((fresh.dates&&fresh.dates.event)||'')} — живая, но дело уже прошло дальше по прежнему решению (§3.2)">новый иск</span>`;
@@ -3035,7 +3059,7 @@ function personStateMeasureOf(r){
   const last = ms[ms.length - 1].m;
   if(PERSON_STATE_CLOSE.has(last.kind)) return null;
   const cfg = PERSON_STATE_OPEN[last.kind];
-  if(cfg.outcome && last.outcome !== cfg.outcome) return null;
+  if(cfg.outcome && (last.outcomes && last.outcomes[r.id]) !== cfg.outcome) return null;
   return last;
 }
 function personStateOf(r){
@@ -3056,7 +3080,7 @@ const ROUTE_PHASES = new Set(ROUTE_ORDER);
 function routePhaseOf(r){
   const ms = liveMilestones(r);
   for(let i = ms.length - 1; i >= 0; i--){
-    const ph = measureSetsPhase(ms[i]);
+    const ph = measureSetsPhase(ms[i], r.id);
     if(ROUTE_PHASES.has(ph)) return ph;
   }
   return OPEN_PHASE;
@@ -3114,7 +3138,7 @@ function preconditionReason(r, kind){
      его исход (п. 52 — «в случае отказа близких родственников»). */
   for(const f of (pc.facts || [])){
     if(f.onlyIfKinds && !basisLiveFor(r, f.onlyIfKinds)) continue;
-    const live = liveMeasuresOf(r).some(m => f.kinds.includes(m.kind) && (!f.outcome || m.outcome === f.outcome));
+    const live = liveMeasuresOf(r).some(m => f.kinds.includes(m.kind) && (!f.outcome || (m.outcomes && m.outcomes[r.id]) === f.outcome));
     if(!live)
       return `Мера «${kind}» требует факта${f.point ? ` (п. ${f.point})` : ''}: ${f.kinds.join(' / ')}`
            + `${f.outcome ? `, исход «${f.outcome}»` : ''} — по этому требованию такого факта нет.`;
@@ -5869,7 +5893,7 @@ function msComputeRows(a, opts){
    (liftPause/pauseOpenerOf), а закрыватель МС — только «Констатация нарушения»,
    ручного снятия нет; общая запись путала бы эти два разных closer'а. */
 function mirovoeApprovalOf(r){
-  const ms = liveMeasuresOf(r).filter(m => m.kind==='Определение об утверждении мирового соглашения' && m.outcome==='утверждено');
+  const ms = liveMeasuresOf(r).filter(m => m.kind==='Определение об утверждении мирового соглашения' && m.outcomes && m.outcomes[r.id]==='утверждено');
   if(!ms.length) return null;
   return ms.slice().sort((a,b)=>(ruD(a.dates&&a.dates.event)||0)-(ruD(b.dates&&b.dates.event)||0)).pop();
 }
@@ -7416,6 +7440,33 @@ function normalize(p){
     m.targets = idsOf('заёмщик');
   }
 
+  /* ADR-0103: исход меры переехал с самой меры (m.outcome, один на документ) на связь
+     мера↔цель (m.outcomes[reqId]) — мера с осью Б (ADR-0102) может разрешиться по-разному
+     на разных кредитах одного документа. Затравка и весь код-генератор (buildSeed) по-прежнему
+     пишут плоский m.outcome — единственная точка конверсии здесь, а не по ~30 местам записи:
+     плоское значение по определению одно на все уже разрешённые targets, перенос лоссless. */
+  for(const m of p.measures){
+    if(m.outcome !== undefined){
+      m.outcomes = {};
+      for(const id of m.targets) m.outcomes[id] = m.outcome;
+      delete m.outcome;
+    }
+  }
+
+  /* ADR-0025/Task4: тем же приёмом, что и исход выше — охват переехал с самой меры
+     (m.scope, один на документ) на связь мера↔цель (m.scopes[reqId]): мера с осью Б
+     (ADR-0102) может относиться к разным кредитам, у каждого свой объём×способ.
+     Затравка и buildSeed по-прежнему пишут плоский m.scope — единственная точка
+     конверсии здесь, не ~5 мест записи; плоское значение по определению одно на все
+     уже разрешённые targets, перенос лоссless. */
+  for(const m of p.measures){
+    if(m.scope !== undefined){
+      m.scopes = {};
+      for(const id of m.targets) m.scopes[id] = m.scope;
+      delete m.scope;
+    }
+  }
+
   /* КД-5: предмет залога обеспечивает КРЕДИТНЫЙ ДОГОВОР, а требование = дело × кредит ×
      лицо. Явной ссылки в данных не было — у дела с единственным кредитом она выводится
      однозначно; при нескольких кредитах без ссылки предмет остаётся дело-уровневым и
@@ -7506,8 +7557,12 @@ const creditOf = r => r._credit;
 const procOf   = r => r._proc;
 /* Активное состояние обязательства заданного вида. */
 const activeState = (r, kind) => (r.states||[]).find(s => s.kind===kind && stateActive(s)) || null;
-/* Солидарные соседи — другие требования по тому же кредиту (§2.2). */
+/* Солидарные соседи — другие требования по тому же кредиту (§2.2). Ось А пикера целей. */
 const solidaryWith = r => (r._proc.requirements||[]).filter(x => x!==r && x.credit===r.credit);
+/* ADR-0102 ось Б пикера целей: то же обязанное лицо, другой кредит того же дела.
+   Пикер = А ∪ Б (union, не произведение) — цель, различающаяся сразу и лицом, и
+   кредитом, ни одна из осей не предложит, это и даёт union без ручного пересечения. */
+const otherCreditsWith = r => (r._proc.requirements||[]).filter(x => x!==r && x.obligor===r.obligor && x.credit!==r.credit);
 
 /* ГРУППА ПЛАТЁЖЕСПОСОБНОСТИ — ЗАКРЫТЫЙ СПРАВОЧНИК НОРМЫ (§4.14).
    Раньше значения были нашими: «Погашение по графику», «Банкроты», «Безнадёжные»,
@@ -8815,13 +8870,13 @@ function claimChainsFor(r){
       for(const ch of childrenOf(cur)){
         if(seen.has(ch)) continue; seen.add(ch); queue.push(ch);
         if(AWARD_KINDS.has(ch.kind) && ch.awards && ch.awards[r.id]) acts.push(ch);
-        else if(REVIEW_ACT_KINDS.has(ch.kind) && ch.outcome==='изменено' && ch.awards && ch.awards[r.id]) acts.push(ch);
-        else if(isReviewReversal(ch) && (ch.targets||[]).includes(r.id)) acts.push(ch);
-        else if(isCassationRestore(ch) && (ch.targets||[]).includes(r.id)) acts.push(ch);
+        else if(REVIEW_ACT_KINDS.has(ch.kind) && ch.outcomes && ch.outcomes[r.id]==='изменено' && ch.awards && ch.awards[r.id]) acts.push(ch);
+        else if(isReviewReversal(ch, r.id) && (ch.targets||[]).includes(r.id)) acts.push(ch);
+        else if(isCassationRestore(ch, r.id) && (ch.targets||[]).includes(r.id)) acts.push(ch);
       }
     }
     acts.sort((a,b)=>(ruD(a.dates&&(a.dates.event||a.dates.registered))||0)-(ruD(b.dates&&(b.dates.event||b.dates.registered))||0));
-    const kept = dropRestoredAppeals(acts);
+    const kept = dropRestoredAppeals(acts, r.id);
     return { root, award: kept.length ? kept[kept.length-1] : null };
   });
 }
@@ -8935,8 +8990,21 @@ function panelMery(){
     /* ПМ-Д1/ПМ-Д2: три оси (result·resultKind·execStage) свёрнуты в один исход вида
        (ADR-0028 п.1). У resultIsDocument/безмодельных видов исхода нет вовсе. */
     const kd=kindOf(m.kind);
-    const resTitle = m.outcomeMeta ? ` title="поставил ${escAttr(m.outcomeMeta.by||'')} ${m.outcomeMeta.at||''}${m.outcomeMeta.reason?` · правка: ${escAttr(m.outcomeMeta.reason)}`:''}"` : '';
-    const res = !kd||!kd.outcomes ? '<span style="color:var(--text-placeholder)">—</span>' : (m.outcome ? `<span${resTitle}>${escAttr(m.outcome)}</span>` : '<span class="pill mid">не внесён</span>');
+    /* ADR-0103: исход — по цели (m.outcomes[reqId]), не один на меру — мера с осью Б
+       (ADR-0102) может разрешиться по-разному на разных кредитах одного документа.
+       Больше одной цели — чип на цель (тот же rolechip/own приём, что targetsCell выше),
+       одна цель — прежний вид (значение без чипа). */
+    const outReqs=(m.targets||[]).map(id=>REQ_INDEX[id]).filter(Boolean);
+    const outcomeChip = x=>{
+      const xOut=m.outcomes && m.outcomes[x.id];
+      const xMeta=m.outcomeMeta && m.outcomeMeta[x.id];
+      const xTitle=xMeta?` title="поставил ${escAttr(xMeta.by||'')} ${xMeta.at||''}${xMeta.reason?` · правка: ${escAttr(xMeta.reason)}`:''}"`:'';
+      return xOut?`<span${xTitle}>${escAttr(xOut)}</span>`:'<span class="pill mid">не внесён</span>';
+    };
+    const res = !kd||!kd.outcomes ? '<span style="color:var(--text-placeholder)">—</span>'
+      : !outReqs.length ? '<span style="color:var(--text-placeholder)">—</span>'
+      : outReqs.length>1 ? outReqs.map(x=>`<span class="rolechip${x===r?' own':''}">${x.role}: ${outcomeChip(x)}</span>`).join(' ')
+      : outcomeChip(outReqs[0]);
     /* РМ-Д3: направление/вручение — две даты (ADR-0034), а не флаг+строка. Виды без
        вручения (needsDelivery=false) полю не подчиняются вовсе. by/at (ADR-0036 п.2) —
        во всплывающей подсказке, чтения плоских date/channel/doc в др. местах не задеты. */
@@ -9021,7 +9089,7 @@ function panelSud(){
      регистрации, basedOnValid() ловит его и здесь, и в collection-check.mjs. */
   const acts=courtActsOf(r).map(m=>`<tr>
     <td>${m.kind}</td><td>${(m.dates&&m.dates.event)||'—'}</td><td>${(m.dates&&m.dates.registered)||'—'}</td>
-    <td>${m.outcome||'—'}</td><td>${escAttr(m.purpose||'')}</td><td>${m.num||'—'}</td>
+    <td>${(m.outcomes&&m.outcomes[r.id])||'—'}</td><td>${escAttr(m.purpose||'')}</td><td>${m.num||'—'}</td>
     <td>${m.basedOn?escAttr(m.basedOn):'—'}${m.basedOn&&!basedOnValid(m)?` <span class="pill high" title="Пересечение целей меры и её основания пусто — дефект регистрации">basedOn вне целей</span>`:''}</td></tr>`).join('')
     || `<tr><td colspan="7"><div class="cgrid-empty">${noCourt}</div></td></tr>`;
   /* КР-15: карточка показывает ИСХОД, а не «статус», который нёс одно значение на все
@@ -9341,7 +9409,7 @@ function msBanner(r){
   }
   const proj=mirovoeProjectsOf(r).slice().sort((a,b)=>(ruD(a.dates&&a.dates.event)||0)-(ruD(b.dates&&b.dates.event)||0)).pop();
   if(!proj) return '';
-  const refused=liveMeasuresOf(r).some(m=>m.kind==='Определение об утверждении мирового соглашения' && m.basedOn===proj.num && m.outcome==='отказано в утверждении');
+  const refused=liveMeasuresOf(r).some(m=>m.kind==='Определение об утверждении мирового соглашения' && m.basedOn===proj.num && m.outcomes && m.outcomes[r.id]==='отказано в утверждении');
   if(refused) return `<div class="phead-banner danger">${warn}<span>В утверждении мирового соглашения ${escAttr(proj.num||'')} отказано — взыскание продолжается.</span></div>`;
   return `<div class="phead-banner warn">${warn}<span>Мировое соглашение ${escAttr(proj.num||'')}: проект, не утверждён судом — погашение по графику МС начнётся после утверждения; взыскание продолжается.</span></div>`;
 }
@@ -9369,9 +9437,10 @@ function msCards(p, r){
   if(!roots.length) return '';
   return roots.map(proj=>{
     const appr=liveMeasuresOf(r).find(m=>m.kind==='Определение об утверждении мирового соглашения' && m.basedOn===proj.num) || null;
-    const breach=appr && appr.outcome==='утверждено' ? mirovoeBreachOf(r, appr) : null;
-    const refused=appr && appr.outcome==='отказано в утверждении';
-    const status=breach?'нарушено':(appr&&appr.outcome==='утверждено')?'утверждено':refused?'отказано':'проект';
+    const apprOutcome=appr && appr.outcomes && appr.outcomes[r.id];
+    const breach=apprOutcome==='утверждено' ? mirovoeBreachOf(r, appr) : null;
+    const refused=apprOutcome==='отказано в утверждении';
+    const status=breach?'нарушено':(apprOutcome==='утверждено')?'утверждено':refused?'отказано':'проект';
     const ms=proj.ms||{};
     const t=ms.estimatedYears, tg=msTermGate(ms.expiredTerms, t);
     const termPill = tg.level==='block'?`<span class="pill high">≈ ${t} лет · превышает 5 (п. 24)</span>` : tg.level==='warn'?`<span class="pill mid">≈ ${t} лет</span>` : `<span class="pill low">≈ ${t??'?'} лет</span>`;
@@ -9387,7 +9456,7 @@ function msCards(p, r){
         <div style="grid-column:1/-1"><b>Не льготнее ранее принятых (п. 24):</b> ${att}</div>
       </div>
       ${tg.level==='block'?`<div class="gate-inline">${alertIcon()}<span>${tg.msg}</span></div>`:tg.level==='warn'?`<div class="warn-inline">${warnIcon()}<span>${tg.msg}</span></div>`:''}
-      ${appr && appr.outcome==='утверждено' ? `<p class="section-h" style="margin-top:12px">График погашения по мировому соглашению</p>${msSchedTable(appr)}` : `<div class="hint-inline" style="margin-top:8px">График вносится вместе с исходом «Определения…» после утверждения (пометка меры).</div>`}
+      ${apprOutcome==='утверждено' ? `<p class="section-h" style="margin-top:12px">График погашения по мировому соглашению</p>${msSchedTable(appr)}` : `<div class="hint-inline" style="margin-top:8px">График вносится вместе с исходом «Определения…» после утверждения (пометка меры).</div>`}
       ${flag6}
     </div>`;
   }).join('');
@@ -9959,17 +10028,20 @@ function measureGate(r, kind){
   const gr=gateReason(r,kind); if(gr) return { kind:'gate', reason:gr };
   return null;
 }
-/* Цели меры (М-5): по умолчанию — текущее требование. Солидарные соседи по тому же
-   кредиту предлагаются чекбоксами: один иск ко всем ответчикам (п. 32) — это не
-   отдельная сущность, а одна мера с несколькими целями. */
+/* Цели меры (М-5): по умолчанию — текущее требование. Кандидаты — объединение двух
+   осей, не их произведение (ADR-0102): ось А — солидарные соседи того же кредита
+   (иск ко всем ответчикам, п. 32); ось Б — другие кредиты того же обязанного лица
+   (иск/претензия сразу по нескольким договорам одного должника). Обе — чекбоксами,
+   дефолт по обеим осям одинаков: своя цель отмечена и заблокирована, прочие сняты. */
 function measureTargetsHtml(r){
-  const sol = solidaryWith(r);
-  const row = (x, checked, fixed) => `<label class="tgt"><input type="checkbox" class="mTgt" value="${x.id}"${checked?' checked':''}${fixed?' disabled':''}>
-    <span class="tgt-role">${x.role}</span><span class="tgt-name">${escAttr(personOf(x).name)}</span><span class="tgt-sum">${fmtKGS(claimOf(x))}</span></label>`;
-  if(!sol.length) return `<div class="field col-span"><span class="flabel">Цель меры</span><div class="tgtbox">${row(r,true,true)}<div class="hint-inline">Иных обязанных лиц по договору ${escAttr(r._credit.num)} нет.</div></div></div>`;
-  return `<div class="field col-span"><span class="flabel">Цели меры (по каким требованиям)</span><div class="tgtbox">
-    ${row(r,true,false)}${sol.map(x=>row(x,false,false)).join('')}
-    <div class="hint-inline">Мера хранится на деле и двигает фазу каждого отмеченного требования. Для искового п. 32 требует одного иска ко всем ответчикам — отметьте всех.</div>
+  const sol = solidaryWith(r), oth = otherCreditsWith(r);
+  /* Гейт-заметка (id mTgtGate_<id>) наполняется refreshSaveGate() — зависит от вида
+     меры (mKind), который на момент построения этой разметки ещё не выбран. */
+  const row = (x, checked, fixed) => `<label class="tgt"><input type="checkbox" class="mTgt" value="${x.id}"${checked?' checked':''}${fixed?' disabled':''} onchange="onTargetToggle()">
+    <span class="tgt-role">${x.role}</span><span class="tgt-name">${escAttr(personOf(x).name)}${x.credit!==r.credit?` · ${escAttr(x._credit.num)}`:''}</span><span class="tgt-sum">${fmtKGS(claimOf(x))}</span></label><div class="tgt-gate-note" id="mTgtGate_${escAttr(x.id)}"></div>`;
+  if(!sol.length && !oth.length) return `<div class="field col-span"><span class="flabel">Цель меры</span><div class="tgtbox">${row(r,true,true)}<div class="hint-inline">Ни иных обязанных лиц по договору ${escAttr(r._credit.num)}, ни других кредитов этого же лица в деле нет.</div></div></div>`;
+  return `<div class="field col-span"><span class="flabel">Цели меры (по каким требованиям)</span>${hintToggle('Мера хранится на деле и двигает фазу каждого отмеченного требования. Для искового п. 32 требует одного иска ко всем ответчикам — отметьте всех. Цели на других кредитах того же лица (ADR-0102) — самостоятельный выбор куратора, дефолт их не отмечает. Отмеченная цель, непрошедшая предусловия, в мере не участвует — причина покажется под её строкой (ADR-0029 п. 4).')}<div class="tgtbox">
+    ${row(r,true,false)}${sol.map(x=>row(x,false,false)).join('')}${oth.map(x=>row(x,false,false)).join('')}
   </div></div>`;
 }
 /* ADR-0025 таблица / Task 6: охват — реквизит только УСТАНАВЛИВАЮЩИХ видов (claim/иск/ИЛ),
@@ -9977,7 +10049,7 @@ function measureTargetsHtml(r){
    обращении на залог» сюда намеренно НЕ входит — его охват ставит applyIzveschenie() сразу
    ПОСЛЕ регистрации самой меры, без спроса (В-8, п. 20.1, сверка §4.6 / `ADR-0067`: ускорение
    — следствие нормы, а не выбор куратора); дублировать поле в теле формы значило бы держать
-   два конкурирующих места записи одного и того же m.scope на одной и той же мере, причём
+   два конкурирующих места записи одного и того же m.scopes[reqId] на одной и той же мере, причём
    второе — редактируемое, то есть позволяющее выбрать «просроченную сумму» вопреки п. 20.1. Список совпадает с семью из семи «устанавливающих» видов отчёта
    Task 6 плюс «Признание банкротом» (Task 7 fix-round2, ruling координатора п.6 — решение
    волны, Task 12 фиксирует наравне с остальными правками справочников этой волны):
@@ -10017,11 +10089,11 @@ const SCOPE_FORM_KINDS = new Set(Object.keys(SCOPE_KIND_DEFAULT));
 function openMeasureModal(){
   const r = curReq; if(!r){ toast('Требование не выбрано','warn'); return; }
   const host=document.getElementById('modalHost');
-  host.innerHTML=`<div class="modal form">
+  host.innerHTML=`<div class="modal measure">
     <div class="modal-h"><span class="mt">Регистрация меры · требование ${r.id}</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
     <div class="modal-b">
     <p class="section-h" style="margin-top:0">Тело меры</p>
-    <p class="section-note">Вид · номер · дата · цели · сумма · охват · основание — правда на момент подписания. После сохранения не редактируется: ошибку чинит только сторно (целиком или по одной цели) и новая запись.</p>
+    ${hintToggle('Вид · номер · дата · цели · сумма · охват · основание — правда на момент подписания. После сохранения не редактируется: ошибку чинит только сторно (целиком или по одной цели) и новая запись.')}
     <div class="mform">
       <div class="field"><span class="flabel">Вид меры</span><div class="control grey"><select id="mKind" onchange="syncMeasureWarnings()">${measureKindOptions('Исковое заявление')}</select>${caret()}</div></div>
       <div class="field"><span class="flabel">Раздел</span><div class="control ro"><input id="mSection" value="${sectionOf('Исковое заявление')}" readonly title="Производное от вида меры — вручную не задаётся"></div></div>
@@ -10029,14 +10101,15 @@ function openMeasureModal(){
       ${inp('Номер','','mNum')}
       <div class="field col-span"><span class="flabel">Назначение (цель)</span><div class="control"><input id="mPurpose" value=""></div></div>
       ${measureTargetsHtml(r)}
-      <div class="field col-span" id="mScopeWrap"></div>
-      <div class="field col-span" id="mClaimsWrap"></div>
+      <div class="field col-span" id="mScopeClaimsWrap"></div>
       <div class="field col-span" id="mBasedOnWrap"></div>
       <div class="field col-span" id="mMsWrap"></div>
     </div>
     <p class="section-h">Пометки</p>
-    <p class="section-note">Пусты при регистрации — получение, доставка и исход дозаполняются позже, по мере наступления, действием «Внести/изменить пометку» в журнале мер (доступно и после закрытия требования).</p>
-    <div class="mform" id="mAnnoPreview"></div>
+    <details class="hint-toggle"><summary title="Показать объяснение" aria-label="Показать объяснение">${infoIcon()}</summary>
+      <p class="section-note">Пусты при регистрации — получение, доставка и исход дозаполняются позже, по мере наступления, действием «Внести/изменить пометку» в журнале мер (доступно и после закрытия требования).</p>
+      <div class="mform" id="mAnnoPreview"></div>
+    </details>
     <div class="warn-inline" id="mWarnPhase">${warnIcon()}<span>Это <b>мера-веха</b>: сохранение сдвинет фазу каждого отмеченного требования. Фаза двигается только так — селектора фазы нет.</span></div>
     <div class="warn-inline" id="mWarnDelivery">${warnIcon()}<span>Доставка — пометка, две даты. Срок должнику течёт от <b>направления</b> (14 к.д., п. 16.2/16.3, подтверждается штампом почтовой связи об отправке) — его невручение не останавливает. <b>Вручение</b> вносится отдельно: без документа о нём ДПО возвращает пакет на доработку (п. 20.1). Состав документа зависит от канала (п. 16).</span></div>
     <div id="mGate"></div>
@@ -10051,35 +10124,81 @@ function measureTargets(){
   const reqs=ids.map(id=>REQ_INDEX[id]).filter(Boolean);
   return reqs.length?reqs:[curReq];
 }
-/* Охват — реквизит ТЕЛА (Task 6/ADR-0025), но только у устанавливающих видов
-   (SCOPE_FORM_KINDS); у прочих полю в теле взяться неоткуда — блок скрыт. */
-function renderMScope(kind){
-  const wrap=document.getElementById('mScopeWrap'); if(!wrap) return;
-  if(!SCOPE_FORM_KINDS.has(kind)){ wrap.innerHTML=''; return; }
-  const d=SCOPE_KIND_DEFAULT[kind];
-  const opt=(v,cur)=>SCOPE_VOLUMES.map(x=>`<option${x===cur?' selected':''}>${x}</option>`).join('');
-  wrap.innerHTML=`<span class="flabel">Охват (ADR-0025)</span><div style="display:flex;gap:12px">
-    <div class="control grey" style="flex:1"><select id="mScopeVolume">${opt(null,d.volume)}</select>${caret()}</div>
-    <div class="control grey" style="flex:1"><select id="mScopeMethod"><option${d.method==='деньгами'?' selected':''}>деньгами</option><option${d.method==='обращением на предмет залога'?' selected':''}>обращением на предмет залога</option></select>${caret()}</div>
-  </div>`;
+/* Чекбокс пикера меняет состав measureTargets() — охват и суммы по цели должны
+   перерисоваться следом, иначе таблицы ниже продолжают показывать строку кандидата,
+   который уже не отмечен (или ещё не показывают только что отмеченного). */
+function onTargetToggle(){
+  const kind=document.getElementById('mKind').value;
+  renderMScopeClaims(kind, curReq);
+  refreshSaveGate();
 }
-/* Требуемое по статьям (§4, МП5-18, наряд п.3) — по строке на цель (кандидат-цель,
-   как в measureTargetsHtml: сам r + солидарные), дефолт = снимок claimsSnapshot под
-   охватом ТЕЛА меры (тикет «Точки интеграции», вопрос 1: mScopeWrap один на меру —
-   свой отдельный охват на строку форма сегодня не даёт, все строки берут один и тот
-   же volume). Потолок — снимок: клэмпится на сохранении (saveMeasure), не здесь —
-   поле остаётся редактируемым числом, не readonly. */
-function renderMClaims(kind, r){
-  const wrap=document.getElementById('mClaimsWrap'); if(!wrap) return;
-  const cands=[r, ...solidaryWith(r)];
-  const vol = SCOPE_FORM_KINDS.has(kind) ? SCOPE_KIND_DEFAULT[kind].volume : null;
-  wrap.innerHTML=`<span class="flabel">Требуемое по статьям (§4, МП5-18)</span>
-    <div class="hint-inline">Дефолт — снимок долга на дату документа${vol?` под охватом «${vol}»`:''}; куратор обнуляет нетребуемое, накрутить сверх снимка нельзя.</div>
-    <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Цель</th>${CLAIM_KEYS.map(k=>`<th style="text-align:right">${CLAIM_LABELS[k]}</th>`).join('')}</tr></thead>
+/* Охват (ADR-0025/Task4: m.scopes[reqId], тем же приёмом, что исход, ADR-0103) и
+   требуемое по статьям (§4, МП5-18, наряд п.3) объединены в одну таблицу (грилл
+   2026-08-07) — оба реквизита по одной и той же ОТМЕЧЕННОЙ цели (measureTargets(),
+   те же чекбоксы пикера, не полный список кандидатов ADR-0102): строка, которую
+   saveMeasure всё равно не сохранит, вводить в заблуждение не должна (нашли живым
+   тестом — таблица раньше рисовала кандидата независимо от чекбокса, ввод в неё молча
+   терялся). Объём/способ — только у устанавливающих видов (SCOPE_FORM_KINDS); у прочих
+   полю в теле взяться неоткуда — колонки скрыты, суммы остаются. Мера с осью Б бьёт по
+   нескольким кредитам разом, и объём×способ у них может разойтись (иск «полным
+   остатком» на все, но по одному уже действует извещение об обращении на залог) — для
+   этого и нужна отметка нескольких целей, а не для показа. Дефолт сумм = снимок
+   claimsSnapshot под охватом ЭТОЙ ЖЕ цели (Task4: раньше mScopeWrap был один на меру и
+   все строки брали один и тот же volume — тикет «Точки интеграции», вопрос 1; охват стал
+   по цели, и снимок вслед за ним); потолок клэмпится на сохранении (saveMeasure), не
+   здесь — поле остаётся редактируемым числом, не readonly. Смена объёма в строке
+   перерисовывает всю таблицу (снимок пересчитывается по just-set select), но объём/
+   способ остальных строк читаются из DOM перед перерисовкой и не сбрасываются к
+   дефолту вида. Перерисовывается по onTargetToggle() — чекбокс пикера меняет состав
+   строк, не только гейт-заметку.
+   Проценты/просроченные проценты — один видимый столбец (запрос 2026-08-07): модель и
+   сохранение остаются пятистатейными (ADR-0021, требовали→присудили по одинаковому
+   разрезу), под мерженым инпутом лежат два hidden-поля mClaim_<id>_interest/
+   _overdueInterest, которые splitInterestMerged() пересчитывает пропорционально снимку
+   при blur — saveMeasure их читает как обычно, по своим id, о слиянии не знает. */
+function renderMScopeClaims(kind, r){
+  const wrap=document.getElementById('mScopeClaimsWrap'); if(!wrap) return;
+  const cands=measureTargets();
+  const hasScope=SCOPE_FORM_KINDS.has(kind);
+  const d=hasScope?SCOPE_KIND_DEFAULT[kind]:null;
+  const prevVol=id=>{ const el=document.getElementById(`mScopeVolume_${id}`); return el?el.value:null; };
+  const prevMethod=id=>{ const el=document.getElementById(`mScopeMethod_${id}`); return el?el.value:null; };
+  const volOpt=cur=>SCOPE_VOLUMES.map(x=>`<option${x===cur?' selected':''}>${x}</option>`).join('');
+  const methodOpt=cur=>`<option${cur==='деньгами'?' selected':''}>деньгами</option><option${cur==='обращением на предмет залога'?' selected':''}>обращением на предмет залога</option>`;
+  const label = x => x===r ? x.role : `${x.role} · ${escAttr(personOf(x).name)}${x.credit!==r.credit?` · ${escAttr(x._credit.num)}`:''}`;
+  const volOf = x => hasScope ? (prevVol(x.id) || d.volume) : null;
+  const DISPLAY_KEYS = CLAIM_KEYS.filter(k=>k!=='overdueInterest');
+  wrap.innerHTML=`<span class="flabel">Охват и требуемое по статьям (ADR-0025, §4, МП5-18)</span>
+    ${hintToggle(`${hasScope?'Объём и способ — дефолт по виду меры, куратор может переопределить построчно. ':''}Требуемое — снимок долга на дату документа${hasScope?' под охватом этой же цели':''}; куратор обнуляет нетребуемое, накрутить сверх снимка нельзя. Проценты введены одной суммой (текущие + просроченные), для сверки «требовали→присудили» система разносит их по двум статьям сама.${cands.length>1?' По строке на цель — у меры на несколько кредитов (ADR-0102) значения могут разойтись.':''}`)}
+    <div class="cgrid-wrap"><table class="cgrid mscc"><thead><tr><th>Цель</th>${hasScope?'<th>Объём</th><th>Способ</th>':''}${DISPLAY_KEYS.map(k=>`<th style="text-align:right">${CLAIM_LABELS[k]}</th>`).join('')}</tr></thead>
     <tbody>${cands.map(x=>{
-      const snap=claimsSnapshot(x, vol, null);
-      return `<tr><td>${x.role}${x===r?'':` · ${escAttr(personOf(x).name)}`}</td>${CLAIM_KEYS.map(k=>`<td style="text-align:right"><input type="text" style="width:90px;text-align:right" id="mClaim_${escAttr(x.id)}_${k}" value="${fmtKGS(snap[k])}"></td>`).join('')}</tr>`;
+      const snap=claimsSnapshot(x, volOf(x), null);
+      const scopeCells = hasScope ? `<td><div class="control grey"><select id="mScopeVolume_${escAttr(x.id)}" onchange="renderMScopeClaims(document.getElementById('mKind').value, curReq)">${volOpt(prevVol(x.id)||d.volume)}</select>${caret()}</div></td><td><div class="control grey"><select id="mScopeMethod_${escAttr(x.id)}">${methodOpt(prevMethod(x.id)||d.method)}</select>${caret()}</div></td>` : '';
+      const claimCells = DISPLAY_KEYS.map(k=>{
+        if(k==='interest') return `<td style="text-align:right">
+          <input type="text" style="width:90px;text-align:right" id="mClaimMerged_${escAttr(x.id)}" value="${fmtKGS(snap.interest+snap.overdueInterest)}" onchange="splitInterestMerged('${escAttr(x.id)}', ${snap.interest}, ${snap.overdueInterest})">
+          <input type="hidden" id="mClaim_${escAttr(x.id)}_interest" value="${fmtKGS(snap.interest)}">
+          <input type="hidden" id="mClaim_${escAttr(x.id)}_overdueInterest" value="${fmtKGS(snap.overdueInterest)}">
+        </td>`;
+        return `<td style="text-align:right"><input type="text" style="width:90px;text-align:right" id="mClaim_${escAttr(x.id)}_${k}" value="${fmtKGS(snap[k])}"></td>`;
+      }).join('');
+      return `<tr><td>${label(x)}</td>${scopeCells}${claimCells}</tr>`;
     }).join('')}</tbody></table></div>`;
+}
+/* Проценты — один видимый инпут, снимок пятистатейный (ADR-0021). Сплит
+   пропорционален снимку на момент рендера ряда (capI/capO): по умолчанию total===
+   capI+capO, сплит воспроизводит снимок один-в-один; куратор уменьшил — обе статьи
+   уменьшаются в том же соотношении. Клэмп по каждой статье отдельно — на сохранении
+   (saveMeasure), не здесь. */
+function splitInterestMerged(id, capI, capO){
+  const total=msNum(document.getElementById(`mClaimMerged_${id}`).value);
+  const capSum=capI+capO;
+  let i,o;
+  if(capSum<=0){ i=total; o=0; }
+  else { i=total*capI/capSum; o=total-i; }
+  if(o<0){ i=total; o=0; }
+  document.getElementById(`mClaim_${id}_interest`).value=fmtKGS(i);
+  document.getElementById(`mClaim_${id}_overdueInterest`).value=fmtKGS(o);
 }
 /* Основание (ADR-0029 п.1) — картинка кандидатов, у кого kind ∈ basisKinds выбранного
    вида, в этом же деле, ещё не сторнированных. Пересечение targets с выбранными целями
@@ -10146,14 +10265,26 @@ function msProjectFormOk(){
 /* Гейт проверяется по КАЖДОЙ отмеченной цели: мера сохраняется целиком либо не
    сохраняется. Общая точка для «вид сменился» (syncMeasureWarnings) и «поле МС-секции
    тронули» (refreshMsGate) — обе кончаются одним и тем же решением save.disabled. */
+/* ADR-0029 п.4: предусловия проверяются по цели. Непрошедшая цель не блокирует
+   мера целиком — она исключается из состава, причина показывается под её строкой
+   в пикере (mTgtGate_<id>) и в сводке ниже. Блокировка Save наступает, только
+   когда гейт провалили ВСЕ отмеченные цели — регистрировать было бы нечего. */
 function refreshSaveGate(){
   const kind=document.getElementById('mKind').value;
   const box=document.getElementById('mGate'); const save=document.getElementById('mSave');
-  const blocked=measureTargets().map(r=>({r, g:measureGate(r,kind)})).filter(x=>x.g);
-  if(blocked.length){
+  const all=measureTargets().map(r=>({r, g:measureGate(r,kind)}));
+  for(const {r,g} of all){
+    const note=document.getElementById(`mTgtGate_${r.id}`);
+    if(note) note.innerHTML = g ? `исключена гейтом: ${g.reason}` : '';
+  }
+  const passed=all.filter(x=>!x.g), blocked=all.filter(x=>x.g);
+  if(!passed.length){
     box.innerHTML=blocked.map(({r,g})=>`<div class="gate-inline">${alertIcon()}<span>${blocked.length>1?`<b>${r.role} ${escAttr(personOf(r).name)}:</b> `:''}${g.reason}</span></div>`).join('');
     save.disabled=true;
-  } else { box.innerHTML=''; save.disabled=!msProjectFormOk(); }
+  } else {
+    box.innerHTML = blocked.length ? `<div class="warn-inline">${warnIcon()}<span>${blocked.length} из ${all.length} отмеченных целей исключены гейтом (причины — под их строками в пикере выше); мера зарегистрируется по остальным ${passed.length} (ADR-0029 п. 4).</span></div>` : '';
+    save.disabled=!msProjectFormOk();
+  }
 }
 function refreshMsGate(){
   const expired=document.getElementById('mMsExpired').checked;
@@ -10165,8 +10296,7 @@ function refreshMsGate(){
 function syncMeasureWarnings(){
   const kind=document.getElementById('mKind').value;
   const secEl=document.getElementById('mSection'); if(secEl) secEl.value=sectionOf(kind);   // раздел выводится из вида меры
-  renderMScope(kind);
-  renderMClaims(kind, curReq);
+  renderMScopeClaims(kind, curReq);
   renderMBasedOn(kind);
   renderMMs(kind, curReq);
   renderMAnnoPreview(kind);
@@ -10176,28 +10306,41 @@ function syncMeasureWarnings(){
 }
 function saveMeasure(){
   const kind=document.getElementById('mKind').value;
-  const targets=measureTargets();
-  if(targets.some(r=>measureGate(r,kind))){ toast('Действие заблокировано гейтом','err'); return; }
+  /* ADR-0029 п.4: непрошедшая цель исключается из состава, не блокирует мера
+     целиком. Если гейт провалили все отмеченные цели — регистрировать нечего,
+     это и есть прежнее поведение при единственной цели. */
+  const gated=measureTargets().map(r=>({r, g:measureGate(r,kind)}));
+  const targets=gated.filter(x=>!x.g).map(x=>x.r);
+  const excluded=gated.filter(x=>x.g).map(x=>x.r);
+  if(!targets.length){ toast('Действие заблокировано гейтом','err'); return; }
   const p=curProc;
   const val=id=>{ const el=document.getElementById(id); return el?el.value.trim():''; };
   const reg=TODAY, ev=val('mDateEvent')||reg;   // регистрация — системный штамп, не поле формы (ADR-0039)
   const role=document.getElementById('roleSel')?document.getElementById('roleSel').value:'Текущая роль';
-  const scopeInfo = SCOPE_FORM_KINDS.has(kind)
-    ? { scope:{ volume:val('mScopeVolume')||SCOPE_KIND_DEFAULT[kind].volume, method:val('mScopeMethod')||SCOPE_KIND_DEFAULT[kind].method } }
-    : {};
+  /* ADR-0025/Task4: охват — по цели (m.scopes[reqId]), тем же приёмом, что исход
+     (ADR-0103): мера на несколько кредитов (ось Б) может объём×способ развести по
+     целям — иск «полным остатком» на все, но один уже под извещением о залоге.
+     Читает per-target селекты по каждой цели из targets (renderMScope/renderMClaims
+     рисуют строку ровно на те же отмеченные цели, см. measureTargets()) — m.scopes
+     ставится только на реально сохраняемые targets, гейт-исключённым запись не пишется. */
+  const scopes = {};
+  if(SCOPE_FORM_KINDS.has(kind))
+    for(const x of targets)
+      scopes[x.id] = { volume:val(`mScopeVolume_${x.id}`)||SCOPE_KIND_DEFAULT[kind].volume, method:val(`mScopeMethod_${x.id}`)||SCOPE_KIND_DEFAULT[kind].method };
+  const scopeInfo = SCOPE_FORM_KINDS.has(kind) ? { scopes } : {};
   /* И-1: требуемое по пяти статьям (§4, МП5-18) = требование на момент регистрации
-     (иммутабельно). Потолок — снимок claimsSnapshot под тем же охватом, что и тело
-     меры (тикет «Точки интеграции», вопрос 1): куратор может только уменьшить/
-     обнулить введённое значение, накрутить сверх снимка нельзя — clamp здесь, не
-     полагаемся на дисциплину ввода. `ev` — та же дата события, что идёт в dates
-     (mDateEvent — <input type="date">, отдаёт ISO; dates.event исторически хранит
-     то, что вернул val() как есть — здесь только своя нормализация для asOf debtOf,
-     существующее хранение dates.event не трогаем). */
+     (иммутабельно). Потолок — снимок claimsSnapshot под охватом ЭТОЙ ЖЕ цели
+     (Task4: раньше был один общий volume на всю форму — тикет «Точки интеграции»,
+     вопрос 1): куратор может только уменьшить/обнулить введённое значение, накрутить
+     сверх снимка нельзя — clamp здесь, не полагаемся на дисциплину ввода. `ev` — та же
+     дата события, что идёт в dates (mDateEvent — <input type="date">, отдаёт ISO;
+     dates.event исторически хранит то, что вернул val() как есть — здесь только своя
+     нормализация для asOf debtOf, существующее хранение dates.event не трогаем). */
   const evRu = /^\d{4}-\d{2}-\d{2}$/.test(ev) ? ruDate(ev) : ev;
-  const vol = SCOPE_FORM_KINDS.has(kind) ? scopeInfo.scope.volume : null;
   const claims={};
   for(const x of targets){
-    const cap=claimsSnapshot(x, vol, evRu);
+    const xVol = SCOPE_FORM_KINDS.has(kind) ? scopes[x.id].volume : null;
+    const cap=claimsSnapshot(x, xVol, evRu);
     const entry={};
     for(const k of CLAIM_KEYS){
       const el=document.getElementById(`mClaim_${x.id}_${k}`);
@@ -10247,6 +10390,8 @@ function saveMeasure(){
   closeModal();
   const who=targets.length>1?`${targets.length} требования`:`требование ${targets[0].id}`;
   const dlNote=closedDl.length?` · снято с контроля сроков: ${closedDl.length}`:'';
+  /* ADR-0029 п.4, «Последствия»: причина по исключённой цели называется текстом. */
+  const excNote=excluded.length?` · исключены гейтом (${excluded.length}): ${excluded.map(r=>`${r.id} — ${gated.find(x=>x.r===r).g.reason}`).join('; ')}`:'';
   if(isMilestone(kind)){
     // М-2: фаза не присваивается — она пересчитывается свёрткой журнала, куда мера уже легла.
     const phases=[...new Set(targets.map(phaseOf))].join(' / ');
@@ -10258,10 +10403,10 @@ function saveMeasure(){
        регистрации/направления, независимо от условий договора. Теперь ускорение
        применяется сразу, а модалка только СООБЩАЕТ, что уже произошло. */
     if(kind==='Извещение об обращении на залог'){ const res=applyIzveschenie(); renderPanels(); noticeIzveschenie(res); return; }
-    renderPanels(); toast(`Мера-веха зарегистрирована на ${who} → фаза «${phases}»${dlNote} (демо)`,'ok');
+    renderPanels(); toast(`Мера-веха зарегистрирована на ${who} → фаза «${phases}»${dlNote}${excNote} (демо)`,'ok');
   } else {
     p.history.unshift({when:TODAY+' 12:00', what:`Мера «${kind}»${val('mNum')?' '+val('mNum'):''} зарегистрирована на ${who}`, who:role});
-    renderPanels(); toast(`Мера зарегистрирована${dlNote} (демо)`,'ok');
+    renderPanels(); toast(`Мера зарегистрирована${dlNote}${excNote} (демо)`,'ok');
   }
 }
 /* В-8 · сверка §4.6 (шаг 4 наряда, `ADR-0067`): ускорение долга — СЛЕДСТВИЕ регистрации
@@ -10282,7 +10427,11 @@ function applyIzveschenie(){
   const m=liveMilestones(r).slice(-1)[0];
   if(m){
     m.accelerated=true;
-    m.scope={...IZVESHCHENIE_SCOPE};   // Task5 ревью раунд1 п.7: та же константа, что билдер — не второй литерал
+    // Task5 ревью раунд1 п.7 / Task4 (ADR-0025): та же константа, что билдер — не второй
+    // литерал; по цели (m.scopes[reqId]) — ускорение бьёт только по r и его солидарным
+    // соседям того же кредита, targets вне этого набора (ось Б, другой кредит) не трогаем.
+    m.scopes = m.scopes || {};
+    for(const x of targets) m.scopes[x.id] = {...IZVESHCHENIE_SCOPE};
     m.targets=uniq([...(m.targets||[]), ...targets.map(x=>x.id)]);
   }
   const to=claimOf(r);
@@ -10357,12 +10506,16 @@ function doStorno(mi, targetId){
    Хранение: sent/served/received уже объекты ({date,channel}/{date,doc}/{date}, Task 3/
    ADR-0034/ADR-0039) — добавить
    `by`/`at` в них МИНИМАЛЬНО инвазивно, ни один читатель (panelMery/liveMilestones/...) не
-   перечисляет ключи, только читает date/channel/doc по имени. `outcome`, наоборот, читается
+   перечисляет ключи, только читает date/channel/doc по имени. `outcome`, наоборот, читался
    как ПЛОСКАЯ строка в ~15 местах по всему файлу и в ~180 литералах затравки (measureSetsPhase,
    panelMery, panelSud, ...) — сменить его форму на {value,by,at} значило бы переписать все эти
-   чтения и саму затравку; вместо этого штамп кладётся РЯДОМ, в параллельное поле
-   `m.outcomeMeta:{by,at,reason?,prev?}`, plain `m.outcome` не трогая (выбор задокументирован
-   и в отчёте задачи).
+   чтения и саму затравку; штамп по-прежнему лежит РЯДОМ, в параллельном поле, plain-строку
+   не трогая — ADR-0103 (мера с осью Б, ADR-0102, может разрешиться по-разному на разных
+   кредитах одного документа) подвинул оба поля на один уровень глубже, с меры на связь
+   мера↔цель: `m.outcomes[reqId]` (по-прежнему plain-строка) и `m.outcomeMeta[reqId]:
+   {by,at,reason?,prev?}` — то же деление, тот же довод, просто в разрезе цели. Затравка и
+   ~180 литералов buildSeed продолжают писать плоский `m.outcome` — единственная точка
+   конверсии в `normalize()` (:7420 район), не переписывание каждого литерала.
    П.2: правка УЖЕ заполненной пометки — исправление, не дозаполнение — требует причины и
    хранит её; первичное заполнение причины не требует. П.4: действие НЕ читает isClosedReq/
    measureGate — доступно независимо от статуса требования. П.3: дозаполняет текущий владелец
@@ -10391,11 +10544,21 @@ function openAnnotationModal(mi){
       <div class="field col-span"><div class="hint-inline" id="aProofNote">${escAttr(deliveryProofNote((m.sent&&m.sent.channel)||channels[0]))}</div></div>
       ${m.sent?`<div class="field col-span"><div class="hint-inline">Уже внесено: ${escAttr(m.sent.channel||'')} ${m.sent.date||''}${m.sent.by?` · поставил ${escAttr(m.sent.by)} ${m.sent.at||''}`:''}${m.served&&m.served.date?`; вручено ${m.served.date}${m.served.by?` · поставил ${escAttr(m.served.by)} ${m.served.at||''}`:''}`:''}</div></div>`:''}
     </div>`;
-  const outcomeSection = !hasOutcome ? '' : `
+  /* ADR-0103: исход — реквизит СВЯЗИ мера↔цель, не самой меры (одна строка на targets[],
+     тот же приём, что и awardTargets/awardSection ниже) — мера с осью Б (ADR-0102) может
+     на одном кредите получить «отказ», а на другом «удовлетворено» тем же документом. */
+  const outcomeTargets = !hasOutcome ? [] : (m.targets||[]).map(id=>REQ_INDEX[id]).filter(Boolean);
+  const outcomeSection = !outcomeTargets.length ? '' : `
     <p class="section-h" style="font-size:15px;margin:10px 0 4px">Исход</p>
+    ${outcomeTargets.length>1?'<p class="section-note">По строке на цель (ADR-0103) — исход может разойтись по целям одной меры.</p>':''}
     <div class="mform">
-      <div class="field col-span"><span class="flabel">Исход (${escAttr(m.kind)})</span><div class="control grey"><select id="aOutcome"><option value=""></option>${kd.outcomes.filter(o=>o.value!=='').map(o=>`<option value="${escAttr(o.value)}"${o.value===(m.outcome||'')?' selected':''}>${escAttr(o.value)}</option>`).join('')}</select>${caret()}</div></div>
-      ${m.outcome?`<div class="field col-span"><div class="hint-inline">Уже внесено: «${escAttr(m.outcome)}»${m.outcomeMeta?` · поставил ${escAttr(m.outcomeMeta.by||'')} ${m.outcomeMeta.at||''}`:''}</div></div>`:''}
+      ${outcomeTargets.map(x=>{
+        const curOut = m.outcomes && m.outcomes[x.id];
+        const curMeta = m.outcomeMeta && m.outcomeMeta[x.id];
+        const label = outcomeTargets.length>1 ? `Исход — ${escAttr(x.id)} · ${escAttr(personOf(x).name)} (${escAttr(x.role)})` : `Исход (${escAttr(m.kind)})`;
+        return `<div class="field col-span"><span class="flabel">${label}</span><div class="control grey"><select id="aOutcome_${escAttr(x.id)}"><option value=""></option>${kd.outcomes.filter(o=>o.value!=='').map(o=>`<option value="${escAttr(o.value)}"${o.value===(curOut||'')?' selected':''}>${escAttr(o.value)}</option>`).join('')}</select>${caret()}</div></div>
+        ${curOut?`<div class="field col-span"><div class="hint-inline">Уже внесено: «${escAttr(curOut)}»${curMeta?` · поставил ${escAttr(curMeta.by||'')} ${curMeta.at||''}`:''}</div></div>`:''}`;
+      }).join('')}
     </div>`;
   /* Слой (§8.5, наряд п.2/п.3, МП-1/МП5-1/МП5-2/МП5-18): рождается только AWARD_KINDS,
      по строке на цель меры — пять статей (§4) + (только когда у цели УЖЕ есть более
@@ -10552,20 +10715,27 @@ function saveAnnotation(mi){
     }
   }
   if(kd && kd.outcomes){
-    const outcome=val('aOutcome');
-    const prevOutcome=m.outcome||'';
-    if(outcome && outcome!==prevOutcome){
-      const wasSet=!!prevOutcome;
-      if(wasSet && !reason){ toast('Меняете уже внесённый исход — укажите причину правки','warn'); return; }
-      const prev=m.outcome;
-      m.outcome=outcome;
-      m.outcomeMeta={ by:role, at:TODAY, ...(wasSet?{reason, prev}:{}) };
-      changed=true; if(wasSet) correcting=true;
-      /* Наряд п.6б (`ADR-0052` §2): «правопреемник найден» — не финал сам по себе, дальше
-         решает число преемников (N=1 продолжает линию / N>1 разветвляет). Follow-up
-         модалка вместо обычного toast — приём noticeIzveschenie (В-8, п. 20.1). */
-      if(m.kind==='Определение о замене стороны правопреемником' && outcome==='заменена' && !wasSet)
-        opensPravopreemstvo=true;
+    const outcomeTargets=(m.targets||[]).map(id=>REQ_INDEX[id]).filter(Boolean);
+    for(const x of outcomeTargets){
+      const outcome=val(`aOutcome_${x.id}`);
+      const prevOutcome=(m.outcomes && m.outcomes[x.id])||'';
+      if(outcome && outcome!==prevOutcome){
+        const wasSet=!!prevOutcome;
+        if(wasSet && !reason){ toast('Меняете уже внесённый исход — укажите причину правки','warn'); return; }
+        const prev=(m.outcomes && m.outcomes[x.id]);
+        m.outcomes=m.outcomes||{};
+        m.outcomes[x.id]=outcome;
+        m.outcomeMeta=m.outcomeMeta||{};
+        m.outcomeMeta[x.id]={ by:role, at:TODAY, ...(wasSet?{reason, prev}:{}) };
+        changed=true; if(wasSet) correcting=true;
+        /* Наряд п.6б (`ADR-0052` §2): «правопреемник найден» — не финал сам по себе, дальше
+           решает число преемников (N=1 продолжает линию / N>1 разветвляет). Follow-up
+           модалка вместо обычного toast — приём noticeIzveschenie (В-8, п. 20.1). Мера
+           фактически всегда одноцелевая (openPravopreemstvoModal/applyPravopreemstvo
+           работают только на curReq) — цикл безопасен и на несколько целей. */
+        if(m.kind==='Определение о замене стороны правопреемником' && outcome==='заменена' && !wasSet)
+          opensPravopreemstvo=true;
+      }
     }
   }
   const isReviewAward = REVIEW_ACT_KINDS.has(m.kind);   // ADR-0079: апелляция + кассация
@@ -11012,8 +11182,13 @@ defReg({
     const d = m.dates || {};
     /* ПМ-Д1/Д2: исход — один реквизит вида (ADR-0028 п.1), не тройка result/resultKind/
        execStage. РМ-Д3: направление/вручение — sent/served, две даты (ADR-0034). */
+    /* ADR-0103: результат — по цели; несколько целей (x.reqs, ось Б ADR-0102) — по
+       строке «роль: исход» на цель, одна цель — прежний вид (значение без роли). */
+    const outcomeText = !x.reqs.length ? (m.outcomes ? Object.values(m.outcomes)[0] : null) || '—'
+      : x.reqs.length===1 ? ((m.outcomes && m.outcomes[x.reqs[0].id]) || '—')
+      : x.reqs.map(rq => `${rq.role}: ${(m.outcomes && m.outcomes[rq.id]) || '—'}`).join('; ');
     const tip = `Событие ${d.event||'—'} · поступление ${(m.received&&m.received.date)||'—'} · регистрация ${d.registered||'—'}`
-      + ` · результат: ${m.outcome || '—'}`;
+      + ` · результат: ${outcomeText}`;
     const gap = x.now != null && Math.abs(x.now - x.doc) >= 0.005;
     const who = x.reqs.length ? uniq(x.reqs.map(r=>personOf(r).name)).join('; ') : '';
     const id  = x.reqs.length ? x.reqs[0].id : x.p.id;
@@ -11262,6 +11437,13 @@ function dlEmpty(cond){
 const xIcon = ()=>`<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>`;
 const warnIcon = ()=>`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>`;
 const alertIcon = ()=>`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg>`;
+const infoIcon = ()=>`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-5M12 8h.01"/></svg>`;
+/* Форма регистрации меры (грилл 2026-08-07): section-note/hint-inline — обоснование
+   по ADR/пунктам Порядка, читается один раз, дальше мешает — сворачивается за ⓘ,
+   закрыт по умолчанию. Warn-inline/gate-inline (что случится ПРИ сохранении) и
+   короткие факт-заметки о текущих данных (почему строка/список выглядит так СЕЙЧАС)
+   под ⓘ не прячутся — см. grill-with-docs по «форме регистрации меры». */
+const hintToggle = body => `<details class="hint-toggle"><summary title="Показать объяснение" aria-label="Показать объяснение">${infoIcon()}</summary><div class="hint-inline">${body}</div></details>`;
 function showView(v){ document.querySelectorAll('.view').forEach(s=>s.style.display='none');
   document.getElementById('view-'+v).style.display='flex';
   const titles={list:'Требования (реестр)',hearings:'Реестр заседаний',claims:'Реестр претензий',committee:'Вопросы на коллегиальные органы',deadlines:'Сроки на контроле',settings:'Настройки правил доступности мер'};
