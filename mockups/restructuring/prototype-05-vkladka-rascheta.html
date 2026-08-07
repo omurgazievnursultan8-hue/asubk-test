@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ПРОТОТИП · тикет 05 — вкладка расчёта</title>
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-blue-active:#0049A8;
+  --asubk-link:#005FDB; --asubk-green:#158443; --asubk-green-hover:#106A36;
+  --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+  --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
+  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+  --asubk-disabled-fill:rgba(25,59,103,0.05); --asubk-red-tint:#FCE6E6;
+  --asubk-green-tint:rgba(21,132,67,0.10); --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-input:var(--asubk-gray-200); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong); --border-focus:var(--asubk-blue);
+  --action-primary:var(--asubk-blue); --action-primary-hover:var(--asubk-blue-hover);
+  --action-success:var(--asubk-green); --action-danger:var(--asubk-red);
+  --status-success:var(--asubk-green); --status-success-bg:var(--asubk-green-tint);
+  --status-info:var(--asubk-blue); --status-info-bg:var(--asubk-blue-tint);
+  --status-warning:var(--asubk-amber); --status-warning-bg:var(--asubk-amber-tint);
+  --status-error:var(--asubk-red); --status-error-bg:var(--asubk-red-tint);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
+  --leading-tight:1.2; --leading-snug:1.35; --leading-normal:1.5;
+  --font-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--asubk-font);
+  --font-label:var(--weight-regular) var(--text-sm)/var(--leading-snug) var(--asubk-font);
+  --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
+  --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --control-h:36px; --header-h:56px; --sidebar-w:300px;
+  --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
+a{ color:inherit; }
+.app{ display:flex; flex-direction:column; min-height:100vh; width:100%; padding-bottom:76px; }
+.main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
+.topbar{ height:var(--header-h); flex:none; background:var(--surface-page);
+  border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:14px; padding:0 20px; }
+.crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
+.crumb-title .bk{ color:var(--text-link); }
+.content{ flex:1; display:flex; flex-direction:column; min-width:0; }
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2);
+  height:var(--control-h); padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
+  font:var(--weight-semibold) var(--text-base)/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
+.btn:disabled{ opacity:.45; cursor:not-allowed; }
+.btn-primary{ background:var(--action-primary); color:#fff; }
+.btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
+.btn-sm{ height:32px; padding:0 10px; font-size:var(--text-sm); }
+.btn-tint{ background:var(--asubk-disabled-fill); color:var(--text-link); border:none; font-weight:var(--weight-medium); }
+.detail-tabbar{ display:flex; overflow-x:auto; padding:6px 20px 0; border-bottom:1px solid var(--border-default);
+  background:var(--surface-page); flex:none; }
+.dtab{ flex:none; border:none; background:transparent; padding:11px 14px;
+  font:var(--weight-medium) var(--text-base)/1 var(--asubk-font); color:var(--text-muted);
+  border-bottom:2px solid transparent; margin-bottom:-1px; cursor:default; white-space:nowrap; }
+.dtab.active{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:var(--weight-semibold); }
+.dtab.ghost{ color:var(--text-placeholder); }
+.panel-wrap{ padding:18px 20px 40px; max-width:1200px; }
+.phead{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:16px 20px; margin-bottom:18px; }
+.phead-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:12px; }
+.phead-name .nm{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); }
+.phead-sub{ font:var(--font-label); color:var(--text-muted); margin-top:4px; }
+.phead-sub b{ color:var(--text-body); font-weight:var(--weight-medium); }
+.phead-dims{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+@media(max-width:760px){ .phead-dims{ grid-template-columns:repeat(2,1fr); } }
+.dim{ background:var(--surface-panel); border-radius:var(--radius-md); padding:10px 14px; }
+.dim .dl{ font:12px/1.3 var(--asubk-font); color:var(--text-muted); margin-bottom:5px; }
+.dim .dv{ font:var(--weight-semibold) 16px/1.2 var(--asubk-font); color:var(--text-heading); }
+.dim .src{ font:11px/1.3 var(--asubk-font); color:var(--text-placeholder); margin-top:4px; }
+.timeline{ display:flex; flex-wrap:wrap; align-items:center; gap:0; margin:2px 0 18px; }
+.tl-step{ display:flex; align-items:center; gap:8px; padding:6px 0; }
+.tl-dot{ width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font:var(--weight-bold) 12px/1 var(--asubk-font); flex:none; }
+.tl-dot.done{ background:var(--asubk-green); color:#fff; }
+.tl-dot.cur{ background:var(--asubk-blue); color:#fff; }
+.tl-dot.todo{ background:var(--surface-input); color:var(--text-placeholder); }
+.tl-lbl{ font:var(--font-label); color:var(--text-body); }
+.tl-lbl small{ display:block; color:var(--text-placeholder); font-size:11px; }
+.tl-lbl.todo{ color:var(--text-placeholder); }
+.tl-arrow{ color:var(--text-placeholder); margin:0 10px; }
+.section-h{ font:var(--weight-semibold) 17px/1.2 var(--asubk-font); color:var(--text-heading); margin:22px 0 6px; }
+.section-h:first-child{ margin-top:2px; }
+.section-note{ font:var(--font-label); color:var(--text-muted); margin:0 0 14px; max-width:900px; }
+.cgrid-wrap{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:auto; min-height:60px; margin-bottom:16px; }
+table.cgrid{ width:100%; border-collapse:collapse; font:var(--font-label); }
+table.cgrid thead th{ text-align:left; padding:10px 12px; background:var(--surface-card);
+  border-bottom:1px solid var(--border-default); font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font);
+  color:var(--text-heading); white-space:nowrap; }
+table.cgrid tbody td{ padding:9px 12px; border-bottom:1px solid var(--border-default); color:var(--text-body); vertical-align:top; }
+table.cgrid tbody tr:last-child td{ border-bottom:none; }
+table.cgrid tbody tr.art-blocked td{ color:var(--text-placeholder); background:var(--surface-panel); }
+table.cgrid tbody tr.art-removed td{ color:var(--text-placeholder); }
+.numcell{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.strike{ text-decoration:line-through; color:var(--text-placeholder); }
+.diff-old{ color:var(--text-muted); text-decoration:line-through; }
+.diff-new{ color:var(--asubk-green); font-weight:600; }
+.diff-changed td{ background:rgba(0,106,245,0.05); }
+.flagline,.okline,.infoline,.warnline{ display:flex; gap:8px; align-items:flex-start; border-radius:var(--radius-md);
+  padding:10px 12px; font:var(--font-label); margin:0 0 14px; }
+.flagline{ background:var(--status-error-bg); color:var(--asubk-red); }
+.okline{ background:var(--status-success-bg); color:var(--asubk-green); }
+.infoline{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.warnline{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.gatechip{ display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:var(--radius-pill);
+  font:var(--weight-medium) 12px/1.5 var(--asubk-font); }
+.gatechip.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.gatechip.no{ background:var(--status-error-bg); color:var(--asubk-red); }
+.pill{ display:inline-block; padding:2px 9px; border-radius:var(--radius-pill);
+  font:var(--weight-medium) 12px/1.5 var(--asubk-font); white-space:nowrap; }
+.pill.low{ background:var(--status-success-bg); color:var(--asubk-green); }
+.pill.mid{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.pill.high{ background:var(--status-error-bg); color:var(--asubk-red); }
+.pill.neutral{ background:var(--asubk-tint-fill); color:var(--text-muted); }
+.pill.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.f2{ display:grid; grid-template-columns:1fr 1fr; gap:14px 32px; align-items:start; max-width:920px; margin-bottom:14px; }
+.field{ display:flex; flex-direction:column; gap:6px; }
+.field .flabel{ font:var(--font-label); color:var(--text-muted); }
+.field .flabel .ro-tag{ color:var(--text-placeholder); font-size:11px; }
+.field select{ height:var(--control-h); border-radius:var(--radius-md);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-body); font-weight:var(--weight-medium);
+  border:1px solid var(--border-strong); outline:none; padding:0 10px; width:100%; }
+.field select:disabled{ background:var(--surface-input); color:var(--text-muted); border-color:transparent; }
+.chk{ display:flex; align-items:center; gap:8px; font:var(--font-label); color:var(--text-body); padding:4px 0; }
+.chk input{ width:16px; height:16px; }
+.chk.dead{ color:var(--text-placeholder); }
+.chk.dead .lbl{ text-decoration:line-through; }
+.mirror{ border:1px solid var(--border-strong); border-radius:var(--radius-md); padding:14px 16px; background:var(--surface-panel); margin-bottom:16px; }
+.mirror .mh{ display:flex; align-items:center; gap:8px; margin-bottom:8px; font:var(--weight-semibold) 14px/1.2 var(--asubk-font); color:var(--text-heading); }
+.mirror .mrow{ display:flex; justify-content:space-between; padding:4px 0; font:var(--font-label); border-bottom:1px solid var(--asubk-grid-line); gap:12px; }
+.mirror .mrow:last-child{ border-bottom:none; }
+.mirror .mrow span:first-child{ color:var(--text-muted); }
+.mode-tag{ font-size:11px; color:var(--text-placeholder); }
+.normcite{ font-size:11px; color:var(--text-placeholder); margin-top:2px; }
+
+/* --- прототип-специфика (не часть дизайн-системы) --- */
+.proto-banner{ position:sticky; top:0; z-index:70; background:repeating-linear-gradient(135deg,#fff3cd,#fff3cd 10px,#ffe69c 10px,#ffe69c 20px);
+  border-bottom:2px dashed var(--asubk-amber); padding:8px 20px; font:var(--font-label); color:#5c4400; }
+.proto-banner b{ color:#3d2e00; }
+.proto-banner code{ background:rgba(0,0,0,0.06); padding:1px 5px; border-radius:3px; }
+.two-num-grid{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; max-width:920px; margin-bottom:16px; }
+@media(max-width:760px){ .two-num-grid{ grid-template-columns:1fr; } }
+.numtile{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:12px 14px; }
+.numtile .nt-l{ font:var(--font-label); color:var(--text-muted); margin-bottom:4px; }
+.numtile .nt-v{ font:var(--weight-semibold) 19px/1.2 var(--asubk-font); color:var(--text-heading); }
+.numtile .nt-d{ font:11px/1.3 var(--asubk-font); color:var(--text-placeholder); margin-top:4px; }
+.numtile.delta.flag{ border-color:var(--asubk-amber); background:var(--status-warning-bg); }
+.numtile.delta.flag .nt-v{ color:var(--asubk-amber); }
+.split-wrap{ display:grid; grid-template-columns:1fr auto 1fr; gap:0; align-items:stretch; max-width:920px; margin-bottom:8px; }
+@media(max-width:760px){ .split-wrap{ grid-template-columns:1fr; } }
+.split-box{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:14px 16px; }
+.split-box.new{ border-color:var(--asubk-blue); background:var(--asubk-blue-tint); }
+.split-box .sb-t{ font:var(--weight-semibold) 14px/1.2 var(--asubk-font); color:var(--text-heading); margin-bottom:8px; }
+.split-box .sb-row{ display:flex; justify-content:space-between; font:var(--font-label); padding:3px 0; }
+.split-arrow{ display:flex; align-items:center; justify-content:center; padding:0 14px; color:var(--text-placeholder); font-size:20px; }
+@media(max-width:760px){ .split-arrow{ transform:rotate(90deg); padding:8px 0; } }
+.nosplit-banner{ max-width:920px; }
+
+/* variant B — sub-tabbar внутри "Расчёт" */
+.subtabbar{ display:flex; gap:4px; margin:2px 0 16px; border-bottom:1px solid var(--border-default); }
+.subtab{ border:none; background:transparent; padding:9px 14px 10px; font:var(--weight-medium) var(--text-sm)/1 var(--asubk-font);
+  color:var(--text-muted); border-bottom:2px solid transparent; margin-bottom:-1px; cursor:pointer; }
+.subtab.active{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:var(--weight-semibold); }
+details.gate-d{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:2px 14px; margin-bottom:10px; }
+details.gate-d summary{ cursor:pointer; list-style:none; padding:10px 0; display:flex; align-items:center; gap:10px; font:var(--weight-medium) var(--text-sm)/1.3 var(--asubk-font); }
+details.gate-d summary::-webkit-details-marker{ display:none; }
+details.gate-d summary::after{ content:"развернуть ▾"; margin-left:auto; color:var(--text-placeholder); font-size:11px; font-weight:400; }
+details.gate-d[open] summary::after{ content:"свернуть ▴"; }
+details.gate-d .gate-body{ padding:2px 0 12px 30px; font:var(--font-label); }
+.gatebar-slim{ display:flex; gap:8px; flex-wrap:wrap; padding:10px 20px; border-bottom:1px solid var(--border-default); background:var(--surface-panel); }
+
+/* variant C — мастер по шагам */
+.wiz{ display:flex; align-items:flex-start; gap:0; max-width:1200px; }
+@media(max-width:820px){ .wiz{ flex-direction:column; } }
+.wiz-rail{ width:230px; flex:none; }
+@media(max-width:820px){ .wiz-rail{ width:100%; display:flex; overflow-x:auto; } }
+.wiz-step{ display:flex; gap:10px; align-items:flex-start; padding:11px 14px; cursor:pointer; border-left:3px solid transparent; }
+@media(max-width:820px){ .wiz-step{ border-left:none; border-bottom:3px solid transparent; white-space:nowrap; } }
+.wiz-step:hover{ background:var(--surface-hover); }
+.wiz-step.active{ border-left-color:var(--asubk-blue); background:var(--asubk-blue-tint); }
+@media(max-width:820px){ .wiz-step.active{ border-bottom-color:var(--asubk-blue); } }
+.wiz-num{ width:22px; height:22px; border-radius:50%; flex:none; display:flex; align-items:center; justify-content:center;
+  font:var(--weight-bold) 11px/1 var(--asubk-font); background:var(--surface-input); color:var(--text-placeholder); }
+.wiz-step.active .wiz-num{ background:var(--asubk-blue); color:#fff; }
+.wiz-step.gatewarn .wiz-num{ background:var(--status-error-bg); color:var(--asubk-red); }
+.wiz-t{ font:var(--font-label); color:var(--text-body); }
+.wiz-t small{ display:block; color:var(--text-placeholder); font-size:11px; margin-top:2px; }
+.wiz-body{ flex:1; min-width:0; padding:4px 0 4px 28px; }
+@media(max-width:820px){ .wiz-body{ padding-left:0; padding-top:16px; } }
+
+/* переключатель вариантов */
+.proto-switch{ position:fixed; left:0; right:0; bottom:0; z-index:90; background:var(--asubk-ink); color:#fff;
+  display:flex; align-items:center; justify-content:center; gap:16px; padding:10px 16px; font:var(--font-label); }
+.proto-switch .psw-arrow{ background:rgba(255,255,255,0.12); border:none; color:#fff; width:32px; height:32px; border-radius:50%;
+  cursor:pointer; font-size:16px; display:flex; align-items:center; justify-content:center; }
+.proto-switch .psw-arrow:hover{ background:rgba(255,255,255,0.22); }
+.proto-switch .psw-label{ text-align:center; min-width:260px; }
+.proto-switch .psw-label b{ font-size:14px; }
+.proto-switch .psw-label span{ display:block; font-size:11px; color:rgba(255,255,255,0.6); margin-top:1px; }
+.proto-switch .psw-legend{ display:flex; gap:6px; }
+.proto-switch .psw-dot{ width:9px; height:9px; border-radius:50%; background:rgba(255,255,255,0.25); cursor:pointer; border:none; padding:0; }
+.proto-switch .psw-dot.active{ background:#fff; }
+@media(max-width:640px){ .proto-switch .psw-label{ min-width:0; } .proto-switch{ font-size:12px; gap:8px; } }
+</style>
+</head>
+<body>
+
+<div class="proto-banner">
+  ПРОТОТИП · тикет <b>05 — Вкладка расчёта</b> (<code>.scratch/restructuring-pereborka/issues/05-vkladka-rascheta.md</code>).
+  Черновик отдельным файлом — обсуждаем раскладку, не финальный макет. Три варианта раскладки одних и тех же данных,
+  переключатель внизу. Открытый вопрос, который решает выбор: <b>одна вкладка «Расчёт» или две — «База и распоряжения» / «График и дифф»</b>.
+  Заодно на пробу — форма объяснения гейтов и форма объяснения «кредит остаётся просроченным» (РС-15), обе пока не решены картой.
+</div>
+
+<div class="app">
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb-title"><span class="bk">Заявка ЗАЯВ-2031</span> / Т-2 · Кредит КР-04482</div>
+    </div>
+    <div id="tabbar"></div>
+    <div class="content">
+      <div id="content" class="panel-wrap"></div>
+    </div>
+  </div>
+</div>
+
+<div class="proto-switch" id="switch"></div>
+
+<script>
+/* ---------------- модель для демо (числа не хранятся там, где выводимы) ---------------- */
+
+const CTX = {
+  appNo:'ЗАЯВ-2031', creditNo:'КР-04482', trancheId:'Т-2',
+  otherTranche:{ id:'Т-1', body:620000, overdueDays:18, overdueSum:40000 },
+};
+
+const ARTICLES = [
+  { key:'vzysk',   name:'Расходы взыскания',     overdue:0,     current:0,      state:'blocked', note:'статья взыскания — владеет модуль Взыскание, вне охвата реструктуризации', disp:null },
+  { key:'fee',     name:'Сборы',                  overdue:0,     current:12400,  state:'removed', removedReason:'комиссия уплачена отдельно 02.08.2026 — снята куратором', disp:null },
+  { key:'accInt',  name:'Накопленные проценты',   overdue:86200, current:0,      state:'included', disp:'periods', periods:{n:12, from:'сен 2026', to:'авг 2027'} },
+  { key:'accPen',  name:'Накопленная пеня',       overdue:9100,  current:0,      state:'included', disp:'cap' },
+  { key:'pen',     name:'Пеня',                   overdue:34500, current:0,      state:'included', disp:'forgive', disputed:6000 },
+  { key:'int',     name:'Проценты',                overdue:61800, current:18200, curExcluded:true, state:'included', disp:'cap' },
+  { key:'principal', name:'Основной долг',         overdue:950000, current:850000, curExcluded:true, state:'included', disp:'none' },
+];
+const DISP_LABEL = { cap:'Капитализация', periods:'Распределение по периодам', forgive:'Прощение', none:'Без распоряжения' };
+
+function includedBase(){
+  return ARTICLES.filter(a=>a.state==='included')
+    .reduce((s,a)=> s + a.overdue - (a.disputed||0), 0);
+}
+
+const TWO_NUM = {
+  srezDate:'15.06.2026', factDate:'06.08.2026 (сегодня — дата вступления)',
+  srezBase: includedBase(),
+  delta: 68500,
+};
+TWO_NUM.factBase = TWO_NUM.srezBase + TWO_NUM.delta;
+TWO_NUM.deltaPct = TWO_NUM.delta / TWO_NUM.srezBase * 100;
+TWO_NUM.deltaFlag = TWO_NUM.deltaPct > 5;
+
+const SPLIT = {
+  splits:true, // РС-6: тут расхождение условий есть → деление есть. Обратный случай показан баннером ниже.
+  orig:{ id:'Т-2', bodyBefore:1800000, bodyStaysOldTerms:850000, rateOld:14.0 },
+  derived:{ id:'Т-2.1', transferSum: TWO_NUM.factBase, rateNew:8.0, termMonths:60, startDate:'06.08.2026' },
+};
+
+const NORMREF = { edition:'№41', dateFrom:'06.07.2026' };
+const GATE_LIMITS = {
+  hard:true, ok:true,
+  items:[
+    { name:'Пол ставки', req:'≥ 7.00% (от исходной ставки транша 14.00%)', proposed:'8.00%', ok:true,
+      point:'п. 24', unconfirmed:false },
+    { name:'Предел срока', req:'≤ 84 мес. (по умолч., настройка)', proposed:'60 мес.', ok:true,
+      point:null, unconfirmed:true, origin:'от суммы переноса 1 204 100 сом' },
+  ],
+};
+const GATE_CONSENT = {
+  hard:true, ok:false,
+  items:[
+    { who:'ОсОО «Марал» — гарант', ok:true, status:'согласие зарегистрировано 30.07.2026' },
+    { who:'Иманалиев Т.К. — залогодатель третьего лица', ok:false, status:'согласие не зарегистрировано' },
+  ],
+};
+const GATE_COVERAGE = {
+  hard:false, ok:false,
+  askedDate:'05.08.2026', answeredDate:'06.08.2026', cover:92, required:100, waiver:null,
+};
+
+const SCHEDULE_DRAFT = [ // Т-2.1, черновик (app.version.plan) — предмет согласования
+  {date:'05.09.2026', principal:20068, interest:8027}, {date:'05.10.2026', principal:20235, interest:7860},
+  {date:'05.11.2026', principal:20404, interest:7691}, {date:'05.12.2026', principal:20575, interest:7520},
+  {date:'05.01.2027', principal:20747, interest:7348}, {date:'…', principal:'…', interest:'…'},
+];
+const SCHEDULE_ACTIVE_REMAINDER = [ // Т-2, действующий, не тронут переносом
+  {date:'20.08.2026', principal:14167, interest:9917}, {date:'20.09.2026', principal:14167, interest:9750},
+  {date:'20.10.2026', principal:14167, interest:9583}, {date:'20.11.2026', principal:14167, interest:9417},
+  {date:'20.12.2026', principal:14167, interest:9250}, {date:'…', principal:'…', interest:'…'},
+];
+
+/* ---------------- утилиты ---------------- */
+const money = n => (typeof n==='number' ? n.toLocaleString('ru-RU') : n) + (typeof n==='number' ? ' сом' : '');
+const pct = n => n.toFixed(1).replace('.0','') + '%';
+const esc = s => String(s);
+
+const STAGES = ['регистрация обращения','анализ','комитет','письмо направлено','решение уполномоченного органа','оформление','закрыта'];
+
+/* ---------------- общие блоки (данные общие, раскладка — предмет варианта) ---------------- */
+
+function twoNumBlock(){
+  return `
+  <div class="two-num-grid">
+    <div class="numtile">
+      <div class="nt-l">Срез — на ${TWO_NUM.srezDate}</div>
+      <div class="nt-v">${money(TWO_NUM.srezBase)}</div>
+      <div class="nt-d">согласовательная величина — база для заключений, комитета, письма</div>
+    </div>
+    <div class="numtile delta ${TWO_NUM.deltaFlag?'flag':''}">
+      <div class="nt-l">Дельта ожидания</div>
+      <div class="nt-v">+${money(TWO_NUM.delta)}</div>
+      <div class="nt-d">${pct(TWO_NUM.deltaPct)} от среза ${TWO_NUM.deltaFlag?'— выше мягкого порога 5%, не блокирует':'— в пределах мягкого порога 5%'}</div>
+    </div>
+    <div class="numtile">
+      <div class="nt-l">Факт — на ${TWO_NUM.factDate}</div>
+      <div class="nt-v">${money(TWO_NUM.factBase)}</div>
+      <div class="nt-d">реквизит ДС — единственное, что идёт в учёт</div>
+    </div>
+  </div>`;
+}
+
+function articleTable(){
+  const rows = ARTICLES.map(a=>{
+    if(a.state==='blocked'){
+      return `<tr class="art-blocked">
+        <td>${a.name} <span class="pill neutral">вне охвата</span></td>
+        <td class="numcell">—</td><td class="numcell">—</td>
+        <td colspan="2" class="mode-tag">${a.note}</td>
+      </tr>`;
+    }
+    if(a.state==='removed'){
+      return `<tr class="art-removed">
+        <td>${a.name} <span class="pill neutral">снята куратором</span></td>
+        <td class="numcell strike">${money(a.overdue||0)}</td>
+        <td class="numcell strike">${money(a.current||0)}</td>
+        <td colspan="2" class="mode-tag">${a.removedReason}</td>
+      </tr>`;
+    }
+    const overdueCell = a.disputed
+      ? `${money(a.overdue-a.disputed)} <div class="chk dead"><input type="checkbox" disabled><span class="lbl">из них ${money(a.disputed)} спорные</span></div>`
+      : money(a.overdue||0);
+    const curCell = a.curExcluded
+      ? `<span class="strike">${money(a.current)}</span> <div class="mode-tag">срочный остаток — не в базе по умолчанию</div>`
+      : money(a.current||0);
+    let dispCell = `<select disabled><option>${DISP_LABEL[a.disp]}</option></select>`;
+    if(a.disp==='periods'){
+      dispCell += `<div class="mode-tag">${a.periods.n} период(ов), ${a.periods.from} → ${a.periods.to}</div>`;
+    }
+    return `<tr>
+      <td>${a.name}</td>
+      <td class="numcell">${overdueCell}</td>
+      <td class="numcell">${curCell}</td>
+      <td>${dispCell}</td>
+    </tr>`;
+  }).join('');
+  return `
+  <div class="cgrid-wrap">
+    <table class="cgrid">
+      <thead><tr><th>Статья (порядок §ИР-7)</th><th>Просрочено</th><th>Текущее</th><th>Распоряжение</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </div>
+  <div class="section-note">Порядок строк — константа конвейера (расходы → сборы → накопленные % → накопленная пеня → пеня → проценты → основной долг).
+  Остаток без распоряжения падает в «без распоряжения» — сумма не меняется, режим прежний.</div>`;
+}
+
+function trancheSplitBlock(){
+  if(!SPLIT.splits){
+    return `<div class="okline nosplit-banner">Деления нет: переносится весь остаток транша — новые условия и новая версия графика ложатся прямо на ${SPLIT.orig.id}, производный транш не заводится (РС-6).</div>`;
+  }
+  return `
+  <div class="split-wrap">
+    <div class="split-box">
+      <div class="sb-t">${SPLIT.orig.id} · исходный, остаётся</div>
+      <div class="sb-row"><span>Тело (не входит в перенос)</span><span>${money(SPLIT.orig.bodyStaysOldTerms)}</span></div>
+      <div class="sb-row"><span>Условия</span><span>прежние, ${pct(SPLIT.orig.rateOld)}</span></div>
+      <div class="sb-row"><span>Статус</span><span>срочный остаток, график не тронут</span></div>
+    </div>
+    <div class="split-arrow">→</div>
+    <div class="split-box new">
+      <div class="sb-t">${SPLIT.derived.id} · производный</div>
+      <div class="sb-row"><span>Перенесённая база</span><span>${money(SPLIT.derived.transferSum)}</span></div>
+      <div class="sb-row"><span>Новые условия</span><span>${pct(SPLIT.derived.rateNew)}, ${SPLIT.derived.termMonths} мес.</span></div>
+      <div class="sb-row"><span>Начало</span><span>${SPLIT.derived.startDate}</span></div>
+    </div>
+  </div>
+  <div class="section-note">Делим, потому что условия расходятся (РС-6): остаток тела = освоено − погашено − перенесено + принято. Когда переносится весь остаток — деления нет вовсе, новые условия ложатся прямо на исходный транш (см. баннер выше при другом сценарии).</div>`;
+}
+
+function scheduleDiffBlock(){
+  const draftRows = SCHEDULE_DRAFT.map(r=>`<tr><td>${r.date}</td><td class="numcell">${money(r.principal)}</td><td class="numcell">${money(r.interest)}</td></tr>`).join('');
+  const activeRows = SCHEDULE_ACTIVE_REMAINDER.map(r=>`<tr><td>${r.date}</td><td class="numcell">${money(r.principal)}</td><td class="numcell">${money(r.interest)}</td></tr>`).join('');
+  return `
+  <div class="f2" style="margin-bottom:6px;">
+    <div class="field">
+      <div class="flabel">${SPLIT.derived.id} — график <span class="pill info">Черновик</span></div>
+      <div class="mode-tag">app.version.plan — предмет согласования, дверью не трогается; вступивший ДС положит новую версию на tranche.schedule отдельно</div>
+    </div>
+    <div class="field">
+      <div class="flabel">${SPLIT.orig.id} — график <span class="pill low">Действующий</span></div>
+      <div class="mode-tag">tranche.schedule — не тронут переносом, продолжает старыми условиями</div>
+    </div>
+  </div>
+  <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th colspan="3">${SPLIT.derived.id} · черновой график (первые платежи)</th></tr><tr><th>Дата</th><th>Тело</th><th>%</th></tr></thead><tbody>${draftRows}</tbody></table></div>
+  <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th colspan="3">${SPLIT.orig.id} · действующий график (остаток, не тронут)</th></tr><tr><th>Дата</th><th>Тело</th><th>%</th></tr></thead><tbody>${activeRows}</tbody></table></div>`;
+}
+
+function gateLimitsBody(){
+  return GATE_LIMITS.items.map(it=>`
+    <div class="mirror" style="margin-bottom:8px;">
+      <div class="mrow"><span>${it.name}</span><span><span class="gatechip ${it.ok?'ok':'no'}">${it.ok?'OK':'блок'}</span></span></div>
+      <div class="mrow"><span>Требование</span><span>${it.req}</span></div>
+      <div class="mrow"><span>Предложено</span><span>${it.proposed}</span></div>
+      ${it.origin?`<div class="mrow"><span>Считано от</span><span>${it.origin}</span></div>`:''}
+      <div class="normcite">${it.unconfirmed ? `пункт не подтверждён — редакция ${NORMREF.edition} от ${NORMREF.dateFrom} явного предела не называет, используется значение по умолчанию (наряд сверки п.7а)` : `${it.point} Порядка ${NORMREF.edition} от ${NORMREF.dateFrom}, действ. с ${NORMREF.dateFrom}`}</div>
+    </div>`).join('');
+}
+function gateConsentBody(){
+  const rows = GATE_CONSENT.items.map(it=>`<div class="mrow"><span>${it.who}</span><span style="color:${it.ok?'var(--asubk-green)':'var(--asubk-red)'}">${it.status}</span></div>`).join('');
+  return `<div class="mirror">${rows}</div>` + (GATE_CONSENT.ok ? '' : `<div class="flagline">Регистрация ДС заблокирована — нет согласия обеспечителя (жёсткий гейт, без waiver). Заёмщик своим залогом согласия не требует.</div>`);
+}
+function gateCoverageBody(){
+  return `<div class="mirror">
+      <div class="mrow"><span>Спросили у Залога</span><span>${GATE_COVERAGE.askedDate}</span></div>
+      <div class="mrow"><span>Ответ получен</span><span>${GATE_COVERAGE.answeredDate}</span></div>
+      <div class="mrow"><span>Покрытие на новых условиях</span><span>${GATE_COVERAGE.cover}% из требуемых ${GATE_COVERAGE.required}%</span></div>
+      <div class="mrow"><span>Waiver</span><span>${GATE_COVERAGE.waiver||'не выдан'}</span></div>
+    </div>
+    <div class="warnline">Недостаточно покрытия — мягкий гейт, снимается решением комиссии по залогу с обоснованием (уходит в журнал), собственного порога вкладка не считает — только зеркалит ответ.</div>`;
+}
+
+function gateChipsRow(){
+  return `<span class="gatechip ${GATE_LIMITS.ok?'ok':'no'}">Пределы ${GATE_LIMITS.ok?'OK':'блок'}</span>
+    <span class="gatechip ${GATE_CONSENT.ok?'ok':'no'}">Согласия ${GATE_CONSENT.ok?'OK':'блок'}</span>
+    <span class="gatechip ${GATE_COVERAGE.ok?'ok':'no'}">Покрытие ${GATE_COVERAGE.ok?'OK':'блок (мягкий)'}</span>`;
+}
+
+function partialExplain(style){
+  const txt = `Кредит ${CTX.creditNo} остаётся просроченным (агрегат по траншам): ${money(CTX.otherTranche.overdueSum)} / ${CTX.otherTranche.overdueDays} дн. на ${CTX.otherTranche.id} — этот транш вне охвата заявки ${CTX.appNo}, его просрочка с этой реструктуризацией не связана.`;
+  if(style==='inline') return `<div class="section-note" style="max-width:920px;">⚠ ${txt}</div>`;
+  if(style==='pill') return `<div style="margin:0 0 14px;"><span class="pill mid">Кредит частично просрочен после ДС</span> <span class="mode-tag">${txt}</span></div>`;
+  return `<div class="warnline">${txt}</div>`; // banner (по умолчанию)
+}
+
+function pheadBlock(){
+  return `
+  <div class="phead">
+    <div class="phead-top">
+      <div class="phead-name">
+        <div class="nm">Реструктуризация — расчёт по ${SPLIT.orig.id}</div>
+        <div class="phead-sub">Заявка <b>${CTX.appNo}</b> · Кредит <b>${CTX.creditNo}</b> · стадия <b>решение уполномоченного органа</b></div>
+      </div>
+      <button class="btn btn-secondary btn-sm" disabled>Пересчитать факт</button>
+    </div>
+    <div class="phead-dims">
+      <div class="dim"><div class="dl">Срез базы</div><div class="dv">${money(TWO_NUM.srezBase)}</div></div>
+      <div class="dim"><div class="dl">Факт базы</div><div class="dv">${money(TWO_NUM.factBase)}</div></div>
+      <div class="dim"><div class="dl">Перенос на ${SPLIT.derived.id}</div><div class="dv">${money(SPLIT.derived.transferSum)}</div></div>
+      <div class="dim"><div class="dl">Новая ставка</div><div class="dv">${pct(SPLIT.derived.rateNew)}</div></div>
+    </div>
+  </div>`;
+}
+
+/* ---------------- вариант A — один экран, сплошная прокрутка ---------------- */
+function renderA(){
+  return `
+  ${pheadBlock()}
+  <div class="section-h">Гейты перехода</div>
+  <div class="section-note">Все три показаны сразу, объяснение — всегда развёрнутый баннер под чипом (форма на пробу).</div>
+  <div style="display:flex; gap:8px; margin-bottom:10px;">${gateChipsRow()}</div>
+  ${gateLimitsBody()}
+  ${gateConsentBody()}
+  ${gateCoverageBody()}
+
+  <div class="section-h">Два датированных числа</div>
+  ${twoNumBlock()}
+
+  <div class="section-h">База — семь статей, два уровня срочности, распоряжения</div>
+  ${articleTable()}
+
+  <div class="section-h">Производный транш</div>
+  ${trancheSplitBlock()}
+
+  <div class="section-h">Черновой график против действующего</div>
+  ${scheduleDiffBlock()}
+
+  <div class="section-h">Частичная реструктуризация</div>
+  ${partialExplain('banner')}
+  `;
+}
+
+/* ---------------- вариант B — две вкладки на уровне карточки ---------------- */
+let bSub = 'base';
+function renderB(){
+  return `
+  ${pheadBlock()}
+  <div class="gatebar-slim" style="margin:0 -20px 18px; border-radius:0;">${gateChipsRow()}<span class="mode-tag" style="margin-left:auto;align-self:center;">гейты общие для обеих вкладок — держатся снаружи</span></div>
+  <div class="subtabbar">
+    <button class="subtab ${bSub==='base'?'active':''}" onclick="setBSub('base')">База и распоряжения</button>
+    <button class="subtab ${bSub==='sched'?'active':''}" onclick="setBSub('sched')">График и дифф</button>
+  </div>
+  ${bSub==='base' ? `
+    <div class="section-h" style="margin-top:0;">Два датированных числа</div>
+    ${twoNumBlock()}
+    <div class="section-h">База — семь статей, два уровня срочности, распоряжения</div>
+    ${articleTable()}
+    <div class="section-h">Производный транш</div>
+    ${trancheSplitBlock()}
+  ` : `
+    <div class="section-h" style="margin-top:0;">Черновой график против действующего</div>
+    ${scheduleDiffBlock()}
+    <div class="section-h">Частичная реструктуризация</div>
+    ${partialExplain('pill')}
+  `}
+  <div class="section-h">Гейты — подробно (сворачиваемые пилюли, форма на пробу)</div>
+  <details class="gate-d"><summary><span class="gatechip ${GATE_LIMITS.ok?'ok':'no'}">Пределы</span> жёсткий, объясняется редакцией</summary><div class="gate-body">${gateLimitsBody()}</div></details>
+  <details class="gate-d"><summary><span class="gatechip ${GATE_CONSENT.ok?'ok':'no'}">Согласия</span> жёсткий</summary><div class="gate-body">${gateConsentBody()}</div></details>
+  <details class="gate-d"><summary><span class="gatechip ${GATE_COVERAGE.ok?'ok':'no'}">Покрытие</span> мягкий, ответ Залога</summary><div class="gate-body">${gateCoverageBody()}</div></details>
+  `;
+}
+function setBSub(k){ bSub=k; renderVariant(currentVariant()); }
+
+/* ---------------- вариант C — по шагам построения черновика ---------------- */
+const WIZ_STEPS = [
+  { key:'dates', t:'Срез и факт', sub:'два датированных числа' },
+  { key:'base', t:'База и распоряжения', sub:'семь статей' },
+  { key:'tranche', t:'Производный транш', sub:'перенос, РС-6' },
+  { key:'sched', t:'Черновой график', sub:'vs действующий' },
+  { key:'gates', t:'Гейты и итог', sub:'пределы · согласия · покрытие', warn:!GATE_LIMITS.ok||!GATE_CONSENT.ok||!GATE_COVERAGE.ok },
+];
+let cStep = 'dates';
+function renderC(){
+  const rail = WIZ_STEPS.map(s=>`
+    <div class="wiz-step ${cStep===s.key?'active':''} ${s.warn?'gatewarn':''}" onclick="setCStep('${s.key}')">
+      <div class="wiz-num">${s.warn?'!':WIZ_STEPS.indexOf(s)+1}</div>
+      <div class="wiz-t">${s.t}<small>${s.sub}</small></div>
+    </div>`).join('');
+  let body = '';
+  if(cStep==='dates'){
+    body = `<div class="section-h" style="margin-top:0;">Срез и факт</div>${twoNumBlock()}<div class="section-note">Срез — согласовательная величина для заключений/комитета/письма. Факт — то же самое, пересчитанное на дату вступления ДС; реквизит ДС, единственное, что идёт в учёт.</div>`;
+  } else if(cStep==='base'){
+    body = `<div class="section-h" style="margin-top:0;">База — семь статей, два уровня срочности</div>${articleTable()}`;
+  } else if(cStep==='tranche'){
+    body = `<div class="section-h" style="margin-top:0;">Производный транш</div>${trancheSplitBlock()}
+      <div class="infoline">Пол ставки считается от исходной ставки транша (14.00%), не текущей — здесь же уместно видно предложенную новую ставку ${pct(SPLIT.derived.rateNew)}.</div>`;
+  } else if(cStep==='sched'){
+    body = `<div class="section-h" style="margin-top:0;">Черновой график против действующего</div>${scheduleDiffBlock()}`;
+  } else if(cStep==='gates'){
+    body = `<div class="section-h" style="margin-top:0;">Гейты и итог</div>
+      <div style="display:flex; gap:8px; margin-bottom:10px;">${gateChipsRow()}</div>
+      ${gateLimitsBody()}${gateConsentBody()}${gateCoverageBody()}
+      <div class="section-h">Частичная реструктуризация</div>
+      ${partialExplain('inline')}`;
+  }
+  return `
+  ${pheadBlock()}
+  <div class="wiz">
+    <div class="wiz-rail">${rail}</div>
+    <div class="wiz-body">${body}</div>
+  </div>`;
+}
+function setCStep(k){ cStep=k; renderVariant(currentVariant()); }
+
+/* ---------------- контекстная вкладка-панель (симуляция карточки заявки) ---------------- */
+const REAL_TABS = [['req','Обращение'],['scope','Охват'],['concl','Заключения']];
+const TAIL_TABS = [['minfin','Комитет / Минфин'],['formal','Оформление'],['hist','История']];
+function renderTabbar(v){
+  let mid;
+  if(v==='b'){
+    mid = `<button class="dtab active">База и распоряжения</button><button class="dtab active">График и дифф</button>`;
+  } else {
+    mid = `<button class="dtab active">Расчёт</button>`;
+  }
+  const head = REAL_TABS.map(t=>`<button class="dtab ghost">${t[1]}</button>`).join('');
+  const tail = TAIL_TABS.map(t=>`<button class="dtab ghost">${t[1]}</button>`).join('');
+  document.getElementById('tabbar').innerHTML = `<div class="detail-tabbar">${head}${mid}${tail}</div>`;
+}
+
+/* ---------------- переключатель вариантов ---------------- */
+const VARIANTS = [
+  { key:'a', label:'A · Один экран', desc:'всё подряд, объяснения — открытые баннеры', render: renderA },
+  { key:'b', label:'B · Две вкладки', desc:'«База и распоряжения» отдельно от «График и дифф»', render: renderB },
+  { key:'c', label:'C · По шагам', desc:'мастер: срез/факт → база → транш → график → гейты', render: renderC },
+];
+
+function currentVariant(){
+  const q = new URLSearchParams(location.search).get('variant');
+  return VARIANTS.some(v=>v.key===q) ? q : 'a';
+}
+function renderVariant(key){
+  const v = VARIANTS.find(x=>x.key===key) || VARIANTS[0];
+  document.getElementById('content').innerHTML = v.render();
+  renderTabbar(v.key);
+  renderSwitch(v.key);
+  history.replaceState(null, '', '?variant=' + v.key);
+}
+function renderSwitch(key){
+  const idx = VARIANTS.findIndex(v=>v.key===key);
+  const v = VARIANTS[idx];
+  document.getElementById('switch').innerHTML = `
+    <button class="psw-arrow" onclick="stepVariant(-1)" aria-label="назад">‹</button>
+    <div class="psw-label"><b>${v.label}</b><span>${v.desc}</span></div>
+    <div class="psw-legend">${VARIANTS.map(x=>`<button class="psw-dot ${x.key===key?'active':''}" title="${x.label}" onclick="renderVariant('${x.key}')"></button>`).join('')}</div>
+    <button class="psw-arrow" onclick="stepVariant(1)" aria-label="вперёд">›</button>
+  `;
+}
+function stepVariant(dir){
+  const idx = VARIANTS.findIndex(v=>v.key===currentVariant());
+  const next = (idx + dir + VARIANTS.length) % VARIANTS.length;
+  renderVariant(VARIANTS[next].key);
+}
+document.addEventListener('keydown', e=>{
+  if(e.key==='ArrowLeft') stepVariant(-1);
+  if(e.key==='ArrowRight') stepVariant(1);
+});
+
+renderVariant(currentVariant());
+</script>
+</body>
+</html>
