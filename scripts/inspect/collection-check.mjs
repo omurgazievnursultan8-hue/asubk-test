@@ -3355,32 +3355,36 @@ head('РМ-Д4 · ADR-0036 — форма регистрации: тело/по�
   ok('пометки при регистрации отсутствуют вовсе — sent/served/outcome не заданы',
      m.ev(`curProc.measures[${mi}].sent`) === undefined
      && m.ev(`curProc.measures[${mi}].served`) === undefined
-     && m.ev(`curProc.measures[${mi}].outcome`) === undefined);
+     && m.ev(`curProc.measures[${mi}].outcomes`) === undefined);
+
+  // ADR-0103: исход — построчно по targets (m.outcomes[id]/outcomeMeta[id]), не одно поле меры.
+  const tid = m.ev(`curProc.measures[${mi}].targets[0]`);
+  const tidLit = JSON.stringify(tid);
 
   // Первичное заполнение пометки (доставка + исход) — без причины, стамповает by/at.
   m.ev(`openAnnotationModal(${mi})`);
   m.doc.getElementById('aChannel').value = 'СЭД';
   m.doc.getElementById('aSentDate').value = '2026-07-21';
-  m.doc.getElementById('aOutcome').value = 'без ответа';
+  m.doc.getElementById(`aOutcome_${tid}`).value = 'без ответа';
   m.ev(`saveAnnotation(${mi})`);
   ok('первичное заполнение пометки не требует причины и стамповает by/at (доставка и исход)',
      m.ev(`curProc.measures[${mi}].sent.channel`) === 'СЭД' && m.ev(`curProc.measures[${mi}].sent.by`) === 'Куратор ОД / ДАК / РП'
      && m.ev(`curProc.measures[${mi}].sent.at`) === '21.07.2026' && !m.ev(`curProc.measures[${mi}].sent.reason`)
-     && m.ev(`curProc.measures[${mi}].outcome`) === 'без ответа' && m.ev(`curProc.measures[${mi}].outcomeMeta.by`) === 'Куратор ОД / ДАК / РП'
-     && m.ev(`curProc.measures[${mi}].outcomeMeta.at`) === '21.07.2026' && !m.ev(`curProc.measures[${mi}].outcomeMeta.reason`));
+     && m.ev(`curProc.measures[${mi}].outcomes[${tidLit}]`) === 'без ответа' && m.ev(`curProc.measures[${mi}].outcomeMeta[${tidLit}].by`) === 'Куратор ОД / ДАК / РП'
+     && m.ev(`curProc.measures[${mi}].outcomeMeta[${tidLit}].at`) === '21.07.2026' && !m.ev(`curProc.measures[${mi}].outcomeMeta[${tidLit}].reason`));
   ok('тело меры не тронуто заполнением пометки (kind/num/targets/sum те же, что при регистрации)',
      m.ev(`curProc.measures[${mi}].kind`) === 'Первичная претензия' && m.ev(`curProc.measures[${mi}].num`) === 'ТЕСТ-ПОМЕТКА-1'
      && m.ev(`!!curProc.measures[${mi}].dates && !!curProc.measures[${mi}].sum`));
 
   // Правка уже внесённой пометки БЕЗ причины — блокируется, значения не меняются (И-1-подобный инвариант, но для пометки).
   const sentBefore = m.ev(`JSON.stringify(curProc.measures[${mi}].sent)`);
-  const outcomeBefore = m.ev(`curProc.measures[${mi}].outcome`);
+  const outcomeBefore = m.ev(`curProc.measures[${mi}].outcomes[${tidLit}]`);
   m.ev(`openAnnotationModal(${mi})`);
   m.doc.getElementById('aChannel').value = 'Почта';
-  m.doc.getElementById('aOutcome').value = 'погашено';
+  m.doc.getElementById(`aOutcome_${tid}`).value = 'погашено';
   m.ev(`saveAnnotation(${mi})`);
   ok('правка уже внесённой пометки без причины блокируется — тело меры «заморожено», а сама пометка не подменяется молча',
-     m.ev(`JSON.stringify(curProc.measures[${mi}].sent)`) === sentBefore && m.ev(`curProc.measures[${mi}].outcome`) === outcomeBefore
+     m.ev(`JSON.stringify(curProc.measures[${mi}].sent)`) === sentBefore && m.ev(`curProc.measures[${mi}].outcomes[${tidLit}]`) === outcomeBefore
      && m.ev(`!!document.getElementById('modalHost').classList.contains('open')`));  // модалка не закрылась — saveAnnotation вышла по гейту, не по успеху
 
   // Правка С причиной — проходит, новый штамп by/at, причина хранится рядом (не подменяет тело).
@@ -3388,8 +3392,8 @@ head('РМ-Д4 · ADR-0036 — форма регистрации: тело/по�
   m.ev(`saveAnnotation(${mi})`);
   ok('правка пометки с причиной проходит и штампует НОВЫЕ by/at + reason (исправление, не тихая подмена)',
      m.ev(`curProc.measures[${mi}].sent.channel`) === 'Почта' && m.ev(`curProc.measures[${mi}].sent.reason`) === 'ошиблись в канале и исходе при первичном вводе'
-     && m.ev(`curProc.measures[${mi}].outcome`) === 'погашено' && m.ev(`curProc.measures[${mi}].outcomeMeta.reason`) === 'ошиблись в канале и исходе при первичном вводе'
-     && m.ev(`curProc.measures[${mi}].outcomeMeta.prev`) === 'без ответа');
+     && m.ev(`curProc.measures[${mi}].outcomes[${tidLit}]`) === 'погашено' && m.ev(`curProc.measures[${mi}].outcomeMeta[${tidLit}].reason`) === 'ошиблись в канале и исходе при первичном вводе'
+     && m.ev(`curProc.measures[${mi}].outcomeMeta[${tidLit}].prev`) === 'без ответа');
   ok('и после правки пометки тело меры остаётся тем же (kind/num/targets/sum) — правка нигде их не задела',
      m.ev(`curProc.measures[${mi}].kind`) === 'Первичная претензия' && m.ev(`curProc.measures[${mi}].num`) === 'ТЕСТ-ПОМЕТКА-1'
      && m.ev(`!!curProc.measures[${mi}].dates && !!curProc.measures[${mi}].sum`));
