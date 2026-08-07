@@ -1474,7 +1474,7 @@ let curReceipt = null, curPayment = null, curReturn = null, curAct = null;
 function go(v){ CUR_VIEW = v; curReceipt=null; curPayment=null; curReturn=null; curAct=null; render(); }
 function openReceipt(id){ curReceipt = DATA.receipts.find(r=>r.id===id); curPayment=null; curReturn=null; curAct=null; rTab='alloc'; render(); }
 function openPayment(id){ curPayment = DATA.payments.find(p=>p.id===id); curReceipt=null; curReturn=null; curAct=null; payTab='req'; render(); }
-function openReturn(id){ curReturn = DATA.returns.find(v=>v.id===id); curReceipt=null; curPayment=null; curAct=null; render(); }
+function openReturn(id){ curReturn = DATA.returns.find(v=>v.id===id); curReceipt=null; curPayment=null; curAct=null; retTab='flow'; render(); }
 function openAct(id){ curAct = DATA.acts.find(a=>a.id===id); curReceipt=null; curPayment=null; curReturn=null; render(); }
 function back(){ curReceipt=null; curPayment=null; curReturn=null; curAct=null; render(); }
 
@@ -2532,17 +2532,17 @@ function payPanelAlloc(p){
         ${r.reserveRows.map(x => x.article + ' от ' + x.due + ' — ' + money(x.amount)).join(' · ')}.</p>`
     : '';
 
-  return `${invBar}${reserve}${payOrderingBlock(a)}
+  return `${invBar}${reserve}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(380px,1fr));gap:16px;align-items:start;margin-top:14px">
       <div>
         ${payMatrix(a, p)}
-        ${payOverdueByLayer(a)}
       </div>
       ${payQueueBlock(p)}
     </div>
     ${payDriftBlock(p)}
     ${payWriteOffBlock(p)}
-    ${payAdjustBlock(p)}`;
+    ${payAdjustBlock(p)}
+    ${payOrderingBlock(a)}`;
 }
 
 /* источник очерёдности статей и исключённые статьи (ПТ-Д6, ADR-0059) */
@@ -2590,26 +2590,6 @@ function payMatrix(a, p){
             <td class="r">${cur(row.v, cy)}</td></tr>`).join('')).join('')}</tbody>
         </table>
       </div>
-    </div>`).join('')}</div>`;
-}
-
-/* просрочка — по слоям и статьям долга, а не одним числом «дней» (ПТ-Д17) */
-function payOverdueByLayer(a){
-  if(!a || !a.layers.length) return '';
-  const groups = a.layers.map(L => ({
-    name: L.name,
-    items: L.articles.map(A => {
-      const over = A.rows.filter(row => row.urg === 'over');
-      return over.length ? A.article + ' (' + over.map(row => row.tranche + ' · ' + row.label).join('; ') + ')' : null;
-    }).filter(Boolean)
-  })).filter(g => g.items.length);
-
-  if(!groups.length) return `<p class="section-note" style="margin-top:12px">Просроченных строк в этой разбивке нет.</p>`;
-
-  return `<div class="section-h" style="font-size:16px;margin-top:20px">Что именно просрочено</div>
-  <div class="gate">${groups.map(g => `<div class="grow">
-      <span class="gkind">${g.name}</span>
-      <span class="gwhat">просрочены статьи долга: ${g.items.join(' · ')}</span>
     </div>`).join('')}</div>`;
 }
 
@@ -2892,6 +2872,8 @@ function payDisputeSave(pid){
      основание (человек · куратор) → допустимость (ВЫВОД, подписи нет) →
      исполнение (человек · бухгалтер).
    ------------------------------------------------------------ */
+let retTab = 'flow';
+function setRetTab(t){ retTab = t; render(); }
 
 /* получатель — реквизит возврата, а не производная кредита (ПТ-Д2) */
 const retIsThirdParty = v => /трет/i.test(v.recipient.kind);
@@ -3133,45 +3115,29 @@ function returnDetail(v){
       : `<div class="banner ok">${RET_ICO_I}<div><b>Возврат допустим.</b> Проверено на ${adm.checked},
           препятствий нет. Осталось исполнение.</div></div>`;
 
+  const tab = id => `<button class="dtab ${retTab===id?'active':''}" onclick="setRetTab('${id}')">${id==='flow'?'Ход':'Аудит'}</button>`;
+
   return `<div class="page-pad">
     <div class="gtoolbar"><button class="btn btn-tint btn-sm" onclick="back()">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
       К списку возвратов</button></div>
     ${head}
     ${banner}
-    ${retTimeline(v)}
-    ${retRecipientBlock(v)}
-    ${retBasisBlock(v)}
-    ${retAdmissibilityBlock(v)}
-    ${retSurplusBlock(v)}
-    ${retExecBlock(v)}
-    ${retInvariantBlock(v)}
-    <div class="section-h" style="margin-top:24px">След возврата</div>
-    ${retHistBlock(v)}
+
+    <div class="detail-tabbar">${tab('flow')}${tab('audit')}</div>
+
+    <div class="dpanel ${retTab==='flow'?'active':''}">
+      ${retRecipientBlock(v)}
+      ${retBasisBlock(v)}
+      ${retAdmissibilityBlock(v)}
+      ${retExecBlock(v)}
+    </div>
+    <div class="dpanel ${retTab==='audit'?'active':''}">
+      ${retInvariantBlock(v)}
+      <div class="section-h" style="margin-top:24px">След возврата</div>
+      ${retHistBlock(v)}
+    </div>
   </div>`;
-}
-
-/* --- ТРИ ФУНКЦИИ (главный визуальный акцент экрана, ПТ-Д26 / ПТ-29) --- */
-function retTimeline(v){
-  const adm = v.admissibility;
-  const arrow = `<span class="tl-arrow"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>`;
-  const step = (dot, cls, lbl, sub) => `<div class="tl-step">
-      <span class="tl-dot ${cls}">${dot}</span>
-      <span class="tl-lbl${cls==='todo'?' todo':''}"><b>${lbl}</b><br><span class="src-tag">${sub}</span></span>
-    </div>`;
-
-  const s1 = v.basis
-    ? step('✓','done','1 · Основание', `${v.basisBy} · ${retBasisWho(v)}`)
-    : step('1','cur','1 · Основание', retBasisWho(v));
-  const s2 = adm.ok
-    ? step('✓','done','2 · Допустимость', `проверено на ${adm.checked}`)
-    : step('!','todo','2 · Допустимость', `препятствий ${adm.blockers.length}`);
-  const s3 = v.state==='executed'
-    ? step('✓','done','3 · Исполнение', `${v.execBy} · ${v.execAt}`)
-    : step('3', adm.ok && v.basis ? 'cur' : 'todo', '3 · Исполнение', 'бухгалтер, по реквизитам получателя');
-
-  return `<div class="section-h" style="margin-top:22px">Ход возврата</div>
-    <div class="timeline">${s1}${arrow}${s2}${arrow}${s3}</div>`;
 }
 
 /* --- ПОЛУЧАТЕЛЬ (ПТ-Д2) --- */
@@ -3244,6 +3210,7 @@ function retAdmissibilityBlock(v){
   return `<div class="section-h" style="margin-top:24px">2 · Допустимость</div>
     ${rule}
     <div style="margin-top:12px">${body}</div>
+    ${retSurplusBlock(v)}
     <div class="gtoolbar" style="margin-top:12px">
       <button class="btn btn-tint btn-sm" onclick="retRecheck('${v.id}')">Проверить допустимость заново</button>
       <span class="src-tag">пересобирает вывод на ${DATA.today}</span>
@@ -3268,7 +3235,7 @@ function retSurplusBlock(v){
         <td>${x.due}</td><td>${x.article}</td>
         <td><span class="trn">Строка графика</span></td>
         <td class="r">${money(x.amount)}</td></tr>`).join('');
-    return `<div class="section-h" style="margin-top:24px">Откуда эти деньги: остаток сверх наступившего</div>
+    return `<div class="section-h" style="font-size:16px;margin-top:20px">Откуда эти деньги: остаток сверх наступившего</div>
       <div class="inv">
         <span class="iv">Поступление: <b>${money(r.amount)}</b></span>
         <span class="iv">Наступившее на ${A.a.asOf}: <b>${money(A.a.due)}</b></span>
@@ -3298,7 +3265,7 @@ function retSurplusBlock(v){
   }
 
   /* случай чужой доли: остатка сверх наступившего нет вовсе */
-  return `<div class="section-h" style="margin-top:24px">Откуда эти деньги</div>
+  return `<div class="section-h" style="font-size:16px;margin-top:20px">Откуда эти деньги</div>
     <div class="inv">
       <span class="iv">Поступление: <b>${money(r.amount)}</b></span>
       <span class="iv">Ушло в погашение: <b>${A ? money(A.a.total) : '—'}</b></span>
