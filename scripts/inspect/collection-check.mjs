@@ -3185,12 +3185,21 @@ ok('ta() — textarea в поле col-span, значение экраниров�
   })()`)); }
 
 { const m = mk(); m.setRole('Отдел проблемных кредитов (ОПК)');
-  ok('кнопка «Внести исход» — только у применимых заседаний без исхода (333: индексы 1 и 2, не 0)', m.ev(`(() => {
+  /* Финальный ревью, находка 2/3: кнопка теперь ТАКЖЕ требует canRegisterMeasures()
+     и дату заседания в прошлом (n<0) — до этой волны условием было только
+     !hDone(h)&&hApplicable(h), и на 333 (все три даты позже TODAY=21.07.2026)
+     это ложно показывало кнопку у ещё не наступивших заседаний (индексы 1 и 2),
+     то есть саму дыру D3-заседание из collection-data-audit.mjs. Ни одно из трёх
+     заседаний 333 не в прошлом — с фиксом кнопка скрыта у всех индексов: 0 — по
+     неприменимости (извещение), 1 и 2 — по дате (проверено ниже как предпосылка). */
+  ok('заседания 333 (1,2) ещё не наступили — предпосылка следующей проверки', m.ev(
+    `(() => { const h = PROCESSES.find(x=>x.id==='333').hearings; return hLeft(h[1]) >= 0 && hLeft(h[2]) >= 0; })()`));
+  ok('кнопка «Внести исход» скрыта у всех заседаний 333 (0: неприменимо-извещение; 1,2: дата ещё не наступила — финальный ревью, находка 2/3)', m.ev(`(() => {
     openDetail('333/333/з', TAB_BY_SLUG('sud'));
     const html = document.querySelector('#detailPanels .detail-panel.active').innerHTML;
-    return /openHearingOutcomeModal\\(1\\)/.test(html) && /openHearingOutcomeModal\\(2\\)/.test(html) && !/openHearingOutcomeModal\\(0\\)/.test(html);
+    return !/openHearingOutcomeModal\\(0\\)/.test(html) && !/openHearingOutcomeModal\\(1\\)/.test(html) && !/openHearingOutcomeModal\\(2\\)/.test(html);
   })()`));
-  ok('saveHearingOutcome пишет исход, участников и историю; кнопка у этой строки исчезает', m.ev(`(() => {
+  ok('saveHearingOutcome пишет исход, участников и историю; кнопка по-прежнему скрыта (дата не в прошлом — финальный ревью, находка 2/3)', m.ev(`(() => {
     openDetail('333/333/з', TAB_BY_SLUG('sud'));
     openHearingOutcomeModal(1);
     document.getElementById('hoParticipants').value = 'Молдалиев Т.К. (представитель ФКФ)\\nОтветчик явился';
@@ -3201,12 +3210,37 @@ ok('ta() — textarea в поле col-span, значение экраниров�
     const html = document.querySelector('#detailPanels .detail-panel.active').innerHTML;
     return h.outcome === 'иск удовлетворён частично' && h.participants.length === 2
       && /Исход заседания внесён: /.test(curProc.history[0].what)
-      && !/openHearingOutcomeModal\\(1\\)/.test(html) && /openHearingOutcomeModal\\(2\\)/.test(html);
+      && !/openHearingOutcomeModal\\(1\\)/.test(html) && !/openHearingOutcomeModal\\(2\\)/.test(html);
   })()`));
   ok('Save заблокирован при пустом исходе', m.ev(`(() => {
     openDetail('333/333/з', TAB_BY_SLUG('sud'));
     openHearingOutcomeModal(2);
     return document.getElementById('hoSave').disabled;
+  })()`)); }
+
+{ const m = mk(); m.setRole('Отдел проблемных кредитов (ОПК)');
+  ok('спецсимволы в месте/участниках уходят экранированными и в панель, и в реестр «Заседания» (регресс на eab341a / финальный ревью, находка 1)', m.ev(`(() => {
+    openDetail('333/333/з', TAB_BY_SLUG('sud'));
+    openHearingModal();
+    document.getElementById('hPlace').value='<img src=x onerror=1> зал'; syncHearingSave();
+    document.getElementById('hDate').value='2026-09-20'; syncHearingSave();
+    document.getElementById('hTime').value='09:00'; syncHearingSave();
+    document.getElementById('hParticipants').value='Тестов Т.Т. (представитель ФКФ) <img src=x onerror=1>';
+    saveHearing();
+    const panelHtml = document.querySelector('#detailPanels .detail-panel.active').innerHTML;
+    if(/<img src=x onerror=1>/.test(panelHtml)) return false;
+    navClick('Заседания (реестр)');
+    const regBody = document.getElementById('hearingsBody');
+    /* DOM-уровневая проверка, а не сырой substring-поиск по regBody.innerHTML: строка
+       участников ТАКЖЕ уходит в title="..." строки реестра через escAttr() (вне охвата
+       находки 1, трогать её эта находка не просит) — а сериализатор jsdom/браузера не
+       обязан переэкранировать "<"/">" ВНУТРИ атрибута обратно при чтении .innerHTML
+       (спецификация HTML требует экранировать там только "&" и кавычку) — так что сырая
+       substring-проверка по всему regBody.innerHTML ложно падает на безопасном атрибуте.
+       querySelector('img[onerror]') проверяет то, что реально имеет значение: не возник
+       ли ЖИВОЙ <img> элемент — а не текстовое совпадение внутри значения атрибута. */
+    if(regBody.querySelector('img[onerror]')) return false;
+    return /&lt;img src=x onerror=1&gt;/.test(regBody.innerHTML);
   })()`)); }
 
 /* ADR-0031: жалоба фазу не двигает — состояние иска остаётся неопределённым до акта

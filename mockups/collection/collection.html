@@ -9114,7 +9114,7 @@ function panelSud(){
       :n!=null&&n<0?(hApplicable(h)?'<span class="pill high">исход не внесён</span>':'<span class="dl-muted">без исхода — уведомление</span>')
       :`<span class="pill info">предстоит${n!=null?` · через ${n} к.д.`:''}</span>`;
     const hi=p.hearings.indexOf(h);
-    const act=(!hDone(h)&&hApplicable(h))?`<button class="btn btn-tint btn-sm" onclick="openHearingOutcomeModal(${hi})">Внести исход</button>`:'';
+    const act=(!hDone(h)&&hApplicable(h)&&canRegisterMeasures()&&n!=null&&n<0)?`<button class="btn btn-tint btn-sm" onclick="openHearingOutcomeModal(${hi})">Внести исход</button>`:'';
     return `<tr>
     <td>${h.measureNum}${boundToReq(r,h.measureNum)===null?' '+dealLevelPill:''}</td><td>${h.kind}</td><td>${escAttr(h.place)}</td><td>${h.when}</td>
     <td>${(h.participants||[]).map(escAttr).join('<br>')||'<span class="dl-muted">не указаны</span>'}</td><td>${out}</td><td>${act}</td></tr>`;}).join('')
@@ -9143,7 +9143,7 @@ function openHearingModal(){
     <div class="modal-b"><p class="section-note">Заседание крепится к мере-обращению — иску, жалобе, заявлению (ADR-0031 п.4).</p>
     <div class="mform">
       ${cands.length
-        ? `<div class="field col-span"><span class="flabel">Мера-основание</span><div class="control grey"><select id="hMeasure" onchange="syncHearingSave()">${cands.map(m=>`<option value="${escAttr(m.num||'')}">${escAttr(m.num||m.kind)} · ${escAttr(m.kind)}</option>`).join('')}</select>${caret()}</div></div>`
+        ? `<div class="field col-span"><span class="flabel">Мера-основание</span><div class="control grey"><select id="hMeasure" onchange="syncHearingSave()">${cands.map(m=>`<option value="${escAttr(m.num||m.kind||'')}">${escAttr(m.num||m.kind)} · ${escAttr(m.kind)}</option>`).join('')}</select>${caret()}</div></div>`
         : `<div class="field col-span"><span class="flabel">Мера-основание</span><div class="hint-inline">В деле нет ни одной меры-обращения (иск/жалоба/заявление) по этому требованию — заседание можно будет назначить после её регистрации.</div></div>`}
       <div class="field"><span class="flabel">Вид события</span><div class="control grey"><select id="hKind" onchange="syncHearingSave()">${HEARING_KINDS.map(k=>`<option${k===HEARING_KINDS[0]?' selected':''}>${escAttr(k)}</option>`).join('')}</select>${caret()}</div></div>
       <div class="field"><span class="flabel">Место</span><div class="control grey"><input id="hPlace" oninput="syncHearingSave()"></div></div>
@@ -9904,7 +9904,7 @@ function openRealizationModal(ci){
 /* ---- panel: История ---- */
 function panelHistory(){
   const p=curProc;
-  const rows=(p.history||[]).map(h=>`<div class="hrow${/сторн/i.test(h.what)?' storno':''}"><div class="hwhen">${h.when}</div><div class="hwhat">${h.what}</div><div class="hwho">${h.who}</div></div>`).join('');
+  const rows=(p.history||[]).map(h=>`<div class="hrow${/сторн/i.test(h.what)?' storno':''}"><div class="hwhen">${h.when}</div><div class="hwhat">${escAttr(h.what)}</div><div class="hwho">${h.who}</div></div>`).join('');
   return `<div class="panel-wrap">
     <p class="section-h">История дела</p>
     <div class="hist">${rows || `<div class="cgrid-empty">Записей нет — с момента открытия дела ${p.opened} ни одной вехи, смены процедуры или паузы не регистрировалось.</div>`}</div></div>`;
@@ -11205,7 +11205,7 @@ defReg({
       ${borrCell(x.p)}
       <td>${reqCell(x.reqs, 'мера ' + (x.h.measureNum || '—'))}</td>
       <td class="dl-act">${escAttr(x.h.place)}</td>
-      <td>${x.rep ? x.rep : '<span class="dl-muted">не назначен</span>'}</td>
+      <td>${x.rep ? escAttr(x.rep) : '<span class="dl-muted">не назначен</span>'}</td>
       <td class="dl-act">${out}</td></tr>`;
   },
   emptyTitle:'Ни одного заседания не найдено',
