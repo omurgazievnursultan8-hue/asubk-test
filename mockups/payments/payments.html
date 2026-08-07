@@ -4372,27 +4372,24 @@ function periodCard(p){
         <div class="src">${t.need.length?'из поступлений с положительной сверкой':'положительных сверок в месяце нет'}</div></div>
     </div>
     ${body}
+    ${closed ? periodDriftBlock(p.id) : ''}
   </div>`;
 }
 
-/* ---- почему невыясненные держат месяц ---- */
-function periodUnresolvedNote(){
-  const u = unresolvedReceipts();
-  return `<div class="banner warn">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 5 .3c0 1.7-2.5 2-2.5 3.7"/><path d="M12 17h.01"/></svg>
-    <div><b>Невыясненные держат закрытие месяца.</b> По сроку они не списываются.
-      Сейчас в работе: <b>${u.length}</b> ${u.length===1?'невыясненное поступление':'невыясненных поступления'} ·
-      <span class="rowlink" onclick="go('unresolved')">открыть список</span>.</div></div>`;
-}
-
-/* ---- расхождение закрытого периода с текущим выводом ---- */
-function periodDrift(){
-  const t = periodTotals('2026-06');
-  const rev = DATA.receipts.filter(r=>r.period==='2026-06' && isReversed(r));
-  return `<div class="section-h">Закрытый период и текущий вывод</div>
+/* ---- расхождение закрытого периода с текущим выводом (только если оно реально есть) ----
+   Раньше жило отдельной секцией на весь экран, захардкоженной на период '2026-06'.
+   Факт принадлежит конкретному периоду — переехал в его же карточку (periodCard),
+   рисуется только когда после закрытия в периоде правда было сторно. */
+const periodHasDrift = pid => DATA.receipts.some(r=>r.period===pid && isReversed(r));
+function periodDriftBlock(pid){
+  const rev = DATA.receipts.filter(r=>r.period===pid && isReversed(r));
+  if(!rev.length) return '';
+  const p = DATA.periods.find(x=>x.id===pid);
+  const t = periodTotals(pid);
+  return `<div class="section-h" style="margin-top:14px">Закрытый период и текущий вывод</div>
   <div class="drift" style="margin-bottom:8px">
     <div class="dcol snap">
-      <div class="dhead">Снимок: Июнь 2026, закрыт 10.07.2026</div>
+      <div class="dhead">Снимок: ${p.label}, закрыт ${p.closedAt}</div>
       <dl class="kv">
         <dt>Поступлений</dt><dd class="num">${t.rs.length}</dd>
         <dt>Сумма месяца</dt><dd class="num mono">${money(t.sum)}</dd>
@@ -4402,9 +4399,9 @@ function periodDrift(){
     <div class="dcol live">
       <div class="dhead">Текущий вывод на ${DATA.today}</div>
       <dl class="kv">
-        <dt>Событие</dt><dd>${rev.length?`Сторно решением бухгалтера: <span class="rowlink" onclick="openReceipt('${rev[0].id}')">${rev[0].number}</span> от ${rev[0].date}`:'Событий после закрытия не было'}</dd>
+        <dt>Событие</dt><dd>Сторно решением бухгалтера: <span class="rowlink" onclick="openReceipt('${rev[0].id}')">${rev[0].number}</span> от ${rev[0].date}</dd>
         <dt>Обратимость</dt><dd>При позднем подтверждении ЦК поступление восстановится <b>исходной датой</b> — внутри уже закрытого месяца.</dd>
-        <dt>Что произойдёт</dt><dd>Снимок июня останется прежним; корректировка запишется отдельно.</dd>
+        <dt>Что произойдёт</dt><dd>Снимок периода останется прежним; корректировка запишется отдельно.</dd>
       </dl>
     </div>
   </div>`;
@@ -4431,10 +4428,8 @@ function periodJournal(){
 function viewPeriod(){
   return `<div class="page-pad">
     <div class="section-h">Периоды учёта</div>
-    ${DATA.periods.map(periodCard).join('')}
+    ${DATA.periods.filter(p=>p.state==='open' || periodHasDrift(p.id)).map(periodCard).join('')}
 
-    ${periodUnresolvedNote()}
-    ${periodDrift()}
     ${periodJournal()}
 
     <div class="legend">
