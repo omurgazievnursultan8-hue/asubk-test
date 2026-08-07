@@ -3144,6 +3144,46 @@ ok('hearingCandidates — пусто, если дело не дошло до и�
 ok('ta() — textarea в поле col-span, значение экранировано',
    /class="field col-span">.*<textarea id="xId" class="note-area">a &amp; b<\/textarea>/s.test(g.ev(`ta('L','a & b','xId')`)));
 
+{ const m = mk(); m.setRole('Отдел проблемных кредитов (ОПК)');
+  ok('модалка: 1 кандидат (ИСК-333), Save заблокирован до заполнения места/даты/времени', m.ev(`(() => {
+    openDetail('333/333/з', TAB_BY_SLUG('sud'));
+    openHearingModal();
+    const opts=[...document.querySelectorAll('#hMeasure option')].map(o=>o.value);
+    if(opts.join(',') !== 'ИСК-333') return false;
+    if(!document.getElementById('hSave').disabled) return false;
+    document.getElementById('hPlace').value='Кантский районный суд'; syncHearingSave();
+    document.getElementById('hDate').value='2026-09-15'; syncHearingSave();
+    document.getElementById('hTime').value='10:00'; syncHearingSave();
+    return !document.getElementById('hSave').disabled;
+  })()`));
+  ok('saveHearing пишет запись в p.hearings и в историю', m.ev(`(() => {
+    const before = curProc.hearings.length;
+    saveHearing();
+    const h = curProc.hearings[curProc.hearings.length-1];
+    return curProc.hearings.length === before+1
+      && h.measureNum === 'ИСК-333' && h.kind === 'Извещение о назначении судебного процесса'
+      && h.place === 'Кантский районный суд' && h.when === '15.09.2026 10:00' && h.outcome === ''
+      && h.participants[0] === 'Отдел проблемных кредитов (ОПК) (представитель ФКФ)'
+      && /Заседание назначено: /.test(curProc.history[0].what);
+  })()`)); }
+{ const m = mk(); m.setRole('Куратор ОД / ДАК / РП');
+  ok('без меры-обращения в деле (307) — подсказка вместо выбора, Save недоступен', m.ev(`(() => {
+    openDetail('307/307/з', TAB_BY_SLUG('sud'));
+    openHearingModal();
+    return !document.getElementById('hMeasure')
+      && /нет ни одной меры-обращения/.test(document.getElementById('modalHost').textContent)
+      && document.getElementById('hSave').disabled;
+  })()`));
+  ok('кнопка «Назначить заседание» видна при праве регистрировать меры (307, роль Куратор ОД/ДАК/РП)', m.ev(`(() => {
+    openDetail('307/307/з', TAB_BY_SLUG('sud'));
+    return /onclick="openHearingModal\\(\\)"/.test(document.querySelector('#detailPanels .detail-panel.active').innerHTML);
+  })()`)); }
+{ const m = mk(); m.setRole('Наблюдатель');
+  ok('кнопка «Назначить заседание» скрыта у роли без подразделения (Наблюдатель)', m.ev(`(() => {
+    openDetail('307/307/з', TAB_BY_SLUG('sud'));
+    return !/onclick="openHearingModal\\(\\)"/.test(document.querySelector('#detailPanels .detail-panel.active').innerHTML);
+  })()`)); }
+
 /* ADR-0031: жалоба фазу не двигает — состояние иска остаётся неопределённым до акта
    вышестоящей инстанции; фазу двигает именно акт (Task 4). В затравке ЗС этот сценарий
    несёт ситуация K3-АПЕЛЛЯЦИЯ (дела 340 · 341): обе меры зарегистрированы — «Апелляционная

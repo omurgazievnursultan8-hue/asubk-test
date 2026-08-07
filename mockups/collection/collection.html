@@ -9123,10 +9123,55 @@ function panelSud(){
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Вид меры</th><th>Дата события</th><th>Дата регистрации</th><th>Исход</th><th>Назначение</th><th>Номер</th><th>Основание (basedOn)</th></tr></thead>
       <tbody>${acts}</tbody></table></div>
-    <p class="section-h" style="margin-top:20px">Судебные заседания</p>
+    <div class="gtoolbar" style="margin-top:20px"><p class="section-h" style="margin:0">Судебные заседания</p><span class="spacer"></span>${canRegisterMeasures()?`<button class="btn btn-tint btn-sm" onclick="openHearingModal()">Назначить заседание</button>`:''}</div>
     <div class="cgrid-wrap"><table class="cgrid">
       <thead><tr><th>Мера-основание</th><th>Вид события</th><th>Место</th><th>Дата / время</th><th>Участники</th><th>Исход</th></tr></thead>
       <tbody>${hear}</tbody></table></div></div>`;
+}
+
+/* ---- Назначение заседания (ADR-0031 п.4) — крепится к мере-обращению, требует
+   мера-основание+вид+место+дата+время; заседание не мера, фазу не двигает (ADR-0026). ----- */
+function openHearingModal(){
+  const r=curReq; if(!r){ toast('Требование не выбрано','warn'); return; }
+  const host=document.getElementById('modalHost');
+  const cands=hearingCandidates(r);
+  const role=currentRole();
+  host.innerHTML=`<div class="modal form">
+    <div class="modal-h"><span class="mt">Назначить заседание · требование ${r.id}</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
+    <div class="modal-b"><p class="section-note">Заседание крепится к мере-обращению — иску, жалобе, заявлению (ADR-0031 п.4).</p>
+    <div class="mform">
+      ${cands.length
+        ? `<div class="field col-span"><span class="flabel">Мера-основание</span><div class="control grey"><select id="hMeasure" onchange="syncHearingSave()">${cands.map(m=>`<option value="${escAttr(m.num||'')}">${escAttr(m.num||m.kind)} · ${escAttr(m.kind)}</option>`).join('')}</select>${caret()}</div></div>`
+        : `<div class="field col-span"><span class="flabel">Мера-основание</span><div class="hint-inline">В деле нет ни одной меры-обращения (иск/жалоба/заявление) по этому требованию — заседание можно будет назначить после её регистрации.</div></div>`}
+      <div class="field"><span class="flabel">Вид события</span><div class="control grey"><select id="hKind" onchange="syncHearingSave()">${HEARING_KINDS.map(k=>`<option${k===HEARING_KINDS[0]?' selected':''}>${escAttr(k)}</option>`).join('')}</select>${caret()}</div></div>
+      <div class="field"><span class="flabel">Место</span><div class="control grey"><input id="hPlace" oninput="syncHearingSave()"></div></div>
+      <div class="field"><span class="flabel">Дата</span><div class="control grey"><input type="date" id="hDate" oninput="syncHearingSave()"></div></div>
+      <div class="field"><span class="flabel">Время</span><div class="control grey"><input type="time" id="hTime" oninput="syncHearingSave()"></div></div>
+      ${ta('Участники', role?`${role} (представитель ФКФ)`:'', 'hParticipants')}
+    </div></div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" id="hSave" onclick="saveHearing()">Сохранить</button></div>
+  </div>`;
+  host.classList.add('open');
+  syncHearingSave();
+}
+function syncHearingSave(){
+  const save=document.getElementById('hSave'); if(!save) return;
+  const val=id=>{ const el=document.getElementById(id); return el?el.value.trim():''; };
+  save.disabled = !(val('hMeasure') && val('hKind') && val('hPlace') && val('hDate') && val('hTime'));
+}
+function saveHearing(){
+  const r=curReq; if(!r) return;
+  const val=id=>{ const el=document.getElementById(id); return el?el.value.trim():''; };
+  const measureNum=val('hMeasure'), kind=val('hKind'), place=val('hPlace'), date=val('hDate'), time=val('hTime');
+  if(!measureNum || !kind || !place || !date || !time){ toast('Заполните меру-основание, вид, место, дату и время','warn'); return; }
+  const participants=(document.getElementById('hParticipants').value||'').split('\n').map(s=>s.trim()).filter(Boolean);
+  const p=curProc;
+  p.hearings=p.hearings||[];
+  p.hearings.push({ measureNum, kind, place, when:`${ruDate(date)} ${time}`, participants, outcome:'' });
+  const role=currentRole()||'—';
+  p.history=p.history||[];
+  p.history.unshift({when:TODAY+' 12:00', what:`Заседание назначено: ${kind} · ${place} · ${ruDate(date)} ${time}`, who:role});
+  closeModal(); renderPanels(); toast('Заседание назначено (демо)','ok');
 }
 
 /* ---- panel: Комитеты (вопросы на коллегиальные органы + гейты §6.3) ---- */
