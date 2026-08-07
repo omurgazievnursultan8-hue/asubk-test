@@ -619,7 +619,7 @@ const NAV = [
   { id:'g-cbk', label:'Поступления и сверка с ЦК', open:true, items:[
     { id:'receipts',   label:'Поступления',            icon:'inbox' },
     { id:'registry',   label:'Реестр ЦК',              icon:'file' },
-    { id:'recon',      label:'Сопоставление (сверка)', icon:'link',  badge:()=>DATA.recon.filter(r=>r.outcome!=='ok').length },
+    { id:'recon',      label:'Разбивка и заморозка',   icon:'link',  badge:()=>DATA.receipts.filter(rcQueueOf).length },
   ]},
   { id:'g-period', label:'Период и акты', open:true, items:[
     { id:'period',     label:'Закрытие периода',       icon:'lock',  badge:()=>DATA.periods.filter(p=>p.state==='open'&&periodBlockers(p.id).length).length },
@@ -1093,14 +1093,6 @@ const DATA = {
     { doc:'3455', date:'29.07.2026', amount:300000.00, payer:'ОсОО «Бек Кабель» и др.', note:'уточнённый реестр',       matched:'R-305', period:'2026-07', dup:true },
   ],
 
-  /* ---- исходы сопоставления (четыре, шов №3) ---- */
-  recon: [
-    { id:'M1', outcome:'ok',        receipt:'R-298', reg:'3461', title:'Совпало 1:1', detail:'Реквизиты поступления и записи ЦК идентичны.' },
-    { id:'M2', outcome:'mismatch',  receipt:'R-255', reg:'3288', title:'Расхождение суммы', detail:'У нас 18 000,00 · в ЦК 18 500,00. После сопоставления действует сумма ЦК: корректировка бухгалтером с основанием.' },
-    { id:'M3', outcome:'ours_only', receipt:'R-311', reg:null,   title:'Есть у нас, нет в ЦК', detail:'Шлюз. Подтверждение ЦК не пришло; ожидание идёт, срока у него нет.' },
-    { id:'M4', outcome:'cbk_only',  receipt:null,    reg:'3470', title:'Есть в ЦК, нет у нас', detail:'Плательщик «Мамытов К.С.» — объект не опознан. Строка держит закрытие июля.' },
-  ],
-
   /* ---- акты сверки: внутренний (по закрытому периоду) и двусторонний (мера взыскания) ---- */
   acts: [
     { id:'AS-14', kind:'internal', period:'2026-06', borrower:'ОсОО «Бек Кабель»', state:'signed',
@@ -1480,7 +1472,7 @@ function back(){ curReceipt=null; curPayment=null; curReturn=null; curAct=null; 
 
 const VIEW_TITLES = {
   receipts:'Поступления', unresolved:'Невыясненные поступления', pay:'Платежи',
-  returns:'Возвраты', registry:'Реестр ЦК', recon:'Сопоставление (сверка)',
+  returns:'Возвраты', registry:'Реестр ЦК', recon:'Разбивка и заморозка',
   period:'Закрытие периода', acts:'Акты сверки',
 };
 
@@ -1956,14 +1948,12 @@ function recReconPanel(r){
   const regs = recRegOf(r);
   const reg  = regs.find(x=>!x.dup) || regs[0] || null;
   const dup  = regs.find(x=>x.dup);
-  const m    = DATA.recon.find(x=>x.receipt===r.id);
-  const head = m ? `<p class="section-note">Исход сопоставления: <b>${m.title}</b> — ${m.detail}</p>` : '';
-  if(!reg) return head + recBan(r.match==='pending'?'warn':'info',
+  if(!reg) return recBan(r.match==='pending'?'warn':'info',
     r.match==='pending'
       ? `<b>Строки реестра ЦК пока нет.</b> Ждёт <b>${r.waitDays} раб. дн.</b> — срока у ожидания нет`
       : `<b>Строки реестра ЦК нет.</b> Сопоставление не выполнялось: ${(MATCH[r.match]||{}).t||'—'}.`);
   const diff = +(reg.amount - r.amount).toFixed(2);
-  return head + `<div class="recon-split">
+  return `<div class="recon-split">
       <div class="recon-col"><h4>Наша запись — поступление</h4>
         <dl class="kv">
           <dt>Номер</dt><dd>${r.number}</dd>
@@ -3485,6 +3475,7 @@ const REG_P = {
   dup:      { t:'Дубль отсеян',        cls:'neutral' },
   mismatch: { t:'Расхождение суммы',   cls:'warn'    },
   split:    { t:'Сводная строка',      cls:'purple'  },
+  reversed: { t:'Пара сторнирована',   cls:'err'     },
 };
 
 /* ============================================================
@@ -3534,7 +3525,7 @@ function regRow(o, i){
   const x = o.x, r = o.r;
   const zeb = (i % 2) ? ' zeb' : '';
   const marks = o.dup ? pill(REG_P.dup)
-    : (r ? pill(REG_P.matched) : pill(REG_P.none))
+    : (r ? (isReversed(r) ? pill(REG_P.reversed) : pill(REG_P.matched)) : pill(REG_P.none))
       + (o.diff ? ' '+pill(REG_P.mismatch) : '')
       + (o.split.length>1 ? ' '+pill(REG_P.split) : '');
 
@@ -3570,6 +3561,8 @@ function regRow(o, i){
     Расщепление — у поступления <span class="rowlink" onclick="openReceipt('${r.id}')">${r.number}</span>.`);
   if(o.diff) sub.push(`У нас <b>${money(r.amount)}</b>, в ЦК <b>${money(x.amount)}</b>, разница
     <b style="color:var(--asubk-red)">${money(Math.abs(o.diff))}</b> — наша запись подтягивается к ЦК.`);
+  if(r && isReversed(r)) sub.push(`Пара сторнирована решением бухгалтера: поступление ${r.number}
+    деньгами не признано, платежи погашены. Строка реестра остаётся сопоставленной с ним формально.`);
 
   /* Наша сумма ушла подстрочником под сумму ЦК: это не две независимые величины, а
      одна сверка — глазу нужно видеть их в одной ячейке, а не в двух колонках. */
@@ -3715,7 +3708,6 @@ function regMismatchBlock(all){
           <button class="btn btn-sm ${can.correct()?'btn-primary':'btn-secondary'}" onclick="regCorrect(${o.i})">
             Корректировать нашу запись с основанием</button>
           ${roleHint(can.correct(),'только бухгалтер')}
-          <button class="btn btn-sm btn-tint" onclick="go('recon')">Открыть сопоставление</button>
         </div>`)}`;
   }).join('');
 }
@@ -3774,6 +3766,7 @@ function viewRegistry(){
         <span>${pill(REG_P.dup)} ключ уже встречался — в сопоставление не идёт</span>
         <span>${pill(REG_P.mismatch)} суммы разошлись</span>
         <span>${pill(REG_P.split)} одна строка ЦК на нескольких заёмщиков</span>
+        <span>${pill(REG_P.reversed)} пара сторнирована — деньги не признаны</span>
       </div>
     </div>
 
@@ -3955,239 +3948,91 @@ const RC_OFF = 'color:var(--text-placeholder)';
 const RC_URG = { over:'просрочено', cur:'текущее', acc:'начисленное' };
 
 /* ---- ПРАВА ВЫВЕДЕНЫ ИЗ ПРИНЦИПА (ПТ-Д16) ----
-   На экране два права, и оба — следствие одной границы, а не пункты списка:
-   величина нашей записи есть ФАКТ ДЕНЕГ (бухгалтер), а кому и во что легли
-   деньги — ТРАКТОВКА (куратор). Третьего вида прав здесь нет. */
-const rcMoney   = () => can.correct();    // факт денег: наша сумма, внесение недостающей записи
-const rcMeaning = () => can.allocate();   // трактовка: подтверждение разбивки и поправка внутри вывода
-const rcMatch   = () => can.match();      // сопоставление строки ЦК с нашей записью — тоже трактовка
+   Кому и во что легли деньги — ТРАКТОВКА, право куратора. Факт денег (сумма,
+   сторно, корректировка по ЦК) — отдельная граница бухгалтера; та живёт при
+   поступлении и в Реестре ЦК, сюда не заходит (Секция «Исходы сверки» снесена
+   07.08.2026 — дублировала живой пересчёт Реестра ЦК → Лента/Разбор). */
+const rcMeaning = () => can.allocate();
 
 /* ---- производные экрана (ничего не хранится) ---- */
 const rcReceipt = id => id ? (DATA.receipts.find(r => r.id === id) || null) : null;
-const rcReg     = doc => doc ? (DATA.registry.find(x => x.doc === doc && !x.dup)
-                             || DATA.registry.find(x => x.doc === doc) || null) : null;
-const rcDup     = doc => doc ? (DATA.registry.find(x => x.doc === doc && x.dup) || null) : null;
-const rcSign    = v => (v > 0 ? '+' : '') + money(v);
-const rcPeriod  = pid => (DATA.periods.find(p => p.id === pid) || {});
-/** строки реестра ЦК без нашей пары; дубли в сопоставление не идут */
-const rcOrphanRegs = () => DATA.registry.filter(x => !x.matched && !x.dup);
-
-/* исход · как он выглядит · что он означает одним словом.
-   Короткая подпись не повторяет заголовок, а добавляет к нему следствие. */
-const RC_OUT = {
-  ok:        { t:'Совпало 1:1',          cls:'ok',     sign:'=', mid:'суммы равны',        short:'сверка положительная' },
-  mismatch:  { t:'Расхождение суммы',    cls:'warn',   sign:'≠', mid:'разница',            short:'действует сумма ЦК' },
-  ours_only: { t:'Есть у нас, нет в ЦК', cls:'purple', sign:'→', mid:'сравнивать не с чем', short:'ждёт ЦК' },
-  cbk_only:  { t:'Есть в ЦК, нет у нас', cls:'err',    sign:'←', mid:'сравнивать не с чем', short:'держит закрытие периода' },
-};
-const rcShort = o => pill({ t:o.short, cls:o.cls });
 
 /* ============================================================
-   СВОДКА СВЕРКИ
+   ОЧЕРЕДЬ «РАЗБИВКА И ЗАМОРОЗКА» — шаги 2 и 4 приёма поступления
+   Шаг 1 (Привязка) — экран «Невыясненные», шаг 3 (Сопоставление) — Реестр ЦК:
+   каждый шаг разбирает ровно тот экран, что владеет его фактом (07.08.2026).
    ============================================================ */
-function reconTally(){
-  const by = o => DATA.recon.filter(m => m.outcome === o);
-  return { ok:by('ok'), mismatch:by('mismatch'), ours:by('ours_only'), cbk:by('cbk_only') };
-}
-
-function reconSummary(){
-  const t = reconTally();
-  const orphans = rcOrphanRegs();
-  const dups    = DATA.registry.filter(x => x.dup);
-  const holdP   = DATA.periods.filter(p => p.state === 'open' && periodBlockers(p.id).length);
-
-  const tile = (n, label, o, src) => `<div class="dim">
-    <div class="dl">${label}</div>
-    <div class="dv"><b class="num" style="font:var(--weight-bold) 22px/1 var(--asubk-font);color:var(--text-heading)">${n}</b>
-      ${rcShort(o)}</div>
-    <div class="src">${src}</div></div>`;
-
-  return `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px;margin-bottom:16px">
-      ${tile(t.ok.length, 'Сошлось 1:1', RC_OUT.ok,
-        'Реквизиты и сумма совпали — основание заморозки.')}
-      ${tile(t.mismatch.length, 'Расхождение суммы', RC_OUT.mismatch,
-        'Нужна корректировка нашей записи по сумме ЦК.')}
-      ${tile(t.ours.length, 'Ждёт подтверждения ЦК', RC_OUT.ours_only,
-        'Срока у ожидания нет: держит закрытие периода, там же решается судьба.')}
-      ${tile(t.cbk.length, 'Строк ЦК без нашей записи', RC_OUT.cbk_only,
-        'Деньги в реестре есть, факта у нас нет.')}
-    </div>
-
-    <div class="inv">
-      <span class="iv">Строк реестра ЦК всего: <b>${DATA.registry.length}</b></span>
-      <span class="iv">из них дублей: <b>${dups.length}</b></span>
-      <span class="iv${orphans.length ? ' bad' : ''}">без нашей пары: <b>${orphans.length}</b></span>
-      <span class="iv">исходов сверки в работе: <b>${DATA.recon.filter(m => m.outcome !== 'ok').length}</b> из ${DATA.recon.length}</span>
-    </div>
-
-    ${rcBan(orphans.length ? 'warn' : 'ok', orphans.length
-      ? `<b>Несопоставленные строки держат закрытие периода:</b> ${orphans.map(x =>
-           `<b>№${x.doc}</b> от ${x.date} на ${money(x.amount)} («${x.payer}») — период ${rcPeriod(x.period).label || x.period}`).join(' · ')}.
-         ${holdP.length ? `Не закрываются: ${holdP.map(p => `<b>${p.label}</b> (препятствий ${periodBlockers(p.id).length})`).join(' · ')}. ` : ''}
-         <span class="rowlink" onclick="go('period')">Гейт закрытия периода</span>.`
-      : `<b>Строк реестра ЦК без нашей пары нет.</b>
-         <span class="rowlink" onclick="go('period')">Гейт закрытия периода</span>.`)}`;
-}
-
-/* ============================================================
-   КАРТОЧКА ИСХОДА — четыре исхода одним рендером
-   ============================================================ */
-
-/* пустая сторона рисуется ЯВНО: «записи нет» — это исход, а не пропуск */
-function rcEmptyCol(title, why){
-  return `<div class="recon-col">
-    <h4>${title} ${pill({ t:'записи нет', cls:'neutral' })}</h4>
-    <div style="padding:14px">
-      <div class="cgrid-empty" style="min-height:88px;border:1.5px dashed var(--border-strong);border-radius:var(--radius-md)">
-        Записи нет</div>
-      <p class="section-note" style="margin:12px 0 0">${why}</p>
-    </div></div>`;
-}
-
-function rcOursCol(r, diff){
-  const per = rcPeriod(r.period);
-  return `<div class="recon-col">
-    <h4>Наша запись — поступление</h4>
-    <dl class="kv">
-      <dt>Поступление</dt><dd><span class="rowlink" onclick="openReceipt('${r.id}')">${r.number}</span></dd>
-      <dt>Дата факта</dt><dd class="num">${r.date}</dd>
-      <dt>Сумма</dt><dd class="num mono${diff ? ' diff' : ''}">${cur(r.amount, r.currency)}</dd>
-      <dt>Плательщик</dt><dd>${r.payerName || '—'}</dd>
-      <dt>Назначение</dt><dd>${r.note || '—'}</dd>
-      <dt>Счёт зачисления</dt><dd class="mono">${r.account}<div style="${RC_DIM};font-weight:400">${r.accountObject}</div></dd>
-      <dt>Период</dt><dd>${per.label || r.period} ${pill(PSTATE[per.state] || PSTATE.open)}</dd>
-      <dt>Оси состояния</dt><dd>${axes(r)}</dd>
-    </dl></div>`;
-}
-
-function rcCbkCol(g, diff){
-  const per = rcPeriod(g.period);
-  const pair = g.matched ? (DATA.receipts.find(r => r.id === g.matched) || null) : null;
-  return `<div class="recon-col">
-    <h4>Строка реестра ЦК ${pill({ t:'не правится', cls:'info' })}</h4>
-    <dl class="kv">
-      <dt>Документ</dt><dd class="mono">№${g.doc}</dd>
-      <dt>Дата</dt><dd class="num">${g.date}</dd>
-      <dt>Сумма</dt><dd class="num mono${diff ? ' diff' : ''}">${money(g.amount)}</dd>
-      <dt>Плательщик</dt><dd>${g.payer}</dd>
-      <dt>Назначение</dt><dd>${g.note || '—'}</dd>
-      <dt>Период</dt><dd>${per.label || g.period} ${pill(PSTATE[per.state] || PSTATE.open)}</dd>
-      <dt>Наша пара</dt><dd>${pair
-        ? `<span class="rowlink" onclick="openReceipt('${pair.id}')">${pair.number}</span>`
-        : '<i>пары нет</i>'}</dd>
-    </dl></div>`;
-}
-
-function reconCard(m){
-  const r = rcReceipt(m.receipt), g = rcReg(m.reg), dup = rcDup(m.reg);
-  const o = RC_OUT[m.outcome] || RC_OUT.ok;
-  const diff = (r && g) ? +(g.amount - r.amount).toFixed(2) : null;
-
-  const mid = `<div class="recon-mid">
-    <div style="display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;padding:6px">
-      <span style="font:var(--weight-bold) 24px/1 var(--asubk-font)">${o.sign}</span>
-      <span style="font:var(--font-label);${RC_DIM}">${diff
-        ? 'разница<br><b class="mono" style="color:var(--asubk-red)">' + rcSign(diff) + '</b>'
-        : diff === 0 ? 'разницы нет' : o.mid}</span>
-    </div></div>`;
-
-  const cols = `<div class="recon-split" style="grid-template-columns:1fr 120px 1fr">
-      ${r ? rcOursCol(r, diff) : rcEmptyCol('Наша запись — поступление',
-        `Поступление не внесено и не импортировано.`)}
-      ${mid}
-      ${g ? rcCbkCol(g, diff) : rcEmptyCol('Строка реестра ЦК',
-        `Подтверждение из ЦК ещё не пришло — действует наша сумма.`)}
-    </div>`;
-
-  return `<div class="phead" style="margin-bottom:18px">
-    <div class="phead-top">
-      <div>
-        <div class="phead-name">
-          <span class="nm">${m.title}</span>${rcShort(o)}
-          ${r ? `<span class="amt num">${cur(r.amount, r.currency)}</span>` : ''}
-          ${g && !r ? `<span class="amt num">${money(g.amount)}</span>` : ''}
-        </div>
-        <div class="phead-sub">${m.detail}</div>
-      </div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
-        ${r ? `<button class="btn btn-tint btn-sm" onclick="openReceipt('${r.id}')">Открыть ${r.number}</button>` : ''}
-        <button class="btn btn-tint btn-sm" onclick="go('registry')">Реестр ЦК</button>
-      </div>
-    </div>
-    ${cols}
-    ${dup ? rcBan('info', `<b>Строка №${dup.doc} приходила повторно</b> («${dup.note}»). Дубль в сопоставление не идёт.`) : ''}
-    ${reconOutcomeBlock(m, r, g, diff)}
-  </div>`;
-}
-
-/* ---- что делать при каждом исходе: правило текстом, потом кнопка ---- */
-function reconOutcomeBlock(m, r, g, diff){
-
-  /* СОВПАЛО 1:1 */
-  if(m.outcome === 'ok'){
-    return rcBan('ok', `<b>Сверка положительная.</b> Наша ${money(r.amount)} и сумма ЦК ${money(g.amount)} совпали —
-        это основание заморозки.`)
-      + (r.frozen === 'open'
-        ? rcBan('warn', `<b>Заморозки ещё нет.</b> Поступление ${r.number} стоит в
-            <span class="rowlink" onclick="go('period')">гейте закрытия периода</span> как «незамороженное».`)
-        : rcBan('info', `<b>Заморозка стоит.</b> Разбивка зафиксирована.`));
-  }
-
-  /* РАСХОЖДЕНИЕ СУММЫ — ПТ-Д13 */
-  if(m.outcome === 'mismatch'){
-    const live = paymentsOf(r).filter(p => !p.void);
-    return rcBan('err', `<b>Наша запись приводится к сумме ЦК:</b>
-        ${money(r.amount)} <b>→</b> ${money(g.amount)} (${rcSign(diff)}, документ №${g.doc} от ${g.date}).
-        Пока корректировка не проведена, ${live.length ? 'платёж ' + live[0].number : 'платёж поступления'} носит
-        нашу сумму. После корректировки разница ${money(Math.abs(diff))} станет нераспределённой. Платежи не гасятся.
-        <div class="gtoolbar" style="margin:12px 0 0">
-          <button class="btn btn-sm btn-primary" onclick="reconCorrect('${r.id}')">Корректировать нашу запись с основанием</button>
-          ${roleHint(rcMoney(), 'только бухгалтер')}
-          <span class="src-tag">без основания операция не проводится</span>
-        </div>`);
-  }
-
-  /* ЕСТЬ У НАС, НЕТ В ЦК */
-  if(m.outcome === 'ours_only'){
-    const soon = r.waitDays != null && r.waitDays >= DATA.remindDays;
-    return rcBan(soon ? 'warn' : 'info', `<b>Подтверждения ЦК ещё нет</b> — действует наша сумма
-        ${cur(r.amount, r.currency)}. Ждёт <b>${r.waitDays} раб. дн.</b>, срока у ожидания нет.${soon
-          ? ` Напоминание куратору отправлено (порог ${DATA.remindDays} раб. дн.).` : ''}
-        Поступление стоит в <span class="rowlink" onclick="go('period')">гейте закрытия периода</span>.
-        <div class="gtoolbar" style="margin:12px 0 0">
-          <button class="btn btn-sm btn-secondary" onclick="reconAct('ask','${r.id}')">Запросить подтверждение в ЦК</button>
-          <button class="btn btn-sm btn-tint" onclick="openReceipt('${r.id}')">Открыть ${r.number}</button>
-        </div>`);
-  }
-
-  /* ЕСТЬ В ЦК, НЕТ У НАС */
-  return rcBan('err', `<b>Нашей записи нет — а деньги в ЦК есть.</b> Документ №${g.doc} от ${g.date} на
-      <b>${money(g.amount)}</b>, плательщик «${g.payer}», назначение «${g.note || '—'}».
-      Строка держит <span class="rowlink" onclick="go('period')">закрытие периода</span>
-      ${rcPeriod(g.period).label || g.period}.`)
-    + rcBan('info', `Два пути: внести недостающее поступление у себя либо сопоставить строку
-      с уже существующим нашим поступлением.
-      <div class="gtoolbar" style="margin:12px 0 0">
-        <button class="btn btn-sm btn-primary" onclick="reconAct('adopt','${g.doc}')">Внести поступление по строке ЦК</button>
-        ${roleHint(rcMoney(), 'только бухгалтер')}
-        <button class="btn btn-sm btn-secondary" onclick="reconAct('pair','${g.doc}')">Сопоставить с нашим поступлением</button>
-        ${roleHint(rcMatch(), 'только куратор')}
-      </div>`);
-}
-
 /* ============================================================
    ШАГ РАЗБИВКИ — ПОДТВЕРЖДЕНИЕ РАССЧИТАННОЙ (ПТ-Д15)
    ============================================================ */
-let rcStage = 'R-311';
-function setRcStage(id){ rcStage = id; render(); }
 /* демо-след подтверждений: сам вывод не хранится, хранится согласие человека */
 const RC_CONFIRMED = {};
 
-const RC_STAGE_IDS = [
-  { id:'R-311', t:'шлюз · ждёт ЦК' },
-  { id:'R-305', t:'сводная строка на трёх заёмщиков' },
-  { id:'R-290', t:'заморожено · адресный резерв' },
+/* очередь экрана — ровно шаги 2 и 4: привязка (1) уже пройдена, сопоставление (3) не её
+   забота (владеет Реестр ЦК). Не в очереди: не привязано, или уже заморожено (шаг 4 пройден). */
+const rcSpread   = r => !!RC_CONFIRMED[r.id] || r.frozen === 'frozen';
+const rcBoundLive = r => paymentsOf(r).filter(p => !p.void).length > 0;
+const rcQueueOf  = r => rcBoundLive(r) && r.frozen !== 'frozen';
+
+let rcSel = null;
+function setRcSel(id){ rcSel = id; render(); }
+/* выбранная строка, если жива в текущей очереди — иначе первая строка очереди */
+function rcSelected(list){
+  return (rcSel && list.find(r => r.id === rcSel)) || list[0] || null;
+}
+
+const AFILTERS = [
+  { id:'all',    t:'Все',                 f:()=>true },
+  { id:'spread', t:'Ждут разбивки',       f:r=>!rcSpread(r) },
+  { id:'frozen', t:'Готовы к заморозке',  f:r=>rcSpread(r) },
 ];
+let rcFilter = 'all';
+function setRcFilter(id){ rcFilter = id; FEEDS.alloc.page = 1; render(); }
+
+defFeed('alloc', {
+  conds: REC_CONDS,
+  sorters: {
+    number: r => r.number, amount: r => r.amount, payer: r => r.payerName || '',
+    date:   r => toISO(r.date),
+  },
+  base: () => {
+    const flt = AFILTERS.find(x => x.id === rcFilter) || AFILTERS[0];
+    return DATA.receipts.filter(rcQueueOf).filter(flt.f);
+  },
+  paint: s => {
+    const sel = rcSelected(s.hits);
+    const b = document.getElementById('alloc-body'); if(b) b.innerHTML = allocRowsHtml(s.page, sel);
+    setSelBody(sel);
+  },
+});
+
+function allocRow(r, sel){
+  const badge = rcSpread(r) ? pill({ t:'готово к заморозке', cls:'ok' }) : pill({ t:'нужна разбивка', cls:'warn' });
+  return `<tr class="${sel && r.id===sel.id ? 'sel' : ''}" onclick="setRcSel('${r.id}')">
+    <td><span class="rowlink">${r.number}</span><span class="sub">${r.date}</span></td>
+    <td class="r num">${cur(r.amount, r.currency)}</td>
+    <td title="${esc(r.payerName||'—')}"><span class="cell-name">${r.payerName || '—'}</span></td>
+    <td>${badge}</td></tr>`;
+}
+const ALLOC_COLS = 4;
+function allocRowsHtml(list, sel){
+  sel = sel || rcSelected(list);
+  return list.length ? list.map(r=>allocRow(r, sel)).join('')
+    : `<tr><td colspan="${ALLOC_COLS}"><div class="grid-empty">${
+        feedActive(FEEDS.alloc).length ? 'Ничего не найдено по фильтрам' : 'Очередь пуста'}</div></td></tr>`;
+}
+/** точечно обновить detail-панель под очередью без полной перерисовки страницы */
+function setSelBody(r){
+  const el = document.getElementById('alloc-sel'); if(el) el.innerHTML = reconAllocStage(r);
+}
+function allocTable(list, sel){
+  return `<div class="grid-wrap"><table class="grid" data-t="alloc">
+    <colgroup><col style="width:150px"><col style="width:150px"><col style="width:250px"><col style="width:190px"></colgroup>
+    <thead><tr>
+      ${gth('alloc','number','Поступление')}${gth('alloc','amount','Сумма','r')}
+      ${gth('alloc','payer','Плательщик')}<th>Статус</th>
+    </tr></thead><tbody id="alloc-body">${allocRowsHtml(list, sel)}</tbody></table></div>`;
+}
 
 /* четыре шага импорта; состояние каждого выводится из самого поступления */
 function reconSteps(r){
@@ -4299,30 +4144,30 @@ function reconAllocPair(p){
     </div>` : ''}${skew}</div>`;
 }
 
-function reconAllocStage(){
-  const r = rcReceipt(rcStage) || DATA.receipts[0];
+/* деталь выбранной строки очереди; выбор — дело таблицы над ней, свой селектор шагу не нужен */
+function reconAllocStage(r){
+  if(!r) return rcBan('ok', `<b>Очередь пуста.</b> Ждать разбивки или заморозки сейчас некому:
+      все привязанные поступления либо уже заморожены, либо ждут привязки на экране «Невыясненные».`);
+
   const ps = paymentsOf(r).filter(p => !p.void);
   const frozen = r.frozen === 'frozen';
+  const spread = rcSpread(r);
   const conf = RC_CONFIRMED[r.id];
-
-  const segs = `<div class="seg">${RC_STAGE_IDS.map(x => {
-    const rr = rcReceipt(x.id);
-    return rr ? `<button class="${x.id === r.id ? 'on' : ''}" onclick="setRcStage('${x.id}')">${rr.number} · ${x.t}</button>` : '';
-  }).join('')}</div>`;
 
   const state = frozen
     ? rcBan('info', `<b>Шаг пройден.</b> Поступление ${r.number} заморожено: разбивка зафиксирована.
         Вернуться внутрь можно только разморозкой бухгалтером.`)
     : conf
-      ? rcBan('ok', `<b>Разбивка подтверждена ${conf.when} (${conf.who}).</b>`)
+      ? rcBan('ok', `<b>Разбивка подтверждена ${conf.when} (${conf.who}).</b> Готово к заморозке —
+          по положительной сверке (шаг 3, экран «Реестр ЦК»).`)
       : rcBan('warn', `<b>Разбивка ещё не подтверждена.</b> Разрез слева выведен — с ним нужно согласиться либо
           внести поправку с основанием (блок ниже).`);
 
-  return `<div class="section-h" style="margin-top:26px">Шаг разбивки — подтверждение рассчитанной</div>
+  return `<div class="section-h" style="margin-top:26px">Поступление ${r.number}</div>
 
     ${reconSteps(r)}
 
-    <div class="gtoolbar" style="margin-top:14px">${segs}<span class="spacer"></span>
+    <div class="gtoolbar" style="margin-top:14px">
       <span class="src-tag">поступление ${r.number} · ${cur(r.amount, r.currency)} · ${r.date} ·
         платежей ${ps.length} · ${(MATCH[r.match] || {}).t || '—'}</span></div>
 
@@ -4337,6 +4182,8 @@ function reconAllocStage(){
       <button class="btn btn-primary btn-sm" onclick="reconConfirmAlloc('${r.id}')">Подтвердить разбивку</button>
       ${roleHint(rcMeaning(), 'подтверждает куратор')}
       ${frozen ? roleHint(false, 'поступление заморожено') : ''}
+      ${spread && !frozen ? `<button class="btn btn-secondary btn-sm" onclick="recAct('freeze','${r.id}')">Заморозить</button>
+        ${roleHint(can.freeze(), 'только бухгалтер')}` : ''}
     </div>
 
     ${reconAdjustBlock(r, ps)}`;
@@ -4360,15 +4207,6 @@ function reconAdjustBlock(r, ps){
 /* ============================================================
    ДЕЙСТВИЯ ЭКРАНА (демонстрационные)
    ============================================================ */
-
-/** Корректировка нашей записи по сумме ЦК. Модалка с основанием живёт на экране
-    поступлений — здесь она не дублируется, вызывается та же операция. */
-function reconCorrect(id){
-  const r = rcReceipt(id);
-  if(!r) return;
-  if(!rcMoney()) return toast('Корректировку суммы проводит бухгалтер','warn');
-  recAct('correct', r.id);
-}
 
 function reconConfirmAlloc(id){
   const r = rcReceipt(id);
@@ -4395,45 +4233,31 @@ function reconAdjust(id){
   payAdjust(p.id);
 }
 
-function reconAct(kind, arg){
-  if(kind === 'ask'){
-    const r = rcReceipt(arg);
-    return toast('Запрос подтверждения отправлен в ЦК по ' + (r ? r.number : ''),'ok');
-  }
-  if(kind === 'adopt'){
-    const g = rcReg(arg);
-    if(!rcMoney()) return toast('Внесение поступления — работа бухгалтера','warn');
-    toast('Строка ЦК №' + (g ? g.doc : '') + ': если счёт не опознает объект, запись ляжет в невыясненные','ok');
-    return modalNewReceipt();
-  }
-  if(kind === 'pair'){
-    const g = rcReg(arg);
-    if(!rcMatch()) return toast('Сопоставление выполняет куратор','warn');
-    return toast('Подходящего поступления не нашлось. Плательщик «' + (g ? g.payer : '') +
-      '» ни с одним кредитом не связан','warn');
-  }
-}
-
 /* ============================================================
    САМ ЭКРАН
    ============================================================ */
 function viewRecon(){
+  const s = feedSlice('alloc');
+  const sel = rcSelected(s.hits);
+  const segs = `<div class="seg">${AFILTERS.map(x=>
+    `<button class="${x.id===rcFilter?'on':''}" onclick="setRcFilter('${x.id}')">${x.t} (${DATA.receipts.filter(rcQueueOf).filter(x.f).length})</button>`).join('')}</div>`;
+
   return `<div class="page-pad">
-    <div class="section-h">Сопоставление (сверка)</div>
+    <div class="section-h">Разбивка и заморозка</div>
+    <p class="section-note">Рабочая очередь по шагам 2 и 4 приёма поступления. Привязка (шаг 1) —
+      экран «Невыясненные», сопоставление (шаг 3) — «Реестр ЦК».</p>
 
-    ${reconSummary()}
+    <div class="gtoolbar" style="margin-top:14px">${segs}</div>
+    ${feedBar('alloc')}
+    ${allocTable(s.page, sel)}
+    ${feedPagerHtml(s)}
 
-    <div class="section-h" style="margin-top:22px">Исходы сверки</div>
-    ${DATA.recon.map(reconCard).join('')}
-
-    ${reconAllocStage()}
+    <div id="alloc-sel">${reconAllocStage(sel)}</div>
 
     <div class="legend" style="margin-top:18px">
-      <span>${pill(RC_OUT.ok)} наша запись и строка ЦК сошлись</span>
-      <span>${pill(RC_OUT.mismatch)} суммы разошлись</span>
-      <span>${pill(RC_OUT.ours_only)} подтверждения ЦК нет — ждём</span>
-      <span>${pill(RC_OUT.cbk_only)} нашей записи нет</span>
-      <span style="${RC_OFF}">серые строки очереди — не наступило</span>
+      <span>${pill({ t:'нужна разбивка', cls:'warn' })} шаг 2 не подтверждён</span>
+      <span>${pill({ t:'готово к заморозке', cls:'ok' })} шаг 2 подтверждён — заморозку ставит бухгалтер по шагу 3</span>
+      <span>${pill(FRZ.frozen)} шаг 4 пройден — из очереди уходит</span>
     </div>
   </div>`;
 }
