@@ -3184,6 +3184,31 @@ ok('ta() — textarea в поле col-span, значение экраниров�
     return !/onclick="openHearingModal\\(\\)"/.test(document.querySelector('#detailPanels .detail-panel.active').innerHTML);
   })()`)); }
 
+{ const m = mk(); m.setRole('Отдел проблемных кредитов (ОПК)');
+  ok('кнопка «Внести исход» — только у применимых заседаний без исхода (333: индексы 1 и 2, не 0)', m.ev(`(() => {
+    openDetail('333/333/з', TAB_BY_SLUG('sud'));
+    const html = document.querySelector('#detailPanels .detail-panel.active').innerHTML;
+    return /openHearingOutcomeModal\\(1\\)/.test(html) && /openHearingOutcomeModal\\(2\\)/.test(html) && !/openHearingOutcomeModal\\(0\\)/.test(html);
+  })()`));
+  ok('saveHearingOutcome пишет исход, участников и историю; кнопка у этой строки исчезает', m.ev(`(() => {
+    openDetail('333/333/з', TAB_BY_SLUG('sud'));
+    openHearingOutcomeModal(1);
+    document.getElementById('hoParticipants').value = 'Молдалиев Т.К. (представитель ФКФ)\\nОтветчик явился';
+    document.getElementById('hoOutcome').value = 'иск удовлетворён частично'; syncHearingOutcomeSave();
+    if(document.getElementById('hoSave').disabled) return false;
+    saveHearingOutcome(1);
+    const h = curProc.hearings[1];
+    const html = document.querySelector('#detailPanels .detail-panel.active').innerHTML;
+    return h.outcome === 'иск удовлетворён частично' && h.participants.length === 2
+      && /Исход заседания внесён: /.test(curProc.history[0].what)
+      && !/openHearingOutcomeModal\\(1\\)/.test(html) && /openHearingOutcomeModal\\(2\\)/.test(html);
+  })()`));
+  ok('Save заблокирован при пустом исходе', m.ev(`(() => {
+    openDetail('333/333/з', TAB_BY_SLUG('sud'));
+    openHearingOutcomeModal(2);
+    return document.getElementById('hoSave').disabled;
+  })()`)); }
+
 /* ADR-0031: жалоба фазу не двигает — состояние иска остаётся неопределённым до акта
    вышестоящей инстанции; фазу двигает именно акт (Task 4). В затравке ЗС этот сценарий
    несёт ситуация K3-АПЕЛЛЯЦИЯ (дела 340 · 341): обе меры зарегистрированы — «Апелляционная

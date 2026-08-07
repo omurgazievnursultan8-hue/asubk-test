@@ -9113,10 +9113,12 @@ function panelSud(){
     const out=hDone(h)?escAttr(h.outcome)
       :n!=null&&n<0?(hApplicable(h)?'<span class="pill high">исход не внесён</span>':'<span class="dl-muted">без исхода — уведомление</span>')
       :`<span class="pill info">предстоит${n!=null?` · через ${n} к.д.`:''}</span>`;
+    const hi=p.hearings.indexOf(h);
+    const act=(!hDone(h)&&hApplicable(h))?`<button class="btn btn-tint btn-sm" onclick="openHearingOutcomeModal(${hi})">Внести исход</button>`:'';
     return `<tr>
     <td>${h.measureNum}${boundToReq(r,h.measureNum)===null?' '+dealLevelPill:''}</td><td>${h.kind}</td><td>${escAttr(h.place)}</td><td>${h.when}</td>
-    <td>${(h.participants||[]).map(escAttr).join('<br>')||'<span class="dl-muted">не указаны</span>'}</td><td>${out}</td></tr>`;}).join('')
-    || `<tr><td colspan="6"><div class="cgrid-empty">Заседаний по требованию нет — иск по нему в суд не подавался либо дата ещё не назначена. Сводно по всем делам — реестр <span class="rowlink" onclick="navClick('Заседания (реестр)')">«Заседания»</span>.</div></td></tr>`;
+    <td>${(h.participants||[]).map(escAttr).join('<br>')||'<span class="dl-muted">не указаны</span>'}</td><td>${out}</td><td>${act}</td></tr>`;}).join('')
+    || `<tr><td colspan="7"><div class="cgrid-empty">Заседаний по требованию нет — иск по нему в суд не подавался либо дата ещё не назначена. Сводно по всем делам — реестр <span class="rowlink" onclick="navClick('Заседания (реестр)')">«Заседания»</span>.</div></td></tr>`;
   return `<div class="panel-wrap">
     <p class="section-h">Судебные акты по требованию ${r.id}</p>
     <p class="section-note">Судебный акт — мера расщеплённого судебного вида; принадлежность требованию — через её targets, основание — через поле basedOn на иск/жалобу. Дата вынесения ≠ дата регистрации у нас: апелляция считается от вынесения (30 дн), истребование ИЛ — от вступления в силу.</p>
@@ -9125,7 +9127,7 @@ function panelSud(){
       <tbody>${acts}</tbody></table></div>
     <div class="gtoolbar" style="margin-top:20px"><p class="section-h" style="margin:0">Судебные заседания</p><span class="spacer"></span>${canRegisterMeasures()?`<button class="btn btn-tint btn-sm" onclick="openHearingModal()">Назначить заседание</button>`:''}</div>
     <div class="cgrid-wrap"><table class="cgrid">
-      <thead><tr><th>Мера-основание</th><th>Вид события</th><th>Место</th><th>Дата / время</th><th>Участники</th><th>Исход</th></tr></thead>
+      <thead><tr><th>Мера-основание</th><th>Вид события</th><th>Место</th><th>Дата / время</th><th>Участники</th><th>Исход</th><th></th></tr></thead>
       <tbody>${hear}</tbody></table></div></div>`;
 }
 
@@ -9172,6 +9174,40 @@ function saveHearing(){
   p.history=p.history||[];
   p.history.unshift({when:TODAY+' 12:00', what:`Заседание назначено: ${kind} · ${place} · ${ruDate(date)} ${time}`, who:role});
   closeModal(); renderPanels(); toast('Заседание назначено (демо)','ok');
+}
+
+/* ---- Внесение исхода заседания. Не мера — нет сторно-пары, но та же дисциплина:
+   дыра «исход не внесён» закрывается один раз, кнопка после сохранения не рисуется. ----- */
+function openHearingOutcomeModal(hi){
+  const h=(curProc.hearings||[])[hi]; if(!h) return;
+  const host=document.getElementById('modalHost');
+  host.innerHTML=`<div class="modal form">
+    <div class="modal-h"><span class="mt">Внести исход заседания</span><button class="modal-x" onclick="closeModal()">${xIcon()}</button></div>
+    <div class="modal-b"><p class="section-note"><b>${escAttr(h.measureNum)}</b> · ${escAttr(h.kind)} · ${escAttr(h.place)} · ${escAttr(h.when)}</p>
+    <div class="mform">
+      ${ta('Участники', (h.participants||[]).join('\n'), 'hoParticipants')}
+      <div class="field col-span"><span class="flabel">Исход</span><div class="control grey"><input id="hoOutcome" oninput="syncHearingOutcomeSave()"></div></div>
+    </div></div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="closeModal()">Отмена</button><button class="btn btn-primary" id="hoSave" onclick="saveHearingOutcome(${hi})">Сохранить</button></div>
+  </div>`;
+  host.classList.add('open');
+  syncHearingOutcomeSave();
+}
+function syncHearingOutcomeSave(){
+  const save=document.getElementById('hoSave'); if(!save) return;
+  const el=document.getElementById('hoOutcome');
+  save.disabled = !(el && el.value.trim());
+}
+function saveHearingOutcome(hi){
+  const h=(curProc.hearings||[])[hi]; if(!h) return;
+  const outcome=(document.getElementById('hoOutcome').value||'').trim();
+  if(!outcome){ toast('Внесите исход','warn'); return; }
+  h.outcome=outcome;
+  h.participants=(document.getElementById('hoParticipants').value||'').split('\n').map(s=>s.trim()).filter(Boolean);
+  const role=currentRole()||'—';
+  curProc.history=curProc.history||[];
+  curProc.history.unshift({when:TODAY+' 12:30', what:`Исход заседания внесён: ${outcome}`, who:role});
+  closeModal(); renderPanels(); toast('Исход внесён (демо)','ok');
 }
 
 /* ---- panel: Комитеты (вопросы на коллегиальные органы + гейты §6.3) ---- */
