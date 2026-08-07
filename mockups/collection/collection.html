@@ -10019,7 +10019,7 @@ function measureTargetsHtml(r){
   const sol = solidaryWith(r), oth = otherCreditsWith(r);
   /* Гейт-заметка (id mTgtGate_<id>) наполняется refreshSaveGate() — зависит от вида
      меры (mKind), который на момент построения этой разметки ещё не выбран. */
-  const row = (x, checked, fixed) => `<label class="tgt"><input type="checkbox" class="mTgt" value="${x.id}"${checked?' checked':''}${fixed?' disabled':''} onchange="refreshSaveGate()">
+  const row = (x, checked, fixed) => `<label class="tgt"><input type="checkbox" class="mTgt" value="${x.id}"${checked?' checked':''}${fixed?' disabled':''} onchange="onTargetToggle()">
     <span class="tgt-role">${x.role}</span><span class="tgt-name">${escAttr(personOf(x).name)}${x.credit!==r.credit?` · ${escAttr(x._credit.num)}`:''}</span><span class="tgt-sum">${fmtKGS(claimOf(x))}</span></label><div class="tgt-gate-note" id="mTgtGate_${escAttr(x.id)}"></div>`;
   if(!sol.length && !oth.length) return `<div class="field col-span"><span class="flabel">Цель меры</span><div class="tgtbox">${row(r,true,true)}<div class="hint-inline">Ни иных обязанных лиц по договору ${escAttr(r._credit.num)}, ни других кредитов этого же лица в деле нет.</div></div></div>`;
   return `<div class="field col-span"><span class="flabel">Цели меры (по каким требованиям)</span><div class="tgtbox">
@@ -10106,19 +10106,32 @@ function measureTargets(){
   const reqs=ids.map(id=>REQ_INDEX[id]).filter(Boolean);
   return reqs.length?reqs:[curReq];
 }
+/* Чекбокс пикера меняет состав measureTargets() — охват и суммы по цели должны
+   перерисоваться следом, иначе таблицы ниже продолжают показывать строку кандидата,
+   который уже не отмечен (или ещё не показывают только что отмеченного). */
+function onTargetToggle(){
+  const kind=document.getElementById('mKind').value;
+  renderMScope(kind, curReq);
+  renderMClaims(kind, curReq);
+  refreshSaveGate();
+}
 /* Охват — реквизит связи мера↔цель (ADR-0025/Task4: m.scopes[reqId], тем же приёмом,
    что исход, ADR-0103), но только у устанавливающих видов (SCOPE_FORM_KINDS); у прочих
-   полю в теле взяться неоткуда — блок скрыт. По строке на кандидата-цель (тот же
-   список, что и renderMClaims: сам r + обе оси ADR-0102) — мера с осью Б бьёт по
-   нескольким кредитам разом, и объём×способ у них может разойтись (иск «полным
-   остатком» на все кредиты, но по одному уже действует извещение об обращении на
-   залог). Смена значения в строке пересчитывает потолок claims той же цели
-   (renderMClaims ниже читает just-set select), не всю форму. */
+   полю в теле взяться неоткуда — блок скрыт. По строке на ОТМЕЧЕННУЮ цель (measureTargets()
+   — те же чекбоксы пикера, не полный список кандидатов ADR-0102): строка, которую
+   saveMeasure всё равно не сохранит, вводить в заблуждение не должна (нашли живым
+   тестом — таблица раньше рисовала кандидата независимо от чекбокса, ввод в неё молча
+   терялся). Мера с осью Б бьёт по нескольким кредитам разом, и объём×способ у них может
+   разойтись (иск «полным остатком» на все кредиты, но по одному уже действует извещение
+   об обращении на залог) — для этого и нужна отметка нескольких целей, а не для показа.
+   Смена значения в строке пересчитывает потолок claims той же цели (renderMClaims ниже
+   читает just-set select), не всю форму. Перерисовывается по onTargetToggle() —
+   чекбокс пикера меняет состав строк, не только гейт-заметку. */
 function renderMScope(kind, r){
   const wrap=document.getElementById('mScopeWrap'); if(!wrap) return;
   if(!SCOPE_FORM_KINDS.has(kind)){ wrap.innerHTML=''; return; }
   const d=SCOPE_KIND_DEFAULT[kind];
-  const cands=[r, ...solidaryWith(r), ...otherCreditsWith(r)];
+  const cands=measureTargets();
   const volOpt=cur=>SCOPE_VOLUMES.map(x=>`<option${x===cur?' selected':''}>${x}</option>`).join('');
   const methodOpt=cur=>`<option${cur==='деньгами'?' selected':''}>деньгами</option><option${cur==='обращением на предмет залога'?' selected':''}>обращением на предмет залога</option>`;
   const label = x => x===r ? x.role : `${x.role} · ${escAttr(personOf(x).name)}${x.credit!==r.credit?` · ${escAttr(x._credit.num)}`:''}`;
@@ -10130,15 +10143,17 @@ function renderMScope(kind, r){
       <td><div class="control grey"><select id="mScopeMethod_${escAttr(x.id)}">${methodOpt(d.method)}</select>${caret()}</div></td>
     </tr>`).join('')}</tbody></table></div>`;
 }
-/* Требуемое по статьям (§4, МП5-18, наряд п.3) — по строке на цель (кандидат-цель,
-   как в measureTargetsHtml: сам r + солидарные), дефолт = снимок claimsSnapshot под
-   охватом ЭТОЙ ЖЕ цели (Task4: раньше mScopeWrap был один на меру и все строки брали
-   один и тот же volume — тикет «Точки интеграции», вопрос 1; охват стал по цели, и
-   снимок вслед за ним). Потолок — снимок: клэмпится на сохранении (saveMeasure), не
-   здесь — поле остаётся редактируемым числом, не readonly. */
+/* Требуемое по статьям (§4, МП5-18, наряд п.3) — по строке на ОТМЕЧЕННУЮ цель
+   (measureTargets(), та же выборка, что и renderMScope выше — не полный список
+   кандидатов ADR-0102: неотмеченному кандидату saveMeasure ничего не сохранит, значит
+   и вводить туда суммы не должен давать), дефолт = снимок claimsSnapshot под охватом
+   ЭТОЙ ЖЕ цели (Task4: раньше mScopeWrap был один на меру и все строки брали один и тот
+   же volume — тикет «Точки интеграции», вопрос 1; охват стал по цели, и снимок вслед за
+   ним). Потолок — снимок: клэмпится на сохранении (saveMeasure), не здесь — поле
+   остаётся редактируемым числом, не readonly. */
 function renderMClaims(kind, r){
   const wrap=document.getElementById('mClaimsWrap'); if(!wrap) return;
-  const cands=[r, ...solidaryWith(r), ...otherCreditsWith(r)];
+  const cands=measureTargets();
   const volOf = x => {
     if(!SCOPE_FORM_KINDS.has(kind)) return null;
     const sel=document.getElementById(`mScopeVolume_${x.id}`);
@@ -10274,9 +10289,9 @@ function saveMeasure(){
   /* ADR-0025/Task4: охват — по цели (m.scopes[reqId]), тем же приёмом, что исход
      (ADR-0103): мера на несколько кредитов (ось Б) может объём×способ развести по
      целям — иск «полным остатком» на все, но один уже под извещением о залоге.
-     Читает per-target селекты, что renderMScope нарисовал для КАЖДОГО кандидата
-     (не только отмеченных чекбоксом) — m.scopes ставится только на реально
-     сохраняемые targets, гейт-исключённым и неотмеченным кандидатам запись не пишется. */
+     Читает per-target селекты по каждой цели из targets (renderMScope/renderMClaims
+     рисуют строку ровно на те же отмеченные цели, см. measureTargets()) — m.scopes
+     ставится только на реально сохраняемые targets, гейт-исключённым запись не пишется. */
   const scopes = {};
   if(SCOPE_FORM_KINDS.has(kind))
     for(const x of targets)
