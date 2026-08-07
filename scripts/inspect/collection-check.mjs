@@ -3134,6 +3134,115 @@ ok('вкладка «Гейты» настроек по-прежнему чит�
 ok('реестр требований и карточка волной не тронуты',   // затравка ЗС выросла волнами: 9 вкладок (КД-4) · 116 требований
    g.ev(`TABS.length === 9`) && g.ev(`allReqs().length === 116`));
 
+head('Назначение заседания — хелперы (ADR-0031 п.4)');
+ok('HEARING_KINDS — ровно два вида, в порядке «извещение → процесс»',
+   g.ev(`HEARING_KINDS.join('|')`) === 'Извещение о назначении судебного процесса|Судебный процесс');
+ok('hearingCandidates — «мера-обращение» по требованию (333: только ИСК-333)',
+   g.ev(`hearingCandidates(${R('333/333/з')}).map(m=>m.num).join(',')`) === 'ИСК-333');
+ok('hearingCandidates — пусто, если дело не дошло до иска/жалобы/заявления (307, стадия «повторная»)',
+   g.ev(`hearingCandidates(${R('307/307/з')}).length`) === 0);
+ok('ta() — textarea в поле col-span, значение экранировано',
+   /class="field col-span">.*<textarea id="xId" class="note-area">a &amp; b<\/textarea>/s.test(g.ev(`ta('L','a & b','xId')`)));
+
+{ const m = mk(); m.setRole('Отдел проблемных кредитов (ОПК)');
+  ok('модалка: 1 кандидат (ИСК-333), Save заблокирован до заполнения места/даты/времени', m.ev(`(() => {
+    openDetail('333/333/з', TAB_BY_SLUG('sud'));
+    openHearingModal();
+    const opts=[...document.querySelectorAll('#hMeasure option')].map(o=>o.value);
+    if(opts.join(',') !== 'ИСК-333') return false;
+    if(!document.getElementById('hSave').disabled) return false;
+    document.getElementById('hPlace').value='Кантский районный суд'; syncHearingSave();
+    document.getElementById('hDate').value='2026-09-15'; syncHearingSave();
+    document.getElementById('hTime').value='10:00'; syncHearingSave();
+    return !document.getElementById('hSave').disabled;
+  })()`));
+  ok('saveHearing пишет запись в p.hearings и в историю', m.ev(`(() => {
+    const before = curProc.hearings.length;
+    saveHearing();
+    const h = curProc.hearings[curProc.hearings.length-1];
+    return curProc.hearings.length === before+1
+      && h.measureNum === 'ИСК-333' && h.kind === 'Извещение о назначении судебного процесса'
+      && h.place === 'Кантский районный суд' && h.when === '15.09.2026 10:00' && h.outcome === ''
+      && h.participants[0] === 'Отдел проблемных кредитов (ОПК) (представитель ФКФ)'
+      && /Заседание назначено: /.test(curProc.history[0].what);
+  })()`)); }
+{ const m = mk(); m.setRole('Куратор ОД / ДАК / РП');
+  ok('без меры-обращения в деле (307) — подсказка вместо выбора, Save недоступен', m.ev(`(() => {
+    openDetail('307/307/з', TAB_BY_SLUG('sud'));
+    openHearingModal();
+    return !document.getElementById('hMeasure')
+      && /нет ни одной меры-обращения/.test(document.getElementById('modalHost').textContent)
+      && document.getElementById('hSave').disabled;
+  })()`));
+  ok('кнопка «Назначить заседание» видна при праве регистрировать меры (307, роль Куратор ОД/ДАК/РП)', m.ev(`(() => {
+    openDetail('307/307/з', TAB_BY_SLUG('sud'));
+    return /onclick="openHearingModal\\(\\)"/.test(document.querySelector('#detailPanels .detail-panel.active').innerHTML);
+  })()`)); }
+{ const m = mk(); m.setRole('Наблюдатель');
+  ok('кнопка «Назначить заседание» скрыта у роли без подразделения (Наблюдатель)', m.ev(`(() => {
+    openDetail('307/307/з', TAB_BY_SLUG('sud'));
+    return !/onclick="openHearingModal\\(\\)"/.test(document.querySelector('#detailPanels .detail-panel.active').innerHTML);
+  })()`)); }
+
+{ const m = mk(); m.setRole('Отдел проблемных кредитов (ОПК)');
+  /* Финальный ревью, находка 2/3: кнопка теперь ТАКЖЕ требует canRegisterMeasures()
+     и дату заседания в прошлом (n<0) — до этой волны условием было только
+     !hDone(h)&&hApplicable(h), и на 333 (все три даты позже TODAY=21.07.2026)
+     это ложно показывало кнопку у ещё не наступивших заседаний (индексы 1 и 2),
+     то есть саму дыру D3-заседание из collection-data-audit.mjs. Ни одно из трёх
+     заседаний 333 не в прошлом — с фиксом кнопка скрыта у всех индексов: 0 — по
+     неприменимости (извещение), 1 и 2 — по дате (проверено ниже как предпосылка). */
+  ok('заседания 333 (1,2) ещё не наступили — предпосылка следующей проверки', m.ev(
+    `(() => { const h = PROCESSES.find(x=>x.id==='333').hearings; return hLeft(h[1]) >= 0 && hLeft(h[2]) >= 0; })()`));
+  ok('кнопка «Внести исход» скрыта у всех заседаний 333 (0: неприменимо-извещение; 1,2: дата ещё не наступила — финальный ревью, находка 2/3)', m.ev(`(() => {
+    openDetail('333/333/з', TAB_BY_SLUG('sud'));
+    const html = document.querySelector('#detailPanels .detail-panel.active').innerHTML;
+    return !/openHearingOutcomeModal\\(0\\)/.test(html) && !/openHearingOutcomeModal\\(1\\)/.test(html) && !/openHearingOutcomeModal\\(2\\)/.test(html);
+  })()`));
+  ok('saveHearingOutcome пишет исход, участников и историю; кнопка по-прежнему скрыта (дата не в прошлом — финальный ревью, находка 2/3)', m.ev(`(() => {
+    openDetail('333/333/з', TAB_BY_SLUG('sud'));
+    openHearingOutcomeModal(1);
+    document.getElementById('hoParticipants').value = 'Молдалиев Т.К. (представитель ФКФ)\\nОтветчик явился';
+    document.getElementById('hoOutcome').value = 'иск удовлетворён частично'; syncHearingOutcomeSave();
+    if(document.getElementById('hoSave').disabled) return false;
+    saveHearingOutcome(1);
+    const h = curProc.hearings[1];
+    const html = document.querySelector('#detailPanels .detail-panel.active').innerHTML;
+    return h.outcome === 'иск удовлетворён частично' && h.participants.length === 2
+      && /Исход заседания внесён: /.test(curProc.history[0].what)
+      && !/openHearingOutcomeModal\\(1\\)/.test(html) && !/openHearingOutcomeModal\\(2\\)/.test(html);
+  })()`));
+  ok('Save заблокирован при пустом исходе', m.ev(`(() => {
+    openDetail('333/333/з', TAB_BY_SLUG('sud'));
+    openHearingOutcomeModal(2);
+    return document.getElementById('hoSave').disabled;
+  })()`)); }
+
+{ const m = mk(); m.setRole('Отдел проблемных кредитов (ОПК)');
+  ok('спецсимволы в месте/участниках уходят экранированными и в панель, и в реестр «Заседания» (регресс на eab341a / финальный ревью, находка 1)', m.ev(`(() => {
+    openDetail('333/333/з', TAB_BY_SLUG('sud'));
+    openHearingModal();
+    document.getElementById('hPlace').value='<img src=x onerror=1> зал'; syncHearingSave();
+    document.getElementById('hDate').value='2026-09-20'; syncHearingSave();
+    document.getElementById('hTime').value='09:00'; syncHearingSave();
+    document.getElementById('hParticipants').value='Тестов Т.Т. (представитель ФКФ) <img src=x onerror=1>';
+    saveHearing();
+    const panelHtml = document.querySelector('#detailPanels .detail-panel.active').innerHTML;
+    if(/<img src=x onerror=1>/.test(panelHtml)) return false;
+    navClick('Заседания (реестр)');
+    const regBody = document.getElementById('hearingsBody');
+    /* DOM-уровневая проверка, а не сырой substring-поиск по regBody.innerHTML: строка
+       участников ТАКЖЕ уходит в title="..." строки реестра через escAttr() (вне охвата
+       находки 1, трогать её эта находка не просит) — а сериализатор jsdom/браузера не
+       обязан переэкранировать "<"/">" ВНУТРИ атрибута обратно при чтении .innerHTML
+       (спецификация HTML требует экранировать там только "&" и кавычку) — так что сырая
+       substring-проверка по всему regBody.innerHTML ложно падает на безопасном атрибуте.
+       querySelector('img[onerror]') проверяет то, что реально имеет значение: не возник
+       ли ЖИВОЙ <img> элемент — а не текстовое совпадение внутри значения атрибута. */
+    if(regBody.querySelector('img[onerror]')) return false;
+    return /&lt;img src=x onerror=1&gt;/.test(regBody.innerHTML);
+  })()`)); }
+
 /* ADR-0031: жалоба фазу не двигает — состояние иска остаётся неопределённым до акта
    вышестоящей инстанции; фазу двигает именно акт (Task 4). В затравке ЗС этот сценарий
    несёт ситуация K3-АПЕЛЛЯЦИЯ (дела 340 · 341): обе меры зарегистрированы — «Апелляционная
@@ -3345,32 +3454,36 @@ head('РМ-Д4 · ADR-0036 — форма регистрации: тело/по�
   ok('пометки при регистрации отсутствуют вовсе — sent/served/outcome не заданы',
      m.ev(`curProc.measures[${mi}].sent`) === undefined
      && m.ev(`curProc.measures[${mi}].served`) === undefined
-     && m.ev(`curProc.measures[${mi}].outcome`) === undefined);
+     && m.ev(`curProc.measures[${mi}].outcomes`) === undefined);
+
+  // ADR-0103: исход — построчно по targets (m.outcomes[id]/outcomeMeta[id]), не одно поле меры.
+  const tid = m.ev(`curProc.measures[${mi}].targets[0]`);
+  const tidLit = JSON.stringify(tid);
 
   // Первичное заполнение пометки (доставка + исход) — без причины, стамповает by/at.
   m.ev(`openAnnotationModal(${mi})`);
   m.doc.getElementById('aChannel').value = 'СЭД';
   m.doc.getElementById('aSentDate').value = '2026-07-21';
-  m.doc.getElementById('aOutcome').value = 'без ответа';
+  m.doc.getElementById(`aOutcome_${tid}`).value = 'без ответа';
   m.ev(`saveAnnotation(${mi})`);
   ok('первичное заполнение пометки не требует причины и стамповает by/at (доставка и исход)',
      m.ev(`curProc.measures[${mi}].sent.channel`) === 'СЭД' && m.ev(`curProc.measures[${mi}].sent.by`) === 'Куратор ОД / ДАК / РП'
      && m.ev(`curProc.measures[${mi}].sent.at`) === '21.07.2026' && !m.ev(`curProc.measures[${mi}].sent.reason`)
-     && m.ev(`curProc.measures[${mi}].outcome`) === 'без ответа' && m.ev(`curProc.measures[${mi}].outcomeMeta.by`) === 'Куратор ОД / ДАК / РП'
-     && m.ev(`curProc.measures[${mi}].outcomeMeta.at`) === '21.07.2026' && !m.ev(`curProc.measures[${mi}].outcomeMeta.reason`));
+     && m.ev(`curProc.measures[${mi}].outcomes[${tidLit}]`) === 'без ответа' && m.ev(`curProc.measures[${mi}].outcomeMeta[${tidLit}].by`) === 'Куратор ОД / ДАК / РП'
+     && m.ev(`curProc.measures[${mi}].outcomeMeta[${tidLit}].at`) === '21.07.2026' && !m.ev(`curProc.measures[${mi}].outcomeMeta[${tidLit}].reason`));
   ok('тело меры не тронуто заполнением пометки (kind/num/targets/sum те же, что при регистрации)',
      m.ev(`curProc.measures[${mi}].kind`) === 'Первичная претензия' && m.ev(`curProc.measures[${mi}].num`) === 'ТЕСТ-ПОМЕТКА-1'
      && m.ev(`!!curProc.measures[${mi}].dates && !!curProc.measures[${mi}].sum`));
 
   // Правка уже внесённой пометки БЕЗ причины — блокируется, значения не меняются (И-1-подобный инвариант, но для пометки).
   const sentBefore = m.ev(`JSON.stringify(curProc.measures[${mi}].sent)`);
-  const outcomeBefore = m.ev(`curProc.measures[${mi}].outcome`);
+  const outcomeBefore = m.ev(`curProc.measures[${mi}].outcomes[${tidLit}]`);
   m.ev(`openAnnotationModal(${mi})`);
   m.doc.getElementById('aChannel').value = 'Почта';
-  m.doc.getElementById('aOutcome').value = 'погашено';
+  m.doc.getElementById(`aOutcome_${tid}`).value = 'погашено';
   m.ev(`saveAnnotation(${mi})`);
   ok('правка уже внесённой пометки без причины блокируется — тело меры «заморожено», а сама пометка не подменяется молча',
-     m.ev(`JSON.stringify(curProc.measures[${mi}].sent)`) === sentBefore && m.ev(`curProc.measures[${mi}].outcome`) === outcomeBefore
+     m.ev(`JSON.stringify(curProc.measures[${mi}].sent)`) === sentBefore && m.ev(`curProc.measures[${mi}].outcomes[${tidLit}]`) === outcomeBefore
      && m.ev(`!!document.getElementById('modalHost').classList.contains('open')`));  // модалка не закрылась — saveAnnotation вышла по гейту, не по успеху
 
   // Правка С причиной — проходит, новый штамп by/at, причина хранится рядом (не подменяет тело).
@@ -3378,8 +3491,8 @@ head('РМ-Д4 · ADR-0036 — форма регистрации: тело/по�
   m.ev(`saveAnnotation(${mi})`);
   ok('правка пометки с причиной проходит и штампует НОВЫЕ by/at + reason (исправление, не тихая подмена)',
      m.ev(`curProc.measures[${mi}].sent.channel`) === 'Почта' && m.ev(`curProc.measures[${mi}].sent.reason`) === 'ошиблись в канале и исходе при первичном вводе'
-     && m.ev(`curProc.measures[${mi}].outcome`) === 'погашено' && m.ev(`curProc.measures[${mi}].outcomeMeta.reason`) === 'ошиблись в канале и исходе при первичном вводе'
-     && m.ev(`curProc.measures[${mi}].outcomeMeta.prev`) === 'без ответа');
+     && m.ev(`curProc.measures[${mi}].outcomes[${tidLit}]`) === 'погашено' && m.ev(`curProc.measures[${mi}].outcomeMeta[${tidLit}].reason`) === 'ошиблись в канале и исходе при первичном вводе'
+     && m.ev(`curProc.measures[${mi}].outcomeMeta[${tidLit}].prev`) === 'без ответа');
   ok('и после правки пометки тело меры остаётся тем же (kind/num/targets/sum) — правка нигде их не задела',
      m.ev(`curProc.measures[${mi}].kind`) === 'Первичная претензия' && m.ev(`curProc.measures[${mi}].num`) === 'ТЕСТ-ПОМЕТКА-1'
      && m.ev(`!!curProc.measures[${mi}].dates && !!curProc.measures[${mi}].sum`));
