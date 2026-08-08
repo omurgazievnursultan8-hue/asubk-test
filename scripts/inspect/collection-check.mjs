@@ -1397,7 +1397,8 @@ ok('сортировка устойчива: равные ключи упоря�
 })()`));
 
 head('ТР-5 · фильтр: поля из требований, мёртвое снято');
-const flabels = () => L.$$('#filterBody .flabel').map(x => x.textContent);
+/* ярус 1 (#filterQuick) + ярус 2 (#filterBody) — оба несут поля фильтра, см. ПЛ-3 ниже */
+const flabels = () => L.$$('#filterQuick .flabel, #filterBody .flabel').map(x => x.textContent);
 ok('поля «Владелец (отдел)» больше нет',      !flabels().includes('Владелец (отдел)'));
 ok('появилось «Ведущее подразделение»',        flabels().includes('Ведущее подразделение'));
 ok('ТР-Д1: опции подразделения = значениям требований', L.ev(`(() => {
@@ -1429,7 +1430,7 @@ ok('чипы подписаны по-русски, включая стадию �
   setDep('stage','Судебный порядок'); const c = [...document.querySelectorAll('#filterChips .fchip')].map(x=>x.textContent);
   resetFilters(); return c.some(x => /^Стадия:/.test(x));
 })()`));
-ok('находка 2: тоггл «только моё подразделение» встал в панель фильтра', L.$$('#filterBody #f-mine').length === 1);
+ok('находка 2: тоггл «только моё подразделение» стоит рядом с «Ведущее подразделение» (ярус 1)', L.$$('#filterQuick #f-mine').length === 1);
 ok('находка 2: тоггл фильтрует по roleSubdivs(), не по одному значению', L.ev(`(() => {
   const my = roleSubdivs();
   if(my.length < 2) throw new Error('затравка сменила дефолтную роль на одно-подразделенческую — тест устарел');
@@ -1692,21 +1693,29 @@ head('ПЛ-2 · снято волной ПЕ (ADR-0023) — процедура �
    «Волна ПЕ». Колонки процедуры в таблице не было и раньше — это ещё живо. */
 ok('колонки процедуры в таблице нет',        L.ev(`LIST_COLS.every(c => c.k !== 'procedure')`));
 
-head('ПЛ-3 · фильтр свёрнут по умолчанию');
-ok('в разметке у .filter-head нет класса open', !/<div class="filter-head open"/.test(HTML_SRC));
-ok('тело фильтра при загрузке скрыто',       !L.$('.filter-head').classList.contains('open'));
-ok('шапка «Фильтр» на месте и кликабельна',  /Фильтр/.test(L.$('.filter-head').textContent)
-   && /onclick="toggleFilterPanel\(this\)"/.test(HTML_SRC));
-/* Панель свёрнута по умолчанию — её шапка единственный вход в фильтр, и без фокуса
-   он был недостижим с клавиатуры вовсе. То же у плиток и у шапок-сортировок: они
-   переключатели, а строка списка (ТР-6) с клавиатуры работала с самого начала. */
-ok('шапка фильтра доступна с клавиатуры и сообщает раскрытие', (() => {
-  const m = mk(), h = m.$('.filter-head');
-  const before = h.getAttribute('aria-expanded');
-  m.ev(`toggleFilterPanel(document.querySelector('.filter-head'))`);
-  return h.getAttribute('tabindex') === '0' && h.getAttribute('role') === 'button'
-      && before === 'false' && h.getAttribute('aria-expanded') === 'true'
-      && h.classList.contains('open'); })());
+head('ПЛ-3 → ярус 1+2 (по образцу credit.html «Список кредитов») · частое видно всегда, редкое за «⚙ Фильтры»');
+/* «.filter-head» (панель целиком свёрнута за одной шапкой) заменена двухъярусной
+   раскладкой credit.html: ярус 1 (#filterQuick — поиск, ведущее подразделение +
+   «только моё», куратор) всегда на виду, ярус 2 (#filterBody — редкое) по-прежнему
+   свёрнут по умолчанию и раскрывается кнопкой «⚙ Фильтры» (toggleFilters). */
+ok('в разметке у #filterBody нет класса open по умолчанию', !/id="filterBody" class="open"/.test(HTML_SRC));
+ok('ярус 2 при загрузке скрыт',              !L.$('#filterBody').classList.contains('open'));
+ok('кнопка «⚙ Фильтры» на месте и кликабельна', /⚙ Фильтры/.test(L.$('#btnFilters').textContent)
+   && /onclick="toggleFilters\(\)"/.test(HTML_SRC));
+ok('ярус 1 всегда виден: поиск/подразделение/«только моё»/куратор живут вне #filterBody', (() => {
+  const inQuick = ['f-q','f-subdiv','f-mine','f-curator'].every(id => !!L.$(`#filterQuick #${id}`));
+  const notInBody = L.$$('#filterBody #f-q, #filterBody #f-subdiv, #filterBody #f-mine, #filterBody #f-curator').length === 0;
+  return inQuick && notInBody; })());
+/* Плитки и шапки-сортировки остаются кастомными переключателями (div/th, не button) —
+   им нужны явные tabindex/role/aria. «⚙ Фильтры» — настоящий <button>, ничего
+   добавлять не пришлось; проверяем только что aria-expanded реально следует за
+   состоянием яруса 2 (а не жёстко «false», см. коммент у renderFilterBar). */
+ok('кнопка «⚙ Фильтры» сообщает раскрытие яруса 2 через aria-expanded', (() => {
+  const m = mk(), btn = () => m.$('#btnFilters');
+  const before = btn().getAttribute('aria-expanded');
+  m.ev(`toggleFilters()`);
+  return before === 'false' && btn().getAttribute('aria-expanded') === 'true'
+      && m.$('#filterBody').classList.contains('open'); })());
 ok('плитки доступны с клавиатуры и говорят о нажатом состоянии', (() => {
   const m = mk(); m.ev(`renderList(); clickTile('gate')`);
   const tiles = m.$$('#listTiles .tile');
@@ -1723,12 +1732,11 @@ ok('шапки колонок доступны с клавиатуры и нес
   return th.length === 8 && th.every(t => t.getAttribute('tabindex') === '0')
       && sorted.length === 1 && sorted[0].getAttribute('aria-sort') === 'descending'
       && /Сумма требования/.test(sorted[0].textContent); })());
-ok('у фокуса есть видимая обводка — у шапки фильтра, плитки и шапки колонки',
-   /\.filter-head:focus-visible\{/.test(HTML_SRC) && /\.tile:focus-visible\{/.test(HTML_SRC)
-   && /thead th:focus-visible\{/.test(HTML_SRC));
-ok('панель открывается кликом', (() => {
-  const m = mk(); m.$('.filter-head').classList.add('open');
-  return m.$('.filter-head').classList.contains('open') && m.$$('#filterBody select').length > 0;
+ok('у фокуса есть видимая обводка — у плитки и шапки колонки',
+   /\.tile:focus-visible\{/.test(HTML_SRC) && /thead th:focus-visible\{/.test(HTML_SRC));
+ok('ярус 2 открывается кликом по «⚙ Фильтры»', (() => {
+  const m = mk(); m.$('#filterBody').classList.add('open');
+  return m.$('#filterBody').classList.contains('open') && m.$$('#filterBody select').length > 0;
 })());
 ok('тулбар и пейджер — одна полоса .rowtools', L.$$('.rowtools').length === 1
    && !!L.$('.rowtools #btnExport') && !!L.$('.rowtools .pager'));
