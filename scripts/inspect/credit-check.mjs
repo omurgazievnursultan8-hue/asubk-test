@@ -1241,6 +1241,29 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
 
 /* 97…99 — ОЧЕРЕДЬ ПОГАШЕНИЯ (ADR-0060, задача P15-R24). */
 
+/* 97. ОЧЕРЕДЬ ПУБЛИКУЕТ КРЕДИТ (ADR-0060 §4). Перечень непогашенного отдаётся из
+   derive(), и его просроченная часть сходится со сводом по статьям копейка в копейку.
+   Расхождение означало бы, что лестница и debtOf разошлись молча — ровно тот дефект,
+   ради которого очередь и передана одному владельцу. Проверяется на всём демонаборе:
+   инвариант обязан держаться и у закрытого кредита, и у кредита без графика. */
+(() => { const db = CR.seedDb();
+  let bad = null, withRows = 0;
+  for (const c of db.credits){
+    const d = CR.derive(c);
+    if (!d.queue || !Array.isArray(d.queue.rows)){ bad = `${c.id}: очереди нет`; break; }
+    if (d.queue.asOf !== d.calcUntil){
+      bad = `${c.id}: очередь на ${d.queue.asOf}, расчёт доведён до ${d.calcUntil}`; break; }
+    if (d.queue.rows.some(r => !(r.amount > 0))){ bad = `${c.id}: в очереди нулевая строка`; break; }
+    if (d.queue.rows.length) withRows++;
+    const over = Math.round(d.queue.rows.filter(r => r.urg === 'over')
+                     .reduce((a, r) => a + r.amount, 0) * 100) / 100;
+    if (Math.abs(over - d.overdueAmount) > 0.02){
+      bad = `${c.id}: Σ просроченного в очереди ${over} ≠ своду ${d.overdueAmount}`; break; }
+  }
+  ok(97, !bad && withRows > 0,
+     bad || `очередь непуста у ${withRows} кредитов из ${db.credits.length}, Σ просроченного сходится со сводом`);
+})();
+
 /* 98. СОСТАВ СЛОЯ ВЫВОДИТ ЛЕСТНИЦА, А НЕ ПРОПОРЦИЯ (ADR-0060 §3 — снятие допущения Д-8).
    K-3: судебный приказ от 28.05.2026 на 18 300 при взносах по 12 300. Присуждённое
    обязано накрыть ПЕРВЫЕ ДВЕ позиции целиком (12 300 + остаток 6 000 уходит во вторую)
@@ -1261,6 +1284,29 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
      `слой ${L.id} на ${L.amount}: лестница ${lad.slice(0,3).join(' → ')};`
      + ` помечено ${[...map.keys()].join(', ') || '—'};`
      + ` приостановлено %=${d.debt.interest.frozen}, пеня=${d.debt.penalty.frozen}`);
+})();
+
+/* 99. ПОРЯДОК ОЧЕРЕДИ — один, по дате наступления (ADR-0060 §2: «независимо от того,
+   чьи они»), ненаступившее хвостом. K-1: комиссия 1 000 от 18.05.2026 (не погашена),
+   позиция 18.06.2026 погашена целиком и в перечень не попадает, 18.07.2026 просрочена,
+   дальше 22 будущие позиции. Комиссия идёт первой строкой не по статье, а по дате —
+   и несёт tranche:null (допущение Д-10: транша у комиссии в модели нет). */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  const rs = CR.derive(c).queue.rows;
+  let mono = true, tail = true, seenFuture = false;
+  for (let i = 0; i < rs.length; i++){
+    if (i && pd(rs[i].due) < pd(rs[i-1].due)) mono = false;
+    if (rs[i].future) seenFuture = true; else if (seenFuture) tail = false;
+  }
+  const fee = rs[0] || {};
+  ok(99, rs.length > 0 && mono && tail
+      && rs.every(r => r.urg === (r.future ? 'cur' : 'over'))
+      && rs.every(r => r.layer === 'free' || /^L-\d+$/.test(r.layer))
+      && fee.article === 'Сборы и комиссии' && fee.tranche === null && fee.due === '18.05.2026'
+      && !rs.some(r => r.due === '18.06.2026'),
+     `строк=${rs.length}, ненаступивших=${rs.filter(r=>r.future).length},`
+     + ` первая — ${fee.article} на ${fee.due}, порядок дат ${mono?'не убывает':'СБИТ'},`
+     + ` хвост ${tail?'в конце':'ПЕРЕМЕШАН'}`);
 })();
 
 const pass = results.filter(r => r.pass).length;

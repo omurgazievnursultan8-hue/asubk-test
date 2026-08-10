@@ -705,7 +705,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-10 · 99/99 PASS
+ SMOKE (node) 2026-08-10 · 101/101 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -804,7 +804,9 @@
    #94 ✓
    #95 ✓
    #96 ✓
+   #97 ✓
    #98 ✓
+   #99 ✓
 -->
 <style>
 
@@ -3760,6 +3762,68 @@ const DEBT_ARTICLES = [
   { key:'penalty',   label:'Пеня' },          { key:'fees',     label:'Сборы и комиссии' }
 ];
 
+/* ОЧЕРЕДЬ ПОГАШЕНИЯ (ADR-0060 §4) — упорядоченный НА ДАТУ перечень непогашенного:
+   транш · слой · статья · дата наступления · сумма. Публикует его КРЕДИТ: сырьё —
+   взносы, графики, ставки, режимы — целиком у него, у платежей нет ни одной из этих
+   величин. Платежи льют деньги по готовому списку сверху вниз и своей лестницы не
+   строят; иначе одно правило имело бы двух владельцев и разъехалось молча (ADR-0001).
+   Зеркало ADR-0010 становится двусторонним без кольца: кредит отдаёт ЧТО ПОДЛЕЖИТ
+   ГАШЕНИЮ, платежи возвращают ЧЕМ ПОГАШЕНО. Перечень производный, не реестр: строится
+   на дату, не хранится и платежами не кэшируется.
+
+   Сортировка одна — по дате наступления, независимо от того, чей это транш (ADR-0060
+   §2). Внутри даты — по очерёдности статей (комиссия → основной долг → проценты → пеня,
+   ADR-0087; расходов по обращению взыскания здесь нет — они собственность взыскания,
+   ADR-0004, и в остаток кредита не входят). Внутри статьи — по номеру транша. urg и
+   future строку только подписывают и ключами сортировки не служат: у наступившего дата
+   меньше даты расчёта, у ненаступившего больше, и хвост встаёт в конец сам.
+
+   Нулевые строки не публикуются: в перечень «что подлежит гашению» ноль не входит,
+   лить в него нечего. Отсюда и сходимость Σ просроченного со сводом по статьям.
+
+   Допущение Д-10: комиссии живут на кредите (c.fees), транша у них в модели нет, и в
+   очереди они идут строкой «по кредиту» (tranche:null). ADR-0060 §2 требует называть
+   транш у строки РАЗНЕСЕНИЯ («иначе не сойдётся ни леджер транша, ни зеркало кредита»),
+   а не публикации; выдумывать транш комиссии макет не станет. */
+const QUEUE_ARTICLE_ORDER = { 'Сборы и комиссии':0, 'Основной долг':1, 'Проценты':2, 'Пеня':3 };
+function buildQueue(c, led){
+  const lim = pd(led.until);
+  const layerById = new Map(led.layers.map(L => [L.id, L]));
+  const rows = [];
+  const push = (due, key, trancheNo, article, amount, future) => {
+    if (!(amount > 0.005)) return;
+    const L = key ? layerById.get(led.byLadder.get(key)) : null;
+    rows.push({ due, layer:L ? L.id : 'free', layerLabel:L ? L.label : 'Вне решения суда',
+      tranche:(trancheNo == null ? null : trancheNo), article,
+      urg:future ? 'cur' : 'over', amount:round2(amount), future:!!future });
+  };
+  for (const f of led.feeRows) push(f.date, null, null, 'Сборы и комиссии', f._bal || 0, false);
+  for (const r of led.rows){
+    push(r.date, r.key, r.trancheNo, 'Основной долг', r.principalOverdue, false);
+    push(r.date, r.key, r.trancheNo, 'Проценты',      r.interestOverdue,  false);
+    push(r.date, r.key, r.trancheNo, 'Пеня',          r.penaltyBal,       false);
+  }
+  /* ненаступившее — тем же перечнем, серым хвостом: платежам нужен весь список, а не
+     его просроченная голова, — досрочное погашение льётся в тот же хвост. Слой у такой
+     строки берётся из той же карты: решение о досрочном возврате накрывает и будущий
+     взнос, и тогда строка обязана назвать его слой, иначе экран скажет «начисление
+     идёт по договору» там, где оно приостановлено. */
+  for (const t of c.tranches)
+    for (const r of trancheScheduleRows(t)){
+      if (pd(r.date) <= lim) continue;
+      const key = ledgerKey(t.no, r.no);
+      push(r.date, key, t.no, 'Основной долг', r.principal || 0, true);
+      push(r.date, key, t.no, 'Проценты',      r.interest  || 0, true);
+    }
+  rows.sort((a,b) => pd(a.due) - pd(b.due)
+    || QUEUE_ARTICLE_ORDER[a.article] - QUEUE_ARTICLE_ORDER[b.article]
+    || (a.tranche || 0) - (b.tranche || 0));
+  /* дата очереди — та, ДО которой реально считали (у закрытого кредита это дата
+     остановки начисления, не дата среза): потребитель сверяет её со своей датой
+     разнесения, и соврать здесь значит сравнить разные срезы */
+  return { asOf:led.until, rows };
+}
+
 /* дни просрочки и дата выхода на просрочку — производные от расчёта (ADR-0010):
    день, с которого есть неисполненное обязательство по графику. Отдельного поля нет.
 
@@ -4037,6 +4101,7 @@ function derive(c, asOf){
     : 'Полностью освоен';
   const ledger        = buildLedger(c, asOf);
   const debt          = debtOf(ledger, disbursed);
+  const queue         = buildQueue(c, ledger);                       // ADR-0060 §4: очередь публикует кредит
   const overdue       = overdueOf(ledger);
   const overdueDays   = overdue.days;
   const debtBalance   = round2(DEBT_ARTICLES.reduce((a,x) => a + debt[x.key].bal, 0));
@@ -4069,7 +4134,7 @@ function derive(c, asOf){
            atRisk, coverage, riskCategory, riskBasis, relief, stateFlags,
            fullRepayDate, termAgg, reserveAccrual, scheduleTotals, nextPayment, regStatus, docs, planExec,
            debtBalance, overdueAmount, debtBalanceKgs, overdueAmountKgs, collectionCosts,
-           overpay:debt.overpay, courtLayers:ledger.layers, disputes:ledger.disputes,
+           overpay:debt.overpay, courtLayers:ledger.layers, queue, disputes:ledger.disputes,
            calcProvisional:ledger.provisional, paymentsAsOf:ledger.snapshot,
            subgroup, subgroupLabel:mb.subgroupLabel || null,
            group: subgroup ? String(subgroup)[0] : null };
@@ -4837,7 +4902,7 @@ window.CR = {
   nextPaymentOf, regStatusOf, scheduleRowStatus, trancheScheduleRows, ledgerKey,
   trancheForecastRows, forecastByMonth, planExecOf,
   monthKey, monthLabel, monthAdd, monthRange, planRowOf, planAmountOf,
-  buildLedger, debtOf, overdueOf, coverageOf, atRiskAmountOf, riskBasisOf,
+  buildLedger, buildQueue, debtOf, overdueOf, coverageOf, atRiskAmountOf, riskBasisOf,
   paidPool, paymentCounts, paymentCurrency, paymentAllocated,
   disputeWindows, courtLayersOf, accrualModeOf, ladderAt, layersByLadder,
   reliefActive, relief181, factorsActive, docsStatusOf, requiredDocsComplete,
