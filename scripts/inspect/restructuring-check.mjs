@@ -1,13 +1,13 @@
-// Headless smoke для mockups/restructuring/restructuring.html (спека §14, РС-1…РС-25).
+// Headless smoke для mockups/restructuring/restructuring.html (спека §14, РС-1…РС-41).
 // Zero-dep: извлекает <script> из HTML и исполняет чистый логический слой в node:vm
 // (без DOM — init/рендер пропускается). Читает только window.RS плюс состояние, уже
 // материализованное в демо-заявках RS-1001…RS-1007 при seed(); финансовое ядро
 // (debtAt/run/PIPELINE/restructureApplied/balanceAt…) приватно (issues/02, задача 8) —
 // там, где сценарий проверяет его устройство, а не результат на демо-данных, проверка
-// идёт по исходному тексту файла, не через вызов. Функции, дёргающие render()
-// (setRole/toggleBaseRow/setDisposition/setCalcTranche/recalcPlan/regDS…), из headless-
-// контекста не зовутся — кроме мест, где их же guard-return отсекает путь до render()
-// раньше, чем до document (см. #15).
+// идёт по исходному тексту файла, не через вызов. Функции, дёргающие render(), зовутся
+// свободно: с 10.08.2026 render() без document — no-op, тем же приёмом, что и toast (см.
+// комментарий на месте). До этого сценарии обходились вызовами, у которых guard-return
+// отсекал путь до document раньше, чем до render() (см. #15).
 //   node scripts/inspect/restructuring-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -165,19 +165,30 @@ const app = id => RS.appById(id);
     `before=${JSON.stringify(before)} after=${JSON.stringify(after)}`);
 })();
 
-/* 16. Распоряжения по статьям заведены реальной дверью; «по периодам» — задокументированный пробел. */
+/* 16. Распоряжения по статьям заведены реальной дверью, и «по периодам» — тоже: живой путь
+   кладёт в periods не-умолчание, шаг distribute его читает. Прежде сценарий сторожил
+   ОБРАТНОЕ — существование дыры (`periods: null`, читателей нет); дыра закрыта 10.08.2026
+   решениями РС-38…РС-41, и сторож перевёрнут (ADR-0109, спека §14 п. 16). */
 (() => { fresh();
   const a = app('RS-1001');
   const dCap = RS.dispositionFor(a.dispositions, 'accInterest', 'over');
   const dForgive = RS.dispositionFor(a.dispositions, 'fees', 'over');
   const wired = dCap && dCap.kind === 'cap' && dForgive && dForgive.kind === 'forgive';
-  // periods: только два места кладут литерал null (дефолт), только два места читают
-  // d.periods (внутри distribute, за проверкой d.periods истинности) — живого пути,
-  // который положил бы туда не-null, в файле нет.
-  const nullDefaults = (js.match(/periods\s*:\s*null/g) || []).length;
-  const dotReads = (js.match(/\.periods\b/g) || []).length;
-  ok(16, wired && nullDefaults === 2 && dotReads === 2,
-    `wired=${wired} nullDefaults=${nullDefaults} dotReads=${dotReads}`);
+  const noNullDefault = !/periods\s*:\s*null/.test(js);        // умолчание — allPeriods(), не null
+  const setterWrites = typeof RS.setDispPeriods === 'function'; // экспортированная дверь
+  const d = RS.dispositionFor(a.dispositions, 'accInterest', 'over');
+  d.kind = 'spread';
+  RS.setDispPeriods(a.id, 'accInterest', 'over', 'range', 2, 4);
+  const written = d.periods && d.periods.mode === 'range' && d.periods.from === 2 && d.periods.to === 4;
+  // читатель — приватный distribute, кладущий сроки в parts; проверяем по результату прогона
+  const part = (RS.AppSide.run(a, RS.TODAY).parts || []).find(p => p.periods && p.periods.mode === 'range');
+  const read = !!part && part.periods.to === 4;
+  // Тем же грепом — второй мёртвый признак: счётчик capitalizedPenalty прежде только писался,
+  // и это был признак неисполненной РС-27. Теперь его читает сборка базы.
+  const writes = (js.match(/capitalizedPenalty\s*[:=]/g) || []).length;   // литерал состояния
+  const reads = (js.match(/capitalizedPenalty/g) || []).length - writes;   // всё прочее — чтение
+  ok(16, wired && noNullDefault && setterWrites && written && read && writes > 0 && reads > 0,
+    `wired=${wired} безNull=${noNullDefault} сеттер=${setterWrites} записано=${written} прочитано=${read} capPen(пишет/читает)=${writes}/${reads}`);
 })();
 
 /* 17. ИР-7 — порядок конвейера: прощение → капитализация → распределение → просрочка → сборка. */
@@ -467,6 +478,199 @@ const app = id => RS.appById(id);
     js.replace(/роли «залоговая комиссия»[^<]*/gi, '').replace(/«залоговая комиссия»/gi, ''));
   const hasNewBody = js.includes('Комитет по администрированию бюджетных кредитов');
   ok(42, noOldBody && hasNewBody, `староеИмя=${!noOldBody} новоеИмя=${hasNewBody}`);
+})();
+
+/* ================= РС-38…РС-41 / ADR-0109 — статьи в строке графика (спека §14, 43–51) ======= */
+
+/* Общая заготовка: заявка со свежей базой и распоряжениями, ссылка на строку и распоряжение. */
+const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') => {
+  fresh();
+  const a = app(id);
+  RS.ensureBaseDispositions(a);
+  const row = a.base.find(r => r.article === article && r.urgency === urgency);
+  const d = RS.dispositionFor(a.dispositions, article, urgency);
+  return { a, row, d };
+};
+
+/* 43. РС-38 — сумма распоряжения: сеттер меняет amount; больше позиции и 0 отбиваются без
+   подстановки «ближайшего допустимого»; остаток позиции уходит в перенос своей статьёй. */
+(() => {
+  const { a, row, d } = doorFixture();
+  d.kind = 'spread';
+  RS.setDispAmount(a.id, 'accInterest', 'over', row.amount - 1000);
+  const changed = d.amount === RS.round2(row.amount - 1000);
+  const snap = JSON.stringify(d);
+  RS.setDispAmount(a.id, 'accInterest', 'over', row.amount + 1);   // больше позиции
+  const rejectedBig = JSON.stringify(d) === snap;
+  RS.setDispAmount(a.id, 'accInterest', 'over', 0);                // ноль
+  const rejectedZero = JSON.stringify(d) === snap;
+  // остаток позиции приходит в перенос своей статьёй, а не растворяется
+  const parts = RS.AppSide.run(a, RS.TODAY).parts || [];
+  const rest = RS.round2(parts.filter(p => p.from === 'без распоряжения'
+    && p.article === 'accInterest').reduce((s, p) => s + p.amount, 0));
+  ok(43, changed && rejectedBig && rejectedZero && rest === 1000,
+    `изменено=${changed} большеПозиции=${rejectedBig} ноль=${rejectedZero} остаток=${rest}`);
+})();
+
+/* 44. РС-38 — сроки: range кладётся, возврат на all СТИРАЕТ интервал (не тень). */
+(() => {
+  const { a, d } = doorFixture();
+  d.kind = 'spread';
+  RS.setDispPeriods(a.id, 'accInterest', 'over', 'range', 2, 5);
+  const set = JSON.stringify(d.periods) === JSON.stringify({ mode: 'range', from: 2, to: 5 });
+  RS.setDispPeriods(a.id, 'accInterest', 'over', 'all');
+  const erased = d.periods.mode === 'all' && d.periods.from === undefined && d.periods.to === undefined;
+  RS.setDispPeriods(a.id, 'accInterest', 'over', 'range');          // без границ — не прежние 2–5
+  const noShadow = d.periods.from === 1 && d.periods.to === 1;
+  ok(44, set && erased && noShadow,
+    `задано=${set} стёрто=${erased} безТени=${JSON.stringify(d.periods)}`);
+})();
+
+/* 45. РС-39 — распоряжение меняет статью: spread на начисленных процентах уводит сумму в
+   accInterest; строка, уже бывшая accInterest, статью не меняет; прогон идемпотентен. Здесь
+   же — вторая перекладка статьи по ADR-0109: капитализация ПЕНИ идёт в накопленную пеню,
+   а не в тело (признак того, что РС-27 исполнена, а не объявлена). */
+(() => {
+  const byArt = r => RS.mergeParts(r.parts || []).reduce((m, p) => (m[p.article] = RS.round2((m[p.article] || 0) + p.amount), m), {});
+  // (а) начисленные проценты → накопленные. В демо строка interest/cur снята — включаем дверью.
+  fresh();
+  const a4 = app('RS-1004');
+  RS.ensureBaseDispositions(a4);
+  RS.toggleBaseRow(a4.id, 'interest', 'cur');
+  RS.setDisposition(a4.id, 'interest', 'cur', 'spread');
+  const r1 = RS.AppSide.run(a4, RS.TODAY), r2 = RS.AppSide.run(a4, RS.TODAY);
+  const m1 = byArt(r1), m2 = byArt(r2);
+  const moved = !m1.interest && m1.accInterest >= 41000;      // статьи interest в переносе нет
+  const stable = JSON.stringify(m1) === JSON.stringify(m2);   // прогон дважды — тот же результат
+  // (б) капитализация пени → накопленная пеня, не тело. Спорность строки снимаем у источника:
+  //     иначе ИР-6 (мёртвая галка) не даст её включить, и это правильно.
+  fresh();
+  const a1 = app('RS-1001');
+  RS.ensureBaseDispositions(a1);
+  const pen = a1.base.find(r => r.article === 'penalty' && r.urgency === 'over');
+  pen.blockedBy = null; pen.disputed = false;
+  RS.toggleBaseRow(a1.id, 'penalty', 'over');
+  RS.setDisposition(a1.id, 'penalty', 'over', 'cap');
+  const r3 = RS.AppSide.run(a1, RS.TODAY);
+  const m3 = byArt(r3);
+  const capPen = r3.capitalizedPenalty || 0;
+  const penInAcc = capPen === 73000 && m3.accPenalty >= capPen && !m3.penalty
+    && r3.principalPart === 118000;                           // тело не выросло на пеню
+  ok(45, moved && stable && penInAcc,
+    `уехало=${moved} идемпотентно=${stable} капПеня=${capPen} ОД=${r3.principalPart} раскладка=${JSON.stringify(m3)}`);
+})();
+
+/* 46. РС-39 — просрочка считается от НЕПОКРЫТОГО остатка, не от вида распоряжения. */
+(() => {
+  const { a, row, d } = doorFixture();
+  // всё просроченное, кроме одной строки, распределяем целиком; на ней оставляем половину
+  a.base.filter(r => r.included && r.urgency === 'over').forEach(r => {
+    const x = RS.dispositionFor(a.dispositions, r.article, r.urgency);
+    if (!x) return;
+    x.kind = (r.article === 'penalty' || r.article === 'accPenalty') ? 'cap' : 'spread';
+    x.amount = r.amount;
+  });
+  d.amount = RS.round2(row.amount / 2);                                     // частичное покрытие
+  const partial = RS.AppSide.run(a, RS.TODAY).remainsOverdue;
+  d.amount = row.amount;                                                    // полное покрытие
+  const full = RS.AppSide.run(a, RS.TODAY).remainsOverdue;
+  ok(46, partial === true && full === false, `частично=${partial} целиком=${full}`);
+})();
+
+/* 47. РС-41/ADR-0109 — ставка только на ОД: колонка процентов не зависит от безставочных. */
+(() => {
+  fresh();
+  const a = app('RS-1001');
+  const params = { term: 12, rate: 10, method: 'аннуитет', schedule: 'ежемесячно' };
+  const sched = parts => RS.CreditSide.draftSchedule(a.calcTranche,
+    { date: RS.TODAY, principalPart: 1000000, parts, params });
+  const int = rows => RS.round2(rows.reduce((s, r) => s + (r.interest || 0), 0));
+  const bare = sched([]);
+  const heavy = sched([{ article: 'accPenalty', amount: 500000, periods: { mode: 'all' } },
+                       { article: 'accInterest', amount: 300000, periods: { mode: 'all' } }]);
+  const same = int(bare.rows) === int(heavy.rows);
+  // и тело в обоих одно и то же — безставочное приехало отдельными колонками
+  const prin = rows => RS.round2(rows.reduce((s, r) => s + (r.principal || 0), 0));
+  const samePrincipal = prin(bare.rows) === prin(heavy.rows) && prin(bare.rows) === 1000000;
+  const cols = RS.scheduleArticleCols(heavy.rows);
+  ok(47, same && samePrincipal && cols.includes('accPenalty') && cols.includes('accInterest')
+      && !RS.scheduleArticleCols(bare.rows).length,
+    `процентыРавны=${same}(${int(bare.rows)}) телоРавно=${samePrincipal} колонки=${cols.join(',')}`);
+})();
+
+/* 48. ИР-2′ — сумма ВСЕХ статейных колонок = сумма переноса в копейку (не одна колонка ОД). */
+(() => {
+  const { a } = doorFixture();
+  const r = RS.AppSide.run(a, RS.TODAY);
+  const d = RS.CreditSide.draftSchedule(a.calcTranche, { date: RS.TODAY, transferSum: r.transferSum,
+    principalPart: r.principalPart, parts: r.parts, params: a.version.params });
+  const sumP = RS.round2(d.rows.reduce((s, x) => s + (x.principal || 0), 0));
+  const sumA = RS.round2(d.rows.reduce((s, x) => s + RS.rowArticlesSum(x), 0));
+  const all = RS.round2(sumP + sumA);
+  const onlyPrincipalFails = sumP !== r.transferSum;      // старая ИР-2 на этих данных бы разошлась
+  ok(48, all === RS.round2(r.transferSum) && sumA > 0 && onlyPrincipalFails,
+    `всеСтатьи=${all} перенос=${r.transferSum} ОД=${sumP} безставочные=${sumA}`);
+})();
+
+/* 49. ИР-15/РС-40 — интервал за длиной плана: причина в validateDS, регистрация закрыта;
+   укорачивание срока после заданного интервала ловится тем же условием, молча не подрезается. */
+(() => {
+  const { a, d } = doorFixture();
+  d.kind = 'spread';
+  const mkDs = (term, from, to) => {
+    RS.setDispPeriods(a.id, 'accInterest', 'over', 'range', from, to);
+    const r = RS.AppSide.run(a, RS.TODAY);
+    return { app: a, sourceTranche: a.calcTranche, credit: RS.creditById(a.creditIds[0]),
+      date: RS.TODAY, transferSum: r.transferSum, principalPart: r.principalPart, parts: r.parts,
+      params: Object.assign({}, a.version.params, { term }) };
+  };
+  const isIr15 = reasons => reasons.some(s => s.includes('ИР-15'));
+  const inside = isIr15(RS.validateDS(mkDs(24, 2, 6)));           // 6 ≤ 24 позиций
+  const outside = isIr15(RS.validateDS(mkDs(24, 2, 99)));         // 99 > 24
+  const shortened = isIr15(RS.validateDS(mkDs(6, 2, 12)));        // срок ужали 24 → 6
+  const kept = d.periods.to === 12;                               // интервал НЕ подрезан молча
+  ok(49, !inside && outside && shortened && kept,
+    `внутри=${!inside} заДлиной=${outside} послеУкорочения=${shortened} неПодрезан=${kept}`);
+})();
+
+/* 50. РС-38 — округление: неделящаяся сумма сходится в копейку, остаток в ПОСЛЕДНЕЙ позиции. */
+(() => {
+  fresh();
+  const a = app('RS-1001');
+  const d = RS.CreditSide.draftSchedule(a.calcTranche, { date: RS.TODAY, principalPart: 1000000,
+    parts: [{ article: 'accInterest', amount: 100000, periods: { mode: 'range', from: 2, to: 4 } }],
+    params: { term: 6, rate: 0, method: 'дифференцированный', schedule: 'ежемесячно' } });
+  const col = d.rows.map(r => (r.articles || {}).accInterest || 0);
+  const inside = col.slice(1, 4), outside = col.slice(0, 1).concat(col.slice(4));
+  const sum = RS.round2(inside.reduce((s, v) => s + v, 0));
+  const tailBigger = inside[2] > inside[0] && inside[0] === inside[1];   // остаток в последней
+  ok(50, sum === 100000 && outside.every(v => v === 0) && tailBigger,
+    `сумма=${sum} колонка=[${col.join(', ')}]`);
+})();
+
+/* 51. РС-38 — граница двери: сроки есть у spread и капитализации ПЕНИ, нет у капитализации
+   процентов и прощения. Проверка по состоянию распоряжения, не по тексту файла. */
+(() => {
+  const { a } = doorFixture();
+  const has = RS.dispositionHasPeriods;
+  const matrix = has('spread', 'accInterest') && has('spread', 'principal')
+    && has('cap', 'penalty') && has('cap', 'accPenalty')
+    && !has('cap', 'interest') && !has('cap', 'accInterest')
+    && !has('forgive', 'fees') && !has('none', 'accInterest');
+  // сеттер сроков отбивает распоряжение, у которого сроков нет, — состояние не меняется
+  const d = RS.dispositionFor(a.dispositions, 'fees', 'over');
+  d.kind = 'forgive';
+  const snap = JSON.stringify(d.periods);
+  RS.setDispPeriods(a.id, 'fees', 'over', 'range', 1, 3);
+  const rejected = JSON.stringify(d.periods) === snap;
+  // и смена вида на «без сроков» возвращает умолчание, а не оставляет висеть интервал
+  const s = RS.dispositionFor(a.dispositions, 'accInterest', 'over');
+  s.kind = 'spread';
+  RS.setDispPeriods(a.id, 'accInterest', 'over', 'range', 2, 5);
+  RS.setDisposition(a.id, 'accInterest', 'over', 'cap');
+  const reset = s.periods.mode === 'all';
+  ok(51, matrix && rejected && reset,
+    `матрица=${matrix} сеттерОтбил=${rejected} сменаВидаСбросила=${reset}`);
 })();
 
 /* ---- отчёт ---- */
