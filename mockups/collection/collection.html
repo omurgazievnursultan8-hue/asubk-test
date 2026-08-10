@@ -254,7 +254,7 @@
   --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
   --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
   --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
-  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE; --asubk-gray-300:#D6DCE5;
   --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
   --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
   --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
@@ -366,11 +366,23 @@ a{ color:inherit; }
 .btn-tint.danger:hover:not(:disabled){ background:var(--status-error-bg); }
 
 
-/* ---- list: filter head + toolbar + tiles ---- */
-.filter-head{ display:flex; align-items:center; gap:6px; padding:12px 20px 4px; cursor:pointer;
-  font:var(--weight-medium) var(--text-base)/1.25 var(--asubk-font); color:rgba(27,43,65,0.69); user-select:none; }
-.filter-head .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5); transition:transform 120ms ease; }
-.filter-head.open .chev{ transform:rotate(90deg); }
+/* ---- list: quick row + tiles ---- */
+/* Ярус 1 — единственная всегда видная строка (как в credit.html): поиск, ведущее
+   подразделение + «только моё» (паритет с остальными реестрами, Находка 2) и куратор —
+   три условия, которыми пользуются каждый вход в реестр. Заменяет collapsed-by-default
+   «.filter-head» (ПЛ-3): панель, свёрнутая целиком за одной шапкой, прятала и эти
+   частые условия тоже — теперь прячется только редкое (ярус 2, «⚙ Фильтры»). */
+.tb-quick{ display:flex; align-items:flex-end; gap:10px; padding:8px 20px 10px; flex-wrap:wrap; }
+.tb-quick .field{ min-width:0; }
+.tb-quick .q-search{ width:280px; }
+.tb-quick .q-subdiv{ width:200px; }
+.tb-quick .q-mine{ padding-bottom:7px; }
+.tb-quick .q-curator{ width:180px; }
+.tb-quick .q-more{ margin-left:auto; }
+/* бейдж числа активных условий на кнопке «⚙ Фильтры» (считает условия, не поля) */
+.fbadge{ margin-left:6px; padding:1px 7px; border-radius:var(--radius-pill);
+  background:var(--status-info-bg); color:var(--asubk-blue);
+  font:var(--weight-medium) 12px/1.6 var(--asubk-font); }
 .tb-actions{ display:flex; align-items:center; gap:10px; padding:8px 20px 12px; flex-wrap:wrap; }
 .add-cond{ display:inline-flex; align-items:center; gap:6px; background:none; border:none; cursor:pointer;
   color:var(--text-link); font:var(--weight-medium) var(--text-base)/1 var(--asubk-font); padding:0 4px; }
@@ -409,7 +421,7 @@ a{ color:inherit; }
 .tile.warn .tv{ color:var(--asubk-amber); }
 .tile.err  .tv{ color:var(--asubk-red); }
 .filter-body{ display:none; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px 16px; padding:6px 20px 14px; }
-.filter-head.open + .filter-body{ display:grid; }
+.filter-body.open{ display:grid; }
 .filter-body .field{ min-width:0; }
 .range-pair{ display:flex; align-items:center; gap:8px; }
 .range-pair input{ width:100%; height:var(--control-h); border-radius:var(--radius-md); background:var(--surface-input);
@@ -446,8 +458,8 @@ table.grid{ width:100%; min-width:1240px; table-layout:fixed; border-collapse:co
    по словам, поэтому её длина целиком ширину не диктует»), но в CSS стоял nowrap,
    и «Ведущее подразделение» превращалось в «Ведущее подр…». */
 table.grid thead th{ position:relative; text-align:left; height:52px; padding:0 16px 0 10px;
-  background:var(--surface-card); border-bottom:1px solid var(--asubk-grid-line);
-  font:var(--weight-medium) var(--text-sm)/1.375 var(--asubk-font); color:var(--text-body);
+  background:var(--asubk-gray-300); border-bottom:1px solid var(--border-strong);
+  font:var(--weight-semibold) var(--text-sm)/1.375 var(--asubk-font); color:var(--text-heading);
   white-space:normal; overflow:hidden; cursor:pointer; user-select:none; vertical-align:middle; }
 /* ПЛ-6: стрелка сортировки — только у сортированной колонки; у остальных по наведению.
    Восемь «↕» рисовались всегда и были фоном, а не подсказкой.
@@ -485,8 +497,11 @@ table.grid tbody td.twoline .pline{ display:block; overflow:hidden; text-overflo
    пилюля остаётся прежней — там она одна в поле, а не по две в каждой из 135 строк. */
 table.grid tbody .pill{ padding:1px 7px; font-size:11px; line-height:15px; }
 table.grid tbody tr{ cursor:pointer; }
-table.grid tbody tr:hover{ background:var(--surface-hover); }
-table.grid tbody tr.sel{ background:var(--asubk-nav-active); }
+/* зебра — чётные строки очень светлой заливкой, как в «Список кредитов» (credit.html) */
+table.grid tbody tr:nth-child(even) td{ background:var(--asubk-gray-50); }
+/* ховер должен перебивать зебру — поэтому темнее и ниже по каскаду */
+table.grid tbody tr:hover td{ background:var(--asubk-gray-150); }
+table.grid tbody tr.sel td{ background:var(--asubk-nav-active); }
 /* ПЛ-6: курсив и серый у ЗАКРЫТОЙ строки оставлены — вот это редкое (1 из 29 на
    странице). Красный у «Дней просрочки» снят вместе с классом .overdue: он красил
    71 строку из 132 по порогу «> 180», зашитому прямо в рендер и не объявленному
@@ -815,14 +830,14 @@ tr.rowopen{ cursor:pointer; }
 tr.rowopen:hover td{ background:var(--surface-hover); }
 tr.rowopen:focus{ outline:none; }
 tr.rowopen:focus-visible td{ box-shadow:inset 0 2px 0 var(--asubk-blue), inset 0 -2px 0 var(--asubk-blue); }
-/* Фокус виден там же, где он действует: шапка-сортировка, плитка и шапка фильтра —
-   такие же переключатели, как строка выше, и обводка у них одна и та же. */
+/* Фокус виден там же, где он действует: шапка-сортировка и плитка — такие же
+   переключатели, как строка выше, и обводка у них одна и та же. Шапка фильтра снята
+   вместе с «.filter-head» (переезд на ярус 1+2) — «⚙ Фильтры» настоящий <button>,
+   фокус-кольцо у него браузерное. */
 table.grid thead th:focus{ outline:none; }
 table.grid thead th:focus-visible{ box-shadow:inset 0 0 0 2px var(--asubk-blue); }
 .tile:focus{ outline:none; }
 .tile:focus-visible{ border-color:var(--asubk-blue); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
-.filter-head:focus{ outline:none; }
-.filter-head:focus-visible{ box-shadow:inset 0 0 0 2px var(--asubk-blue); }
 table.grid th.num, table.grid td.num{ text-align:right; }
 table.grid thead th.sorted{ color:var(--text-heading); }
 table.grid thead th.sorted .sort{ color:var(--asubk-blue); }
@@ -948,18 +963,14 @@ tr.off td{ opacity:.6; text-decoration:line-through; text-decoration-color:rgba(
     <div class="content">
       <!-- ============ LIST VIEW ============ -->
       <section class="view" id="view-list" style="display:flex;">
-        <!-- ПЛ-3: панель СВЁРНУТА по умолчанию. Открытая, она занимала 348 px из 1000
-             и в них сообщала ноль: 15 контролов, все в «— все —». Что именно сузило
-             выборку, несёт лента условий (ТР-10) — она же это и снимает. -->
-        <!-- Панель свёрнута по умолчанию (ПЛ-3) — значит её шапка единственный вход
-             в фильтр, и с клавиатуры он был недостижим вовсе: div с onclick без
-             фокуса. Раскрытие сообщается через aria-expanded. -->
-        <div class="filter-head" tabindex="0" role="button" aria-expanded="false" aria-controls="filterBody"
-             onclick="toggleFilterPanel(this)"
-             onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleFilterPanel(this);}">
-          <span class="chev"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>
-          <span>Фильтр</span>
-        </div>
+        <!-- Ярус 1 — как в credit.html (список кредитов): поиск + ведущее подразделение/
+             «только моё» + куратор всегда на виду, редкое — за «⚙ Фильтры» (ярус 2).
+             Заменяет «.filter-head» (ПЛ-3): панель БЫЛА свёрнута целиком за одной шапкой
+             и в открытом виде занимала 348 px из 1000, сообщая ноль — но вместе с редким
+             прятала и три самых частых условия тоже. Что сузило выборку — несёт лента
+             условий (ТР-10), она же и снимает; счётчик на «⚙ Фильтры» считает условия
+             яруса 2, а не поля (каскад область→район — одно условие на двух контролах). -->
+        <div class="tb-quick" id="filterQuick"></div>
         <div class="filter-body" id="filterBody"></div>
         <div class="filter-chips" id="filterChips"></div>
         <div class="tiles" id="listTiles"></div>
@@ -11654,19 +11665,19 @@ function fopts(list, sel){
     return `<option value="${escAttr(v)}"${String(v)===String(sel??'')?' selected':''}>${t}</option>`;
   }).join('');
 }
-function fsel(id,label,list,sel,on,dis){
-  return `<div class="field"><span class="flabel">${label}</span>
+function fsel(id,label,list,sel,on,dis,cls){
+  return `<div class="field${cls?' '+cls:''}"><span class="flabel">${label}</span>
     <div class="control grey"><select id="${id}"${dis?' disabled':''} onchange="${on}">${fopts(list,sel)}</select>${caret()}</div></div>`;
 }
-function ftext(id,label,val,on){
-  return `<div class="field"><span class="flabel">${label}</span>
+function ftext(id,label,val,on,cls){
+  return `<div class="field${cls?' '+cls:''}"><span class="flabel">${label}</span>
     <div class="control grey"><input id="${id}" value="${escAttr(val||'')}" oninput="${on}" placeholder="имя, ИНН, № договора или дела"></div></div>`;
 }
 /* Быстрый тоггл — паритет с regPass/dlRefresh (находка 2): там же пара «Mine + Subdiv»,
    тут «Ведущее подразделение» была только выпадающим списком — не выразить «любое моё»
    у роли с несколькими подразделениями (roleSubdivs() — массив). */
-function fcheck(id,label,checked,on){
-  return `<div class="field"><span class="flabel">&nbsp;</span>
+function fcheck(id,label,checked,on,cls){
+  return `<div class="field${cls?' '+cls:''}"><span class="flabel">&nbsp;</span>
     <div class="control" style="border:none;background:none;padding:6px 0 0">
       <label class="retro-toggle"><input type="checkbox" id="${id}"${checked?' checked':''} onchange="${on}"> ${label}</label>
     </div></div>`;
@@ -11679,9 +11690,12 @@ function frange(label,kMin,kMax){
       <input type="number" min="0" value="${filterState[kMax]??''}" oninput="setNum('${kMax}',this.value)" placeholder="до">
     </div></div>`;
 }
-function toggleFilterPanel(el){
-  const open = el.classList.toggle('open');
-  el.setAttribute('aria-expanded', String(open));
+/* раскрыть/свернуть ярус 2 (как в credit.html) — ярус 1 всегда виден, тут только редкое */
+function toggleFilters(){
+  const b = document.getElementById('filterBody'); if(!b) return;
+  const open = b.classList.toggle('open');
+  const btn = document.getElementById('btnFilters');
+  if(btn) btn.setAttribute('aria-expanded', String(open));
 }
 
 /* ── сворачивание бокового меню ───────────────────────────────────────────
@@ -11721,21 +11735,38 @@ function renderFilterBar(){
   const roles    = uniq(reqs.map(r=>r.role).filter(Boolean));
   const stages   = Object.keys(STAGE_RANK);
   const phases   = f.stage ? phasesOfStage(f.stage) : [];
+  /* Бейдж считает ВСЕ активные условия, ярус 1 и ярус 2 вместе (как activeFilterCount
+     в credit.html) — сигнал «фильтр сейчас что-то режет», а не только «что спрятано
+     под шестерёнкой». Условие ≈ поле (упрощение против credit.html: там область→район
+     и обе границы диапазона считаются ОДНИМ условием через таблицу CONDS; здесь того же
+     упрощения, что и в чипах ниже, — каждый ключ filterState отдельно). */
+  const activeN = Object.keys(f).length;
+  /* renderFilterBar пересобирает ЯРУС 1 целиком (список кураторов/подразделений мог
+     поменяться), поэтому кнопка «⚙ Фильтры» — новый DOM-узел каждый раз; aria-expanded
+     читаем с реального состояния яруса 2 (класс .open там не трогается перерисовкой
+     innerHTML), а не жёстко «false» — иначе разъедется при смене каскадного поля
+     внутри открытой панели (Область→Район и т.п.). */
+  const panelOpen = !!document.getElementById('filterBody')?.classList.contains('open');
+  document.getElementById('filterQuick').innerHTML = `
+    ${ftext('f-q','Заёмщик, ИНН или № дела', f.q, "setF('q',this.value)", 'q-search')}
+    <!-- «Ведущее подразделение» и «только моё» стоят соседями в одном ряду: тоггл
+         сужает ту же ось, что и список слева от него (пара Mine+Subdiv, находка 2) —
+         теперь на ярусе 1, паритет с остальными реестрами (Сроки/Заседания/Претензии/
+         Вопросы), где эта пара всегда на виду, а не за шапкой фильтра. -->
+    ${fsel('f-subdiv','Ведущее подразделение', subdivs, f.subdiv, "setF('subdiv',this.value)", false, 'q-subdiv')}
+    ${fcheck('f-mine','только моё', f.mine, "setMine(this.checked)", 'q-mine')}
+    ${fsel('f-curator','Куратор', curators, f.curator, "setF('curator',this.value)", false, 'q-curator')}
+    <button class="btn btn-secondary btn-sm q-more" id="btnFilters" aria-expanded="${panelOpen}" aria-controls="filterBody" onclick="toggleFilters()">
+      ⚙ Фильтры${activeN?`<span class="fbadge">·${activeN}</span>`:''}</button>`;
   document.getElementById('filterBody').innerHTML = `
-    ${ftext('f-q','Заёмщик, ИНН или № дела', f.q, "setF('q',this.value)")}
     ${fsel('f-stage','Стадия', stages, f.stage, "setDep('stage',this.value)")}
     ${fsel('f-phase','Фаза', phases, f.phase, "setF('phase',this.value)", !f.stage)}
     ${fsel('f-scope','Охват', scopes, f.scope, "setF('scope',this.value)")}
     ${fsel('f-oblast','Область', oblasti, f.oblast, "setDep('oblast',this.value)")}
     ${fsel('f-raion','Район', raiony, f.raion, "setF('raion',this.value)", !f.oblast)}
-    <!-- «Ведущее подразделение» и «только моё» стоят соседями в одном ряду: тоггл
-         сужает ту же ось, что и список слева от него (пара Mine+Subdiv, находка 2). -->
-    ${fsel('f-subdiv','Ведущее подразделение', subdivs, f.subdiv, "setF('subdiv',this.value)")}
-    ${fcheck('f-mine','только моё подразделение', f.mine, "setMine(this.checked)")}
     ${fsel('f-role','Роль обязанного лица', roles, f.role, "setF('role',this.value)")}
     ${fsel('f-group','Группа платёжеспособности', groups, f.group, "setF('group',this.value)")}
     ${fsel('f-cat','Категория риска', CAT_OPTS, f.cat, "setF('cat',this.value)")}
-    ${fsel('f-curator','Куратор', curators, f.curator, "setF('curator',this.value)")}
     <div class="filter-row-bottom">
       ${frange('Дней просрочки','odMin','odMax')}
       ${frange('Сумма требования','sumMin','sumMax')}

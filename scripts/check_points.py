@@ -53,6 +53,7 @@ SCANNED = [
     "docs/tasks/p14-collection-tasks.html",
     "docs/adr/*.md",
     "docs/voprosy-zakazchiku/2026-08-04-vzyskanie.md",
+    "docs/voprosy-zakazchiku/2026-08-09-vzyskanie.md",
     "scripts/inspect/collection-check.mjs",
     "STATUS.md",
     "TODO.md",
@@ -65,6 +66,7 @@ SCANNED = [
 # sweep moves files in here one at a time, and the count below is the progress bar.
 MIGRATED = {
     "docs/voprosy-zakazchiku/2026-08-04-vzyskanie.md",
+    "docs/voprosy-zakazchiku/2026-08-09-vzyskanie.md",
     "mockups/collection/ASUBK-vzyskanie-logika.md",
     "docs/adr/*.md",
     "mockups/collection/ASUBK-status-razrabotki.md",
