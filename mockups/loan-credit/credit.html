@@ -3605,33 +3605,27 @@ function buildLedger(c, asOf){
   }
   rows.sort((a,b) => pd(a.date) - pd(b.date) || a.trancheNo - b.trancheNo || a.no - b.no);
 
-  /* ДОЛЯ ДОЛГА ПОД РЕШЕНИЕМ СУДА. Слои несут присуждённые суммы; начисление на них
-     приостановлено по режиму СВОЕГО решения. Кредит не ведёт слои отдельными остатками —
-     сырья для этого у него нет (разнесение платежа по слоям принадлежит платежам), поэтому
-     доля берётся пропорционально телу: Σ присуждённого к освоенному, не более единицы.
-     Допущение Д-8: настоящий учёт ведётся по слоям в модуле-владельце. */
-  const layers = courtLayersOf(c, fd(lim));
-  const body = c.tranches.reduce((a,t) => a + disbursedSum(t), 0);
-  const frozenShareAt = (dt) => {
-    if (!layers.length || body <= 0) return { i:0, p:0 };
-    let awardedI = 0, awardedP = 0;
-    for (const L of layers){
-      if (pd(L.date) > dt) continue;
-      if (!L.mode.interest) awardedI += L.amount;
-      if (!L.mode.penalty)  awardedP += L.amount;
-    }
-    return { i:Math.min(1, awardedI / body), p:Math.min(1, awardedP / body) };
-  };
-  const firstLayer = layers.length ? pd(layers[0].date) : null;
+  /* СЛОЙ СТРОКИ. Присуждённое покрывает взносы лестницей на дату акта (ADR-0060 §3):
+     у строки ровно один слой, и режим начисления берётся у НЕГО. Прежняя пропорция к
+     телу (допущение Д-8) отвергнута тем же ADR: просрочка накапливается неравномерно,
+     у старого транша её больше, и доля всегда занижала его долю. Непомеченная строка —
+     свободный слой: начисление по договору, ничего не приостановлено. */
+  const layers    = courtLayersOf(c, fd(lim));
+  const byLadder  = layersByLadder(c, fd(lim));
+  const layerById = new Map(layers.map(L => [L.id, L]));
+  const layerOf   = (r) => layerById.get(byLadder.get(r.key)) || null;
   const wins = disputeWindows(c);
 
   const pool = paidPool(c, fd(lim));                    // тот же горизонт, что и у начисления
   let pP = pool.principal, pI = pool.interest, pPen = pool.penalty;
   /* первый проход: гасим ОД и проценты по очереди наступления */
   for (const r of rows){
-    /* проценты: часть, приходящаяся на присуждённую долю, приостановлена решением суда */
-    const fs = frozenShareAt(pd(r.date));
-    r.interestFrozen  = round2((r.interestDue || 0) * fs.i);
+    /* проценты: у строки под решением суда статья приостановлена ЦЕЛИКОМ — слой несёт
+       позицию, а не долю позиции. layerId остаётся на строке: очередь и экран обязаны
+       назвать слой, а второй раз выводить его было бы второй реализацией правила. */
+    const CL = layerOf(r);
+    r.layerId = CL ? CL.id : null;
+    r.interestFrozen  = (CL && !CL.mode.interest) ? round2(r.interestDue || 0) : 0;
     r.interestCharged = round2((r.interestDue || 0) - r.interestFrozen);
     r.principalPaid = round2(Math.min(pP, r.principalDue));    pP = round2(pP - r.principalPaid);
     r.interestPaid  = round2(Math.min(pI, r.interestCharged)); pI = round2(pI - r.interestPaid);
@@ -3642,16 +3636,26 @@ function buildLedger(c, asOf){
     r.principalOverdue = unpaid > 0.005 ? r.principalBal : 0;
     r.interestOverdue  = unpaid > 0.005 ? r.interestBal  : 0;
     /* пеня — на непокрытый остаток за дни просрочки; при паузе начисления процентов
-       пеня не затрагивается (Р-17), поэтому holds здесь не участвуют */
-    const perDay = r.principalOverdue * (r.penaltyMain/100) + r.interestOverdue * (r.penaltyInt/100);
+       пеня не затрагивается (Р-17), поэтому holds здесь не участвуют.
+       База берётся ДО заморозки процентов. Пока слой был долей, вопроса не возникало:
+       доля морозила часть процентов, база оставалась. Теперь статья под решением
+       приостановлена ЦЕЛИКОМ, и база из interestOverdue обнулилась бы вместе с ней — а
+       у К-3 пеня начисляется ТОЛЬКО на проценты (penaltyMain:0). Исчезла бы не только
+       приостановленная пеня, но и пеня за дни ДО решения, которую решение не отменяет
+       (об этом же говорит комментарий ниже). Отсюда interestBase. */
+    const interestBase = Math.max(0, round2((r.interestDue || 0) - r.interestPaid));
+    const perDay = (r.principalBal + interestBase > 0.005)
+      ? r.principalBal * (r.penaltyMain/100) + interestBase * (r.penaltyInt/100) : 0;
     r.penaltyAccrued = round2(perDay * r.days);
-    /* пеня на присуждённую долю приостановлена ОБОИМИ режимами — но только за дни ПОСЛЕ
-       решения: до него пеня начислялась по договору и решением не отменяется. Доля берётся
-       на дату среза, а дни — от ПЕРВОГО решения: при нескольких решениях с разными датами
-       это огрубление в пользу заёмщика и часть допущения Д-8 (точный учёт — по слоям, у
-       владельца разнесения). */
-    const daysAfterCourt = firstLayer ? Math.max(0, dd(Math.max(pd(r.date), firstLayer), lim)) : 0;
-    r.penaltyFrozen  = round2(perDay * daysAfterCourt * frozenShareAt(lim).p);
+    /* пеня позиции под решением приостановлена ОБОИМИ режимами — но только за дни ПОСЛЕ
+       решения: до него пеня начислялась по договору и решением не отменяется. Дни идут
+       от даты СВОЕГО решения; прежнее огрубление «доля на дату среза, дни от ПЕРВОГО
+       решения» ушло вместе с пропорцией — при нескольких решениях с разными датами оно
+       считало по чужому акту. Заморозка не превысит начисленного: множитель тот же,
+       а daysAfterCourt ≤ days. */
+    const daysAfterCourt = (CL && !CL.mode.penalty)
+      ? Math.max(0, dd(Math.max(pd(r.date), pd(CL.date)), lim)) : 0;
+    r.penaltyFrozen  = round2(perDay * daysAfterCourt);
     /* спорная пеня: дни отрезка просрочки, попавшие в окно сторно, ждущее комиссии */
     r.penaltyDisputed = round2(perDay * daysInWindows(pd(r.date), lim, wins));
     r.penaltyCharged  = round2(Math.max(0, r.penaltyAccrued - r.penaltyFrozen));
@@ -3684,7 +3688,7 @@ function buildLedger(c, asOf){
      владелец ещё не прислал. Величина от этого не становится неверной, но перестаёт быть
      окончательной, и это обязано быть подписано (КР-51). */
   const snap = (c.mirror && c.mirror.paymentsAsOf) || null;
-  return { rows, index, pool, feeRows, layers, disputes:wins,
+  return { rows, index, pool, feeRows, layers, byLadder, disputes:wins,
            until: fd(lim), stopped: fd(lim) !== (asOf || TODAY),
            snapshot: snap, provisional: !!(snap && pd(snap) < lim), provisionalFrom: snap };
 }

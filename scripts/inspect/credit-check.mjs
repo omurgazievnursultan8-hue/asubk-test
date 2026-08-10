@@ -1250,12 +1250,17 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
   const L   = CR.courtLayersOf(c, CR.TODAY)[0];
   const lad = CR.ladderAt(c, L.date).map(p => p.key);
   const map = CR.layersByLadder(c, CR.TODAY);
+  const d   = CR.derive(c);
   ok(98, L.id === 'L-1' && /28\.05\.2026/.test(L.label)
       && lad[0] === 'T1#1' && lad[1] === 'T1#2' && lad[2] === 'T1#3'
       && map.get('T1#1') === 'L-1' && map.get('T1#2') === 'L-1'
-      && !map.has('T1#3') && !map.has('T1#4'),
+      && !map.has('T1#3') && !map.has('T1#4')
+      && d.debt.interest.frozen === 7900 && Math.abs(d.debt.penalty.frozen - 442.40) < 0.05
+      && d.ledger.index.get('T1#1').layerId === 'L-1'
+      && d.ledger.index.get('T1#3').layerId === null,
      `слой ${L.id} на ${L.amount}: лестница ${lad.slice(0,3).join(' → ')};`
-     + ` помечено ${[...map.keys()].join(', ') || '—'}`);
+     + ` помечено ${[...map.keys()].join(', ') || '—'};`
+     + ` приостановлено %=${d.debt.interest.frozen}, пеня=${d.debt.penalty.frozen}`);
 })();
 
 const pass = results.filter(r => r.pass).length;
