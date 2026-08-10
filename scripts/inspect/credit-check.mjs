@@ -1239,6 +1239,25 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
      `owned=${owned} сид=${seeded} гейты=${gated} «Договор»=${shownDogovor} «Обеспечение»=${shownObesp}`);
 })();
 
+/* 97…99 — ОЧЕРЕДЬ ПОГАШЕНИЯ (ADR-0060, задача P15-R24). */
+
+/* 98. СОСТАВ СЛОЯ ВЫВОДИТ ЛЕСТНИЦА, А НЕ ПРОПОРЦИЯ (ADR-0060 §3 — снятие допущения Д-8).
+   K-3: судебный приказ от 28.05.2026 на 18 300 при взносах по 12 300. Присуждённое
+   обязано накрыть ПЕРВЫЕ ДВЕ позиции целиком (12 300 + остаток 6 000 уходит во вторую)
+   и не дотянуться до третьей. Пропорция к телу дала бы вместо этого по 9,15 % КАЖДОЙ
+   позиции — «верный порядок величины при неверной копейке». */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-3');
+  const L   = CR.courtLayersOf(c, CR.TODAY)[0];
+  const lad = CR.ladderAt(c, L.date).map(p => p.key);
+  const map = CR.layersByLadder(c, CR.TODAY);
+  ok(98, L.id === 'L-1' && /28\.05\.2026/.test(L.label)
+      && lad[0] === 'T1#1' && lad[1] === 'T1#2' && lad[2] === 'T1#3'
+      && map.get('T1#1') === 'L-1' && map.get('T1#2') === 'L-1'
+      && !map.has('T1#3') && !map.has('T1#4'),
+     `слой ${L.id} на ${L.amount}: лестница ${lad.slice(0,3).join(' → ')};`
+     + ` помечено ${[...map.keys()].join(', ') || '—'}`);
+})();
+
 const pass = results.filter(r => r.pass).length;
 const stamp = `SMOKE (node) ${new Date().toISOString().slice(0,10)} · ${pass}/${results.length} PASS`;
 results.forEach(r => console.log(`${r.pass ? 'PASS' : 'FAIL'} #${r.n} ${r.note}`));

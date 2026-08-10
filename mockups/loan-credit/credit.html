@@ -705,7 +705,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-05 · 98/98 PASS
+ SMOKE (node) 2026-08-10 · 99/99 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -804,6 +804,7 @@
    #94 ✓
    #95 ✓
    #96 ✓
+   #98 ✓
 -->
 <style>
 
@@ -3515,7 +3516,71 @@ function courtLayersOf(c, asOf){
   return ((c.mirror && c.mirror.court) || [])
     .filter(x => x && x.date && (x.amount || 0) > 0 && pd(x.date) <= lim)
     .map(x => ({ date:x.date, kind:x.kind, il:x.il || null, amount:x.amount || 0, mode:accrualModeOf(x.date) }))
-    .sort((a,b) => pd(a.date) - pd(b.date));
+    .sort((a,b) => pd(a.date) - pd(b.date))
+    /* ИДЕНТИЧНОСТЬ СЛОЯ (ADR-0060 §3). Пока слой был долей от тела, имени ему не
+       требовалось; теперь строка очереди обязана назвать СВОЙ слой, а строк много.
+       Нумерация по возрастанию даты акта устойчива: срез отсекает решения позже даты,
+       то есть всегда хвост отсортированного списка, и L-1 остаётся L-1 на любую дату.
+       Подпись отдаётся готовой — справочника слоёв (`c.layers`, как в payments.html)
+       у кредита в модели нет, разворачивать id некому. */
+    .map((x, i) => Object.assign(x, { id:'L-' + (i + 1),
+      label:'Слой решения от ' + x.date + (x.il ? ' · ' + x.il : '') }));
+}
+
+/* ЛЕСТНИЦА (ADR-0060 §3) — непогашенные позиции графика с остатками ОД и процентов в
+   порядке «самое раннее просроченное → дальше». Это первый проход buildLedger, вынутый
+   и обеднённый: ни пени, ни слоёв здесь нет, потому что ею пользуются ДО того, как слой
+   известен. Проценты берутся ДО заморозки (interestDue): заморозка — ровно то, что
+   лестница и определяет.
+     Хвост НЕ обрезается датой, в отличие от buildLedger. Присуждённое дотягивается и до
+   ненаступивших взносов — суд присуждает по требованию о ДОСРОЧНОМ возврате (у К-3 оно
+   прямо в модели, targetUse.measures), и «дальше» в ADR-0060 §3 тем и кончается. Порядок
+   от этого не меняется: обход идёт по дате наступления, и наступившее стоит впереди по
+   построению. Обрезка же давала бы пустую лестницу всякий раз, когда акт датирован
+   раньше первой позиции графика, — слой оказался бы пуст при непустой присуждённой
+   сумме. */
+function ladderAt(c, date){
+  const lim = pd(date || TODAY);
+  const rows = [];
+  for (const t of c.tranches)
+    for (const r of trancheScheduleRows(t))
+      rows.push({ key:ledgerKey(t.no, r.no), trancheNo:t.no, no:r.no, date:r.date,
+        principalDue:r.principal || 0, interestDue:r.interest || 0, overdue:pd(r.date) <= lim });
+  rows.sort((a,b) => pd(a.date) - pd(b.date) || a.trancheNo - b.trancheNo || a.no - b.no);
+  const pool = paidPool(c, fd(lim));
+  let pP = pool.principal, pI = pool.interest;
+  for (const r of rows){
+    const pPaid = round2(Math.min(pP, r.principalDue)); pP = round2(pP - pPaid);
+    const iPaid = round2(Math.min(pI, r.interestDue));  pI = round2(pI - iPaid);
+    r.principalBal = round2(r.principalDue - pPaid);
+    r.interestBal  = round2(r.interestDue  - iPaid);
+  }
+  return rows.filter(r => r.principalBal + r.interestBal > 0.005);
+}
+
+/* СОСТАВ СЛОЯ ПО ТРАНШАМ — производная НА ДАТУ АКТА, не поле (ADR-0060 §3). Каждое
+   решение прогоняет лестницу на СВОЮ дату и метит позиции, пока присуждённое не
+   исчерпается. asOf отсекает решения ПОЗЖЕ даты среза — те же, что отсекает
+   courtLayersOf; сам обход от даты среза не зависит.
+     Позиция достаётся ПЕРВОМУ по дате решению, которое до неё дотянулось, и принадлежит
+   ровно одному слою: иначе её начисление подчинялось бы двум режимам сразу. Помеченную
+   позицию следующий слой пропускает, НЕ расходуя на неё присуждённое, — второй акт
+   присуждает свой долг, обычно более поздний, и должен дотянуться дальше первого, а не
+   упереться в его хвост.
+     Довод в пользу общей лестницы — симметрия (ADR-0060 §4): слой поглощает долг в том
+   же порядке, в каком платёж его гасит. Две лестницы в одном модуле разъедут молча. */
+function layersByLadder(c, asOf){
+  const map = new Map();
+  for (const L of courtLayersOf(c, asOf)){
+    let left = L.amount;
+    for (const p of ladderAt(c, L.date)){
+      if (left <= 0.005) break;
+      if (map.has(p.key)) continue;
+      map.set(p.key, L.id);
+      left = round2(left - p.principalBal - p.interestBal);
+    }
+  }
+  return map;
 }
 
 /* buildLedger(credit, asOf) — позиции графика, НАСТУПИВШИЕ на дату среза, с разнесением
@@ -4770,7 +4835,7 @@ window.CR = {
   monthKey, monthLabel, monthAdd, monthRange, planRowOf, planAmountOf,
   buildLedger, debtOf, overdueOf, coverageOf, atRiskAmountOf, riskBasisOf,
   paidPool, paymentCounts, paymentCurrency, paymentAllocated,
-  disputeWindows, courtLayersOf, accrualModeOf,
+  disputeWindows, courtLayersOf, accrualModeOf, ladderAt, layersByLadder,
   reliefActive, relief181, factorsActive, docsStatusOf, requiredDocsComplete,
   programDocs, freqMonths,
   DEBT_ARTICLES, DOC_STATES, DOC_STATES_CLOSING, CLOSURE_REASONS, PROGRAM_DOCS,
