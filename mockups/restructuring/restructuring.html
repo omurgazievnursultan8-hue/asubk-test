@@ -75,7 +75,7 @@
   возражение, а не как открытые вопросы. Свод — §11 спеки.
 
   SMOKE (node scripts/inspect/restructuring-check.mjs):
-   SMOKE 2026-08-10 · 42/42 PASS
+   SMOKE 2026-08-10 · 41/42 PASS
       PASS  #1  до=false после=true
       PASS  #2  closed=true opened=true reblock=true
       PASS  #3  noRate=true union=true
@@ -91,8 +91,8 @@
       PASS  #13  срез=2026-03-30/5000000 факт=2026-07-19/4066640
       PASS  #14  n=7 arts=7 urg=over,cur
       PASS  #15  before={"article":"penalty","urgency":"over","amount":73000,"since":"2026-04-14","disputed":true,"included":false,"blockedBy":"disputed"} after={"article":"penalty","urgency":"over","amount":73000,"since":"2026-04-14","disputed":true,"included":false,"blockedBy":"disputed"}
-      PASS  #16  wired=true nullDefaults=2 dotReads=2
-      PASS  #17  order=21,973,1670,2075,2460
+      FAIL  #16  wired=true nullDefaults=0 dotReads=15
+      PASS  #17  order=21,973,2713,3947,4564
       PASS  #18  count=1 inside=true
       PASS  #19  CR-61200=false CR-60540=true CR-59003=true
       PASS  #20  RS-1001={"required":120,"cover":145,"coverOk":true,"ageOk":true,"insured":false,"waived":false,"ok":false,"maturity":"2031-02-04","stale":false,"snapshotDate":"2026-07-05","source":"Залог"} RS-1005={"required":120,"cover":125,"coverOk":true,"ageOk":true,"insured":true,"waived":false,"ok":true,"maturity":"2027-05-05","stale":false,"snapshotDate":"2026-06-20","source":"Залог"}
@@ -373,6 +373,15 @@ table.cgrid tbody tr:last-child td{ border-bottom:none; }
 .nosplit-banner{ max-width:920px; }
 table.cgrid tbody tr.art-blocked td{ color:var(--text-placeholder); background:var(--surface-panel); }
 table.cgrid tbody tr.art-removed td{ color:var(--text-placeholder); }
+/* Дверь распоряжения (РС-38) — продолжение строки под ней, а не модалка: вид распоряжения уже
+   выбирается селектом в той же строке, сумма и сроки живут рядом с ним. */
+table.cgrid tbody tr.disp-door td{ background:var(--asubk-tint-fill); padding:10px 12px 12px; }
+.dd-wrap{ display:flex; flex-wrap:wrap; align-items:center; gap:8px 18px; font:var(--font-label); }
+.dd-grp{ display:flex; align-items:center; gap:6px; }
+.dd-grp .flabel{ margin:0; }
+.dd-wrap input[type=number]{ width:120px; }
+.dd-wrap input.dd-pos{ width:64px; }
+.dd-note{ flex-basis:100%; color:var(--text-muted); font-size:11px; }
 details.gate-d{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:2px 14px; margin-bottom:10px; }
 details.gate-d summary{ cursor:pointer; list-style:none; padding:10px 0; display:flex; align-items:center; gap:10px; font:var(--weight-medium) var(--text-sm)/1.3 var(--asubk-font); }
 details.gate-d summary::-webkit-details-marker{ display:none; }
@@ -636,10 +645,39 @@ function periodMonths(schedule){
        : schedule==='раз в полугодие' ? 6
        : schedule==='ежегодно' ? 12 : 1;                // дефолт «ежемесячно»
 }
+/* Безставочные колонки строки (РС-41, ADR-0109). `parts` = [{article, amount, periods}], где
+   periods — {mode:'all'} либо {mode:'range',from,to} по позициям графика, 1-базовым включительно.
+   Сумма ложится РАВНЫМИ ДОЛЯМИ, остаток — в ПОСЛЕДНЮЮ позицию интервала: тот же приём, которым
+   дифференцированный метод ниже уводит хвост тела в последний платёж, и он же гарантирует, что
+   сумма колонки сходится с суммой распоряжения в копейку (сирота 0,01 не заводится).
+   Интервал за длиной графика здесь зажимается, чтобы график остался суммируемым, — но молчаливой
+   подрезкой это не становится: расхождение ловит ИР-15 в validateDS и показывает дверь (РС-40). */
+function spreadParts(rows, parts){
+  (parts||[]).forEach(p=>{
+    const n=rows.length, amount=round2(p.amount); if(!n || amount<=0) return;
+    const per = (p.periods && p.periods.mode==='range') ? p.periods : { mode:'all' };
+    const from = per.mode==='range' ? Math.min(Math.max(1, Math.trunc(per.from)||1), n) : 1;
+    const to   = per.mode==='range' ? Math.min(Math.max(from, Math.trunc(per.to)||from), n) : n;
+    const cnt  = to-from+1, share = round2(amount/cnt);
+    let left = amount;
+    for(let k=from;k<=to;k++){
+      const v = (k===to) ? round2(left) : share;                  // хвост округления — в последнюю позицию интервала
+      left = round2(left - v);
+      const row = rows[k-1];
+      row.articles = row.articles || {};
+      row.articles[p.article] = round2((row.articles[p.article]||0) + v);
+      row.pay = round2((row.pay||0) + v);
+    }
+  });
+  return rows;
+}
 /* Амортизация — приватный движок (issues/01, реш.5): тело `base`, годовая ставка `rate`, срок
    `termMonths`, метод, блоки льгот, дата отсчёта, периодность. graceBlocks = [{months:Int,
-   type:'interest-only'|'moratorium'}]. Демо: месяц = 30 дней, не прод-начисление (карта, «Не-цели»). */
-function amortize(base, rate, termMonths, method, graceBlocks, fromDate, schedule){
+   type:'interest-only'|'moratorium'}]. Демо: месяц = 30 дней, не прод-начисление (карта, «Не-цели»).
+   `parts` — безставочные статейные колонки (ADR-0109): ставка считается ТОЛЬКО по `base`, то есть
+   по колонке основного долга; накопленное и капитализированная пеня попадают в строку суммой к
+   уплате и базой начисления не становятся (ИР-11). */
+function amortize(base, rate, termMonths, method, graceBlocks, fromDate, schedule, parts){
   const p = periodMonths(schedule||'ежемесячно');
   const i = (Number(rate)||0)/100 * p/12;
   const nTotal = Math.max(1, Math.round((Number(termMonths)||0)/p));
@@ -677,6 +715,7 @@ function amortize(base, rate, termMonths, method, graceBlocks, fromDate, schedul
       rows.push({n:k,date:dateAt(k),pay,principal,interest,balance:round2(Math.max(bal,0))});
     }
   }
+  spreadParts(rows, parts);
   return { rows, morCap, meta:{p,i,nTotal,gMor,gIo,m,baseAmort} };
 }
 
@@ -707,8 +746,16 @@ function conditionsAt(t,d){
 /* Основной долг на дату d — седьмая статья, всегда выводится (issues/01, реш.3): просроченная часть —
    план графика минус фактическое погашение; связь repay↔строки графика пока по сумме (issues/02, новый
    открытый вопрос от 01) — точнее, чем строчная привязка, здесь не требуется (демо). */
+/* Перенесённое НЕ-тело (ADR-0109): производный транш принял одну сумму переноса, но телом в ней
+   была только колонка основного долга. Строки, помеченные fromTransfer, живут в t.debt и уже
+   участвуют в разбивке долга через debtAt — не вычесть их из остатка значит посчитать накопленное
+   дважды и начислить на него ставку. Обычные демо-строки долга такой пометки не несут: у них
+   остаток транша и так только тело. */
+function transferredNonPrincipal(t){
+  return round2((t.debt||[]).filter(x=>x.fromTransfer).reduce((s,x)=>s+(x.amount||0),0));
+}
 function principalAt(t,d){
-  const bal=balanceAt(t,d);
+  const bal=round2(Math.max(balanceAt(t,d)-transferredNonPrincipal(t), 0));
   const ver=scheduleAt(t,d);
   const plannedOver=round2(((ver&&ver.rows)||[]).filter(r=>r.date<d).reduce((s,r)=>s+(r.principal||0),0));
   const repaid=round2((t.ops||[]).filter(o=>o.kind==='repay'&&o.date<=d).reduce((s,o)=>s+o.amount,0));
@@ -719,10 +766,31 @@ function principalAt(t,d){
 /* Чистый предпросмотр — не пишет ничего (issues/01: «черновик остаётся историческим объектом заявки»,
    ADR-0042). ds несёт date/transferSum/params{rate,term,method,schedule,graceBlocks}. */
 function draftSchedule(tranche, ds){
-  const base = ds.transferSum!=null ? Number(ds.transferSum) : balanceAt(tranche, ds.date);
+  // База начисления — колонка ОСНОВНОГО ДОЛГА (ADR-0109), а не вся сумма переноса: безставочные
+  // статьи приходят отдельно в ds.parts. Прежний вызов без раскладки (principalPart отсутствует)
+  // читается как «весь перенос — тело» и даёт ровно прежний график.
+  const base = ds.principalPart!=null ? Number(ds.principalPart)
+             : ds.transferSum!=null   ? Number(ds.transferSum)
+             : balanceAt(tranche, ds.date);
   const p = ds.params||{};
   const rate = p.rate!=null ? p.rate : tranche.originalRate;
-  return amortize(base, rate, p.term, p.method, p.graceBlocks||[], ds.date, p.schedule);
+  return amortize(base, rate, p.term, p.method, p.graceBlocks||[], ds.date, p.schedule, ds.parts||[]);
+}
+/* Свод безставочных колонок по статье — для строк долга производного транша: в графике сроки
+   у каждой части свои, в разбивке долга статья одна. */
+function mergeParts(parts){
+  const acc={};
+  (parts||[]).forEach(p=>{ acc[p.article]=round2((acc[p.article]||0)+p.amount); });
+  return ARTICLES.map(a=>a.key).filter(k=>acc[k]>0).map(k=>({article:k, amount:acc[k]}));
+}
+/* Сумма всех статейных колонок строки — включая колонку ОД (ИР-2 в редакции ADR-0109). */
+function rowArticlesSum(r){
+  return round2(Object.keys(r.articles||{}).reduce((s,k)=>s+(r.articles[k]||0),0));
+}
+function scheduleArticleCols(rows){
+  const seen=new Set();
+  (rows||[]).forEach(r=>Object.keys(r.articles||{}).forEach(k=>{ if(round2(r.articles[k])>0) seen.add(k); }));
+  return ARTICLES.map(a=>a.key).filter(k=>seen.has(k));                 // порядок — очередь погашения (РС-13); пустая колонка не рисуется
 }
 /* Предпосылки до первой записи (ИР-2 и прочие) — свод-баннер, а не тост (packetGate/conclGate/
    resolutionGate — существующие гейты конвейера, issues/03). Дверь спрашивает про ПОСТАНОВЛЕНИЕ
@@ -737,9 +805,23 @@ function validateDS(ds){
   const lg=limitsGate(ds.params, ds.credit, ds.date); if(!lg.ok) reasons.push(...lg.messages);                 // жёсткий, без waiver (issues/04)
   const cg=consentGateApp(ds.app); if(!cg.ok) reasons.push('Не получено согласие обеспечителя(ей): '+cg.pending.join(', '));  // жёсткий, без waiver
   const draft=draftSchedule(ds.sourceTranche, ds);
+  // ИР-2 в редакции ADR-0109: сверяется сумма ВСЕХ статейных колонок графика, не одной колонки
+  // тела — иначе накопленное уезжает в перенос, но в графике его нет, и подписан не тот документ.
   const sumPrincipal=round2((draft.rows||[]).reduce((s,r)=>s+(r.principal||0),0));
-  if(Math.abs(sumPrincipal-Number(ds.transferSum||0))>0.5)
-    reasons.push('Сумма графика ('+fmt(sumPrincipal)+') не совпадает с суммой переноса ('+fmt(ds.transferSum)+')');       // ИР-2
+  const sumArticles =round2((draft.rows||[]).reduce((s,r)=>s+rowArticlesSum(r),0));
+  const sumAll=round2(sumPrincipal+sumArticles);
+  if(Math.abs(sumAll-Number(ds.transferSum||0))>0.5)
+    reasons.push('Сумма графика по всем статьям ('+fmt(sumAll)+') не совпадает с суммой переноса ('+fmt(ds.transferSum)+')');       // ИР-2
+  // ИР-15 (РС-40): интервал сроков лежит внутри длины графика. Подрезать молча нельзя — куратор
+  // задавал позиции при одном сроке, срок мог уменьшиться; подставить новую границу за него
+  // значит выдумать его решение.
+  const nPos=(draft.rows||[]).length;
+  (ds.parts||[]).forEach(p=>{
+    const per=p.periods; if(!per || per.mode!=='range') return;
+    if(per.from>=1 && per.to<=nPos && per.from<=per.to) return;
+    reasons.push('Сроки распоряжения по статье «'+(ARTICLE_LABEL[p.article]||p.article)+'» — позиции '
+      +per.from+'–'+per.to+', а в графике '+nPos+' '+(nPos===1?'позиция':'позиций')+' (ИР-15)');
+  });
   const dates=(draft.rows||[]).map(r=>r.date);
   for(let k=1;k<dates.length;k++) if(!(dates[k]>dates[k-1])){ reasons.push('Даты графика не строго возрастают'); break; }
   const term=Number(ds.params&&ds.params.term)||0;
@@ -770,7 +852,10 @@ function restructureApplied(ds){
     ops:[ { date:ds.date, kind:'transfer_in', amount:Number(ds.transferSum), mirror:false, owner:'Кредит', basis:{ds:ds.no, from:src.id} } ],
     schedules:[],
     conditionRecords:[ { effectiveFrom:ds.date, ...conditionsAt(src, ds.date), ...(ds.params||{}) } ],
-    debt:[],                                     // долг переносится суммой (transferSum), не построчно — сумма видна в акте ДС
+    // Долг переносится ОДНОЙ суммой (transferSum — она и стоит в акте ДС), но разложенной по
+    // статьям (ADR-0109): безставочные колонки приезжают на транш строками долга, иначе следующая
+    // реструктуризация того же кредита прочитает перенос как чистое тело и потеряет накопленное.
+    debt:mergeParts(ds.parts).map(p=>({ article:p.article, urgency:'cur', amount:p.amount, since:ds.date, fromTransfer:true })),
     closed:null
   };
   credit.tranches.push(newT);
@@ -1127,10 +1212,14 @@ function defaultBase(app, date){
     blockedBy: row.disputed ? 'disputed' : null
   }));
 }
-/* Распоряжение — на позицию, одно, с суммой (issues/02 реш.4). Остаток «без распоряжения»
-   получается вычитанием суммы распоряжения из позиции, второй сущности не заводим. */
+/* Распоряжение — на позицию, одно, с суммой и сроками (РС-38). Остаток «без распоряжения»
+   получается вычитанием суммы распоряжения из позиции, второй сущности не заводим. Сроки —
+   позиции графика производного транша: {mode:'all'} (умолчание, следует за сроком само) либо
+   {mode:'range',from,to} (1-базовые, включительно). null не используется: «весь график» —
+   осмысленное значение, а не отсутствие значения. */
+const allPeriods = () => ({ mode:'all' });
 function defaultDispositions(base){
-  return base.filter(r=>r.included).map(r => ({ article:r.article, urgency:r.urgency, kind:'none', amount:r.amount, periods:null }));
+  return base.filter(r=>r.included).map(r => ({ article:r.article, urgency:r.urgency, kind:'none', amount:r.amount, periods:allPeriods() }));
 }
 function dispositionFor(dispositions, article, urgency){
   return (dispositions||[]).find(d=>d.article===article && d.urgency===urgency) || null;
@@ -1157,7 +1246,7 @@ function toggleBaseRow(appId, article, urgency){
   if(!row || row.blockedBy) return;
   row.included = !row.included;
   if(row.included){
-    if(!dispositionFor(app.dispositions, article, urgency)) app.dispositions.push({article,urgency,kind:'none',amount:row.amount,periods:null});
+    if(!dispositionFor(app.dispositions, article, urgency)) app.dispositions.push({article,urgency,kind:'none',amount:row.amount,periods:allPeriods()});
   } else {
     app.dispositions = app.dispositions.filter(d=>!(d.article===article && d.urgency===urgency));
   }
@@ -1173,6 +1262,49 @@ function setDisposition(appId, article, urgency, kind){
   if(kind!=='none' && !allowedDispositions(app).has(kind)){ toast('Вид не разрешает это распоряжение','err'); return; }
   const d = dispositionFor(app.dispositions, article, urgency); if(!d) return;
   d.kind = kind;
+  if(!dispositionHasPeriods(kind, article)) d.periods = allPeriods();   // сроки живут только там, где есть безставочная сумма (РС-38)
+  app._t=TODAY; render();
+}
+/* Сроки спрашиваются только у распоряжений, рождающих БЕЗСТАВОЧНУЮ сумму (РС-38): распределение
+   и капитализация пени. У капитализации процентов сумма вливается в тело и живёт сроками тела,
+   у прощения суммы к уплате не остаётся вовсе — спрашивать не о чем. Проверка по состоянию
+   распоряжения и статье строки, а не по тексту разметки. */
+function dispositionHasPeriods(kind, article){
+  if(kind==='spread') return true;
+  return kind==='cap' && (article==='penalty' || article==='accPenalty');
+}
+/* Сумма распоряжения (РС-38): 0 < amount ≤ сумма позиции. Нарушение — тост, НЕ тихая подстановка
+   ближайшего допустимого: подставить значение значит выдумать решение куратора. Остаток позиции
+   (позиция − amount) уходит в перенос своей статьёй как «без распоряжения», второй сущности не
+   заводим. */
+function setDispAmount(appId, article, urgency, value){
+  if(!guard('editBase')) return; const app=appById(appId);
+  ensureBaseDispositions(app);
+  const row = app.base.find(r=>r.article===article && r.urgency===urgency); if(!row) return;
+  const d = dispositionFor(app.dispositions, article, urgency); if(!d) return;
+  const v = round2(Number(String(value).replace(',','.')));
+  if(!isFinite(v) || v<=0){ toast('Сумма распоряжения должна быть больше нуля','err'); render(); return; }
+  if(v > round2(row.amount)+0.005){ toast('Сумма распоряжения больше суммы позиции ('+fmt(row.amount)+')','err'); render(); return; }
+  d.amount = v;
+  app._t=TODAY; render();
+}
+/* Сроки распоряжения (РС-38/РС-40): режим «весь график» либо интервал позиций «с — по».
+   Переключение на 'all' СТИРАЕТ интервал, а не прячет его тенью — иначе куратор возвращает
+   режим и получает границы, о которых уже забыл. Выход за длину плана здесь не подрезается:
+   молчаливая подрезка = выдуманное решение (РС-40), расхождение ловит ИР-15 в validateDS и
+   показывает дверь. */
+function setDispPeriods(appId, article, urgency, mode, from, to){
+  if(!guard('editBase')) return; const app=appById(appId);
+  ensureBaseDispositions(app);
+  const d = dispositionFor(app.dispositions, article, urgency); if(!d) return;
+  if(!dispositionHasPeriods(d.kind, article)){ toast('У этого распоряжения сроков нет — сумма живёт сроками тела либо не подлежит уплате','err'); return; }
+  if(mode!=='range'){ d.periods = allPeriods(); app._t=TODAY; render(); return; }
+  const prev = (d.periods && d.periods.mode==='range') ? d.periods : {};
+  const f = Math.trunc(Number(from!=null && from!=='' ? from : prev.from)) || 1;
+  const t = Math.trunc(Number(to!=null && to!=='' ? to : prev.to)) || f;
+  if(f<1){ toast('Первая позиция интервала — не меньше 1','err'); render(); return; }
+  if(t<f){ toast('Конец интервала раньше начала','err'); render(); return; }
+  d.periods = { mode:'range', from:f, to:t };
   app._t=TODAY; render();
 }
 
@@ -1238,7 +1370,7 @@ function recalcPlan(appId){
   const app=appById(appId);
   if(!app.calcTranche || !app.version){ toast('Сначала выберите транш-источник','err'); return; }
   const r=run(app, TODAY);
-  app.version.plan=draftSchedule(app.calcTranche,{date:TODAY,transferSum:r.transferSum,params:app.version.params});
+  app.version.plan=draftSchedule(app.calcTranche,{date:TODAY,transferSum:r.transferSum,principalPart:r.principalPart,parts:r.parts,params:app.version.params});
   app._t=TODAY; H(app,'Предварительный расчёт: черновой график пересчитан.',state.role);
   toast('Черновой график пересчитан','ok'); render();
 }
@@ -1293,46 +1425,80 @@ const PIPELINE = [
      различие несут два счётчика, а не одно число. */
   function capitalize(state){
     let sum=0, penalty=0, interest=0;
+    const parts=(state.parts||[]).slice();
     const base = state.base.map(r=>{
       const d = dispositionFor(state.dispositions, r.article, r.urgency);
       if(r.included && d && d.kind==='cap'){
         sum=round2(sum+d.amount);
-        if(r.article==='penalty'||r.article==='accPenalty') penalty=round2(penalty+d.amount);
-        else interest=round2(interest+d.amount);
+        if(r.article==='penalty'||r.article==='accPenalty'){
+          penalty=round2(penalty+d.amount);
+          // капитализированная пеня — безставочная колонка со своими сроками (ADR-0109): в тело
+          // не вливается, ставку не притягивает; колонка её — «накопленная пеня», восьмой статьи
+          // не заводим, происхождение несут счётчик и акт.
+          parts.push({ article:'accPenalty', amount:d.amount, periods:d.periods||allPeriods(), from:'капитализация пени' });
+        } else {
+          interest=round2(interest+d.amount);   // проценты вливаются в тело — ставка на них идёт, это обычная механика кредита
+        }
         return {...r, carried: round2(r.carried-d.amount)};
       }
       return r;
     });
-    return { state:{...state, base, capitalized:round2(sum), capitalizedInterest:interest, capitalizedPenalty:penalty},
+    return { state:{...state, base, parts, capitalized:round2(sum), capitalizedInterest:interest, capitalizedPenalty:penalty},
              record:{step:'capitalize', sum:round2(sum), interest, penalty} };
   },
+  /* Распределение (РС-39) — не сборщик списка для отчёта, а перенос суммы: начисленная статья
+     уходит в накопленную (проценты → накопленные проценты, пеня → накопленная пеня), уже
+     накопленная строка статьи не меняет и только получает сроки. Режим начисления
+     {проценты:нет, пеня:нет} приходит ВМЕСТЕ со статьёй (ACCRUAL_MODES) — второго правила про
+     «ставка не идёт» писать не надо. Сумма снимается с carried, поэтому шаг overdue ниже видит
+     распределённое как покрытое. */
   function distribute(state){
-    const spread=[];
-    state.base.forEach(r=>{
+    const parts=(state.parts||[]).slice();
+    let sum=0;
+    const base = state.base.map(r=>{
       const d = dispositionFor(state.dispositions, r.article, r.urgency);
-      if(r.included && d && d.kind==='spread' && d.periods) spread.push({article:r.article, urgency:r.urgency, amount:d.amount, periods:d.periods});
+      if(r.included && d && d.kind==='spread'){
+        const target = r.article==='interest' ? 'accInterest'
+                     : r.article==='penalty'  ? 'accPenalty'
+                     : r.article;                                   // накопленное статьи не меняет — идемпотентно
+        sum=round2(sum+d.amount);
+        parts.push({ article:target, amount:d.amount, periods:d.periods||allPeriods(), from:'распределение' });
+        return {...r, carried: round2(r.carried-d.amount)};
+      }
+      return r;
     });
-    return { state:{...state, spread}, record:{step:'distribute', count:spread.length} };
+    return { state:{...state, base, parts, spread:parts.filter(p=>p.from==='распределение')},
+             record:{step:'distribute', count:parts.filter(p=>p.from==='распределение').length, sum:round2(sum)} };
   },
+  /* Просрочка смотрит на CARRIED, а не на вид распоряжения (РС-39): строка просрочена, если после
+     всех распоряжений на ней остался непокрытый остаток. Частичное распределение честно оставляет
+     заявку просроченной, полное — снимает просрочку. Тоньше и общее прежней проверки по kind. */
   function overdue(state){
-    const remainsOverdue = state.base.some(r=>{
-      if(!r.included || r.urgency!=='over' || r.carried<=0) return false;
-      const d = dispositionFor(state.dispositions, r.article, r.urgency);
-      return !d || (d.kind!=='cap' && d.kind!=='forgive');
-    });
+    const remainsOverdue = state.base.some(r=> r.included && r.urgency==='over' && round2(r.carried) > 0);
     return { state:{...state, remainsOverdue}, record:{step:'overdue', remainsOverdue} };
   },
+  /* Сборка базы (ADR-0109) — перенос остаётся ОДНОЙ суммой, но разложенной по статьям. Колонка
+     основного долга = тело + влившиеся капитализированные проценты, она одна ставочная; всё
+     прочее — безставочные колонки со сроками: распределённое, капитализированная пеня и остатки
+     позиций без распоряжения (каждый своей статьёй). ИР-2 сверяет сумму ВСЕХ колонок с переносом. */
   function assembleBase(state){
-    const principal = state.base.filter(r=>r.article==='principal' && r.included).reduce((s,r)=>s+r.carried,0);
-    const carried = state.base.filter(r=>r.article!=='principal' && r.included).reduce((s,r)=>s+r.carried,0);
-    const transferSum = round2(principal + carried + state.capitalized);
-    return { state:{...state, transferSum}, record:{step:'assembleBase', transferSum} };
+    const parts=(state.parts||[]).slice();
+    state.base.forEach(r=>{
+      if(!r.included || r.article==='principal') return;
+      const rest = round2(r.carried);
+      if(rest>0) parts.push({ article:r.article, amount:rest, periods:allPeriods(), from:'без распоряжения' });
+    });
+    const principalPart = round2(state.base.filter(r=>r.article==='principal' && r.included).reduce((s,r)=>s+r.carried,0) + state.capitalizedInterest);
+    const transferSum = round2(principalPart + parts.reduce((s,p)=>s+p.amount,0));
+    return { state:{...state, parts, principalPart, transferSum},
+             record:{step:'assembleBase', transferSum, principalPart, parts:parts.length} };
   }
 ];
 function run(app, date){
   const base0 = (app.base && app.base.length ? app.base : defaultBase(app, date)).map(r=>({...r, carried:r.amount}));
   const dispositions = app.dispositions && app.dispositions.length ? app.dispositions : defaultDispositions(base0);
-  const st0 = { app, date, base:base0, dispositions, forgiven:0, capitalized:0, capitalizedInterest:0, capitalizedPenalty:0, spread:[], remainsOverdue:false, transferSum:0, stack:[] };
+  const st0 = { app, date, base:base0, dispositions, forgiven:0, capitalized:0, capitalizedInterest:0, capitalizedPenalty:0,
+                parts:[], spread:[], remainsOverdue:false, principalPart:0, transferSum:0, stack:[] };
   return PIPELINE.reduce((s, step) => { const {state, record} = step(s); state.stack.push(record); return state; }, st0);
 }
 
@@ -1473,7 +1639,8 @@ function buildDemoApps(){
     return d;
   });
   const run1=AppSide.run(a1,TODAY);
-  const ds1={ no:'ДС-60540/2', date:TODAY, app:a1, sourceTranche:T1a, credit:cr1, transferSum:run1.transferSum, params:{...a1.version.params} };
+  const ds1={ no:'ДС-60540/2', date:TODAY, app:a1, sourceTranche:T1a, credit:cr1, transferSum:run1.transferSum,
+              principalPart:run1.principalPart, parts:run1.parts, params:{...a1.version.params} };
   const res1=CreditSide.restructureApplied(ds1);
   if(res1.ok){
     a1.ds={ no:ds1.no, date:ds1.date, transferSum:ds1.transferSum, sourceTrancheId:T1a.id, params:ds1.params, fact:null };
@@ -1533,7 +1700,7 @@ function buildDemoApps(){
   a4.dispositions=AppSide.defaultDispositions(a4.base);
   const run4=AppSide.run(a4,TODAY);
   a4.version=draftVersion(cr4,{});
-  a4.version.plan=CreditSide.draftSchedule(a4.calcTranche,{date:TODAY,transferSum:run4.transferSum,params:a4.version.params});
+  a4.version.plan=CreditSide.draftSchedule(a4.calcTranche,{date:TODAY,transferSum:run4.transferSum,principalPart:run4.principalPart,parts:run4.parts,params:a4.version.params});
   a4._t='2026-07-02'; H(a4,'Заявка зарегистрирована. Вид: Изменение сроков погашения задолженности (п. 89 пп. 1). Инициатор — ОМСУ через полномочного представителя Президента в области (п. 83).','Куратор ОД');
   a4._t='2026-07-03'; H(a4,'Пакет укомплектован → «Анализ». Дедлайн 30 к.д. (до '+addCalDays('2026-07-02',30)+').','Куратор ОД');
   a4._t='2026-07-14'; H(a4,'Заключение СРМиК завизировано. Заключение ДПО — в работе.','Заключант СРМиК');
@@ -1854,6 +2021,55 @@ function resultTranche(app){
 }
 function rowsTotal(rows){ return round2((rows||[]).reduce((s,r)=>s+r.amount,0)); }
 
+/* Дверь распоряжения (РС-38) — раскрытая строка под самой позицией, не модалка: вид уже
+   выбирается селектом в строке, сумма и сроки — его продолжение. Сроки показываются только у
+   распоряжений, рождающих БЕЗСТАВОЧНУЮ сумму, и у остальных это сказано подписью, а не
+   пустотой. Расхождение интервала с длиной плана (ИР-15) горит здесь же и повторяется причиной
+   в панели гейтов — молчаливой подрезки нет (РС-40). */
+function dispDoorRow(app, row, d, canEdit, planLen){
+  if(!row.included || !d || d.kind==='none') return '';
+  const dis = canEdit ? '' : 'disabled';
+  const A=`'${app.id}','${row.article}','${row.urgency}'`;
+  const rest = round2(row.amount - (d.amount||0));
+  const hasPer = dispositionHasPeriods(d.kind, row.article);
+  const per = d.periods || allPeriods();
+  const isRange = per.mode==='range';
+  let periodsBlock;
+  if(!hasPer){
+    periodsBlock = `<span class="mode-tag">${d.kind==='forgive'
+      ? 'сроков нет — прощённая сумма к уплате не назначается'
+      : 'сроков нет — капитализированные проценты вливаются в тело и живут сроками тела'}</span>`;
+  } else {
+    periodsBlock = `<div class="dd-grp"><span class="flabel">Сроки</span>
+        <label class="chk"><input type="radio" name="per-${app.id}-${row.article}-${row.urgency}" ${isRange?'':'checked'} ${dis}
+          onchange="RS.setDispPeriods(${A},'all')"><span class="lbl">весь график</span></label>
+        <label class="chk"><input type="radio" name="per-${app.id}-${row.article}-${row.urgency}" ${isRange?'checked':''} ${dis}
+          onchange="RS.setDispPeriods(${A},'range')"><span class="lbl">интервал позиций</span></label>
+      </div>`
+      + (isRange ? `<div class="dd-grp"><span class="flabel">с</span>
+        <input class="dd-pos" type="number" min="1" step="1" value="${per.from}" ${dis} onchange="RS.setDispPeriods(${A},'range',this.value,null)">
+        <span class="flabel">по</span>
+        <input class="dd-pos" type="number" min="1" step="1" value="${per.to}" ${dis} onchange="RS.setDispPeriods(${A},'range',null,this.value)">
+      </div>` : '');
+  }
+  // ИР-15 — сверяется с ЧЕРНОВИКОМ графика; пока его нет, шкалы позиций тоже нет, и это говорится.
+  let mismatch='';
+  if(hasPer && isRange){
+    if(planLen==null) mismatch = `<span class="pill neutral">черновой график ещё не рассчитан — длину интервала не с чем сверить</span>`;
+    else if(per.to>planLen || per.from<1 || per.from>per.to)
+      mismatch = `<span class="pill high">сроки ${per.from}–${per.to}, а в графике ${planLen} ${planLen===1?'позиция':'позиций'} — регистрация ДС закрыта (ИР-15)</span>`;
+  }
+  return `<tr class="disp-door"><td colspan="6"><div class="dd-wrap">
+      <div class="dd-grp"><span class="flabel">Сумма</span>
+        <input type="number" min="0" step="0.01" value="${d.amount!=null?d.amount:''}" ${dis} onchange="RS.setDispAmount(${A},this.value)">
+        <span class="mode-tag">≤ ${fmt(row.amount)}</span></div>
+      ${periodsBlock}
+      ${mismatch}
+      <div class="dd-note">${rest>0.005
+        ? 'без распоряжения остаётся '+fmt2(rest)+' — уходит в перенос своей статьёй и остаётся просроченным'
+        : 'позиция покрыта распоряжением целиком — просрочка по ней снимается'}</div>
+    </div></td></tr>`;
+}
 function pCalcBase(app){
   const cr=creditById(app.creditIds[0]);
   if(!cr) return `<div class="detail-panel active"><div class="op-empty">Добавьте кредит в охват — расчёт строится по транш-источнику.</div></div>`;
@@ -1889,6 +2105,9 @@ function pCalcBase(app){
   });
   const canEdit = canX('editBase');
   const allowed = allowedDispositions(app);
+  // Длина черновика графика — та самая шкала, в позициях которой куратор задаёт сроки (РС-38).
+  // Пока расчёт не проведён, шкалы нет, и об этом говорится вслух, а не подставляется срок/12.
+  const planLen = (app.version && app.version.plan && app.version.plan.rows) ? app.version.plan.rows.length : null;
   const rows = ordered.map(r=>{
     const d=dispositionFor(dispositions,r.article,r.urgency);
     const urg=(URG.find(u=>u.key===r.urgency)||{}).name||r.urgency;
@@ -1908,11 +2127,12 @@ function pCalcBase(app){
     /* База начисления статьи (РС-27/ADR-0106). У терминальных статей она пуста, и это сказано
        вслух: пустое начисление, показанное молча, читается как недоработка движка. */
     const am=accrualModeOf(r.article, app.ds?app.ds.date:TODAY);
-    const parts=[]; if(am.mode.interest) parts.push('проценты'); if(am.mode.penalty) parts.push('пеня');
-    const accCell = parts.length
-      ? `<span class="mode-tag">${parts.join(' + ')}</span>`
+    const accrOn=[]; if(am.mode.interest) accrOn.push('проценты'); if(am.mode.penalty) accrOn.push('пеня');
+    const accCell = accrOn.length
+      ? `<span class="mode-tag">${accrOn.join(' + ')}</span>`
       : `<span class="mode-tag" title="Терминальная статья: только гасится, начислений не порождает (РС-27)">не начисляется — терминальная</span>`;
-    return `<tr class="${rowCls}"><td>${esc(ARTICLE_LABEL[r.article]||r.article)}</td><td>${urg}</td><td class="numcell">${fmt(r.amount)}</td><td>${accCell}</td><td>${chk}</td><td>${disp}</td></tr>`;
+    return `<tr class="${rowCls}"><td>${esc(ARTICLE_LABEL[r.article]||r.article)}</td><td>${urg}</td><td class="numcell">${fmt(r.amount)}</td><td>${accCell}</td><td>${chk}</td><td>${disp}</td></tr>`
+         + dispDoorRow(app, r, d, canEdit, planLen);
   }).join('') || '<tr><td colspan="6" class="op-empty">Долг по траншу пуст на выбранную дату</td></tr>';
 
   const derived=resultTranche(app);
@@ -1988,22 +2208,41 @@ function pCalcSched(app){
 
   const activeRows=(scheduleAt(src,TODAY)?.rows||[]).filter(r=>r.date>=TODAY).slice(0,6);
 
-  function tbl(title,pillHtml,rows,emptyMsg){
-    const body=rows.map(r=>`<tr><td>${r.date}</td><td class="numcell">${fmt(r.principal)}</td><td class="numcell">${fmt(r.interest||0)}</td></tr>`).join('') || `<tr><td colspan="3" class="op-empty">${emptyMsg}</td></tr>`;
+  /* Строка графика несёт статьи (РС-41, ADR-0109): рядом с телом и процентом — безставочные
+     колонки. Пустая колонка не рисуется, и обычный кредит выглядит как прежде. Итоговая строка
+     показывает раскладку переноса — ровно то, что сверяет ИР-2. `allRows` — полный график, когда
+     на экран выведены первые несколько строк: итог обязан считаться по всему графику. */
+  function tbl(title,pillHtml,rows,emptyMsg,allRows){
+    const full = allRows || rows;
+    const cols = scheduleArticleCols(full);
+    const head = cols.map(k=>`<th>${esc(ARTICLE_LABEL[k]||k)}</th>`).join('');
+    const body=rows.map(r=>`<tr><td>${r.date}</td><td class="numcell">${fmt(r.principal)}</td><td class="numcell">${fmt(r.interest||0)}</td>${
+        cols.map(k=>`<td class="numcell">${fmt((r.articles||{})[k]||0)}</td>`).join('')}</tr>`).join('')
+      || `<tr><td colspan="${3+cols.length}" class="op-empty">${emptyMsg}</td></tr>`;
+    let foot='';
+    if(allRows && full.length){
+      const sumP=round2(full.reduce((s,r)=>s+(r.principal||0),0));
+      const sumI=round2(full.reduce((s,r)=>s+(r.interest||0),0));
+      const sumC=cols.map(k=>round2(full.reduce((s,r)=>s+((r.articles||{})[k]||0),0)));
+      const transfer=round2(sumP+sumC.reduce((s,v)=>s+v,0));
+      foot=`<tfoot><tr><th>Перенос, всего ${fmt(transfer)}</th><th class="numcell">${fmt(sumP)}</th><th class="numcell">${fmt(sumI)}</th>${
+        sumC.map(v=>`<th class="numcell">${fmt(v)}</th>`).join('')}</tr></tfoot>`;
+    }
+    const more = allRows && full.length>rows.length ? `<div class="mode-tag">показаны первые ${rows.length} из ${full.length} позиций; итог — по всему графику</div>` : '';
     return `<div class="f2" style="margin-bottom:6px"><div class="field"><span class="flabel">${title} ${pillHtml}</span></div></div>
-    <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th colspan="3">${title}</th></tr><tr><th>Дата</th><th>Тело</th><th>%</th></tr></thead><tbody>${body}</tbody></table></div>`;
+    <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th colspan="${3+cols.length}">${title}</th></tr><tr><th>Дата</th><th>Тело</th><th>%</th>${head}</tr></thead><tbody>${body}</tbody>${foot}</table></div>${more}`;
   }
 
   const derivedBlock = draftBlock
-    ? tbl((derived?derived.no:'производный транш'), draftBlock.pill, draftBlock.rows.slice(0,6), 'график пуст')
+    ? tbl((derived?derived.no:'производный транш'), draftBlock.pill, draftBlock.rows.slice(0,6), 'график пуст', draftBlock.rows)
     : `<div class="op-empty">Черновой график не рассчитан — задайте параметры ниже и нажмите «Предварительный расчёт», или дождитесь регистрации ДС.</div>`;
   const paramsBlock = derived ? '' : `<div class="section-h">Условия черновика ДС</div>${versionParamsBlock(app)}`;
   const activeBlock = tbl(src.no+' — действующий, не тронут переносом', '<span class="pill low">Действующий</span>', activeRows, 'график транша не оцифрован в демо-сиде (schedules[0].rows пуст) — не факт отсутствия платежей');
 
   const runRes=run(app, app.ds?app.ds.date:TODAY);
-  const base = app.base && app.base.length ? app.base : defaultBase(app, app.ds?app.ds.date:TODAY);
-  const dispositions = app.dispositions && app.dispositions.length ? app.dispositions : defaultDispositions(base);
-  const unresolved = base.filter(r=>r.included && r.urgency==='over').filter(r=>{ const d=dispositionFor(dispositions,r.article,r.urgency); return !d || (d.kind!=='cap'&&d.kind!=='forgive'); });
+  // Непокрытое — то, что осталось на строке ПОСЛЕ всех распоряжений (РС-39): ровно тот же остаток,
+  // по которому шаг overdue считает remainsOverdue. Частичное распределение честно попадает сюда.
+  const unresolved = (runRes.base||[]).filter(r=>r.included && r.urgency==='over' && round2(r.carried)>0);
   const rs15 = runRes.remainsOverdue
     ? `<div style="margin:0 0 14px"><span class="pill mid">Кредит частично просрочен после ДС</span> <span class="mode-tag">Не урегулированы распоряжением: ${esc(unresolved.map(r=>ARTICLE_LABEL[r.article]||r.article).join(', ')||'—')} — просрочка не растворяется, входит суммой в перенос${derived?' '+derived.no:''} (РС-15).</span></div>`
     : (app.ds&&app.ds.no ? `<div class="okline">Все включённые просроченные статьи урегулированы распоряжением — перенос не несёт непокрытой просрочки (РС-15).</div>` : '');
@@ -2172,17 +2411,33 @@ function pFormal(app){
     : dg.recommitted ? `<div class="warnline">Ступень 2 сработала (${(dg.pct*100).toFixed(1).replace(/\.0$/,'')} %, ${fmt(dg.delta)}), но комитет высказался заново ${esc(app.committee.date)} — блокировка снята.</div>`
     : `<div class="flagline">Ступень 2: расхождение ${(dg.pct*100).toFixed(1).replace(/\.0$/,'')} % (${fmt(dg.delta)}) — ${esc(DRIFT_TIERS[1].need)}. Постановление Кабмина не переподписывается: пересматривается позиция комитета Холдинга, на которой стоит письмо.</div>`;
   const done = app.ds&&app.ds.no;
-  const canReg = (cga.ok||waived) && lga.ok && coa.ok && fg.ok && dg.ok;
+  const dispRows = (app.dispositions||[]).filter(d=>d.kind!=='none');
+  // Ярлык распоряжения — один на файл (DISP_LABEL, :~432): прежний локальный kindLabel повторял
+  // его третьим списком и расходился бы при первом же новом виде распоряжения.
+  const planLenG = (app.version && app.version.plan && app.version.plan.rows) ? app.version.plan.rows.length : null;
+  const badPeriods = dispRows.filter(d=>{
+    if(!dispositionHasPeriods(d.kind, d.article)) return false;
+    const p = d.periods || allPeriods();
+    return p.mode==='range' && planLenG!=null && (p.to>planLenG || p.from<1 || p.from>p.to);
+  });
+  const perLabel = d => {
+    if(!dispositionHasPeriods(d.kind, d.article)) return 'сроков нет';
+    const p = d.periods || allPeriods();
+    if(p.mode!=='range') return 'весь график';
+    const bad = planLenG!=null && (p.to>planLenG || p.from<1 || p.from>p.to);
+    return 'позиции '+p.from+'–'+p.to+(bad?' — вне графика ('+planLenG+'), ИР-15':'');
+  };
+  // ИР-15/РС-40 — жёсткий гейт: интервал за длиной плана закрывает регистрацию до правки, а не
+  // подрезается молча. Ровно та же причина придёт из validateDS, если дверь всё-таки дёрнут.
+  const canReg = (cga.ok||waived) && lga.ok && coa.ok && fg.ok && dg.ok && !badPeriods.length;
   const dsBlock = done
     ? `<div class="okline">Доп. соглашение <b>${esc(app.ds.no)}</b> зарегистрировано. Версия «действует» с ${app.ds.date}. Счётчик реструктуризаций кредитов +1.</div>`
     : `<div class="gtoolbar">
         ${(!cga.ok && !waived)?`<button class="btn btn-danger btn-sm" onclick="RS.openWaiver('${app.id}')">Решение комитета по администрированию (снятие гейта)</button>`:''}
         <button class="btn btn-primary btn-sm" ${canReg?'':'disabled'} onclick="RS.openDS('${app.id}')">Зарегистрировать доп. соглашение</button>
       </div>`;
-  const dispRows = (app.dispositions||[]).filter(d=>d.kind!=='none');
-  const kindLabel = k => k==='cap'?'Капитализация':k==='forgive'?'Прощение':k==='spread'?'Распределение по периодам':k;
   const ops = dispRows.length
-    ? `<div class="ops-list">${dispRows.map(d=>`<div class="op-row"><span class="op-t"><b>${kindLabel(d.kind)}</b> — ${esc(ARTICLE_LABEL[d.article]||d.article)} (${esc((URG.find(u=>u.key===d.urgency)||{}).name||d.urgency)})</span><span class="mode-tag">${fmt(d.amount)}</span></div>`).join('')}</div>`
+    ? `<div class="ops-list">${dispRows.map(d=>`<div class="op-row"><span class="op-t"><b>${DISP_LABEL[d.kind]||d.kind}</b> — ${esc(ARTICLE_LABEL[d.article]||d.article)} (${esc((URG.find(u=>u.key===d.urgency)||{}).name||d.urgency)})</span><span class="mode-tag">${fmt(d.amount)} · ${esc(perLabel(d))}</span></div>`).join('')}</div>`
     : '<div class="op-empty">Распоряжений нет — база и распоряжения задаются на вкладке «База и распоряжения».</div>';
   return `<div class="detail-panel active">
     <div class="section-h">Гейт пределов (жёсткий, без waiver)</div>
@@ -2201,6 +2456,13 @@ function pFormal(app){
     <div class="section-note">Покрытие = залоговая стоимость / остаток ≥ порог. Возраст техники против нового срока. Страховка на новый срок (Р-15).</div>
     ${gateLine}
     <div class="cgrid-wrap" style="max-width:900px"><table class="cgrid"><thead><tr><th>Кредит</th><th class="numcell">Покрытие</th><th>Гейт</th><th>Возраст</th><th>Страховка</th><th>Снимок</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="section-h" style="margin-top:18px">Гейт сроков распоряжений (жёсткий, без waiver)</div>
+    <div class="section-note">Интервал позиций, назначенный распоряжению, лежит внутри длины чернового графика (ИР-15). Выход за длину не подрезается молча: срок мог уменьшиться после того, как куратор задал позиции, и подставить новую границу за него значит выдумать его решение (РС-40).</div>
+    ${badPeriods.length
+      ? `<div class="flagline">${badPeriods.map(d=>'«'+esc(ARTICLE_LABEL[d.article]||d.article)+'» — '+esc(perLabel(d))).join('; ')}. Регистрация ДС закрыта до правки интервала либо возврата к режиму «весь график».</div>`
+      : (planLenG==null
+          ? `<div class="okline">Черновой график ещё не рассчитан — шкалы позиций нет, сверять нечего.</div>`
+          : `<div class="okline">Все интервалы лежат внутри графика (${planLenG} ${planLenG===1?'позиция':'позиций'}).</div>`)}
     <div class="section-h" style="margin-top:18px">Доп. соглашение</div>${dsBlock}
     <div class="section-h" style="margin-top:18px">Операции на дату вступления</div>${ops}
   </div>`;
@@ -2339,7 +2601,8 @@ function regDS(appId){
   const tranche=app.calcTranche, credit=creditById(app.creditIds[0]);
   if(!tranche||!credit){ toast('Не выбран транш-источник расчёта','err'); return; }
   const run=AppSide.run(app,date);
-  const ds={ no, date, app, sourceTranche:tranche, credit, transferSum:run.transferSum, params:{...(app.version?app.version.params:{})} };
+  const ds={ no, date, app, sourceTranche:tranche, credit, transferSum:run.transferSum,
+             principalPart:run.principalPart, parts:run.parts, params:{...(app.version?app.version.params:{})} };
   const res=CreditSide.restructureApplied(ds);
   if(!res.ok){ toast(res.reasons.join('; '),'err'); return; }
   app.ds={ no, date, transferSum:ds.transferSum, sourceTrancheId:tranche.id, params:ds.params, fact:null };
@@ -2556,7 +2819,9 @@ const RS = {
   appById, creditById, kindById, amortize, periodMonths, round2, addCalDays,
   normAt, normNote, termCapFor, rateFloorFor, limitsGate, limitsGateApp,
   consentGate, consentGateApp, coverSnapshotAge, coverSnapshotStale,
-  toggleBaseRow, setDisposition, ensureBaseDispositions, dispositionFor, defaultBase, defaultDispositions,
+  toggleBaseRow, setDisposition, setDispAmount, setDispPeriods, dispositionHasPeriods,
+  ensureBaseDispositions, dispositionFor, defaultBase, defaultDispositions,
+  scheduleArticleCols, rowArticlesSum, mergeParts, validateDS,
   trancheCandidates, setCalcTranche, setVersionParam, recalcPlan,
   TODAY, STAGES, ROLES,
   __baseApp: baseApp
