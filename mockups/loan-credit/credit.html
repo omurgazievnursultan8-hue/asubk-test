@@ -464,6 +464,28 @@
      Заодно убраны пояснение под заголовком «График погашения» и подпись «Транш» над
        селектором: и то и другое дублировало то, что и так видно (решение пользователя).
 
+   ВОЛНА 10.08.2026 (вторая) · ПОЗИЦИИ «ГРАФИКА» ГРУППИРУЮТСЯ ПО ГОДАМ (КВ-19):
+     Причина. У пятилетнего графика в таблице до 60 позиций подряд, и годовая нагрузка
+       читалась только сложением строк глазами: плитки шапки дают итог по ВСЕМУ графику,
+       строка — по ОДНОЙ дате, а между ними ничего не было. Из 59 демо-кредитов 29 —
+       многолетние (24 из них на три года), то есть случай не краевой.
+     СДЕЛАНО: в таблице «График — позиции» перед первой позицией каждого года стоит
+       строка-заголовок на всю ширину: год · сколько платежей · Σ ОД · Σ проценты ·
+       Σ к погашению, второй строкой — состав статусов года (погашено · просрочено ·
+       наступило · предстоит), просроченное красным. Год ВЫВОДИТСЯ из даты позиции —
+       поля в модели нет; позиции и так отсортированы по дате (в слитом виде — по дате,
+       затем по траншу), поэтому годы идут сплошными отрезками и группа получается сама.
+       Работает в обеих областях: «по кредиту» группирует слитую таблицу всех траншей.
+     СВЕРНУТЬ ГОД НЕЛЬЗЯ намеренно: вкладка отвечает на вопрос «что платим следующим»,
+       а он живёт ЧЕРЕЗ границу года — свёрнутый декабрь-январь прячет ровно тот ответ,
+       за которым на вкладку и приходят. По той же причине отвергнуты селектор года
+       (идиома «Плана») и двухуровневый свод «год → разворот»: оба показывают один год.
+     ОДНОЛЕТНИЙ ГРАФИК заголовков не получает вовсе — они дословно повторили бы плитки
+       шапки (Σ ОД, Σ проценты, итого), а одна и та же цифра в двух местах читается как
+       две разные величины.
+     НЕ ДЕЛАЛОСЬ: «Прогноз» и детальный расчёт «Расчётов» не тронуты — там предмет иной
+       (ожидание и факт против контракта), и группировка по годам им не заказывалась.
+
   СПРОЕКТИРОВАНО, НО НЕ ОЖИВЛЕНО (осознанно, КВ-11 — оживлялось то, от чего зависят гейты)
    • Печатные формы (7 шт.) — формирование документов вне объёма макета.
    • Переходы в соседние модули (заёмщик, залог, платежи, взыскание, реструктуризация,
@@ -731,7 +753,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-10 · 101/101 PASS
+ SMOKE (node) 2026-08-10 · 102/102 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -810,6 +832,7 @@
    #67 ✓
    #53a ✓
    #53 ✓
+   #100 ✓
    #54 ✓
    #55 ✓
    #80 ✓
@@ -1267,6 +1290,15 @@ table.cgrid tbody tr:hover{ background:var(--surface-hover); }
 table.cgrid tbody tr.total td{ font-weight:var(--weight-bold); color:var(--text-heading);
   background:var(--surface-hover); border-top:1px solid var(--border-strong); }
 table.cgrid tbody tr.giveback td{ color:var(--asubk-green); font-weight:var(--weight-medium); }
+/* Заголовок года в позициях графика: разделитель + итог года. Не строка данных —
+   hover не подсвечивается, чтобы не читался как кликабельный (свернуть год нельзя). */
+table.cgrid tbody tr.gyear td{ background:var(--surface-panel); padding:8px 12px;
+  border-top:1px solid var(--border-strong); white-space:normal; }
+table.cgrid tbody tr.gyear:hover td{ background:var(--surface-panel); }
+.gyear-h{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+.gyear-h .gy{ font:var(--weight-bold) var(--text-base)/1.2 var(--asubk-font); color:var(--text-heading); }
+.gyear-h .gm{ color:var(--text-body); }
+.gyear-s{ margin-top:3px; color:var(--text-muted); font-size:11px; }
 /* Сторнированная мера — запись остаётся, зачёркнута с пометкой основания (И-3). */
 table.cgrid tbody tr.storno td{ color:var(--text-placeholder); text-decoration:line-through; }
 table.cgrid tbody tr.storno td.storno-reason{ text-decoration:none; color:var(--asubk-red); }
@@ -1493,6 +1525,10 @@ const nf2 = new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFr
 const nf0 = new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 });
 const money = n => nf2.format(n || 0);
 const money0 = n => nf0.format(Math.round(n || 0));
+/* Русское склонение при числе: «1 платёж · 2 платежа · 5 платежей». Нужно там, где
+   число выводится не в колонке, а в подписи (заголовок года на «Графике»). */
+const plur = (n, one, few, many) => { const a = Math.abs(n) % 100, b = a % 10;
+  return n + ' ' + (a > 10 && a < 20 ? many : b === 1 ? one : b >= 2 && b <= 4 ? few : many); };
 /* Курсы к сому на TODAY. Справочник, не модель кредита: кредит хранит свою валюту,
    приведение к KGS — производная (реестр сравнивает и суммирует строки в одной валюте). */
 const FX = { KGS:1, USD:87.45, EUR:95.30, RUB:1.02 };
@@ -6351,10 +6387,41 @@ if (typeof document !== 'undefined') {
       .map(s=>`<tr class="${s.active?'diff-changed':''}"><td>v${s.ver}</td>${sel?'':`<td>№${t.no}</td>`}<td>${s.active?'<span class="pill low">активна</span>':'<span class="pill neutral">архив</span>'}</td><td>${esc(s.generatedFrom)}</td><td style="text-align:right">${s.rows.length}</td></tr>`));
     /* Статус позиции — от построенного расчёта (d.ledger.index), а не от засеянных строк */
     const posSrc = srcTranches.flatMap(t => trancheScheduleRows(t).map(r => ({ r, t })))
-      .sort((a,b) => pd(a.r.date) - pd(b.r.date) || a.t.no - b.t.no);
-    const posRows = posSrc.map(({r,t})=>{
-      const s=scheduleRowStatus(r, d.ledger.index.get(ledgerKey(t.no, r.no)), cardAsOf);
-      return `<tr><td>№${r.no}</td>${sel?'':`<td>№${t.no}</td>`}<td>${esc(r.date)}</td><td style="text-align:right">${money(r.principal)}</td><td style="text-align:right">${money(r.interest)}</td>${(r.accrued!=null&&Math.abs(r.accrued-r.interest)>0.005)?`<td style="text-align:right" title="начислено за период, но не включено в платёж (льгота по %)">${money(r.accrued)}</td>`:'<td style="text-align:right">—</td>'}<td style="text-align:right">${money(r.total)}</td><td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td></tr>`;});
+      .sort((a,b) => pd(a.r.date) - pd(b.r.date) || a.t.no - b.t.no)
+      .map(x => ({ ...x, y: pd(x.r.date).getFullYear(),
+        s: scheduleRowStatus(x.r, d.ledger.index.get(ledgerKey(x.t.no, x.r.no)), cardAsOf) }));
+    /* ГРУППИРОВКА ПО ГОДАМ (волна 10.08.2026). Год ВЫВОДИТСЯ из даты позиции — поля в
+       модели нет и не появляется; порядок уже по дате (в слитом виде — по дате, потом по
+       траншу), поэтому годы идут сплошными отрезками и группа получается сама.
+       Заголовок года несёт ИТОГ ГОДА: у пятилетнего графика годовая нагрузка иначе
+       читается только сложением шестидесяти строк глазами. Разворачивать/сворачивать год
+       нельзя намеренно: вкладка отвечает на вопрос «что платим следующим», а он живёт
+       ЧЕРЕЗ границу года — свёрнутый декабрь-январь этот ответ прячет.
+       Одногодичный график заголовка не получает: он дословно повторил бы плитки шапки
+       (Σ ОД, Σ проценты, итого), а повтор той же цифры в двух местах читается как две
+       разные величины. */
+    const posCols = sel ? 7 : 8;
+    const byYear = new Map();
+    posSrc.forEach(p => { const g = byYear.get(p.y) || { count:0, principal:0, interest:0, total:0, st:{} };
+      g.count++; g.principal += p.r.principal||0; g.interest += p.r.interest||0; g.total += p.r.total||0;
+      g.st[p.s] = (g.st[p.s]||0) + 1; byYear.set(p.y, g); });
+    const multiYear = byYear.size > 1;
+    const curYear = pd(cardAsOf).getFullYear();
+    /* Порядок слов статусов фиксирован (прошлое → будущее), а не порядком появления:
+       иначе подпись года прыгала бы составом от кредита к кредиту. */
+    const stWord = [['Оплачена','погашено'],['Просрочена','просрочено'],['Наступила','наступило'],['Предстоит','предстоит']];
+    const yearRow = (y) => { const g = byYear.get(y);
+      const cnt = stWord.filter(([k]) => g.st[k]).map(([k,w]) => k === 'Просрочена'
+        ? `<span style="color:var(--asubk-red)">${w} ${g.st[k]}</span>` : `${w} ${g.st[k]}`).join(' · ');
+      return `<tr class="gyear"><td colspan="${posCols}">
+        <div class="gyear-h"><span class="gy">${y}</span>${y===curYear?'<span class="pill neutral">текущий</span>':''}
+          <span class="text-muted">${plur(g.count,'платёж','платежа','платежей')}</span>
+          <span class="gm">ОД <b>${money(round2(g.principal))}</b> · проценты <b>${money(round2(g.interest))}</b> · к погашению <b>${money(round2(g.total))}</b></span></div>
+        <div class="gyear-s">${cnt}</div></td></tr>`; };
+    const posRows = []; let lastYear = null;
+    posSrc.forEach(({r,t,s,y})=>{
+      if (multiYear && y !== lastYear) { lastYear = y; posRows.push(yearRow(y)); }
+      posRows.push(`<tr><td>№${r.no}</td>${sel?'':`<td>№${t.no}</td>`}<td>${esc(r.date)}</td><td style="text-align:right">${money(r.principal)}</td><td style="text-align:right">${money(r.interest)}</td>${(r.accrued!=null&&Math.abs(r.accrued-r.interest)>0.005)?`<td style="text-align:right" title="начислено за период, но не включено в платёж (льгота по %)">${money(r.accrued)}</td>`:'<td style="text-align:right">—</td>'}<td style="text-align:right">${money(r.total)}</td><td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td></tr>`);});
     return `
       ${(()=>{ const rf=retroPendingFlags(c); if(!rf.length) return '';   // Д-5: тот же признак, что на «Условиях»
         return `<div class="warn-inline">${svgInfo()}<div>

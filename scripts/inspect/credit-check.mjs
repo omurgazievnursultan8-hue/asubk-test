@@ -955,6 +955,35 @@ const pd = CR.pd;
   }
   ok(53, bad.length === 0, `вкладок=${CR2.db.credits.length * TABS.length} проблем=${bad.length} ${bad.slice(0,3).join(' | ')}`);
 
+  /* 100. ГРУППИРОВКА ПО ГОДАМ на «Графике» (волна 10.08.2026). Заголовок года стоит перед
+     первой позицией своего года, годы идут по возрастанию, «к погашению» в заголовке равно
+     сумме позиций ЭТОГО года, однолетний график заголовков не получает вовсе, и ни одна
+     позиция при группировке не теряется. Сверяется РЕНДЕР против чистой функции: разойдись
+     подсчёт заголовка с trancheScheduleRows — годовая нагрузка врала бы молча, а вкладка
+     выглядела бы исправной. */
+  const gbad = [];
+  for (const c of CR2.db.credits){
+    const sel = c.tranches.length === 1 ? c.tranches[0] : null;   // cardScope по умолчанию — «по кредиту»
+    const rows = (sel ? [sel] : c.tranches).flatMap(t => CR2.trancheScheduleRows(t));
+    const exp = new Map();
+    for (const r of rows){ const y = CR2.pd(r.date).getFullYear(); exp.set(y, (exp.get(y) || 0) + (r.total || 0)); }
+    const html = CR2.renderTab('График', c);
+    const heads = [...html.matchAll(/<tr class="gyear">[\s\S]*?<span class="gy">(\d{4})<\/span>[\s\S]*?к погашению <b>([^<]+)<\/b>/g)]
+      .map(x => ({ y:+x[1], sum:x[2] }));
+    const posN = (html.match(/<tr><td>№/g) || []).length;
+    if (posN !== rows.length){ gbad.push(`${c.id}: позиций в разметке ${posN} vs ${rows.length}`); continue; }
+    if (exp.size < 2){ if (heads.length) gbad.push(`${c.id}: лет ${exp.size}, а заголовков ${heads.length}`); continue; }
+    if (heads.length !== exp.size){ gbad.push(`${c.id}: заголовков ${heads.length} vs лет ${exp.size}`); continue; }
+    const ys = heads.map(h => h.y);
+    if (ys.some((y,i) => i && y <= ys[i-1])) gbad.push(`${c.id}: годы не по возрастанию: ${ys.join(',')}`);
+    for (const h of heads){
+      const want = CR2.money(Math.round((exp.get(h.y) + Number.EPSILON) * 100) / 100);
+      if (h.sum !== want) gbad.push(`${c.id}/${h.y}: итог года «${h.sum}» vs «${want}»`);
+    }
+  }
+  ok(100, gbad.length === 0,
+     `кредитов=${CR2.db.credits.length} расхождений=${gbad.length} ${gbad.slice(0,3).join(' | ')}`);
+
   /* 54. Каждая модалка открывается без исключения — включая оживлённые этой волной.
      Мёртвая кнопка (действие, которого нет в матрице ролей) здесь и ловится. */
   const MODALS = ['openTrancheModal','openDisbModal','openSchedModal','openCondModal','openPaymentModal',
