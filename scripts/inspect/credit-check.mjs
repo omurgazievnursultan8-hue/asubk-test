@@ -1072,49 +1072,61 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
   layers:{ principal, interest:0, penalty:0, fees:0 } }); };
 
 /* 82. КЛЮЧЕВАЯ ПРОВЕРКА ADR-0042: сохранённый план НЕ движется, когда движется прогноз.
-   Месяц взят с РЕАЛЬНЫМ планом (2026-10, 28000) и реально будущий относительно среза —
-   иначе сравнение null===null (у 2026-09, где плана нет) ничего бы не доказывало.
-   Платёж от 20.07 меняет остаток ОД транша 1, а с ним — перестройку будущих позиций. */
+   Месяц плана взят с РЕАЛЬНЫМ планом (2026-10, 28000) — иначе сравнение null===null
+   (у 2026-09, где плана нет) ничего бы не доказывало.
+   Месяц прогноза — ПОЗДНИЙ (2027-10): по ADR-0104 досрочка не трогает ближние взносы,
+   она СОКРАЩАЕТ СРОК, и меняется хвост расписания, а не его начало. Прежняя редакция
+   смотрела на 2026-10 и после смены модели перестала что-либо ловить: там прогноз
+   обязан совпадать с графиком, и совпадение читалось как «прогноз мёртв». */
 (() => { const db = CR.seedDb(); const c = byId(db,'K-1');
-  const mk = '2026-10';
-  const planBefore = CR.planAmountOf(c, mk);
-  const fcBefore = CR.forecastByMonth(c, CR.derive(c).ledger.index, '23.07.2026').get(mk);
+  const mkPlan = '2026-10', mkLate = '2027-10';
+  const planBefore = CR.planAmountOf(c, mkPlan);
+  const fcBefore = CR.forecastByMonth(c, CR.derive(c).ledger.index, '23.07.2026').get(mkLate);
   seedPay(c, '20.07.2026', 40000);
-  const fcAfter = CR.forecastByMonth(c, CR.derive(c).ledger.index, '23.07.2026').get(mk);
-  const planAfter = CR.planAmountOf(c, mk);
-  ok(82, planBefore === planAfter && fcBefore !== fcAfter,
-     `план ${planBefore}→${planAfter} прогноз ${fcBefore}→${fcAfter}`);
+  const fcAfter = CR.forecastByMonth(c, CR.derive(c).ledger.index, '23.07.2026').get(mkLate);
+  const planAfter = CR.planAmountOf(c, mkPlan);
+  ok(82, planBefore === planAfter && fcBefore > 0 && fcAfter === undefined,
+     `план ${planBefore}→${planAfter} прогноз ${mkLate}: ${fcBefore}→${fcAfter}`);
 })();
 
-/* 83. Прогноз ≠ график там, где есть досрочное/частичное погашение: полная перестройка
-   от фактического остатка ОД, а не копия графика с другим заголовком. */
+/* 83. ДОСРОЧКА СОКРАЩАЕТ СРОК, А НЕ ВЗНОС (ADR-0104 вслед за ADR-0074 §1). Прежняя
+   редакция требовала обратного — «полная перестройка от фактического остатка», то есть
+   пересборки аннуитета, — а это сделка «уменьшить взнос», которую ADR-0074 §2 отдал
+   заявлению заёмщика и перестроению графика. Проверяем ровно новое правило:
+   ближние позиции равны контракту, хвост обнуляется, дата закрытия уезжает раньше. */
 (() => { const db = CR.seedDb(); const c = byId(db,'K-1');
-  seedPay(c, '20.07.2026', 50000);
-  const t = c.tranches[0];
-  const fr = CR.trancheForecastRows(t, CR.derive(c).ledger.index, '23.07.2026');
+  seedPay(c, '20.07.2026', 40000);
+  const t = c.tranches[0]; const idx = CR.derive(c).ledger.index;
+  const fr  = CR.trancheForecastRows(c, t, idx, '23.07.2026');
   const fut = fr.filter(r => !r.past);
-  const moved = fut.some(r => Math.abs(r.delta) > 0.005);
-  ok(83, fut.length > 0 && moved, `будущих=${fut.length} расхождений=${fut.filter(r=>Math.abs(r.delta)>0.005).length}`);
+  const live = fut.filter(r => r.forecast > 0.005);
+  const sm  = CR.forecastSummary(c, [t], idx, '23.07.2026');
+  const heldFlat = live.slice(0, -1).every(r => Math.abs(r.delta) < 0.05);   // взнос не тронут
+  const cutTail  = fut.length > live.length && fut.slice(live.length).every(r => r.forecast === 0);
+  ok(83, fut.length > 0 && heldFlat && cutTail && pd(sm.payoff) < pd(sm.contractEnd),
+     `будущих=${fut.length} с ожиданием=${live.length} взнос не тронут=${heldFlat}`
+     + ` закрытие ${sm.payoff} против договорного ${sm.contractEnd}`);
 })();
 
-/* 84. Σ прогноза по будущим позициям = остаток ОД + будущие проценты + непокрытый хвост
-   прошлого, и ничего сверх того (§6 п.6 спеки). Сравнение на РАВЕНСТВО: неравенство
-   «>= остаток + хвост» было тавтологией — проценты неотрицательны, и оно выполнялось
-   всегда, кроме падения функции. */
-(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+/* 84. Σ прогноза по будущим позициям = амортизируемая база + будущие проценты, и НИЧЕГО
+   сверх того. База = освоено − погашенное платежами тело − просроченное тело: последнее
+   будущими взносами не гасится и в Σ входить не должно. Непокрытый хвост прошлого сюда
+   тоже не входит — он остаётся в своих позициях (ADR-0104); прежняя редакция включала
+   его в ожидаемое равенство, потому что прогноз сваливал хвост в первую будущую строку. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');            // есть и непокрытое прошлое, и будущее
   const d = CR.derive(c); const t = c.tranches[0];
-  const fr = CR.trancheForecastRows(t, d.ledger.index, '23.07.2026');
-  const fut = fr.filter(r => !r.past);
-  const past = fr.filter(r => r.past);
-  const sumFut  = fut.reduce((a,r) => a + r.forecast, 0);
-  const tail    = past.reduce((a,r) => a + r.forecast, 0);
-  const sumInt  = fut.reduce((a,r) => a + (r.interest || 0), 0);
-  const led = [...d.ledger.index.values()].filter(e => e.trancheNo === t.no);
-  const paidP = led.reduce((a,e) => a + e.principalPaid, 0);
-  const balP  = Math.max(0, (t.disbursements||[]).reduce((a,x)=>a+(x.amount||0),0) - paidP);
-  const want  = balP + sumInt + tail;
-  ok(84, fut.length === 0 || Math.abs(sumFut - want) < 0.05,
-     `Σбудущего=${sumFut.toFixed(2)} vs остатокОД ${balP.toFixed(2)} + %% ${sumInt.toFixed(2)} + хвост ${tail.toFixed(2)} = ${want.toFixed(2)}`);
+  const fr = CR.trancheForecastRows(c, t, d.ledger.index, '23.07.2026');
+  const fut = fr.filter(r => !r.past), past = fr.filter(r => r.past);
+  const sumFut = fut.reduce((a,r) => a + r.forecast, 0);
+  const sumInt = fut.reduce((a,r) => a + (r.interest || 0), 0);
+  const tail   = past.reduce((a,r) => a + r.forecast, 0);
+  const led    = [...d.ledger.index.values()].filter(e => e.trancheNo === t.no);
+  const overdueP = led.reduce((a,e) => a + (e.principalOverdue || 0), 0);
+  const disb  = (t.disbursements||[]).reduce((a,x)=>a+(x.amount||0),0);
+  const base  = Math.max(0, disb - CR.paidPrincipalOfTranche(c, t, '23.07.2026') - overdueP);
+  ok(84, fut.length > 0 && tail > 0.005 && Math.abs(sumFut - (base + sumInt)) < 0.05,
+     `Σбудущего=${sumFut.toFixed(2)} vs база ${base.toFixed(2)} + %% ${sumInt.toFixed(2)}`
+     + ` = ${(base+sumInt).toFixed(2)}; хвост ${tail.toFixed(2)} снаружи`);
 })();
 
 /* 85. Г-30: план не ставится на кредит в «Проекте» и на закрытый; отказ называет причину. */
@@ -1377,6 +1389,104 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
      `строк=${rs.length}, ненаступивших=${rs.filter(r=>r.future).length},`
      + ` первая — ${fee.article} на ${fee.due}, порядок дат ${mono?'не убывает':'СБИТ'},`
      + ` хвост ${tail?'в конце':'ПЕРЕМЕШАН'}`);
+})();
+
+/* 101…105 — ПРОГНОЗ ПОСЛЕ РАЗБОРА 10.08.2026 (ADR-0104). */
+
+/* 101. ХВОСТ ПРОШЛОГО НИКУДА НЕ ЕДЕТ. Раньше непокрытое сваливалось в первую будущую
+   позицию (k===0), и она распухала на всю просрочку — срок по просроченному назначался
+   молча, вдобавок просроченное тело считалось дважды: и хвостом, и внутри базы будущего.
+   Теперь: Σ прошлых строк = непокрытое по расчёту, а первая будущая равна контракту. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  const d = CR.derive(c); const t = c.tranches[0];
+  const fr = CR.trancheForecastRows(c, t, d.ledger.index, '23.07.2026');
+  const past = fr.filter(r => r.past), fut = fr.filter(r => !r.past);
+  const tail = past.reduce((a,r) => a + r.forecast, 0);
+  const led  = [...d.ledger.index.values()].filter(e => e.trancheNo === t.no);
+  const want = led.reduce((a,e) => a + e.principalOverdue + e.interestOverdue + e.penaltyBal, 0);
+  const first = fut[0] || {};
+  ok(101, tail > 0.005 && fut.length > 0 && Math.abs(tail - want) < 0.05 && Math.abs(first.delta || 0) < 0.05,
+     `хвост=${tail.toFixed(2)} vs непокрытое ${want.toFixed(2)};`
+     + ` первая будущая ${first.date}: график ${first.scheduled} прогноз ${first.forecast}`);
+})();
+
+/* 102. ПРОГНОЗ ЗНАЕТ ПАУЗУ НАЧИСЛЕНИЯ (Р-17) — общее ядро periodInterest с buildSchedule.
+   Пока реализаций было две, прогноз считал плоским rate/12·mpp и обещал проценты, которых
+   движок не начислит: на паузе он расходился с «Расчётами» ровно там, где на него смотрят. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  const t = c.tranches[0]; const idx = CR.derive(c).ledger.index;
+  const before = CR.trancheForecastRows(c, t, idx, '23.07.2026').filter(r => !r.past);
+  const g = CR.holdAccrual(c, { from:'01.08.2026', to:'31.12.2026', reason:'Форс-мажор',
+                                doc:'hold-56.pdf', by:'Смоук' });
+  const after = CR.trancheForecastRows(c, t, idx, '23.07.2026').filter(r => !r.past);
+  const inHold  = after.filter(r => pd(r.date) >= pd('01.08.2026') && pd(r.date) <= pd('31.12.2026'));
+  const outHold = after.filter(r => pd(r.date) > pd('31.12.2026'));
+  ok(102, g.ok && inHold.length > 0 && inHold.every(r => r.interest === 0)
+       && outHold.some(r => r.interest > 0) && before.some(r => r.interest > 0),
+     `гейт=${g.ok} в паузе позиций=${inHold.length} все с %%=0=${inHold.every(r=>r.interest===0)};`
+     + ` после паузы %% снова начисляются=${outHold.some(r=>r.interest>0)}`);
+})();
+
+/* 103. У ЗАКРЫТОГО КРЕДИТА БУДУЩЕГО НЕТ. Расчёт замирает на дате закрытия (buildLedger),
+   и прогноз обязан замереть там же: иначе списанный кредит показывал бы ожидаемые
+   поступления на годы вперёд по расписанию, которое никто уже не исполняет. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-6b');            // «Списан» 15.05.2026
+  const t = c.tranches[0]; const d = CR.derive(c);
+  const fr = CR.trancheForecastRows(c, t, d.ledger.index, '23.07.2026');
+  const sm = CR.forecastSummary(c, c.tranches, d.ledger.index, '23.07.2026');
+  ok(103, d.calcStopped && fr.length > 0 && fr.every(r => r.past) && sm.payoff === null,
+     `расчёт остановлен=${d.calcStopped} строк=${fr.length} будущих=${fr.filter(r=>!r.past).length}`
+     + ` закрытие=${sm.payoff === null ? 'не выдаётся' : sm.payoff}`);
+})();
+
+/* 104. ПОМЕСЯЧНЫЙ ПРОГНОЗ ВИДИТ ПРОШЕДШИЕ МЕСЯЦЫ. Исключение прошлого стояло против
+   двойного счёта хвоста; хвост больше не течёт вперёд, и исключение снято вместе с ним.
+   Иначе колонка «Прогноз» во вкладке «План» показывала по всем прошедшим месяцам ноль —
+   «в те месяцы ничего не ждали». Нулевых ключей при этом быть не должно: нулём нельзя
+   предзаполнять форму плана, Г-30 его отбивает. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-3');
+  const fc = CR.forecastByMonth(c, CR.derive(c).ledger.index, '23.07.2026');
+  const pastMonths = [...fc.keys()].filter(mk => mk < '2026-07');
+  ok(104, pastMonths.length > 0 && pastMonths.every(mk => fc.get(mk) > 0)
+       && [...fc.values()].every(v => v > 0.005),
+     `прошедших месяцев с недобором=${pastMonths.length} (${pastMonths.join(', ')});`
+     + ` нулевых ключей=${[...fc.values()].filter(v => v <= 0.005).length}`);
+})();
+
+/* 105. ПЕНЯ ВПЕРЁД МОЛЧИТ ТАМ, ГДЕ ЕЁ ПРИОСТАНОВИЛ СЛОЙ. Плитка «Пеня к ближайшей дате»
+   складывает penaltyPerDayFwd просроченных строк; строка под решением суда, где режим
+   гасит пеню, обязана давать ноль — иначе экран обещает рост, которого не будет. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-3');
+  const d = CR.derive(c);
+  const over = d.ledger.rows.filter(r => r.overdueTotal > 0.005);
+  const frozen = over.filter(r => r.penaltyFrozen > 0.005);
+  const free   = over.filter(r => !r.layerId);
+  ok(105, over.length > 0 && frozen.length > 0
+       && frozen.every(r => r.penaltyPerDayFwd === 0)
+       && free.every(r => r.penaltyPerDayFwd >= 0)
+       && over.some(r => r.penaltyPerDayFwd > 0),
+     `просроченных=${over.length} с приостановленной пенёй=${frozen.length} (все с 0/день=`
+     + `${frozen.every(r=>r.penaltyPerDayFwd===0)}); строк с ненулевой ценой дня=`
+     + `${over.filter(r=>r.penaltyPerDayFwd>0).length}`);
+})();
+
+/* 106. НЕОСВОЕННЫЙ ТРАНШ НЕ СНИМАЕТ ОТВЕТ ПО ОБЛАСТИ. За дату закрытия голосуют только
+   транши С ГРАФИКОМ: у транша без единой позиции закрывать нечего, и вето он ставить не
+   вправе — иначе кредит с одним живым и одним неосвоенным траншем молча показывал «—»,
+   хотя дата по живому траншу известна. Вето остаётся ровно за тем случаем, ради которого
+   его вводили: график исчерпан, а долг остался (K-3) — тогда сроки назначает только
+   перестроение, и чужую дату выдавать нельзя. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  const d = CR.derive(c);
+  const sm  = CR.forecastSummary(c, c.tranches, d.ledger.index, '23.07.2026');
+  const un  = c.tranches.filter(t => CR.trancheScheduleRows(t).length === 0);
+  const c3  = byId(db,'K-3'); const d3 = CR.derive(c3);
+  const sm3 = CR.forecastSummary(c3, c3.tranches, d3.ledger.index, '23.07.2026');
+  ok(106, c.tranches.length > 1 && un.length > 0 && sm.payoff !== null
+       && sm.stuck.length === 0 && sm3.payoff === null && sm3.stuck.length > 0,
+     `K-1: траншей=${c.tranches.length} без графика=${un.length} закрытие=${sm.payoff||'—'};`
+     + ` K-3 (график исчерпан, долг ${sm3.tail}): закрытие=${sm3.payoff||'—'}`
+     + ` вето траншей=${sm3.stuck.join(',')||'нет'}`);
 })();
 
 const pass = results.filter(r => r.pass).length;
