@@ -948,6 +948,10 @@ const pd = CR.pd;
     catch(e){ bad.push(`${c.id}/${t}: ${e.message}`); continue; }
     if (typeof html !== 'string' || html.length < 50) bad.push(`${c.id}/${t}: пусто`);
     else if (/undefined|\[object Object\]|NaN/.test(html)) bad.push(`${c.id}/${t}: мусор в разметке`);
+    /* ADR-0060 §4: очередь публикуется на «Платежах» и обязана быть на КАЖДОМ кредите —
+       у кредита без графика она пуста, но секция с подписью «непогашенного нет» стоит */
+    else if (t === 'Платежи' && !/Очередь погашения/.test(html))
+      bad.push(`${c.id}/${t}: секции очереди нет`);
   }
   ok(53, bad.length === 0, `вкладок=${CR2.db.credits.length * TABS.length} проблем=${bad.length} ${bad.slice(0,3).join(' | ')}`);
 

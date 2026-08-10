@@ -6551,6 +6551,37 @@ if (typeof document !== 'undefined') {
       <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Статья</th><th style="text-align:right">Начислено</th><th style="text-align:right">Погашено</th><th style="text-align:right">Просрочено</th><th style="text-align:right">Остаток</th></tr></thead><tbody>
         ${DEBT_ARTICLES.map(a=>drow(a.label, b[a.key])).join('')}
       </tbody></table></div>
+      ${(() => {
+        const q = d.queue || { asOf:d.calcUntil, rows:[] };
+        const over = round2(q.rows.filter(r => r.urg === 'over').reduce((a,r) => a + r.amount, 0));
+        const rows = q.rows.map(r => `<tr${r.future?' style="color:var(--text-muted)"':''}>
+          <td>${esc(r.due)}<br>${r.future
+              ? '<span class="pill neutral">не наступило</span>'
+              : '<span class="pill high">просрочено</span>'}</td>
+          <td>${r.layer==='free'
+              ? '—'
+              : `<span class="pill mid">${esc(r.layer)}</span><br><span class="text-muted" style="font:var(--font-label)">${esc(r.layerLabel)}</span>`}</td>
+          <td>${r.tranche==null?'<span class="text-muted">по кредиту</span>':'№'+esc(r.tranche)}</td>
+          <td>${esc(r.article)}</td>
+          <td style="text-align:right">${money(r.amount)}</td></tr>`);
+        const foot = q.rows.length?`<tr style="font-weight:var(--weight-semibold);background:var(--surface-panel)">
+          <td colspan="4">Итого просроченного</td><td style="text-align:right">${money(over)}</td></tr>`:'';
+        const when = d.calcStopped
+          ? `на <b>${esc(q.asOf)}</b> — дату остановки начисления, а не на дату среза ${esc(cardAsOf)}: расчёт закрытого кредита замер`
+          : `на <b>${esc(q.asOf)}</b>`;
+        return `
+      <div class="section-h" style="margin-top:22px">Очередь погашения <span class="pill info">отдаётся в ПЛАТЕЖИ</span></div>
+      <p class="section-note">Упорядоченный перечень непогашенного ${when}: транш · слой · статья · дата наступления · сумма (<b>ADR-0060 §4</b>).
+        Порядок один — по дате наступления, независимо от того, чей это транш; внутри даты — по очерёдности статей.
+        Платежи льют деньги по готовому списку сверху вниз и своей лестницы не строят: сырьё (взносы, графики, ставки, режимы) целиком у кредита.
+        Перечень производный — отдаётся на дату, не хранится.${d.calcProvisional
+          ? ` <b>Расчёт предварительный:</b> снимок зеркала платежей от ${esc(d.paymentsAsOf)} старше даты расчёта — хвост очереди посчитан по платежам, которых владелец ещё не прислал.`
+          : ''}</p>
+      ${cgrid([{h:'Срок'},{h:'Слой'},{h:'Транш'},{h:'Статья'},{h:'Сумма',r:1}],
+              rows.concat(foot?[foot]:[]), {empty:'Непогашенного нет'})}
+      <p class="section-note">Σ просроченных строк = <b>${money(over)}</b> — та же величина, что в своде по статьям выше.
+        Разошлись бы они только при двух разных лестницах, а лестница здесь одна.</p>`;
+      })()}
 
       <div class="section-h" style="margin-top:22px">Счета и код оплаты</div>
       <p class="section-note">Код оплаты — ключ сопоставления входящего платежа с кредитом, оперативный реквизит, а не паспортное поле договора.</p>
