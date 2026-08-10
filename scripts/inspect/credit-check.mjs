@@ -1272,22 +1272,43 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
    K-3: судебный приказ от 28.05.2026 на 18 300 при взносах по 12 300. Присуждённое
    обязано накрыть ПЕРВЫЕ ДВЕ позиции целиком (12 300 + остаток 6 000 уходит во вторую)
    и не дотянуться до третьей. Пропорция к телу дала бы вместо этого по 9,15 % КАЖДОЙ
-   позиции — «верный порядок величины при неверной копейке». */
+   позиции — «верный порядок величины при неверной копейке».
+   K-C12: ВТОРОЙ акт (25.06.2026, ИЛ-C211/2, 35 000) поверх первого (20.05.2026, ИЛ-C211,
+   62 400) — единственный многослойный случай в демонаборе. Первый акт клеймит T1#1/T1#2 и
+   останавливается (62 400 не хватает на T1#3 целиком); второй ОБЯЗАН пропустить уже
+   помеченные T1#1/T1#2 и начать с T1#3 — это ветка `if (map.has(p.key)) continue;` в
+   layersByLadder, до сих пор ничем не покрытая. */
 (() => { const db = CR.seedDb(); const c = byId(db,'K-3');
   const L   = CR.courtLayersOf(c, CR.TODAY)[0];
   const lad = CR.ladderAt(c, L.date).map(p => p.key);
   const map = CR.layersByLadder(c, CR.TODAY);
   const d   = CR.derive(c);
+
+  const c12   = byId(db,'K-C12');
+  const L12   = CR.courtLayersOf(c12, CR.TODAY);
+  const map12 = CR.layersByLadder(c12, CR.TODAY);
+  const d12   = CR.derive(c12);
+
   ok(98, L.id === 'L-1' && /28\.05\.2026/.test(L.label)
       && lad[0] === 'T1#1' && lad[1] === 'T1#2' && lad[2] === 'T1#3'
       && map.get('T1#1') === 'L-1' && map.get('T1#2') === 'L-1'
       && !map.has('T1#3') && !map.has('T1#4')
       && d.debt.interest.frozen === 7900 && Math.abs(d.debt.penalty.frozen - 442.40) < 0.05
       && d.ledger.index.get('T1#1').layerId === 'L-1'
-      && d.ledger.index.get('T1#3').layerId === null,
-     `слой ${L.id} на ${L.amount}: лестница ${lad.slice(0,3).join(' → ')};`
+      && d.ledger.index.get('T1#3').layerId === null
+      && L12.length === 2 && L12[0].id === 'L-1' && L12[1].id === 'L-2'
+      && map12.get('T1#1') === 'L-1' && map12.get('T1#2') === 'L-1'
+      && map12.get('T1#3') === 'L-2' && !map12.has('T1#4') && !map12.has('T1#5')
+      && Math.abs(d12.debt.interest.frozen - 18687.5) < 0.05
+      && Math.abs(d12.debt.penalty.frozen - 6051.5) < 0.05
+      && d12.ledger.index.get('T1#1').layerId === 'L-1'
+      && d12.ledger.index.get('T1#3').layerId === 'L-2'
+      && d12.ledger.index.get('T1#4').layerId === null,
+     `K-3: слой ${L.id} на ${L.amount}: лестница ${lad.slice(0,3).join(' → ')};`
      + ` помечено ${[...map.keys()].join(', ') || '—'};`
-     + ` приостановлено %=${d.debt.interest.frozen}, пеня=${d.debt.penalty.frozen}`);
+     + ` приостановлено %=${d.debt.interest.frozen}, пеня=${d.debt.penalty.frozen}.`
+     + ` K-C12: слоёв ${L12.length}, помечено ${[...map12.keys()].join(', ') || '—'};`
+     + ` приостановлено %=${d12.debt.interest.frozen}, пеня=${d12.debt.penalty.frozen}`);
 })();
 
 /* 99. ПОРЯДОК ОЧЕРЕДИ — один, по дате наступления (ADR-0060 §2: «независимо от того,
