@@ -470,19 +470,28 @@
        строка — по ОДНОЙ дате, а между ними ничего не было. Из 59 демо-кредитов 29 —
        многолетние (24 из них на три года), то есть случай не краевой.
      СДЕЛАНО: в таблице «График — позиции» перед первой позицией каждого года стоит
-       строка-заголовок на всю ширину: год · сколько платежей · Σ ОД · Σ проценты ·
-       Σ к погашению, второй строкой — состав статусов года (погашено · просрочено ·
+       СТРОКА ГОДА — обычная строка таблицы, а не подпись на всю ширину: итоги стоят
+       ПОД СВОИМИ колонками (Σ ОД под «Осн. сумма», Σ проценты под «Проценты в платеже»,
+       Σ к погашению под «Платёж»), поэтому год и позиция сравниваются взглядом по
+       вертикали, без чтения слитной подписи. В первой ячейке — год, пилюля «текущий»
+       и число платежей, в колонке статуса — состав года (погашено · просрочено ·
        наступило · предстоит), просроченное красным. Год ВЫВОДИТСЯ из даты позиции —
        поля в модели нет; позиции и так отсортированы по дате (в слитом виде — по дате,
        затем по траншу), поэтому годы идут сплошными отрезками и группа получается сама.
        Работает в обеих областях: «по кредиту» группирует слитую таблицу всех траншей.
-     СВЕРНУТЬ ГОД НЕЛЬЗЯ намеренно: вкладка отвечает на вопрос «что платим следующим»,
-       а он живёт ЧЕРЕЗ границу года — свёрнутый декабрь-январь прячет ровно тот ответ,
-       за которым на вкладку и приходят. По той же причине отвергнуты селектор года
-       (идиома «Плана») и двухуровневый свод «год → разворот»: оба показывают один год.
-     ОДНОЛЕТНИЙ ГРАФИК заголовков не получает вовсе — они дословно повторили бы плитки
+     РАЗВЁРНУТ ТОЛЬКО ТЕКУЩИЙ ГОД (тот, куда попала дата среза), прочие стоят одной
+       итоговой строкой и раскрываются кликом по строке года; в тулбаре — «Развернуть
+       все годы»/«Свернуть все годы». Вкладка отвечает на вопрос «что платим в этом году
+       и сколько должны за остальные», и шестьдесят строк подряд этот ответ топят, а
+       деталь остаётся на расстоянии одного нажатия. Состояние — grafikOpenYears (Set) +
+       grafikYearsKey (кредит|область|годы): пустой набор это законное «свернуть всё»,
+       умолчание возвращает только СМЕНА набора годов. Текущего года в графике может не
+       быть вовсе (кредит выдан позже или давно закрыт) — тогда раскрывается ближайший
+       следующий, а если весь график в прошлом — последний: свёрнутое целиком читалось бы
+       как «позиций нет».
+     ОДНОЛЕТНИЙ ГРАФИК строк года не получает вовсе — они дословно повторили бы плитки
        шапки (Σ ОД, Σ проценты, итого), а одна и та же цифра в двух местах читается как
-       две разные величины.
+       две разные величины; и сворачивать там нечего — год ровно один.
      НЕ ДЕЛАЛОСЬ: «Прогноз» и детальный расчёт «Расчётов» не тронуты — там предмет иной
        (ожидание и факт против контракта), и группировка по годам им не заказывалась.
 
@@ -1290,15 +1299,18 @@ table.cgrid tbody tr:hover{ background:var(--surface-hover); }
 table.cgrid tbody tr.total td{ font-weight:var(--weight-bold); color:var(--text-heading);
   background:var(--surface-hover); border-top:1px solid var(--border-strong); }
 table.cgrid tbody tr.giveback td{ color:var(--asubk-green); font-weight:var(--weight-medium); }
-/* Заголовок года в позициях графика: разделитель + итог года. Не строка данных —
-   hover не подсвечивается, чтобы не читался как кликабельный (свернуть год нельзя). */
-table.cgrid tbody tr.gyear td{ background:var(--surface-panel); padding:8px 12px;
-  border-top:1px solid var(--border-strong); white-space:normal; }
-table.cgrid tbody tr.gyear:hover td{ background:var(--surface-panel); }
-.gyear-h{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
-.gyear-h .gy{ font:var(--weight-bold) var(--text-base)/1.2 var(--asubk-font); color:var(--text-heading); }
-.gyear-h .gm{ color:var(--text-body); }
-.gyear-s{ margin-top:3px; color:var(--text-muted); font-size:11px; }
+/* Строка года в позициях графика: итог года стоит ПОД СВОИМИ колонками (ОД, проценты,
+   платёж), поэтому это обычная строка таблицы, а не подпись на всю ширину. Кликается —
+   разворачивает/сворачивает год, отсюда cursor и подсветка на hover. */
+table.cgrid tbody tr.gyear td{ background:var(--surface-panel); padding:9px 12px;
+  border-top:1px solid var(--border-strong); color:var(--text-heading); }
+table.cgrid tbody tr.gyear{ cursor:pointer; }
+table.cgrid tbody tr.gyear:hover td{ background:var(--surface-hover); }
+table.cgrid tbody tr.gyear .gcar{ display:inline-block; width:14px; color:var(--text-muted); }
+table.cgrid tbody tr.gyear .gy{ font:var(--weight-bold) var(--text-base)/1.2 var(--asubk-font);
+  color:var(--text-heading); margin-right:8px; }
+table.cgrid tbody tr.gyear .gcnt{ color:var(--text-muted); margin-left:8px; }
+table.cgrid tbody tr.gyear td.gyear-s{ color:var(--text-muted); font-size:11px; }
 /* Сторнированная мера — запись остаётся, зачёркнута с пометкой основания (И-3). */
 table.cgrid tbody tr.storno td{ color:var(--text-placeholder); text-decoration:line-through; }
 table.cgrid tbody tr.storno td.storno-reason{ text-decoration:none; color:var(--asubk-red); }
@@ -5451,6 +5463,7 @@ if (typeof document !== 'undefined') {
     cardScope = 'credit'; cardAsOf = TODAY; condBasisFilter = 'all'; condOpenGroup = null; condOpenTranche = null; condMatrixTranche = null;
     dogovorExtraTab = 'subject';
     planYear = pd(TODAY).getFullYear(); planOpenMonth = null;   // состояние вкладки «План» — своё на каждую карточку
+    grafikOpenYears = null;                                     // годы «Графика»: null → умолчание (текущий год)
     document.getElementById('view-list').style.display = 'none';
     const dv = document.getElementById('view-detail');
     dv.style.display = 'flex';
@@ -5549,6 +5562,11 @@ if (typeof document !== 'undefined') {
   let cardAsOf  = TODAY;
   let planYear = pd(TODAY).getFullYear();   // год на вкладке «План»
   let planOpenMonth = null;                 // 'YYYY-MM' развёрнутой строки (журнал правок)
+  /* Развёрнутые годы «Графика». null — состояние не трогали: раскрывается ТЕКУЩИЙ год
+     (тот, в который попала дата среза), остальные годы стоят одной итоговой строкой.
+     Не список годов, а Set: годы приходят из графика и от кредита к кредиту разные. */
+  let grafikOpenYears = null;
+  let grafikYearsKey = '';                  // кредит|область|годы, для которых набор актуален
   let condBasisFilter = 'all';      // фильтр журнала по типу основания
   let condOpenGroup   = null;       // g.key развёрнутой группы журнала (basisGroups — единственный источник ключа)
   let condOpenTranche = null;       // № транша активной вкладки внутри разворота; null/чужой → первый транш группы
@@ -6390,37 +6408,58 @@ if (typeof document !== 'undefined') {
       .sort((a,b) => pd(a.r.date) - pd(b.r.date) || a.t.no - b.t.no)
       .map(x => ({ ...x, y: pd(x.r.date).getFullYear(),
         s: scheduleRowStatus(x.r, d.ledger.index.get(ledgerKey(x.t.no, x.r.no)), cardAsOf) }));
-    /* ГРУППИРОВКА ПО ГОДАМ (волна 10.08.2026). Год ВЫВОДИТСЯ из даты позиции — поля в
-       модели нет и не появляется; порядок уже по дате (в слитом виде — по дате, потом по
-       траншу), поэтому годы идут сплошными отрезками и группа получается сама.
-       Заголовок года несёт ИТОГ ГОДА: у пятилетнего графика годовая нагрузка иначе
-       читается только сложением шестидесяти строк глазами. Разворачивать/сворачивать год
-       нельзя намеренно: вкладка отвечает на вопрос «что платим следующим», а он живёт
-       ЧЕРЕЗ границу года — свёрнутый декабрь-январь этот ответ прячет.
+    /* ГРУППИРОВКА ПО ГОДАМ (волна 10.08.2026, КВ-19). Год ВЫВОДИТСЯ из даты позиции —
+       поля в модели нет и не появляется; порядок уже по дате (в слитом виде — по дате,
+       потом по траншу), поэтому годы идут сплошными отрезками и группа получается сама.
+       Строка года — НЕ подпись на всю ширину, а обычная строка таблицы: итоги стоят
+       ПОД СВОИМИ колонками (ОД под «Осн. сумма», проценты под «Проценты в платеже»,
+       к погашению под «Платёж»), и год с позицией сравнивается взглядом по вертикали.
+       Развёрнут ТОЛЬКО ТЕКУЩИЙ год (тот, куда попала дата среза): вкладка отвечает
+       на вопрос «что платим в этом году и что должны за остальные», а шестьдесят строк
+       подряд этот ответ топят. Прочие годы стоят одной итоговой строкой и разворачиваются
+       по клику — деталь остаётся на расстоянии одного нажатия, а не пролистывания.
        Одногодичный график заголовка не получает: он дословно повторил бы плитки шапки
        (Σ ОД, Σ проценты, итого), а повтор той же цифры в двух местах читается как две
-       разные величины. */
-    const posCols = sel ? 7 : 8;
+       разные величины; сворачивать там тоже нечего — год ровно один. */
     const byYear = new Map();
     posSrc.forEach(p => { const g = byYear.get(p.y) || { count:0, principal:0, interest:0, total:0, st:{} };
       g.count++; g.principal += p.r.principal||0; g.interest += p.r.interest||0; g.total += p.r.total||0;
       g.st[p.s] = (g.st[p.s]||0) + 1; byYear.set(p.y, g); });
-    const multiYear = byYear.size > 1;
+    const years = [...byYear.keys()];
+    const multiYear = years.length > 1;
     const curYear = pd(cardAsOf).getFullYear();
+    /* Умолчание: текущий год. Его может не быть в графике вовсе (кредит выдан позже или
+       давно закрыт) — тогда открывается БЛИЖАЙШИЙ следующий, а если весь график в
+       прошлом — последний. Пустой раскрытия не бывает: свёрнуто всё сразу читалось бы
+       как «позиций нет». Стороннее состояние (переключили область, сменили кредит)
+       к годам этого графика может не относиться — тогда снова умолчание. */
+    const defYear = byYear.has(curYear) ? curYear : (years.find(y => y > curYear) ?? years[years.length-1]);
+    /* Ключ набора: кредит + область + сами годы. Свёрнутое состояние принадлежит ЭТОМУ
+       графику — сменили кредит, транш или перегенерировали график с другими датами,
+       и прежний набор годов к новому отношения не имеет. Через ключ «всё свёрнуто»
+       (осознанный выбор пользователя) отличается от «набор устарел». */
+    const yearsKey = c.id + '|' + (sel ? sel.no : 'credit') + '|' + years.join(',');
+    if (grafikOpenYears === null || grafikYearsKey !== yearsKey){
+      grafikOpenYears = new Set(multiYear ? [defYear] : years); grafikYearsKey = yearsKey; }
+    const openYears = grafikOpenYears;
+    const allOpen = multiYear && years.every(y => openYears.has(y));
     /* Порядок слов статусов фиксирован (прошлое → будущее), а не порядком появления:
        иначе подпись года прыгала бы составом от кредита к кредиту. */
     const stWord = [['Оплачена','погашено'],['Просрочена','просрочено'],['Наступила','наступило'],['Предстоит','предстоит']];
-    const yearRow = (y) => { const g = byYear.get(y);
+    const yearRow = (y) => { const g = byYear.get(y); const open = openYears.has(y);
       const cnt = stWord.filter(([k]) => g.st[k]).map(([k,w]) => k === 'Просрочена'
         ? `<span style="color:var(--asubk-red)">${w} ${g.st[k]}</span>` : `${w} ${g.st[k]}`).join(' · ');
-      return `<tr class="gyear"><td colspan="${posCols}">
-        <div class="gyear-h"><span class="gy">${y}</span>${y===curYear?'<span class="pill neutral">текущий</span>':''}
-          <span class="text-muted">${plur(g.count,'платёж','платежа','платежей')}</span>
-          <span class="gm">ОД <b>${money(round2(g.principal))}</b> · проценты <b>${money(round2(g.interest))}</b> · к погашению <b>${money(round2(g.total))}</b></span></div>
-        <div class="gyear-s">${cnt}</div></td></tr>`; };
+      return `<tr class="gyear${open?' open':''}" onclick="CR.toggleGrafikYear(${y})" title="${open?'Свернуть':'Развернуть'} ${y} год">
+        <td colspan="${sel?2:3}"><span class="gcar">${open?'▾':'▸'}</span><span class="gy">${y}</span>${y===curYear?'<span class="pill neutral">текущий</span>':''}<span class="gcnt">${plur(g.count,'платёж','платежа','платежей')}</span></td>
+        <td style="text-align:right"><b>${money(round2(g.principal))}</b></td>
+        <td style="text-align:right"><b>${money(round2(g.interest))}</b></td>
+        <td style="text-align:right" class="text-muted">—</td>
+        <td style="text-align:right"><b>${money(round2(g.total))}</b></td>
+        <td class="gyear-s">${cnt}</td></tr>`; };
     const posRows = []; let lastYear = null;
     posSrc.forEach(({r,t,s,y})=>{
       if (multiYear && y !== lastYear) { lastYear = y; posRows.push(yearRow(y)); }
+      if (multiYear && !openYears.has(y)) return;                       // год свёрнут — стоит одной итоговой строкой
       posRows.push(`<tr><td>№${r.no}</td>${sel?'':`<td>№${t.no}</td>`}<td>${esc(r.date)}</td><td style="text-align:right">${money(r.principal)}</td><td style="text-align:right">${money(r.interest)}</td>${(r.accrued!=null&&Math.abs(r.accrued-r.interest)>0.005)?`<td style="text-align:right" title="начислено за период, но не включено в платёж (льгота по %)">${money(r.accrued)}</td>`:'<td style="text-align:right">—</td>'}<td style="text-align:right">${money(r.total)}</td><td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td></tr>`);});
     return `
       ${(()=>{ const rf=retroPendingFlags(c); if(!rf.length) return '';   // Д-5: тот же признак, что на «Условиях»
@@ -6443,6 +6482,11 @@ if (typeof document !== 'undefined') {
       <div class="section-h" style="margin-top:22px">Версии графика (${esc(scope)})</div>
       ${cgrid([{h:'Версия'}].concat(sel?[]:[{h:'Транш'}]).concat([{h:'Статус'},{h:'От даты'},{h:'Строк',r:1}]), verRows, {empty:'Версий графика нет — сформируйте'})}
       <div class="section-h" style="margin-top:22px">График — позиции (${esc(scope)})</div>
+      ${multiYear?`<div class="gtoolbar" style="margin:0 0 8px">
+        <span class="text-muted" style="font:var(--font-label)">Развёрнут ${plur([...openYears].filter(y=>years.includes(y)).length,'год','года','лет')} из ${years.length} — итог года стоит под своими колонками, детали открываются по клику на год</span>
+        <span class="spacer"></span>
+        <button class="btn btn-secondary btn-sm" onclick="CR.setGrafikYears([${allOpen?'':years.join(',')}])">${allOpen?'Свернуть все годы':'Развернуть все годы'}</button>
+      </div>`:''}
       ${cgrid([{h:'№'}].concat(sel?[]:[{h:'Транш'}]).concat([{h:'Дата'},{h:'Осн. сумма',r:1},{h:'Проценты в платеже',r:1},{h:'Начислено %',r:1},{h:'Платёж',r:1},{h:'Статус'}]), posRows, {empty:'Позиций нет — сформируйте график'})}`;
   }
 
@@ -7081,6 +7125,11 @@ if (typeof document !== 'undefined') {
     if(el) el.scrollIntoView({behavior:'smooth',block:'center'}); };
   CR.setPlanYear=function(y){ planYear=+y||planYear; planOpenMonth=null; rerenderDetail(); };
   CR.togglePlanMonth=function(mk){ planOpenMonth = (planOpenMonth===mk?null:mk); rerenderDetail(); };
+  /* Годы «Графика». Пустой набор — законное состояние («свернуть все»), а не сброс:
+     умолчание возвращает только смена набора годов (см. grafikYearsKey в tabGrafik). */
+  CR.toggleGrafikYear=function(y){ y=+y; if(!grafikOpenYears) grafikOpenYears=new Set();
+    if(grafikOpenYears.has(y)) grafikOpenYears.delete(y); else grafikOpenYears.add(y); rerenderDetail(); };
+  CR.setGrafikYears=function(list){ grafikOpenYears=new Set((list||[]).map(Number)); rerenderDetail(); };
   /* CR.stubAction удалён: канон §0.1 запрещает заглушки, а она обслуживала три кнопки
      owned-действий кредита — перевод долга, закрытие неосвоенного остатка, примечание —
      и в двух случаях тост ещё и врал про «модуль-владелец» (КР-2). Все три оживлены. */

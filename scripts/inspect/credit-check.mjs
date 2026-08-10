@@ -955,30 +955,46 @@ const pd = CR.pd;
   }
   ok(53, bad.length === 0, `вкладок=${CR2.db.credits.length * TABS.length} проблем=${bad.length} ${bad.slice(0,3).join(' | ')}`);
 
-  /* 100. ГРУППИРОВКА ПО ГОДАМ на «Графике» (волна 10.08.2026). Заголовок года стоит перед
-     первой позицией своего года, годы идут по возрастанию, «к погашению» в заголовке равно
-     сумме позиций ЭТОГО года, однолетний график заголовков не получает вовсе, и ни одна
-     позиция при группировке не теряется. Сверяется РЕНДЕР против чистой функции: разойдись
-     подсчёт заголовка с trancheScheduleRows — годовая нагрузка врала бы молча, а вкладка
-     выглядела бы исправной. */
+  /* 100. ГРУППИРОВКА ПО ГОДАМ на «Графике» (волна 10.08.2026, КВ-19). Строка года стоит
+     перед первой позицией своего года, годы идут по возрастанию, итоги (ОД · проценты ·
+     к погашению) равны суммам позиций ЭТОГО года и стоят ПОД СВОИМИ колонками — то есть
+     строка года имеет ровно 6 ячеек, а не одну на всю ширину. Развёрнут по умолчанию
+     ТОЛЬКО текущий год: позиций в разметке ровно столько, сколько их в этом году, а
+     итоги свёрнутых лет всё равно посчитаны по ВСЕМ позициям года. Однолетний график
+     строк года не получает вовсе и показывает все позиции.
+     Сверяется РЕНДЕР против чистой функции: разойдись подсчёт года с trancheScheduleRows
+     — годовая нагрузка врала бы молча, а вкладка выглядела бы исправной. */
   const gbad = [];
+  const m2 = (x) => CR2.money(Math.round((x + Number.EPSILON) * 100) / 100);
   for (const c of CR2.db.credits){
     const sel = c.tranches.length === 1 ? c.tranches[0] : null;   // cardScope по умолчанию — «по кредиту»
     const rows = (sel ? [sel] : c.tranches).flatMap(t => CR2.trancheScheduleRows(t));
     const exp = new Map();
-    for (const r of rows){ const y = CR2.pd(r.date).getFullYear(); exp.set(y, (exp.get(y) || 0) + (r.total || 0)); }
+    for (const r of rows){ const y = CR2.pd(r.date).getFullYear();
+      const g = exp.get(y) || { n:0, principal:0, interest:0, total:0 };
+      g.n++; g.principal += r.principal||0; g.interest += r.interest||0; g.total += r.total||0; exp.set(y, g); }
+    const ysAll = [...exp.keys()];
+    const cur = CR2.pd(CR2.TODAY).getFullYear();
+    const defY = exp.has(cur) ? cur : (ysAll.find(y => y > cur) ?? ysAll[ysAll.length-1]);
     const html = CR2.renderTab('График', c);
-    const heads = [...html.matchAll(/<tr class="gyear">[\s\S]*?<span class="gy">(\d{4})<\/span>[\s\S]*?к погашению <b>([^<]+)<\/b>/g)]
-      .map(x => ({ y:+x[1], sum:x[2] }));
+    const heads = [...html.matchAll(/<tr class="gyear(?: open)?"[\s\S]*?<span class="gy">(\d{4})<\/span>([\s\S]*?)<\/tr>/g)]
+      .map(x => ({ y:+x[1], tds:(x[2].match(/<td/g)||[]).length + 1,
+                   sums:[...x[2].matchAll(/<b>([^<]+)<\/b>/g)].map(v => v[1]) }));
     const posN = (html.match(/<tr><td>№/g) || []).length;
-    if (posN !== rows.length){ gbad.push(`${c.id}: позиций в разметке ${posN} vs ${rows.length}`); continue; }
-    if (exp.size < 2){ if (heads.length) gbad.push(`${c.id}: лет ${exp.size}, а заголовков ${heads.length}`); continue; }
-    if (heads.length !== exp.size){ gbad.push(`${c.id}: заголовков ${heads.length} vs лет ${exp.size}`); continue; }
+    if (ysAll.length < 2){
+      if (heads.length) gbad.push(`${c.id}: лет ${ysAll.length}, а строк года ${heads.length}`);
+      else if (posN !== rows.length) gbad.push(`${c.id}: позиций ${posN} vs ${rows.length}`);
+      continue;
+    }
+    if (heads.length !== ysAll.length){ gbad.push(`${c.id}: строк года ${heads.length} vs лет ${ysAll.length}`); continue; }
     const ys = heads.map(h => h.y);
     if (ys.some((y,i) => i && y <= ys[i-1])) gbad.push(`${c.id}: годы не по возрастанию: ${ys.join(',')}`);
+    if (posN !== exp.get(defY).n) gbad.push(`${c.id}: развёрнут ${defY}: позиций ${posN} vs ${exp.get(defY).n}`);
     for (const h of heads){
-      const want = CR2.money(Math.round((exp.get(h.y) + Number.EPSILON) * 100) / 100);
-      if (h.sum !== want) gbad.push(`${c.id}/${h.y}: итог года «${h.sum}» vs «${want}»`);
+      const g = exp.get(h.y);
+      if (h.tds !== 6) gbad.push(`${c.id}/${h.y}: ячеек в строке года ${h.tds}, а не 6 (итоги не под колонками)`);
+      const want = [m2(g.principal), m2(g.interest), m2(g.total)];
+      if (h.sums.join('|') !== want.join('|')) gbad.push(`${c.id}/${h.y}: итоги «${h.sums.join('|')}» vs «${want.join('|')}»`);
     }
   }
   ok(100, gbad.length === 0,
