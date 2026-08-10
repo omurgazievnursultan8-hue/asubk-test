@@ -114,12 +114,13 @@ const app = id => RS.appById(id);
     `T2=${tr[1].closed && tr[1].closed.reason} T3=${tr[2].closed && tr[2].closed.reason}`);
 })();
 
-/* 10. ИР-9/РС-16 — терминал по условию: «Закрыта» только когда пройдены все гейты оформления. */
+/* 10. ИР-9/РС-16 — терминал по условию: «Закрыта» только когда пройдены все гейты оформления.
+   Индексы 8/7 — цепь из девяти стадий по ADR-0107 (было 6/7 при одностадийном решении). */
 (() => { fresh();
   const s5 = RS.stageOf(app('RS-1005'));
   const s1 = RS.stageOf(app('RS-1001'));
-  const closedWhenAllOk = s5.idx === 6 && s5.closed === true;
-  const stuckWhileGateFails = s1.idx === 5 && s1.closed === false;
+  const closedWhenAllOk = s5.idx === 8 && s5.closed === true;
+  const stuckWhileGateFails = s1.idx === 7 && s1.closed === false;
   ok(10, closedWhenAllOk && stuckWhileGateFails, `RS-1005=${JSON.stringify(s5)} RS-1001=${JSON.stringify(s1)}`);
 })();
 
@@ -216,12 +217,17 @@ const app = id => RS.appById(id);
   ok(20, red && green, `RS-1001=${JSON.stringify(g1)} RS-1005=${JSON.stringify(g5)}`);
 })();
 
-/* 21. РС-19/ИР-10 — гейт пределов объясняется нормой, не выдуманной редакцией. */
+/* 21. РС-19/ИР-10 — гейт пределов объясняется РЕАЛЬНЫМИ реквизитами нормы. До 10.08.2026 сценарий
+   требовал обратного — метки «пункт не подтверждён»: Положение не было на руках, и справочник
+   честно говорил, что редакция неизвестна. Норма получена (прил. к ПКМ КР №14 от 19.01.2026),
+   метка снята, и сценарий сторожит теперь противоположное: запись обязана нести редакцию и дату. */
 (() => { fresh();
   const capNote = RS.normNote(RS.termCapFor(500000, RS.TODAY).rec);
   const floorNote = RS.normNote(RS.rateFloorFor(8, RS.TODAY).rec);
-  const marker = 'пункт не подтверждён';
-  ok(21, capNote.includes(marker) && floorNote.includes(marker), `cap="${capNote}" floor="${floorNote}"`);
+  const stale = 'пункт не подтверждён';
+  const req = n => n.includes('ПКМ КР №14') && n.includes('2026-01-19') && !n.includes(stale);
+  ok(21, req(capNote) && capNote.includes('п. 90') && req(floorNote) && floorNote.includes('п. 92'),
+    `cap="${capNote}" floor="${floorNote}"`);
 })();
 
 /* 22. РС-19 — границы termCapFor по шагам справочника. */
@@ -296,10 +302,177 @@ const app = id => RS.appById(id);
   ok(29, zeroPay && baseOk && capOk && countOk, `zeroPay=${zeroPay} baseOk=${baseOk} morCap=${morCap} m=${meta.m}`);
 })();
 
+/* ===== СЦЕНАРИИ РЕШЕНИЙ 10.08.2026 (РС-26…РС-37, ADR-0106/0105, ADR-0099 §2/§3/§5) ===== */
+
+/* 30. РС-34/ADR-0107 — цепь из трёх актов: стадия читается по акту, а не по органу.
+   RS-1002 закрыта отрицательным заключением (п. 88) и до Кабмина не доходит. */
+(() => { fresh();
+  const a2 = app('RS-1002'), s2 = RS.stageOf(a2);
+  const noResolution = !a2.resolution;
+  const chainLen = RS.STAGES.length === 9 && RS.STAGES[4] === 'Заключение уполномоченного органа'
+    && RS.STAGES[5] === 'Проект решения КМ' && RS.STAGES[6] === 'Постановление КМ';
+  ok(30, chainLen && noResolution && s2.idx === 4 && s2.closed === true && s2.label.includes('заключение'),
+    `stages=${RS.STAGES.length} RS-1002=${JSON.stringify(s2)} resolution=${a2.resolution}`);
+})();
+
+/* 31. ADR-0107 §«Последствия» — дверь спрашивает ПОСТАНОВЛЕНИЕ, не заключение: без реквизита
+   согласования ЖК постановление не регистрируется, без постановления ДС не проходит. */
+(() => { fresh();
+  const a1 = app('RS-1001');
+  const withAll = RS.resolutionGate(a1).ok;
+  const noZk = RS.resolutionGate({ resolution: { decision:'изм', no:'ПКМ-1', date:'2026-07-01' }, zk:null });
+  const onlyConclusion = RS.zkGate({ conclusion:{ outcome:'отказ', no:'МФ-1', date:'2026-07-01' }, zk:{no:'ЖК-1',date:'2026-07-02'} });
+  ok(31, withAll === true && noZk.ok === false && noZk.needZk === true && onlyConclusion.ok === false && onlyConclusion.needConclusion === true,
+    `RS-1001=${withAll} безЖК=${JSON.stringify(noZk)} приОтказе=${JSON.stringify(onlyConclusion)}`);
+})();
+
+/* 32. РС-28/ИР-13 — прощение без названной в акте суммы либо основания блокирует регистрацию ДС. */
+(() => { fresh();
+  const a1 = app('RS-1001');
+  const withBasis = RS.forgiveGate(a1);
+  const stripped = { dispositions: a1.dispositions, resolution: { ...a1.resolution, forgiveSum:null, forgiveBasis:null } };
+  const without = RS.forgiveGate(stripped);
+  const noForgive = RS.forgiveGate({ dispositions: [{article:'penalty',urgency:'over',kind:'cap',amount:1000}], resolution:{} });
+  ok(32, withBasis.applicable && withBasis.ok && !without.ok && without.sum === withBasis.sum && noForgive.ok && !noForgive.applicable,
+    `сОснованием=${JSON.stringify(withBasis)} без=${without.ok} безПрощения=${noForgive.applicable}`);
+})();
+
+/* 33. РС-26 — порог расхождения в две ступени, по проценту ЛИБО по абсолютной сумме.
+   Проверяем обе оси: 12 % от малой базы и 6 млн от базы, где это всего 6 %. */
+(() => { fresh();
+  const t = (delta, base) => { const x = RS.driftTier(delta, base); return x ? x.level : 0; };
+  const pctAxis = t(120000, 1000000) === 1 && t(300000, 1000000) === 2 && t(90000, 1000000) === 0;
+  const absAxis = t(600000, 100000000) === 1 && t(6000000, 100000000) === 2;
+  const clean = t(10000, 1000000) === 0;
+  const twoTiers = RS.DRIFT_TIERS.length === 2 && RS.DRIFT_TIERS[0].pct === 0.10 && RS.DRIFT_TIERS[0].abs === 500000
+    && RS.DRIFT_TIERS[1].pct === 0.25 && RS.DRIFT_TIERS[1].abs === 5000000;
+  ok(33, twoTiers && pctAxis && absAxis && clean, `pct=${pctAxis} abs=${absAxis} clean=${clean} tiers=${RS.DRIFT_TIERS.length}`);
+})();
+
+/* 34. РС-27/ADR-0106 — пеня терминальна: ни на капитализированную, ни на накопленную пеню,
+   ни на просроченное накопленное начислений нет; на основной долг проценты идут. */
+(() => { fresh();
+  const empty = a => { const m = RS.accrualModeOf(a, RS.TODAY).mode; return !m.interest && !m.penalty; };
+  const principal = RS.accrualModeOf('principal', RS.TODAY).mode;
+  const dated = RS.ACCRUAL_MODES.every(r => /^\d{4}-\d{2}-\d{2}$/.test(r.from));
+  ok(34, empty('penalty') && empty('accPenalty') && empty('accInterest') && principal.interest === true && principal.penalty === true && dated,
+    `penalty=${empty('penalty')} accPenalty=${empty('accPenalty')} accInterest=${empty('accInterest')} principal=${JSON.stringify(principal)} dated=${dated}`);
+})();
+
+/* 35. РС-27 — капитализация разводит проценты и пеню по РАЗНЫМ счётчикам (п. 89 пп. 4:
+   «выделение отдельной суммой»), а не сливает всё в тело. */
+(() => { fresh();
+  const a = app('RS-1001');
+  const base = [
+    { article:'accInterest', urgency:'over', amount:100000, included:true },
+    { article:'penalty',     urgency:'over', amount:40000,  included:true }
+  ];
+  const disp = [
+    { article:'accInterest', urgency:'over', kind:'cap', amount:100000 },
+    { article:'penalty',     urgency:'over', kind:'cap', amount:40000 }
+  ];
+  const r = RS.AppSide.run({ ...a, base, dispositions: disp }, RS.TODAY);
+  ok(35, r.capitalizedInterest === 100000 && r.capitalizedPenalty === 40000 && r.capitalized === 140000,
+    `int=${r.capitalizedInterest} pen=${r.capitalizedPenalty} всего=${r.capitalized}`);
+})();
+
+/* 36. РС-35/ADR-0099 §2 — пол ставки = max(50 % от первоначальной, минимум по виду проекта).
+   Вид не указан ⇒ второй пол не вычисляется и гейт говорит об этом вслух, а не молчит. */
+(() => { fresh();
+  const commercial = RS.rateFloorFor(8, RS.TODAY, 'commercial');   // half 4 < 6 ⇒ пол 6
+  const social = RS.rateFloorFor(8, RS.TODAY, 'social');           // half 4 > 1 ⇒ пол 4
+  const unknown = RS.rateFloorFor(8, RS.TODAY, null);              // вида нет ⇒ пол 4, флаг
+  const external = RS.rateFloorFor(8, RS.TODAY, 'external');       // ставка внешняя ⇒ флаг
+  ok(36, commercial.floor === 6 && commercial.projFloor === 6
+      && social.floor === 4 && social.projFloor === 1
+      && unknown.floor === 4 && unknown.projectUnchecked === true
+      && external.floor === 4 && external.projectUnchecked === true,
+    `комм=${commercial.floor} соц=${social.floor} безВида=${unknown.floor}/${unknown.projectUnchecked} внешн=${external.projectUnchecked}`);
+})();
+
+/* 37. ADR-0099 §5 — нормативный пакет пп. 85–86, 95: три безусловных документа плюс условные,
+   каждый с пунктом. Условные не показываются, пока условие не в силе. */
+(() => { fresh();
+  const a3 = app('RS-1003');                     // виды: N1, ставку не трогает
+  const pkg = RS.normPacket(a3);
+  const points = pkg.map(d => d.point);
+  const unconditional = ['85 пп. 1','85 пп. 2','85 пп. 3'].every(p => points.includes(p));
+  const noRateDocs = !points.includes('95 пп. 1') && !points.includes('95 пп. 2');
+  const everyDocHasPoint = RS.requiredDocs(a3).every(d => RS.packetPointOf(d) || true);
+  const rateApp = { ...a3, kindIds:['N2'] };     // вид со ставкой ⇒ появляются пп. 95
+  const rateDocs = RS.normPacket(rateApp).map(d => d.point);
+  ok(37, unconditional && noRateDocs && everyDocHasPoint
+      && rateDocs.includes('95 пп. 1') && rateDocs.includes('95 пп. 2'),
+    `безусл=${unconditional} безСтавки=${noRateDocs} соСтавкой=${rateDocs.join(',')}`);
+})();
+
+/* 38. РС-31/ИР-14 — справочник открыт, но пять форм п. 89 замкнуты: происхождение «норма»,
+   удаление отклонено; заведённое администратором несёт «иное» и обоснование. */
+(() => { fresh();
+  const norm = RS.state.kinds.filter(k => RS.isNormKind(k));
+  const other = RS.state.kinds.filter(k => !RS.isNormKind(k));
+  const points = norm.map(k => k.point).sort();
+  const fivePoints = JSON.stringify(points) === JSON.stringify(['89 пп. 1','89 пп. 2','89 пп. 3','89 пп. 4','89 пп. 5']);
+  const before = RS.state.kinds.length;
+  RS.state.role = 'Администратор'; RS.dropKind(norm[0].id);   // норма — удаление отклоняется
+  const kept = RS.state.kinds.length === before;
+  const everyOtherJustified = other.every(k => k.rationale && k.rationale.trim().length > 10);
+  ok(38, norm.length === 5 && fivePoints && other.length >= 1 && everyOtherJustified && kept,
+    `норма=${norm.length} иное=${other.length} пункты=${points.join(',')} удалениеОтклонено=${kept}`);
+})();
+
+/* 39. РС-32 — повторность: СИГНАЛ с третьей реструктуризации, не гейт. CR-59003 к концу цепочки
+   несёт пять применённых ДС и сигналит; CR-61200 (ни одной) молчит. Главное в сценарии — вторая
+   половина: сигнал нигде не читается как условие гейта, иначе Холдинг надстроил бы над нормой
+   собственную ступень согласования (п. 82 маршрут уже установил). */
+(() => { fresh();
+  const signalled = RS.repeatSignal(app('RS-1007'));
+  const silent = RS.repeatSignal(app('RS-1004'));
+  const notAGate = !/repeatSignal\([^)]*\)[^;]*\.(ok|blocked)/.test(js)
+    && !new RegExp('(canReg|reasons\\.push|gate)[^\\n]*repeatSignal').test(js);
+  ok(39, signalled.on === true && signalled.credits[0].n >= RS.REPEAT_SIGNAL_FROM && silent.on === false && notAGate,
+    `RS-1007=${JSON.stringify(signalled)} RS-1004=${silent.on} неГейт=${notAGate}`);
+})();
+
+/* 40. РС-30 — производственный календарь: срок в рабочих днях считается по справочнику,
+   а не по сб/вс. 2026-03-19 + 5 р.д. перепрыгивает Нооруз (21.03) и его перенос. */
+(() => { fresh();
+  const nooruz = RS.isWorkDay('2026-03-21') === false;         // праздник
+  const movedWork = RS.isWorkDay('2026-03-28') === true;       // рабочая суббота-перенос
+  const plainSat = RS.isWorkDay('2026-03-14') === false;       // обычная суббота
+  const known2026 = RS.calendarYearKnown(2026) === true;
+  const unknown2030 = RS.calendarYearKnown(2030) === false;    // год не заведён — макет об этом говорит
+  const jump = RS.addWorkDays('2026-03-19', 5);
+  ok(40, nooruz && movedWork && plainSat && known2026 && unknown2030 && jump > '2026-03-25',
+    `нооруз=${nooruz} перенос=${movedWork} сб=${plainSat} 2030=${unknown2030} 19.03+5р.д.=${jump}`);
+})();
+
+/* 41. ADR-0099 §3 — предел срока меряется от ОСТАТКА ЗАДОЛЖЕННОСТИ, и граница ступени уходит
+   вверх: ровно 1 000 000 → 84 мес., а не 36. */
+(() => { fresh();
+  const m = sum => RS.termCapFor(sum, RS.TODAY).months;
+  const boundaries = m(999999) === 36 && m(1000000) === 84 && m(10000000) === 120
+    && m(20000000) === 144 && m(50000000) === 180;
+  const cr = RS.creditById('CR-60540');
+  const fromBalance = RS.limitsGate({ term: m(cr.balance) + 1, rate: 9 }, cr, RS.TODAY);
+  const msgFromBalance = fromBalance.messages.some(s => s.includes('остатке задолженности'));
+  ok(41, boundaries && fromBalance.termOk === false && msgFromBalance,
+    `границы=${boundaries} отОстатка=${msgFromBalance}`);
+})();
+
+/* 42. РС-29 — снятие мягкого гейта покрытия оформляет КОМИТЕТ ПО АДМИНИСТРИРОВАНИЮ БЮДЖЕТНЫХ
+   КРЕДИТОВ; «залоговой комиссии» в макете не осталось (КД-10 модуля залога). */
+(() => {
+  const noOldBody = !/залоговая комиссия|Комиссия по залогу|комиссии по залогу/i.test(
+    js.replace(/роли «залоговая комиссия»[^<]*/gi, '').replace(/«залоговая комиссия»/gi, ''));
+  const hasNewBody = js.includes('Комитет по администрированию бюджетных кредитов');
+  ok(42, noOldBody && hasNewBody, `староеИмя=${!noOldBody} новоеИмя=${hasNewBody}`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-const stamp = `SMOKE 2026-08-07 · ${pass}/${results.length} PASS\n` + lines.join('\n');
+const stamp = `SMOKE 2026-08-10 · ${pass}/${results.length} PASS\n` + lines.join('\n');
 console.log(stamp);
 
 // вставляем результат в шапку HTML
