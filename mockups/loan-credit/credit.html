@@ -527,6 +527,38 @@
        неосвоенный транш, мировое соглашение (mirror.settlement — живой график ведёт
        взыскание, ADR-0047).
 
+   ВОЛНА 10.08.2026 (вторая) · ПРОЦЕНТЫ НА ФАКТИЧЕСКОЕ ТЕЛО — ДВЕ БАЗЫ (ADR-0105):
+     Причина. У К-4 просрочено тело на 88 737,91, а прогноз совпадал с графиком до копейки
+       на всех 40 будущих позициях и обещал закрытие ровно в договорную дату. ADR-0104 §2
+       верно убрал просроченное тело из базы АМОРТИЗАЦИИ, но база была ОДНА и служила
+       заодно базой НАЧИСЛЕНИЯ — прогноз получал ровно контрактную базу и структурно не мог
+       разойтись с графиком: bal(прогноз) ≤ bal(график) всегда, граница закрытия умела
+       двигаться только влево, просрочка была невыразима. Под этим — дефект первого уровня:
+       buildLedger ВООБЩЕ НЕ НАЧИСЛЯЛ, брал interestDue прямо из позиции графика.
+     СДЕЛАНО (модель): trancheAccrual(c,t,asOf) — единственный владелец правила «проценты
+       на фактическое непогашенное тело». periodInterest линейна по базе, поэтому
+       начисление раскладывается точно: %(факт) = %(контракт) + %(отклонение тела на начало
+       периода), отклонение = (погашено по графику) − (погашено платежами); знак сам
+       разводит просрочку и досрочку. Сложение — вместо второго прогона buildSchedule
+       (там льгота, отложенные проценты, капитализация — слагаемое их не касается).
+       В trancheForecastRows теперь ДВЕ базы: bal — амортизация (ADR-0104 §2 не тронут),
+       accrBal — начисление (просроченный хвост остаётся до фактической оплаты). Тот же
+       trancheAccrual читают buildLedger («Начислено» стало фактическим) и ladderAt
+       (очередь гасит начисленные проценты, а не контрактные). Строка несёт interestCtr,
+       interestExtra и principalDev — расхождение подписано. forecastSummary отдаёт
+       extraInterest. ГРАНИЦЫ: датой стало НАЧИСЛЕНИЕ, не распределение — разнесение
+       платежей и пеня остаются пулом по старшинству (ADR-0060); горизонт начисления
+       кончается последней позицией графика; отклонение читается на начало периода.
+     СДЕЛАНО (вкладка): у аннуитета контрактен ПЛАТЁЖ, просрочка его не поднимает — внутри
+       того же взноса растут проценты, тела уходит меньше, недобор выходит БАЛЛОНОМ в
+       последнюю позицию, а Δ по строке при этом ноль. Поэтому фильтр расхождений расширен
+       на разный СОСТАВ позиции. Пятая плитка «проценты сверх контракта»; в строках —
+       подпись «%% контракт → прогноз»; в «Расчётах» под «Начислено» — «+X недобор тела» /
+       «−X досрочка».
+     ФИКСТУРА K-6 ИЗМЕНЕНА: её переплата держалась на датонезависимом начислении (тело
+       гасилось одним платежом 20.06.2026 сразу за 24 позиции 2024 года). Начисление
+       10 254,61 → 19 226,28, слой процентов поднят до 22 000 — переплата 2 773,72.
+
   СПРОЕКТИРОВАНО, НО НЕ ОЖИВЛЕНО (осознанно, КВ-11 — оживлялось то, от чего зависят гейты)
    • Печатные формы (7 шт.) — формирование документов вне объёма макета.
    • Переходы в соседние модули (заёмщик, залог, платежи, взыскание, реструктуризация,
@@ -676,7 +708,8 @@
    Р-29 ПЛАН · ПРОГНОЗ · ИСПОЛНЕНИЕ ПЛАНА (01.08.2026, ADR-0042, CONTEXT.md).
         Три ориентира на будущее, и они НЕ ссылаются друг на друга. График — контракт
         транша. Прогноз — ожидание ПО ЭТОМУ КОНТРАКТУ (ADR-0104): даты и взнос
-        договорные, двигается граница закрытия; живёт на своей вкладке «Прогноз». План — цель
+        договорные, двигается граница закрытия — а состав взноса двигают проценты на
+        ФАКТИЧЕСКОЕ непогашенное тело (ADR-0105); живёт на своей вкладке «Прогноз». План — цель
         на месяц по кредиту целиком: ЕДИНСТВЕННАЯ вводимая величина среди трёх и явное
         исключение из ADR-0001. Заводится не с нуля — предзаполняется прогнозом, но
         после сохранения от него не зависит: иначе % исполнения плавал бы от досрочного
@@ -795,7 +828,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-10 · 108/108 PASS
+ SMOKE (node) 2026-08-10 · 112/112 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -904,6 +937,10 @@
    #104 ✓
    #105 ✓
    #106 ✓
+   #107 ✓
+   #108 ✓
+   #109 ✓
+   #110 ✓
 -->
 <style>
 
@@ -2507,8 +2544,13 @@ function seedDb(){
       curatorship:[{ unit:'Отдел кредитования', employee:'Ким Л. С.', role:'ведущий', from:'17.01.2024', to:'20.06.2026' }],
       /* Нулевой остаток здесь — РЕЗУЛЬТАТ погашения, а не сеяная строка: платежи
          покрывают график целиком, поэтому Г-14 («Погашен» только при нулевом остатке)
-         на этом кредите проходит по-настоящему. */
-      payments:[ seedPayment(1, '20.06.2026', 1, { principal:120000, interest:12000 }) ],
+         на этом кредите проходит по-настоящему.
+         Проценты — 22 000 при контрактных 10 254,61: тело гасилось ОДНИМ платежом в конце,
+         и все 24 позиции кредит прожил с телом на руках. Начисление идёт на фактический
+         остаток (ADR-0105), поэтому реально начислено 19 226,28 — прежние 12 000 такой
+         кредит уже не закрывали бы, а переплата процентов (демо КР-48) держалась на
+         допущении, что опоздание тела ничего не стоит. Переплата осталась: 2 773,72. */
+      payments:[ seedPayment(1, '20.06.2026', 1, { principal:120000, interest:22000 }) ],
       paymentsAsOf:'20.06.2026',
       borrower:{ subgroup:'5', subgroupLabel:SUBGROUP_LABEL['5'], asOf:'20.06.2026' }
     })
@@ -3379,6 +3421,50 @@ function paidPrincipalOfTranche(c, t, asOf){
   return round2(Math.min(s, disbursedSum(t) || t.amount || 0));
 }
 
+/* НАЧИСЛЕНИЕ НА ФАКТИЧЕСКОЕ ТЕЛО (ADR-0105) — поправка, общая графику, расчёту и прогнозу.
+   График начисляет на СВОЮ базу: он считает, что к позиции k тело погашено ровно на
+   Σ контрактных долей до неё. Когда заёмщик недобрал, тело у него на руках, и проценты
+   по договору бегут на него; когда внёс досрочно — база меньше контрактной. Прежняя
+   модель ни того, ни другого не знала: buildLedger брал interestDue прямо из строки
+   графика, а прогноз вычитал просроченное тело из базы НАЧИСЛЕНИЯ вместе с базой
+   амортизации — и повторял график строка в строку ровно на просроченном кредите.
+
+   Величина отклонения на начало периода: dev = (контрактно погашено к периоду) −
+   (погашено платежами). dev > 0 — недобор, dev < 0 — досрочка. periodInterest линеен
+   по базе (bal · ставка · дни / база), поэтому начисление на фактический остаток
+   раскладывается ТОЧНО: %(факт) = %(контракт) + %(dev). Отсюда правка аддитивна —
+   льготы, отсрочка и распределение отложенных процентов остаются в buildSchedule и не
+   переписываются. Где контракт не начислял (отсрочка начисления, пауза Р-17, нулевая
+   ставка) — не начисляет и на отклонение: периода начисления там нет вовсе.
+
+   Горизонт правила — график: после последней позиции начислять не на чем (ADR-0010,
+   начисленное выводится из графика). Непокрытый хвост за границей графика процентами
+   больше не обрастает — новые сроки назначает только перестроение (ADR-0104 §5).
+   Платежи после даты среза в базу не входят: срез не знает будущего. */
+function trancheAccrual(c, t, asOf){
+  const out  = new Map();
+  const rows = trancheScheduleRows(t);
+  if (!rows.length) return out;
+  const lim  = pd(asOf || TODAY);
+  const disb = (t.disbursements || []).slice().sort((a, b) => pd(a.date) - pd(b.date))[0];
+  let prev    = disb ? pd(disb.date) : pd(rows[0].date);
+  let ctrPaid = 0;                                   // тело, погашенное ПО ГРАФИКУ к началу периода
+  for (const r of rows){
+    const base = (r.accrued == null ? r.interest : r.accrued) || 0;
+    const cnd  = conditionsAt(t, r.date);            // условия НА ДАТУ ПОЗИЦИИ (ADR-0104 §4)
+    const mpp  = freqMonths(cnd.freq) || 1;
+    const dev  = round2(ctrPaid - paidPrincipalOfTranche(c, t, fd(prev < lim ? prev : lim)));
+    const extra = (base === 0 || Math.abs(dev) <= 0.005) ? 0
+      : (dev > 0 ?  periodInterest(t, cnd, prev, pd(r.date),  dev, mpp)
+                 : -periodInterest(t, cnd, prev, pd(r.date), -dev, mpp));
+    out.set(r.no, { dev, extra, accrued:round2(base + extra),
+                    due:round2((r.interest || 0) + extra) });
+    ctrPaid = round2(ctrPaid + (r.principal || 0));
+    prev    = pd(r.date);
+  }
+  return out;
+}
+
 /* ПРОГНОЗ транша (ADR-0104, разбор 10.08.2026) — ожидание по контрактному графику.
    Даты позиций не двигаются и ВЗНОС остаётся контрактным; двигается ГРАНИЦА закрытия.
      • Прошлое (дата ≤ горизонта) — непокрытый остаток позиции, и он ОСТАЁТСЯ НА МЕСТЕ.
@@ -3424,8 +3510,16 @@ function trancheForecastRows(c, t, ledgerIndex, asOf, opts){
                delta:round2(uncovered - (r.total || 0)), past:true });
   }
   const atCut = !!(opts && opts.atCut);
-  let bal = round2(Math.max(0, (disbursedSum(t) || t.amount || 0)
-                               - paidPrincipalOfTranche(c, t, asOf) - overdueP));
+  /* ДВЕ БАЗЫ, А НЕ ОДНА (ADR-0105). Просроченное тело вычитается из базы АМОРТИЗАЦИИ —
+     будущими взносами оно не гасится, оно уже показано своими позициями (ADR-0104 §2), —
+     но НЕ из базы НАЧИСЛЕНИЯ: непогашенное тело у заёмщика на руках, и проценты по
+     договору идут на него. Пока база была одна, обе роли несла она: на просроченном
+     кредите база прогноза совпадала с контрактной до копейки, и вкладка отвечала «ждём
+     ровно график» при 88 тыс. недобора. Взнос остаётся контрактным (ADR-0104 §1) —
+     дорожает СОСТАВ: процентов больше, тела меньше, остаток гаснет медленнее. */
+  let accrBal  = round2(Math.max(0, (disbursedSum(t) || t.amount || 0)
+                                    - paidPrincipalOfTranche(c, t, asOf)));
+  let bal      = round2(Math.max(0, accrBal - overdueP));   // база АМОРТИЗАЦИИ
   /* начало первого будущего периода — дата предыдущей позиции, а до первой позиции —
      дата освоения: периоды начисления идут встык, как в графике */
   const disb = (t.disbursements || []).slice().sort((a, b) => pd(a.date) - pd(b.date))[0];
@@ -3435,7 +3529,7 @@ function trancheForecastRows(c, t, ledgerIndex, asOf, opts){
   fut.forEach((r, k) => {
     const cnd = conditionsAt(t, atCut ? fd(lim) : r.date);
     const mpp = freqMonths(cnd.freq) || 1;
-    const interest = periodInterest(t, cnd, prev, pd(r.date), bal, mpp);
+    const interest = periodInterest(t, cnd, prev, pd(r.date), accrBal, mpp);
     prev = pd(r.date);
     const method = cnd.method || 'аннуитет';
     let principal;
@@ -3445,12 +3539,16 @@ function trancheForecastRows(c, t, ledgerIndex, asOf, opts){
       principal = Math.min(bal, round2(r.principal || 0));                 // контрактное ТЕЛО
     else principal = Math.min(bal, round2(Math.max(0, (r.total || 0) - interest)));   // контрактный ВЗНОС
     if (k === last) principal = bal;                                       // остаток гасит последняя позиция
-    bal = round2(bal - principal);
+    bal     = round2(bal - principal);
+    accrBal = round2(Math.max(0, accrBal - principal));   // просроченный хвост остаётся в базе начисления
     const f = round2(principal + interest);
     /* principal/interest/balAfter выносятся наружу: по ним состав прогноза проверяется
-       на РАВЕНСТВО (Σ = база + проценты), а граница закрытия читается как первый ноль */
+       на РАВЕНСТВО (Σ = база + проценты), а граница закрытия читается как первый ноль.
+       interestCtr — контрактные проценты той же позиции: их разница с interest и есть
+       цена недобора тела, и она не видна во взносе (взнос контрактный, ADR-0105). */
     out.push({ no:r.no, date:r.date, scheduled:round2(r.total || 0), forecast:f,
-               principal, interest, balAfter:bal, delta:round2(f - (r.total || 0)), past:false });
+               principal, interest, interestCtr:round2(r.interest || 0), balAfter:bal,
+               accrAfter:accrBal, delta:round2(f - (r.total || 0)), past:false });
   });
   return out;
 }
@@ -3516,9 +3614,14 @@ function forecastSummary(c, tranches, ledgerIndex, asOf){
   const voters    = perTranche.filter(x => x.scheduled);
   const withPayoff = voters.filter(x => x.payoff);
   const stuck      = voters.filter(x => !x.payoff && x.owed > 0.005);
+  /* ЦЕНА НЕДОБОРА ТЕЛА (ADR-0105) — Σ (проценты ожидания − проценты контракта) по
+     будущим позициям. Во взносе её не видно: взнос контрактный, и разница уходит внутрь
+     состава, вытесняя тело. Отдельной величиной она и называется — иначе главный эффект
+     просрочки виден только баллоном последней позиции, где смешан со всем остальным. */
+  const extraInterest = round2(fut.reduce((a, r) => a + ((r.interest || 0) - (r.interestCtr || 0)), 0));
   return { rows, fut, past,
     tail: round2(past.reduce((a, r) => a + r.forecast, 0)),
-    futSum, futSched, delta: round2(futSum - futSched),
+    futSum, futSched, delta: round2(futSum - futSched), extraInterest,
     condEffect: round2(futSum - round2(cutSum)),
     payoff: (withPayoff.length && !stuck.length)
       ? withPayoff.map(x => x.payoff).sort((a, b) => pd(a) - pd(b)).pop() : null,
@@ -3774,10 +3877,14 @@ function courtLayersOf(c, asOf){
 function ladderAt(c, date){
   const lim = pd(date || TODAY);
   const rows = [];
-  for (const t of c.tranches)
+  for (const t of c.tranches){
+    const acc = trancheAccrual(c, t, fd(lim));      // то же начисление, что у расчёта (ADR-0105)
     for (const r of trancheScheduleRows(t))
       rows.push({ key:ledgerKey(t.no, r.no), trancheNo:t.no, no:r.no, date:r.date,
-        principalDue:r.principal || 0, interestDue:r.interest || 0, overdue:pd(r.date) <= lim });
+        principalDue:r.principal || 0,
+        interestDue:((acc.get(r.no) || {}).due != null ? acc.get(r.no).due : (r.interest || 0)),
+        overdue:pd(r.date) <= lim });
+  }
   rows.sort((a,b) => pd(a.date) - pd(b.date) || a.trancheNo - b.trancheNo || a.no - b.no);
   const pool = paidPool(c, fd(lim));
   let pP = pool.principal, pI = pool.interest;
@@ -3827,11 +3934,19 @@ function buildLedger(c, asOf){
   const rows = [];
   for (const t of c.tranches){
     const cnd = conditionsAt(t, asOf || TODAY);           // Р-21: ставки пени — условия на дату
+    const acc = trancheAccrual(c, t, fd(lim));            // начисление на ФАКТИЧЕСКОЕ тело (ADR-0105)
     for (const r of trancheScheduleRows(t)){
       if (pd(r.date) > lim) continue;                     // не наступила — это график, не расчёт
+      const a = acc.get(r.no) || {};
       rows.push({ key:ledgerKey(t.no, r.no), trancheNo:t.no, no:r.no, date:r.date,
-        principalDue:r.principal || 0, interestDue:r.interest || 0,
-        interestAccrued:(r.accrued == null ? r.interest : r.accrued) || 0,
+        principalDue:r.principal || 0,
+        interestDue:(a.due != null ? a.due : (r.interest || 0)),
+        interestAccrued:(a.accrued != null ? a.accrued
+                                           : ((r.accrued == null ? r.interest : r.accrued) || 0)),
+        /* контрактная часть и надбавка выносятся наружу: экран обязан назвать, ПОЧЕМУ
+           начислено больше строки графика, иначе цифра выглядит опиской (ADR-0105) */
+        interestCtr:(r.accrued == null ? r.interest : r.accrued) || 0,
+        interestExtra:a.extra || 0, principalDev:a.dev || 0,
         penaltyMain:cnd.penaltyMain || 0, penaltyInt:cnd.penaltyInt || 0 });
     }
   }
@@ -6682,14 +6797,21 @@ if (typeof document !== 'undefined') {
     const earlyDays = (sm.payoff && sm.contractEnd) ? dd(pd(sm.payoff), pd(sm.contractEnd)) : 0;
     /* Строки: по умолчанию только РАСХОЖДЕНИЯ (прогноз ≠ график) — остальные повторяют
        вкладку «График» слово в слово. Полный состав открывается кнопкой (prognozShowAll). */
-    const diff = fr.filter(r => Math.abs(r.delta) > 0.005);
+    /* РАСХОЖДЕНИЕ — это и разный СОСТАВ, а не только разный взнос (ADR-0105): у аннуитета
+       взнос контрактный по построению, и фильтр по одной Δ прятал бы ровно тот случай,
+       ради которого вкладка существует, — проценты выше контрактных, тела меньше. */
+    const compo = r => !r.past && Math.abs((r.interest||0) - (r.interestCtr||0)) > 0.005;
+    const diff = fr.filter(r => Math.abs(r.delta) > 0.005 || compo(r));
     const shown = prognozShowAll ? fr : diff;
     const rws = shown.map(r=>{
       const s = scheduleRowStatus({date:r.date}, d.ledger.index.get(ledgerKey(r._t.no, r.no)), cardAsOf);
       const rd = r.delta;
+      const ri = compo(r) ? round2((r.interest||0) - (r.interestCtr||0)) : 0;
       return `<tr${r.past?' class="text-muted"':''}><td>№${r.no}</td>${sel?'':`<td>№${r._t.no}</td>`}<td>${esc(r.date)}</td>
         <td style="text-align:right">${money(r.scheduled)}</td>
-        <td style="text-align:right"><b>${money(r.forecast)}</b></td>
+        <td style="text-align:right"><b>${money(r.forecast)}</b>${ri?`<br><span class="text-muted" style="font:var(--font-label)"
+          title="проценты идут на фактическое непогашенное тело (ADR-0105); взнос при этом контрактный, тела в нём меньше"
+          >%% ${money(r.interestCtr)} → ${money(r.interest)}</span>`:''}</td>
         <td style="text-align:right;color:${Math.abs(rd)>0.005?(rd>0?'var(--asubk-red)':'var(--text-muted)'):'inherit'}">${Math.abs(rd)>0.005?(rd>0?'+':'')+money(rd):'—'}</td>
         <td style="text-align:right">${r.past?'—':money(r.balAfter)}</td>
         <td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td></tr>`;});
@@ -6704,6 +6826,9 @@ if (typeof document !== 'undefined') {
         двигается только граница закрытия. Досрочное погашение <b>сокращает срок</b>, а не взнос: уменьшить взнос
         можно лишь перестроением графика по заявлению заёмщика (ADR-0074) — это сделка, а не пересчёт экрана.
         Непокрытое прошлое остаётся в своих позициях и вперёд не переносится: срок по нему уже наступил.
+        Но из базы <b>начисления</b> оно не уходит: проценты идут на фактическое непогашенное тело, поэтому при
+        просрочке они <b>выше контрактных</b>, а при досрочке ниже (ADR-0105). Взнос при этом остаётся
+        контрактным — растут проценты внутри него, тела уходит меньше, и граница закрытия отодвигается.
         Контракт прогноз не подменяет (сам контракт — во вкладке «График»), в начислении не участвует и в
         исполнение плана не входит — исполнение сверяет факт с <b>планом</b> (ADR-0042). Ничего не хранится:
         всё строится заново при каждом рендере (Д-9 — порядок сумм, не банковская копейка).</p>
@@ -6723,7 +6848,7 @@ if (typeof document !== 'undefined') {
         ${unfunded.map(t=>'№'+t.no).join(', ')} <b>${unfunded.length>1?'не освоены':'не освоен'}</b>: фактической базы
         ещё нет, и прогноз построен на договорной сумме. Пока освоения нет, это ожидание по контракту, а не по
         факту, — освоения может не быть вовсе, пока держат условия выдачи.</div></div>`:''}
-      <div class="phead-dims" style="grid-template-columns:repeat(4,1fr);margin-top:6px">
+      <div class="phead-dims" style="grid-template-columns:repeat(5,1fr);margin-top:6px">
         ${/* ГЛАВНЫЙ ОТВЕТ вкладки — дата, а не сумма: суммы по позициям спрашивают у графика.
               Досрочка при неизменном взносе видна ровно здесь (ADR-0074 §«Последствия»). */''}
         <div class="dim"><div class="dl">Ожидаемое закрытие</div><div class="dv">${sm.payoff?esc(sm.payoff):'—'}</div>
@@ -6737,6 +6862,14 @@ if (typeof document !== 'undefined') {
         <div class="dim"><div class="dl">Непокрытый хвост прошлого</div>
           <div class="dv" style="color:${sm.tail>0.005?'var(--asubk-red)':'inherit'}">${money(sm.tail)}</div>
           <div class="src">${sm.past.filter(r=>r.forecast>0.005).length} из ${sm.past.length} наступивших позиц. недобрано · остаётся на своих датах</div></div>
+        ${/* ЦЕНА НЕДОБОРА ТЕЛА (ADR-0105). Во взносе её не видно — взнос контрактный, — и
+              без этой плитки главный эффект просрочки читался бы только по баллону
+              последней позиции. Знак работает в обе стороны: досрочка удешевляет. */''}
+        <div class="dim"><div class="dl">Проценты сверх контракта</div>
+          <div class="dv" style="color:${Math.abs(sm.extraInterest)>0.005?(sm.extraInterest>0?'var(--asubk-red)':'var(--text-muted)'):'inherit'}">${Math.abs(sm.extraInterest)>0.005?(sm.extraInterest>0?'+':'')+money(sm.extraInterest):'—'}</div>
+          <div class="src">${Math.abs(sm.extraInterest)<=0.005?'тело идёт по графику — начисление контрактное'
+            :(sm.extraInterest>0?'проценты идут на непогашенное тело · взнос остаётся контрактным, тела в нём меньше'
+                                :'тело внесено с опережением графика — начисление ниже контрактного')}</div></div>
         <div class="dim"><div class="dl">Пеня к ближайшей дате</div>
           <div class="dv" style="color:${penFwd>0.005?'var(--asubk-red)':'inherit'}">${penFwd>0.005?money(penFwd):'—'}</div>
           ${/* без ближайшей позиции шага нет: цену дня называть не за что — считать её до
@@ -6772,6 +6905,8 @@ if (typeof document !== 'undefined') {
       ${d.calcStopped?`<div class="info-plate">${svgInfo()}<div>Кредит закрыт <b>${esc(d.calcUntil)}</b> (${esc((c.closure&&c.closure.reason)||'')}): начисление остановлено, все величины застыли на этой дате и от даты среза ${esc(cardAsOf)} больше не зависят.</div></div>`:''}
       <p class="section-note">Начисленное ВЫВОДИТСЯ из активной версии графика, условий на дату среза и интервалов
         приостановки; погашенное приходит зеркалом модуля платежей${(c.mirror.paymentsAsOf)?` (снимок ${esc(c.mirror.paymentsAsOf)})`:' (платежей нет)'}.
+        База начисления — <b>фактическое непогашенное тело</b>, а не контрактное: пока просрочка по телу висит,
+        проценты идут выше графика, после досрочки — ниже (ADR-0105); отклонение подписано под колонкой «Начислено».
         Хранимого расчёта нет: таблица ниже строится заново при каждом рендере.${isFx?` Валюта ${esc(cur)}, курс НБКР ${money(fx)}.`:''}</p>
       ${d.calcProvisional?`<div class="warn-inline">${svgInfo()}<div>Расчёт за период <b>после ${esc(d.paymentsAsOf)}</b> — <b>предварительный</b>:
         начисленное кредит выводит на любую дату, а погашенное знает только до снимка зеркала. Платежи этих дней ещё не приехали,
@@ -6813,7 +6948,7 @@ if (typeof document !== 'undefined') {
       <td style="text-align:right">${money(l.received)}</td>
       <td style="text-align:right">${money(l.principalDue)}</td><td style="text-align:right">${money(l.principalPaid)}</td><td style="text-align:right;color:${l.principalOverdue>0?'var(--asubk-red)':'inherit'}">${money(l.principalOverdue)}</td>
       <td style="text-align:right">${esc(l.days)}</td>
-      <td style="text-align:right">${money(l.interestAccrued)}${l.interestFrozen>0?`<br><span class="text-muted" style="font:var(--font-label)" title="приостановлено решением суда на присуждённую долю">−${money(l.interestFrozen)} суд</span>`:''}</td><td style="text-align:right">${money(l.interestPaid)}</td><td style="text-align:right;color:${l.interestOverdue>0?'var(--asubk-red)':'inherit'}">${money(l.interestOverdue)}</td>
+      <td style="text-align:right">${money(l.interestAccrued)}${Math.abs(l.interestExtra||0)>0.005?`<br><span class="text-muted" style="font:var(--font-label)" title="начислено на ФАКТИЧЕСКОЕ непогашенное тело, а не на контрактную базу (ADR-0105): к началу периода погашено ${l.principalDev>0?'меньше':'больше'} графика на ${money(Math.abs(l.principalDev||0))}">${l.interestExtra>0?'+':'−'}${money(Math.abs(l.interestExtra))} ${l.interestExtra>0?'недобор тела':'досрочка'}</span>`:''}${l.interestFrozen>0?`<br><span class="text-muted" style="font:var(--font-label)" title="приостановлено решением суда на присуждённую долю">−${money(l.interestFrozen)} суд</span>`:''}</td><td style="text-align:right">${money(l.interestPaid)}</td><td style="text-align:right;color:${l.interestOverdue>0?'var(--asubk-red)':'inherit'}">${money(l.interestOverdue)}</td>
       <td style="text-align:right">${esc(l.penaltyMain)} / ${esc(l.penaltyInt)}</td>
       <td style="text-align:right">${money(l.penaltyAccrued)}${(l.penaltyFrozen>0||l.penaltyDisputed>0)?`<br><span class="text-muted" style="font:var(--font-label)" title="начислено, но не требуется">${l.penaltyFrozen>0?'−'+money(l.penaltyFrozen)+' суд ':''}${l.penaltyDisputed>0?'−'+money(l.penaltyDisputed)+' спор':''}</span>`:''}</td><td style="text-align:right">${money(l.penaltyPaid)}</td><td style="text-align:right;color:${l.penaltyBal>0?'var(--asubk-red)':'inherit'}">${money(l.penaltyBal)}</td>
       <td style="text-align:right">${money(l.totalPaid)}</td>
