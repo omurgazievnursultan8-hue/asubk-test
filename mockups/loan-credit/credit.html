@@ -3809,6 +3809,26 @@ function planDefaultYear(years, asOf){
   if (!years.length) return cy;
   return years.includes(cy) ? cy : (years.find(y => y > cy) ?? years[years.length - 1]);
 }
+/* Диапазон месяцев года для модалки постановки плана: январь…декабрь, обрезанный СНИЗУ
+   месяцем договора. Обрезка не косметика: Г-30 отбивает месяц раньше месяца договора, и
+   год выдачи без неё пришёл бы строками, которые заведомо нельзя поставить (у кредита от
+   14.08 это семь мёртвых строк из двенадцати). Сверху не обрезаем осознанно: план
+   ставится модалкой на произвольный месяц и графиком не ограничен (см. planYearsList) —
+   декабрь остаётся декабрём и за пределами срока. */
+function planYearRange(credit, y){
+  const from = y + '-01', to = y + '-12';
+  const cm = credit && credit.date ? monthKey(credit.date) : null;
+  return { from: (cm && cm > from && cm <= to) ? cm : from, to };
+}
+/* Год модалки ВЫВОДИТСЯ из пары полей, а не хранится рядом с ними. Хранимый год пережил
+   бы ручную правку месяцев и показывал бы год, которого в полях уже нет; null — «период
+   произвольный», и селектор обязан сказать это прямо. */
+function planYearOfRange(credit, from, to){
+  if (!/^\d{4}-\d{2}$/.test(String(from)) || !/^\d{4}-\d{2}$/.test(String(to))) return null;
+  const y = +String(to).slice(0, 4);
+  const r = planYearRange(credit, y);
+  return (r.from === from && r.to === to) ? y : null;
+}
 
 /* ключ позиции детального расчёта: транш + номер платежа */
 function ledgerKey(trancheNo, no){ return 'T' + trancheNo + '#' + no; }
@@ -5363,7 +5383,7 @@ window.CR = {
   zeroOutForTest,
   nextPaymentOf, regStatusOf, scheduleRowStatus, trancheScheduleRows, ledgerKey,
   trancheForecastRows, forecastByMonth, forecastSummary, paidPrincipalOfTranche,
-  periodInterest, planExecOf, planYearsList, planDefaultYear,
+  periodInterest, planExecOf, planYearsList, planDefaultYear, planYearRange, planYearOfRange,
   monthKey, monthLabel, monthAdd, monthRange, planRowOf, planAmountOf,
   buildLedger, buildQueue, debtOf, overdueOf, coverageOf, atRiskAmountOf, riskBasisOf,
   paidPool, paymentCounts, paymentCurrency, paymentAllocated,
@@ -8339,7 +8359,11 @@ if (typeof document !== 'undefined') {
      не должна выглядеть заведением с нуля. */
   CR.openPlanModal=function(){ const c=modalGuard('setPlan'); if(!c) return;
     const d=derive(c, cardAsOf);
-    const from=monthKey(cardAsOf), to=monthAdd(from, 5);
+    /* Умолчание — ГОД даты среза целиком, а не окно в шесть месяцев от неё (КВ-24):
+       горизонт планирования у куратора годовой (вкладка разрезана по годам, плитки
+       считают год), и селектор при открытии обязан стоять на осмысленном значении, а не
+       в положении «произвольный период». */
+    const {from, to}=planYearRange(c, planDefaultYear(planYearsList(c, cardAsOf), cardAsOf));
     CR.openModal('Поставить план', CR.planFormHtml(c, d, from, to),
       `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitPlan()">Сохранить план</button>`);
   };
@@ -8347,6 +8371,7 @@ if (typeof document !== 'undefined') {
   CR.planFormHtml=function(c, d, from, to){
     const fc=forecastByMonth(c, d.ledger.index, cardAsOf);
     const mks=monthRange(from, to);
+    const years=planYearsList(c, cardAsOf), cur=planYearOfRange(c, from, to);
     /* Галка ставится ТОЛЬКО там, где строка осмысленна. Прогноз — future-only и
        группируется по датам позиций графика: месяца без позиции в нём просто нет, и
        предзаполнить такую строку нечем. Ставить ей галку с нулём значило бы отправлять
@@ -8363,13 +8388,29 @@ if (typeof document !== 'undefined') {
         это стартовое значение формы, не связь — после сохранения план от прогноза не зависит (ADR-0042).
         Снять галку — месяц не трогаем; месяц без прогноза приходит без галки, ставить нечего.
         Обнулить план месяца нельзя: чтобы отказаться от цели, снимите план кнопкой в раскрытой строке месяца.</p>
-      <div class="mform" style="grid-template-columns:1fr 1fr">
+      ${/* Год — УСКОРИТЕЛЬ над полями месяцев, не замена им: план на два месяца (обычная
+           правка после ДС) задаётся месяцами, как и раньше. Набор годов — planYearsList,
+           тот же, что у селектора вкладки: два набора в одном экране разошлись бы при
+           первой правке одного из них. «Произвольный период» показывается только когда
+           он и есть текущее состояние, и выбрать его нельзя — пункт-пустышка в меню. */''}
+      <div class="mform" style="grid-template-columns:1fr 1fr 1fr">
+        <div class="field"><span class="flabel">Год</span><div class="control"><select id="planYearSel" onchange="CR.setPlanFormYear(this.value)">
+          ${cur==null?'<option value="" disabled selected>Произвольный период</option>':''}
+          ${years.map(y=>`<option value="${y}"${y===cur?' selected':''}>${y}</option>`).join('')}
+        </select><span class="caret">▾</span></div></div>
         <div class="field"><span class="flabel">С месяца</span><div class="control"><input type="month" id="planFrom" value="${esc(from)}" onchange="CR.reloadPlanForm()"></div></div>
         <div class="field"><span class="flabel">По месяц</span><div class="control"><input type="month" id="planTo" value="${esc(to)}" onchange="CR.reloadPlanForm()"></div></div>
       </div>
       <div id="planFormRows">${cgrid([{h:'Месяц'},{h:'Прогноз',r:1},{h:'План',r:1},{h:'Состояние'}], rows, {empty:'Период пуст — «по месяц» раньше «с месяца»'})}</div>
       <div class="field col-span"><span class="flabel">Примечание к правке</span><div class="control"><input id="planNote" placeholder="например: уточнено после ДС-2"></div></div>`;
   };
+  /* Селектор года правит ПОЛЯ, а не отдельное состояние: дальше форма пересобирается тем
+     же путём, что и при ручной правке месяца, и разойтись селектору с полями негде. */
+  CR.setPlanFormYear=function(y){ const c=currentCredit(); if(!c||y==='') return;
+    const r=planYearRange(c, +y);
+    const f=document.getElementById('planFrom'), t=document.getElementById('planTo');
+    if(!f||!t) return;
+    f.value=r.from; t.value=r.to; CR.reloadPlanForm(); };
   CR.reloadPlanForm=function(){ const c=currentCredit(); if(!c) return;
     const from=document.getElementById('planFrom').value, to=document.getElementById('planTo').value;
     const host=document.getElementById('modalHost'); if(!host) return;
