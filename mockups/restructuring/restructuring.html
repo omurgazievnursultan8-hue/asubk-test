@@ -80,7 +80,7 @@
   возражение, а не как открытые вопросы. Свод — §11 спеки.
 
   SMOKE (node scripts/inspect/restructuring-check.mjs):
-   SMOKE 2026-08-11 · 60/60 PASS
+   SMOKE 2026-08-11 · 61/61 PASS
       PASS  #1  до=false после=true
       PASS  #2  closed=true opened=true reblock=true
       PASS  #3  noRate=true union=true
@@ -141,6 +141,7 @@
       PASS  #58  один=true адрес=true дверь=true безТраншаНетРасчёта=true
       PASS  #59  два=true второйЦел=true первыйДвинулся=true суммыРазные=4318000/0 отказБезИмени=true
       PASS  #60  вырос=true идемпотентно=true безДублей=true чужойНеВошёл=true снят=true ИР-1=true
+      PASS  #61  строкиПоРасчётам=true адресованы=true ловитВторой=true (КД-60541: Срок 999 мес. превышает предел 84 мес. при остатке задолженности 1 850 000 (п. 90, ред. прил. к ПКМ КР №14 от 2026-01-19) | КД-60541: Ставка 0.01% ниже минимума 4.5% (п. 92, ред. прил. к ПКМ КР №14 от 2026-01-19; вид проекта — 1%, п. 34, ред. прил. к ПКМ КР №14 от 2026-01-19))
 -->
 <style>
 :root{
@@ -1319,15 +1320,26 @@ function limitsGate(params, credit, date){
            half:floor.half, projFloor:floor.projFloor, projectRow:floor.projectRow, projectUnchecked:floor.projectUnchecked,
            capRec:cap.rec, floorRec:floor.rec, projRec:floor.projRec, messages };
 }
-/* превью гейта на уровне заявки — до ДС читает черновик version.params, после ДС читает
-   зафиксированные app.ds.params, чтобы терминал (formalGatesOk) не «моргал» после факта */
+/* Пределы — гейт КРЕДИТА, а не заявки: пол ставки от первоначальной ставки кредита (п. 34,
+   п. 92), длина графика от остатка задолженности по кредиту (п. 90). Каждый расчёт несёт свои
+   параметры и свой кредит, поэтому строк столько, сколько расчётов, и сообщение называет кредит:
+   «не проходит» без адреса на многокредитной заявке нечинимо. */
 function limitsGateApp(app){
-  const credit=creditById(app.creditIds[0]); if(!credit) return { ok:true, pending:true, messages:['Кредит не выбран'] };
-  const fixed=app.ds&&app.ds.no;
-  const params = fixed ? app.ds.params : (app.version&&app.version.params);
-  const date = fixed ? app.ds.date : app.regDate;
-  if(!params) return { ok:true, pending:true, messages:['Условия ещё не выбраны — гейт неприменим до расчёта'] };
-  return limitsGate(params, credit, date);
+  const rows=(app.calcs||[]).map(c=>{
+    const credit=creditById(c.creditId);
+    const fixed=c.dsRef && app.agreements ? app.agreements.find(d=>d.no===c.dsRef) : null;
+    const params = fixed ? fixed.params : (c.version && c.version.params);
+    const date   = fixed ? fixed.date   : app.regDate;
+    if(!credit) return { calcId:c.id, creditNo:'—', g:{ ok:true, pending:true, messages:['Кредит не найден'] } };
+    if(!params) return { calcId:c.id, creditNo:credit.no, g:{ ok:true, pending:true,
+                         messages:['Условия ещё не выбраны — гейт неприменим до расчёта'] } };
+    return { calcId:c.id, creditNo:credit.no, g:limitsGate(params, credit, date) };
+  });
+  if(!rows.length) return { ok:true, pending:true, messages:['Кредит не выбран'], rows:[] };
+  const pending = rows.every(r=>r.g.pending);
+  const ok = rows.every(r=>r.g.ok);
+  const messages = rows.flatMap(r=>(r.g.messages||[]).map(m=>rows.length>1 ? r.creditNo+': '+m : m));
+  return { ok, pending, messages, rows };
 }
 
 /* Согласия обеспечителей (issues/04 реш.2, ADR-0098, ИР-8): зеркало чужого домена (Обеспечение) —
@@ -2565,15 +2577,21 @@ function coverBody(app){
    на непроверенном условии хуже флага. */
 function limitsBody(app){
   const lga=limitsGateApp(app);
-  if(lga.pending) return `<div class="op-empty">${esc(lga.messages[0])}</div>`;
-  const projLine = lga.projectUnchecked
-    ? `<div class="mrow"><span>Минимум по виду проекта</span><span><b>не проверен</b> — ${lga.projectRow?'ставка внешняя ('+esc(lga.projectRow.label)+'), машинно не вычисляется':'вид проекта у кредита не указан'} (${esc(normNote(lga.projRec))})</span></div>`
-    : `<div class="mrow"><span>Минимум по виду проекта</span><span>${lga.projFloor}% — ${esc((lga.projectRow||{}).label||'')} (${esc(normNote(lga.projRec))})</span></div>`;
-  return `<div class="mrow"><span>Срок</span><span>предел ${lga.cap} мес. от остатка задолженности (${esc(normNote(lga.capRec))})${lga.termOk?'':' — превышен'}</span></div>
-    <div class="mrow"><span>50 % от первоначальной ставки</span><span>${lga.half}% (${esc(normNote(lga.floorRec))})</span></div>
-    ${projLine}
-    <div class="mrow"><span>Действующий пол ставки</span><span><b>${lga.floor}%</b> — больший из двух${lga.rateOk?'':' · ставка ниже минимума'}</span></div>`
-    + (lga.ok?'':`<div class="warnline">${lga.messages.map(esc).join('<br>')} — жёсткий гейт, без waiver.</div>`);
+  if(!lga.rows.length) return `<div class="op-empty">${esc(lga.messages[0]||'Кредит не выбран')}</div>`;
+  return lga.rows.flatMap(({creditNo,g})=>{
+    const head = lga.rows.length>1 ? `<div class="mrow"><span><b>${esc(creditNo)}</b></span><span></span></div>` : '';
+    if(g.pending) return [head, `<div class="mrow"><span>—</span><span>${esc(g.messages[0])}</span></div>`];
+    const projLine = g.projectUnchecked
+      ? `<div class="mrow"><span>Минимум по виду проекта</span><span><b>не проверен</b> — ${g.projectRow?'ставка внешняя ('+esc(g.projectRow.label)+'), машинно не вычисляется':'вид проекта у кредита не указан'} (${esc(normNote(g.projRec))})</span></div>`
+      : `<div class="mrow"><span>Минимум по виду проекта</span><span>${g.projFloor}% — ${esc((g.projectRow||{}).label||'')} (${esc(normNote(g.projRec))})</span></div>`;
+    return [head,
+      `<div class="mrow"><span>Срок</span><span>предел ${g.cap} мес. от остатка задолженности (${esc(normNote(g.capRec))})${g.termOk?'':' — превышен'}</span></div>`,
+      `<div class="mrow"><span>50 % от первоначальной ставки</span><span>${g.half}% (${esc(normNote(g.floorRec))})</span></div>`,
+      projLine,
+      `<div class="mrow"><span>Действующий пол ставки</span><span><b>${g.floor}%</b> — больший из двух${g.rateOk?'':' · ставка ниже минимума'}</span></div>`,
+      g.ok?'':`<div class="warnline">${g.messages.map(esc).join('<br>')} — жёсткий гейт, без waiver.</div>`
+    ];
+  }).join('');
 }
 function consentBody(app){
   const coa=consentGateApp(app);
@@ -2588,12 +2606,14 @@ function gateDetails(app){
   <details class="gate-d"><summary><span class="gatechip ${coa.ok?'ok':'no'}">Согласия</span> жёсткий, ответ Обеспечения</summary><div class="gate-body">${consentBody(app)}</div></details>
   <details class="gate-d"><summary><span class="gatechip ${cga.ok?'ok':'no'}">Покрытие</span> мягкий, ответ Залога</summary><div class="gate-body">${coverBody(app)}</div></details>`;
 }
-/* производный транш по итогам ДС — единственный признак связи назад к door: ops[0].basis (issues/03). */
-function resultTranche(app){
-  if(!app.ds || !app.ds.no) return null;
-  const credit=creditById(app.creditIds[0]); if(!credit) return null;
-  return credit.tranches.find(t=>{ const b=(t.ops[0]||{}).basis; return b && b.ds===app.ds.no && b.from===app.ds.sourceTrancheId; }) || null;
+/* производный транш по итогам ДС — единственный признак связи назад к door: ops[0].basis. */
+function resultTrancheOf(app, calcId){
+  const calc=requireCalc(app, calcId); if(!calc || !calc.dsRef) return null;
+  const credit=creditById(calc.creditId); if(!credit) return null;
+  return credit.tranches.find(t=>{ const b=(t.ops[0]||{}).basis;
+    return b && b.ds===calc.dsRef && b.from===calc.trancheId; }) || null;
 }
+function resultTranche(app){ return resultTrancheOf(app, null); }   // однорасчётная дверь
 function rowsTotal(rows){ return round2((rows||[]).reduce((s,r)=>s+r.amount,0)); }
 
 /* Дверь распоряжения (РС-38) — раскрытая строка под самой позицией, не модалка: вид уже
@@ -2981,10 +3001,14 @@ function pFormal(app){
   else if(waived) gateLine=`<div class="warnline">Гейт обеспечения снят решением комитета по администрированию бюджетных кредитов. Основание: ${esc(app.waiver.reason)} (${app.waiver.date}).</div>`;
   else gateLine=`<div class="flagline">Гейт обеспечения не пройден — регистрация доп. соглашения заблокирована. Разблокировка — решением комитета по администрированию бюджетных кредитов с обязательным основанием.</div>`;
   const lga=limitsGateApp(app), coa=consentGateApp(app);
-  const limitsLine = lga.pending ? '<div class="op-empty">Расчёт (транш-источник/условия) ещё не выбран — гейт неприменим.</div>'
-    : lga.ok ? `<div class="okline">Срок и ставка новых условий в пределах нормы (${esc(normNote(lga.capRec))}).${
-        lga.projectUnchecked?' <b>Вид проекта не указан — минимум п. 34 не проверен</b>, гейт работает по одному полу (50 % от первоначальной).':''}</div>`
-    : `<div class="flagline">${lga.messages.map(esc).join('<br>')} — жёсткий гейт, без waiver.</div>`;
+  const limitsLine = !lga.rows.length ? '<div class="op-empty">Расчёт (транш-источник/условия) ещё не выбран — гейт неприменим.</div>'
+    : lga.rows.map(({creditNo,g})=>{
+        const pfx = lga.rows.length>1 ? esc(creditNo)+': ' : '';
+        if(g.pending) return `<div class="op-empty">${pfx}Расчёт (транш-источник/условия) ещё не выбран — гейт неприменим.</div>`;
+        return g.ok ? `<div class="okline">${pfx}Срок и ставка новых условий в пределах нормы (${esc(normNote(g.capRec))}).${
+            g.projectUnchecked?' <b>Вид проекта не указан — минимум п. 34 не проверен</b>, гейт работает по одному полу (50 % от первоначальной).':''}</div>`
+          : `<div class="flagline">${pfx}${g.messages.map(esc).join('<br>')} — жёсткий гейт, без waiver.</div>`;
+      }).join('');
   const consentLine = coa.ok ? '<div class="okline">Согласия всех обеспечителей получены.</div>'
     : `<div class="flagline">Не согласовано: ${coa.pending.map(esc).join(', ')} — жёсткий гейт, без waiver.</div>`;
   const fg=forgiveGate(app);          // РС-28 — жёсткий: без названной суммы/основания ДС не регистрируется

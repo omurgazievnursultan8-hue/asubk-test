@@ -871,6 +871,24 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
     `вырос=${grew} идемпотентно=${idempotent} безДублей=${derived} чужойНеВошёл=${noAlien} снят=${shrank} ИР-1=${busy}`);
 })();
 
+/* 61. Пределы считаются по КРЕДИТУ каждого расчёта, а не по первому кредиту охвата: пол ставки
+   меряется от первоначальной ставки кредита (п. 34, п. 92), предел длины графика — от остатка
+   задолженности по кредиту (п. 90). Один app.version на заявку делал эти два гейта
+   непроверяемыми, как только кредитов больше одного. */
+(() => { fresh();
+  const a = app('RS-1001');
+  RS.addTrancheToScope(a.id, secondTranche(a).t.id);
+  const g = RS.limitsGateApp(a);
+  const perCalc = Array.isArray(g.rows) && g.rows.length === 2;
+  const addressed = perCalc && g.rows.every(r => !!r.calcId && !!r.creditNo);
+  const c2 = a.calcs[1];
+  c2.version = { params:{ term: 999, rate: 0.01 } };         // заведомо вне обоих пределов
+  const g2 = RS.limitsGateApp(a);
+  const catches = g2.ok === false && g2.messages.some(m => /КД-|кредит/i.test(m));
+  ok(61, perCalc && addressed && catches,
+    `строкиПоРасчётам=${perCalc} адресованы=${addressed} ловитВторой=${catches} (${g2.messages.join(' | ')})`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
