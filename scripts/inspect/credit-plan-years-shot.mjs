@@ -44,6 +44,10 @@ const snap = () => page.evaluate(() => ({
     tds: [...tr.children].map(td => td.innerText.replace(/\s+/g,' ').trim()),
   })),
   months: document.querySelectorAll('table.cgrid tbody tr.pmonth').length,
+  // чистка подсказок: абзаца над таблицей нет, «в расчёт не входит» снято со строк
+  notes: [...document.querySelectorAll('#cr-card-body .panel-wrap:last-child .section-note')]
+    .map(p => p.innerText.slice(0, 40)),
+  dropNote: document.getElementById('cr-card-body').innerText.split('в расчёт не входит').length - 1,
 }));
 const brief = (s) => ({ tables: s.tables, yearSelect: s.yearSelect, months: s.months,
   toolbar: s.toolbar, groups: s.groups.map(g => `${'  '.repeat(g.lvl-1)}${g.label}${g.open?' ▾':' ▸'}`) });
@@ -56,6 +60,7 @@ const s1 = await snap();
 console.log('K-1 по умолчанию:', JSON.stringify(brief(s1), null, 1));
 console.log('K-1 плитки:', JSON.stringify(s1.tiles, null, 1));
 console.log('K-1 год без плана (2028):', JSON.stringify((s1.groups.find(g => /^2028$/.test(g.label))||{}).tds));
+console.log('K-1 подсказки вкладки:', JSON.stringify({ notes: s1.notes, dropNote: s1.dropNote }));
 await page.screenshot({ path: `${OUT}/K-1-plan-years.png`, fullPage: true });
 
 // клик по свёрнутому 2027 — год раскрывается СО СВОИМИ кварталами
