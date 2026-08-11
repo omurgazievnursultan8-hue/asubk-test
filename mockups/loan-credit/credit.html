@@ -7820,7 +7820,17 @@ if (typeof document !== 'undefined') {
     const el=document.getElementById('cbEff'); const s=toDMY(el?el.value:'');
     return /^\d{2}\.\d{2}\.\d{4}$/.test(s) ? s : CR.TODAY;
   }
-  CR.openCondModal=function(){ const c=modalGuard('addConditionRecords'); if(!c) return;
+  /* group (КВ-25) — из какой карточки нажат карандаш: 'rates' | 'repay' | не задан
+     (все шестнадцать). Фильтруем список параметров, а не блокируем чужие: карандаш
+     обещает «правлю вот это», и модалка обязана обещание держать — иначе карандаш
+     у «Погашения» показал бы и ставку. */
+  CR.openCondModal=function(group){ const c=modalGuard('addConditionRecords'); if(!c) return;
+    const groupKeys = group==='rates' ? CR.COND_CARD_RATES
+                    : group==='repay' ? CR.COND_CARD_REPAY : null;
+    const params = groupKeys ? CR.PARAMS.filter(p=>groupKeys.includes(p.key)) : CR.PARAMS;
+    const groupTitle = group==='rates' ? 'Изменение условий — ставки'
+                     : group==='repay' ? 'Изменение условий — погашение'
+                     : 'Изменение условий';
     const body=`<p class="section-note">Условия меняются только зарегистрированным основанием.
         Решение суда и постановление правительства здесь не заводятся — выбираются из существующих.
         Задним числом возможны только они, и с обязательным примечанием.</p>
@@ -7846,7 +7856,7 @@ if (typeof document !== 'undefined') {
       </div>
       <div class="section-h" style="margin-top:14px;font-size:15px">Условия</div>
       <div class="mform">
-        ${CR.PARAMS.map(p=>{
+        ${params.map(p=>{
           const t0=c.tranches[0], cur=t0?CR.conditionsAt(t0,CR.TODAY)[p.key]:'';
           const input = p.kind==='enum'
             ? `<select id="cbV_${p.key}" onchange="CR.condPreview()">${p.options.map(o=>`<option${String(o)===String(cur)?' selected':''}>${esc(o)}</option>`).join('')}</select><span class="caret">▾</span>`
@@ -7865,7 +7875,7 @@ if (typeof document !== 'undefined') {
       </div>
       <div class="section-h" style="margin-top:14px;font-size:15px">Предпросмотр (было → станет)</div>
       <div id="cbPreview" class="cat-expand"></div>`;
-    CR.openModal('Изменение условий', body,
+    CR.openModal(groupTitle, body,
       `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button>
        <button class="btn btn-primary" onclick="CR.submitCond()">Оформить</button>`);
     CR.condBasisChanged();
@@ -7921,8 +7931,9 @@ if (typeof document !== 'undefined') {
     const rows=[];
     for (const k of keys) for (const no of nos){
       const t=c.tranches.find(x=>x.no===no); if(!t) continue;
+      const el=document.getElementById('cbV_'+k); if(!el) continue;
       const from=CR.conditionsAt(t,eff)[k];
-      const to=document.getElementById('cbV_'+k).value;
+      const to=el.value;
       rows.push(`<div class="row"><span class="ck">№${no} · ${esc(CR.paramLabel(k))}</span>
         <span class="diff"><span class="diff-old">${esc(from===undefined?'—':from)}</span> → <span class="diff-new">${esc(to)}</span></span>
         <span class="src">с ${esc(eff)}</span></div>`);
