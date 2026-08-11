@@ -1616,7 +1616,7 @@ function addTrancheToScope(appId, trancheId){
   if(!calc){ toast('Кредит транша не найден','err'); return; }
   if(!calc.version) calc.version=draftVersion(cr,{});
   if(!had){ app._t=TODAY; H(app,'В охват добавлен транш '+t.no+' (кредит '+cr.no+').',state.role); }
-  render();
+  closeModal(); toast('Транш добавлен в охват','ok'); render();
 }
 function removeTrancheFromScope(appId, calcId){
   if(!guard('editVersion')) return;
@@ -3099,7 +3099,12 @@ function renderDict(){
 /* ================= МОДАЛКИ ================= */
 const overlay = () => document.getElementById('overlay');
 function modal(html){ overlay().innerHTML=html; overlay().classList.add('open'); }
-function closeModal(){ overlay().classList.remove('open'); overlay().innerHTML=''; }
+function closeModal(){
+  // Без DOM закрывать нечего — тем же приёмом, что и render()/toast() (:3366, :3382): действие
+  // обязано быть звонимым из смоука напрямую, не через модалку, не спотыкаясь о document.
+  if(typeof document==='undefined') return;
+  overlay().classList.remove('open'); overlay().innerHTML='';
+}
 const mhead = t => `<div class="modal-h"><span class="mt">${t}</span><button class="modal-x" onclick="RS.closeModal()">×</button></div>`;
 
 function openAddTranche(appId){
