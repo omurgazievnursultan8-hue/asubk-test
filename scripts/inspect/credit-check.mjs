@@ -944,7 +944,7 @@ const pd = CR.pd;
   const bad = [];
   for (const c of CR2.db.credits) for (const t of TABS){
     let html;
-    try { CR2._setDetailContext(c.id); html = CR2.renderTab(t, c); }
+    try { html = CR2.renderTab(t, c); }
     catch(e){ bad.push(`${c.id}/${t}: ${e.message}`); continue; }
     if (typeof html !== 'string' || html.length < 50) bad.push(`${c.id}/${t}: пусто`);
     else if (/undefined|\[object Object\]|NaN/.test(html)) bad.push(`${c.id}/${t}: мусор в разметке`);
@@ -972,7 +972,7 @@ const pd = CR.pd;
      Проверяем три состояния: при «Действует» карандаша ровно два и они кликабельны;
      при «Проект» они на месте, но погашены и объясняют Г-22 (§0.3 — не молчаливый
      отказ, карандаш не имеет права исчезнуть); при «Закрыт» — то же с terminalReason. */
-  const condHtml = (id) => { CR2._setDetailContext(id); return CR2.renderTab('Условия', CR2.db.credits.find(c => c.id === id)); };
+  const condHtml = (id) => CR2.renderTab('Условия', CR2.db.credits.find(c => c.id === id));
   const act = condHtml('K-1'), proj = condHtml('K-C26'), clos = condHtml('K-6');
   const nCalls = (h) => (h.match(/CR\.openCondModal\(/g) || []).length;
   ok(112, nCalls(act) === 2
