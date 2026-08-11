@@ -80,7 +80,7 @@
   возражение, а не как открытые вопросы. Свод — §11 спеки.
 
   SMOKE (node scripts/inspect/restructuring-check.mjs):
-   SMOKE 2026-08-11 · 59/59 PASS
+   SMOKE 2026-08-11 · 60/60 PASS
       PASS  #1  до=false после=true
       PASS  #2  closed=true opened=true reblock=true
       PASS  #3  noRate=true union=true
@@ -140,6 +140,7 @@
       PASS  #57  хвостВТело=true процентыВыросли=true (307804.65→543958.58) пеняНеТронута=true
       PASS  #58  один=true адрес=true дверь=true безТраншаНетРасчёта=true
       PASS  #59  два=true второйЦел=true первыйДвинулся=true суммыРазные=4318000/0 отказБезИмени=true
+      PASS  #60  вырос=true идемпотентно=true безДублей=true чужойНеВошёл=true снят=true ИР-1=true
 -->
 <style>
 :root{
@@ -1578,26 +1579,60 @@ function setDispPeriods(appId, article, urgency, mode, from, to, calcId){
   app._t=TODAY; render();
 }
 
-/* Кандидаты в транш-источник расчёта — открытые транши с положительным остатком по каждому
-   кредиту охвата заявки (тикет 07 — честная дыра #3 из Answer тикета 06: выбор транша не был
-   вручную сделан, стоял только демо-сидом). Закрытый или обнулённый транш не кандидат — его
-   не из чего дальше делить. */
+function scopeTranches(app){
+  return (app.calcs||[]).map(c=>({ cr:creditById(c.creditId), t:calcTrancheOf(c), calc:c }))
+                        .filter(x=>x.cr && x.t);
+}
+/* Кандидаты — открытые траншы с остатком по кредитам, уже названным в охвате, ПЛЮС траншы
+   прочих кредитов того же субъекта: заявка вправе охватывать несколько кредитов одного лица
+   (РС-2). Субъект ищется по ИНН — тем же ключом, что naFillCredits (:3202); поля subjectKey у
+   кредита нет, оно живёт на транше. Вошедшие вычитаются: второй расчёт на тот же транш
+   запрещён (ИР-16). */
 function trancheCandidates(app){
+  const taken=new Set((app.calcs||[]).map(c=>c.trancheId));
   const list=[];
-  (app.creditIds||[]).forEach(cid=>{ const cr=creditById(cid); if(!cr) return;
-    (cr.tranches||[]).forEach(t=>{ if(!t.closed && round2(balanceAt(t,TODAY))>0) list.push({cr,t}); });
+  state.credits.forEach(cr=>{
+    const own = (app.creditIds||[]).includes(cr.id) || cr.inn===app.inn;
+    if(!own) return;
+    (cr.tranches||[]).forEach(t=>{
+      if(t.closed || taken.has(t.id) || round2(balanceAt(t,TODAY))<=0) return;
+      list.push({cr,t});
+    });
   });
   return list;
 }
-function pickTrancheBlock(app){
-  const cands=trancheCandidates(app);
-  const canEdit=canX('editVersion');
-  if(!cands.length) return '<div class="op-empty">Нет открытых траншей с остатком по кредитам охвата — выбирать не из чего.</div>';
-  if(!canEdit) return '<div class="op-empty">Транш-источник не выбран. Роль «'+esc(state.role)+'» выбор не делает — только Куратор ОД.</div>';
-  const opts=cands.map(({cr,t})=>`<option value="${t.id}">${esc(t.no)} · ${esc(cr.no)} · остаток ${fmt(balanceAt(t,TODAY))}</option>`).join('');
-  return `<div class="f2" style="max-width:640px"><div class="field" style="flex:1"><span class="flabel">Транш-источник</span>
-    <select id="calctr-${app.id}"><option value="">— выберите транш —</option>${opts}</select></div></div>
-    <div style="margin-top:8px"><button class="btn btn-primary btn-sm" onclick="RS.setCalcTranche('${app.id}', document.getElementById('calctr-${app.id}').value)">Выбрать транш-источник</button></div>`;
+function addTrancheToScope(appId, trancheId){
+  if(!guard('editVersion')) return;
+  if(!trancheId){ toast('Выберите транш','err'); return; }
+  const app=appById(appId);
+  const cr=creditOfTranche(trancheId); if(!cr){ toast('Транш не найден','err'); return; }
+  const t=(cr.tranches||[]).find(x=>x.id===trancheId);
+  // Заявка — обращение одного заёмщика: кредит чужого ИНН в охват не входит (РС-2).
+  if(cr.inn!==app.inn){ toast('Кредит принадлежит другому заёмщику','err'); return; }
+  const busy=activeAppOnTranche(trancheId, appId);
+  if(busy){ toast('Транш уже в активной заявке '+busy.id+' (ИР-1)','err'); return; }
+  const had=(app.calcs||[]).some(c=>c.trancheId===trancheId);
+  const calc=attachCalc(app, t);
+  if(!calc){ toast('Кредит транша не найден','err'); return; }
+  if(!calc.version) calc.version=draftVersion(cr,{});
+  if(!had){ app._t=TODAY; H(app,'В охват добавлен транш '+t.no+' (кредит '+cr.no+').',state.role); }
+  render();
+}
+function removeTrancheFromScope(appId, calcId){
+  if(!guard('editVersion')) return;
+  const app=appById(appId), calc=calcById(app, calcId);
+  if(!calc){ toast('Расчёт не найден','err'); return; }
+  if(calc.dsRef){ toast('По этому траншу зарегистрировано ДС — из охвата не выводится','err'); return; }
+  const t=calcTrancheOf(calc);
+  app.calcs=app.calcs.filter(c=>c.id!==calcId);
+  app._t=TODAY; H(app,'Из охвата выведен транш '+(t?t.no:calcId)+' вместе с расчётом.',state.role);
+  render();
+}
+/* ИР-1 ключуется траншем, а не кредитом: два расчёта одного графика неразрешимы, а разные
+   траншы одного кредита в разных заявках — разрешены (РС-2). */
+function activeAppOnTranche(trancheId, exceptAppId){
+  return state.apps.find(a=>a.id!==exceptAppId && !stageOf(a).closed
+    && (a.calcs||[]).some(c=>c.trancheId===trancheId));
 }
 /* Фиксация транша-источника — заводит app.version черновиком условий кредита, если версии ещё
    нет (draftVersion, issues/05 задача 5). Выбор меняется свободно до ДС: пере-выбор просто
@@ -1889,7 +1924,7 @@ const INITIATORS = [
    экран и сторожа разницы не замечают; как только расчётов два — дверь молчит, и звать нужно
    расчёт по имени (requireCalc). */
 function baseApp(id,inn,borrower,kindIds,creditIds,regDate){
-  const app = { id,inn,borrower,kindIds:[...kindIds],creditIds:[...creditIds],regDate,
+  const app = { id,inn,borrower,kindIds:[...kindIds],regDate,
     packetDocs:{}, analysisStarted:false, conclusions:[], committee:null, letterSent:null,
     initiator:null, conclusion:null, zk:null, resolution:null,
     ds:null, waiver:null, ops:[], automation:[], outcome:null, history:[],
@@ -1903,6 +1938,16 @@ function baseApp(id,inn,borrower,kindIds,creditIds,regDate){
     enumerable:true, configurable:true,
     get(){ const c=requireCalc(app); return c ? calcTrancheOf(c) : null; },
     set(t){ if(t) attachCalc(app, t); }
+  });
+  const seededCredits = [...creditIds];        // охват до перехода на траншы (демо-сид, задача 8)
+  Object.defineProperty(app, 'creditIds', {
+    enumerable:true, configurable:true,
+    // Охват называет траншы; кредит — производное от них. Пока у заявки нет ни одного расчёта,
+    // источником остаётся сид: у заявки на стадии «Регистрация обращения» кредит уже назван,
+    // а транш-источник ещё не выбран, и терять кредит из-за этого нельзя.
+    get(){ const fromCalcs=[...new Set(app.calcs.map(c=>c.creditId))];
+           return fromCalcs.length ? fromCalcs : seededCredits; },
+    set(v){ seededCredits.length=0; (v||[]).forEach(x=>seededCredits.push(x)); }
   });
   return app;
 }
@@ -3057,23 +3102,15 @@ function modal(html){ overlay().innerHTML=html; overlay().classList.add('open');
 function closeModal(){ overlay().classList.remove('open'); overlay().innerHTML=''; }
 const mhead = t => `<div class="modal-h"><span class="mt">${t}</span><button class="modal-x" onclick="RS.closeModal()">×</button></div>`;
 
-function openAddCredit(appId){
+function openAddTranche(appId){
   if(!guard('addCredit')) return; const app=appById(appId);
-  const cands=state.credits.filter(c=>!app.creditIds.includes(c.id));
-  const opts=cands.map(c=>`<option value="${c.id}">${c.no} · ${c.borrower} · ИНН ${c.inn} · остаток ${fmt(c.balance)}</option>`).join('');
-  modal(`<div class="modal">${mhead('Добавить кредит в охват')}<div class="modal-b">
-    <div class="section-note">Только кредиты ИНН ${app.inn} без другой активной заявки (Р-2).</div>
-    <div class="field"><span class="flabel">Кредит</span><select id="addcr">${opts||'<option value="">нет кандидатов</option>'}</select></div>
+  const cands=trancheCandidates(app);
+  const opts=cands.map(({cr,t})=>`<option value="${t.id}">${esc(t.no)} · ${esc(cr.no)} · остаток ${fmt(balanceAt(t,TODAY))}</option>`).join('');
+  modal(`<div class="modal">${mhead('Добавить транш в охват')}<div class="modal-b">
+    <div class="section-note">Только траншы ИНН ${app.inn} без другой активной заявки (ИР-1).</div>
+    <div class="field"><span class="flabel">Транш</span><select id="addcr">${opts||'<option value="">нет кандидатов</option>'}</select></div>
   </div><div class="modal-f"><button class="btn btn-secondary" onclick="RS.closeModal()">Отмена</button>
-    <button class="btn btn-primary" onclick="RS.addCredit('${appId}')">Добавить</button></div></div>`);
-}
-function addCredit(appId){
-  const app=appById(appId); const id=document.getElementById('addcr').value; const c=creditById(id); if(!c) return;
-  if(c.inn!==app.inn){ toast('Кредит другого ИНН — добавить нельзя (Р-2)','err'); return; }
-  const other=activeAppOnCredit(id,appId);
-  if(other){ toast('Кредит уже в активной заявке '+other.id+' — добавить нельзя (Р-2)','err'); return; }
-  app.creditIds.push(id); app._t=TODAY; H(app,'В охват добавлен кредит '+c.no+'.',state.role);
-  closeModal(); toast('Кредит добавлен','ok'); render();
+    <button class="btn btn-primary" onclick="RS.addTrancheToScope('${appId}', document.getElementById('addcr').value)">Добавить</button></div></div>`);
 }
 
 function openAddConcl(appId){
@@ -3349,7 +3386,8 @@ function toast(msg,kind){ if(typeof document==='undefined') return; const w=docu
 const RS = {
   go, setRole, setTab, openApp, newApp, naFillCredits, createApp, nextAppId, setFilter, closeModal,
   toggleDoc, returnApp, setConclText, visaConcl, openAddConcl, addConcl,
-  openAddCredit, addCredit, fixCommittee, fixLetter, fixConclusion, fixZk, fixResolution, advance,
+  openAddTranche, addTrancheToScope, removeTrancheFromScope, scopeTranches, activeAppOnTranche,
+  fixCommittee, fixLetter, fixConclusion, fixZk, fixResolution, advance,
   openWaiver, grantWaiver, openDS, regDS, openNewKind, addKind, dropKind, showMirror,
   get state(){ return state; }, seed, stageOf, deadline, packetGate, conclGate, dsGate,
   conclusionGate, zkGate, resolutionGate, forgiveGate, repeatSignal, driftGate, driftTier, cutoffDrift,

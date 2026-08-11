@@ -36,6 +36,18 @@ const ok = (n, cond, note = '') => results.push({ n, pass: !!cond, note });
 const fresh = () => RS.seed();
 const app = id => RS.appById(id);
 
+/* Фикстура многокредитной заявки. Демо-данные не гарантируют, что у ИНН заявки найдётся второй
+   кредит со свободным траншем, поэтому берём любой свободный и приписываем его тому же ИНН:
+   охват ограничен одним заёмщиком, и без этого addTrancheToScope откажет по делу. Занятый другой
+   заявкой транш исключаем — иначе сценарий упал бы на ИР-1, а не на своей теме. */
+function secondTranche(a){
+  const free = t => !t.closed && !RS.activeAppOnTranche(t.id, a.id);
+  const cr = RS.state.credits.find(c => !(a.creditIds||[]).includes(c.id) && (c.tranches||[]).some(free));
+  if(!cr) throw new Error('нет свободного кредита для ' + a.id);
+  cr.inn = a.inn;
+  return { cr, t: cr.tranches.find(free) };
+}
+
 /* 1. Неполный пакет → «Анализ» заблокирован; докомплект → открыт. */
 (() => { fresh();
   const a = app('RS-1003');
@@ -834,6 +846,29 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
   const refuses = RS.AppSide.run(a, RS.TODAY) === null;          // без calcId при двух расчётах — отказ
   ok(59, two && secondIntact && firstMoved && separateSums && refuses,
     `два=${two} второйЦел=${secondIntact} первыйДвинулся=${firstMoved} суммыРазные=${r1.transferSum}/${r2.transferSum} отказБезИмени=${refuses}`);
+})();
+
+/* 60. Охват называет траншы (РС-2, ИР-16). Кредит появляется в охвате вместе со своим траншем,
+   а не отдельным действием; повторное добавление того же транша второго расчёта не заводит;
+   снятие транша уносит расчёт вместе с суммами, не оставляя адреса без суммы. ИР-1 ключуется
+   траншем: тот же транш в другой активной заявке — занят. Чужой заёмщик в охват не входит. */
+(() => { fresh();
+  const a = app('RS-1001');
+  const { cr, t } = secondTranche(a);
+  RS.addTrancheToScope(a.id, t.id);
+  const grew = a.calcs.length === 2 && a.creditIds.includes(cr.id);
+  RS.addTrancheToScope(a.id, t.id);                        // повтор
+  const idempotent = a.calcs.length === 2;
+  const derived = a.creditIds.length === new Set(a.creditIds).size;
+  const alien = RS.state.credits.find(c => c.inn !== a.inn && (c.tranches||[]).some(x => !x.closed));
+  if(alien) RS.addTrancheToScope(a.id, alien.tranches.find(x => !x.closed).id);
+  const noAlien = a.calcs.length === 2;
+  const c2 = a.calcs.find(x => x.trancheId === t.id);
+  RS.removeTrancheFromScope(a.id, c2.id);
+  const shrank = a.calcs.length === 1 && !a.creditIds.includes(cr.id);
+  const busy = !!RS.activeAppOnTranche(a.calcs[0].trancheId, 'RS-9999');
+  ok(60, grew && idempotent && derived && noAlien && shrank && busy,
+    `вырос=${grew} идемпотентно=${idempotent} безДублей=${derived} чужойНеВошёл=${noAlien} снят=${shrank} ИР-1=${busy}`);
 })();
 
 /* ---- отчёт ---- */
