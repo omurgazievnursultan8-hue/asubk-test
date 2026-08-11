@@ -967,6 +967,41 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
     `былаЗакрыта=${closedBefore} приМолчании=${reopened} безОснованияОтказ=${refused} послеСнятия=${closedNow}`);
 })();
 
+/* 66. Экран расчёта: суммы складываются через кредиты РОВНО в одном месте — шапке-итоге, и оно
+   подписано как итог, а не как база. Секция адресует транш и кредит; при одном расчёте заголовок
+   секции не рисуется вовсе — экран однокредитной заявки не меняется. Четыре сеттера строки
+   получают calcId, иначе клик в секции второго транша уехал бы в первый.
+   `creditIds[0]` уходит из четырёх функций задачи (pScope/pCalcBase/pCalcSched/automationBlock) —
+   но НЕ из fixLetter/closeByRefusal: это логика паузы взыскания, спека прямо говорит её не
+   трогать (`Не переписываем взыскание и залог`). Проверка поэтому берёт тело функции по имени,
+   а не весь файл — иначе сценарий требовал бы правки, которую задача не должна делать.
+   `wired` сверяет реальный порядок аргументов каждого сеттера, а не литеральную склейку `${AC}`:
+   у setDisposition/setDispAmount/setDispPeriods между тройкой (заявка,статья,срочность) и calcId
+   есть свои позиционные поля (вид/сумма; режим/от/до) — склейка `${AC}` в лоб увела бы calcId в
+   чужой слот, а нужное значение — в слот calcId (NaN на каждой правке суммы). Только у
+   toggleBaseRow тройка идёт вплотную к calcId, поэтому только там разметка зовёт `${AC}` буквально. */
+(() => {
+  const head   = /function calcSectionHead/.test(src);
+  const total  = /Итог по заявке/.test(src);
+  const single = /length<2\) return '';/.test(src);                 // один расчёт — заголовка нет
+  const wired  = /const AC=/.test(src)
+    && /RS\.toggleBaseRow\(\$\{AC\}\)/.test(src)
+    && /RS\.setDisposition\(\$\{A\},this\.value,'\$\{calc\.id\}'\)/.test(src)
+    && /RS\.setDispAmount\(\$\{A\},this\.value,'\$\{calc\.id\}'\)/.test(src)
+    && /RS\.setDispPeriods\(\$\{A\},'range',this\.value,null,'\$\{calc\.id\}'\)/.test(src);
+  const bodyOf = name => {
+    const start = src.indexOf('function '+name+'(');
+    if(start<0) return '';
+    const next = src.indexOf('\nfunction ', start+1);
+    return src.slice(start, next<0 ? src.length : next);
+  };
+  const scoped = ['pScope','pCalcBase','pCalcSched','automationBlock'];
+  const gone = !/function pickTrancheBlock/.test(src)
+    && scoped.every(name => !/creditIds\[0\]/.test(bodyOf(name)));
+  ok(66, head && total && single && wired && gone,
+    `секция=${head} итог=${total} одинБезЗаголовка=${single} адресВДвери=${wired} староеСнесено=${gone}`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
