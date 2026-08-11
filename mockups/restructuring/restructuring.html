@@ -144,9 +144,9 @@
       PASS  #61  строкиПоРасчётам=true адресованы=true ловитВторой=true (КД-60541: Срок 999 мес. превышает предел 84 мес. при остатке задолженности 1 850 000 (п. 90, ред. прил. к ПКМ КР №14 от 2026-01-19) | КД-60541: Ставка 0.01% ниже минимума 4.5% (п. 92, ред. прил. к ПКМ КР №14 от 2026-01-19; вид проекта — 1%, п. 34, ред. прил. к ПКМ КР №14 от 2026-01-19))
       PASS  #62  срезПоРасчётам=true расчёт=1 (15.0 %) заявка=0 (4.1 %)
       PASS  #63  ступень2=2 блокировкаНаВсе=true послеКомитета=true
-      PASS  #64  второе=true первоеЦело=true соглашений=2 покрытие={"done":["C-CR-59003-T1","C-CR-60540-T2"],"excluded":[],"pending":[],"ok":true}
+      PASS  #64  второе=true первоеЦело=true соглашений=2 покрытие={"done":["C-CR-59003-T1","C-CR-60540-T2"],"excluded":[],"pending":[],"ok":true} производныеПоРасчётам=true
       PASS  #65  былаЗакрыта=true приМолчании=true безОснованияОтказ=true послеСнятия=true
-      PASS  #66  секция=true итог=true одинБезЗаголовка=true адресВДвери=true староеСнесено=true
+      PASS  #66  секция=true итог=true одинБезЗаголовка=true адресВДвери=true староеСнесено=true производныйПоРасчёту=true черновикПоРасчёту=true
 -->
 <style>
 :root{
@@ -1740,27 +1740,28 @@ function recalcPlan(appId, calcId){
    graceBlocks вне охвата (никакая демо-заявка их не требует — пустой честный список, не UI-стаб).
    Закрыта после регистрации ДС: app.ds.params — реквизит вступившего соглашения дальше живёт
    своей жизнью (issues/01, ADR-0042), версия-черновик его больше не переигрывает. */
-function versionParamsBlock(app){
-  if(!app.version) return '<div class="op-empty">Выберите транш-источник — черновик условий заведётся автоматически.</div>';
-  const p=app.version.params;
-  const fixed = !!(app.ds && app.ds.no);
+function versionParamsBlock(app, calc){
+  if(!calc.version) return '<div class="op-empty">Выберите транш-источник — черновик условий заведётся автоматически.</div>';
+  const p=calc.version.params;
+  const dsNo = calc.dsRef || (app.ds && app.ds.no);
+  const fixed = !!dsNo;
   const canEdit = canX('editVersion') && !fixed;
   const dis = canEdit ? '' : 'disabled';
   const lockNote = fixed
-    ? '<span class="mode-tag">ДС '+esc(app.ds.no)+' зарегистрировано — версия стала историей, правка закрыта.</span>'
+    ? '<span class="mode-tag">ДС '+esc(dsNo)+' зарегистрировано — версия стала историей, правка закрыта.</span>'
     : (canX('editVersion') ? '' : '<span class="mode-tag">роль «'+esc(state.role)+'» правку не делает — только Куратор ОД.</span>');
   return `<div class="f2" style="max-width:640px">
-      <div class="field"><span class="flabel">Срок, мес.</span><input type="number" min="1" value="${p.term!=null?p.term:''}" ${dis} onchange="RS.setVersionParam('${app.id}','term',this.value)"></div>
-      <div class="field"><span class="flabel">Ставка, %</span><input type="number" step="0.1" min="0" value="${p.rate!=null?p.rate:''}" ${dis} onchange="RS.setVersionParam('${app.id}','rate',this.value)"></div>
-      <div class="field"><span class="flabel">Периодичность</span><select ${dis} onchange="RS.setVersionParam('${app.id}','schedule',this.value)">
+      <div class="field"><span class="flabel">Срок, мес.</span><input type="number" min="1" value="${p.term!=null?p.term:''}" ${dis} onchange="RS.setVersionParam('${app.id}','term',this.value,'${calc.id}')"></div>
+      <div class="field"><span class="flabel">Ставка, %</span><input type="number" step="0.1" min="0" value="${p.rate!=null?p.rate:''}" ${dis} onchange="RS.setVersionParam('${app.id}','rate',this.value,'${calc.id}')"></div>
+      <div class="field"><span class="flabel">Периодичность</span><select ${dis} onchange="RS.setVersionParam('${app.id}','schedule',this.value,'${calc.id}')">
         ${['ежемесячно','ежеквартально','раз в полугодие','ежегодно'].map(s=>`<option value="${s}" ${(p.schedule||'ежемесячно')===s?'selected':''}>${s}</option>`).join('')}
       </select></div>
-      <div class="field"><span class="flabel">Метод</span><select ${dis} onchange="RS.setVersionParam('${app.id}','method',this.value)">
+      <div class="field"><span class="flabel">Метод</span><select ${dis} onchange="RS.setVersionParam('${app.id}','method',this.value,'${calc.id}')">
         <option value="аннуитет" ${p.method!=='дифференцированный'?'selected':''}>аннуитет</option>
         <option value="дифференцированный" ${p.method==='дифференцированный'?'selected':''}>дифференцированный</option>
       </select></div>
     </div>
-    <div style="margin-top:8px">${canEdit?`<button class="btn btn-primary btn-sm" onclick="RS.recalcPlan('${app.id}')">Предварительный расчёт — пересчитать черновой график</button>`:''} ${lockNote}</div>`;
+    <div style="margin-top:8px">${canEdit?`<button class="btn btn-primary btn-sm" onclick="RS.recalcPlan('${app.id}','${calc.id}')">Предварительный расчёт — пересчитать черновой график</button>`:''} ${lockNote}</div>`;
 }
 
 /* Порядок конвейера — константа-массив шагов, прогон reduce (issues/02 реш.6, ИР-7 живёт
@@ -2856,7 +2857,7 @@ function calcBaseSection(app, calc){
   const runBlock = `<div class="two-num-grid">${sumTiles.map(([l,v,d])=>
     `<div class="numtile"><div class="nt-l">${l}</div><div class="nt-v">${fmt(v)}</div><div class="nt-d">${d}</div></div>`).join('')}</div>`;
 
-  const derived=resultTranche(app);
+  const derived=resultTrancheOf(app, calc.id);
   let splitBlock;
   if(derived){
     const srcConds=conditionsAt(src,TODAY);
@@ -2923,7 +2924,7 @@ function calcSchedSection(app, calc){
     ${gateDetails(app)}
   `;
 
-  const derived=resultTranche(app);
+  const derived=resultTrancheOf(app, calc.id);
 
   let draftBlock;
   if(derived){
@@ -2965,7 +2966,7 @@ function calcSchedSection(app, calc){
   const derivedBlock = draftBlock
     ? tbl((derived?derived.no:'производный транш'), draftBlock.pill, draftBlock.rows.slice(0,6), 'график пуст', draftBlock.rows)
     : `<div class="op-empty">Черновой график не рассчитан — задайте параметры ниже и нажмите «Предварительный расчёт», или дождитесь регистрации ДС.</div>`;
-  const paramsBlock = derived ? '' : `<div class="section-h">Условия черновика ДС</div>${versionParamsBlock(app)}`;
+  const paramsBlock = derived ? '' : `<div class="section-h">Условия черновика ДС</div>${versionParamsBlock(app, calc)}`;
   const activeBlock = tbl(src.no+' — действующий, не тронут переносом', '<span class="pill low">Действующий</span>', activeRows, 'график транша в демо-данных не оцифрован — не факт отсутствия платежей');
 
   const runRes=run(app, app.ds?app.ds.date:TODAY, calc.id);

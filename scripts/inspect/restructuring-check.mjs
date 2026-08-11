@@ -946,8 +946,13 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
   const twoAgreements = (a.agreements||[]).length === 2
     && new Set(a.agreements.map(d => d.creditId)).size === 2;
   const cov = RS.dsCoverage(a);
-  ok(64, second && firstIntact && twoAgreements && cov.ok === true && cov.pending.length === 0,
-    `второе=${second} первоеЦело=${firstIntact} соглашений=${(a.agreements||[]).length} покрытие=${JSON.stringify(cov)}`);
+  // РС-7/задача-7-fix: resultTrancheOf адресован по calcId — оба траншa с dsRef должны
+  // произвести СВОИ производные транши, а не делить одну (или null) однорасчётную дверь.
+  const derived1 = RS.resultTrancheOf(a, a.calcs[0].id);
+  const derived2 = RS.resultTrancheOf(a, c2.id);
+  const perCalcDerived = !!derived1 && !!derived2 && derived1.id !== derived2.id;
+  ok(64, second && firstIntact && twoAgreements && cov.ok === true && cov.pending.length === 0 && perCalcDerived,
+    `второе=${second} первоеЦело=${firstIntact} соглашений=${(a.agreements||[]).length} покрытие=${JSON.stringify(cov)} производныеПоРасчётам=${perCalcDerived}`);
 })();
 
 /* 65. Гейт «оформление → закрыта»: каждый расчёт либо зарегистрирован, либо ЯВНО снят с
@@ -998,8 +1003,18 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
   const scoped = ['pScope','pCalcBase','pCalcSched','automationBlock'];
   const gone = !/function pickTrancheBlock/.test(src)
     && scoped.every(name => !/creditIds\[0\]/.test(bodyOf(name)));
-  ok(66, head && total && single && wired && gone,
-    `секция=${head} итог=${total} одинБезЗаголовка=${single} адресВДвери=${wired} староеСнесено=${gone}`);
+  // fix-round-1: производный транш адресуется по calc.id в ОБЕИХ секциях, не через однорасчётную
+  // дверь resultTranche(app) — иначе у 2+ расчётов производный транш второй+ секции всегда «не
+  // оформлено», а черновая форма ДС (versionParamsBlock) вовсе не рисуется (app.version==null).
+  const derivedAddressed = ['calcBaseSection','calcSchedSection'].every(name => {
+    const b = bodyOf(name);
+    return /resultTrancheOf\(app,\s*calc\.id\)/.test(b) && !/resultTranche\(app\)/.test(b);
+  });
+  const paramsBlockScoped = /function versionParamsBlock\(app,\s*calc\)/.test(src)
+    && /calc\.version/.test(bodyOf('versionParamsBlock'))
+    && /versionParamsBlock\(app,\s*calc\)/.test(bodyOf('calcSchedSection'));
+  ok(66, head && total && single && wired && gone && derivedAddressed && paramsBlockScoped,
+    `секция=${head} итог=${total} одинБезЗаголовка=${single} адресВДвери=${wired} староеСнесено=${gone} производныйПоРасчёту=${derivedAddressed} черновикПоРасчёту=${paramsBlockScoped}`);
 })();
 
 /* ---- отчёт ---- */
