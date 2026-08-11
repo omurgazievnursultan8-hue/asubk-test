@@ -1549,7 +1549,7 @@ scripts/inspect/payments-check.mjs`, jsdom, 179 ассертов). Старый 
 
 ### Реструктуризация (целевая модель)
 _Модуль реструктуризации задолженности (гл. 9 Положения, прил. к ПКМ КР от 19.01.2026 № 14,
-пп. 81–96); счётчик `P17-R*` — новое пространство. Эталон поведения — самодостаточный мокап
+пп. 81–96); счётчик `P17-R*` — новое пространство. Эталон поведения — самодостаточный мокап <!-- check_points:ignore -->
 `mockups/restructuring/restructuring.html` (дизайн-система ASUBK gov-blue), проверка —
 `node scripts/inspect/restructuring-check.mjs` (67/67 на 11.08.2026). Спека —
 `mockups/restructuring/ASUBK-restrukturizatsiya-logika.md` (РС-1…РС-42), решения —
