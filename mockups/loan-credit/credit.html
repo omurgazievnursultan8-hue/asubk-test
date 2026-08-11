@@ -857,7 +857,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-11 · 113/113 PASS
+ SMOKE (node) 2026-08-11 · 114/114 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -937,6 +937,7 @@
    #53a ✓
    #53 ✓
    #111 ✓
+   #112 ✓
    #100 ✓
    #54 ✓
    #55 ✓
@@ -6079,6 +6080,20 @@ if (typeof document !== 'undefined') {
     return `<button class="${cls}" style="opacity:.45;cursor:not-allowed" title="${jsAttr(msg)}" onclick="CR.toast('${jsAttr(msg)}','warn')">${icon}</button>`;
   }
 
+  /* Карандаш «изменить условия» в заголовке карточки (КВ-25). Не roleIconBtn: тот знает
+     терминал и роль, а у записи условия причин отказа три — третья это ЖЦ. Погашенное
+     состояние обязательно (§0.3): при ЖЦ «Проект» пользователь должен прочитать, что
+     условия там правятся напрямую (Г-22), а не обнаружить пустой заголовок. */
+  function condIconBtn(title, onclick){
+    const _c=currentCredit();
+    const off=(msg)=>`<button class="icon-btn" style="opacity:.45;cursor:not-allowed" title="${jsAttr(msg)}" onclick="CR.toast('${jsAttr(msg)}','warn')">${svgPencil()}</button>`;
+    if(isTerminal(_c)) return off(terminalReason(_c));
+    if(!canRole(currentRole,'addConditionRecords')) return off('Роль «'+currentRole+'» не имеет права на это действие');
+    if(!['Зарегистрирован','Действует'].includes(_c.lifecycle))
+      return off('Условия меняются только при ЖЦ «Зарегистрирован» или «Действует» — при «Проект» они правятся напрямую (Г-22)');
+    return `<button class="icon-btn" title="${jsAttr(title)}" onclick="${onclick}">${svgPencil()}</button>`;
+  }
+
   /* ---- §5.2 ШАПКА (одна несворачиваемая сводка) ----
      Формат плитки перенесён из loan-credit.html: «значение + ОСНОВАНИЕ» (третья строка).
      Голая цифра в шапке порождает спор «почему столько / почему высокий», и ответ
@@ -6531,16 +6546,6 @@ if (typeof document !== 'undefined') {
           <div class="gtoolbar" style="margin-top:8px"><button class="btn btn-secondary btn-sm"
             onclick="CR.goToSchedule()">Перейти к перегенерации графика</button></div>
         </div></div>`; })()}
-      <div class="gtoolbar" style="margin-bottom:14px">
-        ${(()=>{ const cls='btn btn-primary btn-sm', label='Изменить условия';
-          if(isTerminal(c)) return disabledBtn(label, terminalReason(c), cls);
-          if(!canRole(currentRole,'addConditionRecords'))
-            return disabledBtn(label, 'Роль «'+currentRole+'» не имеет права на это действие', cls);
-          if(!['Зарегистрирован','Действует'].includes(c.lifecycle))
-            return disabledBtn(label, 'Условия меняются только при ЖЦ «Зарегистрирован» или «Действует» — при «Проект» они правятся напрямую (Г-22)', cls);
-          return `<button class="${cls}" onclick="CR.openCondModal()">${esc(label)}</button>`;
-        })()}
-      </div>
       <div class="pcards">
         <!-- Раскладка 03.08.2026: левая колонка — «Ставки» и «Приостановки начисления»
              стопкой (.pcol), правая — «Погашение». Погашение длиннее ставок (до 11 полей
@@ -6549,7 +6554,8 @@ if (typeof document !== 'undefined') {
              графика платежей. -->
         <div class="pcol">
         <div class="pcard">
-          <div class="section-h">Ставки</div>
+          <div class="section-h" style="display:flex;align-items:center;justify-content:space-between">Ставки
+            ${condIconBtn('Изменить ставки', "CR.openCondModal('rates')")}</div>
           <div class="f2">
             ${cf('rate')}
             ${cf('reserveRate')}
@@ -6580,7 +6586,8 @@ if (typeof document !== 'undefined') {
         </div>
 
         <div class="pcard">
-          <div class="section-h">Погашение</div>
+          <div class="section-h" style="display:flex;align-items:center;justify-content:space-between">Погашение
+            ${condIconBtn('Изменить условия погашения', "CR.openCondModal('repay')")}</div>
           <div class="f2">
             ${cf('term')}
             ${cf('method')}
@@ -7682,6 +7689,9 @@ if (typeof document !== 'undefined') {
 
   /* ---- обвязка действий карточки (onclick-строки живут в глобальной области → CR.*) ---- */
   CR.renderDetail=renderDetail; CR.renderTab=renderTab; CR.openTab=openTab; CR.rerenderDetail=rerenderDetail;
+  /* Для тестирования: позволяет установить контекст кредита перед вызовом renderTab,
+     чтобы currentCredit() возвращал нужный кредит. */
+  CR._setDetailContext=function(id){ detailId=id; };
   /* КВ-17: единственная точка смены области. 'credit' приходит строкой из <select>,
      номер транша — строкой или числом, поэтому нормализуем здесь, а не у вызывающих. */
   CR.setCardScope=function(v){ cardScope = (v==='credit' ? 'credit' : +v); rerenderDetail(); };

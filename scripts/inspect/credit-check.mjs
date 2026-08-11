@@ -944,7 +944,7 @@ const pd = CR.pd;
   const bad = [];
   for (const c of CR2.db.credits) for (const t of TABS){
     let html;
-    try { html = CR2.renderTab(t, c); }
+    try { CR2._setDetailContext(c.id); html = CR2.renderTab(t, c); }
     catch(e){ bad.push(`${c.id}/${t}: ${e.message}`); continue; }
     if (typeof html !== 'string' || html.length < 50) bad.push(`${c.id}/${t}: пусто`);
     else if (/undefined|\[object Object\]|NaN/.test(html)) bad.push(`${c.id}/${t}: мусор в разметке`);
@@ -966,6 +966,22 @@ const pd = CR.pd;
           && union === [...CR2.PARAM_KEYS].sort().join('|'),
      `RATES=${(gR||[]).length} REPAY=${(gP||[]).length} пересечение=${both.length}`
      + ` покрытие ${union === [...CR2.PARAM_KEYS].sort().join('|') ? 'полное' : 'НЕПОЛНОЕ'}`);
+
+  /* 112. КАРАНДАШИ ВКЛАДКИ «УСЛОВИЯ» (КВ-25). Лента .gtoolbar с единственной кнопкой
+     «Изменить условия» удалена, вход — карандаш в заголовке каждой из двух карточек.
+     Проверяем три состояния: при «Действует» карандаша ровно два и они кликабельны;
+     при «Проект» они на месте, но погашены и объясняют Г-22 (§0.3 — не молчаливый
+     отказ, карандаш не имеет права исчезнуть); при «Закрыт» — то же с terminalReason. */
+  const condHtml = (id) => { CR2._setDetailContext(id); return CR2.renderTab('Условия', CR2.db.credits.find(c => c.id === id)); };
+  const act = condHtml('K-1'), proj = condHtml('K-C26'), clos = condHtml('K-6');
+  const nCalls = (h) => (h.match(/CR\.openCondModal\(/g) || []).length;
+  ok(112, nCalls(act) === 2
+          && /openCondModal\('rates'\)/.test(act) && /openCondModal\('repay'\)/.test(act)
+          && !/>Изменить условия</.test(act)
+          && nCalls(proj) === 0 && (proj.match(/Г-22/g) || []).length === 4
+          && nCalls(clos) === 0 && (clos.match(/терминальном состоянии/g) || []).length >= 4,
+     `Действует=${nCalls(act)} Проект=${nCalls(proj)}/Г-22×${(proj.match(/Г-22/g)||[]).length}`
+     + ` Закрыт=${nCalls(clos)}`);
 
   /* 100. ГРУППИРОВКА ПО ГОДАМ на «Графике» (волна 10.08.2026, КВ-19). Строка года стоит
      перед первой позицией своего года, годы идут по возрастанию, итоги (ОД · проценты ·
