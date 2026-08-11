@@ -1655,7 +1655,8 @@ function recalcPlan(appId, calcId){
   const r=run(app, TODAY, calc.id);
   calc.version.plan=draftSchedule(tranche,{date:TODAY,transferSum:r.transferSum,
     principalPart:r.principalPart,parts:r.parts,params:calc.version.params});
-  app._t=TODAY; toast('Черновой график пересчитан','ok'); render();
+  app._t=TODAY; H(app,'Предварительный расчёт: черновой график пересчитан.',state.role);
+  toast('Черновой график пересчитан','ok'); render();
 }
 /* Форма параметров черновика — term/rate/schedule/method держат amortize (issues/01 реш.5);
    graceBlocks вне охвата (никакая демо-заявка их не требует — пустой честный список, не UI-стаб).
