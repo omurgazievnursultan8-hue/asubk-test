@@ -80,7 +80,7 @@
   возражение, а не как открытые вопросы. Свод — §11 спеки.
 
   SMOKE (node scripts/inspect/restructuring-check.mjs):
-   SMOKE 2026-08-11 · 54/54 PASS
+   SMOKE 2026-08-11 · 57/57 PASS
       PASS  #1  до=false после=true
       PASS  #2  closed=true opened=true reblock=true
       PASS  #3  noRate=true union=true
@@ -132,9 +132,12 @@
       PASS  #49  внутри=true заДлиной=true послеУкорочения=true неПодрезан=true
       PASS  #50  сумма=100000 колонка=[0, 33333.33, 33333.33, 33333.34, 0, 0]
       PASS  #51  матрица=true сеттерОтбил=true сменаВидаСбросила=true
-      PASS  #52  заявок=22 уникальных=22 волна2=15 обход=true
+      PASS  #52  заявок=25 уникальных=25 волна2=18 обход=true
       PASS  #53  видов=6 незадействованных=нет иное=true
       PASS  #54  пустых стадий=нет обаОтказа=true возврат=true
+      PASS  #55  хвост=180000 снят=true наступившее=60000 терминальная=true вПереносе=60000
+      PASS  #56  идемпотентно=true статьяТаЖе=400000 снятие=true просрочкаНеЗависит=true
+      PASS  #57  хвостВТело=true процентыВыросли=true (307804.65→543958.58) пеняНеТронута=true
 -->
 <style>
 :root{
@@ -524,10 +527,20 @@ function allowedDispositions(app){ const s=new Set(); (app.kindIds||[]).forEach(
    транш (сплита не было), историю прежних ДС несёт restructCount/audit, не число траншей; полная
    two-транш/три-ДС раскладка — только у демо-заявки (buildDemoApps/seedRestructChain, тикет 06 карты).
    Статей сеется четыре, пятая (principal) выводится: расходы взыскания и сборы выведены из
-   охвата (ADR-0110) и в базу реструктуризации не попадают вовсе. */
+   охвата (ADR-0110) и в базу реструктуризации не попадают вовсе.
+
+   accTail — НЕНАСТУПИВШЕЕ накопленное (ADR-0093 §3): прошлый ДС раздал накопленную статью по
+   позициям своего графика, часть позиций уже наступила и не оплачена (строка urgency:'over'),
+   часть — ещё нет. Ненаступившая часть живёт ТОЙ ЖЕ статьёй со срочностью 'cur': срочность
+   внутри статьи отвечает только на вопрос «наступил ли срок» (РС-13), а накопленность переехала
+   на уровень статьи. Поле явное, а не выведенное из restructCount: у кредита с прошлым ДС хвост
+   может быть уже выбран целиком, и подставлять его всем значило бы выдумывать факт. В
+   snapshot.accruedInterest хвост НЕ входит — тот про начисленное текущего периода. Дата строки —
+   дата последнего ДС (та же, что у seedAudit), а не начало просрочки: срок этой сумме назначил
+   документ, а не период начисления. */
 function seedDebt(cr){
   const since = addCalDays(TODAY, -cr.odDays);
-  return [
+  const rows = [
     { article:'accInterest',    urgency:'over', amount: cr.snapshot.accruedInterest, since },
     // накопленная пеня рождается только капитализацией по прошлому ДС (ADR-0106): у кредита без
     // истории реструктуризаций её взяться неоткуда. Доля — демо-коэфф., не норма.
@@ -535,6 +548,12 @@ function seedDebt(cr){
     { article:'penalty',        urgency:'over', amount: cr.snapshot.penalty, since, disputed: !!cr.collProc },  // ИР-6: спорная пеня — мёртвая галка
     { article:'interest',       urgency:'cur',  amount: Math.max(0, cr.snapshot.accruedInterest - cr.snapshot.overdueInterest), since }
   ];
+  if(cr.accTail){
+    const dsDate = addCalDays(TODAY, -200);                                 // дата ПОСЛЕДНЕГО ДС — та же, что у seedAudit
+    if(cr.accTail.interest) rows.push({ article:'accInterest', urgency:'cur', amount:cr.accTail.interest, since:dsDate });
+    if(cr.accTail.penalty)  rows.push({ article:'accPenalty',  urgency:'cur', amount:cr.accTail.penalty,  since:dsDate });
+  }
+  return rows;
 }
 function mkTranche(cr){
   const ageMonths = cr.terms.term - cr.remainingTermMonths;
@@ -692,7 +711,41 @@ function demoCredits2(){ return [
     coverSnapshot:{cover:121, required:120, date:'2026-07-11', source:'Залог'}, insuredUntil:'2028-06-01', tech:false, techAgeYears:0, techMaxAge:0,
     snapshot:{ principal:620000, overduePrincipal:70000, accruedInterest:24000, overdueInterest:24000, penalty:12000 },
     paid:{ principalPaid:70000, interestPaid:40000, penaltyPaid:0 }, remainingTermMonths:13,
-    terms:{term:18,schedule:'ежемесячно',rate:11,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} }
+    terms:{term:18,schedule:'ежемесячно',rate:11,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+
+  /* Три кредита с ЖИВЫМ ХВОСТОМ накопленного (11.08.2026) — accTail — сырьё заявок
+     RS-1023…RS-1025. До них ни одна фикстура не заводила накопленную статью со срочностью 'cur':
+     seedDebt сеял накопленные только просроченными, и случай «накопленное, срок которого ещё не
+     наступил» не проверялся ни разу, хотя модель его допускает прямым текстом (ADR-0093 §3 —
+     два уровня перемножаются, а не подменяют друг друга). Числа рассказывают историю прошлого ДС:
+     раздал сумму равными долями по позициям, часть позиций наступила и не оплачена, остальные
+     впереди. */
+  { id:'CR-62024', no:'КД-62024', inn:'03112201000456', borrower:'ОсОО «Нарын Суу»',
+    balance:5400000, odDays:85, odSum:620000, collProc:null, restructCount:1, projectKind:'social',
+    coverSnapshot:{cover:132, required:120, date:'2026-07-06', source:'Залог'}, insuredUntil:'2030-06-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:5400000, overduePrincipal:480000, accruedInterest:160000, overdueInterest:160000, penalty:62000 },
+    // прошлый ДС раздал 400 000 накопленных процентов на 20 позиций по 20 000: 8 наступили и не
+    // оплачены (160 000 — строка 'over'), 12 впереди (240 000 — строка 'cur')
+    accTail:{ interest:240000 },
+    paid:{ principalPaid:600000, interestPaid:410000, penaltyPaid:0 }, remainingTermMonths:26,
+    terms:{term:36,schedule:'ежемесячно',rate:9,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62025', no:'КД-62025', inn:'02508199700321', borrower:'ОсОО «Ак-Жол Строй»',
+    balance:18000000, odDays:100, odSum:1500000, collProc:null, restructCount:2, projectKind:'infraSOE',
+    coverSnapshot:{cover:139, required:120, date:'2026-06-30', source:'Залог'}, insuredUntil:'2033-06-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:18000000, overduePrincipal:1200000, accruedInterest:300000, overdueInterest:300000, penalty:180000 },
+    // 1 200 000 на 24 позиции по 50 000: наступило 6 (300 000), впереди 18 (900 000). Хвост есть и
+    // у накопленной ПЕНИ — её родила капитализация прошлого ДС (ADR-0106), сроки ей тот же ДС и дал.
+    accTail:{ interest:900000, penalty:150000 },
+    paid:{ principalPaid:3600000, interestPaid:1100000, penaltyPaid:0 }, remainingTermMonths:52,
+    terms:{term:72,schedule:'ежемесячно',rate:8,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62026', no:'КД-62026', inn:'01703198800077', borrower:'ИП Садыков Т.',
+    balance:1200000, odDays:50, odSum:130000, collProc:null, restructCount:1, projectKind:'commercial',
+    coverSnapshot:{cover:127, required:120, date:'2026-07-10', source:'Залог'}, insuredUntil:'2029-01-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:1200000, overduePrincipal:110000, accruedInterest:60000, overdueInterest:60000, penalty:24000 },
+    // 240 000 на 16 позиций по 15 000: наступило 4 (60 000), впереди 12 (180 000)
+    accTail:{ interest:180000 },
+    paid:{ principalPaid:150000, interestPaid:95000, penaltyPaid:0 }, remainingTermMonths:20,
+    terms:{term:30,schedule:'ежемесячно',rate:10,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} }
 ]; }
 /* Плановый график базового транша — только у второй волны. У первых пяти кредитов
    schedules[0].rows пуст: principalAt не видит просроченного ТЕЛА, и перенос собирает одни
@@ -1979,7 +2032,27 @@ const WAVE2 = [
     demoNote:'Кабинет Министров отказал в изменении условий: стадия отказа читается по акту, который его нёс (ADR-0107). Заключение уполномоченного органа было положительным — исход решает постановление, а не заключение (ИР-12).' },
   { id:'RS-1022', credits:['CR-62023'], kinds:['N4'], reg:'2026-07-06', stage:'возврат',
     missing:['Акт сверки задолженности'], dates:{ret:'2026-07-09'}, initiator:'sector',
-    why:'нет акта сверки задолженности — документа, который требует сам ВИД «капитализация» сверх нормативного пакета пп. 85–86' }
+    why:'нет акта сверки задолженности — документа, который требует сам ВИД «капитализация» сверх нормативного пакета пп. 85–86' },
+
+  /* Три заявки про НЕНАСТУПИВШЕЕ НАКОПЛЕННОЕ (11.08.2026, кредиты с accTail). Разводят три
+     исхода одной строки: переназначить сроки · вернуть под ставку · оставить на исходном транше.
+     Четвёртый исход, прощение, здесь не заводится: вид X1 зовётся «Прощение санкций», а
+     накопленные проценты санкцией не являются — под них нужен свой вид по п. 89 пп. 5, и
+     выдумывать его демо-севом было бы решением, которого никто не принимал. */
+  { id:'RS-1023', credits:['CR-62024'], kinds:['N5'], reg:'2026-03-20', stage:'дс', mode:'ядро',
+    params:{term:36, rate:9}, include:['accInterest@cur'],
+    disp:{ accInterest:{kind:'spread'}, 'accInterest@cur':{kind:'spread', from:1, to:24} },
+    dsNo:'ДС-62024/2', initiator:'omsu',
+    demoNote:'ПЕРЕСРОЧИВАНИЕ УЖЕ ОТСРОЧЕННОГО. Прошлый ДС раздал 400 000 накопленных процентов на 20 позиций по 20 000: 8 позиций наступили и не оплачены (160 000), 12 ещё впереди (240 000). Ненаступившая строка по умолчанию СНЯТА (РС-7) — куратор включил её галкой и дал новые сроки. Распределение статьи НЕ меняет (РС-39): накопленное осталось накопленным, повторный прогон даёт то же самое. Просрочку эта строка не создаёт и не снимает — шаг просрочки смотрит только на наступившее.' },
+  { id:'RS-1024', credits:['CR-62025'], kinds:['N4'], reg:'2026-02-24', stage:'дс', mode:'ядро',
+    params:{term:72, rate:8}, include:['accInterest@cur'],
+    disp:{ accInterest:{kind:'cap'}, 'accInterest@cur':{kind:'cap'} },
+    dsNo:'ДС-62025/3', initiator:'authority',
+    demoNote:'КАПИТАЛИЗАЦИЯ НЕНАСТУПИВШЕГО НАКОПЛЕННОГО — единственное распоряжение на этой строке, которое ухудшает положение заёмщика: 900 000, выведенные прошлым ДС из-под ставки (ACCRUAL_MODES accInterest — {проценты: нет, пеня: нет}), вливаются в тело и ставку тянут снова. Норме это не противоречит — п. 89 пп. 4 говорит «капитализация начисленных процентов», а накопленные когда-то начислялись, — но и гейта на это нет: ИР-11 держит только пеню. Развилка вынесена вопросом ГФХ, молча запрещать нельзя. Накопленная пеня (хвост 150 000) распоряжения не получила и осталась на месте: РС-27 держит её терминальной.' },
+  { id:'RS-1025', credits:['CR-62026'], kinds:['N1'], reg:'2026-04-06', stage:'дс', mode:'ядро',
+    params:{term:30, rate:10}, disp:{ accInterest:{kind:'spread'} },
+    dsNo:'ДС-62026/2', initiator:'sector',
+    demoNote:'ХВОСТ ОСТАВЛЕН НА ИСХОДНОМ ТРАНШЕ. Ненаступившие накопленные 180 000 видны строкой и сняты по умолчанию — куратор их не включал, и в перенос они не вошли. Сроки им держит график ПРОШЛОГО ДС, а не новый: производный транш уносит только просроченную часть, исходный после ДС не пустеет и закрыться не может (РС-6). Это умолчание, а не упущение: включать ненаступившее вправе только вид, меняющий график целиком.' }
 ];
 const WAVE2_STAGE = { возврат:0, анализ:1, комитет:2, письмо:3, заключение:4, проектКМ:5, отказКМ:6, дс:8 };
 
@@ -2000,10 +2073,15 @@ const wave2Kinds = s => s.kinds.map(id=>(kindById(id)||{}).name).filter(Boolean)
 /* Распоряжения строки таблицы кладутся поверх умолчания (kind:'none' на всю сумму позиции), а не
    вместо него: статью, которой в базе среза не оказалось (спорная пеня, нулевая позиция), спека
    не выдумывает — распоряжение живёт только на включённой строке (issues/02 реш.4). */
+/* Ключ спецификации — 'статья' (просроченное, умолчание) либо 'статья@срочность'. Распоряжение
+   живёт на ПАРЕ (статья, срочность), и после появления накопленного хвоста (accTail) одной статьи
+   стало мало: у 'accInterest' в базе две строки, и распоряжения у них разные. Голый ключ читается
+   как '@over' намеренно — им писаны все прежние строки WAVE2, и переписывать их незачем. */
 function applyDisp(list, spec){
   if(!spec) return list;
   return list.map(d=>{
-    const s=spec[d.article]; if(!s) return d;
+    const s = spec[d.article+'@'+d.urgency] || (d.urgency==='over' ? spec[d.article] : null);
+    if(!s) return d;
     const out={...d, kind:s.kind};
     if(s.amount!=null) out.amount=round2(s.amount);
     if(s.from!=null)   out.periods={mode:'range', from:s.from, to:s.to};
@@ -2049,9 +2127,17 @@ function buildWave2App(s){
 
   // финансовое ядро материализуется там, где заявка его уже трогала: у заявки с ДС — на дату ДС,
   // у активной — на сегодня (иначе правка куратора откатилась бы к умолчанию, issues/02 реш.4)
-  if(s.disp || s.plan || (target>=8 && s.mode==='ядро')){
+  if(s.disp || s.include || s.plan || (target>=8 && s.mode==='ядро')){
     const at = target>=8 ? d.ds : TODAY;
     app.base=AppSide.defaultBase(app, at);
+    // include — та же галка куратора, что в двери (РС-7): по умолчанию в базу входит только
+    // просроченное, ненаступившее включается ЯВНО. Заблокированную строку (спорная пеня, ИР-6)
+    // не трогаем: демо-сев не вправе обходить гейт, который в UI мёртв.
+    (s.include||[]).forEach(k=>{
+      const [article, urgency] = k.split('@');
+      const r = app.base.find(x=>x.article===article && x.urgency===(urgency||'cur'));
+      if(r && !r.blockedBy) r.included=true;
+    });
     app.dispositions=applyDisp(AppSide.defaultDispositions(app.base), s.disp);
   }
   if(s.plan){

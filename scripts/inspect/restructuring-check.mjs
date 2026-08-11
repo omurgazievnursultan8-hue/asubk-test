@@ -682,8 +682,9 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
     `матрица=${matrix} сеттерОтбил=${rejected} сменаВидаСбросила=${reset}`);
 })();
 
-/* 52. Сев витрины поднимается целиком и без исключений: 22 заявки с уникальными id, из них
-   15 второй волны (RS-1008…RS-1022). Сторож на сам сев, а не на отдельную дверь: заявки с ДС
+/* 52. Сев витрины поднимается целиком и без исключений: 25 заявок с уникальными id, из них
+   18 второй волны (RS-1008…RS-1025; последние три — накопленный хвост, 11.08.2026).
+   Сторож на сам сев, а не на отдельную дверь: заявки с ДС
    строятся настоящими вызовами (AppSide.run → CreditSide.restructureApplied, а «целиком» —
    через balanceAt), и restructureApplied в фабрике бросает на !ok. Значит регрессия ядра или
    гейтов закрытия валит сев, и это видно здесь, а не косвенно в чужом сценарии. */
@@ -698,7 +699,7 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
     try { RS.stageOf(a); a.creditIds.forEach(i => RS.creditById(i).no); RS.deadline(a); }
     catch (e) { walkOk = false; }
   });
-  ok(52, !err && apps.length === 22 && ids.size === 22 && wave2 === 15 && walkOk,
+  ok(52, !err && apps.length === 25 && ids.size === 25 && wave2 === 18 && walkOk,
     err ? `сев упал: ${err.message}`
         : `заявок=${apps.length} уникальных=${ids.size} волна2=${wave2} обход=${walkOk}`);
 })();
@@ -731,6 +732,71 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
   const ret = labels.has('Возвращена без рассмотрения');
   ok(54, gaps.length === 0 && both && ret,
     `пустых стадий=${gaps.join(',') || 'нет'} обаОтказа=${both} возврат=${ret}`);
+})();
+
+/* 55. ADR-0093 §3 — накопленное бывает и НЕНАСТУПИВШИМ: два уровня (статья × срочность)
+   перемножаются, а не подменяют друг друга. Строка есть, начислений не порождает (режим
+   терминальный), по умолчанию СНЯТА (РС-7: умолчание базы — просроченное) и в перенос не
+   входит. RS-1025 взята потому, что её сев хвост не включает: у RS-1023/RS-1024 галка уже
+   поставлена демо-севом, и умолчание на них не видно. */
+(() => { fresh();
+  const base = RS.defaultBase(app('RS-1025'), RS.TODAY);
+  const tail = base.find(r => r.article === 'accInterest' && r.urgency === 'cur');
+  const head = base.find(r => r.article === 'accInterest' && r.urgency === 'over');
+  const mode = RS.accrualModeOf('accInterest', RS.TODAY).mode;
+  const terminal = !mode.interest && !mode.penalty;
+  // хвост в перенос не попал: сумма накопленных в переносе равна ОДНОЙ просроченной строке
+  const r = RS.AppSide.run(app('RS-1025'), RS.TODAY);
+  const accInTransfer = RS.round2(RS.mergeParts(r.parts || [])
+    .filter(p => p.article === 'accInterest').reduce((s, p) => s + p.amount, 0));
+  ok(55, !!tail && tail.amount === 180000 && tail.included === false && !tail.blockedBy
+      && head.amount === 60000 && terminal && accInTransfer === head.amount,
+    `хвост=${tail && tail.amount} снят=${tail && !tail.included} наступившее=${head && head.amount} `
+    + `терминальная=${terminal} вПереносе=${accInTransfer}`);
+})();
+
+/* 56. РС-39 на НЕНАСТУПИВШЕМ накопленном: распределение переназначает сроки и статьи НЕ меняет
+   (accInterest → accInterest), прогон идемпотентен, а шаг просрочки эту строку не видит вовсе —
+   он смотрит только на urgency==='over'. И обратное: снять галку с хвоста = уменьшить перенос
+   ровно на его сумму, второго эффекта у неё нет. */
+(() => { fresh();
+  const a = app('RS-1023');
+  const byArt = x => RS.mergeParts(x.parts || []).reduce((m, p) => (m[p.article] = RS.round2((m[p.article] || 0) + p.amount), m), {});
+  const r1 = RS.AppSide.run(a, RS.TODAY), r2 = RS.AppSide.run(a, RS.TODAY);
+  const m1 = byArt(r1);
+  const stable = JSON.stringify(m1) === JSON.stringify(byArt(r2));
+  const sameArticle = m1.accInterest === 400000 && !m1.interest;   // 160 000 наступивших + 240 000 хвоста
+  const overdueBefore = r1.remainsOverdue;
+  RS.toggleBaseRow(a.id, 'accInterest', 'cur');                    // куратор передумал — хвост снят
+  const r3 = RS.AppSide.run(a, RS.TODAY);
+  const dropped = RS.round2(r1.transferSum - r3.transferSum) === 240000;
+  const overdueSame = r3.remainsOverdue === overdueBefore;         // просрочка от хвоста не зависит
+  ok(56, stable && sameArticle && dropped && overdueSame,
+    `идемпотентно=${stable} статьяТаЖе=${m1.accInterest} снятие=${dropped} просрочкаНеЗависит=${overdueSame}`);
+})();
+
+/* 57. Капитализация ненаступившего накопленного — ЕДИНСТВЕННОЕ распоряжение, возвращающее
+   безставочную сумму под ставку: 900 000 хвоста уезжают в тело, и колонка процентов графика
+   растёт. Сторож не на «правильно», а на «видно»: норма молчит, гейта нет (ИР-11 держит одну
+   пеню), и молчаливое поведение здесь опаснее любого исхода. Накопленная пеня рядом
+   распоряжения не получила и в тело НЕ вливается — РС-27 держит её терминальной. */
+(() => { fresh();
+  const a = app('RS-1024');
+  const sched = ap => {
+    const r = RS.AppSide.run(ap, RS.TODAY);
+    const d = RS.CreditSide.draftSchedule(ap.calcTranche, { date: RS.TODAY, transferSum: r.transferSum,
+      principalPart: r.principalPart, parts: r.parts, params: ap.version.params });
+    return { r, int: RS.round2(d.rows.reduce((s, x) => s + (x.interest || 0), 0)) };
+  };
+  const withTail = sched(a);
+  RS.toggleBaseRow(a.id, 'accInterest', 'cur');                    // тот же ДС без хвоста
+  const without = sched(a);
+  const inBody = RS.round2(withTail.r.principalPart - without.r.principalPart) === 900000;
+  const dearer = withTail.int > without.int;                       // ставка пошла на бывшее безставочным
+  const penStays = RS.round2(RS.mergeParts(withTail.r.parts || [])
+    .filter(p => p.article === 'accPenalty').reduce((s, p) => s + p.amount, 0)) === 45000;   // только наступившая
+  ok(57, inBody && dearer && penStays,
+    `хвостВТело=${inBody} процентыВыросли=${dearer} (${without.int}→${withTail.int}) пеняНеТронута=${penStays}`);
 })();
 
 /* ---- отчёт ---- */
