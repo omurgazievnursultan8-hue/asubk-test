@@ -80,7 +80,7 @@
   возражение, а не как открытые вопросы. Свод — §11 спеки.
 
   SMOKE (node scripts/inspect/restructuring-check.mjs):
-   SMOKE 2026-08-11 · 61/61 PASS
+   SMOKE 2026-08-11 · 63/63 PASS
       PASS  #1  до=false после=true
       PASS  #2  closed=true opened=true reblock=true
       PASS  #3  noRate=true union=true
@@ -142,6 +142,8 @@
       PASS  #59  два=true второйЦел=true первыйДвинулся=true суммыРазные=4318000/0 отказБезИмени=true
       PASS  #60  вырос=true идемпотентно=true безДублей=true чужойНеВошёл=true снят=true ИР-1=true
       PASS  #61  строкиПоРасчётам=true адресованы=true ловитВторой=true (КД-60541: Срок 999 мес. превышает предел 84 мес. при остатке задолженности 1 850 000 (п. 90, ред. прил. к ПКМ КР №14 от 2026-01-19) | КД-60541: Ставка 0.01% ниже минимума 4.5% (п. 92, ред. прил. к ПКМ КР №14 от 2026-01-19; вид проекта — 1%, п. 34, ред. прил. к ПКМ КР №14 от 2026-01-19))
+      PASS  #62  срезПоРасчётам=true расчёт=1 (15.0 %) заявка=0 (0.1 %)
+      PASS  #63  ступень2=2 блокировкаНаВсе=true послеКомитета=true
 -->
 <style>
 :root{
@@ -1861,41 +1863,65 @@ function driftTier(delta, cutoffSum){
   DRIFT_TIERS.forEach(t=>{ if(pct>=t.pct || abs>=t.abs) hit=t; });
   return hit;
 }
-function cutoffDrift(app){
-  if(!app.cutoff || !app.cutoff.rows || !app.ds || !app.ds.fact) return null;
-  const cutoffSum = round2(app.cutoff.rows.reduce((s,r)=>s+r.amount,0));
-  const factSum = round2(app.ds.fact.rows.reduce((s,r)=>s+r.amount,0));
-  const delta = round2(factSum-cutoffSum);
-  const pct = cutoffSum ? Math.abs(delta)/cutoffSum : 0;
-  const tier = driftTier(delta, cutoffSum);
-  return { cutoffSum, factSum, delta, pct, tier, level:tier?tier.level:0, material: !!tier };
-}
-/* Тот же порог ДО регистрации ДС — на предполагаемой дате вступления: ступень 2 жёстко
-   блокирует регистрацию, пока комитет не выскажется заново (app.committee.date позже среза). */
-function driftGate(app, date){
-  if(!app.cutoff || !app.cutoff.rows || !app.calcTranche) return { ok:true, applicable:false };
-  const cutoffSum = round2(app.cutoff.rows.reduce((s,r)=>s+r.amount,0));
-  const factSum = round2(debtAt(app.calcTranche, date||TODAY).reduce((s,r)=>s+r.amount,0));
-  const delta = round2(factSum-cutoffSum);
-  const tier = driftTier(delta, cutoffSum);
-  const level = tier?tier.level:0;
-  const recommitted = !!(app.committee && app.committee.date && app.cutoff.date && app.committee.date > app.cutoff.date);
-  return { ok: level<2 || recommitted, applicable:true, level, tier, delta, cutoffSum, factSum, recommitted,
-           pct: cutoffSum ? Math.abs(delta)/cutoffSum : 0 };
-}
-/* Материализация: до отправки письма cutoff держит только дату (двигается свободно, РС-8);
-   фиксация письмом и регистрация ДС — единственные два удостоверяющих события (issues/02 реш.2).
-   Вызов этих функций из экрана — задачи 6/7 (fixLetter/regDS), здесь только чистые данные. */
+/* Срез — согласовательная величина заявки: дата одна на обращение, суммы свои у каждого расчёта
+   (спека §2). Ступень 1 меряется расчётом, ступень 2 — суммой по заявке (спека §5). */
 function fixCutoff(app, date){
-  const tranche = app.calcTranche;
-  app.cutoff = { date, rows: tranche ? debtAt(tranche, date) : [], fixedAt: date };
+  app.cutoffDate = date;
+  (app.calcs||[]).forEach(c=>{
+    const t=calcTrancheOf(c);
+    c.cutoff = { date, rows: t ? debtAt(t, date) : [], fixedAt: date };
+  });
+  app.cutoff = { date, rows: (app.calcs||[]).flatMap(c=>c.cutoff.rows), fixedAt: date };  // итог, не хранилище
   return app.cutoff;
 }
-function fixFact(app, date, transferSum){
-  if(!app.ds) return null;
-  const tranche = app.calcTranche;
-  app.ds.fact = { date, rows: tranche ? debtAt(tranche, date) : [], transferSum: round2(transferSum) };
-  return app.ds.fact;
+function fixFact(app, date, calcId, transferSum){
+  const calc=requireCalc(app, calcId); if(!calc) return null;
+  const t=calcTrancheOf(calc);
+  calc.fact = { date, rows: t ? debtAt(t, date) : [], transferSum: round2(transferSum) };
+  // Факт переехал на расчёт, но app.ds.fact — публичный реквизит вступившего соглашения: его
+  // читают экран (:2524) и сторож #14. Пока расчёт один, зеркалим; при двух его несёт своё ДС.
+  if(app.ds && (app.calcs||[]).length===1) app.ds.fact = calc.fact;
+  return calc.fact;
+}
+function sumRows(rows){ return round2((rows||[]).reduce((s,r)=>s+r.amount,0)); }
+function driftOf(cutoffRows, factRows){
+  const cutoffSum=sumRows(cutoffRows), factSum=sumRows(factRows);
+  const delta=round2(factSum-cutoffSum);
+  const tier=driftTier(delta, cutoffSum);
+  return { cutoffSum, factSum, delta, pct: cutoffSum ? Math.abs(delta)/cutoffSum : 0,
+           tier, level: tier?tier.level:0, material: !!tier };
+}
+function calcDrift(app, calcId){
+  const c=requireCalc(app, calcId);
+  if(!c || !c.cutoff || !c.fact) return null;
+  return { calcId:c.id, ...driftOf(c.cutoff.rows, c.fact.rows) };
+}
+function appDrift(app, date){
+  const list=(app.calcs||[]).filter(c=>c.cutoff);
+  const cut=list.flatMap(c=>c.cutoff.rows);
+  const fact=list.flatMap(c=>{
+    if(c.fact) return c.fact.rows;
+    const t=calcTrancheOf(c); return t ? debtAt(t, date||TODAY) : [];
+  });
+  return driftOf(cut, fact);
+}
+function cutoffDrift(app){ return calcDrift(app, null); }
+/* Гейт регистрации: ступень 2 считается по заявке и блокирует ВСЕ расчёты — вернуть на комитет
+   половину обращения нельзя. Ступень 1 остаётся в строках: она про визу конкретного ДС. */
+function driftGate(app, date){
+  const list=(app.calcs||[]).filter(c=>c.cutoff && c.cutoff.rows);
+  if(!list.length) return { ok:true, applicable:false, rows:[] };
+  const whole=appDrift(app, date);
+  const recommitted = !!(app.committee && app.committee.date && app.cutoff && app.cutoff.date
+                         && app.committee.date > app.cutoff.date);   // как сегодня (:1755)
+  const rows=list.map(c=>{
+    const t=calcTrancheOf(c);
+    const factRows = c.fact ? c.fact.rows : (t ? debtAt(t, date||TODAY) : []);
+    return { calcId:c.id, creditNo:(creditById(c.creditId)||{}).no || '—', ...driftOf(c.cutoff.rows, factRows) };
+  });
+  return { ok: whole.level<2 || recommitted, applicable:true, recommitted, rows,
+           level:whole.level, tier:whole.tier, delta:whole.delta,
+           cutoffSum:whole.cutoffSum, factSum:whole.factSum, pct:whole.pct };
 }
 
 /* Покрытие строк графика — жадно из одного пула, форма соседа (credit.html:3563-3603) дословно
@@ -1919,7 +1945,7 @@ function coverageOf(tranche, ver){
     return { n:r.n, date:r.date, paid };
   });
 }
-const AppSide = { debtAt, defaultBase, defaultDispositions, cutoffDrift, fixCutoff, fixFact, run, coverageOf, PIPELINE };
+const AppSide = { debtAt, defaultBase, defaultDispositions, cutoffDrift, calcDrift, appDrift, driftOf, fixCutoff, fixFact, run, coverageOf, PIPELINE };
 
 /* ================= ДЕМО-ЦЕПОЧКИ (Р-18) ================= */
 /* initiator — инициатор проекта решения КМ (п. 83 Положения): отраслевой орган · ОМСУ (через
@@ -2009,7 +2035,7 @@ function buildDemoApps(){
   const res1=CreditSide.restructureApplied(ds1);
   if(res1.ok){
     a1.ds={ no:ds1.no, date:ds1.date, transferSum:ds1.transferSum, sourceTrancheId:T1a.id, params:ds1.params, fact:null };
-    AppSide.fixFact(a1,TODAY,ds1.transferSum);
+    AppSide.fixFact(a1,TODAY,null,ds1.transferSum);
     a1.outcome='изм';
   }
   a1._t='2026-03-02'; H(a1,'Заявка зарегистрирована. Виды: Пролонгация, Капитализация + прощение штрафов.','Куратор ОД');
@@ -2102,7 +2128,7 @@ function seedRestructChain(){
     const res=CreditSide.restructureApplied(ds);
     if(!res.ok) throw new Error('demo-seed: '+no+' — '+res.reasons.join('; '));
     app.ds={ no, date, transferSum, sourceTrancheId:T.id, params:ds.params, fact:null };
-    AppSide.fixFact(app,date,transferSum);
+    AppSide.fixFact(app,date,null,transferSum);
     app.outcome='изм'; app._t=date; H(app,'ДС '+no+' зарегистрировано, перенесено '+fmt(transferSum)+'.','Куратор ОД');
     return { app, tranche:res.tranche };
   }
@@ -2330,7 +2356,7 @@ function buildWave2App(s){
     const res=CreditSide.restructureApplied(ds);
     if(!res.ok) throw new Error('demo-seed: '+s.id+' — '+res.reasons.join('; '));
     app.ds={ no:ds.no, date:ds.date, transferSum:ds.transferSum, sourceTrancheId:T.id, params:ds.params, fact:null };
-    AppSide.fixFact(app, ds.date, ds.transferSum);
+    AppSide.fixFact(app, ds.date, null, ds.transferSum);
     app.outcome='изм';
     app._t=ds.date; H(app,'Доп. соглашение '+ds.no+' зарегистрировано, перенесено '+fmt(ds.transferSum)+'.','Куратор ОД');
   }
@@ -3211,7 +3237,7 @@ function regDS(appId){
   const res=CreditSide.restructureApplied(ds);
   if(!res.ok){ toast(res.reasons.join('; '),'err'); return; }
   app.ds={ no, date, transferSum:ds.transferSum, sourceTrancheId:tranche.id, params:ds.params, fact:null };
-  AppSide.fixFact(app, date, ds.transferSum);
+  AppSide.fixFact(app, date, null, ds.transferSum);
   if(!app.outcome) app.outcome = app.resolution.decision==='изм'?'изм':'одобрена';
   app._t=date; H(app,'Доп. соглашение '+no+' зарегистрировано. Перенесено '+fmt(ds.transferSum)+' на транш '+res.tranche.no+'. Счётчик реструктуризаций +1.',state.role);
   if(credit.collProc){ app.automation.push({when:date,kind:'unpause',text:'Оформление завершено — пауза снята штатно, взыскание закрыто по кредитам заявки'}); }

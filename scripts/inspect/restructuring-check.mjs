@@ -889,6 +889,42 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
     `строкиПоРасчётам=${perCalc} адресованы=${addressed} ловитВторой=${catches} (${g2.messages.join(' | ')})`);
 })();
 
+/* 62. Ступень 1 меряется от базы среза РАСЧЁТА: виза куратора блокирует регистрацию конкретного
+   ДС, значит и меряться обязана тем, что в это ДС уходит. Считать её от суммы по заявке значит
+   дать крупному кредиту охвата глушить расхождение по мелкому — виза не возникнет там, где
+   возникла бы при отдельной заявке (спека §5). */
+(() => { fresh();
+  const a = app('RS-1001');
+  RS.addTrancheToScope(a.id, secondTranche(a).t.id);
+  RS.AppSide.fixCutoff(a, '2026-03-30');
+  const seeded = a.calcs.every(c => c.cutoff && Array.isArray(c.cutoff.rows));
+  const [big, small] = a.calcs;
+  const row = amount => [{ article:'principal', urgency:'over', amount, since:'2026-03-30' }];
+  big.cutoff.rows   = row(10000000); big.fact   = { date:'2026-07-19', rows: row(10000000) };  // не сдвинулся
+  small.cutoff.rows = row(100000);   small.fact = { date:'2026-07-19', rows: row(115000) };    // +15 % — ступень 1
+  const perCalc = RS.AppSide.calcDrift(a, small.id);
+  const whole   = RS.AppSide.appDrift(a, RS.TODAY);
+  ok(62, seeded && perCalc.level === 1 && whole.level === 0,
+    `срезПоРасчётам=${seeded} расчёт=${perCalc.level} (${(perCalc.pct*100).toFixed(1)} %) заявка=${whole.level} (${(whole.pct*100).toFixed(1)} %)`);
+})();
+
+/* 63. Ступень 2 меряется от Σ базы среза ВСЕХ расчётов: она откатывает заявку целиком, а комитет
+   высказывался по обращению, а не по кредиту. Сработала — блокировка ложится на все расчёты, а не
+   только на превысивший. */
+(() => { fresh();
+  const a = app('RS-1001');
+  RS.addTrancheToScope(a.id, secondTranche(a).t.id);
+  RS.AppSide.fixCutoff(a, '2026-03-30');
+  a.calcs.forEach(c => { c.cutoff.rows = [{ article:'principal', urgency:'over', amount: 1000000, since:'2026-03-30' }];
+                         c.fact = { date: RS.TODAY, rows:[{ article:'principal', urgency:'over', amount: 1400000, since:'2026-03-30' }] }; });
+  a.committee = { fixed:true, date:'2026-02-01' };                 // позиция комитета СТАРШЕ среза
+  const g = RS.driftGate(a, RS.TODAY);
+  const blockedAll = g.ok === false && g.level === 2 && (g.rows||[]).length === 2;
+  a.committee = { fixed:true, date:'2026-08-01' };                 // комитет высказался заново
+  const released = RS.driftGate(a, RS.TODAY).ok === true;
+  ok(63, blockedAll && released, `ступень2=${g.level} блокировкаНаВсе=${blockedAll} послеКомитета=${released}`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
