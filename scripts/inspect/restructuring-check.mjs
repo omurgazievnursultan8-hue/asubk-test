@@ -814,16 +814,20 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
 /* 58. Каркас расчёта: у демо-заявки с траншем-источником ровно один расчёт, он адресует транш
    и кредит, а старые поля app.base/app.dispositions/app.version — дверь к нему же, не второе
    хранилище (ИР-16). Заявка без транша-источника расчёта не имеет вовсе: пустой расчёт читался
-   бы как «база ноль», а её ещё не собирали. */
+   бы как «база ноль», а её ещё не собирали. Дверь calcTranche отказывается угадывать не только
+   на нуле расчётов, но и на 2+ (RS-1020, задача 8) — поэтому «пусто» проверяем по calcs.length,
+   а не по самой двери: ровно 0 либо ровно 2+ и никогда «висящая единица» (расчёт есть, а транш
+   за ним потерян). */
 (() => { fresh();
   const a = app('RS-1001');
   const c = a.calcs[0];
   const one = a.calcs.length === 1;
   const addressed = !!c && c.trancheId === a.calcTranche.id && c.creditId === a.creditIds[0];
   const door = !!c && a.base === c.base && a.dispositions === c.dispositions && a.version === c.version;
-  const noTrancheNoCalc = RS.state.apps.filter(x => !x.calcTranche).every(x => x.calcs.length === 0);
-  ok(58, one && addressed && door && noTrancheNoCalc,
-    `один=${one} адрес=${addressed} дверь=${door} безТраншаНетРасчёта=${noTrancheNoCalc}`);
+  const ambiguous = RS.state.apps.filter(x => !x.calcTranche);   // дверь отказала: либо 0, либо 2+
+  const noOrphan = ambiguous.every(x => x.calcs.length === 0 || x.calcs.length >= 2);
+  ok(58, one && addressed && door && noOrphan,
+    `один=${one} адрес=${addressed} дверь=${door} безВисящих=${noOrphan}`);
 })();
 
 /* 59. Два расчёта не смешивают строки. Одной заявке даём два транша разных кредитов, включаем
@@ -1015,6 +1019,25 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
     && /versionParamsBlock\(app,\s*calc\)/.test(bodyOf('calcSchedSection'));
   ok(66, head && total && single && wired && gone && derivedAddressed && paramsBlockScoped,
     `секция=${head} итог=${total} одинБезЗаголовка=${single} адресВДвери=${wired} староеСнесено=${gone} производныйПоРасчёту=${derivedAddressed} черновикПоРасчёту=${paramsBlockScoped}`);
+})();
+
+/* 67. RS-1020 — единственная многокредитная заявка сида, и до сих пор расчёта не имела вовсе.
+   Два расчёта, базы РАЗНЫЕ (различие видно глазом, а не выводится из кода), Σ шапки равна их
+   сумме, а ключ строки — тройка: одинаковая статья в двух расчётах живёт двумя строками. */
+(() => { fresh();
+  const a = app('RS-1020');
+  const two = a.calcs.length === 2;
+  const creditsDiffer = two && a.calcs[0].creditId !== a.calcs[1].creditId;
+  const r = a.calcs.map(c => RS.AppSide.run(a, RS.TODAY, c.id));
+  const basesDiffer = two && RS.round2(r[0].transferSum) !== RS.round2(r[1].transferSum);
+  const sum = RS.round2(r[0].transferSum + r[1].transferSum);
+  const whole = RS.round2(a.calcs.reduce((s, c) => s + RS.AppSide.run(a, RS.TODAY, c.id).transferSum, 0));
+  const addsUp = sum === whole;
+  const sameArticleTwice = a.calcs[0].base.some(x => x.article === 'principal')
+                        && a.calcs[1].base.some(x => x.article === 'principal')
+                        && a.calcs[0].base !== a.calcs[1].base;
+  ok(67, two && creditsDiffer && basesDiffer && addsUp && sameArticleTwice,
+    `расчётов=${a.calcs.length} кредитыРазные=${creditsDiffer} базыРазные=${r.map(x=>x.transferSum).join('/')} итогСходится=${addsUp} статьяДважды=${sameArticleTwice}`);
 })();
 
 /* ---- отчёт ---- */

@@ -80,7 +80,7 @@
   возражение, а не как открытые вопросы. Свод — §11 спеки.
 
   SMOKE (node scripts/inspect/restructuring-check.mjs):
-   SMOKE 2026-08-11 · 66/66 PASS
+   SMOKE 2026-08-11 · 67/67 PASS
       PASS  #1  до=false после=true
       PASS  #2  closed=true opened=true reblock=true
       PASS  #3  noRate=true union=true
@@ -138,7 +138,7 @@
       PASS  #55  хвост=180000 снят=true наступившее=60000 терминальная=true вПереносе=60000
       PASS  #56  идемпотентно=true статьяТаЖе=400000 снятие=true просрочкаНеЗависит=true
       PASS  #57  хвостВТело=true процентыВыросли=true (307804.65→543958.58) пеняНеТронута=true
-      PASS  #58  один=true адрес=true дверь=true безТраншаНетРасчёта=true
+      PASS  #58  один=true адрес=true дверь=true безВисящих=true
       PASS  #59  два=true второйЦел=true первыйДвинулся=true суммыРазные=4318000/0 отказБезИмени=true
       PASS  #60  вырос=true идемпотентно=true безДублей=true чужойНеВошёл=true снят=true ИР-1=true
       PASS  #61  строкиПоРасчётам=true адресованы=true ловитВторой=true (КД-60541: Срок 999 мес. превышает предел 84 мес. при остатке задолженности 1 850 000 (п. 90, ред. прил. к ПКМ КР №14 от 2026-01-19) | КД-60541: Ставка 0.01% ниже минимума 4.5% (п. 92, ред. прил. к ПКМ КР №14 от 2026-01-19; вид проекта — 1%, п. 34, ред. прил. к ПКМ КР №14 от 2026-01-19))
@@ -147,6 +147,7 @@
       PASS  #64  второе=true первоеЦело=true соглашений=2 покрытие={"done":["C-CR-59003-T1","C-CR-60540-T2"],"excluded":[],"pending":[],"ok":true} производныеПоРасчётам=true
       PASS  #65  былаЗакрыта=true приМолчании=true безОснованияОтказ=true послеСнятия=true
       PASS  #66  секция=true итог=true одинБезЗаголовка=true адресВДвери=true староеСнесено=true производныйПоРасчёту=true черновикПоРасчёту=true
+      PASS  #67  расчётов=2 кредитыРазные=true базыРазные=1245759.68/398076.09 итогСходится=true статьяДважды=true
 -->
 <style>
 :root{
@@ -2327,10 +2328,14 @@ function buildWave2App(s){
     return app;
   }
 
-  fillDocs(app); app.analysisStarted=true; app.calcTranche=cr.tranches[0];
+  fillDocs(app); app.analysisStarted=true;
+  // Охват называет траншы: у сценария с несколькими кредитами расчёт заводится на каждый
+  // первый открытый транш, а не только на кредит[0] — иначе второй кредит в расчёт не входит.
+  (s.credits||[]).forEach(cid=>{ const c=creditById(cid); const t=(c.tranches||[]).find(x=>!x.closed);
+    if(t){ const calc=attachCalc(app, t); if(!calc.version) calc.version=draftVersion(c,{}); } });
   app.conclusions=defaultConclusions();
   app._t=d.analysis; H(app,'Пакет укомплектован → «Анализ». Дедлайн 30 к.д. (до '+addCalDays(s.reg,30)+').','Куратор ОД');
-  if(s.params) app.version=draftVersion(cr,s.params);
+  if(s.params) app.calcs.forEach(calc=>{ calc.version=draftVersion(creditById(calc.creditId),s.params); });
   if(s.waiver) app.waiver={granted:true, reason:s.waiver.reason, date:s.waiver.date};
 
   if(target>=2){
@@ -2353,22 +2358,26 @@ function buildWave2App(s){
   // у активной — на сегодня (иначе правка куратора откатилась бы к умолчанию, issues/02 реш.4)
   if(s.disp || s.include || s.plan || (target>=8 && s.mode==='ядро')){
     const at = target>=8 ? d.ds : TODAY;
-    app.base=AppSide.defaultBase(app, at);
-    // include — та же галка куратора, что в двери (РС-7): по умолчанию в базу входит только
-    // просроченное, ненаступившее включается ЯВНО. Заблокированную строку (спорная пеня, ИР-6)
-    // не трогаем: демо-сев не вправе обходить гейт, который в UI мёртв.
-    (s.include||[]).forEach(k=>{
-      const [article, urgency] = k.split('@');
-      const r = app.base.find(x=>x.article===article && x.urgency===(urgency||'cur'));
-      if(r && !r.blockedBy) r.included=true;
+    app.calcs.forEach(calc=>{
+      calc.base=AppSide.defaultBase(calc, at);
+      // include — та же галка куратора, что в двери (РС-7): по умолчанию в базу входит только
+      // просроченное, ненаступившее включается ЯВНО. Заблокированную строку (спорная пеня, ИР-6)
+      // не трогаем: демо-сев не вправе обходить гейт, который в UI мёртв.
+      (s.include||[]).forEach(k=>{
+        const [article, urgency] = k.split('@');
+        const r = calc.base.find(x=>x.article===article && x.urgency===(urgency||'cur'));
+        if(r && !r.blockedBy) r.included=true;
+      });
+      calc.dispositions=applyDisp(AppSide.defaultDispositions(calc.base), s.disp);
     });
-    app.dispositions=applyDisp(AppSide.defaultDispositions(app.base), s.disp);
   }
   if(s.plan){
-    const r=AppSide.run(app, TODAY);
-    app.version=app.version||draftVersion(cr,{});
-    app.version.plan=CreditSide.draftSchedule(app.calcTranche,
-      {date:TODAY, transferSum:r.transferSum, principalPart:r.principalPart, parts:r.parts, params:app.version.params});
+    app.calcs.forEach(calc=>{
+      const r=AppSide.run(app, TODAY, calc.id);
+      calc.version=calc.version||draftVersion(creditById(calc.creditId),{});
+      calc.version.plan=CreditSide.draftSchedule(calcTrancheOf(calc),
+        {date:TODAY, transferSum:r.transferSum, principalPart:r.principalPart, parts:r.parts, params:calc.version.params});
+    });
   }
 
   if(target>=4){
