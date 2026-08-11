@@ -2341,17 +2341,15 @@ function pReq(app){
   const cond = [];
   if(coverShortInScope(app)) cond.push('покрытие обеспечением недостаточно либо снимка нет ⇒ добавлены залоговые предложения (п. 86)');
   if(allowedParams(app).has('rate')) cond.push('в видах есть изменение ставки ⇒ добавлены документы снижения (п. 95 пп. 1–2)');
-  let gate='';
-  if(st.idx===0 && !st.closed){
-    gate = g.ok
-      ? `<div class="okline">Пакет полон. Переход в «Анализ» доступен (кнопка внизу).</div>`
-      : `<div class="flagline">Пакет неполон (нет: ${g.missing.map(esc).join(', ')||'—'}). Гейт стадии 1: доступен только исход «возвращена без рассмотрения» либо докомплект. Переход в «Анализ» заблокирован.</div>`;
-  }
-  const retBtn = (st.idx===0 && !st.closed)
+  const open = st.idx===0 && !st.closed;
+  const gate = (open && !g.ok)
+    ? `<div class="flagline">Пакет неполон (нет: ${g.missing.map(esc).join(', ')||'—'}) — переход в «Анализ» заблокирован.</div>` : '';
+  const gatePill = (open && g.ok) ? ' <span class="pill low">пакет полон</span>' : '';
+  const retBtn = open
     ? `<button class="btn btn-secondary btn-sm" onclick="RS.returnApp('${app.id}')">Вернуть без рассмотрения</button>` : '';
   return `<div class="detail-panel active">
-    <div class="section-h">Обращение</div>
-    <div class="section-note">Дата регистрации: <b>${app.regDate}</b>. Пакет — нормативные приложения пп. 85–86, 95 Положения (прил. к ПКМ КР №14 от 19.01.2026) плюс документы выбранных видов (Р-3, ADR-0099 §5).</div>
+    <div class="section-h">Обращение${gatePill}</div>
+    <div class="section-note">Дата регистрации: <b>${app.regDate}</b>.</div>
     ${gate}
     <div class="f2" style="max-width:640px">${docs}</div>
     ${cond.length?`<div class="section-note" style="margin-top:10px">Условные строки пакета: ${cond.map(esc).join(' · ')}.</div>`:''}
@@ -2367,16 +2365,15 @@ function pScope(app){
       <td>${c.odDays} дн. / ${fmt(c.odSum)}</td>
       <td>${c.collProc?`<span class="rowlink" onclick="RS.showMirror('${c.collProc}','${app.id}')">${c.collProc}</span>`:'—'}</td>
       <td>${other?`<span class="pill high">${other.id}</span>`:'<span class="pill low">нет</span>'}</td>
-      <td>реструкт.: ${c.restructCount}</td>
+      <td>${c.restructCount}</td>
     </tr>`; }).join('') || `<tr><td colspan="6" class="op-empty">Охват пуст</td></tr>`;
   const st=stageOf(app);
   const addBtn = (!st.closed) ? `<button class="btn btn-primary btn-sm" onclick="RS.openAddCredit('${app.id}')">+ Добавить кредит</button>`:'';
   return `<div class="detail-panel active">
     <div class="section-h">Охват заявки</div>
-    <div class="section-note">Только кредиты ИНН <b>${app.inn}</b>. Кредит с другой активной заявкой добавить нельзя (Р-2). Остаток/просрочка — read-only снимки.</div>
     <div class="gtoolbar">${addBtn}</div>
     <div class="cgrid-wrap"><table class="cgrid"><thead><tr>
-      <th>Кредит</th><th class="numcell">Остаток</th><th>Просрочка</th><th>Взыскание</th><th>Другая активная заявка</th><th>Счётчик</th>
+      <th>Кредит</th><th class="numcell">Остаток</th><th>Просрочка</th><th>Взыскание</th><th>Другая активная заявка</th><th>Реструктуризаций</th>
     </tr></thead><tbody>${rows}</tbody></table></div>
   </div>`;
 }
@@ -2397,12 +2394,10 @@ function pConcl(app){
       </div>
     </div>`;
   }).join('');
-  const gate = g.ok
-    ? `<div class="okline">Все затребованные заключения завизированы. Гейт «в Комитет» открыт.</div>`
-    : `<div class="warnline">Ожидают визы: ${g.pending.map(esc).join(', ')}. Гейт «в Комитет» закрыт.</div>`;
+  const gate = g.ok ? '' : `<div class="warnline">Ожидают визы: ${g.pending.map(esc).join(', ')}. Гейт «в Комитет» закрыт.</div>`;
+  const gatePill = g.ok ? ' <span class="pill low">гейт «в Комитет» открыт</span>' : '';
   return `<div class="detail-panel active">
-    <div class="section-h">Заключения подразделений</div>
-    <div class="section-note">Куратор может добавить заключанта — это добавит требование к гейту комитета (Р-5).</div>
+    <div class="section-h">Заключения подразделений${gatePill}</div>
     ${gate}
     <div class="gtoolbar"><button class="btn btn-secondary btn-sm" onclick="RS.openAddConcl('${app.id}')">+ Добавить заключанта</button></div>
     ${cards}
@@ -2536,7 +2531,7 @@ function pCalcBase(app){
             : drift.level===1 ? 'ступень 1: '+DRIFT_TIERS[0].need+', регистрацию не блокирует'
             : 'ступень 2: '+DRIFT_TIERS[1].need),
        flag:drift.material}
-    : {v:'—', s:'дельта считается после фиксации и среза, и факта (issues/02 реш.2)', flag:false};
+    : {v:'—', s:'дельта считается после фиксации и среза, и факта', flag:false};
 
   const base = app.base && app.base.length ? app.base : defaultBase(app, app.ds?app.ds.date:TODAY);
   const dispositions = app.dispositions && app.dispositions.length ? app.dispositions : defaultDispositions(base);
@@ -2587,7 +2582,7 @@ function pCalcBase(app){
     ['Капитализировано процентов', runSum.capitalizedInterest, 'влились в колонку основного долга — ставка на них идёт'],
     ['Капитализировано пени', runSum.capitalizedPenalty, 'легла в колонку накопленной пени — безставочная (ADR-0106, ИР-11)'],
     ['Тело переноса', runSum.principalPart, 'база начисления графика'],
-    ['Перенос, всего', runSum.transferSum, 'сумма акта ДС — одно число, пара transfer_out/transfer_in не расщепляется']
+    ['Перенос, всего', runSum.transferSum, 'сумма акта ДС — одно число, не расщепляется']
   ].filter(([,v],i)=>i>=3 || round2(v)>0);
   const runBlock = `<div class="two-num-grid">${sumTiles.map(([l,v,d])=>
     `<div class="numtile"><div class="nt-l">${l}</div><div class="nt-v">${fmt(v)}</div><div class="nt-d">${d}</div></div>`).join('')}</div>`;
@@ -2610,8 +2605,7 @@ function pCalcBase(app){
         <div class="sb-row"><span>Новые условия</span><span>${derived.originalRate!=null?derived.originalRate+'%':'—'}</span></div>
         <div class="sb-row"><span>Начало</span><span>${derived.plannedDate}</span></div>
       </div>
-    </div>
-    <div class="section-note">Деление — не сценарий, а факт устройства двери (issues/03): restructureApplied всегда заводит производный транш и зеркальную пару transfer_out/transfer_in, даже когда перенесён весь остаток источника — источник в этом случае просто закрывается (см. статус слева).</div>`;
+    </div>`;
   } else {
     splitBlock = `<div class="op-empty">Производный транш появится после регистрации доп. соглашения (вкладка «Оформление»).</div>`;
   }
@@ -2620,7 +2614,7 @@ function pCalcBase(app){
     <div class="gatebar-slim">${gateChipsRow(app)}</div>
 
     <div class="section-h" style="margin-top:0">Два датированных числа</div>
-    <div class="section-note">Срез — согласовательная величина (заключения, комитет, письмо). Факт — то же самое на дату вступления ДС; реквизит ДС, единственное, что идёт в учёт (issues/02 реш.2).</div>
+    <div class="section-note">В учёт идёт только факт на дату вступления ДС; срез — согласовательная величина.</div>
     <div class="two-num-grid">
       <div class="numtile"><div class="nt-l">Срез — ${app.cutoff?app.cutoff.date:'—'}</div><div class="nt-v">${srezRow.v}</div><div class="nt-d">${srezRow.s}</div></div>
       <div class="numtile delta ${deltaRow.flag?'flag':''}"><div class="nt-l">Дельта ожидания</div><div class="nt-v">${deltaRow.v}</div><div class="nt-d">${deltaRow.s}</div></div>
@@ -2628,12 +2622,10 @@ function pCalcBase(app){
     </div>
 
     <div class="section-h">База — статьи долга, распоряжения</div>
-    <div class="section-note">Порядок строк — константа конвейера PIPELINE (issues/02 реш.6): накопленные проценты → накопленная пеня → пеня → проценты → основной долг. Расходов взыскания и сборов здесь нет вовсе (ADR-0110): формы п. 89 их не касаются, расходами владеет «Взыскание», сбор — цена отдельной услуги. Галка и распоряжение — живые (issues/02 реш.1/4, тикет 07): куратор снимает строку или меняет распоряжение прямо здесь; спорная пеня (ИР-6) и распоряжения, которых вид не допускает, — мёртвые пункты с подписью, не скрытые.${canEdit?'':' <span class="mode-tag">роль «'+esc(state.role)+'» правку не делает — только Куратор ОД.</span>'}</div>
+    <div class="section-note">Расходов взыскания и сборов в базе нет вовсе: формы п. 89 их не касаются (ADR-0110).${canEdit?'':' <span class="mode-tag">роль «'+esc(state.role)+'» правку не делает — только Куратор ОД.</span>'}</div>
     <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Статья</th><th>Срочность</th><th class="numcell">Сумма</th><th>База начисления</th><th>Включена</th><th>Распоряжение</th></tr></thead><tbody>${rows}</tbody></table></div>
-    <div class="section-note">Колонка «база начисления» — режим статьи на дату операции (РС-27, ADR-0106): пеня терминальна — ни она сама, ни капитализированная пеня, ни просроченное накопленное начислений не порождают. Режим хранится с датой начала действия, поэтому сделки прошлых лет продолжают считаться по правилу, действовавшему тогда.</div>
 
     <div class="section-h">Итог прогона</div>
-    <div class="section-note">Перенос уходит одним числом (РС-41: пара transfer_out/transfer_in и акт ДС не расщепляются), но раскладывается по тем же пяти статьям долга. Капитализированные проценты вливаются в тело и начисляют ставку; капитализированная пеня ложится в колонку накопленной пени и остаётся безставочной — восьмой статьи не заводится, различие происхождения несут эти счётчики и запись в акте (ADR-0109).</div>
     ${runBlock}
 
     <div class="section-h">Производный транш</div>
@@ -2660,9 +2652,9 @@ function pCalcSched(app){
   let draftBlock;
   if(derived){
     const ver=derived.schedules[0];
-    draftBlock = {rows:ver.rows, pill:'<span class="pill low">Действующий</span>', note:'tranche.schedule — реквизит вступившего ДС, дверь restructureApplied положила версию сюда (issues/03).'};
+    draftBlock = {rows:ver.rows, pill:'<span class="pill low">Действующий</span>'};
   } else if(app.version && app.version.plan){
-    draftBlock = {rows:app.version.plan.rows, pill:'<span class="pill info">Черновик</span>', note:'app.version.plan — предмет согласования, дверью не трогается; вступивший ДС положит версию на tranche.schedule отдельно (issues/03).'};
+    draftBlock = {rows:app.version.plan.rows, pill:'<span class="pill info">Черновик</span>'};
   } else {
     draftBlock = null;
   }
@@ -2698,7 +2690,7 @@ function pCalcSched(app){
     ? tbl((derived?derived.no:'производный транш'), draftBlock.pill, draftBlock.rows.slice(0,6), 'график пуст', draftBlock.rows)
     : `<div class="op-empty">Черновой график не рассчитан — задайте параметры ниже и нажмите «Предварительный расчёт», или дождитесь регистрации ДС.</div>`;
   const paramsBlock = derived ? '' : `<div class="section-h">Условия черновика ДС</div>${versionParamsBlock(app)}`;
-  const activeBlock = tbl(src.no+' — действующий, не тронут переносом', '<span class="pill low">Действующий</span>', activeRows, 'график транша не оцифрован в демо-сиде (schedules[0].rows пуст) — не факт отсутствия платежей');
+  const activeBlock = tbl(src.no+' — действующий, не тронут переносом', '<span class="pill low">Действующий</span>', activeRows, 'график транша в демо-данных не оцифрован — не факт отсутствия платежей');
 
   const runRes=run(app, app.ds?app.ds.date:TODAY);
   // Непокрытое — то, что осталось на строке ПОСЛЕ всех распоряжений (РС-39): ровно тот же остаток,
@@ -2713,13 +2705,11 @@ function pCalcSched(app){
 
     <div class="section-h" style="margin-top:0">Черновой график против действующего</div>
     ${derivedBlock}
-    <div class="section-note">${draftBlock?draftBlock.note:''}</div>
     ${paramsBlock}
     ${activeBlock}
 
     <div class="section-h">Частичная реструктуризация</div>
     ${rs15}
-    <div class="mode-tag">Агрегатные поля кредита (cr.odDays/odSum) при регистрации ДС не пересчитываются — демо не строит реальный движок начислений («Не-цели демо», map.md).</div>
 
     <div class="section-h">Гейты — подробно</div>
     ${gateDetails(app)}
@@ -2762,8 +2752,7 @@ function pDecision(app){
           <div class="field"><span class="flabel">Исход заключения</span><select id="cdec">
             <option value="возможно">возможно изменение условий (п. 87)</option><option value="отказ">отрицательное заключение — отказ (п. 88)</option></select></div>
           <div class="field"><span class="flabel">Номер заключения •</span><input id="cno" placeholder="МФ-исх-№"></div>
-          <div class="field col-span"><button class="btn btn-primary btn-sm" onclick="RS.fixConclusion('${app.id}')">Зафиксировать заключение</button>
-            <span class="mode-tag" style="margin-left:8px">Без номера и исхода кнопка отклонит фиксацию (conclusionGate).</span></div>
+          <div class="field col-span"><button class="btn btn-primary btn-sm" onclick="RS.fixConclusion('${app.id}')">Зафиксировать заключение</button></div>
         </div>`;
   }
   /* акт 2 — согласование профильного комитета ЖК (п. 82) */
@@ -2774,7 +2763,7 @@ function pDecision(app){
       : `<div class="f2" style="max-width:640px">
           <div class="field"><span class="flabel">Реквизит согласования ЖК •</span><input id="zno" placeholder="ЖК-К/№"></div>
           <div class="field col-span"><button class="btn btn-primary btn-sm" onclick="RS.fixZk('${app.id}')">Зафиксировать согласование</button>
-            <span class="mode-tag" style="margin-left:8px">П. 82: Кабмин решает «по согласованию с профильным комитетом ЖК» — без отметки постановление не на чем объяснить.</span></div>
+            <span class="mode-tag" style="margin-left:8px">Без отметки согласования постановление не регистрируется (п. 82).</span></div>
         </div>`;
   } else if(cc.fixed && cc.outcome==='отказ'){
     zBlock = `<div class="op-empty">Отрицательное заключение — согласование и постановление не требуются.</div>`;
@@ -2796,13 +2785,12 @@ function pDecision(app){
           <div class="field"><span class="flabel">Реквизит постановления •</span><input id="rno" placeholder="ПКМ КР № … от дата"></div>
           <div class="field"><span class="flabel">Сумма прощения по акту</span><input id="rfsum" placeholder="если названа суммой"></div>
           <div class="field"><span class="flabel">Основание прощения</span><input id="rfbasis" placeholder="если названо основанием"></div>
-          <div class="field col-span"><button class="btn btn-primary btn-sm" onclick="RS.fixResolution('${app.id}')">Зафиксировать постановление</button>
-            <span class="mode-tag" style="margin-left:8px">Без реквизита кнопка отклонит фиксацию (resolutionGate).</span></div>
+          <div class="field col-span"><button class="btn btn-primary btn-sm" onclick="RS.fixResolution('${app.id}')">Зафиксировать постановление</button></div>
         </div>`) + fgLine;
   }
   const auto = automationBlock(app);
   return `<div class="detail-panel active">
-    <div class="section-note">Цепь актов по гл. 9 Положения (прил. к ПКМ КР №14 от 19.01.2026): комитет Холдинга → письмо → <b>заключение уполномоченного органа</b> → <b>согласование профильного комитета ЖК</b> → <b>постановление Кабинета Министров</b>. Собственных регламентных сроков у трёх актов нет — все они внутри 70 к.д. (ADR-0107 §3).</div>
+    <div class="section-note">Своих регламентных сроков у трёх актов нет — все они внутри 70 к.д. от письма (ADR-0107 §3).</div>
     ${initBlock}
     <div class="section-h" style="margin-top:18px">Комитет Холдинга</div>${committeeBlock}
     <div class="section-h" style="margin-top:18px">Письмо в уполномоченный орган</div>${letterBlock||'<div class="op-empty">Сначала зафиксируйте позицию комитета.</div>'}
@@ -2830,8 +2818,8 @@ function automationBlock(app){
   return `<div class="section-h" style="margin-top:20px">Автоматика швов</div>
     <div class="ops-list">${events}</div>
     ${mirror}
-    <div class="infoline">Пени во время паузы <b>продолжают начисляться</b> (Р-13). Пауза останавливает меры, не обязательства.</div>
-    <div class="infoline">Оси заёмщика <b>не трогаем</b> (Р-14): группа и риск-категория меняются только классификатором; счётчик реструктуризаций на кредите +1.</div>`;
+    <div class="infoline">Пени во время паузы <b>продолжают начисляться</b>: пауза останавливает меры, не обязательства (Р-13).</div>
+    <div class="infoline">Группа и риск-категория заёмщика реструктуризацией не меняются — только классификатором; счётчик реструктуризаций кредита +1 (Р-14).</div>`;
 }
 
 /* 6. Оформление (Р-8, Р-15) */
@@ -2852,7 +2840,7 @@ function pFormal(app){
   let gateLine;
   if(cga.ok && !waived) gateLine=`<div class="okline">Гейт обеспечения пройден по всем кредитам. Регистрация доп. соглашения доступна.</div>`;
   else if(waived) gateLine=`<div class="warnline">Гейт обеспечения снят решением комитета по администрированию бюджетных кредитов. Основание: ${esc(app.waiver.reason)} (${app.waiver.date}).</div>`;
-  else gateLine=`<div class="flagline">Гейт обеспечения не пройден — регистрация доп. соглашения заблокирована. Разблокировка — решением комитета по администрированию бюджетных кредитов с обязательным основанием (КД-10 модуля залога: роли «залоговая комиссия» в системе нет).</div>`;
+  else gateLine=`<div class="flagline">Гейт обеспечения не пройден — регистрация доп. соглашения заблокирована. Разблокировка — решением комитета по администрированию бюджетных кредитов с обязательным основанием.</div>`;
   const lga=limitsGateApp(app), coa=consentGateApp(app);
   const limitsLine = lga.pending ? '<div class="op-empty">Расчёт (транш-источник/условия) ещё не выбран — гейт неприменим.</div>'
     : lga.ok ? `<div class="okline">Срок и ставка новых условий в пределах нормы (${esc(normNote(lga.capRec))}).${
@@ -2902,23 +2890,20 @@ function pFormal(app){
     : '<div class="op-empty">Распоряжений нет — база и распоряжения задаются на вкладке «База и распоряжения».</div>';
   return `<div class="detail-panel active">
     <div class="section-h">Гейт пределов (жёсткий, без waiver)</div>
-    <div class="section-note">Срок и ставка новых условий против норма-справочника (ADR-0099) на дату операции.</div>
     ${limitsLine}
     <div class="section-h" style="margin-top:18px">Гейт согласий обеспечителей (жёсткий, без waiver)</div>
     <div class="section-note">Ответ Обеспечения (ADR-0098) — зеркало, не собственный расчёт.</div>
     ${consentLine}
     <div class="section-h" style="margin-top:18px">Гейт прощения (жёсткий, без waiver)</div>
-    <div class="section-note">Списание бюджетных средств стоит на акте: сумма либо основание прощения названы в постановлении Кабмина (РС-28, ИР-13).</div>
     ${forgiveLine}
     <div class="section-h" style="margin-top:18px">Порог расхождения среза и факта (две ступени)</div>
-    <div class="section-note">Ступень 1 — ${(DRIFT_TIERS[0].pct*100)} % либо ${fmt(DRIFT_TIERS[0].abs)} сом: виза куратора. Ступень 2 — ${(DRIFT_TIERS[1].pct*100)} % либо ${fmt(DRIFT_TIERS[1].abs)} сом: возврат на комитет, регистрация заблокирована. Обе ступени — настройка с историей значений, не норма (РС-26).</div>
+    <div class="section-note">Обе ступени — настройка с историей значений, а не норма (РС-26).</div>
     ${driftLine}
     <div class="section-h" style="margin-top:18px">Гейт обеспечения (мягкий, снимается waiver-ом)</div>
-    <div class="section-note">Покрытие = залоговая стоимость / остаток ≥ порог. Возраст техники против нового срока. Страховка на новый срок (Р-15).</div>
+    <div class="section-note">Покрытие = залоговая стоимость / остаток ≥ порог; возраст техники и страховка — на новый срок (Р-15).</div>
     ${gateLine}
     <div class="cgrid-wrap" style="max-width:900px"><table class="cgrid"><thead><tr><th>Кредит</th><th class="numcell">Покрытие</th><th>Гейт</th><th>Возраст</th><th>Страховка</th><th>Снимок</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="section-h" style="margin-top:18px">Гейт сроков распоряжений (жёсткий, без waiver)</div>
-    <div class="section-note">Интервал позиций, назначенный распоряжению, лежит внутри длины чернового графика (ИР-15). Выход за длину не подрезается молча: срок мог уменьшиться после того, как куратор задал позиции, и подставить новую границу за него значит выдумать его решение (РС-40).</div>
     ${badPeriods.length
       ? `<div class="flagline">${badPeriods.map(d=>'«'+esc(ARTICLE_LABEL[d.article]||d.article)+'» — '+esc(perLabel(d))).join('; ')}. Регистрация ДС закрыта до правки интервала либо возврата к режиму «весь график».</div>`
       : (planLenG==null
@@ -2936,7 +2921,6 @@ function pHist(app){
   </div>`).join('');
   return `<div class="detail-panel active">
     <div class="section-h">История заявки</div>
-    <div class="section-note">Append-only. Записи не удаляются и не переписываются; отмена — компенсирующей записью (Р-16).</div>
     <div class="hist">${rows||'<div class="op-empty">Пусто</div>'}</div>
   </div>`;
 }
@@ -2966,7 +2950,7 @@ function renderDict(){
     <div class="tb-actions">
       <button class="btn btn-primary btn-sm" ${canX('manageDict')?'':'disabled'} onclick="RS.openNewKind()">+ Новый вид</button>
       <div class="spacer"></div>
-      <span class="mode-tag">Конструктор — роль Администратор. Пять форм п. 89 Положения (прил. к ПКМ КР №14 от 19.01.2026) неудаляемы; свои виды заводятся с происхождением «иное» и обязательным обоснованием (РС-33).</span>
+      <span class="mode-tag">Конструктор — роль Администратор.</span>
     </div>
     <div class="grid-wrap"><table class="grid"><thead><tr>
       <th>Вид</th><th>Происхождение</th><th>Разрешённые параметры</th><th>Документы</th><th>Разрешённые распоряжения</th><th>Ограничения</th><th></th>
@@ -2984,7 +2968,7 @@ function openAddCredit(appId){
   const cands=state.credits.filter(c=>!app.creditIds.includes(c.id));
   const opts=cands.map(c=>`<option value="${c.id}">${c.no} · ${c.borrower} · ИНН ${c.inn} · остаток ${fmt(c.balance)}</option>`).join('');
   modal(`<div class="modal">${mhead('Добавить кредит в охват')}<div class="modal-b">
-    <div class="section-note">Валидации Р-2: тот же ИНН (${app.inn}); кредит без другой активной заявки.</div>
+    <div class="section-note">Только кредиты ИНН ${app.inn} без другой активной заявки (Р-2).</div>
     <div class="field"><span class="flabel">Кредит</span><select id="addcr">${opts||'<option value="">нет кандидатов</option>'}</select></div>
   </div><div class="modal-f"><button class="btn btn-secondary" onclick="RS.closeModal()">Отмена</button>
     <button class="btn btn-primary" onclick="RS.addCredit('${appId}')">Добавить</button></div></div>`);
@@ -3022,7 +3006,6 @@ function openWaiver(appId){
   if(!guard('waiver')) return;
   modal(`<div class="modal">${mhead('Решение комитета по администрированию бюджетных кредитов')}<div class="modal-b">
     <div class="flagline">Гейт обеспечения не пройден. Основание обязательно — оно пишется в историю (Р-16).</div>
-    <div class="section-note">Роли «залоговая комиссия» в системе нет (КД-10 модуля залога) — гейт снимает комитет по администрированию бюджетных кредитов.</div>
     <div class="field col-span"><span class="flabel">Основание •</span><textarea id="wreason" placeholder="Протокол комитета, компенсирующее обеспечение, …"></textarea></div>
   </div><div class="modal-f"><button class="btn btn-secondary" onclick="RS.closeModal()">Отмена</button>
     <button class="btn btn-danger" onclick="RS.grantWaiver('${appId}')">Снять блокировку</button></div></div>`);
@@ -3050,7 +3033,7 @@ function openDS(appId){
   modal(`<div class="modal">${mhead('Регистрация доп. соглашения')}<div class="modal-b"><div class="mform">
     <div class="field req"><span class="flabel">Номер доп. соглашения</span><input id="dsno" placeholder="ДС-…"></div>
     <div class="field req"><span class="flabel">Дата</span><input id="dsdate" type="date" value="${TODAY}"></div>
-    <div class="field col-span"><div class="section-note">Оба реквизита обязательны (Р-8). Основание — постановление Кабинета Министров ${esc((app.resolution||{}).no||'—')} от ${esc((app.resolution||{}).date||'—')}; соглашение оформляет агент либо кредитный агент (п. 96). При регистрации: версия «действует», операции на дату вступления, счётчик реструктуризаций +1.</div></div>
+    <div class="field col-span"><div class="section-note">Основание — постановление Кабинета Министров ${esc((app.resolution||{}).no||'—')} от ${esc((app.resolution||{}).date||'—')}; соглашение оформляет агент либо кредитный агент (п. 96). При регистрации: версия «действует», операции на дату вступления, счётчик реструктуризаций +1.</div></div>
   </div></div><div class="modal-f"><button class="btn btn-secondary" onclick="RS.closeModal()">Отмена</button>
     <button class="btn btn-primary" onclick="RS.regDS('${appId}')">Зарегистрировать</button></div></div>`);
 }
@@ -3084,7 +3067,7 @@ function openNewKind(){
     <div class="field req col-span"><span class="flabel">Обоснование •</span><textarea id="nkrat" placeholder="Почему форма не подпадает ни под один из пп. 1–4 п. 89 и чем она не противоречит бюджетному и гражданскому законодательству"></textarea></div>
     <div class="field col-span"><span class="flabel">Разрешённые параметры</span><div class="f2" style="grid-template-columns:1fr 1fr 1fr">${chks}</div></div>
     <div class="field col-span"><span class="flabel">Требуемые документы сверх нормативного пакета (через запятую)</span><input id="nkdocs" placeholder="нормативный пакет пп. 85–86, 95 добавляется сам"></div>
-    <div class="field col-span"><span class="flabel">Разрешённые распоряжения <span class="ro-tag">(issues/04; «без распоряжения» доступно всегда)</span></span><div class="f2" style="grid-template-columns:1fr 1fr 1fr">${dchks}</div></div>
+    <div class="field col-span"><span class="flabel">Разрешённые распоряжения <span class="ro-tag">(«без распоряжения» доступно всегда)</span></span><div class="f2" style="grid-template-columns:1fr 1fr 1fr">${dchks}</div></div>
     <div class="field"><span class="flabel">Ограничения</span><input id="nklim"></div>
   </div></div><div class="modal-f"><button class="btn btn-secondary" onclick="RS.closeModal()">Отмена</button>
     <button class="btn btn-primary" onclick="RS.addKind()">Создать вид</button></div></div>`);
@@ -3120,7 +3103,6 @@ function showMirror(procId,appId){
     <div class="mirror"><div class="mrow"><span>Фаза</span><span>${p.phase}</span></div>
     <div class="mrow"><span>Дней в категории</span><span>${p.catDays}</span></div>
     <div class="mrow"><span>Заёмщик (ИНН)</span><span>${p.inn}</span></div></div>
-    <div class="section-note">Зеркало read-only. Условия кредита из зеркала не редактируются.</div>
   </div><div class="modal-f"><button class="btn btn-secondary" onclick="RS.closeModal()">Закрыть</button></div></div>`);
 }
 
