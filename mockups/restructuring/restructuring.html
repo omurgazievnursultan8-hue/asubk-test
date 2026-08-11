@@ -80,7 +80,7 @@
   возражение, а не как открытые вопросы. Свод — §11 спеки.
 
   SMOKE (node scripts/inspect/restructuring-check.mjs):
-   SMOKE 2026-08-11 · 57/57 PASS
+   SMOKE 2026-08-11 · 58/58 PASS
       PASS  #1  до=false после=true
       PASS  #2  closed=true opened=true reblock=true
       PASS  #3  noRate=true union=true
@@ -138,6 +138,7 @@
       PASS  #55  хвост=180000 снят=true наступившее=60000 терминальная=true вПереносе=60000
       PASS  #56  идемпотентно=true статьяТаЖе=400000 снятие=true просрочкаНеЗависит=true
       PASS  #57  хвостВТело=true процентыВыросли=true (307804.65→543958.58) пеняНеТронута=true
+      PASS  #58  один=true адрес=true дверь=true безТраншаНетРасчёта=true
 -->
 <style>
 :root{
@@ -1073,6 +1074,43 @@ const CreditSide = { balanceAt, scheduleAt, validTo, conditionsAt, principalAt, 
 
 /* ================= ПРОИЗВОДНЫЕ (Р-19: считаем, не храним) ================= */
 const creditById = id => state.credits.find(c=>c.id===id);
+/* ============ РАСЧЁТ (РС-42, ADR-0111) ============
+   Расчёт — единица финансового ядра, и адресует он ТРАНШ, а не кредит: условия и график живут
+   на транше (CONTEXT.md), перенос идёт из транша в транш (ADR-0092, ИР-3), а ИР-2 сверяет сумму
+   колонок графика — тоже траншевого. Ключ по кредиту оставил бы кредит с двумя траншами в той же
+   неразличимости, из которой мы выходим. Заявка держит список расчётов, по одному на транш
+   охвата (ИР-16). */
+function mkCalc(credit, tranche){
+  return { id:'C-'+tranche.id, trancheId:tranche.id, creditId:credit.id,
+           base:[], dispositions:[], version:null,
+           cutoff:null, fact:null, dsRef:null, excluded:null };
+}
+function calcById(app, calcId){ return (app.calcs||[]).find(c=>c.id===calcId) || null; }
+function calcTrancheOf(calc){
+  const cr = calc && creditById(calc.creditId); if(!cr) return null;
+  return (cr.tranches||[]).find(t=>t.id===calc.trancheId) || null;
+}
+function creditOfTranche(trancheId){
+  return state.credits.find(c=>(c.tranches||[]).some(t=>t.id===trancheId)) || null;
+}
+/* Дверь однорасчётной заявки. Пока расчёт один, звать его по имени незачем — но как только их
+   два, умолчание «первый» стало бы тихим выбором за куратора, и дверь обязана отказать, а не
+   угадать. Тот же приём, что у гейта согласий: молчания как варианта нет. */
+function requireCalc(app, calcId){
+  const list = (app && app.calcs) || [];
+  if(calcId) return calcById(app, calcId);
+  return list.length===1 ? list[0] : null;
+}
+/* Заведение расчёта под транш. Идемпотентно: транш уже в охвате — возвращаем его расчёт, а не
+   заводим второй (ИР-16). */
+function attachCalc(app, tranche){
+  const exist = (app.calcs||[]).find(c=>c.trancheId===tranche.id);
+  if(exist) return exist;
+  const cr = creditOfTranche(tranche.id); if(!cr) return null;
+  const c = mkCalc(cr, tranche);
+  app.calcs.push(c);
+  return c;
+}
 const kindById   = id => state.kinds.find(k=>k.id===id);
 const appById    = id => state.apps.find(a=>a.id===id);
 
@@ -1555,8 +1593,13 @@ function setCalcTranche(appId, trancheId){
   (app.creditIds||[]).forEach(cid=>{ if(found) return; const cr=creditById(cid); if(!cr) return;
     const t=(cr.tranches||[]).find(x=>x.id===trancheId); if(t) found={cr,t}; });
   if(!found){ toast('Транш не найден','err'); return; }
-  app.calcTranche=found.t;
-  if(!app.version) app.version=draftVersion(found.cr,{});
+  // Пере-выбор на однорасчётной заявке переставляет транш существующего расчёта, а не плодит
+  // второй: куратор передумал, а не добавил кредит (ADR-0042 — черновик не пересоздаётся молча).
+  const cur = requireCalc(app);
+  if(cur && (app.calcs||[]).length===1){ cur.trancheId=found.t.id; cur.creditId=found.cr.id; }
+  else attachCalc(app, found.t);
+  const c = requireCalc(app) || calcById(app, 'C-'+found.t.id);
+  if(c && !c.version) c.version=draftVersion(found.cr,{});
   app._t=TODAY; H(app,'Транш-источник расчёта выбран: '+found.t.no+' (кредит '+found.cr.no+').',state.role);
   toast('Транш-источник выбран','ok'); render();
 }
@@ -1805,12 +1848,27 @@ const INITIATORS = [
   {code:'omsu',   label:'ОМСУ (через полномочного представителя Президента в области)'},
   {code:'authority', label:'Уполномоченный государственный орган'}
 ];
+/* Старые поля base/dispositions/version/calcTranche остаются ДВЕРЬЮ к единственному расчёту,
+   а не вторым хранилищем: геттер читает calcs, сеттер пишет в calcs. Пока заявка однотраншевая,
+   экран и сторожа разницы не замечают; как только расчётов два — дверь молчит, и звать нужно
+   расчёт по имени (requireCalc). */
 function baseApp(id,inn,borrower,kindIds,creditIds,regDate){
-  return { id,inn,borrower,kindIds:[...kindIds],creditIds:[...creditIds],regDate,
+  const app = { id,inn,borrower,kindIds:[...kindIds],creditIds:[...creditIds],regDate,
     packetDocs:{}, analysisStarted:false, conclusions:[], committee:null, letterSent:null,
     initiator:null, conclusion:null, zk:null, resolution:null,
-    version:null, ds:null, waiver:null, ops:[], automation:[], outcome:null, history:[],
-    calcTranche:null, base:[], dispositions:[], cutoff:null };
+    ds:null, waiver:null, ops:[], automation:[], outcome:null, history:[],
+    calcs:[], cutoff:null };
+  ['base','dispositions','version'].forEach(k=>Object.defineProperty(app, k, {
+    enumerable:true, configurable:true,
+    get(){ const c=requireCalc(app); return c ? c[k] : (k==='version' ? null : []); },
+    set(v){ const c=requireCalc(app); if(c) c[k]=v; }
+  }));
+  Object.defineProperty(app, 'calcTranche', {
+    enumerable:true, configurable:true,
+    get(){ const c=requireCalc(app); return c ? calcTrancheOf(c) : null; },
+    set(t){ if(t) attachCalc(app, t); }
+  });
+  return app;
 }
 function H(app,what,who,cls){ app.history.push({when:app._t||app.regDate, what, who:who||'', cls:cls||''}); }
 function defaultConclusions(){ return [ {dept:'СРМиК',text:'',visa:false,visaDate:null}, {dept:'ДПО',text:'',visa:false,visaDate:null} ]; }
@@ -3270,6 +3328,7 @@ const RS = {
   ensureBaseDispositions, dispositionFor, defaultBase, defaultDispositions,
   scheduleArticleCols, rowArticlesSum, mergeParts, validateDS,
   trancheCandidates, setCalcTranche, setVersionParam, recalcPlan,
+  calcById, calcTrancheOf, creditOfTranche, requireCalc, attachCalc,
   TODAY, STAGES, ROLES,
   __baseApp: baseApp
 };

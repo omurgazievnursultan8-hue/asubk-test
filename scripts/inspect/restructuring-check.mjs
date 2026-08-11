@@ -799,6 +799,21 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
     `хвостВТело=${inBody} процентыВыросли=${dearer} (${without.int}→${withTail.int}) пеняНеТронута=${penStays}`);
 })();
 
+/* 58. Каркас расчёта: у демо-заявки с траншем-источником ровно один расчёт, он адресует транш
+   и кредит, а старые поля app.base/app.dispositions/app.version — дверь к нему же, не второе
+   хранилище (ИР-16). Заявка без транша-источника расчёта не имеет вовсе: пустой расчёт читался
+   бы как «база ноль», а её ещё не собирали. */
+(() => { fresh();
+  const a = app('RS-1001');
+  const c = a.calcs[0];
+  const one = a.calcs.length === 1;
+  const addressed = !!c && c.trancheId === a.calcTranche.id && c.creditId === a.creditIds[0];
+  const door = !!c && a.base === c.base && a.dispositions === c.dispositions && a.version === c.version;
+  const noTrancheNoCalc = RS.state.apps.filter(x => !x.calcTranche).every(x => x.calcs.length === 0);
+  ok(58, one && addressed && door && noTrancheNoCalc,
+    `один=${one} адрес=${addressed} дверь=${door} безТраншаНетРасчёта=${noTrancheNoCalc}`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
