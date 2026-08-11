@@ -1030,20 +1030,81 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
   const creditsDiffer = two && a.calcs[0].creditId !== a.calcs[1].creditId;
   const r = a.calcs.map(c => RS.AppSide.run(a, RS.TODAY, c.id));
   const basesDiffer = two && RS.round2(r[0].transferSum) !== RS.round2(r[1].transferSum);
+  // Σ сверяется с НЕЗАВИСИМО собранной величиной — из частей каждого прогона (тело + позиции),
+  // а не с той же суммой, записанной второй раз: `a+b === a+b` не падало ни при какой поломке
+  // (fix-round-1). Так проверка ловит и потерянный расчёт, и удвоенный, и разъехавшийся round2.
   const sum = RS.round2(r[0].transferSum + r[1].transferSum);
-  const whole = RS.round2(a.calcs.reduce((s, c) => s + RS.AppSide.run(a, RS.TODAY, c.id).transferSum, 0));
-  const addsUp = sum === whole;
-  const sameArticleTwice = a.calcs[0].base.some(x => x.article === 'principal')
-                        && a.calcs[1].base.some(x => x.article === 'principal')
-                        && a.calcs[0].base !== a.calcs[1].base;
+  const expected = RS.round2(r.reduce((s, x) =>
+    s + x.principalPart + x.parts.reduce((p, q) => p + q.amount, 0), 0));
+  const addsUp = sum > 0 && sum === expected;
+  // «Одинаковая статья живёт двумя строками» — это про ДВЕ РАЗНЫЕ суммы под одним ключом статьи,
+  // а не про две разные ссылки на массив (сравнение ссылок было истинно всегда, fix-round-1).
+  const artSum = (c, key) => RS.round2((c.base || [])
+    .filter(x => x.article === key).reduce((s, x) => s + x.amount, 0));
+  const p0 = artSum(a.calcs[0], 'principal'), p1 = artSum(a.calcs[1], 'principal');
+  const sameArticleTwice = p0 > 0 && p1 > 0 && p0 !== p1;
   ok(67, two && creditsDiffer && basesDiffer && addsUp && sameArticleTwice,
-    `расчётов=${a.calcs.length} кредитыРазные=${creditsDiffer} базыРазные=${r.map(x=>x.transferSum).join('/')} итогСходится=${addsUp} статьяДважды=${sameArticleTwice}`);
+    `расчётов=${a.calcs.length} кредитыРазные=${creditsDiffer} базыРазные=${r.map(x=>x.transferSum).join('/')} итогСходится=${addsUp} (${sum}=${expected}) статьяДважды=${sameArticleTwice} (тело ${p0}/${p1})`);
+})();
+
+/* 68. Вкладка расчёта РИСУЕТСЯ, а не только считается. До fix-round-1 ни один сценарий не звал
+   pCalcBase/pCalcSched, и расхождение трёх дверей к базе проходило мимо смоука: шапка секции и
+   полоса-итог читали calc.base сырым, тело секции брало умолчание через дверь ЗАЯВКИ
+   (defaultBase(app,…)), которая при 2+ расчётах молчит — секция ещё не тронутого куратором
+   транша рисовала «Долг по траншу пуст» и печатала «база 0» при живом долге. Третий транш,
+   добавленный в охват, — ровно тот случай: base у его расчёта пустая.
+   RS-1001 проверяет вторую половину: однорасчётная заявка с зарегистрированным ДС обязана
+   показывать коробку разделения и живой график производного транша (сид адресует ДС расчётом —
+   dsRef + agreements, как mkChainApp). Обе половины падали на коде до fix-round-1. */
+(() => { fresh();
+  const a = app('RS-1020');
+  const { t } = secondTranche(a);
+  RS.addTrancheToScope(a.id, t.id);                     // третий расчёт: base не материализована
+  const html = RS.pCalcBase(a);
+  const secs = html.split('<div class="section-h calc-h">').slice(1);
+  const digits = s => Number(String(s).replace(/[^\d-]/g, '')) * (/-/.test(String(s)) ? -1 : 1);
+  const grab = (s, label) => digits((s.match(new RegExp(label + ' ([^·<]+)')) || [, '0'])[1]);
+  // модель базы расчёта — та же, что у экрана: снимок, если он есть, иначе умолчание ОТ РАСЧЁТА
+  const fullBase = c => (c.base && c.base.length ? c.base : RS.AppSide.defaultBase(c, RS.TODAY));
+  const modelBase = c => fullBase(c).filter(x => x.included);
+
+  const perSection = secs.length === a.calcs.length && a.calcs.length === 3;
+  // у каждой секции с живыми строками долга — таблица со строками, а не пустое состояние
+  // (пустое состояние законно только там, где долга по траншу нет вовсе)
+  const rendered = a.calcs.every((c, i) => {
+    const body = secs[i] || '';
+    const rows = fullBase(c).length;
+    const empty = body.includes('Долг по траншу пуст');
+    return rows ? (!empty && (body.match(/<tr class=/g) || []).length >= rows) : empty;
+  });
+  // напечатанная в шапке база каждой секции равна базе ЭТОГО расчёта, а не первого и не нулю
+  const headsMatch = a.calcs.every((c, i) =>
+    grab(secs[i] || '', 'база') === Math.round(modelBase(c).reduce((s, x) => s + x.amount, 0)));
+  const bar = (html.match(/<div class="totals-bar">[\s\S]*?<\/div>/) || [''])[0];
+  const barBase = grab(bar, 'база');
+  const wholeBase = Math.round(a.calcs.reduce((s, c) =>
+    s + modelBase(c).reduce((p, x) => p + x.amount, 0), 0));
+  // Σ полосы-итога — та же величина, что сумма секций (расхождение допускается только на
+  // округлении каждой шапки до целых сомов, не больше сома на секцию)
+  const headsSum = a.calcs.reduce((s, c, i) => s + grab(secs[i] || '', 'база'), 0);
+  const barAddsUp = barBase === wholeBase && Math.abs(headsSum - barBase) <= a.calcs.length;
+
+  fresh();
+  const a1 = app('RS-1001');
+  const b1 = RS.pCalcBase(a1), s1 = RS.pCalcSched(a1);
+  const splitShown = (b1.match(/class="split-box/g) || []).length === 2
+                  && !b1.includes('Производный транш появится после регистрации');
+  const schedRows = ((s1.match(/<tbody>([\s\S]*?)<\/tbody>/) || [, ''])[1].match(/<tr/g) || []).length;
+  const schedShown = schedRows === 6;
+
+  ok(68, perSection && rendered && headsMatch && barAddsUp && splitShown && schedShown,
+    `секций=${secs.length} базаНеПуста=${rendered} шапкиПоСвоему=${headsMatch} Σсходится=${barAddsUp} (${barBase}/${wholeBase}/${headsSum}) RS-1001: коробка=${splitShown} график=${schedRows} строк`);
 })();
 
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-const stamp = `SMOKE 2026-08-11 · ${pass}/${results.length} PASS\n` + lines.join('\n');
+const stamp = `SMOKE 2026-08-12 · ${pass}/${results.length} PASS\n` + lines.join('\n');
 console.log(stamp);
 
 // вставляем результат в шапку HTML

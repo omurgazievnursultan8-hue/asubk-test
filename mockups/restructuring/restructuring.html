@@ -80,7 +80,7 @@
   возражение, а не как открытые вопросы. Свод — §11 спеки.
 
   SMOKE (node scripts/inspect/restructuring-check.mjs):
-   SMOKE 2026-08-11 · 67/67 PASS
+   SMOKE 2026-08-12 · 68/68 PASS
       PASS  #1  до=false после=true
       PASS  #2  closed=true opened=true reblock=true
       PASS  #3  noRate=true union=true
@@ -147,7 +147,8 @@
       PASS  #64  второе=true первоеЦело=true соглашений=2 покрытие={"done":["C-CR-59003-T1","C-CR-60540-T2"],"excluded":[],"pending":[],"ok":true} производныеПоРасчётам=true
       PASS  #65  былаЗакрыта=true приМолчании=true безОснованияОтказ=true послеСнятия=true
       PASS  #66  секция=true итог=true одинБезЗаголовка=true адресВДвери=true староеСнесено=true производныйПоРасчёту=true черновикПоРасчёту=true
-      PASS  #67  расчётов=2 кредитыРазные=true базыРазные=1245759.68/398076.09 итогСходится=true статьяДважды=true
+      PASS  #67  расчётов=2 кредитыРазные=true базыРазные=1245759.68/398076.09 итогСходится=true (1643835.77=1643835.77) статьяДважды=true (тело 9600000/3900000)
+      PASS  #68  секций=3 базаНеПуста=true шапкиПоСвоему=true Σсходится=true (1643836/1643836/1643836) RS-1001: коробка=true график=6 строк
 -->
 <style>
 :root{
@@ -1161,16 +1162,24 @@ const packetPointOf = doc => (NORM_PACKET.find(d=>d.doc===doc)||{}).point || nul
    ИР-9): терминал наступает только когда все три гейта оформления (согласия РС-17, покрытие/waiver
    РС-18, регуляторные пределы РС-19) пройдены — иначе стадия честно остаётся «Оформление», хоть
    ДС уже стоит. formalGatesOk читает те же три гейта, что и вкладка «Оформление». */
+/* Снятый с оформления расчёт выходит из-под трёх гейтов оформления вместе со своим кредитом — его
+   согласия/покрытие/пределы уже не про эту заявку (спека §4): кредит явно не идёт в ДС, и чужое
+   несогласованное поручительство не вправе держать закрытие остальных расчётов заявки. Отбор
+   вынесен в две функции и зовётся из ДВУХ мест — formalGatesOk (стадия) и openDS (пред-проверки
+   регистрации, :3348). Расходясь, они давали заявку, которую стадия считает закрываемой, а кнопка
+   регистрации не пускает по гейту снятого кредита (ревью 12.08.2026). */
+function activeCreditIdsOf(app){
+  return [...new Set((app.calcs||[]).filter(c=>!c.excluded).map(c=>c.creditId))];
+}
+function activeLimitRows(app){
+  return limitsGateApp(app).rows
+    .filter(r=>{ const c=(app.calcs||[]).find(x=>x.id===r.calcId); return !c || !c.excluded; });
+}
 function formalGatesOk(app){
-  // Снятый с оформления расчёт выходит из-под этих трёх гейтов вместе со своим кредитом — его
-  // согласия/покрытие/пределы уже не про эту заявку (спека §4): кредит явно не идёт в ДС, и
-  // чужое несогласованное поручительство не вправе держать закрытие остальных расчётов заявки.
-  const activeCreditIds = [...new Set((app.calcs||[]).filter(c=>!c.excluded).map(c=>c.creditId))];
+  const activeCreditIds = activeCreditIdsOf(app);
   const consentOk = activeCreditIds.every(id=>consentGate(id).ok);
   const coverOk = activeCreditIds.every(id=>{ const cr=creditById(id); return !cr || coverGate(app,cr).ok; });
-  const limitsOk = limitsGateApp(app).rows
-    .filter(r=>{ const c=(app.calcs||[]).find(x=>x.id===r.calcId); return !c || !c.excluded; })
-    .every(r=>r.g.ok);
+  const limitsOk = activeLimitRows(app).every(r=>r.g.ok);
   return consentOk && limitsOk && (coverOk || !!(app.waiver && app.waiver.granted));
 }
 function stageOf(app){
@@ -1367,7 +1376,10 @@ function limitsGateApp(app){
                          messages:['Условия ещё не выбраны — гейт неприменим до расчёта'] } };
     return { calcId:c.id, creditNo:credit.no, g:limitsGate(params, credit, date) };
   });
-  if(!rows.length) return { ok:true, pending:true, messages:['Кредит не выбран'], rows:[] };
+  // Нет расчётов — гейт неприменим по той же причине, что и при расчёте без параметров: сверять
+  // нечего. Текст тот же, что у строчного случая выше, — «Кредит не выбран» описывал прежний
+  // экран с отдельным выбором транша, которого больше нет (fix-round-1).
+  if(!rows.length) return { ok:true, pending:true, messages:['Условия ещё не выбраны — гейт неприменим до расчёта'], rows:[] };
   const pending = rows.every(r=>r.g.pending);
   const ok = rows.every(r=>r.g.ok);
   const messages = rows.flatMap(r=>(r.g.messages||[]).map(m=>rows.length>1 ? r.creditNo+': '+m : m));
@@ -1518,6 +1530,19 @@ function defaultBase(x, date, calcId){
     blockedBy: row.disputed ? 'disputed' : null
   }));
 }
+/* ДЕЙСТВУЮЩАЯ БАЗА РАСЧЁТА — одна дверь на всех потребителей (run, calcSectionHead,
+   calcTotalsBar, calcBaseSection). До первого живого действия куратора calc.base пуст, и база
+   считается на лету из долга транша (Р-19, ensureBaseDispositions ниже) — умолчание нигде не
+   хранится. Три независимых пересчёта этого умолчания в трёх экранных функциях уже разошлись
+   однажды: секция брала умолчание через дверь заявки (defaultBase(app,…)), которая на двух
+   расчётах молчит, а шапка и итоговая полоса читали calc.base сырым — вкладка «База» второго
+   транша рисовала пустую базу и печатала «база 0» (ревью 12.08.2026). Дверь адресуется РАСЧЁТОМ,
+   не заявкой: адрес суммы известен вызывающему, домысливать его здесь нечем. */
+function calcBaseOf(app, calc, date){
+  if(!calc) return [];
+  if(calc.base && calc.base.length) return calc.base;
+  return defaultBase(calc, date || (app && app.ds ? app.ds.date : TODAY));
+}
 /* Распоряжение — на позицию, одно, с суммой и сроками (РС-38). Остаток «без распоряжения»
    получается вычитанием суммы распоряжения из позиции, второй сущности не заводим. Сроки —
    позиции графика производного транша: {mode:'all'} (умолчание, следует за сроком само) либо
@@ -1659,6 +1684,14 @@ function addTrancheToScope(appId, trancheId){
   const calc=attachCalc(app, t);
   if(!calc){ toast('Кредит транша не найден','err'); return; }
   if(!calc.version) calc.version=draftVersion(cr,{});
+  /* Срез уже зафиксирован письмом — новый расчёт обязан получить СВОЙ, иначе он выпадает из
+     фильтров appDrift/driftGate и ступень 2 считается по неполной заявке молча (ревью
+     12.08.2026). Дата берётся у заявки — она одна на обращение (спека §2); суммы считаются тем
+     же debtAt на ту же дату, что fixCutoff. app.cutoffDate до этой правки только писался. */
+  if(!calc.cutoff && app.cutoffDate){
+    calc.cutoff = { date: app.cutoffDate, rows: debtAt(t, app.cutoffDate), fixedAt: app.cutoffDate };
+    if(app.cutoff) app.cutoff.rows = (app.calcs||[]).filter(c=>c.cutoff && c.cutoff.rows).flatMap(c=>c.cutoff.rows);   // итог, не хранилище
+  }
   if(!had){ app._t=TODAY; H(app,'В охват добавлен транш '+t.no+' (кредит '+cr.no+').',state.role); }
   closeModal(); toast('Транш добавлен в охват','ok'); render();
 }
@@ -1867,7 +1900,7 @@ function run(app, date, calcId){
   // многорасчётной дверь без имени молчит ([]), и выбор падает на calc, адресованный calcId.
   const ownBase = (app && app.base && app.base.length) ? app.base : null;
   const ownDisp = (app && app.dispositions && app.dispositions.length) ? app.dispositions : null;
-  const base0 = (ownBase || (calc.base && calc.base.length ? calc.base : defaultBase(calc, date))).map(r=>({...r, carried:r.amount}));
+  const base0 = (ownBase || calcBaseOf(app, calc, date)).map(r=>({...r, carried:r.amount}));
   const dispositions = ownDisp || (calc.dispositions && calc.dispositions.length ? calc.dispositions : defaultDispositions(base0));
   const st0 = { app, calc, date, base:base0, dispositions, forgiven:0, capitalized:0,
                 capitalizedInterest:0, capitalizedPenalty:0,
@@ -1907,6 +1940,17 @@ function fixCutoff(app, date){
   app.cutoff = { date, rows: (app.calcs||[]).flatMap(c=>c.cutoff.rows), fixedAt: date };  // итог, не хранилище
   return app.cutoff;
 }
+/* Срез, ДЕЙСТВУЮЩИЙ ДЛЯ РАСЧЁТА — вторая дверь того же рода, что calcBaseOf. После fixCutoff
+   срез лежит на расчёте суммами; ДО письма он держит только дату, одну на обращение (спека §2),
+   и заводится прямо на заявке (app.cutoffDate / app.cutoff, минуя fixCutoff — так делают демо
+   RS-1004 и вторая волна): сумм в этом состоянии нет ни у одного расчёта, и подставлять их
+   неоткуда. Экран обязан читать срез СВОЕГО расчёта: ролл-ап app.cutoff — сумма по всем траншам,
+   и на двух расчётах он печатал бы в обеих секциях одно и то же чужое число (ревью 12.08.2026). */
+function calcCutoffOf(app, calc){
+  if(calc && calc.cutoff) return calc.cutoff;
+  const date = app && (app.cutoffDate || (app.cutoff ? app.cutoff.date : null));
+  return date ? { date, rows:null, fixedAt:null } : null;
+}
 function fixFact(app, date, calcId, transferSum){
   const calc=requireCalc(app, calcId); if(!calc) return null;
   const t=calcTrancheOf(calc);
@@ -1930,7 +1974,9 @@ function calcDrift(app, calcId){
   return { calcId:c.id, ...driftOf(c.cutoff.rows, c.fact.rows) };
 }
 function appDrift(app, date){
-  const list=(app.calcs||[]).filter(c=>c.cutoff);
+  // Условие отбора то же, что у driftGate: срез с суммами. Расчёт, у которого срез держит одну
+  // дату (rows:null), в сумму не входит — складывать нечего, а не ноль.
+  const list=(app.calcs||[]).filter(c=>c.cutoff && c.cutoff.rows);
   const cut=list.flatMap(c=>c.cutoff.rows);
   const fact=list.flatMap(c=>{
     const t=calcTrancheOf(c); return t ? debtAt(t, date||TODAY) : [];
@@ -2079,6 +2125,14 @@ function buildDemoApps(){
   const res1=CreditSide.restructureApplied(ds1);
   if(res1.ok){
     a1.ds={ no:ds1.no, date:ds1.date, transferSum:ds1.transferSum, sourceTrancheId:T1a.id, params:ds1.params, fact:null };
+    // ДС адресуется РАСЧЁТОМ (задача 6): dsRef на расчёте + запись в app.agreements — тем же
+    // образцом, что mkChainApp (:2183) и buildWave2App (:2422). Без этого resultTrancheOf не
+    // находит производный транш, и вкладка расчёта теряет коробку разделения и живой график,
+    // хотя ДС зарегистрировано (ревью 12.08.2026).
+    const calc1=requireCalc(a1);
+    calc1.dsRef=ds1.no;
+    (a1.agreements = a1.agreements || []).push({ no:ds1.no, date:ds1.date, creditId:cr1.id,
+      appId:a1.id, calcIds:[calc1.id], transferSum:ds1.transferSum, sourceTrancheId:T1a.id, params:ds1.params });
     AppSide.fixFact(a1,TODAY,null,ds1.transferSum);
     a1.outcome='изм';
   }
@@ -2767,7 +2821,7 @@ function calcSectionHead(app, calc){
              : calc.excluded ? `<span class="pill mid" title="${esc(calc.excluded.reason)}">снят с оформления</span>`
              : `<span class="pill neutral">не оформлено</span>`;
   return `<div class="section-h calc-h">${esc(t?t.no:'—')} · ${esc(cr?cr.no:'—')}
-    · база ${fmt(rowsTotal((calc.base||[]).filter(x=>x.included)))}
+    · база ${fmt(rowsTotal(calcBaseOf(app, calc).filter(x=>x.included)))}
     · перенос ${fmt(r?r.transferSum:0)} ${fate}</div>`;
 }
 function pCalcBase(app){
@@ -2783,7 +2837,7 @@ function pCalcBase(app){
 function calcTotalsBar(app){
   const rows=(app.calcs||[]).map(c=>({c, r:run(app, app.ds?app.ds.date:TODAY, c.id)}));
   if(rows.length<2) return '';
-  const base=round2(rows.reduce((s,x)=>s+rowsTotal((x.c.base||[]).filter(b=>b.included)),0));
+  const base=round2(rows.reduce((s,x)=>s+rowsTotal(calcBaseOf(app, x.c).filter(b=>b.included)),0));
   const transfer=round2(rows.reduce((s,x)=>s+(x.r?x.r.transferSum:0),0));
   const d=appDrift(app, TODAY);
   // Единственное место экрана, где суммы складываются через кредиты, — и потому подписано «итог».
@@ -2794,12 +2848,19 @@ function calcTotalsBar(app){
 }
 function calcBaseSection(app, calc){
   const src=calcTrancheOf(calc);
-  const drift=cutoffDrift(app);
-  const srezRow = app.cutoff
-    ? (app.cutoff.rows ? {v:fmt(rowsTotal(app.cutoff.rows)), s:'зафиксирован письмом '+app.cutoff.date} : {v:'—', s:'дата '+app.cutoff.date+' — сумма зафиксируется отправкой письма'})
+  /* Три числа панели сводятся между собой ТОЛЬКО внутри одного расчёта: срез, факт и дельта —
+     про один транш. Раньше срез читался ролл-апом заявки, дельта — дверью cutoffDrift (которая
+     на двух расчётах молчит и печатала прочерк), а факт падал на предпросмотр своего транша:
+     три числа из трёх разных адресов не сходились ни в одну арифметику (ревью 12.08.2026).
+     «Есть ли зарегистрированное ДС» спрашивается у самого расчёта — calc.fact/calc.dsRef, тем же
+     ключом, что resultTrancheOf (:2716) и dsCoverage (:3396). */
+  const drift=calcDrift(app, calc.id);
+  const cut=calcCutoffOf(app, calc);
+  const srezRow = cut
+    ? (cut.rows ? {v:fmt(rowsTotal(cut.rows)), s:'зафиксирован письмом '+cut.date} : {v:'—', s:'дата '+cut.date+' — сумма зафиксируется отправкой письма'})
     : {v:'—', s:'письмо в уполномоченный орган ещё не направлено'};
-  const factRow = app.ds && app.ds.fact
-    ? {v:fmt(rowsTotal(app.ds.fact.rows)), s:'зафиксирован ДС '+app.ds.no+' от '+app.ds.fact.date}
+  const factRow = calc.fact
+    ? {v:fmt(rowsTotal(calc.fact.rows)), s:'зафиксирован ДС '+(calc.dsRef||(app.ds?app.ds.no:'—'))+' от '+calc.fact.date}
     : {v:fmt(rowsTotal(debtAt(src,TODAY))), s:'предпросмотр на '+TODAY+' — ДС ещё не зарегистрировано'};
   const driftPct = drift ? (drift.pct*100).toFixed(1).replace(/\.0$/,'')+'% от среза' : '';
   const deltaRow = drift
@@ -2810,7 +2871,7 @@ function calcBaseSection(app, calc){
        flag:drift.material}
     : {v:'—', s:'дельта считается после фиксации и среза, и факта', flag:false};
 
-  const base = calc.base && calc.base.length ? calc.base : defaultBase(app, app.ds?app.ds.date:TODAY);
+  const base = calcBaseOf(app, calc);
   const dispositions = calc.dispositions && calc.dispositions.length ? calc.dispositions : defaultDispositions(base);
   const ordered=[...base].sort((a,b)=>{
     const ia=ARTICLES.findIndex(x=>x.key===a.article), ib=ARTICLES.findIndex(x=>x.key===b.article);
@@ -2895,9 +2956,9 @@ function calcBaseSection(app, calc){
     <div class="section-h" style="margin-top:0">Два датированных числа</div>
     <div class="section-note">В учёт идёт только факт на дату вступления ДС; срез — согласовательная величина.</div>
     <div class="two-num-grid">
-      <div class="numtile"><div class="nt-l">Срез — ${app.cutoff?app.cutoff.date:'—'}</div><div class="nt-v">${srezRow.v}</div><div class="nt-d">${srezRow.s}</div></div>
+      <div class="numtile"><div class="nt-l">Срез — ${cut?cut.date:'—'}</div><div class="nt-v">${srezRow.v}</div><div class="nt-d">${srezRow.s}</div></div>
       <div class="numtile delta ${deltaRow.flag?'flag':''}"><div class="nt-l">Дельта ожидания</div><div class="nt-v">${deltaRow.v}</div><div class="nt-d">${deltaRow.s}</div></div>
-      <div class="numtile"><div class="nt-l">Факт — ${app.ds&&app.ds.fact?app.ds.fact.date:TODAY}</div><div class="nt-v">${factRow.v}</div><div class="nt-d">${factRow.s}</div></div>
+      <div class="numtile"><div class="nt-l">Факт — ${calc.fact?calc.fact.date:TODAY}</div><div class="nt-v">${factRow.v}</div><div class="nt-d">${factRow.s}</div></div>
     </div>
 
     <div class="section-h">База — статьи долга, распоряжения</div>
@@ -3092,10 +3153,20 @@ function decLabel(d){ return d==='изм'?'одобрено с изменённ�
 function automationBlock(app){
   if(!app.automation.length) return '';
   const events=app.automation.map(e=>`<div class="op-row"><span class="pill ${e.kind==='risk'?'high':e.kind==='unpause'?'low':'mid'}">${e.kind}</span><span class="op-t">${esc(e.text)}</span><span class="mode-tag">${e.when}</span></div>`).join('');
-  const paused = app.letterSent&&app.letterSent.fixed && !(app.outcome==='отказ'||(app.ds&&app.ds.no));
+  /* Пауза п. 16 снимается ПО КРЕДИТУ, а не по заявке: зеркало каждого кредита читает своё
+     оформление (тот же приём адресации, что newMaturity :1301 — расчёт этого кредита, затем его
+     dsRef). Прежнее общее условие app.ds снимало банер разом со всех зеркал многокредитной
+     заявки, хотя ДС стояло по одному кредиту (ревью 12.08.2026). Отказ и неотправленное письмо
+     остаются общими: это факты заявки, не кредита. */
+  const letterPause = app.letterSent&&app.letterSent.fixed && app.outcome!=='отказ';
+  const pausedOn = cr => {
+    const calc=(app.calcs||[]).find(c=>c.creditId===cr.id && !c.excluded);
+    const dsNo = calc ? calc.dsRef : (app.ds && app.ds.no);
+    return letterPause && !dsNo;
+  };
   const multi = (app.creditIds||[]).length>1;
   const mirrors = (app.creditIds||[]).map(id=>creditById(id)).filter(cr=>cr&&cr.collProc).map(cr=>{
-    const proc=state.procs[cr.collProc];
+    const proc=state.procs[cr.collProc], paused=pausedOn(cr);
     return `<div class="mirror">
       <div class="mh">Зеркало процесса взыскания ${proc.id}${multi?` (кредит ${esc(cr.no)})`:''} (read-only)</div>
       ${paused?`<div class="mbanner">⏸ Пауза (предмет — меры п. 16, ADR-0063: обе претензии, требования поручителю/гаранту/госоргану, безакцепт; судебный и залоговый треки идут своим ходом; дедлайн 70 к.д.) — источник: заявка <span class="rowlink" onclick="RS.openApp('${app.id}')">${app.id}</span></div>`:''}
@@ -3310,12 +3381,17 @@ function grantWaiver(appId){
 
 function openDS(appId, calcId){
   if(!guard('regDS')) return; const app=appById(appId);
-  const cga=coverGateApp(app);
-  if(!cga.ok && !(app.waiver&&app.waiver.granted)){ toast('Гейт обеспечения не пройден — сначала waiver','err'); return; }
-  const lga=limitsGateApp(app);
-  if(!lga.ok){ toast('Гейт пределов не пройден: '+lga.messages.join('; '),'err'); return; }               // жёсткий, без waiver
-  const coa=consentGateApp(app);
-  if(!coa.ok){ toast('Гейт согласий не пройден: не согласовано — '+coa.pending.join(', '),'err'); return; }  // жёсткий, без waiver
+  // Пред-проверки читают ТОТ ЖЕ активный охват, что formalGatesOk (:1164): агрегаты *GateApp
+  // ходят по всем кредитам заявки, включая снятые с оформления, и держали бы регистрацию по
+  // чужому гейту (ревью 12.08.2026). Тексты сообщений прежние, изменился только состав строк.
+  const activeIds=activeCreditIdsOf(app);
+  const coverBad=activeIds.map(id=>creditById(id)).filter(cr=>cr && !coverGate(app,cr).ok);
+  if(coverBad.length && !(app.waiver&&app.waiver.granted)){ toast('Гейт обеспечения не пройден — сначала waiver','err'); return; }
+  const lrows=activeLimitRows(app), lbad=lrows.filter(r=>!r.g.ok);                                        // жёсткий, без waiver
+  if(lbad.length){ toast('Гейт пределов не пройден: '+lbad.flatMap(r=>(r.g.messages||[])
+      .map(m=>lrows.length>1 ? r.creditNo+': '+m : m)).join('; '),'err'); return; }
+  const cPending=activeIds.flatMap(id=>consentGate(id).pending);                                          // жёсткий, без waiver
+  if(cPending.length){ toast('Гейт согласий не пройден: не согласовано — '+cPending.join(', '),'err'); return; }
   const fg=forgiveGate(app);
   if(!fg.ok){ toast('Прощение '+fmt(fg.sum)+' не названо в постановлении Кабмина (РС-28) — регистрация невозможна','err'); return; }
   const dg=driftGate(app, TODAY);
@@ -3603,6 +3679,7 @@ const RS = {
   trancheCandidates, setCalcTranche, setVersionParam, recalcPlan,
   calcById, calcTrancheOf, creditOfTranche, requireCalc, attachCalc,
   dsCoverage, excludeCalc, resultTrancheOf,
+  pCalcBase, pCalcSched,          // вкладки расчёта наружу — сторож #68 читает разметку, а не только цифры
   TODAY, STAGES, ROLES,
   __baseApp: baseApp
 };
