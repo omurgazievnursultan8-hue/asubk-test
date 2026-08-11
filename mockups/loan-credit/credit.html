@@ -857,7 +857,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-11 · 112/112 PASS
+ SMOKE (node) 2026-08-11 · 113/113 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -936,6 +936,7 @@
    #67 ✓
    #53a ✓
    #53 ✓
+   #111 ✓
    #100 ✓
    #54 ✓
    #55 ✓
@@ -1772,6 +1773,16 @@ const PARAM_KEYS = PARAMS.map(p => p.key);
 const MATRIX_ZONE_RATES = ['rate','reserveRate','penaltyMain','penaltyInt',
   'graceMain','graceInterest','graceIntDistFrom','graceIntDistTo','graceAccrual'];
 const MATRIX_ZONE_REPAY = PARAM_KEYS.filter(k => !MATRIX_ZONE_RATES.includes(k));
+
+/* Группы карандашей вкладки «Условия» (КВ-25): ровно то, что рисует карточка.
+   НЕ MATRIX_ZONE_*: там льготы отнесены к «Ставкам» — это раскладка сводной матрицы
+   в две колонки, а карточка «Ставки» льгот не показывает вовсе, и переиспользование
+   зон сделало бы фильтр модалки враньём. REPAY считается вычитанием, чтобы новый
+   параметр не остался без двери: ленты с общей кнопкой больше нет, и ключ, не попавший
+   в группу, стал бы нередактируемым молча. */
+const COND_CARD_RATES = ['rate','reserveRate','penaltyMain','penaltyInt'];
+const COND_CARD_REPAY = PARAM_KEYS.filter(k => !COND_CARD_RATES.includes(k));
+
 const paramLabel = k => (PARAMS.find(p => p.key === k) || {}).label || k;
 
 /* Типы основания. owned=false → документ живёт в другом модуле, кредит только
@@ -5372,6 +5383,7 @@ window.CR = {
   db: null,
   derive, buildSchedule, gate, canRole,
   conditionsAt, mkConditionRecord, mkPrimaryRecords, PARAMS, PARAM_KEYS, paramLabel, BASIS_KINDS,
+  COND_CARD_RATES, COND_CARD_REPAY,
   creditConditionsAt, divergenceRows, basisGroups, retroFlags, retroPendingFlags, activeTranche,
   courtRef, courtBasisLabel,
   generateSchedule, holdAccrual,
