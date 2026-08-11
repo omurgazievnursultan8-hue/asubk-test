@@ -857,7 +857,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-10 · 112/112 PASS
+ SMOKE (node) 2026-08-11 · 112/112 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -1391,6 +1391,11 @@ table.grid tbody tr.sel td{ background:var(--asubk-nav-active); }
 .pcard > .section-note{ margin:0 0 12px; max-width:none; }
 .pcard .f2, .pcard .f4{ gap:14px 24px; max-width:none; }
 .pcard > .gtoolbar{ margin:12px 0 0; }
+/* Раскрытие worst-of внутри карточки («Проблемные», волна 11.08.2026) теряет собственную
+   рамку и фон: рамку уже даёт .pcard, вложенная вторая читается как лишний уровень.
+   Разделители строк остаются — они и несут структуру «вход · вход · итог». */
+.pcard > .cat-expand{ margin-top:0; border:none; border-radius:0; padding:0; background:transparent; }
+.pcard > .mirror-src{ margin-top:10px; }
 @media (max-width:1100px){ .pcards{ grid-template-columns:1fr; } }
 
 /* collection grid (внутри вкладок) */
@@ -3723,9 +3728,13 @@ function planExecOf(c, asOf, ledgerIndex, year){
       pct: planDone > 0 ? Math.round(fact / planDone * 100) : null,
       months:kept.length, monthsDone:done.length };
   };
+  /* months/monthsDone у квартала — не украшение: строка квартала стоит в одной таблице
+     с месяцами (КВ-21) и обязана назвать, по скольким месяцам она посчитана. Без этого
+     «1 квартал · 0 %» неотличимо от «плана на квартал не ставили». */
   const quarters = [1,2,3,4].map(q => {
     const a = agg(rows.slice((q - 1) * 3, q * 3));
-    return { q, plan:a.plan, planDone:a.planDone, planAhead:a.planAhead, fact:a.fact, pct:a.pct };
+    return { q, plan:a.plan, planDone:a.planDone, planAhead:a.planAhead, fact:a.fact, pct:a.pct,
+      months:a.months, monthsDone:a.monthsDone };
   });
   const ya = agg(rows);
   const cur   = rows.find(r => r.month === curMk);
@@ -5763,6 +5772,7 @@ if (typeof document !== 'undefined') {
     cardScope = 'credit'; cardAsOf = TODAY; condBasisFilter = 'all'; condOpenGroup = null; condOpenTranche = null; condMatrixTranche = null;
     dogovorExtraTab = 'subject';
     planYear = pd(TODAY).getFullYear(); planOpenMonth = null;   // состояние вкладки «План» — своё на каждую карточку
+    planOpenQuarters = null;                                    // кварталы «Плана»: null → умолчание (все раскрыты)
     grafikOpenYears = null;                                     // годы «Графика»: null → умолчание (текущий год)
     prognozShowAll = false;                                     // «Прогноз»: сначала только расхождения
     document.getElementById('view-list').style.display = 'none';
@@ -5863,6 +5873,14 @@ if (typeof document !== 'undefined') {
   let cardAsOf  = TODAY;
   let planYear = pd(TODAY).getFullYear();   // год на вкладке «План»
   let planOpenMonth = null;                 // 'YYYY-MM' развёрнутой строки (журнал правок)
+  /* Развёрнутые кварталы «Плана» (КВ-21). Умолчание — ВСЕ ЧЕТЫРЕ, в отличие от годов
+     «Графика»: там свёртка убирает десятки позиций, здесь строк всего двенадцать, и
+     закрывать девять из них ради четырёх итогов значило бы отдать больше, чем получить.
+     Свернуть всё пользователь может сам — и получит ровно прежнюю карточку «Итоги года».
+     Ключ planQuartersKey (кредит|год) отличает осознанное «свернуть всё» от набора,
+     оставшегося от другого кредита или года. */
+  let planOpenQuarters = null;
+  let planQuartersKey = '';
   /* Развёрнутые годы «Графика». null — состояние не трогали: раскрывается ТЕКУЩИЙ год
      (тот, в который попала дата среза), остальные годы стоят одной итоговой строкой.
      Не список годов, а Set: годы приходят из графика и от кредита к кредиту разные. */
@@ -6268,7 +6286,7 @@ if (typeof document !== 'undefined') {
             ${fld('Программа', link(o.programId,'Переход в программу — вне объёма макета'))}
             ${(()=>{ const kom=(c.docs||[]).find(x=>x.kind==='Решение комиссии');
               return kom
-                ? fld('Протокол комиссии', `<a class="rowlink" onclick="CR.toast('Просмотр вложения — вне объёма макета')">${esc(kom.name)}</a> · ${esc(kom.date)}`)
+                ? fld('Протокол комиссии', `${esc(kom.name)} · ${esc(kom.date)}`)
                 : fld('Протокол комиссии', link(o.commissionId,'Переход в комиссию — вне объёма макета'));
             })()}
             ${fld('Заявка', o.applicationId ? `${link(o.applicationId,'Переход в заявку — вне объёма макета')} · ${esc(o.applicationDate||'—')}` : null)}
@@ -6413,8 +6431,7 @@ if (typeof document !== 'undefined') {
           Условия изменены задним числом: ${esc(paramLabel(first.param))} действует с
           <b>${esc(first.effectiveFrom)}</b> (${esc(first.basisLabel)})${rf.length>1?` и ещё ${rf.length-1} записи`:''}.
           Автоматического пересчёта нет: график и начисления построены по прежним условиям —
-          требуется перегенерация. Предупреждение снимется, когда активная версия графика
-          будет построена заново (позже этой записи).
+          требуется перегенерация.
           <div class="gtoolbar" style="margin-top:8px"><button class="btn btn-secondary btn-sm"
             onclick="CR.goToSchedule()">Перейти к перегенерации графика</button></div>
         </div></div>`; })()}
@@ -6449,7 +6466,7 @@ if (typeof document !== 'undefined') {
                и обеих пеней разные справочники бенчмарков). Шаблон кредита, не запись
                условия — сам факт плавающести не версионируется, версионируется цифра. -->
           ${['rate','reserveRate','penaltyMain','penaltyInt'].filter(k=>b.floatMeta&&b.floatMeta[k]).map(k=>
-            `<p class="section-note" style="margin-bottom:0">${esc(paramLabel(k))} — плавающая: ${esc(b.floatMeta[k].benchmark||'—')} + маржа ${esc(b.floatMeta[k].margin)}% (шаблон кредита; каждое пересчитанное значение приходит записью с основанием).</p>`
+            `<p class="section-note" style="margin-bottom:0">${esc(paramLabel(k))} — плавающая: ${esc(b.floatMeta[k].benchmark||'—')} + маржа ${esc(b.floatMeta[k].margin)}%.</p>`
           ).join('')}
         </div>
 
@@ -6509,8 +6526,8 @@ if (typeof document !== 'undefined') {
             return `<tr><td>${esc(paramLabel(r.param))}</td>${cells}<td>${esc(refs.join(' · '))}</td></tr>`; });
           return `<div class="pcard wide" id="condDivergence">
             <div class="section-h">Расхождения по траншам (на ${esc(cardAsOf)})</div>
-            <p class="section-note">Условия принадлежат траншу. Здесь только параметры,
-              по которым транши разошлись на дату среза; согласованные значения — в карточках выше.</p>
+            ${/* Подпись снята: заголовок уже называет предмет секции, а «согласованные значения —
+                  в карточках выше» повторяет то, что видно на экране на пол-экрана выше. */''}
             ${cgrid(cols, trs)}
           </div>`;
         })()}
@@ -6546,10 +6563,9 @@ if (typeof document !== 'undefined') {
             const orphan=(c.agreements||[]).filter(a=>!usedRefs.has(a.num));
             if(!orphan.length) return '';                     // Шаг 17: хвост пуст у большинства — не рендерим пустую подсекцию
             const trs=orphan.map(a=>`<tr><td>ДС ${esc(a.num)}</td><td>${esc(a.date)}</td><td>${esc(a.source||'—')}</td>
-              <td>${a.scan?`<a class="lnk" onclick="CR.toast('Просмотр вложения — вне объёма макета');return false">${esc(a.scan)}</a>`:'—'}</td></tr>`);
+              <td>${a.scan?esc(a.scan):'—'}</td></tr>`);
             return `<div class="section-h" style="margin-top:16px;font-size:13px">Документы без изменения условий</div>
-              <p class="section-note">Зарегистрированы, но ни одна запись условий на них не ссылается —
-                без записи условий документ не попадает в разбор выше.</p>
+              <p class="section-note">Зарегистрированы, но ни одна запись условий на них не ссылается.</p>
               ${cgrid([{h:'Документ'},{h:'Дата'},{h:'Источник'},{h:'Скан'}], trs, {empty:'Таких документов нет'})}`;
           })()}
         </div>
@@ -6592,8 +6608,7 @@ if (typeof document !== 'undefined') {
               const cnt=(t.conditionRecords||[]).length;
               return `<button class="subtab${t.no===selNo?' active':''}" onclick="CR.setCondMatrixTranche(${t.no})">Транш №${t.no}<span class="cnt">(${cnt})</span></button>`;
             }).join('')}</div>`:'';
-            return `<p class="section-note">У каждого условия своя дата вступления
-              и своё основание. Пустая ячейка — в эту дату параметр не менялся.</p>
+            return `<p class="section-note">Пустая ячейка — в эту дату параметр не менялся.</p>
               ${bar}
               <div class="mx2">${zone('Ставки и льготы', MATRIX_ZONE_RATES)}${zone('Погашение', MATRIX_ZONE_REPAY)}</div>`;
           })():''}
@@ -6602,9 +6617,7 @@ if (typeof document !== 'undefined') {
         <div class="pcard wide">
           <div class="section-h" style="cursor:pointer" onclick="CR.toggleCondTemplate()">
             ${condTemplateOpen?'▾':'▸'} Шаблон наследования (что унаследует новый транш)</div>
-          ${condTemplateOpen?`<p class="section-note">Не действующие условия: значения,
-            копируемые в записи при создании нового транша. Действующие — в карточках выше.
-            Правка шаблона возможна только в ЖЦ «Проект».</p>
+          ${condTemplateOpen?`<p class="section-note">Не действующие условия — правка возможна только в ЖЦ «Проект».</p>
             <div class="f2">${PARAMS.map(p=>fld(p.label, esc(b[p.key]))).join('')}</div>`:''}
         </div>
       </div>`;
@@ -6787,7 +6800,7 @@ if (typeof document !== 'undefined') {
       ${cgrid([{h:'Версия'}].concat(sel?[]:[{h:'Транш'}]).concat([{h:'Статус'},{h:'От даты'},{h:'Строк',r:1}]), verRows, {empty:'Версий графика нет — сформируйте'})}
       <div class="section-h" style="margin-top:22px">График — позиции (${esc(scope)})</div>
       ${multiYear?`<div class="gtoolbar" style="margin:0 0 8px">
-        <span class="text-muted" style="font:var(--font-label)">Развёрнут ${plur([...openYears].filter(y=>years.includes(y)).length,'год','года','лет')} из ${years.length} — итог года стоит под своими колонками, детали открываются по клику на год</span>
+        <span class="text-muted" style="font:var(--font-label)">Развёрнут ${plur([...openYears].filter(y=>years.includes(y)).length,'год','года','лет')} из ${years.length}</span>
         <span class="spacer"></span>
         <button class="btn btn-secondary btn-sm" onclick="CR.setGrafikYears([${allOpen?'':years.join(',')}])">${allOpen?'Свернуть все годы':'Развернуть все годы'}</button>
       </div>`:''}
@@ -6854,32 +6867,33 @@ if (typeof document !== 'undefined') {
     const ms = c.mirror && c.mirror.settlement;
     return `
       <div class="section-h">Прогноз ${derivedHtml()}</div>
+      ${/* Волна 11.08.2026 (третья): из шести предложений остались те, что меняют прочтение
+            цифр ниже. Снято: «контракт прогноз не подменяет», «в начислении не участвует»,
+            «в исполнение плана не входит», «ничего не хранится» — первое видно по составу
+            вкладок, последнее говорит пилюля «выводится» у заголовка. Оставшееся не сокращается
+            дальше: после ADR-0108 взнос считается, а не берётся из графика, и «даты и взнос
+            остаются договорными» стало бы прямой неправдой. */''}
       <p class="section-note">Прогноз — ожидание по <b>контрактному графику</b>: даты позиций и гасимое в них
         <b>тело</b> остаются договорными, а сумма взноса считается от <b>фактического остатка основного долга</b>
         (ADR-0108). Проценты идут на непогашенное тело, поэтому при просрочке взнос <b>выше графика</b>, а при
         досрочке ниже — и досрочное погашение вдобавок <b>сокращает срок</b>: лишние позиции в хвосте гаснут.
         Уменьшить сам взнос можно лишь перестроением графика по заявлению заёмщика (ADR-0074) — это сделка, а не
         пересчёт экрана. Непокрытое прошлое остаётся в своих позициях и вперёд не переносится: срок по нему уже
-        наступил, — но из базы <b>начисления</b> оно не уходит, деньги у заёмщика на руках (ADR-0105).
-        Контракт прогноз не подменяет (сам контракт — во вкладке «График»), в начислении не участвует и в
-        исполнение плана не входит — исполнение сверяет факт с <b>планом</b> (ADR-0042). Ничего не хранится:
-        всё строится заново при каждом рендере (Д-9 — порядок сумм, не банковская копейка).</p>
+        наступил, — но из базы <b>начисления</b> оно не уходит, деньги у заёмщика на руках (ADR-0105).</p>
       ${ms?`<div class="info-plate">${svgInfo()}<div>По кредиту действует <b>мировое соглашение ${esc(ms.num)}</b>
         от ${esc(ms.date)} (${esc(ms.status)}). У него собственный живой график, и ведёт его <b>взыскание</b>
         (${esc(ms.source||'модуль взыскания')}, ADR-0047) — фактическое ожидание определяется им, а не тем,
-        что показано ниже. Здесь остаётся ожидание по контрактному графику: он не отменён, но стороны
-        заменили порядок его исполнения.</div></div>`:''}
+        что показано ниже.</div></div>`:''}
       ${d.calcStopped?`<div class="info-plate">${svgInfo()}<div>Кредит закрыт <b>${esc(d.calcUntil)}</b>
         (${esc((c.closure&&c.closure.reason)||'')}): начисление остановлено, будущих позиций нет и прогнозировать
         вперёд нечего. Ниже — недобор на дату остановки.</div></div>`:''}
       ${(!d.calcStopped && !fut.length && fr.length)?`<div class="info-plate">${svgInfo()}<div>График
         <b>исчерпан</b>: все позиции ${sel?'по траншу №'+esc(String(sel.no)):'кредита'} наступили, срок кончился.
-        Ожидание равно непокрытому остатку прошлого — новых позиций прогноз не выдумывает, их назначает
-        только перестроение графика.</div></div>`:''}
+        Ожидание равно непокрытому остатку прошлого; новые позиции назначает только перестроение
+        графика.</div></div>`:''}
       ${unfunded.length?`<div class="info-plate">${svgInfo()}<div>${unfunded.length>1?'Транши':'Транш'}
         ${unfunded.map(t=>'№'+t.no).join(', ')} <b>${unfunded.length>1?'не освоены':'не освоен'}</b>: фактической базы
-        ещё нет, и прогноз построен на договорной сумме. Пока освоения нет, это ожидание по контракту, а не по
-        факту, — освоения может не быть вовсе, пока держат условия выдачи.</div></div>`:''}
+        ещё нет, и прогноз построен на договорной сумме.</div></div>`:''}
       <div class="phead-dims" style="grid-template-columns:repeat(5,1fr);margin-top:6px">
         ${/* ГЛАВНЫЙ ОТВЕТ вкладки — дата, а не сумма: суммы по позициям спрашивают у графика.
               Досрочка при неизменном взносе видна ровно здесь (ADR-0074 §«Последствия»). */''}
@@ -6957,11 +6971,10 @@ if (typeof document !== 'undefined') {
     const svod=`
       <div class="section-h">Свод на ${esc(d.calcUntil)}${d.calcStopped?' — расчёт остановлен':''}</div>
       ${d.calcStopped?`<div class="info-plate">${svgInfo()}<div>Кредит закрыт <b>${esc(d.calcUntil)}</b> (${esc((c.closure&&c.closure.reason)||'')}): начисление остановлено, все величины застыли на этой дате и от даты среза ${esc(cardAsOf)} больше не зависят.</div></div>`:''}
-      <p class="section-note">Начисленное ВЫВОДИТСЯ из активной версии графика, условий на дату среза и интервалов
-        приостановки; погашенное приходит зеркалом модуля платежей${(c.mirror.paymentsAsOf)?` (снимок ${esc(c.mirror.paymentsAsOf)})`:' (платежей нет)'}.
+      <p class="section-note">Начислено — по активной версии графика и условиям на дату среза; погашено — зеркало
+        модуля платежей${(c.mirror.paymentsAsOf)?` (снимок ${esc(c.mirror.paymentsAsOf)})`:' (платежей нет)'}.
         База начисления — <b>фактическое непогашенное тело</b>, а не контрактное: пока просрочка по телу висит,
-        проценты идут выше графика, после досрочки — ниже (ADR-0105); отклонение подписано под колонкой «Начислено».
-        Хранимого расчёта нет: таблица ниже строится заново при каждом рендере.${isFx?` Валюта ${esc(cur)}, курс НБКР ${money(fx)}.`:''}</p>
+        проценты идут выше графика, после досрочки — ниже (ADR-0105); отклонение подписано под колонкой «Начислено».${isFx?` Валюта ${esc(cur)}, курс НБКР ${money(fx)}.`:''}</p>
       ${d.calcProvisional?`<div class="warn-inline">${svgInfo()}<div>Расчёт за период <b>после ${esc(d.paymentsAsOf)}</b> — <b>предварительный</b>:
         начисленное кредит выводит на любую дату, а погашенное знает только до снимка зеркала. Платежи этих дней ещё не приехали,
         поэтому просрочка и пеня за хвост посчитаны по неполным данным и могут уменьшиться, когда снимок обновится.</div></div>`:''}
@@ -7030,9 +7043,8 @@ if (typeof document !== 'undefined') {
       ${/* «(по кредиту)», а не «(консолидировано)»: второе имя той же области было последним
             уцелевшим после КВ-17 — шапка говорит «По кредиту», «График» и «Прогноз» тоже. */''}
       <div class="section-h" style="margin-top:22px">Детальный расчёт ${!sel?'(по кредиту)':'(транш №'+sel.no+')'}</div>
-      <p class="section-note">Начисление разложено по позициям <b>плана</b> — сам план (версии, позиции)
-        живёт во вкладке «График», ожидание по нему — во вкладке «Прогноз». Параметры движка — те же, что и на вкладке «Условия», читаются вместе
-        с цифрами, которые объясняют. Это условия договора: правка — только зарегистрированным основанием.</p>
+      <p class="section-note">Начисление разложено по позициям графика. Параметры ниже — условия договора:
+        правка только зарегистрированным основанием, во вкладке «Условия».</p>
       <div class="f2" style="max-width:760px;margin-bottom:12px">
         ${fld('Метод дней', esc(sel ? conditionsAt(sel, cardAsOf).dayMethod : bc.dayMethod))}
         ${/* «Очерёдность», а не «Очередь погашения»: это ПРАВИЛО старшинства статей, а
@@ -7084,17 +7096,18 @@ if (typeof document !== 'undefined') {
     const hasCourt=(c.mirror.court||[]).length>0;
     return `
       <div class="section-h">Платежи ${lockHtml()}</div>
-      <p class="section-note">Зеркало модуля платежей${c.mirror.paymentsAsOf?`, снимок <b>${esc(c.mirror.paymentsAsOf)}</b>`:''}. Три оси на платёж: регистрация · сопоставление · заморозка.
-        Разнесение по статьям приходит вместе с подтверждением и здесь не правится: матрица разнесения принадлежит платежам, а очередь погашения — кредиту (секция ниже, ADR-0060 §4).
-        <b>Двигает ли платёж остаток — читается по ДВУМ осям, а не по одной:</b> подтверждённый и восстановленный двигают;
-        сторнированный не двигает, но остаётся виден; ожидающий — только если пришёл через <b>шлюз</b> (деньги уже ушли).</p>
+      ${/* Волна 11.08.2026 (третья): «три оси» дословно повторяли три колонки таблицы, а правило
+            «двигает ли платёж остаток» разбиралось в абзаце над колонкой «В расчёте», которая
+            на каждой строке уже отвечает пилюлей. Осталась дата снимка — её на экране больше нет. */''}
+      <p class="section-note">Зеркало модуля платежей${c.mirror.paymentsAsOf?`, снимок <b>${esc(c.mirror.paymentsAsOf)}</b>`:''}.
+        Разнесение по статьям приходит вместе с подтверждением и здесь не правится.</p>
       ${cgrid([{h:'№'},{h:'Дата'},{h:'Транш'},{h:'Сумма',r:1},{h:'Осн.',r:1},{h:'Проц.',r:1},{h:'Пеня',r:1},{h:'Вид'},{h:'Регистрация'},{h:'Сопоставление'},{h:'Заморозка'},{h:'В расчёте'},{h:'Правка'}], payRows.concat(payTot?[payTot]:[]), {empty:'Платежей нет'})}
       <div class="mirror-src">Источник: модуль платежей. Ручной ввод — вызов формы владельца: ему основанием служит список ЦК, поэтому до сверки он остатки не двигает. Разнесение приходит в валюте кредита; сумма и курс — реквизиты поступления.</div>
       <div class="gtoolbar" style="margin-top:12px">${roleBtn('savePayment','Внести платёж вручную','CR.openPaymentModal()','btn btn-primary btn-sm')}</div>
       ${d.courtLayers.length?`<div class="info-plate">${svgInfo()}<div>По кредиту есть <b>слой долга под решением суда</b>:
         ${d.courtLayers.map(L=>`${esc(L.kind)} от ${esc(L.date)}${L.il?' · '+esc(L.il):''} на <b>${money(L.amount)}</b> — ${esc(L.mode.label)}`).join('<br>')}<br>
         Режим определяется ДАТОЙ решения и прилипает к нему навсегда: у одного кредита бывает несколько решений с разными режимами одновременно.
-        Состав слоя по траншам кредит выводит ЛЕСТНИЦЕЙ на дату акта (ADR-0060 §3): присуждённое покрывает взносы в порядке «самое раннее просроченное → дальше», пока не исчерпается; пропорция к телу отвергнута. Начисление на накрытые позиции кредит останавливает сам (сырьё — его) и очередь погашения публикует сам; разнесение платежа по слоям и привязку к исполнительному листу принимает готовыми от платежей.</div></div>`
+        Присуждённое покрывает взносы в порядке «самое раннее просроченное → дальше», пока не исчерпается (ADR-0060 §3); на накрытые позиции начисление остановлено.</div></div>`
       :hasCourt?`<div class="info-plate">${svgInfo()}<div>По кредиту есть судебное решение (${esc((c.mirror.court[0]||{}).kind||'')} от ${esc((c.mirror.court[0]||{}).date||'')}) <b>без присуждённой суммы</b> — слоя долга оно не образует, начисление идёт полностью по договору. Последствия банкротства принадлежат взысканию.</div></div>`:''}
       <div class="section-h" style="margin-top:22px">Задолженность по статьям (из детального расчёта на ${esc(cardAsOf)})</div>
       <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Статья</th><th style="text-align:right">Начислено</th><th style="text-align:right">Погашено</th><th style="text-align:right">Просрочено</th><th style="text-align:right">Остаток</th></tr></thead><tbody>
@@ -7118,25 +7131,22 @@ if (typeof document !== 'undefined') {
         const when = d.calcStopped
           ? `на <b>${esc(q.asOf)}</b> — дату остановки начисления, а не на дату среза ${esc(cardAsOf)}: расчёт закрытого кредита замер`
           : `на <b>${esc(q.asOf)}</b>`;
+        /* Подпись «Σ просроченных строк = X — та же величина, что в своде по статьям выше»
+           снята волной 11.08.2026 (третья): итоговая строка таблицы называет ту же сумму,
+           а свод стоит двумя секциями выше — сверить их можно взглядом. */
         return `
       <div class="section-h" style="margin-top:22px">Очередь погашения <span class="pill info">отдаётся в ПЛАТЕЖИ</span></div>
-      <p class="section-note">Упорядоченный перечень непогашенного ${when}: транш · слой · статья · дата наступления · сумма (<b>ADR-0060 §4</b>).
-        Порядок один — по дате наступления, независимо от того, чей это транш; внутри даты — по очерёдности статей.
-        Платежи льют деньги по наступившей голове списка сверху вниз и своей лестницы не строят: сырьё (взносы, графики, ставки, режимы) целиком у кредита.
-        Ненаступившее показано серым хвостом для обзора, но в матрицу разнесения платежей не попадает — туда идут только наступившие строки
-        (<b>ADR-0057 §1</b>); погасить будущую строку досрочно можно только явным действием куратора, само по себе это не происходит.
-        Перечень производный — отдаётся на дату, не хранится; у части демо-кредитов график — короткий срез в несколько строк, а не полный срок,
-        поэтому сумма строк не обязана сходиться с телом кредита.${d.calcProvisional
+      <p class="section-note">Непогашенное ${when}. Порядок один — по дате наступления, независимо от того, чей это транш;
+        внутри даты — по очерёдности статей. Ненаступившее показано серым хвостом для обзора, но в разнесение платежей
+        не попадает — туда идут только наступившие строки (<b>ADR-0057 §1</b>).${d.calcProvisional
           ? ` <b>Расчёт предварительный:</b> снимок зеркала платежей от ${esc(d.paymentsAsOf)} старше даты расчёта — хвост очереди посчитан по платежам, которых владелец ещё не прислал.`
           : ''}</p>
       ${cgrid([{h:'Срок'},{h:'Слой'},{h:'Транш'},{h:'Статья'},{h:'Сумма',r:1}],
-              rows.concat(foot?[foot]:[]), {empty:'Непогашенного нет'})}
-      <p class="section-note">Σ просроченных строк = <b>${money(over)}</b> — та же величина, что в своде по статьям выше.
-        Разошлись бы они только при двух разных лестницах, а лестница здесь одна.</p>`;
+              rows.concat(foot?[foot]:[]), {empty:'Непогашенного нет'})}`;
       })()}
 
       <div class="section-h" style="margin-top:22px">Счета и код оплаты</div>
-      <p class="section-note">Код оплаты — ключ сопоставления входящего платежа с кредитом, оперативный реквизит, а не паспортное поле договора.</p>
+      <p class="section-note">Код оплаты — ключ сопоставления входящего платежа с кредитом.</p>
       <div class="f2">
         ${fld('Счёт погашения', esc(c.accounts.repayAcct))}
         ${fld('Вид счёта', esc(c.accounts.repayAcctKind))}
@@ -7159,7 +7169,7 @@ if (typeof document !== 'undefined') {
       for (let y=y0; y<=y1; y++) out.push(y); return out; })();
     const pctPill = (p) => p == null ? '<span class="text-muted">—</span>'
       : `<span class="pill ${p >= 100 ? 'low' : p >= 80 ? 'mid' : 'high'}">${p} %</span>`;
-    const rows = pe.rows.map(r => {
+    const monthRow = (r) => {
       const open = planOpenMonth === r.month;
       const prow = planRowOf(c, r.month);
       const main = `<tr${r.dropped?' class="text-muted"':''} style="cursor:${prow?'pointer':'default'}"${prow?` onclick="CR.togglePlanMonth('${jsAttr(r.month)}')"`:''}>
@@ -7181,26 +7191,63 @@ if (typeof document !== 'undefined') {
         <div style="font:var(--font-label);color:var(--text-muted);margin-bottom:6px">Поставил: ${esc(prow.setBy)} · ${esc(prow.setAt)}${prow.seededFrom!=null?` · предзаполнено прогнозом: ${money(prow.seededFrom)}`:''}</div>
         ${hist}
         ${prow.amount!=null?`<div style="margin-top:8px">${actBtn(c,'setPlan',{rows:[{month:prow.month,amount:null}]},'Снять план',`CR.openDropPlanModal('${jsAttr(prow.month)}')`)}</div>`:''}</td></tr>`;
-    });
+    };
     /* В колонке плана — цель периода целиком, в проценте — только наступившие месяцы;
        чтобы это не читалось как ошибка, ненаступившая часть подписана отдельно. */
     const ahead = (a) => a ? `<div style="font:var(--font-label);color:var(--text-muted)">впереди ${money(a)}</div>` : '';
-    const qRows = pe.quarters.map(q=>`<tr><td>${q.q} квартал</td><td style="text-align:right">${q.plan?money(q.plan):'—'}${ahead(q.planAhead)}</td><td style="text-align:right">${money(q.fact)}</td><td style="text-align:right">${pctPill(q.pct)}</td></tr>`);
-    qRows.push(`<tr style="font-weight:var(--weight-semibold);background:var(--surface-panel)"><td>За год</td>
-      <td style="text-align:right">${pe.total.plan?money(pe.total.plan):'—'}${ahead(pe.total.planAhead)}</td>
-      <td style="text-align:right">${money(pe.total.fact)}</td>
-      <td style="text-align:right">${pctPill(pe.total.pct)}</td></tr>`);
+    /* КВАРТАЛ И МЕСЯЦ В ОДНОЙ ТАБЛИЦЕ (КВ-21, волна 11.08.2026).
+       Было две таблицы одного предмета: «Месяц · Прогноз · План · Факт · Исполнение · Правки»
+       и отдельной карточкой ниже «Итоги года» с «Период · План · Факт · Исполнение». Разные
+       наборы колонок под одними именами заставляли сверять «1 квартал» с тремя строками
+       в таблице выше глазами, а годовая строка второй таблицы дословно повторяла плитки
+       шапки — та же цифра в двух местах читается как две разные величины.
+       Теперь квартал — СТРОКА-ГРУППА той же таблицы: её План/Факт/Исполнение стоят под
+       своими колонками, месяцы квартала лежат под ней и сворачиваются кликом. Свёрнутые
+       все четыре дают ровно прежнюю карточку «Итоги года», развёрнутые — прежний помесячный
+       список; сверять больше нечего, потому что итог стоит над своими слагаемыми.
+       Строки «За год» в таблице НЕТ намеренно: год целиком уже держат четыре плитки шапки
+       (тот же довод, по которому одногодичный «График» не получает строки года).
+       Прогноз у квартала — прочерк: он ориентир при постановке цели ПО МЕСЯЦУ (ADR-0042 §2),
+       квартальной суммы прогноза модель не считает и придумывать её здесь нечего. */
+    const qKey = c.id + '|' + pe.year;
+    if (planOpenQuarters === null || planQuartersKey !== qKey){
+      planOpenQuarters = new Set([1,2,3,4]); planQuartersKey = qKey; }
+    const openQ = planOpenQuarters;
+    const allQOpen = [1,2,3,4].every(q => openQ.has(q));
+    const curQ = (pd(cardAsOf).getFullYear() === pe.year) ? Math.floor(pd(cardAsOf).getMonth()/3) + 1 : null;
+    const rows = [];
+    pe.quarters.forEach(q => {
+      const open = openQ.has(q.q);
+      /* Подпись справа отвечает на «по скольким месяцам это посчитано»: план квартала —
+         по месяцам с планом, процент — только по наступившим из них. Без неё «—» в
+         проценте у квартала с планом читался бы как сбой. */
+      const note = q.months
+        ? `${q.months} из 3 мес. с планом` + (q.monthsDone < q.months ? ` · наступило ${q.monthsDone}` : '')
+        : 'плана на квартал нет';
+      rows.push(`<tr class="gyear${open?' open':''}" onclick="CR.togglePlanQuarter(${q.q})" title="${open?'Свернуть':'Развернуть'} ${q.q} квартал">
+        <td><span class="gcar">${open?'▾':'▸'}</span><span class="gy">${q.q} квартал</span>${q.q===curQ?'<span class="pill neutral">текущий</span>':''}</td>
+        <td style="text-align:right" class="text-muted">—</td>
+        <td style="text-align:right">${q.months?`<b>${money(q.plan)}</b>`:'<span class="text-muted">—</span>'}${ahead(q.planAhead)}</td>
+        ${/* Квартал без плана не пишет «0,00» ни в план, ни в факт: ноля там не считали —
+             в сумму квартала входят только месяцы с планом, а их ноль. Прочерк и подпись
+             «плана на квартал нет» говорят это прямо; «0,00» читалось бы как «не собрали». */''}
+        <td style="text-align:right">${q.months?`<b>${money(q.fact)}</b>`:'<span class="text-muted">—</span>'}</td>
+        <td style="text-align:right">${pctPill(q.pct)}</td>
+        <td class="gyear-s">${note}</td></tr>`);
+      if (!open) return;                                  // квартал свёрнут — стоит одной итоговой строкой
+      pe.rows.slice((q.q-1)*3, q.q*3).forEach(r => rows.push(monthRow(r)));
+    });
     return `
       <div class="section-h">План и его исполнение ${derivedHtml()}</div>
-      <p class="section-note">План — <b>вводимая</b> величина: цель на месяц, поставленная в момент N, и от прогноза
-        после сохранения она не зависит (ADR-0042). Это единственное исключение из правила «производные не хранятся».
-        Исполнение — производная: факт месяца / план месяца, по всем четырём статьям долга кредита;
-        расходы по обращению взыскания в факт не входят. <b>Месяц без плана в расчёт не входит</b> — ни сам,
-        ни в квартальной, ни в годовой сумме. <b>Ненаступивший месяц процента не имеет</b>: его нулевой факт означает
-        «срок не подошёл», а не «ничего не собрали», — поэтому в процент квартала и года он не входит, а его план
-        подписан отдельно («впереди»). Показатель для отображения: на категорию риска, гейты и подгруппу не влияет (И-18).
-        Колонка «Прогноз» здесь — ориентир при постановке цели (им же предзаполняется форма): помесячная сумма
-        по кредиту целиком. Сам прогноз, с разбором по позициям транша, — во вкладке «Прогноз».</p>
+      ${/* Волна 11.08.2026 (третья): абзац на девять строк сведён к трём предложениям. Правила
+            «месяц без плана в расчёт не входит» и «ненаступивший месяц процента не имеет»
+            сняты из текста не потому, что неважны, — их называют сами строки («в расчёт не
+            входит», «месяц не наступил») и подписи плиток («по наступившим месяцам»,
+            «остальные в расчёт не входят»). */''}
+      <p class="section-note">План — <b>вводимая</b> величина: цель на месяц, и от прогноза после сохранения
+        она не зависит (ADR-0042). Исполнение — факт / план по всем четырём статьям долга; расходы по
+        обращению взыскания в факт не входят. Колонка «Прогноз» — ориентир при постановке цели (им же
+        предзаполняется форма); сам прогноз, с разбором по позициям транша, — во вкладке «Прогноз».</p>
       <div class="phead-dims" style="grid-template-columns:repeat(4,1fr)">
         ${dimTile(`План за ${pe.year}`, pe.total.plan?money(pe.total.plan):'—',
           esc(cur) + (pe.total.planAhead?` · впереди ${money(pe.total.planAhead)}`:''))}
@@ -7215,9 +7262,12 @@ if (typeof document !== 'undefined') {
         <span class="spacer"></span>
         ${actBtn(c,'setPlan',{rows:[{month:monthKey(cardAsOf),amount:1}]},'Поставить план','CR.openPlanModal()','btn btn-primary btn-sm')}
       </div>
-      ${cgrid([{h:'Месяц'},{h:'Прогноз',r:1},{h:'План',r:1},{h:'Факт',r:1},{h:'Исполнение',r:1},{h:'Правки'}], rows)}
-      <div class="section-h" style="margin-top:22px">Итоги ${pe.year}</div>
-      ${cgrid([{h:'Период'},{h:'План',r:1},{h:'Факт',r:1},{h:'Исполнение',r:1}], qRows)}`;
+      <div class="gtoolbar" style="margin:10px 0 8px">
+        <span class="text-muted" style="font:var(--font-label)">Развёрнут${allQOpen?'ы все четыре квартала':`о ${plur(openQ.size,'квартал','квартала','кварталов')} из 4`}</span>
+        <span class="spacer"></span>
+        <button class="btn btn-secondary btn-sm" onclick="CR.setPlanQuarters([${allQOpen?'':'1,2,3,4'}])">${allQOpen?'Свернуть все кварталы':'Развернуть все кварталы'}</button>
+      </div>
+      ${cgrid([{h:'Период'},{h:'Прогноз',r:1},{h:'План',r:1},{h:'Факт',r:1},{h:'Исполнение',r:1},{h:'Правки'}], rows)}`;
   }
 
   /* ---- ВКЛАДКА 9: Обеспечение (зеркало залогового модуля, Р-7) ---- */
@@ -7249,7 +7299,7 @@ if (typeof document !== 'undefined') {
     }
     const bg=c.mirror.bankGuarantee, guars=(c.mirror.guarantees||[]);
     const insp=(c.mirror.inspections||[]);
-    const inspRows=insp.map(x=>`<tr><td>${esc(x.date)}</td><td>${esc(x.obj)}</td><td>${esc(x.curator)}</td><td><span class="pill ${x.ok?'low':'high'}">${esc(x.res)}</span></td><td>${x.file?`<a class="lnk" onclick="CR.toast('Просмотр вложения — вне объёма макета');return false">${esc(x.file)}</a>`:'—'}</td></tr>`);
+    const inspRows=insp.map(x=>`<tr><td>${esc(x.date)}</td><td>${esc(x.obj)}</td><td>${esc(x.curator)}</td><td><span class="pill ${x.ok?'low':'high'}">${esc(x.res)}</span></td><td>${x.file?esc(x.file):'—'}</td></tr>`);
     const svod = pledgeList.length ? `
       <div class="phead-dims" style="grid-template-columns:repeat(3,1fr);margin-bottom:14px">
         <div class="dim"><div class="dl">Действующих договоров</div><div class="dv">${pledgeList.length} ед.</div></div>
@@ -7258,15 +7308,16 @@ if (typeof document !== 'undefined') {
       </div>` : '';
     return `
       <div class="section-h">Обеспечение ${lockHtml()}</div>
-      <p class="section-note">Зеркало залогового модуля. Залоговые договоры создаются только в модуле залога — здесь доступна привязка существующего.</p>
+      ${/* Подпись «Зеркало залогового модуля…» снята волной 11.08.2026 (третья): то же самое
+            говорят замок у заголовка, строка источника под таблицей и ярлыки кнопок внизу
+            («Договор залога заводится в модуле залога»). */''}
       ${svod}
       ${cgrid([{h:'Договор залога'},{h:'Нотариус'},{h:'Предмет'},{h:'Вид'},{h:'Оценочная',r:1},{h:'Залоговая',r:1},{h:'Доля'},{h:'Ликвидность'},{h:'Запрет отчуждения'},{h:'Также обеспечивает'}], pledgeRows, {empty:'Обеспечение не привязано'})}
       <div class="mirror-src">Источник: модуль залога. Данные read-only.</div>
       <div class="section-h" style="margin-top:22px">Обеспеченность ${lockHtml()}</div>
       <p class="section-note">Индекс НОРМИРОВАН на порог: 100 % = порог выполнен, при любом пороге.
-        Числитель и пороги считает модуль залога — там живёт правило; кредит владеет
-        базой (сумма под риском) и порогом по решению КМ. У залоговой стоимости и у банковской
-        гарантии пороги РАЗНЫЕ, поэтому индекс — сумма двух нормированных слагаемых.</p>
+        У залоговой стоимости и у банковской гарантии пороги РАЗНЫЕ, поэтому индекс — сумма двух
+        нормированных слагаемых.</p>
       <div class="phead-dims" style="grid-template-columns:repeat(${cov.liqApplies?5:4},1fr)">
         <div class="dim"><div class="dl">Индекс обеспеченности</div><div class="dv"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${light};margin-right:6px"></span>${cov.index==null?'—':Math.round(cov.index*100)+'%'}</div>
           ${cov.idxGuar?`<div class="src">залог ${Math.round(cov.idxPledge*100)}% + гарантия ${Math.round(cov.idxGuar*100)}%</div>`
@@ -7282,15 +7333,16 @@ if (typeof document !== 'undefined') {
       </div>
       <div class="mirror-src">${esc(cov.source)}${cov.mirror?` · залоговая ${money(cov.mirror.pledgeValue)} (ликвид ${money(cov.mirror.liquidValue)} · неликвид ${money(cov.mirror.illiquidValue)})${cov.mirror.bankGuarantee?` + банковская гарантия ${money(cov.mirror.bankGuarantee)} при своём пороге ${cov.mirror.guaranteeReq}%`:''} · снимок ${esc(cov.mirror.asOf)}`:''}</div>
       ${(km||wv)?`<div class="section-h" style="margin-top:22px">Основания освобождения от порога</div>
-        <p class="section-note">Собственные поля кредита (Р-8), а не данные модуля залога: и решение КМ, и waiver принимает кредитор. Здесь они только читаются — правка во вкладке «Договор».</p>
-        ${km?`<div class="f2">${fld('Решение КМ', esc(km.kind||'Решение КМ')+' '+esc(km.num||'')+(km.date?' от '+esc(km.date):''))}${fld('Порог по решению', km.coverPct==null?null:(esc(km.coverPct)+' %'+(+km.coverPct===0?' — полное освобождение от порога':'')))}${fld('Скан', km.scan?`<a class="lnk" onclick="CR.toast('Просмотр вложения — вне объёма макета');return false">${esc(km.scan)}</a>`:null)}</div>`:''}
+        ${/* Подпись «здесь только читаются — правка во вкладке „Договор“» снята: ровно это
+              написано на кнопке под секцией, и она туда же ведёт. */''}
+        ${km?`<div class="f2">${fld('Решение КМ', esc(km.kind||'Решение КМ')+' '+esc(km.num||'')+(km.date?' от '+esc(km.date):''))}${fld('Порог по решению', km.coverPct==null?null:(esc(km.coverPct)+' %'+(+km.coverPct===0?' — полное освобождение от порога':'')))}${fld('Скан', km.scan?esc(km.scan):null)}</div>`:''}
         ${wv?`<div class="f2"${km?' style="margin-top:10px"':''}>${fld('Waiver комиссии по залогу',
             'выдан '+esc(wv.when)+(waiverActive?' <span class="pill info">применён</span>':' <span class="pill neutral">не требуется — порог пройден</span>'))}${fld('Обоснование', esc(wv.reason), {span:true, wrap:true})}</div>`:''}
         <div class="gtoolbar" style="margin-top:6px"><button class="btn btn-secondary btn-sm" onclick="CR.openTab('Договор')">Изменить во вкладке «Договор»</button></div>`:''}
       ${bg?`<div class="section-h" style="margin-top:22px">Банковская гарантия (в индексе, со своим порогом)</div>
         <div class="f2">${fld('Банк',esc(bg.bank))}${fld('Сумма',money(bg.amount))}${fld('Валюта гарантии',esc(bg.currency||c.currency||'KGS'))}${fld('Действует до',esc(bg.till))}</div>
         <div class="mirror-src">Порог гарантии ${cov.mirror&&cov.mirror.guaranteeReq?cov.mirror.guaranteeReq:100} % — ${(bg.currency||c.currency||'KGS')===(c.currency||'KGS')?'валюта гарантии совпадает с валютой кредита':'валюта гарантии отличается от валюты кредита, порог с курсовым запасом'}.${cov.mirror&&cov.mirror.guaranteeExpired?' Срок гарантии истёк — в индекс не входит.':''}</div>`:''}
-      ${guars.length?`<div class="info-plate">${svgInfo()}<div>Поручительство (${guars.map(g=>esc(g.party)).join(', ')}) — параллельный слой обеспечения. В индекс обеспеченности НЕ входит: у поручительства нет предмета, а значит и залоговой стоимости. Это обеспечительный договор, и при взыскании поручитель становится отдельным обязанным лицом — со своим требованием.</div></div>`:''}
+      ${guars.length?`<div class="info-plate">${svgInfo()}<div>Поручительство (${guars.map(g=>esc(g.party)).join(', ')}) — параллельный слой обеспечения. В индекс обеспеченности НЕ входит: у поручительства нет предмета, а значит и залоговой стоимости.</div></div>`:''}
       <div class="section-h" style="margin-top:22px">Обследования предметов залога ${lockHtml()}</div>
       ${cgrid([{h:'Дата'},{h:'Договор / предмет'},{h:'Куратор'},{h:'Результат'},{h:'Вложение'}], inspRows, {empty:'Обследований не проводилось'})}
       <div class="mirror-src">Источник: модуль залога. Акты обследования read-only — заводятся в модуле залога.</div>
@@ -7322,69 +7374,91 @@ if (typeof document !== 'undefined') {
       <td class="text-muted" style="font:var(--font-label)">${x.lastMeasure?esc(x.lastMeasure):'—'}</td>
       <td><a class="rowlink" onclick="CR.toast('Процесс ${jsAttr(x.processId)} — открывается в модуле взыскания')">${esc(x.processId)}</a></td></tr>`);
     const hasBankruptcy=d.stateFlags.some(o=>o.kind==='bankruptcy');
-    const courtRows=(c.mirror.court||[]).map(x=>`<tr><td>${esc(x.date)}</td><td>${esc(x.kind)}</td><td>${esc(x.org)}</td><td><span class="pill ${x.ok?'low':'mid'}">${esc(x.res)}</span></td><td>${x.file?`<a class="lnk" onclick="CR.toast('Просмотр документа — вне объёма макета');return false">${esc(x.file)}</a>`:'—'}</td></tr>`);
+    const courtRows=(c.mirror.court||[]).map(x=>`<tr><td>${esc(x.date)}</td><td>${esc(x.kind)}</td><td>${esc(x.org)}</td><td><span class="pill ${x.ok?'low':'mid'}">${esc(x.res)}</span></td><td>${x.file?esc(x.file):'—'}</td></tr>`);
     const factRows=(c.factors||[]).map(f=>{const act=rb.factors.includes(f);
       return `<tr${act?'':' style="opacity:.55"'}><td>${esc(f.kind)}</td><td><b class="cat-${catClsOf(f.level)}">${esc(f.level)}</b></td>
       <td>${esc(f.from)}</td><td>${esc(f.to||'—')}</td><td>${esc(f.committeeRef||'')}</td>
       <td>${act?'<span class="pill low">действует</span>':'<span class="pill neutral">не действует</span>'}</td>
       <td class="text-muted" style="font:var(--font-label)">${esc(f.note||'')}</td></tr>`;});
+    /* Волна 11.08.2026 (КВ-20): сплошная лента из семи секций на всю ширину заменена
+       карточками .pcards в две колонки, как в «Договоре» и «Условиях». Прежняя раскладка
+       смешивала два разных вопроса вкладки в одну колонку и разводила родственные блоки
+       на экраны: категория стояла через таблицу факторов от своего второго входа —
+       подгруппы, а «Закрытие кредита» лежало под двумя таблицами взыскания, то есть
+       единственные ДЕЙСТВИЯ вкладки были её самым нижним элементом.
+       Обход теперь по смыслу: слева ОЦЕНКА (почему кредит проблемный — категория и её
+       входы), справа РАБОТА С ДОЛГОМ (что с ним делают — послабление реструктуризацией
+       и завершение), ниже на всю ширину — таблицы: сначала рабочие (требования, суд),
+       последней — справочная детализация категории (факторы). Факторы внизу намеренно:
+       свою величину они уже отдали строкой «по факторам» в категории, читаются редко
+       и только при разборе «почему такая категория» — то есть после того, как ответ
+       на главный вопрос вкладки уже получен.
+       Таблицы в половину ширины не ставятся: у требований 10 колонок, у факторов 7 —
+       при .cgrid с white-space:nowrap половина полосы дала бы горизонтальный скролл. */
     return `
-      <div class="section-h">Категория риска — худшее из двух ${derivedHtml()}</div>
-      <p class="section-note">Категория живёт на кредите и считается им: одна функция, один результат.
-        Эта вкладка разбирает вывод, а не повторяет расчёт — иначе шапка и вкладка расходятся, как было до волны.</p>
-      <div class="cat-expand">
-        <div class="row"><span class="ck">По просрочке (${rb.eff} дн.${rb.relief?`, фактически ${rb.raw}`:''}):</span> <b class="cat-${catClsOf(rb.byDays)}">${rb.byDays}</b></div>
-        <div class="row"><span class="ck">По факторам (${rb.factors.length} действ.):</span> <b class="cat-${catClsOf(rb.byFactors)}">${rb.byFactors}</b></div>
-        <div class="row"><span class="ck">Итоговая (худшая):</span> <b class="cat-${catClsOf(d.riskCategory)}">${d.riskCategory}</b></div>
-      </div>
-      ${rb.relief?`<div class="info-plate">${svgInfo()}<div>Действует <b>послабление</b>: ${esc(rb.relief.basis||'подавление 181-го дня')}.
-        Дни просрочки для категории ограничены 180 (фактически ${rb.raw}). Срок послабления — до <b>${esc(rb.relief.deadline||'—')}</b>;
-        по истечении или отказе категория считается по фактическим дням без пересчёта задним числом.</div></div>`:''}
+      <div class="pcards">
+        <div class="pcol">
+          <div class="pcard">
+            <div class="section-h">Категория риска — худшее из двух ${derivedHtml()}</div>
+            <div class="cat-expand">
+              <div class="row"><span class="ck">По просрочке (${rb.eff} дн.${rb.relief?`, фактически ${rb.raw}`:''}):</span> <b class="cat-${catClsOf(rb.byDays)}">${rb.byDays}</b></div>
+              <div class="row"><span class="ck">По факторам (${rb.factors.length} действ.):</span> <b class="cat-${catClsOf(rb.byFactors)}">${rb.byFactors}</b></div>
+              <div class="row"><span class="ck">Итоговая (худшая):</span> <b class="cat-${catClsOf(d.riskCategory)}">${d.riskCategory}</b></div>
+            </div>
+            ${rb.relief?`<div class="info-plate">${svgInfo()}<div>Действует <b>послабление</b>: ${esc(rb.relief.basis||'подавление 181-го дня')}.
+              Дни просрочки для категории ограничены 180 (фактически ${rb.raw}). Срок послабления — до <b>${esc(rb.relief.deadline||'—')}</b>;
+              по истечении или отказе категория считается по фактическим дням без пересчёта задним числом.</div></div>`:''}
+          </div>
 
-      <div class="section-h" style="margin-top:22px">Факторы категории</div>
-      <p class="section-note">Второй вход worst-of. Фактор действует только со ссылкой на решение комитета:
-        категорию нельзя «настроить» — за каждым ужесточением стоит документ. Строки без решения или вне интервала показаны бледными.</p>
-      ${cgrid([{h:'Фактор'},{h:'Уровень'},{h:'С'},{h:'По'},{h:'Решение комитета'},{h:'Состояние'},{h:'Примечание'}], factRows, {empty:'Факторов не зарегистрировано'})}
+          <div class="pcard">
+            <div class="section-h">Подгруппа заёмщика ${lockHtml()}</div>
+            <p class="section-note">Считается по всем кредитам заёмщика, не только по этому.</p>
+            <div class="cat-expand">
+              <div class="row"><span class="ck">Группа:</span> <b>${esc(d.group||'—')}</b></div>
+              <div class="row"><span class="ck">Подгруппа:</span> <b>${esc(d.subgroup||'—')}</b> — ${esc(d.subgroupLabel||'нет данных')}</div>
+            </div>
+            <div class="mirror-src">Источник: карточка заёмщика, снимок ${esc((c.mirror.borrower||{}).asOf||'—')}. Read-only.</div>
+          </div>
+        </div>
 
-      <div class="section-h" style="margin-top:22px">Подгруппа заёмщика ${lockHtml()}</div>
-      <p class="section-note">Классификатор работы с долгом ведёт карточка заёмщика и считает по ВСЕМ его кредитам.
-        Кредит показывает значение зеркалом — он не может знать, что происходит с соседними кредитами того же заёмщика.</p>
-      <div class="cat-expand">
-        <div class="row"><span class="ck">Группа:</span> <b>${esc(d.group||'—')}</b></div>
-        <div class="row"><span class="ck">Подгруппа:</span> <b>${esc(d.subgroup||'—')}</b> — ${esc(d.subgroupLabel||'нет данных')}</div>
-        <div class="row"><span class="ck">Снимок:</span> ${esc((c.mirror.borrower||{}).asOf||'—')} · источник: карточка заёмщика</div>
-      </div>
+        <div class="pcol">
+          <div class="pcard">
+            <div class="section-h">Реструктуризация ${lockHtml()}</div>
+            ${rs.active?`<div class="f2">${fld('Стадия',esc(rs.active.stage))}${fld('Дедлайн',esc(rs.active.deadline))}${rs.active.amount?fld('Сумма реструктуризации',money(rs.active.amount)+(rs.active.currency&&rs.active.currency!=='KGS'?' '+esc(rs.active.currency):'')):''}${fld('Всего заявок',esc(rs.count))}</div>
+              <p class="section-note" style="margin:12px 0 0">Реструктуризация последствий не снимает — их снимает запись послабления${rb.relief?`, она действует (см. категорию слева)`:`, сейчас её нет`}.</p>`
+              :`<p class="section-note" style="margin:0">Активной реструктуризации нет. Всего заявок: ${rs.count}.</p>`}
+            <div class="mirror-src">Источник: модуль реструктуризации. Read-only — из кредита не заводится.</div>
+            <div class="gtoolbar"><button class="btn btn-secondary btn-sm" onclick="CR.toast('Открытие модуля реструктуризации — вне объёма макета')">Открыть в модуле реструктуризации</button></div>
+          </div>
 
-      <div class="section-h" style="margin-top:22px">Реструктуризация ${lockHtml()}</div>
-      ${rs.active?`<div class="f2">${fld('Стадия',esc(rs.active.stage))}${fld('Дедлайн',esc(rs.active.deadline))}${rs.active.amount?fld('Сумма реструктуризации',money(rs.active.amount)+(rs.active.currency&&rs.active.currency!=='KGS'?' '+esc(rs.active.currency):'')):''}${fld('Всего заявок',esc(rs.count))}</div>
-        <p class="section-note">Реструктуризация — <b>признак состояния</b>, а не послабление: сама по себе она ничего не снимает.
-          Последствие снимает отдельная запись послабления${rb.relief?` — она действует, см. блок категории выше`:` — сейчас такой записи нет, категория считается по фактическим дням`}.</p>`
-        :`<p class="section-note">Активной реструктуризации нет. Всего заявок: ${rs.count}.</p>`}
-      <div class="mirror-src">Источник: модуль реструктуризации. Read-only — из кредита не заводится.</div>
-      <div class="gtoolbar" style="margin-top:10px"><button class="btn btn-secondary btn-sm" onclick="CR.toast('Открытие модуля реструктуризации — вне объёма макета')">Открыть в модуле реструктуризации</button></div>
+          <div class="pcard">
+            <div class="section-h">Закрытие кредита</div>
+            <div class="gtoolbar">
+              ${actBtn(c,'repay',{},'Погасить (закрыть)','CR.openRepayModal()','btn btn-tint btn-sm')}
+              ${roleBtn('writeOff','Списать','CR.openWriteOffModal()','btn btn-tint danger btn-sm')}
+              ${actBtn(c,'terminate',{doc:{},reason:'—'},'Расторгнуть','CR.openTerminateModal()','btn btn-tint danger btn-sm')}
+            </div>
+          </div>
+        </div>
 
-      <div class="section-h" style="margin-top:22px">Требования взыскания ${lockHtml()}</div>
-      <p class="section-note">Единица работы взыскания — <b>требование</b>: процесс × кредит × обязанное лицо.
-        По одному процессу требований бывает несколько — к заёмщику, поручителю, залогодателю, — и у каждого своя стадия.
-        Фаза приходит свёрнутой из журнала мер, кредит её не хранит.</p>
-      ${cgrid([{h:'Требование'},{h:'Обязанное лицо'},{h:'Охват'},{h:'Фаза'},{h:'Стадия'},{h:'Ведущее подразделение'},{h:'Сумма',r:1},{h:'С даты'},{h:'Последняя мера'},{h:'Процесс'}], claimRows, {empty:'Требований взыскания нет'})}
-      <div class="mirror-src">Источник: модуль взыскания${c.mirror.claimsAsOf?`, снимок ${esc(c.mirror.claimsAsOf)}`:''}. Read-only.${d.collectionCosts>0?` Расходы по обращению взыскания: <b>${money(d.collectionCosts)}</b> — пятая статья долга, собственность взыскания; в остаток кредита и в гейт «Погашен» не входит.`:''}</div>
-      <div class="gtoolbar" style="margin-top:10px"><button class="btn btn-secondary btn-sm" onclick="CR.toast('Открытие модуля взыскания — вне объёма макета')">Открыть в модуле взыскания</button></div>
+        <div class="pcard wide">
+          <div class="section-h">Требования взыскания ${lockHtml()}</div>
+          ${cgrid([{h:'Требование'},{h:'Обязанное лицо'},{h:'Охват'},{h:'Фаза'},{h:'Стадия'},{h:'Ведущее подразделение'},{h:'Сумма',r:1},{h:'С даты'},{h:'Последняя мера'},{h:'Процесс'}], claimRows, {empty:'Требований взыскания нет'})}
+          <div class="mirror-src">Источник: модуль взыскания${c.mirror.claimsAsOf?`, снимок ${esc(c.mirror.claimsAsOf)}`:''}. Read-only.${d.collectionCosts>0?` Расходы по обращению взыскания: <b>${money(d.collectionCosts)}</b> — пятая статья долга, собственность взыскания; в остаток кредита и в гейт «Погашен» не входит.`:''}</div>
+          <div class="gtoolbar"><button class="btn btn-secondary btn-sm" onclick="CR.toast('Открытие модуля взыскания — вне объёма макета')">Открыть в модуле взыскания</button></div>
+        </div>
 
-      <div class="section-h" style="margin-top:22px">Банкротство и судебные решения ${lockHtml()}</div>
-      <p class="section-note">${hasBankruptcy?'Признаки банкротства зафиксированы (зеркало модуля взыскания).':'Процедур банкротства нет.'}</p>
-      ${cgrid([{h:'Дата'},{h:'Вид'},{h:'Орган / суд'},{h:'Результат'},{h:'Документ'}], courtRows, {empty:'Судебных решений и процедур банкротства нет'})}
-      <div class="mirror-src">Источник: модуль взыскания. Read-only.</div>
+        <div class="pcard wide">
+          <div class="section-h">Банкротство и судебные решения ${hasBankruptcy?'<span class="pill high">банкротство</span> ':''}${lockHtml()}</div>
+          ${cgrid([{h:'Дата'},{h:'Вид'},{h:'Орган / суд'},{h:'Результат'},{h:'Документ'}], courtRows, {empty:'Судебных решений и процедур банкротства нет'})}
+          <div class="mirror-src">Источник: модуль взыскания. Read-only.</div>
+        </div>
 
-      <div class="section-h" style="margin-top:22px">Закрытие кредита</div>
-      <p class="section-note">Три основания: «Погашен» при нулевом остатке по четырём статьям и без действующих требований ·
-        «Списан» с реквизитами решения · «Расторгнут» соглашением или решением.
-        Признание задолженности безнадёжной оформляется как списание с соответствующим решением; завершение процедуры
-        банкротства приходит из взыскания — кредит закрывается по его результату, а не объявляет банкротство сам.</p>
-      <div class="gtoolbar" style="margin-top:10px">
-        ${actBtn(c,'repay',{},'Погасить (закрыть)','CR.openRepayModal()','btn btn-tint btn-sm')}
-        ${roleBtn('writeOff','Списать','CR.openWriteOffModal()','btn btn-tint danger btn-sm')}
-        ${actBtn(c,'terminate',{doc:{},reason:'—'},'Расторгнуть','CR.openTerminateModal()','btn btn-tint danger btn-sm')}
+        <div class="pcard wide">
+          <div class="section-h">Факторы категории</div>
+          <p class="section-note">Фактор действует только со ссылкой на решение комитета и внутри своего интервала.</p>
+          ${cgrid([{h:'Фактор'},{h:'Уровень'},{h:'С'},{h:'По'},{h:'Решение комитета'},{h:'Состояние'},{h:'Примечание'}], factRows, {empty:'Факторов не зарегистрировано'})}
+        </div>
       </div>`;
   }
 
@@ -7404,15 +7478,15 @@ if (typeof document !== 'undefined') {
     const prog=programDocs(c);
     const reqRows=d.docs.required.map(r=>{
       const x=r.doc;
-      return `<tr><td>${esc(r.kind)} <span class="pill mid">обязателен</span></td><td>${x?esc(x.name):'—'}</td>
+      /* Примечание документа снято из колонки (пустая в подавляющем большинстве строк) —
+         живёт в модалке, на вкладке доступно наведением на наименование. */
+      return `<tr><td>${esc(r.kind)} <span class="pill mid">обязателен</span></td><td${x&&x.note?` title="${esc(x.note)}"`:''}>${x?esc(x.name):'—'}</td>
         <td>${x?docState(x.state):'<span class="pill high">не загружен</span>'}</td><td>${x?esc(x.date):'—'}</td>
-        <td>${x&&x.file?`<a class="lnk" onclick="CR.toast('Просмотр вложения — вне объёма макета');return false">${esc(x.file)}</a>`:'—'}</td>
-        <td>${x&&x.note?esc(x.note):''}</td>
+        <td>${x&&x.file?esc(x.file):'—'}</td>
         <td>${roleBtn('editDocs', x?'Изменить':'Загрузить', `CR.openDocModal('${jsAttr(r.kind)}')`,'btn btn-secondary btn-sm')}</td></tr>`;});
-    const extraRows=d.docs.extra.map(x=>`<tr><td>${esc(x.kind)}${prog.opt.includes(x.kind)?' <span class="pill neutral">опционален</span>':''}</td><td>${esc(x.name)}</td>
+    const extraRows=d.docs.extra.map(x=>`<tr><td>${esc(x.kind)}${prog.opt.includes(x.kind)?' <span class="pill neutral">опционален</span>':''}</td><td${x.note?` title="${esc(x.note)}"`:''}>${esc(x.name)}</td>
         <td>${docState(x.state)}</td><td>${esc(x.date)}</td>
-        <td>${x.file?`<a class="lnk" onclick="CR.toast('Просмотр вложения — вне объёма макета');return false">${esc(x.file)}</a>`:'—'}</td>
-        <td>${esc(x.note||'')}</td>
+        <td>${x.file?esc(x.file):'—'}</td>
         <td>${roleBtn('editDocs','Изменить',`CR.openDocModal('${jsAttr(x.kind)}')`,'btn btn-secondary btn-sm')}</td></tr>`);
     const docRows=reqRows.concat(extraRows);
     const curRows=(c.mirror.curatorship||[]).map(x=>`<tr><td>${esc(x.unit)}</td><td>${esc(x.employee)}</td><td>${esc(x.role)}</td><td>${esc(x.from)}</td><td>${esc(x.to||'—')}</td></tr>`);
@@ -7423,49 +7497,44 @@ if (typeof document !== 'undefined') {
        времени, и две записи одного дня были неотличимы по порядку. Сортируем по seq
        убыванием — свежие сверху; записи без seq (архивные) уходят в конец. */
     const auditRows=(c.audit||[]).slice().sort((a,b)=>(b.seq||0)-(a.seq||0))
-      .map(a=>`<div class="hrow"><div class="hwhen">${esc(a.when)}${a.seq?` <span class="src">#${a.seq}</span>`:''} · ${esc(a.who)}</div><div class="hwhat">${esc(a.what)}</div></div>`);
+      .map(a=>`<div class="hrow"><div class="hwhen">${esc(a.when)} · ${esc(a.who)}</div><div class="hwhat">${esc(a.what)}</div></div>`);
     return `
-      <div class="section-h">Документы кредита</div>
-      <p class="section-note">Обязательный комплект задаёт кредитная программа <b>${esc(c.origin.programId||'—')}</b> (зеркало: ${prog.req.map(esc).join(' · ')}${prog.opt.length?`; опционально: ${prog.opt.map(esc).join(' · ')}`:''}).
-        Жизненный цикл документа: требуется → загружен → на проверке → принят / отклонён / не требуется / просрочен.
-        Закрывают требование только состояния «принят» и «не требуется».</p>
-      ${d.docs.complete
-        ? `<div class="info-plate">${svgInfo()}<div>Обязательный комплект собран.</div></div>`
+      <div class="section-h">Документы кредита ${d.docs.complete?'<span class="pill low">комплект собран</span>':''}</div>
+      <p class="section-note">Обязательный комплект задаёт кредитная программа <b>${esc(c.origin.programId||'—')}</b> (зеркало: ${prog.req.map(esc).join(' · ')}${prog.opt.length?`; опционально: ${prog.opt.map(esc).join(' · ')}`:''}).</p>
+      ${d.docs.complete ? ''
         : `<div class="warn-inline">${svgInfo()}<div>Комплект НЕ собран${d.docs.missing.length?`: ${d.docs.missing.map(esc).join(' · ')}`:''}${d.docs.blocked.length?` · отклонены либо просрочены: ${d.docs.blocked.map(x=>esc(x.kind)).join(' · ')}`:''}. Регистрация договора заблокирована.</div></div>`}
-      ${cgrid([{h:'Вид'},{h:'Наименование'},{h:'Состояние'},{h:'Дата'},{h:'Файл'},{h:'Примечание'},{h:''}], docRows, {empty:'Документов нет'})}
+      ${cgrid([{h:'Вид'},{h:'Наименование'},{h:'Состояние'},{h:'Дата'},{h:'Файл'},{h:''}], docRows, {empty:'Документов нет'})}
 
       <div class="section-h" style="margin-top:22px">Регистрация договора — файл и пометка</div>
       <div class="f2">
-        ${fld('Скан договора', c.reg.scan?`<a class="lnk" onclick="CR.toast('Просмотр вложения — вне объёма макета');return false">${esc(c.reg.scan)}</a>`:null)}
+        ${fld('Скан договора', c.reg.scan?esc(c.reg.scan):null)}
         ${fld('Комментарий регистрации', c.reg.comment?esc(c.reg.comment):null, {span:true})}
       </div>
 
       <div class="section-h" style="margin-top:22px">Целевое использование</div>
-      <p class="section-note">Мера реагирования по нецелевому использованию заводится только со ссылкой на решение Комитета —
-        то же правило, что у факторов категории: последствие не наступает без документа-основания.</p>
-      ${cgrid([{h:'Вид'},{h:'Дата'},{h:'Содержание'},{h:'Результат'},{h:'Решение Комитета'},{h:'Файл'}],
+      ${cgrid([{h:'Вид'},{h:'Дата'},{h:'Содержание'},{h:'Результат'},{h:'Файл'}],
         [].concat(
-          (tu.docs||[]).map(x=>`<tr><td>Документ</td><td>${esc(x.date)}</td><td>${esc(x.title)}</td><td>${esc(x.result||'')}</td><td>—</td><td>${x.file?esc(x.file):'—'}</td></tr>`),
-          (tu.checks||[]).map(x=>`<tr><td>Проверка</td><td>${esc(x.date)}</td><td>${esc(x.title)}</td><td>${/отклонен|нецелев/i.test(x.result||'')?`<b style="color:var(--asubk-red)">${esc(x.result)}</b>`:esc(x.result||'')}</td><td>—</td><td>${x.file?esc(x.file):'—'}</td></tr>`),
-          (tu.measures||[]).map(x=>`<tr><td>Мера</td><td>${esc(x.date)}</td><td>${esc(x.title)}</td><td>${esc(x.result||'')}</td><td><b>${esc(x.committeeRef||'')}</b></td><td>${x.file?esc(x.file):'—'}</td></tr>`)
-        ), {empty:'Записей нет — освоения по кредиту не было либо документы не приложены'})}
+          (tu.docs||[]).map(x=>`<tr><td>Документ</td><td>${esc(x.date)}</td><td>${esc(x.title)}</td><td>${esc(x.result||'')}</td><td>${x.file?esc(x.file):'—'}</td></tr>`),
+          (tu.checks||[]).map(x=>`<tr><td>Проверка</td><td>${esc(x.date)}</td><td>${esc(x.title)}</td><td>${/отклонен|нецелев/i.test(x.result||'')?`<b style="color:var(--asubk-red)">${esc(x.result)}</b>`:esc(x.result||'')}</td><td>${x.file?esc(x.file):'—'}</td></tr>`),
+          /* Решение Комитета живёт в «Содержании» строки-меры: отдельная колонка стояла
+             пустой у документов и проверок — «—» в двух третях таблицы. */
+          (tu.measures||[]).map(x=>`<tr><td>Мера</td><td>${esc(x.date)}</td><td>${esc(x.title)}${x.committeeRef?` · <b>${esc(x.committeeRef)}</b>`:''}</td><td>${esc(x.result||'')}</td><td>${x.file?esc(x.file):'—'}</td></tr>`)
+        ), {empty:'Записей нет'})}
       <div class="gtoolbar">${roleBtn('targetUse','+ Запись целевого использования','CR.openTargetUseModal()')}</div>
 
       <div class="section-h" style="margin-top:22px">Кураторство ${lockHtml()}</div>
-      <p class="section-note">Текущий куратор — строкой в шапке карточки.</p>
       ${cgrid([{h:'Подразделение'},{h:'Сотрудник'},{h:'Роль'},{h:'С'},{h:'По'}], curRows, {empty:'Назначений нет'})}
       <div class="mirror-src">Источник: модуль сотрудников · журнал назначений кураторства. Зеркало — только чтение.</div>
 
       <div class="section-h" style="margin-top:22px">Примечания</div>
-      <p class="section-note">Человеческие заметки куратора и подразделений (редактируемые) — в отличие от системного append-only журнала ниже.</p>
       <div class="gtoolbar">
         <div class="field" style="max-width:240px"><span class="flabel">Тип</span><div class="control"><select onchange="CR.filterNotes(this.value)"><option value="">Все</option><option>Обычное</option><option>Примечание куратора</option><option>Примечание (ОПП)</option><option>Примечание (залог)</option><option>Примечание (ОИП)</option></select></div></div>
         ${roleBtn('addNote','+ Примечание','CR.openNoteModal()','btn btn-secondary btn-sm')}
       </div>
       <div class="hist" id="cr-notes">${noteRows.length?noteRows.join(''):'<div class="hrow"><div class="hwhat">Примечаний нет</div></div>'}</div>
 
-      <div class="section-h" style="margin-top:22px">Журнал (append-only)</div>
-      <div class="gtoolbar"><div class="field" style="max-width:360px"><span class="flabel">Фильтр по типу</span><div class="control"><input placeholder="например: addDisbursement" oninput="CR.filterAudit(this.value)"></div></div></div>
+      <div class="section-h" style="margin-top:22px">Журнал изменений</div>
+      <div class="gtoolbar"><div class="field" style="max-width:360px"><span class="flabel">Фильтр</span><div class="control"><input placeholder="поиск по журналу" oninput="CR.filterAudit(this.value)"></div></div></div>
       <div class="hist" id="cr-audit">${auditRows.length?auditRows.join(''):'<div class="hrow"><div class="hwhat">Записей журнала нет</div></div>'}</div>`;
   }
 
@@ -7520,6 +7589,13 @@ if (typeof document !== 'undefined') {
     if(el) el.scrollIntoView({behavior:'smooth',block:'center'}); };
   CR.setPlanYear=function(y){ planYear=+y||planYear; planOpenMonth=null; rerenderDetail(); };
   CR.togglePlanMonth=function(mk){ planOpenMonth = (planOpenMonth===mk?null:mk); rerenderDetail(); };
+  /* Кварталы «Плана» (КВ-21). Пустой набор — законное «свернуть все кварталы»: вкладка
+     остаётся с четырьмя итоговыми строками. Умолчание (все четыре) возвращает только
+     смена кредита или года — через planQuartersKey, см. tabPlan. Журнал правок месяца
+     не сбрасываем: свернули квартал — строка просто скрыта, развернули — снова на месте. */
+  CR.togglePlanQuarter=function(q){ q=+q; if(!planOpenQuarters) planOpenQuarters=new Set([1,2,3,4]);
+    if(planOpenQuarters.has(q)) planOpenQuarters.delete(q); else planOpenQuarters.add(q); rerenderDetail(); };
+  CR.setPlanQuarters=function(list){ planOpenQuarters=new Set((list||[]).map(Number)); rerenderDetail(); };
   /* Годы «Графика». Пустой набор — законное состояние («свернуть все»), а не сброс:
      умолчание возвращает только смена набора годов (см. grafikYearsKey в tabGrafik). */
   CR.toggleGrafikYear=function(y){ y=+y; if(!grafikOpenYears) grafikOpenYears=new Set();
@@ -7822,7 +7898,8 @@ if (typeof document !== 'undefined') {
   /* 8) write-off (closeCredit «Списан», Г-12) — реквизиты решения обязательны */
   CR.openWriteOffModal=function(){ const c=modalGuard('writeOff'); if(!c) return; const d=derive(c);
     const bal=round2(d.debt.principal.bal+d.debt.interest.bal+d.debt.penalty.bal);
-    const body=`<p class="section-note">Списание — терминал с обязательными реквизитами решения. Без физического удаления.</p>
+    const body=`<p class="section-note">Списание — терминал с обязательными реквизитами решения. Без физического удаления.
+      Признание задолженности безнадёжной оформляется тем же списанием — со своим решением.</p>
       <div class="mform">
         <div class="field req"><span class="flabel">Вид решения</span><div class="control"><input id="woKind" value="Решение Правления"></div></div>
         <div class="field req"><span class="flabel">Номер решения</span><div class="control"><input id="woNum" placeholder="РП-..."></div></div>
@@ -8111,7 +8188,7 @@ if (typeof document !== 'undefined') {
 
   /* 18) примечание (addNote) — кнопка была мертва под всеми ролями */
   CR.openNoteModal=function(){ const c=modalGuard('addNote'); if(!c) return;
-    const body=`<p class="section-note">Человеческая заметка куратора или подразделения — редактируемая, в отличие от append-only журнала.</p>
+    const body=`<p class="section-note">Человеческая заметка куратора или подразделения — редактируемая, в отличие от журнала изменений.</p>
       <div class="mform">
         <div class="field"><span class="flabel">Тип</span><div class="control"><select id="ntType">
           ${['Обычное','Примечание куратора','Примечание (ОПП)','Примечание (залог)','Примечание (ОИП)'].map(t=>`<option>${esc(t)}</option>`).join('')}
