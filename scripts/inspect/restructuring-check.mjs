@@ -673,10 +673,61 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
     `матрица=${matrix} сеттерОтбил=${rejected} сменаВидаСбросила=${reset}`);
 })();
 
+/* 52. Сев витрины поднимается целиком и без исключений: 22 заявки с уникальными id, из них
+   15 второй волны (RS-1008…RS-1022). Сторож на сам сев, а не на отдельную дверь: заявки с ДС
+   строятся настоящими вызовами (AppSide.run → CreditSide.restructureApplied, а «целиком» —
+   через balanceAt), и restructureApplied в фабрике бросает на !ok. Значит регрессия ядра или
+   гейтов закрытия валит сев, и это видно здесь, а не косвенно в чужом сценарии. */
+(() => {
+  let err = null;
+  try { fresh(); } catch (e) { err = e; }
+  const apps = err ? [] : RS.state.apps;
+  const ids = new Set(apps.map(a => a.id));
+  const wave2 = apps.filter(a => Number(a.id.slice(3)) >= 1008).length;
+  let walkOk = true;
+  apps.forEach(a => {
+    try { RS.stageOf(a); a.creditIds.forEach(i => RS.creditById(i).no); RS.deadline(a); }
+    catch (e) { walkOk = false; }
+  });
+  ok(52, !err && apps.length === 22 && ids.size === 22 && wave2 === 15 && walkOk,
+    err ? `сев упал: ${err.message}`
+        : `заявок=${apps.length} уникальных=${ids.size} волна2=${wave2} обход=${walkOk}`);
+})();
+
+/* 53. Витрина покрывает справочник видов целиком: все пять норм п. 89 (N1…N5) и вид origin
+   'иное' (X1 «Прощение санкций», РС-31) задействованы хотя бы одной заявкой. Гейт прощения
+   и запрет правки нормативных видов иначе демонстрируются на пустом множестве. */
+(() => { fresh();
+  const used = new Set();
+  RS.state.apps.forEach(a => a.kindIds.forEach(k => used.add(k)));
+  const dict = RS.state.kinds.map(k => k.id);
+  const missing = dict.filter(k => !used.has(k));
+  const other = RS.state.kinds.filter(k => k.origin === 'иное');
+  const otherUsed = other.length > 0 && other.every(k => used.has(k.id));
+  ok(53, dict.length === 6 && missing.length === 0 && otherUsed,
+    `видов=${dict.length} незадействованных=${missing.join(',') || 'нет'} иное=${otherUsed}`);
+})();
+
+/* 54. Витрина покрывает конвейер целиком: заняты все девять индексов стадий (ADR-0107) плюс
+   оба отказных исхода — по заключению органа (п. 88, idx 4) и по постановлению КМ (п. 89,
+   idx 6) — и возврат без рассмотрения. Проверка по индексу, а не по подписи: idx 0 держит
+   возврат (RS-1003/RS-1022), живой заявки на подписи «Регистрация обращения» в витрине нет. */
+(() => { fresh();
+  const st = RS.state.apps.map(a => RS.stageOf(a));
+  const idx = new Set(st.map(s => s.idx));
+  const gaps = RS.STAGES.map((_, i) => i).filter(i => !idx.has(i));
+  const labels = new Set(st.map(s => s.label));
+  const both = labels.has('Отказ (постановление КМ)')
+            && labels.has('Отказ (заключение уполномоченного органа)');
+  const ret = labels.has('Возвращена без рассмотрения');
+  ok(54, gaps.length === 0 && both && ret,
+    `пустых стадий=${gaps.join(',') || 'нет'} обаОтказа=${both} возврат=${ret}`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-const stamp = `SMOKE 2026-08-10 · ${pass}/${results.length} PASS\n` + lines.join('\n');
+const stamp = `SMOKE 2026-08-11 · ${pass}/${results.length} PASS\n` + lines.join('\n');
 console.log(stamp);
 
 // вставляем результат в шапку HTML

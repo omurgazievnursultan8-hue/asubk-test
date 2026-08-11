@@ -80,7 +80,7 @@
   возражение, а не как открытые вопросы. Свод — §11 спеки.
 
   SMOKE (node scripts/inspect/restructuring-check.mjs):
-   SMOKE 2026-08-10 · 51/51 PASS
+   SMOKE 2026-08-11 · 54/54 PASS
       PASS  #1  до=false после=true
       PASS  #2  closed=true opened=true reblock=true
       PASS  #3  noRate=true union=true
@@ -132,6 +132,9 @@
       PASS  #49  внутри=true заДлиной=true послеУкорочения=true неПодрезан=true
       PASS  #50  сумма=100000 колонка=[0, 33333.33, 33333.33, 33333.34, 0, 0]
       PASS  #51  матрица=true сеттерОтбил=true сменаВидаСбросила=true
+      PASS  #52  заявок=22 уникальных=22 волна2=15 обход=true
+      PASS  #53  видов=6 незадействованных=нет иное=true
+      PASS  #54  пустых стадий=нет обаОтказа=true возврат=true
 -->
 <style>
 :root{
@@ -588,7 +591,124 @@ function seedCredits(){
     paid:{ principalPaid:200000, interestPaid:90000, penaltyPaid:0 }, remainingTermMonths:40,
     terms:{term:48,schedule:'ежемесячно',rate:7,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} }
   ];
-  return base.map(cr => Object.assign(cr, { tranches:[ mkTranche(cr) ], audit: seedAudit(cr) }));
+  const dress = cr => Object.assign(cr, { tranches:[ mkTranche(cr) ], audit: seedAudit(cr) });
+  return base.map(dress).concat(demoCredits2().map(cr => seedPlan(retimePayment(dress(cr)))));
+}
+
+/* Кредиты второй волны (11.08.2026) — сырьё витрины из 22 демо-заявок. Первые пять заняты
+   заявками RS-1001…RS-1007: незакрытая заявка держит кредит (Р-2), и разводить на них ещё
+   пятнадцать сюжетов нечем. Числа подобраны так, чтобы каждый упор («предел срока» п. 90,
+   «пол ставки» п. 92/п. 34, «покрытие ниже требуемого») был следствием ДАННЫХ КРЕДИТА, а не
+   отдельного флага на заявке: гейт читает остаток, первоначальную ставку и вид проекта — те же
+   поля, что и у первых пяти. КД-62015 заведён на СЛИТОМ ключе 02508199700099 (MIRROR): заявка
+   RS-1014 регистрируется на якоре 02508199700123, и охват через слияние виден как задача. */
+function demoCredits2(){ return [
+  { id:'CR-62010', no:'КД-62010', inn:'03112201000456', borrower:'ОсОО «Нарын Суу»',
+    balance:6400000, odDays:120, odSum:830000, collProc:null, restructCount:0, projectKind:'infraSOE',
+    coverSnapshot:{cover:138, required:120, date:'2026-07-02', source:'Залог'}, insuredUntil:'2031-01-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:6400000, overduePrincipal:620000, accruedInterest:210000, overdueInterest:210000, penalty:96000 },
+    paid:{ principalPaid:640000, interestPaid:480000, penaltyPaid:0 }, remainingTermMonths:28,
+    terms:{term:36,schedule:'ежемесячно',rate:7,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62011', no:'КД-62011', inn:'02508199700123', borrower:'ОсОО «Ак-Жол Агро»',
+    balance:2100000, odDays:75, odSum:274000, collProc:'ВЗ-734', restructCount:0, projectKind:'social',
+    coverSnapshot:{cover:152, required:120, date:'2026-06-28', source:'Залог'}, insuredUntil:'2029-06-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:2100000, overduePrincipal:210000, accruedInterest:64000, overdueInterest:64000, penalty:28000 },
+    paid:{ principalPaid:130000, interestPaid:150000, penaltyPaid:0 }, remainingTermMonths:19,
+    terms:{term:24,schedule:'ежемесячно',rate:9,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62012', no:'КД-62012', inn:'22503199200145', borrower:'Асанова Г. К. (физическое лицо)',
+    balance:740000, odDays:58, odSum:129000, collProc:null, restructCount:0, projectKind:'social',
+    coverSnapshot:{cover:134, required:120, date:'2026-07-06', source:'Залог'}, insuredUntil:'2029-01-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:740000, overduePrincipal:88000, accruedInterest:41000, overdueInterest:41000, penalty:27000 },
+    paid:{ principalPaid:60000, interestPaid:70000, penaltyPaid:0 }, remainingTermMonths:18,
+    terms:{term:24,schedule:'ежемесячно',rate:12,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62013', no:'КД-62013', inn:'ГЗ-0007', borrower:'Группа «Ынтымак» (групповой заёмщик)',
+    balance:12300000, odDays:145, odSum:1410000, collProc:null, restructCount:1, projectKind:'commercial',
+    coverSnapshot:{cover:127, required:120, date:'2026-07-01', source:'Залог'}, insuredUntil:'2034-01-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:12300000, overduePrincipal:980000, accruedInterest:430000, overdueInterest:430000, penalty:210000 },
+    paid:{ principalPaid:740000, interestPaid:890000, penaltyPaid:0 }, remainingTermMonths:49,
+    terms:{term:60,schedule:'ежемесячно',rate:11,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62014', no:'КД-62014', inn:'02508199700321', borrower:'ОсОО «Ак-Жол Строй»',
+    balance:25800000, odDays:90, odSum:2380000, collProc:null, restructCount:2, projectKind:'infraSOE',
+    coverSnapshot:{cover:141, required:120, date:'2026-06-30', source:'Залог'}, insuredUntil:'2033-01-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:25800000, overduePrincipal:1600000, accruedInterest:780000, overdueInterest:780000, penalty:340000 },
+    paid:{ principalPaid:5680000, interestPaid:1450000, penaltyPaid:0 }, remainingTermMonths:59,
+    terms:{term:84,schedule:'ежемесячно',rate:8,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62015', no:'КД-62015', inn:'02508199700099', borrower:'ОсОО «Ак-Жол» (прежнее наим., слито)',
+    balance:3700000, odDays:64, odSum:468000, collProc:null, restructCount:0, projectKind:'social',
+    coverSnapshot:{cover:131, required:120, date:'2026-07-08', source:'Залог'}, insuredUntil:'2030-06-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:3700000, overduePrincipal:350000, accruedInterest:118000, overdueInterest:118000, penalty:54000 },
+    paid:{ principalPaid:370000, interestPaid:260000, penaltyPaid:0 }, remainingTermMonths:28,
+    terms:{term:36,schedule:'ежемесячно',rate:9,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62016', no:'КД-62016', inn:'03112201000456', borrower:'ОсОО «Нарын Суу»',
+    balance:58000000, odDays:180, odSum:7000000, collProc:null, restructCount:0, projectKind:'infraSOE',
+    coverSnapshot:{cover:122, required:120, date:'2026-07-04', source:'Залог'}, insuredUntil:'2036-01-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:58000000, overduePrincipal:4900000, accruedInterest:2100000, overdueInterest:2100000, penalty:1250000 },
+    paid:{ principalPaid:4640000, interestPaid:3400000, penaltyPaid:0 }, remainingTermMonths:77,
+    terms:{term:96,schedule:'ежемесячно',rate:6,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62017', no:'КД-62017', inn:'03112201000456', borrower:'ОсОО «Нарын Суу»',
+    balance:3900000, odDays:42, odSum:356000, collProc:null, restructCount:0, projectKind:'infraSOE',
+    coverSnapshot:{cover:126, required:120, date:'2026-07-04', source:'Залог'}, insuredUntil:'2031-06-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:3900000, overduePrincipal:260000, accruedInterest:96000, overdueInterest:96000, penalty:38000 },
+    paid:{ principalPaid:390000, interestPaid:210000, penaltyPaid:0 }, remainingTermMonths:34,
+    terms:{term:42,schedule:'ежемесячно',rate:6,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62018', no:'КД-62018', inn:'03112201000456', borrower:'ОсОО «Нарын Суу»',
+    balance:6000000, odDays:110, odSum:890000, collProc:null, restructCount:0, projectKind:'infraSOE',
+    coverSnapshot:{cover:133, required:120, date:'2026-07-03', source:'Залог'}, insuredUntil:'2030-01-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:6000000, overduePrincipal:700000, accruedInterest:190000, overdueInterest:190000, penalty:88000 },
+    paid:{ principalPaid:360000, interestPaid:420000, penaltyPaid:0 }, remainingTermMonths:38,
+    terms:{term:48,schedule:'ежемесячно',rate:7,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62019', no:'КД-62019', inn:'01703198800077', borrower:'ИП Садыков Т.',
+    balance:1450000, odDays:66, odSum:232000, collProc:null, restructCount:0, projectKind:null,
+    coverSnapshot:{cover:129, required:120, date:'2026-07-09', source:'Залог'}, insuredUntil:'2029-09-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:1450000, overduePrincipal:180000, accruedInterest:52000, overdueInterest:52000, penalty:21000 },
+    paid:{ principalPaid:170000, interestPaid:130000, penaltyPaid:0 }, remainingTermMonths:22,
+    terms:{term:30,schedule:'ежемесячно',rate:9,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62020', no:'КД-62020', inn:'22503199200145', borrower:'Асанова Г. К. (физическое лицо)',
+    balance:890000, odDays:88, odSum:166000, collProc:null, restructCount:0, projectKind:'social',
+    coverSnapshot:{cover:136, required:120, date:'2026-07-07', source:'Залог'}, insuredUntil:'2029-03-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:890000, overduePrincipal:120000, accruedInterest:46000, overdueInterest:46000, penalty:33000 },
+    paid:{ principalPaid:110000, interestPaid:60000, penaltyPaid:0 }, remainingTermMonths:17,
+    terms:{term:24,schedule:'ежемесячно',rate:10,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62021', no:'КД-62021', inn:'02508199700321', borrower:'ОсОО «Ак-Жол Строй»',
+    balance:9600000, odDays:95, odSum:1130000, collProc:null, restructCount:0, projectKind:'commercial',
+    coverSnapshot:{cover:124, required:120, date:'2026-06-29', source:'Залог'}, insuredUntil:'2031-03-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:9600000, overduePrincipal:820000, accruedInterest:310000, overdueInterest:310000, penalty:145000 },
+    paid:{ principalPaid:770000, interestPaid:660000, penaltyPaid:0 }, remainingTermMonths:29,
+    terms:{term:36,schedule:'ежемесячно',rate:8,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62022', no:'КД-62022', inn:'ГЗ-0007', borrower:'Группа «Ынтымак» (групповой заёмщик)',
+    balance:3400000, odDays:70, odSum:405000, collProc:null, restructCount:0, projectKind:'commercial',
+    coverSnapshot:{cover:128, required:120, date:'2026-07-05', source:'Залог'}, insuredUntil:'2030-09-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:3400000, overduePrincipal:300000, accruedInterest:105000, overdueInterest:105000, penalty:47000 },
+    paid:{ principalPaid:510000, interestPaid:220000, penaltyPaid:0 }, remainingTermMonths:22,
+    terms:{term:30,schedule:'ежемесячно',rate:10,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62023', no:'КД-62023', inn:'01703198800077', borrower:'ИП Садыков Т.',
+    balance:620000, odDays:40, odSum:94000, collProc:null, restructCount:0, projectKind:'commercial',
+    coverSnapshot:{cover:121, required:120, date:'2026-07-11', source:'Залог'}, insuredUntil:'2028-06-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:620000, overduePrincipal:70000, accruedInterest:24000, overdueInterest:24000, penalty:12000 },
+    paid:{ principalPaid:70000, interestPaid:40000, penaltyPaid:0 }, remainingTermMonths:13,
+    terms:{term:18,schedule:'ежемесячно',rate:11,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} }
+]; }
+/* Плановый график базового транша — только у второй волны. У первых пяти кредитов
+   schedules[0].rows пуст: principalAt не видит просроченного ТЕЛА, и перенос собирает одни
+   накопленные статьи (у RS-1001 так и вышло). Витрине нужен перенос тела, поэтому план здесь
+   синтезируется ТЕМ ЖЕ движком, каким его считает ДС (amortize) — план остаётся производной
+   условий, а не вторым вводом рядом с ними. Просрочка тела получается сама: план ушёл дальше,
+   чем фактические погашения (ops), и principalAt показывает разницу. */
+/* Датировка последнего погашения — тоже только у второй волны. mkTranche ставит его на TODAY-45
+   для всех, и это верно, пока заявка одна и она сегодняшняя: у ДС, зарегистрированного РАНЬШЕ
+   этой даты, остаток источника читался бы без учёта платежа — перенесли бы «целиком» больше,
+   чем на траншe было. Платёж уводится на месяц раньше начала просрочки: перестали платить —
+   пошла просрочка, а не наоборот. Сумма не меняется, значит выведенная просрочка тела на
+   сегодня та же. */
+function retimePayment(cr){
+  const t=cr.tranches[0], rep=(t.ops||[]).find(o=>o.kind==='repay');
+  if(rep) rep.date=addCalDays(TODAY, -(cr.odDays+30));
+  return cr;
+}
+function seedPlan(cr){
+  const t=cr.tranches[0], v=t.schedules[0];
+  v.rows = amortize(t.amount, cr.terms.rate, cr.terms.term, cr.terms.repayMethod, [], t.plannedDate, cr.terms.schedule, []).rows;
+  return cr;
 }
 
 /* Процессы взыскания (read-only зеркало, Р-12). */
@@ -603,7 +723,12 @@ const MIRROR = {
   subjects: [
     { key:'02508199700123', name:'ОсОО «Ак-Жол Агро»', aliasOf:null },
     { key:'02508199700099', name:'ОсОО «Ак-Жол» (прежнее наим., слито)', aliasOf:'02508199700123' },
-    { key:'02508199700321', name:'ОсОО «Ак-Жол Строй»', aliasOf:null, successorOf:'02508199700123', since:'2026-03-12' }
+    { key:'02508199700321', name:'ОсОО «Ак-Жол Строй»', aliasOf:null, successorOf:'02508199700123', since:'2026-03-12' },
+    /* вторая волна: ключ субъекта — плоская строка, а не ИНН по форме. Групповой заёмщик
+       живёт под внутренним ключом (ИНН у группы нет), физлицо — под ПИН. */
+    { key:'03112201000456', name:'ОсОО «Нарын Суу»', aliasOf:null },
+    { key:'22503199200145', name:'Асанова Г. К. (физическое лицо)', aliasOf:null },
+    { key:'ГЗ-0007', name:'Группа «Ынтымак» (групповой заёмщик)', aliasOf:null }
   ]
 };
 function resolveKey(key){                              // ключ → корень слияния; реорганизацию не резолвит (оба ключа живы)
@@ -1114,7 +1239,25 @@ const GUARANTEES = {
   'CR-60541': [ {name:'Иванов И.И. (поручитель)', status:'согласовано', date:'2026-04-20'} ],
   'CR-58120': [],
   'CR-59003': [ {name:'ОсОО «Гарант-Строй» (залогодатель)', status:'согласовано', date:'2026-06-01'} ],
-  'CR-61200': [ {name:'Петров П.П. (поручитель)', status:'запрошено', date:'2026-07-05'} ]   // демо блокировки ИР-8: одно неурегулированное согласие
+  'CR-61200': [ {name:'Петров П.П. (поручитель)', status:'запрошено', date:'2026-07-05'} ],  // демо блокировки ИР-8: одно неурегулированное согласие
+  /* вторая волна: согласия собраны — иначе жёсткий гейт держал бы заявку в «Оформлении» и
+     витрина показывала бы одну и ту же блокировку пятнадцать раз. Пустой список — беззалоговый
+     кредит без поручителей, это не «согласий нет», а «спрашивать некого». */
+  'CR-62010': [ {name:'ОсОО «Нарын-Инвест» (залогодатель)', status:'согласовано', date:'2026-02-10'} ],
+  'CR-62011': [ {name:'Иванов И.И. (поручитель)', status:'согласовано', date:'2026-02-26'} ],
+  'CR-62012': [],
+  'CR-62013': [ {name:'Токтосунов Б.А. (поручитель)', status:'согласовано', date:'2026-02-18'},
+                {name:'ОсОО «Ынтымак-Агро» (залогодатель)', status:'согласовано', date:'2026-02-18'} ],
+  'CR-62014': [ {name:'ОсОО «Гарант-Строй» (залогодатель)', status:'согласовано', date:'2026-03-04'} ],
+  'CR-62015': [ {name:'Иванов И.И. (поручитель)', status:'согласовано', date:'2026-04-08'} ],
+  'CR-62016': [ {name:'Министерство финансов КР (гарантия)', status:'согласовано', date:'2026-02-12'} ],
+  'CR-62017': [ {name:'ОсОО «Нарын-Инвест» (залогодатель)', status:'согласовано', date:'2026-02-12'} ],
+  'CR-62018': [ {name:'ОсОО «Нарын-Инвест» (залогодатель)', status:'согласовано', date:'2025-12-15'} ],
+  'CR-62019': [],
+  'CR-62020': [ {name:'Асанов Т.К. (поручитель)', status:'согласовано', date:'2026-06-01'} ],
+  'CR-62021': [ {name:'ОсОО «Гарант-Строй» (залогодатель)', status:'согласовано', date:'2026-02-02'} ],
+  'CR-62022': [ {name:'Токтосунов Б.А. (поручитель)', status:'запрошено', date:'2026-03-20'} ],   // отказ ПКМ — согласие так и осталось незакрытым
+  'CR-62023': []
 };
 function consentGate(creditId){
   const list=GUARANTEES[creditId]||[];
@@ -1725,6 +1868,9 @@ function buildDemoApps(){
         (источник закрывается). Кредит с двумя траншами в конце (T1 остаток + T4). */
   A.push(...seedRestructChain());
 
+  /* 8-22) ВИТРИНА ВТОРОЙ ВОЛНЫ — пятнадцать заявок таблицей WAVE2 (см. ниже). */
+  A.push(...buildWave2());
+
   state.apps=A;
 }
 
@@ -1758,6 +1904,197 @@ function seedRestructChain(){
     'Контрольная точка §14 «расчёт долга на дату между первой и второй реструктуризацией»: срез этой заявки ('+addCalDays(d2,-3)+') лежит строго между регистрацией ДС-59003/3 ('+d1+') и ДС-59003/4 ('+d2+') — долг на нём посчитан по тому же траншу T2, что реструктуризация #1 произвела, а #2 сейчас закрывает.');
   const l3=mkChainApp('RS-1007','ДС-59003/5',l2.tranche,d3,false);
   return [l1.app,l2.app,l3.app];
+}
+
+/* ================= ВТОРАЯ ВОЛНА ДЕМО-ЗАЯВОК: RS-1008…RS-1022 (11.08.2026) =================
+   Первые семь заявок писаны поштучно, и трогать их нельзя: на каждой стоит сценарий матрицы
+   §14. Вторая волна другая по назначению — это ВИТРИНА для ручной проверки: пятнадцать заявок
+   разводят шесть видов, финансовое ядро и девять стадий конвейера. Пятнадцать раз повторить
+   один и тот же конвейер значило бы спрятать различия между заявками в шуме, поэтому ОПИСАНИЕ
+   (WAVE2 — чем заявка отличается) отделено от ПРОВЕДЕНИЯ (buildWave2App — один проход по
+   стадиям). Заявки с ДС проводятся НАСТОЯЩИМИ дверями (AppSide.run → CreditSide.restructureApplied),
+   как RS-1001: отказ двери — исключение при севе, а не тихо кривая демо-заявка.
+
+   Поля строки: stage — докуда довести; mode — 'целиком' (в акте одна сумма, финядро не
+   задействовано) либо 'ядро' (перенос собирает конвейер из базы среза, и он ЧАСТИЧНЫЙ: в базу
+   по умолчанию входит только просроченное, РС-15); params — черновик условий; disp —
+   распоряжения по статьям {статья:{kind, from, to}}; dates — точечные переопределения дат,
+   когда шаг регламента даёт неподходящую (например, заключение позднее сегодняшнего дня). */
+const WAVE2 = [
+  { id:'RS-1008', credits:['CR-62010'], kinds:['N1'], reg:'2026-01-15', stage:'дс', mode:'целиком',
+    params:{term:48, rate:7}, dsNo:'ДС-62010/1', initiator:'sector',
+    demoNote:'Перенос ЦЕЛИКОМ: транш-источник опустошён и закрыт причиной, ВЫВЕДЕННОЙ обнулившей операцией, а не введённой рукой (ИР-5).' },
+  { id:'RS-1009', credits:['CR-62011'], kinds:['N3','N4'], reg:'2026-02-02', stage:'дс', mode:'ядро',
+    params:{term:24, rate:9, graceBlocks:[{months:6, type:'interest-only'}]}, disp:{accInterest:{kind:'cap'}},
+    dsNo:'ДС-62011/1', initiator:'omsu',
+    demoNote:'Льготный период 6 мес. (только проценты) поверх капитализации начисленных процентов. Пеня спорная — процесс взыскания ВЗ-734 идёт: строка видна, галка мертва (ИР-6), в перенос не входит.' },
+  { id:'RS-1010', credits:['CR-58120'], kinds:['N4'], reg:'2026-02-18', stage:'дс', mode:'ядро',
+    params:{term:18, rate:10}, disp:{accInterest:{kind:'cap'}, penalty:{kind:'cap', from:1, to:6}},
+    dsNo:'ДС-58120/1', initiator:'authority',
+    demoNote:'Две капитализации одной механикой, исходы разные (ADR-0109): проценты влились в тело и ставку тянут, пеня встала БЕЗСТАВОЧНОЙ колонкой на позиции 1–6. Вид проекта у кредита не указан — пол по п. 34 честно не проверен.' },
+  { id:'RS-1011', credits:['CR-62012'], kinds:['X1'], reg:'2026-03-02', stage:'дс', mode:'ядро',
+    params:{term:24, rate:12}, disp:{penalty:{kind:'forgive'}}, forgiveSum:27000,
+    forgiveBasis:'п. 89 пп. 5 — прощение начисленной неустойки по кредиту КД-62012',
+    dsNo:'ДС-62012/1', initiator:'sector',
+    demoNote:'Прощение санкций физическому лицу: сумма НАЗВАНА в постановлении и сходится с фактической (РС-28).' },
+  { id:'RS-1012', credits:['CR-62013'], kinds:['N5'], reg:'2026-01-26', stage:'дс', mode:'ядро',
+    params:{term:84, rate:11}, disp:{accInterest:{kind:'spread', from:1, to:12}, penalty:{kind:'spread'}},
+    dsNo:'ДС-62013/1', initiator:'omsu',
+    demoNote:'Отсрочка групповому заёмщику: накопленные проценты распределены на первые 12 позиций, пеня — на весь график и статьёй ушла в накопленную (РС-39). Интервал 1–12 лежит внутри 84 позиций — ИР-15 молчит.' },
+  { id:'RS-1013', credits:['CR-62014'], kinds:['N1','N4'], reg:'2026-02-09', stage:'дс', mode:'ядро',
+    params:{term:60, rate:8}, disp:{accInterest:{kind:'cap'}}, dsNo:'ДС-62014/3', initiator:'sector',
+    demoNote:'Третья реструктуризация этого кредита — сигнал повторности (РС-32), а не гейт: маршрут установлен нормой (п. 82), надстроить над ним свою ступень Холдинг не вправе.' },
+  { id:'RS-1014', credits:['CR-62015'], inn:'02508199700123', borrower:'ОсОО «Ак-Жол Агро»',
+    kinds:['N2','N1'], reg:'2026-03-16', stage:'дс', mode:'ядро', params:{term:36, rate:4.5},
+    dsNo:'ДС-62015/1', initiator:'authority',
+    demoNote:'Ставка 4,5 % — РОВНО пол: половина от первоначальных 9 % (п. 92) выше минимума 1 % по социально значимому проекту (п. 34), гейт берёт больший. Кредит заведён на СЛИТОМ ключе 02508199700099, заявка — на якоре 02508199700123 (MIRROR, ADR-0019).' },
+  { id:'RS-1015', credits:['CR-62016'], kinds:['X1','N4'], reg:'2026-01-20', stage:'дс', mode:'ядро',
+    params:{term:96, rate:6}, disp:{penalty:{kind:'forgive'}, accInterest:{kind:'cap'}}, forgiveSum:1200000,
+    forgiveBasis:'п. 89 пп. 5 — прощение начисленной неустойки, обстоятельства не зависят от заёмщика',
+    dsNo:'ДС-62016/1', initiator:'sector',
+    demoNote:'Сумма прощения в постановлении (1 200 000) не сходится с фактической (1 250 000): гейт РС-28 открыт — сумма НАЗВАНА, — но расхождение показано, а не сглажено.' },
+  { id:'RS-1016', credits:['CR-60541'], kinds:['N1'], reg:'2026-03-30', stage:'дс', mode:'целиком',
+    params:{term:36, rate:6}, dsNo:'ДС-60541/2', initiator:'omsu',
+    waiver:{reason:'Покрытие ниже требуемого признано приемлемым: залог — техника с остаточным сроком службы, реализация в текущем году дала бы дисконт больше недостачи покрытия.', date:'2026-07-08'},
+    demoNote:'Покрытие 111 % при требуемых 120 % и страховка короче новых условий — гейт покрытия красный, но он МЯГКИЙ: закрытие прошло по waiver (РС-18). Согласия и пределы waiver не принимают.' },
+
+  { id:'RS-1017', credits:['CR-62018'], kinds:['N1'], reg:'2025-11-10', stage:'комитет',
+    params:{term:96}, initiator:'sector', dates:{committee:'2025-12-02'},
+    demoNote:'Срок 96 мес. против предела 84 при остатке 6 000 000 (п. 90) — жёсткий упор, waiver его не берёт. Дедлайн письма меряется в РАБОЧИХ днях, а календарь 2025 года в справочнике не заведён (РС-30): срок показан с оговоркой, а не молча посчитан по «сб/вс».' },
+  { id:'RS-1018', credits:['CR-62019'], kinds:['N2'], reg:'2026-02-20', stage:'письмо',
+    params:{rate:3}, initiator:'authority',
+    demoNote:'Ставка 3 % ниже пола 4,5 % (половина от первоначальных 9 %); вид проекта у кредита не указан — второй пол по п. 34 честно не проверен. Срок решения 70 к.д. по п. 18 истёк.' },
+  { id:'RS-1019', credits:['CR-62020'], kinds:['X1'], reg:'2026-05-12', stage:'заключение',
+    params:{term:24, rate:10}, disp:{penalty:{kind:'forgive'}}, dates:{conclusion:'2026-07-15'}, initiator:'sector',
+    demoNote:'Прощение назначено распоряжением, но постановления Кабинета Министров ещё нет — сумму прощения назвать нечему, и жёсткий гейт РС-28 держит регистрацию ДС закрытой.' },
+  { id:'RS-1020', credits:['CR-62021','CR-62017'], kinds:['N1'], reg:'2026-01-12', stage:'проектКМ',
+    params:{term:24, rate:8}, disp:{accInterest:{kind:'spread', from:1, to:40}}, plan:true, initiator:'omsu',
+    demoNote:'Охват из двух кредитов. Интервал распоряжения — позиции 1–40, а в черновом графике при сроке 24 мес. их 24: ИР-15 горит и держит регистрацию закрытой. Молча подрезать интервал нельзя — срок мог уменьшиться после того, как куратор задал позиции (РС-40).' },
+  { id:'RS-1021', credits:['CR-62022'], kinds:['N2'], reg:'2026-03-09', stage:'отказКМ',
+    params:{rate:6.5}, initiator:'authority', position:'целесообразно',
+    demoNote:'Кабинет Министров отказал в изменении условий: стадия отказа читается по акту, который его нёс (ADR-0107). Заключение уполномоченного органа было положительным — исход решает постановление, а не заключение (ИР-12).' },
+  { id:'RS-1022', credits:['CR-62023'], kinds:['N4'], reg:'2026-07-06', stage:'возврат',
+    missing:['Акт сверки задолженности'], dates:{ret:'2026-07-09'}, initiator:'sector',
+    why:'нет акта сверки задолженности — документа, который требует сам ВИД «капитализация» сверх нормативного пакета пп. 85–86' }
+];
+const WAVE2_STAGE = { возврат:0, анализ:1, комитет:2, письмо:3, заключение:4, проектКМ:5, отказКМ:6, дс:8 };
+
+/* Даты стадий раскладываются шагами регламента от даты регистрации: считать их в таблице руками
+   значило бы пятнадцать раз проверять глазами, что письмо позже комитета. Точечные исключения —
+   поле dates строки. */
+function wave2Dates(s){
+  const o=s.dates||{}, reg=s.reg;
+  const committee = o.committee || addCalDays(reg,22);
+  const letter    = o.letter    || addWorkDays(committee,4);
+  const conclusion= o.conclusion|| addCalDays(letter,45);
+  const zk        = o.zk        || addCalDays(conclusion,12);
+  const resolution= o.resolution|| addCalDays(zk,10);
+  return { analysis:o.analysis||addCalDays(reg,3), visa1:o.visa1||addCalDays(reg,14), visa2:o.visa2||addCalDays(reg,16),
+           committee, letter, conclusion, zk, resolution, ds:o.ds||addCalDays(resolution,7), ret:o.ret||addCalDays(reg,2) };
+}
+const wave2Kinds = s => s.kinds.map(id=>(kindById(id)||{}).name).filter(Boolean).join(' + ');
+/* Распоряжения строки таблицы кладутся поверх умолчания (kind:'none' на всю сумму позиции), а не
+   вместо него: статью, которой в базе среза не оказалось (спорная пеня, нулевая позиция), спека
+   не выдумывает — распоряжение живёт только на включённой строке (issues/02 реш.4). */
+function applyDisp(list, spec){
+  if(!spec) return list;
+  return list.map(d=>{
+    const s=spec[d.article]; if(!s) return d;
+    const out={...d, kind:s.kind};
+    if(s.amount!=null) out.amount=round2(s.amount);
+    if(s.from!=null)   out.periods={mode:'range', from:s.from, to:s.to};
+    return out;
+  });
+}
+function buildWave2(){ return WAVE2.map(s=>buildWave2App(s)); }
+function buildWave2App(s){
+  const target=WAVE2_STAGE[s.stage], cr=creditById(s.credits[0]), d=wave2Dates(s), n=Number(String(s.id).slice(3));
+  const app=baseApp(s.id, s.inn||cr.inn, s.borrower||cr.borrower, s.kinds, s.credits, s.reg);
+  app.initiator=s.initiator||'sector';
+  if(app.initiator==='omsu') app.initiatorViaEnvoy=true;
+  app._t=s.reg; H(app,'Заявка зарегистрирована. Виды: '+wave2Kinds(s)+'.','Куратор ОД');
+
+  if(s.stage==='возврат'){                                    // исход на первой стадии — дальше ничего не заводится
+    fillDocs(app); (s.missing||[]).forEach(doc=>{ delete app.packetDocs[doc]; });
+    app.outcome='возврат';
+    app._t=d.ret; H(app,'Пакет неполон: '+s.why+'. Исход: возвращена без рассмотрения.','Куратор ОД');
+    return app;
+  }
+
+  fillDocs(app); app.analysisStarted=true; app.calcTranche=cr.tranches[0];
+  app.conclusions=defaultConclusions();
+  app._t=d.analysis; H(app,'Пакет укомплектован → «Анализ». Дедлайн 30 к.д. (до '+addCalDays(s.reg,30)+').','Куратор ОД');
+  if(s.params) app.version=draftVersion(cr,s.params);
+  if(s.waiver) app.waiver={granted:true, reason:s.waiver.reason, date:s.waiver.date};
+
+  if(target>=2){
+    const pos=s.position||'целесообразно';
+    app.conclusions[0].text='Финансовое положение восстановимо, поддержать.'; app.conclusions[0].visa=true; app.conclusions[0].visaDate=d.visa1;
+    app.conclusions[1].text='Правовых препятствий нет.'; app.conclusions[1].visa=true; app.conclusions[1].visaDate=d.visa2;
+    app._t=d.visa2; H(app,'Заключения СРМиК и ДПО завизированы.','Заключанты');
+    app.committee={fixed:true, position:pos, date:d.committee};
+    app._t=d.committee; H(app,'Позиция комитета: '+pos+'. Дедлайн письма 5 р.д.','Секретарь комитета');
+  }
+  if(target>=3){
+    app.letterSent={fixed:true, date:d.letter};
+    AppSide.fixCutoff(app, d.letter);
+    app._t=d.letter; H(app,'Письмо в уполномоченный орган направлено. Срез зафиксирован на дату письма.','Куратор ОД','auto');
+  } else {
+    app.cutoff={date:TODAY, rows:null, fixedAt:null};          // до письма срез держит только дату (РС-8)
+  }
+
+  // финансовое ядро материализуется там, где заявка его уже трогала: у заявки с ДС — на дату ДС,
+  // у активной — на сегодня (иначе правка куратора откатилась бы к умолчанию, issues/02 реш.4)
+  if(s.disp || s.plan || (target>=8 && s.mode==='ядро')){
+    const at = target>=8 ? d.ds : TODAY;
+    app.base=AppSide.defaultBase(app, at);
+    app.dispositions=applyDisp(AppSide.defaultDispositions(app.base), s.disp);
+  }
+  if(s.plan){
+    const r=AppSide.run(app, TODAY);
+    app.version=app.version||draftVersion(cr,{});
+    app.version.plan=CreditSide.draftSchedule(app.calcTranche,
+      {date:TODAY, transferSum:r.transferSum, principalPart:r.principalPart, parts:r.parts, params:app.version.params});
+  }
+
+  if(target>=4){
+    app.conclusion={fixed:true, outcome:'возможно', no:'МФ-исх-'+(n+400), date:d.conclusion};
+    app._t=d.conclusion; H(app,'Заключение уполномоченного органа: возможно изменение условий ('+app.conclusion.no+' от '+d.conclusion+').','Куратор ОД');
+  }
+  if(target>=5){
+    app.zk={fixed:true, no:'ЖК-К/БФ-'+(n-700), date:d.zk};
+    app._t=d.zk; H(app,'Профильный комитет ЖК согласовал проект решения ('+app.zk.no+', п. 82).','Куратор ОД');
+  }
+  if(target>=6){
+    const decision = s.stage==='отказКМ' ? 'отказ' : 'изм';
+    app.resolution={fixed:true, decision, no:'ПКМ КР № '+(n-600), date:d.resolution,
+                    forgiveSum: s.forgiveSum!=null ? s.forgiveSum : null, forgiveBasis: s.forgiveBasis||null};
+    app._t=d.resolution; H(app,'Постановление Кабинета Министров '+app.resolution.no+' от '+d.resolution+': '
+      +(decision==='отказ' ? 'в изменении условий отказано (п. 89)' : 'изменённые условия')+'.','Куратор ОД');
+    if(decision==='отказ') app.outcome='отказ';
+  }
+
+  if(target>=8){
+    const T=app.calcTranche;
+    app.version=app.version||draftVersion(cr,{});
+    let ds;
+    if(s.mode==='целиком'){
+      ds={ no:s.dsNo, date:d.ds, app, sourceTranche:T, credit:cr,
+           transferSum:round2(CreditSide.balanceAt(T,d.ds)), params:{...app.version.params} };
+    } else {
+      const r=AppSide.run(app, d.ds);
+      ds={ no:s.dsNo, date:d.ds, app, sourceTranche:T, credit:cr, transferSum:r.transferSum,
+           principalPart:r.principalPart, parts:r.parts, params:{...app.version.params} };
+    }
+    const res=CreditSide.restructureApplied(ds);
+    if(!res.ok) throw new Error('demo-seed: '+s.id+' — '+res.reasons.join('; '));
+    app.ds={ no:ds.no, date:ds.date, transferSum:ds.transferSum, sourceTrancheId:T.id, params:ds.params, fact:null };
+    AppSide.fixFact(app, ds.date, ds.transferSum);
+    app.outcome='изм';
+    app._t=ds.date; H(app,'Доп. соглашение '+ds.no+' зарегистрировано, перенесено '+fmt(ds.transferSum)+'.','Куратор ОД');
+  }
+  if(s.demoNote){ H(app, s.demoNote, 'Демо-данные', 'auto'); }
+  return app;
 }
 
 /* ================= РЕНДЕР: НАВИГАЦИЯ + ШАПКА ================= */
