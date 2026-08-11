@@ -2580,7 +2580,8 @@ function limitsBody(app){
   if(!lga.rows.length) return `<div class="op-empty">${esc(lga.messages[0]||'Кредит не выбран')}</div>`;
   return lga.rows.flatMap(({creditNo,g})=>{
     const head = lga.rows.length>1 ? `<div class="mrow"><span><b>${esc(creditNo)}</b></span><span></span></div>` : '';
-    if(g.pending) return [head, `<div class="mrow"><span>—</span><span>${esc(g.messages[0])}</span></div>`];
+    const pfx = lga.rows.length>1 ? esc(creditNo)+': ' : '';
+    if(g.pending) return [head, `<div class="op-empty">${pfx}${esc(g.messages[0])}</div>`];
     const projLine = g.projectUnchecked
       ? `<div class="mrow"><span>Минимум по виду проекта</span><span><b>не проверен</b> — ${g.projectRow?'ставка внешняя ('+esc(g.projectRow.label)+'), машинно не вычисляется':'вид проекта у кредита не указан'} (${esc(normNote(g.projRec))})</span></div>`
       : `<div class="mrow"><span>Минимум по виду проекта</span><span>${g.projFloor}% — ${esc((g.projectRow||{}).label||'')} (${esc(normNote(g.projRec))})</span></div>`;
