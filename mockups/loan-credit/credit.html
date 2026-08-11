@@ -7276,12 +7276,20 @@ if (typeof document !== 'undefined') {
        по которому одногодичный «График» не получает строки года).
        Прогноз у квартала — прочерк: он ориентир при постановке цели ПО МЕСЯЦУ (ADR-0042 §2),
        квартальной суммы прогноза модель не считает и придумывать её здесь нечего. */
+    /* Умолчание раскрытия — ОДИН квартал (правка 11.08.2026 к КВ-21). «Все четыре раскрыты»
+       давали двенадцать строк первым экраном, и год перестал читаться целиком: итоги
+       кварталов, ради которых КВ-21 и завёл строку-группу, тонули между месяцами.
+       Раскрыт квартал даты среза — тот же приём, которым КВ-19 раскрывает год «Графика», а
+       planDefaultYear выбирает год: выбранный год позади среза — последний квартал (там
+       кончается история), впереди — первый. Ноль раскрытых умолчанием не бывает: таблица
+       из одних итогов читается как «месячных данных нет». */
+    const asOfY = pd(cardAsOf).getFullYear();
+    const curQ  = (asOfY === pe.year) ? Math.floor(pd(cardAsOf).getMonth()/3) + 1 : null;
     const qKey = c.id + '|' + year;
     if (planOpenQuarters === null || planQuartersKey !== qKey){
-      planOpenQuarters = new Set([1,2,3,4]); planQuartersKey = qKey; }
+      planOpenQuarters = new Set([curQ || (pe.year < asOfY ? 4 : 1)]); planQuartersKey = qKey; }
     const openQ = planOpenQuarters;
     const allQOpen = [1,2,3,4].every(q => openQ.has(q));
-    const curQ = (pd(cardAsOf).getFullYear() === pe.year) ? Math.floor(pd(cardAsOf).getMonth()/3) + 1 : null;
     const rows = [];
     pe.quarters.forEach(q => {
       const open = openQ.has(q.q);
@@ -7663,8 +7671,9 @@ if (typeof document !== 'undefined') {
     if(el) el.scrollIntoView({behavior:'smooth',block:'center'}); };
   CR.togglePlanMonth=function(mk){ planOpenMonth = (planOpenMonth===mk?null:mk); rerenderDetail(); };
   /* Смена года — смена охвата вкладки. Раскрытие кварталов не переносим: planQuartersKey
-     держит год, и новый год открывается умолчанием (все четыре развёрнуты). Журнал правок
-     месяца тоже не трогаем — строка чужого года просто не выводится. */
+     держит год, и новый год открывается умолчанием (один квартал — среза, первый или
+     последний, см. tabPlan). Журнал правок месяца тоже не трогаем — строка чужого года
+     просто не выводится. */
   CR.setPlanYear=function(y){ planYear = +y; rerenderDetail(); };
   /* Кварталы «Плана»: пустой набор — законное «свернуть все», а не сброс. Умолчание
      возвращает только смена кредита или года (planQuartersKey, см. tabPlan). */

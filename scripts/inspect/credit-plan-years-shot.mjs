@@ -1,8 +1,9 @@
 // Вкладка «План»: охват — ОДИН год, выбранный селектором; набор годов селектора строится
 // по данным кредита (весь срок ∪ годы с планом ∪ годы с фактом), а не смещением от даты
 // среза — старая формула не доставала до конца срока. Проверяем набор и умолчание года,
-// переключение, таблицу «квартал → месяцы» только выбранного года, свёртку кварталов,
-// год без плана, плитки за год и чистоту вкладки от подсказок.
+// переключение, таблицу «квартал → месяцы» только выбранного года, умолчание раскрытия
+// (ОДИН квартал: среза; год позади среза — четвёртый, впереди — первый), раскрытие и
+// свёртку кварталов, год без плана, плитки за год и чистоту вкладки от подсказок.
 //   node scripts/inspect/credit-plan-years-shot.mjs
 import { chromium } from 'playwright-core';
 import { pathToFileURL } from 'url';
@@ -78,17 +79,17 @@ console.log('K-1 год 2028 (без плана):', JSON.stringify({ year: s28.y
   tiles: s28.tiles.slice(-4), квартал: s28.quarters[0].tds }, null, 1));
 await page.screenshot({ path: `${OUT}/K-1-plan-year-2028.png`, fullPage: true });
 
-// свёртка кварталов — на выбранном году
+// раскрытие кварталов — на выбранном году; умолчание = один квартал (среза)
 await setYear(2026); await page.waitForTimeout(200);
 await clickQ(/^1 квартал$/); await page.waitForTimeout(200);
-console.log('K-1 после сворачивания 1 квартала:', JSON.stringify(brief(await snap()), null, 1));
+console.log('K-1 после раскрытия 1 квартала:', JSON.stringify(brief(await snap()), null, 1));
 await btn(/Развернуть все кварталы/); await page.waitForTimeout(200);
 console.log('K-1 «Развернуть все кварталы»:', JSON.stringify(brief(await snap()).months));
 await btn(/Свернуть все кварталы/); await page.waitForTimeout(200);
 const sC = await snap();
 console.log('K-1 «Свернуть все кварталы»:', JSON.stringify(brief(sC), null, 1));
 
-// смена года возвращает умолчание раскрытия (все четыре квартала), а не переносит свёртку
+// смена года возвращает умолчание раскрытия (один квартал), а не переносит свёртку
 await setYear(2027); await page.waitForTimeout(200);
 console.log('K-1 после смены года со свёрнутыми кварталами:', JSON.stringify(brief(await snap()).quarters));
 
