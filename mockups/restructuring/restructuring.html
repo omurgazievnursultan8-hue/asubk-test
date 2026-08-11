@@ -1596,7 +1596,7 @@ function setCalcTranche(appId, trancheId){
   // Пере-выбор на однорасчётной заявке переставляет транш существующего расчёта, а не плодит
   // второй: куратор передумал, а не добавил кредит (ADR-0042 — черновик не пересоздаётся молча).
   const cur = requireCalc(app);
-  if(cur && (app.calcs||[]).length===1){ cur.trancheId=found.t.id; cur.creditId=found.cr.id; }
+  if(cur && (app.calcs||[]).length===1){ cur.trancheId=found.t.id; cur.creditId=found.cr.id; cur.id='C-'+found.t.id; }
   else attachCalc(app, found.t);
   const c = requireCalc(app) || calcById(app, 'C-'+found.t.id);
   if(c && !c.version) c.version=draftVersion(found.cr,{});
