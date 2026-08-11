@@ -80,7 +80,7 @@
   возражение, а не как открытые вопросы. Свод — §11 спеки.
 
   SMOKE (node scripts/inspect/restructuring-check.mjs):
-   SMOKE 2026-08-11 · 63/63 PASS
+   SMOKE 2026-08-11 · 65/65 PASS
       PASS  #1  до=false после=true
       PASS  #2  closed=true opened=true reblock=true
       PASS  #3  noRate=true union=true
@@ -144,6 +144,8 @@
       PASS  #61  строкиПоРасчётам=true адресованы=true ловитВторой=true (КД-60541: Срок 999 мес. превышает предел 84 мес. при остатке задолженности 1 850 000 (п. 90, ред. прил. к ПКМ КР №14 от 2026-01-19) | КД-60541: Ставка 0.01% ниже минимума 4.5% (п. 92, ред. прил. к ПКМ КР №14 от 2026-01-19; вид проекта — 1%, п. 34, ред. прил. к ПКМ КР №14 от 2026-01-19))
       PASS  #62  срезПоРасчётам=true расчёт=1 (15.0 %) заявка=0 (4.1 %)
       PASS  #63  ступень2=2 блокировкаНаВсе=true послеКомитета=true
+      PASS  #64  второе=true первоеЦело=true соглашений=2 покрытие={"done":["C-CR-59003-T1","C-CR-60540-T2"],"excluded":[],"pending":[],"ok":true}
+      PASS  #65  былаЗакрыта=true приМолчании=true безОснованияОтказ=true послеСнятия=true
 -->
 <style>
 :root{
@@ -1158,14 +1160,25 @@ const packetPointOf = doc => (NORM_PACKET.find(d=>d.doc===doc)||{}).point || nul
    РС-18, регуляторные пределы РС-19) пройдены — иначе стадия честно остаётся «Оформление», хоть
    ДС уже стоит. formalGatesOk читает те же три гейта, что и вкладка «Оформление». */
 function formalGatesOk(app){
-  return consentGateApp(app).ok && limitsGateApp(app).ok && (coverGateApp(app).ok || !!(app.waiver && app.waiver.granted));
+  // Снятый с оформления расчёт выходит из-под этих трёх гейтов вместе со своим кредитом — его
+  // согласия/покрытие/пределы уже не про эту заявку (спека §4): кредит явно не идёт в ДС, и
+  // чужое несогласованное поручительство не вправе держать закрытие остальных расчётов заявки.
+  const activeCreditIds = [...new Set((app.calcs||[]).filter(c=>!c.excluded).map(c=>c.creditId))];
+  const consentOk = activeCreditIds.every(id=>consentGate(id).ok);
+  const coverOk = activeCreditIds.every(id=>{ const cr=creditById(id); return !cr || coverGate(app,cr).ok; });
+  const limitsOk = limitsGateApp(app).rows
+    .filter(r=>{ const c=(app.calcs||[]).find(x=>x.id===r.calcId); return !c || !c.excluded; })
+    .every(r=>r.g.ok);
+  return consentOk && limitsOk && (coverOk || !!(app.waiver && app.waiver.granted));
 }
 function stageOf(app){
   if(app.outcome==='возврат') return {idx:0, closed:true, label:'Возвращена без рассмотрения'};
-  if(app.ds && app.ds.no){
-    return formalGatesOk(app)
+  const cov=dsCoverage(app);
+  if(cov.done.length){
+    // Терминал требует ответа по КАЖДОМУ расчёту: зарегистрирован либо явно снят (спека §4).
+    return (formalGatesOk(app) && cov.ok)
       ? {idx:8, closed:true, label:'Закрыта'}
-      : {idx:7, closed:false, label:'Оформление'};    // ДС стоит, но не все гейты закрытия пройдены — честно не терминал
+      : {idx:7, closed:false, label:'Оформление'};
   }
   // отказ приходит с одного из двух актов: отрицательное заключение органа (п. 88) либо
   // отказ в постановлении КМ (п. 89) — стадия отказа читается по тому, какой акт его нёс
@@ -1278,10 +1291,18 @@ function zkGate(app){ const z=app.zk||{}; const c=app.conclusion||{};
   return {ok: c.outcome==='возможно' && !!(z.no&&z.no.trim()) && !!z.date, needConclusion: c.outcome!=='возможно'}; }
 function resolutionGate(app){ const r=app.resolution||{}; const z=app.zk||{};
   return {ok: !!r.decision && !!(r.no&&r.no.trim()) && !!r.date && !!(z.no&&z.no.trim()), needZk: !(z.no&&z.no.trim())}; }
-function dsGate(app){ const d=app.ds||{}; return {ok:!!(d.no&&d.no.trim()) && !!(d.date&&d.date.trim())}; }
+function dsGate(app){ const c=dsCoverage(app); return { ok:c.ok, pending:c.pending }; }
 
-/* остаток на новых условиях (демо-упрощение): тело то же, влияет срок/ставка на maturity */
-function newMaturity(app,cr){ const term=(app.version&&app.version.params.term)||cr.terms.term; return addCalDays(app.regDate, term*30); }
+/* остаток на новых условиях (демо-упрощение): тело то же, влияет срок/ставка на maturity.
+   Срок берётся с расчёта ЭТОГО кредита, не с двери app.version (та дверь отказывает при 2+
+   расчётах, ИР-16) — тот же приём адресации, что limitsGateApp уже применяет к пределам. */
+function newMaturity(app,cr){
+  const calc=(app.calcs||[]).find(c=>c.creditId===cr.id && !c.excluded);
+  const fixed=calc && calc.dsRef && app.agreements ? app.agreements.find(d=>d.no===calc.dsRef) : null;
+  const params=fixed ? fixed.params : (calc && calc.version && calc.version.params);
+  const term=(params&&params.term)||cr.terms.term;
+  return addCalDays(app.regDate, term*30);
+}
 /* Устарелость снимка покрытия (issues/04 реш.2: «покрытие — чужой ответ, не свой расчёт»), тот
    же приём, что COLL_SNAPSHOT_STALE_DAYS/collSnapshotStale в collection.html — независимый
    демо-порог этого домена, не то же число по смыслу. Устаревший снимок гейт не пропускает молча
@@ -1899,7 +1920,11 @@ function calcDrift(app, calcId){
   return { calcId:c.id, ...driftOf(c.cutoff.rows, c.fact.rows) };
 }
 function appDrift(app, date){
-  const list=(app.calcs||[]).filter(c=>c.cutoff);
+  // Расчёт с уже зарегистрированным ДС снят с рассмотрения (спека §4): перенос — известное,
+  // одобренное изменение, а не расхождение. Иначе его старый (дописьменный) срез навсегда
+  // читался бы против живого остатка транша-источника, урезанного самим переносом, и ступень 2
+  // срабатывала бы от факта регистрации, а не от настоящего дрейфа (RS-1005/РС-26).
+  const list=(app.calcs||[]).filter(c=>c.cutoff && !c.dsRef);
   const cut=list.flatMap(c=>c.cutoff.rows);
   const fact=list.flatMap(c=>{
     const t=calcTrancheOf(c); return t ? debtAt(t, date||TODAY) : [];
@@ -1908,9 +1933,10 @@ function appDrift(app, date){
 }
 function cutoffDrift(app){ return calcDrift(app, null); }
 /* Гейт регистрации: ступень 2 считается по заявке и блокирует ВСЕ расчёты — вернуть на комитет
-   половину обращения нельзя. Ступень 1 остаётся в строках: она про визу конкретного ДС. */
+   половину обращения нельзя. Ступень 1 остаётся в строках: она про визу конкретного ДС.
+   Тот же вырез уже зарегистрированных расчётов, что и в appDrift — по тем же причинам. */
 function driftGate(app, date){
-  const list=(app.calcs||[]).filter(c=>c.cutoff && c.cutoff.rows);
+  const list=(app.calcs||[]).filter(c=>c.cutoff && c.cutoff.rows && !c.dsRef);
   if(!list.length) return { ok:true, applicable:false, rows:[] };
   const whole=appDrift(app, date);
   const recommitted = !!(app.committee && app.committee.date && app.cutoff && app.cutoff.date
@@ -2129,6 +2155,10 @@ function seedRestructChain(){
     const res=CreditSide.restructureApplied(ds);
     if(!res.ok) throw new Error('demo-seed: '+no+' — '+res.reasons.join('; '));
     app.ds={ no, date, transferSum, sourceTrancheId:T.id, params:ds.params, fact:null };
+    const calc = requireCalc(app);
+    calc.dsRef = no;
+    (app.agreements = app.agreements || []).push({ no, date, creditId:cr.id,
+      appId:app.id, calcIds:[calc.id], transferSum, sourceTrancheId:T.id, params:ds.params });
     AppSide.fixFact(app,date,null,transferSum);
     app.outcome='изм'; app._t=date; H(app,'ДС '+no+' зарегистрировано, перенесено '+fmt(transferSum)+'.','Куратор ОД');
     return { app, tranche:res.tranche };
@@ -2357,6 +2387,10 @@ function buildWave2App(s){
     const res=CreditSide.restructureApplied(ds);
     if(!res.ok) throw new Error('demo-seed: '+s.id+' — '+res.reasons.join('; '));
     app.ds={ no:ds.no, date:ds.date, transferSum:ds.transferSum, sourceTrancheId:T.id, params:ds.params, fact:null };
+    const calc = requireCalc(app);
+    calc.dsRef = ds.no;
+    (app.agreements = app.agreements || []).push({ no:ds.no, date:ds.date, creditId:cr.id,
+      appId:app.id, calcIds:[calc.id], transferSum:ds.transferSum, sourceTrancheId:T.id, params:ds.params });
     AppSide.fixFact(app, ds.date, null, ds.transferSum);
     app.outcome='изм';
     app._t=ds.date; H(app,'Доп. соглашение '+ds.no+' зарегистрировано, перенесено '+fmt(ds.transferSum)+'.','Куратор ОД');
@@ -3206,7 +3240,7 @@ function grantWaiver(appId){
   closeModal(); toast('Гейт обеспечения снят решением комитета','ok'); render();
 }
 
-function openDS(appId){
+function openDS(appId, calcId){
   if(!guard('regDS')) return; const app=appById(appId);
   const cga=coverGateApp(app);
   if(!cga.ok && !(app.waiver&&app.waiver.granted)){ toast('Гейт обеспечения не пройден — сначала waiver','err'); return; }
@@ -3223,26 +3257,66 @@ function openDS(appId){
     <div class="field req"><span class="flabel">Дата</span><input id="dsdate" type="date" value="${TODAY}"></div>
     <div class="field col-span"><div class="section-note">Основание — постановление Кабинета Министров ${esc((app.resolution||{}).no||'—')} от ${esc((app.resolution||{}).date||'—')}; соглашение оформляет агент либо кредитный агент (п. 96). При регистрации: версия «действует», операции на дату вступления, счётчик реструктуризаций +1.</div></div>
   </div></div><div class="modal-f"><button class="btn btn-secondary" onclick="RS.closeModal()">Отмена</button>
-    <button class="btn btn-primary" onclick="RS.regDS('${appId}')">Зарегистрировать</button></div></div>`);
+    <button class="btn btn-primary" onclick="RS.regDS('${appId}','${calcId||''}')">Зарегистрировать</button></div></div>`);
 }
 /* Единственное место в оболочке, которое зовёт дверь CreditSide.restructureApplied (ADR-0096,
-   issues/03) — раньше applyEntryOps писал app.ops мимо двери, теперь пишущий путь один. */
-function regDS(appId){
-  const app=appById(appId); const no=(document.getElementById('dsno').value||'').trim(); const date=(document.getElementById('dsdate').value||'').trim();
-  if(!no||!date){ toast('Номер и дата обязательны (Р-8)','err'); return; }
-  const tranche=app.calcTranche, credit=creditById(app.creditIds[0]);
-  if(!tranche||!credit){ toast('Не выбран транш-источник расчёта','err'); return; }
-  const run=AppSide.run(app,date);
-  const ds={ no, date, app, sourceTranche:tranche, credit, transferSum:run.transferSum,
-             principalPart:run.principalPart, parts:run.parts, params:{...(app.version?app.version.params:{})} };
+   issues/03) — раньше applyEntryOps писал app.ops мимо двери, теперь пишущий путь один.
+   Одно ДС на кредит; регистрируется своими гейтами и своей датой вступления. Оболочка (модалка)
+   отдаёт номер и дату, а решение принимает ядро — иначе сторожу пришлось бы поднимать DOM. */
+function regDS(appId, calcId, fields){
+  const app=appById(appId);
+  const calc=requireCalc(app, calcId);
+  if(!calc){ toast('У заявки несколько расчётов — укажите, по какому траншу','err'); return {ok:false, reasons:['Не указан расчёт']}; }
+  const src = fields || { no:(document.getElementById('dsno').value||'').trim(),
+                          date:(document.getElementById('dsdate').value||'').trim() };
+  const no=(src.no||'').trim(), date=(src.date||'').trim();
+  if(!no||!date){ toast('Номер и дата обязательны (Р-8)','err'); return {ok:false, reasons:['Номер и дата обязательны']}; }
+  if(calc.dsRef){ toast('По этому траншу ДС уже зарегистрировано','err'); return {ok:false, reasons:['ДС уже зарегистрировано']}; }
+  const tranche=calcTrancheOf(calc), credit=creditById(calc.creditId);
+  if(!tranche||!credit){ toast('Транш-источник расчёта не найден','err'); return {ok:false, reasons:['Транш не найден']}; }
+  const dg=driftGate(app, date);
+  if(!dg.ok){ toast('Ступень 2 порога расхождения — требуется новая позиция комитета (РС-26)','err');
+              return {ok:false, reasons:['Ступень 2 порога расхождения']}; }
+  const r=run(app, date, calc.id);
+  const ds={ no, date, app, sourceTranche:tranche, credit, transferSum:r.transferSum,
+             principalPart:r.principalPart, parts:r.parts, params:{...(calc.version?calc.version.params:{})} };
   const res=CreditSide.restructureApplied(ds);
-  if(!res.ok){ toast(res.reasons.join('; '),'err'); return; }
-  app.ds={ no, date, transferSum:ds.transferSum, sourceTrancheId:tranche.id, params:ds.params, fact:null };
-  AppSide.fixFact(app, date, null, ds.transferSum);
-  if(!app.outcome) app.outcome = app.resolution.decision==='изм'?'изм':'одобрена';
-  app._t=date; H(app,'Доп. соглашение '+no+' зарегистрировано. Перенесено '+fmt(ds.transferSum)+' на транш '+res.tranche.no+'. Счётчик реструктуризаций +1.',state.role);
-  if(credit.collProc){ app.automation.push({when:date,kind:'unpause',text:'Оформление завершено — пауза снята штатно, взыскание закрыто по кредитам заявки'}); }
-  closeModal(); toast('Доп. соглашение зарегистрировано','ok'); render();
+  if(!res.ok){ toast(res.reasons.join('; '),'err'); return res; }
+  if(!app.agreements) app.agreements=[];
+  app.agreements.push({ no, date, creditId:credit.id, appId:app.id, calcIds:[calc.id],
+                        transferSum:ds.transferSum, sourceTrancheId:tranche.id, params:ds.params });
+  calc.dsRef=no;
+  fixFact(app, date, calc.id, ds.transferSum);
+  if(!app.ds) app.ds={ no, date, transferSum:ds.transferSum, sourceTrancheId:tranche.id, params:ds.params, fact:calc.fact };
+  const cov=dsCoverage(app);
+  if(cov.ok && !app.outcome && app.resolution) app.outcome = app.resolution.decision==='изм'?'изм':'одобрена';
+  app._t=date;
+  H(app,'Доп. соглашение '+no+' зарегистрировано по кредиту '+credit.no+'. Перенесено '+fmt(ds.transferSum)+' на транш '+res.tranche.no+'. Счётчик реструктуризаций +1.',state.role);
+  if(credit.collProc){ app.automation.push({when:date,kind:'unpause',text:'Оформление завершено — пауза снята штатно, взыскание закрыто по кредиту '+credit.no}); }
+  if(typeof document!=='undefined') closeModal();
+  toast('Доп. соглашение зарегистрировано','ok'); render();
+  return res;
+}
+/* Снятие расчёта с оформления — второй из двух допустимых ответов (первый — регистрация ДС).
+   Основание обязательно: «закрыто, потому что промолчали» неотличимо от забытого кредита. */
+function excludeCalc(appId, calcId, reason){
+  if(!guard('regDS')) return false;
+  const app=appById(appId), calc=calcById(app, calcId);
+  if(!calc){ toast('Расчёт не найден','err'); return false; }
+  if(calc.dsRef){ toast('По этому траншу ДС уже зарегистрировано — снять нельзя','err'); return false; }
+  if(!reason || !String(reason).trim()){ toast('Снятие расчёта с оформления требует основания','err'); return false; }
+  calc.excluded={ reason:String(reason).trim(), date:TODAY, by:state.role };
+  app._t=TODAY;
+  H(app,'Расчёт по траншу '+((calcTrancheOf(calc)||{}).no||calcId)+' снят с оформления: '+calc.excluded.reason,state.role,'warn');
+  render(); return true;
+}
+/* Покрытие оформления: ответ дан по каждому расчёту либо не дан. Молчание — не «нет». */
+function dsCoverage(app){
+  const list=app.calcs||[];
+  const done=list.filter(c=>c.dsRef).map(c=>c.id);
+  const excluded=list.filter(c=>!c.dsRef && c.excluded).map(c=>c.id);
+  const pending=list.filter(c=>!c.dsRef && !c.excluded).map(c=>c.id);
+  return { done, excluded, pending, ok: list.length>0 && pending.length===0 && done.length>0 };
 }
 
 function openNewKind(){
@@ -3460,6 +3534,7 @@ const RS = {
   scheduleArticleCols, rowArticlesSum, mergeParts, validateDS,
   trancheCandidates, setCalcTranche, setVersionParam, recalcPlan,
   calcById, calcTrancheOf, creditOfTranche, requireCalc, attachCalc,
+  dsCoverage, excludeCalc, resultTrancheOf,
   TODAY, STAGES, ROLES,
   __baseApp: baseApp
 };

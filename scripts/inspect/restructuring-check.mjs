@@ -932,6 +932,41 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
   ok(63, blockedAll && released, `ступень2=${g.level} блокировкаНаВсе=${blockedAll} послеКомитета=${released}`);
 })();
 
+/* 64. Допсоглашения регистрируются ПО ОЧЕРЕДИ, каждое своими гейтами и своей датой: регистрация
+   по второму траншу не трогает уже вступившее соглашение по первому (спека §4, РС-2). */
+(() => { fresh();
+  const a = app('RS-1005');
+  const seededNo = a.calcs[0].dsRef;                        // ДС из демо-цепочки
+  const { t } = secondTranche(a);
+  RS.addTrancheToScope(a.id, t.id);
+  const c2 = a.calcs.find(x => x.trancheId === t.id);
+  const res = RS.regDS(a.id, c2.id, { no:'ДС-Т64/2', date: RS.TODAY });
+  const second = !!res && res.ok === true && c2.dsRef === 'ДС-Т64/2';
+  const firstIntact = a.calcs[0].dsRef === seededNo && seededNo && seededNo !== 'ДС-Т64/2';
+  const twoAgreements = (a.agreements||[]).length === 2
+    && new Set(a.agreements.map(d => d.creditId)).size === 2;
+  const cov = RS.dsCoverage(a);
+  ok(64, second && firstIntact && twoAgreements && cov.ok === true && cov.pending.length === 0,
+    `второе=${second} первоеЦело=${firstIntact} соглашений=${(a.agreements||[]).length} покрытие=${JSON.stringify(cov)}`);
+})();
+
+/* 65. Гейт «оформление → закрыта»: каждый расчёт либо зарегистрирован, либо ЯВНО снят с
+   оформления с основанием. Молчания как варианта нет — тот же приём, что у гейта согласий ИР-8.
+   Добавленный в охват транш снимает закрытие: заявка снова в оформлении, пока ответ не дан. */
+(() => { fresh();
+  const a = app('RS-1005');
+  const closedBefore = RS.stageOf(a).closed === true;
+  const { t } = secondTranche(a);
+  RS.addTrancheToScope(a.id, t.id);
+  const c2 = a.calcs.find(x => x.trancheId === t.id);
+  const reopened = RS.stageOf(a).closed === false;                  // второй расчёт молчит
+  const refused = RS.excludeCalc(a.id, c2.id, '') === false;        // без основания снять нельзя
+  RS.excludeCalc(a.id, c2.id, 'Заёмщик отозвал обращение по этому кредиту');
+  const closedNow = RS.stageOf(a).closed === true && RS.stageOf(a).label === 'Закрыта';
+  ok(65, closedBefore && reopened && refused && closedNow,
+    `былаЗакрыта=${closedBefore} приМолчании=${reopened} безОснованияОтказ=${refused} послеСнятия=${closedNow}`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
