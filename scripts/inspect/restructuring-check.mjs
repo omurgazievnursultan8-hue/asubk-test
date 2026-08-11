@@ -892,16 +892,23 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
 /* 62. Ступень 1 меряется от базы среза РАСЧЁТА: виза куратора блокирует регистрацию конкретного
    ДС, значит и меряться обязана тем, что в это ДС уходит. Считать её от суммы по заявке значит
    дать крупному кредиту охвата глушить расхождение по мелкому — виза не возникнет там, где
-   возникла бы при отдельной заявке (спека §5). */
+   возникла бы при отдельной заявке (спека §5). После ревью 11.08.2026 appDrift на стороне факта
+   всегда живой debtAt (пред-Task-5 поведение вернули, чтобы уже зарегистрированные однорасчётные
+   заявки не съезжали — RS-1005/RS-1010), .fact при сборке whole больше не читается. Круглые
+   числа поэтому строкам среза не годятся: whole сравнивал бы их с чужой живой суммой безо всякого
+   смысла. Сеем срез ОТ той же живой суммы — нолём для «big» и заниженным на 15 % для «small»; факт
+   расчёта (для ступени 1, calcDrift читает именно его, не debtAt) выставляем отдельно. */
 (() => { fresh();
   const a = app('RS-1001');
   RS.addTrancheToScope(a.id, secondTranche(a).t.id);
   RS.AppSide.fixCutoff(a, '2026-03-30');
   const seeded = a.calcs.every(c => c.cutoff && Array.isArray(c.cutoff.rows));
   const [big, small] = a.calcs;
+  const liveSum = c => RS.round2(RS.AppSide.debtAt(RS.calcTrancheOf(c), RS.TODAY).reduce((s, r) => s + r.amount, 0));
+  const bigLive = liveSum(big), smallLive = liveSum(small);
   const row = amount => [{ article:'principal', urgency:'over', amount, since:'2026-03-30' }];
-  big.cutoff.rows   = row(10000000); big.fact   = { date:'2026-07-19', rows: row(10000000) };  // не сдвинулся
-  small.cutoff.rows = row(100000);   small.fact = { date:'2026-07-19', rows: row(115000) };    // +15 % — ступень 1
+  big.cutoff.rows   = row(bigLive);                          big.fact   = { date:'2026-07-19', rows: row(bigLive) };            // не сдвинулся
+  small.cutoff.rows = row(RS.round2(smallLive / 1.15));      small.fact = { date:'2026-07-19', rows: row(smallLive) };          // +15 % — ступень 1
   const perCalc = RS.AppSide.calcDrift(a, small.id);
   const whole   = RS.AppSide.appDrift(a, RS.TODAY);
   ok(62, seeded && perCalc.level === 1 && whole.level === 0,
