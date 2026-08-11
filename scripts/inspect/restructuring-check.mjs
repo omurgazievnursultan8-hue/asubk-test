@@ -36,6 +36,18 @@ const ok = (n, cond, note = '') => results.push({ n, pass: !!cond, note });
 const fresh = () => RS.seed();
 const app = id => RS.appById(id);
 
+/* Фикстура многокредитной заявки. Демо-данные не гарантируют, что у ИНН заявки найдётся второй
+   кредит со свободным траншем, поэтому берём любой свободный и приписываем его тому же ИНН:
+   охват ограничен одним заёмщиком, и без этого addTrancheToScope откажет по делу. Занятый другой
+   заявкой транш исключаем — иначе сценарий упал бы на ИР-1, а не на своей теме. */
+function secondTranche(a){
+  const free = t => !t.closed && !RS.activeAppOnTranche(t.id, a.id);
+  const cr = RS.state.credits.find(c => !(a.creditIds||[]).includes(c.id) && (c.tranches||[]).some(free));
+  if(!cr) throw new Error('нет свободного кредита для ' + a.id);
+  cr.inn = a.inn;
+  return { cr, t: cr.tranches.find(free) };
+}
+
 /* 1. Неполный пакет → «Анализ» заблокирован; докомплект → открыт. */
 (() => { fresh();
   const a = app('RS-1003');
@@ -799,10 +811,300 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
     `хвостВТело=${inBody} процентыВыросли=${dearer} (${without.int}→${withTail.int}) пеняНеТронута=${penStays}`);
 })();
 
+/* 58. Каркас расчёта: у демо-заявки с траншем-источником ровно один расчёт, он адресует транш
+   и кредит, а старые поля app.base/app.dispositions/app.version — дверь к нему же, не второе
+   хранилище (ИР-16). Заявка без транша-источника расчёта не имеет вовсе: пустой расчёт читался
+   бы как «база ноль», а её ещё не собирали. Дверь calcTranche отказывается угадывать не только
+   на нуле расчётов, но и на 2+ (RS-1020, задача 8) — поэтому «пусто» проверяем по calcs.length,
+   а не по самой двери: ровно 0 либо ровно 2+ и никогда «висящая единица» (расчёт есть, а транш
+   за ним потерян). */
+(() => { fresh();
+  const a = app('RS-1001');
+  const c = a.calcs[0];
+  const one = a.calcs.length === 1;
+  const addressed = !!c && c.trancheId === a.calcTranche.id && c.creditId === a.creditIds[0];
+  const door = !!c && a.base === c.base && a.dispositions === c.dispositions && a.version === c.version;
+  const ambiguous = RS.state.apps.filter(x => !x.calcTranche);   // дверь отказала: либо 0, либо 2+
+  const noOrphan = ambiguous.every(x => x.calcs.length === 0 || x.calcs.length >= 2);
+  ok(58, one && addressed && door && noOrphan,
+    `один=${one} адрес=${addressed} дверь=${door} безВисящих=${noOrphan}`);
+})();
+
+/* 59. Два расчёта не смешивают строки. Одной заявке даём два транша разных кредитов, включаем
+   строку в первом — во втором она не шевелится. Это и есть ответ на вопрос «по какому кредиту
+   какая сумма»: ключ строки — тройка (транш, статья, срочность). */
+(() => { fresh();
+  const a = app('RS-1001');
+  const other = RS.state.credits.find(c => c.id !== a.creditIds[0] && (c.tranches||[]).some(t => !t.closed));
+  const t2 = other.tranches.find(t => !t.closed);
+  const c2 = RS.attachCalc(a, t2);           // кредит транша ищется по state, охват для этого не нужен
+  const c1 = a.calcs[0];
+  const two = a.calcs.length === 2 && c1.id !== c2.id;
+  RS.ensureBaseDispositions(c1); RS.ensureBaseDispositions(c2);
+  const snapshot = JSON.stringify(c2.base);
+  RS.toggleBaseRow(a.id, 'principal', 'cur', c1.id);            // трогаем ТОЛЬКО первый расчёт
+  const secondIntact = JSON.stringify(c2.base) === snapshot;
+  const firstMoved = JSON.stringify(c1.base) !== snapshot;
+  const r1 = RS.AppSide.run(a, RS.TODAY, c1.id), r2 = RS.AppSide.run(a, RS.TODAY, c2.id);
+  const separateSums = r1.transferSum !== r2.transferSum;
+  const refuses = RS.AppSide.run(a, RS.TODAY) === null;          // без calcId при двух расчётах — отказ
+  ok(59, two && secondIntact && firstMoved && separateSums && refuses,
+    `два=${two} второйЦел=${secondIntact} первыйДвинулся=${firstMoved} суммыРазные=${r1.transferSum}/${r2.transferSum} отказБезИмени=${refuses}`);
+})();
+
+/* 60. Охват называет траншы (РС-2, ИР-16). Кредит появляется в охвате вместе со своим траншем,
+   а не отдельным действием; повторное добавление того же транша второго расчёта не заводит;
+   снятие транша уносит расчёт вместе с суммами, не оставляя адреса без суммы. ИР-1 ключуется
+   траншем: тот же транш в другой активной заявке — занят. Чужой заёмщик в охват не входит. */
+(() => { fresh();
+  const a = app('RS-1001');
+  const { cr, t } = secondTranche(a);
+  RS.addTrancheToScope(a.id, t.id);
+  const grew = a.calcs.length === 2 && a.creditIds.includes(cr.id);
+  RS.addTrancheToScope(a.id, t.id);                        // повтор
+  const idempotent = a.calcs.length === 2;
+  const derived = a.creditIds.length === new Set(a.creditIds).size;
+  const alien = RS.state.credits.find(c => c.inn !== a.inn && (c.tranches||[]).some(x => !x.closed));
+  if(alien) RS.addTrancheToScope(a.id, alien.tranches.find(x => !x.closed).id);
+  const noAlien = a.calcs.length === 2;
+  const c2 = a.calcs.find(x => x.trancheId === t.id);
+  RS.removeTrancheFromScope(a.id, c2.id);
+  const shrank = a.calcs.length === 1 && !a.creditIds.includes(cr.id);
+  const busy = !!RS.activeAppOnTranche(a.calcs[0].trancheId, 'RS-9999');
+  ok(60, grew && idempotent && derived && noAlien && shrank && busy,
+    `вырос=${grew} идемпотентно=${idempotent} безДублей=${derived} чужойНеВошёл=${noAlien} снят=${shrank} ИР-1=${busy}`);
+})();
+
+/* 61. Пределы считаются по КРЕДИТУ каждого расчёта, а не по первому кредиту охвата: пол ставки
+   меряется от первоначальной ставки кредита (п. 34, п. 92), предел длины графика — от остатка
+   задолженности по кредиту (п. 90). Один app.version на заявку делал эти два гейта
+   непроверяемыми, как только кредитов больше одного. */
+(() => { fresh();
+  const a = app('RS-1001');
+  RS.addTrancheToScope(a.id, secondTranche(a).t.id);
+  const g = RS.limitsGateApp(a);
+  const perCalc = Array.isArray(g.rows) && g.rows.length === 2;
+  const addressed = perCalc && g.rows.every(r => !!r.calcId && !!r.creditNo);
+  const c2 = a.calcs[1];
+  c2.version = { params:{ term: 999, rate: 0.01 } };         // заведомо вне обоих пределов
+  const g2 = RS.limitsGateApp(a);
+  const catches = g2.ok === false && g2.messages.some(m => /КД-|кредит/i.test(m));
+  ok(61, perCalc && addressed && catches,
+    `строкиПоРасчётам=${perCalc} адресованы=${addressed} ловитВторой=${catches} (${g2.messages.join(' | ')})`);
+})();
+
+/* 62. Ступень 1 меряется от базы среза РАСЧЁТА: виза куратора блокирует регистрацию конкретного
+   ДС, значит и меряться обязана тем, что в это ДС уходит. Считать её от суммы по заявке значит
+   дать крупному кредиту охвата глушить расхождение по мелкому — виза не возникнет там, где
+   возникла бы при отдельной заявке (спека §5). После ревью 11.08.2026 appDrift на стороне факта
+   всегда живой debtAt (пред-Task-5 поведение вернули, чтобы уже зарегистрированные однорасчётные
+   заявки не съезжали — RS-1005/RS-1010), .fact при сборке whole больше не читается. Круглые
+   числа поэтому строкам среза не годятся: whole сравнивал бы их с чужой живой суммой безо всякого
+   смысла. Сеем срез ОТ той же живой суммы — нолём для «big» и заниженным на 15 % для «small»; факт
+   расчёта (для ступени 1, calcDrift читает именно его, не debtAt) выставляем отдельно. */
+(() => { fresh();
+  const a = app('RS-1001');
+  RS.addTrancheToScope(a.id, secondTranche(a).t.id);
+  RS.AppSide.fixCutoff(a, '2026-03-30');
+  const seeded = a.calcs.every(c => c.cutoff && Array.isArray(c.cutoff.rows));
+  const [big, small] = a.calcs;
+  const liveSum = c => RS.round2(RS.AppSide.debtAt(RS.calcTrancheOf(c), RS.TODAY).reduce((s, r) => s + r.amount, 0));
+  const bigLive = liveSum(big), smallLive = liveSum(small);
+  const row = amount => [{ article:'principal', urgency:'over', amount, since:'2026-03-30' }];
+  big.cutoff.rows   = row(bigLive);                          big.fact   = { date:'2026-07-19', rows: row(bigLive) };            // не сдвинулся
+  small.cutoff.rows = row(RS.round2(smallLive / 1.15));      small.fact = { date:'2026-07-19', rows: row(smallLive) };          // +15 % — ступень 1
+  const perCalc = RS.AppSide.calcDrift(a, small.id);
+  const whole   = RS.AppSide.appDrift(a, RS.TODAY);
+  ok(62, seeded && perCalc.level === 1 && whole.level === 0,
+    `срезПоРасчётам=${seeded} расчёт=${perCalc.level} (${(perCalc.pct*100).toFixed(1)} %) заявка=${whole.level} (${(whole.pct*100).toFixed(1)} %)`);
+})();
+
+/* 63. Ступень 2 меряется от Σ базы среза ВСЕХ расчётов: она откатывает заявку целиком, а комитет
+   высказывался по обращению, а не по кредиту. Сработала — блокировка ложится на все расчёты, а не
+   только на превысивший. */
+(() => { fresh();
+  const a = app('RS-1001');
+  RS.addTrancheToScope(a.id, secondTranche(a).t.id);
+  RS.AppSide.fixCutoff(a, '2026-03-30');
+  a.calcs.forEach(c => { c.cutoff.rows = [{ article:'principal', urgency:'over', amount: 1000000, since:'2026-03-30' }];
+                         c.fact = { date: RS.TODAY, rows:[{ article:'principal', urgency:'over', amount: 1400000, since:'2026-03-30' }] }; });
+  a.committee = { fixed:true, date:'2026-02-01' };                 // позиция комитета СТАРШЕ среза
+  const g = RS.driftGate(a, RS.TODAY);
+  const blockedAll = g.ok === false && g.level === 2 && (g.rows||[]).length === 2;
+  a.committee = { fixed:true, date:'2026-08-01' };                 // комитет высказался заново
+  const released = RS.driftGate(a, RS.TODAY).ok === true;
+  ok(63, blockedAll && released, `ступень2=${g.level} блокировкаНаВсе=${blockedAll} послеКомитета=${released}`);
+})();
+
+/* 64. Допсоглашения регистрируются ПО ОЧЕРЕДИ, каждое своими гейтами и своей датой: регистрация
+   по второму траншу не трогает уже вступившее соглашение по первому (спека §4, РС-2). */
+(() => { fresh();
+  const a = app('RS-1005');
+  const seededNo = a.calcs[0].dsRef;                        // ДС из демо-цепочки
+  const { t } = secondTranche(a);
+  RS.addTrancheToScope(a.id, t.id);
+  const c2 = a.calcs.find(x => x.trancheId === t.id);
+  const res = RS.regDS(a.id, c2.id, { no:'ДС-Т64/2', date: RS.TODAY });
+  const second = !!res && res.ok === true && c2.dsRef === 'ДС-Т64/2';
+  const firstIntact = a.calcs[0].dsRef === seededNo && seededNo && seededNo !== 'ДС-Т64/2';
+  const twoAgreements = (a.agreements||[]).length === 2
+    && new Set(a.agreements.map(d => d.creditId)).size === 2;
+  const cov = RS.dsCoverage(a);
+  // РС-7/задача-7-fix: resultTrancheOf адресован по calcId — оба траншa с dsRef должны
+  // произвести СВОИ производные транши, а не делить одну (или null) однорасчётную дверь.
+  const derived1 = RS.resultTrancheOf(a, a.calcs[0].id);
+  const derived2 = RS.resultTrancheOf(a, c2.id);
+  const perCalcDerived = !!derived1 && !!derived2 && derived1.id !== derived2.id;
+  ok(64, second && firstIntact && twoAgreements && cov.ok === true && cov.pending.length === 0 && perCalcDerived,
+    `второе=${second} первоеЦело=${firstIntact} соглашений=${(a.agreements||[]).length} покрытие=${JSON.stringify(cov)} производныеПоРасчётам=${perCalcDerived}`);
+})();
+
+/* 65. Гейт «оформление → закрыта»: каждый расчёт либо зарегистрирован, либо ЯВНО снят с
+   оформления с основанием. Молчания как варианта нет — тот же приём, что у гейта согласий ИР-8.
+   Добавленный в охват транш снимает закрытие: заявка снова в оформлении, пока ответ не дан. */
+(() => { fresh();
+  const a = app('RS-1005');
+  const closedBefore = RS.stageOf(a).closed === true;
+  const { t } = secondTranche(a);
+  RS.addTrancheToScope(a.id, t.id);
+  const c2 = a.calcs.find(x => x.trancheId === t.id);
+  const reopened = RS.stageOf(a).closed === false;                  // второй расчёт молчит
+  const refused = RS.excludeCalc(a.id, c2.id, '') === false;        // без основания снять нельзя
+  RS.excludeCalc(a.id, c2.id, 'Заёмщик отозвал обращение по этому кредиту');
+  const closedNow = RS.stageOf(a).closed === true && RS.stageOf(a).label === 'Закрыта';
+  ok(65, closedBefore && reopened && refused && closedNow,
+    `былаЗакрыта=${closedBefore} приМолчании=${reopened} безОснованияОтказ=${refused} послеСнятия=${closedNow}`);
+})();
+
+/* 66. Экран расчёта: суммы складываются через кредиты РОВНО в одном месте — шапке-итоге, и оно
+   подписано как итог, а не как база. Секция адресует транш и кредит; при одном расчёте заголовок
+   секции не рисуется вовсе — экран однокредитной заявки не меняется. Четыре сеттера строки
+   получают calcId, иначе клик в секции второго транша уехал бы в первый.
+   `creditIds[0]` уходит из четырёх функций задачи (pScope/pCalcBase/pCalcSched/automationBlock) —
+   но НЕ из fixLetter/closeByRefusal: это логика паузы взыскания, спека прямо говорит её не
+   трогать (`Не переписываем взыскание и залог`). Проверка поэтому берёт тело функции по имени,
+   а не весь файл — иначе сценарий требовал бы правки, которую задача не должна делать.
+   `wired` сверяет реальный порядок аргументов каждого сеттера, а не литеральную склейку `${AC}`:
+   у setDisposition/setDispAmount/setDispPeriods между тройкой (заявка,статья,срочность) и calcId
+   есть свои позиционные поля (вид/сумма; режим/от/до) — склейка `${AC}` в лоб увела бы calcId в
+   чужой слот, а нужное значение — в слот calcId (NaN на каждой правке суммы). Только у
+   toggleBaseRow тройка идёт вплотную к calcId, поэтому только там разметка зовёт `${AC}` буквально. */
+(() => {
+  const head   = /function calcSectionHead/.test(src);
+  const total  = /Итог по заявке/.test(src);
+  const single = /length<2\) return '';/.test(src);                 // один расчёт — заголовка нет
+  const wired  = /const AC=/.test(src)
+    && /RS\.toggleBaseRow\(\$\{AC\}\)/.test(src)
+    && /RS\.setDisposition\(\$\{A\},this\.value,'\$\{calc\.id\}'\)/.test(src)
+    && /RS\.setDispAmount\(\$\{A\},this\.value,'\$\{calc\.id\}'\)/.test(src)
+    && /RS\.setDispPeriods\(\$\{A\},'range',this\.value,null,'\$\{calc\.id\}'\)/.test(src);
+  const bodyOf = name => {
+    const start = src.indexOf('function '+name+'(');
+    if(start<0) return '';
+    const next = src.indexOf('\nfunction ', start+1);
+    return src.slice(start, next<0 ? src.length : next);
+  };
+  const scoped = ['pScope','pCalcBase','pCalcSched','automationBlock'];
+  const gone = !/function pickTrancheBlock/.test(src)
+    && scoped.every(name => !/creditIds\[0\]/.test(bodyOf(name)));
+  // fix-round-1: производный транш адресуется по calc.id в ОБЕИХ секциях, не через однорасчётную
+  // дверь resultTranche(app) — иначе у 2+ расчётов производный транш второй+ секции всегда «не
+  // оформлено», а черновая форма ДС (versionParamsBlock) вовсе не рисуется (app.version==null).
+  const derivedAddressed = ['calcBaseSection','calcSchedSection'].every(name => {
+    const b = bodyOf(name);
+    return /resultTrancheOf\(app,\s*calc\.id\)/.test(b) && !/resultTranche\(app\)/.test(b);
+  });
+  const paramsBlockScoped = /function versionParamsBlock\(app,\s*calc\)/.test(src)
+    && /calc\.version/.test(bodyOf('versionParamsBlock'))
+    && /versionParamsBlock\(app,\s*calc\)/.test(bodyOf('calcSchedSection'));
+  ok(66, head && total && single && wired && gone && derivedAddressed && paramsBlockScoped,
+    `секция=${head} итог=${total} одинБезЗаголовка=${single} адресВДвери=${wired} староеСнесено=${gone} производныйПоРасчёту=${derivedAddressed} черновикПоРасчёту=${paramsBlockScoped}`);
+})();
+
+/* 67. RS-1020 — единственная многокредитная заявка сида, и до сих пор расчёта не имела вовсе.
+   Два расчёта, базы РАЗНЫЕ (различие видно глазом, а не выводится из кода), Σ шапки равна их
+   сумме, а ключ строки — тройка: одинаковая статья в двух расчётах живёт двумя строками. */
+(() => { fresh();
+  const a = app('RS-1020');
+  const two = a.calcs.length === 2;
+  const creditsDiffer = two && a.calcs[0].creditId !== a.calcs[1].creditId;
+  const r = a.calcs.map(c => RS.AppSide.run(a, RS.TODAY, c.id));
+  const basesDiffer = two && RS.round2(r[0].transferSum) !== RS.round2(r[1].transferSum);
+  // Σ сверяется с НЕЗАВИСИМО собранной величиной — из частей каждого прогона (тело + позиции),
+  // а не с той же суммой, записанной второй раз: `a+b === a+b` не падало ни при какой поломке
+  // (fix-round-1). Так проверка ловит и потерянный расчёт, и удвоенный, и разъехавшийся round2.
+  const sum = RS.round2(r[0].transferSum + r[1].transferSum);
+  const expected = RS.round2(r.reduce((s, x) =>
+    s + x.principalPart + x.parts.reduce((p, q) => p + q.amount, 0), 0));
+  const addsUp = sum > 0 && sum === expected;
+  // «Одинаковая статья живёт двумя строками» — это про ДВЕ РАЗНЫЕ суммы под одним ключом статьи,
+  // а не про две разные ссылки на массив (сравнение ссылок было истинно всегда, fix-round-1).
+  const artSum = (c, key) => RS.round2((c.base || [])
+    .filter(x => x.article === key).reduce((s, x) => s + x.amount, 0));
+  const p0 = artSum(a.calcs[0], 'principal'), p1 = artSum(a.calcs[1], 'principal');
+  const sameArticleTwice = p0 > 0 && p1 > 0 && p0 !== p1;
+  ok(67, two && creditsDiffer && basesDiffer && addsUp && sameArticleTwice,
+    `расчётов=${a.calcs.length} кредитыРазные=${creditsDiffer} базыРазные=${r.map(x=>x.transferSum).join('/')} итогСходится=${addsUp} (${sum}=${expected}) статьяДважды=${sameArticleTwice} (тело ${p0}/${p1})`);
+})();
+
+/* 68. Вкладка расчёта РИСУЕТСЯ, а не только считается. До fix-round-1 ни один сценарий не звал
+   pCalcBase/pCalcSched, и расхождение трёх дверей к базе проходило мимо смоука: шапка секции и
+   полоса-итог читали calc.base сырым, тело секции брало умолчание через дверь ЗАЯВКИ
+   (defaultBase(app,…)), которая при 2+ расчётах молчит — секция ещё не тронутого куратором
+   транша рисовала «Долг по траншу пуст» и печатала «база 0» при живом долге. Третий транш,
+   добавленный в охват, — ровно тот случай: base у его расчёта пустая.
+   RS-1001 проверяет вторую половину: однорасчётная заявка с зарегистрированным ДС обязана
+   показывать коробку разделения и живой график производного транша (сид адресует ДС расчётом —
+   dsRef + agreements, как mkChainApp). Обе половины падали на коде до fix-round-1. */
+(() => { fresh();
+  const a = app('RS-1020');
+  const { t } = secondTranche(a);
+  RS.addTrancheToScope(a.id, t.id);                     // третий расчёт: base не материализована
+  const html = RS.pCalcBase(a);
+  const secs = html.split('<div class="section-h calc-h">').slice(1);
+  const digits = s => Number(String(s).replace(/[^\d-]/g, '')) * (/-/.test(String(s)) ? -1 : 1);
+  const grab = (s, label) => digits((s.match(new RegExp(label + ' ([^·<]+)')) || [, '0'])[1]);
+  // модель базы расчёта — та же, что у экрана: снимок, если он есть, иначе умолчание ОТ РАСЧЁТА
+  const fullBase = c => (c.base && c.base.length ? c.base : RS.AppSide.defaultBase(c, RS.TODAY));
+  const modelBase = c => fullBase(c).filter(x => x.included);
+
+  const perSection = secs.length === a.calcs.length && a.calcs.length === 3;
+  // у каждой секции с живыми строками долга — таблица со строками, а не пустое состояние
+  // (пустое состояние законно только там, где долга по траншу нет вовсе)
+  const rendered = a.calcs.every((c, i) => {
+    const body = secs[i] || '';
+    const rows = fullBase(c).length;
+    const empty = body.includes('Долг по траншу пуст');
+    return rows ? (!empty && (body.match(/<tr class=/g) || []).length >= rows) : empty;
+  });
+  // напечатанная в шапке база каждой секции равна базе ЭТОГО расчёта, а не первого и не нулю
+  const headsMatch = a.calcs.every((c, i) =>
+    grab(secs[i] || '', 'база') === Math.round(modelBase(c).reduce((s, x) => s + x.amount, 0)));
+  const bar = (html.match(/<div class="totals-bar">[\s\S]*?<\/div>/) || [''])[0];
+  const barBase = grab(bar, 'база');
+  const wholeBase = Math.round(a.calcs.reduce((s, c) =>
+    s + modelBase(c).reduce((p, x) => p + x.amount, 0), 0));
+  // Σ полосы-итога — та же величина, что сумма секций (расхождение допускается только на
+  // округлении каждой шапки до целых сомов, не больше сома на секцию)
+  const headsSum = a.calcs.reduce((s, c, i) => s + grab(secs[i] || '', 'база'), 0);
+  const barAddsUp = barBase === wholeBase && Math.abs(headsSum - barBase) <= a.calcs.length;
+
+  fresh();
+  const a1 = app('RS-1001');
+  const b1 = RS.pCalcBase(a1), s1 = RS.pCalcSched(a1);
+  const splitShown = (b1.match(/class="split-box/g) || []).length === 2
+                  && !b1.includes('Производный транш появится после регистрации');
+  const schedRows = ((s1.match(/<tbody>([\s\S]*?)<\/tbody>/) || [, ''])[1].match(/<tr/g) || []).length;
+  const schedShown = schedRows === 6;
+
+  ok(68, perSection && rendered && headsMatch && barAddsUp && splitShown && schedShown,
+    `секций=${secs.length} базаНеПуста=${rendered} шапкиПоСвоему=${headsMatch} Σсходится=${barAddsUp} (${barBase}/${wholeBase}/${headsSum}) RS-1001: коробка=${splitShown} график=${schedRows} строк`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-const stamp = `SMOKE 2026-08-11 · ${pass}/${results.length} PASS\n` + lines.join('\n');
+const stamp = `SMOKE 2026-08-12 · ${pass}/${results.length} PASS\n` + lines.join('\n');
 console.log(stamp);
 
 // вставляем результат в шапку HTML
