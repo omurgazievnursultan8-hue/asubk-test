@@ -1316,7 +1316,14 @@ function coverGate(app,cr){
   const required = snap.required, cover = snap.cover;
   const coverOk = !stale && cover!=null && required!=null && cover >= required;
   const mat = newMaturity(app,cr);
-  const ageOk = !cr.tech || (cr.techAgeYears + Math.ceil(((app.version&&app.version.params.term)||cr.terms.term)/12) <= cr.techMaxAge);
+  // Тот же приём адресации, что newMaturity двумя строками выше: срок берётся с расчёта ЭТОГО
+  // кредита, а не с двери app.version (отказывает при 2+ расчётах, ИР-16) — иначе возрастной гейт
+  // техники ломался бы для исходного, уже готового кредита, как только в охват входит второй расчёт.
+  const ageCalc=(app.calcs||[]).find(c=>c.creditId===cr.id && !c.excluded);
+  const ageFixed=ageCalc && ageCalc.dsRef && app.agreements ? app.agreements.find(d=>d.no===ageCalc.dsRef) : null;
+  const ageParams=ageFixed ? ageFixed.params : (ageCalc && ageCalc.version && ageCalc.version.params);
+  const ageTerm=(ageParams&&ageParams.term)||cr.terms.term;
+  const ageOk = !cr.tech || (cr.techAgeYears + Math.ceil(ageTerm/12) <= cr.techMaxAge);
   const insured = daysBetween(mat, cr.insuredUntil) >= 0;
   const waived = !!(app.waiver && app.waiver.granted);
   const ok = (coverOk && ageOk && insured) || waived;
@@ -1920,11 +1927,7 @@ function calcDrift(app, calcId){
   return { calcId:c.id, ...driftOf(c.cutoff.rows, c.fact.rows) };
 }
 function appDrift(app, date){
-  // Расчёт с уже зарегистрированным ДС снят с рассмотрения (спека §4): перенос — известное,
-  // одобренное изменение, а не расхождение. Иначе его старый (дописьменный) срез навсегда
-  // читался бы против живого остатка транша-источника, урезанного самим переносом, и ступень 2
-  // срабатывала бы от факта регистрации, а не от настоящего дрейфа (RS-1005/РС-26).
-  const list=(app.calcs||[]).filter(c=>c.cutoff && !c.dsRef);
+  const list=(app.calcs||[]).filter(c=>c.cutoff);
   const cut=list.flatMap(c=>c.cutoff.rows);
   const fact=list.flatMap(c=>{
     const t=calcTrancheOf(c); return t ? debtAt(t, date||TODAY) : [];
@@ -1933,10 +1936,9 @@ function appDrift(app, date){
 }
 function cutoffDrift(app){ return calcDrift(app, null); }
 /* Гейт регистрации: ступень 2 считается по заявке и блокирует ВСЕ расчёты — вернуть на комитет
-   половину обращения нельзя. Ступень 1 остаётся в строках: она про визу конкретного ДС.
-   Тот же вырез уже зарегистрированных расчётов, что и в appDrift — по тем же причинам. */
+   половину обращения нельзя. Ступень 1 остаётся в строках: она про визу конкретного ДС. */
 function driftGate(app, date){
-  const list=(app.calcs||[]).filter(c=>c.cutoff && c.cutoff.rows && !c.dsRef);
+  const list=(app.calcs||[]).filter(c=>c.cutoff && c.cutoff.rows);
   if(!list.length) return { ok:true, applicable:false, rows:[] };
   const whole=appDrift(app, date);
   const recommitted = !!(app.committee && app.committee.date && app.cutoff && app.cutoff.date
@@ -1946,7 +1948,19 @@ function driftGate(app, date){
     const factRows = c.fact ? c.fact.rows : (t ? debtAt(t, date||TODAY) : []);
     return { calcId:c.id, creditNo:(creditById(c.creditId)||{}).no || '—', ...driftOf(c.cutoff.rows, factRows) };
   });
-  return { ok: whole.level<2 || recommitted, applicable:true, recommitted, rows,
+  // Блокировка (ok) считается ТОЛЬКО по расчётам без уже зарегистрированного ДС: тот расчёт прошёл
+  // свою ступень 2 при собственной регистрации, и его старый (дописьменный) срез не должен вечно
+  // читаться как расхождение против живого остатка транша-источника, урезанного самим переносом —
+  // иначе ступень 2 срабатывала бы от факта регистрации, а не от настоящего дрейфа (RS-1005/РС-26,
+  // тест #64: второй, ещё не оформленный расчёт не должен блокироваться визой первого). Все
+  // остальные поля (level/tier/delta/cutoffSum/factSum/pct) остаются по `whole` без выреза — та же
+  // цифра, что видит pFormal сегодня для любой из 25 демо-заявок, побайтово (сверено с aec7728).
+  // У однорасчётной уже зарегистрированной заявки gateList пуст и ok переворачивается в true — но
+  // это инертно: dsBlock (:3119) к этому моменту уже рисует «зарегистрировано» вместо кнопки, а
+  // сам regDS отсекает повтор своей проверкой calc.dsRef ДО обращения к driftGate (:3274).
+  const gateList=list.filter(c=>!c.dsRef);
+  const gateWhole = gateList.length ? appDrift({...app, calcs:gateList}, date) : {level:0};
+  return { ok: gateWhole.level<2 || recommitted, applicable:true, recommitted, rows,
            level:whole.level, tier:whole.tier, delta:whole.delta,
            cutoffSum:whole.cutoffSum, factSum:whole.factSum, pct:whole.pct };
 }
