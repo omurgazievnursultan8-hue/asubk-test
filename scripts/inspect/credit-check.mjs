@@ -1089,23 +1089,27 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
      `план ${planBefore}→${planAfter} прогноз ${mkLate}: ${fcBefore}→${fcAfter}`);
 })();
 
-/* 83. ДОСРОЧКА СОКРАЩАЕТ СРОК, А НЕ ВЗНОС (ADR-0104 вслед за ADR-0074 §1). Прежняя
-   редакция требовала обратного — «полная перестройка от фактического остатка», то есть
-   пересборки аннуитета, — а это сделка «уменьшить взнос», которую ADR-0074 §2 отдал
-   заявлению заёмщика и перестроению графика. Проверяем ровно новое правило:
-   ближние позиции равны контракту, хвост обнуляется, дата закрытия уезжает раньше. */
+/* 83. ДОСРОЧКА СОКРАЩАЕТ СРОК И УДЕШЕВЛЯЕТ ОБСЛУЖИВАНИЕ, НО ГРАФИК НЕ ПЕРЕСОБИРАЕТ
+   (ADR-0074 §1 + ADR-0108). Пересборка аннуитета — сделка «уменьшить взнос», её отдал
+   заявлению заёмщика ADR-0074 §2, и отличается она ровно телом позиции: у пересборки оно
+   другое, у прогноза — контрактное. Взнос при этом дешевеет сам, потому что процентов
+   меньше на уменьшенной базе, а хвост позиций гаснет и закрытие уезжает раньше. */
 (() => { const db = CR.seedDb(); const c = byId(db,'K-1');
   seedPay(c, '20.07.2026', 40000);
   const t = c.tranches[0]; const idx = CR.derive(c).ledger.index;
   const fr  = CR.trancheForecastRows(c, t, idx, '23.07.2026');
+  const sch = CR.trancheScheduleRows(t);
   const fut = fr.filter(r => !r.past);
   const live = fut.filter(r => r.forecast > 0.005);
   const sm  = CR.forecastSummary(c, [t], idx, '23.07.2026');
-  const heldFlat = live.slice(0, -1).every(r => Math.abs(r.delta) < 0.05);   // взнос не тронут
+  const mid = live.slice(0, -1);
+  const bodyHeld = mid.every(r => Math.abs(r.principal
+    - ((sch.find(x => x.no === r.no) || {}).principal || 0)) < 0.05);        // тело контрактное
+  const cheaper  = mid.every(r => r.delta < 0.05) && mid.some(r => r.delta < -0.05);
   const cutTail  = fut.length > live.length && fut.slice(live.length).every(r => r.forecast === 0);
-  ok(83, fut.length > 0 && heldFlat && cutTail && pd(sm.payoff) < pd(sm.contractEnd),
-     `будущих=${fut.length} с ожиданием=${live.length} взнос не тронут=${heldFlat}`
-     + ` закрытие ${sm.payoff} против договорного ${sm.contractEnd}`);
+  ok(83, fut.length > 0 && bodyHeld && cheaper && cutTail && pd(sm.payoff) < pd(sm.contractEnd),
+     `будущих=${fut.length} с ожиданием=${live.length} тело контрактное=${bodyHeld}`
+     + ` взнос дешевеет=${cheaper} закрытие ${sm.payoff} против договорного ${sm.contractEnd}`);
 })();
 
 /* 84. Σ прогноза по будущим позициям = амортизируемая база + будущие проценты, и НИЧЕГО
@@ -1350,14 +1354,18 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
       && lad[0] === 'T1#1' && lad[1] === 'T1#2' && lad[2] === 'T1#3'
       && map.get('T1#1') === 'L-1' && map.get('T1#2') === 'L-1'
       && !map.has('T1#3') && !map.has('T1#4')
-      && d.debt.interest.frozen === 7900 && Math.abs(d.debt.penalty.frozen - 442.40) < 0.05
+      /* Суммы приостановленного считаются от НАЧИСЛЕННОГО, а начисление идёт на
+         фактическое тело (ADR-0105): у K-3 тело просрочено, поэтому проценты позиций
+         под решением выше контрактных 7 900 — заморозка накрывает их целиком. */
+      && Math.abs(d.debt.interest.frozen - 7981.86) < 0.05
+      && Math.abs(d.debt.penalty.frozen - 446.98) < 0.05
       && d.ledger.index.get('T1#1').layerId === 'L-1'
       && d.ledger.index.get('T1#3').layerId === null
       && L12.length === 2 && L12[0].id === 'L-1' && L12[1].id === 'L-2'
       && map12.get('T1#1') === 'L-1' && map12.get('T1#2') === 'L-1'
       && map12.get('T1#3') === 'L-2' && !map12.has('T1#4') && !map12.has('T1#5')
-      && Math.abs(d12.debt.interest.frozen - 18687.5) < 0.05
-      && Math.abs(d12.debt.penalty.frozen - 6051.5) < 0.05
+      && Math.abs(d12.debt.interest.frozen - 19497.78) < 0.05
+      && Math.abs(d12.debt.penalty.frozen - 6084.12) < 0.05
       && d12.ledger.index.get('T1#1').layerId === 'L-1'
       && d12.ledger.index.get('T1#3').layerId === 'L-2'
       && d12.ledger.index.get('T1#4').layerId === null,
@@ -1396,7 +1404,9 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
 /* 101. ХВОСТ ПРОШЛОГО НИКУДА НЕ ЕДЕТ. Раньше непокрытое сваливалось в первую будущую
    позицию (k===0), и она распухала на всю просрочку — срок по просроченному назначался
    молча, вдобавок просроченное тело считалось дважды: и хвостом, и внутри базы будущего.
-   Теперь: Σ прошлых строк = непокрытое по расчёту, а первая будущая равна контракту. */
+   Теперь: Σ прошлых строк = непокрытое по расчёту, а первая будущая гасит КОНТРАКТНОЕ
+   тело и расходится с графиком ровно на свои проценты (ADR-0108) — то есть на цену
+   непогашенного тела, а не на сам хвост. */
 (() => { const db = CR.seedDb(); const c = byId(db,'K-1');
   const d = CR.derive(c); const t = c.tranches[0];
   const fr = CR.trancheForecastRows(c, t, d.ledger.index, '23.07.2026');
@@ -1405,9 +1415,15 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
   const led  = [...d.ledger.index.values()].filter(e => e.trancheNo === t.no);
   const want = led.reduce((a,e) => a + e.principalOverdue + e.interestOverdue + e.penaltyBal, 0);
   const first = fut[0] || {};
-  ok(101, tail > 0.005 && fut.length > 0 && Math.abs(tail - want) < 0.05 && Math.abs(first.delta || 0) < 0.05,
+  const ctr   = CR.trancheScheduleRows(t).find(x => x.no === first.no) || {};
+  const byInterest = Math.abs((first.delta || 0)
+    - ((first.interest || 0) - (first.interestCtr || 0))) < 0.05;
+  ok(101, tail > 0.005 && fut.length > 0 && Math.abs(tail - want) < 0.05
+       && Math.abs(first.principal - (ctr.principal || 0)) < 0.05 && byInterest
+       && Math.abs(first.delta || 0) < tail / 2,
      `хвост=${tail.toFixed(2)} vs непокрытое ${want.toFixed(2)};`
-     + ` первая будущая ${first.date}: график ${first.scheduled} прогноз ${first.forecast}`);
+     + ` первая будущая ${first.date}: график ${first.scheduled} прогноз ${first.forecast}`
+     + ` (Δ ${first.delta} — только проценты=${byInterest}, тело контрактное ${ctr.principal})`);
 })();
 
 /* 102. ПРОГНОЗ ЗНАЕТ ПАУЗУ НАЧИСЛЕНИЯ (Р-17) — общее ядро periodInterest с buildSchedule.
@@ -1487,6 +1503,91 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
      `K-1: траншей=${c.tranches.length} без графика=${un.length} закрытие=${sm.payoff||'—'};`
      + ` K-3 (график исчерпан, долг ${sm3.tail}): закрытие=${sm3.payoff||'—'}`
      + ` вето траншей=${sm3.stuck.join(',')||'нет'}`);
+})();
+
+/* 107…110 — НАЧИСЛЕНИЕ НА ФАКТИЧЕСКОЕ ТЕЛО (ADR-0105). Проценты бегут на остаток
+   основного долга, а не на тот, который график СЧИТАЕТ оставшимся: недобор тела
+   удорожает кредит процентами, а не только пенёй. */
+
+/* 107. ВЗНОС ПО ПРОГНОЗУ ВЫШЕ КОНТРАКТНОГО, КОГДА ТЕЛО ПРОСРОЧЕНО (ADR-0108).
+   Амортизируется контрактное ТЕЛО позиции, проценты идут на фактическое непогашенное —
+   значит просрочка поднимает сам ожидаемый платёж, а не только его состав. Тело в
+   позиции остаётся контрактным: график гасится в свой срок, дорожает обслуживание. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-4');
+  const t = c.tranches[0]; const d = CR.derive(c);
+  const fr = CR.trancheForecastRows(c, t, d.ledger.index, '23.07.2026');
+  const fut = fr.filter(r => !r.past);
+  const first = fut[0] || {};
+  const ctr = CR.trancheScheduleRows(t).find(x => x.no === first.no) || {};
+  const over = [...d.ledger.index.values()].filter(e => e.trancheNo === t.no)
+    .reduce((a, e) => a + (e.principalOverdue || 0), 0);
+  ok(107, over > 0.005 && fut.length > 0
+       && first.interest > (ctr.interest || 0) + 0.005
+       && Math.abs(first.principal - (ctr.principal || 0)) < 0.05
+       && (first.delta || 0) > 0.05
+       && Math.abs((first.delta || 0) - (first.interest - (ctr.interest || 0))) < 0.05,
+     `просроченное тело=${over.toFixed(2)}; первая будущая ${first.date}:`
+     + ` %% ${ctr.interest} → ${first.interest}, тело ${ctr.principal} → ${first.principal},`
+     + ` взнос ${first.scheduled} → ${first.forecast} (Δ ${first.delta})`);
+})();
+
+/* 108. РАСХОЖДЕНИЕ РАЗЛОЖЕНО ПО ПОЗИЦИЯМ, А НЕ СВАЛЕНО БАЛЛОНОМ (ADR-0108). Каждая
+   будущая строка расходится ровно на свои проценты сверх контракта, и Σ расхождения
+   равна цене недобора. Прежнее правило держало взнос контрактным, и весь недобор тела
+   копился в последнюю позицию графика: сорок строк молчали, одна отвечала за всё. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-4');
+  const d = CR.derive(c);
+  const sm = CR.forecastSummary(c, c.tranches, d.ledger.index, '23.07.2026');
+  const last  = sm.fut[sm.fut.length - 1] || {};
+  const first = sm.fut[0] || {};
+  const byRow = sm.fut.every(r => Math.abs((r.delta || 0)
+    - ((r.interest || 0) - (r.interestCtr || 0))) < 0.05);
+  ok(108, sm.futSum > sm.futSched + 0.05 && byRow
+       && Math.abs(sm.delta - sm.extraInterest) < 0.05
+       && Math.abs(last.delta || 0) < Math.abs(first.delta || 0) * 2 + 0.05,
+     `Σ впереди: график ${sm.futSched} → прогноз ${sm.futSum} (Δ ${sm.delta},`
+     + ` проценты сверх контракта ${sm.extraInterest}); Δ по строкам: первая ${first.delta},`
+     + ` последняя ${last.delta}; строк вне правила=${sm.fut.filter(r => Math.abs((r.delta || 0)
+         - ((r.interest || 0) - (r.interestCtr || 0))) >= 0.05).length}`);
+})();
+
+/* 109. «РАСЧЁТЫ» НАЧИСЛЯЮТ ПО ТОМУ ЖЕ ПРАВИЛУ. Правка одного прогноза развела бы его с
+   движком — тем самым дефектом, ради которого periodInterest сведён в одну реализацию
+   (ADR-0104 §4). Первая позиция отклонения не знает (до неё платить было нечего) и
+   обязана совпасть с контрактом; дальше начисленное растёт над контрактным. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-4');
+  const t = c.tranches[0]; const d = CR.derive(c);
+  const led = d.ledger.rows.filter(r => r.trancheNo === t.no);
+  const srows = CR.trancheScheduleRows(t);
+  const ctrOf = no => srows.find(x => x.no === no) || {};
+  const ctrSum = led.reduce((a, r) => a + ((ctrOf(r.no).accrued == null
+    ? ctrOf(r.no).interest : ctrOf(r.no).accrued) || 0), 0);
+  const accSum = led.reduce((a, r) => a + (r.interestAccrued || 0), 0);
+  const extra  = led.filter(r => (r.interestExtra || 0) > 0.005);
+  ok(109, led.length > 1 && Math.abs(led[0].interestExtra || 0) < 0.005
+       && extra.length > 0 && accSum > ctrSum + 0.05,
+     `наступивших=${led.length}; начислено ${accSum.toFixed(2)} против контрактных`
+     + ` ${ctrSum.toFixed(2)}; строк с начислением на недобор=${extra.length};`
+     + ` первая позиция без отклонения=${Math.abs(led[0].interestExtra || 0) < 0.005}`);
+})();
+
+/* 110. ПРАВИЛО СИММЕТРИЧНО: досрочно внесённое тело УДЕШЕВЛЯЕТ кредит. Иначе это не
+   начисление на факт, а штраф за просрочку под видом процентов — и досрочка, ради
+   которой вкладка заведена, снова осталась бы без денежного следа (ADR-0074 §1). */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  const t = c.tranches[0];
+  const sum = () => CR.buildLedger(c, '23.07.2026').rows
+    .filter(r => r.trancheNo === t.no).reduce((a, r) => a + (r.interestAccrued || 0), 0);
+  const before = sum();
+  /* платёж датируется РАНЬШЕ наступивших позиций: отклонение читается на начало периода,
+     и деньги, пришедшие после последней наступившей даты, начисление не удешевляют */
+  c.mirror.payments.push({ num:900, date:'20.05.2026', amount:60000, tranche:t.no,
+    currency:c.currency||'KGS', reg:'Шлюз', match:'Подтверждён ЦК', frozen:true,
+    method:'денежными средствами', layers:{ principal:60000 } });
+  const after = sum();
+  ok(110, before > 0 && after < before - 0.05,
+     `начислено до досрочки ${before.toFixed(2)} → после ${after.toFixed(2)}`
+     + ` (разница ${(before - after).toFixed(2)})`);
 })();
 
 const pass = results.filter(r => r.pass).length;

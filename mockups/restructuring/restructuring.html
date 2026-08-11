@@ -10,11 +10,15 @@
   команды разработки, не прод-код. Экрана реструктуризации в живой системе нет — модуль
   проектируется с нуля.
 
-  Канон логики: mockups/restructuring/ASUBK-restrukturizatsiya-logika.md (решения РС-1…РС-25,
-  пересобраны 05.08.2026 с чистого листа; карта прежних Р-1…Р-28 → РС — §13 спеки).
-  Регуляторная база: п.18–19 «Порядка мониторинга, взыскания и урегулирования
-  задолженности ОАО "Госфинхолдинг"» + гл.9 Положения о работе с бюджетными кредитами
-  (пп.89–92, действующей редакции нет — см. §11 спеки). Стиль сверен с mockups/collateral/zalog.html.
+  Канон логики: mockups/restructuring/ASUBK-restrukturizatsiya-logika.md (решения РС-1…РС-41;
+  РС-1…РС-25 пересобраны 05.08.2026 с чистого листа, РС-26…РС-37 приняты 10.08.2026 при
+  закрытии вопросов заказчику, РС-38…РС-41 — тем же вечером при закрытии собственной дыры
+  «распределение по периодам» (ADR-0109); карта прежних Р-1…Р-28 → РС — §13 спеки).
+  Регуляторная база: п.18–19 «Порядка мониторинга, взыскания и урегулирования задолженности
+  ОАО "Госфинхолдинг"» (ред. №41 от 06.07.2026) + гл. 9 и п. 34 «Положения о работе с
+  бюджетными кредитами» — приложение к постановлению Кабинета Министров КР от 19.01.2026 № 14,
+  редакция 19.01.2026; извлечение: docs/normativ/polozhenie-2026-01-19-N14-gl9.txt.
+  Стиль сверен с mockups/collateral/zalog.html.
   Проверка: node scripts/inspect/restructuring-check.mjs — матрица приёмки §14 спеки.
 
   РЕАЛИЗОВАННЫЕ РЕШЕНИЯ
@@ -36,51 +40,68 @@
    РС-16 Терминал «Реструктурирована» — по условию: только если не осталось непокрытой просрочки.
    РС-17 Согласие обеспечителей — жёсткий гейт регистрации ДС (третьи лица).
    РС-18 Гейт покрытия — мягкий, считает его залог; недостаточность снимается waiver с основанием.
-   РС-19 Регуляторные пределы — из нормы-справочника; пол ставки от первоначальной, срок — от суммы переноса.
+   РС-19 Регуляторные пределы — из нормы-справочника; пол ставки от первоначальной, срок — от остатка задолженности.
    РС-20 Деньги при вступлении: адресный резерв → безадресный аванс; план кредита не двигается.
    РС-21 Пауза — шов при отправке письма (70 к.д.); закрывается отказом/вступлением ДС/истечением срока.
    РС-22 Отложение 181-го дня читается из заявки, не из состояния требования.
    РС-23 Стадия — свёртка журнала актов заявки; поля stage нет.
    РС-24 Вид — справочник: параметры + распоряжения + пакет документов; несколько видов — объединение.
    РС-25 Роли (6) через canX(); журнал append-only; оси заёмщика реструктуризация не трогает.
+   РС-26 Порог расхождения «срез ↔ факт» — две ступени: 10%/500 тыс. → виза; 25%/5 млн → возврат на комитет.
+   РС-27 Пеня — терминальная статья: на неё не начисляют и она не порождает начисления (ADR-0106).
+   РС-28 Прощение доступно, только если прощаемая сумма названа в акте (жёсткий гейт).
+   РС-29 Гейт покрытия снимает комитет по администрированию бюджетных кредитов; снятие раскрывается в пакете.
+   РС-30 Рабочие дни — производственный календарь (справочник дат), а не правило «сб/вс».
+   РС-31 Перечень видов открыт нормой (п. 89 пп. 5); пять форм нормативные и неправимые, прочее — «иное».
+   РС-32 Повторность — сигнальный признак с третьей реструктуризации, не гейт.
+   РС-33 Норма установлена: прил. к ПКМ КР от 19.01.2026 № 14, ред. 19.01.2026 — реквизиты реальные.
+   РС-34 Маршрут акта: заключение органа (пп. 87/88) → согласование профильного комитета ЖК → постановление КМ (ADR-0107).
+   РС-35 Полов ставки два, применяется больший: 50% от первоначальной и минимум по виду проекта (п. 34).
+   РС-36 Пакет документов — норма (пп. 85/86 + условные пп. 91/95), а не настройка администратора.
+   РС-37 База предела срока — остаток задолженности по кредиту; предел = длина нового графика.
+   РС-38 Распоряжение несёт сумму и сроки; сроки — «весь график» либо интервал позиций.
+   РС-39 Распоряжение меняет статью (начисленное → накопленное) и снимает просрочку по покрытому.
+   РС-40 Интервал за длиной плана не подрезается молча — жёсткий гейт до правки (ИР-15).
+   РС-41 Строка графика несёт статьи; ставка начисляется только по колонке основного долга.
 
   ДЕМО-ОГРАНИЧЕНИЯ
    • «Сегодня» демо зафиксировано (TODAY) — счётчики дедлайнов считаются от него.
-   • Рабочие дни для дедлайна письма — простой календарь (сб/вс), без праздников.
+   • Производственный календарь засеян постоянными праздниками КР; переносы и религиозные
+     праздники заведены записью только на 2026 год — на прочие годы календарь честно
+     показывает «год не заведён» (РС-30), а не молча откатывается к «сб/вс».
    • Расчёт графика — детерминированный аннуитет-упрощение (демонстрация «версия вперёд»),
      не банковский расчётный движок.
    • Мини-зеркало взыскания — read-only панель на демо-данных, навигация внутристраничная.
 
-  ОТКРЫТЫЕ ВОПРОСЫ (спека §11, письмо от 05.08.2026,
-  docs/voprosy-zakazchiku/2026-08-05-restrukturizatsiya.md) — 8 пунктов, среди них:
-   1. Порог существенности расхождения «срез ↔ факт на дату вступления» (РС-8).
-   4. Кто даёт waiver по покрытию — комиссия по залогу или кредитный комитет (РС-18).
-   8. Действующая редакция Положения о работе с бюджетными кредитами — пределов у нас нет (РС-19).
-   Полный список — в письме и в §11 спеки.
+  ВОПРОСЫ ЗАКАЗЧИКУ (письмо от 05.08.2026,
+  docs/voprosy-zakazchiku/2026-08-05-restrukturizatsiya.md) — все восемь закрыты 10.08.2026:
+  семь собственными решениями Холдинга (РС-26…РС-32, ADR-0106/0105), восьмой — найденной
+  нормой (РС-33). Письмо переиздано редакцией 2: принятые умолчания предъявлены на
+  возражение, а не как открытые вопросы. Свод — §11 спеки.
 
   SMOKE (node scripts/inspect/restructuring-check.mjs):
-   SMOKE 2026-08-07 · 29/29 PASS
+   SMOKE 2026-08-11 · 54/54 PASS
       PASS  #1  до=false после=true
       PASS  #2  closed=true opened=true reblock=true
       PASS  #3  noRate=true union=true
       PASS  #4  onlySpread=true three=true
-      PASS  #5  kinds=5 rate=true cap=true
+      PASS  #5  kinds=7 rate=true cap=true
       PASS  #6  observerAllowed=false curatorRegDS=true
       PASS  #7  busy=RS-1004 free=нет
       PASS  #8  n=4 T1closed=false T4closed=false
       PASS  #9  T2=перенос T3=перенос
-      PASS  #10  RS-1005={"idx":6,"closed":true,"label":"Закрыта"} RS-1001={"idx":5,"closed":false,"label":"Оформление"}
+      PASS  #10  RS-1005={"idx":8,"closed":true,"label":"Закрыта"} RS-1001={"idx":7,"closed":false,"label":"Оформление"}
       PASS  #11  n=3
       PASS  #12  ДС/3=2026-05-20 срез/6=2026-06-16 ДС/4=2026-06-19
       PASS  #13  срез=2026-03-30/5000000 факт=2026-07-19/4066640
       PASS  #14  n=7 arts=7 urg=over,cur
       PASS  #15  before={"article":"penalty","urgency":"over","amount":73000,"since":"2026-04-14","disputed":true,"included":false,"blockedBy":"disputed"} after={"article":"penalty","urgency":"over","amount":73000,"since":"2026-04-14","disputed":true,"included":false,"blockedBy":"disputed"}
-      PASS  #16  wired=true nullDefaults=2 dotReads=2
-      PASS  #17  order=21,541,960,1365,1750
+      PASS  #16  wired=true безNull=true сеттер=true записано=true прочитано=true capPen(пишет/читает)=2/1
+      PASS  #17  order=21,973,2713,3947,4564
       PASS  #18  count=1 inside=true
       PASS  #19  CR-61200=false CR-60540=true CR-59003=true
       PASS  #20  RS-1001={"required":120,"cover":145,"coverOk":true,"ageOk":true,"insured":false,"waived":false,"ok":false,"maturity":"2031-02-04","stale":false,"snapshotDate":"2026-07-05","source":"Залог"} RS-1005={"required":120,"cover":125,"coverOk":true,"ageOk":true,"insured":true,"waived":false,"ok":true,"maturity":"2027-05-05","stale":false,"snapshotDate":"2026-06-20","source":"Залог"}
-      PASS  #21  cap="п. 90 — пункт не подтверждён (редакция не установлена, письмо заказчику, вопрос 8)" floor="п. 92 — пункт не подтверждён (редакция не установлена, письмо заказчику, вопрос 8)"
+      PASS  #21  cap="п. 90, ред. прил. к ПКМ КР №14 от 2026-01-19" floor="п. 92, ред. прил. к ПКМ КР №14 от 2026-01-19"
       PASS  #22  500000→36(exp 36) 5000000→84(exp 84) 15000000→120(exp 120) 30000000→144(exp 144) 60000000→180(exp 180)
       PASS  #23  f8=4 f7=3.5
       PASS  #24  n=12 sum=1200000 lastBal=0 constPay=true
@@ -89,6 +110,31 @@
       PASS  #27  noInt=true flat=true
       PASS  #28  zeroPr=true constBal=true payOk=true
       PASS  #29  zeroPay=true baseOk=true morCap=36361.2 m=9
+      PASS  #30  stages=9 RS-1002={"idx":4,"closed":true,"label":"Отказ (заключение уполномоченного органа)"} resolution=null
+      PASS  #31  RS-1001=true безЖК={"ok":false,"needZk":true} приОтказе={"ok":false,"needConclusion":true}
+      PASS  #32  сОснованием={"ok":true,"applicable":true,"sum":5120,"named":true,"actSum":null,"basis":"п. 89 пп. 5 — прощение начисленных сборов, санкция по обстоятельствам, не зависящим от заёмщика","mismatch":false} без=false безПрощения=false
+      PASS  #33  pct=true abs=true clean=true tiers=2
+      PASS  #34  penalty=true accPenalty=true accInterest=true principal={"interest":true,"penalty":true} dated=true
+      PASS  #35  int=100000 pen=40000 всего=140000
+      PASS  #36  комм=6 соц=4 безВида=4/true внешн=true
+      PASS  #37  безусл=true безСтавки=true соСтавкой=85 пп. 1,85 пп. 2,85 пп. 3,95 пп. 1,95 пп. 2
+      PASS  #38  норма=5 иное=1 пункты=89 пп. 1,89 пп. 2,89 пп. 3,89 пп. 4,89 пп. 5 удалениеОтклонено=true
+      PASS  #39  RS-1007={"on":true,"credits":[{"no":"КД-59003","n":6}]} RS-1004=false неГейт=true
+      PASS  #40  нооруз=true перенос=true сб=true 2030=true 19.03+5р.д.=2026-03-28
+      PASS  #41  границы=true отОстатка=true
+      PASS  #42  староеИмя=false новоеИмя=true
+      PASS  #43  изменено=true большеПозиции=true ноль=true остаток=1000
+      PASS  #44  задано=true стёрто=true безТени={"mode":"range","from":1,"to":1}
+      PASS  #45  уехало=true идемпотентно=true капПеня=73000 ОД=118000 раскладка={"collectionCost":15360,"accPenalty":73000}
+      PASS  #46  частично=true целиком=false
+      PASS  #47  процентыРавны=true(54990.65) телоРавно=true колонки=accInterest,accPenalty
+      PASS  #48  всеСтатьи=133360 перенос=133360 ОД=118000 безставочные=15360
+      PASS  #49  внутри=true заДлиной=true послеУкорочения=true неПодрезан=true
+      PASS  #50  сумма=100000 колонка=[0, 33333.33, 33333.33, 33333.34, 0, 0]
+      PASS  #51  матрица=true сеттерОтбил=true сменаВидаСбросила=true
+      PASS  #52  заявок=22 уникальных=22 волна2=15 обход=true
+      PASS  #53  видов=6 незадействованных=нет иное=true
+      PASS  #54  пустых стадий=нет обаОтказа=true возврат=true
 -->
 <style>
 :root{
@@ -344,6 +390,15 @@ table.cgrid tbody tr:last-child td{ border-bottom:none; }
 .nosplit-banner{ max-width:920px; }
 table.cgrid tbody tr.art-blocked td{ color:var(--text-placeholder); background:var(--surface-panel); }
 table.cgrid tbody tr.art-removed td{ color:var(--text-placeholder); }
+/* Дверь распоряжения (РС-38) — продолжение строки под ней, а не модалка: вид распоряжения уже
+   выбирается селектом в той же строке, сумма и сроки живут рядом с ним. */
+table.cgrid tbody tr.disp-door td{ background:var(--asubk-tint-fill); padding:10px 12px 12px; }
+.dd-wrap{ display:flex; flex-wrap:wrap; align-items:center; gap:8px 18px; font:var(--font-label); }
+.dd-grp{ display:flex; align-items:center; gap:6px; }
+.dd-grp .flabel{ margin:0; }
+.dd-wrap input[type=number]{ width:120px; }
+.dd-wrap input.dd-pos{ width:64px; }
+.dd-note{ flex-basis:100%; color:var(--text-muted); font-size:11px; }
 details.gate-d{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:2px 14px; margin-bottom:10px; }
 details.gate-d summary{ cursor:pointer; list-style:none; padding:10px 0; display:flex; align-items:center; gap:10px; font:var(--weight-medium) var(--text-sm)/1.3 var(--asubk-font); }
 details.gate-d summary::-webkit-details-marker{ display:none; }
@@ -402,15 +457,19 @@ const ARTICLES = [
 const ARTICLE_LABEL = Object.fromEntries(ARTICLES.map(a=>[a.key,a.name]));
 const DISP_LABEL = { cap:'Капитализация', forgive:'Прощение', spread:'Распределение по периодам', none:'Без распоряжения' };
 const URG = [ { key:'over', name:'просроченное' }, { key:'cur', name:'текущее' } ];    // срочность сжата до двух значений (РС-13)
-/* Семь стадий текстом спеки (issues/04 реш.1): «Минфин» ушёл из лейблов — норма говорит про
-   уполномоченный орган, не про конкретное министерство. Терминал «Закрыта» — не автомат по факту
-   ДС, а свёртка трёх гейтов оформления (см. stageOf). */
-const STAGES = ['Регистрация обращения','Анализ','Комитет','Письмо направлено','Решение уполномоченного органа','Оформление','Закрыта'];
+/* Девять стадий (РС-34, ADR-0107): прежняя одна стадия «решение уполномоченного органа»
+   развёрнута в три по актам разных органов — заключение уполномоченного органа (пп. 87/88),
+   согласование профильного комитета ЖК (п. 82) и постановление Кабинета Министров (п. 89).
+   «Минфин» ушёл из лейблов ещё раньше (issues/04 реш.1) — норма говорит про уполномоченный
+   орган, не про конкретное министерство. Терминал «Закрыта» — не автомат по факту ДС, а
+   свёртка гейтов оформления (см. stageOf). */
+const STAGES = ['Регистрация обращения','Анализ','Комитет','Письмо направлено',
+  'Заключение уполномоченного органа','Проект решения КМ','Постановление КМ','Оформление','Закрыта'];
 const ROLES  = ['Куратор ОД','Заключант СРМиК','Заключант ДПО','Секретарь комитета','Администратор','Наблюдатель'];
 
 /* права роли → действия (Р-17) */
 const RIGHTS = {
-  'Куратор ОД':      ['createApp','addCredit','toggleDoc','startAnalysis','returnApp','addConcl','fixLetter','fixMinfin','editVersion','editBase','regDS','waiver'],
+  'Куратор ОД':      ['createApp','addCredit','toggleDoc','startAnalysis','returnApp','addConcl','fixLetter','fixConclusion','fixZk','fixResolution','editVersion','editBase','regDS','waiver'],
   'Заключант СРМиК': ['editConcl:СРМиК'],
   'Заключант ДПО':   ['editConcl:ДПО'],
   'Секретарь комитета':['fixCommittee'],
@@ -418,20 +477,41 @@ const RIGHTS = {
   'Наблюдатель':     []
 };
 
-/* Справочник видов (Р-3). params — множество разрешённых ключей версии. allowedDispositions —
-   коды распоряжений (issues/04 реш.4, заменяет overdueMode): какие распоряжения вид вообще
-   допускает curator'у выбрать на статье; поля вне объединения по заявке рендерятся read-only
-   «вид не разрешает» (pCalcBase). 'none' (без распоряжения) не перечисляется — доступен всегда. */
+/* Справочник видов (Р-3, РС-24). params — множество разрешённых ключей версии.
+   allowedDispositions — коды распоряжений (issues/04 реш.4, заменяет overdueMode): какие
+   распоряжения вид вообще допускает curator'у выбрать на статье; поля вне объединения по заявке
+   рендерятся read-only «вид не разрешает» (pCalcBase). 'none' (без распоряжения) не
+   перечисляется — доступен всегда.
+
+   РС-31: перечень открыт САМОЙ НОРМОЙ — п. 89 называет пять форм поимённо и заканчивается
+   «и другим обоснованным предложениям…» (пп. 5). Отсюда поле origin: 'норма' — вид с пунктом,
+   администратору недоступен для правки и удаления (ИР-14); 'иное' — вид, заведённый Холдингом
+   под п. 89 пп. 5 с ОБЯЗАТЕЛЬНЫМ обоснованием (rationale), которое уходит в письмо и в проект
+   решения. Прощение санкций среди пяти форм не поименовано и потому живёт как «иное».
+   docs здесь — документы СВЕРХ нормативного пакета (пп. 85–86/91/95): тот заводит NORM_PACKET
+   и требуется всегда (РС-36), вид его не отменяет. */
 function seedKinds(){ return [
-  { id:'K1', name:'Пролонгация', params:['term','schedule','nonworking'],
-    docs:['Заявление','Обоснование причин','Финансовый прогноз'], allowedDispositions:['spread'], limits:'Не более +24 мес. к сроку' },
-  { id:'K2', name:'Изменение графика', params:['schedule','grace','dayMethod','repayMethod'],
-    docs:['Заявление','График-предложение'], allowedDispositions:['spread'], limits:'Тело долга не меняется' },
-  { id:'K3', name:'Льготный период', params:['grace','schedule'],
-    docs:['Заявление','Обоснование причин'], allowedDispositions:['spread'], limits:'Льгота ≤6 мес.' },
-  { id:'K4', name:'Капитализация + прощение штрафов', params:['capInterest','capPenalty','forgive','term'],
-    docs:['Заявление','Акт сверки','Решение комитета'], allowedDispositions:['cap','forgive'], limits:'Прощение только по санкциям' }
+  { id:'N1', name:'Изменение сроков погашения задолженности', origin:'норма', point:'89 пп. 1',
+    params:['term','schedule','nonworking','dayMethod','repayMethod'],
+    docs:[], allowedDispositions:['spread'], limits:'Предел срока — п. 90 (гейт пределов, от остатка задолженности)' },
+  { id:'N2', name:'Изменение процентной ставки за пользование кредитом', origin:'норма', point:'89 пп. 2',
+    params:['rate'],
+    docs:[], allowedDispositions:[], limits:'Снижение — только по независящим причинам (п. 91); пол ставки — п. 92 + п. 34' },
+  { id:'N3', name:'Предоставление или изменение сроков льготного периода', origin:'норма', point:'89 пп. 3',
+    params:['grace','schedule'],
+    docs:[], allowedDispositions:['spread'], limits:'—' },
+  { id:'N4', name:'Капитализация начисленных процентов и/или неустойки отдельной суммой', origin:'норма', point:'89 пп. 4',
+    params:['capInterest','capPenalty','term'],
+    docs:['Акт сверки задолженности'], allowedDispositions:['cap'], limits:'Пеня капитализируется отдельной суммой; ставка на неё не идёт (РС-27)' },
+  { id:'N5', name:'Отсрочка исполнения', origin:'норма', point:'89 пп. 5',
+    params:['schedule','grace'],
+    docs:[], allowedDispositions:['spread'], limits:'—' },
+  { id:'X1', name:'Прощение санкций', origin:'иное', point:'89 пп. 5',
+    rationale:'Среди пяти поимённо названных форм прощения санкций нет; заводится как обоснованное предложение, не противоречащее бюджетному и гражданскому законодательству.',
+    params:['forgive'],
+    docs:[], allowedDispositions:['forgive'], limits:'Сумма прощения обязана быть названа в акте (РС-28, жёсткий гейт)' }
 ]; }
+const isNormKind = k => !!k && k.origin==='норма';
 /* объединение разрешённых распоряжений выбранных видов заявки (issues/04 реш.4, тот же приём, что allowedParams) */
 function allowedDispositions(app){ const s=new Set(); (app.kindIds||[]).forEach(id=>{ const k=kindById(id); if(k) (k.allowedDispositions||[]).forEach(d=>s.add(d)); }); return s; }
 
@@ -443,7 +523,7 @@ function seedDebt(cr){
   const since = addCalDays(TODAY, -cr.odDays);
   return [
     { article:'collectionCost', urgency:'over', amount: cr.collProc ? Math.round(cr.odSum*0.03) : 0, since },  // демо-коэфф., не норма
-    { article:'fees',           urgency:'over', amount: 0, since },
+    { article:'fees',           urgency:'over', amount: cr.collProc ? Math.round(cr.odSum*0.01) : 0, since },  // демо-коэфф., не норма
     { article:'accInterest',    urgency:'over', amount: cr.snapshot.accruedInterest, since },
     { article:'accPenalty',     urgency:'over', amount: 0, since },                                  // нет капитализации в базовом севе
     { article:'penalty',        urgency:'over', amount: cr.snapshot.penalty, since, disputed: !!cr.collProc },  // ИР-6: спорная пеня — мёртвая галка
@@ -474,41 +554,161 @@ function seedAudit(cr){                            // историч. ДС до 
 /* Кредиты (зеркала; остаток/просрочка read-only). coverSnapshot — чужой ответ (Залог), не
    собственный расчёт (issues/04 реш.2): {cover,required,date,source}, тот же приём, что снимок
    взыскания (collection.html, collSnapshotAge/collSnapshotStale). Числа cover ниже сохраняют
-   прежнее соотношение collateralValue/balance один в один (не регрессия, только смена формы). */
+   прежнее соотношение collateralValue/balance один в один (не регрессия, только смена формы).
+   projectKind — вид проекта по п. 34 Положения (РС-35): атрибут КРЕДИТА, реструктуризация его
+   читает вторым полом ставки и не заводит. null (КД-58120) — мигрированный кредит без
+   атрибута: гейт работает по первому полу и честно показывает «п. 34 не проверен». */
 function seedCredits(){
   const base = [
   { id:'CR-60540', no:'КД-60540', inn:'02508199700123', borrower:'ОсОО «Ак-Жол Агро»',
-    balance:4200000, odDays:96, odSum:512000, collProc:'ВЗ-734', restructCount:1,
+    balance:4200000, odDays:96, odSum:512000, collProc:'ВЗ-734', restructCount:1, projectKind:'commercial',
     coverSnapshot:{cover:145, required:120, date:'2026-07-05', source:'Залог'}, insuredUntil:'2027-03-01', tech:true, techAgeYears:6, techMaxAge:12,
     snapshot:{ principal:4200000, overduePrincipal:380000, accruedInterest:118000, overdueInterest:118000, penalty:73000 },
     paid:{ principalPaid:800000, interestPaid:340000, penaltyPaid:0 }, remainingTermMonths:22,
     terms:{term:36,schedule:'ежемесячно',rate:8,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
   { id:'CR-60541', no:'КД-60541', inn:'02508199700123', borrower:'ОсОО «Ак-Жол Агро»',
-    balance:1850000, odDays:96, odSum:210000, collProc:'ВЗ-734', restructCount:1,
+    balance:1850000, odDays:96, odSum:210000, collProc:'ВЗ-734', restructCount:1, projectKind:'social',
     coverSnapshot:{cover:111, required:120, date:'2026-07-08', source:'Залог'}, insuredUntil:'2026-10-01', tech:true, techAgeYears:9, techMaxAge:12,
     snapshot:{ principal:1850000, overduePrincipal:150000, accruedInterest:52000, overdueInterest:52000, penalty:31000 },
     paid:{ principalPaid:300000, interestPaid:120000, penaltyPaid:0 }, remainingTermMonths:14,
     terms:{term:24,schedule:'ежемесячно',rate:9,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
   { id:'CR-58120', no:'КД-58120', inn:'01703198800077', borrower:'ИП Садыков Т.',
-    balance:980000, odDays:34, odSum:44000, collProc:null, restructCount:0,
+    balance:980000, odDays:34, odSum:44000, collProc:null, restructCount:0, projectKind:null,
     coverSnapshot:{cover:143, required:120, date:'2026-07-10', source:'Залог'}, insuredUntil:'2028-01-01', tech:false, techAgeYears:0, techMaxAge:0,
     snapshot:{ principal:980000, overduePrincipal:40000, accruedInterest:18000, overdueInterest:18000, penalty:9000 },
     paid:{ principalPaid:120000, interestPaid:60000, penaltyPaid:0 }, remainingTermMonths:10,
     terms:{term:18,schedule:'ежемесячно',rate:10,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
   { id:'CR-59003', no:'КД-59003', inn:'01703198800077', borrower:'ИП Садыков Т.',
-    balance:2650000, odDays:220, odSum:390000, collProc:'ВЗ-701', restructCount:2,
+    balance:2650000, odDays:220, odSum:390000, collProc:'ВЗ-701', restructCount:2, projectKind:'infraSOE',
     coverSnapshot:{cover:125, required:120, date:'2026-06-20', source:'Залог'}, insuredUntil:'2027-06-01', tech:false, techAgeYears:0, techMaxAge:0,
     snapshot:{ principal:2650000, overduePrincipal:620000, accruedInterest:96000, overdueInterest:96000, penalty:84000 },
     paid:{ principalPaid:500000, interestPaid:210000, penaltyPaid:15000 }, remainingTermMonths:16,
     terms:{term:30,schedule:'ежемесячно',rate:8,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
   { id:'CR-61200', no:'КД-61200', inn:'02508199700123', borrower:'ОсОО «Ак-Жол Агро»',
-    balance:3100000, odDays:12, odSum:0, collProc:null, restructCount:0,
+    balance:3100000, odDays:12, odSum:0, collProc:null, restructCount:0, projectKind:'commercial',
     coverSnapshot:{cover:129, required:120, date:'2026-07-12', source:'Залог'}, insuredUntil:'2029-01-01', tech:false, techAgeYears:0, techMaxAge:0,
     snapshot:{ principal:3100000, overduePrincipal:0, accruedInterest:41000, overdueInterest:0, penalty:0 },
     paid:{ principalPaid:200000, interestPaid:90000, penaltyPaid:0 }, remainingTermMonths:40,
     terms:{term:48,schedule:'ежемесячно',rate:7,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} }
   ];
-  return base.map(cr => Object.assign(cr, { tranches:[ mkTranche(cr) ], audit: seedAudit(cr) }));
+  const dress = cr => Object.assign(cr, { tranches:[ mkTranche(cr) ], audit: seedAudit(cr) });
+  return base.map(dress).concat(demoCredits2().map(cr => seedPlan(retimePayment(dress(cr)))));
+}
+
+/* Кредиты второй волны (11.08.2026) — сырьё витрины из 22 демо-заявок. Первые пять заняты
+   заявками RS-1001…RS-1007: незакрытая заявка держит кредит (Р-2), и разводить на них ещё
+   пятнадцать сюжетов нечем. Числа подобраны так, чтобы каждый упор («предел срока» п. 90,
+   «пол ставки» п. 92/п. 34, «покрытие ниже требуемого») был следствием ДАННЫХ КРЕДИТА, а не
+   отдельного флага на заявке: гейт читает остаток, первоначальную ставку и вид проекта — те же
+   поля, что и у первых пяти. КД-62015 заведён на СЛИТОМ ключе 02508199700099 (MIRROR): заявка
+   RS-1014 регистрируется на якоре 02508199700123, и охват через слияние виден как задача. */
+function demoCredits2(){ return [
+  { id:'CR-62010', no:'КД-62010', inn:'03112201000456', borrower:'ОсОО «Нарын Суу»',
+    balance:6400000, odDays:120, odSum:830000, collProc:null, restructCount:0, projectKind:'infraSOE',
+    coverSnapshot:{cover:138, required:120, date:'2026-07-02', source:'Залог'}, insuredUntil:'2031-01-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:6400000, overduePrincipal:620000, accruedInterest:210000, overdueInterest:210000, penalty:96000 },
+    paid:{ principalPaid:640000, interestPaid:480000, penaltyPaid:0 }, remainingTermMonths:28,
+    terms:{term:36,schedule:'ежемесячно',rate:7,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62011', no:'КД-62011', inn:'02508199700123', borrower:'ОсОО «Ак-Жол Агро»',
+    balance:2100000, odDays:75, odSum:274000, collProc:'ВЗ-734', restructCount:0, projectKind:'social',
+    coverSnapshot:{cover:152, required:120, date:'2026-06-28', source:'Залог'}, insuredUntil:'2029-06-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:2100000, overduePrincipal:210000, accruedInterest:64000, overdueInterest:64000, penalty:28000 },
+    paid:{ principalPaid:130000, interestPaid:150000, penaltyPaid:0 }, remainingTermMonths:19,
+    terms:{term:24,schedule:'ежемесячно',rate:9,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62012', no:'КД-62012', inn:'22503199200145', borrower:'Асанова Г. К. (физическое лицо)',
+    balance:740000, odDays:58, odSum:129000, collProc:null, restructCount:0, projectKind:'social',
+    coverSnapshot:{cover:134, required:120, date:'2026-07-06', source:'Залог'}, insuredUntil:'2029-01-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:740000, overduePrincipal:88000, accruedInterest:41000, overdueInterest:41000, penalty:27000 },
+    paid:{ principalPaid:60000, interestPaid:70000, penaltyPaid:0 }, remainingTermMonths:18,
+    terms:{term:24,schedule:'ежемесячно',rate:12,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62013', no:'КД-62013', inn:'ГЗ-0007', borrower:'Группа «Ынтымак» (групповой заёмщик)',
+    balance:12300000, odDays:145, odSum:1410000, collProc:null, restructCount:1, projectKind:'commercial',
+    coverSnapshot:{cover:127, required:120, date:'2026-07-01', source:'Залог'}, insuredUntil:'2034-01-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:12300000, overduePrincipal:980000, accruedInterest:430000, overdueInterest:430000, penalty:210000 },
+    paid:{ principalPaid:740000, interestPaid:890000, penaltyPaid:0 }, remainingTermMonths:49,
+    terms:{term:60,schedule:'ежемесячно',rate:11,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62014', no:'КД-62014', inn:'02508199700321', borrower:'ОсОО «Ак-Жол Строй»',
+    balance:25800000, odDays:90, odSum:2380000, collProc:null, restructCount:2, projectKind:'infraSOE',
+    coverSnapshot:{cover:141, required:120, date:'2026-06-30', source:'Залог'}, insuredUntil:'2033-01-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:25800000, overduePrincipal:1600000, accruedInterest:780000, overdueInterest:780000, penalty:340000 },
+    paid:{ principalPaid:5680000, interestPaid:1450000, penaltyPaid:0 }, remainingTermMonths:59,
+    terms:{term:84,schedule:'ежемесячно',rate:8,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62015', no:'КД-62015', inn:'02508199700099', borrower:'ОсОО «Ак-Жол» (прежнее наим., слито)',
+    balance:3700000, odDays:64, odSum:468000, collProc:null, restructCount:0, projectKind:'social',
+    coverSnapshot:{cover:131, required:120, date:'2026-07-08', source:'Залог'}, insuredUntil:'2030-06-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:3700000, overduePrincipal:350000, accruedInterest:118000, overdueInterest:118000, penalty:54000 },
+    paid:{ principalPaid:370000, interestPaid:260000, penaltyPaid:0 }, remainingTermMonths:28,
+    terms:{term:36,schedule:'ежемесячно',rate:9,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62016', no:'КД-62016', inn:'03112201000456', borrower:'ОсОО «Нарын Суу»',
+    balance:58000000, odDays:180, odSum:7000000, collProc:null, restructCount:0, projectKind:'infraSOE',
+    coverSnapshot:{cover:122, required:120, date:'2026-07-04', source:'Залог'}, insuredUntil:'2036-01-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:58000000, overduePrincipal:4900000, accruedInterest:2100000, overdueInterest:2100000, penalty:1250000 },
+    paid:{ principalPaid:4640000, interestPaid:3400000, penaltyPaid:0 }, remainingTermMonths:77,
+    terms:{term:96,schedule:'ежемесячно',rate:6,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62017', no:'КД-62017', inn:'03112201000456', borrower:'ОсОО «Нарын Суу»',
+    balance:3900000, odDays:42, odSum:356000, collProc:null, restructCount:0, projectKind:'infraSOE',
+    coverSnapshot:{cover:126, required:120, date:'2026-07-04', source:'Залог'}, insuredUntil:'2031-06-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:3900000, overduePrincipal:260000, accruedInterest:96000, overdueInterest:96000, penalty:38000 },
+    paid:{ principalPaid:390000, interestPaid:210000, penaltyPaid:0 }, remainingTermMonths:34,
+    terms:{term:42,schedule:'ежемесячно',rate:6,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62018', no:'КД-62018', inn:'03112201000456', borrower:'ОсОО «Нарын Суу»',
+    balance:6000000, odDays:110, odSum:890000, collProc:null, restructCount:0, projectKind:'infraSOE',
+    coverSnapshot:{cover:133, required:120, date:'2026-07-03', source:'Залог'}, insuredUntil:'2030-01-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:6000000, overduePrincipal:700000, accruedInterest:190000, overdueInterest:190000, penalty:88000 },
+    paid:{ principalPaid:360000, interestPaid:420000, penaltyPaid:0 }, remainingTermMonths:38,
+    terms:{term:48,schedule:'ежемесячно',rate:7,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62019', no:'КД-62019', inn:'01703198800077', borrower:'ИП Садыков Т.',
+    balance:1450000, odDays:66, odSum:232000, collProc:null, restructCount:0, projectKind:null,
+    coverSnapshot:{cover:129, required:120, date:'2026-07-09', source:'Залог'}, insuredUntil:'2029-09-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:1450000, overduePrincipal:180000, accruedInterest:52000, overdueInterest:52000, penalty:21000 },
+    paid:{ principalPaid:170000, interestPaid:130000, penaltyPaid:0 }, remainingTermMonths:22,
+    terms:{term:30,schedule:'ежемесячно',rate:9,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62020', no:'КД-62020', inn:'22503199200145', borrower:'Асанова Г. К. (физическое лицо)',
+    balance:890000, odDays:88, odSum:166000, collProc:null, restructCount:0, projectKind:'social',
+    coverSnapshot:{cover:136, required:120, date:'2026-07-07', source:'Залог'}, insuredUntil:'2029-03-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:890000, overduePrincipal:120000, accruedInterest:46000, overdueInterest:46000, penalty:33000 },
+    paid:{ principalPaid:110000, interestPaid:60000, penaltyPaid:0 }, remainingTermMonths:17,
+    terms:{term:24,schedule:'ежемесячно',rate:10,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62021', no:'КД-62021', inn:'02508199700321', borrower:'ОсОО «Ак-Жол Строй»',
+    balance:9600000, odDays:95, odSum:1130000, collProc:null, restructCount:0, projectKind:'commercial',
+    coverSnapshot:{cover:124, required:120, date:'2026-06-29', source:'Залог'}, insuredUntil:'2031-03-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:9600000, overduePrincipal:820000, accruedInterest:310000, overdueInterest:310000, penalty:145000 },
+    paid:{ principalPaid:770000, interestPaid:660000, penaltyPaid:0 }, remainingTermMonths:29,
+    terms:{term:36,schedule:'ежемесячно',rate:8,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62022', no:'КД-62022', inn:'ГЗ-0007', borrower:'Группа «Ынтымак» (групповой заёмщик)',
+    balance:3400000, odDays:70, odSum:405000, collProc:null, restructCount:0, projectKind:'commercial',
+    coverSnapshot:{cover:128, required:120, date:'2026-07-05', source:'Залог'}, insuredUntil:'2030-09-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:3400000, overduePrincipal:300000, accruedInterest:105000, overdueInterest:105000, penalty:47000 },
+    paid:{ principalPaid:510000, interestPaid:220000, penaltyPaid:0 }, remainingTermMonths:22,
+    terms:{term:30,schedule:'ежемесячно',rate:10,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62023', no:'КД-62023', inn:'01703198800077', borrower:'ИП Садыков Т.',
+    balance:620000, odDays:40, odSum:94000, collProc:null, restructCount:0, projectKind:'commercial',
+    coverSnapshot:{cover:121, required:120, date:'2026-07-11', source:'Залог'}, insuredUntil:'2028-06-01', tech:false, techAgeYears:0, techMaxAge:0,
+    snapshot:{ principal:620000, overduePrincipal:70000, accruedInterest:24000, overdueInterest:24000, penalty:12000 },
+    paid:{ principalPaid:70000, interestPaid:40000, penaltyPaid:0 }, remainingTermMonths:13,
+    terms:{term:18,schedule:'ежемесячно',rate:11,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} }
+]; }
+/* Плановый график базового транша — только у второй волны. У первых пяти кредитов
+   schedules[0].rows пуст: principalAt не видит просроченного ТЕЛА, и перенос собирает одни
+   накопленные статьи (у RS-1001 так и вышло). Витрине нужен перенос тела, поэтому план здесь
+   синтезируется ТЕМ ЖЕ движком, каким его считает ДС (amortize) — план остаётся производной
+   условий, а не вторым вводом рядом с ними. Просрочка тела получается сама: план ушёл дальше,
+   чем фактические погашения (ops), и principalAt показывает разницу. */
+/* Датировка последнего погашения — тоже только у второй волны. mkTranche ставит его на TODAY-45
+   для всех, и это верно, пока заявка одна и она сегодняшняя: у ДС, зарегистрированного РАНЬШЕ
+   этой даты, остаток источника читался бы без учёта платежа — перенесли бы «целиком» больше,
+   чем на траншe было. Платёж уводится на месяц раньше начала просрочки: перестали платить —
+   пошла просрочка, а не наоборот. Сумма не меняется, значит выведенная просрочка тела на
+   сегодня та же. */
+function retimePayment(cr){
+  const t=cr.tranches[0], rep=(t.ops||[]).find(o=>o.kind==='repay');
+  if(rep) rep.date=addCalDays(TODAY, -(cr.odDays+30));
+  return cr;
+}
+function seedPlan(cr){
+  const t=cr.tranches[0], v=t.schedules[0];
+  v.rows = amortize(t.amount, cr.terms.rate, cr.terms.term, cr.terms.repayMethod, [], t.plannedDate, cr.terms.schedule, []).rows;
+  return cr;
 }
 
 /* Процессы взыскания (read-only зеркало, Р-12). */
@@ -523,7 +723,12 @@ const MIRROR = {
   subjects: [
     { key:'02508199700123', name:'ОсОО «Ак-Жол Агро»', aliasOf:null },
     { key:'02508199700099', name:'ОсОО «Ак-Жол» (прежнее наим., слито)', aliasOf:'02508199700123' },
-    { key:'02508199700321', name:'ОсОО «Ак-Жол Строй»', aliasOf:null, successorOf:'02508199700123', since:'2026-03-12' }
+    { key:'02508199700321', name:'ОсОО «Ак-Жол Строй»', aliasOf:null, successorOf:'02508199700123', since:'2026-03-12' },
+    /* вторая волна: ключ субъекта — плоская строка, а не ИНН по форме. Групповой заёмщик
+       живёт под внутренним ключом (ИНН у группы нет), физлицо — под ПИН. */
+    { key:'03112201000456', name:'ОсОО «Нарын Суу»', aliasOf:null },
+    { key:'22503199200145', name:'Асанова Г. К. (физическое лицо)', aliasOf:null },
+    { key:'ГЗ-0007', name:'Группа «Ынтымак» (групповой заёмщик)', aliasOf:null }
   ]
 };
 function resolveKey(key){                              // ключ → корень слияния; реорганизацию не резолвит (оба ключа живы)
@@ -546,7 +751,28 @@ function seed(){
 const D = s => new Date(s+'T00:00:00Z');
 const daysBetween = (a,b) => Math.round((D(b)-D(a))/86400000);
 function addCalDays(s,n){ const d=D(s); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); }
-function addWorkDays(s,n){ let d=D(s),added=0; while(added<n){ d.setUTCDate(d.getUTCDate()+1); const wd=d.getUTCDay(); if(wd!==0&&wd!==6) added++; } return d.toISOString().slice(0,10); }
+/* Производственный календарь (РС-30) — справочник дат, а не правило «сб/вс». Постоянные
+   праздники КР сидят как ММ-ДД и действуют в любом году; переносы, перенесённые рабочие
+   субботы и религиозные праздники (Орозо айт / Курман айт — лунный календарь) устанавливаются
+   отдельным решением ежегодно и потому заводятся ЗАПИСЬЮ С ГОДОМ. Год, которого в справочнике
+   нет, — не молчаливый откат к «сб/вс», а видимая отметка «календарь года не заведён»
+   (calendarYearKnown → подпись рядом со сроком). Календарь один на все модули: тот же срок в
+   рабочих днях есть у платежей. */
+const CALENDAR_FIXED = ['01-01','01-07','02-23','03-08','03-21','04-07','05-01','05-05','05-08','05-09','08-31','11-07','11-08'];
+const CALENDAR_YEARS = {
+  2026: { holidays:['2026-03-20','2026-03-23','2026-05-27','2026-05-28','2026-08-03','2026-11-09'],   // переносы + Орозо айт / Курман айт (демо-даты)
+          workdays:['2026-03-28','2026-11-14'] }                                                     // перенесённые рабочие субботы
+};
+const calendarYearKnown = y => Object.prototype.hasOwnProperty.call(CALENDAR_YEARS, Number(y));
+function isWorkDay(iso){
+  const y=iso.slice(0,4), md=iso.slice(5), rec=CALENDAR_YEARS[Number(y)]||{holidays:[],workdays:[]};
+  if((rec.workdays||[]).includes(iso)) return true;                       // перенесённая рабочая суббота
+  if(CALENDAR_FIXED.includes(md)) return false;
+  if((rec.holidays||[]).includes(iso)) return false;
+  const wd=D(iso).getUTCDay();
+  return wd!==0 && wd!==6;
+}
+function addWorkDays(s,n){ let cur=s,added=0; while(added<n){ cur=addCalDays(cur,1); if(isWorkDay(cur)) added++; } return cur; }
 const fmt = n => Number(n||0).toLocaleString('ru-RU',{minimumFractionDigits:0,maximumFractionDigits:0});
 const fmt2= n => Number(n||0).toLocaleString('ru-RU',{minimumFractionDigits:2,maximumFractionDigits:2});
 const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -558,10 +784,39 @@ function periodMonths(schedule){
        : schedule==='раз в полугодие' ? 6
        : schedule==='ежегодно' ? 12 : 1;                // дефолт «ежемесячно»
 }
+/* Безставочные колонки строки (РС-41, ADR-0109). `parts` = [{article, amount, periods}], где
+   periods — {mode:'all'} либо {mode:'range',from,to} по позициям графика, 1-базовым включительно.
+   Сумма ложится РАВНЫМИ ДОЛЯМИ, остаток — в ПОСЛЕДНЮЮ позицию интервала: тот же приём, которым
+   дифференцированный метод ниже уводит хвост тела в последний платёж, и он же гарантирует, что
+   сумма колонки сходится с суммой распоряжения в копейку (сирота 0,01 не заводится).
+   Интервал за длиной графика здесь зажимается, чтобы график остался суммируемым, — но молчаливой
+   подрезкой это не становится: расхождение ловит ИР-15 в validateDS и показывает дверь (РС-40). */
+function spreadParts(rows, parts){
+  (parts||[]).forEach(p=>{
+    const n=rows.length, amount=round2(p.amount); if(!n || amount<=0) return;
+    const per = (p.periods && p.periods.mode==='range') ? p.periods : { mode:'all' };
+    const from = per.mode==='range' ? Math.min(Math.max(1, Math.trunc(per.from)||1), n) : 1;
+    const to   = per.mode==='range' ? Math.min(Math.max(from, Math.trunc(per.to)||from), n) : n;
+    const cnt  = to-from+1, share = round2(amount/cnt);
+    let left = amount;
+    for(let k=from;k<=to;k++){
+      const v = (k===to) ? round2(left) : share;                  // хвост округления — в последнюю позицию интервала
+      left = round2(left - v);
+      const row = rows[k-1];
+      row.articles = row.articles || {};
+      row.articles[p.article] = round2((row.articles[p.article]||0) + v);
+      row.pay = round2((row.pay||0) + v);
+    }
+  });
+  return rows;
+}
 /* Амортизация — приватный движок (issues/01, реш.5): тело `base`, годовая ставка `rate`, срок
    `termMonths`, метод, блоки льгот, дата отсчёта, периодность. graceBlocks = [{months:Int,
-   type:'interest-only'|'moratorium'}]. Демо: месяц = 30 дней, не прод-начисление (карта, «Не-цели»). */
-function amortize(base, rate, termMonths, method, graceBlocks, fromDate, schedule){
+   type:'interest-only'|'moratorium'}]. Демо: месяц = 30 дней, не прод-начисление (карта, «Не-цели»).
+   `parts` — безставочные статейные колонки (ADR-0109): ставка считается ТОЛЬКО по `base`, то есть
+   по колонке основного долга; накопленное и капитализированная пеня попадают в строку суммой к
+   уплате и базой начисления не становятся (ИР-11). */
+function amortize(base, rate, termMonths, method, graceBlocks, fromDate, schedule, parts){
   const p = periodMonths(schedule||'ежемесячно');
   const i = (Number(rate)||0)/100 * p/12;
   const nTotal = Math.max(1, Math.round((Number(termMonths)||0)/p));
@@ -599,6 +854,7 @@ function amortize(base, rate, termMonths, method, graceBlocks, fromDate, schedul
       rows.push({n:k,date:dateAt(k),pay,principal,interest,balance:round2(Math.max(bal,0))});
     }
   }
+  spreadParts(rows, parts);
   return { rows, morCap, meta:{p,i,nTotal,gMor,gIo,m,baseAmort} };
 }
 
@@ -629,8 +885,16 @@ function conditionsAt(t,d){
 /* Основной долг на дату d — седьмая статья, всегда выводится (issues/01, реш.3): просроченная часть —
    план графика минус фактическое погашение; связь repay↔строки графика пока по сумме (issues/02, новый
    открытый вопрос от 01) — точнее, чем строчная привязка, здесь не требуется (демо). */
+/* Перенесённое НЕ-тело (ADR-0109): производный транш принял одну сумму переноса, но телом в ней
+   была только колонка основного долга. Строки, помеченные fromTransfer, живут в t.debt и уже
+   участвуют в разбивке долга через debtAt — не вычесть их из остатка значит посчитать накопленное
+   дважды и начислить на него ставку. Обычные демо-строки долга такой пометки не несут: у них
+   остаток транша и так только тело. */
+function transferredNonPrincipal(t){
+  return round2((t.debt||[]).filter(x=>x.fromTransfer).reduce((s,x)=>s+(x.amount||0),0));
+}
 function principalAt(t,d){
-  const bal=balanceAt(t,d);
+  const bal=round2(Math.max(balanceAt(t,d)-transferredNonPrincipal(t), 0));
   const ver=scheduleAt(t,d);
   const plannedOver=round2(((ver&&ver.rows)||[]).filter(r=>r.date<d).reduce((s,r)=>s+(r.principal||0),0));
   const repaid=round2((t.ops||[]).filter(o=>o.kind==='repay'&&o.date<=d).reduce((s,o)=>s+o.amount,0));
@@ -641,25 +905,62 @@ function principalAt(t,d){
 /* Чистый предпросмотр — не пишет ничего (issues/01: «черновик остаётся историческим объектом заявки»,
    ADR-0042). ds несёт date/transferSum/params{rate,term,method,schedule,graceBlocks}. */
 function draftSchedule(tranche, ds){
-  const base = ds.transferSum!=null ? Number(ds.transferSum) : balanceAt(tranche, ds.date);
+  // База начисления — колонка ОСНОВНОГО ДОЛГА (ADR-0109), а не вся сумма переноса: безставочные
+  // статьи приходят отдельно в ds.parts. Прежний вызов без раскладки (principalPart отсутствует)
+  // читается как «весь перенос — тело» и даёт ровно прежний график.
+  const base = ds.principalPart!=null ? Number(ds.principalPart)
+             : ds.transferSum!=null   ? Number(ds.transferSum)
+             : balanceAt(tranche, ds.date);
   const p = ds.params||{};
   const rate = p.rate!=null ? p.rate : tranche.originalRate;
-  return amortize(base, rate, p.term, p.method, p.graceBlocks||[], ds.date, p.schedule);
+  return amortize(base, rate, p.term, p.method, p.graceBlocks||[], ds.date, p.schedule, ds.parts||[]);
+}
+/* Свод безставочных колонок по статье — для строк долга производного транша: в графике сроки
+   у каждой части свои, в разбивке долга статья одна. */
+function mergeParts(parts){
+  const acc={};
+  (parts||[]).forEach(p=>{ acc[p.article]=round2((acc[p.article]||0)+p.amount); });
+  return ARTICLES.map(a=>a.key).filter(k=>acc[k]>0).map(k=>({article:k, amount:acc[k]}));
+}
+/* Сумма всех статейных колонок строки — включая колонку ОД (ИР-2 в редакции ADR-0109). */
+function rowArticlesSum(r){
+  return round2(Object.keys(r.articles||{}).reduce((s,k)=>s+(r.articles[k]||0),0));
+}
+function scheduleArticleCols(rows){
+  const seen=new Set();
+  (rows||[]).forEach(r=>Object.keys(r.articles||{}).forEach(k=>{ if(round2(r.articles[k])>0) seen.add(k); }));
+  return ARTICLES.map(a=>a.key).filter(k=>seen.has(k));                 // порядок — очередь погашения (РС-13); пустая колонка не рисуется
 }
 /* Предпосылки до первой записи (ИР-2 и прочие) — свод-баннер, а не тост (packetGate/conclGate/
-   minfinGate — существующие гейты конвейера, issues/03). */
+   resolutionGate — существующие гейты конвейера, issues/03). Дверь спрашивает про ПОСТАНОВЛЕНИЕ
+   КАБМИНА: заключение уполномоченного органа само по себе условия не меняет (ADR-0107 §1). */
 function validateDS(ds){
   const reasons=[];
   if(!ds.app || !ds.sourceTranche || !ds.credit){ reasons.push('Не выбраны заявка, транш-источник или кредит'); return reasons; }
   if(!packetGate(ds.app).ok) reasons.push('Пакет документов не собран');
   if(!conclGate(ds.app).ok)  reasons.push('Не все заключения завизированы');
-  if(!minfinGate(ds.app).ok) reasons.push('Нет решения Минфина');
+  if(!resolutionGate(ds.app).ok) reasons.push('Нет постановления Кабинета Министров (реквизит и согласование профильного комитета ЖК обязательны)');
+  if(!forgiveGate(ds.app).ok)    reasons.push('Прощение не названо суммой либо основанием в постановлении (РС-28)');
   const lg=limitsGate(ds.params, ds.credit, ds.date); if(!lg.ok) reasons.push(...lg.messages);                 // жёсткий, без waiver (issues/04)
   const cg=consentGateApp(ds.app); if(!cg.ok) reasons.push('Не получено согласие обеспечителя(ей): '+cg.pending.join(', '));  // жёсткий, без waiver
   const draft=draftSchedule(ds.sourceTranche, ds);
+  // ИР-2 в редакции ADR-0109: сверяется сумма ВСЕХ статейных колонок графика, не одной колонки
+  // тела — иначе накопленное уезжает в перенос, но в графике его нет, и подписан не тот документ.
   const sumPrincipal=round2((draft.rows||[]).reduce((s,r)=>s+(r.principal||0),0));
-  if(Math.abs(sumPrincipal-Number(ds.transferSum||0))>0.5)
-    reasons.push('Сумма графика ('+fmt(sumPrincipal)+') не совпадает с суммой переноса ('+fmt(ds.transferSum)+')');       // ИР-2
+  const sumArticles =round2((draft.rows||[]).reduce((s,r)=>s+rowArticlesSum(r),0));
+  const sumAll=round2(sumPrincipal+sumArticles);
+  if(Math.abs(sumAll-Number(ds.transferSum||0))>0.5)
+    reasons.push('Сумма графика по всем статьям ('+fmt(sumAll)+') не совпадает с суммой переноса ('+fmt(ds.transferSum)+')');       // ИР-2
+  // ИР-15 (РС-40): интервал сроков лежит внутри длины графика. Подрезать молча нельзя — куратор
+  // задавал позиции при одном сроке, срок мог уменьшиться; подставить новую границу за него
+  // значит выдумать его решение.
+  const nPos=(draft.rows||[]).length;
+  (ds.parts||[]).forEach(p=>{
+    const per=p.periods; if(!per || per.mode!=='range') return;
+    if(per.from>=1 && per.to<=nPos && per.from<=per.to) return;
+    reasons.push('Сроки распоряжения по статье «'+(ARTICLE_LABEL[p.article]||p.article)+'» — позиции '
+      +per.from+'–'+per.to+', а в графике '+nPos+' '+(nPos===1?'позиция':'позиций')+' (ИР-15)');
+  });
   const dates=(draft.rows||[]).map(r=>r.date);
   for(let k=1;k<dates.length;k++) if(!(dates[k]>dates[k-1])){ reasons.push('Даты графика не строго возрастают'); break; }
   const term=Number(ds.params&&ds.params.term)||0;
@@ -690,7 +991,10 @@ function restructureApplied(ds){
     ops:[ { date:ds.date, kind:'transfer_in', amount:Number(ds.transferSum), mirror:false, owner:'Кредит', basis:{ds:ds.no, from:src.id} } ],
     schedules:[],
     conditionRecords:[ { effectiveFrom:ds.date, ...conditionsAt(src, ds.date), ...(ds.params||{}) } ],
-    debt:[],                                     // долг переносится суммой (transferSum), не построчно — сумма видна в акте ДС
+    // Долг переносится ОДНОЙ суммой (transferSum — она и стоит в акте ДС), но разложенной по
+    // статьям (ADR-0109): безставочные колонки приезжают на транш строками долга, иначе следующая
+    // реструктуризация того же кредита прочитает перенос как чистое тело и потеряет накопленное.
+    debt:mergeParts(ds.parts).map(p=>({ article:p.article, urgency:'cur', amount:p.amount, since:ds.date, fromTransfer:true })),
     closed:null
   };
   credit.tranches.push(newT);
@@ -715,8 +1019,36 @@ const appById    = id => state.apps.find(a=>a.id===id);
 
 /* объединение разрешённых параметров выбранных видов (Р-3 ↔ Р-11) */
 function allowedParams(app){ const s=new Set(); app.kindIds.forEach(id=>{ const k=kindById(id); if(k) k.params.forEach(p=>s.add(p)); }); return s; }
-/* объединение требуемых документов (Р-3, гейт стадии 1) */
-function requiredDocs(app){ const s=new Set(); app.kindIds.forEach(id=>{ const k=kindById(id); if(k) k.docs.forEach(d=>s.add(d)); }); return [...s]; }
+/* Нормативный пакет (РС-36, ИР-14) — состав приложений к предложению о реструктуризации задан
+   пп. 85–86 Положения поимённо, а условные документы под снижение ставки — пп. 91/95. Это
+   записи НОРМЫ: у каждой пункт и редакция, администратору они недоступны для удаления; свои
+   документы вид добавляет сверх них (kind.docs). when — условие включения в пакет:
+   'coverShort' (п. 86 — недостаточность покрытия либо беззалоговый кредит) и 'rateDown'
+   (пп. 91/95 — заявка вообще вправе трогать ставку). */
+const NORM_PACKET = [
+  { doc:'Финансовая отчётность за последние 3 года (или за фактический период деятельности)', point:'85 пп. 1' },
+  { doc:'Бизнес-план на весь период пролонгации (доходы и денежные потоки · ресурсы, затраты, оборотный капитал · риски и их минимизация)', point:'85 пп. 2' },
+  { doc:'Предложения по обеспечению исполнения обязательств', point:'85 пп. 3' },
+  { doc:'Предложения по залоговому обеспечению', point:'86', when:'coverShort' },
+  { doc:'Акты органов о наступлении форс-мажорных и независящих обстоятельств', point:'95 пп. 1', when:'rateDown' },
+  { doc:'Справка ОМСУ либо государственной администрации соответствующего района', point:'95 пп. 2', when:'rateDown' }
+];
+function coverShortInScope(app){
+  return (app.creditIds||[]).some(id=>{ const cr=creditById(id); if(!cr) return false;
+    const s=cr.coverSnapshot; return !s || s.cover==null || s.required==null || s.cover < s.required; });
+}
+function normPacket(app){
+  const rateDown = allowedParams(app).has('rate');
+  const coverShort = coverShortInScope(app);
+  return NORM_PACKET.filter(d => !d.when || (d.when==='rateDown' ? rateDown : coverShort));
+}
+/* объединение требуемых документов (Р-3, гейт стадии 1): нормативный пакет + документы видов */
+function requiredDocs(app){
+  const s=new Set(normPacket(app).map(d=>d.doc));
+  app.kindIds.forEach(id=>{ const k=kindById(id); if(k) (k.docs||[]).forEach(d=>s.add(d)); });
+  return [...s];
+}
+const packetPointOf = doc => (NORM_PACKET.find(d=>d.doc===doc)||{}).point || null;
 
 /* стадия — производная от owned-фактов (Р-4). ДС зарегистрировано ≠ «Закрыта» (issues/04 реш.1,
    ИР-9): терминал наступает только когда все три гейта оформления (согласия РС-17, покрытие/waiver
@@ -729,13 +1061,21 @@ function stageOf(app){
   if(app.outcome==='возврат') return {idx:0, closed:true, label:'Возвращена без рассмотрения'};
   if(app.ds && app.ds.no){
     return formalGatesOk(app)
-      ? {idx:6, closed:true, label:'Закрыта'}
-      : {idx:5, closed:false, label:'Оформление'};    // ДС стоит, но не все гейты закрытия пройдены — честно не терминал
+      ? {idx:8, closed:true, label:'Закрыта'}
+      : {idx:7, closed:false, label:'Оформление'};    // ДС стоит, но не все гейты закрытия пройдены — честно не терминал
   }
-  if(app.outcome==='отказ')   return {idx:4, closed:true, label:'Отказ Минфина'};
-  if(app.minfin && app.minfin.fixed) return {idx:5, closed:false, label:'Оформление'};
-  if(app.letterSent && app.letterSent.fixed) return {idx:3, closed:false, label:'Письмо направлено'};
-  if(app.committee && app.committee.fixed)   return {idx:2, closed:false, label:'Комитет'};
+  // отказ приходит с одного из двух актов: отрицательное заключение органа (п. 88) либо
+  // отказ в постановлении КМ (п. 89) — стадия отказа читается по тому, какой акт его нёс
+  if(app.outcome==='отказ'){
+    return (app.resolution && app.resolution.fixed)
+      ? {idx:6, closed:true, label:'Отказ (постановление КМ)'}
+      : {idx:4, closed:true, label:'Отказ (заключение уполномоченного органа)'};
+  }
+  if(app.resolution && app.resolution.fixed)  return {idx:7, closed:false, label:'Оформление'};
+  if(app.zk && app.zk.fixed)                  return {idx:5, closed:false, label:'Проект решения КМ'};
+  if(app.conclusion && app.conclusion.fixed)  return {idx:4, closed:false, label:'Заключение уполномоченного органа'};
+  if(app.letterSent && app.letterSent.fixed)  return {idx:3, closed:false, label:'Письмо направлено'};
+  if(app.committee && app.committee.fixed)    return {idx:2, closed:false, label:'Комитет'};
   if(app.analysisStarted)     return {idx:1, closed:false, label:'Анализ'};
   return {idx:0, closed:false, label:'Регистрация обращения'};
 }
@@ -743,15 +1083,29 @@ function stageOf(app){
 /* Норма-справочник (issues/04 реш.2, ADR-0099, ИР-10): запись — величина+пункт+редакция+дата
    начала действия, не голое число в коде. Расширяет прецедент DEADLINE_TEMPLATES (collection.html)
    двумя полями (edition/dateFrom). Смена редакции — НОВАЯ запись поверх старой (normAt берёт
-   последнюю applicable на дату), старую не правим. edition:null — редакция Положения (гл.9,
-   пп.89/92) не подтверждена (письмо заказчику вопрос 8, «не выдумывать номер»): гейты, читающие
-   termCap/rateFloor, обязаны показать «пункт не подтверждён» рядом с числом (normNote). Три
-   регламентных срока читают Порядок №41 от 06.07.2026 — та же редакция, что уже в шапке спеки. */
+   последнюю applicable на дату), старую не правим.
+
+   РС-33 (10.08.2026): редакция Положения найдена — приложение к постановлению Кабинета Министров
+   КР от 19.01.2026 № 14, ред. 19.01.2026 (docs/normativ/polozhenie-2026-01-19-N14-gl9.txt).
+   Реквизиты ниже реальные, пометка «пункт не подтверждён» снята; ветка edition:null в normNote
+   оставлена — она нужна любой БУДУЩЕЙ норме, которой у нас ещё нет. Значения, зашитые прежде по
+   неподтверждённой редакции, совпали с действующими до месяца, номера пунктов — тоже.
+   Три регламентных срока читают Порядок №41 от 06.07.2026 — та же редакция, что в шапке спеки. */
+const POLOZHENIE = { origin:'Положение о работе с бюджетными кредитами', edition:'прил. к ПКМ КР №14', dateFrom:'2026-01-19' };
 const NORM_REFERENCE = [
-  { code:'termCap', point:'90', origin:'Положение о работе с бюджетными кредитами, гл.9', edition:null, dateFrom:null,
+  { code:'termCap', point:'90', ...POLOZHENIE,
     value:[ {upTo:1000000, months:36}, {upTo:10000000, months:84}, {upTo:20000000, months:120}, {upTo:50000000, months:144}, {upTo:Infinity, months:180} ] },
-  { code:'rateFloor', point:'92', origin:'Положение о работе с бюджетными кредитами, гл.9', edition:null, dateFrom:null,
+  { code:'rateFloor', point:'92', ...POLOZHENIE,
     value:0.5 },
+  /* Второй пол ставки (РС-35, п. 92 абз. 2 → п. 34): минимально допустимая ставка по ВИДУ
+     ПРОЕКТА. 'external'/'mitigation' — ставка задана международным договором либо стоимостью
+     привлечённых госзаймов и машинно не вычисляется: pct:null, и гейт честно говорит об этом. */
+  { code:'rateFloorProject', point:'34', ...POLOZHENIE,
+    value:[ { kind:'social',     pct:1,    label:'социально значимые, инфраструктурные, национальная безопасность' },
+            { kind:'infraSOE',   pct:4,    label:'инфраструктурные проекты госпредприятий и АО с госдолей ≥ 50 %' },
+            { kind:'commercial', pct:6,    label:'коммерческие (извлечение прибыли)' },
+            { kind:'external',   pct:null, label:'за счёт средств иностранных кредиторов — ставка международного договора' },
+            { kind:'mitigation', pct:null, label:'за счёт средств счёта смягчения — ставка привлечённых госзаймов' } ] },
   { code:'deadlineAnalysis', point:'18', origin:'Порядок мониторинга, взыскания и урегулирования задолженности', edition:'№41', dateFrom:'2026-07-06',
     value:{n:30, unit:'к.д.', label:'Анализ'} },
   { code:'deadlineLetter', point:'18', origin:'Порядок мониторинга, взыскания и урегулирования задолженности', edition:'№41', dateFrom:'2026-07-06',
@@ -769,25 +1123,58 @@ function normNote(rec){                            // цитата для UI —
   if(!rec) return 'норма не найдена';
   return rec.edition
     ? `п. ${rec.point}, ред. ${rec.edition} от ${rec.dateFrom}`
-    : `п. ${rec.point} — пункт не подтверждён (редакция не установлена, письмо заказчику, вопрос 8)`;
+    : `п. ${rec.point} — пункт не подтверждён (редакция не установлена)`;
 }
+/* РС-37: база предела срока — ОСТАТОК ЗАДОЛЖЕННОСТИ по кредиту («при остатке задолженности до
+   1000000…» дословно), а не сумма конкретного переноса. Границы ступеней пересекаются в точке:
+   ровно 1 000 000 (10/20/50 млн) попадает в ВЕРХНЮЮ ступень — так читается «от X до Y». */
 function termCapFor(sum, date){ const rec=normAt('termCap', date); const step=(rec.value||[]).find(s=>sum<s.upTo); return { months:(step||rec.value[rec.value.length-1]).months, rec }; }
-function rateFloorFor(origRate, date){ const rec=normAt('rateFloor', date); return { floor: round2((Number(origRate)||0)*rec.value), rec }; }
+/* РС-35: полов два, применяется БОЛЬШИЙ. Первый — 50 % от первоначальной ставки транша (не от
+   действующей: иначе три сделки «не ниже половины» сводят ставку к одной восьмой договорной).
+   Второй — минимум по виду проекта (п. 34). Вид не указан либо ставка внешняя ⇒ второй пол не
+   вычисляется: гейт работает по первому и поднимает флаг projectUnchecked («п. 34 не проверен»).
+   Жёстко блокировать нельзя — атрибута нет у мигрированных кредитов. */
+function rateFloorFor(origRate, date, projectKind){
+  const rec=normAt('rateFloor', date);
+  const half=round2((Number(origRate)||0)*rec.value);
+  const projRec=normAt('rateFloorProject', date);
+  const row=projectKind ? (projRec.value||[]).find(v=>v.kind===projectKind) : null;
+  const projFloor = row && row.pct!=null ? row.pct : null;
+  const floor = projFloor!=null ? Math.max(half, projFloor) : half;
+  return { floor, half, projFloor, projectKind:projectKind||null, projectRow:row||null,
+           projectUnchecked: projFloor===null, rec, projRec };
+}
 
-/* дедлайн активной стадии (Р-7), сроки — из норма-справочника, не литералы */
+/* дедлайн активной стадии (Р-7), сроки — из норма-справочника, не литералы.
+   РС-34: срок 70 к.д. по п. 18 Порядка меряется от отправки письма ДО РЕШЕНИЯ и внутренних
+   этапов не различает — значит он один и тот же на стадиях «письмо направлено», «заключение
+   уполномоченного органа» и «проект решения КМ» (idx 3…5), а собственных регламентных сроков
+   у этих трёх стадий НЕТ: норма их не устанавливает, а выдуманный срок дал бы флаг просрочки
+   по правилу, которого не существует. */
 function deadline(app){
   const st = stageOf(app); if(st.closed) return null;
   if(st.idx===1) { const rec=normAt('deadlineAnalysis',app.regDate); const due=addCalDays(app.regDate,rec.value.n); return mkDl(rec,app.regDate,due); }
   if(st.idx===2) { if(app.committee&&app.committee.date){ const rec=normAt('deadlineLetter',app.committee.date); const due=addWorkDays(app.committee.date,rec.value.n); return mkDl(rec,app.committee.date,due);} return null; }
-  if(st.idx===3) { if(app.letterSent&&app.letterSent.date){ const rec=normAt('deadlineDecision',app.letterSent.date); const due=addCalDays(app.letterSent.date,rec.value.n); return mkDl(rec,app.letterSent.date,due);} return null; }
+  if(st.idx>=3 && st.idx<=5) { if(app.letterSent&&app.letterSent.date){ const rec=normAt('deadlineDecision',app.letterSent.date); const due=addCalDays(app.letterSent.date,rec.value.n); return mkDl(rec,app.letterSent.date,due);} return null; }
   return null;
 }
-function mkDl(rec,anchor,due){ const rem=daysBetween(TODAY,due); return {name:rec.value.label,limit:rec.value.n,unit:rec.value.unit,anchor,due,remaining:rem,overdue:rem<0,rec}; }
+function mkDl(rec,anchor,due){ const rem=daysBetween(TODAY,due);
+  const calKnown = rec.value.unit!=='р.д.' || (calendarYearKnown(anchor.slice(0,4)) && calendarYearKnown(due.slice(0,4)));
+  return {name:rec.value.label,limit:rec.value.n,unit:rec.value.unit,anchor,due,remaining:rem,overdue:rem<0,calKnown,rec}; }
 
 /* гейты (Р-19: производные предикаты) */
 function packetGate(app){ const req=requiredDocs(app); const missing=req.filter(d=>!app.packetDocs[d]); return {ok:missing.length===0 && req.length>0, missing, req}; }
 function conclGate(app){ const pending=app.conclusions.filter(c=>!c.visa).map(c=>c.dept); return {ok:pending.length===0 && app.conclusions.length>0, pending}; }
-function minfinGate(app){ const m=app.minfin||{}; return {ok:!!m.decision && !!(m.letterRef&&m.letterRef.trim())}; }
+/* Три акта после письма (РС-34, ADR-0107), у каждого свои реквизиты и свой гейт.
+   Заключение уполномоченного органа (пп. 87/88) — «возможно» либо «отказ»; отрицательное
+   закрывает заявку и до Кабмина не доходит. Согласование профильного комитета ЖК (п. 82)
+   обязательно для регистрации постановления. Под постановлением КМ (п. 89) регистрируется ДС —
+   именно его исход, а не исход заключения, читает гейт «решение → оформление» (ИР-12). */
+function conclusionGate(app){ const c=app.conclusion||{}; return {ok:!!c.outcome && !!(c.no&&c.no.trim()) && !!c.date}; }
+function zkGate(app){ const z=app.zk||{}; const c=app.conclusion||{};
+  return {ok: c.outcome==='возможно' && !!(z.no&&z.no.trim()) && !!z.date, needConclusion: c.outcome!=='возможно'}; }
+function resolutionGate(app){ const r=app.resolution||{}; const z=app.zk||{};
+  return {ok: !!r.decision && !!(r.no&&r.no.trim()) && !!r.date && !!(z.no&&z.no.trim()), needZk: !(z.no&&z.no.trim())}; }
 function dsGate(app){ const d=app.ds||{}; return {ok:!!(d.no&&d.no.trim()) && !!(d.date&&d.date.trim())}; }
 
 /* остаток на новых условиях (демо-упрощение): тело то же, влияет срок/ставка на maturity */
@@ -815,20 +1202,22 @@ function coverGate(app,cr){
 function coverGateApp(app){ const rows=app.creditIds.map(id=>({cr:creditById(id),g:coverGate(app,creditById(id))})); const ok=rows.every(r=>r.g.ok); return {rows,ok}; }
 
 /* Пределы (issues/04 реш.2/3, ADR-0099, ИР-10, РС-19): жёсткий гейт, без waiver — срок и ставка
-   новых условий сверяются с норма-справочником на дату операции. База предела срока — баланс
-   кредита (cr.balance, тот же приём, что coverGate несколькими строками выше), а не сумма
-   конкретного переноса: предел — свойство кредита в целом, а партиционный перенос (ADR-0092)
-   моложе самой нормы — цена операции внутри кредита её не меняет. */
+   новых условий сверяются с норма-справочником на дату операции. База предела срока — ОСТАТОК
+   ЗАДОЛЖЕННОСТИ по кредиту (cr.balance, тот же приём, что coverGate несколькими строками выше),
+   а не сумма конкретного переноса (РС-37: так говорит п. 90 дословно). Пол ставки — больший из
+   двух (РС-35): 50 % от первоначальной и минимум по виду проекта (п. 34). */
 function limitsGate(params, credit, date){
   const term=Number(params&&params.term)||0;
   const rate=(params&&params.rate!=null) ? Number(params.rate) : null;
-  const cap=termCapFor(credit.balance, date), floor=rateFloorFor(credit.terms.rate, date);
+  const cap=termCapFor(credit.balance, date), floor=rateFloorFor(credit.terms.rate, date, credit.projectKind);
   const termOk = term>0 && term<=cap.months;
   const rateOk = rate!=null && rate>=floor.floor;
   const messages=[];
-  if(!termOk) messages.push('Срок '+term+' мес. превышает предел '+cap.months+' мес. для баланса '+fmt(credit.balance)+' ('+normNote(cap.rec)+')');
-  if(!rateOk) messages.push('Ставка '+(rate==null?'не задана':rate+'%')+' ниже минимума '+floor.floor+'% ('+normNote(floor.rec)+')');
-  return { ok:termOk&&rateOk, termOk, rateOk, cap:cap.months, floor:floor.floor, capRec:cap.rec, floorRec:floor.rec, messages };
+  if(!termOk) messages.push('Срок '+term+' мес. превышает предел '+cap.months+' мес. при остатке задолженности '+fmt(credit.balance)+' ('+normNote(cap.rec)+')');
+  if(!rateOk) messages.push('Ставка '+(rate==null?'не задана':rate+'%')+' ниже минимума '+floor.floor+'% ('+normNote(floor.rec)+(floor.projFloor!=null?'; вид проекта — '+floor.projFloor+'%, '+normNote(floor.projRec):'')+')');
+  return { ok:termOk&&rateOk, termOk, rateOk, cap:cap.months, floor:floor.floor,
+           half:floor.half, projFloor:floor.projFloor, projectRow:floor.projectRow, projectUnchecked:floor.projectUnchecked,
+           capRec:cap.rec, floorRec:floor.rec, projRec:floor.projRec, messages };
 }
 /* превью гейта на уровне заявки — до ДС читает черновик version.params, после ДС читает
    зафиксированные app.ds.params, чтобы терминал (formalGatesOk) не «моргал» после факта */
@@ -850,7 +1239,25 @@ const GUARANTEES = {
   'CR-60541': [ {name:'Иванов И.И. (поручитель)', status:'согласовано', date:'2026-04-20'} ],
   'CR-58120': [],
   'CR-59003': [ {name:'ОсОО «Гарант-Строй» (залогодатель)', status:'согласовано', date:'2026-06-01'} ],
-  'CR-61200': [ {name:'Петров П.П. (поручитель)', status:'запрошено', date:'2026-07-05'} ]   // демо блокировки ИР-8: одно неурегулированное согласие
+  'CR-61200': [ {name:'Петров П.П. (поручитель)', status:'запрошено', date:'2026-07-05'} ],  // демо блокировки ИР-8: одно неурегулированное согласие
+  /* вторая волна: согласия собраны — иначе жёсткий гейт держал бы заявку в «Оформлении» и
+     витрина показывала бы одну и ту же блокировку пятнадцать раз. Пустой список — беззалоговый
+     кредит без поручителей, это не «согласий нет», а «спрашивать некого». */
+  'CR-62010': [ {name:'ОсОО «Нарын-Инвест» (залогодатель)', status:'согласовано', date:'2026-02-10'} ],
+  'CR-62011': [ {name:'Иванов И.И. (поручитель)', status:'согласовано', date:'2026-02-26'} ],
+  'CR-62012': [],
+  'CR-62013': [ {name:'Токтосунов Б.А. (поручитель)', status:'согласовано', date:'2026-02-18'},
+                {name:'ОсОО «Ынтымак-Агро» (залогодатель)', status:'согласовано', date:'2026-02-18'} ],
+  'CR-62014': [ {name:'ОсОО «Гарант-Строй» (залогодатель)', status:'согласовано', date:'2026-03-04'} ],
+  'CR-62015': [ {name:'Иванов И.И. (поручитель)', status:'согласовано', date:'2026-04-08'} ],
+  'CR-62016': [ {name:'Министерство финансов КР (гарантия)', status:'согласовано', date:'2026-02-12'} ],
+  'CR-62017': [ {name:'ОсОО «Нарын-Инвест» (залогодатель)', status:'согласовано', date:'2026-02-12'} ],
+  'CR-62018': [ {name:'ОсОО «Нарын-Инвест» (залогодатель)', status:'согласовано', date:'2025-12-15'} ],
+  'CR-62019': [],
+  'CR-62020': [ {name:'Асанов Т.К. (поручитель)', status:'согласовано', date:'2026-06-01'} ],
+  'CR-62021': [ {name:'ОсОО «Гарант-Строй» (залогодатель)', status:'согласовано', date:'2026-02-02'} ],
+  'CR-62022': [ {name:'Токтосунов Б.А. (поручитель)', status:'запрошено', date:'2026-03-20'} ],   // отказ ПКМ — согласие так и осталось незакрытым
+  'CR-62023': []
 };
 function consentGate(creditId){
   const list=GUARANTEES[creditId]||[];
@@ -861,6 +1268,34 @@ function consentGateApp(app){
   const rows=(app.creditIds||[]).map(id=>({cr:creditById(id), g:consentGate(id)}));
   const ok=rows.every(r=>r.g.ok);
   return { ok, rows, pending:rows.flatMap(r=>r.g.pending) };
+}
+
+/* Гейт прощения (РС-28, ИР-13): жёсткий. Отдельного решения кредитного комитета сверх ДС не
+   заводим — комитет высказался по сделке целиком, а решение принял Кабинет Министров. Но ссылки
+   «согласно постановлению» мало: в реквизитах акта обязана стоять СУММА прощения либо прямо
+   названная база («вся начисленная неустойка по кредиту №…»), иначе прощение необратимо
+   уменьшает актив Холдинга по документу, этой суммы не содержавшему. Пеня и проценты прощаются
+   одним порядком: различает их статья, а не процедура. */
+function forgiveGate(app){
+  const rows=(app.dispositions||[]).filter(d=>d.kind==='forgive');
+  const sum=round2(rows.reduce((s,d)=>s+d.amount,0));
+  if(!rows.length) return { ok:true, applicable:false, sum:0 };
+  const r=app.resolution||{};
+  const named = !!(r.forgiveSum!=null || (r.forgiveBasis&&String(r.forgiveBasis).trim()));
+  return { ok:named, applicable:true, sum, named,
+           actSum: r.forgiveSum!=null ? round2(r.forgiveSum) : null,
+           basis: r.forgiveBasis||null,
+           mismatch: (r.forgiveSum!=null && round2(r.forgiveSum)!==sum) };
+}
+/* Повторность (РС-32) — СИГНАЛ, не гейт. Начиная с третьей реструктуризации одного кредита
+   заявка получает видимый признак; ничего не блокирует и порядка согласования не меняет —
+   маршрут установлен нормой (п. 82), надстроить над ним свою ступень Холдинг не вправе.
+   На категорию риска счётчик влияет только через комитет (ADR-0065). Порог — настройка. */
+const REPEAT_SIGNAL_FROM = 3;
+function repeatSignal(app){
+  const rows=(app.creditIds||[]).map(id=>creditById(id)).filter(Boolean)
+    .filter(cr=>(cr.restructCount||0)+1 >= REPEAT_SIGNAL_FROM);
+  return { on:rows.length>0, credits:rows.map(cr=>({no:cr.no, n:(cr.restructCount||0)+1})) };
 }
 
 /* активная заявка на кредите (Р-2): любая незакрытая заявка, кроме текущей */
@@ -895,6 +1330,29 @@ function debtAt(tranche, date){
   return rows;
 }
 
+/* Режим начисления по статье (РС-27, ADR-0106) — ТАБЛИЦА С ДАТАМИ ВСТУПЛЕНИЯ, а не флаг на
+   кредите: механизм ACCRUAL_MODES/accrualModeOf кредита (ADR-0013 §3). Смена правила заводится
+   новой записью с новой датой, сделки прошлых лет продолжают считаться по режиму, действовавшему
+   тогда. Пеня — терминальная статья: на неё не начисляют и она сама начислений не порождает;
+   капитализированная пеня выделяется ОТДЕЛЬНОЙ СУММОЙ (п. 89 пп. 4) и в тело не сливается,
+   потому ставке на ней взяться неоткуда. Накопленное родилось из уступки — начислять на него
+   санкцию значит наказывать за уступку, которую Холдинг сам и дал. */
+const ACCRUAL_MODES = [
+  { article:'principal',      from:'2000-01-01', mode:{interest:true,  penalty:true },  basis:'обычная механика кредита' },
+  { article:'interest',       from:'2000-01-01', mode:{interest:false, penalty:true },  basis:'просроченный процент даёт пеню' },
+  { article:'accInterest',    from:'2026-01-01', mode:{interest:false, penalty:false }, basis:'РС-27 / ADR-0106' },
+  { article:'accPenalty',     from:'2026-01-01', mode:{interest:false, penalty:false }, basis:'РС-27 / ADR-0106' },
+  { article:'penalty',        from:'2026-01-01', mode:{interest:false, penalty:false }, basis:'РС-27 / ADR-0106 — пеня на пеню не начисляется никогда' },
+  { article:'fees',           from:'2000-01-01', mode:{interest:false, penalty:false }, basis:'сбор — не цена денег' },
+  { article:'collectionCost', from:'2000-01-01', mode:{interest:false, penalty:false }, basis:'расход взыскания — не цена денег' }
+];
+function accrualModeOf(article, date){
+  const recs=ACCRUAL_MODES.filter(r=>r.article===article && r.from<=date);
+  if(!recs.length) return { mode:{interest:false,penalty:false}, basis:'режим не заведён', from:null };
+  return recs.reduce((a,b)=> b.from>a.from ? b : a);
+}
+const accrualEmpty = (article,date) => { const m=accrualModeOf(article,date).mode; return !m.interest && !m.penalty; };
+
 /* База — позиции с тремя состояниями строки (issues/02 реш.1): включена · снята куратором
    (blockedBy пуст, чекбокс живой) · заблокирована видом (чекбокс мёртв). Список статей,
    разрешённых видом, заводит issues/04 (allowedDispositions) — тикет 07, сюда 06 не блокирован
@@ -911,10 +1369,14 @@ function defaultBase(app, date){
     blockedBy: row.disputed ? 'disputed' : null
   }));
 }
-/* Распоряжение — на позицию, одно, с суммой (issues/02 реш.4). Остаток «без распоряжения»
-   получается вычитанием суммы распоряжения из позиции, второй сущности не заводим. */
+/* Распоряжение — на позицию, одно, с суммой и сроками (РС-38). Остаток «без распоряжения»
+   получается вычитанием суммы распоряжения из позиции, второй сущности не заводим. Сроки —
+   позиции графика производного транша: {mode:'all'} (умолчание, следует за сроком само) либо
+   {mode:'range',from,to} (1-базовые, включительно). null не используется: «весь график» —
+   осмысленное значение, а не отсутствие значения. */
+const allPeriods = () => ({ mode:'all' });
 function defaultDispositions(base){
-  return base.filter(r=>r.included).map(r => ({ article:r.article, urgency:r.urgency, kind:'none', amount:r.amount, periods:null }));
+  return base.filter(r=>r.included).map(r => ({ article:r.article, urgency:r.urgency, kind:'none', amount:r.amount, periods:allPeriods() }));
 }
 function dispositionFor(dispositions, article, urgency){
   return (dispositions||[]).find(d=>d.article===article && d.urgency===urgency) || null;
@@ -941,7 +1403,7 @@ function toggleBaseRow(appId, article, urgency){
   if(!row || row.blockedBy) return;
   row.included = !row.included;
   if(row.included){
-    if(!dispositionFor(app.dispositions, article, urgency)) app.dispositions.push({article,urgency,kind:'none',amount:row.amount,periods:null});
+    if(!dispositionFor(app.dispositions, article, urgency)) app.dispositions.push({article,urgency,kind:'none',amount:row.amount,periods:allPeriods()});
   } else {
     app.dispositions = app.dispositions.filter(d=>!(d.article===article && d.urgency===urgency));
   }
@@ -957,6 +1419,49 @@ function setDisposition(appId, article, urgency, kind){
   if(kind!=='none' && !allowedDispositions(app).has(kind)){ toast('Вид не разрешает это распоряжение','err'); return; }
   const d = dispositionFor(app.dispositions, article, urgency); if(!d) return;
   d.kind = kind;
+  if(!dispositionHasPeriods(kind, article)) d.periods = allPeriods();   // сроки живут только там, где есть безставочная сумма (РС-38)
+  app._t=TODAY; render();
+}
+/* Сроки спрашиваются только у распоряжений, рождающих БЕЗСТАВОЧНУЮ сумму (РС-38): распределение
+   и капитализация пени. У капитализации процентов сумма вливается в тело и живёт сроками тела,
+   у прощения суммы к уплате не остаётся вовсе — спрашивать не о чем. Проверка по состоянию
+   распоряжения и статье строки, а не по тексту разметки. */
+function dispositionHasPeriods(kind, article){
+  if(kind==='spread') return true;
+  return kind==='cap' && (article==='penalty' || article==='accPenalty');
+}
+/* Сумма распоряжения (РС-38): 0 < amount ≤ сумма позиции. Нарушение — тост, НЕ тихая подстановка
+   ближайшего допустимого: подставить значение значит выдумать решение куратора. Остаток позиции
+   (позиция − amount) уходит в перенос своей статьёй как «без распоряжения», второй сущности не
+   заводим. */
+function setDispAmount(appId, article, urgency, value){
+  if(!guard('editBase')) return; const app=appById(appId);
+  ensureBaseDispositions(app);
+  const row = app.base.find(r=>r.article===article && r.urgency===urgency); if(!row) return;
+  const d = dispositionFor(app.dispositions, article, urgency); if(!d) return;
+  const v = round2(Number(String(value).replace(',','.')));
+  if(!isFinite(v) || v<=0){ toast('Сумма распоряжения должна быть больше нуля','err'); render(); return; }
+  if(v > round2(row.amount)+0.005){ toast('Сумма распоряжения больше суммы позиции ('+fmt(row.amount)+')','err'); render(); return; }
+  d.amount = v;
+  app._t=TODAY; render();
+}
+/* Сроки распоряжения (РС-38/РС-40): режим «весь график» либо интервал позиций «с — по».
+   Переключение на 'all' СТИРАЕТ интервал, а не прячет его тенью — иначе куратор возвращает
+   режим и получает границы, о которых уже забыл. Выход за длину плана здесь не подрезается:
+   молчаливая подрезка = выдуманное решение (РС-40), расхождение ловит ИР-15 в validateDS и
+   показывает дверь. */
+function setDispPeriods(appId, article, urgency, mode, from, to){
+  if(!guard('editBase')) return; const app=appById(appId);
+  ensureBaseDispositions(app);
+  const d = dispositionFor(app.dispositions, article, urgency); if(!d) return;
+  if(!dispositionHasPeriods(d.kind, article)){ toast('У этого распоряжения сроков нет — сумма живёт сроками тела либо не подлежит уплате','err'); return; }
+  if(mode!=='range'){ d.periods = allPeriods(); app._t=TODAY; render(); return; }
+  const prev = (d.periods && d.periods.mode==='range') ? d.periods : {};
+  const f = Math.trunc(Number(from!=null && from!=='' ? from : prev.from)) || 1;
+  const t = Math.trunc(Number(to!=null && to!=='' ? to : prev.to)) || f;
+  if(f<1){ toast('Первая позиция интервала — не меньше 1','err'); render(); return; }
+  if(t<f){ toast('Конец интервала раньше начала','err'); render(); return; }
+  d.periods = { mode:'range', from:f, to:t };
   app._t=TODAY; render();
 }
 
@@ -1022,7 +1527,7 @@ function recalcPlan(appId){
   const app=appById(appId);
   if(!app.calcTranche || !app.version){ toast('Сначала выберите транш-источник','err'); return; }
   const r=run(app, TODAY);
-  app.version.plan=draftSchedule(app.calcTranche,{date:TODAY,transferSum:r.transferSum,params:app.version.params});
+  app.version.plan=draftSchedule(app.calcTranche,{date:TODAY,transferSum:r.transferSum,principalPart:r.principalPart,parts:r.parts,params:app.version.params});
   app._t=TODAY; H(app,'Предварительный расчёт: черновой график пересчитан.',state.role);
   toast('Черновой график пересчитан','ok'); render();
 }
@@ -1070,56 +1575,130 @@ const PIPELINE = [
     });
     return { state:{...state, base, forgiven:round2(sum)}, record:{step:'forgive', sum:round2(sum)} };
   },
+  /* Капитализация — два разных исхода одной механики (РС-11/РС-27): проценты входят в основной
+     долг и ставка на них идёт (процент на процент — обычная механика кредита), пеня выделяется
+     ОТДЕЛЬНОЙ СУММОЙ (п. 89 пп. 4), получает сроки уплаты и попадает в график, но с телом не
+     сливается и ставку не притягивает — санкция не цена денег. Обе суммы уходят в перенос,
+     различие несут два счётчика, а не одно число. */
   function capitalize(state){
+    let sum=0, penalty=0, interest=0;
+    const parts=(state.parts||[]).slice();
+    const base = state.base.map(r=>{
+      const d = dispositionFor(state.dispositions, r.article, r.urgency);
+      if(r.included && d && d.kind==='cap'){
+        sum=round2(sum+d.amount);
+        if(r.article==='penalty'||r.article==='accPenalty'){
+          penalty=round2(penalty+d.amount);
+          // капитализированная пеня — безставочная колонка со своими сроками (ADR-0109): в тело
+          // не вливается, ставку не притягивает; колонка её — «накопленная пеня», восьмой статьи
+          // не заводим, происхождение несут счётчик и акт.
+          parts.push({ article:'accPenalty', amount:d.amount, periods:d.periods||allPeriods(), from:'капитализация пени' });
+        } else {
+          interest=round2(interest+d.amount);   // проценты вливаются в тело — ставка на них идёт, это обычная механика кредита
+        }
+        return {...r, carried: round2(r.carried-d.amount)};
+      }
+      return r;
+    });
+    return { state:{...state, base, parts, capitalized:round2(sum), capitalizedInterest:interest, capitalizedPenalty:penalty},
+             record:{step:'capitalize', sum:round2(sum), interest, penalty} };
+  },
+  /* Распределение (РС-39) — не сборщик списка для отчёта, а перенос суммы: начисленная статья
+     уходит в накопленную (проценты → накопленные проценты, пеня → накопленная пеня), уже
+     накопленная строка статьи не меняет и только получает сроки. Режим начисления
+     {проценты:нет, пеня:нет} приходит ВМЕСТЕ со статьёй (ACCRUAL_MODES) — второго правила про
+     «ставка не идёт» писать не надо. Сумма снимается с carried, поэтому шаг overdue ниже видит
+     распределённое как покрытое. */
+  function distribute(state){
+    const parts=(state.parts||[]).slice();
     let sum=0;
     const base = state.base.map(r=>{
       const d = dispositionFor(state.dispositions, r.article, r.urgency);
-      if(r.included && d && d.kind==='cap'){ sum=round2(sum+d.amount); return {...r, carried: round2(r.carried-d.amount)}; }
+      if(r.included && d && d.kind==='spread'){
+        const target = r.article==='interest' ? 'accInterest'
+                     : r.article==='penalty'  ? 'accPenalty'
+                     : r.article;                                   // накопленное статьи не меняет — идемпотентно
+        sum=round2(sum+d.amount);
+        parts.push({ article:target, amount:d.amount, periods:d.periods||allPeriods(), from:'распределение' });
+        return {...r, carried: round2(r.carried-d.amount)};
+      }
       return r;
     });
-    return { state:{...state, base, capitalized:round2(sum)}, record:{step:'capitalize', sum:round2(sum)} };
+    return { state:{...state, base, parts, spread:parts.filter(p=>p.from==='распределение')},
+             record:{step:'distribute', count:parts.filter(p=>p.from==='распределение').length, sum:round2(sum)} };
   },
-  function distribute(state){
-    const spread=[];
-    state.base.forEach(r=>{
-      const d = dispositionFor(state.dispositions, r.article, r.urgency);
-      if(r.included && d && d.kind==='spread' && d.periods) spread.push({article:r.article, urgency:r.urgency, amount:d.amount, periods:d.periods});
-    });
-    return { state:{...state, spread}, record:{step:'distribute', count:spread.length} };
-  },
+  /* Просрочка смотрит на CARRIED, а не на вид распоряжения (РС-39): строка просрочена, если после
+     всех распоряжений на ней остался непокрытый остаток. Частичное распределение честно оставляет
+     заявку просроченной, полное — снимает просрочку. Тоньше и общее прежней проверки по kind. */
   function overdue(state){
-    const remainsOverdue = state.base.some(r=>{
-      if(!r.included || r.urgency!=='over' || r.carried<=0) return false;
-      const d = dispositionFor(state.dispositions, r.article, r.urgency);
-      return !d || (d.kind!=='cap' && d.kind!=='forgive');
-    });
+    const remainsOverdue = state.base.some(r=> r.included && r.urgency==='over' && round2(r.carried) > 0);
     return { state:{...state, remainsOverdue}, record:{step:'overdue', remainsOverdue} };
   },
+  /* Сборка базы (ADR-0109) — перенос остаётся ОДНОЙ суммой, но разложенной по статьям. Колонка
+     основного долга = тело + влившиеся капитализированные проценты, она одна ставочная; всё
+     прочее — безставочные колонки со сроками: распределённое, капитализированная пеня и остатки
+     позиций без распоряжения (каждый своей статьёй). ИР-2 сверяет сумму ВСЕХ колонок с переносом. */
   function assembleBase(state){
-    const principal = state.base.filter(r=>r.article==='principal' && r.included).reduce((s,r)=>s+r.carried,0);
-    const carried = state.base.filter(r=>r.article!=='principal' && r.included).reduce((s,r)=>s+r.carried,0);
-    const transferSum = round2(principal + carried + state.capitalized);
-    return { state:{...state, transferSum}, record:{step:'assembleBase', transferSum} };
+    const parts=(state.parts||[]).slice();
+    state.base.forEach(r=>{
+      if(!r.included || r.article==='principal') return;
+      const rest = round2(r.carried);
+      if(rest>0) parts.push({ article:r.article, amount:rest, periods:allPeriods(), from:'без распоряжения' });
+    });
+    const principalPart = round2(state.base.filter(r=>r.article==='principal' && r.included).reduce((s,r)=>s+r.carried,0) + state.capitalizedInterest);
+    const transferSum = round2(principalPart + parts.reduce((s,p)=>s+p.amount,0));
+    return { state:{...state, parts, principalPart, transferSum},
+             record:{step:'assembleBase', transferSum, principalPart, parts:parts.length} };
   }
 ];
 function run(app, date){
   const base0 = (app.base && app.base.length ? app.base : defaultBase(app, date)).map(r=>({...r, carried:r.amount}));
   const dispositions = app.dispositions && app.dispositions.length ? app.dispositions : defaultDispositions(base0);
-  const st0 = { app, date, base:base0, dispositions, forgiven:0, capitalized:0, spread:[], remainsOverdue:false, transferSum:0, stack:[] };
+  const st0 = { app, date, base:base0, dispositions, forgiven:0, capitalized:0, capitalizedInterest:0, capitalizedPenalty:0,
+                parts:[], spread:[], remainsOverdue:false, principalPart:0, transferSum:0, stack:[] };
   return PIPELINE.reduce((s, step) => { const {state, record} = step(s); state.stack.push(record); return state; }, st0);
 }
 
-/* Расхождение среза и факта — колонка-дельта, порог мягкий (issues/02 реш.3): флаг + запись в
-   журнал, ничего не блокирует — жёсткий гейт на непоказуемое число противоречил бы дисциплине
-   «не выдумывать номер» (map.md). */
-const CUTOFF_DRIFT_PCT = 0.05;   // (по умолч., настройка) — origin: ADR-0095, письмо вопрос 1, п. не подтверждён
+/* Расхождение среза и факта — колонка-дельта и ДВЕ СТУПЕНИ порога (РС-26, решение Холдинга от
+   10.08.2026 вместо прежнего одиночного мягкого флага). Обе ступени считаются от согласованной
+   базы среза и срабатывают по ЛЮБОМУ из двух измерений: процент один защищает мелкие кредиты и
+   пропускает крупные — 25 % от 300 тыс. и 25 % от 300 млн одинаковы в проценте и несопоставимы
+   по сути. Ступень 1 — виза куратора с письменным обоснованием; ступень 2 — возврат на комитет,
+   регистрация ДС заблокирована до новой позиции. Ступень 2 НЕ переподписывает постановление
+   Кабмина: акт одобрял вид и параметры, пересматривается позиция комитета Холдинга, на которой
+   стоит письмо. Величины — настройка с историей значений, а не норма. Расхождение считается по
+   базе целиком, не по статьям: согласовывалась сумма, а не разбивка. */
+const DRIFT_TIERS = [
+  { level:1, pct:0.10, abs:500000,  need:'виза куратора с письменным обоснованием расхождения' },
+  { level:2, pct:0.25, abs:5000000, need:'возврат на комитет; регистрация ДС заблокирована до новой позиции' }
+];
+function driftTier(delta, cutoffSum){
+  const pct = cutoffSum ? Math.abs(delta)/cutoffSum : 0, abs = Math.abs(delta);
+  let hit=null;
+  DRIFT_TIERS.forEach(t=>{ if(pct>=t.pct || abs>=t.abs) hit=t; });
+  return hit;
+}
 function cutoffDrift(app){
   if(!app.cutoff || !app.cutoff.rows || !app.ds || !app.ds.fact) return null;
   const cutoffSum = round2(app.cutoff.rows.reduce((s,r)=>s+r.amount,0));
   const factSum = round2(app.ds.fact.rows.reduce((s,r)=>s+r.amount,0));
   const delta = round2(factSum-cutoffSum);
   const pct = cutoffSum ? Math.abs(delta)/cutoffSum : 0;
-  return { cutoffSum, factSum, delta, pct, material: pct>CUTOFF_DRIFT_PCT };
+  const tier = driftTier(delta, cutoffSum);
+  return { cutoffSum, factSum, delta, pct, tier, level:tier?tier.level:0, material: !!tier };
+}
+/* Тот же порог ДО регистрации ДС — на предполагаемой дате вступления: ступень 2 жёстко
+   блокирует регистрацию, пока комитет не выскажется заново (app.committee.date позже среза). */
+function driftGate(app, date){
+  if(!app.cutoff || !app.cutoff.rows || !app.calcTranche) return { ok:true, applicable:false };
+  const cutoffSum = round2(app.cutoff.rows.reduce((s,r)=>s+r.amount,0));
+  const factSum = round2(debtAt(app.calcTranche, date||TODAY).reduce((s,r)=>s+r.amount,0));
+  const delta = round2(factSum-cutoffSum);
+  const tier = driftTier(delta, cutoffSum);
+  const level = tier?tier.level:0;
+  const recommitted = !!(app.committee && app.committee.date && app.cutoff.date && app.committee.date > app.cutoff.date);
+  return { ok: level<2 || recommitted, applicable:true, level, tier, delta, cutoffSum, factSum, recommitted,
+           pct: cutoffSum ? Math.abs(delta)/cutoffSum : 0 };
 }
 /* Материализация: до отправки письма cutoff держит только дату (двигается свободно, РС-8);
    фиксация письмом и регистрация ДС — единственные два удостоверяющих события (issues/02 реш.2).
@@ -1160,9 +1739,19 @@ function coverageOf(tranche, ver){
 const AppSide = { debtAt, defaultBase, defaultDispositions, cutoffDrift, fixCutoff, fixFact, run, coverageOf, PIPELINE };
 
 /* ================= ДЕМО-ЦЕПОЧКИ (Р-18) ================= */
+/* initiator — инициатор проекта решения КМ (п. 83 Положения): отраслевой орган · ОМСУ (через
+   полномочного представителя Президента в области) · уполномоченный орган. Реквизит заявки, не
+   свободная строка. conclusion / zk / resolution — три акта цепи (ADR-0107) на месте прежнего
+   одиночного app.minfin. */
+const INITIATORS = [
+  {code:'sector', label:'Отраслевой государственный орган'},
+  {code:'omsu',   label:'ОМСУ (через полномочного представителя Президента в области)'},
+  {code:'authority', label:'Уполномоченный государственный орган'}
+];
 function baseApp(id,inn,borrower,kindIds,creditIds,regDate){
   return { id,inn,borrower,kindIds:[...kindIds],creditIds:[...creditIds],regDate,
-    packetDocs:{}, analysisStarted:false, conclusions:[], committee:null, letterSent:null, minfin:null,
+    packetDocs:{}, analysisStarted:false, conclusions:[], committee:null, letterSent:null,
+    initiator:null, conclusion:null, zk:null, resolution:null,
     version:null, ds:null, waiver:null, ops:[], automation:[], outcome:null, history:[],
     calcTranche:null, base:[], dispositions:[], cutoff:null };
 }
@@ -1185,16 +1774,20 @@ function buildDemoApps(){
   /* 1) ПОЛНЫЙ ПУТЬ — реальная дверь restructureApplied через весь конвейер AppSide.run:
         база, распоряжения (капитализация %/штрафов, прощение пени), частичный перенос —
         просроченная часть уходит на новые условия, текущая остаётся в исходном транше (РС-15). */
-  let a1=baseApp('RS-1001','02508199700123','ОсОО «Ак-Жол Агро»',['K1','K4'],['CR-60540'],'2026-03-02');
+  let a1=baseApp('RS-1001','02508199700123','ОсОО «Ак-Жол Агро»',['N1','N4','X1'],['CR-60540'],'2026-03-02');
   const cr1=creditById('CR-60540'), T1a=cr1.tranches[0];
   fillDocs(a1); a1.analysisStarted=true; a1.calcTranche=T1a;
+  a1.initiator='sector';
   a1.conclusions=defaultConclusions();
   a1.conclusions[0].text='Финансовое положение восстановимо, поддержать.'; a1.conclusions[0].visa=true; a1.conclusions[0].visaDate='2026-03-18';
   a1.conclusions[1].text='Правовых препятствий нет.'; a1.conclusions[1].visa=true; a1.conclusions[1].visaDate='2026-03-20';
   a1.committee={fixed:true,position:'целесообразно',date:'2026-03-25'};
   a1.letterSent={fixed:true,date:'2026-03-30'};
   AppSide.fixCutoff(a1, a1.letterSent.date);
-  a1.minfin={fixed:true,decision:'изм',letterRef:'МФ-исх-1120 от 2026-05-28',date:'2026-05-28'};
+  a1.conclusion={fixed:true,outcome:'возможно',no:'МФ-исх-1120',date:'2026-05-28'};
+  a1.zk={fixed:true,no:'ЖК-К/БФ-214',date:'2026-06-15'};
+  a1.resolution={fixed:true,decision:'изм',no:'ПКМ КР № 331',date:'2026-06-29',
+                 forgiveSum:null, forgiveBasis:'п. 89 пп. 5 — прощение начисленных сборов, санкция по обстоятельствам, не зависящим от заёмщика'};
   a1.version=draftVersion(cr1,{term:60,rate:6.5});
   a1.base=AppSide.defaultBase(a1,TODAY);
   a1.dispositions=AppSide.defaultDispositions(a1.base).map(d=>{
@@ -1203,7 +1796,8 @@ function buildDemoApps(){
     return d;
   });
   const run1=AppSide.run(a1,TODAY);
-  const ds1={ no:'ДС-60540/2', date:TODAY, app:a1, sourceTranche:T1a, credit:cr1, transferSum:run1.transferSum, params:{...a1.version.params} };
+  const ds1={ no:'ДС-60540/2', date:TODAY, app:a1, sourceTranche:T1a, credit:cr1, transferSum:run1.transferSum,
+              principalPart:run1.principalPart, parts:run1.parts, params:{...a1.version.params} };
   const res1=CreditSide.restructureApplied(ds1);
   if(res1.ok){
     a1.ds={ no:ds1.no, date:ds1.date, transferSum:ds1.transferSum, sourceTrancheId:T1a.id, params:ds1.params, fact:null };
@@ -1215,41 +1809,46 @@ function buildDemoApps(){
   a1._t='2026-03-18'; H(a1,'Заключение СРМиК завизировано.','Заключант СРМиК');
   a1._t='2026-03-20'; H(a1,'Заключение ДПО завизировано.','Заключант ДПО');
   a1._t='2026-03-25'; H(a1,'Позиция комитета: целесообразно. Дедлайн письма 5 р.д.','Секретарь комитета');
-  a1._t='2026-03-30'; H(a1,'Письмо в Минфин направлено. Срез зафиксирован на дату письма.','Куратор ОД','auto');
-  a1._t='2026-05-28'; H(a1,'Решение Минфина: изменённые условия (МФ-исх-1120 от 2026-05-28).','Куратор ОД');
+  a1._t='2026-03-30'; H(a1,'Письмо в уполномоченный орган направлено. Срез зафиксирован на дату письма.','Куратор ОД','auto');
+  a1._t='2026-05-28'; H(a1,'Заключение уполномоченного органа: возможно изменение условий (МФ-исх-1120 от 2026-05-28).','Куратор ОД');
+  a1._t='2026-06-15'; H(a1,'Профильный комитет ЖК согласовал проект решения (ЖК-К/БФ-214). Инициатор проекта — отраслевой государственный орган (п. 83).','Куратор ОД');
+  a1._t='2026-06-29'; H(a1,'Постановление Кабинета Министров № 331 от 2026-06-29: изменённые условия. Прощение сборов названо основанием в акте (п. 89 пп. 5).','Куратор ОД');
   a1._t=TODAY; H(a1,'Доп. соглашение '+(a1.ds?a1.ds.no:'ДС-60540/2')+' зарегистрировано. Капитализация %/штрафов, прощение сборов. Просроченная часть перенесена на новый транш, текущая — в исходном (частичная реструктуризация).','Куратор ОД');
   A.push(a1);
 
-  /* 2) ОТКАЗ МИНФИНА — исход фиксируется решением, без версии/среза/факта. */
-  let a2=baseApp('RS-1002','02508199700123','ОсОО «Ак-Жол Агро»',['K3'],['CR-60541'],'2026-04-10');
-  fillDocs(a2); a2.analysisStarted=true;
+  /* 2) ОТКАЗ ПО ЗАКЛЮЧЕНИЮ УПОЛНОМОЧЕННОГО ОРГАНА (п. 88, ADR-0107) — отрицательное заключение
+        закрывает заявку до Кабмина: постановления нет и не будет, стадия отказа читается по акту,
+        который его нёс. Версии/факта нет. */
+  let a2=baseApp('RS-1002','02508199700123','ОсОО «Ак-Жол Агро»',['N3'],['CR-60541'],'2026-04-10');
+  fillDocs(a2); a2.analysisStarted=true; a2.initiator='authority';
   a2.conclusions=defaultConclusions();
   a2.conclusions[0].text='Риск повторной просрочки высок.'; a2.conclusions[0].visa=true; a2.conclusions[0].visaDate='2026-04-24';
   a2.conclusions[1].text='Замечаний нет.'; a2.conclusions[1].visa=true; a2.conclusions[1].visaDate='2026-04-25';
   a2.committee={fixed:true,position:'нецелесообразно',date:'2026-04-28'};
   a2.letterSent={fixed:true,date:'2026-05-04'};
   AppSide.fixCutoff(a2, a2.letterSent.date);
-  a2.minfin={fixed:true,decision:'отказ',letterRef:'МФ-исх-1301 от 2026-06-30',date:'2026-06-30'};
+  a2.conclusion={fixed:true,outcome:'отказ',no:'МФ-исх-1301',date:'2026-06-30'};
   a2.outcome='отказ';
-  a2._t='2026-04-10'; H(a2,'Заявка зарегистрирована. Вид: Льготный период.','Куратор ОД');
-  a2._t='2026-04-28'; H(a2,'Позиция комитета: нецелесообразно. Письмо в Минфин направляется всё равно (регламент п.19).','Секретарь комитета');
+  a2._t='2026-04-10'; H(a2,'Заявка зарегистрирована. Вид: Предоставление или изменение сроков льготного периода (п. 89 пп. 3).','Куратор ОД');
+  a2._t='2026-04-28'; H(a2,'Позиция комитета: нецелесообразно. Письмо в уполномоченный орган направляется всё равно (регламент п.19).','Секретарь комитета');
   a2._t='2026-05-04'; H(a2,'Письмо направлено. Срез зафиксирован на дату письма.','Куратор ОД','auto');
-  a2._t='2026-06-30'; H(a2,'Решение Минфина: ОТКАЗ (МФ-исх-1301 от 2026-06-30).','Куратор ОД');
+  a2._t='2026-06-30'; H(a2,'Отрицательное заключение уполномоченного органа (МФ-исх-1301 от 2026-06-30, п. 88). Заявка закрыта отказом, до Кабинета Министров не доходит. Пауза взыскания снята на общих основаниях (РС-21).','Куратор ОД');
   A.push(a2);
 
   /* 3) ВОЗВРАТ БЕЗ РАССМОТРЕНИЯ — неполный пакет, исход на первой стадии. */
-  let a3=baseApp('RS-1003','01703198800077','ИП Садыков Т.',['K1'],['CR-58120'],'2026-06-25');
-  a3.packetDocs['Заявление']=true;  // Обоснование причин и Финансовый прогноз отсутствуют
+  let a3=baseApp('RS-1003','01703198800077','ИП Садыков Т.',['N1'],['CR-58120'],'2026-06-25');
+  a3.packetDocs['Финансовая отчётность за последние 3 года (или за фактический период деятельности)']=true;   // п. 85 пп. 1 — есть
+  // отсутствуют: бизнес-план (п. 85 пп. 2) и предложения по обеспечению (п. 85 пп. 3) — оба нормативные
   a3.outcome='возврат';
-  a3._t='2026-06-25'; H(a3,'Заявка зарегистрирована. Вид: Пролонгация.','Куратор ОД');
-  a3._t='2026-06-27'; H(a3,'Пакет неполон (нет: Обоснование причин, Финансовый прогноз). Исход: возвращена без рассмотрения.','Куратор ОД');
+  a3._t='2026-06-25'; H(a3,'Заявка зарегистрирована. Вид: Изменение сроков погашения задолженности (п. 89 пп. 1).','Куратор ОД');
+  a3._t='2026-06-27'; H(a3,'Пакет неполон: нет бизнес-плана (п. 85 пп. 2) и предложений по обеспечению исполнения обязательств (п. 85 пп. 3). Исход: возвращена без рассмотрения.','Куратор ОД');
   A.push(a3);
 
   /* 4) АКТИВНАЯ В РАБОТЕ — стадия «Анализ», черновик графика посчитан и виден (пилюля «Черновик»),
         письмо ещё не отправлено → срез держит только дату, действующий график не тронут. */
-  let a4=baseApp('RS-1004','02508199700123','ОсОО «Ак-Жол Агро»',['K2'],['CR-61200'],'2026-07-02');
+  let a4=baseApp('RS-1004','02508199700123','ОсОО «Ак-Жол Агро»',['N1'],['CR-61200'],'2026-07-02');
   const cr4=creditById('CR-61200');
-  fillDocs(a4); a4.analysisStarted=true; a4.calcTranche=cr4.tranches[0];
+  fillDocs(a4); a4.analysisStarted=true; a4.calcTranche=cr4.tranches[0]; a4.initiator='omsu'; a4.initiatorViaEnvoy=true;
   a4.conclusions=defaultConclusions();
   a4.conclusions[0].text='График реалистичен, поддержать.'; a4.conclusions[0].visa=true; a4.conclusions[0].visaDate='2026-07-14';
   a4.conclusions[1].text=''; a4.conclusions[1].visa=false;  // ДПО не завизировано → гейт комитета закрыт
@@ -1258,8 +1857,8 @@ function buildDemoApps(){
   a4.dispositions=AppSide.defaultDispositions(a4.base);
   const run4=AppSide.run(a4,TODAY);
   a4.version=draftVersion(cr4,{});
-  a4.version.plan=CreditSide.draftSchedule(a4.calcTranche,{date:TODAY,transferSum:run4.transferSum,params:a4.version.params});
-  a4._t='2026-07-02'; H(a4,'Заявка зарегистрирована. Вид: Изменение графика.','Куратор ОД');
+  a4.version.plan=CreditSide.draftSchedule(a4.calcTranche,{date:TODAY,transferSum:run4.transferSum,principalPart:run4.principalPart,parts:run4.parts,params:a4.version.params});
+  a4._t='2026-07-02'; H(a4,'Заявка зарегистрирована. Вид: Изменение сроков погашения задолженности (п. 89 пп. 1). Инициатор — ОМСУ через полномочного представителя Президента в области (п. 83).','Куратор ОД');
   a4._t='2026-07-03'; H(a4,'Пакет укомплектован → «Анализ». Дедлайн 30 к.д. (до '+addCalDays('2026-07-02',30)+').','Куратор ОД');
   a4._t='2026-07-14'; H(a4,'Заключение СРМиК завизировано. Заключение ДПО — в работе.','Заключант СРМиК');
   A.push(a4);
@@ -1269,20 +1868,25 @@ function buildDemoApps(){
         (источник закрывается). Кредит с двумя траншами в конце (T1 остаток + T4). */
   A.push(...seedRestructChain());
 
+  /* 8-22) ВИТРИНА ВТОРОЙ ВОЛНЫ — пятнадцать заявок таблицей WAVE2 (см. ниже). */
+  A.push(...buildWave2());
+
   state.apps=A;
 }
 
 function seedRestructChain(){
   const cr=creditById('CR-59003'), T1=cr.tranches[0];
   function mkChainApp(id,no,T,date,partial,demoNote){
-    const app=baseApp(id,cr.inn,cr.borrower,['K1'],[cr.id],addCalDays(date,-10));
-    fillDocs(app); app.analysisStarted=true; app.calcTranche=T;
+    const app=baseApp(id,cr.inn,cr.borrower,['N1'],[cr.id],addCalDays(date,-10));
+    fillDocs(app); app.analysisStarted=true; app.calcTranche=T; app.initiator='sector';
     app.conclusions=defaultConclusions().map(c=>({...c,visa:true,visaDate:addCalDays(date,-6)}));
     app.committee={fixed:true,position:'одобрено',date:addCalDays(date,-5)};
     app.letterSent={fixed:true,date:addCalDays(date,-3)};
     AppSide.fixCutoff(app, app.letterSent.date);
     if(demoNote){ app._t=app.cutoff.date; H(app,demoNote,'Демо-данные','auto'); }
-    app.minfin={fixed:true,decision:'изм',letterRef:'МФ-'+id,date:addCalDays(date,-1)};
+    app.conclusion={fixed:true,outcome:'возможно',no:'МФ-'+id,date:addCalDays(date,-2)};
+    app.zk={fixed:true,no:'ЖК-'+id,date:addCalDays(date,-2)};
+    app.resolution={fixed:true,decision:'изм',no:'ПКМ-'+id,date:addCalDays(date,-1)};
     app.version=draftVersion(cr,{term:12});
     const full=round2(CreditSide.balanceAt(T,date));
     const transferSum=partial?round2(full*0.5):full;
@@ -1300,6 +1904,197 @@ function seedRestructChain(){
     'Контрольная точка §14 «расчёт долга на дату между первой и второй реструктуризацией»: срез этой заявки ('+addCalDays(d2,-3)+') лежит строго между регистрацией ДС-59003/3 ('+d1+') и ДС-59003/4 ('+d2+') — долг на нём посчитан по тому же траншу T2, что реструктуризация #1 произвела, а #2 сейчас закрывает.');
   const l3=mkChainApp('RS-1007','ДС-59003/5',l2.tranche,d3,false);
   return [l1.app,l2.app,l3.app];
+}
+
+/* ================= ВТОРАЯ ВОЛНА ДЕМО-ЗАЯВОК: RS-1008…RS-1022 (11.08.2026) =================
+   Первые семь заявок писаны поштучно, и трогать их нельзя: на каждой стоит сценарий матрицы
+   §14. Вторая волна другая по назначению — это ВИТРИНА для ручной проверки: пятнадцать заявок
+   разводят шесть видов, финансовое ядро и девять стадий конвейера. Пятнадцать раз повторить
+   один и тот же конвейер значило бы спрятать различия между заявками в шуме, поэтому ОПИСАНИЕ
+   (WAVE2 — чем заявка отличается) отделено от ПРОВЕДЕНИЯ (buildWave2App — один проход по
+   стадиям). Заявки с ДС проводятся НАСТОЯЩИМИ дверями (AppSide.run → CreditSide.restructureApplied),
+   как RS-1001: отказ двери — исключение при севе, а не тихо кривая демо-заявка.
+
+   Поля строки: stage — докуда довести; mode — 'целиком' (в акте одна сумма, финядро не
+   задействовано) либо 'ядро' (перенос собирает конвейер из базы среза, и он ЧАСТИЧНЫЙ: в базу
+   по умолчанию входит только просроченное, РС-15); params — черновик условий; disp —
+   распоряжения по статьям {статья:{kind, from, to}}; dates — точечные переопределения дат,
+   когда шаг регламента даёт неподходящую (например, заключение позднее сегодняшнего дня). */
+const WAVE2 = [
+  { id:'RS-1008', credits:['CR-62010'], kinds:['N1'], reg:'2026-01-15', stage:'дс', mode:'целиком',
+    params:{term:48, rate:7}, dsNo:'ДС-62010/1', initiator:'sector',
+    demoNote:'Перенос ЦЕЛИКОМ: транш-источник опустошён и закрыт причиной, ВЫВЕДЕННОЙ обнулившей операцией, а не введённой рукой (ИР-5).' },
+  { id:'RS-1009', credits:['CR-62011'], kinds:['N3','N4'], reg:'2026-02-02', stage:'дс', mode:'ядро',
+    params:{term:24, rate:9, graceBlocks:[{months:6, type:'interest-only'}]}, disp:{accInterest:{kind:'cap'}},
+    dsNo:'ДС-62011/1', initiator:'omsu',
+    demoNote:'Льготный период 6 мес. (только проценты) поверх капитализации начисленных процентов. Пеня спорная — процесс взыскания ВЗ-734 идёт: строка видна, галка мертва (ИР-6), в перенос не входит.' },
+  { id:'RS-1010', credits:['CR-58120'], kinds:['N4'], reg:'2026-02-18', stage:'дс', mode:'ядро',
+    params:{term:18, rate:10}, disp:{accInterest:{kind:'cap'}, penalty:{kind:'cap', from:1, to:6}},
+    dsNo:'ДС-58120/1', initiator:'authority',
+    demoNote:'Две капитализации одной механикой, исходы разные (ADR-0109): проценты влились в тело и ставку тянут, пеня встала БЕЗСТАВОЧНОЙ колонкой на позиции 1–6. Вид проекта у кредита не указан — пол по п. 34 честно не проверен.' },
+  { id:'RS-1011', credits:['CR-62012'], kinds:['X1'], reg:'2026-03-02', stage:'дс', mode:'ядро',
+    params:{term:24, rate:12}, disp:{penalty:{kind:'forgive'}}, forgiveSum:27000,
+    forgiveBasis:'п. 89 пп. 5 — прощение начисленной неустойки по кредиту КД-62012',
+    dsNo:'ДС-62012/1', initiator:'sector',
+    demoNote:'Прощение санкций физическому лицу: сумма НАЗВАНА в постановлении и сходится с фактической (РС-28).' },
+  { id:'RS-1012', credits:['CR-62013'], kinds:['N5'], reg:'2026-01-26', stage:'дс', mode:'ядро',
+    params:{term:84, rate:11}, disp:{accInterest:{kind:'spread', from:1, to:12}, penalty:{kind:'spread'}},
+    dsNo:'ДС-62013/1', initiator:'omsu',
+    demoNote:'Отсрочка групповому заёмщику: накопленные проценты распределены на первые 12 позиций, пеня — на весь график и статьёй ушла в накопленную (РС-39). Интервал 1–12 лежит внутри 84 позиций — ИР-15 молчит.' },
+  { id:'RS-1013', credits:['CR-62014'], kinds:['N1','N4'], reg:'2026-02-09', stage:'дс', mode:'ядро',
+    params:{term:60, rate:8}, disp:{accInterest:{kind:'cap'}}, dsNo:'ДС-62014/3', initiator:'sector',
+    demoNote:'Третья реструктуризация этого кредита — сигнал повторности (РС-32), а не гейт: маршрут установлен нормой (п. 82), надстроить над ним свою ступень Холдинг не вправе.' },
+  { id:'RS-1014', credits:['CR-62015'], inn:'02508199700123', borrower:'ОсОО «Ак-Жол Агро»',
+    kinds:['N2','N1'], reg:'2026-03-16', stage:'дс', mode:'ядро', params:{term:36, rate:4.5},
+    dsNo:'ДС-62015/1', initiator:'authority',
+    demoNote:'Ставка 4,5 % — РОВНО пол: половина от первоначальных 9 % (п. 92) выше минимума 1 % по социально значимому проекту (п. 34), гейт берёт больший. Кредит заведён на СЛИТОМ ключе 02508199700099, заявка — на якоре 02508199700123 (MIRROR, ADR-0019).' },
+  { id:'RS-1015', credits:['CR-62016'], kinds:['X1','N4'], reg:'2026-01-20', stage:'дс', mode:'ядро',
+    params:{term:96, rate:6}, disp:{penalty:{kind:'forgive'}, accInterest:{kind:'cap'}}, forgiveSum:1200000,
+    forgiveBasis:'п. 89 пп. 5 — прощение начисленной неустойки, обстоятельства не зависят от заёмщика',
+    dsNo:'ДС-62016/1', initiator:'sector',
+    demoNote:'Сумма прощения в постановлении (1 200 000) не сходится с фактической (1 250 000): гейт РС-28 открыт — сумма НАЗВАНА, — но расхождение показано, а не сглажено.' },
+  { id:'RS-1016', credits:['CR-60541'], kinds:['N1'], reg:'2026-03-30', stage:'дс', mode:'целиком',
+    params:{term:36, rate:6}, dsNo:'ДС-60541/2', initiator:'omsu',
+    waiver:{reason:'Покрытие ниже требуемого признано приемлемым: залог — техника с остаточным сроком службы, реализация в текущем году дала бы дисконт больше недостачи покрытия.', date:'2026-07-08'},
+    demoNote:'Покрытие 111 % при требуемых 120 % и страховка короче новых условий — гейт покрытия красный, но он МЯГКИЙ: закрытие прошло по waiver (РС-18). Согласия и пределы waiver не принимают.' },
+
+  { id:'RS-1017', credits:['CR-62018'], kinds:['N1'], reg:'2025-11-10', stage:'комитет',
+    params:{term:96}, initiator:'sector', dates:{committee:'2025-12-02'},
+    demoNote:'Срок 96 мес. против предела 84 при остатке 6 000 000 (п. 90) — жёсткий упор, waiver его не берёт. Дедлайн письма меряется в РАБОЧИХ днях, а календарь 2025 года в справочнике не заведён (РС-30): срок показан с оговоркой, а не молча посчитан по «сб/вс».' },
+  { id:'RS-1018', credits:['CR-62019'], kinds:['N2'], reg:'2026-02-20', stage:'письмо',
+    params:{rate:3}, initiator:'authority',
+    demoNote:'Ставка 3 % ниже пола 4,5 % (половина от первоначальных 9 %); вид проекта у кредита не указан — второй пол по п. 34 честно не проверен. Срок решения 70 к.д. по п. 18 истёк.' },
+  { id:'RS-1019', credits:['CR-62020'], kinds:['X1'], reg:'2026-05-12', stage:'заключение',
+    params:{term:24, rate:10}, disp:{penalty:{kind:'forgive'}}, dates:{conclusion:'2026-07-15'}, initiator:'sector',
+    demoNote:'Прощение назначено распоряжением, но постановления Кабинета Министров ещё нет — сумму прощения назвать нечему, и жёсткий гейт РС-28 держит регистрацию ДС закрытой.' },
+  { id:'RS-1020', credits:['CR-62021','CR-62017'], kinds:['N1'], reg:'2026-01-12', stage:'проектКМ',
+    params:{term:24, rate:8}, disp:{accInterest:{kind:'spread', from:1, to:40}}, plan:true, initiator:'omsu',
+    demoNote:'Охват из двух кредитов. Интервал распоряжения — позиции 1–40, а в черновом графике при сроке 24 мес. их 24: ИР-15 горит и держит регистрацию закрытой. Молча подрезать интервал нельзя — срок мог уменьшиться после того, как куратор задал позиции (РС-40).' },
+  { id:'RS-1021', credits:['CR-62022'], kinds:['N2'], reg:'2026-03-09', stage:'отказКМ',
+    params:{rate:6.5}, initiator:'authority', position:'целесообразно',
+    demoNote:'Кабинет Министров отказал в изменении условий: стадия отказа читается по акту, который его нёс (ADR-0107). Заключение уполномоченного органа было положительным — исход решает постановление, а не заключение (ИР-12).' },
+  { id:'RS-1022', credits:['CR-62023'], kinds:['N4'], reg:'2026-07-06', stage:'возврат',
+    missing:['Акт сверки задолженности'], dates:{ret:'2026-07-09'}, initiator:'sector',
+    why:'нет акта сверки задолженности — документа, который требует сам ВИД «капитализация» сверх нормативного пакета пп. 85–86' }
+];
+const WAVE2_STAGE = { возврат:0, анализ:1, комитет:2, письмо:3, заключение:4, проектКМ:5, отказКМ:6, дс:8 };
+
+/* Даты стадий раскладываются шагами регламента от даты регистрации: считать их в таблице руками
+   значило бы пятнадцать раз проверять глазами, что письмо позже комитета. Точечные исключения —
+   поле dates строки. */
+function wave2Dates(s){
+  const o=s.dates||{}, reg=s.reg;
+  const committee = o.committee || addCalDays(reg,22);
+  const letter    = o.letter    || addWorkDays(committee,4);
+  const conclusion= o.conclusion|| addCalDays(letter,45);
+  const zk        = o.zk        || addCalDays(conclusion,12);
+  const resolution= o.resolution|| addCalDays(zk,10);
+  return { analysis:o.analysis||addCalDays(reg,3), visa1:o.visa1||addCalDays(reg,14), visa2:o.visa2||addCalDays(reg,16),
+           committee, letter, conclusion, zk, resolution, ds:o.ds||addCalDays(resolution,7), ret:o.ret||addCalDays(reg,2) };
+}
+const wave2Kinds = s => s.kinds.map(id=>(kindById(id)||{}).name).filter(Boolean).join(' + ');
+/* Распоряжения строки таблицы кладутся поверх умолчания (kind:'none' на всю сумму позиции), а не
+   вместо него: статью, которой в базе среза не оказалось (спорная пеня, нулевая позиция), спека
+   не выдумывает — распоряжение живёт только на включённой строке (issues/02 реш.4). */
+function applyDisp(list, spec){
+  if(!spec) return list;
+  return list.map(d=>{
+    const s=spec[d.article]; if(!s) return d;
+    const out={...d, kind:s.kind};
+    if(s.amount!=null) out.amount=round2(s.amount);
+    if(s.from!=null)   out.periods={mode:'range', from:s.from, to:s.to};
+    return out;
+  });
+}
+function buildWave2(){ return WAVE2.map(s=>buildWave2App(s)); }
+function buildWave2App(s){
+  const target=WAVE2_STAGE[s.stage], cr=creditById(s.credits[0]), d=wave2Dates(s), n=Number(String(s.id).slice(3));
+  const app=baseApp(s.id, s.inn||cr.inn, s.borrower||cr.borrower, s.kinds, s.credits, s.reg);
+  app.initiator=s.initiator||'sector';
+  if(app.initiator==='omsu') app.initiatorViaEnvoy=true;
+  app._t=s.reg; H(app,'Заявка зарегистрирована. Виды: '+wave2Kinds(s)+'.','Куратор ОД');
+
+  if(s.stage==='возврат'){                                    // исход на первой стадии — дальше ничего не заводится
+    fillDocs(app); (s.missing||[]).forEach(doc=>{ delete app.packetDocs[doc]; });
+    app.outcome='возврат';
+    app._t=d.ret; H(app,'Пакет неполон: '+s.why+'. Исход: возвращена без рассмотрения.','Куратор ОД');
+    return app;
+  }
+
+  fillDocs(app); app.analysisStarted=true; app.calcTranche=cr.tranches[0];
+  app.conclusions=defaultConclusions();
+  app._t=d.analysis; H(app,'Пакет укомплектован → «Анализ». Дедлайн 30 к.д. (до '+addCalDays(s.reg,30)+').','Куратор ОД');
+  if(s.params) app.version=draftVersion(cr,s.params);
+  if(s.waiver) app.waiver={granted:true, reason:s.waiver.reason, date:s.waiver.date};
+
+  if(target>=2){
+    const pos=s.position||'целесообразно';
+    app.conclusions[0].text='Финансовое положение восстановимо, поддержать.'; app.conclusions[0].visa=true; app.conclusions[0].visaDate=d.visa1;
+    app.conclusions[1].text='Правовых препятствий нет.'; app.conclusions[1].visa=true; app.conclusions[1].visaDate=d.visa2;
+    app._t=d.visa2; H(app,'Заключения СРМиК и ДПО завизированы.','Заключанты');
+    app.committee={fixed:true, position:pos, date:d.committee};
+    app._t=d.committee; H(app,'Позиция комитета: '+pos+'. Дедлайн письма 5 р.д.','Секретарь комитета');
+  }
+  if(target>=3){
+    app.letterSent={fixed:true, date:d.letter};
+    AppSide.fixCutoff(app, d.letter);
+    app._t=d.letter; H(app,'Письмо в уполномоченный орган направлено. Срез зафиксирован на дату письма.','Куратор ОД','auto');
+  } else {
+    app.cutoff={date:TODAY, rows:null, fixedAt:null};          // до письма срез держит только дату (РС-8)
+  }
+
+  // финансовое ядро материализуется там, где заявка его уже трогала: у заявки с ДС — на дату ДС,
+  // у активной — на сегодня (иначе правка куратора откатилась бы к умолчанию, issues/02 реш.4)
+  if(s.disp || s.plan || (target>=8 && s.mode==='ядро')){
+    const at = target>=8 ? d.ds : TODAY;
+    app.base=AppSide.defaultBase(app, at);
+    app.dispositions=applyDisp(AppSide.defaultDispositions(app.base), s.disp);
+  }
+  if(s.plan){
+    const r=AppSide.run(app, TODAY);
+    app.version=app.version||draftVersion(cr,{});
+    app.version.plan=CreditSide.draftSchedule(app.calcTranche,
+      {date:TODAY, transferSum:r.transferSum, principalPart:r.principalPart, parts:r.parts, params:app.version.params});
+  }
+
+  if(target>=4){
+    app.conclusion={fixed:true, outcome:'возможно', no:'МФ-исх-'+(n+400), date:d.conclusion};
+    app._t=d.conclusion; H(app,'Заключение уполномоченного органа: возможно изменение условий ('+app.conclusion.no+' от '+d.conclusion+').','Куратор ОД');
+  }
+  if(target>=5){
+    app.zk={fixed:true, no:'ЖК-К/БФ-'+(n-700), date:d.zk};
+    app._t=d.zk; H(app,'Профильный комитет ЖК согласовал проект решения ('+app.zk.no+', п. 82).','Куратор ОД');
+  }
+  if(target>=6){
+    const decision = s.stage==='отказКМ' ? 'отказ' : 'изм';
+    app.resolution={fixed:true, decision, no:'ПКМ КР № '+(n-600), date:d.resolution,
+                    forgiveSum: s.forgiveSum!=null ? s.forgiveSum : null, forgiveBasis: s.forgiveBasis||null};
+    app._t=d.resolution; H(app,'Постановление Кабинета Министров '+app.resolution.no+' от '+d.resolution+': '
+      +(decision==='отказ' ? 'в изменении условий отказано (п. 89)' : 'изменённые условия')+'.','Куратор ОД');
+    if(decision==='отказ') app.outcome='отказ';
+  }
+
+  if(target>=8){
+    const T=app.calcTranche;
+    app.version=app.version||draftVersion(cr,{});
+    let ds;
+    if(s.mode==='целиком'){
+      ds={ no:s.dsNo, date:d.ds, app, sourceTranche:T, credit:cr,
+           transferSum:round2(CreditSide.balanceAt(T,d.ds)), params:{...app.version.params} };
+    } else {
+      const r=AppSide.run(app, d.ds);
+      ds={ no:s.dsNo, date:d.ds, app, sourceTranche:T, credit:cr, transferSum:r.transferSum,
+           principalPart:r.principalPart, parts:r.parts, params:{...app.version.params} };
+    }
+    const res=CreditSide.restructureApplied(ds);
+    if(!res.ok) throw new Error('demo-seed: '+s.id+' — '+res.reasons.join('; '));
+    app.ds={ no:ds.no, date:ds.date, transferSum:ds.transferSum, sourceTrancheId:T.id, params:ds.params, fact:null };
+    AppSide.fixFact(app, ds.date, ds.transferSum);
+    app.outcome='изм';
+    app._t=ds.date; H(app,'Доп. соглашение '+ds.no+' зарегистрировано, перенесено '+fmt(ds.transferSum)+'.','Куратор ОД');
+  }
+  if(s.demoNote){ H(app, s.demoNote, 'Демо-данные', 'auto'); }
+  return app;
 }
 
 /* ================= РЕНДЕР: НАВИГАЦИЯ + ШАПКА ================= */
@@ -1323,9 +2118,12 @@ function stageLabel(app){ return stageOf(app).label; }
 function outcomeChip(app){
   const o=app.outcome;
   if(o==='возврат') return '<span class="pill neutral">возврат без рассмотрения</span>';
-  if(o==='отказ')   return '<span class="pill high">отказ Минфина</span>';
+  // отказ различается по акту, который его нёс (ADR-0107): заключение органа (п. 88) либо постановление КМ
+  if(o==='отказ')   return (app.resolution&&app.resolution.fixed)
+      ? '<span class="pill high">отказ (постановление КМ)</span>'
+      : '<span class="pill high">отказ (заключение органа)</span>';
   if(app.ds&&app.ds.no){ return o==='изм'?'<span class="pill low">одобрена (изм. условия)</span>':'<span class="pill low">одобрена</span>'; }
-  if(app.minfin&&app.minfin.fixed) return app.minfin.decision==='отказ'?'<span class="pill high">отказ</span>':'<span class="pill info">на оформлении</span>';
+  if(app.resolution&&app.resolution.fixed) return '<span class="pill info">на оформлении</span>';
   return '<span class="pill neutral">в работе</span>';
 }
 function renderList(){
@@ -1340,8 +2138,9 @@ function renderList(){
     const kinds=a.kindIds.map(id=>kindById(id)?.name).filter(Boolean).join(', ');
     let dlCell='—';
     if(dl){ dlCell = dl.overdue ? `<span class="dl-red">просрочен на ${-dl.remaining} дн.</span>` : `<span class="dl-ok">осталось ${dl.remaining} дн.</span>`; }
+    const rep=repeatSignal(a);   // РС-32: сигнал, не гейт — видимость без блокировки
     return `<tr class="${dl&&dl.overdue?'overdue':''} ${st.closed?'terminal':''}" onclick="RS.openApp('${a.id}')">
-      <td>${a.id}</td>
+      <td>${a.id}${rep.on?`<br><span class="pill mid" title="Третья и последующая реструктуризация кредита — признак, порядок согласования не меняется">повторная ${rep.credits[0].n}-я</span>`:''}</td>
       <td>${esc(a.borrower)}<br><span class="mode-tag">${a.inn}</span></td>
       <td>${a.creditIds.map(id=>creditById(id)?.no).join(', ')}</td>
       <td>${esc(kinds)}</td>
@@ -1372,7 +2171,7 @@ function renderList(){
 }
 
 /* ================= РЕНДЕР: КАРТОЧКА ЗАЯВКИ ================= */
-const TABS=[['req','Обращение'],['scope','Охват'],['concl','Заключения'],['calcBase','База и распоряжения'],['calcSched','График и дифф'],['minfin','Комитет / Минфин'],['formal','Оформление'],['hist','История']];
+const TABS=[['req','Обращение'],['scope','Охват'],['concl','Заключения'],['calcBase','База и распоряжения'],['calcSched','График и дифф'],['decision','Комитет и решение'],['formal','Оформление'],['hist','История']];
 function openApp(id){ state.curApp=id; state.view='card'; state.curTab='req'; render(); }
 function setTab(t){ state.curTab=t; render(); }
 
@@ -1382,6 +2181,13 @@ function renderCard(){
   const tabbar = TABS.map(([k,l])=>`<button class="dtab ${state.curTab===k?'active':''}" onclick="RS.setTab('${k}')">${l}</button>`).join('');
   v.innerHTML = phead(app,st) + `<div class="detail-tabbar">${tabbar}</div>` +
     `<div class="panel-wrap">${panel(app)}</div>` + footer(app);
+}
+/* РС-32: сигнал повторности — пилюля и ничего больше. Норма (п. 82) маршрут установила, своей
+   дополнительной ступени согласования Холдинг над ним надстроить не вправе. */
+function repeatPill(app){
+  const rep=repeatSignal(app);
+  return `<span class="pill mid" title="Порядок согласования не меняется; на категорию риска влияет только решением комитета (ADR-0065)">повторная: ${
+    rep.credits.map(c=>esc(c.no)+' — '+c.n+'-я').join(' · ')}</span>`;
 }
 function phead(app,st){
   const kinds=app.kindIds.map(id=>kindById(id)?.name).filter(Boolean).join(', ');
@@ -1400,7 +2206,7 @@ function phead(app,st){
       <div class="phead-name"><span class="nm">${app.id}</span>
         <div class="phead-sub"><b>${esc(app.borrower)}</b> · ИНН ${app.inn} · виды: ${esc(kinds)||'—'} · кредиты: ${app.creditIds.map(id=>creditById(id)?.no).join(', ')||'—'}</div>
       </div>
-      <div>${outcomeChip(app)}</div>
+      <div>${repeatSignal(app).on?repeatPill(app)+' ':''}${outcomeChip(app)}</div>
     </div>
     <div class="timeline">${steps}</div>
   </div></div>`;
@@ -1423,19 +2229,28 @@ function panel(app){
     case 'concl': return pConcl(app);
     case 'calcBase': return pCalcBase(app);
     case 'calcSched': return pCalcSched(app);
-    case 'minfin': return pMinfin(app);
+    case 'decision': return pDecision(app);
     case 'formal': return pFormal(app);
     case 'hist': return pHist(app);
   }
   return '';
 }
 
-/* 1. Обращение — чек-лист пакета = объединение документов видов; гейт стадии 1 */
+/* 1. Обращение — чек-лист пакета: НОРМАТИВНЫЕ документы (пп. 85–86, 95 Положения) плюс документы
+   выбранных видов. У нормативной строки виден пункт: требование объясняется нормой, а не
+   настройкой (ADR-0099 §5). Условные строки (залоговые предложения п. 86, документы снижения
+   ставки п. 95) появляются только когда условие в силе — иначе куратор докладывает бумаги,
+   которых норма от него не требует. */
 function pReq(app){
   const st=stageOf(app); const g=packetGate(app);
-  const docs = g.req.map(d=>`<label class="chk"><input type="checkbox" ${app.packetDocs[d]?'checked':''}
-     ${st.idx>0||st.closed?'disabled':''} onchange="RS.toggleDoc('${app.id}','${esc(d)}',this.checked)"> ${esc(d)}</label>`).join('') ||
-     '<div class="op-empty">Виды не выбраны — требований к пакету нет.</div>';
+  const docs = g.req.map(d=>{ const pt=packetPointOf(d);
+    return `<label class="chk"><input type="checkbox" ${app.packetDocs[d]?'checked':''}
+     ${st.idx>0||st.closed?'disabled':''} onchange="RS.toggleDoc('${app.id}','${esc(d)}',this.checked)"> ${esc(d)}${
+     pt?` <span class="mode-tag">п. ${pt}</span>`:' <span class="mode-tag">по виду заявки</span>'}</label>`;
+  }).join('') || '<div class="op-empty">Виды не выбраны — требований к пакету нет.</div>';
+  const cond = [];
+  if(coverShortInScope(app)) cond.push('покрытие обеспечением недостаточно либо снимка нет ⇒ добавлены залоговые предложения (п. 86)');
+  if(allowedParams(app).has('rate')) cond.push('в видах есть изменение ставки ⇒ добавлены документы снижения (п. 95 пп. 1–2)');
   let gate='';
   if(st.idx===0 && !st.closed){
     gate = g.ok
@@ -1446,9 +2261,10 @@ function pReq(app){
     ? `<button class="btn btn-secondary btn-sm" onclick="RS.returnApp('${app.id}')">Вернуть без рассмотрения</button>` : '';
   return `<div class="detail-panel active">
     <div class="section-h">Обращение</div>
-    <div class="section-note">Дата регистрации: <b>${app.regDate}</b>. Требования к пакету — объединение документов выбранных видов (Р-3).</div>
+    <div class="section-note">Дата регистрации: <b>${app.regDate}</b>. Пакет — нормативные приложения пп. 85–86, 95 Положения (прил. к ПКМ КР №14 от 19.01.2026) плюс документы выбранных видов (Р-3, ADR-0099 §5).</div>
     ${gate}
-    <div class="f2" style="max-width:520px">${docs}</div>
+    <div class="f2" style="max-width:640px">${docs}</div>
+    ${cond.length?`<div class="section-note" style="margin-top:10px">Условные строки пакета: ${cond.map(esc).join(' · ')}.</div>`:''}
     <div style="margin-top:14px">${retBtn}</div>
   </div>`;
 }
@@ -1517,13 +2333,22 @@ function gateChipsRow(app){
 function coverBody(app){
   const cga=coverGateApp(app);
   const rows=cga.rows.map(({cr,g})=>`<div class="mrow"><span>${cr.no}</span><span>${g.cover}% из требуемых ${g.required}% (${esc(g.source||'Залог')}, снимок ${esc(g.snapshotDate||'—')}${g.stale?` <span class="pill high" title="Снимок старше ${COVER_SNAPSHOT_STALE_DAYS} к.д. — данные модуля залога могли устареть">устарел</span>`:''})${g.coverOk?'':' — недостаточно'}</span></div>`).join('') || '<div class="mrow"><span>—</span><span>кредиты не выбраны</span></div>';
-  return `<div class="mirror">${rows}</div>` + (cga.ok?'':`<div class="warnline">Недостаточно покрытия по одному или нескольким кредитам — мягкий гейт, снимается waiver-ом комиссии по залогу (вкладка «Оформление»).</div>`);
+  return `<div class="mirror">${rows}</div>` + (cga.ok?'':`<div class="warnline">Недостаточно покрытия по одному или нескольким кредитам — мягкий гейт, снимается решением комитета по администрированию бюджетных кредитов (вкладка «Оформление»).</div>`);
 }
+/* Пол ставки — ДВА порога, применяется больший (п. 92 + п. 34, ADR-0099 §2): 50 % от
+   первоначальной ставки и минимум по виду проекта. Вид не указан либо ставка внешняя ⇒ второй
+   пол не вычисляется, гейт работает по первому и говорит об этом вслух — молчаливое «пройдено»
+   на непроверенном условии хуже флага. */
 function limitsBody(app){
   const lga=limitsGateApp(app);
   if(lga.pending) return `<div class="op-empty">${esc(lga.messages[0])}</div>`;
-  return `<div class="mrow"><span>Срок</span><span>предел ${lga.cap} мес. (${esc(normNote(lga.capRec))})${lga.termOk?'':' — превышен'}</span></div>
-    <div class="mrow"><span>Ставка</span><span>минимум ${lga.floor}% (${esc(normNote(lga.floorRec))})${lga.rateOk?'':' — ниже минимума'}</span></div>`
+  const projLine = lga.projectUnchecked
+    ? `<div class="mrow"><span>Минимум по виду проекта</span><span><b>не проверен</b> — ${lga.projectRow?'ставка внешняя ('+esc(lga.projectRow.label)+'), машинно не вычисляется':'вид проекта у кредита не указан'} (${esc(normNote(lga.projRec))})</span></div>`
+    : `<div class="mrow"><span>Минимум по виду проекта</span><span>${lga.projFloor}% — ${esc((lga.projectRow||{}).label||'')} (${esc(normNote(lga.projRec))})</span></div>`;
+  return `<div class="mrow"><span>Срок</span><span>предел ${lga.cap} мес. от остатка задолженности (${esc(normNote(lga.capRec))})${lga.termOk?'':' — превышен'}</span></div>
+    <div class="mrow"><span>50 % от первоначальной ставки</span><span>${lga.half}% (${esc(normNote(lga.floorRec))})</span></div>
+    ${projLine}
+    <div class="mrow"><span>Действующий пол ставки</span><span><b>${lga.floor}%</b> — больший из двух${lga.rateOk?'':' · ставка ниже минимума'}</span></div>`
     + (lga.ok?'':`<div class="warnline">${lga.messages.map(esc).join('<br>')} — жёсткий гейт, без waiver.</div>`);
 }
 function consentBody(app){
@@ -1547,6 +2372,55 @@ function resultTranche(app){
 }
 function rowsTotal(rows){ return round2((rows||[]).reduce((s,r)=>s+r.amount,0)); }
 
+/* Дверь распоряжения (РС-38) — раскрытая строка под самой позицией, не модалка: вид уже
+   выбирается селектом в строке, сумма и сроки — его продолжение. Сроки показываются только у
+   распоряжений, рождающих БЕЗСТАВОЧНУЮ сумму, и у остальных это сказано подписью, а не
+   пустотой. Расхождение интервала с длиной плана (ИР-15) горит здесь же и повторяется причиной
+   в панели гейтов — молчаливой подрезки нет (РС-40). */
+function dispDoorRow(app, row, d, canEdit, planLen){
+  if(!row.included || !d || d.kind==='none') return '';
+  const dis = canEdit ? '' : 'disabled';
+  const A=`'${app.id}','${row.article}','${row.urgency}'`;
+  const rest = round2(row.amount - (d.amount||0));
+  const hasPer = dispositionHasPeriods(d.kind, row.article);
+  const per = d.periods || allPeriods();
+  const isRange = per.mode==='range';
+  let periodsBlock;
+  if(!hasPer){
+    periodsBlock = `<span class="mode-tag">${d.kind==='forgive'
+      ? 'сроков нет — прощённая сумма к уплате не назначается'
+      : 'сроков нет — капитализированные проценты вливаются в тело и живут сроками тела'}</span>`;
+  } else {
+    periodsBlock = `<div class="dd-grp"><span class="flabel">Сроки</span>
+        <label class="chk"><input type="radio" name="per-${app.id}-${row.article}-${row.urgency}" ${isRange?'':'checked'} ${dis}
+          onchange="RS.setDispPeriods(${A},'all')"><span class="lbl">весь график</span></label>
+        <label class="chk"><input type="radio" name="per-${app.id}-${row.article}-${row.urgency}" ${isRange?'checked':''} ${dis}
+          onchange="RS.setDispPeriods(${A},'range')"><span class="lbl">интервал позиций</span></label>
+      </div>`
+      + (isRange ? `<div class="dd-grp"><span class="flabel">с</span>
+        <input class="dd-pos" type="number" min="1" step="1" value="${per.from}" ${dis} onchange="RS.setDispPeriods(${A},'range',this.value,null)">
+        <span class="flabel">по</span>
+        <input class="dd-pos" type="number" min="1" step="1" value="${per.to}" ${dis} onchange="RS.setDispPeriods(${A},'range',null,this.value)">
+      </div>` : '');
+  }
+  // ИР-15 — сверяется с ЧЕРНОВИКОМ графика; пока его нет, шкалы позиций тоже нет, и это говорится.
+  let mismatch='';
+  if(hasPer && isRange){
+    if(planLen==null) mismatch = `<span class="pill neutral">черновой график ещё не рассчитан — длину интервала не с чем сверить</span>`;
+    else if(per.to>planLen || per.from<1 || per.from>per.to)
+      mismatch = `<span class="pill high">сроки ${per.from}–${per.to}, а в графике ${planLen} ${planLen===1?'позиция':'позиций'} — регистрация ДС закрыта (ИР-15)</span>`;
+  }
+  return `<tr class="disp-door"><td colspan="6"><div class="dd-wrap">
+      <div class="dd-grp"><span class="flabel">Сумма</span>
+        <input type="number" min="0" step="0.01" value="${d.amount!=null?d.amount:''}" ${dis} onchange="RS.setDispAmount(${A},this.value)">
+        <span class="mode-tag">≤ ${fmt(row.amount)}</span></div>
+      ${periodsBlock}
+      ${mismatch}
+      <div class="dd-note">${rest>0.005
+        ? 'без распоряжения остаётся '+fmt2(rest)+' — уходит в перенос своей статьёй и остаётся просроченным'
+        : 'позиция покрыта распоряжением целиком — просрочка по ней снимается'}</div>
+    </div></td></tr>`;
+}
 function pCalcBase(app){
   const cr=creditById(app.creditIds[0]);
   if(!cr) return `<div class="detail-panel active"><div class="op-empty">Добавьте кредит в охват — расчёт строится по транш-источнику.</div></div>`;
@@ -1561,12 +2435,17 @@ function pCalcBase(app){
   const drift=cutoffDrift(app);
   const srezRow = app.cutoff
     ? (app.cutoff.rows ? {v:fmt(rowsTotal(app.cutoff.rows)), s:'зафиксирован письмом '+app.cutoff.date} : {v:'—', s:'дата '+app.cutoff.date+' — сумма зафиксируется отправкой письма'})
-    : {v:'—', s:'письмо в Минфин ещё не направлено'};
+    : {v:'—', s:'письмо в уполномоченный орган ещё не направлено'};
   const factRow = app.ds && app.ds.fact
     ? {v:fmt(rowsTotal(app.ds.fact.rows)), s:'зафиксирован ДС '+app.ds.no+' от '+app.ds.fact.date}
     : {v:fmt(rowsTotal(debtAt(src,TODAY))), s:'предпросмотр на '+TODAY+' — ДС ещё не зарегистрировано'};
+  const driftPct = drift ? (drift.pct*100).toFixed(1).replace(/\.0$/,'')+'% от среза' : '';
   const deltaRow = drift
-    ? {v:(drift.delta>=0?'+':'')+fmt(drift.delta), s:(drift.pct*100).toFixed(1).replace(/\.0$/,'')+'% от среза — '+(drift.material?'выше мягкого порога '+(CUTOFF_DRIFT_PCT*100)+'%, не блокирует':'в пределах мягкого порога '+(CUTOFF_DRIFT_PCT*100)+'%'), flag:drift.material}
+    ? {v:(drift.delta>=0?'+':'')+fmt(drift.delta),
+       s: driftPct+' — '+(drift.level===0 ? 'обе ступени не задеты'
+            : drift.level===1 ? 'ступень 1: '+DRIFT_TIERS[0].need+', регистрацию не блокирует'
+            : 'ступень 2: '+DRIFT_TIERS[1].need),
+       flag:drift.material}
     : {v:'—', s:'дельта считается после фиксации и среза, и факта (issues/02 реш.2)', flag:false};
 
   const base = app.base && app.base.length ? app.base : defaultBase(app, app.ds?app.ds.date:TODAY);
@@ -1577,6 +2456,9 @@ function pCalcBase(app){
   });
   const canEdit = canX('editBase');
   const allowed = allowedDispositions(app);
+  // Длина черновика графика — та самая шкала, в позициях которой куратор задаёт сроки (РС-38).
+  // Пока расчёт не проведён, шкалы нет, и об этом говорится вслух, а не подставляется срок/12.
+  const planLen = (app.version && app.version.plan && app.version.plan.rows) ? app.version.plan.rows.length : null;
   const rows = ordered.map(r=>{
     const d=dispositionFor(dispositions,r.article,r.urgency);
     const urg=(URG.find(u=>u.key===r.urgency)||{}).name||r.urgency;
@@ -1593,8 +2475,32 @@ function pCalcBase(app){
         </select>`
       : '<span class="mode-tag">без распоряжения (строка снята)</span>';
     const rowCls = dead ? 'art-blocked' : (!r.included ? 'art-removed' : '');
-    return `<tr class="${rowCls}"><td>${esc(ARTICLE_LABEL[r.article]||r.article)}</td><td>${urg}</td><td class="numcell">${fmt(r.amount)}</td><td>${chk}</td><td>${disp}</td></tr>`;
-  }).join('') || '<tr><td colspan="5" class="op-empty">Долг по траншу пуст на выбранную дату</td></tr>';
+    /* База начисления статьи (РС-27/ADR-0106). У терминальных статей она пуста, и это сказано
+       вслух: пустое начисление, показанное молча, читается как недоработка движка. */
+    const am=accrualModeOf(r.article, app.ds?app.ds.date:TODAY);
+    const accrOn=[]; if(am.mode.interest) accrOn.push('проценты'); if(am.mode.penalty) accrOn.push('пеня');
+    const accCell = accrOn.length
+      ? `<span class="mode-tag">${accrOn.join(' + ')}</span>`
+      : `<span class="mode-tag" title="Терминальная статья: только гасится, начислений не порождает (РС-27)">не начисляется — терминальная</span>`;
+    return `<tr class="${rowCls}"><td>${esc(ARTICLE_LABEL[r.article]||r.article)}</td><td>${urg}</td><td class="numcell">${fmt(r.amount)}</td><td>${accCell}</td><td>${chk}</td><td>${disp}</td></tr>`
+         + dispDoorRow(app, r, d, canEdit, planLen);
+  }).join('') || '<tr><td colspan="6" class="op-empty">Долг по траншу пуст на выбранную дату</td></tr>';
+
+  /* Итог прогона (ADR-0109): перенос — одно число, но происхождение его частей видно здесь.
+     Капитализированные проценты влились в тело, капитализированная пеня легла в колонку
+     накопленной пени — восьмой статьи нет, и различить их можно только этими счётчиками и
+     записью в акте. Пока счётчик никто не показывает, «выделение отдельной суммой» п. 89
+     пп. 4 остаётся переменной, а не суммой в документе. */
+  const runSum = run(app, app.ds?app.ds.date:TODAY);
+  const sumTiles = [
+    ['Прощено', runSum.forgiven, 'п. 89 пп. 5 — к уплате не назначается'],
+    ['Капитализировано процентов', runSum.capitalizedInterest, 'влились в колонку основного долга — ставка на них идёт'],
+    ['Капитализировано пени', runSum.capitalizedPenalty, 'легла в колонку накопленной пени — безставочная (ADR-0106, ИР-11)'],
+    ['Тело переноса', runSum.principalPart, 'база начисления графика'],
+    ['Перенос, всего', runSum.transferSum, 'сумма акта ДС — одно число, пара transfer_out/transfer_in не расщепляется']
+  ].filter(([,v],i)=>i>=3 || round2(v)>0);
+  const runBlock = `<div class="two-num-grid">${sumTiles.map(([l,v,d])=>
+    `<div class="numtile"><div class="nt-l">${l}</div><div class="nt-v">${fmt(v)}</div><div class="nt-d">${d}</div></div>`).join('')}</div>`;
 
   const derived=resultTranche(app);
   let splitBlock;
@@ -1633,7 +2539,12 @@ function pCalcBase(app){
 
     <div class="section-h">База — статьи долга, распоряжения</div>
     <div class="section-note">Порядок строк — константа конвейера PIPELINE (issues/02 реш.6): расходы взыскания → сборы → накопленные проценты → накопленная пеня → пеня → проценты → основной долг. Галка и распоряжение — живые (issues/02 реш.1/4, тикет 07): куратор снимает строку или меняет распоряжение прямо здесь; спорная пеня (ИР-6) и распоряжения, которых вид не допускает, — мёртвые пункты с подписью, не скрытые.${canEdit?'':' <span class="mode-tag">роль «'+esc(state.role)+'» правку не делает — только Куратор ОД.</span>'}</div>
-    <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Статья</th><th>Срочность</th><th class="numcell">Сумма</th><th>Включена</th><th>Распоряжение</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Статья</th><th>Срочность</th><th class="numcell">Сумма</th><th>База начисления</th><th>Включена</th><th>Распоряжение</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="section-note">Колонка «база начисления» — режим статьи на дату операции (РС-27, ADR-0106): пеня терминальна — ни она сама, ни капитализированная пеня, ни просроченное накопленное начислений не порождают. Режим хранится с датой начала действия, поэтому сделки прошлых лет продолжают считаться по правилу, действовавшему тогда.</div>
+
+    <div class="section-h">Итог прогона</div>
+    <div class="section-note">Перенос уходит одним числом (РС-41: пара transfer_out/transfer_in и акт ДС не расщепляются), но раскладывается по тем же семи статьям долга. Капитализированные проценты вливаются в тело и начисляют ставку; капитализированная пеня ложится в колонку накопленной пени и остаётся безставочной — восьмой статьи не заводится, различие происхождения несут эти счётчики и запись в акте (ADR-0109).</div>
+    ${runBlock}
 
     <div class="section-h">Производный транш</div>
     ${splitBlock}
@@ -1668,22 +2579,41 @@ function pCalcSched(app){
 
   const activeRows=(scheduleAt(src,TODAY)?.rows||[]).filter(r=>r.date>=TODAY).slice(0,6);
 
-  function tbl(title,pillHtml,rows,emptyMsg){
-    const body=rows.map(r=>`<tr><td>${r.date}</td><td class="numcell">${fmt(r.principal)}</td><td class="numcell">${fmt(r.interest||0)}</td></tr>`).join('') || `<tr><td colspan="3" class="op-empty">${emptyMsg}</td></tr>`;
+  /* Строка графика несёт статьи (РС-41, ADR-0109): рядом с телом и процентом — безставочные
+     колонки. Пустая колонка не рисуется, и обычный кредит выглядит как прежде. Итоговая строка
+     показывает раскладку переноса — ровно то, что сверяет ИР-2. `allRows` — полный график, когда
+     на экран выведены первые несколько строк: итог обязан считаться по всему графику. */
+  function tbl(title,pillHtml,rows,emptyMsg,allRows){
+    const full = allRows || rows;
+    const cols = scheduleArticleCols(full);
+    const head = cols.map(k=>`<th>${esc(ARTICLE_LABEL[k]||k)}</th>`).join('');
+    const body=rows.map(r=>`<tr><td>${r.date}</td><td class="numcell">${fmt(r.principal)}</td><td class="numcell">${fmt(r.interest||0)}</td>${
+        cols.map(k=>`<td class="numcell">${fmt((r.articles||{})[k]||0)}</td>`).join('')}</tr>`).join('')
+      || `<tr><td colspan="${3+cols.length}" class="op-empty">${emptyMsg}</td></tr>`;
+    let foot='';
+    if(allRows && full.length){
+      const sumP=round2(full.reduce((s,r)=>s+(r.principal||0),0));
+      const sumI=round2(full.reduce((s,r)=>s+(r.interest||0),0));
+      const sumC=cols.map(k=>round2(full.reduce((s,r)=>s+((r.articles||{})[k]||0),0)));
+      const transfer=round2(sumP+sumC.reduce((s,v)=>s+v,0));
+      foot=`<tfoot><tr><th>Перенос, всего ${fmt(transfer)}</th><th class="numcell">${fmt(sumP)}</th><th class="numcell">${fmt(sumI)}</th>${
+        sumC.map(v=>`<th class="numcell">${fmt(v)}</th>`).join('')}</tr></tfoot>`;
+    }
+    const more = allRows && full.length>rows.length ? `<div class="mode-tag">показаны первые ${rows.length} из ${full.length} позиций; итог — по всему графику</div>` : '';
     return `<div class="f2" style="margin-bottom:6px"><div class="field"><span class="flabel">${title} ${pillHtml}</span></div></div>
-    <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th colspan="3">${title}</th></tr><tr><th>Дата</th><th>Тело</th><th>%</th></tr></thead><tbody>${body}</tbody></table></div>`;
+    <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th colspan="${3+cols.length}">${title}</th></tr><tr><th>Дата</th><th>Тело</th><th>%</th>${head}</tr></thead><tbody>${body}</tbody>${foot}</table></div>${more}`;
   }
 
   const derivedBlock = draftBlock
-    ? tbl((derived?derived.no:'производный транш'), draftBlock.pill, draftBlock.rows.slice(0,6), 'график пуст')
+    ? tbl((derived?derived.no:'производный транш'), draftBlock.pill, draftBlock.rows.slice(0,6), 'график пуст', draftBlock.rows)
     : `<div class="op-empty">Черновой график не рассчитан — задайте параметры ниже и нажмите «Предварительный расчёт», или дождитесь регистрации ДС.</div>`;
   const paramsBlock = derived ? '' : `<div class="section-h">Условия черновика ДС</div>${versionParamsBlock(app)}`;
   const activeBlock = tbl(src.no+' — действующий, не тронут переносом', '<span class="pill low">Действующий</span>', activeRows, 'график транша не оцифрован в демо-сиде (schedules[0].rows пуст) — не факт отсутствия платежей');
 
   const runRes=run(app, app.ds?app.ds.date:TODAY);
-  const base = app.base && app.base.length ? app.base : defaultBase(app, app.ds?app.ds.date:TODAY);
-  const dispositions = app.dispositions && app.dispositions.length ? app.dispositions : defaultDispositions(base);
-  const unresolved = base.filter(r=>r.included && r.urgency==='over').filter(r=>{ const d=dispositionFor(dispositions,r.article,r.urgency); return !d || (d.kind!=='cap'&&d.kind!=='forgive'); });
+  // Непокрытое — то, что осталось на строке ПОСЛЕ всех распоряжений (РС-39): ровно тот же остаток,
+  // по которому шаг overdue считает remainsOverdue. Частичное распределение честно попадает сюда.
+  const unresolved = (runRes.base||[]).filter(r=>r.included && r.urgency==='over' && round2(r.carried)>0);
   const rs15 = runRes.remainsOverdue
     ? `<div style="margin:0 0 14px"><span class="pill mid">Кредит частично просрочен после ДС</span> <span class="mode-tag">Не урегулированы распоряжением: ${esc(unresolved.map(r=>ARTICLE_LABEL[r.article]||r.article).join(', ')||'—')} — просрочка не растворяется, входит суммой в перенос${derived?' '+derived.no:''} (РС-15).</span></div>`
     : (app.ds&&app.ds.no ? `<div class="okline">Все включённые просроченные статьи урегулированы распоряжением — перенос не несёт непокрытой просрочки (РС-15).</div>` : '');
@@ -1706,40 +2636,89 @@ function pCalcSched(app){
   </div>`;
 }
 
-/* 5. Комитет / Минфин (Р-6) */
-function pMinfin(app){
-  const st=stageOf(app); const c=app.committee||{}; const l=app.letterSent||{}; const m=app.minfin||{};
+/* 5. Комитет и решение (Р-6, переборено по ADR-0107). За прежней одной стадией «решение
+   уполномоченного органа» стоят ТРИ АКТА РАЗНЫХ ОРГАНОВ: заключение уполномоченного органа
+   (пп. 87–88), согласование профильного комитета ЖК и постановление Кабинета Министров (п. 82).
+   Все три живут внутри одного срока 70 к.д. — своих регламентных сроков у них нет, и выдумывать
+   их нельзя. Отрицательное заключение (п. 88) закрывает заявку отказом, до Кабмина она не идёт. */
+function pDecision(app){
+  const st=stageOf(app); const c=app.committee||{}; const l=app.letterSent||{};
+  const cc=app.conclusion||{}, zk=app.zk||{}, r=app.resolution||{};
   const dl=deadline(app);
+  const initLabel = (INITIATORS.find(i=>i.code===app.initiator)||{}).label || null;
+  const initBlock = initLabel
+    ? `<div class="okline">Инициатор проекта решения: <b>${esc(initLabel)}</b> (п. 83).${app.initiatorViaEnvoy?' Внесено через полномочного представителя Президента в области.':''}</div>`
+    : `<div class="warnline">Инициатор проекта решения не указан (п. 83) — реквизит справочника, а не свободная строка.</div>`;
   const committeeBlock = c.fixed
-    ? `<div class="okline">Позиция комитета: <b>${esc(c.position)}</b> (${c.date}). Позиция необязывающая — письмо направляется всегда.</div>`
+    ? `<div class="okline">Позиция комитета Холдинга: <b>${esc(c.position)}</b> (${c.date}). Позиция необязывающая — письмо направляется всегда.</div>`
     : `<div class="field" style="max-width:420px"><span class="flabel">Позиция комитета</span>
         <select id="cpos"><option value="целесообразно">целесообразно</option><option value="нецелесообразно">нецелесообразно</option></select>
         <div style="margin-top:8px"><button class="btn btn-success btn-sm" onclick="RS.fixCommittee('${app.id}')">Зафиксировать позицию</button></div></div>`;
   let letterBlock='';
   if(c.fixed){
     letterBlock = l.fixed
-      ? `<div class="okline">Письмо в Минфин направлено ${l.date}. Включена пауза взыскания + дедлайн решения 70 к.д. (см. вкладку История / блок «Автоматика» ниже).</div>`
+      ? `<div class="okline">Письмо в уполномоченный государственный орган направлено ${l.date}. Включена пауза взыскания + дедлайн решения 70 к.д. — один срок на все три акта (п. 18 Порядка №41, ADR-0107 §3).</div>`
       : `<div class="warnline">Дедлайн письма: ${dl?(dl.overdue?`<span class="dl-red">просрочен ${-dl.remaining} дн.</span>`:`осталось ${dl.remaining} дн.`):'5 р.д.'} (флаг, не блокировка). Письмо направляется при любой позиции.
-         <span class="mode-tag">${esc(dl?normNote(dl.rec):normNote(normAt('deadlineLetter',c.date||TODAY)))} · срок в рабочих днях, производственный календарь (праздники) не учтён — считаются только сб/вс</span></div>
+         <span class="mode-tag">${esc(dl?normNote(dl.rec):normNote(normAt('deadlineLetter',c.date||TODAY)))} · рабочие дни по производственному календарю${dl&&dl.calKnown===false?' — год не заведён, счёт по сб/вс':''}</span></div>
          <button class="btn btn-primary btn-sm" onclick="RS.fixLetter('${app.id}')">Зафиксировать отправку письма</button>`;
   }
-  let minfinBlock='';
+  /* акт 1 — заключение уполномоченного органа (пп. 87–88) */
+  let cBlock='';
   if(l.fixed){
-    minfinBlock = m.fixed
-      ? `<div class="${m.decision==='отказ'?'flagline':'okline'}">Решение Минфина: <b>${decLabel(m.decision)}</b> · реквизит: ${esc(m.letterRef)} (${m.date}).</div>`
+    cBlock = cc.fixed
+      ? `<div class="${cc.outcome==='отказ'?'flagline':'okline'}">Заключение уполномоченного органа: <b>${cc.outcome==='отказ'?'отрицательное — отказ (п. 88)':'возможно изменение условий (п. 87)'}</b> · № ${esc(cc.no)} от ${cc.date}.${
+          cc.outcome==='отказ'?' Заявка закрыта, до Кабинета Министров не доходит.':''}</div>`
       : `<div class="f2" style="max-width:640px">
-          <div class="field"><span class="flabel">Решение</span><select id="mdec">
-            <option value="одобрено">одобрено</option><option value="изм">одобрено с изменёнными условиями</option><option value="отказ">отказ</option></select></div>
-          <div class="field"><span class="flabel">Реквизит письма Минфина •</span><input id="mref" placeholder="МФ-исх-№ от дата"></div>
-          <div class="field col-span"><button class="btn btn-primary btn-sm" onclick="RS.fixMinfin('${app.id}')">Зафиксировать решение Минфина</button>
-            <span class="mode-tag" style="margin-left:8px">Без реквизита кнопка отклонит фиксацию (minfinGate).</span></div>
+          <div class="field"><span class="flabel">Исход заключения</span><select id="cdec">
+            <option value="возможно">возможно изменение условий (п. 87)</option><option value="отказ">отрицательное заключение — отказ (п. 88)</option></select></div>
+          <div class="field"><span class="flabel">Номер заключения •</span><input id="cno" placeholder="МФ-исх-№"></div>
+          <div class="field col-span"><button class="btn btn-primary btn-sm" onclick="RS.fixConclusion('${app.id}')">Зафиксировать заключение</button>
+            <span class="mode-tag" style="margin-left:8px">Без номера и исхода кнопка отклонит фиксацию (conclusionGate).</span></div>
         </div>`;
+  }
+  /* акт 2 — согласование профильного комитета ЖК (п. 82) */
+  let zBlock='';
+  if(cc.fixed && cc.outcome==='возможно'){
+    zBlock = zk.fixed
+      ? `<div class="okline">Профильный комитет Жогорку Кенеша согласовал проект решения: № ${esc(zk.no)} от ${zk.date}.</div>`
+      : `<div class="f2" style="max-width:640px">
+          <div class="field"><span class="flabel">Реквизит согласования ЖК •</span><input id="zno" placeholder="ЖК-К/№"></div>
+          <div class="field col-span"><button class="btn btn-primary btn-sm" onclick="RS.fixZk('${app.id}')">Зафиксировать согласование</button>
+            <span class="mode-tag" style="margin-left:8px">П. 82: Кабмин решает «по согласованию с профильным комитетом ЖК» — без отметки постановление не на чем объяснить.</span></div>
+        </div>`;
+  } else if(cc.fixed && cc.outcome==='отказ'){
+    zBlock = `<div class="op-empty">Отрицательное заключение — согласование и постановление не требуются.</div>`;
+  }
+  /* акт 3 — постановление Кабинета Министров (п. 82) */
+  let rBlock='';
+  if(zk.fixed){
+    const fg=forgiveGate(app);
+    const fgLine = fg.applicable
+      ? (fg.ok
+          ? `<div class="okline">Прощение ${fmt(fg.sum)} названо в акте${fg.actSum!=null?` суммой ${fmt(fg.actSum)}`:' основанием'}${fg.mismatch?` — <b>расхождение с распоряжениями заявки</b>`:''} (РС-28).${fg.basis?` Основание: ${esc(fg.basis)}`:''}</div>`
+          : `<div class="flagline">В распоряжениях есть прощение на ${fmt(fg.sum)}, но акт его не называет. Списание бюджетных средств без названной суммы или основания в решении органа невозможно — жёсткий гейт РС-28/ИР-13.</div>`)
+      : '';
+    rBlock = (r.fixed
+      ? `<div class="${r.decision==='отказ'?'flagline':'okline'}">Постановление Кабинета Министров: <b>${decLabel(r.decision)}</b> · ${esc(r.no)} от ${r.date}. Это и есть реквизит регистрации ДС (п. 96 — соглашение оформляет агент или кредитный агент).</div>`
+      : `<div class="f2" style="max-width:640px">
+          <div class="field"><span class="flabel">Решение</span><select id="rdec">
+            <option value="одобрено">одобрено</option><option value="изм">одобрено с изменёнными условиями</option><option value="отказ">отказ</option></select></div>
+          <div class="field"><span class="flabel">Реквизит постановления •</span><input id="rno" placeholder="ПКМ КР № … от дата"></div>
+          <div class="field"><span class="flabel">Сумма прощения по акту</span><input id="rfsum" placeholder="если названа суммой"></div>
+          <div class="field"><span class="flabel">Основание прощения</span><input id="rfbasis" placeholder="если названо основанием"></div>
+          <div class="field col-span"><button class="btn btn-primary btn-sm" onclick="RS.fixResolution('${app.id}')">Зафиксировать постановление</button>
+            <span class="mode-tag" style="margin-left:8px">Без реквизита кнопка отклонит фиксацию (resolutionGate).</span></div>
+        </div>`) + fgLine;
   }
   const auto = automationBlock(app);
   return `<div class="detail-panel active">
-    <div class="section-h">Комитет</div>${committeeBlock}
-    <div class="section-h" style="margin-top:18px">Письмо в Минфин</div>${letterBlock||'<div class="op-empty">Сначала зафиксируйте позицию комитета.</div>'}
-    <div class="section-h" style="margin-top:18px">Решение Минфина</div>${minfinBlock||'<div class="op-empty">Сначала зафиксируйте отправку письма.</div>'}
+    <div class="section-note">Цепь актов по гл. 9 Положения (прил. к ПКМ КР №14 от 19.01.2026): комитет Холдинга → письмо → <b>заключение уполномоченного органа</b> → <b>согласование профильного комитета ЖК</b> → <b>постановление Кабинета Министров</b>. Собственных регламентных сроков у трёх актов нет — все они внутри 70 к.д. (ADR-0107 §3).</div>
+    ${initBlock}
+    <div class="section-h" style="margin-top:18px">Комитет Холдинга</div>${committeeBlock}
+    <div class="section-h" style="margin-top:18px">Письмо в уполномоченный орган</div>${letterBlock||'<div class="op-empty">Сначала зафиксируйте позицию комитета.</div>'}
+    <div class="section-h" style="margin-top:18px">Заключение уполномоченного органа (пп. 87–88)</div>${cBlock||'<div class="op-empty">Сначала зафиксируйте отправку письма.</div>'}
+    <div class="section-h" style="margin-top:18px">Согласование профильного комитета ЖК (п. 82)</div>${zBlock||'<div class="op-empty">Сначала зафиксируйте заключение уполномоченного органа.</div>'}
+    <div class="section-h" style="margin-top:18px">Постановление Кабинета Министров (п. 82)</div>${rBlock||'<div class="op-empty">Сначала зафиксируйте согласование профильного комитета ЖК.</div>'}
     ${auto}
   </div>`;
 }
@@ -1767,8 +2746,9 @@ function automationBlock(app){
 
 /* 6. Оформление (Р-8, Р-15) */
 function pFormal(app){
-  const approved = app.minfin&&app.minfin.fixed&&app.minfin.decision!=='отказ';
-  if(!approved) return `<div class="detail-panel active"><div class="op-empty">Оформление доступно после одобрения Минфином.</div></div>`;
+  // оформление открывает ПОСТАНОВЛЕНИЕ КМ, а не заключение органа (ADR-0107 §«Последствия»)
+  const approved = app.resolution&&app.resolution.fixed&&app.resolution.decision!=='отказ';
+  if(!approved) return `<div class="detail-panel active"><div class="op-empty">Оформление доступно после постановления Кабинета Министров об изменении условий (п. 82). Заключения уполномоченного органа для этого недостаточно.</div></div>`;
   const cga=coverGateApp(app);
   const rows=cga.rows.map(({cr,g})=>`<tr>
     <td>${cr.no}</td>
@@ -1781,26 +2761,54 @@ function pFormal(app){
   const waived = app.waiver&&app.waiver.granted;
   let gateLine;
   if(cga.ok && !waived) gateLine=`<div class="okline">Гейт обеспечения пройден по всем кредитам. Регистрация доп. соглашения доступна.</div>`;
-  else if(waived) gateLine=`<div class="warnline">Гейт обеспечения снят WAIVER-ом комиссии по залогу. Основание: ${esc(app.waiver.reason)} (${app.waiver.date}).</div>`;
-  else gateLine=`<div class="flagline">Гейт обеспечения не пройден — регистрация доп. соглашения заблокирована. Разблокировка — «Решение комиссии по залогу» с обязательным основанием.</div>`;
+  else if(waived) gateLine=`<div class="warnline">Гейт обеспечения снят решением комитета по администрированию бюджетных кредитов. Основание: ${esc(app.waiver.reason)} (${app.waiver.date}).</div>`;
+  else gateLine=`<div class="flagline">Гейт обеспечения не пройден — регистрация доп. соглашения заблокирована. Разблокировка — решением комитета по администрированию бюджетных кредитов с обязательным основанием (КД-10 модуля залога: роли «залоговая комиссия» в системе нет).</div>`;
   const lga=limitsGateApp(app), coa=consentGateApp(app);
   const limitsLine = lga.pending ? '<div class="op-empty">Расчёт (транш-источник/условия) ещё не выбран — гейт неприменим.</div>'
-    : lga.ok ? `<div class="okline">Срок и ставка новых условий в пределах нормы (${esc(normNote(lga.capRec))}).</div>`
+    : lga.ok ? `<div class="okline">Срок и ставка новых условий в пределах нормы (${esc(normNote(lga.capRec))}).${
+        lga.projectUnchecked?' <b>Вид проекта не указан — минимум п. 34 не проверен</b>, гейт работает по одному полу (50 % от первоначальной).':''}</div>`
     : `<div class="flagline">${lga.messages.map(esc).join('<br>')} — жёсткий гейт, без waiver.</div>`;
   const consentLine = coa.ok ? '<div class="okline">Согласия всех обеспечителей получены.</div>'
     : `<div class="flagline">Не согласовано: ${coa.pending.map(esc).join(', ')} — жёсткий гейт, без waiver.</div>`;
+  const fg=forgiveGate(app);          // РС-28 — жёсткий: без названной суммы/основания ДС не регистрируется
+  const dg=driftGate(app, TODAY);     // РС-26 ступень 2 — возврат на комитет, регистрация заблокирована
+  const forgiveLine = !fg.applicable ? '<div class="op-empty">Прощения в распоряжениях нет — гейт неприменим.</div>'
+    : fg.ok ? `<div class="okline">Прощение ${fmt(fg.sum)} названо в постановлении${fg.actSum!=null?` суммой ${fmt(fg.actSum)}`:' основанием'}.${
+        fg.mismatch?` <b>Сумма акта (${fmt(fg.actSum)}) расходится с распоряжениями (${fmt(fg.sum)})</b> — расхождение видимо, решает куратор.`:''}</div>`
+    : `<div class="flagline">Прощение ${fmt(fg.sum)} не названо в постановлении Кабмина — регистрация ДС заблокирована (РС-28/ИР-13).</div>`;
+  const driftLine = !dg.applicable ? '<div class="op-empty">Срез не зафиксирован — порог неприменим.</div>'
+    : dg.level===0 ? `<div class="okline">Долг на дату вступления ${fmt(dg.factSum)} против среза ${fmt(dg.cutoffSum)} — расхождение ${(dg.pct*100).toFixed(1).replace(/\.0$/,'')} % (${fmt(dg.delta)}), обе ступени не задеты.</div>`
+    : dg.level===1 ? `<div class="warnline">Ступень 1: расхождение ${(dg.pct*100).toFixed(1).replace(/\.0$/,'')} % (${fmt(dg.delta)}) — ${esc(DRIFT_TIERS[0].need)}. Регистрацию не блокирует.</div>`
+    : dg.recommitted ? `<div class="warnline">Ступень 2 сработала (${(dg.pct*100).toFixed(1).replace(/\.0$/,'')} %, ${fmt(dg.delta)}), но комитет высказался заново ${esc(app.committee.date)} — блокировка снята.</div>`
+    : `<div class="flagline">Ступень 2: расхождение ${(dg.pct*100).toFixed(1).replace(/\.0$/,'')} % (${fmt(dg.delta)}) — ${esc(DRIFT_TIERS[1].need)}. Постановление Кабмина не переподписывается: пересматривается позиция комитета Холдинга, на которой стоит письмо.</div>`;
   const done = app.ds&&app.ds.no;
-  const canReg = (cga.ok||waived) && lga.ok && coa.ok;
+  const dispRows = (app.dispositions||[]).filter(d=>d.kind!=='none');
+  // Ярлык распоряжения — один на файл (DISP_LABEL, :~432): прежний локальный kindLabel повторял
+  // его третьим списком и расходился бы при первом же новом виде распоряжения.
+  const planLenG = (app.version && app.version.plan && app.version.plan.rows) ? app.version.plan.rows.length : null;
+  const badPeriods = dispRows.filter(d=>{
+    if(!dispositionHasPeriods(d.kind, d.article)) return false;
+    const p = d.periods || allPeriods();
+    return p.mode==='range' && planLenG!=null && (p.to>planLenG || p.from<1 || p.from>p.to);
+  });
+  const perLabel = d => {
+    if(!dispositionHasPeriods(d.kind, d.article)) return 'сроков нет';
+    const p = d.periods || allPeriods();
+    if(p.mode!=='range') return 'весь график';
+    const bad = planLenG!=null && (p.to>planLenG || p.from<1 || p.from>p.to);
+    return 'позиции '+p.from+'–'+p.to+(bad?' — вне графика ('+planLenG+'), ИР-15':'');
+  };
+  // ИР-15/РС-40 — жёсткий гейт: интервал за длиной плана закрывает регистрацию до правки, а не
+  // подрезается молча. Ровно та же причина придёт из validateDS, если дверь всё-таки дёрнут.
+  const canReg = (cga.ok||waived) && lga.ok && coa.ok && fg.ok && dg.ok && !badPeriods.length;
   const dsBlock = done
     ? `<div class="okline">Доп. соглашение <b>${esc(app.ds.no)}</b> зарегистрировано. Версия «действует» с ${app.ds.date}. Счётчик реструктуризаций кредитов +1.</div>`
     : `<div class="gtoolbar">
-        ${(!cga.ok && !waived)?`<button class="btn btn-danger btn-sm" onclick="RS.openWaiver('${app.id}')">Решение комиссии по залогу (waiver)</button>`:''}
+        ${(!cga.ok && !waived)?`<button class="btn btn-danger btn-sm" onclick="RS.openWaiver('${app.id}')">Решение комитета по администрированию (снятие гейта)</button>`:''}
         <button class="btn btn-primary btn-sm" ${canReg?'':'disabled'} onclick="RS.openDS('${app.id}')">Зарегистрировать доп. соглашение</button>
       </div>`;
-  const dispRows = (app.dispositions||[]).filter(d=>d.kind!=='none');
-  const kindLabel = k => k==='cap'?'Капитализация':k==='forgive'?'Прощение':k==='spread'?'Распределение по периодам':k;
   const ops = dispRows.length
-    ? `<div class="ops-list">${dispRows.map(d=>`<div class="op-row"><span class="op-t"><b>${kindLabel(d.kind)}</b> — ${esc(ARTICLE_LABEL[d.article]||d.article)} (${esc((URG.find(u=>u.key===d.urgency)||{}).name||d.urgency)})</span><span class="mode-tag">${fmt(d.amount)}</span></div>`).join('')}</div>`
+    ? `<div class="ops-list">${dispRows.map(d=>`<div class="op-row"><span class="op-t"><b>${DISP_LABEL[d.kind]||d.kind}</b> — ${esc(ARTICLE_LABEL[d.article]||d.article)} (${esc((URG.find(u=>u.key===d.urgency)||{}).name||d.urgency)})</span><span class="mode-tag">${fmt(d.amount)} · ${esc(perLabel(d))}</span></div>`).join('')}</div>`
     : '<div class="op-empty">Распоряжений нет — база и распоряжения задаются на вкладке «База и распоряжения».</div>';
   return `<div class="detail-panel active">
     <div class="section-h">Гейт пределов (жёсткий, без waiver)</div>
@@ -1809,10 +2817,23 @@ function pFormal(app){
     <div class="section-h" style="margin-top:18px">Гейт согласий обеспечителей (жёсткий, без waiver)</div>
     <div class="section-note">Ответ Обеспечения (ADR-0098) — зеркало, не собственный расчёт.</div>
     ${consentLine}
+    <div class="section-h" style="margin-top:18px">Гейт прощения (жёсткий, без waiver)</div>
+    <div class="section-note">Списание бюджетных средств стоит на акте: сумма либо основание прощения названы в постановлении Кабмина (РС-28, ИР-13).</div>
+    ${forgiveLine}
+    <div class="section-h" style="margin-top:18px">Порог расхождения среза и факта (две ступени)</div>
+    <div class="section-note">Ступень 1 — ${(DRIFT_TIERS[0].pct*100)} % либо ${fmt(DRIFT_TIERS[0].abs)} сом: виза куратора. Ступень 2 — ${(DRIFT_TIERS[1].pct*100)} % либо ${fmt(DRIFT_TIERS[1].abs)} сом: возврат на комитет, регистрация заблокирована. Обе ступени — настройка с историей значений, не норма (РС-26).</div>
+    ${driftLine}
     <div class="section-h" style="margin-top:18px">Гейт обеспечения (мягкий, снимается waiver-ом)</div>
     <div class="section-note">Покрытие = залоговая стоимость / остаток ≥ порог. Возраст техники против нового срока. Страховка на новый срок (Р-15).</div>
     ${gateLine}
     <div class="cgrid-wrap" style="max-width:900px"><table class="cgrid"><thead><tr><th>Кредит</th><th class="numcell">Покрытие</th><th>Гейт</th><th>Возраст</th><th>Страховка</th><th>Снимок</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="section-h" style="margin-top:18px">Гейт сроков распоряжений (жёсткий, без waiver)</div>
+    <div class="section-note">Интервал позиций, назначенный распоряжению, лежит внутри длины чернового графика (ИР-15). Выход за длину не подрезается молча: срок мог уменьшиться после того, как куратор задал позиции, и подставить новую границу за него значит выдумать его решение (РС-40).</div>
+    ${badPeriods.length
+      ? `<div class="flagline">${badPeriods.map(d=>'«'+esc(ARTICLE_LABEL[d.article]||d.article)+'» — '+esc(perLabel(d))).join('; ')}. Регистрация ДС закрыта до правки интервала либо возврата к режиму «весь график».</div>`
+      : (planLenG==null
+          ? `<div class="okline">Черновой график ещё не рассчитан — шкалы позиций нет, сверять нечего.</div>`
+          : `<div class="okline">Все интервалы лежат внутри графика (${planLenG} ${planLenG===1?'позиция':'позиций'}).</div>`)}
     <div class="section-h" style="margin-top:18px">Доп. соглашение</div>${dsBlock}
     <div class="section-h" style="margin-top:18px">Операции на дату вступления</div>${ops}
   </div>`;
@@ -1830,24 +2851,35 @@ function pHist(app){
   </div>`;
 }
 
-/* ================= СПРАВОЧНИК ВИДОВ (Р-3) ================= */
+/* ================= СПРАВОЧНИК ВИДОВ (Р-3, РС-33/ИР-14) =================
+   Справочник ОТКРЫТ, но каждая запись несёт происхождение. Пять форм п. 89 замкнуты: их нельзя
+   удалить и нельзя переименовать — они цитата нормы, а не настройка. Всё, что администратор
+   заводит сверх них, живёт под п. 89 пп. 5 «и другим обоснованным предложениям» и обязано нести
+   письменное обоснование: закрытый список остановил бы работу на форме, которой в перечне нет,
+   открытый без признака — стёр бы границу между нормой и самодеятельностью. */
 function renderDict(){
   const v=document.getElementById('view-dict');
   const rows=state.kinds.map(k=>`<tr>
-    <td><b>${esc(k.name)}</b></td>
+    <td><b>${esc(k.name)}</b>${k.origin==='иное'&&k.rationale?`<br><span class="mode-tag">${esc(k.rationale)}</span>`:''}</td>
+    <td>${isNormKind(k)
+        ? `<span class="pill info">норма</span><br><span class="mode-tag">п. ${esc(k.point)} Положения</span>`
+        : `<span class="pill mid">иное</span><br><span class="mode-tag">под п. ${esc(k.point)} — обоснованное предложение</span>`}</td>
     <td>${[...k.params].map(p=>PARAM_LABEL[p]||p).join(', ')}</td>
     <td>${k.docs.map(esc).join(', ')}</td>
     <td>${(k.allowedDispositions||[]).map(d=>DISP_LABEL[d]||d).join(', ')||'<span class="mode-tag">только «без распоряжения»</span>'}</td>
     <td>${esc(k.limits||'')}</td>
+    <td>${isNormKind(k)
+        ? '<span class="mode-tag" title="Запись нормы: удаление и переименование недоступны">заблокирована нормой</span>'
+        : `<button class="btn btn-secondary btn-sm" ${canX('manageDict')?'':'disabled'} onclick="RS.dropKind('${k.id}')">Удалить</button>`}</td>
   </tr>`).join('');
   v.innerHTML=`
     <div class="tb-actions">
       <button class="btn btn-primary btn-sm" ${canX('manageDict')?'':'disabled'} onclick="RS.openNewKind()">+ Новый вид</button>
       <div class="spacer"></div>
-      <span class="mode-tag">Конструктор — роль Администратор. Новый вид сразу доступен в заявках.</span>
+      <span class="mode-tag">Конструктор — роль Администратор. Пять форм п. 89 Положения (прил. к ПКМ КР №14 от 19.01.2026) неудаляемы; свои виды заводятся с происхождением «иное» и обязательным обоснованием (РС-33).</span>
     </div>
     <div class="grid-wrap"><table class="grid"><thead><tr>
-      <th>Вид</th><th>Разрешённые параметры</th><th>Документы</th><th>Разрешённые распоряжения</th><th>Ограничения</th>
+      <th>Вид</th><th>Происхождение</th><th>Разрешённые параметры</th><th>Документы</th><th>Разрешённые распоряжения</th><th>Ограничения</th><th></th>
     </tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
@@ -1891,20 +2923,26 @@ function addConcl(appId){
   closeModal(); toast('Заключант добавлен — гейт комитета обновлён','ok'); render();
 }
 
+/* Орган, снимающий мягкий гейт покрытия, — КОМИТЕТ ПО АДМИНИСТРИРОВАНИЮ БЮДЖЕТНЫХ КРЕДИТОВ
+   (РС-31). «Залоговой комиссии» в системе нет и не будет: КД-10 модуля залога снял эту роль,
+   и держать её в реструктуризации значило бы называть один и тот же орган двумя именами в
+   двух модулях. */
+const COVER_WAIVER_BODY = 'Комитет по администрированию бюджетных кредитов';
 function openWaiver(appId){
   if(!guard('waiver')) return;
-  modal(`<div class="modal">${mhead('Решение комиссии по залогу (waiver)')}<div class="modal-b">
+  modal(`<div class="modal">${mhead('Решение комитета по администрированию бюджетных кредитов')}<div class="modal-b">
     <div class="flagline">Гейт обеспечения не пройден. Основание обязательно — оно пишется в историю (Р-16).</div>
-    <div class="field col-span"><span class="flabel">Основание •</span><textarea id="wreason" placeholder="Протокол комиссии, компенсирующее обеспечение, …"></textarea></div>
+    <div class="section-note">Роли «залоговая комиссия» в системе нет (КД-10 модуля залога) — гейт снимает комитет по администрированию бюджетных кредитов.</div>
+    <div class="field col-span"><span class="flabel">Основание •</span><textarea id="wreason" placeholder="Протокол комитета, компенсирующее обеспечение, …"></textarea></div>
   </div><div class="modal-f"><button class="btn btn-secondary" onclick="RS.closeModal()">Отмена</button>
-    <button class="btn btn-danger" onclick="RS.grantWaiver('${appId}')">Снять блокировку (waiver)</button></div></div>`);
+    <button class="btn btn-danger" onclick="RS.grantWaiver('${appId}')">Снять блокировку</button></div></div>`);
 }
 function grantWaiver(appId){
   const app=appById(appId); const reason=(document.getElementById('wreason').value||'').trim();
   if(!reason){ toast('Основание обязательно','err'); return; }
-  app.waiver={granted:true,reason,by:'Комиссия по залогу',date:TODAY}; app._t=TODAY;
-  H(app,'WAIVER комиссии по залогу: '+reason,'Комиссия по залогу','waiver');
-  closeModal(); toast('Гейт обеспечения снят waiver-ом','ok'); render();
+  app.waiver={granted:true,reason,by:COVER_WAIVER_BODY,date:TODAY}; app._t=TODAY;
+  H(app,'Решение комитета по администрированию бюджетных кредитов — гейт покрытия снят. Основание: '+reason,COVER_WAIVER_BODY,'waiver');
+  closeModal(); toast('Гейт обеспечения снят решением комитета','ok'); render();
 }
 
 function openDS(appId){
@@ -1915,10 +2953,14 @@ function openDS(appId){
   if(!lga.ok){ toast('Гейт пределов не пройден: '+lga.messages.join('; '),'err'); return; }               // жёсткий, без waiver
   const coa=consentGateApp(app);
   if(!coa.ok){ toast('Гейт согласий не пройден: не согласовано — '+coa.pending.join(', '),'err'); return; }  // жёсткий, без waiver
+  const fg=forgiveGate(app);
+  if(!fg.ok){ toast('Прощение '+fmt(fg.sum)+' не названо в постановлении Кабмина (РС-28) — регистрация невозможна','err'); return; }
+  const dg=driftGate(app, TODAY);
+  if(!dg.ok){ toast('Ступень 2 порога расхождения ('+(dg.pct*100).toFixed(1)+' %, '+fmt(dg.delta)+') — требуется новая позиция комитета (РС-26)','err'); return; }
   modal(`<div class="modal">${mhead('Регистрация доп. соглашения')}<div class="modal-b"><div class="mform">
     <div class="field req"><span class="flabel">Номер доп. соглашения</span><input id="dsno" placeholder="ДС-…"></div>
     <div class="field req"><span class="flabel">Дата</span><input id="dsdate" type="date" value="${TODAY}"></div>
-    <div class="field col-span"><div class="section-note">Оба реквизита обязательны (Р-8). При регистрации: версия «действует», операции на дату вступления, счётчик реструктуризаций +1.</div></div>
+    <div class="field col-span"><div class="section-note">Оба реквизита обязательны (Р-8). Основание — постановление Кабинета Министров ${esc((app.resolution||{}).no||'—')} от ${esc((app.resolution||{}).date||'—')}; соглашение оформляет агент либо кредитный агент (п. 96). При регистрации: версия «действует», операции на дату вступления, счётчик реструктуризаций +1.</div></div>
   </div></div><div class="modal-f"><button class="btn btn-secondary" onclick="RS.closeModal()">Отмена</button>
     <button class="btn btn-primary" onclick="RS.regDS('${appId}')">Зарегистрировать</button></div></div>`);
 }
@@ -1930,12 +2972,13 @@ function regDS(appId){
   const tranche=app.calcTranche, credit=creditById(app.creditIds[0]);
   if(!tranche||!credit){ toast('Не выбран транш-источник расчёта','err'); return; }
   const run=AppSide.run(app,date);
-  const ds={ no, date, app, sourceTranche:tranche, credit, transferSum:run.transferSum, params:{...(app.version?app.version.params:{})} };
+  const ds={ no, date, app, sourceTranche:tranche, credit, transferSum:run.transferSum,
+             principalPart:run.principalPart, parts:run.parts, params:{...(app.version?app.version.params:{})} };
   const res=CreditSide.restructureApplied(ds);
   if(!res.ok){ toast(res.reasons.join('; '),'err'); return; }
   app.ds={ no, date, transferSum:ds.transferSum, sourceTrancheId:tranche.id, params:ds.params, fact:null };
   AppSide.fixFact(app, date, ds.transferSum);
-  if(!app.outcome) app.outcome = app.minfin.decision==='изм'?'изм':'одобрена';
+  if(!app.outcome) app.outcome = app.resolution.decision==='изм'?'изм':'одобрена';
   app._t=date; H(app,'Доп. соглашение '+no+' зарегистрировано. Перенесено '+fmt(ds.transferSum)+' на транш '+res.tranche.no+'. Счётчик реструктуризаций +1.',state.role);
   if(credit.collProc){ app.automation.push({when:date,kind:'unpause',text:'Оформление завершено — пауза снята штатно, взыскание закрыто по кредитам заявки'}); }
   closeModal(); toast('Доп. соглашение зарегистрировано','ok'); render();
@@ -1946,9 +2989,11 @@ function openNewKind(){
   const chks=PARAM_KEYS.map(([k,l])=>`<label class="chk"><input type="checkbox" value="${k}" class="npk"> ${l}</label>`).join('');
   const dchks=Object.keys(DISP_LABEL).filter(d=>d!=='none').map(d=>`<label class="chk"><input type="checkbox" value="${d}" class="ndk"> ${DISP_LABEL[d]}</label>`).join('');
   modal(`<div class="modal wide">${mhead('Новый вид реструктуризации')}<div class="modal-b"><div class="mform">
+    <div class="field col-span"><div class="section-note">Заводится с происхождением <b>«иное»</b> под п. 89 пп. 5 Положения («и другим обоснованным предложениям, не противоречащим бюджетному и гражданскому законодательству»). Пять поимённо названных форм нормы заводить и переименовывать нельзя — они уже в справочнике (РС-33/ИР-14).</div></div>
     <div class="field req col-span"><span class="flabel">Название</span><input id="nkname"></div>
+    <div class="field req col-span"><span class="flabel">Обоснование •</span><textarea id="nkrat" placeholder="Почему форма не подпадает ни под один из пп. 1–4 п. 89 и чем она не противоречит бюджетному и гражданскому законодательству"></textarea></div>
     <div class="field col-span"><span class="flabel">Разрешённые параметры</span><div class="f2" style="grid-template-columns:1fr 1fr 1fr">${chks}</div></div>
-    <div class="field col-span"><span class="flabel">Требуемые документы (через запятую)</span><input id="nkdocs" value="Заявление"></div>
+    <div class="field col-span"><span class="flabel">Требуемые документы сверх нормативного пакета (через запятую)</span><input id="nkdocs" placeholder="нормативный пакет пп. 85–86, 95 добавляется сам"></div>
     <div class="field col-span"><span class="flabel">Разрешённые распоряжения <span class="ro-tag">(issues/04; «без распоряжения» доступно всегда)</span></span><div class="f2" style="grid-template-columns:1fr 1fr 1fr">${dchks}</div></div>
     <div class="field"><span class="flabel">Ограничения</span><input id="nklim"></div>
   </div></div><div class="modal-f"><button class="btn btn-secondary" onclick="RS.closeModal()">Отмена</button>
@@ -1956,13 +3001,25 @@ function openNewKind(){
 }
 function addKind(){
   const name=(document.getElementById('nkname').value||'').trim(); if(!name){ toast('Название обязательно','err'); return; }
+  const rationale=(document.getElementById('nkrat').value||'').trim();
+  if(!rationale){ toast('Обоснование обязательно: вид заводится под п. 89 пп. 5 как обоснованное предложение (РС-33)','err'); return; }
   const params=[...document.querySelectorAll('.npk:checked')].map(x=>x.value);
   const docs=(document.getElementById('nkdocs').value||'').split(',').map(s=>s.trim()).filter(Boolean);
   const dispositions=[...document.querySelectorAll('.ndk:checked')].map(x=>x.value);
   const limits=(document.getElementById('nklim').value||'').trim();
-  const id='K'+(state.kinds.length+1)+'_'+Date.now().toString(36);
-  state.kinds.push({id,name,params,docs,allowedDispositions:dispositions,limits});
-  closeModal(); toast('Вид создан — доступен в заявках','ok'); render();
+  const id='X'+(state.kinds.filter(k=>!isNormKind(k)).length+1)+'_'+Date.now().toString(36);
+  state.kinds.push({id,name,origin:'иное',point:'89 пп. 5',rationale,params,docs,allowedDispositions:dispositions,limits});
+  closeModal(); toast('Вид создан с происхождением «иное» — доступен в заявках','ok'); render();
+}
+/* Удалять можно только своё: нормативная запись — цитата, не настройка (ИР-14). */
+function dropKind(kindId){
+  if(!guard('manageDict')) return;
+  const k=kindById(kindId); if(!k) return;
+  if(isNormKind(k)){ toast('Вид установлен нормой (п. '+k.point+') — удалить нельзя','err'); return; }
+  const used=state.apps.find(a=>(a.kindIds||[]).includes(kindId));
+  if(used){ toast('Вид используется заявкой '+used.id+' — удалить нельзя','err'); return; }
+  state.kinds=state.kinds.filter(x=>x.id!==kindId);
+  toast('Вид удалён','ok'); render();
 }
 
 function showMirror(procId,appId){
@@ -1994,26 +3051,59 @@ function fixLetter(appId){ if(!guard('fixLetter')) return; const app=appById(app
   const cr=creditById(app.creditIds[0]);
   app.automation.push({when:TODAY,kind:'pause',text:'Пауза поставлена в процессе взыскания '+(cr&&cr.collProc||'—')+' (предмет — меры п.16, ADR-0063; судебный/залоговый треки своим ходом; дедлайн 70 к.д.)'});
   if(cr) app.automation.push({when:TODAY,kind:'overlay',text:'Оверлей подавления 181-го дня поставлен на кредит '+cr.no});
-  H(app,'Письмо в Минфин направлено. Пауза взыскания по мерам п.16 (ADR-0063, 70 к.д.) + оверлей 181-го дня.','Куратор ОД','auto');
+  H(app,'Письмо в уполномоченный государственный орган направлено. Пауза взыскания по мерам п.16 (ADR-0063, 70 к.д.) + оверлей 181-го дня.','Куратор ОД','auto');
   toast('Отправка письма зафиксирована — автоматика паузы включена','ok'); render(); }
-function fixMinfin(appId){ if(!guard('fixMinfin')) return; const app=appById(appId);
-  const dec=document.getElementById('mdec').value; const ref=(document.getElementById('mref').value||'').trim();
-  if(!ref){ toast('Реквизит письма Минфина обязателен (minfinGate)','err'); return; }
-  app.minfin={fixed:true,decision:dec,letterRef:ref,date:TODAY}; app._t=TODAY;
-  H(app,'Решение Минфина: '+decLabel(dec)+' ('+ref+').','Куратор ОД');
-  if(dec==='отказ'){ app.outcome='отказ';
-    const cr=creditById(app.creditIds[0]); const nd=addCalDays(TODAY,1);
-    app.automation.push({when:nd,kind:'unpause',text:'Отказ зафиксирован '+TODAY+' → снятие следующим календарным днём ('+nd+'): взыскание возобновлено с фазы «'+(cr&&cr.collProc?state.procs[cr.collProc].phase:'—')+'».'});
-    app.automation.push({when:nd,kind:'risk',text:'Ночной пересчёт категории → высокий (следующим календарным днём после отказа).'});
-    H(app,'Снятие паузы/оверлея следующим днём; взыскание возобновлено с сохранённой фазы; категория → высокий.','Система','auto');
-    toast('Отказ зафиксирован','ok');
-  } else if(dec==='изм'){ if(app.version) app.version.source='минфин';
-    H(app,'Условия — версия Минфина (то, что утвердили). Откройте вкладки «База и распоряжения» / «График и дифф» для просмотра расчёта.','Куратор ОД'); toast('Одобрено с изменёнными условиями','ok');
-  } else { toast('Решение Минфина зафиксировано','ok'); }
+/* Отказ снимает паузу на общих основаниях — но теперь его несут ДВА разных акта (ADR-0107):
+   отрицательное заключение уполномоченного органа (п. 88) и отказ в постановлении КМ. */
+function closeByRefusal(app,what){
+  app.outcome='отказ';
+  const cr=creditById(app.creditIds[0]); const nd=addCalDays(TODAY,1);
+  app.automation.push({when:nd,kind:'unpause',text:what+' зафиксирован '+TODAY+' → снятие следующим календарным днём ('+nd+'): взыскание возобновлено с фазы «'+(cr&&cr.collProc?state.procs[cr.collProc].phase:'—')+'».'});
+  app.automation.push({when:nd,kind:'risk',text:'Ночной пересчёт категории → высокий (следующим календарным днём после отказа).'});
+  H(app,'Снятие паузы/оверлея следующим днём; взыскание возобновлено с сохранённой фазы; категория → высокий (РС-21).','Система','auto');
+}
+function fixConclusion(appId){ if(!guard('fixConclusion')) return; const app=appById(appId);
+  const dec=document.getElementById('cdec').value; const no=(document.getElementById('cno').value||'').trim();
+  if(!no){ toast('Номер заключения обязателен (conclusionGate)','err'); return; }
+  app.conclusion={fixed:true,outcome:dec,no,date:TODAY}; app._t=TODAY;
+  if(dec==='отказ'){
+    H(app,'Отрицательное заключение уполномоченного органа ('+no+', п. 88). Заявка закрыта отказом, до Кабинета Министров не доходит.','Куратор ОД');
+    closeByRefusal(app,'Отрицательное заключение'); toast('Отказ по заключению зафиксирован','ok');
+  } else {
+    H(app,'Заключение уполномоченного органа: возможно изменение условий ('+no+', п. 87). Далее — согласование профильного комитета ЖК.','Куратор ОД');
+    toast('Заключение зафиксировано','ok');
+  }
+  render(); }
+function fixZk(appId){ if(!guard('fixZk')) return; const app=appById(appId);
+  const g=zkGate(app);
+  if(g.needConclusion){ toast('Сначала положительное заключение уполномоченного органа (п. 87)','err'); return; }
+  const no=(document.getElementById('zno').value||'').trim();
+  if(!no){ toast('Реквизит согласования профильного комитета ЖК обязателен (п. 82)','err'); return; }
+  app.zk={fixed:true,no,date:TODAY}; app._t=TODAY;
+  H(app,'Профильный комитет Жогорку Кенеша согласовал проект решения ('+no+', п. 82).','Куратор ОД');
+  toast('Согласование зафиксировано','ok'); render(); }
+function fixResolution(appId){ if(!guard('fixResolution')) return; const app=appById(appId);
+  const dec=document.getElementById('rdec').value; const no=(document.getElementById('rno').value||'').trim();
+  const fsumRaw=(document.getElementById('rfsum').value||'').trim();
+  const fbasis=(document.getElementById('rfbasis').value||'').trim();
+  if(!no){ toast('Реквизит постановления Кабмина обязателен (resolutionGate)','err'); return; }
+  if(!(app.zk&&app.zk.no)){ toast('Без согласования профильного комитета ЖК постановление не регистрируется (п. 82)','err'); return; }
+  const fsum = fsumRaw ? Number(fsumRaw.replace(/\s/g,'').replace(',','.')) : null;
+  app.resolution={fixed:true,decision:dec,no,date:TODAY,
+                  forgiveSum: (fsum!=null && !isNaN(fsum)) ? fsum : null, forgiveBasis: fbasis||null};
+  app._t=TODAY;
+  H(app,'Постановление Кабинета Министров: '+decLabel(dec)+' ('+no+').','Куратор ОД');
+  if(dec==='отказ'){ closeByRefusal(app,'Отказ постановлением Кабмина'); toast('Отказ зафиксирован','ok'); }
+  else if(dec==='изм'){ if(app.version) app.version.source='постановление КМ';
+    H(app,'Условия — версия постановления Кабмина (то, что утвердили). Откройте вкладки «База и распоряжения» / «График и дифф» для просмотра расчёта.','Куратор ОД');
+    toast('Одобрено с изменёнными условиями','ok');
+  } else { toast('Постановление зафиксировано','ok'); }
+  const fg=forgiveGate(app);
+  if(fg.applicable && !fg.ok) toast('Прощение '+fmt(fg.sum)+' не названо в акте — регистрация ДС заблокирована (РС-28)','err');
   render(); }
 function advance(appId){ const app=appById(appId); const adv=canAdvance(app); if(!adv||!adv.ok){ toast(adv?adv.why:'Нет перехода','err'); return; }
   if(adv.to==='Анализ'){ if(!guard('startAnalysis')) return; app.analysisStarted=true; app._t=TODAY; H(app,'Пакет укомплектован → переход в «Анализ». Дедлайн 30 к.д.',state.role); toast('Переход выполнен','ok'); render(); return; }
-  if(adv.to==='Комитет'){ toast('Заключения завизированы — зафиксируйте позицию комитета во вкладке «Комитет / Минфин»','ok'); state.curTab='minfin'; render(); return; }
+  if(adv.to==='Комитет'){ toast('Заключения завизированы — зафиксируйте позицию комитета во вкладке «Комитет и решение»','ok'); state.curTab='decision'; render(); return; }
 }
 
 /* ================= МАРШРУТ / ИНИЦИАЛИЗАЦИЯ ================= */
@@ -2070,6 +3160,10 @@ function go(view){ state.view=view; if(view==='list') state.curApp=null; render(
 function setRole(r){ state.role=r; render(); }
 
 function render(){
+  // Без DOM перерисовывать нечего — тем же приёмом, что и toast (:2804). Это открывает смоуку
+  // экспортированные двери, которые кончаются render(): состояние уже изменено, и сценарию не
+  // приходится подбирать вызовы, у которых guard успевает отсечь путь до document.
+  if(typeof document==='undefined') return;
   document.getElementById('view-list').classList.toggle('active',state.view==='list');
   document.getElementById('view-card').classList.toggle('active',state.view==='card');
   document.getElementById('view-dict').classList.toggle('active',state.view==='dict');
@@ -2089,14 +3183,20 @@ function toast(msg,kind){ if(typeof document==='undefined') return; const w=docu
 const RS = {
   go, setRole, setTab, openApp, newApp, naFillCredits, createApp, nextAppId, setFilter, closeModal,
   toggleDoc, returnApp, setConclText, visaConcl, openAddConcl, addConcl,
-  openAddCredit, addCredit, fixCommittee, fixLetter, fixMinfin, advance,
-  openWaiver, grantWaiver, openDS, regDS, openNewKind, addKind, showMirror,
-  get state(){ return state; }, seed, stageOf, deadline, packetGate, conclGate, minfinGate, dsGate,
-  coverGate, coverGateApp, allowedParams, allowedDispositions, requiredDocs, activeAppOnCredit, canAdvance, canX,
+  openAddCredit, addCredit, fixCommittee, fixLetter, fixConclusion, fixZk, fixResolution, advance,
+  openWaiver, grantWaiver, openDS, regDS, openNewKind, addKind, dropKind, showMirror,
+  get state(){ return state; }, seed, stageOf, deadline, packetGate, conclGate, dsGate,
+  conclusionGate, zkGate, resolutionGate, forgiveGate, repeatSignal, driftGate, driftTier, cutoffDrift,
+  coverGate, coverGateApp, allowedParams, allowedDispositions, requiredDocs, normPacket, packetPointOf,
+  coverShortInScope, isNormKind, isWorkDay, addWorkDays, calendarYearKnown,
+  accrualModeOf, ACCRUAL_MODES, DRIFT_TIERS, INITIATORS, REPEAT_SIGNAL_FROM, AppSide, CreditSide,
+  activeAppOnCredit, canAdvance, canX,
   appById, creditById, kindById, amortize, periodMonths, round2, addCalDays,
   normAt, normNote, termCapFor, rateFloorFor, limitsGate, limitsGateApp,
   consentGate, consentGateApp, coverSnapshotAge, coverSnapshotStale,
-  toggleBaseRow, setDisposition, ensureBaseDispositions, dispositionFor, defaultBase, defaultDispositions,
+  toggleBaseRow, setDisposition, setDispAmount, setDispPeriods, dispositionHasPeriods,
+  ensureBaseDispositions, dispositionFor, defaultBase, defaultDispositions,
+  scheduleArticleCols, rowArticlesSum, mergeParts, validateDS,
   trancheCandidates, setCalcTranche, setVersionParam, recalcPlan,
   TODAY, STAGES, ROLES,
   __baseApp: baseApp
