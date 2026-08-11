@@ -80,7 +80,7 @@
   возражение, а не как открытые вопросы. Свод — §11 спеки.
 
   SMOKE (node scripts/inspect/restructuring-check.mjs):
-   SMOKE 2026-08-11 · 58/58 PASS
+   SMOKE 2026-08-11 · 59/59 PASS
       PASS  #1  до=false после=true
       PASS  #2  closed=true opened=true reblock=true
       PASS  #3  noRate=true union=true
@@ -139,6 +139,7 @@
       PASS  #56  идемпотентно=true статьяТаЖе=400000 снятие=true просрочкаНеЗависит=true
       PASS  #57  хвостВТело=true процентыВыросли=true (307804.65→543958.58) пеняНеТронута=true
       PASS  #58  один=true адрес=true дверь=true безТраншаНетРасчёта=true
+      PASS  #59  два=true второйЦел=true первыйДвинулся=true суммыРазные=4318000/0 отказБезИмени=true
 -->
 <style>
 :root{
@@ -1108,6 +1109,7 @@ function attachCalc(app, tranche){
   if(exist) return exist;
   const cr = creditOfTranche(tranche.id); if(!cr) return null;
   const c = mkCalc(cr, tranche);
+  Object.defineProperty(c, '__app', { value:app, enumerable:false });   // ссылка вверх, не данные
   app.calcs.push(c);
   return c;
 }
@@ -1454,10 +1456,17 @@ const accrualEmpty = (article,date) => { const m=accrualModeOf(article,date).mod
    этим решением: честно не подставляем номер, blockedBy по виду всегда null, не выдумка.
    Спорная пеня (issues/01 реш.3, поле disputed) — та же колонка blockedBy='disputed', галка
    мертва, строка всегда видна (ИР-6: невидимая строка читалась бы как «пени нет»).
-   app.calcTranche — транш, выбранный под расчёт ДС; заводит тикет 05/задача 5 (buildDemoApps). */
-function defaultBase(app, date){
-  const tranche = app.calcTranche;
-  if(!tranche) return [];
+   Финансовое ядро адресует РАСЧЁТ (задача 2, РС-42/ADR-0111), не заявку — заявка держит их
+   список. app.calcTranche — дверь к транш-источнику единственного расчёта, живёт до задачи 6. */
+/* Принимает расчёт; заявку принимает тоже — но только однорасчётную, через ту же дверь
+   requireCalc. Разной логики у двух случаев нет, есть один вход и одно разрешение адреса. */
+function asCalc(x, calcId){
+  if(!x) return null;
+  return x.trancheId ? x : requireCalc(x, calcId);
+}
+function defaultBase(x, date, calcId){
+  const calc = asCalc(x, calcId); if(!calc) return [];
+  const tranche = calcTrancheOf(calc); if(!tranche) return [];
   return debtAt(tranche, date).map(row => ({
     ...row,
     included: row.urgency==='over' && !row.disputed,
@@ -1477,30 +1486,36 @@ function dispositionFor(dispositions, article, urgency){
   return (dispositions||[]).find(d=>d.article===article && d.urgency===urgency) || null;
 }
 /* Материализация базы/распоряжений при первом живом действии куратора (issues/02 реш.1/4,
-   тикет 07 — честная дыра #2 из Answer тикета 06). До первого клика app.base/app.dispositions
+   тикет 07 — честная дыра #2 из Answer тикета 06). До первого клика calc.base/calc.dispositions
    пустые — панель считает defaultBase/defaultDispositions на лету, не хранит (Р-19); первое
-   переключение строки или смена распоряжения обязано зафиксировать снимок в app, иначе правка
-   потеряется на следующем рендере, откатившись к умолчанию. */
-function ensureBaseDispositions(app){
-  const date = app.ds ? app.ds.date : TODAY;
-  if(!app.base || !app.base.length) app.base = defaultBase(app, date);
-  if(!app.dispositions || !app.dispositions.length) app.dispositions = defaultDispositions(app.base);
+   переключение строки или смена распоряжения обязано зафиксировать снимок в расчёте, иначе
+   правка потеряется на следующем рендере, откатившись к умолчанию. Дата среза берётся у
+   заявки через __app (attachCalc, задача 2) — расчёт её не дублирует. */
+function ensureBaseDispositions(x, calcId){
+  const calc = asCalc(x, calcId); if(!calc) return null;
+  const app = calc.__app || null;
+  const date = (app && app.ds) ? app.ds.date : TODAY;
+  if(!calc.base || !calc.base.length) calc.base = defaultBase(calc, date);
+  if(!calc.dispositions || !calc.dispositions.length) calc.dispositions = defaultDispositions(calc.base);
+  return calc;
 }
 /* Переключение строки — «включена» ↔ «снята куратором» (issues/02 реш.1). Спорная пеня
    (blockedBy='disputed') не переключаема — мёртвая галка это состояние, а не UI-заглушка
    (ИР-6). Снятие строки убирает её распоряжение (issues/02 реш.4: распоряжение живёт только
    на включённой строке); включение заводит распоряжение kind:'none' на всю сумму — то же
    умолчание, что defaultDispositions даёт при первом расчёте. */
-function toggleBaseRow(appId, article, urgency){
+function toggleBaseRow(appId, article, urgency, calcId){
   if(!guard('editBase')) return; const app=appById(appId);
-  ensureBaseDispositions(app);
-  const row = app.base.find(r=>r.article===article && r.urgency===urgency);
+  const calc = ensureBaseDispositions(app, calcId);
+  if(!calc){ toast('У заявки несколько расчётов — укажите, по какому траншу','err'); return; }
+  const row = calc.base.find(r=>r.article===article && r.urgency===urgency);
   if(!row || row.blockedBy) return;
   row.included = !row.included;
   if(row.included){
-    if(!dispositionFor(app.dispositions, article, urgency)) app.dispositions.push({article,urgency,kind:'none',amount:row.amount,periods:allPeriods()});
+    if(!dispositionFor(calc.dispositions, article, urgency))
+      calc.dispositions.push({article,urgency,kind:'none',amount:row.amount,periods:allPeriods()});
   } else {
-    app.dispositions = app.dispositions.filter(d=>!(d.article===article && d.urgency===urgency));
+    calc.dispositions = calc.dispositions.filter(d=>!(d.article===article && d.urgency===urgency));
   }
   app._t=TODAY; render();
 }
@@ -1508,11 +1523,12 @@ function toggleBaseRow(appId, article, urgency){
    мёртвые пункты списка с подписью «вид не разрешает», та же механика дохлой галки решения 1
    (issues/02: «а не второй способ говорить то же самое») — сервер-сторона всё равно отбивает
    запрещённое значение молча, а не доверяет disabled-атрибуту разметки. */
-function setDisposition(appId, article, urgency, kind){
+function setDisposition(appId, article, urgency, kind, calcId){
   if(!guard('editBase')) return; const app=appById(appId);
-  ensureBaseDispositions(app);
+  const calc = ensureBaseDispositions(app, calcId);
+  if(!calc){ toast('У заявки несколько расчётов — укажите, по какому траншу','err'); return; }
   if(kind!=='none' && !allowedDispositions(app).has(kind)){ toast('Вид не разрешает это распоряжение','err'); return; }
-  const d = dispositionFor(app.dispositions, article, urgency); if(!d) return;
+  const d = dispositionFor(calc.dispositions, article, urgency); if(!d) return;
   d.kind = kind;
   if(!dispositionHasPeriods(kind, article)) d.periods = allPeriods();   // сроки живут только там, где есть безставочная сумма (РС-38)
   app._t=TODAY; render();
@@ -1529,11 +1545,12 @@ function dispositionHasPeriods(kind, article){
    ближайшего допустимого: подставить значение значит выдумать решение куратора. Остаток позиции
    (позиция − amount) уходит в перенос своей статьёй как «без распоряжения», второй сущности не
    заводим. */
-function setDispAmount(appId, article, urgency, value){
+function setDispAmount(appId, article, urgency, value, calcId){
   if(!guard('editBase')) return; const app=appById(appId);
-  ensureBaseDispositions(app);
-  const row = app.base.find(r=>r.article===article && r.urgency===urgency); if(!row) return;
-  const d = dispositionFor(app.dispositions, article, urgency); if(!d) return;
+  const calc = ensureBaseDispositions(app, calcId);
+  if(!calc){ toast('У заявки несколько расчётов — укажите, по какому траншу','err'); return; }
+  const row = calc.base.find(r=>r.article===article && r.urgency===urgency); if(!row) return;
+  const d = dispositionFor(calc.dispositions, article, urgency); if(!d) return;
   const v = round2(Number(String(value).replace(',','.')));
   if(!isFinite(v) || v<=0){ toast('Сумма распоряжения должна быть больше нуля','err'); render(); return; }
   if(v > round2(row.amount)+0.005){ toast('Сумма распоряжения больше суммы позиции ('+fmt(row.amount)+')','err'); render(); return; }
@@ -1545,10 +1562,11 @@ function setDispAmount(appId, article, urgency, value){
    режим и получает границы, о которых уже забыл. Выход за длину плана здесь не подрезается:
    молчаливая подрезка = выдуманное решение (РС-40), расхождение ловит ИР-15 в validateDS и
    показывает дверь. */
-function setDispPeriods(appId, article, urgency, mode, from, to){
+function setDispPeriods(appId, article, urgency, mode, from, to, calcId){
   if(!guard('editBase')) return; const app=appById(appId);
-  ensureBaseDispositions(app);
-  const d = dispositionFor(app.dispositions, article, urgency); if(!d) return;
+  const calc = ensureBaseDispositions(app, calcId);
+  if(!calc){ toast('У заявки несколько расчётов — укажите, по какому траншу','err'); return; }
+  const d = dispositionFor(calc.dispositions, article, urgency); if(!d) return;
   if(!dispositionHasPeriods(d.kind, article)){ toast('У этого распоряжения сроков нет — сумма живёт сроками тела либо не подлежит уплате','err'); return; }
   if(mode!=='range'){ d.periods = allPeriods(); app._t=TODAY; render(); return; }
   const prev = (d.periods && d.periods.mode==='range') ? d.periods : {};
@@ -1606,13 +1624,18 @@ function setCalcTranche(appId, trancheId){
 /* Правка параметров черновика ДС (issues/05 задача 5, тикет 07 — та же честная дыра #3).
    Открыта, пока ДС не зарегистрировано: после регистрации app.ds.params — исторический
    реквизит вступившего соглашения, версия дальше не переигрывается (комментарий у coverGate
-   про «не моргать» после терминала — то же соображение). */
-function setVersionParam(appId, key, val){
+   про «не моргать» после терминала — то же соображение). Проверка «версия закрыта» получает
+   второе основание — calc.dsRef: закрывает версию своё соглашение, а не первое зарегистрированное
+   по заявке. Старое условие по app.ds остаётся до задачи 6, где app.ds становится дверью и
+   держать его в паре перестаёт быть нужным. */
+function setVersionParam(appId, key, val, calcId){
   if(!guard('editVersion')) return;
   const app=appById(appId);
-  if(app.ds && app.ds.no){ toast('ДС уже зарегистрировано — версия закрыта','err'); return; }
-  if(!app.version) app.version=draftVersion(creditById(app.creditIds[0]),{});
-  const p=app.version.params;
+  const calc=requireCalc(app, calcId);
+  if(!calc){ toast('Сначала выберите транш-источник расчёта','err'); return; }
+  if(calc.dsRef || (app.ds && app.ds.no)){ toast('ДС уже зарегистрировано — версия закрыта','err'); return; }
+  if(!calc.version) calc.version=draftVersion(creditById(calc.creditId),{});
+  const p=calc.version.params;
   if(key==='term') p.term=Number(val)||0;
   else if(key==='rate') p.rate=val===''?null:Number(val);
   else if(key==='schedule') p.schedule=val;
@@ -1622,14 +1645,17 @@ function setVersionParam(appId, key, val){
 /* Предварительный расчёт — предпросмотр черновика графика на текущих base/dispositions,
    не пишет ДС (draftSchedule — чистая функция, issues/01 реш.5). Ровно та кнопка, что
    pCalcSched давно анонсировал в своей заглушке как «вне охвата тикета 06». */
-function recalcPlan(appId){
+function recalcPlan(appId, calcId){
   if(!guard('editVersion')) return;
   const app=appById(appId);
-  if(!app.calcTranche || !app.version){ toast('Сначала выберите транш-источник','err'); return; }
-  const r=run(app, TODAY);
-  app.version.plan=draftSchedule(app.calcTranche,{date:TODAY,transferSum:r.transferSum,principalPart:r.principalPart,parts:r.parts,params:app.version.params});
-  app._t=TODAY; H(app,'Предварительный расчёт: черновой график пересчитан.',state.role);
-  toast('Черновой график пересчитан','ok'); render();
+  const calc=requireCalc(app, calcId);
+  if(!calc){ toast('У заявки несколько расчётов — укажите, по какому траншу','err'); return; }
+  const tranche=calcTrancheOf(calc);
+  if(!tranche || !calc.version){ toast('Сначала выберите транш-источник','err'); return; }
+  const r=run(app, TODAY, calc.id);
+  calc.version.plan=draftSchedule(tranche,{date:TODAY,transferSum:r.transferSum,
+    principalPart:r.principalPart,parts:r.parts,params:calc.version.params});
+  app._t=TODAY; toast('Черновой график пересчитан','ok'); render();
 }
 /* Форма параметров черновика — term/rate/schedule/method держат amortize (issues/01 реш.5);
    graceBlocks вне охвата (никакая демо-заявка их не требует — пустой честный список, не UI-стаб).
@@ -1751,10 +1777,19 @@ const PIPELINE = [
              record:{step:'assembleBase', transferSum, principalPart, parts:parts.length} };
   }
 ];
-function run(app, date){
-  const base0 = (app.base && app.base.length ? app.base : defaultBase(app, date)).map(r=>({...r, carried:r.amount}));
-  const dispositions = app.dispositions && app.dispositions.length ? app.dispositions : defaultDispositions(base0);
-  const st0 = { app, date, base:base0, dispositions, forgiven:0, capitalized:0, capitalizedInterest:0, capitalizedPenalty:0,
+function run(app, date, calcId){
+  const calc = asCalc(app, calcId); if(!calc) return null;
+  // Источник строк — сначала СОБСТВЕННЫЕ base/dispositions первого аргумента, если он их
+  // прямо несёт (юнит-тест конвейера годами подсовывает сюда пустой объект-подделку с готовыми
+  // base/dispositions мимо calc — смоук #35), иначе — расчёт, иначе — умолчание с нуля. На
+  // однорасчётной заявке app.base — та же дверь на calc.base (Task 1), различия нет; на
+  // многорасчётной дверь без имени молчит ([]), и выбор падает на calc, адресованный calcId.
+  const ownBase = (app && app.base && app.base.length) ? app.base : null;
+  const ownDisp = (app && app.dispositions && app.dispositions.length) ? app.dispositions : null;
+  const base0 = (ownBase || (calc.base && calc.base.length ? calc.base : defaultBase(calc, date))).map(r=>({...r, carried:r.amount}));
+  const dispositions = ownDisp || (calc.dispositions && calc.dispositions.length ? calc.dispositions : defaultDispositions(base0));
+  const st0 = { app, calc, date, base:base0, dispositions, forgiven:0, capitalized:0,
+                capitalizedInterest:0, capitalizedPenalty:0,
                 parts:[], spread:[], remainsOverdue:false, principalPart:0, transferSum:0, stack:[] };
   return PIPELINE.reduce((s, step) => { const {state, record} = step(s); state.stack.push(record); return state; }, st0);
 }

@@ -814,6 +814,28 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
     `один=${one} адрес=${addressed} дверь=${door} безТраншаНетРасчёта=${noTrancheNoCalc}`);
 })();
 
+/* 59. Два расчёта не смешивают строки. Одной заявке даём два транша разных кредитов, включаем
+   строку в первом — во втором она не шевелится. Это и есть ответ на вопрос «по какому кредиту
+   какая сумма»: ключ строки — тройка (транш, статья, срочность). */
+(() => { fresh();
+  const a = app('RS-1001');
+  const other = RS.state.credits.find(c => c.id !== a.creditIds[0] && (c.tranches||[]).some(t => !t.closed));
+  const t2 = other.tranches.find(t => !t.closed);
+  const c2 = RS.attachCalc(a, t2);           // кредит транша ищется по state, охват для этого не нужен
+  const c1 = a.calcs[0];
+  const two = a.calcs.length === 2 && c1.id !== c2.id;
+  RS.ensureBaseDispositions(c1); RS.ensureBaseDispositions(c2);
+  const snapshot = JSON.stringify(c2.base);
+  RS.toggleBaseRow(a.id, 'principal', 'cur', c1.id);            // трогаем ТОЛЬКО первый расчёт
+  const secondIntact = JSON.stringify(c2.base) === snapshot;
+  const firstMoved = JSON.stringify(c1.base) !== snapshot;
+  const r1 = RS.AppSide.run(a, RS.TODAY, c1.id), r2 = RS.AppSide.run(a, RS.TODAY, c2.id);
+  const separateSums = r1.transferSum !== r2.transferSum;
+  const refuses = RS.AppSide.run(a, RS.TODAY) === null;          // без calcId при двух расчётах — отказ
+  ok(59, two && secondIntact && firstMoved && separateSums && refuses,
+    `два=${two} второйЦел=${secondIntact} первыйДвинулся=${firstMoved} суммыРазные=${r1.transferSum}/${r2.transferSum} отказБезИмени=${refuses}`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
