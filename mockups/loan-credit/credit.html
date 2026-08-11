@@ -1325,6 +1325,11 @@ table.grid tbody tr.sel td{ background:var(--asubk-nav-active); }
 .pcard > .section-note{ margin:0 0 12px; max-width:none; }
 .pcard .f2, .pcard .f4{ gap:14px 24px; max-width:none; }
 .pcard > .gtoolbar{ margin:12px 0 0; }
+/* Раскрытие worst-of внутри карточки («Проблемные», волна 11.08.2026) теряет собственную
+   рамку и фон: рамку уже даёт .pcard, вложенная вторая читается как лишний уровень.
+   Разделители строк остаются — они и несут структуру «вход · вход · итог». */
+.pcard > .cat-expand{ margin-top:0; border:none; border-radius:0; padding:0; background:transparent; }
+.pcard > .mirror-src{ margin-top:10px; }
 @media (max-width:1100px){ .pcards{ grid-template-columns:1fr; } }
 
 /* collection grid (внутри вкладок) */
@@ -7130,50 +7135,85 @@ if (typeof document !== 'undefined') {
       <td>${esc(f.from)}</td><td>${esc(f.to||'—')}</td><td>${esc(f.committeeRef||'')}</td>
       <td>${act?'<span class="pill low">действует</span>':'<span class="pill neutral">не действует</span>'}</td>
       <td class="text-muted" style="font:var(--font-label)">${esc(f.note||'')}</td></tr>`;});
+    /* Волна 11.08.2026 (КВ-20): сплошная лента из семи секций на всю ширину заменена
+       карточками .pcards в две колонки, как в «Договоре» и «Условиях». Прежняя раскладка
+       смешивала два разных вопроса вкладки в одну колонку и разводила родственные блоки
+       на экраны: категория стояла через таблицу факторов от своего второго входа —
+       подгруппы, а «Закрытие кредита» лежало под двумя таблицами взыскания, то есть
+       единственные ДЕЙСТВИЯ вкладки были её самым нижним элементом.
+       Обход теперь по смыслу: слева ОЦЕНКА (почему кредит проблемный — категория и её
+       входы), справа РАБОТА С ДОЛГОМ (что с ним делают — послабление реструктуризацией
+       и завершение), ниже на всю ширину — таблицы: сначала рабочие (требования, суд),
+       последней — справочная детализация категории (факторы). Факторы внизу намеренно:
+       свою величину они уже отдали строкой «по факторам» в категории, читаются редко
+       и только при разборе «почему такая категория» — то есть после того, как ответ
+       на главный вопрос вкладки уже получен.
+       Таблицы в половину ширины не ставятся: у требований 10 колонок, у факторов 7 —
+       при .cgrid с white-space:nowrap половина полосы дала бы горизонтальный скролл. */
     return `
-      <div class="section-h">Категория риска — худшее из двух ${derivedHtml()}</div>
-      <div class="cat-expand">
-        <div class="row"><span class="ck">По просрочке (${rb.eff} дн.${rb.relief?`, фактически ${rb.raw}`:''}):</span> <b class="cat-${catClsOf(rb.byDays)}">${rb.byDays}</b></div>
-        <div class="row"><span class="ck">По факторам (${rb.factors.length} действ.):</span> <b class="cat-${catClsOf(rb.byFactors)}">${rb.byFactors}</b></div>
-        <div class="row"><span class="ck">Итоговая (худшая):</span> <b class="cat-${catClsOf(d.riskCategory)}">${d.riskCategory}</b></div>
-      </div>
-      ${rb.relief?`<div class="info-plate">${svgInfo()}<div>Действует <b>послабление</b>: ${esc(rb.relief.basis||'подавление 181-го дня')}.
-        Дни просрочки для категории ограничены 180 (фактически ${rb.raw}). Срок послабления — до <b>${esc(rb.relief.deadline||'—')}</b>;
-        по истечении или отказе категория считается по фактическим дням без пересчёта задним числом.</div></div>`:''}
+      <div class="pcards">
+        <div class="pcol">
+          <div class="pcard">
+            <div class="section-h">Категория риска — худшее из двух ${derivedHtml()}</div>
+            <div class="cat-expand">
+              <div class="row"><span class="ck">По просрочке (${rb.eff} дн.${rb.relief?`, фактически ${rb.raw}`:''}):</span> <b class="cat-${catClsOf(rb.byDays)}">${rb.byDays}</b></div>
+              <div class="row"><span class="ck">По факторам (${rb.factors.length} действ.):</span> <b class="cat-${catClsOf(rb.byFactors)}">${rb.byFactors}</b></div>
+              <div class="row"><span class="ck">Итоговая (худшая):</span> <b class="cat-${catClsOf(d.riskCategory)}">${d.riskCategory}</b></div>
+            </div>
+            ${rb.relief?`<div class="info-plate">${svgInfo()}<div>Действует <b>послабление</b>: ${esc(rb.relief.basis||'подавление 181-го дня')}.
+              Дни просрочки для категории ограничены 180 (фактически ${rb.raw}). Срок послабления — до <b>${esc(rb.relief.deadline||'—')}</b>;
+              по истечении или отказе категория считается по фактическим дням без пересчёта задним числом.</div></div>`:''}
+          </div>
 
-      <div class="section-h" style="margin-top:22px">Факторы категории</div>
-      <p class="section-note">Фактор действует только со ссылкой на решение комитета и внутри своего интервала.</p>
-      ${cgrid([{h:'Фактор'},{h:'Уровень'},{h:'С'},{h:'По'},{h:'Решение комитета'},{h:'Состояние'},{h:'Примечание'}], factRows, {empty:'Факторов не зарегистрировано'})}
+          <div class="pcard">
+            <div class="section-h">Подгруппа заёмщика ${lockHtml()}</div>
+            <p class="section-note">Считается по всем кредитам заёмщика, не только по этому.</p>
+            <div class="cat-expand">
+              <div class="row"><span class="ck">Группа:</span> <b>${esc(d.group||'—')}</b></div>
+              <div class="row"><span class="ck">Подгруппа:</span> <b>${esc(d.subgroup||'—')}</b> — ${esc(d.subgroupLabel||'нет данных')}</div>
+            </div>
+            <div class="mirror-src">Источник: карточка заёмщика, снимок ${esc((c.mirror.borrower||{}).asOf||'—')}. Read-only.</div>
+          </div>
+        </div>
 
-      <div class="section-h" style="margin-top:22px">Подгруппа заёмщика ${lockHtml()}</div>
-      <p class="section-note">Считается по всем кредитам заёмщика, не только по этому.</p>
-      <div class="cat-expand">
-        <div class="row"><span class="ck">Группа:</span> <b>${esc(d.group||'—')}</b></div>
-        <div class="row"><span class="ck">Подгруппа:</span> <b>${esc(d.subgroup||'—')}</b> — ${esc(d.subgroupLabel||'нет данных')}</div>
-        <div class="row"><span class="ck">Снимок:</span> ${esc((c.mirror.borrower||{}).asOf||'—')} · источник: карточка заёмщика</div>
-      </div>
+        <div class="pcol">
+          <div class="pcard">
+            <div class="section-h">Реструктуризация ${lockHtml()}</div>
+            ${rs.active?`<div class="f2">${fld('Стадия',esc(rs.active.stage))}${fld('Дедлайн',esc(rs.active.deadline))}${rs.active.amount?fld('Сумма реструктуризации',money(rs.active.amount)+(rs.active.currency&&rs.active.currency!=='KGS'?' '+esc(rs.active.currency):'')):''}${fld('Всего заявок',esc(rs.count))}</div>
+              <p class="section-note" style="margin:12px 0 0">Реструктуризация последствий не снимает — их снимает запись послабления${rb.relief?`, она действует (см. категорию слева)`:`, сейчас её нет`}.</p>`
+              :`<p class="section-note" style="margin:0">Активной реструктуризации нет. Всего заявок: ${rs.count}.</p>`}
+            <div class="mirror-src">Источник: модуль реструктуризации. Read-only — из кредита не заводится.</div>
+            <div class="gtoolbar"><button class="btn btn-secondary btn-sm" onclick="CR.toast('Открытие модуля реструктуризации — вне объёма макета')">Открыть в модуле реструктуризации</button></div>
+          </div>
 
-      <div class="section-h" style="margin-top:22px">Реструктуризация ${lockHtml()}</div>
-      ${rs.active?`<div class="f2">${fld('Стадия',esc(rs.active.stage))}${fld('Дедлайн',esc(rs.active.deadline))}${rs.active.amount?fld('Сумма реструктуризации',money(rs.active.amount)+(rs.active.currency&&rs.active.currency!=='KGS'?' '+esc(rs.active.currency):'')):''}${fld('Всего заявок',esc(rs.count))}</div>
-        <p class="section-note">Реструктуризация последствий не снимает — их снимает запись послабления${rb.relief?`, она действует (см. категорию выше)`:`, сейчас её нет`}.</p>`
-        :`<p class="section-note">Активной реструктуризации нет. Всего заявок: ${rs.count}.</p>`}
-      <div class="mirror-src">Источник: модуль реструктуризации. Read-only — из кредита не заводится.</div>
-      <div class="gtoolbar" style="margin-top:10px"><button class="btn btn-secondary btn-sm" onclick="CR.toast('Открытие модуля реструктуризации — вне объёма макета')">Открыть в модуле реструктуризации</button></div>
+          <div class="pcard">
+            <div class="section-h">Закрытие кредита</div>
+            <div class="gtoolbar">
+              ${actBtn(c,'repay',{},'Погасить (закрыть)','CR.openRepayModal()','btn btn-tint btn-sm')}
+              ${roleBtn('writeOff','Списать','CR.openWriteOffModal()','btn btn-tint danger btn-sm')}
+              ${actBtn(c,'terminate',{doc:{},reason:'—'},'Расторгнуть','CR.openTerminateModal()','btn btn-tint danger btn-sm')}
+            </div>
+          </div>
+        </div>
 
-      <div class="section-h" style="margin-top:22px">Требования взыскания ${lockHtml()}</div>
-      ${cgrid([{h:'Требование'},{h:'Обязанное лицо'},{h:'Охват'},{h:'Фаза'},{h:'Стадия'},{h:'Ведущее подразделение'},{h:'Сумма',r:1},{h:'С даты'},{h:'Последняя мера'},{h:'Процесс'}], claimRows, {empty:'Требований взыскания нет'})}
-      <div class="mirror-src">Источник: модуль взыскания${c.mirror.claimsAsOf?`, снимок ${esc(c.mirror.claimsAsOf)}`:''}. Read-only.${d.collectionCosts>0?` Расходы по обращению взыскания: <b>${money(d.collectionCosts)}</b> — пятая статья долга, собственность взыскания; в остаток кредита и в гейт «Погашен» не входит.`:''}</div>
-      <div class="gtoolbar" style="margin-top:10px"><button class="btn btn-secondary btn-sm" onclick="CR.toast('Открытие модуля взыскания — вне объёма макета')">Открыть в модуле взыскания</button></div>
+        <div class="pcard wide">
+          <div class="section-h">Требования взыскания ${lockHtml()}</div>
+          ${cgrid([{h:'Требование'},{h:'Обязанное лицо'},{h:'Охват'},{h:'Фаза'},{h:'Стадия'},{h:'Ведущее подразделение'},{h:'Сумма',r:1},{h:'С даты'},{h:'Последняя мера'},{h:'Процесс'}], claimRows, {empty:'Требований взыскания нет'})}
+          <div class="mirror-src">Источник: модуль взыскания${c.mirror.claimsAsOf?`, снимок ${esc(c.mirror.claimsAsOf)}`:''}. Read-only.${d.collectionCosts>0?` Расходы по обращению взыскания: <b>${money(d.collectionCosts)}</b> — пятая статья долга, собственность взыскания; в остаток кредита и в гейт «Погашен» не входит.`:''}</div>
+          <div class="gtoolbar"><button class="btn btn-secondary btn-sm" onclick="CR.toast('Открытие модуля взыскания — вне объёма макета')">Открыть в модуле взыскания</button></div>
+        </div>
 
-      <div class="section-h" style="margin-top:22px">Банкротство и судебные решения ${hasBankruptcy?'<span class="pill high">банкротство</span> ':''}${lockHtml()}</div>
-      ${cgrid([{h:'Дата'},{h:'Вид'},{h:'Орган / суд'},{h:'Результат'},{h:'Документ'}], courtRows, {empty:'Судебных решений и процедур банкротства нет'})}
-      <div class="mirror-src">Источник: модуль взыскания. Read-only.</div>
+        <div class="pcard wide">
+          <div class="section-h">Банкротство и судебные решения ${hasBankruptcy?'<span class="pill high">банкротство</span> ':''}${lockHtml()}</div>
+          ${cgrid([{h:'Дата'},{h:'Вид'},{h:'Орган / суд'},{h:'Результат'},{h:'Документ'}], courtRows, {empty:'Судебных решений и процедур банкротства нет'})}
+          <div class="mirror-src">Источник: модуль взыскания. Read-only.</div>
+        </div>
 
-      <div class="section-h" style="margin-top:22px">Закрытие кредита</div>
-      <div class="gtoolbar" style="margin-top:10px">
-        ${actBtn(c,'repay',{},'Погасить (закрыть)','CR.openRepayModal()','btn btn-tint btn-sm')}
-        ${roleBtn('writeOff','Списать','CR.openWriteOffModal()','btn btn-tint danger btn-sm')}
-        ${actBtn(c,'terminate',{doc:{},reason:'—'},'Расторгнуть','CR.openTerminateModal()','btn btn-tint danger btn-sm')}
+        <div class="pcard wide">
+          <div class="section-h">Факторы категории</div>
+          <p class="section-note">Фактор действует только со ссылкой на решение комитета и внутри своего интервала.</p>
+          ${cgrid([{h:'Фактор'},{h:'Уровень'},{h:'С'},{h:'По'},{h:'Решение комитета'},{h:'Состояние'},{h:'Примечание'}], factRows, {empty:'Факторов не зарегистрировано'})}
+        </div>
       </div>`;
   }
 
