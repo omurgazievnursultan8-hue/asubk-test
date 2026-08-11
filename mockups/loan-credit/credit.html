@@ -3591,9 +3591,13 @@ function planExecOf(c, asOf, ledgerIndex, year){
       pct: planDone > 0 ? Math.round(fact / planDone * 100) : null,
       months:kept.length, monthsDone:done.length };
   };
+  /* months/monthsDone у квартала — не украшение: строка квартала стоит в одной таблице
+     с месяцами (КВ-21) и обязана назвать, по скольким месяцам она посчитана. Без этого
+     «1 квартал · 0 %» неотличимо от «плана на квартал не ставили». */
   const quarters = [1,2,3,4].map(q => {
     const a = agg(rows.slice((q - 1) * 3, q * 3));
-    return { q, plan:a.plan, planDone:a.planDone, planAhead:a.planAhead, fact:a.fact, pct:a.pct };
+    return { q, plan:a.plan, planDone:a.planDone, planAhead:a.planAhead, fact:a.fact, pct:a.pct,
+      months:a.months, monthsDone:a.monthsDone };
   });
   const ya = agg(rows);
   const cur   = rows.find(r => r.month === curMk);
@@ -5619,6 +5623,7 @@ if (typeof document !== 'undefined') {
     cardScope = 'credit'; cardAsOf = TODAY; condBasisFilter = 'all'; condOpenGroup = null; condOpenTranche = null; condMatrixTranche = null;
     dogovorExtraTab = 'subject';
     planYear = pd(TODAY).getFullYear(); planOpenMonth = null;   // состояние вкладки «План» — своё на каждую карточку
+    planOpenQuarters = null;                                    // кварталы «Плана»: null → умолчание (все раскрыты)
     grafikOpenYears = null;                                     // годы «Графика»: null → умолчание (текущий год)
     prognozShowAll = false;                                     // «Прогноз»: сначала только расхождения
     document.getElementById('view-list').style.display = 'none';
@@ -5719,6 +5724,14 @@ if (typeof document !== 'undefined') {
   let cardAsOf  = TODAY;
   let planYear = pd(TODAY).getFullYear();   // год на вкладке «План»
   let planOpenMonth = null;                 // 'YYYY-MM' развёрнутой строки (журнал правок)
+  /* Развёрнутые кварталы «Плана» (КВ-21). Умолчание — ВСЕ ЧЕТЫРЕ, в отличие от годов
+     «Графика»: там свёртка убирает десятки позиций, здесь строк всего двенадцать, и
+     закрывать девять из них ради четырёх итогов значило бы отдать больше, чем получить.
+     Свернуть всё пользователь может сам — и получит ровно прежнюю карточку «Итоги года».
+     Ключ planQuartersKey (кредит|год) отличает осознанное «свернуть всё» от набора,
+     оставшегося от другого кредита или года. */
+  let planOpenQuarters = null;
+  let planQuartersKey = '';
   /* Развёрнутые годы «Графика». null — состояние не трогали: раскрывается ТЕКУЩИЙ год
      (тот, в который попала дата среза), остальные годы стоят одной итоговой строкой.
      Не список годов, а Set: годы приходят из графика и от кредита к кредиту разные. */
@@ -6964,7 +6977,7 @@ if (typeof document !== 'undefined') {
       for (let y=y0; y<=y1; y++) out.push(y); return out; })();
     const pctPill = (p) => p == null ? '<span class="text-muted">—</span>'
       : `<span class="pill ${p >= 100 ? 'low' : p >= 80 ? 'mid' : 'high'}">${p} %</span>`;
-    const rows = pe.rows.map(r => {
+    const monthRow = (r) => {
       const open = planOpenMonth === r.month;
       const prow = planRowOf(c, r.month);
       const main = `<tr${r.dropped?' class="text-muted"':''} style="cursor:${prow?'pointer':'default'}"${prow?` onclick="CR.togglePlanMonth('${jsAttr(r.month)}')"`:''}>
@@ -6986,15 +6999,52 @@ if (typeof document !== 'undefined') {
         <div style="font:var(--font-label);color:var(--text-muted);margin-bottom:6px">Поставил: ${esc(prow.setBy)} · ${esc(prow.setAt)}${prow.seededFrom!=null?` · предзаполнено прогнозом: ${money(prow.seededFrom)}`:''}</div>
         ${hist}
         ${prow.amount!=null?`<div style="margin-top:8px">${actBtn(c,'setPlan',{rows:[{month:prow.month,amount:null}]},'Снять план',`CR.openDropPlanModal('${jsAttr(prow.month)}')`)}</div>`:''}</td></tr>`;
-    });
+    };
     /* В колонке плана — цель периода целиком, в проценте — только наступившие месяцы;
        чтобы это не читалось как ошибка, ненаступившая часть подписана отдельно. */
     const ahead = (a) => a ? `<div style="font:var(--font-label);color:var(--text-muted)">впереди ${money(a)}</div>` : '';
-    const qRows = pe.quarters.map(q=>`<tr><td>${q.q} квартал</td><td style="text-align:right">${q.plan?money(q.plan):'—'}${ahead(q.planAhead)}</td><td style="text-align:right">${money(q.fact)}</td><td style="text-align:right">${pctPill(q.pct)}</td></tr>`);
-    qRows.push(`<tr style="font-weight:var(--weight-semibold);background:var(--surface-panel)"><td>За год</td>
-      <td style="text-align:right">${pe.total.plan?money(pe.total.plan):'—'}${ahead(pe.total.planAhead)}</td>
-      <td style="text-align:right">${money(pe.total.fact)}</td>
-      <td style="text-align:right">${pctPill(pe.total.pct)}</td></tr>`);
+    /* КВАРТАЛ И МЕСЯЦ В ОДНОЙ ТАБЛИЦЕ (КВ-21, волна 11.08.2026).
+       Было две таблицы одного предмета: «Месяц · Прогноз · План · Факт · Исполнение · Правки»
+       и отдельной карточкой ниже «Итоги года» с «Период · План · Факт · Исполнение». Разные
+       наборы колонок под одними именами заставляли сверять «1 квартал» с тремя строками
+       в таблице выше глазами, а годовая строка второй таблицы дословно повторяла плитки
+       шапки — та же цифра в двух местах читается как две разные величины.
+       Теперь квартал — СТРОКА-ГРУППА той же таблицы: её План/Факт/Исполнение стоят под
+       своими колонками, месяцы квартала лежат под ней и сворачиваются кликом. Свёрнутые
+       все четыре дают ровно прежнюю карточку «Итоги года», развёрнутые — прежний помесячный
+       список; сверять больше нечего, потому что итог стоит над своими слагаемыми.
+       Строки «За год» в таблице НЕТ намеренно: год целиком уже держат четыре плитки шапки
+       (тот же довод, по которому одногодичный «График» не получает строки года).
+       Прогноз у квартала — прочерк: он ориентир при постановке цели ПО МЕСЯЦУ (ADR-0042 §2),
+       квартальной суммы прогноза модель не считает и придумывать её здесь нечего. */
+    const qKey = c.id + '|' + pe.year;
+    if (planOpenQuarters === null || planQuartersKey !== qKey){
+      planOpenQuarters = new Set([1,2,3,4]); planQuartersKey = qKey; }
+    const openQ = planOpenQuarters;
+    const allQOpen = [1,2,3,4].every(q => openQ.has(q));
+    const curQ = (pd(cardAsOf).getFullYear() === pe.year) ? Math.floor(pd(cardAsOf).getMonth()/3) + 1 : null;
+    const rows = [];
+    pe.quarters.forEach(q => {
+      const open = openQ.has(q.q);
+      /* Подпись справа отвечает на «по скольким месяцам это посчитано»: план квартала —
+         по месяцам с планом, процент — только по наступившим из них. Без неё «—» в
+         проценте у квартала с планом читался бы как сбой. */
+      const note = q.months
+        ? `${q.months} из 3 мес. с планом` + (q.monthsDone < q.months ? ` · наступило ${q.monthsDone}` : '')
+        : 'плана на квартал нет';
+      rows.push(`<tr class="gyear${open?' open':''}" onclick="CR.togglePlanQuarter(${q.q})" title="${open?'Свернуть':'Развернуть'} ${q.q} квартал">
+        <td><span class="gcar">${open?'▾':'▸'}</span><span class="gy">${q.q} квартал</span>${q.q===curQ?'<span class="pill neutral">текущий</span>':''}</td>
+        <td style="text-align:right" class="text-muted">—</td>
+        <td style="text-align:right">${q.months?`<b>${money(q.plan)}</b>`:'<span class="text-muted">—</span>'}${ahead(q.planAhead)}</td>
+        ${/* Квартал без плана не пишет «0,00» ни в план, ни в факт: ноля там не считали —
+             в сумму квартала входят только месяцы с планом, а их ноль. Прочерк и подпись
+             «плана на квартал нет» говорят это прямо; «0,00» читалось бы как «не собрали». */''}
+        <td style="text-align:right">${q.months?`<b>${money(q.fact)}</b>`:'<span class="text-muted">—</span>'}</td>
+        <td style="text-align:right">${pctPill(q.pct)}</td>
+        <td class="gyear-s">${note}</td></tr>`);
+      if (!open) return;                                  // квартал свёрнут — стоит одной итоговой строкой
+      pe.rows.slice((q.q-1)*3, q.q*3).forEach(r => rows.push(monthRow(r)));
+    });
     return `
       <div class="section-h">План и его исполнение ${derivedHtml()}</div>
       ${/* Волна 11.08.2026 (третья): абзац на девять строк сведён к трём предложениям. Правила
@@ -7020,9 +7070,12 @@ if (typeof document !== 'undefined') {
         <span class="spacer"></span>
         ${actBtn(c,'setPlan',{rows:[{month:monthKey(cardAsOf),amount:1}]},'Поставить план','CR.openPlanModal()','btn btn-primary btn-sm')}
       </div>
-      ${cgrid([{h:'Месяц'},{h:'Прогноз',r:1},{h:'План',r:1},{h:'Факт',r:1},{h:'Исполнение',r:1},{h:'Правки'}], rows)}
-      <div class="section-h" style="margin-top:22px">Итоги ${pe.year}</div>
-      ${cgrid([{h:'Период'},{h:'План',r:1},{h:'Факт',r:1},{h:'Исполнение',r:1}], qRows)}`;
+      <div class="gtoolbar" style="margin:10px 0 8px">
+        <span class="text-muted" style="font:var(--font-label)">Развёрнут${allQOpen?'ы все четыре квартала':`о ${plur(openQ.size,'квартал','квартала','кварталов')} из 4`}</span>
+        <span class="spacer"></span>
+        <button class="btn btn-secondary btn-sm" onclick="CR.setPlanQuarters([${allQOpen?'':'1,2,3,4'}])">${allQOpen?'Свернуть все кварталы':'Развернуть все кварталы'}</button>
+      </div>
+      ${cgrid([{h:'Период'},{h:'Прогноз',r:1},{h:'План',r:1},{h:'Факт',r:1},{h:'Исполнение',r:1},{h:'Правки'}], rows)}`;
   }
 
   /* ---- ВКЛАДКА 9: Обеспечение (зеркало залогового модуля, Р-7) ---- */
@@ -7344,6 +7397,13 @@ if (typeof document !== 'undefined') {
     if(el) el.scrollIntoView({behavior:'smooth',block:'center'}); };
   CR.setPlanYear=function(y){ planYear=+y||planYear; planOpenMonth=null; rerenderDetail(); };
   CR.togglePlanMonth=function(mk){ planOpenMonth = (planOpenMonth===mk?null:mk); rerenderDetail(); };
+  /* Кварталы «Плана» (КВ-21). Пустой набор — законное «свернуть все кварталы»: вкладка
+     остаётся с четырьмя итоговыми строками. Умолчание (все четыре) возвращает только
+     смена кредита или года — через planQuartersKey, см. tabPlan. Журнал правок месяца
+     не сбрасываем: свернули квартал — строка просто скрыта, развернули — снова на месте. */
+  CR.togglePlanQuarter=function(q){ q=+q; if(!planOpenQuarters) planOpenQuarters=new Set([1,2,3,4]);
+    if(planOpenQuarters.has(q)) planOpenQuarters.delete(q); else planOpenQuarters.add(q); rerenderDetail(); };
+  CR.setPlanQuarters=function(list){ planOpenQuarters=new Set((list||[]).map(Number)); rerenderDetail(); };
   /* Годы «Графика». Пустой набор — законное состояние («свернуть все»), а не сброс:
      умолчание возвращает только смена набора годов (см. grafikYearsKey в tabGrafik). */
   CR.toggleGrafikYear=function(y){ y=+y; if(!grafikOpenYears) grafikOpenYears=new Set();
