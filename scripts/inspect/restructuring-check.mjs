@@ -142,17 +142,22 @@ const app = id => RS.appById(id);
   const a = app('RS-1001');
   const cutoffP = a.cutoff.rows.find(r => r.article === 'principal').amount;
   const factP = a.ds.fact.rows.find(r => r.article === 'principal').amount;
-  ok(13, a.cutoff.date !== a.ds.date && cutoffP === 5000000 && factP === 4066640 && cutoffP !== factP,
+  // 4 082 000 = 4 200 000 остатка минус перенос 118 000. Перенос сжался после ADR-0110:
+  // расходы взыскания и сборы больше не входят в базу, и уносить с траншем нечего.
+  ok(13, a.cutoff.date !== a.ds.date && cutoffP === 5000000 && factP === 4082000 && cutoffP !== factP,
     `срез=${a.cutoff.date}/${cutoffP} факт=${a.ds.date}/${factP}`);
 })();
 
-/* 14. РС-7/РС-13 — семь статей долга, ровно две срочности. */
+/* 14. РС-7/РС-13/ADR-0110 — пять статей долга, ровно две срочности. Расходов взыскания и сборов
+   в базе нет ни строкой: они выведены из охвата, а не просто обнулены. */
 (() => { fresh();
   const base = RS.defaultBase(app('RS-1001'), RS.TODAY);
   const arts = new Set(base.map(r => r.article));
   const urg = new Set(base.map(r => r.urgency));
   const urgOk = [...urg].every(u => u === 'over' || u === 'cur');
-  ok(14, base.length === 7 && arts.size === 7 && urgOk, `n=${base.length} arts=${arts.size} urg=${[...urg].join(',')}`);
+  const outOfScope = !arts.has('collectionCost') && !arts.has('fees');
+  ok(14, base.length === 5 && arts.size === 5 && urgOk && outOfScope,
+    `n=${base.length} arts=${arts.size} urg=${[...urg].join(',')} внеОхвата=${outOfScope}`);
 })();
 
 /* 15. ИР-6 — спорная пеня: мёртвая галка, toggleBaseRow не переключает заблокированную строку. */
@@ -172,7 +177,7 @@ const app = id => RS.appById(id);
 (() => { fresh();
   const a = app('RS-1001');
   const dCap = RS.dispositionFor(a.dispositions, 'accInterest', 'over');
-  const dForgive = RS.dispositionFor(a.dispositions, 'fees', 'over');
+  const dForgive = RS.dispositionFor(a.dispositions, 'accPenalty', 'over');
   const wired = dCap && dCap.kind === 'cap' && dForgive && dForgive.kind === 'forgive';
   const noNullDefault = !/periods\s*:\s*null/.test(js);        // умолчание — allPeriods(), не null
   const setterWrites = typeof RS.setDispPeriods === 'function'; // экспортированная дверь
@@ -598,9 +603,13 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
     `процентыРавны=${same}(${int(bare.rows)}) телоРавно=${samePrincipal} колонки=${cols.join(',')}`);
 })();
 
-/* 48. ИР-2′ — сумма ВСЕХ статейных колонок = сумма переноса в копейку (не одна колонка ОД). */
+/* 48. ИР-2′ — сумма ВСЕХ статейных колонок = сумма переноса в копейку (не одна колонка ОД).
+   Заявка взята RS-1011, а не RS-1001: после вывода расходов взыскания и сборов из охвата
+   (ADR-0110) у демо-заявки безставочных остатков не осталось — накопленные проценты уходят
+   в тело капитализацией, накопленная пеня прощается. Сторожу нужна база, где безставочная
+   колонка реально есть, иначе он проходит на пустом множестве. */
 (() => {
-  const { a } = doorFixture();
+  const { a } = doorFixture('RS-1011');
   const r = RS.AppSide.run(a, RS.TODAY);
   const d = RS.CreditSide.draftSchedule(a.calcTranche, { date: RS.TODAY, transferSum: r.transferSum,
     principalPart: r.principalPart, parts: r.parts, params: a.version.params });
@@ -656,12 +665,12 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
   const matrix = has('spread', 'accInterest') && has('spread', 'principal')
     && has('cap', 'penalty') && has('cap', 'accPenalty')
     && !has('cap', 'interest') && !has('cap', 'accInterest')
-    && !has('forgive', 'fees') && !has('none', 'accInterest');
+    && !has('forgive', 'penalty') && !has('none', 'accInterest');
   // сеттер сроков отбивает распоряжение, у которого сроков нет, — состояние не меняется
-  const d = RS.dispositionFor(a.dispositions, 'fees', 'over');
+  const d = RS.dispositionFor(a.dispositions, 'accPenalty', 'over');
   d.kind = 'forgive';
   const snap = JSON.stringify(d.periods);
-  RS.setDispPeriods(a.id, 'fees', 'over', 'range', 1, 3);
+  RS.setDispPeriods(a.id, 'accPenalty', 'over', 'range', 1, 3);
   const rejected = JSON.stringify(d.periods) === snap;
   // и смена вида на «без сроков» возвращает умолчание, а не оставляет висеть интервал
   const s = RS.dispositionFor(a.dispositions, 'accInterest', 'over');

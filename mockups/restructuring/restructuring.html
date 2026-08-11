@@ -93,8 +93,8 @@
       PASS  #10  RS-1005={"idx":8,"closed":true,"label":"Закрыта"} RS-1001={"idx":7,"closed":false,"label":"Оформление"}
       PASS  #11  n=3
       PASS  #12  ДС/3=2026-05-20 срез/6=2026-06-16 ДС/4=2026-06-19
-      PASS  #13  срез=2026-03-30/5000000 факт=2026-07-19/4066640
-      PASS  #14  n=7 arts=7 urg=over,cur
+      PASS  #13  срез=2026-03-30/5000000 факт=2026-07-19/4082000
+      PASS  #14  n=5 arts=5 urg=over,cur внеОхвата=true
       PASS  #15  before={"article":"penalty","urgency":"over","amount":73000,"since":"2026-04-14","disputed":true,"included":false,"blockedBy":"disputed"} after={"article":"penalty","urgency":"over","amount":73000,"since":"2026-04-14","disputed":true,"included":false,"blockedBy":"disputed"}
       PASS  #16  wired=true безNull=true сеттер=true записано=true прочитано=true capPen(пишет/читает)=2/1
       PASS  #17  order=21,973,2713,3947,4564
@@ -112,7 +112,7 @@
       PASS  #29  zeroPay=true baseOk=true morCap=36361.2 m=9
       PASS  #30  stages=9 RS-1002={"idx":4,"closed":true,"label":"Отказ (заключение уполномоченного органа)"} resolution=null
       PASS  #31  RS-1001=true безЖК={"ok":false,"needZk":true} приОтказе={"ok":false,"needConclusion":true}
-      PASS  #32  сОснованием={"ok":true,"applicable":true,"sum":5120,"named":true,"actSum":null,"basis":"п. 89 пп. 5 — прощение начисленных сборов, санкция по обстоятельствам, не зависящим от заёмщика","mismatch":false} без=false безПрощения=false
+      PASS  #32  сОснованием={"ok":true,"applicable":true,"sum":15360,"named":true,"actSum":null,"basis":"п. 89 пп. 5 — прощение накопленной неустойки, санкция по обстоятельствам, не зависящим от заёмщика","mismatch":false} без=false безПрощения=false
       PASS  #33  pct=true abs=true clean=true tiers=2
       PASS  #34  penalty=true accPenalty=true accInterest=true principal={"interest":true,"penalty":true} dated=true
       PASS  #35  int=100000 pen=40000 всего=140000
@@ -125,10 +125,10 @@
       PASS  #42  староеИмя=false новоеИмя=true
       PASS  #43  изменено=true большеПозиции=true ноль=true остаток=1000
       PASS  #44  задано=true стёрто=true безТени={"mode":"range","from":1,"to":1}
-      PASS  #45  уехало=true идемпотентно=true капПеня=73000 ОД=118000 раскладка={"collectionCost":15360,"accPenalty":73000}
+      PASS  #45  уехало=true идемпотентно=true капПеня=73000 ОД=118000 раскладка={"accPenalty":73000}
       PASS  #46  частично=true целиком=false
       PASS  #47  процентыРавны=true(54990.65) телоРавно=true колонки=accInterest,accPenalty
-      PASS  #48  всеСтатьи=133360 перенос=133360 ОД=118000 безставочные=15360
+      PASS  #48  всеСтатьи=101426.54 перенос=101426.54 ОД=60426.54 безставочные=41000
       PASS  #49  внутри=true заДлиной=true послеУкорочения=true неПодрезан=true
       PASS  #50  сумма=100000 колонка=[0, 33333.33, 33333.33, 33333.34, 0, 0]
       PASS  #51  матрица=true сеттерОтбил=true сменаВидаСбросила=true
@@ -444,10 +444,14 @@ const PARAM_KEYS = [                                          // ключи па
   ['nonworking','Обработка нерабочих дней'],['repayMethod','Метод погашения']
 ];
 const PARAM_LABEL = Object.fromEntries(PARAM_KEYS);
-/* Семь статей долга, порядок = очередь погашения (РС-13). principal — выводится (Модель демо §3), не сеется. */
+/* Пять статей долга, порядок = очередь погашения (РС-13, ADR-0110). principal — выводится
+   (Модель демо §3), не сеется. Статей долга у кредита семь; реструктуризация ведёт пять:
+   расходы взыскания и сборы из охвата выведены (ADR-0110) — п. 89 называет формы изменения
+   условий поимённо (сроки · ставка · льготный период · капитализация процентов и неустойки ·
+   отсрочка), и ни одна из них этих двух статей не касается. Расходами взыскания владеет модуль
+   «Взыскание» (ADR-0043), сбор — цена отдельной услуги, а не долг по кредитному договору.
+   В общем каноне долга (ADR-0093, CONTEXT.md) обе статьи остаются на месте. */
 const ARTICLES = [
-  { key:'collectionCost', name:'Расходы взыскания' },
-  { key:'fees',           name:'Сборы' },
   { key:'accInterest',    name:'Накопленные проценты', accrued:true },
   { key:'accPenalty',     name:'Накопленная пеня',      accrued:true },
   { key:'penalty',        name:'Пеня' },
@@ -516,16 +520,18 @@ const isNormKind = k => !!k && k.origin==='норма';
 function allowedDispositions(app){ const s=new Set(); (app.kindIds||[]).forEach(id=>{ const k=kindById(id); if(k) (k.allowedDispositions||[]).forEach(d=>s.add(d)); }); return s; }
 
 /* Транш и долг — базовый сев (Модель демо §01, реш.1-3): остаток НЕ хранится, выводится balanceAt
-   поверх ops; шесть статей сеются данными, седьмая (principal) выводится. Базовые кредиты — один
+   поверх ops. Базовые кредиты — один
    транш (сплита не было), историю прежних ДС несёт restructCount/audit, не число траншей; полная
-   two-транш/три-ДС раскладка — только у демо-заявки (buildDemoApps/seedRestructChain, тикет 06 карты). */
+   two-транш/три-ДС раскладка — только у демо-заявки (buildDemoApps/seedRestructChain, тикет 06 карты).
+   Статей сеется четыре, пятая (principal) выводится: расходы взыскания и сборы выведены из
+   охвата (ADR-0110) и в базу реструктуризации не попадают вовсе. */
 function seedDebt(cr){
   const since = addCalDays(TODAY, -cr.odDays);
   return [
-    { article:'collectionCost', urgency:'over', amount: cr.collProc ? Math.round(cr.odSum*0.03) : 0, since },  // демо-коэфф., не норма
-    { article:'fees',           urgency:'over', amount: cr.collProc ? Math.round(cr.odSum*0.01) : 0, since },  // демо-коэфф., не норма
     { article:'accInterest',    urgency:'over', amount: cr.snapshot.accruedInterest, since },
-    { article:'accPenalty',     urgency:'over', amount: 0, since },                                  // нет капитализации в базовом севе
+    // накопленная пеня рождается только капитализацией по прошлому ДС (ADR-0106): у кредита без
+    // истории реструктуризаций её взяться неоткуда. Доля — демо-коэфф., не норма.
+    { article:'accPenalty',     urgency:'over', amount: cr.restructCount ? Math.round(cr.odSum*0.03) : 0, since },
     { article:'penalty',        urgency:'over', amount: cr.snapshot.penalty, since, disputed: !!cr.collProc },  // ИР-6: спорная пеня — мёртвая галка
     { article:'interest',       urgency:'cur',  amount: Math.max(0, cr.snapshot.accruedInterest - cr.snapshot.overdueInterest), since }
   ];
@@ -1342,9 +1348,7 @@ const ACCRUAL_MODES = [
   { article:'interest',       from:'2000-01-01', mode:{interest:false, penalty:true },  basis:'просроченный процент даёт пеню' },
   { article:'accInterest',    from:'2026-01-01', mode:{interest:false, penalty:false }, basis:'РС-27 / ADR-0106' },
   { article:'accPenalty',     from:'2026-01-01', mode:{interest:false, penalty:false }, basis:'РС-27 / ADR-0106' },
-  { article:'penalty',        from:'2026-01-01', mode:{interest:false, penalty:false }, basis:'РС-27 / ADR-0106 — пеня на пеню не начисляется никогда' },
-  { article:'fees',           from:'2000-01-01', mode:{interest:false, penalty:false }, basis:'сбор — не цена денег' },
-  { article:'collectionCost', from:'2000-01-01', mode:{interest:false, penalty:false }, basis:'расход взыскания — не цена денег' }
+  { article:'penalty',        from:'2026-01-01', mode:{interest:false, penalty:false }, basis:'РС-27 / ADR-0106 — пеня на пеню не начисляется никогда' }
 ];
 function accrualModeOf(article, date){
   const recs=ACCRUAL_MODES.filter(r=>r.article===article && r.from<=date);
@@ -1787,12 +1791,12 @@ function buildDemoApps(){
   a1.conclusion={fixed:true,outcome:'возможно',no:'МФ-исх-1120',date:'2026-05-28'};
   a1.zk={fixed:true,no:'ЖК-К/БФ-214',date:'2026-06-15'};
   a1.resolution={fixed:true,decision:'изм',no:'ПКМ КР № 331',date:'2026-06-29',
-                 forgiveSum:null, forgiveBasis:'п. 89 пп. 5 — прощение начисленных сборов, санкция по обстоятельствам, не зависящим от заёмщика'};
+                 forgiveSum:null, forgiveBasis:'п. 89 пп. 5 — прощение накопленной неустойки, санкция по обстоятельствам, не зависящим от заёмщика'};
   a1.version=draftVersion(cr1,{term:60,rate:6.5});
   a1.base=AppSide.defaultBase(a1,TODAY);
   a1.dispositions=AppSide.defaultDispositions(a1.base).map(d=>{
     if(d.article==='accInterest') return {...d,kind:'cap'};
-    if(d.article==='fees') return {...d,kind:'forgive'};
+    if(d.article==='accPenalty') return {...d,kind:'forgive'};   // X1 прощает санкцию — накопленную пеню прошлого ДС
     return d;
   });
   const run1=AppSide.run(a1,TODAY);
@@ -1812,8 +1816,8 @@ function buildDemoApps(){
   a1._t='2026-03-30'; H(a1,'Письмо в уполномоченный орган направлено. Срез зафиксирован на дату письма.','Куратор ОД','auto');
   a1._t='2026-05-28'; H(a1,'Заключение уполномоченного органа: возможно изменение условий (МФ-исх-1120 от 2026-05-28).','Куратор ОД');
   a1._t='2026-06-15'; H(a1,'Профильный комитет ЖК согласовал проект решения (ЖК-К/БФ-214). Инициатор проекта — отраслевой государственный орган (п. 83).','Куратор ОД');
-  a1._t='2026-06-29'; H(a1,'Постановление Кабинета Министров № 331 от 2026-06-29: изменённые условия. Прощение сборов названо основанием в акте (п. 89 пп. 5).','Куратор ОД');
-  a1._t=TODAY; H(a1,'Доп. соглашение '+(a1.ds?a1.ds.no:'ДС-60540/2')+' зарегистрировано. Капитализация %/штрафов, прощение сборов. Просроченная часть перенесена на новый транш, текущая — в исходном (частичная реструктуризация).','Куратор ОД');
+  a1._t='2026-06-29'; H(a1,'Постановление Кабинета Министров № 331 от 2026-06-29: изменённые условия. Прощение накопленной неустойки названо основанием в акте (п. 89 пп. 5).','Куратор ОД');
+  a1._t=TODAY; H(a1,'Доп. соглашение '+(a1.ds?a1.ds.no:'ДС-60540/2')+' зарегистрировано. Капитализация %/штрафов, прощение накопленной неустойки. Просроченная часть перенесена на новый транш, текущая — в исходном (частичная реструктуризация).','Куратор ОД');
   A.push(a1);
 
   /* 2) ОТКАЗ ПО ЗАКЛЮЧЕНИЮ УПОЛНОМОЧЕННОГО ОРГАНА (п. 88, ADR-0107) — отрицательное заключение
@@ -2319,7 +2323,7 @@ function pConcl(app){
   </div>`;
 }
 
-/* 4. База и распоряжения (issues/05, вариант B) — семь статей, два датированных числа, производный транш.
+/* 4. База и распоряжения (issues/05, вариант B) — пять статей (ADR-0110), два датированных числа, производный транш.
    Гейты Пределы/Согласия подключены (тикет 07): норма-справочник (limitsGate) и зеркало GUARANTEES
    (consentGate) — оба жёсткие, без waiver. Флажки/распоряжения — read-only показ по умолчанию
    (issues/02 задал состав, интерактивная правка куратором — тикет 07, issues/05 просит только
@@ -2538,12 +2542,12 @@ function pCalcBase(app){
     </div>
 
     <div class="section-h">База — статьи долга, распоряжения</div>
-    <div class="section-note">Порядок строк — константа конвейера PIPELINE (issues/02 реш.6): расходы взыскания → сборы → накопленные проценты → накопленная пеня → пеня → проценты → основной долг. Галка и распоряжение — живые (issues/02 реш.1/4, тикет 07): куратор снимает строку или меняет распоряжение прямо здесь; спорная пеня (ИР-6) и распоряжения, которых вид не допускает, — мёртвые пункты с подписью, не скрытые.${canEdit?'':' <span class="mode-tag">роль «'+esc(state.role)+'» правку не делает — только Куратор ОД.</span>'}</div>
+    <div class="section-note">Порядок строк — константа конвейера PIPELINE (issues/02 реш.6): накопленные проценты → накопленная пеня → пеня → проценты → основной долг. Расходов взыскания и сборов здесь нет вовсе (ADR-0110): формы п. 89 их не касаются, расходами владеет «Взыскание», сбор — цена отдельной услуги. Галка и распоряжение — живые (issues/02 реш.1/4, тикет 07): куратор снимает строку или меняет распоряжение прямо здесь; спорная пеня (ИР-6) и распоряжения, которых вид не допускает, — мёртвые пункты с подписью, не скрытые.${canEdit?'':' <span class="mode-tag">роль «'+esc(state.role)+'» правку не делает — только Куратор ОД.</span>'}</div>
     <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Статья</th><th>Срочность</th><th class="numcell">Сумма</th><th>База начисления</th><th>Включена</th><th>Распоряжение</th></tr></thead><tbody>${rows}</tbody></table></div>
     <div class="section-note">Колонка «база начисления» — режим статьи на дату операции (РС-27, ADR-0106): пеня терминальна — ни она сама, ни капитализированная пеня, ни просроченное накопленное начислений не порождают. Режим хранится с датой начала действия, поэтому сделки прошлых лет продолжают считаться по правилу, действовавшему тогда.</div>
 
     <div class="section-h">Итог прогона</div>
-    <div class="section-note">Перенос уходит одним числом (РС-41: пара transfer_out/transfer_in и акт ДС не расщепляются), но раскладывается по тем же семи статьям долга. Капитализированные проценты вливаются в тело и начисляют ставку; капитализированная пеня ложится в колонку накопленной пени и остаётся безставочной — восьмой статьи не заводится, различие происхождения несут эти счётчики и запись в акте (ADR-0109).</div>
+    <div class="section-note">Перенос уходит одним числом (РС-41: пара transfer_out/transfer_in и акт ДС не расщепляются), но раскладывается по тем же пяти статьям долга. Капитализированные проценты вливаются в тело и начисляют ставку; капитализированная пеня ложится в колонку накопленной пени и остаётся безставочной — восьмой статьи не заводится, различие происхождения несут эти счётчики и запись в акте (ADR-0109).</div>
     ${runBlock}
 
     <div class="section-h">Производный транш</div>
