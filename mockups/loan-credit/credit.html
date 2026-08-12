@@ -7187,8 +7187,12 @@ if (typeof document !== 'undefined') {
         ? `<span class="pill neutral" title="${jsAttr('Закрыт '+(t.closed.date||'')+': '+(t.closed.reason||''))}">Закрыт ${esc(t.closed.date||'')}</span>`
         : esc(trancheState(t));
       const inTr=originTransfer(t), parent=inTr?inTr.counterTranche:null;
+      /* Пилюля происхождения — «info», НЕ «warn»: класс .warn (:1608) это блочная
+         плашка-алерт (display:flex, красный фон), а не вариант пилюли, и «pill warn»
+         ловил её вместо цвета. Разделение по ДС — штатный способ рождения транша
+         (ADR-0092 §1), красным ему гореть не за что. */
       const orig = der
-        ? `<span class="pill warn" title="${jsAttr('Транш рождён разделением по '+(originDs(t)||'ДС')+' (ADR-0092 §1): сумма пришла переносом с транша №'+parent+', а не выдачей')}">разделение по ДС</span>`
+        ? `<span class="pill info" title="${jsAttr('Транш рождён разделением по '+(originDs(t)||'ДС')+' (ADR-0092 §1): сумма пришла переносом с транша №'+parent+', а не выдачей')}">разделение по ДС</span>`
           + `<br><span style="color:var(--text-muted);font-size:11px">${esc(originDs(t)||'ДС')} · из №${parent}</span>`
         : `<span class="pill neutral" title="${jsAttr('Транш рождён освоением — деньги выданы по этому траншу')}">освоение</span>`;
       /* «Освоено» у производного — ПРОЧЕРК, а не 0: ноль читается как «деньги не
