@@ -159,7 +159,7 @@
   --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
   --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
   --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
-  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE; --asubk-gray-300:#D6DCE5;
   --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
   --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
   --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
@@ -185,7 +185,7 @@
   --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
   --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
   --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
-  --control-h:36px; --header-h:56px; --sidebar-w:300px;
+  --control-h:36px; --header-h:56px; --sidebar-w:320px;   /* как в credit.html — оболочка одна */
   --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
 }
 *{ box-sizing:border-box; }
@@ -200,13 +200,17 @@ a{ color:inherit; }
 .brand{ padding:18px 16px 6px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
   color:var(--text-heading); letter-spacing:0.04em; }
 .brand small{ display:block; font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-muted); letter-spacing:0; margin-top:3px; }
-.nav{ flex:1; overflow-y:auto; padding:10px 0 8px; }
-.nav-item{ display:flex; align-items:center; gap:10px; padding:9px 18px; text-decoration:none;
-  color:rgba(27,43,65,0.72); font:var(--weight-medium) var(--text-base)/1.4 var(--asubk-font); cursor:pointer; }
+.nav{ flex:1; overflow-y:auto; padding-bottom:8px; }
+/* Отступы и типографика — как у листьев дерева в credit.html («Список кредитов»):
+   у реструктуризации всего два пункта, само дерево с чевронами не нужно, но пункт
+   должен садиться на ту же сетку, иначе два реестра рядом читаются как два продукта. */
+.nav-item{ display:flex; align-items:center; gap:10px; padding:7px 16px 7px 40px; text-decoration:none;
+  color:rgba(27,43,65,0.69); font:var(--weight-regular) var(--text-base)/1.625 var(--asubk-font); cursor:pointer; }
 .nav-item:hover{ background:rgba(24,39,57,0.05); }
 .nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); }
-.nav-item svg{ flex:none; color:var(--text-muted); }
-.sidebar-foot{ padding:12px 16px; color:var(--text-placeholder); font:var(--font-label); border-top:1px solid var(--border-default); }
+.nav-item svg{ flex:none; margin-left:-26px; color:var(--text-muted); }
+.sidebar-foot{ display:flex; align-items:center; justify-content:space-between;
+  padding:12px 16px; color:var(--text-muted); font:var(--weight-regular) 14px/1.2 var(--asubk-font); }
 .main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
 .topbar{ height:var(--header-h); flex:none; background:var(--surface-page);
   border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:14px; padding:0 20px; }
@@ -234,24 +238,82 @@ a{ color:inherit; }
 .btn-sm{ height:32px; padding:0 10px; font-size:var(--text-sm); }
 .btn-tint{ background:var(--asubk-disabled-fill); color:var(--text-link); border:none; font-weight:var(--weight-medium); }
 .btn-tint:hover:not(:disabled){ background:rgba(25,59,103,0.10); }
-.filter-head{ display:flex; align-items:center; gap:12px; padding:14px 20px 4px; flex-wrap:wrap; }
-.filter-head .fl{ display:flex; align-items:center; gap:6px; font:var(--font-label); color:var(--text-muted); }
-.filter-head select{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
-  background:var(--surface-card); font:var(--font-label); padding:0 8px; cursor:pointer; }
+/* ---- строка фильтра реестра заявок ----
+   Один ярус: у заявки три условия выборки (поиск · стадия · исход), и все три задаёт
+   каждая роль на каждом входе в реестр — второго яруса «⚙ Фильтры» из credit.html
+   здесь прятать нечего. Ширины — по содержимому контрола, свободное место уходит
+   в разрыв перед кнопками. */
+.tb-quick{ display:flex; align-items:flex-end; gap:10px; padding:8px 20px 10px; flex-wrap:wrap; }
+.tb-quick .field{ min-width:0; }
+.tb-quick .q-search{ width:320px; }
+.tb-quick .q-stage{ width:210px; }
+.tb-quick .q-outcome{ width:170px; }
+.tb-quick .q-more{ margin-left:auto; }
+.control{ position:relative; display:flex; align-items:center; }
+.control .caret{ position:absolute; right:9px; pointer-events:none; color:var(--text-muted); font-size:11px; }
+.control select{ padding-right:26px; appearance:none; }
 .tb-actions{ display:flex; align-items:center; gap:10px; padding:10px 20px 12px; }
 .tb-actions .spacer{ flex:1; }
+
+/* ---- грид реестра ----
+   Визуальная система взята из «Списка кредитов» (credit.html:1170-1244), который сам
+   снят с живого vaadin-grid на fkftest: тёмная полужирная шапка 14px, ↕ у КАЖДОЙ
+   колонки всегда на виду, зебра, ховер поверх зебры. Два реестра стоят рядом в одном
+   конвейере (из кредита открывается заявка, из заявки — кредит) и обязаны читаться
+   как один продукт.
+   Фиксированные ширины и обрезка в «…» живут на модификаторе .reg — у справочника
+   видов (renderDict) колонки со списками документов и параметров, им нужен перенос,
+   а не обрезка. */
 .grid-wrap{ padding:0 20px 20px; overflow:auto; }
-table.grid{ width:100%; border-collapse:collapse; font:var(--font-label);
-  border:1px solid var(--border-default); background:var(--surface-card); }
-table.grid thead th{ text-align:left; height:46px; padding:0 14px; background:var(--surface-card);
-  border-bottom:1px solid var(--asubk-grid-line); font:var(--weight-semibold) var(--text-sm)/1.375 var(--asubk-font);
-  color:var(--text-heading); white-space:nowrap; }
-table.grid tbody td{ height:40px; padding:0 14px; border-bottom:1px solid var(--asubk-grid-line);
-  color:var(--text-body); vertical-align:middle; }
+table.grid{ width:100%; border-collapse:separate; border-spacing:0; font:var(--font-label);
+  background:var(--surface-card); }
+table.grid.reg{ table-layout:fixed; min-width:1244px; }   /* = сумма ширин colgroup */
+table.grid thead th{ position:sticky; top:0; z-index:2; background:var(--asubk-gray-300);
+  text-align:left; padding:7px 12px; vertical-align:middle;
+  border-bottom:1px solid var(--border-strong);
+  font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; user-select:none; }
+table.grid.reg thead th{ cursor:pointer; }
+table.grid thead th .sort{ margin-left:4px; font-size:11px; color:var(--text-placeholder); }
+table.grid thead th.sorted{ color:var(--asubk-blue); }
+table.grid thead th.sorted .sort{ color:var(--asubk-blue); }
+table.grid tbody td{ padding:5px 12px; border-bottom:1px solid var(--border-default);
+  color:var(--text-body); vertical-align:top; }
+table.grid.reg tbody td{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 table.grid tbody tr{ cursor:pointer; }
-table.grid tbody tr:hover{ background:var(--surface-hover); }
+/* зебра — чётные строки очень светлой заливкой, чтобы взгляд не съезжал по строке */
+table.grid tbody tr:nth-child(even) td{ background:var(--asubk-gray-50); }
+/* ховер и состояния строки обязаны перебивать зебру — поэтому ниже по каскаду */
+table.grid tbody tr:hover td{ background:var(--asubk-gray-150); }
 table.grid tbody tr.overdue td{ background:rgba(224,58,58,0.06); }
+table.grid tbody tr.overdue:hover td{ background:rgba(224,58,58,0.12); }
 table.grid tbody tr.terminal td{ color:var(--text-muted); }
+table.grid tbody tr.terminal td:first-child{ font-style:italic; }
+/* главная строка ячейки-имени и вторая, приглушённая (дата, ИНН, куратор) */
+.grid td .cell-name{ font-weight:var(--weight-medium); color:var(--text-heading); }
+.grid td .sub{ display:block; margin-top:1px; color:var(--text-muted);
+  font-weight:var(--weight-regular); font-size:12px; line-height:1.25;
+  font-variant-numeric:tabular-nums; overflow:hidden; text-overflow:ellipsis; }
+.grid td .sub.inline{ display:inline; margin-top:0; margin-left:6px; }
+/* метка у номера заявки — тот же приём, что Т·N/Р·N у номера договора в credit.html */
+.mk{ display:inline-block; margin-left:6px; padding:1px 6px; border-radius:var(--radius-sm);
+  background:var(--asubk-tint-fill); color:var(--text-muted);
+  font:var(--weight-medium) 11px/1.5 var(--asubk-font); vertical-align:middle; }
+.mk-r{ background:var(--status-info-bg); color:var(--asubk-blue); }
+
+/* пейджер под гридом (credit.html:1222-1234) */
+.pager{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; padding:0 20px 20px;
+  font:var(--font-label); color:var(--text-muted); }
+.pager .pages{ display:flex; align-items:center; gap:4px; }
+.pager .pg{ min-width:28px; height:28px; padding:0 6px; display:inline-flex; align-items:center; justify-content:center;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--surface-card);
+  color:var(--text-body); cursor:pointer; user-select:none; }
+.pager .pg:hover{ background:var(--surface-hover); }
+.pager .pg.active{ background:var(--action-primary); border-color:var(--action-primary); color:#fff; cursor:default; }
+.pager .pg.dis{ color:var(--text-disabled); cursor:default; background:var(--asubk-disabled-fill); }
+.pager .psize select{ height:28px; min-width:72px; margin-left:6px; border:1px solid var(--border-default);
+  border-radius:var(--radius-md); background:var(--surface-card); color:var(--text-body); font:var(--font-label); }
+.pager .pinfo{ margin-right:auto; }
 .pill{ display:inline-block; padding:2px 9px; border-radius:var(--radius-pill);
   font:var(--weight-medium) 12px/1.5 var(--asubk-font); white-space:nowrap; }
 .pill.low{ background:var(--status-success-bg); color:var(--asubk-green); }
@@ -813,7 +875,9 @@ function keysOf(anchorKey){                             // корень → вс
 let state = {};
 function seed(){
   state = { role:'Куратор ОД', view:'list', curApp:null, curTab:'req',
-    filterStage:'', filterOutcome:'', kinds:seedKinds(), credits:seedCredits(), procs:JSON.parse(JSON.stringify(COLL_PROCS)), apps:[] };
+    filterQ:'', filterStage:'', filterOutcome:'',
+    listSort:{ key:null, dir:1 }, page:1, pageSize:20,
+    kinds:seedKinds(), credits:seedCredits(), procs:JSON.parse(JSON.stringify(COLL_PROCS)), apps:[] };
   buildDemoApps();
 }
 
@@ -2507,49 +2571,149 @@ function outcomeChip(app){
   if(app.resolution&&app.resolution.fixed) return '<span class="pill info">на оформлении</span>';
   return '<span class="pill neutral">в работе</span>';
 }
+const OUTCOMES = ['в работе','одобрена','изм','отказ','возврат'];
+/* Условия выборки — AND, пустое условие не сужает. Поиск — одно поле на три токена
+   (№ заявки, наименование, ИНН): в реестре ищут именно ими, разносить по трём полям
+   нечего. */
+function passAppFilters(a){
+  const f=state;
+  if(f.filterQ){
+    const hay=(a.id+' '+a.borrower+' '+a.inn).toLowerCase();
+    if(!hay.includes(f.filterQ)) return false;
+  }
+  if(f.filterStage && stageLabel(a)!==f.filterStage && !(f.filterStage==='Закрыта'&&stageOf(a).closed)) return false;
+  if(f.filterOutcome){ const oc=(a.outcome||'в работе'); if(oc!==f.filterOutcome) return false; }
+  return true;
+}
+/* Сортировка по клику на шапку — как в «Списке кредитов» (credit.html:5752). Стадия
+   сортируется по индексу конвейера, а не по алфавиту ярлыка; дедлайн — по остатку дней,
+   иначе «просрочен на 9» встаёт рядом с «осталось 9». */
+const APP_SORTERS = {
+  id:       a=>a.id,
+  borrower: a=>a.borrower,
+  credits:  a=>a.creditIds.map(id=>creditById(id)?.no).join(', '),
+  kinds:    a=>a.kindIds.map(id=>kindById(id)?.name).filter(Boolean).join(', '),
+  stage:    a=>stageOf(a).idx,
+  deadline: a=>{ const dl=deadline(a); return dl ? dl.remaining : Infinity; },
+  outcome:  a=>OUTCOMES.indexOf(a.outcome||'в работе'),
+};
+function sortList(key){
+  if(!APP_SORTERS[key]) return;
+  const s=state.listSort;
+  if(s.key===key) s.dir=-s.dir; else { s.key=key; s.dir=1; }
+  state.page=1; renderRows();
+}
+function syncSortHeader(){
+  document.querySelectorAll('#view-list table.grid thead th').forEach(th=>{
+    const k=th.getAttribute('data-k'); const on = k && k===state.listSort.key;
+    th.classList.toggle('sorted', !!on);
+    const sp=th.querySelector('.sort'); if(sp) sp.textContent = on ? (state.listSort.dir===1?'↑':'↓') : '↕';
+  });
+}
+function appRowHtml(a){
+  const dl=deadline(a); const st=stageOf(a);
+  const kinds=a.kindIds.map(id=>kindById(id)?.name).filter(Boolean).join(', ');
+  const credits=a.creditIds.map(id=>creditById(id)?.no).join(', ');
+  let dlCell='<span class="dl-ok">—</span>';
+  if(dl){ dlCell = dl.overdue ? `<span class="dl-red">просрочен на ${-dl.remaining} дн.</span>` : `<span class="dl-ok">осталось ${dl.remaining} дн.</span>`; }
+  const rep=repeatSignal(a);   // РС-32: сигнал, не гейт — видимость без блокировки
+  /* Признак повторности — компактной меткой у номера, как Т·N/Р·N у номера договора в
+     credit.html: в реестре он именно сигнал, полная формулировка живёт в подсказке. */
+  const mark = rep.on
+    ? `<span class="mk mk-r" title="Третья и последующая реструктуризация кредита — признак, порядок согласования не меняется">повт. ${rep.credits[0].n}-я</span>` : '';
+  return `<tr class="${dl&&dl.overdue?'overdue':''} ${st.closed?'terminal':''}" onclick="RS.openApp('${a.id}')">
+    <td>${a.id}${mark}<span class="sub">${esc(a.regDate)}</span></td>
+    <td title="${esc(a.borrower)}"><span class="cell-name">${esc(a.borrower)}</span><span class="sub">ИНН ${esc(a.inn)}</span></td>
+    <td title="${esc(credits)}">${esc(credits)}</td>
+    <td title="${esc(kinds)}">${esc(kinds)}</td>
+    <td title="${esc(st.label)}">${esc(st.label)}</td>
+    <td>${dlCell}</td>
+    <td>${outcomeChip(a)}</td>
+  </tr>`;
+}
+/* Оболочка реестра рисуется один раз, строки — отдельно (credit.html:5543/5786):
+   иначе ввод в поиск пересобирает разметку фильтра и теряет фокус на первом же символе. */
 function renderList(){
   const v=document.getElementById('view-list');
-  let rows=state.apps.filter(a=>{
-    if(state.filterStage && stageLabel(a)!==state.filterStage && !(state.filterStage==='Закрыта'&&stageOf(a).closed)) return false;
-    if(state.filterOutcome){ const oc=(a.outcome||'в работе'); if(oc!==state.filterOutcome) return false; }
-    return true;
-  });
-  const body = rows.map(a=>{
-    const dl=deadline(a); const st=stageOf(a);
-    const kinds=a.kindIds.map(id=>kindById(id)?.name).filter(Boolean).join(', ');
-    let dlCell='—';
-    if(dl){ dlCell = dl.overdue ? `<span class="dl-red">просрочен на ${-dl.remaining} дн.</span>` : `<span class="dl-ok">осталось ${dl.remaining} дн.</span>`; }
-    const rep=repeatSignal(a);   // РС-32: сигнал, не гейт — видимость без блокировки
-    return `<tr class="${dl&&dl.overdue?'overdue':''} ${st.closed?'terminal':''}" onclick="RS.openApp('${a.id}')">
-      <td>${a.id}${rep.on?`<br><span class="pill mid" title="Третья и последующая реструктуризация кредита — признак, порядок согласования не меняется">повторная ${rep.credits[0].n}-я</span>`:''}</td>
-      <td>${esc(a.borrower)}<br><span class="mode-tag">${a.inn}</span></td>
-      <td>${a.creditIds.map(id=>creditById(id)?.no).join(', ')}</td>
-      <td>${esc(kinds)}</td>
-      <td>${esc(st.label)}</td>
-      <td>${dlCell}</td>
-      <td>${outcomeChip(a)}</td>
-    </tr>`;
-  }).join('') || `<tr><td colspan="7" style="text-align:center;color:var(--text-placeholder);height:80px">Нет заявок по фильтру</td></tr>`;
+  const th=(k,l)=>`<th data-k="${k}" onclick="RS.sortList('${k}')">${l} <span class="sort">↕</span></th>`;
   v.innerHTML = `
-    <div class="filter-head">
-      <div class="fl">Стадия <select onchange="RS.setFilter('stage',this.value)">
-        ${[''].concat(STAGES).map(s=>`<option value="${s}" ${state.filterStage===s?'selected':''}>${s||'все'}</option>`).join('')}
-      </select></div>
-      <div class="fl">Исход <select onchange="RS.setFilter('outcome',this.value)">
-        ${['','в работе','одобрена','изм','отказ','возврат'].map(s=>`<option value="${s}" ${state.filterOutcome===s?'selected':''}>${s||'все'}</option>`).join('')}
-      </select></div>
-    </div>
-    <div class="tb-actions">
+    <div class="tb-quick">
+      <div class="field q-search"><span class="flabel">Поиск</span>
+        <div class="control"><input id="fQ" type="search" value="${esc(state.filterQ)}" placeholder="№ заявки, заёмщик или ИНН" oninput="RS.renderRows()"></div></div>
+      <div class="field q-stage"><span class="flabel">Стадия</span>
+        <div class="control"><select id="fStage" onchange="RS.renderRows()">
+          ${[''].concat(STAGES).map(s=>`<option value="${s}" ${state.filterStage===s?'selected':''}>${s||'— все —'}</option>`).join('')}
+        </select><span class="caret">▾</span></div></div>
+      <div class="field q-outcome"><span class="flabel">Исход</span>
+        <div class="control"><select id="fOutcome" onchange="RS.renderRows()">
+          ${[''].concat(OUTCOMES).map(s=>`<option value="${s}" ${state.filterOutcome===s?'selected':''}>${s||'— все —'}</option>`).join('')}
+        </select><span class="caret">▾</span></div></div>
+      <button class="btn btn-secondary btn-sm q-more" onclick="RS.resetFilters()">Сбросить фильтры</button>
       <button class="btn btn-primary btn-sm" ${canX('createApp')?'':'disabled'} onclick="RS.newApp()">+ Новая заявка</button>
-      <div class="spacer"></div>
-      <span class="mode-tag">«Сегодня» демо: ${TODAY}</span>
     </div>
     <div class="grid-wrap">
-      <table class="grid"><thead><tr>
-        <th>№ заявки</th><th>Заёмщик (ИНН)</th><th>Кредиты</th><th>Виды</th><th>Стадия</th><th>Дедлайн</th><th>Исход</th>
-      </tr></thead><tbody>${body}</tbody></table>
-    </div>`;
+      <!-- Ширины подобраны так, чтобы обрезка была страховкой, а не нормой: «ОсОО «Ак-Жол
+           Агро»» и «просрочен на 222 дн.» помещаются целиком, длинные ярлыки стадий и
+           перечни видов режутся в «…» с полным значением в title (приём credit.html). -->
+      <table class="grid reg"><colgroup>
+        <col style="width:168px"><col style="width:232px"><col style="width:126px"><col style="width:176px">
+        <col style="width:200px"><col style="width:156px"><col style="width:186px">
+      </colgroup><thead><tr>
+        ${th('id','№ заявки')}${th('borrower','Заёмщик')}${th('credits','Кредиты')}${th('kinds','Виды')}
+        ${th('stage','Стадия')}${th('deadline','Дедлайн')}${th('outcome','Исход')}
+      </tr></thead><tbody id="appBody"></tbody></table>
+    </div>
+    <div class="pager" id="appPager"></div>`;
+  renderRows();
 }
+function readAppFilters(){
+  const g=id=>{ const e=document.getElementById(id); return e?e.value:''; };
+  state.filterQ=g('fQ').trim().toLowerCase();
+  state.filterStage=g('fStage'); state.filterOutcome=g('fOutcome');
+}
+function resetFilters(){
+  state.filterQ=''; state.filterStage=''; state.filterOutcome=''; state.page=1;
+  ['fQ','fStage','fOutcome'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
+  renderRows();
+}
+function renderRows(){
+  const body=document.getElementById('appBody'); if(!body) return;
+  readAppFilters();
+  let hits=state.apps.filter(passAppFilters);
+  if(state.listSort.key){
+    const get=APP_SORTERS[state.listSort.key], dir=state.listSort.dir;
+    hits=hits.slice().sort((x,y)=>{
+      const a=get(x), b=get(y);
+      if(typeof a==='number' && typeof b==='number') return (a-b)*dir;
+      return String(a??'').localeCompare(String(b??''),'ru',{numeric:true})*dir;
+    });
+  }
+  syncSortHeader();
+  const pages=Math.max(1, Math.ceil(hits.length/state.pageSize));
+  if(state.page>pages) state.page=pages;
+  const from=(state.page-1)*state.pageSize;
+  const page=hits.slice(from, from+state.pageSize);
+  body.innerHTML = page.length ? page.map(appRowHtml).join('')
+    : `<tr><td colspan="7" style="text-align:center;color:var(--text-placeholder);padding:20px">Нет заявок по фильтру</td></tr>`;
+  renderPager(hits.length, pages, from, page.length);
+}
+function renderPager(total, pages, from, shown){
+  const el=document.getElementById('appPager'); if(!el) return;
+  const p=state.page;
+  const btn=(label,to,dis)=>`<span class="pg${dis?' dis':''}"${dis?'':` onclick="RS.gotoPage(${to})"`}>${label}</span>`;
+  const nums=[];
+  for(let i=1;i<=pages;i++) nums.push(i===p?`<span class="pg active">${i}</span>`:btn(i,i,false));
+  el.innerHTML=`
+    <span class="pinfo">${total?`Показано ${from+1}–${from+shown} из ${total}`:'Нет записей'}</span>
+    <span class="pages">${btn('«',1,p===1)}${btn('‹',p-1,p===1)}${nums.join('')}${btn('›',p+1,p===pages)}${btn('»',pages,p===pages)}</span>
+    <span class="psize">На странице:
+      <select onchange="RS.setPageSize(this.value)">
+        ${[10,20,50,100].map(n=>`<option value="${n}"${n===state.pageSize?' selected':''}>${n}</option>`).join('')}
+      </select></span>
+    <span class="mode-tag">«Сегодня» демо: ${TODAY}</span>`;
+}
+function gotoPage(n){ state.page=Math.max(1,n); renderRows(); }
+function setPageSize(n){ state.pageSize=+n; state.page=1; renderRows(); }
 
 /* ================= РЕНДЕР: КАРТОЧКА ЗАЯВКИ ================= */
 const TABS=[['req','Обращение'],['scope','Охват'],['concl','Заключения'],['calcBase','База и распоряжения'],['calcSched','График и дифф'],['decision','Комитет и решение'],['formal','Оформление'],['hist','История']];
@@ -3633,7 +3797,12 @@ function createApp(){
   state.apps.push(app);
   closeModal(); toast('Заявка '+id+' создана — стадия «Регистрация обращения»','ok'); openApp(id);
 }
-function setFilter(k,v){ if(k==='stage') state.filterStage=v; else state.filterOutcome=v; render(); }
+/* Программная дверь фильтра (для смоука и внешних вызовов): состояние меняется здесь,
+   а разметка фильтра пересобирается из состояния в renderList — DOM и state не расходятся. */
+function setFilter(k,v){
+  if(k==='stage') state.filterStage=v; else if(k==='outcome') state.filterOutcome=v; else state.filterQ=(v||'').toLowerCase();
+  state.page=1; render();
+}
 function go(view){ state.view=view; if(view==='list') state.curApp=null; render(); }
 function setRole(r){ state.role=r; render(); }
 
@@ -3660,6 +3829,7 @@ function toast(msg,kind){ if(typeof document==='undefined') return; const w=docu
 /* публичный слой (UI + headless-check) */
 const RS = {
   go, setRole, setTab, openApp, newApp, naFillCredits, createApp, nextAppId, setFilter, closeModal,
+  renderRows, sortList, resetFilters, gotoPage, setPageSize,   // реестр: фильтр, сортировка, пейджер
   toggleDoc, returnApp, setConclText, visaConcl, openAddConcl, addConcl,
   openAddTranche, addTrancheToScope, removeTrancheFromScope, scopeTranches, activeAppOnTranche,
   fixCommittee, fixLetter, fixConclusion, fixZk, fixResolution, advance,
