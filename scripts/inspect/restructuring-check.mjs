@@ -1007,18 +1007,26 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
   const scoped = ['pScope','pCalcBase','pCalcSched','automationBlock'];
   const gone = !/function pickTrancheBlock/.test(src)
     && scoped.every(name => !/creditIds\[0\]/.test(bodyOf(name)));
-  // fix-round-1: производный транш адресуется по calc.id в ОБЕИХ секциях, не через однорасчётную
-  // дверь resultTranche(app) — иначе у 2+ расчётов производный транш второй+ секции всегда «не
+  // fix-round-1: производный транш адресуется по calc.id, не через однорасчётную дверь
+  // resultTranche(app) — иначе у 2+ расчётов производный транш второй+ секции всегда «не
   // оформлено», а черновая форма ДС (versionParamsBlock) вовсе не рисуется (app.version==null).
-  const derivedAddressed = ['calcBaseSection','calcSchedSection'].every(name => {
-    const b = bodyOf(name);
-    return /resultTrancheOf\(app,\s*calc\.id\)/.test(b) && !/resultTranche\(app\)/.test(b);
-  });
+  // Переборка 12.08.2026: живёт он теперь ТОЛЬКО на «Графике и диффе» — транш и его график одна
+  // вещь, и на столе ввода коробка была нерабочей (до ДС — плейсхолдер, после — правка закрыта).
+  const derivedAddressed = /resultTrancheOf\(app,\s*calc\.id\)/.test(bodyOf('calcSchedSection'))
+    && !/resultTranche\(app\)/.test(bodyOf('calcSchedSection'))
+    && !/resultTrancheOf/.test(bodyOf('calcBaseSection'));
+  // Гейты — условие регистрации ДС, общее для заявки: один разбор под шапкой карточки вместо
+  // трёх копий в хвостах секций расчёта. Расхождение получило свой чип рядом с тремя прежними.
+  const gatesUnderHead = /function gatesPanel\(app,st\)/.test(src)
+    && /gatesPanel\(app,st\)/.test(bodyOf('renderCard'))
+    && !/gateDetails\(app\)/.test(bodyOf('calcBaseSection'))
+    && !/gateDetails\(app\)/.test(bodyOf('calcSchedSection'))
+    && /Расхождение/.test(bodyOf('gateChipsRow'));
   const paramsBlockScoped = /function versionParamsBlock\(app,\s*calc\)/.test(src)
     && /calc\.version/.test(bodyOf('versionParamsBlock'))
     && /versionParamsBlock\(app,\s*calc\)/.test(bodyOf('calcSchedSection'));
-  ok(66, head && total && single && wired && gone && derivedAddressed && paramsBlockScoped,
-    `секция=${head} итог=${total} одинБезЗаголовка=${single} адресВДвери=${wired} староеСнесено=${gone} производныйПоРасчёту=${derivedAddressed} черновикПоРасчёту=${paramsBlockScoped}`);
+  ok(66, head && total && single && wired && gone && derivedAddressed && gatesUnderHead && paramsBlockScoped,
+    `секция=${head} итог=${total} одинБезЗаголовка=${single} адресВДвери=${wired} староеСнесено=${gone} производныйНаГрафике=${derivedAddressed} гейтыПодШапкой=${gatesUnderHead} черновикПоРасчёту=${paramsBlockScoped}`);
 })();
 
 /* 67. RS-1020 — единственная многокредитная заявка сида, и до сих пор расчёта не имела вовсе.
@@ -1053,52 +1061,63 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
    (defaultBase(app,…)), которая при 2+ расчётах молчит — секция ещё не тронутого куратором
    транша рисовала «Долг по траншу пуст» и печатала «база 0» при живом долге. Третий транш,
    добавленный в охват, — ровно тот случай: base у его расчёта пустая.
-   RS-1001 проверяет вторую половину: однорасчётная заявка с зарегистрированным ДС обязана
-   показывать коробку разделения и живой график производного транша (сид адресует ДС расчётом —
-   dsRef + agreements, как mkChainApp). Обе половины падали на коде до fix-round-1. */
+   Переборка 12.08.2026 сменила раскладку, но не вопрос: секций-стопки больше нет, на экране ОДИН
+   расчёт, выбранный полосой, — и сторож теперь щёлкает полосу, проверяя, что подытог «База
+   переноса» следует за выбором, а не залипает на первом расчёте. Складывается через расчёты
+   ровно одно место — свёрнутый «Итог по заявке».
+   RS-1001 проверяет вторую половину: у однорасчётной заявки с зарегистрированным ДС коробка
+   разделения и живой график производного транша живут на «Графике и диффе», а на столе ввода
+   их нет вовсе (сид адресует ДС расчётом — dsRef + agreements, как mkChainApp). */
 (() => { fresh();
   const a = app('RS-1020');
   const { t } = secondTranche(a);
   RS.addTrancheToScope(a.id, t.id);                     // третий расчёт: base не материализована
-  const html = RS.pCalcBase(a);
-  const secs = html.split('<div class="section-h calc-h">').slice(1);
+  const plain = s => String(s).replace(/<[^>]+>/g, ' ');
   const digits = s => Number(String(s).replace(/[^\d-]/g, '')) * (/-/.test(String(s)) ? -1 : 1);
-  const grab = (s, label) => digits((s.match(new RegExp(label + ' ([^·<]+)')) || [, '0'])[1]);
+  const grab = (s, label) => digits((plain(s).match(new RegExp(label + ' ([^·<]+)')) || [, '0'])[1]);
   // модель базы расчёта — та же, что у экрана: снимок, если он есть, иначе умолчание ОТ РАСЧЁТА
   const fullBase = c => (c.base && c.base.length ? c.base : RS.AppSide.defaultBase(c, RS.TODAY));
   const modelBase = c => fullBase(c).filter(x => x.included);
+  const modelSum = c => Math.round(modelBase(c).reduce((s, x) => s + x.amount, 0));
 
-  const perSection = secs.length === a.calcs.length && a.calcs.length === 3;
-  // у каждой секции с живыми строками долга — таблица со строками, а не пустое состояние
-  // (пустое состояние законно только там, где долга по траншу нет вовсе)
-  const rendered = a.calcs.every((c, i) => {
-    const body = secs[i] || '';
+  // полоса выбора: по кнопке на расчёт, активна ровно одна
+  const html0 = RS.pCalcBase(a);
+  const pickerOk = a.calcs.length === 3
+    && (html0.match(/<button class="cpick/g) || []).length === a.calcs.length
+    && (html0.match(/class="cpick active"/g) || []).length === 1;
+
+  // на экране ОДИН расчёт, и его подытог «База переноса» — база ИМЕННО ЭТОГО расчёта: щёлкаем
+  // каждый и сверяем с моделью. Залипание на первом (прежняя болезнь дверей к базе) падает здесь.
+  const perCalc = a.calcs.every(c => {
+    RS.setCalc(c.id);
+    const h = RS.pCalcBase(a);
+    const foot = (h.match(/<tfoot>[\s\S]*?<\/tfoot>/) || [''])[0];
     const rows = fullBase(c).length;
-    const empty = body.includes('Долг по траншу пуст');
-    return rows ? (!empty && (body.match(/<tr class=/g) || []).length >= rows) : empty;
+    const drawn = (h.match(/<tr class=/g) || []).length;
+    return grab(foot, 'База переноса') === modelSum(c)
+      && (rows ? (!h.includes('Долг по траншу пуст') && drawn >= rows) : h.includes('Долг по траншу пуст'));
   });
-  // напечатанная в шапке база каждой секции равна базе ЭТОГО расчёта, а не первого и не нулю
-  const headsMatch = a.calcs.every((c, i) =>
-    grab(secs[i] || '', 'база') === Math.round(modelBase(c).reduce((s, x) => s + x.amount, 0)));
-  const bar = (html.match(/<div class="totals-bar">[\s\S]*?<\/div>/) || [''])[0];
-  const barBase = grab(bar, 'база');
-  const wholeBase = Math.round(a.calcs.reduce((s, c) =>
-    s + modelBase(c).reduce((p, x) => p + x.amount, 0), 0));
-  // Σ полосы-итога — та же величина, что сумма секций (расхождение допускается только на
-  // округлении каждой шапки до целых сомов, не больше сома на секцию)
-  const headsSum = a.calcs.reduce((s, c, i) => s + grab(secs[i] || '', 'база'), 0);
-  const barAddsUp = barBase === wholeBase && Math.abs(headsSum - barBase) <= a.calcs.length;
+  // единственное место, где суммы складываются через расчёты, — свёрнутый «Итог по заявке»
+  const rb = (RS.pCalcBase(a).match(/<details class="rb-app">[\s\S]*?<\/details>/) || [''])[0];
+  const lines = plain(rb).match(/база переноса ([\d\s]+)/g) || [];
+  const wholeBase = a.calcs.reduce((s, c) => s + modelSum(c), 0);
+  const rollupAddsUp = lines.length === a.calcs.length
+    && Math.abs(lines.reduce((s, x) => s + digits(x), 0) - wholeBase) <= a.calcs.length;
 
   fresh();
   const a1 = app('RS-1001');
   const b1 = RS.pCalcBase(a1), s1 = RS.pCalcSched(a1);
-  const splitShown = (b1.match(/class="split-box/g) || []).length === 2
-                  && !b1.includes('Производный транш появится после регистрации');
+  // производный транш уехал на «График и дифф» целиком — на столе ввода коробки нет
+  const splitMoved = !b1.includes('class="split-box')
+    && (s1.match(/class="split-box/g) || []).length === 2
+    && !s1.includes('Производный транш появится после регистрации');
   const schedRows = ((s1.match(/<tbody>([\s\S]*?)<\/tbody>/) || [, ''])[1].match(/<tr/g) || []).length;
   const schedShown = schedRows === 6;
+  // разбор гейтов не печатается ни на одной из двух вкладок расчёта — он под шапкой карточки
+  const gatesOffTabs = !b1.includes('gate-d') && !s1.includes('gate-d');
 
-  ok(68, perSection && rendered && headsMatch && barAddsUp && splitShown && schedShown,
-    `секций=${secs.length} базаНеПуста=${rendered} шапкиПоСвоему=${headsMatch} Σсходится=${barAddsUp} (${barBase}/${wholeBase}/${headsSum}) RS-1001: коробка=${splitShown} график=${schedRows} строк`);
+  ok(68, pickerOk && perCalc && rollupAddsUp && splitMoved && schedShown && gatesOffTabs,
+    `полоса=${pickerOk} подытогПоВыбору=${perCalc} итогСходится=${rollupAddsUp} (${wholeBase}) RS-1001: коробкаНаГрафике=${splitMoved} график=${schedRows} строк гейтыВнеВкладок=${gatesOffTabs}`);
 })();
 
 /* ---- отчёт ---- */

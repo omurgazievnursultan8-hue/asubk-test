@@ -146,9 +146,9 @@
       PASS  #63  ступень2=2 блокировкаНаВсе=true послеКомитета=true
       PASS  #64  второе=true первоеЦело=true соглашений=2 покрытие={"done":["C-CR-59003-T1","C-CR-60540-T2"],"excluded":[],"pending":[],"ok":true} производныеПоРасчётам=true
       PASS  #65  былаЗакрыта=true приМолчании=true безОснованияОтказ=true послеСнятия=true
-      PASS  #66  секция=true итог=true одинБезЗаголовка=true адресВДвери=true староеСнесено=true производныйПоРасчёту=true черновикПоРасчёту=true
+      PASS  #66  секция=true итог=true одинБезЗаголовка=true адресВДвери=true староеСнесено=true производныйНаГрафике=true гейтыПодШапкой=true черновикПоРасчёту=true
       PASS  #67  расчётов=2 кредитыРазные=true базыРазные=1245759.68/398076.09 итогСходится=true (1643835.77=1643835.77) статьяДважды=true (тело 9600000/3900000)
-      PASS  #68  секций=3 базаНеПуста=true шапкиПоСвоему=true Σсходится=true (1643836/1643836/1643836) RS-1001: коробка=true график=6 строк
+      PASS  #68  полоса=true подытогПоВыбору=true итогСходится=true (1643836) RS-1001: коробкаНаГрафике=true график=6 строк гейтыВнеВкладок=true
 -->
 <style>
 :root{
@@ -487,6 +487,43 @@ table.cgrid tbody tr:last-child td{ border-bottom:none; }
 .split-arrow{ display:flex; align-items:center; justify-content:center; padding:0 14px; color:var(--text-placeholder); font-size:20px; }
 @media(max-width:760px){ .split-arrow{ transform:rotate(90deg); padding:8px 0; } }
 .nosplit-banner{ max-width:920px; }
+/* Полоса выбора расчёта: на многокредитной заявке экран показывает ОДИН расчёт, а не стопку
+   секций, и адрес правки виден кнопкой, а не только в аргументах сеттеров. */
+.calc-picker{ display:flex; gap:8px; flex-wrap:wrap; margin:0 0 14px; }
+.cpick{ display:flex; flex-direction:column; gap:3px; align-items:flex-start; cursor:pointer; text-align:left;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--surface-card);
+  padding:9px 14px; font:var(--font-label); color:var(--text-body); }
+.cpick:hover{ border-color:var(--border-strong); }
+.cpick.active{ border-color:var(--asubk-blue); background:var(--asubk-blue-tint); }
+.cpick .cp-t{ font:var(--weight-semibold) 14px/1.2 var(--asubk-font); color:var(--text-heading); }
+.cpick .cp-n{ font-size:11px; color:var(--text-muted); font-variant-numeric:tabular-nums; }
+/* Строка статьи: название со срочностью, под ним — «начисляется» (свойство справочника ушло из
+   отдельной колонки туда, где его читают) и дельта под числом факта. */
+table.cgrid .a-t{ font:var(--weight-medium) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading); }
+table.cgrid .a-s{ font:11px/1.3 var(--asubk-font); color:var(--text-placeholder); margin-top:2px; }
+table.cgrid .a-s.up{ color:var(--asubk-amber); }
+table.cgrid .dash{ color:var(--text-placeholder); cursor:help; }
+table.cgrid.cbase tbody td{ vertical-align:top; }
+table.cgrid.cbase tfoot th{ text-align:left; padding:10px 12px; background:var(--surface-panel);
+  border-top:1px solid var(--border-default); font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font);
+  color:var(--text-heading); }
+table.cgrid.cbase tfoot th.numcell{ text-align:right; }
+/* Липкая полоса результата — следствие правки стоит рядом с причиной, а не под таблицей за
+   краем экрана. Держится над футером карточки, а не под ним. */
+.result-bar{ position:sticky; bottom:64px; z-index:5; display:flex; flex-wrap:wrap; align-items:center; gap:6px 22px;
+  background:var(--surface-panel); border:1px solid var(--border-strong); border-radius:var(--radius-md);
+  padding:10px 16px; margin:0 0 8px; }
+.result-bar .rb-t{ font:var(--weight-semibold) var(--text-sm)/1.2 var(--asubk-font); color:var(--text-heading); }
+.result-bar .rb-i{ display:flex; flex-direction:column; }
+.result-bar .rb-l{ font-size:11px; color:var(--text-muted); }
+.result-bar .rb-v{ font:var(--weight-semibold) 15px/1.2 var(--asubk-font); color:var(--text-heading); font-variant-numeric:tabular-nums; }
+.result-bar .rb-i.main .rb-v{ color:var(--asubk-blue); font-size:17px; }
+.result-bar details.rb-app{ margin-left:auto; font:var(--font-label); }
+.result-bar details.rb-app summary{ cursor:pointer; color:var(--text-link); }
+.result-bar details.rb-app .mirror{ margin:8px 0 0; min-width:320px; background:var(--surface-card); }
+/* Разбор гейтов — под шапкой карточки, один раз на заявку (прежде три копии в хвостах вкладок). */
+.gates-panel{ border:1px solid var(--border-default); border-radius:var(--radius-md);
+  background:var(--surface-card); padding:14px 16px; margin-bottom:12px; }
 table.cgrid tbody tr.art-blocked td{ color:var(--text-placeholder); background:var(--surface-panel); }
 table.cgrid tbody tr.art-removed td{ color:var(--text-placeholder); }
 /* Дверь распоряжения (РС-38) — продолжение строки под ней, а не модалка: вид распоряжения уже
@@ -897,6 +934,7 @@ function keysOf(anchorKey){                             // корень → вс
 let state = {};
 function seed(){
   state = { role:'Куратор ОД', view:'list', curApp:null, curTab:'req',
+    curCalc:null, gatesOpen:false,
     filterQ:'', filterStage:'', filterOutcome:'',
     listSort:{ key:null, dir:1 }, page:1, pageSize:20,
     kinds:seedKinds(), credits:seedCredits(), procs:JSON.parse(JSON.stringify(COLL_PROCS)), apps:[] };
@@ -2739,14 +2777,24 @@ function setPageSize(n){ state.pageSize=+n; state.page=1; renderRows(); }
 
 /* ================= РЕНДЕР: КАРТОЧКА ЗАЯВКИ ================= */
 const TABS=[['req','Пакет документов'],['scope','Охват'],['concl','Заключения'],['calcBase','База и распоряжения'],['calcSched','График и дифф'],['decision','Комитет и решение'],['formal','Оформление'],['hist','История']];
-function openApp(id){ state.curApp=id; state.view='card'; state.curTab='req'; render(); }
+function openApp(id){ state.curApp=id; state.view='card'; state.curTab='req'; state.curCalc=null; state.gatesOpen=false; render(); }
 function setTab(t){ state.curTab=t; render(); }
+/* Выбранный расчёт — состояние экрана, не заявки: правка идёт по одному расчёту за раз, и его
+   адрес виден полосой выбора, а не только в аргументах сеттеров. Чужой/устаревший id молча
+   съезжает на первый расчёт — заявку могли переоткрыть, а список расчётов пересобрать. */
+function curCalcOf(app){
+  const list=(app && app.calcs) || [];
+  if(!list.length) return null;
+  return list.find(c=>c.id===state.curCalc) || list[0];
+}
+function setCalc(id){ state.curCalc=id; render(); }
+function toggleGates(){ state.gatesOpen=!state.gatesOpen; render(); }
 
 function renderCard(){
   const v=document.getElementById('view-card'); const app=appById(state.curApp); if(!app){ state.view='list'; return render(); }
   const st=stageOf(app);
   const tabbar = TABS.map(([k,l])=>`<button class="dtab ${state.curTab===k?'active':''}" onclick="RS.setTab('${k}')">${l}</button>`).join('');
-  v.innerHTML = phead(app,st) + `<div class="detail-tabbar">${tabbar}</div>` +
+  v.innerHTML = phead(app,st) + gatesPanel(app,st) + `<div class="detail-tabbar">${tabbar}</div>` +
     `<div class="panel-wrap">${panel(app)}</div>` + footer(app);
 }
 /* РС-32: сигнал повторности — пилюля и ничего больше. Норма (п. 82) маршрут установила, своей
@@ -2834,16 +2882,20 @@ function tilePacket(app,st){
    клик ведёт туда, где лежит разбор. */
 function tileGates(app,st){
   if(st.idx<1 || !(app.creditIds||[]).length) return '';
-  const lga=limitsGateApp(app), coa=consentGateApp(app), cga=coverGateApp(app);
+  const lga=limitsGateApp(app), coa=consentGateApp(app), cga=coverGateApp(app), dga=appDriftGate(app);
   const why=[];
   if(!lga.pending && !lga.ok) why.push('Пределы — '+(lga.messages[0]||'предел нарушен'));
   if(!coa.ok) why.push('Согласия — не согласовано: '+coa.pending.join(', '));
   if(!cga.ok) why.push('Покрытие — недостаточно по '+cga.rows.filter(r=>!r.g.ok).map(r=>r.cr?r.cr.no:'—').join(', ')+' (мягкий гейт)');
+  // Расхождение — четвёртый упор с 12.08.2026; подпись перечисляет ровно те гейты, что стоят
+  // чипами рядом, иначе она пересчитывает их за куратора и ошибается («все три» при четырёх).
+  if(dga.applicable && !dga.ok) why.push('Расхождение — ступень 2: '+DRIFT_TIERS[1].need);
   const basis = why.length ? why.map(esc).join('<br>')
     : (lga.pending ? 'Согласия и Покрытие пройдены; Пределы неприменимы до расчёта'
-                   : 'все три гейта пройдены');
+                   : dga.applicable ? 'все гейты пройдены'
+                                    : 'гейты пройдены; расхождение не считается — срез не зафиксирован');
   return `<div class="dim wide"><div class="dl">Гейты оформления</div>`
-    + `<div class="dv" onclick="RS.setTab('calcBase')" title="Разбор — во вкладке «База и распоряжения»">${gateChipsRow(app)}</div>`
+    + `<div class="dv" onclick="RS.toggleGates()" title="${state.gatesOpen?'Свернуть разбор':'Развернуть разбор — под шапкой, один раз на заявку'}">${gateChipsRow(app)}</div>`
     + `<div class="src">${basis}</div></div>`;
 }
 function tileTransfer(app){
@@ -3044,11 +3096,14 @@ function pConcl(app){
    (issues/02 задал состав, интерактивная правка куратором — тикет 07, issues/05 просит только
    раскладку). */
 function gateChipsRow(app){
-  const cga=coverGateApp(app), lga=limitsGateApp(app), coa=consentGateApp(app);
+  const cga=coverGateApp(app), lga=limitsGateApp(app), coa=consentGateApp(app), dga=appDriftGate(app);
   return `${lga.pending?'<span class="pill neutral">Пределы — расчёт не выбран</span>':`<span class="gatechip ${lga.ok?'ok':'no'}">Пределы ${lga.ok?'OK':'блок'}</span>`}
     <span class="gatechip ${coa.ok?'ok':'no'}">Согласия ${coa.ok?'OK':'блок'}</span>
-    <span class="gatechip ${cga.ok?'ok':'no'}">Покрытие ${cga.ok?'OK':'блок (мягкий)'}</span>`;
+    <span class="gatechip ${cga.ok?'ok':'no'}">Покрытие ${cga.ok?'OK':'блок (мягкий)'}</span>
+    ${dga.applicable?`<span class="gatechip ${dga.ok?'ok':'no'}">Расхождение ${dga.ok?'OK':'блок'}</span>`
+                    :'<span class="pill neutral">Расхождение — срез не зафиксирован</span>'}`;
 }
+function appDriftGate(app){ return driftGate(app, app.ds?app.ds.date:TODAY); }
 function coverBody(app){
   const cga=coverGateApp(app);
   const rows=cga.rows.map(({cr,g})=>`<div class="mrow"><span>${cr.no}</span><span>${g.cover}% из требуемых ${g.required}% (${esc(g.source||'Залог')}, снимок ${esc(g.snapshotDate||'—')}${g.stale?` <span class="pill high" title="Снимок старше ${COVER_SNAPSHOT_STALE_DAYS} к.д. — данные модуля залога могли устареть">устарел</span>`:''})${g.coverOk?'':' — недостаточно'}</span></div>`).join('') || '<div class="mrow"><span>—</span><span>кредиты не выбраны</span></div>';
@@ -3083,12 +3138,39 @@ function consentBody(app){
   return `<div class="mirror">${rows.join('')||'<div class="mrow"><span>—</span><span>обеспечителей нет</span></div>'}</div>`
     + (coa.ok?'':`<div class="warnline">Не согласовано: ${coa.pending.map(esc).join(', ')} — жёсткий гейт, без waiver.</div>`);
 }
+/* Расхождение — такой же упор перед регистрацией ДС, как пределы и согласия, и носитель у него
+   тот же чип. Но причина его лежит не в чужом модуле, а прямо в колонках «срез · факт»: строки
+   разбора адресуются расчётом, а ступень 2 меряется суммой по заявке (спека §5). */
+function driftBody(app){
+  const dga=appDriftGate(app);
+  if(!dga.applicable) return '<div class="op-empty">Срез не зафиксирован — расхождению не с чем считаться</div>';
+  const rows=dga.rows.map(r=>{
+    const t=(DRIFT_TIERS.filter(x=>r.level>=x.level).pop()||null);
+    return `<div class="mrow"><span>${esc(r.creditNo)}</span><span>срез ${fmt(r.cutoffSum)} → факт ${fmt(r.factSum)} · ${
+      (r.delta>=0?'+':'')+fmt(r.delta)} (${(r.pct*100).toFixed(1)} %)${t?' — ступень '+t.level:' — ступени не задеты'}</span></div>`;
+  }).join('');
+  return `<div class="mirror">${rows}</div>`
+    + `<div class="mrow"><span><b>По заявке</b></span><span>${(dga.delta>=0?'+':'')+fmt(dga.delta)} (${(dga.pct*100).toFixed(1)} %) — ступень ${dga.level||'не задета'}</span></div>`
+    + (dga.ok ? (dga.recommitted?'<div class="okline">Комитет пересобрался после даты среза — ступень 2 снята его новой позицией.</div>':'')
+              : `<div class="warnline">${DRIFT_TIERS[1].need} — жёсткий гейт, снимается новой позицией комитета.</div>`);
+}
 function gateDetails(app){
-  const cga=coverGateApp(app), lga=limitsGateApp(app), coa=consentGateApp(app);
+  const cga=coverGateApp(app), lga=limitsGateApp(app), coa=consentGateApp(app), dga=appDriftGate(app);
   return `
   <details class="gate-d"><summary>${lga.pending?'<span class="pill neutral">Пределы</span>':`<span class="gatechip ${lga.ok?'ok':'no'}">Пределы</span>`} жёсткий, норма-справочник</summary><div class="gate-body">${limitsBody(app)}</div></details>
   <details class="gate-d"><summary><span class="gatechip ${coa.ok?'ok':'no'}">Согласия</span> жёсткий, ответ Обеспечения</summary><div class="gate-body">${consentBody(app)}</div></details>
-  <details class="gate-d"><summary><span class="gatechip ${cga.ok?'ok':'no'}">Покрытие</span> мягкий, ответ Залога</summary><div class="gate-body">${coverBody(app)}</div></details>`;
+  <details class="gate-d"><summary><span class="gatechip ${cga.ok?'ok':'no'}">Покрытие</span> мягкий, ответ Залога</summary><div class="gate-body">${coverBody(app)}</div></details>
+  <details class="gate-d"><summary>${dga.applicable?`<span class="gatechip ${dga.ok?'ok':'no'}">Расхождение</span>`:'<span class="pill neutral">Расхождение</span>'} жёсткий, ступень 2 — возврат на комитет</summary><div class="gate-body">${driftBody(app)}</div></details>`;
+}
+/* Разбор гейтов живёт под шапкой карточки, а не в хвосте вкладок расчёта: гейт — условие
+   регистрации ДС, общее для всей заявки, и раньше он печатался тремя копиями (в каждой секции
+   расчёта «Базы» и ещё раз на «Графике»). Раскрывается кликом по чипам, один раз на заявку. */
+function gatesPanel(app,st){
+  if(st.idx<1 || !(app.creditIds||[]).length || !state.gatesOpen) return '';
+  return `<div class="panel-wrap"><div class="gates-panel">
+    <div class="section-h" style="margin-top:0">Гейты оформления — разбор
+      <span class="cnt" onclick="RS.toggleGates()" style="cursor:pointer">свернуть ▴</span></div>
+    ${gateDetails(app)}</div></div>`;
 }
 /* производный транш по итогам ДС — единственный признак связи назад к door: ops[0].basis. */
 function resultTrancheOf(app, calcId){
@@ -3143,7 +3225,7 @@ function dispDoorRow(app, row, d, canEdit, planLen, calc){
     else if(per.to>planLen || per.from<1 || per.from>per.to)
       mismatch = `<span class="pill high">сроки ${per.from}–${per.to}, а в графике ${planLen} ${planLen===1?'позиция':'позиций'} — регистрация ДС закрыта (ИР-15)</span>`;
   }
-  return `<tr class="disp-door"><td colspan="6"><div class="dd-wrap">
+  return `<tr class="disp-door"><td colspan="5"><div class="dd-wrap">
       <div class="dd-grp"><span class="flabel">Сумма</span>
         <input type="number" min="0" step="0.01" value="${d.amount!=null?d.amount:''}" ${dis} onchange="RS.setDispAmount(${A},this.value,'${calc.id}')">
         <span class="mode-tag">≤ ${fmt(row.amount)}</span></div>
@@ -3164,56 +3246,105 @@ function calcSectionHead(app, calc){
              : calc.excluded ? `<span class="pill mid" title="${esc(calc.excluded.reason)}">снят с оформления</span>`
              : `<span class="pill neutral">не оформлено</span>`;
   return `<div class="section-h calc-h">${esc(t?t.no:'—')} · ${esc(cr?cr.no:'—')}
-    · база ${fmt(rowsTotal(calcBaseOf(app, calc).filter(x=>x.included)))}
+    · база переноса ${fmt(rowsTotal(calcBaseOf(app, calc).filter(x=>x.included)))}
     · перенос ${fmt(r?r.transferSum:0)} ${fate}</div>`;
 }
 function pCalcBase(app){
   if(!(app.calcs||[]).length)
     return `<div class="detail-panel active"><div class="op-empty">Охват пуст — добавьте транш, и расчёт заведётся автоматически.
       <button class="btn" onclick="RS.openAddTranche('${app.id}')">Добавить транш в охват</button></div></div>`;
-  // Обёртка панели — здесь и только здесь: у calcBaseSection своей нет, иначе на двух расчётах
-  // получились бы два соседних .detail-panel вместо одной панели с двумя секциями внутри.
-  return `<div class="detail-panel active">` + calcTotalsBar(app)
-       + app.calcs.map(calc => calcSectionHead(app, calc) + calcBaseSection(app, calc)).join('')
+  /* Стол ввода: на экране ОДИН расчёт целиком, выбранный полосой сверху. Прежде секции шли
+     стопкой, и длина вкладки росла с числом расчётов, а адрес суммы читался только в шапке
+     секции. Правка адресуется тройкой (транш, статья, срочность) плюс calcId — полоса делает
+     этот адрес видимым на экране, а не только в аргументах сеттеров. */
+  const calc = curCalcOf(app);
+  return `<div class="detail-panel active">` + calcPicker(app, calc) + driftLine(app, calc)
+       + calcBaseSection(app, calc) + calcResultBar(app, calc)
        + `</div>`;
 }
-function calcTotalsBar(app){
-  const rows=(app.calcs||[]).map(c=>({c, r:run(app, app.ds?app.ds.date:TODAY, c.id)}));
-  if(rows.length<2) return '';
-  const base=round2(rows.reduce((s,x)=>s+rowsTotal(calcBaseOf(app, x.c).filter(b=>b.included)),0));
-  const transfer=round2(rows.reduce((s,x)=>s+(x.r?x.r.transferSum:0),0));
-  const d=appDrift(app, TODAY);
-  // Единственное место экрана, где суммы складываются через кредиты, — и потому подписано «итог».
-  return `<div class="totals-bar"><b>Итог по заявке</b> · расчётов ${rows.length}
-    · база ${fmt(base)} · перенос ${fmt(transfer)}
-    · расхождение ${fmt(d.delta)} (${(d.pct*100).toFixed(1)} %)${d.level>=2
-      ? ' <span class="pill high">ступень 2 — возврат на комитет (РС-26)</span>' : ''}</div>`;
+/* Полоса выбора расчёта. При одном расчёте не рисуется: выбирать не из чего, а подписывать
+   единственный — объяснять куратору то, чего он не спрашивал. */
+function calcPicker(app, calc){
+  const list=app.calcs||[]; if(list.length<2 || !calc) return '';
+  return `<div class="calc-picker">${list.map(c=>{
+    const t=calcTrancheOf(c), cr=creditById(c.creditId);
+    const fate = c.dsRef ? `<span class="pill ok">${esc(c.dsRef)}</span>`
+               : c.excluded ? `<span class="pill mid" title="${esc(c.excluded.reason)}">снят с оформления</span>`
+               : `<span class="pill neutral">не оформлено</span>`;
+    return `<button class="cpick${c.id===calc.id?' active':''}" onclick="RS.setCalc('${c.id}')">
+      <span class="cp-t">${esc(t?t.no:'—')} · ${esc(cr?cr.no:'—')}</span>
+      <span class="cp-n">база переноса ${fmt(rowsTotal(calcBaseOf(app, c).filter(x=>x.included)))}</span>
+      <span class="cp-f">${fate}</span></button>`;
+  }).join('')}</div>`;
 }
+/* Расхождение — жёсткий упор, и статус его виден чипом в шапке на всех вкладках. Но причина
+   лежит здесь, в колонках «Срез» и «Факт», и гнать за ней куратора в раскрытие чипа значит
+   прятать число, которое стоит у него перед глазами. Ступень 1 меряется расчётом, ступень 2 —
+   суммой по заявке и блокирует регистрацию всех расчётов (спека §5, РС-26). */
+function driftLine(app, calc){
+  const dga=appDriftGate(app);
+  if(!dga.applicable || !calc) return '';
+  const pct = d => (d.pct*100).toFixed(1).replace(/\.0$/,'')+' %';
+  const sgn = d => (d.delta>=0?'+':'')+fmt(d.delta);
+  if(!dga.ok)
+    return `<div class="flagline">Расхождение по заявке ${sgn(dga)} (${pct(dga)} от среза) — ступень 2: ${DRIFT_TIERS[1].need} (РС-26).</div>`;
+  if(dga.level>=2 && dga.recommitted)
+    return `<div class="okline">Расхождение по заявке ${sgn(dga)} (${pct(dga)}) взято ступенью 2, но комитет пересобрался после даты среза — регистрация открыта.</div>`;
+  // У расчёта с зарегистрированным ДС ступень 1 — история, а не работа: виза требовалась ДО
+  // регистрации, и требовать её задним числом значит выдавать прошлое за незакрытое дело.
+  // Числа при этом остаются в колонках «Срез» и «Факт» — там их и читают.
+  if(calc.dsRef) return '';
+  const d=calcDrift(app, calc.id);
+  if(d && d.level>=1)
+    return `<div class="warnline">Расхождение по расчёту ${sgn(d)} (${pct(d)} от среза) — ступень 1: ${DRIFT_TIERS[0].need}. Регистрацию не блокирует.</div>`;
+  return '';
+}
+/* Липкая полоса результата: следствие правки стоит рядом с причиной. Куратор снимает галку в
+   верхней части десятистрочной таблицы, и число меняется у него перед глазами, а не под
+   таблицей, за краем экрана. Прощение и капитализации показываются только ненулевыми — нули
+   рассказывают про механику, которой в этой заявке не было.
+   «Итог по заявке» — единственное место экрана, где суммы складываются через расчёты, и оно
+   свёрнуто и подписано: такой суммы нет ни в одном акте, у каждого расчёта своё ДС. */
+function calcResultBar(app, calc){
+  if(!calc) return '';
+  const r=run(app, app.ds?app.ds.date:TODAY, calc.id);
+  const parts=[['Прощено',r.forgiven],['Кап. процентов',r.capitalizedInterest],['Кап. пени',r.capitalizedPenalty]]
+    .filter(([,v])=>round2(v)>0)
+    .concat([['Тело переноса',r.principalPart],['Перенос, всего',r.transferSum]]);
+  const cells=parts.map(([l,v],i)=>`<span class="rb-i${i===parts.length-1?' main':''}"><span class="rb-l">${l}</span><span class="rb-v">${fmt(v)}</span></span>`).join('');
+  let whole='';
+  if((app.calcs||[]).length>1){
+    const rows=app.calcs.map(c=>({c, r:run(app, app.ds?app.ds.date:TODAY, c.id)}));
+    const sum=round2(rows.reduce((s,x)=>s+(x.r?x.r.transferSum:0),0));
+    whole=`<details class="rb-app"><summary>Итог по заявке · перенос ${fmt(sum)}</summary><div class="mirror">${
+      rows.map(({c,r:rr})=>{
+        const t=calcTrancheOf(c), cr=creditById(c.creditId);
+        return `<div class="mrow"><span>${esc(t?t.no:'—')} · ${esc(cr?cr.no:'—')}</span><span>база переноса ${
+          fmt(rowsTotal(calcBaseOf(app, c).filter(x=>x.included)))} · перенос ${fmt(rr?rr.transferSum:0)}${
+          c.dsRef?' · '+esc(c.dsRef):(c.excluded?' · снят с оформления':' · не оформлено')}</span></div>`;
+      }).join('')}</div></details>`;
+  }
+  return `<div class="result-bar"><span class="rb-t">Результат распоряжений</span>${cells}${whole}</div>`;
+}
+/* Таблица расчёта. Срез и факт — ОДНА И ТА ЖЕ разбивка по статьям на двух датах (debtAt на дату
+   письма и на дату вступления ДС), и потому они стоят соседними колонками одной строки, а не
+   двумя плитками-итогами над таблицей: вопрос «чем набежало между письмом и ДС» имеет ответ в
+   данных, и колонки дают его без единого клика.
+   Наборы строк на двух датах НЕ совпадают: тело мигрирует из текущего в просроченное, статья
+   может родиться после среза либо погаситься к дате факта. Такие клетки несут прочерк с
+   подписью, а не ноль — ноль читается как «было и погасили».
+   Слово «база» здесь занято ровно одним смыслом — сумма ВКЛЮЧЁННЫХ строк («база переноса»,
+   подытог справа). Весь список строк зовётся долгом расчёта, свойство статьи — «начисляется». */
 function calcBaseSection(app, calc){
+  if(!calc) return '';
   const src=calcTrancheOf(calc);
-  /* Три числа панели сводятся между собой ТОЛЬКО внутри одного расчёта: срез, факт и дельта —
-     про один транш. Раньше срез читался ролл-апом заявки, дельта — дверью cutoffDrift (которая
-     на двух расчётах молчит и печатала прочерк), а факт падал на предпросмотр своего транша:
-     три числа из трёх разных адресов не сходились ни в одну арифметику (ревью 12.08.2026).
-     «Есть ли зарегистрированное ДС» спрашивается у самого расчёта — calc.fact/calc.dsRef, тем же
-     ключом, что resultTrancheOf (:2716) и dsCoverage (:3396). */
-  const drift=calcDrift(app, calc.id);
   const cut=calcCutoffOf(app, calc);
-  const srezRow = cut
-    ? (cut.rows ? {v:fmt(rowsTotal(cut.rows)), s:'зафиксирован письмом '+cut.date} : {v:'—', s:'дата '+cut.date+' — сумма зафиксируется отправкой письма'})
-    : {v:'—', s:'письмо в уполномоченный орган ещё не направлено'};
-  const factRow = calc.fact
-    ? {v:fmt(rowsTotal(calc.fact.rows)), s:'зафиксирован ДС '+(calc.dsRef||(app.ds?app.ds.no:'—'))+' от '+calc.fact.date}
-    : {v:fmt(rowsTotal(debtAt(src,TODAY))), s:'предпросмотр на '+TODAY+' — ДС ещё не зарегистрировано'};
-  const driftPct = drift ? (drift.pct*100).toFixed(1).replace(/\.0$/,'')+'% от среза' : '';
-  const deltaRow = drift
-    ? {v:(drift.delta>=0?'+':'')+fmt(drift.delta),
-       s: driftPct+' — '+(drift.level===0 ? 'обе ступени не задеты'
-            : drift.level===1 ? 'ступень 1: '+DRIFT_TIERS[0].need+', регистрацию не блокирует'
-            : 'ступень 2: '+DRIFT_TIERS[1].need),
-       flag:drift.material}
-    : {v:'—', s:'дельта считается после фиксации и среза, и факта', flag:false};
-
+  const cutRows = cut && cut.rows ? cut.rows : null;
+  const cutAt = (article,urgency) => {
+    if(!cutRows) return null;
+    const x=cutRows.find(y=>y.article===article && y.urgency===urgency);
+    return x ? x.amount : null;
+  };
   const base = calcBaseOf(app, calc);
   const dispositions = calc.dispositions && calc.dispositions.length ? calc.dispositions : defaultDispositions(base);
   const ordered=[...base].sort((a,b)=>{
@@ -3222,18 +3353,52 @@ function calcBaseSection(app, calc){
   });
   const canEdit = canX('editBase');
   const allowed = allowedDispositions(app);
+  const factDate = calc.fact ? calc.fact.date : TODAY;
+  /* Колонка несёт долг расчёта НА дату вступления — тот, из которого ДС и собиралось, ДО переноса.
+     Модуль знает и второе число под тем же словом: calc.fact/driftGate снимают остаток транша-
+     источника ПОСЛЕ применения ДС (дефект макета КЛ-2, статус разработки; смоук #13 несёт это
+     число как есть: 4 082 000 = 4 200 000 − перенос 118 000), и печатает его «Оформление»
+     строкой «Долг на дату вступления». Пока КЛ-2 жив, соседние вкладки показывают под словом
+     «факт» разные суммы, и колонка говорит вслух, какая из двух здесь: молчание в этом месте
+     читается как расхождение в цифрах, а починка КЛ-2 — работа модели, не раскладки. */
+  const factNote = calc.dsRef ? 'долг до переноса; остаток транша после переноса печатает «Оформление»'
+                 : calc.fact  ? 'зафиксирован регистрацией ДС'
+                              : 'предпросмотр на сегодня — ДС не зарегистрировано';
   // Длина черновика графика — та самая шкала, в позициях которой куратор задаёт сроки (РС-38).
   // Пока расчёт не проведён, шкалы нет, и об этом говорится вслух, а не подставляется срок/12.
   const planLen = (calc.version && calc.version.plan && calc.version.plan.rows) ? calc.version.plan.rows.length : null;
+  const dash = why => `<span class="dash" title="${esc(why)}">—</span>`;
+
   const rows = ordered.map(r=>{
     const d=dispositionFor(dispositions,r.article,r.urgency);
     const urg=(URG.find(u=>u.key===r.urgency)||{}).name||r.urgency;
     const dead = r.blockedBy==='disputed';
     const A=`'${app.id}','${r.article}','${r.urgency}'`;
     const AC=`${A},'${calc.id}'`;   // адрес строки — тройка (транш, статья, срочность) плюс расчёт
+    /* Начисление на статью (РС-27/ADR-0106) — свойство самой статьи из справочника, одинаковое
+       во всех заявках: ему место подписью у названия, а не отдельным столбцом на десять строк.
+       У терминальных статей оно пусто, и это сказано вслух: молча пустое читается как недоделка. */
+    const am=accrualModeOf(r.article, app.ds?app.ds.date:TODAY);
+    const accrOn=[]; if(am.mode.interest) accrOn.push('проценты'); if(am.mode.penalty) accrOn.push('пеня');
+    const accr = accrOn.length ? 'начисляется: '+accrOn.join(' + ')
+                               : 'терминальная — только гасится, начислений не порождает';
+    const cs = cutAt(r.article, r.urgency);
+    const srezCell = !cutRows ? dash('срез не зафиксирован')
+                   : cs==null ? dash('на дату среза этой строки не было')
+                   : fmt(cs);
+    let deltaSub='';
+    if(cutRows){
+      if(cs==null) deltaSub=`<div class="a-s">появилась после среза</div>`;
+      else {
+        const dv=round2(r.amount-cs);
+        deltaSub = Math.abs(dv)<0.005
+          ? `<div class="a-s">без изменений с ${cut.date}</div>`
+          : `<div class="a-s${dv>0?' up':''}">${(dv>0?'+':'')+fmt(dv)} с ${cut.date}</div>`;
+      }
+    }
     const chk = dead
-      ? `<label class="chk dead"><input type="checkbox" disabled ${r.included?'checked':''}><span class="lbl">спорная — решает комиссия</span></label>`
-      : `<label class="chk"><input type="checkbox" ${r.included?'checked':''} ${canEdit?'':'disabled'} onchange="RS.toggleBaseRow(${AC})"><span class="lbl">${r.included?'включена':'снята куратором'}</span></label>`;
+      ? `<label class="chk dead"><input type="checkbox" disabled ${r.included?'checked':''}><span class="lbl">решает комиссия</span></label>`
+      : `<label class="chk" title="${r.included?'Включена в базу переноса':'Снята куратором — в перенос не идёт'}"><input type="checkbox" ${r.included?'checked':''} ${canEdit?'':'disabled'} onchange="RS.toggleBaseRow(${AC})"></label>`;
     const disp = r.included
       ? `<select ${canEdit?'':'disabled'} onchange="RS.setDisposition(${A},this.value,'${calc.id}')">
           ${['none','cap','forgive','spread'].map(k=>{
@@ -3241,36 +3406,74 @@ function calcBaseSection(app, calc){
             return `<option value="${k}" ${d&&d.kind===k?'selected':''} ${ok?'':'disabled'}>${DISP_LABEL[k]}${ok?'':' — вид не разрешает'}</option>`;
           }).join('')}
         </select>`
-      : '<span class="mode-tag">без распоряжения (строка снята)</span>';
+      : '<span class="mode-tag">строка снята — распоряжаться нечем</span>';
     const rowCls = dead ? 'art-blocked' : (!r.included ? 'art-removed' : '');
-    /* База начисления статьи (РС-27/ADR-0106). У терминальных статей она пуста, и это сказано
-       вслух: пустое начисление, показанное молча, читается как недоработка движка. */
-    const am=accrualModeOf(r.article, app.ds?app.ds.date:TODAY);
-    const accrOn=[]; if(am.mode.interest) accrOn.push('проценты'); if(am.mode.penalty) accrOn.push('пеня');
-    const accCell = accrOn.length
-      ? `<span class="mode-tag">${accrOn.join(' + ')}</span>`
-      : `<span class="mode-tag" title="Терминальная статья: только гасится, начислений не порождает (РС-27)">не начисляется — терминальная</span>`;
-    return `<tr class="${rowCls}"><td>${esc(ARTICLE_LABEL[r.article]||r.article)}</td><td>${urg}</td><td class="numcell">${fmt(r.amount)}</td><td>${accCell}</td><td>${chk}</td><td>${disp}</td></tr>`
+    return `<tr class="${rowCls}">
+        <td><div class="a-t">${esc(ARTICLE_LABEL[r.article]||r.article)} · ${urg}</div><div class="a-s">${accr}</div></td>
+        <td class="numcell">${srezCell}</td>
+        <td class="numcell">${fmt(r.amount)}${deltaSub}</td>
+        <td>${chk}</td><td>${disp}</td></tr>`
          + dispDoorRow(app, r, d, canEdit, planLen, calc);
-  }).join('') || '<tr><td colspan="6" class="op-empty">Долг по траншу пуст на выбранную дату</td></tr>';
+  }).join('') || '<tr><td colspan="5" class="op-empty">Долг по траншу пуст на выбранную дату</td></tr>';
 
-  /* Итог прогона (ADR-0109): перенос — одно число, но происхождение его частей видно здесь.
-     Капитализированные проценты влились в тело, капитализированная пеня легла в колонку
-     накопленной пени — восьмой статьи нет, и различить их можно только этими счётчиками и
-     записью в акте. Пока счётчик никто не показывает, «выделение отдельной суммой» п. 89
-     пп. 4 остаётся переменной, а не суммой в документе. */
-  const runSum = run(app, app.ds?app.ds.date:TODAY, calc.id);
-  const sumTiles = [
-    ['Прощено', runSum.forgiven, 'п. 89 пп. 5 — к уплате не назначается'],
-    ['Капитализировано процентов', runSum.capitalizedInterest, 'влились в колонку основного долга — ставка на них идёт'],
-    ['Капитализировано пени', runSum.capitalizedPenalty, 'легла в колонку накопленной пени — безставочная (ADR-0106, ИР-11)'],
-    ['Тело переноса', runSum.principalPart, 'база начисления графика'],
-    ['Перенос, всего', runSum.transferSum, 'сумма акта ДС — одно число, не расщепляется']
-  ].filter(([,v],i)=>i>=3 || round2(v)>0);
-  const runBlock = `<div class="two-num-grid">${sumTiles.map(([l,v,d])=>
-    `<div class="numtile"><div class="nt-l">${l}</div><div class="nt-v">${fmt(v)}</div><div class="nt-d">${d}</div></div>`).join('')}</div>`;
+  // Строки, которые были на срезе и не дожили до факта: показываются, иначе колонка «Срез» тихо
+  // не сойдётся со своим подытогом, а разница спишется на округление.
+  const goneRows = (cutRows||[]).filter(x=>!base.some(b=>b.article===x.article && b.urgency===x.urgency)).map(x=>{
+    const urg=(URG.find(u=>u.key===x.urgency)||{}).name||x.urgency;
+    return `<tr class="art-removed">
+      <td><div class="a-t">${esc(ARTICLE_LABEL[x.article]||x.article)} · ${urg}</div><div class="a-s">была на срезе</div></td>
+      <td class="numcell">${fmt(x.amount)}</td>
+      <td class="numcell">${dash('к дате факта строки не осталось')}<div class="a-s">погашена к ${factDate}</div></td>
+      <td colspan="2"><span class="mode-tag">в долг расчёта не входит</span></td></tr>`;
+  }).join('');
+
+  const inc = base.filter(r=>r.included);
+  const sumCut = cutRows ? round2(cutRows.reduce((s,x)=>s+x.amount,0)) : null;
+  const foot = `<tfoot><tr>
+      <th>Итого — включено ${inc.length} из ${base.length}</th>
+      <th class="numcell">${sumCut==null?'—':fmt(sumCut)}</th>
+      <th class="numcell">${fmt(rowsTotal(base))}</th>
+      <th colspan="2">База переноса <b>${fmt(rowsTotal(inc))}</b></th></tr></tfoot>`;
+
+  const cutNote = cutRows ? `Срез зафиксирован письмом ${cut.date} — величина согласовательная; в учёт идёт факт на дату вступления ДС.`
+    : cut ? `Дата среза ${cut.date} назначена, суммы зафиксируются отправкой письма — колонка «Срез» пуста не по ошибке.`
+          : `Письмо в уполномоченный орган не направлено — срез не зафиксирован, сравнивать факт не с чем.`;
+  const head = (app.calcs||[]).length>1
+    ? ` <span class="cnt">${esc(src?src.no:'—')} · ${esc((creditById(calc.creditId)||{}).no||'—')}</span>` : '';
+
+  return `
+    <div class="section-h" style="margin-top:0">Долг расчёта — статьи и распоряжения${head}</div>
+    <div class="section-note">${cutNote} Расходов взыскания и сборов в базе нет вовсе: формы п. 89 их не касаются (ADR-0110).${
+      canEdit?'':' <span class="mode-tag">роль «'+esc(state.role)+'» правку не делает — только Куратор ОД.</span>'}</div>
+    <div class="cgrid-wrap"><table class="cgrid cbase"><thead><tr>
+      <th>Статья · срочность</th>
+      <th class="numcell">Срез${cut?' — '+cut.date:''}</th>
+      <th class="numcell">Факт — ${factDate}<div class="a-s">${factNote}</div></th>
+      <th>Включена</th><th>Распоряжение</th></tr></thead>
+      <tbody>${rows}${goneRows}</tbody>${foot}</table></div>
+  `;
+}
+function pCalcSched(app){
+  if(!(app.calcs||[]).length)
+    return `<div class="detail-panel active"><div class="op-empty">Охват пуст — добавьте транш, и расчёт заведётся автоматически.
+      <button class="btn" onclick="RS.openAddTranche('${app.id}')">Добавить транш в охват</button></div></div>`;
+  // Обёртка панели — как в pCalcBase: одна на экран, секции внутри без своей.
+  return `<div class="detail-panel active">`
+       + app.calcs.map(calc => calcSectionHead(app, calc) + calcSchedSection(app, calc)).join('')
+       + `</div>`;
+}
+function calcSchedSection(app, calc){
+  const src=calcTrancheOf(calc);
+  if(!src) return `
+    <div class="section-h" style="margin-top:0">Транш-источник расчёта</div>
+    <div class="op-empty">Транш-источник не выбран — график недоступен. Выбор — на вкладке «База и распоряжения».</div>
+  `;
 
   const derived=resultTrancheOf(app, calc.id);
+
+  /* Производный транш переехал сюда со «Базы и распоряжений»: транш и его график — одна вещь,
+     и стояли они на двух вкладках, печатая один и тот же адрес дважды. На столе ввода блок был
+     нерабочим — до регистрации ДС пустой плейсхолдер, после неё правка базы уже закрыта. */
   let splitBlock;
   if(derived){
     const srcConds=conditionsAt(src,TODAY);
@@ -3292,50 +3495,6 @@ function calcBaseSection(app, calc){
   } else {
     splitBlock = `<div class="op-empty">Производный транш появится после регистрации доп. соглашения (вкладка «Оформление»).</div>`;
   }
-
-  return `
-
-    <div class="section-h" style="margin-top:0">Два датированных числа</div>
-    <div class="section-note">В учёт идёт только факт на дату вступления ДС; срез — согласовательная величина.</div>
-    <div class="two-num-grid">
-      <div class="numtile"><div class="nt-l">Срез — ${cut?cut.date:'—'}</div><div class="nt-v">${srezRow.v}</div><div class="nt-d">${srezRow.s}</div></div>
-      <div class="numtile delta ${deltaRow.flag?'flag':''}"><div class="nt-l">Дельта ожидания</div><div class="nt-v">${deltaRow.v}</div><div class="nt-d">${deltaRow.s}</div></div>
-      <div class="numtile"><div class="nt-l">Факт — ${calc.fact?calc.fact.date:TODAY}</div><div class="nt-v">${factRow.v}</div><div class="nt-d">${factRow.s}</div></div>
-    </div>
-
-    <div class="section-h">База — статьи долга, распоряжения</div>
-    <div class="section-note">Расходов взыскания и сборов в базе нет вовсе: формы п. 89 их не касаются (ADR-0110).${canEdit?'':' <span class="mode-tag">роль «'+esc(state.role)+'» правку не делает — только Куратор ОД.</span>'}</div>
-    <div class="cgrid-wrap"><table class="cgrid"><thead><tr><th>Статья</th><th>Срочность</th><th class="numcell">Сумма</th><th>База начисления</th><th>Включена</th><th>Распоряжение</th></tr></thead><tbody>${rows}</tbody></table></div>
-
-    <div class="section-h">Итог прогона</div>
-    ${runBlock}
-
-    <div class="section-h">Производный транш</div>
-    ${splitBlock}
-
-    <div class="section-h">Гейты — подробно</div>
-    ${gateDetails(app)}
-  `;
-}
-
-function pCalcSched(app){
-  if(!(app.calcs||[]).length)
-    return `<div class="detail-panel active"><div class="op-empty">Охват пуст — добавьте транш, и расчёт заведётся автоматически.
-      <button class="btn" onclick="RS.openAddTranche('${app.id}')">Добавить транш в охват</button></div></div>`;
-  // Обёртка панели — как в pCalcBase: одна на экран, секции внутри без своей.
-  return `<div class="detail-panel active">`
-       + app.calcs.map(calc => calcSectionHead(app, calc) + calcSchedSection(app, calc)).join('')
-       + `</div>`;
-}
-function calcSchedSection(app, calc){
-  const src=calcTrancheOf(calc);
-  if(!src) return `
-    <div class="section-h" style="margin-top:0">Транш-источник расчёта</div>
-    <div class="op-empty">Транш-источник не выбран — график недоступен. Выбор — на вкладке «База и распоряжения».</div>
-    ${gateDetails(app)}
-  `;
-
-  const derived=resultTrancheOf(app, calc.id);
 
   let draftBlock;
   if(derived){
@@ -3395,11 +3554,11 @@ function calcSchedSection(app, calc){
     ${paramsBlock}
     ${activeBlock}
 
+    <div class="section-h">Производный транш</div>
+    ${splitBlock}
+
     <div class="section-h">Частичная реструктуризация</div>
     ${rs15}
-
-    <div class="section-h">Гейты — подробно</div>
-    ${gateDetails(app)}
   `;
 }
 
@@ -4004,7 +4163,7 @@ function toast(msg,kind){ if(typeof document==='undefined') return; const w=docu
 
 /* публичный слой (UI + headless-check) */
 const RS = {
-  go, setRole, setTab, openApp, newApp, naFillCredits, createApp, nextAppId, setFilter, closeModal,
+  go, setRole, setTab, setCalc, toggleGates, curCalcOf, openApp, newApp, naFillCredits, createApp, nextAppId, setFilter, closeModal,
   renderRows, sortList, resetFilters, gotoPage, setPageSize,   // реестр: фильтр, сортировка, пейджер
   toggleDoc, returnApp, setConclText, visaConcl, openAddConcl, addConcl,
   openAddTranche, addTrancheToScope, removeTrancheFromScope, scopeTranches, activeAppOnTranche,
