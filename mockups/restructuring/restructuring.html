@@ -323,7 +323,10 @@ table.grid tbody tr.terminal td:first-child{ font-style:italic; }
 .pill.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
 .dl-red{ color:var(--asubk-red); font-weight:600; }
 .dl-ok{ color:var(--text-muted); }
-.detail-tabbar{ display:flex; overflow-x:auto; padding:6px 20px 0; border-bottom:1px solid var(--border-default);
+/* Восемь вкладок на 1280 не помещались в строку и уезжали в горизонтальную прокрутку — «Оформление»
+   и «История» пропадали за краем, а навигация, которую не видно, навигацией не работает. Перенос
+   на вторую строку вместо прокрутки: вкладок фиксированное число, а не растущий список. */
+.detail-tabbar{ display:flex; flex-wrap:wrap; padding:6px 20px 0; border-bottom:1px solid var(--border-default);
   background:var(--surface-page); flex:none; }
 .dtab{ flex:none; border:none; background:transparent; padding:11px 14px;
   font:var(--weight-medium) var(--text-base)/1 var(--asubk-font); color:var(--text-muted);
@@ -504,6 +507,24 @@ table.cgrid .a-s{ font:11px/1.3 var(--asubk-font); color:var(--text-placeholder)
 table.cgrid .a-s.up{ color:var(--asubk-amber); }
 table.cgrid .dash{ color:var(--text-placeholder); cursor:help; }
 table.cgrid.cbase tbody td{ vertical-align:top; }
+/* Таблица долга расчёта обязана помещаться в карточку целиком: горизонтальная прокрутка тут
+   прячет не хвост данных, а колонку «Распоряжение» — то самое поле ввода, ради которого на
+   вкладку и заходят. Общий для .cgrid nowrap распирал таблицу до 1145 px (подписи «начисляется»,
+   «предпросмотр на сегодня — ДС не зарегистрировано», «строка снята — распоряжаться нечем»), и
+   на 1440 и уже экран её резал (замер 12.08.2026). Правило: ЧИСЛА не переносятся никогда,
+   подписи переносятся всегда — читаемость числа стоит колонки, читаемость подписи нет. */
+   Раскладка фиксированная: при автоматической колонка «Распоряжение» держала ширину по самому
+   длинному пункту списка (249 px) и на узком экране съедала колонку статьи до трёх строк —
+   ширины заданы долями, а список ужимается многоточием. */
+table.cgrid.cbase{ table-layout:fixed; }
+table.cgrid.cbase col.c-art{ width:30%; } table.cgrid.cbase col.c-cut{ width:15%; }
+table.cgrid.cbase col.c-fact{ width:19%; } table.cgrid.cbase col.c-inc{ width:10%; }
+table.cgrid.cbase col.c-disp{ width:26%; }
+table.cgrid.cbase thead th, table.cgrid.cbase tfoot th{ white-space:normal; }
+table.cgrid.cbase .a-t, table.cgrid.cbase .a-s, table.cgrid.cbase .mode-tag,
+table.cgrid.cbase .chk .lbl{ white-space:normal; }
+table.cgrid.cbase td.numcell, table.cgrid.cbase th.numcell{ white-space:nowrap; }
+table.cgrid.cbase select{ width:100%; max-width:100%; }
 table.cgrid.cbase tfoot th{ text-align:left; padding:10px 12px; background:var(--surface-panel);
   border-top:1px solid var(--border-default); font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font);
   color:var(--text-heading); }
@@ -3445,7 +3466,9 @@ function calcBaseSection(app, calc){
     <div class="section-h" style="margin-top:0">Долг расчёта — статьи и распоряжения${head}</div>
     <div class="section-note">${cutNote} Расходов взыскания и сборов в базе нет вовсе: формы п. 89 их не касаются (ADR-0110).${
       canEdit?'':' <span class="mode-tag">роль «'+esc(state.role)+'» правку не делает — только Куратор ОД.</span>'}</div>
-    <div class="cgrid-wrap"><table class="cgrid cbase"><thead><tr>
+    <div class="cgrid-wrap"><table class="cgrid cbase">
+      <colgroup><col class="c-art"><col class="c-cut"><col class="c-fact"><col class="c-inc"><col class="c-disp"></colgroup>
+      <thead><tr>
       <th>Статья · срочность</th>
       <th class="numcell">Срез${cut?' — '+cut.date:''}</th>
       <th class="numcell">Факт — ${factDate}<div class="a-s">${factNote}</div></th>
