@@ -857,7 +857,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-12 · 131/131 PASS
+ SMOKE (node) 2026-08-12 · 132/132 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -939,6 +939,7 @@
    #111 ✓
    #112 ✓
    #129 ✓
+   #130 ✓
    #100 ✓
    #54 ✓
    #55 ✓
@@ -7308,9 +7309,25 @@ if (typeof document !== 'undefined') {
        Одногодичный график заголовка не получает: он дословно повторил бы плитки шапки
        (Σ ОД, Σ проценты, итого), а повтор той же цифры в двух местах читается как две
        разные величины; сворачивать там тоже нечего — год ровно один. */
+    /* СТАТЬИ СТРОКИ (ADR-0109). Колонки — по составу: та, по которой ничего не
+       распределено, не рисуется. Обычный кредит статей не имеет вовсе и обязан
+       выглядеть ровно как до волны — иначе вкладка обрастает пустыми колонками
+       у всех кредитов ради двух реструктурированных (идиома «Курс/≈KGS»). */
+    const artCols = scheduleArticleCols(posSrc.map(p => p.r));
+    /* ИР-2′ показывается там, где применяется, — под ДС-версией. У обычного графика
+       переноса не было, и сверять нечего: плашка не рисуется вовсе (Г-25 проверяет
+       ту же арифметику ДО записи, здесь она видна глазом после). */
+    const ir2 = srcTranches.flatMap(t => ((t.schedules)||[]).filter(s => (s.by||{}).kind==='ДС').map(s => {
+      const inTr = (t.transfers||[]).find(x => x.dir==='in' && (x.basis||{}).ds === s.by.ref);
+      const moved = inTr ? (inTr.amount||0) : 0;
+      const sum = round2((s.rows||[]).reduce((a,r) => a + (r.principal||0) + rowArticlesSum(r), 0));
+      return { t, ver:s.ver, ds:s.by.ref||'ДС', moved, sum, ok:Math.abs(sum-moved) < 0.005 };
+    }));
+    const artCell = (r,a) => `<td style="text-align:right">${(r.articles&&r.articles[a.key])?money(r.articles[a.key]):'—'}</td>`;
     const byYear = new Map();
-    posSrc.forEach(p => { const g = byYear.get(p.y) || { count:0, principal:0, interest:0, total:0, st:{} };
+    posSrc.forEach(p => { const g = byYear.get(p.y) || { count:0, principal:0, interest:0, total:0, art:{}, st:{} };
       g.count++; g.principal += p.r.principal||0; g.interest += p.r.interest||0; g.total += p.r.total||0;
+      artCols.forEach(a => { g.art[a.key] = (g.art[a.key]||0) + ((p.r.articles&&p.r.articles[a.key])||0); });
       g.st[p.s] = (g.st[p.s]||0) + 1; byYear.set(p.y, g); });
     const years = [...byYear.keys()];
     const multiYear = years.length > 1;
@@ -7339,6 +7356,7 @@ if (typeof document !== 'undefined') {
       return `<tr class="gyear${open?' open':''}" onclick="CR.toggleGrafikYear(${y})" title="${open?'Свернуть':'Развернуть'} ${y} год">
         <td colspan="${sel?2:3}"><span class="gcar">${open?'▾':'▸'}</span><span class="gy">${y}</span>${y===curYear?'<span class="pill neutral">текущий</span>':''}<span class="gcnt">${plur(g.count,'платёж','платежа','платежей')}</span></td>
         <td style="text-align:right"><b>${money(round2(g.principal))}</b></td>
+        ${artCols.map(a=>`<td style="text-align:right"><b>${g.art[a.key]?money(round2(g.art[a.key])):'—'}</b></td>`).join('')}
         <td style="text-align:right"><b>${money(round2(g.interest))}</b></td>
         <td style="text-align:right" class="text-muted">—</td>
         <td style="text-align:right"><b>${money(round2(g.total))}</b></td>
@@ -7347,7 +7365,12 @@ if (typeof document !== 'undefined') {
     posSrc.forEach(({r,t,s,y})=>{
       if (multiYear && y !== lastYear) { lastYear = y; posRows.push(yearRow(y)); }
       if (multiYear && !openYears.has(y)) return;                       // год свёрнут — стоит одной итоговой строкой
-      posRows.push(`<tr><td>№${r.no}</td>${sel?'':`<td>№${t.no}</td>`}<td>${esc(r.date)}</td><td style="text-align:right">${money(r.principal)}</td><td style="text-align:right">${money(r.interest)}</td>${(r.accrued!=null&&Math.abs(r.accrued-r.interest)>0.005)?`<td style="text-align:right" title="начислено за период, но не включено в платёж (льгота по %)">${money(r.accrued)}</td>`:'<td style="text-align:right">—</td>'}<td style="text-align:right">${money(r.total)}</td><td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td></tr>`);});
+      /* В слитом виде строки производного транша ПОМЕЧЕНЫ своим ДС: без пометки
+         позиции исходного и производного стоят вперемешку по дате, и непонятно,
+         какая из них правится каким соглашением (дефект 12). */
+      const trCell = sel ? '' : `<td>№${t.no}${trancheOrigin(t)==='разделение'
+        ?`<br><span style="color:var(--text-muted);font-size:11px" title="${jsAttr('Позиции этого транша заданы приложением к '+(originDs(t)||'ДС'))}">${esc(originDs(t)||'ДС')}</span>`:''}</td>`;
+      posRows.push(`<tr><td>№${r.no}</td>${trCell}<td>${esc(r.date)}</td><td style="text-align:right">${money(r.principal)}</td>${artCols.map(a=>artCell(r,a)).join('')}<td style="text-align:right">${money(r.interest)}</td>${(r.accrued!=null&&Math.abs(r.accrued-r.interest)>0.005)?`<td style="text-align:right" title="начислено за период, но не включено в платёж (льгота по %)">${money(r.accrued)}</td>`:'<td style="text-align:right">—</td>'}<td style="text-align:right">${money(r.total)}</td><td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td></tr>`);});
     return `
       ${(()=>{ const rf=retroPendingFlags(c); if(!rf.length) return '';   // Д-5: тот же признак, что на «Условиях»
         return `<div class="warn-inline">${svgInfo()}<div>
@@ -7374,7 +7397,17 @@ if (typeof document !== 'undefined') {
         <span class="spacer"></span>
         <button class="btn btn-secondary btn-sm" onclick="CR.setGrafikYears([${allOpen?'':years.join(',')}])">${allOpen?'Свернуть все годы':'Развернуть все годы'}</button>
       </div>`:''}
-      ${cgrid([{h:'№'}].concat(sel?[]:[{h:'Транш'}]).concat([{h:'Дата'},{h:'Осн. сумма',r:1},{h:'Проценты в платеже',r:1},{h:'Начислено %',r:1},{h:'Платёж',r:1},{h:'Статус'}]), posRows, {empty:'Позиций нет — сформируйте график'})}`;
+      ${cgrid([{h:'№'}].concat(sel?[]:[{h:'Транш'}])
+        .concat([{h:'Дата'},{h:'Осн. сумма',r:1,t:'основной долг — единственная ставочная колонка: проценты начисляются только на неё (ADR-0109)'}])
+        .concat(artCols.map(a=>({h:a.label,r:1,t:'статья строки: переносится по ДС и погашается, но процентов не несёт (ADR-0109)'})))
+        .concat([{h:'Проценты в платеже',r:1},{h:'Начислено %',r:1},{h:'Платёж',r:1},{h:'Статус'}]), posRows, {empty:'Позиций нет — сформируйте график'})}
+      ${ir2.length?`<div class="info-plate" style="margin-top:12px">${svgInfo()}<div>
+        <b>ИР-2′ — приём строк из приложения к ДС.</b> Σ колонок строки (основной долг + статьи)
+        обязана сойтись с суммой переноса: график не создаёт и не теряет тела.
+        ${ir2.map(x=>`<div style="margin-top:4px">${esc(x.ds)}${sel?'':' · транш №'+x.t.no} (v${x.ver}):
+          Σ колонок <b>${money(x.sum)}</b> ${x.ok?'=':'≠'} перенос <b>${money(x.moved)}</b>
+          ${x.ok?'<span class="pill low">сходится</span>':'<span class="pill high">расхождение '+money(round2(x.sum-x.moved))+'</span>'}</div>`).join('')}
+      </div></div>`:''}`;
   }
 
   /* ---- ВКЛАДКА 5: Прогноз (ADR-0104, ADR-0042, Р-29) ----

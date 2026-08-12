@@ -1007,6 +1007,25 @@ const pd = CR.pd;
      `К-1: движения ${/Движение по траншу/.test(trh1)} · К-7: разделение`
      + ` ${/разделение по ДС/.test(trh7)}, подпись ${/производных на/.test(trh7)}`);
 
+  /* 130. «ГРАФИК» СО СТАТЬЯМИ (КВ-26, ADR-0109). Колонки статей рисуются ПО СОСТАВУ:
+     у К-1 их нет вовсе (иначе вкладка обрастает пустыми колонками у всех кредитов
+     страны ради двух реструктурированных), у производного транша К-7 — есть, и
+     ровно те, по которым что-то распределено. «Осн. сумма» несёт подпись о том, что
+     она единственная ставочная: без неё читатель решит, что процент капает и на пеню.
+     Плашка ИР-2′ показывает арифметику приёма строк — Σ колонок = сумме переноса —
+     и стоит только под ДС-версией: у обычного графика переноса не было. */
+  const grf = (id, scope) => { const c = CR2.db.credits.find(x => x.id === id);
+    CR2.openDetail(id); try { CR2.setCardScope(scope); } catch(e){}
+    const h = CR2.renderTab('График', c); try { CR2.setCardScope('credit'); } catch(e){} return h; };
+  const grf1 = grf('K-1', 'credit'), grf7d = grf('K-7', 2), grf7c = grf('K-7', 'credit');
+  const artH = /Накопл\. проценты|Накопл\. пеня|Прочие/;
+  ok(130, !artH.test(grf1) && !/ИР-2′/.test(grf1)
+          && artH.test(grf7d) && /ADR-0109/.test(grf7d)
+          && /ИР-2′/.test(grf7d) && /ДС-РС-2001/.test(grf7d)
+          && artH.test(grf7c) && /ДС-РС-2002/.test(grf7c),
+     `К-1: статьи ${artH.test(grf1)} · производный: статьи ${artH.test(grf7d)},`
+     + ` ИР-2′ ${/ИР-2′/.test(grf7d)} · по кредиту: статьи ${artH.test(grf7c)}`);
+
   /* 100. ГРУППИРОВКА ПО ГОДАМ на «Графике» (волна 10.08.2026, КВ-19). Строка года стоит
      перед первой позицией своего года, годы идут по возрастанию, итоги (ОД · проценты ·
      к погашению) равны суммам позиций ЭТОГО года и стоят ПОД СВОИМИ колонками — то есть
@@ -1021,10 +1040,16 @@ const pd = CR.pd;
   for (const c of CR2.db.credits){
     const sel = c.tranches.length === 1 ? c.tranches[0] : null;   // cardScope по умолчанию — «по кредиту»
     const rows = (sel ? [sel] : c.tranches).flatMap(t => CR2.trancheScheduleRows(t));
+    /* Статейные колонки (КВ-26) раздвигают строку года: их итоги стоят под своими
+       колонками ровно так же, как ОД и проценты, — иначе год врал бы на сумму
+       перенесённой пени. Сколько их, столько лишних ячеек в строке. */
+    const arts = CR2.scheduleArticleCols(rows);
     const exp = new Map();
     for (const r of rows){ const y = CR2.pd(r.date).getFullYear();
-      const g = exp.get(y) || { n:0, principal:0, interest:0, total:0 };
-      g.n++; g.principal += r.principal||0; g.interest += r.interest||0; g.total += r.total||0; exp.set(y, g); }
+      const g = exp.get(y) || { n:0, principal:0, interest:0, total:0, art:{} };
+      g.n++; g.principal += r.principal||0; g.interest += r.interest||0; g.total += r.total||0;
+      for (const a of arts) g.art[a.key] = (g.art[a.key]||0) + ((r.articles&&r.articles[a.key])||0);
+      exp.set(y, g); }
     const ysAll = [...exp.keys()];
     const cur = CR2.pd(CR2.TODAY).getFullYear();
     const defY = exp.has(cur) ? cur : (ysAll.find(y => y > cur) ?? ysAll[ysAll.length-1]);
@@ -1044,8 +1069,8 @@ const pd = CR.pd;
     if (posN !== exp.get(defY).n) gbad.push(`${c.id}: развёрнут ${defY}: позиций ${posN} vs ${exp.get(defY).n}`);
     for (const h of heads){
       const g = exp.get(h.y);
-      if (h.tds !== 6) gbad.push(`${c.id}/${h.y}: ячеек в строке года ${h.tds}, а не 6 (итоги не под колонками)`);
-      const want = [m2(g.principal), m2(g.interest), m2(g.total)];
+      if (h.tds !== 6 + arts.length) gbad.push(`${c.id}/${h.y}: ячеек в строке года ${h.tds}, а не ${6+arts.length} (итоги не под колонками)`);
+      const want = [m2(g.principal), ...arts.map(a => g.art[a.key] ? m2(g.art[a.key]) : '—'), m2(g.interest), m2(g.total)];
       if (h.sums.join('|') !== want.join('|')) gbad.push(`${c.id}/${h.y}: итоги «${h.sums.join('|')}» vs «${want.join('|')}»`);
     }
   }
