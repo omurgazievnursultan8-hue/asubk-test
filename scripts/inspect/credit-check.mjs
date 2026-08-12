@@ -1860,6 +1860,24 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
      `весь остаток: ${whole.reasons.join(' | ').slice(0,80)}`);
 })();
 
+/* 128. ДЕМО РАЗДЕЛЕНИЯ ПО ДС (КВ-26). К-7 несёт то, чего не несёт ни один другой кредит:
+   два ПРИМЕНЁННЫХ ДС, три транша, закрытый переносом источник и статейные колонки в
+   графике. Сеется он самой дверью, а не выписан руками, — иначе демо разошлось бы с
+   дверью при первой её правке. Г-3 при этом не в минусе: производные сумму договора
+   не расходуют (ADR-0115). */
+(() => { const db=CR.seedDb(); const k7=byId(db,'K-7');
+  const der7 = (k7.tranches||[]).filter(t => CR.trancheOrigin(t) === 'разделение');
+  const d7 = CR.derive(k7, CR.TODAY);
+  const artCols = CR.scheduleArticleCols(CR.trancheScheduleRows(der7[0] || {}));
+  ok(128, k7 && k7.tranches.length === 3 && der7.length === 2
+          && (k7.appliedDs||[]).length === 2 && k7.mirror.restructuring.count === 2
+          && d7.allocatable >= -0.005 && d7.derivedCount === 2
+          && artCols.length >= 2
+          && k7.tranches[0].closed && k7.tranches[0].closed.reason === 'перенос',
+     `траншей ${k7 && k7.tranches.length} производных ${der7.length} ДС ${(k7&&k7.appliedDs||[]).length}`
+     + ` доступно ${d7 && d7.allocatable} статейных колонок ${artCols.length}`);
+})();
+
 const pass = results.filter(r => r.pass).length;
 const stamp = `SMOKE (node) ${new Date().toISOString().slice(0,10)} · ${pass}/${results.length} PASS`;
 results.forEach(r => console.log(`${r.pass ? 'PASS' : 'FAIL'} #${r.n} ${r.note}`));

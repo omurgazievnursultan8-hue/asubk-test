@@ -857,7 +857,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-12 · 129/129 PASS
+ SMOKE (node) 2026-08-12 · 130/130 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -987,6 +987,7 @@
    #125 ✓
    #126 ✓
    #127 ✓
+   #128 ✓
 -->
 <style>
 
@@ -2661,6 +2662,104 @@ function seedDb(){
       borrower:{ subgroup:'4', subgroupLabel:SUBGROUP_LABEL['4'], asOf:'15.05.2026' }
     })
   }));
+
+  /* К-7 · «Ош-Пласт», дог. № 71 — ЕДИНСТВЕННОЕ демо РАЗДЕЛЕНИЯ ТРАНША ПО ДС (КВ-26).
+     Два допсоглашения, применённые САМОЙ ДВЕРЬЮ restructureApplied, а не выписанные
+     руками: сид, разошедшийся с дверью, врал бы ровно там, где на него смотрят.
+       ДС-РС-2001 — ЧАСТИЧНЫЙ перенос: источник живёт, рождается производный Т 2;
+       ДС-РС-2002 — остаток источника ЦЕЛИКОМ в Т 3, Т 1 закрывается переносом (ИР-5).
+     Второе ДС проходит ADR-0092 § 4 именно потому, что Т 2 к тому времени действует на
+     своих условиях: по кредиту после ДС одновременно живут два разных комплекта.
+     Разбивка parts несёт накопленную пеню и распределённое — иначе статейные колонки
+     графика (ADR-0109) в макете некому показать. */
+  {
+    const k7Pledges = [
+      { contractNum:'ЗД-71', date:'20.12.2025', pledgor:'ОсОО «Ош-Пласт»', notary:'Нотариус (реестр залога)',
+        items:[{ name:'Цех по переработке пластика', kind:'Недвижимое имущество',
+                 appraised:700000, pledgeValue:560000, share:1, ban:true }], otherCredits:[] }
+    ];
+    credits.push(mkCredit({
+      id:'K-7', num:'71', date:'22.12.2025',
+      reg:{ num:'71', date:'24.12.2025', scan:'dogovor-71.pdf', comment:'' },
+      origin:{ applicationId:'ЗАЯ-0980', applicationDate:'10.12.2025', commissionId:'КОМ-300', programId:'ПРГ-4', govDecisionId:'ПП-448' },
+      borrower:{ inn:'18052199600321', name:'ОсОО «Ош-Пласт»', type:'ЮЛ', region:'Ошская', district:'Кара-Сууский' },
+      approvedAmount:400000, contractAmount:400000, currency:'KGS',
+      kind:'Инвестиционный', line:'Единовременный', purpose:'Модернизация линии переработки', fundingSource:'Бюджетный кредит',
+      accounts:{ repayAcct:'1280000000000071', repayAcctKind:'Расчётный', payCode:'PC-71' },
+      lifecycle:'Действует',
+      baseConditions: condDefaults({ rate:9, term:36, method:'аннуитет' }),
+      tranches:[
+        mkTranche({ id:'K-7-T1', no:1, subject:{ inn:'18052199600321', name:'ОсОО «Ош-Пласт»' },
+          amount:400000, plannedDate:'12.01.2026',
+          /* Своей версии графика у Т 1 не сеется: он строится движком от даты освоения
+             (Г-8, первая ветка) — ровно тот путь, которым его строит кнопка. */
+          disbursements:[{ date:'12.01.2026', amount:400000, order:'ПП-448', purpose:'Оборудование', doc:'akt-osvo-71.pdf' }]
+        })
+      ],
+      docs:[
+        { kind:'Кредитный договор', name:'Договор № 71', state:'принят', date:'24.12.2025', file:'dogovor-71.pdf', note:'' },
+        { kind:'Решение комиссии', name:'Протокол КОМ-300', state:'принят', date:'18.12.2025', file:'kom-300.pdf', note:'' }
+      ],
+      agreements:[
+        { num:'ДС-РС-2001', date:'10.04.2026', source:'реструктуризация', scan:'ds-rs-2001.pdf' },
+        { num:'ДС-РС-2002', date:'10.06.2026', source:'реструктуризация', scan:'ds-rs-2002.pdf' }
+      ],
+      mirror: emptyMirror({
+        curatorship:[{ unit:'Отдел кредитования', employee:'Джумалиева Г. К.', role:'ведущий', from:'24.12.2025', to:null }],
+        pledges:k7Pledges,
+        coverage: seedCoverageMirror(k7Pledges, null, '20.07.2026'),
+        payments:[ seedPayment(1, '15.03.2026', 1, { principal:40000, interest:3000 }) ],
+        paymentsAsOf:'20.07.2026',
+        /* Приложение к ДС живёт в ЗЕРКАЛЕ (ADR-0096 §3): c.agreements остаётся
+           регистрационной строкой {num,date,source,scan}, а полезная нагрузка — строки,
+           разбивка и новые условия — приходит из реструктуризации и кредитом не правится.
+           count здесь — число модуля реструктуризации; собственный счёт применённых ДС
+           кредит ведёт своим журналом appliedDs (его пишет дверь). */
+        restructuring:{ count:2, active:null, ds:[] },
+        borrower:{ subgroup:'1.1', subgroupLabel:SUBGROUP_LABEL['1.1'], asOf:'20.07.2026' }
+      })
+    }));
+    const k7 = credits[credits.length - 1];
+    /* Приложение к ДС: строки графика приходят ГОТОВЫМИ (ADR-0096 §3) — кредит их
+       валидирует Г-25, а не пересчитывает. Здесь они собираются тем же движком долей,
+       которым их собрала бы реструктуризация: тело равными долями, безставочные —
+       spreadArticles по своим интервалам. */
+    const dsAnnex = (from, n, principalSum, rate, parts) => {
+      const rows = [];
+      const per = round2(principalSum / n);
+      let acc = 0, bal = principalSum;
+      for (let k = 1; k <= n; k++){
+        const p = k === n ? round2(principalSum - acc) : per;
+        acc = round2(acc + p);
+        const interest = round2(bal * (rate / 100 / 12));
+        bal = round2(bal - p);
+        rows.push({ no:k, date:fd(addM(pd(from), k, 15)), principal:p, interest, accrued:interest,
+                    total:round2(p + interest) });
+      }
+      spreadArticles(rows, (parts || []).filter(x => x.key !== 'principal'));
+      return rows;
+    };
+    const ds1 = { num:'ДС-РС-2001', date:'10.04.2026', effectiveFrom:'01.05.2026', sourceTranche:1,
+      parts:[{ key:'principal', amount:170000, from:1, to:4 },
+             { key:'accPenalty', amount:20000, from:1, to:4 },
+             { key:'other',      amount:10000, from:3, to:4 }],
+      conditions:[{ param:'rate', value:5 }, { param:'term', value:24 },
+                  { param:'method', value:'аннуитет' }, { param:'freq', value:'Ежемесячно' }] };
+    ds1.rows = dsAnnex('01.05.2026', 4, 170000, 5, ds1.parts);
+    restructureApplied(k7, ds1);
+    /* Второе ДС забирает у источника ВЕСЬ остаток тела на дату вступления — сумма
+       считается по ИР-3, а не выписывается числом: иначе правка платежей выше разошлась
+       бы с демо молча, и Т 1 остался бы с копейкой (легаси-дефект E2E-13/14). */
+    const restBal = trancheBalanceAt(k7, k7.tranches[0], '01.07.2026');
+    const ds2 = { num:'ДС-РС-2002', date:'10.06.2026', effectiveFrom:'01.07.2026', sourceTranche:1,
+      parts:[{ key:'principal',   amount:round2(restBal - 12000), from:1, to:6 },
+             { key:'accInterest', amount:12000, from:1, to:3 }],
+      conditions:[{ param:'rate', value:4 }, { param:'term', value:36 },
+                  { param:'method', value:'аннуитет' }, { param:'freq', value:'Ежемесячно' }] };
+    ds2.rows = dsAnnex('01.07.2026', 6, round2(restBal - 12000), 4, ds2.parts);
+    restructureApplied(k7, ds2);
+    k7.mirror.restructuring.ds = [ds1, ds2];
+  }
 
   /* --- 8 фоновых кредитов для фильтров реестра (§5.1): программа/куратор/категория/просрочка/ЖЦ --- */
   /* ccy — валюта договора: сценарные К-1…К-6 намеренно в KGS (их леджеры сеяны в сомах),

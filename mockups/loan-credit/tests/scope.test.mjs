@@ -3,7 +3,8 @@ import { load, multiCredit, sameMethodCredit, test, ok, no, eq, has, hasNot, rep
 test('S0: файл грузится, шов CR доступен, сид отработал', () => {
   const { CR } = load();
   ok(typeof CR.renderTab === 'function', 'CR.renderTab не в шве');
-  ok(CR.db.credits.length === 59, 'ожидалось 59 демо-кредитов, стало ' + CR.db.credits.length);
+  // КВ-26: +К-7 — демо разделения транша по ДС (два применённых ДС, три транша)
+  ok(CR.db.credits.length === 60, 'ожидалось 60 демо-кредитов, стало ' + CR.db.credits.length);
 });
 
 test('S1: фикстура K-C40 даёт два графика и расхождение метода', () => {
