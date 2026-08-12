@@ -857,7 +857,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-12 · 123/123 PASS
+ SMOKE (node) 2026-08-12 · 129/129 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -981,6 +981,12 @@
    #119 ✓
    #120 ✓
    #121 ✓
+   #122 ✓
+   #123 ✓
+   #124 ✓
+   #125 ✓
+   #126 ✓
+   #127 ✓
 -->
 <style>
 
@@ -4880,6 +4886,11 @@ function gate(credit, action, ctx = {}){
           r.push('Транш освоен не полностью — закрытие требует основания');
       }
       if (!ctx.reason || !String(ctx.reason).trim()) r.push('Закрытие транша требует основания (Г-17: удаления нет, только soft-close)');
+      /* ИР-5: «перенос» — причина ДВЕРИ, а не человека. Она ВЫВОДИТСЯ операцией, обнулившей
+         тело (closeIfEmptied), и введённая руками означала бы закрытие транша без переноса,
+         которого не было: остаток пропал бы из кредита молча. */
+      if (/^\s*перенос\s*$/i.test(String(ctx.reason || '')))
+        r.push('Причина «перенос» выставляется применением ДС, а не вручную (ИР-5)');
       if (credit.tranches.filter(activeTranche).length <= 1) r.push('Нельзя закрыть последний активный транш кредита');
       break;
     }
@@ -4943,6 +4954,43 @@ function gate(credit, action, ctx = {}){
         if (!originDs(ctx.tranche)) r.push('У производного транша нет основания ДС — график строить не от чего');
       } else if ((ctx.tranche.disbursements||[]).length === 0) {
         r.push('График строится только от фактической даты освоения транша'); // Г-8
+      }
+      break;
+    }
+    /* Г-25 — приём строк графика из приложения к ДС (ADR-0096 §3, КВ-26). Кредит владеет
+       ПЕРЕСТРОЕНИЕМ, но первичную ДС-версию не строит сам: у реструктуризации месяц = 30
+       дней, у кредита — реальный календарь с payDay/freq, и сверять две арифметики строка
+       в строку бессмысленно. Поэтому строки ПРИХОДЯТ, а кредит проверяет форму контракта.
+       Все причины показываются вместе, как Г-6/Г-7: чинить их по одной — четыре круга. */
+    case 'applyDs': {
+      const ds = ctx.ds || {};
+      const src = credit.tranches.find(t => t.no === ds.sourceTranche);
+      if (!src) r.push('Исходный транш ДС не найден в кредите');
+      if (!ds.effectiveFrom) r.push('У ДС нет даты вступления');
+      const rows = ds.rows || [];
+      if (!rows.length) r.push('В приложении к ДС нет строк графика');
+      const moved = round2((ds.parts || []).reduce((a,p) => a + (p.amount||0), 0));
+      const sum = round2(rows.reduce((a,x) => a + (x.principal||0) + rowArticlesSum(x), 0));
+      if (rows.length && Math.abs(sum - moved) > 0.005)
+        r.push('ИР-2′: Σ колонок графика ' + money(sum) + ' ≠ сумме переноса ' + money(moved));
+      for (let i = 1; i < rows.length; i++)
+        if (pd(rows[i].date) <= pd(rows[i-1].date)) { r.push('Даты позиций графика не строго возрастают (позиция №' + rows[i].no + ')'); break; }
+      if (ds.termEnd && rows.length && pd(rows[rows.length-1].date) > pd(ds.termEnd))
+        r.push('Последняя позиция выходит за конец срока по ДС (' + ds.termEnd + ')');
+      (ds.parts || []).forEach(p => {                                        // ИР-15
+        if ((p.from||1) < 1 || (p.to || rows.length) > rows.length)
+          r.push('Интервал распоряжения «' + p.key + '» выходит за длину графика');
+      });
+      if (src && ds.effectiveFrom){
+        const bal = trancheBalanceAt(credit, src, ds.effectiveFrom);
+        if (moved > bal + 0.005)
+          r.push('Перенос ' + money(moved) + ' больше остатка тела транша №' + src.no + ' на ' + ds.effectiveFrom + ' (' + money(bal) + ')');
+        /* ADR-0092 §4 — делим ТОЛЬКО при расхождении условий: если весь остаток идёт на
+           новые условия и других действующих траншей у кредита нет, после ДС действует
+           ОДИН комплект условий, и производный транш был бы пустой сущностью. */
+        const others = credit.tranches.filter(t => t !== src && activeTranche(t));
+        if (Math.abs(moved - bal) < 0.005 && !others.length)
+          r.push('Весь остаток идёт на новые условия, других действующих траншей нет — деления не возникает (ADR-0092 § 4): такое ДС оформляется записями условий и новой версией графика на существующем транше');
       }
       break;
     }
@@ -5115,6 +5163,62 @@ function generateSchedule(credit, trancheNo, params){
   pushAudit(credit, `Сформирован график погашения v${ver} по траншу №${trancheNo} от ${params.from}`,
     prev || null, version);
   return version;
+}
+
+/* ЕДИНСТВЕННАЯ ПИШУЩАЯ ДВЕРЬ реструктуризации в кредит (ADR-0096). Шесть шагов
+   НЕПЕРЕСТАНОВИМЫ, и полуприменённого ДС не бывает: вся валидация — до первой записи.
+   Кредит ПРИМЕНЯЕТ пришедшее зеркалом ДС, а не заводит его (Р-16): само соглашение
+   создаётся в модуле реструктуризации, сюда приходит приложением со строками. */
+function restructureApplied(credit, ds){
+  const g = gate(credit, 'applyDs', { ds });                                 // Г-25
+  if (!g.ok) return g;
+  const src = credit.tranches.find(t => t.no === ds.sourceTranche);
+  const moved = round2((ds.parts || []).reduce((a,p) => a + (p.amount||0), 0));
+  // 1. производный транш — сумма равна перенесённой (И-3 к нему неприменим, ADR-0092)
+  const no = credit.tranches.reduce((m,t) => Math.max(m, t.no), 0) + 1;
+  const der = mkTranche({ id: credit.id + '-T' + no, no, subject: src.subject,
+                          amount: moved, plannedDate: ds.effectiveFrom,
+                          disbursements: [], transfers: [] });
+  credit.tranches.push(der);
+  // 2. ПАРА переносов — датированная двусторонняя операция с основанием (ADR-0092 §2)
+  const basis = { ds: ds.num, date: ds.date };
+  src.transfers = src.transfers || [];
+  src.transfers.push({ date: ds.effectiveFrom, dir:'out', amount: moved, counterTranche: no, basis, parts: ds.parts || [] });
+  der.transfers.push({ date: ds.effectiveFrom, dir:'in',  amount: moved, counterTranche: src.no, basis, parts: ds.parts || [] });
+  /* база безставочных статей остаётся на транше: без неё «Сформировать график» стёр бы
+     то, что пришло приложением к ДС (см. хвост buildSchedule). */
+  der.articleBase = (ds.parts || []).filter(p => p.key !== 'principal');
+  // 3. версия графика — строки ПРИШЛИ, движок их не пересчитывает
+  der.schedules = [{ ver:1, validFrom: ds.effectiveFrom,
+                     by:{ kind:'ДС', ref: ds.num, label:'Реструктуризация ' + ds.num },
+                     generatedFrom: ds.effectiveFrom, generatedAt: TODAY, generatedSeq: _crSeq,
+                     rows: (ds.rows || []).map(r => ({ ...r })) }];
+  // 4. записи условий производного транша
+  (ds.conditions || []).forEach(x => {
+    der.conditionRecords = der.conditionRecords || [];
+    der.conditionRecords.push(mkConditionRecord({ ...x, effectiveFrom: ds.effectiveFrom,
+      basis:{ kind:'ДС', ref: ds.num, label:'Реструктуризация ' + ds.num, date: ds.date } }));
+  });
+  // 5. опустошённый источник закрывается ПЕРЕНОСОМ, не погашением (ИР-5, ADR-0092 §3)
+  closeIfEmptied(credit, src, ds);
+  /* 6. счётчик считает ДС, а не траншы (ADR-0092 «Последствия»). Журнал применённых ДС —
+     собственный факт кредита (его СОБСТВЕННОЕ действие), а не зеркало: число в
+     mirror.restructuring.count принадлежит модулю реструктуризации, и кредит его не
+     трогает — иначе одно и то же событие считалось бы дважды с двух сторон. */
+  credit.appliedDs = credit.appliedDs || [];
+  credit.appliedDs.push({ num: ds.num, date: ds.date, effectiveFrom: ds.effectiveFrom,
+                          sourceTranche: src.no, tranche: no, amount: moved, appliedAt: TODAY });
+  pushAudit(credit, 'Применено ' + ds.num + ' от ' + ds.date + ': перенос ' + money(moved)
+    + ' с транша №' + src.no + ' на новый транш №' + no, null, der);
+  return { ok:true, tranche: der };
+}
+/* ИР-5: причина закрытия ВЫВОДИТСЯ обнулившей операцией — ручной closeTranche ввести
+   «перенос» не может, это причина двери, а не человека. */
+function closeIfEmptied(credit, t, ds){
+  if (t.closed) return false;
+  if (trancheBalanceAt(credit, t, ds.effectiveFrom) > 0.005) return false;
+  t.closed = { date: ds.effectiveFrom, reason:'перенос', by:{ kind:'ДС', ref: ds.num } };
+  return true;
 }
 
 /* приостановка начисления процентов (Р-17, Г-15). Интервал живёт на credit.accrualHold
@@ -5572,6 +5676,7 @@ window.CR = {
   trancheOrigin, originTransfer, originDs, transferredOut, transferredIn, repaidPrincipalOf, trancheBalanceAt,
   courtRef, courtBasisLabel,
   generateSchedule, holdAccrual, scheduleAt, validTo, schedValidFrom,
+  restructureApplied, closeIfEmptied,
   saveContractAmount, editContractRequisites, addTranche, addDisbursement, setKmDecision, saveWaiver,
   addPayment, paymentEditable, addAgreement, addConditionRecords, closeCredit, linkPledge,
   editSubject, addSubjectRecords, subjectAt, mkSubjectItem,

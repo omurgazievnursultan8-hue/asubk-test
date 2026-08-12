@@ -1762,6 +1762,104 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
      `Σ статей ${s}, колонок ${cols.length}, позиций ${rows.length}`);
 })();
 
+/* 122. Г-25 ПОКАЗЫВАЕТ ВСЕ ПРИЧИНЫ РАЗОМ, ДВЕРЬ АТОМАРНА (КВ-26, ADR-0096 §3). Кредит
+   не строит первичную ДС-версию сам — строки ПРИХОДЯТ приложением, и он проверяет их
+   форму: ИР-2′, строгий рост дат, интервалы распоряжений внутри длины графика. Причины
+   собираются вместе, как у Г-6/Г-7: чинить по одной — четыре круга согласования.
+   Полуприменённого ДС не бывает: при отказе кредит обязан остаться нетронутым. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1'); const src=c.tranches[0];
+  const bad = { num:'ДС-РС-7000', date:'01.05.2026', effectiveFrom:'01.06.2026', sourceTranche:src.no,
+    parts:[{ key:'principal', amount:100000, from:1, to:9 }],
+    rows:[{ no:1, date:'01.08.2026', principal:40000, interest:0, total:40000 },
+          { no:2, date:'01.07.2026', principal:40000, interest:0, total:40000 }] };
+  const g = CR.gate(c, 'applyDs', { ds: bad });
+  const before = c.tranches.length;
+  const res = CR.restructureApplied(c, bad);
+  ok(122, g.ok === false && g.reasons.length >= 3 && res.ok === false
+          && c.tranches.length === before && (src.transfers || []).length === 0,
+     `причин ${g.reasons.length}: ${g.reasons.join(' | ').slice(0,110)}`);
+})();
+
+/* 123. ДВЕРЬ РОЖДАЕТ ТРАНШ И ПАРУ ПЕРЕНОСОВ (ADR-0092 §1–2, ADR-0096). Перенос двусторонний
+   и датированный: у источника — out, у производного — in, у обоих одно основание. Остаток
+   тела считается по ИР-3 с обеих сторон сразу — иначе деньги «удваиваются» ровно на
+   величину переноса. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1'); const src=c.tranches[0];
+  const r2 = x => Math.round(x * 100) / 100;
+  const bal = CR.trancheBalanceAt(c, src, '01.06.2026');
+  const moved = r2(bal / 2), art = 1000, p1 = r2((moved - art) / 2), p2 = r2(moved - art - p1);
+  const ds = { num:'ДС-РС-7001', date:'01.05.2026', effectiveFrom:'01.06.2026', sourceTranche:src.no,
+    parts:[{ key:'principal', amount:r2(moved - art), from:1, to:2 },
+           { key:'accPenalty', amount:art, from:2, to:2 }],
+    rows:[{ no:1, date:'01.07.2026', principal:p1, interest:0, total:p1 },
+          { no:2, date:'01.08.2026', principal:p2, interest:0, total:p2, articles:{ accPenalty:art } }],
+    conditions:[{ param:'rate', value:4 }, { param:'method', value:'аннуитет' }] };
+  const res = CR.restructureApplied(c, ds);
+  const der = res.tranche;
+  ok(123, res.ok === true && c.tranches.length === 3
+          && CR.trancheOrigin(der) === 'разделение' && CR.originDs(der) === 'ДС-РС-7001'
+          && Math.abs(der.amount - moved) < 0.005
+          && CR.transferredOut(src) === moved && CR.transferredIn(der) === moved
+          && Math.abs(CR.trancheBalanceAt(c, src, '01.06.2026') - (bal - moved)) < 0.005
+          && Math.abs(CR.trancheBalanceAt(c, der, '01.06.2026') - moved) < 0.005
+          && der.schedules[0].by.kind === 'ДС' && der.schedules[0].validFrom === '01.06.2026',
+     `перенесено ${moved}: остаток источника ${CR.trancheBalanceAt(c, src, '01.06.2026')},`
+     + ` производного ${CR.trancheBalanceAt(c, der, '01.06.2026')}`);
+})();
+
+/* 124/125. ИР-5 — ОПУСТОШЁННЫЙ ТРАНШ ЗАКРЫВАЕТСЯ ПЕРЕНОСОМ, И СЧЁТЧИК СЧИТАЕТ ДС.
+   Второе ДС забирает у источника весь остаток: денег не приходило, поэтому закрывать его
+   погашением значило бы соврать денежными показателями (ADR-0092 §3). Причина «перенос»
+   ВЫВОДИТСЯ обнулившей операцией — руками её ввести нельзя. Счётчик растёт на ДС, а не на
+   транш: одно соглашение, поделившее три транша, — одна реструктуризация. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1'); const src=c.tranches[0];
+  const r2 = x => Math.round(x * 100) / 100;
+  const mk = (num, eff, amount) => ({ num, date:'01.05.2026', effectiveFrom:eff, sourceTranche:src.no,
+    parts:[{ key:'principal', amount, from:1, to:1 }],
+    rows:[{ no:1, date:'01.12.2026', principal:amount, interest:0, total:amount }],
+    conditions:[{ param:'rate', value:4 }] });
+  const bal = CR.trancheBalanceAt(c, src, '01.06.2026');
+  CR.restructureApplied(c, mk('ДС-РС-7001', '01.06.2026', r2(bal / 2)));
+  const rest = CR.trancheBalanceAt(c, src, '01.07.2026');
+  const two = CR.restructureApplied(c, mk('ДС-РС-7002', '01.07.2026', rest));
+  ok(124, two.ok === true && src.closed && src.closed.reason === 'перенос'
+          && src.closed.date === '01.07.2026' && src.closed.by.ref === 'ДС-РС-7002'
+          && Math.abs(CR.trancheBalanceAt(c, src, '01.07.2026')) < 0.005
+          && CR.gate(c, 'closeTranche', { trancheNo:c.tranches[1].no, reason:'перенос' }).ok === false,
+     `источник закрыт ${src.closed && src.closed.date} по причине «${src.closed && src.closed.reason}»`);
+  ok(125, (c.appliedDs || []).length === 2 && c.tranches.length === 4
+          && c.appliedDs[1].num === 'ДС-РС-7002',
+     `ДС ${(c.appliedDs||[]).length}, траншей ${c.tranches.length}`);
+})();
+
+/* 126. ГРАНИЦА ДВЕРИ (ADR-0096). t.transfers.push вне restructureApplied означает второй
+   вход в модель переноса — ровно то, от чего одна дверь и защищает. Тот же приём, что
+   в смоуке реструктуризации: проверяем ИСХОДНИК, а не поведение. */
+(() => {
+  const pushes = (src.match(/\.transfers\.push\(/g) || []).length;
+  const at = src.indexOf('function restructureApplied');
+  const inDoor = src.slice(at, at + 4000);
+  const inside = (inDoor.match(/\.transfers\.push\(/g) || []).length;
+  ok(126, at > 0 && pushes === inside, `всего ${pushes}, внутри двери ${inside}`);
+})();
+
+/* 127. ДЕЛИМ ТОЛЬКО ПРИ РАСХОЖДЕНИИ УСЛОВИЙ (ADR-0092 §4). Если весь остаток единственного
+   транша идёт на новые условия, по кредиту после ДС действует ОДИН комплект — деления не
+   возникает, и производный транш был бы пустой сущностью: такое ДС оформляется записями
+   условий и новой версией графика на существующем транше (случай К-4 · ДС-РС-1004).
+   Перенос больше остатка тела отклоняется там же — вторая проверка той же суммы. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-3'); const src=c.tranches[0];
+  const bal = CR.trancheBalanceAt(c, src, '01.06.2026');
+  const mk = amount => ({ num:'ДС-РС-7003', date:'01.05.2026', effectiveFrom:'01.06.2026',
+    sourceTranche:src.no, parts:[{ key:'principal', amount, from:1, to:1 }],
+    rows:[{ no:1, date:'01.12.2026', principal:amount, interest:0, total:amount }] });
+  const whole = CR.gate(c, 'applyDs', { ds: mk(bal) });
+  const over  = CR.gate(c, 'applyDs', { ds: mk(Math.round((bal + 1000) * 100) / 100) });
+  ok(127, c.tranches.length === 1 && whole.ok === false && /§ *4/.test(whole.reasons.join(' '))
+          && over.ok === false && /остатк/i.test(over.reasons.join(' ')),
+     `весь остаток: ${whole.reasons.join(' | ').slice(0,80)}`);
+})();
+
 const pass = results.filter(r => r.pass).length;
 const stamp = `SMOKE (node) ${new Date().toISOString().slice(0,10)} · ${pass}/${results.length} PASS`;
 results.forEach(r => console.log(`${r.pass ? 'PASS' : 'FAIL'} #${r.n} ${r.note}`));
