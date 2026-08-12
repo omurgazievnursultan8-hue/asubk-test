@@ -857,7 +857,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-12 · 118/118 PASS
+ SMOKE (node) 2026-08-12 · 120/120 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -976,6 +976,8 @@
    #114 ✓
    #115 ✓
    #116 ✓
+   #117 ✓
+   #118 ✓
 -->
 <style>
 
@@ -3445,6 +3447,45 @@ function periodInterest(tranche, cnd, prevDate, date, bal, mpp){
   return round2(bal * (cnd.rate || 0) / 100 * days / db.base);
 }
 
+/* СТАТЬИ СТРОКИ ГРАФИКА (ADR-0109, КВ-26). Реструктуризация раскладывает по графику не
+   только тело: накопленные проценты, накопленную пеню и распределённое. Ставка при этом
+   начисляется ТОЛЬКО по основному долгу — поэтому статьи держатся отдельным вложенным
+   объектом, а не подмешиваются в r.principal (он авторитетен для леджера и прогноза).
+   Порядок реестра = очередь погашения: что гасится раньше, стоит левее. */
+const SCHED_ARTICLES = [
+  { key:'accInterest', label:'Накопл. проценты' },
+  { key:'accPenalty',  label:'Накопл. пеня' },
+  { key:'other',       label:'Прочие' }
+];
+function rowArticlesSum(r){
+  const a = r && r.articles; if (!a) return 0;
+  return round2(SCHED_ARTICLES.reduce((s,x) => s + (a[x.key] || 0), 0));
+}
+/* Состав НЕПУСТЫХ статейных колонок. Пустая не рисуется — та же идиома, что «Курс / ≈KGS»
+   у валютных: обычный кредит обязан выглядеть ровно как до волны. */
+function scheduleArticleCols(rows){
+  return SCHED_ARTICLES.filter(x => (rows||[]).some(r => r.articles && (r.articles[x.key]||0) > 0.005));
+}
+/* Раскладка безставочной части по позициям интервала [from..to] равными долями; остаток
+   от округления — в последнюю позицию интервала, иначе Σ колонок разъедется с суммой
+   переноса и плашка ИР-2′ соврёт (ИР-2′ мерится в копейку, порог 0,005). */
+function spreadArticles(rows, parts){
+  (parts || []).forEach(p => {
+    const seg = (rows||[]).filter(r => r.no >= (p.from||1) && r.no <= (p.to || rows.length));
+    if (!seg.length) return;
+    const per = round2((p.amount || 0) / seg.length);
+    let acc = 0;
+    seg.forEach((r,i) => {
+      const v = i === seg.length-1 ? round2((p.amount||0) - acc) : per;
+      acc = round2(acc + v);
+      r.articles = r.articles || {};
+      r.articles[p.key] = round2((r.articles[p.key] || 0) + v);
+      r.total = round2((r.total || 0) + v);      // «Платёж» = то, что человек платит в эту дату
+    });
+  });
+  return rows;
+}
+
 function buildSchedule(tranche, fromDate){
   const c = conditionsAt(tranche, TODAY);        // Р-21: условия транша — производное от записей
   const P = disbursedSum(tranche) || tranche.amount || 0;        // амортизируем освоенный ОД
@@ -4592,6 +4633,15 @@ function trancheScheduleTotals(t, asOf){
   const method = (t ? (conditionsAt(t, asOf || TODAY) || {}).method : '') || 'аннуитет';
   let principalSum = 0, interestSum = 0, total = 0;
   for (const r of rows){ principalSum += r.principal; interestSum += r.interest; total += r.total; }
+  /* Статейные суммы — по ключам (КВ-26, ADR-0109), чтобы итог-строка и годовые строки
+     (КВ-19) сходились со статейными колонками. `total` править не нужно: spreadArticles
+     уже включил статью в платёж строки — это проверяет смоук №118, а не предположение. */
+  const articles = {};
+  for (const a of SCHED_ARTICLES){
+    const v = round2(rows.reduce((s,r) => s + ((r.articles && r.articles[a.key]) || 0), 0));
+    if (v > 0.005) articles[a.key] = v;
+  }
+  const articlesSum = round2(Object.keys(articles).reduce((s,k) => s + articles[k], 0));
   const paying = rows.filter(r => (r.principal || 0) > 0);
   let payLabel = 'Регулярный платёж', payValue = '—';
   if (method === 'в конце срока'){
@@ -4605,7 +4655,7 @@ function trancheScheduleTotals(t, asOf){
     payValue = money(sorted[Math.floor(sorted.length / 2)]);   // медиана — устойчива к хвостовому платежу
   }
   return { count:rows.length, principalSum:round2(principalSum), interestSum:round2(interestSum),
-           total:round2(total), method, payLabel, payValue };
+           total:round2(total), articles, articlesSum, method, payLabel, payValue };
 }
 
 /* Итоги графика по ВСЕМ траншам — плитки вкладки «График» при области «по кредиту»
@@ -4641,8 +4691,16 @@ function scheduleTotalsAll(credit, asOf){
   } else if (parts.length > 1){
     payNote = 'несколько методов погашения';
   }
+  /* Статьи аддитивны так же, как principalSum: колонка рисуется по составу всех траншей
+     области, поэтому и итог складывается по ключам (КВ-26). */
+  const articles = {};
+  for (const a of SCHED_ARTICLES){
+    const v = round2(parts.reduce((s,p) => s + ((p.articles && p.articles[a.key]) || 0), 0));
+    if (v > 0.005) articles[a.key] = v;
+  }
   return { count: parts.reduce((a,p) => a + p.count, 0),
            principalSum: sum('principalSum'), interestSum: sum('interestSum'), total: sum('total'),
+           articles, articlesSum: sum('articlesSum'),
            method: sameMethod ? methods[0] : null,
            payLabel, payValue, payNote };
 }
@@ -5497,6 +5555,7 @@ window.CR = {
   saveDoc, addNote, addTargetUse, setPlan,
   zeroOutForTest,
   nextPaymentOf, regStatusOf, scheduleRowStatus, trancheScheduleRows, ledgerKey,
+  SCHED_ARTICLES, rowArticlesSum, scheduleArticleCols, spreadArticles,
   trancheForecastRows, forecastByMonth, forecastSummary, paidPrincipalOfTranche,
   periodInterest, planExecOf, planYearsList, planDefaultYear, planYearRange, planYearOfRange,
   monthKey, monthLabel, monthAdd, monthRange, planRowOf, planAmountOf,

@@ -1692,6 +1692,33 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
      + ` (${withBasis&&withBasis.by&&withBasis.by.basis&&withBasis.by.basis.ref})`);
 })();
 
+/* 117. СТАТЬИ СТРОКИ ГРАФИКА (КВ-26, ADR-0109). Только БЕЗСТАВОЧНЫЕ: основной долг
+   (тело + капитализированные проценты) остаётся в r.principal — по ADR-0109 это
+   единственная ставочная колонка, и она уже авторитетна для леджера и прогноза.
+   Пустая колонка не рисуется — состав считается по строкам, а не по справочнику. */
+(() => {
+  const rowsA = [ { no:1, date:'01.03.2026', principal:1000, interest:50, total:1050 },
+                  { no:2, date:'01.04.2026', principal:1000, interest:40, total:1290,
+                    articles:{ accPenalty:200 } } ];
+  const cols = CR.scheduleArticleCols(rowsA);
+  ok(117, CR.rowArticlesSum(rowsA[0])===0 && Math.abs(CR.rowArticlesSum(rowsA[1])-200)<0.005
+          && cols.length===1 && cols[0].key==='accPenalty'
+          && CR.scheduleArticleCols([rowsA[0]]).length===0,
+     `колонок ${cols.length} (${cols.map(x=>x.key).join(',')})`);
+})();
+
+/* 118. РАСКЛАДКА БЕЗСТАВОЧНЫХ (ИР-2′). Части раскладываются равными долями по позициям
+   своего интервала, остаток от округления падает в ПОСЛЕДНЮЮ позицию интервала: иначе
+   Σ колонок разъезжается с суммой переноса на копейки, и плашка ИР-2′ врёт. */
+(() => {
+  const rowsB = [1,2,3].map(k => ({ no:k, date:`0${k}.03.2026`, principal:1000, interest:0, total:1000 }));
+  CR.spreadArticles(rowsB, [{ key:'accInterest', amount:100.00, from:1, to:3 }]);
+  const sB = rowsB.reduce((a,r) => a + CR.rowArticlesSum(r), 0);
+  ok(118, Math.abs(sB - 100) < 0.005 && rowsB.every(r => r.articles && r.articles.accInterest > 0)
+          && rowsB.every(r => Math.abs(r.total - 1000 - r.articles.accInterest) < 0.005),
+     `Σ=${sB} по строкам ${rowsB.map(r=>r.articles.accInterest).join('/')}`);
+})();
+
 const pass = results.filter(r => r.pass).length;
 const stamp = `SMOKE (node) ${new Date().toISOString().slice(0,10)} · ${pass}/${results.length} PASS`;
 results.forEach(r => console.log(`${r.pass ? 'PASS' : 'FAIL'} #${r.n} ${r.note}`));
