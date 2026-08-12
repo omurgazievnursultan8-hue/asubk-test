@@ -857,7 +857,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-12 · 130/130 PASS
+ SMOKE (node) 2026-08-12 · 131/131 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -938,6 +938,7 @@
    #53 ✓
    #111 ✓
    #112 ✓
+   #129 ✓
    #100 ✓
    #54 ✓
    #55 ✓
@@ -6420,7 +6421,11 @@ if (typeof document !== 'undefined') {
   function infoBtn(onclick, title){ return `<button class="icon-btn" style="padding:2px" title="${jsAttr(title||'Подробнее')}" onclick="event.stopPropagation();${onclick}">${svgInfo()}</button>`; }
   function catClsOf(cat){ return cat==='высокий'?'high':cat==='средний'?'mid':'low'; }
   function pctDisb(c,d){ return c.contractAmount>0 ? Math.round(d.disbursed/c.contractAmount*100) : 0; }
-  function trancheState(t){ const s=disbursedSum(t), a=t.amount||0; return s===0?'Не освоен':s<a?'Частично освоен':'Полностью освоен'; }
+  /* Состояние меряет ОСВОЕНИЕ — у производного транша освоения нет и не будет (Г-4),
+     поэтому «Не освоен» на нём читался бы как «деньги ещё не выдали», хотя они выданы
+     на родителе и пришли переносом (ADR-0092 §1). */
+  function trancheState(t){ if(trancheOrigin(t)==='разделение') return 'Получен переносом';
+    const s=disbursedSum(t), a=t.amount||0; return s===0?'Не освоен':s<a?'Частично освоен':'Полностью освоен'; }
 
   /* read-only поле (label + значение в grey-боксе); val вставляется как HTML (caller экранирует текст) */
   function fld(label,val,o){ o=o||{};
@@ -6431,7 +6436,9 @@ if (typeof document !== 'undefined') {
   }
   /* грид-коллекция внутри вкладки */
   function cgrid(cols, rows, o){ o=o||{};
-    return `<div class="cgrid-wrap"><table class="cgrid"><thead><tr>${cols.map(c=>`<th${c.r?' style="text-align:right"':''}>${esc(c.h)}</th>`).join('')}</tr></thead>`
+    /* c.t — подпись колонки тултипом: правило, по которому колонка считается, живёт на
+       заголовке, а не расползается по ячейкам (ИР-3 на «Траншах», ADR-0109 на «Графике»). */
+    return `<div class="cgrid-wrap"><table class="cgrid"><thead><tr>${cols.map(c=>`<th${c.r?' style="text-align:right"':''}${c.t?` title="${jsAttr(c.t)}"`:''}>${esc(c.h)}</th>`).join('')}</tr></thead>`
       + `<tbody>${rows.length?rows.join(''):`<tr><td colspan="${cols.length}"><div class="cgrid-empty">${esc(o.empty||'Нет записей')}</div></td></tr>`}</tbody></table></div>`;
   }
   /* Терминал (Р-20): «Закрыт»/списан — карточка только для чтения под ЛЮБОЙ ролью (К-6).
@@ -7122,26 +7129,70 @@ if (typeof document !== 'undefined') {
     const sel=scopeTranche(c);
     const cur=c.currency, isFx=cur!=='KGS', fx=FX[cur]||1;              // мультивалюта: курс/≈KGS только для не-KGS
     const trRows=c.tranches.map(t=>{
-      const s=disbursedSum(t), rest=(t.amount||0)-s, on=sel&&t.no===sel.no;
+      const der=trancheOrigin(t)==='разделение', s=disbursedSum(t);
+      /* «Остаток тела» вместо прежнего «сумма − освоено» (ИР-3, КВ-26): у транша,
+         участвовавшего в переносе, разность суммы и освоения перестаёт быть остатком —
+         часть тела ушла на другой транш, часть могла прийти оттуда. */
+      const rest=trancheBalanceAt(c,t,cardAsOf), on=sel&&t.no===sel.no;
       const fxCells=isFx?`<td style="text-align:right">${money(fx)}</td><td style="text-align:right">${money0(toKgs(t.amount,cur))}</td>`:'';
       /* Закрытый транш (Г-17): не удалён, а помечен — с датой и основанием. Прежде
          activeTranche(t) читал t.closed, но выставить его было нечем (КР-3). */
       const st = t.closed
         ? `<span class="pill neutral" title="${jsAttr('Закрыт '+(t.closed.date||'')+': '+(t.closed.reason||''))}">Закрыт ${esc(t.closed.date||'')}</span>`
         : esc(trancheState(t));
+      const inTr=originTransfer(t), parent=inTr?inTr.counterTranche:null;
+      const orig = der
+        ? `<span class="pill warn" title="${jsAttr('Транш рождён разделением по '+(originDs(t)||'ДС')+' (ADR-0092 §1): сумма пришла переносом с транша №'+parent+', а не выдачей')}">разделение по ДС</span>`
+          + `<br><span style="color:var(--text-muted);font-size:11px">${esc(originDs(t)||'ДС')} · из №${parent}</span>`
+        : `<span class="pill neutral" title="${jsAttr('Транш рождён освоением — деньги выданы по этому траншу')}">освоение</span>`;
+      /* «Освоено» у производного — ПРОЧЕРК, а не 0: ноль читается как «деньги не
+         выдавали», тогда как они выданы на родителе и второй раз выданы не будут (Г-4). */
+      const disbCell = der
+        ? `<td style="text-align:right;color:var(--text-muted)" title="${jsAttr('Производный транш не осваивается: сумма пришла переносом по '+(originDs(t)||'ДС'))}">—</td>`
+        : `<td style="text-align:right">${money(s)}</td>`;
       return `<tr style="cursor:pointer${on?';background:var(--asubk-nav-active)':''}${t.closed?';opacity:.6':''}" onclick="CR.setCardScope(${t.no})">
         <td>№${t.no}</td><td>${esc(t.subject.name)}<br><span style="color:var(--text-muted);font-size:11px">ИНН ${esc(t.subject.inn)}</span></td>
+        <td>${orig}</td>
         <td style="text-align:right">${money(t.amount)}${isFx?` <span style="color:var(--text-muted);font-size:11px">${esc(cur)}</span>`:''}</td><td>${esc(t.plannedDate)}</td>
-        <td style="text-align:right">${money(s)}</td><td style="text-align:right">${money(rest)}</td>
+        ${disbCell}<td style="text-align:right">${money(rest)}</td>
         ${fxCells}<td>${st}</td></tr>`;
     });
-    const trCols=[{h:'Транш'},{h:'Субъект'},{h:'Сумма',r:1},{h:'План. дата'},{h:'Освоено',r:1},{h:'Остаток',r:1}]
+    const trCols=[{h:'Транш'},{h:'Субъект'},{h:'Происхождение'},{h:'Сумма',r:1},{h:'План. дата'},{h:'Освоено',r:1},
+                  {h:'Остаток тела',r:1,t:'освоено − погашено − перенесено + принято (ИР-3)'}]
       .concat(isFx?[{h:'Курс',r:1},{h:'≈KGS суммы',r:1}]:[]).concat([{h:'Состояние'}]);
-    const tot=c.tranches.reduce((a,t)=>{const s=disbursedSum(t);a.amt+=t.amount||0;a.dis+=s;a.rest+=(t.amount||0)-s;return a;},{amt:0,dis:0,rest:0});
+    /* Итог освоения складывает ТОЛЬКО траншы происхождением «освоение» (ADR-0115):
+       производный выдачей не был, и его сумма в объёме выдачи раздувала бы отчётность
+       ровно на величину реструктуризаций. */
+    const tot=c.tranches.reduce((a,t)=>{const own=trancheOrigin(t)!=='разделение';
+      if(own){a.amt+=t.amount||0;a.dis+=disbursedSum(t);}
+      a.rest+=trancheBalanceAt(c,t,cardAsOf);return a;},{amt:0,dis:0,rest:0});
     const totRow=c.tranches.length?`<tr style="font-weight:var(--weight-semibold);background:var(--surface-panel)">
-      <td colspan="2">Итого освоено</td><td style="text-align:right">${money(tot.amt)}</td><td></td>
+      <td colspan="3">Итого освоено<span style="font-weight:var(--weight-regular);color:var(--text-muted);font-size:11px"> · по траншам происхождением «освоение»</span></td>
+      <td style="text-align:right">${money(tot.amt)}</td><td></td>
       <td style="text-align:right">${money(tot.dis)}</td><td style="text-align:right">${money(tot.rest)}</td>
       ${isFx?`<td></td><td style="text-align:right">${money0(toKgs(tot.amt,cur))}</td>`:''}<td></td></tr>`:'';
+    /* ДВИЖЕНИЕ ПО ТРАНШУ (КВ-26) — слитый вид ТРЁХ источников по дате: освоения (свои),
+       погашения (зеркало платежей, ADR-0010) и переносы по ДС. Три журнала в одной
+       таблице — та же идиома, что слитый вид «по кредиту» на «Графике» (КВ-17); на
+       зеркальных строках стоит замок и подпись источника. Секция рисуется, ТОЛЬКО когда
+       переносы есть: у обычного кредита вкладка обязана выглядеть ровно как до волны. */
+    const movTr=(sel?[sel]:c.tranches).flatMap(t=>(t.transfers||[]).map(x=>({x,t})));
+    const movRows=movTr.length?(sel?[sel]:c.tranches).flatMap(t=>[
+      ...(t.disbursements||[]).map(x=>({ t, date:x.date, kind:'Освоение', amount:x.amount, sign:'+',
+        note:'ПП '+(x.order||'—'), src:null })),
+      ...((c.mirror&&c.mirror.payments||[]).filter(p=>paymentCounts(p)&&(p.tranche|0)===t.no
+          &&((p.layers&&p.layers.principal)||0)>0)
+        .map(p=>({ t, date:p.date, kind:'Погашение тела', amount:p.layers.principal, sign:'−',
+                   note:'платёж №'+p.num, src:'модуль платежей' }))),
+      ...(t.transfers||[]).map(x=>({ t, date:x.date, kind:x.dir==='out'?'Перенос по ДС':'Принято по ДС',
+        amount:x.amount, sign:x.dir==='out'?'−':'+',
+        note:(x.basis&&x.basis.ds||'ДС')+' · '+(x.dir==='out'?'на транш №':'с транша №')+x.counterTranche,
+        src:null }))
+    ]).sort((a,b)=>pd(a.date)-pd(b.date)||a.t.no-b.t.no).map(r=>`<tr>
+      <td>${esc(r.date)}</td>${sel?'':`<td>№${r.t.no}</td>`}<td>${esc(r.kind)}</td>
+      <td style="text-align:right">${r.sign} ${money(r.amount)}</td>
+      <td>${esc(r.note)}${r.src?` <span class="pill neutral" title="${jsAttr('Зеркало: '+r.src+' — правится в источнике')}">🔒 ${esc(r.src)}</span>`:''}</td></tr>`):[];
+    const movCols=[{h:'Дата'}].concat(sel?[]:[{h:'Транш'}]).concat([{h:'Движение'},{h:'Сумма',r:1},{h:'Основание'}]);
     /* Освоения при области «по кредиту» — та же идиома слияния, что на «Графике»,
        «Прогнозе» и в детальном расчёте: строки ВСЕХ траншей в одной таблице, колонка
        «Транш», сортировка по дате (КВ-17). Прежде тут стоял `sel && sel.disbursements`,
@@ -7157,7 +7208,8 @@ if (typeof document !== 'undefined') {
       <div class="phead-dims" style="grid-template-columns:repeat(4,1fr)">
         <div class="dim"><div class="dl">Одобрено</div><div class="dv">${money(c.approvedAmount)}</div></div>
         <div class="dim"><div class="dl">Сумма договора</div><div class="dv">${money(c.contractAmount)}</div></div>
-        <div class="dim"><div class="dl">Распределено по траншам</div><div class="dv">${money(d.allocated)}</div></div>
+        <div class="dim"><div class="dl">Распределено по траншам</div><div class="dv">${money(d.allocated)}</div>${
+          d.derivedCount?`<div style="color:var(--text-muted);font-size:11px;margin-top:4px">+ ${d.derivedCount} производн${d.derivedCount===1?'ый':'ых'} на ${money(d.derivedSum)} (перенос по ДС, в распределение не входят)</div>`:''}</div>
         <div class="dim"><div class="dl">Доступно к распределению</div><div class="dv">${money(d.allocatable)}</div></div>
       </div>
       <div class="section-h" style="margin-top:22px">Транши (клик — выбор)</div>
@@ -7189,7 +7241,12 @@ if (typeof document !== 'undefined') {
               : disabledBtn('Закрыть транш','Закрытие — действие по траншу; выберите транш в шапке')}
       </div>
       <div class="section-h" style="margin-top:22px">Освоение ${sel?'транша №'+sel.no:'(по кредиту)'}</div>
-      ${cgrid(dbCols, dbRows, {empty:'Освоений нет'})}`;
+      ${cgrid(dbCols, dbRows, {empty:'Освоений нет'})}
+      ${movRows.length?`<div class="section-h" style="margin-top:22px">Движение по траншу ${sel?'№'+sel.no:'(по кредиту)'}</div>
+      <div class="info-plate" style="margin-bottom:10px">${svgInfo()}<div>
+        Остаток тела = освоено − погашено − перенесено + принято (ИР-3). Освоения — свои,
+        погашения приходят зеркалом модуля платежей, переносы делает применение ДС.</div></div>
+      ${cgrid(movCols, movRows, {empty:'Движений нет'})}`:''}`;
   }
 
   /* ---- ВКЛАДКА 4: График (план возврата) ----
