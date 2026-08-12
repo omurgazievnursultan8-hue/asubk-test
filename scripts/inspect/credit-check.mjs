@@ -333,7 +333,10 @@ const pd = CR.pd;
 
 /* 33. Д-7: агрегат по кредиту — одно значение при согласии траншей,
        divergent при расхождении; divergenceRows перечисляет только спорные
-       параметры. В демо ровно один кредит с расхождением. */
+       параметры. В демо расхождений ДВА, и оба содержательные: К-7 —
+       реструктурированный (ADR-0092 §4: производный транш и появляется тогда, когда
+       по кредиту одновременно действуют РАЗНЫЕ комплекты условий, то есть расхождение
+       для него — не аномалия, а признак), К-C40 — мультитраншевый фон. */
 (() => { const db = CR.seedDb();
   const k1 = db.credits.find(c => c.id === 'K-1');
   const agg1 = CR.creditConditionsAt(k1, CR.TODAY);
@@ -360,7 +363,7 @@ const pd = CR.pd;
     });
     return nosMatch && valuesMatch;
   });
-  ok(33, single && divergent.length === 1 && rows.length >= 1 && rows.every(r => r.cells.length >= 2)
+  ok(33, single && divergent.length === 2 && divergent.some(c => c.id === 'K-7') && rows.length >= 1 && rows.every(r => r.cells.length >= 2)
       && paramsMatch && cellsOk,
      `divergent=${divergent.map(c=>c.id)} rows=${rows.map(r=>r.param)} cells0=${JSON.stringify(rows[0] && rows[0].cells)}`);
 })();
@@ -1103,6 +1106,29 @@ const pd = CR.pd;
   const known = new Set(Object.values(CR2.ROLE_ACTIONS || {}).flatMap(s => [...s]));
   const orphans = [...new Set(asked)].filter(a => !known.has(a));
   ok(55, orphans.length === 0, `действий у кнопок=${new Set(asked).size} без роли=${orphans.join(',')||'—'}`);
+
+  /* 131. КНОПКА «ПРИМЕНИТЬ ДС» (КВ-26, ADR-0096). Дверь одна, но нажимает её человек:
+     применение — собственное действие кредита, а не побочный эффект появления ДС в
+     зеркале (Р-16 цел — ДС пришло зеркалом, кредит его ПРИМЕНЯЕТ). Кнопка стоит в хвосте
+     «Документы без изменения условий» — там, где ДС уже лежит зарегистрированным, но ни
+     одна запись условий на него не ссылается. Применение выносит ДС из хвоста в основной
+     журнал: шаг виден глазом, а не только в аудите.
+     Мутация стоит ПОСЛЕДНЕЙ в блоке рендера — дальше по файлу песочница CR2 не нужна. */
+  const uslHtml = () => { CR2.openDetail('K-7');
+    return CR2.renderTab('Условия', CR2.db.credits.find(x => x.id === 'K-7')); };
+  const before = uslHtml();
+  const k7b = CR2.db.credits.find(x => x.id === 'K-7');
+  const nTr = k7b.tranches.length;
+  const res = CR2.applyDsByNum ? CR2.applyDsByNum('ДС-РС-2003') : { ok:false, reasons:['нет CR.applyDsByNum'] };
+  const after = uslHtml();
+  ok(131, /ДС-РС-2003/.test(before) && /Применить ДС/.test(before)
+          && !/ДС-РС-2001/.test(before.split('Документы без изменения условий')[1] || '')
+          && res.ok === true && k7b.tranches.length === nTr + 1
+          && !/ДС-РС-2003/.test(after.split('Документы без изменения условий')[1] || '')
+          && (k7b.appliedDs || []).length === 3,
+     `в хвосте до: ДС-РС-2003 ${/ДС-РС-2003/.test(before)}, кнопка ${/Применить ДС/.test(before)};`
+     + ` применено ${res.ok} (${(res.reasons||[]).join(' | ')}), траншей ${nTr}→${k7b.tranches.length},`
+     + ` применённых ДС ${(k7b.appliedDs||[]).length}`);
 })();
 
 /* ---- ПЛАН · ПРОГНОЗ · ИСПОЛНЕНИЕ (ADR-0042) ---- */

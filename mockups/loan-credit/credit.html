@@ -857,7 +857,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-12 · 132/132 PASS
+ SMOKE (node) 2026-08-12 · 133/133 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -943,6 +943,7 @@
    #100 ✓
    #54 ✓
    #55 ✓
+   #131 ✓
    #80 ✓
    #81 ✓
    #82 ✓
@@ -1952,8 +1953,13 @@ function mkPrimaryRecords(credit){
     note:'Первичный комплект условий из заявки', createdAt:credit.date
   }));
 }
+/* Первичный комплект ДОБАВЛЯЕТСЯ, а не затирает уже записанное (КВ-26): К-7 применяет
+   свои ДС дверью restructureApplied прямо в сиде, и записи условий производных траншей
+   существуют раньше этого прохода. Присваивание стирало их молча — производный транш
+   выходил из сида на первичных условиях, будто ДС не было. Порядок в массиве значения
+   не имеет: применение сортирует crOrder по дате вступления. */
 function seedPrimaryRecords(credit){
-  for (const t of credit.tranches) t.conditionRecords = mkPrimaryRecords(credit);
+  for (const t of credit.tranches) t.conditionRecords = mkPrimaryRecords(credit).concat(t.conditionRecords || []);
 }
 /* creditConditionsAt — Д-7: на уровне кредита условия суть агрегат по активным
    траншам. Согласны → {value}; разошлись → {divergent:true, values:[...]}.
@@ -2704,7 +2710,11 @@ function seedDb(){
       ],
       agreements:[
         { num:'ДС-РС-2001', date:'10.04.2026', source:'реструктуризация', scan:'ds-rs-2001.pdf' },
-        { num:'ДС-РС-2002', date:'10.06.2026', source:'реструктуризация', scan:'ds-rs-2002.pdf' }
+        { num:'ДС-РС-2002', date:'10.06.2026', source:'реструктуризация', scan:'ds-rs-2002.pdf' },
+        /* Третье ДС зарегистрировано, но ЕЩЁ НЕ ПРИМЕНЕНО — оно и держит кнопку
+           «Применить ДС» в хвосте журнала условий (ADR-0096: дверь одна, нажимает её
+           человек). Без такого ДС кнопку в макете было бы не на чем показать. */
+        { num:'ДС-РС-2003', date:'05.08.2026', source:'реструктуризация', scan:'ds-rs-2003.pdf' }
       ],
       mirror: emptyMirror({
         curatorship:[{ unit:'Отдел кредитования', employee:'Джумалиева Г. К.', role:'ведущий', from:'24.12.2025', to:null }],
@@ -2760,7 +2770,18 @@ function seedDb(){
                   { param:'method', value:'аннуитет' }, { param:'freq', value:'Ежемесячно' }] };
     ds2.rows = dsAnnex('01.07.2026', 6, round2(restBal - 12000), 4, ds2.parts);
     restructureApplied(k7, ds2);
-    k7.mirror.restructuring.ds = [ds1, ds2];
+    /* ДС-3 в зеркале ЛЕЖИТ, но дверь его не открывает: это состояние «пришло, ещё не
+       применено», ради которого хвост журнала и получил кнопку. Источник — Т 2
+       (производный от ДС-1): к 01.09.2026 он действует на своих условиях, поэтому
+       ADR-0092 § 4 деление разрешает — по кредиту и после ДС живут разные комплекты. */
+    const ds3 = { num:'ДС-РС-2003', date:'05.08.2026', effectiveFrom:'01.09.2026', sourceTranche:2,
+      termEnd:'15.02.2027',
+      parts:[{ key:'principal',   amount:80000, from:1, to:5 },
+             { key:'accInterest', amount:5000,  from:1, to:2 }],
+      conditions:[{ param:'rate', value:3 }, { param:'term', value:18 },
+                  { param:'method', value:'аннуитет' }, { param:'freq', value:'Ежемесячно' }] };
+    ds3.rows = dsAnnex('01.09.2026', 5, 80000, 3, ds3.parts);
+    k7.mirror.restructuring.ds = [ds1, ds2, ds3];
   }
 
   /* --- 8 фоновых кредитов для фильтров реестра (§5.1): программа/куратор/категория/просрочка/ЖЦ --- */
@@ -5208,10 +5229,10 @@ function gate(credit, action, ctx = {}){
 
 /* ---- 4.1 canRole(role, action) — матрица прав по ролям (§7). ---- */
 const ROLE_ACTIONS = {
-  'Кредитный специалист': new Set(['createCredit','saveContractAmount','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editDocs','addNote']),
+  'Кредитный специалист': new Set(['createCredit','saveContractAmount','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','applyDs','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editDocs','addNote']),
   'Куратор': new Set(['targetUse','inspection','holdAccrual','transferDebt','linkPledge','addNote','setPlan']),
   'Бухгалтер': new Set(['savePayment','addNote']),
-  'Начальник отдела': new Set(['createCredit','saveContractAmount','editContractRequisites','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editDocs','addNote','targetUse','inspection','holdAccrual','transferDebt','linkPledge','savePayment','waiver','setKmDecision','writeOff','repay','terminate','setPlan']),
+  'Начальник отдела': new Set(['createCredit','saveContractAmount','editContractRequisites','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','applyDs','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editDocs','addNote','targetUse','inspection','holdAccrual','transferDebt','linkPledge','savePayment','waiver','setKmDecision','writeOff','repay','terminate','setPlan']),
   'Наблюдатель': new Set(),
 };
 function canRole(role, action){ return (ROLE_ACTIONS[role]||new Set()).has(action); }
@@ -5297,7 +5318,10 @@ function restructureApplied(credit, ds){
   // 4. записи условий производного транша
   (ds.conditions || []).forEach(x => {
     der.conditionRecords = der.conditionRecords || [];
+    /* createdAt — дата САМОГО ДС, а не сегодня: запись рождена соглашением, и «задним
+       числом» (Д-5) она не является — соглашение подписано ДО своего вступления. */
     der.conditionRecords.push(mkConditionRecord({ ...x, effectiveFrom: ds.effectiveFrom,
+      createdAt: ds.date,
       basis:{ kind:'ДС', ref: ds.num, label:'Реструктуризация ' + ds.num, date: ds.date } }));
   });
   // 5. опустошённый источник закрывается ПЕРЕНОСОМ, не погашением (ИР-5, ADR-0092 §3)
@@ -7064,11 +7088,27 @@ if (typeof document !== 'undefined') {
             c.tranches.forEach(t=>(t.conditionRecords||[]).forEach(r=>{ if(r.basis&&r.basis.ref) usedRefs.add(r.basis.ref); }));
             const orphan=(c.agreements||[]).filter(a=>!usedRefs.has(a.num));
             if(!orphan.length) return '';                     // Шаг 17: хвост пуст у большинства — не рендерим пустую подсекцию
-            const trs=orphan.map(a=>`<tr><td>ДС ${esc(a.num)}</td><td>${esc(a.date)}</td><td>${esc(a.source||'—')}</td>
-              <td>${a.scan?esc(a.scan):'—'}</td></tr>`);
+            /* ПЯТАЯ ЯЧЕЙКА — «Применить ДС» (КВ-26, ADR-0096). Дверь одна, и нажимает её
+               человек: ДС пришло зеркалом реструктуризации (Р-16), но применение — это
+               собственное действие кредита, и оно обязано иметь свой момент. Кнопка стоит
+               только у ДС с приложением строк: без приложения применять нечего, а сама
+               строка хвоста остаётся обычной регистрационной записью.
+               Применение выносит ДС из хвоста в основной журнал (на него сошлются записи
+               условий производного транша) — шаг виден глазом, а не только в аудите. */
+            const dsOf = num => ((c.mirror&&c.mirror.restructuring&&c.mirror.restructuring.ds)||[])
+              .find(x => x.num === num) || null;
+            const trs=orphan.map(a=>{ const ds=a.source==='реструктуризация'?dsOf(a.num):null;
+              const rows=(ds&&ds.rows)||[];
+              const moved=ds?round2((ds.parts||[]).reduce((s,p)=>s+(p.amount||0),0)):0;
+              const cell = !rows.length ? '<span class="text-muted">—</span>'
+                : `<div style="color:var(--text-muted);font-size:11px;margin-bottom:4px">приложение: ${plur(rows.length,'позиция','позиции','позиций')}
+                     на ${money(moved)} с транша №${ds.sourceTranche}, с ${esc(ds.effectiveFrom)}</div>`
+                  + actBtn(c,'applyDs',{ds},'Применить ДС',`CR.applyDsByNum('${jsAttr(a.num)}')`,'btn btn-primary btn-sm');
+              return `<tr><td>ДС ${esc(a.num)}</td><td>${esc(a.date)}</td><td>${esc(a.source||'—')}</td>
+                <td>${a.scan?esc(a.scan):'—'}</td><td>${cell}</td></tr>`; });
             return `<div class="section-h" style="margin-top:16px;font-size:13px">Документы без изменения условий</div>
               <p class="section-note">Зарегистрированы, но ни одна запись условий на них не ссылается.</p>
-              ${cgrid([{h:'Документ'},{h:'Дата'},{h:'Источник'},{h:'Скан'}], trs, {empty:'Таких документов нет'})}`;
+              ${cgrid([{h:'Документ'},{h:'Дата'},{h:'Источник'},{h:'Скан'},{h:'Применение'}], trs, {empty:'Таких документов нет'})}`;
           })()}
         </div>
 
@@ -8226,6 +8266,19 @@ if (typeof document !== 'undefined') {
     if(grafikOpenYears.has(y)) grafikOpenYears.delete(y); else grafikOpenYears.add(y); rerenderDetail(); };
   CR.setGrafikYears=function(list){ grafikOpenYears=new Set((list||[]).map(Number)); rerenderDetail(); };
   CR.setPrognozAll=function(v){ prognozShowAll = !!v && v!=='false'; rerenderDetail(); };
+  /* Применение ДС (КВ-26). Кнопка знает только НОМЕР документа — приложение берётся из
+     зеркала реструктуризации, а не из формы: строки пришли из подписанного соглашения,
+     и правкой в кредите они быть не могут (ADR-0096 §3). Вся работа — в двери
+     restructureApplied: здесь только адресация документа и показ причин отказа. */
+  CR.applyDsByNum=function(num){ const c=currentCredit();
+    if(!c) return { ok:false, reasons:['Кредит не открыт'] };
+    const ds=((c.mirror&&c.mirror.restructuring&&c.mirror.restructuring.ds)||[]).find(x=>x.num===num);
+    if(!ds){ CR.toast('Приложение к '+num+' не пришло из реструктуризации — применять нечего','warn');
+      return { ok:false, reasons:['Приложения к ДС нет в зеркале'] }; }
+    const r=restructureApplied(c, ds);
+    if(!r.ok){ CR.toast((r.reasons||[]).join(' · '),'warn'); return r; }
+    CR.toast(num+' применено: транш №'+r.tranche.no+' на '+money(r.tranche.amount));
+    rerenderDetail(); return r; };
   /* CR.stubAction удалён: канон §0.1 запрещает заглушки, а она обслуживала три кнопки
      owned-действий кредита — перевод долга, закрытие неосвоенного остатка, примечание —
      и в двух случаях тост ещё и врал про «модуль-владелец» (КР-2). Все три оживлены. */
