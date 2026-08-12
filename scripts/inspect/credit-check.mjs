@@ -1063,19 +1063,20 @@ const pd = CR.pd;
      вступления: версия записана, но действует прежняя, и таблица позиций показывает НЕ
      то, что в соглашении. Это единственный факт, меняющий чтение вкладки, — поэтому он
      стоит хвостом той же строки, а не отдельной плашкой (плашка конкурировала бы с Д-5).
-     Сид будущей версии не держит: ставим её здесь, на К-1, уже ПОСЛЕ #132. */
-  const k1t = CR2.db.credits.find(x => x.id === 'K-1').tranches[0];
+     Сид будущей версии не держит: ставим её здесь, на К-3 — единственный кредит с сеяной
+     версией графика и одним траншем (у К-1 версий нет вовсе, см. #132). */
+  const k3t = CR2.db.credits.find(x => x.id === 'K-3').tranches[0];
   const futDate = CR2.TODAY.slice(0, 6) + (Number(CR2.TODAY.slice(6)) + 1);   // тот же день через год
-  const maxVer = (k1t.schedules || []).reduce((m, s) => Math.max(m, s.ver || 0), 0);
-  k1t.schedules.push({ ver: maxVer + 1, rows: (k1t.schedules[0].rows || []).slice(),
+  const maxVer = (k3t.schedules || []).reduce((m, s) => Math.max(m, s.ver || 0), 0);
+  k3t.schedules.push({ ver: maxVer + 1, rows: (k3t.schedules[0].rows || []).slice(),
     validFrom: futDate, generatedFrom: futDate, generatedAt: CR2.TODAY,
     by: { kind: 'ДС', ref: 'ДС-БУД-1' } });
-  const grf1fut = grf('K-1', 1);
-  ok(134, /вступает v/.test(grf1fut) && /ДС-БУД-1/.test(grf1fut)
-          && new RegExp('вступает v' + (maxVer + 1)).test(grf1fut)
-          && /Действует v/.test(grf1fut),
-     `К-1 с будущей: хвост ${/вступает v/.test(grf1fut)}, номер ДС ${/ДС-БУД-1/.test(grf1fut)},`
-     + ` действующая всё ещё названа ${/Действует v/.test(grf1fut)}`);
+  const grf3fut = grf('K-3', 1);
+  ok(134, /вступает v/.test(grf3fut) && /ДС-БУД-1/.test(grf3fut)
+          && new RegExp('вступает v' + (maxVer + 1)).test(grf3fut)
+          && /Действует v/.test(grf3fut),
+     `К-3 с будущей: хвост ${/вступает v/.test(grf3fut)}, номер ДС ${/ДС-БУД-1/.test(grf3fut)},`
+     + ` действующая всё ещё названа ${/Действует v/.test(grf3fut)}`);
 
   /* 135. ПЕРЕКЛЮЧЕНИЕ ВЕРСИИ ВЕДЁТ И ПЛИТКИ (КВ-28). Плитки — свод таблицы под ними;
      если позиции поехали на показанную версию, а плитки остались на действующей, экран
@@ -1083,13 +1084,13 @@ const pd = CR.pd;
      поставленной в #134: у неё СВОЙ набор строк, обрезанный вдвое, — значит плитка
      «Платежей в графике» обязана показать именно его длину, а не длину действующей. */
   const futVerNo = maxVer + 1;
-  const futSched = k1t.schedules.find(s => s.ver === futVerNo);
+  const futSched = k3t.schedules.find(s => s.ver === futVerNo);
   futSched.rows = (futSched.rows || []).slice(0, Math.max(1, Math.floor((futSched.rows || []).length / 2)));
-  const actVerNo = k1t.schedules[0].ver;                       // сеяная — она же действующая
-  const nAct = (k1t.schedules[0].rows || []).length;
-  CR2.setGrafikVer(k1t.no, futVerNo);
-  const grf1view = CR2.renderTab('График', CR2.db.credits.find(x => x.id === 'K-1'));
-  const tileN = (grf1view.match(/Платежей в графике<\/div><div class="dv">(\d+)</) || [])[1];
+  const actVerNo = k3t.schedules[0].ver;                       // сеяная — она же действующая
+  const nAct = (k3t.schedules[0].rows || []).length;
+  CR2.setGrafikVer(k3t.no, futVerNo);
+  const grf3view = CR2.renderTab('График', CR2.db.credits.find(x => x.id === 'K-3'));
+  const tileN = (grf3view.match(/Платежей в графике<\/div><div class="dv">(\d+)</) || [])[1];
   ok(135, Number(tileN) === futSched.rows.length && futSched.rows.length !== nAct,
      `плитка «Платежей в графике» ${tileN} · строк показанной версии ${futSched.rows.length}`
      + ` · строк действующей ${nAct}`);
@@ -1099,25 +1100,25 @@ const pd = CR.pd;
      статус был бы не «неизвестен», а ложен. Колонка убирается целиком: прочерк на всю
      таблицу читался бы как «ничего не погашено». Вместе с ней уходит хвост статусов из
      строки года (gyear-s). И стоит плашка режима с возвратом. */
-  ok(136, !/>Статус</.test(grf1view) && !/gyear-s/.test(grf1view)
-          && /ещё не действует, вступает/.test(grf1view)
-          && /Вернуться к действующей/.test(grf1view),
-     `колонка «Статус» ${/>Статус</.test(grf1view)} · хвост года ${/gyear-s/.test(grf1view)}`
-     + ` · плашка ${/ещё не действует, вступает/.test(grf1view)}`
-     + ` · возврат ${/Вернуться к действующей/.test(grf1view)}`);
+  ok(136, !/>Статус</.test(grf3view) && !/gyear-s/.test(grf3view)
+          && /ещё не действует, вступает/.test(grf3view)
+          && /Вернуться к действующей/.test(grf3view),
+     `колонка «Статус» ${/>Статус</.test(grf3view)} · хвост года ${/gyear-s/.test(grf3view)}`
+     + ` · плашка ${/ещё не действует, вступает/.test(grf3view)}`
+     + ` · возврат ${/Вернуться к действующей/.test(grf3view)}`);
 
   /* 137. В РЕЖИМЕ ПРОСМОТРА НЕЛЬЗЯ СТРОИТЬ (КВ-28, §0.3). Строить новую версию, глядя на
      архив, двусмысленно: неясно, от чего строим. Кнопка не исчезает — гаснет и называет
      причину (не молчаливый отказ). Клик по ДЕЙСТВУЮЩЕЙ версии возвращает режим в норму:
      кнопка снова жива, колонка «Статус» на месте. */
-  const gated = /вернитесь к действующей/.test(grf1view) && /cursor:not-allowed/.test(grf1view);
-  CR2.setGrafikVer(k1t.no, actVerNo);                // клик по действующей = возврат
-  const grf1back = CR2.renderTab('График', CR2.db.credits.find(x => x.id === 'K-1'));
-  ok(137, gated && />Статус</.test(grf1back) && !/Вернуться к действующей/.test(grf1back)
-          && !/вернитесь к действующей/.test(grf1back),
-     `кнопка погашена с причиной ${gated} · после возврата: статус ${/>Статус</.test(grf1back)},`
-     + ` плашки нет ${!/Вернуться к действующей/.test(grf1back)},`
-     + ` гейт снят ${!/вернитесь к действующей/.test(grf1back)}`);
+  const gated = /вернитесь к действующей/.test(grf3view) && /cursor:not-allowed/.test(grf3view);
+  CR2.setGrafikVer(k3t.no, actVerNo);                // клик по действующей = возврат
+  const grf3back = CR2.renderTab('График', CR2.db.credits.find(x => x.id === 'K-3'));
+  ok(137, gated && />Статус</.test(grf3back) && !/Вернуться к действующей/.test(grf3back)
+          && !/вернитесь к действующей/.test(grf3back),
+     `кнопка погашена с причиной ${gated} · после возврата: статус ${/>Статус</.test(grf3back)},`
+     + ` плашки нет ${!/Вернуться к действующей/.test(grf3back)},`
+     + ` гейт снят ${!/вернитесь к действующей/.test(grf3back)}`);
 
   /* 100. ГРУППИРОВКА ПО ГОДАМ на «Графике» (волна 10.08.2026, КВ-19). Строка года стоит
      перед первой позицией своего года, годы идут по возрастанию, итоги (ОД · проценты ·

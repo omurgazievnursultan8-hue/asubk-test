@@ -862,7 +862,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-12 · 133/133 PASS
+ SMOKE (node) 2026-08-12 · 139/139 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -945,6 +945,12 @@
    #112 ✓
    #129 ✓
    #130 ✓
+   #132 ✓
+   #133 ✓
+   #134 ✓
+   #135 ✓
+   #136 ✓
+   #137 ✓
    #100 ✓
    #54 ✓
    #55 ✓
@@ -7337,9 +7343,12 @@ if (typeof document !== 'undefined') {
   /* Основание версии — ОДНО выражение на два места: строку-контекст и грид за раскрытием
      (КВ-27). Разъедься они, у одной версии оказалось бы два разных основания на одном
      экране. ДС даётся пилюлей: это документ, на который можно сослаться, а не пояснение. */
-  function schedBasisLabel(s){ const by = (s && s.by) || {};
+  function schedBasisLabel(s, plain){ const by = (s && s.by) || {};
+    /* plain — для ПРОЗЫ (строка-контекст, плашка режима): пилюля в скобках посреди фразы
+       читается как чужеродный блок, да и скобки при ней избыточны. В таблице наоборот —
+       там пилюля отделяет документ от текстового основания соседней строки. */
     return by.kind === 'ДС'
-      ? `<span class="pill neutral">${esc(by.ref || 'ДС')}</span>`
+      ? (plain ? esc(by.ref || 'ДС') : `<span class="pill neutral">${esc(by.ref || 'ДС')}</span>`)
       : esc((by.basis && (by.basis.ref || by.basis.kind)) || by.label || 'Перестроение графика'); }
 
   /* ---- ВКЛАДКА 4: График (план возврата) ----
@@ -7423,10 +7432,9 @@ if (typeof document !== 'undefined') {
     /* Хвост «вступает» — единственный факт, меняющий чтение таблицы под строкой: позиции
        показаны по действующей версии, а подписанное соглашение вступит позже. */
     const futTail = futVer
-      ? ` · с ${esc(schedValidFrom(futVer))} вступает v${futVer.ver} (${schedBasisLabel(futVer)})` : '';
+      ? ` · с ${esc(schedValidFrom(futVer))} вступает v${futVer.ver} (${schedBasisLabel(futVer, true)})` : '';
     const ctxLine = !(sel && needsCtx) ? '' : (curVer
-      ? `<p class="section-note" style="margin:12px 0 0">Действует v${curVer.ver} · с ${esc(schedValidFrom(curVer))}
-         · ${schedBasisLabel(curVer)} · построена ${esc(curVer.generatedAt || curVer.generatedFrom)}${futTail}</p>`
+      ? `<p class="section-note" style="margin:12px 0 0">Действует v${curVer.ver} · с ${esc(schedValidFrom(curVer))} · ${schedBasisLabel(curVer, true)} · построена ${esc(curVer.generatedAt || curVer.generatedFrom)}${futTail}</p>`
       /* Версия есть, но её дата вступления впереди — действующей на срез НЕТ вовсе.
          Случай производного транша, чей ДС ещё не наступил: молчать нельзя, иначе пустая
          таблица позиций читается как «график не построен». */
@@ -7539,8 +7547,8 @@ if (typeof document !== 'undefined') {
         const fut = pd(schedValidFrom(viewSched)) > pd(cardAsOf);
         const to = validTo(sel, viewSched);
         const what = fut
-          ? `Версия v${viewSched.ver} (${schedBasisLabel(viewSched)}) ещё не действует, вступает ${esc(schedValidFrom(viewSched))}.`
-          : `Показана архивная версия v${viewSched.ver} (${schedBasisLabel(viewSched)}, действовала ${esc(schedValidFrom(viewSched))} — ${to?esc(to):'по сей день'}).`;
+          ? `Версия v${viewSched.ver} (${schedBasisLabel(viewSched, true)}) ещё не действует, вступает ${esc(schedValidFrom(viewSched))}.`
+          : `Показана архивная версия v${viewSched.ver} (${schedBasisLabel(viewSched, true)}, действовала ${esc(schedValidFrom(viewSched))} — ${to?esc(to):'по сей день'}).`;
         return `<div class="warn-inline" style="margin-top:10px">${svgInfo()}<div>
           ${what} ${actSched?`Действует v${actSched.ver}.`:`Действующей версии на ${esc(cardAsOf)} нет.`}
           Статусы погашения не показаны — они относятся к действующей версии.
