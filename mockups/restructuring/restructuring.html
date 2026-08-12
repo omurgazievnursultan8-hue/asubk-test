@@ -333,29 +333,44 @@ table.grid tbody tr.terminal td:first-child{ font-style:italic; }
 .panel-wrap{ padding:18px 20px 8px; max-width:1200px; }
 .detail-panel{ display:none; }
 .detail-panel.active{ display:block; }
-.phead{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:16px 20px; margin-bottom:18px; }
+/* Шапка карточки — оболочка как в credit.html (:1277-1303): рамки у неё нет, вес несут
+   плитки. Рамка вокруг рамок дала бы двойную коробку. */
+.phead{ padding:0; margin-bottom:18px; }
 .phead-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:12px; }
+.phead-name{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .phead-name .nm{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); }
 .phead-sub{ font:var(--font-label); color:var(--text-muted); margin-top:4px; }
 .phead-sub b{ color:var(--text-body); font-weight:var(--weight-medium); }
-.phead-dims{ display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
-@media(max-width:760px){ .phead-dims{ grid-template-columns:repeat(2,1fr); } }
+.phead-acts{ display:flex; align-items:flex-start; gap:8px; flex:none; }
+/* Плиток переменное число — тайл без данных не рендерится вовсе, поэтому auto-fit, а не
+   жёсткие четыре колонки. */
+.phead-dims{ display:grid; grid-template-columns:repeat(auto-fit,minmax(232px,1fr)); gap:12px; align-items:stretch; }
 .dim{ background:var(--surface-panel); border-radius:var(--radius-md); padding:10px 14px; }
+.dim.wide{ grid-column:span 2; }
+/* 800px: сайдбар 260 + отступы оставляют < 476px = двух треков minmax(232) уже не хватает,
+   и span 2 продавил бы второй трек ниже минимума */
+@media(max-width:800px){ .dim.wide{ grid-column:span 1; } }
 .dim .dl{ font:12px/1.3 var(--asubk-font); color:var(--text-muted); margin-bottom:5px; }
 .dim .dv{ font:var(--weight-semibold) 16px/1.2 var(--asubk-font); color:var(--text-heading); }
-.dim .src{ font:11px/1.3 var(--asubk-font); color:var(--text-placeholder); margin-top:4px; }
-.timeline{ display:flex; flex-wrap:wrap; align-items:center; gap:0; margin:2px 0 18px; }
-.tl-step{ display:flex; align-items:center; gap:8px; padding:6px 0; }
-.tl-dot{ width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center;
-  font:var(--weight-bold) 12px/1 var(--asubk-font); flex:none; }
+.dim .dv .gatechip{ margin:0 6px 4px 0; cursor:pointer; }
+.dim .src{ font:var(--weight-regular) 11.5px/1.45 var(--asubk-font); color:var(--text-muted); margin-top:5px; }
+.dim .src b{ color:var(--text-body); font-weight:var(--weight-medium); }
+.dim .src .dl-red{ font-size:11.5px; }
+/* Маршрут — компактная полоса: девять точек в ряд, подпись только у текущей стадии.
+   Названия стадий длинные («Заключение уполномоченного органа»), девять подписей в строку
+   не помещаются и рвали шапку на три ряда; остальные читаются наведением (title). */
+.timeline{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:0 0 14px; }
+.tl-track{ display:flex; align-items:center; gap:0; flex:none; }
+.tl-dot{ width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font:var(--weight-bold) 11px/1 var(--asubk-font); flex:none; }
 .tl-dot.done{ background:var(--asubk-green); color:#fff; }
-.tl-dot.cur{ background:var(--asubk-blue); color:#fff; }
+.tl-dot.cur{ background:var(--asubk-blue); color:#fff; box-shadow:0 0 0 3px var(--status-info-bg); }
 .tl-dot.todo{ background:var(--surface-input); color:var(--text-placeholder); }
-.tl-lbl{ font:var(--font-label); color:var(--text-body); }
-.tl-lbl small{ display:block; color:var(--text-placeholder); font-size:11px; }
-.tl-lbl.todo{ color:var(--text-placeholder); }
-.tl-lbl .dl-red{ font-size:11px; }
-.tl-arrow{ color:var(--text-placeholder); margin:0 10px; }
+.tl-line{ width:14px; height:2px; flex:none; background:var(--asubk-gray-200); }
+.tl-line.done{ background:var(--asubk-green); }
+.tl-cur{ font:var(--font-label); color:var(--text-body); }
+.tl-cur b{ color:var(--text-heading); font-weight:var(--weight-semibold); }
+.tl-cur .cnt{ color:var(--text-muted); }
 .section-h{ font:var(--weight-semibold) 17px/1.2 var(--asubk-font); color:var(--text-heading); margin:2px 0 6px; }
 .section-note{ font:var(--font-label); color:var(--text-muted); margin:0 0 14px; max-width:900px; }
 .gtoolbar{ display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; align-items:center; }
@@ -481,7 +496,6 @@ details.gate-d summary::-webkit-details-marker{ display:none; }
 details.gate-d summary::after{ content:"развернуть ▾"; margin-left:auto; color:var(--text-placeholder); font-size:11px; font-weight:400; }
 details.gate-d[open] summary::after{ content:"свернуть ▴"; }
 details.gate-d .gate-body{ padding:2px 0 12px 30px; font:var(--font-label); }
-.gatebar-slim{ display:flex; gap:8px; flex-wrap:wrap; padding:10px 20px; border-bottom:1px solid var(--border-default); background:var(--surface-panel); margin:0 0 16px; border-radius:var(--radius-md); border:1px solid var(--border-default); }
 </style>
 </head>
 <body>
@@ -2734,26 +2748,133 @@ function repeatPill(app){
   return `<span class="pill mid" title="Порядок согласования не меняется; на категорию риска влияет только решением комитета (ADR-0065)">повторная: ${
     rep.credits.map(c=>esc(c.no)+' — '+c.n+'-я').join(' · ')}</span>`;
 }
+/* ---- шапка карточки: три уровня вместо одной плотной строки ----
+   Прежде шапка несла только идентификацию, и вся — одной строкой «заёмщик · ИНН · виды: … ·
+   кредиты: …»: четыре разных по смыслу вещи одним весом, при двух видах и двух кредитах строка
+   уезжала в перенос. Числами шапка не говорила ничего — остаток, просрочка, охват, гейты,
+   дедлайн, перенос лежали внутри восьми вкладок, и на вопрос «что с заявкой» куратор отвечал
+   тремя-четырьмя открытыми вкладками.
+
+   Раскладка (приём credit.html:6280-6316): строка идентификации → компактный маршрут →
+   плитки. Плитка без данных НЕ рендерится (tileRelief, credit.html:6129): «—» в шести
+   плитках хуже отсутствия плитки. */
+function dimTile(label, value, basis){
+  return `<div class="dim"><div class="dl">${label}</div><div class="dv">${value}</div>`
+    + (basis ? `<div class="src">${basis}</div>` : '') + `</div>`;
+}
+const nCredits = n => n+' '+(n%10===1&&n%100!==11 ? 'кредит'
+  : (n%10>=2&&n%10<=4&&(n%100<10||n%100>=20) ? 'кредита' : 'кредитов'));
+
+/* Дедлайн — своя плитка, а не <small> под точкой маршрута: это единственное число шапки,
+   у которого есть срок. Стадия и её номер живут в строке маршрута, здесь не дублируются.
+   Стадии 6-8 регламентного срока НЕ имеют (РС-34: п. 18 Порядка №41 меряет 70 к.д. от письма
+   до решения целиком) — плитка говорит это вслух, потому что пустое место читается как «успеваем». */
+function tileDeadline(app,st){
+  if(st.closed) return dimTile('Регламентный срок','—', `заявка закрыта: <b>${esc(st.label)}</b>`);
+  const dl=deadline(app);
+  if(!dl) return dimTile('Регламентный срок','срока нет',
+    'на этой стадии норма собственного срока не устанавливает: п. 18 Порядка №41 меряет 70 к.д. от письма до решения целиком');
+  const val = dl.overdue ? `<span class="dl-red">просрочен ${-dl.remaining} дн.</span>` : `осталось ${dl.remaining} дн.`;
+  return dimTile(`Регламентный срок · ${esc(dl.name)}`, val,
+    `${dl.limit} ${esc(dl.unit)} от <b>${esc(dl.anchor)}</b> — до <b>${esc(dl.due)}</b><br>${esc(normNote(dl.rec))}`
+    + (dl.calKnown?'':'<br>календарь года неизвестен — рабочие дни посчитаны приблизительно'));
+}
+function tileScope(app){
+  const crs=(app.creditIds||[]).map(id=>creditById(id)).filter(Boolean);
+  if(!crs.length) return dimTile('Охват заявки','—','кредиты не выбраны');
+  const bal=round2(crs.reduce((s,c)=>s+(c.balance||0),0));
+  const od =round2(crs.reduce((s,c)=>s+(c.odSum||0),0));
+  const odDays=Math.max(0,...crs.map(c=>c.odDays||0));
+  const rc=crs.reduce((s,c)=>s+(c.restructCount||0),0);
+  const others=crs.map(c=>({c,o:activeAppOnCredit(c.id,app.id)})).filter(x=>x.o);
+  const parts=[];
+  if(crs.length>1) parts.push(crs.map(c=>esc(c.no)).join(' · '));
+  parts.push(`остаток <b>${fmt(bal)}</b>`);
+  if(od>0) parts.push(`просрочено <b style="color:var(--asubk-red)">${fmt(od)}</b> · ${odDays} дн.`);
+  parts.push(`реструктуризаций ранее: <b>${rc}</b>`);
+  if(others.length) parts.push(`<span class="dl-red">другая активная заявка: ${
+    others.map(x=>esc(x.o.id)+' на '+esc(x.c.no)).join(', ')}</span>`);
+  return dimTile('Охват заявки', crs.length===1?esc(crs[0].no):nCredits(crs.length), parts.join('<br>'));
+}
+function tileKinds(app){
+  const names=(app.kindIds||[]).map(id=>kindById(id)?.name).filter(Boolean);
+  if(!names.length) return dimTile('Виды реструктуризации','—','вид не выбран — состав пакета не определён');
+  const shown=names.slice(0,2), rest=names.length-shown.length;
+  const val=`<span style="font-size:15px">${esc(shown.join('; '))}${rest?` <span style="color:var(--text-muted);font-weight:400">и ещё ${rest}</span>`:''}</span>`;
+  // две колонки — только когда видов больше одного: при единственном виде вторая половина плитки пуста
+  return `<div class="dim${names.length>1?' wide':''}" title="${esc(names.join(' · '))}"><div class="dl">Виды реструктуризации</div>`
+    + `<div class="dv">${val}</div><div class="src">разрешённые параметры и распоряжения — объединение выбранных видов</div></div>`;
+}
+/* Стадийная плитка: до «Анализа» решает пакет (пп. 85-86, 95), дальше — визы заключантов. */
+function tilePacket(app,st){
+  // возврат без рассмотрения тоже стоит на idx 0: пакет — то, чем заявка кончилась, и он остаётся
+  if(st.idx===0){
+    const g=packetGate(app);
+    if(!g.req.length) return dimTile('Пакет документов','—','виды не выбраны — требований к пакету нет');
+    return dimTile('Пакет документов', `${g.req.length-g.missing.length} из ${g.req.length}`,
+      g.ok ? 'пакет полон — переход в «Анализ» открыт'
+           : `не хватает: ${g.missing.map(esc).join(', ')}`);
+  }
+  const total=(app.conclusions||[]).length; if(!total) return '';
+  const g=conclGate(app);
+  return dimTile('Заключения подразделений', `${total-g.pending.length} из ${total}`,
+    g.ok ? 'все визы есть — гейт «в Комитет» открыт'
+         : `ожидают визы: ${g.pending.map(esc).join(', ')}`);
+}
+/* Гейты вынесены в шапку: они решают, поедет заявка или нет, а состояние их читалось только
+   внутри вкладки «База и распоряжения». Чипы берутся у gateChipsRow — одно определение на макет;
+   клик ведёт туда, где лежит разбор. */
+function tileGates(app,st){
+  if(st.idx<1 || !(app.creditIds||[]).length) return '';
+  const lga=limitsGateApp(app), coa=consentGateApp(app), cga=coverGateApp(app);
+  const why=[];
+  if(!lga.pending && !lga.ok) why.push('Пределы — '+(lga.messages[0]||'предел нарушен'));
+  if(!coa.ok) why.push('Согласия — не согласовано: '+coa.pending.join(', '));
+  if(!cga.ok) why.push('Покрытие — недостаточно по '+cga.rows.filter(r=>!r.g.ok).map(r=>r.cr?r.cr.no:'—').join(', ')+' (мягкий гейт)');
+  const basis = why.length ? why.map(esc).join('<br>')
+    : (lga.pending ? 'Согласия и Покрытие пройдены; Пределы неприменимы до расчёта'
+                   : 'все три гейта пройдены');
+  return `<div class="dim wide"><div class="dl">Гейты оформления</div>`
+    + `<div class="dv" onclick="RS.setTab('calcBase')" title="Разбор — во вкладке «База и распоряжения»">${gateChipsRow(app)}</div>`
+    + `<div class="src">${basis}</div></div>`;
+}
+function tileTransfer(app){
+  const list=(app.calcs||[]).filter(c=>!c.excluded); if(!list.length) return '';
+  const sum=round2(list.reduce((s,c)=>s+((c.fact&&c.fact.transferSum)||0),0));
+  const cov=dsCoverage(app);
+  const parts=[`расчётов в работе: <b>${list.length}</b>`];
+  if(cov.done.length)     parts.push(`ДС зарегистрировано: <b>${cov.done.length}</b>`);
+  if(cov.pending.length)  parts.push(`ждут ДС: <b>${cov.pending.length}</b>`);
+  if(cov.excluded.length) parts.push(`снято с оформления: ${cov.excluded.length}`);
+  return dimTile('Перенос и ДС', sum?fmt(sum):'факт не снят', parts.join('<br>'));
+}
 function phead(app,st){
-  const kinds=app.kindIds.map(id=>kindById(id)?.name).filter(Boolean).join(', ');
-  const steps = STAGES.map((s,i)=>{
+  const track = STAGES.map((s,i)=>{
     let cls = i<st.idx?'done': i===st.idx&&!st.closed?'cur':'todo';
     if(st.closed && i<=st.idx) cls='done';
-    const dl = (i===st.idx && !st.closed) ? deadline(app) : null;
-    let sub='';
-    if(dl){ sub = dl.overdue?`<span class="dl-red">просрочен ${-dl.remaining} дн.</span>`:`осталось ${dl.remaining} дн.`; }
-    return `<div class="tl-step"><span class="tl-dot ${cls}">${cls==='done'?'✓':i+1}</span>
-      <span class="tl-lbl ${cls==='todo'?'todo':''}">${s}${sub?`<small>${sub}</small>`:''}</span></div>` +
-      (i<STAGES.length-1?`<span class="tl-arrow">→</span>`:'');
+    return (i?`<span class="tl-line ${i<=st.idx?'done':''}"></span>`:'')
+      + `<span class="tl-dot ${cls}" title="${esc(s)}">${cls==='done'?'✓':i+1}</span>`;
   }).join('');
+  const tiles = [tileDeadline(app,st), tileScope(app), tileKinds(app),
+                 tilePacket(app,st), tileGates(app,st), tileTransfer(app)].filter(Boolean).join('');
   return `<div class="panel-wrap"><div class="phead">
     <div class="phead-top">
-      <div class="phead-name"><span class="nm">${app.id}</span>
-        <div class="phead-sub"><b>${esc(app.borrower)}</b> · ИНН ${app.inn} · виды: ${esc(kinds)||'—'} · кредиты: ${app.creditIds.map(id=>creditById(id)?.no).join(', ')||'—'}</div>
+      <div>
+        ${/* пилюли стадии здесь нет: стадию называет строка маршрута прямо под этой, и два
+              места для одного слова расходятся при первой же правке */''}
+        <div class="phead-name"><span class="nm">Заявка ${app.id}</span>
+          ${repeatSignal(app).on?repeatPill(app):''}</div>
+        <div class="phead-sub"><b>${esc(app.borrower)}</b> · ИНН ${app.inn} · зарегистрирована ${esc(app.regDate)}</div>
       </div>
-      <div>${repeatSignal(app).on?repeatPill(app)+' ':''}${outcomeChip(app)}</div>
+      <div class="phead-acts">${outcomeChip(app)}</div>
     </div>
-    <div class="timeline">${steps}</div>
+    <div class="timeline">
+      <span class="tl-track">${track}</span>
+      ${/* у закрытой заявки счётчик не пишем: «Стадия 1 из 9 — Возвращена без рассмотрения»
+            читалось бы как начало пути, а путь кончился */''}
+      <span class="tl-cur">${st.closed?'':`<span class="cnt">Стадия ${st.idx+1} из ${STAGES.length} —</span> `}<b>${esc(st.label)}</b></span>
+    </div>
+    <div class="phead-dims">${tiles}</div>
   </div></div>`;
 }
 function footer(app){
@@ -3115,7 +3236,6 @@ function calcBaseSection(app, calc){
   }
 
   return `
-    <div class="gatebar-slim">${gateChipsRow(app)}</div>
 
     <div class="section-h" style="margin-top:0">Два датированных числа</div>
     <div class="section-note">В учёт идёт только факт на дату вступления ДС; срез — согласовательная величина.</div>
@@ -3152,7 +3272,6 @@ function pCalcSched(app){
 function calcSchedSection(app, calc){
   const src=calcTrancheOf(calc);
   if(!src) return `
-    <div class="gatebar-slim">${gateChipsRow(app)}</div>
     <div class="section-h" style="margin-top:0">Транш-источник расчёта</div>
     <div class="op-empty">Транш-источник не выбран — график недоступен. Выбор — на вкладке «База и распоряжения».</div>
     ${gateDetails(app)}
@@ -3212,7 +3331,6 @@ function calcSchedSection(app, calc){
     : (app.ds&&app.ds.no ? `<div class="okline">Все включённые просроченные статьи урегулированы распоряжением — перенос не несёт непокрытой просрочки (РС-15).</div>` : '');
 
   return `
-    <div class="gatebar-slim">${gateChipsRow(app)}</div>
 
     <div class="section-h" style="margin-top:0">Черновой график против действующего</div>
     ${derivedBlock}
