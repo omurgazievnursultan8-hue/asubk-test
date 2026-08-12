@@ -862,7 +862,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-12 · 139/139 PASS
+ SMOKE (node) 2026-08-12 · 140/140 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -951,6 +951,7 @@
    #135 ✓
    #136 ✓
    #137 ✓
+   #138 ✓
    #100 ✓
    #54 ✓
    #55 ✓
@@ -6510,7 +6511,12 @@ if (typeof document !== 'undefined') {
     /* c.t — подпись колонки тултипом: правило, по которому колонка считается, живёт на
        заголовке, а не расползается по ячейкам (ИР-3 на «Траншах», ADR-0109 на «Графике»). */
     return `<div class="cgrid-wrap"><table class="cgrid"><thead><tr>${cols.map(c=>`<th${c.r?' style="text-align:right"':''}${c.t?` title="${jsAttr(c.t)}"`:''}>${esc(c.h)}</th>`).join('')}</tr></thead>`
-      + `<tbody>${rows.length?rows.join(''):`<tr><td colspan="${cols.length}"><div class="cgrid-empty">${esc(o.empty||'Нет записей')}</div></td></tr>`}</tbody></table></div>`;
+      /* o.emptyAct — кнопка ПОД подписью пустоты (КВ-29): «сформируйте график» без кнопки
+         рядом отправляет пользователя искать её глазами по вкладке. Сырой HTML, а не текст:
+         кнопку строит вызывающий, со своим гейтом. */
+      /* flex-direction:column — .cgrid-empty (:1467) центрирует РЯДОМ, и кнопка встала бы
+         сбоку от подписи. Ставится только с кнопкой: пустоте без неё колонка не нужна. */
+      + `<tbody>${rows.length?rows.join(''):`<tr><td colspan="${cols.length}"><div class="cgrid-empty"${o.emptyAct?' style="flex-direction:column"':''}>${esc(o.empty||'Нет записей')}${o.emptyAct?`<div style="margin-top:10px">${o.emptyAct}</div>`:''}</div></td></tr>`}</tbody></table></div>`;
   }
   /* Терминал (Р-20): «Закрыт»/списан — карточка только для чтения под ЛЮБОЙ ролью (К-6).
      UI-слой поверх gate(): логику gate() не трогаем (её проверяет smoke), но кнопки
@@ -7528,18 +7534,32 @@ if (typeof document !== 'undefined') {
       const trCell = sel ? '' : `<td>№${t.no}${trancheOrigin(t)==='разделение'
         ?`<br><span style="color:var(--text-muted);font-size:11px" title="${jsAttr('Позиции этого транша заданы приложением к '+(originDs(t)||'ДС'))}">${esc(originDs(t)||'ДС')}</span>`:''}</td>`;
       posRows.push(`<tr><td>№${r.no}</td>${trCell}<td>${esc(r.date)}</td><td style="text-align:right">${money(r.principal)}</td>${artCols.map(a=>artCell(r,a)).join('')}<td style="text-align:right">${money(r.interest)}</td>${(r.accrued!=null&&Math.abs(r.accrued-r.interest)>0.005)?`<td style="text-align:right" title="начислено за период, но не включено в платёж (льгота по %)">${money(r.accrued)}</td>`:'<td style="text-align:right">—</td>'}<td style="text-align:right">${money(r.total)}</td>${viewing?'':`<td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td>`}</tr>`);});
+    /* Кнопка «Сформировать график» (КВ-29). Была отдельной строкой gtoolbar под заголовком —
+       две строки хрома до плиток ради действия, которое жмут 1–3 раза за жизнь кредита.
+       Теперь ЕДИНСТВЕННАЯ функция и ОДНО место вывода за раз, выбранное контекстом:
+         плашка Д-5   — она прямо просит сформировать заново, кнопка обязана быть в ней;
+         пустое состояние таблицы — у транша без позиций построить график и есть работа
+                        экрана (единственное место, где кнопка остаётся primary);
+         заголовок секции — постоянный дом, идиома файла (:6842 · :7026 · :7058).
+       Приоритет, а не сумма: первый снимок волны показал плашку и заголовок в 42 px друг
+       от друга — одна и та же кнопка дважды читается как два разных действия. Инвариант
+       «на экране ровно одна» проверяется кейсом #138.
+       Ярлык общий и НАЗЫВАЕТ ТРАНШ (Р-24, :706) — не сокращается и в области «по кредиту»
+       гаснет с причиной. Вес secondary: primary в макете носят частые действия («Внести
+       платёж»), перестроение графика к ним не относится. */
+    const schedBtn = (cls) => viewing
+      ? disabledBtn('Сформировать график','Смотрите версию v'+viewSched.ver+' — вернитесь к действующей',cls)
+      : sel ? actBtn(c,'buildSchedule',{tranche:sel},'Сформировать график','CR.openSchedModal()',cls)
+            : disabledBtn('Сформировать график','График принадлежит траншу — выберите транш в шапке',cls);
+    const d5Flags = retroPendingFlags(c);                              // Д-5: тот же признак, что на «Условиях»
+    const btnPlace = d5Flags.length ? 'warn' : (posRows.length ? 'head' : 'empty');
     return `
-      ${(()=>{ const rf=retroPendingFlags(c); if(!rf.length) return '';   // Д-5: тот же признак, что на «Условиях»
-        return `<div class="warn-inline">${svgInfo()}<div>
-          Условия изменены задним числом (с ${esc(rf[0].effectiveFrom)}, ${esc(rf[0].basisLabel)}).
-          Действующая версия графика построена по прежним условиям — сформируйте заново (Д-5).</div></div>`; })()}
-      <div class="section-h">График погашения</div>
-      <div class="gtoolbar">
-        <span class="spacer"></span>
-        ${viewing ? disabledBtn('Сформировать график','Смотрите версию v'+viewSched.ver+' — вернитесь к действующей','btn btn-primary btn-sm')
-          : sel ? actBtn(c,'buildSchedule',{tranche:sel},'Сформировать график','CR.openSchedModal()','btn btn-primary btn-sm')
-                : disabledBtn('Сформировать график','График принадлежит траншу — выберите транш в шапке','btn btn-primary btn-sm')}
-      </div>
+      ${!d5Flags.length ? '' : `<div class="warn-inline">${svgInfo()}<div>
+          Условия изменены задним числом (с ${esc(d5Flags[0].effectiveFrom)}, ${esc(d5Flags[0].basisLabel)}).
+          Действующая версия графика построена по прежним условиям — сформируйте заново (Д-5).
+          <div style="margin-top:8px">${schedBtn('btn btn-secondary btn-sm')}</div></div></div>`}
+      <div class="section-h" style="display:flex;align-items:center;justify-content:space-between;gap:12px">График погашения
+        ${btnPlace==='head' ? schedBtn('btn btn-secondary btn-sm') : ''}</div>
       ${!viewing?'':(()=>{ /* Плашка режима стоит НАД плитками: в просмотре по показанной версии
            идут и они (плитки — свод таблицы под ними), значит предупреждение обязано
            накрывать оба. warn-inline, а не info-plate: цифры на экране не действующие —
@@ -7572,7 +7592,11 @@ if (typeof document !== 'undefined') {
         .concat([{h:'Дата'},{h:'Осн. сумма',r:1,t:'основной долг — единственная ставочная колонка: проценты начисляются только на неё (ADR-0109)'}])
         .concat(artCols.map(a=>({h:a.label,r:1,t:'статья строки: переносится по ДС и погашается, но процентов не несёт (ADR-0109)'})))
         .concat([{h:'Проценты в платеже',r:1},{h:'Начислено %',r:1},{h:'Платёж',r:1}])
-        .concat(viewing?[]:[{h:'Статус'}]), posRows, {empty:'Позиций нет — сформируйте график'})}
+        .concat(viewing?[]:[{h:'Статус'}]), posRows, {empty:'Позиций нет — сформируйте график',
+          /* Здесь primary — единственное место, где он остался: у транша без графика
+             построить его и есть работа экрана. В заголовке и плашке — secondary.
+             Пусто, когда кнопку забрала плашка Д-5: инвариант «на экране ровно одна». */
+          emptyAct: btnPlace==='empty' ? schedBtn('btn btn-primary btn-sm') : ''})}
       ${ir2.length?`<div class="info-plate" style="margin-top:12px">${svgInfo()}<div>
         <b>ИР-2′ — приём строк из приложения к ДС.</b> Σ колонок строки (основной долг + статьи)
         обязана сойтись с суммой переноса: график не создаёт и не теряет тела.
