@@ -1719,6 +1719,49 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
      `Σ=${sB} по строкам ${rowsB.map(r=>r.articles.accInterest).join('/')}`);
 })();
 
+/* 119. Г-8 ЗНАЕТ ДВЕ ВЕТКИ (КВ-26, ADR-0092 §1). Транш происхождением «освоение» строит
+   график от фактической даты освоения (как было); производный — от даты вступления ДС,
+   потому что освоения у него нет и не будет. Прежняя формулировка отказывала второму
+   навсегда. */
+(() => { const db=CR.seedDb(); const kOrd=byId(db,'K-1');
+  const tDer = { no:2, amount:50000, disbursements:[],
+                 transfers:[{ date:'01.05.2026', dir:'in', amount:50000, counterTranche:1,
+                              basis:{ ds:'ДС-РС-2001', date:'01.05.2026' } }] };
+  const tEmpty = { no:3, amount:50000, disbursements:[], transfers:[] };
+  const gDer = CR.gate(kOrd, 'buildSchedule', { tranche: tDer });
+  const gEmp = CR.gate(kOrd, 'buildSchedule', { tranche: tEmpty });
+  ok(119, gDer.ok === true && gEmp.ok === false
+          && /освоен/i.test(gEmp.reasons.join(' ')),
+     `производный ${gDer.ok} пустой ${gEmp.ok}`);
+})();
+
+/* 120. Г-4 ОТКАЗЫВАЕТ ПРОИЗВОДНОМУ (ADR-0092 «Последствия»). Сумма пришла переносом,
+   а не выдачей: освоить её ещё раз значило бы выдать деньги дважды. Причина обязана
+   называть ДС — иначе куратор увидит немой отказ (§0.3). */
+(() => { const db=CR.seedDb(); const kD=byId(db,'K-1');
+  const tDer = { no:99, amount:50000, disbursements:[],
+                 transfers:[{ date:'01.05.2026', dir:'in', amount:50000, counterTranche:1,
+                              basis:{ ds:'ДС-РС-2001', date:'01.05.2026' } }] };
+  kD.tranches = kD.tranches.concat([tDer]);
+  const g4 = CR.gate(kD, 'addDisbursement', { trancheNo:99, amount:1000 });
+  ok(120, g4.ok === false && /ДС-РС-2001/.test(g4.reasons.join(' ')),
+     g4.reasons.join(' | ').slice(0,90));
+})();
+
+/* 121. СТАТЬИ ПЕРЕЖИВАЮТ ПЕРЕСТРОЕНИЕ (КВ-26, ADR-0109). Движок амортизирует только тело;
+   безставочные статьи держатся базой транша (articleBase) и раскладываются заново при
+   каждом построении. Без этого «Сформировать график» стирал бы то, что пришло приложением
+   к ДС, — и плашка ИР-2′ переставала сходиться после первой же кнопки. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1'); const t=c.tranches[0];
+  t.articleBase = [{ key:'accPenalty', amount:1200, from:1, to:4 }];
+  const rows = CR.buildSchedule(t, t.disbursements[0].date).rows;
+  const s = rows.reduce((a,r) => a + CR.rowArticlesSum(r), 0);
+  const cols = CR.scheduleArticleCols(rows);
+  ok(121, Math.abs(s - 1200) < 0.005 && cols.length === 1 && cols[0].key === 'accPenalty'
+          && rows.slice(4).every(r => CR.rowArticlesSum(r) === 0),
+     `Σ статей ${s}, колонок ${cols.length}, позиций ${rows.length}`);
+})();
+
 const pass = results.filter(r => r.pass).length;
 const stamp = `SMOKE (node) ${new Date().toISOString().slice(0,10)} · ${pass}/${results.length} PASS`;
 results.forEach(r => console.log(`${r.pass ? 'PASS' : 'FAIL'} #${r.n} ${r.note}`));
