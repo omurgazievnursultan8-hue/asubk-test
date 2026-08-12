@@ -3223,9 +3223,7 @@ function dispDoorRow(app, row, d, canEdit, planLen, calc){
   const isRange = per.mode==='range';
   let periodsBlock;
   if(!hasPer){
-    periodsBlock = `<span class="mode-tag">${d.kind==='forgive'
-      ? 'сроков нет — прощённая сумма к уплате не назначается'
-      : 'сроков нет — капитализированные проценты вливаются в тело и живут сроками тела'}</span>`;
+    periodsBlock = `<span class="mode-tag">сроков нет</span>`;
   } else {
     periodsBlock = `<div class="dd-grp"><span class="flabel">Сроки</span>
         <label class="chk"><input type="radio" name="per-${app.id}-${row.article}-${row.urgency}-${calc.id}" ${isRange?'':'checked'} ${dis}
@@ -3252,9 +3250,7 @@ function dispDoorRow(app, row, d, canEdit, planLen, calc){
         <span class="mode-tag">≤ ${fmt(row.amount)}</span></div>
       ${periodsBlock}
       ${mismatch}
-      <div class="dd-note">${rest>0.005
-        ? 'без распоряжения остаётся '+fmt2(rest)+' — уходит в перенос своей статьёй и остаётся просроченным'
-        : 'позиция покрыта распоряжением целиком — просрочка по ней снимается'}</div>
+      ${rest>0.005 ? `<div class="dd-note">без распоряжения остаётся ${fmt2(rest)} — уйдёт в перенос просроченным</div>` : ''}
     </div></td></tr>`;
 }
 /* Заголовок секции — адрес суммы: транш, кредит, база и судьба оформления. При одном расчёте не
@@ -3382,9 +3378,8 @@ function calcBaseSection(app, calc){
      строкой «Долг на дату вступления». Пока КЛ-2 жив, соседние вкладки показывают под словом
      «факт» разные суммы, и колонка говорит вслух, какая из двух здесь: молчание в этом месте
      читается как расхождение в цифрах, а починка КЛ-2 — работа модели, не раскладки. */
-  const factNote = calc.dsRef ? 'долг до переноса; остаток транша после переноса печатает «Оформление»'
-                 : calc.fact  ? 'зафиксирован регистрацией ДС'
-                              : 'предпросмотр на сегодня — ДС не зарегистрировано';
+  const factNote = calc.dsRef ? '<span title="Остаток транша-источника после переноса — другое число, его печатает «Оформление» (дефект макета КЛ-2)">до переноса</span>'
+                 : calc.fact  ? '' : 'предпросмотр';
   // Длина черновика графика — та самая шкала, в позициях которой куратор задаёт сроки (РС-38).
   // Пока расчёт не проведён, шкалы нет, и об этом говорится вслух, а не подставляется срок/12.
   const planLen = (calc.version && calc.version.plan && calc.version.plan.rows) ? calc.version.plan.rows.length : null;
@@ -3401,20 +3396,19 @@ function calcBaseSection(app, calc){
        У терминальных статей оно пусто, и это сказано вслух: молча пустое читается как недоделка. */
     const am=accrualModeOf(r.article, app.ds?app.ds.date:TODAY);
     const accrOn=[]; if(am.mode.interest) accrOn.push('проценты'); if(am.mode.penalty) accrOn.push('пеня');
-    const accr = accrOn.length ? 'начисляется: '+accrOn.join(' + ')
-                               : 'терминальная — только гасится, начислений не порождает';
+    const accr = accrOn.length ? 'начисляется: '+accrOn.join(' + ') : 'начислений нет';
     const cs = cutAt(r.article, r.urgency);
     const srezCell = !cutRows ? dash('срез не зафиксирован')
                    : cs==null ? dash('на дату среза этой строки не было')
                    : fmt(cs);
+    // Подписывается только ДВИЖЕНИЕ. «Без изменений» стояло на большинстве строк и говорило то,
+    // что уже сказано двумя равными числами по соседству, — подпись обязана нести новое.
     let deltaSub='';
     if(cutRows){
       if(cs==null) deltaSub=`<div class="a-s">появилась после среза</div>`;
       else {
         const dv=round2(r.amount-cs);
-        deltaSub = Math.abs(dv)<0.005
-          ? `<div class="a-s">без изменений с ${cut.date}</div>`
-          : `<div class="a-s${dv>0?' up':''}">${(dv>0?'+':'')+fmt(dv)} с ${cut.date}</div>`;
+        if(Math.abs(dv)>=0.005) deltaSub=`<div class="a-s${dv>0?' up':''}">${(dv>0?'+':'')+fmt(dv)} с ${cut.date}</div>`;
       }
     }
     const chk = dead
@@ -3427,7 +3421,7 @@ function calcBaseSection(app, calc){
             return `<option value="${k}" ${d&&d.kind===k?'selected':''} ${ok?'':'disabled'}>${DISP_LABEL[k]}${ok?'':' — вид не разрешает'}</option>`;
           }).join('')}
         </select>`
-      : '<span class="mode-tag">строка снята — распоряжаться нечем</span>';
+      : '';   // строка снята — распоряжаться нечем; пустая клетка это и показывает
     const rowCls = dead ? 'art-blocked' : (!r.included ? 'art-removed' : '');
     return `<tr class="${rowCls}">
         <td><div class="a-t">${esc(ARTICLE_LABEL[r.article]||r.article)} · ${urg}</div><div class="a-s">${accr}</div></td>
@@ -3442,10 +3436,10 @@ function calcBaseSection(app, calc){
   const goneRows = (cutRows||[]).filter(x=>!base.some(b=>b.article===x.article && b.urgency===x.urgency)).map(x=>{
     const urg=(URG.find(u=>u.key===x.urgency)||{}).name||x.urgency;
     return `<tr class="art-removed">
-      <td><div class="a-t">${esc(ARTICLE_LABEL[x.article]||x.article)} · ${urg}</div><div class="a-s">была на срезе</div></td>
+      <td><div class="a-t">${esc(ARTICLE_LABEL[x.article]||x.article)} · ${urg}</div></td>
       <td class="numcell">${fmt(x.amount)}</td>
       <td class="numcell">${dash('к дате факта строки не осталось')}<div class="a-s">погашена к ${factDate}</div></td>
-      <td colspan="2"><span class="mode-tag">в долг расчёта не входит</span></td></tr>`;
+      <td colspan="2"></td></tr>`;
   }).join('');
 
   const inc = base.filter(r=>r.included);
@@ -3456,22 +3450,26 @@ function calcBaseSection(app, calc){
       <th class="numcell">${fmt(rowsTotal(base))}</th>
       <th colspan="2">База переноса <b>${fmt(rowsTotal(inc))}</b></th></tr></tfoot>`;
 
-  const cutNote = cutRows ? `Срез зафиксирован письмом ${cut.date} — величина согласовательная; в учёт идёт факт на дату вступления ДС.`
+  /* Примечание объясняет ПУСТУЮ колонку — и только её. Зафиксированный срез стоит датой в
+     шапке колонки и подписи не требует; правило про охват статей (ADR-0110) рассказывало про
+     то, чего на экране нет вовсе, и ушло в спеку, где ему место. */
+  const cutNote = cutRows ? ''
     : cut ? `Дата среза ${cut.date} назначена, суммы зафиксируются отправкой письма — колонка «Срез» пуста не по ошибке.`
           : `Письмо в уполномоченный орган не направлено — срез не зафиксирован, сравнивать факт не с чем.`;
+  const note = [cutNote, canEdit?'':`<span class="mode-tag">правку делает только Куратор ОД</span>`]
+    .filter(Boolean).join(' ');
   const head = (app.calcs||[]).length>1
     ? ` <span class="cnt">${esc(src?src.no:'—')} · ${esc((creditById(calc.creditId)||{}).no||'—')}</span>` : '';
 
   return `
     <div class="section-h" style="margin-top:0">Долг расчёта — статьи и распоряжения${head}</div>
-    <div class="section-note">${cutNote} Расходов взыскания и сборов в базе нет вовсе: формы п. 89 их не касаются (ADR-0110).${
-      canEdit?'':' <span class="mode-tag">роль «'+esc(state.role)+'» правку не делает — только Куратор ОД.</span>'}</div>
+    ${note ? `<div class="section-note">${note}</div>` : ''}
     <div class="cgrid-wrap"><table class="cgrid cbase">
       <colgroup><col class="c-art"><col class="c-cut"><col class="c-fact"><col class="c-inc"><col class="c-disp"></colgroup>
       <thead><tr>
       <th>Статья · срочность</th>
       <th class="numcell">Срез${cut?' — '+cut.date:''}</th>
-      <th class="numcell">Факт — ${factDate}<div class="a-s">${factNote}</div></th>
+      <th class="numcell">Факт — ${factDate}${factNote?`<div class="a-s">${factNote}</div>`:''}</th>
       <th>Включена</th><th>Распоряжение</th></tr></thead>
       <tbody>${rows}${goneRows}</tbody>${foot}</table></div>
   `;
