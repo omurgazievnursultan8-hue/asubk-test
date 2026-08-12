@@ -142,13 +142,19 @@ const pd = CR.pd;
   const after = CR.gate(c,'addDisbursement',{trancheNo:1,amount:1}).ok;
   ok(10, before===false && after===true, `${before}→${after}`);
 })();
-/* 11. График: 1-е формирование → v1; повторное → v2, v1 остаётся архивной. */
+/* 11. График: 1-е формирование → v1; повторное → v2, v1 остаётся в истории (Р-4).
+   Переписан КВ-26: флаг active снят, действующая версия ВЫВОДИТСЯ по срезу (последняя
+   с validFrom ≤ дата), как conditionsAt/subjectAt/derive (КВ-10). Инвариант тот же —
+   на любую дату действующая ровно одна, — но держится по построению, а не поддержкой
+   флага при каждой записи. */
 (() => { const db=CR.seedDb(); const c=byId(db,'K-1'); const t=c.tranches[0];
   CR.generateSchedule(c,1,{from:t.disbursements[0].date,freq:'Ежемесячно',method:'Аннуитетный'});
   const v1 = t.schedules.length;
   CR.generateSchedule(c,1,{from:t.disbursements[0].date,freq:'Ежемесячно',method:'Аннуитетный'});
-  const active = t.schedules.filter(s=>s.active).length;
-  ok(11, v1>=1 && t.schedules.length===v1+1 && active===1, `n=${t.schedules.length} act=${active}`);
+  const at = CR.scheduleAt(t, '23.07.2026');
+  ok(11, v1>=1 && t.schedules.length===v1+1 && at && at.ver===t.schedules.length
+         && t.schedules.every(s => s.active === undefined),
+     `n=${t.schedules.length} действует v${at && at.ver} флагов active=${t.schedules.filter(s=>s.active!==undefined).length}`);
 })();
 /* 24. Г-15: пауза без основания → блок; с основанием → интервал без начисления процентов. */
 (() => { const db=CR.seedDb(); const c=byId(db,'K-1');
@@ -327,7 +333,10 @@ const pd = CR.pd;
 
 /* 33. Д-7: агрегат по кредиту — одно значение при согласии траншей,
        divergent при расхождении; divergenceRows перечисляет только спорные
-       параметры. В демо ровно один кредит с расхождением. */
+       параметры. В демо расхождений ДВА, и оба содержательные: К-7 —
+       реструктурированный (ADR-0092 §4: производный транш и появляется тогда, когда
+       по кредиту одновременно действуют РАЗНЫЕ комплекты условий, то есть расхождение
+       для него — не аномалия, а признак), К-C40 — мультитраншевый фон. */
 (() => { const db = CR.seedDb();
   const k1 = db.credits.find(c => c.id === 'K-1');
   const agg1 = CR.creditConditionsAt(k1, CR.TODAY);
@@ -354,7 +363,7 @@ const pd = CR.pd;
     });
     return nosMatch && valuesMatch;
   });
-  ok(33, single && divergent.length === 1 && rows.length >= 1 && rows.every(r => r.cells.length >= 2)
+  ok(33, single && divergent.length === 2 && divergent.some(c => c.id === 'K-7') && rows.length >= 1 && rows.every(r => r.cells.length >= 2)
       && paramsMatch && cellsOk,
      `divergent=${divergent.map(c=>c.id)} rows=${rows.map(r=>r.param)} cells0=${JSON.stringify(rows[0] && rows[0].cells)}`);
 })();
@@ -482,7 +491,7 @@ const pd = CR.pd;
   const before = CR.retroPendingFlags(c).length;                      // сид: запись суда от 12.07.2026
   const t = c.tranches[0];
   const r = CR.generateSchedule(c, t.no, { from: t.disbursements[0].date });
-  const act = (t.schedules||[]).find(s => s.active);
+  const act = CR.scheduleAt(t, CR.TODAY);                             // КВ-26: действующая — по срезу, не по флагу
   const after = CR.retroPendingFlags(c).length;
   // новая ретро-запись после перегенерации → плашка обязана зажечься снова
   CR.addConditionRecords(c, { basis:{ kind:'court', ref:'ЗАНОВО', label:'Решение суда · ЗАНОВО', date:'' },
@@ -955,6 +964,71 @@ const pd = CR.pd;
   }
   ok(53, bad.length === 0, `вкладок=${CR2.db.credits.length * TABS.length} проблем=${bad.length} ${bad.slice(0,3).join(' | ')}`);
 
+  /* 111. ГРУППЫ КАРАНДАШЕЙ вкладки «Условия» (волна 11.08.2026, КВ-25). Ленты с общей
+     кнопкой «Изменить условия» больше нет — единственный вход в модалку идёт через
+     карандаш карточки, поэтому ключ, не попавший ни в одну группу, становится
+     нередактируемым молча. Тест держит разбиение полным и непересекающимся. */
+  const gR = CR2.COND_CARD_RATES, gP = CR2.COND_CARD_REPAY;
+  const both = (gR||[]).filter(k => (gP||[]).includes(k));
+  const union = [...(gR||[]), ...(gP||[])].sort().join('|');
+  ok(111, Array.isArray(gR) && Array.isArray(gP) && both.length === 0
+          && union === [...CR2.PARAM_KEYS].sort().join('|'),
+     `RATES=${(gR||[]).length} REPAY=${(gP||[]).length} пересечение=${both.length}`
+     + ` покрытие ${union === [...CR2.PARAM_KEYS].sort().join('|') ? 'полное' : 'НЕПОЛНОЕ'}`);
+
+  /* 112. КАРАНДАШИ ВКЛАДКИ «УСЛОВИЯ» (КВ-25). Лента .gtoolbar с единственной кнопкой
+     «Изменить условия» удалена, вход — карандаш в заголовке каждой из двух карточек.
+     Проверяем три состояния: при «Действует» карандаша ровно два и они кликабельны;
+     при «Проект» они на месте, но погашены и объясняют Г-22 (§0.3 — не молчаливый
+     отказ, карандаш не имеет права исчезнуть); при «Закрыт» — то же с terminalReason. */
+  const condHtml = (id) => CR2.renderTab('Условия', CR2.db.credits.find(c => c.id === id));
+  const act = condHtml('K-1'), proj = condHtml('K-C26'), clos = condHtml('K-6');
+  const nCalls = (h) => (h.match(/CR\.openCondModal\(/g) || []).length;
+  ok(112, nCalls(act) === 2
+          && /openCondModal\('rates'\)/.test(act) && /openCondModal\('repay'\)/.test(act)
+          && !/>Изменить условия</.test(act)
+          && nCalls(proj) === 0 && (proj.match(/Г-22/g) || []).length === 4
+          && nCalls(clos) === 0 && (clos.match(/терминальном состоянии/g) || []).length >= 4,
+     `Действует=${nCalls(act)} Проект=${nCalls(proj)}/Г-22×${(proj.match(/Г-22/g)||[]).length}`
+     + ` Закрыт=${nCalls(clos)}`);
+
+  /* 129. «ТРАНШИ» ПОД РАЗДЕЛЕНИЕ ПО ДС (КВ-26). Три проверки разом. У К-1 вкладка обязана
+     остаться прежней по составу секций: производных нет — «Движения по траншу» нет
+     (пустое не рисуется, та же идиома, что «Курс/≈KGS» у валютных). Колонка
+     «Происхождение» стоит ВСЕГДА, как «Состояние»: её отсутствие читалось бы как
+     «происхождение у всех траншей одинаковое по определению». У К-7 обе секции есть,
+     производный назван и сослан на своё ДС, «Освоено» у него — прочерк с объяснением,
+     а не 0: ноль читается как «деньги не выдавали», а они выданы на родителе. */
+  const trh = id => CR2.renderTab('Транши', CR2.db.credits.find(c => c.id === id));
+  const trh1 = trh('K-1'), trh7 = trh('K-7');
+  ok(129, /Происхождение/.test(trh1) && /Остаток тела/.test(trh1)
+          && !/Движение по траншу/.test(trh1) && !/производн/i.test(trh1)
+          && /Движение по траншу/.test(trh7) && /разделение по ДС/.test(trh7)
+          && /ДС-РС-2001/.test(trh7) && /ДС-РС-2002/.test(trh7)
+          && /производных на/.test(trh7)
+          && /Производный транш не осваивается/.test(trh7),
+     `К-1: движения ${/Движение по траншу/.test(trh1)} · К-7: разделение`
+     + ` ${/разделение по ДС/.test(trh7)}, подпись ${/производных на/.test(trh7)}`);
+
+  /* 130. «ГРАФИК» СО СТАТЬЯМИ (КВ-26, ADR-0109). Колонки статей рисуются ПО СОСТАВУ:
+     у К-1 их нет вовсе (иначе вкладка обрастает пустыми колонками у всех кредитов
+     страны ради двух реструктурированных), у производного транша К-7 — есть, и
+     ровно те, по которым что-то распределено. «Осн. сумма» несёт подпись о том, что
+     она единственная ставочная: без неё читатель решит, что процент капает и на пеню.
+     Плашка ИР-2′ показывает арифметику приёма строк — Σ колонок = сумме переноса —
+     и стоит только под ДС-версией: у обычного графика переноса не было. */
+  const grf = (id, scope) => { const c = CR2.db.credits.find(x => x.id === id);
+    CR2.openDetail(id); try { CR2.setCardScope(scope); } catch(e){}
+    const h = CR2.renderTab('График', c); try { CR2.setCardScope('credit'); } catch(e){} return h; };
+  const grf1 = grf('K-1', 'credit'), grf7d = grf('K-7', 2), grf7c = grf('K-7', 'credit');
+  const artH = /Накопл\. проценты|Накопл\. пеня|Прочие/;
+  ok(130, !artH.test(grf1) && !/ИР-2′/.test(grf1)
+          && artH.test(grf7d) && /ADR-0109/.test(grf7d)
+          && /ИР-2′/.test(grf7d) && /ДС-РС-2001/.test(grf7d)
+          && artH.test(grf7c) && /ДС-РС-2002/.test(grf7c),
+     `К-1: статьи ${artH.test(grf1)} · производный: статьи ${artH.test(grf7d)},`
+     + ` ИР-2′ ${/ИР-2′/.test(grf7d)} · по кредиту: статьи ${artH.test(grf7c)}`);
+
   /* 100. ГРУППИРОВКА ПО ГОДАМ на «Графике» (волна 10.08.2026, КВ-19). Строка года стоит
      перед первой позицией своего года, годы идут по возрастанию, итоги (ОД · проценты ·
      к погашению) равны суммам позиций ЭТОГО года и стоят ПОД СВОИМИ колонками — то есть
@@ -969,10 +1043,16 @@ const pd = CR.pd;
   for (const c of CR2.db.credits){
     const sel = c.tranches.length === 1 ? c.tranches[0] : null;   // cardScope по умолчанию — «по кредиту»
     const rows = (sel ? [sel] : c.tranches).flatMap(t => CR2.trancheScheduleRows(t));
+    /* Статейные колонки (КВ-26) раздвигают строку года: их итоги стоят под своими
+       колонками ровно так же, как ОД и проценты, — иначе год врал бы на сумму
+       перенесённой пени. Сколько их, столько лишних ячеек в строке. */
+    const arts = CR2.scheduleArticleCols(rows);
     const exp = new Map();
     for (const r of rows){ const y = CR2.pd(r.date).getFullYear();
-      const g = exp.get(y) || { n:0, principal:0, interest:0, total:0 };
-      g.n++; g.principal += r.principal||0; g.interest += r.interest||0; g.total += r.total||0; exp.set(y, g); }
+      const g = exp.get(y) || { n:0, principal:0, interest:0, total:0, art:{} };
+      g.n++; g.principal += r.principal||0; g.interest += r.interest||0; g.total += r.total||0;
+      for (const a of arts) g.art[a.key] = (g.art[a.key]||0) + ((r.articles&&r.articles[a.key])||0);
+      exp.set(y, g); }
     const ysAll = [...exp.keys()];
     const cur = CR2.pd(CR2.TODAY).getFullYear();
     const defY = exp.has(cur) ? cur : (ysAll.find(y => y > cur) ?? ysAll[ysAll.length-1]);
@@ -992,8 +1072,8 @@ const pd = CR.pd;
     if (posN !== exp.get(defY).n) gbad.push(`${c.id}: развёрнут ${defY}: позиций ${posN} vs ${exp.get(defY).n}`);
     for (const h of heads){
       const g = exp.get(h.y);
-      if (h.tds !== 6) gbad.push(`${c.id}/${h.y}: ячеек в строке года ${h.tds}, а не 6 (итоги не под колонками)`);
-      const want = [m2(g.principal), m2(g.interest), m2(g.total)];
+      if (h.tds !== 6 + arts.length) gbad.push(`${c.id}/${h.y}: ячеек в строке года ${h.tds}, а не ${6+arts.length} (итоги не под колонками)`);
+      const want = [m2(g.principal), ...arts.map(a => g.art[a.key] ? m2(g.art[a.key]) : '—'), m2(g.interest), m2(g.total)];
       if (h.sums.join('|') !== want.join('|')) gbad.push(`${c.id}/${h.y}: итоги «${h.sums.join('|')}» vs «${want.join('|')}»`);
     }
   }
@@ -1026,6 +1106,29 @@ const pd = CR.pd;
   const known = new Set(Object.values(CR2.ROLE_ACTIONS || {}).flatMap(s => [...s]));
   const orphans = [...new Set(asked)].filter(a => !known.has(a));
   ok(55, orphans.length === 0, `действий у кнопок=${new Set(asked).size} без роли=${orphans.join(',')||'—'}`);
+
+  /* 131. КНОПКА «ПРИМЕНИТЬ ДС» (КВ-26, ADR-0096). Дверь одна, но нажимает её человек:
+     применение — собственное действие кредита, а не побочный эффект появления ДС в
+     зеркале (Р-16 цел — ДС пришло зеркалом, кредит его ПРИМЕНЯЕТ). Кнопка стоит в хвосте
+     «Документы без изменения условий» — там, где ДС уже лежит зарегистрированным, но ни
+     одна запись условий на него не ссылается. Применение выносит ДС из хвоста в основной
+     журнал: шаг виден глазом, а не только в аудите.
+     Мутация стоит ПОСЛЕДНЕЙ в блоке рендера — дальше по файлу песочница CR2 не нужна. */
+  const uslHtml = () => { CR2.openDetail('K-7');
+    return CR2.renderTab('Условия', CR2.db.credits.find(x => x.id === 'K-7')); };
+  const before = uslHtml();
+  const k7b = CR2.db.credits.find(x => x.id === 'K-7');
+  const nTr = k7b.tranches.length;
+  const res = CR2.applyDsByNum ? CR2.applyDsByNum('ДС-РС-2003') : { ok:false, reasons:['нет CR.applyDsByNum'] };
+  const after = uslHtml();
+  ok(131, /ДС-РС-2003/.test(before) && /Применить ДС/.test(before)
+          && !/ДС-РС-2001/.test(before.split('Документы без изменения условий')[1] || '')
+          && res.ok === true && k7b.tranches.length === nTr + 1
+          && !/ДС-РС-2003/.test(after.split('Документы без изменения условий')[1] || '')
+          && (k7b.appliedDs || []).length === 3,
+     `в хвосте до: ДС-РС-2003 ${/ДС-РС-2003/.test(before)}, кнопка ${/Применить ДС/.test(before)};`
+     + ` применено ${res.ok} (${(res.reasons||[]).join(' | ')}), траншей ${nTr}→${k7b.tranches.length},`
+     + ` применённых ДС ${(k7b.appliedDs||[]).length}`);
 })();
 
 /* ---- ПЛАН · ПРОГНОЗ · ИСПОЛНЕНИЕ (ADR-0042) ---- */
@@ -1588,6 +1691,260 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
   ok(110, before > 0 && after < before - 0.05,
      `начислено до досрочки ${before.toFixed(2)} → после ${after.toFixed(2)}`
      + ` (разница ${(before - after).toFixed(2)})`);
+})();
+
+/* 113. ПРОИСХОЖДЕНИЕ ТРАНША и Г-3 (КВ-26, ADR-0115). У обычного кредита производных нет,
+   значит распределение суммы договора обязано считаться ровно как прежде — этот кейс
+   держит регресс: фильтр по происхождению не имеет права поменять цифры там, где
+   реструктуризации не было. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  const d = CR.derive(c, '23.07.2026');
+  const sumAll = c.tranches.reduce((a,t) => a + (t.amount||0), 0);
+  ok(113, c.tranches.every(t => CR.trancheOrigin(t) === 'освоение')
+          && Math.abs(d.allocated - sumAll) < 0.005
+          && Math.abs(d.allocatable - (c.contractAmount - sumAll)) < 0.005
+          && d.derivedCount === 0,
+     `траншей ${c.tranches.length}, все «освоение»; allocated=${d.allocated}`
+     + ` allocatable=${d.allocatable}`);
+})();
+
+/* 114. ИР-3 — ОСТАТОК ТЕЛА ЧЕТЫРЬМЯ СЛАГАЕМЫМИ (ADR-0092 §2):
+   освоено − погашено − перенесено + принято. Проверяем на синтетическом транше, а не на
+   сеяном: формула обязана держаться в ОБЕ стороны, а сеять транш, который и отдал, и
+   принял, значило бы придумывать демо ради теста. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  const t = { no:99, amount:100000, disbursements:[{ date:'01.02.2026', amount:100000 }],
+    transfers:[{ date:'01.05.2026', dir:'out', amount:40000, counterTranche:100 },
+               { date:'01.06.2026', dir:'in',  amount:5000,  counterTranche:100 }] };
+  const b0 = CR.trancheBalanceAt(c, t, '01.04.2026');   // до переносов
+  const b1 = CR.trancheBalanceAt(c, t, '15.05.2026');   // после out
+  const b2 = CR.trancheBalanceAt(c, t, '15.06.2026');   // после out и in
+  ok(114, Math.abs(b0 - 100000) < 0.005 && Math.abs(b1 - 60000) < 0.005
+          && Math.abs(b2 - 65000) < 0.005 && CR.trancheOrigin(t) === 'разделение',
+     `${b0} → ${b1} → ${b2}`);
+})();
+
+/* 115. ПЕРИОД ДЕЙСТВИЯ И ОСНОВАНИЕ ВЕРСИИ ГРАФИКА (КВ-26, РС-5 п. 3, ADR-0096 §3).
+   validFrom («с какой даты версия действует») и generatedFrom («от какой даты построена»)
+   — разные величины: версия по ДС с отложенной датой вступления уже записана, но
+   действовать ещё не должна. Флаг active этого различить не мог и разъезжался бы с ДС. */
+(() => {
+  const t = { no:1, amount:0, disbursements:[], schedules:[
+    { ver:1, validFrom:'01.01.2026', by:{ kind:'engine' },              generatedFrom:'01.01.2026', rows:[] },
+    { ver:2, validFrom:'01.09.2026', by:{ kind:'ДС', ref:'ДС-РС-2001' }, generatedFrom:'01.09.2026', rows:[] } ] };
+  const a = CR.scheduleAt(t,'01.06.2026'), b = CR.scheduleAt(t,'01.10.2026');
+  ok(115, a && a.ver===1 && b && b.ver===2
+          && CR.validTo(t, t.schedules[0])==='31.08.2026'
+          && CR.validTo(t, t.schedules[1])===null
+          && CR.scheduleAt(t,'01.01.2026').ver===1,       // граница включительна
+     `срез 01.06→v${a&&a.ver} 01.10→v${b&&b.ver}; v1 по ${CR.validTo(t,t.schedules[0])},`
+     + ` v2 по ${CR.validTo(t,t.schedules[1])}`);
+})();
+
+/* 116. ПЕРЕСТРОЕНИЕ ДС-ВЕРСИИ ТРЕБУЕТ ОСНОВАНИЯ (КВ-26). Строки версии by.kind==='ДС'
+   пришли приложением к ПОДПИСАННОМУ соглашению; движок, перестроив её молча, затёр бы
+   документ своей арифметикой. Основание — ретро-запись условия (суд · ПП) либо заявление
+   на досрочку — передаётся params.basis и наследуется новой версией. Граница узкая:
+   поверх версии движка перестроение свободно, как было. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1'); const t=c.tranches[0];
+  const p = { from:t.disbursements[0].date, freq:'Ежемесячно', method:'Аннуитетный' };
+  const free = CR.generateSchedule(c, 1, p);                       // поверх версии движка — свободно
+  t.schedules.push({ ver:99, validFrom:'01.07.2026', by:{ kind:'ДС', ref:'ДС-РС-9001' },
+                     generatedFrom:'01.07.2026', generatedAt:'01.07.2026', rows:[] });
+  const blocked = CR.generateSchedule(c, 1, p);
+  const withBasis = CR.generateSchedule(c, 1, { ...p, basis:{ kind:'Решение суда', ref:'СД-77' } });
+  ok(116, free && free.ver && blocked.ok === false
+          && /основани/i.test((blocked.reasons||[]).join(' '))
+          && withBasis && withBasis.by && withBasis.by.kind === 'engine'
+          && withBasis.by.basis && withBasis.by.basis.ref === 'СД-77',
+     `свободно v${free&&free.ver}; без основания ${blocked.ok}; с основанием v${withBasis&&withBasis.ver}`
+     + ` (${withBasis&&withBasis.by&&withBasis.by.basis&&withBasis.by.basis.ref})`);
+})();
+
+/* 117. СТАТЬИ СТРОКИ ГРАФИКА (КВ-26, ADR-0109). Только БЕЗСТАВОЧНЫЕ: основной долг
+   (тело + капитализированные проценты) остаётся в r.principal — по ADR-0109 это
+   единственная ставочная колонка, и она уже авторитетна для леджера и прогноза.
+   Пустая колонка не рисуется — состав считается по строкам, а не по справочнику. */
+(() => {
+  const rowsA = [ { no:1, date:'01.03.2026', principal:1000, interest:50, total:1050 },
+                  { no:2, date:'01.04.2026', principal:1000, interest:40, total:1290,
+                    articles:{ accPenalty:200 } } ];
+  const cols = CR.scheduleArticleCols(rowsA);
+  ok(117, CR.rowArticlesSum(rowsA[0])===0 && Math.abs(CR.rowArticlesSum(rowsA[1])-200)<0.005
+          && cols.length===1 && cols[0].key==='accPenalty'
+          && CR.scheduleArticleCols([rowsA[0]]).length===0,
+     `колонок ${cols.length} (${cols.map(x=>x.key).join(',')})`);
+})();
+
+/* 118. РАСКЛАДКА БЕЗСТАВОЧНЫХ (ИР-2′). Части раскладываются равными долями по позициям
+   своего интервала, остаток от округления падает в ПОСЛЕДНЮЮ позицию интервала: иначе
+   Σ колонок разъезжается с суммой переноса на копейки, и плашка ИР-2′ врёт. */
+(() => {
+  const rowsB = [1,2,3].map(k => ({ no:k, date:`0${k}.03.2026`, principal:1000, interest:0, total:1000 }));
+  CR.spreadArticles(rowsB, [{ key:'accInterest', amount:100.00, from:1, to:3 }]);
+  const sB = rowsB.reduce((a,r) => a + CR.rowArticlesSum(r), 0);
+  ok(118, Math.abs(sB - 100) < 0.005 && rowsB.every(r => r.articles && r.articles.accInterest > 0)
+          && rowsB.every(r => Math.abs(r.total - 1000 - r.articles.accInterest) < 0.005),
+     `Σ=${sB} по строкам ${rowsB.map(r=>r.articles.accInterest).join('/')}`);
+})();
+
+/* 119. Г-8 ЗНАЕТ ДВЕ ВЕТКИ (КВ-26, ADR-0092 §1). Транш происхождением «освоение» строит
+   график от фактической даты освоения (как было); производный — от даты вступления ДС,
+   потому что освоения у него нет и не будет. Прежняя формулировка отказывала второму
+   навсегда. */
+(() => { const db=CR.seedDb(); const kOrd=byId(db,'K-1');
+  const tDer = { no:2, amount:50000, disbursements:[],
+                 transfers:[{ date:'01.05.2026', dir:'in', amount:50000, counterTranche:1,
+                              basis:{ ds:'ДС-РС-2001', date:'01.05.2026' } }] };
+  const tEmpty = { no:3, amount:50000, disbursements:[], transfers:[] };
+  const gDer = CR.gate(kOrd, 'buildSchedule', { tranche: tDer });
+  const gEmp = CR.gate(kOrd, 'buildSchedule', { tranche: tEmpty });
+  ok(119, gDer.ok === true && gEmp.ok === false
+          && /освоен/i.test(gEmp.reasons.join(' ')),
+     `производный ${gDer.ok} пустой ${gEmp.ok}`);
+})();
+
+/* 120. Г-4 ОТКАЗЫВАЕТ ПРОИЗВОДНОМУ (ADR-0092 «Последствия»). Сумма пришла переносом,
+   а не выдачей: освоить её ещё раз значило бы выдать деньги дважды. Причина обязана
+   называть ДС — иначе куратор увидит немой отказ (§0.3). */
+(() => { const db=CR.seedDb(); const kD=byId(db,'K-1');
+  const tDer = { no:99, amount:50000, disbursements:[],
+                 transfers:[{ date:'01.05.2026', dir:'in', amount:50000, counterTranche:1,
+                              basis:{ ds:'ДС-РС-2001', date:'01.05.2026' } }] };
+  kD.tranches = kD.tranches.concat([tDer]);
+  const g4 = CR.gate(kD, 'addDisbursement', { trancheNo:99, amount:1000 });
+  ok(120, g4.ok === false && /ДС-РС-2001/.test(g4.reasons.join(' ')),
+     g4.reasons.join(' | ').slice(0,90));
+})();
+
+/* 121. СТАТЬИ ПЕРЕЖИВАЮТ ПЕРЕСТРОЕНИЕ (КВ-26, ADR-0109). Движок амортизирует только тело;
+   безставочные статьи держатся базой транша (articleBase) и раскладываются заново при
+   каждом построении. Без этого «Сформировать график» стирал бы то, что пришло приложением
+   к ДС, — и плашка ИР-2′ переставала сходиться после первой же кнопки. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1'); const t=c.tranches[0];
+  t.articleBase = [{ key:'accPenalty', amount:1200, from:1, to:4 }];
+  const rows = CR.buildSchedule(t, t.disbursements[0].date).rows;
+  const s = rows.reduce((a,r) => a + CR.rowArticlesSum(r), 0);
+  const cols = CR.scheduleArticleCols(rows);
+  ok(121, Math.abs(s - 1200) < 0.005 && cols.length === 1 && cols[0].key === 'accPenalty'
+          && rows.slice(4).every(r => CR.rowArticlesSum(r) === 0),
+     `Σ статей ${s}, колонок ${cols.length}, позиций ${rows.length}`);
+})();
+
+/* 122. Г-25 ПОКАЗЫВАЕТ ВСЕ ПРИЧИНЫ РАЗОМ, ДВЕРЬ АТОМАРНА (КВ-26, ADR-0096 §3). Кредит
+   не строит первичную ДС-версию сам — строки ПРИХОДЯТ приложением, и он проверяет их
+   форму: ИР-2′, строгий рост дат, интервалы распоряжений внутри длины графика. Причины
+   собираются вместе, как у Г-6/Г-7: чинить по одной — четыре круга согласования.
+   Полуприменённого ДС не бывает: при отказе кредит обязан остаться нетронутым. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1'); const src=c.tranches[0];
+  const bad = { num:'ДС-РС-7000', date:'01.05.2026', effectiveFrom:'01.06.2026', sourceTranche:src.no,
+    parts:[{ key:'principal', amount:100000, from:1, to:9 }],
+    rows:[{ no:1, date:'01.08.2026', principal:40000, interest:0, total:40000 },
+          { no:2, date:'01.07.2026', principal:40000, interest:0, total:40000 }] };
+  const g = CR.gate(c, 'applyDs', { ds: bad });
+  const before = c.tranches.length;
+  const res = CR.restructureApplied(c, bad);
+  ok(122, g.ok === false && g.reasons.length >= 3 && res.ok === false
+          && c.tranches.length === before && (src.transfers || []).length === 0,
+     `причин ${g.reasons.length}: ${g.reasons.join(' | ').slice(0,110)}`);
+})();
+
+/* 123. ДВЕРЬ РОЖДАЕТ ТРАНШ И ПАРУ ПЕРЕНОСОВ (ADR-0092 §1–2, ADR-0096). Перенос двусторонний
+   и датированный: у источника — out, у производного — in, у обоих одно основание. Остаток
+   тела считается по ИР-3 с обеих сторон сразу — иначе деньги «удваиваются» ровно на
+   величину переноса. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1'); const src=c.tranches[0];
+  const r2 = x => Math.round(x * 100) / 100;
+  const bal = CR.trancheBalanceAt(c, src, '01.06.2026');
+  const moved = r2(bal / 2), art = 1000, p1 = r2((moved - art) / 2), p2 = r2(moved - art - p1);
+  const ds = { num:'ДС-РС-7001', date:'01.05.2026', effectiveFrom:'01.06.2026', sourceTranche:src.no,
+    parts:[{ key:'principal', amount:r2(moved - art), from:1, to:2 },
+           { key:'accPenalty', amount:art, from:2, to:2 }],
+    rows:[{ no:1, date:'01.07.2026', principal:p1, interest:0, total:p1 },
+          { no:2, date:'01.08.2026', principal:p2, interest:0, total:p2, articles:{ accPenalty:art } }],
+    conditions:[{ param:'rate', value:4 }, { param:'method', value:'аннуитет' }] };
+  const res = CR.restructureApplied(c, ds);
+  const der = res.tranche;
+  ok(123, res.ok === true && c.tranches.length === 3
+          && CR.trancheOrigin(der) === 'разделение' && CR.originDs(der) === 'ДС-РС-7001'
+          && Math.abs(der.amount - moved) < 0.005
+          && CR.transferredOut(src) === moved && CR.transferredIn(der) === moved
+          && Math.abs(CR.trancheBalanceAt(c, src, '01.06.2026') - (bal - moved)) < 0.005
+          && Math.abs(CR.trancheBalanceAt(c, der, '01.06.2026') - moved) < 0.005
+          && der.schedules[0].by.kind === 'ДС' && der.schedules[0].validFrom === '01.06.2026',
+     `перенесено ${moved}: остаток источника ${CR.trancheBalanceAt(c, src, '01.06.2026')},`
+     + ` производного ${CR.trancheBalanceAt(c, der, '01.06.2026')}`);
+})();
+
+/* 124/125. ИР-5 — ОПУСТОШЁННЫЙ ТРАНШ ЗАКРЫВАЕТСЯ ПЕРЕНОСОМ, И СЧЁТЧИК СЧИТАЕТ ДС.
+   Второе ДС забирает у источника весь остаток: денег не приходило, поэтому закрывать его
+   погашением значило бы соврать денежными показателями (ADR-0092 §3). Причина «перенос»
+   ВЫВОДИТСЯ обнулившей операцией — руками её ввести нельзя. Счётчик растёт на ДС, а не на
+   транш: одно соглашение, поделившее три транша, — одна реструктуризация. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1'); const src=c.tranches[0];
+  const r2 = x => Math.round(x * 100) / 100;
+  const mk = (num, eff, amount) => ({ num, date:'01.05.2026', effectiveFrom:eff, sourceTranche:src.no,
+    parts:[{ key:'principal', amount, from:1, to:1 }],
+    rows:[{ no:1, date:'01.12.2026', principal:amount, interest:0, total:amount }],
+    conditions:[{ param:'rate', value:4 }] });
+  const bal = CR.trancheBalanceAt(c, src, '01.06.2026');
+  CR.restructureApplied(c, mk('ДС-РС-7001', '01.06.2026', r2(bal / 2)));
+  const rest = CR.trancheBalanceAt(c, src, '01.07.2026');
+  const two = CR.restructureApplied(c, mk('ДС-РС-7002', '01.07.2026', rest));
+  ok(124, two.ok === true && src.closed && src.closed.reason === 'перенос'
+          && src.closed.date === '01.07.2026' && src.closed.by.ref === 'ДС-РС-7002'
+          && Math.abs(CR.trancheBalanceAt(c, src, '01.07.2026')) < 0.005
+          && CR.gate(c, 'closeTranche', { trancheNo:c.tranches[1].no, reason:'перенос' }).ok === false,
+     `источник закрыт ${src.closed && src.closed.date} по причине «${src.closed && src.closed.reason}»`);
+  ok(125, (c.appliedDs || []).length === 2 && c.tranches.length === 4
+          && c.appliedDs[1].num === 'ДС-РС-7002',
+     `ДС ${(c.appliedDs||[]).length}, траншей ${c.tranches.length}`);
+})();
+
+/* 126. ГРАНИЦА ДВЕРИ (ADR-0096). t.transfers.push вне restructureApplied означает второй
+   вход в модель переноса — ровно то, от чего одна дверь и защищает. Тот же приём, что
+   в смоуке реструктуризации: проверяем ИСХОДНИК, а не поведение. */
+(() => {
+  const pushes = (src.match(/\.transfers\.push\(/g) || []).length;
+  const at = src.indexOf('function restructureApplied');
+  const inDoor = src.slice(at, at + 4000);
+  const inside = (inDoor.match(/\.transfers\.push\(/g) || []).length;
+  ok(126, at > 0 && pushes === inside, `всего ${pushes}, внутри двери ${inside}`);
+})();
+
+/* 127. ДЕЛИМ ТОЛЬКО ПРИ РАСХОЖДЕНИИ УСЛОВИЙ (ADR-0092 §4). Если весь остаток единственного
+   транша идёт на новые условия, по кредиту после ДС действует ОДИН комплект — деления не
+   возникает, и производный транш был бы пустой сущностью: такое ДС оформляется записями
+   условий и новой версией графика на существующем транше (случай К-4 · ДС-РС-1004).
+   Перенос больше остатка тела отклоняется там же — вторая проверка той же суммы. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-3'); const src=c.tranches[0];
+  const bal = CR.trancheBalanceAt(c, src, '01.06.2026');
+  const mk = amount => ({ num:'ДС-РС-7003', date:'01.05.2026', effectiveFrom:'01.06.2026',
+    sourceTranche:src.no, parts:[{ key:'principal', amount, from:1, to:1 }],
+    rows:[{ no:1, date:'01.12.2026', principal:amount, interest:0, total:amount }] });
+  const whole = CR.gate(c, 'applyDs', { ds: mk(bal) });
+  const over  = CR.gate(c, 'applyDs', { ds: mk(Math.round((bal + 1000) * 100) / 100) });
+  ok(127, c.tranches.length === 1 && whole.ok === false && /§ *4/.test(whole.reasons.join(' '))
+          && over.ok === false && /остатк/i.test(over.reasons.join(' ')),
+     `весь остаток: ${whole.reasons.join(' | ').slice(0,80)}`);
+})();
+
+/* 128. ДЕМО РАЗДЕЛЕНИЯ ПО ДС (КВ-26). К-7 несёт то, чего не несёт ни один другой кредит:
+   два ПРИМЕНЁННЫХ ДС, три транша, закрытый переносом источник и статейные колонки в
+   графике. Сеется он самой дверью, а не выписан руками, — иначе демо разошлось бы с
+   дверью при первой её правке. Г-3 при этом не в минусе: производные сумму договора
+   не расходуют (ADR-0115). */
+(() => { const db=CR.seedDb(); const k7=byId(db,'K-7');
+  const der7 = (k7.tranches||[]).filter(t => CR.trancheOrigin(t) === 'разделение');
+  const d7 = CR.derive(k7, CR.TODAY);
+  const artCols = CR.scheduleArticleCols(CR.trancheScheduleRows(der7[0] || {}));
+  ok(128, k7 && k7.tranches.length === 3 && der7.length === 2
+          && (k7.appliedDs||[]).length === 2 && k7.mirror.restructuring.count === 2
+          && d7.allocatable >= -0.005 && d7.derivedCount === 2
+          && artCols.length >= 2
+          && k7.tranches[0].closed && k7.tranches[0].closed.reason === 'перенос',
+     `траншей ${k7 && k7.tranches.length} производных ${der7.length} ДС ${(k7&&k7.appliedDs||[]).length}`
+     + ` доступно ${d7 && d7.allocatable} статейных колонок ${artCols.length}`);
 })();
 
 const pass = results.filter(r => r.pass).length;
