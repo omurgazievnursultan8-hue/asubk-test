@@ -14,7 +14,7 @@ const SHOTS = !process.argv[2];
 const OUT = '.auth/rs-cleanup';
 if (SHOTS) mkdirSync(OUT, { recursive: true });
 
-const TABS = ['Обращение','Охват','Заключения','База и распоряжения','График и дифф','Комитет и решение','Оформление','История'];
+const TABS = ['Пакет документов','Охват','Заключения','База и распоряжения','График и дифф','Комитет и решение','Оформление','История'];
 const IDS = ['RS-1001','RS-1004','RS-1017','RS-1020'];   // ДС зарегистрировано · анализ · комитет · проект решения КМ
 
 const ctx = await chromium.launchPersistentContext('.auth/profile', {
