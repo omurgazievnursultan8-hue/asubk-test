@@ -421,6 +421,15 @@ table.cgrid tbody tr:last-child td{ border-bottom:none; }
 .op-row:last-child{ border-bottom:none; }
 .op-row .op-t{ flex:1; }
 .op-empty{ padding:14px 12px; color:var(--text-placeholder); font:var(--font-label); }
+/* строка-чекбокс в ops-list: название бывает в четыре строки, поэтому флажок держится за первую,
+   а цитата нормы не ужимается остатком ширины (иначе «п. 85 пп. 1» рвётся по одному слову) */
+.op-row.chk-row{ align-items:flex-start; }
+.op-row.chk-row.live{ cursor:pointer; }
+.op-row.chk-row input{ width:16px; height:16px; flex:none; margin:2px 0 0; }
+.op-cite{ flex:none; text-align:right; white-space:nowrap; font-size:11px; color:var(--text-placeholder); }
+.op-cite .cond{ color:var(--asubk-amber); }
+.grp-h{ font:var(--weight-semibold) 13px/1.3 var(--asubk-font); color:var(--text-muted); margin:14px 0 6px; }
+.section-h .cnt{ font:var(--font-label); font-weight:var(--weight-regular); color:var(--text-muted); margin-left:8px; }
 .hist{ border-left:2px solid var(--border-strong); margin-left:6px; }
 .hrow{ position:relative; padding:10px 0 10px 22px; border-bottom:1px solid var(--asubk-grid-line); }
 .hrow::before{ content:""; position:absolute; left:-5px; top:16px; width:8px; height:8px; border-radius:50%; background:var(--asubk-blue); }
@@ -2907,29 +2916,78 @@ function panel(app){
    настройкой (ADR-0099 §5). Условные строки (залоговые предложения п. 86, документы снижения
    ставки п. 95) появляются только когда условие в силе — иначе куратор докладывает бумаги,
    которых норма от него не требует. */
+/* причина, по которой условная строка нормативного пакета вообще в пакете: она объясняется
+   в самой строке, а не абзацем под списком — иначе из пяти строк не видно, какая условная */
+const PACKET_COND_WHY = {
+  coverShort:'покрытие обеспечением недостаточно либо снимка нет — п. 86 добавляет предложения по залоговому обеспечению',
+  rateDown:'в видах есть изменение ставки — пп. 91/95 добавляют документы снижения'
+};
+/* строка чек-листа: флажок · название · основание требования справа. Флажок отключается на тех же
+   условиях, что и раньше (пакет правится только на первой стадии и только у незакрытой заявки). */
+function packetRow(app, doc, cite, why, ro){
+  return `<label class="op-row chk-row${ro?'':' live'}"${why?` title="${esc(why)}"`:''}>
+    <input type="checkbox" ${app.packetDocs[doc]?'checked':''} ${ro?'disabled':''}
+      onchange="RS.toggleDoc('${app.id}','${esc(doc)}',this.checked)">
+    <span class="op-t">${esc(doc)}</span><span class="op-cite">${cite}</span></label>`;
+}
 function pReq(app){
   const st=stageOf(app); const g=packetGate(app);
-  const docs = g.req.map(d=>{ const pt=packetPointOf(d);
-    return `<label class="chk"><input type="checkbox" ${app.packetDocs[d]?'checked':''}
-     ${st.idx>0||st.closed?'disabled':''} onchange="RS.toggleDoc('${app.id}','${esc(d)}',this.checked)"> ${esc(d)}${
-     pt?` <span class="mode-tag">п. ${pt}</span>`:' <span class="mode-tag">по виду заявки</span>'}</label>`;
-  }).join('') || '<div class="op-empty">Виды не выбраны — требований к пакету нет.</div>';
-  const cond = [];
-  if(coverShortInScope(app)) cond.push('покрытие обеспечением недостаточно либо снимка нет ⇒ добавлены залоговые предложения (п. 86)');
-  if(allowedParams(app).has('rate')) cond.push('в видах есть изменение ставки ⇒ добавлены документы снижения (п. 95 пп. 1–2)');
+  const ro = st.idx>0 || st.closed;
   const open = st.idx===0 && !st.closed;
-  const gate = (open && !g.ok)
-    ? `<div class="flagline">Пакет неполон (нет: ${g.missing.map(esc).join(', ')||'—'}) — переход в «Анализ» заблокирован.</div>` : '';
+
+  // группа 1 — норма: порядок и пункты берутся из NORM_PACKET, а не из порядка галок
+  const norm = normPacket(app);
+  const normPts = [...new Set(norm.map(d=>String(d.point).split(' ')[0]))];
+  const normRows = norm.map(d=>packetRow(app, d.doc,
+    `${d.when?'<span class="cond">услов.</span> ':''}п. ${esc(d.point)}`,
+    d.when ? PACKET_COND_WHY[d.when] : '', ro)).join('');
+
+  // группа 2 — документы видов СВЕРХ нормы (kind.docs): показываем у первого вида, который их
+  // требует, остальные требующие виды уходят в подсказку — двух одинаковых галок быть не должно
+  const normSet = new Set(norm.map(d=>d.doc));
+  const shown = new Set();
+  const kindGroups = app.kindIds.map(kindById).filter(k=>k && (k.docs||[]).length).map(k=>{
+    const rows = k.docs.filter(d=>!normSet.has(d) && !shown.has(d)).map(d=>{ shown.add(d);
+      const also = app.kindIds.map(kindById).filter(x=>x&&x.id!==k.id&&(x.docs||[]).includes(d)).map(x=>x.name);
+      return packetRow(app, d, `по виду ${esc(k.id)}`,
+        also.length?`требуют также виды: ${also.join(' · ')}`:'', ro);
+    }).join('');
+    return rows ? `<div class="grp-h">Требует вид «${esc(k.name)}»${k.point?` (п. ${esc(k.point)})`:''}</div>
+      <div class="ops-list">${rows}</div>` : '';
+  }).join('');
+
+  const cnt = g.req.length ? ` <span class="cnt">${g.req.length-g.missing.length} из ${g.req.length}</span>` : '';
   const gatePill = (open && g.ok) ? ' <span class="pill low">пакет полон</span>' : '';
+  const gate = (open && !g.ok)
+    ? `<div class="warnline">Не хватает ${g.missing.length} из ${g.req.length} документов — переход в «Анализ» заблокирован. Незакрытые галки в списке ниже.</div>` : '';
+
+  // реквизиты обращения: дата регистрации и инициатор (п. 83) — зеркало, правится во вкладке
+  // «Комитет и решение». У возвращённой заявки третья строка: когда вернули и из-за чего
+  const initLabel = (INITIATORS.find(i=>i.code===app.initiator)||{}).label || null;
+  const retWhen = (app.outcome==='возврат' && app.history.length) ? app.history[app.history.length-1].when : null;
+  const reqLine = `<div class="section-note" style="margin-bottom:6px">Зарегистрирована <b>${app.regDate}</b>.</div>
+    ${initLabel?`<div class="section-note" style="margin-bottom:6px">Инициатор: <b>${esc(initLabel)}</b> (п. 83).${
+      app.initiatorViaEnvoy?' Внесено через полномочного представителя Президента в области.':''}</div>`:''}
+    ${retWhen?`<div class="section-note">Возвращена без рассмотрения <b>${retWhen}</b>${
+      g.missing.length?` — не хватало ${g.missing.length} из ${g.req.length} документов (пустые галки ниже)`:' — причина в истории заявки'}.</div>`:''}`;
+
   const retBtn = open
-    ? `<button class="btn btn-secondary btn-sm" onclick="RS.returnApp('${app.id}')">Вернуть без рассмотрения</button>` : '';
+    ? `<div style="border-top:1px solid var(--border-default); margin-top:16px; padding-top:14px; max-width:760px">
+        <button class="btn btn-secondary btn-sm" onclick="RS.returnApp('${app.id}')">Вернуть без рассмотрения</button>
+        <div class="section-note" style="margin:8px 0 0">Заявка закроется на первой стадии — маршрут дальше не пойдёт.</div>
+      </div>` : '';
+
+  const body = g.req.length
+    ? `<div class="grp-h" style="margin-top:12px">Нормативный пакет · ${normPts.length>1?'пп.':'п.'} ${normPts.join(', ')} Положения</div>
+       <div class="ops-list">${normRows}</div>${kindGroups}`
+    : '<div class="ops-list"><div class="op-empty">Виды не выбраны — требований к пакету нет.</div></div>';
+
   return `<div class="detail-panel active">
-    <div class="section-h">Обращение${gatePill}</div>
-    <div class="section-note">Дата регистрации: <b>${app.regDate}</b>.</div>
+    <div class="section-h">Обращение${cnt}${gatePill}</div>
+    ${reqLine}
     ${gate}
-    <div class="f2" style="max-width:640px">${docs}</div>
-    ${cond.length?`<div class="section-note" style="margin-top:10px">Условные строки пакета: ${cond.map(esc).join(' · ')}.</div>`:''}
-    <div style="margin-top:14px">${retBtn}</div>
+    <div style="max-width:760px">${body}</div>
+    ${retBtn}
   </div>`;
 }
 
