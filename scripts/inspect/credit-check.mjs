@@ -1618,6 +1618,37 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
      + ` (разница ${(before - after).toFixed(2)})`);
 })();
 
+/* 113. ПРОИСХОЖДЕНИЕ ТРАНША и Г-3 (КВ-26, ADR-0115). У обычного кредита производных нет,
+   значит распределение суммы договора обязано считаться ровно как прежде — этот кейс
+   держит регресс: фильтр по происхождению не имеет права поменять цифры там, где
+   реструктуризации не было. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  const d = CR.derive(c, '23.07.2026');
+  const sumAll = c.tranches.reduce((a,t) => a + (t.amount||0), 0);
+  ok(113, c.tranches.every(t => CR.trancheOrigin(t) === 'освоение')
+          && Math.abs(d.allocated - sumAll) < 0.005
+          && Math.abs(d.allocatable - (c.contractAmount - sumAll)) < 0.005
+          && d.derivedCount === 0,
+     `траншей ${c.tranches.length}, все «освоение»; allocated=${d.allocated}`
+     + ` allocatable=${d.allocatable}`);
+})();
+
+/* 114. ИР-3 — ОСТАТОК ТЕЛА ЧЕТЫРЬМЯ СЛАГАЕМЫМИ (ADR-0092 §2):
+   освоено − погашено − перенесено + принято. Проверяем на синтетическом транше, а не на
+   сеяном: формула обязана держаться в ОБЕ стороны, а сеять транш, который и отдал, и
+   принял, значило бы придумывать демо ради теста. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1');
+  const t = { no:99, amount:100000, disbursements:[{ date:'01.02.2026', amount:100000 }],
+    transfers:[{ date:'01.05.2026', dir:'out', amount:40000, counterTranche:100 },
+               { date:'01.06.2026', dir:'in',  amount:5000,  counterTranche:100 }] };
+  const b0 = CR.trancheBalanceAt(c, t, '01.04.2026');   // до переносов
+  const b1 = CR.trancheBalanceAt(c, t, '15.05.2026');   // после out
+  const b2 = CR.trancheBalanceAt(c, t, '15.06.2026');   // после out и in
+  ok(114, Math.abs(b0 - 100000) < 0.005 && Math.abs(b1 - 60000) < 0.005
+          && Math.abs(b2 - 65000) < 0.005 && CR.trancheOrigin(t) === 'разделение',
+     `${b0} → ${b1} → ${b2}`);
+})();
+
 const pass = results.filter(r => r.pass).length;
 const stamp = `SMOKE (node) ${new Date().toISOString().slice(0,10)} · ${pass}/${results.length} PASS`;
 results.forEach(r => console.log(`${r.pass ? 'PASS' : 'FAIL'} #${r.n} ${r.note}`));

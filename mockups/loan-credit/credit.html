@@ -857,7 +857,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-11 · 114/114 PASS
+ SMOKE (node) 2026-08-12 · 116/116 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -972,6 +972,8 @@
    #108 ✓
    #109 ✓
    #110 ✓
+   #113 ✓
+   #114 ✓
 -->
 <style>
 
@@ -3280,6 +3282,46 @@ function seedDb(){
 function round2(x){ return Math.round((x + Number.EPSILON) * 100) / 100; }
 /* Σ освоений транша (Р-6) */
 function disbursedSum(t){ return (t.disbursements || []).reduce((x,d) => x + (d.amount||0), 0); }
+
+/* ---- ПЕРЕНОС ТЕЛА МЕЖДУ ТРАНШАМИ (ADR-0092 §2, КВ-26) ----
+   t.transfers[] — ЕДИНСТВЕННОЕ новое хранилище волны; всё остальное (происхождение
+   транша, остаток тела, состав статейных колонок) считается от него. Запись:
+     { date, dir:'out'|'in', amount, counterTranche, basis:{ds,date}, parts:[…] }
+   ДВЕ записи на одну операцию — у отдающего и у принимающего, — а не одна общая: транш
+   обязан читаться сам по себе, карточка и ИР-3 не должны ходить по соседям, чтобы узнать
+   свой остаток. Перенос ДАТИРОВАН и несёт основание: без даты остаток тела не имеет
+   среза, без основания операция необратима и необъяснима. */
+function transfersOf(t, d){
+  const lim = d ? pd(d) : null;
+  return (t.transfers || []).filter(x => !lim || pd(x.date) <= lim);
+}
+function transferredOut(t, d){ return round2(transfersOf(t,d).filter(x => x.dir==='out').reduce((a,x) => a + (x.amount||0), 0)); }
+function transferredIn (t, d){ return round2(transfersOf(t,d).filter(x => x.dir==='in' ).reduce((a,x) => a + (x.amount||0), 0)); }
+
+/* Происхождение транша ВЫВОДИТСЯ (Р-11 / ADR-0001): есть входящий перенос ⇒ транш рождён
+   разделением по ДС, иначе — освоением (ADR-0092 §1). Поля на транше нет намеренно: оно
+   завело бы второй источник истины рядом с самим переносом и разъехалось бы с ним при
+   первой же правке. */
+function trancheOrigin(t){ return (t.transfers || []).some(x => x.dir==='in') ? 'разделение' : 'освоение'; }
+function originTransfer(t){ return (t.transfers || []).find(x => x.dir==='in') || null; }
+function originDs(t){ const x = originTransfer(t); return (x && x.basis && x.basis.ds) || null; }
+
+/* Погашенное ТЕЛО транша на дату — сворачивается из ЛЕДЖЕРА (r.principalPaid). Своего
+   хранилища у погашения нет и не заводится: платежи приходят зеркалом (ADR-0010), и
+   вторая копия разошлась бы с ним молча. */
+function repaidPrincipalOf(credit, t, d){
+  const led = buildLedger(credit, d);
+  return round2((led.rows || []).filter(r => r.trancheNo === t.no)
+    .reduce((a,r) => a + (r.principalPaid || 0), 0));
+}
+
+/* ИР-3 (ADR-0092 §2): остаток тела транша = освоено − погашено − перенесено + принято.
+   Именно ЧЕТЫРЕ слагаемых, а не «сумма транша минус погашенное»: после разделения по ДС
+   сумма транша и его тело — разные величины, и у производного транша освоений нет вовсе. */
+function trancheBalanceAt(credit, t, d){
+  return round2(disbursedSum(t) - repaidPrincipalOf(credit, t, d)
+                - transferredOut(t, d) + transferredIn(t, d));
+}
 /* активен ли интервал приостановки начисления на дату среза (Р-17) */
 function holdIsActive(h, asOf){
   if (!h || !h.from) return false;
@@ -4584,9 +4626,19 @@ function activeTranche(t){ return !t.closed; }
 function derive(c, asOf){
   asOf = asOf || TODAY;
   const disbursed   = c.tranches.reduce((a,t) => a + disbursedSum(t), 0);
-  const allocated   = c.tranches.reduce((a,t) => a + (t.amount || 0), 0);
-  const undisbursed = c.contractAmount - disbursed;
-  const allocatable = c.contractAmount - allocated;
+  /* ADR-0115: распределение суммы договора меряется ПРОИСХОЖДЕНИЕМ, а не количеством
+     траншей. Производный транш несёт перенесённую базу, а не новую выдачу, — сложив его
+     в allocated, Г-3 рапортовал бы превышение суммы договора там, где выдача не менялась,
+     и запрещал бы завести транш, деньги под который по договору есть.
+     Отвергнуто вычитать сумму переноса из allocated: арифметика сходится, но плитка
+     перестаёт отвечать на свой вопрос «сколько договора ещё можно раздать». */
+  const ownTranches  = c.tranches.filter(t => trancheOrigin(t) === 'освоение');
+  const derivedTr    = c.tranches.filter(t => trancheOrigin(t) === 'разделение');
+  const allocated    = ownTranches.reduce((a,t) => a + (t.amount || 0), 0);
+  const undisbursed  = c.contractAmount - disbursed;
+  const allocatable  = c.contractAmount - allocated;
+  const derivedCount = derivedTr.length;
+  const derivedSum   = round2(derivedTr.reduce((a,t) => a + (t.amount || 0), 0));
   const disbState =
       (allocated === 0 && disbursed === 0) ? 'Не освоен'
     : (c.closure && undisbursed > 0 && c.closure.disbClosed) ? 'Освоение закрыто'
@@ -4623,7 +4675,7 @@ function derive(c, asOf){
   const overdueAmountKgs = round2(toKgs(overdueAmount, c.currency));
   const collectionCosts  = round2((c.mirror && c.mirror.collectionCosts) || 0);   // 5-я статья, зеркало
   return { asOf, calcUntil:ledger.until, calcStopped:ledger.stopped,
-           disbursed, undisbursed, allocated, allocatable, disbState,
+           disbursed, undisbursed, allocated, allocatable, derivedCount, derivedSum, disbState,
            ledger, debt, overdue, overdueDays, overdueSince:overdue.since,
            atRisk, coverage, riskCategory, riskBasis, relief, stateFlags,
            fullRepayDate, termAgg, reserveAccrual, scheduleTotals, nextPayment, regStatus, docs, planExec,
@@ -5386,6 +5438,7 @@ window.CR = {
   conditionsAt, mkConditionRecord, mkPrimaryRecords, PARAMS, PARAM_KEYS, paramLabel, BASIS_KINDS,
   COND_CARD_RATES, COND_CARD_REPAY,
   creditConditionsAt, divergenceRows, basisGroups, retroFlags, retroPendingFlags, activeTranche,
+  trancheOrigin, originTransfer, originDs, transferredOut, transferredIn, repaidPrincipalOf, trancheBalanceAt,
   courtRef, courtBasisLabel,
   generateSchedule, holdAccrual,
   saveContractAmount, editContractRequisites, addTranche, addDisbursement, setKmDecision, saveWaiver,
