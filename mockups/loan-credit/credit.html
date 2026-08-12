@@ -668,7 +668,7 @@
    Р-21 Условия — записи на параметр на транше (param · value · effectiveFrom · basis);
         действующий комплект и любой исторический срез — производные (Р-11).
    Р-22 ДОЛГ (волна 27.07.2026, КВ-3/КВ-4, ADR-0010). Поля `ledger` нет. НАЧИСЛЕННОЕ
-        выводится из активной версии графика, условий на дату и интервалов приостановки;
+        выводится из действующей версии графика, условий на дату и интервалов приостановки;
         ПОГАШЕННОЕ и его разнесение по статьям приходят зеркалом модуля платежей с датой
         снимка (матрица разнесения принадлежит платежам, §10.4). Статей у кредита ЧЕТЫРЕ:
         основной долг · проценты · пеня · сборы. Пятая — расходы по обращению взыскания —
@@ -2036,7 +2036,7 @@ function retroFlags(credit){
 }
 /* retroPendingFlags — Д-5, ПОГАШЕНИЕ предупреждения: из retroFlags остаются только
    записи, которых активный график транша ещё не видел, то есть createdAt записи
-   позже generatedAt активной версии. Перегенерация графика (generateSchedule
+   позже generatedAt действующей версии. Перегенерация графика (generateSchedule
    штампует generatedAt = TODAY) гасит плашку; новая ретро-запись зажигает её снова.
    Версия без generatedAt (сид/архив) считается построенной ДО записи — плашка горит.
    Транш без графика нечем перегенерировать — предупреждение остаётся.
@@ -2444,7 +2444,7 @@ function seedDb(){
       mkTranche({ id:'K-3-T1', no:1, subject:{ inn:'03011200500777', name:'ОсОО «Тянь-Шань Строй»' },
         amount:200000, plannedDate:'15.02.2026',
         disbursements:[{ date:'15.02.2026', amount:200000, order:'ПП-980', purpose:'СМР', doc:'akt-osvo-48.pdf' }],
-        /* Сеяная активная версия графика: первая позиция 19.04.2026 не погашена, отсюда
+        /* Сеяная действующая версия графика: первая позиция 19.04.2026 не погашена, отсюда
            95 дней просрочки на 23.07.2026 — величина ВЫВОДИТСЯ из графика и зеркала
            платежей, а не задаётся полем `days`, как было в засеянном ledger (КР-9). */
         schedules:[{ ver:1, validFrom:'15.02.2026', by:{ kind:'engine', label:'Первичный график' },
@@ -3721,6 +3721,31 @@ function validTo(t, ver){
   const d = new Date(key(nx)); d.setDate(d.getDate() - 1);
   return fd(d);
 }
+/* Ближайшая ещё не вступившая версия (КВ-27): ДС подписан с отложенной датой, версия
+   записана, но действует прежняя — и таблица позиций показывает НЕ то, что в соглашении.
+   Единственный факт, который меняет чтение вкладки, поэтому выводится отдельно. */
+function schedFuture(t, asOf){
+  const lim = pd(asOf || TODAY);
+  return (t.schedules || []).filter(s => pd(schedValidFrom(s)) > lim)
+    .sort((a,b) => pd(schedValidFrom(a)) - pd(schedValidFrom(b)))[0] || null;
+}
+/* ВЕРСИЯМ ЕСТЬ ЧТО СКАЗАТЬ? (КВ-27) Грид версий стоял на «Графике» безусловно и у обычного
+   кредита нёс ровно одну строку — «v1, построена в день освоения, основание „перестроение“»,
+   то есть повторял дату первой позиции таблицы под собой и больше ничего. Правило волны:
+   элемент появляется, когда несёт факт. Это грамматика самой вкладки — так же ведут себя
+   панель годов (multiYear), плашка ИР-2′ и статейные колонки (ADR-0109).
+   Факт есть, если: версий больше одной (было перестроение) · версия рождена ДС (её строки
+   ПРИШЛИ из приложения, а не посчитаны движком) · записана будущая (на экране график не по
+   подписанному соглашению) · версия построена не в день начала действия (тогда «построена»
+   — самостоятельная величина, по ней гаснет Д-5).
+   Отвергнуто: рисовать всегда — воспроизводит ровно тот дефект, который волна лечит. */
+function schedNeedsContext(t, asOf){
+  const list = (t && t.schedules) || [];
+  if (list.length > 1) return true;
+  if (list.some(s => (s.by || {}).kind === 'ДС')) return true;
+  if (schedFuture(t, asOf)) return true;
+  return list.some(s => s.generatedAt && s.generatedAt !== schedValidFrom(s));
+}
 
 /* строки действующей версии графика транша; если версии нет, но точка отсчёта есть —
    строим на лету (для scheduleTotals/fullRepayDate) */
@@ -4707,7 +4732,7 @@ function buildStateFlags(c, overdueDays, asOf){
   return fl;
 }
 
-/* дата последнего платежа активной версии графика (max по траншам) */
+/* дата последнего платежа действующей версии графика (max по траншам) */
 function maxFullRepayDate(c){
   let best = null;
   for (const t of c.tranches){
@@ -4741,7 +4766,7 @@ function computeReserve(c, asOf){
   return { applies:true, rate, totalBase, totalAmount:round2(totalAmount), perTranche:per };
 }
 
-/* итоги активной версии графика (консолидировано по траншам).
+/* итоги действующей версии графика (консолидировано по траншам).
    regularPay — типовой платёж ПОЛНОГО периода: медиана по позициям, где гасится
    основной долг. Прежняя реализация брала первую строку каждого транша (КР-16), а при
    льготе по ОД первая строка несёт только проценты — «регулярный платёж» выходил
@@ -4764,7 +4789,7 @@ function computeScheduleTotals(c){
            regularPay:round2(regularPay), total:round2(total) };
 }
 
-/* итоги активной версии графика по ОДНОМУ траншу — для вкладки «График», где всё
+/* итоги действующей версии графика по ОДНОМУ траншу — для вкладки «График», где всё
    остальное (версии, позиции) тоже по выбранному траншу; консолидированный
    computeScheduleTotals остаётся в derive для шапки и прочих потребителей.
    Подпись платежа зависит от метода погашения: «регулярный платёж» — величина
@@ -6411,6 +6436,9 @@ if (typeof document !== 'undefined') {
   let condOpenTranche = null;       // № транша активной вкладки внутри разворота; null/чужой → первый транш группы
   let condMatrixTranche = null;     // № транша активной вкладки сводной матрицы (свой, независимо от журнала)
   let condMatrixOpen = false, condTemplateOpen = false;
+  /* Раскрытие версий графика (КВ-27). Ключа набора, как у годов, не нужно: булев без
+     состава — сбрасывать при смене кредита нечего, «открыто» значит одно и то же везде. */
+  let grafikVersOpen = false;
   let dogovorExtraTab = 'subject';  // активная вкладка тройки «Предмет/Освобождение/Перевод» под «Основанием выдачи»
   /* Волна 03.08.2026: «Транши и освоение» → «Транши», из «Расчётов» выделена вкладка
      «График» (план возврата). Три предмета — три вкладки: Транши (сколько выдали) ·
@@ -7299,6 +7327,14 @@ if (typeof document !== 'undefined') {
       ${cgrid(movCols, movRows, {empty:'Движений нет'})}`:''}`;
   }
 
+  /* Основание версии — ОДНО выражение на два места: строку-контекст и грид за раскрытием
+     (КВ-27). Разъедься они, у одной версии оказалось бы два разных основания на одном
+     экране. ДС даётся пилюлей: это документ, на который можно сослаться, а не пояснение. */
+  function schedBasisLabel(s){ const by = (s && s.by) || {};
+    return by.kind === 'ДС'
+      ? `<span class="pill neutral">${esc(by.ref || 'ДС')}</span>`
+      : esc((by.basis && (by.basis.ref || by.basis.kind)) || by.label || 'Перестроение графика'); }
+
   /* ---- ВКЛАДКА 4: График (план возврата) ----
      Выделена из «Расчётов» волной 03.08.2026. Предмет вкладки — КОНТРАКТ: чем кредит
      обязан ответить на выданное. Версии и позиции принадлежат ТРАНШУ
@@ -7330,16 +7366,42 @@ if (typeof document !== 'undefined') {
         const stPillV = isCur ? '<span class="pill low">действует</span>'
                      : future ? '<span class="pill mid">будущая</span>'
                               : '<span class="pill neutral">архив</span>';
-        const by = s.by || {};
-        const basis = by.kind==='ДС'
-          ? `<span class="pill neutral">${esc(by.ref||'ДС')}</span>`
-          : esc((by.basis && (by.basis.ref||by.basis.kind)) || by.label || 'Перестроение графика');
+        const basis = schedBasisLabel(s);
         const to = validTo(t, s);
         return `<tr class="${isCur?'diff-changed':''}"><td>v${s.ver}</td>${sel?'':`<td>№${t.no}</td>`}
           <td>${stPillV}</td><td>${basis}</td><td>${esc(schedValidFrom(s))}</td><td>${to?esc(to):'—'}</td>
           <td>${esc(s.generatedAt||s.generatedFrom)}</td><td style="text-align:right">${s.rows.length}</td></tr>`;
       });
     });
+    /* СТРОКА-КОНТЕКСТ И РАСКРЫТИЕ ВЕРСИЙ (КВ-27). Грид версий стоял здесь безусловно, между
+       плитками и позициями, и был ТУПИКОМ: строки не кликались, а позиции ниже всегда шли от
+       действующей версии — история перечислялась и была недостижима. У обычного кредита он к
+       тому же нёс одну строку, повторявшую дату первой позиции под собой.
+       Теперь: строка-контекст отвечает одной фразой «что действует и почему», грид уезжает
+       за раскрытие. Появляются оба только когда версиям есть что сказать (schedNeedsContext).
+       В области «по кредиту» строки-контекста НЕТ: «какая версия действует» — вопрос про
+       транш, у слитого вида одного ответа на него не существует, а сводка его подделывала бы.
+       Счётчик в заголовке — ВСЕ версии, включая действующую: число обязано совпасть с числом
+       строк за раскрытием, иначе его пересчитывают глазами. Слово «прежние» здесь неверно —
+       будущая версия не прежняя. */
+    const needsCtx = srcTranches.some(t => schedNeedsContext(t, cardAsOf));
+    const curVer = sel ? scheduleAt(sel, cardAsOf) : null;
+    const futVer = sel ? schedFuture(sel, cardAsOf) : null;
+    /* Хвост «вступает» — единственный факт, меняющий чтение таблицы под строкой: позиции
+       показаны по действующей версии, а подписанное соглашение вступит позже. */
+    const futTail = futVer
+      ? ` · с ${esc(schedValidFrom(futVer))} вступает v${futVer.ver} (${schedBasisLabel(futVer)})` : '';
+    const ctxLine = !(sel && needsCtx) ? '' : (curVer
+      ? `<p class="section-note" style="margin:12px 0 0">Действует v${curVer.ver} · с ${esc(schedValidFrom(curVer))}
+         · ${schedBasisLabel(curVer)} · построена ${esc(curVer.generatedAt || curVer.generatedFrom)}${futTail}</p>`
+      /* Версия есть, но её дата вступления впереди — действующей на срез НЕТ вовсе.
+         Случай производного транша, чей ДС ещё не наступил: молчать нельзя, иначе пустая
+         таблица позиций читается как «график не построен». */
+      : (futVer ? `<p class="section-note" style="margin:12px 0 0">Действующей версии на ${esc(cardAsOf)} нет${futTail}</p>` : ''));
+    const versBlock = !needsCtx ? '' : `${ctxLine}
+      <div class="section-h" style="margin-top:${sel ? 14 : 22}px;cursor:pointer" onclick="CR.toggleGrafikVers()"
+        title="${grafikVersOpen ? 'Свернуть' : 'Развернуть'} версии графика">${grafikVersOpen ? '▾' : '▸'} Версии графика (${verRows.length})</div>
+      ${grafikVersOpen ? cgrid([{h:'Версия'}].concat(sel?[]:[{h:'Транш'}]).concat([{h:'Статус'},{h:'Основание'},{h:'Действует с'},{h:'По'},{h:'Построена'},{h:'Строк',r:1}]), verRows, {empty:'Версий графика нет'}) : ''}`;
     /* Статус позиции — от построенного расчёта (d.ledger.index), а не от засеянных строк */
     const posSrc = srcTranches.flatMap(t => trancheScheduleRows(t).map(r => ({ r, t })))
       .sort((a,b) => pd(a.r.date) - pd(b.r.date) || a.t.no - b.t.no)
@@ -7438,8 +7500,7 @@ if (typeof document !== 'undefined') {
         <div class="dim"><div class="dl">Σ проценты</div><div class="dv">${money(st.interestSum)}</div></div>
         <div class="dim"><div class="dl">Итого к погашению</div><div class="dv">${money(st.total)}</div></div>
       </div>
-      <div class="section-h" style="margin-top:22px">Версии графика (${esc(scope)})</div>
-      ${cgrid([{h:'Версия'}].concat(sel?[]:[{h:'Транш'}]).concat([{h:'Статус'},{h:'Основание'},{h:'Действует с'},{h:'По'},{h:'Построена'},{h:'Строк',r:1}]), verRows, {empty:'Версий графика нет — сформируйте'})}
+      ${versBlock}
       <div class="section-h" style="margin-top:22px">График — позиции (${esc(scope)})</div>
       ${multiYear?`<div class="gtoolbar" style="margin:0 0 8px">
         <span class="text-muted" style="font:var(--font-label)">Развёрнут ${plur([...openYears].filter(y=>years.includes(y)).length,'год','года','лет')} из ${years.length}</span>
@@ -7623,7 +7684,7 @@ if (typeof document !== 'undefined') {
     const svod=`
       <div class="section-h">Свод на ${esc(d.calcUntil)}${d.calcStopped?' — расчёт остановлен':''}</div>
       ${d.calcStopped?`<div class="info-plate">${svgInfo()}<div>Кредит закрыт <b>${esc(d.calcUntil)}</b> (${esc((c.closure&&c.closure.reason)||'')}): начисление остановлено, все величины застыли на этой дате и от даты среза ${esc(cardAsOf)} больше не зависят.</div></div>`:''}
-      <p class="section-note">Начислено — по активной версии графика и условиям на дату среза; погашено — зеркало
+      <p class="section-note">Начислено — по действующей версии графика и условиям на дату среза; погашено — зеркало
         модуля платежей${(c.mirror.paymentsAsOf)?` (снимок ${esc(c.mirror.paymentsAsOf)})`:' (платежей нет)'}.
         База начисления — <b>фактическое непогашенное тело</b>, а не контрактное: пока просрочка по телу висит,
         проценты идут выше графика, после досрочки — ниже (ADR-0105); отклонение подписано под колонкой «Начислено».${isFx?` Валюта ${esc(cur)}, курс НБКР ${money(fx)}.`:''}</p>
@@ -8248,6 +8309,7 @@ if (typeof document !== 'undefined') {
   CR.toggleCondMatrix=function(){ condMatrixOpen=!condMatrixOpen; rerenderDetail(); };
   CR.setCondMatrixTranche=function(n){ condMatrixTranche=+n; rerenderDetail(); };
   CR.toggleCondTemplate=function(){ condTemplateOpen=!condTemplateOpen; rerenderDetail(); };
+  CR.toggleGrafikVers=function(){ grafikVersOpen=!grafikVersOpen; rerenderDetail(); };
   CR.goToSchedule=function(){ detailTab='График'; rerenderDetail(); };   // Д-5: перегенерация живёт на «Графике» (волна 03.08.2026)
   /* §0.3 «не молча»: маска дд.мм.гггг пропускала 99.99.9999 и молча подменяла дату
      срезом «сегодня». Круговая проверка fd(pd(s))===s ловит и маску, и несуществующий
@@ -8369,7 +8431,7 @@ if (typeof document !== 'undefined') {
         <div class="field"><span class="flabel">Льгота по ОД, мес.</span><div class="control"><input value="${esc(cnd.graceMain||0)}" readonly></div></div>
         <div class="field"><span class="flabel">Льгота по %, мес.</span><div class="control"><input value="${esc(cnd.graceInterest||0)}" readonly></div></div>
       </div>
-      <p class="section-note" style="margin-top:8px">Периодичность/метод/льготы наследуются из условий транша (правка — только зарегистрированным основанием). Предыдущая активная версия архивируется, не удаляется.</p>
+      <p class="section-note" style="margin-top:8px">Периодичность/метод/льготы наследуются из условий транша (правка — только зарегистрированным основанием). Прежняя версия уходит в архив, не удаляется.</p>
       <div class="gtoolbar"><button class="btn btn-secondary btn-sm" onclick="CR.openSchedModal(document.getElementById('schedFrom').value)">Обновить предпросмотр</button></div>
       ${preview}`;
     CR.openModal('Сформировать график', body,
