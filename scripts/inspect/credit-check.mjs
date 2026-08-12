@@ -142,13 +142,19 @@ const pd = CR.pd;
   const after = CR.gate(c,'addDisbursement',{trancheNo:1,amount:1}).ok;
   ok(10, before===false && after===true, `${before}→${after}`);
 })();
-/* 11. График: 1-е формирование → v1; повторное → v2, v1 остаётся архивной. */
+/* 11. График: 1-е формирование → v1; повторное → v2, v1 остаётся в истории (Р-4).
+   Переписан КВ-26: флаг active снят, действующая версия ВЫВОДИТСЯ по срезу (последняя
+   с validFrom ≤ дата), как conditionsAt/subjectAt/derive (КВ-10). Инвариант тот же —
+   на любую дату действующая ровно одна, — но держится по построению, а не поддержкой
+   флага при каждой записи. */
 (() => { const db=CR.seedDb(); const c=byId(db,'K-1'); const t=c.tranches[0];
   CR.generateSchedule(c,1,{from:t.disbursements[0].date,freq:'Ежемесячно',method:'Аннуитетный'});
   const v1 = t.schedules.length;
   CR.generateSchedule(c,1,{from:t.disbursements[0].date,freq:'Ежемесячно',method:'Аннуитетный'});
-  const active = t.schedules.filter(s=>s.active).length;
-  ok(11, v1>=1 && t.schedules.length===v1+1 && active===1, `n=${t.schedules.length} act=${active}`);
+  const at = CR.scheduleAt(t, '23.07.2026');
+  ok(11, v1>=1 && t.schedules.length===v1+1 && at && at.ver===t.schedules.length
+         && t.schedules.every(s => s.active === undefined),
+     `n=${t.schedules.length} действует v${at && at.ver} флагов active=${t.schedules.filter(s=>s.active!==undefined).length}`);
 })();
 /* 24. Г-15: пауза без основания → блок; с основанием → интервал без начисления процентов. */
 (() => { const db=CR.seedDb(); const c=byId(db,'K-1');
@@ -482,7 +488,7 @@ const pd = CR.pd;
   const before = CR.retroPendingFlags(c).length;                      // сид: запись суда от 12.07.2026
   const t = c.tranches[0];
   const r = CR.generateSchedule(c, t.no, { from: t.disbursements[0].date });
-  const act = (t.schedules||[]).find(s => s.active);
+  const act = CR.scheduleAt(t, CR.TODAY);                             // КВ-26: действующая — по срезу, не по флагу
   const after = CR.retroPendingFlags(c).length;
   // новая ретро-запись после перегенерации → плашка обязана зажечься снова
   CR.addConditionRecords(c, { basis:{ kind:'court', ref:'ЗАНОВО', label:'Решение суда · ЗАНОВО', date:'' },
@@ -1647,6 +1653,43 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
   ok(114, Math.abs(b0 - 100000) < 0.005 && Math.abs(b1 - 60000) < 0.005
           && Math.abs(b2 - 65000) < 0.005 && CR.trancheOrigin(t) === 'разделение',
      `${b0} → ${b1} → ${b2}`);
+})();
+
+/* 115. ПЕРИОД ДЕЙСТВИЯ И ОСНОВАНИЕ ВЕРСИИ ГРАФИКА (КВ-26, РС-5 п. 3, ADR-0096 §3).
+   validFrom («с какой даты версия действует») и generatedFrom («от какой даты построена»)
+   — разные величины: версия по ДС с отложенной датой вступления уже записана, но
+   действовать ещё не должна. Флаг active этого различить не мог и разъезжался бы с ДС. */
+(() => {
+  const t = { no:1, amount:0, disbursements:[], schedules:[
+    { ver:1, validFrom:'01.01.2026', by:{ kind:'engine' },              generatedFrom:'01.01.2026', rows:[] },
+    { ver:2, validFrom:'01.09.2026', by:{ kind:'ДС', ref:'ДС-РС-2001' }, generatedFrom:'01.09.2026', rows:[] } ] };
+  const a = CR.scheduleAt(t,'01.06.2026'), b = CR.scheduleAt(t,'01.10.2026');
+  ok(115, a && a.ver===1 && b && b.ver===2
+          && CR.validTo(t, t.schedules[0])==='31.08.2026'
+          && CR.validTo(t, t.schedules[1])===null
+          && CR.scheduleAt(t,'01.01.2026').ver===1,       // граница включительна
+     `срез 01.06→v${a&&a.ver} 01.10→v${b&&b.ver}; v1 по ${CR.validTo(t,t.schedules[0])},`
+     + ` v2 по ${CR.validTo(t,t.schedules[1])}`);
+})();
+
+/* 116. ПЕРЕСТРОЕНИЕ ДС-ВЕРСИИ ТРЕБУЕТ ОСНОВАНИЯ (КВ-26). Строки версии by.kind==='ДС'
+   пришли приложением к ПОДПИСАННОМУ соглашению; движок, перестроив её молча, затёр бы
+   документ своей арифметикой. Основание — ретро-запись условия (суд · ПП) либо заявление
+   на досрочку — передаётся params.basis и наследуется новой версией. Граница узкая:
+   поверх версии движка перестроение свободно, как было. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1'); const t=c.tranches[0];
+  const p = { from:t.disbursements[0].date, freq:'Ежемесячно', method:'Аннуитетный' };
+  const free = CR.generateSchedule(c, 1, p);                       // поверх версии движка — свободно
+  t.schedules.push({ ver:99, validFrom:'01.07.2026', by:{ kind:'ДС', ref:'ДС-РС-9001' },
+                     generatedFrom:'01.07.2026', generatedAt:'01.07.2026', rows:[] });
+  const blocked = CR.generateSchedule(c, 1, p);
+  const withBasis = CR.generateSchedule(c, 1, { ...p, basis:{ kind:'Решение суда', ref:'СД-77' } });
+  ok(116, free && free.ver && blocked.ok === false
+          && /основани/i.test((blocked.reasons||[]).join(' '))
+          && withBasis && withBasis.by && withBasis.by.kind === 'engine'
+          && withBasis.by.basis && withBasis.by.basis.ref === 'СД-77',
+     `свободно v${free&&free.ver}; без основания ${blocked.ok}; с основанием v${withBasis&&withBasis.ver}`
+     + ` (${withBasis&&withBasis.by&&withBasis.by.basis&&withBasis.by.basis.ref})`);
 })();
 
 const pass = results.filter(r => r.pass).length;

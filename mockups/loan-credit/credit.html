@@ -857,7 +857,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-12 · 116/116 PASS
+ SMOKE (node) 2026-08-12 · 118/118 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -974,6 +974,8 @@
    #110 ✓
    #113 ✓
    #114 ✓
+   #115 ✓
+   #116 ✓
 -->
 <style>
 
@@ -2020,7 +2022,7 @@ function crSeqOf(r){ const n = +String((r && r.id) || '').split('-')[1]; return 
 function retroPendingFlags(credit){
   return retroFlags(credit).filter(f => {
     const t = credit.tranches.find(x => x.no === f.trancheNo);
-    const act = ((t && t.schedules) || []).find(s => s.active);
+    const act = t ? scheduleAt(t, TODAY) : null;
     if (!act || !act.generatedAt) return true;
     const d = pd(f.record.createdAt) - pd(act.generatedAt);
     if (d) return d > 0;
@@ -2254,7 +2256,8 @@ function seedSchedule(fromDate, days, principalTotal, rate, term, count){
     const interest = round2((principalTotal - per * k) * (rate/100/12));
     rows.push({ no:k+1, date:fd(addM(first, k)), principal:per, interest, total:round2(per + interest) });
   }
-  return { ver:1, active:true, generatedFrom:fromDate, generatedAt:fromDate, generatedSeq:0, rows };
+  return { ver:1, validFrom:fromDate, by:{ kind:'engine', label:'Первичный график' },
+           generatedFrom:fromDate, generatedAt:fromDate, generatedSeq:0, rows };
 }
 /* Подгруппа заёмщика по состоянию демо-кредита — имитатор `subgroupOf` карточки
    заёмщика (ADR-0012: считает ВЛАДЕЛЕЦ, кредит только показывает). */
@@ -2419,7 +2422,8 @@ function seedDb(){
         /* Сеяная активная версия графика: первая позиция 19.04.2026 не погашена, отсюда
            95 дней просрочки на 23.07.2026 — величина ВЫВОДИТСЯ из графика и зеркала
            платежей, а не задаётся полем `days`, как было в засеянном ledger (КР-9). */
-        schedules:[{ ver:1, active:true, generatedFrom:'15.02.2026', generatedAt:'15.02.2026', rows:[
+        schedules:[{ ver:1, validFrom:'15.02.2026', by:{ kind:'engine', label:'Первичный график' },
+                     generatedFrom:'15.02.2026', generatedAt:'15.02.2026', rows:[
           { no:1, date:'19.04.2026', total:12300, principal:8300, interest:4000 },   // наступил, не погашен → 95 дн.
           { no:2, date:'19.05.2026', total:12300, principal:8400, interest:3900 },
           { no:3, date:'19.06.2026', total:12300, principal:8500, interest:3800 },
@@ -3512,13 +3516,40 @@ function buildSchedule(tranche, fromDate){
   return { rows };
 }
 
-/* строки активной версии графика транша; если версии нет, но транш освоен —
-   строим на лету от первой даты освоения (для scheduleTotals/fullRepayDate) */
+/* ---- ДЕЙСТВУЮЩАЯ ВЕРСИЯ ГРАФИКА (КВ-26) ----
+   Флага active больше нет: он разъезжался с ДС, у которого дата вступления в будущем —
+   версия уже записана, но действовать ещё не должна, а флаг этого различить не мог.
+   Идиома та же, что conditionsAt / subjectAt / derive: спрашиваем СРЕЗ, а не флаг.
+   validFrom — начало действия версии; generatedFrom («от какой даты строим») и
+   generatedAt («когда построена», гасит плашку Д-5) остаются раздельными: путать
+   начало действия с датой построения нельзя. */
+function schedValidFrom(s){ return s.validFrom || s.generatedFrom; }
+function scheduleAt(t, d){
+  const lim = pd(d || TODAY);
+  const list = (t.schedules || []).filter(s => pd(schedValidFrom(s)) <= lim)
+    .sort((a,b) => pd(schedValidFrom(a)) - pd(schedValidFrom(b)) || (a.ver||0) - (b.ver||0));
+  return list.length ? list[list.length-1] : null;
+}
+/* Конец действия версии — день ДО начала следующей; null = «по сей день». */
+function validTo(t, ver){
+  const key = s => pd(schedValidFrom(s));
+  const nx = (t.schedules || []).filter(s => key(s) > key(ver)).sort((a,b) => key(a) - key(b))[0];
+  if (!nx) return null;
+  const d = new Date(key(nx)); d.setDate(d.getDate() - 1);
+  return fd(d);
+}
+
+/* строки действующей версии графика транша; если версии нет, но точка отсчёта есть —
+   строим на лету (для scheduleTotals/fullRepayDate) */
 function trancheScheduleRows(t){
-  const active = (t.schedules || []).find(s => s.active);
+  const active = scheduleAt(t, TODAY);
   if (active && active.rows && active.rows.length) return active.rows;
   const disb = (t.disbursements || []).slice().sort((a,b) => pd(a.date) - pd(b.date))[0];
-  return disb ? buildSchedule(t, disb.date).rows : [];
+  /* У производного транша освоений нет — точка отсчёта берётся от даты вступления ДС
+     (ADR-0092 §1), иначе «Расчёты» показывали бы ему пустой график навсегда. */
+  const inTr = originTransfer(t);
+  const from = disb ? disb.date : (inTr ? inTr.date : null);
+  return from ? buildSchedule(t, from).rows : [];
 }
 
 /* фактически погашенное ТЕЛО транша — по ПЛАТЕЖАМ, а не по позициям графика.
@@ -4962,27 +4993,45 @@ function canRole(role, action){ return (ROLE_ACTIONS[role]||new Set()).has(actio
    document (работают только с переданными объектами).
    ============================================================ */
 
-/* версии графика транша (Р-4, Г-8): предыдущая активная версия ДЕМОТИРУЕТСЯ
-   (active:false) и остаётся в массиве как архив — не перезаписывается и не удаляется.
-   Возврат: при блоке — {ok:false,reasons:[...]} гейта; при успехе — новая версия
-   {ver,active,generatedFrom,rows}. */
+/* версии графика транша (Р-4, Г-8): прежние версии остаются в массиве и не
+   перезаписываются. Демоции больше нет (КВ-26) — действующая версия ВЫВОДИТСЯ по срезу
+   (scheduleAt), поэтому Р-4 держится по построению, а не поддержкой флага при каждой
+   записи. Возврат: при блоке — {ok:false,reasons:[...]} гейта; при успехе — новая версия
+   {ver,validFrom,by,generatedFrom,rows}. */
 function generateSchedule(credit, trancheNo, params){
   const t = credit.tranches.find(x => x.no === trancheNo);
   const g = gate(credit, 'buildSchedule', { tranche: t });               // Г-8
   if (!g.ok) return g;
+  /* Смотрим на СТОЯЩУЮ версию (срез TODAY), а не на действовавшую в params.from:
+     перестроение от ранней даты всё равно заменяет собой то, что действует сейчас. */
+  const prev = t ? scheduleAt(t, TODAY) : null;
+  /* Перестроить версию, рождённую ДС, можно ТОЛЬКО с основанием под ним (КВ-26).
+     Строки такой версии пришли приложением к подписанному ДС; движок, перестроив её
+     молча, затёр бы подписанный документ своей арифметикой. Основание наследуется новой
+     версией и падает в §5.4 «Документы, перестроившие график». Граница узкая: у версий
+     by.kind==='engine' поведение прежнее и сигнатура совместима. */
+  if (prev && prev.by && prev.by.kind === 'ДС' && !params.basis)
+    return { ok:false, reasons:['График v'+prev.ver+' построен по '+(prev.by.ref||'ДС')
+      +' — перестроение требует основания: ретро-запись условия (суд · постановление правительства) либо заявление на досрочное погашение'] };
   const built = buildSchedule(t, params.from);
   t.schedules = t.schedules || [];
-  const prevActive = t.schedules.find(s => s.active);
-  if (prevActive) prevActive.active = false;                             // архив, не удаление (Р-4)
   const ver = t.schedules.reduce((m,s) => Math.max(m, s.ver || 0), 0) + 1;
-  /* generatedAt — КОГДА версия построена (в отличие от generatedFrom — «от какой даты
-     строим»). Нужен Д-5: плашка «график построен по прежним условиям» гаснет, когда
-     активная версия свежее ретро-записи (см. retroPendingFlags). */
-  const version = { ver, active:true, generatedFrom: params.from, generatedAt: TODAY,
+  /* Три ДАТЫ версии, и путать их нельзя:
+       validFrom     — с какой даты версия ДЕЙСТВУЕТ (у движка совпадает с датой
+                       построения: назначать будущее вступление умеет только ДС);
+       generatedFrom — от какой даты строим расписание;
+       generatedAt   — КОГДА версия построена. Нужен Д-5: плашка «график построен по
+                       прежним условиям» гаснет, когда действующая версия свежее
+                       ретро-записи (см. retroPendingFlags). */
+  const version = { ver, validFrom: params.validFrom || params.from,
+                    by: params.basis
+                        ? { kind:'engine', label:'Перестроение графика', basis: params.basis }
+                        : { kind:'engine', label:'Перестроение графика' },
+                    generatedFrom: params.from, generatedAt: TODAY,
                     generatedSeq: _crSeq, rows: built.rows };
   t.schedules.push(version);
   pushAudit(credit, `Сформирован график погашения v${ver} по траншу №${trancheNo} от ${params.from}`,
-    prevActive || null, version);
+    prev || null, version);
   return version;
 }
 
@@ -5440,7 +5489,7 @@ window.CR = {
   creditConditionsAt, divergenceRows, basisGroups, retroFlags, retroPendingFlags, activeTranche,
   trancheOrigin, originTransfer, originDs, transferredOut, transferredIn, repaidPrincipalOf, trancheBalanceAt,
   courtRef, courtBasisLabel,
-  generateSchedule, holdAccrual,
+  generateSchedule, holdAccrual, scheduleAt, validTo, schedValidFrom,
   saveContractAmount, editContractRequisites, addTranche, addDisbursement, setKmDecision, saveWaiver,
   addPayment, paymentEditable, addAgreement, addConditionRecords, closeCredit, linkPledge,
   editSubject, addSubjectRecords, subjectAt, mkSubjectItem,
@@ -6876,8 +6925,27 @@ if (typeof document !== 'undefined') {
        свой график в истории (Г-17), и «Расчёты» его показывают — фильтр activeTranche
        здесь разводил две вкладки в разные смыслы одного контрола. */
     const srcTranches = sel ? [sel] : c.tranches;
-    const verRows = srcTranches.flatMap(t => ((t.schedules)||[]).slice().sort((a,b)=>b.ver-a.ver)
-      .map(s=>`<tr class="${s.active?'diff-changed':''}"><td>v${s.ver}</td>${sel?'':`<td>№${t.no}</td>`}<td>${s.active?'<span class="pill low">активна</span>':'<span class="pill neutral">архив</span>'}</td><td>${esc(s.generatedFrom)}</td><td style="text-align:right">${s.rows.length}</td></tr>`));
+    /* Версия несёт ПЕРИОД ДЕЙСТВИЯ и ОСНОВАНИЕ (КВ-26, РС-5 п. 3). Флага active нет:
+       статус выводится по срезу карточки — «действует» (последняя с validFrom ≤ срез),
+       «будущая» (ДС с отложенной датой вступления уже записан, но ещё не действует) и
+       «архив». Прежние две пилюли третьего состояния назвать не могли, и версия по
+       будущему ДС читалась бы как действующая. */
+    const verRows = srcTranches.flatMap(t => { const cur = scheduleAt(t, cardAsOf);
+      return ((t.schedules)||[]).slice().sort((a,b)=>b.ver-a.ver).map(s=>{
+        const isCur = cur && cur.ver===s.ver, future = pd(schedValidFrom(s)) > pd(cardAsOf);
+        const stPillV = isCur ? '<span class="pill low">действует</span>'
+                     : future ? '<span class="pill mid">будущая</span>'
+                              : '<span class="pill neutral">архив</span>';
+        const by = s.by || {};
+        const basis = by.kind==='ДС'
+          ? `<span class="pill neutral">${esc(by.ref||'ДС')}</span>`
+          : esc((by.basis && (by.basis.ref||by.basis.kind)) || by.label || 'Перестроение графика');
+        const to = validTo(t, s);
+        return `<tr class="${isCur?'diff-changed':''}"><td>v${s.ver}</td>${sel?'':`<td>№${t.no}</td>`}
+          <td>${stPillV}</td><td>${basis}</td><td>${esc(schedValidFrom(s))}</td><td>${to?esc(to):'—'}</td>
+          <td>${esc(s.generatedAt||s.generatedFrom)}</td><td style="text-align:right">${s.rows.length}</td></tr>`;
+      });
+    });
     /* Статус позиции — от построенного расчёта (d.ledger.index), а не от засеянных строк */
     const posSrc = srcTranches.flatMap(t => trancheScheduleRows(t).map(r => ({ r, t })))
       .sort((a,b) => pd(a.r.date) - pd(b.r.date) || a.t.no - b.t.no)
@@ -6955,7 +7023,7 @@ if (typeof document !== 'undefined') {
         <div class="dim"><div class="dl">Итого к погашению</div><div class="dv">${money(st.total)}</div></div>
       </div>
       <div class="section-h" style="margin-top:22px">Версии графика (${esc(scope)})</div>
-      ${cgrid([{h:'Версия'}].concat(sel?[]:[{h:'Транш'}]).concat([{h:'Статус'},{h:'От даты'},{h:'Строк',r:1}]), verRows, {empty:'Версий графика нет — сформируйте'})}
+      ${cgrid([{h:'Версия'}].concat(sel?[]:[{h:'Транш'}]).concat([{h:'Статус'},{h:'Основание'},{h:'Действует с'},{h:'По'},{h:'Построена'},{h:'Строк',r:1}]), verRows, {empty:'Версий графика нет — сформируйте'})}
       <div class="section-h" style="margin-top:22px">График — позиции (${esc(scope)})</div>
       ${multiYear?`<div class="gtoolbar" style="margin:0 0 8px">
         <span class="text-muted" style="font:var(--font-label)">Развёрнут ${plur([...openYears].filter(y=>years.includes(y)).length,'год','года','лет')} из ${years.length}</span>
