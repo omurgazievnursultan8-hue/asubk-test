@@ -711,7 +711,7 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
     try { RS.stageOf(a); a.creditIds.forEach(i => RS.creditById(i).no); RS.deadline(a); }
     catch (e) { walkOk = false; }
   });
-  ok(52, !err && apps.length === 25 && ids.size === 25 && wave2 === 18 && walkOk,
+  ok(52, !err && apps.length === 26 && ids.size === 26 && wave2 === 19 && walkOk,
     err ? `сев упал: ${err.message}`
         : `заявок=${apps.length} уникальных=${ids.size} волна2=${wave2} обход=${walkOk}`);
 })();
@@ -988,16 +988,20 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
    у setDisposition/setDispAmount/setDispPeriods между тройкой (заявка,статья,срочность) и calcId
    есть свои позиционные поля (вид/сумма; режим/от/до) — склейка `${AC}` в лоб увела бы calcId в
    чужой слот, а нужное значение — в слот calcId (NaN на каждой правке суммы). Только у
-   toggleBaseRow тройка идёт вплотную к calcId, поэтому только там разметка зовёт `${AC}` буквально. */
+   toggleBaseRow тройка идёт вплотную к calcId, поэтому только там разметка зовёт `${AC}` буквально.
+   После РС-43 адрес распоряжения длиннее адреса строки: у позиции линий несколько, и хвост
+   `'${calc.id}',${seq}` обязан стоять у КАЖДОГО сеттера распоряжения — иначе правка второй линии
+   уехала бы в первую и выглядела бы как «выбор не сохраняется». */
 (() => {
   const head   = /function calcSectionHead/.test(src);
   const total  = /Итог по заявке/.test(src);
   const single = /length<2\) return '';/.test(src);                 // один расчёт — заголовка нет
   const wired  = /const AC=/.test(src)
+    && /const CS=`'\$\{calc\.id\}',\$\{seq\}`/.test(src)                // расчёт + номер линии (РС-43)
     && /RS\.toggleBaseRow\(\$\{AC\}\)/.test(src)
-    && /RS\.setDisposition\(\$\{A\},this\.value,'\$\{calc\.id\}'\)/.test(src)
-    && /RS\.setDispAmount\(\$\{A\},this\.value,'\$\{calc\.id\}'\)/.test(src)
-    && /RS\.setDispPeriods\(\$\{A\},'range',this\.value,null,'\$\{calc\.id\}'\)/.test(src);
+    && /RS\.setDisposition\(\$\{A\},this\.value,'\$\{calc\.id\}',\$\{seq\}\)/.test(src)
+    && /RS\.setDispAmount\(\$\{A\},this\.value,\$\{CS\}\)/.test(src)
+    && /RS\.setDispPeriods\(\$\{A\},'range',this\.value,null,\$\{CS\}\)/.test(src);
   const bodyOf = name => {
     const start = src.indexOf('function '+name+'(');
     if(start<0) return '';
@@ -1118,6 +1122,79 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
 
   ok(68, pickerOk && perCalc && rollupAddsUp && splitMoved && schedShown && gatesOffTabs,
     `полоса=${pickerOk} подытогПоВыбору=${perCalc} итогСходится=${rollupAddsUp} (${wholeBase}) RS-1001: коробкаНаГрафике=${splitMoved} график=${schedRows} строк гейтыВнеВкладок=${gatesOffTabs}`);
+})();
+
+/* 69. ДЕЛЕНИЕ ПОЗИЦИИ НА НЕСКОЛЬКО РАСПОРЯЖЕНИЙ (РС-43) — исход прогона. Демо-заявка RS-1026
+   делит неустойку 600 000 актом на три части: 200 000 прощены, 250 000 капитализированы на
+   позиции 1–12, 100 000 распределены на 13–24; 50 000 остались без распоряжения. Сценарий
+   проверяет ровно то, ради чего деление заводилось: каждая линия дала СВОЙ исход, а свободный
+   остаток ушёл переносом просроченным ВИДИМОЙ суммой, а не растворился в одном из трёх видов.
+   Σ линий + остаток = сумма позиции — инвариант, которым живёт вся правка. */
+(() => { fresh();
+  const a = app('RS-1026'), calc = a.calcs[0];
+  const row = calc.base.find(r => r.article === 'penalty' && r.urgency === 'over');
+  const lines = RS.dispositionsFor(calc.dispositions, 'penalty', 'over');
+  const r = RS.AppSide.run(a, a.ds.date, calc.id);
+  const parts = r.parts || [];
+  const capPart = parts.find(p => p.from === 'капитализация пени');
+  const sprPart = parts.find(p => p.from === 'распределение');
+  const restPart = parts.find(p => p.article === 'penalty' && p.from === 'без распоряжения');
+  const taken = RS.dispositionsSum(calc.dispositions, 'penalty', 'over');
+  const invariant = Math.abs(taken + (restPart ? restPart.amount : 0) - row.amount) < 0.005;
+  const spread = lines.length === 3
+    && r.forgiven === 200000
+    && r.capitalizedPenalty === 250000 && r.capitalizedInterest === 0
+    && !!capPart && capPart.amount === 250000 && capPart.periods.from === 1 && capPart.periods.to === 12
+    && !!sprPart && sprPart.amount === 100000 && sprPart.periods.from === 13 && sprPart.periods.to === 24
+    && !!restPart && restPart.amount === 50000;
+  ok(69, spread && invariant,
+    `линий=${lines.length} прощено=${r.forgiven} капПеня=${r.capitalizedPenalty} распределено=${sprPart ? sprPart.amount : '—'} остаток=${restPart ? restPart.amount : '—'} позиция=${row.amount} инвариант=${invariant} перенос=${r.transferSum}`);
+})();
+
+/* 70. Границы деления держатся ОТКАЗОМ, а не подрезкой (принцип РС-38: молча не сглаживаем).
+   Две границы: сумма линии не может съесть чужую долю позиции (Σ прочих + v ≤ сумма позиции)
+   и один вид не заводится на позиции дважды, если у него нет своих сроков — две «прощённые»
+   части одной строки неразличимы, и вторая была бы не распоряжением, а опиской. Капитализация
+   пени сроки имеет, потому дубль на ней РАЗРЕШЁН: 1–12 и 13–24 — разные распоряжения. */
+(() => { fresh();
+  const a = app('RS-1026'), calc = a.calcs[0];
+  const before = RS.dispositionsFor(calc.dispositions, 'penalty', 'over').map(d => d.amount);
+  RS.setDispAmount(a.id, 'penalty', 'over', 500000, calc.id, 1);   // 500k + 250k + 100k > 600k
+  const overRefused = RS.dispositionsFor(calc.dispositions, 'penalty', 'over')[0].amount === before[0];
+  RS.setDispAmount(a.id, 'penalty', 'over', 240000, calc.id, 1);   // 240k + 350k = 590k ≤ 600k
+  const inLimitTaken = RS.dispositionsFor(calc.dispositions, 'penalty', 'over')[0].amount === 240000;
+
+  RS.addDisposition(a.id, 'penalty', 'over', calc.id);             // четвёртая линия на остаток 10 000
+  const added = RS.dispositionsFor(calc.dispositions, 'penalty', 'over').length === 4;
+  RS.setDisposition(a.id, 'penalty', 'over', 'forgive', calc.id, 4);
+  const dupRefused = RS.dispositionsFor(calc.dispositions, 'penalty', 'over')[3].kind === 'none';
+  RS.setDisposition(a.id, 'penalty', 'over', 'cap', calc.id, 4);   // у капитализации пени сроки свои
+  const dupWithPeriodsOk = RS.dispositionsFor(calc.dispositions, 'penalty', 'over')[3].kind === 'cap';
+  RS.removeDisposition(a.id, 'penalty', 'over', calc.id, 4);
+  const removed = RS.dispositionsFor(calc.dispositions, 'penalty', 'over').length === 3
+    && RS.dispositionsFor(calc.dispositions, 'penalty', 'over').map(d => d.seq).join(',') === '1,2,3';
+
+  ok(70, overRefused && inLimitTaken && added && dupRefused && dupWithPeriodsOk && removed,
+    `сверхПозиции=${overRefused} вПределе=${inLimitTaken} линияДобавлена=${added} дубльБезСроков=${dupRefused} дубльСоСроками=${dupWithPeriodsOk} снятиеПеренумеровало=${removed}`);
+})();
+
+/* 71. Порядок линий на экране исхода не меняет. Куратор волен снять и завести распоряжения в
+   любой последовательности, а очерёдность шагов держит КОНВЕЙЕР (прощение до капитализации,
+   РС-14), не порядок строк в массиве. Сценарий гоняет прогон на перевёрнутом списке линий и
+   сверяет исход целиком — суммы и статейные колонки вместе с их интервалами. */
+(() => { fresh();
+  const a = app('RS-1026'), calc = a.calcs[0];
+  const r1 = RS.AppSide.run(a, a.ds.date, calc.id);
+  const flipped = { ...calc, dispositions: [...calc.dispositions].reverse() };
+  const r2 = RS.AppSide.run({ ...a, calcs: [flipped] }, a.ds.date, calc.id);
+  const strip = r => JSON.stringify({
+    forgiven: r.forgiven, capitalizedInterest: r.capitalizedInterest, capitalizedPenalty: r.capitalizedPenalty,
+    principalPart: r.principalPart, transferSum: r.transferSum,
+    parts: (r.parts || []).map(p => [p.article, p.amount, p.from, p.periods.mode, p.periods.from, p.periods.to]).sort()
+  });
+  const same = strip(r1) === strip(r2);
+  ok(71, same && r1.transferSum > 0,
+    `исходСовпал=${same} перенос=${r1.transferSum} колонок=${(r1.parts || []).length}`);
 })();
 
 /* ---- отчёт ---- */

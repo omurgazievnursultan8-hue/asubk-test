@@ -80,7 +80,7 @@
   возражение, а не как открытые вопросы. Свод — §11 спеки.
 
   SMOKE (node scripts/inspect/restructuring-check.mjs):
-   SMOKE 2026-08-12 · 68/68 PASS
+   SMOKE 2026-08-12 · 71/71 PASS
       PASS  #1  до=false после=true
       PASS  #2  closed=true opened=true reblock=true
       PASS  #3  noRate=true union=true
@@ -97,7 +97,7 @@
       PASS  #14  n=5 arts=5 urg=over,cur внеОхвата=true
       PASS  #15  before={"article":"penalty","urgency":"over","amount":73000,"since":"2026-04-14","disputed":true,"included":false,"blockedBy":"disputed"} after={"article":"penalty","urgency":"over","amount":73000,"since":"2026-04-14","disputed":true,"included":false,"blockedBy":"disputed"}
       PASS  #16  wired=true безNull=true сеттер=true записано=true прочитано=true capPen(пишет/читает)=2/1
-      PASS  #17  order=21,973,2713,3947,4564
+      PASS  #17  order=21,1300,3321,4811,5428
       PASS  #18  count=1 inside=true
       PASS  #19  CR-61200=false CR-60540=true CR-59003=true
       PASS  #20  RS-1001={"required":120,"cover":145,"coverOk":true,"ageOk":true,"insured":false,"waived":false,"ok":false,"maturity":"2031-02-04","stale":false,"snapshotDate":"2026-07-05","source":"Залог"} RS-1005={"required":120,"cover":125,"coverOk":true,"ageOk":true,"insured":true,"waived":false,"ok":true,"maturity":"2027-05-05","stale":false,"snapshotDate":"2026-06-20","source":"Залог"}
@@ -132,7 +132,7 @@
       PASS  #49  внутри=true заДлиной=true послеУкорочения=true неПодрезан=true
       PASS  #50  сумма=100000 колонка=[0, 33333.33, 33333.33, 33333.34, 0, 0]
       PASS  #51  матрица=true сеттерОтбил=true сменаВидаСбросила=true
-      PASS  #52  заявок=25 уникальных=25 волна2=18 обход=true
+      PASS  #52  заявок=26 уникальных=26 волна2=19 обход=true
       PASS  #53  видов=6 незадействованных=нет иное=true
       PASS  #54  пустых стадий=нет обаОтказа=true возврат=true
       PASS  #55  хвост=180000 снят=true наступившее=60000 терминальная=true вПереносе=60000
@@ -149,6 +149,9 @@
       PASS  #66  секция=true итог=true одинБезЗаголовка=true адресВДвери=true староеСнесено=true производныйНаГрафике=true гейтыПодШапкой=true черновикПоРасчёту=true
       PASS  #67  расчётов=2 кредитыРазные=true базыРазные=1245759.68/398076.09 итогСходится=true (1643835.77=1643835.77) статьяДважды=true (тело 9600000/3900000)
       PASS  #68  полоса=true подытогПоВыбору=true итогСходится=true (1643836) RS-1001: коробкаНаГрафике=true график=6 строк гейтыВнеВкладок=true
+      PASS  #69  линий=3 прощено=200000 капПеня=250000 распределено=100000 остаток=50000 позиция=600000 инвариант=true перенос=3090070.3
+      PASS  #70  сверхПозиции=true вПределе=true линияДобавлена=true дубльБезСроков=true дубльСоСроками=true снятиеПеренумеровало=true
+      PASS  #71  исходСовпал=true перенос=3090070.3 колонок=5
 -->
 <style>
 :root{
@@ -517,9 +520,12 @@ table.cgrid.cbase tbody td{ vertical-align:top; }
    длинному пункту списка (249 px) и на узком экране съедала колонку статьи до трёх строк —
    ширины заданы долями, а список ужимается многоточием. */
 table.cgrid.cbase{ table-layout:fixed; }
-table.cgrid.cbase col.c-art{ width:30%; } table.cgrid.cbase col.c-cut{ width:15%; }
-table.cgrid.cbase col.c-fact{ width:19%; } table.cgrid.cbase col.c-inc{ width:10%; }
-table.cgrid.cbase col.c-disp{ width:26%; }
+/* Доли столбцов подвинуты под РС-43: у поделённой позиции рядом с селектом стоит «×», и на
+   прежних 26 % длинное «Распределение по периодам» пряталось под стрелку. Отдано 4 % из
+   статьи и дат — числа там короче своих колонок. */
+table.cgrid.cbase col.c-art{ width:29%; } table.cgrid.cbase col.c-cut{ width:14%; }
+table.cgrid.cbase col.c-fact{ width:18%; } table.cgrid.cbase col.c-inc{ width:9%; }
+table.cgrid.cbase col.c-disp{ width:30%; }
 table.cgrid.cbase thead th, table.cgrid.cbase tfoot th{ white-space:normal; }
 table.cgrid.cbase .a-t, table.cgrid.cbase .a-s, table.cgrid.cbase .mode-tag,
 table.cgrid.cbase .chk .lbl{ white-space:normal; }
@@ -556,6 +562,18 @@ table.cgrid tbody tr.disp-door td{ background:var(--asubk-tint-fill); padding:10
 .dd-wrap input[type=number]{ width:120px; }
 .dd-wrap input.dd-pos{ width:64px; }
 .dd-note{ flex-basis:100%; color:var(--text-muted); font-size:11px; }
+/* Несколько распоряжений на позиции (РС-43): линии стопкой в той же клетке — вид остаётся там,
+   где куратор его ищет, а вторая линия не заводит второй экран. Подпись вида у двери печатается
+   только когда дверей больше одной; при одной селект над ней уже назвал вид. */
+.dline{ display:flex; align-items:center; gap:4px; margin-bottom:4px; }
+.dline select{ flex:1 1 auto; min-width:0; }
+.dline-x{ flex:0 0 auto; border:1px solid var(--border-default); background:var(--surface-card);
+  color:var(--text-muted); border-radius:var(--radius-sm); cursor:pointer; line-height:1; padding:4px 6px; }
+.dline-x:hover{ color:var(--status-error); border-color:var(--status-error); }
+.dline-add{ border:1px dashed var(--border-strong); background:none; color:var(--text-link);
+  border-radius:var(--radius-sm); cursor:pointer; font:var(--font-label); padding:4px 8px; width:100%;
+  white-space:normal; text-align:left; }
+.dd-kind{ font:var(--weight-semibold) var(--text-sm)/1.2 var(--asubk-font); color:var(--text-heading); }
 details.gate-d{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:2px 14px; margin-bottom:10px; }
 details.gate-d summary{ cursor:pointer; list-style:none; padding:10px 0; display:flex; align-items:center; gap:10px; font:var(--weight-medium) var(--text-sm)/1.3 var(--asubk-font); }
 details.gate-d summary::-webkit-details-marker{ display:none; }
@@ -898,7 +916,14 @@ function demoCredits2(){ return [
     // 240 000 на 16 позиций по 15 000: наступило 4 (60 000), впереди 12 (180 000)
     accTail:{ interest:180000 },
     paid:{ principalPaid:150000, interestPaid:95000, penaltyPaid:0 }, remainingTermMonths:20,
-    terms:{term:30,schedule:'ежемесячно',rate:10,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} }
+    terms:{term:30,schedule:'ежемесячно',rate:10,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} },
+  { id:'CR-62027', no:'КД-62027', inn:'02508199700456', borrower:'ОсОО «Ак-Жол Терминал»',
+    balance:9000000, odDays:120, odSum:900000, collProc:null, restructCount:1, projectKind:'commercial',
+    coverSnapshot:{cover:134, required:120, date:'2026-07-08', source:'Залог'}, insuredUntil:'2031-04-01', tech:false, techAgeYears:0, techMaxAge:0,
+    // неустойка крупная (600 000) — на ней и показывается разделение позиции на три распоряжения (РС-43)
+    snapshot:{ principal:9000000, overduePrincipal:700000, accruedInterest:240000, overdueInterest:240000, penalty:600000 },
+    paid:{ principalPaid:1500000, interestPaid:520000, penaltyPaid:0 }, remainingTermMonths:28,
+    terms:{term:48,schedule:'ежемесячно',rate:9,grace:'нет',dayMethod:'факт/факт',base:'остаток',nonworking:'перенос вперёд',repayMethod:'аннуитет'} }
 ]; }
 /* Плановый график базового транша — только у второй волны. У первых пяти кредитов
    schedules[0].rows пуст: principalAt не видит просроченного ТЕЛА, и перенос собирает одни
@@ -1688,17 +1713,45 @@ function calcBaseOf(app, calc, date){
   if(calc.base && calc.base.length) return calc.base;
   return defaultBase(calc, date || (app && app.ds ? app.ds.date : TODAY));
 }
-/* Распоряжение — на позицию, одно, с суммой и сроками (РС-38). Остаток «без распоряжения»
-   получается вычитанием суммы распоряжения из позиции, второй сущности не заводим. Сроки —
-   позиции графика производного транша: {mode:'all'} (умолчание, следует за сроком само) либо
-   {mode:'range',from,to} (1-базовые, включительно). null не используется: «весь график» —
-   осмысленное значение, а не отсутствие значения. */
+/* Распоряжение — линия на позиции, с суммой и сроками (РС-38). Линий на позиции может быть
+   НЕСКОЛЬКО (РС-43): акт вправе часть суммы капитализировать, часть распределить, остальное
+   простить — формы п. 89 складываются, и запрет «одно распоряжение на позицию» вынуждал бы
+   куратора бросить непокрытое в перенос просроченным, чего акт не говорил. Инвариант —
+   Σ сумм линий с распоряжением ≤ сумме позиции; остаток «без распоряжения» получается
+   вычитанием, второй сущности не заводим. Линия адресуется номером seq (1-базовый, свой на
+   каждой позиции): номер держится в данных и переживает перерисовку, в отличие от индекса
+   массива и от сгенерированного на лету id — умолчание считается на лету (Р-19) и id менялся
+   бы под руками у обработчика. Сроки — позиции графика производного транша: {mode:'all'}
+   (умолчание, следует за сроком само) либо {mode:'range',from,to} (1-базовые, включительно).
+   null не используется: «весь график» — осмысленное значение, а не отсутствие значения. */
 const allPeriods = () => ({ mode:'all' });
 function defaultDispositions(base){
-  return base.filter(r=>r.included).map(r => ({ article:r.article, urgency:r.urgency, kind:'none', amount:r.amount, periods:allPeriods() }));
+  return base.filter(r=>r.included).map(r => ({ article:r.article, urgency:r.urgency, seq:1, kind:'none', amount:r.amount, periods:allPeriods() }));
 }
+function dispositionsFor(dispositions, article, urgency){
+  return (dispositions||[]).filter(d=>d.article===article && d.urgency===urgency)
+                           .sort((a,b)=>(a.seq||1)-(b.seq||1));
+}
+/* Первая линия позиции. Годится там, где линия заведомо одна (сев демо-заявок, ярлык вида в
+   готовом ДС); там, где решается судьба суммы, читается ВЕСЬ список — иначе вторая линия
+   молча пропадает из конвейера. */
 function dispositionFor(dispositions, article, urgency){
-  return (dispositions||[]).find(d=>d.article===article && d.urgency===urgency) || null;
+  return dispositionsFor(dispositions, article, urgency)[0] || null;
+}
+/* Занятая распоряжениями часть позиции. Линия 'none' в сумму не идёт: «без распоряжения» —
+   это и есть остаток, и считать его дважды значит закрыть позицию для второй линии. */
+function dispositionsSum(dispositions, article, urgency, except){
+  return round2(dispositionsFor(dispositions, article, urgency)
+    .filter(d=>d.kind!=='none' && d!==except).reduce((s,d)=>s+d.amount,0));
+}
+/* Адрес линии для сеттеров: тройка позиции плюс номер. Номер необязателен и опущенный значит
+   «единственная линия»: пока позиция несёт одну линию, старый адрес тройкой остаётся верным
+   (так её зовут смоук и демо-сев). На позиции с двумя линиями безномерный адрес ничего не
+   находит — молча править первую попавшуюся значит угадывать за куратора. */
+function pickDisp(calc, article, urgency, seq){
+  const lines = dispositionsFor(calc.dispositions, article, urgency);
+  if(seq==null || seq==='') return lines.length===1 ? lines[0] : null;
+  return lines.find(d=>Number(d.seq||1)===Number(seq)) || null;
 }
 /* Материализация базы/распоряжений при первом живом действии куратора (issues/02 реш.1/4,
    тикет 07 — честная дыра #2 из Answer тикета 06). До первого клика calc.base/calc.dispositions
@@ -1728,7 +1781,7 @@ function toggleBaseRow(appId, article, urgency, calcId){
   row.included = !row.included;
   if(row.included){
     if(!dispositionFor(calc.dispositions, article, urgency))
-      calc.dispositions.push({article,urgency,kind:'none',amount:row.amount,periods:allPeriods()});
+      calc.dispositions.push({article,urgency,seq:1,kind:'none',amount:row.amount,periods:allPeriods()});
   } else {
     calc.dispositions = calc.dispositions.filter(d=>!(d.article===article && d.urgency===urgency));
   }
@@ -1738,14 +1791,63 @@ function toggleBaseRow(appId, article, urgency, calcId){
    мёртвые пункты списка с подписью «вид не разрешает», та же механика дохлой галки решения 1
    (issues/02: «а не второй способ говорить то же самое») — сервер-сторона всё равно отбивает
    запрещённое значение молча, а не доверяет disabled-атрибуту разметки. */
-function setDisposition(appId, article, urgency, kind, calcId){
+function setDisposition(appId, article, urgency, kind, calcId, seq){
   if(!guard('editBase')) return; const app=appById(appId);
   const calc = ensureBaseDispositions(app, calcId);
   if(!calc){ toast('У заявки несколько расчётов — укажите, по какому траншу','err'); return; }
   if(kind!=='none' && !allowedDispositions(app).has(kind)){ toast('Вид не разрешает это распоряжение','err'); return; }
-  const d = dispositionFor(calc.dispositions, article, urgency); if(!d) return;
+  const d = pickDisp(calc, article, urgency, seq); if(!d) return;
+  /* Один и тот же вид дважды на позиции (РС-43) допускается только там, где у распоряжения есть
+     СРОКИ: две линии распределения — это два интервала графика, разный смысл. Прощение и
+     капитализация процентов сроков не несут, и вторая линия того же вида была бы первой,
+     записанной двумя числами. */
+  if(kind!=='none' && !dispositionHasPeriods(kind, article)
+     && dispositionsFor(calc.dispositions, article, urgency).some(x=>x!==d && x.kind===kind)){
+    toast('Такое распоряжение на позиции уже есть — правьте его сумму','err'); return;
+  }
+  /* Линия «без распоряжения» в занятую часть позиции не входит, поэтому при смене вида её сумма
+     может оказаться больше свободного остатка. Подрезать молча нельзя (РС-38): куратор называет
+     сумму сам. */
+  const free = round2(row0(calc, article, urgency) - dispositionsSum(calc.dispositions, article, urgency, d));
+  if(kind!=='none' && round2(d.amount) > free+0.005){
+    toast('Свободный остаток позиции — '+fmt(free)+'; уменьшите сумму линии','err'); return;
+  }
   d.kind = kind;
   if(!dispositionHasPeriods(kind, article)) d.periods = allPeriods();   // сроки живут только там, где есть безставочная сумма (РС-38)
+  app._t=TODAY; render();
+}
+function row0(calc, article, urgency){
+  const r=(calc.base||[]).find(x=>x.article===article && x.urgency===urgency);
+  return r ? round2(r.amount) : 0;
+}
+/* Вторая линия на позиции (РС-43). Заводится суммой свободного остатка — это единственное
+   значение, которое здесь не выдумано: всё, чем ещё можно распорядиться. Позиция, занятая
+   распоряжениями целиком, второй линии не получает — сначала уменьшить сумму первой. */
+function addDisposition(appId, article, urgency, calcId){
+  if(!guard('editBase')) return; const app=appById(appId);
+  const calc = ensureBaseDispositions(app, calcId);
+  if(!calc){ toast('У заявки несколько расчётов — укажите, по какому траншу','err'); return; }
+  const row = calc.base.find(r=>r.article===article && r.urgency===urgency);
+  if(!row || !row.included || row.blockedBy) return;
+  const free = round2(row.amount - dispositionsSum(calc.dispositions, article, urgency));
+  if(free<=0.005){ toast('Позиция распределена целиком — уменьшите сумму существующего распоряжения','err'); return; }
+  const lines = dispositionsFor(calc.dispositions, article, urgency);
+  const seq = lines.reduce((m,d)=>Math.max(m, Number(d.seq||1)), 0) + 1;
+  calc.dispositions.push({article, urgency, seq, kind:'none', amount:free, periods:allPeriods()});
+  app._t=TODAY; render();
+}
+/* Убрать линию. Последнюю не убираем: у включённой позиции распоряжение есть всегда, пусть и
+   «без распоряжения» — это состояние, а не отсутствие строки (то же правило, что у мёртвой
+   галки ИР-6). Номера прочих линий не пересчитываются: seq — адрес, а не порядковый номер
+   в списке, и перенумерация увела бы обработчики соседних линий на чужие суммы. */
+function removeDisposition(appId, article, urgency, calcId, seq){
+  if(!guard('editBase')) return; const app=appById(appId);
+  const calc = ensureBaseDispositions(app, calcId);
+  if(!calc){ toast('У заявки несколько расчётов — укажите, по какому траншу','err'); return; }
+  const lines = dispositionsFor(calc.dispositions, article, urgency);
+  if(lines.length<2){ toast('Это единственное распоряжение позиции — переключите его на «без распоряжения»','err'); return; }
+  const d = pickDisp(calc, article, urgency, seq); if(!d) return;
+  calc.dispositions = calc.dispositions.filter(x=>x!==d);
   app._t=TODAY; render();
 }
 /* Сроки спрашиваются только у распоряжений, рождающих БЕЗСТАВОЧНУЮ сумму (РС-38): распределение
@@ -1760,15 +1862,23 @@ function dispositionHasPeriods(kind, article){
    ближайшего допустимого: подставить значение значит выдумать решение куратора. Остаток позиции
    (позиция − amount) уходит в перенос своей статьёй как «без распоряжения», второй сущности не
    заводим. */
-function setDispAmount(appId, article, urgency, value, calcId){
+function setDispAmount(appId, article, urgency, value, calcId, seq){
   if(!guard('editBase')) return; const app=appById(appId);
   const calc = ensureBaseDispositions(app, calcId);
   if(!calc){ toast('У заявки несколько расчётов — укажите, по какому траншу','err'); return; }
   const row = calc.base.find(r=>r.article===article && r.urgency===urgency); if(!row) return;
-  const d = dispositionFor(calc.dispositions, article, urgency); if(!d) return;
+  const d = pickDisp(calc, article, urgency, seq); if(!d) return;
   const v = round2(Number(String(value).replace(',','.')));
   if(!isFinite(v) || v<=0){ toast('Сумма распоряжения должна быть больше нуля','err'); render(); return; }
-  if(v > round2(row.amount)+0.005){ toast('Сумма распоряжения больше суммы позиции ('+fmt(row.amount)+')','err'); render(); return; }
+  // Потолок линии — позиция МИНУС суммы прочих линий (РС-43). На единственной линии это прежний
+  // потолок «не больше позиции», на второй — ровно свободный остаток, и он назван в тосте.
+  const other = dispositionsSum(calc.dispositions, article, urgency, d);
+  const free = round2(round2(row.amount) - other);
+  if(v > free+0.005){
+    toast(other>0 ? 'Свободный остаток позиции — '+fmt(free)+' (прочие распоряжения заняли '+fmt(other)+')'
+                  : 'Сумма распоряжения больше суммы позиции ('+fmt(row.amount)+')', 'err');
+    render(); return;
+  }
   d.amount = v;
   app._t=TODAY; render();
 }
@@ -1777,11 +1887,11 @@ function setDispAmount(appId, article, urgency, value, calcId){
    режим и получает границы, о которых уже забыл. Выход за длину плана здесь не подрезается:
    молчаливая подрезка = выдуманное решение (РС-40), расхождение ловит ИР-15 в validateDS и
    показывает дверь. */
-function setDispPeriods(appId, article, urgency, mode, from, to, calcId){
+function setDispPeriods(appId, article, urgency, mode, from, to, calcId, seq){
   if(!guard('editBase')) return; const app=appById(appId);
   const calc = ensureBaseDispositions(app, calcId);
   if(!calc){ toast('У заявки несколько расчётов — укажите, по какому траншу','err'); return; }
-  const d = dispositionFor(calc.dispositions, article, urgency); if(!d) return;
+  const d = pickDisp(calc, article, urgency, seq); if(!d) return;
   if(!dispositionHasPeriods(d.kind, article)){ toast('У этого распоряжения сроков нет — сумма живёт сроками тела либо не подлежит уплате','err'); return; }
   if(mode!=='range'){ d.periods = allPeriods(); app._t=TODAY; render(); return; }
   const prev = (d.periods && d.periods.mode==='range') ? d.periods : {};
@@ -1954,8 +2064,12 @@ const PIPELINE = [
     const base = state.base.map(r=>{
       const carried = r.carried!=null ? r.carried : r.amount;
       if(!r.included) return {...r, carried};
-      const d = dispositionFor(state.dispositions, r.article, r.urgency);
-      if(d && d.kind==='forgive'){ sum=round2(sum+d.amount); return {...r, carried: round2(carried-d.amount)}; }
+      // Линий на позиции может быть несколько (РС-43) — шаг берёт ВСЕ линии своего вида. Порядок
+      // применения держит конвейер (прощение до капитализации, РС-14), а не порядок линий на
+      // экране: иначе куратор управлял бы ставкой на прощённое перестановкой строк.
+      const cut = round2(dispositionsFor(state.dispositions, r.article, r.urgency)
+        .filter(d=>d.kind==='forgive').reduce((s,d)=>s+d.amount,0));
+      if(cut>0){ sum=round2(sum+cut); return {...r, carried: round2(carried-cut)}; }
       return {...r, carried};
     });
     return { state:{...state, base, forgiven:round2(sum)}, record:{step:'forgive', sum:round2(sum)} };
@@ -1969,8 +2083,13 @@ const PIPELINE = [
     let sum=0, penalty=0, interest=0;
     const parts=(state.parts||[]).slice();
     const base = state.base.map(r=>{
-      const d = dispositionFor(state.dispositions, r.article, r.urgency);
-      if(r.included && d && d.kind==='cap'){
+      const lines = r.included
+        ? dispositionsFor(state.dispositions, r.article, r.urgency).filter(d=>d.kind==='cap') : [];
+      if(!lines.length) return r;
+      let carried = r.carried;
+      // Две линии капитализации пени с разными интервалами дают ДВЕ безставочные части: сроки
+      // живут на линии, и слить их в одну колонку значит потерять половину сроков.
+      lines.forEach(d=>{
         sum=round2(sum+d.amount);
         if(r.article==='penalty'||r.article==='accPenalty'){
           penalty=round2(penalty+d.amount);
@@ -1981,9 +2100,9 @@ const PIPELINE = [
         } else {
           interest=round2(interest+d.amount);   // проценты вливаются в тело — ставка на них идёт, это обычная механика кредита
         }
-        return {...r, carried: round2(r.carried-d.amount)};
-      }
-      return r;
+        carried = round2(carried-d.amount);
+      });
+      return {...r, carried};
     });
     return { state:{...state, base, parts, capitalized:round2(sum), capitalizedInterest:interest, capitalizedPenalty:penalty},
              record:{step:'capitalize', sum:round2(sum), interest, penalty} };
@@ -1998,16 +2117,21 @@ const PIPELINE = [
     const parts=(state.parts||[]).slice();
     let sum=0;
     const base = state.base.map(r=>{
-      const d = dispositionFor(state.dispositions, r.article, r.urgency);
-      if(r.included && d && d.kind==='spread'){
-        const target = r.article==='interest' ? 'accInterest'
-                     : r.article==='penalty'  ? 'accPenalty'
-                     : r.article;                                   // накопленное статьи не меняет — идемпотентно
+      const lines = r.included
+        ? dispositionsFor(state.dispositions, r.article, r.urgency).filter(d=>d.kind==='spread') : [];
+      if(!lines.length) return r;
+      const target = r.article==='interest' ? 'accInterest'
+                   : r.article==='penalty'  ? 'accPenalty'
+                   : r.article;                                     // накопленное статьи не меняет — идемпотентно
+      let carried = r.carried;
+      // Каждая линия — своя часть со своими сроками (РС-43): две линии распределения это два
+      // интервала графика, а не одна сумма, записанная дважды.
+      lines.forEach(d=>{
         sum=round2(sum+d.amount);
         parts.push({ article:target, amount:d.amount, periods:d.periods||allPeriods(), from:'распределение' });
-        return {...r, carried: round2(r.carried-d.amount)};
-      }
-      return r;
+        carried = round2(carried-d.amount);
+      });
+      return {...r, carried};
     });
     return { state:{...state, base, parts, spread:parts.filter(p=>p.from==='распределение')},
              record:{step:'distribute', count:parts.filter(p=>p.from==='распределение').length, sum:round2(sum)} };
@@ -2476,7 +2600,22 @@ const WAVE2 = [
   { id:'RS-1025', credits:['CR-62026'], kinds:['N1'], reg:'2026-04-06', stage:'дс', mode:'ядро',
     params:{term:30, rate:10}, disp:{ accInterest:{kind:'spread'} },
     dsNo:'ДС-62026/2', initiator:'sector',
-    demoNote:'ХВОСТ ОСТАВЛЕН НА ИСХОДНОМ ТРАНШЕ. Ненаступившие накопленные 180 000 видны строкой и сняты по умолчанию — куратор их не включал, и в перенос они не вошли. Сроки им держит график ПРОШЛОГО ДС, а не новый: производный транш уносит только просроченную часть, исходный после ДС не пустеет и закрыться не может (РС-6). Это умолчание, а не упущение: включать ненаступившее вправе только вид, меняющий график целиком.' }
+    demoNote:'ХВОСТ ОСТАВЛЕН НА ИСХОДНОМ ТРАНШЕ. Ненаступившие накопленные 180 000 видны строкой и сняты по умолчанию — куратор их не включал, и в перенос они не вошли. Сроки им держит график ПРОШЛОГО ДС, а не новый: производный транш уносит только просроченную часть, исходный после ДС не пустеет и закрыться не может (РС-6). Это умолчание, а не упущение: включать ненаступившее вправе только вид, меняющий график целиком.' },
+
+  /* ДЕЛЕНИЕ ПОЗИЦИИ (РС-43, 12.08.2026). Прежде распоряжение на паре (статья, срочность) было
+     одно, и заявка с тремя видами сразу упиралась: акт делит одну неустойку на три части, а
+     спека умела выбрать одну. Заявка заводит все три вида на одном кредите, чтобы деление было
+     не рисованное — allowedDispositions собирает объединение кодов ВЫБРАННЫХ видов, и каждая
+     линия опирается на свой вид. */
+  { id:'RS-1026', credits:['CR-62027'], kinds:['N1','N4','X1'], reg:'2026-04-20', stage:'дс', mode:'ядро',
+    params:{term:48, rate:9},
+    disp:{ penalty:[ {kind:'forgive', amount:200000},
+                     {kind:'cap',     amount:250000, from:1,  to:12},
+                     {kind:'spread',  amount:100000, from:13, to:24} ] },
+    forgiveSum:200000,
+    forgiveBasis:'п. 89 пп. 5 — прощение части начисленной неустойки по кредиту КД-62027',
+    dsNo:'ДС-62027/2', initiator:'authority',
+    demoNote:'ОДНА ПОЗИЦИЯ — ТРИ РАСПОРЯЖЕНИЯ. Неустойка поделена актом: 200 000 прощены, 250 000 капитализированы на позиции 1–12 безставочной колонкой (ИР-11 — пеня базой начисления не становится), 100 000 распределены на позиции 13–24 и статьёй ушли в накопленную (РС-39). Порядок линий на экране исхода не меняет — конвейер держит свой порядок шагов (прощение до капитализации, РС-14). Свободный остаток позиции распоряжения не получил и уходит переносом просроченным: это ВИДНО суммой, а не подразумевается.' }
 ];
 const WAVE2_STAGE = { возврат:0, анализ:1, комитет:2, письмо:3, заключение:4, проектКМ:5, отказКМ:6, дс:8 };
 
@@ -2501,15 +2640,23 @@ const wave2Kinds = s => s.kinds.map(id=>(kindById(id)||{}).name).filter(Boolean)
    живёт на ПАРЕ (статья, срочность), и после появления накопленного хвоста (accTail) одной статьи
    стало мало: у 'accInterest' в базе две строки, и распоряжения у них разные. Голый ключ читается
    как '@over' намеренно — им писаны все прежние строки WAVE2, и переписывать их незачем. */
+/* Значение спецификации — либо ОДИН объект (одно распоряжение на всю позицию), либо МАССИВ:
+   позиция делится на несколько линий, и каждая обязана назвать свою сумму (РС-43). Порядок в
+   массиве становится seq — адресом линии на экране; исход прогона от него не зависит. */
 function applyDisp(list, spec){
   if(!spec) return list;
-  return list.map(d=>{
+  return list.flatMap(d=>{
     const s = spec[d.article+'@'+d.urgency] || (d.urgency==='over' ? spec[d.article] : null);
-    if(!s) return d;
-    const out={...d, kind:s.kind};
-    if(s.amount!=null) out.amount=round2(s.amount);
-    if(s.from!=null)   out.periods={mode:'range', from:s.from, to:s.to};
-    return out;
+    if(!s) return [d];
+    const lines = Array.isArray(s) ? s : [s];
+    if(lines.length>1 && lines.some(x=>x.amount==null))
+      throw new Error('applyDisp: линия деления позиции '+d.article+'@'+d.urgency+' без суммы');
+    return lines.map((one,i)=>{
+      const out={...d, kind:one.kind, seq:i+1};
+      if(one.amount!=null) out.amount=round2(one.amount);
+      if(one.from!=null)   out.periods={mode:'range', from:one.from, to:one.to};
+      return out;
+    });
   });
 }
 function buildWave2(){ return WAVE2.map(s=>buildWave2App(s)); }
@@ -3204,20 +3351,22 @@ function resultTranche(app){ return resultTrancheOf(app, null); }   // одно�
 function rowsTotal(rows){ return round2((rows||[]).reduce((s,r)=>s+r.amount,0)); }
 
 /* Дверь распоряжения (РС-38) — раскрытая строка под самой позицией, не модалка: вид уже
-   выбирается селектом в строке, сумма и сроки — его продолжение. Сроки показываются только у
-   распоряжений, рождающих БЕЗСТАВОЧНУЮ сумму, и у остальных это сказано подписью, а не
-   пустотой. Расхождение интервала с длиной плана (ИР-15) горит здесь же и повторяется причиной
-   в панели гейтов — молчаливой подрезки нет (РС-40). */
-function dispDoorRow(app, row, d, canEdit, planLen, calc){
+   выбирается селектом в строке, сумма и сроки — его продолжение. Линий на позиции бывает
+   несколько (РС-43), и тогда дверей столько же: каждая подписана своим видом, а свободный
+   остаток называется один раз, под последней — он общий на позицию, а не свойство линии.
+   Сроки показываются только у распоряжений, рождающих БЕЗСТАВОЧНУЮ сумму, и у остальных это
+   сказано подписью, а не пустотой. Расхождение интервала с длиной плана (ИР-15) горит здесь же
+   и повторяется причиной в панели гейтов — молчаливой подрезки нет (РС-40). */
+function dispDoorRow(app, row, d, canEdit, planLen, calc, opts){
   if(!row.included || !d || d.kind==='none') return '';
+  const o = opts||{};
   const dis = canEdit ? '' : 'disabled';
+  const seq = Number(d.seq||1);
   const A=`'${app.id}','${row.article}','${row.urgency}'`;
-  const AC=`${A},'${calc.id}'`;                  // адрес строки — тройка (транш, статья, срочность)
-  // AC подходит только сеттерам с формой (appId,article,urgency,calcId) без своих полей между —
-  // toggleBaseRow в теле секции. setDispAmount/setDispPeriods несут между тройкой и calcId
-  // собственные позиционные поля (сумма; режим/от/до), поэтому здесь адресуются явно, через A
-  // плюс calcId последним аргументом — иначе calcId лёг бы в чужой слот.
-  const rest = round2(row.amount - (d.amount||0));
+  // Адрес строки — тройка (транш, статья, срочность); номер линии (seq) идёт ПОСЛЕДНИМ
+  // аргументом, за calcId: сеттеры несут между тройкой и calcId собственные позиционные поля
+  // (сумма; режим/от/до), и вставить номер в середину значило бы сдвинуть их в чужие слоты.
+  const CS=`'${calc.id}',${seq}`;
   const hasPer = dispositionHasPeriods(d.kind, row.article);
   const per = d.periods || allPeriods();
   const isRange = per.mode==='range';
@@ -3225,32 +3374,39 @@ function dispDoorRow(app, row, d, canEdit, planLen, calc){
   if(!hasPer){
     periodsBlock = `<span class="mode-tag">сроков нет</span>`;
   } else {
+    const rname = `per-${app.id}-${row.article}-${row.urgency}-${calc.id}-${seq}`;   // своя группа радио у каждой линии
     periodsBlock = `<div class="dd-grp"><span class="flabel">Сроки</span>
-        <label class="chk"><input type="radio" name="per-${app.id}-${row.article}-${row.urgency}-${calc.id}" ${isRange?'':'checked'} ${dis}
-          onchange="RS.setDispPeriods(${A},'all',null,null,'${calc.id}')"><span class="lbl">весь график</span></label>
-        <label class="chk"><input type="radio" name="per-${app.id}-${row.article}-${row.urgency}-${calc.id}" ${isRange?'checked':''} ${dis}
-          onchange="RS.setDispPeriods(${A},'range',null,null,'${calc.id}')"><span class="lbl">интервал позиций</span></label>
+        <label class="chk"><input type="radio" name="${rname}" ${isRange?'':'checked'} ${dis}
+          onchange="RS.setDispPeriods(${A},'all',null,null,${CS})"><span class="lbl">весь график</span></label>
+        <label class="chk"><input type="radio" name="${rname}" ${isRange?'checked':''} ${dis}
+          onchange="RS.setDispPeriods(${A},'range',null,null,${CS})"><span class="lbl">интервал позиций</span></label>
       </div>`
       + (isRange ? `<div class="dd-grp"><span class="flabel">с</span>
-        <input class="dd-pos" type="number" min="1" step="1" value="${per.from}" ${dis} onchange="RS.setDispPeriods(${A},'range',this.value,null,'${calc.id}')">
+        <input class="dd-pos" type="number" min="1" step="1" value="${per.from}" ${dis} onchange="RS.setDispPeriods(${A},'range',this.value,null,${CS})">
         <span class="flabel">по</span>
-        <input class="dd-pos" type="number" min="1" step="1" value="${per.to}" ${dis} onchange="RS.setDispPeriods(${A},'range',null,this.value,'${calc.id}')">
+        <input class="dd-pos" type="number" min="1" step="1" value="${per.to}" ${dis} onchange="RS.setDispPeriods(${A},'range',null,this.value,${CS})">
       </div>` : '');
   }
   // ИР-15 — сверяется с ЧЕРНОВИКОМ графика; пока его нет, шкалы позиций тоже нет, и это говорится.
+  // «черновика нет» — свойство РАСЧЁТА, одно на все линии позиции: печатает его первая дверь с
+  // интервалом (o.noPlanPill), иначе у поделённой позиции одна и та же фраза стояла бы трижды.
+  // Само расхождение ИР-15 остаётся у КАЖДОЙ двери: интервалы у линий разные, и виновата своя.
   let mismatch='';
   if(hasPer && isRange){
-    if(planLen==null) mismatch = `<span class="pill neutral">черновой график ещё не рассчитан — длину интервала не с чем сверить</span>`;
+    if(planLen==null) mismatch = o.noPlanPill===false ? '' : `<span class="pill neutral">черновой график ещё не рассчитан — длину интервала не с чем сверить</span>`;
     else if(per.to>planLen || per.from<1 || per.from>per.to)
       mismatch = `<span class="pill high">сроки ${per.from}–${per.to}, а в графике ${planLen} ${planLen===1?'позиция':'позиций'} — регистрация ДС закрыта (ИР-15)</span>`;
   }
+  const cap = o.cap!=null ? o.cap : round2(row.amount);
+  const rest = o.rest!=null ? o.rest : null;              // свободный остаток печатает только последняя дверь позиции
   return `<tr class="disp-door"><td colspan="5"><div class="dd-wrap">
+      ${o.label ? `<span class="dd-kind">${DISP_LABEL[d.kind]||d.kind}</span>` : ''}
       <div class="dd-grp"><span class="flabel">Сумма</span>
-        <input type="number" min="0" step="0.01" value="${d.amount!=null?d.amount:''}" ${dis} onchange="RS.setDispAmount(${A},this.value,'${calc.id}')">
-        <span class="mode-tag">≤ ${fmt(row.amount)}</span></div>
+        <input type="number" min="0" step="0.01" value="${d.amount!=null?d.amount:''}" ${dis} onchange="RS.setDispAmount(${A},this.value,${CS})">
+        <span class="mode-tag">≤ ${fmt(cap)}</span></div>
       ${periodsBlock}
       ${mismatch}
-      ${rest>0.005 ? `<div class="dd-note">без распоряжения остаётся ${fmt2(rest)} — уйдёт в перенос просроченным</div>` : ''}
+      ${rest!=null && rest>0.005 ? `<div class="dd-note">без распоряжения остаётся ${fmt2(rest)} — уйдёт в перенос просроченным</div>` : ''}
     </div></td></tr>`;
 }
 /* Заголовок секции — адрес суммы: транш, кредит, база и судьба оформления. При одном расчёте не
@@ -3386,7 +3542,7 @@ function calcBaseSection(app, calc){
   const dash = why => `<span class="dash" title="${esc(why)}">—</span>`;
 
   const rows = ordered.map(r=>{
-    const d=dispositionFor(dispositions,r.article,r.urgency);
+    const lines=dispositionsFor(dispositions,r.article,r.urgency);
     const urg=(URG.find(u=>u.key===r.urgency)||{}).name||r.urgency;
     const dead = r.blockedBy==='disputed';
     const A=`'${app.id}','${r.article}','${r.urgency}'`;
@@ -3414,21 +3570,43 @@ function calcBaseSection(app, calc){
     const chk = dead
       ? `<label class="chk dead"><input type="checkbox" disabled ${r.included?'checked':''}><span class="lbl">решает комиссия</span></label>`
       : `<label class="chk" title="${r.included?'Включена в базу переноса':'Снята куратором — в перенос не идёт'}"><input type="checkbox" ${r.included?'checked':''} ${canEdit?'':'disabled'} onchange="RS.toggleBaseRow(${AC})"></label>`;
+    /* Клетка «Распоряжение» держит СТОЛЬКО селектов, сколько линий на позиции (РС-43). Кнопка
+       «+ распоряжение» появляется только там, где деление уже началось (хоть одна линия с видом)
+       и остался свободный остаток: на позиции без распоряжений вторая линия не нужна — выбор
+       делается в стоящем селекте, а звать делить нераспределённое значит предлагать лишний шаг.
+       Убрать можно любую линию, кроме единственной — у включённой позиции распоряжение есть
+       всегда, пусть и «без распоряжения». */
+    const taken = round2(lines.filter(x=>x.kind!=='none').reduce((s,x)=>s+x.amount,0));
+    const free = round2(r.amount - taken);
     const disp = r.included
-      ? `<select ${canEdit?'':'disabled'} onchange="RS.setDisposition(${A},this.value,'${calc.id}')">
+      ? lines.map(x=>{
+          const seq=Number(x.seq||1);
+          return `<div class="dline"><select ${canEdit?'':'disabled'} onchange="RS.setDisposition(${A},this.value,'${calc.id}',${seq})">
           ${['none','cap','forgive','spread'].map(k=>{
             const ok = k==='none' || allowed.has(k);
-            return `<option value="${k}" ${d&&d.kind===k?'selected':''} ${ok?'':'disabled'}>${DISP_LABEL[k]}${ok?'':' — вид не разрешает'}</option>`;
+            return `<option value="${k}" ${x.kind===k?'selected':''} ${ok?'':'disabled'}>${DISP_LABEL[k]}${ok?'':' — вид не разрешает'}</option>`;
           }).join('')}
-        </select>`
+        </select>${canEdit&&lines.length>1?`<button class="dline-x" title="Убрать это распоряжение" onclick="RS.removeDisposition(${A},'${calc.id}',${seq})">×</button>`:''}</div>`;
+        }).join('')
+        + (canEdit && taken>0.005 && free>0.005 ? `<button class="dline-add" onclick="RS.addDisposition(${AC})">+ распоряжение на ${fmt(free)}</button>` : '')
       : '';   // строка снята — распоряжаться нечем; пустая клетка это и показывает
     const rowCls = dead ? 'art-blocked' : (!r.included ? 'art-removed' : '');
+    const doors = lines.filter(x=>x.kind!=='none');
     return `<tr class="${rowCls}">
         <td><div class="a-t">${esc(ARTICLE_LABEL[r.article]||r.article)} · ${urg}</div><div class="a-s">${accr}</div></td>
         <td class="numcell">${srezCell}</td>
         <td class="numcell">${fmt(r.amount)}${deltaSub}</td>
         <td>${chk}</td><td>${disp}</td></tr>`
-         + dispDoorRow(app, r, d, canEdit, planLen, calc);
+         + (()=>{
+             const ranged = x => dispositionHasPeriods(x.kind, r.article) && (x.periods||allPeriods()).mode==='range';
+             const firstRanged = doors.findIndex(ranged);
+             return doors.map((x,i)=>dispDoorRow(app, r, x, canEdit, planLen, calc, {
+               label: doors.length>1,                                 // при одной двери вид уже назван селектом над ней
+               cap: round2(r.amount - round2(taken - x.amount)),      // потолок линии — позиция минус прочие линии
+               rest: i===doors.length-1 ? free : null,
+               noPlanPill: i===firstRanged
+             })).join('');
+           })();
   }).join('') || '<tr><td colspan="5" class="op-empty">Долг по траншу пуст на выбранную дату</td></tr>';
 
   // Строки, которые были на срезе и не дожили до факта: показываются, иначе колонка «Срез» тихо
@@ -4200,6 +4378,7 @@ const RS = {
   normAt, normNote, termCapFor, rateFloorFor, limitsGate, limitsGateApp,
   consentGate, consentGateApp, coverSnapshotAge, coverSnapshotStale,
   toggleBaseRow, setDisposition, setDispAmount, setDispPeriods, dispositionHasPeriods,
+  addDisposition, removeDisposition, dispositionsFor, dispositionsSum,
   ensureBaseDispositions, dispositionFor, defaultBase, defaultDispositions,
   scheduleArticleCols, rowArticlesSum, mergeParts, validateDS,
   trancheCandidates, setCalcTranche, setVersionParam, recalcPlan,
