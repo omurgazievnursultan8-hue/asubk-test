@@ -1379,6 +1379,45 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
     `массив=${arrayShape} вРеестре=${inRegistry} свёртка=${roundTrip} перекрытие=${overrides} наследование=${inherited} черновик=контракт=${sameRows}`);
 })();
 
+/* 75. Сайдбар — канон дерева модулей (13.08.2026). Плоский список из двух пунктов не
+   показывал, что вокруг модуля есть система; сторож держит и дерево, и роутинг листа, и
+   раскрытость вне DOM (её съедал бы render(), перерисовывающий #nav на каждое действие). */
+(() => {
+  fresh();
+  const leaves = [];
+  RS.TREE.forEach(g => (g.subs || []).forEach(s => (s.items || []).forEach(it => leaves.push({ ...it, gid: g.id }))));
+  const pz = RS.TREE.find(g => g.id === 'pz');
+  const pzLabels = (pz.subs[0].items || []).map(it => it.label);
+  const ownViews = leaves.filter(it => it.view).map(it => it.view).sort().join(',');
+  const treeOk = !!pz && pz.open === true && pzLabels.includes('Взыскание') && ownViews === 'dict,list';
+
+  RS.go('list'); RS.navClick('Справочник видов');
+  const wentDict = RS.state.view === 'dict';
+  RS.navClick('Кредиты');                       // чужой раздел не должен уводить с экрана
+  const stayed = RS.state.view === 'dict';
+  RS.navClick('Реструктуризация — реестр заявок');
+  const wentList = RS.state.view === 'list';
+
+  // Раскрытость живёт в наборе, а не в разметке: перерисовка её не сбрасывает.
+  const wasOpen = RS.NAV_OPEN.has('k');
+  RS.navToggle('k');
+  const toggled = RS.NAV_OPEN.has('k') !== wasOpen;
+  RS.setFilter('q', 'RS-10');                   // любое действие → render() → renderNav()
+  const survived = RS.NAV_OPEN.has('k') !== wasOpen && RS.NAV_OPEN.has('pz');
+  RS.navToggle('k');
+
+  let noThrow = true;
+  try { RS.toggleNav(); } catch (e) { noThrow = false; }   // без DOM бургер молчит, а не падает
+
+  // Сторож на разметку: канон — блочный лист с отступом 52/40, а не флекс с иконкой.
+  const cssOk = /\.nav-item\{ display:block; padding:7px 16px 7px 52px;/.test(src)
+             && /\.nav-item\.headerless\{ padding-left:40px; \}/.test(src)
+             && !src.includes('margin-left:-26px')
+             && /\.app\.nav-collapsed \.sidebar\{ display:none; \}/.test(src);
+  ok(75, treeOk && wentDict && stayed && wentList && toggled && survived && noThrow && cssOk,
+    `дерево=${treeOk} свои=${wentDict && wentList} чужой=${stayed} раскрытость=${toggled && survived} бургер=${noThrow} разметка=${cssOk}`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
