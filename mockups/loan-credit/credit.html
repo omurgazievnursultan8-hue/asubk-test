@@ -862,7 +862,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-13 · 155/155 PASS
+ SMOKE (node) 2026-08-13 · 146/146 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -1009,15 +1009,6 @@
    #142 ✓
    #143 ✓
    #144 ✓
-   #145 ✓
-   #146 ✓
-   #147 ✓
-   #148 ✓
-   #149 ✓
-   #150 ✓
-   #151 ✓
-   #152 ✓
-   #153 ✓
 -->
 <style>
 
@@ -1906,7 +1897,6 @@ const CLASSIFICATION_PARAMS = [
   { key:'purpose',       label:'Цель',                   dict:null  },   // свободный текст
   { key:'fundingSource', label:'Источник финансирования', dict:'fundingSource' }
 ];
-function paramLabelCls(key){ const p = CLASSIFICATION_PARAMS.find(x => x.key === key); return p ? p.label : String(key); }
 const PROGRAM_CLASSIFICATION_DEFAULT = {
   kind:CLASSIFICATION_DICT.kind, line:CLASSIFICATION_DICT.line, fundingSource:CLASSIFICATION_DICT.fundingSource
 };
@@ -2171,57 +2161,6 @@ function subjectAt(credit, date){
     .forEach(r => { if (r.action === 'remove') out.delete(r.itemId); else out.set(r.itemId, r.item); });
   return [...out.values()];
 }
-let _clsSeq = 0;
-/* CLASSIFICATION RECORD (КВ-30) — правка классификации кредита ПОСЛЕ регистрации.
-   Форма взята у mkConditionRecord, а не у mkSubjectRecord: у предмета кредита позиции
-   добавляют и убирают (action add/remove), у классификации параметр один и всегда есть —
-   меняется значение. В conditionRecords эти записи не кладутся: там условия ТРАНША со
-   своим реестром PARAM_KEYS и гейтами Г-18…Г-22, а классификация принадлежит договору
-   целиком и транша не знает. Основание — документ, которым классификация изменена
-   (ДС, решение суда, постановление); вид берётся из BASIS_KINDS, а не зашит.
-
-   ДВА ВИДА ЗАПИСИ (КВ-31, ADR-0112). Изменение и исправление — разные события, и
-   одной записью они не лечатся:
-     · ИЗМЕНЕНИЕ — `effectiveFrom` + `basis`, `corrects:''`. Значение было верным и с
-       даты стало другим. Срез до даты отдаёт прежнее — оно и действовало.
-     · КОРРЕКТИРОВКА — `corrects` (id исправляемой записи либо 'base:<param>'),
-       `effectiveFrom:''`, `basis:null`, обязательное `note`. Значение было записано
-       неверно, поэтому дата вступления и основание НЕ заводятся: они наследуются от
-       исправляемой записи. Срез на любую дату отдаёт исправленное — неверного
-       значения не было ни дня. */
-function mkClassificationRecord(over){
-  return Object.assign({
-    id:'KL-' + (++_clsSeq), param:'', value:'', effectiveFrom:'',
-    basis:{ kind:'agreement', ref:'', label:'', date:'' }, corrects:'',
-    note:'', createdAt:TODAY, createdBy:currentRole
-  }, over || {});
-}
-/* classificationAt(credit, date) — действующая классификация на дату (КВ-10-паттерн среза):
-   база — четыре поля кредита (значение «Проекта») + записи с effectiveFrom ≤ date в crOrder.
-   Корректировки (КВ-31) применяются ПЕРВЫМИ и ВНЕ среза: они не событие на шкале, а
-   исправление того, что на шкале уже стоит, — потому и берутся в порядке появления в
-   массиве (crOrder им не годится: сортировать нечего, effectiveFrom у них нет).
-   src отдаётся рядом со значениями, чтобы карточка могла подписать «основание · с даты»
-   ровно у тех полей, у которых запись есть; fix — та корректировка, которая сформировала
-   показанное значение. Хранением ни то, ни другое не является — собирается здесь. */
-function classificationAt(credit, date){
-  const lim = pd(date || TODAY);
-  const all = credit.classificationRecords || [];
-  const fix = {};                                  // цель корректировки → последняя корректировка по ней
-  all.filter(r => r.corrects).forEach(r => { fix[r.corrects] = r; });
-  const out = { src:{}, fix:{} };
-  for (const p of CLASSIFICATION_PARAMS){
-    const f = fix['base:' + p.key];
-    out[p.key] = f ? f.value : (credit[p.key] || '');
-    if (f) out.fix[p.key] = f;
-  }
-  all.filter(r => !r.corrects && r.effectiveFrom && pd(r.effectiveFrom) <= lim)
-    .sort(crOrder)
-    .forEach(r => { if (CLASSIFICATION_PARAMS.some(p => p.key === r.param)) {
-      const f = fix[r.id];
-      out[r.param] = f ? f.value : r.value; out.src[r.param] = r; out.fix[r.param] = f || null; } });
-  return out;
-}
 /* ОСИ ПЛАТЕЖА — словари МОДУЛЯ-ВЛАДЕЛЬЦА (спека платежей, швы №1/№2). Три оси
    независимы и в один `status` не схлопываются: платёж по шлюзу «Ожидает ЦК» уже
    двигает долг, а платёж «Сторно» виден, но денег не несёт. Прежняя редакция знала
@@ -2290,11 +2229,11 @@ function mkCredit(over){                             // CREDIT (§3) — обя�
     origin:{ applicationId:'', applicationDate:'', commissionId:'', programId:'', govDecisionId:'' },
     borrower:{ inn:'', name:'', type:'ЮЛ', region:'', district:'' },   // адрес — зеркало карточки заёмщика, нужен фильтру Область→Район
     approvedAmount:0, contractAmount:0, currency:'KGS',
-    /* Классификация (КВ-30). Четыре поля — значение «Проекта»: до регистрации правятся
-       напрямую (Г-34), после — только записями classificationRecords (Г-35), а
-       действующее значение на дату выводит classificationAt. Производное здесь не
-       лежит (ADR-0001): ни «действующее», ни «есть ли будущая запись». */
-    kind:'', line:'', purpose:'', fundingSource:'', classificationRecords:[],
+    /* Классификация (КВ-30, упрощена КВ-32). Четыре поля правятся напрямую в любом ЖЦ
+       (Г-34) — тем же приёмом, что реквизиты договора: значение одно, история правок
+       живёт в журнале. Слоя записей с датой вступления здесь нет: классификация не
+       двигает начисления, и срез по дате ей не нужен. */
+    kind:'', line:'', purpose:'', fundingSource:'',
     subject:[], subjectRecords:[], accounts:{ repayAcct:'', repayAcctKind:'', payCode:'' },
     /* kmDecision — решение Кабинета Министров: {kind,num,date,scan,coverPct}.
        coverPct — ПОРОГ обеспеченности, установленный решением (Прил.1 §2.6): решение
@@ -2980,7 +2919,7 @@ function seedDb(){
       borrower:{ inn:b.inn, name:b.name, type:'ЮЛ', region:b.reg, district:b.dist },
       approvedAmount:b.amount, contractAmount:b.amount, currency:b.ccy,
       /* КР-59: классификация берётся из набора СВОЕЙ программы, а не выписана строкой —
-         иначе фон разошёлся бы с Г-34/Г-35 при первой же правке. Индекс по кругу, чтобы
+         иначе фон разошёлся бы с Г-34 при первой же правке. Индекс по кругу, чтобы
          в демо встречались разные значения набора. */
       kind:pickCls(b.prog,'kind',i), line:pickCls(b.prog,'line',i),
       purpose:'Пополнение оборотных средств', fundingSource:pickCls(b.prog,'fundingSource',i),
@@ -5332,15 +5271,15 @@ function gate(credit, action, ctx = {}){
       }
       break;
     }
-    /* Классификация кредита (КВ-30) — тот же двойной режим, что у предмета кредита:
-       Г-34 правит напрямую в «Проекте», Г-35 после регистрации пишет запись по ДС.
-       Оба сверяют значение с набором кредитной программы (зеркало PROGRAM_CLASSIFICATION):
-       вид, линия и источник — справочные величины, и «свой» вариант тут означает, что
-       кредит выдан не по той программе, за которую себя выдаёт. Цель не сверяется —
-       её формулирует договор, классификатора целей у модуля нет. */
+    /* Классификация кредита (КВ-30, упрощена КВ-32) — один режим: прямая правка в любом
+       ЖЦ, как у реквизитов договора. Значение сверяется с набором кредитной программы
+       (зеркало PROGRAM_CLASSIFICATION): вид, линия и источник — справочные величины, и
+       «свой» вариант тут означает, что кредит выдан не по той программе, за которую себя
+       выдаёт. Цель не сверяется — её формулирует договор, классификатора целей у модуля
+       нет. Ни даты вступления, ни документа гейт не спрашивает: классификация — паспортный
+       разряд договора, а не договорённость сторон, которую двигает ДС (волна КВ-32 сняла
+       Г-35 и Г-36 как избыточные, номера не переиспользуются). */
     case 'editClassification': {                                        // Г-34
-      if (credit.lifecycle!=='Проект')
-        r.push('Классификация правится напрямую только в ЖЦ «Проект»; после регистрации — изменением по документу (Г-35), а если значение записано неверно — корректировкой (Г-36)');
       const set = programClassification(credit), v = ctx.values || {};
       for (const p of CLASSIFICATION_PARAMS){
         const val = String(v[p.key]==null ? '' : v[p.key]).trim();
@@ -5348,91 +5287,6 @@ function gate(credit, action, ctx = {}){
         if (!val){ r.push(p.label + ' обязателен'); continue; }
         if (!(set[p.dict]||[]).includes(val))
           r.push('«' + val + '» вне набора программы ' + (credit.origin.programId || '—') + ' для «' + p.label + '»: ' + (set[p.dict]||[]).join(' · '));
-      }
-      break;
-    }
-    case 'addClassificationRecords': {                                  // Г-35 · Г-10 · Г-18 · Г-19
-      if (!['Зарегистрирован','Действует'].includes(credit.lifecycle))
-        r.push('Классификация меняется документом только при ЖЦ «Зарегистрирован» или «Действует» (Г-35); в «Проекте» она правится напрямую');
-      /* Основание — не обязательно ДС (КВ-31). Вид берётся из BASIS_KINDS тем же
-         разбором, что у условий (Г-10): у своего документа спрашиваем номер и дату,
-         у чужого — ссылку на него. Кто такой «свой», знает BASIS_KINDS.owned. */
-      const bs = ctx.basis || {}, bmeta = BASIS_KINDS[bs.kind];
-      if (!bmeta) r.push('Основание обязательно: доп. соглашение · решение суда · постановление правительства');
-      if (bs.kind === 'agreement' && (!bs.num || !bs.date))
-        r.push('Доп. соглашение требует номер и дату (Г-10)');
-      if (bmeta && !bmeta.owned && !bs.ref)
-        r.push('Решение суда и постановление правительства указываются ссылкой на существующий документ (Г-10)');
-      if (!ctx.effectiveFrom) r.push('Дата вступления в силу обязательна');
-      else if (credit.date && pd(ctx.effectiveFrom) < pd(credit.date))
-        r.push('Дата вступления не может быть раньше даты договора ' + credit.date + ' (Г-18)');
-      /* Задним числом — тем же правилом, что условия (Г-19): сделка сторон прошлое не
-         переписывает, внешний акт переписывает. Отказ называет и вторую дверь: чаще
-         всего «задним числом» означает не сделку, а опечатку, и лечится Г-36. */
-      else if (pd(ctx.effectiveFrom) < pd(TODAY) && (!bmeta || !bmeta.retro))
-        r.push('Задним числом классификацию меняют только решение суда и постановление правительства (Г-19); неверно записанное значение исправляется корректировкой (Г-36), а не изменением');
-      if (!ctx.records || !ctx.records.length) r.push('Ни один параметр классификации не изменён');
-      const cset = programClassification(credit);
-      for (const rec of (ctx.records || [])){
-        const p = CLASSIFICATION_PARAMS.find(x => x.key === rec.param);
-        if (!p){ r.push('Неизвестный параметр классификации: ' + rec.param); continue; }
-        const val = String(rec.value==null ? '' : rec.value).trim();
-        if (!p.dict) continue;
-        if (!val){ r.push(p.label + ' обязателен'); continue; }
-        if (!(cset[p.dict]||[]).includes(val))
-          r.push('«' + val + '» вне набора программы ' + (credit.origin.programId || '—') + ' для «' + p.label + '»: ' + (cset[p.dict]||[]).join(' · '));
-      }
-      break;
-    }
-    /* Г-36 correctClassification (КВ-31, ADR-0112) — исправление НЕВЕРНО ЗАПИСАННОГО
-       значения. Отдельный гейт, а не мягкий режим Г-35: у корректировки нет ни своей
-       даты вступления, ни своего документа — она наследует их у исправляемой записи,
-       а исправление базового значения не имеет их вовсе. Единственный сторож внутри —
-       обязательное примечание: снаружи исправление опечатки и подгонка выглядят
-       одинаково, и гейта, который их различит, не существует (ADR-0112, «Последствия»).
-       Компенсация надзорная — отдельное действие в журнале (classificationFix). */
-    case 'correctClassification': {                                     // Г-36
-      if (credit.lifecycle === 'Проект')
-        r.push('В «Проекте» классификация правится напрямую (Г-34) — корректировка нужна там, где значение уже нельзя переписать молча');
-      if (!String(ctx.note||'').trim())
-        r.push('Корректировка требует примечания: чем подтверждается верное значение (ADR-0112)');
-      if (ctx.basis || ctx.effectiveFrom)
-        r.push('Корректировка не заводит ни основание, ни дату вступления: она исправляет запись, а не меняет договорённость (ADR-0112). Изменение с даты оформляется документом (Г-35)');
-      if (!ctx.records || !ctx.records.length) r.push('Ни один параметр классификации не исправлен');
-      const fset = programClassification(credit);
-      /* «Исправлять нечего» считается ПО ЦЕЛИ, а не по срезу на сегодня: исправляемая
-         запись может вступать в силу в будущем, и её неверное значение сегодня не
-         показано — сравнение со срезом пропустило бы пустую корректировку. */
-      const fixes = {};
-      (credit.classificationRecords || []).filter(x => x.corrects).forEach(x => { fixes[x.corrects] = x; });
-      const curOf = (tgt) => {
-        const f = fixes[tgt];
-        if (f) return String(f.value||'').trim();
-        if (String(tgt).startsWith('base:')) return String(credit[String(tgt).slice(5)]||'').trim();
-        const s = (credit.classificationRecords || []).find(x => x.id === tgt);
-        return s ? String(s.value||'').trim() : '';
-      };
-      for (const rec of (ctx.records || [])){
-        const p = CLASSIFICATION_PARAMS.find(x => x.key === rec.param);
-        if (!p){ r.push('Неизвестный параметр классификации: ' + rec.param); continue; }
-        /* Цель корректировки: 'base:<param>' — значение «Проекта», 'KL-n' — запись.
-           Проверяем существование и совпадение параметра: корректировка, попавшая не в
-           ту запись, тихо переписала бы чужое значение. */
-        const tgt = String(rec.corrects || '');
-        if (tgt.startsWith('base:')){
-          if (tgt.slice(5) !== rec.param) r.push('Корректировка базового значения указывает на другой параметр: ' + tgt);
-        } else {
-          const src = (credit.classificationRecords || []).find(x => x.id === tgt);
-          if (!src) r.push('Исправляемая запись не найдена: ' + (tgt || '—'));
-          else if (src.corrects) r.push('Исправляется запись изменения, а не корректировка: ' + tgt);
-          else if (src.param !== rec.param) r.push('Запись ' + tgt + ' описывает «' + paramLabelCls(src.param) + '», а не «' + p.label + '»');
-        }
-        const val = String(rec.value==null ? '' : rec.value).trim();
-        if (p.dict && !val){ r.push(p.label + ' обязателен'); continue; }
-        if (p.dict && !(fset[p.dict]||[]).includes(val))
-          r.push('«' + val + '» вне набора программы ' + (credit.origin.programId || '—') + ' для «' + p.label + '»: ' + (fset[p.dict]||[]).join(' · '));
-        if (val === curOf(tgt))
-          r.push('«' + p.label + '»: исправлять нечего — записано то же значение');
       }
       break;
     }
@@ -5512,10 +5366,10 @@ function gate(credit, action, ctx = {}){
 
 /* ---- 4.1 canRole(role, action) — матрица прав по ролям (§7). ---- */
 const ROLE_ACTIONS = {
-  'Кредитный специалист': new Set(['createCredit','saveContractAmount','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','applyDs','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editClassification','addClassificationRecords','correctClassification','editDocs','addNote']),
+  'Кредитный специалист': new Set(['createCredit','saveContractAmount','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','applyDs','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editClassification','editDocs','addNote']),
   'Куратор': new Set(['targetUse','inspection','holdAccrual','transferDebt','linkPledge','addNote','setPlan']),
   'Бухгалтер': new Set(['savePayment','addNote']),
-  'Начальник отдела': new Set(['createCredit','saveContractAmount','editContractRequisites','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','applyDs','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editClassification','addClassificationRecords','correctClassification','editDocs','addNote','targetUse','inspection','holdAccrual','transferDebt','linkPledge','savePayment','waiver','setKmDecision','writeOff','repay','terminate','setPlan']),
+  'Начальник отдела': new Set(['createCredit','saveContractAmount','editContractRequisites','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','applyDs','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editClassification','editDocs','addNote','targetUse','inspection','holdAccrual','transferDebt','linkPledge','savePayment','waiver','setKmDecision','writeOff','repay','terminate','setPlan']),
   'Наблюдатель': new Set(),
 };
 function canRole(role, action){ return (ROLE_ACTIONS[role]||new Set()).has(action); }
@@ -6018,10 +5872,12 @@ function addSubjectRecords(credit, ctx){
   return { ok:true, value:{ added } };
 }
 
-/* editClassification(credit, ctx) — КВ-30: правка классификации НАПРЯМУЮ, только пока
-   ЖЦ «Проект» (Г-34, тот же режим, что editSubject/editConditions). Пишет один
-   pushAudit на всё действие: классификация читается как один разряд договора, и
-   четыре отдельные записи в журнале о заполнении карточки «Проекта» — шум. */
+/* editClassification(credit, ctx) — правка классификации НАПРЯМУЮ, в любом ЖЦ (Г-34).
+   Волна КВ-32 сняла второй режим — «изменение по документу» и «корректировку»: для
+   паспортного разряда договора обе двери оказались лишними, а вопрос «что произошло»
+   задавался пользователю там, где ответ ничего не менял. История правок остаётся в
+   журнале (before/after), как у editContractRequisites. Пишет один pushAudit на всё
+   действие: классификация читается как один разряд, четыре записи в журнале — шум. */
 function editClassification(credit, ctx){
   const g = gate(credit, 'editClassification', ctx);
   if (!g.ok) return g;
@@ -6031,52 +5887,6 @@ function editClassification(credit, ctx){
   const after = { kind:credit.kind, line:credit.line, purpose:credit.purpose, fundingSource:credit.fundingSource };
   pushAudit(credit, 'editClassification', before, after);
   return { ok:true, value:after };
-}
-
-/* addClassificationRecords(credit, ctx) — КВ-30: изменение классификации после
-   регистрации. Одно действие = один документ = N записей (по записи на изменённый
-   параметр). Записи не удаляются и не перезаписываются (Г-21-паттерн); действующее
-   значение — производная classificationAt. Своё доп. соглашение при первом упоминании
-   попадает в реестр credit.agreements — как в addSubjectRecords; решение суда и
-   постановление в реестр ДС не кладутся, это чужие документы (BASIS_KINDS.owned).
-   Один pushAudit на запись, а не на действие: у каждой своя дата вступления в
-   будущем и своя судьба в срезе. */
-function addClassificationRecords(credit, ctx){
-  const g = gate(credit, 'addClassificationRecords', ctx);
-  if (!g.ok) return g;
-  const bs = ctx.basis, meta = BASIS_KINDS[bs.kind] || BASIS_KINDS.agreement;
-  const ref = meta.owned ? bs.num : bs.ref;
-  const basis = { kind:bs.kind, ref, date:bs.date, label:meta.label + ' ' + (ref || '') };
-  if (meta.owned && !credit.agreements.some(a => a.num === bs.num))
-    credit.agreements.push({ num:bs.num, date:bs.date, source:'кредит', scan:bs.scan || '' });
-  let added = 0;
-  for (const rec of ctx.records){
-    const row = mkClassificationRecord({ param:rec.param, value:String(rec.value==null?'':rec.value).trim(),
-      effectiveFrom:ctx.effectiveFrom, basis, note:ctx.note || '' });
-    credit.classificationRecords.push(row);
-    pushAudit(credit, 'classificationRecord: ' + row.param, null, row);
-    added++;
-  }
-  return { ok:true, value:{ added } };
-}
-
-/* correctClassification(credit, ctx) — КВ-31: исправление неверно записанного значения
-   (ADR-0112). Не изменение: прежняя запись остаётся, а поверх ложится корректировка со
-   ссылкой на неё, поэтому срез на любую дату отдаёт исправленное — значения, которого
-   не было, в истории не остаётся. Отдельное действие журнала (classificationFix), чтобы
-   надзорная выборка «корректировки за месяц» строилась без разбора текста примечаний. */
-function correctClassification(credit, ctx){
-  const g = gate(credit, 'correctClassification', ctx);
-  if (!g.ok) return g;
-  let fixed = 0;
-  for (const rec of ctx.records){
-    const row = mkClassificationRecord({ param:rec.param, value:String(rec.value==null?'':rec.value).trim(),
-      effectiveFrom:'', basis:null, corrects:rec.corrects, note:ctx.note });
-    credit.classificationRecords.push(row);
-    pushAudit(credit, 'classificationFix: ' + row.param, { corrects:rec.corrects, value:rec.was == null ? '' : rec.was }, row);
-    fixed++;
-  }
-  return { ok:true, value:{ fixed } };
 }
 
 /* closeCredit(credit, {reason,doc}) — терминалы Р-20: обязательные реквизиты, без физ.
@@ -6149,7 +5959,7 @@ window.CR = {
   saveContractAmount, editContractRequisites, addTranche, addDisbursement, setKmDecision, saveWaiver,
   addPayment, paymentEditable, addAgreement, addConditionRecords, closeCredit, linkPledge,
   editSubject, addSubjectRecords, subjectAt, mkSubjectItem,
-  editClassification, addClassificationRecords, correctClassification, classificationAt, mkClassificationRecord,
+  editClassification,
   programClassification, CLASSIFICATION_PARAMS, CLASSIFICATION_DICT,
   registerCredit, activateCredit, closeDisbursement, closeTranche, transferDebt,
   saveDoc, addNote, addTargetUse, setPlan,
@@ -7135,29 +6945,9 @@ if (typeof document !== 'undefined') {
        тот же приём среза, что и у «Условий», КВ-10). Правка напрямую только в «Проект»
        (editSubject); после регистрации — только доп. соглашением (addSubjectRecords). */
     const subjEditableDirect = c.lifecycle === 'Проект';
-    /* КВ-30: тот же приём для классификации — значение на срез, а не сырое c.kind.
-       Критерий правки общий с предметом: до регистрации напрямую, после — только ДС. */
-    const cls=classificationAt(c,cardAsOf);
-    /* Копия fld() с подписью основания под значением. Не o.src у fld: там «Источник: …»
-       про зеркало (откуда поле пришло), а здесь «чем изменено и с какой даты» — тот же
-       смысл, что у srcLine «Условий» (Д-6). Подписи нет, пока нет записи: элемент
-       говорит, когда есть что сказать (КВ-27), — «нет записи» тут не новость, это норма. */
-    const clsFld=(label,val,rec,wrap,fixRec)=>{
-      /* wrap — у цели и источника финансирования: цель это свободный текст, а названия
-         источников из справочника длиннее половины карточки («Накопительный счет в НБКР
-         средства кредита Международной ассоциации развития») и в одну строку обрезаются. */
-      const base=fld(label,esc(val),{wrap:!!wrap});
-      const parts=[];
-      if(rec){ const ic=BASIS_KINDS[rec.basis.kind]||{};
-        parts.push(`${esc(ic.icon||'')} ${esc(rec.basis.ref||ic.label||'')} · с ${esc(rec.effectiveFrom)}`); }
-      /* Корректировка (КВ-31) видна отдельной пометкой, а не молча: дату вступления и
-         основание она не меняет (их подпись остаётся прежней), но читатель обязан знать,
-         что показанное значение — исправленное, иначе исправление неотличимо от подгонки
-         (ADR-0112: сторож надзорный, а значит показывать есть что). */
-      if(fixRec) parts.push(`✎ исправлено ${esc(fixRec.createdAt)}${fixRec.note?' · '+esc(fixRec.note):''}`);
-      if(!parts.length) return base;
-      return base.replace(/<\/div>$/, `<span class="src">${parts.join(' · ')}</span></div>`);
-    };
+    /* КВ-32: классификация читается прямо с полей кредита. Слоя записей у неё нет —
+       значение одно, а «как оно менялось» отвечает журнал, ровно как у реквизитов
+       договора. Подписи основания под полем поэтому тоже нет: подписывать нечем. */
     const subjRows=subjectAt(c,cardAsOf).map(s=>`<tr><td>${esc(s.kind)}</td><td>${esc(s.name)}</td><td style="text-align:right">${esc(s.qty)}</td><td style="text-align:right">${money(s.cost)}</td>`
       + (subjEditableDirect?`<td style="text-align:right">${roleIconBtn('editSubject','Убрать предмет',`CR.removeSubjectItem('${jsAttr(s.id)}')`,'✕')}</td>`:'')
       + `</tr>`);
@@ -7186,18 +6976,9 @@ if (typeof document !== 'undefined') {
 
         <div class="pcard">
           <div class="section-h" style="display:flex;align-items:center;justify-content:space-between">Классификация
-            ${subjEditableDirect
-              ? roleIconBtn('editClassification','Изменить классификацию','CR.openClassificationModal()',svgPencil())
-              /* ДВЕ ДВЕРИ ПОСЛЕ РЕГИСТРАЦИИ (КВ-31): «Изменить» — значение стало другим
-                 с даты, по документу (Г-35); «Исправить» — значение записали неверно, и
-                 никакого документа на опечатку нет (Г-36, ADR-0112). Одной кнопкой их не
-                 свести: у первой обязательны дата и основание, у второй их не бывает. */
-              : `<span style="display:flex;gap:6px">
-                  ${roleBtn('addClassificationRecords','Изменить','CR.openClassificationAgrModal()')}
-                  ${roleBtn('correctClassification','Исправить','CR.openClassificationFixModal()')}
-                </span>`}</div>
+            ${roleIconBtn('editClassification','Изменить классификацию','CR.openClassificationModal()',svgPencil())}</div>
           <div class="f2">
-            ${CLASSIFICATION_PARAMS.map(p=>clsFld(p.label, cls[p.key], cls.src[p.key], p.key==='purpose'||p.key==='fundingSource', cls.fix[p.key])).join('')}
+            ${CLASSIFICATION_PARAMS.map(p=>fld(p.label, esc(c[p.key]), {wrap:p.key==='purpose'||p.key==='fundingSource'})).join('')}
           </div>
         </div>
 
@@ -9244,11 +9025,12 @@ if (typeof document !== 'undefined') {
     const r=CR.editContractRequisites(c,{num,date}); if(!r.ok){ CR.modalErr(r.reasons); return; }
     CR.closeModal(); toast('Реквизиты договора обновлены','ok'); rerenderDetail(); };
 
-  /* 10г) классификация (editClassification/addClassificationRecords, КВ-30) — тот же
-     двойной режим, что у предмета кредита. Вид/линия/источник — <select> по набору
-     кредитной программы: набор задан программой, кредит из него выбирает (И-11 — здесь
-     набор не правится), поэтому свободный ввод отдал бы пользователю значение, которое
-     гейт всё равно отобьёт. «Цель» — <input>: классификатора целей у модуля нет. */
+  /* 10г) классификация (editClassification, КВ-30 · упрощена КВ-32) — одна дверь:
+     карандаш и прямая правка, как у реквизитов договора. Вид/линия/источник — <select>
+     по набору кредитной программы: набор задан программой, кредит из него выбирает
+     (И-11 — здесь набор не правится), поэтому свободный ввод отдал бы пользователю
+     значение, которое гейт всё равно отобьёт. «Цель» — <input>: классификатора целей
+     у модуля нет. */
   function clsOptions(set,p,cur){
     if(!p.dict) return '';
     const list=(set[p.dict]||[]).slice();
@@ -9258,10 +9040,8 @@ if (typeof document !== 'undefined') {
     if(cur && !list.includes(cur)) list.unshift(cur);
     return `<option value=""></option>`+list.map(v=>`<option value="${jsAttr(v)}"${v===cur?' selected':''}>${esc(v)}</option>`).join('');
   }
-  function clsFields(c,idPrefix,asOf){
-    /* asOf — у корректировки: форма обязана показать ровно то, что видно в карточке
-       (срез cardAsOf), иначе «исправляемое» значение и показанное разойдутся. */
-    const set=programClassification(c), cur=classificationAt(c,asOf||CR.TODAY);
+  function clsFields(c,idPrefix){
+    const set=programClassification(c), cur=c;
     return CLASSIFICATION_PARAMS.map(p=>{
       const id=idPrefix+p.key.charAt(0).toUpperCase()+p.key.slice(1);
       const ctl=p.dict
@@ -9287,92 +9067,6 @@ if (typeof document !== 'undefined') {
     const g=gate(c,'editClassification',{values}); if(!g.ok){ CR.modalErr(g.reasons); return; }   // ре-валидация Г-34 перед мутацией
     const r=CR.editClassification(c,{values}); if(!r.ok){ CR.modalErr(r.reasons); return; }
     CR.closeModal(); toast('Классификация обновлена','ok'); rerenderDetail(); };
-  /* Документом: шлём только изменённые параметры — запись про «поменяли на то же
-     самое» засорила бы историю и подпись основания под неизменившимся полем (Г-35).
-     Вид основания выбирается (КВ-31) тем же приёмом, что в конструкторе условий:
-     своё ДС заводится здесь, чужой документ выбирается из существующих. */
-  CR.openClassificationAgrModal=function(){ const c=modalGuard('addClassificationRecords'); if(!c) return;
-    const body=`<p class="section-note">Изменение классификации после регистрации — с даты и по документу (Г-35). Решение суда и постановление правительства здесь не заводятся, а выбираются из существующих; задним числом возможны только они. Если значение не менялось, а было записано неверно, — это не изменение, а корректировка (кнопка «Исправить»). Значения — из набора программы ${esc(c.origin.programId||'—')}; в документ попадут только изменённые параметры.</p>
-      <div class="mform">
-        <div class="field req col-span"><span class="flabel">Тип основания</span>
-          <div class="control"><select id="klaKind" onchange="CR.clsBasisChanged()">
-            <option value="agreement">Доп. соглашение</option>
-            <option value="court">Решение суда</option>
-            <option value="govAct">Постановление правительства</option>
-          </select><span class="caret">▾</span></div></div>
-        <div id="klaAgrFields" class="col-span"><div class="mform">
-          <div class="field req"><span class="flabel">Номер ДС</span><div class="control"><input id="klaNum" placeholder="ДС-..."></div></div>
-          <div class="field req"><span class="flabel">Дата ДС</span><div class="control"><input id="klaDate" type="date" value="${esc(toISO(CR.TODAY))}"></div></div>
-          <div class="field col-span"><span class="flabel">Скан</span><div class="control"><input id="klaScan" placeholder="файл.pdf"></div></div>
-        </div></div>
-        <div id="klaRefField" class="field req col-span" style="display:none"><span class="flabel">Документ-основание</span>
-          <div class="control"><select id="klaRef"></select><span class="caret">▾</span></div></div>
-        <div class="field req"><span class="flabel">Вступает в силу</span><div class="control"><input id="klaEff" type="date" value="${esc(toISO(CR.TODAY))}"></div></div>
-        <div class="field col-span"><span class="flabel">Примечание</span><div class="control"><input id="klaNote" placeholder="что меняет документ"></div></div>
-      </div>
-      <div class="section-h" style="margin-top:14px;font-size:15px">Классификация после изменения</div>
-      <div class="mform">${clsFields(c,'kla')}</div>`;
-    CR.openModal('Изменить классификацию — по документу', body,
-      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitClassificationAgr()">Оформить</button>`);
-  };
-  CR.clsBasisChanged=function(){ const c=currentCredit(); if(!c) return;
-    const k=document.getElementById('klaKind').value;
-    document.getElementById('klaAgrFields').style.display = k==='agreement'?'':'none';
-    document.getElementById('klaRefField').style.display  = k==='agreement'?'none':'';
-    if(k!=='agreement'){
-      const sel=document.getElementById('klaRef'), opts=condRefOptions(c,k);
-      const emptyMsg = k==='court' ? 'Нет решений суда — основание недоступно' : 'Нет постановления правительства — основание недоступно';
-      sel.innerHTML = opts.length
-        ? opts.map(o=>`<option value="${jsAttr(o.value)}">${esc(o.label)}</option>`).join('')
-        : `<option value="">${esc(emptyMsg)}</option>`;
-      sel.disabled = opts.length===0;
-    } };
-  CR.submitClassificationAgr=function(){ const c=modalGuard('addClassificationRecords'); if(!c) return;
-    const kind=document.getElementById('klaKind').value;
-    const num=document.getElementById('klaNum').value, date=toDMY(document.getElementById('klaDate').value);
-    const scan=document.getElementById('klaScan').value, ref=(document.getElementById('klaRef')||{}).value||'';
-    const effectiveFrom=toDMY(document.getElementById('klaEff').value), note=document.getElementById('klaNote').value;
-    const values=clsRead('kla'), was=classificationAt(c,effectiveFrom||CR.TODAY);
-    const records=CLASSIFICATION_PARAMS
-      .filter(p=>String(values[p.key]||'').trim()!==String(was[p.key]||'').trim())
-      .map(p=>({ param:p.key, value:values[p.key] }));
-    const ctx={ basis:{kind,num,date,scan,ref}, effectiveFrom, note, records };
-    const g=gate(c,'addClassificationRecords',ctx); if(!g.ok){ CR.modalErr(g.reasons); return; }  // ре-валидация Г-35 перед мутацией
-    const r=CR.addClassificationRecords(c,ctx); if(!r.ok){ CR.modalErr(r.reasons); return; }
-    CR.closeModal(); toast('Записей по классификации добавлено: '+r.value.added,'ok'); rerenderDetail(); };
-
-  /* Корректировка (КВ-31, Г-36) — отдельная модалка, а не режим предыдущей: у неё нет
-     ни даты вступления, ни документа, зато примечание обязательно. Цель исправления
-     форма считает сама по срезу — «то, откуда взято показанное значение»: запись, если
-     значение пришло записью, иначе базовое значение «Проекта». Спрашивать это у
-     пользователя значило бы спрашивать про внутреннее устройство истории. */
-  CR.openClassificationFixModal=function(){ const c=modalGuard('correctClassification'); if(!c) return;
-    const at=classificationAt(c,cardAsOf);
-    const tgt=p=>at.src[p.key] ? ('запись ' + at.src[p.key].id + ' · ' + (at.src[p.key].basis && at.src[p.key].basis.ref || '—') + ' с ' + at.src[p.key].effectiveFrom)
-                               : 'значение договора (без документа)';
-    const body=`<p class="section-note">Корректировка исправляет НЕВЕРНО ЗАПИСАННОЕ значение: дата вступления и основание не меняются, а наследуются у исправляемой записи, поэтому срез на любую дату отдаст исправленное — значения, которого не было, в истории не останется (ADR-0112). Если значение действительно менялось с какой-то даты, это изменение по документу, а не корректировка.</p>
-      <div class="cat-expand" style="margin-bottom:12px">${CLASSIFICATION_PARAMS.map(p=>`<div class="row"><span class="ck">${esc(p.label)}</span><span class="muted">${esc(tgt(p))}</span></div>`).join('')}</div>
-      <div class="mform">
-        <div class="field req col-span"><span class="flabel">Примечание — чем подтверждается верное значение</span>
-          <div class="control"><input id="klfNote" placeholder="п. 1.2 кредитного договора №..."></div></div>
-      </div>
-      <div class="section-h" style="margin-top:14px;font-size:15px">Верные значения</div>
-      <div class="mform">${clsFields(c,'klf',cardAsOf)}</div>`;
-    CR.openModal('Исправить классификацию', body,
-      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitClassificationFix()">Исправить</button>`);
-  };
-  CR.submitClassificationFix=function(){ const c=modalGuard('correctClassification'); if(!c) return;
-    const note=document.getElementById('klfNote').value;
-    const values=clsRead('klf'), at=classificationAt(c,cardAsOf);
-    const records=CLASSIFICATION_PARAMS
-      .filter(p=>String(values[p.key]||'').trim()!==String(at[p.key]||'').trim())
-      .map(p=>({ param:p.key, value:values[p.key], was:at[p.key]||'',
-                 corrects: at.src[p.key] ? at.src[p.key].id : 'base:'+p.key }));
-    const ctx={ note, records };
-    const g=gate(c,'correctClassification',ctx); if(!g.ok){ CR.modalErr(g.reasons); return; }     // ре-валидация Г-36 перед мутацией
-    const r=CR.correctClassification(c,ctx); if(!r.ok){ CR.modalErr(r.reasons); return; }
-    CR.closeModal(); toast('Исправлено параметров: '+r.value.fixed,'ok'); rerenderDetail(); };
-
   /* 11) hold-accrual (holdAccrual, Р-17 · Г-15) — приостановление начисления процентов, роль «Начальник отдела»/«Куратор» */
   CR.openHoldModal=function(){ const c=modalGuard('holdAccrual'); if(!c) return;
     const body=`<p class="section-note">Приостановление начисления процентов — управляющее действие кредита. Требует основание, документ и дату начала. Пеня при паузе продолжает начисляться. Новый интервал добавляется к действующим приостановкам — записи не удаляются.</p>
