@@ -68,13 +68,20 @@ function secondTranche(a){
   ok(2, closed && opened && reblocked, `closed=${closed} opened=${opened} reblock=${reblocked}`);
 })();
 
-/* 3. Объединение параметров видов: K2 (RS-1004) без rate; K1+K4 (RS-1001) даёт rate ∪. */
+/* 3. Объединение параметров видов: N1 (RS-1004) без rate; N1+N4 (RS-1001) даёт term ∪ freq.
+   Заодно сторож словаря (ADR-0111): все ключи всех видов обязаны быть в реестре зоны п. 89,
+   и распоряжений (capInterest/capPenalty/forgive) среди условий быть не должно — у них своя
+   дверь allowedDispositions, вторая спорила бы с РС-28. */
 (() => { fresh();
   const p4 = RS.allowedParams(app('RS-1004'));
   const p1 = RS.allowedParams(app('RS-1001'));
   const noRate = !p4.has('rate');
-  const union = ['term','schedule','nonworking','capInterest','capPenalty','forgive'].every(k => p1.has(k));
-  ok(3, noRate && union, `noRate=${noRate} union=${union}`);
+  const union = ['term','freq','payDay','lastPaymentAnchor','method'].every(k => p1.has(k));
+  const reg = new Set(RS.PARAMS.map(p => p.key));
+  const inRegistry = RS.state.kinds.every(k => (k.params||[]).every(x => reg.has(x)));
+  const noDisp = RS.state.kinds.every(k => !(k.params||[]).some(x => /^(capInterest|capPenalty|forgive)$/.test(x)));
+  ok(3, noRate && union && inRegistry && noDisp && reg.size === 12,
+    `безСтавки=${noRate} объединение=${union} вРеестре=${inRegistry} безРаспоряжений=${noDisp} ключей=${reg.size}`);
 })();
 
 /* 4. Объединение распоряжений видов: K2={spread}; K1+K4={spread,cap,forgive}. */
@@ -89,7 +96,7 @@ function secondTranche(a){
 /* 5. Рантайм-вид администратора немедленно входит в объединение allowedParams/Dispositions. */
 (() => { fresh();
   const n0 = RS.state.kinds.length;
-  RS.state.kinds.push({ id:'KX', name:'Тестовый вид', params:['rate','grace'], docs:['Заявление'], allowedDispositions:['cap'], limits:'' });
+  RS.state.kinds.push({ id:'KX', name:'Тестовый вид', params:['rate','graceMain'], docs:['Заявление'], allowedDispositions:['cap'], limits:'' });
   const a = app('RS-1004'); a.kindIds.push('KX');
   const grew = RS.state.kinds.length === n0 + 1;
   const sawRate = RS.allowedParams(a).has('rate');
@@ -272,62 +279,103 @@ function secondTranche(a){
   ok(23, f8 === 4 && f7 === 3.5, `f8=${f8} f7=${f7}`);
 })();
 
-/* 24. Движок amortize — аннуитет: платёж постоянен (кроме последней строки), Σ principal = base, остаток → 0. */
+/* 24. Движок amortize — аннуитет: платёж постоянен (кроме последней строки), Σ principal = base,
+   остаток → 0. Ставка 0 % убирает дневное начисление из уравнения: с 10.08.2026 проценты идут по
+   ДНЯМ (dayMethod), и на ненулевой ставке взнос по календарным месяцам ровным быть не обязан —
+   постоянна структурная доля, а не касса. Ровность взноса проверяется по колонке `pay` при i=0,
+   а совпадение с кредитным модулем — сценарием 29. */
 (() => {
-  const { rows } = RS.amortize(1200000, 12, 12, 'аннуитет', [], '2026-01-01', 'ежемесячно');
-  const head = rows.slice(0,-1);
-  const allEq = head.every(r => r.pay === head[0].pay) && head[0].pay > 0;
+  const cnd = { term:12, rate:0, freq:'ежемесячно', method:'аннуитет' };
+  const { rows } = RS.amortize(1200000, cnd, '2026-01-01', []);
+  const allEq = rows.every(r => r.pay === rows[0].pay) && rows[0].pay > 0;
   const sum = RS.round2(rows.reduce((s,r)=>s+r.principal,0));
   const last = rows[rows.length-1];
-  ok(24, rows.length===12 && sum===1200000 && last.balance===0 && allEq, `n=${rows.length} sum=${sum} lastBal=${last.balance} constPay=${allEq}`);
+  ok(24, rows.length===12 && sum===1200000 && last.balance===0 && allEq,
+    `n=${rows.length} sum=${sum} lastBal=${last.balance} ровныйВзнос=${allEq}`);
 })();
 
-/* 25. Движок amortize — дифференцированный: тело платежа постоянно (кроме последней), платёж убывает. */
+/* 25. Движок amortize — «равными долями»: тело платежа постоянно, платёж убывает.
+   Каноническое значение метода из реестра кредита; 'дифференцированный' принимается синонимом
+   (так же, как в credit.html) — сторожим оба входа, чтобы старые данные не давали тихо другой график. */
 (() => {
-  const { rows } = RS.amortize(1200000, 12, 12, 'дифференцированный', [], '2026-01-01', 'ежемесячно');
+  const mk = method => RS.amortize(1200000, { term:12, rate:12, freq:'ежемесячно', method }, '2026-01-01', []).rows;
+  const rows = mk('равными долями');
   const head = rows.slice(0,-1);
   const prConst = head.every(r => r.principal === head[0].principal) && head[0].principal === RS.round2(1200000/12);
   const decreasing = rows[0].pay > rows[rows.length-1].pay;
   const sum = RS.round2(rows.reduce((s,r)=>s+r.principal,0));
-  ok(25, prConst && decreasing && sum===1200000, `prConst=${prConst} dec=${decreasing} sum=${sum}`);
+  const synonym = JSON.stringify(mk('дифференцированный')) === JSON.stringify(rows);
+  ok(25, prConst && decreasing && sum===1200000 && synonym,
+    `телоРовно=${prConst} убывает=${decreasing} sum=${sum} синоним=${synonym}`);
 })();
 
-/* 26. Движок amortize — периодность: ежеквартально → p=3, число строк = term/3. */
+/* 26. Движок amortize — периодичность и «в конце срока»: ежеквартально → p=3, строк term/3;
+   метод «в конце срока» гасит тело одной последней строкой. */
 (() => {
-  const { rows, meta } = RS.amortize(900000, 8, 24, 'аннуитет', [], '2026-01-01', 'ежеквартально');
-  ok(26, meta.p===3 && rows.length===8, `p=${meta.p} n=${rows.length}`);
+  const { rows, meta } = RS.amortize(900000, { term:24, rate:8, freq:'ежеквартально', method:'аннуитет' }, '2026-01-01', []);
+  const halfYear = RS.periodMonths('раз в полгода') === 6 && RS.periodMonths('ежегодно') === 12;
+  const bullet = RS.amortize(900000, { term:12, rate:8, freq:'ежемесячно', method:'в конце срока' }, '2026-01-01', []).rows;
+  const bulletOk = bullet.slice(0,-1).every(r => r.principal === 0) && bullet[bullet.length-1].principal === 900000;
+  ok(26, meta.p===3 && rows.length===8 && halfYear && bulletOk,
+    `p=${meta.p} n=${rows.length} полгода/год=${halfYear} вКонцеСрока=${bulletOk}`);
 })();
 
 /* 27. Движок amortize — нулевая ставка: без процентов, платёж = база/строк. */
 (() => {
-  const { rows } = RS.amortize(1200000, 0, 12, 'аннуитет', [], '2026-01-01', 'ежемесячно');
+  const { rows } = RS.amortize(1200000, { term:12, rate:0, freq:'ежемесячно', method:'аннуитет' }, '2026-01-01', []);
   const noInterest = rows.every(r => r.interest === 0);
   const flat = rows.slice(0,-1).every(r => r.principal === RS.round2(1200000/12));
-  ok(27, noInterest && flat, `noInt=${noInterest} flat=${flat}`);
+  ok(27, noInterest && flat, `безПроцентов=${noInterest} ровно=${flat}`);
 })();
 
-/* 28. Движок amortize — грейс «только проценты»: тело не гасится, платёж = база×ставка. */
+/* 28. ТРИ ЛЬГОТЫ — три разных механизма (ADR-0111, зона п. 89), ради которых волна и затевалась:
+   виды N3 «льготный период» и N5 «отсрочка исполнения» иначе нечем оформить.
+     graceMain     — тело не гасится, проценты платятся;
+     graceAccrual  — проценты не начисляются вовсе;
+     graceInterest — начисляются, не платятся, раскладываются по окну graceIntDistFrom..To. */
 (() => {
-  const { rows, meta } = RS.amortize(1200000, 12, 12, 'аннуитет', [{months:3, type:'interest-only'}], '2026-01-01', 'ежемесячно');
-  const io = rows.slice(0,3);
-  const zeroPr = io.every(r => r.principal === 0);
-  const constBal = io.every(r => r.balance === RS.round2(1200000));
-  const payOk = io.every(r => r.pay === RS.round2(1200000 * meta.i));
-  ok(28, zeroPr && constBal && payOk && rows.length-3===9, `zeroPr=${zeroPr} constBal=${constBal} payOk=${payOk}`);
+  const B = 1200000, base = { term:12, rate:12, freq:'ежемесячно', method:'аннуитет' };
+  const A = RS.amortize(B, {...base, graceMain:3}, '2026-01-01', []).rows;
+  const mainOk = A.slice(0,3).every(r => r.principal === 0 && r.interest > 0 && r.balance === B)
+    && A.slice(0,3).every(r => r.phase === 'льгота по ОД') && A[A.length-1].balance === 0;
+
+  const Bw = RS.amortize(B, {...base, graceAccrual:3}, '2026-01-01', []).rows;
+  const accrOk = Bw.slice(0,3).every(r => r.accrued === 0 && r.interest === 0 && r.phase === 'отсрочка начисления')
+    && Bw[3].interest > 0;
+
+  const C = RS.amortize(B, {...base, graceInterest:3, graceIntDistFrom:4, graceIntDistTo:6}, '2026-01-01', []).rows;
+  const deferred = RS.round2(C.slice(0,3).reduce((s,r)=>s+r.accrued,0));
+  const window36 = RS.round2(C.slice(3,6).reduce((s,r)=>s+(r.interest-r.accrued),0));
+  const intOk = C.slice(0,3).every(r => r.accrued > 0 && r.interest === 0 && r.phase === 'льгота по %')
+    && deferred > 0 && window36 === deferred                       // отложенное разложено ровно по окну
+    && C.slice(6,-1).every(r => RS.round2(r.interest - r.accrued) === 0);
+  // и все три не путаются между собой: сумма Σinterest у graceAccrual строго меньше прочих
+  const sInt = rows => RS.round2(rows.reduce((s,r)=>s+r.interest,0));
+  const distinct = sInt(Bw) < sInt(A) && sInt(Bw) < sInt(C);
+  ok(28, mainOk && accrOk && intOk && distinct,
+    `ОД=${mainOk} начисление=${accrOk} проценты=${intOk} (отложено ${deferred} → окно ${window36}) различимы=${distinct}`);
 })();
 
-/* 29. Движок amortize — мораторий: платёж=0 в блоке, база капитализируется, morCap>0; число амортстрок = m. */
+/* 29. Календарь вместо «месяца в 30 дней» — то, из-за чего черновик расходился с контрактом:
+   даты идут по payDay, конец месяца зажимается (31 → 30 апреля), привязка последнего платежа
+   считается от даты 1-го платежа; payMonths ХРАНИТСЯ и график НЕ меняет (то же решение, что в
+   кредитном модуле: при неравных промежутках график — ручной ввод, не формула). */
 (() => {
-  const g = 3;
-  const { rows, meta, morCap } = RS.amortize(1200000, 12, 12, 'аннуитет', [{months:g, type:'moratorium'}], '2026-01-01', 'ежемесячно');
-  const mor = rows.slice(0,g);
-  const zeroPay = mor.every(r => r.pay === 0 && r.principal === 0);
-  const expBase = RS.round2(1200000 * Math.pow(1+meta.i, g));
-  const baseOk = RS.round2(meta.baseAmort) === expBase;
-  const capOk = morCap === RS.round2(expBase - 1200000) && morCap > 0;
-  const amort = rows.slice(meta.gMor + meta.gIo);
-  const countOk = amort.length === meta.m;
-  ok(29, zeroPay && baseOk && capOk && countOk, `zeroPay=${zeroPay} baseOk=${baseOk} morCap=${morCap} m=${meta.m}`);
+  const base = { term:6, rate:0, freq:'ежемесячно', method:'аннуитет' };
+  const day15 = RS.amortize(600000, {...base, payDay:15}, '2026-01-10', []).rows;
+  const dayOk = day15.every(r => r.date.slice(8) === '15') && day15[0].date === '2026-02-15';
+  const day31 = RS.amortize(600000, {...base, payDay:31}, '2026-01-31', []).rows;
+  const clampOk = day31[2].date === '2026-04-30' && day31[0].date === '2026-02-28';   // апрель и февраль зажаты
+  const noThirty = day15[0].date !== RS.addCalDays('2026-01-10', 30);                 // не шаг в 30 дней
+  const anchor = RS.amortize(600000, {...base, payDay:15, lastPaymentAnchor:'по дате 1-го платежа'}, '2026-01-10', []).rows;
+  const anchorOk = anchor[anchor.length-1].date === '2026-07-15';
+  const bare = RS.amortize(600000, base, '2026-01-31', []).rows;
+  const noDayOk = bare[0].date === '2026-02-28';                                      // без payDay — по дате отсчёта
+  const months = RS.amortize(600000, {...base, freq:'по конкретным месяцам', payMonths:'3,9'}, '2026-01-15', []).rows;
+  const payMonthsStored = months.length === day15.length
+    && JSON.stringify(months.map(r=>r.date)) === JSON.stringify(RS.amortize(600000, {...base, payDay:15}, '2026-01-15', []).rows.map(r=>r.date));
+  ok(29, dayOk && clampOk && noThirty && anchorOk && noDayOk && payMonthsStored,
+    `деньПлатежа=${dayOk} зажим=${clampOk} неТридцать=${noThirty} привязка=${anchorOk} безДня=${noDayOk} payMonthsНеСчитается=${payMonthsStored}`);
 })();
 
 /* ===== СЦЕНАРИИ РЕШЕНИЙ 10.08.2026 (РС-26…РС-37, ADR-0106/0105, ADR-0099 §2/§3/§5) ===== */
@@ -598,9 +646,9 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
 (() => {
   fresh();
   const a = app('RS-1001');
-  const params = { term: 12, rate: 10, method: 'аннуитет', schedule: 'ежемесячно' };
+  const conditions = RS.toConditions({ term: 12, rate: 10, method: 'аннуитет', freq: 'ежемесячно' });
   const sched = parts => RS.CreditSide.draftSchedule(a.calcTranche,
-    { date: RS.TODAY, principalPart: 1000000, parts, params });
+    { date: RS.TODAY, principalPart: 1000000, parts, conditions });
   const int = rows => RS.round2(rows.reduce((s, r) => s + (r.interest || 0), 0));
   const bare = sched([]);
   const heavy = sched([{ article: 'accPenalty', amount: 500000, periods: { mode: 'all' } },
@@ -624,7 +672,7 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
   const { a } = doorFixture('RS-1011');
   const r = RS.AppSide.run(a, RS.TODAY);
   const d = RS.CreditSide.draftSchedule(a.calcTranche, { date: RS.TODAY, transferSum: r.transferSum,
-    principalPart: r.principalPart, parts: r.parts, params: a.version.params });
+    principalPart: r.principalPart, parts: r.parts, conditions: RS.toConditions(a.version.params) });
   const sumP = RS.round2(d.rows.reduce((s, x) => s + (x.principal || 0), 0));
   const sumA = RS.round2(d.rows.reduce((s, x) => s + RS.rowArticlesSum(x), 0));
   const all = RS.round2(sumP + sumA);
@@ -643,7 +691,7 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
     const r = RS.AppSide.run(a, RS.TODAY);
     return { app: a, sourceTranche: a.calcTranche, credit: RS.creditById(a.creditIds[0]),
       date: RS.TODAY, transferSum: r.transferSum, principalPart: r.principalPart, parts: r.parts,
-      params: Object.assign({}, a.version.params, { term }) };
+      conditions: RS.toConditions(Object.assign({}, a.version.params, { term })) };
   };
   const isIr15 = reasons => reasons.some(s => s.includes('ИР-15'));
   const inside = isIr15(RS.validateDS(mkDs(24, 2, 6)));           // 6 ≤ 24 позиций
@@ -660,7 +708,7 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
   const a = app('RS-1001');
   const d = RS.CreditSide.draftSchedule(a.calcTranche, { date: RS.TODAY, principalPart: 1000000,
     parts: [{ article: 'accInterest', amount: 100000, periods: { mode: 'range', from: 2, to: 4 } }],
-    params: { term: 6, rate: 0, method: 'дифференцированный', schedule: 'ежемесячно' } });
+    conditions: RS.toConditions({ term: 6, rate: 0, method: 'равными долями', freq: 'ежемесячно' }) });
   const col = d.rows.map(r => (r.articles || {}).accInterest || 0);
   const inside = col.slice(1, 4), outside = col.slice(0, 1).concat(col.slice(4));
   const sum = RS.round2(inside.reduce((s, v) => s + v, 0));
@@ -797,7 +845,7 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
   const sched = ap => {
     const r = RS.AppSide.run(ap, RS.TODAY);
     const d = RS.CreditSide.draftSchedule(ap.calcTranche, { date: RS.TODAY, transferSum: r.transferSum,
-      principalPart: r.principalPart, parts: r.parts, params: ap.version.params });
+      principalPart: r.principalPart, parts: r.parts, conditions: RS.toConditions(ap.version.params) });
     return { r, int: RS.round2(d.rows.reduce((s, x) => s + (x.interest || 0), 0)) };
   };
   const withTail = sched(a);
@@ -1254,6 +1302,81 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
 
   ok(72, lone && noDrop && refused && dropShown && dropped && gateOnCalcs,
     `полосаПриОдном=${lone} безКрестикаПриДС=${noDrop} отказСнятия=${refused} крестикиПоРасчётам=${dropShown} снят=${dropped} гейтПоРасчётам=${gateOnCalcs}`);
+})();
+
+/* 73. ФОРМА УСЛОВИЙ = ВИД ДС (ADR-0111, гейт Г-23). Форма печатает ключи зоны п. 89, но правит
+   ровно allowedParams: у вида N2 («Снижение процентной ставки» — один rate) редактируется одно
+   поле, прочие стоят disabled с подписью «вид не разрешает». Запрет держится и в МОДЕЛИ, а не
+   только разметкой: setVersionParam на неразрешённый ключ не пишет — иначе форма была бы
+   вежливой просьбой, а не гейтом. Подполя (payMonths, окно распределения отсроченных %) выходят
+   только при своём хозяине, ключ вне реестра отбивается по имени.
+   Считаем по БЛОКУ условий, а не по странице: на «Параметрах» есть ещё поля распоряжений. */
+(() => { fresh();
+  RS.state.role = 'Куратор ОД';
+  const a = app('RS-1004');                               // ДС ещё нет — форма открыта
+  a.kindIds = ['N2'];
+  const calc = RS.requireCalc(a);
+  const block = h => { const i = h.indexOf('class="f2" style="max-width:920px"');
+                       return i < 0 ? '' : h.slice(i, h.indexOf('<div style="margin-top:8px">', i)); };
+  const b = block(RS.pParams(a));
+  const fields = (b.match(/class="flabel"/g) || []).length;
+  const editable = (b.match(/<(?:input|select)(?![^>]*disabled)/g) || []).length;
+  const roTags = (b.match(/вид не разрешает/g) || []).length;
+  const formOk = fields === 9 && editable === 1 && roTags === 8;   // 12 ключей − 3 скрытых подполя
+
+  const termWas = calc.version.params.term;
+  RS.setVersionParam(a.id, 'term', 999, calc.id);          // вид не разрешает — модель не пишет
+  const modelHeld = calc.version.params.term === termWas;
+  RS.setVersionParam(a.id, 'rate', '5.5', calc.id);
+  const rateTaken = calc.version.params.rate === 5.5;      // kind:'num' → число, не строка
+  RS.setVersionParam(a.id, 'schedule', 'ежемесячно', calc.id);     // ключа нет в реестре
+  const strayRefused = calc.version.params.schedule === undefined;
+
+  a.kindIds = ['N1','N3'];                                 // пролонгация + льготный период
+  RS.setVersionParam(a.id, 'graceInterest', 6, calc.id);
+  const withGrace = block(RS.pParams(a));
+  const subOn = withGrace.includes('Распредел. отсроч. %');         // окно вышло за своим хозяином
+  const monthsOff = !withGrace.includes('Конкретные месяцы платежей');
+  RS.setVersionParam(a.id, 'freq', 'по конкретным месяцам', calc.id);
+  const withMonths = RS.pParams(a);
+  const monthsOn = withMonths.includes('Конкретные месяцы платежей')
+    && withMonths.includes('черновой график по ним не строится');   // плашка вместо молчания
+  ok(73, formOk && modelHeld && rateTaken && strayRefused && subOn && monthsOff && monthsOn,
+    `полей=${fields} редактируемых=${editable} readonly=${roTags} модельДержит=${modelHeld} ставка=${calc.version.params.rate} чужойКлюч=${strayRefused} окно%=${subOn} месяцы=${monthsOff}→${monthsOn}`);
+})();
+
+/* 74. ШОВ ДС — условия уезжают МАССИВОМ conditions:[{param,value}] в вокабуляре реестра, как их
+   ждёт кредитный модуль (credit.html, restructureApplied), а не плоским ds.params со своим
+   словарём. Плоская свёртка живёт только внутри (condObj). Запись условий производного транша
+   несёт ключи ДС поверх условий ИСТОЧНИКА: неназванное соглашением условие (день-база, метод)
+   наследуется, названное — перекрывается. И график производного построен ровно этими условиями:
+   черновик, который утверждал комитет, обязан совпасть с контрактом. */
+(() => { fresh();
+  const a = app('RS-1001');
+  const ds = (a.agreements || [])[0];
+  const arrayShape = Array.isArray(ds.conditions)
+    && ds.conditions.every(c => c && typeof c.param === 'string' && 'value' in c)
+    && ds.params === undefined && a.ds.params === undefined;
+  const reg = new Set(RS.PARAMS.map(p => p.key));
+  const inRegistry = ds.conditions.every(c => reg.has(c.param));
+  const flat = RS.condObj(ds.conditions);
+  const roundTrip = JSON.stringify(RS.toConditions(flat)) === JSON.stringify(ds.conditions);
+
+  const derived = RS.resultTrancheOf(a, a.calcs[0].id);
+  const rec = (derived.conditionRecords || [])[0];
+  const src0 = a.calcTranche.conditionRecords[0];
+  const overrides = Object.keys(flat).every(k => rec[k] === flat[k]);          // названное перекрыло
+  const inherited = Object.keys(src0).filter(k => k !== 'effectiveFrom' && !(k in flat))
+    .every(k => rec[k] === src0[k]);                                            // прочее унаследовано
+  const recOk = !!rec && rec.effectiveFrom === a.ds.date && overrides && inherited;
+
+  const contract = (derived.schedules || [])[0];
+  const draft = RS.CreditSide.draftSchedule(a.calcTranche,
+    { date: a.ds.date, transferSum: a.ds.transferSum, principalPart: derived.amount, conditions: ds.conditions });
+  const key = rows => JSON.stringify((rows || []).map(r => [r.date, r.principal, r.interest]));
+  const sameRows = key(contract.rows) === key(draft.rows);
+  ok(74, arrayShape && inRegistry && roundTrip && recOk && sameRows,
+    `массив=${arrayShape} вРеестре=${inRegistry} свёртка=${roundTrip} перекрытие=${overrides} наследование=${inherited} черновик=контракт=${sameRows}`);
 })();
 
 /* ---- отчёт ---- */
