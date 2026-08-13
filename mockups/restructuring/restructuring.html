@@ -80,7 +80,7 @@
   возражение, а не как открытые вопросы. Свод — §11 спеки.
 
   SMOKE (node scripts/inspect/restructuring-check.mjs):
-   SMOKE 2026-08-12 · 71/71 PASS
+   SMOKE 2026-08-13 · 72/72 PASS
       PASS  #1  до=false после=true
       PASS  #2  closed=true opened=true reblock=true
       PASS  #3  noRate=true union=true
@@ -146,12 +146,13 @@
       PASS  #63  ступень2=2 блокировкаНаВсе=true послеКомитета=true
       PASS  #64  второе=true первоеЦело=true соглашений=2 покрытие={"done":["C-CR-59003-T1","C-CR-60540-T2"],"excluded":[],"pending":[],"ok":true} производныеПоРасчётам=true
       PASS  #65  былаЗакрыта=true приМолчании=true безОснованияОтказ=true послеСнятия=true
-      PASS  #66  секция=true итог=true одинБезЗаголовка=true адресВДвери=true староеСнесено=true производныйНаГрафике=true гейтыПодШапкой=true черновикПоРасчёту=true
+      PASS  #66  полосаВместоСекций=true итог=true вкладкиОхватНет=true адресВДвери=true староеСнесено=true производныйНаГрафике=true гейтыПодШапкой=true черновикПоРасчёту=true
       PASS  #67  расчётов=2 кредитыРазные=true базыРазные=1245759.68/398076.09 итогСходится=true (1643835.77=1643835.77) статьяДважды=true (тело 9600000/3900000)
       PASS  #68  полоса=true подытогПоВыбору=true итогСходится=true (1643836) RS-1001: коробкаНаГрафике=true график=6 строк гейтыВнеВкладок=true
       PASS  #69  линий=3 прощено=200000 капПеня=250000 распределено=100000 остаток=50000 позиция=600000 инвариант=true перенос=3090070.3
       PASS  #70  сверхПозиции=true вПределе=true линияДобавлена=true дубльБезСроков=true дубльСоСроками=true снятиеПеренумеровало=true
       PASS  #71  исходСовпал=true перенос=3090070.3 колонок=5
+      PASS  #72  полосаПриОдном=true безКрестикаПриДС=true отказСнятия=true крестикиПоРасчётам=true снят=true гейтПоРасчётам=true
 -->
 <style>
 :root{
@@ -493,16 +494,31 @@ table.cgrid tbody tr:last-child td{ border-bottom:none; }
 .split-arrow{ display:flex; align-items:center; justify-content:center; padding:0 14px; color:var(--text-placeholder); font-size:20px; }
 @media(max-width:760px){ .split-arrow{ transform:rotate(90deg); padding:8px 0; } }
 .nosplit-banner{ max-width:920px; }
-/* Полоса выбора расчёта: на многокредитной заявке экран показывает ОДИН расчёт, а не стопку
-   секций, и адрес правки виден кнопкой, а не только в аргументах сеттеров. */
-.calc-picker{ display:flex; gap:8px; flex-wrap:wrap; margin:0 0 14px; }
-.cpick{ display:flex; flex-direction:column; gap:3px; align-items:flex-start; cursor:pointer; text-align:left;
+/* Полоса охвата: она же выбор расчёта. Охват называет траншы (РС-2), а транш и его расчёт —
+   одно и то же (ИР-16), поэтому список траншей заявки и список расчётов — один список, и
+   рисуется он один раз. Экран показывает ОДИН расчёт, а не стопку секций: адрес правки виден
+   карточкой полосы, а не только в аргументах сеттеров. Отдельной вкладки «Охват» нет — она
+   печатала тот же список вторым экземпляром и брала его из производного creditIds. */
+.scope-strip{ display:flex; gap:8px; flex-wrap:wrap; align-items:stretch; margin:0 0 14px; }
+.spick{ display:flex; flex-direction:column; gap:3px; align-items:flex-start; cursor:pointer; text-align:left;
   border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--surface-card);
-  padding:9px 14px; font:var(--font-label); color:var(--text-body); }
-.cpick:hover{ border-color:var(--border-strong); }
-.cpick.active{ border-color:var(--asubk-blue); background:var(--asubk-blue-tint); }
-.cpick .cp-t{ font:var(--weight-semibold) 14px/1.2 var(--asubk-font); color:var(--text-heading); }
-.cpick .cp-n{ font-size:11px; color:var(--text-muted); font-variant-numeric:tabular-nums; }
+  padding:9px 14px; font:var(--font-label); color:var(--text-body); position:relative; }
+.spick:hover{ border-color:var(--border-strong); }
+.spick.active{ border-color:var(--asubk-blue); background:var(--asubk-blue-tint); }
+.spick.lone{ cursor:default; }
+.spick .cp-t{ font:var(--weight-semibold) 14px/1.2 var(--asubk-font); color:var(--text-heading); }
+.spick .cp-n{ font-size:11px; color:var(--text-muted); font-variant-numeric:tabular-nums; }
+/* Скрининг — то, ради чего вкладка «Охват» и держалась: просрочка, чужая активная заявка (ИР-1),
+   зеркало взыскания, счётчик прежних реструктуризаций. Стоит он на строке транша, а не таблицей
+   на своей вкладке: читают его, когда выбирают транш, а не отдельным заходом. */
+.spick .cp-f{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-top:2px; }
+.spick .sp-drop{ border:0; background:none; cursor:pointer; color:var(--text-placeholder);
+  font:var(--font-label); padding:0 2px; line-height:1; }
+.spick .sp-drop:hover{ color:var(--asubk-red); }
+.spick-add{ display:flex; align-items:center; border:1px dashed var(--border-strong); border-radius:var(--radius-md);
+  background:none; cursor:pointer; padding:9px 14px; font:var(--font-label); color:var(--text-link); }
+.spick-add:hover{ border-color:var(--asubk-blue); background:var(--asubk-blue-tint); }
+.scope-strip .sp-empty{ align-self:center; color:var(--text-placeholder); font:var(--font-label); }
 /* Строка статьи: название со срочностью, под ним — «начисляется» (свойство справочника ушло из
    отдельной колонки туда, где его читают) и дельта под числом факта. */
 table.cgrid .a-t{ font:var(--weight-medium) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading); }
@@ -1631,7 +1647,9 @@ function activeAppOnCredit(creditId, exceptAppId){
 function canAdvance(app){
   const st=stageOf(app);
   if(st.idx===0) return {to:'Анализ', ok:packetGate(app).ok, why:'Пакет документов неполон'};
-  if(st.idx===1) return {to:'Комитет', ok:conclGate(app).ok && app.creditIds.length>0, why:'Не все заключения завизированы / пустой охват'};
+  // Охват меряется РАСЧЁТАМИ, а не creditIds: последний — производное с откатом на сид, и заявка
+  // без единого расчёта проходила гейт, показывая комитету кредит, для которого ничего не считали.
+  if(st.idx===1) return {to:'Комитет', ok:conclGate(app).ok && (app.calcs||[]).length>0, why:'Не все заключения завизированы / пустой охват'};
   return null;
 }
 
@@ -1700,8 +1718,8 @@ function defaultBase(x, date, calcId){
     blockedBy: row.disputed ? 'disputed' : null
   }));
 }
-/* ДЕЙСТВУЮЩАЯ БАЗА РАСЧЁТА — одна дверь на всех потребителей (run, calcSectionHead,
-   calcTotalsBar, calcBaseSection). До первого живого действия куратора calc.base пуст, и база
+/* ДЕЙСТВУЮЩАЯ БАЗА РАСЧЁТА — одна дверь на всех потребителей (run, scopeStrip,
+   calcResultBar, calcBaseSection). До первого живого действия куратора calc.base пуст, и база
    считается на лету из долга транша (Р-19, ensureBaseDispositions ниже) — умолчание нигде не
    хранится. Три независимых пересчёта этого умолчания в трёх экранных функциях уже разошлись
    однажды: секция брала умолчание через дверь заявки (defaultBase(app,…)), которая на двух
@@ -1950,6 +1968,23 @@ function addTrancheToScope(appId, trancheId){
   if(!had){ app._t=TODAY; H(app,'В охват добавлен транш '+t.no+' (кредит '+cr.no+').',state.role); }
   closeModal(); toast('Транш добавлен в охват','ok'); render();
 }
+/* Снятие транша уносит расчёт целиком — базу, распоряжения, черновик условий (правило 60).
+   Действие стоит на полосе, в шаге от стола ввода, и потому спрашивает: отменить его нечем,
+   а суммы куратор набивал руками. Отказ по зарегистрированному ДС виден ДО подтверждения —
+   спрашивать «уверены?» о том, что всё равно запрещено, значит врать про исход. */
+function openDropTranche(appId, calcId){
+  if(!guard('editVersion')) return;
+  const app=appById(appId), calc=calcById(app, calcId);
+  if(!calc){ toast('Расчёт не найден','err'); return; }
+  if(calc.dsRef){ toast('По этому траншу зарегистрировано ДС — из охвата не выводится','err'); return; }
+  const t=calcTrancheOf(calc), cr=creditById(calc.creditId);
+  const base=fmt(rowsTotal(calcBaseOf(app, calc).filter(x=>x.included)));
+  modal(`<div class="modal">${mhead('Вывести транш из охвата')}<div class="modal-b">
+    <div class="flagline">Расчёт по траншу ${esc(t?t.no:'—')} (кредит ${esc(cr?cr.no:'—')}) будет снят вместе
+      с базой переноса ${base} и распоряжениями. Вернуть его можно только заведя заново.</div>
+  </div><div class="modal-f"><button class="btn btn-secondary" onclick="RS.closeModal()">Отмена</button>
+    <button class="btn btn-danger" onclick="RS.removeTrancheFromScope('${appId}','${calcId}')">Вывести из охвата</button></div></div>`);
+}
 function removeTrancheFromScope(appId, calcId){
   if(!guard('editVersion')) return;
   const app=appById(appId), calc=calcById(app, calcId);
@@ -1957,8 +1992,11 @@ function removeTrancheFromScope(appId, calcId){
   if(calc.dsRef){ toast('По этому траншу зарегистрировано ДС — из охвата не выводится','err'); return; }
   const t=calcTrancheOf(calc);
   app.calcs=app.calcs.filter(c=>c.id!==calcId);
+  // Выбор экрана мог указывать на снятый расчёт — curCalcOf съедет на первый сам, но оставлять
+  // в состоянии мёртвый адрес значит держать ссылку на то, чего нет.
+  if(state.curCalc===calcId) state.curCalc=null;
   app._t=TODAY; H(app,'Из охвата выведен транш '+(t?t.no:calcId)+' вместе с расчётом.',state.role);
-  render();
+  closeModal(); toast('Транш выведен из охвата','ok'); render();
 }
 /* ИР-1 ключуется траншем, а не кредитом: два расчёта одного графика неразрешимы, а разные
    траншы одного кредита в разных заявках — разрешены (РС-2). */
@@ -2944,7 +2982,11 @@ function gotoPage(n){ state.page=Math.max(1,n); renderRows(); }
 function setPageSize(n){ state.pageSize=+n; state.page=1; renderRows(); }
 
 /* ================= РЕНДЕР: КАРТОЧКА ЗАЯВКИ ================= */
-const TABS=[['req','Пакет документов'],['scope','Охват'],['concl','Заключения'],['calcBase','База и распоряжения'],['calcSched','График и дифф'],['decision','Комитет и решение'],['formal','Оформление'],['hist','История']];
+/* Вкладок семь: «Охват» снята 13.08.2026. Список траншей заявки — не содержимое вкладки, а
+   навигация: он и есть выбор расчёта, и живёт полосой над столом ввода (scopeStrip). Вкладка
+   печатала тот же список вторым экземпляром и строила его из creditIds — производного свойства
+   с откатом на демо-сид, тогда как охват живёт в app.calcs. */
+const TABS=[['req','Пакет документов'],['concl','Заключения'],['calcBase','База и распоряжения'],['calcSched','График и дифф'],['decision','Комитет и решение'],['formal','Оформление'],['hist','История']];
 function openApp(id){ state.curApp=id; state.view='card'; state.curTab='req'; state.curCalc=null; state.gatesOpen=false; render(); }
 function setTab(t){ state.curTab=t; render(); }
 /* Выбранный расчёт — состояние экрана, не заявки: правка идёт по одному расчёту за раз, и его
@@ -3119,7 +3161,6 @@ function advanceBtn(app){
 function panel(app){
   switch(state.curTab){
     case 'req': return pReq(app);
-    case 'scope': return pScope(app);
     case 'concl': return pConcl(app);
     case 'calcBase': return pCalcBase(app);
     case 'calcSched': return pCalcSched(app);
@@ -3211,28 +3252,7 @@ function pReq(app){
   </div>`;
 }
 
-/* 2. Охват — таблица кредитов; валидации ИНН и «другая активная заявка» (Р-2) */
-function pScope(app){
-  const rows=app.creditIds.map(id=>{ const c=creditById(id); const other=activeAppOnCredit(id,app.id);
-    return `<tr>
-      <td>${c.no}</td><td class="numcell">${fmt(c.balance)}</td>
-      <td>${c.odDays} дн. / ${fmt(c.odSum)}</td>
-      <td>${c.collProc?`<span class="rowlink" onclick="RS.showMirror('${c.collProc}','${app.id}')">${c.collProc}</span>`:'—'}</td>
-      <td>${other?`<span class="pill high">${other.id}</span>`:'<span class="pill low">нет</span>'}</td>
-      <td>${c.restructCount}</td>
-    </tr>`; }).join('') || `<tr><td colspan="6" class="op-empty">Охват пуст</td></tr>`;
-  const st=stageOf(app);
-  const addBtn = (!st.closed) ? `<button class="btn btn-primary btn-sm" onclick="RS.openAddTranche('${app.id}')">+ Добавить кредит</button>`:'';
-  return `<div class="detail-panel active">
-    <div class="section-h">Охват заявки</div>
-    <div class="gtoolbar">${addBtn}</div>
-    <div class="cgrid-wrap"><table class="cgrid"><thead><tr>
-      <th>Кредит</th><th class="numcell">Остаток</th><th>Просрочка</th><th>Взыскание</th><th>Другая активная заявка</th><th>Реструктуризаций</th>
-    </tr></thead><tbody>${rows}</tbody></table></div>
-  </div>`;
-}
-
-/* 3. Заключения (Р-5) */
+/* 2. Заключения (Р-5) */
 function pConcl(app){
   const g=conclGate(app);
   const cards=app.conclusions.map((c,i)=>{
@@ -3258,7 +3278,7 @@ function pConcl(app){
   </div>`;
 }
 
-/* 4. База и распоряжения (issues/05, вариант B) — пять статей (ADR-0110), два датированных числа, производный транш.
+/* 3. База и распоряжения (issues/05, вариант B) — пять статей (ADR-0110), два датированных числа, производный транш.
    Гейты Пределы/Согласия подключены (тикет 07): норма-справочник (limitsGate) и зеркало GUARANTEES
    (consentGate) — оба жёсткие, без waiver. Флажки/распоряжения — read-only показ по умолчанию
    (issues/02 задал состав, интерактивная правка куратором — тикет 07, issues/05 просит только
@@ -3409,46 +3429,53 @@ function dispDoorRow(app, row, d, canEdit, planLen, calc, opts){
       ${rest!=null && rest>0.005 ? `<div class="dd-note">без распоряжения остаётся ${fmt2(rest)} — уйдёт в перенос просроченным</div>` : ''}
     </div></td></tr>`;
 }
-/* Заголовок секции — адрес суммы: транш, кредит, база и судьба оформления. При одном расчёте не
-   рисуется: подписывать единственную секцию значит объяснять куратору то, чего он не спрашивал. */
-function calcSectionHead(app, calc){
-  if((app.calcs||[]).length<2) return '';
-  const t=calcTrancheOf(calc), cr=creditById(calc.creditId);
-  const r=run(app, app.ds?app.ds.date:TODAY, calc.id);
-  const fate = calc.dsRef ? `<span class="pill ok">${esc(calc.dsRef)}</span>`
-             : calc.excluded ? `<span class="pill mid" title="${esc(calc.excluded.reason)}">снят с оформления</span>`
-             : `<span class="pill neutral">не оформлено</span>`;
-  return `<div class="section-h calc-h">${esc(t?t.no:'—')} · ${esc(cr?cr.no:'—')}
-    · база переноса ${fmt(rowsTotal(calcBaseOf(app, calc).filter(x=>x.included)))}
-    · перенос ${fmt(r?r.transferSum:0)} ${fate}</div>`;
-}
+const SCOPE_EMPTY = 'Охват пуст — добавьте транш, и расчёт заведётся автоматически.';
 function pCalcBase(app){
-  if(!(app.calcs||[]).length)
-    return `<div class="detail-panel active"><div class="op-empty">Охват пуст — добавьте транш, и расчёт заведётся автоматически.
-      <button class="btn" onclick="RS.openAddTranche('${app.id}')">Добавить транш в охват</button></div></div>`;
-  /* Стол ввода: на экране ОДИН расчёт целиком, выбранный полосой сверху. Прежде секции шли
+  /* Стол ввода: на экране ОДИН расчёт целиком, выбранный полосой охвата сверху. Прежде секции шли
      стопкой, и длина вкладки росла с числом расчётов, а адрес суммы читался только в шапке
      секции. Правка адресуется тройкой (транш, статья, срочность) плюс calcId — полоса делает
      этот адрес видимым на экране, а не только в аргументах сеттеров. */
   const calc = curCalcOf(app);
-  return `<div class="detail-panel active">` + calcPicker(app, calc) + driftLine(app, calc)
-       + calcBaseSection(app, calc) + calcResultBar(app, calc)
+  return `<div class="detail-panel active">` + scopeStrip(app, calc)
+       + (calc ? driftLine(app, calc) + calcBaseSection(app, calc) + calcResultBar(app, calc)
+               : `<div class="op-empty">${SCOPE_EMPTY}</div>`)
        + `</div>`;
 }
-/* Полоса выбора расчёта. При одном расчёте не рисуется: выбирать не из чего, а подписывать
-   единственный — объяснять куратору то, чего он не спрашивал. */
-function calcPicker(app, calc){
-  const list=app.calcs||[]; if(list.length<2 || !calc) return '';
-  return `<div class="calc-picker">${list.map(c=>{
-    const t=calcTrancheOf(c), cr=creditById(c.creditId);
+/* ПОЛОСА ОХВАТА — она же выбор расчёта, и другого места, где охват меняют, в макете нет.
+   Рисуется ВСЕГДА, в том числе на однорасчётной заявке: полоса — единственная дверь к «добавить
+   транш» и «снять», и прятать её при одном расчёте значит прятать сам охват. Строки берутся у
+   scopeTranches (модель охвата — app.calcs), а не у производного creditIds.
+   Скрининг стоит на строке: просрочка, чужая активная заявка (ИР-1), зеркало взыскания, счётчик
+   прежних реструктуризаций. Прежде он жил таблицей на своей вкладке — рядом с тем же списком,
+   напечатанным второй раз. Сводка по заявке (остаток, Σ просрочки) остаётся плиткой шапки. */
+function scopeStrip(app, calc){
+  const st=stageOf(app);
+  const rows=scopeTranches(app).map(({cr,t,calc:c})=>{
     const fate = c.dsRef ? `<span class="pill ok">${esc(c.dsRef)}</span>`
                : c.excluded ? `<span class="pill mid" title="${esc(c.excluded.reason)}">снят с оформления</span>`
                : `<span class="pill neutral">не оформлено</span>`;
-    return `<button class="cpick${c.id===calc.id?' active':''}" onclick="RS.setCalc('${c.id}')">
-      <span class="cp-t">${esc(t?t.no:'—')} · ${esc(cr?cr.no:'—')}</span>
+    const busy = activeAppOnTranche(c.trancheId, app.id);
+    const chips=[fate];
+    if(cr.odSum>0) chips.push(`<span class="pill high" title="просрочка по кредиту ${esc(cr.no)}">просрочка ${cr.odDays} дн. · ${fmt(cr.odSum)}</span>`);
+    if(busy) chips.push(`<span class="pill high" title="транш в другой активной заявке (ИР-1)">${esc(busy.id)}</span>`);
+    if(cr.collProc) chips.push(`<span class="rowlink" title="мини-зеркало взыскания"
+      onclick="event.stopPropagation();RS.showMirror('${cr.collProc}','${app.id}')">взыскание ${esc(cr.collProc)}</span>`);
+    if(cr.restructCount) chips.push(`<span class="mode-tag" title="реструктуризаций по кредиту ранее">ранее: ${cr.restructCount}</span>`);
+    // Снятие уносит расчёт вместе с суммами (правило 60) — потому через подтверждение, а не
+    // одним кликом рядом со столом ввода. Зарегистрированное ДС снятие запрещает (РС-42).
+    if(!st.closed && !c.dsRef) chips.push(`<button class="sp-drop" title="Вывести транш из охвата"
+      onclick="event.stopPropagation();RS.openDropTranche('${app.id}','${c.id}')">✕</button>`);
+    const sel = calc && c.id===calc.id;
+    const lone = (app.calcs||[]).length<2;
+    return `<div class="spick${sel?' active':''}${lone?' lone':''}" ${lone?'':`onclick="RS.setCalc('${c.id}')"`}>
+      <span class="cp-t">${esc(t.no)} · ${esc(cr.no)}</span>
       <span class="cp-n">база переноса ${fmt(rowsTotal(calcBaseOf(app, c).filter(x=>x.included)))}</span>
-      <span class="cp-f">${fate}</span></button>`;
-  }).join('')}</div>`;
+      <span class="cp-f">${chips.join('')}</span></div>`;
+  }).join('');
+  const addBtn = st.closed ? ''
+    : `<button class="spick-add" onclick="RS.openAddTranche('${app.id}')">+ Добавить транш</button>`;
+  const empty = rows ? '' : `<span class="sp-empty">Охват пуст</span>`;
+  return `<div class="scope-strip">${rows}${empty}${addBtn}</div>`;
 }
 /* Расхождение — жёсткий упор, и статус его виден чипом в шапке на всех вкладках. Но причина
    лежит здесь, в колонках «Срез» и «Факт», и гнать за ней куратора в раскрытие чипа значит
@@ -3653,12 +3680,12 @@ function calcBaseSection(app, calc){
   `;
 }
 function pCalcSched(app){
-  if(!(app.calcs||[]).length)
-    return `<div class="detail-panel active"><div class="op-empty">Охват пуст — добавьте транш, и расчёт заведётся автоматически.
-      <button class="btn" onclick="RS.openAddTranche('${app.id}')">Добавить транш в охват</button></div></div>`;
-  // Обёртка панели — как в pCalcBase: одна на экран, секции внутри без своей.
-  return `<div class="detail-panel active">`
-       + app.calcs.map(calc => calcSectionHead(app, calc) + calcSchedSection(app, calc)).join('')
+  /* Как и стол ввода: на экране ОДИН расчёт, выбранный полосой охвата. Прежде графики шли стопкой
+     под заголовками-адресами, и вкладка росла с числом расчётов, а выбор с соседней вкладки сюда
+     не переносился — куратор искал глазами тот же транш второй раз. */
+  const calc = curCalcOf(app);
+  return `<div class="detail-panel active">` + scopeStrip(app, calc)
+       + (calc ? calcSchedSection(app, calc) : `<div class="op-empty">${SCOPE_EMPTY}</div>`)
        + `</div>`;
 }
 function calcSchedSection(app, calc){
@@ -3761,7 +3788,7 @@ function calcSchedSection(app, calc){
   `;
 }
 
-/* 5. Комитет и решение (Р-6, переборено по ADR-0107). За прежней одной стадией «решение
+/* 4. Комитет и решение (Р-6, переборено по ADR-0107). За прежней одной стадией «решение
    уполномоченного органа» стоят ТРИ АКТА РАЗНЫХ ОРГАНОВ: заключение уполномоченного органа
    (пп. 87–88), согласование профильного комитета ЖК и постановление Кабинета Министров (п. 82).
    Все три живут внутри одного срока 70 к.д. — своих регламентных сроков у них нет, и выдумывать
@@ -3880,7 +3907,7 @@ function automationBlock(app){
     <div class="infoline">Группа и риск-категория заёмщика реструктуризацией не меняются — только классификатором; счётчик реструктуризаций кредита +1 (Р-14).</div>`;
 }
 
-/* 6. Оформление (Р-8, Р-15) */
+/* 5. Оформление (Р-8, Р-15) */
 function pFormal(app){
   // оформление открывает ПОСТАНОВЛЕНИЕ КМ, а не заключение органа (ADR-0107 §«Последствия»)
   const approved = app.resolution&&app.resolution.fixed&&app.resolution.decision!=='отказ';
@@ -3976,7 +4003,7 @@ function pFormal(app){
   </div>`;
 }
 
-/* 7. История (Р-16, append-only) */
+/* 6. История (Р-16, append-only) */
 function pHist(app){
   const rows=[...app.history].map(h=>`<div class="hrow ${h.cls||''}">
     <div class="hwhen">${h.when}</div><div class="hwhat">${esc(h.what)}</div>${h.who?`<div class="hwho">${esc(h.who)}</div>`:''}
@@ -4365,7 +4392,8 @@ const RS = {
   go, setRole, setTab, setCalc, toggleGates, curCalcOf, openApp, newApp, naFillCredits, createApp, nextAppId, setFilter, closeModal,
   renderRows, sortList, resetFilters, gotoPage, setPageSize,   // реестр: фильтр, сортировка, пейджер
   toggleDoc, returnApp, setConclText, visaConcl, openAddConcl, addConcl,
-  openAddTranche, addTrancheToScope, removeTrancheFromScope, scopeTranches, activeAppOnTranche,
+  openAddTranche, addTrancheToScope, openDropTranche, removeTrancheFromScope, scopeTranches, activeAppOnTranche,
+  scopeStrip,                     // полоса охвата = выбор расчёта; вкладки «Охват» нет (13.08.2026)
   fixCommittee, fixLetter, fixConclusion, fixZk, fixResolution, advance,
   openWaiver, grantWaiver, openDS, regDS, openNewKind, addKind, dropKind, showMirror,
   get state(){ return state; }, seed, stageOf, deadline, packetGate, conclGate, dsGate,

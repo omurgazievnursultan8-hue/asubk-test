@@ -977,10 +977,11 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
 })();
 
 /* 66. Экран расчёта: суммы складываются через кредиты РОВНО в одном месте — шапке-итоге, и оно
-   подписано как итог, а не как база. Секция адресует транш и кредит; при одном расчёте заголовок
-   секции не рисуется вовсе — экран однокредитной заявки не меняется. Четыре сеттера строки
-   получают calcId, иначе клик в секции второго транша уехал бы в первый.
-   `creditIds[0]` уходит из четырёх функций задачи (pScope/pCalcBase/pCalcSched/automationBlock) —
+   подписано как итог, а не как база. Адрес расчёта (транш · кредит) печатает полоса охвата —
+   с 13.08.2026 она одна и та же на обеих вкладках расчёта, а заголовков-секций и вкладки
+   «Охват» нет вовсе: список траншей заявки печатался двумя экземплярами. Четыре сеттера строки
+   получают calcId, иначе клик по строке второго транша уехал бы в первый.
+   `creditIds[0]` уходит из функций задачи (pCalcBase/pCalcSched/automationBlock) —
    но НЕ из fixLetter/closeByRefusal: это логика паузы взыскания, спека прямо говорит её не
    трогать (`Не переписываем взыскание и залог`). Проверка поэтому берёт тело функции по имени,
    а не весь файл — иначе сценарий требовал бы правки, которую задача не должна делать.
@@ -993,9 +994,10 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
    `'${calc.id}',${seq}` обязан стоять у КАЖДОГО сеттера распоряжения — иначе правка второй линии
    уехала бы в первую и выглядела бы как «выбор не сохраняется». */
 (() => {
-  const head   = /function calcSectionHead/.test(src);
+  const head   = /function scopeStrip\(app, calc\)/.test(src) && !/function calcSectionHead/.test(src);
   const total  = /Итог по заявке/.test(src);
-  const single = /length<2\) return '';/.test(src);                 // один расчёт — заголовка нет
+  // вкладки «Охват» нет: ни в списке вкладок, ни в switch панелей, ни отдельной функцией
+  const single = !/function pScope/.test(src) && !/\['scope',/.test(src) && !/case 'scope'/.test(src);
   const wired  = /const AC=/.test(src)
     && /const CS=`'\$\{calc\.id\}',\$\{seq\}`/.test(src)                // расчёт + номер линии (РС-43)
     && /RS\.toggleBaseRow\(\$\{AC\}\)/.test(src)
@@ -1008,7 +1010,7 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
     const next = src.indexOf('\nfunction ', start+1);
     return src.slice(start, next<0 ? src.length : next);
   };
-  const scoped = ['pScope','pCalcBase','pCalcSched','automationBlock'];
+  const scoped = ['scopeStrip','pCalcBase','pCalcSched','automationBlock'];
   const gone = !/function pickTrancheBlock/.test(src)
     && scoped.every(name => !/creditIds\[0\]/.test(bodyOf(name)));
   // fix-round-1: производный транш адресуется по calc.id, не через однорасчётную дверь
@@ -1030,7 +1032,7 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
     && /calc\.version/.test(bodyOf('versionParamsBlock'))
     && /versionParamsBlock\(app,\s*calc\)/.test(bodyOf('calcSchedSection'));
   ok(66, head && total && single && wired && gone && derivedAddressed && gatesUnderHead && paramsBlockScoped,
-    `секция=${head} итог=${total} одинБезЗаголовка=${single} адресВДвери=${wired} староеСнесено=${gone} производныйНаГрафике=${derivedAddressed} гейтыПодШапкой=${gatesUnderHead} черновикПоРасчёту=${paramsBlockScoped}`);
+    `полосаВместоСекций=${head} итог=${total} вкладкиОхватНет=${single} адресВДвери=${wired} староеСнесено=${gone} производныйНаГрафике=${derivedAddressed} гейтыПодШапкой=${gatesUnderHead} черновикПоРасчёту=${paramsBlockScoped}`);
 })();
 
 /* 67. RS-1020 — единственная многокредитная заявка сида, и до сих пор расчёта не имела вовсе.
@@ -1084,11 +1086,14 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
   const modelBase = c => fullBase(c).filter(x => x.included);
   const modelSum = c => Math.round(modelBase(c).reduce((s, x) => s + x.amount, 0));
 
-  // полоса выбора: по кнопке на расчёт, активна ровно одна
+  // полоса охвата: по карточке на расчёт, активна ровно одна, вход «+ Добавить транш» на месте
   const html0 = RS.pCalcBase(a);
+  const picks = s => (String(s).match(/class="spick[" ]/g) || []).length;   // spick-add сюда не попадает
   const pickerOk = a.calcs.length === 3
-    && (html0.match(/<button class="cpick/g) || []).length === a.calcs.length
-    && (html0.match(/class="cpick active"/g) || []).length === 1;
+    && picks(html0) === a.calcs.length
+    && (html0.match(/class="spick active"/g) || []).length === 1
+    && html0.includes('spick-add')
+    && picks(RS.pCalcSched(a)) === a.calcs.length;                          // та же полоса на «Графике»
 
   // на экране ОДИН расчёт, и его подытог «База переноса» — база ИМЕННО ЭТОГО расчёта: щёлкаем
   // каждый и сверяем с моделью. Залипание на первом (прежняя болезнь дверей к базе) падает здесь.
@@ -1197,10 +1202,50 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
     `исходСовпал=${same} перенос=${r1.transferSum} колонок=${(r1.parts || []).length}`);
 })();
 
+/* 72. ОХВАТ ПРЕДЪЯВЛЯЕТСЯ ПОЛОСОЙ, и другой двери к нему нет: вкладка «Охват» снята 13.08.2026
+   вместе с таблицей, которая печатала тот же список вторым экземпляром и строила его из
+   creditIds — производного свойства с откатом на демо-сид. Полоса рисуется и при ОДНОМ расчёте:
+   иначе у однорасчётной заявки нет входа ни в «добавить транш», ни в «снять».
+   Снятие уносит расчёт вместе с суммами (правило 60), потому зарегистрированное ДС его
+   запрещает — и запрет виден ОТСУТСТВИЕМ крестика на полосе, а не только отказом по клику:
+   кнопка, которая всегда отвечает «нельзя», — это не кнопка.
+   Гейт «анализ → комитет» меряет РАСЧЁТЫ: на creditIds он пропускал в комитет заявку, для
+   которой не считали ничего — кредит числился от сида, а расчёта не было ни одного. */
+(() => { fresh();
+  const picks = s => (String(s).match(/class="spick[" ]/g) || []).length;
+  const a1 = app('RS-1001');                                  // один расчёт, ДС зарегистрировано
+  const h1 = RS.pCalcBase(a1);
+  const lone = picks(h1) === 1 && h1.includes('spick-add');
+  const noDrop = !h1.includes('sp-drop');
+  const before = a1.calcs.length;
+  RS.removeTrancheFromScope(a1.id, a1.calcs[0].id);
+  const refused = a1.calcs.length === before;
+
+  fresh();
+  const a2 = app('RS-1020');                                  // два расчёта, ДС ещё нет
+  const dropShown = (RS.pCalcBase(a2).match(/sp-drop/g) || []).length === a2.calcs.length;
+  RS.setCalc(a2.calcs[1].id);
+  RS.removeTrancheFromScope(a2.id, a2.calcs[1].id);
+  const dropped = a2.calcs.length === 1 && RS.state.curCalc === null;
+
+  // гейт стадии «Анализ»: визы собраны, гейт открыт — заявка теряет расчёты, и он обязан закрыться.
+  // creditIds при этом НЕ пустеет (откат на сид), потому старая проверка гейт бы не заметила.
+  fresh();
+  const an = app('RS-1004');                                  // стадия «Анализ», расчёт один
+  an.conclusions.forEach(c => c.visa = true);                 // визы ставит заключант, роль здесь не тема
+  const gateOpen = RS.canAdvance(an).ok === true;
+  an.calcs = [];
+  const seeded = (an.creditIds || []).length > 0;             // кредит от сида остался
+  const gateOnCalcs = gateOpen && seeded && RS.canAdvance(an).ok === false;
+
+  ok(72, lone && noDrop && refused && dropShown && dropped && gateOnCalcs,
+    `полосаПриОдном=${lone} безКрестикаПриДС=${noDrop} отказСнятия=${refused} крестикиПоРасчётам=${dropShown} снят=${dropped} гейтПоРасчётам=${gateOnCalcs}`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-const stamp = `SMOKE 2026-08-12 · ${pass}/${results.length} PASS\n` + lines.join('\n');
+const stamp = `SMOKE 2026-08-13 · ${pass}/${results.length} PASS\n` + lines.join('\n');
 console.log(stamp);
 
 // вставляем результат в шапку HTML
