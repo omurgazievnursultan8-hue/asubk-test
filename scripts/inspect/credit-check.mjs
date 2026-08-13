@@ -992,23 +992,91 @@ const pd = CR.pd;
      `Действует=${nCalls(act)} Проект=${nCalls(proj)}/Г-22×${(proj.match(/Г-22/g)||[]).length}`
      + ` Закрыт=${nCalls(clos)}`);
 
-  /* 129. «ТРАНШИ» ПОД РАЗДЕЛЕНИЕ ПО ДС (КВ-26). Три проверки разом. У К-1 вкладка обязана
-     остаться прежней по составу секций: производных нет — «Движения по траншу» нет
-     (пустое не рисуется, та же идиома, что «Курс/≈KGS» у валютных). Колонка
-     «Происхождение» стоит ВСЕГДА, как «Состояние»: её отсутствие читалось бы как
-     «происхождение у всех траншей одинаковое по определению». У К-7 обе секции есть,
-     производный назван и сослан на своё ДС, «Освоено» у него — прочерк с объяснением,
-     а не 0: ноль читается как «деньги не выдавали», а они выданы на родителе. */
+  /* 129. «ТРАНШИ» ПОД РАЗДЕЛЕНИЕ ПО ДС (КВ-26, пересмотрено КВ-33). Колонка «Происхождение»
+     стоит ВСЕГДА: её отсутствие читалось бы как «происхождение у всех траншей одинаковое по
+     определению». Секция «Движение» — теперь ТОЖЕ всегда, по тому же доводу: до КВ-33 она
+     рисовалась, только когда есть переносы, и у обычного кредита её не было вовсе. У К-1
+     движение состоит из одних освоений (переносов нет) и потому не поминает производных;
+     у К-7 производный назван и сослан на своё ДС, «Освоено» у него — прочерк с
+     объяснением, а не 0: ноль читается как «деньги не выдавали», а они выданы на родителе. */
   const trh = id => CR2.renderTab('Транши', CR2.db.credits.find(c => c.id === id));
   const trh1 = trh('K-1'), trh7 = trh('K-7');
   ok(129, /Происхождение/.test(trh1) && /Остаток тела/.test(trh1)
-          && !/Движение по траншу/.test(trh1) && !/производн/i.test(trh1)
-          && /Движение по траншу/.test(trh7) && /разделение по ДС/.test(trh7)
+          && /Движение по кредиту/.test(trh1) && />Освоение</.test(trh1) && !/производн/i.test(trh1)
+          && /Движение по кредиту/.test(trh7) && /разделение по ДС/.test(trh7)
           && /ДС-РС-2001/.test(trh7) && /ДС-РС-2002/.test(trh7)
           && /производных на/.test(trh7)
+          && /Перенос по ДС/.test(trh7) && /Принято по ДС/.test(trh7)
           && /Производный транш не осваивается/.test(trh7),
-     `К-1: движения ${/Движение по траншу/.test(trh1)} · К-7: разделение`
+     `К-1: движение ${/Движение по кредиту/.test(trh1)} · К-7: разделение`
      + ` ${/разделение по ДС/.test(trh7)}, подпись ${/производных на/.test(trh7)}`);
+
+  /* 145. ВКЛАДКА «ТРАНШИ» ПОСЛЕ ЧИСТКИ (КВ-33). Что снято — снято во ВСЕХ областях и на
+     всех кредитах: колонки «Состояние» и «Курс», четыре плитки (phead-dims), отдельная
+     секция «Освоение», плашка ИР-3 и тулбар из четырёх кнопок. Реквизиты освоения не
+     потеряны — они в «Основании» одной фразой (ПП · назначение · документ), формула ИР-3
+     не потеряна — она тултипом колонки «Остаток тела». Проверяем на К-1 (простой),
+     К-7 (с ДС) и К-C4 (закрытый неосвоенный остаток). */
+  {
+    const trh4 = trh('K-C4');
+    const clean = h => !/>Состояние</.test(h) && !/>Курс</.test(h) && !/phead-dims/.test(h)
+                       && !/Освоение (?:транша|\(по кредиту\))/.test(h)
+                       && !/gtoolbar/.test(h) && !/Остаток тела = освоено/.test(h);
+    ok(145, clean(trh1) && clean(trh7) && clean(trh4)
+            && /title="освоено − погашено − перенесено \+ принято \(ИР-3\)"/.test(trh1)
+            && /ПП [^<]*·/.test(trh1)
+            && !/Плат\. поручение/.test(trh1),
+       `чисто: К-1 ${clean(trh1)} К-7 ${clean(trh7)} К-C4 ${clean(trh4)};`
+       + ` тултип ИР-3 ${/ИР-3/.test(trh1)}`);
+
+    /* 146. СТРОКА-КОНТЕКСТ ВМЕСТО ПЛИТОК (КВ-33). Несёт распределение и «доступно» — то
+       единственное число прежней сетки, которого нет ни в шапке карточки, ни в итог-строке
+       таблицы. В демо-базе нераспределённого остатка нет НИ У ОДНОГО кредита (договор всюду
+       разобран траншами), поэтому положительная ветка меряется на клоне с поднятой суммой
+       договора, а на живых кредитах строка обязана говорить «распределён полностью» —
+       молчать нельзя, молчание неотличимо от «мы это не считаем». У К-C4 «доступно» не
+       называется вовсе: неосвоенный остаток закрыт (Г-32), и число обещало бы дверь,
+       которой больше нет, — вместо него фраза о закрытии, поглотившая прежнюю отдельную
+       плашку (info-plate). Итог-строка перестала врать именем. */
+    const trhC4 = trh('K-C4');
+    const free = JSON.parse(JSON.stringify(CR2.db.credits.find(c => c.id === 'K-1')));
+    free.contractAmount = free.contractAmount + 50000;
+    const freeHtml = CR2.renderTab('Транши', free);
+    ok(146, /Распределено/.test(trh1) && /договор распределён полностью/.test(trh1)
+            && /доступно/.test(freeHtml) && /50[\s ]000,00/.test(freeHtml)   /* money() ставит неразрывный пробел */
+            && !/доступно/.test(trhC4) && /Неосвоенный остаток/.test(trhC4)
+            && !/info-plate/.test(trhC4)
+            && />Итого</.test(trh1) && !/Итого освоено/.test(trh1)
+            && /остаток тела — по всем/.test(trh1),
+       `К-1: полностью ${/договор распределён полностью/.test(trh1)} · клон: доступно`
+       + ` ${/доступно/.test(freeHtml)} · К-C4: закрытие ${/Неосвоенный остаток/.test(trhC4)}`
+       + ` доступно ${/доступно/.test(trhC4)}`);
+
+    /* 147. КОЛОНКА «СУБЪЕКТ» — УСЛОВНАЯ (КВ-33). В демо-базе группового кредита нет, и
+       колонка не должна стоять НИ У ОДНОГО кредита. Положительную ветку проверяем на
+       синтетическом клоне: развели ИНН субъектов двух траншей — колонка появилась.
+       Клон, а не правка базы: остальные кейсы читают ту же db. */
+    const anySubj = CR2.db.credits.some(c => /<th[^>]*>Субъект</.test(CR2.renderTab('Транши', c)));
+    const grp = JSON.parse(JSON.stringify(CR2.db.credits.find(c => c.id === 'K-1')));
+    grp.tranches[1].subject = { name: 'ИП Осмонов Т.', inn: '22212201610299' };
+    const grpHtml = CR2.renderTab('Транши', grp);
+    ok(147, !anySubj && /<th[^>]*>Субъект</.test(grpHtml) && /22212201610299/.test(grpHtml),
+       `в базе субъектная колонка ${anySubj} · на клоне ${/<th[^>]*>Субъект</.test(grpHtml)}`);
+
+    /* 148. ЗАКРЫТИЕ ТРАНША — ИКОНКА В СТРОКЕ (КВ-33, Г-33). Кнопки тулбара нет; вместо неё
+       крестик в каждой строке, зовущий модалку С НОМЕРОМ своего транша. У К-1 траншей два,
+       но активный один (второй закрыт) — Г-33 запрещает закрыть последний активный, и
+       отказ обязан стоять тултипом иконки, а не молчать. Клик по иконке не должен менять
+       область карточки: строка кликабельна, потому stopPropagation. */
+    const icons = (trh1.match(/CR\.openCloseTrancheModal\(\d+\)/g) || []);
+    const active = CR2.db.credits.find(c => c.id === 'K-1').tranches.filter(t => !t.closed).length;
+    ok(148, icons.length === active
+            && /openCloseTrancheModal\(1\)/.test(trh1 + trh7)
+            && !/openCloseTrancheModal\(\)/.test(trh1)
+            && /event\.stopPropagation\(\);CR\.(openCloseTrancheModal|toast)/.test(trh1)
+            && (active > 1 || /последний активный транш/.test(trh1)),
+       `иконок ${icons.length} активных траншей ${active}`);
+  }
 
   /* 130. «ГРАФИК» СО СТАТЬЯМИ (КВ-26, ADR-0109). Колонки статей рисуются ПО СОСТАВУ:
      у К-1 их нет вовсе (иначе вкладка обрастает пустыми колонками у всех кредитов
@@ -2075,6 +2143,82 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
           && k7.tranches[0].closed && k7.tranches[0].closed.reason === 'перенос',
      `траншей ${k7 && k7.tranches.length} производных ${der7.length} ДС ${(k7&&k7.appliedDs||[]).length}`
      + ` доступно ${d7 && d7.allocatable} статейных колонок ${artCols.length}`);
+})();
+
+/* ---- Классификация кредита (Г-34, КР-59; КВ-30 · упрощена КВ-32) ---- */
+
+/* 139. Правка НАПРЯМУЮ доступна после регистрации — волна КВ-32 сняла второй режим
+   («изменение по документу» и «корректировку»): у паспортного разряда договора нет
+   ни договорённости сторон, ни среза по дате, значит и двух дверей быть не должно. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  c.lifecycle='Действует';
+  const set=CR.programClassification(c);
+  const nextLine=set.line.find(v => v!==c.line) || set.line[0];
+  const values={ kind:c.kind, line:nextLine, purpose:'Пополнение оборотных средств', fundingSource:c.fundingSource };
+  const r=CR.editClassification(c,{values});
+  ok(139, r.ok===true && c.line===nextLine && c.classificationRecords===undefined,
+     `${c.lifecycle}: линия → ${c.line}, слоя записей нет`);
+})();
+
+/* 140. Тот же гейт правит и «Проект» — критерия по ЖЦ у Г-34 больше нет вовсе. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  c.lifecycle='Проект';
+  const set=CR.programClassification(c);
+  const r=CR.editClassification(c,{ values:{ kind:set.kind[0], line:set.line[0],
+    purpose:'Инвестиции в осн. средства', fundingSource:set.fundingSource[0] } });
+  ok(140, r.ok===true && c.purpose==='Инвестиции в осн. средства' && c.kind===set.kind[0],
+     `${c.kind} · ${c.line} · ${c.purpose}`);
+})();
+
+/* 141. Г-34: значение вне набора программы отбито, и отказ называет сам набор — иначе
+   пользователь не знает, из чего выбирать (набор — зеркало программы, И-11). */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  const set=CR.programClassification(c);
+  c.lifecycle='Действует';
+  const g=CR.gate(c,'editClassification',{ values:{ kind:'Ипотека', line:set.line[0],
+    purpose:'Цель', fundingSource:set.fundingSource[0] } });
+  const r=CR.editClassification(c,{ values:{ kind:'Ипотека', line:set.line[0],
+    purpose:'Цель', fundingSource:set.fundingSource[0] } });
+  ok(141, g.ok===false && r.ok===false && g.reasons.join(' ').includes(set.kind[0]) && c.kind!=='Ипотека',
+     g.reasons.join(' | ').slice(0,90));
+})();
+
+/* 142. Пустое справочное значение обязательно, «Цель» — нет: классификатора целей у
+   модуля не существует, а вид/линия/источник берутся из справочника. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  const set=CR.programClassification(c);
+  const gEmptyKind=CR.gate(c,'editClassification',{ values:{ kind:'', line:set.line[0],
+    purpose:'', fundingSource:set.fundingSource[0] } });
+  const gEmptyPurpose=CR.gate(c,'editClassification',{ values:{ kind:set.kind[0], line:set.line[0],
+    purpose:'', fundingSource:set.fundingSource[0] } });
+  ok(142, gEmptyKind.ok===false && /Вид кредита обязателен/.test(gEmptyKind.reasons.join(' ')) && gEmptyPurpose.ok===true,
+     gEmptyKind.reasons.join(' | ').slice(0,60) + ' // цель пустой быть вправе');
+})();
+
+/* 143. История правки живёт в журнале — одна запись на действие с before/after, как у
+   реквизитов договора. Другого следа у классификации теперь нет, и он обязан быть полным. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  c.lifecycle='Действует';
+  const set=CR.programClassification(c);
+  const wasLine=c.line, nextLine=set.line.find(v => v!==wasLine) || set.line[0];
+  const before=c.audit.length;
+  CR.editClassification(c,{ values:{ kind:c.kind, line:nextLine, purpose:c.purpose, fundingSource:c.fundingSource } });
+  const last=c.audit[c.audit.length-1];
+  ok(143, c.audit.length===before+1 && last.what==='editClassification'
+          && last.before.line===wasLine && last.after.line===nextLine,
+     `${last.what}: ${last.before.line} → ${last.after.line}`);
+})();
+
+/* 144. КР-59: затравка выровнена по справочникам — вид/линия/источник КАЖДОГО кредита
+   лежат в наборе своей программы. Без этого собственный гейт отбил бы все 59 кредитов:
+   в «Источнике финансирования» лежало значение справочника «Вид кредита». */
+(() => { const db=CR.seedDb();
+  const bad=db.credits.filter(c => {
+    const set=CR.programClassification(c);
+    return !set.kind.includes(c.kind) || !set.line.includes(c.line) || !set.fundingSource.includes(c.fundingSource);
+  });
+  ok(144, db.credits.length>=59 && bad.length===0,
+     `кредитов ${db.credits.length}, вне набора ${bad.length}${bad.length?': '+bad.slice(0,3).map(c=>c.id+'/'+c.kind+'/'+c.fundingSource).join(', '):''}`);
 })();
 
 const pass = results.filter(r => r.pass).length;
