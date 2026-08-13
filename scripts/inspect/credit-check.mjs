@@ -2077,6 +2077,93 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
      + ` доступно ${d7 && d7.allocatable} статейных колонок ${artCols.length}`);
 })();
 
+/* ---- КВ-30: классификация кредита (Г-34/Г-35, КР-59) ---- */
+
+/* 139. Срез без записей = базовые поля кредита. Классификация «Проекта» живёт на самих
+   полях (как c.subject[]), записи появляются только с доп. соглашениями. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  const at = CR.classificationAt(c, CR.TODAY);
+  ok(139, at.kind===c.kind && at.line===c.line && at.purpose===c.purpose
+          && at.fundingSource===c.fundingSource && Object.keys(at.src).length===0,
+     `${at.kind} · ${at.line} · ${at.fundingSource}`);
+})();
+
+/* 140. Запись с будущей датой вступления не видна на TODAY и видна на своей дате
+   (ADR-0001: «действующее значение» нигде не хранится, оно каждый раз выводится). */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  c.classificationRecords.push(CR.mkClassificationRecord({ param:'line', value:'ФРР',
+    effectiveFrom:'01.12.2026', basis:{ kind:'agreement', ref:'ДС-КЛ-1', label:'Доп. соглашение ДС-КЛ-1', date:'01.11.2026' } }));
+  const now = CR.classificationAt(c, CR.TODAY), later = CR.classificationAt(c, '31.12.2026');
+  ok(140, now.line===c.line && !now.src.line && later.line==='ФРР' && later.src.line
+          && later.src.line.basis.ref==='ДС-КЛ-1',
+     `сейчас ${now.line}, с 01.12.2026 ${later.line}`);
+})();
+
+/* 141. Г-34: после регистрации напрямую не правится — причина названа, а не молчит (§0.3). */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  c.lifecycle='Зарегистрирован';
+  const set=CR.programClassification(c);
+  const values={ kind:set.kind[0], line:set.line[0], purpose:'Цель', fundingSource:set.fundingSource[0] };
+  const g=CR.gate(c,'editClassification',{values});
+  const r=CR.editClassification(c,{values});
+  ok(141, g.ok===false && r.ok===false && /доп\. соглашением/i.test(g.reasons.join(' ')),
+     g.reasons.join(' | ').slice(0,90));
+})();
+
+/* 142. Г-35: в «Проекте» доп. соглашение не оформляется — там правят напрямую. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  c.lifecycle='Проект';
+  const set=CR.programClassification(c);
+  const r=CR.addClassificationRecords(c,{ basis:{num:'ДС-КЛ-2',date:'01.07.2026'}, effectiveFrom:'01.07.2026',
+    records:[{ param:'line', value:set.line[set.line.length-1] }] });
+  ok(142, r.ok===false && /Проекте/.test(r.reasons.join(' ')) && c.classificationRecords.length===0,
+     r.reasons.join(' | ').slice(0,90));
+})();
+
+/* 143. Значение вне набора программы отбивают ОБА гейта, и отказ называет сам набор —
+   иначе пользователь не знает, из чего выбирать (набор — зеркало программы, И-11). */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  const set=CR.programClassification(c);
+  c.lifecycle='Проект';
+  const g34=CR.gate(c,'editClassification',{ values:{ kind:'Ипотека', line:set.line[0],
+    purpose:'Цель', fundingSource:set.fundingSource[0] } });
+  c.lifecycle='Действует';
+  const g35=CR.gate(c,'addClassificationRecords',{ basis:{num:'ДС-КЛ-3',date:'01.07.2026'},
+    effectiveFrom:'01.07.2026', records:[{ param:'fundingSource', value:'Свои деньги' }] });
+  const named = g34.reasons.join(' ').includes(set.kind[0]) && g35.reasons.join(' ').includes(set.fundingSource[0]);
+  ok(143, g34.ok===false && g35.ok===false && named,
+     `${g34.reasons.join(' ').slice(0,60)} // ${g35.reasons.join(' ').slice(0,60)}`);
+})();
+
+/* 144. Успех: запись легла, ДС попало в credit.agreements (как у предмета кредита),
+   правка прошла через журнал, а значение вывелось срезом на дату вступления. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  c.lifecycle='Действует';
+  const set=CR.programClassification(c);
+  const nextLine=set.line.find(v => v!==c.line) || set.line[0];
+  const agrBefore=c.agreements.length, audBefore=c.audit.length;
+  const r=CR.addClassificationRecords(c,{ basis:{num:'ДС-КЛ-4',date:'01.06.2026',scan:'ds-kl-4.pdf'},
+    effectiveFrom:'01.07.2026', note:'смена линии', records:[{ param:'line', value:nextLine }] });
+  const at=CR.classificationAt(c,'01.07.2026');
+  ok(144, r.ok===true && r.value.added===1
+          && c.agreements.length===agrBefore+1 && c.agreements.some(a => a.num==='ДС-КЛ-4')
+          && c.audit.length===audBefore+1 && /classificationRecord/.test(c.audit[c.audit.length-1].what)
+          && at.line===nextLine && at.src.line.basis.ref==='ДС-КЛ-4',
+     `линия ${c.line} → ${at.line}`);
+})();
+
+/* 145. КР-59: затравка выровнена по справочникам — вид/линия/источник КАЖДОГО кредита
+   лежат в наборе своей программы. Без этого собственный гейт отбил бы все 59 кредитов:
+   в «Источнике финансирования» лежало значение справочника «Вид кредита». */
+(() => { const db=CR.seedDb();
+  const bad=db.credits.filter(c => {
+    const set=CR.programClassification(c);
+    return !set.kind.includes(c.kind) || !set.line.includes(c.line) || !set.fundingSource.includes(c.fundingSource);
+  });
+  ok(145, db.credits.length>=59 && bad.length===0,
+     `кредитов ${db.credits.length}, вне набора ${bad.length}${bad.length?': '+bad.slice(0,3).map(c=>c.id+'/'+c.kind+'/'+c.fundingSource).join(', '):''}`);
+})();
+
 const pass = results.filter(r => r.pass).length;
 const stamp = `SMOKE (node) ${new Date().toISOString().slice(0,10)} · ${pass}/${results.length} PASS`;
 results.forEach(r => console.log(`${r.pass ? 'PASS' : 'FAIL'} #${r.n} ${r.note}`));

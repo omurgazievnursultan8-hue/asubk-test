@@ -862,7 +862,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-12 · 140/140 PASS
+ SMOKE (node) 2026-08-13 · 147/147 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -1003,6 +1003,13 @@
    #126 ✓
    #127 ✓
    #128 ✓
+   #139 ✓
+   #140 ✓
+   #141 ✓
+   #142 ✓
+   #143 ✓
+   #144 ✓
+   #145 ✓
 -->
 <style>
 
@@ -1862,6 +1869,66 @@ const PROGRAM_DISB_WINDOW = {
 function programDisbWindow(credit){
   return PROGRAM_DISB_WINDOW[(credit && credit.origin && credit.origin.programId) || ''] || PROGRAM_DISB_WINDOW_DEFAULT;
 }
+/* ---- Классификация: допустимые значения (КВ-30) — третье зеркало кредитной программы,
+   тем же паттерном, что PROGRAM_DOCS и PROGRAM_DISB_WINDOW. Вид кредита, кредитная линия
+   и источник финансирования — справочные значения; ведёт их программа (кредит выбирает
+   ОДНО из набора), и здесь набор не правится и не расширяется (И-11). Универсум взят из
+   справочников модуля (mockups/dictionaries/dictionaries.html: loan-types 6 строк ·
+   loan-credit-lines 2 · order-term-funds 8) — до КВ-30 затравка держала в «Источнике
+   финансирования» строку из справочника «Вид кредита», а в самом «Виде» —
+   «Инвестиционный/Оборотный», словаря под которые нет нигде (КР-59).
+   ЦЕЛЬ в набор не входит осознанно: её формулирует договор, а не классификатор.
+   Разрез по программам — плейсхолдер, как коридор PROGRAM_DISB_WINDOW: механику он
+   показывает, реальные наборы за владельцем программы.
+   DEFAULT — весь справочник: программу, которой нет в таблице, лучше не блокировать
+   вовсе, чем выдумать ей набор (та же мысль, что в PROGRAM_DOCS_DEFAULT). */
+const CLASSIFICATION_DICT = {
+  kind:['Бюджетный кредит','Бюджетная ссуда','ЮСАИД','МАР','Фонд развитие регионов','Имущественные активы'],
+  line:['АРР','ФРР'],
+  fundingSource:['Республиканский бюджет','Европейский банк реконструкции и развития',
+    'Международная ассоциация развития','Европейский инвестиционный банк',
+    'Счет смягчения государственного долга Кыргызской Республики',
+    'Программа «Финансирование субъектов предпринимательства»',
+    'Накопительный счет в НБКР средства кредита Международной ассоциации развития',
+    'Накопительный счет в НБКР средства гранта ЮСАИД']
+};
+const CLASSIFICATION_PARAMS = [
+  { key:'kind',          label:'Вид кредита',            dict:'kind' },
+  { key:'line',          label:'Кредитная линия',        dict:'line' },
+  { key:'purpose',       label:'Цель',                   dict:null  },   // свободный текст
+  { key:'fundingSource', label:'Источник финансирования', dict:'fundingSource' }
+];
+const PROGRAM_CLASSIFICATION_DEFAULT = {
+  kind:CLASSIFICATION_DICT.kind, line:CLASSIFICATION_DICT.line, fundingSource:CLASSIFICATION_DICT.fundingSource
+};
+const PROGRAM_CLASSIFICATION = {
+  'ПРГ-1':{ kind:['Бюджетный кредит','Бюджетная ссуда'], line:['АРР','ФРР'],
+            fundingSource:['Республиканский бюджет'] },
+  'ПРГ-2':{ kind:['Бюджетный кредит'], line:['АРР'],
+            fundingSource:['Республиканский бюджет','Программа «Финансирование субъектов предпринимательства»'] },
+  'ПРГ-3':{ kind:['Бюджетный кредит','Фонд развитие регионов'], line:['ФРР'],
+            fundingSource:['Республиканский бюджет'] },
+  'ПРГ-4':{ kind:['Бюджетная ссуда','Бюджетный кредит'], line:['АРР'],
+            fundingSource:['Республиканский бюджет'] },
+  'ПРГ-5':{ kind:['МАР','Бюджетный кредит'], line:['АРР','ФРР'],
+            fundingSource:['Международная ассоциация развития',
+                           'Накопительный счет в НБКР средства кредита Международной ассоциации развития'] },
+  'ПРГ-6':{ kind:['Бюджетный кредит','Имущественные активы'], line:['АРР'],
+            fundingSource:['Европейский банк реконструкции и развития','Республиканский бюджет'] },
+  'ПРГ-7':{ kind:['ЮСАИД','Бюджетный кредит'], line:['АРР','ФРР'],
+            fundingSource:['Накопительный счет в НБКР средства гранта ЮСАИД','Республиканский бюджет'] },
+  'ПРГ-8':{ kind:['Бюджетный кредит'], line:['ФРР'],
+            fundingSource:['Европейский инвестиционный банк','Республиканский бюджет'] }
+};
+function programClassification(credit){
+  return PROGRAM_CLASSIFICATION[(credit && credit.origin && credit.origin.programId) || ''] || PROGRAM_CLASSIFICATION_DEFAULT;
+}
+/* Затравочный выбор значения из набора программы (КР-59). Только для seedDb: живой
+   кредит значение выбирает через модалку, а не по остатку от деления. */
+function pickCls(programId, dict, i){
+  const list = (PROGRAM_CLASSIFICATION[programId] || PROGRAM_CLASSIFICATION_DEFAULT)[dict] || [];
+  return list.length ? list[i % list.length] : '';
+}
 /* Состояния документа (§5.3). Закрывающие гейт — «принят» и «не требуется»;
    остальные оставляют комплект несобранным. */
 const DOC_STATES = ['требуется','загружен','на проверке','принят','отклонён','просрочен','не требуется'];
@@ -2095,6 +2162,34 @@ function subjectAt(credit, date){
     .forEach(r => { if (r.action === 'remove') out.delete(r.itemId); else out.set(r.itemId, r.item); });
   return [...out.values()];
 }
+let _clsSeq = 0;
+/* CLASSIFICATION RECORD (КВ-30) — правка классификации кредита ПОСЛЕ регистрации.
+   Форма взята у mkConditionRecord, а не у mkSubjectRecord: у предмета кредита позиции
+   добавляют и убирают (action add/remove), у классификации параметр один и всегда есть —
+   меняется значение. В conditionRecords эти записи не кладутся: там условия ТРАНША со
+   своим реестром PARAM_KEYS и гейтами Г-18…Г-22, а классификация принадлежит договору
+   целиком и транша не знает. Основание — доп. соглашение, как у предмета кредита. */
+function mkClassificationRecord(over){
+  return Object.assign({
+    id:'KL-' + (++_clsSeq), param:'', value:'', effectiveFrom:'',
+    basis:{ kind:'agreement', ref:'', label:'', date:'' },
+    note:'', createdAt:TODAY, createdBy:currentRole
+  }, over || {});
+}
+/* classificationAt(credit, date) — действующая классификация на дату (КВ-10-паттерн среза):
+   база — четыре поля кредита (значение «Проекта») + записи с effectiveFrom ≤ date в crOrder.
+   src отдаётся рядом со значениями, чтобы карточка могла подписать «основание · с даты»
+   ровно у тех полей, у которых запись есть; хранением он не является — собирается здесь. */
+function classificationAt(credit, date){
+  const lim = pd(date || TODAY);
+  const out = { kind:credit.kind || '', line:credit.line || '', purpose:credit.purpose || '',
+                fundingSource:credit.fundingSource || '', src:{} };
+  (credit.classificationRecords || [])
+    .filter(r => r.effectiveFrom && pd(r.effectiveFrom) <= lim)
+    .sort(crOrder)
+    .forEach(r => { if (CLASSIFICATION_PARAMS.some(p => p.key === r.param)) { out[r.param] = r.value; out.src[r.param] = r; } });
+  return out;
+}
 /* ОСИ ПЛАТЕЖА — словари МОДУЛЯ-ВЛАДЕЛЬЦА (спека платежей, швы №1/№2). Три оси
    независимы и в один `status` не схлопываются: платёж по шлюзу «Ожидает ЦК» уже
    двигает долг, а платёж «Сторно» виден, но денег не несёт. Прежняя редакция знала
@@ -2163,7 +2258,11 @@ function mkCredit(over){                             // CREDIT (§3) — обя�
     origin:{ applicationId:'', applicationDate:'', commissionId:'', programId:'', govDecisionId:'' },
     borrower:{ inn:'', name:'', type:'ЮЛ', region:'', district:'' },   // адрес — зеркало карточки заёмщика, нужен фильтру Область→Район
     approvedAmount:0, contractAmount:0, currency:'KGS',
-    kind:'', line:'', purpose:'', fundingSource:'',
+    /* Классификация (КВ-30). Четыре поля — значение «Проекта»: до регистрации правятся
+       напрямую (Г-34), после — только записями classificationRecords (Г-35), а
+       действующее значение на дату выводит classificationAt. Производное здесь не
+       лежит (ADR-0001): ни «действующее», ни «есть ли будущая запись». */
+    kind:'', line:'', purpose:'', fundingSource:'', classificationRecords:[],
     subject:[], subjectRecords:[], accounts:{ repayAcct:'', repayAcctKind:'', payCode:'' },
     /* kmDecision — решение Кабинета Министров: {kind,num,date,scan,coverPct}.
        coverPct — ПОРОГ обеспеченности, установленный решением (Прил.1 §2.6): решение
@@ -2311,7 +2410,7 @@ function seedDb(){
     origin:{ applicationId:'ЗАЯ-1042', applicationDate:'02.05.2026', commissionId:'КОМ-311', programId:'ПРГ-7', govDecisionId:'ПП-455' },
     borrower:{ inn:'01912201610212', name:'ОсОО «Бек Кабель»', type:'ЮЛ', region:'Чуйская', district:'Сокулукский' },
     approvedAmount:150000, contractAmount:150000, currency:'KGS',
-    kind:'Инвестиционный', line:'Единовременный', purpose:'Приобретение оборудования', fundingSource:'Бюджетный кредит',
+    kind:'ЮСАИД', line:'АРР', purpose:'Приобретение оборудования', fundingSource:'Накопительный счет в НБКР средства гранта ЮСАИД',
     subject:[{ id:'SI-seed-1', kind:'Оборудование', name:'Линия по производству кабеля', qty:1, cost:150000 }],
     accounts:{ repayAcct:'1280000000000056', repayAcctKind:'Расчётный', payCode:'PC-56' },
     lifecycle:'Действует',
@@ -2400,7 +2499,7 @@ function seedDb(){
     origin:{ applicationId:'ЗАЯ-1044', applicationDate:'10.04.2026', commissionId:'КОМ-312', programId:'ПРГ-7', govDecisionId:'ПП-455' },
     borrower:{ inn:'02107199800345', name:'ОсОО «Нарын-Агро»', type:'ЮЛ', region:'Нарынская', district:'Ак-Талинский' },
     approvedAmount:400000, contractAmount:400000, currency:'KGS',
-    kind:'Оборотный', line:'Единовременный', purpose:'Пополнение оборотных средств', fundingSource:'Бюджетный кредит',
+    kind:'Бюджетный кредит', line:'ФРР', purpose:'Пополнение оборотных средств', fundingSource:'Республиканский бюджет',
     subject:[{ id:'SI-seed-2', kind:'Товар', name:'Семенной материал', qty:1, cost:400000 }],
     accounts:{ repayAcct:'1280000000000057', repayAcctKind:'Расчётный', payCode:'PC-57' },
     lifecycle:'Действует',
@@ -2443,7 +2542,7 @@ function seedDb(){
     origin:{ applicationId:'ЗАЯ-1010', applicationDate:'29.01.2026', commissionId:'КОМ-301', programId:'ПРГ-5', govDecisionId:'ПП-450' },
     borrower:{ inn:'03011200500777', name:'ОсОО «Тянь-Шань Строй»', type:'ЮЛ', region:'г. Бишкек', district:'Ленинский' },
     approvedAmount:200000, contractAmount:200000, currency:'KGS',
-    kind:'Инвестиционный', line:'Единовременный', purpose:'Строительство цеха', fundingSource:'Бюджетный кредит',
+    kind:'МАР', line:'АРР', purpose:'Строительство цеха', fundingSource:'Международная ассоциация развития',
     accounts:{ repayAcct:'1280000000000048', repayAcctKind:'Расчётный', payCode:'PC-48' },
     lifecycle:'Действует',
     baseConditions: condDefaults({ rate:12, term:24 }),
@@ -2523,7 +2622,7 @@ function seedDb(){
     origin:{ applicationId:'ЗАЯ-0980', applicationDate:'23.10.2025', commissionId:'КОМ-290', programId:'ПРГ-4', govDecisionId:'ПП-440' },
     borrower:{ inn:'04512199600901', name:'ОсОО «Иссык-Куль Ресорт»', type:'ЮЛ', region:'Иссык-Кульская', district:'Джети-Огузский' },
     approvedAmount:600000, contractAmount:600000, currency:'KGS',
-    kind:'Инвестиционный', line:'Единовременный', purpose:'Реконструкция базы отдыха', fundingSource:'Бюджетный кредит',
+    kind:'Бюджетная ссуда', line:'АРР', purpose:'Реконструкция базы отдыха', fundingSource:'Республиканский бюджет',
     accounts:{ repayAcct:'1280000000000042', repayAcctKind:'Расчётный', payCode:'PC-42' },
     lifecycle:'Действует',
     baseConditions: condDefaults({ rate:9, term:36, floatMeta:{ rate:{ benchmark:'учётная ставка НБКР', margin:3 } } }),
@@ -2580,7 +2679,7 @@ function seedDb(){
     origin:{ applicationId:'ЗАЯ-1060', applicationDate:'19.06.2026', commissionId:'КОМ-320', programId:'ПРГ-8', govDecisionId:'ПП-460' },
     borrower:{ inn:'05213200100456', name:'ОсОО «Ош-Текстиль»', type:'ЮЛ', region:'Ошская', district:'Кара-Сууский' },
     approvedAmount:250000, contractAmount:200000, currency:'KGS',
-    kind:'Оборотный', line:'Единовременный', purpose:'Закуп сырья', fundingSource:'Бюджетный кредит',
+    kind:'Бюджетный кредит', line:'ФРР', purpose:'Закуп сырья', fundingSource:'Европейский инвестиционный банк',
     accounts:{ repayAcct:'1280000000000059', repayAcctKind:'Расчётный', payCode:'PC-59' },
     kmDecision:null,                                                  // пусто → освоение блокируется по Г-6
     lifecycle:'Зарегистрирован',
@@ -2617,7 +2716,7 @@ function seedDb(){
     origin:{ applicationId:'ЗАЯ-0700', applicationDate:'03.01.2024', commissionId:'КОМ-250', programId:'ПРГ-2', govDecisionId:'ПП-410' },
     borrower:{ inn:'06114199500222', name:'ОсОО «Чуй-Агро»', type:'ЮЛ', region:'Чуйская', district:'Аламудунский' },
     approvedAmount:120000, contractAmount:120000, currency:'KGS',
-    kind:'Оборотный', line:'Единовременный', purpose:'Пополнение оборотных средств', fundingSource:'Бюджетный кредит',
+    kind:'Бюджетный кредит', line:'АРР', purpose:'Пополнение оборотных средств', fundingSource:'Программа «Финансирование субъектов предпринимательства»',
     accounts:{ repayAcct:'1280000000000030', repayAcctKind:'Расчётный', payCode:'PC-30' },
     lifecycle:'Закрыт',
     closure:{ reason:'Погашен', date:'20.06.2026', doc:{ kind:'Акт сверки', num:'АС-30', date:'20.06.2026', scan:'akt-sverki-30.pdf' } },
@@ -2655,7 +2754,7 @@ function seedDb(){
     origin:{ applicationId:'ЗАЯ-0650', applicationDate:'06.03.2023', commissionId:'КОМ-240', programId:'ПРГ-2', govDecisionId:'ПП-405' },
     borrower:{ inn:'07215199300888', name:'ОсОО «Талас-Майс»', type:'ЮЛ', region:'Таласская', district:'Бакай-Атинский' },
     approvedAmount:90000, contractAmount:90000, currency:'KGS',
-    kind:'Оборотный', line:'Единовременный', purpose:'Пополнение оборотных средств', fundingSource:'Бюджетный кредит',
+    kind:'Бюджетный кредит', line:'АРР', purpose:'Пополнение оборотных средств', fundingSource:'Республиканский бюджет',
     accounts:{ repayAcct:'1280000000000031', repayAcctKind:'Расчётный', payCode:'PC-31' },
     lifecycle:'Закрыт',
     closure:{ reason:'Списан', date:'15.05.2026', doc:{ kind:'Решение Правления', num:'РП-77', date:'12.05.2026', scan:'reshenie-77.pdf' } },
@@ -2704,7 +2803,7 @@ function seedDb(){
       origin:{ applicationId:'ЗАЯ-0980', applicationDate:'10.12.2025', commissionId:'КОМ-300', programId:'ПРГ-4', govDecisionId:'ПП-448' },
       borrower:{ inn:'18052199600321', name:'ОсОО «Ош-Пласт»', type:'ЮЛ', region:'Ошская', district:'Кара-Сууский' },
       approvedAmount:400000, contractAmount:400000, currency:'KGS',
-      kind:'Инвестиционный', line:'Единовременный', purpose:'Модернизация линии переработки', fundingSource:'Бюджетный кредит',
+      kind:'Бюджетный кредит', line:'АРР', purpose:'Модернизация линии переработки', fundingSource:'Республиканский бюджет',
       accounts:{ repayAcct:'1280000000000071', repayAcctKind:'Расчётный', payCode:'PC-71' },
       lifecycle:'Действует',
       baseConditions: condDefaults({ rate:9, term:36, method:'аннуитет' }),
@@ -2848,7 +2947,11 @@ function seedDb(){
       origin:{ applicationId:'ЗАЯ-B'+(100+i), applicationDate:'20.12.2025', commissionId:'КОМ-B'+(100+i), programId:b.prog, govDecisionId:'ПП-430' },
       borrower:{ inn:b.inn, name:b.name, type:'ЮЛ', region:b.reg, district:b.dist },
       approvedAmount:b.amount, contractAmount:b.amount, currency:b.ccy,
-      kind:'Оборотный', line:'Единовременный', purpose:'Пополнение оборотных средств', fundingSource:'Бюджетный кредит',
+      /* КР-59: классификация берётся из набора СВОЕЙ программы, а не выписана строкой —
+         иначе фон разошёлся бы с Г-34/Г-35 при первой же правке. Индекс по кругу, чтобы
+         в демо встречались разные значения набора. */
+      kind:pickCls(b.prog,'kind',i), line:pickCls(b.prog,'line',i),
+      purpose:'Пополнение оборотных средств', fundingSource:pickCls(b.prog,'fundingSource',i),
       accounts:{ repayAcct:'12800000000'+(10000+i), repayAcctKind:'Расчётный', payCode:'PC-B'+(100+i) },
       lifecycle:b.life,
       closure: b.life === 'Закрыт' ? { reason:'Погашен', date:'30.05.2026',
@@ -3072,7 +3175,11 @@ function seedDb(){
       origin:{ applicationId:'ЗАЯ-'+num, applicationDate:'29.01.2026', commissionId:'КОМ-'+num, programId:s.p, govDecisionId:'ПП-470' },
       borrower:{ inn, name:s.n, type:'ЮЛ', region:s.r, district:s.d },
       approvedAmount: s.cl?amount:contract, contractAmount:contract, currency:ccy,
-      kind:s.k, line: s.tr2?'Возобновляемая':'Единовременный', purpose:s.pu, fundingSource:'Бюджетный кредит',
+      /* КР-59: как и у фона — из набора программы s.p. Прежняя линия читалась
+         «Единовременный/Возобновляемая» по числу траншей: АРР/ФРР это доноры, а не
+         однократность выдачи, и число траншей о линии ничего не говорит. */
+      kind:pickCls(s.p,'kind',i), line:pickCls(s.p,'line',i),
+      purpose:s.pu, fundingSource:pickCls(s.p,'fundingSource',i),
       accounts:{ repayAcct:'12800000000'+(20000+i), repayAcctKind:'Расчётный', payCode:'PC-'+num },
       /* coverPct — порог обеспеченности, установленный решением КМ (ADR-0011, Прил.1 §2.6):
          решение не отменяет обеспечение, а назначает свой порог. Это поле читает и
@@ -3129,7 +3236,7 @@ function seedDb(){
     });
   }
 
-  /* Таблица сценариев. Ключи: n имя · r/d область/район · p программа · c куратор · k вид ·
+  /* Таблица сценариев. Ключи: n имя · r/d область/район · p программа · c куратор ·
      pu цель · cur валюта(KGS) · a сумма · life ЖЦ(Действует) · rate/term · disb full|partial|none ·
      od дни просрочки · cat A|B|C|D · cov ok|under|mixed|liq150|bank|poruch|none · coll claim|court|
      ispolnit|bankrot · restr{stage,o181,pause} · reserve · hold(true|181) · km · float · tr2 ·
@@ -3137,56 +3244,56 @@ function seedDb(){
   const A='Асанов А. К.', K='Ким Л. С.', O='Осмонов Б. Т.', J='Джумалиева Г. К.', T='Турсунова А. Б.', M='Мамытов Э. С.';
   const scen = [
     /* — здоровые действующие, валюты/регионы/программы/покрытие — */
-    { n:'ОсОО «Кемин-Цемент»',       r:'Чуйская',          d:'Кеминский',       p:'ПРГ-1', c:A, k:'Инвестиционный', pu:'Модернизация цеха',        a:850000 },
-    { n:'ОсОО «Ош-Мрамор»',          r:'Ошская',           d:'Араванский',      p:'ПРГ-2', c:K, k:'Оборотный',      pu:'Закуп сырья',              a:320000, cur:'USD' },
-    { n:'ОсОО «Каракол-Турбаза»',    r:'Иссык-Кульская',   d:'Ак-Суйский',      p:'ПРГ-3', c:O, k:'Инвестиционный', pu:'Строительство гостиницы',  a:1200000, cov:'liq150' },
-    { n:'ОсОО «Талас-Фасоль»',       r:'Таласская',        d:'Манасский',       p:'ПРГ-4', c:J, k:'Оборотный',      pu:'Экспорт фасоли',           a:260000, cur:'RUB', disb:'partial' },
-    { n:'ОсОО «Баткен-Абрикос»',     r:'Баткенская',       d:'Баткенский',      p:'ПРГ-5', c:T, k:'Оборотный',      pu:'Переработка сухофруктов',  a:180000, cur:'EUR' },
-    { n:'ОсОО «Бишкек-Мебель»',      r:'г. Бишкек',        d:'Октябрьский',     p:'ПРГ-6', c:M, k:'Инвестиционный', pu:'Закуп оборудования',       a:540000, cov:'bank' },
-    { n:'ОсОО «Джалал-Абад-Хлопок»', r:'Джалал-Абадская',  d:'Ноокенский',      p:'ПРГ-7', c:A, k:'Оборотный',      pu:'Пополнение оборотных',     a:410000 },
-    { n:'ОсОО «Нарын-Шерсть»',       r:'Нарынская',        d:'Джумгальский',    p:'ПРГ-8', c:K, k:'Оборотный',      pu:'Заготовка шерсти',         a:150000, cov:'poruch', km:true },
+    { n:'ОсОО «Кемин-Цемент»',       r:'Чуйская',          d:'Кеминский',       p:'ПРГ-1', c:A, pu:'Модернизация цеха',        a:850000 },
+    { n:'ОсОО «Ош-Мрамор»',          r:'Ошская',           d:'Араванский',      p:'ПРГ-2', c:K, pu:'Закуп сырья',              a:320000, cur:'USD' },
+    { n:'ОсОО «Каракол-Турбаза»',    r:'Иссык-Кульская',   d:'Ак-Суйский',      p:'ПРГ-3', c:O, pu:'Строительство гостиницы',  a:1200000, cov:'liq150' },
+    { n:'ОсОО «Талас-Фасоль»',       r:'Таласская',        d:'Манасский',       p:'ПРГ-4', c:J, pu:'Экспорт фасоли',           a:260000, cur:'RUB', disb:'partial' },
+    { n:'ОсОО «Баткен-Абрикос»',     r:'Баткенская',       d:'Баткенский',      p:'ПРГ-5', c:T, pu:'Переработка сухофруктов',  a:180000, cur:'EUR' },
+    { n:'ОсОО «Бишкек-Мебель»',      r:'г. Бишкек',        d:'Октябрьский',     p:'ПРГ-6', c:M, pu:'Закуп оборудования',       a:540000, cov:'bank' },
+    { n:'ОсОО «Джалал-Абад-Хлопок»', r:'Джалал-Абадская',  d:'Ноокенский',      p:'ПРГ-7', c:A, pu:'Пополнение оборотных',     a:410000 },
+    { n:'ОсОО «Нарын-Шерсть»',       r:'Нарынская',        d:'Джумгальский',    p:'ПРГ-8', c:K, pu:'Заготовка шерсти',         a:150000, cov:'poruch', km:true },
     /* — просрочка по нарастающей + взыскание всех контуров — */
-    { n:'ОсОО «Сокулук-Птица»',      r:'Чуйская',          d:'Сокулукский',     p:'ПРГ-1', c:O, k:'Оборотный',      pu:'Закуп кормов',             a:230000, od:12,  cat:'A' },
-    { n:'ОсОО «Узген-Рис»',          r:'Ошская',           d:'Узгенский',       p:'ПРГ-2', c:J, k:'Оборотный',      pu:'Закуп риса',               a:300000, cur:'USD', od:45, cat:'A', coll:'claim' },
-    { n:'ОсОО «Кара-Балта-Спирт»',   r:'Чуйская',          d:'Жайылский',       p:'ПРГ-3', c:T, k:'Инвестиционный', pu:'Линия розлива',            a:620000, od:95,  cat:'B', coll:'claim', cov:'mixed' },
-    { n:'ОсОО «Токтогул-Сервис»',    r:'Джалал-Абадская',  d:'Аксыйский',       p:'ПРГ-4', c:M, k:'Инвестиционный', pu:'Ремонт оборудования',      a:780000, od:140, cat:'C', coll:'court' },
-    { n:'ОсОО «Ат-Башы-Мясо»',       r:'Нарынская',        d:'Ат-Башинский',    p:'ПРГ-5', c:A, k:'Оборотный',      pu:'Мясозаготовка',            a:340000, cur:'RUB', od:200, cat:'C', coll:'ispolnit' },
-    { n:'ОсОО «Кадамжай-Сурьма»',    r:'Баткенская',       d:'Кадамжайский',    p:'ПРГ-6', c:K, k:'Инвестиционный', pu:'Модернизация комбината',   a:1500000, od:275, cat:'D', coll:'bankrot' },
-    { n:'ОсОО «Тон-Рыба»',           r:'Иссык-Кульская',   d:'Тонский',         p:'ПРГ-7', c:O, k:'Оборотный',      pu:'Рыбоводство',              a:190000, od:60,  cat:'B', coll:'claim' },
+    { n:'ОсОО «Сокулук-Птица»',      r:'Чуйская',          d:'Сокулукский',     p:'ПРГ-1', c:O, pu:'Закуп кормов',             a:230000, od:12,  cat:'A' },
+    { n:'ОсОО «Узген-Рис»',          r:'Ошская',           d:'Узгенский',       p:'ПРГ-2', c:J, pu:'Закуп риса',               a:300000, cur:'USD', od:45, cat:'A', coll:'claim' },
+    { n:'ОсОО «Кара-Балта-Спирт»',   r:'Чуйская',          d:'Жайылский',       p:'ПРГ-3', c:T, pu:'Линия розлива',            a:620000, od:95,  cat:'B', coll:'claim', cov:'mixed' },
+    { n:'ОсОО «Токтогул-Сервис»',    r:'Джалал-Абадская',  d:'Аксыйский',       p:'ПРГ-4', c:M, pu:'Ремонт оборудования',      a:780000, od:140, cat:'C', coll:'court' },
+    { n:'ОсОО «Ат-Башы-Мясо»',       r:'Нарынская',        d:'Ат-Башинский',    p:'ПРГ-5', c:A, pu:'Мясозаготовка',            a:340000, cur:'RUB', od:200, cat:'C', coll:'ispolnit' },
+    { n:'ОсОО «Кадамжай-Сурьма»',    r:'Баткенская',       d:'Кадамжайский',    p:'ПРГ-6', c:K, pu:'Модернизация комбината',   a:1500000, od:275, cat:'D', coll:'bankrot' },
+    { n:'ОсОО «Тон-Рыба»',           r:'Иссык-Кульская',   d:'Тонский',         p:'ПРГ-7', c:O, pu:'Рыбоводство',              a:190000, od:60,  cat:'B', coll:'claim' },
     /* — реструктуризация / пауза начисления / подавление 181-го дня — */
-    { n:'ОсОО «Иссык-Ата-Санаторий»',r:'Чуйская',          d:'Ысык-Атинский',   p:'ПРГ-1', c:J, k:'Инвестиционный', pu:'Реконструкция корпуса',    a:900000, od:220, cat:'B', restr:{stage:'Направлено в Минфин', o181:true, pause:60} },
-    { n:'ОсОО «Ноокат-Табак»',       r:'Ошская',           d:'Ноокатский',      p:'ПРГ-2', c:T, k:'Оборотный',      pu:'Заготовка табака',         a:280000, restr:{stage:'На рассмотрении'} },
-    { n:'ОсОО «Панфилов-Овощи»',     r:'Чуйская',          d:'Панфиловский',    p:'ПРГ-3', c:M, k:'Оборотный',      pu:'Овощехранилище',           a:350000, od:30,  hold:true },
-    { n:'ОсОО «Ак-Талаа-Картофель»', r:'Нарынская',        d:'Ак-Талинский',    p:'ПРГ-4', c:A, k:'Оборотный',      pu:'Семенной картофель',       a:210000, od:210, cat:'B', hold:181, coll:'claim' },
-    { n:'ОсОО «Базар-Коргон-Мёд»',   r:'Джалал-Абадская',  d:'Базар-Коргонский',p:'ПРГ-5', c:K, k:'Оборотный',      pu:'Пасека',                   a:120000, restr:{stage:'Одобрено Минфином', pause:90}, od:40 },
+    { n:'ОсОО «Иссык-Ата-Санаторий»',r:'Чуйская',          d:'Ысык-Атинский',   p:'ПРГ-1', c:J, pu:'Реконструкция корпуса',    a:900000, od:220, cat:'B', restr:{stage:'Направлено в Минфин', o181:true, pause:60} },
+    { n:'ОсОО «Ноокат-Табак»',       r:'Ошская',           d:'Ноокатский',      p:'ПРГ-2', c:T, pu:'Заготовка табака',         a:280000, restr:{stage:'На рассмотрении'} },
+    { n:'ОсОО «Панфилов-Овощи»',     r:'Чуйская',          d:'Панфиловский',    p:'ПРГ-3', c:M, pu:'Овощехранилище',           a:350000, od:30,  hold:true },
+    { n:'ОсОО «Ак-Талаа-Картофель»', r:'Нарынская',        d:'Ак-Талинский',    p:'ПРГ-4', c:A, pu:'Семенной картофель',       a:210000, od:210, cat:'B', hold:181, coll:'claim' },
+    { n:'ОсОО «Базар-Коргон-Мёд»',   r:'Джалал-Абадская',  d:'Базар-Коргонский',p:'ПРГ-5', c:K, pu:'Пасека',                   a:120000, restr:{stage:'Одобрено Минфином', pause:90}, od:40 },
     /* — покрытие: недо/резерв/KM/смешанное/нет — */
-    { n:'ОсОО «Свердлов-Логистик»',  r:'г. Бишкек',        d:'Свердловский',    p:'ПРГ-6', c:O, k:'Инвестиционный', pu:'Складской комплекс',       a:700000, cov:'under', km:true },
-    { n:'ОсОО «Первомай-Фарм»',      r:'г. Бишкек',        d:'Первомайский',    p:'ПРГ-7', c:J, k:'Оборотный',      pu:'Фармсклад',                a:260000, cov:'under', life:'Зарегистрирован', disb:'none' },
-    { n:'ОсОО «Аламудун-Теплицы»',   r:'Чуйская',          d:'Аламудунский',    p:'ПРГ-8', c:T, k:'Инвестиционный', pu:'Тепличный комплекс',       a:480000, reserve:true, disb:'partial' },
-    { n:'ОсОО «Кара-Суу-Логистик»',  r:'Ошская',           d:'Кара-Сууский',    p:'ПРГ-1', c:M, k:'Оборотный',      pu:'Пополнение оборотных',     a:300000, reserve:true, life:'Зарегистрирован', disb:'none' },
-    { n:'ОсОО «Джети-Огуз-Мрамор»',  r:'Иссык-Кульская',   d:'Джети-Огузский',  p:'ПРГ-2', c:A, k:'Инвестиционный', pu:'Добыча мрамора',           a:950000, cov:'mixed' },
-    { n:'ОсОО «Лейлек-Гранат»',      r:'Баткенская',       d:'Лейлекский',      p:'ПРГ-3', c:K, k:'Оборотный',      pu:'Экспорт граната',          a:220000, cur:'USD', cov:'none', life:'Проект', disb:'none' },
+    { n:'ОсОО «Свердлов-Логистик»',  r:'г. Бишкек',        d:'Свердловский',    p:'ПРГ-6', c:O, pu:'Складской комплекс',       a:700000, cov:'under', km:true },
+    { n:'ОсОО «Первомай-Фарм»',      r:'г. Бишкек',        d:'Первомайский',    p:'ПРГ-7', c:J, pu:'Фармсклад',                a:260000, cov:'under', life:'Зарегистрирован', disb:'none' },
+    { n:'ОсОО «Аламудун-Теплицы»',   r:'Чуйская',          d:'Аламудунский',    p:'ПРГ-8', c:T, pu:'Тепличный комплекс',       a:480000, reserve:true, disb:'partial' },
+    { n:'ОсОО «Кара-Суу-Логистик»',  r:'Ошская',           d:'Кара-Сууский',    p:'ПРГ-1', c:M, pu:'Пополнение оборотных',     a:300000, reserve:true, life:'Зарегистрирован', disb:'none' },
+    { n:'ОсОО «Джети-Огуз-Мрамор»',  r:'Иссык-Кульская',   d:'Джети-Огузский',  p:'ПРГ-2', c:A, pu:'Добыча мрамора',           a:950000, cov:'mixed' },
+    { n:'ОсОО «Лейлек-Гранат»',      r:'Баткенская',       d:'Лейлекский',      p:'ПРГ-3', c:K, pu:'Экспорт граната',          a:220000, cur:'USD', cov:'none', life:'Проект', disb:'none' },
     /* — ЖЦ Проект / Зарегистрирован — */
-    { n:'ОсОО «Московский-Молоко»',  r:'Чуйская',          d:'Московский',      p:'ПРГ-4', c:O, k:'Оборотный',      pu:'Молокозавод',              a:330000, life:'Проект', disb:'none' },
-    { n:'ОсОО «Свердлов-IT»',        r:'г. Бишкек',        d:'Свердловский',    p:'ПРГ-5', c:J, k:'Инвестиционный', pu:'Центр обработки данных',   a:1800000, life:'Зарегистрирован', disb:'none', cov:'illiq' },
-    { n:'ОсОО «Аксы-Лес»',           r:'Джалал-Абадская',  d:'Аксыйский',       p:'ПРГ-6', c:T, k:'Инвестиционный', pu:'Лесопереработка',          a:560000, life:'Зарегистрирован' },
-    { n:'ОсОО «Кара-Буура-Зерно»',   r:'Таласская',        d:'Кара-Бууринский', p:'ПРГ-7', c:M, k:'Оборотный',      pu:'Закуп зерна',              a:240000, life:'Проект', disb:'none' },
-    { n:'ОсОО «Ноокен-Кирпич»',      r:'Джалал-Абадская',  d:'Ноокенский',      p:'ПРГ-8', c:A, k:'Инвестиционный', pu:'Кирпичный завод',          a:640000, life:'Зарегистрирован', cov:'under', km:true, disb:'none' },
+    { n:'ОсОО «Московский-Молоко»',  r:'Чуйская',          d:'Московский',      p:'ПРГ-4', c:O, pu:'Молокозавод',              a:330000, life:'Проект', disb:'none' },
+    { n:'ОсОО «Свердлов-IT»',        r:'г. Бишкек',        d:'Свердловский',    p:'ПРГ-5', c:J, pu:'Центр обработки данных',   a:1800000, life:'Зарегистрирован', disb:'none', cov:'illiq' },
+    { n:'ОсОО «Аксы-Лес»',           r:'Джалал-Абадская',  d:'Аксыйский',       p:'ПРГ-6', c:T, pu:'Лесопереработка',          a:560000, life:'Зарегистрирован' },
+    { n:'ОсОО «Кара-Буура-Зерно»',   r:'Таласская',        d:'Кара-Бууринский', p:'ПРГ-7', c:M, pu:'Закуп зерна',              a:240000, life:'Проект', disb:'none' },
+    { n:'ОсОО «Ноокен-Кирпич»',      r:'Джалал-Абадская',  d:'Ноокенский',      p:'ПРГ-8', c:A, pu:'Кирпичный завод',          a:640000, life:'Зарегистрирован', cov:'under', km:true, disb:'none' },
     /* — закрытые: погашен / списан — */
-    { n:'ОсОО «Чуй-Комбикорм»',      r:'Чуйская',          d:'Сокулукский',     p:'ПРГ-1', c:K, k:'Оборотный',      pu:'Комбикорм',                a:170000, life:'Закрыт', closure:'Погашен' },
-    { n:'ОсОО «Ош-Обувь»',           r:'Ошская',           d:'Араванский',      p:'ПРГ-2', c:O, k:'Оборотный',      pu:'Пошив обуви',              a:210000, cur:'USD', life:'Закрыт', closure:'Погашен' },
-    { n:'ОсОО «Талас-Табак»',        r:'Таласская',        d:'Бакай-Атинский',  p:'ПРГ-3', c:J, k:'Оборотный',      pu:'Заготовка табака',         a:130000, life:'Закрыт', closure:'Списан', cat:'D' },
-    { n:'ОсОО «Нарын-Уголь»',        r:'Нарынская',        d:'Нарынский',       p:'ПРГ-4', c:T, k:'Инвестиционный', pu:'Угледобыча',               a:890000, life:'Закрыт', closure:'Погашен' },
-    { n:'ОсОО «Иссык-Куль-Вино»',    r:'Иссык-Кульская',   d:'Иссык-Кульский',  p:'ПРГ-5', c:M, k:'Оборотный',      pu:'Виноделие',                a:260000, cur:'EUR', life:'Закрыт', closure:'Списан', cat:'D' },
-    { n:'ОсОО «Баткен-Рекультивация»',r:'Баткенская',      d:'Кадамжайский',    p:'ПРГ-6', c:A, k:'Инвестиционный', pu:'Рекультивация',            a:720000, life:'Закрыт', closure:'Погашен' },
+    { n:'ОсОО «Чуй-Комбикорм»',      r:'Чуйская',          d:'Сокулукский',     p:'ПРГ-1', c:K, pu:'Комбикорм',                a:170000, life:'Закрыт', closure:'Погашен' },
+    { n:'ОсОО «Ош-Обувь»',           r:'Ошская',           d:'Араванский',      p:'ПРГ-2', c:O, pu:'Пошив обуви',              a:210000, cur:'USD', life:'Закрыт', closure:'Погашен' },
+    { n:'ОсОО «Талас-Табак»',        r:'Таласская',        d:'Бакай-Атинский',  p:'ПРГ-3', c:J, pu:'Заготовка табака',         a:130000, life:'Закрыт', closure:'Списан', cat:'D' },
+    { n:'ОсОО «Нарын-Уголь»',        r:'Нарынская',        d:'Нарынский',       p:'ПРГ-4', c:T, pu:'Угледобыча',               a:890000, life:'Закрыт', closure:'Погашен' },
+    { n:'ОсОО «Иссык-Куль-Вино»',    r:'Иссык-Кульская',   d:'Иссык-Кульский',  p:'ПРГ-5', c:M, pu:'Виноделие',                a:260000, cur:'EUR', life:'Закрыт', closure:'Списан', cat:'D' },
+    { n:'ОсОО «Баткен-Рекультивация»',r:'Баткенская',      d:'Кадамжайский',    p:'ПРГ-6', c:A, pu:'Рекультивация',            a:720000, life:'Закрыт', closure:'Погашен' },
     /* — прочие ветки: плавающая ставка / мульти-транш / договор<одобренной / крайние суммы — */
-    { n:'ОсОО «Бишкек-Энерго»',      r:'г. Бишкек',        d:'Ленинский',       p:'ПРГ-7', c:K, k:'Инвестиционный', pu:'Энергоэффективность',      a:1400000, cur:'USD', float:true },
-    { n:'ОсОО «Сузак-Хлопок»',       r:'Джалал-Абадская',  d:'Сузакский',       p:'ПРГ-8', c:O, k:'Оборотный',      pu:'Закуп хлопка',             a:380000, float:true, od:20, cat:'A' },
-    { n:'ОсОО «Кемин-Агро»',         r:'Чуйская',          d:'Кеминский',       p:'ПРГ-1', c:J, k:'Оборотный',      pu:'Агротехника',              a:500000, tr2:true, disb:'partial' },
-    { n:'ОсОО «Узген-Строй»',        r:'Ошская',           d:'Узгенский',       p:'ПРГ-2', c:T, k:'Инвестиционный', pu:'Жилой комплекс',           a:2500000, tr2:true, cov:'liq150' },
-    { n:'ОсОО «Манас-Логистик»',     r:'Таласская',        d:'Манасский',       p:'ПРГ-3', c:M, k:'Оборотный',      pu:'Логистика',                a:80000, cl:true },
-    { n:'ОсОО «Ак-Суу-Пчеловод»',    r:'Иссык-Кульская',   d:'Ак-Суйский',      p:'ПРГ-4', c:A, k:'Микрокредит',    pu:'Пчеловодство',             a:95000, cl:true },
-    { n:'ОсОО «Джумгал-Сыр»',        r:'Нарынская',        d:'Джумгальский',    p:'ПРГ-5', c:K, k:'Оборотный',      pu:'Сыроварня',                a:175000, cur:'RUB', od:8, cat:'A', cov:'bank' },
+    { n:'ОсОО «Бишкек-Энерго»',      r:'г. Бишкек',        d:'Ленинский',       p:'ПРГ-7', c:K, pu:'Энергоэффективность',      a:1400000, cur:'USD', float:true },
+    { n:'ОсОО «Сузак-Хлопок»',       r:'Джалал-Абадская',  d:'Сузакский',       p:'ПРГ-8', c:O, pu:'Закуп хлопка',             a:380000, float:true, od:20, cat:'A' },
+    { n:'ОсОО «Кемин-Агро»',         r:'Чуйская',          d:'Кеминский',       p:'ПРГ-1', c:J, pu:'Агротехника',              a:500000, tr2:true, disb:'partial' },
+    { n:'ОсОО «Узген-Строй»',        r:'Ошская',           d:'Узгенский',       p:'ПРГ-2', c:T, pu:'Жилой комплекс',           a:2500000, tr2:true, cov:'liq150' },
+    { n:'ОсОО «Манас-Логистик»',     r:'Таласская',        d:'Манасский',       p:'ПРГ-3', c:M, pu:'Логистика',                a:80000, cl:true },
+    { n:'ОсОО «Ак-Суу-Пчеловод»',    r:'Иссык-Кульская',   d:'Ак-Суйский',      p:'ПРГ-4', c:A, pu:'Пчеловодство',             a:95000, cl:true },
+    { n:'ОсОО «Джумгал-Сыр»',        r:'Нарынская',        d:'Джумгальский',    p:'ПРГ-5', c:K, pu:'Сыроварня',                a:175000, cur:'RUB', od:8, cat:'A', cov:'bank' },
   ];
   scen.forEach((s, i) => credits.push(mkScen(s, i)));
 
@@ -5193,6 +5300,46 @@ function gate(credit, action, ctx = {}){
       }
       break;
     }
+    /* Классификация кредита (КВ-30) — тот же двойной режим, что у предмета кредита:
+       Г-34 правит напрямую в «Проекте», Г-35 после регистрации пишет запись по ДС.
+       Оба сверяют значение с набором кредитной программы (зеркало PROGRAM_CLASSIFICATION):
+       вид, линия и источник — справочные величины, и «свой» вариант тут означает, что
+       кредит выдан не по той программе, за которую себя выдаёт. Цель не сверяется —
+       её формулирует договор, классификатора целей у модуля нет. */
+    case 'editClassification': {                                        // Г-34
+      if (credit.lifecycle!=='Проект')
+        r.push('Классификация правится напрямую только в ЖЦ «Проект»; после регистрации — только доп. соглашением');
+      const set = programClassification(credit), v = ctx.values || {};
+      for (const p of CLASSIFICATION_PARAMS){
+        const val = String(v[p.key]==null ? '' : v[p.key]).trim();
+        if (!p.dict){ continue; }                                       // «Цель» — свободный текст, пустой быть вправе
+        if (!val){ r.push(p.label + ' обязателен'); continue; }
+        if (!(set[p.dict]||[]).includes(val))
+          r.push('«' + val + '» вне набора программы ' + (credit.origin.programId || '—') + ' для «' + p.label + '»: ' + (set[p.dict]||[]).join(' · '));
+      }
+      break;
+    }
+    case 'addClassificationRecords': {                                  // Г-35
+      if (!['Зарегистрирован','Действует'].includes(credit.lifecycle))
+        r.push('Классификация меняется доп. соглашением только при ЖЦ «Зарегистрирован» или «Действует» (Г-35); в «Проекте» она правится напрямую');
+      const bs = ctx.basis || {};
+      if (!bs.num || !bs.date) r.push('Доп. соглашение требует номер и дату (Г-10)');
+      if (!ctx.effectiveFrom) r.push('Дата вступления в силу обязательна');
+      else if (credit.date && pd(ctx.effectiveFrom) < pd(credit.date))
+        r.push('Дата вступления не может быть раньше даты договора ' + credit.date + ' (Г-18)');
+      if (!ctx.records || !ctx.records.length) r.push('Ни один параметр классификации не изменён');
+      const cset = programClassification(credit);
+      for (const rec of (ctx.records || [])){
+        const p = CLASSIFICATION_PARAMS.find(x => x.key === rec.param);
+        if (!p){ r.push('Неизвестный параметр классификации: ' + rec.param); continue; }
+        const val = String(rec.value==null ? '' : rec.value).trim();
+        if (!p.dict) continue;
+        if (!val){ r.push(p.label + ' обязателен'); continue; }
+        if (!(cset[p.dict]||[]).includes(val))
+          r.push('«' + val + '» вне набора программы ' + (credit.origin.programId || '—') + ' для «' + p.label + '»: ' + (cset[p.dict]||[]).join(' · '));
+      }
+      break;
+    }
     case 'savePayment':                                                                    // Г-11
       if (!(ctx.amount>0)) r.push('Сумма платежа должна быть > 0');
       if (ctx.dateAfterToday) r.push('Дата платежа не может быть в будущем');
@@ -5269,10 +5416,10 @@ function gate(credit, action, ctx = {}){
 
 /* ---- 4.1 canRole(role, action) — матрица прав по ролям (§7). ---- */
 const ROLE_ACTIONS = {
-  'Кредитный специалист': new Set(['createCredit','saveContractAmount','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','applyDs','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editDocs','addNote']),
+  'Кредитный специалист': new Set(['createCredit','saveContractAmount','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','applyDs','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editClassification','addClassificationRecords','editDocs','addNote']),
   'Куратор': new Set(['targetUse','inspection','holdAccrual','transferDebt','linkPledge','addNote','setPlan']),
   'Бухгалтер': new Set(['savePayment','addNote']),
-  'Начальник отдела': new Set(['createCredit','saveContractAmount','editContractRequisites','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','applyDs','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editDocs','addNote','targetUse','inspection','holdAccrual','transferDebt','linkPledge','savePayment','waiver','setKmDecision','writeOff','repay','terminate','setPlan']),
+  'Начальник отдела': new Set(['createCredit','saveContractAmount','editContractRequisites','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','applyDs','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editClassification','addClassificationRecords','editDocs','addNote','targetUse','inspection','holdAccrual','transferDebt','linkPledge','savePayment','waiver','setKmDecision','writeOff','repay','terminate','setPlan']),
   'Наблюдатель': new Set(),
 };
 function canRole(role, action){ return (ROLE_ACTIONS[role]||new Set()).has(action); }
@@ -5775,6 +5922,46 @@ function addSubjectRecords(credit, ctx){
   return { ok:true, value:{ added } };
 }
 
+/* editClassification(credit, ctx) — КВ-30: правка классификации НАПРЯМУЮ, только пока
+   ЖЦ «Проект» (Г-34, тот же режим, что editSubject/editConditions). Пишет один
+   pushAudit на всё действие: классификация читается как один разряд договора, и
+   четыре отдельные записи в журнале о заполнении карточки «Проекта» — шум. */
+function editClassification(credit, ctx){
+  const g = gate(credit, 'editClassification', ctx);
+  if (!g.ok) return g;
+  const before = { kind:credit.kind, line:credit.line, purpose:credit.purpose, fundingSource:credit.fundingSource };
+  for (const p of CLASSIFICATION_PARAMS)
+    if (ctx.values[p.key] != null) credit[p.key] = String(ctx.values[p.key]).trim();
+  const after = { kind:credit.kind, line:credit.line, purpose:credit.purpose, fundingSource:credit.fundingSource };
+  pushAudit(credit, 'editClassification', before, after);
+  return { ok:true, value:after };
+}
+
+/* addClassificationRecords(credit, ctx) — КВ-30: единственный способ изменить
+   классификацию после регистрации. Одно действие = одно доп. соглашение = N записей
+   (по записи на изменённый параметр). Записи не удаляются и не перезаписываются
+   (Г-21-паттерн); действующее значение — производная classificationAt. ДС при первом
+   упоминании попадает в реестр credit.agreements — как в addSubjectRecords.
+   Один pushAudit на запись, а не на действие: у каждой своя дата вступления в
+   будущем и своя судьба в срезе. */
+function addClassificationRecords(credit, ctx){
+  const g = gate(credit, 'addClassificationRecords', ctx);
+  if (!g.ok) return g;
+  const bs = ctx.basis;
+  const basis = { kind:'agreement', ref:bs.num, date:bs.date, label:'Доп. соглашение ' + bs.num };
+  if (!credit.agreements.some(a => a.num === bs.num))
+    credit.agreements.push({ num:bs.num, date:bs.date, source:'кредит', scan:bs.scan || '' });
+  let added = 0;
+  for (const rec of ctx.records){
+    const row = mkClassificationRecord({ param:rec.param, value:String(rec.value==null?'':rec.value).trim(),
+      effectiveFrom:ctx.effectiveFrom, basis, note:ctx.note || '' });
+    credit.classificationRecords.push(row);
+    pushAudit(credit, 'classificationRecord: ' + row.param, null, row);
+    added++;
+  }
+  return { ok:true, value:{ added } };
+}
+
 /* closeCredit(credit, {reason,doc}) — терминалы Р-20: обязательные реквизиты, без физ.
    удаления. ТРИ основания, как объявляет канон §3: «Погашен» (Г-14=repay) · «Списан»
    (Г-12=writeOff) · «Расторгнут» (terminate). Третьего в файле не было вовсе — ни в
@@ -5845,6 +6032,8 @@ window.CR = {
   saveContractAmount, editContractRequisites, addTranche, addDisbursement, setKmDecision, saveWaiver,
   addPayment, paymentEditable, addAgreement, addConditionRecords, closeCredit, linkPledge,
   editSubject, addSubjectRecords, subjectAt, mkSubjectItem,
+  editClassification, addClassificationRecords, classificationAt, mkClassificationRecord,
+  programClassification, CLASSIFICATION_PARAMS, CLASSIFICATION_DICT,
   registerCredit, activateCredit, closeDisbursement, closeTranche, transferDebt,
   saveDoc, addNote, addTargetUse, setPlan,
   zeroOutForTest,
@@ -6829,6 +7018,23 @@ if (typeof document !== 'undefined') {
        тот же приём среза, что и у «Условий», КВ-10). Правка напрямую только в «Проект»
        (editSubject); после регистрации — только доп. соглашением (addSubjectRecords). */
     const subjEditableDirect = c.lifecycle === 'Проект';
+    /* КВ-30: тот же приём для классификации — значение на срез, а не сырое c.kind.
+       Критерий правки общий с предметом: до регистрации напрямую, после — только ДС. */
+    const cls=classificationAt(c,cardAsOf);
+    /* Копия fld() с подписью основания под значением. Не o.src у fld: там «Источник: …»
+       про зеркало (откуда поле пришло), а здесь «чем изменено и с какой даты» — тот же
+       смысл, что у srcLine «Условий» (Д-6). Подписи нет, пока нет записи: элемент
+       говорит, когда есть что сказать (КВ-27), — «нет записи» тут не новость, это норма. */
+    const clsFld=(label,val,rec,wrap)=>{
+      /* wrap — у цели и источника финансирования: цель это свободный текст, а названия
+         источников из справочника длиннее половины карточки («Накопительный счет в НБКР
+         средства кредита Международной ассоциации развития») и в одну строку обрезаются. */
+      const base=fld(label,esc(val),{wrap:!!wrap});
+      if(!rec) return base;
+      const ic=BASIS_KINDS[rec.basis.kind]||{};
+      const src=`<span class="src">${esc(ic.icon||'')} ${esc(rec.basis.ref||ic.label||'')} · с ${esc(rec.effectiveFrom)}</span>`;
+      return base.replace(/<\/div>$/, src+'</div>');
+    };
     const subjRows=subjectAt(c,cardAsOf).map(s=>`<tr><td>${esc(s.kind)}</td><td>${esc(s.name)}</td><td style="text-align:right">${esc(s.qty)}</td><td style="text-align:right">${money(s.cost)}</td>`
       + (subjEditableDirect?`<td style="text-align:right">${roleIconBtn('editSubject','Убрать предмет',`CR.removeSubjectItem('${jsAttr(s.id)}')`,'✕')}</td>`:'')
       + `</tr>`);
@@ -6856,12 +7062,12 @@ if (typeof document !== 'undefined') {
         </div>
 
         <div class="pcard">
-          <div class="section-h">Классификация</div>
+          <div class="section-h" style="display:flex;align-items:center;justify-content:space-between">Классификация
+            ${subjEditableDirect
+              ? roleIconBtn('editClassification','Изменить классификацию','CR.openClassificationModal()',svgPencil())
+              : roleBtn('addClassificationRecords','Изменить (доп. соглашением)','CR.openClassificationAgrModal()')}</div>
           <div class="f2">
-            ${fld('Вид кредита', esc(c.kind))}
-            ${fld('Кредитная линия', esc(c.line))}
-            ${fld('Цель', esc(c.purpose))}
-            ${fld('Источник финансирования', esc(c.fundingSource))}
+            ${CLASSIFICATION_PARAMS.map(p=>clsFld(p.label, cls[p.key], cls.src[p.key], p.key==='purpose'||p.key==='fundingSource')).join('')}
           </div>
         </div>
 
@@ -8907,6 +9113,76 @@ if (typeof document !== 'undefined') {
     const g=gate(c,'editContractRequisites',{num,date}); if(!g.ok){ CR.modalErr(g.reasons); return; }
     const r=CR.editContractRequisites(c,{num,date}); if(!r.ok){ CR.modalErr(r.reasons); return; }
     CR.closeModal(); toast('Реквизиты договора обновлены','ok'); rerenderDetail(); };
+
+  /* 10г) классификация (editClassification/addClassificationRecords, КВ-30) — тот же
+     двойной режим, что у предмета кредита. Вид/линия/источник — <select> по набору
+     кредитной программы: набор задан программой, кредит из него выбирает (И-11 — здесь
+     набор не правится), поэтому свободный ввод отдал бы пользователю значение, которое
+     гейт всё равно отобьёт. «Цель» — <input>: классификатора целей у модуля нет. */
+  function clsOptions(set,p,cur){
+    if(!p.dict) return '';
+    const list=(set[p.dict]||[]).slice();
+    /* Действующее значение вне набора (наследие КР-59 или смена программы) не прячем:
+       иначе форма показала бы чужое значение как выбранное или молча подменила его.
+       Отбивать будет гейт — с названием набора (§0.3). */
+    if(cur && !list.includes(cur)) list.unshift(cur);
+    return `<option value=""></option>`+list.map(v=>`<option value="${jsAttr(v)}"${v===cur?' selected':''}>${esc(v)}</option>`).join('');
+  }
+  function clsFields(c,idPrefix){
+    const set=programClassification(c), cur=classificationAt(c,CR.TODAY);
+    return CLASSIFICATION_PARAMS.map(p=>{
+      const id=idPrefix+p.key.charAt(0).toUpperCase()+p.key.slice(1);
+      const ctl=p.dict
+        ? `<select id="${id}">${clsOptions(set,p,cur[p.key])}</select>`
+        : `<input id="${id}" value="${jsAttr(cur[p.key]||'')}">`;
+      return `<div class="field${p.dict?' req':''}${p.dict?'':' col-span'}"><span class="flabel">${esc(p.label)}</span><div class="control">${ctl}</div></div>`;
+    }).join('');
+  }
+  function clsRead(idPrefix){
+    const v={}; CLASSIFICATION_PARAMS.forEach(p=>{
+      const el=document.getElementById(idPrefix+p.key.charAt(0).toUpperCase()+p.key.slice(1));
+      v[p.key]=el?el.value:''; });
+    return v;
+  }
+  CR.openClassificationModal=function(){ const c=modalGuard('editClassification'); if(!c) return;
+    const body=`<p class="section-note">Вид, линия и источник выбираются из набора кредитной программы ${esc(c.origin.programId||'—')} — сам набор задаёт программа и здесь не расширяется. Цель формулирует договор.</p>
+      <div class="mform">${clsFields(c,'kl')}</div>`;
+    CR.openModal('Изменить классификацию', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitClassification()">Сохранить</button>`);
+  };
+  CR.submitClassification=function(){ const c=modalGuard('editClassification'); if(!c) return;
+    const values=clsRead('kl');
+    const g=gate(c,'editClassification',{values}); if(!g.ok){ CR.modalErr(g.reasons); return; }   // ре-валидация Г-34 перед мутацией
+    const r=CR.editClassification(c,{values}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Классификация обновлена','ok'); rerenderDetail(); };
+  /* Доп. соглашением: шлём только изменённые параметры — запись про «поменяли на то же
+     самое» засорила бы историю и подпись основания под неизменившимся полем (Г-35). */
+  CR.openClassificationAgrModal=function(){ const c=modalGuard('addClassificationRecords'); if(!c) return;
+    const body=`<p class="section-note">После регистрации классификация меняется только доп. соглашением (Г-35). Значения — из набора программы ${esc(c.origin.programId||'—')}. В ДС попадут только изменённые параметры.</p>
+      <div class="mform">
+        <div class="field req"><span class="flabel">Номер ДС</span><div class="control"><input id="klaNum" placeholder="ДС-..."></div></div>
+        <div class="field req"><span class="flabel">Дата ДС</span><div class="control"><input id="klaDate" type="date" value="${esc(toISO(CR.TODAY))}"></div></div>
+        <div class="field col-span"><span class="flabel">Скан</span><div class="control"><input id="klaScan" placeholder="файл.pdf"></div></div>
+        <div class="field req"><span class="flabel">Вступает в силу</span><div class="control"><input id="klaEff" type="date" value="${esc(toISO(CR.TODAY))}"></div></div>
+        <div class="field col-span"><span class="flabel">Примечание</span><div class="control"><input id="klaNote" placeholder="что меняет ДС"></div></div>
+      </div>
+      <div class="section-h" style="margin-top:14px;font-size:15px">Классификация после ДС</div>
+      <div class="mform">${clsFields(c,'kla')}</div>`;
+    CR.openModal('Изменить классификацию — доп. соглашение', body,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitClassificationAgr()">Оформить</button>`);
+  };
+  CR.submitClassificationAgr=function(){ const c=modalGuard('addClassificationRecords'); if(!c) return;
+    const num=document.getElementById('klaNum').value, date=toDMY(document.getElementById('klaDate').value);
+    const scan=document.getElementById('klaScan').value;
+    const effectiveFrom=toDMY(document.getElementById('klaEff').value), note=document.getElementById('klaNote').value;
+    const values=clsRead('kla'), was=classificationAt(c,effectiveFrom||CR.TODAY);
+    const records=CLASSIFICATION_PARAMS
+      .filter(p=>String(values[p.key]||'').trim()!==String(was[p.key]||'').trim())
+      .map(p=>({ param:p.key, value:values[p.key] }));
+    const ctx={ basis:{num,date,scan}, effectiveFrom, note, records };
+    const g=gate(c,'addClassificationRecords',ctx); if(!g.ok){ CR.modalErr(g.reasons); return; }  // ре-валидация Г-35 перед мутацией
+    const r=CR.addClassificationRecords(c,ctx); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    CR.closeModal(); toast('Записей по классификации добавлено: '+r.value.added,'ok'); rerenderDetail(); };
 
   /* 11) hold-accrual (holdAccrual, Р-17 · Г-15) — приостановление начисления процентов, роль «Начальник отдела»/«Куратор» */
   CR.openHoldModal=function(){ const c=modalGuard('holdAccrual'); if(!c) return;
