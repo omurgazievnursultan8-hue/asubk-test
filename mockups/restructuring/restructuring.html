@@ -80,7 +80,7 @@
   возражение, а не как открытые вопросы. Свод — §11 спеки.
 
   SMOKE (node scripts/inspect/restructuring-check.mjs):
-   SMOKE 2026-08-13 · 74/74 PASS
+   SMOKE 2026-08-13 · 75/75 PASS
       PASS  #1  до=false после=true
       PASS  #2  closed=true opened=true reblock=true
       PASS  #3  безСтавки=true объединение=true вРеестре=true безРаспоряжений=true ключей=12
@@ -155,6 +155,7 @@
       PASS  #72  полосаПриОдном=true безКрестикаПриДС=true отказСнятия=true крестикиПоРасчётам=true снят=true гейтПоРасчётам=true
       PASS  #73  полей=9 редактируемых=1 readonly=8 модельДержит=true ставка=5.5 чужойКлюч=true окно%=true месяцы=true→true
       PASS  #74  массив=true вРеестре=true свёртка=true перекрытие=true наследование=true черновик=контракт=true
+      PASS  #75  дерево=true свои=true чужой=true раскрытость=true бургер=true разметка=true
 -->
 <style>
 :root{
@@ -203,23 +204,41 @@ a{ color:inherit; }
 .app{ display:flex; height:100vh; width:100%; }
 .sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
   display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
-.brand{ padding:18px 16px 6px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
+/* Сайдбар — общий канон макетов АСУБК (credit.html · collection.html · zalog.html):
+   дерево .nav-group → .nav-sub → .nav-item, чеврон 14/13 px, подвал «[admin] + выход».
+   Прежде здесь стоял плоский список из двух пунктов, и модуль не показывал, что вокруг
+   него есть система: соседи о реструктуризации знают (credit.html — «Проблемная
+   задолженность → Реструктуризация»), а она о них — нет. */
+.brand{ padding:18px 16px 14px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
   color:var(--text-heading); letter-spacing:0.04em; }
-.brand small{ display:block; font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-muted); letter-spacing:0; margin-top:3px; }
 .nav{ flex:1; overflow-y:auto; padding-bottom:8px; }
-/* Отступы и типографика — как у листьев дерева в credit.html («Список кредитов»):
-   у реструктуризации всего два пункта, само дерево с чевронами не нужно, но пункт
-   должен садиться на ту же сетку, иначе два реестра рядом читаются как два продукта. */
-.nav-item{ display:flex; align-items:center; gap:10px; padding:7px 16px 7px 40px; text-decoration:none;
-  color:rgba(27,43,65,0.69); font:var(--weight-regular) var(--text-base)/1.625 var(--asubk-font); cursor:pointer; }
+.nav-toggle{ display:flex; align-items:center; gap:8px; width:100%; appearance:none;
+  border:none; background:transparent; color:rgba(24,39,57,0.82); cursor:pointer; text-align:left; }
+.nav-group > .nav-toggle{ padding:9px 16px; font:var(--weight-semibold) 15px/1.3 var(--asubk-font); }
+.nav-sub > .nav-toggle{ padding:8px 16px 8px 32px; font:var(--weight-semibold) 14px/1.3 var(--asubk-font); }
+.nav-toggle:hover{ background:rgba(24,39,57,0.04); }
+.nav-toggle .chev{ display:inline-flex; align-items:center; color:rgba(24,39,57,0.5);
+  transition:transform 120ms ease; flex:none; }
+.nav-group.open > .nav-toggle .chev, .nav-sub.open > .nav-toggle .chev{ transform:rotate(90deg); }
+.nav-toggle .lbl{ flex:1; }
+.nav-children{ display:none; }
+.nav-group.open > .nav-children, .nav-sub.open > .nav-children{ display:block; }
+.nav-item{ display:block; padding:7px 16px 7px 52px; text-decoration:none; color:rgba(27,43,65,0.69);
+  font:var(--weight-regular) var(--text-base)/1.625 var(--asubk-font); cursor:pointer; }
+.nav-item.headerless{ padding-left:40px; }
 .nav-item:hover{ background:rgba(24,39,57,0.05); }
 .nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); }
-.nav-item svg{ flex:none; margin-left:-26px; color:var(--text-muted); }
+.nav-item.stub{ color:var(--text-placeholder); font-style:italic; }
 .sidebar-foot{ display:flex; align-items:center; justify-content:space-between;
-  padding:12px 16px; color:var(--text-muted); font:var(--weight-regular) 14px/1.2 var(--asubk-font); }
+  padding:12px 16px; color:var(--text-muted); }
+.sidebar-foot span{ font:var(--weight-regular) 14px/1.2 var(--asubk-font); }
+.icon-btn{ border:none; background:rgba(24,39,57,0.05); color:var(--text-link); cursor:pointer;
+  padding:7px; border-radius:4px; display:flex; }
+.app.nav-collapsed .sidebar{ display:none; }
 .main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
 .topbar{ height:var(--header-h); flex:none; background:var(--surface-page);
   border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:14px; padding:0 20px; }
+.topbar .menu{ color:var(--text-muted); display:flex; cursor:pointer; }
 .crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
 .crumb-title .bk{ color:var(--text-link); cursor:pointer; }
 .crumb-title .bk:hover{ text-decoration:underline; }
@@ -602,13 +621,26 @@ details.gate-d .gate-body{ padding:2px 0 12px 30px; font:var(--font-label); }
 </head>
 <body>
 <div class="app">
-  <aside class="sidebar">
-    <div class="brand">АСУБК<small>Реструктуризация задолженности</small></div>
-    <nav class="nav" id="nav"></nav>
-    <div class="sidebar-foot">Макет · gov-blue · TO-BE</div>
-  </aside>
+  <nav class="sidebar">
+    <div class="brand">АСУБК</div>
+    <div class="nav" id="nav"></div>
+    <div class="sidebar-foot">
+      <span>[admin]</span>
+      <button class="icon-btn" title="Выйти" aria-label="Выйти" onclick="RS.toast('Выход — вне объёма макета')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      </button>
+    </div>
+  </nav>
   <div class="main">
     <div class="topbar">
+      <!-- Клавиатурный вход обязателен: span с onclick фокуса не получает, и свернуть
+           меню было бы нечем (тот же приём, что в collection.html). -->
+      <span class="menu" id="navBurger" title="Свернуть/развернуть меню" aria-label="Свернуть/развернуть меню"
+            tabindex="0" role="button" aria-expanded="true" aria-controls="nav"
+            onclick="RS.toggleNav()"
+            onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();RS.toggleNav();}">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </span>
       <div class="crumb-title" id="crumb">Реестр заявок</div>
       <div class="role-wrap">
         <label>Роль</label>
@@ -2973,16 +3005,74 @@ function buildWave2App(s){
 }
 
 /* ================= РЕНДЕР: НАВИГАЦИЯ + ШАПКА ================= */
-function icon(p){ return '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+p+'</svg>'; }
-const IC={ list:'<rect x="3" y="4" width="18" height="4"/><rect x="3" y="10" width="18" height="4"/><rect x="3" y="16" width="18" height="4"/>',
-  book:'<path d="M4 5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"/><path d="M8 3v18"/>' };
+/* Дерево модулей АСУБК — общий канон макетов (credit.html:5872, collection.html:1095).
+   Свои экраны стоят листьями в «Проблемной задолженности» — ровно там, где кредитный
+   макет уже объявляет реструктуризацию соседкой взыскания. */
+const TREE = [
+  { id:'k', label:'Система кредитования', subs:[
+    { id:'k-app',  label:'Заявки и комиссии',   items:[{label:'Заявки'},{label:'Комиссии по заявкам'}] },
+    { id:'k-prog', label:'Программы и решения', items:[{label:'Решение правительства'},{label:'Кредитные программы'}] },
+    { id:'k-borr', label:'Заёмщики',            items:[{label:'Заёмщики'}] },
+    { id:'k-loan', label:'Кредиты и транши',    items:[{label:'Кредиты'},{label:'Список траншей'}] } ]},
+  { id:'ob',  label:'Обеспечение', subs:[{ id:'ob-all', headerless:true,
+    items:[{label:'Реестр залогов'},{label:'Поручительства'}] }] },
+  { id:'pz',  label:'Проблемная задолженность', open:true, subs:[{ id:'pz-all', headerless:true, items:[
+    { label:'Реструктуризация — реестр заявок', view:'list' },
+    { label:'Справочник видов',                 view:'dict' },
+    { label:'Взыскание' } ]}] },
+  { id:'d',   label:'Справочники',       subs:[{ id:'d-all',   headerless:true, items:[{label:'Справочники'}] }] },
+  { id:'r',   label:'Отчёты',            subs:[{ id:'r-all',   headerless:true, items:[{label:'Отчёты'}] }] },
+  { id:'adm', label:'Администрирование', subs:[{ id:'adm-all', headerless:true, items:[{label:'Администрирование'}] }] },
+  { id:'sec', label:'Безопасность',      subs:[{ id:'sec-all', headerless:true, items:[{label:'Безопасность'}] }] },
+];
+/* Раскрытость узлов живёт вне разметки: render() перерисовывает #nav на каждое действие,
+   и DOM-переключатель канона схлопывал бы то, что раскрыл пользователь (payments.html:641). */
+const NAV_OPEN = new Set(TREE.filter(g=>g.open).map(g=>g.id));
+function navToggle(id){ NAV_OPEN.has(id) ? NAV_OPEN.delete(id) : NAV_OPEN.add(id); renderNav(); }
+const chev = s => `<span class="chev"><svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></span>`;
 function renderNav(){
-  const nav=document.getElementById('nav');
-  nav.innerHTML =
-    navItem('list','Реестр заявок',IC.list, state.view==='list'||state.view==='card') +
-    navItem('dict','Справочник видов',IC.book, state.view==='dict');
+  if(typeof document==='undefined') return;              // без DOM рисовать нечего — как render()
+  const nav=document.getElementById('nav'); if(!nav) return;
+  /* Подсветка следует за экраном, а не за статичным флагом в дереве: карточка заявки —
+     тот же реестр вглубь, и на ней горит его пункт (как было в плоском списке). */
+  const isOn = it => it.view && (it.view===state.view || (it.view==='list' && state.view==='card'));
+  nav.innerHTML = TREE.map(g=>{
+    const subs=(g.subs||[]).map(s=>{
+      const items=(s.items||[]).map(it=>`<a class="nav-item${s.headerless?' headerless':''}${isOn(it)?' active':''}" onclick="RS.navClick('${it.label.replace(/'/g,"\\'")}')">${esc(it.label)}</a>`).join('');
+      if(s.headerless) return `<div class="nav-children" style="display:block">${items}</div>`;
+      return `<div class="nav-sub${NAV_OPEN.has(s.id)?' open':''}"><button class="nav-toggle" onclick="RS.navToggle('${s.id}')">${chev(13)}<span class="lbl">${esc(s.label)}</span></button><div class="nav-children">${items}</div></div>`;
+    }).join('');
+    return `<div class="nav-group${NAV_OPEN.has(g.id)?' open':''}"><button class="nav-toggle" onclick="RS.navToggle('${g.id}')">${chev(14)}<span class="lbl">${esc(g.label)}</span></button><div class="nav-children">${subs}</div></div>`;
+  }).join('');
 }
-function navItem(v,label,ic,active){ return `<a class="nav-item ${active?'active':''}" onclick="RS.go('${v}')">${icon(ic)}<span>${label}</span></a>`; }
+function navLeaf(label){ let f=null; TREE.forEach(g=>(g.subs||[]).forEach(s=>(s.items||[]).forEach(it=>{ if(it.label===label) f=it; }))); return f; }
+function navClick(label){
+  const it=navLeaf(label);
+  if(it&&it.view){ go(it.view); return; }
+  toast('Раздел «'+label+'» — вне объёма макета');
+}
+/* Сворачивание сайдбара — класс на .app, состояние переживает F5. Ключ отдельный от
+   демо-данных: это настройка показа, а не модель (collection.html:11706). */
+const NAV_KEY='asubk.restructuring.navCollapsed';
+function applyNav(collapsed){
+  if(typeof document==='undefined') return;
+  document.querySelector('.app').classList.toggle('nav-collapsed',collapsed);
+  const b=document.getElementById('navBurger');
+  if(b) b.setAttribute('aria-expanded',String(!collapsed));
+  try{ localStorage.setItem(NAV_KEY, collapsed?'1':'0'); }catch(e){}
+}
+function toggleNav(){
+  if(typeof document==='undefined') return;
+  applyNav(!document.querySelector('.app').classList.contains('nav-collapsed'));
+}
+function restoreNav(){
+  if(typeof document==='undefined') return;
+  let collapsed=false;
+  try{ collapsed=localStorage.getItem(NAV_KEY)==='1'; }catch(e){}
+  document.querySelector('.app').classList.toggle('nav-collapsed',collapsed);
+  const b=document.getElementById('navBurger');
+  if(b) b.setAttribute('aria-expanded',String(!collapsed));
+}
 function renderRoles(){
   const s=document.getElementById('roleSel');
   s.innerHTML=ROLES.map(r=>`<option ${r===state.role?'selected':''}>${r}</option>`).join('');
@@ -4585,6 +4675,7 @@ const RS = {
   calcById, calcTrancheOf, creditOfTranche, requireCalc, attachCalc,
   dsCoverage, excludeCalc, resultTrancheOf,
   pParams, pDiff,                 // вкладки расчёта наружу — сторож #68 читает разметку, а не только цифры
+  toast, navClick, navToggle, toggleNav, TREE, NAV_OPEN,   // сайдбар: дерево наружу, сторож читает его, а не копию
   TODAY, STAGES, ROLES,
   __baseApp: baseApp
 };
@@ -4593,6 +4684,7 @@ if(typeof window!=='undefined') window.RS=RS;
 seed();
 if(typeof document!=='undefined' && document.getElementById('view-list')){
   document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&overlay().classList.contains('open')) closeModal(); });
+  restoreNav();
   render();
 }
 </script>
