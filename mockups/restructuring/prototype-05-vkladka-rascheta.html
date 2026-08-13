@@ -585,12 +585,16 @@ function renderC(){
 function setCStep(k){ cStep=k; renderVariant(currentVariant()); }
 
 /* ---------------- контекстная вкладка-панель (симуляция карточки заявки) ---------------- */
-const REAL_TABS = [['req','Пакет документов'],['scope','Охват'],['concl','Заключения']];
+/* «Охват» вкладкой не стоит с 13.08.2026 — охват предъявляется полосой расчётов над панелью.
+   Тогда же выигравшая пара (вариант B) переназвана по самой сделке: «Параметры» / «Было и стало».
+   Разбор вариантов ниже — запись решения от 09.08.2026 и правится только по существу выбора,
+   поэтому старые подписи в нём остаются как были. */
+const REAL_TABS = [['req','Пакет документов'],['concl','Заключения']];
 const TAIL_TABS = [['minfin','Комитет / Минфин'],['formal','Оформление'],['hist','История']];
 function renderTabbar(v){
   let mid;
   if(v==='b'){
-    mid = `<button class="dtab active">База и распоряжения</button><button class="dtab active">График и дифф</button>`;
+    mid = `<button class="dtab active">Параметры</button><button class="dtab active">Было и стало</button>`;
   } else {
     mid = `<button class="dtab active">Расчёт</button>`;
   }

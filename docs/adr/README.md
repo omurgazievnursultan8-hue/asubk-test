@@ -29,7 +29,7 @@ git branch -a --format='%(refname:short)' | grep worktree-
 Диапазоны в тексте («ADR `0055`…`0065`») после сдвига становятся неверными молча — их
 искать отдельно: `grep -rn "00[0-9][0-9].\{0,3\}…"`.
 
-## Карта занятого (12.08.2026)
+## Карта занятого (13.08.2026)
 
 | номера | модуль |
 |---|---|
@@ -47,6 +47,7 @@ git branch -a --format='%(refname:short)' | grep worktree-
 | 0100–0103 | Взыскание задолженности |
 | 0106–0107, 0109–0110, 0114 | Реструктуризация |
 | 0111–0113 | Кредиты |
+| 0116–0118 | Кураторство |
 | 0005, 0011–0013, 0017–0019, 0048, 0057, 0059–0061 | метки модуля в шапке нет — смотреть по содержанию |
 
 Блок `0082–0086` пуст, а не занят: изначальная заявка реструктуризации на `0079–0086`
@@ -56,7 +57,17 @@ git branch -a --format='%(refname:short)' | grep worktree-
 «Третье столкновение»). Ставка подтвердилась в тот же вечер: кредит занял `0105`
 (`0105-procenty-na-fakticheskoe-telo`, влит в `main` 10.08.2026 18:22).
 
-**Следующий свободный — `0116`.** `0115` взяла ветка кредита 12.08.2026 (волна КВ-26
+**Следующий свободный — `0119`.** Блок `0116–0118` взяла ветка кураторства 13.08.2026
+(`0116-kuratorstvo-izmerenie-a-ne-pole` · `0117-dve-stupeni-pravila-i-folbek` ·
+`0118-otstranenie-otdelnoe-izmerenie`); перед заведением живым `git ls-tree` проверены
+`origin/main`, все пять удалённых `worktree-*` и три ветки задач (`feat/kv29-schedule-button`,
+`grafik-versii-kv27-kv28`, `restructuring-registry-grid`) — максимумы: `main` — `0115`,
+`worktree-credit`, `worktree-restructure`, `feat/kv29-schedule-button` и
+`grafik-versii-kv27-kv28` — `0115`, `restructuring-registry-grid` — `0114`,
+`worktree-payments` и `worktree-vzyskanie` — `0103`, `worktree-org-structure` — `0076`;
+номеров `0116+` нет ни на одной. Ниже — запись предыдущей волны.
+
+`0115` взяла ветка кредита 12.08.2026 (волна КВ-26
 «транши и график под реструктуризацию»:
 `0115-proizvodnyy-transh-ne-rashoduet-summu-dogovora`); перед заведением живым `git ls-tree`
 проверены `origin/main` и все пять удалённых `worktree-*` — максимумы: `main` и
