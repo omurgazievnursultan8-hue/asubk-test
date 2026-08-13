@@ -80,7 +80,7 @@
   возражение, а не как открытые вопросы. Свод — §11 спеки.
 
   SMOKE (node scripts/inspect/restructuring-check.mjs):
-   SMOKE 2026-08-13 · 78/78 PASS
+   SMOKE 2026-08-13 · 79/79 PASS
       PASS  #1  до=false после=true
       PASS  #2  closed=true opened=true reblock=true
       PASS  #3  безСтавки=true объединение=true вРеестре=true безРаспоряжений=true ключей=12
@@ -156,9 +156,10 @@
       PASS  #73  полей=9 редактируемых=1 readonly=8 модельДержит=true ставка=5.5 чужойКлюч=true окно%=true месяцы=true→true
       PASS  #74  массив=true вРеестре=true свёртка=true перекрытие=true наследование=true черновик=контракт=true
       PASS  #75  дерево=true свои=true чужой=true раскрытость=true бургер=true разметка=true
-      PASS  #76  однаДверь=true датаСледуетЗаДС=true
-      PASS  #77  строк=9/9 сходитсяСМоделью=true пиллДС=true движениеСверху=true черновик=true молчаниеНеОбнуление=true
+      PASS  #76  однаДверь=true датаСледуетЗаДС=true вхожденийДаты=1
+      PASS  #77  строк=9/9 сходитсяСМоделью=true пиллДС=true движениеСверху=true (свёрнуто 2) черновик=true ΔтолькоЧисло=true молчаниеНеОбнуление=true
       PASS  #78  RS-1001: 4200000−118000=4082000 база 133360−15360=118000 прогон=118000 · RS-1004: 3100000−41000=3059000 база 41000−0=41000 прогон=41000
+      PASS  #79  RS-1001: колонок 3/390px источник 0/0px пустых=0 раскрытие=true/true (6→60 из 60) поОдномуРазу=true (КД-60540-Т1×1 КД-60540-Т2×1 пиллыСекций 0/0/1/1)  тишина=true · RS-1004: колонки [Дата|Накопленные проценты] 2/260px пустых=0
 -->
 <style>
 :root{
@@ -524,23 +525,41 @@ table.cgrid tbody tr:last-child td{ border-bottom:none; }
 .flowline .fl-i.main .fl-v{ color:var(--asubk-blue); font-size:17px; }
 .flowline .fl-i .fl-s{ font-size:11px; color:var(--text-placeholder); }
 .flowline .fl-op{ flex:0 0 auto; align-self:center; padding:0 8px; color:var(--text-placeholder); font-size:14px; }
-.flow-id{ max-width:920px; font:var(--font-label); color:var(--text-muted); margin:0 0 8px; }
-/* Сравнение условий идёт той же cgrid, что и долг расчёта. Колонка «Δ» несёт ТОЛЬКО движение:
-   строки без движения уезжают за раскрытие — двенадцать ключей п. 89 на экране целиком
-   рассказывают в основном про то, что не менялось. */
+/* Сравнение условий идёт той же cgrid, что и долг расчёта. Колонка «Δ» несёт ТОЛЬКО ЧИСЛО:
+   характер значения («новое», «изменено», «не названо — остаётся прежним») стоит подписью под
+   самим значением, в графе «По расчёту». Строки без движения добиваются в ТУ ЖЕ таблицу — вторая
+   таблица за раскрытием печатала те же четыре заголовка вторым экземпляром. */
 /* Ширина у сравнения своя: во всю строку карточки «36» и «60» разъезжались к разным краям
-   экрана, и пара, ради которой таблица заведена, читалась как два несвязанных числа. */
+   экрана, и пара, ради которой таблица заведена, читалась как два несвязанных числа. Доли
+   пересчитаны под подписи в графе «По расчёту»: 30/20/34/16 вместо 34/22/22/22. С графиками
+   таблица роднится левым краем и потолком 920, а не колонками — колонки у них разной природы. */
 .cmp-wrap{ max-width:920px; }
+.nb{ white-space:nowrap; }
 table.cgrid.cmp{ table-layout:fixed; }
 table.cgrid.cmp thead th{ white-space:normal; vertical-align:bottom; }   /* дата и пилл уходят на вторую строку, а не в соседа */
-table.cgrid.cmp th:nth-child(1), table.cgrid.cmp td:nth-child(1){ width:34%; }
-table.cgrid.cmp th:nth-child(2), table.cgrid.cmp td:nth-child(2),
-table.cgrid.cmp th:nth-child(3), table.cgrid.cmp td:nth-child(3){ width:22%; text-align:right; }
-table.cgrid.cmp th:nth-child(4), table.cgrid.cmp td:nth-child(4){ width:22%; padding-left:18px; white-space:normal; }
+table.cgrid.cmp th:nth-child(1), table.cgrid.cmp td:nth-child(1){ width:30%; }
+table.cgrid.cmp th:nth-child(2), table.cgrid.cmp td:nth-child(2){ width:20%; text-align:right; }
+table.cgrid.cmp th:nth-child(3), table.cgrid.cmp td:nth-child(3){ width:34%; text-align:right; white-space:normal; }
+table.cgrid.cmp th:nth-child(4), table.cgrid.cmp td:nth-child(4){ width:16%; padding-left:18px; white-space:normal; }
 table.cgrid td.cmp-d{ color:var(--asubk-blue); white-space:nowrap; font-variant-numeric:tabular-nums; }
 table.cgrid td.cmp-was{ color:var(--text-muted); font-variant-numeric:tabular-nums; }
 table.cgrid td.cmp-now{ font-variant-numeric:tabular-nums; }
-details.cmp-same > summary{ cursor:pointer; color:var(--text-link); font:var(--font-label); margin:6px 0; }
+/* График занимает СТОЛЬКО, СКОЛЬКО В НЁМ КОЛОНОК: 130 px на колонку, потолок 920 — дальше
+   прокрутка внутри рамки. Растянутая по ширине карточки таблица на трёх колонках оставляла
+   между «Датой» и числами пустую полосу в пол-экрана. */
+.cgrid-wrap.sched{ max-width:920px; }
+table.cgrid.sched{ table-layout:fixed; }
+/* Статейные заголовки длиннее своих 130 px («Накопленные проценты») — переносятся по словам,
+   иначе печатались поверх соседа. */
+table.cgrid.sched thead th{ white-space:normal; vertical-align:bottom; line-height:1.3; }
+/* Раскрытие живёт СТРОКОЙ ТАБЛИЦЫ, а не ярлыком под ней: «показаны первые 6 из 60» сообщало об
+   усечении и не открывало ничего. */
+table.cgrid tr.more-row td{ padding:8px 12px; }
+/* Подпись итога с числом не влезает в 130 px одной строкой («Перенос по этому расчёту 118 000»)
+   и наезжала на сумму «Тела». Ломается по словам, число — своей строкой. */
+table.cgrid.sched tfoot th.ft-l{ white-space:normal; line-height:1.3; text-align:left; }
+table.cgrid.sched tfoot th.ft-l .ft-v{ display:block; font-variant-numeric:tabular-nums; }
+.sched-note{ margin:-8px 0 16px; max-width:920px; }
 .nosplit-banner{ max-width:920px; }
 /* Полоса охвата: она же выбор расчёта. Охват называет траншы (РС-2), а транш и его расчёт —
    одно и то же (ИР-16), поэтому список траншей заявки и список расчётов — один список, и
@@ -1108,7 +1127,7 @@ function keysOf(anchorKey){                             // корень → вс
 let state = {};
 function seed(){
   state = { role:'Куратор ОД', view:'list', curApp:null, curTab:'req',
-    curCalc:null, gatesOpen:false,
+    curCalc:null, gatesOpen:false, expand:{},
     filterQ:'', filterStage:'', filterOutcome:'',
     listSort:{ key:null, dir:1 }, page:1, pageSize:20,
     kinds:seedKinds(), credits:seedCredits(), procs:JSON.parse(JSON.stringify(COLL_PROCS)), apps:[] };
@@ -3423,7 +3442,10 @@ function tileTransfer(app){
   if(cov.done.length)     parts.push(`ДС зарегистрировано: <b>${cov.done.length}</b>`);
   if(cov.pending.length)  parts.push(`ждут ДС: <b>${cov.pending.length}</b>`);
   if(cov.excluded.length) parts.push(`снято с оформления: ${cov.excluded.length}`);
-  return dimTile('Перенос и ДС', sum?fmt(sum):'факт не снят', parts.join('<br>'));
+  // Охват подписан: плитка складывает перенос по ВСЕЙ заявке, а лента на «Результате расчёта»
+  // печатает перенос ОДНОГО расчёта. На однорасчётной заявке числа совпадают и выглядят дублем,
+  // на многорасчётной молча разойдутся — различает их подпись, а не догадка (РС-46).
+  return dimTile('Перенос и ДС — по всей заявке', sum?fmt(sum):'факт не снят', parts.join('<br>'));
 }
 function phead(app,st){
   const track = STAGES.map((s,i)=>{
@@ -3756,7 +3778,11 @@ function pParams(app){
    Скрининг стоит на строке: просрочка, чужая активная заявка (ИР-1), зеркало взыскания, счётчик
    прежних реструктуризаций. Прежде он жил таблицей на своей вкладке — рядом с тем же списком,
    напечатанным второй раз. Сводка по заявке (остаток, Σ просрочки) остаётся плиткой шапки. */
-function scopeStrip(app, calc){
+/* `ro` — полоса как ЧИСТЫЙ ПЕРЕКЛЮЧАТЕЛЬ (РС-46). Охват ведут на «Параметрах»: там крестик,
+   там «+ Добавить транш», там чипы просрочки, занятости и прошлых реструктуризаций. На
+   «Результате расчёта» те же кнопки означали бы, что вкладка-показ правит охват; остаётся ровно
+   то, чем выбирают расчёт, — имя транша, база переноса и судьба. */
+function scopeStrip(app, calc, ro){
   const st=stageOf(app);
   const rows=scopeTranches(app).map(({cr,t,calc:c})=>{
     const fate = c.dsRef ? `<span class="pill ok">${esc(c.dsRef)}</span>`
@@ -3764,15 +3790,17 @@ function scopeStrip(app, calc){
                : `<span class="pill neutral">не оформлено</span>`;
     const busy = activeAppOnTranche(c.trancheId, app.id);
     const chips=[fate];
-    if(cr.odSum>0) chips.push(`<span class="pill high" title="просрочка по кредиту ${esc(cr.no)}">просрочка ${cr.odDays} дн. · ${fmt(cr.odSum)}</span>`);
-    if(busy) chips.push(`<span class="pill high" title="транш в другой активной заявке (ИР-1)">${esc(busy.id)}</span>`);
-    if(cr.collProc) chips.push(`<span class="rowlink" title="мини-зеркало взыскания"
-      onclick="event.stopPropagation();RS.showMirror('${cr.collProc}','${app.id}')">взыскание ${esc(cr.collProc)}</span>`);
-    if(cr.restructCount) chips.push(`<span class="mode-tag" title="реструктуризаций по кредиту ранее">ранее: ${cr.restructCount}</span>`);
-    // Снятие уносит расчёт вместе с суммами (правило 60) — потому через подтверждение, а не
-    // одним кликом рядом со столом ввода. Зарегистрированное ДС снятие запрещает (РС-42).
-    if(!st.closed && !c.dsRef) chips.push(`<button class="sp-drop" title="Вывести транш из охвата"
-      onclick="event.stopPropagation();RS.openDropTranche('${app.id}','${c.id}')">✕</button>`);
+    if(!ro){
+      if(cr.odSum>0) chips.push(`<span class="pill high" title="просрочка по кредиту ${esc(cr.no)}">просрочка ${cr.odDays} дн. · ${fmt(cr.odSum)}</span>`);
+      if(busy) chips.push(`<span class="pill high" title="транш в другой активной заявке (ИР-1)">${esc(busy.id)}</span>`);
+      if(cr.collProc) chips.push(`<span class="rowlink" title="мини-зеркало взыскания"
+        onclick="event.stopPropagation();RS.showMirror('${cr.collProc}','${app.id}')">взыскание ${esc(cr.collProc)}</span>`);
+      if(cr.restructCount) chips.push(`<span class="mode-tag" title="реструктуризаций по кредиту ранее">ранее: ${cr.restructCount}</span>`);
+      // Снятие уносит расчёт вместе с суммами (правило 60) — потому через подтверждение, а не
+      // одним кликом рядом со столом ввода. Зарегистрированное ДС снятие запрещает (РС-42).
+      if(!st.closed && !c.dsRef) chips.push(`<button class="sp-drop" title="Вывести транш из охвата"
+        onclick="event.stopPropagation();RS.openDropTranche('${app.id}','${c.id}')">✕</button>`);
+    }
     const sel = calc && c.id===calc.id;
     const lone = (app.calcs||[]).length<2;
     return `<div class="spick${sel?' active':''}${lone?' lone':''}" ${lone?'':`onclick="RS.setCalc('${c.id}')"`}>
@@ -3780,7 +3808,7 @@ function scopeStrip(app, calc){
       <span class="cp-n">база переноса ${fmt(rowsTotal(calcBaseOf(app, c).filter(x=>x.included)))}</span>
       <span class="cp-f">${chips.join('')}</span></div>`;
   }).join('');
-  const addBtn = st.closed ? ''
+  const addBtn = (st.closed || ro) ? ''
     : `<button class="spick-add" onclick="RS.openAddTranche('${app.id}')">+ Добавить транш</button>`;
   const empty = rows ? '' : `<span class="sp-empty">Охват пуст</span>`;
   return `<div class="scope-strip">${rows}${empty}${addBtn}</div>`;
@@ -3998,8 +4026,9 @@ function pResult(app){
      стопкой под заголовками-адресами, и вкладка росла с числом расчётов, а выбор с соседней вкладки
      сюда не переносился — куратор искал глазами тот же транш второй раз. */
   const calc = curCalcOf(app);
-  return `<div class="detail-panel active">` + scopeStrip(app, calc)
-       + (calc ? resultSection(app, calc) : `<div class="op-empty">${SCOPE_EMPTY}</div>`)
+  return `<div class="detail-panel active">` + scopeStrip(app, calc, true)
+       + (calc ? resultSection(app, calc)
+               : `<div class="op-empty">Охват пуст. <span class="rowlink" onclick="RS.setTab('params')">→ Параметры</span></div>`)
        + `</div>`;
 }
 /* РЕЗУЛЬТАТ РАСЧЁТА — только показ, ни одного поля ввода (сторож #68). Три предмета в порядке
@@ -4015,32 +4044,46 @@ function pResult(app){
      · два числа половин — «Остаток» у источника и «Перенесённая база» у производного — не
        сходились друг с другом ничем: чем первое превращается во второе, экран молчал.
    Теперь сравнение идёт КОЛОНКАМИ внутри предмета: у условий «Действует» и «По расчёту», у
-   денег — строка перехода, у графиков — свой заголовок на каждый и подпись судьбы источника. */
+   денег — строка перехода, у графиков — свой заголовок на каждый и подпись судьбы источника.
+
+   ЧИСТКА 13.08.2026 (РС-46). Разбор показал: треть текста вкладки — подсказки и оговорки, а
+   дата показа, имя транша и судьба печатались по три раза (подпись секции, шапка колонки,
+   строка-адрес над лентой, шапка внутри таблицы графика). Правило теперь одно: КАЖДЫЙ ФАКТ
+   ПЕЧАТАЕТСЯ РОВНО ОДИН РАЗ И В ТОМ МЕСТЕ, ГДЕ ЕГО ЧИТАЮТ, — дата в шапке колонки условий,
+   имя транша в заголовке своего графика, судьба пиллом рядом с ним. Подписи-инструкции сняты:
+   объяснение зоны п. 89 живёт в ADR-0111, а не на экране куратора. */
 function resultSection(app, calc){
   const src=calcTrancheOf(calc);
   if(!src) return `
-    <div class="section-h" style="margin-top:0">Транш-источник расчёта</div>
-    <div class="op-empty">Транш-источник не выбран — показывать нечего. Выбор — на вкладке «Параметры».</div>
+    <div class="section-h" style="margin-top:0">Условия</div>
+    <div class="op-empty">Транш-источник не выбран. <span class="rowlink" onclick="RS.setTab('params')">→ Параметры</span></div>
   `;
 
   /* ОДНА ДАТА НА ВЕСЬ ПОКАЗ. Прежде вкладка читала источник на TODAY (остаток, условия, график),
      а прогон конвейера тут же рядом — на дату вступления ДС: условия и деньги стояли на разных
-     датах и назывались одним словом «было». Дата видна в подписи, а не подразумевается. */
+     датах и назывались одним словом «было». Дата видна в шапке колонки «Действует» — и больше
+     нигде: подпись секции печатала её вторым экземпляром и первой попадала под правку. */
   const D = calcEffectiveDate(app, calc);
   const derived=resultTrancheOf(app, calc.id);
   const dsNo = calc.dsRef || null;
-  const dateNote = dsNo
-    ? `Сравнение и суммы — на дату вступления ${esc(dsNo)}: ${D}.`
-    : `ДС не зарегистрировано — предпросмотр на ${D}. Дата вступления сдвинет и суммы, и графу «Действует».`;
 
   /* 1. УСЛОВИЯ. «Действует» — запись условий транша-источника на дату D (conditionsAt несёт все
      двенадцать ключей реестра, а не четыре); «По расчёту» — черновик, а после регистрации ДС
      условия производного транша, то есть то, что реально доехало. Пустое «По расчёту» — НЕ
      обнуление: молчание соглашения переносит условие как есть (restructureApplied), и такая
-     строка стоит среди неизменных, а не среди движения. */
+     строка стоит среди неизменных, а не среди движения.
+     До регистрации ДС дата предварительна — это сказано ПИЛЛОМ в самой шапке, рядом с числом,
+     которое сдвинется, а не абзацем над таблицей. */
   const was = conditionsAt(src, D);
   const now = derived ? conditionsAt(derived, D) : (calc.version ? calc.version.params : null);
-  const nowPill = derived ? `<span class="pill low">${esc(dsNo||'по ДС')}</span>` : `<span class="pill info">Черновик</span>`;
+  // Дата держится одним куском: «2026-07-19» браузер охотно рвёт по дефису на «2026-07-» и «19».
+  const dt = `<span class="nb">${D}</span>`;
+  const wasHead = derived
+    ? `Действует — ${dt}`
+    : `Действует <span class="pill mid" title="ДС не зарегистрировано. Дата вступления сдвинет и суммы, и графу «Действует».">Предварительно — ${dt}</span>`;
+  const nowHead = derived
+    ? `По расчёту — <span class="pill low">${esc(dsNo||'по ДС')}</span>`
+    : `По расчёту — <span class="pill info">Черновик</span>`;
   const has = v => v!=null && v!=='';
   // Числа печатаются по-русски (запятая), включая дельту: «6.5» рядом с «−1,5 п.п.» читалось бы
   // как два разных числовых языка в одной строке.
@@ -4050,40 +4093,52 @@ function resultSection(app, calc){
   PARAMS.filter(d=>!d.showIf || d.showIf(now||{}) || d.showIf(was||{})).forEach(d=>{
     const a=was?was[d.key]:null, b=now?now[d.key]:null;
     const aCell = has(a) ? show(d,a) : `<span class="dash" title="условие у транша не заведено">—</span>`;
-    let bCell, dCell, moved=false;
+    // Графа Δ держит ТОЛЬКО число. Прежде в ней вперемешку стояли дельта («+36 мес.»), слово
+    // («изменено») и целая фраза («не названо — остаётся прежним»): колонка с заголовком «Δ»
+    // не может быть то числом, то рассказом. Характер значения — подпись под самим значением.
+    let bCell, dCell='', moved=false;
     if(!has(b)){
-      bCell = `<span class="dash" title="соглашение условие не называет — оно переносится как есть">—</span>`;
-      dCell = `<span class="a-s">не названо — остаётся прежним</span>`;
+      bCell = `<span class="dash" title="соглашение условие не называет — оно переносится как есть">—</span>`
+            + `<div class="a-s">не названо — остаётся прежним</div>`;
     } else if(!has(a)){
-      bCell = show(d,b); dCell='новое'; moved=true;
+      bCell = show(d,b)+`<div class="a-s">новое</div>`; moved=true;
     } else if(String(a)===String(b)){
-      bCell = show(d,b); dCell='';
-    } else {
+      bCell = show(d,b);
+    } else if(d.kind==='num'){
       bCell = show(d,b); moved=true;
-      if(d.kind==='num'){
-        const dv=round2(Number(b)-Number(a));
-        dCell = (dv>0?'+':'−')+num(Math.abs(dv))+(PARAM_DELTA_UNIT[d.key]||'');
-      } else dCell='изменено';
+      const dv=round2(Number(b)-Number(a));
+      dCell = (dv>0?'+':'−')+num(Math.abs(dv))+(PARAM_DELTA_UNIT[d.key]||'');
+    } else {
+      bCell = show(d,b)+`<div class="a-s">изменено</div>`; moved=true;
     }
     cmpRows[moved?'moved':'same'].push(`<tr><td>${esc(d.label)}</td>
       <td class="numcell cmp-was">${aCell}</td><td class="numcell cmp-now">${bCell}</td>
       <td class="cmp-d">${dCell}</td></tr>`);
   });
-  const cmpTable = body => `<div class="cgrid-wrap cmp-wrap"><table class="cgrid cmp">
-      <thead><tr><th>Параметр</th><th class="numcell">Действует — ${D}</th>
-      <th class="numcell">По расчёту ${nowPill}</th><th>Δ</th></tr></thead>
-      <tbody>${body}</tbody></table></div>`;
+  // Неизменные условия ДОБИВАЮТСЯ в ту же таблицу, а не разворачиваются второй таблицей со своей
+  // шапкой: колонки одни и те же, и шапке незачем печататься дважды.
+  const condKey = 'cond:'+calc.id;
+  const condOpen = !!state.expand[condKey];
+  const moreRow = (n,label) => `<tr class="more-row"><td colspan="4"><span class="rowlink"
+      onclick="RS.toggleMore('${condKey}')">${label}</span></td></tr>`;
   const condBlock = !now
-    ? `<div class="op-empty">Черновик условий не заведён — выберите транш-источник на вкладке «Параметры».</div>`
-    : cmpTable(cmpRows.moved.join('') || `<tr><td colspan="4" class="op-empty">Ни одно условие зоны п. 89 не меняется — сделка держится на распоряжениях начисленным</td></tr>`)
-      + (cmpRows.same.length
-         ? `<details class="cmp-same"><summary>Показать условия без изменений (${cmpRows.same.length})</summary>${cmpTable(cmpRows.same.join(''))}</details>`
-         : '');
+    ? `<div class="op-empty">Черновик условий не заведён. <span class="rowlink" onclick="RS.setTab('params')">→ Параметры</span></div>`
+    : `<div class="cgrid-wrap cmp-wrap"><table class="cgrid cmp">
+        <thead><tr><th>Параметр</th><th class="numcell">${wasHead}</th>
+        <th class="numcell">${nowHead}</th><th>Δ</th></tr></thead>
+        <tbody>${cmpRows.moved.join('') || `<tr><td colspan="4" class="op-empty">Ни одно условие зоны п. 89 не меняется — сделка держится на распоряжениях начисленным</td></tr>`}${
+          condOpen ? cmpRows.same.join('') : ''}${
+          cmpRows.same.length ? moreRow(cmpRows.same.length, condOpen ? 'Свернуть неизменные' : `Ещё ${cmpRows.same.length} без изменений`) : ''}</tbody></table></div>`;
 
   /* 2. ДЕНЬГИ. Строка перехода, а не пара коробок: перенос = база переноса минус прощённое
      (капитализация и распределение сумму не меняют, они меняют статью и сроки — ИР-2), а
      остаток источника уменьшается ровно на перенос (transfer_out). Обе арифметики видны
-     подряд, и число производного транша больше не висит рядом с остатком источника без связи. */
+     подряд, и число производного транша больше не висит рядом с остатком источника без связи.
+     Имя транша и дата из подписей лент СНЯТЫ: транш назван полосой охвата и заголовком своего
+     графика, дата — шапкой колонки условий. Подпись переноса называет ОХВАТ («по этому
+     расчёту»), потому что плитка шапки карточки складывает перенос по ВСЕЙ заявке: на
+     однорасчётной заявке числа совпадают, на многорасчётной разойдутся, и различить их
+     куратор должен по подписи, а не по догадке. */
   const r=run(app, D, calc.id);
   const baseRows = calcBaseOf(app, calc, D);
   const baseInc = baseRows.filter(x=>x.included);
@@ -4099,89 +4154,105 @@ function resultSection(app, calc){
   const op=s=>`<span class="fl-op">${s}</span>`;
   const nonRate = round2(transfer - r.principalPart);
   const flow = `<div class="flowline">
-      ${item('Остаток '+esc(src.no)+' на '+D, fmt(balBefore), derived?'до переноса':'до переноса, предпросмотр')}
+      ${item('Остаток до переноса', fmt(balBefore), derived?'у транша-источника':'у транша-источника, предпросмотр')}
       ${op('→')}
       ${item('База переноса', fmt(baseSum), 'включено '+baseInc.length+' из '+baseRows.length+' строк долга расчёта')}
       ${round2(r.forgiven)>0 ? op('−')+item('Прощено', fmt(r.forgiven), 'списание, в перенос не идёт') : ''}
       ${op('=')}
-      ${item('Перенос, всего', fmt(transfer), 'тело '+fmt(r.principalPart)+' · безставочные '+fmt(nonRate), 'main')}
+      ${item('Перенос по этому расчёту', fmt(transfer), 'тело '+fmt(r.principalPart)+' · безставочные '+fmt(nonRate), 'main')}
       ${op('→')}
-      ${item('Остаток '+esc(src.no)+' после переноса', fmt(afterVal),
-             src.closed?('закрыт переносом '+src.closed.date):(derived?'срочный остаток':'прогноз'))}
+      ${item('Остаток после переноса', fmt(afterVal),
+             src.closed?'транш закрыт переносом':(derived?'срочный остаток':'прогноз'))}
     </div>`;
-  const flowId = `<div class="flow-id">${esc(src.no)} · исходный → ${
-    derived ? esc(derived.no)+' · производный, начало '+derived.plannedDate
-            : 'производный транш появится после регистрации ДС (вкладка «Оформление»)'}</div>`;
 
   /* 3. ГРАФИКИ. Строка графика несёт статьи (РС-41, ADR-0109): рядом с телом и процентом —
      безставочные колонки. Пустая колонка не рисуется, и обычный кредит выглядит как прежде.
-     `allRows` — полный график, когда на экран выведены первые несколько строк: итог обязан
-     считаться по всему графику, и подпись итога у двух графиков РАЗНАЯ — у производного это
-     перенос (ИР-2), у источника остаток по его собственному графику. */
-  function tbl(title,pillHtml,rows,emptyMsg,allRows,footLabel){
-    const full = allRows || rows;
-    const cols = scheduleArticleCols(full);
-    const head = cols.map(k=>`<th>${esc(ARTICLE_LABEL[k]||k)}</th>`).join('');
-    const body=rows.map(r=>`<tr><td>${r.date}</td><td class="numcell">${fmt(r.principal)}</td><td class="numcell">${fmt(r.interest||0)}</td>${
-        cols.map(k=>`<td class="numcell">${fmt((r.articles||{})[k]||0)}</td>`).join('')}</tr>`).join('')
-      || `<tr><td colspan="${3+cols.length}" class="op-empty">${emptyMsg}</td></tr>`;
-    let foot='';
-    if(allRows && full.length){
-      const sumP=round2(full.reduce((s,r)=>s+(r.principal||0),0));
-      const sumI=round2(full.reduce((s,r)=>s+(r.interest||0),0));
-      const sumC=cols.map(k=>round2(full.reduce((s,r)=>s+((r.articles||{})[k]||0),0)));
-      const total=round2(sumP+sumC.reduce((s,v)=>s+v,0));
-      foot=`<tfoot><tr><th>${footLabel||'Перенос, всего'} ${fmt(total)}</th><th class="numcell">${fmt(sumP)}</th><th class="numcell">${fmt(sumI)}</th>${
-        sumC.map(v=>`<th class="numcell">${fmt(v)}</th>`).join('')}</tr></tfoot>`;
-    }
-    const more = allRows && full.length>rows.length ? `<div class="mode-tag">показаны первые ${rows.length} из ${full.length} позиций; итог — по всему графику</div>` : '';
-    return `<div class="cgrid-wrap"><table class="cgrid"><thead><tr><th colspan="${3+cols.length}">${title} ${pillHtml}</th></tr><tr><th>Дата</th><th>Тело</th><th>%</th>${head}</tr></thead><tbody>${body}</tbody>${foot}</table></div>${more}`;
+     ТО ЖЕ ПРАВИЛО ТЕПЕРЬ И У ТЕЛА С ПРОЦЕНТОМ: график переноса накопленного состоит из
+     безставочных статей, тело и процент в нём — сорок восемь нулей подряд, и колонка нулей
+     утверждает, что величина есть и равна нулю, тогда как её просто нет.
+     Ширина — ФИКСИРОВАННАЯ (130 px на колонку), а не доля экрана: на трёх колонках таблица
+     растягивалась на всю ширину и между «Датой» и числами зияла пустота. Потолок 920 px общий
+     с лентой денег и таблицей условий; шире — прокрутка внутри рамки, а не по странице.
+     `allRows` — полный график: итог считается по ВСЕМУ графику, даже когда на экране шесть
+     первых строк, и подпись итога у двух графиков РАЗНАЯ — у производного это перенос (ИР-2),
+     у источника остаток по его собственному графику. */
+  const COLW = 130, WMAX = 920;
+  function tbl(key,rows,emptyMsg,footLabel){
+    const cols = scheduleArticleCols(rows);
+    const hasP = rows.some(r=>round2(r.principal||0)>0);
+    const hasI = rows.some(r=>round2(r.interest||0)>0);
+    const money = [].concat(hasP?[{k:'principal', label:'Тело', get:r=>r.principal||0}]:[],
+                            hasI?[{k:'interest',  label:'%',    get:r=>r.interest||0}]:[],
+                            cols.map(k=>({k, label:ARTICLE_LABEL[k]||k, get:r=>(r.articles||{})[k]||0})));
+    const span = 1+money.length;
+    const w = COLW*span;
+    if(!rows.length) return `<div class="op-empty">${emptyMsg}</div>`;
+
+    const open = !!state.expand[key];
+    const shown = open ? rows : rows.slice(0,6);
+    const body = shown.map(r=>`<tr><td>${r.date}</td>${
+      money.map(c=>`<td class="numcell">${fmt(c.get(r))}</td>`).join('')}</tr>`).join('');
+    const more = rows.length>6
+      ? `<tr class="more-row"><td colspan="${span}"><span class="rowlink"
+          onclick="RS.toggleMore('${key}')">${open?'Свернуть':'Показать все '+rows.length}</span></td></tr>`
+      : '';
+    const sums = money.map(c=>round2(rows.reduce((s,r)=>s+c.get(r),0)));
+    const total = round2(money.reduce((s,c,i)=>s+(c.k==='interest'?0:sums[i]),0));
+    // Подпись итога и само число — в столбец «Дата», числом на своей строке: в 130 px «Перенос по
+    // этому расчёту 118 000» одной строкой не встаёт и лезет на соседнюю колонку.
+    const foot = `<tfoot><tr><th class="ft-l">${footLabel}<span class="ft-v">${fmt(total)}</span></th>${
+      sums.map(v=>`<th class="numcell">${fmt(v)}</th>`).join('')}</tr></tfoot>`;
+    const colgroup = `<colgroup>${Array(span).fill(`<col style="width:${COLW}px">`).join('')}</colgroup>`;
+    return `<div class="cgrid-wrap sched" style="width:${w}px"><table class="cgrid sched" style="width:${w}px">${colgroup}
+      <thead><tr><th>Дата</th>${money.map(c=>`<th class="numcell">${esc(c.label)}</th>`).join('')}</tr></thead>
+      <tbody>${body}${more}</tbody>${foot}</table></div>`;
   }
 
-  let draftBlock;
-  if(derived){
-    const ver=derived.schedules[0];
-    draftBlock = {rows:ver.rows, pill:'<span class="pill low">Действующий</span>'};
-  } else if(calc.version && calc.version.plan){
-    draftBlock = {rows:calc.version.plan.rows, pill:'<span class="pill info">Черновик</span>'};
-  } else {
-    draftBlock = null;
-  }
-  const derivedBlock = draftBlock
-    ? tbl((derived?derived.no:'производный транш'), draftBlock.pill, draftBlock.rows.slice(0,6), 'график пуст', draftBlock.rows)
-    : `<div class="op-empty">Черновой график не рассчитан — задайте условия на вкладке «Параметры» и нажмите «Предварительный расчёт», или дождитесь регистрации ДС.</div>`;
+  /* Заголовок называет ТО, ЧТО ЕСТЬ. До регистрации ДС производного транша нет — и заголовок
+     зовётся «График по расчёту»: обещать номер, которого ещё не выдали, незачем. Прежде тут
+     стояла строчная заглушка «производный транш» шапкой внутри таблицы, а над лентой денег та
+     же мысль повторялась третьей строкой «производный транш появится после регистрации ДС». */
+  const derRows = derived ? (derived.schedules[0].rows||[])
+                 : (calc.version && calc.version.plan ? calc.version.plan.rows : null);
+  const derHead = derived
+    ? `График производного ${esc(derived.no)} <span class="pill low">Действующий</span>`
+    : `График по расчёту <span class="pill info">Черновик</span>`;
+  const derivedBlock = derRows
+    ? tbl('sched:'+calc.id+':der', derRows, 'график пуст', 'Перенос по этому расчёту')
+    : `<div class="op-empty">Черновой график не рассчитан. <span class="rowlink" onclick="RS.setTab('params')">→ Параметры</span></div>`;
 
   const srcVer=scheduleAt(src,D);
   const srcAll=(srcVer?srcVer.rows:[]).filter(x=>x.date>=D);
-  const srcFate = src.closed
-    ? `<span class="pill neutral">Закрыт переносом ${src.closed.date}</span>`
-    : `<span class="pill low">Действующий</span>`;
-  const srcBlock = tbl(src.no+(src.closed?' — закрывается переносом':' — переносом не тронут, остаётся срочный остаток'),
-    srcFate, srcAll.slice(0,6), 'график транша в демо-данных не оцифрован — не факт отсутствия платежей',
-    srcAll.length?srcAll:null, 'Остаток по графику');
+  const srcHead = `График источника ${esc(src.no)} ` + (src.closed
+    ? `<span class="pill neutral">Закрывается переносом</span>`
+    : `<span class="pill low">Действующий</span>`);
+  // Пустой график схлопывается в СТРОКУ: пустая рамка таблицы съедала ~120 px, чтобы сообщить,
+  // что показывать нечего. (В демо-данных график части траншей не оцифрован — это артефакт
+  // сида, а не утверждение об отсутствии платежей; в проде такого состояния не будет.)
+  const srcBlock = tbl('sched:'+calc.id+':src', srcAll, 'График не заведён.', 'Остаток по графику');
 
   // Непокрытое — то, что осталось на строке ПОСЛЕ всех распоряжений (РС-39): ровно тот же остаток,
   // по которому шаг overdue считает remainsOverdue. Частичное распределение честно попадает сюда.
+  // Печатается ТОЛЬКО отрицательный исход и прижато к таблице производного как её подпись:
+  // зелёная плашка «всё урегулировано» сообщала, что ничего не случилось, и занимала строку
+  // ровно там, где ищут число.
   const unresolved = (r.base||[]).filter(x=>x.included && x.urgency==='over' && round2(x.carried)>0);
   const rs15 = r.remainsOverdue
-    ? `<div style="margin:0 0 14px"><span class="pill mid">Кредит частично просрочен после ДС</span> <span class="mode-tag">Не урегулированы распоряжением: ${esc(unresolved.map(x=>ARTICLE_LABEL[x.article]||x.article).join(', ')||'—')} — просрочка не растворяется, входит суммой в перенос${derived?' '+derived.no:''} (РС-15).</span></div>`
-    : (app.ds&&app.ds.no ? `<div class="okline">Все включённые просроченные статьи урегулированы распоряжением — перенос не несёт непокрытой просрочки (РС-15).</div>` : '');
+    ? `<div class="sched-note"><span class="pill mid">Кредит частично просрочен после ДС</span> <span class="mode-tag">Не урегулированы распоряжением: ${esc(unresolved.map(x=>ARTICLE_LABEL[x.article]||x.article).join(', ')||'—')} — просрочка не растворяется, входит суммой в перенос.</span></div>`
+    : '';
 
   return `
-    <div class="section-h" style="margin-top:0">Условия — действует и по расчёту</div>
-    <div class="section-note">${dateNote} Сравниваются двенадцать ключей зоны «формы п. 89» (ADR-0111): пеня, резерв, метод дня и досрочное погашение меняются прямым ДС «прочее изменение условий» и сюда не входят.</div>
+    <div class="section-h" style="margin-top:0">Условия</div>
     ${condBlock}
 
-    <div class="section-h">Деньги — что уходит в перенос</div>
-    ${flowId}
+    <div class="section-h">Деньги</div>
     ${flow}
 
-    <div class="section-h">График производного транша</div>
+    <div class="section-h">${derHead}</div>
     ${derivedBlock}
     ${rs15}
 
-    <div class="section-h">Действующий график транша-источника</div>
-    <div class="section-note">Построчно с графиком производного не сопоставляется: это разные траншы и разные даты — перенос закрывает позиции источника, а производный начинается датой вступления ДС.</div>
+    <div class="section-h">${srcHead}</div>
     ${srcBlock}
   `;
 }
@@ -4782,12 +4853,19 @@ function render(){
   else if(state.view==='dict') renderDict();
 }
 
+/* Длинный список раскрывается НА МЕСТЕ, в той же таблице (РС-46). Прежде «показаны первые 6 из
+   60» стояло ярлыком под таблицей и не открывало ничего, а неизменные условия жили во втором
+   <details> со своей второй шапкой — те же четыре заголовка печатались дважды. Ключ раскрытия
+   живёт в state, а не в DOM: разметка перерисовывается целиком, и класс на узле не пережил бы
+   ни одного render(). */
+function toggleMore(key){ state.expand[key] = !state.expand[key]; render(); }
+
 function toast(msg,kind){ if(typeof document==='undefined') return; const w=document.getElementById('toastWrap'); if(!w) return; const t=document.createElement('div');
   t.className='toast'+(kind?' '+kind:''); t.innerHTML=`<span>${esc(msg)}</span>`; w.appendChild(t); setTimeout(()=>t.remove(),4200); }
 
 /* публичный слой (UI + headless-check) */
 const RS = {
-  go, setRole, setTab, setCalc, toggleGates, curCalcOf, openApp, newApp, naFillCredits, createApp, nextAppId, setFilter, closeModal,
+  go, setRole, setTab, setCalc, toggleGates, toggleMore, curCalcOf, openApp, newApp, naFillCredits, createApp, nextAppId, setFilter, closeModal,
   renderRows, sortList, resetFilters, gotoPage, setPageSize,   // реестр: фильтр, сортировка, пейджер
   toggleDoc, returnApp, setConclText, visaConcl, openAddConcl, addConcl,
   openAddTranche, addTrancheToScope, openDropTranche, removeTrancheFromScope, scopeTranches, activeAppOnTranche,
