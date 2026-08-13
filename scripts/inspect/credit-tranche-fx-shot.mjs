@@ -1,4 +1,4 @@
-// Проверка вкладки «Транши» после слияния (шаг 5): FX-колонки + итог-строка.
+// Проверка вкладки «Состав» (до КВ-35 — «Транши») после слияния (шаг 5): FX-колонки + итог-строка.
 // Открывает валютный (USD) фон-кредит K-B2 и KGS-кредит K-1, дампит шапки таблиц.
 // КВ-33: колонка «Курс» снята — курс у кредита один на все транши и стоит в строке-контексте
 // над таблицей; «≈KGS» осталась колонкой, потому что меряет каждую строку по-своему.
@@ -24,9 +24,9 @@ await page.goto(pathToFileURL(resolve('mockups/loan-credit/credit.html')).href, 
 await page.waitForTimeout(300);
 
 const dump = async (id) => {
-  await page.evaluate(i => { CR.openDetail(i); CR.selectDetailTab && CR.selectDetailTab('Транши'); }, id);
+  await page.evaluate(i => { CR.openDetail(i); CR.selectDetailTab && CR.selectDetailTab('Состав'); }, id);
   // клик по вкладке через DOM, если нет API
-  await page.evaluate(() => { const t=[...document.querySelectorAll('.dtab')].find(x=>/Транши/.test(x.textContent)); t&&t.click(); });
+  await page.evaluate(() => { const t=[...document.querySelectorAll('.dtab')].find(x=>/Состав/.test(x.textContent)); t&&t.click(); });
   await page.waitForTimeout(200);
   const cur = await page.evaluate(i => (CR.db.credits.find(c=>c.id===i)||{}).currency, id);
   const heads = await page.$$eval('.cgrid thead tr', trs => trs.map(tr => [...tr.querySelectorAll('th')].map(t=>t.textContent.trim()).join(' · ')));
