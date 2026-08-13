@@ -146,9 +146,9 @@
       PASS  #63  ступень2=2 блокировкаНаВсе=true послеКомитета=true
       PASS  #64  второе=true первоеЦело=true соглашений=2 покрытие={"done":["C-CR-59003-T1","C-CR-60540-T2"],"excluded":[],"pending":[],"ok":true} производныеПоРасчётам=true
       PASS  #65  былаЗакрыта=true приМолчании=true безОснованияОтказ=true послеСнятия=true
-      PASS  #66  полосаВместоСекций=true итог=true вкладкиОхватНет=true адресВДвери=true староеСнесено=true производныйНаГрафике=true гейтыПодШапкой=true черновикПоРасчёту=true
+      PASS  #66  полосаВместоСекций=true итог=true вкладкиОхватНет=true адресВДвери=true староеСнесено=true производныйНаБылоСтало=true гейтыПодШапкой=true условияНаПараметрах=true
       PASS  #67  расчётов=2 кредитыРазные=true базыРазные=1245759.68/398076.09 итогСходится=true (1643835.77=1643835.77) статьяДважды=true (тело 9600000/3900000)
-      PASS  #68  полоса=true подытогПоВыбору=true итогСходится=true (1643836) RS-1001: коробкаНаГрафике=true график=6 строк гейтыВнеВкладок=true
+      PASS  #68  полоса=true подытогПоВыбору=true итогСходится=true (1643836) RS-1001: коробкиПоПоловинам=true график=6 строк гейтыВнеВкладок=true вводТолькоНаПараметрах=true
       PASS  #69  линий=3 прощено=200000 капПеня=250000 распределено=100000 остаток=50000 позиция=600000 инвариант=true перенос=3090070.3
       PASS  #70  сверхПозиции=true вПределе=true линияДобавлена=true дубльБезСроков=true дубльСоСроками=true снятиеПеренумеровало=true
       PASS  #71  исходСовпал=true перенос=3090070.3 колонок=5
@@ -485,14 +485,14 @@ table.cgrid tbody tr:last-child td{ border-bottom:none; }
 .numtile .nt-d{ font:11px/1.3 var(--asubk-font); color:var(--text-placeholder); margin-top:4px; }
 .numtile.delta.flag{ border-color:var(--asubk-amber); background:var(--status-warning-bg); }
 .numtile.delta.flag .nt-v{ color:var(--asubk-amber); }
-.split-wrap{ display:grid; grid-template-columns:1fr auto 1fr; gap:0; align-items:stretch; max-width:920px; margin-bottom:8px; }
-@media(max-width:760px){ .split-wrap{ grid-template-columns:1fr; } }
-.split-box{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:14px 16px; }
+/* Транш-карточка стоит одна в своей половине вкладки «Было и стало» — сравнение несут сами
+   половины, а не стрелка между двумя коробками. Прежняя сетка split-wrap ставила исходный и
+   производный транш рядом, и рядом же, ниже, лежала вторая пара — графики: одно и то же
+   сопоставление печаталось дважды, разными средствами. */
+.split-box{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:14px 16px; max-width:920px; margin-bottom:10px; }
 .split-box.new{ border-color:var(--asubk-blue); background:var(--asubk-blue-tint); }
 .split-box .sb-t{ font:var(--weight-semibold) 14px/1.2 var(--asubk-font); color:var(--text-heading); margin-bottom:8px; }
 .split-box .sb-row{ display:flex; justify-content:space-between; font:var(--font-label); padding:3px 0; }
-.split-arrow{ display:flex; align-items:center; justify-content:center; padding:0 14px; color:var(--text-placeholder); font-size:20px; }
-@media(max-width:760px){ .split-arrow{ transform:rotate(90deg); padding:8px 0; } }
 .nosplit-banner{ max-width:920px; }
 /* Полоса охвата: она же выбор расчёта. Охват называет траншы (РС-2), а транш и его расчёт —
    одно и то же (ИР-16), поэтому список траншей заявки и список расчётов — один список, и
@@ -674,7 +674,7 @@ const RIGHTS = {
 /* Справочник видов (Р-3, РС-24). params — множество разрешённых ключей версии.
    allowedDispositions — коды распоряжений (issues/04 реш.4, заменяет overdueMode): какие
    распоряжения вид вообще допускает curator'у выбрать на статье; поля вне объединения по заявке
-   рендерятся read-only «вид не разрешает» (pCalcBase). 'none' (без распоряжения) не
+   рендерятся read-only «вид не разрешает» (pParams). 'none' (без распоряжения) не
    перечисляется — доступен всегда.
 
    РС-31: перечень открыт САМОЙ НОРМОЙ — п. 89 называет пять форм поимённо и заканчивается
@@ -1719,11 +1719,11 @@ function defaultBase(x, date, calcId){
   }));
 }
 /* ДЕЙСТВУЮЩАЯ БАЗА РАСЧЁТА — одна дверь на всех потребителей (run, scopeStrip,
-   calcResultBar, calcBaseSection). До первого живого действия куратора calc.base пуст, и база
+   calcResultBar, paramsSection). До первого живого действия куратора calc.base пуст, и база
    считается на лету из долга транша (Р-19, ensureBaseDispositions ниже) — умолчание нигде не
    хранится. Три независимых пересчёта этого умолчания в трёх экранных функциях уже разошлись
    однажды: секция брала умолчание через дверь заявки (defaultBase(app,…)), которая на двух
-   расчётах молчит, а шапка и итоговая полоса читали calc.base сырым — вкладка «База» второго
+   расчётах молчит, а шапка и итоговая полоса читали calc.base сырым — вкладка расчёта второго
    транша рисовала пустую базу и печатала «база 0» (ревью 12.08.2026). Дверь адресуется РАСЧЁТОМ,
    не заявкой: адрес суммы известен вызывающему, домысливать его здесь нечем. */
 function calcBaseOf(app, calc, date){
@@ -2049,7 +2049,9 @@ function setVersionParam(appId, key, val, calcId){
 }
 /* Предварительный расчёт — предпросмотр черновика графика на текущих base/dispositions,
    не пишет ДС (draftSchedule — чистая функция, issues/01 реш.5). Ровно та кнопка, что
-   pCalcSched давно анонсировал в своей заглушке как «вне охвата тикета 06». */
+   pDiff давно анонсировал в своей заглушке как «вне охвата тикета 06».
+   Кнопка стоит на «Параметрах», а её исход — на «Было и стало», поэтому расчёт сам переводит
+   взгляд на вторую вкладку: иначе нажатие ничего не меняет на экране и читается как отказ. */
 function recalcPlan(appId, calcId){
   if(!guard('editVersion')) return;
   const app=appById(appId);
@@ -2061,7 +2063,8 @@ function recalcPlan(appId, calcId){
   calc.version.plan=draftSchedule(tranche,{date:TODAY,transferSum:r.transferSum,
     principalPart:r.principalPart,parts:r.parts,params:calc.version.params});
   app._t=TODAY; H(app,'Предварительный расчёт: черновой график пересчитан.',state.role);
-  toast('Черновой график пересчитан','ok'); render();
+  state.curTab='diff';
+  toast('Черновой график пересчитан — вкладка «Было и стало»','ok'); render();
 }
 /* Форма параметров черновика — term/rate/schedule/method держат amortize (issues/01 реш.5);
    graceBlocks вне охвата (никакая демо-заявка их не требует — пустой честный список, не UI-стаб).
@@ -2986,7 +2989,12 @@ function setPageSize(n){ state.pageSize=+n; state.page=1; renderRows(); }
    навигация: он и есть выбор расчёта, и живёт полосой над столом ввода (scopeStrip). Вкладка
    печатала тот же список вторым экземпляром и строила его из creditIds — производного свойства
    с откатом на демо-сид, тогда как охват живёт в app.calcs. */
-const TABS=[['req','Пакет документов'],['concl','Заключения'],['calcBase','База и распоряжения'],['calcSched','График и дифф'],['decision','Комитет и решение'],['formal','Оформление'],['hist','История']];
+/* Пара вкладок расчёта названа по самой сделке (CONTEXT «Расчёт реструктуризации»): сначала
+   ЗАДАЮТ параметры изменения — какие статьи переносим, как распоряжаемся начисленным, на каких
+   условиях, — потом СМОТРЯТ, что было и что стало. Прежние «База и распоряжения» / «График и
+   дифф» именовали куски экрана: «база» в модуле занята одним смыслом (база переноса — только
+   включённая часть), а «дифф» — латинский обрубок в русском ряду. */
+const TABS=[['req','Пакет документов'],['concl','Заключения'],['params','Параметры'],['diff','Было и стало'],['decision','Комитет и решение'],['formal','Оформление'],['hist','История']];
 function openApp(id){ state.curApp=id; state.view='card'; state.curTab='req'; state.curCalc=null; state.gatesOpen=false; render(); }
 function setTab(t){ state.curTab=t; render(); }
 /* Выбранный расчёт — состояние экрана, не заявки: правка идёт по одному расчёту за раз, и его
@@ -3088,7 +3096,7 @@ function tilePacket(app,st){
          : `ожидают визы: ${g.pending.map(esc).join(', ')}`);
 }
 /* Гейты вынесены в шапку: они решают, поедет заявка или нет, а состояние их читалось только
-   внутри вкладки «База и распоряжения». Чипы берутся у gateChipsRow — одно определение на макет;
+   внутри вкладки «Параметры». Чипы берутся у gateChipsRow — одно определение на макет;
    клик ведёт туда, где лежит разбор. */
 function tileGates(app,st){
   if(st.idx<1 || !(app.creditIds||[]).length) return '';
@@ -3162,8 +3170,8 @@ function panel(app){
   switch(state.curTab){
     case 'req': return pReq(app);
     case 'concl': return pConcl(app);
-    case 'calcBase': return pCalcBase(app);
-    case 'calcSched': return pCalcSched(app);
+    case 'params': return pParams(app);
+    case 'diff': return pDiff(app);
     case 'decision': return pDecision(app);
     case 'formal': return pFormal(app);
     case 'hist': return pHist(app);
@@ -3278,7 +3286,7 @@ function pConcl(app){
   </div>`;
 }
 
-/* 3. База и распоряжения (issues/05, вариант B) — пять статей (ADR-0110), два датированных числа, производный транш.
+/* 3. Параметры (issues/05, вариант B) — пять статей (ADR-0110), два датированных числа, условия черновика.
    Гейты Пределы/Согласия подключены (тикет 07): норма-справочник (limitsGate) и зеркало GUARANTEES
    (consentGate) — оба жёсткие, без waiver. Флажки/распоряжения — read-only показ по умолчанию
    (issues/02 задал состав, интерактивная правка куратором — тикет 07, issues/05 просит только
@@ -3430,14 +3438,15 @@ function dispDoorRow(app, row, d, canEdit, planLen, calc, opts){
     </div></td></tr>`;
 }
 const SCOPE_EMPTY = 'Охват пуст — добавьте транш, и расчёт заведётся автоматически.';
-function pCalcBase(app){
-  /* Стол ввода: на экране ОДИН расчёт целиком, выбранный полосой охвата сверху. Прежде секции шли
-     стопкой, и длина вкладки росла с числом расчётов, а адрес суммы читался только в шапке
-     секции. Правка адресуется тройкой (транш, статья, срочность) плюс calcId — полоса делает
-     этот адрес видимым на экране, а не только в аргументах сеттеров. */
+function pParams(app){
+  /* Все параметры изменения — здесь, единственным столом ввода: что переносим (статьи и
+     распоряжения) и на каких условиях (срок, ставка, периодичность, метод). Условия стояли на
+     соседней вкладке рядом с их же исходом, и ввод жил в двух местах — куратор ходил туда-сюда,
+     хотя ставка и срок считаются ОТ базы переноса (пределы пп. 34, 90, 92), то есть от таблицы,
+     которая тут же перед глазами. На экране ОДИН расчёт, выбранный полосой охвата сверху. */
   const calc = curCalcOf(app);
   return `<div class="detail-panel active">` + scopeStrip(app, calc)
-       + (calc ? driftLine(app, calc) + calcBaseSection(app, calc) + calcResultBar(app, calc)
+       + (calc ? driftLine(app, calc) + paramsSection(app, calc) + calcResultBar(app, calc)
                : `<div class="op-empty">${SCOPE_EMPTY}</div>`)
        + `</div>`;
 }
@@ -3535,7 +3544,7 @@ function calcResultBar(app, calc){
    подписью, а не ноль — ноль читается как «было и погасили».
    Слово «база» здесь занято ровно одним смыслом — сумма ВКЛЮЧЁННЫХ строк («база переноса»,
    подытог справа). Весь список строк зовётся долгом расчёта, свойство статьи — «начисляется». */
-function calcBaseSection(app, calc){
+function paramsSection(app, calc){
   if(!calc) return '';
   const src=calcTrancheOf(calc);
   const cut=calcCutoffOf(app, calc);
@@ -3666,6 +3675,9 @@ function calcBaseSection(app, calc){
   const head = (app.calcs||[]).length>1
     ? ` <span class="cnt">${esc(src?src.no:'—')} · ${esc((creditById(calc.creditId)||{}).no||'—')}</span>` : '';
 
+  /* Условия идут ПОД таблицей, а не над ней: порядок чтения повторяет порядок сделки — что
+     переносим → как распоряжаемся → на каких условиях → пересчитать. Ставка и срок упираются в
+     пределы от базы переноса (пп. 34, 90, 92), и база к этому месту уже сосчитана подытогом. */
   return `
     <div class="section-h" style="margin-top:0">Долг расчёта — статьи и распоряжения${head}</div>
     ${note ? `<div class="section-note">${note}</div>` : ''}
@@ -3677,50 +3689,47 @@ function calcBaseSection(app, calc){
       <th class="numcell">Факт — ${factDate}${factNote?`<div class="a-s">${factNote}</div>`:''}</th>
       <th>Включена</th><th>Распоряжение</th></tr></thead>
       <tbody>${rows}${goneRows}</tbody>${foot}</table></div>
+
+    <div class="section-h">Условия чернового графика</div>
+    ${versionParamsBlock(app, calc)}
   `;
 }
-function pCalcSched(app){
-  /* Как и стол ввода: на экране ОДИН расчёт, выбранный полосой охвата. Прежде графики шли стопкой
-     под заголовками-адресами, и вкладка росла с числом расчётов, а выбор с соседней вкладки сюда
-     не переносился — куратор искал глазами тот же транш второй раз. */
+function pDiff(app){
+  /* Как и стол параметров: на экране ОДИН расчёт, выбранный полосой охвата. Прежде графики шли
+     стопкой под заголовками-адресами, и вкладка росла с числом расчётов, а выбор с соседней вкладки
+     сюда не переносился — куратор искал глазами тот же транш второй раз. */
   const calc = curCalcOf(app);
   return `<div class="detail-panel active">` + scopeStrip(app, calc)
-       + (calc ? calcSchedSection(app, calc) : `<div class="op-empty">${SCOPE_EMPTY}</div>`)
+       + (calc ? diffSection(app, calc) : `<div class="op-empty">${SCOPE_EMPTY}</div>`)
        + `</div>`;
 }
-function calcSchedSection(app, calc){
+function diffSection(app, calc){
   const src=calcTrancheOf(calc);
   if(!src) return `
     <div class="section-h" style="margin-top:0">Транш-источник расчёта</div>
-    <div class="op-empty">Транш-источник не выбран — график недоступен. Выбор — на вкладке «База и распоряжения».</div>
+    <div class="op-empty">Транш-источник не выбран — сравнивать нечего. Выбор — на вкладке «Параметры».</div>
   `;
 
   const derived=resultTrancheOf(app, calc.id);
+  const srcConds=conditionsAt(src,TODAY);
 
-  /* Производный транш переехал сюда со «Базы и распоряжений»: транш и его график — одна вещь,
-     и стояли они на двух вкладках, печатая один и тот же адрес дважды. На столе ввода блок был
-     нерабочим — до регистрации ДС пустой плейсхолдер, после неё правка базы уже закрыта. */
-  let splitBlock;
-  if(derived){
-    const srcConds=conditionsAt(src,TODAY);
-    splitBlock = `<div class="split-wrap">
-      <div class="split-box">
-        <div class="sb-t">${esc(src.no)} · исходный${src.closed?' — закрыт':''}</div>
-        <div class="sb-row"><span>Остаток</span><span>${fmt(balanceAt(src,TODAY))}</span></div>
-        <div class="sb-row"><span>Условия</span><span>${srcConds.rate!=null?srcConds.rate+'%':'—'}, прежние</span></div>
-        <div class="sb-row"><span>Статус</span><span>${src.closed?'закрыт переносом '+src.closed.date:'срочный остаток, график не тронут'}</span></div>
-      </div>
-      <div class="split-arrow">→</div>
-      <div class="split-box new">
-        <div class="sb-t">${esc(derived.no)} · производный</div>
-        <div class="sb-row"><span>Перенесённая база</span><span>${fmt(derived.amount)}</span></div>
-        <div class="sb-row"><span>Новые условия</span><span>${derived.originalRate!=null?derived.originalRate+'%':'—'}</span></div>
-        <div class="sb-row"><span>Начало</span><span>${derived.plannedDate}</span></div>
-      </div>
+  /* Транш и его график больше не разъезжаются по разным секциям: карточка транша стоит над своим
+     же графиком — исходная над действующим, производная над черновым. Прежде сопоставление
+     печаталось дважды: сначала парой графиков, потом парой коробок под стрелкой. */
+  const srcBox = `<div class="split-box">
+      <div class="sb-t">${esc(src.no)} · исходный${src.closed?' — закрыт':''}</div>
+      <div class="sb-row"><span>Остаток</span><span>${fmt(balanceAt(src,TODAY))}</span></div>
+      <div class="sb-row"><span>Условия</span><span>${srcConds.rate!=null?srcConds.rate+'%':'—'}${srcConds.term!=null?', '+srcConds.term+' мес.':''}</span></div>
+      <div class="sb-row"><span>Статус</span><span>${src.closed?'закрыт переносом '+src.closed.date:'срочный остаток, график не тронут'}</span></div>
     </div>`;
-  } else {
-    splitBlock = `<div class="op-empty">Производный транш появится после регистрации доп. соглашения (вкладка «Оформление»).</div>`;
-  }
+  const derivedBox = derived
+    ? `<div class="split-box new">
+      <div class="sb-t">${esc(derived.no)} · производный</div>
+      <div class="sb-row"><span>Перенесённая база</span><span>${fmt(derived.amount)}</span></div>
+      <div class="sb-row"><span>Новые условия</span><span>${derived.originalRate!=null?derived.originalRate+'%':'—'}</span></div>
+      <div class="sb-row"><span>Начало</span><span>${derived.plannedDate}</span></div>
+    </div>`
+    : `<div class="op-empty">Производный транш появится после регистрации доп. соглашения (вкладка «Оформление»).</div>`;
 
   let draftBlock;
   if(derived){
@@ -3761,8 +3770,7 @@ function calcSchedSection(app, calc){
 
   const derivedBlock = draftBlock
     ? tbl((derived?derived.no:'производный транш'), draftBlock.pill, draftBlock.rows.slice(0,6), 'график пуст', draftBlock.rows)
-    : `<div class="op-empty">Черновой график не рассчитан — задайте параметры ниже и нажмите «Предварительный расчёт», или дождитесь регистрации ДС.</div>`;
-  const paramsBlock = derived ? '' : `<div class="section-h">Условия черновика ДС</div>${versionParamsBlock(app, calc)}`;
+    : `<div class="op-empty">Черновой график не рассчитан — задайте условия на вкладке «Параметры» и нажмите «Предварительный расчёт», или дождитесь регистрации ДС.</div>`;
   const activeBlock = tbl(src.no+' — действующий, не тронут переносом', '<span class="pill low">Действующий</span>', activeRows, 'график транша в демо-данных не оцифрован — не факт отсутствия платежей');
 
   const runRes=run(app, app.ds?app.ds.date:TODAY, calc.id);
@@ -3773,17 +3781,19 @@ function calcSchedSection(app, calc){
     ? `<div style="margin:0 0 14px"><span class="pill mid">Кредит частично просрочен после ДС</span> <span class="mode-tag">Не урегулированы распоряжением: ${esc(unresolved.map(r=>ARTICLE_LABEL[r.article]||r.article).join(', ')||'—')} — просрочка не растворяется, входит суммой в перенос${derived?' '+derived.no:''} (РС-15).</span></div>`
     : (app.ds&&app.ds.no ? `<div class="okline">Все включённые просроченные статьи урегулированы распоряжением — перенос не несёт непокрытой просрочки (РС-15).</div>` : '');
 
+  /* Две половины читаются сверху вниз в порядке самой сделки: сперва то, что есть, потом то, что
+     из этого получится. Раньше вкладка начиналась с чернового графика — исход стоял прежде
+     исходного положения, и «действующий» уходил третьей таблицей под форму условий. РС-15
+     (непокрытая просрочка) — свойство результата, поэтому строка живёт в «Стало». */
   return `
 
-    <div class="section-h" style="margin-top:0">Черновой график против действующего</div>
-    ${derivedBlock}
-    ${paramsBlock}
+    <div class="section-h" style="margin-top:0">Было — действующие условия транша</div>
+    ${srcBox}
     ${activeBlock}
 
-    <div class="section-h">Производный транш</div>
-    ${splitBlock}
-
-    <div class="section-h">Частичная реструктуризация</div>
+    <div class="section-h">Стало — что даёт расчёт</div>
+    ${derivedBox}
+    ${derivedBlock}
     ${rs15}
   `;
 }
@@ -3976,7 +3986,7 @@ function pFormal(app){
       </div>`;
   const ops = dispRows.length
     ? `<div class="ops-list">${dispRows.map(d=>`<div class="op-row"><span class="op-t"><b>${DISP_LABEL[d.kind]||d.kind}</b> — ${esc(ARTICLE_LABEL[d.article]||d.article)} (${esc((URG.find(u=>u.key===d.urgency)||{}).name||d.urgency)})</span><span class="mode-tag">${fmt(d.amount)} · ${esc(perLabel(d))}</span></div>`).join('')}</div>`
-    : '<div class="op-empty">Распоряжений нет — база и распоряжения задаются на вкладке «База и распоряжения».</div>';
+    : '<div class="op-empty">Распоряжений нет — статьи, распоряжения и условия задаются на вкладке «Параметры».</div>';
   return `<div class="detail-panel active">
     <div class="section-h">Гейт пределов (жёсткий, без waiver)</div>
     ${limitsLine}
@@ -4298,7 +4308,7 @@ function fixResolution(appId){ if(!guard('fixResolution')) return; const app=app
   H(app,'Постановление Кабинета Министров: '+decLabel(dec)+' ('+no+').','Куратор ОД');
   if(dec==='отказ'){ closeByRefusal(app,'Отказ постановлением Кабмина'); toast('Отказ зафиксирован','ok'); }
   else if(dec==='изм'){ if(app.version) app.version.source='постановление КМ';
-    H(app,'Условия — версия постановления Кабмина (то, что утвердили). Откройте вкладки «База и распоряжения» / «График и дифф» для просмотра расчёта.','Куратор ОД');
+    H(app,'Условия — версия постановления Кабмина (то, что утвердили). Откройте вкладки «Параметры» / «Было и стало» для просмотра расчёта.','Куратор ОД');
     toast('Одобрено с изменёнными условиями','ok');
   } else { toast('Постановление зафиксировано','ok'); }
   const fg=forgiveGate(app);
@@ -4412,7 +4422,7 @@ const RS = {
   trancheCandidates, setCalcTranche, setVersionParam, recalcPlan,
   calcById, calcTrancheOf, creditOfTranche, requireCalc, attachCalc,
   dsCoverage, excludeCalc, resultTrancheOf,
-  pCalcBase, pCalcSched,          // вкладки расчёта наружу — сторож #68 читает разметку, а не только цифры
+  pParams, pDiff,                 // вкладки расчёта наружу — сторож #68 читает разметку, а не только цифры
   TODAY, STAGES, ROLES,
   __baseApp: baseApp
 };

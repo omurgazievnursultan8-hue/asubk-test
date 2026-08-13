@@ -981,7 +981,7 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
    с 13.08.2026 она одна и та же на обеих вкладках расчёта, а заголовков-секций и вкладки
    «Охват» нет вовсе: список траншей заявки печатался двумя экземплярами. Четыре сеттера строки
    получают calcId, иначе клик по строке второго транша уехал бы в первый.
-   `creditIds[0]` уходит из функций задачи (pCalcBase/pCalcSched/automationBlock) —
+   `creditIds[0]` уходит из функций задачи (pParams/pDiff/automationBlock) —
    но НЕ из fixLetter/closeByRefusal: это логика паузы взыскания, спека прямо говорит её не
    трогать (`Не переписываем взыскание и залог`). Проверка поэтому берёт тело функции по имени,
    а не весь файл — иначе сценарий требовал бы правки, которую задача не должна делать.
@@ -1010,29 +1010,32 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
     const next = src.indexOf('\nfunction ', start+1);
     return src.slice(start, next<0 ? src.length : next);
   };
-  const scoped = ['scopeStrip','pCalcBase','pCalcSched','automationBlock'];
+  const scoped = ['scopeStrip','pParams','pDiff','automationBlock'];
   const gone = !/function pickTrancheBlock/.test(src)
     && scoped.every(name => !/creditIds\[0\]/.test(bodyOf(name)));
   // fix-round-1: производный транш адресуется по calc.id, не через однорасчётную дверь
   // resultTranche(app) — иначе у 2+ расчётов производный транш второй+ секции всегда «не
   // оформлено», а черновая форма ДС (versionParamsBlock) вовсе не рисуется (app.version==null).
-  // Переборка 12.08.2026: живёт он теперь ТОЛЬКО на «Графике и диффе» — транш и его график одна
+  // Переборка 12.08.2026: живёт он теперь ТОЛЬКО на «Было и стало» — транш и его график одна
   // вещь, и на столе ввода коробка была нерабочей (до ДС — плейсхолдер, после — правка закрыта).
-  const derivedAddressed = /resultTrancheOf\(app,\s*calc\.id\)/.test(bodyOf('calcSchedSection'))
-    && !/resultTranche\(app\)/.test(bodyOf('calcSchedSection'))
-    && !/resultTrancheOf/.test(bodyOf('calcBaseSection'));
+  const derivedAddressed = /resultTrancheOf\(app,\s*calc\.id\)/.test(bodyOf('diffSection'))
+    && !/resultTranche\(app\)/.test(bodyOf('diffSection'))
+    && !/resultTrancheOf/.test(bodyOf('paramsSection'));
   // Гейты — условие регистрации ДС, общее для заявки: один разбор под шапкой карточки вместо
   // трёх копий в хвостах секций расчёта. Расхождение получило свой чип рядом с тремя прежними.
   const gatesUnderHead = /function gatesPanel\(app,st\)/.test(src)
     && /gatesPanel\(app,st\)/.test(bodyOf('renderCard'))
-    && !/gateDetails\(app\)/.test(bodyOf('calcBaseSection'))
-    && !/gateDetails\(app\)/.test(bodyOf('calcSchedSection'))
+    && !/gateDetails\(app\)/.test(bodyOf('paramsSection'))
+    && !/gateDetails\(app\)/.test(bodyOf('diffSection'))
     && /Расхождение/.test(bodyOf('gateChipsRow'));
+  // Волна 13.08.2026: форма условий переехала на «Параметры» — весь ввод изменения в одном месте,
+  // «Было и стало» стало целиком показом. Проверяется обеими сторонами: есть тут, нет там.
   const paramsBlockScoped = /function versionParamsBlock\(app,\s*calc\)/.test(src)
     && /calc\.version/.test(bodyOf('versionParamsBlock'))
-    && /versionParamsBlock\(app,\s*calc\)/.test(bodyOf('calcSchedSection'));
+    && /versionParamsBlock\(app,\s*calc\)/.test(bodyOf('paramsSection'))
+    && !/versionParamsBlock/.test(bodyOf('diffSection'));
   ok(66, head && total && single && wired && gone && derivedAddressed && gatesUnderHead && paramsBlockScoped,
-    `полосаВместоСекций=${head} итог=${total} вкладкиОхватНет=${single} адресВДвери=${wired} староеСнесено=${gone} производныйНаГрафике=${derivedAddressed} гейтыПодШапкой=${gatesUnderHead} черновикПоРасчёту=${paramsBlockScoped}`);
+    `полосаВместоСекций=${head} итог=${total} вкладкиОхватНет=${single} адресВДвери=${wired} староеСнесено=${gone} производныйНаБылоСтало=${derivedAddressed} гейтыПодШапкой=${gatesUnderHead} условияНаПараметрах=${paramsBlockScoped}`);
 })();
 
 /* 67. RS-1020 — единственная многокредитная заявка сида, и до сих пор расчёта не имела вовсе.
@@ -1062,7 +1065,7 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
 })();
 
 /* 68. Вкладка расчёта РИСУЕТСЯ, а не только считается. До fix-round-1 ни один сценарий не звал
-   pCalcBase/pCalcSched, и расхождение трёх дверей к базе проходило мимо смоука: шапка секции и
+   pParams/pDiff, и расхождение трёх дверей к базе проходило мимо смоука: шапка секции и
    полоса-итог читали calc.base сырым, тело секции брало умолчание через дверь ЗАЯВКИ
    (defaultBase(app,…)), которая при 2+ расчётах молчит — секция ещё не тронутого куратором
    транша рисовала «Долг по траншу пуст» и печатала «база 0» при живом долге. Третий транш,
@@ -1071,8 +1074,8 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
    расчёт, выбранный полосой, — и сторож теперь щёлкает полосу, проверяя, что подытог «База
    переноса» следует за выбором, а не залипает на первом расчёте. Складывается через расчёты
    ровно одно место — свёрнутый «Итог по заявке».
-   RS-1001 проверяет вторую половину: у однорасчётной заявки с зарегистрированным ДС коробка
-   разделения и живой график производного транша живут на «Графике и диффе», а на столе ввода
+   RS-1001 проверяет вторую половину: у однорасчётной заявки с зарегистрированным ДС коробки
+   траншей и живой график производного живут на «Было и стало», а на столе параметров
    их нет вовсе (сид адресует ДС расчётом — dsRef + agreements, как mkChainApp). */
 (() => { fresh();
   const a = app('RS-1020');
@@ -1087,19 +1090,25 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
   const modelSum = c => Math.round(modelBase(c).reduce((s, x) => s + x.amount, 0));
 
   // полоса охвата: по карточке на расчёт, активна ровно одна, вход «+ Добавить транш» на месте
-  const html0 = RS.pCalcBase(a);
+  const html0 = RS.pParams(a);
   const picks = s => (String(s).match(/class="spick[" ]/g) || []).length;   // spick-add сюда не попадает
   const pickerOk = a.calcs.length === 3
     && picks(html0) === a.calcs.length
     && (html0.match(/class="spick active"/g) || []).length === 1
     && html0.includes('spick-add')
-    && picks(RS.pCalcSched(a)) === a.calcs.length;                          // та же полоса на «Графике»
+    && picks(RS.pDiff(a)) === a.calcs.length;                               // та же полоса на «Было и стало»
+
+  // ввод весь на «Параметрах»: форма условий и кнопка расчёта тут, на «Было и стало» — ни одного
+  // поля ввода. Вкладки разошлись по ролям: одна ЗАДАЁТ изменение, вторая ПОКАЗЫВАЕТ его исход.
+  const dHtml = RS.pDiff(a);
+  const inputsOnParams = html0.includes('RS.setVersionParam') && html0.includes('RS.recalcPlan')
+    && !/<(input|select)\b/.test(dHtml) && !dHtml.includes('RS.setVersionParam');
 
   // на экране ОДИН расчёт, и его подытог «База переноса» — база ИМЕННО ЭТОГО расчёта: щёлкаем
   // каждый и сверяем с моделью. Залипание на первом (прежняя болезнь дверей к базе) падает здесь.
   const perCalc = a.calcs.every(c => {
     RS.setCalc(c.id);
-    const h = RS.pCalcBase(a);
+    const h = RS.pParams(a);
     const foot = (h.match(/<tfoot>[\s\S]*?<\/tfoot>/) || [''])[0];
     const rows = fullBase(c).length;
     const drawn = (h.match(/<tr class=/g) || []).length;
@@ -1107,7 +1116,7 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
       && (rows ? (!h.includes('Долг по траншу пуст') && drawn >= rows) : h.includes('Долг по траншу пуст'));
   });
   // единственное место, где суммы складываются через расчёты, — свёрнутый «Итог по заявке»
-  const rb = (RS.pCalcBase(a).match(/<details class="rb-app">[\s\S]*?<\/details>/) || [''])[0];
+  const rb = (RS.pParams(a).match(/<details class="rb-app">[\s\S]*?<\/details>/) || [''])[0];
   const lines = plain(rb).match(/база переноса ([\d\s]+)/g) || [];
   const wholeBase = a.calcs.reduce((s, c) => s + modelSum(c), 0);
   const rollupAddsUp = lines.length === a.calcs.length
@@ -1115,18 +1124,23 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
 
   fresh();
   const a1 = app('RS-1001');
-  const b1 = RS.pCalcBase(a1), s1 = RS.pCalcSched(a1);
-  // производный транш уехал на «График и дифф» целиком — на столе ввода коробки нет
+  const b1 = RS.pParams(a1), s1 = RS.pDiff(a1);
+  // траншы уехали на «Было и стало» целиком — на столе параметров коробок нет; на второй вкладке
+  // их две, каждая в своей половине: исходный под «Было», производный под «Стало»
   const splitMoved = !b1.includes('class="split-box')
     && (s1.match(/class="split-box/g) || []).length === 2
+    && /Было — действующие условия[\s\S]*class="split-box"[\s\S]*Стало — что даёт расчёт[\s\S]*class="split-box new"/.test(s1)
     && !s1.includes('Производный транш появится после регистрации');
-  const schedRows = ((s1.match(/<tbody>([\s\S]*?)<\/tbody>/) || [, ''])[1].match(/<tr/g) || []).length;
+  // график производного берётся из половины «Стало»: с 13.08.2026 первым на вкладке идёт
+  // действующий график (половина «Было»), и «первый tbody» указывал бы уже не туда.
+  const afterNew = s1.slice(s1.indexOf('Стало — что даёт расчёт'));
+  const schedRows = ((afterNew.match(/<tbody>([\s\S]*?)<\/tbody>/) || [, ''])[1].match(/<tr/g) || []).length;
   const schedShown = schedRows === 6;
   // разбор гейтов не печатается ни на одной из двух вкладок расчёта — он под шапкой карточки
   const gatesOffTabs = !b1.includes('gate-d') && !s1.includes('gate-d');
 
-  ok(68, pickerOk && perCalc && rollupAddsUp && splitMoved && schedShown && gatesOffTabs,
-    `полоса=${pickerOk} подытогПоВыбору=${perCalc} итогСходится=${rollupAddsUp} (${wholeBase}) RS-1001: коробкаНаГрафике=${splitMoved} график=${schedRows} строк гейтыВнеВкладок=${gatesOffTabs}`);
+  ok(68, pickerOk && perCalc && rollupAddsUp && splitMoved && schedShown && gatesOffTabs && inputsOnParams,
+    `полоса=${pickerOk} подытогПоВыбору=${perCalc} итогСходится=${rollupAddsUp} (${wholeBase}) RS-1001: коробкиПоПоловинам=${splitMoved} график=${schedRows} строк гейтыВнеВкладок=${gatesOffTabs} вводТолькоНаПараметрах=${inputsOnParams}`);
 })();
 
 /* 69. ДЕЛЕНИЕ ПОЗИЦИИ НА НЕСКОЛЬКО РАСПОРЯЖЕНИЙ (РС-43) — исход прогона. Демо-заявка RS-1026
@@ -1214,7 +1228,7 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
 (() => { fresh();
   const picks = s => (String(s).match(/class="spick[" ]/g) || []).length;
   const a1 = app('RS-1001');                                  // один расчёт, ДС зарегистрировано
-  const h1 = RS.pCalcBase(a1);
+  const h1 = RS.pParams(a1);
   const lone = picks(h1) === 1 && h1.includes('spick-add');
   const noDrop = !h1.includes('sp-drop');
   const before = a1.calcs.length;
@@ -1223,7 +1237,7 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
 
   fresh();
   const a2 = app('RS-1020');                                  // два расчёта, ДС ещё нет
-  const dropShown = (RS.pCalcBase(a2).match(/sp-drop/g) || []).length === a2.calcs.length;
+  const dropShown = (RS.pParams(a2).match(/sp-drop/g) || []).length === a2.calcs.length;
   RS.setCalc(a2.calcs[1].id);
   RS.removeTrancheFromScope(a2.id, a2.calcs[1].id);
   const dropped = a2.calcs.length === 1 && RS.state.curCalc === null;
