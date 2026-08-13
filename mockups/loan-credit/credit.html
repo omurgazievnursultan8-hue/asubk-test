@@ -862,7 +862,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-13 · 146/146 PASS
+ SMOKE (node) 2026-08-13 · 150/150 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -944,6 +944,10 @@
    #111 ✓
    #112 ✓
    #129 ✓
+   #145 ✓
+   #146 ✓
+   #147 ✓
+   #148 ✓
    #130 ✓
    #132 ✓
    #133 ✓
@@ -4974,8 +4978,9 @@ function derive(c, asOf){
      траншей. Производный транш несёт перенесённую базу, а не новую выдачу, — сложив его
      в allocated, Г-3 рапортовал бы превышение суммы договора там, где выдача не менялась,
      и запрещал бы завести транш, деньги под который по договору есть.
-     Отвергнуто вычитать сумму переноса из allocated: арифметика сходится, но плитка
-     перестаёт отвечать на свой вопрос «сколько договора ещё можно раздать». */
+     Отвергнуто вычитать сумму переноса из allocated: арифметика сходится, но величина
+     перестаёт отвечать на свой вопрос «сколько договора ещё можно раздать».
+     Показывается строкой-контекстом над реестром траншей (КВ-33; до неё — плиткой). */
   const ownTranches  = c.tranches.filter(t => trancheOrigin(t) === 'освоение');
   const derivedTr    = c.tranches.filter(t => trancheOrigin(t) === 'разделение');
   const allocated    = ownTranches.reduce((a,t) => a + (t.amount || 0), 0);
@@ -6571,8 +6576,9 @@ if (typeof document !== 'undefined') {
   let grafikVer = null, grafikVerKey = '';
   let dogovorExtraTab = 'subject';  // активная вкладка тройки «Предмет/Освобождение/Перевод» под «Основанием выдачи»
   /* Волна 03.08.2026: «Транши и освоение» → «Транши», из «Расчётов» выделена вкладка
-     «График» (план возврата). Три предмета — три вкладки: Транши (сколько выдали) ·
-     График (что должны вернуть) · Расчёты (что начислено и погашено).
+     «График» (план возврата). Три предмета — три вкладки: Транши (из чего состоит кредит —
+     КВ-33; до неё канон читался «сколько выдали», и движение тела на вкладке ему
+     противоречило) · График (что должны вернуть) · Расчёты (что начислено и погашено).
      Волна 03.08.2026 (вторая): из «Графика» выделен «Прогноз» — контракт транша и
      ожидание по нему суть разные предметы (Р-29), а вкладка «План и исполнение»
      сокращена до «План»: исполнение — производная плана, а не второй предмет. */
@@ -6603,17 +6609,19 @@ if (typeof document !== 'undefined') {
   function svgInfo(){ return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>'; }
   function svgPencil(){ return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>'; }
   function svgPrinter(){ return '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>'; }
+  /* Крестик — «закрыть транш» иконкой в строке (КВ-33). Не корзина: удаления в модуле нет,
+     закрытие — soft-close с основанием (Г-17), и корзина обещала бы исчезновение записи. */
+  function svgClose(){ return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>'; }
   function lockHtml(){ return '<span class="lock"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>зеркало</span>'; }
   /* Иконка «i» вместо слов «выводится»/«зеркало» на плитках шапки — по клику открывает
      модалку с пояснением, а не молча висит тултипом (§0.3: причины не молчат). */
   function infoBtn(onclick, title){ return `<button class="icon-btn" style="padding:2px" title="${jsAttr(title||'Подробнее')}" onclick="event.stopPropagation();${onclick}">${svgInfo()}</button>`; }
   function catClsOf(cat){ return cat==='высокий'?'high':cat==='средний'?'mid':'low'; }
   function pctDisb(c,d){ return c.contractAmount>0 ? Math.round(d.disbursed/c.contractAmount*100) : 0; }
-  /* Состояние меряет ОСВОЕНИЕ — у производного транша освоения нет и не будет (Г-4),
-     поэтому «Не освоен» на нём читался бы как «деньги ещё не выдали», хотя они выданы
-     на родителе и пришли переносом (ADR-0092 §1). */
-  function trancheState(t){ if(trancheOrigin(t)==='разделение') return 'Получен переносом';
-    const s=disbursedSum(t), a=t.amount||0; return s===0?'Не освоен':s<a?'Частично освоен':'Полностью освоен'; }
+  /* trancheState() снят КВ-33 вместе с колонкой «Состояние»: «Не освоен / Частично /
+     Полностью» выводится из соседних «Сумма» и «Освоено», «Получен переносом» — из
+     «Происхождения». Хранить и рисовать производное третьим написанием — ровно то, что
+     запрещает ADR-0001; расхождение двух написаний на одном экране неизбежно и неразрешимо. */
 
   /* read-only поле (label + значение в grey-боксе); val вставляется как HTML (caller экранирует текст) */
   function fld(label,val,o){ o=o||{};
@@ -6667,6 +6675,19 @@ if (typeof document !== 'undefined') {
     if(canRole(currentRole,action)) return `<button class="${cls}" title="${jsAttr(title)}" onclick="${onclick}">${icon}</button>`;
     const msg='Роль «'+currentRole+'» не имеет права на это действие';
     return `<button class="${cls}" style="opacity:.45;cursor:not-allowed" title="${jsAttr(msg)}" onclick="CR.toast('${jsAttr(msg)}','warn')">${icon}</button>`;
+  }
+  /* То же, что actBtn (реальный гейт + причина отказа), но иконкой — для действия, живущего
+     В СТРОКЕ таблицы (КВ-33: «закрыть транш»). Строка кликабельна сама (выбор области), и
+     event.stopPropagation() ставится здесь, а не у вызывающего: иначе клик по иконке сначала
+     переключал бы область карточки, а потом открывал модалку — два действия на одно нажатие. */
+  function actIconBtn(credit, action, ctx, title, onclick, icon, cls){ cls=cls||'icon-btn';
+    const off=(msg)=>`<button class="${cls}" style="opacity:.45;cursor:not-allowed" title="${jsAttr(msg)}" onclick="event.stopPropagation();CR.toast('${jsAttr(msg)}','warn')">${icon}</button>`;
+    if(isTerminal(credit)) return off(terminalReason(credit));
+    const r=canRole(currentRole,action);
+    const g=credit?gate(credit,action,ctx||{}):{ok:true,reasons:[]};
+    const reasons=[]; if(!r) reasons.push('Роль «'+currentRole+'» не имеет права на это действие'); if(!g.ok) g.reasons.forEach(x=>reasons.push(x));
+    if(r&&g.ok) return `<button class="${cls}" title="${jsAttr(title)}" onclick="event.stopPropagation();${onclick}">${icon}</button>`;
+    return off(reasons.join('; '));
   }
 
   /* Карандаш «изменить условия» в заголовке карточки (КВ-25). Не roleIconBtn: тот знает
@@ -7334,22 +7355,41 @@ if (typeof document !== 'undefined') {
       </div>`;
   }
 
-  /* ---- ВКЛАДКА 3: Транши ---- */
+  /* ---- ВКЛАДКА 3: Транши ----
+     Предмет вкладки — СОСТАВ КРЕДИТА: реестр траншей как единиц учёта (CONTEXT.md «Транш»).
+     До КВ-33 предметов было два. Экран собирался под канон «Транши — сколько выдали»
+     (:6573), а КВ-26 принесла на него движение тела — переносы по ДС и зеркало погашений, —
+     которое про выдачу не говорит вовсе: половина вкладки отвечала на вопрос «сколько
+     денег ушло заёмщику», половина на «что стало с телом долга». КВ-33 сводит их к одному
+     предмету: транш — единица, освоение — один из фактов на ней, наравне с переносом и
+     погашением. Всё, что этому предмету не служило (четыре плитки, колонки «Состояние» и
+     «Курс», тулбар в четыре кнопки), снято — доводы стоят по месту. */
   function tabTranshi(c,d){
     const sel=scopeTranche(c);
-    const cur=c.currency, isFx=cur!=='KGS', fx=FX[cur]||1;              // мультивалюта: курс/≈KGS только для не-KGS
+    const cur=c.currency, isFx=cur!=='KGS', fx=FX[cur]||1;              // мультивалюта: ≈KGS только для не-KGS
+    /* Колонка «Субъект» — УСЛОВНАЯ (КВ-33). У обычного кредита во всех строках стоит один
+       и тот же заёмщик из шапки карточки, и колонка тратит ширину на повтор шапки.
+       Различаются субъекты только у группового кредита, где транш несёт члена группы, а не
+       заёмщика договора (CONTEXT.md «Транш»). Меряем по ИНН, а не по имени: имя — это
+       написание, тождество субъекта несёт ИНН. */
+    const multiSubj=new Set(c.tranches.map(t=>t.subject.inn)).size>1;
     const trRows=c.tranches.map(t=>{
       const der=trancheOrigin(t)==='разделение', s=disbursedSum(t);
       /* «Остаток тела» вместо прежнего «сумма − освоено» (ИР-3, КВ-26): у транша,
          участвовавшего в переносе, разность суммы и освоения перестаёт быть остатком —
          часть тела ушла на другой транш, часть могла прийти оттуда. */
       const rest=trancheBalanceAt(c,t,cardAsOf), on=sel&&t.no===sel.no;
-      const fxCells=isFx?`<td style="text-align:right">${money(fx)}</td><td style="text-align:right">${money0(toKgs(t.amount,cur))}</td>`:'';
+      /* Колонка «Курс» снята (КВ-33): курс у кредита один на все транши (FX, :1703), и
+         колонка повторяла одно и то же число во всех строках. Число не потеряно — стоит
+         в строке-контексте, где живут величины уровня кредита. */
+      const fxCells=isFx?`<td style="text-align:right">${money0(toKgs(t.amount,cur))}</td>`:'';
       /* Закрытый транш (Г-17): не удалён, а помечен — с датой и основанием. Прежде
-         activeTranche(t) читал t.closed, но выставить его было нечем (КР-3). */
-      const st = t.closed
-        ? `<span class="pill neutral" title="${jsAttr('Закрыт '+(t.closed.date||'')+': '+(t.closed.reason||''))}">Закрыт ${esc(t.closed.date||'')}</span>`
-        : esc(trancheState(t));
+         activeTranche(t) читал t.closed, но выставить его было нечем (КР-3).
+         Ярлык переехал к НОМЕРУ транша из снятой колонки «Состояние» (КВ-33): та мешала
+         два разных факта — стадию освоения (выводится из «Сумма» и «Освоено», ADR-0001) и
+         закрытие. Первое ушло как производное, второе осталось меткой на самом предмете. */
+      const closedPill = t.closed
+        ? `<br><span class="pill neutral" title="${jsAttr('Закрыт '+(t.closed.date||'')+': '+(t.closed.reason||''))}">Закрыт ${esc(t.closed.date||'')}</span>` : '';
       const inTr=originTransfer(t), parent=inTr?inTr.counterTranche:null;
       /* Пилюля происхождения — «info», НЕ «warn»: класс .warn (:1608) это блочная
          плашка-алерт (display:flex, красный фон), а не вариант пилюли, и «pill warn»
@@ -7364,36 +7404,59 @@ if (typeof document !== 'undefined') {
       const disbCell = der
         ? `<td style="text-align:right;color:var(--text-muted)" title="${jsAttr('Производный транш не осваивается: сумма пришла переносом по '+(originDs(t)||'ДС'))}">—</td>`
         : `<td style="text-align:right">${money(s)}</td>`;
+      /* «Закрыть транш» — иконка В СТРОКЕ (КВ-33; правило КВ-25/КВ-32: действие живёт у
+         своего предмета). Кнопка тулбара имя транша брала из области в шапке и при области
+         «по кредиту» гасла с объяснением — у действия, адресующего одну строку, агрегата
+         нет. В строке имя есть всегда, и отказ Г-33 («нельзя закрыть последний активный
+         транш», :5134) объясняется тултипом самой иконки. У закрытого иконки нет: закрывать
+         второй раз нечего, а серый крестик читался бы как «можно, но не вам». */
+      const actCell=`<td style="text-align:right">${t.closed?''
+        :actIconBtn(c,'closeTranche',{trancheNo:t.no,reason:'—'},'Закрыть транш №'+t.no,`CR.openCloseTrancheModal(${t.no})`,svgClose())}</td>`;
+      const subjCell=multiSubj
+        ? `<td>${esc(t.subject.name)}<br><span style="color:var(--text-muted);font-size:11px">ИНН ${esc(t.subject.inn)}</span></td>` : '';
       return `<tr style="cursor:pointer${on?';background:var(--asubk-nav-active)':''}${t.closed?';opacity:.6':''}" onclick="CR.setCardScope(${t.no})">
-        <td>№${t.no}</td><td>${esc(t.subject.name)}<br><span style="color:var(--text-muted);font-size:11px">ИНН ${esc(t.subject.inn)}</span></td>
+        <td>№${t.no}${closedPill}</td>${subjCell}
         <td>${orig}</td>
         <td style="text-align:right">${money(t.amount)}${isFx?` <span style="color:var(--text-muted);font-size:11px">${esc(cur)}</span>`:''}</td><td>${esc(t.plannedDate)}</td>
         ${disbCell}<td style="text-align:right">${money(rest)}</td>
-        ${fxCells}<td>${st}</td></tr>`;
+        ${fxCells}${actCell}</tr>`;
     });
-    const trCols=[{h:'Транш'},{h:'Субъект'},{h:'Происхождение'},{h:'Сумма',r:1},{h:'План. дата'},{h:'Освоено',r:1},
-                  {h:'Остаток тела',r:1,t:'освоено − погашено − перенесено + принято (ИР-3)'}]
-      .concat(isFx?[{h:'Курс',r:1},{h:'≈KGS суммы',r:1}]:[]).concat([{h:'Состояние'}]);
+    const trCols=[{h:'Транш'}].concat(multiSubj?[{h:'Субъект'}]:[])
+      .concat([{h:'Происхождение'},{h:'Сумма',r:1},{h:'План. дата'},{h:'Освоено',r:1},
+               {h:'Остаток тела',r:1,t:'освоено − погашено − перенесено + принято (ИР-3)'}])
+      .concat(isFx?[{h:'≈KGS суммы',r:1}]:[]).concat([{h:''}]);
     /* Итог освоения складывает ТОЛЬКО траншы происхождением «освоение» (ADR-0115):
        производный выдачей не был, и его сумма в объёме выдачи раздувала бы отчётность
        ровно на величину реструктуризаций. */
     const tot=c.tranches.reduce((a,t)=>{const own=trancheOrigin(t)!=='разделение';
       if(own){a.amt+=t.amount||0;a.dis+=disbursedSum(t);}
       a.rest+=trancheBalanceAt(c,t,cardAsOf);return a;},{amt:0,dis:0,rest:0});
+    /* Имя итога — «Итого», а не «Итого освоено» (КВ-33): строка складывает три разные
+       величины, и только одна из них освоение. «Остаток тела» в ней идёт ПО ВСЕМ траншам,
+       включая производные, — иначе тело, ушедшее переносом, пропадало бы из свода кредита.
+       Подпись называет оба правила разом, чтобы разность колонок не читалась как ошибка. */
     const totRow=c.tranches.length?`<tr style="font-weight:var(--weight-semibold);background:var(--surface-panel)">
-      <td colspan="3">Итого освоено<span style="font-weight:var(--weight-regular);color:var(--text-muted);font-size:11px"> · по траншам происхождением «освоение»</span></td>
+      <td colspan="${multiSubj?3:2}">Итого<span style="font-weight:var(--weight-regular);color:var(--text-muted);font-size:11px"> · по траншам происхождением «освоение» (остаток тела — по всем)</span></td>
       <td style="text-align:right">${money(tot.amt)}</td><td></td>
       <td style="text-align:right">${money(tot.dis)}</td><td style="text-align:right">${money(tot.rest)}</td>
-      ${isFx?`<td></td><td style="text-align:right">${money0(toKgs(tot.amt,cur))}</td>`:''}<td></td></tr>`:'';
-    /* ДВИЖЕНИЕ ПО ТРАНШУ (КВ-26) — слитый вид ТРЁХ источников по дате: освоения (свои),
-       погашения (зеркало платежей, ADR-0010) и переносы по ДС. Три журнала в одной
-       таблице — та же идиома, что слитый вид «по кредиту» на «Графике» (КВ-17); на
-       зеркальных строках стоит замок и подпись источника. Секция рисуется, ТОЛЬКО когда
-       переносы есть: у обычного кредита вкладка обязана выглядеть ровно как до волны. */
-    const movTr=(sel?[sel]:c.tranches).flatMap(t=>(t.transfers||[]).map(x=>({x,t})));
-    const movRows=movTr.length?(sel?[sel]:c.tranches).flatMap(t=>[
+      ${isFx?`<td style="text-align:right">${money0(toKgs(tot.amt,cur))}</td>`:''}<td></td></tr>`:'';
+    /* ДВИЖЕНИЕ (КВ-26, расширено КВ-33) — слитый вид ТРЁХ источников по дате: освоения
+       (свои), погашения тела (зеркало платежей, ADR-0010) и переносы по ДС. Три журнала в
+       одной таблице — та же идиома, что слитый вид «по кредиту» на «Графике» (КВ-17); на
+       зеркальных строках стоит замок и подпись источника.
+       КВ-33 сняла с секции ДВА ограничения. Первое: освоения жили отдельной таблицей
+       «Освоение …» — и один и тот же факт «по траншу пришли деньги» стоял на экране
+       дважды, в двух таблицах с разными колонками и разной сортировкой. Теперь освоение —
+       вид строки. Второе: секция рисовалась, только когда есть переносы; у обычного
+       кредита её не было вовсе, и отсутствие читалось как «движения по траншу не бывает».
+       Теперь таблица стоит всегда — по тому же доводу, по которому всегда стоит колонка
+       «Происхождение» (ТЗ §8). */
+    const movRows=(sel?[sel]:c.tranches).flatMap(t=>[
+      /* Реквизиты освоения (ПП · назначение · документ) сведены в «Основание» ОДНОЙ фразой:
+         три отдельные колонки, пустые у всех прочих видов движения, стоили экрану больше,
+         чем сообщали. Порядок — от того, чем платёж опознаётся, к тому, чем обоснован. */
       ...(t.disbursements||[]).map(x=>({ t, date:x.date, kind:'Освоение', amount:x.amount, sign:'+',
-        note:'ПП '+(x.order||'—'), src:null })),
+        note:['ПП '+(x.order||'—'), x.purpose, x.doc].filter(Boolean).join(' · '), src:null })),
       ...((c.mirror&&c.mirror.payments||[]).filter(p=>paymentCounts(p)&&(p.tranche|0)===t.no
           &&((p.layers&&p.layers.principal)||0)>0)
         .map(p=>({ t, date:p.date, kind:'Погашение тела', amount:p.layers.principal, sign:'−',
@@ -7405,62 +7468,53 @@ if (typeof document !== 'undefined') {
     ]).sort((a,b)=>pd(a.date)-pd(b.date)||a.t.no-b.t.no).map(r=>`<tr>
       <td>${esc(r.date)}</td>${sel?'':`<td>№${r.t.no}</td>`}<td>${esc(r.kind)}</td>
       <td style="text-align:right">${r.sign} ${money(r.amount)}</td>
-      <td>${esc(r.note)}${r.src?` <span class="pill neutral" title="${jsAttr('Зеркало: '+r.src+' — правится в источнике')}">🔒 ${esc(r.src)}</span>`:''}</td></tr>`):[];
-    const movCols=[{h:'Дата'}].concat(sel?[]:[{h:'Транш'}]).concat([{h:'Движение'},{h:'Сумма',r:1},{h:'Основание'}]);
-    /* Освоения при области «по кредиту» — та же идиома слияния, что на «Графике»,
-       «Прогнозе» и в детальном расчёте: строки ВСЕХ траншей в одной таблице, колонка
-       «Транш», сортировка по дате (КВ-17). Прежде тут стоял `sel && sel.disbursements`,
-       и в состоянии по умолчанию (область «по кредиту») вкладка показывала
-       «Освоение транша №—» над пустым гридом. */
-    const dbCols=[{h:'Дата'}].concat(sel?[]:[{h:'Транш'}]).concat([{h:'Сумма',r:1}])
-      .concat(isFx?[{h:'≈KGS',r:1}]:[]).concat([{h:'Плат. поручение'},{h:'Назначение'},{h:'Документ'}]);
-    const dbSrc=(sel?[sel]:c.tranches).flatMap(t=>(t.disbursements||[]).map(x=>({x,t})))
-      .sort((a,b)=>pd(a.x.date)-pd(b.x.date)||a.t.no-b.t.no);
-    const dbRows=dbSrc.map(({x,t})=>`<tr><td>${esc(x.date)}</td>${sel?'':`<td>№${t.no}</td>`}<td style="text-align:right">${money(x.amount)}</td>${isFx?`<td style="text-align:right">${money0(toKgs(x.amount,cur))}</td>`:''}<td>${esc(x.order)}</td><td>${esc(x.purpose)}</td><td>${esc(x.doc)}</td></tr>`);
+      ${isFx?`<td style="text-align:right">${money0(toKgs(r.amount,cur))}</td>`:''}
+      <td>${esc(r.note)}${r.src?` <span class="pill neutral" title="${jsAttr('Зеркало: '+r.src+' — правится в источнике')}">🔒 ${esc(r.src)}</span>`:''}</td></tr>`);
+    const movCols=[{h:'Дата'}].concat(sel?[]:[{h:'Транш'}]).concat([{h:'Движение'},{h:'Сумма',r:1}])
+      .concat(isFx?[{h:'≈KGS',r:1}]:[]).concat([{h:'Основание'}]);
+    /* СТРОКА-КОНТЕКСТ ВМЕСТО ЧЕТЫРЁХ ПЛИТОК (идиома КВ-27). Из прежней сетки «Одобрено ·
+       Сумма договора · Распределено · Доступно» две плитки повторяли шапку карточки
+       (:6917 — сумма договора и освоение процентом), «Распределено» повторяло итог-строку
+       таблицы прямо под собой, а «Одобрено» на вкладке про состав не работало вовсе:
+       сумма договора уже согласована, и сравнивать её с одобренной — вопрос «Договора».
+       Уникальным осталось одно «доступно к распределению» — ради одного числа сетка не
+       заводится: одна фраза, где число стоит рядом со своим действием.
+       Величины считает creditDerived (:4979–4983) — не пересчитываем. */
+    const disbClosed=c.closure&&c.closure.disbClosed;
+    const ctxParts=[`Распределено <b>${money(d.allocated)}</b> из <b>${money(c.contractAmount)}</b>`];
+    /* После закрытия неосвоенного остатка «доступно» не называем: раздавать больше нечего,
+       и оставшееся на экране число обещало бы дверь, которую Г-32 уже закрыл. */
+    if(!disbClosed) ctxParts.push(d.allocatable>0?`доступно <b>${money(d.allocatable)}</b>`:'договор распределён полностью');
+    if(d.derivedCount) ctxParts.push(`+ ${d.derivedCount} производн${d.derivedCount===1?'ый':'ых'} на ${money(d.derivedSum)} (перенос по ДС, в распределение не входят)`);
+    if(isFx) ctxParts.push(`курс ${money(fx)} ${esc(cur)}/KGS`);
+    /* Прежняя плашка про закрытый остаток (info-plate) свёрнута сюда же: факт уровня
+       кредита, и место ему там же, где прочие величины уровня кредита. */
+    const ctxNote=`<p class="section-note">${ctxParts.join(' · ')}${
+      disbClosed
+        ? `<br>Неосвоенный остаток <b>${money(disbClosed.amount)}</b> закрыт <b>${esc(disbClosed.date)}</b> (${esc(disbClosed.reason)}) — дальнейшее освоение по кредиту заблокировано, сам кредит продолжает действовать.`
+        : ` <span style="margin-left:4px">${actBtn(c,'closeDisbursement',{reason:'—'},'Закрыть неосвоенный остаток','CR.openCloseDisbModal()')}</span>`}</p>`;
+    /* ТУЛБАРА НЕТ (КВ-33). Четыре кнопки в общей полосе адресовали четыре разных предмета —
+       кредит, транш и журнал движения, — и различить, что к чему, можно было только по
+       подписи; на «Закрыть транш» это стоило десяти строк объяснения, почему кнопка гаснет.
+       Каждое действие переехало к своему предмету (правило КВ-25/КВ-32): «Добавить транш» —
+       в заголовок реестра, «Внести освоение» — в заголовок движения, «Закрыть транш» —
+       иконкой в строку, «Закрыть неосвоенный остаток» — в строку-контекст, к распределению.
+       «Внести освоение» транша не именует — его спрашивает модалка своим селектом,
+       предвыбранным по actionTranche (тем же, чем мерится гейт кнопки), — поэтому кнопка
+       остаётся и при области «по кредиту» и ни о чём не врёт. */
     return `
-      <div class="section-h">Распределение суммы договора</div>
-      <div class="phead-dims" style="grid-template-columns:repeat(4,1fr)">
-        <div class="dim"><div class="dl">Одобрено</div><div class="dv">${money(c.approvedAmount)}</div></div>
-        <div class="dim"><div class="dl">Сумма договора</div><div class="dv">${money(c.contractAmount)}</div></div>
-        <div class="dim"><div class="dl">Распределено по траншам</div><div class="dv">${money(d.allocated)}</div>${
-          d.derivedCount?`<div style="color:var(--text-muted);font-size:11px;margin-top:4px">+ ${d.derivedCount} производн${d.derivedCount===1?'ый':'ых'} на ${money(d.derivedSum)} (перенос по ДС, в распределение не входят)</div>`:''}</div>
-        <div class="dim"><div class="dl">Доступно к распределению</div><div class="dv">${money(d.allocatable)}</div></div>
-      </div>
-      <div class="section-h" style="margin-top:22px">Транши (клик — выбор)</div>
+      <div class="section-h" style="display:flex;align-items:center;justify-content:space-between;gap:12px">Транши (клик — выбор)
+        ${roleBtn('addTranche','Добавить транш','CR.openTrancheModal()')}</div>
+      ${ctxNote}
       ${cgrid(trCols, trRows.concat(totRow?[totRow]:[]), {empty:'Траншей нет'})}
-      ${c.closure&&c.closure.disbClosed?`<div class="info-plate" style="margin-top:12px">${svgInfo()}<div>
-        Неосвоенный остаток <b>${money(c.closure.disbClosed.amount)}</b> закрыт <b>${esc(c.closure.disbClosed.date)}</b>
-        (${esc(c.closure.disbClosed.reason)}). Дальнейшее освоение по кредиту заблокировано;
-        сам кредит продолжает действовать.</div></div>`:''}
-      ${/* Обе кнопки адресуют ТРАНШ, но при области «по кредиту» ведут себя по-разному —
-            и разводит их ЯРЛЫК (КВ-17).
-            «Закрыть транш №N» ИМЕНУЕТ транш. При области «по кредиту» имени нет: кнопка
-              рисовалась как «Закрыть транш №—», гейт мерила по `scopeTranche(c)||
-              c.tranches[0]`, то есть по траншу №1, и закрывала его же — называя прочерк.
-              Гасим с причиной, как «Сформировать график» на «Графике»: агрегата у
-              закрытия нет, а выбрать транш можно только в шапке.
-            «Внести освоение» транша НЕ именует — его спрашивает модалка своим селектом,
-              предвыбранным по спеке («Решение» 1: scopeTranche(c), при null — первый
-              АКТИВНЫЙ транш). Кнопка ничего не обещает и ни о чём не врёт, поэтому живёт
-              и при области «по кредиту»: карточка в ней и открывается, а освоение —
-              главное действие вкладки. Гейт мерится тем же actionTranche, что предвыбирает
-              модалка, — иначе кнопка разрешала бы то, чего форма не даст отправить.
-            «Добавить транш» и «Закрыть неосвоенный остаток» — уровня кредита, их область
-              не касается вовсе. */''}
-      <div class="gtoolbar" style="margin-top:12px">
-        ${roleBtn('addTranche','Добавить транш','CR.openTrancheModal()')}
-        ${actBtn(c,'addDisbursement',{trancheNo:(actionTranche(c)||{}).no,amount:0},'Внести освоение','CR.openDisbModal()','btn btn-primary btn-sm')}
-        ${actBtn(c,'closeDisbursement',{reason:'—'},'Закрыть неосвоенный остаток','CR.openCloseDisbModal()')}
-        ${sel ? actBtn(c,'closeTranche',{trancheNo:sel.no,reason:'—'},'Закрыть транш №'+sel.no,'CR.openCloseTrancheModal()')
-              : disabledBtn('Закрыть транш','Закрытие — действие по траншу; выберите транш в шапке')}
-      </div>
-      <div class="section-h" style="margin-top:22px">Освоение ${sel?'транша №'+sel.no:'(по кредиту)'}</div>
-      ${cgrid(dbCols, dbRows, {empty:'Освоений нет'})}
-      ${movRows.length?`<div class="section-h" style="margin-top:22px">Движение по траншу ${sel?'№'+sel.no:'(по кредиту)'}</div>
-      <div class="info-plate" style="margin-bottom:10px">${svgInfo()}<div>
-        Остаток тела = освоено − погашено − перенесено + принято (ИР-3). Освоения — свои,
-        погашения приходят зеркалом модуля платежей, переносы делает применение ДС.</div></div>
-      ${cgrid(movCols, movRows, {empty:'Движений нет'})}`:''}`;
+      ${/* Заголовок называет ОБЛАСТЬ целиком — «по кредиту» / «по траншу №N» (КВ-17), а не
+           дописывает «(по кредиту)» скобкой к имени транша: скобка читалась как уточнение
+           к траншу, тогда как это другой охват таблицы, со своей колонкой «Транш».
+           Плашка ИР-3 снята: формула стоит тултипом колонки «Остаток тела», где ей и место
+           (правило cgrid, :6627) — на экране она была вторым написанием того же правила. */''}
+      <div class="section-h" style="margin-top:22px;display:flex;align-items:center;justify-content:space-between;gap:12px">Движение по ${sel?'траншу №'+sel.no:'кредиту'}
+        ${actBtn(c,'addDisbursement',{trancheNo:(actionTranche(c)||{}).no,amount:0},'Внести освоение','CR.openDisbModal()','btn btn-primary btn-sm')}</div>
+      ${cgrid(movCols, movRows, {empty:'Движений нет'})}`;
   }
 
   /* Основание версии — ОДНО выражение на два места: строку-контекст и грид за раскрытием
@@ -9144,8 +9198,11 @@ if (typeof document !== 'undefined') {
     CR.closeModal(); toast('Неосвоенный остаток закрыт','ok'); rerenderDetail(); };
 
   /* 15) soft-close транша (closeTranche, Г-17) — удаления нет, есть закрытие с основанием */
-  CR.openCloseTrancheModal=function(){ const c=modalGuard('closeTranche'); if(!c) return;
-    const sel=scopeTranche(c)||c.tranches[0];
+  /* no — номер транша из строки реестра (КВ-33): дверь открывает иконка в строке, и селект
+     обязан встать на тот же транш, что назвала строка. Без него модалка предвыбирала бы
+     транш по области карточки, а клик по иконке область не меняет (stopPropagation). */
+  CR.openCloseTrancheModal=function(no){ const c=modalGuard('closeTranche'); if(!c) return;
+    const sel=(no!=null&&c.tranches.find(t=>t.no===no))||scopeTranche(c)||c.tranches[0];
     const body=`<p class="section-note">Транши не удаляются. Закрытый транш выпадает из агрегатов срока и условий, но остаётся в истории со своими освоениями и графиком. Последний активный транш закрыть нельзя.</p>
       <div class="mform">
         <div class="field"><span class="flabel">Транш</span><div class="control"><select id="ctNo">${c.tranches.filter(t=>!t.closed).map(t=>`<option value="${t.no}"${sel&&t.no===sel.no?' selected':''}>№${t.no} · сумма ${money(t.amount)} · освоено ${money(disbursedSum(t))}</option>`).join('')}</select><span class="caret">▾</span></div></div>
