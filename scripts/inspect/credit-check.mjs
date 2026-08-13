@@ -2099,14 +2099,15 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
      `сейчас ${now.line}, с 01.12.2026 ${later.line}`);
 })();
 
-/* 141. Г-34: после регистрации напрямую не правится — причина названа, а не молчит (§0.3). */
+/* 141. Г-34: после регистрации напрямую не правится — причина названа, а не молчит (§0.3),
+   и отказ показывает ОБЕ двери: изменение по документу (Г-35) и корректировку (Г-36). */
 (() => { const db=CR.seedDb(); const c=byId(db,'K-1');
   c.lifecycle='Зарегистрирован';
   const set=CR.programClassification(c);
   const values={ kind:set.kind[0], line:set.line[0], purpose:'Цель', fundingSource:set.fundingSource[0] };
   const g=CR.gate(c,'editClassification',{values});
   const r=CR.editClassification(c,{values});
-  ok(141, g.ok===false && r.ok===false && /доп\. соглашением/i.test(g.reasons.join(' ')),
+  ok(141, g.ok===false && r.ok===false && /Г-35/.test(g.reasons.join(' ')) && /Г-36/.test(g.reasons.join(' ')),
      g.reasons.join(' | ').slice(0,90));
 })();
 
@@ -2128,8 +2129,8 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
   const g34=CR.gate(c,'editClassification',{ values:{ kind:'Ипотека', line:set.line[0],
     purpose:'Цель', fundingSource:set.fundingSource[0] } });
   c.lifecycle='Действует';
-  const g35=CR.gate(c,'addClassificationRecords',{ basis:{num:'ДС-КЛ-3',date:'01.07.2026'},
-    effectiveFrom:'01.07.2026', records:[{ param:'fundingSource', value:'Свои деньги' }] });
+  const g35=CR.gate(c,'addClassificationRecords',{ basis:{kind:'agreement',num:'ДС-КЛ-3',date:'01.07.2026'},
+    effectiveFrom:'01.09.2026', records:[{ param:'fundingSource', value:'Свои деньги' }] });
   const named = g34.reasons.join(' ').includes(set.kind[0]) && g35.reasons.join(' ').includes(set.fundingSource[0]);
   ok(143, g34.ok===false && g35.ok===false && named,
      `${g34.reasons.join(' ').slice(0,60)} // ${g35.reasons.join(' ').slice(0,60)}`);
@@ -2142,9 +2143,9 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
   const set=CR.programClassification(c);
   const nextLine=set.line.find(v => v!==c.line) || set.line[0];
   const agrBefore=c.agreements.length, audBefore=c.audit.length;
-  const r=CR.addClassificationRecords(c,{ basis:{num:'ДС-КЛ-4',date:'01.06.2026',scan:'ds-kl-4.pdf'},
-    effectiveFrom:'01.07.2026', note:'смена линии', records:[{ param:'line', value:nextLine }] });
-  const at=CR.classificationAt(c,'01.07.2026');
+  const r=CR.addClassificationRecords(c,{ basis:{kind:'agreement',num:'ДС-КЛ-4',date:'01.06.2026',scan:'ds-kl-4.pdf'},
+    effectiveFrom:'01.09.2026', note:'смена линии', records:[{ param:'line', value:nextLine }] });
+  const at=CR.classificationAt(c,'01.09.2026');
   ok(144, r.ok===true && r.value.added===1
           && c.agreements.length===agrBefore+1 && c.agreements.some(a => a.num==='ДС-КЛ-4')
           && c.audit.length===audBefore+1 && /classificationRecord/.test(c.audit[c.audit.length-1].what)
@@ -2162,6 +2163,124 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
   });
   ok(145, db.credits.length>=59 && bad.length===0,
      `кредитов ${db.credits.length}, вне набора ${bad.length}${bad.length?': '+bad.slice(0,3).map(c=>c.id+'/'+c.kind+'/'+c.fundingSource).join(', '):''}`);
+})();
+
+/* ---- КВ-31: изменение ≠ корректировка (ADR-0112) ---------------------------------- */
+
+/* 146. Корректировка базового значения действует НА ВСЕХ ДАТАХ: значение записали
+   неверно, значит неверного не было ни дня. Записи изменения при этом не появляется —
+   в src пусто, помечено только fix (карточке есть что сказать: «исправлено»). */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  c.lifecycle='Действует';
+  const set=CR.programClassification(c);
+  const right=set.fundingSource.find(v => v!==c.fundingSource) || set.fundingSource[0];
+  const r=CR.correctClassification(c,{ note:'п. 1.2 кредитного договора',
+    records:[{ param:'fundingSource', value:right, corrects:'base:fundingSource', was:c.fundingSource }] });
+  const early=CR.classificationAt(c,'01.01.2026'), now=CR.classificationAt(c,CR.TODAY);
+  ok(146, r.ok===true && r.value.fixed===1 && early.fundingSource===right && now.fundingSource===right
+          && !now.src.fundingSource && now.fix.fundingSource && c.agreements.length===0,
+     `на 01.01.2026 и сегодня — ${now.fundingSource}`);
+})();
+
+/* 147. Корректировка ЗАПИСИ наследует её дату и основание: срез после даты вступления
+   отдаёт исправленное значение, подписанное всё тем же ДС и всё той же датой — документ
+   не подменён, исправлена только цифра. Сама запись не переписана (Г-21): она хранит
+   неверное значение, поверх лежит корректировка. Набор программы ПРГ-7 из двух значений,
+   поэтому «верное» здесь совпадает с базовым — история как раз такая: в ДС стояла линия
+   договора, а в запись набрали другую. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  c.lifecycle='Действует';
+  const set=CR.programClassification(c);
+  const wrong=set.line.find(v => v!==c.line) || set.line[0], right=c.line;
+  CR.addClassificationRecords(c,{ basis:{kind:'agreement',num:'ДС-КЛ-5',date:'01.08.2026'},
+    effectiveFrom:'01.09.2026', records:[{ param:'line', value:wrong }] });
+  const rec=c.classificationRecords[0];
+  const r=CR.correctClassification(c,{ note:'п. 3 ДС-КЛ-5 — набрали не ту линию',
+    records:[{ param:'line', value:right, corrects:rec.id, was:wrong }] });
+  const at=CR.classificationAt(c,'01.10.2026');
+  ok(147, r.ok===true && at.line===right && at.src.line.id===rec.id
+          && at.src.line.effectiveFrom==='01.09.2026' && at.src.line.basis.ref==='ДС-КЛ-5'
+          && at.fix.line && rec.value===wrong && c.classificationRecords.length===2,
+     `запись ${rec.id} хранит ${rec.value}, срез с 01.09 отдаёт ${at.line} по ДС-КЛ-5`);
+})();
+
+/* 148. Единственный сторож корректировки — примечание (ADR-0112 «Последствия»): без
+   него отказ, и он называет причину, а не молчит. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  c.lifecycle='Действует';
+  const set=CR.programClassification(c);
+  const right=set.kind.find(v => v!==c.kind) || set.kind[0];
+  const r=CR.correctClassification(c,{ note:'  ',
+    records:[{ param:'kind', value:right, corrects:'base:kind' }] });
+  ok(148, r.ok===false && /примечани/i.test(r.reasons.join(' ')) && c.classificationRecords.length===0,
+     r.reasons.join(' | ').slice(0,80));
+})();
+
+/* 149. Корректировке нельзя подсунуть дату вступления или свой документ: это подмена
+   изменения исправлением. Отказ показывает дверь — Г-35 (§0.3). */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  c.lifecycle='Действует';
+  const set=CR.programClassification(c);
+  const right=set.kind.find(v => v!==c.kind) || set.kind[0];
+  const r=CR.correctClassification(c,{ note:'п. 1', effectiveFrom:'01.09.2026',
+    basis:{kind:'agreement',num:'ДС-КЛ-6',date:'01.08.2026'},
+    records:[{ param:'kind', value:right, corrects:'base:kind' }] });
+  ok(149, r.ok===false && /Г-35/.test(r.reasons.join(' ')), r.reasons.join(' | ').slice(0,90));
+})();
+
+/* 150. В «Проекте» корректировки нет: там значение правится напрямую (Г-34), и второй
+   механизм на то же самое был бы лишней дверью. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  c.lifecycle='Проект';
+  const set=CR.programClassification(c);
+  const right=set.kind.find(v => v!==c.kind) || set.kind[0];
+  const r=CR.correctClassification(c,{ note:'п. 1', records:[{ param:'kind', value:right, corrects:'base:kind' }] });
+  ok(150, r.ok===false && /Г-34/.test((r.reasons||[]).join(' ')),
+     (r.reasons||[]).join(' | ').slice(0,80));
+})();
+
+/* 151. Корректировка проверяется набором программы так же, как изменение, и пустая
+   корректировка («исправили на то же самое») отбивается. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  c.lifecycle='Действует';
+  const out=CR.gate(c,'correctClassification',{ note:'п. 1',
+    records:[{ param:'kind', value:'Ипотека', corrects:'base:kind' }] });
+  const same=CR.gate(c,'correctClassification',{ note:'п. 1',
+    records:[{ param:'kind', value:c.kind, corrects:'base:kind' }] });
+  ok(151, out.ok===false && out.reasons.join(' ').includes(CR.programClassification(c).kind[0])
+          && same.ok===false && /исправлять нечего/.test(same.reasons.join(' ')),
+     `${out.reasons.join(' ').slice(0,50)} // ${same.reasons.join(' ').slice(0,50)}`);
+})();
+
+/* 152. Задним числом (Г-19-паттерн): ДС отбито и отказ показывает дверь корректировки,
+   решение суда проходит — внешний акт прошлое менять вправе. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  c.lifecycle='Действует';
+  const set=CR.programClassification(c);
+  const next=set.line.find(v => v!==c.line) || set.line[0];
+  const recs=[{ param:'line', value:next }];
+  const agr=CR.gate(c,'addClassificationRecords',{ basis:{kind:'agreement',num:'ДС-КЛ-7',date:'01.06.2026'},
+    effectiveFrom:'01.06.2026', records:recs });
+  const court=CR.addClassificationRecords(c,{ basis:{kind:'court',ref:'Решение суда №7',date:'01.06.2026'},
+    effectiveFrom:'01.06.2026', records:recs });
+  const at=CR.classificationAt(c,'01.06.2026');
+  ok(152, agr.ok===false && /Г-36/.test(agr.reasons.join(' ')) && court.ok===true
+          && at.line===next && at.src.line.basis.kind==='court' && c.agreements.length===0,
+     `ДС отбито, суд прошёл: ${at.line}`);
+})();
+
+/* 153. Журнал различает исправление и изменение отдельным действием — надзорная выборка
+   «корректировки за месяц» строится по нему, а не по разбору текста примечаний. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  c.lifecycle='Действует';
+  const set=CR.programClassification(c);
+  const right=set.purpose ? 'Пополнение оборотных средств' : c.purpose;
+  const before=c.audit.length;
+  CR.correctClassification(c,{ note:'п. 2.1 договора', records:[{ param:'purpose', value:right+' (испр.)', corrects:'base:purpose', was:c.purpose }] });
+  const last=c.audit[c.audit.length-1];
+  ok(153, c.audit.length===before+1 && /^classificationFix: purpose$/.test(last.what)
+          && last.after.corrects==='base:purpose' && last.after.note==='п. 2.1 договора',
+     last.what);
 })();
 
 const pass = results.filter(r => r.pass).length;
