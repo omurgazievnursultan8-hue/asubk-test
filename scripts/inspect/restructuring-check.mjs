@@ -1029,7 +1029,7 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
    с 13.08.2026 она одна и та же на обеих вкладках расчёта, а заголовков-секций и вкладки
    «Охват» нет вовсе: список траншей заявки печатался двумя экземплярами. Четыре сеттера строки
    получают calcId, иначе клик по строке второго транша уехал бы в первый.
-   `creditIds[0]` уходит из функций задачи (pParams/pDiff/automationBlock) —
+   `creditIds[0]` уходит из функций задачи (pParams/pResult/automationBlock) —
    но НЕ из fixLetter/closeByRefusal: это логика паузы взыскания, спека прямо говорит её не
    трогать (`Не переписываем взыскание и залог`). Проверка поэтому берёт тело функции по имени,
    а не весь файл — иначе сценарий требовал бы правки, которую задача не должна делать.
@@ -1058,32 +1058,33 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
     const next = src.indexOf('\nfunction ', start+1);
     return src.slice(start, next<0 ? src.length : next);
   };
-  const scoped = ['scopeStrip','pParams','pDiff','automationBlock'];
+  const scoped = ['scopeStrip','pParams','pResult','automationBlock'];
   const gone = !/function pickTrancheBlock/.test(src)
     && scoped.every(name => !/creditIds\[0\]/.test(bodyOf(name)));
   // fix-round-1: производный транш адресуется по calc.id, не через однорасчётную дверь
   // resultTranche(app) — иначе у 2+ расчётов производный транш второй+ секции всегда «не
   // оформлено», а черновая форма ДС (versionParamsBlock) вовсе не рисуется (app.version==null).
-  // Переборка 12.08.2026: живёт он теперь ТОЛЬКО на «Было и стало» — транш и его график одна
-  // вещь, и на столе ввода коробка была нерабочей (до ДС — плейсхолдер, после — правка закрыта).
-  const derivedAddressed = /resultTrancheOf\(app,\s*calc\.id\)/.test(bodyOf('diffSection'))
-    && !/resultTranche\(app\)/.test(bodyOf('diffSection'))
+  // Переборка 12.08.2026: живёт он теперь ТОЛЬКО на второй вкладке расчёта («Результат расчёта»
+  // с 13.08.2026) — транш и его график одна вещь, и на столе ввода коробка была нерабочей
+  // (до ДС — плейсхолдер, после — правка закрыта).
+  const derivedAddressed = /resultTrancheOf\(app,\s*calc\.id\)/.test(bodyOf('resultSection'))
+    && !/resultTranche\(app\)/.test(bodyOf('resultSection'))
     && !/resultTrancheOf/.test(bodyOf('paramsSection'));
   // Гейты — условие регистрации ДС, общее для заявки: один разбор под шапкой карточки вместо
   // трёх копий в хвостах секций расчёта. Расхождение получило свой чип рядом с тремя прежними.
   const gatesUnderHead = /function gatesPanel\(app,st\)/.test(src)
     && /gatesPanel\(app,st\)/.test(bodyOf('renderCard'))
     && !/gateDetails\(app\)/.test(bodyOf('paramsSection'))
-    && !/gateDetails\(app\)/.test(bodyOf('diffSection'))
+    && !/gateDetails\(app\)/.test(bodyOf('resultSection'))
     && /Расхождение/.test(bodyOf('gateChipsRow'));
   // Волна 13.08.2026: форма условий переехала на «Параметры» — весь ввод изменения в одном месте,
-  // «Было и стало» стало целиком показом. Проверяется обеими сторонами: есть тут, нет там.
+  // «Результат расчёта» стал целиком показом. Проверяется обеими сторонами: есть тут, нет там.
   const paramsBlockScoped = /function versionParamsBlock\(app,\s*calc\)/.test(src)
     && /calc\.version/.test(bodyOf('versionParamsBlock'))
     && /versionParamsBlock\(app,\s*calc\)/.test(bodyOf('paramsSection'))
-    && !/versionParamsBlock/.test(bodyOf('diffSection'));
+    && !/versionParamsBlock/.test(bodyOf('resultSection'));
   ok(66, head && total && single && wired && gone && derivedAddressed && gatesUnderHead && paramsBlockScoped,
-    `полосаВместоСекций=${head} итог=${total} вкладкиОхватНет=${single} адресВДвери=${wired} староеСнесено=${gone} производныйНаБылоСтало=${derivedAddressed} гейтыПодШапкой=${gatesUnderHead} условияНаПараметрах=${paramsBlockScoped}`);
+    `полосаВместоСекций=${head} итог=${total} вкладкиОхватНет=${single} адресВДвери=${wired} староеСнесено=${gone} производныйНаРезультате=${derivedAddressed} гейтыПодШапкой=${gatesUnderHead} условияНаПараметрах=${paramsBlockScoped}`);
 })();
 
 /* 67. RS-1020 — единственная многокредитная заявка сида, и до сих пор расчёта не имела вовсе.
@@ -1113,7 +1114,7 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
 })();
 
 /* 68. Вкладка расчёта РИСУЕТСЯ, а не только считается. До fix-round-1 ни один сценарий не звал
-   pParams/pDiff, и расхождение трёх дверей к базе проходило мимо смоука: шапка секции и
+   pParams/pResult, и расхождение трёх дверей к базе проходило мимо смоука: шапка секции и
    полоса-итог читали calc.base сырым, тело секции брало умолчание через дверь ЗАЯВКИ
    (defaultBase(app,…)), которая при 2+ расчётах молчит — секция ещё не тронутого куратором
    транша рисовала «Долг по траншу пуст» и печатала «база 0» при живом долге. Третий транш,
@@ -1122,8 +1123,8 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
    расчёт, выбранный полосой, — и сторож теперь щёлкает полосу, проверяя, что подытог «База
    переноса» следует за выбором, а не залипает на первом расчёте. Складывается через расчёты
    ровно одно место — свёрнутый «Итог по заявке».
-   RS-1001 проверяет вторую половину: у однорасчётной заявки с зарегистрированным ДС коробки
-   траншей и живой график производного живут на «Было и стало», а на столе параметров
+   RS-1001 проверяет вторую половину: у однорасчётной заявки с зарегистрированным ДС строка
+   перехода и живой график производного живут на «Результате расчёта», а на столе параметров
    их нет вовсе (сид адресует ДС расчётом — dsRef + agreements, как mkChainApp). */
 (() => { fresh();
   const a = app('RS-1020');
@@ -1144,11 +1145,11 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
     && picks(html0) === a.calcs.length
     && (html0.match(/class="spick active"/g) || []).length === 1
     && html0.includes('spick-add')
-    && picks(RS.pDiff(a)) === a.calcs.length;                               // та же полоса на «Было и стало»
+    && picks(RS.pResult(a)) === a.calcs.length;                             // та же полоса на «Результате расчёта»
 
-  // ввод весь на «Параметрах»: форма условий и кнопка расчёта тут, на «Было и стало» — ни одного
-  // поля ввода. Вкладки разошлись по ролям: одна ЗАДАЁТ изменение, вторая ПОКАЗЫВАЕТ его исход.
-  const dHtml = RS.pDiff(a);
+  // ввод весь на «Параметрах»: форма условий и кнопка расчёта тут, на «Результате расчёта» — ни
+  // одного поля ввода. Вкладки разошлись по ролям: одна ЗАДАЁТ изменение, вторая ПОКАЗЫВАЕТ исход.
+  const dHtml = RS.pResult(a);
   const inputsOnParams = html0.includes('RS.setVersionParam') && html0.includes('RS.recalcPlan')
     && !/<(input|select)\b/.test(dHtml) && !dHtml.includes('RS.setVersionParam');
 
@@ -1172,23 +1173,25 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
 
   fresh();
   const a1 = app('RS-1001');
-  const b1 = RS.pParams(a1), s1 = RS.pDiff(a1);
-  // траншы уехали на «Было и стало» целиком — на столе параметров коробок нет; на второй вкладке
-  // их две, каждая в своей половине: исходный под «Было», производный под «Стало»
-  const splitMoved = !b1.includes('class="split-box')
-    && (s1.match(/class="split-box/g) || []).length === 2
-    && /Было — действующие условия[\s\S]*class="split-box"[\s\S]*Стало — что даёт расчёт[\s\S]*class="split-box new"/.test(s1)
-    && !s1.includes('Производный транш появится после регистрации');
-  // график производного берётся из половины «Стало»: с 13.08.2026 первым на вкладке идёт
-  // действующий график (половина «Было»), и «первый tbody» указывал бы уже не туда.
-  const afterNew = s1.slice(s1.indexOf('Стало — что даёт расчёт'));
+  const b1 = RS.pParams(a1), s1 = RS.pResult(a1);
+  // деньги сделки живут на «Результате расчёта» ОДНОЙ строкой перехода, и на столе параметров её
+  // нет. Прежние две коробки (split-box) печатали остаток источника и перенесённую базу порознь,
+  // не связанные ничем; лента ведёт остаток → базу → перенос → остаток после переноса.
+  const splitMoved = !b1.includes('class="flowline')
+    && !/class="split-box/.test(src) && !/\.split-box\{/.test(src)      // мёртвой разметки и CSS не осталось
+    && (s1.match(/class="flowline"/g) || []).length === 1
+    && /Деньги — что уходит в перенос[\s\S]*class="flow-id"[\s\S]*class="flowline"/.test(s1)
+    && !s1.includes('производный транш появится после регистрации ДС');
+  // график производного берётся из СВОЕЙ секции: на вкладке две таблицы-графика, и «первый
+  // tbody» указывал бы в таблицу сравнения условий, которая идёт раньше обеих.
+  const afterNew = s1.slice(s1.indexOf('График производного транша'));
   const schedRows = ((afterNew.match(/<tbody>([\s\S]*?)<\/tbody>/) || [, ''])[1].match(/<tr/g) || []).length;
   const schedShown = schedRows === 6;
   // разбор гейтов не печатается ни на одной из двух вкладок расчёта — он под шапкой карточки
   const gatesOffTabs = !b1.includes('gate-d') && !s1.includes('gate-d');
 
   ok(68, pickerOk && perCalc && rollupAddsUp && splitMoved && schedShown && gatesOffTabs && inputsOnParams,
-    `полоса=${pickerOk} подытогПоВыбору=${perCalc} итогСходится=${rollupAddsUp} (${wholeBase}) RS-1001: коробкиПоПоловинам=${splitMoved} график=${schedRows} строк гейтыВнеВкладок=${gatesOffTabs} вводТолькоНаПараметрах=${inputsOnParams}`);
+    `полоса=${pickerOk} подытогПоВыбору=${perCalc} итогСходится=${rollupAddsUp} (${wholeBase}) RS-1001: строкаПерехода=${splitMoved} график=${schedRows} строк гейтыВнеВкладок=${gatesOffTabs} вводТолькоНаПараметрах=${inputsOnParams}`);
 })();
 
 /* 69. ДЕЛЕНИЕ ПОЗИЦИИ НА НЕСКОЛЬКО РАСПОРЯЖЕНИЙ (РС-43) — исход прогона. Демо-заявка RS-1026
@@ -1416,6 +1419,137 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
              && /\.app\.nav-collapsed \.sidebar\{ display:none; \}/.test(src);
   ok(75, treeOk && wentDict && stayed && wentList && toggled && survived && noThrow && cssOk,
     `дерево=${treeOk} свои=${wentDict && wentList} чужой=${stayed} раскрытость=${toggled && survived} бургер=${noThrow} разметка=${cssOk}`);
+})();
+
+/* ===== Волна 13.08.2026: «Было и стало» → «Результат расчёта» (РС-45) ===== */
+
+/* Общий разбор вкладки: разметка читается один раз, тремя сценариями. Числа берутся из
+   разметки, а не из модели повторно — иначе сторож сверял бы модель с моделью. */
+const plainOf = s => String(s).replace(/<[^>]+>/g, ' ');
+const numOf   = s => Number(String(s).replace(/[^\d]/g, '')) || 0;
+function cmpRowsOf(html){                                    // строки таблицы условий, обе таблицы
+  const out = [];
+  const re = /<tr><td>([^<]+)<\/td>\s*<td class="numcell cmp-was">([\s\S]*?)<\/td>\s*<td class="numcell cmp-now">([\s\S]*?)<\/td>/g;
+  let m; while((m = re.exec(html))) out.push({ label:m[1].trim(), was:plainOf(m[2]).trim(), now:plainOf(m[3]).trim() });
+  return out;
+}
+function flowOf(html){                                       // ячейки денежной строки: подпись → число
+  const out = [];                                            // класс fl-i живёт только в ленте — отдельная вырезка блока не нужна
+  const re = /<div class="fl-i[^"]*"><span class="fl-l">([\s\S]*?)<\/span><span class="fl-v">([\s\S]*?)<\/span>/g;
+  let m; while((m = re.exec(html))) out.push({ label:plainOf(m[1]).trim(), val:numOf(m[2]) });
+  return out;
+}
+
+/* 76. ОДНА ДАТА НА ВЕСЬ ПОКАЗ. Прежняя вкладка читала транш-источник на TODAY (остаток, условия,
+   график), а прогон конвейера рядом — на дате вступления ДС: две графы «было» стояли на разных
+   датах и назывались одним словом. Дата теперь одна (calcEffectiveDate: факт расчёта → дата
+   соглашения → ДС заявки → сегодня) и ПЕЧАТАЕТСЯ — в подписи секции и в шапке колонки. */
+(() => { fresh();
+  const bodyOf = name => {
+    const start = src.indexOf('function '+name+'(');
+    if(start<0) return '';
+    const next = src.indexOf('\nfunction ', start+1);
+    return src.slice(start, next<0 ? src.length : next);
+  };
+  const body = bodyOf('resultSection');
+  // комментарии из проверки вычёркиваются: в них TODAY назван по делу — там объяснено, почему
+  // прежняя вкладка на нём стояла. Сторож меряет КОД, а не рассказ о коде.
+  const code = body.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
+  // ни одного чтения источника «на сегодня»: дата приходит одной дверью
+  const oneDoor = /const D = calcEffectiveDate\(app, calc\)/.test(body)
+    && !/\bTODAY\b/.test(code)
+    && /conditionsAt\(src, D\)/.test(body) && /balanceAt\(src, D\)/.test(body)
+    && /scheduleAt\(src,\s*D\)/.test(body) && /run\(app, D, calc\.id\)/.test(body);
+  // и она следует за данными, а не за календарём: двигаем дату соглашения — двигается весь показ
+  const a = app('RS-1001');
+  const calc = a.calcs[0];
+  calc.fact.date = '2026-09-01';
+  (a.agreements||[]).forEach(g => { g.date = '2026-09-01'; });
+  const h = RS.pResult(a);
+  const follows = h.includes('Действует — 2026-09-01')
+    && h.includes('на дату вступления ДС-60540/2: 2026-09-01')
+    && !h.includes('Действует — ' + RS.TODAY);
+  ok(76, oneDoor && follows, `однаДверь=${oneDoor} датаСледуетЗаДС=${follows}`);
+})();
+
+/* 77. ТАБЛИЦА УСЛОВИЙ — настоящее «было/стало» п. 89, и обе её графы держат модель, а не текст.
+   Прежде «действующие условия» печатались одной строкой «12%, 60 мес.» в коробке источника, а
+   форма на «Параметрах» показывала только НОВОЕ значение: сравнить срок, льготу, метод, отсрочку
+   куратору было негде — при том что имя вкладки обещало ровно сравнение.
+   Проверяется трижды: набор строк равен видимым полям формы (общий showIf — таблица и форма не
+   расходятся); до регистрации ДС графа «По расчёту» — черновик расчёта; после — условия
+   ПРОИЗВОДНОГО транша, то есть то, что реально доехало через restructureApplied. */
+(() => { fresh();
+  const visible = (now, was) => RS.PARAMS.filter(d => !d.showIf || d.showIf(now||{}) || d.showIf(was||{}));
+  const val = v => v==null || v==='' ? '—' : (typeof v==='number' ? String(RS.round2(v)).replace('.',',') : String(v));
+
+  // (а) ДС зарегистрировано — «По расчёту» читается с производного транша
+  const a1 = app('RS-1001'), c1 = a1.calcs[0];
+  const src1 = RS.calcTrancheOf(c1), der1 = RS.resultTrancheOf(a1, c1.id);
+  const D1 = c1.fact.date;
+  const was1 = RS.CreditSide.conditionsAt(src1, D1), now1 = RS.CreditSide.conditionsAt(der1, D1);
+  const rows1 = cmpRowsOf(RS.pResult(a1));
+  const cover1 = rows1.length === visible(now1, was1).length;
+  const model1 = visible(now1, was1).every(d => {
+    const r = rows1.find(x => x.label === d.label);
+    return r && r.was === val(was1[d.key]) && r.now === val(now1[d.key]);
+  });
+  const pillDs = RS.pResult(a1).includes('По расчёту <span class="pill low">ДС-60540/2</span>');
+  // движение вынесено наверх, неизменное — за раскрытие: двенадцать ключей целиком рассказывали
+  // бы в основном про то, что не менялось
+  const split1 = /<details class="cmp-same">/.test(RS.pResult(a1))
+    && cmpRowsOf(RS.pResult(a1).slice(0, RS.pResult(a1).indexOf('<details class="cmp-same"'))).length === 2;
+
+  // (б) ДС нет — «По расчёту» это черновик расчёта, с пиллом «Черновик»
+  fresh();
+  const a4 = app('RS-1004'), c4 = a4.calcs[0];
+  RS.setVersionParam(a4.id, 'term', 84, c4.id);
+  const src4 = RS.calcTrancheOf(c4);
+  const was4 = RS.CreditSide.conditionsAt(src4, RS.TODAY), now4 = c4.version.params;
+  const h4 = RS.pResult(a4), rows4 = cmpRowsOf(h4);
+  const draftShown = h4.includes('По расчёту <span class="pill info">Черновик</span>')
+    && rows4.length === visible(now4, was4).length
+    && (rows4.find(r => r.label === 'Срок, мес.') || {}).now === '84'
+    && /<td class="cmp-d">\+36 мес\.<\/td>/.test(h4);
+  // молчание соглашения — НЕ обнуление: неназванное условие переносится как есть (toConditions
+  // отсеивает пустые), и такая строка стоит среди неизменных, а не среди движения
+  const silentKept = h4.includes('соглашение условие не называет — оно переносится как есть')
+    && !h4.includes('<td class="cmp-d">удалено</td>');
+
+  ok(77, cover1 && model1 && pillDs && split1 && draftShown && silentKept,
+    `строк=${rows1.length}/${visible(now1, was1).length} сходитсяСМоделью=${model1} пиллДС=${pillDs} движениеСверху=${split1} черновик=${draftShown} молчаниеНеОбнуление=${silentKept}`);
+})();
+
+/* 78. ДЕНЕЖНАЯ СТРОКА СХОДИТСЯ. Прежде на её месте стояли две коробки: «Остаток» у источника и
+   «Перенесённая база» у производного — два числа рядом, и чем первое превращается во второе,
+   экран молчал. Лента обязана держать обе арифметики разом:
+     база переноса − прощено = перенос, всего      (капитализация СУММУ не меняет — ИР-2, РС-39:
+                                                    она перекладывает статью, а не деньги)
+     остаток до переноса − перенос = остаток после (transfer_out, ИР-3)
+   Прощение проверяется на заявке, где оно есть (RS-1001 прощает накопленную пеню): ячейка
+   «Прощено» рисуется только когда прощено, и без неё лента читалась бы как «база = перенос». */
+(() => { fresh();
+  const check = (id, expectForgive) => {
+    const a = app(id), c = a.calcs[0];
+    const f = flowOf(RS.pResult(a));
+    const pick = re => (f.find(x => re.test(x.label)) || {}).val;
+    const before = pick(/^Остаток .* на /), base = pick(/^База переноса$/);
+    const forgiven = pick(/^Прощено$/), transfer = pick(/^Перенос, всего$/);
+    const after = pick(/после переноса$/);
+    const cells = [before, base, transfer, after].every(v => v !== undefined);
+    const forgiveShown = expectForgive ? forgiven > 0 : forgiven === undefined;
+    const moneyIn  = cells && Math.abs(base - (forgiven || 0) - transfer) <= 1;
+    const moneyOut = cells && Math.abs(before - transfer - after) <= 1;
+    // и перенос — та же величина, которой считает конвейер, а не пересчитанная разметкой
+    const model = RS.AppSide.run(a, c.fact ? c.fact.date : RS.TODAY, c.id);
+    const sameAsRun = cells && Math.abs(transfer - Math.round(model.transferSum)) <= 1;
+    return { ok: cells && forgiveShown && moneyIn && moneyOut && sameAsRun,
+             note: `${id}: ${before}−${transfer}=${after} база ${base}−${forgiven||0}=${transfer} прогон=${Math.round(model.transferSum)}` };
+  };
+  const r1 = check('RS-1001', true);      // ДС зарегистрировано, пеня прощена
+  fresh();
+  const r4 = check('RS-1004', false);     // предпросмотр без ДС и без прощения
+  ok(78, r1.ok && r4.ok, `${r1.note} · ${r4.note}`);
 })();
 
 /* ---- отчёт ---- */
