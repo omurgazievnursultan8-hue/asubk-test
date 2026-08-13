@@ -388,19 +388,21 @@ table.grid tbody tr.terminal td:first-child{ font-style:italic; }
 .dim .src{ font:var(--weight-regular) 11.5px/1.45 var(--asubk-font); color:var(--text-muted); margin-top:5px; }
 .dim .src b{ color:var(--text-body); font-weight:var(--weight-medium); }
 .dim .src .dl-red{ font-size:11.5px; }
-/* Маршрут — компактная полоса: девять точек в ряд, подпись только у текущей стадии.
+/* Маршрут — полоса из девяти точек в ряд, подпись только у текущей стадии.
    Названия стадий длинные («Заключение уполномоченного органа»), девять подписей в строку
-   не помещаются и рвали шапку на три ряда; остальные читаются наведением (title). */
-.timeline{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:0 0 14px; }
+   не помещаются и рвали шапку на три ряда; остальные читаются наведением (title).
+   Точка 28px с цифрой 14px: 20/11px читались как декор, а не как номер стадии; девять
+   точек и восемь соединителей — это 412px, шапке хватает без переноса. */
+.timeline{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:0 0 16px; }
 .tl-track{ display:flex; align-items:center; gap:0; flex:none; }
-.tl-dot{ width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center;
-  font:var(--weight-bold) 11px/1 var(--asubk-font); flex:none; }
+.tl-dot{ width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font:var(--weight-bold) 14px/1 var(--asubk-font); flex:none; }
 .tl-dot.done{ background:var(--asubk-green); color:#fff; }
-.tl-dot.cur{ background:var(--asubk-blue); color:#fff; box-shadow:0 0 0 3px var(--status-info-bg); }
+.tl-dot.cur{ background:var(--asubk-blue); color:#fff; box-shadow:0 0 0 4px var(--status-info-bg); }
 .tl-dot.todo{ background:var(--surface-input); color:var(--text-placeholder); }
-.tl-line{ width:14px; height:2px; flex:none; background:var(--asubk-gray-200); }
+.tl-line{ width:20px; height:3px; flex:none; background:var(--asubk-gray-200); }
 .tl-line.done{ background:var(--asubk-green); }
-.tl-cur{ font:var(--font-label); color:var(--text-body); }
+.tl-cur{ font:var(--font-body); color:var(--text-body); }
 .tl-cur b{ color:var(--text-heading); font-weight:var(--weight-semibold); }
 .tl-cur .cnt{ color:var(--text-muted); }
 .section-h{ font:var(--weight-semibold) 17px/1.2 var(--asubk-font); color:var(--text-heading); margin:2px 0 6px; }
@@ -3476,10 +3478,13 @@ function phead(app,st){
     <div class="phead-dims">${tiles}</div>
   </div></div>`;
 }
+/* «← К реестру» убрана: возврат уже есть в хлебных крошках («Реестр заявок / №…»),
+   две одинаковые двери на одном экране — лишний шум. Осталась одна кнопка перехода
+   стадии, и когда её нет (закрытая заявка) — футера тоже нет: пустая липкая полоса
+   с рамкой читалась бы как обрезанный блок. */
 function footer(app){
-  return `<div class="footer">
-    <button class="btn btn-secondary" onclick="RS.go('list')">← К реестру</button>
-    <div class="spacer"></div>${advanceBtn(app)}</div>`;
+  const adv=advanceBtn(app); if(!adv) return '';
+  return `<div class="footer"><div class="spacer"></div>${adv}</div>`;
 }
 function advanceBtn(app){
   const adv=canAdvance(app); if(!adv) return '';
@@ -4662,11 +4667,10 @@ function openNewKind(){
   const chks=PARAM_KEYS.map(([k,l])=>`<label class="chk"><input type="checkbox" value="${k}" class="npk"> ${l}</label>`).join('');
   const dchks=Object.keys(DISP_LABEL).filter(d=>d!=='none').map(d=>`<label class="chk"><input type="checkbox" value="${d}" class="ndk"> ${DISP_LABEL[d]}</label>`).join('');
   modal(`<div class="modal wide">${mhead('Новый вид реструктуризации')}<div class="modal-b"><div class="mform">
-    <div class="field col-span"><div class="section-note">Заводится с происхождением <b>«иное»</b> под п. 89 пп. 5 Положения («и другим обоснованным предложениям, не противоречащим бюджетному и гражданскому законодательству»). Пять поимённо названных форм нормы заводить и переименовывать нельзя — они уже в справочнике (РС-33/ИР-14).</div></div>
-    <div class="field req col-span"><span class="flabel">Название</span><input id="nkname"></div>
-    <div class="field req col-span"><span class="flabel">Обоснование •</span><textarea id="nkrat" placeholder="Почему форма не подпадает ни под один из пп. 1–4 п. 89 и чем она не противоречит бюджетному и гражданскому законодательству"></textarea></div>
+    <div class="field req col-span"><span class="flabel">Название <span class="ro-tag">(происхождение — «иное», п. 89 пп. 5)</span></span><input id="nkname"></div>
+    <div class="field req col-span"><span class="flabel">Обоснование</span><textarea id="nkrat" placeholder="Почему форма не подпадает ни под один из пп. 1–4 п. 89"></textarea></div>
     <div class="field col-span"><span class="flabel">Разрешённые параметры</span><div class="f2" style="grid-template-columns:1fr 1fr 1fr">${chks}</div></div>
-    <div class="field col-span"><span class="flabel">Требуемые документы сверх нормативного пакета (через запятую)</span><input id="nkdocs" placeholder="нормативный пакет пп. 85–86, 95 добавляется сам"></div>
+    <div class="field col-span"><span class="flabel">Документы сверх нормативного пакета</span><input id="nkdocs" placeholder="через запятую; нормативный пакет пп. 85–86, 95 добавляется сам"></div>
     <div class="field col-span"><span class="flabel">Разрешённые распоряжения <span class="ro-tag">(«без распоряжения» доступно всегда)</span></span><div class="f2" style="grid-template-columns:1fr 1fr 1fr">${dchks}</div></div>
     <div class="field"><span class="flabel">Ограничения</span><input id="nklim"></div>
   </div></div><div class="modal-f"><button class="btn btn-secondary" onclick="RS.closeModal()">Отмена</button>
