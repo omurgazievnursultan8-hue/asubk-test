@@ -8250,7 +8250,11 @@ if (typeof document !== 'undefined') {
       <div class="section-h">Свод по кредиту на ${esc(d.calcUntil)}${d.calcStopped?' — расчёт остановлен':''}</div>
       ${sel?`<p class="section-note">Область «транш №${sel.no}» на этот свод не действует: статьи долга разносятся
         очередью кредита, а не транша (ADR-0060 § 4). По траншу считается <b>тело</b> — таблица ниже.</p>`:''}
-      ${d.calcStopped?`<div class="info-plate">${svgInfo()}<div>Кредит закрыт <b>${esc(d.calcUntil)}</b> (${esc((c.closure&&c.closure.reason)||'')}): начисление остановлено, все величины застыли на этой дате и от даты среза ${esc(cardAsOf)} больше не зависят.</div></div>`:''}
+      ${/* Плашка «Кредит закрыт …» снята волной 14.08.2026: тот же факт называли три места
+           на одном экране — заголовок свода («на <дата закрытия> — расчёт остановлен»),
+           плитка «Остаток долга» шапки карточки (asOfHtml :6900, видна на любой вкладке) и
+           сама плашка. Основание закрытия при этом принадлежит не расчёту: его называет
+           шапка вкладки «Договор». Молчит не факт — молчит повтор (тот же довод, что КВ-39). */''}
       <p class="section-note">Начислено — по действующей версии графика и условиям на дату среза; погашено — зеркало
         модуля платежей${(c.mirror.paymentsAsOf)?` (снимок ${esc(c.mirror.paymentsAsOf)})`:' (платежей нет)'}.
         База начисления — <b>фактическое непогашенное тело</b>, а не контрактное: пока просрочка по телу висит,
@@ -8258,13 +8262,15 @@ if (typeof document !== 'undefined') {
       ${d.calcProvisional?`<div class="warn-inline">${svgInfo()}<div>Расчёт за период <b>после ${esc(d.paymentsAsOf)}</b> — <b>предварительный</b>:
         начисленное кредит выводит на любую дату, а погашенное знает только до снимка зеркала. Платежи этих дней ещё не приехали,
         поэтому просрочка и пеня за хвост посчитаны по неполным данным и могут уменьшиться, когда снимок обновится.</div></div>`:''}
-      <div class="phead-dims" style="grid-template-columns:repeat(5,1fr)">
-        <div class="dim"><div class="dl">Всего освоено</div><div class="dv">${money(d.disbursed)}</div>${isFx?`<div class="src">≈ ${money0(toKgs(d.disbursed,cur))} KGS</div>`:''}</div>
-        <div class="dim"><div class="dl">Всего погашено ${lockHtml()}</div><div class="dv">${money(repaid)}</div>${isFx?`<div class="src">≈ ${money0(toKgs(repaid,cur))} KGS</div>`:''}</div>
-        <div class="dim"><div class="dl">Остаток долга</div><div class="dv">${money(d.debtBalance)}</div>${isFx?`<div class="src">≈ ${money0(d.debtBalanceKgs)} KGS</div>`:''}</div>
-        <div class="dim"><div class="dl">Сумма под риском</div><div class="dv">${money(d.atRisk)}</div><div class="src">остаток ОД + не освоено</div></div>
-        <div class="dim"><div class="dl">Всего просрочено</div><div class="dv" style="color:${d.overdueAmount>0?'var(--asubk-red)':'inherit'}">${money(d.overdueAmount)}</div><div class="src">${d.overdueDays} дн.${d.overdueSince?' с '+esc(d.overdueSince):''}${isFx&&d.overdueAmount>0?` · ≈ ${money0(d.overdueAmountKgs)} KGS`:''}</div></div>
-      </div>
+      ${/* ПОЛОСА ИЗ ПЯТИ ПЛИТОК СНЯТА (волна 14.08.2026). Ни одна не называла своего числа
+           первой: «Всего погашено», «Остаток долга» и «Всего просрочено» суть итоговая
+           строка таблицы, стоящей тремя строками ниже; «Всего освоено» — основание плитки
+           «Сумма договора» шапки карточки (:7122), «Остаток долга» и просрочка с днями —
+           плитки «Остаток долга» той же шапки (:6921), а шапка видна на КАЖДОЙ вкладке.
+           «Сумма под риском» — величина чужого предмета: это база обеспеченности (ADR-0011),
+           она стоит на «Обеспечении» вместе со своими слагаемыми и порогом, а расчёту
+           начислений не нужна ничем. Приведение к сому не потеряно: у валютного кредита
+           оно живёт на тех же плитках шапки. */''}
       <div class="cgrid-wrap" style="margin-top:12px"><table class="cgrid"><thead><tr>
         <th>Статья</th><th style="text-align:right">Начислено</th><th style="text-align:right">Погашено</th>
         <th style="text-align:right">Срочная часть</th><th style="text-align:right">Просроченная часть</th><th style="text-align:right">Остаток</th></tr></thead><tbody>
@@ -8288,6 +8294,16 @@ if (typeof document !== 'undefined') {
        с разнесением подтверждённых погашений и начислением пени. Прежде грид читал
        засеянный ledger, в котором у всех кредитов была ровно одна строка (КР-8). */
     const ledSrc = sel ? d.ledger.rows.filter(r=>r.trancheNo===sel.no) : d.ledger.rows;
+    /* СТАВКА ПЕНИ — ПАРАМЕТР ДОГОВОРА, А НЕ ВЕЛИЧИНА СТРОКИ. buildLedger берёт её через
+       conditionsAt на дату (:4623), то есть меняться она МОЖЕТ — но только сменой версии
+       условий; на сиде из 50 кредитов с расчётом (273 строки) не сменилась ни у одного, и
+       колонка печатала одно и то же число столько раз, сколько в таблице строк. Печатается
+       колонкой ровно тогда, когда внутри показанных строк ставок больше одной; иначе стоит
+       двумя полями рядом с «Методом дней» и «Очерёдностью» — там же, где живут остальные
+       параметры расчёта. Именами полей взяты справочные (COND_FIELDS :1940), чтобы у одной
+       величины не завелось второе имя. */
+    const ledRates = [...new Set(ledSrc.map(l=>(l.penaltyMain||0)+'/'+(l.penaltyInt||0)))];
+    const rateCol  = ledRates.length > 1;
     const ledRows=ledSrc.map(l=>`<tr>
       <td style="position:sticky;left:0;background:var(--surface-card)">№${l.no}</td>
       <td style="position:sticky;left:52px;background:var(--surface-card)">${esc(l.date)}</td>
@@ -8296,17 +8312,19 @@ if (typeof document !== 'undefined') {
       <td style="text-align:right">${money(l.principalDue)}</td><td style="text-align:right">${money(l.principalPaid)}</td><td style="text-align:right;color:${l.principalOverdue>0?'var(--asubk-red)':'inherit'}">${money(l.principalOverdue)}</td>
       <td style="text-align:right">${esc(l.days)}</td>
       <td style="text-align:right">${money(l.interestAccrued)}${Math.abs(l.interestExtra||0)>0.005?`<br><span class="text-muted" style="font:var(--font-label)" title="начислено на ФАКТИЧЕСКОЕ непогашенное тело, а не на контрактную базу (ADR-0105): к началу периода погашено ${l.principalDev>0?'меньше':'больше'} графика на ${money(Math.abs(l.principalDev||0))}">${l.interestExtra>0?'+':'−'}${money(Math.abs(l.interestExtra))} ${l.interestExtra>0?'недобор тела':'досрочка'}</span>`:''}${l.interestFrozen>0?`<br><span class="text-muted" style="font:var(--font-label)" title="приостановлено решением суда на присуждённую долю">−${money(l.interestFrozen)} суд</span>`:''}</td><td style="text-align:right">${money(l.interestPaid)}</td><td style="text-align:right;color:${l.interestOverdue>0?'var(--asubk-red)':'inherit'}">${money(l.interestOverdue)}</td>
-      <td style="text-align:right">${esc(l.penaltyMain)} / ${esc(l.penaltyInt)}</td>
+      ${rateCol?`<td style="text-align:right">${esc(l.penaltyMain)} / ${esc(l.penaltyInt)}</td>`:''}
       <td style="text-align:right">${money(l.penaltyAccrued)}${(l.penaltyFrozen>0||l.penaltyDisputed>0)?`<br><span class="text-muted" style="font:var(--font-label)" title="начислено, но не требуется">${l.penaltyFrozen>0?'−'+money(l.penaltyFrozen)+' суд ':''}${l.penaltyDisputed>0?'−'+money(l.penaltyDisputed)+' спор':''}</span>`:''}</td><td style="text-align:right">${money(l.penaltyPaid)}</td><td style="text-align:right;color:${l.penaltyBal>0?'var(--asubk-red)':'inherit'}">${money(l.penaltyBal)}</td>
-      <td style="text-align:right">${money(l.totalPaid)}</td>
+      ${/* Колонка «Итого · Оплачено всего» снята: totalPaid ЕСТЬ received (:4695) — одно
+           число печаталось дважды, колонками через двенадцать. Совпадение не совпадение
+           данных, а присваивание в модели, поэтому колонки-«сверки» из него не выходит. */''}
       <td>${(()=>{const st=scheduleRowStatus({date:l.date},l,cardAsOf);
         const p={'Оплачена':'low','Просрочена':'high','Наступила':'mid'}[st]||'neutral';
         return `<span class="pill ${p}">${esc(st)}</span>`;})()}</td></tr>`);
-    const nCols = !sel?17:16;
+    const nCols = (!sel?3:2) + 1 + 4 + 3 + (rateCol?4:3) + 1;   // позиция · получено · ОД · % · пеня · статус
     const led=`<div class="cgrid-wrap"><table class="cgrid"><thead>
-      <tr><th colspan="${!sel?3:2}" style="position:sticky;left:0;background:var(--surface-card)">Позиция</th><th>Получено</th><th colspan="4">Основной долг</th><th colspan="3">Проценты</th><th colspan="4">Пеня</th><th>Итого</th><th>Статус</th></tr>
-      <tr><th style="position:sticky;left:0;background:var(--surface-card)">№</th><th style="position:sticky;left:52px;background:var(--surface-card)">Дата</th>${!sel?'<th>Транш</th>':''}<th>Оплата</th><th>К оплате</th><th>Погашено</th><th>Просрочено</th><th>Дней</th><th>Начислено</th><th>Оплачено</th><th>Просрочено</th><th>Ставка ОД/%</th><th>Начислено</th><th>Оплачено</th><th>Остаток</th><th>Оплачено всего</th><th></th></tr>
-      </thead><tbody>${ledRows.length?ledRows.join(''):`<tr><td colspan="${nCols+2}"><div class="cgrid-empty">На дату среза ${esc(cardAsOf)} не наступила ни одна позиция графика — начислять нечего</div></td></tr>`}</tbody></table></div>`;
+      <tr><th colspan="${!sel?3:2}" style="position:sticky;left:0;background:var(--surface-card)">Позиция</th><th>Получено</th><th colspan="4">Основной долг</th><th colspan="3">Проценты</th><th colspan="${rateCol?4:3}">Пеня</th><th>Статус</th></tr>
+      <tr><th style="position:sticky;left:0;background:var(--surface-card)">№</th><th style="position:sticky;left:52px;background:var(--surface-card)">Дата</th>${!sel?'<th>Транш</th>':''}<th>Оплата</th><th>К оплате</th><th>Погашено</th><th>Просрочено</th><th>Дней</th><th>Начислено</th><th>Оплачено</th><th>Просрочено</th>${rateCol?'<th>Ставка ОД/%</th>':''}<th>Начислено</th><th>Оплачено</th><th>Остаток</th><th></th></tr>
+      </thead><tbody>${ledRows.length?ledRows.join(''):`<tr><td colspan="${nCols}"><div class="cgrid-empty">На дату среза ${esc(cardAsOf)} не наступила ни одна позиция графика — начислять нечего</div></td></tr>`}</tbody></table></div>`;
     /* ТЕЛО ПО ТРАНШАМ (ИР-3; переехало сюда из «Состава» волной КВ-36). Остаток тела —
        величина ДОЛГА, а не состава: «Состав» отвечает, из чего кредит составлен и сколько
        договора роздано, «Расчёты» — сколько и чего осталось. Здесь же живут оба её
@@ -8375,6 +8393,10 @@ if (typeof document !== 'undefined') {
               перечень на дату с волны 10.08.2026 живёт на «Платежах» и зовётся очередью
               погашения (CONTEXT.md:241, ADR-0060). Одно имя на два предмета путало. */''}
         ${fld('Очерёдность', esc(bc.queue))}
+        ${(()=>{ if(rateCol) return '';       // ставок несколько — они стоят колонкой в таблице
+          const src = ledSrc.length ? ledSrc[0] : (sel ? conditionsAt(sel, cardAsOf) : bc);
+          return fld('Пеня по ОД, %/дн', esc(src.penaltyMain))
+               + fld('Пеня по %, %/дн',  esc(src.penaltyInt)); })()}
       </div>
       ${led}
       ${resBlock}`;
