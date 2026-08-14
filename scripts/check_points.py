@@ -49,6 +49,8 @@ SCANNED = [
     "mockups/collection/ASUBK-vzyskanie-logika.md",
     "mockups/collection/ASUBK-status-razrabotki.md",
     "mockups/collection/collection.html",
+    "mockups/classification/classification.html",
+    "scripts/inspect/classification-check.mjs",
     "requirements/tz/13-collection.html",
     "docs/tasks/p14-collection-tasks.html",
     "docs/adr/*.md",
@@ -75,6 +77,8 @@ MIGRATED = {
     "STATUS.md",
     "TODO.md",
     "mockups/collection/collection.html",
+    "mockups/classification/classification.html",
+    "scripts/inspect/classification-check.mjs",
     "scripts/inspect/collection-check.mjs",
     "CONTEXT.md",
 }
