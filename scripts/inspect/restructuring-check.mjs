@@ -161,16 +161,23 @@ function secondTranche(a){
   const a = app('RS-1001');
   const cutoffP = a.cutoff.rows.find(r => r.article === 'principal').amount;
   const factP = a.ds.fact.rows.find(r => r.article === 'principal').amount;
-  // 4 082 000 = 4 200 000 остатка минус перенос 118 000. Перенос сжался после ADR-0110:
-  // расходы взыскания и сборы больше не входят в базу, и уносить с траншем нечего.
-  ok(13, a.cutoff.date !== a.ds.date && cutoffP === 5000000 && factP === 4082000 && cutoffP !== factP,
+  // Тело на дату вступления — 4 200 000, ровно остаток источника. Прежде здесь стояло 4 082 000,
+  // и оба слагаемых этой разницы были дефектами (разбор 14.08.2026): факт снимался ПОСЛЕ переноса,
+  // а перенос дебетовал тело на 118 000 накопленных процентов, которые в теле не лежали. Факт —
+  // «сколько было долга на дату вступления», и он обязан читать транш ДО сделки; тело же
+  // реструктуризация RS-1001 не трогает вовсе, она уносит накопленное.
+  ok(13, a.cutoff.date !== a.ds.date && cutoffP === 5000000 && factP === 4200000 && cutoffP !== factP,
     `срез=${a.cutoff.date}/${cutoffP} факт=${a.ds.date}/${factP}`);
 })();
 
 /* 14. РС-7/РС-13/ADR-0110 — пять статей долга, ровно две срочности. Расходов взыскания и сборов
-   в базе нет ни строкой: они выведены из охвата, а не просто обнулены. */
+   в базе нет ни строкой: они выведены из охвата, а не просто обнулены.
+   Меряется на RS-1004 — заявке БЕЗ зарегистрированного ДС. Прежде мерили на RS-1001, и с
+   14.08.2026 это стало мерить другое: её ДС уносит накопленное СТРОКАМИ ДОЛГА (РС-7 «вошедшее
+   закрывается переносом»), так что у транша-источника накопленных статей больше нет — и правильно,
+   что нет. Сторож про состав долга, а не про след реструктуризации. */
 (() => { fresh();
-  const base = RS.defaultBase(app('RS-1001'), RS.TODAY);
+  const base = RS.defaultBase(app('RS-1004'), RS.TODAY);
   const arts = new Set(base.map(r => r.article));
   const urg = new Set(base.map(r => r.urgency));
   const urgOk = [...urg].every(u => u === 'over' || u === 'cur');
@@ -225,13 +232,16 @@ function secondTranche(a){
   ok(17, allFound && increasing, `order=${order.join(',')}`);
 })();
 
-/* 18. РС-9/ADR-0096 — одна дверь: единственный `.ops.push(` на транше, внутри restructureApplied. */
+/* 18. РС-9/ADR-0096 — одна дверь: КАЖДЫЙ `.ops.push(` на транше живёт внутри restructureApplied.
+   Сторож про место, а не про количество: с 14.08.2026 перенос ставит две операции — transfer_out
+   на балансовую часть базы и forgive_out на прощённую (у прощённого зеркальной transfer_in нет).
+   Считать пуши штукой значило бы запретить дверям расти, чего РС-9 не говорит. */
 (() => {
   const matches = [...js.matchAll(/\.ops\.push\(/g)];
   const fnStart = js.indexOf('function restructureApplied(ds)');
   const fnEnd = js.indexOf('const CreditSide = {');
-  const inside = matches.length === 1 && matches[0].index > fnStart && matches[0].index < fnEnd;
-  ok(18, matches.length === 1 && inside, `count=${matches.length} inside=${inside}`);
+  const inside = matches.length > 0 && matches.every(m => m.index > fnStart && m.index < fnEnd);
+  ok(18, inside, `count=${matches.length} inside=${inside}`);
 })();
 
 /* 19. ИР-8/РС-17 — гейт согласий: CR-61200 (запрошено) блокирует, согласованные пропускают. */
@@ -798,9 +808,13 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
    перемножаются, а не подменяют друг друга. Строка есть, начислений не порождает (режим
    терминальный), по умолчанию СНЯТА (РС-7: умолчание базы — просроченное) и в перенос не
    входит. RS-1025 взята потому, что её сев хвост не включает: у RS-1023/RS-1024 галка уже
-   поставлена демо-севом, и умолчание на них не видно. */
+   поставлена демо-севом, и умолчание на них не видно.
+   Меряется ЗАФИКСИРОВАННАЯ база расчёта (calc.base — то самое умолчание, которое положил сев),
+   а не пересчёт на сегодня: с 14.08.2026 перенос списывает вошедшие строки у источника (РС-7),
+   и просроченной накопленной строки на транше больше нет — она уехала сделкой. Хвост, наоборот,
+   на источнике остался, и это ровно то, что сторож утверждает: снятая строка НЕ переносится. */
 (() => { fresh();
-  const base = RS.defaultBase(app('RS-1025'), RS.TODAY);
+  const base = app('RS-1025').base;
   const tail = base.find(r => r.article === 'accInterest' && r.urgency === 'cur');
   const head = base.find(r => r.article === 'accInterest' && r.urgency === 'over');
   const mode = RS.accrualModeOf('accInterest', RS.TODAY).mode;
@@ -809,10 +823,13 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
   const r = RS.AppSide.run(app('RS-1025'), RS.TODAY);
   const accInTransfer = RS.round2(RS.mergeParts(r.parts || [])
     .filter(p => p.article === 'accInterest').reduce((s, p) => s + p.amount, 0));
+  // и он остался у источника: живое умолчание сегодня показывает хвост и НЕ показывает голову
+  const live = RS.defaultBase(app('RS-1025'), RS.TODAY).filter(x => x.article === 'accInterest');
+  const stayed = live.length === 1 && live[0].urgency === 'cur' && live[0].amount === 180000;
   ok(55, !!tail && tail.amount === 180000 && tail.included === false && !tail.blockedBy
-      && head.amount === 60000 && terminal && accInTransfer === head.amount,
+      && head.amount === 60000 && terminal && accInTransfer === head.amount && stayed,
     `хвост=${tail && tail.amount} снят=${tail && !tail.included} наступившее=${head && head.amount} `
-    + `терминальная=${terminal} вПереносе=${accInTransfer}`);
+    + `терминальная=${terminal} вПереносе=${accInTransfer} осталсяУИсточника=${stayed}`);
 })();
 
 /* 56. РС-39 на НЕНАСТУПИВШЕМ накопленном: распределение переназначает сроки и статьи НЕ меняет
@@ -1185,9 +1202,12 @@ const doorFixture = (id = 'RS-1001', article = 'accInterest', urgency = 'over') 
   // не связанные ничем; лента ведёт остаток → базу → перенос → остаток после переноса.
   // РС-46 снял строку-адрес flow-id: она печатала имена обоих траншей третьим экземпляром (их
   // называют полоса охвата и заголовки графиков), а до регистрации ДС обещала транш, которого нет.
+  // Лент ДВЕ с 14.08.2026: состав переноса (база − прощено = перенос) и движение остатка
+  // источника. Разведены потому, что «остаток до − перенос = остаток после» верно лишь когда
+  // переносят одно тело: начисленное в остатке не лежит и уходит строками долга.
   const splitMoved = !b1.includes('class="flowline')
     && !/class="split-box/.test(src) && !/\.split-box\{/.test(src)      // мёртвой разметки и CSS не осталось
-    && (s1.match(/class="flowline"/g) || []).length === 1
+    && (s1.match(/class="flowline"/g) || []).length === 2
     && /<div class="section-h">Деньги<\/div>\s*<div class="flowline">/.test(s1)
     && !/class="flow-id"/.test(src) && !/\.flow-id\{/.test(src)
     && !s1.includes('производный транш появится после регистрации ДС');
@@ -1557,12 +1577,16 @@ function flowOf(html){                                       // ячейки д�
     `строк=${rows1.length}/${visible(now1, was1).length} сходитсяСМоделью=${model1} пиллДС=${pillDs} движениеСверху=${split1} (свёрнуто ${folded.length}) черновик=${draftShown} ΔтолькоЧисло=${deltaNumeric} молчаниеНеОбнуление=${silentKept}`);
 })();
 
-/* 78. ДЕНЕЖНАЯ СТРОКА СХОДИТСЯ. Прежде на её месте стояли две коробки: «Остаток» у источника и
-   «Перенесённая база» у производного — два числа рядом, и чем первое превращается во второе,
-   экран молчал. Лента обязана держать обе арифметики разом:
-     база переноса − прощено = перенос, всего      (капитализация СУММУ не меняет — ИР-2, РС-39:
-                                                    она перекладывает статью, а не деньги)
-     остаток до переноса − перенос = остаток после (transfer_out, ИР-3)
+/* 78. ДЕНЕЖНАЯ ЛЕНТА СХОДИТСЯ — ДВЕ АРИФМЕТИКИ, РАЗВЕДЁННЫЕ ПО ДВУМ СТРОКАМ (14.08.2026).
+     состав:   база переноса − прощено = перенос, всего   (капитализация СУММУ не меняет — ИР-2,
+                                                           РС-39: перекладывает статью, не деньги)
+     источник: остаток до − ушло из остатка = остаток после
+   Одной цепочкой это писать нельзя: «остаток до − перенос = остаток после» верно только когда
+   переносят одно тело. Начисленные проценты и пеня в остатке не лежат вовсе (они и есть строки
+   долга), и на RS-1001 прежняя лента утверждала движение 4 200 000 → 4 082 000, которого не было.
+   ВТОРОЕ ПРАВИЛО СТОРОЖА: у зарегистрированного ДС состав читается из РЕКВИЗИТОВ СОГЛАШЕНИЯ, а не
+   пересчитывается живым конвейером. Живая база после переноса — уже другая (источник опустел), и
+   прежний экран печатал «база 107 700 = перенос 1 575 000»: два числа разных эпох через знак «=».
    Прощение проверяется на заявке, где оно есть (RS-1001 прощает накопленную пеню): ячейка
    «Прощено» рисуется только когда прощено, и без неё лента читалась бы как «база = перенос». */
 (() => { fresh();
@@ -1573,18 +1597,24 @@ function flowOf(html){                                       // ячейки д�
     // подписи с РС-46 называют РОЛЬ, а не адрес: имя транша печатает заголовок его графика, дату —
     // шапка колонки условий. «Перенос по этому расчёту» назван охватом — плитка шапки карточки
     // складывает перенос по всей заявке, и на многорасчётной заявке числа разойдутся.
-    const before = pick(/^Остаток до переноса$/), base = pick(/^База переноса$/);
-    const forgiven = pick(/^Прощено$/), transfer = pick(/^Перенос по этому расчёту$/);
-    const after = pick(/^Остаток после переноса$/);
-    const cells = [before, base, transfer, after].every(v => v !== undefined);
+    const base = pick(/^База переноса$/), forgiven = pick(/^Прощено$/);
+    const transfer = pick(/^Перенос по этому расчёту$/);
+    const before = pick(/^Остаток источника до$/), gone = pick(/^Ушло из остатка$/);
+    const after = pick(/^Остаток источника после$/);
+    const cells = [before, base, transfer, after, gone].every(v => v !== undefined);
     const forgiveShown = expectForgive ? forgiven > 0 : forgiven === undefined;
     const moneyIn  = cells && Math.abs(base - (forgiven || 0) - transfer) <= 1;
-    const moneyOut = cells && Math.abs(before - transfer - after) <= 1;
-    // и перенос — та же величина, которой считает конвейер, а не пересчитанная разметкой
-    const model = RS.AppSide.run(a, c.fact ? c.fact.date : RS.TODAY, c.id);
-    const sameAsRun = cells && Math.abs(transfer - Math.round(model.transferSum)) <= 1;
-    return { ok: cells && forgiveShown && moneyIn && moneyOut && sameAsRun,
-             note: `${id}: ${before}−${transfer}=${after} база ${base}−${forgiven||0}=${transfer} прогон=${Math.round(model.transferSum)}` };
+    const moneyOut = cells && Math.abs(before - gone - after) <= 1;
+    // из остатка не может уйти больше, чем взято базой: разница — начисленное, списанное строками
+    const goneSane = cells && gone <= base + 1;
+    // Число ленты — то же, которым распорядилась сделка: до регистрации это конвейер, после —
+    // реквизит соглашения. Ровно этим двум источникам и позволено называть перенос.
+    const ag = (a.agreements || []).find(x => (x.calcIds || []).indexOf(c.id) >= 0);
+    const model = ag ? ag.transferSum : RS.AppSide.run(a, c.fact ? c.fact.date : RS.TODAY, c.id).transferSum;
+    const sameAsModel = cells && Math.abs(transfer - Math.round(model)) <= 1;
+    const fixedComp = id === 'RS-1001' ? (!!ag && ag.taken && ag.taken.length > 0) : true;
+    return { ok: cells && forgiveShown && moneyIn && moneyOut && goneSane && sameAsModel && fixedComp,
+             note: `${id}: ${before}−${gone}=${after} база ${base}−${forgiven || 0}=${transfer} модель=${Math.round(model)}` };
   };
   const r1 = check('RS-1001', true);      // ДС зарегистрировано, пеня прощена
   fresh();
@@ -1675,10 +1705,115 @@ function flowOf(html){                                       // ячейки д�
     `RS-1001: колонок ${derW.n}/${derW.w}px источник ${srcW.n}/${srcW.w}px пустых=${derCols.dead.length} раскрытие=${opens}/${opened} (${shown}→${afterOpen} из ${rowsTotal1}) поОдномуРазу=${once} (${src1.no}×${nSrc} ${der1.no}×${nDer} пиллыСекций ${headPills.join('/')})  тишина=${quiet} · RS-1004: колонки [${cols4.heads.join('|')}] ${w4.n}/${w4.w}px пустых=${cols4.dead.length}`);
 })();
 
+/* 80. ЧАСТИЧНЫЙ ПЕРЕНОС ПОЗИЦИИ — РС-7а (14.08.2026). До правки строка базы была решением «да/нет»:
+   включённая позиция уходила целиком. Спека же с §14 п. 8 требует половину тела на ДС-59003/3, и
+   макет её «выполнял» подменой — цепочка писала transferSum = balanceAt/2 мимо базы и распоряжений,
+   отчего вкладка «Параметры» показывала одно, а график переносил другое. Теперь взятая часть живёт
+   на самой строке (row.take), и сторож смотрит её ТРЕМЯ глазами разом, потому что порознь каждый
+   проходит и на подмене:
+     · модель — перенос падает ровно на невзятую часть, а состав ДС (taken) называет взятое;
+     · источник — невзятая половина ОСТАЁТСЯ на транше и не даёт его закрыть (ИР-5);
+     · экран — поле стоит в клетке «Включена», остаток назван вслух, а подытог «База переноса»
+       считает ВЗЯТОЕ: показывать там полные остатки значит обещать сумму, которой сделка не берёт.
+   Потолки проверяются с двух сторон: распоряжение не пускают выше взятого, а взятое — ниже уже
+   занятого распоряжениями (иначе линия молча повисла бы сверх позиции). Пустое поле = вся позиция:
+   это единственный способ вернуть строку в исходное «целиком», не снимая и не включая её заново. */
+(() => { fresh();
+  // ФИКСТУРА ЦЕПОЧКИ: RS-1005 переносит половину тела — источник обязан остаться живым
+  const a5 = app('RS-1005'), c5 = a5.calcs[0];
+  const ag5 = (a5.agreements || []).find(x => (x.calcIds || []).indexOf(c5.id) >= 0);
+  const src5 = RS.state.credits.flatMap(c => c.tranches).find(t => t.id === a5.ds.sourceTrancheId);
+  const left5 = RS.round2(RS.CreditSide.balanceAt(src5, a5.ds.date));
+  const took5 = RS.round2((ag5.taken || []).reduce((s, x) => s + x.amount, 0));
+  const halfBody = left5 > 0 && Math.abs(left5 - ag5.principalPart) <= 1;   // взяли и оставили поровну
+  const alive = !src5.closed && Math.abs(RS.round2(took5 - ag5.baseSum)) <= 0.01;
+
+  // ЖИВАЯ ПРАВКА: RS-1004 — заявка без ДС, база правится куратором
+  RS.state.role = 'Куратор ОД';
+  const a4 = app('RS-1004'), c4 = RS.requireCalc(a4);
+  RS.ensureBaseDispositions(a4, c4.id);
+  const row = c4.base.find(r => r.included);
+  const half = RS.round2(row.amount / 2);
+  const was = RS.AppSide.run(a4, RS.TODAY, c4.id).transferSum;
+  RS.setBaseTake(a4.id, row.article, row.urgency, half, c4.id);
+  const now = RS.AppSide.run(a4, RS.TODAY, c4.id);
+  const modelCut = Math.abs(RS.round2(was - now.transferSum) - half) <= 0.01
+    && (now.taken || []).some(t => t.article === row.article && Math.abs(t.amount - half) <= 0.01);
+
+  const html = RS.pParams(a4);
+  const foot = (html.match(/База переноса <b>([^<]*)<\/b>/) || [])[1];
+  const footN = foot ? Number(foot.replace(/[^\d,.-]/g, '').replace(',', '.')) : NaN;
+  const shown = /RS\.setBaseTake\(\$\{A\},this\.value,'\$\{calc\.id\}'\)/.test(src)   // адрес строки + расчёт
+    && /у источника остаётся/.test(html)
+    && Math.abs(footN - Math.round(now.transferSum)) <= 1;
+
+  // потолки: распоряжение выше взятого не пускают, взятое ниже занятого — тоже
+  const kind = [...RS.allowedDispositions(a4)][0];
+  RS.setDispAmount(a4.id, row.article, row.urgency, half + 1000, c4.id, 1);
+  const capUp = RS.dispositionsSum(c4.dispositions, row.article, row.urgency) <= half;
+  RS.setDisposition(a4.id, row.article, row.urgency, kind, c4.id, 1);
+  RS.setDispAmount(a4.id, row.article, row.urgency, half, c4.id, 1);
+  RS.setBaseTake(a4.id, row.article, row.urgency, RS.round2(half / 2), c4.id);
+  const capDown = RS.takeOf(row) === half;
+  RS.setDispAmount(a4.id, row.article, row.urgency, 1, c4.id, 1);
+  RS.setBaseTake(a4.id, row.article, row.urgency, '', c4.id);
+  const whole = row.take === undefined && RS.takeOf(row) === RS.round2(row.amount);
+
+  ok(80, halfBody && alive && modelCut && shown && capUp && capDown && whole,
+    `RS-1005: взято ${took5} (тело ${ag5.principalPart}) осталось ${left5} источник жив=${!src5.closed} · ` +
+    `RS-1004: перенос ${was}→${now.transferSum} (взято ${half}) подытог=${foot} поле=${shown} потолки=${capUp}/${capDown} пусто→целое=${whole}`);
+})();
+
+/* 81. СВОДКА: КАЛЬКУЛЯЦИЯ СХОДИТСЯ НА ВСЕЙ ВИТРИНЕ (14.08.2026). Сторожа 68 и 78 читают ленту на
+   двух заявках — зарегистрированной и предпросмотре; жалоба же пришла с третьей (`RS-1005`), и
+   ровно потому, что порознь проверенные места расходились между собой. Этот сторож проходит
+   ВСЕ заявки и ВСЕ их расчёты — по расчёту на транш, с переключением выбора, как это делает
+   куратор, — и на каждом сверяет пять равенств разом:
+     · подытог «База переноса» на «Параметрах» = Σ взятых частей включённых строк (`РС-7а`);
+     · состав ленты: база − прощено = перенос;
+     · источник ленты: остаток до − ушло = остаток после;
+     · «ушло из остатка» не больше базы (разница — начисленное, списанное строками, `РС-7б`);
+     · перенос ленты = числу сделки: реквизиту соглашения у зарегистрированного ДС, прогону
+       конвейера у предпросмотра, — и база у зарегистрированного равна `baseSum` соглашения.
+   Мимо этого сторожа не пройдёт ни расхождение вкладок между собой, ни возврат живого
+   пересчёта на место зафиксированного состава. */
+(() => { fresh();
+  const bad = [];
+  const near = (a, b) => Math.abs(a - b) <= 1;
+  let seen = 0;
+  for(const a of RS.state.apps){
+    for(const c of (a.calcs || [])){
+      seen++;
+      RS.state.curCalc = c.id;                       // выбор расчёта — тот же, что делает куратор полосой
+      let pars, res;
+      try { pars = RS.pParams(a); res = RS.pResult(a); }
+      catch(e){ bad.push(`${a.id}/${c.id}: разметка упала — ${e.message}`); continue; }
+      const foot = numOf((pars.match(/База переноса <b>([^<]*)<\/b>/) || [])[1] || '');
+      const rows = (c.base && c.base.length) ? c.base : RS.defaultBase(c, RS.TODAY);
+      const take = RS.round2(rows.filter(x => x.included).reduce((s, x) => s + RS.takeOf(x), 0));
+      if(!near(foot, take)) bad.push(`${a.id}/${c.id}: подытог ${foot} ≠ взятое ${take}`);
+      const f = flowOf(res), pick = re => (f.find(x => re.test(x.label)) || {}).val;
+      const B = pick(/^База переноса$/), F = pick(/^Прощено$/), T = pick(/^Перенос по этому расчёту$/);
+      const b0 = pick(/^Остаток источника до$/), g = pick(/^Ушло из остатка$/), b1 = pick(/^Остаток источника после$/);
+      if([B, T, b0, g, b1].some(v => v === undefined)){ bad.push(`${a.id}/${c.id}: лента неполна`); continue; }
+      if(!near(B - (F || 0), T))     bad.push(`${a.id}/${c.id}: состав ${B}−${F || 0}≠${T}`);
+      if(!near(b0 - g, b1))          bad.push(`${a.id}/${c.id}: источник ${b0}−${g}≠${b1}`);
+      if(g > B + 1)                  bad.push(`${a.id}/${c.id}: ушло ${g} > базы ${B}`);
+      const ag = (a.agreements || []).find(x => (x.calcIds || []).indexOf(c.id) >= 0);
+      const model = ag ? ag.transferSum : RS.AppSide.run(a, c.fact ? c.fact.date : RS.TODAY, c.id).transferSum;
+      if(!near(T, Math.round(model))) bad.push(`${a.id}/${c.id}: перенос ${T} ≠ модели ${Math.round(model)}`);
+      if(ag && !near(B, Math.round(ag.baseSum))) bad.push(`${a.id}/${c.id}: база ${B} ≠ реквизиту ${ag.baseSum}`);
+    }
+  }
+  RS.state.curCalc = null;
+  ok(81, bad.length === 0, `расчётов проверено ${seen} на ${RS.state.apps.length} заявках` +
+    (bad.length ? ` · расхождения: ${bad.slice(0, 4).join(' · ')}${bad.length > 4 ? ` (+${bad.length - 4})` : ''}` : ' · расхождений нет'));
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-const stamp = `SMOKE 2026-08-13 · ${pass}/${results.length} PASS\n` + lines.join('\n');
+const stamp = `SMOKE 2026-08-14 · ${pass}/${results.length} PASS\n` + lines.join('\n');
 console.log(stamp);
 
 // вставляем результат в шапку HTML
