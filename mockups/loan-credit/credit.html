@@ -901,7 +901,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-13 · 156/156 PASS
+ SMOKE (node) 2026-08-14 · 156/156 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -7713,7 +7713,14 @@ if (typeof document !== 'undefined') {
     /* СТАТЬИ СТРОКИ (ADR-0109). Колонки — по составу: та, по которой ничего не
        распределено, не рисуется. Обычный кредит статей не имеет вовсе и обязан
        выглядеть ровно как до волны — иначе вкладка обрастает пустыми колонками
-       у всех кредитов ради двух реструктурированных (идиома «Курс/≈KGS»). */
+       у всех кредитов ради двух реструктурированных (идиома «Курс/≈KGS»).
+       МЕСТО СТАТЕЙ — ПОСЛЕ «Процентов», а не между ними и телом (КВ-38). «Основной
+       долг · Проценты» — контрактный взнос периода и пара, которой график назван на
+       языке договора (ТЗ-05 §«Таблица графика»); статьи же переносятся реструктуризацией
+       и ставки не несут. Вклиниваясь между телом и процентами, они разрывали эту пару
+       на двух кредитах из шестидесяти, и одна и та же таблица читалась в двух разных
+       порядках. Теперь порядок один для всех: тело → проценты → статьи (если есть) →
+       итого. Тот же порядок держат строка года и предпросмотр графика в модалке. */
     const artCols = scheduleArticleCols(posSrc.map(p => p.r));
     /* ИР-2′ показывается там, где применяется, — под ДС-версией. У обычного графика
        переноса не было, и сверять нечего: плашка не рисуется вовсе (Г-25 проверяет
@@ -7757,8 +7764,8 @@ if (typeof document !== 'undefined') {
       return `<tr class="gyear${open?' open':''}" onclick="CR.toggleGrafikYear(${y})" title="${open?'Свернуть':'Развернуть'} ${y} год">
         <td colspan="${sel?2:3}"><span class="gcar">${open?'▾':'▸'}</span><span class="gy">${y}</span>${y===curYear?'<span class="pill neutral">текущий</span>':''}<span class="gcnt">${plur(g.count,'платёж','платежа','платежей')}</span></td>
         <td style="text-align:right"><b>${money(round2(g.principal))}</b></td>
-        ${artCols.map(a=>`<td style="text-align:right"><b>${g.art[a.key]?money(round2(g.art[a.key])):'—'}</b></td>`).join('')}
         <td style="text-align:right"><b>${money(round2(g.interest))}</b></td>
+        ${artCols.map(a=>`<td style="text-align:right"><b>${g.art[a.key]?money(round2(g.art[a.key])):'—'}</b></td>`).join('')}
         <td style="text-align:right"><b>${money(round2(g.total))}</b></td>
         <td style="text-align:right" class="text-muted">—</td>
         ${viewing?'':`<td class="gyear-s">${cnt}</td>`}</tr>`; };
@@ -7781,7 +7788,7 @@ if (typeof document !== 'undefined') {
       const accCell = (r.accrued!=null&&Math.abs(r.accrued-r.interest)>0.005)
         ? `<td style="text-align:right" title="${r.accrued>r.interest?'начислено, но в платёж не включено (льгота по %)':'в платёж включены отложенные проценты прошлых периодов'}">${money(r.accrued)}</td>`
         : '<td style="text-align:right">—</td>';
-      posRows.push(`<tr><td>№${r.no}</td>${trCell}<td>${esc(r.date)}</td><td style="text-align:right">${money(r.principal)}</td>${artCols.map(a=>artCell(r,a)).join('')}<td style="text-align:right">${money(r.interest)}</td><td style="text-align:right">${money(r.total)}</td>${accCell}${viewing?'':`<td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td>`}</tr>`);});
+      posRows.push(`<tr><td>№${r.no}</td>${trCell}<td>${esc(r.date)}</td><td style="text-align:right">${money(r.principal)}</td><td style="text-align:right">${money(r.interest)}</td>${artCols.map(a=>artCell(r,a)).join('')}<td style="text-align:right">${money(r.total)}</td>${accCell}${viewing?'':`<td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td>`}</tr>`);});
     /* Кнопка «Сформировать график» (КВ-29). Была отдельной строкой gtoolbar под заголовком —
        две строки хрома до плиток ради действия, которое жмут 1–3 раза за жизнь кредита.
        Теперь ЕДИНСТВЕННАЯ функция и ОДНО место вывода за раз, выбранное контекстом:
@@ -7837,9 +7844,10 @@ if (typeof document !== 'undefined') {
         <button class="btn btn-secondary btn-sm" onclick="CR.setGrafikYears([${allOpen?'':years.join(',')}])">${allOpen?'Свернуть все годы':'Развернуть все годы'}</button>
       </div>`:''}
       ${cgrid([{h:'№'}].concat(sel?[]:[{h:'Транш'}])
-        .concat([{h:'Дата'},{h:'Основной долг',r:1,t:'тело кредита — единственная ставочная колонка: проценты начисляются только на неё (ADR-0109)'}])
+        .concat([{h:'Дата'},{h:'Основной долг',r:1,t:'тело кредита — единственная ставочная колонка: проценты начисляются только на неё (ADR-0109)'},
+                 {h:'Проценты',r:1,t:'проценты этого периода в составе взноса — начислены на основной долг слева'}])
         .concat(artCols.map(a=>({h:a.label,r:1,t:'статья строки: переносится по ДС и погашается, но процентов не несёт (ADR-0109)'})))
-        .concat([{h:'Проценты',r:1},{h:'Итого',r:1},{h:'Начислено за период',r:1,t:'начислено по ставке за этот период; прочерк — совпало с колонкой «Проценты»'}])
+        .concat([{h:'Итого',r:1},{h:'Начислено за период',r:1,t:'начислено по ставке за этот период; прочерк — совпало с колонкой «Проценты»'}])
         .concat(viewing?[]:[{h:'Статус'}]), posRows, {empty:'Позиций нет — сформируйте график',
           /* Здесь primary — единственное место, где он остался: у транша без графика
              построить его и есть работа экрана. В заголовке и плашке — secondary.
