@@ -1546,7 +1546,7 @@ const pd = CR.pd;
       if (!h.includes(`<b>${CR2.money(sm.futPrincipal)}</b>`) || !h.includes(`<b>${CR2.money(sm.futInterest)}</b>`))
         bad.push(`${c.id}/итог не разложен`);
       const heads = [...h.matchAll(/<th[^>]*>([^<]*)</g)].map(m => m[1].trim());
-      if (!heads.includes('Осн. долг') || !heads.includes('Проценты') || !heads.includes('Платёж')) head.push(`${c.id}/нет статей`);
+      if (!heads.includes('Основной долг') || !heads.includes('Проценты') || !heads.includes('Итого по прогнозу')) head.push(`${c.id}/нет статей`);
       if (heads.some(x => /пеня|штраф/i.test(x))) head.push(`${c.id}/третья статья`);
     }
     CR2.setPrognozAll(false);
