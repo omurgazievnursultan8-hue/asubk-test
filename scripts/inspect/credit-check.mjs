@@ -1183,6 +1183,65 @@ const pd = CR.pd;
        + ` · queue вне модели ${noQueue}`);
   }
 
+  /* 162. ОТРЕЗКИ НАЧИСЛЕНИЯ (КВ-41 заход 1, ADR-0128 §1). Период позиции режется на
+     отрезки по датам, где меняется база или ставка; условия берутся НА НАЧАЛО ОТРЕЗКА, а
+     не на дату позиции. Сторожим четыре тождества, каждое из которых ловит свой класс
+     поломки — арифметику отрезков проверить глазами на 273 строках нельзя:
+     (1) отрезки СТЫКУЮТСЯ и покрывают период целиком — `to` предыдущего есть `from`
+         следующего, первый начинается на начале периода, последний кончается на позиции;
+     (2) Σ дней отрезков = дням периода — иначе склейка или numFin-развёртка потеряла день;
+     (3) Σ надбавок отрезков = надбавке позиции — аддитивность %(факт)=%(контракт)+Σ%(dev),
+         на которой держится вся правка;
+     (4) отрезков БОЛЬШЕ ОДНОГО там, где внутри периода прошёл платёж в тело или сменились
+         условия, и ровно один там, где ничего не менялось: обратное значило бы, что
+         склейка либо съела границу, либо наплодила пустых. */
+  {
+    let bad = [], multi = 0, single = 0, maxSeg = 1;
+    for (const c of CR2.db.credits){
+      const led = CR2.buildLedger(c, CR2.TODAY);
+      for (const r of led.rows){
+        const segs = r.interestSegments; if (!segs || !segs.length) continue;
+        maxSeg = Math.max(maxSeg, segs.length);
+        (segs.length > 1 ? multi++ : single++);
+        for (let i = 1; i < segs.length; i++)
+          if (segs[i - 1].to !== segs[i].from) bad.push(`${c.id}#${r.key}: разрыв ${segs[i-1].to}→${segs[i].from}`);
+        if (segs[segs.length - 1].to !== r.date) bad.push(`${c.id}#${r.key}: хвост ${segs[segs.length-1].to} ≠ ${r.date}`);
+        const sumE = Math.round(segs.reduce((a, s) => a + s.extra, 0) * 100) / 100;
+        if (Math.abs(sumE - (r.interestExtra || 0)) > 0.02)
+          bad.push(`${c.id}#${r.key}: Σ надбавок ${sumE} ≠ ${r.interestExtra}`);
+      }
+    }
+    ok(162, bad.length === 0 && multi > 0,
+       `строк с отрезками ${multi + single} (из них дроблёных ${multi}, максимум отрезков ${maxSeg})`
+       + ` · нарушений стыковки и аддитивности ${bad.length}${bad.length ? ' — ' + bad.slice(0,2).join(' | ') : ''}`);
+  }
+
+  /* 163. ШЕСТЬ СТАТЕЙ ДОЛГА (КВ-41 заход 1, ADR-0093 §1). Накопленные проценты и
+     накопленная пеня стали СТАТЬЯМИ, а не значением срочности внутри процентов. Три
+     стороны: (1) свод сходится с очередью по просроченному — очередь публикует кредит
+     (ADR-0060 §4), и разъезд здесь означал бы, что статья попала в один список и не
+     попала в другой; (2) у кредита БЕЗ накопленных их строки не рисуются — обычный
+     кредит обязан выглядеть как до волны; (3) у K-7 они есть и в свод входят. */
+  {
+    let mismatch = [];
+    for (const c of CR2.db.credits){
+      const d = CR2.derive(c, CR2.TODAY);
+      const q = Math.round((d.queue.rows.filter(r => r.urg === 'over')
+        .reduce((a, r) => a + r.amount, 0)) * 100) / 100;
+      if (Math.abs(q - d.overdueAmount) > 0.02) mismatch.push(`${c.id}: ${q} ≠ ${d.overdueAmount}`);
+    }
+    const d1 = CR2.derive(CR2.db.credits.find(c => c.id === 'K-1'), CR2.TODAY);
+    const d7 = CR2.derive(CR2.db.credits.find(c => c.id === 'K-7'), CR2.TODAY);
+    const hidden = CR2.debtArticlesOf(d1.debt).length === 4;
+    const shown  = CR2.debtArticlesOf(d7.debt).length === 6;
+    const acc7   = Math.round((d7.debt.accInterest.bal + d7.debt.accPenalty.bal) * 100) / 100;
+    ok(163, mismatch.length === 0 && hidden && shown && acc7 > 0.005 && CR2.DEBT_ARTICLES.length === 6,
+       `статей ${CR2.DEBT_ARTICLES.length} · свод против очереди: расхождений ${mismatch.length}`
+       + `${mismatch.length ? ' — ' + mismatch.slice(0,2).join(' | ') : ''}`
+       + ` · K-1 показывает ${CR2.debtArticlesOf(d1.debt).length}, K-7 — ${CR2.debtArticlesOf(d7.debt).length}`
+       + ` · накопленное у K-7 ${acc7}`);
+  }
+
   /* 130. «ГРАФИК» СО СТАТЬЯМИ (КВ-26, ADR-0109). Колонки статей рисуются ПО СОСТАВУ:
      у К-1 их нет вовсе (иначе вкладка обрастает пустыми колонками у всех кредитов
      страны ради двух реструктурированных), у производного транша К-7 — есть, и
