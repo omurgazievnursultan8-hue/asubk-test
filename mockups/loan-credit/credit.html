@@ -8237,7 +8237,8 @@ if (typeof document !== 'undefined') {
   /* ---- ВКЛАДКА 6: Расчёты ---- */
   function tabRaschety(c,d){
     const sel=scopeTranche(c);
-    const cur=c.currency, isFx=cur!=='KGS', fx=FX[cur]||1;
+    /* Валютных переменных у вкладки больше нет: приведений к сому она не делает ни одного
+       (плитки сняты), а курс — реквизит «Состава». Мультивалюта видна на своих вкладках. */
     const repaid=DEBT_ARTICLES.reduce((a,x)=>a+d.debt[x.key].paid,0);
     const svod=`
       ${/* Заголовок называет ОБЛАСТЬ (КВ-36): свод статей считается ПО КРЕДИТУ при любом
@@ -8255,10 +8256,19 @@ if (typeof document !== 'undefined') {
            плитка «Остаток долга» шапки карточки (asOfHtml :6900, видна на любой вкладке) и
            сама плашка. Основание закрытия при этом принадлежит не расчёту: его называет
            шапка вкладки «Договор». Молчит не факт — молчит повтор (тот же довод, что КВ-39). */''}
+      ${/* Абзац укорочен волной 14.08.2026. Снято три хвоста. (1) «отклонение подписано под
+           колонкой “Начислено”» — указатель на подпись, которая ниже показывает СЕБЯ САМА
+           («+X недобор тела» / «−X досрочка» с тултипом на той строке, где отклонение и
+           случилось); указатель на видимое дороже видимого. (2) Разбор «пока просрочка
+           висит — выше графика, после досрочки — ниже» — то же самое и теми же словами
+           говорит тултип отклонения, и говорит В МЕСТЕ отклонения, а не в общем абзаце над
+           сводом. Осталось НАЗВАНИЕ базы: без него колонка «Начислено» не сходится с
+           графиком молча. (3) «Валюта X, курс НБКР Y» — со снятием плиток на вкладке не
+           осталось ни одного приведения к сому, и курс перестал что-либо обслуживать;
+           реквизит живёт в строке-контексте «Состава» (:7677). */''}
       <p class="section-note">Начислено — по действующей версии графика и условиям на дату среза; погашено — зеркало
         модуля платежей${(c.mirror.paymentsAsOf)?` (снимок ${esc(c.mirror.paymentsAsOf)})`:' (платежей нет)'}.
-        База начисления — <b>фактическое непогашенное тело</b>, а не контрактное: пока просрочка по телу висит,
-        проценты идут выше графика, после досрочки — ниже (ADR-0105); отклонение подписано под колонкой «Начислено».${isFx?` Валюта ${esc(cur)}, курс НБКР ${money(fx)}.`:''}</p>
+        База начисления — <b>фактическое непогашенное тело</b>, а не контрактное (ADR-0105).</p>
       ${d.calcProvisional?`<div class="warn-inline">${svgInfo()}<div>Расчёт за период <b>после ${esc(d.paymentsAsOf)}</b> — <b>предварительный</b>:
         начисленное кредит выводит на любую дату, а погашенное знает только до снимка зеркала. Платежи этих дней ещё не приехали,
         поэтому просрочка и пеня за хвост посчитаны по неполным данным и могут уменьшиться, когда снимок обновится.</div></div>`:''}
@@ -8271,24 +8281,29 @@ if (typeof document !== 'undefined') {
            она стоит на «Обеспечении» вместе со своими слагаемыми и порогом, а расчёту
            начислений не нужна ничем. Приведение к сому не потеряно: у валютного кредита
            оно живёт на тех же плитках шапки. */''}
+      ${/* КОЛОНКА «СРОЧНАЯ ЧАСТЬ» СНЯТА (волна 14.08.2026). Она есть «Остаток» минус
+           «Просроченная часть» — тождество проверено по всем 60 кредитам сида, 180 статей
+           из 180, расхождений ноль. Из трёх колонок читаются две: остаток отвечает «сколько
+           должен», просроченная — «сколько из этого требуют сегодня»; срочная не отвечает
+           ни на один вопрос, которого не задают соседкам, и в требование не входит по
+           определению. Красным помечена та колонка, которая двигает категорию (ADR-0057),
+           и после снятия она стоит рядом с остатком, а не через одну. */''}
       <div class="cgrid-wrap" style="margin-top:12px"><table class="cgrid"><thead><tr>
         <th>Статья</th><th style="text-align:right">Начислено</th><th style="text-align:right">Погашено</th>
-        <th style="text-align:right">Срочная часть</th><th style="text-align:right">Просроченная часть</th><th style="text-align:right">Остаток</th></tr></thead><tbody>
+        <th style="text-align:right">Просроченная часть</th><th style="text-align:right">Остаток</th></tr></thead><tbody>
         ${DEBT_ARTICLES.map(a=>{const x=d.debt[a.key];return `<tr><td>${esc(a.label)}</td>
           <td style="text-align:right">${money(x.accrued)}</td><td style="text-align:right">${money(x.paid)}</td>
-          <td style="text-align:right">${money(x.term)}</td>
           <td style="text-align:right;color:${x.overdue>0?'var(--asubk-red)':'inherit'}">${money(x.overdue)}</td>
           <td style="text-align:right"><b>${money(x.bal)}</b></td></tr>`;}).join('')}
         <tr style="font-weight:var(--weight-semibold);background:var(--surface-panel)"><td>Итого по кредиту</td>
           <td style="text-align:right">${money(DEBT_ARTICLES.reduce((a,x)=>a+d.debt[x.key].accrued,0))}</td>
           <td style="text-align:right">${money(repaid)}</td>
-          <td style="text-align:right">${money(DEBT_ARTICLES.reduce((a,x)=>a+d.debt[x.key].term,0))}</td>
           <td style="text-align:right">${money(d.overdueAmount)}</td>
           <td style="text-align:right">${money(d.debtBalance)}</td></tr>
-        ${d.collectionCosts>0?`<tr><td>Расходы по обращению взыскания ${lockHtml()}</td><td colspan="4" class="text-muted" style="font:var(--font-label)">статья взыскания — в остаток кредита и в гейт «Погашен» не входит</td><td style="text-align:right">${money(d.collectionCosts)}</td></tr>`:''}
-        ${(d.debt.interest.frozen>0||d.debt.penalty.frozen>0)?`<tr><td>Приостановлено решением суда</td><td colspan="4" class="text-muted" style="font:var(--font-label)">начислению по договору подлежало, но на присуждённую долю начисление остановлено (проценты ${money(d.debt.interest.frozen)} · пеня ${money(d.debt.penalty.frozen)}) — в остаток не входит</td><td style="text-align:right">${money(round2(d.debt.interest.frozen+d.debt.penalty.frozen))}</td></tr>`:''}
-        ${d.debt.penalty.disputed>0?`<tr><td>Спорная пеня</td><td colspan="4" class="text-muted" style="font:var(--font-label)">пеня за период сторнированного платежа: вычислена, но до решения комиссии в требование не входит и категорию не двигает</td><td style="text-align:right">${money(d.debt.penalty.disputed)}</td></tr>`:''}
-        ${d.overpay.total>0?`<tr><td>Переплата</td><td colspan="4" class="text-muted" style="font:var(--font-label)">разнесено больше, чем начислено${d.overpay.interest>0?' (проценты '+money(d.overpay.interest)+')':''} — идёт обратной очередью ОД → проценты → штрафы → возврат заёмщику; правило принадлежит модулю платежей</td><td style="text-align:right">${money(d.overpay.total)}</td></tr>`:''}
+        ${d.collectionCosts>0?`<tr><td>Расходы по обращению взыскания ${lockHtml()}</td><td colspan="3" class="text-muted" style="font:var(--font-label)">статья взыскания — в остаток кредита и в гейт «Погашен» не входит</td><td style="text-align:right">${money(d.collectionCosts)}</td></tr>`:''}
+        ${(d.debt.interest.frozen>0||d.debt.penalty.frozen>0)?`<tr><td>Приостановлено решением суда</td><td colspan="3" class="text-muted" style="font:var(--font-label)">начислению по договору подлежало, но на присуждённую долю начисление остановлено (проценты ${money(d.debt.interest.frozen)} · пеня ${money(d.debt.penalty.frozen)}) — в остаток не входит</td><td style="text-align:right">${money(round2(d.debt.interest.frozen+d.debt.penalty.frozen))}</td></tr>`:''}
+        ${d.debt.penalty.disputed>0?`<tr><td>Спорная пеня</td><td colspan="3" class="text-muted" style="font:var(--font-label)">пеня за период сторнированного платежа: вычислена, но до решения комиссии в требование не входит и категорию не двигает</td><td style="text-align:right">${money(d.debt.penalty.disputed)}</td></tr>`:''}
+        ${d.overpay.total>0?`<tr><td>Переплата</td><td colspan="3" class="text-muted" style="font:var(--font-label)">разнесено больше, чем начислено${d.overpay.interest>0?' (проценты '+money(d.overpay.interest)+')':''} — идёт обратной очередью ОД → проценты → штрафы → возврат заёмщику; правило принадлежит модулю платежей</td><td style="text-align:right">${money(d.overpay.total)}</td></tr>`:''}
       </tbody></table></div>`;
     /* Детальный расчёт СТРОИТСЯ (ADR-0010): позиции графика, наступившие на дату среза,
        с разнесением подтверждённых погашений и начислением пени. Прежде грид читал
@@ -8340,6 +8355,15 @@ if (typeof document !== 'undefined') {
        наступивших позиций, :4636), ИР-3 — разнесением по позициям; расхождение и есть
        досрочно погашенное, поэтому подписано, а не спрятано. */
     const bodyTr = sel ? [sel] : c.tranches;
+    /* КОЛОНКИ ПЕРЕНОСОВ — УСЛОВНЫЕ (волна 14.08.2026), идиома «Курс/≈KGS» и «Транш». Перенос
+       по ДС есть событие редкое: на сиде он случился у ОДНОГО кредита из 60, у остальных обе
+       колонки давали два прочерка в каждой строке — то есть занимали ширину, сообщая «этого
+       не было». Ровно то же самое, и без ширины, сообщает их отсутствие: слагаемое, которого
+       не случилось, не двигало остаток. Формула ИР-3 из подписи НЕ выкидывается — она
+       определение остатка тела, а не пересказ колонок, и по ней видно, каких двух колонок в
+       таблице нет и почему. Меряем по ПОКАЗАННЫМ траншам: при области «транш №N» переносы
+       соседа к его телу отношения не имеют. */
+    const bodyMoves = bodyTr.some(t => transferredOut(t, cardAsOf) || transferredIn(t, cardAsOf));
     const bodyRows = bodyTr.map(t=>{
       const der = trancheOrigin(t)==='разделение';
       const out = transferredOut(t, cardAsOf), inn = transferredIn(t, cardAsOf);
@@ -8348,13 +8372,13 @@ if (typeof document !== 'undefined') {
         <td>№${t.no}${t.closed?`<br><span class="pill neutral" title="${jsAttr('Закрыт '+(t.closed.date||'')+': '+(t.closed.reason||''))}">Закрыт ${esc(t.closed.date||'')}</span>`:''}</td>
         <td style="text-align:right">${der?dash('Производный транш не осваивается: тело пришло переносом по '+(originDs(t)||'ДС')):money(disbursedSum(t))}</td>
         <td style="text-align:right">${money(repaidPrincipalOf(c,t,cardAsOf))}</td>
-        <td style="text-align:right">${out?'− '+money(out):dash('переносов с этого транша не было')}</td>
-        <td style="text-align:right">${inn?'+ '+money(inn):dash('переносов на этот транш не было')}</td>
+        ${bodyMoves?`<td style="text-align:right">${out?'− '+money(out):dash('переносов с этого транша не было')}</td>
+        <td style="text-align:right">${inn?'+ '+money(inn):dash('переносов на этот транш не было')}</td>`:''}
         <td style="text-align:right"><b>${money(trancheBalanceAt(c,t,cardAsOf))}</b></td></tr>`;
     });
     const bodyTot = round2(c.tranches.reduce((a,t)=>a+trancheBalanceAt(c,t,cardAsOf),0));
     const bodyTotRow = (!sel && c.tranches.length>1)?`<tr style="font-weight:var(--weight-semibold);background:var(--surface-panel)">
-      <td colspan="5">Итого тело по кредиту</td><td style="text-align:right">${money(bodyTot)}</td></tr>`:'';
+      <td colspan="${bodyMoves?5:3}">Итого тело по кредиту</td><td style="text-align:right">${money(bodyTot)}</td></tr>`:'';
     const bodyDiff = round2(d.debt.principal.bal - bodyTot);
     const bodyBlock = `
       <div class="section-h" style="margin-top:22px">Тело ${sel?'транша №'+sel.no:'по траншам'}</div>
@@ -8363,10 +8387,11 @@ if (typeof document !== 'undefined') {
         ${Math.abs(bodyDiff)>0.005
           ? `Свод выше даёт по статье «Основной долг» <b>${money(d.debt.principal.bal)}</b> — на ${money(Math.abs(bodyDiff))} ${bodyDiff>0?'больше':'меньше'}: там погашенное берётся всем подтверждённым пулом, здесь — разнесением по наступившим позициям, и разница есть ${bodyDiff>0?'ещё не разнесённое досрочное погашение':'разнесённое сверх пула'}.`
           : `Сумма сходится со статьёй «Основной долг» свода.`}</p>
-      ${cgrid([{h:'Транш'},{h:'Освоено',r:1},{h:'Погашено',r:1,t:'разнесено по наступившим позициям графика этого транша'},
-               {h:'Перенесено',r:1,t:'ушло на другой транш по ДС (ADR-0092 §2)'},
-               {h:'Принято',r:1,t:'пришло с другого транша по ДС'},
-               {h:'Остаток тела',r:1,t:'освоено − погашено − перенесено + принято (ИР-3)'}],
+      ${cgrid([{h:'Транш'},{h:'Освоено',r:1},{h:'Погашено',r:1,t:'разнесено по наступившим позициям графика этого транша'}]
+               .concat(bodyMoves?[{h:'Перенесено',r:1,t:'ушло на другой транш по ДС (ADR-0092 §2)'},
+                                  {h:'Принято',r:1,t:'пришло с другого транша по ДС'}]:[])
+               .concat([{h:'Остаток тела',r:1,t:bodyMoves?'освоено − погашено − перенесено + принято (ИР-3)'
+                                                        :'освоено − погашено (ИР-3): переносов по ДС не было, иначе колонки слагаемых стояли бы рядом'}]),
              bodyRows.concat(bodyTotRow?[bodyTotRow]:[]), {empty:'Траншей нет'})}`;
     const res=d.reserveAccrual;
     const resBlock=res.applies?`<div class="section-h" style="margin-top:22px">Резерв за неполное освоение</div>
