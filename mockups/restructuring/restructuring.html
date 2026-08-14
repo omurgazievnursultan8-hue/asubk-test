@@ -655,11 +655,14 @@ table.cgrid.cbase tfoot th{ text-align:left; padding:10px 12px; background:var(-
   border-top:1px solid var(--border-default); font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font);
   color:var(--text-heading); }
 table.cgrid.cbase tfoot th.numcell{ text-align:right; }
-/* Липкая полоса результата — следствие правки стоит рядом с причиной, а не под таблицей за
-   краем экрана. Держится над футером карточки, а не под ним. */
-.result-bar{ position:sticky; bottom:64px; z-index:5; display:flex; flex-wrap:wrap; align-items:center; gap:6px 22px;
+/* Полоса результата стоит В ПОТОКЕ, сразу под таблицей долга. Прежде она липла к низу экрана
+   (`bottom:64px`, над липким футером) и постоянно съедала две нижние полосы окна: под ней
+   пропадали форма условий и кнопка «Предварительный расчёт», ради которых куратор сюда и
+   пришёл. Близость к причине даёт не липкость, а МЕСТО: итог печатается вплотную к подытогу
+   таблицы, чьи галки его и меняют. */
+.result-bar{ display:flex; flex-wrap:wrap; align-items:center; gap:6px 22px;
   background:var(--surface-panel); border:1px solid var(--border-strong); border-radius:var(--radius-md);
-  padding:10px 16px; margin:0 0 8px; }
+  padding:10px 16px; margin:0 0 16px; }
 .result-bar .rb-t{ font:var(--weight-semibold) var(--text-sm)/1.2 var(--asubk-font); color:var(--text-heading); }
 .result-bar .rb-i{ display:flex; flex-direction:column; }
 .result-bar .rb-l{ font-size:11px; color:var(--text-muted); }
@@ -3995,7 +3998,7 @@ function pParams(app){
      которая тут же перед глазами. На экране ОДИН расчёт, выбранный полосой охвата сверху. */
   const calc = curCalcOf(app);
   return `<div class="detail-panel active">` + scopeStrip(app, calc)
-       + (calc ? driftLine(app, calc) + paramsSection(app, calc) + dispositionsBar(app, calc)
+       + (calc ? driftLine(app, calc) + paramsSection(app, calc)
                : `<div class="op-empty">${SCOPE_EMPTY}</div>`)
        + `</div>`;
 }
@@ -4063,10 +4066,13 @@ function driftLine(app, calc){
     return `<div class="warnline">Расхождение по расчёту ${sgn(d)} (${pct(d)} от среза) — ступень 1: ${DRIFT_TIERS[0].need}. Регистрацию не блокирует.</div>`;
   return '';
 }
-/* Липкая полоса результата: следствие правки стоит рядом с причиной. Куратор снимает галку в
-   верхней части десятистрочной таблицы, и число меняется у него перед глазами, а не под
-   таблицей, за краем экрана. Прощение и капитализации показываются только ненулевыми — нули
-   рассказывают про механику, которой в этой заявке не было.
+/* Итог распоряжений: следствие правки стоит вплотную к причине — сразу под таблицей долга, той
+   же полосой, что и её подытог. Липкой к низу экрана полоса быть перестала (14.08.2026): она
+   держалась над футером карточки и накрывала собой форму условий и кнопку «Предварительный
+   расчёт» — два предмета, к которым куратор идёт СРАЗУ ПОСЛЕ распоряжений. Правки в таблице и
+   так перерисовывают вкладку целиком, так что число обновляется на месте и без липкости.
+   Прощение и капитализации показываются только ненулевыми — нули рассказывают про механику,
+   которой в этой заявке не было.
    «Итог по заявке» — единственное место экрана, где суммы складываются через расчёты, и оно
    свёрнуто и подписано: такой суммы нет ни в одном акте, у каждого расчёта своё ДС. */
 function dispositionsBar(app, calc){
@@ -4253,6 +4259,7 @@ function paramsSection(app, calc){
       <th class="numcell">Факт — ${factDate}${factNote?`<div class="a-s">${factNote}</div>`:''}</th>
       <th>Включена</th><th>Распоряжение</th></tr></thead>
       <tbody>${rows}${goneRows}</tbody>${foot}</table></div>
+    ${dispositionsBar(app, calc)}
 
     <div class="section-h">Условия чернового графика</div>
     ${versionParamsBlock(app, calc)}
