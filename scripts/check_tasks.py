@@ -13,6 +13,17 @@ Checks (FORMAT.md §9): no forward deps · deps resolve · word/acceptance budge
 no paths or "ТЗ §5" as plain text · ids match the TODO.md registry 1:1 ·
 no priority/status fields · open questions name a default · stages contiguous.
 
+Two card anatomies live side by side, told apart by meta.format:
+
+    format 1 (default)  зачем · где смотреть · модель · правила · приёмка · границы
+    format 2            + что строим · данные · экран · шаги · пример · термины,
+                        а прозаическая «модель» запрещена: фактура уходит в data
+
+Format 2 also carries the summary blocks the cards stop repeating — atlas
+(модель данных целиком), screens (опись экранов), glossary, walkthrough
+(сквозной числовой пример) — and gets a wider body budget, because its cards
+are meant to be built from, not skimmed.
+
 Usage:
     python3 scripts/check_tasks.py
     python3 scripts/check_tasks.py docs/tasks/p14-collection-tasks.html
@@ -30,10 +41,17 @@ TODO = ROOT / "TODO.md"
 
 # Budgets — FORMAT.md §7.
 BODY_MAX = 400
+BODY_MAX_F2 = 1200          # карточка формата 2 несёт данные, шаги и пример
+BUILD_MAX = 60
 WHY_MAX = 120
 TRAPS_MAX = 150
 ACCEPT_MIN, ACCEPT_MAX = 5, 12
+STEPS_MIN, STEPS_MAX = 3, 10
 WHY_SENTENCES_MAX = 5
+
+# Поля тела: считаются в бюджет и проверяются на пути/«§ N».
+BODY_FIELDS_F2 = ("build", "why", "data", "screen", "steps", "rules",
+                  "example", "terms", "accept", "notIn", "open")
 
 FORBIDDEN_KEYS = {"prio", "state", "status", "done", "merged", "theme"}
 META_KEYS = ["module", "title", "phase", "revision", "date", "registry", "package"]
@@ -49,6 +67,7 @@ ANCHOR = re.compile(r'(?:id|name)="([^"]+)"')
 TODO_ITEM = re.compile(r"^\s*-\s*\[[ xX]\]\s*(P\d+-R\d+)\b")
 HEADING = re.compile(r"^#{2,3}\s")
 VAGUE = re.compile(r"уточн|TBD|будет решено|не решен|to be decided", re.I)
+DIGIT = re.compile(r"\d")
 SKIP_DIRS = {".git", "node_modules", ".auth", "screenshots", "tests"}
 
 
@@ -191,10 +210,79 @@ def check_groups(rep, where, field, groups):
             rep.err(where, f"{field}[{i}]: needs a non-empty 'h' and 'items'")
 
 
-def check_card(rep, card, pos, index_by_id, package, index, anchors, phase):
+def check_entities(rep, where, field, blocks, need_key=False):
+    """Модель данных: сущность с полями, у каждого поля тип и обязательность."""
+    if blocks is None:
+        return
+    if not isinstance(blocks, list) or not blocks:
+        rep.err(where, f"{field}: must be a non-empty list of entities")
+        return
+    for i, b in enumerate(blocks):
+        at = f"{field}[{i}]"
+        if not isinstance(b, dict):
+            rep.err(where, f"{at}: must be an object")
+            continue
+        if not b.get("n"):
+            rep.err(where, f"{at}: needs 'n' — the entity name")
+        fields = b.get("fields")
+        if not isinstance(fields, list) or not [f for f in fields
+                                                if isinstance(f, str) and f.strip()]:
+            rep.err(where, f"{at}: 'fields' must list the fields — name, type, obligation")
+        if need_key and not b.get("key"):
+            rep.err(where, f"{at}: 'key' is required — what identifies the record")
+
+
+def check_screens(rep, where, field, blocks):
+    """Опись экранов: у экрана есть имя и хоть что-то предметное — колонки, действия, заметка."""
+    if blocks is None:
+        return
+    if not isinstance(blocks, list) or not blocks:
+        rep.err(where, f"{field}: must be a non-empty list of screens")
+        return
+    for i, b in enumerate(blocks):
+        at = f"{field}[{i}]"
+        if not isinstance(b, dict):
+            rep.err(where, f"{at}: must be an object")
+            continue
+        if not b.get("n"):
+            rep.err(where, f"{at}: needs 'n' — what the screen is called in the app")
+        if not (b.get("cols") or b.get("acts") or b.get("note")):
+            rep.err(where, f"{at}: needs 'cols', 'acts' or 'note' — otherwise it names nothing")
+
+
+def check_terms(rep, where, field, items):
+    if items is None:
+        return
+    if not isinstance(items, list) or not items:
+        rep.err(where, f"{field}: must be a non-empty list of {{t, d}}")
+        return
+    for i, t in enumerate(items):
+        if not isinstance(t, dict) or not t.get("t") or not t.get("d"):
+            rep.err(where, f"{field}[{i}]: needs 't' (term) and 'd' (what it means here)")
+
+
+def check_example(rep, where, ex, field="example"):
+    """Пример без числа — пересказ карточки; такой не считается."""
+    if not isinstance(ex, dict):
+        rep.err(where, f"{field}: must be an object {{src, given, do, get}}")
+        return
+    if not ex.get("src"):
+        rep.err(where, f"{field}: 'src' is required — name the record the numbers come from")
+    for key in ("given", "get"):
+        v = ex.get(key)
+        if not isinstance(v, list) or not [s for s in v if isinstance(s, str) and s.strip()]:
+            rep.err(where, f"{field}: '{key}' must be a non-empty list")
+    if not DIGIT.search(" ".join(s for s in walk_strings(ex) if isinstance(s, str))):
+        rep.err(where, f"{field}: no number in it — an example without numbers is a retelling")
+
+
+def check_card(rep, card, pos, index_by_id, package, index, anchors, phase, fmt=1):
     cid = card.get("id", f"#{pos}")
 
-    for key in ("id", "stage", "title", "why", "look", "accept", "notIn", "deps"):
+    required = ["id", "stage", "title", "why", "look", "accept", "notIn", "deps"]
+    if fmt >= 2:
+        required += ["build", "steps", "example"]
+    for key in required:
         if key not in card:
             rep.err(cid, f"missing required field '{key}'")
 
@@ -204,6 +292,30 @@ def check_card(rep, card, pos, index_by_id, package, index, anchors, phase):
     bad = FORBIDDEN_KEYS & set(walk_keys(card))
     if bad:
         rep.err(cid, f"forbidden fields: {', '.join(sorted(bad))} — they live in TODO.md")
+
+    # Что строим — одна фраза, дальше по карточке уже подробности
+    if fmt >= 2:
+        if "model" in card:
+            rep.err(cid, "model: prose model is gone in format 2 — facts go to 'data', "
+                         "the rest to 'rules'")
+        build = card.get("build", "")
+        if not isinstance(build, str) or not build.strip():
+            rep.err(cid, "build: must be a non-empty string — one phrase, what gets built")
+        elif words(build) > BUILD_MAX:
+            rep.err(cid, f"build: {words(build)} words (max {BUILD_MAX})")
+
+        check_entities(rep, cid, "data", card.get("data"))
+        check_screens(rep, cid, "screen", card.get("screen"))
+        check_terms(rep, cid, "terms", card.get("terms"))
+        check_example(rep, cid, card.get("example"))
+
+        steps = card.get("steps") or []
+        if not isinstance(steps, list) or not all(
+                isinstance(s, str) and s.strip() for s in steps):
+            rep.err(cid, "steps: must be a list of non-empty strings")
+        elif not STEPS_MIN <= len(steps) <= STEPS_MAX:
+            rep.err(cid, f"steps: {len(steps)} items (allowed {STEPS_MIN}–{STEPS_MAX}) "
+                         f"— split the card or fold the small ones")
 
     # Зачем
     why = card.get("why", "")
@@ -275,18 +387,25 @@ def check_card(rep, card, pos, index_by_id, package, index, anchors, phase):
         rep.err(cid, f"traps: {words(*traps)} words (max {TRAPS_MAX})")
 
     # Бюджет тела
-    body = [why]
-    for groups in (card.get("model") or []) + (card.get("rules") or []):
-        body.append(groups.get("h", "") if isinstance(groups, dict) else "")
-        body += groups.get("items", []) if isinstance(groups, dict) else []
-    body += accept if isinstance(accept, list) else []
-    body += not_in if isinstance(not_in, list) else []
-    for o in card.get("open") or []:
-        if isinstance(o, dict):
-            body += [o.get("default", ""), o.get("ask", ""), o.get("impact", "")]
+    if fmt >= 2:
+        body = []
+        for field in BODY_FIELDS_F2:
+            body += [s for s in walk_strings(card.get(field)) if isinstance(s, str)]
+        limit = BODY_MAX_F2
+    else:
+        body = [why]
+        for groups in (card.get("model") or []) + (card.get("rules") or []):
+            body.append(groups.get("h", "") if isinstance(groups, dict) else "")
+            body += groups.get("items", []) if isinstance(groups, dict) else []
+        body += accept if isinstance(accept, list) else []
+        body += not_in if isinstance(not_in, list) else []
+        for o in card.get("open") or []:
+            if isinstance(o, dict):
+                body += [o.get("default", ""), o.get("ask", ""), o.get("impact", "")]
+        limit = BODY_MAX
     total = words(*[b for b in body if isinstance(b, str)])
-    if total > BODY_MAX:
-        rep.err(cid, f"body: {total} words (max {BODY_MAX}) — split the card")
+    if total > limit:
+        rep.err(cid, f"body: {total} words (max {limit}) — split the card")
 
     strings = [s for s in walk_strings(card) if isinstance(s, str)]
     check_prose(rep, cid, strings)
@@ -320,6 +439,10 @@ def check_file(path, index):
     phase = meta.get("phase", r"\d+")
     package = set(meta.get("package") or []) | {path.name}
     anchors = {}
+    fmt = meta.get("format", 1)
+    if fmt not in (1, 2):
+        rep.err("meta", f"format {fmt!r}: only 1 and 2 exist")
+        fmt = 1
 
     # Версионирование
     revision = meta.get("revision", 1)
@@ -389,9 +512,36 @@ def check_file(path, index):
         for target in HREF.findall(s):
             check_link(rep, "guide", target, package, index, anchors)
 
+    # Свод: то, что карточки перестали повторять
+    if fmt >= 2:
+        for block in ("atlas", "screens", "glossary", "walkthrough"):
+            if not data.get(block):
+                rep.err(block, f"format 2 requires '{block}' — cards carry only the delta")
+        check_entities(rep, "atlas", "atlas", data.get("atlas"), need_key=True)
+        check_screens(rep, "screens", "screens", data.get("screens"))
+        check_terms(rep, "glossary", "glossary", data.get("glossary"))
+        wt = data.get("walkthrough")
+        if wt is not None:
+            if not isinstance(wt, dict):
+                rep.err("walkthrough", "must be an object {src, groups}")
+            else:
+                if not wt.get("src"):
+                    rep.err("walkthrough", "'src' is required — name the record it walks through")
+                check_groups(rep, "walkthrough", "walkthrough.groups", wt.get("groups"))
+                if not DIGIT.search(" ".join(s for s in walk_strings(wt)
+                                             if isinstance(s, str))):
+                    rep.err("walkthrough", "no number in it — then it is not a worked example")
+        summary_strings = [s for s in walk_strings(
+            {k: data.get(k) for k in ("atlas", "screens", "glossary", "walkthrough")})
+            if isinstance(s, str)]
+        check_prose(rep, "summary", summary_strings)
+        for s in summary_strings:
+            for target in HREF.findall(s):
+                check_link(rep, "summary", target, package, index, anchors)
+
     for pos, card in enumerate(cards):
         if isinstance(card, dict):
-            check_card(rep, card, pos, index_by_id, package, index, anchors, phase)
+            check_card(rep, card, pos, index_by_id, package, index, anchors, phase, fmt)
         else:
             rep.err(f"#{pos}", "card must be an object")
 
