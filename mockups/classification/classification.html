@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Классификация · АСУБК — НАБРОСОК</title>
+<!--
+  НАБРОСОК (эскиз замысла), не чистовой макет. Задача — показать, как выглядит
+  «Модуль классификации» из ТЗ, если исполнять решения ADR-0120…0125. Чистовой макет
+  с дизайн-системой, адаптивом и смоуком делается в конце волны.
+
+  ЧТО ЗДЕСЬ ПРОВЕРЯЕТСЯ
+  Один движок держит два непохожих классификатора: категорию кредитного риска (объект —
+  кредит, п. 11 Порядка №41) и подгруппу заёмщика (объект — заёмщик, лестница из 10
+  классов). Оба собраны ИЗ ДАННЫХ конструктора, а не написаны кодом: функция classify()
+  ничего не знает ни про Порядок, ни про лестницу.
+
+  check_points:ignore-start
+  Пункты в правилах — по редакции №41 от 06.07.2026 (11.1/11.2/11.3, 16.1, 19.1).
+  check_points:ignore-end
+
+  РЕШЕНИЯ, КОТОРЫЕ ВИДНО НА ЭКРАНЕ
+  - ADR-0120: метод — упорядоченный список условий над реестром показателей.
+  - ADR-0121: объект риск-классификатора — кредит; у заёмщика категория — свёртка worst-of
+    с указанием кредита-источника, отдельного классификатора у него нет.
+  - ADR-0122: значение нигде не вводится; вводится факт (решение комитета) — он приходит
+    в правило показателем.
+  - ADR-0123: в открытом периоде значение — функция на дату; за закрытый показывается
+    ЗАПИСЬ ФИКСАЦИИ, и она не пересчитывается.
+  - ADR-0124: витрина читает результат и печатает объяснение; своей арифметики у неё нет.
+  - ADR-0125: предикат скалярен (квантор свёрнут в показатель-перечисление); у версии есть
+    черновик и дата ввода в действие; значения принадлежат версии.
+
+  НАЙДЕНО ПРИ СБОРКЕ (в ADR ещё не отражено) — см. блок «Заметки сборки» на экране.
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-link:#005FDB; --asubk-green:#158443; --asubk-red:#E03A3A;
+  --asubk-ink:#192434; --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA; --asubk-gray-150:#EFF1F4;
+  --border:rgba(28,55,90,0.16); --border-strong:rgba(28,55,90,0.30);
+  --amber:#B8860B; --amber-tint:rgba(184,134,11,0.12);
+  --red-tint:#FCE6E6; --green-tint:rgba(21,132,67,0.10); --blue-tint:rgba(0,106,245,0.08);
+  --font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;font:400 15px/1.5 var(--font);color:var(--asubk-ink-90);background:var(--asubk-white)}
+header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:baseline;gap:16px;flex-wrap:wrap}
+h1{margin:0;font-size:18px;font-weight:600;color:var(--asubk-ink)}
+.sketch{font-size:12px;color:var(--amber);background:var(--amber-tint);padding:2px 8px;border-radius:10px}
+nav{display:flex;gap:4px;padding:8px 20px;border-bottom:1px solid var(--border);background:var(--asubk-gray-50)}
+nav button{font:inherit;font-size:14px;padding:6px 14px;border:1px solid transparent;background:none;border-radius:6px;cursor:pointer;color:var(--asubk-ink-65)}
+nav button.on{background:var(--asubk-white);border-color:var(--border);color:var(--asubk-ink);font-weight:600}
+main{padding:18px 20px 60px;max-width:1180px}
+.period{font-size:13px;color:var(--asubk-ink-65);background:var(--asubk-gray-100);border:1px solid var(--border);border-radius:6px;padding:8px 12px;margin-bottom:16px}
+.cols{display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap}
+.side{flex:0 0 240px}
+.body{flex:1;min-width:420px}
+.card{border:1px solid var(--border);border-radius:8px;padding:14px 16px;margin-bottom:14px;background:var(--asubk-white)}
+.card h3{margin:0 0 10px;font-size:15px;font-weight:600;color:var(--asubk-ink)}
+.clf{display:block;width:100%;text-align:left;font:inherit;font-size:14px;padding:9px 11px;margin-bottom:6px;border:1px solid var(--border);border-radius:7px;background:var(--asubk-white);cursor:pointer}
+.clf.on{border-color:var(--asubk-blue);background:var(--blue-tint)}
+.clf small{display:block;color:var(--asubk-ink-65);font-size:12px}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--border);vertical-align:top}
+th{font-weight:600;color:var(--asubk-ink-65);font-size:12px;text-transform:uppercase;letter-spacing:.02em}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;background:var(--asubk-gray-100);padding:1px 5px;border-radius:4px}
+.tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:10px;white-space:nowrap}
+.t-hi{background:var(--red-tint);color:#a02121}
+.t-mid{background:var(--amber-tint);color:var(--amber)}
+.t-low{background:var(--green-tint);color:var(--asubk-green)}
+.t-none{background:var(--asubk-gray-150);color:var(--asubk-ink-65)}
+.t-live{background:var(--green-tint);color:var(--asubk-green)}
+.t-draft{background:var(--asubk-gray-150);color:var(--asubk-ink-65)}
+.val{border:1px solid var(--border);border-radius:7px;margin-bottom:8px;overflow:hidden}
+.val>b{display:block;padding:7px 11px;background:var(--asubk-gray-100);font-size:14px;font-weight:600}
+.val ul{margin:0;padding:8px 11px 10px 28px;font-size:13.5px}
+.val li{margin-bottom:3px}
+.val .otherwise{padding:8px 11px;font-size:13.5px;color:var(--asubk-ink-65)}
+.meta{font-size:13px;color:var(--asubk-ink-65);margin:0 0 12px}
+.meta b{color:var(--asubk-ink-90);font-weight:600}
+.why{font-size:12.5px;color:var(--asubk-ink-65);margin-top:3px}
+.why em{font-style:normal;color:var(--asubk-ink-90)}
+.note{border-left:3px solid var(--amber);background:var(--amber-tint);padding:10px 14px;border-radius:0 6px 6px 0;font-size:13.5px;margin-top:20px}
+.note h3{margin:0 0 6px;font-size:14px}
+.note ol{margin:0;padding-left:20px}
+.note li{margin-bottom:6px}
+.frozen{background:var(--asubk-gray-50)}
+.mirror{font-size:12.5px;color:var(--asubk-ink-65);margin-top:8px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Классификация</h1>
+  <span class="sketch">НАБРОСОК · ADR-0120…0125 · 14.08.2026</span>
+</header>
+
+<nav>
+  <button id="tab-c" class="on" onclick="show('c')">Конструктор</button>
+  <button id="tab-v" onclick="show('v')">Витрина результата</button>
+  <button id="tab-i" onclick="show('i')">Реестр показателей</button>
+</nav>
+
+<main>
+  <div class="period" id="period"></div>
+  <div id="screen"></div>
+  <div class="note">
+    <h3>Заметки сборки — то, чего в ADR ещё нет</h3>
+    <ol>
+      <li><b>Порядок значений — не всегда «от худшего».</b> У риск-категории он именно такой,
+        у лестницы это <em>порядок доминирования</em>, и начинается он со ступени «кредитов
+        не было» — значения, которое худшим не является вовсе. ADR-0120 говорит «от худшего
+        к лучшему»; вернее сказать «порядок разбора, задаваемый методом».</li>
+      <li><b>«Иначе» — тоже правило, и оно обязано быть последним.</b> В обоих
+        классификаторах последнее значение берётся без условий. Конструктору нужен явный
+        признак «значение по умолчанию», иначе admin оставит список без замыкания и часть
+        объектов останется без значения молча.</li>
+      <li><b>Черновик без правил обязан жить.</b> «Группа платёжеспособности» заведена
+        значениями, но правил нет — классификатор существует и не классифицирует ничего.
+        Это состояние надо показывать, а не считать ошибкой.</li>
+    </ol>
+  </div>
+</main>
+
+<script>
+/* ------------------------------------------------------------------ *
+ * РЕЕСТР ПОКАЗАТЕЛЕЙ (ADR-0120 §1, ADR-0125 §1)
+ * Именованный вход: объект, тип, источник, владелец. Способа вычисления
+ * реестр не хранит — он у владельца. Квантор по коллекции свёрнут внутрь
+ * показателя-перечисления, в правило он не попадает.
+ * ------------------------------------------------------------------ */
+const INDICATORS = [
+  {id:'daysOverdue', name:'Дней просрочки',                              obj:'кредит',  type:'число',        src:'расчёт',        owner:'Кредиты'},
+  {id:'factorLevel', name:'Максимальный уровень действующего фактора п. 11', obj:'кредит', type:'перечисление', src:'ввод пользователя', owner:'Классификация'},
+  {id:'defer181',    name:'Перевод на 181-й день отложен',               obj:'кредит',  type:'булево',       src:'расчёт',        owner:'Взыскание'},
+  {id:'procKind',    name:'Максимальный вид живой подтверждённой процедуры', obj:'заёмщик', type:'перечисление', src:'расчёт',      owner:'Взыскание'},
+  {id:'roleEnd',     name:'Терминальный исход роли',                     obj:'заёмщик', type:'перечисление', src:'расчёт',        owner:'Заёмщик'},
+  {id:'everCredits', name:'Кредиты были когда-либо',                     obj:'заёмщик', type:'булево',       src:'расчёт',        owner:'Кредиты'},
+  {id:'hasActive',   name:'Есть действующие кредиты',                    obj:'заёмщик', type:'булево',       src:'расчёт',        owner:'Кредиты'},
+  {id:'anyOverdue',  name:'Есть просрочка по действующим',               obj:'заёмщик', type:'булево',       src:'расчёт',        owner:'Кредиты'}
+];
+const IND = Object.fromEntries(INDICATORS.map(i=>[i.id,i]));
+
+/* ------------------------------------------------------------------ *
+ * КЛАССИФИКАТОРЫ — ДАННЫЕ, а не код. Версия несёт статус, основание,
+ * дату ввода в действие, набор значений и правила (ADR-0125 §2, §3).
+ * Правило = дизъюнкция условий; условие = конъюнкция скалярных предикатов.
+ * ------------------------------------------------------------------ */
+const CLASSIFIERS = [
+{
+  id:'risk', name:'Категория кредитного риска', object:'кредит',
+  version:{no:1, status:'действующая', basis:'Порядок №41 от 06.07.2026', from:'06.07.2026', by:'Администратор'},
+  values:[
+    {code:'high', label:'Высокий кредитный риск', rules:[
+      {point:'п. 19.1', preds:[{i:'daysOverdue',op:'≥',v:181},{i:'defer181',op:'=',v:false}]},
+      {point:'п. 11.3', preds:[{i:'factorLevel',op:'=',v:'высокий'}]}
+    ]},
+    {code:'mid', label:'Средний кредитный риск', rules:[
+      {point:'п. 16.1', preds:[{i:'daysOverdue',op:'≥',v:1}]},
+      {point:'п. 11.2', preds:[{i:'factorLevel',op:'=',v:'средний'}]}
+    ]},
+    {code:'low', label:'Низкий кредитный риск', rules:[], otherwise:true, point:'п. 11.1'}
+  ]
+},
+{
+  id:'sub', name:'Подгруппа заёмщика', object:'заёмщик',
+  version:{no:1, status:'действующая', basis:'Проектное решение ADR-0012 · лестница §3 спеки заёмщика', from:'01.08.2026', by:'Администратор'},
+  values:[
+    {code:'none', label:'Кредитов не было', rules:[{point:'ступень 0', preds:[{i:'everCredits',op:'=',v:false}]}]},
+    {code:'3.2',  label:'3.2 · Банкротство завершено', rules:[{point:'ступень 1', preds:[{i:'roleEnd',op:'=',v:'завершено банкротство'}]}]},
+    {code:'4',    label:'4 · Безнадёжная',             rules:[{point:'ступень 1', preds:[{i:'roleEnd',op:'=',v:'признана безнадёжной'}]}]},
+    {code:'5',    label:'5 · Погашенная',              rules:[{point:'ступень 1', preds:[{i:'roleEnd',op:'=',v:'полное погашение'}]}]},
+    {code:'2.3',  label:'2.3 · Инициировано банкротство', rules:[{point:'ступень 2', preds:[{i:'procKind',op:'=',v:'инициирование банкротства'}]}]},
+    {code:'2.2',  label:'2.2 · Исполнительные листы',  rules:[{point:'ступень 2', preds:[{i:'procKind',op:'=',v:'исполнительные листы'}]}]},
+    {code:'2.1',  label:'2.1 · Судебное взыскание',    rules:[{point:'ступень 2', preds:[{i:'procKind',op:'=',v:'суд'}]}]},
+    {code:'closed',label:'Кредиты закрыты',            rules:[{point:'ступень 3', preds:[{i:'hasActive',op:'=',v:false}]}]},
+    {code:'1.2',  label:'1.2 · Просрочка по действующим', rules:[{point:'ступень 4', preds:[{i:'anyOverdue',op:'=',v:true}]}]},
+    {code:'1.1',  label:'1.1 · Погашают по графику',   rules:[], otherwise:true, point:'ступень 5'}
+  ]
+},
+{
+  id:'pay', name:'Группа платёжеспособности', object:'заёмщик',
+  version:{no:1, status:'черновик', basis:'—', from:'—', by:'Администратор'},
+  values:[{code:'p1',label:'Высокая',rules:[]},{code:'p2',label:'Средняя',rules:[]},{code:'p3',label:'Низкая',rules:[]}]
+}];
+const CLF = Object.fromEntries(CLASSIFIERS.map(c=>[c.id,c]));
+
+/* ------------------------------------------------------------------ *
+ * ЗАТРАВКА. Факты вводятся людьми (ADR-0122) — фактор несёт реквизиты
+ * решения комитета; без них он в показатель не попадает.
+ * ------------------------------------------------------------------ */
+const BORROWERS = [
+  {inn:'02107201910148', name:'ОсОО «Ак-Жол»', kind:'юр',
+   proc:'исполнительные листы', roleEnd:null},
+  {inn:'22508199500821', name:'ИП Сыдыков А.Т.', kind:'ИП',
+   proc:null, roleEnd:null}
+];
+const CREDITS = [
+  {id:'КД-2024/117', inn:'02107201910148', active:true, days:214, defer:false,
+   factors:[{kind:'нецелевое использование средств', level:'высокий', point:'п. 11.3', doc:'протокол КАБК № 14 от 22.05.2026'}]},
+  {id:'КД-2025/043', inn:'02107201910148', active:true, days:0,  defer:false, factors:[]},
+  {id:'КД-2025/088', inn:'22508199500821', active:true, days:12, defer:false, factors:[]},
+  {id:'КД-2023/210', inn:'22508199500821', active:true, days:200, defer:true,
+   deferNote:'перевод отложен: рассмотрение реструктуризации до 24.08.2026 — условие п. 19.1 не сработало', factors:[]}
+];
+/* Зафиксированная запись прошлого периода (ADR-0123): не пересчитывается. */
+const FIXED_JULY = {'КД-2024/117':'mid','КД-2025/043':'low','КД-2025/088':'low','КД-2023/210':'mid'};
+
+/* ------------------------------------------------------------------ *
+ * ВЫЧИСЛЕНИЕ ПОКАЗАТЕЛЕЙ — у владельцев, не в классификаторе.
+ * ------------------------------------------------------------------ */
+function indicatorsOfCredit(c){
+  const lv = c.factors.map(f=>f.level);
+  return {
+    daysOverdue:c.days,
+    defer181:c.defer,
+    factorLevel: lv.includes('высокий') ? 'высокий' : lv.includes('средний') ? 'средний' : 'нет'
+  };
+}
+function indicatorsOfBorrower(b){
+  const mine = CREDITS.filter(c=>c.inn===b.inn);
+  return {
+    procKind:b.proc || 'нет',
+    roleEnd:b.roleEnd || 'нет',
+    everCredits:mine.length>0,
+    hasActive:mine.some(c=>c.active),
+    anyOverdue:mine.some(c=>c.active && c.days>0)
+  };
+}
+
+/* ------------------------------------------------------------------ *
+ * ДВИЖОК. Знает только предикаты и порядок значений — ни Порядка №41,
+ * ни лестницы здесь нет (ADR-0124: вычислитель один и он общий).
+ * ------------------------------------------------------------------ */
+function test(p, vals){
+  const a = vals[p.i];
+  if(p.op==='=')  return a===p.v;
+  if(p.op==='≥')  return Number(a)>=Number(p.v);
+  if(p.op==='≤')  return Number(a)<=Number(p.v);
+  if(p.op==='≠')  return a!==p.v;
+  return false;
+}
+function classify(clf, vals){
+  if(clf.version.status!=='действующая') return {value:null, why:'классификатор в черновике — не классифицирует'};
+  for(const v of clf.values){
+    for(const r of v.rules){
+      if(r.preds.every(p=>test(p,vals)))
+        return {value:v, rule:r, why:r.preds.map(p=>phrase(p,vals)).join(' и ')+' — '+r.point};
+    }
+    if(v.otherwise) return {value:v, why:'ни одно условие выше не сработало — '+(v.point||'иначе')};
+  }
+  return {value:null, why:'ни одно условие не сработало и значения по умолчанию нет'};
+}
+function phrase(p, vals){
+  const n = IND[p.i].name.toLowerCase();
+  const shown = typeof p.v==='boolean' ? (p.v?'да':'нет') : p.v;
+  const fact  = typeof vals[p.i]==='boolean' ? (vals[p.i]?'да':'нет') : vals[p.i];
+  return `${n} ${p.op} ${shown} (сейчас ${fact})`;
+}
+const tagOf = code => ({high:'t-hi',mid:'t-mid',low:'t-low'})[code] || 't-none';
+
+/* --------------------------- ЭКРАНЫ ------------------------------- */
+let cur='c', curClf='risk';
+const $=s=>document.querySelector(s);
+const esc=s=>String(s).replace(/[<>&]/g,m=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[m]));
+
+function show(t){
+  cur=t;
+  ['c','v','i'].forEach(k=>$('#tab-'+k).classList.toggle('on',k===t));
+  render();
+}
+function pick(id){ curClf=id; render(); }
+
+function render(){
+  $('#period').innerHTML = '<b>Учётный период:</b> август 2026 — <b>открыт</b>. '+
+    'В открытом периоде значение — функция на дату и пересчитывается при каждом новом факте. '+
+    'Июль 2026 закрыт: за него показывается запись фиксации, она не пересчитывается (ADR-0123).';
+  $('#screen').innerHTML = cur==='c' ? screenConstructor() : cur==='v' ? screenShowcase() : screenIndicators();
+}
+
+function screenConstructor(){
+  const list = CLASSIFIERS.map(c=>`
+    <button class="clf ${c.id===curClf?'on':''}" onclick="pick('${c.id}')">
+      ${esc(c.name)}<small>объект: ${c.object} · версия ${c.version.no} ·
+      ${c.version.status==='действующая'?'<span class="tag t-live">действующая</span>':'<span class="tag t-draft">черновик</span>'}</small>
+    </button>`).join('');
+
+  const c = CLF[curClf];
+  const vals = c.values.map((v,i)=>`
+    <div class="val">
+      <b>${i+1}. ${esc(v.label)}</b>
+      ${v.rules.length ? '<ul>'+v.rules.map(r=>`<li>${r.preds.map(p=>
+          `<code>${esc(IND[p.i].name)}</code> ${p.op} <code>${typeof p.v==='boolean'?(p.v?'да':'нет'):esc(p.v)}</code>`
+        ).join(' <b>и</b> ')} <span class="why">— ${esc(r.point)}</span></li>`).join('')+'</ul>'
+      : v.otherwise ? `<div class="otherwise">условий нет — <b>значение по умолчанию</b> ${v.point?'· '+esc(v.point):''}</div>`
+      : '<div class="otherwise">правил нет — значение объявлено, но не назначается</div>'}
+    </div>`).join('');
+
+  return `<div class="cols">
+    <div class="side"><div class="card"><h3>Классификаторы</h3>${list}
+      <div class="mirror">Значения ведутся здесь. В разделе «Справочники» строки
+      <code>borrower-groups</code> и <code>loan-payment-capacity-groups</code> остаются
+      зеркалом на чтение (ADR-0125 §3).</div></div></div>
+    <div class="body">
+      <div class="card">
+        <h3>${esc(c.name)}</h3>
+        <p class="meta">
+          <b>Объект:</b> ${c.object} &nbsp;·&nbsp; <b>Версия:</b> ${c.version.no}
+          ${c.version.status==='действующая'?'<span class="tag t-live">действующая</span>':'<span class="tag t-draft">черновик</span>'}<br>
+          <b>Основание:</b> ${esc(c.version.basis)} &nbsp;·&nbsp;
+          <b>Действует с:</b> ${c.version.from} &nbsp;·&nbsp; <b>Ввёл в действие:</b> ${c.version.by}
+        </p>
+        <h3>Значения и условия — в порядке разбора</h3>
+        ${vals}
+        <p class="why">Объекту присваивается <b>первое</b> значение, у которого сработало хотя бы
+        одно условие. Условие — конъюнкция скалярных предикатов над показателями; свободных
+        формул и скриптов в конструкторе нет (ADR-0120, ADR-0125).</p>
+      </div>
+    </div>
+  </div>`;
+}
+
+function screenShowcase(){
+  const rows = CREDITS.map(c=>{
+    const vals = indicatorsOfCredit(c);
+    const r = classify(CLF.risk, vals);
+    /* Факт показывается всегда, но помечается — вошёл он в сработавшее условие или нет.
+       Иначе зарегистрированный факт читается как причина значения, которой он не был. */
+    const used = !!(r.rule && r.rule.preds.some(p=>p.i==='factorLevel'));
+    const fx = c.factors.map(f=>`<div class="why">факт: ${esc(f.kind)} · ${esc(f.point)} · ${esc(f.doc)}
+        — <em>${used?'засчитан в сработавшем условии':'зарегистрирован, в сработавшее условие не вошёл'}</em></div>`).join('');
+    return `<tr>
+      <td><b>${c.id}</b><br><span class="why">${esc(BORROWERS.find(b=>b.inn===c.inn).name)}</span></td>
+      <td>${c.days}${c.defer?'<div class="why">'+esc(c.deferNote)+'</div>':''}</td>
+      <td><span class="tag ${tagOf(r.value.code)}">${esc(r.value.label)}</span>
+          <div class="why">${esc(r.why)}</div>${fx}</td>
+      <td class="frozen"><span class="tag ${tagOf(FIXED_JULY[c.id])}">${esc(CLF.risk.values.find(v=>v.code===FIXED_JULY[c.id]).label)}</span>
+          <div class="why">запись фиксации, версия 1</div></td>
+    </tr>`;
+  }).join('');
+
+  const cards = BORROWERS.map(b=>{
+    const mine = CREDITS.filter(c=>c.inn===b.inn && c.active);
+    const each = mine.map(c=>({c, r:classify(CLF.risk, indicatorsOfCredit(c))}));
+    const rank = {high:3, mid:2, low:1};
+    const worst = each.reduce((a,x)=> rank[x.r.value.code] > rank[a.r.value.code] ? x : a, each[0]);
+    const sub = classify(CLF.sub, indicatorsOfBorrower(b));
+    const grp = ['none','closed'].includes(sub.value.code) ? null : sub.value.code[0];
+    return `<div class="card">
+      <h3>${esc(b.name)} <span class="why">· ИНН ${b.inn} · ${b.kind}</span></h3>
+      <p class="meta"><b>Категория:</b>
+        <span class="tag ${tagOf(worst.r.value.code)}">${esc(worst.r.value.label)}</span>
+        <span class="why">свёртка worst-of по ${mine.length} действующим кредитам;
+        источник — <b>${worst.c.id}</b>. Своего классификатора у заёмщика нет (ADR-0121)</span></p>
+      <p class="meta"><b>Подгруппа:</b> ${esc(sub.value.label)}
+        <span class="why">${esc(sub.why)}</span></p>
+      <p class="meta"><b>Группа:</b> ${grp ? grp+' <span class="why">— первый разряд подгруппы, отдельным значением не заводится (ADR-0012)</span>'
+        : '— <span class="why">вне лестницы группы нет</span>'}</p>
+      <p class="meta"><b>Платёжеспособность:</b> —
+        <span class="why">классификатор в черновике, правил нет — не классифицирует</span></p>
+    </div>`;
+  }).join('');
+
+  return `<div class="card"><h3>Кредиты — категория на сегодня и запись за закрытый июль</h3>
+      <table><thead><tr><th>Договор</th><th>Дней просрочки</th>
+      <th>Август (открыт) — считается</th><th>Июль (закрыт) — зафиксировано</th></tr></thead>
+      <tbody>${rows}</tbody></table>
+      <p class="why">Витрина не считает категорию: она читает результат и печатает объяснение —
+      сработавшее условие, пункт и засчитанные факты (ADR-0124, ADR-0122).</p></div>
+    ${cards}`;
+}
+
+function screenIndicators(){
+  const rows = INDICATORS.map(i=>`<tr>
+    <td><code>${i.id}</code></td><td>${esc(i.name)}</td><td>${i.obj}</td>
+    <td>${i.type}</td><td>${i.src}</td><td>${i.owner}</td></tr>`).join('');
+  return `<div class="card"><h3>Реестр показателей</h3>
+    <table><thead><tr><th>Идентификатор</th><th>Наименование</th><th>Объект</th>
+    <th>Тип</th><th>Источник</th><th>Владелец</th></tr></thead><tbody>${rows}</tbody></table>
+    <p class="why">Показатель — именованный вход, а не поле объекта. Реестр хранит имя, тип,
+    объект, источник и владельца; способа вычисления в нём нет — он у владельца (ADR-0120 §1–2).
+    Показатели-перечисления <code>procKind</code> и <code>roleEnd</code> уже свернули коллекцию
+    связанных записей, поэтому предикат остаётся скалярным (ADR-0125 §1).</p>
+    <p class="why">Правило кредита вправе читать показатели заёмщика; обратного чтения нет —
+    значения сворачиваются вверх, показатели читаются вниз (ADR-0121 §3).</p></div>`;
+}
+
+render();
+</script>
+</body>
+</html>
