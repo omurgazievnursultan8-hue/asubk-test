@@ -10,10 +10,12 @@
   команды разработки, не прод-код. Экрана реструктуризации в живой системе нет — модуль
   проектируется с нуля.
 
-  Канон логики: mockups/restructuring/ASUBK-restrukturizatsiya-logika.md (решения РС-1…РС-41;
+  Канон логики: mockups/restructuring/ASUBK-restrukturizatsiya-logika.md (решения РС-1…РС-46;
   РС-1…РС-25 пересобраны 05.08.2026 с чистого листа, РС-26…РС-37 приняты 10.08.2026 при
   закрытии вопросов заказчику, РС-38…РС-41 — тем же вечером при закрытии собственной дыры
-  «распределение по периодам» (ADR-0109); карта прежних Р-1…Р-28 → РС — §13 спеки).
+  «распределение по периодам» (ADR-0109), РС-42…РС-46 — 11–13.08.2026 по расчёту-на-транше и
+  вкладкам расчёта, РС-7а/РС-7б — 14.08.2026 при починке финансового ядра;
+  карта прежних Р-1…Р-28 → РС — §13 спеки).
   Регуляторная база: п.18–19 «Порядка мониторинга, взыскания и урегулирования задолженности
   ОАО "Госфинхолдинг"» (ред. №41 от 06.07.2026) + гл. 9 и п. 34 «Положения о работе с
   бюджетными кредитами» — приложение к постановлению Кабинета Министров КР от 19.01.2026 № 14,
@@ -29,6 +31,8 @@
    РС-5  Долг на любую дату — выводимая величина; снимок только под удостоверяющим событием.
    РС-6  Делим только при расхождении условий; счётчик реструктуризаций считает ДС.
    РС-7  База переноса — по статьям, не одним числом; срочный остаток по умолчанию не входит.
+   РС-7а Позиция берётся целиком или частью: взятая сумма живёт на строке базы, база = Σ взятого.
+   РС-7б Перенос гасит вошедшие статьи; из остатка уходит только балансовая часть, прощённое — forgive_out.
    РС-8  Два датированных числа: срез (согласовательный) и факт на дату вступления ДС.
    РС-9  Движок амортизации один, владеет им кредит; заявка зовёт его только для черновика.
    РС-10 Одна дверь — restructureApplied(ds); отмена — компенсирующий ДС, не откат.
@@ -63,6 +67,11 @@
    РС-39 Распоряжение меняет статью (начисленное → накопленное) и снимает просрочку по покрытому.
    РС-40 Интервал за длиной плана не подрезается молча — жёсткий гейт до правки (ИР-15).
    РС-41 Строка графика несёт статьи; ставка начисляется только по колонке основного долга.
+   РС-42 Расчёт живёт на транше: заявка держит список расчётов, ключ строки — (транш, статья, срочность).
+   РС-43 Позиция делится на несколько распоряжений; Σ линий ≤ суммы позиции, границы держат отказы.
+   РС-44 Зона «формы п. 89» ведётся целиком (12 ключей); черновик считается движком кредита (ADR-0111).
+   РС-45 Результат расчёта — три предмета (условия · деньги · графики) на одной напечатанной дате.
+   РС-46 Каждый факт вкладки печатается один раз; пустые колонки не рисуются, вкладка молчит о себе.
 
   ДЕМО-ОГРАНИЧЕНИЯ
    • «Сегодня» демо зафиксировано (TODAY) — счётчики дедлайнов считаются от него.
@@ -80,7 +89,7 @@
   возражение, а не как открытые вопросы. Свод — §11 спеки.
 
   SMOKE (node scripts/inspect/restructuring-check.mjs):
-   SMOKE 2026-08-13 · 79/79 PASS
+   SMOKE 2026-08-14 · 84/84 PASS
       PASS  #1  до=false после=true
       PASS  #2  closed=true opened=true reblock=true
       PASS  #3  безСтавки=true объединение=true вРеестре=true безРаспоряжений=true ключей=12
@@ -93,12 +102,12 @@
       PASS  #10  RS-1005={"idx":8,"closed":true,"label":"Закрыта"} RS-1001={"idx":7,"closed":false,"label":"Оформление"}
       PASS  #11  n=3
       PASS  #12  ДС/3=2026-05-20 срез/6=2026-06-16 ДС/4=2026-06-19
-      PASS  #13  срез=2026-03-30/5000000 факт=2026-07-19/4082000
+      PASS  #13  срез=2026-03-30/5000000 факт=2026-07-19/4200000
       PASS  #14  n=5 arts=5 urg=over,cur внеОхвата=true
       PASS  #15  before={"article":"penalty","urgency":"over","amount":73000,"since":"2026-04-14","disputed":true,"included":false,"blockedBy":"disputed"} after={"article":"penalty","urgency":"over","amount":73000,"since":"2026-04-14","disputed":true,"included":false,"blockedBy":"disputed"}
       PASS  #16  wired=true безNull=true сеттер=true записано=true прочитано=true capPen(пишет/читает)=2/1
-      PASS  #17  order=21,1300,3321,4811,5428
-      PASS  #18  count=1 inside=true
+      PASS  #17  order=21,1707,3728,5218,5835
+      PASS  #18  count=2 inside=true
       PASS  #19  CR-61200=false CR-60540=true CR-59003=true
       PASS  #20  RS-1001={"required":120,"cover":145,"coverOk":true,"ageOk":true,"insured":false,"waived":false,"ok":false,"maturity":"2031-03-02","stale":false,"snapshotDate":"2026-07-05","source":"Залог"} RS-1005={"required":120,"cover":125,"coverOk":true,"ageOk":true,"insured":true,"waived":false,"ok":true,"maturity":"2027-05-10","stale":false,"snapshotDate":"2026-06-20","source":"Залог"}
       PASS  #21  cap="п. 90, ред. прил. к ПКМ КР №14 от 2026-01-19" floor="п. 92, ред. прил. к ПКМ КР №14 от 2026-01-19"
@@ -135,14 +144,14 @@
       PASS  #52  заявок=26 уникальных=26 волна2=19 обход=true
       PASS  #53  видов=6 незадействованных=нет иное=true
       PASS  #54  пустых стадий=нет обаОтказа=true возврат=true
-      PASS  #55  хвост=180000 снят=true наступившее=60000 терминальная=true вПереносе=60000
+      PASS  #55  хвост=180000 снят=true наступившее=60000 терминальная=true вПереносе=60000 осталсяУИсточника=true
       PASS  #56  идемпотентно=true статьяТаЖе=400000 снятие=true просрочкаНеЗависит=true
       PASS  #57  хвостВТело=true процентыВыросли=true (308007.78→544317.63) пеняНеТронута=true
       PASS  #58  один=true адрес=true дверь=true безВисящих=true
       PASS  #59  два=true второйЦел=true первыйДвинулся=true суммыРазные=4318000/0 отказБезИмени=true
       PASS  #60  вырос=true идемпотентно=true безДублей=true чужойНеВошёл=true снят=true ИР-1=true
       PASS  #61  строкиПоРасчётам=true адресованы=true ловитВторой=true (КД-60540: Условия ещё не выбраны — гейт неприменим до расчёта | КД-60541: Срок 999 мес. превышает предел 84 мес. при остатке задолженности 1 850 000 (п. 90, ред. прил. к ПКМ КР №14 от 2026-01-19) | КД-60541: Ставка 0.01% ниже минимума 4.5% (п. 92, ред. прил. к ПКМ КР №14 от 2026-01-19; вид проекта — 1%, п. 34, ред. прил. к ПКМ КР №14 от 2026-01-19))
-      PASS  #62  срезПоРасчётам=true расчёт=1 (15.0 %) заявка=0 (4.1 %)
+      PASS  #62  срезПоРасчётам=true расчёт=1 (15.0 %) заявка=0 (0.1 %)
       PASS  #63  ступень2=2 блокировкаНаВсе=true послеКомитета=true
       PASS  #64  второе=true первоеЦело=true соглашений=2 покрытие={"done":["C-CR-59003-T1","C-CR-60540-T2"],"excluded":[],"pending":[],"ok":true} производныеПоРасчётам=true
       PASS  #65  былаЗакрыта=true приМолчании=true безОснованияОтказ=true послеСнятия=true
@@ -158,8 +167,13 @@
       PASS  #75  дерево=true свои=true чужой=true раскрытость=true бургер=true разметка=true
       PASS  #76  однаДверь=true датаСледуетЗаДС=true вхожденийДаты=1
       PASS  #77  строк=9/9 сходитсяСМоделью=true пиллДС=true движениеСверху=true (свёрнуто 2) черновик=true ΔтолькоЧисло=true молчаниеНеОбнуление=true
-      PASS  #78  RS-1001: 4200000−118000=4082000 база 133360−15360=118000 прогон=118000 · RS-1004: 3100000−41000=3059000 база 41000−0=41000 прогон=41000
+      PASS  #78  RS-1001: взято 133360−15360=118000 модель=118000 имена=true лент=нет состав=«состав зафиксирован соглашением ДС-60540/2» · RS-1004: взято 41000−0=41000 модель=41000 имена=true лент=нет состав=«включено 3 из 5 строк долга расчёта»
       PASS  #79  RS-1001: колонок 3/390px источник 0/0px пустых=0 раскрытие=true/true (6→60 из 60) поОдномуРазу=true (КД-60540-Т1×1 КД-60540-Т2×1 пиллыСекций 0/0/1/1)  тишина=true · RS-1004: колонки [Дата|Накопленные проценты] 2/260px пустых=0
+      PASS  #80  RS-1005: взято 1682700 (тело 1575000) осталось 1575000 источник жив=true · RS-1004: перенос 41000→20500 (взято 20500) подытог=20 500 поле=true потолки=true/true пусто→целое=true
+      PASS  #81  расчётов проверено 24 на 26 заявках · расхождений нет
+      PASS  #82  кандидатов 7: слитый CR-62015-T1 принят=true · правопреемник в списке=false дверь пустила=false · чужих ключей=false
+      PASS  #83  траншей 6, разошлись с термой кредита: КД-60540-Т2.term 36→60, КД-60540-Т2.rate 8→6.5, КД-60541-Т2.term 24→36, КД-60541-Т2.rate 9→6, КД-62015-Т2.rate 9→4.5
+      PASS  #84  матриц 24 · заморожено 17 прощений 5 капитализаций 6 остатков 27 срочностей 81 прочерков 19 переездов 8
 -->
 <style>
 :root{
@@ -447,6 +461,17 @@ table.cgrid tbody tr:last-child td{ border-bottom:none; }
 .chk input{ width:16px; height:16px; }
 .chk.dead{ color:var(--text-placeholder); }
 .chk.dead .lbl{ text-decoration:line-through; }
+/* РС-7а: позицию можно взять в перенос не целиком. Сумма правится в самой клетке «Включена»,
+   под флажком, — отдельного столбца нет: поле нужно только у включённых строк, а пустой
+   столбец на девяти строках из десяти читался бы как недоделанная колонка. Пусто = вся позиция. */
+.take{ margin-top:5px; }
+.take input{ width:100%; box-sizing:border-box; height:26px; text-align:right; padding:0 7px;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--surface-card);
+  color:var(--text-body); font:var(--font-label); outline:none; }
+.take input:focus{ border-color:var(--border-focus); box-shadow:0 0 0 3px var(--asubk-blue-tint); }
+.take input.part{ border-color:var(--asubk-blue); font-weight:var(--weight-semibold); }
+.take input:disabled{ background:var(--surface-input); color:var(--text-muted); border-color:transparent; }
+.take .a-s{ margin-top:3px; text-align:right; }
 .concl-card{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:14px 16px; margin-bottom:12px; }
 .concl-card .ch{ display:flex; align-items:center; gap:10px; margin-bottom:8px; }
 .concl-card .ch .cn{ font:var(--weight-semibold) 15px/1.2 var(--asubk-font); color:var(--text-heading); flex:1; }
@@ -512,22 +537,10 @@ table.cgrid tbody tr:last-child td{ border-bottom:none; }
 .numtile .nt-d{ font:11px/1.3 var(--asubk-font); color:var(--text-placeholder); margin-top:4px; }
 .numtile.delta.flag{ border-color:var(--asubk-amber); background:var(--status-warning-bg); }
 .numtile.delta.flag .nt-v{ color:var(--asubk-amber); }
-/* СТРОКА ПЕРЕХОДА — деньги сделки одной лентой: остаток источника → база переноса →
-   распоряжения → перенос, всего → остаток источника после переноса. Прежде на этом месте
-   стояли две коробки (split-box): одна печатала остаток источника, другая перенесённую базу,
-   а чем первое превращается во второе, экран молчал — два числа рядом и ничего между ними. */
-.flowline{ display:flex; flex-wrap:wrap; align-items:stretch; max-width:920px; margin:0 0 12px;
-  border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:hidden; background:var(--surface-card); }
-.flowline .fl-i{ flex:1 1 140px; padding:10px 14px; display:flex; flex-direction:column; gap:3px;
-  border-left:1px solid var(--border-default); }
-.flowline .fl-i:first-child{ border-left:none; }
-.flowline .fl-l{ font-size:11px; color:var(--text-muted); }
-.flowline .fl-v{ font:var(--weight-semibold) 15px/1.2 var(--asubk-font); color:var(--text-heading); font-variant-numeric:tabular-nums; }
-.flowline .fl-i.main{ background:var(--asubk-blue-tint); }
-.flowline .fl-i.main .fl-v{ color:var(--asubk-blue); font-size:17px; }
-.flowline .fl-i .fl-s{ font-size:11px; color:var(--text-placeholder); }
-.flowline .fl-op{ flex:0 0 auto; align-self:center; padding:0 8px; color:var(--text-placeholder); font-size:14px; }
-/* Сравнение условий идёт той же cgrid, что и долг расчёта. Колонка «Δ» несёт ТОЛЬКО ЧИСЛО:
+/* Ленты денег (.flowline) на вкладке результата больше нет: её три числа — база переноса,
+   прощённое и перенос — оказались вторыми экземплярами итогов матрицы изменений, и по РС-46
+   («каждый факт ровно один раз») уехали подписями в её итоговую строку (tfoot таблицы .mtx).
+   Сравнение условий идёт той же cgrid, что и долг расчёта. Колонка «Δ» несёт ТОЛЬКО ЧИСЛО:
    характер значения («новое», «изменено», «не названо — остаётся прежним») стоит подписью под
    самим значением, в графе «По расчёту». Строки без движения добиваются в ТУ ЖЕ таблицу — вторая
    таблица за раскрытием печатала те же четыре заголовка вторым экземпляром. */
@@ -546,6 +559,28 @@ table.cgrid.cmp th:nth-child(4), table.cgrid.cmp td:nth-child(4){ width:16%; pad
 table.cgrid td.cmp-d{ color:var(--asubk-blue); white-space:nowrap; font-variant-numeric:tabular-nums; }
 table.cgrid td.cmp-was{ color:var(--text-muted); font-variant-numeric:tabular-nums; }
 table.cgrid td.cmp-now{ font-variant-numeric:tabular-nums; }
+/* МАТРИЦА ИЗМЕНЕНИЙ — строка на статью долга, четыре числа: «было · взято в сделку · осталось»
+   на источнике и «стало» на производном. Шапка в два яруса: три графы источника обязаны читаться
+   одним блоком, иначе «стало» встаёт четвёртой равноправной колонкой того же транша и матрица
+   врёт направлением. Имена траншей в ярусе НЕ печатаются — их печатают заголовки графиков
+   (каждый факт ровно один раз, РС-46); ярус называет РОЛЬ, а роль у транша одна на весь показ.
+   Графа производного залита — она про другой транш, и граница между блоками должна быть видна
+   боковым зрением, а не вычитываться из шапки. */
+.mtx-wrap{ max-width:920px; }
+table.cgrid.mtx{ table-layout:fixed; }
+table.cgrid.mtx col.m-art{ width:28%; } table.cgrid.mtx col.m-n{ width:18%; }
+table.cgrid.mtx thead th{ white-space:normal; vertical-align:bottom; line-height:1.3; }
+table.cgrid.mtx thead tr.mtx-grp th{ padding:8px 12px 2px; border-bottom:none;
+  font:11px/1.3 var(--asubk-font); color:var(--text-muted); }
+table.cgrid.mtx th.m-src1, table.cgrid.mtx td.m-src1{ border-left:1px solid var(--border-default); }
+table.cgrid.mtx th.m-der, table.cgrid.mtx td.m-der{ border-left:1px solid var(--border-default);
+  background:var(--asubk-blue-tint); }
+table.cgrid.mtx tbody td{ vertical-align:top; }
+table.cgrid.mtx tbody td.numcell{ font-variant-numeric:tabular-nums; }
+table.cgrid.mtx .a-s{ white-space:normal; }
+table.cgrid.mtx tfoot th{ text-align:left; padding:10px 12px; background:var(--surface-panel);
+  border-top:1px solid var(--border-default); color:var(--text-heading); white-space:normal; }
+table.cgrid.mtx tfoot th.numcell{ text-align:right; font-variant-numeric:tabular-nums; }
 /* График занимает СТОЛЬКО, СКОЛЬКО В НЁМ КОЛОНОК: 130 px на колонку, потолок 920 — дальше
    прокрутка внутри рамки. Растянутая по ширине карточки таблица на трёх колонках оставляла
    между «Датой» и числами пустую полосу в пол-экрана. */
@@ -608,9 +643,9 @@ table.cgrid.cbase{ table-layout:fixed; }
 /* Доли столбцов подвинуты под РС-43: у поделённой позиции рядом с селектом стоит «×», и на
    прежних 26 % длинное «Распределение по периодам» пряталось под стрелку. Отдано 4 % из
    статьи и дат — числа там короче своих колонок. */
-table.cgrid.cbase col.c-art{ width:29%; } table.cgrid.cbase col.c-cut{ width:14%; }
-table.cgrid.cbase col.c-fact{ width:18%; } table.cgrid.cbase col.c-inc{ width:9%; }
-table.cgrid.cbase col.c-disp{ width:30%; }
+table.cgrid.cbase col.c-art{ width:27%; } table.cgrid.cbase col.c-cut{ width:13%; }
+table.cgrid.cbase col.c-fact{ width:17%; } table.cgrid.cbase col.c-inc{ width:14%; }
+table.cgrid.cbase col.c-disp{ width:29%; }
 table.cgrid.cbase thead th, table.cgrid.cbase tfoot th{ white-space:normal; }
 table.cgrid.cbase .a-t, table.cgrid.cbase .a-s, table.cgrid.cbase .mode-tag,
 table.cgrid.cbase .chk .lbl{ white-space:normal; }
@@ -1125,6 +1160,11 @@ function keysOf(anchorKey){                             // корень → вс
   const root = resolveKey(anchorKey);
   return MIRROR.subjects.filter(s=>resolveKey(s.key)===root).map(s=>s.key);
 }
+/* Единственная дверь сравнения «тот же заёмщик» (КЛ-1, 14.08.2026). Якорь заявки — ключ
+   субъекта, а не строка ИНН (РС-2, ADR-0019): кредит, заведённый на слитом (прежнем) ключе,
+   принадлежит тому же лицу, и охват обязан его видеть. Реорганизация не резолвится намеренно —
+   у правопреемника свой живой ключ, и его кредиты чужие. */
+function sameSubject(a,b){ return !!a && !!b && resolveKey(a)===resolveKey(b); }
 
 let state = {};
 function seed(){
@@ -1319,11 +1359,15 @@ function amortize(base, cnd, fromDate, parts){
 }
 
 /* Остаток транша — формула поверх журнала ops, не поле (ИР-3 стал определением). Чужие записи
-   (mirror:true) участвуют в сумме наравне со своими — знак определяет kind, не owner. */
+   (mirror:true) участвуют в сумме наравне со своими — знак определяет kind, не owner.
+   forgive_out — прощение суммы, которая лежала В ОСТАТКЕ (накопленное прошлого ДС, ADR-0109):
+   она уходит из транша, но никуда не приезжает, и transfer_out для неё был бы ложью — тот
+   утверждает встречный transfer_in. Прощение обычной начисленной строки остатка не касается
+   и своей операции не заводит: строка просто уменьшается в t.debt. */
 function balanceAt(t,d){
   return round2((t.ops||[]).filter(o=>o.date<=d).reduce((s,o)=>{
     if(o.kind==='disburse'||o.kind==='transfer_in') return s+o.amount;
-    if(o.kind==='repay'||o.kind==='transfer_out')   return s-o.amount;
+    if(o.kind==='repay'||o.kind==='transfer_out'||o.kind==='forgive_out')   return s-o.amount;
     return s;
   },0));
 }
@@ -1436,9 +1480,61 @@ function validateDS(ds){
     if(dates.length && dates[dates.length-1]>termEnd) reasons.push('Последняя дата графика позже конца срока ДС'); }
   return reasons;
 }
-/* Опустошённый транш-источник закрывается, причина ВЫВЕДЕНА обнулившей операцией, не введена (ИР-5). */
+/* Опустошённый транш-источник закрывается, причина ВЫВЕДЕНА обнулившей операцией, не введена (ИР-5).
+   «Опустошён» = нет ни остатка, ни строк долга. Проверять один остаток мало: начисленные проценты
+   и пеня в остатке не сидят вовсе (они живут строками t.debt, см. transferredNonPrincipal), и транш,
+   у которого перенесли тело, а накопленное оставили, закрывался бы с непогашенной задолженностью —
+   ровно тот дефект, что легаси-прогон поймал сиротской копейкой (E2E-13/14). */
 function closeIfEmptied(tranche, ds){
-  if(round2(balanceAt(tranche, ds.date))<=0) tranche.closed={ date:ds.date, by:ds.no, reason:'перенос' };
+  const debtLeft = round2((tranche.debt||[]).reduce((s,d)=>s+(d.amount||0),0));
+  if(round2(balanceAt(tranche, ds.date))<=0 && debtLeft<=0.005)
+    tranche.closed={ date:ds.date, by:ds.no, reason:'перенос' };
+}
+/* СПИСАНИЕ ВОШЕДШЕГО У ИСТОЧНИКА (РС-7: «вошедшее в базу закрывается в исходном транше переносом,
+   а не погашением», ADR-0092). Разобрано 14.08.2026: перенос дебетовал ТЕЛО источника на всю сумму
+   переноса, чем бы та сумма ни была составлена, и не трогал t.debt вовсе. На RS-1001 это давало
+   картину, которой нет в природе: начисленные проценты 118 000 уезжали на новый транш И оставались
+   строкой долга на старом, тело старого при этом худело на те же 118 000, а прощённая пеня 15 360
+   не уходила ниоткуда. Долг умножался, тело таяло.
+   Правило: у источника гасится ровно то, что вошло в базу, СВОЕЙ статьёй. Дальше решает, где эта
+   статья физически лежала:
+     · тело (principal) и строки, помеченные fromTransfer, сидят В ОСТАТКЕ транша (balanceAt) —
+       их уход обязан быть операцией, иначе остаток не сойдётся;
+     · обычные начисленные строки (проценты, пеня) в остатке НЕ сидят — они и есть t.debt, и уход
+       выражается уменьшением строки. Операции для них нет и быть не может: ставить её значило бы
+       вычесть из остатка деньги, которых там не было.
+   Прощённая часть (РС-14/РС-28) уходит тем же порядком, но операцией forgive_out — она не приезжает
+   на производный транш, и зеркальной transfer_in у неё нет.
+   Классификатор ЧИСТЫЙ (classifyTaken) и зовётся отдельно от списания: те же три суммы нужны
+   экрану ДО регистрации, чтобы лента денег показывала предпросмотр той же арифметикой, какой
+   потом ляжет запись. Списывает writeOffTaken; операции ставит restructureApplied — единственная
+   пишущая дверь. */
+function classifyTaken(src, ds){
+  const forgiven={};
+  (ds.forgivenRows||[]).forEach(f=>{ const k=f.article+'|'+f.urgency; forgiven[k]=round2((forgiven[k]||0)+f.amount); });
+  let outSum=0, forgiveSum=0, accruedSum=0;
+  (ds.taken||[]).forEach(tk=>{
+    const amt=round2(tk.amount); if(amt<=0) return;
+    const row=(src.debt||[]).find(d=>d.article===tk.article && d.urgency===tk.urgency);
+    // Тело строкой долга не хранится (оно выводится из остатка графиком, principalAt) — потому
+    // отсутствие строки означает «сидело в остатке», а не «нечего списывать».
+    const backed = row ? !!row.fromTransfer : true;
+    const f=Math.min(forgiven[tk.article+'|'+tk.urgency]||0, amt);
+    if(backed){ outSum=round2(outSum+amt-f); forgiveSum=round2(forgiveSum+f); }
+    else accruedSum=round2(accruedSum+amt);
+  });
+  return { outSum, forgiveSum, accruedSum };
+}
+function writeOffTaken(src, ds){
+  const sums=classifyTaken(src, ds);
+  (ds.taken||[]).forEach(tk=>{
+    const amt=round2(tk.amount); if(amt<=0) return;
+    const row=(src.debt||[]).find(d=>d.article===tk.article && d.urgency===tk.urgency);
+    if(!row) return;                                   // тело — списывается операцией, строки нет
+    row.amount=round2(row.amount-amt);
+    if(row.amount<=0.005) src.debt=src.debt.filter(d=>d!==row);
+  });
+  return sums;
 }
 /* Единственная пишущая дверь (ADR-0096, issues/03): валидация → 1 производный транш → 2 перенос
    (зеркальная пара transfer_out/transfer_in) → 3 версия графика на новый транш → 4 условия (несутся
@@ -1477,7 +1573,22 @@ function restructureApplied(ds){
   };
   credit.tranches.push(newT);
 
-  src.ops.push({ date:ds.date, kind:'transfer_out', amount:Number(ds.transferSum), mirror:false, owner:'Кредит', basis:{ds:ds.no, to:newT.id} });  // 2. перенос
+  /* 2. Перенос у ИСТОЧНИКА. Сумма операции ≠ сумме переноса, и это не рассогласование: на
+     производный транш приезжает transferSum (тело + безставочные колонки), но из ОСТАТКА
+     источника уходит только та часть, что в остатке и лежала. Начисленные проценты и пеня в
+     остатке не лежат — они списываются строкой долга (writeOffTaken выше), и, став телом нового
+     транша, превращаются из начисления в выданные деньги. Зеркальность пары transfer_out/
+     transfer_in — про СОБЫТИЕ (один перенос, две стороны), а не про равенство чисел; равенство
+     дало бы ложный остаток у источника.
+     Состав переноса кладётся в basis: реестр операций обязан отвечать, из чего сумма собрана,
+     без пересчёта конвейера задним числом. */
+  const wo = ds.taken ? writeOffTaken(src, ds) : { outSum:Number(ds.transferSum), forgiveSum:0 };
+  if(wo.outSum>0.005)
+    src.ops.push({ date:ds.date, kind:'transfer_out', amount:wo.outSum, mirror:false, owner:'Кредит',
+                   basis:{ds:ds.no, to:newT.id, of:ds.transferSum, taken:ds.taken||null} });
+  if(wo.forgiveSum>0.005)
+    src.ops.push({ date:ds.date, kind:'forgive_out', amount:wo.forgiveSum, mirror:false, owner:'Кредит',
+                   basis:{ds:ds.no, reason:'прощение (РС-14/РС-28)', rows:ds.forgivenRows||null} });
 
   newT.schedules.push({ ver:1, validFrom:ds.date, by:{kind:'ДС', ref:ds.no}, rate:cnd.rate, rows:draft.rows });  // 3. версия графика
 
@@ -1968,7 +2079,7 @@ function calcBaseOf(app, calc, date){
    null не используется: «весь график» — осмысленное значение, а не отсутствие значения. */
 const allPeriods = () => ({ mode:'all' });
 function defaultDispositions(base){
-  return base.filter(r=>r.included).map(r => ({ article:r.article, urgency:r.urgency, seq:1, kind:'none', amount:r.amount, periods:allPeriods() }));
+  return base.filter(r=>r.included).map(r => ({ article:r.article, urgency:r.urgency, seq:1, kind:'none', amount:takeOf(r), periods:allPeriods() }));
 }
 function dispositionsFor(dispositions, article, urgency){
   return (dispositions||[]).filter(d=>d.article===article && d.urgency===urgency)
@@ -2023,10 +2134,45 @@ function toggleBaseRow(appId, article, urgency, calcId){
   row.included = !row.included;
   if(row.included){
     if(!dispositionFor(calc.dispositions, article, urgency))
-      calc.dispositions.push({article,urgency,seq:1,kind:'none',amount:row.amount,periods:allPeriods()});
+      calc.dispositions.push({article,urgency,seq:1,kind:'none',amount:takeOf(row),periods:allPeriods()});
   } else {
     calc.dispositions = calc.dispositions.filter(d=>!(d.article===article && d.urgency===urgency));
+    delete row.take;                       // снятая строка не хранит частичную сумму — включат заново, спросим заново
   }
+  app._t=TODAY; render();
+}
+/* ЧАСТИЧНЫЙ ПЕРЕНОС ПОЗИЦИИ (РС-7а, 14.08.2026). Прежде строка базы включалась ЦЕЛИКОМ: перенести
+   половину срочного тела на новый срок — обычная сделка (§14 п. 8, ДС-59003/3: источник остаётся
+   живым с остатком) — экраном не выражалась, и демо-цепочка заводила её числом мимо базы. Сумма
+   живёт НА СТРОКЕ, а не распоряжением: распоряжение отвечает на вопрос «что сделать с тем, что
+   переносим» (простить, капитализировать, распределить), а здесь вопрос другой — «сколько взять».
+   Смешать их значило бы завести форму, которой нет в п. 89. Умолчание — вся сумма позиции, и
+   поле take тогда не заводится вовсе (Р-19: умолчание не хранится).
+   Инвариант: 0 < take ≤ amount; непокрытая часть остаётся на источнике своей же строкой. */
+function takeOf(row){
+  if(!row) return 0;
+  const full = round2(row.amount||0);
+  if(row.take==null) return full;
+  return round2(Math.max(0, Math.min(Number(row.take)||0, full)));
+}
+function setBaseTake(appId, article, urgency, value, calcId){
+  if(!guard('editBase')) return; const app=appById(appId);
+  const calc = ensureBaseDispositions(app, calcId);
+  if(!calc){ toast('У заявки несколько расчётов — укажите, по какому траншу','err'); return; }
+  const row = calc.base.find(r=>r.article===article && r.urgency===urgency);
+  if(!row || !row.included) return;
+  const full = round2(row.amount||0);
+  const raw = String(value==null?'':value).replace(/\s/g,'').replace(',','.');
+  const v = raw==='' ? full : round2(Number(raw));
+  if(!isFinite(v) || v<=0){ toast('Сумма переноса должна быть больше нуля','err'); render(); return; }
+  if(v>full){ toast('Больше суммы позиции ('+fmt(full)+') перенести нельзя','err'); render(); return; }
+  // Распоряжения нарезаны на позиции: уменьшив взятую часть, нельзя оставить линии, которые её
+  // перекрывают, — иначе Σ линий > переносимого, и инвариант РС-43 держался бы только на глаз.
+  const busy = dispositionsSum(calc.dispositions, article, urgency);
+  if(busy>v){ toast('Распоряжения на позиции уже заняли '+fmt(busy)+' — уменьшите их прежде суммы переноса','err'); render(); return; }
+  if(v===full) delete row.take; else row.take = v;
+  const only = dispositionsFor(calc.dispositions, article, urgency);
+  if(only.length===1 && only[0].kind==='none') only[0].amount = takeOf(row);   // «без распоряжения» следует за суммой само
   app._t=TODAY; render();
 }
 /* Смена распоряжения на строке (issues/02 реш.4). Значения вне allowedDispositions(app) —
@@ -2058,9 +2204,12 @@ function setDisposition(appId, article, urgency, kind, calcId, seq){
   if(!dispositionHasPeriods(kind, article)) d.periods = allPeriods();   // сроки живут только там, где есть безставочная сумма (РС-38)
   app._t=TODAY; render();
 }
+/* Распорядительный потолок позиции — ПЕРЕНОСИМАЯ часть (takeOf), а не вся сумма долга: при
+   частичном переносе (РС-7а) остаток позиции на источнике распоряжению не подчиняется — его
+   вообще нет в этом ДС. */
 function row0(calc, article, urgency){
   const r=(calc.base||[]).find(x=>x.article===article && x.urgency===urgency);
-  return r ? round2(r.amount) : 0;
+  return r ? takeOf(r) : 0;
 }
 /* Вторая линия на позиции (РС-43). Заводится суммой свободного остатка — это единственное
    значение, которое здесь не выдумано: всё, чем ещё можно распорядиться. Позиция, занятая
@@ -2071,7 +2220,7 @@ function addDisposition(appId, article, urgency, calcId){
   if(!calc){ toast('У заявки несколько расчётов — укажите, по какому траншу','err'); return; }
   const row = calc.base.find(r=>r.article===article && r.urgency===urgency);
   if(!row || !row.included || row.blockedBy) return;
-  const free = round2(row.amount - dispositionsSum(calc.dispositions, article, urgency));
+  const free = round2(takeOf(row) - dispositionsSum(calc.dispositions, article, urgency));
   if(free<=0.005){ toast('Позиция распределена целиком — уменьшите сумму существующего распоряжения','err'); return; }
   const lines = dispositionsFor(calc.dispositions, article, urgency);
   const seq = lines.reduce((m,d)=>Math.max(m, Number(d.seq||1)), 0) + 1;
@@ -2115,10 +2264,10 @@ function setDispAmount(appId, article, urgency, value, calcId, seq){
   // Потолок линии — позиция МИНУС суммы прочих линий (РС-43). На единственной линии это прежний
   // потолок «не больше позиции», на второй — ровно свободный остаток, и он назван в тосте.
   const other = dispositionsSum(calc.dispositions, article, urgency, d);
-  const free = round2(round2(row.amount) - other);
+  const free = round2(takeOf(row) - other);
   if(v > free+0.005){
     toast(other>0 ? 'Свободный остаток позиции — '+fmt(free)+' (прочие распоряжения заняли '+fmt(other)+')'
-                  : 'Сумма распоряжения больше суммы позиции ('+fmt(row.amount)+')', 'err');
+                  : 'Сумма распоряжения больше переносимой суммы позиции ('+fmt(takeOf(row))+')', 'err');
     render(); return;
   }
   d.amount = v;
@@ -2151,14 +2300,14 @@ function scopeTranches(app){
 }
 /* Кандидаты — открытые траншы с остатком по кредитам, уже названным в охвате, ПЛЮС траншы
    прочих кредитов того же субъекта: заявка вправе охватывать несколько кредитов одного лица
-   (РС-2). Субъект ищется по ИНН — тем же ключом, что naFillCredits (:3202); поля subjectKey у
-   кредита нет, оно живёт на транше. Вошедшие вычитаются: второй расчёт на тот же транш
-   запрещён (ИР-16). */
+   (РС-2). Субъект сравнивается sameSubject — тем же предикатом, что naFillCredits, поэтому
+   слитый ключ виден с обеих сторон; поля subjectKey у кредита нет, оно живёт на транше.
+   Вошедшие вычитаются: второй расчёт на тот же транш запрещён (ИР-16). */
 function trancheCandidates(app){
   const taken=new Set((app.calcs||[]).map(c=>c.trancheId));
   const list=[];
   state.credits.forEach(cr=>{
-    const own = (app.creditIds||[]).includes(cr.id) || cr.inn===app.inn;
+    const own = (app.creditIds||[]).includes(cr.id) || sameSubject(cr.inn, app.inn);
     if(!own) return;
     (cr.tranches||[]).forEach(t=>{
       if(t.closed || taken.has(t.id) || round2(balanceAt(t,TODAY))<=0) return;
@@ -2174,13 +2323,13 @@ function addTrancheToScope(appId, trancheId){
   const cr=creditOfTranche(trancheId); if(!cr){ toast('Транш не найден','err'); return; }
   const t=(cr.tranches||[]).find(x=>x.id===trancheId);
   // Заявка — обращение одного заёмщика: кредит чужого ИНН в охват не входит (РС-2).
-  if(cr.inn!==app.inn){ toast('Кредит принадлежит другому заёмщику','err'); return; }
+  if(!sameSubject(cr.inn, app.inn)){ toast('Кредит принадлежит другому заёмщику','err'); return; }
   const busy=activeAppOnTranche(trancheId, appId);
   if(busy){ toast('Транш уже в активной заявке '+busy.id+' (ИР-1)','err'); return; }
   const had=(app.calcs||[]).some(c=>c.trancheId===trancheId);
   const calc=attachCalc(app, t);
   if(!calc){ toast('Кредит транша не найден','err'); return; }
-  if(!calc.version) calc.version=draftVersion(cr,{});
+  if(!calc.version) calc.version=draftVersion(t,{});
   /* Срез уже зафиксирован письмом — новый расчёт обязан получить СВОЙ, иначе он выпадает из
      фильтров appDrift/driftGate и ступень 2 считается по неполной заявке молча (ревью
      12.08.2026). Дата берётся у заявки — она одна на обращение (спека §2); суммы считаются тем
@@ -2202,7 +2351,7 @@ function openDropTranche(appId, calcId){
   if(!calc){ toast('Расчёт не найден','err'); return; }
   if(calc.dsRef){ toast('По этому траншу зарегистрировано ДС — из охвата не выводится','err'); return; }
   const t=calcTrancheOf(calc), cr=creditById(calc.creditId);
-  const base=fmt(rowsTotal(calcBaseOf(app, calc).filter(x=>x.included)));
+  const base=fmt(takeTotal(calcBaseOf(app, calc)));
   modal(`<div class="modal">${mhead('Вывести транш из охвата')}<div class="modal-b">
     <div class="flagline">Расчёт по траншу ${esc(t?t.no:'—')} (кредит ${esc(cr?cr.no:'—')}) будет снят вместе
       с базой переноса ${base} и распоряжениями. Вернуть его можно только заведя заново.</div>
@@ -2246,7 +2395,7 @@ function setCalcTranche(appId, trancheId){
   if(cur && (app.calcs||[]).length===1){ cur.trancheId=found.t.id; cur.creditId=found.cr.id; cur.id='C-'+found.t.id; }
   else attachCalc(app, found.t);
   const c = requireCalc(app) || calcById(app, 'C-'+found.t.id);
-  if(c && !c.version) c.version=draftVersion(found.cr,{});
+  if(c && !c.version) c.version=draftVersion(found.t,{});
   app._t=TODAY; H(app,'Транш-источник расчёта выбран: '+found.t.no+' (кредит '+found.cr.no+').',state.role);
   toast('Транш-источник выбран','ok'); render();
 }
@@ -2269,7 +2418,7 @@ function setVersionParam(appId, key, val, calcId){
      распоряжений (setDisposition) — разметке не доверяем, запрещённое значение отбивает
      сторона модели. Гейт Г-23 держит тот же рубеж на входе в ДС (ADR-0111). */
   if(!allowedParams(app).has(key)){ toast('Вид ДС не разрешает менять «'+def.label+'»','err'); return; }
-  if(!calc.version) calc.version=draftVersion(creditById(calc.creditId),{});
+  if(!calc.version) calc.version=draftVersion(calcTrancheOf(calc),{});
   const p=calc.version.params;
   p[key] = def.kind==='num' ? (val===''?null:Number(val)) : val;
   app._t=TODAY; render();
@@ -2346,6 +2495,10 @@ function versionParamsBlock(app, calc){
 const PIPELINE = [
   function forgive(state){
     let sum=0;
+    // Прощённое АДРЕСОВАНО строкой (статья, срочность), а не одним числом: списывать его у
+    // источника надо с той же позиции, откуда оно взято (РС-14 — прощение уменьшает начисленное),
+    // и от того, лежала ли эта позиция в остатке транша, зависит, нужна ли операция forgive_out.
+    const cuts=[];
     const base = state.base.map(r=>{
       const carried = r.carried!=null ? r.carried : r.amount;
       if(!r.included) return {...r, carried};
@@ -2354,10 +2507,11 @@ const PIPELINE = [
       // экране: иначе куратор управлял бы ставкой на прощённое перестановкой строк.
       const cut = round2(dispositionsFor(state.dispositions, r.article, r.urgency)
         .filter(d=>d.kind==='forgive').reduce((s,d)=>s+d.amount,0));
-      if(cut>0){ sum=round2(sum+cut); return {...r, carried: round2(carried-cut)}; }
+      if(cut>0){ sum=round2(sum+cut); cuts.push({article:r.article, urgency:r.urgency, amount:cut});
+                 return {...r, carried: round2(carried-cut)}; }
       return {...r, carried};
     });
-    return { state:{...state, base, forgiven:round2(sum)}, record:{step:'forgive', sum:round2(sum)} };
+    return { state:{...state, base, forgiven:round2(sum), forgivenRows:cuts}, record:{step:'forgive', sum:round2(sum)} };
   },
   /* Капитализация — два разных исхода одной механики (РС-11/РС-27): проценты входят в основной
      долг и ставка на них идёт (процент на процент — обычная механика кредита), пеня выделяется
@@ -2441,8 +2595,15 @@ const PIPELINE = [
     });
     const principalPart = round2(state.base.filter(r=>r.article==='principal' && r.included).reduce((s,r)=>s+r.carried,0) + state.capitalizedInterest);
     const transferSum = round2(principalPart + parts.reduce((s,p)=>s+p.amount,0));
-    return { state:{...state, parts, principalPart, transferSum},
-             record:{step:'assembleBase', transferSum, principalPart, parts:parts.length} };
+    /* ЧТО СНИМАЕТСЯ С ИСТОЧНИКА (РС-7: «вошедшее в базу закрывается в исходном транше переносом»).
+       Величина — взятая со строки сумма ДО распоряжений (took), а не остаток после них: прощённое
+       и капитализированное тоже уходят с источника, просто приезжают не туда. Адрес — та же
+       тройка (транш, статья, срочность), которой строка называется в базе; сложить всё в одно
+       число нельзя, иначе дверь кредита не знает, какую именно позицию гасить, и режет тело. */
+    const taken = state.base.filter(r=>r.included && round2(r.took!=null?r.took:r.amount)>0)
+      .map(r=>({ article:r.article, urgency:r.urgency, amount:round2(r.took!=null?r.took:r.amount) }));
+    return { state:{...state, parts, principalPart, transferSum, taken},
+             record:{step:'assembleBase', transferSum, principalPart, parts:parts.length, taken:taken.length} };
   }
 ];
 function run(app, date, calcId){
@@ -2454,13 +2615,33 @@ function run(app, date, calcId){
   // многорасчётной дверь без имени молчит ([]), и выбор падает на calc, адресованный calcId.
   const ownBase = (app && app.base && app.base.length) ? app.base : null;
   const ownDisp = (app && app.dispositions && app.dispositions.length) ? app.dispositions : null;
-  const base0 = (ownBase || calcBaseOf(app, calc, date)).map(r=>({...r, carried:r.amount}));
+  const base0 = (ownBase || calcBaseOf(app, calc, date)).map(r=>{ const took=takeOf(r); return {...r, took, carried:took}; });
   const dispositions = ownDisp || (calc.dispositions && calc.dispositions.length ? calc.dispositions : defaultDispositions(base0));
-  const st0 = { app, calc, date, base:base0, dispositions, forgiven:0, capitalized:0,
+  const st0 = { app, calc, date, base:base0, dispositions, forgiven:0, forgivenRows:[], capitalized:0,
                 capitalizedInterest:0, capitalizedPenalty:0,
-                parts:[], spread:[], remainsOverdue:false, principalPart:0, transferSum:0, stack:[] };
+                parts:[], spread:[], remainsOverdue:false, principalPart:0, transferSum:0, taken:[], stack:[] };
   return PIPELINE.reduce((s, step) => { const {state, record} = step(s); state.stack.push(record); return state; }, st0);
 }
+/* РЕКВИЗИТЫ ПЕРЕНОСА одним куском. ДС рождается в четырёх местах (сев RS-1001, демо-цепочка,
+   вторая волна, живой regDS), и каждое собирало объект руками — поле, добавленное ядру, тут же
+   терялось в трёх дверях из четырёх. Так и вышло: taken/forgivenRows нужны источнику, чтобы
+   знать, ЧТО списывать, а раскладка — ленте денег после регистрации. Дверь одна, забыть нечего.
+   BASEROWS — ПОЗИЦИИ ИСТОЧНИКА ЦЕЛИКОМ, а не только взятое (14.08.2026, матрица изменений).
+   `taken` отвечает «сколько ушло в сделку»; вопрос «сколько на источнике БЫЛО и сколько на нём
+   ОСТАЛОСЬ» им не закрывается: снятая куратором позиция и непокрытая часть частично взятой в
+   taken не попадают вовсе, а после регистрации источник опустошён (writeOffTaken) и пересчитать
+   их из живого долга уже нельзя. Величина «было» — факт сделки и замораживается вместе с ней.
+   CAPITALIZEDINTEREST — по той же причине: principalPart несёт тело И влившиеся проценты одной
+   суммой, и разложить её обратно после регистрации нечем. */
+const dsComposition = r => ({ transferSum:r.transferSum, principalPart:r.principalPart, parts:r.parts,
+                              taken:r.taken||[], forgivenRows:r.forgivenRows||[],
+                              capitalizedInterest:round2(r.capitalizedInterest||0),
+                              baseRows:(r.base||[]).filter(x=>round2(x.amount||0)>0).map(x=>({
+                                article:x.article, urgency:x.urgency, amount:round2(x.amount),
+                                took: x.included ? round2(x.took!=null ? x.took : x.amount) : 0 })) });
+/* Сумма базы = сумма ВЗЯТОГО (до распоряжений). Именно она стоит рядом с переносом в ленте денег,
+   и считать её из живой базы после регистрации нельзя — источник уже опустошён. */
+const baseSumOf = r => round2(((r&&r.taken)||[]).reduce((s,x)=>s+x.amount,0));
 
 /* Расхождение среза и факта — колонка-дельта и ДВЕ СТУПЕНИ порога (РС-26, решение Холдинга от
    10.08.2026 вместо прежнего одиночного мягкого флага). Обе ступени считаются от согласованной
@@ -2543,7 +2724,12 @@ function appDrift(app, date){
   // дату (rows:null), в сумму не входит — складывать нечего, а не ноль.
   const list=(app.calcs||[]).filter(c=>c.cutoff && c.cutoff.rows);
   const cut=list.flatMap(c=>c.cutoff.rows);
+  // Факт УДОСТОВЕРЕН регистрацией (fixFact) — и берётся оттуда, ровно как в строках driftGate.
+  // Живой пересчёт остаётся только расчёту без ДС. Прежде свод считал живьём всегда, и после
+  // регистрации читал транш, уже опустошённый этим же переносом: строки показывали расхождение 0,
+  // а итог под ними — −100 % (RS-1006/1007, разбор 14.08.2026). Одна величина, два ответа.
   const fact=list.flatMap(c=>{
+    if(c.fact && c.fact.rows) return c.fact.rows;
     const t=calcTrancheOf(c); return t ? debtAt(t, date||TODAY) : [];
   });
   return driftOf(cut, fact);
@@ -2648,14 +2834,19 @@ function H(app,what,who,cls){ app.history.push({when:app._t||app.regDate, what, 
 function defaultConclusions(){ return [ {dept:'СРМиК',text:'',visa:false,visaDate:null}, {dept:'ДПО',text:'',visa:false,visaDate:null} ]; }
 function fillDocs(app){ requiredDocs(app).forEach(d=>app.packetDocs[d]=true); }
 /* Замена снесённого versionFrom (РС-3, карта map.md): версии условий на кредите больше нет —
-   черновик читает cr.terms напрямую, а не version-on-credit. plan заполняется отдельно
-   (CreditSide.draftSchedule), null пока расчёт не проведён. */
-function draftVersion(cr, overrides){
-  // Черновик стартует «как есть»: из условий кредита берутся те ключи реестра, которые там
+   черновик читает условия ТРАНША-ИСТОЧНИКА на дату расчёта.
+   Правка КЛ-3 (14.08.2026): прежде сеялось из cr.terms — термы кредита. На исходном транше это
+   одно и то же (запись условий транша при выдаче — копия термы), на ПРОИЗВОДНОМ — нет: транш,
+   рождённый прошлым ДС, живёт на условиях того ДС, а терма кредита осталась первоначальной.
+   Черновик на КД-60540-Т2 получал «36 мес., 8 %» вместо «60 мес., 6,5 %», и таблица сравнения
+   РС-45 показала бы выдуманное движение условий — сделку, которой не предлагали. */
+function draftVersion(src, overrides, at){
+  // Черновик стартует «как есть»: из условий транша берутся те ключи реестра, которые там
   // заведены (term/rate/freq/method). Незаведённые — льготы, день платежа — остаются пустыми:
   // пустая льгота и есть «льготы нет», а нулём её сеять значит выдать неназванное за условие.
+  const cnd=conditionsAt(src, at||TODAY);
   const params={};
-  PARAMS.forEach(p=>{ if(cr.terms[p.key]!==undefined) params[p.key]=cr.terms[p.key]; });
+  PARAMS.forEach(p=>{ if(cnd[p.key]!==undefined) params[p.key]=cnd[p.key]; });
   return { params:Object.assign(params, overrides||{}), plan:null };
 }
 
@@ -2679,7 +2870,7 @@ function buildDemoApps(){
   a1.zk={fixed:true,no:'ЖК-К/БФ-214',date:'2026-06-15'};
   a1.resolution={fixed:true,decision:'изм',no:'ПКМ КР № 331',date:'2026-06-29',
                  forgiveSum:null, forgiveBasis:'п. 89 пп. 5 — прощение накопленной неустойки, санкция по обстоятельствам, не зависящим от заёмщика'};
-  a1.version=draftVersion(cr1,{term:60,rate:6.5});
+  a1.version=draftVersion(T1a,{term:60,rate:6.5});
   a1.base=AppSide.defaultBase(a1,TODAY);
   a1.dispositions=AppSide.defaultDispositions(a1.base).map(d=>{
     if(d.article==='accInterest') return {...d,kind:'cap'};
@@ -2687,11 +2878,13 @@ function buildDemoApps(){
     return d;
   });
   const run1=AppSide.run(a1,TODAY);
-  const ds1={ no:'ДС-60540/2', date:TODAY, app:a1, sourceTranche:T1a, credit:cr1, transferSum:run1.transferSum,
-              principalPart:run1.principalPart, parts:run1.parts, conditions:toConditions(a1.version.params) };
+  const ds1={ no:'ДС-60540/2', date:TODAY, app:a1, sourceTranche:T1a, credit:cr1,
+              ...dsComposition(run1), conditions:toConditions(a1.version.params) };
+  AppSide.fixFact(a1,TODAY,null,ds1.transferSum);          // факт — ДО переноса, см. regDS
   const res1=CreditSide.restructureApplied(ds1);
   if(res1.ok){
-    a1.ds={ no:ds1.no, date:ds1.date, transferSum:ds1.transferSum, sourceTrancheId:T1a.id, conditions:ds1.conditions, fact:null };
+    a1.ds={ no:ds1.no, date:ds1.date, transferSum:ds1.transferSum, sourceTrancheId:T1a.id, conditions:ds1.conditions,
+            fact:(requireCalc(a1)||{}).fact||null };   // факт снят выше, до переноса — зеркалим готовый
     // ДС адресуется РАСЧЁТОМ (задача 6): dsRef на расчёте + запись в app.agreements — тем же
     // образцом, что mkChainApp (:2183) и buildWave2App (:2422). Без этого resultTrancheOf не
     // находит производный транш, и вкладка расчёта теряет коробку разделения и живой график,
@@ -2699,8 +2892,8 @@ function buildDemoApps(){
     const calc1=requireCalc(a1);
     calc1.dsRef=ds1.no;
     (a1.agreements = a1.agreements || []).push({ no:ds1.no, date:ds1.date, creditId:cr1.id,
-      appId:a1.id, calcIds:[calc1.id], transferSum:ds1.transferSum, sourceTrancheId:T1a.id, conditions:ds1.conditions });
-    AppSide.fixFact(a1,TODAY,null,ds1.transferSum);
+      appId:a1.id, calcIds:[calc1.id], ...dsComposition(run1), baseSum:baseSumOf(run1),
+      sourceTrancheId:T1a.id, conditions:ds1.conditions });
     a1.outcome='изм';
   }
   a1._t='2026-03-02'; H(a1,'Заявка зарегистрирована. Виды: Пролонгация, Капитализация + прощение штрафов.','Куратор ОД');
@@ -2755,7 +2948,7 @@ function buildDemoApps(){
   a4.base=AppSide.defaultBase(a4,TODAY);
   a4.dispositions=AppSide.defaultDispositions(a4.base);
   const run4=AppSide.run(a4,TODAY);
-  a4.version=draftVersion(cr4,{});
+  a4.version=draftVersion(a4.calcTranche,{});
   a4.version.plan=CreditSide.draftSchedule(a4.calcTranche,{date:TODAY,transferSum:run4.transferSum,principalPart:run4.principalPart,parts:run4.parts,params:a4.version.params});
   a4._t='2026-07-02'; H(a4,'Заявка зарегистрирована. Вид: Изменение сроков погашения задолженности (п. 89 пп. 1). Инициатор — ОМСУ через полномочного представителя Президента в области (п. 83).','Куратор ОД');
   a4._t='2026-07-03'; H(a4,'Пакет укомплектован → «Анализ». Дедлайн 30 к.д. (до '+addCalDays('2026-07-02',30)+').','Куратор ОД');
@@ -2786,18 +2979,38 @@ function seedRestructChain(){
     app.conclusion={fixed:true,outcome:'возможно',no:'МФ-'+id,date:addCalDays(date,-2)};
     app.zk={fixed:true,no:'ЖК-'+id,date:addCalDays(date,-2)};
     app.resolution={fixed:true,decision:'изм',no:'ПКМ-'+id,date:addCalDays(date,-1)};
-    app.version=draftVersion(cr,{term:12});
-    const full=round2(CreditSide.balanceAt(T,date));
-    const transferSum=partial?round2(full*0.5):full;
-    const ds={ no, date, app, sourceTranche:T, credit:cr, transferSum, conditions:toConditions(app.version.params) };
+    app.version=draftVersion(T,{term:12});
+    /* СЕВ ИДЁТ ЧЕРЕЗ БАЗУ И КОНВЕЙЕР, а не числом мимо них (переделано 14.08.2026). Прежде
+       цепочка брала transferSum = balanceAt (или его половину при partial) и звала
+       restructureApplied напрямую: base и dispositions у заявки оставались пустыми, и вкладка
+       «Параметры» показывала одно (живое умолчание базы — на RS-1005 это 107 700), а «Результат
+       расчёта» другое (1 575 000 из операции). Разбор так и начался: числа двух экранов не
+       сходились, потому что сходиться им было не с чего — сделка не проходила через ядро.
+       Теперь сев называет СОСТАВ, а сумму считает конвейер, ровно как живой regDS.
+       Тело в базу входит ЯВНО (РС-7: срочный остаток по умолчанию не входит) — перенос сроков
+       без тела бессмыслен; частичность выражается суммой НА СТРОКЕ тела (РС-7а), а не
+       умножением итога на 0,5: половина итога — число без состава, из него не видно, что
+       именно осталось на источнике. */
+    app.base=AppSide.defaultBase(app,date).map(r=>{
+      if(r.blockedBy) return r;                                    // спорная пеня не входит никогда
+      if(r.article!=='principal') return {...r, included:true};    // всё начисленное уносим сделкой
+      return partial ? {...r, included:true, take:round2(r.amount/2)}   // половина тела — остаток живёт дальше
+                     : {...r, included:true};                          // целиком — источник закроется
+    });
+    app.dispositions=AppSide.defaultDispositions(app.base);
+    const r=AppSide.run(app,date);
+    const ds={ no, date, app, sourceTranche:T, credit:cr, ...dsComposition(r),
+               conditions:toConditions(app.version.params) };
+    const calc = requireCalc(app);
+    AppSide.fixFact(app,date,calc.id,r.transferSum);              // факт — ДО переноса
     const res=CreditSide.restructureApplied(ds);
     if(!res.ok) throw new Error('demo-seed: '+no+' — '+res.reasons.join('; '));
-    app.ds={ no, date, transferSum, sourceTrancheId:T.id, conditions:ds.conditions, fact:null };
-    const calc = requireCalc(app);
+    const transferSum=ds.transferSum;
+    app.ds={ no, date, transferSum, sourceTrancheId:T.id, conditions:ds.conditions, fact:calc.fact };
     calc.dsRef = no;
     (app.agreements = app.agreements || []).push({ no, date, creditId:cr.id,
-      appId:app.id, calcIds:[calc.id], transferSum, sourceTrancheId:T.id, conditions:ds.conditions });
-    AppSide.fixFact(app,date,null,transferSum);
+      appId:app.id, calcIds:[calc.id], ...dsComposition(r), baseSum:baseSumOf(r),
+      sourceTrancheId:T.id, conditions:ds.conditions });
     app.outcome='изм'; app._t=date; H(app,'ДС '+no+' зарегистрировано, перенесено '+fmt(transferSum)+'.','Куратор ОД');
     return { app, tranche:res.tranche };
   }
@@ -2976,10 +3189,10 @@ function buildWave2App(s){
   // Охват называет траншы: у сценария с несколькими кредитами расчёт заводится на каждый
   // первый открытый транш, а не только на кредит[0] — иначе второй кредит в расчёт не входит.
   (s.credits||[]).forEach(cid=>{ const c=creditById(cid); const t=(c.tranches||[]).find(x=>!x.closed);
-    if(t){ const calc=attachCalc(app, t); if(!calc.version) calc.version=draftVersion(c,{}); } });
+    if(t){ const calc=attachCalc(app, t); if(!calc.version) calc.version=draftVersion(t,{}); } });
   app.conclusions=defaultConclusions();
   app._t=d.analysis; H(app,'Пакет укомплектован → «Анализ». Дедлайн 30 к.д. (до '+addCalDays(s.reg,30)+').','Куратор ОД');
-  if(s.params) app.calcs.forEach(calc=>{ calc.version=draftVersion(creditById(calc.creditId),s.params); });
+  if(s.params) app.calcs.forEach(calc=>{ calc.version=draftVersion(calcTrancheOf(calc),s.params); });
   if(s.waiver) app.waiver={granted:true, reason:s.waiver.reason, date:s.waiver.date};
 
   if(target>=2){
@@ -3018,7 +3231,7 @@ function buildWave2App(s){
   if(s.plan){
     app.calcs.forEach(calc=>{
       const r=AppSide.run(app, TODAY, calc.id);
-      calc.version=calc.version||draftVersion(creditById(calc.creditId),{});
+      calc.version=calc.version||draftVersion(calcTrancheOf(calc),{});
       calc.version.plan=CreditSide.draftSchedule(calcTrancheOf(calc),
         {date:TODAY, transferSum:r.transferSum, principalPart:r.principalPart, parts:r.parts, conditions:toConditions(calc.version.params)});
     });
@@ -3043,24 +3256,30 @@ function buildWave2App(s){
 
   if(target>=8){
     const T=app.calcTranche;
-    app.version=app.version||draftVersion(cr,{});
-    let ds;
+    app.version=app.version||draftVersion(T,{});
+    /* Обе выкладки — «целиком» и «ядро» — идут КОНВЕЙЕРОМ. Прежде «целиком» означало
+       transferSum = balanceAt мимо базы и распоряжений: у RS-1008 экран «Параметры» показывал
+       базу 306 000, а «Результат расчёта» — перенос 6 400 000, и связи между ними не было
+       никакой. «Целиком» — это не другая арифметика, а другой СОСТАВ базы: включено всё, что
+       можно включить, включая срочное тело (РС-7 требует включить его явно). */
     if(s.mode==='целиком'){
-      ds={ no:s.dsNo, date:d.ds, app, sourceTranche:T, credit:cr,
-           transferSum:round2(CreditSide.balanceAt(T,d.ds)), conditions:toConditions(app.version.params) };
-    } else {
-      const r=AppSide.run(app, d.ds);
-      ds={ no:s.dsNo, date:d.ds, app, sourceTranche:T, credit:cr, transferSum:r.transferSum,
-           principalPart:r.principalPart, parts:r.parts, conditions:toConditions(app.version.params) };
+      app.calcs.forEach(calc=>{
+        calc.base=AppSide.defaultBase(calc, d.ds).map(r=> r.blockedBy ? r : {...r, included:true});
+        calc.dispositions=applyDisp(AppSide.defaultDispositions(calc.base), s.disp);
+      });
     }
+    const r=AppSide.run(app, d.ds);
+    const ds={ no:s.dsNo, date:d.ds, app, sourceTranche:T, credit:cr, ...dsComposition(r),
+               conditions:toConditions(app.version.params) };
+    const calc = requireCalc(app);
+    AppSide.fixFact(app, ds.date, calc.id, ds.transferSum);        // факт — ДО переноса
     const res=CreditSide.restructureApplied(ds);
     if(!res.ok) throw new Error('demo-seed: '+s.id+' — '+res.reasons.join('; '));
-    app.ds={ no:ds.no, date:ds.date, transferSum:ds.transferSum, sourceTrancheId:T.id, conditions:ds.conditions, fact:null };
-    const calc = requireCalc(app);
+    app.ds={ no:ds.no, date:ds.date, transferSum:ds.transferSum, sourceTrancheId:T.id, conditions:ds.conditions, fact:calc.fact };
     calc.dsRef = ds.no;
     (app.agreements = app.agreements || []).push({ no:ds.no, date:ds.date, creditId:cr.id,
-      appId:app.id, calcIds:[calc.id], transferSum:ds.transferSum, sourceTrancheId:T.id, conditions:ds.conditions });
-    AppSide.fixFact(app, ds.date, null, ds.transferSum);
+      appId:app.id, calcIds:[calc.id], ...dsComposition(r), baseSum:baseSumOf(r),
+      sourceTrancheId:T.id, conditions:ds.conditions });
     app.outcome='изм';
     app._t=ds.date; H(app,'Доп. соглашение '+ds.no+' зарегистрировано, перенесено '+fmt(ds.transferSum)+'.','Куратор ОД');
   }
@@ -3703,6 +3922,10 @@ function resultTrancheOf(app, calcId){
 }
 function resultTranche(app){ return resultTrancheOf(app, null); }   // однорасчётная дверь
 function rowsTotal(rows){ return round2((rows||[]).reduce((s,r)=>s+r.amount,0)); }
+/* База переноса — сумма ВЗЯТЫХ частей включённых позиций (РС-7а), а не их полных остатков:
+   с позиции можно взять часть, тогда база меньше факта ровно на то, что осталось у источника.
+   Считать её через rowsTotal значит показать в подытоге одно число, а перенести другое. */
+function takeTotal(rows){ return round2((rows||[]).filter(r=>r.included).reduce((s,r)=>s+takeOf(r),0)); }
 
 /* Дверь распоряжения (РС-38) — раскрытая строка под самой позицией, не модалка: вид уже
    выбирается селектом в строке, сумма и сроки — его продолжение. Линий на позиции бывает
@@ -3810,7 +4033,7 @@ function scopeStrip(app, calc, ro){
     const lone = (app.calcs||[]).length<2;
     return `<div class="spick${sel?' active':''}${lone?' lone':''}" ${lone?'':`onclick="RS.setCalc('${c.id}')"`}>
       <span class="cp-t">${esc(t.no)} · ${esc(cr.no)}</span>
-      <span class="cp-n">база переноса ${fmt(rowsTotal(calcBaseOf(app, c).filter(x=>x.included)))}</span>
+      <span class="cp-n">база переноса ${fmt(takeTotal(calcBaseOf(app, c)))}</span>
       <span class="cp-f">${chips.join('')}</span></div>`;
   }).join('');
   const addBtn = (st.closed || ro) ? ''
@@ -3861,7 +4084,7 @@ function dispositionsBar(app, calc){
       rows.map(({c,r:rr})=>{
         const t=calcTrancheOf(c), cr=creditById(c.creditId);
         return `<div class="mrow"><span>${esc(t?t.no:'—')} · ${esc(cr?cr.no:'—')}</span><span>база переноса ${
-          fmt(rowsTotal(calcBaseOf(app, c).filter(x=>x.included)))} · перенос ${fmt(rr?rr.transferSum:0)}${
+          fmt(takeTotal(calcBaseOf(app, c)))} · перенос ${fmt(rr?rr.transferSum:0)}${
           c.dsRef?' · '+esc(c.dsRef):(c.excluded?' · снят с оформления':' · не оформлено')}</span></div>`;
       }).join('')}</div></details>`;
   }
@@ -3895,14 +4118,13 @@ function paramsSection(app, calc){
   const canEdit = canX('editBase');
   const allowed = allowedDispositions(app);
   const factDate = calc.fact ? calc.fact.date : TODAY;
-  /* Колонка несёт долг расчёта НА дату вступления — тот, из которого ДС и собиралось, ДО переноса.
-     Модуль знает и второе число под тем же словом: calc.fact/driftGate снимают остаток транша-
-     источника ПОСЛЕ применения ДС (дефект макета КЛ-2, статус разработки; смоук #13 несёт это
-     число как есть: 4 082 000 = 4 200 000 − перенос 118 000), и печатает его «Оформление»
-     строкой «Долг на дату вступления». Пока КЛ-2 жив, соседние вкладки показывают под словом
-     «факт» разные суммы, и колонка говорит вслух, какая из двух здесь: молчание в этом месте
-     читается как расхождение в цифрах, а починка КЛ-2 — работа модели, не раскладки. */
-  const factNote = calc.dsRef ? '<span title="Остаток транша-источника после переноса — другое число, его печатает «Оформление» (дефект макета КЛ-2)">до переноса</span>'
+  /* Колонка несёт долг расчёта НА дату вступления — тот, из которого ДС и собиралось. Снимок
+     снят ДО применения соглашения (ИР-18), и «Оформление» печатает под словом «факт» ЕГО ЖЕ,
+     строкой «Долг на дату вступления». До 14.08.2026 чисел под одним словом было два (КЛ-2:
+     fixFact звался после restructureApplied, и факт получался пост-переносным остатком —
+     4 082 000 вместо 4 200 000), и колонка обязана была называть, какое из них здесь. КЛ-2
+     закрыт, расхождения нет — оговорка снята, осталась дата фиксации. */
+  const factNote = calc.dsRef ? '<span title="Снимок долга на дату вступления соглашения, снятый до применения ДС (ИР-18) — то же число печатает «Оформление»">зафиксирован соглашением</span>'
                  : calc.fact  ? '' : 'предпросмотр';
   // Длина черновика графика — та самая шкала, в позициях которой куратор задаёт сроки (РС-38).
   // Пока расчёт не проведён, шкалы нет, и об этом говорится вслух, а не подставляется срок/12.
@@ -3935,6 +4157,16 @@ function paramsSection(app, calc){
         if(Math.abs(dv)>=0.005) deltaSub=`<div class="a-s${dv>0?' up':''}">${(dv>0?'+':'')+fmt(dv)} с ${cut.date}</div>`;
       }
     }
+    /* Клетка «Включена» несёт ДВА решения: идёт ли позиция в перенос вообще и сколько с неё
+       взять (РС-7а). Второе поле показывается только у включённой живой строки — у снятой
+       переносить нечего, у спорной решает комиссия. Пустое поле = вся позиция; частичный
+       остаток назван вслух, иначе «оставили» пришлось бы вычитать в уме из соседней колонки. */
+    const take = takeOf(r), left = round2(r.amount - take), partial = left>0.005;
+    const takeCell = (!dead && r.included) ? `<div class="take">
+        <input type="text" inputmode="decimal" class="${partial?'part':''}" value="${fmt(take)}"
+               ${canEdit?'':'disabled'} title="Сколько с этой позиции уходит в перенос — не больше ${fmt(r.amount)}. Пусто = вся позиция."
+               onchange="RS.setBaseTake(${A},this.value,'${calc.id}')">
+        ${partial?`<div class="a-s">у источника остаётся ${fmt(left)}</div>`:''}</div>` : '';
     const chk = dead
       ? `<label class="chk dead"><input type="checkbox" disabled ${r.included?'checked':''}><span class="lbl">решает комиссия</span></label>`
       : `<label class="chk" title="${r.included?'Включена в базу переноса':'Снята куратором — в перенос не идёт'}"><input type="checkbox" ${r.included?'checked':''} ${canEdit?'':'disabled'} onchange="RS.toggleBaseRow(${AC})"></label>`;
@@ -3945,7 +4177,7 @@ function paramsSection(app, calc){
        Убрать можно любую линию, кроме единственной — у включённой позиции распоряжение есть
        всегда, пусть и «без распоряжения». */
     const taken = round2(lines.filter(x=>x.kind!=='none').reduce((s,x)=>s+x.amount,0));
-    const free = round2(r.amount - taken);
+    const free = round2(take - taken);   // распоряжаются переносимой суммой, а не всей позицией
     const disp = r.included
       ? lines.map(x=>{
           const seq=Number(x.seq||1);
@@ -3964,13 +4196,13 @@ function paramsSection(app, calc){
         <td><div class="a-t">${esc(ARTICLE_LABEL[r.article]||r.article)} · ${urg}</div><div class="a-s">${accr}</div></td>
         <td class="numcell">${srezCell}</td>
         <td class="numcell">${fmt(r.amount)}${deltaSub}</td>
-        <td>${chk}</td><td>${disp}</td></tr>`
+        <td>${chk}${takeCell}</td><td>${disp}</td></tr>`
          + (()=>{
              const ranged = x => dispositionHasPeriods(x.kind, r.article) && (x.periods||allPeriods()).mode==='range';
              const firstRanged = doors.findIndex(ranged);
              return doors.map((x,i)=>dispDoorRow(app, r, x, canEdit, planLen, calc, {
                label: doors.length>1,                                 // при одной двери вид уже назван селектом над ней
-               cap: round2(r.amount - round2(taken - x.amount)),      // потолок линии — позиция минус прочие линии
+               cap: round2(take - round2(taken - x.amount)),          // потолок линии — переносимая сумма минус прочие линии
                rest: i===doors.length-1 ? free : null,
                noPlanPill: i===firstRanged
              })).join('');
@@ -3994,7 +4226,7 @@ function paramsSection(app, calc){
       <th>Итого — включено ${inc.length} из ${base.length}</th>
       <th class="numcell">${sumCut==null?'—':fmt(sumCut)}</th>
       <th class="numcell">${fmt(rowsTotal(base))}</th>
-      <th colspan="2">База переноса <b>${fmt(rowsTotal(inc))}</b></th></tr></tfoot>`;
+      <th colspan="2">База переноса <b>${fmt(takeTotal(inc))}</b></th></tr></tfoot>`;
 
   /* Примечание объясняет ПУСТУЮ колонку — и только её. Зафиксированный срез стоит датой в
      шапке колонки и подписи не требует; правило про охват статей (ADR-0110) рассказывало про
@@ -4048,8 +4280,15 @@ function pResult(app){
        сопоставление, которого в данных нет;
      · два числа половин — «Остаток» у источника и «Перенесённая база» у производного — не
        сходились друг с другом ничем: чем первое превращается во второе, экран молчал.
-   Теперь сравнение идёт КОЛОНКАМИ внутри предмета: у условий «Действует» и «По расчёту», у
-   денег — строка перехода, у графиков — свой заголовок на каждый и подпись судьбы источника.
+   Теперь сравнение идёт КОЛОНКАМИ внутри предмета: у условий «Действует» и «По расчёту», у денег
+   матрица «было · взято · осталось | стало» построчно по статьям, у графиков — свой заголовок на
+   каждый и подпись судьбы источника.
+
+   ВТОРАЯ ПРАВКА 14.08.2026. Денежный предмет назывался «Деньги» и говорил ОДНОЙ СУММОЙ — двумя
+   лентами по три числа. Вопрос куратора к этой вкладке другой и всегда один: что стало с каждой
+   статьёй — сколько было на источнике, сколько ушло в сделку, что на источнике осталось и чем это
+   стало на производном. Предмет переименован в «Матрицу изменений» и развёрнут по статьям; из
+   лент осталась одна — состав переноса, мост между итогами «взято» и «стало».
 
    ЧИСТКА 13.08.2026 (РС-46). Разбор показал: треть текста вкладки — подсказки и оговорки, а
    дата показа, имя транша и судьба печатались по три раза (подпись секции, шапка колонки,
@@ -4135,40 +4374,108 @@ function resultSection(app, calc){
           condOpen ? cmpRows.same.join('') : ''}${
           cmpRows.same.length ? moreRow(cmpRows.same.length, condOpen ? 'Свернуть неизменные' : `Ещё ${cmpRows.same.length} без изменений`) : ''}</tbody></table></div>`;
 
-  /* 2. ДЕНЬГИ. Строка перехода, а не пара коробок: перенос = база переноса минус прощённое
-     (капитализация и распределение сумму не меняют, они меняют статью и сроки — ИР-2), а
-     остаток источника уменьшается ровно на перенос (transfer_out). Обе арифметики видны
-     подряд, и число производного транша больше не висит рядом с остатком источника без связи.
-     Имя транша и дата из подписей лент СНЯТЫ: транш назван полосой охвата и заголовком своего
-     графика, дата — шапкой колонки условий. Подпись переноса называет ОХВАТ («по этому
-     расчёту»), потому что плитка шапки карточки складывает перенос по ВСЕЙ заявке: на
-     однорасчётной заявке числа совпадают, на многорасчётной разойдутся, и различить их
-     куратор должен по подписи, а не по догадке. */
+  /* 2. МАТРИЦА ИЗМЕНЕНИЙ. Строка на статью долга, четыре числа: на источнике «было · взято в
+     сделку · осталось», на производном «стало». Разбор 14.08.2026 сменил тут и предмет, и форму.
+     ПРЕДМЕТ. Прежде на этом месте стояли две денежные ленты, и обе говорили ОДНОЙ СУММОЙ: состав
+     переноса (база − прощено = перенос) и движение остатка транша (остаток до − ушло = после).
+     Ни та, ни другая не отвечала на вопрос, ради которого вкладку открывают, — ЧТО СТАЛО С КАЖДОЙ
+     СТАТЬЁЙ. Куратор видел, что с источника ушло 1 682 700, и не видел, что проценты из этой суммы
+     капитализированы в тело, пеня уехала накопленной, а часть просрочки прощена.
+     Движение остатка снято совсем: остаток источника печатает итог его графика, и это единственная
+     честная его величина — начисленные строки в остатке не лежат вовсе (см. writeOffTaken), из-за
+     чего лента и утверждала на RS-1001 движение 4 200 000 → 4 082 000, которого не было.
+     ЛОВУШКА ФОРМЫ: статья на входе НЕ РАВНА статье на выходе. Капитализация процентов вливает их
+     в тело, капитализация пени — в накопленную пеню, распределение переводит начисленную статью в
+     накопленную. Построчного равенства «было = стало» нет и быть не может — таблица, которая его
+     обещает, врёт. Сходятся две другие арифметики, и напечатаны обе: ПО СТРОКЕ было = взято +
+     осталось; ПО ИТОГУ взято − прощено = стало. Куда переехала сумма — подпись под клеткой
+     «стало», а не догадка по строке.
+     ИСТОЧНИК ЧИСЕЛ. У зарегистрированного ДС всё читается из реквизитов соглашения (baseRows,
+     taken, forgivenRows, parts, principalPart): живой конвейер считает уже другую эпоху —
+     источник опустошён переносом, и «было» вышло бы нулём. Живой прогон остаётся предпросмотру.
+     ЛЕНТЫ НЕТ СОВСЕМ (правка того же дня, третьим заходом). Оставшаяся строка состава печатала
+     базу переноса и сам перенос — то есть итоги «взято» и «стало» ВТОРЫМИ ЭКЗЕМПЛЯРАМИ; по РС-46
+     каждый факт стоит один раз. Уникального в ней было три: имена сделки («база переноса»,
+     «перенос по этому расчёту» — этими словами говорят гейты и реквизиты ДС, а колонки матрицы
+     названы по-читательски), итог прощённого и состояние состава (зафиксирован соглашением либо
+     живой предпросмотр). Все три переехали подписями в tfoot матрицы — к тем самым числам. */
   const r=run(app, D, calc.id);
-  const baseRows = calcBaseOf(app, calc, D);
-  const baseInc = baseRows.filter(x=>x.included);
-  const baseSum = rowsTotal(baseInc);
-  const outAt = round2((src.ops||[]).filter(o=>o.kind==='transfer_out' && o.date<=D
-                        && o.basis && (!dsNo || o.basis.ds===dsNo)).reduce((s,o)=>s+o.amount,0));
-  const balAfter  = round2(balanceAt(src, D));
-  const balBefore = round2(balAfter + outAt);
-  const transfer  = derived ? outAt : r.transferSum;
-  const afterVal  = derived ? balAfter : round2(balBefore - r.transferSum);
-  const item=(l,v,sub,cls)=>`<div class="fl-i${cls?' '+cls:''}"><span class="fl-l">${l}</span><span class="fl-v">${v}</span>${
-    sub?`<span class="fl-s">${sub}</span>`:''}</div>`;
-  const op=s=>`<span class="fl-op">${s}</span>`;
-  const nonRate = round2(transfer - r.principalPart);
-  const flow = `<div class="flowline">
-      ${item('Остаток до переноса', fmt(balBefore), derived?'у транша-источника':'у транша-источника, предпросмотр')}
-      ${op('→')}
-      ${item('База переноса', fmt(baseSum), 'включено '+baseInc.length+' из '+baseRows.length+' строк долга расчёта')}
-      ${round2(r.forgiven)>0 ? op('−')+item('Прощено', fmt(r.forgiven), 'списание, в перенос не идёт') : ''}
-      ${op('=')}
-      ${item('Перенос по этому расчёту', fmt(transfer), 'тело '+fmt(r.principalPart)+' · безставочные '+fmt(nonRate), 'main')}
-      ${op('→')}
-      ${item('Остаток после переноса', fmt(afterVal),
-             src.closed?'транш закрыт переносом':(derived?'срочный остаток':'прогноз'))}
-    </div>`;
+  const ag = derived ? (app.agreements||[]).find(x=>(x.calcIds||[]).indexOf(calc.id)>=0) : null;
+  const comp = (ag && ag.taken) ? ag : r;                       // состав: зафиксированный либо живой
+  const liveBase  = calcBaseOf(app, calc, D);
+  const baseSum   = (ag && ag.baseSum!=null) ? round2(ag.baseSum) : takeTotal(liveBase);
+  const transfer  = (ag && ag.transferSum!=null) ? round2(ag.transferSum) : r.transferSum;
+  const bodyPart  = (ag && ag.principalPart!=null) ? round2(ag.principalPart) : r.principalPart;
+  const capInt    = (ag && ag.capitalizedInterest!=null) ? round2(ag.capitalizedInterest)
+                                                         : round2(r.capitalizedInterest||0);
+  const forgiven  = round2(baseSum - transfer);                 // ИР-2: остальное сумму не меняет
+  const baseSub   = ag ? 'состав зафиксирован соглашением '+esc(ag.no)
+                       : 'включено '+liveBase.filter(x=>x.included).length+' из '+liveBase.length+' строк долга расчёта';
+
+  /* ПОЗИЦИИ ИСТОЧНИКА — три двери по убыванию надёжности: реквизиты ДС (заморожены регистрацией) →
+     снимок базы на расчёте (заморожен первой правкой куратора) → живой долг транша (предпросмотр).
+     Четвёртая ветка для ДС старого сева, где реквизита ещё не заводили: «было» там приравнивается
+     взятому, и колонка «осталось» показывает нули честно, а не выдумывает позиции.
+     Берутся ВСЕ позиции, а не только включённые: снятая куратором строка и непокрытая часть
+     частично взятой — это и есть то, «что осталось на источнике», и без них колонка пуста. */
+  const posRows = (ag && ag.baseRows && ag.baseRows.length) ? ag.baseRows
+    : (derived && !(calc.base && calc.base.length))
+      ? (comp.taken||[]).map(t=>({ article:t.article, urgency:t.urgency, amount:round2(t.amount), took:round2(t.amount) }))
+      : liveBase.filter(x=>round2(x.amount||0)>0).map(x=>({ article:x.article, urgency:x.urgency,
+          amount:round2(x.amount), took: x.included ? takeOf(x) : 0 }));
+
+  // Порядок строк — ЧТЕНИЕ, а не очередь погашения: тело → его цена → санкция → накопленное
+  // прошлыми уступками. Очередью (ARTICLES) правит списание, и стоит она на «Параметрах», где база.
+  const cellOf = {};
+  const at = k => (cellOf[k] = cellOf[k] || { was:0, took:0, over:0, cur:0, cut:0, after:0, from:{} });
+  posRows.forEach(p=>{ const c=at(p.article), w=round2(p.amount||0), t=round2(p.took||0);
+    c.was=round2(c.was+w); c.took=round2(c.took+t);
+    const u = p.urgency==='over' ? 'over' : 'cur'; c[u]=round2(c[u]+w); });
+  (comp.forgivenRows||[]).forEach(f=>{ const c=at(f.article); c.cut=round2(c.cut+f.amount); });
+  if(round2(bodyPart)>0.005) at('principal').after = round2(bodyPart);
+  (comp.parts||[]).forEach(p=>{ const c=at(p.article); c.after=round2(c.after+p.amount);
+    c.from[p.from] = round2((c.from[p.from]||0) + p.amount); });
+  // Тело приезжает на производный ДВУМЯ разными деньгами — перенесённым телом и влившимися
+  // процентами; principalPart несёт их одной суммой, и без разбивки клетка «стало» у основного
+  // долга больше своего «было» без объяснения.
+  if(round2(capInt)>0.005){ const c=at('principal');
+    const own = round2(c.after - capInt);
+    if(own>0.005) c.from['перенесено телом'] = own;   // «перенесено телом 0» — шум: тела в сделке не было
+    c.from['капитализация процентов'] = round2(capInt); }
+
+  const sml = s => s ? `<div class="a-s">${s}</div>` : '';
+  // Ноль и отсутствие — разные состояния: у статьи, которой на этой стороне нет вовсе, печатается
+  // прочерк, а «0,00» остаётся за случаем «была и ушла целиком».
+  const numOr = (v,zero) => round2(v)>0.005 ? fmt(v)
+    : (zero ? fmt(0) : `<span class="dash" title="по этой статье величины на этой стороне нет">—</span>`);
+  const mtxKeys = ARTICLES.map(a=>a.key).slice().reverse()
+    .filter(k=>{ const c=cellOf[k]; return c && (c.was>0.005 || c.after>0.005); });
+  const mtxRows = mtxKeys.map(k=>{ const c=cellOf[k], left=round2(c.was-c.took);
+    const urg = [ c.over>0.005 ? 'просроченные '+fmt(c.over) : '',
+                  c.cur >0.005 ? 'срочные '+fmt(c.cur)      : '' ].filter(Boolean).join(' · ');
+    const from = Object.keys(c.from).map(f=>f+' '+fmt(c.from[f])).join(' · ');
+    // Статья отдала деньги, а на производном её нет: без подписи прочерк читается как пропажа.
+    // Подпись без числа — само число уже напечатано на строке-получателе (РС-46, факт один раз).
+    const gone = (round2(c.after)<=0.005 && round2(c.took-c.cut)>0.005) ? 'переехало в другую статью' : '';
+    return `<tr><td>${esc(ARTICLE_LABEL[k]||k)}${sml(urg)}</td>
+      <td class="numcell m-src1">${numOr(c.was)}</td>
+      <td class="numcell">${numOr(c.took, c.was>0.005)}${sml(c.cut>0.005 ? 'из них прощено '+fmt(c.cut) : '')}</td>
+      <td class="numcell">${numOr(left, c.was>0.005)}</td>
+      <td class="numcell m-der">${numOr(c.after)}${sml(from||gone)}</td></tr>`; }).join('');
+  const tot = f => round2(mtxKeys.reduce((s,k)=>s+f(cellOf[k]),0));
+  const totWas=tot(c=>c.was), totTook=tot(c=>c.took), totAfter=tot(c=>c.after);
+  const mtx = mtxKeys.length ? `<div class="cgrid-wrap mtx-wrap"><table class="cgrid mtx">
+      <colgroup><col class="m-art"><col class="m-n"><col class="m-n"><col class="m-n"><col class="m-n"></colgroup>
+      <thead><tr class="mtx-grp"><th></th><th class="m-src1" colspan="3">Источник</th><th class="m-der">Производный</th></tr>
+      <tr><th>Статья</th><th class="numcell m-src1">Было</th><th class="numcell">Взято в сделку</th>
+      <th class="numcell">Осталось</th><th class="numcell m-der">Стало</th></tr></thead>
+      <tbody>${mtxRows}</tbody>
+      <tfoot><tr><th>Итого${sml([src.closed?'транш закрыт переносом':'', baseSub].filter(Boolean).join(' · '))}</th>
+      <th class="numcell m-src1">${fmt(totWas)}</th>
+      <th class="numcell">${fmt(totTook)}${sml('база переноса'+(forgiven>0.005 ? ' · из них прощено '+fmt(forgiven) : ''))}</th>
+      <th class="numcell">${fmt(round2(totWas-totTook))}</th>
+      <th class="numcell m-der">${fmt(totAfter)}${sml('перенос по этому расчёту')}</th></tr></tfoot></table></div>`
+    : `<div class="op-empty">База расчёта пуста — переносить нечего. <span class="rowlink" onclick="RS.setTab('params')">→ Параметры</span></div>`;
 
   /* 3. ГРАФИКИ. Строка графика несёт статьи (РС-41, ADR-0109): рядом с телом и процентом —
      безставочные колонки. Пустая колонка не рисуется, и обычный кредит выглядит как прежде.
@@ -4223,7 +4530,7 @@ function resultSection(app, calc){
     ? `График производного ${esc(derived.no)} <span class="pill low">Действующий</span>`
     : `График по расчёту <span class="pill info">Черновик</span>`;
   const derivedBlock = derRows
-    ? tbl('sched:'+calc.id+':der', derRows, 'график пуст', 'Перенос по этому расчёту')
+    ? tbl('sched:'+calc.id+':der', derRows, 'График пуст — перенос по этому расчёту не разложен по датам.', 'Перенос по этому расчёту')
     : `<div class="op-empty">Черновой график не рассчитан. <span class="rowlink" onclick="RS.setTab('params')">→ Параметры</span></div>`;
 
   const srcVer=scheduleAt(src,D);
@@ -4232,9 +4539,15 @@ function resultSection(app, calc){
     ? `<span class="pill neutral">Закрывается переносом</span>`
     : `<span class="pill low">Действующий</span>`);
   // Пустой график схлопывается в СТРОКУ: пустая рамка таблицы съедала ~120 px, чтобы сообщить,
-  // что показывать нечего. (В демо-данных график части траншей не оцифрован — это артефакт
-  // сида, а не утверждение об отсутствии платежей; в проде такого состояния не будет.)
-  const srcBlock = tbl('sched:'+calc.id+':src', srcAll, 'График не заведён.', 'Остаток по графику');
+  // что показывать нечего. Строка ДОГОВАРИВАЕТ ПОСЛЕДСТВИЕ: у таблицы был итог, у строки его нет,
+  // и «остаток по графику» не посчитан — а не равен нулю (то же различение, что ноль против
+  // прочерка в матрице). Транш без графика — состояние не витринное, а рабочее: график набивают
+  // руками, автогенерации в предшествующей системе нет, и на пяти траншах витрины (КД-60540-Т1,
+  // КД-60541-Т1, КД-58120-Т1, КД-59003-Т1, КД-61200-Т1) его нет ровно поэтому. У RS-1001 из этого
+  // и вырос её сценарий: без плана principalAt не видит просроченного ТЕЛА, и сделка собирается
+  // из одних накопленных статей.
+  const srcBlock = tbl('sched:'+calc.id+':src', srcAll,
+                       'График не заведён — остаток по графику не рассчитан.', 'Остаток по графику');
 
   // Непокрытое — то, что осталось на строке ПОСЛЕ всех распоряжений (РС-39): ровно тот же остаток,
   // по которому шаг overdue считает remainsOverdue. Частичное распределение честно попадает сюда.
@@ -4250,8 +4563,8 @@ function resultSection(app, calc){
     <div class="section-h" style="margin-top:0">Условия</div>
     ${condBlock}
 
-    <div class="section-h">Деньги</div>
-    ${flow}
+    <div class="section-h">Матрица изменений</div>
+    ${mtx}
 
     <div class="section-h">${derHead}</div>
     ${derivedBlock}
@@ -4622,14 +4935,26 @@ function regDS(appId, calcId, fields){
               return {ok:false, reasons:['Ступень 2 порога расхождения']}; }
   const r=run(app, date, calc.id);
   const ds={ no, date, app, sourceTranche:tranche, credit, transferSum:r.transferSum,
-             principalPart:r.principalPart, parts:r.parts, conditions:toConditions(calc.version?calc.version.params:{}) };
-  const res=CreditSide.restructureApplied(ds);
-  if(!res.ok){ toast(res.reasons.join('; '),'err'); return res; }
-  if(!app.agreements) app.agreements=[];
-  app.agreements.push({ no, date, creditId:credit.id, appId:app.id, calcIds:[calc.id],
-                        transferSum:ds.transferSum, sourceTrancheId:tranche.id, conditions:ds.conditions });
-  calc.dsRef=no;
+             principalPart:r.principalPart, parts:r.parts, taken:r.taken, forgivenRows:r.forgivenRows,
+             conditions:toConditions(calc.version?calc.version.params:{}) };
+  /* ФАКТ СНИМАЕТСЯ ДО ПЕРЕНОСА. Он отвечает на вопрос «сколько было долга на дату вступления» и
+     сравнивается со срезом письма (расхождение, РС-25/РС-26). Снятый после restructureApplied,
+     он читал бы транш уже опустошённым и печатал расхождение −100 % на любом полном переносе —
+     ровно это показывали RS-1006/1007 (разбор 14.08.2026). Порядок здесь и есть смысл величины. */
   fixFact(app, date, calc.id, ds.transferSum);
+  const res=CreditSide.restructureApplied(ds);
+  if(!res.ok){ toast(res.reasons.join('; '),'err'); calc.fact=null; return res; }
+  if(!app.agreements) app.agreements=[];
+  /* Состав переноса ложится в реквизиты соглашения, а не пересчитывается экраном: конвейер
+     считает по ЖИВОЙ базе, а живая база после переноса — уже другая (источник опустел). Лента
+     денег зарегистрированного ДС обязана читать зафиксированное, иначе печатает «база 107 700 =
+     перенос 1 575 000» — два числа разных эпох через знак равенства (RS-1005, 14.08.2026). */
+  app.agreements.push({ no, date, creditId:credit.id, appId:app.id, calcIds:[calc.id],
+                        transferSum:ds.transferSum, principalPart:ds.principalPart, parts:ds.parts,
+                        taken:ds.taken, forgivenRows:ds.forgivenRows,
+                        baseSum:round2((r.taken||[]).reduce((s,x)=>s+x.amount,0)),
+                        sourceTrancheId:tranche.id, conditions:ds.conditions });
+  calc.dsRef=no;
   if(!app.ds) app.ds={ no, date, transferSum:ds.transferSum, sourceTrancheId:tranche.id, conditions:ds.conditions, fact:calc.fact };
   const cov=dsCoverage(app);
   if(cov.ok && !app.outcome && app.resolution) app.outcome = app.resolution.decision==='изм'?'изм':'одобрена';
@@ -4786,7 +5111,12 @@ function advance(appId){ const app=appById(appId); const adv=canAdvance(app); if
 /* создание новой заявки (Р-1: заявка — единица работы, привязана к ИНН; Р-2: охват одного ИНН) */
 function newApp(){
   if(!guard('createApp')) return;
-  const inns=[...new Map(state.credits.map(c=>[c.inn,c.borrower])).entries()];
+  /* Строки списка — субъекты, а не ключи: слитые ключи схлопываются в корень, иначе один
+     заёмщик стоял бы в списке дважды и его кредиты делились бы между двумя строками (КЛ-1). */
+  const inns=[...new Map(state.credits.map(c=>{
+    const root=resolveKey(c.inn);
+    return [root, (MIRROR.subjects.find(s=>s.key===root)||{}).name || c.borrower];
+  })).entries()];
   const innOpts=inns.map(([inn,b],i)=>`<option value="${inn}" ${i===0?'selected':''}>${esc(b)} · ИНН ${inn}</option>`).join('');
   const kinds=state.kinds.map(k=>`<label class="chk"><input type="checkbox" class="nakind" value="${k.id}"> ${esc(k.name)}</label>`).join('');
   modal(`<div class="modal wide">${mhead('Новая заявка на реструктуризацию')}<div class="modal-b"><div class="mform">
@@ -4803,7 +5133,7 @@ function newApp(){
 }
 function naFillCredits(){
   const inn=document.getElementById('nainn').value;
-  const list=state.credits.filter(c=>c.inn===inn).map(c=>{
+  const list=state.credits.filter(c=>sameSubject(c.inn, inn)).map(c=>{
     const other=activeAppOnCredit(c.id,'__new__');
     return `<label class="chk" ${other?'style="opacity:.5"':''}><input type="checkbox" class="nacred" value="${c.id}" ${other?'disabled':''}>
       ${c.no} · остаток ${fmt(c.balance)} · просрочка ${c.odDays} дн.${other?` · занят заявкой ${other.id}`:''}</label>`;
@@ -4814,7 +5144,7 @@ function nextAppId(){ let n=1001; const ids=new Set(state.apps.map(a=>a.id)); wh
 function createApp(){
   if(!guard('createApp')) return;
   const inn=document.getElementById('nainn').value;
-  const borrower=(state.credits.find(c=>c.inn===inn)||{}).borrower||'';
+  const borrower=(state.credits.find(c=>sameSubject(c.inn, inn))||{}).borrower||'';
   const regDate=(document.getElementById('nadate').value||'').trim();
   if(!/^\d{4}-\d{2}-\d{2}$/.test(regDate)){ toast('Дата регистрации в формате ГГГГ-ММ-ДД','err'); return; }
   const creditIds=[...document.querySelectorAll('.nacred:checked')].map(x=>x.value);
@@ -4886,7 +5216,7 @@ const RS = {
   PARAMS, toConditions, condObj,  // реестр зоны п. 89 и шов ДС — сторожа проверяют словарь, а не его копию
   normAt, normNote, termCapFor, rateFloorFor, limitsGate, limitsGateApp,
   consentGate, consentGateApp, coverSnapshotAge, coverSnapshotStale,
-  toggleBaseRow, setDisposition, setDispAmount, setDispPeriods, dispositionHasPeriods,
+  toggleBaseRow, setBaseTake, takeOf, setDisposition, setDispAmount, setDispPeriods, dispositionHasPeriods,
   addDisposition, removeDisposition, dispositionsFor, dispositionsSum,
   ensureBaseDispositions, dispositionFor, defaultBase, defaultDispositions,
   scheduleArticleCols, rowArticlesSum, mergeParts, validateDS,
