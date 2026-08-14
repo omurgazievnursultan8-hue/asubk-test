@@ -1476,13 +1476,17 @@ const pd = CR.pd;
     const sm = CR2.forecastSummary(c, c.tranches, CR2.derive(c, CR2.TODAY).ledger.index, CR2.TODAY);
     const dates = [...new Set(sm.fut.map(r => r.date))];
     const win = sm.fut.filter(r => dates.slice(0, 3).includes(r.date));
-    const cnt = h => (h.match(/<td>№/g) || []).length;
+    /* Строки считаем по ячейке ДАТЫ: колонки «№» в таблице нет — номер позиции принадлежит
+       договорному графику, а таблица «только будущее» начиналась бы им с середины ряда
+       (ADR-0119 §4). */
+    const cnt = h => (h.match(/<td>\d\d\.\d\d\.\d{4}<\/td>/g) || []).length;
     const h1 = CR2.renderTab('Прогноз', c);
     CR2.setPrognozAll(true);
     const h2 = CR2.renderTab('Прогноз', c);
     CR2.setPrognozAll(false);
     const tot = h => h.includes(`<b>${CR2.money(sm.futSum)}</b>`) && h.includes(`<b>${CR2.money(sm.futSched)}</b>`);
     ok(157, sm.fut.length > win.length && cnt(h1) === win.length && cnt(h2) === sm.fut.length
+            && !/<th[^>]*>№</.test(h1) && !h1.includes('<td>№'+sm.fut[0].no+'</td>')
             && tot(h1) && tot(h2) && h1.includes(`итог по всем ${sm.fut.length}`)
             && h1.includes(`Все позиции (${sm.fut.length})`),
        `в окне строк ${cnt(h1)} (ближайшие ${win.length} из ${sm.fut.length}),`
@@ -1524,6 +1528,31 @@ const pd = CR.pd;
        `строк с датой ≤ ${CR2.TODAY}: ${leak.length} (${leak.slice(0,3).join(' ')||'—'});`
        + ` слов о прошлом: ${said.length} (${said.slice(0,3).join(' ')||'—'});`
        + ` сумма недобора на экране у ${nums.length} из ${checked/2} кредитов с непокрытым прошлым (${nums.slice(0,3).join(' ')||'—'})`);
+  })();
+
+  /* 159. СОСТАВ ОЖИДАНИЯ — ДВЕ СТАТЬИ, И ОНИ СХОДЯТСЯ (ADR-0119 §4). Платёж печатается
+     слагаемыми: осн. долг + проценты = платёж, построчно и в итоге. Третьей статьи нет и
+     быть не может — пеня во взнос не входит НИКОГДА (ADR-0087), а её база уже наступила.
+     Проверяем равенство (иначе колонки складываются на глаз и не сходятся), присутствие
+     обоих слагаемых в итоге и отсутствие колонки штрафов в шапке таблицы. */
+  (() => { const bad = [], head = [];
+    for (const c of CR2.db.credits){ CR2.openDetail(c.id); CR2.setCardScope('credit'); CR2.setPrognozAll(true);
+      const sm = CR2.forecastSummary(c, c.tranches, CR2.derive(c, CR2.TODAY).ledger.index, CR2.TODAY);
+      if (!sm.fut.length) continue;
+      const h = CR2.renderTab('Прогноз', c);
+      if (CR2.money(sm.futPrincipal + sm.futInterest) !== CR2.money(sm.futSum)) bad.push(`${c.id}/итог`);
+      for (const r of sm.fut)
+        if (CR2.money((r.principal||0) + (r.interest||0)) !== CR2.money(r.forecast)) bad.push(`${c.id}/${r.date}`);
+      if (!h.includes(`<b>${CR2.money(sm.futPrincipal)}</b>`) || !h.includes(`<b>${CR2.money(sm.futInterest)}</b>`))
+        bad.push(`${c.id}/итог не разложен`);
+      const heads = [...h.matchAll(/<th[^>]*>([^<]*)</g)].map(m => m[1].trim());
+      if (!heads.includes('Осн. долг') || !heads.includes('Проценты') || !heads.includes('Платёж')) head.push(`${c.id}/нет статей`);
+      if (heads.some(x => /пеня|штраф/i.test(x))) head.push(`${c.id}/третья статья`);
+    }
+    CR2.setPrognozAll(false);
+    ok(159, bad.length === 0 && head.length === 0,
+       `осн. долг + проценты = платёж: расхождений ${bad.length} (${bad.slice(0,3).join(' ')||'—'});`
+       + ` шапка со статьями и без пени: нарушений ${head.length} (${head.slice(0,3).join(' ')||'—'})`);
   })();
 
   /* 131. КНОПКА «ПРИМЕНИТЬ ДС» (КВ-26, ADR-0096). Дверь одна, но нажимает её человек:
