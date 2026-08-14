@@ -1128,7 +1128,8 @@ const pd = CR.pd;
     CR2.openDetail(id); try { CR2.setCardScope(scope); } catch(e){}
     const h = CR2.renderTab('График', c); try { CR2.setCardScope('credit'); } catch(e){} return h; };
   const grf1 = grf('K-1', 'credit'), grf7d = grf('K-7', 2), grf7c = grf('K-7', 'credit');
-  const artH = /Накопленные проценты|Накопленная пеня|Прочее/;
+  const SCHED_ART_H = ['Накопленные проценты','Накопленная пеня','Прочее'];
+  const artH = new RegExp(SCHED_ART_H.join('|'));
   ok(130, !artH.test(grf1) && !/ИР-2′/.test(grf1)
           && artH.test(grf7d) && /ADR-0109/.test(grf7d)
           && /ИР-2′/.test(grf7d) && /ДС-РС-2001/.test(grf7d)
@@ -1142,14 +1143,22 @@ const pd = CR.pd;
      «Начислено %», «Платёж» ушли. ПОРЯДОК — часть решения, поэтому проверяется он, а не
      только состав: справочное «Начислено за период» стоит ПОСЛЕ «Итого», иначе величина,
      которую не платят, разрывает пару «из чего платёж → сколько платим». Проверяется
-     только THEAD таблицы позиций: слово «Итого» встречается на вкладке и в плитках. */
-  const thPos = (grf1.match(/<thead><tr>(?:(?!<\/thead>)[\s\S])*?Основной долг[\s\S]*?<\/thead>/) || [''])[0];
-  const iOf = s => thPos.indexOf(s);
+     только THEAD таблицы позиций: слово «Итого» встречается на вкладке и в плитках.
+     ПАРА «Основной долг · Проценты» НЕРАЗРЫВНА (КВ-38): статьи ADR-0109 стоят ПОСЛЕ
+     процентов, иначе на реструктурированном кредите та же таблица читается в другом
+     порядке, чем на обычном. Проверяется на К-7, где статьи есть: на К-1 их нет вовсе
+     и вклинивание нечем поймать. */
+  const thOf = h => (h.match(/<thead><tr>(?:(?!<\/thead>)[\s\S])*?Основной долг[\s\S]*?<\/thead>/) || [''])[0];
+  const thPos = thOf(grf1), thArt = thOf(grf7d);
+  const iOf = s => thPos.indexOf(s), iArt = s => thArt.indexOf(s);
+  const artAfter = iArt('Проценты') > iArt('Основной долг')
+    && SCHED_ART_H.every(a => thArt.indexOf(a) < 0 || thArt.indexOf(a) > iArt('Проценты'));
   ok(156, !/Осн\. сумма|Проценты в платеже|Начислено %/.test(grf1)
           && iOf('Основной долг') > 0 && iOf('Итого') > iOf('Основной долг')
-          && iOf('Начислено за период') > iOf('Итого'),
+          && iOf('Начислено за период') > iOf('Итого') && artAfter,
      `старых имён нет ${!/Осн\. сумма|Проценты в платеже|Начислено %/.test(grf1)}`
-     + ` · порядок ОД→Итого→Начислено ${iOf('Начислено за период') > iOf('Итого') && iOf('Итого') > iOf('Основной долг')}`);
+     + ` · порядок ОД→Итого→Начислено ${iOf('Начислено за период') > iOf('Итого') && iOf('Итого') > iOf('Основной долг')}`
+     + ` · статьи после «Процентов» ${artAfter}`);
 
   /* 132. ВЕРСИИ НЕ ЗАНИМАЮТ ЭКРАН У ОБЫЧНОГО КРЕДИТА (КВ-27). Грид версий стоял на
      «Графике» безусловно и у К-1 нёс одну строку — «v1, построена в день освоения,
@@ -1297,7 +1306,8 @@ const pd = CR.pd;
     const rows = (sel ? [sel] : c.tranches).flatMap(t => CR2.trancheScheduleRows(t));
     /* Статейные колонки (КВ-26) раздвигают строку года: их итоги стоят под своими
        колонками ровно так же, как ОД и проценты, — иначе год врал бы на сумму
-       перенесённой пени. Сколько их, столько лишних ячеек в строке. */
+       перенесённой пени. Сколько их, столько лишних ячеек в строке. Место — ЗА
+       «Процентами» (КВ-38), см. want ниже. */
     const arts = CR2.scheduleArticleCols(rows);
     const exp = new Map();
     for (const r of rows){ const y = CR2.pd(r.date).getFullYear();
@@ -1325,7 +1335,9 @@ const pd = CR.pd;
     for (const h of heads){
       const g = exp.get(h.y);
       if (h.tds !== 6 + arts.length) gbad.push(`${c.id}/${h.y}: ячеек в строке года ${h.tds}, а не ${6+arts.length} (итоги не под колонками)`);
-      const want = [m2(g.principal), ...arts.map(a => g.art[a.key] ? m2(g.art[a.key]) : '—'), m2(g.interest), m2(g.total)];
+      /* Порядок ожидания повторяет шапку: тело → проценты → статьи → итого (КВ-38).
+         Пара «Основной долг · Проценты» неразрывна, статьи идут за ней. */
+      const want = [m2(g.principal), m2(g.interest), ...arts.map(a => g.art[a.key] ? m2(g.art[a.key]) : '—'), m2(g.total)];
       if (h.sums.join('|') !== want.join('|')) gbad.push(`${c.id}/${h.y}: итоги «${h.sums.join('|')}» vs «${want.join('|')}»`);
     }
   }
@@ -1359,65 +1371,188 @@ const pd = CR.pd;
   const orphans = [...new Set(asked)].filter(a => !known.has(a));
   ok(55, orphans.length === 0, `действий у кнопок=${new Set(asked).size} без роли=${orphans.join(',')||'—'}`);
 
-  /* ---- КВ-34 · «ПРОГНОЗ»: СТРОКА ВМЕСТО ВИТРИНЫ (13.08.2026) ---- */
+  /* ---- КВ-34 · «ПРОГНОЗ»: СТРОКА ВМЕСТО ВИТРИНЫ (13.08.2026)
+          КВ-39 · ГЛАВНЫЙ ОТВЕТ ЛЕСТНИЦЕЙ, ОКНО ВМЕСТО ФИЛЬТРА (14.08.2026, ADR-0119) ---- */
 
   /* 151. СНЯТОЕ СНЯТО, И ПРАВИЛА НЕ ПОТЕРЯНЫ. Пять плиток, четыре плашки и тулбар ушли
-     с вкладки; проза ушла в тултипы колонок. Сметается по ВСЕМ кредитам: вкладка строится
-     из условных веток, и хватило бы одного состояния, где старый носитель уцелел. */
-  (() => { const bad = [], noTip = [];
+     с вкладки волной КВ-34; КВ-39 снял оттуда же ФИЛЬТР РАСХОЖДЕНИЙ (при контрактном теле
+     расходятся все будущие позиции — отбирать нечего), колонку «Остаток ОД после», а вместе
+     с прошлым из таблицы — обе группы и колонку «в т.ч. пеня»: пеня в ожидаемом взносе не
+     бывает никогда (ADR-0087), и колонка существовала только ради наступивших строк.
+     Отсылки в «Расчёты» (.fs .go → CR.openTab) здесь тоже нет: она заводилась ради недобора,
+     а вместе с ним снята — ссылка на разбивку прошлого есть тот же разговор о прошлом,
+     только навигацией (ADR-0119 §5). Проза живёт в тултипах колонок. Сметается по ВСЕМ
+     кредитам: вкладка строится из условных веток, и хватило бы одного состояния, где старый
+     носитель уцелел. */
+  (() => { const bad = [], noTip = [], noHero = [];
     for (const c of CR2.db.credits){ CR2.openDetail(c.id);
       const h = CR2.renderTab('Прогноз', c);
-      for (const s of ['phead-dims','info-plate','gtoolbar']) if (h.includes(s)) bad.push(`${c.id}/${s}`);
+      for (const s of ['phead-dims','info-plate','gtoolbar','Расхождения с графиком','Остаток ОД после',
+                       'в т.ч. пеня','Не покрыто','Ожидаем впереди','fs .go','openTab('])
+        if (h.includes(s)) bad.push(`${c.id}/${s}`);
+      /* Главный ответ — НЕ БОЛЬШЕ ОДНОГО, и отсутствует он ровно в одном состоянии: позиции
+         впереди есть, прошлое не покрыто — там отвечает таблица, а шапка была бы её
+         пересказом (ADR-0119 §1). Во всех прочих состояниях шапка обязана быть: без неё
+         вкладка молчала бы там, где таблицы нет или она не отвечает. */
+      const sm = CR2.forecastSummary(c, c.tranches, CR2.derive(c, CR2.TODAY).ledger.index, CR2.TODAY);
+      const tableAnswers = sm.fut.length > 0 && sm.payoff && sm.tail > 0.005 && !(c.mirror && c.mirror.settlement);
+      const heroes = (h.match(/class="fc-hero"/g) || []).length;
+      if (heroes !== (tableAnswers ? 0 : 1)) noHero.push(`${c.id}/${heroes}`);
+      if (tableAnswers && !h.includes('class="cgrid"')) noHero.push(`${c.id}/без таблицы`);
       /* правило колонки живёт на её заголовке (cgrid, :6632) — но только там, где таблица
-         вообще есть: у кредита без графика колонок нет, и спрашивать не с чего */
-      if (/Расхождения с графиком \([^)]*\) — расходится/.test(h)
+         вообще есть: при свёрнутом МС цифр нет вовсе, и спрашивать не с чего */
+      if (h.includes('class="cgrid"')
           && !(h.includes('ADR-0087') && h.includes('ADR-0074 §1') && h.includes('ADR-0108')))
         noTip.push(c.id);
     }
-    ok(151, bad.length === 0 && noTip.length === 0,
+    ok(151, bad.length === 0 && noTip.length === 0 && noHero.length === 0,
        `старый носитель у ${bad.length} (${bad.slice(0,3).join(' ')||'—'}),`
-       + ` без тултипов правил ${noTip.length} (${noTip.slice(0,3).join(' ')||'—'})`);
+       + ` без тултипов правил ${noTip.length} (${noTip.slice(0,3).join(' ')||'—'}),`
+       + ` с неверным числом главных ответов ${noHero.length} (${noHero.slice(0,3).join(' ')||'—'})`);
   })();
 
-  /* 152. СТРОКА-КОНТЕКСТ И ПРАВИЛО МОЛЧАНИЯ. Три ответа вкладки называются ВСЕГДА, в том
-     числе нулём («прошлое покрыто полностью», «просрочки нет — пеня не идёт»), — иначе
-     пустое место читается как «не посчитали». Исключение одно и оно новое: у ЗАКРЫТОГО
-     кредита цены дня нет вовсе. penaltyPerDayFwd от остановки начисления не зависит
-     (:4522), и у K-6b просроченные строки дают 72,02/день — деньги, которые никогда не
-     начислятся. Прежде отказ держался косвенно, через отсутствие ближайшей позиции. */
-  (() => { const note = id => { CR2.openDetail(id);
-      const c = CR2.db.credits.find(x => x.id === id);
-      return (CR2.renderTab('Прогноз', c).match(/<p class="section-note">([\s\S]*?)<\/p>/) || ['',''])[1]; };
-    const k6b = note('K-6b'), k1 = note('K-1'), k2 = note('K-2'), kb1 = note('K-B1');
-    const c6b = CR2.db.credits.find(x => x.id === 'K-6b');
-    const perDay = CR2.derive(c6b, CR2.TODAY).ledger.rows
-      .filter(r => r.overdueTotal > 0.005).reduce((a, r) => a + (r.penaltyPerDayFwd || 0), 0);
-    ok(152, perDay > 0.005 && !/\/день/.test(k6b) && !k6b.includes(CR2.money(perDay))
-            && /Начисление остановлено/.test(k6b) && /недобор/.test(k6b)
-            && /\/день/.test(k1) && /недобор/.test(k1)
-            && /Графика нет — прогнозировать нечего/.test(k2) && !/недобор/.test(k2)
-            && /прошлое покрыто полностью/.test(kb1) && /просрочки нет — пеня не идёт/.test(kb1),
-       `K-6b: цена дня ${CR2.money(perDay)} есть в модели, на экране ${/\/день/.test(k6b)?'ПОКАЗАНА':'молчит'}`
-       + ` · K-1 пеня ${/\/день/.test(k1)} · K-2 «${k2.slice(0,34)}» · K-B1 нули названы`);
+  /* 152. ЛЕСТНИЦА СОСТОЯНИЙ: КАЖДАЯ СТУПЕНЬ ОБЕЩАЕТ РОВНО ТО, ЧТО В ЭТОМ СОСТОЯНИИ МОЖНО
+     (ADR-0119 §1). Ключевая пара — K-1 и K-B1: дату закрытия называет ТОЛЬКО тот, у кого
+     прошлое покрыто. На K-1 нуля на этой дате не будет (тело контрактно, график тела не
+     растягивается, ADR-0108 §1), и сама дата там всегда равна договорной — прогноза в ней
+     нет. Шапки у K-1 нет ВОВСЕ: любое её содержимое было бы пересказом таблицы, которая
+     стоит ниже и отвечает сама (ADR-0119 §1/§3). */
+  (() => { const tab = id => { CR2.openDetail(id);
+      return CR2.renderTab('Прогноз', CR2.db.credits.find(x => x.id === id)); };
+    const k6b = tab('K-6b'), k1 = tab('K-1'), k2 = tab('K-2'), kb1 = tab('K-B1');
+    const sm = id => { const c = CR2.db.credits.find(x => x.id === id);
+      return CR2.forecastSummary(c, c.tranches, CR2.derive(c, CR2.TODAY).ledger.index, CR2.TODAY); };
+    const s1 = sm('K-1'), sb1 = sm('K-B1');
+    /* Ближайшая дата и её ожидаемый взнос — они обязаны стоять В ТАБЛИЦЕ и больше нигде:
+       ответ у этого состояния один, и он строчный. */
+    const nd = s1.fut[0].date, nsum = CR2.money(s1.fut.filter(r => r.date === nd).reduce((a,r) => a + r.forecast, 0));
+    const k1NoHero = !k1.includes('class="fc-hero"');
+    ok(152, /кредит закрыт:/.test(k6b) && /Расчёт замер на дате закрытия/.test(k6b)
+            && s1.tail > 0.005 && k1NoHero && k1.includes(`<td>${nd}</td>`) && k1.includes(`<b>${nsum}</b>`)
+            && !/ожидаемое закрытие/.test(k1) && !k1.includes(s1.payoff)
+            && sb1.tail <= 0.005 && kb1.includes(`${sb1.payoff}<span class="fl">ожидаемое закрытие`)
+            && /Графика нет<span class="fl">прогнозировать нечего/.test(k2),
+       `K-6b закрыт (${/кредит закрыт:/.test(k6b)}) · K-1 (непокрыто ${CR2.money(s1.tail)}) → шапки нет ${k1NoHero},`
+       + ` ближайшая ${nd} и взнос ${nsum} только в таблице ${k1.includes(`<td>${nd}</td>`) && k1.includes(`<b>${nsum}</b>`)},`
+       + ` дата закрытия ${s1.payoff} не названа ${!k1.includes(s1.payoff)}`
+       + ` · K-B1 (покрыто) → «${sb1.payoff} — ожидаемое закрытие» ${/ожидаемое закрытие/.test(kb1)}`
+       + ` · K-2 графика нет ${/Графика нет/.test(k2)}`);
   })();
 
-  /* 153. ПЛАШКИ СВЁРНУТЫ В ТУ ЖЕ СТРОКУ, А НЕ ВЫБРОШЕНЫ (переигранное решение 11.08).
-     У K-3 состояний два сразу — мировое соглашение и исчерпанный график, — и оба обязаны
-     стоять во ВТОРОЙ строке одной section-note: разъедься они по разным носителям, довод
-     11.08 («это данные») пришлось бы защищать заново. */
+  /* 153. МС — ВЕРХНЯЯ СТУПЕНЬ, И ОНА НЕ СЪЕДАЕТ НИЖНЮЮ. У K-3 состояний два сразу —
+     мировое соглашение и исчерпанный график с долгом. Шапку занимает МС: живой график у
+     слоя МС, ведёт его взыскание (ADR-0047), и договорные цифры кредита под этой шапкой не
+     исполняются — по умолчанию они СВЁРНУТЫ, таблицы на вкладке нет вовсе. По кнопке они
+     раскрываются и подписываются как договорные, а вместе с ними приходит вторая ступень
+     («срок кончился, непокрыто»): молчать о ней из-за МС вкладка не вправе. */
   (() => { CR2.openDetail('K-3');
     const c = CR2.db.credits.find(x => x.id === 'K-3');
-    const h = CR2.renderTab('Прогноз', c);
-    const notes = h.match(/<p class="section-note">[\s\S]*?<\/p>/g) || [];
-    const n0 = notes[0] || '';
-    const lines = n0.split('<br>');
-    ok(153, notes.length === 1 && lines.length === 3
-            && /мировое соглашение/.test(lines[1]) && /ADR-0047/.test(lines[1])
-            && /График <b>исчерпан<\/b>/.test(lines[2])
-            && /Срок кончился — график исчерпан/.test(lines[0]),
-       `section-note ${notes.length}, строк ${lines.length}:`
-       + ` [1] ${lines[1] ? lines[1].replace(/<[^>]+>/g,'').slice(0,38) : '—'}`
-       + ` · [2] ${lines[2] ? lines[2].replace(/<[^>]+>/g,'').slice(0,32) : '—'}`);
+    const idx = CR2.derive(c, CR2.TODAY).ledger.index;
+    const sm = CR2.forecastSummary(c, c.tranches, idx, CR2.TODAY);
+    const shut = CR2.renderTab('Прогноз', c);
+    CR2.setPrognozMs(true);
+    const open = CR2.renderTab('Прогноз', c);
+    CR2.setPrognozMs(false);
+    ok(153, /Ожидание ведёт взыскание/.test(shut) && /мировое соглашение/.test(shut)
+            && /ADR-0047/.test(shut) && !shut.includes('class="cgrid"')
+            && shut.includes('CR.setPrognozMs(true)')
+            && open.includes('class="cgrid"')
+            && /Ниже — <b>договорный график кредита<\/b>/.test(open)
+            && sm.tail > 0.005 && !open.includes(CR2.money(sm.tail))
+            && /<b>Ожидания нет<\/b> — график исчерпан, срок кончился/.test(open),
+       `свёрнуто: цифр ${shut.includes('class="cgrid"')?'ПОКАЗАНЫ':'нет'}, кнопка ${shut.includes('CR.setPrognozMs(true)')}`
+       + ` · раскрыто: договорная подпись ${/договорный график кредита/.test(open)},`
+       + ` вторая ступень «Ожидания нет — ${(open.match(/Ожидания нет<\/b> — ([^·<]+)/)||['','—'])[1].trim()}»,`
+       + ` непокрытых ${CR2.money(sm.tail)} на экране ${open.includes(CR2.money(sm.tail))?'ПОКАЗАНО':'нет'}`);
+  })();
+
+  /* 157. ОКНО — ТРИ БЛИЖАЙШИЕ ДАТЫ ВПЕРЁД, ИТОГ — ПО ВСЕМ (ADR-0119 §4). Окно режется по
+     ДАТЕ, а не по числу строк: при слиянии траншей (КВ-17) одна и та же дата попала бы в
+     таблицу наполовину. Итог при этом считается по ВСЕМ будущим позициям — окно решает, что
+     видно, а не что посчитано, иначе Σ впереди менялась бы от нажатия кнопки, а «План» брал
+     бы снимок другой величины (ADR-0042 §2). */
+  (() => { CR2.openDetail('K-4'); CR2.setCardScope('credit'); CR2.setPrognozAll(false);
+    const c = CR2.db.credits.find(x => x.id === 'K-4');
+    const sm = CR2.forecastSummary(c, c.tranches, CR2.derive(c, CR2.TODAY).ledger.index, CR2.TODAY);
+    const dates = [...new Set(sm.fut.map(r => r.date))];
+    const win = sm.fut.filter(r => dates.slice(0, 3).includes(r.date));
+    /* Строки считаем по ячейке ДАТЫ: колонки «№» в таблице нет — номер позиции принадлежит
+       договорному графику, а таблица «только будущее» начиналась бы им с середины ряда
+       (ADR-0119 §4). */
+    const cnt = h => (h.match(/<td>\d\d\.\d\d\.\d{4}<\/td>/g) || []).length;
+    const h1 = CR2.renderTab('Прогноз', c);
+    CR2.setPrognozAll(true);
+    const h2 = CR2.renderTab('Прогноз', c);
+    CR2.setPrognozAll(false);
+    const tot = h => h.includes(`<b>${CR2.money(sm.futSum)}</b>`) && h.includes(`<b>${CR2.money(sm.futSched)}</b>`);
+    ok(157, sm.fut.length > win.length && cnt(h1) === win.length && cnt(h2) === sm.fut.length
+            && !/<th[^>]*>№</.test(h1) && !h1.includes('<td>№'+sm.fut[0].no+'</td>')
+            && tot(h1) && tot(h2) && h1.includes(`итог по всем ${sm.fut.length}`)
+            && h1.includes(`Все позиции (${sm.fut.length})`),
+       `в окне строк ${cnt(h1)} (ближайшие ${win.length} из ${sm.fut.length}),`
+       + ` все позиции ${cnt(h2)}/${sm.fut.length}; Σ впереди ${CR2.money(sm.futSum)} не зависит от окна ${tot(h1) && tot(h2)}`);
+  })();
+
+  /* 158. НА ВКЛАДКЕ ТОЛЬКО ПРОГНОЗНЫЕ ДАННЫЕ (ADR-0119 §4/§5) — ни строкой, ни числом,
+     ни словом о прошлом. Три величины тянули его сюда и сняты все три: НЕДОБОР по
+     наступившим позициям (факт, разложенный «Расчётами» построчно и названный числом в
+     плитках шапки карточки), ЦЕНА ДНЯ ПРОСРОЧКИ (её база — уже наступившее прошлое, а во
+     взнос пеня не входит никогда, ADR-0087) и «ПРОЦЕНТЫ СВЕРХ КОНТРАКТА» (Σ колонки Δ,
+     стоящая итоговой строкой прямо под своими слагаемыми — та же величина, названная на
+     одном экране дважды, читается как две).
+     Сметается по ВСЕМ кредитам и обоим состояниям окна: вкладка строится из условных веток,
+     и хватило бы одного состояния, где прошлое уцелело. Отдельно — сама сумма недобора:
+     формулировку можно переписать, число же ищется как число. */
+  (() => { const dnum = s => { const p = s.split('.'); return +p[2]*10000 + +p[1]*100 + +p[0]; };
+    const lim = dnum(CR2.TODAY), leak = [], said = [], nums = [];
+    const WORDS = [/\/день/, /недобрано/, /непокрыто/, /проценты сверх контракта/, /пеня/i];
+    let checked = 0;
+    for (const c of CR2.db.credits){ CR2.openDetail(c.id); CR2.setCardScope('credit');
+      const sm = CR2.forecastSummary(c, c.tranches, CR2.derive(c, CR2.TODAY).ledger.index, CR2.TODAY);
+      for (const all of [false, true]){ CR2.setPrognozAll(all);
+        const h = CR2.renderTab('Прогноз', c);
+        /* СМОТРИМ НА ВИДИМЫЙ ТЕКСТ, БЕЗ ТУЛТИПОВ: в них живут ПРАВИЛА («пени здесь нет: во
+           взнос она не входит никогда»), и запрещать в правиле слово «пеня» — значит
+           запрещать объяснять, почему её тут нет. Запрет на величины к тексту тултипа не
+           относится: величина — то, что напечатано на экране. */
+        const vis = h.replace(/title="[^"]*"/g, '');
+        for (const m of h.matchAll(/<td>(\d{2}\.\d{2}\.\d{4})<\/td>/g))
+          if (dnum(m[1]) <= lim) leak.push(`${c.id}/${m[1]}${all?'/все':''}`);
+        for (const w of WORDS) if (w.test(vis)) said.push(`${c.id}/${w.source}`);
+        if (sm.tail > 0.005){ checked++;
+          if (vis.includes(CR2.money(sm.tail))) nums.push(`${c.id}/${CR2.money(sm.tail)}`); }
+      }
+      CR2.setPrognozAll(false);
+    }
+    ok(158, leak.length === 0 && said.length === 0 && nums.length === 0 && checked > 0,
+       `строк с датой ≤ ${CR2.TODAY}: ${leak.length} (${leak.slice(0,3).join(' ')||'—'});`
+       + ` слов о прошлом: ${said.length} (${said.slice(0,3).join(' ')||'—'});`
+       + ` сумма недобора на экране у ${nums.length} из ${checked/2} кредитов с непокрытым прошлым (${nums.slice(0,3).join(' ')||'—'})`);
+  })();
+
+  /* 159. СОСТАВ ОЖИДАНИЯ — ДВЕ СТАТЬИ, И ОНИ СХОДЯТСЯ (ADR-0119 §4). Платёж печатается
+     слагаемыми: осн. долг + проценты = платёж, построчно и в итоге. Третьей статьи нет и
+     быть не может — пеня во взнос не входит НИКОГДА (ADR-0087), а её база уже наступила.
+     Проверяем равенство (иначе колонки складываются на глаз и не сходятся), присутствие
+     обоих слагаемых в итоге и отсутствие колонки штрафов в шапке таблицы. */
+  (() => { const bad = [], head = [];
+    for (const c of CR2.db.credits){ CR2.openDetail(c.id); CR2.setCardScope('credit'); CR2.setPrognozAll(true);
+      const sm = CR2.forecastSummary(c, c.tranches, CR2.derive(c, CR2.TODAY).ledger.index, CR2.TODAY);
+      if (!sm.fut.length) continue;
+      const h = CR2.renderTab('Прогноз', c);
+      if (CR2.money(sm.futPrincipal + sm.futInterest) !== CR2.money(sm.futSum)) bad.push(`${c.id}/итог`);
+      for (const r of sm.fut)
+        if (CR2.money((r.principal||0) + (r.interest||0)) !== CR2.money(r.forecast)) bad.push(`${c.id}/${r.date}`);
+      if (!h.includes(`<b>${CR2.money(sm.futPrincipal)}</b>`) || !h.includes(`<b>${CR2.money(sm.futInterest)}</b>`))
+        bad.push(`${c.id}/итог не разложен`);
+      const heads = [...h.matchAll(/<th[^>]*>([^<]*)</g)].map(m => m[1].trim());
+      if (!heads.includes('Осн. долг') || !heads.includes('Проценты') || !heads.includes('Платёж')) head.push(`${c.id}/нет статей`);
+      if (heads.some(x => /пеня|штраф/i.test(x))) head.push(`${c.id}/третья статья`);
+    }
+    CR2.setPrognozAll(false);
+    ok(159, bad.length === 0 && head.length === 0,
+       `осн. долг + проценты = платёж: расхождений ${bad.length} (${bad.slice(0,3).join(' ')||'—'});`
+       + ` шапка со статьями и без пени: нарушений ${head.length} (${head.slice(0,3).join(' ')||'—'})`);
   })();
 
   /* 131. КНОПКА «ПРИМЕНИТЬ ДС» (КВ-26, ADR-0096). Дверь одна, но нажимает её человек:
