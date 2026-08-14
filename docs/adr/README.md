@@ -29,14 +29,14 @@ git branch -a --format='%(refname:short)' | grep worktree-
 Диапазоны в тексте («ADR `0055`…`0065`») после сдвига становятся неверными молча — их
 искать отдельно: `grep -rn "00[0-9][0-9].\{0,3\}…"`.
 
-## Карта занятого (13.08.2026)
+## Карта занятого (14.08.2026)
 
 | номера | модуль |
 |---|---|
 | 0001 | общий («производные не хранятся») |
 | 0002–0004 | Взыскание задолженности |
 | 0006–0009, 0014–0016 | Залоговое обеспечение |
-| 0010, 0042, 0104, 0105, 0108, 0111–0113, 0115 | Кредиты |
+| 0010, 0042, 0104, 0105, 0108, 0111–0113, 0115, 0119 | Кредиты |
 | 0020–0041, 0043–0047, 0049–0054 | Взыскание задолженности |
 | 0055–0058 | Платежи |
 | 0062–0072 | Взыскание задолженности |
@@ -48,6 +48,7 @@ git branch -a --format='%(refname:short)' | grep worktree-
 | 0106–0107, 0109–0110, 0114 | Реструктуризация |
 | 0111–0113 | Кредиты |
 | 0116–0118 | Кураторство |
+| 0120–0127 | Классификация |
 | 0005, 0011–0013, 0017–0019, 0048, 0057, 0059–0061 | метки модуля в шапке нет — смотреть по содержанию |
 
 Блок `0082–0086` пуст, а не занят: изначальная заявка реструктуризации на `0079–0086`
@@ -57,7 +58,32 @@ git branch -a --format='%(refname:short)' | grep worktree-
 «Третье столкновение»). Ставка подтвердилась в тот же вечер: кредит занял `0105`
 (`0105-procenty-na-fakticheskoe-telo`, влит в `main` 10.08.2026 18:22).
 
-**Следующий свободный — `0119`.** Блок `0116–0118` взяла ветка кураторства 13.08.2026
+**Следующий свободный — `0128`.** `0126–0127`
+(`0126-versiya-obyavlyaet-oblast-poryadok-i-znachenie-po-umolchaniyu` ·
+`0127-obyasnenie-nazyvaet-vse-prichiny-reestr-faktov-nezachyoty`) взяла та же ветка
+`worktree-classify` тем же днём — то, что вскрыла сборка наброска
+`mockups/classification/classification.html`; перед заведением `git ls-tree` по всем
+удалённым веткам дал максимум `0119` (`origin/main`, `origin/worktree-credit`), номеров
+`0120+` нет ни на одной. `0125`
+(`0125-predikat-skalyaren-versiya-publikuetsya-znacheniya-eyo`) взяла та же ветка
+`worktree-classify` тем же днём — уточнение конструктора после проверки модели на лестнице
+подгруппы; `origin/main` и `origin/worktree-credit` на момент взятия — `0119`. Блок
+`0120–0124` взяла ветка `worktree-classify` 14.08.2026
+(волна «модуль классификации из ТЗ»:
+`0120-klassifikator-konstruktor-predikatov-nad-reestrom` ·
+`0121-obekt-klassifikacii-kredit-zaemshchik-svertkoy` ·
+`0122-fakt-rukami-znachenie-mashinoy` ·
+`0123-kategoriya-zhurnal-fiksaciy-zapiraemyy-periodom` ·
+`0124-edinyy-vychislitel-vzyskanie-chitaet-ne-schitaet`); перед заведением живым
+`git ls-tree` проверены `origin/main`, все шесть удалённых `worktree-*` и три ветки задач —
+максимумы: `origin/main` и `worktree-credit` — `0119`, `worktree-restructure` и
+`worktree-curator` — `0118`, `feat/kv29-schedule-button` и `grafik-versii-kv27-kv28` —
+`0115`, `feat/credit-procenty-fakticheskoe-telo` — `0105`, `worktree-payments` и
+`worktree-vzyskanie` — `0103`, `worktree-org-structure` — `0076`; номеров `0120+` нет ни на
+одной. `0119` взяла ветка кредита 14.08.2026
+(`0119-vyvod-prognoza-lestnica-sostoyaniy-i-okno-poziciy`) и уже влила в `main` — запись
+ниже, объявлявшая `0119` свободным, к этому моменту устарела. Блок `0116–0118` взяла ветка
+кураторства 13.08.2026
 (`0116-kuratorstvo-izmerenie-a-ne-pole` · `0117-dve-stupeni-pravila-i-folbek` ·
 `0118-otstranenie-otdelnoe-izmerenie`); перед заведением живым `git ls-tree` проверены
 `origin/main`, все пять удалённых `worktree-*` и три ветки задач (`feat/kv29-schedule-button`,

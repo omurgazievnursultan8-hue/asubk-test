@@ -1,0 +1,1577 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Классификация · АСУБК</title>
+<!--
+  РАБОЧИЙ ПРОТОТИП (single-file) — модуль «Классификация» (TO-BE).
+  Не картинка: логика ниже ИСПОЛНЯЕТСЯ. Конструктор правит версию, публикация проверяет её
+  и отказывает списком, движок разбирает значения по предикатам, шов отдаёт значение с
+  объяснением, закрытие периода пишет записи фиксации. Ничего из этого не зашито кодом:
+  оба классификатора собраны ИЗ ДАННЫХ, функция classify() не знает ни Порядка №41, ни
+  лестницы подгруппы.
+
+  Предшественник — набросок той же волны (14.08.2026); он проверял только замысел и вскрыл
+  ADR-0126 и ADR-0127. Здесь замысел доведён до эталона поведения.
+  Смоук: `node scripts/inspect/classification-check.mjs`.
+  Канон логики — `mockups/classification/ASUBK-klassifikatsiya-logika.md` (модель, движок,
+  публикация, швы, все 18 инвариантов с причиной); журнал волн — `ASUBK-status-razrabotki.md`.
+
+  check_points:ignore-start
+  Пункты в правилах и отчёте — по редакции №41 от 06.07.2026 (11.1/11.2/11.3, 12, 16.1, 19.1).
+  check_points:ignore-end
+
+  РЕШЕНИЯ, НА КОТОРЫХ СТОИТ МОДУЛЬ
+  ADR-0120 классификатор — конструктор предикатов над реестром показателей;
+  ADR-0121 объект — кредит, заёмщик получает категорию свёрткой worst-of;
+  ADR-0122 факт вводится руками, значение ставится машиной;
+  ADR-0123 закрытие периода фиксирует значение записью, прошлое неизменно;
+  ADR-0124 вычислитель один, потребители читают через шов;
+  ADR-0125 предикат скалярен, версия публикуется, значения принадлежат версии;
+  ADR-0126 версия объявляет область, порядок разбора и значение по умолчанию;
+  ADR-0127 объяснение несёт все сработавшие условия, реестр фактов — все незачёты.
+
+  ИНВАРИАНТЫ, КОТОРЫЕ РАЗРАБОТЧИК ОБЯЗАН СОХРАНИТЬ (ИК-1…ИК-18)
+  ИК-1  Значение нигде не вводится и не правится руками — его ставит движок (ADR-0122).
+  ИК-2  Действующая версия не правится: правка — это новый черновик (ADR-0125 §2).
+  ИК-3  Версия публикуется только замкнутой: ровно одно значение по умолчанию, оно
+        последнее и без условий (ADR-0126 §4).
+  ИК-4  Дата ввода в действие не раньше начала открытого периода (ADR-0125 §2).
+  ИК-5  Правило или область, ссылающиеся на снятый показатель либо на константу вне
+        домена показателя, публикацию не проходят (ADR-0125 «Последствия»).
+  ИК-6  Свёртка worst-of разрешена только признаком сравнимости у версии (ADR-0126 §2).
+  ИК-7  Объект вне области значения не получает; запись фиксации по нему не пишется, и
+        витрина говорит почему, а не ставит прочерк (ADR-0126 §5).
+  ИК-8  Закрытый период неизменен: за него отдаётся запись фиксации, не пересчёт (ADR-0123).
+  ИК-9  Факт, наступивший в закрытом периоде, учитывается с начала открытого; в реестре
+        стоят обе даты (ADR-0123 §5, ADR-0127 §3).
+  ИК-10 Факт без решения комитета в показатель не попадает (ADR-0065, ADR-0122).
+  ИК-11 Объяснение — ВСЕ сработавшие условия выбранного значения, а не первое (ADR-0127 §1).
+  ИК-12 Незачтённый факт виден в реестре фактов кредита с причиной из закрытого списка
+        трёх: нет решения комитета · интервал истёк · ведёт к более лёгкому значению
+        (ADR-0127 §2).
+  ИК-13 Периоды закрываются по порядку и только после окончания месяца; закрытый не
+        открывается обратно (ADR-0123).
+  ИК-14 Классификация не запирает период: просроченный срок п. 12 печатается
+        предупреждением, а не блокировкой (ADR-0123, границы).
+  ИК-15 Правило кредита вправе читать показатели заёмщика; обратного чтения нет —
+        значения сворачиваются вверх, показатели читаются вниз (ADR-0121 §3).
+  ИК-16 Показатель, на который ссылается действующая версия, с реестра не снимается.
+  ИК-17 Значение без условий, не являющееся значением по умолчанию, недостижимо —
+        версия с ним не публикуется (проектное решение поверх ADR-0126 §4).
+  ИК-18 «Дней просрочки» и «слой-источник» — пара одного владельца: одно число без имени
+        слоя не показывается нигде (ADR-0127 §4).
+
+  ДЕМО ПОКРЫВАЕТ: два непохожих классификатора на одном движке · черновик без правил
+  (публикация отказывает списком) · смену редакции (версия 1 → версия 2) и запись июня,
+  посчитанную по прежней версии · объект вне области · два сработавших условия на одном
+  кредите · отложение 181-го дня (п. 19.1) · факт без решения комитета · факт из закрытого
+  периода с двумя датами · факт с истёкшим интервалом · слой-источник просрочки (мировое
+  соглашение против свободного слоя) · свёртку worst-of и запрет свёртки лестницы ·
+  закрытие периода с записями и отчёт п. 12.
+
+  ГРАНИЦЫ МАКЕТА: показатели держатся «на сейчас» — историчность даёт фиксация, а не
+  пересчёт задним числом; справочник факторов п. 11 и объекты (кредиты, заёмщики) взяты
+  зеркалом соседних модулей и здесь не редактируются.
+
+  SMOKE (node scripts/inspect/classification-check.mjs):
+   SMOKE 2026-08-14 · 44/44 PASS
+      PASS  #1  показателей 11, без владельца 0, снятых 1, перечислений без домена 0
+      PASS  #2  действующая ред. 2 с 2026-07-06, прошлая ред. 1 до 2026-07-05
+      PASS  #3  у «Группы платёжеспособности» только черновик, значений 3, действующей нет
+      PASS  #4  КД-2024/117 → Высокий кредитный риск, сработавших условий 2 (п. 19.1 + п. 11.3) — ИК-11
+      PASS  #5  КД-2023/210: 200 дн, отложение п. 19.1 включено → Средний кредитный риск по п. 16.1
+      PASS  #6  КД-2019/004 вне области: «вне области классификатора: кредит действующий = да (сейчас нет)» — ИК-7
+      PASS  #7  КД-2025/043: фактор без решения комитета в показатель не вошёл (уровень «нет») → Низкий кредитный риск — ИК-10
+      PASS  #8  КД-2025/088 → Средний кредитный риск, условий сработало 2 (просрочка + фактор п. 11.2)
+      PASS  #9  КД-2025/101: худший слой «мировое соглашение» 45 дн → Средний кредитный риск — пара показателей ИК-18
+      PASS  #10  объяснение есть у всех 7 кредитов, молчаливых отказов 0 — §0.3
+      PASS  #11  F-002: «не засчитан: нет решения комитета» — ИК-10/ИК-12
+      PASS  #12  F-003 наступил 2026-06-12, учтён с 2026-07-01 (начало открытого периода) — ИК-9
+      PASS  #13  F-004: «не засчитан: интервал истёк» — ИК-12
+      PASS  #14  средний фактор при выбранном высоком: «не засчитан: ведёт к более лёгкому значению, чем выбранное» — третья причина закрытого списка ИК-12
+      PASS  #15  факт из закрытого июня принят и учтён с 2026-07-01, прошлое не переписано — ИК-9/ИК-8
+      PASS  #16  факт из будущего отклонён: «дата наступления в будущем»
+      PASS  #17  аннулирование без причины отклонено; после аннулирования F-003 факт остался в реестре, условий 2 → 1, значение Средний кредитный риск
+      PASS  #18  наблюдатель факты не вводит: «наблюдатель факты не вводит»
+      PASS  #19  действующая редакция не правится: «действующая версия не правится: заведите новую редакцию — она откроется черновиком (ИК-2)» — ИК-2
+      PASS  #20  новая редакция 3 открыта черновиком-копией: значений 3 из 3
+      PASS  #21  новое значение встало перед замыкающим (3-м); после «сделать по умолчанию» оно последнее и без условий — ИК-3
+      PASS  #22  черновик «Группа платёжеспособности»: отказов 6 — нет значения по умолчанию, значения недостижимы (ИК-17), нет основания
+      PASS  #23  публикация отклонена списком из 6 причин, версия осталась черновиком — §0.3
+      PASS  #24  дата ввода 15.06.2026 отклонена: «дата ввода в действие 15.06.2026 раньше начала открытого периода 01.07.2026 — закрытые периоды неприкосновенны (ИК-4)» — ИК-4
+      PASS  #25  редакция 3 введена с 20.07.2026, редакция 2 закрыта той же датой
+      PASS  #26  после смены редакции июнь читается записью ред. 1 → «Низкий кредитный риск», пересчёта нет — ИК-8
+      PASS  #27  правило заёмщика с показателем кредита отклонено — ИК-15
+      PASS  #28  снятый показатель и константа вне домена отклонены — ИК-5
+      PASS  #29  условие у значения по умолчанию отклонено — ИК-3
+      PASS  #30  снятие используемого показателя отклонено: «показатель используется: Категория кредитного риска, редакция 2 (правило) (ИК-16)»
+      PASS  #31  показатель без владельца отклонён; заведённый с владельцем «Залог» снимается свободно — ссылок на него нет
+      PASS  #32  занятый идентификатор отклонён: «идентификатор пуст или занят»
+      PASS  #33  наблюдатель период не закрывает: «период закрывает администратор классификации»
+      PASS  #34  июль закрыт: записей 9 (риск 5 действующих кредитов + подгруппа 4 заёмщиков), объектов вне области 0 — ИК-7
+      PASS  #35  открылся август; повторное закрытие отклонено: «период август 2026 ещё не завершён: закрытие возможно с 01.09.2026» — ИК-13
+      PASS  #36  отчёт п. 12 за июль: по состоянию на 2026-08-01, срок 2026-08-15, сформирован 2026-08-14 — в срок; кредитов 5
+      PASS  #37  шов на 15.07 отдаёт запись, на 14.08 — расчёт; потребитель различия не знает — ИК-8
+      PASS  #38  факт от 20.07, вскрывшийся после закрытия июля, учтён с 2026-08-01 — ИК-9
+      PASS  #39  свёртка worst-of: сегодня — Высокий кредитный риск по КД-2024/117 (расчёт), июнь — по записям того же периода
+      PASS  #40  без признака сравнимости свёртка запрещена: «свёртка запрещена: версия не объявила значения сравнимыми по тяжести (ИК-6)»
+      PASS  #41  лестница подгруппы тем же движком: 2.2 · Исполнительные листы · 5 · Погашенная · 1.2 · Просрочка по действующим; признака сравнимости нет — свернуть нельзя
+      PASS  #42  черновик значений не назначает: «действующей редакции нет — черновик значений не назначает (ADR-0125)»
+      PASS  #43  в файле названы все 18 инвариантов и 8 решений волны
+      PASS  #44  в движке нет ни пунктов Порядка, ни ступеней лестницы — правила приходят данными (ADR-0120)
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-link:#005FDB;
+  --asubk-green:#158443; --asubk-green-hover:#106A36; --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+  --asubk-ink:#192434; --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
+  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+  --asubk-red-tint:#FCE6E6; --asubk-green-tint:rgba(21,132,67,0.10);
+  --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong); --border-focus:var(--asubk-blue);
+  --action-primary:var(--asubk-blue); --action-success:var(--asubk-green); --action-danger:var(--asubk-red);
+  --status-success-bg:var(--asubk-green-tint); --status-info-bg:var(--asubk-blue-tint);
+  --status-warning-bg:var(--asubk-amber-tint); --status-error-bg:var(--asubk-red-tint);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600;
+  --leading-tight:1.2; --leading-snug:1.35; --leading-normal:1.5;
+  --font-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--asubk-font);
+  --font-label:var(--weight-regular) var(--text-sm)/var(--leading-snug) var(--asubk-font);
+  --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
+  --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --control-h:36px; --header-h:56px; --sidebar-w:290px;
+  --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
+.app{ display:flex; height:100vh; width:100%; }
+
+/* ---- sidebar ---- */
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
+  display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+.brand{ padding:18px 16px 4px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
+  color:var(--text-heading); letter-spacing:0.04em; }
+.brand small{ display:block; font:var(--weight-regular) 12px/1.4 var(--asubk-font);
+  color:var(--text-muted); letter-spacing:0; margin-top:4px; }
+.nav{ flex:1; overflow-y:auto; padding:12px 0 8px; }
+.nav-sec{ padding:9px 16px 4px; font:var(--weight-semibold) 12px/1.3 var(--asubk-font);
+  color:var(--text-placeholder); text-transform:uppercase; letter-spacing:0.05em; }
+.nav-item{ display:flex; align-items:center; gap:9px; padding:8px 16px; text-decoration:none; width:100%;
+  color:rgba(27,43,65,0.72); font:var(--weight-regular) var(--text-base)/1.4 var(--asubk-font);
+  cursor:pointer; background:none; border:none; text-align:left; }
+.nav-item:hover{ background:rgba(24,39,57,0.05); }
+.nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); font-weight:var(--weight-medium); }
+.nav-item .cnt{ margin-left:auto; color:var(--text-placeholder); font-size:12px; }
+.sidebar-foot{ padding:12px 16px; border-top:1px solid var(--border-default);
+  font:var(--weight-regular) 12px/1.45 var(--asubk-font); color:var(--text-muted); }
+
+/* ---- main ---- */
+.main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
+.topbar{ min-height:var(--header-h); flex:none; border-bottom:1px solid var(--border-default);
+  display:flex; align-items:center; gap:14px; padding:8px 20px; flex-wrap:wrap; }
+.crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
+.topbar .right{ margin-left:auto; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.topbar label{ font:var(--font-label); color:var(--text-muted); margin-right:6px; }
+.topbar select{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 10px; cursor:pointer; }
+.content{ flex:1; overflow:auto; }
+.panel-wrap{ padding:18px 24px 60px; max-width:1140px; }
+.view{ display:none; } .view.active{ display:block; }
+
+/* ---- headings, notes ---- */
+.section-h{ font:var(--weight-semibold) 16px/1.2 var(--asubk-font); color:var(--text-heading); margin:24px 0 6px; }
+.section-h:first-child{ margin-top:0; }
+.page-lead{ font:var(--font-label); color:var(--text-muted); margin:2px 0 16px; max-width:900px; }
+.note{ font:var(--font-label); color:var(--text-muted); margin:8px 0 0; max-width:900px; }
+.note code, .page-lead code{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; color:var(--asubk-blue); }
+
+/* ---- banners ---- */
+.banner{ border-radius:var(--radius-md); padding:10px 14px; margin-bottom:12px; font:var(--font-label); }
+.banner.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.banner.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.banner.danger{ background:var(--status-error-bg); color:var(--asubk-red); }
+.banner.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.banner b{ font-weight:var(--weight-semibold); }
+.banner ul{ margin:6px 0 0; padding-left:20px; } .banner li{ margin-bottom:3px; }
+
+/* ---- pills ---- */
+.pill{ display:inline-block; padding:2px 9px; border-radius:var(--radius-pill);
+  font:var(--weight-medium) 12px/1.5 var(--asubk-font); white-space:nowrap; }
+.pill.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.pill.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.pill.err{ background:var(--status-error-bg); color:var(--asubk-red); }
+.pill.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.pill.neutral{ background:var(--asubk-tint-fill); color:var(--text-muted); }
+
+/* ---- buttons ---- */
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; height:var(--control-h);
+  padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
+  font:var(--weight-semibold) var(--text-base)/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
+.btn:disabled{ opacity:.45; cursor:not-allowed; }
+.btn-primary{ background:var(--action-primary); color:#fff; }
+.btn-primary:hover:not(:disabled){ background:var(--asubk-blue-hover); }
+.btn-success{ background:var(--action-success); color:#fff; }
+.btn-success:hover:not(:disabled){ background:var(--asubk-green-hover); }
+.btn-danger{ background:var(--action-danger); color:#fff; }
+.btn-danger:hover:not(:disabled){ background:var(--asubk-red-hover); }
+.btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
+.btn-secondary:hover:not(:disabled){ background:var(--surface-hover); }
+.btn-sm{ height:28px; padding:0 9px; font-size:12.5px; font-weight:var(--weight-medium); }
+.btn-row{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+
+/* ---- tables ---- */
+table.cgrid{ width:100%; border-collapse:collapse; font:var(--font-label);
+  border:1px solid var(--border-default); background:var(--surface-card); }
+table.cgrid thead th{ text-align:left; padding:10px 12px; background:var(--surface-panel);
+  border-bottom:1px solid var(--asubk-grid-line); font:var(--weight-semibold) var(--text-sm)/1.35 var(--asubk-font);
+  color:var(--text-heading); white-space:nowrap; }
+table.cgrid tbody td{ padding:9px 12px; border-bottom:1px solid var(--asubk-grid-line);
+  vertical-align:top; color:var(--text-body); }
+table.cgrid tbody tr:last-child td{ border-bottom:none; }
+table.cgrid tbody tr.out td{ background:var(--asubk-gray-50); color:var(--text-muted); }
+.muted{ color:var(--text-muted); }
+.mono{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12.5px; }
+.small{ font:var(--weight-regular) 12.5px/1.45 var(--asubk-font); color:var(--text-muted); }
+.small b, .small em{ color:var(--text-body); font-style:normal; font-weight:var(--weight-medium); }
+
+/* ---- cards ---- */
+.card{ border:1px solid var(--border-default); border-radius:var(--radius-md);
+  padding:16px 18px; margin-bottom:14px; background:var(--surface-card); }
+.card > h3{ margin:0 0 10px; font:var(--weight-semibold) 15px/1.25 var(--asubk-font); color:var(--text-heading); }
+.card > h3 .small{ font-weight:var(--weight-regular); }
+.cols{ display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap; }
+.side{ flex:0 0 260px; } .body{ flex:1; min-width:460px; }
+.meta{ font:var(--font-label); color:var(--text-muted); margin:0 0 10px; }
+.meta b{ color:var(--text-body); font-weight:var(--weight-medium); }
+.kv{ display:grid; grid-template-columns:190px 1fr; gap:6px 14px; font:var(--font-label); }
+.kv .k{ color:var(--text-muted); } .kv .v{ color:var(--text-body); }
+
+/* ---- classifier picker ---- */
+.clf{ display:block; width:100%; text-align:left; font:var(--font-label); padding:9px 11px; margin-bottom:6px;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--surface-card); cursor:pointer; }
+.clf.on{ border-color:var(--asubk-blue); background:var(--asubk-blue-tint); }
+.clf b{ display:block; font-weight:var(--weight-semibold); color:var(--text-heading); margin-bottom:3px; }
+.clf .small{ display:block; }
+
+/* ---- value / rule editor ---- */
+.val{ border:1px solid var(--border-default); border-radius:var(--radius-md); margin-bottom:10px; overflow:hidden; }
+.val-h{ display:flex; align-items:center; gap:8px; padding:8px 12px; background:var(--surface-panel); flex-wrap:wrap; }
+.val-h .nm{ font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading); }
+.val-h .acts{ margin-left:auto; display:flex; gap:6px; flex-wrap:wrap; }
+.val-b{ padding:10px 12px; }
+.rule{ border-left:3px solid var(--asubk-blue-tint); padding:6px 0 6px 10px; margin-bottom:8px; }
+.rule:last-child{ margin-bottom:0; }
+.rule-h{ display:flex; align-items:center; gap:8px; font:var(--font-label); color:var(--text-muted); flex-wrap:wrap; }
+.pred{ display:flex; align-items:center; gap:6px; margin:5px 0; flex-wrap:wrap; font:var(--font-label); }
+.pred select, .pred input{ height:30px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 8px; }
+.pred select:focus, .pred input:focus{ outline:none; border-color:var(--border-focus); box-shadow:var(--shadow-focus); }
+.pred .and{ color:var(--text-muted); font-size:12.5px; }
+.fld{ display:flex; flex-direction:column; gap:5px; }
+.fld > label{ font:var(--font-label); color:var(--text-muted); }
+.fld select, .fld input{ height:var(--control-h); border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 10px; min-width:210px; }
+.form-row{ display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; }
+
+/* ---- explanation blocks ---- */
+.why{ font:var(--weight-regular) 12.5px/1.5 var(--asubk-font); color:var(--text-muted); margin-top:4px; }
+.why em{ font-style:normal; color:var(--text-body); font-weight:var(--weight-medium); }
+.facts{ margin-top:8px; border-top:1px dashed var(--border-default); padding-top:6px; }
+.facts .f{ font:var(--weight-regular) 12.5px/1.5 var(--asubk-font); color:var(--text-muted); margin-bottom:4px; }
+.facts .f.no{ color:var(--asubk-red); }
+.facts .f.yes em{ color:var(--asubk-green); }
+.facts .f.annul{ text-decoration:line-through; color:var(--text-placeholder); }
+.frozen{ background:var(--asubk-gray-50); }
+
+/* ---- toast ---- */
+#toastWrap{ position:fixed; right:18px; bottom:18px; display:flex; flex-direction:column; gap:8px; z-index:50; }
+.toast{ background:var(--asubk-ink); color:#fff; padding:10px 14px; border-radius:var(--radius-md);
+  font:var(--font-label); max-width:420px; box-shadow:0 6px 20px rgba(24,39,57,0.25); }
+.toast.err{ background:var(--asubk-red); } .toast.ok{ background:var(--asubk-green); }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">АСУБК<small>Модуль «Классификация» · прототип TO-BE</small></div>
+    <div class="nav">
+      <div class="nav-sec">Настройка</div>
+      <button class="nav-item" data-v="clf" onclick="CL.go('clf')">Классификаторы</button>
+      <button class="nav-item" data-v="ind" onclick="CL.go('ind')">Реестр показателей</button>
+      <div class="nav-sec">Работа</div>
+      <button class="nav-item" data-v="facts" onclick="CL.go('facts')">Факты (п. 11)</button>
+      <button class="nav-item" data-v="show" onclick="CL.go('show')">Витрина результата</button>
+      <button class="nav-item" data-v="per" onclick="CL.go('per')">Периоды и фиксация</button>
+    </div>
+    <div class="sidebar-foot" id="foot"></div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb-title" id="title">Классификаторы</div>
+      <div class="right">
+        <span><label>Дата среза</label><select id="asOf" onchange="CL.setAsOf(this.value)"></select></span>
+        <span><label>Роль</label><select id="role" onchange="CL.setRole(this.value)"></select></span>
+      </div>
+    </div>
+    <div class="content"><div class="panel-wrap" id="panel"></div></div>
+  </div>
+</div>
+<div id="toastWrap"></div>
+
+<script>
+/* =====================================================================
+ *  МОДУЛЬ «КЛАССИФИКАЦИЯ» — исполняемый прототип
+ *  Слои файла: даты → справочники → состояние → владельцы показателей →
+ *  движок → шов → операции → экраны.
+ * ===================================================================== */
+const CL = {};
+
+/* ------------------------------ ДАТЫ ------------------------------- */
+const MON = {'01':'январь','02':'февраль','03':'март','04':'апрель','05':'май','06':'июнь',
+  '07':'июль','08':'август','09':'сентябрь','10':'октябрь','11':'ноябрь','12':'декабрь'};
+const fmt   = iso => iso ? iso.slice(8,10)+'.'+iso.slice(5,7)+'.'+iso.slice(0,4) : '—';
+const ym    = iso => iso.slice(0,7);
+const first = m => m+'-01';
+const day15 = m => m+'-15';
+const nextM = m => { let [y,mm]=m.split('-').map(Number); mm++; if(mm>12){mm=1;y++;} return y+'-'+String(mm).padStart(2,'0'); };
+const monLabel = m => MON[m.slice(5,7)]+' '+m.slice(0,4);
+const daysBetween = (a,b) => Math.round((Date.parse(b)-Date.parse(a))/86400000);
+
+/* ------------------- СПРАВОЧНИК ФАКТОРОВ п. 11 --------------------- */
+/* Зеркало нормы: вид фактора несёт уровень и пункт. Уровень выбирает не человек —
+   он приходит из справочника вместе с видом (ADR-0122: вводится факт, не значение). */
+const FACTOR_KINDS = [
+  {id:'f-nonTarget', name:'Нецелевое использование средств',        level:'высокий', norm:'п. 11.3'},
+  {id:'f-lostColl',  name:'Утрата предмета залога',                 level:'высокий', norm:'п. 11.3'},
+  {id:'f-hide',      name:'Сокрытие имущества от взыскания',        level:'высокий', norm:'п. 11.3'},
+  {id:'f-noAct',     name:'Уклонение от подписания акта сверки',    level:'средний', norm:'п. 11.2'},
+  {id:'f-collDown',  name:'Ухудшение состояния предмета залога',    level:'средний', norm:'п. 11.2'},
+  {id:'f-noReport',  name:'Непредставление отчётности по кредиту',  level:'средний', norm:'п. 11.2'}
+];
+const KIND = id => FACTOR_KINDS.find(k=>k.id===id);
+
+const ROLES = ['Администратор классификации','Кредитный инспектор','Наблюдатель'];
+
+/* ---------------------------- СОСТОЯНИЕ ---------------------------- */
+/* Всё, что модуль знает, лежит здесь. Объекты (кредиты, заёмщики) и слои просрочки —
+   зеркало соседних модулей: читаются, не правятся (ADR-0124, И-11). */
+function seed(){
+  const st = {
+    today:'2026-08-14',
+    role:'Администратор классификации',
+    asOf:'2026-08-14',
+    view:'clf',
+    curClf:'risk',
+    closedPeriods:['2026-05','2026-06'],
+    months:['2026-05','2026-06','2026-07','2026-08'],
+    log:[]
+  };
+
+  /* --- РЕЕСТР ПОКАЗАТЕЛЕЙ (ADR-0120 §1) ---
+     Именованный вход: объект, тип, источник, владелец. Способа вычисления реестр не хранит.
+     Квантор по коллекции свёрнут ВНУТРЬ показателя-перечисления (ADR-0125 §1), поэтому
+     предикат остаётся скалярным. */
+  st.indicators = [
+    {id:'daysOverdue', name:'Дней просрочки (худший слой)', obj:'кредит', type:'число',
+     src:'расчёт', owner:'Платежи', retired:false,
+     note:'Пара с «слой-источник»: считаются одним расчётом и публикуются вместе (ИК-18).'},
+    {id:'overdueLayer', name:'Слой-источник просрочки', obj:'кредит', type:'перечисление',
+     domain:['нет просрочки','свободный слой','мировое соглашение','реструктуризация'],
+     src:'расчёт', owner:'Платежи', retired:false},
+    {id:'creditActive', name:'Кредит действующий', obj:'кредит', type:'булево',
+     src:'расчёт', owner:'Кредиты', retired:false},
+    {id:'factorLevel', name:'Максимальный уровень действующего фактора п. 11', obj:'кредит',
+     type:'перечисление', domain:['нет','средний','высокий'],
+     src:'ввод факта', owner:'Классификация', retired:false,
+     note:'Свёртка засчитанных фактов кредита; факт без решения комитета в неё не входит (ИК-10).'},
+    {id:'defer181', name:'Перевод на 181-й день отложен', obj:'кредит', type:'булево',
+     src:'расчёт', owner:'Взыскание', retired:false},
+    {id:'procKind', name:'Максимальный вид живой подтверждённой процедуры', obj:'заёмщик',
+     type:'перечисление', domain:['нет','суд','исполнительные листы','инициирование банкротства'],
+     src:'расчёт', owner:'Взыскание', retired:false},
+    {id:'roleEnd', name:'Терминальный исход роли', obj:'заёмщик', type:'перечисление',
+     domain:['нет','полное погашение','признана безнадёжной','завершено банкротство'],
+     src:'расчёт', owner:'Заёмщик', retired:false},
+    {id:'everCredits', name:'Кредиты были когда-либо', obj:'заёмщик', type:'булево',
+     src:'расчёт', owner:'Кредиты', retired:false},
+    {id:'hasActive', name:'Есть действующие кредиты', obj:'заёмщик', type:'булево',
+     src:'расчёт', owner:'Кредиты', retired:false},
+    {id:'anyOverdue', name:'Есть просрочка по действующим кредитам', obj:'заёмщик', type:'булево',
+     src:'расчёт', owner:'Кредиты', retired:false},
+    /* Снятый показатель: правило на него не сошлётся (ИК-5), новая ссылка не заводится. */
+    {id:'oldRating', name:'Внутренний рейтинг заёмщика', obj:'заёмщик', type:'перечисление',
+     domain:['A','B','C'], src:'расчёт', owner:'—', retired:true,
+     note:'Снят с реестра 01.07.2026: методика рейтинга отменена вместе с прежней редакцией.'}
+  ];
+
+  /* --- КЛАССИФИКАТОРЫ: данные, а не код ---
+     Версия несёт статус, основание, дату ввода, признак сравнимости, область,
+     набор значений и правила (ADR-0125 §2–3, ADR-0126). */
+  st.classifiers = [
+    {id:'risk', name:'Категория кредитного риска', object:'кредит', versions:[
+      { no:1, status:'прошлая',
+        basis:'Порядок №41 (редакция до 06.07.2026)', from:'2026-05-01', by:'Администратор',
+        at:'2026-05-04', until:'2026-07-05', comparable:true,
+        scope:[{i:'creditActive',op:'=',v:true}],
+        values:[
+          {code:'high', label:'Высокий кредитный риск', rules:[
+            {norm:'п. 19.1', preds:[{i:'daysOverdue',op:'≥',v:181}]}]},
+          {code:'mid', label:'Средний кредитный риск', rules:[
+            {norm:'прежняя редакция', preds:[{i:'daysOverdue',op:'≥',v:30}]}]},
+          {code:'low', label:'Низкий кредитный риск', rules:[], dflt:true, norm:'п. 11.1'}
+        ]},
+      { no:2, status:'действующая',
+        basis:'Порядок №41 от 06.07.2026, п. 11, п. 16.1, п. 19.1', from:'2026-07-06',
+        by:'Администратор', at:'2026-07-06', until:null, comparable:true,
+        /* Область — условие входа: недействующий кредит значения не получает (ИК-7). */
+        scope:[{i:'creditActive',op:'=',v:true}],
+        values:[
+          {code:'high', label:'Высокий кредитный риск', rules:[
+            {norm:'п. 19.1', preds:[{i:'daysOverdue',op:'≥',v:181},{i:'defer181',op:'=',v:false}]},
+            {norm:'п. 11.3', preds:[{i:'factorLevel',op:'=',v:'высокий'}]}]},
+          {code:'mid', label:'Средний кредитный риск', rules:[
+            {norm:'п. 16.1', preds:[{i:'daysOverdue',op:'≥',v:1}]},
+            {norm:'п. 11.2', preds:[{i:'factorLevel',op:'=',v:'средний'}]}]},
+          {code:'low', label:'Низкий кредитный риск', rules:[], dflt:true, norm:'п. 11.1'}
+        ]}
+    ]},
+    {id:'sub', name:'Подгруппа заёмщика', object:'заёмщик', versions:[
+      { no:1, status:'действующая',
+        basis:'Проектное решение ADR-0012 · лестница §3 спеки заёмщика', from:'2026-07-01',
+        by:'Администратор', at:'2026-07-01', until:null,
+        /* Порядок здесь — доминирование, а не тяжесть: первым стоит «кредитов не было».
+           Признака сравнимости нет → свернуть лестницу нельзя технически (ИК-6). */
+        comparable:false, scope:[],
+        values:[
+          {code:'none',  label:'Кредитов не было',                rules:[{norm:'ступень 0', preds:[{i:'everCredits',op:'=',v:false}]}]},
+          {code:'3.2',   label:'3.2 · Банкротство завершено',     rules:[{norm:'ступень 1', preds:[{i:'roleEnd',op:'=',v:'завершено банкротство'}]}]},
+          {code:'4',     label:'4 · Безнадёжная',                 rules:[{norm:'ступень 1', preds:[{i:'roleEnd',op:'=',v:'признана безнадёжной'}]}]},
+          {code:'5',     label:'5 · Погашенная',                  rules:[{norm:'ступень 1', preds:[{i:'roleEnd',op:'=',v:'полное погашение'}]}]},
+          {code:'2.3',   label:'2.3 · Инициировано банкротство',  rules:[{norm:'ступень 2', preds:[{i:'procKind',op:'=',v:'инициирование банкротства'}]}]},
+          {code:'2.2',   label:'2.2 · Исполнительные листы',      rules:[{norm:'ступень 2', preds:[{i:'procKind',op:'=',v:'исполнительные листы'}]}]},
+          {code:'2.1',   label:'2.1 · Судебное взыскание',        rules:[{norm:'ступень 2', preds:[{i:'procKind',op:'=',v:'суд'}]}]},
+          {code:'closed',label:'Кредиты закрыты',                 rules:[{norm:'ступень 3', preds:[{i:'hasActive',op:'=',v:false}]}]},
+          {code:'1.2',   label:'1.2 · Просрочка по действующим',  rules:[{norm:'ступень 4', preds:[{i:'anyOverdue',op:'=',v:true}]}]},
+          {code:'1.1',   label:'1.1 · Погашают по графику',       rules:[], dflt:true, norm:'ступень 5'}
+        ]}
+    ]},
+    /* Черновик, у которого значения заведены, а правил нет: публикация откажет списком
+       (ИК-3, ИК-17). Состояние законное — версия просто не действует. */
+    {id:'pay', name:'Группа платёжеспособности', object:'заёмщик', versions:[
+      { no:1, status:'черновик', basis:'', from:'', by:'Администратор', at:null, until:null,
+        comparable:false, scope:[],
+        values:[
+          {code:'p1', label:'Высокая',  rules:[]},
+          {code:'p2', label:'Средняя',  rules:[]},
+          {code:'p3', label:'Низкая',   rules:[]}
+        ]}
+    ]}
+  ];
+
+  /* --- ОБЪЕКТЫ (зеркало соседних модулей) ---
+     layers — слои требования от платежей: у каждого своя просрочка. Числа «дней просрочки
+     у кредита» не существует, оно собирается свёрткой владельца (ИК-18, ADR-0127 §4). */
+  st.borrowers = [
+    {inn:'02107201910148', name:'ОсОО «Ак-Жол»',        kind:'юрлицо', proc:'исполнительные листы', roleEnd:null},
+    {inn:'22508199500821', name:'ИП Сыдыков А. Т.',     kind:'ИП',     proc:null,                   roleEnd:null},
+    {inn:'01503200110077', name:'ОсОО «Тянь-Шань Строй»',kind:'юрлицо', proc:null,                  roleEnd:null},
+    {inn:'11902199800433', name:'ЧП «Нарын-Агро»',      kind:'ИП',     proc:null,                   roleEnd:'полное погашение'}
+  ];
+  st.credits = [
+    {id:'КД-2024/117', inn:'02107201910148', active:true, defer:false,
+     layers:[{name:'свободный слой',days:214},{name:'мировое соглашение',days:0}]},
+    {id:'КД-2025/043', inn:'02107201910148', active:true, defer:false,
+     layers:[{name:'нет просрочки',days:0}]},
+    {id:'КД-2025/088', inn:'22508199500821', active:true, defer:false,
+     layers:[{name:'свободный слой',days:12}]},
+    {id:'КД-2023/210', inn:'22508199500821', active:true, defer:true,
+     deferNote:'перевод отложен: заявление на реструктуризацию рассматривается до 24.08.2026 (п. 19.1)',
+     layers:[{name:'свободный слой',days:200}]},
+    /* Вне области: недействующий кредит значения не получает и в фиксацию не идёт (ИК-7). */
+    {id:'КД-2019/004', inn:'22508199500821', active:false, defer:false,
+     layers:[{name:'нет просрочки',days:0}]},
+    /* Слой-источник — не «свободный слой»: одно число без имени слоя ввело бы в заблуждение. */
+    {id:'КД-2025/101', inn:'01503200110077', active:true, defer:false,
+     layers:[{name:'свободный слой',days:0},{name:'мировое соглашение',days:45}]},
+    {id:'КД-2018/052', inn:'11902199800433', active:false, defer:false,
+     layers:[{name:'нет просрочки',days:0}]}
+  ];
+
+  /* --- ФАКТЫ (ADR-0122): вводит человек, значение из них выводит машина ---
+     occurred — дата наступления; counted — дата, с которой факт влияет на значение.
+     Расходятся, если факт наступил в закрытом периоде (ИК-9). */
+  st.facts = [
+    {id:'F-001', creditId:'КД-2024/117', kindId:'f-nonTarget', occurred:'2026-05-22',
+     counted:'2026-05-22', until:null, doc:'протокол КАБК № 14 от 22.05.2026',
+     by:'Кредитный инспектор', annulled:null},
+    /* Решения комитета нет — в показатель не попадёт, но человек видит, ЧТО с ним (ИК-10, ИК-12). */
+    {id:'F-002', creditId:'КД-2025/043', kindId:'f-noAct', occurred:'2026-07-03',
+     counted:'2026-07-03', until:null, doc:null, by:'Кредитный инспектор', annulled:null},
+    /* Наступил в закрытом июне, учтён с начала открытого июля — две даты (ИК-9). */
+    {id:'F-003', creditId:'КД-2025/088', kindId:'f-collDown', occurred:'2026-06-12',
+     counted:'2026-07-01', until:null, doc:'протокол КАБК № 19 от 30.06.2026',
+     by:'Кредитный инспектор', annulled:null},
+    /* Интервал истёк — третья причина незачёта из закрытого списка (ИК-12). */
+    {id:'F-004', creditId:'КД-2025/101', kindId:'f-noReport', occurred:'2026-05-05',
+     counted:'2026-05-05', until:'2026-07-31', doc:'протокол КАБК № 11 от 05.05.2026',
+     by:'Кредитный инспектор', annulled:null}
+  ];
+
+  /* --- ЗАПИСИ ФИКСАЦИИ ЗА ЗАКРЫТЫЕ ПЕРИОДЫ (ADR-0123) ---
+     Июнь посчитан ВЕРСИЕЙ 1 (порог среднего — 30 дней). Смена редакции прошлое не
+     переписывает: запись ссылается на конкретную версию, а не на «текущую» (ИК-8). */
+  st.records = [
+    {period:'2026-06', clfId:'risk', verNo:1, objType:'кредит', objId:'КД-2024/117',
+     code:'high', label:'Высокий кредитный риск', by:'Сламкулов А. О.', at:'2026-07-03', asOf:'2026-07-01',
+     conditions:[{norm:'п. 19.1', text:'дней просрочки (худший слой) ≥ 181 (на срез 183)'}], factIds:['F-001']},
+    {period:'2026-06', clfId:'risk', verNo:1, objType:'кредит', objId:'КД-2025/043',
+     code:'low', label:'Низкий кредитный риск', by:'Сламкулов А. О.', at:'2026-07-03', asOf:'2026-07-01',
+     conditions:[{norm:'п. 11.1', text:'ни одно условие выше не сработало'}], factIds:[]},
+    {period:'2026-06', clfId:'risk', verNo:1, objType:'кредит', objId:'КД-2025/088',
+     code:'low', label:'Низкий кредитный риск', by:'Сламкулов А. О.', at:'2026-07-03', asOf:'2026-07-01',
+     conditions:[{norm:'п. 11.1', text:'ни одно условие выше не сработало — по прежней редакции порог среднего 30 дней'}], factIds:[]},
+    {period:'2026-06', clfId:'risk', verNo:1, objType:'кредит', objId:'КД-2023/210',
+     code:'high', label:'Высокий кредитный риск', by:'Сламкулов А. О.', at:'2026-07-03', asOf:'2026-07-01',
+     conditions:[{norm:'п. 19.1', text:'дней просрочки (худший слой) ≥ 181 (на срез 169) — отложения в прежней редакции не было'}], factIds:[]},
+    {period:'2026-06', clfId:'risk', verNo:1, objType:'кредит', objId:'КД-2025/101',
+     code:'mid', label:'Средний кредитный риск', by:'Сламкулов А. О.', at:'2026-07-03', asOf:'2026-07-01',
+     conditions:[{norm:'прежняя редакция', text:'дней просрочки (худший слой) ≥ 30 (на срез 34, слой «мировое соглашение»)'}], factIds:['F-004']},
+    {period:'2026-06', clfId:'sub', verNo:1, objType:'заёмщик', objId:'02107201910148',
+     code:'2.2', label:'2.2 · Исполнительные листы', by:'Сламкулов А. О.', at:'2026-07-03', asOf:'2026-07-01',
+     conditions:[{norm:'ступень 2', text:'максимальный вид живой подтверждённой процедуры = исполнительные листы'}], factIds:[]},
+    {period:'2026-06', clfId:'sub', verNo:1, objType:'заёмщик', objId:'22508199500821',
+     code:'1.2', label:'1.2 · Просрочка по действующим', by:'Сламкулов А. О.', at:'2026-07-03', asOf:'2026-07-01',
+     conditions:[{norm:'ступень 4', text:'есть просрочка по действующим кредитам = да'}], factIds:[]},
+    {period:'2026-06', clfId:'sub', verNo:1, objType:'заёмщик', objId:'01503200110077',
+     code:'1.2', label:'1.2 · Просрочка по действующим', by:'Сламкулов А. О.', at:'2026-07-03', asOf:'2026-07-01',
+     conditions:[{norm:'ступень 4', text:'есть просрочка по действующим кредитам = да'}], factIds:[]},
+    {period:'2026-06', clfId:'sub', verNo:1, objType:'заёмщик', objId:'11902199800433',
+     code:'5', label:'5 · Погашенная', by:'Сламкулов А. О.', at:'2026-07-03', asOf:'2026-07-01',
+     conditions:[{norm:'ступень 1', text:'терминальный исход роли = полное погашение'}], factIds:[]}
+  ];
+  st.periodMeta = { '2026-05':{by:'Сламкулов А. О.', at:'2026-06-04'},
+                    '2026-06':{by:'Сламкулов А. О.', at:'2026-07-03'} };
+  return st;
+}
+CL.seed = () => { CL.state = seed(); return CL.state; };
+CL.state = seed();
+
+/* ----------------------- ДОСТУП И РОЛИ ----------------------------- */
+CL.canEditConstructor = () => CL.state.role === 'Администратор классификации';
+CL.canEnterFacts = () => CL.state.role !== 'Наблюдатель';
+CL.canClosePeriod = () => CL.state.role === 'Администратор классификации';
+
+/* ------------------- ПЕРИОДЫ (ADR-0123, ИК-13) --------------------- */
+CL.isClosed   = dateISO => CL.state.closedPeriods.includes(ym(dateISO));
+CL.openPeriod = () => CL.state.months.find(m => !CL.state.closedPeriods.includes(m));
+CL.startOfOpen = () => first(CL.openPeriod());
+CL.periodStatus = m => CL.state.closedPeriods.includes(m) ? 'закрыт'
+  : m === CL.openPeriod() ? 'открыт' : 'будущий';
+
+/* ---------------- ВЛАДЕЛЬЦЫ ПОКАЗАТЕЛЕЙ ---------------------------- *
+ * Считает владелец данных, а не классификация: реестр хранит имя владельца,
+ * но не способ вычисления (ADR-0120 §2, ADR-0125 §1).
+ * ------------------------------------------------------------------- */
+/* Платежи: свёртка по слоям требования. Число и слой публикуются ПАРОЙ (ИК-18). */
+function overdueOf(credit){
+  const worst = credit.layers.reduce((a,l)=> l.days > a.days ? l : a, credit.layers[0]);
+  return worst.days > 0 ? {days:worst.days, layer:worst.name} : {days:0, layer:'нет просрочки'};
+}
+/* Классификация: свёртка засчитанных фактов кредита в уровень (ADR-0122). */
+CL.countedFacts = creditId => CL.state.facts.filter(f =>
+  f.creditId === creditId && !f.annulled && !!f.doc &&
+  f.counted <= CL.state.today && (!f.until || f.until >= CL.state.today));
+function factorLevelOf(creditId){
+  const lv = CL.countedFacts(creditId).map(f => KIND(f.kindId).level);
+  return lv.includes('высокий') ? 'высокий' : lv.includes('средний') ? 'средний' : 'нет';
+}
+CL.indicatorsOfCredit = credit => {
+  const o = overdueOf(credit);
+  return { daysOverdue:o.days, overdueLayer:o.layer, creditActive:credit.active,
+           defer181:credit.defer, factorLevel:factorLevelOf(credit.id) };
+};
+CL.indicatorsOfBorrower = b => {
+  const mine = CL.state.credits.filter(c => c.inn === b.inn);
+  return { procKind:b.proc || 'нет', roleEnd:b.roleEnd || 'нет',
+           everCredits:mine.length > 0, hasActive:mine.some(c => c.active),
+           anyOverdue:mine.some(c => c.active && overdueOf(c).days > 0) };
+};
+CL.valuesOf = (objType, objId) => objType === 'кредит'
+  ? CL.indicatorsOfCredit(CL.credit(objId))
+  : CL.indicatorsOfBorrower(CL.borrower(objId));
+
+/* ------------------------- ДВИЖОК ---------------------------------- *
+ * Знает предикаты, порядок разбора, область и значение по умолчанию.
+ * Ни Порядка №41, ни лестницы подгруппы здесь нет (ADR-0120, ADR-0124).
+ * ------------------------------------------------------------------- */
+CL.ind = id => CL.state.indicators.find(i => i.id === id);
+CL.clf = id => CL.state.classifiers.find(c => c.id === id);
+CL.credit = id => CL.state.credits.find(c => c.id === id);
+CL.borrower = inn => CL.state.borrowers.find(b => b.inn === inn);
+CL.activeVer = clfId => (CL.clf(clfId).versions || []).find(v => v.status === 'действующая') || null;
+CL.draftVer  = clfId => (CL.clf(clfId).versions || []).find(v => v.status === 'черновик') || null;
+
+function testPred(p, vals){
+  const a = vals[p.i];
+  if(p.op === '=')  return a === p.v;
+  if(p.op === '≠')  return a !== p.v;
+  if(p.op === '≥')  return Number(a) >= Number(p.v);
+  if(p.op === '≤')  return Number(a) <= Number(p.v);
+  return false;
+}
+function shownVal(v){ return typeof v === 'boolean' ? (v ? 'да' : 'нет') : String(v); }
+function phrase(p, vals){
+  const ind = CL.ind(p.i);
+  return (ind ? ind.name.toLowerCase() : p.i) + ' ' + p.op + ' ' + shownVal(p.v) +
+         ' (сейчас ' + shownVal(vals[p.i]) + ')';
+}
+CL.phrase = phrase;
+
+/* Результат: {ok, code, label, index, fired:[{norm,text}], why:[…]} либо отказ с причиной.
+   Отказ никогда не молчит — у него есть текст (§0.3). */
+CL.classifyWith = (ver, vals) => {
+  if(!ver) return {ok:false, why:['действующей версии нет — классификатор ничего не назначает']};
+  if(ver.status === 'черновик') return {ok:false, draft:true, why:['версия в черновике — не классифицирует (ADR-0125)']};
+  const scope = ver.scope || [];
+  if(!scope.every(p => testPred(p, vals)))
+    return {ok:false, out:true, why:['вне области классификатора: ' + scope.map(p => phrase(p, vals)).join(' и ')]};
+  for(let idx = 0; idx < ver.values.length; idx++){
+    const v = ver.values[idx];
+    /* Разбор останавливается на первом сработавшем ЗНАЧЕНИИ, но внутри значения проверяются
+       ВСЕ условия и отдаются все сработавшие: снятие одной причины значения не двинет (ИК-11). */
+    const fired = (v.rules || []).filter(r => r.preds.length && r.preds.every(p => testPred(p, vals)));
+    if(fired.length) return {ok:true, code:v.code, label:v.label, index:idx,
+      fired: fired.map(r => ({norm:r.norm, text:r.preds.map(p => phrase(p, vals)).join(' и ')})),
+      why: fired.map(r => r.preds.map(p => phrase(p, vals)).join(' и ') + ' — ' + r.norm)};
+    if(v.dflt) return {ok:true, code:v.code, label:v.label, index:idx, fired:[],
+      why:['ни одно условие выше не сработало — ' + (v.norm || 'значение по умолчанию')]};
+  }
+  return {ok:false, unclosed:true, why:['версия не замкнута: значения по умолчанию нет (ИК-3)']};
+};
+CL.classify = (clfId, objType, objId) => {
+  const ver = CL.activeVer(clfId);
+  /* Классификатор, у которого есть только черновик, — законное состояние, а не поломка:
+     он ничего не назначает и говорит об этом прямо (ADR-0125 §2, §0.3). */
+  if(!ver && CL.draftVer(clfId))
+    return {ok:false, draft:true, why:['действующей редакции нет — черновик значений не назначает (ADR-0125)']};
+  return CL.classifyWith(ver, CL.valuesOf(objType, objId));
+};
+
+/* --------------------------- ШОВ ----------------------------------- *
+ * Единственная дверь наружу (ADR-0124). На закрытую дату отдаёт ЗАПИСЬ ФИКСАЦИИ,
+ * на открытую — значение функции; потребитель различия не знает (ИК-8).
+ * ------------------------------------------------------------------- */
+CL.valueAt = (clfId, objType, objId, dateISO) => {
+  const date = dateISO || CL.state.today;
+  if(CL.isClosed(date)){
+    const rec = CL.state.records.find(r => r.period === ym(date) && r.clfId === clfId && r.objId === objId);
+    return rec
+      ? {source:'запись фиксации', ok:true, code:rec.code, label:rec.label, verNo:rec.verNo,
+         why: rec.conditions.map(c => c.text + ' — ' + c.norm), record:rec}
+      : {source:'записи нет', ok:false,
+         why:['за ' + monLabel(ym(date)) + ' записи по объекту нет — он был вне области либо период закрыт до его появления']};
+  }
+  const r = CL.classify(clfId, objType, objId);
+  return Object.assign({source:'расчёт', verNo:(CL.activeVer(clfId) || {}).no}, r);
+};
+/* Имя шва из ADR-0124. Заёмщик своего значения не имеет ни в открытом периоде, ни в
+   закрытом: и там и там это свёртка — по функции либо по записям того же периода
+   (ADR-0121, ADR-0001 «производные не хранятся»). */
+CL.riskCategory = (objType, objId, dateISO) => {
+  const date = dateISO || CL.state.today;
+  if(objType === 'заёмщик')
+    return CL.isClosed(date) ? CL.foldFromRecords(objId, ym(date))
+                             : Object.assign({source:'расчёт'}, CL.foldBorrower(objId));
+  return CL.valueAt('risk', objType, objId, date);
+};
+CL.foldFromRecords = (inn, per) => {
+  const ids = CL.state.credits.filter(c => c.inn === inn).map(c => c.id);
+  const recs = CL.state.records.filter(r => r.period === per && r.clfId === 'risk' && ids.includes(r.objId));
+  if(!recs.length) return {source:'записи нет', ok:false,
+    why:['за ' + monLabel(per) + ' записей по кредитам заёмщика нет — в области классификатора их не было']};
+  const verOf = no => CL.clf('risk').versions.find(v => v.no === no);
+  /* Тяжесть сравнивается индексом внутри ТОЙ редакции, которой запись сделана; при
+     несравнимых значениях свёртки нет и в прошлом (ИК-6). */
+  const bad = recs.find(r => { const v = verOf(r.verNo); return !v || !v.comparable; });
+  if(bad) return {source:'запись фиксации', ok:false, forbidden:true,
+    why:['свёртка запрещена: редакция ' + bad.verNo + ' не объявила значения сравнимыми по тяжести (ИК-6)']};
+  const idx = r => verOf(r.verNo).values.findIndex(x => x.code === r.code);
+  const worst = recs.reduce((a, r) => idx(r) < idx(a) ? r : a, recs[0]);
+  return {source:'запись фиксации', ok:true, code:worst.code, label:worst.label, verNo:worst.verNo,
+    sourceCreditId:worst.objId, counted:recs.length,
+    why: worst.conditions.map(c => c.text + ' — ' + c.norm)};
+};
+
+/* Свёртка живёт в шве, а не в конструкторе: она знает схему («действующие кредиты
+   заёмщика»), которой конструктор знать не должен (ADR-0126 §3). Признак сравнимости —
+   разрешение, которое шов обязан проверить (ИК-6). */
+CL.foldBorrower = inn => {
+  const ver = CL.activeVer('risk');
+  if(!ver) return {ok:false, why:['действующей версии риск-классификатора нет']};
+  if(!ver.comparable) return {ok:false, forbidden:true,
+    why:['свёртка запрещена: версия не объявила значения сравнимыми по тяжести (ИК-6)']};
+  const mine = CL.state.credits.filter(c => c.inn === inn);
+  const each = mine.map(c => ({credit:c, r:CL.classifyWith(ver, CL.indicatorsOfCredit(c))}))
+                   .filter(x => x.r.ok);
+  if(!each.length) return {ok:false, empty:true,
+    why:['в области классификатора нет ни одного кредита заёмщика — категории нет (ИК-7)']};
+  /* Порядок разбора при объявленной сравнимости идёт от тяжёлого, поэтому worst-of —
+     это минимальный индекс значения. Отдельного ранга у значения нет (ADR-0126 §1–2). */
+  const worst = each.reduce((a, x) => x.r.index < a.r.index ? x : a, each[0]);
+  return {ok:true, code:worst.r.code, label:worst.r.label, sourceCreditId:worst.credit.id,
+    counted:each.length, why:worst.r.why};
+};
+
+/* ------------- ПРОВЕРКА ПЕРЕД ПУБЛИКАЦИЕЙ (ИК-3…ИК-5, ИК-17) ------- *
+ * Отказ списком и по делу: молчаливого отказа быть не может (§0.3).
+ * ------------------------------------------------------------------- */
+CL.publishChecks = (clfId, ver) => {
+  const clf = CL.clf(clfId);
+  const v = ver || CL.draftVer(clfId);
+  const out = [];
+  if(!v) return ['черновика нет — публиковать нечего'];
+  if(!v.values.length) out.push('в версии нет ни одного значения');
+
+  const dflts = v.values.filter(x => x.dflt);
+  if(dflts.length !== 1) out.push('значений по умолчанию должно быть ровно одно, сейчас ' + dflts.length +
+    ' — иначе часть объектов молча осталась бы без значения (ИК-3)');
+  if(dflts.length === 1){
+    const d = dflts[0];
+    if(v.values.indexOf(d) !== v.values.length - 1)
+      out.push('значение по умолчанию «' + d.label + '» должно замыкать список, сейчас оно ' +
+        (v.values.indexOf(d) + 1) + '-е из ' + v.values.length + ' (ИК-3)');
+    if((d.rules || []).length)
+      out.push('у значения по умолчанию «' + d.label + '» есть условия — их быть не должно (ИК-3)');
+  }
+  v.values.forEach(x => {
+    if(!x.dflt && !(x.rules || []).length)
+      out.push('значение «' + x.label + '» недостижимо: условий нет, и значением по умолчанию оно не объявлено (ИК-17)');
+    (x.rules || []).forEach(r => {
+      if(!r.preds.length) out.push('условие ' + (r.norm || 'без пункта') + ' у значения «' + x.label + '» пустое');
+      if(!r.norm) out.push('у условия значения «' + x.label + '» не указан пункт основания');
+      r.preds.forEach(p => out.push(...predProblems(p, clf, x.label)));
+    });
+  });
+  (v.scope || []).forEach(p => out.push(...predProblems(p, clf, 'области')));
+  if(!v.basis) out.push('не указано основание версии — норма и её редакция (ADR-0125 §2)');
+  if(!v.from) out.push('не указана дата ввода в действие');
+  else if(v.from < CL.startOfOpen())
+    out.push('дата ввода в действие ' + fmt(v.from) + ' раньше начала открытого периода ' +
+      fmt(CL.startOfOpen()) + ' — закрытые периоды неприкосновенны (ИК-4)');
+  return out;
+};
+function predProblems(p, clf, where){
+  const out = [];
+  const ind = CL.ind(p.i);
+  if(!ind){ out.push('условие ' + where + ' ссылается на неизвестный показатель «' + p.i + '»'); return out; }
+  if(ind.retired) out.push('условие ' + where + ' ссылается на снятый показатель «' + ind.name + '» (ИК-5)');
+  /* Правило кредита вправе читать показатели заёмщика; обратного чтения нет (ИК-15). */
+  if(clf.object === 'заёмщик' && ind.obj === 'кредит')
+    out.push('условие ' + where + ' читает показатель кредита «' + ind.name +
+      '» — классификатор заёмщика вниз не смотрит (ИК-15)');
+  if(ind.type === 'перечисление' && !(ind.domain || []).includes(p.v))
+    out.push('условие ' + where + ': значение «' + shownVal(p.v) + '» не входит в домен показателя «' + ind.name + '» (ИК-5)');
+  if(ind.type === 'число' && !(typeof p.v === 'number' && isFinite(p.v)))
+    out.push('условие ' + where + ': показатель «' + ind.name + '» числовой, а константа не число');
+  if(ind.type === 'булево' && typeof p.v !== 'boolean')
+    out.push('условие ' + where + ': показатель «' + ind.name + '» булев, а константа не «да/нет»');
+  if(ind.type !== 'число' && (p.op === '≥' || p.op === '≤'))
+    out.push('условие ' + where + ': оператор ' + p.op + ' применим только к числовому показателю');
+  return out;
+}
+
+/* --------------------- ОПЕРАЦИИ КОНСТРУКТОРА ------------------------ */
+function guardDraft(clfId){
+  if(!CL.canEditConstructor()) return 'править конструктор вправе только администратор классификации';
+  const d = CL.draftVer(clfId);
+  if(!d) return 'действующая версия не правится: заведите новую редакцию — она откроется черновиком (ИК-2)';
+  return null;
+}
+CL.newDraft = clfId => {
+  if(!CL.canEditConstructor()) return {ok:false, why:'править конструктор вправе только администратор классификации'};
+  if(CL.draftVer(clfId)) return {ok:false, why:'черновик уже есть'};
+  const clf = CL.clf(clfId);
+  const base = CL.activeVer(clfId);
+  const copy = JSON.parse(JSON.stringify(base ? {scope:base.scope, values:base.values, comparable:base.comparable} : {scope:[], values:[], comparable:false}));
+  const no = Math.max(0, ...clf.versions.map(v => v.no)) + 1;
+  clf.versions.push({no, status:'черновик', basis:'', from:'', by:CL.state.role, at:null, until:null,
+    comparable:copy.comparable, scope:copy.scope, values:copy.values});
+  log('заведена редакция ' + no + ' классификатора «' + clf.name + '» (черновик)');
+  return {ok:true, no};
+};
+CL.publish = (clfId, opts) => {
+  const d = CL.draftVer(clfId);
+  if(!CL.canEditConstructor()) return {ok:false, refusals:['публикует только администратор классификации']};
+  if(!d) return {ok:false, refusals:['черновика нет']};
+  if(opts && opts.basis !== undefined) d.basis = opts.basis;
+  if(opts && opts.from !== undefined) d.from = opts.from;
+  const refusals = CL.publishChecks(clfId, d);
+  if(refusals.length) return {ok:false, refusals};
+  const prev = CL.activeVer(clfId);
+  if(prev){ prev.status = 'прошлая'; prev.until = d.from; }
+  d.status = 'действующая';
+  d.by = CL.state.role;
+  d.at = CL.state.today;
+  log('опубликована редакция ' + d.no + ' классификатора «' + CL.clf(clfId).name + '» с ' + fmt(d.from));
+  return {ok:true, no:d.no};
+};
+CL.addValue = (clfId, label) => {
+  const bad = guardDraft(clfId); if(bad) return {ok:false, why:bad};
+  const d = CL.draftVer(clfId);
+  let n = d.values.length + 1, code = 'v' + n;
+  while(d.values.some(v => v.code === code)) code = 'v' + (++n);
+  /* Новое значение встаёт ПЕРЕД значением по умолчанию: замыкающее остаётся последним (ИК-3). */
+  const at = d.values.findIndex(v => v.dflt);
+  const val = {code, label:label || 'Без названия', rules:[]};
+  if(at === -1) d.values.push(val); else d.values.splice(at, 0, val);
+  return {ok:true, code};
+};
+CL.removeValue = (clfId, code) => {
+  const bad = guardDraft(clfId); if(bad) return {ok:false, why:bad};
+  const d = CL.draftVer(clfId);
+  d.values = d.values.filter(v => v.code !== code);
+  return {ok:true};
+};
+CL.moveValue = (clfId, code, dir) => {
+  const bad = guardDraft(clfId); if(bad) return {ok:false, why:bad};
+  const d = CL.draftVer(clfId);
+  const i = d.values.findIndex(v => v.code === code);
+  const j = i + dir;
+  if(i < 0 || j < 0 || j >= d.values.length) return {ok:false, why:'двигать некуда'};
+  const t = d.values[i]; d.values[i] = d.values[j]; d.values[j] = t;
+  return {ok:true};
+};
+CL.setDefault = (clfId, code) => {
+  const bad = guardDraft(clfId); if(bad) return {ok:false, why:bad};
+  const d = CL.draftVer(clfId);
+  d.values.forEach(v => { delete v.dflt; });
+  const v = d.values.find(x => x.code === code);
+  if(!v) return {ok:false, why:'значения нет'};
+  v.dflt = true; v.rules = [];
+  /* Значение по умолчанию замыкает список — переставляем сразу, чтобы отказ не всплыл при публикации. */
+  d.values = d.values.filter(x => x.code !== code).concat([v]);
+  return {ok:true};
+};
+CL.setComparable = (clfId, on) => {
+  const bad = guardDraft(clfId); if(bad) return {ok:false, why:bad};
+  CL.draftVer(clfId).comparable = !!on;
+  return {ok:true};
+};
+CL.addRule = (clfId, code, norm) => {
+  const bad = guardDraft(clfId); if(bad) return {ok:false, why:bad};
+  const v = CL.draftVer(clfId).values.find(x => x.code === code);
+  if(!v) return {ok:false, why:'значения нет'};
+  if(v.dflt) return {ok:false, why:'у значения по умолчанию условий быть не может (ИК-3)'};
+  v.rules.push({norm:norm || '', preds:[]});
+  return {ok:true, index:v.rules.length - 1};
+};
+CL.removeRule = (clfId, code, ri) => {
+  const bad = guardDraft(clfId); if(bad) return {ok:false, why:bad};
+  const v = CL.draftVer(clfId).values.find(x => x.code === code);
+  v.rules.splice(ri, 1);
+  return {ok:true};
+};
+CL.setRuleNorm = (clfId, code, ri, norm) => {
+  const bad = guardDraft(clfId); if(bad) return {ok:false, why:bad};
+  CL.draftVer(clfId).values.find(x => x.code === code).rules[ri].norm = norm;
+  return {ok:true};
+};
+/* Предикат добавляется только выбором из реестра: свободных формул в конструкторе нет (ADR-0120). */
+CL.addPred = (clfId, code, ri) => {
+  const bad = guardDraft(clfId); if(bad) return {ok:false, why:bad};
+  const clf = CL.clf(clfId);
+  const ind = CL.state.indicators.find(i => !i.retired && CL.readable(clf.object, i.obj));
+  if(!ind) return {ok:false, why:'в реестре нет доступного показателя'};
+  CL.draftVer(clfId).values.find(x => x.code === code).rules[ri].preds.push(defaultPred(ind));
+  return {ok:true};
+};
+CL.removePred = (clfId, code, ri, pi) => {
+  const bad = guardDraft(clfId); if(bad) return {ok:false, why:bad};
+  CL.draftVer(clfId).values.find(x => x.code === code).rules[ri].preds.splice(pi, 1);
+  return {ok:true};
+};
+CL.setPred = (clfId, code, ri, pi, field, raw) => {
+  const bad = guardDraft(clfId); if(bad) return {ok:false, why:bad};
+  const p = CL.draftVer(clfId).values.find(x => x.code === code).rules[ri].preds[pi];
+  if(field === 'i'){ const ind = CL.ind(raw); Object.assign(p, defaultPred(ind)); }
+  else if(field === 'op') p.op = raw;
+  else {
+    const ind = CL.ind(p.i);
+    p.v = ind.type === 'число' ? Number(raw) : ind.type === 'булево' ? (raw === 'да' || raw === true) : raw;
+  }
+  return {ok:true};
+};
+function defaultPred(ind){
+  if(ind.type === 'число')  return {i:ind.id, op:'≥', v:0};
+  if(ind.type === 'булево') return {i:ind.id, op:'=', v:true};
+  return {i:ind.id, op:'=', v:(ind.domain || [''])[0]};
+}
+/* ИК-15: классификатор кредита читает и свои показатели, и показатели заёмщика; обратно — нет. */
+CL.readable = (clfObject, indObject) => clfObject === 'кредит' ? true : indObject === 'заёмщик';
+CL.opsFor = ind => ind.type === 'число' ? ['≥','≤','=','≠'] : ind.type === 'булево' ? ['=','≠'] : ['=','≠'];
+
+/* ------------------- РЕЕСТР ПОКАЗАТЕЛЕЙ ---------------------------- */
+CL.usedBy = indId => {
+  const hits = [];
+  CL.state.classifiers.forEach(c => c.versions.forEach(v => {
+    if(v.status === 'прошлая') return;
+    const inScope = (v.scope || []).some(p => p.i === indId);
+    const inRules = v.values.some(val => (val.rules || []).some(r => r.preds.some(p => p.i === indId)));
+    if(inScope || inRules) hits.push({clf:c.name, verNo:v.no, status:v.status, where:inScope ? 'область' : 'правило'});
+  }));
+  return hits;
+};
+CL.retireIndicator = id => {
+  if(!CL.canEditConstructor()) return {ok:false, why:'снимает показатели только администратор классификации'};
+  const ind = CL.ind(id);
+  if(!ind) return {ok:false, why:'показателя нет'};
+  if(ind.retired) return {ok:false, why:'уже снят'};
+  /* ИК-16: показатель, на который ссылается живая версия, с реестра не снимается —
+     иначе действующее правило осталось бы без входа, и отказ был бы молчаливым. */
+  const used = CL.usedBy(id).filter(u => u.status === 'действующая');
+  if(used.length) return {ok:false, why:'показатель используется: ' +
+    used.map(u => u.clf + ', редакция ' + u.verNo + ' (' + u.where + ')').join('; ') + ' (ИК-16)'};
+  ind.retired = true;
+  log('показатель «' + ind.name + '» снят с реестра');
+  return {ok:true};
+};
+CL.addIndicator = spec => {
+  if(!CL.canEditConstructor()) return {ok:false, why:'заводит показатели только администратор классификации'};
+  if(!spec.id || CL.ind(spec.id)) return {ok:false, why:'идентификатор пуст или занят'};
+  if(!spec.owner) return {ok:false, why:'у показателя обязан быть владелец — он и считает значение (ADR-0120 §2)'};
+  CL.state.indicators.push({id:spec.id, name:spec.name || spec.id, obj:spec.obj || 'кредит',
+    type:spec.type || 'булево', domain:spec.domain || null, src:spec.src || 'расчёт',
+    owner:spec.owner, retired:false, note:spec.note || ''});
+  log('заведён показатель «' + (spec.name || spec.id) + '» (владелец — ' + spec.owner + ')');
+  return {ok:true};
+};
+
+/* ---------------------- ФАКТЫ (ADR-0122) --------------------------- */
+CL.addFact = spec => {
+  if(!CL.canEnterFacts()) return {ok:false, why:'наблюдатель факты не вводит'};
+  if(!CL.credit(spec.creditId)) return {ok:false, why:'кредита нет'};
+  if(!KIND(spec.kindId)) return {ok:false, why:'вид фактора не выбран'};
+  if(!spec.occurred) return {ok:false, why:'не указана дата наступления'};
+  if(spec.occurred > CL.state.today) return {ok:false, why:'дата наступления в будущем'};
+  /* ИК-9: факт, наступивший в закрытом периоде, влияет на значение с начала открытого.
+     Прошлое не переписывается, но и факт не теряется — в реестре стоят обе даты. */
+  const counted = CL.isClosed(spec.occurred) ? CL.startOfOpen() : spec.occurred;
+  const id = 'F-' + String(CL.state.facts.length + 1).padStart(3, '0');
+  CL.state.facts.push({id, creditId:spec.creditId, kindId:spec.kindId, occurred:spec.occurred,
+    counted, until:spec.until || null, doc:spec.doc || null, by:CL.state.role, annulled:null});
+  log('заведён факт ' + id + ' по ' + spec.creditId + ' — ' + KIND(spec.kindId).name +
+      (counted !== spec.occurred ? ' (учтён с ' + fmt(counted) + ')' : ''));
+  return {ok:true, id, counted};
+};
+/* Корректировка не удаляет факт и не трогает закрытые периоды: они пересчёту не подлежат
+   (ADR-0122 решение 5, ИК-8). */
+CL.annulFact = (id, reason) => {
+  if(!CL.canEnterFacts()) return {ok:false, why:'наблюдатель факты не правит'};
+  const f = CL.state.facts.find(x => x.id === id);
+  if(!f) return {ok:false, why:'факта нет'};
+  if(f.annulled) return {ok:false, why:'уже аннулирован'};
+  if(!reason) return {ok:false, why:'аннулирование без причины не принимается'};
+  f.annulled = {reason, by:CL.state.role, at:CL.state.today};
+  log('факт ' + id + ' аннулирован: ' + reason);
+  return {ok:true};
+};
+/* Судьба факта. Список причин закрытый — по нему фильтруют и считают (ИК-12). */
+CL.factFate = (f, chosenCode, ver) => {
+  if(f.annulled) return 'аннулирован';
+  if(!f.doc) return 'не засчитан: нет решения комитета';
+  if(f.until && f.until < CL.state.today) return 'не засчитан: интервал истёк';
+  const v = ver || CL.activeVer('risk');
+  if(v && v.comparable && chosenCode){
+    const own = valueIndexByFactorLevel(v, KIND(f.kindId).level);
+    const chosen = v.values.findIndex(x => x.code === chosenCode);
+    if(own > -1 && chosen > -1 && own > chosen) return 'не засчитан: ведёт к более лёгкому значению, чем выбранное';
+  }
+  return 'засчитан';
+};
+/* Какое значение дал бы фактор сам по себе — берётся из правил версии, не из таблицы рангов. */
+function valueIndexByFactorLevel(ver, level){
+  return ver.values.findIndex(v => (v.rules || []).some(r =>
+    r.preds.some(p => p.i === 'factorLevel' && p.op === '=' && p.v === level)));
+}
+
+/* ---------- ЗАКРЫТИЕ ПЕРИОДА И ФИКСАЦИЯ (ADR-0123) ----------------- */
+CL.closePeriod = () => {
+  if(!CL.canClosePeriod()) return {ok:false, why:'период закрывает администратор классификации'};
+  const p = CL.openPeriod();
+  if(!p) return {ok:false, why:'открытых периодов нет'};
+  const asOf = first(nextM(p));
+  /* ИК-13: закрывать можно только после окончания месяца и только самый ранний открытый. */
+  if(CL.state.today < asOf) return {ok:false, why:'период ' + monLabel(p) +
+    ' ещё не завершён: закрытие возможно с ' + fmt(asOf)};
+  const written = [];
+  CL.state.classifiers.forEach(clf => {
+    const ver = CL.activeVer(clf.id);
+    if(!ver) return;
+    const objs = clf.object === 'кредит'
+      ? CL.state.credits.map(c => ({type:'кредит', id:c.id}))
+      : CL.state.borrowers.map(b => ({type:'заёмщик', id:b.inn}));
+    objs.forEach(o => {
+      const r = CL.classifyWith(ver, CL.valuesOf(o.type, o.id));
+      /* ИК-7: вне области запись не пишется вовсе — закрытие дешевеет ровно на такие объекты. */
+      if(!r.ok) return;
+      CL.state.records.push({period:p, clfId:clf.id, verNo:ver.no, objType:o.type, objId:o.id,
+        code:r.code, label:r.label, by:CL.state.role, at:CL.state.today, asOf,
+        conditions:(r.fired.length ? r.fired : [{norm:'по умолчанию', text:r.why[0]}]),
+        factIds: o.type === 'кредит' ? CL.countedFacts(o.id).map(f => f.id) : []});
+      written.push(o.id);
+    });
+  });
+  CL.state.closedPeriods.push(p);
+  CL.state.periodMeta[p] = {by:CL.state.role, at:CL.state.today};
+  log('период ' + monLabel(p) + ' закрыт, записей фиксации: ' + written.length);
+  return {ok:true, period:p, written:written.length, asOf};
+};
+/* Отчёт п. 12: по состоянию на 1-е число, не позднее 15-го. Просрочка — предупреждение,
+   период она не запирает (ИК-14). */
+CL.report12 = periodId => {
+  const p = periodId || CL.state.closedPeriods[CL.state.closedPeriods.length - 1];
+  const meta = CL.state.periodMeta[p] || {};
+  const recs = CL.state.records.filter(r => r.period === p && r.clfId === 'risk');
+  const ver = CL.activeVer('risk');
+  const order = (ver ? ver.values : []).map(v => ({code:v.code, label:v.label}));
+  const rows = order.map(o => ({code:o.code, label:o.label, count:recs.filter(r => r.code === o.code).length}));
+  const other = recs.filter(r => !order.some(o => o.code === r.code));
+  if(other.length) rows.push({code:'—', label:'значения прежних редакций', count:other.length});
+  const deadline = day15(nextM(p));
+  const late = meta.at ? meta.at > deadline : CL.state.today > deadline;
+  return {period:p, asOf:first(nextM(p)), deadline, late, closedAt:meta.at || null, by:meta.by || null,
+    total:recs.length, rows,
+    lateBy: late && meta.at ? daysBetween(deadline, meta.at) : 0};
+};
+
+function log(msg){ CL.state.log.unshift({at:CL.state.today, who:CL.state.role, msg}); }
+
+/* ===================================================================== *
+ *                              ЭКРАНЫ
+ * ===================================================================== */
+const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, m => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[m]));
+const $ = s => (typeof document === 'undefined' ? null : document.querySelector(s));
+const pillFor = code => code === 'high' ? 'err' : code === 'mid' ? 'warn' : code === 'low' ? 'ok' : 'neutral';
+
+CL.go = v => { CL.state.view = v; render(); };
+CL.setRole = r => { CL.state.role = r; render(); };
+CL.setAsOf = d => { CL.state.asOf = d; render(); };
+
+const TITLES = {clf:'Классификаторы', ind:'Реестр показателей', facts:'Факты (п. 11)',
+  show:'Витрина результата', per:'Периоды и фиксация'};
+
+function render(){
+  if(typeof document === 'undefined') return;   // без DOM рисовать нечего (смоук)
+  const st = CL.state;
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.v === st.view));
+  $('#title').textContent = TITLES[st.view];
+  const sel = $('#role');
+  sel.innerHTML = ROLES.map(r => `<option${r === st.role ? ' selected' : ''}>${esc(r)}</option>`).join('');
+  const dates = [first('2026-06'), first('2026-07'), st.today];
+  $('#asOf').innerHTML = dates.map(d => `<option value="${d}"${d === st.asOf ? ' selected' : ''}>${fmt(d)} · ${
+    CL.isClosed(d) ? 'закрытый период' : 'открытый период'}</option>`).join('');
+  $('#foot').innerHTML = `Учётный период <b>${monLabel(CL.openPeriod() || '—')}</b> — открыт.<br>
+    Сегодня ${fmt(st.today)}. Закрыто: ${st.closedPeriods.map(monLabel).join(', ') || '—'}.`;
+  $('#panel').innerHTML =
+    st.view === 'clf'  ? viewClassifiers() :
+    st.view === 'ind'  ? viewIndicators()  :
+    st.view === 'facts'? viewFacts()       :
+    st.view === 'show' ? viewShowcase()    : viewPeriods();
+}
+CL.render = render;
+
+function toast(msg, kind){
+  if(typeof document === 'undefined') return;
+  const w = document.getElementById('toastWrap'); if(!w) return;
+  const t = document.createElement('div');
+  t.className = 'toast' + (kind ? ' ' + kind : '');
+  t.textContent = msg; w.appendChild(t);
+  setTimeout(() => t.remove(), 5200);
+}
+function act(res, okMsg){
+  if(res && res.ok){ if(okMsg) toast(okMsg, 'ok'); }
+  else toast((res && (res.why || (res.refusals || [])[0])) || 'отказано', 'err');
+  render();
+}
+
+/* ------------------------ ЭКРАН: КЛАССИФИКАТОРЫ --------------------- */
+function verPill(v){
+  return v.status === 'действующая' ? '<span class="pill ok">действующая</span>'
+       : v.status === 'черновик'    ? '<span class="pill warn">черновик</span>'
+                                    : '<span class="pill neutral">прошлая</span>';
+}
+function predHtml(clfId, code, ri, pi, p, editable){
+  const clf = CL.clf(clfId);
+  const ind = CL.ind(p.i) || {name:p.i, type:'—', domain:[]};
+  if(!editable){
+    return `<span class="pred"><code class="mono">${esc(ind.name)}</code> ${p.op}
+      <code class="mono">${esc(shownVal(p.v))}</code></span>`;
+  }
+  const inds = CL.state.indicators.filter(i => (!i.retired || i.id === p.i) && CL.readable(clf.object, i.obj));
+  const opts = inds.map(i => `<option value="${i.id}"${i.id === p.i ? ' selected' : ''}>${esc(i.name)}${i.retired ? ' (снят)' : ''}</option>`).join('');
+  const ops = CL.opsFor(ind).map(o => `<option${o === p.op ? ' selected' : ''}>${o}</option>`).join('');
+  const val = ind.type === 'число'
+    ? `<input type="number" style="width:110px" value="${esc(p.v)}" onchange="act(CL.setPred('${clfId}','${code}',${ri},${pi},'v',this.value))">`
+    : ind.type === 'булево'
+    ? `<select onchange="act(CL.setPred('${clfId}','${code}',${ri},${pi},'v',this.value))">
+         <option${p.v === true ? ' selected' : ''}>да</option><option${p.v === false ? ' selected' : ''}>нет</option></select>`
+    : `<select onchange="act(CL.setPred('${clfId}','${code}',${ri},${pi},'v',this.value))">${
+        (ind.domain || []).map(d => `<option${d === p.v ? ' selected' : ''}>${esc(d)}</option>`).join('')}</select>`;
+  return `<span class="pred">
+    <select onchange="act(CL.setPred('${clfId}','${code}',${ri},${pi},'i',this.value))">${opts}</select>
+    <select onchange="act(CL.setPred('${clfId}','${code}',${ri},${pi},'op',this.value))">${ops}</select>
+    ${val}
+    <button class="btn btn-secondary btn-sm" onclick="act(CL.removePred('${clfId}','${code}',${ri},${pi}))">✕</button></span>`;
+}
+function valueHtml(clfId, ver, v, idx, editable){
+  const rules = (v.rules || []).map((r, ri) => `
+    <div class="rule">
+      <div class="rule-h">
+        <span>условие ${ri + 1} ·</span>
+        ${editable
+          ? `<input value="${esc(r.norm)}" placeholder="пункт основания" style="height:28px;width:190px;border:1px solid var(--border-strong);border-radius:4px;padding:0 8px"
+               onchange="act(CL.setRuleNorm('${clfId}','${v.code}',${ri},this.value))">
+             <button class="btn btn-secondary btn-sm" onclick="act(CL.removeRule('${clfId}','${v.code}',${ri}))">удалить условие</button>`
+          : `<b>${esc(r.norm || 'без пункта')}</b>`}
+      </div>
+      ${r.preds.map((p, pi) => predHtml(clfId, v.code, ri, pi, p, editable))
+              .join('<span class="and">и</span>')}
+      ${editable ? `<div><button class="btn btn-secondary btn-sm" onclick="act(CL.addPred('${clfId}','${v.code}',${ri}))">+ предикат</button></div>` : ''}
+    </div>`).join('');
+  const body = v.dflt
+    ? `<div class="small">условий нет — <b>значение по умолчанию</b>, замыкает список${v.norm ? ' · ' + esc(v.norm) : ''}</div>`
+    : (v.rules || []).length ? rules
+    : `<div class="small">условий нет — значение объявлено, но назначено быть не может (ИК-17)</div>`;
+  return `<div class="val">
+    <div class="val-h">
+      <span class="nm">${idx + 1}. ${esc(v.label)}</span>
+      ${v.dflt ? '<span class="pill info">по умолчанию</span>' : ''}
+      ${editable ? `<span class="acts">
+        <button class="btn btn-secondary btn-sm" onclick="act(CL.moveValue('${clfId}','${v.code}',-1))">↑</button>
+        <button class="btn btn-secondary btn-sm" onclick="act(CL.moveValue('${clfId}','${v.code}',1))">↓</button>
+        ${v.dflt ? '' : `<button class="btn btn-secondary btn-sm" onclick="act(CL.addRule('${clfId}','${v.code}',''))">+ условие</button>
+        <button class="btn btn-secondary btn-sm" onclick="act(CL.setDefault('${clfId}','${v.code}'))">сделать по умолчанию</button>`}
+        <button class="btn btn-secondary btn-sm" onclick="act(CL.removeValue('${clfId}','${v.code}'))">удалить</button></span>` : ''}
+    </div>
+    <div class="val-b">${body}</div></div>`;
+}
+function viewClassifiers(){
+  const st = CL.state;
+  const list = st.classifiers.map(c => {
+    const a = CL.activeVer(c.id), d = CL.draftVer(c.id);
+    return `<button class="clf ${c.id === st.curClf ? 'on' : ''}" onclick="CL.pick('${c.id}')">
+      <b>${esc(c.name)}</b>
+      <span class="small">объект: ${c.object} · ${a ? 'редакция ' + a.no + ', действует с ' + fmt(a.from) : 'действующей редакции нет'}${d ? ' · есть черновик' : ''}</span></button>`;
+  }).join('');
+
+  const clf = CL.clf(st.curClf);
+  const draft = CL.draftVer(clf.id);
+  const active = CL.activeVer(clf.id);
+  const shown = draft || active || clf.versions[clf.versions.length - 1];
+  const editable = !!draft && CL.canEditConstructor() && shown === draft;
+  const refusals = draft ? CL.publishChecks(clf.id, draft) : [];
+
+  const journal = clf.versions.slice().sort((a, b) => b.no - a.no).map(v => `
+    <tr><td><b>${v.no}</b></td><td>${verPill(v)}</td>
+      <td>${esc(v.basis || '—')}</td>
+      <td>${v.from ? fmt(v.from) : '—'}${v.until ? ' — ' + fmt(v.until) : ''}</td>
+      <td>${esc(v.by || '—')}${v.at ? '<div class="small">' + fmt(v.at) + '</div>' : ''}</td>
+      <td>${v.values.length}</td></tr>`).join('');
+
+  const scope = (shown.scope || []).length
+    ? shown.scope.map(p => { const i = CL.ind(p.i) || {name:p.i};
+        return `<code class="mono">${esc(i.name)}</code> ${p.op} <code class="mono">${esc(shownVal(p.v))}</code>`; }).join(' и ')
+    : 'все объекты типа «' + clf.object + '»';
+
+  return `<div class="cols">
+    <div class="side">
+      <div class="card"><h3>Классификаторы</h3>${list}
+        <div class="note">Значения ведутся здесь. В разделе «Справочники» строки
+        <code>borrower-groups</code> и <code>loan-payment-capacity-groups</code> остаются
+        зеркалом на чтение: у классификации одна дверь (ADR-0125 §3).</div></div>
+    </div>
+    <div class="body">
+      <div class="card">
+        <h3>${esc(clf.name)} <span class="small">· объект: ${clf.object}</span></h3>
+        <div class="kv">
+          <div class="k">Показана редакция</div><div class="v">${shown.no} ${verPill(shown)}</div>
+          <div class="k">Основание</div><div class="v">${esc(shown.basis || '— (черновик)')}</div>
+          <div class="k">Действует с</div><div class="v">${shown.from ? fmt(shown.from) : '—'}</div>
+          <div class="k">Ввёл в действие</div><div class="v">${esc(shown.by || '—')}${shown.at ? ', ' + fmt(shown.at) : ''}</div>
+          <div class="k">Область (условие входа)</div><div class="v">${scope}</div>
+          <div class="k">Значения сравнимы по тяжести</div><div class="v">
+            ${shown.comparable ? 'да' : 'нет'}
+            ${editable ? `<button class="btn btn-secondary btn-sm" style="margin-left:8px"
+                onclick="act(CL.setComparable('${clf.id}', ${!shown.comparable}))">переключить</button>` : ''}
+            <div class="small">${shown.comparable
+              ? 'разбор идёт от тяжёлого, свёртка worst-of на заёмщика разрешена (ИК-6)'
+              : 'порядок разбора тяжести не означает — свернуть такие значения нельзя (ИК-6)'}</div></div>
+        </div>
+        <div class="btn-row">
+          ${draft ? '' : `<button class="btn btn-primary" onclick="act(CL.newDraft('${clf.id}'),'заведена новая редакция — правьте черновик')">Новая редакция</button>`}
+          ${draft && !editable && CL.canEditConstructor() ? '' : ''}
+        </div>
+        <div class="note">${draft
+          ? 'Действующая редакция не правится: правки идут в черновик и вступают в силу публикацией (ИК-2).'
+          : 'Правка действующей редакции невозможна. «Новая редакция» откроет черновик — копию действующей.'}</div>
+      </div>
+
+      <div class="card">
+        <h3>Значения и условия — в порядке разбора</h3>
+        ${shown.values.map((v, i) => valueHtml(clf.id, shown, v, i, editable)).join('')}
+        ${editable ? `<div class="btn-row">
+          <input id="newVal" placeholder="наименование значения" style="height:36px;min-width:260px;border:1px solid var(--border-strong);border-radius:4px;padding:0 10px">
+          <button class="btn btn-secondary" onclick="CL.addValueUI('${clf.id}')">+ значение</button></div>` : ''}
+        <div class="note">Объекту присваивается <b>первое значение</b>, у которого сработало хотя бы одно
+        условие; внутри значения проверяются все условия, и в объяснение уходят все сработавшие (ИК-11).
+        Условие — конъюнкция скалярных предикатов над показателями реестра: свободных формул,
+        скриптов и обращений к таблицам в конструкторе нет (ADR-0120, ADR-0125 §1).</div>
+      </div>
+
+      ${draft ? `<div class="card">
+        <h3>Публикация редакции ${draft.no}</h3>
+        <div class="form-row">
+          <div class="fld"><label>Основание (норма и редакция)</label>
+            <input id="pubBasis" value="${esc(draft.basis)}" placeholder="например: Порядок №41 от 06.07.2026, п. 11"></div>
+          <div class="fld"><label>Дата ввода в действие</label>
+            <input id="pubFrom" type="date" value="${esc(draft.from)}"></div>
+          <button class="btn btn-success" onclick="CL.publishUI('${clf.id}')" ${refusals.length ? 'disabled' : ''}>Ввести в действие</button>
+        </div>
+        ${refusals.length
+          ? `<div class="banner danger" style="margin-top:12px"><b>Публикация невозможна — ${refusals.length}:</b>
+             <ul>${refusals.map(r => '<li>' + esc(r) + '</li>').join('')}</ul></div>`
+          : `<div class="banner ok" style="margin-top:12px">Проверки пройдены: список замкнут значением по
+             умолчанию, показатели живы, дата не раньше начала открытого периода ${fmt(CL.startOfOpen())}.</div>`}
+        <div class="note">Отказ не молчит и не копится по одному: перечисляются все причины сразу (§0.3).
+        Дата ввода в действие может быть в прошлом, но не раньше начала открытого периода — иначе
+        версия дотянулась бы до зафиксированного (ИК-4).</div>
+      </div>` : ''}
+
+      <div class="card">
+        <h3>Журнал редакций</h3>
+        <table class="cgrid"><thead><tr><th>№</th><th>Статус</th><th>Основание</th>
+          <th>Действует</th><th>Кто ввёл</th><th>Значений</th></tr></thead>
+          <tbody>${journal}</tbody></table>
+        <div class="note">Запись фиксации ссылается на конкретную редакцию, а не на «текущую»:
+        поэтому июнь читается по редакции 1, даже когда действует редакция 2 (ИК-8).</div>
+      </div>
+    </div></div>`;
+}
+CL.pick = id => { CL.state.curClf = id; render(); };
+CL.addValueUI = clfId => {
+  const el = $('#newVal');
+  const label = el && el.value.trim();
+  if(!label){ toast('укажите наименование значения', 'err'); return; }
+  act(CL.addValue(clfId, label), 'значение добавлено');
+};
+CL.publishUI = clfId => {
+  const basis = ($('#pubBasis') || {}).value || '';
+  const from = ($('#pubFrom') || {}).value || '';
+  const res = CL.publish(clfId, {basis, from});
+  if(res.ok){ toast('редакция ' + res.no + ' введена в действие', 'ok'); render(); }
+  else { toast(res.refusals[0], 'err'); render(); }
+};
+
+/* ------------------------ ЭКРАН: ПОКАЗАТЕЛИ ------------------------- */
+function viewIndicators(){
+  const rows = CL.state.indicators.map(i => {
+    const used = CL.usedBy(i.id);
+    return `<tr${i.retired ? ' class="out"' : ''}>
+      <td class="mono">${esc(i.id)}</td>
+      <td>${esc(i.name)}${i.note ? '<div class="small">' + esc(i.note) + '</div>' : ''}</td>
+      <td>${esc(i.obj)}</td>
+      <td>${esc(i.type)}${i.domain ? '<div class="small">' + i.domain.map(esc).join(' · ') + '</div>' : ''}</td>
+      <td>${esc(i.src)}</td>
+      <td>${esc(i.owner)}</td>
+      <td>${used.length ? used.map(u => esc(u.clf) + ' <span class="small">ред. ' + u.verNo + ', ' + esc(u.where) + '</span>').join('<br>') : '<span class="muted">не используется</span>'}</td>
+      <td>${i.retired ? '<span class="pill neutral">снят</span>'
+        : `<button class="btn btn-secondary btn-sm" onclick="act(CL.retireIndicator('${i.id}'),'показатель снят')">снять</button>`}</td></tr>`;
+  }).join('');
+  return `<p class="page-lead">Показатель — именованный вход классификатора, а не поле объекта.
+    Реестр хранит имя, тип, объект, источник и владельца; способа вычисления в нём нет — он у
+    владельца данных (ADR-0120 §1–2).</p>
+    <div class="card">
+      <h3>Реестр показателей</h3>
+      <table class="cgrid"><thead><tr><th>Идентификатор</th><th>Наименование</th><th>Объект</th>
+        <th>Тип</th><th>Источник</th><th>Владелец</th><th>Используется</th><th></th></tr></thead>
+        <tbody>${rows}</tbody></table>
+      <div class="note">Показатели-перечисления <code>procKind</code>, <code>roleEnd</code> и
+        <code>overdueLayer</code> уже свернули коллекцию связанных записей (процедуры, события роли,
+        слои требования) — поэтому предикат остаётся скалярным и квантора в конструкторе нет
+        (ADR-0125 §1).</div>
+      <div class="note">Пара <code>daysOverdue</code> + <code>overdueLayer</code> считается платежами
+        одним расчётом и публикуется вместе: одно число без имени слоя показывать нельзя — заёмщик,
+        честно платящий по мировому соглашению, увидел бы чужую просрочку без пояснения (ИК-18).</div>
+      <div class="note">Снять показатель, на который ссылается действующая редакция, нельзя (ИК-16):
+        правило осталось бы без входа. Сначала новая редакция без него — потом снятие.</div>
+    </div>
+    <div class="card">
+      <h3>Завести показатель</h3>
+      <div class="form-row">
+        <div class="fld"><label>Идентификатор</label><input id="niId" placeholder="например: pledgeCover"></div>
+        <div class="fld"><label>Наименование</label><input id="niName" placeholder="Покрытие залогом ниже порога"></div>
+        <div class="fld"><label>Объект</label><select id="niObj"><option>кредит</option><option>заёмщик</option></select></div>
+        <div class="fld"><label>Тип</label><select id="niType"><option>булево</option><option>число</option><option>перечисление</option></select></div>
+        <div class="fld"><label>Владелец (кто считает)</label><input id="niOwner" placeholder="например: Залог"></div>
+        <button class="btn btn-primary" onclick="CL.addIndicatorUI()">Завести</button>
+      </div>
+      <div class="note">Владелец обязателен: реестр хранит имя того, кто считает величину, и не хранит
+        способ вычисления. Домен перечисления заводится вместе с показателем — предикат сравнивает
+        значение с элементом домена, а не со свободной строкой.</div>
+    </div>`;
+}
+CL.addIndicatorUI = () => {
+  const g = id => (($('#' + id) || {}).value || '').trim();
+  const type = g('niType');
+  act(CL.addIndicator({id:g('niId'), name:g('niName'), obj:g('niObj'), type,
+    domain: type === 'перечисление' ? ['нет','да'] : null, owner:g('niOwner')}), 'показатель заведён');
+};
+
+/* --------------------------- ЭКРАН: ФАКТЫ --------------------------- */
+function factRow(f, showCredit){
+  const k = KIND(f.kindId);
+  const cls = f.annulled ? 'annul' : (CL.factFate(f) === 'засчитан' ? 'yes' : 'no');
+  const late = f.counted !== f.occurred;
+  return `<tr>
+    ${showCredit ? '<td class="mono">' + esc(f.creditId) + '</td>' : ''}
+    <td class="mono">${esc(f.id)}</td>
+    <td>${esc(k.name)}<div class="small">${esc(k.norm)} · уровень: ${esc(k.level)}</div></td>
+    <td>${fmt(f.occurred)}${late ? '<div class="small">учтён с <b>' + fmt(f.counted) + '</b> — ' +
+        monLabel(ym(f.occurred)) + ' закрыт, прошлое не переписывается (ИК-9)</div>' : ''}</td>
+    <td>${f.doc ? esc(f.doc) : '<span class="pill err">решения комитета нет</span>'}</td>
+    <td>${f.until ? fmt(f.until) : '<span class="muted">бессрочно</span>'}</td>
+    <td class="${cls === 'annul' ? 'muted' : ''}">${f.annulled
+      ? 'аннулирован ' + fmt(f.annulled.at) + '<div class="small">' + esc(f.annulled.reason) + '</div>'
+      : esc(CL.factFate(f))}</td>
+    <td>${f.annulled ? '' : `<button class="btn btn-secondary btn-sm" onclick="CL.annulUI('${f.id}')">аннулировать</button>`}</td></tr>`;
+}
+function viewFacts(){
+  const rows = CL.state.facts.map(f => factRow(f, true)).join('');
+  const creditOpts = CL.state.credits.map(c => `<option>${esc(c.id)}</option>`).join('');
+  const kindOpts = FACTOR_KINDS.map(k => `<option value="${k.id}">${esc(k.name)} — ${esc(k.norm)}, ${esc(k.level)}</option>`).join('');
+  return `<p class="page-lead">Руками вводится <b>факт</b>, а не значение: категорию по фактам выводит
+    движок (ADR-0122, ИК-1). Фактор без решения комитета в показатель не попадает, но остаётся
+    виден с причиной — молчаливого отказа нет (ИК-10, ИК-12).</p>
+    <div class="card">
+      <h3>Завести факт по кредиту</h3>
+      <div class="form-row">
+        <div class="fld"><label>Кредит</label><select id="fCredit">${creditOpts}</select></div>
+        <div class="fld"><label>Вид фактора (п. 11)</label><select id="fKind">${kindOpts}</select></div>
+        <div class="fld"><label>Дата наступления</label><input id="fWhen" type="date" value="${CL.state.today}"></div>
+        <div class="fld"><label>Решение комитета</label><input id="fDoc" placeholder="протокол КАБК № … от …"></div>
+        <div class="fld"><label>Действует до</label><input id="fUntil" type="date"></div>
+        <button class="btn btn-primary" onclick="CL.addFactUI()">Завести факт</button>
+      </div>
+      <div class="note">Уровень и пункт приходят из справочника вместе с видом фактора — человек их не
+        выбирает. Дата в закрытом периоде принимается: факт учтётся с ${fmt(CL.startOfOpen())} — начала
+        открытого периода, и в реестре встанут обе даты (ИК-9).</div>
+    </div>
+    <div class="card">
+      <h3>Реестр фактов</h3>
+      <table class="cgrid"><thead><tr><th>Кредит</th><th>ID</th><th>Вид фактора</th>
+        <th>Наступил</th><th>Решение комитета</th><th>Действует до</th><th>Судьба</th><th></th></tr></thead>
+        <tbody>${rows}</tbody></table>
+      <div class="note">Причины незачёта — закрытый список из трёх: нет решения комитета · интервал
+        истёк · ведёт к более лёгкому значению, чем выбранное. Свободного текста в этой колонке нет,
+        иначе по ней нельзя было бы ни фильтровать, ни считать (ИК-12).</div>
+      <div class="note">Аннулирование не удаляет факт: он остаётся в реестре с причиной и автором,
+        а пересчёт затрагивает только открытый период (ADR-0122, ИК-8).</div>
+    </div>`;
+}
+CL.addFactUI = () => {
+  const g = id => (($('#' + id) || {}).value || '').trim();
+  act(CL.addFact({creditId:g('fCredit'), kindId:g('fKind'), occurred:g('fWhen'),
+    doc:g('fDoc') || null, until:g('fUntil') || null}), 'факт заведён');
+};
+CL.annulUI = id => {
+  const reason = typeof prompt === 'function' ? prompt('Причина аннулирования факта ' + id + ':') : 'ошибка ввода';
+  if(!reason) return;
+  act(CL.annulFact(id, reason), 'факт аннулирован');
+};
+
+/* ------------------------- ЭКРАН: ВИТРИНА --------------------------- */
+function factsBlock(creditId, chosenCode){
+  const fs = CL.state.facts.filter(f => f.creditId === creditId);
+  if(!fs.length) return '';
+  const items = fs.map(f => {
+    const k = KIND(f.kindId);
+    const fate = f.annulled ? 'аннулирован — ' + f.annulled.reason : CL.factFate(f, chosenCode);
+    const cls = f.annulled ? 'annul' : fate === 'засчитан' ? 'yes' : 'no';
+    const late = f.counted !== f.occurred;
+    return `<div class="f ${cls}">${esc(k.name)} · ${esc(k.norm)} · ${f.doc ? esc(f.doc) : 'решения комитета нет'}
+      — <em>${esc(fate)}</em>${late ? '<br>наступил ' + fmt(f.occurred) + ', учтён с ' + fmt(f.counted) +
+      ' — ' + monLabel(ym(f.occurred)) + ' зафиксирован' : ''}</div>`;
+  }).join('');
+  return `<div class="facts"><div class="small"><b>Реестр фактов кредита</b></div>${items}</div>`;
+}
+function viewShowcase(){
+  const st = CL.state;
+  const closed = CL.isClosed(st.asOf);
+  const rows = st.credits.map(c => {
+    const seam = CL.riskCategory('кредит', c.id, st.asOf);
+    const o = overdueOf(c);
+    const days = o.days ? `${o.days} <span class="small">· ${esc(o.layer)}</span>` : '0';
+    const cell = seam.ok
+      ? `<span class="pill ${pillFor(seam.code)}">${esc(seam.label)}</span>
+         <div class="small">редакция ${seam.verNo || '—'} · источник: ${esc(seam.source)}</div>
+         ${seam.why.map(w => '<div class="why">' + esc(w) + '</div>').join('')}
+         ${closed ? '' : factsBlock(c.id, seam.code)}`
+      : `<span class="pill neutral">значения нет</span>
+         ${seam.why.map(w => '<div class="why">' + esc(w) + '</div>').join('')}`;
+    return `<tr${seam.ok ? '' : ' class="out"'}>
+      <td><b>${esc(c.id)}</b><div class="small">${esc((CL.borrower(c.inn) || {}).name)}</div></td>
+      <td>${days}${c.defer ? '<div class="why">' + esc(c.deferNote) + '</div>' : ''}</td>
+      <td>${cell}</td></tr>`;
+  }).join('');
+
+  const cards = st.borrowers.map(b => {
+    const fold = CL.riskCategory('заёмщик', b.inn, st.asOf);
+    const sub = CL.valueAt('sub', 'заёмщик', b.inn, st.asOf);
+    const grp = sub.ok && !['none','closed'].includes(sub.code) ? sub.code[0] : null;
+    const pay = CL.classify('pay', 'заёмщик', b.inn);
+    return `<div class="card">
+      <h3>${esc(b.name)} <span class="small">· ИНН ${esc(b.inn)} · ${esc(b.kind)}</span></h3>
+      <div class="kv">
+        <div class="k">Категория риска</div><div class="v">${fold.ok
+          ? `<span class="pill ${pillFor(fold.code)}">${esc(fold.label)}</span>
+             <div class="small">свёртка worst-of по ${fold.counted} кредитам в области; источник —
+             <b>${esc(fold.sourceCreditId)}</b>. Своего классификатора у заёмщика нет (ADR-0121)</div>`
+          : `<span class="pill neutral">нет</span><div class="small">${esc(fold.why[0])}</div>`}</div>
+        <div class="k">Подгруппа</div><div class="v">${sub.ok
+          ? esc(sub.label) + '<div class="small">' + sub.why.map(esc).join(' · ') +
+            '</div><div class="small">свернуть подгруппу нельзя: признака сравнимости у версии нет (ИК-6)</div>'
+          : '<span class="pill neutral">нет</span><div class="small">' + esc(sub.why[0]) + '</div>'}</div>
+        <div class="k">Группа</div><div class="v">${grp
+          ? grp + '<div class="small">первый разряд подгруппы; отдельным значением не заводится (ADR-0012)</div>'
+          : '— <div class="small">вне лестницы группы нет</div>'}</div>
+        <div class="k">Платёжеспособность</div><div class="v">—
+          <div class="small">${esc(pay.why[0])}</div></div>
+      </div></div>`;
+  }).join('');
+
+  return `<p class="page-lead">Витрина не считает категорию: она спрашивает шов
+    <code>riskCategory(объект, дата)</code> и печатает объяснение (ADR-0124). На закрытую дату шов
+    отдаёт запись фиксации, на открытую — значение функции; потребитель различия не знает (ИК-8).</p>
+    <div class="banner ${closed ? 'info' : 'ok'}">Дата среза <b>${fmt(st.asOf)}</b> —
+      ${closed ? 'период ' + monLabel(ym(st.asOf)) + ' <b>закрыт</b>: показываются записи фиксации, пересчёта нет.'
+               : 'период <b>открыт</b>: значение считается сейчас и меняется с каждым новым фактом.'}</div>
+    <div class="card">
+      <h3>Кредиты</h3>
+      <table class="cgrid"><thead><tr><th>Договор</th><th>Дней просрочки · слой</th>
+        <th>Категория и объяснение</th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="note">Одно число «дней просрочки» не показывается нигде: рядом всегда слой-источник
+        (ИК-18). Объяснение несёт <b>все</b> сработавшие условия выбранного значения — видно, что
+        снятие одной причины значения не двинет (ИК-11).</div>
+    </div>
+    <div class="section-h">Заёмщики</div>
+    <p class="page-lead">Категория заёмщика — свёртка, а не собственный классификатор; подгруппа —
+      отдельный классификатор с тем же движком и другим порядком разбора.</p>
+    ${cards}`;
+}
+
+/* ------------------- ЭКРАН: ПЕРИОДЫ И ФИКСАЦИЯ ---------------------- */
+function viewPeriods(){
+  const st = CL.state;
+  const open = CL.openPeriod();
+  const asOf = open ? first(nextM(open)) : null;
+  const canClose = open && st.today >= asOf;
+  const periods = st.months.map(m => {
+    const s = CL.periodStatus(m);
+    const meta = st.periodMeta[m] || {};
+    const cnt = st.records.filter(r => r.period === m).length;
+    return `<tr><td>${monLabel(m)}</td>
+      <td>${s === 'закрыт' ? '<span class="pill neutral">закрыт</span>'
+        : s === 'открыт' ? '<span class="pill ok">открыт</span>' : '<span class="pill info">будущий</span>'}</td>
+      <td>${meta.at ? fmt(meta.at) : '—'}</td><td>${esc(meta.by || '—')}</td>
+      <td>${cnt || '—'}</td></tr>`;
+  }).join('');
+
+  const rep = CL.report12();
+  const repRows = rep.rows.map(r => `<tr><td>${esc(r.label)}</td><td class="mono">${r.count}</td></tr>`).join('');
+
+  const recs = st.records.slice().sort((a, b) => a.period < b.period ? 1 : -1).map(r => `
+    <tr><td>${monLabel(r.period)}</td><td class="mono">${esc(r.objId)}</td>
+      <td>${esc(r.objType)}</td>
+      <td><span class="pill ${pillFor(r.code)}">${esc(r.label)}</span>
+        <div class="small">${esc(CL.clf(r.clfId).name)}, редакция ${r.verNo}</div></td>
+      <td>${r.conditions.map(c => '<div class="why">' + esc(c.text) + ' — <em>' + esc(c.norm) + '</em></div>').join('')}
+        ${r.factIds.length ? '<div class="small">факты: ' + r.factIds.map(esc).join(', ') + '</div>' : ''}</td>
+      <td>${esc(r.by)}<div class="small">${fmt(r.at)} · срез ${fmt(r.asOf)}</div></td></tr>`).join('');
+
+  return `<p class="page-lead">Закрытие учётного периода — это и есть фиксация: по каждому объекту в
+    области пишется запись со значением, редакцией, всеми сработавшими условиями и засчитанными
+    фактами. Записи неизменны: ни корректировка факта, ни новая редакция нормы прошлое не
+    переписывают (ADR-0123).</p>
+    <div class="banner ${canClose ? 'warn' : 'info'}">
+      Открыт период <b>${open ? monLabel(open) : '—'}</b>.
+      ${canClose ? 'Закрытие возможно с ' + fmt(asOf) + ' — срез на 1-е число, срок сдачи отчёта п. 12 — ' + fmt(day15(nextM(open))) + '.'
+                 : 'Закрывать рано: период не завершён, закрытие откроется ' + fmt(asOf) + ' (ИК-13).'}
+    </div>
+    <div class="btn-row" style="margin-bottom:14px">
+      <button class="btn btn-primary" onclick="CL.closeUI()" ${canClose && CL.canClosePeriod() ? '' : 'disabled'}>
+        Закрыть период ${open ? monLabel(open) : ''}</button>
+    </div>
+    <div class="card">
+      <h3>Учётные периоды</h3>
+      <table class="cgrid"><thead><tr><th>Период</th><th>Статус</th><th>Закрыт</th><th>Кто закрыл</th>
+        <th>Записей</th></tr></thead><tbody>${periods}</tbody></table>
+      <div class="note">Закрытый период обратно не открывается, и закрываются они по порядку (ИК-13).
+        Фиксацию делает человек, закрывающий месяц, — не ночной процесс: у записи есть автор.</div>
+    </div>
+    <div class="card">
+      <h3>Отчёт п. 12 — ${monLabel(rep.period)}</h3>
+      <div class="kv">
+        <div class="k">По состоянию на</div><div class="v">${fmt(rep.asOf)}</div>
+        <div class="k">Срок представления</div><div class="v">не позднее ${fmt(rep.deadline)}</div>
+        <div class="k">Фактически сформирован</div><div class="v">${rep.closedAt ? fmt(rep.closedAt) : '—'}
+          ${rep.closedAt ? (rep.late ? '<span class="pill err">просрочен на ' + rep.lateBy + ' дн.</span>'
+                                     : '<span class="pill ok">в срок</span>') : ''}</div>
+        <div class="k">Всего кредитов в отчёте</div><div class="v">${rep.total}</div>
+      </div>
+      <table class="cgrid" style="margin-top:12px"><thead><tr><th>Категория</th><th>Кредитов</th></tr></thead>
+        <tbody>${repRows}</tbody></table>
+      <div class="note">Просроченный срок п. 12 печатается предупреждением и период не запирает:
+        в сводку препятствий закрытия классификация ничего не добавляет (ИК-14).</div>
+    </div>
+    <div class="card">
+      <h3>Записи фиксации</h3>
+      <table class="cgrid"><thead><tr><th>Период</th><th>Объект</th><th>Тип</th><th>Значение</th>
+        <th>Сработавшие условия</th><th>Кто закрыл</th></tr></thead><tbody>${recs}</tbody></table>
+      <div class="note">Объектов вне области в записях нет вовсе: недействующий кредит значения не
+        получает, и закрытие дешевеет ровно на такие объекты (ИК-7). Отчёт обязан различать «вне
+        области» и «записи нет»: первое нормально, второе — дефект.</div>
+    </div>
+    ${st.log.length ? `<div class="card"><h3>Журнал действий сессии</h3>
+      <table class="cgrid"><thead><tr><th>Дата</th><th>Кто</th><th>Что</th></tr></thead>
+      <tbody>${st.log.map(l => `<tr><td>${fmt(l.at)}</td><td>${esc(l.who)}</td><td>${esc(l.msg)}</td></tr>`).join('')}</tbody>
+      </table></div>` : ''}`;
+}
+CL.closeUI = () => {
+  const res = CL.closePeriod();
+  if(res.ok) toast('период ' + monLabel(res.period) + ' закрыт: записей — ' + res.written, 'ok');
+  else toast(res.why, 'err');
+  render();
+};
+
+if(typeof window !== 'undefined') window.CL = CL;
+if(typeof document !== 'undefined') render();
+</script>
+</body>
+</html>
