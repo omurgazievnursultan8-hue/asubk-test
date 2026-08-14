@@ -30,8 +30,13 @@
   - ADR-0124: витрина читает результат и печатает объяснение; своей арифметики у неё нет.
   - ADR-0125: предикат скалярен (квантор свёрнут в показатель-перечисление); у версии есть
     черновик и дата ввода в действие; значения принадлежат версии.
+  - ADR-0126: порядок — только порядок разбора; тяжесть объявляется признаком сравнимости,
+    без него свёртка запрещена; версия замыкается значением по умолчанию и ограничивается
+    условием входа (областью).
+  - ADR-0127: объяснение несёт все сработавшие условия выбранного значения; незачёт с
+    причиной и две даты — в реестре фактов; «дни просрочки» приходят парой со слоем-источником.
 
-  НАЙДЕНО ПРИ СБОРКЕ (в ADR ещё не отражено) — см. блок «Заметки сборки» на экране.
+  Сборка этого наброска и вскрыла то, что закрыто в 0126/0127 — см. блок в конце страницы.
 -->
 <style>
 :root{
@@ -106,20 +111,28 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;ba
   <div class="period" id="period"></div>
   <div id="screen"></div>
   <div class="note">
-    <h3>Заметки сборки — то, чего в ADR ещё нет</h3>
+    <h3>Что сборка вскрыла и чем это закрыто</h3>
     <ol>
-      <li><b>Порядок значений — не всегда «от худшего».</b> У риск-категории он именно такой,
-        у лестницы это <em>порядок доминирования</em>, и начинается он со ступени «кредитов
-        не было» — значения, которое худшим не является вовсе. ADR-0120 говорит «от худшего
-        к лучшему»; вернее сказать «порядок разбора, задаваемый методом».</li>
-      <li><b>«Иначе» — тоже правило, и оно обязано быть последним.</b> В обоих
-        классификаторах последнее значение берётся без условий. Конструктору нужен явный
-        признак «значение по умолчанию», иначе admin оставит список без замыкания и часть
-        объектов останется без значения молча.</li>
-      <li><b>Черновик без правил обязан жить.</b> «Группа платёжеспособности» заведена
-        значениями, но правил нет — классификатор существует и не классифицирует ничего.
-        Это состояние надо показывать, а не считать ошибкой.</li>
+      <li><b>Порядок значений — не всегда «от худшего».</b> У лестницы это порядок
+        доминирования, и первым стоит «кредитов не было». Закрыто <b>ADR-0126</b>: порядок
+        один и называется порядком разбора; тяжесть объявляется отдельным признаком
+        сравнимости, без которого свёртка запрещена технически.</li>
+      <li><b>Список ничем не замкнут, и отвечает он про всех.</b> Закрыто <b>ADR-0126</b>:
+        обязательное значение по умолчанию (последнее, без условий, иначе версия не
+        публикуется) плюс условие входа — область, вне которой значения нет и запись
+        фиксации не пишется.</li>
+      <li><b>Факт, не вошедший в объяснение, читался как причина значения.</b> Закрыто
+        <b>ADR-0127</b>: объяснение несёт все сработавшие условия выбранного значения, а
+        незачёт с причиной живёт в реестре фактов кредита — там же две даты для факта,
+        наступившего в закрытом периоде.</li>
+      <li><b>Числа «дней просрочки у кредита» не существует</b> — величина принадлежит слою
+        требования (§6.7 макета платежей). Закрыто <b>ADR-0127</b>: объект остаётся кредитом,
+        а свёртка по слоям уезжает в пару показателей одного владельца — «дней просрочки
+        (худший слой)» и «слой-источник».</li>
     </ol>
+    <p style="margin:8px 0 0"><b>Открыто:</b> черновик со значениями, но без правил
+    («Группа платёжеспособности») — состояние законное, но кто и когда обязан его дописать,
+    не решено.</p>
   </div>
 </main>
 
@@ -131,7 +144,12 @@ code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px;ba
  * показателя-перечисления, в правило он не попадает.
  * ------------------------------------------------------------------ */
 const INDICATORS = [
-  {id:'daysOverdue', name:'Дней просрочки',                              obj:'кредит',  type:'число',        src:'расчёт',        owner:'Кредиты'},
+  /* ADR-0127 §4: числа «дней просрочки у кредита» не существует — величина принадлежит
+     слою требования. Свёртка по слоям сделана владельцем (платежи) и опубликована парой:
+     число и слой, из которого оно взято. Считаются вместе, разойтись не могут. */
+  {id:'daysOverdue', name:'Дней просрочки (худший слой)',                obj:'кредит',  type:'число',        src:'расчёт',        owner:'Платежи'},
+  {id:'overdueLayer',name:'Слой-источник просрочки',                     obj:'кредит',  type:'перечисление', src:'расчёт',        owner:'Платежи'},
+  {id:'creditActive',name:'Кредит действующий',                          obj:'кредит',  type:'булево',       src:'расчёт',        owner:'Кредиты'},
   {id:'factorLevel', name:'Максимальный уровень действующего фактора п. 11', obj:'кредит', type:'перечисление', src:'ввод пользователя', owner:'Классификация'},
   {id:'defer181',    name:'Перевод на 181-й день отложен',               obj:'кредит',  type:'булево',       src:'расчёт',        owner:'Взыскание'},
   {id:'procKind',    name:'Максимальный вид живой подтверждённой процедуры', obj:'заёмщик', type:'перечисление', src:'расчёт',      owner:'Взыскание'},
@@ -150,7 +168,10 @@ const IND = Object.fromEntries(INDICATORS.map(i=>[i.id,i]));
 const CLASSIFIERS = [
 {
   id:'risk', name:'Категория кредитного риска', object:'кредит',
-  version:{no:1, status:'действующая', basis:'Порядок №41 от 06.07.2026', from:'06.07.2026', by:'Администратор'},
+  version:{no:1, status:'действующая', basis:'Порядок №41 от 06.07.2026', from:'06.07.2026', by:'Администратор',
+    /* ADR-0126 §2: свёртка worst-of разрешена только этим признаком, а не совпадением
+       порядка с тяжестью. ADR-0126 §5: область — такое же условие над показателями. */
+    comparable:true, scope:[{i:'creditActive',op:'=',v:true}]},
   values:[
     {code:'high', label:'Высокий кредитный риск', rules:[
       {point:'п. 19.1', preds:[{i:'daysOverdue',op:'≥',v:181},{i:'defer181',op:'=',v:false}]},
@@ -160,12 +181,15 @@ const CLASSIFIERS = [
       {point:'п. 16.1', preds:[{i:'daysOverdue',op:'≥',v:1}]},
       {point:'п. 11.2', preds:[{i:'factorLevel',op:'=',v:'средний'}]}
     ]},
-    {code:'low', label:'Низкий кредитный риск', rules:[], otherwise:true, point:'п. 11.1'}
+    {code:'low', label:'Низкий кредитный риск', rules:[], dflt:true, point:'п. 11.1'}
   ]
 },
 {
   id:'sub', name:'Подгруппа заёмщика', object:'заёмщик',
-  version:{no:1, status:'действующая', basis:'Проектное решение ADR-0012 · лестница §3 спеки заёмщика', from:'01.08.2026', by:'Администратор'},
+  version:{no:1, status:'действующая', basis:'Проектное решение ADR-0012 · лестница §3 спеки заёмщика', from:'01.08.2026', by:'Администратор',
+    /* Порядок разбора здесь — доминирование, а не тяжесть: первым стоит «кредитов не было».
+       Признака сравнимости нет, и свернуть лестницу нельзя технически (ADR-0126 §1–2). */
+    comparable:false, scope:[]},
   values:[
     {code:'none', label:'Кредитов не было', rules:[{point:'ступень 0', preds:[{i:'everCredits',op:'=',v:false}]}]},
     {code:'3.2',  label:'3.2 · Банкротство завершено', rules:[{point:'ступень 1', preds:[{i:'roleEnd',op:'=',v:'завершено банкротство'}]}]},
@@ -176,12 +200,13 @@ const CLASSIFIERS = [
     {code:'2.1',  label:'2.1 · Судебное взыскание',    rules:[{point:'ступень 2', preds:[{i:'procKind',op:'=',v:'суд'}]}]},
     {code:'closed',label:'Кредиты закрыты',            rules:[{point:'ступень 3', preds:[{i:'hasActive',op:'=',v:false}]}]},
     {code:'1.2',  label:'1.2 · Просрочка по действующим', rules:[{point:'ступень 4', preds:[{i:'anyOverdue',op:'=',v:true}]}]},
-    {code:'1.1',  label:'1.1 · Погашают по графику',   rules:[], otherwise:true, point:'ступень 5'}
+    {code:'1.1',  label:'1.1 · Погашают по графику',   rules:[], dflt:true, point:'ступень 5'}
   ]
 },
 {
   id:'pay', name:'Группа платёжеспособности', object:'заёмщик',
-  version:{no:1, status:'черновик', basis:'—', from:'—', by:'Администратор'},
+  version:{no:1, status:'черновик', basis:'—', from:'—', by:'Администратор', comparable:false, scope:[]},
+  /* Ни правил, ни значения по умолчанию — версия не публикуется (ADR-0126 §4). */
   values:[{code:'p1',label:'Высокая',rules:[]},{code:'p2',label:'Средняя',rules:[]},{code:'p3',label:'Низкая',rules:[]}]
 }];
 const CLF = Object.fromEntries(CLASSIFIERS.map(c=>[c.id,c]));
@@ -197,12 +222,23 @@ const BORROWERS = [
    proc:null, roleEnd:null}
 ];
 const CREDITS = [
-  {id:'КД-2024/117', inn:'02107201910148', active:true, days:214, defer:false,
-   factors:[{kind:'нецелевое использование средств', level:'высокий', point:'п. 11.3', doc:'протокол КАБК № 14 от 22.05.2026'}]},
-  {id:'КД-2025/043', inn:'02107201910148', active:true, days:0,  defer:false, factors:[]},
-  {id:'КД-2025/088', inn:'22508199500821', active:true, days:12, defer:false, factors:[]},
-  {id:'КД-2023/210', inn:'22508199500821', active:true, days:200, defer:true,
-   deferNote:'перевод отложен: рассмотрение реструктуризации до 24.08.2026 — условие п. 19.1 не сработало', factors:[]}
+  /* days/layer — пара от платежей: число и слой, из которого оно взято (ADR-0127 §4).
+     У фактов: occurred — дата наступления, counted — дата, с которой факт влияет на
+     значение; они расходятся, если факт наступил в закрытом периоде (ADR-0123 §5). */
+  {id:'КД-2024/117', inn:'02107201910148', active:true, days:214, layer:'свободный слой', defer:false,
+   factors:[{kind:'нецелевое использование средств', level:'высокий', point:'п. 11.3',
+             doc:'протокол КАБК № 14 от 22.05.2026', occurred:'22.05.2026', counted:'22.05.2026'}]},
+  {id:'КД-2025/043', inn:'02107201910148', active:true, days:0, layer:'—', defer:false,
+   factors:[{kind:'уклонение от подписания акта сверки', level:'средний', point:'п. 11.2',
+             doc:null, occurred:'03.08.2026', counted:null}]},
+  {id:'КД-2025/088', inn:'22508199500821', active:true, days:12, layer:'свободный слой', defer:false,
+   factors:[{kind:'ухудшение состояния залога', level:'средний', point:'п. 11.2',
+             doc:'протокол КАБК № 19 от 30.07.2026', occurred:'12.06.2026', counted:'01.08.2026'}]},
+  {id:'КД-2023/210', inn:'22508199500821', active:true, days:200, layer:'свободный слой', defer:true,
+   deferNote:'перевод отложен: рассмотрение реструктуризации до 24.08.2026 — условие п. 19.1 не сработало', factors:[]},
+  /* Вне области версии: условие входа «кредит действующий = да» не выполнено. Значения нет,
+     запись фиксации не пишется (ADR-0126 §5). */
+  {id:'КД-2019/004', inn:'22508199500821', active:false, days:0, layer:'—', defer:false, factors:[]}
 ];
 /* Зафиксированная запись прошлого периода (ADR-0123): не пересчитывается. */
 const FIXED_JULY = {'КД-2024/117':'mid','КД-2025/043':'low','КД-2025/088':'low','КД-2023/210':'mid'};
@@ -210,10 +246,15 @@ const FIXED_JULY = {'КД-2024/117':'mid','КД-2025/043':'low','КД-2025/088':
 /* ------------------------------------------------------------------ *
  * ВЫЧИСЛЕНИЕ ПОКАЗАТЕЛЕЙ — у владельцев, не в классификаторе.
  * ------------------------------------------------------------------ */
+/* Фактор влияет на значение, только если у него есть решение комитета (ADR-0065, ADR-0122)
+   и он уже учитывается — то есть попал в открытый период (ADR-0123 §5). */
+const factCounts = f => !!f.doc && !!f.counted;
 function indicatorsOfCredit(c){
-  const lv = c.factors.map(f=>f.level);
+  const lv = c.factors.filter(factCounts).map(f=>f.level);
   return {
     daysOverdue:c.days,
+    overdueLayer:c.layer,
+    creditActive:c.active,
     defer181:c.defer,
     factorLevel: lv.includes('высокий') ? 'высокий' : lv.includes('средний') ? 'средний' : 'нет'
   };
@@ -243,14 +284,18 @@ function test(p, vals){
 }
 function classify(clf, vals){
   if(clf.version.status!=='действующая') return {value:null, why:'классификатор в черновике — не классифицирует'};
+  /* Область проверяется раньше значений: вне её объект значения не получает вовсе,
+     и это говорится словами, а не прочерком (ADR-0126 §5). */
+  if(!(clf.version.scope||[]).every(p=>test(p,vals)))
+    return {value:null, out:true, why:'вне области классификатора: '+clf.version.scope.map(p=>phrase(p,vals)).join(' и ')};
   for(const v of clf.values){
-    for(const r of v.rules){
-      if(r.preds.every(p=>test(p,vals)))
-        return {value:v, rule:r, why:r.preds.map(p=>phrase(p,vals)).join(' и ')+' — '+r.point};
-    }
-    if(v.otherwise) return {value:v, why:'ни одно условие выше не сработало — '+(v.point||'иначе')};
+    /* Разбор останавливается на первом сработавшем ЗНАЧЕНИИ, но внутри значения
+       проверяются все условия и отдаются все сработавшие (ADR-0127 §1). */
+    const fired = v.rules.filter(r=>r.preds.every(p=>test(p,vals)));
+    if(fired.length) return {value:v, fired, why:fired.map(r=>r.preds.map(p=>phrase(p,vals)).join(' и ')+' — '+r.point)};
+    if(v.dflt) return {value:v, fired:[], why:['ни одно условие выше не сработало — '+(v.point||'по умолчанию')]};
   }
-  return {value:null, why:'ни одно условие не сработало и значения по умолчанию нет'};
+  return {value:null, why:'список не замкнут: значения по умолчанию нет — такая версия не публикуется'};
 }
 function phrase(p, vals){
   const n = IND[p.i].name.toLowerCase();
@@ -293,9 +338,10 @@ function screenConstructor(){
       ${v.rules.length ? '<ul>'+v.rules.map(r=>`<li>${r.preds.map(p=>
           `<code>${esc(IND[p.i].name)}</code> ${p.op} <code>${typeof p.v==='boolean'?(p.v?'да':'нет'):esc(p.v)}</code>`
         ).join(' <b>и</b> ')} <span class="why">— ${esc(r.point)}</span></li>`).join('')+'</ul>'
-      : v.otherwise ? `<div class="otherwise">условий нет — <b>значение по умолчанию</b> ${v.point?'· '+esc(v.point):''}</div>`
+      : v.dflt ? `<div class="otherwise">условий нет — <b>значение по умолчанию</b>, замыкает список ${v.point?'· '+esc(v.point):''}</div>`
       : '<div class="otherwise">правил нет — значение объявлено, но не назначается</div>'}
     </div>`).join('');
+  const closed = c.values.some(v=>v.dflt);
 
   return `<div class="cols">
     <div class="side"><div class="card"><h3>Классификаторы</h3>${list}
@@ -309,52 +355,96 @@ function screenConstructor(){
           <b>Объект:</b> ${c.object} &nbsp;·&nbsp; <b>Версия:</b> ${c.version.no}
           ${c.version.status==='действующая'?'<span class="tag t-live">действующая</span>':'<span class="tag t-draft">черновик</span>'}<br>
           <b>Основание:</b> ${esc(c.version.basis)} &nbsp;·&nbsp;
-          <b>Действует с:</b> ${c.version.from} &nbsp;·&nbsp; <b>Ввёл в действие:</b> ${c.version.by}
+          <b>Действует с:</b> ${c.version.from} &nbsp;·&nbsp; <b>Ввёл в действие:</b> ${c.version.by}<br>
+          <b>Область:</b> ${(c.version.scope||[]).length
+            ? c.version.scope.map(p=>`<code>${esc(IND[p.i].name)}</code> ${p.op} <code>${typeof p.v==='boolean'?(p.v?'да':'нет'):esc(p.v)}</code>`).join(' и ')
+            : 'все объекты типа «'+c.object+'»'} &nbsp;·&nbsp;
+          <b>Значения сравнимы по тяжести:</b> ${c.version.comparable
+            ? 'да <span class="why">— разбор идёт от тяжёлого, свёртка worst-of разрешена</span>'
+            : 'нет <span class="why">— порядок разбора не означает тяжесть, свёртка запрещена</span>'}
         </p>
         <h3>Значения и условия — в порядке разбора</h3>
         ${vals}
-        <p class="why">Объекту присваивается <b>первое</b> значение, у которого сработало хотя бы
-        одно условие. Условие — конъюнкция скалярных предикатов над показателями; свободных
-        формул и скриптов в конструкторе нет (ADR-0120, ADR-0125).</p>
+        <p class="why">Объекту присваивается <b>первое значение</b>, у которого сработало хотя бы
+        одно условие; внутри значения проверяются все условия, и в объяснение уходят все
+        сработавшие (ADR-0127). Условие — конъюнкция скалярных предикатов над показателями;
+        свободных формул и скриптов в конструкторе нет (ADR-0120, ADR-0125).</p>
+        ${closed ? '' : `<p class="why"><b>Публикация невозможна:</b> в списке нет значения по
+        умолчанию — версия не замкнута, часть объектов осталась бы без значения молча
+        (ADR-0126 §4).</p>`}
       </div>
     </div>
   </div>`;
+}
+
+/* Судьба факта: почему он не попал в объяснение. Список причин закрытый — по нему
+   фильтруют и считают, свободного текста здесь нет (ADR-0127, границы). */
+const RANK = {high:3, mid:2, low:1};
+const LEVEL_CODE = {'высокий':'high','средний':'mid'};
+function factFate(f, chosenCode){
+  if(!f.doc) return 'не засчитан: нет решения комитета';
+  if(!f.counted) return 'не засчитан: решение не проведено';
+  if(RANK[LEVEL_CODE[f.level]] < RANK[chosenCode]) return 'не засчитан: ведёт к более лёгкому значению, чем выбранное';
+  return 'засчитан';
+}
+function factRows(c, chosenCode){
+  if(!c.factors.length) return '';
+  const rows = c.factors.map(f=>{
+    const fate = factFate(f, chosenCode);
+    const late = f.counted && f.counted!==f.occurred;
+    return `<div class="why">факт: ${esc(f.kind)} · ${esc(f.point)} · ${f.doc?esc(f.doc):'решения комитета нет'}
+      — <em>${esc(fate)}</em>${late?`<br>наступил ${f.occurred}, учтён с ${f.counted} — июнь и июль зафиксированы, прошлое не переписывается`:''}</div>`;
+  }).join('');
+  return `<div style="margin-top:6px"><span class="why"><b>Реестр фактов кредита</b></span>${rows}</div>`;
 }
 
 function screenShowcase(){
   const rows = CREDITS.map(c=>{
     const vals = indicatorsOfCredit(c);
     const r = classify(CLF.risk, vals);
-    /* Факт показывается всегда, но помечается — вошёл он в сработавшее условие или нет.
-       Иначе зарегистрированный факт читается как причина значения, которой он не был. */
-    const used = !!(r.rule && r.rule.preds.some(p=>p.i==='factorLevel'));
-    const fx = c.factors.map(f=>`<div class="why">факт: ${esc(f.kind)} · ${esc(f.point)} · ${esc(f.doc)}
-        — <em>${used?'засчитан в сработавшем условии':'зарегистрирован, в сработавшее условие не вошёл'}</em></div>`).join('');
+    const bname = BORROWERS.find(b=>b.inn===c.inn).name;
+    const daysCell = c.days ? `${c.days} <span class="why">· ${esc(c.layer)}</span>` : '0';
+    if(r.out) return `<tr>
+      <td><b>${c.id}</b><br><span class="why">${esc(bname)}</span></td>
+      <td>${daysCell}</td>
+      <td><span class="tag t-none">значения нет</span><div class="why">${esc(r.why)}</div></td>
+      <td class="frozen"><span class="tag t-none">записи нет</span>
+          <div class="why">вне области — фиксация по нему не пишется</div></td>
+    </tr>`;
+    /* Объяснение — ВСЕ сработавшие условия выбранного значения. Снятие одной причины
+       значения не двинет, и это должно быть видно (ADR-0127 §1). */
+    const why = r.why.map(w=>`<div class="why">${esc(w)}</div>`).join('');
     return `<tr>
-      <td><b>${c.id}</b><br><span class="why">${esc(BORROWERS.find(b=>b.inn===c.inn).name)}</span></td>
-      <td>${c.days}${c.defer?'<div class="why">'+esc(c.deferNote)+'</div>':''}</td>
+      <td><b>${c.id}</b><br><span class="why">${esc(bname)}</span></td>
+      <td>${daysCell}${c.defer?'<div class="why">'+esc(c.deferNote)+'</div>':''}</td>
       <td><span class="tag ${tagOf(r.value.code)}">${esc(r.value.label)}</span>
-          <div class="why">${esc(r.why)}</div>${fx}</td>
+          ${why}${factRows(c, r.value.code)}</td>
       <td class="frozen"><span class="tag ${tagOf(FIXED_JULY[c.id])}">${esc(CLF.risk.values.find(v=>v.code===FIXED_JULY[c.id]).label)}</span>
           <div class="why">запись фиксации, версия 1</div></td>
     </tr>`;
   }).join('');
 
   const cards = BORROWERS.map(b=>{
+    /* Свёртка живёт здесь, в шве, а не в конструкторе: она знает схему («действующие
+       кредиты заёмщика»), которой конструктор знать не должен. Признак сравнимости —
+       разрешение, и шов обязан его проверить перед свёрткой (ADR-0126 §2–3). */
     const mine = CREDITS.filter(c=>c.inn===b.inn && c.active);
-    const each = mine.map(c=>({c, r:classify(CLF.risk, indicatorsOfCredit(c))}));
-    const rank = {high:3, mid:2, low:1};
-    const worst = each.reduce((a,x)=> rank[x.r.value.code] > rank[a.r.value.code] ? x : a, each[0]);
+    const each = mine.map(c=>({c, r:classify(CLF.risk, indicatorsOfCredit(c))})).filter(x=>x.r.value);
+    const allowed = CLF.risk.version.comparable;
+    const worst = allowed && each.length
+      ? each.reduce((a,x)=> RANK[x.r.value.code] > RANK[a.r.value.code] ? x : a, each[0]) : null;
     const sub = classify(CLF.sub, indicatorsOfBorrower(b));
     const grp = ['none','closed'].includes(sub.value.code) ? null : sub.value.code[0];
     return `<div class="card">
       <h3>${esc(b.name)} <span class="why">· ИНН ${b.inn} · ${b.kind}</span></h3>
       <p class="meta"><b>Категория:</b>
-        <span class="tag ${tagOf(worst.r.value.code)}">${esc(worst.r.value.label)}</span>
-        <span class="why">свёртка worst-of по ${mine.length} действующим кредитам;
-        источник — <b>${worst.c.id}</b>. Своего классификатора у заёмщика нет (ADR-0121)</span></p>
+        ${worst ? `<span class="tag ${tagOf(worst.r.value.code)}">${esc(worst.r.value.label)}</span>
+        <span class="why">свёртка worst-of по ${mine.length} действующим кредитам в области;
+        источник — <b>${worst.c.id}</b>. Своего классификатора у заёмщика нет (ADR-0121)</span>`
+        : '<span class="tag t-none">свёртка недоступна</span><span class="why">классификатор не объявил значения сравнимыми по тяжести</span>'}</p>
       <p class="meta"><b>Подгруппа:</b> ${esc(sub.value.label)}
-        <span class="why">${esc(sub.why)}</span></p>
+        <span class="why">${sub.why.map(esc).join(' · ')}</span>
+        <span class="why">свернуть подгруппу нельзя: признака сравнимости у версии нет</span></p>
       <p class="meta"><b>Группа:</b> ${grp ? grp+' <span class="why">— первый разряд подгруппы, отдельным значением не заводится (ADR-0012)</span>'
         : '— <span class="why">вне лестницы группы нет</span>'}</p>
       <p class="meta"><b>Платёжеспособность:</b> —
@@ -380,8 +470,12 @@ function screenIndicators(){
     <th>Тип</th><th>Источник</th><th>Владелец</th></tr></thead><tbody>${rows}</tbody></table>
     <p class="why">Показатель — именованный вход, а не поле объекта. Реестр хранит имя, тип,
     объект, источник и владельца; способа вычисления в нём нет — он у владельца (ADR-0120 §1–2).
-    Показатели-перечисления <code>procKind</code> и <code>roleEnd</code> уже свернули коллекцию
-    связанных записей, поэтому предикат остаётся скалярным (ADR-0125 §1).</p>
+    Показатели-перечисления <code>procKind</code>, <code>roleEnd</code> и
+    <code>overdueLayer</code> уже свернули коллекцию связанных записей (процедуры, события
+    роли, слои требования), поэтому предикат остаётся скалярным (ADR-0125 §1, ADR-0127 §4).</p>
+    <p class="why">Пара <code>daysOverdue</code> + <code>overdueLayer</code> считается одним
+    расчётом у платежей и публикуется вместе: одно число без имени слоя показывать нельзя —
+    заёмщик, честно платящий по мировому, увидел бы чужую просрочку без пояснения.</p>
     <p class="why">Правило кредита вправе читать показатели заёмщика; обратного чтения нет —
     значения сворачиваются вверх, показатели читаются вниз (ADR-0121 §3).</p></div>`;
 }

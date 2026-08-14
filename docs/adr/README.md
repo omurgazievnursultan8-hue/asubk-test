@@ -48,7 +48,7 @@ git branch -a --format='%(refname:short)' | grep worktree-
 | 0106–0107, 0109–0110, 0114 | Реструктуризация |
 | 0111–0113 | Кредиты |
 | 0116–0118 | Кураторство |
-| 0120–0125 | Классификация |
+| 0120–0127 | Классификация |
 | 0005, 0011–0013, 0017–0019, 0048, 0057, 0059–0061 | метки модуля в шапке нет — смотреть по содержанию |
 
 Блок `0082–0086` пуст, а не занят: изначальная заявка реструктуризации на `0079–0086`
@@ -58,7 +58,13 @@ git branch -a --format='%(refname:short)' | grep worktree-
 «Третье столкновение»). Ставка подтвердилась в тот же вечер: кредит занял `0105`
 (`0105-procenty-na-fakticheskoe-telo`, влит в `main` 10.08.2026 18:22).
 
-**Следующий свободный — `0126`.** `0125`
+**Следующий свободный — `0128`.** `0126–0127`
+(`0126-versiya-obyavlyaet-oblast-poryadok-i-znachenie-po-umolchaniyu` ·
+`0127-obyasnenie-nazyvaet-vse-prichiny-reestr-faktov-nezachyoty`) взяла та же ветка
+`worktree-classify` тем же днём — то, что вскрыла сборка наброска
+`mockups/classification/classification.html`; перед заведением `git ls-tree` по всем
+удалённым веткам дал максимум `0119` (`origin/main`, `origin/worktree-credit`), номеров
+`0120+` нет ни на одной. `0125`
 (`0125-predikat-skalyaren-versiya-publikuetsya-znacheniya-eyo`) взяла та же ветка
 `worktree-classify` тем же днём — уточнение конструктора после проверки модели на лестнице
 подгруппы; `origin/main` и `origin/worktree-credit` на момент взятия — `0119`. Блок
