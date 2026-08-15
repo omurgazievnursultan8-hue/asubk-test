@@ -1039,6 +1039,25 @@ const pd = CR.pd;
   }
   ok(53, bad.length === 0, `вкладок=${CR2.db.credits.length * TABS.length} проблем=${bad.length} ${bad.slice(0,3).join(' | ')}`);
 
+  /* 168. РЕЕСТР ПОКАЗЫВАЕТ ВЕСЬ СИД, ПЕРЕКЛЮЧАТЕЛЯ НАБОРА НЕТ (КВ-52, откат КВ-44).
+     Сужение показа до восьми опорных снято вместе со всей машинерией: смена набора
+     пересобирала оболочку реестра со списками фильтров, а промах выборки делал второй
+     проход по сиду с derive() — страница тормозила. Чек стережёт три вещи разом: API
+     набора снят с CR, разметка не держит ни селектора, ни подсказки промаха, а строки
+     реестра берутся из `CR.db.credits`. Сид при этом не тронут — 60 кредитов на месте,
+     их ветки нужны остальным проверкам. Живёт в DOM-песочнице: реестр — слой рендера. */
+  const seedN = CR2.db.credits.length;
+  const html168 = readFileSync(HTML, 'utf8');       // не `src`: ниже в этом блоке своё объявление
+  const apiLeft = ['setDemoScope','demoCredits','DEMO_CORE'].filter(k => CR2[k] !== undefined);
+  const markLeft = ['id="demoSel"', 'class="demo-miss"', 'onclick="CR.setDemoScope']
+    .filter(mk => html168.includes(mk));
+  const rowsFromSeed = /function renderRows\(\)[\s\S]{0,600}for \(const c of CR\.db\.credits\)/.test(html168);
+  ok(168, apiLeft.length === 0 && markLeft.length === 0 && rowsFromSeed
+          && seedN >= 59 && html168.includes('openDemoSheet'),
+     `сид ${seedN}, строки реестра из сида: ${rowsFromSeed}`
+     + `${apiLeft.length ? ', осталось на CR: ' + apiLeft.join(',') : ''}`
+     + `${markLeft.length ? ', осталось в разметке: ' + markLeft.join(' | ') : ''}`);
+
   /* 111. ГРУППЫ КАРАНДАШЕЙ вкладки «Условия» (волна 11.08.2026, КВ-25). Ленты с общей
      кнопкой «Изменить условия» больше нет — единственный вход в модалку идёт через
      карандаш карточки, поэтому ключ, не попавший ни в одну группу, становится
@@ -1220,12 +1239,14 @@ const pd = CR.pd;
     const svodTh = thAll(r1).find(t => /Статья/.test(t)) || '';
     /* Шапка расчёта после КВ-42 — не одна: у листа «По датам» своя, у реестра «По
        позициям» своя. Правило прежнее и проверяется на обеих: одно действие — один
-       глагол, «Оплачено» и «К оплате» не возвращаются, «Начислено» осталось за расчётом. */
-    const ledTh  = (thAll(r1).find(t => /Изм. базы/.test(t)) || '')
+       глагол, «Оплачено» и «К оплате» не возвращаются, «Начислено» осталось за расчётом.
+       Лист «По датам» ищем по «Дата и событие»: прежний признак «Изм. базы» умер вместе
+       с колонкой оси (КВ-42), и половина сторожа молча не работала. */
+    const ledTh  = (thAll(r1).find(t => /Дата и событие/.test(t)) || '')
                  + (() => { CR2.setCalcView('positions');
                             const hp = CR2.renderTab('Расчёты', CR2.db.credits.find(c => c.id === 'K-1'));
                             CR2.setCalcView('dates');
-                            return thAll(hp).find(t => /Наступило тело/.test(t)) || ''; })();
+                            return thAll(hp).find(t => /Тело по графику/.test(t)) || ''; })();
     const iS = s => svodTh.indexOf(s);
     const svodOrder = iS('Статья') >= 0 && iS('К погашению') > iS('Статья')
       && iS('Погашено') > iS('К погашению') && iS('Остаток') > iS('Погашено')
@@ -1328,9 +1349,11 @@ const pd = CR.pd;
      ось критической даты, и ломается он не значением, а АРНОСТЬЮ: у листа переключаемые
      группы колонок, строка-группа года и итог раздела собираются из colspan'ов, считанных
      отдельно от шапки, — разъезд даёт съехавшую на колонку таблицу, которую тест значений
-     не поймает. Пять сторон:
-     (1) арность каждой строки равна шапке — в обоих видах, при выключенных и включённых
-         группах колонок (включаем все четыре: это максимум ширины);
+     не поймает. С разбора 16.08.2026 ширина зависит от ДВУХ вещей разом: состава данных
+     (четыре колонки живут по составу) и состояния двух переключателей нарастающих, —
+     поэтому арность стережётся в обоих состояниях, а состав — обоими концами. Пять сторон:
+     (1) арность каждой строки равна шапке — в обоих видах и при свёрнутых и развёрнутых
+         нарастающих (развёрнутые — максимум ширины);
      (2) в «По датам» стоят колонки оси — «Дата · Событие · Изм. базы · База · Ставка ·
          Дней · Начислено % · Пеня», и НЕТ «Остатка тела»: он есть «База» той же строки
          (ADR-0129 §3), и возвращение колонки означало бы возврат дубля;
@@ -1344,7 +1367,7 @@ const pd = CR.pd;
       while ((mm = re.exec(tr))) n += Math.max(1, parseInt((/colspan="(\d+)"/.exec(mm[1]) || [])[1] || '1', 10));
       return n;
     };
-    const tables = html => (html.match(/<table class="cgrid">[\s\S]*?<\/table>/g) || []);
+    const tables = html => (html.match(/<table class="cgrid[^"]*">[\s\S]*?<\/table>/g) || []);
     const checkArity = (tbl, tag, bad, id) => {
       const head = (tbl.match(/<thead>[\s\S]*?<\/thead>/) || [''])[0];
       const body = (tbl.match(/<tbody>[\s\S]*?<\/tbody>/) || [''])[0];
@@ -1358,45 +1381,81 @@ const pd = CR.pd;
       return n;
     };
     let bad = [], rowsDates = 0, rowsPos = 0;
-    const GROUPS = ['state','pen','paid','run'];
+    /* Шапка листа двухуровневая (КВ-47): верхний этаж — СТАТЬЯ, нижний — состояние внутри
+       неё, поэтому «Погашено» законно повторяется трижды. Ловушка та же, что была у чипов:
+       забытый colspan у года и итога. Считается она теперь на каждом кредите, а не в
+       «широком проходе», — прятать колонки больше нечем. */
     for (const c of CR2.db.credits){
       CR2.openDetail(c.id);
-      /* лист «По датам» — сначала узкий, потом со всеми группами: обе ширины обязаны
-         сойтись с шапкой, и именно вторая ловит забытый colspan у года и итога */
       CR2.setCalcView('dates');
-      for (const pass of ['narrow','wide']){
-        if (pass === 'wide') GROUPS.forEach(g => CR2.toggleCalcCol(g));
+      {
         const html = CR2.renderTab('Расчёты', c);
-        const tbl = tables(html).find(t => t.includes('Изм. базы'));
+        const tbl = tables(html).find(t => /class="cgrid tiered"/.test(t));
         /* кредит без наступивших позиций (K-2 — графика нет вовсе) листа не имеет, и это
            не поломка: вместо таблицы стоит подпись «считать нечего». Требовать от него
            колонок значило бы требовать таблицу пустоты. */
         if (!tbl){
-          if (!/считать нечего/.test(html)) bad.push(`${c.id}: ни листа, ни подписи «считать нечего» (${pass})`);
-          if (pass === 'wide') GROUPS.forEach(g => CR2.toggleCalcCol(g));
-          continue; }
-        rowsDates += checkArity(tbl, 'даты/' + pass, bad, c.id);
-        for (const re of [/>Дата</, />Событие</, />Изм. базы</, />База</, />Ставка</, />Дней</, />Начислено %</, />Пеня</])
-          if (!re.test(tbl)) bad.push(`${c.id}: нет колонки ${re.source} (${pass})`);
-        if (/>Остаток тела</.test(tbl)) bad.push(`${c.id}: вернулся «Остаток тела» — это «База» той же строки`);
+          if (!/считать нечего/.test(html)) bad.push(`${c.id}: ни листа, ни подписи «считать нечего»`);
+        } else {
+        rowsDates += checkArity(tbl, 'даты', bad, c.id);
+        const hrows = ((tbl.match(/<thead>[\s\S]*?<\/thead>/) || [''])[0].match(/<tr[\s\S]*?<\/tr>/g) || []);
+        if (hrows.length !== 2) bad.push(`${c.id}: шапка в ${hrows.length} строк(и), а обязана быть двухуровневой`);
+        /* нижний этаж на ячейку короче: «Дата и событие» стоит rowspan=2 и во втором ряду
+           не повторяется — именно так уезжает вся сетка, если этаж собран не по составу */
+        else if (arity(hrows[1]) !== arity(hrows[0]) - 1)
+          bad.push(`${c.id}: второй этаж ${arity(hrows[1])} против ${arity(hrows[0]) - 1}`);
+        for (const re of [/>Основной долг</, />Проценты</, />Пеня</, />Дата и событие</,
+                          />По графику</, />Остаток</, />Просрочено</, />Ставка</,
+                          />Дней</, />Начислено</, />За день</])
+          if (!re.test(tbl)) bad.push(`${c.id}: нет колонки ${re.source}`);
+        /* КОЛОНКИ ПО СОСТАВУ — В ОБЕ СТОРОНЫ (разбор 16.08.2026). Четыре колонки живут
+           там, где им есть что показать, и правило проверяется обоими концами: у кредита
+           с освоением/списанием/переносом колонка ОБЯЗАНА быть, у кредита без — обязана
+           отсутствовать. Одной стороны мало: «всегда показывать» и «никогда» проходят
+           каждая свою половину. Источник истины — модель, а не разметка. */
+        const mrows = (CR2.derive(c).ledger.dateSheet || []).flatMap(s => s.rows);
+        for (const [re, want, name] of [
+          [/>Освоено</,    mrows.some(r => (r.disb||0)     > 0.005), 'Освоено'],
+          [/>Списано</,    mrows.some(r => (r.offAmt||0)   > 0.005), 'Списано'],
+          [/>Перенесено</, mrows.some(r => (r.movedOut||0) > 0.005), 'Перенесено'],
+          [/>Принято</,    mrows.some(r => (r.movedIn||0)  > 0.005), 'Принято']])
+          if (re.test(tbl) !== want)
+            bad.push(`${c.id}: колонка «${name}» ${re.test(tbl) ? 'есть, а показывать нечего' : 'нужна, а её нет'}`);
+        /* НАРАСТАЮЩИЕ — ПО КНОПКЕ, СВОЕЙ НА БЛОК (разбор 16.08.2026). По умолчанию свёрнуты,
+           поэтому в шапке их ноль; развёрнутые обязаны вернуться все разом: два по телу
+           (потребовано графиком · погашено) + одно по процентам, а освоение, перенос и
+           накопленные добавляют свои. Кнопки — по одной у «Основного долга» и «Процентов»,
+           у пени нарастающих колонок нет и кнопки быть не должно. */
+        if ((tbl.match(/>Нарастающим</g) || []).length !== 0)
+          bad.push(`${c.id}: нарастающие показаны по умолчанию — они сворачиваются кнопкой блока`);
+        const sw = (html.match(/CR\.toggleCalcRun\('(od|int)'\)/g) || []);
+        if (new Set(sw).size !== 2)
+          bad.push(`${c.id}: переключателей нарастающих ${new Set(sw).size} вместо двух`);
+        CR2.toggleCalcRun('od'); CR2.toggleCalcRun('int');
+        const opened = tables(CR2.renderTab('Расчёты', c)).find(t => /class="cgrid tiered"/.test(t)) || '';
+        CR2.toggleCalcRun('od'); CR2.toggleCalcRun('int');
+        const nRun = (opened.match(/>Нарастающим</g) || []).length;
+        if (nRun < 4) bad.push(`${c.id}: развёрнутых колонок «Нарастающим» ${nRun}, а обязано быть не меньше четырёх (КВ-51)`);
+        checkArity(opened, 'даты·развёрнуто', bad, c.id);   // строки считаны выше, здесь стережём только арность
+        if (/>Событие</.test(tbl)) bad.push(`${c.id}: «Событие» снова отдельной колонкой — его место под датой (КВ-47)`);
+        if (/>Наступило</.test(tbl)) bad.push(`${c.id}: вернулось «Наступило» — колонка зовётся «По графику» (КВ-49)`);
+        if (/>Изменение</.test(tbl)) bad.push(`${c.id}: вернулось «Изменение» — освоение и погашение стоят порознь (КВ-48)`);
+        if (/>Остаток тела</.test(tbl)) bad.push(`${c.id}: вернулся «Остаток тела» — это «Остаток» той же строки`);
+        if (/toggleCalcCol/.test(html)) bad.push(`${c.id}: вернулись чипы групп колонок — шапка называет колонки сама (КВ-47)`);
         if (!/CR.setCalcView\('dates'\)/.test(html) || !/CR.setCalcView\('positions'\)/.test(html))
           bad.push(`${c.id}: переключателя видов нет`);
-        if (pass === 'wide'){
-          for (const re of [/>Просроч\. тело</, />Ставка пени ОД\/%</, />Погашено тело</, />Начислено нараст\.</])
-            if (!re.test(tbl)) bad.push(`${c.id}: группа колонок не раскрылась — нет ${re.source}`);
-          GROUPS.forEach(g => CR2.toggleCalcCol(g));      // возвращаем узкий вид следующему кредиту
         }
       }
       /* реестр «По позициям» — вид обязательств, без арифметики начисления */
       CR2.setCalcView('positions');
       const hp = CR2.renderTab('Расчёты', c);
-      const tp = tables(hp).find(t => t.includes('Наступило тело'));
+      const tp = tables(hp).find(t => t.includes('Тело по графику'));
       if (!tp){ bad.push(`${c.id}: реестра «По позициям» нет`); }
       else {
         rowsPos += checkArity(tp, 'позиции', bad, c.id);
         for (const re of [/>Статус</, />Просрочено</, />Погашено всего</])
           if (!re.test(tp)) bad.push(`${c.id}: нет колонки ${re.source} в реестре`);
-        for (const re of [/>База</, />Изм. базы</, />Дней</])
+        for (const re of [/>Освоено</, />Дней</, />За день</])
           if (re.test(tp)) bad.push(`${c.id}: в реестр вернулась арифметика начисления (${re.source})`);
       }
       CR2.setCalcView('dates');
@@ -1451,6 +1510,283 @@ const pd = CR.pd;
     ok(165, bad.length === 0 && grew.length > 0,
        `строк листа с пенёй ${rows} · кредитов, где интеграл дал больше плоской формулы ${new Set(grew).size}`
        + ` · нарушений ${bad.length}${bad.length ? ' — ' + bad.slice(0,2).join(' | ') : ''}`);
+  }
+
+  /* 169. ГРАНИЦА ГОДА (КВ-45). 1 января — критическая дата: ни один отрезок листа не
+     перешагивает Новый год, иначе делитель года (365/366 берётся по КОНЦУ отрезка) и
+     годовой итог считаются по чужому году. Обратное тоже проверяется: строка 01.01 обязана
+     нести событие kind:'year' — разрыв без названной причины читается как потерянное
+     движение. Даты в листе — 'дд.мм.гггг'. */
+  {
+    const yearBad = [], janNoEvent = [];
+    let yRows = 0, yJan = 0;
+    const parseD = (s) => { const [d, mo, y] = String(s).split('.').map(Number); return new Date(y, mo - 1, d); };
+    for (const c of CR2.db.credits){
+      for (const s of (CR2.buildLedger(c, CR2.TODAY).dateSheet || [])){
+        for (const r of s.rows){
+          yRows++;
+          const a = parseD(r.date), b = parseD(r.to);
+          for (let y = a.getFullYear() + 1; y <= b.getFullYear(); y++){
+            const nj = new Date(y, 0, 1);
+            if (nj > a && nj < b) yearBad.push(`${c.id}/т${s.trancheNo}: ${r.date}→${r.to}`);
+          }
+          if (r.date.slice(0, 6) === '01.01.'){
+            yJan++;
+            if (!(r.events || []).some(e => e.kind === 'year')) janNoEvent.push(`${c.id}/${r.date}`);
+          }
+        }
+      }
+    }
+    ok(169, yearBad.length === 0 && janNoEvent.length === 0 && yJan > 0,
+       `строк листа ${yRows}, из них на 1 января ${yJan}`
+       + ` · перешагнувших год ${yearBad.length}${yearBad.length ? ' — ' + yearBad.slice(0,2).join(' | ') : ''}`
+       + ` · без события «граница года» ${janNoEvent.length}${janNoEvent.length ? ' — ' + janNoEvent.slice(0,2).join(' | ') : ''}`);
+  }
+
+  /* 170. «НАКОПЛЕННЫЕ» — ПО СОСТАВУ, НЕ ПО КНОПКЕ (КВ-47, идиома ADR-0109). Пара колонок
+     («Накопленные» + «Нарастающим») появляется только там, где реструктуризация перенесла
+     в график ранее начисленные проценты (SCHED_ARTICLES.accInterest, ADR-0093 §1), — иначе
+     она пуста у всех кредитов страны ради нескольких. С разбора 16.08.2026 так живут ещё
+     четыре колонки («Освоено», «Принято», «Списано», «Перенесено»), а нарастающие итоги
+     каждой статьи гасятся своим переключателем в шапке БЛОКА и по умолчанию свёрнуты.
+     Значит ширина листа зависит уже от двух вещей, и стеречь надо обе:
+       · СОСТАВ — срез 23.07.2026 (позиции ДС-РС-2002 15.08–15.10.2026 ещё не наступили)
+         против среза 20.11.2026, где «Накопленные» появляются: 19 → 20 колонок;
+       · СОСТОЯНИЕ — те же срезы с развёрнутыми нарастающими: 25 и 27.
+     Разность 19→25 есть ровно шесть нарастающих блока ОД и процентов; 20→27 — семь, к ним
+     добавляется нарастающий накопленных. «Списано» у K-7 нет НИ В ОДНОМ состоянии: у него
+     нет списаний, и по новому правилу колонки быть не должно (обратную сторону — что у
+     списанного кредита она есть — стережёт №173). У K-1 умолчание 17.
+     Срез возвращается на TODAY: следующие проверки читают карточку. */
+  {
+    const arity2 = tr => { let n = 0, re = /<t[dh]\b([^>]*)>/g, mm;
+      while ((mm = re.exec(tr))) n += Math.max(1, parseInt((/colspan="(\d+)"/.exec(mm[1]) || [])[1] || '1', 10));
+      return n; };
+    const widths = (html) => (html.match(/<table class="cgrid tiered">[\s\S]*?<\/table>/g) || []).map(tbl => {
+      const trs = tbl.match(/<tr[\s\S]*?<\/tr>/g) || [];
+      const w = arity2(trs[0]);
+      const bad = trs.slice(2).filter(tr => arity2(tr) !== w).length;
+      return { w, bad };
+    });
+    const c7 = CR2.db.credits.find(x => x.id === 'K-7');
+    CR2.openDetail('K-7');
+    CR2.setCalcView('dates');
+    const both = () => { CR2.toggleCalcRun('od'); CR2.toggleCalcRun('int'); };
+    CR2.setCardAsOf('23.07.2026');
+    const narrow = widths(CR2.renderTab('Расчёты', c7));
+    both(); const narrowOpen = widths(CR2.renderTab('Расчёты', c7)); both();
+    CR2.setCardAsOf('20.11.2026');
+    const wide = widths(CR2.renderTab('Расчёты', c7));
+    both(); const wideHtml = CR2.renderTab('Расчёты', c7); both();
+    const wideOpen = widths(wideHtml);
+    CR2.setCardAsOf(CR2.TODAY);
+    const accHead = /<th[^>]*>Накопленные<\/th>/.test(wideHtml);
+    const offHead = /<th[^>]*>Списано<\/th>/.test(wideHtml);
+    const c1 = CR2.db.credits.find(x => x.id === 'K-1');
+    CR2.openDetail('K-1');
+    const plain = widths(CR2.renderTab('Расчёты', c1));
+    const all = narrow.concat(narrowOpen, wide, wideOpen, plain);
+    ok(170, all.length > 0 && all.every(x => x.bad === 0)
+         && narrow.every(x => x.w === 19) && narrowOpen.every(x => x.w === 25)
+         && wide.every(x => x.w === 20)   && wideOpen.every(x => x.w === 27)
+         && plain.every(x => x.w === 17)  && accHead && !offHead,
+       `K-7 до наступления накопленных ${narrow.map(x=>x.w).join(',')}|${narrowOpen.map(x=>x.w).join(',')}`
+       + ` · после ${wide.map(x=>x.w).join(',')}|${wideOpen.map(x=>x.w).join(',')} (свёрнуто|развёрнуто)`
+       + ` · K-1 ${plain.map(x=>x.w).join(',')} · «Накопленные» ${accHead} · «Списано» у K-7 ${offHead}`
+       + ` · строк не по шапке ${all.reduce((a,x)=>a+x.bad,0)}`);
+  }
+
+  /* 171. ПЕРЕПЛАТА К ГРАФИКУ — МИНУСОМ (КВ-50). Колонка «Просрочено» в блоке основного
+     долга есть разность нарастающих («По графику» − «Погашено»), и до КВ-50 показывалась
+     только её положительная сторона: у K-7 три отрезка подряд (15.03–12.05.2026) стояли
+     с прочерком, хотя заёмщик шёл с опережением на 20 487,32 — из листа не читалось,
+     почему при нуле платежей нет просрочки. Проверяется по модели и по разметке разом:
+     сколько строк идёт с опережением, столько минусов и обязано быть в таблицах, и ни
+     одна строка не имеет просрочки и опережения сразу (иначе колонка врала бы знаком). */
+  {
+    const tbls = html => (html.match(/<table class="cgrid[^"]*">[\s\S]*?<\/table>/g) || []);
+    const r2 = v => Math.round(v * 100) / 100;
+    let ahead = 0, both = 0;
+    for (const c of CR2.db.credits){
+      const d = CR2.derive(c);
+      for (const s of (d.ledger.dateSheet || [])) for (const r of s.rows){
+        const dev = r2(r.runPaidP - r.runDue);
+        if (dev > 0.005 && r.penBaseP <= 0.005) ahead++;
+        if (dev > 0.005 && r.penBaseP > 0.005) both++;
+      }
+    }
+    let minus = 0;
+    for (const c of CR2.db.credits){
+      CR2.openDetail(c.id); CR2.setCalcView('dates');
+      const tbl = tbls(CR2.renderTab('Расчёты', c)).find(t => /class="cgrid tiered"/.test(t));
+      if (!tbl) continue;
+      minus += (tbl.match(/>−[^<]{1,24}</g) || []).length;   // разделитель тысяч — неразрывный пробел
+    }
+    ok(171, ahead > 0 && both === 0 && minus === ahead,
+       `строк с опережением графика ${ahead} · минусов в разметке ${minus}`
+       + ` · строк с просрочкой и опережением сразу ${both}`);
+  }
+
+  /* 172. КЭШИ РАСЧЁТА НЕ ВРУТ (КВ-52). Ради скорости реестра появились две памяти:
+     разбор дд.мм.гггг (`_pdMemo`) и порядок записей условий (`condSorted`). Обе —
+     память ВЫЧИСЛЕНИЯ, а не производного состояния: запрет кэшировать derive (Р-11)
+     они не нарушают. Две вещи могут сломаться незаметно, поэтому стерегутся здесь:
+       · добавленная запись обязана менять комплект — иначе устаревание по длине
+         массива не работает и «Изменить условия» перестанет доходить до расчёта;
+       · pd() отдаёт ОБЩИЙ Date, и мутация его на месте испортила бы все даты разом —
+         в исходнике не должно быть ни одного `pd(...).setXxx(`, сдвиг делается копией. */
+  {
+    const c = CR2.db.credits.find(x => ((x.tranches || [])[0] || {}).conditionRecords);
+    const t = c.tranches[0];
+    const p = t.conditionRecords[0].param;                   // параметр берём у самой записи
+    const was = CR2.conditionsAt(t, '31.12.2030')[p];
+    t.conditionRecords.push(CR2.mkConditionRecord({
+      param:p, value:'__проверка-172', effectiveFrom:'01.01.2030',
+      basis:{ kind:'agreement', ref:'ПРОВЕРКА-172', label:'', date:'01.01.2030' } }));
+    const after = CR2.conditionsAt(t, '31.12.2030')[p];
+    t.conditionRecords.pop();
+    const back = CR2.conditionsAt(t, '31.12.2030')[p];
+    const mutates = (readFileSync(HTML, 'utf8').match(/pd\([^()]*\)\.set[A-Z]/g) || []);
+    ok(172, after === '__проверка-172' && String(back) === String(was) && mutates.length === 0,
+       `${c.id}/${p}: ${was} → после записи ${after} → после отката ${back}`
+       + `${mutates.length ? ', мутация общего Date: ' + mutates.join(' | ') : ''}`);
+  }
+
+  /* 173. СПИСАНО — ФАКТ РАСЧЁТА, А НЕ ПОДПИСЬ НА КРЕДИТЕ (КВ-53). Списание жило одним
+     полем `closure.reason='Списан'`: ни даты в расчёте, ни суммы, ни транша, и лист о нём
+     молчал. Теперь у транша есть `writeOffs[]`, у листа — пара колонок. Стережём три вещи,
+     каждая из которых ломается молча:
+       · у каждого «Списан» записи есть, и их сумма равна ТЕЛУ ПО СВОДУ — списание не
+         гасит долг (он уходит за баланс), поэтому «Остаток» рядом обязан остаться прежним;
+       · строка в дату решения в листе ЕСТЬ — а она приходится ровно на срез (срез
+         закрытого кредита — дата закрытия), и до правки такие строки пропадали;
+       · перенос по ДС в «Списано» НЕ попадает: у K-7 тело ушло из транша №1 и пришло в
+         №2 и №3, списано при этом ноль, а разметка обязана назвать оба конца — с КВ-55
+         своей парой колонок «Перенесено · Принято», а не второй строкой чужой ячейки.
+     С разбора 16.08.2026 колонка «Списано» живёт ПО СОСТАВУ, и это проверяется в обе
+     стороны: у трёх списанных кредитов шапка её называет, у K-7 (списано ноль) её быть
+     не должно — иначе правило работает только на словах. */
+  {
+    const r2 = v => Math.round(v * 100) / 100;
+    const woBad = [], off = CR2.db.credits.filter(c => (c.closure || {}).reason === 'Списан');
+    for (const c of off){
+      const d = CR2.derive(c);
+      const recs = (c.tranches || []).flatMap(t => t.writeOffs || []);
+      const sum  = r2(recs.reduce((a, w) => a + (w.amount || 0), 0));
+      if (!recs.length){ woBad.push(`${c.id}: записей о списании нет`); continue; }
+      if (Math.abs(sum - d.debt.principal.bal) > 0.02)
+        woBad.push(`${c.id}: списано ${sum} против тела по своду ${d.debt.principal.bal}`);
+      const rows = (d.ledger.dateSheet || []).flatMap(s => s.rows);
+      const hit  = rows.filter(r => r.offAmt > 0.005);
+      if (!hit.length) woBad.push(`${c.id}: в листе нет строки со списанием (дата ${c.closure.date})`);
+      else if (hit.some(r => r.date !== c.closure.date))
+        woBad.push(`${c.id}: списание в листе не в дату решения — ${hit.map(r => r.date).join(',')}`);
+      for (const s of (d.ledger.dateSheet || [])){
+        let run = 0;
+        for (const r of s.rows){ run = r2(run + (r.offAmt || 0));
+          if (Math.abs(run - r.runOff) > 0.02) woBad.push(`${c.id}/т${s.trancheNo} ${r.date}: нарастающее ${r.runOff} против ${run}`); }
+      }
+    }
+    const c7 = CR2.db.credits.find(x => x.id === 'K-7');
+    const d7 = CR2.derive(c7);
+    const rows7 = (d7.ledger.dateSheet || []).flatMap(s => s.rows);
+    const moved7 = r2(rows7.reduce((a, r) => a + (r.movedOut || 0), 0));
+    const got7   = r2(rows7.reduce((a, r) => a + (r.movedIn  || 0), 0));
+    const off7   = r2(rows7.reduce((a, r) => a + (r.offAmt   || 0), 0));
+    CR2.openDetail('K-7'); CR2.setCalcView('dates');
+    const h7 = CR2.renderTab('Расчёты', c7);
+    const heads = (h7.match(/<th[^>]*>Списано<\/th>/g) || []).length;   // у K-7 обязан быть ноль
+    const mvH   = /<th[^>]*>Перенесено<\/th>/.test(h7) && /<th[^>]*>Принято<\/th>/.test(h7);
+    let offHeads = 0;
+    for (const c of off){
+      CR2.openDetail(c.id); CR2.setCalcView('dates');
+      if (/<th[^>]*>Списано<\/th>/.test(CR2.renderTab('Расчёты', c))) offHeads++;
+      else woBad.push(`${c.id}: списание есть, а колонки «Списано» в шапке нет`);
+    }
+    /* Нарастающие переноса (КВ-56) сверяются с моделью, а не сами с собой: последняя строка
+       раздела обязана показать ровно transferredOut/transferredIn транша на её дату —
+       иначе колонка живёт своей арифметикой, и разность нарастающих перестаёт быть вкладом
+       переноса в «Остаток». Считаются они ВРОЗЬ: нетто спрятало бы возврат тела обратно. */
+    for (const s of (d7.ledger.dateSheet || [])){
+      const t = c7.tranches.find(x => x.no === s.trancheNo), lr = s.rows[s.rows.length - 1];
+      if (!t || !lr) continue;
+      const wantOut = CR2.transferredOut(t, lr.date), wantIn = CR2.transferredIn(t, lr.date);
+      if (Math.abs((lr.runOut || 0) - wantOut) > 0.02 || Math.abs((lr.runIn || 0) - wantIn) > 0.02)
+        woBad.push(`K-7/т${s.trancheNo}: нарастающий перенос ${lr.runOut}/${lr.runIn}`
+                   + ` против ${wantOut}/${wantIn}`);
+    }
+    ok(173, woBad.length === 0 && off.length === 3 && offHeads === off.length && heads === 0
+            && moved7 === 360000 && got7 === 360000 && off7 === 0 && mvH,
+       `списанных кредитов ${off.length}, расхождений ${woBad.length}`
+       + `${woBad.length ? ' — ' + woBad.slice(0, 3).join(' | ') : ''}`
+       + ` · K-7: перенесено ${moved7}, принято ${got7}, списано ${off7}`
+       + ` · «Списано» в шапке у ${offHeads} из ${off.length} списанных и ${heads} раз(а) у K-7`
+       + ` · пара переноса в шапке ${mvH}`);
+  }
+
+  /* 174. БАЗА ОТРЕЗКА ЗНАЕТ ПРО ПЕРЕНОС, ГРАФИК ДОНОРА ПЕРЕСОБИРАЕТСЯ (КВ-54). Перенос по
+     ДС двигает тело между траншами, но начисление про это не знало: у K-7 транш №1 после
+     01.05.2026 продолжал капать 9 % на все 360 000, транш №2 капал 5 % на те же ушедшие
+     200 000 с 15.06.2026 — тело начислялось ДВАЖДЫ, а между 01.05 и 15.06 не начислялось
+     ни у кого. Причина одна на оба конца: база бралась у графика, а график донора после ДС
+     не трогали вовсе. Стережём четыре следствия правки:
+       · БАЗА КАЖДОГО ОТРЕЗКА РАВНА ИР-3 на его дату — по всему сиду, а не на демо-кредите.
+         Это то самое тождество, ради которого лист вообще существует: карточка и расчёт
+         обязаны говорить одно. Порог 0,02 — копеечное округление отрезков;
+       · НУМЕРАЦИЯ ПОЗИЦИЙ СПЛОШНАЯ во всех версиях всех траншей. Ключ строки леджера —
+         транш + номер, и пересборка, начавшая счёт с единицы, молча перевесила бы
+         разнесённые платежи на чужие позиции (сшивка stitchSchedule);
+       · У ДОНОРА ЕСТЬ ДС-ВЕРСИЯ и хвост её кончается вместе с остатком: до правки график
+         транша №1 тянулся до 12.01.2029 и требовал тело, которого на транше нет;
+       · КНОПКА «СФОРМИРОВАТЬ ГРАФИК» СЕРЕДИНЫ СРОКА НЕ СТИРАЕТ НАСТУПИВШЕЕ — та же сшивка
+         на второй двери, иначе дефект переезжает из ДС в кнопку. */
+  {
+    const db = CR.seedDb(), bad = [];
+    let nb = 0;
+    for (const c of db.credits){
+      const d = CR.derive(c);
+      for (const s of (d.ledger.dateSheet || [])){
+        const t = (c.tranches || []).find(x => x.no === s.trancheNo);
+        for (const r of s.rows){
+          if (r.base == null) continue;
+          nb++;
+          const b = CR.trancheBalanceAt(c, t, r.date);
+          if (Math.abs(r.base - b) > 0.02)
+            bad.push(`${c.id}/т${s.trancheNo} ${r.date}: база ${r.base} против ИР-3 ${b}`);
+        }
+      }
+      for (const t of (c.tranches || [])) for (const s of (t.schedules || [])){
+        const nos = (s.rows || []).map(x => x.no);
+        if (nos.some((n, i) => n !== i + 1))
+          bad.push(`${c.id}/т${t.no} v${s.ver}: нумерация ${nos.slice(0, 8).join(',')}`);
+      }
+    }
+    const k7 = db.credits.find(x => x.id === 'K-7'), src7 = k7.tranches[0];
+    const dsVer = (src7.schedules || []).filter(s => (s.by || {}).kind === 'ДС');
+    const rows7 = CR.trancheScheduleRows(src7);
+    const last7 = rows7.length ? rows7[rows7.length - 1].date : '';
+    const sheet = CR.derive(k7).ledger.dateSheet || [];
+    const segOf = no => (sheet.find(s => s.trancheNo === no) || { rows: [] }).rows;
+    const baseAt = (no, date) => (segOf(no).find(r => r.date === date) || {}).base;
+    const was9 = baseAt(src7.no, '12.04.2026'), now9 = baseAt(src7.no, '01.05.2026');
+    const gotIn = (segOf(k7.tranches[1].no).filter(r => r.base != null)[0] || {}).date;
+    const k1 = db.credits.find(x => x.id === 'K-1'), t1 = k1.tranches[0];
+    const was = CR.trancheScheduleRows(t1), FROM = was[3].date;
+    const past = was.filter(r => CR.pd(r.date) < CR.pd(FROM));
+    const nv = CR.generateSchedule(k1, t1.no, { from: FROM, basis:{ kind:'заявление', ref:'проба-174' } });
+    const kept = JSON.stringify((nv.rows || []).slice(0, past.length).map(r => r.no + ':' + r.date))
+               === JSON.stringify(past.map(r => r.no + ':' + r.date));
+    ok(174, bad.length === 0 && nb > 200
+            && dsVer.length > 0 && rows7.length > 0 && CR.pd(last7) < CR.pd('01.01.2027')
+            && Math.abs(CR.trancheBalanceAt(k7, src7, CR.TODAY)) < 0.005
+            && Math.abs(was9 - 360000) < 0.02 && Math.abs(now9 - 160000) < 0.02
+            && gotIn === '01.05.2026'
+            && past.length >= 3 && kept && (nv.rows || []).length > past.length,
+       `отрезков с базой ${nb}, расхождений ${bad.length}`
+       + `${bad.length ? ' — ' + bad.slice(0, 3).join(' | ') : ''}`
+       + ` · K-7 т1: база 12.04 ${was9} → 01.05 ${now9}, ДС-версий ${dsVer.length},`
+       + ` хвост до ${last7} · приёмник начислил с ${gotIn}`
+       + ` · кнопка от ${FROM}: сохранено ${past.length}, стало ${(nv.rows || []).length}, совпало ${kept}`);
   }
 
   /* 130. «ГРАФИК» СО СТАТЬЯМИ (КВ-26, ADR-0109). Колонки статей рисуются ПО СОСТАВУ:

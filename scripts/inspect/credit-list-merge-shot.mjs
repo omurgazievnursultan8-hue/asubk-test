@@ -20,6 +20,8 @@ page.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.te
 
 await page.goto(pathToFileURL(resolve('mockups/loan-credit/credit.html')).href, { waitUntil: 'load' });
 await page.waitForTimeout(400);
+// Реестр показывает весь сид сам (КВ-52 снял переключатель набора): «Нарын», каскад
+// «Чуйская» и вторая страница живут в сценарных K-C* и видны сразу.
 await page.screenshot({ path: `${OUT}/01-list-collapsed.png` });
 
 // шапка грида + первая строка — что реально отрисовалось

@@ -1044,7 +1044,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-15 · 159/165 PASS
+ SMOKE (node) 2026-08-15 · 172/173 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -1092,11 +1092,11 @@
    #40 ✓
    #41 ✓
    #42 ✓
-   #43 ✓
+   #43 ✗ нарушителей=0 · K-C16 факт=130 эфф=130 → средний
    #44 ✓
-   #45 ✗ мес=24 кв=24
+   #45 ✓
    #46 ✓
-   #47 ✗ отсрочка: начисл=849.32 платёж=849.32 · льгота: начисл=849.32 платёж=849.32
+   #47 ✓
    #48 ✓
    #49 ✓
    #50 ✓
@@ -1117,12 +1117,15 @@
    #61 ✓
    #62 ✓
    #63 ✓
-   #64 ✗ payDay=15 → 18.06.2026 · 18.07.2026
-   #65 ✗ по дате выдачи: 28.02.2026 · 31.03.2026 · по дате 1-го платежа: 28.02.2026 · 31.03.2026
-   #66 ✗ вне окна: начисл=686.05 платёж=686.05 · в окне: начисл=497.19 платёж=497.19
-   #67 ✗ факт: п1=849.32 п2=790.84 (разные дни) · 30-числ: п1=849.32 п2=790.84 (равны)
+   #64 ✓
+   #65 ✓
+   #66 ✓
+   #67 ✓
+   #166 ✓
+   #167 ✓
    #53a ✓
    #53 ✓
+   #168 ✓
    #111 ✓
    #112 ✓
    #129 ✓
@@ -1138,6 +1141,11 @@
    #163 ✓
    #164 ✓
    #165 ✓
+   #169 ✓
+   #170 ✓
+   #171 ✓
+   #172 ✓
+   #173 ✓
    #130 ✓
    #156 ✓
    #132 ✓
@@ -1300,6 +1308,23 @@ a{ color:inherit; }
   appearance:none; cursor:pointer; }
 .topbar .role-wrap .rsel{ position:relative; display:flex; align-items:center; }
 .topbar .role-wrap .rsel .caret{ position:absolute; right:8px; pointer-events:none; color:var(--text-muted); display:flex; }
+/* Шпаргалка — СТЕНД, а не экран: пунктирный разделитель отделяет её от продуктовой части
+   топбара. Переключатель набора стоял здесь же и снят (КВ-52) — реестр снова показывает
+   весь сид, как до КВ-44. */
+.topbar .demo-wrap{ display:flex; align-items:center; gap:8px;
+  padding-left:14px; border-left:1px dashed var(--border-strong); }
+.topbar .demo-wrap .btn{ height:32px; }
+/* Шпаргалка набора: таблица «кредит → что демонстрирует», строки кликабельны. */
+.demo-sheet h4{ font:var(--weight-semibold) var(--text-base)/1.2 var(--asubk-font);
+  color:var(--text-heading); margin:14px 0 6px; }
+.demo-sheet h4:first-child{ margin-top:0; }
+.demo-sheet table{ width:100%; border-collapse:collapse; }
+.demo-sheet td{ border-bottom:1px solid var(--border-default); padding:6px 8px; vertical-align:top; font:var(--font-label); }
+.demo-sheet tbody tr{ cursor:pointer; }
+.demo-sheet tbody tr:hover td{ background:var(--surface-hover); }
+.demo-sheet .ds-id{ white-space:nowrap; color:var(--text-muted); width:84px; }
+.demo-sheet .ds-name{ color:var(--text-body); width:240px; }
+.demo-sheet .ds-what{ color:var(--text-muted); }
 
 .content{ flex:1; overflow:auto; display:flex; flex-direction:column; min-width:0; }
 .view{ display:none; flex-direction:column; min-height:0; }
@@ -1659,6 +1684,25 @@ table.cgrid{ width:100%; border-collapse:collapse; font:var(--font-label); white
 table.cgrid thead th{ position:sticky; top:0; text-align:left; padding:10px 12px; background:var(--surface-card);
   border-bottom:1px solid var(--border-default); font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font);
   color:var(--text-heading); cursor:pointer; user-select:none; }
+/* ДВА ЭТАЖА ШАПКИ (КВ-47). Прежде оба ряда стояли с top:0 и при прокрутке налезали друг
+   на друга — из-за этого этажи и сняли в КВ-42. Здесь верхний ряд остаётся на нуле, нижний
+   встаёт ровно под ним (--cgrid-tier1 = высота ряда: 10+10 паддинги + строка 17px), а
+   z-index держит верхний над нижним. Группа статьи отбивается линией слева, иначе
+   двухэтажная шапка читается как одна лента. */
+table.cgrid.tiered{ --cgrid-tier1:38px; }
+table.cgrid.tiered thead tr:first-child th{ z-index:3; text-align:center; }
+table.cgrid.tiered thead tr:nth-child(2) th{ top:var(--cgrid-tier1); z-index:2; }
+table.cgrid.tiered thead th.grp{ border-left:2px solid var(--border-strong); }
+table.cgrid.tiered tbody td.grp{ border-left:2px solid var(--border-default); }
+table.cgrid.tiered thead th.rspan{ z-index:4; }
+/* ПЕРЕКЛЮЧАТЕЛЬ НАРАСТАЮЩИХ (разбор 16.08.2026). Стоит в шапке СВОЕЙ статьи, потому что
+   гасит колонки только её: у блока «Основной долг» их шесть, у «Процентов» одна-две, у
+   «Пени» ни одной — там и переключателя нет. Кнопкой во всю силу не выглядит намеренно:
+   это не действие над данными, а состояние показа. */
+table.cgrid.tiered thead th .runsw{ margin-left:8px; padding:1px 6px; border:1px solid var(--border-default);
+  border-radius:var(--radius-sm); background:var(--surface-panel); color:var(--text-muted);
+  font:var(--weight-medium) var(--text-xs)/1.5 var(--asubk-font); cursor:pointer; white-space:nowrap; }
+table.cgrid.tiered thead th .runsw:hover{ color:var(--text-heading); border-color:var(--border-strong); }
 table.cgrid tbody td{ padding:9px 12px; border-bottom:1px solid var(--border-default); color:var(--text-body); vertical-align:top; }
 table.cgrid tbody tr:hover{ background:var(--surface-hover); }
 table.cgrid tbody tr.total td{ font-weight:var(--weight-bold); color:var(--text-heading);
@@ -1876,6 +1920,18 @@ table.dl-grid tr.overdue td:last-child{ font-weight:var(--weight-semibold); }
           <span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
         </div>
       </div>
+      <!-- ШПАРГАЛКА ДЕМОНАБОРА — СЛУЖЕБНОЕ ДЛЯ МАКЕТА, В ТРЕБОВАНИЯ НЕ ИДЁТ.
+           Здесь же стоял переключатель «Набор» (опорные восемь / все 60) — снят по КВ-52:
+           смена набора пересобирала оболочку реестра со списками фильтров и на каждом
+           промахе выборки делала второй проход по всему сиду, и это тормозило страницу.
+           Реестр снова показывает весь сид, как до КВ-44; длину гасит пагинация.
+           Стоит рядом с селектором роли и за пунктирной чертой намеренно: обе вещи —
+           стенд (в живой системе роль приходит из авторизации), и в тулбаре реестра они
+           читались бы как продуктовый фильтр. На карточке скрыта. -->
+      <div class="demo-wrap" id="demoWrap">
+        <button class="btn btn-secondary btn-sm" title="что демонстрирует каждый кредит набора"
+                onclick="if(window.CR&&CR.openDemoSheet)CR.openDemoSheet()">Шпаргалка</button>
+      </div>
     </header>
 
     <div class="content">
@@ -1918,7 +1974,25 @@ const plur = (n, one, few, many) => { const a = Math.abs(n) % 100, b = a % 10;
    приведение к KGS — производная (реестр сравнивает и суммирует строки в одной валюте). */
 const FX = { KGS:1, USD:87.45, EUR:95.30, RUB:1.02 };
 const toKgs = (v, cur) => (v || 0) * (FX[cur] || 1);
-const pd = s => { if (s instanceof Date) return s; const [d,mo,y] = String(s).split('.').map(Number); return new Date(y, mo-1, d); };  // идемпотентна: Date на входе возвращается как есть
+/* pd — разбор дд.мм.гггг. Идемпотентна: Date на входе возвращается как есть.
+   ПАМЯТЬ РАЗБОРА (КВ-52). Модель хранит даты строками, а расчёт сравнивает их
+   постоянно: только crOrder на каждое сравнение делает два разбора, и derive() по
+   60 кредитам на замере 16.08.2026 тратил ~5,2 с, из них ~2/3 — на pd(). Дат в макете
+   считаные сотни, поэтому строка разбирается один раз и Date переиспользуется.
+   ВАЖНО: возвращённый Date НЕЛЬЗЯ мутировать — он общий. Все сдвиги в коде уже идут
+   по копии (`new Date(pd(x))`, addD, addM); новый сдвиг обязан делать так же. */
+const _pdMemo = new Map();
+const pd = s => {
+  if (s instanceof Date) return s;
+  const k = String(s);
+  let v = _pdMemo.get(k);
+  if (v === undefined){
+    const [d,mo,y] = k.split('.').map(Number);
+    v = new Date(y, mo-1, d);
+    _pdMemo.set(k, v);
+  }
+  return v;
+};
 const fd = d => String(d.getDate()).padStart(2,'0')+'.'+String(d.getMonth()+1).padStart(2,'0')+'.'+d.getFullYear();
 /* Сдвиг на k месяцев с сохранением ДНЯ ПЛАТЕЖА (КР-14). Прежняя реализация зажимала
    день до 28-го — освоение 31.05 давало все платежи 28-го числа, то есть договорная
@@ -2223,13 +2297,34 @@ function crOrder(a, b){
   if (c) return c;
   return String(a.id).localeCompare(String(b.id), undefined, { numeric:true });
 }
-/* conditionsAt(tranche, date) — действующий комплект транша на дату (Р-11, рантайм). */
+/* ПАМЯТЬ ПОРЯДКА (КВ-52). Комплект условий спрашивают на КАЖДУЮ критическую дату
+   каждого транша (Р-21, отрезки начисления), и каждый раз массив записей сортировался заново —
+   на замере 16.08.2026 crOrder съедал больше половины времени derive(). Порядок при этом
+   зависит только от САМИХ записей, а они лишь добавляются (push) или ставятся целиком
+   (mkPrimaryRecords) — правки существующей записи в коде нет. Поэтому отсортированный
+   массив кэшируется на самом массиве записей, а признак устаревания — его длина.
+   WeakMap: кредит выбросили — кэш ушёл с ним. */
+const _crSorted = new WeakMap();
+function condSorted(recs){
+  let e = _crSorted.get(recs);
+  if (!e || e.n !== recs.length){
+    const list = recs.slice().sort(crOrder);
+    /* Рядом с порядком кладутся ЧИСЛОВЫЕ даты вступления: отбор по дате идёт на каждый
+       вызов, и разбор строки в нём — самая частая операция расчёта. Запись без
+       effectiveFrom получает Infinity и не применяется никогда (прежний guard). */
+    e = { n:recs.length, list, at:list.map(r => r.effectiveFrom ? +pd(r.effectiveFrom) : Infinity) };
+    _crSorted.set(recs, e);
+  }
+  return e;
+}
+/* conditionsAt(tranche, date) — действующий комплект транша на дату (Р-11, рантайм).
+   Отбор идёт ПО отсортированному массиву (раньше сортировался отобранный) — порядок
+   применения тот же: фильтр по дате не переставляет записи. */
 function conditionsAt(tranche, date){
-  const lim = pd(date || TODAY), out = {};
-  ((tranche && tranche.conditionRecords) || [])
-    .filter(r => r.effectiveFrom && pd(r.effectiveFrom) <= lim)
-    .sort(crOrder)
-    .forEach(r => { out[r.param] = r.value; });     // позже по порядку перекрывает раннее
+  const lim = +pd(date || TODAY), out = {};
+  const e = condSorted((tranche && tranche.conditionRecords) || []);
+  for (let i = 0; i < e.list.length; i++)
+    if (e.at[i] <= lim) out[e.list[i].param] = e.list[i].value;   // позже по порядку перекрывает раннее
   return out;
 }
 /* Первичный комплект (basis.kind='application'): условия, пришедшие из заявки.
@@ -2257,8 +2352,16 @@ function mkPrimaryRecords(credit){
    существуют раньше этого прохода. Присваивание стирало их молча — производный транш
    выходил из сида на первичных условиях, будто ДС не было. Порядок в массиве значения
    не имеет: применение сортирует crOrder по дате вступления. */
+/* ПРОХОД ИДЕМПОТЕНТЕН (КВ-54). К-7 обязан получить комплект РАНЬШЕ общего прохода: с этой
+   волны дверь ДС перестраивает график ИСТОЧНИКА, а транш без условий движок амортизирует
+   одной позицией с нулевой ставкой (term=0, rate=0) — на срез из сида выходил график из
+   двух строк вместо тридцати шести. Значит комплект кладётся дважды — в своём месте и в
+   общем проходе, — и второй раз обязан не сработать. */
 function seedPrimaryRecords(credit){
-  for (const t of credit.tranches) t.conditionRecords = mkPrimaryRecords(credit).concat(t.conditionRecords || []);
+  for (const t of credit.tranches){
+    if ((t.conditionRecords || []).some(r => (r.basis || {}).kind === 'application')) continue;
+    t.conditionRecords = mkPrimaryRecords(credit).concat(t.conditionRecords || []);
+  }
 }
 /* creditConditionsAt — Д-7: на уровне кредита условия суть агрегат по активным
    траншам. Согласны → {value}; разошлись → {divergent:true, values:[...]}.
@@ -3075,6 +3178,10 @@ function seedDb(){
       })
     }));
     const k7 = credits[credits.length - 1];
+    /* Первичный комплект — ДО применения ДС (КВ-54): дверь перестраивает график источника,
+       а строить его без условий значит получить одну позицию с нулевой ставкой. Общий
+       проход ниже увидит комплект на месте и повторно его не положит. */
+    seedPrimaryRecords(k7);
     /* Приложение к ДС: строки графика приходят ГОТОВЫМИ (ADR-0096 §3) — кредит их
        валидирует Г-25, а не пересчитывает. Здесь они собираются тем же движком долей,
        которым их собрала бы реструктуризация: тело равными долями, безставочные —
@@ -3768,6 +3875,18 @@ function seedDb(){
     ];
   })();
 
+  /* КВ-53 · ЗАПИСИ О СПИСАНИИ у закрытых «Списан». Решение в сиде было, суммы по траншам —
+     нет: закрытие писало основание на кредит, и лист «По датам» о списании не знал. Проход
+     идёт ПОСЛЕДНИМ намеренно — списывается непогашенное тело на дату решения, а платежи
+     закрытым кредитам досчитывает второй проход выше; посчитай мы раньше, списали бы то,
+     что заёмщик успел вернуть. Через ту же функцию, что и рабочий closeCredit. */
+  for (const c of credits){
+    if (!c.closure || c.closure.reason !== 'Списан') continue;
+    if ((c.tranches || []).some(t => (t.writeOffs || []).length)) continue;
+    writeOffTranches(c, { date: c.closure.date, doc: c.closure.doc || null,
+                          amount: (c.closure.doc || {}).amount });
+  }
+
   return { credits, applications, pledgesRegistry };
 }
 
@@ -3807,6 +3926,73 @@ function transfersOf(t, d){
 function transferredOut(t, d){ return round2(transfersOf(t,d).filter(x => x.dir==='out').reduce((a,x) => a + (x.amount||0), 0)); }
 function transferredIn (t, d){ return round2(transfersOf(t,d).filter(x => x.dir==='in' ).reduce((a,x) => a + (x.amount||0), 0)); }
 
+/* ПЕРЕНОС ПРОТИВ КОНТРАКТА (КВ-54). База начисления — фактическое непогашенное тело, и
+   перенос по ДС двигает именно его: у отдающего транша тело уходит, у принимающего
+   появляется. Контрактная база (`full` в trancheAccrual) при этом НЕ движется — график
+   амортизирует ту сумму, на которую подписан, — поэтому перенос входит в расчёт
+   ОТКЛОНЕНИЕМ, третьим слагаемым рядом с недобором и неосвоенным (ADR-0105).
+   У производного транша освоений нет вовсе: контрактная база берётся из t.amount и УЖЕ
+   равна принятому переносу (ADR-0092 §1). Принятое считается только СВЕРХ неё, иначе тело
+   удвоилось бы; зато ДО даты приёма отклонение отрицательно и ровно обнуляет базу —
+   транша с телом ещё нет, начислять не на что. */
+function movedNetAt(t, d){
+  const ctrIn = disbursedSum(t) ? 0 : Math.min(transferredIn(t), t.amount || 0);
+  return round2(transferredIn(t, d) - ctrIn - transferredOut(t, d));
+}
+
+/* ---- СПИСАНИЕ ТЕЛА (Р-20, Г-12, КВ-53) ----
+   t.writeOffs[] — хранилище рядом с t.transfers[]: { date, amount, basis:{kind,num,date,scan} }.
+   Заводится по той же причине, по какой заведён перенос: до этой правки списание жило
+   ОДНИМ полем `closure.reason='Списан'` на кредите — без суммы, без транша и без даты в
+   расчёте. Лист «По датам» такое показать не может в принципе: у него строка на дату и
+   раздел на транш, а списание не имело ни того, ни другого.
+
+   ЧТО СПИСАНИЕ ДЕЛАЕТ С ОСТАТКОМ — НИЧЕГО, и это не упущение (КР-12): списанный долг
+   уходит ЗА БАЛАНС, а не гаснет. Заёмщик его должен, подгруппа честно говорит
+   «безнадёжные долги», и K-6b закрыт с ненулевым остатком намеренно. Поэтому
+   trancheBalanceAt слагаемого «списано» НЕ получает: колонка «Списано» отвечает на
+   «сколько из этого тела признано безнадёжным по решению», а «Остаток» — на «сколько
+   тела висит». Два разных вопроса, два числа рядом. */
+function writeOffsOf(t, d){
+  const lim = d ? pd(d) : null;
+  return (t.writeOffs || []).filter(x => !lim || pd(x.date) <= lim);
+}
+function writtenOffAt(t, d){ return round2(writeOffsOf(t,d).reduce((a,x) => a + (x.amount||0), 0)); }
+
+/* Разнесение решения о списании ПО ТРАНШАМ. Решение выносится на кредит одной суммой —
+   расчёт же ведётся по траншам, и без разнесения лист не знает, чью строку двигать.
+   Правило: пропорционально непогашенному телу транша на дату решения, остаток копеек —
+   последнему; сумма не названа в решении ⇒ списывается всё непогашенное тело. */
+function writeOffTranches(credit, ctx){
+  const date = ctx.date || TODAY, basis = ctx.doc || null;
+  const open = (credit.tranches || []).map(t => ({ t, bal: trancheBalanceAt(credit, t, date) }))
+                                      .filter(x => x.bal > 0.005);
+  if (!open.length) return [];
+  const sum   = round2(open.reduce((a, x) => a + x.bal, 0));
+  /* ПОТОЛОК — ТЕЛО ПО СВОДУ, а не сумма остатков траншей. Когда это писалось (КВ-53),
+     величины расходились законно: остаток транша считал погашенным только разнесённое
+     леджером по НАСТУПИВШИМ позициям, свод — весь подтверждённый пул, и у K-C34 разница
+     доходила до 23 833,32 — списав по траншам, решение списало бы больше, чем кредит
+     должен. КВ-54 свёл обе стороны на платежах (см. trancheBalanceAt), и на сегодняшнем
+     сиде потолок не срабатывает ни разу. Он остаётся СТРАХОВКОЙ: свод — единственное
+     число, которое кредит предъявляет наружу, и списать больше него нельзя ни при какой
+     будущей расстыковке. Доли берём у траншей, величину — у свода. */
+  const led   = buildLedger(credit, date);
+  const cap   = debtOf(led, (credit.tranches || []).reduce((a, t) => a + disbursedSum(t), 0)).principal.bal;
+  const total = round2(Math.min(sum, cap));
+  if (total <= 0.005) return [];
+  const want  = (ctx.amount > 0.005 && ctx.amount < total) ? round2(ctx.amount) : total;
+  let left = want; const made = [];
+  open.forEach((x, i) => {
+    const amount = (i === open.length - 1) ? round2(left) : round2(want * x.bal / sum);
+    left = round2(left - amount);
+    if (amount <= 0.005) return;
+    (x.t.writeOffs || (x.t.writeOffs = [])).push({ date, amount, basis });
+    made.push({ trancheNo: x.t.no, amount });
+  });
+  return made;
+}
+
 /* Происхождение транша ВЫВОДИТСЯ (Р-11 / ADR-0001): есть входящий перенос ⇒ транш рождён
    разделением по ДС, иначе — освоением (ADR-0092 §1). Поля на транше нет намеренно: оно
    завело бы второй источник истины рядом с самим переносом и разъехалось бы с ним при
@@ -3815,20 +4001,23 @@ function trancheOrigin(t){ return (t.transfers || []).some(x => x.dir==='in') ? 
 function originTransfer(t){ return (t.transfers || []).find(x => x.dir==='in') || null; }
 function originDs(t){ const x = originTransfer(t); return (x && x.basis && x.basis.ds) || null; }
 
-/* Погашенное ТЕЛО транша на дату — сворачивается из ЛЕДЖЕРА (r.principalPaid). Своего
-   хранилища у погашения нет и не заводится: платежи приходят зеркалом (ADR-0010), и
-   вторая копия разошлась бы с ним молча. */
-function repaidPrincipalOf(credit, t, d){
-  const led = buildLedger(credit, d);
-  return round2((led.rows || []).filter(r => r.trancheNo === t.no)
-    .reduce((a,r) => a + (r.principalPaid || 0), 0));
-}
-
 /* ИР-3 (ADR-0092 §2): остаток тела транша = освоено − погашено − перенесено + принято.
    Именно ЧЕТЫРЕ слагаемых, а не «сумма транша минус погашенное»: после разделения по ДС
-   сумма транша и его тело — разные величины, и у производного транша освоений нет вовсе. */
+   сумма транша и его тело — разные величины, и у производного транша освоений нет вовсе.
+
+   ПОГАШЕННОЕ — ПО ПЛАТЕЖАМ, А НЕ ПО ЛЕДЖЕРУ (КВ-54). Прежде слагаемое сворачивалось из
+   r.principalPaid, то есть считало погашенным ТОЛЬКО разнесённое по наступившим позициям:
+   досрочная переплата в разнесение не попадает вовсе (см. paidPrincipalOfTranche), и
+   остаток транша расходился со сводом ровно на неё — у K-C34 на 23 833,32. Пока график
+   транша был длинным, расхождение прятала длина: к срезу успевало наступить больше
+   позиций, чем заёмщик оплатил. Перестроение графика по ДС (restructureSource) хвост
+   обрезает — и на опустошённом переносом транше леджерная версия оставляла ФАНТОМНЫЙ
+   остаток из ниоткуда (у K-7 т1 ≈ 4 950 при нуле по своду), то есть ровно легаси-дефект
+   E2E-13/14 с копейкой-сиротой. Платёж — факт, разнесение — его прочтение; тело гасят
+   деньги. Побочно ИР-3 перестал звать buildLedger: рекурсии «остаток → леджер → график»
+   больше нет, и лист может показывать остаток напрямую. */
 function trancheBalanceAt(credit, t, d){
-  return round2(disbursedSum(t) - repaidPrincipalOf(credit, t, d)
+  return round2(disbursedSum(t) - paidPrincipalOfTranche(credit, t, d)
                 - transferredOut(t, d) + transferredIn(t, d));
 }
 /* активен ли интервал приостановки начисления на дату среза (Р-17) */
@@ -4244,7 +4433,8 @@ function paidPrincipalOfTranche(c, t, asOf){
        to (день снятия — последний оплаченный паузой);
      • наступление позиции графика — просроченного стало больше, база пени выросла;
      • решение суда — с его даты пеня на присуждённое не бежит (ADR-0060 §3);
-     • границы окна спора — пеня внутри окна вычислена, но в требование не входит.
+     • границы окна спора — пеня внутри окна вычислена, но в требование не входит;
+     • 1 января — сменился делитель года (365/366) и годовой итог листа (КВ-45, ниже).
 
    СЕТКА ОДНА НА ВЕСЬ РАСЧЁТ (ADR-0129 §1). Прежде границы считались по каждой позиции
    отдельно и только по событиям СВОЕГО транша: процентам этого хватало, пене — нет.
@@ -4263,12 +4453,35 @@ function calcGrid(c, asOf){
     for (const x of (t.disbursements || [])) add(x.date);
     for (const r of (t.conditionRecords || [])) add(r.effectiveFrom);
     for (const h of (t.accrualHold || [])){ add(h.from, -1); add(h.to); }
+    /* Перенос и списание — критические даты наравне с освоением (КВ-53): в обоих телo
+       транша меняется без единого платежа, и строки под эту дату у листа не было. У K-7
+       обе даты попадали в сетку случайно — записью условий того же ДС; у транша-приёмника
+       и у списания совпадения нет, и событие оставалось за пределами расчёта. */
+    for (const x of (t.transfers || [])) add(x.date);
+    for (const w of (t.writeOffs  || [])) add(w.date);
     for (const r of trancheScheduleRows(t)) add(r.date);
   }
   for (const p of ((c && c.mirror && c.mirror.payments) || []))
     if (paymentCounts(p)) add(p.date);
   for (const L of courtLayersOf(c, fd(lim))) add(L.date);
   for (const w of disputeWindows(c)){ add(w.from); add(w.to); }
+  /* ГРАНИЦА ГОДА — 1 ЯНВАРЯ (КВ-45). Единственная критическая дата, которую кредит не
+     порождает событием: её ставит календарь. Причин две, и хватило бы каждой.
+     (1) ДЕЛИТЕЛЬ. При базе «факт» число дней в году берётся по году КОНЦА отрезка
+     (periodInterest: dayBasis(cnd.dayMethod, date)). Отрезок, перешагнувший Новый год,
+     считался весь по делителю следующего года — декабрьские дни високосного соседа
+     делились на 366, и наоборот. Граница разводит их по своим годам.
+     (2) ГОДОВОЙ ИТОГ. Лист «По датам» группирует строки по году даты строки: без
+     границы отрезок 20.12→20.01 целиком ложился в декабрь, и январские проценты
+     попадали в итог прошлого года — а годовой итог читают как «начислено за год».
+     Правило действует при ЛЮБОМ методе дней: 30/360 от делителя не страдает, но сетка
+     обязана быть одна на весь расчёт (§1 ADR-0129), иначе проценты и пеня разъедутся.
+     Отрезка нулевой длины не возникает: дата уже критическая — Set её схлопнет.
+     Ниже первой даты кредита границы не ставим (firstY + 1): до неё считать нечего. */
+  if (set.size){
+    const firstY = new Date(Math.min(...set)).getFullYear();
+    for (let y = firstY + 1; y <= lim.getFullYear(); y++) add(new Date(y, 0, 1));
+  }
   return [...set].sort((a, b) => a - b).map(ms => new Date(ms));
 }
 
@@ -4290,8 +4503,12 @@ function calcEventsAt(c, t, ds){
   const same = (x) => !!x && fd(pd(x)) === ds;
   for (const x of (t.disbursements || [])) if (same(x.date))
     out.push({ kind:'disb', label:'освоение', amount:round2(x.amount || 0) });
+  /* «СРОК ПО ГРАФИКУ», не «позиция» (КВ-46). «Позиция» — жаргон модели: в шапках экрана
+     его нет ни на «Графике», ни в реестре («№ · Дата · Тело по графику»). Слово «платёж» в
+     ярлык не берётся намеренно — в этой же колонке им зовутся ДЕНЬГИ от заёмщика (kind
+     'pay'), и план с фактом слились бы первым словом. */
   for (const r of trancheScheduleRows(t)) if (same(r.date))
-    out.push({ kind:'pos', label:'позиция №' + r.no, amount:0 });
+    out.push({ kind:'pos', label:'срок по графику №' + r.no, amount:0 });
   for (const p of ((c.mirror && c.mirror.payments) || [])){
     if (!paymentCounts(p) || !same(p.date)) continue;
     const own = (p.tranche | 0) === t.no, L = p.layers || {};
@@ -4310,6 +4527,26 @@ function calcEventsAt(c, t, ds){
   }
   for (const L of courtLayersOf(c, ds)) if (same(L.date))
     out.push({ kind:'court', amount:0, label:'решение суда' + (L.il ? ' · ' + L.il : '') });
+  /* ПЕРЕНОС И СПИСАНИЕ (КВ-53) — два движения тела БЕЗ денег, и до этой правки лист молчал
+     о них обоих. У K-7 строка 01.05.2026 стояла с пустым списком событий, хотя в эту дату
+     из транша ушло 200 000: читатель видел дату, у которой ничего не случилось.
+     Знак — по направлению: тело ушло ⇒ минус, пришло ⇒ плюс. Ярлык называет ВСТРЕЧНЫЙ
+     транш и основание: перенос не имеет смысла без второй половины операции. */
+  for (const x of (t.transfers || [])) if (same(x.date))
+    out.push({ kind:'move', amount: (x.dir === 'out' ? -1 : 1) * round2(x.amount || 0),
+      label:(x.dir === 'out' ? 'перенос в транш №' : 'принято из транша №') + x.counterTranche
+            + ((x.basis || {}).ds ? ' по ' + x.basis.ds : '') });
+  for (const w of (t.writeOffs || [])) if (same(w.date))
+    out.push({ kind:'off', amount: 0,
+      label:'списание' + ((w.basis || {}).num ? ' · ' + w.basis.kind + ' ' + w.basis.num : '') });
+  /* Граница года (КВ-45). Событие есть всегда, когда дата критическая: строка листа обязана
+     назвать, ПОЧЕМУ отрезок разорван — иначе читатель ищет несуществующее движение.
+     Ярлык называет делитель, который с этой даты действует: при базе «факт» он и есть
+     причина разрыва (365 ↔ 366), при 360 и 365 — просто подтверждает неизменность.
+     Событие последнее в списке: на 1 января бывает и платёж, и позиция графика. */
+  if (ds.slice(0, 6) === '01.01.')
+    out.push({ kind:'year', amount:0,
+      label:'граница года · день-база ' + dayBasis(conditionsAt(t, ds).dayMethod, pd(ds)).base });
   return out;
 }
 
@@ -4331,7 +4568,17 @@ function trancheAccrual(c, t, asOf, grid){
      а начисление уже идёт — по тому же комплекту, что и весь период (ADR-0128 §1). */
   const cnd0 = (t.conditionRecords || []).reduce((m, r) =>
     (r.effectiveFrom && (!m || pd(r.effectiveFrom) < pd(m)) ? r.effectiveFrom : m), null);
-  let prev     = disb ? pd(disb.date) : pd(rows[0].date);
+  /* НАЧАЛО ПЕРВОГО ПЕРИОДА (КВ-54). У обычного транша это дата освоения: деньги ушли
+     заёмщику, с них и бегут проценты. У производного освоения нет — тело пришло ПЕРЕНОСОМ
+     по ДС, и дата приёма для него ровно то же событие. Прежде начало брали у первой
+     позиции, а она наступает позже вступления ДС (K-7 т2: принято 01.05.2026, график с
+     15.06.2026): период получался нулевой длины, отрезка под ним не было, и 45 дней между
+     приходом тела и первой позицией не начислял НИКТО — при том что у соседа-донора те же
+     дни продолжали начисляться на уже ушедшее тело. */
+  const inTr   = originTransfer(t);
+  const start0 = [disb ? pd(disb.date) : null, inTr ? pd(inTr.date) : null]
+    .filter(Boolean).sort((a, b) => a - b)[0];
+  let prev     = start0 || pd(rows[0].date);
   let ctrPaid  = 0;                                  // тело, погашенное ПО ГРАФИКУ к началу периода
   let prevDisb = 0;                                  // освоено к концу ПРЕДЫДУЩЕЙ позиции
   for (const r of rows){
@@ -4362,7 +4609,13 @@ function trancheAccrual(c, t, asOf, grid){
          значило бы обнулить ему базу навсегда. */
       const undisb = (disb && at0 >= pd(disb.date))
         ? round2(Math.max(0, full - disbursedTo(t, fd(at0)))) : 0;
-      const dev    = round2(ctrPaid - paidPrincipalOfTranche(c, t, fd(at0)) - undisb);
+      /* ТРЕТЬЕ СЛАГАЕМОЕ — ПЕРЕНОС ПО ДС (КВ-54, movedNetAt). Без него база отрезка знала
+         только деньги: донор продолжал начислять на ушедшее тело (K-7 т1 — 9 % на 360 000
+         после 01.05.2026), приёмник начислял на него же свои 5 %, и заёмщик платил за одни
+         и те же дни дважды. Лист при этом печатал «Остаток» 360 000 против нуля по ИР-3 —
+         то есть противоречил и карточке, и своду. */
+      const dev    = round2(ctrPaid - paidPrincipalOfTranche(c, t, fd(at0)) - undisb
+                            + movedNetAt(t, fd(at0)));
       const days   = perDays > 0 ? Math.max(0, dd(a, b)) : 0;
       /* финансовый числитель ('30/…'): период стоит 30×mpp дней вне календаря — делим
          эту фиксированную длину по календарной доле отрезка, иначе каждый отрезок
@@ -4466,8 +4719,12 @@ function trancheForecastRows(c, t, ledgerIndex, asOf, opts){
      кредите база прогноза совпадала с контрактной до копейки, и вкладка отвечала «ждём
      ровно график» при 88 тыс. недобора. Взнос остаётся контрактным (ADR-0104 §1) —
      дорожает СОСТАВ: процентов больше, тела меньше, остаток гаснет медленнее. */
+  /* перенос по ДС вычитается и здесь (КВ-54): ожидание считается на фактическом теле, а
+     тело, ушедшее в другой транш, ждут по ЕГО графику — иначе прогноз кредита складывал
+     бы одну и ту же сумму дважды */
   let accrBal  = round2(Math.max(0, (disbursedSum(t) || t.amount || 0)
-                                    - paidPrincipalOfTranche(c, t, asOf)));
+                                    - paidPrincipalOfTranche(c, t, asOf)
+                                    + movedNetAt(t, asOf)));
   let bal      = round2(Math.max(0, accrBal - overdueP));   // база АМОРТИЗАЦИИ
   /* начало первого будущего периода — дата предыдущей позиции, а до первой позиции —
      дата освоения: периоды начисления идут встык, как в графике */
@@ -5133,22 +5390,51 @@ function buildLedger(c, asOf){
      период ПОСЛЕ него. Проценты берутся отрезком начисления, пеня — интегралом выше; обе
      величины посчитаны на ОДНОЙ сетке, поэтому лист сходится со сводом по построению,
      а не по совпадению.
-     Лестница базы: база строки = база предыдущей + «изменение базы» этой. Отдельной
-     колонки «остаток тела на конец» нет намеренно — это буквально база следующей строки,
-     то есть одно число в двух местах (разбор 15.08.2026, вопрос 6). */
+     Лестница базы: база строки = база предыдущей + освоенное этой − погашенное телом.
+     Отдельной колонки «остаток тела на конец» нет намеренно — это буквально база следующей
+     строки, то есть одно число в двух местах (разбор 15.08.2026, вопрос 6). */
   const dateSheet = (c.tranches || []).map(t => {
     const segs   = segsByTranche.get(t.no) || [];
     const byFrom = new Map(segs.map(s => [s.from, s]));
     const pays   = ((c.mirror && c.mirror.payments) || [])
       .filter(p => paymentCounts(p) && (p.tranche | 0) === t.no);
     const out = [];
-    let prevBase = null, runInt = 0, runPen = 0;
+    let runInt = 0, runPen = 0;
+    /* НАКОПЛЕННОЕ (ADR-0093 §1, статья графика accInterest — SCHED_ARTICLES). Проценты,
+       начисленные ДО реструктуризации: ставка на них не идёт и период их не порождает,
+       срок им назначает документ, раскладывая по позициям нового графика. Поэтому в лист
+       они приходят не из отрезка, а из строки графика своей даты. */
+    const accByDate = new Map();
+    for (const r of rows){
+      if (r.trancheNo !== t.no || !(r.accInterestDue > 0.005)) continue;
+      accByDate.set(r.date, round2((accByDate.get(r.date) || 0) + r.accInterestDue));
+    }
+    /* ТЕЛО ПО ГРАФИКУ (КВ-48). «Просрочено» без него — число ниоткуда: видно, что не
+       покрыто, и не видно, ЧТО наступило. Берётся из леджера (наступившие позиции,
+       ADR-0057), а не из графика: лист печатает расчёт, а не план. Позиция, датированная
+       ровно СРЕЗОМ, строки листа не имеет (срез — правый край, а не критическая дата) —
+       её тело в лист не попадает, ровно как и её событие «срок по графику». */
+    const dueByDate = new Map();
+    for (const r of rows){
+      if (r.trancheNo !== t.no || !(r.principalDue > 0.005)) continue;
+      dueByDate.set(r.date, round2((dueByDate.get(r.date) || 0) + r.principalDue));
+    }
+    let runAcc = 0, runPaidInt = 0, runPaidPen = 0, runDue = 0, runPaidP = 0, runDisb = 0, runOff = 0;
+    let runOut = 0, runIn = 0;   // перенос нарастающим (КВ-56)
     for (let i = 0; i < penMarks.length - 1; i++){
       const a = penMarks[i], b = penMarks[i + 1];
       const ds  = fd(a);
       const seg = byFrom.get(ds) || null;
       const pen = perTranchePen.get(t.no + '|' + ds) || null;
-      if (!seg && !pen) continue;               // на этом отрезке с траншем не происходит ничего
+      /* ДВИЖЕНИЕ ТЕЛА БЕЗ НАЧИСЛЕНИЯ (КВ-53) — третий повод для строки рядом с отрезком и
+         пенёй. Транш-ПРИЁМНИК получает тело переносом в дату ДС, а первая его позиция
+         наступает позже (K-7 т2: принято 01.05.2026, график с 15.06.2026): отрезка под
+         датой переноса нет, и строка молча пропадала — тело у транша появлялось «ниоткуда»
+         на первой же строке графика. Дата, в которую тело двинулось, обязана быть в листе,
+         даже когда начислять на этом отрезке не на что. */
+      const moved = (t.transfers || []).some(x => fd(pd(x.date)) === ds)
+                 || writeOffsOf(t).some(w => fd(pd(w.date)) === ds);
+      if (!seg && !pen && !moved) continue;     // на этом отрезке с траншем не происходит ничего
       const ev  = calcEventsAt(c, t, ds);
       /* «Погашено в периоде» — платежи, ДАТИРОВАННЫЕ границей отрезка: деньги приходят в
          критическую дату, она их и показывает. Разнесение по статьям — зеркало платежей. */
@@ -5166,23 +5452,124 @@ function buildLedger(c, asOf){
          начисления, которого нет. */
       const gap  = !!seg && seg.days === 0;
       const base = (seg && !gap) ? seg.base : null;
-      const delta = (base == null) ? null : (prevBase == null ? base : round2(base - prevBase));
       runInt = round2(runInt + (seg ? (seg.accrued || 0) : 0));
       runPen = round2(runPen + (pen ? (pen.penalty  || 0) : 0));
+      /* Нарастающие и остатки — внутри ТРАНША: лестница базы сходится только в нём, и
+         остаток статьи, посчитанный поперёк траншей, не сойдётся ни с одной строкой.
+         Остаток = начислено нарастающим − погашено нарастающим: платёж гасит статью
+         целиком, очередь принадлежит модулю платежей (ADR-0060 §4), а лист лишь печатает
+         итог разнесения, а не повторяет его правило. */
+      const accDue = accByDate.get(ds) || 0;
+      const dueP   = dueByDate.get(ds) || 0;
+      runAcc     = round2(runAcc + accDue);
+      runPaidInt = round2(runPaidInt + pay.interest);
+      runPaidPen = round2(runPaidPen + pay.penalty);
+      /* НАРАСТАЮЩИЕ ПО ТЕЛУ (КВ-49). Разовое число строки отвечает на «что случилось в эту
+         дату», нарастающее — на «где мы к этой дате»: сколько тела график успел потребовать
+         и сколько заёмщик успел вернуть. Их разность — просроченное тело плюс наступившее
+         сегодня; сверять два столбца глазом дешевле, чем складывать 130 строк. */
+      runDue     = round2(runDue + dueP);
+      runPaidP   = round2(runPaidP + pay.principal);
+      /* ОСВОЕНО НАРАСТАЮЩИМ (КВ-51). У транша с одним освоением колонка повторяет разовое
+         число, у многотраншевых договоров — единственное место, где видно, на какой сумме
+         кредит жил в этом отрезке: «Остаток» уже вычел погашенное, а «Освоено» помнит
+         только свою дату. */
+      const disb = round2(ev.filter(e => e.kind === 'disb').reduce((s, e) => s + (e.amount || 0), 0));
+      runDisb    = round2(runDisb + disb);
+      /* СПИСАНО и СПИСАНО НАРАСТАЮЩИМ (КВ-53). Тело, признанное безнадёжным решением, —
+         третий способ уменьшить долг после денег и переноса, и единственный, которого лист
+         не показывал вовсе. Нарастающее нужно ровно затем же, зачем «Погашено нарастающим»:
+         решений о списании на кредите бывает больше одного (частичное списание — штатный
+         исход), и «сколько всего списано к этой дате» иначе складывается глазами.
+         ПЕРЕНОС в это число НЕ входит: тело не исчезло, оно живёт в другом транше — у него
+         своя пара колонок по составу («Перенесено · Принято», КВ-55). Считать их одной
+         колонкой нельзя ещё и потому, что перенос «Остаток» ГАСИТ, а списание нет. */
+      const offAmt   = round2(writeOffsOf(t).filter(w => fd(pd(w.date)) === ds)
+                        .reduce((s, w) => s + (w.amount || 0), 0));
+      runOff     = round2(runOff + offAmt);
+      const movedOut = round2((t.transfers || []).filter(x => x.dir === 'out' && fd(pd(x.date)) === ds)
+                        .reduce((s, x) => s + (x.amount || 0), 0));
+      const movedIn  = round2((t.transfers || []).filter(x => x.dir === 'in'  && fd(pd(x.date)) === ds)
+                        .reduce((s, x) => s + (x.amount || 0), 0));
+      const moveTo   = (t.transfers || []).filter(x => fd(pd(x.date)) === ds).map(x => x.counterTranche).join(', ');
+      /* ПЕРЕНЕСЕНО И ПРИНЯТО НАРАСТАЮЩИМ (КВ-56). Разовое число отвечает на «что случилось
+         в эту дату», нарастающее — на «сколько тела транш отдал и принял ВСЕГО к ней».
+         Считаются они врозь, а не одним нетто: транш-источник, отдавший тело двумя ДС и
+         принявший часть обратно третьим, при нетто выглядел бы отдавшим меньше, чем отдал.
+         Разность нарастающих — вклад переноса в «Остаток» этой строки, и сойтись она
+         обязана с ИР-3: `trancheBalanceAt` несёт ровно `− transferredOut + transferredIn`. */
+      runOut = round2(runOut + movedOut);
+      runIn  = round2(runIn  + movedIn);
+      /* Ставка пени — НА ДАТУ ОТРЕЗКА (Р-21). Прежде показ брал её на дату среза, то есть
+         допсоглашение задним числом переписывало ставку во всех прошлых строках, хотя
+         начислено по ним было по старой. */
+      const pcnd = conditionsAt(t, ds);
       out.push({ date:ds, to:fd(b), days: Math.max(0, dd(a, b)),
         events:ev, move:round2(ev.reduce((s, e) => s + (e.amount || 0), 0)),
-        base, baseDelta:delta, rate: (seg && !gap) ? seg.rate : null, paused: !!(seg && seg.paused),
+        /* ДВА ФАКТА, А НЕ ОДНО НЕТТО (КВ-48). Прежде колонка печатала «изменение базы» =
+           освоение − погашенное тело: погашение стояло в ней ВТОРОЙ раз (рядом своя
+           колонка), а освоение и платёж одного дня схлопывались в одно число и оба
+           переставали быть видны. Освоение — факт, погашение — факт; «изменение» между
+           ними выводится, а не хранится: база строки минус база предыдущей. */
+        disb, runDisb, dueP, runDue, runPaidP, offAmt, runOff,
+        movedOut, runOut, movedIn, runIn, moveTo,
+        base, rate: (seg && !gap) ? seg.rate : null, paused: !!(seg && seg.paused),
         accrued: (seg && !gap) ? seg.accrued : null, dev: (seg && !gap) ? seg.dev : null,
-        noAccrual: !seg ? 'tail' : (gap ? 'gap' : null),
+        noAccrual: !seg ? (moved && !runDisb ? 'pre' : 'tail') : (gap ? 'gap' : null),
         posNo: seg ? seg.posNo : null,
         penalty: pen ? pen.penalty : 0, penBaseP: pen ? pen.basePrincipal : 0,
         penBaseI: pen ? pen.baseInterest : 0, penPerDay: pen ? pen.perDay : 0,
-        /* Остатка тела в строке НЕТ: он есть «База» этой же строки (база отрезка = освоено
-           к дате − погашено к дате, см. sbase в trancheAccrual), а звать одно число двумя
-           именами в соседних колонках — ровно то, что волна и вычищает. Вдобавок
-           trancheBalanceAt читает buildLedger, и вызов отсюда был бы рекурсией. */
+        penRateMain: pcnd.penaltyMain || 0, penRateInt: pcnd.penaltyInt || 0,
+        accDue, runAcc, intLeft: round2(runInt - runPaidInt), penLeft: round2(runPen - runPaidPen),
+        /* Остатка тела в строке НЕТ: он есть «База» этой же строки, а звать одно число
+           двумя именами в соседних колонках — ровно то, что волна и вычищает. После КВ-54
+           это тождество не на слово: база отрезка = освоено − погашено − неосвоенное
+           ± перенос (sbase в trancheAccrual) и сходится с ИР-3 до копейки на всех 60
+           кредитах сида — сверяет проверка №174. */
         paid:pay, runInt, runPen });
-      if (base != null) prevBase = base;
+    }
+    /* СТРОКА САМОГО СРЕЗА (КВ-53). Сетка отрезков кончается срезом как ПРАВЫМ КРАЕМ:
+       penMarks берёт даты строго левее среза и приклеивает срез концом последнего
+       отрезка. Значит всё, что случилось РОВНО в дату среза, строки не имело вовсе —
+       и это не мелочь: у закрытых кредитов дата решения о списании совпадает со срезом
+       по построению (срез закрытого кредита — дата закрытия), поэтому все три списания
+       сида были невидимы; тем же способом пропадали 24 платежа сида, датированных срезом.
+       Строка добавляется только когда в эту дату ЕСТЬ что показать, и несёт нулевую
+       длину: отрезка за срезом нет, поэтому база, ставка и начисление молчат прочерком —
+       строка отвечает на «что случилось в срез», а не «сколько набежало после». */
+    const dsLim = fd(lim);
+    const evLim = calcEventsAt(c, t, dsLim);
+    const payLim = pays.filter(p => fd(pd(p.date)) === dsLim).reduce((s, p) => { const L = p.layers || {};
+      s.principal = round2(s.principal + (L.principal || 0));
+      s.interest  = round2(s.interest  + (L.interest  || 0));
+      s.penalty   = round2(s.penalty   + (L.penalty   || 0)); return s; },
+      { principal:0, interest:0, penalty:0 });
+    const offLim = round2(writeOffsOf(t).filter(w => fd(pd(w.date)) === dsLim)
+                     .reduce((s, w) => s + (w.amount || 0), 0));
+    const dueLim = dueByDate.get(dsLim) || 0, accLim = accByDate.get(dsLim) || 0;
+    if (evLim.length || offLim > 0.005 || dueLim > 0.005 || accLim > 0.005
+        || payLim.principal + payLim.interest + payLim.penalty > 0.005){
+      const outLim = round2((t.transfers || []).filter(x => x.dir === 'out' && fd(pd(x.date)) === dsLim)
+                       .reduce((s, x) => s + (x.amount || 0), 0));
+      const inLim  = round2((t.transfers || []).filter(x => x.dir === 'in'  && fd(pd(x.date)) === dsLim)
+                       .reduce((s, x) => s + (x.amount || 0), 0));
+      const dLim   = round2(evLim.filter(e => e.kind === 'disb').reduce((s, e) => s + (e.amount || 0), 0));
+      const cLim   = conditionsAt(t, dsLim);
+      runOut = round2(runOut + outLim);       runIn = round2(runIn + inLim);
+      runDisb = round2(runDisb + dLim);      runOff     = round2(runOff + offLim);
+      runDue  = round2(runDue + dueLim);     runPaidP   = round2(runPaidP + payLim.principal);
+      runAcc  = round2(runAcc + accLim);     runPaidInt = round2(runPaidInt + payLim.interest);
+                                             runPaidPen = round2(runPaidPen + payLim.penalty);
+      out.push({ date:dsLim, to:dsLim, days:0, events:evLim,
+        move:round2(evLim.reduce((s, e) => s + (e.amount || 0), 0)),
+        disb:dLim, runDisb, dueP:dueLim, runDue, runPaidP,
+        offAmt:offLim, runOff, movedOut:outLim, runOut, movedIn:inLim, runIn,
+        moveTo:(t.transfers || []).filter(x => fd(pd(x.date)) === dsLim).map(x => x.counterTranche).join(', '),
+        base:null, rate:null, paused:false, accrued:null, dev:null, noAccrual:'edge', posNo:null,
+        penalty:0, penBaseP:0, penBaseI:0, penPerDay:0,
+        penRateMain:cLim.penaltyMain || 0, penRateInt:cLim.penaltyInt || 0,
+        accDue:accLim, runAcc, intLeft:round2(runInt - runPaidInt), penLeft:round2(runPen - runPaidPen),
+        paid:payLim, runInt, runPen });
     }
     /* Свод раздела — им лист сверяется со сводом по статьям вкладки. Начислено по отрезкам
        и начислено по позициям расходятся ровно там, где график построен по одному снимку
@@ -6116,15 +6503,18 @@ function generateSchedule(credit, trancheNo, params){
                     by: params.basis
                         ? { kind:'engine', label:'Перестроение графика', basis: params.basis }
                         : { kind:'engine', label:'Перестроение графика' },
-                    generatedFrom: params.from, generatedAt: TODAY,
-                    generatedSeq: _crSeq, rows: built.rows };
+                    generatedFrom: params.from, generatedAt: TODAY, generatedSeq: _crSeq,
+                    /* наступившее слева от даты перестроения переносится как было (КВ-54):
+                       иначе кнопка середины срока стирает историю позиций ровно так же,
+                       как это делал ДС, — та же сшивка, та же причина. */
+                    rows: stitchSchedule(t, params.from, built.rows) };
   t.schedules.push(version);
   pushAudit(credit, `Сформирован график погашения v${ver} по траншу №${trancheNo} от ${params.from}`,
     prev || null, version);
   return version;
 }
 
-/* ЕДИНСТВЕННАЯ ПИШУЩАЯ ДВЕРЬ реструктуризации в кредит (ADR-0096). Шесть шагов
+/* ЕДИНСТВЕННАЯ ПИШУЩАЯ ДВЕРЬ реструктуризации в кредит (ADR-0096). Семь шагов
    НЕПЕРЕСТАНОВИМЫ, и полуприменённого ДС не бывает: вся валидация — до первой записи.
    Кредит ПРИМЕНЯЕТ пришедшее зеркалом ДС, а не заводит его (Р-16): само соглашение
    создаётся в модуле реструктуризации, сюда приходит приложением со строками. */
@@ -6161,9 +6551,11 @@ function restructureApplied(credit, ds){
       createdAt: ds.date,
       basis:{ kind:'ДС', ref: ds.num, label:'Реструктуризация ' + ds.num, date: ds.date } }));
   });
-  // 5. опустошённый источник закрывается ПЕРЕНОСОМ, не погашением (ИР-5, ADR-0092 §3)
+  // 5. график ИСТОЧНИКА пересобирается на остаток: требовать ушедшее тело он больше не вправе
+  restructureSource(credit, src, ds);
+  // 6. опустошённый источник закрывается ПЕРЕНОСОМ, не погашением (ИР-5, ADR-0092 §3)
   closeIfEmptied(credit, src, ds);
-  /* 6. счётчик считает ДС, а не траншы (ADR-0092 «Последствия»). Журнал применённых ДС —
+  /* 7. счётчик считает ДС, а не траншы (ADR-0092 «Последствия»). Журнал применённых ДС —
      собственный факт кредита (его СОБСТВЕННОЕ действие), а не зеркало: число в
      mirror.restructuring.count принадлежит модулю реструктуризации, и кредит его не
      трогает — иначе одно и то же событие считалось бы дважды с двух сторон. */
@@ -6174,6 +6566,58 @@ function restructureApplied(credit, ds){
     + ' с транша №' + src.no + ' на новый транш №' + no, null, der);
   return { ok:true, tranche: der };
 }
+/* СШИВКА ВЕРСИИ ГРАФИКА (КВ-54). Перестроение середины срока обязано оставить левую часть
+   как есть: позиции левее даты вступления уже наступили, их разнёс леджер, а ключ строки
+   леджера — транш + НОМЕР позиции. Пересборка, начинающая нумерацию с единицы, молча
+   перевешивает разнесённые платежи на чужие позиции и стирает историю просрочки. Правило
+   общее у обеих дверей — ДС (restructureSource) и кнопки «Сформировать график»
+   (generateSchedule), поэтому живёт одной функцией, а не двумя копиями.
+   Прежние строки берём у ДЕЙСТВОВАВШЕЙ на дату версии; если версий нет — у контрактного
+   графика транша (trancheScheduleRows строит его на лету). Построение первой версии от даты
+   освоения проходит здесь без изменений: левее даты освоения позиций нет, past пуст. */
+function stitchSchedule(t, from, tail){
+  const lim     = pd(from);
+  const active  = scheduleAt(t, from);
+  const prev    = (active && (active.rows || []).length) ? active.rows : trancheScheduleRows(t);
+  const past    = prev.filter(r => pd(r.date) < lim).map(r => ({ ...r }));
+  const lastNo  = past.reduce((m, r) => Math.max(m, r.no || 0), 0);
+  return past.concat((tail || []).map((r, i) => ({ ...r, no: lastNo + i + 1 })));
+}
+
+/* ГРАФИК ИСТОЧНИКА ПОСЛЕ ДС (КВ-54). До этой правки ДС трогал только приёмника: у донора
+   оставались ВСЕ прежние позиции, и график продолжал требовать тело, которого на транше
+   больше нет. У K-7 т1 после двух ДС остаток нулевой, транш закрыт переносом — а график
+   до 12.01.2029 требовал все 400 000 и по ним же шло начисление. Одна операция обязана
+   двигать обе стороны: приёмник получил свою версию строк из приложения, источник получает
+   свою.
+     • НАСТУПИВШЕЕ НЕ ПЕРЕПИСЫВАЕТСЯ — левую часть сохраняет stitchSchedule (см. выше).
+     • ХВОСТ АМОРТИЗИРУЕТ ОСТАТОК (ИР-3 на дату вступления), а не контрактный недобор:
+       перенос забирает тело по своду, и брать базой контрактный хвост значило бы требовать
+       его во второй раз. Остаток нулевой ⇒ хвоста нет вовсе, транш закрывает closeIfEmptied.
+     • СТРОКИ МОЖЕТ ПРИНЕСТИ САМО СОГЛАШЕНИЕ (ds.sourceRows) — тогда движок их не считает,
+       ровно как у производного транша: приложение к ДС сильнее арифметики (ADR-0096 §3).
+   Версия рождена ДС, поэтому перестроить её движком без основания нельзя (КВ-26, та же
+   защита, что у производного транша). */
+function restructureSource(credit, src, ds){
+  const rest = trancheBalanceAt(credit, src, ds.effectiveFrom);
+  const tail = (ds.sourceRows || []).length
+    ? ds.sourceRows.map(r => ({ ...r }))
+    : (rest > 0.005 ? buildSchedule(src, ds.effectiveFrom, { base: rest }).rows : []);
+  const active = scheduleAt(src, ds.effectiveFrom);
+  const rows   = stitchSchedule(src, ds.effectiveFrom, tail);
+  const past   = rows.length - tail.length;
+  src.schedules = src.schedules || [];
+  const ver = src.schedules.reduce((m, s) => Math.max(m, s.ver || 0), 0) + 1;
+  const version = { ver, validFrom: ds.effectiveFrom,
+    by:{ kind:'ДС', ref: ds.num, label:'Реструктуризация ' + ds.num },
+    generatedFrom: ds.effectiveFrom, generatedAt: TODAY, generatedSeq: _crSeq, rows };
+  src.schedules.push(version);
+  pushAudit(credit, 'График транша №' + src.no + ' пересобран по ' + ds.num + ' от '
+    + ds.effectiveFrom + ': сохранено позиций ' + past + ', хвост на ' + money(rest),
+    active || null, version);
+  return version;
+}
+
 /* ИР-5: причина закрытия ВЫВОДИТСЯ обнулившей операцией — ручной closeTranche ввести
    «перенос» не может, это причина двери, а не человека. */
 function closeIfEmptied(credit, t, ds){
@@ -6611,6 +7055,17 @@ function closeCredit(credit, ctx){
   credit.closure = after;
   credit.lifecycle = 'Закрыт';
   pushAudit(credit, 'closeCredit: ' + ctx.reason, before, after);
+  /* СПИСАНИЕ ПИШЕТ ЗАПИСИ ПО ТРАНШАМ (КВ-53). Прежде терминал «Списан» менял на кредите
+     ровно два поля — основание и ЖЦ, — и расчёт о событии не узнавал: ни даты, ни суммы,
+     ни транша. Решение выносится на кредит, а тело живёт в траншах, поэтому разнесение
+     происходит здесь, у самой двери, и той же функцией, какой сидируются закрытые
+     кредиты, — иначе демо и рабочий путь разошлись бы первой же правкой. */
+  if (ctx.reason === 'Списан'){
+    const made = writeOffTranches(credit, { date: after.date, doc: ctx.doc || null,
+                                            amount: (ctx.doc || {}).amount });
+    for (const m of made)
+      pushAudit(credit, 'writeOff: транш №' + m.trancheNo + ' · ' + money(m.amount), null, m);
+  }
   return g;
 }
 
@@ -6652,10 +7107,11 @@ window.CR = {
   conditionsAt, mkConditionRecord, mkPrimaryRecords, PARAMS, PARAM_KEYS, paramLabel, BASIS_KINDS,
   COND_CARD_RATES, COND_CARD_REPAY,
   creditConditionsAt, divergenceRows, basisGroups, retroFlags, retroPendingFlags, activeTranche,
-  trancheOrigin, originTransfer, originDs, transferredOut, transferredIn, repaidPrincipalOf, trancheBalanceAt,
+  trancheOrigin, originTransfer, originDs, transferredOut, transferredIn, movedNetAt, trancheBalanceAt,
+  writeOffsOf, writtenOffAt, writeOffTranches,                    // КВ-53: списание тела по траншам
   courtRef, courtBasisLabel,
   generateSchedule, holdAccrual, scheduleAt, validTo, schedValidFrom,
-  restructureApplied, closeIfEmptied,
+  restructureApplied, restructureSource, stitchSchedule, closeIfEmptied,
   saveContractAmount, editContractRequisites, addTranche, addDisbursement, setKmDecision, saveWaiver,
   addPayment, paymentEditable, addAgreement, addConditionRecords, closeCredit, linkPledge,
   editSubject, addSubjectRecords, subjectAt, mkSubjectItem,
@@ -6798,6 +7254,86 @@ if (typeof document !== 'undefined') {
   const filters = { q:'', dateFrom:'', dateTo:'', region:'', district:'', program:'', curator:'',
                     category:'', subgroup:'', lifecycle:'', problem:'', odMin:'', odMax:'' };
   const paging = { page:1, size:10 };
+
+  /* ============================================================
+     ДЕМОНАБОР — СЛУЖЕБНАЯ ВЕЩЬ МАКЕТА, В ПРОДУКТ НЕ ИДЁТ (разбор 15.08.2026).
+     Сид держит 60 кредитов: 8 опорных цепочек (K-1…K-7, K-6b), 8 фоновых платёжных
+     (K-B1…K-B8: платёж в иной валюте, сторно по таймауту, восстановление ЦК) и
+     44 сценарных (K-C1…K-C44) — по одному на ветку логики.
+
+     ПОКАЗ БОЛЬШЕ НЕ РЕЖЕТСЯ (КВ-52, решение владельца 16.08.2026). Переключатель
+     «Опорные / Весь демонабор» снят вместе со всей своей машинерией: он пересобирал
+     ОБОЛОЧКУ реестра (списки «Область / Район», «Программа», «Куратор» строятся из
+     данных), переносил заполненные фильтры и на каждом промахе выборки делал второй
+     проход по всему сиду с derive() — страница от этого тормозила. Реестр снова ходит
+     по `CR.db.credits`, как до КВ-44; длину гасит пагинация (10 строк на страницу).
+
+     Сид при этом по-прежнему не избыточен и не режется: 44 сценария дают 39
+     неповторяющихся отпечатков ветвления (ЖЦ · освоение · просрочка · категория ·
+     взыскание · покрытие · реструктуризация · пауза · резерв · KM · плавающая ·
+     мульти-транш · договор<одобренной · закрытие · валюта) — чистых дублей всего
+     пять, а ID позиционный (`'K-C'+(i+1)`, номер `C(200+i)`, ИНН от i), и вынутый из
+     середины сценарий сдвинул бы все последующие, на которые стоят смоук, ADR и шоты.
+     От набора осталась ШПАРГАЛКА: она отвечает на вопрос показа «где кредит с
+     банкротством / паузой / чужой валютой» и ничего не пересчитывает до клика.
+     ============================================================ */
+  /* «Что демонстрирует» — не подпись из сида, а СОСТОЯНИЕ кредита на срезе: ярлыки
+     берутся у stateFlags (те же слова, что куратор видит в карточке) и дополняются
+     тем, что во флаги не попадает, — ЖЦ, освоение, валюта, число траншей, покрытие
+     ниже порога, неустойка за неосвоение. Размечать сид отдельным полем отвергнуто:
+     подпись, живущая рядом с данными, врёт при первой же правке данных. */
+  function demoNoteOf(c, d){
+    const out = [];
+    if (c.lifecycle !== 'Действует')
+      out.push(c.lifecycle + (c.closure && c.closure.reason ? ' · ' + c.closure.reason : ''));
+    if (d.disbState !== 'Полностью освоен') out.push(d.disbState.toLowerCase());
+    if ((c.tranches || []).length > 1) out.push('траншей ' + c.tranches.length);
+    if (c.currency !== 'KGS') out.push('валюта ' + c.currency);
+    out.push(...d.stateFlags.map(f => f.text));
+    /* Признак берётся у гейта (`ok`), а не пересчитывается из ratio: порог бывает
+       нулевым по решению КМ, а к индексу примешана доля ликвида — своя арифметика тут
+       разошлась бы с плашкой карточки. */
+    const cov = d.coverage;
+    if (cov && cov.applicable && cov.ok === false)
+      out.push('обеспеченность ниже порога' + (cov.index != null ? ' · индекс ' + Math.round(cov.index * 100) + ' %' : ''));
+    if (d.reserveAccrual && d.reserveAccrual.applies) out.push('неустойка за неосвоение');
+    return out.length ? out.join(' · ') : 'ровный действующий кредит без особенностей';
+  }
+  /* ШПАРГАЛКА НАБОРА. При показе она отвечает на вопрос, ради которого набор и держат:
+     «где кредит с банкротством / паузой / чужой валютой». Три раздела — по происхождению
+     кредита в сиде, потому что вопрос демонстратора обычно звучит как «покажи сценарный
+     на взыскание», а не «покажи K-C14». */
+  function openDemoSheet(){
+    const CORE = ['K-1','K-2','K-3','K-4','K-5','K-6','K-6b','K-7'];
+    const parts = [
+      { label:'Опорные цепочки — сквозные истории макета', test:c => CORE.includes(c.id) },
+      { label:'Фоновые — случаи модуля платежей',          test:c => /^K-B/.test(c.id) },
+      { label:'Сценарные — по ветке логики на кредит',      test:c => /^K-C/.test(c.id) },
+    ];
+    const rest = CR.db.credits.filter(c => !parts.some(p => p.test(c)));
+    if (rest.length) parts.push({ label:'Прочие', test:c => rest.includes(c) });
+    const html = parts.map(p => {
+      const list = CR.db.credits.filter(p.test);
+      if (!list.length) return '';
+      const rows = list.map(c => {
+        const d = derive(c);
+        return `<tr onclick="CR.openDemoCredit('${jsAttr(c.id)}')" title="Открыть карточку">
+          <td class="ds-id">${esc(c.id)} · № ${esc(c.num)}</td>
+          <td class="ds-name">${esc(c.borrower.name)}</td>
+          <td class="ds-what">${esc(demoNoteOf(c, d))}</td></tr>`;
+      }).join('');
+      return `<h4>${esc(p.label)} · ${list.length}</h4><table><tbody>${rows}</tbody></table>`;
+    }).join('');
+    CR.openModal('Шпаргалка демонабора — что демонстрирует каждый кредит',
+      `<div class="demo-sheet">${html}</div>`,
+      '<button class="btn btn-secondary" onclick="CR.closeModal()">Закрыть</button>');
+  }
+  /* Открытие из шпаргалки: реестр показывает весь сид, поэтому расширять нечего —
+     закрыть модалку и открыть карточку. */
+  function openDemoCredit(id){
+    CR.closeModal();
+    openDetail(id);
+  }
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g, ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
   /* Модель хранит даты как дд.мм.гггг (pd() их так парсит); <input type="date"> отдаёт
@@ -7098,6 +7634,9 @@ if (typeof document !== 'undefined') {
     const from = (paging.page - 1) * paging.size;
     const page = hits.slice(from, from + paging.size);
 
+    /* Промах выборки больше не перепроверяется по полному сиду (КВ-52): реестр и есть
+       полный сид, «нет такого кредита» однозначно. Второй проход с derive() по 60
+       кредитам на каждый пустой ввод в поиске был из тех, что тормозили страницу. */
     body.innerHTML = page.length ? page.map(([c,d])=>rowHtml(c,d)).join('')
       : `<tr><td colspan="8" style="text-align:center;color:var(--text-placeholder);padding:20px">Ничего не найдено по фильтрам</td></tr>`;
     const badge = document.getElementById('fBadge');
@@ -7146,6 +7685,9 @@ if (typeof document !== 'undefined') {
     grafikOpenYears = null;                                     // годы «Графика»: null → умолчание (текущий год)
     prognozShowAll = false; prognozMsOpen = false;              // «Прогноз»: окно в 3 даты, цифры при МС свёрнуты
     document.getElementById('view-list').style.display = 'none';
+    /* Набор сужает реестр, а карточка открывается по любому кредиту сида — на карточке
+       переключатель ни на что не влияет и только зовёт нажать. Прячем вместе с реестром. */
+    const dw = document.getElementById('demoWrap'); if (dw) dw.style.display = 'none';
     const dv = document.getElementById('view-detail');
     dv.style.display = 'flex';
     dv.innerHTML = `<div id="cr-card-body"></div>`;
@@ -7156,6 +7698,7 @@ if (typeof document !== 'undefined') {
   function backToList(){
     const dv = document.getElementById('view-detail'); if (dv){ dv.style.display='none'; dv.innerHTML=''; }
     const lv = document.getElementById('view-list'); if (lv) lv.style.display='flex';
+    const dw = document.getElementById('demoWrap'); if (dw) dw.style.display = '';
     const crumb = document.getElementById('crumb'); if (crumb) crumb.textContent = '';
     detailId = null;
     syncHash();
@@ -7275,10 +7818,18 @@ if (typeof document !== 'undefined') {
      'positions' — реестр по позициям графика. Живёт НА СЕССИЮ и общий для всех кредитов:
      переключил однажды — следующий кредит открывается в том же виде (разбор 15.08.2026,
      вопрос 7). Поэтому ни ключа кредита, ни сброса при смене карточки у него нет.
-     calcCols — включённые группы колонок, та же память. Базовая группа не выключается:
-     без неё в строке нечего читать. */
+     Переключателя колонок больше нет (КВ-47): лист печатает все колонки под двухуровневой
+     шапкой, а пара «Накопленные» появляется по составу данных, не по кнопке. */
   let calcView = 'dates';
-  let calcCols = new Set();
+  /* НАРАСТАЮЩИЕ ИТОГИ — СВОЁ СОСТОЯНИЕ НА БЛОК (разбор 16.08.2026). Не возврат к снятым
+     групп-чипам КВ-47: те прятали БЛОК ЦЕЛИКОМ, и исчезало непонятно что — шапка не умела
+     назвать колонки. Здесь шапка блока остаётся на месте, а гаснет один именованный
+     однородный класс внутри неё, и надпись кнопки говорит состояние. Состояний два, а не
+     одно, по вопросу владельца: разбирая арифметику процентов (база × ставка × дней),
+     нарастающие по телу читателю не нужны — и наоборот. У пени нарастающих колонок нет,
+     поэтому нет и третьей кнопки. Живут НА СЕССИЮ, как calcView: ключа кредита нет —
+     привычка читателя к кредиту не привязана. */
+  let calcRunOD = false, calcRunInt = false;
   /* Раскрытые годы листа — идиома grafikOpenYears: null означает «умолчание не применяли».
      Ключ набора нужен по той же причине, что «Графику»: годы чужого кредита к этому
      отношения не имеют. */
@@ -8898,34 +9449,170 @@ if (typeof document !== 'undefined') {
     const sheets = (d.ledger.dateSheet||[]).filter(s => !sel || s.trancheNo===sel.no);
     const cur    = c.currency||'KGS';
 
-    /* ГРУППЫ КОЛОНОК (вопрос 7). Колонка в одиночку не проверяет ничего: «ставка пени» без
-       базы и дней — просто число. Переключаются поэтому ГРУППЫ, а не колонки: группа = один
-       вопрос, на который куратор решил посмотреть. Поштучная настройка (как в гридах Jmix)
-       убила бы воспроизводимость — «смотрю детальный расчёт» перестало бы означать у двух
-       кураторов один и тот же экран. Память — на сессию и общая для всех кредитов. */
-    const COL_GROUPS = [
-      { key:'state', label:'Просрочка на дату', n:2, note:'просроченное тело и просроченные проценты на начало отрезка — то, на что бежит пеня. Остатка тела здесь нет: он и есть колонка «База»' },
-      { key:'pen',   label:'Пеня подробно',     n:2, note:'ставка пени и цена одного дня: (просроч. тело × ставка ОД + просроч. проценты × ставка %) ÷ 100' },
-      { key:'paid',  label:'Погашено в периоде',n:3, note:'разнесение платежей этой даты по статьям — зеркало модуля платежей' },
-      { key:'run',   label:'Нарастающие',       n:2, note:'начислено и пеня нарастающим итогом внутри транша' }
-    ];
-    const colOn = k => calcCols.has(k);
+    /* КОЛОНКИ — МАТРИЦА «СТАТЬЯ × СОСТОЯНИЕ» (КВ-47). Прежняя лента проигрывала не числом
+       колонок, а тем, что предмет — матрица — был развёрнут в строку: имена не держались
+       сами («Погашено» трижды, смысл нёс только верхний этаж). Здесь предмет назван прямо:
+       верхний этаж — СТАТЬЯ (Основной долг · Проценты · Пеня), нижний — состояние внутри
+       неё, и «Погашено» законно повторяется трижды — его различает этаж над ним.
+       ГРУППЫ-ЧИПЫ СНЯТЫ: они прятали колонки ровно потому, что шапка не умела их назвать.
+       НАКОПЛЕННЫЕ — ПО СОСТАВУ (идиома «Графика со статьями», ADR-0109): пара колонок
+       появляется только там, где реструктуризация перенесла в график ранее начисленные
+       проценты; иначе они пусты у всех кредитов страны ради нескольких.
+       СОБЫТИЕ — РЯДОМ С ДАТОЙ, в одной ячейке и в ОДНУ СТРОКУ (разбор 16.08.2026): своей
+       колонкой пилюли переменной ширины растягивали столбец, к числам справа отношения не
+       имеющий, а событие и дата — одно и то же («что случилось» и «когда»). Двумя этажами
+       ячейка стояла до 16.08.2026 и удваивала высоту КАЖДОЙ строки листа ради строк с
+       событием — а их меньшинство; дата защищена white-space:nowrap, переносится пилюля. */
+    /* ПО СОСТАВУ — ПРАВИЛО, А НЕ ИСКЛЮЧЕНИЕ (разбор 16.08.2026). «Накопленные» жили так с
+       КВ-47, перенос — с КВ-55; теперь тем же способом живут «Освоено», «Принято»,
+       «Списано» и «Перенесено»: колонки, у которых по кредиту нет НИ ОДНОГО числа, не
+       занимают ширину. Прячем МОЛЧА — отсутствие колонки и значит «показывать нечего»,
+       ровно как у накопленных; надпись на этот счёт была бы шумом у 59 кредитов из 60.
+       Считаем ПО ВСЕМ ЛИСТАМ вкладки, а не по каждому траншу: иначе у K-7 встанут рядом
+       три таблицы с разными шапками, и читатель сравнит несравнимое. Выбран транш — набор
+       честно сужается вместе с ним: у производного транша «Освоено» исчезает, и прочерк,
+       который прежде надо было объяснять, объяснять больше не приходится.
+       «По графику» и «Погашено» в правило НЕ входят — хребет листа: ноль в них значим
+       («срок не наступил», «не платили»), а не пуст. */
+    const any = (f) => sheets.some(s => s.rows.some(f));
+    const hasAcc  = any(r => (r.accDue||0)   > 0.005 || (r.runAcc||0)  > 0.005);
+    const hasDisb = any(r => (r.disb||0)     > 0.005 || (r.runDisb||0) > 0.005);
+    const hasOff  = any(r => (r.offAmt||0)   > 0.005 || (r.runOff||0)  > 0.005);
+    const hasOut  = any(r => (r.movedOut||0) > 0.005 || (r.runOut||0)  > 0.005);
+    const hasIn   = any(r => (r.movedIn||0)  > 0.005 || (r.runIn||0)   > 0.005);
     const viewBtn = (v,label,title) => `<button class="btn btn-sm ${calcView===v?'btn-tint':'btn-secondary'}"
       title="${jsAttr(title)}" onclick="CR.setCalcView('${jsAttr(v)}')">${esc(label)}</button>`;
 
     /* ---- вид «По датам» ---- */
     const evPill = (e) => e.kind==='pos' ? 'mid' : e.kind==='pay' ? 'low'
-      : e.kind==='disb' ? 'info' : e.kind==='court' ? 'high' : 'neutral';
+      : e.kind==='disb' ? 'info' : e.kind==='court' || e.kind==='off' ? 'high'
+      : e.kind==='move' ? 'mid' : 'neutral';
+    /* ОДНА ДАТА В СТРОКЕ (КВ-46). Ячейка печатала интервал «дата / по дату» вторым этажом.
+       Правый край выводится целиком: у 330 строк сида конец отрезка совпал с датой
+       СЛЕДУЮЩЕЙ строки без единого исключения (сетка сплошная — penMarks стыкуются встык),
+       а у последней строки раздела — с датой среза. То есть колонка несла одно число дважды,
+       ровно как снятый «Остаток тела» (= «База» следующей строки), и вдобавок удваивала
+       высоту каждой строки. Длина периода остаётся видимой — она в «Дней». */
+    /* ПЕРЕНОС — СВОЯ ПАРА КОЛОНОК, А НЕ ВТОРАЯ СТРОКА ЯЧЕЙКИ «СПИСАНО» (КВ-55; отменяет
+       решение КВ-53). Разбор владельца 16.08.2026, вопрос «списано и перенос в одной
+       колонке?»: сливать нельзя, и вторая строка чужой ячейки — то же слияние, только
+       вёрсткой. Довод один и арифметический: эти два числа ПО-РАЗНОМУ относятся к соседнему
+       «Остатку». Перенос остаток ГАСИТ (trancheBalanceAt несёт −out +in), списание не гасит
+       и не должно (КР-12) — долг уходит за баланс, заёмщик его должен. Значит колонка,
+       складывающая их, не суммируется: её нарастающий итог у переноса даёт ноль по кредиту
+       (у донора минус, у приёмника плюс), у списания — реальную сумму. Довод КВ-53 про
+       ширину снят приёмом ПО СОСТАВУ (hasOut/hasIn): столбцы видит один кредит из 60, остальные
+       за них не платят. Направление тоже требовало разделения — перенос двузнаковый, а минус
+       в этом блоке уже занят переплатой к графику (КВ-50), и два смысла минуса в соседних
+       колонках читатель различать не обязан. Транш-контрагент — в подписи ячейки.
+       ПОРЯДОК (разбор 16.08.2026): «Принято» стоит НЕ рядом с «Перенесено», а сразу за
+       «Освоено», потому что пара «ушло/пришло» внутри ОДНОЙ строки всё равно не читается —
+       эти два числа встречаются у РАЗНЫХ траншей, донора и приёмника, и сводит их
+       нарастающий итог, а не соседство. Зато «Освоено» и «Принято» — два источника тела в
+       транше, и блок читается притоком → требованием → возвратом → выбытием → итогом; у
+       производного транша «Освоено» пусто, и прочерк объясняет соседняя колонка, а не
+       значок в шапке раздела. «Списано» и «Перенесено» тем же ходом становятся соседями —
+       два рода выбытия тела, различающиеся отношением к «Остатку» справа. */
+    /* КОЛОНКА ОПИСЫВАЕТСЯ ОДИН РАЗ (разбор 16.08.2026). Шапка и клетки строятся из ОДНОГО
+       массива описаний. Пока их писали двумя списками, каждая колонка «по составу» заводила
+       второе такое же условие в другом месте файла, и рассинхронизация давала строку не по
+       шапке — ошибку, которую ловит только глаз да арность в смоуке. Здесь состав считает
+       filter, а класс grp (левая граница статьи) достаётся первой ВИДИМОЙ колонке блока, а
+       не первой написанной: спрятанное «Освоено» иначе унесло бы границу с собой. */
+    /* Прочерк вместо нуля — правило показа всей вкладки: ноль в денежной колонке читается
+       как «посчитано и вышло ноль», а здесь чаще «статья этой строки не касается». */
+    const num = (v, digits) => (v > 0.005)
+      ? (digits ? v.toLocaleString('ru-RU',{minimumFractionDigits:digits,maximumFractionDigits:digits}) : money(v))
+      : '<span class="text-muted">—</span>';
+    /* Отрезок без начисления бывает двух родов, и молчать нельзя ни о том, ни о другом:
+       хвост после последней наступившей позиции (график кончился — начислять не на чем,
+       ADR-0010) и приостановка начисления (Р-17). Пеня в обоих случаях идёт своим
+       чередом: приостановка процентов её не касается. */
+    const accCell = (r) => r.accrued==null
+      ? `<span class="text-muted" title="${jsAttr(r.noAccrual==='gap'
+          ? 'позиция графика наступает раньше первого освоения: начисление по договору есть, а базы и периода под ним нет'
+          : r.noAccrual==='pre'
+          ? 'тело пришло в транш переносом, а первая позиция его графика наступает позже: начислять пока не по чему — ставка и период начнутся с неё'
+          : r.noAccrual==='edge'
+          ? 'строка самого среза: отрезка после него нет, поэтому база, ставка и начисление молчат — строка показывает только то, что случилось в эту дату'
+          : 'период за границей наступивших позиций графика — начислять не на чем (ADR-0010)')}">—</span>`
+      : money(r.accrued);
+    /* ПЕРЕПЛАТА К ГРАФИКУ — МИНУСОМ (КВ-50). Просрочка тела — это разность нарастающих
+       («По графику» − «Погашено»); сверено на сиде: 269 строк, 0 расхождений с базой
+       пени. Отрицательная её сторона — заплачено больше, чем график потребовал К ЭТОЙ
+       ДАТЕ, — прежде печаталась прочерком, и три месяца без просрочки при нуле платежей
+       (K-7, 15.03–12.05.2026) выглядели необъяснимо: аванс закрывал БУДУЩИЕ взносы, а
+       лист об этом молчал. Положительная сторона по-прежнему берётся у ПЕНИ, а не
+       пересчитывается разностью: колонка обязана оставаться базой начисления, поэтому
+       минус печатается только там, где просрочки нет. Переплату КРЕДИТА (деньги сверх
+       начисленного, K-6) это число не показывает — она в своде, статьёй. */
+    const overdueCell = (r) => {
+      const aheadP = round2(r.runPaidP - r.runDue);
+      return r.penBaseP > 0.005 ? money(r.penBaseP)
+        : (aheadP > 0.005
+            ? `<span title="${jsAttr('погашено сверх графика: к этой дате график потребовал ' + money(r.runDue) + ', внесено ' + money(r.runPaidP) + ' — аванс идёт в счёт будущих взносов')}">−${money(aheadP)}</span>`
+            : '<span class="text-muted">—</span>');
+    };
+    const col = (label, title, cell, opt) => ({ label, title, cell,
+      run: !!(opt && opt.run), tdTitle: opt && opt.tdTitle });
+    const odAll = [
+      hasDisb && col('Освоено', 'выдано заёмщику в эту дату: проценты с неё идут на фактическое тело (ADR-0105)', r => num(r.disb)),
+      hasDisb && col('Нарастающим', 'выдано с начала транша по эту строку включительно', r => num(r.runDisb), {run:true}),
+      hasIn   && col('Принято', 'тело, пришедшее в транш из другого по допсоглашению. Освоением это НЕ является: денег не двигалось, тело уже у заёмщика — производный транш сумму договора не расходует (ADR-0115). Стоит рядом с «Освоено» потому, что это второй источник тела в транше: у производного транша «Освоено» пусто, и объясняет прочерк именно эта колонка. С даты приёма, а не с первой позиции нового графика, на тело идёт ставка нового комплекта условий (КВ-54)',
+        r => num(r.movedIn), {tdTitle: r => r.movedIn > 0.005 ? 'из транша №' + r.moveTo + ' по допсоглашению' : ''}),
+      hasIn   && col('Нарастающим', 'тело, принятое траншем с начала его жизни по эту строку включительно', r => num(r.runIn), {run:true}),
+      col('По графику', 'тело, срок которого пришёл по графику в эту дату; не покрытое платежом уходит в «Просрочено»', r => num(r.dueP)),
+      col('Нарастающим', 'тело, потребованное графиком с начала транша по эту строку включительно', r => num(r.runDue), {run:true}),
+      col('Погашено', 'разнесено в тело платежами этой даты — зеркало модуля платежей', r => num(r.paid.principal)),
+      col('Нарастающим', 'тело, погашенное с начала транша по эту строку включительно', r => num(r.runPaidP), {run:true}),
+      hasOff  && col('Списано', 'тело, признанное безнадёжным решением в эту дату (Р-20). Долг при этом НЕ гаснет — он уходит за баланс: «Остаток» рядом продолжает показывать тело, которое заёмщик должен', r => num(r.offAmt)),
+      hasOff  && col('Нарастающим', 'списано с начала транша по эту строку включительно — решений о списании бывает больше одного', r => num(r.runOff), {run:true}),
+      hasOut  && col('Перенесено', 'тело, ушедшее из транша по допсоглашению (ADR-0092 §2). Списанием это НЕ является и в соседнюю колонку не входит: долг не прощён, он живёт в другом транше того же кредита. «Остаток» рядом на эту сумму уменьшается — тем и отличается от списания. Разность с «Принято» слева — вклад переноса в «Остаток» справа',
+        r => num(r.movedOut), {tdTitle: r => r.movedOut > 0.005 ? 'в транш №' + r.moveTo + ' по допсоглашению' : ''}),
+      hasOut  && col('Нарастающим', 'тело, ушедшее из транша с начала его жизни по эту строку включительно', r => num(r.runOut), {run:true}),
+      col('Остаток', 'база отрезка: освоено − погашено телом. Это же число — «Остаток» следующей строки плюс её «Освоено» минус её «Погашено»',
+        r => r.base==null ? '<span class="text-muted">—</span>' : money(r.base)),
+      col('Просрочено', 'тело, срок которого наступил и не покрыт — база пени по основному долгу. Минус — обратное: погашено больше, чем график потребовал к этой дате (аванс в счёт будущих взносов)', overdueCell),
+    ].filter(Boolean);
+    const intAll = [
+      col('Ставка', 'годовая ставка условий, действующих на начало отрезка (Р-21)', r => r.rate ? esc(r.rate)+' %' : '<span class="text-muted">—</span>'),
+      col('Дней', 'дней в отрезке; при методе «30/360» — финансовые 30 × число месяцев', r => esc(r.days)),
+      col('Начислено', 'база × ставка × дней ÷ день-базы — за этот отрезок', accCell),
+      col('Нарастающим', 'начислено с начала транша по эту строку включительно', r => money(r.runInt), {run:true}),
+      hasAcc && col('Накопленные', 'проценты, начисленные ДО реструктуризации: срок им назначил документ, разложив по позициям нового графика (ADR-0093 §1). Ставка на них не идёт — периодом они не порождаются', r => num(r.accDue)),
+      hasAcc && col('Нарастающим', 'накопленные проценты, наступившие с начала транша', r => num(r.runAcc), {run:true}),
+      col('Погашено', 'разнесено в проценты платежами этой даты', r => num(r.paid.interest)),
+      col('Остаток', 'начислено нарастающим − погашено нарастающим', r => num(r.intLeft)),
+      col('Просрочено', 'проценты, срок которых наступил и не покрыт — вторая база пени', r => num(r.penBaseI)),
+    ].filter(Boolean);
+    const odCols  = odAll.filter(x => calcRunOD  || !x.run);
+    const intCols = intAll.filter(x => calcRunInt || !x.run);
+    /* У пени нарастающих колонок нет — поэтому нет и третьего переключателя. Отсутствие
+       кнопки там само себя объясняет: гасить в этом блоке нечего. */
+    const penCols = [
+      col('Начислено', 'пеня за отрезок: (просроч. тело × ставка ОД + просроч. проценты × ставка %) ÷ 100 × дней', r => num(r.penalty)),
+      col('За день', 'цена одного дня просрочки на начало отрезка', r => num(r.penPerDay, 4)),
+      col('Ставка', 'ставки пени на начало отрезка: по основному долгу / по процентам, % в день', r => esc(r.penRateMain)+' / '+esc(r.penRateInt)),
+      col('Погашено', 'разнесено в пеню платежами этой даты', r => num(r.paid.penalty)),
+      col('Остаток', 'пеня нарастающим − погашено нарастающим', r => num(r.penLeft)),
+    ];
+    const headCells = (cols) => cols.map((cl, i) =>
+      `<th${i ? '' : ' class="grp"'} style="text-align:right"${cl.title ? ` title="${jsAttr(cl.title)}"` : ''}>${cl.label}</th>`).join('');
+    const bodyCells = (cols, r) => cols.map((cl, i) => {
+      const t = cl.tdTitle ? cl.tdTitle(r) : '';
+      return `<td${i ? '' : ' class="grp"'} style="text-align:right"${t ? ` title="${jsAttr(t)}"` : ''}>${cl.cell(r)}</td>`;
+    }).join('');
+    const runSw = (block, on, n) => n === 0 ? '' : `<button class="runsw" onclick="event.stopPropagation();CR.toggleCalcRun('${block}')"
+      title="${jsAttr(on ? 'Скрыть колонки «Нарастающим» этой статьи (' + n + '). Разовое число строки останется — нарастающий итог отвечает на другой вопрос, «сколько всего», и на него отвечают строка года, «Итого по траншу» и свод выше'
+                        : 'Показать колонки «Нарастающим» этой статьи (' + n + '): у каждой суммы появится её итог с начала транша по эту строку включительно')}">${on ? '▾' : '▸'} нарастающим</button>`;
+    const odRun  = odAll.filter(x => x.run).length;
+    const intRun = intAll.filter(x => x.run).length;
     const dateHead = `<tr>
-      <th>Дата</th><th>Событие</th><th style="text-align:right">Изм. базы</th>
-      <th style="text-align:right">База</th><th style="text-align:right">Ставка</th>
-      <th style="text-align:right">Дней</th><th style="text-align:right">Начислено %</th>
-      <th style="text-align:right">Пеня</th>
-      ${colOn('state')?'<th style="text-align:right">Просроч. тело</th><th style="text-align:right">Просроч. %</th>':''}
-      ${colOn('pen')?'<th style="text-align:right">Ставка пени ОД/%</th><th style="text-align:right">Пеня за день</th>':''}
-      ${colOn('paid')?'<th style="text-align:right">Погашено тело</th><th style="text-align:right">Погашено %</th><th style="text-align:right">Погашено пеня</th>':''}
-      ${colOn('run')?'<th style="text-align:right">Начислено нараст.</th><th style="text-align:right">Пеня нараст.</th>':''}</tr>`;
-    const nColsDate = 8 + COL_GROUPS.reduce((a,g)=>a+(colOn(g.key)?g.n:0),0);
+      <th class="rspan" rowspan="2" style="text-align:left" title="${jsAttr('дата события и начало отрезка; отрезок идёт до даты следующей строки, длина — в колонке «Дней»')}">Дата и событие</th>
+      <th class="grp" colspan="${odCols.length}">Основной долг${runSw('od', calcRunOD, odRun)}</th>
+      <th class="grp" colspan="${intCols.length}">Проценты${runSw('int', calcRunInt, intRun)}</th>
+      <th class="grp" colspan="${penCols.length}">Пеня</th></tr><tr>
+      ${headCells(odCols)}${headCells(intCols)}${headCells(penCols)}</tr>`;
 
     /* ГОДЫ ЛИСТА. Тот же приём, что на «Графике» (КВ-19) и в «Плане» (кварталы): 120–130
        строк сплошной лентой нечитаемы ровно тем же способом, каким были нечитаемы 19
@@ -8946,45 +9633,27 @@ if (typeof document !== 'undefined') {
       const evHtml = ev.length
         ? ev.map(e=>`<span class="pill ${evPill(e)}">${esc(e.label)}</span>`).join(' ')
         : '<span class="text-muted">—</span>';
-      /* Отрезок без начисления бывает двух родов, и молчать нельзя ни о том, ни о другом:
-         хвост после последней наступившей позиции (график кончился — начислять не на чем,
-         ADR-0010) и приостановка начисления (Р-17). Пеня в обоих случаях идёт своим
-         чередом: приостановка процентов её не касается. */
-      const accCell = r.accrued==null
-        ? `<span class="text-muted" title="${jsAttr(r.noAccrual==='gap'
-            ? 'позиция графика наступает раньше первого освоения: начисление по договору есть, а базы и периода под ним нет'
-            : 'период за границей наступивших позиций графика — начислять не на чем (ADR-0010)')}">—</span>`
-        : money(r.accrued);
-      const devNote = (r.dev!=null && Math.abs(r.dev)>0.005)
-        ? `<br><span class="text-muted" style="font:var(--font-label)" title="${jsAttr('база отрезка — ФАКТИЧЕСКОЕ непогашенное тело (ADR-0105): от контрактного оно отличается на '+money(Math.abs(r.dev)))}">${r.dev>0?'недобор':'досрочка'} ${money(Math.abs(r.dev))}</span>`
-        : '';
+      /* «НЕДОБОР / ДОСРОЧКА» ВТОРЫМ ЭТАЖОМ СНЯТЫ (разбор 16.08.2026). Подпись печатала
+         r.dev — отклонение фактического тела от контрактного (ADR-0105) — и стоила второй
+         строки в каждой ячейке начисления, а отвечала на вопрос, которого лист не задаёт:
+         «сколько бы начислили, если бы платили ровно по графику». Само число живёт в
+         модели (r.dev) и никуда не делось: фактическую сторону читатель видит прямо —
+         база отрезка в «Остатке», требование графика в «По графику», разность между ними
+         в «Просрочено» со знаком (КВ-50). */
       return `<tr>
-        <td>${esc(r.date)}<br><span class="text-muted" style="font:var(--font-label)">по ${esc(r.to)}</span></td>
-        <td>${evHtml}${r.paused?' <span class="pill neutral">начисление приостановлено</span>':''}</td>
-        <td style="text-align:right">${(r.baseDelta==null||Math.abs(r.baseDelta)<=0.005)?'<span class="text-muted">—</span>'
-            :`${r.baseDelta>0?'+':'−'}${money(Math.abs(r.baseDelta))}`}</td>
-        <td style="text-align:right">${r.base==null?'<span class="text-muted">—</span>':money(r.base)}</td>
-        <td style="text-align:right">${r.rate?esc(r.rate)+' %':'<span class="text-muted">—</span>'}</td>
-        <td style="text-align:right">${esc(r.days)}</td>
-        <td style="text-align:right">${accCell}${devNote}</td>
-        <td style="text-align:right">${r.penalty>0.005?money(r.penalty):'<span class="text-muted">—</span>'}</td>
-        ${colOn('state')?`<td style="text-align:right">${r.penBaseP>0.005?money(r.penBaseP):'<span class="text-muted">—</span>'}</td>
-          <td style="text-align:right">${r.penBaseI>0.005?money(r.penBaseI):'<span class="text-muted">—</span>'}</td>`:''}
-        ${colOn('pen')?`<td style="text-align:right">${esc(r.penRateMain)} / ${esc(r.penRateInt)}</td>
-          <td style="text-align:right">${r.penPerDay>0.00005
-            ? r.penPerDay.toLocaleString('ru-RU',{minimumFractionDigits:4,maximumFractionDigits:4})
-            : '<span class="text-muted">—</span>'}</td>`:''}
-        ${colOn('paid')?`<td style="text-align:right">${r.paid.principal>0.005?money(r.paid.principal):'<span class="text-muted">—</span>'}</td>
-          <td style="text-align:right">${r.paid.interest>0.005?money(r.paid.interest):'<span class="text-muted">—</span>'}</td>
-          <td style="text-align:right">${r.paid.penalty>0.005?money(r.paid.penalty):'<span class="text-muted">—</span>'}</td>`:''}
-        ${colOn('run')?`<td style="text-align:right">${money(r.runInt)}</td>
-          <td style="text-align:right">${money(r.runPen)}</td>`:''}</tr>`;
+        <td title="${jsAttr('отрезок ' + r.date + ' — ' + r.to + ' (' + r.days + ' дн.)')}"><span style="white-space:nowrap">${esc(r.date)}</span> ${evHtml}${r.paused?' <span class="pill neutral">начисление приостановлено</span>':''}</td>
+        ${bodyCells(odCols, r)}${bodyCells(intCols, r)}${bodyCells(penCols, r)}</tr>`;
     };
 
     const sheetHtml = (s) => {
-      const t = (c.tranches||[]).find(x=>x.no===s.trancheNo) || {no:s.trancheNo};
-      const scnd = conditionsAt(t, cardAsOf);
-      s.rows.forEach(r=>{ r.penRateMain = scnd.penaltyMain||0; r.penRateInt = scnd.penaltyInt||0; });
+      /* Итоговые строки повторяют геометрию шапки и считают её ПО ТЕМ ЖЕ СПИСКАМ колонок:
+         число здесь ни разу не написано руками — ни состав (КВ-55/56 и правило 16.08.2026),
+         ни состояние переключателей нарастающих его больше не двигают. Первые две колонки
+         процентов («Ставка», «Дней») и первая колонка пени («Начислено») есть всегда, на
+         них геометрия и опирается; «Начислено» процентов — третья по счёту. */
+      const intAfter = intCols.length - 3;
+      const odWide   = odCols.length + 1;   // + «Дата и событие»
+      const penAfter = penCols.length - 1;
       const years = [...new Set(s.rows.map(r=>+r.date.slice(6,10)))].sort((a,b)=>a-b);
       const body = [];
       for (const y of years){
@@ -8993,18 +9662,22 @@ if (typeof document !== 'undefined') {
         const gp = round2(rs.reduce((a,r)=>a+(r.penalty||0),0));
         const open = openY.has(y);
         body.push(`<tr class="gyear${open?' open':''}" onclick="CR.toggleCalcYear(${y})" title="${open?'Свернуть':'Развернуть'} ${y} год">
-          <td colspan="2"><span class="gcar">${open?'▾':'▸'}</span><span class="gy">${y}</span>${y===asOfYear?'<span class="pill neutral">текущий</span>':''}<span class="gcnt">${plur(rs.length,'отрезок','отрезка','отрезков')}</span></td>
-          <td colspan="4"></td>
+          <td colspan="${odWide}"><span class="gcar">${open?'▾':'▸'}</span><span class="gy">${y}</span>${y===asOfYear?'<span class="pill neutral">текущий</span>':''}<span class="gcnt">${plur(rs.length,'отрезок','отрезка','отрезков')}</span></td>
+          <td class="grp" colspan="2"></td>
           <td style="text-align:right"><b>${money(gi)}</b></td>
-          <td style="text-align:right"><b>${gp>0.005?money(gp):'—'}</b></td>
-          ${nColsDate>8?`<td colspan="${nColsDate-8}"></td>`:''}</tr>`);
+          <td colspan="${intAfter}"></td>
+          <td class="grp" style="text-align:right"><b>${gp>0.005?money(gp):'—'}</b></td>
+          <td colspan="${penAfter}"></td></tr>`);
         if (open) rs.forEach(r=>body.push(dateRowHtml(r)));
       }
+      /* Правый край листа называется ЗДЕСЬ и только здесь: конец последней строки —
+         единственный, который не выводится из даты следующей (её нет). */
       body.push(`<tr style="font-weight:var(--weight-semibold);background:var(--surface-panel)">
-        <td colspan="6">Итого по траншу №${esc(s.trancheNo)}</td>
+        <td colspan="${odWide+2}">Итого по траншу №${esc(s.trancheNo)} <span class="text-muted" style="font:var(--font-label)">по ${esc(d.ledger.until)}</span></td>
         <td style="text-align:right">${money(s.sumInterest)}</td>
-        <td style="text-align:right">${s.sumPenalty>0.005?money(s.sumPenalty):'—'}</td>
-        ${nColsDate>8?`<td colspan="${nColsDate-8}"></td>`:''}</tr>`);
+        <td colspan="${intAfter}"></td>
+        <td class="grp" style="text-align:right">${s.sumPenalty>0.005?money(s.sumPenalty):'—'}</td>
+        <td colspan="${penAfter}"></td></tr>`);
       /* СВЕРКА С РАСЧЁТОМ ПО ПОЗИЦИЯМ. Начисление позиции складывается как контракт +
          отклонение, а контракт приходит из buildSchedule, который берёт ОДИН снимок условий
          (Д-5): ставка, изменённая допсоглашением, задним числом переписывает и прошлые
@@ -9016,7 +9689,7 @@ if (typeof document !== 'undefined') {
         график построен не по условиям каждого периода, а по одному их снимку (Д-5). Разница ${money(Math.abs(s.gap))} ${esc(cur)}.
         <div class="gtoolbar" style="margin-top:8px"><button class="btn btn-secondary btn-sm" onclick="CR.goToSchedule()">Перейти к графику</button></div></div></div>` : '';
       return `${sheets.length>1?`<div class="section-h" style="margin-top:18px">Транш №${esc(s.trancheNo)}</div>`:''}
-        <div class="cgrid-wrap"><table class="cgrid"><thead>${dateHead}</thead><tbody>${body.join('')}</tbody></table></div>
+        <div class="cgrid-wrap"><table class="cgrid tiered"><thead>${dateHead}</thead><tbody>${body.join('')}</tbody></table></div>
         ${gapNote}`;
     };
 
@@ -9054,7 +9727,9 @@ if (typeof document !== 'undefined') {
       <td style="text-align:right">${money(round2(ledSrc.reduce((a,l)=>a+(l.overdueTotal||0),0)))}</td>
       <td></td></tr>`:'';
     const posView = cgrid([{h:'№'},{h:'Дата'}].concat(sel?[]:[{h:'Транш'}])
-      .concat([{h:'Наступило тело',r:1,t:'тело, срок которого наступил по графику'},
+      /* «Тело по графику» — то же имя, что во втором этаже листа «По датам» (КВ-49);
+         статью здесь называет само имя колонки, этажа над ней в реестре нет. */
+      .concat([{h:'Тело по графику',r:1,t:'тело, срок которого наступил по графику'},
                {h:'Начислено %',r:1},{h:'Пеня',r:1},
                {h:'Погашено всего',r:1,t:'деньги ОТ заёмщика, разнесённые в эту позицию: тело + проценты + пеня'},
                {h:'Просрочено',r:1,t:'наступило и не погашено: тело + проценты + остаток пени'},{h:'Статус'}]),
@@ -9083,10 +9758,6 @@ if (typeof document !== 'undefined') {
       <div class="gtoolbar" style="margin:10px 0 8px;flex-wrap:wrap;gap:6px">
         ${viewBtn('dates','По датам','лист по критическим датам: база, ставка, дни и начисленное — арифметика проверяется в строке')}
         ${viewBtn('positions','По позициям','реестр обязательств: какие платежи графика не закрыты')}
-        ${calcView==='dates'?`<span class="spacer"></span>
-          <span class="text-muted" style="font:var(--font-label)">Колонки:</span>
-          ${COL_GROUPS.map(g=>`<button class="btn btn-sm ${colOn(g.key)?'btn-tint':'btn-secondary'}"
-            title="${jsAttr(g.note)}" onclick="CR.toggleCalcCol('${jsAttr(g.key)}')">${colOn(g.key)?'✓ ':''}${esc(g.label)}</button>`).join('')}`:''}
       </div>
       ${calcView==='dates'?datesView:posView}
       ${resBlock}`;
@@ -9636,17 +10307,18 @@ if (typeof document !== 'undefined') {
   /* Раскрытие отрезков одной позиции «Расчётов» (ADR-0128 §1). Набор, а не одна открытая
      строка: два соседних периода сравнивают развёрнутыми, иначе раскрытие второго гасило
      бы первый ровно в момент сравнения. */
-  /* Вид и колонки «Детального расчёта» (ADR-0129). Ни то, ни другое не сбрасывается сменой
-     кредита: память на сессию — решение разбора 15.08.2026 (вопрос 7), и переключивший вид
-     куратор открывает следующий кредит в том же виде. */
+  /* Вид «Детального расчёта» (ADR-0129) не сбрасывается сменой кредита: память на сессию —
+     решение разбора 15.08.2026 (вопрос 7), и переключивший вид куратор открывает следующий
+     кредит в том же виде. Переключателя колонок нет с КВ-47. */
   CR.setCalcView=function(v){ calcView = (v==='positions'?'positions':'dates'); rerenderDetail(); };
-  CR.toggleCalcCol=function(k){
-    if (calcCols.has(k)) calcCols.delete(k); else calcCols.add(k);
-    rerenderDetail(); };
   CR.toggleCalcYear=function(y){ y=+y; if(!calcOpenYears) calcOpenYears=new Set();
     if (calcOpenYears.has(y)) calcOpenYears.delete(y); else calcOpenYears.add(y);
     rerenderDetail(); };
   CR.setCalcYears=function(list){ calcOpenYears=new Set((list||[]).map(Number)); rerenderDetail(); };
+  /* Нарастающие итоги блока: 'od' — основной долг, 'int' — проценты. Пени в списке нет —
+     нарастающих колонок у неё не бывает. */
+  CR.toggleCalcRun=function(block){ if (block==='int') calcRunInt = !calcRunInt; else calcRunOD = !calcRunOD;
+    rerenderDetail(); };
   /* Выбор версии для просмотра (КВ-28). Версия — понятие ТРАНША, поэтому в области «по
      кредиту» клик ПЕРЕВОДИТ карточку в этот транш: показать архив одного транша внутри
      слитой таблицы нельзя, там смешались бы два контракта. Побочный эффект честен —
@@ -10521,6 +11193,10 @@ if (typeof document !== 'undefined') {
   CR.gotoPage = gotoPage; CR.setPageSize = setPageSize;
   CR.selectRow = selectRow; CR.openDetail = openDetail; CR.backToList = backToList;
   CR.resetDemo = resetDemo; CR.openCreatePicker = openCreatePicker; CR.pickApplication = pickApplication;
+  /* Демонабор: от него осталась только шпаргалка (КВ-52). setDemoScope/demoCredits/
+     DEMO_CORE сняты — реестр ходит по всему сиду, и скриптам-шотам больше не нужно
+     расширять набор перед поиском («Кара-Балта» = K-C11 виден сразу). */
+  CR.openDemoSheet = openDemoSheet; CR.openDemoCredit = openDemoCredit;
 
   /* гамбургер сворачивает сайдбар — освобождает ширину под таблицы (реестр/расчёты). */
   window.toggleNav = function(){ document.querySelector('.app').classList.toggle('nav-collapsed'); };

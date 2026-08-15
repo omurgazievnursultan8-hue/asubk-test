@@ -22,6 +22,8 @@ page.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.te
 
 await page.goto(pathToFileURL(resolve('mockups/loan-credit/credit.html')).href, { waitUntil: 'load' });
 await page.waitForTimeout(400);
+// Реестр показывает весь сид сам (КВ-52 снял переключатель набора), поэтому разворачивать
+// показ больше не нужно: «Кара-Балта» = K-C11, каскад и счётчики видны сразу.
 
 const chips = () => page.$$eval('#fChips .fchip', els => els.map(e => e.innerText.replace(/\s+/g, ' ').trim()));
 const count = () => page.$eval('.pager .pinfo', el => el.textContent.trim());
