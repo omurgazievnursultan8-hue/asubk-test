@@ -5,110 +5,147 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Кураторство · АСУБК</title>
 <!--
-  РАБОЧИЙ ПРОТОТИП (single-file, MVP) — модуль «Распределение кураторства» (TO-BE).
-  Не картинка: логика ниже ИСПОЛНЯЕТСЯ. Резолв «кто куратор на дату» из журнала назначений,
-  подсветка пробелов таблицы политики, diff-предпросмотр пересчёта, фильтр конфликта интересов —
-  считаются в рантайме от состояния.
-  Спека: `ASUBK-kuratorstvo-logika.md` (каркас залочен 11.07.2026).
-  Смежные: org-structure (узлы/руководитель), collection (handoff {from,to,when,checklist,status,reason}).
+  РАБОЧИЙ ПРОТОТИП (single-file) — модуль «Кураторство» (TO-BE). ВОЛНА 1.
+  Не картинка: логика ниже ИСПОЛНЯЕТСЯ. Закрепление считается журналом, обе ступени правила
+  собраны ИЗ ДАННЫХ, фолбэк-лестница и пороги давности работают, редакция правила заводится
+  правкой и вступает датой. Движок не знает ни одной роли и ни одного подразделения по имени:
+  правила, признаки, роли и виды объектов приходят справочниками.
 
-  ЧТО РЕАЛИЗОВАНО (и что разработчик обязан сохранить)
+  Предшественник — прототип от 12.07.2026 (тот же путь, коммит 0ddd575). Он написан РАНЬШЕ
+  модели и переписан здесь целиком: от POLICIES, COI и computeRecalcDemo не осталось ничего
+  (`ЗАПИСКА.md`, расхождения `КУ-Д1`…`КУ-Д10` в `ASUBK-status-razrabotki.md`).
+  Смоук: `node scripts/inspect/kuratorstvo-check.mjs`.
+  Канон логики — постановка `docs/tasks/p18-kuratorstvo-tasks.html` (5 этапов, 20 карточек);
+  словарь — `CONTEXT.md`, раздел «Кураторство»; журнал волн — `ASUBK-status-razrabotki.md`.
+  Собственной спеки у модуля нет и не будет: та, на которую ссылался прототип, утрачена.
 
-  0. КУРАТОРСТВО — ИЗМЕРЕНИЕ, НЕ ПОЛЕ (§0). В карточке кредита нет поля `curator`.
-     curatorAt(объект, роль, дата) резолвится из ЖУРНАЛА назначений. Поле перезаписывается —
-     журнал нет. Причина: п.96, персональная ответственность требует истории
-     («кто отвечал 12.11.2025»), а не только «кто сейчас».
+  РЕШЕНИЯ, НА КОТОРЫХ СТОИТ МОДУЛЬ
+  ADR-0116 кураторство — измерение, а не поле: журнал закреплений, вопрос всегда с датой,
+           ответов два — закреплённый и действующий;
+  ADR-0117 две ступени правила: верхняя (объект, роль) → подразделение у администратора
+           кураторства, родильная; нижняя (подразделение, роль) → работник у заведующего,
+           живая; пустая ячейка отдаёт объект на ступень выше;
+  ADR-0118 отстранение — своё датированное измерение по паре «работник и заёмщик»,
+           закрепление живёт, меняется действующий исполнитель;
+  ADR-0023 подразделение меняется только передачей с приёмом; закрепление по взысканию
+           живёт на требовании, требований у кредита может быть несколько.
 
-  1. НАЗНАЧЕНИЕ = (объект, роль, сотрудник, период, основание, ИСТОЧНИК) (§1). Никогда не
-     перезаписывается: закрывается датой, открывается новое. Источник: политика | переопределение |
-     handoff. ИНВАРИАНТ: на объект по каждой роли на дату — ровно одно открытое назначение.
+  ИНВАРИАНТЫ, КОТОРЫЕ РАЗРАБОТЧИК ОБЯЗАН СОХРАНИТЬ (ИУ-1…ИУ-14)
+  ИУ-1  Атрибута «куратор» нет ни на одном объекте — ответ даёт журнал на дату (ADR-0116).
+  ИУ-2  Ответов два: закреплённый (ответственность за период) и действующий (кому уходит
+        работа); путать их нельзя (ADR-0116).
+  ИУ-3  Единственный законный пустой ответ — вопрос на дату, когда объекта ещё не было.
+  ИУ-4  Журнал append-only: запись закрывается датой и добавляется новая, правки на месте нет.
+  ИУ-5  Закрепление не закрывается судьбой объекта: куратор жив и после погашения (ADR-0116).
+  ИУ-6  Правил холдинга ровно пять — по числу назначаемых ролей, у каждого свой ключ
+        признаков; общей таблицы «объект → отдел» не существует (ADR-0117).
+  ИУ-7  Верхняя ступень родильная: правка не переставляет живущие объекты, пересчёта у неё
+        нет вовсе и кнопки тоже — цена правки меряется датой вступления (ADR-0117).
+  ИУ-8  Пустая ячейка нижней ступени отдаёт объект заведующему отделом; пустая или
+        отсутствующая верхняя — администратору кураторства (ADR-0117).
+  ИУ-9  «Объект без куратора» невозможен; дефект переформулирован в «держится фолбэком дольше
+        порога»: заявка 2 · требование 3 · кредит 5 · предмет залога 5 рабочих дней, числа
+        живут в справочнике (ADR-0117).
+  ИУ-10 Правка правила создаёт новую редакцию с датой вступления; действующая редакция не
+        переписывается, дата вступления не ставится в прошлое.
+  ИУ-11 Распределение детерминировано: те же признаки на ту же дату дают то же имя; нагрузка
+        в правило не входит, перекос показывается витриной (ADR-0117).
+  ИУ-12 Подразделение меняется только передачей с приёмом — ни правка верхнего правила, ни
+        пересчёт его не двигают (ADR-0023).
+  ИУ-13 Роли не вытесняют друг друга: каждая принадлежит ровно одному виду объекта, у
+        предмета залога их две и приезжают они в разные подразделения (ADR-0117).
+  ИУ-14 Ведущий куратор заёмщика не назначается — вычисляется; в журнале его нет.
 
-  2. РОЛИ НЕ ВЫТЕСНЯЮТ ДРУГ ДРУГА (§2.1). Владелец процесса взыскания ≠ куратор кредита.
-     Куратор ОД остаётся на кредите ВСЕГДА (п.36/98 — он подтверждающая сторона). Handoff меняет
-     владельца процесса и НЕ трогает назначение по кредиту.
+  ДЕМО ПОКРЫВАЕТ: обе ступени на живых данных · пять правил холдинга с разными ключами ·
+  составной ключ (область и форма) · верхний пробел (заявка «Услуги» держится администратором) ·
+  отсутствующее правило подразделения (заявки промышленности держит заведующий) · пустую
+  ячейку нижней ступени (Таласская область) · шесть фолбэков: три просрочены, один ровно на
+  пороге ·
+  смену редакции нижнего правила и ответ на прошлую дату (до 01.03.2026 — Бекова, после —
+  Иванов) · объект, оставшийся вне правила после смены редакции · ручное закрепление, которое
+  правилу не подчиняется · куратора, живого после погашения кредита · два требования одного
+  кредита с разными кураторами · предмет залога с двумя ролями в двух подразделениях.
 
-  3. КУРАТОРСТВО ЗАЛОГА — НА ПРЕДМЕТЕ, ДВЕ ПАРАЛЛЕЛЬНЫЕ РОЛИ (§2.2). Куратор залога (центр,
-     база=вид залога) + региональный исполнитель (регион, база=место нахождения). Зеркальный
-     эффект (НОРМА): у одного кредита несколько залоговых кураторов — предметы в разных областях.
-     Карточка показывает список `предмет → куратор / исполнитель`, а не «залоговый куратор: X».
+  ГРАНИЦЫ ВОЛНЫ 1: экраны «Пересчёт», «Передачи», «Витрины», «Отстранения» — заглушки
+  (этапы 3–5 постановки). Действующий ответ пока равен закреплённому: отстранение и
+  замещение приходят на этапе 4, замещающего отдаёт модуль сотрудников (resolveActor,
+  P12-R12), кураторство его не хранит и не выбирает. Работники, подразделения и объекты
+  взяты зеркалом соседних модулей и здесь не редактируются.
 
-  4. ДВУХУРОВНЕВОЕ РАСПРЕДЕЛЕНИЕ (§3). Ур.1 кредит→подразделение — не настраивается. Ур.2
-     →куратор внутри подразделения — политика ПАРЫ (подразделение, роль), каждая своя.
-
-  5. ПОЛИТИКА = ТАБЛИЦА ПО ОБЪЯВЛЕННОМУ КЛЮЧУ (§4), не список правил с приоритетами.
-     Подразделение объявляет ключ (признак или составной) → таблица значение→сотрудник.
-     Пересечения невозможны по построению. Пробелы (незакрытые ячейки) подсвечиваются при
-     настройке сверкой со справочником значений — не в проде. Незакрытая ячейка → заведующий (§4.4).
-     Признаки — РАСШИРЯЕМЫЙ справочник (форма собственности нужна, в ТЗ её нет).
-
-  6. КОНФЛИКТ ИНТЕРЕСОВ — ФИЛЬТР ДО ПОЛИТИКИ (§6.1), не override. Пара (сотрудник, заёмщик).
-     Гасит везде: заявка, кредит, комитет (п.92). ИММУНИТЕТ к пересчёту: пересчёт не может
-     вернуть отстранённого, даже если политика указывает на него.
-
-  7. ПЕРЕСЧЁТ — ЯВНАЯ ОПЕРАЦИЯ (§7). Инициирует заведующий, отдельным действием (не по сохранению
-     таблицы). Diff-предпросмотр ДО применения. Два исхода на объект, РАЗДЕЛЁННЫЕ в списке:
-     ТИХИЙ (нет активного взыскания) · ЧЕРЕЗ HANDOFF (есть активное взыскание, reason='пересмотр политики',
-     статус «ожидает подтверждения»). Override — временное исключение, растворяется при пересчёте
-     (кроме иммунитета конфликта интересов).
-
-  8. НЕТ АВТОМАТИКИ (§8). Непринятый handoff просто ВИСИТ: счётчик дней, подсветка просрочки.
-     Ответственность на СДАЮЩЕМ. НЕТ автоприёма, автоэскалации, автопереназначения, арбитража.
-     Отказ от приёма — кнопка с причиной (журнал), спор решается вне системы.
-
-  9. ПЕРВИЧНОЕ НАЗНАЧЕНИЕ (§9). Заявка→специалист (при регистрации). Кредит→куратор
-     (ПРИ ПОДПИСАНИИ ДОГОВОРА — момент рождения кредита в системе, ноль окон без ответственного).
-     Специалист заявки и куратор кредита — независимые роли; совпадение лиц не моделируется.
-     Куратор ПЕРЕЖИВАЕТ погашение (§10.2, п.88 — акт сверки подписывает куратор ОД после погашения).
-
-  РОЛИ ИНТЕРФЕЙСА: Заведующий отделом (правит политику, инициирует пересчёт, подтверждает handoff),
-  Куратор (чтение своего), Наблюдатель. canEdit().
-
-  ДЕМО покрывает ветки: пустая ячейка «Таласская» → заведующий; составной ключ (область × форма
-  собственности); форма собственности (нет в ТЗ); кредит с залогами в 2 областях → 2 залоговых
-  куратора + 2 региональных; активное взыскание → переезд через handoff; конфликт интересов
-  (Асанов ↔ Ак-Жол) с иммунитетом к пересчёту; просроченный непринятый handoff; куратор жив
-  после погашения.
-
-  ГРАНИЦА: модуль не изобретает свой механизм передачи — порождает handoff'ы структуры взыскания.
-  Разрешение спора о приёме не моделируется. Оргструктуру (узлы/руководитель) не пересчитывает —
-  потребляет как справочник.
+  SMOKE (node scripts/inspect/kuratorstvo-check.mjs):
+   SMOKE 2026-08-16 · 41/41 PASS
+      PASS  #1  видов 4, назначаемых ролей 5, каждая при своём виде; «Ведущий куратор заёмщика» в списке назначаемых нет — ИУ-13, ИУ-14
+      PASS  #2  пороги давности живут в справочнике видов — app:2 loan:5 coll:5 claim:3 рабочих дн. (ИУ-9)
+      PASS  #3  правил холдинга 5 — по одному на роль, ключи разные (otrasl · otrasl · vidzalog · mesto · stage) — ИУ-6
+      PASS  #4  ролей доступа 4; администратор кураторства один и вакантным не бывает — Сламкулов А.О.
+      PASS  #5  ни у одного из 15 объектов нет атрибута куратора или подразделения — ИУ-1
+      PASS  #6  рождение наполнило журнал: 18 записей при 18 парах «объект и роль», плюс 2 корректировки
+      PASS  #7  каждая запись несёт дату, чем поставлена и причину; открытых отрезков 18 — по одному на пару
+      PASS  #8  корректировка не переписала запись, а закрыла её 2026-02-28 и добавила новую — ИУ-4
+      PASS  #9  обе ступени сработали: Департамент агрокредитования → Иванов С.Т.
+      PASS  #10  у предмета залога две роли и два подразделения: Куратор залога → Управление залогового обеспечения · Токтосунова Ж.А. | Региональный исполнитель → Региональное представительство «Ош» · Дуйшеев А.С. — ИУ-13
+      PASS  #11  два требования одного кредита ведут разные кураторы (Салтанат кызы А. и Каримов А.А.) — ADR-0023
+      PASS  #12  кредит погашен 2026-04-30, куратор жив: Асанов Н.Б. — ИУ-5
+      PASS  #13  верхний пробел «Услуги» держит Сламкулов А.О.: 4 раб. дн. при пороге 2 — просрочен (ИУ-8, ИУ-9)
+      PASS  #14  правила подразделения нет вовсе — держит заведующий Садыров Б.М., 1 раб. дн. при пороге 2
+      PASS  #15  пустая ячейка «Таласская» держится заведующей Токтогулова А.К. 7 раб. дн. при пороге 5
+      PASS  #16  граница порога: 5 раб. дн. при пороге 5 — ещё в сроке, не просрочка
+      PASS  #17  фолбэком держится 6 закреплений, дольше порога 3
+      PASS  #18  «объект без куратора» невозможен: 15 объектов, пустых ответов 0 — ИУ-9
+      PASS  #19  вопрос без даты не принимается: «вопрос без даты не принимается — «текущий куратор» это дата «сегодня»»
+      PASS  #20  на дату до рождения объекта — единственный законный пустой ответ: «на 01.01.2024 объекта ещё не было (рождён 14.02.2024) — единственный законный пустой ответ» (ИУ-3)
+      PASS  #21  ответов два и они названы: закреплённый Иванов С.Т., действующий Иванов С.Т.; замещения в волне 1 нет — ИУ-2
+      PASS  #22  ответ воспроизводим задним числом: 28.02 — Бекова Г.М. (ред. 1), 01.03 — Иванов С.Т. (ред. 2) — ИУ-10, ИУ-11
+      PASS  #23  «живут вне правила»: Бекова Г.М. вместо Иванов С.Т. после смены редакции; Гулнара уулу Т. — закрепление рукой; пересчитанный кредит совпадает
+      PASS  #24  наблюдатель и куратор правило не правят: «Наблюдатель правило не правит — только чтение» · «Куратор правило не правит — только чтение»
+      PASS  #25  администратор владеет верхней ступенью и не правит нижнюю: «раскладку внутри отдела правит заведующий — администратор её не утверждает и не правит» — ADR-0117
+      PASS  #26  заведующий правит только своё подразделение: своё — да, чужое — «это правило чужого подразделения — своё у вас одно», верхняя — «верхнюю ступень правит администратор кураторства; заведующий её видит, но не правит»
+      PASS  #27  дата вступления в прошлом отклонена: «дата вступления 01.01.2026 в прошлом (ИУ-10)» — ИУ-10
+      PASS  #28  правка завела редакцию 3 с 01.09.2026; действующая на сегодня не переписана — ИУ-10
+      PASS  #29  предыдущая редакция закрыта 2026-08-31, новая числится будущей — интервалы не пересекаются
+      PASS  #30  правка нижнего правила сама объекты не переставляет — Токтогулова А.К. держит их и после 01.09; переставляет пересчёт, отдельным действием (этап 3)
+      PASS  #31  правка верхней ступени журнал не тронула — живущие объекты остались в своих подразделениях (ИУ-7, ИУ-12)
+      PASS  #32  заявка, рождённая до вступления, осталась у Сламкулов А.О.: подразделение двигает только передача с приёмом — ADR-0023
+      PASS  #33  в ключ не встаёт признак чужого вида объекта: «признак «Вид залога» у вида «кредит» не заведён»
+      PASS  #34  смена ключа — тоже редакция: ячеек 10, вслепую не перенесено ни одной, дыр 10 (их держит заведующий)
+      PASS  #35  составной ключ: ячеек 10, закрыто 6, пустых с объектами 1
+      PASS  #36  верхнее правило заявок: не названа ячейка «Услуги», и объект в ней есть
+      PASS  #37  счётчик ячейки и список за ним считаются одним расчётом: КД-2024/117, КД-2025/033
+      PASS  #38  в файле названы все 14 инвариантов и 4 решения
+      PASS  #39  в движке нет ни одной роли, ни подразделения, ни признака по имени — всё приходит справочниками
+      PASS  #40  ни одной ссылки на утраченную спеку и её параграфы не осталось — КУ-Д9
+      PASS  #41  четыре экрана следующих этапов стоят заглушками и границы волны объявлены в шапке
 -->
 <style>
 :root{
-  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-blue-active:#0049A8;
-  --asubk-link:#005FDB; --asubk-green:#158443; --asubk-green-hover:#106A36;
-  --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
-  --asubk-ink:#192434;
-  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-link:#005FDB;
+  --asubk-green:#158443; --asubk-green-hover:#106A36; --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+  --asubk-ink:#192434; --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
   --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
   --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
   --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
   --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
   --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
   --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
-  --asubk-disabled-fill:rgba(25,59,103,0.05); --asubk-red-tint:#FCE6E6;
-  --asubk-green-tint:rgba(21,132,67,0.10); --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --asubk-red-tint:#FCE6E6; --asubk-green-tint:rgba(21,132,67,0.10);
+  --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
   --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
   --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
   --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
-  --surface-card:var(--asubk-white); --surface-input:var(--asubk-gray-200); --surface-hover:var(--asubk-gray-50);
+  --surface-card:var(--asubk-white); --surface-hover:var(--asubk-gray-50);
   --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong); --border-focus:var(--asubk-blue);
-  --action-primary:var(--asubk-blue); --action-primary-hover:var(--asubk-blue-hover);
-  --action-success:var(--asubk-green); --action-danger:var(--asubk-red);
-  --status-success:var(--asubk-green); --status-success-bg:var(--asubk-green-tint);
-  --status-info:var(--asubk-blue); --status-info-bg:var(--asubk-blue-tint);
-  --status-warning:var(--asubk-amber); --status-warning-bg:var(--asubk-amber-tint);
-  --status-error:var(--asubk-red); --status-error-bg:var(--asubk-red-tint);
+  --action-primary:var(--asubk-blue); --action-success:var(--asubk-green); --action-danger:var(--asubk-red);
+  --status-success-bg:var(--asubk-green-tint); --status-info-bg:var(--asubk-blue-tint);
+  --status-warning-bg:var(--asubk-amber-tint); --status-error-bg:var(--asubk-red-tint);
   --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
   --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
-  --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600;
   --leading-tight:1.2; --leading-snug:1.35; --leading-normal:1.5;
   --font-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--asubk-font);
   --font-label:var(--weight-regular) var(--text-sm)/var(--leading-snug) var(--asubk-font);
   --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
-  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px; --space-6:32px;
   --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
-  --control-h:36px; --header-h:56px; --sidebar-w:320px;
+  --control-h:36px; --header-h:56px; --sidebar-w:290px;
   --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
 }
 *{ box-sizing:border-box; }
@@ -116,72 +153,55 @@ html,body{ margin:0; height:100%; }
 body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
 ::-webkit-scrollbar{ width:8px; height:8px; }
 ::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
-a{ color:inherit; }
 .app{ display:flex; height:100vh; width:100%; }
 
 /* ---- sidebar ---- */
 .sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
   display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
-.brand{ padding:18px 16px 14px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
+.brand{ padding:18px 16px 4px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
   color:var(--text-heading); letter-spacing:0.04em; }
-.nav{ flex:1; overflow-y:auto; padding-bottom:8px; }
+.brand small{ display:block; font:var(--weight-regular) 12px/1.4 var(--asubk-font);
+  color:var(--text-muted); letter-spacing:0; margin-top:4px; }
+.nav{ flex:1; overflow-y:auto; padding:12px 0 8px; }
 .nav-sec{ padding:9px 16px 4px; font:var(--weight-semibold) 12px/1.3 var(--asubk-font);
   color:var(--text-placeholder); text-transform:uppercase; letter-spacing:0.05em; }
-.nav-item{ display:flex; align-items:center; gap:9px; padding:8px 16px 8px 20px; text-decoration:none;
-  color:rgba(27,43,65,0.72); font:var(--weight-regular) var(--text-base)/1.4 var(--asubk-font); cursor:pointer; }
+.nav-item{ display:flex; align-items:center; gap:9px; padding:8px 16px; text-decoration:none; width:100%;
+  color:rgba(27,43,65,0.72); font:var(--weight-regular) var(--text-base)/1.4 var(--asubk-font);
+  cursor:pointer; background:none; border:none; text-align:left; }
 .nav-item:hover{ background:rgba(24,39,57,0.05); }
 .nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); font-weight:var(--weight-medium); }
-.nav-item .ni{ flex:none; color:var(--text-muted); display:flex; }
-.nav-item.active .ni{ color:var(--asubk-blue); }
-.nav-item .badge{ margin-left:auto; background:var(--asubk-red); color:#fff; border-radius:var(--radius-pill);
-  font:var(--weight-semibold) 11px/1 var(--asubk-font); padding:3px 7px; }
-.sidebar-foot{ display:flex; align-items:center; justify-content:space-between; padding:12px 16px; color:var(--text-muted); }
-.sidebar-foot span{ font:var(--weight-regular) 14px/1.2 var(--asubk-font); }
-.icon-btn{ border:none; background:rgba(24,39,57,0.05); color:var(--text-link); cursor:pointer;
-  padding:7px; border-radius:4px; display:flex; }
+.nav-item .cnt{ margin-left:auto; color:var(--text-placeholder); font-size:12px; }
+.sidebar-foot{ padding:12px 16px; border-top:1px solid var(--border-default);
+  font:var(--weight-regular) 12px/1.45 var(--asubk-font); color:var(--text-muted); }
 
 /* ---- main ---- */
 .main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
-.topbar{ height:var(--header-h); flex:none; background:var(--surface-page);
-  border-bottom:1px solid var(--border-default); display:flex; align-items:center; gap:14px; padding:0 20px; }
-.topbar .menu{ color:var(--text-muted); display:flex; cursor:pointer; }
+.topbar{ min-height:var(--header-h); flex:none; border-bottom:1px solid var(--border-default);
+  display:flex; align-items:center; gap:14px; padding:8px 20px; flex-wrap:wrap; }
 .crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
-.topbar .date-wrap{ display:flex; align-items:center; gap:8px; }
-.topbar .date-wrap label{ font:var(--font-label); color:var(--text-muted); }
-.topbar input[type=date]{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
-  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 8px; cursor:pointer; }
-.date-chip{ border:1px solid var(--border-default); background:var(--surface-card); color:var(--text-link);
-  border-radius:var(--radius-pill); padding:3px 10px; font:var(--weight-medium) 12px/1 var(--asubk-font); cursor:pointer; }
-.date-chip:hover{ background:var(--surface-hover); }
-.topbar .role-wrap{ margin-left:auto; display:flex; align-items:center; gap:8px; }
-.topbar .role-wrap label{ font:var(--font-label); color:var(--text-muted); }
-.rsel{ position:relative; display:flex; align-items:center; }
-.rsel select{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
-  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 26px 0 10px;
-  appearance:none; cursor:pointer; }
-.rsel .caret{ position:absolute; right:8px; pointer-events:none; color:var(--text-muted); display:flex; }
-
+.topbar .right{ margin-left:auto; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.topbar label{ font:var(--font-label); color:var(--text-muted); margin-right:6px; }
+.topbar select{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 10px; cursor:pointer; }
 .content{ flex:1; overflow:auto; }
-.panel-wrap{ padding:18px 24px 48px; max-width:1120px; }
-.view{ display:none; }
-.view.active{ display:block; }
+.panel-wrap{ padding:18px 24px 60px; max-width:1140px; }
+.view{ display:none; } .view.active{ display:block; }
 
-/* ---- headings ---- */
-.section-h{ font:var(--weight-semibold) 16px/1.2 var(--asubk-font); color:var(--text-heading); margin:22px 0 4px; }
+/* ---- headings, notes ---- */
+.section-h{ font:var(--weight-semibold) 16px/1.2 var(--asubk-font); color:var(--text-heading); margin:24px 0 6px; }
 .section-h:first-child{ margin-top:0; }
-.section-note{ font:var(--font-label); color:var(--text-muted); margin:0 0 12px; max-width:860px; }
-.section-note code{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; color:var(--asubk-blue); }
-.page-lead{ font:var(--font-label); color:var(--text-muted); margin:2px 0 18px; max-width:880px; }
+.page-lead{ font:var(--font-label); color:var(--text-muted); margin:2px 0 16px; max-width:900px; }
+.note{ font:var(--font-label); color:var(--text-muted); margin:8px 0 0; max-width:900px; }
+.note code, .page-lead code{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; color:var(--asubk-blue); }
 
 /* ---- banners ---- */
-.banner{ display:flex; align-items:flex-start; gap:10px; border-radius:var(--radius-md);
-  padding:10px 14px; margin-bottom:12px; font:var(--font-label); }
+.banner{ border-radius:var(--radius-md); padding:10px 14px; margin-bottom:12px; font:var(--font-label); }
 .banner.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
 .banner.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
 .banner.danger{ background:var(--status-error-bg); color:var(--asubk-red); }
 .banner.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
-.banner svg{ flex:none; margin-top:1px; }
 .banner b{ font-weight:var(--weight-semibold); }
+.banner ul{ margin:6px 0 0; padding-left:20px; } .banner li{ margin-bottom:3px; }
 
 /* ---- pills ---- */
 .pill{ display:inline-block; padding:2px 9px; border-radius:var(--radius-pill);
@@ -192,763 +212,864 @@ a{ color:inherit; }
 .pill.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
 .pill.neutral{ background:var(--asubk-tint-fill); color:var(--text-muted); }
 
-/* ---- toolbar (selectors) ---- */
-.toolbar{ display:flex; align-items:flex-end; gap:16px; flex-wrap:wrap; margin-bottom:16px;
-  padding:14px 16px; border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--surface-panel); }
-.fld{ display:flex; flex-direction:column; gap:5px; }
-.fld > label{ font:var(--font-label); color:var(--text-muted); }
-.fld select, .fld input{ height:var(--control-h); border-radius:var(--radius-md);
-  border:1px solid var(--border-strong); background:var(--surface-card); color:var(--text-body);
-  font:var(--font-label); padding:0 10px; min-width:220px; }
-.fld select:focus, .fld input:focus{ outline:none; border-color:var(--border-focus); box-shadow:var(--shadow-focus); }
-.spacer{ flex:1; }
-
 /* ---- buttons ---- */
-.btn{ display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2);
-  height:var(--control-h); padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; height:var(--control-h);
+  padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
   font:var(--weight-semibold) var(--text-base)/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
 .btn:disabled{ opacity:.45; cursor:not-allowed; }
 .btn-primary{ background:var(--action-primary); color:#fff; }
-.btn-primary:hover:not(:disabled){ background:var(--action-primary-hover); }
-.btn-success{ background:var(--action-success); color:#fff; }
-.btn-success:hover:not(:disabled){ background:var(--asubk-green-hover); }
-.btn-danger{ background:var(--action-danger); color:#fff; }
-.btn-danger:hover:not(:disabled){ background:var(--asubk-red-hover); }
+.btn-primary:hover:not(:disabled){ background:var(--asubk-blue-hover); }
 .btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
 .btn-secondary:hover:not(:disabled){ background:var(--surface-hover); }
-.btn-sm{ height:30px; padding:0 11px; font-size:13px; }
+.btn-secondary.on{ border-color:var(--asubk-blue); background:var(--asubk-blue-tint); color:var(--asubk-blue); }
+.btn-sm{ height:28px; padding:0 9px; font-size:12.5px; font-weight:var(--weight-medium); }
+.btn-row{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; align-items:flex-end; }
 
 /* ---- tables ---- */
-table.cgrid{ width:100%; border-collapse:collapse; font:var(--font-label); border:1px solid var(--border-default); background:var(--surface-card); }
-table.cgrid thead th{ text-align:left; padding:10px 12px; background:var(--surface-card);
-  border-bottom:1px solid var(--asubk-grid-line); font:var(--weight-medium) var(--text-sm)/1.35 var(--asubk-font);
-  color:var(--text-body); white-space:nowrap; }
-table.cgrid tbody td{ padding:9px 12px; border-bottom:1px solid var(--asubk-grid-line); vertical-align:top; color:var(--text-body); }
+table.cgrid{ width:100%; border-collapse:collapse; font:var(--font-label);
+  border:1px solid var(--border-default); background:var(--surface-card); }
+table.cgrid thead th{ text-align:left; padding:10px 12px; background:var(--surface-panel);
+  border-bottom:1px solid var(--asubk-grid-line); font:var(--weight-semibold) var(--text-sm)/1.35 var(--asubk-font);
+  color:var(--text-heading); white-space:nowrap; }
+table.cgrid tbody td{ padding:9px 12px; border-bottom:1px solid var(--asubk-grid-line);
+  vertical-align:top; color:var(--text-body); }
 table.cgrid tbody tr:last-child td{ border-bottom:none; }
+table.cgrid tbody tr.hole td{ background:var(--asubk-gray-50); }
+table.cgrid tbody tr.over td{ background:var(--status-error-bg); }
+table.cgrid tbody tr.sub td{ background:var(--surface-panel); }
+table.cgrid select{ height:30px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 8px; max-width:280px; }
 .muted{ color:var(--text-muted); }
-.mono{ font-family:ui-monospace,Menlo,Consolas,monospace; font-variant-numeric:tabular-nums; font-size:13px; }
-.tnum{ font-variant-numeric:tabular-nums; }
+.mono{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12.5px; }
+.small{ font:var(--weight-regular) 12.5px/1.45 var(--asubk-font); color:var(--text-muted); }
+.small b, .small em{ color:var(--text-body); font-style:normal; font-weight:var(--weight-medium); }
+.linky{ background:none; border:none; padding:0; cursor:pointer; color:var(--text-link);
+  font:var(--font-label); text-decoration:underline; }
 
-/* ---- policy coverage table ---- */
-.ptable{ width:100%; border-collapse:collapse; font:var(--font-label); border:1px solid var(--border-default); background:var(--surface-card); }
-.ptable th{ text-align:left; padding:10px 12px; background:var(--surface-panel);
-  border-bottom:1px solid var(--asubk-grid-line); font:var(--weight-semibold) var(--text-sm)/1.35 var(--asubk-font); color:var(--text-heading); }
-.ptable td{ padding:9px 12px; border-bottom:1px solid var(--asubk-grid-line); vertical-align:middle; }
-.ptable tr:last-child td{ border-bottom:none; }
-.ptable .keyval{ font:var(--weight-medium) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading); }
-.ptable select{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
-  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 8px; min-width:200px; }
-.ptable tr.gap{ background:var(--status-error-bg); }
-.ptable tr.gap .keyval{ color:var(--asubk-red); }
-.keychip{ display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:var(--radius-pill);
-  background:var(--asubk-blue-tint); color:var(--asubk-blue); font:var(--weight-medium) 12px/1.5 var(--asubk-font); }
+/* ---- cards ---- */
+.card{ border:1px solid var(--border-default); border-radius:var(--radius-md);
+  padding:16px 18px; margin-bottom:14px; background:var(--surface-card); }
+.card > h3{ margin:0 0 10px; font:var(--weight-semibold) 15px/1.25 var(--asubk-font); color:var(--text-heading); }
+.card > h3 .small{ font-weight:var(--weight-regular); }
+.kv{ display:grid; grid-template-columns:210px 1fr; gap:6px 14px; font:var(--font-label); }
+.kv .k{ color:var(--text-muted); } .kv .v{ color:var(--text-body); }
+.chip{ display:inline-flex; align-items:center; gap:6px; padding:2px 9px; border-radius:var(--radius-pill);
+  background:var(--asubk-tint-fill); font:var(--weight-medium) 12px/1.7 var(--asubk-font);
+  color:var(--text-body); margin-right:6px; }
+.chip button{ background:none; border:none; cursor:pointer; color:var(--text-muted); padding:0; font-size:12px; }
+.fld{ display:flex; flex-direction:column; gap:5px; }
+.fld > label{ font:var(--font-label); color:var(--text-muted); }
+.fld select, .fld input{ height:var(--control-h); border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 10px; min-width:210px; }
+.form-row{ display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; margin-bottom:12px; }
+.why{ font:var(--weight-regular) 12.5px/1.5 var(--asubk-font); color:var(--text-muted); margin-top:4px; }
+.why em{ font-style:normal; color:var(--text-body); font-weight:var(--weight-medium); }
 
-/* ---- feature dictionary chips ---- */
-.featgrid{ display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 4px; }
-.feat{ display:inline-flex; align-items:center; gap:7px; padding:5px 11px; border-radius:var(--radius-pill);
-  border:1px solid var(--border-default); background:var(--surface-card); font:var(--font-label); color:var(--text-body); cursor:default; }
-.feat.on{ border-color:var(--asubk-blue); background:var(--asubk-blue-tint); color:var(--asubk-blue); font-weight:var(--weight-medium); }
-.feat .tag{ font-size:11px; color:var(--text-placeholder); }
-.feat.extra{ border-style:dashed; border-color:var(--asubk-amber); }
-.feat.extra .tag{ color:var(--asubk-amber); }
-
-/* ---- diff (recalc) columns ---- */
-.diffcols{ display:grid; grid-template-columns:1fr 1fr; gap:16px; }
-@media(max-width:840px){ .diffcols{ grid-template-columns:1fr; } }
-.diffcol{ border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:hidden; }
-.diffcol-h{ padding:11px 14px; font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font);
-  display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--border-default); }
-.diffcol.silent .diffcol-h{ background:var(--status-success-bg); color:var(--asubk-green); }
-.diffcol.handoff .diffcol-h{ background:var(--status-warning-bg); color:var(--asubk-amber); }
-.diffrow{ padding:11px 14px; border-bottom:1px solid var(--asubk-grid-line); font:var(--font-label); }
-.diffrow:last-child{ border-bottom:none; }
-.diffrow .dr-top{ display:flex; align-items:center; gap:8px; }
-.diffrow .dr-obj{ font-weight:var(--weight-semibold); color:var(--text-heading); }
-.diffrow .dr-move{ color:var(--text-muted); margin-top:3px; }
-.diffrow .dr-move b{ color:var(--text-body); font-weight:var(--weight-medium); }
-.arrow{ color:var(--text-placeholder); }
-.tally{ display:flex; flex-wrap:wrap; gap:10px; margin:4px 0 16px; }
-.tally .t{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:9px 14px; background:var(--surface-card); }
-.tally .t .tl{ font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-muted); }
-.tally .t .tv{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); margin-top:2px; }
-.tally .t.pos .tv{ color:var(--asubk-green); }
-.tally .t.neg .tv{ color:var(--asubk-red); }
-
-/* ---- credit card ---- */
-.phead{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:16px 20px; margin-bottom:18px; }
-.phead-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin-bottom:12px; }
-.phead-name .nm{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); }
-.phead-sub{ font:var(--font-label); color:var(--text-muted); margin-top:4px; }
-.phead-sub b{ color:var(--text-body); font-weight:var(--weight-medium); }
-.phead-dims{ display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
-@media(max-width:900px){ .phead-dims{ grid-template-columns:repeat(2,1fr); } }
-.dim{ background:var(--surface-panel); border-radius:var(--radius-md); padding:10px 14px; }
-.dim .dl{ font:var(--weight-regular) 12px/1.3 var(--asubk-font); color:var(--text-muted); margin-bottom:5px; }
-.dim .dv{ font:var(--weight-semibold) 15px/1.25 var(--asubk-font); color:var(--text-heading); }
-.dim .src{ font:var(--weight-regular) 11px/1.35 var(--asubk-font); color:var(--text-placeholder); margin-top:4px; }
-
-/* ---- assignment journal timeline ---- */
-.tl{ list-style:none; margin:0; padding:0; border-left:2px solid var(--border-default); margin-left:8px; }
-.tl li{ position:relative; padding:0 0 18px 22px; }
-.tl li::before{ content:''; position:absolute; left:-7px; top:3px; width:12px; height:12px; border-radius:50%;
-  background:var(--surface-card); border:2px solid var(--asubk-blue); }
-.tl li.open::before{ background:var(--asubk-blue); }
-.tl li.closed::before{ border-color:var(--text-disabled); }
-.tl li .td{ font:var(--weight-semibold) var(--text-sm)/1.35 var(--asubk-font); color:var(--text-heading); }
-.tl li.closed .td{ color:var(--text-muted); }
-.tl li .tv{ font:var(--font-label); color:var(--text-muted); margin-top:3px; }
-.tl li .tv .mono{ color:var(--text-body); }
-
-/* ---- collateral list (предмет → куратор) ---- */
-.collat{ padding:0; margin:0; }
-.collat li{ display:flex; align-items:flex-start; gap:12px; padding:11px 14px; border:1px solid var(--border-default);
-  border-radius:var(--radius-md); margin-bottom:8px; background:var(--surface-card); list-style:none; }
-.collat li .ci{ flex:none; color:var(--text-muted); margin-top:2px; }
-.collat li .cbody{ flex:1; }
-.collat li .cname{ font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--text-heading); }
-.collat li .cmeta{ font:var(--font-label); color:var(--text-muted); margin-top:3px; }
-.collat li .cmeta b{ color:var(--text-body); font-weight:var(--weight-medium); }
-
-/* ---- handoff queue ---- */
-.hq{ list-style:none; margin:0; padding:0; }
-.hq li{ border:1px solid var(--border-default); border-radius:var(--radius-md); margin-bottom:10px; background:var(--surface-card); overflow:hidden; }
-.hq .hq-top{ display:flex; align-items:center; gap:12px; padding:12px 16px; }
-.hq .hq-top.overdue{ background:var(--status-error-bg); }
-.hq .hq-obj{ font:var(--weight-semibold) var(--text-base)/1.3 var(--asubk-font); color:var(--text-heading); }
-.hq .hq-move{ font:var(--font-label); color:var(--text-muted); margin-top:2px; }
-.hq .hq-move b{ color:var(--text-body); font-weight:var(--weight-medium); }
-.hq .hq-days{ margin-left:auto; text-align:right; }
-.hq .hq-days .n{ font:var(--weight-semibold) 20px/1 var(--asubk-font); color:var(--text-heading); }
-.hq .hq-days.od .n{ color:var(--asubk-red); }
-.hq .hq-days .u{ font:var(--font-label); color:var(--text-muted); }
-.hq .hq-body{ padding:0 16px 14px; }
-.hq .hq-reason{ font:var(--font-label); color:var(--text-muted); margin-bottom:10px; }
-.hq .hq-reason b{ color:var(--text-body); font-weight:var(--weight-medium); }
-.hq .hq-actions{ display:flex; gap:8px; flex-wrap:wrap; }
-.checklist{ list-style:none; margin:0 0 10px; padding:0; display:flex; flex-direction:column; gap:5px; }
-.checklist li{ display:flex; align-items:center; gap:8px; font:var(--font-label); color:var(--text-body); }
-.checklist li .cbox{ width:15px; height:15px; border-radius:3px; border:1.5px solid var(--border-strong); flex:none; display:flex; align-items:center; justify-content:center; }
-.checklist li.done .cbox{ background:var(--asubk-green); border-color:var(--asubk-green); color:#fff; }
-
-.hint{ font:var(--font-label); color:var(--text-muted); margin-top:8px; }
-.hint code{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; color:var(--asubk-blue); }
-.coibox{ border:1px solid var(--asubk-red); background:var(--status-error-bg); border-radius:var(--radius-md); padding:12px 16px; margin:12px 0; }
-.coibox .ct{ font:var(--weight-semibold) var(--text-sm)/1.3 var(--asubk-font); color:var(--asubk-red); display:flex; align-items:center; gap:8px; }
-.coibox .cd{ font:var(--font-label); color:var(--text-body); margin-top:6px; }
-.coibox .cd b{ font-weight:var(--weight-semibold); }
-
-.toast{ position:fixed; bottom:22px; left:50%; transform:translateX(-50%) translateY(20px);
-  background:var(--asubk-ink); color:#fff; padding:11px 18px; border-radius:var(--radius-md);
-  font:var(--font-label); box-shadow:0 8px 28px rgba(24,39,57,0.32); opacity:0; pointer-events:none;
-  transition:opacity 160ms ease, transform 160ms ease; z-index:80; max-width:520px; }
-.toast.show{ opacity:1; transform:translateX(-50%) translateY(0); }
+/* ---- toast ---- */
+#toastWrap{ position:fixed; right:18px; bottom:18px; display:flex; flex-direction:column; gap:8px; z-index:50; }
+.toast{ background:var(--asubk-ink); color:#fff; padding:10px 14px; border-radius:var(--radius-md);
+  font:var(--font-label); max-width:460px; box-shadow:0 6px 20px rgba(24,39,57,0.25); }
+.toast.err{ background:var(--asubk-red); } .toast.ok{ background:var(--asubk-green); }
 </style>
 </head>
 <body>
+
 <div class="app">
-  <nav class="sidebar">
-    <div class="brand">АСУБК</div>
-    <div class="nav" id="nav">
-      <div class="nav-sec">Кураторство</div>
-      <div class="nav-item active" data-view="policy">
-        <span class="ni"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg></span>
-        <span>Политика распределения</span>
-      </div>
-      <div class="nav-item" data-view="recalc">
-        <span class="ni"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0114.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0020.5 15"/></svg></span>
-        <span>Пересчёт</span>
-      </div>
-      <div class="nav-item" data-view="credit">
-        <span class="ni"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M9 13h6M9 17h6"/></svg></span>
-        <span>Карточка кредита</span>
-      </div>
-      <div class="nav-item" data-view="queue">
-        <span class="ni"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg></span>
-        <span>Очередь передач</span>
-        <span class="badge" id="queueBadge">0</span>
-      </div>
+  <aside class="sidebar">
+    <div class="brand">АСУБК<small>Система кредитования · Кураторство · прототип TO-BE</small></div>
+    <div class="nav">
+      <div class="nav-sec">Правило</div>
+      <button class="nav-item" data-v="pol" onclick="KU.go('pol')">Политика распределения</button>
+      <div class="nav-sec">Работа</div>
+      <button class="nav-item" data-v="rec" onclick="KU.go('rec')">Пересчёт<span class="cnt">этап 3</span></button>
+      <button class="nav-item" data-v="hand" onclick="KU.go('hand')">Передачи<span class="cnt">этап 3</span></button>
+      <button class="nav-item" data-v="show" onclick="KU.go('show')">Витрины<span class="cnt">этап 5</span></button>
+      <button class="nav-item" data-v="off" onclick="KU.go('off')">Отстранения<span class="cnt">этап 4</span></button>
     </div>
-    <div class="sidebar-foot">
-      <span>[admin]</span>
-      <button class="icon-btn" title="Выйти" aria-label="Выйти">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
-      </button>
-    </div>
-  </nav>
+    <div class="sidebar-foot" id="foot"></div>
+  </aside>
 
   <div class="main">
-    <header class="topbar">
-      <span class="menu" title="Меню">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
-      </span>
-      <span class="crumb-title" id="crumb">Политика распределения</span>
-      <div class="date-wrap">
-        <label for="dateInp">Дата&nbsp;среза</label>
-        <input type="date" id="dateInp" min="2022-01-01" max="2026-07-12">
-        <button class="date-chip" data-d="2024-03-01">2024</button>
-        <button class="date-chip" data-d="2026-07-12">Сегодня</button>
+    <div class="topbar">
+      <div class="crumb-title" id="title">Политика распределения</div>
+      <div class="right">
+        <span><label>Дата среза</label><select id="asOf" onchange="KU.setAsOf(this.value)"></select></span>
+        <span><label>Роль</label><select id="role" onchange="KU.setRole(this.value)"></select></span>
       </div>
-      <div class="role-wrap">
-        <label for="roleSel">Роль</label>
-        <div class="rsel">
-          <select id="roleSel">
-            <option value="head">Заведующий отделом</option>
-            <option value="curator">Куратор</option>
-            <option value="obs">Наблюдатель</option>
-          </select>
-          <span class="caret"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></span>
-        </div>
-      </div>
-    </header>
-
-    <div class="content">
-      <!-- ================= TAB 1 · ПОЛИТИКА ================= -->
-      <div class="view active" id="view-policy"><div class="panel-wrap">
-        <p class="page-lead">§3–4 · Ур.1 (кредит→подразделение) не настраивается. Здесь ур.2: политика пары
-          <b>(подразделение, роль)</b>. Каждая — <b>таблица покрытия объявленного ключа</b>, не список правил с
-          приоритетами. Пересечения невозможны по построению; пробелы видны при настройке.</p>
-
-        <div class="toolbar">
-          <div class="fld"><label for="polUnit">Подразделение</label><select id="polUnit"></select></div>
-          <div class="fld"><label for="polRole">Роль кураторства</label><select id="polRole"></select></div>
-          <div class="fld"><label for="polKey">Ключ распределения (§4.1)</label><select id="polKey"></select></div>
-          <div class="spacer"></div>
-          <button class="btn btn-primary" id="recalcBtn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0114.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0020.5 15"/></svg>
-            Пересчитать по этой политике
-          </button>
-        </div>
-
-        <div id="polBody"></div>
-
-        <div class="section-h">Справочник признаков распределения (§4.3)</div>
-        <p class="section-note">Набор признаков — <b>расширяемый справочник</b>, а не хардкод. Иначе первый отдел,
-          которому нужен новый разрез, упирается в разработчиков. Признаки залоговых ролей — из другой области
-          (вид залога, место нахождения предмета), не адрес заёмщика.</p>
-        <div class="featgrid" id="featGrid"></div>
-        <p class="hint">Пунктиром — <b>форма собственности</b>: используется фактически (частная/государственная),
-          но в ТЗ отсутствует. Ровно случай, ради которого справочник обязан быть расширяемым.</p>
-      </div></div>
-
-      <!-- ================= TAB 2 · ПЕРЕСЧЁТ ================= -->
-      <div class="view" id="view-recalc"><div class="panel-wrap">
-        <p class="page-lead">§7 · Пересчёт трогает персональную ответственность → <b>не молчаливый фоновый процесс</b>.
-          Явная операция заведующего, diff-предпросмотр ДО применения. Два исхода на объект <b>разделены</b>.</p>
-        <div id="recalcBody"></div>
-      </div></div>
-
-      <!-- ================= TAB 3 · КАРТОЧКА КРЕДИТА ================= -->
-      <div class="view" id="view-credit"><div class="panel-wrap">
-        <p class="page-lead">§0 · В карточке нет поля <code>curator</code>. Куратор на дату резолвится из
-          <b>журнала назначений</b>. Роли не вытесняют друг друга (§2.1); залог — на предмете, две роли (§2.2).</p>
-        <div class="toolbar">
-          <div class="fld"><label for="loanSel">Кредит</label><select id="loanSel"></select></div>
-        </div>
-        <div id="creditBody"></div>
-      </div></div>
-
-      <!-- ================= TAB 4 · ОЧЕРЕДЬ ПЕРЕДАЧ ================= -->
-      <div class="view" id="view-queue"><div class="panel-wrap">
-        <p class="page-lead">§8 · Непринятый handoff просто <b>висит</b>. Ответственность на сдающем. <b>Нет</b>
-          автоприёма, автоэскалации, автопереназначения, арбитража. Спор о приёме решается вне системы.</p>
-        <div id="queueBody"></div>
-      </div></div>
     </div>
+    <div class="content"><div class="panel-wrap" id="panel"></div></div>
   </div>
 </div>
-<div class="toast" id="toast"></div>
+<div id="toastWrap"></div>
 
 <script>
-/* =========================================================================
-   СОСТОЯНИЕ (§ спеки). Кураторство — измерение, не поле. Наружу нет `curator` —
-   только журнал назначений; «кто куратор на дату» ВЫЧИСЛЯЕТСЯ.
-   ========================================================================= */
-const TODAY = '2026-07-12';
+/* =====================================================================
+ *  МОДУЛЬ «КУРАТОРСТВО» — исполняемый прототип, волна 1
+ *  Слои: даты → справочники → состояние (seed) → ДВИЖОК → ШОВ → операции → экраны.
+ *  Движок ничего не знает о конкретных ролях, подразделениях и признаках: он умеет
+ *  только «взять правило, взять редакцию на дату, сложить ключ, прочитать ячейку,
+ *  а если пусто — подняться на ступень выше».
+ * ===================================================================== */
+const KU = {};
 
-// Подразделения (потребляются как справочник из оргструктуры; здесь плоско).
-const UNITS = {
-  dep_agro: 'Департамент агропромышленного кредитования',
-  dep_ind:  'Департамент промышленного кредитования',
-  ozo:      'Отдел залогового обеспечения',
-  reg_osh:  'Региональное представительство «Юг» (Ош)',
-  reg_nar:  'Региональное представительство «Нарын»',
-  opk:      'Отдел проблемных кредитов',
-};
-// Заведующий отделом (§4.4 — держатель незакрытых ячеек, п.96 — носитель контроля).
-const HEADS = {
-  dep_agro:'e_toktogul', dep_ind:'e_ormonov', ozo:'e_zavozo', reg_osh:'e_reg_osh', reg_nar:'e_reg_nar', opk:'e_zavopk',
-};
+/* ------------------------------ даты -------------------------------- */
+const D         = s => new Date(s + 'T00:00:00Z');
+const isoOf     = dt => dt.toISOString().slice(0, 10);
+const addDays   = (s, n) => { const dt = D(s); dt.setUTCDate(dt.getUTCDate() + n); return isoOf(dt); };
+const prevDay   = s => addDays(s, -1);
+const isWorkday = s => { const w = D(s).getUTCDay(); return w !== 0 && w !== 6; };
+const workdays  = (a, b) => { if (!a || !b || b < a) return 0; let n = 0, c = a; while (c <= b) { if (isWorkday(c)) n++; c = addDays(c, 1); } return n; };
+const fmt       = s => s ? s.slice(8, 10) + '.' + s.slice(5, 7) + '.' + s.slice(0, 4) : '—';
+const TODAY     = '2026-08-15';
 
-const EMP = {
-  e_ivanov:  'Иванов И. И.',
-  e_asanov:  'Асанов А. А.',
-  e_bekova:  'Бекова Г. Т.',
-  e_toktogul:'Токтогулова Ж. М.',   // заведующая dep_agro
-  e_ormonov: 'Ормонов Б. К.',       // заведующий dep_ind
-  e_zalog1:  'Токтосунова С. А.',   // куратор залога — недвижимость
-  e_zalog2:  'Маматов Э. Д.',       // куратор залога — техника/транспорт
-  e_zavozo:  'Джумабаева А. К.',    // заведующая ОЗО
-  e_reg_osh: 'Дуйшеев М. Ы.',       // региональный исполнитель Ош
-  e_reg_nar: 'Осмонов Т. Б.',       // региональный исполнитель Нарын
-  e_collect: 'Абдыев К. С.',        // владелец процесса взыскания
-  e_zavopk:  'Сыдыков Э. Ж.',       // заведующий ОПК
-};
-const emp = id => EMP[id] || '—';
-
-// Заёмщики — слой агрегации + носитель конфликта интересов (§2, §6.1).
-const BORROWERS = {
-  b_akjol:   { name:'ОсОО «Ак-Жол»', kind:'юр', ownership:'частная' },
-  b_nurlan:  { name:'Нурланов Н. Н.', kind:'физ', ownership:'частная' },
-  b_agroteh: { name:'ГП «Агротех»',  kind:'юр', ownership:'государственная' },
-};
-
-/* ---- §4.3 СПРАВОЧНИК ПРИЗНАКОВ (расширяемый) + значения ---- */
-const FEATURES = {
-  otrasl:    { name:'Отрасль',              inTZ:true,  values:['Сельское хозяйство','Промышленность','Услуги'] },
-  oblast:    { name:'Область',              inTZ:true,  values:['Ошская','Чуйская','Нарынская','Таласская','Джалал-Абадская'] },
-  gorod:     { name:'Город',                inTZ:true,  values:['Бишкек','Ош','Нарын'] },
-  raion:     { name:'Район',                inTZ:true,  values:['Кара-Суу','Ат-Башы'] },
-  vidzaem:   { name:'Вид заёмщика',         inTZ:true,  values:['физ','юр'] },
-  vidkred:   { name:'Вид кредита',          inTZ:true,  values:['Агро','Промышленный','Ипотечный'] },
-  forma:     { name:'Форма собственности',  inTZ:false, values:['частная','государственная'] },
-  vidzalog:  { name:'Вид залога',           inTZ:true,  values:['Недвижимость','Транспорт','Техника','Товары в обороте'] },
-  mesto:     { name:'Место нахождения предмета', inTZ:true, values:['Ошская','Чуйская','Нарынская','Таласская','Джалал-Абадская'] },
-};
-
-/* ---- РОЛИ КУРАТОРСТВА (§2) — объект + допустимые признаки ключа ---- */
-const ROLES = {
-  curator_loan:  { name:'Куратор кредита',        object:'кредит',  units:['dep_agro','dep_ind'], keys:['oblast','otrasl','vidzaem','vidkred','forma','gorod','raion'] },
-  spec_app:      { name:'Специалист заявки',      object:'заявка',  units:['dep_agro','dep_ind'], keys:['oblast','otrasl','vidzaem','vidkred'] },
-  curator_col:   { name:'Куратор залога',         object:'предмет', units:['ozo'],                keys:['vidzalog'] },
-  regional_exec: { name:'Региональный исполнитель',object:'предмет', units:['reg_osh','reg_nar'],  keys:['mesto'] },
-};
-
-/* ---- §4 ПОЛИТИКИ: пара (подразделение, роль) → объявленный ключ + таблица значение→сотрудник ----
-   null в таблице = незакрытая ячейка → объект удерживается заведующим (§4.4). */
-const POLICIES = {
-  // Демо-пробел: Таласская не назначена → заведующая dep_agro.
-  'dep_agro|curator_loan': { key:['oblast'], table:{
-      'Ошская':'e_ivanov', 'Чуйская':'e_asanov', 'Нарынская':'e_bekova',
-      'Таласская':null, 'Джалал-Абадская':'e_ivanov' } },
-  // Составной ключ: область × форма собственности (форма — вне ТЗ).
-  'dep_ind|curator_loan': { key:['oblast','forma'], table:{
-      'Чуйская | частная':'e_asanov', 'Чуйская | государственная':'e_bekova',
-      'Ошская | частная':'e_ivanov', 'Ошская | государственная':'e_bekova' } },
-  // Куратор залога (центр) — ключ вид залога (§13.1 — конкретный ключ открыт, здесь условно).
-  'ozo|curator_col': { key:['vidzalog'], table:{
-      'Недвижимость':'e_zalog1', 'Транспорт':'e_zalog2', 'Техника':'e_zalog2', 'Товары в обороте':null } },
-  // Региональные исполнители — ключ место нахождения предмета.
-  'reg_osh|regional_exec': { key:['mesto'], table:{ 'Ошская':'e_reg_osh', 'Джалал-Абадская':'e_reg_osh' } },
-  'reg_nar|regional_exec': { key:['mesto'], table:{ 'Нарынская':'e_reg_nar', 'Таласская':'e_reg_nar' } },
-};
-
-/* ---- §6.1 КОНФЛИКТ ИНТЕРЕСОВ — фильтр (сотрудник, заёмщик), не override. Иммунитет к пересчёту.
-   Действует до решения Правления (to=null). ---- */
-const COI = [
-  { empId:'e_asanov', borrowerId:'b_akjol', from:'2025-11-01', to:null, note:'родственная связь с бенефициаром (п.92)' },
+/* --------------------------- справочники ---------------------------- */
+/* Виды объектов. sla — порог давности фолбэка в рабочих днях (ИУ-9, ADR-0117). */
+const KINDS = [
+  { id: 'app',   name: 'Заявка',         sla: 2 },
+  { id: 'loan',  name: 'Кредит',         sla: 5 },
+  { id: 'coll',  name: 'Предмет залога', sla: 5 },
+  { id: 'claim', name: 'Требование',     sla: 3 },
 ];
-const coiActive = (empId, borrowerId, d) =>
-  COI.some(c => c.empId===empId && c.borrowerId===borrowerId && c.from<=d && (c.to==null || d<=c.to));
 
-/* ---- §1 ЖУРНАЛ НАЗНАЧЕНИЙ. Никогда не перезаписывается: закрывается `to`, открывается новое.
-   objType: кредит|предмет|процесс ; source: политика|переопределение|handoff. ---- */
-const ASSIGN = [
-  // L-2024-011 — куратор кредита с ПОДПИСАНИЯ ДОГОВОРА (§9.2).
-  { id:'a1', objType:'кредит', objId:'L-2024-011', role:'curator_loan', empId:'e_ivanov', from:'2024-02-14', to:null, source:'политика', reason:'подписание договора · политика dep_agro (Ошская)' },
-  // предметы L-2024-011: дом в Оше (недвиж) + техника в Нарыне → ДВА куратора залога + ДВА рег.исполнителя (§2.2 зеркальный эффект).
-  { id:'a2', objType:'предмет', objId:'P-8801', role:'curator_col',   empId:'e_zalog1',  from:'2024-02-20', to:null, source:'политика', reason:'постановка в реестр · вид залога=Недвижимость' },
-  { id:'a3', objType:'предмет', objId:'P-8801', role:'regional_exec', empId:'e_reg_osh', from:'2024-02-20', to:null, source:'политика', reason:'место=Ошская' },
-  { id:'a4', objType:'предмет', objId:'P-8802', role:'curator_col',   empId:'e_zalog2',  from:'2024-03-05', to:null, source:'политика', reason:'постановка в реестр · вид залога=Техника' },
-  { id:'a5', objType:'предмет', objId:'P-8802', role:'regional_exec', empId:'e_reg_nar', from:'2024-03-05', to:null, source:'политика', reason:'место=Нарынская' },
-  // L-2023-004 — ПОГАШЕН, куратор ЖИВ после погашения (§10.2, п.88 — акт сверки). Назначение не закрыто.
-  { id:'a6', objType:'кредит', objId:'L-2023-004', role:'curator_loan', empId:'e_asanov', from:'2023-06-10', to:null, source:'политика', reason:'подписание договора · политика dep_agro (Чуйская)' },
-  // L-2024-050 — активное взыскание. Куратор кредита ОСТАЁТСЯ (§2.1). Владелец процесса — отдельно.
-  { id:'a7', objType:'кредит', objId:'L-2024-050', role:'curator_loan', empId:'e_bekova', from:'2024-04-01', to:null, source:'политика', reason:'подписание договора · политика dep_agro (Нарынская)' },
-  { id:'a8', objType:'процесс', objId:'C-2025-017', role:'collection_owner', empId:'e_collect', from:'2025-09-01', to:null, source:'handoff', reason:'открытие процесса взыскания (handoff от куратора ОД)' },
-  // Ошские demo-кредиты — куратор Иванов (политика dep_agro, Ошская).
-  { id:'a9',  objType:'кредит', objId:'L-2025-020', role:'curator_loan', empId:'e_ivanov', from:'2025-03-10', to:null, source:'политика', reason:'подписание договора · политика dep_agro (Ошская)' },
-  { id:'a10', objType:'кредит', objId:'L-2025-033', role:'curator_loan', empId:'e_ivanov', from:'2025-05-02', to:null, source:'политика', reason:'подписание договора · политика dep_agro (Ошская)' },
+/* Назначаемые роли — список закрыт, каждая принадлежит ровно одному виду (ИУ-13). */
+const ROLES = [
+  { id: 'spec_app',  name: 'Специалист заявки',        kind: 'app'   },
+  { id: 'cur_loan',  name: 'Куратор кредита',          kind: 'loan'  },
+  { id: 'cur_coll',  name: 'Куратор залога',           kind: 'coll'  },
+  { id: 'reg_exec',  name: 'Региональный исполнитель', kind: 'coll'  },
+  { id: 'cur_claim', name: 'Куратор требования',       kind: 'claim' },
 ];
-const spanActive = (a,d) => a.from<=d && (a.to==null || d<=a.to);
-// §0/§1 — резолв назначения на дату: ровно одно открытое на (объект, роль).
-function curatorAt(objId, role, d){ return ASSIGN.find(a => a.objId===objId && a.role===role && spanActive(a,d)) || null; }
-function journalOf(objId){ return ASSIGN.filter(a => a.objId===objId).slice().sort((x,y)=> x.from<y.from?-1:1); }
+/* Производная роль: не назначается, в журнале её нет — вычисляется (ИУ-14, этап 4). */
+const DERIVED = { id: 'lead', name: 'Ведущий куратор заёмщика', calc: 'по кредитам заёмщика на дату' };
 
-/* ---- КРЕДИТЫ + их предметы залога. procOwner/procId — владелец процесса взыскания (§2.1),
-   привязан к КОНКРЕТНОМУ кредиту (не общий на все дела). ---- */
-const LOANS = {
-  'L-2024-011': { borrower:'b_akjol',   unit:'dep_agro', oblast:'Ошская',    vidkred:'Агро',        status:'действующий', items:['P-8801','P-8802'] },
-  'L-2023-004': { borrower:'b_nurlan',  unit:'dep_agro', oblast:'Чуйская',   vidkred:'Ипотечный',   status:'погашен',     items:['P-8790'] },
-  'L-2024-050': { borrower:'b_agroteh', unit:'dep_agro', oblast:'Нарынская', vidkred:'Агро',        status:'взыскание',   items:['P-8815'], procId:'C-2025-017', procOwner:'e_collect' },
-  // Ошские кредиты для demo-пересчёта (ячейка Ошская: Иванов → Асанов даёт все три исхода):
-  'L-2025-020': { borrower:'b_nurlan',  unit:'dep_agro', oblast:'Ошская',    vidkred:'Агро',        status:'действующий', items:[] },                       // → тихий переезд
-  'L-2025-033': { borrower:'b_agroteh', unit:'dep_agro', oblast:'Ошская',    vidkred:'Агро',        status:'взыскание',   items:[], procId:'C-2025-030', procOwner:'e_collect' }, // → через handoff
-};
-const ITEMS = {
-  'P-8801': { desc:'Жилой дом, г. Ош', vidzalog:'Недвижимость', mesto:'Ошская' },
-  'P-8802': { desc:'Трактор МТЗ-82, Нарын', vidzalog:'Техника', mesto:'Нарынская' },
-  'P-8790': { desc:'Квартира, г. Бишкек', vidzalog:'Недвижимость', mesto:'Чуйская' },
-  'P-8815': { desc:'Товары в обороте, склад Нарын', vidzalog:'Товары в обороте', mesto:'Нарынская' },
-};
-
-/* ---- HANDOFF (структура из collection: {from,to,when,checklist,status,reason}) ---- */
-const HANDOFFS = [
-  // Просроченный непринятый handoff от ПЕРЕСЧЁТА политики (§7.2/§8): L-2024-050, Бекова → Асанов.
-  { id:'h1', objId:'L-2024-050', objLabel:'Кредит L-2024-050 · ГП «Агротех»', from:'e_bekova', to:'e_asanov',
-    when:'2026-05-20', status:'ожидает', reason:'пересмотр политики',
-    checklist:[ {t:'Досье кредита передано', done:true}, {t:'Реестр требований сверен', done:true},
-                {t:'Принимающий подтвердил приём', done:false} ] },
-  // Отклонённый handoff (журнал сохраняется, спор — вне системы §8.2).
-  { id:'h2', objId:'L-2024-011', objLabel:'Кредит L-2024-011 · ОсОО «Ак-Жол»', from:'e_ivanov', to:'e_bekova',
-    when:'2026-06-15', status:'отклонён', reason:'ручная передача (перегрузка)',
-    rejectReason:'принимающий не согласен с объёмом дела — договорённость вне системы',
-    checklist:[ {t:'Досье кредита передано', done:true}, {t:'Принимающий подтвердил приём', done:false} ] },
+const UNITS = [
+  { id: 'u_agro', name: 'Департамент агрокредитования',            head: 'e_toktogulova' },
+  { id: 'u_ind',  name: 'Департамент промышленного кредитования',  head: 'e_sadyrov'     },
+  { id: 'u_ozo',  name: 'Управление залогового обеспечения',       head: 'e_zalkar'      },
+  { id: 'u_osh',  name: 'Региональное представительство «Ош»',     head: 'e_kadyrov'     },
+  { id: 'u_nar',  name: 'Региональное представительство «Нарын»',  head: 'e_omurov'      },
+  { id: 'u_opk',  name: 'Отдел проблемных кредитов',               head: 'e_abdylda'     },
+  { id: 'u_uka',  name: 'Управление кредитного администрирования', head: 'e_slamkulov'   },
 ];
-const daysBetween = (a,b) => Math.round((new Date(b) - new Date(a)) / 86400000);
 
-/* =========================================================================
-   UI-СОСТОЯНИЕ
-   ========================================================================= */
-let state = { view:'policy', date:TODAY, role:'head',
-  polUnit:'dep_agro', polRole:'curator_loan', loan:'L-2024-011' };
-const canEdit = () => state.role==='head';
-const $ = s => document.querySelector(s);
-const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2600); }
+const EMP = [
+  { id: 'e_slamkulov',   name: 'Сламкулов А.О.',   unit: 'u_uka',  admin: true },
+  { id: 'e_toktogulova', name: 'Токтогулова А.К.', unit: 'u_agro' },
+  { id: 'e_ivanov',      name: 'Иванов С.Т.',      unit: 'u_agro' },
+  { id: 'e_asanov',      name: 'Асанов Н.Б.',      unit: 'u_agro' },
+  { id: 'e_bekova',      name: 'Бекова Г.М.',      unit: 'u_agro' },
+  { id: 'e_sadyrov',     name: 'Садыров Б.М.',     unit: 'u_ind'  },
+  { id: 'e_nurlan',      name: 'Нурланов Э.А.',    unit: 'u_ind'  },
+  { id: 'e_gulnara',     name: 'Гулнара уулу Т.',  unit: 'u_ind'  },
+  { id: 'e_zalkar',      name: 'Залкаров М.Ж.',    unit: 'u_ozo'  },
+  { id: 'e_toktosunova', name: 'Токтосунова Ж.А.', unit: 'u_ozo'  },
+  { id: 'e_mamatov',     name: 'Маматов К.Э.',     unit: 'u_ozo'  },
+  { id: 'e_kadyrov',     name: 'Кадыров Т.Ы.',     unit: 'u_osh'  },
+  { id: 'e_duishev',     name: 'Дуйшеев А.С.',     unit: 'u_osh'  },
+  { id: 'e_omurov',      name: 'Омуров Ж.К.',      unit: 'u_nar'  },
+  { id: 'e_osmonov',     name: 'Осмонов Б.Т.',     unit: 'u_nar'  },
+  { id: 'e_abdylda',     name: 'Абдылдаев С.Н.',   unit: 'u_opk'  },
+  { id: 'e_karim',       name: 'Каримов А.А.',     unit: 'u_opk'  },
+  { id: 'e_saltanat',    name: 'Салтанат кызы А.', unit: 'u_opk'  },
+];
 
-/* ---- ключ политики: значения = декартово произведение справочников признаков ключа ---- */
-function keyValues(keyArr){
-  const lists = keyArr.map(k => FEATURES[k].values);
-  return lists.reduce((acc,list)=> acc.flatMap(pre => list.map(v => pre===''? v : pre+' | '+v)), ['']);
+/* Справочник признаков (P18-R5). Из них собираются объявленные ключи правил.
+   obj — виды объектов, у которых признак вообще есть. */
+const FEATURES = [
+  { id: 'otrasl',   name: 'Отрасль',                   obj: ['app', 'loan'],          domain: ['Сельское хозяйство', 'Промышленность', 'Услуги'] },
+  { id: 'oblast',   name: 'Область',                   obj: ['app', 'loan', 'claim'], domain: ['Ошская', 'Чуйская', 'Нарынская', 'Таласская', 'Джалал-Абадская'] },
+  { id: 'forma',    name: 'Форма заёмщика',            obj: ['app', 'loan'],          domain: ['Юридическое лицо', 'Физическое лицо'] },
+  { id: 'vidkred',  name: 'Вид кредита',               obj: ['loan', 'claim'],        domain: ['Инвестиционный', 'Оборотный', 'Потребительский'] },
+  { id: 'vidzalog', name: 'Вид залога',                obj: ['coll'],                 domain: ['Недвижимость', 'Транспорт', 'Техника', 'Товары в обороте'] },
+  { id: 'mesto',    name: 'Место нахождения предмета', obj: ['coll'],                 domain: ['Ошская', 'Чуйская', 'Нарынская', 'Таласская', 'Джалал-Абадская'] },
+  { id: 'stage',    name: 'Стадия взыскания',          obj: ['claim'],                domain: ['Досудебная', 'Судебная', 'Исполнительное производство'] },
+];
+
+/* Роли доступа (P18-R3). Заведующий привязан к своему подразделению. */
+const ACCESS = [
+  { id: 'admin',  name: 'Администратор кураторства', who: 'Сламкулов А.О. · один на холдинг, вакантным не бывает' },
+  { id: 'head',   name: 'Заведующий отделом',        who: 'Токтогулова А.К. · Департамент агрокредитования' },
+  { id: 'worker', name: 'Куратор',                   who: 'Иванов С.Т. · Департамент агрокредитования' },
+  { id: 'reader', name: 'Наблюдатель',               who: 'только чтение' },
+];
+
+/* ---- ВЕРХНЯЯ СТУПЕНЬ: (объект, роль) → подразделение. Ровно пять правил (ИУ-6). ---- */
+const TOP_SEED = [
+  { id: 'top_spec_app', scope: 'top', role: 'spec_app', owner: 'администратор кураторства', versions: [
+    { no: 1, from: '2023-01-01', until: null, by: 'Сламкулов А.О.', key: ['otrasl'],
+      cells: { 'Сельское хозяйство': 'u_agro', 'Промышленность': 'u_ind' } } ] },
+  { id: 'top_cur_loan', scope: 'top', role: 'cur_loan', owner: 'администратор кураторства', versions: [
+    { no: 1, from: '2023-01-01', until: null, by: 'Сламкулов А.О.', key: ['otrasl'],
+      cells: { 'Сельское хозяйство': 'u_agro', 'Промышленность': 'u_ind', 'Услуги': 'u_ind' } } ] },
+  { id: 'top_cur_coll', scope: 'top', role: 'cur_coll', owner: 'администратор кураторства', versions: [
+    { no: 1, from: '2023-01-01', until: null, by: 'Сламкулов А.О.', key: ['vidzalog'],
+      cells: { 'Недвижимость': 'u_ozo', 'Транспорт': 'u_ozo', 'Техника': 'u_ozo', 'Товары в обороте': 'u_ozo' } } ] },
+  { id: 'top_reg_exec', scope: 'top', role: 'reg_exec', owner: 'администратор кураторства', versions: [
+    { no: 1, from: '2023-01-01', until: null, by: 'Сламкулов А.О.', key: ['mesto'],
+      cells: { 'Ошская': 'u_osh', 'Джалал-Абадская': 'u_osh', 'Нарынская': 'u_nar', 'Таласская': 'u_nar', 'Чуйская': 'u_nar' } } ] },
+  { id: 'top_cur_claim', scope: 'top', role: 'cur_claim', owner: 'администратор кураторства', versions: [
+    { no: 1, from: '2023-01-01', until: null, by: 'Сламкулов А.О.', key: ['stage'],
+      cells: { 'Досудебная': 'u_opk', 'Судебная': 'u_opk', 'Исполнительное производство': 'u_opk' } } ] },
+];
+
+/* ---- НИЖНЯЯ СТУПЕНЬ: (подразделение, роль) → работник. Владелец — заведующий. ----
+   Правила пары «u_ind, spec_app» нет вовсе — заявки промышленности держит заведующий (ИУ-8). */
+const LOW_SEED = [
+  { id: 'low_agro_loan', scope: 'low', unit: 'u_agro', role: 'cur_loan', owner: 'заведующий отделом', versions: [
+    { no: 1, from: '2023-01-01', until: '2026-02-28', by: 'Токтогулова А.К.', key: ['oblast'],
+      cells: { 'Ошская': 'e_bekova', 'Чуйская': 'e_asanov', 'Нарынская': 'e_bekova', 'Джалал-Абадская': 'e_ivanov' } },
+    { no: 2, from: '2026-03-01', until: null, by: 'Токтогулова А.К.', key: ['oblast'],
+      cells: { 'Ошская': 'e_ivanov', 'Чуйская': 'e_asanov', 'Нарынская': 'e_bekova', 'Джалал-Абадская': 'e_ivanov' } } ] },
+  { id: 'low_agro_app', scope: 'low', unit: 'u_agro', role: 'spec_app', owner: 'заведующий отделом', versions: [
+    { no: 1, from: '2023-01-01', until: null, by: 'Токтогулова А.К.', key: ['oblast'],
+      cells: { 'Ошская': 'e_ivanov', 'Чуйская': 'e_asanov', 'Нарынская': 'e_bekova', 'Таласская': 'e_asanov', 'Джалал-Абадская': 'e_ivanov' } } ] },
+  { id: 'low_ind_loan', scope: 'low', unit: 'u_ind', role: 'cur_loan', owner: 'заведующий отделом', versions: [
+    { no: 1, from: '2023-01-01', until: null, by: 'Садыров Б.М.', key: ['oblast', 'forma'],
+      cells: { 'Ошская | Юридическое лицо': 'e_nurlan', 'Ошская | Физическое лицо': 'e_gulnara',
+               'Чуйская | Юридическое лицо': 'e_nurlan', 'Чуйская | Физическое лицо': 'e_gulnara',
+               'Нарынская | Юридическое лицо': 'e_nurlan', 'Джалал-Абадская | Юридическое лицо': 'e_gulnara' } } ] },
+  { id: 'low_ozo_coll', scope: 'low', unit: 'u_ozo', role: 'cur_coll', owner: 'заведующий отделом', versions: [
+    { no: 1, from: '2023-01-01', until: null, by: 'Залкаров М.Ж.', key: ['vidzalog'],
+      cells: { 'Недвижимость': 'e_toktosunova', 'Транспорт': 'e_mamatov', 'Техника': 'e_mamatov' } } ] },
+  { id: 'low_osh_exec', scope: 'low', unit: 'u_osh', role: 'reg_exec', owner: 'заведующий отделом', versions: [
+    { no: 1, from: '2023-01-01', until: null, by: 'Кадыров Т.Ы.', key: ['mesto'],
+      cells: { 'Ошская': 'e_duishev', 'Джалал-Абадская': 'e_duishev' } } ] },
+  { id: 'low_nar_exec', scope: 'low', unit: 'u_nar', role: 'reg_exec', owner: 'заведующий отделом', versions: [
+    { no: 1, from: '2023-01-01', until: null, by: 'Омуров Ж.К.', key: ['mesto'],
+      cells: { 'Нарынская': 'e_osmonov', 'Таласская': 'e_osmonov', 'Чуйская': 'e_osmonov' } } ] },
+  { id: 'low_opk_claim', scope: 'low', unit: 'u_opk', role: 'cur_claim', owner: 'заведующий отделом', versions: [
+    { no: 1, from: '2023-01-01', until: null, by: 'Абдылдаев С.Н.', key: ['stage'],
+      cells: { 'Досудебная': 'e_karim', 'Судебная': 'e_saltanat' } } ] },
+];
+
+/* ---- Объекты — зеркало соседних модулей: свой идентификатор, дата рождения, признаки.
+        Куратора у объекта НЕТ (ИУ-1): имя приходит ответом на вопрос с датой. ---- */
+const OBJ_SEED = [
+  { id: 'ЗК-2026/041', kind: 'app',  born: '2026-08-12', borrower: 'ОсОО «Ак-Жол»',       f: { otrasl: 'Сельское хозяйство', oblast: 'Ошская',    forma: 'Юридическое лицо' } },
+  { id: 'ЗК-2026/047', kind: 'app',  born: '2026-08-11', borrower: 'ОсОО «Мыкты Сервис»', f: { otrasl: 'Услуги',             oblast: 'Чуйская',   forma: 'Юридическое лицо' } },
+  { id: 'ЗК-2026/050', kind: 'app',  born: '2026-08-14', borrower: 'ОсОО «Темир»',        f: { otrasl: 'Промышленность',     oblast: 'Чуйская',   forma: 'Юридическое лицо' } },
+
+  { id: 'КД-2024/117', kind: 'loan', born: '2024-02-14', borrower: 'ОсОО «Ак-Жол»',    f: { otrasl: 'Сельское хозяйство', oblast: 'Ошская',    forma: 'Юридическое лицо', vidkred: 'Инвестиционный' } },
+  { id: 'КД-2023/210', kind: 'loan', born: '2023-05-20', borrower: 'ОсОО «Береке»',    f: { otrasl: 'Сельское хозяйство', oblast: 'Чуйская',   forma: 'Юридическое лицо', vidkred: 'Оборотный' }, closed: '2026-04-30' },
+  { id: 'КД-2025/033', kind: 'loan', born: '2025-06-10', borrower: 'ОсОО «Ак-Жол»',    f: { otrasl: 'Сельское хозяйство', oblast: 'Ошская',    forma: 'Юридическое лицо', vidkred: 'Оборотный' } },
+  { id: 'КД-2025/088', kind: 'loan', born: '2025-09-01', borrower: 'ОсОО «Темир»',     f: { otrasl: 'Промышленность',     oblast: 'Чуйская',   forma: 'Юридическое лицо', vidkred: 'Инвестиционный' } },
+  { id: 'КД-2025/043', kind: 'loan', born: '2025-11-10', borrower: 'Осмоналиев К.',    f: { otrasl: 'Промышленность',     oblast: 'Нарынская', forma: 'Физическое лицо',  vidkred: 'Потребительский' } },
+  { id: 'КД-2026/012', kind: 'loan', born: '2026-08-06', borrower: 'КФХ «Талас-Агро»', f: { otrasl: 'Сельское хозяйство', oblast: 'Таласская', forma: 'Юридическое лицо', vidkred: 'Оборотный' } },
+
+  { id: 'ЗЛ-8801', kind: 'coll', born: '2024-02-20', borrower: 'ОсОО «Ак-Жол»', of: 'КД-2024/117', f: { vidzalog: 'Недвижимость',     mesto: 'Ошская'    } },
+  { id: 'ЗЛ-8802', kind: 'coll', born: '2025-11-12', borrower: 'Осмоналиев К.', of: 'КД-2025/043', f: { vidzalog: 'Техника',          mesto: 'Нарынская' } },
+  { id: 'ЗЛ-8815', kind: 'coll', born: '2026-08-10', borrower: 'ОсОО «Темир»',  of: 'КД-2025/088', f: { vidzalog: 'Товары в обороте', mesto: 'Нарынская' } },
+
+  { id: 'ТР-2025/017', kind: 'claim', born: '2025-12-01', borrower: 'ОсОО «Ак-Жол»', of: 'КД-2024/117', f: { stage: 'Судебная',                    oblast: 'Ошская',    vidkred: 'Инвестиционный' },  note: 'к заёмщику' },
+  { id: 'ТР-2025/018', kind: 'claim', born: '2026-01-15', borrower: 'ОсОО «Ак-Жол»', of: 'КД-2024/117', f: { stage: 'Досудебная',                  oblast: 'Ошская',    vidkred: 'Инвестиционный' },  note: 'к поручителю — второе требование того же кредита' },
+  { id: 'ТР-2026/003', kind: 'claim', born: '2026-08-13', borrower: 'Осмоналиев К.', of: 'КД-2025/043', f: { stage: 'Исполнительное производство', oblast: 'Нарынская', vidkred: 'Потребительский' } },
+];
+
+/* Записи журнала поверх рождения: закрывают открытую и добавляют новую (ИУ-4). */
+const ADJ_SEED = [
+  { objId: 'КД-2024/117', role: 'cur_loan', from: '2026-03-01', empId: 'e_ivanov', unitId: 'u_agro',
+    src: 'правило', ver: { ruleId: 'low_agro_loan', no: 2 }, by: 'Токтогулова А.К.',
+    reason: 'пересчёт при вступлении редакции 2' },
+  { objId: 'КД-2025/088', role: 'cur_loan', from: '2026-05-01', empId: 'e_gulnara', unitId: 'u_ind',
+    src: 'рука', ver: null, by: 'Садыров Б.М.',
+    reason: 'перераспределение нагрузки, служебная записка от 28.04.2026' },
+];
+
+/* --------------------------- состояние ------------------------------ */
+const clone = o => JSON.parse(JSON.stringify(o));
+
+function seed() {
+  const st = {
+    today: TODAY, asOf: TODAY, role: 'admin', headUnit: 'u_agro', view: 'pol',
+    step: 'top', polRole: 'cur_loan', polUnit: 'u_agro',
+    openCell: null, keyDraft: null, eff: {}, seq: 1, log: [],
+    rules: clone(TOP_SEED).concat(clone(LOW_SEED)),
+    objects: clone(OBJ_SEED),
+    journal: [],
+  };
+  KU.state = st;
+  st.objects.slice().sort((a, b) => a.born < b.born ? -1 : 1).forEach(o => KU.born(o.id));
+  ADJ_SEED.forEach(a => applyAdj(clone(a)));
+  return st;
 }
-function keyLabel(keyArr){ return keyArr.map(k=>FEATURES[k].name).join(' × '); }
+KU.seed = () => seed();
 
-/* =========================================================================
-   TAB 1 · ПОЛИТИКА
-   ========================================================================= */
-function renderPolicySelectors(){
-  const role = ROLES[state.polRole];
-  if(!role.units.includes(state.polUnit)) state.polUnit = role.units[0];
-  const uSel = $('#polUnit'); uSel.innerHTML = role.units.map(u=>`<option value="${u}" ${u===state.polUnit?'selected':''}>${esc(UNITS[u])}</option>`).join('');
-  uSel.value = state.polUnit;
-  const rSel = $('#polRole'); rSel.innerHTML = Object.entries(ROLES).map(([id,r])=>`<option value="${id}" ${id===state.polRole?'selected':''}>${esc(r.name)} · ${esc(r.object)}</option>`).join('');
-  const pol = POLICIES[state.polUnit+'|'+state.polRole];
-  const kSel = $('#polKey');
-  kSel.innerHTML = role.keys.map(k=>{
-    const isCur = pol && pol.key.length===1 && pol.key[0]===k;
-    return `<option value="${k}" ${isCur?'selected':''}>${esc(FEATURES[k].name)}</option>`;
-  }).join('') + (pol && pol.key.length>1 ? `<option value="__composite" selected>${esc(keyLabel(pol.key))} (составной)</option>` : '');
-}
-function renderPolicy(){
-  renderPolicySelectors();
-  const key = state.polUnit+'|'+state.polRole;
-  const pol = POLICIES[key];
-  const body = $('#polBody');
-  if(!pol){ body.innerHTML = `<div class="banner info">Для пары <b>${esc(UNITS[state.polUnit])}</b> · <b>${esc(ROLES[state.polRole].name)}</b> политика ещё не заведена. Объявите ключ и заполните таблицу.</div>`; return; }
+/* ============================ ДВИЖОК ================================= *
+ *  Ни одной роли, ни одного подразделения и ни одного признака по имени.
+ * ===================================================================== */
+const byId = (arr, id) => arr.find(x => x.id === id) || null;
+KU.dict    = { KINDS: KINDS, ROLES: ROLES, DERIVED: DERIVED, UNITS: UNITS, EMP: EMP,
+               FEATURES: FEATURES, ACCESS: ACCESS };
+KU.emp     = id => byId(EMP, id);
+KU.unit    = id => byId(UNITS, id);
+KU.role    = id => byId(ROLES, id);
+KU.kind    = id => byId(KINDS, id);
+KU.feat    = id => byId(FEATURES, id);
+KU.obj     = id => byId(KU.state.objects, id);
+KU.rule    = id => byId(KU.state.rules, id);
+KU.headOf  = unitId => (KU.unit(unitId) || {}).head;
+KU.admin   = () => (EMP.find(e => e.admin) || {}).id;
+KU.rolesOf = kindId => ROLES.filter(r => r.kind === kindId);
+KU.topRule = roleId => KU.state.rules.find(r => r.scope === 'top' && r.role === roleId) || null;
+KU.lowRule = (unitId, roleId) => KU.state.rules.find(r => r.scope === 'low' && r.unit === unitId && r.role === roleId) || null;
 
-  const vals = keyValues(pol.key);
-  const gaps = vals.filter(v => pol.table[v]==null);
-  const headEmp = HEADS[state.polUnit];
+/* Редакция, действующая на дату (ИУ-10): интервалы не пересекаются. */
+KU.verAt = (rule, d) => ((rule && rule.versions) || []).find(v => v.from <= d && (v.until == null || d <= v.until)) || null;
+KU.verStatus = v => !v ? '—'
+  : v.from > KU.state.today ? 'будущая'
+  : (v.until && v.until < KU.state.today) ? 'прошлая' : 'действующая';
 
-  let html = '';
-  html += `<div class="banner info"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-    <div>Ключ распределения: <span class="keychip">${esc(keyLabel(pol.key))}</span>&nbsp; Каждое значение ключа = одна ячейка =
-    один сотрудник. <b>Пересечения невозможны по построению</b> — механизм приоритетов правил не нужен.</div></div>`;
+/* Значение объявленного ключа для объекта: признаки склеиваются в объявленном порядке. */
+KU.keyVal = (key, obj) => key.map(f => (obj.f || {})[f] || '—').join(' | ');
 
-  if(gaps.length){
-    html += `<div class="banner danger"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><path d="M12 9v4M12 17h.01"/></svg>
-      <div><b>${gaps.length} незакрыт${gaps.length===1?'ая ячейка':'ых ячейки'}</b> (${gaps.map(esc).join(', ')}). Пока не заполнено —
-      объект удерживается заведующим отделом (<b>${esc(emp(headEmp))}</b>, §4.4). Пробел виден здесь, а не в проде.</div></div>`;
-  } else {
-    html += `<div class="banner ok"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-      <div>Пространство значений ключа покрыто полностью. Незакрытых ячеек нет.</div></div>`;
+/* Пространство ячеек = декартово произведение доменов признаков ключа. */
+KU.space = key => key.reduce((acc, f) => {
+  const dom = (KU.feat(f) || { domain: [] }).domain;
+  return acc.length ? acc.reduce((r, a) => r.concat(dom.map(d => a + ' | ' + d)), []) : dom.slice();
+}, []);
+
+/* Обе ступени + фолбэк-лестница (ИУ-8). Ответ всегда есть — «без куратора» невозможно (ИУ-9). */
+KU.decide = (objId, roleId, d) => {
+  const o = KU.obj(objId);
+  if (!o) return { ok: false, why: 'объекта нет' };
+  const top = KU.topRule(roleId);
+  const tv = KU.verAt(top, d);
+  const tCell = tv ? KU.keyVal(tv.key, o) : null;
+  const unitId = tv ? tv.cells[tCell] : null;
+  if (!unitId) {
+    return { ok: true, unitId: null, empId: KU.admin(), src: 'фолбэк', level: 'верхняя',
+      cellTop: tCell, ver: null,
+      why: tv ? 'верхнее правило не называет подразделения для ячейки «' + tCell + '»'
+              : 'верхнего правила для этой роли нет' };
   }
-
-  html += `<table class="ptable"><thead><tr><th style="width:42%">${esc(keyLabel(pol.key))}</th><th>Сотрудник (ячейка)</th><th style="width:22%">Статус</th></tr></thead><tbody>`;
-  const candidates = Object.keys(EMP);
-  for(const v of vals){
-    const cur = pol.table[v];
-    const isGap = cur==null;
-    let cell;
-    if(canEdit()){
-      cell = `<select data-val="${esc(v)}" onchange="setCell(this)"><option value="">— не назначен —</option>`
-        + candidates.map(id=>`<option value="${id}" ${id===cur?'selected':''}>${esc(emp(id))}</option>`).join('') + `</select>`;
-    } else {
-      cell = isGap ? `<span class="muted">— не назначен —</span>` : esc(emp(cur));
-    }
-    const status = isGap
-      ? `<span class="pill err">на заведующем</span>`
-      : `<span class="pill ok">закрыта</span>`;
-    html += `<tr class="${isGap?'gap':''}"><td class="keyval">${esc(v)}</td><td>${cell}</td><td>${status}</td></tr>`;
+  const low = KU.lowRule(unitId, roleId);
+  if (!low) {
+    return { ok: true, unitId: unitId, empId: KU.headOf(unitId), src: 'фолбэк', level: 'нижняя',
+      cellTop: tCell, cellLow: null, ver: null,
+      why: 'правила подразделения для этой роли нет' };
   }
-  html += `</tbody></table>`;
-  html += `<p class="hint">§5 · Политика — <b>источник истины</b>. Ручное назначение (override) живёт ровно столько,
-    сколько живёт его причина: при пересчёте временное снимается по дате, разовое растворяется, конфликт интересов
-    имеет иммунитет. «Назначили вручную — прилипло навсегда» — не моделируется.</p>`;
-  body.innerHTML = html;
-}
-function setCell(sel){
-  const pol = POLICIES[state.polUnit+'|'+state.polRole];
-  pol.table[sel.dataset.val] = sel.value || null;
-  renderPolicy();
-  toast(sel.value ? 'Ячейка обновлена (не сохранено — пересчёт отдельным действием, §7.1)' : 'Ячейка очищена → на заведующем');
-}
-function renderFeatures(){
-  $('#featGrid').innerHTML = Object.entries(FEATURES).map(([id,f])=>{
-    const active = ROLES[state.polRole].keys.includes(id);
-    return `<span class="feat ${active?'on':''} ${f.inTZ?'':'extra'}">${esc(f.name)}<span class="tag">${f.inTZ?'ТЗ':'вне ТЗ'}</span></span>`;
-  }).join('');
-}
-
-/* =========================================================================
-   TAB 2 · ПЕРЕСЧЁТ (diff-предпросмотр)
-   Демо-сценарий: заведующая dep_agro переназначила Ошскую область Иванов → Асанов.
-   Показываем два раздельных исхода + иммунитет конфликта интересов.
-   ========================================================================= */
-function computeRecalcDemo(){
-  // предлагаемое изменение: Ошская: Иванов → Асанов
-  const affected = Object.entries(LOANS)
-    .filter(([id,l]) => l.unit==='dep_agro' && l.oblast==='Ошская')
-    .map(([id,l]) => ({ id, loan:l }));
-  const silent=[], viaHandoff=[], blocked=[];
-  for(const {id,loan} of affected){
-    const curAssign = curatorAt(id,'curator_loan',state.date);
-    const from = curAssign ? curAssign.empId : null;
-    const to = 'e_asanov';
-    // §6.1 иммунитет: конфликт интересов ДО политики — Асанов исключён по заёмщику Ак-Жол.
-    if(coiActive(to, loan.borrower, state.date)){
-      blocked.push({ id, loan, from, to, borrower:loan.borrower });
-      continue;
-    }
-    if(loan.status==='взыскание') viaHandoff.push({ id, loan, from, to });
-    else silent.push({ id, loan, from, to });
+  const lv = KU.verAt(low, d);
+  const lCell = lv ? KU.keyVal(lv.key, o) : null;
+  const empId = lv ? lv.cells[lCell] : null;
+  if (!empId) {
+    return { ok: true, unitId: unitId, empId: KU.headOf(unitId), src: 'фолбэк', level: 'нижняя',
+      cellTop: tCell, cellLow: lCell, ver: lv ? { ruleId: low.id, no: lv.no } : null,
+      why: lv ? 'ячейка «' + lCell + '» в правиле подразделения не названа'
+              : 'на эту дату у правила подразделения нет действующей редакции' };
   }
-  return { silent, viaHandoff, blocked };
-}
-function renderRecalc(){
-  const d = computeRecalcDemo();
-  const b = $('#recalcBody');
-  const total = d.silent.length + d.viaHandoff.length + d.blocked.length;
-  let html = '';
-  html += `<div class="banner info"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-    <div><b>Предлагаемое изменение политики</b> (dep_agro · Куратор кредита): ячейка <span class="keychip">Область = Ошская</span>
-    ${esc(emp('e_ivanov'))} → ${esc(emp('e_asanov'))}. Diff ниже — <b>до применения</b>. Дата вступления и уведомление обеим сторонам обязательны (§7.1).</div></div>`;
+  return { ok: true, unitId: unitId, empId: empId, src: 'правило', level: null,
+    cellTop: tCell, cellLow: lCell, ver: { ruleId: low.id, no: lv.no },
+    why: 'правило подразделения, редакция ' + lv.no + ', ячейка «' + lCell + '»' };
+};
 
-  html += `<div class="tally">
-    <div class="t"><div class="tl">Затронуто кредитов</div><div class="tv tnum">${total}</div></div>
-    <div class="t pos"><div class="tl">Тихий переезд</div><div class="tv tnum">${d.silent.length}</div></div>
-    <div class="t"><div class="tl">Через передачу (handoff)</div><div class="tv tnum">${d.viaHandoff.length}</div></div>
-    <div class="t neg"><div class="tl">Заблокировано (конфликт интересов)</div><div class="tv tnum">${d.blocked.length}</div></div>
-  </div>`;
-
-  const rowHtml = r => `<div class="diffrow"><div class="dr-top"><span class="dr-obj">${esc(r.id)}</span>
-    <span class="muted">· ${esc(BORROWERS[r.loan.borrower].name)}</span></div>
-    <div class="dr-move"><b>${esc(emp(r.from))}</b> <span class="arrow">→</span> <b>${esc(emp(r.to))}</b></div></div>`;
-
-  html += `<div class="diffcols">
-    <div class="diffcol silent"><div class="diffcol-h"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>Тихий переезд · нет активного взыскания (${d.silent.length})</div>
-      ${d.silent.length? d.silent.map(rowHtml).join('') : '<div class="diffrow muted">— пусто —</div>'}</div>
-    <div class="diffcol handoff"><div class="diffcol-h"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/></svg>Через передачу · активное взыскание (${d.viaHandoff.length})</div>
-      ${d.viaHandoff.length? d.viaHandoff.map(r=>rowHtml(r)+`<div class="diffrow" style="padding-top:0"><span class="pill warn">handoff · reason=пересмотр политики · ожидает подтверждения</span></div>`).join('') : '<div class="diffrow muted">— пусто —</div>'}</div>
-  </div>`;
-
-  if(d.blocked.length){
-    for(const r of d.blocked){
-      html += `<div class="coibox"><div class="ct"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18.36 6.64a9 9 0 11-12.73 0M12 2v10"/></svg>
-        Иммунитет конфликта интересов (§6.1) — ${esc(r.id)}</div>
-        <div class="cd">Политика указывает на <b>${esc(emp(r.to))}</b>, но он в конфликте интересов с заёмщиком
-        <b>${esc(BORROWERS[r.borrower].name)}</b> (с 2025-11-01, до решения Правления). Конфликт — <b>фильтр ДО политики</b>,
-        а не override → пересчёт <b>не может</b> его вернуть. Кредит остаётся на <b>${esc(emp(r.from))}</b>.</div></div>`;
-    }
-  }
-
-  html += `<div style="display:flex;gap:10px;margin-top:18px">
-    <button class="btn btn-primary" ${canEdit()?'':'disabled'} onclick="applyRecalc(${d.silent.length},${d.viaHandoff.length})">Применить пересчёт с даты ${esc(state.date)}</button>
-    <button class="btn btn-secondary" onclick="showToast('Отменено — политика не тронута')">Отмена</button></div>`;
-  if(!canEdit()) html += `<p class="hint">Применение доступно только роли «Заведующий отделом» (§7.1 — инициирует заведующий).</p>`;
-  b.innerHTML = html;
-}
-function applyRecalc(s,h){ toast(`Пересчёт применён: ${s} тихо, ${h} через handoff. Уведомления отправлены обеим сторонам.`); }
-function showToast(m){ toast(m); }
-
-/* =========================================================================
-   TAB 3 · КАРТОЧКА КРЕДИТА
-   ========================================================================= */
-function renderCredit(){
-  const sel = $('#loanSel');
-  sel.innerHTML = Object.entries(LOANS).map(([id,l])=>`<option value="${id}" ${id===state.loan?'selected':''}>${id} · ${esc(BORROWERS[l.borrower].name)} · ${esc(l.status)}</option>`).join('');
-  const id = state.loan, loan = LOANS[id];
-  const b = $('#creditBody');
-  if(!loan){ b.innerHTML=''; return; }
-
-  const curLoan = curatorAt(id,'curator_loan',state.date);
-  // §2.1 — владелец процесса привязан к конкретному кредиту, не общий на все дела взыскания.
-  const proc = (loan.status==='взыскание' && loan.procOwner) ? { empId:loan.procOwner, procId:loan.procId } : null;
-
-  let html = '';
-  const statusPill = loan.status==='погашен'?'ok':(loan.status==='взыскание'?'warn':'info');
-  html += `<div class="phead"><div class="phead-top">
-    <div class="phead-name"><div class="nm">${esc(id)} · ${esc(BORROWERS[loan.borrower].name)}</div>
-      <div class="phead-sub">Программа: <b>${esc(loan.vidkred)}</b> · Область: <b>${esc(loan.oblast)}</b> ·
-      Заёмщик: <b>${esc(BORROWERS[loan.borrower].kind)}</b>, ${esc(BORROWERS[loan.borrower].ownership)} · Администрирует: <b>${esc(UNITS[loan.unit])}</b></div></div>
-    <span class="pill ${statusPill}">${esc(loan.status)}</span></div>
-    <div class="phead-dims">
-      <div class="dim"><div class="dl">Куратор кредита (§0 — из журнала на ${esc(state.date)})</div>
-        <div class="dv">${curLoan?esc(emp(curLoan.empId)):'<span class="muted">— нет —</span>'}</div>
-        <div class="src">источник: ${curLoan?esc(curLoan.source):'—'}</div></div>
-      <div class="dim"><div class="dl">Владелец процесса взыскания (§2.1)</div>
-        <div class="dv">${proc?esc(emp(proc.empId)):'<span class="muted">— н/п —</span>'}</div>
-        <div class="src">${proc?'≠ куратор кредита · handoff':'нет активного процесса'}</div></div>
-      <div class="dim"><div class="dl">Предметов залога</div>
-        <div class="dv">${loan.items.length}</div>
-        <div class="src">§2.2 · кураторство на предмете, не на кредите</div></div>
-    </div></div>`;
-
-  const pendingHandoff = HANDOFFS.find(h=>h.objId===id && h.status==='ожидает');
-  if(pendingHandoff){
-    html += `<div class="banner warn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-      <div><b>Непринятый handoff</b> (${esc(emp(pendingHandoff.from))} → ${esc(emp(pendingHandoff.to))}). До подтверждения приёма ответственным
-      остаётся <b>сдающий</b> (§8.1). Уведомление за 30 дней (§10.1) падает <b>сдающему</b>, не принимающему.</div></div>`;
-  }
-  if(loan.status==='погашен'){
-    html += `<div class="banner ok"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
-      <div><b>Куратор сохранён после полного погашения</b> (§10.2, п.88). Назначение не закрыто фактом погашения —
-      акт сверки подписывает куратор ОД <b>после</b>. Закроется по подписании акта / переводу в группу «5. Погашенные».</div></div>`;
-  }
-
-  html += `<div class="section-h">Залоговое обеспечение — предмет → куратор (§2.2)</div>`;
-  const colCurators = new Set(), regExecs = new Set();
-  loan.items.forEach(pid=>{ const c=curatorAt(pid,'curator_col',state.date); const r=curatorAt(pid,'regional_exec',state.date); if(c)colCurators.add(c.empId); if(r)regExecs.add(r.empId); });
-  if(colCurators.size>1){
-    html += `<div class="banner info"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-      <div><b>Зеркальный эффект — норма, лечения не требует.</b> У кредита ${colCurators.size} залоговых куратора: предметы в разных областях.
-      Карточка показывает список <code>предмет → куратор</code>, а не «залоговый куратор: X».</div></div>`;
-  }
-  html += `<ul class="collat">`;
-  for(const pid of loan.items){
-    const it = ITEMS[pid]; const c = curatorAt(pid,'curator_col',state.date); const r = curatorAt(pid,'regional_exec',state.date);
-    html += `<li><span class="ci"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/></svg></span>
-      <div class="cbody"><div class="cname">${esc(pid)} · ${esc(it.desc)}</div>
-      <div class="cmeta">Вид залога: <b>${esc(it.vidzalog)}</b> · Место: <b>${esc(it.mesto)}</b><br>
-        Куратор залога (центр): <b>${c?esc(emp(c.empId)):'<span class="muted">—</span>'}</b> ·
-        Региональный исполнитель: <b>${r?esc(emp(r.empId)):'<span class="muted">—</span>'}</b></div></div></li>`;
-  }
-  html += `</ul>`;
-  html += `<p class="hint">§2.2 · Акт обследования имеет двух подписантов по построению: региональный исполнитель (составил) + куратор залога (принял в реестр).</p>`;
-
-  html += `<div class="section-h">Журнал назначений (§1 — без перезаписи)</div>
-    <p class="section-note">Кураторство — измерение, не поле. Записи не перезаписываются: закрываются датой, открываются новые.
-    Отвечает на «кто отвечал на дату» (п.96), а не только «кто сейчас».</p>`;
-  const roleName = r => (ROLES[r]?.name) || (r==='collection_owner'?'Владелец процесса взыскания':r);
-  const jrnl = journalOf(id).concat(loan.items.flatMap(pid=>journalOf(pid)));
-  html += `<ul class="tl">`;
-  for(const a of jrnl.sort((x,y)=>x.from<y.from?-1:1)){
-    const open = a.to==null;
-    const objLbl = a.objType==='предмет'? ` · ${esc(a.objId)}` : '';
-    html += `<li class="${open?'open':'closed'}"><div class="td">${esc(roleName(a.role))}: ${esc(emp(a.empId))}${objLbl}
-      ${open?'<span class="pill ok" style="margin-left:6px">открыто</span>':'<span class="pill neutral" style="margin-left:6px">закрыто</span>'}</div>
-      <div class="tv"><span class="mono">${esc(a.from)} → ${a.to?esc(a.to):'…'}</span> · источник: <b>${esc(a.source)}</b><br>${esc(a.reason)}</div></li>`;
-  }
-  html += `</ul>`;
-  b.innerHTML = html;
-}
-
-/* =========================================================================
-   TAB 4 · ОЧЕРЕДЬ ПЕРЕДАЧ
-   ========================================================================= */
-function pendingCount(){ return HANDOFFS.filter(h=>h.status==='ожидает').length; }
-function renderQueue(){
-  const b = $('#queueBody');
-  const pend = HANDOFFS.filter(h=>h.status==='ожидает');
-  const other = HANDOFFS.filter(h=>h.status!=='ожидает');
-  let html = '';
-  html += `<div class="banner warn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3M12 2a10 10 0 100 20 10 10 0 000-20z"/></svg>
-    <div><b>Ответственность на сдающем</b>, пока приём не подтверждён (§8.1). Счётчик дней и подсветка просрочки — <b>да</b>.
-    Автоприём / автоэскалация / автопереназначение — <b>нет</b>. Дыры в ответственности не возникает: де-факто и де-юре куратор — сдающий.</div></div>`;
-
-  html += `<div class="section-h">Ожидают подтверждения приёма (${pend.length})</div>`;
-  html += `<ul class="hq">`;
-  for(const h of pend){
-    const age = daysBetween(h.when, state.date);
-    const overdue = age > 10;
-    html += `<li><div class="hq-top ${overdue?'overdue':''}">
-      <div><div class="hq-obj">${esc(h.objLabel)}</div>
-        <div class="hq-move"><b>${esc(emp(h.from))}</b> → <b>${esc(emp(h.to))}</b> · с ${esc(h.when)}</div></div>
-      <div class="hq-days ${overdue?'od':''}"><div class="n tnum">${age}</div><div class="u">дн. ${overdue?'· просрочено':'висит'}</div></div></div>
-      <div class="hq-body">
-        <div class="hq-reason">Причина: <b>${esc(h.reason)}</b> · статус <span class="pill warn">ожидает подтверждения</span></div>
-        <ul class="checklist">${h.checklist.map(c=>`<li class="${c.done?'done':''}"><span class="cbox">${c.done?'<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>':''}</span>${esc(c.t)}</li>`).join('')}</ul>
-        <div class="hq-actions">
-          <button class="btn btn-success btn-sm" ${canEdit()?'':'disabled'} onclick="hoAction('${h.id}','confirm')">Подтвердить приём</button>
-          <button class="btn btn-danger btn-sm" ${canEdit()?'':'disabled'} onclick="hoAction('${h.id}','reject')">Отклонить с причиной</button>
-          <button class="btn btn-secondary btn-sm" onclick="hoAction('${h.id}','recall')">Отозвать передачу (сдающий)</button>
-        </div>
-        ${overdue?'<p class="hint">Дело просто висит. Система не приняла и не переназначила его сама — это и есть удержание инварианта §1.</p>':''}
-      </div></li>`;
-  }
-  if(!pend.length) html += `<li><div class="hq-body muted" style="padding:14px 16px">— непринятых передач нет —</div></li>`;
-  html += `</ul>`;
-
-  if(other.length){
-    html += `<div class="section-h">Журнал закрытых передач</div><ul class="hq">`;
-    for(const h of other){
-      const pill = h.status==='отклонён'?'<span class="pill err">отклонён</span>':'<span class="pill ok">подтверждён</span>';
-      html += `<li><div class="hq-top"><div><div class="hq-obj">${esc(h.objLabel)}</div>
-        <div class="hq-move"><b>${esc(emp(h.from))}</b> → <b>${esc(emp(h.to))}</b> · ${esc(h.when)} · ${esc(h.reason)}</div></div>
-        <div class="hq-days">${pill}</div></div>
-        ${h.rejectReason?`<div class="hq-body"><div class="hq-reason">Причина отказа (журнал): ${esc(h.rejectReason)}. <b>Спор система не моделирует</b> (§8.2) — разрешается устно.</div></div>`:''}</li>`;
-    }
-    html += `</ul>`;
-  }
-  b.innerHTML = html;
-}
-function hoAction(id, act){
-  const h = HANDOFFS.find(x=>x.id===id); if(!h) return;
-  if(act==='confirm'){ h.status='подтверждён'; toast('Приём подтверждён. Ответственность перешла на принимающего.'); }
-  else if(act==='reject'){ h.status='отклонён'; h.rejectReason='отклонён вручную · спор вне системы (§8.2)'; toast('Отклонено. Причина записана в журнал; арбитраж не запускается.'); }
-  else if(act==='recall'){ HANDOFFS.splice(HANDOFFS.indexOf(h),1); toast('Передача отозвана сдающим.'); }
-  refreshBadge(); renderQueue();
-}
-
-/* =========================================================================
-   РОУТИНГ / ИНИТ
-   ========================================================================= */
-const CRUMB = { policy:'Политика распределения', recalc:'Пересчёт', credit:'Карточка кредита', queue:'Очередь передач' };
-function refreshBadge(){ const n=pendingCount(); const b=$('#queueBadge'); b.textContent=n; b.style.display=n?'':'none'; }
-function setView(v){
-  state.view=v;
-  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.view===v));
-  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
-  $('#view-'+v).classList.add('active');
-  $('#crumb').textContent = CRUMB[v];
-  render();
-}
-function render(){
-  if(state.view==='policy'){ renderPolicy(); renderFeatures(); }
-  else if(state.view==='recalc') renderRecalc();
-  else if(state.view==='credit') renderCredit();
-  else if(state.view==='queue') renderQueue();
-  refreshBadge();
-}
-function init(){
-  $('#dateInp').value = state.date;
-  document.querySelectorAll('.nav-item').forEach(n=> n.addEventListener('click', ()=>setView(n.dataset.view)));
-  $('#dateInp').addEventListener('change', e=>{ state.date=e.target.value; render(); });
-  document.querySelectorAll('.date-chip').forEach(c=> c.addEventListener('click', ()=>{ state.date=c.dataset.d; $('#dateInp').value=c.dataset.d; render(); }));
-  $('#roleSel').addEventListener('change', e=>{ state.role=e.target.value; render(); });
-  $('#polUnit').addEventListener('change', e=>{ state.polUnit=e.target.value; renderPolicy(); renderFeatures(); });
-  $('#polRole').addEventListener('change', e=>{ state.polRole=e.target.value; renderPolicy(); renderFeatures(); });
-  $('#polKey').addEventListener('change', e=>{
-    const v=e.target.value; if(v==='__composite'){ renderPolicy(); return; }
-    const pol=POLICIES[state.polUnit+'|'+state.polRole];
-    if(pol){ pol.key=[v]; pol.table={}; toast('Ключ переобъявлен — таблица очищена под новый разрез (§4.2).'); }
-    renderPolicy();
+/* Рождение объекта: правила запускаются по ВСЕМ ролям своего вида (ИУ-13). */
+KU.born = objId => {
+  const o = KU.obj(objId);
+  if (!o) return { ok: false, why: 'объекта нет' };
+  const made = KU.rolesOf(o.kind).map(r => {
+    const d = KU.decide(objId, r.id, o.born);
+    return push({ objId: o.id, role: r.id, empId: d.empId, unitId: d.unitId, from: o.born, to: null,
+      src: d.src, ver: d.ver, by: 'система', reason: d.why });
   });
-  $('#recalcBtn').addEventListener('click', ()=> setView('recalc'));
-  $('#loanSel').addEventListener('change', e=>{ state.loan=e.target.value; renderCredit(); });
+  return { ok: true, made: made };
+};
+
+function push(rec) {
+  const st = KU.state;
+  rec.id = 'j' + (st.seq++);
+  st.journal.push(rec);
+  return rec;
+}
+function openRec(objId, roleId, d) {
+  return KU.state.journal.find(r => r.objId === objId && r.role === roleId &&
+    r.from <= d && (r.to == null || d <= r.to)) || null;
+}
+function applyAdj(a) {
+  const cur = openRec(a.objId, a.role, a.from);
+  if (cur) cur.to = prevDay(a.from);
+  return push({ objId: a.objId, role: a.role, empId: a.empId, unitId: a.unitId, from: a.from, to: null,
+    src: a.src, ver: a.ver, by: a.by, reason: a.reason });
+}
+
+/* ============================== ШОВ ================================== *
+ *  curatorOn(объект, роль, дата) — единственная дверь наружу (ADR-0116).
+ *  Ответов два: закреплённый и действующий. Волна 1 отдаёт их равными —
+ *  отстранение и замещение приходят на этапе 4, замещающего называет
+ *  модуль сотрудников (resolveActor), кураторство его не хранит.
+ * ===================================================================== */
+KU.curatorOn = (objId, roleId, d) => {
+  const o = KU.obj(objId);
+  if (!o) return { ok: false, why: 'объекта нет: ' + objId };
+  if (!d)  return { ok: false, why: 'вопрос без даты не принимается — «текущий куратор» это дата «сегодня»' };
+  if (d < o.born) return { ok: false, empty: true,
+    why: 'на ' + fmt(d) + ' объекта ещё не было (рождён ' + fmt(o.born) + ') — единственный законный пустой ответ' };
+  const rec = openRec(objId, roleId, d);
+  if (!rec) return { ok: false, why: 'разрыв в журнале — состояние невозможное (ИУ-9)' };
+  const emp = KU.emp(rec.empId) || { name: rec.empId };
+  const kind = KU.kind(o.kind);
+  const held = rec.src === 'фолбэк' ? workdays(rec.from, d) : 0;
+  return { ok: true,
+    assigned: rec.empId, assignedName: emp.name,
+    acting: rec.empId, actingName: emp.name, substituted: false,
+    unitId: rec.unitId, since: rec.from, src: rec.src, ver: rec.ver, reason: rec.reason,
+    fallback: rec.src === 'фолбэк', heldDays: held, sla: kind.sla,
+    overdue: rec.src === 'фолбэк' && held > kind.sla,
+    why: 'журнал: с ' + fmt(rec.from) + ' · ' + rec.src + ' · ' + rec.reason };
+};
+KU.curatorsOfObject = (objId, d) => {
+  const o = KU.obj(objId);
+  if (!o) return [];
+  return KU.rolesOf(o.kind).map(r =>
+    Object.assign({ role: r.id, roleName: r.name }, KU.curatorOn(objId, r.id, d)));
+};
+/* Расхождение «живут вне правила»: журнал против того, что правило говорит сейчас. */
+KU.offRule = (objId, roleId, d) => {
+  const a = KU.curatorOn(objId, roleId, d);
+  if (!a.ok) return null;
+  const w = KU.decide(objId, roleId, d);
+  return (w.ok && w.empId !== a.assigned) ? { now: w.empId, journal: a.assigned, src: a.src } : null;
+};
+
+/* ------------------ покрытие правила и объекты в ячейках ------------- */
+KU.objectsOfRule = (rule, d) => {
+  const roleId = rule.role;
+  const kindId = (KU.role(roleId) || {}).kind;
+  return KU.state.objects.filter(o => o.kind === kindId && o.born <= d)
+    .filter(o => rule.scope === 'top' ? true : KU.decide(o.id, roleId, d).unitId === rule.unit);
+};
+KU.cellObjects = (rule, cell, d) => {
+  const v = KU.verAt(rule, d);
+  if (!v) return [];
+  return KU.objectsOfRule(rule, d).filter(o => KU.keyVal(v.key, o) === cell);
+};
+KU.coverage = (rule, d) => {
+  const v = KU.verAt(rule, d);
+  if (!v) return { v: null, cells: [], named: [], holes: [], holesHot: [] };
+  const cells = KU.space(v.key);
+  const named = cells.filter(c => v.cells[c]);
+  const holes = cells.filter(c => !v.cells[c]);
+  const holesHot = holes.filter(c => KU.cellObjects(rule, c, d).length);
+  return { v: v, cells: cells, named: named, holes: holes, holesHot: holesHot };
+};
+/* Витрина фолбэка целиком — этап 5; здесь считается только счётчик в подвале. */
+KU.fallbacks = d => KU.state.objects.filter(o => o.born <= d)
+  .reduce((acc, o) => acc.concat(KU.curatorsOfObject(o.id, d)
+    .filter(a => a.ok && a.fallback)
+    .map(a => Object.assign({ objId: o.id, kind: o.kind }, a))), []);
+
+/* ============================ ОПЕРАЦИИ =============================== */
+const accessName = () => (byId(ACCESS, KU.state.role) || {}).name;
+function logIt(msg) { KU.state.log.unshift({ at: KU.state.today, who: accessName(), msg: msg }); }
+
+/* Кто правит правило (ADR-0117: согласований между ступенями нет). */
+KU.canEdit = rule => {
+  const st = KU.state;
+  if (!rule) return { ok: false, why: 'правила нет' };
+  if (st.role === 'reader' || st.role === 'worker')
+    return { ok: false, why: accessName() + ' правило не правит — только чтение' };
+  if (rule.scope === 'top') return st.role === 'admin' ? { ok: true }
+    : { ok: false, why: 'верхнюю ступень правит администратор кураторства; заведующий её видит, но не правит' };
+  if (st.role === 'admin')
+    return { ok: false, why: 'раскладку внутри отдела правит заведующий — администратор её не утверждает и не правит' };
+  return rule.unit === st.headUnit ? { ok: true }
+    : { ok: false, why: 'это правило чужого подразделения — своё у вас одно' };
+};
+
+KU.effOf  = ruleId => KU.state.eff[ruleId] || KU.state.today;
+KU.setEff = (ruleId, d) => {
+  if (!d) return { ok: false, why: 'дата не выбрана' };
+  if (d < KU.state.today) return { ok: false, why: 'дата вступления ' + fmt(d) + ' в прошлом (ИУ-10)' };
+  KU.state.eff[ruleId] = d;
+  return { ok: true, note: 'новая редакция вступит ' + fmt(d) };
+};
+
+const nameOf = (rule, target) => rule.scope === 'top'
+  ? (KU.unit(target) || {}).name : (KU.emp(target) || {}).name;
+
+/* Правка ячейки = НОВАЯ РЕДАКЦИЯ с датой вступления (ИУ-10). Действующая не переписывается. */
+KU.setCell = (ruleId, cell, target) => {
+  const st = KU.state, rule = KU.rule(ruleId);
+  const g = KU.canEdit(rule); if (!g.ok) return g;
+  const from = KU.effOf(ruleId);
+  if (from < st.today) return { ok: false,
+    why: 'дата вступления ' + fmt(from) + ' в прошлом — редакция вводится с сегодняшнего дня или позже (ИУ-10)' };
+  const cur = KU.verAt(rule, st.today) || rule.versions[rule.versions.length - 1];
+  if (cur.from >= from) return { ok: false,
+    why: 'редакция ' + cur.no + ' вступила ' + fmt(cur.from) + ' — новая раньше вступить не может' };
+  if (rule.versions.some(v => v !== cur && v.from >= from)) return { ok: false,
+    why: 'на ' + fmt(from) + ' редакция уже заведена' };
+
+  const affected = KU.cellObjects(rule, cell, st.asOf);
+  const nv = { no: Math.max.apply(null, rule.versions.map(v => v.no)) + 1, from: from, until: null,
+    by: accessName(), key: cur.key.slice(), cells: Object.assign({}, cur.cells) };
+  if (target) nv.cells[cell] = target; else delete nv.cells[cell];
+  cur.until = prevDay(from);
+  rule.versions.push(nv);
+  logIt('редакция ' + nv.no + ' правила ' + ruleId + ': ячейка «' + cell + '» → ' +
+    (target ? nameOf(rule, target) : 'не назначено'));
+  const note = rule.scope === 'top'
+    ? 'Редакция ' + nv.no + ' вступает ' + fmt(from) + '. Ступень родильная: живущие объекты не двинутся (ИУ-7) — в ячейке их сейчас ' + affected.length + ', подразделение им меняет только передача с приёмом (ИУ-12).'
+    : 'Редакция ' + nv.no + ' вступает ' + fmt(from) + '. Объектов в ячейке: ' + affected.length + ' — правка сама их не переставляет, это делает пересчёт отдельным действием с предпросмотром (этап 3).';
+  return { ok: true, ver: nv.no, affected: affected.length, note: note };
+};
+
+/* Смена состава объявленного ключа (P18-R5): тоже редакция, ячейки вслепую не переносятся. */
+KU.keyDraftInit = ruleId => {
+  const v = KU.verAt(KU.rule(ruleId), KU.state.today);
+  KU.state.keyDraft = { ruleId: ruleId, key: v ? v.key.slice() : [] };
+  return KU.state.keyDraft;
+};
+function draftOf(ruleId) {
+  const d = KU.state.keyDraft;
+  return (d && d.ruleId === ruleId) ? d : KU.keyDraftInit(ruleId);
+}
+KU.keyDraftAdd = (ruleId, featId) => {
+  if (!featId) return { ok: false, why: 'признак не выбран' };
+  const rule = KU.rule(ruleId);
+  const g = KU.canEdit(rule); if (!g.ok) return g;
+  const kindId = (KU.role(rule.role) || {}).kind;
+  const f = KU.feat(featId);
+  if (!f) return { ok: false, why: 'такого признака в справочнике нет' };
+  if ((f.obj || []).indexOf(kindId) < 0) return { ok: false,
+    why: 'признак «' + f.name + '» у вида «' + KU.kind(kindId).name.toLowerCase() + '» не заведён' };
+  const d = draftOf(ruleId);
+  if (d.key.indexOf(featId) >= 0) return { ok: false, why: 'этот признак в ключе уже стоит' };
+  d.key.push(featId);
+  return { ok: true, note: 'ключ-черновик: ' + d.key.map(x => KU.feat(x).name).join(' + ') +
+    ' · ячеек станет ' + KU.space(d.key).length };
+};
+KU.keyDraftDrop = (ruleId, featId) => {
+  const g = KU.canEdit(KU.rule(ruleId)); if (!g.ok) return g;
+  const d = draftOf(ruleId);
+  d.key = d.key.filter(f => f !== featId);
+  return { ok: true, note: 'ключ-черновик: ' + (d.key.map(x => KU.feat(x).name).join(' + ') || 'пуст') };
+};
+KU.saveKey = ruleId => {
+  const st = KU.state, rule = KU.rule(ruleId);
+  const g = KU.canEdit(rule); if (!g.ok) return g;
+  const d = st.keyDraft;
+  if (!d || d.ruleId !== ruleId) return { ok: false, why: 'ключ не менялся' };
+  if (!d.key.length) return { ok: false, why: 'ключ не может быть пустым — правило перестанет различать объекты' };
+  const from = KU.effOf(ruleId);
+  if (from < st.today) return { ok: false, why: 'дата вступления ' + fmt(from) + ' в прошлом (ИУ-10)' };
+  const cur = KU.verAt(rule, st.today) || rule.versions[rule.versions.length - 1];
+  if (cur.from >= from) return { ok: false,
+    why: 'редакция ' + cur.no + ' вступила ' + fmt(cur.from) + ' — новая раньше вступить не может' };
+  if (cur.key.join('|') === d.key.join('|')) return { ok: false, why: 'ключ тот же — редакция не нужна' };
+
+  const space = KU.space(d.key);
+  const cells = {};
+  space.forEach(c => { if (cur.cells[c]) cells[c] = cur.cells[c]; });  // переносим только совпавшие значения
+  const nv = { no: Math.max.apply(null, rule.versions.map(v => v.no)) + 1, from: from, until: null,
+    by: accessName(), key: d.key.slice(), cells: cells };
+  cur.until = prevDay(from);
+  rule.versions.push(nv);
+  st.keyDraft = null;
+  const holes = space.length - Object.keys(cells).length;
+  logIt('редакция ' + nv.no + ' правила ' + ruleId + ': ключ → ' + d.key.map(f => KU.feat(f).name).join(' + '));
+  return { ok: true, ver: nv.no, holes: holes,
+    note: 'редакция ' + nv.no + ' вступает ' + fmt(from) + ': ячеек ' + space.length + ', без имени ' + holes +
+      ' — их держит ' + (rule.scope === 'top' ? 'администратор кураторства' : 'заведующий отделом') + ' (ИУ-8)' };
+};
+
+/* ============================== ЭКРАНЫ =============================== */
+const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, m => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[m]));
+const $ = s => (typeof document === 'undefined' ? null : document.querySelector(s));
+/* значение ячейки едет в onclick одинарной кавычкой: экранируем и её, и разметку */
+const jsq = s => String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'")
+  .replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/&(?!quot;|lt;)/g, '&amp;');
+
+KU.go       = v => { KU.state.view = v; KU.state.openCell = null; render(); };
+KU.setRole  = r => { KU.state.role = r; KU.state.keyDraft = null; render(); };
+KU.setAsOf  = d => { KU.state.asOf = d; render(); };
+KU.setStep  = s => { KU.state.step = s; KU.state.openCell = null; KU.state.keyDraft = null; render(); };
+KU.pickRole = r => {
+  KU.state.polRole = r; KU.state.openCell = null; KU.state.keyDraft = null;
+  const us = unitsForRole(r);
+  if (us.indexOf(KU.state.polUnit) < 0) KU.state.polUnit = us[0] || null;
+  render();
+};
+KU.pickUnit = u => { KU.state.polUnit = u; KU.state.openCell = null; KU.state.keyDraft = null; render(); };
+KU.toggleCell = (ruleId, cell) => {
+  const k = ruleId + '‖' + cell;
+  KU.state.openCell = KU.state.openCell === k ? null : k;
+  render();
+};
+
+const TITLES = { pol: 'Политика распределения', rec: 'Пересчёт', hand: 'Передачи',
+  show: 'Витрины', off: 'Отстранения' };
+const AS_OF = ['2024-06-01', '2026-02-28', '2026-03-01', TODAY];
+
+/* Подразделения, до которых роль вообще доезжает верхней ступенью. */
+function unitsForRole(roleId) {
+  const v = KU.verAt(KU.topRule(roleId), KU.state.asOf);
+  const set = [];
+  if (v) Object.keys(v.cells).forEach(c => {
+    const u = v.cells[c];
+    if (u && set.indexOf(u) < 0) set.push(u);
+  });
+  return set;
+}
+
+function render() {
+  if (typeof document === 'undefined') return;   // без DOM рисовать нечего (смоук)
+  const st = KU.state;
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.v === st.view));
+  $('#title').textContent = TITLES[st.view];
+  $('#role').innerHTML = ACCESS.map(a =>
+    `<option value="${a.id}"${a.id === st.role ? ' selected' : ''}>${esc(a.name)}</option>`).join('');
+  $('#asOf').innerHTML = AS_OF.map(d =>
+    `<option value="${d}"${d === st.asOf ? ' selected' : ''}>${fmt(d)}${d === st.today ? ' · сегодня' : ''}</option>`).join('');
+  const fb = KU.fallbacks(st.asOf), over = fb.filter(f => f.overdue);
+  $('#foot').innerHTML = `${esc((byId(ACCESS, st.role) || {}).who)}<br>
+    Объектов ${st.objects.filter(o => o.born <= st.asOf).length} · записей в журнале ${st.journal.length}<br>
+    Держится фолбэком <b>${fb.length}</b>, дольше порога <b>${over.length}</b>.`;
+  $('#panel').innerHTML =
+    st.view === 'pol' ? viewPolicy() : viewStub(st.view);
+}
+KU.render = render;
+
+function toast(msg, kind) {
+  if (typeof document === 'undefined') return;
+  const w = document.getElementById('toastWrap'); if (!w) return;
+  const t = document.createElement('div');
+  t.className = 'toast' + (kind ? ' ' + kind : '');
+  t.textContent = msg; w.appendChild(t);
+  setTimeout(() => t.remove(), 6000);
+}
+function act(res, okMsg) {
+  if (res && res.ok) toast(res.note || okMsg || 'готово', 'ok');
+  else toast((res && res.why) || 'отказано', 'err');
   render();
 }
-init();
+
+/* ------------------- ЭКРАН: ПОЛИТИКА РАСПРЕДЕЛЕНИЯ ------------------- */
+function viewPolicy() {
+  const st = KU.state;
+  const role = KU.role(st.polRole), kind = KU.kind(role.kind);
+  const rule = st.step === 'top' ? KU.topRule(st.polRole) : KU.lowRule(st.polUnit, st.polRole);
+  const guard = KU.canEdit(rule);
+  const units = unitsForRole(st.polRole);
+
+  const head = `
+    <div class="section-h">Правило распределения</div>
+    <p class="page-lead">Куратор нигде не лежит полем: наружу модуль отдаёт ответ на вопрос
+      <code>curatorOn(объект, роль, дата)</code>, а собирают ответ две ступени — холдинговая
+      называет подразделение в момент рождения объекта, отдельская называет работника.
+      Пустая ячейка объект не теряет: он поднимается на ступень выше (ИУ-8).</p>
+    <div class="btn-row" style="margin:0 0 14px">
+      <button class="btn btn-secondary ${st.step === 'top' ? 'on' : ''}" onclick="KU.setStep('top')">
+        Верхняя ступень · объект и роль → подразделение</button>
+      <button class="btn btn-secondary ${st.step === 'low' ? 'on' : ''}" onclick="KU.setStep('low')">
+        Нижняя ступень · подразделение и роль → работник</button>
+    </div>
+    <div class="form-row">
+      <div class="fld"><label>Роль — правил холдинга ровно пять, по числу назначаемых ролей</label>
+        <select onchange="KU.pickRole(this.value)">${ROLES.map(r =>
+          `<option value="${r.id}"${r.id === st.polRole ? ' selected' : ''}>${esc(r.name)} · ${esc(KU.kind(r.kind).name.toLowerCase())}</option>`).join('')}</select></div>
+      ${st.step === 'low' ? `<div class="fld"><label>Подразделение</label>
+        <select onchange="KU.pickUnit(this.value)">${units.map(u =>
+          `<option value="${u}"${u === st.polUnit ? ' selected' : ''}>${esc(KU.unit(u).name)}</option>`).join('')}</select></div>` : ''}
+    </div>`;
+
+  if (!rule) {
+    const holder = KU.emp(KU.headOf(st.polUnit)) || { name: '—' };
+    return head + `
+      <div class="banner danger"><b>Правила этой пары нет вовсе.</b>
+        ${esc(KU.unit(st.polUnit).name)} не объявил раскладку роли «${esc(role.name)}» —
+        объекты, приехавшие сюда верхней ступенью, держит заведующий отделом
+        <b>${esc(holder.name)}</b> (ИУ-8). Это не «объект без куратора», а видимый долг заведующего:
+        порог давности для вида «${esc(kind.name.toLowerCase())}» — ${kind.sla} рабочих дн.</div>
+      ${fallbackTable(st.polUnit, st.polRole)}`;
+  }
+
+  const cov = KU.coverage(rule, st.asOf);
+  const v = cov.v;
+  const draft = (st.keyDraft && st.keyDraft.ruleId === rule.id) ? st.keyDraft : null;
+  const keyChips = v.key.map(f => `<span class="chip">${esc(KU.feat(f).name)}</span>`).join('');
+  const draftChips = draft ? draft.key.map(f => `<span class="chip">${esc(KU.feat(f).name)}
+      <button title="убрать из ключа" onclick="act(KU.keyDraftDrop('${rule.id}','${f}'))">✕</button></span>`).join('') : '';
+  const freeFeats = FEATURES.filter(f => (f.obj || []).indexOf(role.kind) >= 0 &&
+    (draft ? draft.key : v.key).indexOf(f.id) < 0);
+
+  const rows = cov.cells.map(c => {
+    const target = v.cells[c];
+    const objs = KU.cellObjects(rule, c, st.asOf);
+    const holder = KU.emp(rule.scope === 'top' ? KU.admin() : KU.headOf(rule.unit)) || { name: '—' };
+    const worst = (!target && objs.length)
+      ? Math.max.apply(null, objs.map(o => workdays(o.born, st.asOf))) : 0;
+    const over = !target && worst > kind.sla;
+    const opts = rule.scope === 'top' ? UNITS : EMP.filter(e => e.unit === rule.unit);
+    const cellSel = guard.ok
+      ? `<select onchange="act(KU.setCell('${rule.id}','${jsq(c)}',this.value))">
+          <option value=""${!target ? ' selected' : ''}>— не назначено —</option>
+          ${opts.map(x => `<option value="${x.id}"${x.id === target ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}
+         </select>`
+      : (target ? esc(nameOf(rule, target)) : '<span class="muted">— не назначено —</span>');
+    const status = target
+      ? '<span class="pill ok">закрыта</span>'
+      : objs.length
+        ? `<span class="pill ${over ? 'err' : 'warn'}">держит ${esc(holder.name)}</span>
+           <div class="why">фолбэк ${worst} раб. дн. при пороге ${kind.sla}${over ? ' — <em>дольше порога</em>' : ' — в сроке'}</div>`
+        : '<span class="pill neutral">пусто, объектов нет</span>';
+    const cnt = objs.length
+      ? `<button class="linky" onclick="KU.toggleCell('${rule.id}','${jsq(c)}')">${objs.length}</button>`
+      : '<span class="muted">0</span>';
+    const open = st.openCell === rule.id + '‖' + c;
+    const detail = open ? `<tr class="sub"><td colspan="4">${objList(objs, rule.role)}</td></tr>` : '';
+    return `<tr class="${target ? '' : (over ? 'over' : 'hole')}">
+      <td class="mono">${esc(c)}</td><td>${cellSel}</td><td>${cnt}</td><td>${status}</td></tr>${detail}`;
+  }).join('');
+
+  const vers = rule.versions.slice().sort((a, b) => a.no - b.no).map(x => {
+    const s = KU.verStatus(x);
+    return `<tr>
+      <td>${x.no}</td><td>${fmt(x.from)}</td><td>${x.until ? fmt(x.until) : '—'}</td>
+      <td>${esc(x.key.map(f => KU.feat(f).name).join(' + '))}</td>
+      <td>${Object.keys(x.cells).length} из ${KU.space(x.key).length}</td>
+      <td>${esc(x.by)}</td>
+      <td><span class="pill ${s === 'действующая' ? 'ok' : s === 'будущая' ? 'info' : 'neutral'}">${s}</span></td></tr>`;
+  }).join('');
+
+  return head + `
+    ${guard.ok ? '' : `<div class="banner info">${esc(guard.why)}</div>`}
+    ${rule.scope === 'top'
+      ? `<div class="banner warn"><b>Пересчёта у этой ступени нет — и кнопки тоже.</b>
+          Ступень родильная: правка решает судьбу объектов, которые родятся после даты вступления,
+          а живущим подразделение меняет только передача с приёмом (ИУ-7, ИУ-12).</div>`
+      : `<div class="banner info"><b>Живая ступень.</b> Правка действует на уже закреплённые объекты,
+          но не сама: их переставляет пересчёт — явное действие заведующего с предпросмотром и
+          четырьмя корзинами (этап 3).</div>`}
+
+    <div class="card">
+      <h3>${rule.scope === 'top' ? 'Верхняя ступень' : 'Нижняя ступень'} ·
+        ${esc(role.name)}<span class="small"> — ${esc(kind.name.toLowerCase())}</span></h3>
+      <div class="kv">
+        <div class="k">Что называет</div><div class="v">${rule.scope === 'top'
+          ? 'подразделение, которое поведёт объект первым' : 'работника внутри подразделения'}</div>
+        <div class="k">Владелец</div><div class="v">${esc(rule.owner)} · ${esc((KU.emp(rule.scope === 'top'
+          ? KU.admin() : KU.headOf(rule.unit)) || {}).name)}</div>
+        <div class="k">Объявленный ключ</div><div class="v">${keyChips || '<span class="muted">пуст</span>'}</div>
+        <div class="k">Редакция на ${fmt(st.asOf)}</div><div class="v">№ ${v.no}, вступила ${fmt(v.from)}${
+          v.until ? ', закрыта ' + fmt(v.until) : ''} · ${esc(v.by)}
+          <span class="pill ${KU.verStatus(v) === 'действующая' ? 'ok' : 'neutral'}">${KU.verStatus(v)}</span></div>
+        <div class="k">Покрытие</div><div class="v">закрыто <b>${cov.named.length}</b> из ${cov.cells.length}${
+          cov.holesHot.length ? ` · <span class="pill warn">пустых с объектами: ${cov.holesHot.length}</span>` : ''}</div>
+        <div class="k">Порог давности фолбэка</div><div class="v">${kind.sla} рабочих дн. для вида
+          «${esc(kind.name.toLowerCase())}» — число из справочника (ИУ-9)</div>
+      </div>
+      ${guard.ok ? `
+      <div class="form-row" style="margin-top:14px">
+        <div class="fld"><label>Дата вступления новой редакции</label>
+          <input type="date" value="${KU.effOf(rule.id)}" min="${st.today}"
+            onchange="act(KU.setEff('${rule.id}',this.value))"></div>
+        <div class="fld"><label>Добавить признак в ключ</label>
+          <select onchange="act(KU.keyDraftAdd('${rule.id}',this.value))">
+            <option value="">— выбрать —</option>
+            ${freeFeats.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join('')}</select></div>
+        ${draft ? `<div class="fld"><label>Черновик ключа · ячеек ${KU.space(draft.key).length}</label>
+          <div>${draftChips || '<span class="muted">пуст</span>'}</div></div>
+          <button class="btn btn-primary" onclick="act(KU.saveKey('${rule.id}'))">Сохранить ключ редакцией</button>` : ''}
+      </div>
+      <div class="note">Ни правка ячейки, ни смена ключа не переписывают действующую редакцию —
+        они заводят новую с датой вступления, и дата не ставится в прошлое (ИУ-10).</div>` : ''}
+    </div>
+
+    <div class="section-h">Ячейки правила</div>
+    <p class="page-lead">Значения ключа — декартово произведение справочников признаков.
+      Число объектов против ячейки кликабельно: список открывается тем же расчётом, что и счётчик.</p>
+    <table class="cgrid"><thead><tr>
+      <th>Значение ключа</th><th>${rule.scope === 'top' ? 'Подразделение' : 'Работник'}</th>
+      <th>Объектов</th><th>Состояние</th></tr></thead><tbody>${rows}</tbody></table>
+
+    <div class="section-h">Редакции правила</div>
+    <table class="cgrid"><thead><tr>
+      <th>№</th><th>Вступила</th><th>Закрыта</th><th>Ключ</th><th>Закрыто ячеек</th><th>Кем</th><th></th>
+      </tr></thead><tbody>${vers}</tbody></table>
+    <div class="note">Записи журнала ссылаются на редакцию, по которой поставлены, — поэтому ответ
+      «кто вёл 14.02.2024» воспроизводим (ИУ-10, ИУ-11). Смените дату среза наверху и раскройте
+      ячейку «Ошская» нижней ступени агродепартамента: до 01.03.2026 там Бекова, после — Иванов.</div>`;
+}
+
+function objList(objs, roleId) {
+  const st = KU.state;
+  const rows = objs.map(o => {
+    const a = KU.curatorOn(o.id, roleId, st.asOf);
+    const off = KU.offRule(o.id, roleId, st.asOf);
+    return `<tr>
+      <td class="mono">${esc(o.id)}</td>
+      <td>${esc(KU.kind(o.kind).name)}${o.closed ? ' <span class="pill neutral">погашен ' + fmt(o.closed) + '</span>' : ''}${
+        o.of ? '<div class="why">по ' + esc(o.of) + (o.note ? ' · ' + esc(o.note) : '') + '</div>' : ''}</td>
+      <td>${fmt(o.born)}</td>
+      <td>${esc(o.borrower)}</td>
+      <td>${a.ok ? esc(a.assignedName) : '<span class="muted">' + esc(a.why) + '</span>'}
+        ${a.ok ? `<div class="why">с ${fmt(a.since)} · <em>${esc(a.src)}</em>${
+          a.ver ? ' · редакция ' + a.ver.no : ''}${a.fallback ? ' · держится ' + a.heldDays + ' раб. дн.' +
+          (a.overdue ? ' — <em>дольше порога ' + a.sla + '</em>' : '') : ''}</div>` : ''}</td>
+      <td>${off ? `<span class="pill warn">вне правила</span>
+        <div class="why">правило сейчас называет <em>${esc((KU.emp(off.now) || {}).name)}</em>,
+          в журнале — ${esc((KU.emp(off.journal) || {}).name)} (${esc(off.src)})</div>`
+        : '<span class="pill ok">совпадает с правилом</span>'}</td></tr>`;
+  }).join('');
+  return `<table class="cgrid"><thead><tr>
+    <th>Объект</th><th>Вид</th><th>Рождён</th><th>Заёмщик</th>
+    <th>Закреплён на ${fmt(st.asOf)}</th><th>Сверка с правилом</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+/* Объекты, приехавшие в подразделение, у которого правила этой роли нет. */
+function fallbackTable(unitId, roleId) {
+  const st = KU.state, kindId = (KU.role(roleId) || {}).kind;
+  const objs = st.objects.filter(o => o.kind === kindId && o.born <= st.asOf &&
+    KU.decide(o.id, roleId, st.asOf).unitId === unitId);
+  if (!objs.length) return '<div class="note">Объектов, приехавших в это подразделение, на дату среза нет.</div>';
+  return `<div class="section-h">Объекты на руках заведующего</div>${objList(objs, roleId)}`;
+}
+
+/* ---------------------------- ЗАГЛУШКИ ------------------------------ */
+const STUBS = {
+  rec: { stage: 'этап 3', tasks: 'P18-R11 · P18-R12 · P18-R13',
+    lead: 'Пересчёт нижней ступени — явное действие заведующего с предпросмотром. Фонового пересчёта нет, у верхней ступени его нет вовсе (ИУ-7).',
+    items: ['предпросмотр четырьмя корзинами: тихо · через рукопожатие · заблокировано отстранением · ручные, не тронуты',
+      'критерий рукопожатия — незакрытая работа на объекте, читается живьём у кредита, взыскания, обеспечения и заданий; молчание источника трактуется в безопасную сторону',
+      'ручное закрепление пересчёт не трогает, возврат к правилу — отдельное действие',
+      'на чём это проверять, в волне 1 уже видно: КД-2025/088 закреплён рукой и помечен «вне правила»'] },
+  hand: { stage: 'этап 3', tasks: 'P18-R9 · P18-R10 · P18-R14',
+    lead: 'Движение закрепления: рождение объекта, передача с приёмом, ретро-правка.',
+    items: ['точки рождения по всем четырём видам — в волне 1 рождение уже работает и наполняет журнал',
+      'очередь передач: подразделение меняется только принятой передачей (ИУ-12, ADR-0023)',
+      'приём подставляет работника правилом принимающего подразделения',
+      'задним числом можно, пока период не заперт закрытыми фактами прежнего куратора'] },
+  show: { stage: 'этап 5', tasks: 'P18-R18 · P18-R19 · P18-R20',
+    lead: 'Витрины и журнал в карточке объекта — то, чем перекос и дыры становятся видимыми.',
+    items: ['витрина нагрузки и перекоса: правило нагрузку не считает, перекос разбирает заведующий решением (ИУ-11)',
+      'витрина «живут вне правила» — расхождение журнала с ячейкой; расчёт уже есть в волне 1 (KU.offRule)',
+      'витрина фолбэка «держится дольше порога» — счётчик уже считается и стоит в подвале слева',
+      'журнал закреплений в карточке объекта: карточка чужого модуля, кураторство отдаёт ей ответ и историю'] },
+  off: { stage: 'этап 4', tasks: 'P18-R15 · P18-R17 · P18-R19',
+    lead: 'Отстранение — своё датированное измерение по паре «работник и заёмщик» (ADR-0118). Закрепление при нём живёт, меняется только действующий исполнитель.',
+    items: ['реестр отстранений: вводит администратор кураторства по служебной записке, инициировать может любой, включая самоотвод',
+      'отрезок покрывает все объекты этого заёмщика и вычитается из периода ответственности',
+      'пересчёт отстранение не отменяет — корзина «заблокировано отстранением»',
+      'второй ответ шва: действующий исполнитель расходится с закреплённым; замещающего называет модуль сотрудников (resolveActor, P12-R12), кураторство его не хранит и не выбирает'] },
+};
+function viewStub(id) {
+  const s = STUBS[id];
+  return `<div class="section-h">${esc(TITLES[id])}</div>
+    <p class="page-lead">${esc(s.lead)}</p>
+    <div class="banner info"><b>Волна 1 этот экран не делает.</b>
+      ${esc(s.stage)} постановки · задачи ${esc(s.tasks)} · канон —
+      <code>docs/tasks/p18-kuratorstvo-tasks.html</code>.</div>
+    <div class="card"><h3>Что здесь будет</h3>
+      <ul style="margin:0;padding-left:20px">${s.items.map(i => `<li style="margin-bottom:6px">${esc(i)}</li>`).join('')}</ul>
+    </div>
+    <div class="note">Ядро под это уже стоит: журнал закреплений, обе ступени, фолбэк с порогами
+      и ответ <code>curatorOn</code> работают на экране «Политика распределения».</div>`;
+}
+
+/* ---------------------------- запуск -------------------------------- */
+seed();
+if (typeof window !== 'undefined') window.KU = KU;
+if (typeof document !== 'undefined') render();
 </script>
 </body>
 </html>
