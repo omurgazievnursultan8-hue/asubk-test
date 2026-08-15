@@ -780,9 +780,16 @@ const pd = CR.pd;
   const p = c.mirror.payments.find(x => x.dispute);
   p.dispute.status = 'Решение комиссии'; p.dispute.outcome = 'начислить';
   const d2 = CR.derive(c);
-  ok(59, d1.debt.penalty.disputed > 0 && d1.debt.penalty.accrued === 0
-      && d1.overdue.disputedDays === d1.overdue.days && d1.riskBasis.eff === 0
-      && d2.debt.penalty.disputed === 0 && d2.debt.penalty.accrued > 0
+  /* ADR-0129 §2 изменил ФАКТ, а не правило: у K-1 платёж 20.06 закрыл позицию от 18.06 с
+     опозданием на два дня, и пеня за них (9,71) теперь начислена — она не спорная, спор
+     начинается 18.07. Поэтому «вся пеня спорна» больше не выполняется, и проверяется то,
+     что и проверялось по смыслу: спорная часть в требование не входит, а снятие статуса
+     переносит её туда целиком, ничего не потеряв и не удвоив. */
+  ok(59, d1.debt.penalty.disputed > 0 && d1.debt.penalty.accrued > 0
+      && d1.overdue.disputedDays > 0 && d1.riskBasis.eff < d1.overdue.days
+      && d2.debt.penalty.disputed === 0
+      && Math.abs(d2.debt.penalty.accrued
+                  - (d1.debt.penalty.accrued + d1.debt.penalty.disputed)) < 0.05
       && d2.riskBasis.eff === d2.overdue.days,
      `спорно: пеня=${d1.debt.penalty.disputed} требуется=${d1.debt.penalty.accrued} дней=${d1.riskBasis.eff}` +
      ` → решено: требуется=${d2.debt.penalty.accrued} дней=${d2.riskBasis.eff}`);
@@ -793,10 +800,14 @@ const pd = CR.pd;
   const d = CR.derive(c);
   const rawPen = d.ledger.rows.reduce((a,r) => a + r.penaltyAccrued, 0);
   const g = CR.gate(c, 'repay', {});
+  /* Правило прежнее: спорная пеня в требование НЕ входит. Изменилось слагаемое рядом с
+     ней — пеня за двухдневное опоздание платежа 20.06 (ADR-0129 §2), и она в требование
+     входит, поэтому Г-14 теперь её называет. Сторожим само вычитание: требование = всё
+     начисленное минус спорное, и спорная копейка в гейт не попадает. */
   ok('59b', rawPen > 0 && d.debt.penalty.disputed > 0
-      && d.debt.penalty.bal === 0 && d.debt.penalty.overdue === 0
-      && !g.reasons.some(r => /Пеня/.test(r)),
-     `пеня посчитана=${Math.round(rawPen*100)/100}, спорна=${d.debt.penalty.disputed}, в требовании=${d.debt.penalty.bal}; Г-14 её не называет`);
+      && Math.abs(d.debt.penalty.bal - (Math.round(rawPen*100)/100 - d.debt.penalty.disputed)) < 0.05
+      && d.debt.penalty.bal > 0 && g.reasons.some(r => /Пеня/.test(r)),
+     `пеня посчитана=${Math.round(rawPen*100)/100}, спорна=${d.debt.penalty.disputed}, в требовании=${d.debt.penalty.bal}; Г-14 называет только неспорную`);
 })();
 /* 60. СЛОЙ РЕШЕНИЯ СУДА (КР-47). Решение с присуждённой суммой останавливает начисление
    НА СВОЮ ДОЛЮ; режим определяется датой решения и прилипает к нему. Решение без суммы
@@ -1144,12 +1155,20 @@ const pd = CR.pd;
        от освоения, «К погашению» — от наступивших позиций). */
     const thAll  = h => (h.match(/<thead>[\s\S]*?<\/thead>/g) || []);
     const svodTh = thAll(r1).find(t => /Статья/.test(t)) || '';
-    const ledTh  = thAll(r1).find(t => /Позиция/.test(t)) || '';
+    /* Шапка расчёта после КВ-42 — не одна: у листа «По датам» своя, у реестра «По
+       позициям» своя. Правило прежнее и проверяется на обеих: одно действие — один
+       глагол, «Оплачено» и «К оплате» не возвращаются, «Начислено» осталось за расчётом. */
+    const ledTh  = (thAll(r1).find(t => /Изм. базы/.test(t)) || '')
+                 + (() => { CR2.setCalcView('positions');
+                            const hp = CR2.renderTab('Расчёты', CR2.db.credits.find(c => c.id === 'K-1'));
+                            CR2.setCalcView('dates');
+                            return thAll(hp).find(t => /Наступило тело/.test(t)) || ''; })();
     const iS = s => svodTh.indexOf(s);
     const svodOrder = iS('Статья') >= 0 && iS('К погашению') > iS('Статья')
       && iS('Погашено') > iS('К погашению') && iS('Остаток') > iS('Погашено')
       && iS('Просроченная часть') > iS('Остаток');
-    const oneVerb = !/>Оплачено</.test(ledTh) && !/>К оплате</.test(ledTh) && /Начислено/.test(ledTh);
+    const oneVerb = !/>Оплачено</.test(ledTh) && !/>К оплате</.test(ledTh) && !/>Оплата</.test(ledTh)
+                    && /Начислено/.test(ledTh) && /Погашено всего/.test(ledTh);
     ok(160, svodOrder && !/>Начислено</.test(svodTh) && oneVerb
             && /кредит требует на дату среза/.test(r1) && /тело кредита: освоено/.test(r1),
        `свод: порядок Статья→К погашению→Погашено→Остаток→Просроченная часть ${svodOrder}`
@@ -1242,50 +1261,133 @@ const pd = CR.pd;
        + ` · накопленное у K-7 ${acc7}`);
   }
 
-  /* 164. РЕЕСТР «РАСЧЁТОВ» ОТРЕЗКАМИ (КВ-41 заход 2, ADR-0128 §1/§3). Экран получил
-     подстроки и четыре новые колонки, и ломается он не значением, а АРНОСТЬЮ: подстрока
-     собирается из colspan'ов, вычисленных отдельно от шапки (pad + 4 + tail), и разъезд с
-     ней даёт съехавшую на колонку таблицу, которую ни один тест значений не поймает.
-     Четыре стороны:
-     (1) у КАЖДОЙ строки каждого кредита сумма colspan равна шапке — и до раскрытия, и
-         после (раскрываем всё, что раскрывается);
-     (2) подстроки реально рисуются — иначе (1) выполняется тривиально;
-     (3) старые имена ушли: «Получено»/«Оплата» больше нет, есть «Освоено» и «Всего
-         погашено»; «К погашению» в реестре сменилось на «Наступило» (в своде остаётся);
-     (4) «Ставка» стоит колонкой всегда, а не по условию rateCol, которого на сиде нет. */
+  /* 164. ДЕТАЛЬНЫЙ РАСЧЁТ — ДВА ВИДА (КВ-42, ADR-0129). Экран переехал с оси позиции на
+     ось критической даты, и ломается он не значением, а АРНОСТЬЮ: у листа переключаемые
+     группы колонок, строка-группа года и итог раздела собираются из colspan'ов, считанных
+     отдельно от шапки, — разъезд даёт съехавшую на колонку таблицу, которую тест значений
+     не поймает. Пять сторон:
+     (1) арность каждой строки равна шапке — в обоих видах, при выключенных и включённых
+         группах колонок (включаем все четыре: это максимум ширины);
+     (2) в «По датам» стоят колонки оси — «Дата · Событие · Изм. базы · База · Ставка ·
+         Дней · Начислено % · Пеня», и НЕТ «Остатка тела»: он есть «База» той же строки
+         (ADR-0129 §3), и возвращение колонки означало бы возврат дубля;
+     (3) в «По позициям» стоят колонки обязательства и НЕТ арифметики начисления —
+         иначе вид выродится во вторую широкую таблицу, ради снятия которой волна и шла;
+     (4) переключатель видов на месте у каждого кредита;
+     (5) строки листа реально рисуются (иначе (1) выполняется тривиально). */
   {
     const arity = tr => {
       let n = 0, re = /<t[dh]\b([^>]*)>/g, mm;
       while ((mm = re.exec(tr))) n += Math.max(1, parseInt((/colspan="(\d+)"/.exec(mm[1]) || [])[1] || '1', 10));
       return n;
     };
-    let checked = 0, subrows = 0, bad = [];
-    for (const c of CR2.db.credits){
-      /* сперва рендер — он выставляет ключ набора под кредит и очистил бы раскрытие */
-      CR2.renderTab('Расчёты', c);
-      for (const r of CR2.buildLedger(c, CR2.TODAY).rows)
-        if ((r.interestSegments || []).length > 1 || Math.abs(r.interestExtra || 0) > 0.005)
-          CR2.toggleCalcSeg(r.key);
-      const html = CR2.renderTab('Расчёты', c);
-      const tbl = (html.match(/<table class="cgrid">[\s\S]*?<\/table>/g) || [])
-        .find(t => t.includes('Наступило'));
-      if (!tbl){ bad.push(`${c.id}: реестра нет`); continue; }
+    const tables = html => (html.match(/<table class="cgrid">[\s\S]*?<\/table>/g) || []);
+    const checkArity = (tbl, tag, bad, id) => {
       const head = (tbl.match(/<thead>[\s\S]*?<\/thead>/) || [''])[0];
       const body = (tbl.match(/<tbody>[\s\S]*?<\/tbody>/) || [''])[0];
-      const want = Math.max(...(head.match(/<tr[\s\S]*?<\/tr>/g) || []).map(arity));
+      const want = Math.max(...(head.match(/<tr[\s\S]*?<\/tr>/g) || ['']).map(arity));
+      let n = 0;
       for (const tr of (body.match(/<tr[\s\S]*?<\/tr>/g) || [])){
-        checked++;
-        if (/class="segrow"/.test(tr)) subrows++;
+        n++;
         if (arity(tr) !== want && !/cgrid-empty/.test(tr))
-          bad.push(`${c.id}: строка ${arity(tr)} против шапки ${want}`);
+          bad.push(`${id}/${tag}: строка ${arity(tr)} против шапки ${want}`);
       }
-      for (const [re, why] of [[/>Получено</, '«Получено» осталось'], [/>Оплата</, '«Оплата» осталась'],
-                               [/>Освоено</, null], [/>Всего погашено</, null], [/>Наступило</, null], [/>Ставка</, null]])
-        if (why ? re.test(tbl) : !re.test(tbl)) bad.push(`${c.id}: ${why || 'нет колонки ' + re.source}`);
+      return n;
+    };
+    let bad = [], rowsDates = 0, rowsPos = 0;
+    const GROUPS = ['state','pen','paid','run'];
+    for (const c of CR2.db.credits){
+      CR2.openDetail(c.id);
+      /* лист «По датам» — сначала узкий, потом со всеми группами: обе ширины обязаны
+         сойтись с шапкой, и именно вторая ловит забытый colspan у года и итога */
+      CR2.setCalcView('dates');
+      for (const pass of ['narrow','wide']){
+        if (pass === 'wide') GROUPS.forEach(g => CR2.toggleCalcCol(g));
+        const html = CR2.renderTab('Расчёты', c);
+        const tbl = tables(html).find(t => t.includes('Изм. базы'));
+        /* кредит без наступивших позиций (K-2 — графика нет вовсе) листа не имеет, и это
+           не поломка: вместо таблицы стоит подпись «считать нечего». Требовать от него
+           колонок значило бы требовать таблицу пустоты. */
+        if (!tbl){
+          if (!/считать нечего/.test(html)) bad.push(`${c.id}: ни листа, ни подписи «считать нечего» (${pass})`);
+          if (pass === 'wide') GROUPS.forEach(g => CR2.toggleCalcCol(g));
+          continue; }
+        rowsDates += checkArity(tbl, 'даты/' + pass, bad, c.id);
+        for (const re of [/>Дата</, />Событие</, />Изм. базы</, />База</, />Ставка</, />Дней</, />Начислено %</, />Пеня</])
+          if (!re.test(tbl)) bad.push(`${c.id}: нет колонки ${re.source} (${pass})`);
+        if (/>Остаток тела</.test(tbl)) bad.push(`${c.id}: вернулся «Остаток тела» — это «База» той же строки`);
+        if (!/CR.setCalcView\('dates'\)/.test(html) || !/CR.setCalcView\('positions'\)/.test(html))
+          bad.push(`${c.id}: переключателя видов нет`);
+        if (pass === 'wide'){
+          for (const re of [/>Просроч\. тело</, />Ставка пени ОД\/%</, />Погашено тело</, />Начислено нараст\.</])
+            if (!re.test(tbl)) bad.push(`${c.id}: группа колонок не раскрылась — нет ${re.source}`);
+          GROUPS.forEach(g => CR2.toggleCalcCol(g));      // возвращаем узкий вид следующему кредиту
+        }
+      }
+      /* реестр «По позициям» — вид обязательств, без арифметики начисления */
+      CR2.setCalcView('positions');
+      const hp = CR2.renderTab('Расчёты', c);
+      const tp = tables(hp).find(t => t.includes('Наступило тело'));
+      if (!tp){ bad.push(`${c.id}: реестра «По позициям» нет`); }
+      else {
+        rowsPos += checkArity(tp, 'позиции', bad, c.id);
+        for (const re of [/>Статус</, />Просрочено</, />Погашено всего</])
+          if (!re.test(tp)) bad.push(`${c.id}: нет колонки ${re.source} в реестре`);
+        for (const re of [/>База</, />Изм. базы</, />Дней</])
+          if (re.test(tp)) bad.push(`${c.id}: в реестр вернулась арифметика начисления (${re.source})`);
+      }
+      CR2.setCalcView('dates');
     }
-    ok(164, bad.length === 0 && subrows > 0,
-       `строк реестра ${checked} (подстрок-отрезков ${subrows}) · нарушений арности и состава колонок ${bad.length}`
+    ok(164, bad.length === 0 && rowsDates > 0 && rowsPos > 0,
+       `строк листа «По датам» ${rowsDates} · строк реестра «По позициям» ${rowsPos}`
+       + ` · нарушений арности и состава колонок ${bad.length}`
        + `${bad.length ? ' — ' + bad.slice(0,2).join(' | ') : ''}`);
+  }
+
+  /* 165. ПЕНЯ ИНТЕГРИРУЕТСЯ ПО ОТРЕЗКАМ (КВ-42, ADR-0129 §2). Было одно произведение —
+     «остаток НА ДАТУ СРЕЗА × ставка × все дни просрочки», — и платёж середины просрочки
+     задним числом удешевлял дни до себя. Стало: база на начало каждого отрезка. Четыре
+     стороны, каждая ловит свой класс поломки:
+     (1) лист и свод — ОДНА величина: Σ пени строк листа транша = Σ penaltyAccrued его
+         позиций, иначе экран печатал бы два числа одной величины;
+     (2) в каждой строке листа «пеня за день × дней = пеня» — ровно та арифметика, ради
+         проверяемости которой лист и заведён;
+     (3) новая пеня НЕ МЕНЬШЕ старой формулы нигде: база на начало отрезка ≥ базы на срезе,
+         потому что платежи её только уменьшают;
+     (4) хотя бы на одном кредите она СТРОГО больше — доказательство, что изъян был не
+         теоретическим; молча совпавшие числа означали бы, что интеграл не работает. */
+  {
+    let bad = [], grew = [], rows = 0;
+    for (const c of CR2.db.credits){
+      const led = CR2.buildLedger(c, CR2.TODAY);
+      for (const s of (led.dateSheet || [])){
+        const sheetPen = Math.round(s.rows.reduce((a, r) => a + (r.penalty || 0), 0) * 100) / 100;
+        const ledgerPen = Math.round(led.rows.filter(r => r.trancheNo === s.trancheNo)
+          .reduce((a, r) => a + (r.penaltyAccrued || 0), 0) * 100) / 100;
+        if (Math.abs(sheetPen - ledgerPen) > 0.05)
+          bad.push(`${c.id}/т${s.trancheNo}: лист ${sheetPen} ≠ свод ${ledgerPen}`);
+        for (const r of s.rows){
+          rows++;
+          const byDay = Math.round((r.penPerDay || 0) * r.days * 100) / 100;
+          if (Math.abs(byDay - (r.penalty || 0)) > 0.05)
+            bad.push(`${c.id}/${r.date}: ${r.penPerDay}×${r.days} = ${byDay} ≠ ${r.penalty}`);
+        }
+      }
+      /* старая формула — на базе даты среза; penaltyPerDayFwd её и несёт (за вычетом
+         приостановленного судом, поэтому строки со слоем из сравнения выпадают) */
+      for (const r of led.rows){
+        if (r.penaltyFrozen > 0.005 || !(r.penaltyMain || r.penaltyInt)) continue;
+        const old = Math.round((r.penaltyPerDayFwd || 0) * r.days * 100) / 100;
+        /* допуск растёт с числом дней: старая формула умножает ОКРУГЛЁННУЮ до копейки цену
+           дня на все дни, и одна копейка разницы превращается в r.days копеек */
+        if ((r.penaltyAccrued || 0) < old - (0.005 * r.days + 0.05))
+          bad.push(`${c.id}/${r.key}: новая пеня ${r.penaltyAccrued} < старой ${old}`);
+        if ((r.penaltyAccrued || 0) > old + 0.05) grew.push(c.id);
+      }
+    }
+    ok(165, bad.length === 0 && grew.length > 0,
+       `строк листа с пенёй ${rows} · кредитов, где интеграл дал больше плоской формулы ${new Set(grew).size}`
+       + ` · нарушений ${bad.length}${bad.length ? ' — ' + bad.slice(0,2).join(' | ') : ''}`);
   }
 
   /* 130. «ГРАФИК» СО СТАТЬЯМИ (КВ-26, ADR-0109). Колонки статей рисуются ПО СОСТАВУ:
@@ -2115,7 +2217,12 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
       && rs.every(r => r.urg === (r.future ? 'cur' : 'over'))
       && rs.every(r => r.layer === 'free' || /^L-\d+$/.test(r.layer))
       && fee.article === 'Сборы и комиссии' && fee.tranche === null && fee.due === '18.05.2026'
-      && !rs.some(r => r.due === '18.06.2026'),
+      /* Позиция 18.06.2026 закрыта платежом 20.06 — на два дня позже срока, и с ADR-0129 §2
+         эти два дня начислены пенёй. В очереди она поэтому стоит, но ТОЛЬКО пенёй: тела и
+         процентов по ней не осталось. Прежде её не было вовсе — пеня считалась на базе даты
+         среза, то есть на нуле. */
+      && rs.filter(r => r.due === '18.06.2026').every(r => r.article === 'Пеня')
+      && rs.some(r => r.due === '18.06.2026' && r.article === 'Пеня'),
      `строк=${rs.length}, ненаступивших=${rs.filter(r=>r.future).length},`
      + ` первая — ${fee.article} на ${fee.due}, порядок дат ${mono?'не убывает':'СБИТ'},`
      + ` хвост ${tail?'в конце':'ПЕРЕМЕШАН'}`);

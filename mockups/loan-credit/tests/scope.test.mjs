@@ -508,11 +508,14 @@ test('F3-1: закрытый транш — «График» и «Расчёты
   CR.toggleGrafikVers();
   const versTr = s => [...new Set((s.match(/<td>v\d+<\/td><td>№(\d+)<\/td>/g) || [])
     .map(x => x.match(/№(\d+)/)[1]))].sort().join(',');
-  // «Расчёты»: в леджере транш стоит отдельной ячейкой сразу после даты
-  const ledTr = s => [...new Set((s.match(/--surface-card\)">\d{2}\.\d{2}\.\d{4}<\/td>\s*<td>№(\d+)<\/td>/g) || [])
+  // «Расчёты»: с КВ-42 у вкладки два вида, и транш отдельной ячейкой стоит в реестре
+  // «По позициям» — сразу после даты. Липких колонок у него нет: шапка одноэтажная.
+  const ledTr = s => [...new Set((s.match(/<td>\d{2}\.\d{2}\.\d{4}<\/td><td>№(\d+)<\/td>/g) || [])
     .map(x => x.match(/№(\d+)<\/td>$/)[1]))].sort().join(',');
   const g = versTr(CR.renderTab('График', c));
+  CR.setCalcView('positions');
   const r = ledTr(CR.renderTab('Расчёты', c));
+  CR.setCalcView('dates');
   eq(g, '1,2', '«График» обязан показать оба транша, закрытый включительно');
   eq(g, r, `«График» (${g}) и «Расчёты» (${r}) обязаны сойтись в том, что такое «по кредиту»`);
   const n = CR.trancheScheduleRows(c.tranches[0]).length + CR.trancheScheduleRows(c.tranches[1]).length;
