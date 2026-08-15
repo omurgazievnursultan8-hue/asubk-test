@@ -1044,7 +1044,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-15 · 165/165 PASS
+ SMOKE (node) 2026-08-15 · 159/165 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -1094,9 +1094,9 @@
    #42 ✓
    #43 ✓
    #44 ✓
-   #45 ✓
+   #45 ✗ мес=24 кв=24
    #46 ✓
-   #47 ✓
+   #47 ✗ отсрочка: начисл=849.32 платёж=849.32 · льгота: начисл=849.32 платёж=849.32
    #48 ✓
    #49 ✓
    #50 ✓
@@ -1117,10 +1117,10 @@
    #61 ✓
    #62 ✓
    #63 ✓
-   #64 ✓
-   #65 ✓
-   #66 ✓
-   #67 ✓
+   #64 ✗ payDay=15 → 18.06.2026 · 18.07.2026
+   #65 ✗ по дате выдачи: 28.02.2026 · 31.03.2026 · по дате 1-го платежа: 28.02.2026 · 31.03.2026
+   #66 ✗ вне окна: начисл=686.05 платёж=686.05 · в окне: начисл=497.19 платёж=497.19
+   #67 ✗ факт: п1=849.32 п2=790.84 (разные дни) · 30-числ: п1=849.32 п2=790.84 (равны)
    #53a ✓
    #53 ✓
    #111 ✓
@@ -2570,14 +2570,49 @@ function seedClaim(o){
 /* Версия графика, первая позиция которой отстоит от «сегодня» ровно на `days` дней:
    так демо-просрочка ВЫВОДИТСЯ из графика, а не задаётся полем. Прежний сид писал
    `days:95` прямо в строку ledger, и число ни от чего не зависело (КР-9). */
-function seedSchedule(fromDate, days, principalTotal, rate, term, count){
-  const first = addD(pd(TODAY), -Math.max(0, days || 0));
+/* КР-63 (ADR-0130 §4). Процент считался плоской помесячной формулой
+   `(тело − взнос×k) × ставка/100/12` — календарь не смотрелся вовсе, дата освоения тоже.
+   Из-за якоря «первая позиция = TODAY − дней просрочки» позиции у долгопросроченных
+   разделов (K-C14, K-C32…C37) вставали РАНЬШЕ самого освоения, а срок между освоением и
+   первой наступившей позицией не начислялся ни в одной строке: на 28 разделах листа это
+   давало Σ 18 446,56 расхождения со сводом. Стало: проценты идут по ФАКТИЧЕСКИМ дням
+   (база «факт/365» — дефолт `dayBasis`) от даты освоения, и первая позиция после неё
+   забирает все дни с этой даты — ровно так же, как считают лист и `buildSchedule`.
+   Позиция, стоящая раньше освоения, получает НОЛЬ: денег у заёмщика ещё нет (ADR-0105).
+
+   ЯКОРЬ ЗАЖАТ ОСВОЕНИЕМ. Одного пересчёта процентов не хватило: у 11 разделов позиции
+   стояли РАНЬШЕ освоения (K-C32…C37 — все шесть, 18.06.2025 при освоении 15.02.2026),
+   и по-честному они давали свод 0,00 против листа, который начисляет с даты выдачи, —
+   Σ расхождения не падала, а росла (17 854 → 159 445, замер 15.08.2026). Причина не в
+   счёте, а в данных: кредит «просрочен на 400 дней», хотя деньги выданы пять месяцев
+   назад. Поэтому первая позиция не может встать раньше, чем через период после освоения;
+   число позиций сохраняется, а демо-просрочка у таких разделов укорачивается — она
+   ВЫВОДИТСЯ из графика (КР-9), значит и должна упереться в реальную хронологию.
+   Вариант 2 владельца из трёх (15.08.2026). */
+function seedSchedule(fromDate, days, principalTotal, rate, term, count, disbDate, holds){
+  const start = pd(disbDate || fromDate);
+  const wanted = addD(pd(TODAY), -Math.max(0, days || 0));
+  const earliest = addM(start, 1);                      // раньше первого периода после выдачи позиций не бывает
+  const first = wanted < earliest ? earliest : wanted;
   const n = count || 4;
   const per = round2(principalTotal / Math.max(1, term));
   const rows = [];
+  let prev = start;                                     // граница начисления: сперва освоение
   for (let k = 0; k < n; k++){
-    const interest = round2((principalTotal - per * k) * (rate/100/12));
-    rows.push({ no:k+1, date:fd(addM(first, k)), principal:per, interest, total:round2(per + interest) });
+    const date = addM(first, k);
+    let nd = Math.max(0, dd(prev, date));               // позиция раньше освоения → 0 дней → 0 процентов
+    /* Дни ПАУЗЫ вычитаются, а не глушат позицию целиком: лист режет период границами
+       окна (`calcGrid` ставит критическими `from−1` и `to`) и начисляет за дни ДО паузы,
+       поэтому «весь период в ноль» разъезжается с ним ровно на эту часть (K-C18: 10 068). */
+    for (const h of (holds || [])){
+      if (!h || !h.from) continue;
+      const hf = addD(pd(h.from), -1), ht = h.to ? pd(h.to) : date;
+      const a = prev > hf ? prev : hf, b = date < ht ? date : ht;
+      nd -= Math.max(0, dd(a, b));
+    }
+    const interest = round2((principalTotal - per * k) * (rate/100) * Math.max(0, nd) / 365);
+    rows.push({ no:k+1, date:fd(date), principal:per, interest, total:round2(per + interest) });
+    if (date > prev) prev = date;
   }
   return { ver:1, validFrom:fromDate, by:{ kind:'engine', label:'Первичный график' },
            generatedFrom:fromDate, generatedAt:fromDate, generatedSeq:0, rows };
@@ -2747,10 +2782,15 @@ function seedDb(){
            платежей, а не задаётся полем `days`, как было в засеянном ledger (КР-9). */
         schedules:[{ ver:1, validFrom:'15.02.2026', by:{ kind:'engine', label:'Первичный график' },
                      generatedFrom:'15.02.2026', generatedAt:'15.02.2026', rows:[
-          { no:1, date:'19.04.2026', total:12300, principal:8300, interest:4000 },   // наступил, не погашен → 95 дн.
-          { no:2, date:'19.05.2026', total:12300, principal:8400, interest:3900 },
-          { no:3, date:'19.06.2026', total:12300, principal:8500, interest:3800 },
-          { no:4, date:'19.07.2026', total:12300, principal:8600, interest:3700 }
+          /* Проценты посчитаны, а не написаны на глаз (КР-63, замер 15.08.2026): факт/365 по
+             ставке 12 на УБЫВАЮЩЕЕ плановое тело, граница первой позиции — дата освоения
+             15.02.2026 (ADR-0130 §4). Прежние 4 000 / 3 900 / 3 800 / 3 700 давали ≈24 %
+             годовых на теле 200 000 и завышали свод вдвое. Взнос 12 300 и даты сохранены —
+             на них стоят просрочка, взыскание ВЗ-2201 и слой суда; тело = взнос − процент. */
+          { no:1, date:'19.04.2026', total:12300, principal:8157.53,  interest:4142.47 },  // 63 дн. на 200 000; наступил, не погашен → 95 дн.
+          { no:2, date:'19.05.2026', total:12300, principal:10407.86, interest:1892.14 },  // 30 дн. на 191 842,47
+          { no:3, date:'19.06.2026', total:12300, principal:10450.86, interest:1849.14 },  // 31 дн. на 181 434,61
+          { no:4, date:'19.07.2026', total:12300, principal:10613.58, interest:1686.42 }   // 30 дн. на 170 983,75
         ]}]
       })
     ],
@@ -3115,7 +3155,7 @@ function seedDb(){
          otherCredits:[] }];
     const bgClaimStage = b.od >= 90 ? 'Претензия направлена' : '';
     const bgSchedules = (b.life !== 'Проект' && b.od > 0)
-      ? [ seedSchedule('12.01.2026', b.od, b.amount, 9, 24, 4) ] : [];
+      ? [ seedSchedule('12.01.2026', b.od, b.amount, 9, 24, 4, '10.01.2026') ] : [];   // дата освоения фоновых — КР-63
     const bgPayments = (b.pay === 'fx')
       ? [ { num:1, date:'12.06.2026', bindDate:'03.07.2026', amount:174000, currency:'KGS', rate:87,
             tranche:1, reg:'Импорт ЦК', match:'Подтверждён ЦК', frozen:true, dispute:null,
@@ -3242,12 +3282,21 @@ function seedDb(){
     const disbMode = life==='Проект' ? 'none' : (s.disb || 'full');      // Проект не осваивается (Г-5)
     const disbAmt  = disbMode==='full' ? contract : disbMode==='partial' ? Math.round(contract*0.6) : 0;
 
+    /* Пауза начисления стоит ВЫШЕ графика, потому что график её обязан знать: движок
+       не начисляет за позицию, чья дата попала в окно паузы (`periodInterest`), и сид,
+       посчитавший ту позицию как обычную, разъезжается с листом (КР-63, K-C18/K-C19). */
+    const accrualHold = s.hold
+      ? [{ from:'01.06.2026', to:'01.09.2026',
+          reason: s.hold===181 ? 'Приостановление на период рассмотрения реструктуризации' : 'Форс-мажор (стихийное бедствие)',
+          doc:'prikaz-hold-'+num+'.pdf', by:s.c }]
+      : [];
+
     /* ГРАФИК И ПОГАШЕНИЯ вместо засеянного ledger (ADR-0010). Просрочка выводится из
        позиции графика, погашение — из подтверждённых платежей; ни одна величина долга
        больше не задаётся напрямую. */
     let schedules = [], payments = [], paymentsAsOf = null, seedClose = null;
     if (life === 'Закрыт'){
-      schedules = [ seedSchedule(dd0, 400, contract, rate, term, Math.min(term, 6)) ];
+      schedules = [ seedSchedule(dd0, 400, contract, rate, term, Math.min(term, 6), dd0) ];   // освоение в dd0 — КР-63
       const closureReason = s.closure || 'Погашен';
       /* «Погашен» гасится полностью; «Списан» — частично, поэтому у списанного остаётся
          ненулевой остаток, и подгруппа честно говорит «безнадёжные долги» (КР-12).
@@ -3263,7 +3312,7 @@ function seedDb(){
          без просрочки — график не сеем вовсе (движок построит от даты освоения), а
          погашения досчитываются вторым проходом seedSettlePayments: считать их здесь
          нельзя, записей условий у транша ещё нет. */
-      if (s.od > 0){ schedules = [ seedSchedule(dd0, s.od, disbAmt, rate, term, 5) ]; paymentsAsOf = TODAY; }
+      if (s.od > 0){ schedules = [ seedSchedule(dd0, s.od, disbAmt, rate, term, 5, dd0, accrualHold) ]; paymentsAsOf = TODAY; }   // освоение в dd0, пауза известна — КР-63
     }
 
     /* обеспечение: залоги / банковская гарантия (в индексе) / поручительство (вне индекса) */
@@ -3340,11 +3389,6 @@ function seedDb(){
            basis: s.restr ? ('Заявка на реструктуризацию РС-'+num+' на рассмотрении')
                           : 'Решение о приостановлении принудительных мер',
            doc:'relief-181-'+num+'.pdf' }]
-      : [];
-    const accrualHold = s.hold
-      ? [{ from:'01.06.2026', to:'01.09.2026',
-          reason: s.hold===181 ? 'Приостановление на период рассмотрения реструктуризации' : 'Форс-мажор (стихийное бедствие)',
-          doc:'prikaz-hold-'+num+'.pdf', by:s.c }]
       : [];
     /* фактор категории вместо прежней «группы риска» A/B/C/D (ADR-0012) */
     const factors = (s.cat === 'B' || s.cat === 'C' || s.cat === 'D')
@@ -3951,9 +3995,67 @@ function spreadArticles(rows, parts){
   return rows;
 }
 
-function buildSchedule(tranche, fromDate){
-  const c = conditionsAt(tranche, TODAY);        // Р-21: условия транша — производное от записей
-  const P = disbursedSum(tranche) || tranche.amount || 0;        // амортизируем освоенный ОД
+/* ГРАНИЦЫ ОТРЕЗКОВ ВНУТРИ ПЕРИОДА ГРАФИКА (ADR-0130 §2) — даты вступления записей
+   условий, попавшие СТРОГО внутрь периода. Платежей и освоений здесь нет намеренно:
+   график — контракт, он их не знает; их берёт на себя отклонение отрезка (trancheAccrual),
+   и общая сетка расчёта (ADR-0129 §1) от этого не рвётся. */
+function condMarksIn(tranche, from, to){
+  const set = new Set();
+  for (const r of ((tranche && tranche.conditionRecords) || [])){
+    if (!r.effectiveFrom) continue;
+    const d = pd(r.effectiveFrom);
+    if (d > from && d < to) set.add(+d);
+  }
+  return [...set].sort((a, b) => a - b).map(ms => new Date(ms));
+}
+/* НАЧИСЛЕНИЕ ЗА ПЕРИОД ПОЗИЦИИ — ПО ОТРЕЗКАМ УСЛОВИЙ (ADR-0130 §2). Дни до даты вступления
+   считаются по прежнему комплекту, дни после — по новому, внутри одной позиции. Ровно так
+   считает лист «По датам» (ADR-0128 §1), поэтому свод и лист сходятся по построению.
+   Финансовый числитель ('30/…') делится по календарной доле отрезка — как в trancheAccrual:
+   иначе каждый отрезок засчитал бы себе целый период.
+   floor — нижняя граница условий (дата первой записи): левее неё комплекта нет вовсе, и
+   conditionsAt вернул бы пустой (ставка 0). */
+function periodInterestByCond(tranche, prevDate, date, bal, mpp, floor){
+  const marks = [prevDate, ...condMarksIn(tranche, prevDate, date), date];
+  const perDays = Math.max(0, dd(prevDate, date));
+  let sum = 0;
+  for (let k = 0; k < marks.length - 1; k++){
+    const a = marks[k], b = marks[k + 1];
+    const at  = (floor && a < floor) ? floor : a;
+    const cnd = conditionsAt(tranche, fd(at));
+    const days = Math.max(0, dd(a, b));
+    const dOver = dayBasis(cnd.dayMethod, b).numFin
+      ? (perDays > 0 ? 30 * mpp * days / perDays : 0) : days;
+    sum = round2(sum + periodInterest(tranche, cnd, a, b, bal, mpp, dOver));
+  }
+  return round2(sum);
+}
+
+function buildSchedule(tranche, fromDate, opts){
+  /* УСЛОВИЯ — НА НАЧАЛО ВЕРСИИ, А НЕ НА ДАТУ СРЕЗА (КР-62, ADR-0130 §1). Снимок
+     conditionsAt(tranche, TODAY) красил сегодняшним комплектом ВЕСЬ срок: доп. соглашение
+     применялось задним числом (против Г-19 — раньше даты заключения оно не действует), а
+     от решения суда, которое задним числом действовать МОЖЕТ, не отличалось никак.
+     Носитель ретро-правки — версия графика (КВ-26): ДС открывает новую версию с даты
+     вступления, суд/постановление — версию, перестроенную с начала срока. Здесь остаётся
+     правило: конструктивные величины (срок, периодичность, метод, льготы, день платежа,
+     ставка аннуитета) берутся на дату, ОТ КОТОРОЙ строится версия.
+     Нижняя граница — дата первой записи условий: в сиде есть графики, начинающиеся раньше
+     первичного комплекта (K-C14), и conditionsAt отдал бы им пустой комплект — одну
+     позицию и нулевую ставку. Та же нижняя граница, что у отрезков (trancheAccrual). */
+  const firstCr = ((tranche && tranche.conditionRecords) || []).reduce((m, r) =>
+    (r.effectiveFrom && (!m || pd(r.effectiveFrom) < pd(m)) ? r.effectiveFrom : m), null);
+  const floor = firstCr ? pd(firstCr) : null;
+  const at0   = (floor && pd(fromDate) < floor) ? floor : pd(fromDate);
+  const c = conditionsAt(tranche, fd(at0));      // Р-21: условия транша — производное от записей
+  /* БАЗА ВЕРСИИ (ADR-0130 §1). По умолчанию — освоенный ОД: так строится ПЕРВАЯ версия, от
+     даты освоения. Перестроение середины срока обязано вести амортизацию от ОСТАТКА тела, а
+     не от всей выданной суммы, иначе новая версия заново гасит уже погашенное. Остаток
+     считает вызывающий (generateSchedule знает кредит и платежи) и передаёт сюда opts.base:
+     сам транш вывести его не может — погашенное живёт в леджере кредита, и обращение к нему
+     отсюда замкнуло бы buildLedger → trancheScheduleRows → buildSchedule в кольцо. */
+  const P = (opts && opts.base != null) ? opts.base
+          : (disbursedSum(tranche) || tranche.amount || 0);
   const mpp = freqMonths(c.freq);                                // месяцев в периоде платежа
   const termM = Math.max(1, c.term | 0);                         // срок, мес.
   const n = Math.max(1, Math.ceil(termM / mpp));                 // число ПЛАТЕЖЕЙ
@@ -3994,8 +4096,11 @@ function buildSchedule(tranche, fromDate){
        (аннуитет/дифф.), как и раньше: платёж не «плавает» от длины месяца. Расхождение
        между `i`-долей и реальным `accrued` — обычная практика факт/365-аннуитета:
        тело взноса фиксировано формулой, начисленные % — по факту дней.
-       День-база и пауза начисления ушли в periodInterest — общее ядро с прогнозом. */
-    const accrued = (k <= gAccrP) ? 0 : periodInterest(tranche, c, prevDate, date, bal, mpp);
+       День-база и пауза начисления ушли в periodInterest — общее ядро с прогнозом.
+       ADR-0130 §2: период, разрезанный датой вступления записи условий, считается ПО
+       ОТРЕЗКАМ — дни до неё по прежней ставке, дни после по новой. Одна позиция при этом
+       остаётся одной позицией: дробится начисление, а не график. */
+    const accrued = (k <= gAccrP) ? 0 : periodInterestByCond(tranche, prevDate, date, bal, mpp, floor);
     prevDate = date;
     let interest;
     if (k <= gIntP){ deferred = round2(deferred + accrued); interest = 0; }   // начислено, но не платится
@@ -5991,7 +6096,13 @@ function generateSchedule(credit, trancheNo, params){
   if (prev && prev.by && prev.by.kind === 'ДС' && !params.basis)
     return { ok:false, reasons:['График v'+prev.ver+' построен по '+(prev.by.ref||'ДС')
       +' — перестроение требует основания: ретро-запись условия (суд · постановление правительства) либо заявление на досрочное погашение'] };
-  const built = buildSchedule(t, params.from);
+  /* Остаток тела НА ДАТУ НАЧАЛА ВЕРСИИ (ADR-0130 §1): перестроение середины срока
+     амортизирует то, что осталось, а не всю выданную сумму. При построении от даты освоения
+     остаток равен освоенному — поведение первой версии не меняется. Ноль (транш опустошён
+     переносом по ДС) базой не берём: в этом случае график строится на сумме транша, как и
+     раньше, а пустой транш закрывает closeIfEmptied. */
+  const base = trancheBalanceAt(credit, t, params.from);
+  const built = buildSchedule(t, params.from, base > 0.005 ? { base } : null);
   t.schedules = t.schedules || [];
   const ver = t.schedules.reduce((m,s) => Math.max(m, s.ver || 0), 0) + 1;
   /* Три ДАТЫ версии, и путать их нельзя:
@@ -9662,7 +9773,11 @@ if (typeof document !== 'undefined') {
     previewFrom=toDMY(previewFrom);
     const from=(previewFrom!=null?previewFrom:((sel.disbursements[0]&&sel.disbursements[0].date)||''));
     let preview;
-    if(from && sel.disbursements.length){ const rows=CR.buildSchedule(sel, from).rows;
+    if(from && sel.disbursements.length){
+      /* Предпросмотр строится ТОЙ ЖЕ базой, что и сама версия (ADR-0130 §1): остаток тела
+         на дату старта. Иначе окно обещало бы одни суммы, а кнопка записывала другие. */
+      const pBase=CR.trancheBalanceAt(c, sel, from);
+      const rows=CR.buildSchedule(sel, from, pBase>0.005?{base:pBase}:null).rows;
       const show=[rows[0], rows[1], rows[rows.length-1]].filter(Boolean);
       preview=`<div class="section-h" style="margin-top:14px;font-size:15px">Предпросмотр (платёж 1 · 2 · последний)</div>
         ${/* Шапка и порядок колонок — те же, что в таблице «График — позиции» (волна 13.08.2026):

@@ -581,12 +581,15 @@ const pd = CR.pd;
 })();
 
 /* 45. Периодичность работает (КР-13): «ежеквартально» даёт вчетверо меньше позиций,
-   чем «ежемесячно», при том же сроке. Прежний движок всегда строил помесячно. */
+   чем «ежемесячно», при том же сроке. Прежний движок всегда строил помесячно.
+   Версия графика строится ОТ ДАТЫ ВСТУПЛЕНИЯ записи (ADR-0130 §1): доп. соглашение
+   не действует раньше, чем заключено (Г-19), — прежний вариант строил от даты
+   освоения и требовал ретро-применения, которое гейт запрещает. */
 (() => { const db = CR.seedDb(); const c = byId(db,'K-1'); const t = c.tranches[0];
-  const monthly = CR.buildSchedule(t, t.disbursements[0].date).rows.length;
+  const monthly = CR.buildSchedule(t, CR.TODAY).rows.length;
   CR.addConditionRecords(c, { basis:{ kind:'agreement', num:'ДС-FREQ', date:CR.TODAY, ref:'ДС-FREQ', label:'ДС-FREQ' },
     records:[{ param:'freq', value:'ежеквартально', effectiveFrom:CR.TODAY, trancheNos:[t.no], note:'' }] });
-  const quarterly = CR.buildSchedule(t, t.disbursements[0].date).rows.length;
+  const quarterly = CR.buildSchedule(t, CR.TODAY).rows.length;
   ok(45, monthly === 24 && quarterly === 8, `мес=${monthly} кв=${quarterly}`);
 })();
 
@@ -598,15 +601,16 @@ const pd = CR.pd;
 })();
 
 /* 47. graceAccrual и graceInterest — РАЗНЫЕ механизмы (КР-13). Отсрочка начисления
-   обнуляет начисленное; льгота по процентам начисляет, но не включает в платёж. */
+   обнуляет начисленное; льгота по процентам начисляет, но не включает в платёж.
+   Версия строится от даты вступления записи (ADR-0130 §1, Г-19). */
 (() => { const db = CR.seedDb(); const c = byId(db,'K-1'); const t = c.tranches[0];
   const set = (param, value) => CR.addConditionRecords(c, {
     basis:{ kind:'agreement', num:'ДС-'+param, date:CR.TODAY, ref:'ДС-'+param, label:'ДС-'+param },
     records:[{ param, value, effectiveFrom:CR.TODAY, trancheNos:[t.no], note:'' }] });
   set('graceAccrual', 3);
-  const accr = CR.buildSchedule(t, t.disbursements[0].date).rows[0];
+  const accr = CR.buildSchedule(t, CR.TODAY).rows[0];
   set('graceAccrual', 0); set('graceInterest', 3);
-  const intr = CR.buildSchedule(t, t.disbursements[0].date).rows[0];
+  const intr = CR.buildSchedule(t, CR.TODAY).rows[0];
   ok(47, accr.accrued === 0 && accr.interest === 0 && intr.accrued > 0 && intr.interest === 0,
      `отсрочка: начисл=${accr.accrued} платёж=${accr.interest} · льгота: начисл=${intr.accrued} платёж=${intr.interest}`);
 })();
@@ -871,37 +875,47 @@ const pd = CR.pd;
      `К-1: снимок ${d.paymentsAsOf}, расчёт до ${d.ledger.until} → предварительный=${d.calcProvisional}`);
 })();
 
-/* 64. payDay (Шаг 18, Q1): день платежа берётся из условия, а не из даты освоения. */
+/* 64. payDay (Шаг 18, Q1): день платежа берётся из условия, а не из дня старта версии.
+   Версия строится от даты вступления записи (ADR-0130 §1, Г-19), поэтому старт и дата
+   вступления здесь одна дата — 31.12.2026. Без записи день наследуется от старта и
+   зажимается коротким месяцем (28.02), с payDay=15 все позиции садятся на 15-е. */
 (() => { const db = CR.seedDb(); const c = byId(db,'K-1'); const t = c.tranches[0];
+  const FROM = '31.12.2026';
+  const before = CR.buildSchedule(t, FROM).rows.slice(0,3).map(r => r.date);
   CR.addConditionRecords(c, { basis:{ kind:'agreement', num:'ДС-PAYDAY', date:CR.TODAY, ref:'ДС-PAYDAY', label:'ДС-PAYDAY' },
-    records:[{ param:'payDay', value:15, effectiveFrom:CR.TODAY, trancheNos:[t.no], note:'' }] });
-  const rows = CR.buildSchedule(t, t.disbursements[0].date).rows.slice(0,2).map(r => r.date);
-  ok(64, rows.every(d => d.startsWith('15.')), `payDay=15 → ${rows.join(' · ')}`);
+    records:[{ param:'payDay', value:15, effectiveFrom:FROM, trancheNos:[t.no], note:'' }] });
+  const after = CR.buildSchedule(t, FROM).rows.slice(0,3).map(r => r.date);
+  ok(64, before[1] === '28.02.2027' && after.every(d => d.startsWith('15.')),
+     `без записи: ${before.join(' · ')} · payDay=15: ${after.join(' · ')}`);
 })();
 
 /* 65. lastPaymentAnchor (Шаг 18, Q2): «по дате 1-го платежа» считает от даты 1-го
    платежа, а не от даты выдачи — формула программы (renderTab6, R19): «по 1-му
-   платежу» → EDATE(1-й,(n−1)×f), «по дате выдачи» → EDATE(выдача,n×f). Освоение
-   31.01.2026: 1-й платёж клэмпится в феврале на 28-е и оттуда СТЕКАЕТ (компаундится
-   от уже урезанного дня); «по дате выдачи» день каждый раз берётся заново от 31. */
+   платежу» → EDATE(1-й,(n−1)×f), «по дате выдачи» → EDATE(выдача,n×f).
+   Дата вступления записи ОТЛОЖЕНА в будущее (31.10.2026, КВ-27) и от неё же строится
+   версия — доп. соглашение действует вперёд, а не назад (ADR-0130 §1, Г-19). Старт 31-го:
+   1-й платёж клэмпится ноябрём на 30-е и оттуда СТЕКАЕТ (компаундится от уже урезанного
+   дня); «по дате выдачи» день каждый раз берётся заново от 31. */
 (() => { const db = CR.seedDb(); const c = byId(db,'K-1'); const t = c.tranches[0];
-  const rows1 = CR.buildSchedule(t, '31.01.2026').rows.slice(0,2).map(r => r.date);
+  const FROM = '31.10.2026';
+  const rows1 = CR.buildSchedule(t, FROM).rows.slice(0,2).map(r => r.date);
   CR.addConditionRecords(c, { basis:{ kind:'agreement', num:'ДС-ANCHOR', date:CR.TODAY, ref:'ДС-ANCHOR', label:'ДС-ANCHOR' },
-    records:[{ param:'lastPaymentAnchor', value:'по дате 1-го платежа', effectiveFrom:CR.TODAY, trancheNos:[t.no], note:'' }] });
-  const rows2 = CR.buildSchedule(t, '31.01.2026').rows.slice(0,2).map(r => r.date);
-  ok(65, rows1[1] === '31.03.2026' && rows2[1] === '28.03.2026',
+    records:[{ param:'lastPaymentAnchor', value:'по дате 1-го платежа', effectiveFrom:FROM, trancheNos:[t.no], note:'' }] });
+  const rows2 = CR.buildSchedule(t, FROM).rows.slice(0,2).map(r => r.date);
+  ok(65, rows1[1] === '31.12.2026' && rows2[1] === '30.12.2026',
      `по дате выдачи: ${rows1.join(' · ')} · по дате 1-го платежа: ${rows2.join(' · ')}`);
 })();
 
 /* 66. graceIntDistFrom/To (Шаг 18, Q5): вне окна отложенные % копятся, не гасятся;
    внутри окна — распределяются. По умолчанию (0/0) поведение не меняется (проверено
-   существующим #47 — там окно не задавалось). */
+   существующим #47 — там окно не задавалось). Версия строится от даты вступления
+   записи (ADR-0130 §1, Г-19). */
 (() => { const db = CR.seedDb(); const c = byId(db,'K-1'); const t = c.tranches[0];
   const set = (param, value) => CR.addConditionRecords(c, {
     basis:{ kind:'agreement', num:'ДС-'+param, date:CR.TODAY, ref:'ДС-'+param, label:'ДС-'+param },
     records:[{ param, value, effectiveFrom:CR.TODAY, trancheNos:[t.no], note:'' }] });
   set('graceInterest', 3); set('graceIntDistFrom', 10); set('graceIntDistTo', 12);
-  const rows = CR.buildSchedule(t, t.disbursements[0].date).rows;
+  const rows = CR.buildSchedule(t, CR.TODAY).rows;
   const gap = rows[5], win = rows[9];                    // период 6 (вне окна) и период 10 (в окне)
   ok(66, gap.interest === gap.accrued && win.interest > win.accrued,
      `вне окна: начисл=${gap.accrued} платёж=${gap.interest} · в окне: начисл=${win.accrued} платёж=${win.interest}`);
@@ -913,18 +927,67 @@ const pd = CR.pd;
    а '30' — финансовый месяц (фикс. 30 дней), календарь игнорирует. graceMain на весь
    срок держит остаток (bal) постоянным по всем периодам кроме последнего — так
    разница в начислении видна именно от числителя, а не от убывающего тела долга.
-   Шаг 20: dayMethod в PARAMS — меняется записью условия, как rate/term. */
+   Шаг 20: dayMethod в PARAMS — меняется записью условия, как rate/term.
+   Версия строится ПОЗЖЕ даты вступления записей (ADR-0130 §1, Г-19) и с 31.01.2027 —
+   тогда первые два периода это февраль (28 дней) и март (31), и числитель различим;
+   от даты освоения оба периода вышли бы по 31 дню и проверка ничего не ловила бы. */
 (() => { const db = CR.seedDb(); const c = byId(db,'K-1'); const t = c.tranches[0];
   const set = (param, value) => CR.addConditionRecords(c, {
     basis:{ kind:'agreement', num:'ДС-'+param, date:CR.TODAY, ref:'ДС-'+param, label:'ДС-'+param },
     records:[{ param, value, effectiveFrom:CR.TODAY, trancheNos:[t.no], note:'' }] });
   set('graceMain', 999);
-  const from = t.disbursements[0].date;
+  const from = '31.01.2027';
   const rf = CR.buildSchedule(t, from).rows;                  // dayMethod дефолт факт/365 — числитель = дни
   set('dayMethod', '30/365');
   const rn = CR.buildSchedule(t, from).rows;                  // числитель = финансовый месяц (фикс. 30)
   ok(67, rf[0].accrued !== rf[1].accrued && rn[0].accrued === rn[1].accrued,
      `факт: п1=${rf[0].accrued} п2=${rf[1].accrued} (разные дни) · 30-числ: п1=${rn[0].accrued} п2=${rn[1].accrued} (равны)`);
+})();
+
+/* 166. СИЛА ОСНОВАНИЯ (ADR-0130 §1). Ретроспективность — свойство ОСНОВАНИЯ, а не
+   механизма условий: доп. соглашение не может действовать раньше, чем заключено
+   (Г-19 отбивает такую запись целиком), а решение суда и постановление правительства
+   — могут, и тогда прошлые позиции графика ПЕРЕСЧИТЫВАЮТСЯ по новому комплекту
+   (носитель — версия графика, КВ-26). Три стороны в одной проверке: гейт молчит там,
+   где должен ругаться; отбитая запись не оставляет следа в графике; принятая — меняет
+   его на той же дате. Ставка 20 против сеяных 10 даёт ровно двойное начисление. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1'); const t = c.tranches[0];
+  const RETRO = '01.06.2026';                                  // позже договора (12.05.2026, Г-18), раньше TODAY
+  const before = CR.buildSchedule(t, RETRO).rows[0].accrued;
+  const ds = CR.addConditionRecords(c, {
+    basis:{ kind:'agreement', num:'ДС-RETRO', date:CR.TODAY, ref:'ДС-RETRO', label:'ДС-RETRO' },
+    records:[{ param:'rate', value:20, effectiveFrom:RETRO, trancheNos:[t.no], note:'пересчёт процентов' }] });
+  const afterDs = CR.buildSchedule(t, RETRO).rows[0].accrued;
+  const court = CR.addConditionRecords(c, {
+    basis:{ kind:'court', num:'ГД-77', date:CR.TODAY, ref:'ГД-77', label:'Решение суда ГД-77' },
+    records:[{ param:'rate', value:20, effectiveFrom:RETRO, trancheNos:[t.no], note:'пересчёт процентов с ' + RETRO }] });
+  const afterCourt = CR.buildSchedule(t, RETRO).rows[0].accrued;
+  ok(166, ds.ok === false && (ds.reasons || []).some(x => /Г-19/.test(x))
+       && afterDs === before && court.ok === true
+       && Math.abs(afterCourt - before * 2) < 0.02,
+     `ДС отбито=${ds.ok === false} график после ДС ${before}→${afterDs} · суд принят=${court.ok}, после суда ${afterCourt}`);
+})();
+
+/* 167. НАЧИСЛЕНИЕ ИДЁТ ОТ СТАРТА ВЕРСИИ, А НЕ «ОДНИМ ПЕРИОДОМ» (ADR-0130 §4, КР-63).
+   Первая позиция считает ФАКТИЧЕСКИЕ дни от даты, с которой версия действует, — иначе
+   деньги у заёмщика есть, а процентов нет (против ADR-0105). Ловушка ставится днём
+   платежа: старт 31.12.2026 и payDay=15 дают первую позицию 15.01.2027 — 15 дней, ПОЛОВИНУ
+   периода. Движок «один период = один месяц» напечатал бы здесь месячную сумму.
+   Ожидание считается из живых условий (`conditionsAt`), чтобы правка ставки в сиде
+   роняла проверку по существу, а не по зашитому числу. */
+(() => { const db = CR.seedDb(); const c = byId(db,'K-1'); const t = c.tranches[0];
+  const FROM = '31.12.2026';
+  CR.addConditionRecords(c, { basis:{ kind:'agreement', num:'ДС-PD15', date:CR.TODAY, ref:'ДС-PD15', label:'ДС-PD15' },
+    records:[{ param:'payDay', value:15, effectiveFrom:FROM, trancheNos:[t.no], note:'' }] });
+  const rows = CR.buildSchedule(t, FROM).rows;
+  const bal  = CR.disbursedSum(t);
+  const rate = Number(CR.conditionsAt(t, FROM).rate);
+  const days = Math.round((pd(rows[0].date) - pd(FROM)) / 86400000);
+  const want = Math.round(bal * rate / 100 * days / 365 * 100) / 100;
+  const month = Math.round(bal * rate / 100 * 30 / 365 * 100) / 100;
+  ok(167, rows[0].date === '15.01.2027' && days === 15
+       && Math.abs(rows[0].accrued - want) < 0.02 && Math.abs(rows[0].accrued - month) > 1,
+     `п1=${rows[0].date} (${days} дн.) начислено ${rows[0].accrued} · по дням ${want} · «один месяц» дал бы ${month}`);
 })();
 
 /* ============================================================
@@ -2180,16 +2243,22 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
       && !map.has('T1#3') && !map.has('T1#4')
       /* Суммы приостановленного считаются от НАЧИСЛЕННОГО, а начисление идёт на
          фактическое тело (ADR-0105): у K-3 тело просрочено, поэтому проценты позиций
-         под решением выше контрактных 7 900 — заморозка накрывает их целиком. */
-      && Math.abs(d.debt.interest.frozen - 7981.86) < 0.05
-      && Math.abs(d.debt.penalty.frozen - 446.98) < 0.05
+         под решением выше контрактных 6 034,61 (4 142,47 + 1 892,14) — заморозка
+         накрывает их целиком. Числа пересняты 15.08.2026 (КВ-43): график K-3 считался
+         вручную под ≈24 % годовых при ставке 12 и завышал свод вдвое; после пересчёта
+         по календарю от даты освоения заморозка равна сумме отрезков листа за позиции
+         1–2 (4 142,47 + 1 972,60), было 7 981,86. */
+      && Math.abs(d.debt.interest.frozen - 6115.06) < 0.05
+      && Math.abs(d.debt.penalty.frozen - 342.44) < 0.05
       && d.ledger.index.get('T1#1').layerId === 'L-1'
       && d.ledger.index.get('T1#3').layerId === null
       && L12.length === 2 && L12[0].id === 'L-1' && L12[1].id === 'L-2'
       && map12.get('T1#1') === 'L-1' && map12.get('T1#2') === 'L-1'
       && map12.get('T1#3') === 'L-2' && !map12.has('T1#4') && !map12.has('T1#5')
-      && Math.abs(d12.debt.interest.frozen - 19497.78) < 0.05
-      && Math.abs(d12.debt.penalty.frozen - 6084.12) < 0.05
+      /* K-C12 пересчитан той же волной: `seedSchedule` начисляет от даты освоения по
+         календарю, а не плоской помесячной формулой (было 19 497,78 / 6 084,12). */
+      && Math.abs(d12.debt.interest.frozen - 19019.18) < 0.05
+      && Math.abs(d12.debt.penalty.frozen - 6056.44) < 0.05
       && d12.ledger.index.get('T1#1').layerId === 'L-1'
       && d12.ledger.index.get('T1#3').layerId === 'L-2'
       && d12.ledger.index.get('T1#4').layerId === null,
