@@ -1,8 +1,10 @@
-// Headless смоук для mockups/kuratorstvo/kuratorstvo.html (ИУ-1…ИУ-20, ADR-0116…0118 + ADR-0023).
+// Headless смоук для mockups/kuratorstvo/kuratorstvo.html (ИУ-1…ИУ-26, ADR-0116…0118 + ADR-0023).
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, обеих ступеней, фолбэк-лестницы, шва и редакций (волна 1),
-// а также движение закрепления — рождение и снимок, пересчёт, передачи, рука, ретро (волна 2).
+// а также движение закрепления — рождение и снимок, пересчёт, передачи, рука, ретро (волна 2) —
+// и ответственность: реестр отстранений, второй ответ шва с лестницей замещения, период
+// ответственности с вычетом, ведущий куратор заёмщика и гейт увольнения (волна 3).
 // Блоки, которые правят состояние, начинаются с KU.seed() — состояние между ними не течёт.
 //   node scripts/inspect/kuratorstvo-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -145,9 +147,9 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   ok(20, !early.ok && early.empty === true,
     `на дату до рождения объекта — единственный законный пустой ответ: «${early.why}» (ИУ-3)`);
 
-  const a = on('КД-2024/117', 'cur_loan');
+  const a = on('КД-2023/210', 'cur_loan');
   ok(21, a.assigned === a.acting && a.substituted === false && 'acting' in a && 'assigned' in a,
-    `ответов два и они названы: закреплённый ${a.assignedName}, действующий ${a.actingName}; замещение приходит этапом 4 — ИУ-2`);
+    `ответов два и они названы: закреплённый ${a.assignedName}, действующий ${a.actingName} — без отстранения и отсутствия они совпадают (ИУ-2)`);
 
   const feb = on('КД-2024/117', 'cur_loan', '2026-02-28');
   const mar = on('КД-2024/117', 'cur_loan', '2026-03-01');
@@ -262,11 +264,11 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
 
 /* ---------- I. Сторож текста ---------- */
 (() => {
-  const ius = Array.from({ length: 20 }, (_, i) => 'ИУ-' + (i + 1))
+  const ius = Array.from({ length: 26 }, (_, i) => 'ИУ-' + (i + 1))
     .filter(k => !new RegExp(k + '(\\D|$)').test(src));
   const adrs = ['ADR-0116', 'ADR-0117', 'ADR-0118', 'ADR-0023'].filter(a => !src.includes(a));
   ok(38, ius.length === 0 && adrs.length === 0,
-    `в файле названы все 20 инвариантов и 4 решения${ius.length ? ' · нет: ' + ius.join(',') : ''}${adrs.length ? ' · нет: ' + adrs.join(',') : ''}`);
+    `в файле названы все 26 инвариантов и 4 решения${ius.length ? ' · нет: ' + ius.join(',') : ''}${adrs.length ? ' · нет: ' + adrs.join(',') : ''}`);
 
   const engine = m[1].slice(m[1].indexOf('ДВИЖОК'), m[1].indexOf('ШОВ'));
   const leaked = ['cur_loan', 'spec_app', 'reg_exec', 'u_agro', 'u_opk', 'oblast', 'vidzalog', 'Ошская']
@@ -279,9 +281,9 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
 
   const stubBlock = (m[1].match(/const STUBS = \{[\s\S]*?\n\};/) || [''])[0];
   const stubIds = (stubBlock.match(/\n  (\w+): \{/g) || []).map(s => s.trim().replace(':', '').replace(' {', ''));
-  ok(41, stubIds.length === 2 && stubIds.indexOf('show') >= 0 && stubIds.indexOf('off') >= 0 &&
-        /ГРАНИЦЫ ВОЛНЫ 2/.test(src) && ['Пересчёт', 'Передачи'].every(s => src.includes(s)),
-    `экраны волны 2 рабочие, заглушками остались два (${stubIds.join(', ')}) — границы волны объявлены в шапке`);
+  ok(41, stubIds.length === 1 && stubIds[0] === 'show' &&
+        /ГРАНИЦЫ ВОЛНЫ 3/.test(src) && ['Пересчёт', 'Передачи', 'Отстранения'].every(s => src.includes(s)),
+    `экраны волны 3 рабочие, заглушкой остался один (${stubIds.join(', ')}) — границы волны объявлены в шапке`);
 })();
 
 /* ---------- J. Рождение объекта и снимок признаков (P18-R9, ИУ-15) ---------- */
@@ -504,6 +506,190 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   const noFacts = KU.retroFit('ЗЛ-8815', 'cur_coll', '2026-08-11');
   ok(70, noFacts.moved === false && noFacts.blockers.length === 0,
     `объект без закрытых фактов ретро-правке не сопротивляется: ${noFacts.from} как просили`);
+})();
+
+/* ---------- P. Реестр отстранений (P18-R15, ИУ-21, ИУ-22) ---------- */
+(() => {
+  KU.seed();
+  const bans = KU.bansOf(TODAY);
+  const onObj = KU.state.objects.filter(o => o.ban || o.off || o.coi);
+  const inJournal = KU.state.journal.filter(r => /отстран/i.test(r.src || ''));
+  ok(71, bans.length === 2 && bans.every(b => b.live) && onObj.length === 0 && inJournal.length === 0,
+    `отстранение — свой реестр, а не поле объекта и не запись журнала: ${bans.length} живых отрезка, у объектов признака нет, в журнале записей об отстранении нет — ADR-0118, ИУ-21`);
+
+  const st = KU.state;
+  st.role = 'head'; st.headUnit = 'u_agro';
+  const byHead = KU.banAdd('e_asanov', 'ОсОО «Темир»', TODAY, 'заведующий отделом', '02-14/900', TODAY, 'проверка прав');
+  st.role = 'reader';
+  const byReader = KU.banLift('b2', TODAY, 'проверка прав');
+  ok(72, !byHead.ok && /администратор кураторства/.test(byHead.why) &&
+        !byReader.ok && /администратор кураторства/.test(byReader.why),
+    `вводит и снимает только администратор: заведующий — «${byHead.why}»; наблюдатель — «${byReader.why}» (P18-R15)`);
+
+  st.role = 'admin';
+  const noNote = KU.banAdd('e_asanov', 'ОсОО «Темир»', TODAY, 'заведующий отделом', '', '', '');
+  const ahead  = KU.banAdd('e_asanov', 'ОсОО «Темир»', '2026-09-01', 'заведующий отделом', '02-14/901', TODAY, 'вперёд нельзя');
+  const noSuch = KU.banAdd('e_asanov', 'ОсОО «Нет такого»', TODAY, 'заведующий отделом', '02-14/902', TODAY, 'заёмщика нет');
+  ok(73, !noNote.ok && /служебная записка/.test(noNote.why) && !ahead.ok && /вперёд/.test(ahead.why) &&
+        !noSuch.ok && /заёмщика/.test(noSuch.why),
+    `основание обязательно и вперёд отстранение не заводится: «${noNote.why}» · «${ahead.why}»`);
+
+  const before = KU.state.journal.length;
+  const wasAssigned = on('КД-2024/117', 'cur_loan').assigned;
+  const add = KU.banAdd('e_ivanov', 'ОсОО «Ак-Жол»', '2026-08-14', 'служба комплаенса', '02-14/500', '2026-08-13', 'родство с учредителем');
+  const nowAssigned = on('КД-2024/117', 'cur_loan');
+  const twice = KU.banAdd('e_ivanov', 'ОсОО «Ак-Жол»', TODAY, 'служба комплаенса', '02-14/501', TODAY, 'то же самое');
+  ok(74, add.ok && add.hits >= 1 && KU.state.journal.length === before &&
+        nowAssigned.assigned === wasAssigned && nowAssigned.substituted === true &&
+        !twice.ok && /уже действует/.test(twice.why),
+    `заведение журнал не тронуло: записей было ${before}, стало ${KU.state.journal.length}; закреплён по-прежнему ${nowAssigned.assignedName}, работу ведёт ${nowAssigned.actingName}; второе по той же паре — «${twice.why}» (ИУ-21)`);
+})();
+
+(() => {
+  KU.seed();
+  const st = KU.state; st.role = 'admin';
+  const bare = KU.banLift('b2', TODAY, '');
+  const lift = KU.banLift('b2', '2026-08-10', 'записка № 02-14/455 — обстоятельства отпали');
+  const b2 = KU.state.bans.find(b => b.id === 'b2');
+  const inside = on('КД-2025/091', 'cur_loan', '2026-08-05');
+  const after  = on('КД-2025/091', 'cur_loan');
+  ok(75, !bare.ok && /причина снятия обязательна/.test(bare.why) && lift.ok &&
+        KU.state.bans.length === 2 && b2.to === '2026-08-10' && !!b2.lifted.why &&
+        inside.substituted === true && inside.acting === 'e_toktogulova' &&
+        after.substituted === false && after.acting === 'e_bekova',
+    `снятие не стирает: запись осталась в реестре с отрезком по 10.08 и причиной, внутри него работу по-прежнему ведёт ${inside.actingName}, после — ${after.actingName} (ИУ-4, ИУ-24)`);
+
+  const self = KU.state.bans.find(b => b.id === 'b2');
+  const hasSelf = KU.dict.BAN_INIT.some(i => /самоотвод/i.test(i));
+  ok(76, hasSelf && /самоотвод/i.test(self.init) && self.by === 'Администратор кураторства' &&
+        !!self.note.no && !!self.note.d && !!self.note.text,
+    `инициатор пишется отдельно от того, кто ввёл: инициатор «${self.init}», ввёл ${self.by}, основание — записка № ${self.note.no} от ${self.note.d} (ИУ-22)`);
+})();
+
+/* ---------- Q. Два ответа: закреплённый и действующий (ИУ-2, ИУ-21, ИУ-23) ---------- */
+(() => {
+  KU.seed();
+  const a = on('КД-2025/091', 'cur_loan');
+  const rec = KU.journalOf('КД-2025/091', 'cur_loan').slice(-1)[0];
+  ok(77, a.assigned === 'e_bekova' && a.acting === 'e_toktogulova' && a.substituted === true &&
+        rec.to == null && rec.empId === 'e_bekova' && /отстранение/.test(a.actingWhy),
+    `отстранение подменяет исполнителя, закрепление живёт: закреплён ${a.assignedName} (запись открыта), работу ведёт ${a.actingName} — ${a.actingWhy}`);
+
+  const dep = on('КД-2024/117', 'cur_loan');
+  ok(78, dep.substituted === true && dep.acting === 'e_asanov' && /замещающий/.test(dep.actingStep) &&
+        /отпуск/.test(dep.actingWhy),
+    `замещающего называет модуль сотрудников, а не кураторство: ${dep.assignedName} в отпуске — работу ведёт ${dep.actingName}, ступень «${dep.actingStep}» (P12-R12, ИУ-23)`);
+
+  const noDep = on('ТР-2025/017', 'cur_claim');
+  ok(79, noDep.substituted === true && noDep.acting === 'e_abdylda' &&
+        /заведующий отделом/.test(noDep.actingStep) && /замещающий не назван/.test(noDep.actingWhy),
+    `замещающий не назван — работа уходит заведующему отделом: ${noDep.assignedName} → ${noDep.actingName} (ИУ-23)`);
+})();
+
+(() => {
+  KU.seed();
+  const openRecs = KU.state.journal.filter(r => r.to == null).length;
+  const before = KU.substitutions(TODAY).length;
+  const jbefore = KU.state.journal.length;
+  const snap = () => KU.state.journal.filter(r => r.to == null)
+    .map(r => r.objId + '‖' + r.role + '‖' + on(r.objId, r.role).assigned).join(';');
+  const assignedBefore = snap();
+  KU.setHr(false);
+  const subs = KU.substitutions(TODAY);
+  const empty = subs.filter(s => !s.acting);
+  const toAdmin = subs.filter(s => s.acting === KU.admin());
+  ok(80, before === 4 && subs.length === openRecs && empty.length === 0,
+    `молчание контракта трактуется в безопасную сторону: было подмен ${before}, при молчащем модуле сотрудников — ${subs.length} из ${openRecs} закреплений, и ни одного пустого действующего (ИУ-23)`);
+
+  ok(81, toAdmin.length >= 1 && toAdmin.every(s => /администратор/.test(s.actingStep)),
+    `лестница доходит до администратора там, где объект держит сама заведующая: ${toAdmin.map(s => s.objId).join(', ')} → ${nm(KU.admin())} (ИУ-23)`);
+
+  const assignedSame = snap() === assignedBefore;
+  const drift = KU.state.journal.filter(r => r.src === 'подмена').length;
+  KU.setHr(true);
+  ok(82, KU.state.journal.length === jbefore && drift === 0 && assignedSame &&
+        KU.substitutions(TODAY).length === before,
+    `подмена журнала не пишет и закрепления не двигает: записей ${KU.state.journal.length}, записей «подмена» ${drift}; контракт заговорил — подмен снова ${before} (ИУ-21)`);
+})();
+
+/* ---------- R. Период ответственности (ИУ-24) ---------- */
+(() => {
+  KU.seed();
+  const r91 = KU.respOf('КД-2025/091', 'cur_loan', TODAY);
+  ok(83, r91.days === 225 && r91.cutDays === 10 && r91.net === 215 &&
+        r91.cuts.length === 1 && r91.cuts[0].banId === 'b2' && /вычтено отстранением/.test(r91.text),
+    `период ответственности = отрезок журнала минус отстранение: ${r91.days} раб. дн., вычтено ${r91.cutDays}, чистых ${r91.net} (ИУ-24)`);
+
+  const r72 = KU.respOf('КД-2025/072', 'cur_loan', TODAY);
+  ok(84, r72.cutDays === 0 && r72.cuts.length === 0 && /целиком/.test(r72.text),
+    `чужое отстранение период не режет: у ${nm(r72.empId)} по КД-2025/072 ${r72.days} раб. дн. целиком`);
+
+  KU.state.role = 'admin';
+  KU.banLift('b2', '2026-08-10', 'обстоятельства отпали');
+  const cut = KU.respOf('КД-2025/091', 'cur_loan', TODAY);
+  ok(85, cut.cutDays === 6 && cut.net === 219 && cut.cuts[0].to === '2026-08-10',
+    `снятие сокращает вычет, но не отменяет его задним числом: было 10 раб. дн., стало ${cut.cutDays} (03.08—10.08) — ИУ-4`);
+})();
+
+/* ---------- S. Ведущий куратор заёмщика (P18-R16, ИУ-14, ИУ-25) ---------- */
+(() => {
+  KU.seed();
+  const derived = KU.dict.DERIVED.id;
+  const inJournal = KU.state.journal.filter(r => r.role === derived);
+  const stored = KU.state.objects.filter(o => o.lead || o.leadCurator);
+  ok(86, inJournal.length === 0 && stored.length === 0 && typeof KU.lead === 'function',
+    `«${KU.dict.DERIVED.name}» не назначается и нигде не лежит: записей журнала с этой ролью ${inJournal.length}, полей на объектах ${stored.length} — вычисляется (ИУ-14)`);
+
+  const now  = KU.lead('ОсОО «Ак-Жол»', TODAY);
+  const next = KU.lead('ОсОО «Ак-Жол»', '2026-09-01');
+  ok(87, now.ok && now.start === '2026-08-01' && now.objId === 'КД-2025/033' &&
+        now.empId === 'e_bekova' && now.money.kgs === 17900000 && now.money.cur === 'USD' &&
+        next.ok && next.objId === 'КД-2024/117' && next.empId === 'e_ivanov',
+    `наибольший ОД на начало периода, валюта по курсу НБКР: на ${now.start} ведёт ${now.name} (${now.objId}, ${now.money.od} ${now.money.cur} = ${now.money.kgs} сом); погашение 10.08 внутри периода ответа не двигает, с 01.09 ведёт ${next.name} (${next.objId}) — ИУ-25`);
+
+  const tie = KU.lead('ОсОО «Ак-Жол»', '2025-01-01');
+  ok(88, tie.ok && tie.tie === true && tie.objId === 'КД-2024/117' &&
+        /раньше/.test(tie.step),
+    `равенство остатков разрешается ранним договором: ${tie.objId} против КД-2024/205 — ведёт ${tie.name}`);
+
+  const closed = KU.lead('ОсОО «Береке»', TODAY);
+  const appOnly = KU.lead('ОсОО «Мыкты Сервис»', TODAY);
+  const none = KU.lead('ОсОО «Нет такого»', TODAY);
+  ok(89, closed.ok && closed.objId === 'КД-2023/210' && /последнего закрытого/.test(closed.step) &&
+        appOnly.ok && appOnly.objId === 'ЗК-2026/047' && /последней заявки/.test(appOnly.step) &&
+        !none.ok && none.empty === true,
+    `лестница ведущего: нет действующих кредитов — ${closed.name} по последнему закрытому; кредитов нет вовсе — ${appOnly.name} по заявке; объектов нет — законная пустота`);
+})();
+
+/* ---------- T. Гейт увольнения и перевод хвостов (P18-R17, ИУ-26) ---------- */
+(() => {
+  KU.seed();
+  const busy = KU.dismissGate('e_bekova', TODAY);
+  const free = KU.dismissGate('e_asanov', TODAY);
+  ok(90, !busy.ok && busy.items.length === 1 && busy.items[0].objId === 'КД-2025/033' &&
+        busy.tails === 3 && free.ok && free.tails === 2,
+    `гейт держит незакрытая работа, а не число закреплений: ${nm('e_bekova')} — ${busy.items[0].objId} (${busy.items[0].why}) при ${busy.tails} хвостах; ${nm('e_asanov')} проходит при ${free.tails} (ИУ-26)`);
+
+  const adm = KU.dismissGate(KU.admin(), TODAY);
+  ok(91, !adm.ok && adm.admin === true && /вакантным не бывает/.test(adm.why),
+    `администратора кураторства уволить нельзя: «${adm.why}»`);
+})();
+
+(() => {
+  KU.seed();
+  const st = KU.state;
+  st.role = 'reader';
+  const byReader = KU.moveTails('e_bekova', 'увольнение');
+  st.role = 'admin';
+  const bare = KU.moveTails('e_bekova', '');
+  const move = KU.moveTails('e_bekova', 'увольнение работника');
+  const fresh = st.journal.filter(r => r.src === 'перевод');
+  const gate = KU.dismissGate('e_bekova', TODAY);
+  ok(92, !byReader.ok && !bare.ok && /причина обязательна/.test(bare.why) &&
+        move.ok && move.moved === 3 && fresh.length === 3 &&
+        fresh.every(r => r.empId === 'e_toktogulova' && r.from === TODAY) &&
+        gate.ok && gate.tails === 0,
+    `хвосты переводятся одной пачкой и с причиной: ${move.moved} закреплений ушло к ${nm('e_toktogulova')} записями «перевод», после чего гейт пропускает — ${gate.why} (P18-R17)`);
 })();
 
 /* ---- отчёт ---- */
