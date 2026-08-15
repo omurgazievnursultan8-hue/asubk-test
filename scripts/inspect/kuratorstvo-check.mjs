@@ -1,7 +1,8 @@
-// Headless смоук для mockups/kuratorstvo/kuratorstvo.html (ИУ-1…ИУ-14, ADR-0116…0118 + ADR-0023).
+// Headless смоук для mockups/kuratorstvo/kuratorstvo.html (ИУ-1…ИУ-20, ADR-0116…0118 + ADR-0023).
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
-// Проверяется поведение движка, обеих ступеней, фолбэк-лестницы, шва и редакций, а не разметка.
+// Проверяется поведение движка, обеих ступеней, фолбэк-лестницы, шва и редакций (волна 1),
+// а также движение закрепления — рождение и снимок, пересчёт, передачи, рука, ретро (волна 2).
 // Блоки, которые правят состояние, начинаются с KU.seed() — состояние между ними не течёт.
 //   node scripts/inspect/kuratorstvo-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -62,8 +63,8 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
 
   const births = KU.state.journal.filter(r => r.by === 'система');
   const expect = objs.reduce((n, o) => n + KU.rolesOf(o.kind).length, 0);
-  ok(6, births.length === expect && KU.state.journal.length === expect + 2,
-    `рождение наполнило журнал: ${births.length} записей при ${expect} парах «объект и роль», плюс 2 корректировки`);
+  ok(6, births.length === expect && KU.state.journal.length === expect + 3,
+    `рождение наполнило журнал: ${births.length} записей при ${expect} парах «объект и роль», плюс 3 корректировки`);
 
   const half = KU.state.journal.filter(r => !r.from || !r.src || !r.reason);
   const open = KU.state.journal.filter(r => r.to == null);
@@ -146,7 +147,7 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
 
   const a = on('КД-2024/117', 'cur_loan');
   ok(21, a.assigned === a.acting && a.substituted === false && 'acting' in a && 'assigned' in a,
-    `ответов два и они названы: закреплённый ${a.assignedName}, действующий ${a.actingName}; замещения в волне 1 нет — ИУ-2`);
+    `ответов два и они названы: закреплённый ${a.assignedName}, действующий ${a.actingName}; замещение приходит этапом 4 — ИУ-2`);
 
   const feb = on('КД-2024/117', 'cur_loan', '2026-02-28');
   const mar = on('КД-2024/117', 'cur_loan', '2026-03-01');
@@ -206,7 +207,7 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   const holeNow = on('КД-2026/012', 'cur_loan');
   const holeThen = on('КД-2026/012', 'cur_loan', '2026-09-02');
   ok(30, holeNow.fallback === true && holeThen.fallback === true,
-    `правка нижнего правила сама объекты не переставляет — ${holeNow.assignedName} держит их и после 01.09; переставляет пересчёт, отдельным действием (этап 3)`);
+    `правка нижнего правила сама объекты не переставляет — ${holeNow.assignedName} держит их и после 01.09; переставляет пересчёт, отдельным действием (#49–#54)`);
 })();
 
 (() => {
@@ -255,17 +256,17 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
     `верхнее правило заявок: не названа ячейка «${app.holes.join()}», и объект в ней есть`);
 
   const objs = KU.cellObjects(KU.lowRule('u_agro', 'cur_loan'), 'Ошская', TODAY);
-  ok(37, objs.length === 2 && objs.every(o => o.f.oblast === 'Ошская'),
+  ok(37, objs.length === 4 && objs.every(o => o.f.oblast === 'Ошская'),
     `счётчик ячейки и список за ним считаются одним расчётом: ${objs.map(o => o.id).join(', ')}`);
 })();
 
 /* ---------- I. Сторож текста ---------- */
 (() => {
-  const ius = Array.from({ length: 14 }, (_, i) => 'ИУ-' + (i + 1))
+  const ius = Array.from({ length: 20 }, (_, i) => 'ИУ-' + (i + 1))
     .filter(k => !new RegExp(k + '(\\D|$)').test(src));
   const adrs = ['ADR-0116', 'ADR-0117', 'ADR-0118', 'ADR-0023'].filter(a => !src.includes(a));
   ok(38, ius.length === 0 && adrs.length === 0,
-    `в файле названы все 14 инвариантов и 4 решения${ius.length ? ' · нет: ' + ius.join(',') : ''}${adrs.length ? ' · нет: ' + adrs.join(',') : ''}`);
+    `в файле названы все 20 инвариантов и 4 решения${ius.length ? ' · нет: ' + ius.join(',') : ''}${adrs.length ? ' · нет: ' + adrs.join(',') : ''}`);
 
   const engine = m[1].slice(m[1].indexOf('ДВИЖОК'), m[1].indexOf('ШОВ'));
   const leaked = ['cur_loan', 'spec_app', 'reg_exec', 'u_agro', 'u_opk', 'oblast', 'vidzalog', 'Ошская']
@@ -276,9 +277,233 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   const ghost = /ASUBK-kuratorstvo-logika|§\s*\d/.test(src);
   ok(40, !ghost, `ни одной ссылки на утраченную спеку и её параграфы не осталось — КУ-Д9`);
 
-  const stubs = ['Пересчёт', 'Передачи', 'Витрины', 'Отстранения'].filter(s => !src.includes(s));
-  ok(41, stubs.length === 0 && /ГРАНИЦЫ ВОЛНЫ 1/.test(src),
-    `четыре экрана следующих этапов стоят заглушками и границы волны объявлены в шапке`);
+  const stubBlock = (m[1].match(/const STUBS = \{[\s\S]*?\n\};/) || [''])[0];
+  const stubIds = (stubBlock.match(/\n  (\w+): \{/g) || []).map(s => s.trim().replace(':', '').replace(' {', ''));
+  ok(41, stubIds.length === 2 && stubIds.indexOf('show') >= 0 && stubIds.indexOf('off') >= 0 &&
+        /ГРАНИЦЫ ВОЛНЫ 2/.test(src) && ['Пересчёт', 'Передачи'].every(s => src.includes(s)),
+    `экраны волны 2 рабочие, заглушками остались два (${stubIds.join(', ')}) — границы волны объявлены в шапке`);
+})();
+
+/* ---------- J. Рождение объекта и снимок признаков (P18-R9, ИУ-15) ---------- */
+(() => {
+  KU.seed();
+  const noPoint = KU.dict.KINDS.filter(k => !k.birth);
+  const born = KU.state.journal.filter(r => r.by === 'система');
+  const wrongAt = born.filter(r => r.at !== KU.kind(KU.obj(r.objId).kind).birth);
+  ok(42, noPoint.length === 0 && wrongAt.length === 0,
+    `у каждого вида своя точка рождения и запись журнала её называет: ${KU.dict.KINDS.map(k => k.name.toLowerCase() + ' — ' + k.birth).join(' · ')} (P18-R9)`);
+
+  const b = born.find(r => r.objId === 'КД-2025/033' && r.role === 'cur_loan');
+  const o = KU.obj('КД-2025/033');
+  const same = b && Object.keys(o.f).every(k => b.snap[k] === o.f[k]);
+  ok(43, !!b && !!b.snap && same && b.ver.ruleId === 'low_agro_loan',
+    `решение хранит снимок признаков на свою дату: ${b && Object.keys(b.snap).length} признаков в записи от ${b && b.from} — ИУ-15`);
+
+  const wasAssigned = on('КД-2025/091', 'cur_loan').assigned;
+  const chg = KU.setFeature('КД-2025/091', 'oblast', 'Чуйская');
+  const nowAssigned = on('КД-2025/091', 'cur_loan').assigned;
+  const snapKept = KU.journalOf('КД-2025/091', 'cur_loan')[0].snap.oblast;
+  const off = KU.offRule('КД-2025/091', 'cur_loan', TODAY);
+  ok(44, chg.ok && nowAssigned === wasAssigned && snapKept === 'Ошская' && off && off.now === 'e_asanov',
+    `признак поменялся в соседнем модуле — куратор не двинулся (${nm(nowAssigned)}), снимок хранит «${snapKept}», объект встал в «живут вне правила» (правило хочет ${nm(off && off.now)}) — ИУ-15`);
+
+  const badFeat = KU.setFeature('КД-2025/091', 'vidzalog', 'Техника');
+  ok(45, !badFeat.ok && /не заведён/.test(badFeat.why),
+    `признак чужого вида объекту не ставится: «${badFeat.why}»`);
+})();
+
+(() => {
+  KU.seed();
+  const app  = KU.state.journal.find(r => r.objId === 'ЗК-2026/041' && r.role === 'spec_app');
+  const loan = KU.state.journal.find(r => r.objId === 'КД-2025/033' && r.role === 'cur_loan');
+  ok(46, app.at !== loan.at && app.empId !== loan.empId && app.ver.ruleId !== loan.ver.ruleId,
+    `преемства «заявка → кредит» нет: заявка закреплена в точке «${app.at}» (${nm(app.empId)}), кредит — своим правилом в точке «${loan.at}» (${nm(loan.empId)}) — P18-R9`);
+})();
+
+/* ---------- K. Незакрытая работа: критерий рукопожатия (P18-R12, ИУ-17) ---------- */
+(() => {
+  KU.seed();
+  const busy = KU.workOpen('КД-2025/033', TODAY);
+  const free = KU.workOpen('КД-2025/091', TODAY);
+  ok(47, busy.open === true && busy.items.length === 1 && busy.items[0].src === 's_loan' &&
+        free.open === false && free.asked.length === 3 && free.silent.length === 0,
+    `признак не хранится, а спрашивается у источников: у кредита с горящим сроком работа открыта (${busy.items[0].srcName}), у соседнего все ${free.asked.length} источника ответили «нет» — ИУ-17`);
+
+  const silent = KU.workOpen('ЗЛ-8801', TODAY);
+  ok(48, silent.open === true && silent.items.length === 0 && silent.silent.length === 1 &&
+        /молчит/.test(silent.why) && /безопасн/.test(silent.why),
+    `молчание источника «${silent.silent.join(', ')}» трактуется в безопасную сторону и пишется в отчёт: «${silent.why}»`);
+
+  const mine = KU.workOfEmp('e_bekova', TODAY).map(x => x.objId);
+  ok(49, mine.indexOf('КД-2025/033') >= 0 && mine.indexOf('КД-2025/091') < 0,
+    `тот же признак читается по работнику (им же питается гейт увольнения, этап 4): у ${nm('e_bekova')} незакрыто ${mine.join(', ')}`);
+})();
+
+/* ---------- L. Пересчёт: четыре корзины и одна кнопка (P18-R11, ИУ-16) ---------- */
+(() => {
+  KU.seed();
+  const st = KU.state; st.role = 'admin';
+  const g = KU.canRecalc('u_agro', 'cur_loan');
+  const p = KU.recalcPreview('u_agro', 'cur_loan');
+  ok(50, !g.ok && !p.ok && /кнопки пересчёта нет/.test(g.why),
+    `у администратора кураторства кнопки пересчёта нет ни на одном экране: «${g.why}» — ИУ-7, ИУ-16`);
+
+  st.role = 'head'; st.headUnit = 'u_agro';
+  const alien = KU.canRecalc('u_ind', 'cur_loan');
+  st.headUnit = 'u_ind';
+  const noRule = KU.canRecalc('u_ind', 'spec_app');
+  ok(51, !alien.ok && /своё подразделение/.test(alien.why) && !noRule.ok && /правила нет/.test(noRule.why),
+    `пересчитывают только своё и только по существующему правилу: «${alien.why}» · «${noRule.why}»`);
+})();
+
+(() => {
+  KU.seed();
+  const st = KU.state; st.role = 'head'; st.headUnit = 'u_agro';
+  const p = KU.recalcPreview('u_agro', 'cur_loan');
+  const ids = b => p[b].map(r => r.objId).join(',');
+  ok(52, p.ok && ids('quiet') === 'КД-2025/091' && ids('hand') === 'КД-2025/033' &&
+        ids('blocked') === 'КД-2025/072' && ids('manual') === 'КД-2024/205' && p.total === 2,
+    `корзин четыре: тихо ${ids('quiet')} · рукопожатие ${ids('hand')} (${p.hand[0] && p.hand[0].work.items[0].what}) · отстранение ${ids('blocked')} · рука не тронута ${ids('manual')}`);
+
+  const before = KU.state.journal.length;
+  const closed = KU.recalcClose();
+  ok(53, closed.ok && KU.state.preview === null && KU.state.journal.length === before,
+    `предпросмотр закрывается без следа: журнал ${before} записей до и после — фонового пересчёта нет (ИУ-16)`);
+
+  const manualRec = KU.journalOf('КД-2024/205', 'cur_loan').slice(-1)[0];
+  const blockedRec = KU.journalOf('КД-2025/072', 'cur_loan').slice(-1)[0];
+  const res = KU.recalcApply('u_agro', 'cur_loan');
+  const moved = KU.journalOf('КД-2025/091', 'cur_loan').slice(-1)[0];
+  const h = KU.pendingHandoff('КД-2025/033', 'cur_loan');
+  ok(54, res.ok && res.moved === 1 && res.sent === 1 && KU.state.journal.length === before + 1 &&
+        moved.src === 'правило' && moved.ver.no === 2 && moved.at === 'пересчёт' && moved.unitId === 'u_agro' &&
+        KU.journalOf('КД-2024/205', 'cur_loan').slice(-1)[0].id === manualRec.id &&
+        KU.journalOf('КД-2025/072', 'cur_loan').slice(-1)[0].id === blockedRec.id && !!h && h.src === 'пересчёт',
+    `применение: тихо переставлен 1 (запись ссылается на редакцию ${moved.ver.no}, подразделение прежнее), отправлена ${res.sent} передача, ручное и заблокированное не тронуты — ИУ-16`);
+
+  const again = KU.recalcPreview('u_agro', 'cur_loan');
+  ok(55, again.total === 0 && again.pending.length === 1 && again.blocked.length === 1 && again.manual.length === 1,
+    `повторный пересчёт без правки правила — нулевой diff: ${again.total} к переносу, в очереди ${again.pending.length}, заблокировано ${again.blocked.length}, рукой ${again.manual.length}`);
+
+  ok(56, again.silent.length === 0 && p.silent.length === 0,
+    `молчащих источников по кредитам нет — отчёт пересчёта их бы назвал (у предметов залога молчит «Обеспечение», #48)`);
+})();
+
+/* ---------- M. Передача с рукопожатием (P18-R10, ИУ-18) ---------- */
+(() => {
+  KU.seed();
+  const h = KU.pendingHandoff('ЗЛ-8802', 'reg_exec');
+  const a = on('ЗЛ-8802', 'reg_exec');
+  ok(57, !!h && h.state === 'в очереди' && a.assigned === 'e_osmonov' && a.unitId === 'u_nar',
+    `до приёма не изменилось ничего: передача ${h && h.id} в очереди с ${h && h.sent}, объект ведёт ${a.assignedName} в подразделении ${KU.unit(a.unitId).name} — ИУ-18, ИУ-12`);
+
+  const card = KU.handoffCard('h1');
+  ok(58, card.ok && card.suggest === KU.headOf('u_osh') && card.fallback === true &&
+        /ячейка/.test(card.why) && /заведующ/.test(card.why),
+    `карточка приёма подставляет работника правилом принимающей стороны: ячейка пуста → ${nm(card.suggest)}, и сказано почему — «${card.why}»`);
+
+  const st = KU.state; st.role = 'head'; st.headUnit = 'u_agro';
+  const alien = KU.handoffAccept('h1');
+  st.role = 'admin';
+  const adm = KU.handoffAccept('h1');
+  ok(59, !alien.ok && !adm.ok && /принимающая сторона/.test(alien.why),
+    `разбирает передачу только принимающая сторона: чужой заведующий — «${alien.why}»; администратор — тоже нет`);
+})();
+
+(() => {
+  KU.seed();
+  const st = KU.state; st.role = 'head'; st.headUnit = 'u_osh';
+  const before = KU.journalOf('ЗЛ-8802', 'reg_exec').length;
+  const res = KU.handoffAccept('h1');
+  const recs = KU.journalOf('ЗЛ-8802', 'reg_exec');
+  const prev = recs[recs.length - 2], now = recs[recs.length - 1];
+  ok(60, res.ok && recs.length === before + 1 && now.from === TODAY && prev.to < TODAY &&
+        now.unitId === 'u_osh' && now.empId === KU.headOf('u_osh') && now.src === 'фолбэк' &&
+        KU.pendingHandoff('ЗЛ-8802', 'reg_exec') === null,
+    `приём двигает подразделение: с ${now.from} ведёт ${nm(now.empId)} в ${KU.unit(now.unitId).name}, прежнее закрыто ${prev.to} — журнал без разрыва (ADR-0023)`);
+
+  const late = KU.handoffAccept('h1');
+  ok(61, !late.ok && /уже принята/.test(late.why), `принятую передачу второй раз не разобрать: «${late.why}»`);
+})();
+
+(() => {
+  KU.seed();
+  const st = KU.state; st.role = 'head'; st.headUnit = 'u_osh';
+  const bare = KU.handoffAccept('h1', 'e_duishev');
+  const done = KU.handoffAccept('h1', 'e_duishev', 'вёл этот предмет до перемещения');
+  const rec = KU.journalOf('ЗЛ-8802', 'reg_exec').slice(-1)[0];
+  ok(62, !bare.ok && /требует причины/.test(bare.why) && done.ok && done.byHand === true &&
+        rec.src === 'переопределение' && rec.ver === null && /вёл этот предмет/.test(rec.reason),
+    `замена подставленного работника требует причины и меняет источник записи: «${bare.why}» → принято как «${rec.src}»`);
+})();
+
+(() => {
+  KU.seed();
+  const st = KU.state; st.role = 'head'; st.headUnit = 'u_osh';
+  const before = KU.state.journal.length;
+  const bare = KU.handoffReject('h1');
+  const res = KU.handoffReject('h1', 'предмет числится на площадке в Нарыне, акт не переоформлен');
+  const a = on('ЗЛ-8802', 'reg_exec');
+  ok(63, !bare.ok && res.ok && KU.state.journal.length === before &&
+        a.assigned === 'e_osmonov' && a.unitId === 'u_nar' &&
+        KU.state.handoffs.find(x => x.id === 'h1').state === 'отклонена',
+    `отклонение возвращает объект отправителю: журнал не тронут (${before} записей), ведёт прежний ${a.assignedName} в ${KU.unit(a.unitId).name} — ИУ-18`);
+})();
+
+/* ---------- N. Рука, отстранение, возврат к правилу (P18-R13, ИУ-19) ---------- */
+(() => {
+  KU.seed();
+  const st = KU.state; st.role = 'head'; st.headUnit = 'u_agro';
+  const bare  = KU.assignByHand('КД-2025/091', 'cur_loan', 'e_asanov', null, '');
+  const alien = KU.assignByHand('КД-2025/091', 'cur_loan', 'e_duishev', null, 'нужен именно он');
+  ok(64, !bare.ok && /причина обязательна/.test(bare.why) && !alien.ok && /передачей с приёмом/.test(alien.why),
+    `закрепление рукой: без причины нельзя — «${bare.why}»; работник чужого отдела — «${alien.why}» (ИУ-12, ИУ-19)`);
+
+  const banned = KU.assignByHand('КД-2025/072', 'cur_loan', 'e_ivanov', null, 'знает заёмщика');
+  ok(65, !banned.ok && /отстранён/.test(banned.why),
+    `отстранение — отдельное измерение и оно запрещает назначение: «${banned.why}» — ADR-0118`);
+
+  const done = KU.assignByHand('КД-2025/091', 'cur_loan', 'e_asanov', null, 'выравнивание нагрузки');
+  const rec = KU.journalOf('КД-2025/091', 'cur_loan').slice(-1)[0];
+  const p = KU.recalcPreview('u_agro', 'cur_loan');
+  ok(66, done.ok && rec.src === 'рука' && rec.ver === null &&
+        p.manual.map(r => r.objId).indexOf('КД-2025/091') >= 0 && p.quiet.length === 0,
+    `рука держится вне правила: запись «${rec.src}» без редакции, и пересчёт её больше не трогает — она в корзине ручных (ИУ-19)`);
+})();
+
+(() => {
+  KU.seed();
+  const st = KU.state; st.role = 'head'; st.headUnit = 'u_agro';
+  const back = KU.backToRule('КД-2024/205', 'cur_loan');
+  const recs = KU.journalOf('КД-2024/205', 'cur_loan');
+  const last = recs[recs.length - 1];
+  const twice = KU.backToRule('КД-2024/205', 'cur_loan');
+  ok(67, back.ok && last.empId === 'e_bekova' && last.src === 'правило' && recs.length === 3 &&
+        !twice.ok && /и так стоит по правилу/.test(twice.why),
+    `возврат к правилу — новая запись, а не откат: ${recs.length} записи по паре, сейчас ${nm(last.empId)} по правилу; повторно — «${twice.why}»`);
+})();
+
+/* ---------- O. Ретро-правка и запертый период (P18-R14, ИУ-20) ---------- */
+(() => {
+  KU.seed();
+  const free = KU.retroFit('КД-2025/091', 'cur_loan', '2026-07-01');
+  const fit  = KU.retroFit('КД-2024/117', 'cur_loan', '2026-05-01');
+  ok(68, free.moved === false && free.from === '2026-07-01' &&
+        fit.moved === true && fit.from === '2026-06-16' && fit.last.d === '2026-06-15',
+    `задним числом можно, пока период не заперт: свободный — с 01.07 как просили; запертый — «${fit.note}»`);
+
+  const st = KU.state; st.role = 'head'; st.headUnit = 'u_agro';
+  const res = KU.assignByHand('КД-2024/117', 'cur_loan', 'e_bekova', '2026-05-01', 'передача портфеля');
+  const inside = on('КД-2024/117', 'cur_loan', '2026-06-01');
+  const now = on('КД-2024/117', 'cur_loan');
+  const rec = KU.journalOf('КД-2024/117', 'cur_loan').slice(-1)[0];
+  ok(69, res.ok && res.from === '2026-06-16' && res.moved === true &&
+        inside.assigned === 'e_ivanov' && now.assigned === 'e_bekova' && rec.retro === true,
+    `дата вступления поджата к первому свободному дню: внутри запертого периода ответ прежний (${inside.assignedName}), с ${rec.from} — ${now.assignedName} (ИУ-20)`);
+
+  const noFacts = KU.retroFit('ЗЛ-8815', 'cur_coll', '2026-08-11');
+  ok(70, noFacts.moved === false && noFacts.blockers.length === 0,
+    `объект без закрытых фактов ретро-правке не сопротивляется: ${noFacts.from} как просили`);
 })();
 
 /* ---- отчёт ---- */
