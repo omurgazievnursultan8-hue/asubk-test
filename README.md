@@ -11,7 +11,11 @@ project stands, what's left to do, and what it must do.**
 |---|---|---|
 | [STATUS.md](STATUS.md) | Snapshot of the current state — what's built, working, in progress, blocked | Anything ships, breaks, or changes status |
 | [TODO.md](TODO.md) | Prioritized backlog of work to be done | New work appears or priorities shift |
-| [requirements/](requirements/) | What the module must do — features, business rules, specs | Scope is defined or changes |
+| [requirements/](requirements/) | What the module must do — features, business rules, specs; `tz/` — ТЗ по подсистемам, `legacy/` — обследование старой системы | Scope is defined or changes |
+| [CONTEXT.md](CONTEXT.md) | Словарь проекта: термины по модулям, у каждого — `_Avoid_` со словами, которые не употребляем | Термин заведён, переименован или уточнён |
+| [docs/adr/](docs/adr/) | Необратимые решения по одному файлу, сквозная нумерация; правила нумерации и карта занятых диапазонов — [docs/adr/README.md](docs/adr/README.md) | Принята развилка, которую дорого переигрывать |
+| [docs/tasks/](docs/tasks/) | Постановки разработчикам: HTML с JSON-островом по [FORMAT.md](docs/tasks/FORMAT.md), проверяются `scripts/check_tasks.py`. Для этих файлов **HTML — источник истины**, `TODO.md` держит только реестровую строку | Модуль готов к передаче или переиздаётся |
+| [mockups/](mockups/) | Самодостаточные HTML-прототипы по модулям (дизайн-система ASUBK gov-blue). У живых макетов рядом лежит `ASUBK-status-razrabotki.md` — задачи по макету, не бэклог разработки | Прототип заведён или переписан |
 | [guides/](guides/) | How-to guides for using/administering the app (e.g. [access-control.md](guides/access-control.md)) | A reusable how-to is worth writing down |
 | [notes/](notes/) | Meeting notes, open questions, scratch | After meetings / as questions arise |
 | [references.md](references.md) | Links to the repo, environments, dashboards, docs, people | A new external resource matters |
