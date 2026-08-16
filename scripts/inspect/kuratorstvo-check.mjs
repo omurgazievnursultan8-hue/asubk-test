@@ -36,7 +36,8 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   KU.seed();
   const { KINDS, ROLES, DERIVED, ACCESS } = KU.dict;
   const badKind = ROLES.filter(r => !KU.kind(r.kind));
-  ok(1, KINDS.length === 4 && ROLES.length === 5 && badKind.length === 0 &&
+  /* Ролей в макете четыре: «Региональный исполнитель» снят 16.08.2026 (в каноне их пять). */
+  ok(1, KINDS.length === 4 && ROLES.length === 4 && badKind.length === 0 &&
        !ROLES.some(r => r.id === DERIVED.id),
     `видов ${KINDS.length}, назначаемых ролей ${ROLES.length}, каждая при своём виде; «${DERIVED.name}» в списке назначаемых нет — ИУ-13, ИУ-14`);
 
@@ -48,7 +49,7 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   const tops = KU.state.rules.filter(r => r.scope === 'top');
   const perRole = ROLES.every(r => tops.filter(t => t.role === r.id).length === 1);
   const keys = tops.map(t => KU.verAt(t, TODAY).key.join('+'));
-  ok(3, tops.length === 5 && perRole && new Set(keys).size >= 4,
+  ok(3, tops.length === ROLES.length && perRole && new Set(keys).size >= 3,
     `правил холдинга ${tops.length} — по одному на роль, ключи разные (${keys.join(' · ')}) — ИУ-6`);
 
   ok(4, ACCESS.length === 4 && !!KU.admin() && KU.dict.EMP.filter(e => e.admin).length === 1,
@@ -88,10 +89,15 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   ok(9, a.ok && a.assigned === 'e_ivanov' && d.unitId === 'u_agro' && a.src === 'правило',
     `обе ступени сработали: ${KU.unit(d.unitId).name} → ${a.assignedName}`);
 
+  /* Ролей у объекта ровно столько, сколько назначаемых ролей у его вида, и все они
+     этого вида — чужая роль на объект не садится (ИУ-13). До 16.08.2026 проверка ловила
+     две роли предмета залога; после снятия «Регионального исполнителя» роль осталась одна. */
+  const collRoles = KU.dict.ROLES.filter(r => r.kind === 'coll');
   const two = KU.curatorsOfObject('ЗЛ-8801', TODAY);
-  const units = two.map(x => x.unitId);
-  ok(10, two.length === 2 && units[0] !== units[1] && two[0].assigned !== two[1].assigned,
-    `у предмета залога две роли и два подразделения: ${two.map(x => x.roleName + ' → ' + KU.unit(x.unitId).name + ' · ' + x.assignedName).join(' | ')} — ИУ-13`);
+  ok(10, two.length === collRoles.length && two.every(x => KU.role(x.role).kind === 'coll') &&
+        two.every(x => x.ok),
+    `у предмета залога ролей ${two.length} — ровно по числу ролей его вида: ${
+      two.map(x => x.roleName + ' → ' + KU.unit(x.unitId).name + ' · ' + x.assignedName).join(' | ')} — ИУ-13`);
 
   const c17 = on('ТР-2025/017', 'cur_claim'), c18 = on('ТР-2025/018', 'cur_claim');
   ok(11, c17.assigned !== c18.assigned && KU.obj('ТР-2025/017').of === KU.obj('ТР-2025/018').of,
@@ -240,9 +246,12 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   KU.setEff(rule.id, '2026-09-01');
   const saved = KU.saveKey(rule.id);
   const nv = KU.verAt(rule, '2026-09-01');
-  ok(34, saved.ok && nv.key.join('+') === 'oblast+forma' && KU.space(nv.key).length === 10 &&
-        Object.keys(nv.cells).length === 0 && saved.holes === 10,
-    `смена ключа — тоже редакция: ячеек ${KU.space(nv.key).length}, вслепую не перенесено ни одной, дыр ${saved.holes} (их держит заведующий)`);
+  /* Имя переносится там, где ответ доказуемо не меняется: у «Ошской» был один куратор —
+     значит он же ведёт и «Ошская | ЮЛ», и «Ошская | ФЛ». «Таласская» имени не имела — дыры. */
+  ok(34, saved.ok && nv.key.join('+') === 'oblast+forma' && KU.space(nv).length === 10 &&
+        Object.keys(nv.cells).length === 8 && saved.holes === 2 &&
+        nv.cells['Ошская | Физическое лицо'] === 'e_ivanov' && !nv.cells['Таласская | Юридическое лицо'],
+    `смена ключа — тоже редакция: ячеек ${KU.space(nv).length}, имя перенесено в ${saved.kept} (ответ не меняется), дыр ${saved.holes} — там, где имени не было`);
 })();
 
 /* ---------- H. Покрытие правил ---------- */
@@ -271,7 +280,7 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
     `в файле названы все 26 инвариантов и 4 решения${ius.length ? ' · нет: ' + ius.join(',') : ''}${adrs.length ? ' · нет: ' + adrs.join(',') : ''}`);
 
   const engine = m[1].slice(m[1].indexOf('ДВИЖОК'), m[1].indexOf('ШОВ'));
-  const leaked = ['cur_loan', 'spec_app', 'reg_exec', 'u_agro', 'u_opk', 'oblast', 'vidzalog', 'Ошская']
+  const leaked = ['cur_loan', 'spec_app', 'cur_claim', 'u_agro', 'u_opk', 'oblast', 'vidzalog', 'Ошская']
     .filter(x => engine.includes(x));
   ok(39, leaked.length === 0,
     `в движке нет ни одной роли, ни подразделения, ни признака по имени — всё приходит справочниками${leaked.length ? ' · утекло: ' + leaked.join(',') : ''}`);
@@ -394,9 +403,9 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
 /* ---------- M. Передача с рукопожатием (P18-R10, ИУ-18) ---------- */
 (() => {
   KU.seed();
-  const h = KU.pendingHandoff('ЗЛ-8802', 'reg_exec');
-  const a = on('ЗЛ-8802', 'reg_exec');
-  ok(57, !!h && h.state === 'в очереди' && a.assigned === 'e_osmonov' && a.unitId === 'u_nar',
+  const h = KU.pendingHandoff('ЗЛ-8802', 'cur_coll');
+  const a = on('ЗЛ-8802', 'cur_coll');
+  ok(57, !!h && h.state === 'в очереди' && a.assigned === 'e_mamatov' && a.unitId === 'u_ozo',
     `до приёма не изменилось ничего: передача ${h && h.id} в очереди с ${h && h.sent}, объект ведёт ${a.assignedName} в подразделении ${KU.unit(a.unitId).name} — ИУ-18, ИУ-12`);
 
   const card = KU.handoffCard('h1');
@@ -415,13 +424,13 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
 (() => {
   KU.seed();
   const st = KU.state; st.role = 'head'; st.headUnit = 'u_osh';
-  const before = KU.journalOf('ЗЛ-8802', 'reg_exec').length;
+  const before = KU.journalOf('ЗЛ-8802', 'cur_coll').length;
   const res = KU.handoffAccept('h1');
-  const recs = KU.journalOf('ЗЛ-8802', 'reg_exec');
+  const recs = KU.journalOf('ЗЛ-8802', 'cur_coll');
   const prev = recs[recs.length - 2], now = recs[recs.length - 1];
   ok(60, res.ok && recs.length === before + 1 && now.from === TODAY && prev.to < TODAY &&
         now.unitId === 'u_osh' && now.empId === KU.headOf('u_osh') && now.src === 'фолбэк' &&
-        KU.pendingHandoff('ЗЛ-8802', 'reg_exec') === null,
+        KU.pendingHandoff('ЗЛ-8802', 'cur_coll') === null,
     `приём двигает подразделение: с ${now.from} ведёт ${nm(now.empId)} в ${KU.unit(now.unitId).name}, прежнее закрыто ${prev.to} — журнал без разрыва (ADR-0023)`);
 
   const late = KU.handoffAccept('h1');
@@ -433,7 +442,7 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   const st = KU.state; st.role = 'head'; st.headUnit = 'u_osh';
   const bare = KU.handoffAccept('h1', 'e_duishev');
   const done = KU.handoffAccept('h1', 'e_duishev', 'вёл этот предмет до перемещения');
-  const rec = KU.journalOf('ЗЛ-8802', 'reg_exec').slice(-1)[0];
+  const rec = KU.journalOf('ЗЛ-8802', 'cur_coll').slice(-1)[0];
   ok(62, !bare.ok && /требует причины/.test(bare.why) && done.ok && done.byHand === true &&
         rec.src === 'переопределение' && rec.ver === null && /вёл этот предмет/.test(rec.reason),
     `замена подставленного работника требует причины и меняет источник записи: «${bare.why}» → принято как «${rec.src}»`);
@@ -445,9 +454,9 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   const before = KU.state.journal.length;
   const bare = KU.handoffReject('h1');
   const res = KU.handoffReject('h1', 'предмет числится на площадке в Нарыне, акт не переоформлен');
-  const a = on('ЗЛ-8802', 'reg_exec');
+  const a = on('ЗЛ-8802', 'cur_coll');
   ok(63, !bare.ok && res.ok && KU.state.journal.length === before &&
-        a.assigned === 'e_osmonov' && a.unitId === 'u_nar' &&
+        a.assigned === 'e_mamatov' && a.unitId === 'u_ozo' &&
         KU.state.handoffs.find(x => x.id === 'h1').state === 'отклонена',
     `отклонение возвращает объект отправителю: журнал не тронут (${before} записей), ведёт прежний ${a.assignedName} в ${KU.unit(a.unitId).name} — ИУ-18`);
 })();
@@ -690,6 +699,48 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
         fresh.every(r => r.empId === 'e_toktogulova' && r.from === TODAY) &&
         gate.ok && gate.tails === 0,
     `хвосты переводятся одной пачкой и с причиной: ${move.moved} закреплений ушло к ${nm('e_toktogulova')} записями «перевод», после чего гейт пропускает — ${gate.why} (P18-R17)`);
+})();
+
+/* ---------- P. Группировка значений ключа (P18-R5) ---------- */
+(() => {
+  KU.seed();
+  const st = KU.state; st.role = 'head'; st.headUnit = 'u_agro';
+  const rule = KU.lowRule('u_agro', 'cur_loan');
+  KU.keyDraftInit(rule.id);
+  ['Ошская', 'Джалал-Абадская'].forEach(v => KU.groupSet(rule.id, 'oblast', v, 'Юг'));
+  ['Чуйская', 'Нарынская'].forEach(v => KU.groupSet(rule.id, 'oblast', v, 'Север'));
+  KU.setEff(rule.id, '2026-09-01');
+  const saved = KU.saveKey(rule.id);
+  const nv = KU.verAt(rule, '2026-09-01');
+  const cov = KU.coverage(rule, '2026-09-01');
+  /* «Юг» = Ошская + Джалал-Абадская, обе вели к одному человеку — имя переносится.
+     «Север» = Чуйская + Нарынская, кураторы разные — за заведующего никто не выбирает. */
+  ok(93, saved.ok && cov.cells.join(' · ') === 'Юг · Север · Таласская' &&
+        nv.cells['Юг'] === 'e_ivanov' && !nv.cells['Север'] && saved.kept === 1,
+    `группировка режет пространство: ячеек ${cov.cells.length} вместо ${KU.dom('oblast').length} — ` +
+    `«Юг» унаследовал ${nm(nv.cells['Юг'])} (ответ один), «Север» пуст (ответов было два)`);
+
+  KU.seed(); KU.state.role = 'head'; KU.state.headUnit = 'u_agro';
+  const r2 = KU.lowRule('u_agro', 'cur_loan');
+  KU.keyDraftInit(r2.id);
+  ['Ошская', 'Джалал-Абадская'].forEach(v => KU.groupSet(r2.id, 'oblast', v, 'Юг'));
+  ['Чуйская', 'Нарынская'].forEach(v => KU.groupSet(r2.id, 'oblast', v, 'Север'));
+  KU.groupSet(r2.id, 'oblast', 'Таласская', '');          // ничья — уходит в «Прочие»
+  KU.setEff(r2.id, '2026-09-01');
+  const s2 = KU.saveKey(r2.id);
+  const c2 = KU.coverage(r2, '2026-09-01');
+  const other = KU.cellObjects(r2, KU.OTHER, '2026-09-01');
+  ok(94, s2.ok && s2.loose === 1 && c2.cells.indexOf(KU.OTHER) >= 0 &&
+        other.map(o => o.id).join() === 'КД-2026/012' && c2.holesHot.indexOf(KU.OTHER) >= 0,
+    `неразложенное значение не теряется: «${KU.OTHER}» — обычная ячейка, в ней ${other.length} объект ` +
+    `(${other.map(o => o.id).join(', ')}), пустая она видна фолбэком (ИУ-9)`);
+
+  const wasNow  = KU.wantIn('u_agro', 'cur_loan', 'КД-2024/205', TODAY);
+  const wasThen = KU.wantIn('u_agro', 'cur_loan', 'КД-2024/205', '2026-09-01');
+  ok(95, wasNow.cell === 'Нарынская' && wasNow.empId === 'e_bekova' && wasNow.fallback === false &&
+        wasThen.cell === 'Север' && wasThen.fallback === true && wasThen.empId === KU.headOf('u_agro'),
+    `разбиение живёт в редакции, а не в справочнике: на ${TODAY} ячейка «${wasNow.cell}» → ${nm(wasNow.empId)}, ` +
+    `на 2026-09-01 та же область читается ячейкой «${wasThen.cell}» — история не переписывается (ИУ-10, ИУ-11)`);
 })();
 
 /* ---- отчёт ---- */
