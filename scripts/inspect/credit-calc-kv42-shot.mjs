@@ -1,7 +1,11 @@
-// Снимки секции «Детальный расчёт» после КВ-42 (ADR-0129): лист «По датам» узкий и со
-// всеми группами колонок + реестр «По позициям». Кредит K-3 — просрочка, решение суда,
-// приостановленная пеня: на нём видно всё сразу.
+// Снимки секции «Детальный расчёт» (ось КВ-42/ADR-0129, вид один с КВ-64): лист по
+// критическим датам со свёрнутыми и с развёрнутыми нарастающими. Кредит K-3 — просрочка,
+// решение суда, приостановленная пеня: на нём видно всё сразу.
 //   node scripts/inspect/credit-calc-kv42-shot.mjs
+// ДВА СНЯТЫХ API, на которые скрипт опирался: CR.toggleCalcCol (чипы групп колонок,
+// сняты КВ-47 — шапка называет колонки сама) и CR.setCalcView (второй вид «По позициям»,
+// снят КВ-64 — реестр дублировал «График»). Раскрытие теперь одно и своё на блок:
+// CR.toggleCalcRun('od'|'int').
 import { chromium } from 'playwright-core';
 import { pathToFileURL } from 'url';
 import { resolve } from 'path';
@@ -32,16 +36,11 @@ const shot = async (name) => {
   await page.waitForTimeout(150);
   await page.screenshot({ path: `${OUT}/${name}.png` });
 };
-const GROUPS = ['state','pen','paid','run'];
-
 await shot('01-dates-narrow');
-await page.evaluate(g => g.forEach(k => CR.toggleCalcCol(k)), GROUPS);
+await page.evaluate(() => { CR.toggleCalcRun('od'); CR.toggleCalcRun('int'); });
 await page.waitForTimeout(200);
-await shot('02-dates-wide');
-await page.evaluate(g => { g.forEach(k => CR.toggleCalcCol(k)); CR.setCalcView('positions'); }, GROUPS);
-await page.waitForTimeout(200);
-await shot('03-positions');
-await page.evaluate(() => CR.setCalcView('dates'));
+await shot('02-dates-run');
+await page.evaluate(() => { CR.toggleCalcRun('od'); CR.toggleCalcRun('int'); });
 
 console.log('снимки в', OUT, '· ERRORS:', errs.length ? errs.join(' | ') : 'нет');
 await ctx.close();
