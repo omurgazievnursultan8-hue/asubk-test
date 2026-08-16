@@ -657,12 +657,23 @@ const pd = CR.pd;
 })();
 
 /* 51. Подгруппа — зеркало заёмщика, а не вывод кредита (КР-12/КР-27). Списанный кредит
-   с ненулевым остатком не может быть подписан «Погашен»: прежний payGroupOf возвращал
-   '5 · Погашен' на любом «Закрыт». */
+   не может быть подписан «Погашен»: прежний payGroupOf возвращал '5 · Погашен' на любом
+   «Закрыт». С КВ-63 отпал и последний довод в пользу вывода из чисел — решение списывает
+   ВЕСЬ долг, и остаток кредита ноль по всем шести статьям. Именно поэтому проверка
+   ужесточена: подгруппа обязана остаться «4 · безнадёжные» при НУЛЕВОМ долге — за баланс
+   долг ушёл с баланса кредита, но не с учёта заёмщика, и вывести её из d.debtBalance
+   теперь нельзя ни при каком желании. */
 (() => { const db = CR.seedDb(); const c = byId(db,'K-6b'); const d = CR.derive(c);
   const noPayGroup = typeof CR.derive(c).payGroup === 'undefined';
-  ok(51, d.debtBalance > 0 && d.subgroup === '4' && /безнадеж/i.test(d.subgroupLabel||'') && noPayGroup,
-     `остаток=${d.debtBalance} подгруппа=${d.subgroup} «${d.subgroupLabel}»`);
+  const W = d.debt.written || {};
+  ok(51, d.debt.principal.bal === 0 && d.debt.interest.bal === 0 && d.debt.penalty.bal === 0
+         && d.debtBalance === 0 && W.total > 0.005
+         && W.principal > 0.005 && W.interest > 0.005 && W.penalty > 0.005
+         && d.subgroup === '4' && /безнадеж/i.test(d.subgroupLabel||'') && noPayGroup,
+     `остатки тело=${d.debt.principal.bal} %=${d.debt.interest.bal} пеня=${d.debt.penalty.bal}`
+     + ` долг всего=${d.debtBalance} · списано ${W.total}`
+     + ` (тело ${W.principal} % ${W.interest} пеня ${W.penalty})`
+     + ` подгруппа=${d.subgroup} «${d.subgroupLabel}»`);
 })();
 
 /* 52. Пятая статья не влияет на Г-14 (ADR-0004/0008): расходы по обращению взыскания
@@ -1615,15 +1626,32 @@ const pd = CR.pd;
         if (dev > 0.005 && r.penBaseP > 0.005) both++;
       }
     }
-    let minus = 0;
+    /* МИНУС В ЛИСТЕ БЫВАЕТ ДВУХ РОДОВ (КВ-60): опережение графика в «Просрочено» тела
+       (КВ-50) и переплата процентов в «Остатке» процентов — погашено больше начисленного.
+       Считать минусы штукой против модели больше нельзя: с КВ-60 ноль печатается нулём, а
+       не прочерком, и сколько минусов попало в РАЗМЕТКУ, зависит от того, какие годы
+       развёрнуты. Поэтому проверяется не число, а МЕСТО: каждый минус обязан стоять в
+       колонке, где он что-то значит, — и хотя бы один в листе быть обязан. */
+    const txt = t => t.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
+    const allowed = new Set(['Просрочено', 'Остаток']);
+    let minus = 0, misplaced = [];
     for (const c of CR2.db.credits){
       CR2.openDetail(c.id); CR2.setCalcView('dates');
       const tbl = tbls(CR2.renderTab('Расчёты', c)).find(t => /class="cgrid tiered"/.test(t));
       if (!tbl) continue;
-      minus += (tbl.match(/>−[^<]{1,24}</g) || []).length;   // разделитель тысяч — неразрывный пробел
+      const hrows = (tbl.match(/<thead>[\s\S]*?<\/thead>/) || [''])[0].match(/<tr[\s\S]*?<\/tr>/g) || [];
+      const lab = ((hrows[1] || '').match(/<th[^>]*>[\s\S]*?<\/th>/g) || []).map(txt);
+      const body = (tbl.match(/<tbody>[\s\S]*?<\/tbody>/) || [''])[0];
+      for (const tr of (body.match(/<tr[\s\S]*?<\/tr>/g) || [])){
+        const cells = (tr.match(/<td[^>]*>[\s\S]*?<\/td>/g) || []).slice(1);
+        if (cells.length !== lab.length) continue;          // строка-заглушка «нет данных»
+        cells.forEach((td, i) => { if (!/−/.test(txt(td))) return;
+          minus++; if (!allowed.has(lab[i])) misplaced.push(`${c.id}/${lab[i]}`); });
+      }
     }
-    ok(171, ahead > 0 && both === 0 && minus === ahead,
+    ok(171, ahead > 0 && both === 0 && minus > 0 && !misplaced.length,
        `строк с опережением графика ${ahead} · минусов в разметке ${minus}`
+       + ` · не в своей колонке ${misplaced.length}${misplaced.length ? ' (' + misplaced.slice(0,3).join(', ') + ')' : ''}`
        + ` · строк с просрочкой и опережением сразу ${both}`);
   }
 
@@ -1656,8 +1684,12 @@ const pd = CR.pd;
      полем `closure.reason='Списан'`: ни даты в расчёте, ни суммы, ни транша, и лист о нём
      молчал. Теперь у транша есть `writeOffs[]`, у листа — пара колонок. Стережём три вещи,
      каждая из которых ломается молча:
-       · у каждого «Списан» записи есть, и их сумма равна ТЕЛУ ПО СВОДУ — списание не
-         гасит долг (он уходит за баланс), поэтому «Остаток» рядом обязан остаться прежним;
+       · у каждого «Списан» записи есть, их суммы равны статьям свода, и ДОЛГ ПОСЛЕ НИХ
+         НОЛЬ — с КВ-62 («да гасит») списание снимает тело с баланса, а с КВ-63 («решение
+         списывает весь долг», владелец 16.08.2026) — и остальные пять статей: остаток,
+         просрочка и d.debtBalance обязаны упасть, а не остаться прежними. Сторожим обе
+         половины: величина названа отдельной строкой свода И вычтена из остатка. Одной
+         первой мало — правило КР-12 её тоже давало, не гася ничего;
        · строка в дату решения в листе ЕСТЬ — а она приходится ровно на срез (срез
          закрытого кредита — дата закрытия), и до правки такие строки пропадали;
        · перенос по ДС в «Списано» НЕ попадает: у K-7 тело ушло из транша №1 и пришло в
@@ -1674,8 +1706,36 @@ const pd = CR.pd;
       const recs = (c.tranches || []).flatMap(t => t.writeOffs || []);
       const sum  = r2(recs.reduce((a, w) => a + (w.amount || 0), 0));
       if (!recs.length){ woBad.push(`${c.id}: записей о списании нет`); continue; }
-      if (Math.abs(sum - d.debt.principal.bal) > 0.02)
-        woBad.push(`${c.id}: списано ${sum} против тела по своду ${d.debt.principal.bal}`);
+      if (Math.abs(sum - d.debt.principal.written) > 0.02)
+        woBad.push(`${c.id}: списано ${sum} против статьи свода ${d.debt.principal.written}`);
+      if (d.debt.principal.bal > 0.005)
+        woBad.push(`${c.id}: тело ${d.debt.principal.bal} после полного списания ${sum}`);
+      if (d.debt.principal.overdue > 0.005)
+        woBad.push(`${c.id}: просрочка тела ${d.debt.principal.overdue} после списания`);
+      /* КВ-63: решение списывает ВЕСЬ долг. Сторожим то же самое по каждой статье и
+         вдобавок ИТОГ — d.debtBalance, число, которое кредит предъявляет наружу: пока
+         оно ненулевое, «безнадёжный» кредит продолжает чего-то требовать. */
+      for (const [k, name] of [['interest','проценты'],['penalty','пеня'],['fees','сборы'],
+                                ['accInterest','накопл.%'],['accPenalty','накопл.пеня']]){
+        const a = d.debt[k];
+        if (a.bal > 0.005)     woBad.push(`${c.id}: ${name} остаток ${a.bal} после списания`);
+        if (a.overdue > 0.005) woBad.push(`${c.id}: ${name} просрочка ${a.overdue} после списания`);
+        const recSum = r2(recs.reduce((s, w) => s + (((w.articles||{})[k])||0), 0));
+        if (Math.abs(recSum - (a.written || 0)) > 0.02)
+          woBad.push(`${c.id}: ${name} списано по записям ${recSum} против свода ${a.written}`);
+      }
+      if (d.debtBalance > 0.005)
+        woBad.push(`${c.id}: долг всего ${d.debtBalance} после списания всего долга`);
+      const wTot = r2(sum + ['interest','penalty','fees','accInterest','accPenalty']
+        .reduce((a2, k) => a2 + (d.debt[k].written || 0), 0));
+      if (Math.abs(wTot - ((d.debt.written || {}).total || 0)) > 0.02)
+        woBad.push(`${c.id}: итог списания ${(d.debt.written||{}).total} против ${wTot} по статьям`);
+      /* лист обязан согласиться со сводом: последняя строка каждого раздела несёт
+         освоено + принято − перенесено − погашено − СПИСАНО, и сумма по траншам — тело */
+      const balSheet = (d.ledger.dateSheet || []).reduce((a2, s2) => { const e = s2.rows[s2.rows.length - 1];
+        return r2(a2 + Math.max(0, r2(e.runDisb + e.runIn - e.runOut - e.runPaidP - e.runOff))); }, 0);
+      if (Math.abs(balSheet - d.debt.principal.bal) > 0.02)
+        woBad.push(`${c.id}: лист даёт остаток ${balSheet} против свода ${d.debt.principal.bal}`);
       const rows = (d.ledger.dateSheet || []).flatMap(s => s.rows);
       const hit  = rows.filter(r => r.offAmt > 0.005);
       if (!hit.length) woBad.push(`${c.id}: в листе нет строки со списанием (дата ${c.closure.date})`);
@@ -1697,11 +1757,22 @@ const pd = CR.pd;
     const h7 = CR2.renderTab('Расчёты', c7);
     const heads = (h7.match(/<th[^>]*>Списано<\/th>/g) || []).length;   // у K-7 обязан быть ноль
     const mvH   = /<th[^>]*>Перенесено<\/th>/.test(h7) && /<th[^>]*>Принято<\/th>/.test(h7);
-    let offHeads = 0;
+    let offHeads = 0, offRows = 0;
     for (const c of off){
       CR2.openDetail(c.id); CR2.setCalcView('dates');
-      if (/<th[^>]*>Списано<\/th>/.test(CR2.renderTab('Расчёты', c))) offHeads++;
-      else woBad.push(`${c.id}: списание есть, а колонки «Списано» в шапке нет`);
+      const h = CR2.renderTab('Расчёты', c);
+      /* ТРИ КОЛОНКИ «СПИСАНО», А НЕ ОДНА (КВ-63): решение снимает весь долг, и каждая
+         статья обязана назвать своё списание В СВОЁМ блоке — иначе «Остаток» процентов
+         падает до нуля молча, и арифметика блока не сходится ни глазом, ни на бумаге. */
+      const nOff = (h.match(/<th[^>]*>Списано<\/th>/g) || []).length;
+      if (nOff === 3) offHeads++;
+      else woBad.push(`${c.id}: колонок «Списано» в шапке ${nOff}, а статей списано 3`);
+      /* СТРОКА СВОДА «Списано за баланс» (КВ-62/КВ-63). Раз остаток списание гасит, число
+         обязано остаться названным — иначе долг уходит из свода бесследно и сойтись с
+         решением Правления нечем. Строка-исключение того же рода, что «Спорная пеня».
+         Печатает она ИТОГ по шести статьям, и подпись обязана его разложить. */
+      if (/Списано за баланс/.test(h) && /основной долг/.test(h) && /проценты \d/.test(h)) offRows++;
+      else woBad.push(`${c.id}: долг списан, а строки свода «Списано за баланс» с разбором по статьям нет`);
     }
     /* Нарастающие переноса (КВ-56) сверяются с моделью, а не сами с собой: последняя строка
        раздела обязана показать ровно transferredOut/transferredIn транша на её дату —
@@ -1715,12 +1786,14 @@ const pd = CR.pd;
         woBad.push(`K-7/т${s.trancheNo}: нарастающий перенос ${lr.runOut}/${lr.runIn}`
                    + ` против ${wantOut}/${wantIn}`);
     }
-    ok(173, woBad.length === 0 && off.length === 3 && offHeads === off.length && heads === 0
+    ok(173, woBad.length === 0 && off.length === 3 && offHeads === off.length
+            && offRows === off.length && heads === 0
             && moved7 === 360000 && got7 === 360000 && off7 === 0 && mvH,
        `списанных кредитов ${off.length}, расхождений ${woBad.length}`
        + `${woBad.length ? ' — ' + woBad.slice(0, 3).join(' | ') : ''}`
        + ` · K-7: перенесено ${moved7}, принято ${got7}, списано ${off7}`
        + ` · «Списано» в шапке у ${offHeads} из ${off.length} списанных и ${heads} раз(а) у K-7`
+       + ` · строка свода «Списано за баланс» у ${offRows} из ${off.length}`
        + ` · пара переноса в шапке ${mvH}`);
   }
 
@@ -1787,6 +1860,140 @@ const pd = CR.pd;
        + ` · K-7 т1: база 12.04 ${was9} → 01.05 ${now9}, ДС-версий ${dsVer.length},`
        + ` хвост до ${last7} · приёмник начислил с ${gotIn}`
        + ` · кнопка от ${FROM}: сохранено ${past.length}, стало ${(nv.rows || []).length}, совпало ${kept}`);
+  }
+
+  /* 175. ИТОГОВЫЕ СТРОКИ ЛИСТА «ПО ДАТАМ» — ПО КОЛОНКАМ, ДВУМЯ ПРАВИЛАМИ (КВ-58).
+     Год и «Итого по траншу» печатали два числа из тринадцати, остальное закрывал colspan.
+     Теперь у каждой колонки свой итог, и правил ровно два — их и стережём ПО МОДЕЛИ, а не
+     по разметке:
+       ПОТОК складывается за период — «По графику», «Погашено», «Начислено», «Пеня»;
+       СОСТОЯНИЕ берётся на конец — у ПОСЛЕДНЕЙ строки года, без оговорок (КВ-59): остаток
+       тела = освоено + принято − перенесено − погашено − списано нарастающим (пятое
+       слагаемое пришло с КВ-62), просрочка тела =
+       потребовано − погашено, нарастающие — значением последней строки. Прежде состояние
+       брали у последнего ОТРЕЗКА, и строка среза (КВ-53) с её платежом в итог не попадала —
+       год закрытого кредита показывал долг ДО последнего платежа. Здесь же стережётся
+       тождество, на котором вывод держится: у строк с отрезком база отрезка обязана
+       совпадать с остатком из нарастающих (иначе колонка перестала быть базой начисления).
+     Плюс две границы: colspan в итоговых строках не возвращается (иначе едет вся сетка —
+     класс ошибки, который №164 ловил арностью, но не ловил «число не под своей шапкой»),
+     а «Ставка» и «За день» молчат: это параметр отрезка, а не итог. Блоки статей режутся
+     по классу grp — тем же способом, каким их рисует шапка, поэтому «Погашено» в трёх
+     статьях не путается. Подпись кнопки деталей проверяется здесь же. */
+  {
+    const r2 = v => Math.round(v * 100) / 100;
+    const numOf = s => { const t = s.replace(/<[^>]*>/g, '').replace(/[\s  ]/g, '').replace(',', '.');
+      return t === '—' || t === '' ? null : parseFloat(t); };
+    const cellsOf = tr => (tr.match(/<td[^>]*>[\s\S]*?<\/td>/g) || [])
+      .map(t => t.replace(/^<td[^>]*>/, '').replace(/<\/td>$/, ''));
+    const blocks = ths => { const out = [], starts = [];
+      ths.forEach((th, i) => { if (/class="[^"]*grp/.test(th)) starts.push(i); });
+      starts.forEach((st, k) => out.push([st, k + 1 < starts.length ? starts[k + 1] : ths.length]));
+      return out; };
+    let bad = [], nYears = 0, nSheets = 0;
+    for (const c of CR2.db.credits){
+      CR2.openDetail(c.id); CR2.setCalcView('dates');
+      const html = CR2.renderTab('Расчёты', c);
+      const tbl = (html.match(/<table class="cgrid tiered">[\s\S]*?<\/table>/g) || [])[0];
+      const dv = CR2.derive(c);
+      const sheets = (dv.ledger.dateSheet || []);
+      if (!tbl || !sheets.length) continue;
+      /* КОНЕЦ ЛИСТА = СВОД ДОЛГА КАРТОЧКИ (КВ-59) — независимый источник, а не пересказ той
+         же формулы: состояние последней строки каждого транша, сложенное по кредиту, обязано
+         совпасть с debt.principal (остаток и просрочка). Это и есть смысл правила «состояние
+         на конец»; разойдясь, лист начинает спорить с карточкой. */
+      let balAll = 0, ovdAll = 0;
+      for (const sh of sheets){ const e = sh.rows[sh.rows.length - 1];
+        balAll = r2(balAll + Math.max(0, r2(e.runDisb + e.runIn - e.runOut - e.runPaidP - e.runOff)));
+        ovdAll = r2(ovdAll + (e.endOvdP != null ? e.endOvdP : e.penBaseP)); }
+      if (Math.abs(balAll - dv.debt.principal.bal) > 0.02)
+        bad.push(`${c.id}: остаток конца листа ${balAll} против свода ${dv.debt.principal.bal}`);
+      if (Math.abs(ovdAll - dv.debt.principal.overdue) > 0.02)
+        bad.push(`${c.id}: просрочка конца листа ${ovdAll} против свода ${dv.debt.principal.overdue}`);
+      if (!/детали<\/button>/.test(tbl)) bad.push(`${c.id}: кнопка деталей не зовётся «детали»`);
+      if (/нарастающим<\/button>/.test(tbl)) bad.push(`${c.id}: на кнопке вернулось «нарастающим»`);
+      const hrows = (tbl.match(/<thead>[\s\S]*?<\/thead>/) || [''])[0].match(/<tr[\s\S]*?<\/tr>/g) || [];
+      const ths = (hrows[1] || '').match(/<th[^>]*>[\s\S]*?<\/th>/g) || [];
+      const lab = ths.map(t => t.replace(/<[^>]*>/g, '').trim());
+      const [od, int, pen] = blocks(ths);
+      if (!od || !int || !pen){ bad.push(`${c.id}: блоки статей не режутся по grp`); continue; }
+      const idx = (blk, name) => { const i = lab.slice(blk[0], blk[1]).indexOf(name);
+        return i < 0 ? -1 : blk[0] + i; };
+      const s = sheets[0];                     // лист первого транша: годы, затем его итог
+      nSheets++;
+      const yrows = tbl.match(/<tr class="gyear[\s\S]*?<\/tr>/g) || [];
+      const years = [...new Set(s.rows.map(r => +r.date.slice(6, 10)))].sort((a, b) => a - b);
+      for (let k = 0; k < Math.min(yrows.length, years.length); k++){
+        const rs = s.rows.filter(r => +r.date.slice(6, 10) === years[k]);
+        const cs = cellsOf(yrows[k]).slice(1);
+        if (/colspan=/.test(yrows[k])) bad.push(`${c.id}: в строке года вернулся colspan`);
+        if (cs.length !== lab.length){ bad.push(`${c.id}/${years[k]}: ячеек ${cs.length} против ${lab.length}`); continue; }
+        nYears++;
+        const at = i => i < 0 ? null : numOf(cs[i]);
+        const flow = (i, want, name) => { if (want > 0.005 && Math.abs((at(i) || 0) - want) > 0.02)
+          bad.push(`${c.id}/${years[k]}: ${name} ${at(i)} против ${want}`); };
+        flow(idx(od, 'По графику'), r2(rs.reduce((a, r) => a + (r.dueP || 0), 0)), '«По графику»');
+        flow(idx(od, 'Погашено'),   r2(rs.reduce((a, r) => a + (r.paid.principal || 0), 0)), '«Погашено» тела');
+        flow(idx(int, 'Начислено'), r2(rs.reduce((a, r) => a + (r.accrued || 0), 0)), '«Начислено»');
+        flow(idx(pen, 'Начислено'), r2(rs.reduce((a, r) => a + (r.penalty || 0), 0)), '«Пеня начислено»');
+        /* СПИСАНО — ПОТОК В КАЖДОМ БЛОКЕ (КВ-63). Итог года складывает его как всякий поток,
+           и складывать он обязан ровно строки своего года: решений о списании бывает больше
+           одного, и просмотренное второе видно только по разъехавшемуся итогу. */
+        flow(idx(od,  'Списано'), r2(rs.reduce((a, r) => a + (r.offAmt || 0), 0)), '«Списано» тела');
+        flow(idx(int, 'Списано'), r2(rs.reduce((a, r) => a + (r.offInt || 0), 0)), '«Списано» процентов');
+        flow(idx(pen, 'Списано'), r2(rs.reduce((a, r) => a + (r.offPen || 0), 0)), '«Списано» пени');
+        const end  = rs[rs.length - 1];
+        const bal  = r2(Math.max(0, end.runDisb + end.runIn - end.runOut - end.runPaidP - end.runOff));
+        if (Math.abs((at(idx(od, 'Остаток')) || 0) - bal) > 0.02)
+          bad.push(`${c.id}/${years[k]}: «Остаток» ${at(idx(od, 'Остаток'))} против ${bal} на конец года`);
+        const ovd = end.endOvdP != null ? end.endOvdP : end.penBaseP;
+        if (ovd > 0.005 && Math.abs((at(idx(od, 'Просрочено')) || 0) - ovd) > 0.02)
+          bad.push(`${c.id}/${years[k]}: «Просрочено» ${at(idx(od, 'Просрочено'))} против ${ovd} на конец года`);
+        for (const r of rs)                       // тождество: база отрезка = остаток из нарастающих
+          if (r.base != null && Math.abs(r.base - r2(Math.max(0, r.runDisb + r.runIn - r.runOut - r.runPaidP - r.runOff))) > 0.02)
+            bad.push(`${c.id}/${r.date}: база отрезка ${r.base} разошлась с остатком из нарастающих`);
+        const iRate = idx(int, 'Ставка'), iDay = idx(pen, 'За день');
+        if (iRate >= 0 && cs[iRate].replace(/<[^>]*>/g, '').trim() !== '')
+          bad.push(`${c.id}/${years[k]}: «Ставка» печатает итог, а это параметр отрезка`);
+        if (iDay >= 0 && cs[iDay].replace(/<[^>]*>/g, '').trim() !== '')
+          bad.push(`${c.id}/${years[k]}: «За день» печатает итог, а это параметр отрезка`);
+      }
+      const trow = (tbl.match(/<tr class="gtot"[\s\S]*?<\/tr>/) || [''])[0];
+      const tc = cellsOf(trow).slice(1);
+      if (!trow) bad.push(`${c.id}: строки «Итого по траншу» нет`);
+      else if (/colspan=/.test(trow)) bad.push(`${c.id}: в «Итого по траншу» вернулся colspan`);
+      else if (tc.length !== lab.length) bad.push(`${c.id}: в «Итого по траншу» ячеек ${tc.length} против ${lab.length}`);
+      else {
+        const gi = numOf(tc[idx(int, 'Начислено')]) || 0, gp = numOf(tc[idx(pen, 'Начислено')]) || 0;
+        if (Math.abs(gi - s.sumInterest) > 0.02)
+          bad.push(`${c.id}: итог транша начислено ${gi} против ${s.sumInterest}`);
+        if (s.sumPenalty > 0.005 && Math.abs(gp - s.sumPenalty) > 0.02)
+          bad.push(`${c.id}: итог транша пеня ${gp} против ${s.sumPenalty}`);
+      }
+    }
+    /* Нарастающее в итоге — состояние на конец, а не сумма. Проверяется на РАЗВЁРНУТЫХ
+       деталях: по умолчанию колонки нет вовсе (КВ-57). У K-1 первая «Нарастающим» блока
+       тела — пара «По графику», освоения в его листе нет. */
+    const kd = CR2.db.credits.find(x => x.id === 'K-1');
+    CR2.openDetail('K-1'); CR2.setCalcView('dates');
+    CR2.toggleCalcRun('od');
+    const opened = (CR2.renderTab('Расчёты', kd).match(/<table class="cgrid tiered">[\s\S]*?<\/table>/g) || [''])[0];
+    CR2.toggleCalcRun('od');
+    const oths = ((opened.match(/<thead>[\s\S]*?<\/thead>/) || [''])[0].match(/<tr[\s\S]*?<\/tr>/g) || ['', ''])[1] || '';
+    const olab = (oths.match(/<th[^>]*>[\s\S]*?<\/th>/g) || []).map(t => t.replace(/<[^>]*>/g, '').trim());
+    const iRun = olab.indexOf('Нарастающим');
+    const ycs = ((opened.match(/<tr class="gyear[\s\S]*?<\/tr>/) || [''])[0].match(/<td[^>]*>[\s\S]*?<\/td>/g) || [])
+      .slice(1).map(t => t.replace(/^<td[^>]*>/, '').replace(/<\/td>$/, ''));
+    const sh1 = (CR2.derive(kd).ledger.dateSheet || [])[0] || { rows: [] };
+    const y1 = sh1.rows.length ? +sh1.rows[0].date.slice(6, 10) : 0;
+    const lastY = [...sh1.rows.filter(r => +r.date.slice(6, 10) === y1)].pop() || {};
+    const runGot = (iRun >= 0 && ycs.length === olab.length) ? numOf(ycs[iRun]) : null;
+    const runWant = lastY.runDue != null ? lastY.runDue : null;
+    if (runGot != null && runWant != null && Math.abs(runGot - runWant) > 0.02)
+      bad.push(`K-1: нарастающее в итоге года ${runGot} против ${runWant} последней строки`);
+    ok(175, bad.length === 0 && nYears > 40 && nSheets > 40 && runGot != null,
+       `итоговых строк года сверено ${nYears} на ${nSheets} листах · нарастающее года ${runGot}`
+       + ` · нарушений ${bad.length}${bad.length ? ' — ' + bad.slice(0, 3).join(' | ') : ''}`);
   }
 
   /* 130. «ГРАФИК» СО СТАТЬЯМИ (КВ-26, ADR-0109). Колонки статей рисуются ПО СОСТАВУ:

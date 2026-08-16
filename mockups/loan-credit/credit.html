@@ -1695,11 +1695,13 @@ table.cgrid.tiered thead tr:nth-child(2) th{ top:var(--cgrid-tier1); z-index:2; 
 table.cgrid.tiered thead th.grp{ border-left:2px solid var(--border-strong); }
 table.cgrid.tiered tbody td.grp{ border-left:2px solid var(--border-default); }
 table.cgrid.tiered thead th.rspan{ z-index:4; }
-/* ПЕРЕКЛЮЧАТЕЛЬ НАРАСТАЮЩИХ (разбор 16.08.2026). Стоит в шапке СВОЕЙ статьи, потому что
-   гасит колонки только её: у блока «Основной долг» их шесть, у «Процентов» одна-две, у
-   «Пени» ни одной — там и переключателя нет. Кнопкой во всю силу не выглядит намеренно:
-   это не действие над данными, а состояние показа. */
-table.cgrid.tiered thead th .runsw{ margin-left:8px; padding:1px 6px; border:1px solid var(--border-default);
+/* ПЕРЕКЛЮЧАТЕЛЬ ДЕТАЛЕЙ (разбор 16.08.2026, подпись и место — КВ-58). Стоит в шапке СВОЕЙ
+   статьи, потому что гасит колонки только её: у блока «Основной долг» их шесть, у
+   «Процентов» одна-две, у «Пени» ни одной — там и переключателя нет. Кнопкой во всю силу
+   не выглядит намеренно: это не действие над данными, а состояние показа. Прижата к
+   ПРАВОМУ краю ячейки (float) — имя статьи держит центр своего блока, управление показом
+   уходит в угол и с именем не спорит. */
+table.cgrid.tiered thead th .runsw{ float:right; margin-left:8px; padding:1px 6px; border:1px solid var(--border-default);
   border-radius:var(--radius-sm); background:var(--surface-panel); color:var(--text-muted);
   font:var(--weight-medium) var(--text-xs)/1.5 var(--asubk-font); cursor:pointer; white-space:nowrap; }
 table.cgrid.tiered thead th .runsw:hover{ color:var(--text-heading); border-color:var(--border-strong); }
@@ -1720,6 +1722,12 @@ table.cgrid tbody tr.gyear .gy{ font:var(--weight-bold) var(--text-base)/1.2 var
   color:var(--text-heading); margin-right:8px; }
 table.cgrid tbody tr.gyear .gcnt{ color:var(--text-muted); margin-left:8px; }
 table.cgrid tbody tr.gyear td.gyear-s{ color:var(--text-muted); font-size:11px; }
+/* Итоговые строки листа «По датам» (КВ-58): год и «Итого по траншу» несут числа во ВСЕХ
+   колонках, поэтому вес держит строка целиком, а не <b> у двух ячеек. Строка транша не
+   кликается — своего раскрытия у неё нет, оттого и отдельный класс. */
+table.cgrid.tiered tbody tr.gyear td{ font-weight:var(--weight-semibold); }
+table.cgrid.tiered tbody tr.gtot td{ font-weight:var(--weight-semibold); color:var(--text-heading);
+  background:var(--surface-panel); border-top:1px solid var(--border-strong); }
 /* Два вложенных уровня группировки во «Плане» (КВ-22): год держит кварталы, квартал —
    свои месяцы. Уровни различаются ОТСТУПОМ и весом подписи, а не цветом: три фона подряд
    в одной таблице спорят между собой, а лесенка читается сразу. Отступ живёт на первой
@@ -3108,9 +3116,11 @@ function seedDb(){
                committeeRef:'РП-77 от 12.05.2026', note:'Решение Правления о списании' }],
     mirror: emptyMirror({
       curatorship:[{ unit:'Отдел проблемных кредитов', employee:'Осмонов Б. Т.', role:'ведущий', from:'20.03.2023', to:'15.05.2026' }],
-      /* Списан с НЕНУЛЕВЫМ остатком — так и бывает. Прежде такой кредит получал подпись
-         «5 · Погашен», потому что payGroupOf возвращал '5' на любом «Закрыт» (КР-12).
-         Теперь подгруппа приходит зеркалом заёмщика и говорит правду: безнадёжный долг. */
+      /* Прежде такой кредит получал подпись «5 · Погашен», потому что payGroupOf возвращал
+         '5' на любом «Закрыт» (КР-12). Теперь подгруппа приходит зеркалом заёмщика и говорит
+         правду: безнадёжный долг. Остаток тела с КВ-62 нулевой — решение о списании его
+         гасит, — но подгруппа от этого не меняется: она про заёмщика и его долг за балансом,
+         а не про остаток кредита. */
       payments:[ seedPayment(1, '10.04.2026', 1, { principal:32000, interest:4000 }) ],
       paymentsAsOf:'15.05.2026',
       borrower:{ subgroup:'4', subgroupLabel:SUBGROUP_LABEL['4'], asOf:'15.05.2026' }
@@ -3405,8 +3415,8 @@ function seedDb(){
     if (life === 'Закрыт'){
       schedules = [ seedSchedule(dd0, 400, contract, rate, term, Math.min(term, 6), dd0) ];   // освоение в dd0 — КР-63
       const closureReason = s.closure || 'Погашен';
-      /* «Погашен» гасится полностью; «Списан» — частично, поэтому у списанного остаётся
-         ненулевой остаток, и подгруппа честно говорит «безнадёжные долги» (КР-12).
+      /* «Погашен» гасится полностью; «Списан» — частично: деньгами закрыта доля, остальное
+         снимает с баланса решение (КВ-62), и подгруппа честно говорит «безнадёжные долги».
          Сумма процентов НЕ выдумывается процентом от договора: 12 % от суммы договора
          разносилось в статью, где начислено втрое меньше, и разницу молча съедал
          `Math.min` в debtOf — до 66 935 сомов на кредит (КР-48). Платёж досчитывается
@@ -3940,33 +3950,89 @@ function movedNetAt(t, d){
   return round2(transferredIn(t, d) - ctrIn - transferredOut(t, d));
 }
 
-/* ---- СПИСАНИЕ ТЕЛА (Р-20, Г-12, КВ-53) ----
-   t.writeOffs[] — хранилище рядом с t.transfers[]: { date, amount, basis:{kind,num,date,scan} }.
+/* ---- СПИСАНИЕ ДОЛГА (Р-20, Г-12, КВ-53) ----
+   t.writeOffs[] — хранилище рядом с t.transfers[]:
+     { date, amount, articles:{interest, penalty, accInterest, accPenalty, fees}, basis }.
+   `amount` — ТЕЛО (имя историческое, менять его значило бы переписать все три вызова ради
+   симметрии), `articles` — остальные пять статей долга.
    Заводится по той же причине, по какой заведён перенос: до этой правки списание жило
    ОДНИМ полем `closure.reason='Списан'` на кредите — без суммы, без транша и без даты в
    расчёте. Лист «По датам» такое показать не может в принципе: у него строка на дату и
    раздел на транш, а списание не имело ни того, ни другого.
 
-   ЧТО СПИСАНИЕ ДЕЛАЕТ С ОСТАТКОМ — НИЧЕГО, и это не упущение (КР-12): списанный долг
-   уходит ЗА БАЛАНС, а не гаснет. Заёмщик его должен, подгруппа честно говорит
-   «безнадёжные долги», и K-6b закрыт с ненулевым остатком намеренно. Поэтому
-   trancheBalanceAt слагаемого «списано» НЕ получает: колонка «Списано» отвечает на
-   «сколько из этого тела признано безнадёжным по решению», а «Остаток» — на «сколько
-   тела висит». Два разных вопроса, два числа рядом. */
+   СПИСАНИЕ ГАСИТ ОСТАТОК (КВ-62, решение владельца 16.08.2026 — «да гасит»; отменяет
+   правило КР-12, по которому оно не гасило ничего). Довод против прежнего правила пришёл
+   с листа: у K-6b 15.05.2026 списаны все 58 000, а «Остаток» рядом и итог года печатали
+   те же 58 000 — кредит закрыт, начисление остановлено, требовать нечего, и число
+   продолжало числиться долгом. Решение о списании — то же движение тела, что перенос и
+   платёж: тело уходит С БАЛАНСА кредита. Поэтому «списано» входит ЧЕТВЁРТЫМ вычитаемым
+   всюду, где считается тело:
+     · trancheBalanceAt (ИР-3) — остаток транша;
+     · sbase в trancheAccrual — база отрезка: гасить тело и продолжать на него начислять
+       нельзя (у K-6b начисление и так стоит — списание совпадает с закрытием, — но
+       правило не должно держаться на этом совпадении);
+     · principalBal позиций в buildLedger — а через них ПРОСРОЧКА: списанное не требуют;
+     · debt.principal.bal в своде.
+   ЧИСЛО ПРИ ЭТОМ НЕ ПРОПАДАЕТ. Списанное — не погашенное: денег заёмщик не принёс, и
+   колонка «Погашено» его не получает ни в листе, ни в своде. Оно живёт своей парой
+   колонок листа («Списано · Нарастающим») и отдельной строкой свода «Списано за баланс»,
+   рядом с «Приостановлено решением суда» и «Спорной пенёй» — тем же приёмом: величина
+   названа, в остаток не входит. За балансом долг остаётся долгом заёмщика, и подгруппа
+   по-прежнему говорит «безнадёжные долги» — это учёт заёмщика, а не остаток кредита.
+
+   РЕШЕНИЕ СПИСЫВАЕТ ВЕСЬ ДОЛГ, А НЕ ОДНО ТЕЛО (КВ-63, владелец 16.08.2026 — «решение
+   списывает весь долг»). КВ-62 сняла с баланса тело и на этом остановилась, и результат
+   читался как незавершённое действие: у K-6b тело 0,00, а рядом в том же своде проценты
+   14 024,68 и пеня 80 329,51 — на кредите, признанном безнадёжным и закрытом. Долг
+   безнадёжен ЦЕЛИКОМ: признание относится к требованию, а не к одной его статье, и
+   оставлять проценты с пенёй висеть после решения — значит требовать то, чего решение
+   как раз и лишило. Поэтому решение несёт ШЕСТЬ величин по числу статей долга (см.
+   DEBT_ARTICLES): тело в `amount`, пять остальных в `articles`. Каждая гасит остаток
+   СВОЕЙ статьи тем же приёмом, что тело: отдельное поле позиции (interestWritten,
+   penaltyWritten, f._written) рядом с «погашено», вычитание в debtOf, своя колонка листа
+   в своём блоке. Сумма всех шести — одна строка свода «Списано за баланс».
+   ЧАСТИЧНОЕ РЕШЕНИЕ (ctx.amount) масштабирует ВСЕ статьи одной долей: решение на половину
+   тела — это решение на половину долга, а списать всю пеню и половину тела оно не может,
+   не назвав, почему статьи разошлись. */
 function writeOffsOf(t, d){
   const lim = d ? pd(d) : null;
   return (t.writeOffs || []).filter(x => !lim || pd(x.date) <= lim);
 }
 function writtenOffAt(t, d){ return round2(writeOffsOf(t,d).reduce((a,x) => a + (x.amount||0), 0)); }
+/* списано по НЕТЕЛЕСНОЙ статье (КВ-63). Отдельной функцией, а не полем на транше: решений
+   бывает больше одного, и «сколько списано к дате» обязано считаться так же, как у тела. */
+function writtenOffArtAt(t, key, d){
+  return round2(writeOffsOf(t,d).reduce((a,x) => a + (((x.articles||{})[key])||0), 0));
+}
 
 /* Разнесение решения о списании ПО ТРАНШАМ. Решение выносится на кредит одной суммой —
    расчёт же ведётся по траншам, и без разнесения лист не знает, чью строку двигать.
    Правило: пропорционально непогашенному телу транша на дату решения, остаток копеек —
-   последнему; сумма не названа в решении ⇒ списывается всё непогашенное тело. */
+   последнему; сумма не названа в решении ⇒ списывается весь непогашенный долг (КВ-63).
+
+   ДВА РОДА СТАТЕЙ РАЗНОСЯТСЯ ПО-РАЗНОМУ, и это не мелочь показа. Проценты и пеня у
+   позиции СВОИ — у леджера они уже лежат в разрезе транша, и делить их пропорцией значило
+   бы выдумать разнесение поверх готового: транш, чьи проценты давно погашены, получил бы
+   чужую долю. Накопленные и сборы — величины КРЕДИТА (сбор берётся за договор, накопленное
+   назначает документ), разреза по траншам у них нет вовсе, и им пропорция — единственный
+   способ попасть в транш. Отсюда: interest/penalty берутся у транша, accInterest/accPenalty/
+   fees делятся долей тела. Транш попадает в разнесение, если непокрыто ХОТЬ ЧТО-ТО: тело
+   могло быть погашено полностью, а пеня на нём — нет, и списывать её всё равно надо. */
 function writeOffTranches(credit, ctx){
   const date = ctx.date || TODAY, basis = ctx.doc || null;
-  const open = (credit.tranches || []).map(t => ({ t, bal: trancheBalanceAt(credit, t, date) }))
-                                      .filter(x => x.bal > 0.005);
+  /* непокрытые проценты и пеня В РАЗРЕЗЕ ТРАНША — из тех же позиций леджера, из которых
+     их складывает свод: списание обязано снять ровно предъявляемую величину. */
+  const led0 = buildLedger(credit, date);
+  const perT = new Map((credit.tranches || []).map(t => [t.no, { interest:0, penalty:0 }]));
+  for (const r of led0.rows){
+    const cell = perT.get(r.trancheNo); if (!cell) continue;
+    cell.interest = round2(cell.interest + Math.max(0, round2(r.interestCharged  - r.interestPaid)));
+    cell.penalty  = round2(cell.penalty  + Math.max(0, round2(r.penaltyClaimable - r.penaltyPaid)));
+  }
+  const open = (credit.tranches || []).map(t => {
+    const a = perT.get(t.no) || { interest:0, penalty:0 };
+    return { t, bal: trancheBalanceAt(credit, t, date), interest:a.interest, penalty:a.penalty };
+  }).filter(x => x.bal > 0.005 || x.interest > 0.005 || x.penalty > 0.005);
   if (!open.length) return [];
   const sum   = round2(open.reduce((a, x) => a + x.bal, 0));
   /* ПОТОЛОК — ТЕЛО ПО СВОДУ, а не сумма остатков траншей. Когда это писалось (КВ-53),
@@ -3977,18 +4043,37 @@ function writeOffTranches(credit, ctx){
      сиде потолок не срабатывает ни разу. Он остаётся СТРАХОВКОЙ: свод — единственное
      число, которое кредит предъявляет наружу, и списать больше него нельзя ни при какой
      будущей расстыковке. Доли берём у траншей, величину — у свода. */
-  const led   = buildLedger(credit, date);
-  const cap   = debtOf(led, (credit.tranches || []).reduce((a, t) => a + disbursedSum(t), 0)).principal.bal;
-  const total = round2(Math.min(sum, cap));
-  if (total <= 0.005) return [];
+  const dd    = debtOf(led0, (credit.tranches || []).reduce((a, t) => a + disbursedSum(t), 0));
+  const total = round2(Math.min(sum, dd.principal.bal));
   const want  = (ctx.amount > 0.005 && ctx.amount < total) ? round2(ctx.amount) : total;
-  let left = want; const made = [];
+  /* ДОЛЯ ЧАСТИЧНОГО РЕШЕНИЯ (КВ-63) — одна на все шесть статей: решение на половину тела
+     есть решение на половину долга. Названо решение целиком ⇒ доля 1. */
+  const part  = total > 0.005 ? want / total : 1;
+  /* делёж величины КРЕДИТА по траншам долей тела; копейки остатка — последнему. Тела нет
+     ни у кого (списывают одну пеню) — делим поровну: пропорции взять неоткуда. */
+  const split = (v) => {
+    let left = round2(v); const outv = [];
+    open.forEach((x, i) => {
+      const share = (i === open.length - 1) ? round2(Math.max(0, left))
+                  : round2(v * (sum > 0.005 ? x.bal / sum : 1 / open.length));
+      left = round2(left - share); outv.push(share);
+    });
+    return outv;
+  };
+  const shP  = split(want);
+  const shAI = split(round2(dd.accInterest.bal * part));
+  const shAP = split(round2(dd.accPenalty.bal  * part));
+  const shF  = split(round2(dd.fees.bal        * part));
+  const made = [];
   open.forEach((x, i) => {
-    const amount = (i === open.length - 1) ? round2(left) : round2(want * x.bal / sum);
-    left = round2(left - amount);
-    if (amount <= 0.005) return;
-    (x.t.writeOffs || (x.t.writeOffs = [])).push({ date, amount, basis });
-    made.push({ trancheNo: x.t.no, amount });
+    const amount = shP[i];
+    const articles = { interest: round2(x.interest * part), penalty: round2(x.penalty * part),
+                       accInterest: shAI[i], accPenalty: shAP[i], fees: shF[i] };
+    const all = amount + articles.interest + articles.penalty
+              + articles.accInterest + articles.accPenalty + articles.fees;
+    if (all <= 0.005) return;
+    (x.t.writeOffs || (x.t.writeOffs = [])).push({ date, amount, articles, basis });
+    made.push({ trancheNo: x.t.no, amount, articles });
   });
   return made;
 }
@@ -4001,9 +4086,12 @@ function trancheOrigin(t){ return (t.transfers || []).some(x => x.dir==='in') ? 
 function originTransfer(t){ return (t.transfers || []).find(x => x.dir==='in') || null; }
 function originDs(t){ const x = originTransfer(t); return (x && x.basis && x.basis.ds) || null; }
 
-/* ИР-3 (ADR-0092 §2): остаток тела транша = освоено − погашено − перенесено + принято.
-   Именно ЧЕТЫРЕ слагаемых, а не «сумма транша минус погашенное»: после разделения по ДС
-   сумма транша и его тело — разные величины, и у производного транша освоений нет вовсе.
+/* ИР-3 (ADR-0092 §2): остаток тела транша = освоено − погашено − перенесено + принято
+   − СПИСАНО (пятое слагаемое, КВ-62). Именно слагаемые, а не «сумма транша минус
+   погашенное»: после разделения по ДС сумма транша и его тело — разные величины, и у
+   производного транша освоений нет вовсе. Списание встало сюда решением владельца
+   16.08.2026 (см. блок «СПИСАНИЕ ТЕЛА» выше): решение о признании долга безнадёжным
+   снимает тело с баланса кредита, а не оставляет его висеть.
 
    ПОГАШЕННОЕ — ПО ПЛАТЕЖАМ, А НЕ ПО ЛЕДЖЕРУ (КВ-54). Прежде слагаемое сворачивалось из
    r.principalPaid, то есть считало погашенным ТОЛЬКО разнесённое по наступившим позициям:
@@ -4017,8 +4105,8 @@ function originDs(t){ const x = originTransfer(t); return (x && x.basis && x.bas
    деньги. Побочно ИР-3 перестал звать buildLedger: рекурсии «остаток → леджер → график»
    больше нет, и лист может показывать остаток напрямую. */
 function trancheBalanceAt(credit, t, d){
-  return round2(disbursedSum(t) - paidPrincipalOfTranche(credit, t, d)
-                - transferredOut(t, d) + transferredIn(t, d));
+  return round2(Math.max(0, disbursedSum(t) - paidPrincipalOfTranche(credit, t, d)
+                - transferredOut(t, d) + transferredIn(t, d) - writtenOffAt(t, d)));
 }
 /* активен ли интервал приостановки начисления на дату среза (Р-17) */
 function holdIsActive(h, asOf){
@@ -4614,8 +4702,14 @@ function trancheAccrual(c, t, asOf, grid){
          после 01.05.2026), приёмник начислял на него же свои 5 %, и заёмщик платил за одни
          и те же дни дважды. Лист при этом печатал «Остаток» 360 000 против нуля по ИР-3 —
          то есть противоречил и карточке, и своду. */
+      /* ЧЕТВЁРТОЕ СЛАГАЕМОЕ — СПИСАНИЕ (КВ-62). По той же причине, что и перенос: тело
+         ушло с баланса, и начислять на него больше нельзя. У сегодняшнего сида списание
+         совпадает с закрытием, а закрытие останавливает расчёт (buildLedger, lim), — то
+         есть отрезка после него не бывает и слагаемое ни разу не срабатывает. Стоит оно
+         здесь затем, чтобы правило не держалось на этом совпадении: частичное списание
+         действующего кредита — штатный исход, и после него база обязана упасть. */
       const dev    = round2(ctrPaid - paidPrincipalOfTranche(c, t, fd(at0)) - undisb
-                            + movedNetAt(t, fd(at0)));
+                            + movedNetAt(t, fd(at0)) - writtenOffAt(t, fd(at0)));
       const days   = perDays > 0 ? Math.max(0, dd(a, b)) : 0;
       /* финансовый числитель ('30/…'): период стоит 30×mpp дней вне календаря — делим
          эту фиксированную длину по календарной доле отрезка, иначе каждый отрезок
@@ -5261,6 +5355,22 @@ function buildLedger(c, asOf){
 
   const pool = paidPool(c, fd(lim));                    // тот же горизонт, что и у начисления
   let pP = pool.principal, pI = pool.interest, pPen = pool.penalty;
+  /* СПИСАННОЕ ТЕЛО — ВТОРОЙ ГАСИТЕЛЬ ПОЗИЦИЙ (КВ-62). Пул платежей общий на кредит
+     (ADR-0060 §4), а решение о списании выносится ПО ТРАНШАМ (writeOffTranches), поэтому
+     и запас здесь свой на каждый транш. Гасит той же очередью наступления: сперва деньги,
+     затем списание — иначе списание съело бы позицию, которую заёмщик уже оплатил, и
+     переплата превратилась бы в просрочку соседней позиции. */
+  const offLeft = new Map((c.tranches || []).map(t => [t.no, writtenOffAt(t, fd(lim))]));
+  const writtenOff = round2([...offLeft.values()].reduce((a, v) => a + v, 0));
+  /* ...и такой же запас на КАЖДУЮ статью долга (КВ-63): решение списывает весь долг, а
+     гасится каждая статья своим полем позиции — «Погашено» по-прежнему только деньги. */
+  const offLeftI = new Map((c.tranches || []).map(t => [t.no, writtenOffArtAt(t, 'interest', fd(lim))]));
+  const offLeftP = new Map((c.tranches || []).map(t => [t.no, writtenOffArtAt(t, 'penalty',  fd(lim))]));
+  const offArt = (key) => round2((c.tranches || [])
+    .reduce((a, t) => a + writtenOffArtAt(t, key, fd(lim)), 0));
+  const writtenOffArt = { principal: writtenOff, interest: offArt('interest'),
+    penalty: offArt('penalty'), accInterest: offArt('accInterest'),
+    accPenalty: offArt('accPenalty'), fees: offArt('fees') };
   /* первый проход: гасим ОД и проценты по очереди наступления */
   for (const r of rows){
     /* проценты: у строки под решением суда статья приостановлена ЦЕЛИКОМ — слой несёт
@@ -5272,8 +5382,20 @@ function buildLedger(c, asOf){
     r.interestCharged = round2((r.interestDue || 0) - r.interestFrozen);
     r.principalPaid = round2(Math.min(pP, r.principalDue));    pP = round2(pP - r.principalPaid);
     r.interestPaid  = round2(Math.min(pI, r.interestCharged)); pI = round2(pI - r.interestPaid);
-    r.principalBal  = round2(r.principalDue  - r.principalPaid);
-    r.interestBal   = round2(r.interestCharged - r.interestPaid);
+    /* СПИСАНО ПО ЭТОЙ ПОЗИЦИИ (КВ-62) — отдельным полем, а не прибавкой к principalPaid:
+       «Погашено» означает деньги от заёмщика, и список тела в него входить не должен ни в
+       листе, ни в своде. Тело позиции гаснет, требование снимается — просрочка ниже
+       считается от остатка ПОСЛЕ списания. */
+    const wLeft = offLeft.get(r.trancheNo) || 0;
+    r.principalWritten = round2(Math.min(wLeft, round2(r.principalDue - r.principalPaid)));
+    offLeft.set(r.trancheNo, round2(wLeft - r.principalWritten));
+    /* проценты — той же очередью и тем же правилом (КВ-63). Приостановленное решением суда
+       списанию не подлежит: interestCharged его уже не содержит, и требовать нечего. */
+    const wI = offLeftI.get(r.trancheNo) || 0;
+    r.interestWritten = round2(Math.min(wI, round2(r.interestCharged - r.interestPaid)));
+    offLeftI.set(r.trancheNo, round2(wI - r.interestWritten));
+    r.principalBal  = round2(r.principalDue  - r.principalPaid - r.principalWritten);
+    r.interestBal   = round2(r.interestCharged - r.interestPaid - r.interestWritten);
     r.days          = Math.max(0, dd(pd(r.date), lim));
     const unpaid    = r.principalBal + r.interestBal;
     r.principalOverdue = unpaid > 0.005 ? r.principalBal : 0;
@@ -5302,6 +5424,11 @@ function buildLedger(c, asOf){
     if (!days) continue;
     const poolA = paidPool(c, fd(a));            // зеркало платежей НА НАЧАЛО отрезка
     let pPa = poolA.principal, pIa = poolA.interest;
+    /* списанное НА НАЧАЛО ОТРЕЗКА (КВ-62) — тем же способом, что и пул платежей: база пени
+       обязана знать про решение, принятое до отрезка, и не знать про принятое после. Пеня,
+       набежавшая ДО списания, решением не отменяется — она начислена по договору. */
+    const woA = new Map((c.tranches || []).map(t => [t.no, writtenOffAt(t, fd(a))]));
+    const woI = new Map((c.tranches || []).map(t => [t.no, writtenOffArtAt(t, 'interest', fd(a))]));
     const wDays = daysInWindows(a, b, wins);     // дни отрезка внутри окна спора
     for (const r of rows){
       if (pd(r.date) > a) continue;              // позиция не наступила — просрочки нет
@@ -5310,9 +5437,14 @@ function buildLedger(c, asOf){
          её наступления — тот же результат, что даёт разнесение пула на срез. */
       const pPaidA = round2(Math.min(pPa, r.principalDue));    pPa = round2(pPa - pPaidA);
       const iPaidA = round2(Math.min(pIa, r.interestCharged)); pIa = round2(pIa - iPaidA);
+      const wA     = round2(Math.min(woA.get(r.trancheNo) || 0, round2(r.principalDue - pPaidA)));
+      woA.set(r.trancheNo, round2((woA.get(r.trancheNo) || 0) - wA));
+      const wIA    = round2(Math.min(woI.get(r.trancheNo) || 0,
+                                     Math.max(0, round2((r.interestDue || 0) - iPaidA))));
+      woI.set(r.trancheNo, round2((woI.get(r.trancheNo) || 0) - wIA));
       if (!(r.penaltyMain || r.penaltyInt)) continue;
-      const pBal  = round2(r.principalDue - pPaidA);
-      const iBase = Math.max(0, round2((r.interestDue || 0) - iPaidA));
+      const pBal  = round2(r.principalDue - pPaidA - wA);
+      const iBase = Math.max(0, round2((r.interestDue || 0) - iPaidA - wIA));
       if (pBal + iBase <= 0.005) continue;
       const perDay = pBal * (r.penaltyMain / 100) + iBase * (r.penaltyInt / 100);
       const amt = perDay * days;
@@ -5345,7 +5477,7 @@ function buildLedger(c, asOf){
        даёт ноль. Длинного горизонта у неё нет намеренно: penaltyMaxPct в макете не
        применяется (шаг 4), и на месяцы такая цифра росла бы без потолка. */
     const CLf   = layerOf(r);
-    const iBase = Math.max(0, round2((r.interestDue || 0) - r.interestPaid));
+    const iBase = Math.max(0, round2((r.interestDue || 0) - r.interestPaid - (r.interestWritten || 0)));
     const perDayNow = (r.principalBal + iBase > 0.005)
       ? r.principalBal * (r.penaltyMain / 100) + iBase * (r.penaltyInt / 100) : 0;
     r.penaltyPerDayFwd = round2((CLf && !CLf.mode.penalty) ? 0 : perDayNow);
@@ -5353,17 +5485,28 @@ function buildLedger(c, asOf){
   /* второй проход: пеня гасится после основного долга и процентов */
   for (const r of rows){
     r.penaltyPaid = round2(Math.min(pPen, r.penaltyClaimable)); pPen = round2(pPen - r.penaltyPaid);
-    r.penaltyBal  = round2(r.penaltyClaimable - r.penaltyPaid);
+    /* СПИСАНИЕ ПЕНИ (КВ-63) — здесь, а не в первом проходе: пеня к этому месту только что
+       стала известна (интеграл по отрезкам выше), и гасить её раньше было бы нечего.
+       Списывается ТРЕБУЕМАЯ часть (penaltyClaimable): приостановленное решением суда и
+       спорное решением о безнадёжности не снимаются — их и так не требуют. */
+    const wP = offLeftP.get(r.trancheNo) || 0;
+    r.penaltyWritten = round2(Math.min(wP, round2(r.penaltyClaimable - r.penaltyPaid)));
+    offLeftP.set(r.trancheNo, round2(wP - r.penaltyWritten));
+    r.penaltyBal  = round2(r.penaltyClaimable - r.penaltyPaid - r.penaltyWritten);
     r.received    = round2(r.principalPaid + r.interestPaid + r.penaltyPaid);
     r.totalPaid   = r.received;
     r.overdueTotal = round2(r.principalOverdue + r.interestOverdue + r.penaltyBal);
   }
   /* сборы и комиссии — ЧЕТВЁРТАЯ статья (ADR-0010): начисляются событием, не графиком */
   const feeRows = (c.fees || []).filter(f => f && f.date && pd(f.date) <= lim);
-  let pF = pool.fees;
+  let pF = pool.fees, wF = writtenOffArt.fees;
   for (const f of feeRows){
     f._paid = round2(Math.min(pF, f.amount || 0)); pF = round2(pF - f._paid);
-    f._bal  = round2((f.amount || 0) - f._paid);
+    /* сбор гасится и списанием (КВ-63): решение о безнадёжности снимает весь долг, а сбор —
+       такая же его статья, как проценты. Разреза по траншам у сборов нет — запас на кредит
+       один, и расходуется он в порядке дат, той же очередью, что и деньги. */
+    f._written = round2(Math.min(wF, round2((f.amount || 0) - f._paid))); wF = round2(wF - f._written);
+    f._bal  = round2((f.amount || 0) - f._paid - f._written);
   }
   const index = new Map(rows.map(r => [r.key, r]));
   /* until — дата, ДО которой реально считали. У закрытого кредита она раньше даты среза,
@@ -5420,6 +5563,7 @@ function buildLedger(c, asOf){
       dueByDate.set(r.date, round2((dueByDate.get(r.date) || 0) + r.principalDue));
     }
     let runAcc = 0, runPaidInt = 0, runPaidPen = 0, runDue = 0, runPaidP = 0, runDisb = 0, runOff = 0;
+    let runOffInt = 0, runOffPen = 0;   // списано по процентам и пене нарастающим (КВ-63)
     let runOut = 0, runIn = 0;   // перенос нарастающим (КВ-56)
     for (let i = 0; i < penMarks.length - 1; i++){
       const a = penMarks[i], b = penMarks[i + 1];
@@ -5482,11 +5626,19 @@ function buildLedger(c, asOf){
          решений о списании на кредите бывает больше одного (частичное списание — штатный
          исход), и «сколько всего списано к этой дате» иначе складывается глазами.
          ПЕРЕНОС в это число НЕ входит: тело не исчезло, оно живёт в другом транше — у него
-         своя пара колонок по составу («Перенесено · Принято», КВ-55). Считать их одной
-         колонкой нельзя ещё и потому, что перенос «Остаток» ГАСИТ, а списание нет. */
-      const offAmt   = round2(writeOffsOf(t).filter(w => fd(pd(w.date)) === ds)
-                        .reduce((s, w) => s + (w.amount || 0), 0));
+         своя пара колонок по составу («Перенесено · Принято», КВ-55). Гасят «Остаток» теперь
+         оба (КВ-62), но перенос — встречно, а списание уносит тело с баланса насовсем. */
+      const offDay   = writeOffsOf(t).filter(w => fd(pd(w.date)) === ds);
+      const offAmt   = round2(offDay.reduce((s, w) => s + (w.amount || 0), 0));
+      /* СПИСАНО ПО ПРОЦЕНТАМ И ПЕНЕ (КВ-63) — своя колонка в СВОЁМ блоке, а не приписка к
+         телу. Без неё «Остаток» процентов падал бы до нуля молча: строка печатала бы
+         «Начислено 18 024,64 · Погашено 4 000,00 · Остаток 0,00», и арифметика блока не
+         сходилась бы ни глазом, ни на бумаге. Правило показа то же, что у тела. */
+      const offInt   = round2(offDay.reduce((s, w) => s + (((w.articles||{}).interest)||0), 0));
+      const offPen   = round2(offDay.reduce((s, w) => s + (((w.articles||{}).penalty )||0), 0));
       runOff     = round2(runOff + offAmt);
+      runOffInt  = round2(runOffInt + offInt);
+      runOffPen  = round2(runOffPen + offPen);
       const movedOut = round2((t.transfers || []).filter(x => x.dir === 'out' && fd(pd(x.date)) === ds)
                         .reduce((s, x) => s + (x.amount || 0), 0));
       const movedIn  = round2((t.transfers || []).filter(x => x.dir === 'in'  && fd(pd(x.date)) === ds)
@@ -5512,6 +5664,7 @@ function buildLedger(c, asOf){
            переставали быть видны. Освоение — факт, погашение — факт; «изменение» между
            ними выводится, а не хранится: база строки минус база предыдущей. */
         disb, runDisb, dueP, runDue, runPaidP, offAmt, runOff,
+        offInt, runOffInt, offPen, runOffPen,
         movedOut, runOut, movedIn, runIn, moveTo,
         base, rate: (seg && !gap) ? seg.rate : null, paused: !!(seg && seg.paused),
         accrued: (seg && !gap) ? seg.accrued : null, dev: (seg && !gap) ? seg.dev : null,
@@ -5520,12 +5673,14 @@ function buildLedger(c, asOf){
         penalty: pen ? pen.penalty : 0, penBaseP: pen ? pen.basePrincipal : 0,
         penBaseI: pen ? pen.baseInterest : 0, penPerDay: pen ? pen.perDay : 0,
         penRateMain: pcnd.penaltyMain || 0, penRateInt: pcnd.penaltyInt || 0,
-        accDue, runAcc, intLeft: round2(runInt - runPaidInt), penLeft: round2(runPen - runPaidPen),
-        /* Остатка тела в строке НЕТ: он есть «База» этой же строки, а звать одно число
-           двумя именами в соседних колонках — ровно то, что волна и вычищает. После КВ-54
-           это тождество не на слово: база отрезка = освоено − погашено − неосвоенное
-           ± перенос (sbase в trancheAccrual) и сходится с ИР-3 до копейки на всех 60
-           кредитах сида — сверяет проверка №174. */
+        accDue, runAcc, runPaidInt, runPaidPen,
+        intLeft: round2(runInt - runPaidInt - runOffInt), penLeft: round2(runPen - runPaidPen - runOffPen),
+        /* Остатка тела отдельным полем в строке НЕТ: он и есть «База» этой же строки, а звать
+           одно число двумя именами в соседних колонках — ровно то, что волна вычищает.
+           Итоговой строке этого мало (у строки среза базы нет вовсе) — она считает остаток
+           из нарастающих сама, endBal (КВ-59). После КВ-54 тождество не на слово: база = освоено −
+           погашено − неосвоенное ± перенос − списано (sbase в trancheAccrual, КВ-62) и сходится с ИР-3 до
+           копейки на всех 60 кредитах сида — сверяет проверка №174. */
         paid:pay, runInt, runPen });
     }
     /* СТРОКА САМОГО СРЕЗА (КВ-53). Сетка отрезков кончается срезом как ПРАВЫМ КРАЕМ:
@@ -5536,7 +5691,9 @@ function buildLedger(c, asOf){
        сида были невидимы; тем же способом пропадали 24 платежа сида, датированных срезом.
        Строка добавляется только когда в эту дату ЕСТЬ что показать, и несёт нулевую
        длину: отрезка за срезом нет, поэтому база, ставка и начисление молчат прочерком —
-       строка отвечает на «что случилось в срез», а не «сколько набежало после». */
+       строка отвечает на «что случилось в срез», а не «сколько набежало после». Для ИТОГОВОЙ
+       строки она при этом несёт состояние отдельными полями endOvdP/endOvdI (КВ-59): итог
+       года обязан назвать долг ПОСЛЕ платежа этой даты, а сама строка о нём молчит. */
     const dsLim = fd(lim);
     const evLim = calcEventsAt(c, t, dsLim);
     const payLim = pays.filter(p => fd(pd(p.date)) === dsLim).reduce((s, p) => { const L = p.layers || {};
@@ -5544,10 +5701,12 @@ function buildLedger(c, asOf){
       s.interest  = round2(s.interest  + (L.interest  || 0));
       s.penalty   = round2(s.penalty   + (L.penalty   || 0)); return s; },
       { principal:0, interest:0, penalty:0 });
-    const offLim = round2(writeOffsOf(t).filter(w => fd(pd(w.date)) === dsLim)
-                     .reduce((s, w) => s + (w.amount || 0), 0));
+    const offDayLim = writeOffsOf(t).filter(w => fd(pd(w.date)) === dsLim);
+    const offLim = round2(offDayLim.reduce((s, w) => s + (w.amount || 0), 0));
+    const offILim = round2(offDayLim.reduce((s, w) => s + (((w.articles||{}).interest)||0), 0));
+    const offPLim = round2(offDayLim.reduce((s, w) => s + (((w.articles||{}).penalty )||0), 0));
     const dueLim = dueByDate.get(dsLim) || 0, accLim = accByDate.get(dsLim) || 0;
-    if (evLim.length || offLim > 0.005 || dueLim > 0.005 || accLim > 0.005
+    if (evLim.length || offLim + offILim + offPLim > 0.005 || dueLim > 0.005 || accLim > 0.005
         || payLim.principal + payLim.interest + payLim.penalty > 0.005){
       const outLim = round2((t.transfers || []).filter(x => x.dir === 'out' && fd(pd(x.date)) === dsLim)
                        .reduce((s, x) => s + (x.amount || 0), 0));
@@ -5555,20 +5714,45 @@ function buildLedger(c, asOf){
                        .reduce((s, x) => s + (x.amount || 0), 0));
       const dLim   = round2(evLim.filter(e => e.kind === 'disb').reduce((s, e) => s + (e.amount || 0), 0));
       const cLim   = conditionsAt(t, dsLim);
+      /* ПРОСРОЧКА НА СРЕЗ — ОТДЕЛЬНЫМИ ПОЛЯМИ endOvdP/endOvdI, НЕ БАЗАМИ ПЕНИ (КВ-59).
+         В САМОЙ строке эти числа не печатаются: отрезка за срезом нет, и колонки «Просрочено»
+         в ней молчат прочерком — так и должно быть, строка отвечает за отрезок. Но ИТОГ года
+         и транша обязан назвать состояние на конец периода, а последняя строка периода — как
+         раз эта: иначе итог показывает долг ДО платежа, датированного срезом (у закрытого
+         кредита последний платёж стоит ровно в нём). Считается тем же правилом, что и база
+         пени на отрезке: непокрытый остаток наступивших позиций транша, проценты — ДО
+         заморозки. Разностью нарастающих это не заменить: платежи разносятся пулом по ВСЕМУ
+         кредиту в порядке наступления позиций (ADR-0060 §4), и у многотраншевого K-7
+         «потребовано траншем − погашено траншем» расходится с разнесением на 6 733,12. */
+      let ovdPLim = 0, ovdILim = 0;
+      for (const r of rows){
+        if (r.trancheNo !== t.no || pd(r.date) > lim) continue;
+        if (!(r.penaltyMain || r.penaltyInt)) continue;
+        /* списанное вычтено (КВ-62): у закрытого кредита решение датировано ровно срезом,
+           и итог года обязан назвать долг ПОСЛЕ него — иначе строка среза печатает
+           «Списано 58 000», а «Просрочено» в итоге года остаётся теми же 58 000. */
+        const pBal  = round2(r.principalDue - r.principalPaid - (r.principalWritten || 0));
+        const iBase = Math.max(0, round2((r.interestDue || 0) - r.interestPaid - (r.interestWritten || 0)));
+        if (pBal + iBase <= 0.005) continue;
+        ovdPLim = round2(ovdPLim + pBal); ovdILim = round2(ovdILim + iBase);
+      }
       runOut = round2(runOut + outLim);       runIn = round2(runIn + inLim);
       runDisb = round2(runDisb + dLim);      runOff     = round2(runOff + offLim);
+      runOffInt = round2(runOffInt + offILim); runOffPen = round2(runOffPen + offPLim);
       runDue  = round2(runDue + dueLim);     runPaidP   = round2(runPaidP + payLim.principal);
       runAcc  = round2(runAcc + accLim);     runPaidInt = round2(runPaidInt + payLim.interest);
                                              runPaidPen = round2(runPaidPen + payLim.penalty);
       out.push({ date:dsLim, to:dsLim, days:0, events:evLim,
         move:round2(evLim.reduce((s, e) => s + (e.amount || 0), 0)),
         disb:dLim, runDisb, dueP:dueLim, runDue, runPaidP,
-        offAmt:offLim, runOff, movedOut:outLim, runOut, movedIn:inLim, runIn,
+        offAmt:offLim, runOff, offInt:offILim, runOffInt, offPen:offPLim, runOffPen,
+        movedOut:outLim, runOut, movedIn:inLim, runIn,
         moveTo:(t.transfers || []).filter(x => fd(pd(x.date)) === dsLim).map(x => x.counterTranche).join(', '),
         base:null, rate:null, paused:false, accrued:null, dev:null, noAccrual:'edge', posNo:null,
-        penalty:0, penBaseP:0, penBaseI:0, penPerDay:0,
+        penalty:0, penBaseP:0, penBaseI:0, penPerDay:0, endOvdP:ovdPLim, endOvdI:ovdILim,
         penRateMain:cLim.penaltyMain || 0, penRateInt:cLim.penaltyInt || 0,
-        accDue:accLim, runAcc, intLeft:round2(runInt - runPaidInt), penLeft:round2(runPen - runPaidPen),
+        accDue:accLim, runAcc, runPaidInt, runPaidPen,
+        intLeft:round2(runInt - runPaidInt - runOffInt), penLeft:round2(runPen - runPaidPen - runOffPen),
         paid:payLim, runInt, runPen });
     }
     /* Свод раздела — им лист сверяется со сводом по статьям вкладки. Начислено по отрезкам
@@ -5581,6 +5765,7 @@ function buildLedger(c, asOf){
   }).filter(s => s.rows.length);
 
   return { rows, index, pool, feeRows, layers, byLadder, disputes:wins, artTotal, dateSheet,
+           writtenOff, writtenOffArt,                    // снято с баланса решением: тело (КВ-62) и все шесть статей (КВ-63)
            until: fd(lim), stopped: fd(lim) !== (asOf || TODAY),
            snapshot: snap, provisional: !!(snap && pd(snap) < lim), provisionalFrom: snap };
 }
@@ -5645,11 +5830,20 @@ function debtOf(led, disbursed){
                 penalty:   round2(Math.max(0, led.pool.penalty   - d.penalty.accrued)),
                 fees:      round2(Math.max(0, led.pool.fees      - d.fees.accrued)) };
   d.overpay.total = round2(d.overpay.principal + d.overpay.interest + d.overpay.penalty + d.overpay.fees);
-  /* тело кредита: освоено − погашено. Срочная часть — то, что ещё не наступило по графику. */
-  d.principal.bal  = round2(Math.max(0, (disbursed || 0) - d.principal.paid));
+  /* тело кредита: освоено − погашено − СПИСАНО (КВ-62). Списанное стоит рядом с погашенным,
+     но НЕ внутри него: «Погашено» отвечает за деньги заёмщика, а решение о признании долга
+     безнадёжным денег не приносит. Величина не теряется — свод печатает её отдельной
+     строкой «Списано за баланс», по образцу приостановленного судом и спорной пени.
+     Срочная часть — то, что ещё не наступило по графику. */
+  const W = led.writtenOffArt || { principal: led.writtenOff || 0 };
+  d.principal.written = round2(W.principal || 0);
+  d.principal.bal  = round2(Math.max(0, (disbursed || 0) - d.principal.paid - d.principal.written));
   d.principal.term = round2(Math.max(0, d.principal.bal - d.principal.overdue));
   for (const k of ['interest','penalty','fees']){
-    d[k].bal  = round2(Math.max(0, d[k].accrued - d[k].paid));   // проценты/пеня/сборы начисляются, а не выдаются
+    /* списанное — третье вычитаемое рядом с погашенным (КВ-63). Просрочка сюда уже пришла
+       уменьшенной: позиции гасились списанием в buildLedger, сборы — своим _written. */
+    d[k].written = round2(W[k] || 0);
+    d[k].bal  = round2(Math.max(0, d[k].accrued - d[k].paid - d[k].written));   // проценты/пеня/сборы начисляются, а не выдаются
     d[k].term = round2(Math.max(0, d[k].bal - d[k].overdue));
   }
   /* Накопленное просрочено ровно тем же признаком, что и всё остальное: срок наступил и
@@ -5660,11 +5854,26 @@ function debtOf(led, disbursed){
     const total = round2(((led.artTotal || {})[k]) || d[k].accrued);
     d[k].overdue = round2(Math.max(0, d[k].accrued - d[k].paid));
     d[k].term    = round2(Math.max(0, total - d[k].accrued));
+    /* СПИСАНИЕ СНИМАЕТ СПЕРВА ПРОСРОЧЕННОЕ, ПОТОМ СРОЧНОЕ (КВ-63). Порядок не косметика:
+       решение о безнадёжности выносят из-за того, что срок прошёл и не заплатили, — и
+       снимать оно обязано в первую очередь ровно эту часть. Обратный порядок оставил бы
+       у безнадёжного кредита просроченное накопленное при погашенном срочном. */
+    d[k].written = round2(W[k] || 0);
+    let w = d[k].written;
+    const cut = Math.min(w, d[k].overdue);
+    d[k].overdue = round2(d[k].overdue - cut); w = round2(w - cut);
+    d[k].term    = round2(Math.max(0, d[k].term - w));
     d[k].bal     = round2(d[k].term + d[k].overdue);
   }
   for (const k of ['principal','interest','penalty','fees','accInterest','accPenalty'])
-    for (const v of ['accrued','paid','overdue','term','bal','frozen','disputed'])
+    for (const v of ['accrued','paid','overdue','term','bal','frozen','disputed','written'])
       if (d[k][v] != null) d[k][v] = round2(d[k][v]);
+  /* ИТОГ РЕШЕНИЯ — одно число на все шесть статей (КВ-63): свод печатает его одной строкой
+     «Списано за баланс», как и полагается величине, названной ОДНИМ документом. */
+  d.written = { total: round2(['principal','interest','penalty','accInterest','accPenalty','fees']
+    .reduce((a, k) => a + (d[k].written || 0), 0)) };
+  for (const k of ['principal','interest','penalty','accInterest','accPenalty','fees'])
+    d.written[k] = d[k].written || 0;
   return d;
 }
 /* ШЕСТЬ СТАТЕЙ ДОЛГА (ADR-0093 §1). Порядок здесь — ПОКАЗА, а не погашения: накопленная
@@ -5673,6 +5882,17 @@ function debtOf(led, disbursed){
    buildQueue; сводить два порядка в один список значило бы дать одному списку две роли.
    `acc:true` помечает накопленные: экран прячет их, пока они нулевые — у кредита без
    реструктуризации и льготного периода их нет, и он обязан выглядеть как прежде. */
+/* РАЗБОР СТРОКИ «СПИСАНО ЗА БАЛАНС» ПО СТАТЬЯМ (КВ-63). Строка свода печатает ОДНО число —
+   решение одно, и сумма у него одна, — но собрано оно из шести статей, и без разбора
+   читатель не сойдётся с блоком долга выше: там проценты и пеня стоят нулями, а откуда
+   взялась сумма в строке-исключении, не сказано. Перечисляем только ненулевые: у кредита
+   без пени слова «пеня 0,00» — шум. Подпись, а не колонки: строка-исключение по образцу
+   «Приостановлено решением суда» несёт объяснение в colspan'е. */
+function writtenParts(debt){
+  const W = debt.written || {};
+  return DEBT_ARTICLES.filter(a => (W[a.key] || 0) > 0.005)
+    .map(a => a.label.toLowerCase() + ' ' + money(W[a.key])).join(' · ');
+}
 const DEBT_ARTICLES = [
   { key:'principal',   label:'Основной долг' },
   { key:'interest',    label:'Проценты' },
@@ -9350,12 +9570,12 @@ if (typeof document !== 'undefined') {
            был бы вторым правилом разнесения рядом с первым.
            ОТСЫЛКА «по траншу считается тело — таблица ниже» снята вместе с самой таблицей
            (волна 14.08.2026, п. 8): указывать на блок, которого нет, хуже, чем не указывать
-           никуда. Оговорка про область остаётся — она объясняет, почему переключатель на
-           свод не действует, а это правило разнесения, а не раскладка. */''}
+           никуда. ОГОВОРКА ПРО ОБЛАСТЬ СНЯТА 16.08.2026 решением владельца: область называет
+           сам заголовок — «Свод по кредиту» при любом положении переключателя, а заголовок
+           детального расчёта ниже (:10091) называет свою, «транш №N»; разница читается из
+           двух заголовков. Правило разнесения не изменилось: свод считается ПО КРЕДИТУ
+           всегда (ADR-0060 §4, paidPool :4337 транша не знает) — снят текст, не поведение. */''}
       <div class="section-h">Свод по кредиту на ${esc(d.calcUntil)}${d.calcStopped?' — расчёт остановлен':''}</div>
-      ${sel?`<p class="section-note">Область «транш №${sel.no}» на этот свод не действует: статьи долга разносятся
-        очередью кредита, а не транша (ADR-0060 § 4) — у платежа транша нет. Ниже область сужает
-        <b>детальный расчёт</b>: он идёт по позициям графика, а те у транша свои.</p>`:''}
       ${/* Плашка «Кредит закрыт …» снята волной 14.08.2026: тот же факт называли три места
            на одном экране — заголовок свода («на <дата закрытия> — расчёт остановлен»),
            плитка «Остаток долга» шапки карточки (asOfHtml :6900, видна на любой вкладке) и
@@ -9433,6 +9653,12 @@ if (typeof document !== 'undefined') {
           <td style="text-align:right">${money(repaid)}</td>
           <td style="text-align:right">${money(d.debtBalance)}</td>
           <td style="text-align:right">${money(d.overdueAmount)}</td></tr>
+        ${/* СПИСАНО ЗА БАЛАНС (КВ-62) — строка-исключение того же рода, что «Приостановлено
+             решением суда» и «Спорная пеня»: величина названа, в остаток не входит. Заведена
+             решением владельца 16.08.2026 («да гасит»): раз списание ГАСИТ тело, число обязано
+             остаться на экране — иначе 58 000 у K-6b исчезают между сводом и решением Правления
+             бесследно. В «Погашено» его класть нельзя: денег заёмщик не вносил. */''}
+        ${(d.debt.written||{}).total>0?`<tr><td>Списано за баланс</td><td colspan="2" class="text-muted" style="font:var(--font-label)">весь долг, снятый с баланса решением о признании его безнадёжным (Р-20, КВ-63): ${writtenParts(d.debt)}. Остаток кредита гасит, погашением не является: денег заёмщик не вносил</td><td style="text-align:right">${money(d.debt.written.total)}</td><td></td></tr>`:''}
         ${d.collectionCosts>0?`<tr><td>Расходы по обращению взыскания ${lockHtml()}</td><td colspan="2" class="text-muted" style="font:var(--font-label)">статья взыскания — в остаток кредита и в гейт «Погашен» не входит</td><td style="text-align:right">${money(d.collectionCosts)}</td><td></td></tr>`:''}
         ${(d.debt.interest.frozen>0||d.debt.penalty.frozen>0)?`<tr><td>Приостановлено решением суда</td><td colspan="2" class="text-muted" style="font:var(--font-label)">начислению по договору подлежало, но на присуждённую долю начисление остановлено (проценты ${money(d.debt.interest.frozen)} · пеня ${money(d.debt.penalty.frozen)}) — в остаток не входит</td><td style="text-align:right">${money(round2(d.debt.interest.frozen+d.debt.penalty.frozen))}</td><td></td></tr>`:''}
         ${d.debt.penalty.disputed>0?`<tr><td>Спорная пеня</td><td colspan="2" class="text-muted" style="font:var(--font-label)">пеня за период сторнированного платежа: вычислена, но до решения комиссии в требование не входит и категорию не двигает</td><td style="text-align:right">${money(d.debt.penalty.disputed)}</td><td></td></tr>`:''}
@@ -9478,6 +9704,10 @@ if (typeof document !== 'undefined') {
     const hasAcc  = any(r => (r.accDue||0)   > 0.005 || (r.runAcc||0)  > 0.005);
     const hasDisb = any(r => (r.disb||0)     > 0.005 || (r.runDisb||0) > 0.005);
     const hasOff  = any(r => (r.offAmt||0)   > 0.005 || (r.runOff||0)  > 0.005);
+    /* по каждой статье СВОЙ признак (КВ-63): решение о безнадёжности снимает весь долг, но
+       у кредита без пени списывать в блоке пени нечего — пустая колонка там не нужна. */
+    const hasOffI = any(r => (r.offInt||0)   > 0.005 || (r.runOffInt||0) > 0.005);
+    const hasOffP = any(r => (r.offPen||0)   > 0.005 || (r.runOffPen||0) > 0.005);
     const hasOut  = any(r => (r.movedOut||0) > 0.005 || (r.runOut||0)  > 0.005);
     const hasIn   = any(r => (r.movedIn||0)  > 0.005 || (r.runIn||0)   > 0.005);
     const viewBtn = (v,label,title) => `<button class="btn btn-sm ${calcView===v?'btn-tint':'btn-secondary'}"
@@ -9497,10 +9727,11 @@ if (typeof document !== 'undefined') {
        решение КВ-53). Разбор владельца 16.08.2026, вопрос «списано и перенос в одной
        колонке?»: сливать нельзя, и вторая строка чужой ячейки — то же слияние, только
        вёрсткой. Довод один и арифметический: эти два числа ПО-РАЗНОМУ относятся к соседнему
-       «Остатку». Перенос остаток ГАСИТ (trancheBalanceAt несёт −out +in), списание не гасит
-       и не должно (КР-12) — долг уходит за баланс, заёмщик его должен. Значит колонка,
-       складывающая их, не суммируется: её нарастающий итог у переноса даёт ноль по кредиту
-       (у донора минус, у приёмника плюс), у списания — реальную сумму. Довод КВ-53 про
+       «Остатку». Гасят его ОБА (КВ-62 поставила списание в trancheBalanceAt рядом с −out +in),
+       но по-разному: перенос уменьшение делает ВСТРЕЧНЫМ — сколько ушло у донора, столько
+       пришло приёмнику, и по кредиту это ноль; списание уносит тело с баланса совсем.
+       Поэтому колонка, складывающая их, не суммируется: нарастающий итог переноса по кредиту
+       нулевой, у списания — реальная сумма, снятая решением. Довод КВ-53 про
        ширину снят приёмом ПО СОСТАВУ (hasOut/hasIn): столбцы видит один кредит из 60, остальные
        за них не платят. Направление тоже требовало разделения — перенос двузнаковый, а минус
        в этом блоке уже занят переплатой к графику (КВ-50), и два смысла минуса в соседних
@@ -9519,11 +9750,25 @@ if (typeof document !== 'undefined') {
        шапке — ошибку, которую ловит только глаз да арность в смоуке. Здесь состав считает
        filter, а класс grp (левая граница статьи) достаётся первой ВИДИМОЙ колонке блока, а
        не первой написанной: спрятанное «Освоено» иначе унесло бы границу с собой. */
-    /* Прочерк вместо нуля — правило показа всей вкладки: ноль в денежной колонке читается
-       как «посчитано и вышло ноль», а здесь чаще «статья этой строки не касается». */
+    /* ПРОЧЕРК ИЛИ НОЛЬ — ПО РОДУ КОЛОНКИ (КВ-60, владелец 16.08.2026: «поставь тогда 0 где
+       реально 0 а там где нет отрезка оставь прочерк»). Прежде ноль печатался прочерком
+       ВЕЗДЕ, и клетка не отличала «статья этой строки не касается» от «посчитано и вышло
+       ноль». На закрытом кредите это ложь по смыслу: долга нет — и лист об этом молчит.
+       Правило рода:
+         ПОТОК (освоено, по графику, погашено, списано, перенесено, начислено за отрезок,
+                пеня за отрезок) — прочерк: нуля события не бывает, его просто не случилось;
+         СОСТОЯНИЕ (нарастающие, «Остаток», «Просрочено») — 0,00: это ответ, а не молчание.
+       Род колонки уже назван её итогом (КВ-58): поток складывается `sum`, состояние берётся
+       `last`. Второго перечня не заводится — формат идёт за тем же признаком.
+       ПРОЧЕРК В СОСТОЯНИИ ОСТАЁТСЯ ровно там, где считать НЕ ИЗ ЧЕГО, и такое место осталось
+       одно: «Просрочено» на строке нулевой длины (срез) — отрезка нет, базы пени у него нет.
+       «Остаток» тела в этот список входил, пока печатал базу отрезка; с КВ-61 он печатает
+       ТЕЛО и молчать ему больше не о чем — состояние есть в каждой строке. */
     const num = (v, digits) => (v > 0.005)
       ? (digits ? v.toLocaleString('ru-RU',{minimumFractionDigits:digits,maximumFractionDigits:digits}) : money(v))
       : '<span class="text-muted">—</span>';
+    const state = v => money(v || 0);
+    const dash  = '<span class="text-muted">—</span>';
     /* Отрезок без начисления бывает двух родов, и молчать нельзя ни о том, ни о другом:
        хвост после последней наступившей позиции (график кончился — начислять не на чем,
        ADR-0010) и приостановка начисления (Р-17). Пеня в обоих случаях идёт своим
@@ -9546,65 +9791,173 @@ if (typeof document !== 'undefined') {
        пересчитывается разностью: колонка обязана оставаться базой начисления, поэтому
        минус печатается только там, где просрочки нет. Переплату КРЕДИТА (деньги сверх
        начисленного, K-6) это число не показывает — она в своде, статьёй. */
-    const overdueCell = (r) => {
+    const overdueCell = (r, ovd) => {
+      const v = ovd != null ? ovd : r.penBaseP;
       const aheadP = round2(r.runPaidP - r.runDue);
-      return r.penBaseP > 0.005 ? money(r.penBaseP)
-        : (aheadP > 0.005
-            ? `<span title="${jsAttr('погашено сверх графика: к этой дате график потребовал ' + money(r.runDue) + ', внесено ' + money(r.runPaidP) + ' — аванс идёт в счёт будущих взносов')}">−${money(aheadP)}</span>`
-            : '<span class="text-muted">—</span>');
+      /* ovd != null — зов ИТОГОВОЙ строки (КВ-59): состояние на конец периода она обязана
+         назвать даже тогда, когда несёт его строка нулевой длины. Прочерк «нет отрезка»
+         действует только на саму строку листа (КВ-60). */
+      if (v > 0.005) return money(v);
+      if (aheadP > 0.005)
+        return `<span title="${jsAttr('погашено сверх графика: к этой дате график потребовал ' + money(r.runDue) + ', внесено ' + money(r.runPaidP) + ' — аванс идёт в счёт будущих взносов')}">−${money(aheadP)}</span>`;
+      return (ovd == null && r.days === 0) ? dash : state(0);
     };
+    /* СОСТОЯНИЕ НА КОНЕЦ ПЕРИОДА — ТОЛЬКО ДЛЯ ИТОГОВОЙ СТРОКИ (КВ-59, владелец 16.08.2026:
+       «раньше цифры на строке были правильными, а итоговые нет»). СТРОКА ЛИСТА остаётся
+       нетронутой: она отвечает на «что было в этом отрезке», и у строки без отрезка «Остаток»
+       с «Просрочено» молчат прочерком правильно — базы у неё нет. Ошибался ИТОГ: он брал
+       состояние у последней строки, ГДЕ ПОЛЕ ОПРЕДЕЛЕНО, а последняя строка периода часто
+       строка самого среза (КВ-53) — отрезка нет, поля пусты, и итог откатывался к прошлому
+       отрезку, печатая долг ДО платежа, датированного срезом. У закрытых кредитов он ошибался
+       всегда: срез закрытого кредита — дата закрытия, и последний платёж стоит ровно в ней.
+       Поэтому итог берёт состояние ПОСЛЕДНЕЙ строки периода, но через отдельные функции:
+         остаток  — из нарастающих: освоено + принято − перенесено − погашено − списано
+                    (пятое слагаемое пришло с КВ-62). На строке с отрезком это ровно её база —
+                    тождество сверяется по всем таким строкам сида (проверка №175);
+         просрочка — из базы пени, а на строке среза из её собственного поля endOvd*, которое
+                    модель считает тем же правилом (см. КВ-59 в buildLedger). Разностью
+                    нарастающих её заменить НЕЛЬЗЯ: платежи разносятся пулом по ВСЕМУ кредиту
+                    в порядке наступления позиций (ADR-0060 §4), и у многотраншевого K-7
+                    «потребовано траншем − погашено траншем» расходится с разнесением на
+                    6 733,12.
+       Сверено независимым источником: конец листа = свод долга карточки (остаток и просрочка
+       тела) на всех 50 кредитах сида с листами — 0 расхождений. */
+    /* ПЯТОЕ СЛАГАЕМОЕ — СПИСАНО НАРАСТАЮЩИМ (КВ-62). Ровно та же формула, что у ИР-3
+       (trancheBalanceAt): освоено + принято − перенесено − погашено − списано. Без него
+       строка среза у K-6b печатала «Списано 58 000» и «Остаток 58 000» одновременно. */
+    const endBal  = (r) => round2(Math.max(0, r.runDisb + r.runIn - r.runOut - r.runPaidP - r.runOff));
+    const endOvdP = (r) => r.endOvdP != null ? r.endOvdP : r.penBaseP;
+    const endOvdI = (r) => r.endOvdI != null ? r.endOvdI : r.penBaseI;
+    /* ИТОГ КОЛОНКИ ЖИВЁТ В ЕЁ ОПИСАТЕЛЕ (КВ-58). Строка года и «Итого по траншу» печатали
+       два числа из тринадцати — «Начислено» и «Пеню», — а остальную ширину закрывали
+       colspan'ом, геометрия которого выводилась из длин списков (odWide/intAfter/penAfter).
+       Всё прочее на итоговых строках молчало: год не называл ни освоенного, ни погашенного,
+       ни остатка на свой конец. Теперь итог — третье поле описателя, и правил ровно два:
+         sum  — ПОТОК: сколько прошло ЗА период (освоено, принято, по графику, погашено,
+                списано, перенесено, начислено, накопленные, пеня, дни). Складывается.
+         last — СОСТОЯНИЕ НА КОНЕЦ периода: нарастающие итоги, «Остаток», «Просрочено».
+                Складывать их нельзя — сумма нарастающих не значит ничего, — поэтому берётся
+                значение ПОСЛЕДНЕЙ строки периода и печатает его та же функция ячейки:
+                итог и строка не могут разойтись ни форматом, ни знаком, ни подсказкой.
+       last БЕЗ ОГОВОРОК — всегда ПОСЛЕДНЯЯ строка периода, а состояние, которого в ней нет,
+       даёт третье поле `end` (КВ-59). Сперва у last был предикат: состояние брали у последней
+       строки, где поле ОТРЕЗКА определено, потому что у строки среза (КВ-53) отрезка нет.
+       Правило было неверным — оно печатало состояние ДО событий среза, то есть до последнего
+       платежа. При этом сами СТРОКИ листа были и остаются правильными: прочерк в строке без
+       отрезка — это «базы у неё нет», и трогать его нельзя. Поэтому расходятся не строка с
+       итогом, а два вопроса: строка отвечает «что было в этом отрезке», итог — «где мы на
+       конец периода», и второй ответ собирают endBal/endOvdP/endOvdI (см. выше).
+       «Ставка» и «За день» — параметр отрезка, а не итог: правила у них нет, и на итоговой
+       строке они молчат. Отсутствие правила — тоже правило, поэтому ячейка пустая. */
     const col = (label, title, cell, opt) => ({ label, title, cell,
-      run: !!(opt && opt.run), tdTitle: opt && opt.tdTitle });
+      run: !!(opt && opt.run), tdTitle: opt && opt.tdTitle,
+      sum: opt && opt.sum, last: opt && opt.last, end: opt && opt.end,
+      fmt: (opt && opt.fmt) || num });
     const odAll = [
-      hasDisb && col('Освоено', 'выдано заёмщику в эту дату: проценты с неё идут на фактическое тело (ADR-0105)', r => num(r.disb)),
-      hasDisb && col('Нарастающим', 'выдано с начала транша по эту строку включительно', r => num(r.runDisb), {run:true}),
+      hasDisb && col('Освоено', 'выдано заёмщику в эту дату: проценты с неё идут на фактическое тело (ADR-0105)', r => num(r.disb),
+        {sum: r => r.disb}),
+      hasDisb && col('Нарастающим', 'выдано с начала транша по эту строку включительно', r => state(r.runDisb), {run:true, last:true}),
       hasIn   && col('Принято', 'тело, пришедшее в транш из другого по допсоглашению. Освоением это НЕ является: денег не двигалось, тело уже у заёмщика — производный транш сумму договора не расходует (ADR-0115). Стоит рядом с «Освоено» потому, что это второй источник тела в транше: у производного транша «Освоено» пусто, и объясняет прочерк именно эта колонка. С даты приёма, а не с первой позиции нового графика, на тело идёт ставка нового комплекта условий (КВ-54)',
-        r => num(r.movedIn), {tdTitle: r => r.movedIn > 0.005 ? 'из транша №' + r.moveTo + ' по допсоглашению' : ''}),
-      hasIn   && col('Нарастающим', 'тело, принятое траншем с начала его жизни по эту строку включительно', r => num(r.runIn), {run:true}),
-      col('По графику', 'тело, срок которого пришёл по графику в эту дату; не покрытое платежом уходит в «Просрочено»', r => num(r.dueP)),
-      col('Нарастающим', 'тело, потребованное графиком с начала транша по эту строку включительно', r => num(r.runDue), {run:true}),
-      col('Погашено', 'разнесено в тело платежами этой даты — зеркало модуля платежей', r => num(r.paid.principal)),
-      col('Нарастающим', 'тело, погашенное с начала транша по эту строку включительно', r => num(r.runPaidP), {run:true}),
-      hasOff  && col('Списано', 'тело, признанное безнадёжным решением в эту дату (Р-20). Долг при этом НЕ гаснет — он уходит за баланс: «Остаток» рядом продолжает показывать тело, которое заёмщик должен', r => num(r.offAmt)),
-      hasOff  && col('Нарастающим', 'списано с начала транша по эту строку включительно — решений о списании бывает больше одного', r => num(r.runOff), {run:true}),
-      hasOut  && col('Перенесено', 'тело, ушедшее из транша по допсоглашению (ADR-0092 §2). Списанием это НЕ является и в соседнюю колонку не входит: долг не прощён, он живёт в другом транше того же кредита. «Остаток» рядом на эту сумму уменьшается — тем и отличается от списания. Разность с «Принято» слева — вклад переноса в «Остаток» справа',
-        r => num(r.movedOut), {tdTitle: r => r.movedOut > 0.005 ? 'в транш №' + r.moveTo + ' по допсоглашению' : ''}),
-      hasOut  && col('Нарастающим', 'тело, ушедшее из транша с начала его жизни по эту строку включительно', r => num(r.runOut), {run:true}),
-      col('Остаток', 'база отрезка: освоено − погашено телом. Это же число — «Остаток» следующей строки плюс её «Освоено» минус её «Погашено»',
-        r => r.base==null ? '<span class="text-muted">—</span>' : money(r.base)),
-      col('Просрочено', 'тело, срок которого наступил и не покрыт — база пени по основному долгу. Минус — обратное: погашено больше, чем график потребовал к этой дате (аванс в счёт будущих взносов)', overdueCell),
+        r => num(r.movedIn), {sum: r => r.movedIn, tdTitle: r => r.movedIn > 0.005 ? 'из транша №' + r.moveTo + ' по допсоглашению' : ''}),
+      hasIn   && col('Нарастающим', 'тело, принятое траншем с начала его жизни по эту строку включительно', r => state(r.runIn), {run:true, last:true}),
+      col('По графику', 'тело, срок которого пришёл по графику в эту дату; не покрытое платежом уходит в «Просрочено»', r => num(r.dueP),
+        {sum: r => r.dueP}),
+      col('Нарастающим', 'тело, потребованное графиком с начала транша по эту строку включительно', r => state(r.runDue), {run:true, last:true}),
+      col('Погашено', 'разнесено в тело платежами этой даты — зеркало модуля платежей', r => num(r.paid.principal),
+        {sum: r => r.paid.principal}),
+      col('Нарастающим', 'тело, погашенное с начала транша по эту строку включительно', r => state(r.runPaidP), {run:true, last:true}),
+      hasOff  && col('Списано', 'тело, снятое с баланса решением о признании долга безнадёжным в эту дату (Р-20). Остаток оно ГАСИТ (КВ-62): «Остаток» рядом на эту сумму падает. Погашением при этом не является — денег заёмщик не вносил, и в «Погашено» слева число не входит; за балансом долг остаётся его долгом. Тело — лишь ОДНА статья решения: проценты и пеню оно списывает тем же документом (КВ-63), свои колонки «Списано» у них в своих блоках', r => num(r.offAmt),
+        {sum: r => r.offAmt}),
+      hasOff  && col('Нарастающим', 'списано с начала транша по эту строку включительно — решений о списании бывает больше одного', r => state(r.runOff), {run:true, last:true}),
+      hasOut  && col('Перенесено', 'тело, ушедшее из транша по допсоглашению (ADR-0092 §2). Списанием это НЕ является и в соседнюю колонку не входит: тело не ушло с баланса, оно живёт в другом транше того же кредита. «Остаток» рядом на эту сумму уменьшается — как и от списания, но уменьшение это встречное: у транша-приёмника ровно столько же прибавилось. Разность с «Принято» слева — вклад переноса в «Остаток» справа',
+        r => num(r.movedOut), {sum: r => r.movedOut, tdTitle: r => r.movedOut > 0.005 ? 'в транш №' + r.moveTo + ' по допсоглашению' : ''}),
+      hasOut  && col('Нарастающим', 'тело, ушедшее из транша с начала его жизни по эту строку включительно', r => state(r.runOut), {run:true, last:true}),
+      /* ЭТА КОЛОНКА — ТЕЛО, А НЕ БАЗА НАЧИСЛЕНИЯ (КВ-61, владелец 16.08.2026: «25 марта 2025
+         почему остаток прочерк ?»). Печаталась `base` — база отрезка, — и молчала везде, где
+         отрезка нет: у хвоста за последней позицией графика (ADR-0010), у транша, принявшего
+         тело переносом до первой своей позиции (КВ-54), у строки среза (КВ-53). Тело при этом
+         на месте: у K-6b 25.03.2025 висит 90 000,00, и ПЕНЯ В ТОЙ ЖЕ СТРОКЕ считается ровно с
+         них (за день 108,0247 × 282 дн). Прочерк рядом с работающей пенёй читается как «долга
+         нет» — колонка врала о состоянии, потому что отвечала за чужой вопрос.
+         Теперь число одно и то же с обеих сторон: пока начисление идёт, тело И ЕСТЬ база
+         отрезка — тождество сверено на всех 273 строках сида с отрезком (проверка №175), —
+         а где начисление встало, молчат «Ставка», «Дней» и «Начислено», и только они.
+         СПИСАНИЕ ВХОДИТ ПЯТЫМ СЛАГАЕМЫМ (КВ-62, решение владельца 16.08.2026 «да гасит»):
+         прежде решение о списании тело не трогало, и та же строка 15.05.2026 у K-6b
+         печатала «Списано 58 000» рядом с «Остаток 58 000». */
+      col('Остаток', 'тело, которое числится за траншем на конец строки: освоено + принято − перенесено − погашено − списано. Пока идёт начисление, это же число — база отрезка («Остаток» × «Ставка» × «Дней» = «Начислено»); после последней позиции графика начислять не на чем (ADR-0010) — молчат «Ставка» и «Начислено», а тело остаётся',
+        r => state(r.base == null ? endBal(r) : r.base), {last:true}),
+      col('Просрочено', 'тело, срок которого наступил и не покрыт — база пени по основному долгу. Минус — обратное: погашено больше, чем график потребовал к этой дате (аванс в счёт будущих взносов)', overdueCell,
+        {last:true, end: r => overdueCell(r, endOvdP(r))}),
     ].filter(Boolean);
     const intAll = [
       col('Ставка', 'годовая ставка условий, действующих на начало отрезка (Р-21)', r => r.rate ? esc(r.rate)+' %' : '<span class="text-muted">—</span>'),
-      col('Дней', 'дней в отрезке; при методе «30/360» — финансовые 30 × число месяцев', r => esc(r.days)),
-      col('Начислено', 'база × ставка × дней ÷ день-базы — за этот отрезок', accCell),
-      col('Нарастающим', 'начислено с начала транша по эту строку включительно', r => money(r.runInt), {run:true}),
-      hasAcc && col('Накопленные', 'проценты, начисленные ДО реструктуризации: срок им назначил документ, разложив по позициям нового графика (ADR-0093 §1). Ставка на них не идёт — периодом они не порождаются', r => num(r.accDue)),
-      hasAcc && col('Нарастающим', 'накопленные проценты, наступившие с начала транша', r => num(r.runAcc), {run:true}),
-      col('Погашено', 'разнесено в проценты платежами этой даты', r => num(r.paid.interest)),
-      col('Остаток', 'начислено нарастающим − погашено нарастающим', r => num(r.intLeft)),
-      col('Просрочено', 'проценты, срок которых наступил и не покрыт — вторая база пени', r => num(r.penBaseI)),
+      col('Дней', 'дней в отрезке; при методе «30/360» — финансовые 30 × число месяцев', r => esc(r.days),
+        {sum: r => r.days, fmt: v => v > 0 ? esc(String(v)) : '<span class="text-muted">—</span>'}),
+      col('Начислено', 'база × ставка × дней ÷ день-базы — за этот отрезок', accCell,
+        {sum: r => r.accrued || 0, fmt: money}),
+      col('Нарастающим', 'начислено с начала транша по эту строку включительно', r => money(r.runInt), {run:true, last:true}),
+      hasAcc && col('Накопленные', 'проценты, начисленные ДО реструктуризации: срок им назначил документ, разложив по позициям нового графика (ADR-0093 §1). Ставка на них не идёт — периодом они не порождаются', r => num(r.accDue),
+        {sum: r => r.accDue}),
+      hasAcc && col('Нарастающим', 'накопленные проценты, наступившие с начала транша', r => state(r.runAcc), {run:true, last:true}),
+      col('Погашено', 'разнесено в проценты платежами этой даты', r => num(r.paid.interest),
+        {sum: r => r.paid.interest}),
+      hasOffI && col('Списано', 'проценты, снятые с баланса решением о признании долга безнадёжным в эту дату (Р-20, КВ-63). Решение списывает ВЕСЬ долг, а не одно тело: «Остаток» справа на эту сумму падает, просрочка процентов вместе с ним. Погашением не является — денег заёмщик не вносил', r => num(r.offInt),
+        {sum: r => r.offInt}),
+      hasOffI && col('Нарастающим', 'проценты, списанные с начала транша по эту строку включительно', r => state(r.runOffInt), {run:true, last:true}),
+      /* МИНУС ЗДЕСЬ — ПЕРЕПЛАТА ПРОЦЕНТОВ (КВ-60), тем же знаком, что переплата тела в
+         «Просрочено» (КВ-50). Пока ноль печатался прочерком, отрицательный остаток прятался
+         вместе с нулём: у K-6 в проценты разнесено 22 000,00 при начисленных 19 226,28, и
+         лист об этом молчал — прочерк читался как «ровно закрыто». */
+      col('Остаток', 'начислено нарастающим − погашено нарастающим − списано нарастающим (КВ-63). Минус — погашено больше начисленного к этой дате', r => r.intLeft < -0.005
+        ? `<span title="${jsAttr(r.runOffInt > 0.005
+            ? 'списано и погашено процентов больше, чем лист начислил к этой дате, на ' + money(-r.intLeft)
+              + ' — это НЕ переплата: решение о списании снимает проценты ПО ПОЗИЦИЯМ графика, а лист начисляет их ПО ОТРЕЗКАМ, и обе величины расходятся ровно там, где график построен по одному снимку условий (Д-5). Разность названа сводом раздела ниже'
+            : 'погашено процентов больше начисленного к этой дате на ' + money(-r.intLeft)
+              + ' — излишек идёт в счёт будущих начислений; переплата кредита деньгами живёт в своде отдельной статьёй')}">−${money(-r.intLeft)}</span>`
+        : state(r.intLeft), {last:true}),
+      col('Просрочено', 'проценты, срок которых наступил и не покрыт — вторая база пени', r => r.days === 0 ? dash : state(r.penBaseI),
+        {last:true, end: r => state(endOvdI(r))}),
     ].filter(Boolean);
     const odCols  = odAll.filter(x => calcRunOD  || !x.run);
     const intCols = intAll.filter(x => calcRunInt || !x.run);
     /* У пени нарастающих колонок нет — поэтому нет и третьего переключателя. Отсутствие
        кнопки там само себя объясняет: гасить в этом блоке нечего. */
     const penCols = [
-      col('Начислено', 'пеня за отрезок: (просроч. тело × ставка ОД + просроч. проценты × ставка %) ÷ 100 × дней', r => num(r.penalty)),
+      col('Начислено', 'пеня за отрезок: (просроч. тело × ставка ОД + просроч. проценты × ставка %) ÷ 100 × дней', r => num(r.penalty),
+        {sum: r => r.penalty}),
       col('За день', 'цена одного дня просрочки на начало отрезка', r => num(r.penPerDay, 4)),
       col('Ставка', 'ставки пени на начало отрезка: по основному долгу / по процентам, % в день', r => esc(r.penRateMain)+' / '+esc(r.penRateInt)),
-      col('Погашено', 'разнесено в пеню платежами этой даты', r => num(r.paid.penalty)),
-      col('Остаток', 'пеня нарастающим − погашено нарастающим', r => num(r.penLeft)),
-    ];
+      col('Погашено', 'разнесено в пеню платежами этой даты', r => num(r.paid.penalty),
+        {sum: r => r.paid.penalty}),
+      hasOffP && col('Списано', 'пеня, снятая с баланса решением о признании долга безнадёжным в эту дату (Р-20, КВ-63). Снимается ТРЕБУЕМАЯ часть: приостановленную решением суда и спорную решение не трогает — их и так не требуют. Погашением не является — денег заёмщик не вносил', r => num(r.offPen),
+        {sum: r => r.offPen}),
+      col('Остаток', 'пеня нарастающим − погашено нарастающим − списано нарастающим (КВ-63)', r => state(r.penLeft), {last:true}),
+    ].filter(Boolean);
     const headCells = (cols) => cols.map((cl, i) =>
       `<th${i ? '' : ' class="grp"'} style="text-align:right"${cl.title ? ` title="${jsAttr(cl.title)}"` : ''}>${cl.label}</th>`).join('');
     const bodyCells = (cols, r) => cols.map((cl, i) => {
       const t = cl.tdTitle ? cl.tdTitle(r) : '';
       return `<td${i ? '' : ' class="grp"'} style="text-align:right"${t ? ` title="${jsAttr(t)}"` : ''}>${cl.cell(r)}</td>`;
     }).join('');
+    /* ИТОГОВАЯ ЯЧЕЙКА СОБИРАЕТСЯ ТЕМ ЖЕ СПИСКОМ, ЧТО И ШАПКА (КВ-58) — иначе итог поедет
+       при первой же колонке «по составу». Поток печатается своим форматом (деньги, дни),
+       состояние — вызовом ячейки на выбранной строке: подсказки, знак переплаты (КВ-50) и
+       прочерк вместо нуля приходят вместе с ним, без второй реализации. */
+    const totCells = (cols, rs) => cols.map((cl, i) => {
+      const row = cl.last ? rs[rs.length - 1] : null;
+      const v = cl.sum ? cl.fmt(round2(rs.reduce((a, r) => a + (cl.sum(r) || 0), 0)))
+              : row ? (cl.end ? cl.end(row) : cl.cell(row)) : '';
+      return `<td${i ? '' : ' class="grp"'} style="text-align:right">${v}</td>`;
+    }).join('');
+    /* ПЕРЕКЛЮЧАТЕЛЬ ЗОВЁТСЯ «ДЕТАЛИ» И СТОИТ У ПРАВОГО КРАЯ ЯЧЕЙКИ (КВ-58, владелец
+       16.08.2026). Слово «нарастающим» на кнопке повторяло подпись колонок, которые она
+       открывает, и читалось как ещё одна колонка в шапке статьи; «детали» называет действие,
+       а не содержимое. Правый край — потому что кнопка не часть имени статьи: имя стоит по
+       центру своего блока, управление показом отбито в угол. */
     const runSw = (block, on, n) => n === 0 ? '' : `<button class="runsw" onclick="event.stopPropagation();CR.toggleCalcRun('${block}')"
-      title="${jsAttr(on ? 'Скрыть колонки «Нарастающим» этой статьи (' + n + '). Разовое число строки останется — нарастающий итог отвечает на другой вопрос, «сколько всего», и на него отвечают строка года, «Итого по траншу» и свод выше'
-                        : 'Показать колонки «Нарастающим» этой статьи (' + n + '): у каждой суммы появится её итог с начала транша по эту строку включительно')}">${on ? '▾' : '▸'} нарастающим</button>`;
+      title="${jsAttr(on ? 'Скрыть детали статьи — ' + plur(n, 'колонку', 'колонки', 'колонок') + ' «Нарастающим». Разовое число строки останется, а «сколько всего» ответят строка года, «Итого по траншу» и свод выше'
+                        : 'Показать детали статьи — ' + plur(n, 'колонку', 'колонки', 'колонок') + ' «Нарастающим»: у каждой суммы появится её итог с начала транша по эту строку включительно')}">${on ? '▾' : '▸'} детали</button>`;
     const odRun  = odAll.filter(x => x.run).length;
     const intRun = intAll.filter(x => x.run).length;
     const dateHead = `<tr>
@@ -9646,38 +9999,25 @@ if (typeof document !== 'undefined') {
     };
 
     const sheetHtml = (s) => {
-      /* Итоговые строки повторяют геометрию шапки и считают её ПО ТЕМ ЖЕ СПИСКАМ колонок:
-         число здесь ни разу не написано руками — ни состав (КВ-55/56 и правило 16.08.2026),
-         ни состояние переключателей нарастающих его больше не двигают. Первые две колонки
-         процентов («Ставка», «Дней») и первая колонка пени («Начислено») есть всегда, на
-         них геометрия и опирается; «Начислено» процентов — третья по счёту. */
-      const intAfter = intCols.length - 3;
-      const odWide   = odCols.length + 1;   // + «Дата и событие»
-      const penAfter = penCols.length - 1;
+      /* Итоговые строки — обычные строки таблицы: каждая колонка называет свой итог ПОД
+         СВОЕЙ шапкой (КВ-58). Ни одного colspan'а, кроме нулевого: геометрию больше не
+         надо выводить из длин списков, а состав «по составу» и состояние переключателей
+         деталей двигают итог сами собой — он собирается тем же массивом описателей. */
       const years = [...new Set(s.rows.map(r=>+r.date.slice(6,10)))].sort((a,b)=>a-b);
       const body = [];
       for (const y of years){
         const rs = s.rows.filter(r=>+r.date.slice(6,10)===y);
-        const gi = round2(rs.reduce((a,r)=>a+(r.accrued||0),0));
-        const gp = round2(rs.reduce((a,r)=>a+(r.penalty||0),0));
         const open = openY.has(y);
         body.push(`<tr class="gyear${open?' open':''}" onclick="CR.toggleCalcYear(${y})" title="${open?'Свернуть':'Развернуть'} ${y} год">
-          <td colspan="${odWide}"><span class="gcar">${open?'▾':'▸'}</span><span class="gy">${y}</span>${y===asOfYear?'<span class="pill neutral">текущий</span>':''}<span class="gcnt">${plur(rs.length,'отрезок','отрезка','отрезков')}</span></td>
-          <td class="grp" colspan="2"></td>
-          <td style="text-align:right"><b>${money(gi)}</b></td>
-          <td colspan="${intAfter}"></td>
-          <td class="grp" style="text-align:right"><b>${gp>0.005?money(gp):'—'}</b></td>
-          <td colspan="${penAfter}"></td></tr>`);
+          <td><span class="gcar">${open?'▾':'▸'}</span><span class="gy">${y}</span>${y===asOfYear?'<span class="pill neutral">текущий</span>':''}<span class="gcnt">${plur(rs.length,'отрезок','отрезка','отрезков')}</span></td>
+          ${totCells(odCols, rs)}${totCells(intCols, rs)}${totCells(penCols, rs)}</tr>`);
         if (open) rs.forEach(r=>body.push(dateRowHtml(r)));
       }
       /* Правый край листа называется ЗДЕСЬ и только здесь: конец последней строки —
          единственный, который не выводится из даты следующей (её нет). */
-      body.push(`<tr style="font-weight:var(--weight-semibold);background:var(--surface-panel)">
-        <td colspan="${odWide+2}">Итого по траншу №${esc(s.trancheNo)} <span class="text-muted" style="font:var(--font-label)">по ${esc(d.ledger.until)}</span></td>
-        <td style="text-align:right">${money(s.sumInterest)}</td>
-        <td colspan="${intAfter}"></td>
-        <td class="grp" style="text-align:right">${s.sumPenalty>0.005?money(s.sumPenalty):'—'}</td>
-        <td colspan="${penAfter}"></td></tr>`);
+      body.push(`<tr class="gtot">
+        <td>Итого по траншу №${esc(s.trancheNo)} <span class="text-muted" style="font:var(--font-label)">по ${esc(d.ledger.until)}</span></td>
+        ${totCells(odCols, s.rows)}${totCells(intCols, s.rows)}${totCells(penCols, s.rows)}</tr>`);
       /* СВЕРКА С РАСЧЁТОМ ПО ПОЗИЦИЯМ. Начисление позиции складывается как контракт +
          отклонение, а контракт приходит из buildSchedule, который берёт ОДИН снимок условий
          (Д-5): ставка, изменённая допсоглашением, задним числом переписывает и прошлые
@@ -9749,12 +10089,15 @@ if (typeof document !== 'undefined') {
           <div class="gtoolbar" style="margin-top:8px"><button class="btn btn-secondary btn-sm"
             onclick="CR.goToSchedule()">Перейти к графику</button></div></div></div>`; })()}
       <div class="section-h" style="margin-top:22px">Детальный расчёт ${!sel?'(по кредиту)':'(транш №'+sel.no+')'}</div>
-      <p class="section-note">${calcView==='dates'
-        ? `Строка — <b>критическая дата</b> и период после неё: внутри периода расчёт неизменен, поэтому день не дробится, а умножается на количество дней.
-           Границу ставит любое событие, меняющее расчёт, — освоение, платёж, наступление позиции, смена условий, приостановка, решение суда.
-           Ставки и метод дней — условия договора: смотреть и править (зарегистрированным основанием) во вкладке <a class="rowlink" onclick="CR.openTab('Условия')">«Условия»</a>.`
-        : `Строка — <b>позиция графика</b>: что наступило по сроку, сколько по ней пришло и что осталось.
-           Почему начислено именно столько — на виде «По датам».`}</p>
+      ${/* ПОДПИСЬ ВИДА «ПО ДАТАМ» СНЯТА 16.08.2026 решением владельца. Что она несла:
+            (1) «строка — критическая дата и период после неё, день не дробится» — читается
+            из самих колонок листа (дата · дней · база · ставка · начислено); (2) перечень
+            событий-границ — тултип кнопки «По датам» строкой ниже; (3) отсылка к «Условиям»
+            за ставками и методом дней — вкладка «Условия» стоит в том же переключателе
+            карточки. Пустой <p> не оставлен: подпись рендерится только у вида «По позициям»,
+            иначе блок получал бы холостой отступ. */''}
+      ${calcView==='dates' ? '' : `<p class="section-note">Строка — <b>позиция графика</b>: что наступило по сроку, сколько по ней пришло и что осталось.
+           Почему начислено именно столько — на виде «По датам».</p>`}
       <div class="gtoolbar" style="margin:10px 0 8px;flex-wrap:wrap;gap:6px">
         ${viewBtn('dates','По датам','лист по критическим датам: база, ставка, дни и начисленное — арифметика проверяется в строке')}
         ${viewBtn('positions','По позициям','реестр обязательств: какие платежи графика не закрыты')}
