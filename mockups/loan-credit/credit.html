@@ -1068,7 +1068,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-15 · 172/173 PASS
+ SMOKE (node) 2026-08-16 · 173/176 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -1160,7 +1160,7 @@
    #154 ✓
    #155 ✓
    #160 ✓
-   #161 ✓
+   #161 ✗ утечек полей на «Расчётах» 0 · значения целы на «Условиях» true · ссылка туда false · queue вне модели true
    #162 ✓
    #163 ✓
    #164 ✓
@@ -1170,6 +1170,9 @@
    #171 ✓
    #172 ✓
    #173 ✓
+   #174 ✓
+   #175 ✗ итоговых строк года сверено 56 на 50 листах · нарастающее года 100000 · нарушений 1 — K-1: нарастающее в итоге года 100000 против 7593.83 последней строки
+   #176 ✓
    #130 ✓
    #156 ✓
    #132 ✓
@@ -5586,7 +5589,23 @@ function buildLedger(c, asOf){
       if (r.trancheNo !== t.no || !(r.principalDue > 0.005)) continue;
       dueByDate.set(r.date, round2((dueByDate.get(r.date) || 0) + r.principalDue));
     }
+    /* ПРОЦЕНТЫ ПО ГРАФИКУ (КВ-65). Тем же приёмом, что тело: требование позиции берётся из
+       леджера (наступившие позиции), а не из графика. Величина — `interestDue` (ADR-0105):
+       контрактные проценты позиции ПЛЮС отклонение за фактическое тело; ровно её кредит
+       требует к дате и ровно от неё считается база пени по процентам (penBaseI).
+       Начисленное отрезком — величина ДРУГАЯ и стоит в листе своей колонкой: она отвечает
+       на «сколько набежало», требование — на «сколько к этой дате обязаны заплатить».
+       ФИЛЬТР ПО МОДУЛЮ, а не по знаку: отклонение двузнаково, и у транша, отдавшего тело
+       по ДС, требование позиции уходит в минус (K-7 т1 01.06.2026: 1 223,01 − 1 659,71 =
+       −436,70). Положительный фильтр терял такую позицию молча, и сумма колонки переставала
+       сходиться с расчётом по позициям. */
+    const dueIByDate = new Map();
+    for (const r of rows){
+      if (r.trancheNo !== t.no || !(Math.abs(r.interestDue || 0) > 0.005)) continue;
+      dueIByDate.set(r.date, round2((dueIByDate.get(r.date) || 0) + r.interestDue));
+    }
     let runAcc = 0, runPaidInt = 0, runPaidPen = 0, runDue = 0, runPaidP = 0, runDisb = 0, runOff = 0;
+    let runDueI = 0;                    // проценты, потребованные графиком нарастающим (КВ-65)
     let runOffInt = 0, runOffPen = 0;   // списано по процентам и пене нарастающим (КВ-63)
     let runOut = 0, runIn = 0;   // перенос нарастающим (КВ-56)
     for (let i = 0; i < penMarks.length - 1; i++){
@@ -5629,6 +5648,7 @@ function buildLedger(c, asOf){
          итог разнесения, а не повторяет его правило. */
       const accDue = accByDate.get(ds) || 0;
       const dueP   = dueByDate.get(ds) || 0;
+      const dueI   = dueIByDate.get(ds) || 0;
       runAcc     = round2(runAcc + accDue);
       runPaidInt = round2(runPaidInt + pay.interest);
       runPaidPen = round2(runPaidPen + pay.penalty);
@@ -5638,6 +5658,10 @@ function buildLedger(c, asOf){
          сегодня; сверять два столбца глазом дешевле, чем складывать 130 строк. */
       runDue     = round2(runDue + dueP);
       runPaidP   = round2(runPaidP + pay.principal);
+      /* НАРАСТАЮЩИЕ ПО ПРОЦЕНТАМ (КВ-65). Пара к «По графику» по тому же доводу, что у тела:
+         разность «потребовано графиком − погашено» и есть просроченные проценты плюс
+         наступившее сегодня, а складывать 130 строк глазом дороже, чем сверить два столбца. */
+      runDueI    = round2(runDueI + dueI);
       /* ОСВОЕНО НАРАСТАЮЩИМ (КВ-51). У транша с одним освоением колонка повторяет разовое
          число, у многотраншевых договоров — единственное место, где видно, на какой сумме
          кредит жил в этом отрезке: «Остаток» уже вычел погашенное, а «Освоено» помнит
@@ -5697,7 +5721,7 @@ function buildLedger(c, asOf){
         penalty: pen ? pen.penalty : 0, penBaseP: pen ? pen.basePrincipal : 0,
         penBaseI: pen ? pen.baseInterest : 0, penPerDay: pen ? pen.perDay : 0,
         penRateMain: pcnd.penaltyMain || 0, penRateInt: pcnd.penaltyInt || 0,
-        accDue, runAcc, runPaidInt, runPaidPen,
+        accDue, runAcc, dueI, runDueI, runPaidInt, runPaidPen,
         intLeft: round2(runInt - runPaidInt - runOffInt), penLeft: round2(runPen - runPaidPen - runOffPen),
         /* Остатка тела отдельным полем в строке НЕТ: он и есть «База» этой же строки, а звать
            одно число двумя именами в соседних колонках — ровно то, что волна вычищает.
@@ -5730,7 +5754,9 @@ function buildLedger(c, asOf){
     const offILim = round2(offDayLim.reduce((s, w) => s + (((w.articles||{}).interest)||0), 0));
     const offPLim = round2(offDayLim.reduce((s, w) => s + (((w.articles||{}).penalty )||0), 0));
     const dueLim = dueByDate.get(dsLim) || 0, accLim = accByDate.get(dsLim) || 0;
+    const dueILim = dueIByDate.get(dsLim) || 0;      // требование по процентам в срез (КВ-65)
     if (evLim.length || offLim + offILim + offPLim > 0.005 || dueLim > 0.005 || accLim > 0.005
+        || Math.abs(dueILim) > 0.005
         || payLim.principal + payLim.interest + payLim.penalty > 0.005){
       const outLim = round2((t.transfers || []).filter(x => x.dir === 'out' && fd(pd(x.date)) === dsLim)
                        .reduce((s, x) => s + (x.amount || 0), 0));
@@ -5765,6 +5791,7 @@ function buildLedger(c, asOf){
       runOffInt = round2(runOffInt + offILim); runOffPen = round2(runOffPen + offPLim);
       runDue  = round2(runDue + dueLim);     runPaidP   = round2(runPaidP + payLim.principal);
       runAcc  = round2(runAcc + accLim);     runPaidInt = round2(runPaidInt + payLim.interest);
+      runDueI = round2(runDueI + dueILim);
                                              runPaidPen = round2(runPaidPen + payLim.penalty);
       out.push({ date:dsLim, to:dsLim, days:0, events:evLim,
         move:round2(evLim.reduce((s, e) => s + (e.amount || 0), 0)),
@@ -5775,7 +5802,7 @@ function buildLedger(c, asOf){
         base:null, rate:null, paused:false, accrued:null, dev:null, noAccrual:'edge', posNo:null,
         penalty:0, penBaseP:0, penBaseI:0, penPerDay:0, endOvdP:ovdPLim, endOvdI:ovdILim,
         penRateMain:cLim.penaltyMain || 0, penRateInt:cLim.penaltyInt || 0,
-        accDue:accLim, runAcc, runPaidInt, runPaidPen,
+        accDue:accLim, runAcc, dueI:dueILim, runDueI, runPaidInt, runPaidPen,
         intLeft:round2(runInt - runPaidInt - runOffInt), penLeft:round2(runPen - runPaidPen - runOffPen),
         paid:payLim, runInt, runPen });
     }
@@ -5784,7 +5811,13 @@ function buildLedger(c, asOf){
        условий (Д-5); экран обязан назвать это расхождение, а не спрятать. */
     const ledInt = round2(rows.filter(r => r.trancheNo === t.no)
       .reduce((s, r) => s + (r.interestAccrued || 0), 0));
-    return { trancheNo:t.no, rows:out, sumInterest:runInt, sumPenalty:runPen,
+    /* СУММА КОЛОНКИ «ПО ГРАФИКУ» — ОТДЕЛЬНОЙ ВЕЛИЧИНОЙ (КВ-65), а не пересказом ledInt.
+       На сиде они равны, но равенство это СВОЙСТВО СИДА, а не тождество: ledInt складывает
+       interestAccrued (база + отклонение), колонка — interestDue (контракт + отклонение),
+       и база расходится с контрактом на графиках с льготным периодом и распределением
+       отложенных процентов. Плашка ниже подписывает то, что стоит в колонке, поэтому берёт
+       это число; расхождение обеих величин стережёт проверка №176. */
+    return { trancheNo:t.no, rows:out, sumInterest:runInt, sumPenalty:runPen, sumDueI:runDueI,
              ledgerInterest:ledInt, gap:round2(runInt - ledInt) };
   }).filter(s => s.rows.length);
 
@@ -9828,6 +9861,35 @@ if (typeof document !== 'undefined') {
         return `<span title="${jsAttr('погашено сверх графика: к этой дате график потребовал ' + money(r.runDue) + ', внесено ' + money(r.runPaidP) + ' — аванс идёт в счёт будущих взносов')}">−${money(aheadP)}</span>`;
       return (ovd == null && r.days === 0) ? dash : state(0);
     };
+    /* «ПО ГРАФИКУ» ПО ПРОЦЕНТАМ ДВУЗНАЧНА (КВ-65). Требование позиции — контрактные проценты
+       ПЛЮС отклонение за фактическое тело (ADR-0105), и второе слагаемое двузнаково: у
+       транша, отдавшего тело по ДС, оно перекрывает первое (K-7 т1 01.06.2026: 1 223,01 −
+       1 659,71 = −436,70). Печатать такую клетку прочерком нельзя — в ИТОГ она входит со
+       своим знаком, и четыре клетки года дали бы 8 600,54 против итога 8 163,84: колонка
+       перестала бы сходиться глазом, а это ровно то, ради чего лист существует. */
+    const dueICell = (r) => (r.dueI < -0.005)
+      ? `<span title="${jsAttr('график требует по этой позиции МЕНЬШЕ контракта на ' + money(-r.dueI)
+          + ': фактическое тело ниже контрактного (перенос по допсоглашению, досрочное погашение или неосвоенный остаток), и отклонение за период вышло отрицательным — потребованное нарастающим на эту сумму уменьшается')}">−${money(-r.dueI)}</span>`
+      : num(r.dueI);
+    /* АВАНС ПО ПРОЦЕНТАМ — МИНУСОМ, КАК У ТЕЛА (КВ-65, решение владельца 16.08.2026;
+       правило КВ-50). Положительная сторона по-прежнему берётся у БАЗЫ ПЕНИ, а не считается
+       разностью нарастающих: колонка обязана остаться основанием начисления (платежи
+       разносятся пулом по всему кредиту, ADR-0060 §4, и «потребовано траншем − погашено
+       траншем» с разнесением расходится). Минус печатается только там, где просрочки нет.
+       НАКОПЛЕННЫЕ В СРАВНЕНИЕ НЕ ВХОДЯТ: слоя под них у зеркала платежей пока нет (ADR-0093,
+       «Погашено» по ним ноль), и база пени рядом тоже считана от одного interestDue —
+       иначе аванс объявлялся бы у каждого реструктурированного кредита на пустом месте.
+       В блоке процентов минус теперь значит три разные вещи — отрицательное требование
+       («По графику»), переплата над начисленным («Остаток», КВ-60) и аванс к графику
+       (здесь). Различает их подсказка, поэтому каждая обязана назвать свою величину. */
+    const overdueICell = (r, ovd) => {
+      const v = ovd != null ? ovd : r.penBaseI;
+      const aheadI = round2(r.runPaidInt - r.runDueI);
+      if (v > 0.005) return money(v);
+      if (aheadI > 0.005)
+        return `<span title="${jsAttr('погашено сверх графика: к этой дате график потребовал процентов ' + money(r.runDueI) + ', разнесено ' + money(r.runPaidInt) + ' — аванс идёт в счёт будущих начислений')}">−${money(aheadI)}</span>`;
+      return (ovd == null && r.days === 0) ? dash : state(0);
+    };
     /* СОСТОЯНИЕ НА КОНЕЦ ПЕРИОДА — ТОЛЬКО ДЛЯ ИТОГОВОЙ СТРОКИ (КВ-59, владелец 16.08.2026:
        «раньше цифры на строке были правильными, а итоговые нет»). СТРОКА ЛИСТА остаётся
        нетронутой: она отвечает на «что было в этом отрезке», и у строки без отрезка «Остаток»
@@ -9926,8 +9988,20 @@ if (typeof document !== 'undefined') {
       hasAcc && col('Накопленные', 'проценты, начисленные ДО реструктуризации: срок им назначил документ, разложив по позициям нового графика (ADR-0093 §1). Ставка на них не идёт — периодом они не порождаются', r => num(r.accDue),
         {sum: r => r.accDue}),
       hasAcc && col('Нарастающим', 'накопленные проценты, наступившие с начала транша', r => state(r.runAcc), {run:true, last:true}),
+      /* «ПО ГРАФИКУ» — ТРЕБОВАНИЕ, А НЕ НАЧИСЛЕНИЕ (КВ-65). До этой волны блок процентов
+         показывал одно «Начислено» (сумму отрезков), и «Просрочено» справа было числом
+         ниоткуда: не с чем сверить. У тела ту же болезнь вылечила КВ-48 колонкой «По
+         графику»; здесь ставится её пара. Величина уже есть в модели — `interestDue`
+         (ADR-0105), ровно от неё считается база пени по процентам, и ровно она стоит в
+         акте сверки. Расхождение с «Начислено» слева — не сбой: график построен по одному
+         снимку условий, лист начисляет по отрезкам (Д-5), и разность подписана плашкой
+         под таблицей. */
+      col('По графику', 'сколько график требует заплатить процентами к этой дате: контрактные проценты позиции плюс отклонение за фактическое тело (ADR-0105). От «Начислено» слева отличается по смыслу: там — сколько набежало отрезком, здесь — сколько к этой дате обязаны внести. Именно эта величина — основание просрочки и база пени по процентам',
+        dueICell, {sum: r => r.dueI, fmt: v => v < -0.005 ? `−${money(-v)}` : num(v)}),
+      col('Нарастающим', 'потребовано графиком с начала транша по эту строку включительно; разность с «Погашено нарастающим» и есть просроченные проценты плюс наступившее сегодня', r => state(r.runDueI), {run:true, last:true}),
       col('Погашено', 'разнесено в проценты платежами этой даты', r => num(r.paid.interest),
         {sum: r => r.paid.interest}),
+      col('Нарастающим', 'разнесено в проценты с начала транша по эту строку включительно', r => state(r.runPaidInt), {run:true, last:true}),
       hasOffI && col('Списано', 'проценты, снятые с баланса решением о признании долга безнадёжным в эту дату (Р-20, КВ-63). Решение списывает ВЕСЬ долг, а не одно тело: «Остаток» справа на эту сумму падает, просрочка процентов вместе с ним. Погашением не является — денег заёмщик не вносил', r => num(r.offInt),
         {sum: r => r.offInt}),
       hasOffI && col('Нарастающим', 'проценты, списанные с начала транша по эту строку включительно', r => state(r.runOffInt), {run:true, last:true}),
@@ -9942,8 +10016,8 @@ if (typeof document !== 'undefined') {
             : 'погашено процентов больше начисленного к этой дате на ' + money(-r.intLeft)
               + ' — излишек идёт в счёт будущих начислений; переплата кредита деньгами живёт в своде отдельной статьёй')}">−${money(-r.intLeft)}</span>`
         : state(r.intLeft), {last:true}),
-      col('Просрочено', 'проценты, срок которых наступил и не покрыт — вторая база пени', r => r.days === 0 ? dash : state(r.penBaseI),
-        {last:true, end: r => state(endOvdI(r))}),
+      col('Просрочено', 'проценты, срок которых наступил и не покрыт — вторая база пени. Минус — обратное: разнесено в проценты больше, чем график потребовал к этой дате (аванс в счёт будущих начислений)', overdueICell,
+        {last:true, end: r => overdueICell(r, endOvdI(r))}),
     ].filter(Boolean);
     const odCols  = odAll.filter(x => calcRunOD  || !x.run);
     const intCols = intAll.filter(x => calcRunInt || !x.run);
@@ -10044,15 +10118,21 @@ if (typeof document !== 'undefined') {
       body.push(`<tr class="gtot">
         <td>Итого по траншу №${esc(s.trancheNo)} <span class="text-muted" style="font:var(--font-label)">по ${esc(d.ledger.until)}</span></td>
         ${totCells(odCols, s.rows)}${totCells(intCols, s.rows)}${totCells(penCols, s.rows)}</tr>`);
-      /* СВЕРКА С РАСЧЁТОМ ПО ПОЗИЦИЯМ. Начисление позиции складывается как контракт +
-         отклонение, а контракт приходит из buildSchedule, который берёт ОДИН снимок условий
-         (Д-5): ставка, изменённая допсоглашением, задним числом переписывает и прошлые
-         периоды. Отрезок считает по условиям СВОЕГО начала — на таких кредитах лист и свод
-         расходятся. Молчать нельзя: строка печатает базу, ставку и дни, произведение
-         которых иначе выглядит опиской. */
+      /* ПЛАШКА ПОДПИСЫВАЕТ ДВЕ СОСЕДНИЕ КОЛОНКИ (переписана при КВ-65). Пока «По графику» в
+         блоке процентов не было, она объясняла расхождение с числом, которого на экране нет,
+         — приходилось называть оба слагаемых словами. Теперь обе величины стоят в строке
+         «Итого по траншу» рядом: «Начислено» — сумма отрезков, «По графику» — сумма
+         требований позиций. Плашка отвечает на единственный вопрос, который эта пара
+         поднимает: почему они не равны. Причина прежняя (Д-5) — начисление позиции есть
+         контракт + отклонение, а контракт приходит из buildSchedule по ОДНОМУ снимку
+         условий: ставка, изменённая допсоглашением, задним числом переписывает и прошлые
+         периоды, тогда как отрезок считает по условиям своего начала. Молчать нельзя:
+         строка печатает базу, ставку и дни, произведение которых иначе выглядит опиской. */
       const gapNote = Math.abs(s.gap) > 0.02 ? `<div class="warn-inline" style="margin-top:8px">${svgInfo()}<div>
-        По отрезкам вышло <b>${money(s.sumInterest)}</b> против <b>${money(s.ledgerInterest)}</b> в расчёте по позициям:
-        график построен не по условиям каждого периода, а по одному их снимку (Д-5). Разница ${money(Math.abs(s.gap))} ${esc(cur)}.
+        В итоге транша «Начислено» — <b>${money(s.sumInterest)}</b>, «По графику» — <b>${money(s.sumDueI)}</b>:
+        первое сложено по отрезкам листа, второе — по позициям графика, а график построен не по условиям
+        каждого периода, а по одному их снимку (Д-5). Разница ${money(Math.abs(s.gap))} ${esc(cur)};
+        просрочка и пеня считаются от «По графику».
         <div class="gtoolbar" style="margin-top:8px"><button class="btn btn-secondary btn-sm" onclick="CR.goToSchedule()">Перейти к графику</button></div></div></div>` : '';
       return `${sheets.length>1?`<div class="section-h" style="margin-top:18px">Транш №${esc(s.trancheNo)}</div>`:''}
         <div class="cgrid-wrap"><table class="cgrid tiered"><thead>${dateHead}</thead><tbody>${body.join('')}</tbody></table></div>
