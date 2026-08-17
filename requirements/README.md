@@ -14,9 +14,15 @@ findable. Start with the overview below, then split out as detail grows.
 
 **ТЗ есть не у каждого модуля, и это осознанно.** Административные модули связки
 «Сотрудники · Задания · Кураторство» отдаются разработчику постановкой без ТЗ: у кураторства
-источник истины — `docs/tasks/p18-kuratorstvo-tasks.html` плюс словарь `CONTEXT.md` и
-`docs/adr/0116`…`0118`; прототип `mockups/kuratorstvo/` входит в пакет иллюстрацией экранов
-и логикой не является (`mockups/kuratorstvo/ЗАПИСКА.md`).
+источник истины — `docs/tasks/p18-kuratorstvo-tasks.html` (редакция 2 от 17.08.2026, 3 этапа,
+14 карточек) плюс словарь `CONTEXT.md` и `docs/adr/0116`, `0117` (правка 17.08.2026), `0131`
+поверх `0023`; **`docs/adr/0118` отменён целиком** волной 6. Прототип
+`mockups/kuratorstvo/kuratorstvo.html` переписан 16.08.2026 и с тех пор **исполняет модель**
+(смоук `scripts/inspect/kuratorstvo-check.mjs`, 99/99) — постановка остаётся источником истины,
+но расхождение с прототипом означает ошибку в одном из двух и разбирается, а не обходится
+догадкой. Записка о **прежнем** прототипе от 12.07.2026 —
+археология (`mockups/kuratorstvo/ЗАПИСКА.md`), живое состояние —
+`mockups/kuratorstvo/ASUBK-status-razrabotki.md`.
 
 ## Module overview
 _Fill this in._
