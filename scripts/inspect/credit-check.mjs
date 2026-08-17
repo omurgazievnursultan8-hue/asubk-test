@@ -1328,30 +1328,51 @@ const pd = CR.pd;
        + ` · нарушений стыковки и аддитивности ${bad.length}${bad.length ? ' — ' + bad.slice(0,2).join(' | ') : ''}`);
   }
 
-  /* 163. ШЕСТЬ СТАТЕЙ ДОЛГА (КВ-41 заход 1, ADR-0093 §1). Накопленные проценты и
-     накопленная пеня стали СТАТЬЯМИ, а не значением срочности внутри процентов. Три
-     стороны: (1) свод сходится с очередью по просроченному — очередь публикует кредит
-     (ADR-0060 §4), и разъезд здесь означал бы, что статья попала в один список и не
-     попала в другой; (2) у кредита БЕЗ накопленных их строки не рисуются — обычный
-     кредит обязан выглядеть как до волны; (3) у K-7 они есть и в свод входят. */
+  /* 163. ШЕСТЬ СТАТЕЙ ДОЛГА (КВ-41 заход 1, ADR-0093 §1) И ПРАВИЛО ПОКАЗА (КВ-66).
+     Накопленные проценты и накопленная пеня стали СТАТЬЯМИ, а не значением срочности
+     внутри процентов. Необязательных статей теперь три — две накопленные и сборы: экран
+     рисует их только при ненулевой строке, обязательные (тело, проценты, пеня) стоят
+     всегда. Пять сторон: (1) свод сходится с очередью по просроченному — очередь
+     публикует кредит (ADR-0060 §4), и разъезд здесь означал бы, что статья попала в один
+     список и не попала в другой; (2) у кредита без накопленных и без сборов рисуются
+     ровно три строки; (3) у K-7 накопленные есть и в свод входят, а сборов нет — пять;
+     (4) у K-1 сборы есть и печатаются, накопленных нет — четыре; (5) состав показанных
+     статей — подмножество шести, и обязательные три не выпадают ни у одного кредита
+     сида (иначе правило показа съело бы то, что обязано стоять при нуле). */
   {
-    let mismatch = [];
+    let mismatch = [], dropped = [], feeShownZero = [], feeHiddenNonzero = [];
+    const shownKeys = d => CR2.debtArticlesOf(d.debt).map(a => a.key);
     for (const c of CR2.db.credits){
       const d = CR2.derive(c, CR2.TODAY);
       const q = Math.round((d.queue.rows.filter(r => r.urg === 'over')
         .reduce((a, r) => a + r.amount, 0)) * 100) / 100;
       if (Math.abs(q - d.overdueAmount) > 0.02) mismatch.push(`${c.id}: ${q} ≠ ${d.overdueAmount}`);
+      const keys = shownKeys(d);
+      for (const k of ['principal','interest','penalty'])
+        if (!keys.includes(k)) dropped.push(`${c.id}: нет ${k}`);
+      const f = d.debt.fees;
+      const feeAny = ['accrued','paid','bal','written'].reduce((a,v) => a + (f[v] || 0), 0);
+      if (keys.includes('fees') && feeAny <= 0.005) feeShownZero.push(c.id);
+      if (!keys.includes('fees') && feeAny > 0.005)  feeHiddenNonzero.push(c.id);
     }
     const d1 = CR2.derive(CR2.db.credits.find(c => c.id === 'K-1'), CR2.TODAY);
     const d7 = CR2.derive(CR2.db.credits.find(c => c.id === 'K-7'), CR2.TODAY);
-    const hidden = CR2.debtArticlesOf(d1.debt).length === 4;
-    const shown  = CR2.debtArticlesOf(d7.debt).length === 6;
-    const acc7   = Math.round((d7.debt.accInterest.bal + d7.debt.accPenalty.bal) * 100) / 100;
-    ok(163, mismatch.length === 0 && hidden && shown && acc7 > 0.005 && CR2.DEBT_ARTICLES.length === 6,
+    const bare = CR2.derive(CR2.db.credits.find(c => c.id === 'K-2'), CR2.TODAY);
+    const withFees = shownKeys(d1).length === 4 && shownKeys(d1).includes('fees');
+    const withAcc  = shownKeys(d7).length === 5 && !shownKeys(d7).includes('fees');
+    const plain    = shownKeys(bare).join('|') === 'principal|interest|penalty';
+    const acc7     = Math.round((d7.debt.accInterest.bal + d7.debt.accPenalty.bal) * 100) / 100;
+    const feesShown = CR2.db.credits.filter(c => shownKeys(CR2.derive(c, CR2.TODAY)).includes('fees')).length;
+    ok(163, mismatch.length === 0 && withFees && withAcc && plain && acc7 > 0.005
+         && dropped.length === 0 && feeShownZero.length === 0 && feeHiddenNonzero.length === 0
+         && CR2.DEBT_ARTICLES.length === 6,
        `статей ${CR2.DEBT_ARTICLES.length} · свод против очереди: расхождений ${mismatch.length}`
        + `${mismatch.length ? ' — ' + mismatch.slice(0,2).join(' | ') : ''}`
-       + ` · K-1 показывает ${CR2.debtArticlesOf(d1.debt).length}, K-7 — ${CR2.debtArticlesOf(d7.debt).length}`
-       + ` · накопленное у K-7 ${acc7}`);
+       + ` · K-1 показывает ${shownKeys(d1).length} (со сборами), K-7 — ${shownKeys(d7).length} (с накопленными, без сборов),`
+       + ` K-2 — ${shownKeys(bare).join(' · ')}`
+       + ` · накопленное у K-7 ${acc7} · «Сборы и комиссии» печатают ${feesShown} кредитов из ${CR2.db.credits.length}`
+       + ` · обязательных потеряно ${dropped.length}${dropped.length ? ' — ' + dropped.slice(0,2).join(' | ') : ''}`
+       + ` · сборы при нуле показаны у ${feeShownZero.length}, при ненуле спрятаны у ${feeHiddenNonzero.length}`);
   }
 
   /* 164. ДЕТАЛЬНЫЙ РАСЧЁТ — ОДИН ЛИСТ ПО КРИТИЧЕСКИМ ДАТАМ (КВ-42/ADR-0129, вид один с
