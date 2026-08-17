@@ -6,7 +6,12 @@
 // и ответственность: реестр отстранений, второй ответ шва с лестницей замещения, период
 // ответственности с вычетом, ведущий куратор заёмщика и гейт увольнения (волна 3),
 // и справочник признаков: заведение группировки, её редакции и снятие по обратному индексу,
-// уникальность имён долей, «Прочие» всегда, датные проверки ссылки (волна 4).
+// уникальность имён долей, «Прочие» всегда, датные проверки ссылки (волна 4),
+// и сами признаки: отметка сверенности домена, гейт неназванного источника в ключе,
+// объявленная сочетаемость и невозможные ячейки (волна 5),
+// и запрет правки вслепую с переводом среза на дату вступления — по жалобе 17.08.2026
+// «пишет успешно, а в интерфейсе ничего не меняется» (#113–#116), и накопление правок одного
+// дня в одной редакции — по жалобе «назначается только один, второй не назначается» (#117–#120).
 // Блоки, которые правят состояние, начинаются с KU.seed() — состояние между ними не течёт.
 //   node scripts/inspect/kuratorstvo-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -192,47 +197,60 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
     `заведующий правит только своё подразделение: своё — да, чужое — «${h2.why}», верхняя — «${h3.why}»`);
 })();
 
-/* ---------- G. Редакции: дата вступления, ключ, родильность ---------- */
+/* ---------- G. Редакции: вступают днём сохранения и применяются сразу (волна 6) ---------- */
 (() => {
   KU.seed();
   const st = KU.state; st.role = 'head'; st.headUnit = 'u_agro';
   const rule = KU.lowRule('u_agro', 'cur_loan');
 
-  const past = KU.setEff(rule.id, '2026-01-01');
-  ok(27, !past.ok && /прошл/i.test(past.why), `дата вступления в прошлом отклонена: «${past.why}» — ИУ-10`);
+  ok(27, typeof KU.setEff !== 'function' && KU.effOf(rule.id) === TODAY,
+    `даты вступления в будущем нет и выбрать её нечем: редакция вступает днём сохранения (${
+      TODAY}) — ждать её было бы некому, фонового пересчёта в модуле не существует (ИУ-10, ИУ-16)`);
 
   const before = rule.versions.length;
-  const curBefore = JSON.stringify(KU.verAt(rule, TODAY).cells);
-  KU.setEff(rule.id, '2026-09-01');
+  const holeBefore = on('КД-2026/012', 'cur_loan');
   const res = KU.setCell(rule.id, 'Таласская', 'e_asanov');
-  const nv = KU.verAt(rule, '2026-09-01');
-  ok(28, res.ok && rule.versions.length === before + 1 && nv.no === res.ver &&
-        nv.cells['Таласская'] === 'e_asanov' && JSON.stringify(KU.verAt(rule, TODAY).cells) === curBefore,
-    `правка завела редакцию ${res.ver} с 01.09.2026; действующая на сегодня не переписана — ИУ-10`);
-
+  const nv = KU.verAt(rule, TODAY);
   const prev = rule.versions.find(v => v.no === nv.no - 1);
-  ok(29, prev.until === '2026-08-31' && KU.verStatus(nv) === 'будущая',
-    `предыдущая редакция закрыта ${prev.until}, новая числится будущей — интервалы не пересекаются`);
+  ok(28, res.ok && rule.versions.length === before + 1 && nv.no === res.ver && nv.from === TODAY &&
+        nv.cells['Таласская'] === 'e_asanov' && prev.until === '2026-08-14' &&
+        KU.verStatus(nv) === 'действующая',
+    `правка завела редакцию ${res.ver}, и она вступила сегодня; предыдущая закрыта ${
+      prev.until} — интервалы не пересекаются, прошлое не переписано (ИУ-10)`);
 
-  const holeNow = on('КД-2026/012', 'cur_loan');
-  const holeThen = on('КД-2026/012', 'cur_loan', '2026-09-02');
-  ok(30, holeNow.fallback === true && holeThen.fallback === true,
-    `правка нижнего правила сама объекты не переставляет — ${holeNow.assignedName} держит их и после 01.09; переставляет пересчёт, отдельным действием (#49–#54)`);
+  const holeAfter = on('КД-2026/012', 'cur_loan');
+  const rec = KU.journalOf('КД-2026/012', 'cur_loan').slice(-1)[0];
+  ok(29, holeBefore.fallback === true && holeAfter.fallback === false &&
+        holeAfter.assigned === 'e_asanov' && rec.at === 'применение правила' &&
+        rec.src === 'правило' && rec.ver.no === nv.no && rec.from === TODAY,
+    `правило применилось само и сразу: пустую ячейку держала ${holeBefore.assignedName}, теперь ведёт ${
+      holeAfter.assignedName} записью «${rec.at}» со ссылкой на редакцию ${rec.ver.no} — кнопки «пересчитать» нет (ИУ-16)`);
+
+  const ch = KU.state.changes[0];
+  ok(30, KU.state.changes.length === 1 && ch.moved === res.moved && ch.scanned === 9 &&
+        ch.moved === 4 && ch.manual === 2 && ch.ver === nv.no && ch.kind === 'ячейка' &&
+        KU.loadDiff(ch).length === 4,
+    `у операции остался ровно один след — квитанция: пересмотрено ${ch.scanned}, переставлено ${
+      ch.moved}, рукой держится ${ch.manual}, нагрузка сменилась у ${KU.loadDiff(ch).length} работников (ИУ-16)`);
 })();
 
 (() => {
   KU.seed();
   const st = KU.state; st.role = 'admin';
   const top = KU.topRule('spec_app');
-  const before = JSON.stringify(KU.state.journal);
-  KU.setEff(top.id, '2026-09-01');
+  const was = on('ЗК-2026/047', 'spec_app');
+  const jb = KU.state.journal.length;
   const res = KU.setCell(top.id, 'Услуги', 'u_ind');
-  ok(31, res.ok && JSON.stringify(KU.state.journal) === before && /родильн/i.test(res.note),
-    `правка верхней ступени журнал не тронула — живущие объекты остались в своих подразделениях (ИУ-7, ИУ-12)`);
+  const now = on('ЗК-2026/047', 'spec_app');
+  const rec = KU.journalOf('ЗК-2026/047', 'spec_app').slice(-1)[0];
+  ok(31, res.ok && KU.state.journal.length === jb + 1 && rec.unitId === 'u_ind' &&
+        rec.at === 'применение правила' && was.unitId !== 'u_ind',
+    `верхняя ступень больше не родильная: правка переставила живущую заявку в ${
+      KU.unit(rec.unitId).name} — иначе после отмены передач отдел было бы не сменить ничем (ИУ-7)`);
 
-  const still = on('ЗК-2026/047', 'spec_app');
-  ok(32, still.assigned === KU.admin() && still.fallback === true,
-    `заявка, рождённая до вступления, осталась у ${still.assignedName}: подразделение двигает только передача с приёмом — ADR-0023`);
+  ok(32, now.assigned === KU.headOf('u_ind') && now.fallback === true && rec.src === 'фолбэк',
+    `обе ступени отработали одной записью: отдел дало правило холдинга, имя — фолбэк принимающего отдела (${
+      now.assignedName}); приёма и очереди между ними нет (ИУ-12)`);
 })();
 
 (() => {
@@ -245,19 +263,19 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
 
   KU.keyDraftInit(rule.id);
   KU.keyDraftAdd(rule.id, 'forma');
-  KU.setEff(rule.id, '2026-09-01');
   const saved = KU.saveKey(rule.id);
-  const nv = KU.verAt(rule, '2026-09-01');
+  const nv = KU.verAt(rule, TODAY);
   /* Имя переносится там, где ответ доказуемо не меняется: у «Ошской» был один куратор —
      значит он же ведёт и «Ошская | Частная», и «Ошская | Государственная». «Таласская»
      имени не имела — из неё выходят дыры. Второй признак группировкой не резан:
      форма собственности встаёт в ключ доменом справочника, всеми четырьмя значениями.
      Восемь областей плюс обязательная доля «Прочие» — девять на четыре формы, 36 ячеек. */
-  ok(34, saved.ok && nv.key.join('+') === 'terr+forma' && KU.space(nv, '2026-09-01').length === 36 &&
+  ok(34, saved.ok && nv.key.join('+') === 'terr+forma' && KU.space(nv, TODAY).length === 36 &&
         Object.keys(nv.cells).length === 16 && saved.kept === 16 && saved.holes === 20 &&
         nv.grp.terr === 'g_terr_oblast' && !nv.grp.forma &&
-        nv.cells['Ошская | Частная'] === 'e_ivanov' && !nv.cells['Таласская | Частная'],
-    `смена ключа — тоже редакция: ячеек ${KU.space(nv, '2026-09-01').length}, имя перенесено в ${saved.kept} (ответ не меняется), дыр ${saved.holes} — там, где имени не было`);
+        nv.cells['Ошская | Частная'] === 'e_ivanov' && !nv.cells['Таласская | Частная'] &&
+        KU.state.changes.length === 1 && KU.state.changes[0].kind === 'ключ',
+    `смена ключа — тоже редакция и тоже применяется сразу: ячеек ${KU.space(nv, TODAY).length}, имя перенесено в ${saved.kept} (ответ не меняется), дыр ${saved.holes}, переставлено ${KU.state.changes[0].moved} из ${KU.state.changes[0].scanned}`);
 })();
 
 /* ---------- H. Покрытие правил ---------- */
@@ -298,12 +316,16 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   const ghost = /ASUBK-kuratorstvo-logika|§\s*\d/.test(src);
   ok(40, !ghost, `ни одной ссылки на утраченную спеку и её параграфы не осталось — КУ-Д9`);
 
-  const stubBlock = (m[1].match(/const STUBS = \{[\s\S]*?\n\};/) || [''])[0];
-  const stubIds = (stubBlock.match(/\n  (\w+): \{/g) || []).map(s => s.trim().replace(':', '').replace(' {', ''));
-  ok(41, stubIds.length === 1 && stubIds[0] === 'show' &&
-        /ГРАНИЦЫ ВОЛНЫ 4/.test(src) &&
-        ['Признаки и группировки', 'Пересчёт', 'Передачи', 'Отстранения'].every(s => src.includes(s)),
-    `экраны волны 4 рабочие, заглушкой остался один (${stubIds.join(', ')}) — границы волны объявлены в шапке`);
+  const nav = (src.match(/class="nav-item"/g) || []).length;
+  const titles = (m[1].match(/const TITLES = \{[\s\S]*?\};/) || [''])[0];
+  const keys = (titles.match(/(\w+):/g) || []).map(s => s.replace(':', ''));
+  const dead = ['viewRecalc', 'viewHandoffs', 'viewBans', 'viewStub', 'KU.recalcPreview',
+    'KU.handoffSend', 'KU.banAdd', 'KU.dismissGate', 'KU.moveTails', 'KU.setEff']
+    .filter(x => m[1].includes(x));
+  ok(41, nav === 3 && keys.join(',') === 'feat,pol,chg' && dead.length === 0 &&
+        /ГРАНИЦЫ ВОЛНЫ 6/.test(src) && !/STUBS/.test(m[1]),
+    `экранов три и заглушек нет: ${keys.join(' · ')}; пересчёт, передачи, витрины и отстранения ` +
+    `сняты волной 6 — ни одной мёртвой функции в файле не осталось${dead.length ? ' · жива: ' + dead.join(',') : ''}`);
 })();
 
 /* ---------- J. Рождение объекта и снимок признаков (P18-R9, ИУ-15) ---------- */
@@ -321,14 +343,19 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   ok(43, !!b && !!b.snap && same && b.ver.ruleId === 'low_agro_loan',
     `решение хранит снимок признаков на свою дату: ${b && Object.keys(b.snap).length} признаков в записи от ${b && b.from} — ИУ-15`);
 
-  /* Территория — признак ЗАЁМЩИКА: правится она у «ОсОО «Дан-Азык»», а не на кредите. */
+  /* Территория — признак ЗАЁМЩИКА: правится она у «ОсОО «Дан-Азык»», а не на кредите.
+     Волна 6: смена признака тоже применяет правило — «живут вне правила» больше не копится,
+     потому что витрины, где это было бы видно, больше нет. */
   const wasAssigned = on('КД-2025/091', 'cur_loan').assigned;
   const chg = KU.setFeature('КД-2025/091', 'terr', 'Чуйский');
   const nowAssigned = on('КД-2025/091', 'cur_loan').assigned;
   const snapKept = KU.journalOf('КД-2025/091', 'cur_loan')[0].snap.terr;
   const off = KU.offRule('КД-2025/091', 'cur_loan', TODAY);
-  ok(44, chg.ok && nowAssigned === wasAssigned && snapKept === 'Кара-Сууйский' && off && off.now === 'e_asanov',
-    `признак поменялся в соседнем модуле — куратор не двинулся (${nm(nowAssigned)}), снимок хранит «${snapKept}», объект встал в «живут вне правила» (правило хочет ${nm(off && off.now)}) — ИУ-15`);
+  const chRec = KU.state.changes[0];
+  ok(44, chg.ok && nowAssigned === 'e_asanov' && nowAssigned !== wasAssigned && off === null &&
+        snapKept === 'Кара-Сууйский' && chRec.kind === 'признак' && chRec.scanned === 1 && chRec.moved === 1,
+    `признак поменялся в соседнем модуле — правило применилось сразу: вёл ${nm(wasAssigned)}, ведёт ${
+      nm(nowAssigned)}, расхождения с правилом нет; прежняя запись хранит снимок «${snapKept}» — по нему видно, чем решали тогда (ИУ-15, ИУ-16)`);
 
   const badFeat = KU.setFeature('КД-2025/091', 'vidzalog', 'Техника');
   ok(45, !badFeat.ok && /не заведён/.test(badFeat.why),
@@ -343,155 +370,113 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
     `преемства «заявка → кредит» нет: заявка закреплена в точке «${app.at}» (${nm(app.empId)}), кредит — своим правилом в точке «${loan.at}» (${nm(loan.empId)}) — P18-R9`);
 })();
 
-/* ---------- K. Незакрытая работа: критерий рукопожатия (P18-R12, ИУ-17) ---------- */
+/* ---------- K. Автоприменение: рука, подразделение, квитанция (волна 6, ИУ-16, ИУ-19) ---------- */
 (() => {
   KU.seed();
-  const busy = KU.workOpen('КД-2025/033', TODAY);
-  const free = KU.workOpen('КД-2025/091', TODAY);
-  ok(47, busy.open === true && busy.items.length === 1 && busy.items[0].src === 's_loan' &&
-        free.open === false && free.asked.length === 3 && free.silent.length === 0,
-    `признак не хранится, а спрашивается у источников: у кредита с горящим сроком работа открыта (${busy.items[0].srcName}), у соседнего все ${free.asked.length} источника ответили «нет» — ИУ-17`);
+  const st = KU.state; st.role = 'head'; st.headUnit = 'u_agro';
+  const rule = KU.lowRule('u_agro', 'cur_loan');
+  const hand = KU.assignByHand('КД-2025/091', 'cur_loan', 'e_asanov', null, 'выравнивание нагрузки');
+  const res = KU.setCell(rule.id, 'Ошская', 'e_toktogulova');
+  const a = on('КД-2025/091', 'cur_loan');
+  const ch = KU.state.changes[0];
+  ok(47, hand.ok && res.ok && a.assigned === 'e_asanov' && a.src === 'рука' &&
+        ch.manual === 3 && ch.moved + ch.manual <= ch.scanned,
+    `ручное закрепление правку правила пережило: ${a.assignedName} держится источником «${a.src}», ` +
+    `в квитанции таких ${ch.manual} из ${ch.scanned} — иначе «просто поменять куратора рукой» отменяла бы первая же правка (ИУ-19)`);
 
-  const silent = KU.workOpen('ЗЛ-8801', TODAY);
-  ok(48, silent.open === true && silent.items.length === 0 && silent.silent.length === 1 &&
-        /молчит/.test(silent.why) && /безопасн/.test(silent.why),
-    `молчание источника «${silent.silent.join(', ')}» трактуется в безопасную сторону и пишется в отчёт: «${silent.why}»`);
-
-  const mine = KU.workOfEmp('e_bekova', TODAY).map(x => x.objId);
-  ok(49, mine.indexOf('КД-2025/033') >= 0 && mine.indexOf('КД-2025/091') < 0,
-    `тот же признак читается по работнику (им же питается гейт увольнения, этап 4): у ${nm('e_bekova')} незакрыто ${mine.join(', ')}`);
+  const back = KU.backToRule('КД-2025/091', 'cur_loan');
+  const after = on('КД-2025/091', 'cur_loan');
+  ok(48, back.ok && after.assigned === 'e_toktogulova' && after.src === 'правило',
+    `возврат к правилу — единственная дорога назад: объект снова ведёт ${after.assignedName} по правилу (ИУ-19)`);
 })();
 
-/* ---------- L. Пересчёт: четыре корзины и одна кнопка (P18-R11, ИУ-16) ---------- */
 (() => {
   KU.seed();
   const st = KU.state; st.role = 'admin';
-  const g = KU.canRecalc('u_agro', 'cur_loan');
-  const p = KU.recalcPreview('u_agro', 'cur_loan');
-  ok(50, !g.ok && !p.ok && /кнопки пересчёта нет/.test(g.why),
-    `у администратора кураторства кнопки пересчёта нет ни на одном экране: «${g.why}» — ИУ-7, ИУ-16`);
+  const top = KU.topRule('cur_loan');
+  const cell = KU.keyVal(KU.verAt(top, TODAY), KU.obj('КД-2025/033'), TODAY);
+  const was = on('КД-2025/033', 'cur_loan');
+  const res = KU.setCell(top.id, cell, 'u_ind');
+  const now = on('КД-2025/033', 'cur_loan');
+  const rec = KU.journalOf('КД-2025/033', 'cur_loan').slice(-1)[0];
+  const hand = on('КД-2024/205', 'cur_loan');       /* та же ячейка, но закреплено рукой */
+  ok(49, res.ok && was.unitId === 'u_agro' && now.unitId === 'u_ind' && rec.from === TODAY &&
+        rec.at === 'применение правила' && rec.unitId === 'u_ind' && rec.empId !== was.assigned &&
+        KU.state.handoffs === undefined && hand.unitId === 'u_agro' && hand.src === 'рука',
+    `верхняя ступень переставляет живущий объект без всякой передачи: ячейка «${cell}» → ${
+      KU.unit('u_ind').name}, и КД-2025/033 уехал одной записью журнала (${KU.unit(was.unitId).name} → ${
+      KU.unit(now.unitId).name}, ${was.assignedName} → ${now.assignedName} с ${rec.from}); ` +
+    `очереди передач и приёма в модуле нет вовсе, а ручное закрепление КД-2024/205 осталось в ${
+      KU.unit(hand.unitId).name} (ИУ-12, ИУ-19)`);
 
-  st.role = 'head'; st.headUnit = 'u_agro';
-  const alien = KU.canRecalc('u_ind', 'cur_loan');
-  st.headUnit = 'u_ind';
-  const noRule = KU.canRecalc('u_ind', 'spec_app');
-  ok(51, !alien.ok && /своё подразделение/.test(alien.why) && !noRule.ok && /правила нет/.test(noRule.why),
-    `пересчитывают только своё и только по существующему правилу: «${alien.why}» · «${noRule.why}»`);
+  const dbl = KU.setCell(top.id, cell, 'u_ind');
+  ok(50, dbl.ok && dbl.moved === 0 && KU.state.changes[0].moved === 0,
+    `повторная правка тем же значением никого не двигает: переставлено ${dbl.moved} — применение идемпотентно (ИУ-16)`);
 })();
 
+/* ---------- L. Квитанция «что изменилось»: считает за свою правку (волна 6) ---------- */
 (() => {
   KU.seed();
   const st = KU.state; st.role = 'head'; st.headUnit = 'u_agro';
-  const p = KU.recalcPreview('u_agro', 'cur_loan');
-  const ids = b => p[b].map(r => r.objId).join(',');
-  ok(52, p.ok && ids('quiet') === 'КД-2025/091' && ids('hand') === 'КД-2025/033' &&
-        ids('blocked') === 'КД-2025/072' && ids('manual') === 'КД-2024/205' && p.total === 2,
-    `корзин четыре: тихо ${ids('quiet')} · рукопожатие ${ids('hand')} (${p.hand[0] && p.hand[0].work.items[0].what}) · отстранение ${ids('blocked')} · рука не тронута ${ids('manual')}`);
+  const rule = KU.lowRule('u_agro', 'cur_loan');
+  KU.setCell(rule.id, 'Таласская', 'e_asanov');
+  const first = KU.state.changes[0];
+  KU.setCell(rule.id, 'Таласская', 'e_bekova');
+  const second = KU.state.changes[0];
+  ok(51, KU.state.changes.length === 2 && KU.state.changes[0].id !== first.id &&
+        first.scanned === 9 && second.moved === 1 &&
+        JSON.stringify(first.before) !== JSON.stringify(second.before),
+    `строка отвечает за СВОЮ правку и задним числом не пересчитывается: первая переставила ${
+      first.moved}, вторая — ${second.moved}; «что сделала редакция» и «сколько сейчас» — разные вопросы (ИУ-10)`);
 
-  const before = KU.state.journal.length;
-  const closed = KU.recalcClose();
-  ok(53, closed.ok && KU.state.preview === null && KU.state.journal.length === before,
-    `предпросмотр закрывается без следа: журнал ${before} записей до и после — фонового пересчёта нет (ИУ-16)`);
-
-  const manualRec = KU.journalOf('КД-2024/205', 'cur_loan').slice(-1)[0];
-  const blockedRec = KU.journalOf('КД-2025/072', 'cur_loan').slice(-1)[0];
-  const res = KU.recalcApply('u_agro', 'cur_loan');
-  const moved = KU.journalOf('КД-2025/091', 'cur_loan').slice(-1)[0];
-  const h = KU.pendingHandoff('КД-2025/033', 'cur_loan');
-  ok(54, res.ok && res.moved === 1 && res.sent === 1 && KU.state.journal.length === before + 1 &&
-        moved.src === 'правило' && moved.ver.no === 2 && moved.at === 'пересчёт' && moved.unitId === 'u_agro' &&
-        KU.journalOf('КД-2024/205', 'cur_loan').slice(-1)[0].id === manualRec.id &&
-        KU.journalOf('КД-2025/072', 'cur_loan').slice(-1)[0].id === blockedRec.id && !!h && h.src === 'пересчёт',
-    `применение: тихо переставлен 1 (запись ссылается на редакцию ${moved.ver.no}, подразделение прежнее), отправлена ${res.sent} передача, ручное и заблокированное не тронуты — ИУ-16`);
-
-  const again = KU.recalcPreview('u_agro', 'cur_loan');
-  ok(55, again.total === 0 && again.pending.length === 1 && again.blocked.length === 1 && again.manual.length === 1,
-    `повторный пересчёт без правки правила — нулевой diff: ${again.total} к переносу, в очереди ${again.pending.length}, заблокировано ${again.blocked.length}, рукой ${again.manual.length}`);
-
-  ok(56, again.silent.length === 0 && p.silent.length === 0,
-    `молчащих источников по кредитам нет — отчёт пересчёта их бы назвал (у предметов залога молчит «Обеспечение», #48)`);
+  const d = KU.loadDiff(second);
+  const sum = d.reduce((n, x) => n + (x.now - x.was), 0);
+  ok(52, d.length === 2 && sum === 0 && d[0].now > d[0].was && d[d.length - 1].now < d[d.length - 1].was,
+    `нагрузка «было → стало» сходится: ${d.map(x => x.name + ' ' + x.was + '→' + x.now).join(', ')} — ` +
+    `сумма разниц ${sum}, объекты не исчезают и не рождаются (ИУ-11)`);
 })();
-
-/* ---------- M. Передача с рукопожатием (P18-R10, ИУ-18) ---------- */
-(() => {
-  KU.seed();
-  const h = KU.pendingHandoff('ЗЛ-8802', 'cur_coll');
-  const a = on('ЗЛ-8802', 'cur_coll');
-  ok(57, !!h && h.state === 'в очереди' && a.assigned === 'e_mamatov' && a.unitId === 'u_ozo',
-    `до приёма не изменилось ничего: передача ${h && h.id} в очереди с ${h && h.sent}, объект ведёт ${a.assignedName} в подразделении ${KU.unit(a.unitId).name} — ИУ-18, ИУ-12`);
-
-  const card = KU.handoffCard('h1');
-  ok(58, card.ok && card.suggest === KU.headOf('u_osh') && card.fallback === true &&
-        /ячейка/.test(card.why) && /заведующ/.test(card.why),
-    `карточка приёма подставляет работника правилом принимающей стороны: ячейка пуста → ${nm(card.suggest)}, и сказано почему — «${card.why}»`);
-
-  const st = KU.state; st.role = 'head'; st.headUnit = 'u_agro';
-  const alien = KU.handoffAccept('h1');
-  st.role = 'admin';
-  const adm = KU.handoffAccept('h1');
-  ok(59, !alien.ok && !adm.ok && /принимающая сторона/.test(alien.why),
-    `разбирает передачу только принимающая сторона: чужой заведующий — «${alien.why}»; администратор — тоже нет`);
-})();
-
-(() => {
-  KU.seed();
-  const st = KU.state; st.role = 'head'; st.headUnit = 'u_osh';
-  const before = KU.journalOf('ЗЛ-8802', 'cur_coll').length;
-  const res = KU.handoffAccept('h1');
-  const recs = KU.journalOf('ЗЛ-8802', 'cur_coll');
-  const prev = recs[recs.length - 2], now = recs[recs.length - 1];
-  ok(60, res.ok && recs.length === before + 1 && now.from === TODAY && prev.to < TODAY &&
-        now.unitId === 'u_osh' && now.empId === KU.headOf('u_osh') && now.src === 'фолбэк' &&
-        KU.pendingHandoff('ЗЛ-8802', 'cur_coll') === null,
-    `приём двигает подразделение: с ${now.from} ведёт ${nm(now.empId)} в ${KU.unit(now.unitId).name}, прежнее закрыто ${prev.to} — журнал без разрыва (ADR-0023)`);
-
-  const late = KU.handoffAccept('h1');
-  ok(61, !late.ok && /уже принята/.test(late.why), `принятую передачу второй раз не разобрать: «${late.why}»`);
-})();
-
-(() => {
-  KU.seed();
-  const st = KU.state; st.role = 'head'; st.headUnit = 'u_osh';
-  const bare = KU.handoffAccept('h1', 'e_duishev');
-  const done = KU.handoffAccept('h1', 'e_duishev', 'вёл этот предмет до перемещения');
-  const rec = KU.journalOf('ЗЛ-8802', 'cur_coll').slice(-1)[0];
-  ok(62, !bare.ok && /требует причины/.test(bare.why) && done.ok && done.byHand === true &&
-        rec.src === 'переопределение' && rec.ver === null && /вёл этот предмет/.test(rec.reason),
-    `замена подставленного работника требует причины и меняет источник записи: «${bare.why}» → принято как «${rec.src}»`);
-})();
-
-(() => {
-  KU.seed();
-  const st = KU.state; st.role = 'head'; st.headUnit = 'u_osh';
-  const before = KU.state.journal.length;
-  const bare = KU.handoffReject('h1');
-  const res = KU.handoffReject('h1', 'предмет числится на площадке в Нарыне, акт не переоформлен');
-  const a = on('ЗЛ-8802', 'cur_coll');
-  ok(63, !bare.ok && res.ok && KU.state.journal.length === before &&
-        a.assigned === 'e_mamatov' && a.unitId === 'u_ozo' &&
-        KU.state.handoffs.find(x => x.id === 'h1').state === 'отклонена',
-    `отклонение возвращает объект отправителю: журнал не тронут (${before} записей), ведёт прежний ${a.assignedName} в ${KU.unit(a.unitId).name} — ИУ-18`);
-})();
-
-/* ---------- N. Рука, отстранение, возврат к правилу (P18-R13, ИУ-19) ---------- */
+/* ---------- M. Рука и возврат к правилу (P18-R13, ИУ-19) ---------- */
 (() => {
   KU.seed();
   const st = KU.state; st.role = 'head'; st.headUnit = 'u_agro';
   const bare  = KU.assignByHand('КД-2025/091', 'cur_loan', 'e_asanov', null, '');
   const alien = KU.assignByHand('КД-2025/091', 'cur_loan', 'e_duishev', null, 'нужен именно он');
-  ok(64, !bare.ok && /причина обязательна/.test(bare.why) && !alien.ok && /передачей с приёмом/.test(alien.why),
+  ok(53, !bare.ok && /причина обязательна/.test(bare.why) && !alien.ok &&
+        /сначала правилом меняется подразделение/.test(alien.why),
     `закрепление рукой: без причины нельзя — «${bare.why}»; работник чужого отдела — «${alien.why}» (ИУ-12, ИУ-19)`);
 
-  const banned = KU.assignByHand('КД-2025/072', 'cur_loan', 'e_ivanov', null, 'знает заёмщика');
-  ok(65, !banned.ok && /отстранён/.test(banned.why),
-    `отстранение — отдельное измерение и оно запрещает назначение: «${banned.why}» — ADR-0118`);
+  const was = on('КД-2025/072', 'cur_loan');
+  const hand = KU.assignByHand('КД-2025/072', 'cur_loan', 'e_ivanov', null, 'знает заёмщика');
+  const rec = KU.journalOf('КД-2025/072', 'cur_loan').slice(-1)[0];
+  ok(54, hand.ok && rec.src === 'рука' && rec.ver === null && rec.reason === 'знает заёмщика' &&
+        typeof KU.banAdd === 'undefined' && typeof KU.bansOf === 'undefined' &&
+        KU.state.bans === undefined &&
+        KU.state.objects.filter(o => o.ban || o.off || o.coi).length === 0 &&
+        KU.state.journal.filter(r => /отстран/i.test(r.src || '')).length === 0,
+    `отстранения в модуле нет вовсе — снято волной 6: назначение, которое раньше запрещал реестр, проходит ` +
+    `(${was.assignedName} → ${nm('e_ivanov')}, источник «${rec.src}» без редакции); ни реестра, ни поля на объекте, ни записи журнала`);
+})();
 
-  const done = KU.assignByHand('КД-2025/091', 'cur_loan', 'e_asanov', null, 'выравнивание нагрузки');
-  const rec = KU.journalOf('КД-2025/091', 'cur_loan').slice(-1)[0];
-  const p = KU.recalcPreview('u_agro', 'cur_loan');
-  ok(66, done.ok && rec.src === 'рука' && rec.ver === null &&
-        p.manual.map(r => r.objId).indexOf('КД-2025/091') >= 0 && p.quiet.length === 0,
-    `рука держится вне правила: запись «${rec.src}» без редакции, и пересчёт её больше не трогает — она в корзине ручных (ИУ-19)`);
+(() => {
+  /* Расхождение «журнал против правила» после волны 6 умеет быть только ручным: правило
+     применяется само, поэтому объект по правилу отстать от него не может. Затравка держит
+     три таких расхождения из прошлых волн — первое же применение их подбирает. */
+  KU.seed();
+  const diverging = () => KU.state.journal.filter(r => r.to == null)
+    .map(r => ({ objId: r.objId, src: on(r.objId, r.role).src, off: KU.offRule(r.objId, r.role, TODAY) }))
+    .filter(x => x.off);
+  const seeded = diverging();
+  const st = KU.state; st.role = 'head'; st.headUnit = 'u_agro';
+  const rule = KU.lowRule('u_agro', 'cur_loan');
+  const v = KU.verAt(rule, TODAY);
+  const cell = Object.keys(v.cells)[0];
+  const res = KU.setCell(rule.id, cell, v.cells[cell]);   /* пересохранение той же ячейки */
+  const after = diverging();
+  ok(55, res.ok && seeded.filter(x => x.src === 'правило').length === 3 &&
+        after.length > 0 && after.every(x => x.src === 'рука'),
+    `вне правила умеет жить только рука: в затравке расходилось ${seeded.length} закреплений, ` +
+    `из них по правилу ${seeded.filter(x => x.src === 'правило').length} — пересохранение ячейки их подобрало, ` +
+    `осталось ${after.length} ручных (ИУ-16, ИУ-19)`);
 })();
 
 (() => {
@@ -501,17 +486,17 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   const recs = KU.journalOf('КД-2024/205', 'cur_loan');
   const last = recs[recs.length - 1];
   const twice = KU.backToRule('КД-2024/205', 'cur_loan');
-  ok(67, back.ok && last.empId === 'e_ivanov' && last.src === 'правило' && recs.length === 3 &&
+  ok(56, back.ok && last.empId === 'e_ivanov' && last.src === 'правило' && recs.length === 3 &&
         !twice.ok && /и так стоит по правилу/.test(twice.why),
     `возврат к правилу — новая запись, а не откат: ${recs.length} записи по паре, сейчас ${nm(last.empId)} по правилу; повторно — «${twice.why}»`);
 })();
 
-/* ---------- O. Ретро-правка и запертый период (P18-R14, ИУ-20) ---------- */
+/* ---------- N. Ретро-правка и запертый период (P18-R14, ИУ-20) ---------- */
 (() => {
   KU.seed();
   const free = KU.retroFit('КД-2025/091', 'cur_loan', '2026-07-01');
   const fit  = KU.retroFit('КД-2024/117', 'cur_loan', '2026-05-01');
-  ok(68, free.moved === false && free.from === '2026-07-01' &&
+  ok(57, free.moved === false && free.from === '2026-07-01' &&
         fit.moved === true && fit.from === '2026-06-16' && fit.last.d === '2026-06-15',
     `задним числом можно, пока период не заперт: свободный — с 01.07 как просили; запертый — «${fit.note}»`);
 
@@ -520,200 +505,118 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   const inside = on('КД-2024/117', 'cur_loan', '2026-06-01');
   const now = on('КД-2024/117', 'cur_loan');
   const rec = KU.journalOf('КД-2024/117', 'cur_loan').slice(-1)[0];
-  ok(69, res.ok && res.from === '2026-06-16' && res.moved === true &&
+  ok(58, res.ok && res.from === '2026-06-16' && res.moved === true &&
         inside.assigned === 'e_ivanov' && now.assigned === 'e_bekova' && rec.retro === true,
     `дата вступления поджата к первому свободному дню: внутри запертого периода ответ прежний (${inside.assignedName}), с ${rec.from} — ${now.assignedName} (ИУ-20)`);
 
   const noFacts = KU.retroFit('ЗЛ-8815', 'cur_coll', '2026-08-11');
-  ok(70, noFacts.moved === false && noFacts.blockers.length === 0,
+  ok(59, noFacts.moved === false && noFacts.blockers.length === 0,
     `объект без закрытых фактов ретро-правке не сопротивляется: ${noFacts.from} как просили`);
 })();
 
-/* ---------- P. Реестр отстранений (P18-R15, ИУ-21, ИУ-22) ---------- */
-(() => {
-  KU.seed();
-  const bans = KU.bansOf(TODAY);
-  const onObj = KU.state.objects.filter(o => o.ban || o.off || o.coi);
-  const inJournal = KU.state.journal.filter(r => /отстран/i.test(r.src || ''));
-  ok(71, bans.length === 2 && bans.every(b => b.live) && onObj.length === 0 && inJournal.length === 0,
-    `отстранение — свой реестр, а не поле объекта и не запись журнала: ${bans.length} живых отрезка, у объектов признака нет, в журнале записей об отстранении нет — ADR-0118, ИУ-21`);
-
-  const st = KU.state;
-  st.role = 'head'; st.headUnit = 'u_agro';
-  const byHead = KU.banAdd('e_asanov', 'ОсОО «Темир»', TODAY, 'заведующий отделом', '02-14/900', TODAY, 'проверка прав');
-  st.role = 'reader';
-  const byReader = KU.banLift('b2', TODAY, 'проверка прав');
-  ok(72, !byHead.ok && /администратор кураторства/.test(byHead.why) &&
-        !byReader.ok && /администратор кураторства/.test(byReader.why),
-    `вводит и снимает только администратор: заведующий — «${byHead.why}»; наблюдатель — «${byReader.why}» (P18-R15)`);
-
-  st.role = 'admin';
-  const noNote = KU.banAdd('e_asanov', 'ОсОО «Темир»', TODAY, 'заведующий отделом', '', '', '');
-  const ahead  = KU.banAdd('e_asanov', 'ОсОО «Темир»', '2026-09-01', 'заведующий отделом', '02-14/901', TODAY, 'вперёд нельзя');
-  const noSuch = KU.banAdd('e_asanov', 'ОсОО «Нет такого»', TODAY, 'заведующий отделом', '02-14/902', TODAY, 'заёмщика нет');
-  ok(73, !noNote.ok && /служебная записка/.test(noNote.why) && !ahead.ok && /вперёд/.test(ahead.why) &&
-        !noSuch.ok && /заёмщика/.test(noSuch.why),
-    `основание обязательно и вперёд отстранение не заводится: «${noNote.why}» · «${ahead.why}»`);
-
-  const before = KU.state.journal.length;
-  const wasAssigned = on('КД-2024/117', 'cur_loan').assigned;
-  const add = KU.banAdd('e_ivanov', 'ОсОО «Ак-Жол»', '2026-08-14', 'служба комплаенса', '02-14/500', '2026-08-13', 'родство с учредителем');
-  const nowAssigned = on('КД-2024/117', 'cur_loan');
-  const twice = KU.banAdd('e_ivanov', 'ОсОО «Ак-Жол»', TODAY, 'служба комплаенса', '02-14/501', TODAY, 'то же самое');
-  ok(74, add.ok && add.hits >= 1 && KU.state.journal.length === before &&
-        nowAssigned.assigned === wasAssigned && nowAssigned.substituted === true &&
-        !twice.ok && /уже действует/.test(twice.why),
-    `заведение журнал не тронуло: записей было ${before}, стало ${KU.state.journal.length}; закреплён по-прежнему ${nowAssigned.assignedName}, работу ведёт ${nowAssigned.actingName}; второе по той же паре — «${twice.why}» (ИУ-21)`);
-})();
-
-(() => {
-  KU.seed();
-  const st = KU.state; st.role = 'admin';
-  const bare = KU.banLift('b2', TODAY, '');
-  const lift = KU.banLift('b2', '2026-08-10', 'записка № 02-14/455 — обстоятельства отпали');
-  const b2 = KU.state.bans.find(b => b.id === 'b2');
-  const inside = on('КД-2025/091', 'cur_loan', '2026-08-05');
-  const after  = on('КД-2025/091', 'cur_loan');
-  ok(75, !bare.ok && /причина снятия обязательна/.test(bare.why) && lift.ok &&
-        KU.state.bans.length === 2 && b2.to === '2026-08-10' && !!b2.lifted.why &&
-        inside.substituted === true && inside.acting === 'e_toktogulova' &&
-        after.substituted === false && after.acting === 'e_bekova',
-    `снятие не стирает: запись осталась в реестре с отрезком по 10.08 и причиной, внутри него работу по-прежнему ведёт ${inside.actingName}, после — ${after.actingName} (ИУ-4, ИУ-24)`);
-
-  const self = KU.state.bans.find(b => b.id === 'b2');
-  const hasSelf = KU.dict.BAN_INIT.some(i => /самоотвод/i.test(i));
-  ok(76, hasSelf && /самоотвод/i.test(self.init) && self.by === 'Администратор кураторства' &&
-        !!self.note.no && !!self.note.d && !!self.note.text,
-    `инициатор пишется отдельно от того, кто ввёл: инициатор «${self.init}», ввёл ${self.by}, основание — записка № ${self.note.no} от ${self.note.d} (ИУ-22)`);
-})();
-
-/* ---------- Q. Два ответа: закреплённый и действующий (ИУ-2, ИУ-21, ИУ-23) ---------- */
+/* ---------- O. Два ответа: закреплённый и действующий (ИУ-2, ИУ-23) ---------- */
 (() => {
   KU.seed();
   const a = on('КД-2025/091', 'cur_loan');
   const rec = KU.journalOf('КД-2025/091', 'cur_loan').slice(-1)[0];
-  ok(77, a.assigned === 'e_bekova' && a.acting === 'e_toktogulova' && a.substituted === true &&
-        rec.to == null && rec.empId === 'e_bekova' && /отстранение/.test(a.actingWhy),
-    `отстранение подменяет исполнителя, закрепление живёт: закреплён ${a.assignedName} (запись открыта), работу ведёт ${a.actingName} — ${a.actingWhy}`);
+  ok(60, a.assigned === 'e_bekova' && a.acting === a.assigned && a.substituted === false &&
+        rec.to == null && /работник на месте/.test(a.actingWhy),
+    `после волны 6 ответы расходятся ТОЛЬКО из-за отсутствия: ${a.assignedName} на месте — ` +
+    `закреплённый и действующий это один человек, подменять некому и незачем (ИУ-2)`);
 
   const dep = on('КД-2024/117', 'cur_loan');
-  ok(78, dep.substituted === true && dep.acting === 'e_asanov' && /замещающий/.test(dep.actingStep) &&
+  ok(61, dep.substituted === true && dep.acting === 'e_asanov' && /замещающий/.test(dep.actingStep) &&
         /отпуск/.test(dep.actingWhy),
     `замещающего называет модуль сотрудников, а не кураторство: ${dep.assignedName} в отпуске — работу ведёт ${dep.actingName}, ступень «${dep.actingStep}» (P12-R12, ИУ-23)`);
 
   const noDep = on('ТР-2025/018', 'cur_claim');
-  ok(79, noDep.substituted === true && noDep.acting === 'e_abdylda' &&
+  ok(62, noDep.substituted === true && noDep.acting === 'e_abdylda' &&
         /заведующий отделом/.test(noDep.actingStep) && /замещающий не назван/.test(noDep.actingWhy),
     `замещающий не назван — работа уходит заведующему отделом: ${noDep.assignedName} → ${noDep.actingName} (ИУ-23)`);
 })();
 
 (() => {
   KU.seed();
-  const openRecs = KU.state.journal.filter(r => r.to == null).length;
-  const before = KU.substitutions(TODAY).length;
+  const open = () => KU.state.journal.filter(r => r.to == null);
+  const subs = () => open().map(r => on(r.objId, r.role)).filter(x => x.substituted);
+  const snap = () => open().map(r => r.objId + '‖' + r.role + '‖' + on(r.objId, r.role).assigned).join(';');
+  const openRecs = open().length;
+  const before = subs().length;
   const jbefore = KU.state.journal.length;
-  const snap = () => KU.state.journal.filter(r => r.to == null)
-    .map(r => r.objId + '‖' + r.role + '‖' + on(r.objId, r.role).assigned).join(';');
   const assignedBefore = snap();
-  KU.setHr(false);
-  const subs = KU.substitutions(TODAY);
-  const empty = subs.filter(s => !s.acting);
-  const toAdmin = subs.filter(s => s.acting === KU.admin());
-  ok(80, before === 4 && subs.length === openRecs && empty.length === 0,
-    `молчание контракта трактуется в безопасную сторону: было подмен ${before}, при молчащем модуле сотрудников — ${subs.length} из ${openRecs} закреплений, и ни одного пустого действующего (ИУ-23)`);
 
-  ok(81, toAdmin.length >= 1 && toAdmin.every(s => /администратор/.test(s.actingStep)),
-    `лестница доходит до администратора там, где объект держит сама заведующая: ${toAdmin.map(s => s.objId).join(', ')} → ${nm(KU.admin())} (ИУ-23)`);
+  KU.setHr(false);
+  const down = subs();
+  const empty = down.filter(s => !s.acting);
+  const toAdmin = down.filter(s => s.acting === KU.admin());
+  ok(63, before === 3 && down.length === openRecs && empty.length === 0,
+    `молчание контракта трактуется в безопасную сторону: было подмен ${before}, при молчащем модуле сотрудников — ${down.length} из ${openRecs} закреплений, и ни одного пустого действующего (ИУ-23)`);
+
+  ok(64, toAdmin.length >= 1 && toAdmin.every(s => /администратор/.test(s.actingStep)),
+    `лестница доходит до администратора там, где объект держит сама заведующая: таких закреплений ${toAdmin.length} → ${nm(KU.admin())} (ИУ-23)`);
 
   const assignedSame = snap() === assignedBefore;
   const drift = KU.state.journal.filter(r => r.src === 'подмена').length;
   KU.setHr(true);
-  ok(82, KU.state.journal.length === jbefore && drift === 0 && assignedSame &&
-        KU.substitutions(TODAY).length === before,
-    `подмена журнала не пишет и закрепления не двигает: записей ${KU.state.journal.length}, записей «подмена» ${drift}; контракт заговорил — подмен снова ${before} (ИУ-21)`);
+  ok(65, KU.state.journal.length === jbefore && drift === 0 && assignedSame && subs().length === before,
+    `подмена журнала не пишет и закрепления не двигает: записей ${KU.state.journal.length}, записей «подмена» ${drift}; контракт заговорил — подмен снова ${before} (ИУ-2)`);
 })();
 
-/* ---------- R. Период ответственности (ИУ-24) ---------- */
+/* ---------- P. Период ответственности (ИУ-24) ---------- */
 (() => {
   KU.seed();
   const r91 = KU.respOf('КД-2025/091', 'cur_loan', TODAY);
-  ok(83, r91.days === 225 && r91.cutDays === 10 && r91.net === 215 &&
-        r91.cuts.length === 1 && r91.cuts[0].banId === 'b2' && /вычтено отстранением/.test(r91.text),
-    `период ответственности = отрезок журнала минус отстранение: ${r91.days} раб. дн., вычтено ${r91.cutDays}, чистых ${r91.net} (ИУ-24)`);
+  ok(66, r91.days === 225 && r91.open === true && r91.cuts === undefined && r91.net === undefined &&
+        /целиком/.test(r91.text),
+    `период ответственности = отрезок журнала ЦЕЛИКОМ: ${r91.text} — вычитать из него после волны 6 нечего, ` +
+    `отстранений нет, а вычетов «по кусочкам» модуль не считает (ИУ-24)`);
 
-  const r72 = KU.respOf('КД-2025/072', 'cur_loan', TODAY);
-  ok(84, r72.cutDays === 0 && r72.cuts.length === 0 && /целиком/.test(r72.text),
-    `чужое отстранение период не режет: у ${nm(r72.empId)} по КД-2025/072 ${r72.days} раб. дн. целиком`);
+  const r117 = KU.respOf('КД-2024/117', 'cur_loan', TODAY);
+  const a117 = on('КД-2024/117', 'cur_loan');
+  ok(67, r117.empId === 'e_ivanov' && a117.acting === 'e_asanov' && a117.substituted === true &&
+        /целиком/.test(r117.text) && r117.days === 120,
+    `отсутствие период не режет: работу сегодня ведёт ${a117.actingName}, но спрос за ${r117.days} раб. дн. ` +
+    `остаётся на закреплённом (${nm(r117.empId)}) — задание уходит, ответственность нет (ИУ-2, ИУ-24)`);
 
-  KU.state.role = 'admin';
-  KU.banLift('b2', '2026-08-10', 'обстоятельства отпали');
-  const cut = KU.respOf('КД-2025/091', 'cur_loan', TODAY);
-  ok(85, cut.cutDays === 6 && cut.net === 219 && cut.cuts[0].to === '2026-08-10',
-    `снятие сокращает вычет, но не отменяет его задним числом: было 10 раб. дн., стало ${cut.cutDays} (03.08—10.08) — ИУ-4`);
+  const closed = KU.state.journal.filter(r => r.objId === 'КД-2024/117' && r.role === 'cur_loan' && r.to)[0];
+  const past = KU.respOf('КД-2024/117', 'cur_loan', closed.to);
+  ok(68, past.empId === 'e_bekova' && past.open === false && past.to === closed.to &&
+        past.days === 533 && past.from !== r117.from,
+    `периоды не склеиваются и закрытый не растёт: до ${past.to} отвечал ${nm(past.empId)} (${past.days} раб. дн.), ` +
+    `с ${r117.from} — ${nm(r117.empId)}; вопрос «кто отвечал ТОГДА» отвечает журнал, а не сегодняшнее закрепление (ИУ-3)`);
 })();
 
-/* ---------- S. Ведущий куратор заёмщика (P18-R16, ИУ-14, ИУ-25) ---------- */
+/* ---------- Q. Ведущий куратор заёмщика (P18-R16, ИУ-14, ИУ-25) ---------- */
 (() => {
   KU.seed();
   const derived = KU.dict.DERIVED.id;
   const inJournal = KU.state.journal.filter(r => r.role === derived);
   const stored = KU.state.objects.filter(o => o.lead || o.leadCurator);
-  ok(86, inJournal.length === 0 && stored.length === 0 && typeof KU.lead === 'function',
+  ok(69, inJournal.length === 0 && stored.length === 0 && typeof KU.lead === 'function',
     `«${KU.dict.DERIVED.name}» не назначается и нигде не лежит: записей журнала с этой ролью ${inJournal.length}, полей на объектах ${stored.length} — вычисляется (ИУ-14)`);
 
   const now  = KU.lead('ОсОО «Ак-Жол»', TODAY);
   const next = KU.lead('ОсОО «Ак-Жол»', '2026-09-01');
-  ok(87, now.ok && now.start === '2026-08-01' && now.objId === 'КД-2025/033' &&
+  ok(70, now.ok && now.start === '2026-08-01' && now.objId === 'КД-2025/033' &&
         now.empId === 'e_bekova' && now.money.kgs === 17900000 && now.money.cur === 'USD' &&
         next.ok && next.objId === 'КД-2024/117' && next.empId === 'e_ivanov',
     `наибольший ОД на начало периода, валюта по курсу НБКР: на ${now.start} ведёт ${now.name} (${now.objId}, ${now.money.od} ${now.money.cur} = ${now.money.kgs} сом); погашение 10.08 внутри периода ответа не двигает, с 01.09 ведёт ${next.name} (${next.objId}) — ИУ-25`);
 
   const tie = KU.lead('ОсОО «Ак-Жол»', '2025-01-01');
-  ok(88, tie.ok && tie.tie === true && tie.objId === 'КД-2024/117' &&
+  ok(71, tie.ok && tie.tie === true && tie.objId === 'КД-2024/117' &&
         /раньше/.test(tie.step),
     `равенство остатков разрешается ранним договором: ${tie.objId} против КД-2024/205 — ведёт ${tie.name}`);
 
   const closed = KU.lead('ОсОО «Береке»', TODAY);
   const appOnly = KU.lead('ОсОО «Мыкты Сервис»', TODAY);
   const none = KU.lead('ОсОО «Нет такого»', TODAY);
-  ok(89, closed.ok && closed.objId === 'КД-2023/210' && /последнего закрытого/.test(closed.step) &&
+  ok(72, closed.ok && closed.objId === 'КД-2023/210' && /последнего закрытого/.test(closed.step) &&
         appOnly.ok && appOnly.objId === 'ЗК-2026/047' && /последней заявки/.test(appOnly.step) &&
         !none.ok && none.empty === true,
     `лестница ведущего: нет действующих кредитов — ${closed.name} по последнему закрытому; кредитов нет вовсе — ${appOnly.name} по заявке; объектов нет — законная пустота`);
 })();
 
-/* ---------- T. Гейт увольнения и перевод хвостов (P18-R17, ИУ-26) ---------- */
-(() => {
-  KU.seed();
-  const busy = KU.dismissGate('e_bekova', TODAY);
-  const free = KU.dismissGate('e_asanov', TODAY);
-  ok(90, !busy.ok && busy.items.length === 1 && busy.items[0].objId === 'КД-2025/033' &&
-        busy.tails === 3 && free.ok && free.tails === 2,
-    `гейт держит незакрытая работа, а не число закреплений: ${nm('e_bekova')} — ${busy.items[0].objId} (${busy.items[0].why}) при ${busy.tails} хвостах; ${nm('e_asanov')} проходит при ${free.tails} (ИУ-26)`);
-
-  const adm = KU.dismissGate(KU.admin(), TODAY);
-  ok(91, !adm.ok && adm.admin === true && /вакантным не бывает/.test(adm.why),
-    `администратора кураторства уволить нельзя: «${adm.why}»`);
-})();
-
-(() => {
-  KU.seed();
-  const st = KU.state;
-  st.role = 'reader';
-  const byReader = KU.moveTails('e_bekova', 'увольнение');
-  st.role = 'admin';
-  const bare = KU.moveTails('e_bekova', '');
-  const move = KU.moveTails('e_bekova', 'увольнение работника');
-  const fresh = st.journal.filter(r => r.src === 'перевод');
-  const gate = KU.dismissGate('e_bekova', TODAY);
-  ok(92, !byReader.ok && !bare.ok && /причина обязательна/.test(bare.why) &&
-        move.ok && move.moved === 3 && fresh.length === 3 &&
-        fresh.every(r => r.empId === 'e_toktogulova' && r.from === TODAY) &&
-        gate.ok && gate.tails === 0,
-    `хвосты переводятся одной пачкой и с причиной: ${move.moved} закреплений ушло к ${nm('e_toktogulova')} записями «перевод», после чего гейт пропускает — ${gate.why} (P18-R17)`);
-})();
-
-/* ---------- P. Гейт признака и группировки в справочнике (P18-R5, ADR-0131) ---------- */
+/* ---------- R. Гейт признака и группировки в справочнике (P18-R5, ADR-0131) ---------- */
 (() => {
   /* Гейт допуска: у каждого признака объявлен ИСТОЧНИК, домен либо конечен и взят из
      справочника, либо признак числовой и несёт разбиение. Ничего третьего в справочнике нет. */
@@ -723,7 +626,7 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   const domOK  = F.every(f => f.num ? Array.isArray(f.cutsDefault) && f.cutsDefault.length
                                     : Array.isArray(f.domain) && f.domain.length > 1);
   const kindOK = F.every(f => f.obj.length && f.obj.every(k => !!KU.kind(k)));
-  ok(93, F.length === 12 && srcOK && domOK && kindOK,
+  ok(73, F.length === 12 && srcOK && domOK && kindOK,
     `справочник признаков ${F.length}: у каждого объявлен источник (заёмщик ${
       F.filter(f => f.src === 'borrower').length} · объект ${F.filter(f => f.src === 'self').length
       }), домен конечен либо признак числовой — ADR-0131`);
@@ -736,7 +639,7 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   const before = akObjs.map(o => KU.featVal(o, 'otrasl'));
   const chg = KU.setFeature('КД-2024/117', 'otrasl', 'Пищевая и перерабатывающая');
   const after = akObjs.map(o => KU.featVal(o, 'otrasl'));
-  ok(94, noCopy && chg.ok && before.every(v => v === 'Агропромышленный комплекс') &&
+  ok(74, noCopy && chg.ok && before.every(v => v === 'Агропромышленный комплекс') &&
         after.every(v => v === 'Пищевая и перерабатывающая') && akObjs.length > 1,
     `заёмщицкий признак объект не хранит: правка отрасли у заёмщика прошла разом по ${akObjs.length
       } объектам «ОсОО «Ак-Жол»» — копии на объекте нет (ADR-0131, ADR-0001)`);
@@ -749,13 +652,12 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   const v0 = KU.verAt(rule, TODAY);
   KU.keyDraftInit(rule.id);
   KU.grpPick(rule.id, 'terr', '');                     // снять группировку — домен как есть
-  KU.setEff(rule.id, '2026-09-01');
   const saved = KU.saveKey(rule.id);
-  const nv = KU.verAt(rule, '2026-09-01');
-  const cov = KU.coverage(rule, '2026-09-01');
-  ok(95, v0.grp && v0.grp.terr === 'g_terr_oblast' && !v0.groups && saved.ok &&
+  const nv = KU.verAt(rule, TODAY);
+  const cov = KU.coverage(rule, TODAY);
+  ok(75, v0.grp && v0.grp.terr === 'g_terr_oblast' && !v0.groups && saved.ok &&
         !nv.grp.terr && cov.cells.length === KU.dom('terr').length &&
-        nv.cells['Кара-Сууйский'] === v0.cells['Ошская'] && saved.kept === 5 && saved.holes === 5,
+        nv.cells['Кара-Сууйский'] === v0.cells['Ошская'] && saved.kept === 7 && saved.holes === 5,
     `редакция хранит ссылку на группировку, а не раскладку: было ${KU.space(v0, TODAY).length
       } долей «${KU.grpDef('terr', v0.grp.terr).name}», стало ${cov.cells.length
       } значений домена, имя перенесено в ${saved.kept} (Кара-Сууйский унаследовал ${
@@ -769,7 +671,7 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   KU.setFeature('КД-2026/012', 'otrasl', 'Предприятия прочих отраслей');
   const inOther = KU.cellObjects(top, KU.OTHER, TODAY).map(o => o.id);
   const decOther = KU.decide('КД-2026/012', 'cur_loan', TODAY);
-  ok(96, blocks[blocks.length - 1] === KU.OTHER && blocks.length === 4 &&
+  ok(76, blocks[blocks.length - 1] === KU.OTHER && blocks.length === 4 &&
         inOther.indexOf('КД-2026/012') >= 0 && decOther.ok && decOther.empId === KU.admin(),
     `у растущего домена доля открыта: доли «По блокам» — ${blocks.join(' · ')}; отрасль вне блоков ` +
     `сажает объект в «${KU.OTHER}», ячейка не названа — держит ${nm(decOther.empId)} (ИУ-8, ИУ-9)`);
@@ -782,7 +684,7 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   const wasLater = KU.groupOf(ref, 'vidzalog', 'Товары в обороте', '2026-09-01');
   const vOld = KU.grpVer('vidzalog', 'g_zalog_likvid', TODAY);
   const vNew = KU.grpVer('vidzalog', 'g_zalog_likvid', '2026-09-01');
-  ok(97, wasThen === 'Неликвидное' && wasLater === 'Ликвидное' && vOld.no === 1 && vNew.no === 2 &&
+  ok(77, wasThen === 'Неликвидное' && wasLater === 'Ликвидное' && vOld.no === 1 && vNew.no === 2 &&
         vOld.until === '2026-08-31',
     `группировка версионируется своими редакциями: «Товары в обороте» на ${TODAY} — «${wasThen
       }» (ред. ${vOld.no}), на 2026-09-01 — «${wasLater}» (ред. ${vNew.no}); прошлое не переписано (ИУ-10, ИУ-11)`);
@@ -797,12 +699,11 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   KU.keyDraftAdd(r3.id, 'summa');
   const cuts = KU.cutsSet(r3.id, 'summa', '5000000, 15000000');
   const bad = KU.cutsSet(r3.id, 'summa', '5000000, -1');
-  KU.setEff(r3.id, '2026-09-01');
   const s4 = KU.saveKey(r3.id);
-  const n4 = KU.verAt(r3, '2026-09-01');
-  const bands = KU.groupsOf(n4, 'summa', '2026-09-01');
-  const cell117 = KU.keyVal(n4, KU.obj('КД-2024/117'), '2026-09-01');
-  ok(98, !noGrp.ok && cuts.ok && !bad.ok && s4.ok &&
+  const n4 = KU.verAt(r3, TODAY);
+  const bands = KU.groupsOf(n4, 'summa', TODAY);
+  const cell117 = KU.keyVal(n4, KU.obj('КД-2024/117'), TODAY);
+  ok(78, !noGrp.ok && cuts.ok && !bad.ok && s4.ok &&
         n4.cuts.summa.join() === '5000000,15000000' && !n4.grp.summa &&
         bands.length === 3 && cell117 === 'Ошская | от 15 000 000',
     `пороги числового признака живут в редакции правила: доли — ${bands.join(' · ')}, ` +
@@ -810,7 +711,7 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
     `отрицательный порог тоже — ADR-0131`);
 })();
 
-/* ---------- U. Заведение группировки в справочнике (волна 4, ADR-0131, ИУ-6) ---------- */
+/* ---------- S. Заведение группировки в справочнике (волна 4, ADR-0131, ИУ-6) ---------- */
 (() => {
   /* Владелец справочника один: группировка едина на холдинг, и заводит её администратор
      кураторства. Числовой признак ею не режется — его пороги живут в редакции правила. */
@@ -820,7 +721,7 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   KU.state.role = 'admin';
   const byAdmin = KU.grpDraftNew('vidzalog');
   const num = KU.grpDraftNew('summa');
-  ok(99, !byHead.ok && /только читает/.test(byHead.why) && byAdmin.ok && !num.ok &&
+  ok(79, !byHead.ok && /только читает/.test(byHead.why) && byAdmin.ok && !num.ok &&
         /числовой/.test(num.why),
     `справочник признаков правит один администратор кураторства: заведующему отказ («${
       byHead.why.split(':')[0]}»), числовому признаку тоже («${num.why.split('—')[1].trim()}»)`);
@@ -834,7 +735,7 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   const made = KU.grpSave();
   const def = made.ok ? KU.grpDef('vidzalog', made.id) : null;
   const parts = made.ok ? KU.groupsOf({ grp: { vidzalog: made.id } }, 'vidzalog', '2026-09-01') : [];
-  ok(100, fill.ok && !fill.clash && !past.ok && /в прошлом/.test(past.why) && made.ok &&
+  ok(80, fill.ok && !fill.clash && !past.ok && /в прошлом/.test(past.why) && made.ok &&
         def && def.versions.length === 1 && def.versions[0].from === '2026-09-01' &&
         parts.length === 2 && parts[parts.length - 1] === KU.OTHER,
     `группировка заводится целиком и с предзаполнением из колонки: «${def && def.name}» вступает ` +
@@ -850,7 +751,7 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   KU.grpDraftMap('Недвижимое имущество', KU.OTHER);
   const sys = KU.grpSave();
   KU.grpDraftDrop();
-  ok(101, !dup.ok && /уже занята группировкой/.test(dup.why) && !sys.ok &&
+  ok(81, !dup.ok && /уже занята группировкой/.test(dup.why) && !sys.ok &&
         /заводит система/.test(sys.why),
     `имя доли уникально в пределах признака: «${dup.why.split(':')[0]}»; служебную долю рукой не завести — ` +
     `«${KU.OTHER}» есть в каждой группировке и держит неотнесённое (ИУ-6, ИУ-9)`);
@@ -863,7 +764,7 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   const hold = KU.grpUsageAfter('vidzalog', 'g_zalog_dvizh', '2026-09-01');
   const backOK = KU.grpActs('vidzalog', 'g_zalog_organ', TODAY) &&
                  !KU.grpActs('vidzalog', 'g_zalog_organ', '2026-09-01');
-  ok(102, free.ok && !held.ok && hold.length === 2 && backOK &&
+  ok(82, free.ok && !held.ok && hold.length === 2 && backOK &&
         hold.every(u => held.why.indexOf(KU.usageName(u)) >= 0),
     `снятие — датой и только вслепую нельзя: свободную сняли с 01.09.2026, на занятую отказ со списком ` +
     `держателей (${hold.map(KU.usageName).join('; ')}); прошлые ответы снятой воспроизводятся — ИУ-10, ИУ-11`);
@@ -883,14 +784,13 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   const rAgro = KU.lowRule('u_agro', 'cur_loan');
   KU.keyDraftInit(rAgro.id);
   const soon = KU.grpPick(rAgro.id, 'terr', zones.id);
-  KU.setEff(rAgro.id, '2026-10-01');
-  const later = KU.grpPick(rAgro.id, 'terr', zones.id);
   const savedZ = KU.saveKey(rAgro.id);
-  ok(103, !going.ok && /снимается с/.test(going.why) && zones.ok &&
-        !soon.ok && /ещё не действует/.test(soon.why) && later.ok && savedZ.ok &&
-        KU.verAt(rAgro, '2026-10-01').grp.terr === zones.id,
+  ok(83, !going.ok && /снимается с/.test(going.why) && zones.ok &&
+        !soon.ok && /ещё не действует/.test(soon.why) && typeof KU.setEff === 'undefined' &&
+        (KU.verAt(rAgro, TODAY).grp || {}).terr !== zones.id,
     `датные проверки ссылки: на уходящую — «${going.why.split('—')[1].trim()}», на будущую — ` +
-    `«${soon.why.split('—')[1].trim()}»; после сдвига редакции на 01.10.2026 ссылка принята и сохранена`);
+    `«${soon.why.split('—')[1].trim()}»; обойти отказ сдвигом даты вступления больше нельзя — ` +
+    `редакция вступает днём сохранения, будущая группировка просто недоступна до своей даты (волна 6)`);
 
   /* Осиротевшая доля: сохранить можно, но молча имя ячейки не переносится — задача летит
      владельцу задетого правила со сроком, а не успел — сработает фолбэк (ИУ-8). */
@@ -909,7 +809,7 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   const ref = { grp: { vidzalog: 'g_zalog_dvizh' } };
   const nowParts = KU.groupsOf(ref, 'vidzalog', '2026-09-01');
   const thenParts = KU.groupsOf(ref, 'vidzalog', TODAY);
-  ok(104, ver2.ok && ver2.ver === 2 && ver2.orphans === 2 && ver2.rules === 2 &&
+  ok(84, ver2.ok && ver2.ver === 2 && ver2.orphans === 2 && ver2.rules === 2 &&
         tasks.length === 2 && mineHead === 1 && mineAdmin === 1 &&
         tasks.every(t => /пересоберите ячейки/.test(t.text) && t.due === '2026-09-01') &&
         nowParts.join() === 'Движимое,' + KU.OTHER &&
@@ -929,11 +829,201 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   const fullRef = { grp: { forma: full.id } };
   const fullParts = KU.groupsOf(fullRef, 'forma', TODAY);
   const loose = KU.groupOf(fullRef, 'forma', 'Кооперативная', TODAY);   // значения в домене ещё нет
-  ok(105, full.ok && dom.every(x => !!KU.grpVer('forma', full.id, TODAY).map[x]) &&
+  ok(85, full.ok && dom.every(x => !!KU.grpVer('forma', full.id, TODAY).map[x]) &&
         fullParts.length === 3 && fullParts[fullParts.length - 1] === KU.OTHER &&
         loose === KU.OTHER,
     `«${KU.OTHER}» есть всегда: домен «${KU.feat('forma').name}» разложен без остатка, доли — ${
       fullParts.join(' · ')}; значение, которого в домене ещё нет, садится в «${loose}» — ИУ-9`);
+})();
+
+/* ---------- T. Сверенность домена и сочетаемость признаков (волна 5, ADR-0131) ---------- */
+(() => {
+  KU.seed();
+  /* Отметка сверенности стоит на КАЖДОМ признаке и различает два непохожих случая:
+     «источник назван, справочника ещё нет» и «источника нет вовсе». */
+  const feats = KU.feats();
+  const by = st => feats.filter(f => KU.sver(f.id).st === st);
+  const okF = by('ok'), waitF = by('wait'), noneF = by('none');
+  ok(86, feats.length === 12 && okF.length === 8 && waitF.length === 3 && noneF.length === 1 &&
+        noneF[0].id === 'razmer' && okF.every(f => !!KU.sver(f.id).ref) &&
+        waitF.every(f => !!KU.sver(f.id).ref && !!KU.sver(f.id).why) &&
+        waitF.map(f => f.id).sort().join() === 'forma,terr,vidzaem',
+    `сверенность объявлена у всех ${feats.length}: сверено ${okF.length} (у каждого ссылка file:line), ` +
+    `ждут справочника ${waitF.length} (${waitF.map(f => f.name).join(', ')}), ` +
+    `без названного источника ${noneF.length} — «${noneF[0].name}» (ADR-0131 п. 4)`);
+
+  /* Гейт ключа: «ждёт справочника» пускается — источник назван, домен поедет за ним.
+     «источник не назван» не пускается: ответ на дату нечем воспроизвести (ИУ-11). */
+  KU.state.role = 'head'; KU.state.headUnit = 'u_agro';
+  const rl = KU.lowRule('u_agro', 'cur_loan');
+  KU.keyDraftInit(rl.id);
+  const noSrc = KU.keyDraftAdd(rl.id, 'razmer');
+  const waits = KU.keyDraftAdd(rl.id, 'vidzaem');
+  ok(87, !noSrc.ok && /не назван источник/.test(noSrc.why) &&
+        /никто не ведёт/.test(noSrc.why) && waits.ok,
+    `в ключ не встаёт признак без названного источника: «${noSrc.why.slice(0, 96)}…»; ` +
+    `а «ждёт справочника» встаёт — «${KU.feat('vidzaem').name}» принят, плашка остаётся на признаке`);
+
+  /* Домен режется СТРОКОЙ. Расхождение в одну букву с живым справочником не ломается
+     громко — оно молча сажает объект в «Прочие», и ячейка уезжает к заведующему. */
+  KU.seed();
+  const dk = KU.dom('vidkred');
+  const live = 'Фонд развитие регионов';          // опечатка живого справочника, credit.html:2215
+  const kd = KU.obj('КД-2025/043');
+  const part = KU.groupOf({ grp: { vidkred: 'g_vidkred_dengi' } }, 'vidkred', KU.featVal(kd, 'vidkred'), TODAY);
+  ok(88, dk.indexOf(live) >= 0 && dk.indexOf('Фонд развития регионов') < 0 &&
+        KU.featVal(kd, 'vidkred') === live && part === 'Бюджетные' && part !== KU.OTHER,
+    `домен списан с живого справочника буква в букву, вместе с опечаткой «${live}»: ` +
+    `КД-2025/043 встал в долю «${part}», а не в «${KU.OTHER}» — расхождение в одну букву ячейку не рвёт, ` +
+    `оно молча уводит объект (credit.html:2215)`);
+
+  /* Территория: справочника АТЕ в системе нет, домен собран из живых значений вручную —
+     и потому обязан быть разложен без остатка, иначе половина районов уедет в «Прочие». */
+  const terr = KU.dom('terr'), obl = KU.grpVer('terr', 'g_terr_oblast', TODAY);
+  const zones = Object.keys(obl.map).map(k => obl.map[k]).filter((x, i, a) => a.indexOf(x) === i);
+  ok(89, terr.length === 12 && terr.indexOf('Район') < 0 &&
+        terr.every(v => !!obl.map[v]) && zones.length === 8 && KU.sver('terr').st === 'wait',
+    `территория ждёт справочника АТЕ: домен — ${terr.length} живых районов без мусорного «Район», ` +
+    `все разложены по ${zones.length} областям (${zones.slice(0, 3).join(', ')}…), ` +
+    `отметка «${KU.sver('terr').st}» с ссылкой ${KU.sver('terr').ref}`);
+
+  /* СОЧЕТАЕМОСТЬ. Программа сужает вид кредита: ячейка «ПРГ-1 | МАР» не дыра —
+     её не закроет никто и никогда, и в мягкий предел она не идёт. */
+  KU.state.role = 'head'; KU.state.headUnit = 'u_agro';
+  const d1 = KU.keyDraftInit(rl.id);
+  d1.key = ['progr', 'vidkred']; d1.grp = {}; d1.cuts = {};
+  const all1 = KU.spaceAll(d1, TODAY), live1 = KU.space(d1, TODAY), dead1 = KU.dead(d1, TODAY);
+  ok(90, all1.length === 48 && live1.length === 14 && dead1.length === 34 &&
+        live1.indexOf('ПРГ-1 | МАР') < 0 && all1.indexOf('ПРГ-1 | МАР') >= 0 &&
+        dead1.some(x => x.cell === 'ПРГ-1 | МАР' && /не допускает ни одного значения/.test(x.why)) &&
+        live1.indexOf('ПРГ-5 | МАР') >= 0,
+    `сочетаемость режет пространство до заполнимого: декартово произведение дало ${all1.length
+      } ячеек, возможных ${live1.length}, невозможных ${dead1.length} — «ПРГ-1 | МАР» из счёта вычтена: ` +
+    `${dead1.filter(x => x.cell === 'ПРГ-1 | МАР')[0].why}; «ПРГ-5 | МАР» осталась (ИУ-8, ИУ-9)`);
+
+  /* Открытая доля невозможной не бывает: «Прочие» держит значения, которых в справочнике
+     ещё нет, и объявить их несочетаемыми заранее нельзя (ИУ-9). */
+  d1.grp = { vidkred: 'g_vidkred_dengi' };
+  const all2 = KU.spaceAll(d1, TODAY), live2 = KU.space(d1, TODAY), dead2 = KU.dead(d1, TODAY);
+  ok(91, all2.length === 24 && live2.length === 18 && dead2.length === 6 &&
+        dead2.every(x => x.cell.indexOf(KU.OTHER) < 0) &&
+        dead2.every(x => x.cell.split(' | ')[1] === 'Донорские') &&
+        live2.filter(c => c.indexOf(KU.OTHER) >= 0).length === 8,
+    `сочетаемость считается по долям, а не по значениям: с группировкой «по деньгам» ${all2.length
+      } ячеек, невозможных ${dead2.length} — только донорские деньги у бюджетных программ; ` +
+    `доля «${KU.OTHER}» невозможной не объявлена ни разу (${live2.filter(c => c.indexOf(KU.OTHER) >= 0).length
+      } её ячеек живы): она держит то, чего в справочнике ещё нет`);
+
+  /* Вторая объявленная пара — и проверка, что живые правила невозможными ячейками
+     не задеты: ни один объект стенда в такой ячейке не стоит. */
+  const d3 = KU.keyDraftInit(rl.id);
+  d3.key = ['vidzaem', 'forma']; d3.grp = {}; d3.cuts = {};
+  const dead3 = KU.dead(d3, TODAY);
+  const covs = [KU.lowRule('u_agro', 'cur_loan'), KU.topRule('cur_loan'), KU.lowRule('u_ind', 'cur_loan'),
+    KU.topRule('spec_app'), KU.lowRule('u_osh', 'cur_coll')].map(r => KU.coverage(r, TODAY));
+  ok(92, KU.spaceAll(d3, TODAY).length === 16 && KU.space(d3, TODAY).length === 7 &&
+        dead3.length === 9 && dead3.every(x => x.cell.indexOf('Частная') < 0) &&
+        covs.every(c => c.dead.length === 0 && c.deadHot.length === 0),
+    `у физлица, ИП и КФХ форма собственности всегда частная: из ${KU.spaceAll(d3, TODAY).length
+      } ячеек возможны ${KU.space(d3, TODAY).length}, все ${dead3.length} невозможных — не «Частная»; ` +
+    `в живых правилах стенда невозможных ячеек нет вовсе, объектов в них тоже (deadHot 0)`);
+})();
+
+/* ---------- U. «Написало успешно, а на экране ничего» (жалоба 17.08.2026, ИУ-10) ---------- */
+(function blindEdit() {
+  /* Экран рисует редакцию на ДАТУ СРЕЗА, правка кладёт новую поверх редакции на ДАТУ
+     ВСТУПЛЕНИЯ. Пока это одна редакция — правится ровно то, что видно; разъехались —
+     правка закрыта. А чтобы результат не оставался «где-то в будущем», после сохранения
+     срез сам встаёт на дату вступления. */
+  KU.seed();
+  KU.state.role = 'head'; KU.state.headUnit = 'u_ozo';
+  const r = KU.lowRule('u_ozo', 'cur_coll');
+
+  /* Путь A: срез в прошлом, редакция всё ещё одна — правка проходит, но экран уезжает
+     на дату вступления, иначе она осталась бы невидимой. */
+  KU.setAsOf('2026-01-15');
+  const a = KU.setCell(r.id, 'Право аренды', 'e_mamatov');
+  ok(93, a.ok && KU.state.asOf === TODAY && /рез экрана переставлен/.test(a.note) &&
+        KU.verAt(r, KU.state.asOf).cells['Право аренды'] === 'e_mamatov' &&
+        r.versions.length === 2,
+    `правка со среза в прошлом не пропадает: редакция ${a.ver} заведена, срез сам встал на ${
+      KU.state.asOf} и «Право аренды» на экране уже за Маматовым — «${
+      a.note.slice(a.note.indexOf('Срез экрана')).trim()}»`);
+
+  /* Путь B: тот же срез, но редакций уже две — теперь на экране одна, а правилась бы
+     другая. Именно это и выглядело как «успешно, но ничего не изменилось». */
+  KU.setAsOf('2026-01-15');
+  const b = KU.setCell(r.id, 'Ценные бумаги', 'e_mamatov');
+  const dr = KU.keyDraftInit(r.id); dr.key = ['vidzalog', 'terr'];
+  const bk = KU.saveKey(r.id);
+  ok(94, !b.ok && /править вслепую нельзя/.test(b.why) && /№ 1/.test(b.why) && /№ 2/.test(b.why) &&
+        !bk.ok && /править вслепую нельзя/.test(bk.why) && r.versions.length === 2,
+    `правка вслепую отбита и у ячейки, и у ключа: «${b.why.slice(0, 150)}…» — редакций как было ${
+      r.versions.length}, ключ не сохранён`);
+
+  /* Пути C «дата вступления в будущем» больше нет: редакция вступает днём сохранения
+     (волна 6), поэтому вперёд экрану смотреть не на что — кроме справочника. */
+  KU.seed();
+  KU.state.role = 'head'; KU.state.headUnit = 'u_ozo';
+  const r3 = KU.lowRule('u_ozo', 'cur_coll');
+  KU.setCell(r3.id, 'Право аренды', 'e_mamatov');
+  const ahead = KU.state.rules.reduce((n, x) =>
+    n + x.versions.filter(v => v.from > TODAY).length, 0);
+  const list = KU.asOfList();
+  ok(95, ahead === 0 && list.indexOf('2026-09-01') >= 0 && list.indexOf(TODAY) >= 0 &&
+        list.every((d, i) => i === 0 || list[i - 1] <= d),
+    `срез смотрит назад: редакций правил с будущей датой ${ahead} — их больше не завести; ` +
+    `в списке срезов вперёд стоит только 01.09.2026 от группировки справочника, у неё свои даты — ${list.join(' · ')}`);
+})();
+
+/* -------- VII. «Назначается только один, второй не назначается» (жалоба 17.08.2026) -------- */
+(function sameDay() {
+  /* Интервалы редакций не пересекаются, значит двух редакций с одной датой вступления нет:
+     первая правка дня заводит редакцию, остальные ложатся в неё (KU.verFor). Раньше вторая
+     упиралась в «редакция N вступила DD.MM — новая раньше вступить не может». */
+  KU.seed();
+  KU.state.role = 'head'; KU.state.headUnit = 'u_ozo';
+  const r = KU.lowRule('u_ozo', 'cur_coll');
+  const one = KU.setCell(r.id, 'Право аренды', 'e_mamatov');
+  const two = KU.setCell(r.id, 'Ценные бумаги', 'e_mamatov');
+  const three = KU.setCell(r.id, 'Право аренды', 'e_toktosunova');
+  const v = KU.verAt(r, TODAY);
+  ok(96, one.ok && two.ok && three.ok && !one.merged && two.merged && three.merged &&
+        one.ver === two.ver && two.ver === three.ver && r.versions.length === 2 &&
+        v.cells['Ценные бумаги'] === 'e_mamatov' && v.cells['Право аренды'] === 'e_toktosunova' &&
+        /второй редакции на тот же день не бывает/.test(two.note),
+    `правки одного дня копятся в одной редакции: три назначения подряд прошли, редакций как было ${
+      r.versions.length}, все три в редакции ${three.ver} — «Ценные бумаги» за ${nm(v.cells['Ценные бумаги'])
+      }, «Право аренды» переназначено на ${nm(v.cells['Право аренды'])} (ИУ-10)`);
+
+  /* Прошлое дописыванием не переписывается: до даты вступления отвечает прежняя редакция. */
+  const prev = r.versions.filter(x => x.no !== v.no)[0];
+  ok(97, prev.until === '2026-08-14' && prev.cells['Право аренды'] === undefined &&
+        KU.verAt(r, '2026-08-14').no === prev.no,
+    `дописывание не трогает прошлое: редакция ${prev.no} закрыта ${prev.until}, на 14.08.2026 ` +
+    `«Право аренды» по-прежнему без имени — за прежние дни отвечает прежняя редакция (ИУ-10, ИУ-11)`);
+
+  /* Ключ, сохранённый в тот же день, тоже ложится в неё — а не заводит третью. */
+  const d = KU.keyDraftInit(r.id); d.key = ['vidzalog', 'terr'];
+  const sk = KU.saveKey(r.id);
+  const after = KU.verAt(r, TODAY);
+  ok(98, sk.ok && sk.merged && sk.ver === v.no && r.versions.length === 2 &&
+        after.key.join('+') === 'vidzalog+terr' && /дополнена/.test(sk.note),
+    `ключ в тот же день ложится в ту же редакцию: ${sk.note.slice(0, 120)}… — редакций ${
+      r.versions.length}, ключ редакции ${after.no} стал «${after.key.map(f => KU.feat(f).name).join(' + ')}»`);
+
+  /* Правка «позади будущей редакции» после волны 6 невозможна по построению: заводится
+     только редакция сегодняшним днём, поэтому впереди действующей ничего не стоит. */
+  KU.seed();
+  KU.state.role = 'head'; KU.state.headUnit = 'u_ozo';
+  const r2 = KU.lowRule('u_ozo', 'cur_coll');
+  const e1 = KU.setCell(r2.id, 'Право аренды', 'e_mamatov');
+  const e2 = KU.setCell(r2.id, 'Ценные бумаги', 'e_mamatov');
+  const last = KU.verAt(r2, TODAY);
+  ok(99, e1.ok && e2.ok && r2.versions.length === 2 && last.until === null &&
+        last.from === TODAY && r2.versions.every(v => v.from <= TODAY),
+    `впереди действующей редакции пусто: обе правки легли в редакцию ${last.no} от ${last.from}, ` +
+    `открытую бессрочно — «правка позади будущей редакции» отпала вместе с датой вступления (волна 6)`);
 })();
 
 /* ---- отчёт ---- */
