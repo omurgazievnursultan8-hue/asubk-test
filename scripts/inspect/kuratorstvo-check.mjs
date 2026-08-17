@@ -4,7 +4,9 @@
 // Проверяется поведение движка, обеих ступеней, фолбэк-лестницы, шва и редакций (волна 1),
 // а также движение закрепления — рождение и снимок, пересчёт, передачи, рука, ретро (волна 2) —
 // и ответственность: реестр отстранений, второй ответ шва с лестницей замещения, период
-// ответственности с вычетом, ведущий куратор заёмщика и гейт увольнения (волна 3).
+// ответственности с вычетом, ведущий куратор заёмщика и гейт увольнения (волна 3),
+// и справочник признаков: заведение группировки, её редакции и снятие по обратному индексу,
+// уникальность имён долей, «Прочие» всегда, датные проверки ссылки (волна 4).
 // Блоки, которые правят состояние, начинаются с KU.seed() — состояние между ними не течёт.
 //   node scripts/inspect/kuratorstvo-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -249,9 +251,10 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   /* Имя переносится там, где ответ доказуемо не меняется: у «Ошской» был один куратор —
      значит он же ведёт и «Ошская | Частная», и «Ошская | Государственная». «Таласская»
      имени не имела — из неё выходят дыры. Второй признак группировкой не резан:
-     форма собственности встаёт в ключ доменом справочника, всеми четырьмя значениями. */
-  ok(34, saved.ok && nv.key.join('+') === 'terr+forma' && KU.space(nv, '2026-09-01').length === 32 &&
-        Object.keys(nv.cells).length === 16 && saved.kept === 16 && saved.holes === 16 &&
+     форма собственности встаёт в ключ доменом справочника, всеми четырьмя значениями.
+     Восемь областей плюс обязательная доля «Прочие» — девять на четыре формы, 36 ячеек. */
+  ok(34, saved.ok && nv.key.join('+') === 'terr+forma' && KU.space(nv, '2026-09-01').length === 36 &&
+        Object.keys(nv.cells).length === 16 && saved.kept === 16 && saved.holes === 20 &&
         nv.grp.terr === 'g_terr_oblast' && !nv.grp.forma &&
         nv.cells['Ошская | Частная'] === 'e_ivanov' && !nv.cells['Таласская | Частная'],
     `смена ключа — тоже редакция: ячеек ${KU.space(nv, '2026-09-01').length}, имя перенесено в ${saved.kept} (ответ не меняется), дыр ${saved.holes} — там, где имени не было`);
@@ -261,7 +264,7 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
 (() => {
   KU.seed();
   const ind = KU.coverage(KU.lowRule('u_ind', 'cur_loan'), TODAY);
-  ok(35, ind.cells.length === 16 && ind.named.length === 6 && ind.holes.length === 10 &&
+  ok(35, ind.cells.length === 27 && ind.named.length === 6 && ind.holes.length === 21 &&
         ind.holesHot.indexOf('Нарынская | Граждане') >= 0,
     `составной ключ: ячеек ${ind.cells.length}, закрыто ${ind.named.length}, пустых с объектами ${ind.holesHot.length}`);
 
@@ -298,8 +301,9 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   const stubBlock = (m[1].match(/const STUBS = \{[\s\S]*?\n\};/) || [''])[0];
   const stubIds = (stubBlock.match(/\n  (\w+): \{/g) || []).map(s => s.trim().replace(':', '').replace(' {', ''));
   ok(41, stubIds.length === 1 && stubIds[0] === 'show' &&
-        /ГРАНИЦЫ ВОЛНЫ 3/.test(src) && ['Пересчёт', 'Передачи', 'Отстранения'].every(s => src.includes(s)),
-    `экраны волны 3 рабочие, заглушкой остался один (${stubIds.join(', ')}) — границы волны объявлены в шапке`);
+        /ГРАНИЦЫ ВОЛНЫ 4/.test(src) &&
+        ['Признаки и группировки', 'Пересчёт', 'Передачи', 'Отстранения'].every(s => src.includes(s)),
+    `экраны волны 4 рабочие, заглушкой остался один (${stubIds.join(', ')}) — границы волны объявлены в шапке`);
 })();
 
 /* ---------- J. Рождение объекта и снимок признаков (P18-R9, ИУ-15) ---------- */
@@ -804,6 +808,132 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
     `пороги числового признака живут в редакции правила: доли — ${bands.join(' · ')}, ` +
     `КД-2024/117 встал в «${cell117}»; чужая группировка отбита («${noGrp.why}»), ` +
     `отрицательный порог тоже — ADR-0131`);
+})();
+
+/* ---------- U. Заведение группировки в справочнике (волна 4, ADR-0131, ИУ-6) ---------- */
+(() => {
+  /* Владелец справочника один: группировка едина на холдинг, и заводит её администратор
+     кураторства. Числовой признак ею не режется — его пороги живут в редакции правила. */
+  KU.seed();
+  KU.state.role = 'head'; KU.state.headUnit = 'u_agro';
+  const byHead = KU.grpDraftNew('vidzalog');
+  KU.state.role = 'admin';
+  const byAdmin = KU.grpDraftNew('vidzalog');
+  const num = KU.grpDraftNew('summa');
+  ok(99, !byHead.ok && /только читает/.test(byHead.why) && byAdmin.ok && !num.ok &&
+        /числовой/.test(num.why),
+    `справочник признаков правит один администратор кураторства: заведующему отказ («${
+      byHead.why.split(':')[0]}»), числовому признаку тоже («${num.why.split('—')[1].trim()}»)`);
+
+  /* Заведение целиком: раскладка списывается с колонки справочника-источника один раз,
+     дальше живёт своей жизнью. Дата вступления — не раньше сегодня (ИУ-10). */
+  const fill = KU.grpDraftFill('p_zalog_tech');
+  KU.grpDraftSet('from', '2026-08-14');
+  const past = KU.grpSave();
+  KU.grpDraftSet('from', '2026-09-01');
+  const made = KU.grpSave();
+  const def = made.ok ? KU.grpDef('vidzalog', made.id) : null;
+  const parts = made.ok ? KU.groupsOf({ grp: { vidzalog: made.id } }, 'vidzalog', '2026-09-01') : [];
+  ok(100, fill.ok && !fill.clash && !past.ok && /в прошлом/.test(past.why) && made.ok &&
+        def && def.versions.length === 1 && def.versions[0].from === '2026-09-01' &&
+        parts.length === 2 && parts[parts.length - 1] === KU.OTHER,
+    `группировка заводится целиком и с предзаполнением из колонки: «${def && def.name}» вступает ` +
+    `01.09.2026, доли — ${parts.join(' · ')}; вчерашняя дата отбита («${past.why.split('—')[0].trim()}») — ИУ-10`);
+
+  /* Имена долей уникальны в пределах признака: одно имя — один смысл, иначе витрины двух
+     подразделений не складываются. Служебную «Прочие» рукой не заводят (ИУ-6, ИУ-9). */
+  KU.seed(); KU.state.role = 'admin';
+  KU.grpDraftNew('vidzalog');
+  KU.grpDraftSet('name', 'Дубль'); KU.grpDraftSet('from', '2026-09-01');
+  KU.grpDraftMap('Недвижимое имущество', 'Недвижимое');
+  const dup = KU.grpSave();
+  KU.grpDraftMap('Недвижимое имущество', KU.OTHER);
+  const sys = KU.grpSave();
+  KU.grpDraftDrop();
+  ok(101, !dup.ok && /уже занята группировкой/.test(dup.why) && !sys.ok &&
+        /заводит система/.test(sys.why),
+    `имя доли уникально в пределах признака: «${dup.why.split(':')[0]}»; служебную долю рукой не завести — ` +
+    `«${KU.OTHER}» есть в каждой группировке и держит неотнесённое (ИУ-6, ИУ-9)`);
+
+  /* Снятие: удаления нет, есть дата. Обратный индекс отвечает, кто на группировку смотрит,
+     и отказывает списком держателей — иначе снятие было бы слепым (ИУ-11). */
+  KU.seed(); KU.state.role = 'admin';
+  const free = KU.grpRetire('vidzalog', 'g_zalog_organ', '2026-09-01');
+  const held = KU.grpRetire('vidzalog', 'g_zalog_dvizh', '2026-09-01');
+  const hold = KU.grpUsageAfter('vidzalog', 'g_zalog_dvizh', '2026-09-01');
+  const backOK = KU.grpActs('vidzalog', 'g_zalog_organ', TODAY) &&
+                 !KU.grpActs('vidzalog', 'g_zalog_organ', '2026-09-01');
+  ok(102, free.ok && !held.ok && hold.length === 2 && backOK &&
+        hold.every(u => held.why.indexOf(KU.usageName(u)) >= 0),
+    `снятие — датой и только вслепую нельзя: свободную сняли с 01.09.2026, на занятую отказ со списком ` +
+    `держателей (${hold.map(KU.usageName).join('; ')}); прошлые ответы снятой воспроизводятся — ИУ-10, ИУ-11`);
+
+  /* Редакция правила бессрочна: сославшись на уходящую группировку, она пережила бы её и
+     после снятия отвечала бы заглушкой. Ссылка сверяется ещё раз при сохранении ключа. */
+  KU.state.role = 'head'; KU.state.headUnit = 'u_ozo';
+  const rOzo = KU.lowRule('u_ozo', 'cur_coll');
+  KU.keyDraftInit(rOzo.id);
+  const going = KU.grpPick(rOzo.id, 'vidzalog', 'g_zalog_organ');
+  KU.state.role = 'admin';
+  KU.grpDraftNew('terr'); KU.grpDraftFill('p_terr_obl');
+  KU.grpDraftSet('name', 'Зоны'); KU.grpDraftSet('from', '2026-10-01');
+  Object.keys(KU.state.grpDraft.map).forEach(k => KU.grpDraftMap(k, KU.state.grpDraft.map[k] + ' зона'));
+  const zones = KU.grpSave();
+  KU.state.role = 'head'; KU.state.headUnit = 'u_agro';
+  const rAgro = KU.lowRule('u_agro', 'cur_loan');
+  KU.keyDraftInit(rAgro.id);
+  const soon = KU.grpPick(rAgro.id, 'terr', zones.id);
+  KU.setEff(rAgro.id, '2026-10-01');
+  const later = KU.grpPick(rAgro.id, 'terr', zones.id);
+  const savedZ = KU.saveKey(rAgro.id);
+  ok(103, !going.ok && /снимается с/.test(going.why) && zones.ok &&
+        !soon.ok && /ещё не действует/.test(soon.why) && later.ok && savedZ.ok &&
+        KU.verAt(rAgro, '2026-10-01').grp.terr === zones.id,
+    `датные проверки ссылки: на уходящую — «${going.why.split('—')[1].trim()}», на будущую — ` +
+    `«${soon.why.split('—')[1].trim()}»; после сдвига редакции на 01.10.2026 ссылка принята и сохранена`);
+
+  /* Осиротевшая доля: сохранить можно, но молча имя ячейки не переносится — задача летит
+     владельцу задетого правила со сроком, а не успел — сработает фолбэк (ИУ-8). */
+  KU.seed(); KU.state.role = 'admin';
+  KU.grpDraftVer('vidzalog', 'g_zalog_dvizh');
+  Object.keys(KU.state.grpDraft.map).forEach(k => {
+    if (KU.state.grpDraft.map[k] === 'Недвижимое') KU.grpDraftMap(k, '');
+  });
+  KU.grpDraftSet('from', '2026-09-01');
+  const ver2 = KU.grpSave();
+  const tasks = KU.state.tasks;
+  KU.state.role = 'head'; KU.state.headUnit = 'u_osh';
+  const mineHead = KU.myTasks().length;
+  KU.state.role = 'admin';
+  const mineAdmin = KU.myTasks().length;
+  const ref = { grp: { vidzalog: 'g_zalog_dvizh' } };
+  const nowParts = KU.groupsOf(ref, 'vidzalog', '2026-09-01');
+  const thenParts = KU.groupsOf(ref, 'vidzalog', TODAY);
+  ok(104, ver2.ok && ver2.ver === 2 && ver2.orphans === 2 && ver2.rules === 2 &&
+        tasks.length === 2 && mineHead === 1 && mineAdmin === 1 &&
+        tasks.every(t => /пересоберите ячейки/.test(t.text) && t.due === '2026-09-01') &&
+        nowParts.join() === 'Движимое,' + KU.OTHER &&
+        thenParts.join() === 'Недвижимое,Движимое,' + KU.OTHER,
+    `убранная доля не переносится молча: редакция ${ver2.ver} осиротила ${ver2.orphans} ячейки в ${
+      ver2.rules} правилах, задачи ушли их владельцам со сроком 01.09.2026 (заведующему ${mineHead
+      }, администратору ${mineAdmin}); на ${TODAY} доли прежние — ${thenParts.join(' · ')} (ИУ-8, ИУ-11)`);
+
+  /* «Прочие» есть в каждой группировке, даже когда домен разложен без остатка: справочник
+     значений растёт, и новое значение обязано попасть в существующую ячейку (ИУ-9). */
+  KU.seed(); KU.state.role = 'admin';
+  KU.grpDraftNew('forma');
+  KU.grpDraftSet('name', 'Публичная и прочая'); KU.grpDraftSet('from', TODAY);
+  const dom = KU.dom('forma');
+  dom.forEach(x => KU.grpDraftMap(x, x === 'Частная' ? 'Частная форма' : 'Публичная форма'));
+  const full = KU.grpSave();
+  const fullRef = { grp: { forma: full.id } };
+  const fullParts = KU.groupsOf(fullRef, 'forma', TODAY);
+  const loose = KU.groupOf(fullRef, 'forma', 'Кооперативная', TODAY);   // значения в домене ещё нет
+  ok(105, full.ok && dom.every(x => !!KU.grpVer('forma', full.id, TODAY).map[x]) &&
+        fullParts.length === 3 && fullParts[fullParts.length - 1] === KU.OTHER &&
+        loose === KU.OTHER,
+    `«${KU.OTHER}» есть всегда: домен «${KU.feat('forma').name}» разложен без остатка, доли — ${
+      fullParts.join(' · ')}; значение, которого в домене ещё нет, садится в «${loose}» — ИУ-9`);
 })();
 
 /* ---- отчёт ---- */
