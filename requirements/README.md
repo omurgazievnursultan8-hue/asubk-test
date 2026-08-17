@@ -24,7 +24,7 @@ findable. Start with the overview below, then split out as detail grows.
 археология (`mockups/kuratorstvo/ЗАПИСКА.md`), живое состояние —
 `mockups/kuratorstvo/ASUBK-status-razrabotki.md`. **В официальном ТЗ кураторство всё же
 есть — семь предложений** («Модуль распределения кураторства» подсистемы администрирования);
-свод цитат и сверка «требование ТЗ → карточка постановки» — `tz/16-kuratorstvo.md`
+свод цитат и сверка «требование ТЗ → карточка постановки» — `tz/16-kuratorstvo.html`
 (17.08.2026). Спецификацией этот файл не является и постановку не заменяет.
 
 ## Module overview
