@@ -301,18 +301,30 @@ const pd = CR.pd;
       && addRes.ok && !newStored && !newIncomplete,
      `хранимое=${stored.slice(0,3)} неполные=${incomplete.slice(0,3)} addTranche.ok=${addRes.ok} новый.conditions=${newStored} новый.неполные=${newIncomplete}`);
 })();
-/* 30. Реестр параметров — ровно 16 ключей (шаг 18: +payDay/lastPaymentAnchor/payMonths/
-   graceIntDistFrom/graceIntDistTo; шаг 20: +dayMethod, вернулся из «Расчётов» —
-   решение пользователя). queue/penaltyMaxPct остаются вне реестра — с волны 14.08.2026
-   (третий заход) queue снят и из модели вовсе, см. #161. */
+/* 30. ДВА РЕЕСТРА ПАРАМЕТРОВ (КВ-72, ADR-0133 §1). Траншевый — ровно 15 ключей (шаг 18:
+   +payDay/lastPaymentAnchor/payMonths/graceIntDistFrom/graceIntDistTo; шаг 20: +dayMethod,
+   вернулся из «Расчётов» — решение пользователя; КВ-72: −reserveRate, резерв за неполное
+   освоение отменён и заменён платой за неосвоенный остаток). Кредитный — пять параметров
+   платы, и они НЕ имеют права протечь в траншевый: база платы одна на кредит (ADR-0132 §2),
+   значит и ставка одна, а траншевая копия дала бы пять ставок на одну базу.
+   queue/penaltyMaxPct остаются вне обоих — с волны 14.08.2026 (третий заход) queue снят и из
+   модели вовсе, см. #161. */
 (() => {
-  const expect = ['rate','reserveRate','penaltyMain','penaltyInt','term',
+  const expect = ['rate','penaltyMain','penaltyInt','term',
                   'payDay','lastPaymentAnchor','freq','payMonths','method',
                   'graceMain','graceInterest','graceIntDistFrom','graceIntDistTo','graceAccrual',
                   'dayMethod'];
   const same = CR.PARAM_KEYS.length===expect.length && expect.every(k => CR.PARAM_KEYS.includes(k));
   const noEngine = !CR.PARAM_KEYS.includes('queue') && !CR.PARAM_KEYS.includes('penaltyMaxPct');
-  ok(30, same && noEngine, `keys=${CR.PARAM_KEYS.join(',')}`);
+  const noReserve = !CR.PARAM_KEYS.includes('reserveRate') && typeof CR.computeReserve !== 'function';
+  const feeKeys = ['feeRate','feeStart','feeFreq','feePayDay','feePenaltyInt'];
+  const creditOk = Array.isArray(CR.CREDIT_PARAM_KEYS)
+    && CR.CREDIT_PARAM_KEYS.length === feeKeys.length
+    && feeKeys.every(k => CR.CREDIT_PARAM_KEYS.includes(k))
+    && !feeKeys.some(k => CR.PARAM_KEYS.includes(k));
+  ok(30, same && noEngine && noReserve && creditOk,
+     `траншевых=${CR.PARAM_KEYS.length} кредитных=${(CR.CREDIT_PARAM_KEYS||[]).join(',')}`
+     + ` резерва нет=${noReserve} keys=${CR.PARAM_KEYS.join(',')}`);
 })();
 /* 31. conditionsAt на дату до первой записи — пустой объект, без исключения. */
 (() => { const db = CR.seedDb(); const t = db.credits[0].tranches[0];
@@ -408,13 +420,19 @@ const pd = CR.pd;
      и есть сюжет: у К-2 она обнуляла ставку, ради которой К-2 заведён (КР-18). */
   const k2 = db.credits.find(c => /Аламудун-Теплицы/.test(c.borrower.name));
   const courtRec = k3.tranches.flatMap(t => t.conditionRecords).find(r => r.basis.kind === 'court');
-  const govRec   = k2.tranches.flatMap(t => t.conditionRecords).find(r => r.basis.kind === 'govAct');
+  /* КВ-72 (ADR-0133 §4): запись ПП переехала из журналов ТРАНШЕЙ в журнал КРЕДИТА и правит
+     feeRate — reserveRate отменён вместе с резервом. Ищем там, где она теперь живёт: в
+     траншевом журнале её быть НЕ должно, иначе миграция прошла наполовину. */
+  const govRec   = (k2.conditionRecords || []).find(r => r.basis.kind === 'govAct');
+  const govStrayed = k2.tranches.some(t => (t.conditionRecords || [])
+    .some(r => r.basis.kind === 'govAct' || r.param === 'feeRate' || r.param === 'reserveRate'));
   const retroK3  = CR.retroFlags(k3);
   const retroOthers = db.credits.filter(c => c.id !== 'K-3' && CR.retroFlags(c).length);
   ok(35, courtRec && courtRec.param === 'penaltyMain' && Number(courtRec.value) === 0 && !!courtRec.basis.ref
-      && govRec && govRec.param === 'reserveRate' && !!govRec.basis.ref
+      && govRec && govRec.param === 'feeRate' && !!govRec.basis.ref && !govStrayed
       && retroK3.length >= 1 && retroOthers.length === 0,
-     `court=${!!courtRec} gov=${!!govRec} retroK3=${retroK3.length} прочие=${retroOthers.map(c=>c.id)}`);
+     `court=${!!courtRec} gov=${!!govRec}/${govRec&&govRec.param} след в траншах=${govStrayed}`
+     + ` retroK3=${retroK3.length} прочие=${retroOthers.map(c=>c.id)}`);
 })();
 
 /* 36. Гейты Г-18…Г-21 вокруг записи условия. */
@@ -1081,21 +1099,25 @@ const pd = CR.pd;
      `RATES=${(gR||[]).length} REPAY=${(gP||[]).length} пересечение=${both.length}`
      + ` покрытие ${union === [...CR2.PARAM_KEYS].sort().join('|') ? 'полное' : 'НЕПОЛНОЕ'}`);
 
-  /* 112. КАРАНДАШИ ВКЛАДКИ «УСЛОВИЯ» (КВ-25). Лента .gtoolbar с единственной кнопкой
-     «Изменить условия» удалена, вход — карандаш в заголовке каждой из двух карточек.
-     Проверяем три состояния: при «Действует» карандаша ровно два и они кликабельны;
-     при «Проект» они на месте, но погашены и объясняют Г-22 (§0.3 — не молчаливый
-     отказ, карандаш не имеет права исчезнуть); при «Закрыт» — то же с terminalReason. */
+  /* 112. КАРАНДАШИ ВКЛАДКИ «УСЛОВИЯ» (КВ-25, расширено КВ-72). Лента .gtoolbar с единственной
+     кнопкой «Изменить условия» удалена, вход — карандаш в заголовке каждой карточки. Карточек
+     ТРИ, а не две: КВ-72 (ADR-0133 §1) добавило «Условия кредита» — журнал КРЕДИТА с
+     параметрами платы за неосвоенный остаток. Карандашей столько же, сколько журналов: два на
+     траншевый (ставки, погашение) и один на кредитный. Проверяем три состояния: при
+     «Действует» карандаша ровно три и они кликабельны; при «Проект» они на месте, но погашены
+     и объясняют Г-22 (§0.3 — не молчаливый отказ, карандаш не имеет права исчезнуть); при
+     «Закрыт» — то же с terminalReason. */
   const condHtml = (id) => CR2.renderTab('Условия', CR2.db.credits.find(c => c.id === id));
   const act = condHtml('K-1'), proj = condHtml('K-C26'), clos = condHtml('K-6');
   const nCalls = (h) => (h.match(/CR\.openCondModal\(/g) || []).length;
-  ok(112, nCalls(act) === 2
+  ok(112, nCalls(act) === 3
           && /openCondModal\('rates'\)/.test(act) && /openCondModal\('repay'\)/.test(act)
+          && /openCondModal\('credit'\)/.test(act)
           && !/>Изменить условия</.test(act)
-          && nCalls(proj) === 0 && (proj.match(/Г-22/g) || []).length === 4
-          && nCalls(clos) === 0 && (clos.match(/терминальном состоянии/g) || []).length >= 4,
+          && nCalls(proj) === 0 && (proj.match(/Г-22/g) || []).length === 6
+          && nCalls(clos) === 0 && (clos.match(/терминальном состоянии/g) || []).length >= 6,
      `Действует=${nCalls(act)} Проект=${nCalls(proj)}/Г-22×${(proj.match(/Г-22/g)||[]).length}`
-     + ` Закрыт=${nCalls(clos)}`);
+     + ` Закрыт=${nCalls(clos)}/терм×${(clos.match(/терминальном состоянии/g)||[]).length}`);
 
   /* 129. «СОСТАВ» ПОД РАЗДЕЛЕНИЕ ПО ДС (КВ-26, пересмотрено КВ-33 и КВ-36). Колонка
      «Происхождение» стоит ВСЕГДА: её отсутствие читалось бы как «происхождение у всех
@@ -2220,6 +2242,10 @@ const pd = CR.pd;
        (4) модалки: при одном транше поле-селект спрятано, но `id` жив скрытым input'ом
            с настоящим номером — submit-обработчики читают его как читали. Проверяются
            обе стороны: у одиночного hidden без подписи «Транш», у многотраншевого select.
+     КВ-72 ДООПРЕДЕЛИЛО правило, а не отменило: транш платы (ADR-0132 §3) даёт одиночному
+     кредиту второй элемент реестра — значит выбор есть, и колонка-ключ на «Составе» и в
+     очереди «Платежей» возвращается (у 4 кредитов сида плата жива). Номер она при этом не
+     печатает ни для кого: у платы номера нет (КВ-70), в ключе стоит «плата · без номера».
      ЖУРНАЛ («Досье») из-под правила выведен намеренно: запись сделана и датирована тогда,
      когда траншей могло быть иначе, — «addDisbursement: транш №1» это факт прошлого, а не
      подпись текущего экрана. Проверка требует, чтобы номер там ОСТАЛСЯ: молчаливое
@@ -2233,13 +2259,26 @@ const pd = CR.pd;
     const SCOPED = ['Договор','Условия','Состав','График','Прогноз','Расчёты','Платежи','План','Обеспечение','Проблемные'];
     const singles = CR2.db.credits.filter(c => (c.tranches || []).length === 1);
     const multis  = CR2.db.credits.filter(c => (c.tranches || []).length > 1);
-    let bad = [], nS = 0, nM = 0, jrn = 0;
+    let bad = [], nS = 0, nM = 0, jrn = 0, nF = 0;
     for (const c of singles){ CR2.openDetail(c.id); nS++;
+      /* КВ-72: у одиночного кредита с ЖИВОЙ ПЛАТОЙ выбор появился — рядом с единственным
+         траншем освоения стоит транш платы (ADR-0132 §3), и колонка-ключ обязана вернуться.
+         Правило КВ-70 от этого не слабеет, а исполняется: номер печатается там, где есть что
+         различать. Номера у платы при этом нет и здесь (в ключе стоит «плата · без номера»),
+         поэтому проверка на «транш №N» остаётся строгой для ВСЕХ одиночных. */
+      const feeAlive = !!CR2.feeTranche(c, CR2.TODAY);
+      if (feeAlive) nF++;
       for (const t of SCOPED){ let h;
         try { h = CR2.renderTab(t, c); } catch(e){ bad.push(`${c.id}/${t}: ${e.message}`); continue; }
         const num = (h.match(TRN) || [''])[0];
         if (num) bad.push(`${c.id}/${t}: печатает «${num}» при одном транше`);
-        if (THT.test(h)) bad.push(`${c.id}/${t}: колонка «Транш» при одном транше`);
+        if (THT.test(h) && !feeAlive) bad.push(`${c.id}/${t}: колонка «Транш» при одном транше`);
+      }
+      /* Положительный контроль КВ-72 — обратная сторона предыдущей строки: сними колонку
+         вместе с платой, и реестр с очередью перестали бы различать транш освоения и плату. */
+      if (feeAlive) for (const t of ['Состав','Платежи']){
+        let h; try { h = CR2.renderTab(t, c); } catch(e){ continue; }
+        if (!THT.test(h)) bad.push(`${c.id}/${t}: плата жива — выбор есть, а колонки «Транш» нет`);
       }
       if (TRN.test(CR2.renderTab('Досье', c))) jrn++;         // журнал — исключение, см. шапку
     }
@@ -2283,8 +2322,9 @@ const pd = CR.pd;
     let shownM = 0;
     for (const c of multis) shownM += probeMod(c, true);
     CR2.openModal = realOpen; setRole(wasRole || 'Кредитный специалист'); doc.getElementById = realGet;
-    ok(177, bad.length === 0 && nS > 40 && nM >= 4 && jrn > 0 && shown >= 12 && shownM >= 8,
-       `одиночных ${nS} · многотраншевых ${nM} · журнал сохранил номер у ${jrn}`
+    ok(177, bad.length === 0 && nS > 40 && nM >= 4 && jrn > 0 && shown >= 12 && shownM >= 8 && nF >= 3,
+       `одиночных ${nS} (из них с живой платой ${nF}) · многотраншевых ${nM}`
+       + ` · журнал сохранил номер у ${jrn}`
        + ` · модалок с полем транша ${shown} одиночных / ${shownM} многотраншевых`
        + ` · нарушений ${bad.length}${bad.length ? ' — ' + bad.slice(0, 3).join(' | ') : ''}`);
   }
@@ -2836,6 +2876,183 @@ const pd = CR.pd;
     ok(159, bad.length === 0 && head.length === 0,
        `осн. долг + проценты = платёж: расхождений ${bad.length} (${bad.slice(0,3).join(' ')||'—'});`
        + ` шапка со статьями и без пени: нарушений ${head.length} (${head.slice(0,3).join(' ')||'—'})`);
+  })();
+
+  /* 179. ПЛАТА ЗА НЕОСВОЕННЫЙ ОСТАТОК — ТРАНШ, А НЕ СТАТЬЯ (КВ-72; ADR-0132/0133/0134).
+     Кредит осваивается траншами, а на неосвоенную часть суммы договора идёт своя плата
+     (компенсация донору). Волна завела её ВЫВОДИМЫМ траншем: у него нет номера, нет
+     освоений, нет своего графика тела — и его нет в модели. Шесть сторон, каждая ловит
+     свой класс поломки:
+       (1) МОДЕЛЬ. Транша платы нет в `c.tranches` ни у одного кредита сида. Окажись он там
+           — все денежные агрегаты кредита (они ходят по `c.tranches`) молча посчитают базу
+           платы как выданные деньги: `allocated`, `disbursed`, Г-3, ИР-3. Поэтому здесь же
+           положительный контроль: `allTranches` его ВЫВОДИТ, и он последний (ADR-0134 §3).
+       (2) ДЕНЬГИ КРЕДИТА. `allocated`/`disbursed` у ВСЕХ кредитов равны суммам по траншам
+           освоения — сверяется независимым пересчётом, а не доверием к derive.
+       (3) БАЗА ОБЩЕКРЕДИТНАЯ и шагает от освоений (ADR-0132 §2): сумма договора минус
+           фактически освоенное, освоение — граница, база падает со своего дня.
+       (4) ДВА ЖУРНАЛА УСЛОВИЙ (ADR-0133 §1). Параметры платы лежат журналом КРЕДИТА и не
+           имеют права протечь в траншевый: база одна на кредит — значит и ставка одна.
+       (5) ОЧЕРЕДЬ И ГЕЙТЫ. Плата идёт статьёй «Проценты» (ADR-0134 §1) без номера транша
+           (Д-12), стоит ПОСЛЕ тела в той же дате, Г-32 замораживает начисление не снимая
+           долга (§5), Г-14 отказывает отдельной строкой — иначе отказ печатает «Проценты»
+           и куратор ищет их в графике, которого у платы нет.
+       (6) ЭКРАН и ОТРИЦАТЕЛЬНЫЙ КОНТРОЛЬ. У области «Транш платы» свои разделы на четырёх
+           вкладках; у кредита БЕЗ живой платы ни один из них и ни одна оговорка §6 на экран
+           не выходит — без этой ветки разделы, нарисованные безусловно, прошли бы проверку.
+     Проверено с обратной стороны двумя подменами в `credit.html` (обе откатаны):
+     `scopeIsFee` без проверки живости (`return cardScope === 'fee'`) даёт 20 нарушений на
+     отрицательном контроле — разделы платы вылезают на K-1, где платы нет; порядок в
+     `allTranches` наоборот (плата первой) даёт 4 нарушения «транш платы не последний в
+     реестре». Значит проба ловит модель и гейт, а не совпадение разметки. */
+  (() => {
+    const bad = [];
+    const TODAY = CR2.TODAY;
+    const live = CR2.db.credits.filter(c => !!CR2.feeTranche(c, TODAY));
+
+    /* (1) модель */
+    for (const c of CR2.db.credits){
+      if ((c.tranches || []).some(t => t.fee)) bad.push(`${c.id}: транш платы попал в модель`);
+      const all = CR2.allTranches(c, TODAY), fee = CR2.feeTranche(c, TODAY);
+      if (all.length !== c.tranches.length + (fee ? 1 : 0)) bad.push(`${c.id}: реестр экрана ${all.length} против ${c.tranches.length}+${fee?1:0}`);
+      if (fee){
+        if (all[all.length - 1] !== all.find(t => t.fee)) bad.push(`${c.id}: транш платы не последний в реестре`);
+        if (fee.no !== null) bad.push(`${c.id}: у транша платы появился номер ${fee.no}`);
+        if (fee.id !== c.id + '-FEE') bad.push(`${c.id}: идентификатор платы ${fee.id}`);
+        if ((fee.disbursements || []).length) bad.push(`${c.id}: по траншу платы что-то освоено`);
+        if ((fee.schedules || []).length || (fee.conditionRecords || []).length) bad.push(`${c.id}: у транша платы завелось хранимое`);
+      }
+    }
+
+    /* (2) деньги кредита плату не считают — независимый пересчёт */
+    for (const c of CR2.db.credits){
+      const d = CR2.derive(c, TODAY);
+      const own = c.tranches.filter(t => CR2.trancheKind(t) !== 'производный');
+      const alloc = own.reduce((a, t) => a + (t.amount || 0), 0);
+      const disb  = c.tranches.reduce((a, t) => a + CR2.disbursedSum(t), 0);
+      if (Math.abs(d.allocated - alloc) > 0.005) bad.push(`${c.id}: allocated ${d.allocated} против ${alloc}`);
+      if (Math.abs(d.disbursed - disb) > 0.005)  bad.push(`${c.id}: disbursed ${d.disbursed} против ${disb}`);
+    }
+
+    /* (3) база: общекредитная и шагающая */
+    for (const c of live){
+      const d = CR2.derive(c, TODAY);
+      const want = Math.round((c.contractAmount - d.disbursed) * 100) / 100;
+      if (Math.abs(d.fee.base - want) > 0.005) bad.push(`${c.id}: база платы ${d.fee.base} против ${want}`);
+      if (Math.abs(CR2.undrawnAt(c, TODAY) - d.fee.base) > 0.005) bad.push(`${c.id}: undrawnAt и derive о базе спорят`);
+    }
+    const k2b = CR2.db.credits.find(c => c.id === 'K-2b');
+    if (!k2b) bad.push('фикстура K-2б исчезла из сида');
+    else {
+      const step = [['01.03.2026', 1000000], ['03.03.2026', 750000], [TODAY, 600000]];
+      for (const [dt, want] of step)
+        if (Math.abs(CR2.undrawnAt(k2b, dt) - want) > 0.005)
+          bad.push(`K-2б: база на ${dt} = ${CR2.undrawnAt(k2b, dt)}, ожидалось ${want}`);
+    }
+
+    /* (4) два журнала условий */
+    const FEE_KEYS = ['feeRate','feeStart','feeFreq','feePayDay','feePenaltyInt'];
+    if (FEE_KEYS.some(k => CR2.PARAM_KEYS.includes(k))) bad.push('параметр платы протёк в траншевый реестр');
+    if (!FEE_KEYS.every(k => CR2.CREDIT_PARAM_KEYS.includes(k))) bad.push('кредитный реестр неполон');
+    for (const c of live){
+      const own = CR2.creditOwnConditionsAt(c, TODAY);
+      if (FEE_KEYS.some(k => own[k] === undefined)) bad.push(`${c.id}: журнал кредита неполон`);
+      if (CR2.conditionsAt(c.tranches[0], TODAY).feeRate !== undefined) bad.push(`${c.id}: ставка платы нашлась в журнале транша`);
+      if (Number(own.feeRate) !== Number(CR2.derive(c, TODAY).fee.rate)) bad.push(`${c.id}: ставка экрана и журнала кредита спорят`);
+    }
+
+    /* (5) очередь и гейты. Мутации — на своём экземпляре сида: песочница CR2 нужна дальше. */
+    for (const c of CR2.db.credits){
+      const rows = CR2.derive(c, TODAY).queue.rows || [];
+      const feeRows = rows.filter(r => r.fee);
+      const alive = !!CR2.feeTranche(c, TODAY);
+      if (!alive && feeRows.length) bad.push(`${c.id}: платы нет, а строки платы в очереди есть`);
+      if (feeRows.some(r => r.tranche !== null)) bad.push(`${c.id}: строка платы назвала номер транша`);
+      if (feeRows.some(r => !/Проценты|Пеня/.test(r.article))) bad.push(`${c.id}: плата встала не в свою статью`);
+      if (rows.some(r => /^плата/i.test(String(r.article)))) bad.push(`${c.id}: в очереди появилась статья «плата»`);
+    }
+    {
+      const db = CR.seedDb(), c = db.credits.find(x => x.id === 'K-2b');
+      /* Порядок внутри даты: сдвигаем график транша на 15-е, чтобы дата позиции тела совпала
+         с датой периода платы. Без совпадения проверять порядок нечем. */
+      CR.generateSchedule(c, 1, { from:'15.03.2026' });
+      const rows = CR.derive(c, TODAY).queue.rows;
+      const i = rows.findIndex(r => r.due === '15.08.2026' && r.article === 'Проценты' && r.fee);
+      const j = rows.findIndex(r => r.due === '15.08.2026' && r.article === 'Проценты' && !r.fee);
+      if (i < 0 || j < 0) bad.push('K-2б: совпадения даты позиции и периода платы не вышло — порядок не проверен');
+      else if (i < j) bad.push('K-2б: плата встала ПЕРЕД телом в одной дате и статье (ADR-0134 §3)');
+    }
+    {
+      const db = CR.seedDb(), c = db.credits.find(x => x.id === 'K-2b');
+      const g = CR.gate(c, 'repay');
+      if (g.ok) bad.push('K-2б: «Погашен» прошёл при живом долге');
+      if (!g.reasons.some(x => /плата за неосвоенный остаток/i.test(x)))
+        bad.push('K-2б: Г-14 не назвал плату своим именем');
+      const was = CR.derive(c, TODAY).fee.accrued;
+      const gc = CR.closeDisbursement(c, { reason:'освоение завершено', doc:'ПР-179' });
+      if (!gc.ok) bad.push('K-2б: Г-32 не пустил закрытие остатка — Г-32 не проверен');
+      else {
+        const f = CR.derive(c, '01.01.2027').fee;
+        if (f.closedOn !== TODAY) bad.push(`K-2б: остановка начисления на ${f.closedOn}, а не на дате закрытия`);
+        if (Math.abs(f.base) > 0.005) bad.push(`K-2б: база после Г-32 = ${f.base}`);
+        if (Math.abs(f.accrued - was) > 0.005) bad.push(`K-2б: начисление после Г-32 доросло ${was} → ${f.accrued}`);
+        if (!f.applies) bad.push('K-2б: непогашенная плата исчезла вместе с базой (ADR-0132 §5)');
+      }
+    }
+
+    /* (6) экран + отрицательный контроль */
+    const scoped = (c, scope, tab) => { CR2.openDetail(c.id);
+      try { CR2.setCardScope(scope); } catch(e){}
+      let h = ''; try { h = CR2.renderTab(tab, c); } catch(e){ bad.push(`${c.id}/${tab}/${scope}: ${e.message}`); }
+      try { CR2.setCardScope('credit'); } catch(e){} return h; };
+    for (const c of live){
+      const g = scoped(c, 'fee', 'График'), pr = scoped(c, 'fee', 'Прогноз');
+      const rs = scoped(c, 'fee', 'Расчёты'), us = scoped(c, 'fee', 'Условия');
+      const st = scoped(c, 'fee', 'Состав');
+      if (!/График платы за неосвоенный остаток/.test(g)) bad.push(`${c.id}: у платы нет своего графика периодов`);
+      if (/Σ основной долг/.test(g)) bad.push(`${c.id}: плитки графика тела встали на плату`);
+      if (!/Прогноз платы за неосвоенный остаток/.test(pr)) bad.push(`${c.id}: у платы нет своего прогноза`);
+      /* Лист «Детальный расчёт» принадлежит траншам ОСВОЕНИЯ: у платы нет ни тела, ни
+         позиций графика, и лист по ней был бы пустой сеткой с подписью «транш №null». */
+      if (/Детальный расчёт \(транш/.test(rs)) bad.push(`${c.id}: лист детального расчёта достался плате`);
+      if (!/принадлежит траншам/.test(rs)) bad.push(`${c.id}: «Расчёты» не сказали, чей это лист`);
+      if (!/Плата за неосвоенный остаток/.test(rs)) bad.push(`${c.id}: арифметики платы на «Расчётах» нет`);
+      if (!/своего журнала условий у него нет/.test(us)) bad.push(`${c.id}: плата не отослала к журналу кредита`);
+      if (!/освоений нет и не будет/.test(st)) bad.push(`${c.id}: «Состав» не сказал, что по плате не выдают`);
+      /* ADR-0134 §6: агрегат, названный «проценты», говорит про плату сам. */
+      if (!/в «Σ проценты» не входит/.test(scoped(c, 'credit', 'График'))) bad.push(`${c.id}: плитка процентов молчит про плату`);
+      if (!/в прогноз процентов не входит/.test(scoped(c, 'credit', 'Прогноз'))) bad.push(`${c.id}: прогноз молчит про плату`);
+      if (!/в т\.ч\. плата за неосвоенный остаток/.test(scoped(c, 'credit', 'Расчёты'))) bad.push(`${c.id}: свод статей молчит про плату`);
+    }
+    /* Отрицательный контроль: у кредита БЕЗ живой платы ни разделов платы, ни оговорок
+       ADR-0134 §6 быть не должно — нарисуй их безусловно, и все проверки выше прошли бы на
+       разметке, а не на модели. Область принудительно ставится в 'fee': переключатель такой
+       пункт не даёт (проба №177), но `scopeIsFee` обязан отказать и при прямом вызове —
+       иначе разделы платы вылезли бы на кредите, где платы нет.
+       Побитового равенства с областью «по кредиту» здесь НЕ требуется: 'fee' без живой платы
+       — состояние недостижимое, и часть вкладок читает его как «выбран транш» (кнопка
+       «Сформировать график» гаснет). Требуется отсутствие СОДЕРЖАНИЯ платы.
+       Оговорка про «Плату за неосвоенный остаток» в карточке «Условия кредита» — не разделы
+       платы, а строки журнала кредита (ADR-0133 §1): они стоят у ВСЕХ кредитов, потому в
+       запрещённых маркерах их формулировок нет. */
+    const NOFEE = [[/График платы за неосвоенный остаток/, 'график платы'],
+                   [/Прогноз платы за неосвоенный остаток/, 'прогноз платы'],
+                   [/Транш платы/, 'область/строка «Транш платы»'],
+                   [/в «Σ проценты» не входит/, 'оговорка §6 у плитки процентов'],
+                   [/в прогноз процентов не входит/, 'оговорка §6 в прогнозе'],
+                   [/в т\.ч\. плата за неосвоенный остаток/, 'разрез платы в своде статей']];
+    const dead = CR2.db.credits.filter(c => !CR2.feeTranche(c, TODAY)).slice(0, 5);
+    for (const c of dead) for (const tab of ['График','Прогноз','Расчёты','Условия','Состав'])
+      for (const scope of ['fee', 'credit']){
+        const h = scoped(c, scope, tab);
+        for (const [re, what] of NOFEE)
+          if (re.test(h)) bad.push(`${c.id}/${tab}/${scope}: платы нет, а на экране ${what}`);
+      }
+
+    ok(179, bad.length === 0 && live.length >= 3 && dead.length === 5,
+       `кредитов с живой платой ${live.length} (${live.map(c => c.id).join(',')})`
+       + ` · отрицательный контроль на ${dead.length}`
+       + ` · нарушений ${bad.length}${bad.length ? ' — ' + bad.slice(0, 3).join(' | ') : ''}`);
   })();
 
   /* 131. КНОПКА «ПРИМЕНИТЬ ДС» (КВ-26, ADR-0096). Дверь одна, но нажимает её человек:
@@ -3443,7 +3660,7 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
 (() => { const db = CR.seedDb(); const c = byId(db,'K-1');
   const d = CR.derive(c, '23.07.2026');
   const sumAll = c.tranches.reduce((a,t) => a + (t.amount||0), 0);
-  ok(113, c.tranches.every(t => CR.trancheOrigin(t) === 'освоение')
+  ok(113, c.tranches.every(t => CR.trancheKind(t) === 'освоение')
           && Math.abs(d.allocated - sumAll) < 0.005
           && Math.abs(d.allocatable - (c.contractAmount - sumAll)) < 0.005
           && d.derivedCount === 0,
@@ -3463,7 +3680,7 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
   const b1 = CR.trancheBalanceAt(c, t, '15.05.2026');   // после out
   const b2 = CR.trancheBalanceAt(c, t, '15.06.2026');   // после out и in
   ok(114, Math.abs(b0 - 100000) < 0.005 && Math.abs(b1 - 60000) < 0.005
-          && Math.abs(b2 - 65000) < 0.005 && CR.trancheOrigin(t) === 'разделение',
+          && Math.abs(b2 - 65000) < 0.005 && CR.trancheKind(t) === 'производный',
      `${b0} → ${b1} → ${b2}`);
 })();
 
@@ -3609,7 +3826,7 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
   const res = CR.restructureApplied(c, ds);
   const der = res.tranche;
   ok(123, res.ok === true && c.tranches.length === 3
-          && CR.trancheOrigin(der) === 'разделение' && CR.originDs(der) === 'ДС-РС-7001'
+          && CR.trancheKind(der) === 'производный' && CR.originDs(der) === 'ДС-РС-7001'
           && Math.abs(der.amount - moved) < 0.005
           && CR.transferredOut(src) === moved && CR.transferredIn(der) === moved
           && Math.abs(CR.trancheBalanceAt(c, src, '01.06.2026') - (bal - moved)) < 0.005
@@ -3678,7 +3895,7 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
    дверью при первой её правке. Г-3 при этом не в минусе: производные сумму договора
    не расходуют (ADR-0115). */
 (() => { const db=CR.seedDb(); const k7=byId(db,'K-7');
-  const der7 = (k7.tranches||[]).filter(t => CR.trancheOrigin(t) === 'разделение');
+  const der7 = (k7.tranches||[]).filter(t => CR.trancheKind(t) === 'производный');
   const d7 = CR.derive(k7, CR.TODAY);
   const artCols = CR.scheduleArticleCols(CR.trancheScheduleRows(der7[0] || {}));
   ok(128, k7 && k7.tranches.length === 3 && der7.length === 2

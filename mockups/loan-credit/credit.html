@@ -1068,7 +1068,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-17 · 175/178 PASS
+ SMOKE (node) 2026-08-17 · 176/179 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -1171,7 +1171,7 @@
    #172 ✓
    #173 ✓
    #174 ✓
-   #175 ✗ итоговых строк года сверено 56 на 50 листах · нарастающее года 100000 · нарушений 1 — K-1: нарастающее в итоге года 100000 против 7593.83 последней строки
+   #175 ✗ итоговых строк года сверено 57 на 51 листах · нарастающее года 100000 · нарушений 1 — K-1: нарастающее в итоге года 100000 против 7593.83 последней строки
    #176 ✓
    #177 ✓
    #178 ✓
@@ -1193,6 +1193,7 @@
    #157 ✓
    #158 ✓
    #159 ✓
+   #179 ✓
    #131 ✓
    #80 ✓
    #81 ✓
@@ -2130,7 +2131,13 @@ function condDefaults(over){                        // базовый компл
        Не путать с очередью погашения — перечнем непогашенного на дату, который кредит
        публикует в d.queue (ADR-0060 §4, CONTEXT.md:315). */
     penaltyMain:0.1, penaltyInt:0.1, penaltyMaxPct:20, dayMethod:'факт/365',
-    reserveRate:0
+    /* УСЛОВИЯ УРОВНЯ КРЕДИТА (ADR-0133 §2/§3). Шаблон один — журналов два: ключи
+       PARAM_KEYS уезжают в журнал транша, CREDIT_PARAM_KEYS — в журнал кредита. Так
+       цепочка «программа → заявка → кредит» остаётся целой: значения по-прежнему приходят
+       одним объектом baseConditions, меняется только адрес назначения.
+       feeStart пустой = «дата договора» (дефолт разрешается в creditOwnConditionsAt: сюда
+       дату договора не подставить — condDefaults кредита не видит). */
+    feeRate:0, feeStart:'', feeFreq:'ежемесячно', feePayDay:0, feePenaltyInt:0.1
   }, over || {});
 }
 /* ---- Р-21: реестр параметров-условий. Меняться основанием может только то,
@@ -2146,7 +2153,13 @@ function condDefaults(over){                        // базовый компл
    что и сама ставка). ---- */
 const PARAMS = [
   { key:'rate',          label:'Ставка, %',                 kind:'num' },
-  { key:'reserveRate',   label:'Ставка резерва, %',         kind:'num' },
+  /* reserveRate ОТСЮДА УБРАН (КВ-72, ADR-0133 §4). База платы за неосвоенный остаток —
+     общекредитная (сумма договора − Σ освоено по ВСЕМУ кредиту, ADR-0132 §2), а ставка
+     потраншевого параметра, применяемая к общекредитной величине, определения не имеет:
+     при двух траншах с разными ставками неизвестно, какая верна. Симптом был виден и до
+     правки — reserveRate входил в PARAM_KEYS, значит попадал в divergenceRows, и таблица
+     «Расхождения по траншам» предъявляла куратору две ставки одной платы. Теперь параметр
+     живёт в CREDIT_PARAMS, журналом кредита. */
   { key:'penaltyMain',   label:'Пеня по ОД, %/дн',          kind:'num' },
   { key:'penaltyInt',    label:'Пеня по %, %/дн',           kind:'num' },
   { key:'term',          label:'Срок, мес.',                kind:'num' },
@@ -2169,10 +2182,30 @@ const PARAMS = [
     options:['факт/365','факт/360','факт/факт','30/365','30/360','30/факт'] }
 ];
 const PARAM_KEYS = PARAMS.map(p => p.key);
+/* ---- КРЕДИТНЫЙ ДВОЙНИК Р-21 (КВ-72, ADR-0133 §1/§2): параметры, которые описывают плату
+   за неосвоенный остаток. Пять, и все пять — потому что база платы одна на кредит:
+   ставка применяется к ней, дата начала принадлежит договору, а периодичность, день
+   платежа и пеня описывают ОДНО обязательство, которого у отдельного транша нет.
+   Наборы PARAMS и CREDIT_PARAMS НЕ ПЕРЕСЕКАЮТСЯ — приоритета между журналами нет и
+   разрешать конфликты не нужно (ADR-0133 §1). Всё прочее (ставка, срок, льготы, метод
+   дней, день платежа по телу) остаётся на транше: у каждого транша освоения свой график,
+   и это не спор.
+   dayMethod сюда НЕ дублируется: метод счёта дней — свойство расчёта, а не обязательства,
+   и транш платы берёт его тем же способом, что и сетку критических дат — с кредита. ---- */
+const CREDIT_PARAMS = [
+  { key:'feeRate',       label:'Ставка платы за неосвоенный остаток, %', kind:'num' },
+  { key:'feeStart',      label:'Начало начисления платы',   kind:'date' },
+  { key:'feeFreq',       label:'Периодичность платы',       kind:'enum',
+    options:['ежемесячно','ежеквартально','раз в полгода','ежегодно'] },
+  { key:'feePayDay',     label:'День платежа по плате, число месяца', kind:'num' },
+  { key:'feePenaltyInt', label:'Пеня по плате, %/дн',       kind:'num' }
+];
+const CREDIT_PARAM_KEYS = CREDIT_PARAMS.map(p => p.key);
+function creditParamLabel(k){ const p = CREDIT_PARAMS.find(x => x.key === k); return p ? p.label : k; }
 /* Зоны сводной матрицы условий: те же смысловые группы, что у карточек условий
    («Ставки» + «Льготные периоды» слева, «Погашение» справа). Ключи, не попавшие
    в RATES, уходят в REPAY автоматически — новый параметр не потеряется. */
-const MATRIX_ZONE_RATES = ['rate','reserveRate','penaltyMain','penaltyInt',
+const MATRIX_ZONE_RATES = ['rate','penaltyMain','penaltyInt',
   'graceMain','graceInterest','graceIntDistFrom','graceIntDistTo','graceAccrual'];
 const MATRIX_ZONE_REPAY = PARAM_KEYS.filter(k => !MATRIX_ZONE_RATES.includes(k));
 
@@ -2182,10 +2215,14 @@ const MATRIX_ZONE_REPAY = PARAM_KEYS.filter(k => !MATRIX_ZONE_RATES.includes(k))
    зон сделало бы фильтр модалки враньём. REPAY считается вычитанием, чтобы новый
    параметр не остался без двери: ленты с общей кнопкой больше нет, и ключ, не попавший
    в группу, стал бы нередактируемым молча. */
-const COND_CARD_RATES = ['rate','reserveRate','penaltyMain','penaltyInt'];
+const COND_CARD_RATES = ['rate','penaltyMain','penaltyInt'];
 const COND_CARD_REPAY = PARAM_KEYS.filter(k => !COND_CARD_RATES.includes(k));
+/* Карточка условий КРЕДИТА — одна, дверь одна: пять параметров платы делить на зоны
+   нечего (КВ-72). */
+const COND_CARD_CREDIT = CREDIT_PARAM_KEYS.slice();
 
-const paramLabel = k => (PARAMS.find(p => p.key === k) || {}).label || k;
+const paramLabel = k => (PARAMS.find(p => p.key === k) || {}).label
+  || (CREDIT_PARAMS.find(p => p.key === k) || {}).label || k;
 
 /* Типы основания. owned=false → документ живёт в другом модуле, кредит только
    ссылается (Д-4, паттерн Р-7/Р-16). retro=true → допустима дата вступления
@@ -2431,6 +2468,50 @@ function seedPrimaryRecords(credit){
     if ((t.conditionRecords || []).some(r => (r.basis || {}).kind === 'application')) continue;
     t.conditionRecords = mkPrimaryRecords(credit).concat(t.conditionRecords || []);
   }
+  seedCreditPrimaryRecords(credit);
+}
+/* ЖУРНАЛ УСЛОВИЙ КРЕДИТА (КВ-72, ADR-0133) — та же механика, другой набор ключей.
+
+   ЗАСЕВ ТЕМ ЖЕ МЕХАНИЗМОМ, ЧТО И ТРАНШЕВЫЙ (§3): источник — credit.baseConditions,
+   effectiveFrom — дата договора, основание — «Заявка / комиссия». Новых полей в шаблоне
+   не появилось: feeRate приходит из заявки (reserveType/reserveRate, loan-application
+   :3413) и имеет программный дефолт (loan-program :1626); переименован адрес, а не
+   источник. Единственный НОВЫЙ реквизит — feeStart, и он пустой по умолчанию.
+
+   ОДНОЙ ЗАПИСЬЮ, А НЕ ЦИКЛОМ ПО ТРАНШАМ. До этой волны постановление, снявшее ставку
+   платы, приходилось класть в журнал КАЖДОГО транша (сид :3821 «for (const t of
+   kReserve.tranches)») — потому что кредитного журнала не существовало. Документ был
+   один, записей — по числу траншей, и следующий транш вышел бы из-под постановления. */
+function mkCreditPrimaryRecords(credit){
+  const src = credit.baseConditions || condDefaults();
+  const kom = (credit.docs || []).find(x => x.kind === 'Решение комиссии');
+  return CREDIT_PARAM_KEYS.map(k => mkConditionRecord({
+    param:k, value:src[k], effectiveFrom:credit.date,
+    basis:{ kind:'application',
+            ref:credit.origin.commissionId || credit.origin.applicationId || '',
+            label:'Заявка ' + (credit.origin.applicationId || '—') + ' · комиссия ' +
+                  (credit.origin.commissionId || '—'), date:(kom && kom.date) || '' },
+    note:'Первичный комплект условий кредита из заявки', createdAt:credit.date
+  }));
+}
+function seedCreditPrimaryRecords(credit){
+  if ((credit.conditionRecords || []).some(r => (r.basis || {}).kind === 'application')) return;
+  credit.conditionRecords = mkCreditPrimaryRecords(credit).concat(credit.conditionRecords || []);
+}
+/* creditOwnConditionsAt(credit, date) — СВОИ условия кредита на дату (ADR-0133 §1).
+   Имя с Own намеренно: creditConditionsAt уже занят агрегатом по траншам (Д-7, отвечает
+   «сошлись ли транши»), и отдать одно имя двум разным величинам значило бы выдать
+   читателю агрегат там, где он ждёт журнал.
+   ДЕФОЛТ ДАТЫ НАЧАЛА разрешается здесь, а не в condDefaults: шаблон условий даты
+   договора не видит. Пусто → дата договора (решение владельца): деньги донора связаны
+   с подписания, а не с того дня, когда куратор завёл первый транш. */
+function creditOwnConditionsAt(credit, date){
+  const lim = +pd(date || TODAY), out = {};
+  const e = condSorted((credit && credit.conditionRecords) || []);
+  for (let i = 0; i < e.list.length; i++)
+    if (e.at[i] <= lim) out[e.list[i].param] = e.list[i].value;
+  if (!out.feeStart) out.feeStart = (credit && credit.date) || '';
+  return out;
 }
 /* creditConditionsAt — Д-7: на уровне кредита условия суть агрегат по активным
    траншам. Согласны → {value}; разошлись → {divergent:true, values:[...]}.
@@ -2643,6 +2724,13 @@ function mkCredit(over){                             // CREDIT (§3) — обя�
     pledgeWaiver:null,
     lifecycle:'Проект', closure:null,
     baseConditions: condDefaults(),
+    /* conditionRecords — ВТОРОЙ ЖУРНАЛ УСЛОВИЙ, кредитного уровня (КВ-72, ADR-0133 §1).
+       Устроен так же, как траншевый: append-open реестр записей {param, value,
+       effectiveFrom, basis, note, createdAt}, Г-17, ретро по Г-19/Г-20. Держит пять
+       параметров платы за неосвоенный остаток (CREDIT_PARAM_KEYS) и ничего кроме.
+       Не путать с creditConditionsAt — тот АГРЕГАТ по траншам (Д-7, «сошлись ли»), а
+       это собственные условия кредита; читает их creditOwnConditionsAt. */
+    conditionRecords:[],
     agreements:[],
     tranches:[],
     docs:[],
@@ -2650,7 +2738,8 @@ function mkCredit(over){                             // CREDIT (§3) — обя�
     debtTransfer:null,
     accrualHold:[],
     /* fees — ЧЕТВЁРТАЯ статья долга: сборы и комиссии (ADR-0010/ADR-0004). Начисляются
-       событием (выдача, обслуживание, резерв за неполное освоение), а не графиком,
+       событием (выдача, обслуживание), а не графиком, — плата за неосвоенный остаток к ним
+       НЕ относится: она статья «Проценты» на транше платы (КВ-72, ADR-0134 §1), —
        поэтому это реестр начислений, а не производная: {kind, date, amount, basis}. */
     fees:[],
     /* plan — ПЛАН по месяцам (ADR-0042): единственная вводимая величина среди
@@ -2891,7 +2980,13 @@ function seedDb(){
     }); })()
   }));
 
-  /* К-2 · Резерв за неполное освоение (reserveRate = 2 %). */
+  /* К-2 · ПЛАТА ЗА НЕОСВОЕННЫЙ ОСТАТОК (feeRate = 2 %; до КВ-72 — «резерв за неполное
+     освоение», ADR-0132). Кредит заведён РАДИ живой платы: сумма договора 400 000 расписана
+     одним траншем и не освоена ни на сом, начисление идёт с даты договора 20.04.2026.
+     ВНИМАНИЕ ДЛЯ ДЕМО: главного дефекта, который лечит ADR-0132 §2, — платы на
+     НЕРАСПРЕДЕЛЁННЫЙ остаток суммы договора — этот кредит не показывает: у него, как и у
+     всех прочих кредитов сида, Σ t.amount === contractAmount. Фикстура под этот случай —
+     К-2б, сразу ниже. */
   credits.push(mkCredit({
     id:'K-2', num:'57', date:'20.04.2026',
     reg:{ num:'57', date:'22.04.2026', scan:'dogovor-57.pdf', comment:'' },
@@ -2902,10 +2997,10 @@ function seedDb(){
     subject:[{ id:'SI-seed-2', kind:'Товар', name:'Семенной материал', qty:1, cost:400000 }],
     accounts:{ repayAcct:'1280000000000057', repayAcctKind:'Расчётный', payCode:'PC-57' },
     lifecycle:'Действует',
-    baseConditions: condDefaults({ rate:8, term:24, reserveRate:2 }),
+    baseConditions: condDefaults({ rate:8, term:24, feeRate:2 }),
     tranches:[
       mkTranche({ id:'K-2-T1', no:1, subject:{ inn:'02107199800345', name:'ОсОО «Нарын-Агро»' },
-        amount:400000, plannedDate:'01.05.2026',                       // не освоен к плановой дате → блок резерва живой
+        amount:400000, plannedDate:'01.05.2026',                       // не освоен вовсе → плата бежит с даты договора
         disbursements:[] })
     ],
     docs:[
@@ -2931,6 +3026,80 @@ function seedDb(){
       pledges,
       coverage: seedCoverageMirror(pledges, null, '21.07.2026'),
       borrower:{ subgroup:'1.1', subgroupLabel:SUBGROUP_LABEL['1.1'], asOf:'21.07.2026' }
+    }); })()
+  }));
+
+  /* К-2б · НЕРАСПРЕДЕЛЁННЫЙ ОСТАТОК СУММЫ ДОГОВОРА — главный дефект, который лечит
+     ADR-0132 §2, и единственная фикстура, на которой он виден.
+       сумма договора      1 000 000
+       расписано траншами    400 000  (250 000 + 150 000)
+       освоено               400 000  (оба транша выбраны полностью)
+       база платы            600 000  = договор − Σ освоено ПО ВСЕМУ КРЕДИТУ
+     До КВ-72 база считалась потраншево (`t.amount − освоено по траншу`) и здесь дала бы
+     НОЛЬ по каждому из двух траншей — плата не начислялась бы вовсе, притом что донор
+     держит связанными все 600 000 и берёт за них 3 % (`feeRate:3`). Ни один из прочих
+     60 кредитов сида этого не показывает: у всех Σ t.amount === contractAmount.
+
+     Второе, что показывает только эта фикстура: база ОБЩЕКРЕДИТНАЯ и шагает вниз на
+     каждом освоении (ADR-0128 §2 — освоение есть граница отрезка). Лента отрезков платы:
+       15.02 → 02.03   1 000 000  (не выбрано ничего)
+       02.03 → 05.06     750 000  (выбран транш №1)
+       05.06 → сегодня   600 000  (выбран транш №2, дальше расписывать нечего)
+     Отрезки режутся освоениями РАЗНЫХ траншей — потраншевой ставке тут нечего было бы
+     применить (ADR-0133, контекст), поэтому ставка платы живёт в журнале КРЕДИТА.
+
+     Периодичность платы КВАРТАЛЬНАЯ (у К-2 — месячная): проверяется, что график платы
+     строится по своей `feeFreq`, а не по периодичности тела. Первый период 15.02→15.05
+     наступил и не погашен — на нём видна пеня по плате (`feePenaltyInt`), второй
+     15.05→15.08 показан незавершённым.
+
+     Плата НЕ ГАСИТСЯ ни у одной фикстуры: разнесение платежей на транш платы — открытый
+     пункт ADR-0134 (`feeAccrual` держит `paid:0` всегда). `_seedSettle` закрывает тело и
+     проценты по графику, чтобы на карточке не шумела посторонняя просрочка. */
+  credits.push(mkCredit({
+    id:'K-2b', num:'58', date:'15.02.2026',
+    reg:{ num:'58', date:'17.02.2026', scan:'dogovor-58.pdf', comment:'' },
+    origin:{ applicationId:'ЗАЯ-1032', applicationDate:'02.02.2026', commissionId:'КОМ-308', programId:'ПРГ-5', govDecisionId:'ПП-450' },
+    borrower:{ inn:'08312201400123', name:'ОсОО «Кемин-Гидро»', type:'ЮЛ', region:'Чуйская', district:'Кеминский' },
+    approvedAmount:1000000, contractAmount:1000000, currency:'KGS',
+    kind:'МАР', line:'АРР', purpose:'Строительство малой ГЭС', fundingSource:'Международная ассоциация развития',
+    subject:[{ id:'SI-seed-2b', kind:'Оборудование', name:'Гидроагрегат и щит управления', qty:1, cost:1000000 }],
+    accounts:{ repayAcct:'1280000000000058', repayAcctKind:'Расчётный', payCode:'PC-58' },
+    lifecycle:'Действует',
+    /* Льгота по ОД 6 мес. — тот самый период выборки из условий донора: тело не платится,
+       пока кредит осваивается, а плата за неосвоенный остаток в это время как раз и идёт. */
+    baseConditions: condDefaults({ rate:5, term:36, graceMain:6,
+                                   feeRate:3, feeFreq:'ежеквартально' }),
+    tranches:[
+      mkTranche({ id:'K-2b-T1', no:1, subject:{ inn:'08312201400123', name:'ОсОО «Кемин-Гидро»' },
+        amount:250000, plannedDate:'20.02.2026',
+        disbursements:[{ date:'02.03.2026', amount:250000, order:'ПП-1310', purpose:'Аванс поставщику гидроагрегата', doc:'akt-osvo-58-1.pdf' }] }),
+      mkTranche({ id:'K-2b-T2', no:2, subject:{ inn:'08312201400123', name:'ОсОО «Кемин-Гидро»' },
+        amount:150000, plannedDate:'01.06.2026',
+        disbursements:[{ date:'05.06.2026', amount:150000, order:'ПП-1466', purpose:'Щит управления и монтаж', doc:'akt-osvo-58-2.pdf' }] })
+    ],
+    docs:[
+      { kind:'Кредитный договор', name:'Договор № 58', state:'принят', date:'17.02.2026', file:'dogovor-58.pdf', note:'' },
+      { kind:'Решение комиссии', name:'Протокол КОМ-308', state:'принят', date:'10.02.2026', file:'kom-308.pdf', note:'' },
+      { kind:'Бизнес-план', name:'Бизнес-план проекта МГЭС', state:'принят', date:'28.01.2026', file:'bp-58.pdf', note:'' }
+    ],
+    /* Донор требует подтвердить освоение ПЕРЕД каждой следующей выборкой — отсюда два
+       комплекта документов, по одному на транш. */
+    targetUse:{
+      docs:[{ date:'10.03.2026', title:'Счёт-фактура № 118 и акт приёма гидроагрегата', result:'принято', file:'tu-58-1.pdf' },
+            { date:'12.06.2026', title:'Акт монтажа щита управления', result:'принято', file:'tu-58-2.pdf' }],
+      checks:[{ date:'20.06.2026', title:'Выездная проверка целевого использования', result:'соответствует', file:'check-58.pdf' }],
+      measures:[], committeeDecision:null },
+    _seedSettle: TODAY,
+    mirror: (() => {
+      const pledges = [{ contractNum:'ЗД-94', date:'16.02.2026', pledgor:'ОсОО «Кемин-Гидро»',
+        items:[{ name:'Имущественный комплекс МГЭС', kind:'Недвижимое имущество', appraised:1600000, pledgeValue:1300000, share:1, ban:true }],
+        otherCredits:[] }];
+      return emptyMirror({
+      curatorship:[{ unit:'Отдел кредитования', employee:'Ким Л. С.', role:'ведущий', from:'17.02.2026', to:null }],
+      pledges,
+      coverage: seedCoverageMirror(pledges, null, '20.06.2026'),
+      borrower:{ subgroup:'1.1', subgroupLabel:SUBGROUP_LABEL['1.1'], asOf:'20.06.2026' }
     }); })()
   }));
 
@@ -3612,7 +3781,7 @@ function seedDb(){
         : null,
       baseConditions: condDefaults({ rate, term,
         floatMeta: s.float ? { rate:{ benchmark:'учётная ставка НБКР', margin:3 } } : {},
-        reserveRate:s.reserve?2:0 }),
+        feeRate:s.reserve?2:0 }),          // КВ-72: плата за неосвоенный остаток (было reserveRate)
       accrualHold, relief, factors,
       /* служебная пометка сидирования: «этот кредит платит по графику» — обработается
          вторым проходом (seedSettlePayments) и будет удалена из модели */
@@ -3744,18 +3913,31 @@ function seedDb(){
     if (!c._seedSettle){ delete c._seedSettle; continue; }
     const upTo = c._seedSettle; delete c._seedSettle;
     const led = buildLedger(c, upTo);
-    let principal = 0, interest = 0, penalty = 0;
     /* ПЕНЯ ВХОДИТ В ПЛАТЁЖ (ADR-0129 §2). Платёж датирован срезом, а позиции наступали
        раньше — значит дни просрочки уже прошли и пеня за них начислена. Прежде она была
        нулевой (база бралась на дату среза, после разнесения — ноль), и «платит по
        графику» держалось на этом. Теперь заплатить нужно и её, иначе у здорового
-       кредита висит хвост, которого не имел в виду ни один сценарий сида. */
-    for (const r of led.rows){ principal += r.principalDue; interest += r.interestCharged;
-                               penalty += r.penaltyClaimable; }
-    if (principal + interest <= 0) continue;
-    c.mirror.payments.push(seedPayment(1, upTo, (c.tranches[0]||{}).no || 1,
-      { principal: round2(principal), interest: round2(interest), penalty: round2(penalty) }));
-    c.mirror.paymentsAsOf = upTo;
+       кредита висит хвост, которого не имел в виду ни один сценарий сида.
+       ПЛАТЁЖ НА КАЖДЫЙ ТРАНШ (КВ-72). Позиции графика гасит общий пул платежей кредита
+       (paidPool ходит по всем платежам), а вот ТЕЛО транша считается по строкам
+       разнесения (paidPrincipalOfTranche, Д-12: транш называет платёж). Один платёж,
+       помеченный первым траншем, закрыл бы позиции обоих, но оставил второй транш с
+       непогашенным телом в прогнозе. До К-2б многотраншевых кредитов с этой пометкой не
+       было — сумма и номер платежа у однотраншевых не меняются. */
+    const byTr = new Map();
+    for (const r of led.rows){
+      const a = byTr.get(r.trancheNo) || { principal:0, interest:0, penalty:0 };
+      a.principal += r.principalDue; a.interest += r.interestCharged;
+      a.penalty   += r.penaltyClaimable;
+      byTr.set(r.trancheNo, a);
+    }
+    let pn = c.mirror.payments.length;
+    for (const [no, a] of byTr){
+      if (a.principal + a.interest <= 0) continue;
+      c.mirror.payments.push(seedPayment(++pn, upTo, no,
+        { principal: round2(a.principal), interest: round2(a.interest), penalty: round2(a.penalty) }));
+      c.mirror.paymentsAsOf = upTo;
+    }
   }
 
   /* Демо: ДС-РС-1004 кредита К-4 — ставка 9→7 и срок 36→48 с 01.05.2026.
@@ -3812,19 +3994,23 @@ function seedDb(){
       createdAt:'12.07.2026'
     }));
   }
-  /* Демо Д-4: постановление правительства сняло ставку резерва.
+  /* Демо Д-4: постановление правительства сняло ставку платы за неосвоенный остаток.
      Ссылка — на ПП из блока «Происхождение» (Р-18), новый документ не заводится.
      КР-18: раньше эта запись висела на К-2 — кредите, заведённом РАДИ демонстрации
-     живого резерва (канон §8). Она обнуляла ставку, и блок резерва у К-2 был пуст:
-     именованная цепочка показывала ровно обратное тому, зачем существовала. Перенесена
-     на K-C23 «Аламудун-Теплицы» (reserve:true), где снятие резерва и есть сюжет. */
+     живой платы (канон §8). Она обнуляла ставку, и блок у К-2 был пуст: именованная
+     цепочка показывала ровно обратное тому, зачем существовала. Перенесена на K-C23
+     «Аламудун-Теплицы» (reserve:true), где снятие ставки и есть сюжет.
+     КВ-72 (ADR-0133 §4, единственная миграция данных волны): запись переехала из журналов
+     ТРАНШЕЙ в журнал КРЕДИТА — одной строкой вместо цикла `for (const t of ...tranches)`.
+     Документ был один, записей выходило по числу траншей, а следующий заведённый транш
+     вышел бы из-под постановления вовсе. Дата вступления и основание сохранены. */
   const kReserve = credits.find(c => /Аламудун-Теплицы/.test(c.borrower.name));
-  if (kReserve) for (const t of kReserve.tranches) t.conditionRecords.push(mkConditionRecord({
-    param:'reserveRate', value:0, effectiveFrom:'01.06.2026',
+  if (kReserve) kReserve.conditionRecords.push(mkConditionRecord({
+    param:'feeRate', value:0, effectiveFrom:'01.06.2026',
     basis:{ kind:'govAct', ref:kReserve.origin.govDecisionId || 'ПП-КР-214',
             label:'Постановление правительства ' + (kReserve.origin.govDecisionId || 'ПП-КР-214'),
             date:'03.03.2026' },
-    note:'Ставка резерва за неполное освоение снята постановлением',
+    note:'Ставка платы за неосвоенный остаток снята постановлением',
     createdAt:'01.06.2026'
   }));
 
@@ -4143,7 +4329,25 @@ function writeOffTranches(credit, ctx){
    разделением по ДС, иначе — освоением (ADR-0092 §1). Поля на транше нет намеренно: оно
    завело бы второй источник истины рядом с самим переносом и разъехалось бы с ним при
    первой же правке. */
-function trancheOrigin(t){ return (t.transfers || []).some(x => x.dir==='in') ? 'разделение' : 'освоение'; }
+/* ВИД ТРАНША (КВ-72, ADR-0132 §4) — три значения: 'освоение' · 'плата' · 'производный'.
+   Расширение правила ADR-0115 с двух значений до трёх, и расширяется он тем же способом:
+   ВЫВОДОМ, а не полем. Правила по одному на источник транша:
+     • синтезирован из условий кредита (t.fee) → 'плата';
+     • пришёл из хранилища, есть входящий перенос → 'производный';
+     • пришёл из хранилища, переноса нет → 'освоение'.
+   Хранимого признака нет намеренно (ADR-0115, дословно: «признак выводится из переноса,
+   который и так датирован и имеет основание. Поле разъедется с журналом при первой же
+   правке»). Для транша платы поле вдобавок физически некому поставить — его не заводит
+   человек.
+   Прежнее имя trancheOrigin и значение 'разделение' сняты: ADR-0115 переименовал
+   происхождение в вид, а значение выровнено с CONTEXT.md («Производный транш»).
+   ЗАЧЕМ ВИД СПРАШИВАЮТ: денежные своды (Г-3, обе плитки распределения, сумма под риском)
+   считают ТОЛЬКО 'освоение'. Потребитель, который вида не спросил, не падает, а тихо
+   считает с платой внутри, — поэтому на каждый свод нужен сторож смоука. */
+function trancheKind(t){
+  if (t && t.fee) return 'плата';
+  return ((t && t.transfers) || []).some(x => x.dir==='in') ? 'производный' : 'освоение';
+}
 function originTransfer(t){ return (t.transfers || []).find(x => x.dir==='in') || null; }
 function originDs(t){ const x = originTransfer(t); return (x && x.basis && x.basis.ds) || null; }
 
@@ -4612,6 +4816,12 @@ function calcGrid(c, asOf){
   }
   for (const p of ((c && c.mirror && c.mirror.payments) || []))
     if (paymentCounts(p)) add(p.date);
+  /* ЗАПИСИ КРЕДИТНОГО ЖУРНАЛА (КВ-72, ADR-0133 §1) — наравне с траншевыми. Ставку платы за
+     неосвоенный остаток снимает и меняет постановление, и его дата меняет базу расчёта
+     ровно так же, как дата траншевой ДС меняет ставку по телу (ADR-0128 §2). Сетка одна на
+     весь расчёт (ADR-0129 §1), поэтому граница ставится здесь, а не внутри feeAccrual:
+     иначе плата считалась бы по своим отрезкам, а проценты по своим. */
+  for (const r of ((c && c.conditionRecords) || [])) add(r.effectiveFrom);
   for (const L of courtLayersOf(c, fd(lim))) add(L.date);
   for (const w of disputeWindows(c)){ add(w.from); add(w.to); }
   /* ГРАНИЦА ГОДА — 1 ЯНВАРЯ (КВ-45). Единственная критическая дата, которую кредит не
@@ -5855,7 +6065,11 @@ function buildLedger(c, asOf){
              ledgerInterest:ledInt, gap:round2(runInt - ledInt) };
   }).filter(s => s.rows.length);
 
-  return { rows, index, pool, feeRows, layers, byLadder, disputes:wins, artTotal, dateSheet,
+  /* ПЛАТА ЗА НЕОСВОЕННЫЙ ОСТАТОК — считается на дату `lim`, а не на дату среза (КВ-72):
+     у закрытого кредита расчёт замер, и плата обязана замереть вместе с процентами и пенёй,
+     иначе очередь напечатала бы величину, посчитанную по другому срезу, чем всё рядом. */
+  const feeAcc = feeAccrual(c, fd(lim));
+  return { rows, index, pool, feeRows, fee:feeAcc, layers, byLadder, disputes:wins, artTotal, dateSheet,
            writtenOff, writtenOffArt,                    // снято с баланса решением: тело (КВ-62) и все шесть статей (КВ-63)
            until: fd(lim), stopped: fd(lim) !== (asOf || TODAY),
            snapshot: snap, provisional: !!(snap && pd(snap) < lim), provisionalFrom: snap };
@@ -5895,6 +6109,24 @@ function debtOf(led, disbursed){
   for (const f of led.feeRows){
     d.fees.accrued += f.amount || 0; d.fees.paid += f._paid || 0;
     d.fees.overdue += f._bal || 0;
+  }
+  /* ПЛАТА ЗА НЕОСВОЕННЫЙ ОСТАТОК — В СТАТЬЮ «ПРОЦЕНТЫ», СЕДЬМОЙ НЕТ (КВ-72, ADR-0134 §1).
+     Решение владельца 17.08.2026: плата — цена пользования деньгами донора, той же природы,
+     что процент по телу, и разводить их по двум статьям значило бы предъявить заёмщику два
+     счёта за одно. Разрез несёт ТРАНШ (§2): в этой статье теперь два слагаемых разной
+     природы, и различить их можно только по траншу — но не сложением, а разрезом.
+     ЦЕНА НАЗВАНА В §6: четыре агрегата, читающие `d.interest.accrued` как «проценты по
+     телу», после этой строки завышают — плитка «Начислено процентов», эффективная ставка,
+     разложение ADR-0105 (ограничено этой волной) и портфельная отчётность. Кто хочет
+     процент по телу отдельно — берёт `d.interest.accrued − led.fee.accrued`.
+     СРОЧНАЯ ЧАСТЬ входит в accrued целиком: незакрытый период платы начислен, но срок по
+     нему не наступил, и term ниже получит его сам разностью bal − overdue. */
+  const F = led.fee || {};
+  if (F.applies){
+    d.interest.accrued += F.accrued;
+    d.interest.overdue += round2(F.due - F.paid);
+    d.penalty.accrued  += F.penalty;                 // пеня по плате — ADR-0134 §4
+    d.penalty.overdue  += F.penalty;
   }
   /* Погашено по статье — это ВЕСЬ подтверждённый пул, а не только разнесённое по
      наступившим позициям: платёж сверх графика гасит тело досрочно, и остаток обязан
@@ -6046,12 +6278,12 @@ function buildQueue(c, led){
   const lim = pd(led.until);
   const layerById = new Map(led.layers.map(L => [L.id, L]));
   const rows = [];
-  const push = (due, key, trancheNo, article, amount, future) => {
+  const push = (due, key, trancheNo, article, amount, future, fee) => {
     if (!(amount > 0.005)) return;
     const L = key ? layerById.get(led.byLadder.get(key)) : null;
     rows.push({ due, layer:L ? L.id : 'free', layerLabel:L ? L.label : 'Вне решения суда',
       tranche:(trancheNo == null ? null : trancheNo), article,
-      urg:future ? 'cur' : 'over', amount:round2(amount), future:!!future });
+      urg:future ? 'cur' : 'over', amount:round2(amount), future:!!future, fee:!!fee });
   };
   for (const f of led.feeRows) push(f.date, null, null, 'Сборы и комиссии', f._bal || 0, false);
   for (const r of led.rows){
@@ -6080,8 +6312,23 @@ function buildQueue(c, led){
       push(r.date, key, t.no, 'Накопленные проценты', (r.articles && r.articles.accInterest) || 0, true);
       push(r.date, key, t.no, 'Накопленная пеня',     (r.articles && r.articles.accPenalty)  || 0, true);
     }
+  /* ПЛАТА ЗА НЕОСВОЕННЫЙ ОСТАТОК (КВ-72, ADR-0134 §2/§3) — строками статьи «Проценты» на
+     ТРАНШЕ ПЛАТЫ. Наступившее — период, у которого прошёл день платежа; незакрытый период
+     идёт серым хвостом: срок по нему не наступил, и в разнесение он не входит (ADR-0057 §1).
+     Пеня по плате — своя строка статьи «Пеня» на том же транше (§4). */
+  const FQ = led.fee || {};
+  if (FQ.applies) for (const p of (FQ.periods || [])){
+    push(p.due, null, null, 'Проценты', p.amount, !!p.partial, true);
+    if (!p.partial) push(p.due, null, null, 'Пеня', p.penalty || 0, false, true);
+  }
+  /* ТРЕТИЙ КЛЮЧ СОРТИРОВКИ ДООПРЕДЕЛЁН (ADR-0134 §3). Строка платы транша не называет
+     (номера у транша платы нет, КВ-70), и `(a.tranche || 0)` поставил бы её ПЕРВОЙ в статье
+     через `null || 0` — раньше траншей, из которых она выведена. Внутри статьи порядок:
+     траншы освоения по номеру → «по кредиту» (комиссии, Д-10) → плата последней. */
+  const trRank = r => r.fee ? 2 : (r.tranche == null ? 1 : 0);
   rows.sort((a,b) => pd(a.due) - pd(b.due)
     || QUEUE_ARTICLE_ORDER[a.article] - QUEUE_ARTICLE_ORDER[b.article]
+    || trRank(a) - trRank(b)
     || (a.tranche || 0) - (b.tranche || 0));
   /* дата очереди — та, ДО которой реально считали (у закрытого кредита это дата
      остановки начисления, не дата среза): потребитель сверяет её со своей датой
@@ -6233,27 +6480,157 @@ function maxFullRepayDate(c){
   return best ? fd(best) : null;
 }
 
-/* неустойка за неполное освоение: недоосвоенный остаток транша × reserveRate за
-   период от плановой даты. При reserveRate = 0 → {applies:false} (не 24 строки нулей). */
-function computeReserve(c, asOf){
-  const per = []; let totalBase = 0, totalAmount = 0, rate = 0;
-  for (const t of c.tranches){
-    const cnd = conditionsAt(t, asOf || TODAY);                       // Р-21
-    const rr = cnd.reserveRate || 0;
-    if (rr <= 0) continue;
-    const base = (t.amount || 0) - disbursedSum(t);
-    if (base <= 0 || !t.plannedDate) continue;
-    const days = Math.max(0, dd(pd(t.plannedDate), pd(asOf || TODAY)));
-    if (days <= 0) continue;
-    /* Шаг 19/20: делитель раньше был захардкожен на 365 — теперь читает dayMethod
-       того же комплекта условий (тот же параметр, что и график), а не своё
-       отдельное допущение. */
-    const amount = round2(base * (rr / 100) * (days / dayBasis(cnd.dayMethod, pd(asOf || TODAY)).base));
-    rate = rr; totalBase += base; totalAmount += amount;
-    per.push({ trancheId:t.id, base, rate:rr, days, amount });
+/* ---- ПЛАТА ЗА НЕОСВОЕННЫЙ ОСТАТОК (КВ-72; ADR-0132, ADR-0133, ADR-0134) ----
+
+   ЧТО СНЯТО. Здесь стоял `computeReserve` — «неустойка за неполное освоение»: база
+   `t.amount − disbursedSum(t)` по КАЖДОМУ траншу, ставка `reserveRate` с транша, отсчёт от
+   `t.plannedDate`, результат — плитка в «Расчётах», не входящая ни в долг, ни в очередь.
+   Отменён ADR-0132 целиком, и по трём независимым причинам:
+     • ЭТО НЕ НЕУСТОЙКА, а плата за пользование неосвоенным лимитом (ADR-0132 §1): деньги
+       донора связаны обязательством, и он берёт за это цену. Нарушения нет — заёмщик
+       вправе не выбирать; называть цену штрафом значит поставить её вне очереди погашения.
+     • БАЗА БЫЛА ТРАНШЕВОЙ, а обязательство кредитное (§2). Нераспределённый остаток суммы
+       договора (`contractAmount − Σ t.amount`) в базу не входил вовсе — то есть ровно тот
+       остаток, который заёмщик не выбрал и даже не заявил, платой не облагался.
+     • ОТСЧЁТ ШЁЛ ОТ ПЛАНОВОЙ ДАТЫ ТРАНША, а обязательство живёт с даты договора (§2,
+       ADR-0133 §2): у К-2 это 11 дней и ≈241 сом, потерянных на каждом кредите.
+
+   ЧТО СТАЛО. Величина считается ОДНА НА КРЕДИТ, ставка и реквизиты — из кредитного журнала
+   условий (`creditOwnConditionsAt`, ADR-0133 §1), носитель — выводимый ТРАНШ ПЛАТЫ
+   (ADR-0132 §3), статья долга — «Проценты» с разрезом по этому траншу (ADR-0134 §1/§2).
+   Плитки-в-стороне больше нет: плата входит в долг, в очередь и в пеню, как всякий платёж
+   по кредиту. */
+
+/* ПЕРИОДИЧНОСТЬ → ШАГ В МЕСЯЦАХ. Значения — те же, что у графика транша (`freq`), поэтому
+   реестр один; неизвестное схлопывается к месяцу, как и день-база в dayBasis. */
+const FEE_FREQ_MONTHS = { 'ежемесячно':1, 'ежеквартально':3, 'раз в полгода':6, 'ежегодно':12 };
+
+/* Дата, на которой недоосвоенный остаток закрыт решением (Г-32) — с неё базы нет.
+   Единственный тормоз бесконечного начисления: срока освоения модель не держит
+   (ADR-0132 §6, отвергнуто), и плата бежит, пока остаток жив. */
+function disbClosedOn(c){ const r = c && c.closure && c.closure.disbClosed; return (r && r.date) || null; }
+
+/* БАЗА ПЛАТЫ НА ДАТУ (ADR-0132 §2) — сумма договора минус ФАКТИЧЕСКИ освоенное к этой
+   дате. Не «минус заведённые траншы»: транш — заявка на деньги, а не их получение, и
+   заявка обязательства донора не снимает. `disbursedTo` берётся по всем траншам, включая
+   производные: перенос тела между траншами освоения не меняет освоенного (ADR-0092 §2), а
+   у производного своих освоений нет вовсе. */
+function undrawnAt(c, at){
+  const cl = disbClosedOn(c);
+  if (cl && pd(at || TODAY) >= pd(cl)) return 0;
+  const disb = (c.tranches || []).reduce((a,t) => a + disbursedTo(t, at), 0);
+  return round2(Math.max(0, (c.contractAmount || 0) - disb));
+}
+
+/* ПЕРИОДЫ ПЛАТЫ — график транша платы (ADR-0133 §2: периодичность и день платежа лежат на
+   кредите). Первый период начинается ДАТОЙ НАЧАЛА НАЧИСЛЕНИЯ (по умолчанию дата договора),
+   а не первым освоением: до первого транша деньги донора связаны сильнее всего.
+   Последний период открыт — конца окна освоения нет (ADR-0132 §6), поэтому он обрезается
+   датой среза и помечается `partial`: это СРОЧНАЯ часть, срок по ней не наступил. */
+function feePeriods(c, start, lim, cnd){
+  const step = FEE_FREQ_MONTHS[cnd.feeFreq] || 1;
+  const day  = (cnd.feePayDay | 0) || start.getDate();
+  const out = []; let from = start, guard = 0;
+  while (from < lim && guard++ < 600){
+    let due = addM(from, step, day);
+    if (+due <= +from) due = addM(from, step + 1, day);   // день платежа раньше старта внутри шага
+    out.push({ no: out.length + 1, from: fd(from), due: fd(due), partial: due > lim, amount: 0 });
+    from = due;
   }
-  if (!per.length) return { applies:false };
-  return { applies:true, rate, totalBase, totalAmount:round2(totalAmount), perTranche:per };
+  return out;
+}
+
+/* НАЧИСЛЕНИЕ ПЛАТЫ (ADR-0132 §2, ADR-0129 §1). Отрезок — строка расчёта: границы берутся
+   из ОБЩЕЙ сетки критических дат кредита, той же, на которой считаются проценты и пеня.
+   Освоение — граница по ADR-0128 §2 («всё, что меняет базу или ставку»), поэтому каждая
+   выборка открывает отрезок с меньшей базой, и плата убывает шагами, а не задним числом.
+   База читается на НАЧАЛЕ отрезка: день освоения уже идёт по уменьшенной базе — деньги в
+   этот день у заёмщика, и брать с них и процент, и плату значило бы взять дважды.
+   Ставка — тоже на начале отрезка: запись условий вступает своей датой (Р-21), и её дата
+   сама стоит в сетке, поэтому отрезок не может нести две ставки.
+   ДЕНЬ-БАЗА берётся С КРЕДИТА агрегатом по траншам (ADR-0133 §3: метод счёта дней —
+   свойство расчёта, а не обязательства, и на кредит не дублируется). Разошлись траншы —
+   молчаливого выбора первого не делаем (ADR-0114): дальше идёт дефолт факт/365 из
+   dayBasis. Делитель считается по КОНЦУ отрезка — так же, как в periodInterest, и граница
+   1 января в сетке уже стоит.
+   ПОГАШЕНО — 0 и будет 0, пока платежи не научатся называть транш платы: у зеркала нет
+   разнесения на него (тот же случай, что накопленные статьи в debtOf). Это не занижение
+   долга, а факт: в эту статью никто не разносил. */
+function feeAccrual(c, asOf){
+  asOf = asOf || TODAY;
+  const lim = pd(asOf);
+  const off = { applies:false, rate:0, base:0, accrued:0, due:0, term:0, paid:0, bal:0,
+                penalty:0, penaltyRate:0, segments:[], periods:[], start:null };
+  if (!c || !c.contractAmount) return off;
+  const cnd = creditOwnConditionsAt(c, asOf);
+  const start = pd(cnd.feeStart || c.date);
+  if (start >= lim) return off;
+  const dmAgg = creditConditionsAt(c, asOf).dayMethod || {};
+  const dm = dmAgg.divergent ? null : dmAgg.value;
+  const grid = calcGrid(c, asOf);
+  const periods = feePeriods(c, start, lim, cnd);
+  const segments = [];
+  let accrued = 0, due = 0, term = 0;
+  for (const p of periods){
+    const a = pd(p.from), b = pd(p.due) > lim ? lim : pd(p.due);
+    const bounds = [a].concat(segmentBounds(grid, a, b), [b]);
+    for (let i = 0; i < bounds.length - 1; i++){
+      const s = bounds[i], e = bounds[i + 1];
+      const days = dd(s, e); if (days <= 0) continue;
+      const base = undrawnAt(c, fd(s));
+      const rate = +(creditOwnConditionsAt(c, fd(s)).feeRate || 0);
+      if (!(base > 0.005) || !(rate > 0)) continue;
+      const amount = round2(base * (rate / 100) * (days / dayBasis(dm, e).base));
+      segments.push({ period:p.no, from:fd(s), to:fd(e), days, base, rate, amount });
+      p.amount = round2(p.amount + amount);
+    }
+    accrued = round2(accrued + p.amount);
+    if (p.partial) term = round2(term + p.amount); else due = round2(due + p.amount);
+  }
+  const base = undrawnAt(c, asOf);
+  const rate = +(cnd.feeRate || 0);
+  /* ПЕНЯ ПО ПЛАТЕ (ADR-0134 §4) — своя ставка `feePenaltyInt` с кредитного журнала, а не
+     `penaltyInt` транша: транш платы своих условий не имеет и иметь не может (он
+     выводится). База — непогашенная наступившая плата, отсчёт — от дня платежа. */
+  const pen = +(cnd.feePenaltyInt || 0);
+  let penalty = 0;
+  for (const p of periods){
+    if (p.partial || !(p.amount > 0.005) || !(pen > 0)) continue;
+    const days = Math.max(0, dd(pd(p.due), lim));
+    p.penalty = round2(p.amount * (pen / 100) * days);
+    penalty = round2(penalty + p.penalty);
+  }
+  /* СУЩЕСТВУЕТ, ПОКА ЕСТЬ ЧТО СЧИТАТЬ ИЛИ ЧТО ГАСИТЬ (ADR-0132 §5). База ушла в ноль, а
+     плата не погашена — величина остаётся: долг не исчезает вместе со своим основанием. */
+  const applies = accrued > 0.005 || (base > 0.005 && rate > 0);
+  if (!applies) return off;
+  return { applies:true, rate, base, start:fd(start), accrued, due, term,
+           paid:0, bal:accrued, penalty, penaltyRate:pen, segments, periods,
+           freq:cnd.feeFreq || 'ежемесячно', payDay:(cnd.feePayDay | 0) || start.getDate(),
+           closedOn: disbClosedOn(c) };
+}
+
+/* ТРАНШ ПЛАТЫ (ADR-0132 §3) — ВЫВОДИТСЯ, а не заводится: ключ у него — сам кредит, и
+   хранить его значило бы держать в модели объект, у которого нет ни одного своего факта
+   (ни суммы, ни предмета, ни плановой даты, ни освоений). Против ADR-0001.
+   Номера у него нет — по КВ-70 номер печатается там, где есть выбор, а транш платы один и
+   выбору не подлежит. В `c.tranches` он НЕ ЛОЖИТСЯ никогда: все денежные агрегаты ходят
+   по `c.tranches` и сложили бы плату в тело кредита (Г-3, И-3). Экран собирает реестр
+   через `allTranches`, и только он. */
+function feeTranche(c, asOf, acc){
+  const f = acc || feeAccrual(c, asOf);          // acc — уже посчитанное начисление (derive)
+  if (!f.applies) return null;
+  return { id:(c.id || '') + '-FEE', no:null, fee:true, label:'Транш платы',
+           purpose:'Плата за неосвоенный остаток суммы договора',
+           amount:null, plannedDate:null, disbursements:[], transfers:[], writeOffs:[],
+           conditionRecords:[], schedules:[], accrual:f };
+}
+/* Реестр траншей ЭКРАНА: освоение и производные — из модели, плата — выводом.
+   Транш платы стоит последним и в реестре, и в очереди (ADR-0134 §3): он производен от
+   всех остальных, и печатать его раньше того, что его породило, — соврать про причину. */
+function allTranches(c, asOf){
+  const f = feeTranche(c, asOf);
+  return (c.tranches || []).concat(f ? [f] : []);
 }
 
 /* итоги действующей версии графика (консолидировано по траншам).
@@ -6382,8 +6759,8 @@ function derive(c, asOf){
      Отвергнуто вычитать сумму переноса из allocated: арифметика сходится, но величина
      перестаёт отвечать на свой вопрос «сколько договора ещё можно раздать».
      Показывается строкой-контекстом над реестром траншей (КВ-33; до неё — плиткой). */
-  const ownTranches  = c.tranches.filter(t => trancheOrigin(t) === 'освоение');
-  const derivedTr    = c.tranches.filter(t => trancheOrigin(t) === 'разделение');
+  const ownTranches  = c.tranches.filter(t => trancheKind(t) === 'освоение');
+  const derivedTr    = c.tranches.filter(t => trancheKind(t) === 'производный');
   const allocated    = ownTranches.reduce((a,t) => a + (t.amount || 0), 0);
   const undisbursed  = c.contractAmount - disbursed;
   const allocatable  = c.contractAmount - allocated;
@@ -6411,7 +6788,12 @@ function derive(c, asOf){
   const fullRepayDate = maxFullRepayDate(c);
   const termAgg       = Math.max(0, ...c.tranches.filter(activeTranche)
                             .map(t => conditionsAt(t, asOf).term || 0));   // Р-13 поверх Р-21
-  const reserveAccrual = computeReserve(c, asOf);
+  /* Плату считает ЛЕДЖЕР (на дату остановки расчёта, а не среза) — derive её публикует, а не
+     пересчитывает: два вызова feeAccrual с разными датами дали бы своду и очереди два
+     разных числа одной величины. Транш платы выводится из той же величины. */
+  const fee            = ledger.fee;
+  const feeTr          = feeTranche(c, ledger.until, fee);
+  const trancheList    = c.tranches.concat(feeTr ? [feeTr] : []);
   const scheduleTotals = computeScheduleTotals(c);
   const nextPayment    = nextPaymentOf(c, ledger.index, asOf);
   const planExec       = planExecOf(c, asOf, ledger.index);       // ADR-0042: показатель, не вход гейтов (И-18)
@@ -6428,7 +6810,8 @@ function derive(c, asOf){
            disbursed, undisbursed, allocated, allocatable, derivedCount, derivedSum, disbState,
            ledger, debt, overdue, overdueDays, overdueSince:overdue.since,
            atRisk, coverage, riskCategory, riskBasis, relief, stateFlags,
-           fullRepayDate, termAgg, reserveAccrual, scheduleTotals, nextPayment, regStatus, docs, planExec,
+           fullRepayDate, termAgg, fee, feeTranche:feeTr, trancheList,
+           scheduleTotals, nextPayment, regStatus, docs, planExec,
            debtBalance, overdueAmount, debtBalanceKgs, overdueAmountKgs, collectionCosts,
            overpay:debt.overpay, courtLayers:ledger.layers, queue, disputes:ledger.disputes,
            calcProvisional:ledger.provisional, paymentsAsOf:ledger.snapshot,
@@ -6487,7 +6870,7 @@ function gate(credit, action, ctx = {}){
       /* Производный транш не осваивается (ADR-0092 «Последствия»): его сумма ПРИШЛА
          переносом по ДС, а не выдачей. Разрешить освоение значило бы выдать одни и те же
          деньги дважды. Причина называет ДС — немого отказа быть не должно (§0.3). */
-      if (t && trancheOrigin(t) === 'разделение')
+      if (t && trancheKind(t) === 'производный')
         r.push('Производный транш не осваивается: сумма пришла переносом по ' + (originDs(t) || 'ДС'));
       if (!['Зарегистрирован','Действует'].includes(credit.lifecycle)) r.push('Освоение возможно только при ЖЦ «Зарегистрирован» или «Действует»'); // Г-5
       if (credit.closure && credit.closure.disbClosed) r.push('Неосвоенный остаток закрыт ' + credit.closure.disbClosed.date + ' — освоение невозможно (Р-6)');
@@ -6557,11 +6940,19 @@ function gate(credit, action, ctx = {}){
         r.push('Решение суда и постановление правительства указываются ссылкой на существующий документ (Г-10)');
       if (!ctx.records || !ctx.records.length) r.push('Не выбрано ни одного условия');
       for (const rec of (ctx.records || [])){
-        if (!PARAM_KEYS.includes(rec.param)) r.push('Неизвестный параметр условия: ' + rec.param);
-        if (!rec.trancheNos || !rec.trancheNos.length)
-          r.push('Не выбран ни один транш для условия «' + paramLabel(rec.param) + '»');
-        else for (const no of rec.trancheNos)
-          if (!credit.tranches.some(t => t.no === no)) r.push('Транш №' + no + ' не найден');
+        /* УРОВЕНЬ ЗАПИСИ (КВ-72, ADR-0133 §1): кредитный параметр транша не спрашивает
+           вовсе — у него другой владелец и другой журнал. Наборы ключей НЕ пересекаются,
+           поэтому уровень выводится из самого параметра, а не задаётся флагом: флаг можно
+           выставить неверно, ключ — нет. */
+        const lvl = CREDIT_PARAM_KEYS.includes(rec.param) ? 'credit'
+                  : PARAM_KEYS.includes(rec.param) ? 'tranche' : null;
+        if (!lvl) r.push('Неизвестный параметр условия: ' + rec.param);
+        if (lvl === 'tranche'){
+          if (!rec.trancheNos || !rec.trancheNos.length)
+            r.push('Не выбран ни один транш для условия «' + paramLabel(rec.param) + '»');
+          else for (const no of rec.trancheNos)
+            if (!credit.tranches.some(t => t.no === no)) r.push('Транш №' + no + ' не найден');
+        }
         if (!rec.effectiveFrom){ r.push('Дата вступления в силу обязательна («' + paramLabel(rec.param) + '»)'); continue; }
         if (credit.date && pd(rec.effectiveFrom) < pd(credit.date))
           r.push('Дата вступления не может быть раньше даты договора ' + credit.date + ' (Г-18)');      // Г-18
@@ -6596,7 +6987,7 @@ function gate(credit, action, ctx = {}){
        у обычного транша чинится освоением, у производного — только основанием ДС. */
     case 'buildSchedule': {
       if (!ctx.tranche) { r.push('Транш не выбран'); break; }
-      if (trancheOrigin(ctx.tranche) === 'разделение') {
+      if (trancheKind(ctx.tranche) === 'производный') {
         if (!originDs(ctx.tranche)) r.push('У производного транша нет основания ДС — график строить не от чего');
       } else if ((ctx.tranche.disbursements||[]).length === 0) {
         r.push('График строится только от фактической даты освоения транша'); // Г-8
@@ -6714,6 +7105,15 @@ function gate(credit, action, ctx = {}){
       { const b = d.debt; const nonzero = DEBT_ARTICLES.filter(x => b[x.key].bal > 0.005);
         if (nonzero.length) r.push('«Погашен» — только при нулевом остатке по всем статьям; не закрыты: '
           + nonzero.map(x => x.label + ' ' + money(b[x.key].bal)).join(' · '));
+        /* ТРАНШ ПЛАТЫ — В ПРОВЕРКУ ОТДЕЛЬНОЙ СТРОКОЙ (КВ-72, ADR-0132 §5). В статью
+           «Проценты» плата уже вошла (ADR-0134 §1), то есть остаток гейт и так не пустит; но
+           без этой строки отказ печатал бы «Проценты 9 456,18» — читается как процент по телу,
+           и куратор искал бы его в графике, которого у платы нет. Условие — то же правило
+           существования, по которому живёт сам транш платы: непогашенная плата долг не теряет
+           даже при нулевой базе. */
+        const F = d.fee || {}; const feeBal = F.applies ? round2(F.accrued - F.paid) : 0;
+        if (feeBal > 0.005) r.push('Не погашена плата за неосвоенный остаток ' + money(feeBal)
+          + ' — транш платы жив (ADR-0132 §5); в статью «Проценты» она уже включена');
         if ((credit.mirror.claims||[]).length) r.push('Есть действующие требования взыскания'); }
       break;
     case 'terminate':                                                                      // канон §3: третье основание закрытия
@@ -7285,10 +7685,22 @@ function addConditionRecords(credit, ctx){
     credit.agreements.push({ num:bs.num, date:bs.date, source:bs.source || 'кредит', scan:bs.scan || '' });
   let added = 0;
   for (const rec of ctx.records){
+    const row0 = () => mkConditionRecord({ param:rec.param, value:rec.value,
+      effectiveFrom:rec.effectiveFrom, basis, note:rec.note || '' });
+    /* КРЕДИТНЫЙ ПАРАМЕТР — ОДНА ЗАПИСЬ НА ДОКУМЕНТ (КВ-72, ADR-0133 §1). Дверь одна на оба
+       журнала: основание, ретро-правила (Г-19/Г-20) и append-only (Г-17) у них общие, и
+       заводить вторую дверь значило бы держать два экземпляра одного правила. Расходятся
+       они ровно в адресе записи, и адрес выводится из ключа параметра. */
+    if (CREDIT_PARAM_KEYS.includes(rec.param)){
+      const row = row0();
+      credit.conditionRecords = (credit.conditionRecords || []).concat([row]);
+      pushAudit(credit, 'creditConditionRecord', null, row);
+      added++;
+      continue;
+    }
     for (const no of rec.trancheNos){
       const t = credit.tranches.find(x => x.no === no);          // гейт уже проверил, что номер резолвится
-      const row = mkConditionRecord({ param:rec.param, value:rec.value,
-        effectiveFrom:rec.effectiveFrom, basis, note:rec.note || '' });
+      const row = row0();
       t.conditionRecords.push(row);
       pushAudit(credit, 'conditionRecord', null, row);
       added++;
@@ -7431,8 +7843,14 @@ window.CR = {
   derive, buildSchedule, gate, canRole,
   conditionsAt, mkConditionRecord, mkPrimaryRecords, PARAMS, PARAM_KEYS, paramLabel, BASIS_KINDS,
   COND_CARD_RATES, COND_CARD_REPAY,
+  /* КВ-72: кредитный журнал условий (ADR-0133) и плата за неосвоенный остаток (ADR-0132).
+     creditOwnConditionsAt — журнал КРЕДИТА, creditConditionsAt рядом — агрегат по траншам:
+     две разные величины, и обе экспортируются под своими именами. */
+  CREDIT_PARAMS, CREDIT_PARAM_KEYS, creditParamLabel, COND_CARD_CREDIT,
+  creditOwnConditionsAt, mkCreditPrimaryRecords,
+  feeAccrual, feeTranche, allTranches, undrawnAt,
   creditConditionsAt, divergenceRows, basisGroups, retroFlags, retroPendingFlags, activeTranche,
-  trancheOrigin, originTransfer, originDs, transferredOut, transferredIn, movedNetAt, trancheBalanceAt,
+  trancheKind, originTransfer, originDs, transferredOut, transferredIn, movedNetAt, trancheBalanceAt,
   writeOffsOf, writtenOffAt, writeOffTranches,                    // КВ-53: списание тела по траншам
   courtRef, courtBasisLabel,
   generateSchedule, holdAccrual, scheduleAt, validTo, schedValidFrom,
@@ -7538,7 +7956,15 @@ if (typeof document !== 'undefined') {
       ? `<p class="section-note">Кредит закрыт — начисление остановлено. Остаток долга застыл на дату закрытия <b>${esc(d.calcUntil)}</b>, дата среза карточки на него не влияет.</p>`
       : `<p class="section-note">Остаток долга и просрочка построены на дату среза карточки — <b>${esc(cardAsOf)}</b>. Сменить дату — «По состоянию на» в шапке.</p>`;
     const rows = debtArticlesOf(d.debt).map(a => `<div class="row"><span class="ck">${esc(a.label)}</span> <b>${money(d.debt[a.key].bal)}</b></div>`).join('');
-    CR.openModal('Остаток долга — по статьям', dateNote + `<div class="cat-expand">${rows}</div>`,
+    /* НАЗВАННАЯ ЦЕНА §6 (КВ-72, ADR-0134): свод, называющий число «Проценты», обязан либо
+       резать по траншам, либо сказать, что плата за неосвоенный остаток в него включена.
+       Здесь резать нечем — модалка отвечает по кредиту, — значит говорим. */
+    const feeNote = (d.fee && d.fee.applies)
+      ? `<p class="section-note">В статью «Проценты» включена плата за неосвоенный остаток —
+          начислено <b>${money(d.fee.accrued)}</b> на транше платы (ADR-0134 §1)${d.fee.penalty>0.005
+            ? `, в «Пеню» — пеня по плате ${money(d.fee.penalty)}`:''}. Процент по телу — за вычетом этих сумм;
+          разрез по траншам стоит на вкладке «Расчёты».</p>` : '';
+    CR.openModal('Остаток долга — по статьям', dateNote + `<div class="cat-expand">${rows}</div>` + feeNote,
       '<button class="btn btn-secondary" onclick="CR.closeModal()">Понятно</button>', {cls:'narrow'});
   };
   CR.openCategoryInfo = function(){
@@ -7621,7 +8047,7 @@ if (typeof document !== 'undefined') {
     const cov = d.coverage;
     if (cov && cov.applicable && cov.ok === false)
       out.push('обеспеченность ниже порога' + (cov.index != null ? ' · индекс ' + Math.round(cov.index * 100) + ' %' : ''));
-    if (d.reserveAccrual && d.reserveAccrual.applies) out.push('неустойка за неосвоение');
+    if (d.fee && d.fee.applies) out.push('плата за неосвоенный остаток');
     return out.length ? out.join(' · ') : 'ровный действующий кредит без особенностей';
   }
   /* ШПАРГАЛКА НАБОРА. При показе она отвечает на вопрос, ради которого набор и держат:
@@ -8219,9 +8645,28 @@ if (typeof document !== 'undefined') {
      Кредит с одним траншем: «по кредиту» и «Транш №1» неразличимы, поэтому транш отдаётся
      всегда — иначе однотраншевый кредит без нужды уходил бы в агрегатную ветку. */
   function scopeTranche(c){
+    /* ОБЛАСТЬ «ТРАНШ ПЛАТЫ» (КВ-72, ADR-0132 «Последствия»: селекторы транша получают
+       этот пункт). Проверяется ПЕРВОЙ: у однотраншевого кредита ветка ниже отдаёт транш
+       №1 всегда, и плата иначе была бы недостижима именно там, где чаще всего живёт
+       (К-2 — один транш и живая плата). Транш выводится заново, а не берётся из d:
+       scopeTranche зовут пятнадцать мест, и протаскивать в них расчёт дороже, чем
+       посчитать выводимое (ADR-0001). */
+    if (cardScope === 'fee') return feeTranche(c, cardAsOf);
     if (c.tranches.length === 1) return c.tranches[0];
     return cardScope === 'credit' ? null : (c.tranches.find(t => t.no === cardScope) || null);
   }
+  /* Транш платы номера не имеет (ADR-0132 §3), поэтому НОМЕР — не универсальный
+     идентификатор области, а свойство траншей освоения. Три помощника ниже — единственный
+     способ спросить область, не напечатав «транш №null». */
+  function scopeIsFee(c){ return cardScope === 'fee' && !!feeTranche(c, cardAsOf); }
+  function isFeeTranche(t){ return !!(t && t.fee); }
+  /* Имя области в заголовке секции: «транш платы» у платы, «транш №N» у освоения. */
+  function scopeName(t){ return isFeeTranche(t) ? 'транш платы' : ('транш №' + (t ? t.no : '')); }
+  /* Транш-АДРЕСАТ ХРАНИМЫХ действий. Транш платы приёмником не бывает (ADR-0134 §5): у
+     него негде принять ни освоение, ни перенос, ни строку разнесения, а вид его сменился
+     бы с «платы» на «производный» и он исчез бы вовсе. Поэтому действия читают область
+     через этот фильтр, а не через scopeTranche. */
+  function storedScopeTranche(c){ const t = scopeTranche(c); return isFeeTranche(t) ? null : t; }
   /* НОМЕР ТРАНША ПЕЧАТАЕТСЯ ТОЛЬКО ТАМ, ГДЕ ЕСТЬ ЧТО РАЗЛИЧАТЬ (КВ-70, решение владельца
      17.08.2026). У однотраншевого кредита — а это 50+ кредитов сида из 61 — «транш №1»
      стоял в заголовках вкладок, в колонках таблиц, в подписях кнопок и в полях модалок,
@@ -8251,7 +8696,7 @@ if (typeof document !== 'undefined') {
      селект в модалке. Именно поэтому «первый активный», а не «первый по списку»: по
      закрытому траншу действие запрещено (Г-17), и предлагать его умолчанием — врать. */
   function actionTranche(c){
-    return scopeTranche(c) || c.tranches.find(activeTranche) || c.tranches[0] || null;
+    return storedScopeTranche(c) || c.tranches.find(activeTranche) || c.tranches[0] || null;
   }
   function jsAttr(s){ return String(s==null?'':s).replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
   function svgInfo(){ return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>'; }
@@ -8545,12 +8990,18 @@ if (typeof document !== 'undefined') {
        Кредит с одним траншем контрол не получает: «по кредиту» и «Транш №1» там
        неразличимы, и выбор был бы ложным. */
     const scopeInert = !SCOPED_TABS.includes(detailTab);
-    const scopeBox = c.tranches.length > 1 ? `<div style="display:flex;align-items:center;gap:6px">
+    /* КВ-72: контрол появляется и у ОДНОТРАНШЕВОГО кредита, если жив транш платы —
+       различать там снова есть что (тело и плата), и без пункта плата была бы недостижима
+       на К-2, где она и живёт. Пункт стоит последним по тому же правилу, что и сортировка
+       очереди (ADR-0134 §3): основное обязательство впереди сопутствующего. */
+    const feeScopeTr = feeTranche(c, cardAsOf);
+    const scopeBox = (c.tranches.length > 1 || feeScopeTr) ? `<div style="display:flex;align-items:center;gap:6px">
         <span class="flabel">Область</span>
         <div class="control" style="width:170px"${scopeInert?` title="${jsAttr('Вкладка «'+detailTab+'» — всегда по кредиту целиком')}"`:''}>
           <select onchange="CR.setCardScope(this.value)"${scopeInert?' disabled':''}>
             <option value="credit"${cardScope==='credit'?' selected':''}>По кредиту</option>
             ${c.tranches.map(t=>`<option value="${t.no}"${cardScope===t.no?' selected':''}>Транш №${t.no}${t.closed?' · закрыт':''}</option>`).join('')}
+            ${feeScopeTr?`<option value="fee"${cardScope==='fee'?' selected':''}>Транш платы</option>`:''}
           </select><span class="caret">▾</span></div>
       </div>` : '';
 
@@ -8604,7 +9055,7 @@ if (typeof document !== 'undefined') {
       ${/* Подпись — только там, где область ЧИТАЕТСЯ: на шести инертных вкладках она
             спорила бы с подсказкой погашенного контрола («Вкладка … — всегда по кредиту
             целиком»), обещая действие, которого на этой вкладке нет. */''}
-      ${cardScope!=='credit' && c.tranches.length>1 && SCOPED_TABS.includes(detailTab) ? `<p class="section-note" style="margin:6px 0 0">Плитки — по кредиту целиком; область «Транш №${esc(String(cardScope))}» действует на вкладки ниже.</p>` : ''}
+      ${cardScope!=='credit' && (c.tranches.length>1 || cardScope==='fee') && SCOPED_TABS.includes(detailTab) ? `<p class="section-note" style="margin:6px 0 0">Плитки — по кредиту целиком; область «${cardScope==='fee'?'Транш платы':'Транш №'+esc(String(cardScope))}» действует на вкладки ниже.</p>` : ''}
     </div>`;
   }
   function tabbarHtml(){
@@ -8726,7 +9177,7 @@ if (typeof document !== 'undefined') {
     const cols = [{h:'Параметр'},{h:'Было'},{h:'Стало'},{h:'Вступает'}]
       .concat(trCol?[{h:'Транш'}]:[]).concat([{h:'Примечание'}]);
     if (g.trancheNos.length <= 1) return cgrid(cols, g.items.map(row));
-    const scoped = scopeTranche(c);
+    const scoped = storedScopeTranche(c);
     const sel = g.trancheNos.includes(condOpenTranche) ? condOpenTranche
               : (scoped && g.trancheNos.includes(scoped.no) ? scoped.no : g.trancheNos[0]);
     const bar = `<div class="subtabs">${g.trancheNos.map(n=>{
@@ -8763,7 +9214,7 @@ if (typeof document !== 'undefined') {
       const ic=BASIS_KINDS[r.basis.kind]||{};
       return `<span class="src">${esc(ic.icon||'')} ${esc(r.basis.ref||ic.label||'')} · с ${esc(r.effectiveFrom)}</span>`; };
     const condCell=(param)=>{
-      const st = scopeTranche(c);
+      const st = storedScopeTranche(c);
       if (st){
         const v=conditionsAt(st,cardAsOf)[param];
         return `<div class="val">${esc(v===undefined?'—':v)}</div>${srcLine(st,param)}`;
@@ -8783,8 +9234,25 @@ if (typeof document !== 'undefined') {
     };
     const cf=(param)=>`<div class="field"><span class="flabel">${esc(paramLabel(param))}${locked?' '+lockG9:''}</span>
       <div class="lookup cond-lookup"${locked?` title="${jsAttr(g9)}"`:''}>${condCell(param)}</div></div>`;
+    /* УСЛОВИЯ КРЕДИТА — ВТОРОЙ ЖУРНАЛ (КВ-72, ADR-0133 §1). Механика та же, объект другой:
+       записи лежат на кредите, транш не спрашивается вовсе, и расхождения тут не бывает —
+       величина одна (потому и заведён журнал: потраншевая ставка, применяемая к
+       общекредитной базе, не имела определения). Ни `condCell`, ни `srcLine` не
+       переиспользуются: оба берут транш первым аргументом, и подсунуть им кредит значило бы
+       сойтись случайно — у кредита свой массив `conditionRecords`. */
+    const recForC=(param)=>((c.conditionRecords||[])
+      .filter(r=>r.param===param && r.effectiveFrom && pd(r.effectiveFrom)<=pd(cardAsOf))
+      .sort(crOrder).pop());
+    const ccf=(param)=>{ const r=recForC(param);
+      const v=creditOwnConditionsAt(c,cardAsOf)[param];
+      const ic=r?(BASIS_KINDS[r.basis.kind]||{}):null;
+      const src=r?`<span class="src">${esc(ic.icon||'')} ${esc(r.basis.ref||ic.label||'')} · с ${esc(r.effectiveFrom)}</span>`
+                 :'<span class="src">нет записи на дату среза</span>';
+      return `<div class="field"><span class="flabel">${esc(creditParamLabel(param))}${locked?' '+lockG9:''}</span>
+        <div class="lookup cond-lookup"${locked?` title="${jsAttr(g9)}"`:''}>
+          <div class="val">${esc(v===undefined||v===''?'—':v)}</div>${src}</div></div>`; };
     const paramVal=(param)=>{
-      const st = scopeTranche(c);
+      const st = storedScopeTranche(c);
       if (st){
         return Number(conditionsAt(st,cardAsOf)[param])||0;
       }
@@ -8795,7 +9263,7 @@ if (typeof document !== 'undefined') {
        freq, где условная видимость (payMonths при «по конкретным месяцам»)
        зависит от ТЕКСТА значения, а paramVal коэрцирует в число. */
     const paramRaw=(param)=>{
-      const st = scopeTranche(c);
+      const st = storedScopeTranche(c);
       if (st){
         return conditionsAt(st,cardAsOf)[param];
       }
@@ -8806,6 +9274,11 @@ if (typeof document !== 'undefined') {
     const hasGraceInt = paramVal('graceInterest')>0;
     const showPayMonths = paramRaw('freq')==='по конкретным месяцам';
     return `
+      ${!scopeIsFee(c) ? '' : `<div class="info-plate" style="margin-bottom:14px">${svgInfo()}<div>
+        <b>Область «Транш платы»: своего журнала условий у него нет.</b> Транш платы выводится
+        (ADR-0132 §3) и хранить условия ему нечем — его параметры лежат журналом КРЕДИТА, и это
+        карточка «Условия кредита» ниже (ADR-0133 §1). Прочие карточки вкладки показывают условия
+        траншей освоения — сводом по кредиту, как в области «по кредиту».</div></div>`}
       ${(()=>{ const rf=retroPendingFlags(c); if(!rf.length) return '';   // Д-5: гаснет после перегенерации графика
         const first=rf[0];
         return `<div class="warn-inline" style="margin-bottom:14px">${svgInfo()}<div>
@@ -8823,21 +9296,44 @@ if (typeof document !== 'undefined') {
              приостановки — про начисление, читаются следом за ставками, а не после
              графика платежей. -->
         <div class="pcol">
+        ${/* УСЛОВИЯ КРЕДИТА — ОТДЕЛЬНАЯ КАРТОЧКА (КВ-72, ADR-0133). Пять параметров платы за
+             неосвоенный остаток: у них другой владелец (кредит, не транш), другой журнал и
+             другая форма ДС — правка кредитного параметра транш не спрашивает вовсе.
+             КАРТОЧКА ЕСТЬ ВСЕГДА, даже при нулевой ставке, и это не тот случай, что
+             «элемент появляется, когда несёт факт»: ноль здесь — величина («платы нет по
+             договору»), а не пустое место, и отличить её от «параметр не задан» куратор
+             обязан. Ровно этим ноль отличается от блока расчёта ниже: там при нулевой
+             ставке считать нечего, здесь — есть что прочитать. */''}
+        <div class="pcard">
+          <div class="section-h" style="display:flex;align-items:center;justify-content:space-between">Условия кредита
+            ${condIconBtn(c, 'Изменить условия кредита', "CR.openCondModal('credit')")}</div>
+          <p class="section-note" style="margin-top:0">Плата за неосвоенный остаток суммы договора.
+            Параметры кредита, не транша: база одна на кредит (ADR-0132 §2), значит и ставка одна.</p>
+          <div class="f2">
+            ${ccf('feeRate')}
+            ${ccf('feeStart')}
+            ${ccf('feeFreq')}
+            ${ccf('feePayDay')}
+            ${ccf('feePenaltyInt')}
+          </div>
+          ${(b.floatMeta&&b.floatMeta.feeRate)?`<p class="section-note" style="margin-bottom:0">${esc(creditParamLabel('feeRate'))} — плавающая: ${esc(b.floatMeta.feeRate.benchmark||'—')} + маржа ${esc(b.floatMeta.feeRate.margin)}%.</p>`:''}
+        </div>
         <div class="pcard">
           <div class="section-h" style="display:flex;align-items:center;justify-content:space-between">Ставки
             ${condIconBtn(c, 'Изменить ставки', "CR.openCondModal('rates')")}</div>
           <div class="f2">
             ${cf('rate')}
-            ${cf('reserveRate')}
             ${cf('penaltyMain')}
             ${cf('penaltyInt')}
           </div>
           <!-- Шаг 18 (Q4): плавающая обобщена с rate-only на любой денежный параметр
-               (rate/reserveRate/penaltyMain/penaltyInt) — по одной строке на каждый,
-               у каждого свой бенчмарк (сверка с loan-program.html: у ставки, резерва
-               и обеих пеней разные справочники бенчмарков). Шаблон кредита, не запись
-               условия — сам факт плавающести не версионируется, версионируется цифра. -->
-          ${['rate','reserveRate','penaltyMain','penaltyInt'].filter(k=>b.floatMeta&&b.floatMeta[k]).map(k=>
+               (rate/penaltyMain/penaltyInt) — по одной строке на каждый, у каждого свой
+               бенчмарк (сверка с loan-program.html). Шаблон кредита, не запись условия —
+               сам факт плавающести не версионируется, версионируется цифра.
+               КВ-72: ставка платы за неосвоенный остаток ушла отсюда в карточку «Условия
+               кредита» (ADR-0133 §4) — вместе со своей плавающей строкой: параметр
+               кредитный, и печатать его среди траншевых значило бы врать про владельца. -->
+          ${['rate','penaltyMain','penaltyInt'].filter(k=>b.floatMeta&&b.floatMeta[k]).map(k=>
             `<p class="section-note" style="margin-bottom:0">${esc(paramLabel(k))} — плавающая: ${esc(b.floatMeta[k].benchmark||'—')} + маржа ${esc(b.floatMeta[k].margin)}%.</p>`
           ).join('')}
         </div>
@@ -8879,7 +9375,7 @@ if (typeof document !== 'undefined') {
              скрывали только по структуре, при 0 расхождений на дату держали
              пустое состояние внутри — несогласовано с правилом карточки-без-действия. -->
         ${(()=>{
-          if (scopeTranche(c) || c.tranches.length<=1) return '';
+          if (storedScopeTranche(c) || c.tranches.length<=1) return '';
           const rows=divergenceRows(c,cardAsOf);
           if (!rows.length) return '';
           // TODO при появлении закрытых траншей: колонки строятся по ВСЕМ траншам
@@ -8975,7 +9471,7 @@ if (typeof document !== 'undefined') {
                контрол в шапке объявлен КАРТОЧНЫМ, значит собственного стартового транша
                у вкладки быть не может. Явный выбор пользователя (condMatrixTranche)
                область перебивает — это навигация внутри вкладки, не вторая область. */
-            const mxScoped=scopeTranche(c);
+            const mxScoped=storedScopeTranche(c);
             const selNo=multi?(c.tranches.some(t=>t.no===condMatrixTranche)?condMatrixTranche
                               :(mxScoped?mxScoped.no:c.tranches[0].no)):null;
             const src=multi?c.tranches.filter(t=>t.no===selNo):c.tranches;
@@ -9029,6 +9525,11 @@ if (typeof document !== 'undefined') {
      ни одного: чужое живёт на вкладке владельца. */
   function tabTranshi(c,d){
     const sel=scopeTranche(c);
+    /* КВ-72: транш платы — ВЫВОД (ADR-0132 §3), в `c.tranches` его нет и не будет. Реестр
+       собирается двумя группами: «Транши освоения» со своим итогом и одна строка «Транш
+       платы» под ним. Ключ-колонка появляется и на однотраншевом кредите, если плата жива:
+       по КВ-70 номер печатается там, где есть выбор, — а выбор тут появился. */
+    const feeTr=d.feeTranche, F=d.fee, showKey=multiTr(c)||!!feeTr;
     const cur=c.currency, isFx=cur!=='KGS', fx=FX[cur]||1;              // мультивалюта: ≈KGS только для не-KGS
     /* Колонка «Субъект» — УСЛОВНАЯ (КВ-33). У обычного кредита во всех строках стоит один
        и тот же заёмщик из шапки карточки, и колонка тратит ширину на повтор шапки.
@@ -9037,7 +9538,7 @@ if (typeof document !== 'undefined') {
        написание, тождество субъекта несёт ИНН. */
     const multiSubj=new Set(c.tranches.map(t=>t.subject.inn)).size>1;
     const trRows=c.tranches.map(t=>{
-      const der=trancheOrigin(t)==='разделение', s=disbursedSum(t);
+      const der=trancheKind(t)==='производный', s=disbursedSum(t);
       /* «Не освоено» вместо «Остатка тела» (КВ-36). Остаток тела — величина ДОЛГА: он
          зависит от погашений, то есть от чужого модуля, и держать его здесь значило
          тащить на вкладку зеркало платежей ради одной колонки. Он переехал в «Расчёты»,
@@ -9089,20 +9590,20 @@ if (typeof document !== 'undefined') {
          обещание, что где-то есть №2. Метка закрытия при этом не теряется — переезжает
          к «Происхождению», первой оставшейся колонке строки. */
       return `<tr style="cursor:pointer${on?';background:var(--asubk-nav-active)':''}${t.closed?';opacity:.6':''}" onclick="CR.setCardScope(${t.no})">
-        ${multiTr(c)?`<td>№${t.no}${closedPill}</td>`:''}${subjCell}
-        <td>${orig}${multiTr(c)?'':closedPill}</td>
+        ${showKey?`<td>№${t.no}${closedPill}</td>`:''}${subjCell}
+        <td>${orig}${showKey?'':closedPill}</td>
         <td style="text-align:right">${money(t.amount)}${isFx?` <span style="color:var(--text-muted);font-size:11px">${esc(cur)}</span>`:''}</td><td>${esc(t.plannedDate)}</td>
         ${disbCell}${undisCell}
         ${fxCells}${actCell}</tr>`;
     });
-    const trCols=(multiTr(c)?[{h:'Транш'}]:[]).concat(multiSubj?[{h:'Субъект'}]:[])
+    const trCols=(showKey?[{h:'Транш'}]:[]).concat(multiSubj?[{h:'Субъект'}]:[])
       .concat([{h:'Происхождение'},{h:'Сумма',r:1},{h:'План. дата'},{h:'Освоено',r:1},
                {h:'Не освоено',r:1,t:'сумма транша − освоено: сколько по нему ещё предстоит выдать. Погашения и переносы сюда не входят — что осталось по долгу, считают «Расчёты»'}])
       .concat(isFx?[{h:'≈KGS суммы',r:1}]:[]).concat([{h:''}]);
     /* Итог освоения складывает ТОЛЬКО траншы происхождением «освоение» (ADR-0115):
        производный выдачей не был, и его сумма в объёме выдачи раздувала бы отчётность
        ровно на величину реструктуризаций. */
-    const tot=c.tranches.reduce((a,t)=>{if(trancheOrigin(t)!=='разделение'){
+    const tot=c.tranches.reduce((a,t)=>{if(trancheKind(t)!=='производный'){
       a.amt+=t.amount||0;a.dis+=disbursedSum(t);a.undis+=round2((t.amount||0)-disbursedSum(t));}
       return a;},{amt:0,dis:0,undis:0});
     /* Имя итога — «Итого», а не «Итого освоено» (КВ-33): строка складывает три разные
@@ -9111,10 +9612,38 @@ if (typeof document !== 'undefined') {
        один вопрос: как разошлась сумма договора. Прежняя оговорка «(остаток тела — по
        всем)» ушла вместе с колонкой: тело живёт на «Расчётах». */
     const totRow=c.tranches.length?`<tr style="font-weight:var(--weight-semibold);background:var(--surface-panel)">
-      <td colspan="${(multiTr(c)?1:0)+(multiSubj?2:1)}">Итого<span style="font-weight:var(--weight-regular);color:var(--text-muted);font-size:11px"> · по траншам происхождением «освоение»</span></td>
+      <td colspan="${(showKey?1:0)+(multiSubj?2:1)}">Итого<span style="font-weight:var(--weight-regular);color:var(--text-muted);font-size:11px"> · по траншам происхождением «освоение»</span></td>
       <td style="text-align:right">${money(tot.amt)}</td><td></td>
       <td style="text-align:right">${money(tot.dis)}</td><td style="text-align:right">${money(tot.undis)}</td>
       ${isFx?`<td style="text-align:right">${money0(toKgs(tot.amt,cur))}</td>`:''}<td></td></tr>`:'';
+    /* ГРУППА «ТРАНШ ПЛАТЫ» (КВ-72, ADR-0132 «Последствия»). В её колонках стоят не прочерки,
+       а ДРУГИЕ величины: вместо суммы — база на дату среза, вместо освоенного — начислено.
+       Прочерк остаётся там, где величины действительно нет: «не освоено» у транша платы не
+       бывает — осваивать его не будут вовсе (§3), и число в этой колонке читалось бы как
+       долг по выдаче. Заголовки групп рисуются ТОЛЬКО когда плата жива: у обычного кредита
+       группа одна, и называть её значило бы отвечать на вопрос, которого никто не задал. */
+    const grpRow=txt=>`<tr style="background:var(--surface-panel)"><td colspan="${trCols.length}"
+      style="font-weight:var(--weight-semibold);font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted)">${txt}</td></tr>`;
+    const feeRow=feeTr?`<tr style="cursor:pointer${cardScope==='fee'?';background:var(--asubk-nav-active)':''}" onclick="CR.setCardScope('fee')">
+      ${showKey?`<td>плата<br><span style="color:var(--text-muted);font-size:11px">без номера</span></td>`:''}
+      ${multiSubj?`<td>${esc(c.borrower.name)}<br><span style="color:var(--text-muted);font-size:11px">заёмщик договора</span></td>`:''}
+      <td><span class="pill info" title="${jsAttr('Транш платы выводится из кредита (ADR-0132 §3): своих фактов у него нет — ни суммы, ни предмета, ни освоений. Начисление считается на общекредитной базе')}">плата</span>
+        <br><span style="color:var(--text-muted);font-size:11px">${esc(F.rate)} % · ${esc(F.freq||'')}</span></td>
+      <td style="text-align:right" title="${jsAttr('База платы = сумма договора − освоено по кредиту на дату среза (ADR-0132 §2). Это не ещё одна сумма договора, а его неосвоенная часть — в итог реестра она не входит')}">${money(F.base)}
+        <br><span style="color:var(--text-muted);font-size:11px">база на ${esc(cardAsOf)}</span></td>
+      <td>${esc(F.start||'—')}<br><span style="color:var(--text-muted);font-size:11px">начало начисления</span></td>
+      <td style="text-align:right" title="${jsAttr('Начислено платы за всё время начисления, до даты среза включительно')}">${money(F.accrued)}
+        <br><span style="color:var(--text-muted);font-size:11px">начислено</span></td>
+      <td style="text-align:right;color:var(--text-muted)" title="${jsAttr('У транша платы освоений нет и не будет (ADR-0132 §3): по нему не выдают, по нему начисляют')}">—</td>
+      ${isFx?`<td style="text-align:right;color:var(--text-muted)" title="${jsAttr('Валюта платы на валютном кредите и дата курса — открытый вопрос ADR-0132; пересчёт не показываем, чтобы не выдать догадку за величину')}">—</td>`:''}
+      <td></td></tr>`:'';
+    /* РАСХОЖДЕНИЕ ИТОГА СО СТРОКАМИ ОБЪЯСНЕНО РАСКЛАДКОЙ, А НЕ СНОСКОЙ (ADR-0115:
+       «молчаливое несовпадение двух чисел на экране хуже, чем явное»). Раскладка считает
+       базу тем же выражением, что и модель: договор − освоено, а не договор − расписано. */
+    const feeSplit=feeTr?`<p class="section-note">Итог реестра — <b>${money(tot.amt)}</b> — складывает только транши освоения.
+      База платы в него не входит и стоит рядом как отдельная величина: <b>${money(c.contractAmount)}</b> суммы договора
+      − <b>${money(d.disbursed)}</b> освоено = <b>${money(F.base)}</b> (ADR-0132 §2). Сложить базу с суммами траншей
+      значило бы посчитать неосвоенную часть договора дважды.</p>`:'';
     /* ОСВОЕНИЕ И ПЕРЕНОСЫ (КВ-26, расширено КВ-33, сужено КВ-36) — слитый вид по дате
        СВОИХ фактов кредита: освоения и переносы по ДС в обе стороны. Слитая таблица —
        та же идиома, что вид «по кредиту» на «Графике» (КВ-17).
@@ -9171,23 +9700,35 @@ if (typeof document !== 'undefined') {
        «Внести освоение» транша не именует — его спрашивает модалка своим селектом,
        предвыбранным по actionTranche (тем же, чем мерится гейт кнопки), — поэтому кнопка
        остаётся и при области «по кредиту» и ни о чём не врёт. */
+    const bodyRows=trRows.concat(totRow?[totRow]:[]);
+    const gridRows=feeTr
+      ? [grpRow('Транши освоения')].concat(bodyRows, [grpRow('Транш платы'), feeRow])
+      : bodyRows;
+    /* Область «Транш платы» осваивать нечего — секция «Освоение и переносы» на ней не просто
+       пуста, она не о том предмете: «Освоений и переносов нет» читалось бы как факт про
+       кредит, тогда как это свойство транша платы. Вместо таблицы — где искать его цифры. */
+    const movSection=isFeeTranche(sel)
+      ? `<div class="section-h" style="margin-top:22px">Освоение и переносы</div>
+         <p class="section-note">У транша платы освоений нет и не будет (ADR-0132 §3): по нему не выдают — по нему начисляют.
+         Начисление разложено отрезками на вкладке «Расчёты», сроки платы — на «Графике».</p>`
+      : `${/* Заголовок называет ОБЛАСТЬ целиком — «по кредиту» / «по траншу №N» (КВ-17), а не
+             дописывает «(по кредиту)» скобкой к имени транша: скобка читалась как уточнение
+             к траншу, тогда как это другой охват таблицы, со своей колонкой «Транш».
+             Имя секции — «Освоение и переносы по ДС» (КВ-36): после ухода погашений «Движение»
+             перестало быть движением ТЕЛА (одни приходы да внутренние перекладывания), а
+             «Движение» без уточнения читалось как журнал всего кредита — предмет «Расчётов».
+             Имя перечисляет два вида строк прямо: третьего в таблице нет. */''}
+         <div class="section-h" style="margin-top:22px;display:flex;align-items:center;justify-content:space-between;gap:12px">Освоение и переносы по ${(sel&&multiTr(c))?'траншу №'+sel.no:'кредиту'}
+           ${actBtn(c,'addDisbursement',{trancheNo:(actionTranche(c)||{}).no,amount:0},'Внести освоение','CR.openDisbModal()','btn btn-primary btn-sm')}</div>
+         ${cgrid(movCols, movRows, {empty:'Освоений и переносов нет'})}`;
     return `
-      <div class="section-h" style="display:flex;align-items:center;justify-content:space-between;gap:12px">Транши${multiTr(c)?' (клик — выбор)':''}
+      <div class="section-h" style="display:flex;align-items:center;justify-content:space-between;gap:12px">Транши${showKey?' (клик — выбор)':''}
         ${roleBtn('addTranche','Добавить транш','CR.openTrancheModal()')}</div>
       ${ctxNote}
-      ${cgrid(trCols, trRows.concat(totRow?[totRow]:[]), {empty:'Траншей нет'})}
-      ${/* Заголовок называет ОБЛАСТЬ целиком — «по кредиту» / «по траншу №N» (КВ-17), а не
-           дописывает «(по кредиту)» скобкой к имени транша: скобка читалась как уточнение
-           к траншу, тогда как это другой охват таблицы, со своей колонкой «Транш».
-           Имя секции — «Освоение и переносы по ДС» (КВ-36): после ухода погашений «Движение»
-           перестало быть движением ТЕЛА (одни приходы да внутренние перекладывания), а
-           «Движение» без уточнения читалось как журнал всего кредита — предмет «Расчётов».
-           Имя перечисляет два вида строк прямо: третьего в таблице нет. */''}
-      <div class="section-h" style="margin-top:22px;display:flex;align-items:center;justify-content:space-between;gap:12px">Освоение и переносы по ${(sel&&multiTr(c))?'траншу №'+sel.no:'кредиту'}
-        ${actBtn(c,'addDisbursement',{trancheNo:(actionTranche(c)||{}).no,amount:0},'Внести освоение','CR.openDisbModal()','btn btn-primary btn-sm')}</div>
-      ${cgrid(movCols, movRows, {empty:'Освоений и переносов нет'})}`;
+      ${cgrid(trCols, gridRows, {empty:'Траншей нет'})}
+      ${feeSplit}
+      ${movSection}`;
   }
-
   /* Основание версии — ОДНО выражение на два места: строку-контекст и грид за раскрытием
      (КВ-27). Разъедься они, у одной версии оказалось бы два разных основания на одном
      экране. ДС даётся пилюлей: это документ, на который можно сослаться, а не пояснение. */
@@ -9199,6 +9740,147 @@ if (typeof document !== 'undefined') {
       ? (plain ? esc(by.ref || 'ДС') : `<span class="pill neutral">${esc(by.ref || 'ДС')}</span>`)
       : esc((by.basis && (by.basis.ref || by.basis.kind)) || by.label || 'Перестроение графика'); }
 
+  /* ---- ОБЛАСТЬ «ТРАНШ ПЛАТЫ»: СВОИ РАЗДЕЛЫ «ГРАФИКА» И «ПРОГНОЗА» (КВ-72) ----
+     Через общую машинерию вкладок транш платы НЕ ПРОПУЩЕН, и это решение, а не экономия:
+     «График» построен на версиях (`t.schedules`) и позициях со статусом по
+     `ledgerKey(t.no, r.no)`, а у транша платы нет ни версий, ни номера — и не будет
+     (ADR-0132 §3, КВ-70). Пропусти его туда, и экран выдал бы кнопку «Сформировать график»,
+     адресованную траншу, которого в модели нет, да статусы по ключу с `null`.
+     Предмет разделов другой и порядок чтения тот же: шапка величин → таблица сроков.
+     Сроки платы РОЖДАЮТСЯ ЧАСТОТОЙ (`feeFreq`, ADR-0133), а не строятся действием —
+     формировать нечего, и ни одной кнопки здесь нет. */
+  function feePeriodStatus(p, asOf){
+    if (p.partial) return 'Предстоит';                      // период идёт, срок платежа не пришёл
+    return pd(p.due) < pd(asOf) ? 'Просрочена' : 'Наступила';
+  }
+  /* Диапазон базы внутри периода: освоение — граница сетки (ADR-0128 §2), поэтому за один
+     период база может шагнуть вниз не раз. Печатаем «первая → последняя», а не одно число:
+     одно читалось бы как база всего периода и не сходилось бы с начисленным. */
+  function feeBaseRange(F, p){
+    const segs = (F.segments||[]).filter(s => s.period === p.no);
+    if (!segs.length) return '—';
+    const a = segs[0].base, b = segs[segs.length-1].base;
+    return Math.abs(a-b) < 0.005 ? money(a) : money(a)+' → '+money(b);
+  }
+  function feeDays(F, p){ return (F.segments||[]).filter(s => s.period===p.no).reduce((a,s)=>a+s.days,0); }
+  /* ПОГАШЕНИЕ ПЛАТЫ НЕ РАЗНЕСЕНО, И ЭТО ГОВОРИТСЯ ВСЛУХ. Плата стоит в очереди (ADR-0134 §3)
+     и в долге статьёй «Проценты», но зеркало платежей адресует платёж траншу НОМЕРОМ (Д-12),
+     а у транша платы номера нет — разнести на него нечем. Молчать нельзя: статус «Просрочена»
+     на всех наступивших периодах читался бы как неплатёж заёмщика, тогда как это отсутствие
+     разнесения в макете. Тот же факт назван в модели (`feeAccrual`, «ПОГАШЕНО — 0 и будет 0»). */
+  const FEE_PAID_NOTE = `<div class="info-plate" style="margin-top:12px">${svgInfo()}<div>
+    <b>Погашение платы в макете не разнесено.</b> Плата стоит в очереди и в долге статьёй
+    «Проценты» (ADR-0134 §1, §3), но платёж адресуется траншу номером (Д-12), а у транша платы
+    номера нет (КВ-70) — разносить пока нечем. Поэтому «оплаченных» периодов здесь не бывает:
+    наступивший период стоит просроченным, даже если заёмщик заплатил. Открытый пункт волны.</div></div>`;
+  function tabGrafikFee(c,d){
+    const F=d.fee, ps=F.periods||[];
+    const stPill={'Просрочена':'high','Наступила':'mid','Предстоит':'neutral'};
+    const rows=ps.map(p=>{ const s=feePeriodStatus(p,cardAsOf);
+      return `<tr><td>№${p.no}</td><td>${esc(p.from)} — ${esc(p.due)}</td>
+        <td style="text-align:right">${feeBaseRange(F,p)}</td>
+        <td style="text-align:right">${feeDays(F,p)}</td>
+        <td style="text-align:right">${money(p.amount)}</td>
+        <td style="text-align:right">${p.penalty?money(p.penalty):'—'}</td>
+        <td><span class="pill ${stPill[s]||'neutral'}">${esc(s)}</span></td></tr>`; });
+    const closed=F.closedOn;
+    return `
+      <div class="section-h">График платы за неосвоенный остаток</div>
+      <p class="section-note">Плата начисляется на неосвоенную часть суммы договора со
+        <b>${esc(F.start)}</b> по ставке <b>${esc(F.rate)} %</b>, срок платы — <b>${esc(F.freq||'')}</b>
+        (условия уровня кредита, ADR-0133 §1). База на ${esc(cardAsOf)} — <b>${money(F.base)}</b>.
+        ${closed?`Начисление остановлено <b>${esc(closed)}</b>: неосвоенный остаток закрыт (Г-32).`:''}</p>
+      <div class="phead-dims" style="grid-template-columns:repeat(5,1fr);margin-top:6px">
+        <div class="dim"><div class="dl">Периодов платы</div><div class="dv">${ps.length}</div></div>
+        <div class="dim"><div class="dl">Начислено платы</div><div class="dv">${money(F.accrued)}</div></div>
+        <div class="dim" title="плата по периодам, срок которых уже пришёл"><div class="dl">в т.ч. наступило</div><div class="dv">${money(F.due)}</div></div>
+        <div class="dim" title="плата текущего, ещё не закрытого периода — срок по ней не пришёл"><div class="dl">Срочная часть</div><div class="dv">${money(F.term)}</div></div>
+        <div class="dim"${F.penaltyRate?` title="пеня по ставке ${esc(F.penaltyRate)} % за день просрочки платы (ADR-0134 §4)"`:''}><div class="dl">Пеня по плате</div><div class="dv">${money(F.penalty)}</div></div>
+      </div>
+      <div class="section-h" style="margin-top:22px">Периоды платы</div>
+      ${cgrid([{h:'№'},{h:'Период'},
+               {h:'База',r:1,t:'неосвоенная часть суммы договора на начале отрезка; «первая → последняя» — база шагнула вниз освоением внутри периода'},
+               {h:'Дней',r:1},{h:'Начислено',r:1},
+               {h:'Пеня',r:1,t:'начислена на непогашенную наступившую плату от дня платежа (ADR-0134 §4)'},
+               {h:'Статус'}], rows, {empty:'Периодов платы нет'})}
+      ${FEE_PAID_NOTE}`;
+  }
+  /* Горизонт ожидания — КОНЕЦ ДОГОВОРА: последняя позиция графика по всем траншам, а при
+     отсутствии графика — дата договора плюс срок. Своей даты окончания у платы нет: она
+     живёт, пока живёт неосвоенный остаток, и обещать её сверх договора было бы выдумкой. */
+  function creditEndDate(c){
+    let last=null;
+    for (const t of (c.tranches||[])){ const rs=trancheScheduleRows(t);
+      if (rs.length){ const dt=rs[rs.length-1].date; if (!last || pd(dt)>pd(last)) last=dt; } }
+    if (last) return last;
+    const agg=creditConditionsAt(c,cardAsOf).term||{};
+    const m=Number(agg.divergent?Math.max(...agg.values.map(v=>Number(v.value)||0)):agg.value)||0;
+    return m ? fd(addM(pd(c.date), m, pd(c.date).getDate())) : null;
+  }
+  function tabPrognozFee(c,d){
+    const F=d.fee, end=creditEndDate(c);
+    /* ОЖИДАНИЕ СЧИТАЕТСЯ ТОЙ ЖЕ ФУНКЦИЕЙ, ЧТО И ФАКТ, — начислением до даты конца договора.
+       Допущение «база больше не меняется» тут не подставлено руками: будущих освоений в
+       модели нет вовсе, поэтому `undrawnAt` на любой будущей дате даёт нынешнюю базу. Второй
+       реализации начисления не заводим — разъедься они, прогноз и факт спорили бы о ставке. */
+    const fc = end && pd(end)>pd(cardAsOf) ? feeAccrual(c, end) : null;
+    const ahead = fc ? round2(fc.accrued - F.accrued) : 0;
+    /* КОЛОНКА ПОКАЗЫВАЕТ ТОЛЬКО ХВОСТ. Идущий период разрезан датой среза: часть его уже
+       начислена (она в «уже начислено»), часть впереди. Печатать в прогнозе весь период
+       значило бы посчитать начисленную часть дважды и разойтись с цифрой в шапке — сумма
+       колонки обязана дать ровно `ahead`. Поэтому из суммы периода вычитается то, что тот
+       же период уже дал в факте (F.periods того же номера).
+       МЕТКА. `p.partial` в горизонтном расчёте значит «период оборван КОНЦОМ ГОРИЗОНТА», а
+       не «идёт сейчас»: последний период всегда partial. Идущий узнаётся иначе — он тот, у
+       которого есть фактический близнец. Прежде метки стояли наоборот: идущий период звался
+       «впереди», а последний, оборванный концом договора, — «идёт». */
+    const factAmt = new Map((F.periods||[]).map(p=>[p.no, p.amount]));
+    const rows = fc ? (fc.periods||[]).filter(p=>pd(p.due)>pd(cardAsOf)).map((p,i,ps)=>{
+      const done = factAmt.get(p.no)||0, tail = round2(p.amount - done), run = done>0.005;
+      const last = i===ps.length-1 && p.partial;
+      return `<tr>
+      <td>№${p.no}</td><td>${esc(p.from)} — ${esc(p.due)}</td>
+      ${/* Дней — тоже ХВОСТ у идущего периода: колонка обязана объяснять сумму рядом,
+            а не спорить с ней (92 дня против суммы за 23 читались бы как ошибка счёта). */''}
+      <td style="text-align:right">${run?`${feeDays(fc,p)-feeDays(F,p)}<br><span class="src">из ${feeDays(fc,p)} за период</span>`:feeDays(fc,p)}</td>
+      <td style="text-align:right"${run?` title="${jsAttr('период разрезан датой среза '+cardAsOf+': всего за период '+money(p.amount)+', из них уже начислено '+money(done)+' — в прогнозе только хвост')}"`:''}>${money(tail)}${run?`<br><span class="src">из ${money(p.amount)} за период</span>`:''}</td>
+      <td>${run?'<span class="pill mid" title="'+jsAttr('дата среза внутри периода: начало уже начислено')+'">идёт</span>'
+             :last?'<span class="pill neutral" title="'+jsAttr('период оборван концом договора '+end+' — дальше горизонта прогноз не идёт')+'">до конца договора</span>'
+             :'<span class="pill neutral">впереди</span>'}</td></tr>`;
+    }) : [];
+    const closed=F.closedOn;
+    /* ПЛАШКА ДОПУЩЕНИЯ — по образцу ADR-0119 §3 (плашка неосвоенного транша): «молча выдавать
+       такие суммы за прогноз нельзя». Здесь допущение сильнее обычного: величина отвечает не
+       на «сколько заплатит», а на «сколько заплатит, ЕСЛИ так и не освоит», — и каждое
+       освоение её уменьшит. Пеня в ожидание не входит: она зависит от платежей, а не от базы. */
+    const plate=`<div class="info-plate" style="margin-top:12px">${svgInfo()}<div>
+      <b>Допущение: база больше не меняется.</b> Ожидание построено на неосвоенном остатке
+      <b>${money(F.base)}</b> на ${esc(cardAsOf)} — то есть отвечает на вопрос «сколько заёмщик
+      заплатит платы, если так и не освоит договор». Каждое освоение уменьшает базу со своего дня
+      (ADR-0132 §2), и ожидание падает шагом. Пеня в него не входит — она зависит от платежей,
+      а не от базы.</div></div>`;
+    return `
+      <div class="section-h">Прогноз платы за неосвоенный остаток</div>
+      ${closed
+        ? `<p class="section-note">Начисление платы остановлено <b>${esc(closed)}</b> — неосвоенный остаток закрыт (Г-32). Впереди платы нет; непогашенное начисленное остаётся долгом (ADR-0132 §5).</p>`
+        : !fc
+          ? `<p class="section-note">Горизонта нет: ${end?`конец договора <b>${esc(end)}</b> уже позади`:'ни графика, ни срока в условиях — прогнозировать не из чего'}.</p>`
+          : `<div class="fc-hero"><div class="fv">${money(ahead)}<span class="fl">плата впереди, до конца договора ${esc(end)}</span></div>
+             <div class="fs">уже начислено <b>${money(F.accrued)}</b> · всего к концу договора <b>${money(fc.accrued)}</b>
+             · ставка <b>${esc(F.rate)} %</b> · срок платы <b>${esc(F.freq||'')}</b></div></div>`}
+      ${fc&&!closed?plate:''}
+      ${fc&&!closed?`<div class="section-h" style="margin-top:22px">Периоды впереди</div>
+        ${/* Итог стоит В ТАБЛИЦЕ и обязан совпасть с цифрой в шапке: она — разность двух
+             начислений, он — сумма хвостов периодов. Расхождение значило бы, что колонка
+             считает не то же, что герой (та же дисциплина, что у «Итого впереди» прогноза
+             тела, :10382). */''}
+        ${cgrid([{h:'№'},{h:'Период'},{h:'Дней',r:1},{h:'Ожидаемая плата',r:1},{h:''}],
+          rows.concat(rows.length?[`<tr class="gyear static">
+            <td colspan="3"><span class="gy">Итого впереди</span><span class="gcnt">${plur(rows.length,'период','периода','периодов')}</span></td>
+            <td style="text-align:right"><b>${money(ahead)}</b></td><td></td></tr>`]:[]),
+          {empty:'Периодов впереди нет'})}`:''}`;
+  }
+
   /* ---- ВКЛАДКА 4: График (план возврата) ----
      Выделена из «Расчётов» волной 03.08.2026. Предмет вкладки — КОНТРАКТ: чем кредит
      обязан ответить на выданное. Версии и позиции принадлежат ТРАНШУ
@@ -9207,6 +9889,7 @@ if (typeof document !== 'undefined') {
      и погашения остался в «Расчётах» — их предмет иной; прогноз по этому графику
      уехал на свою вкладку «Прогноз» (вторая волна 03.08.2026). */
   function tabGrafik(c,d){
+    if (scopeIsFee(c)) return tabGrafikFee(c,d);      // КВ-72: у транша платы график свой
     const sel=scopeTranche(c);                        // null → область «по кредиту» (КВ-17)
     const stPill={'Оплачена':'low','Просрочена':'high','Наступила':'mid','Предстоит':'neutral'};
     /* КВ-70: область называется в заголовке, только когда областей больше одной. При
@@ -9395,7 +10078,7 @@ if (typeof document !== 'undefined') {
       /* В слитом виде строки производного транша ПОМЕЧЕНЫ своим ДС: без пометки
          позиции исходного и производного стоят вперемешку по дате, и непонятно,
          какая из них правится каким соглашением (дефект 12). */
-      const trCell = sel ? '' : `<td>№${t.no}${trancheOrigin(t)==='разделение'
+      const trCell = sel ? '' : `<td>№${t.no}${trancheKind(t)==='производный'
         ?`<br><span style="color:var(--text-muted);font-size:11px" title="${jsAttr('Позиции этого транша заданы приложением к '+(originDs(t)||'ДС'))}">${esc(originDs(t)||'ДС')}</span>`:''}</td>`;
       /* «Начислено за период» — СПРАВОЧНАЯ колонка и потому стоит ПОСЛЕ «Итого»:
          слева направо читается «что гасим → сколько платим → откуда взялось». Прочерк,
@@ -9457,6 +10140,12 @@ if (typeof document !== 'undefined') {
         <div class="dim"><div class="dl">Σ проценты</div><div class="dv">${money(st.interestSum)}</div></div>
         <div class="dim"><div class="dl">Итого к погашению</div><div class="dv">${money(st.total)}</div></div>
       </div>
+      ${/* КВ-72: плитка «Σ проценты» складывает проценты ПОЗИЦИЙ ГРАФИКА, а график есть
+           только у траншей освоения. Плата за неосвоенный остаток идёт по общекредитной
+           базе и живёт своим графиком периодов — в этой сумме её нет. ADR-0134 §6 требует:
+           любая величина, названная «проценты», либо режется по траншам, либо говорит,
+           входит ли в неё плата. Здесь — второе. */''}
+      ${(d.fee&&d.fee.applies)?`<p class="section-note">Плата за неосвоенный остаток в «Σ проценты» не входит: у неё общекредитная база и свой график периодов — область <b>«Транш платы»</b> в переключателе шапки (ADR-0134 §6). Начислено платы на ${esc(cardAsOf)} — <b>${money(d.fee.accrued)}</b>.</p>`:''}
       ${versBlock}
       <div class="section-h" style="margin-top:22px">График — позиции${scope?` (${esc(scope)})`:''}</div>
       ${multiYear?`<div class="gtoolbar" style="margin:0 0 8px">
@@ -9516,6 +10205,7 @@ if (typeof document !== 'undefined') {
      перестроение графика — операция «Графика», и кнопка у неё на экране ровно одна (КВ-29).
      Две кнопки, что здесь есть, меняют только видимое: окно позиций и раскрытие при МС. */
   function tabPrognoz(c,d){
+    if (scopeIsFee(c)) return tabPrognozFee(c,d);     // КВ-72: ожидание платы — своё допущение
     const sel=scopeTranche(c);                        // null → область «по кредиту» (КВ-17)
     const scope = !multiTr(c) ? '' : (sel ? 'транш №'+sel.no : 'по кредиту');   // КВ-70
     /* Та же идиома слияния, что на «Графике» и в консолидированном расчёте: строки всех
@@ -9711,6 +10401,10 @@ if (typeof document !== 'undefined') {
     }
     return `
       ${hero}${msBtn}${ctxNote}
+      ${/* КВ-72: то же предупреждение, что на «Графике» (ADR-0134 §6) — прогноз считает
+           проценты по позициям графика, а плата за неосвоенный остаток идёт своим
+           графиком периодов на общекредитной базе. Её прогноз — в области «Транш платы». */''}
+      ${(d.fee&&d.fee.applies)?`<p class="section-note">Плата за неосвоенный остаток в прогноз процентов не входит: она считается на общекредитной базе и прогнозируется отдельно — область <b>«Транш платы»</b> в переключателе шапки (ADR-0134 §6).</p>`:''}
       ${/* ЗАГОЛОВОК НА ВКЛАДКЕ ОДИН. Прежде их было два подряд — «Прогноз» (имя вкладки,
             уже стоящее в переключателе) и «Позиции впереди»; первый ничего не возглавлял,
             а после снятия шапки не возглавлял вовсе ничего. Остался тот, что называет
@@ -9737,6 +10431,7 @@ if (typeof document !== 'undefined') {
   /* ---- ВКЛАДКА 6: Расчёты ---- */
   function tabRaschety(c,d){
     const sel=scopeTranche(c);
+    const isFee=scopeIsFee(c);                        // КВ-72: область «Транш платы»
     /* Валютных переменных у вкладки больше нет: приведений к сому она не делает ни одного
        (плитки сняты), а курс — реквизит «Состава». Мультивалюта видна на своих вкладках. */
     const repaid=DEBT_ARTICLES.reduce((a,x)=>a+d.debt[x.key].paid,0);
@@ -9826,7 +10521,15 @@ if (typeof document !== 'undefined') {
              Подписано на самой ячейке — там, где вычитание и не сходится. */
           const balTip = a.key==='principal'
             ? ' title="'+jsAttr('тело кредита: освоено − погашено. Ненаступившее по графику входит, поэтому «К погашению − Погашено» телу не равно')+'"' : '';
-          return `<tr><td>${esc(a.label)}</td>
+          /* НАЗВАННАЯ ЦЕНА §6 (КВ-72, ADR-0134). Свод считается по кредиту и резать по траншам
+             не может (ADR-0060 §4), поэтому обязан СКАЗАТЬ: в «Проценты» вошла плата за
+             неосвоенный остаток, в «Пеню» — пеня по ней. Подпись стоит у имени статьи, а не
+             тултипом на числе: тултип прячет факт, который меняет чтение всей строки. */
+          const feeIn = !(d.fee&&d.fee.applies) ? '' :
+              a.key==='interest' ? `<br><span class="text-muted" style="font:var(--font-label)">в т.ч. плата за неосвоенный остаток ${money(d.fee.accrued)} (транш платы, ADR-0134 §1)</span>`
+            : a.key==='penalty' && d.fee.penalty>0.005 ? `<br><span class="text-muted" style="font:var(--font-label)">в т.ч. пеня по плате ${money(d.fee.penalty)} (ADR-0134 §4)</span>`
+            : '';
+          return `<tr><td>${esc(a.label)}${feeIn}</td>
           <td style="text-align:right">${money(x.accrued)}</td><td style="text-align:right">${money(x.paid)}</td>
           <td style="text-align:right"${balTip}><b>${money(x.bal)}</b></td>
           <td style="text-align:right;color:${x.overdue>0?'var(--asubk-red)':'inherit'}">${money(x.overdue)}</td></tr>`;}).join('')}
@@ -9859,7 +10562,7 @@ if (typeof document !== 'undefined') {
        «Просроченная часть»);
        построчный состав легаси-вида — в печатную форму «Расчёт показателей
        задолженности» (ADR-0128 §4). */
-    const sheets = (d.ledger.dateSheet||[]).filter(s => !sel || s.trancheNo===sel.no);
+    const sheets = isFee ? [] : (d.ledger.dateSheet||[]).filter(s => !sel || s.trancheNo===sel.no);
     const cur    = c.currency||'KGS';
 
     /* КОЛОНКИ — МАТРИЦА «СТАТЬЯ × СОСТОЯНИЕ» (КВ-47). Прежняя лента проигрывала не числом
@@ -10329,10 +11032,57 @@ if (typeof document !== 'undefined') {
       ${sheets.map(sheetHtml).join('')}`
       : `<div class="cgrid-wrap"><table class="cgrid"><tbody><tr><td><div class="cgrid-empty">На дату среза ${esc(cardAsOf)} не наступила ни одна позиция графика — считать нечего</div></td></tr></tbody></table></div>`;
 
-    const res=d.reserveAccrual;
-    const resBlock=res.applies?`<div class="section-h" style="margin-top:22px">Резерв за неполное освоение</div>
-      <p class="section-note">Начисляется на недоосвоенный остаток от плановой даты (ставка ${res.rate}%). Всего: <b>${money(res.totalAmount)}</b> на базу ${money(res.totalBase)}.</p>
-      ${cgrid((multiTr(c)?[{h:'Транш'}]:[]).concat([{h:'База',r:1},{h:'Ставка, %',r:1},{h:'Дней',r:1},{h:'Сумма',r:1}]), res.perTranche.map(p=>`<tr>${multiTr(c)?`<td>${esc(p.trancheId)}</td>`:''}<td style="text-align:right">${money(p.base)}</td><td style="text-align:right">${esc(p.rate)}</td><td style="text-align:right">${esc(p.days)}</td><td style="text-align:right">${money(p.amount)}</td></tr>`))}`:'';
+    /* ПЛАТА ЗА НЕОСВОЕННЫЙ ОСТАТОК (КВ-72; ADR-0132, ADR-0134). Здесь стоял блок «Резерв за
+       неполное освоение» — плитка в стороне от расчёта: своя база (потраншевая), свой
+       отсчёт (от плановой даты транша) и ни одной связи с долгом, очередью и пенёй.
+       Отменён ADR-0132: плата — не резерв и не неустойка, а цена пользования неосвоенным
+       лимитом, и живёт она статьёй «Проценты» на транше платы (ADR-0134 §1).
+       СТРОКА — ОТРЕЗОК, как в листе «По датам» (ADR-0129 §1): та же сетка критических дат,
+       и освоение видно шагом базы вниз. Период платы называет колонка, а не отдельный
+       реестр: без неё было бы неясно, какие отрезки сходятся в один платёж. */
+    const F = d.fee;
+    const feeSegRow = g => `<tr${g.p&&g.p.partial?' class="qfut"':''}>
+      <td>${esc(g.from)} — ${esc(g.to)}</td>
+      <td style="text-align:right">${esc(g.days)}</td>
+      <td style="text-align:right">${money(g.base)}</td>
+      <td style="text-align:right">${esc(g.rate)}</td>
+      <td>${g.p ? (esc(g.p.due) + (g.p.partial ? ' <span class="pill neutral">не наступил</span>' : '')) : '—'}</td>
+      <td style="text-align:right">${money(g.amount)}</td></tr>`;
+    /* ГДЕ БЛОК СТОИТ, А ГДЕ ЕГО НЕТ (КВ-72). Плата — величина уровня кредита, поэтому блок
+       живёт в области «по кредиту» и в области «Транш платы». Выбран ТЕЛЕСНЫЙ транш из
+       нескольких — блок уходит: он говорил бы о кредите под заголовком, называющим транш, и
+       читался бы как плата за неосвоенную часть ЭТОГО транша (ровно та потраншевая база,
+       которую ADR-0132 §2 и отменил). У однотраншевого кредита области «по кредиту» и «транш
+       №1» совпадают (scopeTranche их не различает), и блок остаётся — прятать его там значило
+       бы прятать всегда. */
+    const feeHere = F && F.applies && (isFee || !(multiTr(c) && sel));
+    const feeBlock = feeHere ? `<div class="section-h" style="margin-top:22px">Плата за неосвоенный остаток
+        <span class="pill info">транш платы</span></div>
+      <p class="section-note">База — <b>сумма договора минус фактически освоенное</b> (${money(F.base)} на ${esc(d.calcUntil)}),
+        ставка ${esc(F.rate)} %, начисление с ${esc(F.start)}${
+          F.start===c.date?' — даты договора':''}, платёж ${esc(F.freq)}${F.payDay?', '+esc(F.payDay)+'-го числа':''}.
+        Начислено <b>${money(F.accrued)}</b>, из них срок наступил по ${money(F.due)}${
+          F.term>0.005?`, срочная часть ${money(F.term)}`:''}${F.penalty>0.005?`; пеня ${money(F.penalty)} (${esc(F.penaltyRate)} %/дн)`:''}.
+        Величина входит в статью «Проценты» с разрезом по траншу платы (ADR-0134 §1), а не стоит плиткой в стороне.
+        ${F.closedOn?`Неосвоенный остаток закрыт решением от ${esc(F.closedOn)} (Г-32) — с этой даты база нулевая.`:''}</p>
+      ${cgrid([{h:'Отрезок'},{h:'Дней',r:1},{h:'База',r:1},{h:'Ставка, %',r:1},{h:'Платёж'},{h:'Начислено',r:1}],
+        F.segments.map(sg => feeSegRow(Object.assign({}, sg,
+          { p:(F.periods||[]).find(p => p.no === sg.period) })))
+        .concat([`<tr style="font-weight:var(--weight-semibold);background:var(--surface-panel)">
+          <td colspan="5">Итого начислено платы</td><td style="text-align:right">${money(F.accrued)}</td></tr>`]))}`:'';
+    /* ОБЛАСТЬ «ТРАНШ ПЛАТЫ»: ЛИСТА НЕТ, А СВОД ЕСТЬ. Лист «По датам» строится по траншам
+       освоения (`d.ledger.dateSheet` идёт по `c.tranches`) — у транша платы своего листа нет,
+       и пустая таблица с надписью «не наступила ни одна позиция графика» соврала бы про
+       кредит. Свод остаётся: он считается ПО КРЕДИТУ при любом положении переключателя
+       (ADR-0060 §4), и плата уже внутри его статьи «Проценты» (ADR-0134 §1) — убрать его
+       здесь значило бы спрятать то самое место, где плата складывается с процентами. */
+    if (isFee) return `
+      ${svod}
+      <p class="section-note">Область <b>«Транш платы»</b>: лист «Детальный расчёт» принадлежит траншам
+        освоения — арифметика платы стоит ниже своим разделом, отрезками той же сетки критических дат
+        (ADR-0129 §1). Свод выше считается по кредиту при любом положении переключателя, и плата входит
+        в его статью «Проценты» (ADR-0134 §1).</p>
+      ${feeBlock}`;
     return `
       ${svod}
       ${(()=>{ const rf=retroPendingFlags(c); if(!rf.length) return '';   // Д-5: тот же признак, что на «Условиях»
@@ -10361,7 +11111,7 @@ if (typeof document !== 'undefined') {
             ПЕРЕКЛЮЧАТЕЛЯ ВИДОВ ТОЖЕ НЕТ (КВ-64): вид один, и панель из одной кнопки,
             которая ничего не переключает, — чистый хром. */''}
       ${datesView}
-      ${resBlock}`;
+      ${feeBlock}`;
   }
 
   /* ---- ВКЛАДКА 7: Платежи (зеркало модуля платежей, Р-5) ---- */
@@ -10451,7 +11201,12 @@ if (typeof document !== 'undefined') {
         const tail = q.rows.filter(r =>  r.future);
         const over = round2(due.reduce((a,r) => a + r.amount, 0));
         const tailSum = round2(tail.reduce((a,r) => a + r.amount, 0));
-        const lead = multiTr(c) ? 4 : 3;
+        /* КОЛОНКА «ТРАНШ» — ПО СОСТАВУ ОЧЕРЕДИ, А НЕ ПО ЧИСЛУ ТРАНШЕЙ (КВ-72). Строки платы
+           несут разрез траншем платы (ADR-0134 §2), и на однотраншевом кредите без колонки
+           они стояли бы неотличимо от строк тела — то самое слияние платы с процентами, от
+           которого разрез и заведён. Признак локальный: колонку включает СОСТАВ таблицы. */
+        const showTr = multiTr(c) || q.rows.some(r => r.fee);
+        const lead = showTr ? 4 : 3;
         /* СЕРЫЙ ХВОСТ БЫЛ СЕРЫМ ТОЛЬКО НА СЛОВАХ (найдено при КВ-71). Инлайновый
            `color` стоял на `<tr>`, а `table.cgrid tbody td` (:1765) назначает
            `--text-body` самой ячейке — наследование до неё не доходило, и ненаступившие
@@ -10464,7 +11219,9 @@ if (typeof document !== 'undefined') {
           <td>${r.layer==='free'
               ? '—'
               : `<span class="pill mid">${esc(r.layer)}</span><br><span class="text-muted" style="font:var(--font-label)">${esc(r.layerLabel)}</span>`}</td>
-          ${multiTr(c)?`<td>${r.tranche==null?'<span class="text-muted">по кредиту</span>':'№'+esc(r.tranche)}</td>`:''}
+          ${showTr?`<td>${r.fee
+              ? `<span class="pill info" title="${jsAttr('Плата за неосвоенный остаток: статья «Проценты», разрез несёт транш платы (ADR-0134 §1–2). Номера у него нет — КВ-70')}">плата</span>`
+              : r.tranche==null?'<span class="text-muted">по кредиту</span>':'№'+esc(r.tranche)}</td>`:''}
           <td>${esc(r.article)}</td>
           <td style="text-align:right">${money(r.amount)}</td></tr>`;
         /* Итог считает НАСТУПИВШИЕ и стоит СРАЗУ ЗА НИМИ, а не в конце таблицы: раскрытый
@@ -10492,12 +11249,12 @@ if (typeof document !== 'undefined') {
             ? 'свернуть хвост: в перечне останутся только наступившие строки — те, что идут в разнесение платежей'
             : 'показать ненаступившие строки: '+tail.length+' на '+money(tailSum)+'. В разнесение платежей они не идут (ADR-0057 §1); чтобы погасить будущий взнос досрочно, куратор выбирает его явным действием')}"
           >${queueTailOpen?'Только наступившее':`Ненаступившее (${tail.length} · ${money(tailSum)})`}</button>`:''}</div>
-      <p class="section-note">Непогашенное ${when}. Порядок один — по дате наступления${multiTr(c)?', независимо от того, чей это транш':''};
-        внутри даты — по очерёдности статей. Показаны наступившие строки — те, что идут в разнесение платежей
+      <p class="section-note">Непогашенное ${when}. Порядок один — по дате наступления${showTr?', независимо от того, чей это транш':''};
+        внутри даты — по очерёдности статей${q.rows.some(r=>r.fee)?', а внутри статьи плата стоит последней — она производна от всех траншей (ADR-0134 §3)':''}. Показаны наступившие строки — те, что идут в разнесение платежей
         (<b>ADR-0057 §1</b>); ненаступившее открывается кнопкой и в разнесение не попадает.${d.calcProvisional
           ? ` <b>Расчёт предварительный:</b> снимок зеркала платежей от ${esc(d.paymentsAsOf)} старше даты расчёта — хвост очереди посчитан по платежам, которых владелец ещё не прислал.`
           : ''}</p>
-      ${cgrid([{h:'Срок'},{h:'Слой'}].concat(multiTr(c)?[{h:'Транш'}]:[]).concat([{h:'Статья'},{h:'Сумма',r:1}]),
+      ${cgrid([{h:'Срок'},{h:'Слой'}].concat(showTr?[{h:'Транш'}]:[]).concat([{h:'Статья'},{h:'Сумма',r:1}]),
               body, {empty:tail.length?'Просроченного нет':'Непогашенного нет'})}`;
       })()}
 
@@ -10944,7 +11701,7 @@ if (typeof document !== 'undefined') {
   CR.renderDetail=renderDetail; CR.renderTab=renderTab; CR.openTab=openTab; CR.rerenderDetail=rerenderDetail;
   /* КВ-17: единственная точка смены области. 'credit' приходит строкой из <select>,
      номер транша — строкой или числом, поэтому нормализуем здесь, а не у вызывающих. */
-  CR.setCardScope=function(v){ cardScope = (v==='credit' ? 'credit' : +v); rerenderDetail(); };
+  CR.setCardScope=function(v){ cardScope = (v==='credit' ? 'credit' : v==='fee' ? 'fee' : +v); rerenderDetail(); };
   CR.setCondFilter=function(v){ condBasisFilter=v; rerenderDetail(); };
   CR.toggleCondGroup=function(ref){ condOpenGroup = (condOpenGroup===ref?null:ref); condOpenTranche = null; rerenderDetail(); };
   CR.setCondTranche=function(n){ condOpenTranche = +n; rerenderDetail(); };
@@ -11098,7 +11855,7 @@ if (typeof document !== 'undefined') {
 
   /* 3) schedule-params (generateSchedule, Г-8) — апгрейд: параметры → предпросмотр (1·2·посл.) → новая версия */
   CR.openSchedModal=function(previewFrom){ const c=modalGuard('buildSchedule'); if(!c) return;
-    const sel=scopeTranche(c)||c.tranches[0]; const cnd=CR.conditionsAt(sel,CR.TODAY);
+    const sel=storedScopeTranche(c)||c.tranches[0]; const cnd=CR.conditionsAt(sel,CR.TODAY);
     previewFrom=toDMY(previewFrom);
     const from=(previewFrom!=null?previewFrom:((sel.disbursements[0]&&sel.disbursements[0].date)||''));
     let preview;
@@ -11147,11 +11904,17 @@ if (typeof document !== 'undefined') {
      обещает «правлю вот это», и модалка обязана обещание держать — иначе карандаш
      у «Погашения» показал бы и ставку. */
   CR.openCondModal=function(group){ const c=modalGuard('addConditionRecords'); if(!c) return;
+    /* КВ-72 (ADR-0133): четвёртая группа — условия КРЕДИТА. Её параметры берутся из другого
+       реестра, «было» читается другим журналом, и транш она не спрашивает вовсе: у величины
+       нет разреза по траншам, спрашивать не о чем. */
+    const credLvl = group==='credit';
     const groupKeys = group==='rates' ? CR.COND_CARD_RATES
                     : group==='repay' ? CR.COND_CARD_REPAY : null;
-    const params = groupKeys ? CR.PARAMS.filter(p=>groupKeys.includes(p.key)) : CR.PARAMS;
+    const params = credLvl ? CR.CREDIT_PARAMS
+                 : groupKeys ? CR.PARAMS.filter(p=>groupKeys.includes(p.key)) : CR.PARAMS;
     const groupTitle = group==='rates' ? 'Изменение условий — ставки'
                      : group==='repay' ? 'Изменение условий — погашение'
+                     : credLvl ? 'Изменение условий кредита'
                      : 'Изменение условий';
     const body=`<p class="section-note">Условия меняются только зарегистрированным основанием.
         Решение суда и постановление правительства здесь не заводятся — выбираются из существующих.
@@ -11172,14 +11935,19 @@ if (typeof document !== 'undefined') {
           <div class="control"><select id="cbRef"></select><span class="caret">▾</span></div></div>
         <div class="field req"><span class="flabel">Вступает в силу</span><div class="control"><input id="cbEff" type="date" value="${esc(toISO(CR.TODAY))}" onchange="CR.condRecalcDefaults();CR.condPreview()"></div></div>
         <div class="field col-span"><span class="flabel">Примечание (обязательно при дате в прошлом)</span><div class="control"><input id="cbNote" placeholder="что пересчитывается"></div></div>
-        <div class="field col-span"><span class="flabel">Транши</span><div class="control">
+        ${credLvl
+          ? `<div class="info-plate col-span">${svgInfo()}<div>Условие уровня кредита: транш не выбирается.
+              База платы за неосвоенный остаток одна на кредит (ADR-0132 §2), значит и запись одна — на кредит.</div></div>`
+          : `<div class="field col-span"><span class="flabel">Транши</span><div class="control">
           ${c.tranches.map(t=>`<label style="margin-right:14px"><input type="checkbox" class="cbTr" value="${t.no}" checked onchange="CR.condPreview()"> №${t.no}</label>`).join('')}
-        </div></div>
+        </div></div>`}
       </div>
       <div class="section-h" style="margin-top:14px;font-size:15px">Условия</div>
       <div class="mform">
         ${params.map(p=>{
-          const t0=c.tranches[0], cur=t0?CR.conditionsAt(t0,CR.TODAY)[p.key]:'';
+          const t0=c.tranches[0];
+          const cur = credLvl ? CR.creditOwnConditionsAt(c,CR.TODAY)[p.key]
+                    : (t0?CR.conditionsAt(t0,CR.TODAY)[p.key]:'');
           const input = p.kind==='enum'
             ? `<select id="cbV_${p.key}" onchange="CR.condPreview()">${p.options.map(o=>`<option${String(o)===String(cur)?' selected':''}>${esc(o)}</option>`).join('')}</select><span class="caret">▾</span>`
             : p.kind==='months'
@@ -11190,6 +11958,11 @@ if (typeof document !== 'undefined') {
                 const boxes=Array.from({length:12},(_,i)=>i+1).map(m=>
                   `<label style="margin-right:8px;font-weight:normal"><input type="checkbox" class="cbMonth_${p.key}" value="${m}" ${cur0.includes(String(m))?'checked':''} onchange="CR.condMonthsChanged('${p.key}')"> ${m}</label>`).join('');
                 return `<input type="hidden" id="cbV_${p.key}" value="${esc(cur0.join(','))}">${boxes}`; })()
+            : p.kind==='date'
+            /* КВ-72: дата начала начисления платы — первый параметр-ДАТА в реестрах условий.
+               Хранится в модели как дд.мм.гггг, редактируется нативным полем (toISO/toDMY),
+               как все даты макета. */
+            ? `<input id="cbV_${p.key}" type="date" value="${esc(cur?toISO(cur):'')}" onchange="CR.condPreview()">`
             : `<input id="cbV_${p.key}" type="number" step="0.01" value="${esc(cur)}" oninput="CR.condPreview()">`;
           return `<div class="field"><span class="flabel"><label><input type="checkbox" class="cbP" value="${p.key}" onchange="CR.condPreview()"> ${esc(p.label)}</label></span>
             <div class="control">${input}</div></div>`;
@@ -11236,10 +12009,14 @@ if (typeof document !== 'undefined') {
     CR.condPreview(); };
   CR.condRecalcDefaults=function(){ const c=currentCredit(); if(!c) return;
     const eff=condEffDate(), t0=c.tranches[0]; if(!t0) return;
-    CR.PARAMS.forEach(p=>{
+    /* КВ-72: проход идёт по ОБОИМ реестрам — модалка открыта в одной группе, но код общий,
+       а «было» у кредитного параметра читается кредитным журналом. */
+    CR.PARAMS.concat(CR.CREDIT_PARAMS).forEach(p=>{
       const el=document.getElementById('cbV_'+p.key); if(!el) return;
-      const cur=CR.conditionsAt(t0,eff)[p.key];
-      el.value = (cur===undefined?'':cur);
+      const cur = CR.CREDIT_PARAM_KEYS.includes(p.key)
+        ? CR.creditOwnConditionsAt(c,eff)[p.key]
+        : CR.conditionsAt(t0,eff)[p.key];
+      el.value = (cur===undefined?'':(p.kind==='date'?(cur?toISO(cur):''):cur));
       if (p.kind==='months'){                             // resync чекбоксов на пересчёт по дате
         const vals=String(el.value||'').split(',').map(s=>s.trim()).filter(Boolean);
         document.querySelectorAll('.cbMonth_'+p.key).forEach(cb=>{ cb.checked=vals.includes(cb.value); });
@@ -11251,14 +12028,23 @@ if (typeof document !== 'undefined') {
     const nos=[...document.querySelectorAll('.cbTr:checked')].map(x=>+x.value);
     const keys=[...document.querySelectorAll('.cbP:checked')].map(x=>x.value);
     const rows=[];
-    for (const k of keys) for (const no of nos){
-      const t=c.tranches.find(x=>x.no===no); if(!t) continue;
-      const el=document.getElementById('cbV_'+k); if(!el) continue;
-      const from=CR.conditionsAt(t,eff)[k];
-      const to=el.value;
-      rows.push(`<div class="row"><span class="ck">№${no} · ${esc(CR.paramLabel(k))}</span>
-        <span class="diff"><span class="diff-old">${esc(from===undefined?'—':from)}</span> → <span class="diff-new">${esc(to)}</span></span>
+    const prow=(who,label,from,to)=>rows.push(`<div class="row"><span class="ck">${esc(who)} · ${esc(label)}</span>
+        <span class="diff"><span class="diff-old">${esc(from===undefined||from===''?'—':from)}</span> → <span class="diff-new">${esc(to)}</span></span>
         <span class="src">с ${esc(eff)}</span></div>`);
+    for (const k of keys){
+      const el=document.getElementById('cbV_'+k); if(!el) continue;
+      const isDate = (CR.CREDIT_PARAMS.concat(CR.PARAMS).find(p=>p.key===k)||{}).kind==='date';
+      const to = isDate ? (el.value?toDMY(el.value):'') : el.value;
+      /* КВ-72: у кредитного параметра строка предпросмотра ОДНА и транша не называет —
+         иначе куратор прочёл бы «№1: ставка платы», то есть неправду про владельца. */
+      if (CR.CREDIT_PARAM_KEYS.includes(k)){
+        prow('Кредит', CR.creditParamLabel(k), CR.creditOwnConditionsAt(c,eff)[k], to);
+        continue;
+      }
+      for (const no of nos){
+        const t=c.tranches.find(x=>x.no===no); if(!t) continue;
+        prow('№'+no, CR.paramLabel(k), CR.conditionsAt(t,eff)[k], to);
+      }
     }
     box.innerHTML = rows.length?rows.join(''):`<div class="row" style="color:var(--text-placeholder)">Условия не выбраны</div>`; };
   CR.submitCond=function(){ const c=modalGuard('addConditionRecords'); if(!c) return;
@@ -11277,10 +12063,13 @@ if (typeof document !== 'undefined') {
       basis={ kind, ref, date:'',
               label:(kind==='court'?courtBasisLabel(ref):'Постановление правительства '+ref) };
     }
-    const records=keys.map(k=>{ const p=CR.PARAMS.find(x=>x.key===k);
+    const records=keys.map(k=>{ const p=CR.PARAMS.concat(CR.CREDIT_PARAMS).find(x=>x.key===k)||{};
       const el=document.getElementById('cbV_'+k);
-      return { param:k, value:(p.kind==='num'?+el.value:el.value),
-               effectiveFrom:eff, trancheNos:nos, note }; });
+      const val = p.kind==='num' ? +el.value : p.kind==='date' ? (el.value?toDMY(el.value):'') : el.value;
+      /* trancheNos у кредитного параметра пуст, и это не недосмотр: адрес записи дверь
+         выводит из ключа (ADR-0133 §1), а не из выбора куратора. */
+      return { param:k, value:val, effectiveFrom:eff,
+               trancheNos: CR.CREDIT_PARAM_KEYS.includes(k) ? [] : nos, note }; });
     const r=CR.addConditionRecords(c,{basis,records});
     if(!r.ok){ CR.modalErr(r.reasons); return; }
     CR.closeModal(); toast('Записей условий добавлено: '+r.value.added,'ok'); rerenderDetail(); };
@@ -11290,7 +12079,7 @@ if (typeof document !== 'undefined') {
     const body=`<div class="info-plate">${svgInfo()}<div>Форма модуля платежей. Ручной ввод повисает «Ожидает ЦК» и НЕ двигает остатки/долг — подтверждённые остатки двигает только ЦК своим потоком.</div></div>
       <div class="mform">
         <div class="field"><span class="flabel">Кредит</span><div class="control"><input value="№ ${esc(c.num)} · ${esc(c.borrower.name)}" readonly></div></div>
-        ${trancheField(c,'payTranche',c.tranches.map(t=>`<option value="${t.no}"${t.no===(scopeTranche(c)||c.tranches[0]||{}).no?' selected':''}>№${t.no} · ${esc(t.subject.name)}</option>`).join(''))}
+        ${trancheField(c,'payTranche',c.tranches.map(t=>`<option value="${t.no}"${t.no===(storedScopeTranche(c)||c.tranches[0]||{}).no?' selected':''}>№${t.no} · ${esc(t.subject.name)}</option>`).join(''))}
         <div class="field req"><span class="flabel">Сумма платежа</span><div class="control"><input id="payAmount" type="number" min="0" placeholder="0"></div></div>
         <div class="field req"><span class="flabel">Дата платежа</span><div class="control"><input id="payDate" type="date" value="${esc(toISO(CR.TODAY))}"></div></div>
       </div>`;
@@ -11619,7 +12408,7 @@ if (typeof document !== 'undefined') {
      обязан встать на тот же транш, что назвала строка. Без него модалка предвыбирала бы
      транш по области карточки, а клик по иконке область не меняет (stopPropagation). */
   CR.openCloseTrancheModal=function(no){ const c=modalGuard('closeTranche'); if(!c) return;
-    const sel=(no!=null&&c.tranches.find(t=>t.no===no))||scopeTranche(c)||c.tranches[0];
+    const sel=(no!=null&&c.tranches.find(t=>t.no===no))||storedScopeTranche(c)||c.tranches[0];
     const body=`<p class="section-note">Транши не удаляются. Закрытый транш выпадает из агрегатов срока и условий, но остаётся в истории со своими освоениями и графиком. Последний активный транш закрыть нельзя.</p>
       <div class="mform">
         ${trancheField(c,'ctNo',c.tranches.filter(t=>!t.closed).map(t=>`<option value="${t.no}"${sel&&t.no===sel.no?' selected':''}>№${t.no} · сумма ${money(t.amount)} · освоено ${money(disbursedSum(t))}</option>`).join(''))}
