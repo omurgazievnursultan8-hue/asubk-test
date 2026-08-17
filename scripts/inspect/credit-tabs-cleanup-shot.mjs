@@ -10,7 +10,7 @@ import { mkdirSync } from 'fs';
 const OUT = '.auth/tabs-cleanup';
 mkdirSync(OUT, { recursive: true });
 
-const TABS = ['Договор','Условия','Состав','График','Прогноз','Расчёты','Платежи','План','Обеспечение'];
+const TABS = ['Договор','Состав','Условия','График','Прогноз','Платежи','Расчёты','План','Обеспечение'];
 const IDS = ['K-1', 'K-3', 'K-C12'];      // мультитранш · суд и взыскание · закрытый/сложный
 
 const ctx = await chromium.launchPersistentContext('.auth/profile', {
