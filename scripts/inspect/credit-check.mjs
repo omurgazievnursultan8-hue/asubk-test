@@ -1483,13 +1483,29 @@ const pd = CR.pd;
           return out;
         };
         const openBlock = (block) => { CR2.toggleCalcDetail(block);
-          const t = tables(CR2.renderTab('Расчёты', c)).find(x => /class="cgrid tiered"/.test(x)) || '';
-          CR2.toggleCalcDetail(block); return t; };
+          const h = CR2.renderTab('Расчёты', c);
+          CR2.toggleCalcDetail(block);
+          return { h, t: tables(h).find(x => /class="cgrid tiered"/.test(x)) || '' }; };
+        /* КНОПКА НЕ МЕНЯЕТ СТОРОНУ (КВ-68.1, жалоба владельца 17.08.2026: «кнопки показать
+           скрыть детали прыгают, то справа то слева появляются»). Класс у всех трёх кнопок
+           обязан быть ОДИН И ТОТ ЖЕ во всех состояниях: сторону задаёт CSS по классу, и
+           модификатор вроде `runsw open` — единственный способ, каким она может разъехаться.
+           Проба смотрит на разметку, а не на вычисленный float: скрипт рендерит строку. */
+        const CHIP = { od: 'Основной долг', int: 'Проценты', pen: 'Пеня' };
+        if (/class="detoff"/.test(html))
+          bad.push(`${c.id}: чип разбора показан в умолчании — разбора нет, снимать нечего (КВ-68.1)`);
         const ANS = { od: ['Остаток','Просрочено'], int: ['Остаток','Просрочено'], pen: ['Остаток'] };
         const BI  = { od: 0, int: 1, pen: 2 };
         let opened = '', nRun = 0;
         for (const block of ['od','int','pen']){
-          const t = openBlock(block); if (block === 'int') opened = t;
+          const { h, t } = openBlock(block); if (block === 'int') opened = t;
+          const cls = [...t.matchAll(/<button class="(runsw[^"]*)"/g)].map(m => m[1]);
+          if (cls.length !== 3 || new Set(cls).size !== 1)
+            bad.push(`${c.id}: при разборе «${block}» классы кнопок деталей [${cls.join('|')}] — сторона обязана быть одна на все состояния (КВ-68.1)`);
+          /* Чип разбора: ровно один, называет разбираемую статью словом и снимает ЕЁ. */
+          const chip = [...h.matchAll(/<button class="detoff" onclick="CR\.toggleCalcDetail\('(od|int|pen)'\)"[\s\S]*?>разбор: ([^<]*)</g)];
+          if (chip.length !== 1 || chip[0][1] !== block || chip[0][2] !== CHIP[block])
+            bad.push(`${c.id}: при разборе «${block}» чип у имени листа ${chip.length !== 1 ? `встретился ${chip.length} раз(а)` : `снимает «${chip[0][1]}» и зовётся «${chip[0][2]}»`} (КВ-68.1)`);
           nRun += (t.match(/>Нарастающим</g) || []).length;
           const hs = heads(t);
           for (const other of ['od','int','pen']){

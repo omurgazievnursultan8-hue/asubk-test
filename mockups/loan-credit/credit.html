@@ -1680,6 +1680,20 @@ table.cgrid tbody tr.gyear.static:hover td{ background:var(--surface-panel); }
 .lookup .pick{ font-weight:var(--weight-bold); letter-spacing:1px; }
 
 .section-h{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); margin:0 0 6px; }
+/* ВЫХОД ИЗ РАЗБОРА У ИМЕНИ ЛИСТА (КВ-68.1). Стоит в заголовке секции, а не в шапке блока,
+   по двум причинам сразу: заголовок НЕ едет с горизонтальной прокруткой таблицы (кнопка в
+   шапке широкого блока уезжала за кромку), и разбор — состояние ВСЕГО листа, а не одной
+   статьи, так что снятию его место у имени листа. Заодно это единственная на экране
+   надпись, которая называет разбираемую статью словом. Появляется только в разборе: в
+   умолчании у заголовка нет ничего. */
+   Палитра — идиома .fchip (снятый фильтр реестра): тот же жест «состояние показа с
+   крестиком», и заводить ему второй облик значило бы сказать читателю, что это другой род
+   элемента. */
+.detoff{ margin-left:10px; padding:3px 4px 3px 10px; border:none; border-radius:var(--radius-pill);
+  background:var(--asubk-blue-tint); color:var(--asubk-blue); cursor:pointer;
+  font:var(--font-label); vertical-align:3px; white-space:nowrap; }
+.detoff:hover{ background:var(--asubk-nav-active); }
+.detoff .x{ padding:0 4px; font-size:15px; line-height:1; opacity:.75; }
 .section-note{ font:var(--font-label); color:var(--text-muted); margin:0 0 14px; max-width:960px; }
 .gtoolbar{ display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; align-items:center; }
 .gtoolbar .spacer{ flex:1; }
@@ -1735,13 +1749,17 @@ table.cgrid.tiered thead th .runsw{ float:right; margin-left:8px; padding:1px 6p
   border-radius:var(--radius-sm); background:var(--surface-panel); color:var(--text-muted);
   font:var(--weight-medium) var(--text-xs)/1.5 var(--asubk-font); cursor:pointer; white-space:nowrap; }
 table.cgrid.tiered thead th .runsw:hover{ color:var(--text-heading); border-color:var(--border-strong); }
-/* У РАЗОБРАННОЙ СТАТЬИ КНОПКА СЛЕВА (КВ-68). Правый край её блока — самый широкий на листе
-   и обычно ЗА КРОМКОЙ окна: кнопка, которой разбор заканчивают, уезжала бы туда вместе с
-   ним. Левый край блока виден всегда — слева от него стоят только дата и по паре колонок-
-   ответов свёрнутых соседей. Имя статьи по-прежнему держит центр: float забирает кнопку из
-   потока в обе стороны одинаково. Побочно это признак состояния — сторона кнопки говорит,
-   разобрана статья или свёрнута, ещё до чтения надписи. */
-table.cgrid.tiered thead th .runsw.open{ float:left; margin-left:0; margin-right:8px; }
+/* СТОРОНА У КНОПКИ ОДНА, ВСЕГДА ПРАВАЯ (КВ-68.1, владелец 17.08.2026: «кнопки показать
+   скрыть детали прыгают, то справа то слева появляются»). Первая правка КВ-68 переносила
+   кнопку разобранной статьи к левому краю её блока — чтобы она не уезжала за кромку окна
+   вместе с широким блоком. Лечила она верную болезнь неверным средством: место кнопки
+   зависело от состояния, и при каждом нажатии управление скакало через полэкрана. Место
+   элемента управления обязано быть постоянным — иначе его ищут заново каждый раз, а именно
+   поиском кнопки нажатие и заканчивается.
+   Выход из разбора переехал туда, где он не может уехать за кромку, — в заголовок секции
+   (.detoff): состояние теперь общее для листа, и его снятию место у имени листа, а не в
+   шапке одного из трёх блоков. Кнопки в шапках остались тем, чем были, — входом в разбор
+   своей статьи. */
 table.cgrid tbody td{ padding:9px 12px; border-bottom:1px solid var(--border-default); color:var(--text-body); vertical-align:top; }
 table.cgrid tbody tr:hover{ background:var(--surface-hover); }
 table.cgrid tbody tr.total td{ font-weight:var(--weight-bold); color:var(--text-heading);
@@ -10155,7 +10173,7 @@ if (typeof document !== 'undefined') {
           + ' и показаны только ответы; разбор идёт по одной статье за раз'
         : 'Разобрать статью — показать ' + what
           + '. «Нарастающим» дают итог с начала транша по эту строку включительно; «Ставка», «Дней» и «За день» — параметры отрезка, из которых получено соседнее «Начислено». Соседние статьи свернутся до колонок-ответов («Остаток», «Просрочено») — база отрезка останется на экране, а лист станет уже';
-      return `<button class="runsw${on ? ' open' : ''}" onclick="event.stopPropagation();CR.toggleCalcDetail('${block}')"
+      return `<button class="runsw" onclick="event.stopPropagation();CR.toggleCalcDetail('${block}')"
         title="${jsAttr(tip)}">${folded ? '▸ ещё ' + hid : (on ? '▾' : '▸') + ' детали'}</button>`;
     };
     const dateHead = `<tr>
@@ -10259,7 +10277,18 @@ if (typeof document !== 'undefined') {
           Расчёт ниже построен по прежним условиям — сформируйте график заново (Д-5).
           <div class="gtoolbar" style="margin-top:8px"><button class="btn btn-secondary btn-sm"
             onclick="CR.goToSchedule()">Перейти к графику</button></div></div></div>`; })()}
-      <div class="section-h" style="margin-top:22px">Детальный расчёт ${!sel?'(по кредиту)':'(транш №'+sel.no+')'}</div>
+      ${/* ЧИП РАЗБОРА (КВ-68.1). Единственное место, где разбираемая статья названа СЛОВОМ:
+            в шапках блоков состояние читается по стрелке и по числу скрытых колонок, а имя
+            статьи там уже занято именем блока. Крестик снимает разбор — и стоит он здесь
+            потому, что заголовок секции не едет с горизонтальной прокруткой листа, тогда как
+            шапка широкого блока уезжает за кромку вместе со своей кнопкой (жалоба владельца
+            17.08.2026 на прыгающие кнопки закрыла попытку лечить это переносом кнопки влево:
+            место управления обязано быть постоянным). Входов в разбор по-прежнему три — по
+            одному в шапке каждой статьи; выход один, у имени листа, и он не двигается. */''}
+      <div class="section-h" style="margin-top:22px">Детальный расчёт ${!sel?'(по кредиту)':'(транш №'+sel.no+')'}${
+        calcDetail ? `<button class="detoff" onclick="CR.toggleCalcDetail('${calcDetail}')"
+          title="${jsAttr('Закончить разбор и вернуть лист к умолчанию: все три статьи покажут свои величины долга, детали спрячутся')}"
+          >разбор: ${esc({od:'Основной долг', int:'Проценты', pen:'Пеня'}[calcDetail])}<span class="x">✕</span></button>` : ''}</div>
       ${/* ПОДПИСИ У ЛИСТА НЕТ (решение владельца 16.08.2026). Что она несла: (1) «строка —
             критическая дата и период после неё, день не дробится» — читается из самих
             колонок листа (дата · дней · база · ставка · начислено); (2) перечень
