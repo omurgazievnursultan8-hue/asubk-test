@@ -6,7 +6,12 @@
 // и ответственность: реестр отстранений, второй ответ шва с лестницей замещения, период
 // ответственности с вычетом, ведущий куратор заёмщика и гейт увольнения (волна 3),
 // и справочник признаков: заведение группировки, её редакции и снятие по обратному индексу,
-// уникальность имён долей, «Прочие» всегда, датные проверки ссылки (волна 4).
+// уникальность имён долей, «Прочие» всегда, датные проверки ссылки (волна 4),
+// и сами признаки: отметка сверенности домена, гейт неназванного источника в ключе,
+// объявленная сочетаемость и невозможные ячейки (волна 5),
+// и запрет правки вслепую с переводом среза на дату вступления — по жалобе 17.08.2026
+// «пишет успешно, а в интерфейсе ничего не меняется» (#113–#116), и накопление правок одного
+// дня в одной редакции — по жалобе «назначается только один, второй не назначается» (#117–#120).
 // Блоки, которые правят состояние, начинаются с KU.seed() — состояние между ними не течёт.
 //   node scripts/inspect/kuratorstvo-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -301,9 +306,9 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   const stubBlock = (m[1].match(/const STUBS = \{[\s\S]*?\n\};/) || [''])[0];
   const stubIds = (stubBlock.match(/\n  (\w+): \{/g) || []).map(s => s.trim().replace(':', '').replace(' {', ''));
   ok(41, stubIds.length === 1 && stubIds[0] === 'show' &&
-        /ГРАНИЦЫ ВОЛНЫ 4/.test(src) &&
+        /ГРАНИЦЫ ВОЛНЫ 5/.test(src) &&
         ['Признаки и группировки', 'Пересчёт', 'Передачи', 'Отстранения'].every(s => src.includes(s)),
-    `экраны волны 4 рабочие, заглушкой остался один (${stubIds.join(', ')}) — границы волны объявлены в шапке`);
+    `экраны волны 5 рабочие, заглушкой остался один (${stubIds.join(', ')}) — границы волны объявлены в шапке`);
 })();
 
 /* ---------- J. Рождение объекта и снимок признаков (P18-R9, ИУ-15) ---------- */
@@ -755,7 +760,7 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   const cov = KU.coverage(rule, '2026-09-01');
   ok(95, v0.grp && v0.grp.terr === 'g_terr_oblast' && !v0.groups && saved.ok &&
         !nv.grp.terr && cov.cells.length === KU.dom('terr').length &&
-        nv.cells['Кара-Сууйский'] === v0.cells['Ошская'] && saved.kept === 5 && saved.holes === 5,
+        nv.cells['Кара-Сууйский'] === v0.cells['Ошская'] && saved.kept === 7 && saved.holes === 5,
     `редакция хранит ссылку на группировку, а не раскладку: было ${KU.space(v0, TODAY).length
       } долей «${KU.grpDef('terr', v0.grp.terr).name}», стало ${cov.cells.length
       } значений домена, имя перенесено в ${saved.kept} (Кара-Сууйский унаследовал ${
@@ -934,6 +939,204 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
         loose === KU.OTHER,
     `«${KU.OTHER}» есть всегда: домен «${KU.feat('forma').name}» разложен без остатка, доли — ${
       fullParts.join(' · ')}; значение, которого в домене ещё нет, садится в «${loose}» — ИУ-9`);
+})();
+
+/* ---------- V. Сверенность домена и сочетаемость признаков (волна 5, ADR-0131) ---------- */
+(() => {
+  KU.seed();
+  /* Отметка сверенности стоит на КАЖДОМ признаке и различает два непохожих случая:
+     «источник назван, справочника ещё нет» и «источника нет вовсе». */
+  const feats = KU.feats();
+  const by = st => feats.filter(f => KU.sver(f.id).st === st);
+  const okF = by('ok'), waitF = by('wait'), noneF = by('none');
+  ok(106, feats.length === 12 && okF.length === 8 && waitF.length === 3 && noneF.length === 1 &&
+        noneF[0].id === 'razmer' && okF.every(f => !!KU.sver(f.id).ref) &&
+        waitF.every(f => !!KU.sver(f.id).ref && !!KU.sver(f.id).why) &&
+        waitF.map(f => f.id).sort().join() === 'forma,terr,vidzaem',
+    `сверенность объявлена у всех ${feats.length}: сверено ${okF.length} (у каждого ссылка file:line), ` +
+    `ждут справочника ${waitF.length} (${waitF.map(f => f.name).join(', ')}), ` +
+    `без названного источника ${noneF.length} — «${noneF[0].name}» (ADR-0131 п. 4)`);
+
+  /* Гейт ключа: «ждёт справочника» пускается — источник назван, домен поедет за ним.
+     «источник не назван» не пускается: ответ на дату нечем воспроизвести (ИУ-11). */
+  KU.state.role = 'head'; KU.state.headUnit = 'u_agro';
+  const rl = KU.lowRule('u_agro', 'cur_loan');
+  KU.keyDraftInit(rl.id);
+  const noSrc = KU.keyDraftAdd(rl.id, 'razmer');
+  const waits = KU.keyDraftAdd(rl.id, 'vidzaem');
+  ok(107, !noSrc.ok && /не назван источник/.test(noSrc.why) &&
+        /никто не ведёт/.test(noSrc.why) && waits.ok,
+    `в ключ не встаёт признак без названного источника: «${noSrc.why.slice(0, 96)}…»; ` +
+    `а «ждёт справочника» встаёт — «${KU.feat('vidzaem').name}» принят, плашка остаётся на признаке`);
+
+  /* Домен режется СТРОКОЙ. Расхождение в одну букву с живым справочником не ломается
+     громко — оно молча сажает объект в «Прочие», и ячейка уезжает к заведующему. */
+  KU.seed();
+  const dk = KU.dom('vidkred');
+  const live = 'Фонд развитие регионов';          // опечатка живого справочника, credit.html:2215
+  const kd = KU.obj('КД-2025/043');
+  const part = KU.groupOf({ grp: { vidkred: 'g_vidkred_dengi' } }, 'vidkred', KU.featVal(kd, 'vidkred'), TODAY);
+  ok(108, dk.indexOf(live) >= 0 && dk.indexOf('Фонд развития регионов') < 0 &&
+        KU.featVal(kd, 'vidkred') === live && part === 'Бюджетные' && part !== KU.OTHER,
+    `домен списан с живого справочника буква в букву, вместе с опечаткой «${live}»: ` +
+    `КД-2025/043 встал в долю «${part}», а не в «${KU.OTHER}» — расхождение в одну букву ячейку не рвёт, ` +
+    `оно молча уводит объект (credit.html:2215)`);
+
+  /* Территория: справочника АТЕ в системе нет, домен собран из живых значений вручную —
+     и потому обязан быть разложен без остатка, иначе половина районов уедет в «Прочие». */
+  const terr = KU.dom('terr'), obl = KU.grpVer('terr', 'g_terr_oblast', TODAY);
+  const zones = Object.keys(obl.map).map(k => obl.map[k]).filter((x, i, a) => a.indexOf(x) === i);
+  ok(109, terr.length === 12 && terr.indexOf('Район') < 0 &&
+        terr.every(v => !!obl.map[v]) && zones.length === 8 && KU.sver('terr').st === 'wait',
+    `территория ждёт справочника АТЕ: домен — ${terr.length} живых районов без мусорного «Район», ` +
+    `все разложены по ${zones.length} областям (${zones.slice(0, 3).join(', ')}…), ` +
+    `отметка «${KU.sver('terr').st}» с ссылкой ${KU.sver('terr').ref}`);
+
+  /* СОЧЕТАЕМОСТЬ. Программа сужает вид кредита: ячейка «ПРГ-1 | МАР» не дыра —
+     её не закроет никто и никогда, и в мягкий предел она не идёт. */
+  KU.state.role = 'head'; KU.state.headUnit = 'u_agro';
+  const d1 = KU.keyDraftInit(rl.id);
+  d1.key = ['progr', 'vidkred']; d1.grp = {}; d1.cuts = {};
+  const all1 = KU.spaceAll(d1, TODAY), live1 = KU.space(d1, TODAY), dead1 = KU.dead(d1, TODAY);
+  ok(110, all1.length === 48 && live1.length === 14 && dead1.length === 34 &&
+        live1.indexOf('ПРГ-1 | МАР') < 0 && all1.indexOf('ПРГ-1 | МАР') >= 0 &&
+        dead1.some(x => x.cell === 'ПРГ-1 | МАР' && /не допускает ни одного значения/.test(x.why)) &&
+        live1.indexOf('ПРГ-5 | МАР') >= 0,
+    `сочетаемость режет пространство до заполнимого: декартово произведение дало ${all1.length
+      } ячеек, возможных ${live1.length}, невозможных ${dead1.length} — «ПРГ-1 | МАР» из счёта вычтена: ` +
+    `${dead1.filter(x => x.cell === 'ПРГ-1 | МАР')[0].why}; «ПРГ-5 | МАР» осталась (ИУ-8, ИУ-9)`);
+
+  /* Открытая доля невозможной не бывает: «Прочие» держит значения, которых в справочнике
+     ещё нет, и объявить их несочетаемыми заранее нельзя (ИУ-9). */
+  d1.grp = { vidkred: 'g_vidkred_dengi' };
+  const all2 = KU.spaceAll(d1, TODAY), live2 = KU.space(d1, TODAY), dead2 = KU.dead(d1, TODAY);
+  ok(111, all2.length === 24 && live2.length === 18 && dead2.length === 6 &&
+        dead2.every(x => x.cell.indexOf(KU.OTHER) < 0) &&
+        dead2.every(x => x.cell.split(' | ')[1] === 'Донорские') &&
+        live2.filter(c => c.indexOf(KU.OTHER) >= 0).length === 8,
+    `сочетаемость считается по долям, а не по значениям: с группировкой «по деньгам» ${all2.length
+      } ячеек, невозможных ${dead2.length} — только донорские деньги у бюджетных программ; ` +
+    `доля «${KU.OTHER}» невозможной не объявлена ни разу (${live2.filter(c => c.indexOf(KU.OTHER) >= 0).length
+      } её ячеек живы): она держит то, чего в справочнике ещё нет`);
+
+  /* Вторая объявленная пара — и проверка, что живые правила невозможными ячейками
+     не задеты: ни один объект стенда в такой ячейке не стоит. */
+  const d3 = KU.keyDraftInit(rl.id);
+  d3.key = ['vidzaem', 'forma']; d3.grp = {}; d3.cuts = {};
+  const dead3 = KU.dead(d3, TODAY);
+  const covs = [KU.lowRule('u_agro', 'cur_loan'), KU.topRule('cur_loan'), KU.lowRule('u_ind', 'cur_loan'),
+    KU.topRule('spec_app'), KU.lowRule('u_osh', 'cur_coll')].map(r => KU.coverage(r, TODAY));
+  ok(112, KU.spaceAll(d3, TODAY).length === 16 && KU.space(d3, TODAY).length === 7 &&
+        dead3.length === 9 && dead3.every(x => x.cell.indexOf('Частная') < 0) &&
+        covs.every(c => c.dead.length === 0 && c.deadHot.length === 0),
+    `у физлица, ИП и КФХ форма собственности всегда частная: из ${KU.spaceAll(d3, TODAY).length
+      } ячеек возможны ${KU.space(d3, TODAY).length}, все ${dead3.length} невозможных — не «Частная»; ` +
+    `в живых правилах стенда невозможных ячеек нет вовсе, объектов в них тоже (deadHot 0)`);
+})();
+
+/* ---------- VI. «Написало успешно, а на экране ничего» (жалоба 17.08.2026, ИУ-10) ---------- */
+(function blindEdit() {
+  /* Экран рисует редакцию на ДАТУ СРЕЗА, правка кладёт новую поверх редакции на ДАТУ
+     ВСТУПЛЕНИЯ. Пока это одна редакция — правится ровно то, что видно; разъехались —
+     правка закрыта. А чтобы результат не оставался «где-то в будущем», после сохранения
+     срез сам встаёт на дату вступления. */
+  KU.seed();
+  KU.state.role = 'head'; KU.state.headUnit = 'u_ozo';
+  const r = KU.lowRule('u_ozo', 'cur_coll');
+
+  /* Путь A: срез в прошлом, редакция всё ещё одна — правка проходит, но экран уезжает
+     на дату вступления, иначе она осталась бы невидимой. */
+  KU.setAsOf('2026-01-15');
+  const a = KU.setCell(r.id, 'Право аренды', 'e_mamatov');
+  ok(113, a.ok && KU.state.asOf === TODAY && /рез экрана переставлен/.test(a.note) &&
+        KU.verAt(r, KU.state.asOf).cells['Право аренды'] === 'e_mamatov' &&
+        r.versions.length === 2,
+    `правка со среза в прошлом не пропадает: редакция ${a.ver} заведена, срез сам встал на ${
+      KU.state.asOf} и «Право аренды» на экране уже за Маматовым — «${
+      a.note.slice(a.note.indexOf('Срез экрана')).trim()}»`);
+
+  /* Путь B: тот же срез, но редакций уже две — теперь на экране одна, а правилась бы
+     другая. Именно это и выглядело как «успешно, но ничего не изменилось». */
+  KU.setAsOf('2026-01-15');
+  const b = KU.setCell(r.id, 'Ценные бумаги', 'e_mamatov');
+  const dr = KU.keyDraftInit(r.id); dr.key = ['vidzalog', 'terr'];
+  const bk = KU.saveKey(r.id);
+  ok(114, !b.ok && /править вслепую нельзя/.test(b.why) && /№ 1/.test(b.why) && /№ 2/.test(b.why) &&
+        !bk.ok && /править вслепую нельзя/.test(bk.why) && r.versions.length === 2,
+    `правка вслепую отбита и у ячейки, и у ключа: «${b.why.slice(0, 150)}…» — редакций как было ${
+      r.versions.length}, ключ не сохранён`);
+
+  /* Путь C: дата вступления в будущем. Правка проходит, но экран не остаётся на сегодня —
+     иначе новая редакция появляется там, куда никто не смотрит. */
+  KU.setAsOf(TODAY);
+  KU.setEff(r.id, '2026-09-01');
+  const c = KU.setCell(r.id, 'Ценные бумаги', 'e_mamatov');
+  const seen = KU.verAt(r, KU.state.asOf);
+  ok(115, c.ok && c.ahead && KU.state.asOf === '2026-09-01' && seen.no === c.ver &&
+        seen.cells['Ценные бумаги'] === 'e_mamatov' &&
+        KU.verAt(r, TODAY).cells['Ценные бумаги'] === undefined &&
+        /ещё отвечает редакция 2/.test(c.note),
+    `будущая редакция показывается сразу: ${c.note.slice(c.note.indexOf('Сегодня')).trim()} — ` +
+    `на срезе ${KU.state.asOf} видна редакция ${seen.no}, на сегодня ячейка по-прежнему пуста (ИУ-10)`);
+
+  /* Дата вступления живёт в списке срезов — иначе на будущую редакцию не посмотреть
+     иначе как сохранив ещё одну. */
+  KU.setAsOf(TODAY); KU.setEff(r.id, '2026-10-15');
+  const list = KU.asOfList();
+  ok(116, list.indexOf('2026-10-15') >= 0 && list.indexOf('2026-09-01') >= 0 &&
+        list.every((d, i) => i === 0 || list[i - 1] <= d),
+    `список срезов собирается по датам, а не по четырём зашитым: ${list.join(' · ')} — ` +
+    `в нём и заведённая редакция 01.09.2026, и ещё не сохранённая дата вступления 15.10.2026`);
+})();
+
+/* -------- VII. «Назначается только один, второй не назначается» (жалоба 17.08.2026) -------- */
+(function sameDay() {
+  /* Интервалы редакций не пересекаются, значит двух редакций с одной датой вступления нет:
+     первая правка дня заводит редакцию, остальные ложатся в неё (KU.verFor). Раньше вторая
+     упиралась в «редакция N вступила DD.MM — новая раньше вступить не может». */
+  KU.seed();
+  KU.state.role = 'head'; KU.state.headUnit = 'u_ozo';
+  const r = KU.lowRule('u_ozo', 'cur_coll');
+  const one = KU.setCell(r.id, 'Право аренды', 'e_mamatov');
+  const two = KU.setCell(r.id, 'Ценные бумаги', 'e_mamatov');
+  const three = KU.setCell(r.id, 'Право аренды', 'e_toktosunova');
+  const v = KU.verAt(r, TODAY);
+  ok(117, one.ok && two.ok && three.ok && !one.merged && two.merged && three.merged &&
+        one.ver === two.ver && two.ver === three.ver && r.versions.length === 2 &&
+        v.cells['Ценные бумаги'] === 'e_mamatov' && v.cells['Право аренды'] === 'e_toktosunova' &&
+        /второй редакции на тот же день не бывает/.test(two.note),
+    `правки одного дня копятся в одной редакции: три назначения подряд прошли, редакций как было ${
+      r.versions.length}, все три в редакции ${three.ver} — «Ценные бумаги» за ${nm(v.cells['Ценные бумаги'])
+      }, «Право аренды» переназначено на ${nm(v.cells['Право аренды'])} (ИУ-10)`);
+
+  /* Прошлое дописыванием не переписывается: до даты вступления отвечает прежняя редакция. */
+  const prev = r.versions.filter(x => x.no !== v.no)[0];
+  ok(118, prev.until === '2026-08-14' && prev.cells['Право аренды'] === undefined &&
+        KU.verAt(r, '2026-08-14').no === prev.no,
+    `дописывание не трогает прошлое: редакция ${prev.no} закрыта ${prev.until}, на 14.08.2026 ` +
+    `«Право аренды» по-прежнему без имени — за прежние дни отвечает прежняя редакция (ИУ-10, ИУ-11)`);
+
+  /* Ключ, сохранённый в тот же день, тоже ложится в неё — а не заводит третью. */
+  const d = KU.keyDraftInit(r.id); d.key = ['vidzalog', 'terr'];
+  const sk = KU.saveKey(r.id);
+  const after = KU.verAt(r, TODAY);
+  ok(119, sk.ok && sk.merged && sk.ver === v.no && r.versions.length === 2 &&
+        after.key.join('+') === 'vidzalog+terr' && /дополнена/.test(sk.note),
+    `ключ в тот же день ложится в ту же редакцию: ${sk.note.slice(0, 120)}… — редакций ${
+      r.versions.length}, ключ редакции ${after.no} стал «${after.key.map(f => KU.feat(f).name).join(' + ')}»`);
+
+  /* А вот правка ПОЗАДИ уже заведённой будущей редакции отбита: она бы до неё не дожила. */
+  KU.seed();
+  KU.state.role = 'head'; KU.state.headUnit = 'u_ozo';
+  const r2 = KU.lowRule('u_ozo', 'cur_coll');
+  KU.setEff(r2.id, '2026-09-01');
+  KU.setCell(r2.id, 'Право аренды', 'e_mamatov');
+  KU.setEff(r2.id, TODAY); KU.setAsOf(TODAY);
+  const back = KU.setCell(r2.id, 'Ценные бумаги', 'e_mamatov');
+  ok(120, !back.ok && /впереди уже заведена редакция № 2 от 01.09.2026/.test(back.why) &&
+        /Поставьте дату вступления 01.09.2026 или позже/.test(back.why) && r2.versions.length === 2,
+    `правка позади будущей редакции отбита с выходом: «${back.why.slice(0, 130)}…» — ` +
+    `редакций ${r2.versions.length}, в карточке для этого кнопка «Править редакцию № 2»`);
 })();
 
 /* ---- отчёт ---- */
