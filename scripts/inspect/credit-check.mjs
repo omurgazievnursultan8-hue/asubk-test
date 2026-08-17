@@ -1328,30 +1328,51 @@ const pd = CR.pd;
        + ` · нарушений стыковки и аддитивности ${bad.length}${bad.length ? ' — ' + bad.slice(0,2).join(' | ') : ''}`);
   }
 
-  /* 163. ШЕСТЬ СТАТЕЙ ДОЛГА (КВ-41 заход 1, ADR-0093 §1). Накопленные проценты и
-     накопленная пеня стали СТАТЬЯМИ, а не значением срочности внутри процентов. Три
-     стороны: (1) свод сходится с очередью по просроченному — очередь публикует кредит
-     (ADR-0060 §4), и разъезд здесь означал бы, что статья попала в один список и не
-     попала в другой; (2) у кредита БЕЗ накопленных их строки не рисуются — обычный
-     кредит обязан выглядеть как до волны; (3) у K-7 они есть и в свод входят. */
+  /* 163. ШЕСТЬ СТАТЕЙ ДОЛГА (КВ-41 заход 1, ADR-0093 §1) И ПРАВИЛО ПОКАЗА (КВ-66).
+     Накопленные проценты и накопленная пеня стали СТАТЬЯМИ, а не значением срочности
+     внутри процентов. Необязательных статей теперь три — две накопленные и сборы: экран
+     рисует их только при ненулевой строке, обязательные (тело, проценты, пеня) стоят
+     всегда. Пять сторон: (1) свод сходится с очередью по просроченному — очередь
+     публикует кредит (ADR-0060 §4), и разъезд здесь означал бы, что статья попала в один
+     список и не попала в другой; (2) у кредита без накопленных и без сборов рисуются
+     ровно три строки; (3) у K-7 накопленные есть и в свод входят, а сборов нет — пять;
+     (4) у K-1 сборы есть и печатаются, накопленных нет — четыре; (5) состав показанных
+     статей — подмножество шести, и обязательные три не выпадают ни у одного кредита
+     сида (иначе правило показа съело бы то, что обязано стоять при нуле). */
   {
-    let mismatch = [];
+    let mismatch = [], dropped = [], feeShownZero = [], feeHiddenNonzero = [];
+    const shownKeys = d => CR2.debtArticlesOf(d.debt).map(a => a.key);
     for (const c of CR2.db.credits){
       const d = CR2.derive(c, CR2.TODAY);
       const q = Math.round((d.queue.rows.filter(r => r.urg === 'over')
         .reduce((a, r) => a + r.amount, 0)) * 100) / 100;
       if (Math.abs(q - d.overdueAmount) > 0.02) mismatch.push(`${c.id}: ${q} ≠ ${d.overdueAmount}`);
+      const keys = shownKeys(d);
+      for (const k of ['principal','interest','penalty'])
+        if (!keys.includes(k)) dropped.push(`${c.id}: нет ${k}`);
+      const f = d.debt.fees;
+      const feeAny = ['accrued','paid','bal','written'].reduce((a,v) => a + (f[v] || 0), 0);
+      if (keys.includes('fees') && feeAny <= 0.005) feeShownZero.push(c.id);
+      if (!keys.includes('fees') && feeAny > 0.005)  feeHiddenNonzero.push(c.id);
     }
     const d1 = CR2.derive(CR2.db.credits.find(c => c.id === 'K-1'), CR2.TODAY);
     const d7 = CR2.derive(CR2.db.credits.find(c => c.id === 'K-7'), CR2.TODAY);
-    const hidden = CR2.debtArticlesOf(d1.debt).length === 4;
-    const shown  = CR2.debtArticlesOf(d7.debt).length === 6;
-    const acc7   = Math.round((d7.debt.accInterest.bal + d7.debt.accPenalty.bal) * 100) / 100;
-    ok(163, mismatch.length === 0 && hidden && shown && acc7 > 0.005 && CR2.DEBT_ARTICLES.length === 6,
+    const bare = CR2.derive(CR2.db.credits.find(c => c.id === 'K-2'), CR2.TODAY);
+    const withFees = shownKeys(d1).length === 4 && shownKeys(d1).includes('fees');
+    const withAcc  = shownKeys(d7).length === 5 && !shownKeys(d7).includes('fees');
+    const plain    = shownKeys(bare).join('|') === 'principal|interest|penalty';
+    const acc7     = Math.round((d7.debt.accInterest.bal + d7.debt.accPenalty.bal) * 100) / 100;
+    const feesShown = CR2.db.credits.filter(c => shownKeys(CR2.derive(c, CR2.TODAY)).includes('fees')).length;
+    ok(163, mismatch.length === 0 && withFees && withAcc && plain && acc7 > 0.005
+         && dropped.length === 0 && feeShownZero.length === 0 && feeHiddenNonzero.length === 0
+         && CR2.DEBT_ARTICLES.length === 6,
        `статей ${CR2.DEBT_ARTICLES.length} · свод против очереди: расхождений ${mismatch.length}`
        + `${mismatch.length ? ' — ' + mismatch.slice(0,2).join(' | ') : ''}`
-       + ` · K-1 показывает ${CR2.debtArticlesOf(d1.debt).length}, K-7 — ${CR2.debtArticlesOf(d7.debt).length}`
-       + ` · накопленное у K-7 ${acc7}`);
+       + ` · K-1 показывает ${shownKeys(d1).length} (со сборами), K-7 — ${shownKeys(d7).length} (с накопленными, без сборов),`
+       + ` K-2 — ${shownKeys(bare).join(' · ')}`
+       + ` · накопленное у K-7 ${acc7} · «Сборы и комиссии» печатают ${feesShown} кредитов из ${CR2.db.credits.length}`
+       + ` · обязательных потеряно ${dropped.length}${dropped.length ? ' — ' + dropped.slice(0,2).join(' | ') : ''}`
+       + ` · сборы при нуле показаны у ${feeShownZero.length}, при ненуле спрятаны у ${feeHiddenNonzero.length}`);
   }
 
   /* 164. ДЕТАЛЬНЫЙ РАСЧЁТ — ОДИН ЛИСТ ПО КРИТИЧЕСКИМ ДАТАМ (КВ-42/ADR-0129, вид один с
@@ -1414,8 +1435,7 @@ const pd = CR.pd;
         else if (arity(hrows[1]) !== arity(hrows[0]) - 1)
           bad.push(`${c.id}: второй этаж ${arity(hrows[1])} против ${arity(hrows[0]) - 1}`);
         for (const re of [/>Основной долг</, />Проценты</, />Пеня</, />Дата и событие</,
-                          />По графику</, />Остаток</, />Просрочено</, />Ставка</,
-                          />Дней</, />Начислено</, />За день</])
+                          />По графику</, />Остаток</, />Просрочено</, />Начислено</])
           if (!re.test(tbl)) bad.push(`${c.id}: нет колонки ${re.source}`);
         /* КОЛОНКИ ПО СОСТАВУ — В ОБЕ СТОРОНЫ (разбор 16.08.2026). Четыре колонки живут
            там, где им есть что показать, и правило проверяется обоими концами: у кредита
@@ -1430,23 +1450,88 @@ const pd = CR.pd;
           [/>Принято</,    mrows.some(r => (r.movedIn||0)  > 0.005), 'Принято']])
           if (re.test(tbl) !== want)
             bad.push(`${c.id}: колонка «${name}» ${re.test(tbl) ? 'есть, а показывать нечего' : 'нужна, а её нет'}`);
-        /* НАРАСТАЮЩИЕ — ПО КНОПКЕ, СВОЕЙ НА БЛОК (разбор 16.08.2026). По умолчанию свёрнуты,
-           поэтому в шапке их ноль; развёрнутые обязаны вернуться все разом: два по телу
-           (потребовано графиком · погашено) + три по процентам (начислено · потребовано
-           графиком · погашено, КВ-65), а освоение, перенос, списание и накопленные добавляют
-           свои. Кнопки — по одной у «Основного долга» и «Процентов», у пени нарастающих
-           колонок нет и кнопки быть не должно. */
+        /* ДЕТАЛИ — ПО КНОПКЕ, СВОЕЙ НА БЛОК (разбор 16.08.2026; параметры отрезка добавлены
+           КВ-67, разбор одной статьи за раз — КВ-68). По умолчанию детали свёрнуты, поэтому
+           в шапке их ноль. Кнопок ТРИ — у каждого блока своя: у пени нарастающих нет, но
+           «Ставка» и «За день» прячутся её кнопкой.
+           РАЗБОР ОДНОЙ СТАТЬИ стережётся с ТРЁХ сторон, и каждая ловит свой класс поломки:
+             (1) у разобранной статьи детали ПРИШЛИ — иначе кнопка не работает вовсе;
+             (2) у соседних не осталось НИЧЕГО, кроме колонок-ответов, — иначе сворачивания
+                 нет и лист по-прежнему растёт в ширину;
+             (3) колонки-ответы соседей ЦЕЛЫ — «Остаток» есть у всех трёх блоков, «Просрочено»
+                 у тела и процентов. Это главная сторона: ради неё блок и не прячется целиком
+                 (база отрезка живёт в соседнем блоке), и односторонняя проба «соседи ужались»
+                 прошла бы одинаково при сворачивании до пары и при сворачивании до нуля.
+           ПАРАМЕТРЫ ОТРЕЗКА стерегутся обоими концами: в умолчании их нет ни одного, а при
+           разборе своей статьи «Ставка» приходит ровно один раз (второй экземпляр — у соседа,
+           и он сейчас свёрнут). До КВ-68 обе «Ставки» стояли разом; проба переписана вместе с
+           правилом. */
         if ((tbl.match(/>Нарастающим</g) || []).length !== 0)
           bad.push(`${c.id}: нарастающие показаны по умолчанию — они сворачиваются кнопкой блока`);
-        const sw = (html.match(/CR\.toggleCalcRun\('(od|int)'\)/g) || []);
-        if (new Set(sw).size !== 2)
-          bad.push(`${c.id}: переключателей нарастающих ${new Set(sw).size} вместо двух`);
-        CR2.toggleCalcRun('od'); CR2.toggleCalcRun('int');
-        const opened = tables(CR2.renderTab('Расчёты', c)).find(t => /class="cgrid tiered"/.test(t)) || '';
-        CR2.toggleCalcRun('od'); CR2.toggleCalcRun('int');
-        const nRun = (opened.match(/>Нарастающим</g) || []).length;
-        if (nRun < 6) bad.push(`${c.id}: развёрнутых колонок «Нарастающим» ${nRun}, а обязано быть не меньше шести (КВ-51, КВ-65)`);
-        checkArity(opened, 'даты·развёрнуто', bad, c.id);   // строки считаны выше, здесь стережём только арность
+        const sw = (html.match(/CR\.toggleCalcDetail\('(od|int|pen)'\)/g) || []);
+        if (new Set(sw).size !== 3)
+          bad.push(`${c.id}: переключателей деталей ${new Set(sw).size} вместо трёх (КВ-67)`);
+        if (/toggleCalcRun/.test(html))
+          bad.push(`${c.id}: вернулся toggleCalcRun — разбор идёт по одной статье (КВ-68)`);
+        /* Шапки второго яруса разобранного листа: сначала блок, потом его колонки. Границу
+           блока даёт class="grp" на первой ячейке блока — та же разметка, что рисует линию. */
+        const heads = (t) => {
+          const tr = ((t.match(/<thead>[\s\S]*?<\/thead>/) || [''])[0].match(/<tr[\s\S]*?<\/tr>/g) || ['',''])[1] || '';
+          const cells = tr.match(/<th\b[^>]*>[\s\S]*?<\/th>/g) || [];
+          const out = [[], [], []]; let b = -1;
+          for (const th of cells){ if (/class="grp"/.test(th)) b++; if (b >= 0 && b < 3) out[b].push(th.replace(/<[^>]*>/g,'').trim()); }
+          return out;
+        };
+        const openBlock = (block) => { CR2.toggleCalcDetail(block);
+          const h = CR2.renderTab('Расчёты', c);
+          CR2.toggleCalcDetail(block);
+          return { h, t: tables(h).find(x => /class="cgrid tiered"/.test(x)) || '' }; };
+        /* КНОПКА НЕ МЕНЯЕТ СТОРОНУ (КВ-68.1, жалоба владельца 17.08.2026: «кнопки показать
+           скрыть детали прыгают, то справа то слева появляются»). Класс у всех трёх кнопок
+           обязан быть ОДИН И ТОТ ЖЕ во всех состояниях: сторону задаёт CSS по классу, и
+           модификатор вроде `runsw open` — единственный способ, каким она может разъехаться.
+           Проба смотрит на разметку, а не на вычисленный float: скрипт рендерит строку. */
+        const CHIP = { od: 'Основной долг', int: 'Проценты', pen: 'Пеня' };
+        if (/class="detoff"/.test(html))
+          bad.push(`${c.id}: чип разбора показан в умолчании — разбора нет, снимать нечего (КВ-68.1)`);
+        const ANS = { od: ['Остаток','Просрочено'], int: ['Остаток','Просрочено'], pen: ['Остаток'] };
+        const BI  = { od: 0, int: 1, pen: 2 };
+        let opened = '', nRun = 0;
+        for (const block of ['od','int','pen']){
+          const { h, t } = openBlock(block); if (block === 'int') opened = t;
+          const cls = [...t.matchAll(/<button class="(runsw[^"]*)"/g)].map(m => m[1]);
+          if (cls.length !== 3 || new Set(cls).size !== 1)
+            bad.push(`${c.id}: при разборе «${block}» классы кнопок деталей [${cls.join('|')}] — сторона обязана быть одна на все состояния (КВ-68.1)`);
+          /* Чип разбора: ровно один, называет разбираемую статью словом и снимает ЕЁ. */
+          const chip = [...h.matchAll(/<button class="detoff" onclick="CR\.toggleCalcDetail\('(od|int|pen)'\)"[\s\S]*?>разбор: ([^<]*)</g)];
+          if (chip.length !== 1 || chip[0][1] !== block || chip[0][2] !== CHIP[block])
+            bad.push(`${c.id}: при разборе «${block}» чип у имени листа ${chip.length !== 1 ? `встретился ${chip.length} раз(а)` : `снимает «${chip[0][1]}» и зовётся «${chip[0][2]}»`} (КВ-68.1)`);
+          nRun += (t.match(/>Нарастающим</g) || []).length;
+          const hs = heads(t);
+          for (const other of ['od','int','pen']){
+            if (other === block) continue;
+            const got = hs[BI[other]], want = ANS[other];
+            if (got.join('·') !== want.join('·'))
+              bad.push(`${c.id}: при разборе «${block}» блок «${other}» свёрнут в [${got.join('·')}] вместо колонок-ответов [${want.join('·')}] (КВ-68)`);
+          }
+          const mine = hs[BI[block]];
+          for (const need of (block === 'od' ? ['Нарастающим'] : block === 'int' ? ['Ставка','Дней','Нарастающим'] : ['Ставка','За день']))
+            if (!mine.includes(need))
+              bad.push(`${c.id}: при разборе «${block}» своя деталь «${need}» не пришла (КВ-67/КВ-68)`);
+          checkArity(t, 'даты·разбор ' + block, bad, c.id);
+        }
+        /* Шесть нарастающих собираются ТРЕМЯ разборами, а не одним: разом их больше не
+           показать. Два по телу (потребовано графиком · погашено) + три по процентам
+           (начислено · потребовано графиком · погашено, КВ-65), освоение, перенос, списание
+           и накопленные добавляют свои; у пени нарастающих нет и слагаемое нулевое. */
+        if (nRun < 6) bad.push(`${c.id}: нарастающих по всем разборам ${nRun}, а обязано быть не меньше шести (КВ-51, КВ-65)`);
+        for (const [re, want] of [[/>Ставка</g, 1], [/>Дней</g, 1], [/>За день</g, 0]]){
+          if ((tbl.match(re) || []).length !== 0)
+            bad.push(`${c.id}: параметр отрезка ${re.source} показан по умолчанию — он уходит под «детали» (КВ-67)`);
+          const got = (opened.match(re) || []).length;
+          if (got !== want)
+            bad.push(`${c.id}: при разборе процентов ${re.source} встретилась ${got} раз(а) вместо ${want} (КВ-68: чужая «Ставка» свёрнута)`);
+        }
         if (/>Событие</.test(tbl)) bad.push(`${c.id}: «Событие» снова отдельной колонкой — его место под датой (КВ-47)`);
         if (/>Наступило</.test(tbl)) bad.push(`${c.id}: вернулось «Наступило» — колонка зовётся «По графику» (КВ-49)`);
         if (/>Изменение</.test(tbl)) bad.push(`${c.id}: вернулось «Изменение» — освоение и погашение стоят порознь (КВ-48)`);
@@ -1554,14 +1639,20 @@ const pd = CR.pd;
      каждой статьи гасятся своим переключателем в шапке БЛОКА и по умолчанию свёрнуты.
      Значит ширина листа зависит уже от двух вещей, и стеречь надо обе:
        · СОСТАВ — срез 23.07.2026 (позиции ДС-РС-2002 15.08–15.10.2026 ещё не наступили)
-         против среза 20.11.2026, где «Накопленные» появляются: 20 → 21 колонка;
-       · СОСТОЯНИЕ — те же срезы с развёрнутыми нарастающими: 28 и 30.
-     Разность 20→28 есть ровно восемь нарастающих блока ОД и процентов; 21→30 — девять, к
-     ним добавляется нарастающий накопленных. Числа выросли на волне КВ-65: блок процентов
-     получил «По графику» (видна всегда) и два нарастающих к ней и к «Погашено», —
-     свёрнутое состояние +1, развёрнутое +3. «Списано» у K-7 нет НИ В ОДНОМ состоянии: у
-     него нет списаний, и по новому правилу колонки быть не должно (обратную сторону — что у
-     списанного кредита она есть — стережёт №173). У K-1 умолчание 18.
+         против среза 20.11.2026, где «Накопленные» появляются: 16 → 17 колонок;
+       · СОСТОЯНИЕ — те же срезы с разобранной статьёй.
+     КВ-68 ПЕРЕВЕРНУЛА ЗНАК ЭТОЙ ПРОВЕРКИ. До неё разворот РАСШИРЯЛ лист (16 → 28, 21 → 30):
+     три кнопки жались разом и складывали детали трёх блоков. Теперь разбор идёт по одной
+     статье, а соседние сворачиваются до колонок-ответов, и лист от разбора СУЖАЕТСЯ. Отсюда
+     новая форма пробы — не «развёрнутое больше свёрнутого», а «ни один разбор не шире
+     умолчания»: ровно это обещание волна и даёт, и стеречь надо его, а не набор чисел,
+     который сдвинет первая же колонка «по составу». Числа при этом тоже названы поимённо
+     (широкий разбор — блок ОД: у него деталей больше всех), иначе проба пропустила бы
+     сворачивание соседей до нуля — оно тоже «не шире умолчания».
+     Разбор процентов у K-7 — 14 колонок: дата + 2 ответа тела + 10 процентов + 1 пени.
+     «Списано» у K-7 нет НИ В ОДНОМ состоянии: у него нет списаний, и по новому правилу
+     колонки быть не должно (обратную сторону — что у списанного кредита она есть — стережёт
+     №173). У K-1 умолчание 14.
      Срез возвращается на TODAY: следующие проверки читают карточку. */
   {
     const arity2 = tr => { let n = 0, re = /<t[dh]\b([^>]*)>/g, mm;
@@ -1575,28 +1666,40 @@ const pd = CR.pd;
     });
     const c7 = CR2.db.credits.find(x => x.id === 'K-7');
     CR2.openDetail('K-7');
-    const both = () => { CR2.toggleCalcRun('od'); CR2.toggleCalcRun('int'); };
+    const one = (c, block) => { CR2.toggleCalcDetail(block);
+      const w = widths(CR2.renderTab('Расчёты', c)); CR2.toggleCalcDetail(block); return w; };
     CR2.setCardAsOf('23.07.2026');
-    const narrow = widths(CR2.renderTab('Расчёты', c7));
-    both(); const narrowOpen = widths(CR2.renderTab('Расчёты', c7)); both();
+    const narrow  = widths(CR2.renderTab('Расчёты', c7));
+    const narrowD = ['od','int','pen'].map(b => one(c7, b));
     CR2.setCardAsOf('20.11.2026');
-    const wide = widths(CR2.renderTab('Расчёты', c7));
-    both(); const wideHtml = CR2.renderTab('Расчёты', c7); both();
-    const wideOpen = widths(wideHtml);
+    const wideHtml = CR2.renderTab('Расчёты', c7);
+    const wide  = widths(wideHtml);
+    const wideD = ['od','int','pen'].map(b => one(c7, b));
     CR2.setCardAsOf(CR2.TODAY);
     const accHead = /<th[^>]*>Накопленные<\/th>/.test(wideHtml);
     const offHead = /<th[^>]*>Списано<\/th>/.test(wideHtml);
     const c1 = CR2.db.credits.find(x => x.id === 'K-1');
     CR2.openDetail('K-1');
-    const plain = widths(CR2.renderTab('Расчёты', c1));
-    const all = narrow.concat(narrowOpen, wide, wideOpen, plain);
-    ok(170, all.length > 0 && all.every(x => x.bad === 0)
-         && narrow.every(x => x.w === 20) && narrowOpen.every(x => x.w === 28)
-         && wide.every(x => x.w === 21)   && wideOpen.every(x => x.w === 30)
-         && plain.every(x => x.w === 18)  && accHead && !offHead,
-       `K-7 до наступления накопленных ${narrow.map(x=>x.w).join(',')}|${narrowOpen.map(x=>x.w).join(',')}`
-       + ` · после ${wide.map(x=>x.w).join(',')}|${wideOpen.map(x=>x.w).join(',')} (свёрнуто|развёрнуто)`
-       + ` · K-1 ${plain.map(x=>x.w).join(',')} · «Накопленные» ${accHead} · «Списано» у K-7 ${offHead}`
+    const plain  = widths(CR2.renderTab('Расчёты', c1));
+    const plainD = ['od','int','pen'].map(b => one(c1, b));
+    const all = [narrow, wide, plain].concat(narrowD, wideD, plainD).flat();
+    /* «Ни один разбор не шире умолчания» — обещание волны, проверяется на всех трёх срезах
+       сразу. Пары «умолчание → его разборы» держатся вместе, иначе сравнение поехало бы
+       между составами. */
+    const fits = [[narrow, narrowD], [wide, wideD], [plain, plainD]].every(([base, ds]) =>
+      ds.every(d => d.every((x, i) => x.w <= base[i].w)));
+    const w = (ws) => ws.map(x => x.w).join(',');
+    ok(170, all.length > 0 && all.every(x => x.bad === 0) && fits
+         && narrow.every(x => x.w === 16) && wide.every(x => x.w === 17)
+         && plain.every(x => x.w === 14)
+         && narrowD[0].every(x => x.w === 16) && narrowD[1].every(x => x.w === 14)
+         && narrowD[2].every(x => x.w === 10)
+         && wideD[1].every(x => x.w === 16)
+         && accHead && !offHead,
+       `K-7 до наступления накопленных ${w(narrow)} → разбор ${narrowD.map(w).join('/')} (тело/проценты/пеня)`
+       + ` · после ${w(wide)} → ${wideD.map(w).join('/')}`
+       + ` · K-1 ${w(plain)} → ${plainD.map(w).join('/')}`
+       + ` · разбор не шире умолчания ${fits} · «Накопленные» ${accHead} · «Списано» у K-7 ${offHead}`
        + ` · строк не по шапке ${all.reduce((a,x)=>a+x.bad,0)}`);
   }
 
@@ -1992,14 +2095,17 @@ const pd = CR.pd;
           bad.push(`${c.id}: итог транша пеня ${gp} против ${s.sumPenalty}`);
       }
     }
-    /* Нарастающее в итоге — состояние на конец, а не сумма. Проверяется на РАЗВЁРНУТЫХ
-       деталях: по умолчанию колонки нет вовсе (КВ-57). У K-1 первая «Нарастающим» блока
-       тела — пара «По графику», освоения в его листе нет. */
+    /* Нарастающее в итоге — состояние на конец, а не сумма. Проверяется на РАЗОБРАННОМ теле:
+       по умолчанию колонки нет вовсе (КВ-57). У K-1 первая «Нарастающим» блока тела — пара
+       «По графику», освоения в его листе нет. Разбор тела сворачивает проценты и пеню до
+       колонок-ответов (КВ-68) — на эту пробу это не влияет: она ищет ПЕРВУЮ «Нарастающим», а
+       она в блоке тела, и сверяет её позицию с ячейкой годовой строки, которая собирается тем
+       же массивом описателей. */
     const kd = CR2.db.credits.find(x => x.id === 'K-1');
     CR2.openDetail('K-1');
-    CR2.toggleCalcRun('od');
+    CR2.toggleCalcDetail('od');
     const opened = (CR2.renderTab('Расчёты', kd).match(/<table class="cgrid tiered">[\s\S]*?<\/table>/g) || [''])[0];
-    CR2.toggleCalcRun('od');
+    CR2.toggleCalcDetail('od');
     const oths = ((opened.match(/<thead>[\s\S]*?<\/thead>/) || [''])[0].match(/<tr[\s\S]*?<\/tr>/g) || ['', ''])[1] || '';
     const olab = (oths.match(/<th[^>]*>[\s\S]*?<\/th>/g) || []).map(t => t.replace(/<[^>]*>/g, '').trim());
     const iRun = olab.indexOf('Нарастающим');
@@ -2097,6 +2203,92 @@ const pd = CR.pd;
        + ` · нарушений ${bad.length}${bad.length ? ' — ' + bad.slice(0, 3).join(' | ') : ''}`);
   }
 
+  /* 177. НОМЕР ТРАНША — ТОЛЬКО ТАМ, ГДЕ ЕСТЬ ВЫБОР (КВ-70, решение владельца 17.08.2026).
+     У 56 кредитов сида транш ровно один, и экран печатал «транш №1» на каждой вкладке:
+     номер, который ничего не различает, читается как признак и заставляет искать транш
+     №2. Гейт один — `multiTr(c)`, а не смена семантики `scopeTranche` (тот и дальше
+     отдаёт единственный транш, иначе одиночные кредиты уехали бы в агрегатную ветку).
+     Стережётся с четырёх сторон, каждая ловит свой класс поломки:
+       (1) у одиночного кредита номер не доходит до РАЗМЕТКИ — проверяется по сырому
+           html, а не по тексту: подпись у иконки закрытия транша и заголовки секций
+           живут в атрибутах, и очистка тегов спрятала бы их возврат;
+       (2) колонки-ключа «Транш» у одиночного нет ни на одной вкладке — она снята
+           (решение владельца), а не оставлена с одним значением; вместе с ней правились
+           colspan итогов и строк-раскрытий, и лишний `<th>` тут же разъедет их;
+       (3) положительный контроль: у K-1/K-7/K-C40/K-C41 (2–3 транша) и номер, и колонка
+           на месте — без него гейт, всегда возвращающий false, прошёл бы проверку;
+       (4) модалки: при одном транше поле-селект спрятано, но `id` жив скрытым input'ом
+           с настоящим номером — submit-обработчики читают его как читали. Проверяются
+           обе стороны: у одиночного hidden без подписи «Транш», у многотраншевого select.
+     ЖУРНАЛ («Досье») из-под правила выведен намеренно: запись сделана и датирована тогда,
+     когда траншей могло быть иначе, — «addDisbursement: транш №1» это факт прошлого, а не
+     подпись текущего экрана. Проверка требует, чтобы номер там ОСТАЛСЯ: молчаливое
+     распространение гейта на журнал — тоже регресс.
+     Проверено с обратной стороны: подмена `multiTr` на `() => true` в песочнице даёт 31
+     нарушение уже на пяти первых одиночных кредитах, модалка возвращает селект — значит
+     ловится именно гейт, а не совпадение разметки. */
+  {
+    const TRN = /[Тт]ранш[аеуы]?\s*№\s*\d/;                  // «транш №1», «траншу №2», «Транша №3»
+    const THT = /<th[^>]*>Транш</;                            // колонка-ключ реестра/сводов
+    const SCOPED = ['Договор','Условия','Состав','График','Прогноз','Расчёты','Платежи','План','Обеспечение','Проблемные'];
+    const singles = CR2.db.credits.filter(c => (c.tranches || []).length === 1);
+    const multis  = CR2.db.credits.filter(c => (c.tranches || []).length > 1);
+    let bad = [], nS = 0, nM = 0, jrn = 0;
+    for (const c of singles){ CR2.openDetail(c.id); nS++;
+      for (const t of SCOPED){ let h;
+        try { h = CR2.renderTab(t, c); } catch(e){ bad.push(`${c.id}/${t}: ${e.message}`); continue; }
+        const num = (h.match(TRN) || [''])[0];
+        if (num) bad.push(`${c.id}/${t}: печатает «${num}» при одном транше`);
+        if (THT.test(h)) bad.push(`${c.id}/${t}: колонка «Транш» при одном транше`);
+      }
+      if (TRN.test(CR2.renderTab('Досье', c))) jrn++;         // журнал — исключение, см. шапку
+    }
+    /* Положительный контроль: гейт обязан ПРОПУСКАТЬ многотраншевые. Номер ищется по всем
+       вкладкам разом (у K-1 он выпадает только на «Расчётах» — там свод по траншам),
+       колонка — на четырёх сводных, где она и есть ключом строки. */
+    for (const c of multis){ CR2.openDetail(c.id); nM++;
+      const all = SCOPED.map(t => { try { return CR2.renderTab(t, c); } catch(e){ return ''; } });
+      if (!all.some(h => TRN.test(h))) bad.push(`${c.id}: ${c.tranches.length} транша, а номера нет нигде`);
+      for (const t of ['Состав','График','Прогноз','Платежи'])
+        if (!THT.test(all[SCOPED.indexOf(t)])) bad.push(`${c.id}/${t}: ${c.tranches.length} транша, а колонки «Транш» нет`);
+    }
+    /* Модалки: openModal перехватывается — тело диалога иначе уходит в DOM-заглушку. Роль
+       поднимается до начальника отдела и возвращается назад: modalGuard молча закрывает
+       действие не по роли, и пустое тело читалось бы как «поле исчезло». Терминальный
+       кредит guard закрывает тоже — такие пропускаются, а не считаются нарушением. */
+    const MOD = [['openDisbModal','disbTranche'], ['openSchedModal','schedTranche'],
+                 ['openPaymentModal','payTranche'], ['openCloseTrancheModal','ctNo']];
+    const realOpen = CR2.openModal, realGet = doc.getElementById, wasRole = CR2.state && CR2.state.role;
+    let body = '', shown = 0;
+    CR2.openModal = (title, b) => { body = b || ''; };
+    const setRole = (r) => { doc.getElementById = (id) => id === 'roleSel'
+      ? Object.assign(stub(), { value:r }) : realGet(id); CR2.onRoleChange(); };
+    setRole('Начальник отдела');
+    const probeMod = (c, wantSelect) => { CR2.openDetail(c.id); let got = 0;
+      for (const [fn, fid] of MOD){ body = '';
+        try { CR2[fn](); } catch(e){ bad.push(`${c.id}/${fn}: ${e.message}`); continue; }
+        if (!body) continue;                                  // guard не пустил — не наш случай
+        got++;
+        const sel = new RegExp(`<select id="${fid}"`).test(body);
+        const hid = new RegExp(`<input type="hidden" id="${fid}" value="(\\d+)"`).exec(body);
+        if (wantSelect && !sel) bad.push(`${c.id}/${fn}: ${c.tranches.length} транша, а выбора нет`);
+        if (!wantSelect){
+          if (sel) bad.push(`${c.id}/${fn}: селект «Транш» при одном транше`);
+          if (!hid) bad.push(`${c.id}/${fn}: поле ${fid} исчезло вместе с подписью`);
+          else if (+hid[1] !== c.tranches[0].no) bad.push(`${c.id}/${fn}: скрытое поле несёт №${hid[1]}, а транш №${c.tranches[0].no}`);
+          if (/flabel">Транш</.test(body)) bad.push(`${c.id}/${fn}: подпись «Транш» осталась`);
+        }
+      } return got; };
+    for (const c of singles){ if (shown >= 24) break; shown += probeMod(c, false); }
+    let shownM = 0;
+    for (const c of multis) shownM += probeMod(c, true);
+    CR2.openModal = realOpen; setRole(wasRole || 'Кредитный специалист'); doc.getElementById = realGet;
+    ok(177, bad.length === 0 && nS > 40 && nM >= 4 && jrn > 0 && shown >= 12 && shownM >= 8,
+       `одиночных ${nS} · многотраншевых ${nM} · журнал сохранил номер у ${jrn}`
+       + ` · модалок с полем транша ${shown} одиночных / ${shownM} многотраншевых`
+       + ` · нарушений ${bad.length}${bad.length ? ' — ' + bad.slice(0, 3).join(' | ') : ''}`);
+  }
+
   /* 130. «ГРАФИК» СО СТАТЬЯМИ (КВ-26, ADR-0109). Колонки статей рисуются ПО СОСТАВУ:
      у К-1 их нет вовсе (иначе вкладка обрастает пустыми колонками у всех кредитов
      страны ради двух реструктурированных), у производного транша К-7 — есть, и
@@ -2127,17 +2319,48 @@ const pd = CR.pd;
      ПАРА «Основной долг · Проценты» НЕРАЗРЫВНА (КВ-38): статьи ADR-0109 стоят ПОСЛЕ
      процентов, иначе на реструктурированном кредите та же таблица читается в другом
      порядке, чем на обычном. Проверяется на К-7, где статьи есть: на К-1 их нет вовсе
-     и вклинивание нечем поймать. */
+     и вклинивание нечем поймать.
+     «НАЧИСЛЕНО ЗА ПЕРИОД» — ПО СОСТАВУ (КВ-69), и потому проверяется ДВУМЯ ветками.
+     Отрицательная — на живой базе: расхождения нет ни у одного демо-кредита (сид
+     начисление вовсе не пишет), колонки не должно быть НИГДЕ, а факт совпадения обязан
+     проговорить тултип «Процентов» — молчание неотличимо от «мы этого не считаем».
+     Положительная — на клоне с поднятым начислением, и расхождение ставится в позицию
+     СВЁРНУТОГО года: состав шапки считается по ВСЕМ позициям области, а не по видимым,
+     иначе колонка мигала бы от разворота года. Порядок ОД→Итого→Начислено сторожится
+     на этой же ветке — на скрытой колонке его ловить нечем. */
   const thOf = h => (h.match(/<thead><tr>(?:(?!<\/thead>)[\s\S])*?Основной долг[\s\S]*?<\/thead>/) || [''])[0];
   const thPos = thOf(grf1), thArt = thOf(grf7d);
   const iOf = s => thPos.indexOf(s), iArt = s => thArt.indexOf(s);
   const artAfter = iArt('Проценты') > iArt('Основной долг')
     && SCHED_ART_H.every(a => thArt.indexOf(a) < 0 || thArt.indexOf(a) > iArt('Проценты'));
+  const accHidden = CR2.db.credits.every(c => !/Начислено за период/.test(thOf(CR2.renderTab('График', c))));
+  const accClone = JSON.parse(JSON.stringify(CR2.db.credits.find(c => c.id === 'K-1')));
+  const curY = CR2.pd(CR2.TODAY).getFullYear();
+  let accHit = null;
+  for (const t of accClone.tranches){
+    if (accHit) break;
+    /* У К-1 хранимых версий нет — позиции выводит trancheScheduleRows. Кладём их
+       клону версией и поднимаем начисление одной строки: расхождение как в льготе по %
+       (что льгота его даёт — стережёт №47, здесь речь только про шапку). */
+    const rows = JSON.parse(JSON.stringify(CR2.trancheScheduleRows(t)));
+    const hit = rows.find(r => +String(r.date).slice(6, 10) !== curY);
+    if (!hit) continue;
+    hit.accrued = (hit.interest || 0) + 100; accHit = hit;
+    t.schedules = [{ ver:1, validFrom:rows[0].date, by:{ kind:'engine', label:'Первичный график' },
+                     generatedFrom:rows[0].date, generatedAt:rows[0].date, generatedSeq:0, rows }];
+  }
+  CR2.openDetail('K-1'); try { CR2.setCardScope('credit'); } catch(e){}
+  const thAcc = thOf(CR2.renderTab('График', accClone));
+  const iAcc = s => thAcc.indexOf(s);
+  const accOrder = iAcc('Начислено за период') > iAcc('Итого') && iAcc('Итого') > iAcc('Основной долг');
   ok(156, !/Осн\. сумма|Проценты в платеже|Начислено %/.test(grf1)
           && iOf('Основной долг') > 0 && iOf('Итого') > iOf('Основной долг')
-          && iOf('Начислено за период') > iOf('Итого') && artAfter,
+          && accHidden && /совпали с начисленным за период/.test(thPos)
+          && accHit && accOrder && artAfter,
      `старых имён нет ${!/Осн\. сумма|Проценты в платеже|Начислено %/.test(grf1)}`
-     + ` · порядок ОД→Итого→Начислено ${iOf('Начислено за период') > iOf('Итого') && iOf('Итого') > iOf('Основной долг')}`
+     + ` · колонки нет ни у одного кредита ${accHidden} · оговорка в тултипе «Процентов»`
+     + ` ${/совпали с начисленным за период/.test(thPos)}`
+     + ` · на клоне (свёрнутый год) порядок ОД→Итого→Начислено ${!!accHit && accOrder}`
      + ` · статьи после «Процентов» ${artAfter}`);
 
   /* 132. ВЕРСИИ НЕ ЗАНИМАЮТ ЭКРАН У ОБЫЧНОГО КРЕДИТА (КВ-27). Грид версий стоял на
@@ -2273,7 +2496,8 @@ const pd = CR.pd;
   /* 100. ГРУППИРОВКА ПО ГОДАМ на «Графике» (волна 10.08.2026, КВ-19). Строка года стоит
      перед первой позицией своего года, годы идут по возрастанию, итоги (ОД · проценты ·
      к погашению) равны суммам позиций ЭТОГО года и стоят ПОД СВОИМИ колонками — то есть
-     строка года имеет ровно 6 ячеек, а не одну на всю ширину. Развёрнут по умолчанию
+     строка года имеет ровно 6 ячеек (5, когда справочной колонки начисления нет —
+     КВ-69), а не одну на всю ширину. Развёрнут по умолчанию
      ТОЛЬКО текущий год: позиций в разметке ровно столько, сколько их в этом году, а
      итоги свёрнутых лет всё равно посчитаны по ВСЕМ позициям года. Однолетний график
      строк года не получает вовсе и показывает все позиции.
@@ -2289,6 +2513,10 @@ const pd = CR.pd;
        перенесённой пени. Сколько их, столько лишних ячеек в строке. Место — ЗА
        «Процентами» (КВ-38), см. want ниже. */
     const arts = CR2.scheduleArticleCols(rows);
+    /* «Начислено за период» — тоже по составу (КВ-69): колонки нет, когда начисление
+       ни в одной позиции не разошлось с «Процентами», и строка года на эту ячейку
+       короче. Порог тот же 0,005, что в ячейке и в шапке. */
+    const accCol = rows.some(r => r.accrued != null && Math.abs(r.accrued - r.interest) > 0.005) ? 1 : 0;
     const exp = new Map();
     for (const r of rows){ const y = CR2.pd(r.date).getFullYear();
       const g = exp.get(y) || { n:0, principal:0, interest:0, total:0, art:{} };
@@ -2314,7 +2542,7 @@ const pd = CR.pd;
     if (posN !== exp.get(defY).n) gbad.push(`${c.id}: развёрнут ${defY}: позиций ${posN} vs ${exp.get(defY).n}`);
     for (const h of heads){
       const g = exp.get(h.y);
-      if (h.tds !== 6 + arts.length) gbad.push(`${c.id}/${h.y}: ячеек в строке года ${h.tds}, а не ${6+arts.length} (итоги не под колонками)`);
+      if (h.tds !== 5 + accCol + arts.length) gbad.push(`${c.id}/${h.y}: ячеек в строке года ${h.tds}, а не ${5+accCol+arts.length} (итоги не под колонками)`);
       /* Порядок ожидания повторяет шапку: тело → проценты → статьи → итого (КВ-38).
          Пара «Основной долг · Проценты» неразрывна, статьи идут за ней. */
       const want = [m2(g.principal), m2(g.interest), ...arts.map(a => g.art[a.key] ? m2(g.art[a.key]) : '—'), m2(g.total)];

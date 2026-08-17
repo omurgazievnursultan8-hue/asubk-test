@@ -1,11 +1,15 @@
 // Снимки секции «Детальный расчёт» (ось КВ-42/ADR-0129, вид один с КВ-64): лист по
-// критическим датам со свёрнутыми и с развёрнутыми нарастающими. Кредит K-3 — просрочка,
+// критическим датам в умолчании и в разборе каждой из трёх статей. Кредит K-3 — просрочка,
 // решение суда, приостановленная пеня: на нём видно всё сразу.
 //   node scripts/inspect/credit-calc-kv42-shot.mjs
-// ДВА СНЯТЫХ API, на которые скрипт опирался: CR.toggleCalcCol (чипы групп колонок,
-// сняты КВ-47 — шапка называет колонки сама) и CR.setCalcView (второй вид «По позициям»,
-// снят КВ-64 — реестр дублировал «График»). Раскрытие теперь одно и своё на блок:
-// CR.toggleCalcRun('od'|'int').
+// ТРИ СНЯТЫХ API, на которые скрипт опирался по очереди: CR.toggleCalcCol (чипы групп
+// колонок, сняты КВ-47 — шапка называет колонки сама), CR.setCalcView (второй вид «По
+// позициям», снят КВ-64 — реестр дублировал «График») и CR.toggleCalcRun (три независимых
+// разворота, сняты КВ-68 — разбор идёт по одной статье). Действующее API:
+// CR.toggleCalcDetail('od'|'int'|'pen') — повторный клик по той же статье возвращает
+// умолчание, клик по другой переводит разбор на неё.
+// СНИМКОВ ЧЕТЫРЕ, А НЕ ДВА: с КВ-68 «развёрнутого листа» больше нет — состояний столько,
+// сколько статей, и каждое сужает лист по-своему.
 import { chromium } from 'playwright-core';
 import { pathToFileURL } from 'url';
 import { resolve } from 'path';
@@ -36,11 +40,13 @@ const shot = async (name) => {
   await page.waitForTimeout(150);
   await page.screenshot({ path: `${OUT}/${name}.png` });
 };
-await shot('01-dates-narrow');
-await page.evaluate(() => { CR.toggleCalcRun('od'); CR.toggleCalcRun('int'); });
-await page.waitForTimeout(200);
-await shot('02-dates-run');
-await page.evaluate(() => { CR.toggleCalcRun('od'); CR.toggleCalcRun('int'); });
+await shot('01-dates-default');
+for (const [n, block] of [['02-detail-od','od'], ['03-detail-int','int'], ['04-detail-pen','pen']]){
+  await page.evaluate(b => CR.toggleCalcDetail(b), block);
+  await page.waitForTimeout(200);
+  await shot(n);
+  await page.evaluate(b => CR.toggleCalcDetail(b), block);
+}
 
 console.log('снимки в', OUT, '· ERRORS:', errs.length ? errs.join(' | ') : 'нет');
 await ctx.close();
