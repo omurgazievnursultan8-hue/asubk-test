@@ -133,7 +133,7 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
     `граница порога: ${edge.heldDays} раб. дн. при пороге ${edge.sla} — ещё в сроке, не просрочка`);
 
   const fb = KU.fallbacks(TODAY);
-  ok(17, fb.length === 6 && fb.filter(f => f.overdue).length === 3,
+  ok(17, fb.length === 5 && fb.filter(f => f.overdue).length === 3,
     `фолбэком держится ${fb.length} закреплений, дольше порога ${fb.filter(f => f.overdue).length}`);
 
   const born = KU.state.objects.filter(o => o.born <= TODAY);
@@ -247,27 +247,34 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   const saved = KU.saveKey(rule.id);
   const nv = KU.verAt(rule, '2026-09-01');
   /* Имя переносится там, где ответ доказуемо не меняется: у «Ошской» был один куратор —
-     значит он же ведёт и «Ошская | ЮЛ», и «Ошская | ФЛ». «Таласская» имени не имела — дыры. */
-  ok(34, saved.ok && nv.key.join('+') === 'oblast+forma' && KU.space(nv).length === 10 &&
-        Object.keys(nv.cells).length === 8 && saved.holes === 2 &&
-        nv.cells['Ошская | Физическое лицо'] === 'e_ivanov' && !nv.cells['Таласская | Юридическое лицо'],
-    `смена ключа — тоже редакция: ячеек ${KU.space(nv).length}, имя перенесено в ${saved.kept} (ответ не меняется), дыр ${saved.holes} — там, где имени не было`);
+     значит он же ведёт и «Ошская | Частная», и «Ошская | Государственная». «Таласская»
+     имени не имела — из неё выходят дыры. Второй признак группировкой не резан:
+     форма собственности встаёт в ключ доменом справочника, всеми четырьмя значениями. */
+  ok(34, saved.ok && nv.key.join('+') === 'terr+forma' && KU.space(nv, '2026-09-01').length === 32 &&
+        Object.keys(nv.cells).length === 16 && saved.kept === 16 && saved.holes === 16 &&
+        nv.grp.terr === 'g_terr_oblast' && !nv.grp.forma &&
+        nv.cells['Ошская | Частная'] === 'e_ivanov' && !nv.cells['Таласская | Частная'],
+    `смена ключа — тоже редакция: ячеек ${KU.space(nv, '2026-09-01').length}, имя перенесено в ${saved.kept} (ответ не меняется), дыр ${saved.holes} — там, где имени не было`);
 })();
 
 /* ---------- H. Покрытие правил ---------- */
 (() => {
   KU.seed();
   const ind = KU.coverage(KU.lowRule('u_ind', 'cur_loan'), TODAY);
-  ok(35, ind.cells.length === 10 && ind.named.length === 6 && ind.holes.length === 4 &&
-        ind.holesHot.indexOf('Нарынская | Физическое лицо') >= 0,
+  ok(35, ind.cells.length === 16 && ind.named.length === 6 && ind.holes.length === 10 &&
+        ind.holesHot.indexOf('Нарынская | Граждане') >= 0,
     `составной ключ: ячеек ${ind.cells.length}, закрыто ${ind.named.length}, пустых с объектами ${ind.holesHot.length}`);
 
   const app = KU.coverage(KU.topRule('spec_app'), TODAY);
-  ok(36, app.cells.length === 3 && app.holes.join() === 'Услуги' && app.holesHot.join() === 'Услуги',
-    `верхнее правило заявок: не названа ячейка «${app.holes.join()}», и объект в ней есть`);
+  ok(36, app.cells.length === 4 && app.holes.join() === 'Услуги,' + KU.OTHER &&
+        app.holesHot.join() === 'Услуги',
+    `верхнее правило заявок: не названы ячейки «${app.holes.join('», «')}», объект есть в «${app.holesHot.join()}»`);
 
-  const objs = KU.cellObjects(KU.lowRule('u_agro', 'cur_loan'), 'Ошская', TODAY);
-  ok(37, objs.length === 4 && objs.every(o => o.f.oblast === 'Ошская'),
+  const low = KU.lowRule('u_agro', 'cur_loan');
+  const lowV = KU.verAt(low, TODAY);
+  const objs = KU.cellObjects(low, 'Ошская', TODAY);
+  ok(37, objs.length === 5 &&
+        objs.every(o => KU.groupOf(lowV, 'terr', KU.featVal(o, 'terr'), TODAY) === 'Ошская'),
     `счётчик ячейки и список за ним считаются одним расчётом: ${objs.map(o => o.id).join(', ')}`);
 })();
 
@@ -280,7 +287,7 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
     `в файле названы все 26 инвариантов и 4 решения${ius.length ? ' · нет: ' + ius.join(',') : ''}${adrs.length ? ' · нет: ' + adrs.join(',') : ''}`);
 
   const engine = m[1].slice(m[1].indexOf('ДВИЖОК'), m[1].indexOf('ШОВ'));
-  const leaked = ['cur_loan', 'spec_app', 'cur_claim', 'u_agro', 'u_opk', 'oblast', 'vidzalog', 'Ошская']
+  const leaked = ['cur_loan', 'spec_app', 'cur_claim', 'u_agro', 'u_opk', 'otrasl', 'vidzalog', 'Ошская']
     .filter(x => engine.includes(x));
   ok(39, leaked.length === 0,
     `в движке нет ни одной роли, ни подразделения, ни признака по имени — всё приходит справочниками${leaked.length ? ' · утекло: ' + leaked.join(',') : ''}`);
@@ -310,12 +317,13 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   ok(43, !!b && !!b.snap && same && b.ver.ruleId === 'low_agro_loan',
     `решение хранит снимок признаков на свою дату: ${b && Object.keys(b.snap).length} признаков в записи от ${b && b.from} — ИУ-15`);
 
+  /* Территория — признак ЗАЁМЩИКА: правится она у «ОсОО «Дан-Азык»», а не на кредите. */
   const wasAssigned = on('КД-2025/091', 'cur_loan').assigned;
-  const chg = KU.setFeature('КД-2025/091', 'oblast', 'Чуйская');
+  const chg = KU.setFeature('КД-2025/091', 'terr', 'Чуйский');
   const nowAssigned = on('КД-2025/091', 'cur_loan').assigned;
-  const snapKept = KU.journalOf('КД-2025/091', 'cur_loan')[0].snap.oblast;
+  const snapKept = KU.journalOf('КД-2025/091', 'cur_loan')[0].snap.terr;
   const off = KU.offRule('КД-2025/091', 'cur_loan', TODAY);
-  ok(44, chg.ok && nowAssigned === wasAssigned && snapKept === 'Ошская' && off && off.now === 'e_asanov',
+  ok(44, chg.ok && nowAssigned === wasAssigned && snapKept === 'Кара-Сууйский' && off && off.now === 'e_asanov',
     `признак поменялся в соседнем модуле — куратор не двинулся (${nm(nowAssigned)}), снимок хранит «${snapKept}», объект встал в «живут вне правила» (правило хочет ${nm(off && off.now)}) — ИУ-15`);
 
   const badFeat = KU.setFeature('КД-2025/091', 'vidzalog', 'Техника');
@@ -489,7 +497,7 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
   const recs = KU.journalOf('КД-2024/205', 'cur_loan');
   const last = recs[recs.length - 1];
   const twice = KU.backToRule('КД-2024/205', 'cur_loan');
-  ok(67, back.ok && last.empId === 'e_bekova' && last.src === 'правило' && recs.length === 3 &&
+  ok(67, back.ok && last.empId === 'e_ivanov' && last.src === 'правило' && recs.length === 3 &&
         !twice.ok && /и так стоит по правилу/.test(twice.why),
     `возврат к правилу — новая запись, а не откат: ${recs.length} записи по паре, сейчас ${nm(last.empId)} по правилу; повторно — «${twice.why}»`);
 })();
@@ -589,7 +597,7 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
         /отпуск/.test(dep.actingWhy),
     `замещающего называет модуль сотрудников, а не кураторство: ${dep.assignedName} в отпуске — работу ведёт ${dep.actingName}, ступень «${dep.actingStep}» (P12-R12, ИУ-23)`);
 
-  const noDep = on('ТР-2025/017', 'cur_claim');
+  const noDep = on('ТР-2025/018', 'cur_claim');
   ok(79, noDep.substituted === true && noDep.acting === 'e_abdylda' &&
         /заведующий отделом/.test(noDep.actingStep) && /замещающий не назван/.test(noDep.actingWhy),
     `замещающий не назван — работа уходит заведующему отделом: ${noDep.assignedName} → ${noDep.actingName} (ИУ-23)`);
@@ -701,52 +709,107 @@ const on = (objId, roleId, d) => KU.curatorOn(objId, roleId, d || TODAY);
     `хвосты переводятся одной пачкой и с причиной: ${move.moved} закреплений ушло к ${nm('e_toktogulova')} записями «перевод», после чего гейт пропускает — ${gate.why} (P18-R17)`);
 })();
 
-/* ---------- P. Группировка значений ключа (P18-R5) ---------- */
+/* ---------- P. Гейт признака и группировки в справочнике (P18-R5, ADR-0131) ---------- */
 (() => {
+  /* Гейт допуска: у каждого признака объявлен ИСТОЧНИК, домен либо конечен и взят из
+     справочника, либо признак числовой и несёт разбиение. Ничего третьего в справочнике нет. */
   KU.seed();
-  const st = KU.state; st.role = 'head'; st.headUnit = 'u_agro';
+  const F = KU.dict.FEATURES;
+  const srcOK  = F.every(f => f.src === 'borrower' || f.src === 'self');
+  const domOK  = F.every(f => f.num ? Array.isArray(f.cutsDefault) && f.cutsDefault.length
+                                    : Array.isArray(f.domain) && f.domain.length > 1);
+  const kindOK = F.every(f => f.obj.length && f.obj.every(k => !!KU.kind(k)));
+  ok(93, F.length === 12 && srcOK && domOK && kindOK,
+    `справочник признаков ${F.length}: у каждого объявлен источник (заёмщик ${
+      F.filter(f => f.src === 'borrower').length} · объект ${F.filter(f => f.src === 'self').length
+      }), домен конечен либо признак числовой — ADR-0131`);
+
+  /* Заёмщицкий признак на объекте НЕ хранится: у всех объектов заёмщика он один, и
+     меняется он у заёмщика — сразу для всех (ADR-0131, ADR-0001). */
+  KU.seed();
+  const akObjs = KU.state.objects.filter(o => o.borrower === 'ОсОО «Ак-Жол»');
+  const noCopy = akObjs.every(o => !('otrasl' in (o.f || {})) && !('terr' in (o.f || {}) && o.kind !== 'coll'));
+  const before = akObjs.map(o => KU.featVal(o, 'otrasl'));
+  const chg = KU.setFeature('КД-2024/117', 'otrasl', 'Пищевая и перерабатывающая');
+  const after = akObjs.map(o => KU.featVal(o, 'otrasl'));
+  ok(94, noCopy && chg.ok && before.every(v => v === 'Агропромышленный комплекс') &&
+        after.every(v => v === 'Пищевая и перерабатывающая') && akObjs.length > 1,
+    `заёмщицкий признак объект не хранит: правка отрасли у заёмщика прошла разом по ${akObjs.length
+      } объектам «ОсОО «Ак-Жол»» — копии на объекте нет (ADR-0131, ADR-0001)`);
+
+  /* Редакция хранит ССЫЛКУ на группировку, а не раскладку: снять ссылку — и ключ режет
+     домен как есть, а имена переносятся туда, где ответ доказуемо тот же. */
+  KU.seed();
+  KU.state.role = 'head'; KU.state.headUnit = 'u_agro';
   const rule = KU.lowRule('u_agro', 'cur_loan');
+  const v0 = KU.verAt(rule, TODAY);
   KU.keyDraftInit(rule.id);
-  ['Ошская', 'Джалал-Абадская'].forEach(v => KU.groupSet(rule.id, 'oblast', v, 'Юг'));
-  ['Чуйская', 'Нарынская'].forEach(v => KU.groupSet(rule.id, 'oblast', v, 'Север'));
+  KU.grpPick(rule.id, 'terr', '');                     // снять группировку — домен как есть
   KU.setEff(rule.id, '2026-09-01');
   const saved = KU.saveKey(rule.id);
   const nv = KU.verAt(rule, '2026-09-01');
   const cov = KU.coverage(rule, '2026-09-01');
-  /* «Юг» = Ошская + Джалал-Абадская, обе вели к одному человеку — имя переносится.
-     «Север» = Чуйская + Нарынская, кураторы разные — за заведующего никто не выбирает. */
-  ok(93, saved.ok && cov.cells.join(' · ') === 'Юг · Север · Таласская' &&
-        nv.cells['Юг'] === 'e_ivanov' && !nv.cells['Север'] && saved.kept === 1,
-    `группировка режет пространство: ячеек ${cov.cells.length} вместо ${KU.dom('oblast').length} — ` +
-    `«Юг» унаследовал ${nm(nv.cells['Юг'])} (ответ один), «Север» пуст (ответов было два)`);
+  ok(95, v0.grp && v0.grp.terr === 'g_terr_oblast' && !v0.groups && saved.ok &&
+        !nv.grp.terr && cov.cells.length === KU.dom('terr').length &&
+        nv.cells['Кара-Сууйский'] === v0.cells['Ошская'] && saved.kept === 5 && saved.holes === 5,
+    `редакция хранит ссылку на группировку, а не раскладку: было ${KU.space(v0, TODAY).length
+      } долей «${KU.grpDef('terr', v0.grp.terr).name}», стало ${cov.cells.length
+      } значений домена, имя перенесено в ${saved.kept} (Кара-Сууйский унаследовал ${
+      nm(nv.cells['Кара-Сууйский'])} у «Ошская»), дыр ${saved.holes} — ADR-0131`);
 
-  KU.seed(); KU.state.role = 'head'; KU.state.headUnit = 'u_agro';
-  const r2 = KU.lowRule('u_agro', 'cur_loan');
-  KU.keyDraftInit(r2.id);
-  ['Ошская', 'Джалал-Абадская'].forEach(v => KU.groupSet(r2.id, 'oblast', v, 'Юг'));
-  ['Чуйская', 'Нарынская'].forEach(v => KU.groupSet(r2.id, 'oblast', v, 'Север'));
-  KU.groupSet(r2.id, 'oblast', 'Таласская', '');          // ничья — уходит в «Прочие»
-  KU.setEff(r2.id, '2026-09-01');
-  const s2 = KU.saveKey(r2.id);
-  const c2 = KU.coverage(r2, '2026-09-01');
-  const other = KU.cellObjects(r2, KU.OTHER, '2026-09-01');
-  ok(94, s2.ok && s2.loose === 1 && c2.cells.indexOf(KU.OTHER) >= 0 &&
-        other.map(o => o.id).join() === 'КД-2026/012' && c2.holesHot.indexOf(KU.OTHER) >= 0,
-    `неразложенное значение не теряется: «${KU.OTHER}» — обычная ячейка, в ней ${other.length} объект ` +
-    `(${other.map(o => o.id).join(', ')}), пустая она видна фолбэком (ИУ-9)`);
+  /* Открытая доля: «Предприятия прочих отраслей» ни к одному блоку не отнесены и попадают
+     в «Прочие» — ячейка есть всегда, пополнение справочника не оставляет объект без ответа. */
+  KU.seed();
+  const top = KU.topRule('cur_loan'), tv = KU.verAt(top, TODAY);
+  const blocks = KU.groupsOf(tv, 'otrasl', TODAY);
+  KU.setFeature('КД-2026/012', 'otrasl', 'Предприятия прочих отраслей');
+  const inOther = KU.cellObjects(top, KU.OTHER, TODAY).map(o => o.id);
+  const decOther = KU.decide('КД-2026/012', 'cur_loan', TODAY);
+  ok(96, blocks[blocks.length - 1] === KU.OTHER && blocks.length === 4 &&
+        inOther.indexOf('КД-2026/012') >= 0 && decOther.ok && decOther.empId === KU.admin(),
+    `у растущего домена доля открыта: доли «По блокам» — ${blocks.join(' · ')}; отрасль вне блоков ` +
+    `сажает объект в «${KU.OTHER}», ячейка не названа — держит ${nm(decOther.empId)} (ИУ-8, ИУ-9)`);
 
-  const wasNow  = KU.wantIn('u_agro', 'cur_loan', 'КД-2024/205', TODAY);
-  const wasThen = KU.wantIn('u_agro', 'cur_loan', 'КД-2024/205', '2026-09-01');
-  ok(95, wasNow.cell === 'Нарынская' && wasNow.empId === 'e_bekova' && wasNow.fallback === false &&
-        wasThen.cell === 'Север' && wasThen.fallback === true && wasThen.empId === KU.headOf('u_agro'),
-    `разбиение живёт в редакции, а не в справочнике: на ${TODAY} ячейка «${wasNow.cell}» → ${nm(wasNow.empId)}, ` +
-    `на 2026-09-01 та же область читается ячейкой «${wasThen.cell}» — история не переписывается (ИУ-10, ИУ-11)`);
+  /* Группировка версионируется своими редакциями: ответ на дату берёт ту, что действовала
+     тогда, — правка справочника прошлое не переписывает. */
+  KU.seed();
+  const ref = { grp: { vidzalog: 'g_zalog_likvid' } };
+  const wasThen = KU.groupOf(ref, 'vidzalog', 'Товары в обороте', TODAY);
+  const wasLater = KU.groupOf(ref, 'vidzalog', 'Товары в обороте', '2026-09-01');
+  const vOld = KU.grpVer('vidzalog', 'g_zalog_likvid', TODAY);
+  const vNew = KU.grpVer('vidzalog', 'g_zalog_likvid', '2026-09-01');
+  ok(97, wasThen === 'Неликвидное' && wasLater === 'Ликвидное' && vOld.no === 1 && vNew.no === 2 &&
+        vOld.until === '2026-08-31',
+    `группировка версионируется своими редакциями: «Товары в обороте» на ${TODAY} — «${wasThen
+      }» (ред. ${vOld.no}), на 2026-09-01 — «${wasLater}» (ред. ${vNew.no}); прошлое не переписано (ИУ-10, ИУ-11)`);
+
+  /* Числовой признак: доли задают ПОРОГИ, и они объявляются в редакции правила, а не в
+     справочнике — единого разбиения денег по холдингу нет. Группировкой его не резать. */
+  KU.seed();
+  KU.state.role = 'head'; KU.state.headUnit = 'u_agro';
+  const r3 = KU.lowRule('u_agro', 'cur_loan');
+  KU.keyDraftInit(r3.id);
+  const noGrp = KU.grpPick(r3.id, 'terr', 'g_zalog_dvizh');   // чужая группировка
+  KU.keyDraftAdd(r3.id, 'summa');
+  const cuts = KU.cutsSet(r3.id, 'summa', '5000000, 15000000');
+  const bad = KU.cutsSet(r3.id, 'summa', '5000000, -1');
+  KU.setEff(r3.id, '2026-09-01');
+  const s4 = KU.saveKey(r3.id);
+  const n4 = KU.verAt(r3, '2026-09-01');
+  const bands = KU.groupsOf(n4, 'summa', '2026-09-01');
+  const cell117 = KU.keyVal(n4, KU.obj('КД-2024/117'), '2026-09-01');
+  ok(98, !noGrp.ok && cuts.ok && !bad.ok && s4.ok &&
+        n4.cuts.summa.join() === '5000000,15000000' && !n4.grp.summa &&
+        bands.length === 3 && cell117 === 'Ошская | от 15 000 000',
+    `пороги числового признака живут в редакции правила: доли — ${bands.join(' · ')}, ` +
+    `КД-2024/117 встал в «${cell117}»; чужая группировка отбита («${noGrp.why}»), ` +
+    `отрицательный порог тоже — ADR-0131`);
 })();
 
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-const stamp = `SMOKE 2026-08-16 · ${pass}/${results.length} PASS\n` + lines.join('\n');
+const stamp = `SMOKE 2026-08-17 · ${pass}/${results.length} PASS\n` + lines.join('\n');
 console.log(stamp);
 
 const marker = 'SMOKE (node scripts/inspect/kuratorstvo-check.mjs):';
