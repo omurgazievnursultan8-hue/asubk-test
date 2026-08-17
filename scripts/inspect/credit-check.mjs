@@ -2203,6 +2203,92 @@ const pd = CR.pd;
        + ` · нарушений ${bad.length}${bad.length ? ' — ' + bad.slice(0, 3).join(' | ') : ''}`);
   }
 
+  /* 177. НОМЕР ТРАНША — ТОЛЬКО ТАМ, ГДЕ ЕСТЬ ВЫБОР (КВ-70, решение владельца 17.08.2026).
+     У 56 кредитов сида транш ровно один, и экран печатал «транш №1» на каждой вкладке:
+     номер, который ничего не различает, читается как признак и заставляет искать транш
+     №2. Гейт один — `multiTr(c)`, а не смена семантики `scopeTranche` (тот и дальше
+     отдаёт единственный транш, иначе одиночные кредиты уехали бы в агрегатную ветку).
+     Стережётся с четырёх сторон, каждая ловит свой класс поломки:
+       (1) у одиночного кредита номер не доходит до РАЗМЕТКИ — проверяется по сырому
+           html, а не по тексту: подпись у иконки закрытия транша и заголовки секций
+           живут в атрибутах, и очистка тегов спрятала бы их возврат;
+       (2) колонки-ключа «Транш» у одиночного нет ни на одной вкладке — она снята
+           (решение владельца), а не оставлена с одним значением; вместе с ней правились
+           colspan итогов и строк-раскрытий, и лишний `<th>` тут же разъедет их;
+       (3) положительный контроль: у K-1/K-7/K-C40/K-C41 (2–3 транша) и номер, и колонка
+           на месте — без него гейт, всегда возвращающий false, прошёл бы проверку;
+       (4) модалки: при одном транше поле-селект спрятано, но `id` жив скрытым input'ом
+           с настоящим номером — submit-обработчики читают его как читали. Проверяются
+           обе стороны: у одиночного hidden без подписи «Транш», у многотраншевого select.
+     ЖУРНАЛ («Досье») из-под правила выведен намеренно: запись сделана и датирована тогда,
+     когда траншей могло быть иначе, — «addDisbursement: транш №1» это факт прошлого, а не
+     подпись текущего экрана. Проверка требует, чтобы номер там ОСТАЛСЯ: молчаливое
+     распространение гейта на журнал — тоже регресс.
+     Проверено с обратной стороны: подмена `multiTr` на `() => true` в песочнице даёт 31
+     нарушение уже на пяти первых одиночных кредитах, модалка возвращает селект — значит
+     ловится именно гейт, а не совпадение разметки. */
+  {
+    const TRN = /[Тт]ранш[аеуы]?\s*№\s*\d/;                  // «транш №1», «траншу №2», «Транша №3»
+    const THT = /<th[^>]*>Транш</;                            // колонка-ключ реестра/сводов
+    const SCOPED = ['Договор','Условия','Состав','График','Прогноз','Расчёты','Платежи','План','Обеспечение','Проблемные'];
+    const singles = CR2.db.credits.filter(c => (c.tranches || []).length === 1);
+    const multis  = CR2.db.credits.filter(c => (c.tranches || []).length > 1);
+    let bad = [], nS = 0, nM = 0, jrn = 0;
+    for (const c of singles){ CR2.openDetail(c.id); nS++;
+      for (const t of SCOPED){ let h;
+        try { h = CR2.renderTab(t, c); } catch(e){ bad.push(`${c.id}/${t}: ${e.message}`); continue; }
+        const num = (h.match(TRN) || [''])[0];
+        if (num) bad.push(`${c.id}/${t}: печатает «${num}» при одном транше`);
+        if (THT.test(h)) bad.push(`${c.id}/${t}: колонка «Транш» при одном транше`);
+      }
+      if (TRN.test(CR2.renderTab('Досье', c))) jrn++;         // журнал — исключение, см. шапку
+    }
+    /* Положительный контроль: гейт обязан ПРОПУСКАТЬ многотраншевые. Номер ищется по всем
+       вкладкам разом (у K-1 он выпадает только на «Расчётах» — там свод по траншам),
+       колонка — на четырёх сводных, где она и есть ключом строки. */
+    for (const c of multis){ CR2.openDetail(c.id); nM++;
+      const all = SCOPED.map(t => { try { return CR2.renderTab(t, c); } catch(e){ return ''; } });
+      if (!all.some(h => TRN.test(h))) bad.push(`${c.id}: ${c.tranches.length} транша, а номера нет нигде`);
+      for (const t of ['Состав','График','Прогноз','Платежи'])
+        if (!THT.test(all[SCOPED.indexOf(t)])) bad.push(`${c.id}/${t}: ${c.tranches.length} транша, а колонки «Транш» нет`);
+    }
+    /* Модалки: openModal перехватывается — тело диалога иначе уходит в DOM-заглушку. Роль
+       поднимается до начальника отдела и возвращается назад: modalGuard молча закрывает
+       действие не по роли, и пустое тело читалось бы как «поле исчезло». Терминальный
+       кредит guard закрывает тоже — такие пропускаются, а не считаются нарушением. */
+    const MOD = [['openDisbModal','disbTranche'], ['openSchedModal','schedTranche'],
+                 ['openPaymentModal','payTranche'], ['openCloseTrancheModal','ctNo']];
+    const realOpen = CR2.openModal, realGet = doc.getElementById, wasRole = CR2.state && CR2.state.role;
+    let body = '', shown = 0;
+    CR2.openModal = (title, b) => { body = b || ''; };
+    const setRole = (r) => { doc.getElementById = (id) => id === 'roleSel'
+      ? Object.assign(stub(), { value:r }) : realGet(id); CR2.onRoleChange(); };
+    setRole('Начальник отдела');
+    const probeMod = (c, wantSelect) => { CR2.openDetail(c.id); let got = 0;
+      for (const [fn, fid] of MOD){ body = '';
+        try { CR2[fn](); } catch(e){ bad.push(`${c.id}/${fn}: ${e.message}`); continue; }
+        if (!body) continue;                                  // guard не пустил — не наш случай
+        got++;
+        const sel = new RegExp(`<select id="${fid}"`).test(body);
+        const hid = new RegExp(`<input type="hidden" id="${fid}" value="(\\d+)"`).exec(body);
+        if (wantSelect && !sel) bad.push(`${c.id}/${fn}: ${c.tranches.length} транша, а выбора нет`);
+        if (!wantSelect){
+          if (sel) bad.push(`${c.id}/${fn}: селект «Транш» при одном транше`);
+          if (!hid) bad.push(`${c.id}/${fn}: поле ${fid} исчезло вместе с подписью`);
+          else if (+hid[1] !== c.tranches[0].no) bad.push(`${c.id}/${fn}: скрытое поле несёт №${hid[1]}, а транш №${c.tranches[0].no}`);
+          if (/flabel">Транш</.test(body)) bad.push(`${c.id}/${fn}: подпись «Транш» осталась`);
+        }
+      } return got; };
+    for (const c of singles){ if (shown >= 24) break; shown += probeMod(c, false); }
+    let shownM = 0;
+    for (const c of multis) shownM += probeMod(c, true);
+    CR2.openModal = realOpen; setRole(wasRole || 'Кредитный специалист'); doc.getElementById = realGet;
+    ok(177, bad.length === 0 && nS > 40 && nM >= 4 && jrn > 0 && shown >= 12 && shownM >= 8,
+       `одиночных ${nS} · многотраншевых ${nM} · журнал сохранил номер у ${jrn}`
+       + ` · модалок с полем транша ${shown} одиночных / ${shownM} многотраншевых`
+       + ` · нарушений ${bad.length}${bad.length ? ' — ' + bad.slice(0, 3).join(' | ') : ''}`);
+  }
+
   /* 130. «ГРАФИК» СО СТАТЬЯМИ (КВ-26, ADR-0109). Колонки статей рисуются ПО СОСТАВУ:
      у К-1 их нет вовсе (иначе вкладка обрастает пустыми колонками у всех кредитов
      страны ради двух реструктурированных), у производного транша К-7 — есть, и
