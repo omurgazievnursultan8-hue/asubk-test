@@ -6,9 +6,9 @@
 <title>Расчётное ядро · АСУБК</title>
 <!--
   РАСЧЁТНОЕ ЯДРО (single-file) — КАНОН движка начислений АСУБК.
-  Это не экран модуля: у расчётного ядра экранов нет (ADR-0135 §6). Здесь стенд —
-  пять именованных швов, вызванных на живых кредитах, чтобы движок можно было читать
-  и проверять отдельно от карточки кредита.
+  Экран у ядра ОДИН — журнал фиксаций (ADR-0135 §6, ADR-0136): он показывает не расчёт,
+  а то единственное, что ядро хранит. Остальное здесь — стенд: шесть именованных швов,
+  вызванных на живых кредитах, чтобы движок читался и проверялся отдельно от карточки.
 
   ЗАЧЕМ ЯДРО ВЫДЕЛЕНО. Движок начисления жил внутри `mockups/loan-credit/credit.html`
   и был скопирован в `mockups/restructuring/restructuring.html`; расходиться копиям не
@@ -16,13 +16,16 @@
   владельца — признак того, что владельца нет. Ядро — этот владелец: единственное место,
   где суммы выводятся из фактов.
 
+  ЧТО ЯДРО ХРАНИТ: журнал фиксаций и ничего больше (ADR-0136).
+
   ЧТО ЯДРО ДЕЛАЕТ: сетка критических дат · начисление процентов, пени и платы за
   неосвоенный остаток · разнесение по очереди погашения · построение и перестроение
   графика · срез долга на дату · прогноз · пересчёт в сом по курсу на дату.
 
   ЧЕГО ЯДРО НЕ ДЕЛАЕТ — фактами владеют соседи, ядро их только читает:
     кредит        — условия и записи условий, подписанные строки графика, транши;
-    платежи       — поступления, заморозка, сверка с реестром ЦК, закрытие периода;
+    платежи       — поступления, заморозка, сверка с реестром ЦК, УЧЁТНЫЙ ПЕРИОД и его
+                    закрытие (ADR-0123 §3): ядро период читает зеркалом, а не заводит;
     взыскание     — решение суда, присуждённая сумма, предел ответственности, дата
                     предъявления (ADR-0043);
     реструктуризация — распоряжения начисленным, ДС (ADR-0096);
@@ -41,11 +44,13 @@
   ADR-0001 производные не хранятся;      ADR-0060 §4 очередь погашения — кредита, не транша;
   ADR-0093 шесть статей долга;           ADR-0099 норматив с датой введения в действие;
   ADR-0105 проценты на фактическое тело; ADR-0112 прошлое правится корректировкой с основанием;
-  ADR-0123 закрытие периода фиксирует значение записью с актором;
+  ADR-0123 закрытие периода фиксирует значение записью с актором; §3 период один общий;
+  ADR-0136 журнал фиксаций — единственное, что ядро хранит; append-only;
+  ADR-0075 закрытие периода запрещает новые записи; ADR-0089 открытие — распоряжение главбуха;
   ADR-0124 вычислитель один, потребители читают через шов;
   ADR-0128 §2 границу отрезка ставит правило; ADR-0129 критическая дата — ось расчёта.
 
-  ИНВАРИАНТЫ, КОТОРЫЕ РАЗРАБОТЧИК ОБЯЗАН СОХРАНИТЬ (ИЯ-1…ИЯ-11)
+  ИНВАРИАНТЫ, КОТОРЫЕ РАЗРАБОТЧИК ОБЯЗАН СОХРАНИТЬ (ИЯ-1…ИЯ-13)
   ИЯ-1  Ядро не хранит ничего: любой ответ выводится из фактов на дату (ADR-0001).
   ИЯ-2  Ядро не владеет фактами: условия, строки графика, поступления, решения суда
         приходят от владельцев и здесь только читаются.
@@ -67,6 +72,12 @@
         курсу НА ДАТУ, а не по «текущему».
   ИЯ-11 Этот файл — канон. Копии в credit.html и restructuring.html помечены зеркалами
         и сверяются сторожем; правка начинается здесь.
+  ИЯ-12 Журнал фиксаций append-only: повторное закрытие периода пишет ВТОРУЮ запись со
+        ссылкой на распоряжение, первая остаётся историей; действующая — последняя
+        (ADR-0136). Записи не переписываются и не удаляются.
+  ИЯ-13 Дата внутри закрытого периода отвечается ПЕРЕСЧЁТОМ, а не чтением записи; если
+        пересчёт разошёлся с фиксацией, отдаются ОБА числа и разница. Расхождение без
+        основания — тревога, а не повод переписать запись.
 
   Канон логики — `mockups/calc-core/ASUBK-raschetnoe-yadro-logika.md`.
   Журнал волн  — `mockups/calc-core/ASUBK-status-razrabotki.md`.
@@ -262,6 +273,8 @@ table.t td{ padding:5px 8px; border-bottom:1px solid var(--asubk-grid-line); ver
 table.t td.n, table.t th.n{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
 table.t tbody tr:hover{ background:var(--surface-hover); }
 table.t tr.sum td{ font-weight:var(--weight-semibold); border-top:1px solid var(--border-strong); }
+table.t tr.hist td{ color:var(--text-muted); }
+table.t tr.alarm td{ background:var(--status-error-bg); }
 .scroll-x{ overflow-x:auto; }
 .seam{ border:1px solid var(--border-default); border-radius:var(--radius-lg); padding:12px 14px;
   background:var(--surface-card); margin:0 0 10px; }
@@ -284,25 +297,27 @@ table.t tr.sum td{ font-weight:var(--weight-semibold); border-top:1px solid var(
     <div class="brand">АСУБК<small>Расчётное ядро · стенд канона</small></div>
     <nav class="nav" id="nav">
       <div class="nav-sec">Швы</div>
-      <button class="nav-item active" data-v="seams">Пять швов</button>
+      <button class="nav-item active" data-v="seams">Шесть швов</button>
       <button class="nav-item" data-v="accrual">Начисление<span class="cnt" id="cnt-accrual"></span></button>
       <button class="nav-item" data-v="debt">Долг на дату</button>
       <button class="nav-item" data-v="alloc">Разнесение<span class="cnt" id="cnt-alloc"></span></button>
       <button class="nav-item" data-v="sched">График<span class="cnt" id="cnt-sched"></span></button>
       <button class="nav-item" data-v="fcast">Прогноз</button>
+      <div class="nav-sec">Единственный экран</div>
+      <button class="nav-item" data-v="fix">Журнал фиксаций<span class="cnt" id="cnt-fix"></span></button>
       <div class="nav-sec">Устройство</div>
       <button class="nav-item" data-v="mirrors">Канон и зеркала</button>
       <button class="nav-item" data-v="bounds">Границы владения</button>
     </nav>
     <div class="sidebar-foot">
-      Ядро экранов не имеет: это стенд. Числа считаются здесь же —
-      <span class="mono">window.CALC</span>.
+      Экран у ядра один — журнал фиксаций. Остальное здесь — стенд; числа
+      считаются на месте, <span class="mono">window.CALC</span>.
     </div>
   </aside>
 
   <main class="main">
     <div class="topbar">
-      <div class="crumb-title" id="crumb">Пять швов</div>
+      <div class="crumb-title" id="crumb">Шесть швов</div>
       <div class="right">
         <label for="sel-credit">Кредит</label>
         <select id="sel-credit"></select>
@@ -313,7 +328,7 @@ table.t tr.sum td{ font-weight:var(--weight-semibold); border-top:1px solid var(
     <div class="content"><div class="panel-wrap">
 
       <section class="view active" id="v-seams">
-        <div class="section-h">Пять швов — по вопросу, а не по потребителю</div>
+        <div class="section-h">Шесть швов — по вопросу, а не по потребителю</div>
         <p class="page-lead">Каждый шов отвечает на свой вопрос и все они читают одно
         построение, поэтому разойтись числами не могут (ИЯ-5). Потребителей у шва может
         быть сколько угодно: взыскание и кредит спрашивают «сколько должен» одним и тем же
@@ -360,6 +375,34 @@ table.t tr.sum td{ font-weight:var(--weight-semibold); border-top:1px solid var(
         <p class="page-lead">Прогноз считается тем же движком, что и лист: разной арифметики
         для «уже начислено» и «будет начислено» в системе нет.</p>
         <div id="fcast"></div>
+      </section>
+
+      <section class="view" id="v-fix">
+        <div class="section-h">Журнал фиксаций — единственное, что ядро хранит</div>
+        <p class="page-lead">В открытом периоде не хранится ничего: ответ выводится из фактов
+        на дату (ИЯ-1). Закрытие периода — чужое действие (владелец периода — платежи,
+        ADR-0075; период один общий на систему, ADR-0123 §3) — пишет сюда свод по каждому
+        кредиту, действовавшему в периоде хотя бы день, включая закрытые внутри него.
+        Дата внутри закрытого периода отвечается <b>пересчётом</b>, а не чтением записи;
+        запись — контрольная точка на границе.</p>
+        <div class="scroll-x"><table class="t" id="tb-periods"></table></div>
+        <p class="note" id="fix-msg"></p>
+        <p class="note">Открыть закрытый период может только распоряжение главного бухгалтера
+        (ADR-0089). Повторное закрытие <b>дописывает вторую запись</b>, а не заменяет первую:
+        по первой ушла отчётность, и затирать её — терять предъявленное наружу (ИЯ-12).</p>
+
+        <div class="section-h">Журнал по выбранному кредиту</div>
+        <div class="scroll-x"><table class="t" id="tb-journal"></table></div>
+
+        <div class="section-h">Реестр расхождений — по всем кредитам</div>
+        <p class="page-lead" id="fix-lead"></p>
+        <div class="scroll-x"><table class="t" id="tb-diverge"></table></div>
+        <p class="note">Расхождение не правится молча: отдаются <b>оба</b> числа и разница
+        (ИЯ-13). Объяснённое распоряжением — история; расхождение без основания означает, что
+        в замёрзший вход писали мимо запрета, и это тревога. В стенде так и сделано: платёж
+        по К-4 от 10.02.2026 проведён после закрытия февраля, распоряжением перезакрыт только
+        февраль — март…июнь остались с прежними записями и горят. Одна запись задним числом
+        рвёт весь хвост закрытых периодов, а не один месяц.</p>
       </section>
 
       <section class="view" id="v-mirrors">
@@ -2498,18 +2541,20 @@ function feeTranche(c, asOf, acc){
 function activeTranche(t){ return !t.closed; }
 /* ============================================================================
    ЯДРО · КОНЕЦ КАНОНА     <<< /mirror:calc-core >>>
-   Ниже — стенд: он в зеркала не переносится и сторожем не сверяется.
+   Ниже — СОБСТВЕННЫЙ код ядра (швы, фиксация) и стенд. В зеркала он не переносится и
+   текстом не сверяется: у зеркал этого кода нет — они и есть потребители швов.
    ============================================================================ */
 
 /* ============================================================================
-   ШВЫ — пять именованных контрактов ядра.
+   ШВЫ — шесть именованных контрактов ядра (шестой, `calcFixation`, — в блоке фиксации
+   ниже: он читает единственное, что ядро хранит).
 
    Шов назван ВОПРОСОМ, а не потребителем: «сколько должен» спрашивают и кредит, и
    взыскание, и отчётность, и все обязаны получить одно число. Шов на потребителя
    («шов для взыскания») со временем обрастает поправками под этого потребителя, и
    расхождение перестаёт быть заметным — оно становится штатным.
 
-   ВСЕ ПЯТЬ читают одно построение — `calcBase` ниже (ИЯ-5). Разойтись числами они не
+   ВСЕ ШЕСТЬ читают одно построение — `calcBase` ниже (ИЯ-5). Разойтись числами они не
    могут по устройству, а не по договорённости.
    ============================================================================ */
 
@@ -2569,7 +2614,10 @@ function calcAccrual(credit, on){
     total,                                      // начислено процентов и пени к дате среза
     fee: led.fee,                               // плата за неосвоенный остаток (ADR-0132)
     until: led.until,                           // расчёт замирает на дате закрытия кредита
-    stopped: led.stopped
+    stopped: led.stopped,
+    /* дата внутри ЗАКРЫТОГО периода приходит с парой «зафиксировано / выводится сейчас»
+       и пометкой расхождения — ответ не молчит о том, что он разошёлся с отчётностью */
+    period: periodMark(credit, on)
   });
 }
 
@@ -2584,7 +2632,8 @@ function calcDebt(credit, on){
     overdue: b.overdue,                         // since · days · disputedDays · effectiveDays
     disbursed: b.disbursed,
     writtenOff: b.led.writtenOff,               // снято с баланса решением, не погашено
-    provisional: b.led.provisional               // срез старше последнего снимка остатка
+    provisional: b.led.provisional,              // срез старше последнего снимка остатка
+    period: periodMark(credit, on)               // фиксация закрытого периода и расхождение
   });
 }
 
@@ -2640,6 +2689,199 @@ function calcForecast(credit, on){
 }
 
 /* ============================================================================
+   ФИКСАЦИЯ — единственное, что ядро ХРАНИТ (ADR-0136).
+
+   В открытом периоде не хранится ничего: ответ — функция от фактов на дату (ИЯ-1).
+   Закрытие учётного периода (владелец — платежи, ADR-0075; период один общий на
+   систему, ADR-0123 §3) пишет запись: свод по кредиту на конец периода, начисленное
+   ВНУТРИ периода, и АКТОР — человек, закрывший месяц. Актор и есть причина, по которой
+   фиксация нужна: у величины, ушедшей в отчётность, обязан быть ответственный.
+
+   ЗАКРЫТЫЙ ПЕРИОД НЕ ПЕРЕСЧИТЫВАЕТСЯ, НО И НЕ ЧИТАЕТСЯ ИЗ ЗАПИСИ. Дата внутри
+   закрытого периода отвечается ПЕРЕСЧЁТОМ по замёрзшим входам: закрытие запрещает
+   новые записи в период (ADR-0075), значит вход неизменен, и функция от неизменного
+   входа даёт то же число. Хранить срез на каждую дату пришлось бы ради величины,
+   которая и так выводится, — и появилось бы второе место, где она живёт (ИЯ-1).
+   Фиксация — контрольная точка на ГРАНИЦЕ периода и сторож: разошлась с пересчётом —
+   значит в замёрзший вход всё-таки писали (ИЯ-13).
+
+   ЖУРНАЛ APPEND-ONLY. Открытие закрытого периода — распоряжение главного бухгалтера
+   (ADR-0089); повторное закрытие пишет ВТОРУЮ запись со ссылкой на распоряжение, а
+   первая остаётся: по ней ушла отчётность, и затирать её — терять то, что уже
+   предъявлено наружу. Действующая — последняя, прежние читаются историей; тот же
+   приём, что у версий графика (ADR-0130) и у истории классификации (ADR-0123) — ИЯ-12.
+   ============================================================================ */
+
+/* Периоды — ФАКТ платежей и приходят зеркалом `credit.mirror.periods`, как курсы
+   приходят `credit.mirror.rates` (ИЯ-2). Ядро их не заводит и не закрывает; запись
+   {id, from, to, status:'открыт'|'закрыт', closedAt, actor, order} читается как есть. */
+function periodsOf(credit){
+  return (((credit || {}).mirror || {}).periods || []).slice().sort((a, b) => pd(a.from) - pd(b.from));
+}
+/* Период, внутри которого лежит дата. Дата вне всех периодов — штатно (будущее,
+   прогноз): ответ просто не несёт пометки, это не ошибка. */
+function periodAt(credit, on){
+  const d = pd(on || TODAY);
+  return periodsOf(credit).find(p => pd(p.from) <= d && d <= pd(p.to)) || null;
+}
+
+/* Кредит ДЕЙСТВОВАЛ В ПЕРИОДЕ, если договор заключён не позже конца периода и не закрыт
+   до его начала. Охват задан ДАТАМИ, а не перечнем «движений»: перечень пришлось бы
+   править на каждый новый вид события — ровно то, от чего ушли в РЯ-4. Закрытый ВНУТРИ
+   периода кредит фиксируется тоже, и его последняя запись — единственное место, где
+   ловится сиротская копейка легаси (E2E-13/14): нуль в записи либо есть, либо нет. */
+function creditActiveIn(credit, period){
+  if (!credit || !period) return false;
+  if (credit.date && pd(credit.date) > pd(period.to)) return false;
+  const closed = credit.closure && credit.closure.date;
+  if (closed && pd(closed) < pd(period.from)) return false;
+  return true;
+}
+
+/* Начислено НАРАСТАЮЩИМ ИТОГОМ к дате — из того же `calcBase`, что и шов 1, но БЕЗ
+   вызова шва: шов 1 несёт пометку периода, пометка зовёт сверку, сверка — этот расчёт,
+   и вызов замкнулся бы. Читается одно построение, поэтому разойтись со швом нельзя
+   (ИЯ-5), а цикла нет. */
+function accruedTo(credit, on){
+  const led = calcBase(credit, on).led;
+  const t = led.dateSheet.reduce((a, s) => ({
+    interest: round2(a.interest + s.sumInterest), penalty: round2(a.penalty + s.sumPenalty) }),
+    { interest: 0, penalty: 0 });
+  t.fee = round2((led.fee && led.fee.accrued) || 0);
+  return t;
+}
+
+/* СВОД, который уезжает в запись: шесть статей на дату среза плюс начисленное внутри
+   периода — РАЗНОСТЬЮ двух нарастающих итогов, а не второй арифметикой «за период».
+   Отдельная формула разошлась бы с листом на первом же переносе границы отрезка. */
+function fixationValue(credit, period){
+  const to = period.to;
+  const dayBefore = fd(new Date(pd(period.from).getTime() - 86400000));
+  const b = calcBase(credit, to);
+  const now = accruedTo(credit, to);
+  /* до начала периода начислять было нечего, если договор в этом периоде и заключён */
+  const started = credit.date && pd(credit.date) >= pd(period.from);
+  const pre = started ? { interest: 0, penalty: 0, fee: 0 } : accruedTo(credit, dayBefore);
+  return {
+    on: to,
+    currency: credit.currency || 'KGS',
+    fx: fxAt(credit.currency, to, (credit.mirror || {}).rates),
+    articles: b.debt,                       // шесть статей ADR-0093 в пяти величинах
+    overdue: b.overdue,
+    disbursed: b.disbursed,
+    writtenOff: b.led.writtenOff,           // снято с баланса решением, не погашено
+    stopped: b.led.stopped,                 // кредит закрыт раньше — начисление замерло
+    accrued: {                              // начислено ВНУТРИ периода
+      interest: round2(now.interest - pre.interest),
+      penalty:  round2(now.penalty  - pre.penalty),
+      fee:      round2(now.fee      - pre.fee)
+    },
+    balance: round2(((b.debt || {}).principal || {}).bal || 0)   // остаток тела на конец периода
+  };
+}
+
+/* ЖУРНАЛ — единственное хранимое ядром. Массив, в который только ДОПИСЫВАЮТ. */
+const _fixations = [];
+function fixationsAll(){ return _fixations.slice(); }
+function fixationsOf(creditId, periodId){
+  return _fixations.filter(f => f.credit === creditId && (!periodId || f.period === periodId));
+}
+/* действующая — ПОСЛЕДНЯЯ; прежние остаются историей, а не мусором */
+function activeFixation(creditId, periodId){
+  const list = fixationsOf(creditId, periodId);
+  return list.length ? list[list.length - 1] : null;
+}
+function fixationsReset(seed){
+  _fixations.length = 0;
+  for (const f of (seed || [])) _fixations.push(f);
+}
+
+/* ЗАКРЫТИЕ ПЕРИОДА — вход извне: платежи говорят «период закрыт, закрыл такой-то».
+   Ядро пишет свои записи и возвращает их; ни период, ни актора оно не выдумывает.
+   `basis` — распоряжение главбуха, обязательное со ВТОРОГО закрытия (ADR-0089): первое
+   закрытие основания не требует, повторное без него — тихая правка отчётности. */
+function fixatePeriod(credits, period, actor, basis){
+  if (!period) throw new Error('фиксация без периода невозможна');
+  if (!actor)  throw new Error('фиксация без актора невозможна (ADR-0123)');
+  const out = [];
+  for (const c of (credits || [])){
+    if (!creditActiveIn(c, period)) continue;
+    const seq = fixationsOf(c.id, period.id).length + 1;
+    if (seq > 1 && !basis)
+      throw new Error('повторное закрытие ' + period.id + ' без распоряжения (ADR-0089)');
+    _fixations.push(Object.assign({
+      id: period.id + '/' + c.id + '/' + seq,
+      period: period.id, credit: c.id, num: c.num || c.no || c.id, seq,
+      actor: actor, at: period.closedAt || null,
+      basis: basis || null                    // {order, date} — распоряжение об открытии
+    }, fixationValue(c, period)));
+    out.push(_fixations[_fixations.length - 1]);
+  }
+  return out;
+}
+
+/* СВЕРКА «зафиксировано ↔ выводится сейчас». Расхождение не прячется и не правится
+   молча: отдаются ОБА числа и разница. Разница, объяснённая распоряжением, — история;
+   разница БЕЗ основания — тревога: в замёрзший вход писали мимо запрета (ИЯ-13). */
+function fixationCheck(credit, period){
+  const fx = activeFixation(credit.id, period.id);
+  if (!fx) return null;
+  const now = fixationValue(credit, period);
+  const bal = (v, art) => (((v || {}).articles || {})[art] || {}).bal || 0;
+  const sum = v => v.accrued.interest + v.accrued.penalty + v.accrued.fee;
+  const diff = {
+    balance:  round2(now.balance - fx.balance),
+    interest: round2(bal(now, 'interest') - bal(fx, 'interest')),
+    penalty:  round2(bal(now, 'penalty')  - bal(fx, 'penalty')),
+    accrued:  round2(sum(now) - sum(fx))
+  };
+  const mismatch = Object.keys(diff).some(k => Math.abs(diff[k]) >= 0.005);
+  return { period: period.id, credit: credit.id, num: fx.num, fixed: fx, now, diff,
+           mismatch: mismatch, basis: fx.basis || null,
+           alarm: mismatch && !fx.basis };
+}
+
+/* Пометка периода на ответах «сколько должен» и «сколько начислено»: дата внутри
+   ЗАКРЫТОГО периода обязана нести пару «зафиксировано / выводится сейчас», иначе
+   куратор смотрит на разошедшееся число и не знает об этом. */
+function periodMark(credit, on){
+  const p = periodAt(credit, on);
+  if (!p) return null;
+  const mark = { period: p.id, from: p.from, to: p.to, status: p.status,
+                 closedAt: p.closedAt || null, actor: p.actor || null,
+                 fixed: null, mismatch: false, alarm: false, missing: false, diff: null };
+  if (p.status !== 'закрыт') return mark;
+  const chk = fixationCheck(credit, p);
+  if (!chk){
+    /* закрытый период БЕЗ записи — не пустое место, а дефект контроля: закрытие прошло
+       мимо ядра, и предъявить, из чего сложилась отчётность, нечем */
+    mark.missing = true;
+    return mark;
+  }
+  mark.fixed = { balance: chk.fixed.balance, on: chk.fixed.on, actor: chk.fixed.actor,
+                 seq: chk.fixed.seq, basis: chk.fixed.basis };
+  mark.mismatch = chk.mismatch; mark.alarm = chk.alarm; mark.diff = chk.diff;
+  return mark;
+}
+
+/* ---- ШОВ 6 · «что зафиксировано за период» -------------------------------------
+   Читает журнал и кладёт рядом сверку с текущим выводом. Потребители: отчётность (что
+   ушло наружу), акт сверки, внутренний контроль, суд. Записей НЕ строит — их пишет
+   только закрытие периода: шов, умеющий фиксировать, позволил бы зафиксировать
+   что угодно и когда угодно, и слово «закрыт» перестало бы что-то значить. */
+function calcFixation(credit, periodId){
+  const list = periodsOf(credit);
+  const period = periodId ? list.find(p => p.id === periodId) : null;
+  return {
+    credit: credit.id,
+    periods: list,
+    journal: fixationsOf(credit.id, periodId || null),
+    active: period ? activeFixation(credit.id, period.id) : null,
+    check: period && period.status === 'закрыт' ? fixationCheck(credit, period) : null
+  };
+}
+
+/* ============================================================================
    СТЕНД. Ядру экраны не нужны (ADR-0135 §6) — эта часть существует, чтобы движок
    можно было прочитать и проверить отдельно от карточки кредита. В зеркала она НЕ
    переносится и сторожем не сверяется: сверяется только блок ЯДРА выше.
@@ -2650,6 +2892,72 @@ function calcForecast(credit, on){
    ============================================================================ */
 const FIXTURE = [{"id": "K-4", "num": "42", "date": "05.11.2025", "reg": {"num": "42", "date": "07.11.2025", "scan": "dogovor-42.pdf", "comment": ""}, "origin": {"applicationId": "ЗАЯ-0980", "applicationDate": "23.10.2025", "commissionId": "КОМ-290", "programId": "ПРГ-4", "govDecisionId": "ПП-440"}, "borrower": {"inn": "04512199600901", "name": "ОсОО «Иссык-Куль Ресорт»", "type": "ЮЛ", "region": "Иссык-Кульская", "district": "Джети-Огузский"}, "approvedAmount": 600000, "contractAmount": 600000, "currency": "KGS", "kind": "Бюджетная ссуда", "line": "АРР", "purpose": "Реконструкция базы отдыха", "fundingSource": "Республиканский бюджет", "subject": [], "subjectRecords": [], "accounts": {"repayAcct": "1280000000000042", "repayAcctKind": "Расчётный", "payCode": "PC-42"}, "kmDecision": null, "pledgeWaiver": null, "lifecycle": "Действует", "closure": null, "baseConditions": {"rate": 9, "floatMeta": {"rate": {"benchmark": "учётная ставка НБКР", "margin": 3}}, "term": 36, "freq": "ежемесячно", "method": "аннуитет", "payDay": 0, "lastPaymentAnchor": "по дате выдачи", "payMonths": "", "graceMain": 0, "graceAccrual": 0, "graceInterest": 0, "graceIntDistFrom": 0, "graceIntDistTo": 0, "penaltyMain": 0.1, "penaltyInt": 0.1, "penaltyMaxPct": 20, "dayMethod": "факт/365", "feeRate": 0, "feeStart": "", "feeFreq": "ежемесячно", "feePayDay": 0, "feePenaltyInt": 0.1}, "conditionRecords": [{"id": "CR-154", "param": "feeRate", "value": 0, "effectiveFrom": "05.11.2025", "basis": {"kind": "application", "ref": "КОМ-290", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-290", "date": "30.10.2025"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "05.11.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-155", "param": "feeStart", "value": "", "effectiveFrom": "05.11.2025", "basis": {"kind": "application", "ref": "КОМ-290", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-290", "date": "30.10.2025"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "05.11.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-156", "param": "feeFreq", "value": "ежемесячно", "effectiveFrom": "05.11.2025", "basis": {"kind": "application", "ref": "КОМ-290", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-290", "date": "30.10.2025"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "05.11.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-157", "param": "feePayDay", "value": 0, "effectiveFrom": "05.11.2025", "basis": {"kind": "application", "ref": "КОМ-290", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-290", "date": "30.10.2025"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "05.11.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-158", "param": "feePenaltyInt", "value": 0.1, "effectiveFrom": "05.11.2025", "basis": {"kind": "application", "ref": "КОМ-290", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-290", "date": "30.10.2025"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "05.11.2025", "createdBy": "Кредитный специалист"}], "agreements": [{"num": "ДС-РС-1004", "date": "01.05.2026", "source": "реструктуризация", "scan": "ds-rs-1004.pdf"}, {"num": "ДС-РС-1005", "date": "20.06.2026", "source": "реструктуризация", "scan": "ds-rs-1005.pdf"}], "tranches": [{"id": "K-4-T1", "no": 1, "subject": {"inn": "04512199600901", "name": "ОсОО «Иссык-Куль Ресорт»"}, "amount": 600000, "plannedDate": "10.11.2025", "conditionRecords": [{"id": "CR-139", "param": "rate", "value": 9, "effectiveFrom": "05.11.2025", "basis": {"kind": "application", "ref": "КОМ-290", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-290", "date": "30.10.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.11.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-140", "param": "penaltyMain", "value": 0.1, "effectiveFrom": "05.11.2025", "basis": {"kind": "application", "ref": "КОМ-290", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-290", "date": "30.10.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.11.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-141", "param": "penaltyInt", "value": 0.1, "effectiveFrom": "05.11.2025", "basis": {"kind": "application", "ref": "КОМ-290", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-290", "date": "30.10.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.11.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-142", "param": "term", "value": 36, "effectiveFrom": "05.11.2025", "basis": {"kind": "application", "ref": "КОМ-290", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-290", "date": "30.10.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.11.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-143", "param": "payDay", "value": 0, "effectiveFrom": "05.11.2025", "basis": {"kind": "application", "ref": "КОМ-290", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-290", "date": "30.10.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.11.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-144", "param": "lastPaymentAnchor", "value": "по дате выдачи", "effectiveFrom": "05.11.2025", "basis": {"kind": "application", "ref": "КОМ-290", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-290", "date": "30.10.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.11.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-145", "param": "freq", "value": "ежемесячно", "effectiveFrom": "05.11.2025", "basis": {"kind": "application", "ref": "КОМ-290", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-290", "date": "30.10.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.11.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-146", "param": "payMonths", "value": "", "effectiveFrom": "05.11.2025", "basis": {"kind": "application", "ref": "КОМ-290", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-290", "date": "30.10.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.11.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-147", "param": "method", "value": "аннуитет", "effectiveFrom": "05.11.2025", "basis": {"kind": "application", "ref": "КОМ-290", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-290", "date": "30.10.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.11.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-148", "param": "graceMain", "value": 0, "effectiveFrom": "05.11.2025", "basis": {"kind": "application", "ref": "КОМ-290", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-290", "date": "30.10.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.11.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-149", "param": "graceInterest", "value": 0, "effectiveFrom": "05.11.2025", "basis": {"kind": "application", "ref": "КОМ-290", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-290", "date": "30.10.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.11.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-150", "param": "graceIntDistFrom", "value": 0, "effectiveFrom": "05.11.2025", "basis": {"kind": "application", "ref": "КОМ-290", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-290", "date": "30.10.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.11.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-151", "param": "graceIntDistTo", "value": 0, "effectiveFrom": "05.11.2025", "basis": {"kind": "application", "ref": "КОМ-290", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-290", "date": "30.10.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.11.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-152", "param": "graceAccrual", "value": 0, "effectiveFrom": "05.11.2025", "basis": {"kind": "application", "ref": "КОМ-290", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-290", "date": "30.10.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.11.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-153", "param": "dayMethod", "value": "факт/365", "effectiveFrom": "05.11.2025", "basis": {"kind": "application", "ref": "КОМ-290", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-290", "date": "30.10.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.11.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-1319", "param": "rate", "value": 7, "effectiveFrom": "01.05.2026", "basis": {"kind": "agreement", "ref": "ДС-РС-1004", "label": "Доп. соглашение ДС-РС-1004 (реструктуризация)", "date": "01.05.2026"}, "note": "Реструктуризация: ставка снижена", "createdAt": "01.05.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-1320", "param": "term", "value": 48, "effectiveFrom": "01.05.2026", "basis": {"kind": "agreement", "ref": "ДС-РС-1004", "label": "Доп. соглашение ДС-РС-1004 (реструктуризация)", "date": "01.05.2026"}, "note": "Реструктуризация: срок продлён", "createdAt": "01.05.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-1321", "param": "penaltyInt", "value": 0.05, "effectiveFrom": "01.05.2026", "basis": {"kind": "agreement", "ref": "ДС-РС-1004", "label": "Доп. соглашение ДС-РС-1004 (реструктуризация)", "date": "01.05.2026"}, "note": "Реструктуризация: пеня по просроченным процентам снижена вдвое", "createdAt": "01.05.2026", "createdBy": "Кредитный специалист"}], "disbursements": [{"date": "10.11.2025", "amount": 600000, "order": "ПП-812", "purpose": "СМР", "doc": "akt-osvo-42.pdf"}], "schedules": [], "closed": null}], "docs": [{"kind": "Кредитный договор", "name": "Договор № 42", "state": "принят", "date": "07.11.2025", "file": "dogovor-42.pdf", "note": ""}, {"kind": "Решение комиссии", "name": "Протокол КОМ-290", "state": "принят", "date": "30.10.2025", "file": "kom-290.pdf", "note": ""}, {"kind": "Финансовая отчётность", "name": "Отчётность за 2025 г.", "state": "просрочен", "date": "10.02.2026", "file": "fin-42.pdf", "note": "Требуется обновление за 2026 г."}], "targetUse": {"docs": [{"date": "10.11.2025", "title": "Платёжное поручение и акт приёма-передачи", "result": "принято", "file": "tu-K-4.pdf"}], "checks": [{"date": "10.01.2026", "title": "Камеральная проверка целевого использования", "result": "соответствует", "file": "check-K-4.pdf"}], "measures": [], "committeeDecision": null}, "debtTransfer": null, "accrualHold": [], "fees": [], "plan": [], "factors": [{"kind": "Снижение выручки более 30 %", "level": "средний", "from": "01.04.2026", "to": null, "committeeRef": "ККР-88 от 25.03.2026", "note": "По итогам мониторинга за I квартал"}], "relief": [{"kind": "suppress181", "from": "01.05.2026", "deadline": "12.08.2026", "basis": "Заявка на реструктуризацию РС-1004 направлена в Минфин", "doc": "rs-1004-napravlenie.pdf"}], "notes": [], "mirror": {"curatorship": [{"unit": "Отдел проблемных кредитов", "employee": "Джумалиева Г. К.", "role": "ведущий", "from": "01.06.2026", "to": null}], "pledges": [{"contractNum": "ЗД-60", "date": "06.11.2025", "pledgor": "ОсОО «Иссык-Куль Ресорт»", "items": [{"name": "База отдыха", "kind": "Имущественный комплекс", "appraised": 900000, "pledgeValue": 760000, "share": 1, "ban": true}], "otherCredits": []}], "guarantees": [], "bankGuarantee": null, "inspections": [], "court": [], "settlement": null, "payments": [], "paymentsAsOf": null, "claims": [], "claimsAsOf": null, "collectionCosts": 0, "restructuring": {"count": 1, "active": {"id": "РС-1004", "stage": "Направлено в Минфин", "deadline": "12.08.2026", "amount": 820000, "currency": "KGS", "pause": {"days": 70}}}, "coverage": {"pledgeValue": 760000, "liquidValue": 760000, "illiquidValue": 0, "bankGuarantee": 0, "guaranteeReq": null, "guaranteeCurrency": null, "guaranteeExpired": false, "guaranteeTill": null, "reqBase": 120, "liquidShareMin": 80, "source": "Ликвидный залог ⇒ порог 120 % (Прил.1 §2.3)", "asOf": "15.07.2026", "module": "Залоговое обеспечение"}, "borrower": {"subgroup": "1.2", "subgroupLabel": "Производят погашение с отставанием от графиков", "asOf": "15.07.2026"}}}, {"id": "K-6b", "num": "31", "date": "18.03.2023", "reg": {"num": "31", "date": "20.03.2023", "scan": "dogovor-31.pdf", "comment": ""}, "origin": {"applicationId": "ЗАЯ-0650", "applicationDate": "06.03.2023", "commissionId": "КОМ-240", "programId": "ПРГ-2", "govDecisionId": "ПП-405"}, "borrower": {"inn": "07215199300888", "name": "ОсОО «Талас-Майс»", "type": "ЮЛ", "region": "Таласская", "district": "Бакай-Атинский"}, "approvedAmount": 90000, "contractAmount": 90000, "currency": "KGS", "kind": "Бюджетный кредит", "line": "АРР", "purpose": "Пополнение оборотных средств", "fundingSource": "Республиканский бюджет", "subject": [], "subjectRecords": [], "accounts": {"repayAcct": "1280000000000031", "repayAcctKind": "Расчётный", "payCode": "PC-31"}, "kmDecision": null, "pledgeWaiver": null, "lifecycle": "Закрыт", "closure": {"reason": "Списан", "date": "15.05.2026", "doc": {"kind": "Решение Правления", "num": "РП-77", "date": "12.05.2026", "scan": "reshenie-77.pdf"}}, "baseConditions": {"rate": 10, "floatMeta": {}, "term": 24, "freq": "ежемесячно", "method": "аннуитет", "payDay": 0, "lastPaymentAnchor": "по дате выдачи", "payMonths": "", "graceMain": 0, "graceAccrual": 0, "graceInterest": 0, "graceIntDistFrom": 0, "graceIntDistTo": 0, "penaltyMain": 0.1, "penaltyInt": 0.1, "penaltyMaxPct": 20, "dayMethod": "факт/365", "feeRate": 0, "feeStart": "", "feeFreq": "ежемесячно", "feePayDay": 0, "feePenaltyInt": 0.1}, "conditionRecords": [{"id": "CR-214", "param": "feeRate", "value": 0, "effectiveFrom": "18.03.2023", "basis": {"kind": "application", "ref": "КОМ-240", "label": "Заявка ЗАЯ-0650 · комиссия КОМ-240", "date": "14.03.2023"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "18.03.2023", "createdBy": "Кредитный специалист"}, {"id": "CR-215", "param": "feeStart", "value": "", "effectiveFrom": "18.03.2023", "basis": {"kind": "application", "ref": "КОМ-240", "label": "Заявка ЗАЯ-0650 · комиссия КОМ-240", "date": "14.03.2023"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "18.03.2023", "createdBy": "Кредитный специалист"}, {"id": "CR-216", "param": "feeFreq", "value": "ежемесячно", "effectiveFrom": "18.03.2023", "basis": {"kind": "application", "ref": "КОМ-240", "label": "Заявка ЗАЯ-0650 · комиссия КОМ-240", "date": "14.03.2023"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "18.03.2023", "createdBy": "Кредитный специалист"}, {"id": "CR-217", "param": "feePayDay", "value": 0, "effectiveFrom": "18.03.2023", "basis": {"kind": "application", "ref": "КОМ-240", "label": "Заявка ЗАЯ-0650 · комиссия КОМ-240", "date": "14.03.2023"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "18.03.2023", "createdBy": "Кредитный специалист"}, {"id": "CR-218", "param": "feePenaltyInt", "value": 0.1, "effectiveFrom": "18.03.2023", "basis": {"kind": "application", "ref": "КОМ-240", "label": "Заявка ЗАЯ-0650 · комиссия КОМ-240", "date": "14.03.2023"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "18.03.2023", "createdBy": "Кредитный специалист"}], "agreements": [], "tranches": [{"id": "K-6b-T1", "no": 1, "subject": {"inn": "07215199300888", "name": "ОсОО «Талас-Майс»"}, "amount": 90000, "plannedDate": "25.03.2023", "conditionRecords": [{"id": "CR-199", "param": "rate", "value": 10, "effectiveFrom": "18.03.2023", "basis": {"kind": "application", "ref": "КОМ-240", "label": "Заявка ЗАЯ-0650 · комиссия КОМ-240", "date": "14.03.2023"}, "note": "Первичный комплект условий из заявки", "createdAt": "18.03.2023", "createdBy": "Кредитный специалист"}, {"id": "CR-200", "param": "penaltyMain", "value": 0.1, "effectiveFrom": "18.03.2023", "basis": {"kind": "application", "ref": "КОМ-240", "label": "Заявка ЗАЯ-0650 · комиссия КОМ-240", "date": "14.03.2023"}, "note": "Первичный комплект условий из заявки", "createdAt": "18.03.2023", "createdBy": "Кредитный специалист"}, {"id": "CR-201", "param": "penaltyInt", "value": 0.1, "effectiveFrom": "18.03.2023", "basis": {"kind": "application", "ref": "КОМ-240", "label": "Заявка ЗАЯ-0650 · комиссия КОМ-240", "date": "14.03.2023"}, "note": "Первичный комплект условий из заявки", "createdAt": "18.03.2023", "createdBy": "Кредитный специалист"}, {"id": "CR-202", "param": "term", "value": 24, "effectiveFrom": "18.03.2023", "basis": {"kind": "application", "ref": "КОМ-240", "label": "Заявка ЗАЯ-0650 · комиссия КОМ-240", "date": "14.03.2023"}, "note": "Первичный комплект условий из заявки", "createdAt": "18.03.2023", "createdBy": "Кредитный специалист"}, {"id": "CR-203", "param": "payDay", "value": 0, "effectiveFrom": "18.03.2023", "basis": {"kind": "application", "ref": "КОМ-240", "label": "Заявка ЗАЯ-0650 · комиссия КОМ-240", "date": "14.03.2023"}, "note": "Первичный комплект условий из заявки", "createdAt": "18.03.2023", "createdBy": "Кредитный специалист"}, {"id": "CR-204", "param": "lastPaymentAnchor", "value": "по дате выдачи", "effectiveFrom": "18.03.2023", "basis": {"kind": "application", "ref": "КОМ-240", "label": "Заявка ЗАЯ-0650 · комиссия КОМ-240", "date": "14.03.2023"}, "note": "Первичный комплект условий из заявки", "createdAt": "18.03.2023", "createdBy": "Кредитный специалист"}, {"id": "CR-205", "param": "freq", "value": "ежемесячно", "effectiveFrom": "18.03.2023", "basis": {"kind": "application", "ref": "КОМ-240", "label": "Заявка ЗАЯ-0650 · комиссия КОМ-240", "date": "14.03.2023"}, "note": "Первичный комплект условий из заявки", "createdAt": "18.03.2023", "createdBy": "Кредитный специалист"}, {"id": "CR-206", "param": "payMonths", "value": "", "effectiveFrom": "18.03.2023", "basis": {"kind": "application", "ref": "КОМ-240", "label": "Заявка ЗАЯ-0650 · комиссия КОМ-240", "date": "14.03.2023"}, "note": "Первичный комплект условий из заявки", "createdAt": "18.03.2023", "createdBy": "Кредитный специалист"}, {"id": "CR-207", "param": "method", "value": "аннуитет", "effectiveFrom": "18.03.2023", "basis": {"kind": "application", "ref": "КОМ-240", "label": "Заявка ЗАЯ-0650 · комиссия КОМ-240", "date": "14.03.2023"}, "note": "Первичный комплект условий из заявки", "createdAt": "18.03.2023", "createdBy": "Кредитный специалист"}, {"id": "CR-208", "param": "graceMain", "value": 0, "effectiveFrom": "18.03.2023", "basis": {"kind": "application", "ref": "КОМ-240", "label": "Заявка ЗАЯ-0650 · комиссия КОМ-240", "date": "14.03.2023"}, "note": "Первичный комплект условий из заявки", "createdAt": "18.03.2023", "createdBy": "Кредитный специалист"}, {"id": "CR-209", "param": "graceInterest", "value": 0, "effectiveFrom": "18.03.2023", "basis": {"kind": "application", "ref": "КОМ-240", "label": "Заявка ЗАЯ-0650 · комиссия КОМ-240", "date": "14.03.2023"}, "note": "Первичный комплект условий из заявки", "createdAt": "18.03.2023", "createdBy": "Кредитный специалист"}, {"id": "CR-210", "param": "graceIntDistFrom", "value": 0, "effectiveFrom": "18.03.2023", "basis": {"kind": "application", "ref": "КОМ-240", "label": "Заявка ЗАЯ-0650 · комиссия КОМ-240", "date": "14.03.2023"}, "note": "Первичный комплект условий из заявки", "createdAt": "18.03.2023", "createdBy": "Кредитный специалист"}, {"id": "CR-211", "param": "graceIntDistTo", "value": 0, "effectiveFrom": "18.03.2023", "basis": {"kind": "application", "ref": "КОМ-240", "label": "Заявка ЗАЯ-0650 · комиссия КОМ-240", "date": "14.03.2023"}, "note": "Первичный комплект условий из заявки", "createdAt": "18.03.2023", "createdBy": "Кредитный специалист"}, {"id": "CR-212", "param": "graceAccrual", "value": 0, "effectiveFrom": "18.03.2023", "basis": {"kind": "application", "ref": "КОМ-240", "label": "Заявка ЗАЯ-0650 · комиссия КОМ-240", "date": "14.03.2023"}, "note": "Первичный комплект условий из заявки", "createdAt": "18.03.2023", "createdBy": "Кредитный специалист"}, {"id": "CR-213", "param": "dayMethod", "value": "факт/365", "effectiveFrom": "18.03.2023", "basis": {"kind": "application", "ref": "КОМ-240", "label": "Заявка ЗАЯ-0650 · комиссия КОМ-240", "date": "14.03.2023"}, "note": "Первичный комплект условий из заявки", "createdAt": "18.03.2023", "createdBy": "Кредитный специалист"}], "disbursements": [{"date": "25.03.2023", "amount": 90000, "order": "ПП-405", "purpose": "Оборот", "doc": "akt-osvo-31.pdf"}], "schedules": [], "closed": null, "writeOffs": [{"date": "15.05.2026", "amount": 58000, "articles": {"interest": 14024.68, "penalty": 80329.51, "accInterest": 0, "accPenalty": 0, "fees": 0}, "basis": {"kind": "Решение Правления", "num": "РП-77", "date": "12.05.2026", "scan": "reshenie-77.pdf"}}]}], "docs": [{"kind": "Кредитный договор", "name": "Договор № 31", "state": "принят", "date": "20.03.2023", "file": "dogovor-31.pdf", "note": ""}, {"kind": "Решение комиссии", "name": "Протокол КОМ-240", "state": "принят", "date": "14.03.2023", "file": "kom-240.pdf", "note": ""}], "targetUse": {"docs": [{"date": "25.03.2023", "title": "Платёжное поручение и акт приёма-передачи", "result": "принято", "file": "tu-K-6b.pdf"}], "checks": [{"date": "25.05.2023", "title": "Камеральная проверка целевого использования", "result": "соответствует", "file": "check-K-6b.pdf"}], "measures": [], "committeeDecision": null}, "debtTransfer": null, "accrualHold": [], "fees": [], "plan": [], "factors": [{"kind": "Признание задолженности безнадёжной", "level": "высокий", "from": "12.05.2026", "to": null, "committeeRef": "РП-77 от 12.05.2026", "note": "Решение Правления о списании"}], "relief": [], "notes": [], "mirror": {"curatorship": [{"unit": "Отдел проблемных кредитов", "employee": "Осмонов Б. Т.", "role": "ведущий", "from": "20.03.2023", "to": "15.05.2026"}], "pledges": [], "guarantees": [], "bankGuarantee": null, "inspections": [], "court": [], "settlement": null, "payments": [{"num": 1, "date": "10.04.2026", "bindDate": null, "tranche": 1, "amount": 36000, "currency": null, "rate": null, "reg": "Импорт ЦК", "match": "Подтверждён ЦК", "dispute": null, "frozen": true, "method": "денежными средствами", "layers": {"principal": 32000, "interest": 4000}}], "paymentsAsOf": "15.05.2026", "claims": [], "claimsAsOf": null, "collectionCosts": 0, "restructuring": {"count": 0, "active": null}, "coverage": null, "borrower": {"subgroup": "4", "subgroupLabel": "Безнадежные долги", "asOf": "15.05.2026"}}}, {"id": "K-7", "num": "71", "date": "22.12.2025", "reg": {"num": "71", "date": "24.12.2025", "scan": "dogovor-71.pdf", "comment": ""}, "origin": {"applicationId": "ЗАЯ-0980", "applicationDate": "10.12.2025", "commissionId": "КОМ-300", "programId": "ПРГ-4", "govDecisionId": "ПП-448"}, "borrower": {"inn": "18052199600321", "name": "ОсОО «Ош-Пласт»", "type": "ЮЛ", "region": "Ошская", "district": "Кара-Сууский"}, "approvedAmount": 400000, "contractAmount": 400000, "currency": "KGS", "kind": "Бюджетный кредит", "line": "АРР", "purpose": "Модернизация линии переработки", "fundingSource": "Республиканский бюджет", "subject": [], "subjectRecords": [], "accounts": {"repayAcct": "1280000000000071", "repayAcctKind": "Расчётный", "payCode": "PC-71"}, "kmDecision": null, "pledgeWaiver": null, "lifecycle": "Действует", "closure": null, "baseConditions": {"rate": 9, "floatMeta": {}, "term": 36, "freq": "ежемесячно", "method": "аннуитет", "payDay": 0, "lastPaymentAnchor": "по дате выдачи", "payMonths": "", "graceMain": 0, "graceAccrual": 0, "graceInterest": 0, "graceIntDistFrom": 0, "graceIntDistTo": 0, "penaltyMain": 0.1, "penaltyInt": 0.1, "penaltyMaxPct": 20, "dayMethod": "факт/365", "feeRate": 0, "feeStart": "", "feeFreq": "ежемесячно", "feePayDay": 0, "feePenaltyInt": 0.1}, "conditionRecords": [{"id": "CR-16", "param": "feeRate", "value": 0, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-17", "param": "feeStart", "value": "", "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-18", "param": "feeFreq", "value": "ежемесячно", "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-19", "param": "feePayDay", "value": 0, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-20", "param": "feePenaltyInt", "value": 0.1, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}], "agreements": [{"num": "ДС-РС-2001", "date": "10.04.2026", "source": "реструктуризация", "scan": "ds-rs-2001.pdf"}, {"num": "ДС-РС-2002", "date": "10.06.2026", "source": "реструктуризация", "scan": "ds-rs-2002.pdf"}, {"num": "ДС-РС-2003", "date": "05.08.2026", "source": "реструктуризация", "scan": "ds-rs-2003.pdf"}], "tranches": [{"id": "K-7-T1", "no": 1, "subject": {"inn": "18052199600321", "name": "ОсОО «Ош-Пласт»"}, "amount": 400000, "plannedDate": "12.01.2026", "conditionRecords": [{"id": "CR-1", "param": "rate", "value": 9, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-2", "param": "penaltyMain", "value": 0.1, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-3", "param": "penaltyInt", "value": 0.1, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-4", "param": "term", "value": 36, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-5", "param": "payDay", "value": 0, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-6", "param": "lastPaymentAnchor", "value": "по дате выдачи", "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-7", "param": "freq", "value": "ежемесячно", "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-8", "param": "payMonths", "value": "", "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-9", "param": "method", "value": "аннуитет", "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-10", "param": "graceMain", "value": 0, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-11", "param": "graceInterest", "value": 0, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-12", "param": "graceIntDistFrom", "value": 0, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-13", "param": "graceIntDistTo", "value": 0, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-14", "param": "graceAccrual", "value": 0, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-15", "param": "dayMethod", "value": "факт/365", "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}], "disbursements": [{"date": "12.01.2026", "amount": 400000, "order": "ПП-448", "purpose": "Оборудование", "doc": "akt-osvo-71.pdf"}], "schedules": [{"ver": 1, "validFrom": "01.05.2026", "by": {"kind": "ДС", "ref": "ДС-РС-2001", "label": "Реструктуризация ДС-РС-2001"}, "generatedFrom": "01.05.2026", "generatedAt": "23.07.2026", "generatedSeq": 24, "rows": [{"no": 1, "date": "12.02.2026", "total": 12777.42, "principal": 9719.89, "interest": 3057.53, "accrued": 3057.53}, {"no": 2, "date": "12.03.2026", "total": 12487.33, "principal": 9792.79, "interest": 2694.54, "accrued": 2694.54}, {"no": 3, "date": "12.04.2026", "total": 12774.62, "principal": 9866.24, "interest": 2908.38, "accrued": 2908.38}, {"no": 4, "date": "01.06.2026", "total": 5110.97, "principal": 3887.96, "interest": 1223.01, "accrued": 1223.01}, {"no": 5, "date": "01.07.2026", "total": 5071.92, "principal": 3917.12, "interest": 1154.8, "accrued": 1154.8}, {"no": 6, "date": "01.08.2026", "total": 5109.85, "principal": 3946.5, "interest": 1163.35, "accrued": 1163.35}, {"no": 7, "date": "01.09.2026", "total": 5109.28, "principal": 3976.09, "interest": 1133.19, "accrued": 1133.19}, {"no": 8, "date": "01.10.2026", "total": 5073.13, "principal": 4005.91, "interest": 1067.22, "accrued": 1067.22}, {"no": 9, "date": "01.11.2026", "total": 5108.13, "principal": 4035.96, "interest": 1072.17, "accrued": 1072.17}, {"no": 10, "date": "01.12.2026", "total": 5073.96, "principal": 4066.23, "interest": 1007.73, "accrued": 1007.73}, {"no": 11, "date": "01.01.2027", "total": 5106.97, "principal": 4096.73, "interest": 1010.24, "accrued": 1010.24}, {"no": 12, "date": "01.02.2027", "total": 5106.38, "principal": 4127.45, "interest": 978.93, "accrued": 978.93}, {"no": 13, "date": "01.03.2027", "total": 5014.11, "principal": 4158.41, "interest": 855.7, "accrued": 855.7}, {"no": 14, "date": "01.04.2027", "total": 5105.18, "principal": 4189.59, "interest": 915.59, "accrued": 915.59}, {"no": 15, "date": "01.05.2027", "total": 5076.08, "principal": 4221.02, "interest": 855.06, "accrued": 855.06}, {"no": 16, "date": "01.06.2027", "total": 5103.97, "principal": 4252.67, "interest": 851.3, "accrued": 851.3}, {"no": 17, "date": "01.07.2027", "total": 5076.95, "principal": 4284.57, "interest": 792.38, "accrued": 792.38}, {"no": 18, "date": "01.08.2027", "total": 5102.74, "principal": 4316.7, "interest": 786.04, "accrued": 786.04}, {"no": 19, "date": "01.09.2027", "total": 5102.13, "principal": 4349.08, "interest": 753.05, "accrued": 753.05}, {"no": 20, "date": "01.10.2027", "total": 5078.29, "principal": 4381.7, "interest": 696.59, "accrued": 696.59}, {"no": 21, "date": "01.11.2027", "total": 5100.87, "principal": 4414.56, "interest": 686.31, "accrued": 686.31}, {"no": 22, "date": "01.12.2027", "total": 5079.19, "principal": 4447.67, "interest": 631.52, "accrued": 631.52}, {"no": 23, "date": "01.01.2028", "total": 5099.6, "principal": 4481.03, "interest": 618.57, "accrued": 618.57}, {"no": 24, "date": "01.02.2028", "total": 5098.95, "principal": 4514.63, "interest": 584.32, "accrued": 584.32}, {"no": 25, "date": "01.03.2028", "total": 5062.83, "principal": 4548.49, "interest": 514.34, "accrued": 514.34}, {"no": 26, "date": "01.04.2028", "total": 5097.65, "principal": 4582.61, "interest": 515.04, "accrued": 515.04}, {"no": 27, "date": "01.05.2028", "total": 5081.51, "principal": 4616.98, "interest": 464.53, "accrued": 464.53}, {"no": 28, "date": "01.06.2028", "total": 5096.32, "principal": 4651.6, "interest": 444.72, "accrued": 444.72}, {"no": 29, "date": "01.07.2028", "total": 5082.46, "principal": 4686.49, "interest": 395.97, "accrued": 395.97}, {"no": 30, "date": "01.08.2028", "total": 5094.98, "principal": 4721.64, "interest": 373.34, "accrued": 373.34}, {"no": 31, "date": "01.09.2028", "total": 5094.3, "principal": 4757.05, "interest": 337.25, "accrued": 337.25}, {"no": 32, "date": "01.10.2028", "total": 5083.91, "principal": 4792.73, "interest": 291.18, "accrued": 291.18}, {"no": 33, "date": "01.11.2028", "total": 5092.93, "principal": 4828.68, "interest": 264.25, "accrued": 264.25}, {"no": 34, "date": "01.12.2028", "total": 5084.9, "principal": 4864.89, "interest": 220.01, "accrued": 220.01}, {"no": 35, "date": "01.01.2029", "total": 5091.54, "principal": 4901.38, "interest": 190.16, "accrued": 190.16}, {"no": 36, "date": "01.02.2029", "total": 5090.83, "principal": 4938.14, "interest": 152.69, "accrued": 152.69}, {"no": 37, "date": "01.03.2029", "total": 5078.99, "principal": 4975.17, "interest": 103.82, "accrued": 103.82}, {"no": 38, "date": "01.04.2029", "total": 5089.41, "principal": 5012.49, "interest": 76.92, "accrued": 76.92}, {"no": 39, "date": "01.05.2029", "total": 5087.44, "principal": 5050.08, "interest": 37.36, "accrued": 37.36}]}, {"ver": 2, "validFrom": "01.07.2026", "by": {"kind": "ДС", "ref": "ДС-РС-2002", "label": "Реструктуризация ДС-РС-2002"}, "generatedFrom": "01.07.2026", "generatedAt": "23.07.2026", "generatedSeq": 28, "rows": [{"no": 1, "date": "12.02.2026", "total": 12777.42, "principal": 9719.89, "interest": 3057.53, "accrued": 3057.53}, {"no": 2, "date": "12.03.2026", "total": 12487.33, "principal": 9792.79, "interest": 2694.54, "accrued": 2694.54}, {"no": 3, "date": "12.04.2026", "total": 12774.62, "principal": 9866.24, "interest": 2908.38, "accrued": 2908.38}, {"no": 4, "date": "01.06.2026", "total": 5110.97, "principal": 3887.96, "interest": 1223.01, "accrued": 1223.01}]}], "closed": {"date": "01.07.2026", "reason": "перенос", "by": {"kind": "ДС", "ref": "ДС-РС-2002"}}, "transfers": [{"date": "01.05.2026", "dir": "out", "amount": 200000, "counterTranche": 2, "basis": {"ds": "ДС-РС-2001", "date": "10.04.2026"}, "parts": [{"key": "principal", "amount": 170000, "from": 1, "to": 4}, {"key": "accPenalty", "amount": 20000, "from": 1, "to": 4}, {"key": "other", "amount": 10000, "from": 3, "to": 4}]}, {"date": "01.07.2026", "dir": "out", "amount": 160000, "counterTranche": 3, "basis": {"ds": "ДС-РС-2002", "date": "10.06.2026"}, "parts": [{"key": "principal", "amount": 148000, "from": 1, "to": 6}, {"key": "accInterest", "amount": 12000, "from": 1, "to": 3}]}]}, {"id": "K-7-T2", "no": 2, "subject": {"inn": "18052199600321", "name": "ОсОО «Ош-Пласт»"}, "amount": 200000, "plannedDate": "01.05.2026", "conditionRecords": [{"id": "CR-219", "param": "rate", "value": 9, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-220", "param": "penaltyMain", "value": 0.1, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-221", "param": "penaltyInt", "value": 0.1, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-222", "param": "term", "value": 36, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-223", "param": "payDay", "value": 0, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-224", "param": "lastPaymentAnchor", "value": "по дате выдачи", "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-225", "param": "freq", "value": "ежемесячно", "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-226", "param": "payMonths", "value": "", "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-227", "param": "method", "value": "аннуитет", "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-228", "param": "graceMain", "value": 0, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-229", "param": "graceInterest", "value": 0, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-230", "param": "graceIntDistFrom", "value": 0, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-231", "param": "graceIntDistTo", "value": 0, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-232", "param": "graceAccrual", "value": 0, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-233", "param": "dayMethod", "value": "факт/365", "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-21", "param": "rate", "value": 5, "effectiveFrom": "01.05.2026", "basis": {"kind": "ДС", "ref": "ДС-РС-2001", "label": "Реструктуризация ДС-РС-2001", "date": "10.04.2026"}, "note": "", "createdAt": "10.04.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-22", "param": "term", "value": 24, "effectiveFrom": "01.05.2026", "basis": {"kind": "ДС", "ref": "ДС-РС-2001", "label": "Реструктуризация ДС-РС-2001", "date": "10.04.2026"}, "note": "", "createdAt": "10.04.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-23", "param": "method", "value": "аннуитет", "effectiveFrom": "01.05.2026", "basis": {"kind": "ДС", "ref": "ДС-РС-2001", "label": "Реструктуризация ДС-РС-2001", "date": "10.04.2026"}, "note": "", "createdAt": "10.04.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-24", "param": "freq", "value": "Ежемесячно", "effectiveFrom": "01.05.2026", "basis": {"kind": "ДС", "ref": "ДС-РС-2001", "label": "Реструктуризация ДС-РС-2001", "date": "10.04.2026"}, "note": "", "createdAt": "10.04.2026", "createdBy": "Кредитный специалист"}], "disbursements": [], "schedules": [{"ver": 1, "validFrom": "01.05.2026", "by": {"kind": "ДС", "ref": "ДС-РС-2001", "label": "Реструктуризация ДС-РС-2001"}, "generatedFrom": "01.05.2026", "generatedAt": "23.07.2026", "generatedSeq": 20, "rows": [{"no": 1, "date": "15.06.2026", "principal": 42500, "interest": 708.33, "accrued": 708.33, "total": 48208.33, "articles": {"accPenalty": 5000}}, {"no": 2, "date": "15.07.2026", "principal": 42500, "interest": 531.25, "accrued": 531.25, "total": 48031.25, "articles": {"accPenalty": 5000}}, {"no": 3, "date": "15.08.2026", "principal": 42500, "interest": 354.17, "accrued": 354.17, "total": 52854.17, "articles": {"accPenalty": 5000, "other": 5000}}, {"no": 4, "date": "15.09.2026", "principal": 42500, "interest": 177.08, "accrued": 177.08, "total": 52677.08, "articles": {"accPenalty": 5000, "other": 5000}}]}], "closed": null, "transfers": [{"date": "01.05.2026", "dir": "in", "amount": 200000, "counterTranche": 1, "basis": {"ds": "ДС-РС-2001", "date": "10.04.2026"}, "parts": [{"key": "principal", "amount": 170000, "from": 1, "to": 4}, {"key": "accPenalty", "amount": 20000, "from": 1, "to": 4}, {"key": "other", "amount": 10000, "from": 3, "to": 4}]}], "articleBase": [{"key": "accPenalty", "amount": 20000, "from": 1, "to": 4}, {"key": "other", "amount": 10000, "from": 3, "to": 4}]}, {"id": "K-7-T3", "no": 3, "subject": {"inn": "18052199600321", "name": "ОсОО «Ош-Пласт»"}, "amount": 160000, "plannedDate": "01.07.2026", "conditionRecords": [{"id": "CR-234", "param": "rate", "value": 9, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-235", "param": "penaltyMain", "value": 0.1, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-236", "param": "penaltyInt", "value": 0.1, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-237", "param": "term", "value": 36, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-238", "param": "payDay", "value": 0, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-239", "param": "lastPaymentAnchor", "value": "по дате выдачи", "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-240", "param": "freq", "value": "ежемесячно", "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-241", "param": "payMonths", "value": "", "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-242", "param": "method", "value": "аннуитет", "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-243", "param": "graceMain", "value": 0, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-244", "param": "graceInterest", "value": 0, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-245", "param": "graceIntDistFrom", "value": 0, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-246", "param": "graceIntDistTo", "value": 0, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-247", "param": "graceAccrual", "value": 0, "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-248", "param": "dayMethod", "value": "факт/365", "effectiveFrom": "22.12.2025", "basis": {"kind": "application", "ref": "КОМ-300", "label": "Заявка ЗАЯ-0980 · комиссия КОМ-300", "date": "18.12.2025"}, "note": "Первичный комплект условий из заявки", "createdAt": "22.12.2025", "createdBy": "Кредитный специалист"}, {"id": "CR-25", "param": "rate", "value": 4, "effectiveFrom": "01.07.2026", "basis": {"kind": "ДС", "ref": "ДС-РС-2002", "label": "Реструктуризация ДС-РС-2002", "date": "10.06.2026"}, "note": "", "createdAt": "10.06.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-26", "param": "term", "value": 36, "effectiveFrom": "01.07.2026", "basis": {"kind": "ДС", "ref": "ДС-РС-2002", "label": "Реструктуризация ДС-РС-2002", "date": "10.06.2026"}, "note": "", "createdAt": "10.06.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-27", "param": "method", "value": "аннуитет", "effectiveFrom": "01.07.2026", "basis": {"kind": "ДС", "ref": "ДС-РС-2002", "label": "Реструктуризация ДС-РС-2002", "date": "10.06.2026"}, "note": "", "createdAt": "10.06.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-28", "param": "freq", "value": "Ежемесячно", "effectiveFrom": "01.07.2026", "basis": {"kind": "ДС", "ref": "ДС-РС-2002", "label": "Реструктуризация ДС-РС-2002", "date": "10.06.2026"}, "note": "", "createdAt": "10.06.2026", "createdBy": "Кредитный специалист"}], "disbursements": [], "schedules": [{"ver": 1, "validFrom": "01.07.2026", "by": {"kind": "ДС", "ref": "ДС-РС-2002", "label": "Реструктуризация ДС-РС-2002"}, "generatedFrom": "01.07.2026", "generatedAt": "23.07.2026", "generatedSeq": 24, "rows": [{"no": 1, "date": "15.08.2026", "principal": 24666.67, "interest": 493.33, "accrued": 493.33, "total": 29160, "articles": {"accInterest": 4000}}, {"no": 2, "date": "15.09.2026", "principal": 24666.67, "interest": 411.11, "accrued": 411.11, "total": 29077.78, "articles": {"accInterest": 4000}}, {"no": 3, "date": "15.10.2026", "principal": 24666.67, "interest": 328.89, "accrued": 328.89, "total": 28995.56, "articles": {"accInterest": 4000}}, {"no": 4, "date": "15.11.2026", "principal": 24666.67, "interest": 246.67, "accrued": 246.67, "total": 24913.34}, {"no": 5, "date": "15.12.2026", "principal": 24666.67, "interest": 164.44, "accrued": 164.44, "total": 24831.11}, {"no": 6, "date": "15.01.2027", "principal": 24666.65, "interest": 82.22, "accrued": 82.22, "total": 24748.87}]}], "closed": null, "transfers": [{"date": "01.07.2026", "dir": "in", "amount": 160000, "counterTranche": 1, "basis": {"ds": "ДС-РС-2002", "date": "10.06.2026"}, "parts": [{"key": "principal", "amount": 148000, "from": 1, "to": 6}, {"key": "accInterest", "amount": 12000, "from": 1, "to": 3}]}], "articleBase": [{"key": "accInterest", "amount": 12000, "from": 1, "to": 3}]}], "docs": [{"kind": "Кредитный договор", "name": "Договор № 71", "state": "принят", "date": "24.12.2025", "file": "dogovor-71.pdf", "note": ""}, {"kind": "Решение комиссии", "name": "Протокол КОМ-300", "state": "принят", "date": "18.12.2025", "file": "kom-300.pdf", "note": ""}], "targetUse": {"docs": [{"date": "12.01.2026", "title": "Платёжное поручение и акт приёма-передачи", "result": "принято", "file": "tu-K-7.pdf"}], "checks": [{"date": "12.03.2026", "title": "Камеральная проверка целевого использования", "result": "соответствует", "file": "check-K-7.pdf"}], "measures": [], "committeeDecision": null}, "debtTransfer": null, "accrualHold": [], "fees": [], "plan": [], "factors": [], "relief": [], "notes": [], "mirror": {"curatorship": [{"unit": "Отдел кредитования", "employee": "Джумалиева Г. К.", "role": "ведущий", "from": "24.12.2025", "to": null}], "pledges": [{"contractNum": "ЗД-71", "date": "20.12.2025", "pledgor": "ОсОО «Ош-Пласт»", "notary": "Нотариус (реестр залога)", "items": [{"name": "Цех по переработке пластика", "kind": "Недвижимое имущество", "appraised": 700000, "pledgeValue": 560000, "share": 1, "ban": true}], "otherCredits": []}], "guarantees": [], "bankGuarantee": null, "inspections": [], "court": [], "settlement": null, "payments": [{"num": 1, "date": "15.03.2026", "bindDate": null, "tranche": 1, "amount": 43000, "currency": null, "rate": null, "reg": "Импорт ЦК", "match": "Подтверждён ЦК", "dispute": null, "frozen": true, "method": "денежными средствами", "layers": {"principal": 40000, "interest": 3000}}], "paymentsAsOf": "20.07.2026", "claims": [], "claimsAsOf": null, "collectionCosts": 0, "restructuring": {"count": 2, "active": null, "ds": [{"num": "ДС-РС-2001", "date": "10.04.2026", "effectiveFrom": "01.05.2026", "sourceTranche": 1, "parts": [{"key": "principal", "amount": 170000, "from": 1, "to": 4}, {"key": "accPenalty", "amount": 20000, "from": 1, "to": 4}, {"key": "other", "amount": 10000, "from": 3, "to": 4}], "conditions": [{"param": "rate", "value": 5}, {"param": "term", "value": 24}, {"param": "method", "value": "аннуитет"}, {"param": "freq", "value": "Ежемесячно"}], "rows": [{"no": 1, "date": "15.06.2026", "principal": 42500, "interest": 708.33, "accrued": 708.33, "total": 48208.33, "articles": {"accPenalty": 5000}}, {"no": 2, "date": "15.07.2026", "principal": 42500, "interest": 531.25, "accrued": 531.25, "total": 48031.25, "articles": {"accPenalty": 5000}}, {"no": 3, "date": "15.08.2026", "principal": 42500, "interest": 354.17, "accrued": 354.17, "total": 52854.17, "articles": {"accPenalty": 5000, "other": 5000}}, {"no": 4, "date": "15.09.2026", "principal": 42500, "interest": 177.08, "accrued": 177.08, "total": 52677.08, "articles": {"accPenalty": 5000, "other": 5000}}]}, {"num": "ДС-РС-2002", "date": "10.06.2026", "effectiveFrom": "01.07.2026", "sourceTranche": 1, "parts": [{"key": "principal", "amount": 148000, "from": 1, "to": 6}, {"key": "accInterest", "amount": 12000, "from": 1, "to": 3}], "conditions": [{"param": "rate", "value": 4}, {"param": "term", "value": 36}, {"param": "method", "value": "аннуитет"}, {"param": "freq", "value": "Ежемесячно"}], "rows": [{"no": 1, "date": "15.08.2026", "principal": 24666.67, "interest": 493.33, "accrued": 493.33, "total": 29160, "articles": {"accInterest": 4000}}, {"no": 2, "date": "15.09.2026", "principal": 24666.67, "interest": 411.11, "accrued": 411.11, "total": 29077.78, "articles": {"accInterest": 4000}}, {"no": 3, "date": "15.10.2026", "principal": 24666.67, "interest": 328.89, "accrued": 328.89, "total": 28995.56, "articles": {"accInterest": 4000}}, {"no": 4, "date": "15.11.2026", "principal": 24666.67, "interest": 246.67, "accrued": 246.67, "total": 24913.34}, {"no": 5, "date": "15.12.2026", "principal": 24666.67, "interest": 164.44, "accrued": 164.44, "total": 24831.11}, {"no": 6, "date": "15.01.2027", "principal": 24666.65, "interest": 82.22, "accrued": 82.22, "total": 24748.87}]}, {"num": "ДС-РС-2003", "date": "05.08.2026", "effectiveFrom": "01.09.2026", "sourceTranche": 2, "termEnd": "15.02.2027", "parts": [{"key": "principal", "amount": 80000, "from": 1, "to": 5}, {"key": "accInterest", "amount": 5000, "from": 1, "to": 2}], "conditions": [{"param": "rate", "value": 3}, {"param": "term", "value": 18}, {"param": "method", "value": "аннуитет"}, {"param": "freq", "value": "Ежемесячно"}], "rows": [{"no": 1, "date": "15.10.2026", "principal": 16000, "interest": 200, "accrued": 200, "total": 18700, "articles": {"accInterest": 2500}}, {"no": 2, "date": "15.11.2026", "principal": 16000, "interest": 160, "accrued": 160, "total": 18660, "articles": {"accInterest": 2500}}, {"no": 3, "date": "15.12.2026", "principal": 16000, "interest": 120, "accrued": 120, "total": 16120}, {"no": 4, "date": "15.01.2027", "principal": 16000, "interest": 80, "accrued": 80, "total": 16080}, {"no": 5, "date": "15.02.2027", "principal": 16000, "interest": 40, "accrued": 40, "total": 16040}]}]}, "coverage": {"pledgeValue": 560000, "liquidValue": 560000, "illiquidValue": 0, "bankGuarantee": 0, "guaranteeReq": null, "guaranteeCurrency": null, "guaranteeExpired": false, "guaranteeTill": null, "reqBase": 120, "liquidShareMin": 80, "source": "Ликвидный залог ⇒ порог 120 % (Прил.1 §2.3)", "asOf": "20.07.2026", "module": "Залоговое обеспечение"}, "borrower": {"subgroup": "1.1", "subgroupLabel": "Производят погашение по графику", "asOf": "20.07.2026"}}, "appliedDs": [{"num": "ДС-РС-2001", "date": "10.04.2026", "effectiveFrom": "01.05.2026", "sourceTranche": 1, "tranche": 2, "amount": 200000, "appliedAt": "23.07.2026"}, {"num": "ДС-РС-2002", "date": "10.06.2026", "effectiveFrom": "01.07.2026", "sourceTranche": 1, "tranche": 3, "amount": 160000, "appliedAt": "23.07.2026"}]}, {"id": "K-C1", "num": "C200", "date": "05.02.2026", "reg": {"num": "C200", "date": "07.02.2026", "scan": "dog-C200.pdf", "comment": ""}, "origin": {"applicationId": "ЗАЯ-C200", "applicationDate": "29.01.2026", "commissionId": "КОМ-C200", "programId": "ПРГ-1", "govDecisionId": "ПП-470"}, "borrower": {"inn": "31010200000000", "name": "ОсОО «Кемин-Цемент»", "type": "ЮЛ", "region": "Чуйская", "district": "Кеминский"}, "approvedAmount": 850000, "contractAmount": 850000, "currency": "KGS", "kind": "Бюджетный кредит", "line": "АРР", "purpose": "Модернизация цеха", "fundingSource": "Республиканский бюджет", "subject": [], "subjectRecords": [], "accounts": {"repayAcct": "1280000000020000", "repayAcctKind": "Расчётный", "payCode": "PC-C200"}, "kmDecision": null, "pledgeWaiver": null, "lifecycle": "Действует", "closure": null, "baseConditions": {"rate": 10, "floatMeta": {}, "term": 24, "freq": "ежемесячно", "method": "аннуитет", "payDay": 0, "lastPaymentAnchor": "по дате выдачи", "payMonths": "", "graceMain": 0, "graceAccrual": 0, "graceInterest": 0, "graceIntDistFrom": 0, "graceIntDistTo": 0, "penaltyMain": 0.1, "penaltyInt": 0.1, "penaltyMaxPct": 20, "dayMethod": "факт/365", "feeRate": 0, "feeStart": "", "feeFreq": "ежемесячно", "feePayDay": 0, "feePenaltyInt": 0.1}, "conditionRecords": [{"id": "CR-424", "param": "feeRate", "value": 0, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C200", "label": "Заявка ЗАЯ-C200 · комиссия КОМ-C200", "date": "06.02.2026"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-425", "param": "feeStart", "value": "", "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C200", "label": "Заявка ЗАЯ-C200 · комиссия КОМ-C200", "date": "06.02.2026"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-426", "param": "feeFreq", "value": "ежемесячно", "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C200", "label": "Заявка ЗАЯ-C200 · комиссия КОМ-C200", "date": "06.02.2026"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-427", "param": "feePayDay", "value": 0, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C200", "label": "Заявка ЗАЯ-C200 · комиссия КОМ-C200", "date": "06.02.2026"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-428", "param": "feePenaltyInt", "value": 0.1, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C200", "label": "Заявка ЗАЯ-C200 · комиссия КОМ-C200", "date": "06.02.2026"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}], "agreements": [], "tranches": [{"id": "K-C1-T1", "no": 1, "subject": {"inn": "31010200000000", "name": "ОсОО «Кемин-Цемент»"}, "amount": 850000, "plannedDate": "12.02.2026", "conditionRecords": [{"id": "CR-409", "param": "rate", "value": 10, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C200", "label": "Заявка ЗАЯ-C200 · комиссия КОМ-C200", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-410", "param": "penaltyMain", "value": 0.1, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C200", "label": "Заявка ЗАЯ-C200 · комиссия КОМ-C200", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-411", "param": "penaltyInt", "value": 0.1, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C200", "label": "Заявка ЗАЯ-C200 · комиссия КОМ-C200", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-412", "param": "term", "value": 24, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C200", "label": "Заявка ЗАЯ-C200 · комиссия КОМ-C200", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-413", "param": "payDay", "value": 0, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C200", "label": "Заявка ЗАЯ-C200 · комиссия КОМ-C200", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-414", "param": "lastPaymentAnchor", "value": "по дате выдачи", "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C200", "label": "Заявка ЗАЯ-C200 · комиссия КОМ-C200", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-415", "param": "freq", "value": "ежемесячно", "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C200", "label": "Заявка ЗАЯ-C200 · комиссия КОМ-C200", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-416", "param": "payMonths", "value": "", "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C200", "label": "Заявка ЗАЯ-C200 · комиссия КОМ-C200", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-417", "param": "method", "value": "аннуитет", "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C200", "label": "Заявка ЗАЯ-C200 · комиссия КОМ-C200", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-418", "param": "graceMain", "value": 0, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C200", "label": "Заявка ЗАЯ-C200 · комиссия КОМ-C200", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-419", "param": "graceInterest", "value": 0, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C200", "label": "Заявка ЗАЯ-C200 · комиссия КОМ-C200", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-420", "param": "graceIntDistFrom", "value": 0, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C200", "label": "Заявка ЗАЯ-C200 · комиссия КОМ-C200", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-421", "param": "graceIntDistTo", "value": 0, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C200", "label": "Заявка ЗАЯ-C200 · комиссия КОМ-C200", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-422", "param": "graceAccrual", "value": 0, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C200", "label": "Заявка ЗАЯ-C200 · комиссия КОМ-C200", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-423", "param": "dayMethod", "value": "факт/365", "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C200", "label": "Заявка ЗАЯ-C200 · комиссия КОМ-C200", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}], "disbursements": [{"date": "15.02.2026", "amount": 850000, "order": "ПП-C200", "purpose": "Модернизация цеха", "doc": "akt-C200.pdf"}], "schedules": [], "closed": null, "accrualHold": []}], "docs": [{"kind": "Кредитный договор", "name": "Кредитный договор · C200", "state": "принят", "date": "06.02.2026", "file": "doc-C200-1.pdf", "note": ""}, {"kind": "Решение комиссии", "name": "Решение комиссии · C200", "state": "принят", "date": "06.02.2026", "file": "doc-C200-2.pdf", "note": ""}, {"kind": "Финансовая отчётность", "name": "Финансовая отчётность · C200", "state": "принят", "date": "06.02.2026", "file": "doc-C200-3.pdf", "note": ""}], "targetUse": {"docs": [{"date": "20.02.2026", "title": "Счёт-фактура и акт приёма-передачи", "result": "принято", "file": "tu-C200.pdf"}], "checks": [{"date": "15.04.2026", "title": "Выездная проверка целевого использования", "result": "соответствует", "file": "check-C200.pdf"}], "measures": [], "committeeDecision": null}, "debtTransfer": null, "accrualHold": [], "fees": [], "plan": [], "factors": [], "relief": [], "notes": [], "mirror": {"curatorship": [{"unit": "Отдел кредитования", "employee": "Асанов А. К.", "role": "ведущий", "from": "07.02.2026", "to": null}], "pledges": [{"contractNum": "ЗД-C200", "date": "10.02.2026", "pledgor": "ОсОО «Кемин-Цемент»", "notary": "Нотариус (реестр залога)", "items": [{"name": "Административное здание", "kind": "Недвижимое имущество", "appraised": 1445000, "pledgeValue": 1190000, "share": 1, "ban": true}], "otherCredits": []}], "guarantees": [], "bankGuarantee": null, "inspections": [], "court": [], "settlement": null, "payments": [{"num": 1, "date": "23.07.2026", "bindDate": null, "tranche": 1, "amount": 211865.35, "currency": null, "rate": null, "reg": "Импорт ЦК", "match": "Подтверждён ЦК", "dispute": null, "frozen": true, "method": "денежными средствами", "layers": {"principal": 163400, "interest": 34931.51, "penalty": 13533.84}}], "paymentsAsOf": "23.07.2026", "claims": [], "claimsAsOf": null, "collectionCosts": 0, "restructuring": {"count": 0, "active": null}, "coverage": {"pledgeValue": 1190000, "liquidValue": 1190000, "illiquidValue": 0, "bankGuarantee": 0, "guaranteeReq": null, "guaranteeCurrency": null, "guaranteeExpired": false, "guaranteeTill": null, "reqBase": 120, "liquidShareMin": 80, "source": "Ликвидный залог ⇒ порог 120 % (Прил.1 §2.3)", "asOf": "18.07.2026", "module": "Залоговое обеспечение"}, "borrower": {"subgroup": "1.1", "subgroupLabel": "Производят погашение по графику", "asOf": "20.07.2026"}}}, {"id": "K-C2", "num": "C201", "date": "05.02.2026", "reg": {"num": "C201", "date": "07.02.2026", "scan": "dog-C201.pdf", "comment": ""}, "origin": {"applicationId": "ЗАЯ-C201", "applicationDate": "29.01.2026", "commissionId": "КОМ-C201", "programId": "ПРГ-2", "govDecisionId": "ПП-470"}, "borrower": {"inn": "31010200000137", "name": "ОсОО «Ош-Мрамор»", "type": "ЮЛ", "region": "Ошская", "district": "Араванский"}, "approvedAmount": 320000, "contractAmount": 320000, "currency": "USD", "kind": "Бюджетный кредит", "line": "АРР", "purpose": "Закуп сырья", "fundingSource": "Программа «Финансирование субъектов предпринимательства»", "subject": [], "subjectRecords": [], "accounts": {"repayAcct": "1280000000020001", "repayAcctKind": "Расчётный", "payCode": "PC-C201"}, "kmDecision": null, "pledgeWaiver": null, "lifecycle": "Действует", "closure": null, "baseConditions": {"rate": 10, "floatMeta": {}, "term": 24, "freq": "ежемесячно", "method": "аннуитет", "payDay": 0, "lastPaymentAnchor": "по дате выдачи", "payMonths": "", "graceMain": 0, "graceAccrual": 0, "graceInterest": 0, "graceIntDistFrom": 0, "graceIntDistTo": 0, "penaltyMain": 0.1, "penaltyInt": 0.1, "penaltyMaxPct": 20, "dayMethod": "факт/365", "feeRate": 0, "feeStart": "", "feeFreq": "ежемесячно", "feePayDay": 0, "feePenaltyInt": 0.1}, "conditionRecords": [{"id": "CR-444", "param": "feeRate", "value": 0, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C201", "label": "Заявка ЗАЯ-C201 · комиссия КОМ-C201", "date": "06.02.2026"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-445", "param": "feeStart", "value": "", "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C201", "label": "Заявка ЗАЯ-C201 · комиссия КОМ-C201", "date": "06.02.2026"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-446", "param": "feeFreq", "value": "ежемесячно", "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C201", "label": "Заявка ЗАЯ-C201 · комиссия КОМ-C201", "date": "06.02.2026"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-447", "param": "feePayDay", "value": 0, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C201", "label": "Заявка ЗАЯ-C201 · комиссия КОМ-C201", "date": "06.02.2026"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-448", "param": "feePenaltyInt", "value": 0.1, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C201", "label": "Заявка ЗАЯ-C201 · комиссия КОМ-C201", "date": "06.02.2026"}, "note": "Первичный комплект условий кредита из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}], "agreements": [], "tranches": [{"id": "K-C2-T1", "no": 1, "subject": {"inn": "31010200000137", "name": "ОсОО «Ош-Мрамор»"}, "amount": 320000, "plannedDate": "12.02.2026", "conditionRecords": [{"id": "CR-429", "param": "rate", "value": 10, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C201", "label": "Заявка ЗАЯ-C201 · комиссия КОМ-C201", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-430", "param": "penaltyMain", "value": 0.1, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C201", "label": "Заявка ЗАЯ-C201 · комиссия КОМ-C201", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-431", "param": "penaltyInt", "value": 0.1, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C201", "label": "Заявка ЗАЯ-C201 · комиссия КОМ-C201", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-432", "param": "term", "value": 24, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C201", "label": "Заявка ЗАЯ-C201 · комиссия КОМ-C201", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-433", "param": "payDay", "value": 0, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C201", "label": "Заявка ЗАЯ-C201 · комиссия КОМ-C201", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-434", "param": "lastPaymentAnchor", "value": "по дате выдачи", "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C201", "label": "Заявка ЗАЯ-C201 · комиссия КОМ-C201", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-435", "param": "freq", "value": "ежемесячно", "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C201", "label": "Заявка ЗАЯ-C201 · комиссия КОМ-C201", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-436", "param": "payMonths", "value": "", "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C201", "label": "Заявка ЗАЯ-C201 · комиссия КОМ-C201", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-437", "param": "method", "value": "аннуитет", "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C201", "label": "Заявка ЗАЯ-C201 · комиссия КОМ-C201", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-438", "param": "graceMain", "value": 0, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C201", "label": "Заявка ЗАЯ-C201 · комиссия КОМ-C201", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-439", "param": "graceInterest", "value": 0, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C201", "label": "Заявка ЗАЯ-C201 · комиссия КОМ-C201", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-440", "param": "graceIntDistFrom", "value": 0, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C201", "label": "Заявка ЗАЯ-C201 · комиссия КОМ-C201", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-441", "param": "graceIntDistTo", "value": 0, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C201", "label": "Заявка ЗАЯ-C201 · комиссия КОМ-C201", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-442", "param": "graceAccrual", "value": 0, "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C201", "label": "Заявка ЗАЯ-C201 · комиссия КОМ-C201", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}, {"id": "CR-443", "param": "dayMethod", "value": "факт/365", "effectiveFrom": "05.02.2026", "basis": {"kind": "application", "ref": "КОМ-C201", "label": "Заявка ЗАЯ-C201 · комиссия КОМ-C201", "date": "06.02.2026"}, "note": "Первичный комплект условий из заявки", "createdAt": "05.02.2026", "createdBy": "Кредитный специалист"}], "disbursements": [{"date": "15.02.2026", "amount": 320000, "order": "ПП-C201", "purpose": "Закуп сырья", "doc": "akt-C201.pdf"}], "schedules": [], "closed": null, "accrualHold": []}], "docs": [{"kind": "Кредитный договор", "name": "Кредитный договор · C201", "state": "принят", "date": "06.02.2026", "file": "doc-C201-1.pdf", "note": ""}, {"kind": "Решение комиссии", "name": "Решение комиссии · C201", "state": "принят", "date": "06.02.2026", "file": "doc-C201-2.pdf", "note": ""}], "targetUse": {"docs": [{"date": "20.02.2026", "title": "Счёт-фактура и акт приёма-передачи", "result": "принято", "file": "tu-C201.pdf"}], "checks": [{"date": "15.04.2026", "title": "Выездная проверка целевого использования", "result": "соответствует", "file": "check-C201.pdf"}], "measures": [], "committeeDecision": null}, "debtTransfer": null, "accrualHold": [], "fees": [], "plan": [], "factors": [], "relief": [], "notes": [], "mirror": {"curatorship": [{"unit": "Отдел кредитования", "employee": "Ким Л. С.", "role": "ведущий", "from": "07.02.2026", "to": null}], "pledges": [{"contractNum": "ЗД-C201", "date": "10.02.2026", "pledgor": "ОсОО «Ош-Мрамор»", "notary": "Нотариус (реестр залога)", "items": [{"name": "Административное здание", "kind": "Недвижимое имущество", "appraised": 544000, "pledgeValue": 448000, "share": 1, "ban": true}], "otherCredits": []}], "guarantees": [], "bankGuarantee": null, "inspections": [], "court": [], "settlement": null, "payments": [{"num": 1, "date": "23.07.2026", "bindDate": null, "tranche": 1, "amount": 79761.09, "currency": null, "rate": null, "reg": "Импорт ЦК", "match": "Подтверждён ЦК", "dispute": null, "frozen": true, "method": "денежными средствами", "layers": {"principal": 61515.29, "interest": 13150.68, "penalty": 5095.12}}], "paymentsAsOf": "23.07.2026", "claims": [], "claimsAsOf": null, "collectionCosts": 0, "restructuring": {"count": 0, "active": null}, "coverage": {"pledgeValue": 448000, "liquidValue": 448000, "illiquidValue": 0, "bankGuarantee": 0, "guaranteeReq": null, "guaranteeCurrency": null, "guaranteeExpired": false, "guaranteeTill": null, "reqBase": 120, "liquidShareMin": 80, "source": "Ликвидный залог ⇒ порог 120 % (Прил.1 §2.3)", "asOf": "18.07.2026", "module": "Залоговое обеспечение"}, "borrower": {"subgroup": "1.1", "subgroupLabel": "Производят погашение по графику", "asOf": "20.07.2026"}}}];
 const DATES = ['23.07.2026', '01.01.2026', '31.12.2026'];
+
+/* ---- УЧЁТНЫЙ ПЕРИОД — ЗЕРКАЛО, а не собственность стенда --------------------------
+   Период один общий на систему (ADR-0123 §3), владелец — платежи (ADR-0075). Здесь он
+   собирается помесячно и КЛАДЁТСЯ ВСЕМ кредитам ОДНИМ И ТЕМ ЖЕ массивом: если бы у
+   каждого кредита был свой календарь, «закрыть месяц» перестало бы быть одним действием.
+   Открыт последний месяц — тот, в котором стоит `TODAY`; всё, что раньше, закрыто. */
+const PERIOD_ACTOR = 'Иманова Г.Т., главный бухгалтер';
+const PERIODS = (() => {
+  const p2 = n => String(n).padStart(2, '0');
+  const out = []; let y = 2025, m = 11;
+  for (let i = 0; i < 9; i++){
+    const last = new Date(y, m, 0).getDate();
+    const open = (y === 2026 && m === 7);                 // месяц TODAY = 23.07.2026
+    const ny = m === 12 ? y + 1 : y, nm = m === 12 ? 1 : m + 1;
+    out.push({ id: p2(m) + '.' + y, from: '01.' + p2(m) + '.' + y, to: p2(last) + '.' + p2(m) + '.' + y,
+      status: open ? 'открыт' : 'закрыт',
+      closedAt: open ? null : '05.' + p2(nm) + '.' + ny,  // месяц закрывают в начале следующего
+      actor: open ? null : PERIOD_ACTOR, reopenOrder: null });
+    m = nm; y = ny;
+  }
+  return out;
+})();
+for (const c of FIXTURE) c.mirror.periods = PERIODS;
+
+/* ЗАПИСЬ ЗАДНИМ ЧИСЛОМ — то, ради чего фиксация и нужна. Взят не выдуманный случай, а
+   штатный: платёж по К-4 от 10.02.2026 ушёл в сторно по таймауту, ЦК подтвердил его в
+   июле, и сработал ОБРАТНЫЙ КАСКАД (`match: 'Восстановлен'`) — долг за февраль упал.
+   Февраль к тому моменту был закрыт: вход, объявленный замёрзшим, изменился по правилам
+   и без чьей-либо вины. Ядро это не чинит и не прячет — оно это показывает (ИЯ-13).
+   Расхождение рвёт не один месяц, а ВЕСЬ ХВОСТ закрытых периодов после февраля. */
+const LATE_PAYMENT = { num: 99, date: '10.02.2026', bindDate: '20.07.2026', tranche: 1,
+  amount: 50000, currency: null, rate: null, reg: 'Импорт ЦК', match: 'Восстановлен',
+  dispute: null, frozen: true, method: 'денежными средствами',
+  layers: { principal: 45000, interest: 5000 }, late: true };
+
+let ORDER_SEQ = 12;
+/* Сид журнала — ПРОГОН закрытий по порядку, а не выдуманные записи: стенд обязан
+   показывать то, что напишет само ядро, иначе он показывает мнение автора о ядре. */
+function seedFixations(){
+  fixationsReset([]); calcReset();
+  for (const p of PERIODS) if (p.status === 'закрыт') fixatePeriod(FIXTURE, p, p.actor, null);
+  /* поздний платёж приходит уже после закрытий */
+  const k4 = FIXTURE.find(c => c.id === 'K-4');
+  if (k4 && !k4.mirror.payments.some(p => p.late)) k4.mirror.payments.push(LATE_PAYMENT);
+  calcReset();
+  /* распоряжение перезакрыло ТОЛЬКО февраль — хвост март…июнь остался с прежними
+     записями и продолжает гореть. Так и бывает: открывают месяц платежа, а не хвост. */
+  const feb = PERIODS.find(p => p.id === '02.2026');
+  fixatePeriod(FIXTURE, feb, PERIOD_ACTOR, { order: 'РП-' + ORDER_SEQ, date: '20.07.2026' });
+}
+/* Действия периода. Закрытие — чужое, но стенду нужно его сыграть: без «закрыть» и
+   «открыть по распоряжению» журнал нельзя увидеть в движении. Основание живёт НА
+   ПЕРИОДЕ (его выдают платежам), ядро только переносит его в запись. */
+function actClosePeriod(p){
+  p.status = 'закрыт'; p.closedAt = TODAY; p.actor = PERIOD_ACTOR;
+  try { fixatePeriod(FIXTURE, p, PERIOD_ACTOR, p.reopenOrder || null); }
+  catch (e) { p.status = 'открыт'; p.closedAt = null; p.actor = null; $('#fix-msg').textContent = e.message; return; }
+  p.reopenOrder = null; $('#fix-msg').textContent = ''; renderAll();
+}
+function actReopenPeriod(p){
+  p.status = 'открыт'; p.closedAt = null; p.actor = null;
+  p.reopenOrder = { order: 'РП-' + (++ORDER_SEQ), date: TODAY };
+  $('#fix-msg').textContent = 'Период ' + p.id + ' открыт распоряжением ' + p.reopenOrder.order
+    + '. Записи журнала остались: повторное закрытие допишет вторую, а не заменит первую.';
+  renderAll();
+}
 
 const $ = s => document.querySelector(s);
 const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls;
@@ -2856,6 +3164,106 @@ function renderForecast(){
   if (!box.children.length) box.appendChild(el('p', 'note', 'Будущих позиций на эту дату нет.'));
 }
 
+
+function renderFix(){
+  const f = calcFixation(CUR, null);
+  $('#cnt-fix').textContent = f.journal.length;
+
+  /* 1. ПЕРИОДЫ. Календарь один на систему, поэтому таблица не зависит от кредита —
+     от кредита зависит только колонка сверки. */
+  const tp = $('#tb-periods'); tp.innerHTML = '';
+  tp.appendChild(el('thead', null, '<tr><th>Период</th><th>Границы</th><th>Состояние</th>'
+    + '<th>Закрыл</th><th class="n">Записей</th><th>Сверка с пересчётом</th><th></th></tr>'));
+  const bp = el('tbody');
+  for (const p of f.periods){
+    const recs = fixationsOf(CUR.id, p.id);
+    const chk = p.status === 'закрыт' ? fixationCheck(CUR, p) : null;
+    let state = '<span class="muted">период открыт — фиксировать нечего</span>';
+    if (p.status === 'закрыт'){
+      if (!recs.length) state = '<span class="tag no">записи нет</span> закрытие прошло мимо ядра';
+      else if (chk && chk.alarm) state = '<span class="tag no">тревога</span> разошлось на '
+        + m2(chk.diff.balance) + ' по телу — основания нет';
+      else if (chk && chk.mismatch) state = '<span class="tag ext">объяснено</span> '
+        + esc(chk.basis.order) + ' от ' + esc(chk.basis.date);
+      else state = '<span class="tag own">сошлось</span>';
+    }
+    const act = p.status === 'открыт'
+      ? '<button class="btn btn-sm btn-primary" data-close="' + p.id + '">Закрыть период</button>'
+      : '<button class="btn btn-sm btn-secondary" data-open="' + p.id + '">Открыть по распоряжению</button>';
+    bp.appendChild(el('tr', null,
+      '<td class="mono">' + esc(p.id) + '</td>'
+      + '<td>' + esc(p.from) + ' — ' + esc(p.to) + '</td>'
+      + '<td>' + (p.status === 'закрыт' ? 'закрыт ' + esc(p.closedAt) : '<b>открыт</b>')
+      + (p.reopenOrder ? ' · распоряжение ' + esc(p.reopenOrder.order) : '') + '</td>'
+      + '<td class="muted">' + esc(p.actor || '—') + '</td>'
+      + '<td class="n">' + recs.length + '</td>'
+      + '<td>' + state + '</td><td>' + act + '</td>'));
+  }
+  tp.appendChild(bp);
+  for (const b of tp.querySelectorAll('[data-close]'))
+    b.onclick = () => actClosePeriod(PERIODS.find(p => p.id === b.dataset.close));
+  for (const b of tp.querySelectorAll('[data-open]'))
+    b.onclick = () => actReopenPeriod(PERIODS.find(p => p.id === b.dataset.open));
+
+  /* 2. ЖУРНАЛ выбранного кредита. Строк на период может быть больше одной — вторая
+     не заменяет первую, а встаёт рядом (ИЯ-12). */
+  const tj = $('#tb-journal'); tj.innerHTML = '';
+  tj.appendChild(el('thead', null, '<tr><th>Период</th><th>№</th><th>Основание</th><th>Актор</th>'
+    + '<th class="n">Тело на конец</th><th class="n">Проценты</th><th class="n">Пеня</th>'
+    + '<th class="n">Начислено за период</th></tr>'));
+  const bj = el('tbody');
+  for (const r of f.journal){
+    const act = activeFixation(CUR.id, r.period);
+    const acc = r.accrued.interest + r.accrued.penalty + r.accrued.fee;
+    bj.appendChild(el('tr', act && act.id === r.id ? null : 'hist',
+      '<td class="mono">' + esc(r.period) + '</td>'
+      + '<td>' + r.seq + (act && act.id === r.id ? ' <span class="tag own">действует</span>'
+                                                 : ' <span class="tag ext">история</span>') + '</td>'
+      + '<td class="muted">' + (r.basis ? esc(r.basis.order) + ' от ' + esc(r.basis.date)
+                                        : 'первое закрытие') + '</td>'
+      + '<td class="muted">' + esc(r.actor) + '</td>'
+      + '<td class="n">' + m2(r.balance) + '</td>'
+      + '<td class="n">' + m2((r.articles.interest || {}).bal) + '</td>'
+      + '<td class="n">' + m2((r.articles.penalty || {}).bal) + '</td>'
+      + '<td class="n">' + m2(acc) + '</td>'));
+  }
+  if (!f.journal.length) bj.appendChild(el('tr', null,
+    '<td colspan="8" class="muted">По этому кредиту фиксаций нет: он не действовал ни в одном '
+    + 'закрытом периоде.</td>'));
+  tj.appendChild(bj);
+
+  /* 3. РЕЕСТР РАСХОЖДЕНИЙ — ПО ВСЕМ кредитам: это контрольный список, а не карточка.
+     Тревога здесь означает ровно одно — в закрытый период писали. */
+  const td = $('#tb-diverge'); td.innerHTML = '';
+  td.appendChild(el('thead', null, '<tr><th>Период</th><th>Кредит</th><th class="n">Зафиксировано</th>'
+    + '<th class="n">Выводится сейчас</th><th class="n">Разница</th><th>Основание</th></tr>'));
+  const bd = el('tbody'); let rows = 0;
+  for (const p of PERIODS){
+    if (p.status !== 'закрыт') continue;
+    for (const c of FIXTURE){
+      const chk = fixationCheck(c, p);
+      if (!chk || !chk.mismatch) continue;
+      rows++;
+      bd.appendChild(el('tr', chk.alarm ? 'alarm' : null,
+        '<td class="mono">' + esc(p.id) + '</td>'
+        + '<td>' + esc(c.id) + ' · дог. № ' + esc(c.num) + '</td>'
+        + '<td class="n">' + m2(chk.fixed.balance) + '</td>'
+        + '<td class="n">' + m2(chk.now.balance) + '</td>'
+        + '<td class="n">' + m2(chk.diff.balance) + '</td>'
+        + '<td>' + (chk.alarm ? '<span class="tag no">нет — тревога</span>'
+                              : '<span class="tag ext">' + esc(chk.basis.order) + '</span>') + '</td>'));
+    }
+  }
+  if (!rows) bd.appendChild(el('tr', null,
+    '<td colspan="6" class="muted">Расхождений нет: пересчёт закрытых периодов сходится '
+    + 'с журналом.</td>'));
+  td.appendChild(bd);
+  $('#fix-lead').textContent = rows
+    ? 'Расхождений: ' + rows + '. Каждое означает, что вход закрытого периода изменился после '
+      + 'закрытия. Ядро не правит ни запись, ни пересчёт — оно называет обоих.'
+    : 'Расхождений нет.';
+}
+
 function renderStatic(){
   const tm = $('#tb-mirror'); tm.innerHTML = '';
   tm.appendChild(el('thead', null, '<tr><th>файл</th><th>роль</th><th>что в нём</th></tr>'));
@@ -2877,6 +3285,7 @@ function renderStatic(){
 
 function renderAll(){
   renderSeamRun(); renderSheet(); renderDebt(); renderQueue(); renderSched(); renderForecast();
+  renderFix();
 }
 
 function boot(){
@@ -2897,6 +3306,7 @@ function boot(){
     $('#v-' + b.dataset.v).classList.add('active');
     $('#crumb').textContent = b.textContent.replace(/\d+$/, '').trim();
   };
+  seedFixations();                       // журнал наполняет прогон закрытий, а не константа
   renderSeamCards(); renderStatic(); renderAll();
 }
 if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', boot);
@@ -2906,7 +3316,11 @@ if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded
    внутри. Имя `CALC` — как `CR` у кредита и `RS` у реструктуризации. */
 window.CALC = {
   // швы
-  calcAccrual, calcDebt, calcAllocation, calcSchedule, calcForecast, calcBase, calcReset, fxAt,
+  calcAccrual, calcDebt, calcAllocation, calcSchedule, calcForecast, calcFixation,
+  calcBase, calcReset, fxAt,
+  // фиксация — единственное хранимое (ADR-0136)
+  fixatePeriod, fixationsAll, fixationsOf, fixationsReset, activeFixation, fixationCheck,
+  fixationValue, accruedTo, periodsOf, periodAt, periodMark, creditActiveIn,
   // ядро — начисление и сетка
   buildLedger, calcGrid, segmentBounds, trancheAccrual, periodInterest, periodInterestByCond,
   conditionsAt, creditOwnConditionsAt, creditConditionsAt, condMarksIn, spreadArticles,
@@ -2924,7 +3338,7 @@ window.CALC = {
   // утилиты
   pd, fd, dd, addM, dayBasis, round2, penSplit, freqMonths, toKgs, FX, TODAY, PARAMS, PARAM_KEYS,
   // стенд
-  FIXTURE, DATES
+  FIXTURE, DATES, PERIODS, PERIOD_ACTOR, LATE_PAYMENT, seedFixations
 };
 
 </script>
