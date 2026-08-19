@@ -1,4 +1,4 @@
-// Headless smoke для mockups/classification/classification.html (ИК-1…ИК-18, ADR-0120…0127).
+// Headless smoke для mockups/classification/classification.html (ИК-1…ИК-19, ADR-0120…0127).
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, конструктора, фактов, шва и фиксации, а не разметка.
@@ -272,13 +272,102 @@ const cred = id => CL.classify('risk', 'кредит', id);
     `черновик значений не назначает: «${pay.why[0]}»`);
 })();
 
+/* ---------- G. Классификатор: завести, остановить, сухой прогон, предпросмотр ---------- */
+(() => {
+  CL.seed();
+  // ИК-4 сверху: публикация вводит редакцию в действие немедленно, отложенного пуска нет.
+  CL.newDraft('risk');
+  const future = CL.publish('risk', { basis: 'Порядок №41, п. 11', from: '2026-09-01' });
+  ok(45, !future.ok && has(future.refusals, 'в будущем') && CL.draftVer('risk'),
+    `дата ввода в будущем отклонена: «${future.refusals.find(r => /будущ/.test(r))}» — ИК-4`);
+
+  CL.seed();
+  // Четвёртая классификация — настройкой, а не релизом (ADR-0120).
+  const made = CL.addClassifier({ id: 'pledge', name: 'Качество обеспечения', object: 'кредит' });
+  const fresh = CL.clf('pledge');
+  const silent = CL.classify('pledge', 'кредит', 'КД-2024/117');
+  const taken = CL.addClassifier({ id: 'risk', name: 'Дубль', object: 'кредит' });
+  const badObj = CL.addClassifier({ id: 'x', name: 'Икс', object: 'залог' });
+  CL.state.role = 'Кредитный инспектор';
+  const notAdmin = CL.addClassifier({ id: 'y', name: 'Игрек', object: 'кредит' });
+  ok(46, made.ok && fresh.versions.length === 1 && fresh.versions[0].status === 'черновик' &&
+        !silent.ok && silent.draft === true &&
+        !taken.ok && !badObj.ok && !notAdmin.ok,
+    `классификатор заведён настройкой: редакция 1 — черновик, значений не назначает; занятый id, чужой объект и не-администратор отклонены — ADR-0120`);
+
+  CL.seed();
+  // Прекращение действия — не удаление: записи закрытых периодов обязаны остаться читаемыми.
+  CL.closePeriod();                                   // закрываем июль, чтобы было что читать
+  const noReason = CL.stopClassifier('risk', { reason: '' });
+  const early = CL.stopClassifier('risk', { reason: 'отмена признака', until: '2026-06-15' });
+  const stop = CL.stopClassifier('risk', { reason: 'Порядок №41 отменил классификацию по признаку' });
+  const after = CL.classify('risk', 'кредит', 'КД-2024/117');
+  const record = CL.riskCategory('кредит', 'КД-2024/117', '2026-07-15');
+  ok(47, !noReason.ok && !early.ok && /ИК-4/.test(early.why) && stop.ok &&
+        !after.ok && after.stopped === true && /прекращено/.test(after.why[0]) &&
+        record.ok && record.source === 'запись фиксации',
+    `действие прекращено (без причины и задним числом — отказ); значений больше нет, запись июля читается по-прежнему — ИК-19`);
+
+  // Возобновление: черновик копирует последнюю редакцию, публикация снимает отметку.
+  const d = CL.newDraft('risk');
+  const copied = CL.draftVer('risk').values.length;
+  const back = CL.publish('risk', { basis: 'Порядок №41, п. 11', from: CL.state.today });
+  ok(48, d.ok && copied > 0 && back.ok && !CL.clf('risk').stopped &&
+        CL.classify('risk', 'кредит', 'КД-2024/117').ok,
+    `возобновление публикацией: черновик открыт копией последней редакции (значений ${copied}), отметка о прекращении снята — ИК-19`);
+})();
+
+(() => {
+  CL.seed();
+  // Сухой прогон считает, но ничего не пишет: значение ставит только действующая редакция (ИК-1).
+  CL.newDraft('risk');
+  const draft = CL.draftVer('risk');
+  draft.scope = [{ i: 'creditActive', op: '=', v: true }, { i: 'daysOverdue', op: '≥', v: 300 }];
+  const before = JSON.stringify(CL.state);
+  const dry = CL.dryRun('risk');
+  const afterState = JSON.stringify(CL.state);
+  const live = CL.classify('risk', 'кредит', 'КД-2024/117');
+  ok(49, dry.ok && dry.cnt.total === CL.state.credits.length && dry.cnt.lost > 0 &&
+        dry.rows.every(r => typeof r.changed === 'boolean') &&
+        before === afterState && live.ok && live.code === 'high',
+    `сухой прогон: объектов ${dry.cnt.total}, изменится ${dry.cnt.changed}, потеряют значение ${dry.cnt.lost}; состояние не изменилось, значения по-прежнему от действующей редакции — ИК-1`);
+
+  CL.seed();
+  // Предпросмотр закрытия считает тем же движком, что и закрытие: числа обязаны сойтись.
+  const pv = CL.closePreview();
+  const done = CL.closePeriod();
+  const silentClf = CL.state.classifiers.filter(c => !CL.activeVer(c.id)).length;
+  ok(50, pv.ok && pv.period === done.period && pv.willWrite === done.written &&
+        pv.silent === silentClf && pv.rows.length === CL.state.classifiers.length,
+    `предпросмотр закрытия сошёлся с закрытием: записей ${pv.willWrite} = ${done.written}, классификаторов без записи ${pv.silent} — ИК-13`);
+})();
+
+(() => {
+  CL.seed();
+  // Список причин закрыт затем, чтобы по нему считали (ИК-12): сумма по судьбам = число фактов.
+  const c = CL.factCounts();
+  const sum = CL.FATES.reduce((a, k) => a + c[k], 0);
+  const third = 'не засчитан: ведёт к более лёгкому значению, чем выбранное';
+  ok(51, sum === c['всего'] && c['всего'] === CL.state.facts.length && c[third] > 0 &&
+        CL.FATES.length === 5,
+    `счётчики судьбы: всего ${c['всего']} = сумма по пяти судьбам; третья причина видна и в реестре (${c[third]}) — ИК-12`);
+})();
+
+/* ---------- H. Сторож разметки: модалка вместо браузерного диалога ---------- */
+(() => {
+  const code = m[1].replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/[^\n]*/g, '$1');
+  const dialogs = (code.match(/(?:^|[^.\w])(prompt|confirm|alert)\s*\(/g) || []);
+  ok(52, dialogs.length === 0 && /function openModal/.test(m[1]),
+    `браузерных диалогов в макете нет (${dialogs.length}), подтверждения идут модалкой — дизайн-система АСУБК`);
+})();
+
 /* ---------- G. Сторож текста: инварианты и решения названы в файле ---------- */
 (() => {
-  const iks = Array.from({ length: 18 }, (_, i) => 'ИК-' + (i + 1)).filter(k => !new RegExp(k + '(\\D|$)').test(src));
+  const iks = Array.from({ length: 19 }, (_, i) => 'ИК-' + (i + 1)).filter(k => !new RegExp(k + '(\\D|$)').test(src));
   const adrs = ['ADR-0120','ADR-0121','ADR-0122','ADR-0123','ADR-0124','ADR-0125','ADR-0126','ADR-0127']
     .filter(a => !src.includes(a));
   ok(43, iks.length === 0 && adrs.length === 0,
-    `в файле названы все 18 инвариантов и 8 решений волны${iks.length ? ' · нет: ' + iks.join(',') : ''}${adrs.length ? ' · нет: ' + adrs.join(',') : ''}`);
+    `в файле названы все 19 инвариантов и 8 решений волны${iks.length ? ' · нет: ' + iks.join(',') : ''}${adrs.length ? ' · нет: ' + adrs.join(',') : ''}`);
 
   const hardcoded = /(п\.\s*11\.3|п\.\s*19\.1|исполнительные листы)/.test(
     m[1].slice(m[1].indexOf('ДВИЖОК'), m[1].indexOf('ШОВ')));
@@ -287,8 +376,9 @@ const cred = id => CL.classify('risk', 'кредит', id);
 
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
-const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-const stamp = `SMOKE 2026-08-14 · ${pass}/${results.length} PASS\n` + lines.join('\n');
+const lines = results.slice().sort((a, b) => a.n - b.n)
+  .map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
+const stamp = `SMOKE 2026-08-19 · ${pass}/${results.length} PASS\n` + lines.join('\n');
 console.log(stamp);
 
 const marker = 'SMOKE (node scripts/inspect/classification-check.mjs):';

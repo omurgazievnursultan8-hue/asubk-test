@@ -37,7 +37,8 @@
   ИК-2  Действующая версия не правится: правка — это новый черновик (ADR-0125 §2).
   ИК-3  Версия публикуется только замкнутой: ровно одно значение по умолчанию, оно
         последнее и без условий (ADR-0126 §4).
-  ИК-4  Дата ввода в действие не раньше начала открытого периода (ADR-0125 §2).
+  ИК-4  Дата ввода в действие не раньше начала открытого периода и не позже сегодняшнего
+        дня: публикация — немедленный ввод в действие, отложенного пуска нет (ADR-0125 §2).
   ИК-5  Правило или область, ссылающиеся на снятый показатель либо на константу вне
         домена показателя, публикацию не проходят (ADR-0125 «Последствия»).
   ИК-6  Свёртка worst-of разрешена только признаком сравнимости у версии (ADR-0126 §2).
@@ -62,6 +63,8 @@
         версия с ним не публикуется (проектное решение поверх ADR-0126 §4).
   ИК-18 «Дней просрочки» и «слой-источник» — пара одного владельца: одно число без имени
         слоя не показывается нигде (ADR-0127 §4).
+  ИК-19 Классификатор не удаляется — он прекращает действие датой и причиной. Записи
+        закрытых периодов ссылаются на его редакции и обязаны остаться читаемыми (ADR-0123).
 
   ДЕМО ПОКРЫВАЕТ: два непохожих классификатора на одном движке · черновик без правил
   (публикация отказывает списком) · смену редакции (версия 1 → версия 2) и запись июня,
@@ -76,7 +79,7 @@
   зеркалом соседних модулей и здесь не редактируются.
 
   SMOKE (node scripts/inspect/classification-check.mjs):
-   SMOKE 2026-08-14 · 44/44 PASS
+   SMOKE 2026-08-19 · 52/52 PASS
       PASS  #1  показателей 11, без владельца 0, снятых 1, перечислений без домена 0
       PASS  #2  действующая ред. 2 с 2026-07-06, прошлая ред. 1 до 2026-07-05
       PASS  #3  у «Группы платёжеспособности» только черновик, значений 3, действующей нет
@@ -119,8 +122,16 @@
       PASS  #40  без признака сравнимости свёртка запрещена: «свёртка запрещена: версия не объявила значения сравнимыми по тяжести (ИК-6)»
       PASS  #41  лестница подгруппы тем же движком: 2.2 · Исполнительные листы · 5 · Погашенная · 1.2 · Просрочка по действующим; признака сравнимости нет — свернуть нельзя
       PASS  #42  черновик значений не назначает: «действующей редакции нет — черновик значений не назначает (ADR-0125)»
-      PASS  #43  в файле названы все 18 инвариантов и 8 решений волны
+      PASS  #43  в файле названы все 19 инвариантов и 8 решений волны
       PASS  #44  в движке нет ни пунктов Порядка, ни ступеней лестницы — правила приходят данными (ADR-0120)
+      PASS  #45  дата ввода в будущем отклонена: «дата ввода в действие 01.09.2026 в будущем — публикация вводит редакцию в действие немедленно, отложенного пуска в модели нет (ИК-4)» — ИК-4
+      PASS  #46  классификатор заведён настройкой: редакция 1 — черновик, значений не назначает; занятый id, чужой объект и не-администратор отклонены — ADR-0120
+      PASS  #47  действие прекращено (без причины и задним числом — отказ); значений больше нет, запись июля читается по-прежнему — ИК-19
+      PASS  #48  возобновление публикацией: черновик открыт копией последней редакции (значений 3), отметка о прекращении снята — ИК-19
+      PASS  #49  сухой прогон: объектов 7, изменится 5, потеряют значение 5; состояние не изменилось, значения по-прежнему от действующей редакции — ИК-1
+      PASS  #50  предпросмотр закрытия сошёлся с закрытием: записей 9 = 9, классификаторов без записи 1 — ИК-13
+      PASS  #51  счётчики судьбы: всего 5 = сумма по пяти судьбам; третья причина видна и в реестре (1) — ИК-12
+      PASS  #52  браузерных диалогов в макете нет (0), подтверждения идут модалкой — дизайн-система АСУБК
 -->
 <style>
 :root{
@@ -298,6 +309,31 @@ table.cgrid tbody tr.out td{ background:var(--asubk-gray-50); color:var(--text-m
 .facts .f.annul{ text-decoration:line-through; color:var(--text-placeholder); }
 .frozen{ background:var(--asubk-gray-50); }
 
+/* ---- модалка (дизайн-система: prompt/alert в макетах не используются) ---- */
+.overlay{ position:fixed; inset:0; background:rgba(16,28,46,0.42); display:none;
+  align-items:center; justify-content:center; z-index:60; padding:24px; }
+.overlay.open{ display:flex; }
+.modal{ background:var(--surface-card); border-radius:var(--radius-lg); width:min(640px,100%);
+  max-height:88vh; display:flex; flex-direction:column; box-shadow:0 24px 70px rgba(16,28,46,0.4); }
+.modal-h{ padding:18px 24px 12px; display:flex; align-items:center; gap:10px; }
+.modal-h .mt{ font:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
+  color:var(--text-heading); flex:1; }
+.modal-x{ border:none; background:transparent; cursor:pointer; color:var(--text-muted); padding:4px;
+  font-size:18px; line-height:1; }
+.modal-x:hover{ color:var(--text-body); }
+.modal-b{ padding:4px 24px 8px; overflow:auto; flex:1; }
+.modal-b textarea{ width:100%; min-height:88px; border:1px solid var(--border-strong);
+  border-radius:var(--radius-md); padding:8px 10px; font:var(--font-label); resize:vertical; }
+.modal-f{ padding:14px 24px 20px; display:flex; gap:12px; justify-content:flex-end; }
+
+/* ---- фильтр-чипы (реестр фактов: по судьбе фильтруют и считают, ИК-12) ---- */
+.chips{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+.chip{ border:1px solid var(--border-default); background:var(--surface-card); cursor:pointer;
+  border-radius:var(--radius-pill); padding:5px 13px; font:var(--font-label); color:var(--text-body); }
+.chip:hover{ background:var(--surface-hover); }
+.chip.on{ background:var(--asubk-blue); border-color:var(--asubk-blue); color:#fff; }
+.chip .n{ font-weight:var(--weight-semibold); margin-left:6px; }
+
 /* ---- toast ---- */
 #toastWrap{ position:fixed; right:18px; bottom:18px; display:flex; flex-direction:column; gap:8px; z-index:50; }
 .toast{ background:var(--asubk-ink); color:#fff; padding:10px 14px; border-radius:var(--radius-md);
@@ -333,6 +369,7 @@ table.cgrid tbody tr.out td{ background:var(--asubk-gray-50); color:var(--text-m
     <div class="content"><div class="panel-wrap" id="panel"></div></div>
   </div>
 </div>
+<div class="overlay" id="modalHost" onclick="if(event.target===this)closeModal()"></div>
 <div id="toastWrap"></div>
 
 <script>
@@ -528,9 +565,15 @@ function seed(){
     {id:'F-003', creditId:'КД-2025/088', kindId:'f-collDown', occurred:'2026-06-12',
      counted:'2026-07-01', until:null, doc:'протокол КАБК № 19 от 30.06.2026',
      by:'Кредитный инспектор', annulled:null},
-    /* Интервал истёк — третья причина незачёта из закрытого списка (ИК-12). */
+    /* Интервал истёк — вторая причина незачёта из закрытого списка (ИК-12). */
     {id:'F-004', creditId:'КД-2025/101', kindId:'f-noReport', occurred:'2026-05-05',
      counted:'2026-05-05', until:'2026-07-31', doc:'протокол КАБК № 11 от 05.05.2026',
+     by:'Кредитный инспектор', annulled:null},
+    /* Средний фактор на кредите, который уже высокого риска: третья причина незачёта — «ведёт
+       к более лёгкому значению, чем выбранное». Она обязана быть видна и в реестре, а не только
+       на витрине, иначе фильтр по ней всегда пуст и закрытый список ИК-12 держится наполовину. */
+    {id:'F-005', creditId:'КД-2024/117', kindId:'f-noAct', occurred:'2026-07-18',
+     counted:'2026-07-18', until:null, doc:'протокол КАБК № 21 от 18.07.2026',
      by:'Кредитный инспектор', annulled:null}
   ];
 
@@ -646,9 +689,11 @@ CL.phrase = phrase;
 
 /* Результат: {ok, code, label, index, fired:[{norm,text}], why:[…]} либо отказ с причиной.
    Отказ никогда не молчит — у него есть текст (§0.3). */
-CL.classifyWith = (ver, vals) => {
+CL.classifyWith = (ver, vals, sim) => {
   if(!ver) return {ok:false, why:['действующей версии нет — классификатор ничего не назначает']};
-  if(ver.status === 'черновик') return {ok:false, draft:true, why:['версия в черновике — не классифицирует (ADR-0125)']};
+  /* sim=true — сухой прогон черновика (CL.dryRun): считает, но никому не назначает. ИК-1 цел:
+     значение по-прежнему ставит только движок действующей редакции. */
+  if(ver.status === 'черновик' && !sim) return {ok:false, draft:true, why:['версия в черновике — не классифицирует (ADR-0125)']};
   const scope = ver.scope || [];
   if(!scope.every(p => testPred(p, vals)))
     return {ok:false, out:true, why:['вне области классификатора: ' + scope.map(p => phrase(p, vals)).join(' и ')]};
@@ -667,6 +712,11 @@ CL.classifyWith = (ver, vals) => {
 };
 CL.classify = (clfId, objType, objId) => {
   const ver = CL.activeVer(clfId);
+  const clf = CL.clf(clfId);
+  /* Классификатор с прекращённым действием тоже не молчит: причина и дата названы (ИК-19, §0.3). */
+  if(!ver && clf && clf.stopped)
+    return {ok:false, stopped:true, why:['действие классификатора прекращено ' + fmt(clf.stopped.until) +
+      ': ' + clf.stopped.reason + ' — записи закрытых периодов читаются по-прежнему (ИК-19)']};
   /* Классификатор, у которого есть только черновик, — законное состояние, а не поломка:
      он ничего не назначает и говорит об этом прямо (ADR-0125 §2, §0.3). */
   if(!ver && CL.draftVer(clfId))
@@ -775,6 +825,12 @@ CL.publishChecks = (clfId, ver) => {
   else if(v.from < CL.startOfOpen())
     out.push('дата ввода в действие ' + fmt(v.from) + ' раньше начала открытого периода ' +
       fmt(CL.startOfOpen()) + ' — закрытые периоды неприкосновенны (ИК-4)');
+  /* Верхняя граница окна (ИК-4): публикация — немедленный ввод в действие. Дата вперёд
+     означала бы четвёртый статус «утверждена, ждёт даты», которого в модели нет: сегодня
+     «действующая» и «та, что классифицирует сейчас» — одно и то же. */
+  else if(v.from > CL.state.today)
+    out.push('дата ввода в действие ' + fmt(v.from) + ' в будущем — публикация вводит редакцию ' +
+      'в действие немедленно, отложенного пуска в модели нет (ИК-4)');
   return out;
 };
 function predProblems(p, clf, where){
@@ -797,6 +853,72 @@ function predProblems(p, clf, where){
   return out;
 }
 
+/* ---------------------- ОБЪЕКТЫ КЛАССИФИКАТОРА ---------------------- *
+ * Кредиты и заёмщики — зеркало соседних модулей: здесь они читаются и не редактируются
+ * (ADR-0124, И-11).
+ * ------------------------------------------------------------------- */
+CL.objectsOf = clf => clf.object === 'кредит'
+  ? CL.state.credits.map(c => ({type:'кредит', id:c.id}))
+  : CL.state.borrowers.map(b => ({type:'заёмщик', id:b.inn}));
+
+/* ------------- СУХОЙ ПРОГОН ЧЕРНОВИКА (предпросмотр публикации) ----- *
+ * Публикация необратима: отменить редакцию можно только следующей редакцией (ИК-2). Значит,
+ * последствия обязаны быть видны ДО неё — по каждому объекту «есть» против «стало бы».
+ * ИК-1 при этом цел: прогон ничего не пишет, результат живёт только на экране, и значение
+ * по-прежнему назначает лишь действующая редакция.
+ * ------------------------------------------------------------------- */
+CL.dryRun = clfId => {
+  const clf = CL.clf(clfId);
+  const draft = CL.draftVer(clfId);
+  if(!draft) return {ok:false, why:'черновика нет — сравнивать не с чем'};
+  const active = CL.activeVer(clfId);
+  const rows = CL.objectsOf(clf).map(o => {
+    const vals = CL.valuesOf(o.type, o.id);
+    const was = active ? CL.classifyWith(active, vals)
+                       : {ok:false, why:['действующей редакции нет — значения сейчас нет']};
+    const will = CL.classifyWith(draft, vals, true);
+    return {objId:o.id, objType:o.type, was, will,
+      changed: (was.ok ? was.code : '∅') !== (will.ok ? will.code : '∅')};
+  });
+  return {ok:true, clfId, verNo:draft.no, baseNo: active ? active.no : null, rows,
+    refusals: CL.publishChecks(clfId, draft),
+    cnt:{ total:rows.length,
+      changed: rows.filter(r => r.changed).length,
+      inNow:   rows.filter(r => r.was.ok).length,
+      inDraft: rows.filter(r => r.will.ok).length,
+      lost:    rows.filter(r => r.was.ok && !r.will.ok).length,
+      gained:  rows.filter(r => !r.was.ok && r.will.ok).length }};
+};
+
+/* -------------- ПРЕДПРОСМОТР ЗАКРЫТИЯ ПЕРИОДА ---------------------- *
+ * Закрытие необратимо (ИК-13), поэтому до кнопки видно, что именно будет записано:
+ * объектов в области · объектов вне области (это норма, ИК-7) · классификаторов без
+ * действующей редакции. Последнее — единственный случай, когда за период вообще не будет
+ * записи: в отчёте это «записи нет», а не «вне области», и различать их обязан модуль,
+ * а не читатель отчёта.
+ * ------------------------------------------------------------------- */
+CL.closePreview = () => {
+  const p = CL.openPeriod();
+  if(!p) return {ok:false, why:'открытых периодов нет'};
+  const asOf = first(nextM(p));
+  const rows = CL.state.classifiers.map(clf => {
+    const ver = CL.activeVer(clf.id);
+    const total = CL.objectsOf(clf).length;
+    if(!ver) return {clf:clf.name, verNo:null, total, willWrite:0, out:0,
+      why: clf.stopped
+        ? 'действие прекращено ' + fmt(clf.stopped.until) + ' — записей за период не будет (ИК-19)'
+        : 'действующей редакции нет — записей за период не будет (ADR-0125)'};
+    const res = CL.objectsOf(clf).map(o => CL.classifyWith(ver, CL.valuesOf(o.type, o.id)));
+    return {clf:clf.name, verNo:ver.no, total, why:null,
+      willWrite: res.filter(r => r.ok).length,
+      out:       res.filter(r => !r.ok).length};
+  });
+  return {ok:true, period:p, asOf, canClose: CL.state.today >= asOf, rows,
+    willWrite: rows.reduce((s, r) => s + r.willWrite, 0),
+    out:       rows.reduce((s, r) => s + r.out, 0),
+    silent:    rows.filter(r => r.verNo === null).length};
+};
+
 /* --------------------- ОПЕРАЦИИ КОНСТРУКТОРА ------------------------ */
 function guardDraft(clfId){
   if(!CL.canEditConstructor()) return 'править конструктор вправе только администратор классификации';
@@ -804,11 +926,55 @@ function guardDraft(clfId){
   if(!d) return 'действующая версия не правится: заведите новую редакцию — она откроется черновиком (ИК-2)';
   return null;
 }
+/* ------------------- КЛАССИФИКАТОР: ЗАВЕСТИ И ОСТАНОВИТЬ ----------- *
+ * Главное обещание модуля: четвёртая классификация появляется НАСТРОЙКОЙ, а не релизом
+ * (ADR-0120). Значит, завести классификатор обязан уметь администратор — здесь, а не
+ * миграцией. Удалить его нельзя: записи закрытых периодов ссылаются на его редакции и
+ * обязаны остаться читаемыми, поэтому вместо удаления — прекращение действия (ИК-19).
+ * ------------------------------------------------------------------- */
+CL.addClassifier = spec => {
+  if(!CL.canEditConstructor()) return {ok:false, why:'заводит классификаторы только администратор классификации'};
+  const id = (spec.id || '').trim();
+  if(!id || CL.clf(id)) return {ok:false, why:'идентификатор пуст или занят'};
+  if(!(spec.name || '').trim()) return {ok:false, why:'у классификатора обязано быть наименование'};
+  /* Объект задан у классификатора, а не у версии: сменить объект — значит завести другой,
+     иначе прошлые записи фиксации потеряли бы смысл (спека §2.1). */
+  if(!['кредит','заёмщик'].includes(spec.object)) return {ok:false, why:'объект классификации — «кредит» либо «заёмщик»'};
+  CL.state.classifiers.push({id, name:spec.name.trim(), object:spec.object, versions:[
+    {no:1, status:'черновик', basis:'', from:'', by:CL.state.role, at:null, until:null,
+     comparable:false, scope:[], values:[]}
+  ]});
+  log('заведён классификатор «' + spec.name.trim() + '» (объект: ' + spec.object + '), редакция 1 — черновик');
+  return {ok:true, id};
+};
+/* Прекращение действия — не удаление и не откат: действующая редакция закрывается датой из
+   того же окна, что и ввод (ИК-4), классификатор перестаёт назначать значения, а записи
+   закрытых периодов продолжают читаться по своим редакциям (ИК-8, ИК-19). */
+CL.stopClassifier = (clfId, opts) => {
+  if(!CL.canEditConstructor()) return {ok:false, why:'прекращает действие только администратор классификации'};
+  const clf = CL.clf(clfId);
+  if(!clf) return {ok:false, why:'классификатора нет'};
+  const ver = CL.activeVer(clfId);
+  if(!ver) return {ok:false, why:'действующей редакции нет — прекращать нечего'};
+  const reason = ((opts || {}).reason || '').trim();
+  if(!reason) return {ok:false, why:'прекращение действия без причины не принимается'};
+  const until = (opts || {}).until || CL.state.today;
+  if(until < CL.startOfOpen()) return {ok:false, why:'дата прекращения ' + fmt(until) +
+    ' раньше начала открытого периода ' + fmt(CL.startOfOpen()) + ' — закрытые периоды неприкосновенны (ИК-4)'};
+  if(until > CL.state.today) return {ok:false, why:'дата прекращения ' + fmt(until) + ' в будущем (ИК-4)'};
+  ver.status = 'прошлая'; ver.until = until;
+  clf.stopped = {until, reason, by:CL.state.role, at:CL.state.today};
+  log('действие классификатора «' + clf.name + '» прекращено с ' + fmt(until) + ': ' + reason);
+  return {ok:true, until};
+};
 CL.newDraft = clfId => {
   if(!CL.canEditConstructor()) return {ok:false, why:'править конструктор вправе только администратор классификации'};
   if(CL.draftVer(clfId)) return {ok:false, why:'черновик уже есть'};
   const clf = CL.clf(clfId);
-  const base = CL.activeVer(clfId);
+  /* База копии — действующая редакция; у остановленного классификатора её нет, и черновик
+     открывается копией последней по номеру: возобновление не начинается с чистого листа. */
+  const base = CL.activeVer(clfId) ||
+    clf.versions.slice().sort((a, b) => b.no - a.no)[0] || null;
   const copy = JSON.parse(JSON.stringify(base ? {scope:base.scope, values:base.values, comparable:base.comparable} : {scope:[], values:[], comparable:false}));
   const no = Math.max(0, ...clf.versions.map(v => v.no)) + 1;
   clf.versions.push({no, status:'черновик', basis:'', from:'', by:CL.state.role, at:null, until:null,
@@ -826,6 +992,9 @@ CL.publish = (clfId, opts) => {
   if(refusals.length) return {ok:false, refusals};
   const prev = CL.activeVer(clfId);
   if(prev){ prev.status = 'прошлая'; prev.until = d.from; }
+  /* Публикация возобновляет остановленный классификатор: отметка о прекращении снимается,
+     но её след остаётся в журнале действий (ИК-19). */
+  if(CL.clf(clfId).stopped) delete CL.clf(clfId).stopped;
   d.status = 'действующая';
   d.by = CL.state.role;
   d.at = CL.state.today;
@@ -1010,6 +1179,26 @@ function valueIndexByFactorLevel(ver, level){
   return ver.values.findIndex(v => (v.rules || []).some(r =>
     r.preds.some(p => p.i === 'factorLevel' && p.op === '=' && p.v === level)));
 }
+/* Судьба факта в РЕЕСТРЕ считается против значения, которое кредит имеет сейчас: иначе
+   третья причина закрытого списка («ведёт к более лёгкому значению, чем выбранное») видна
+   только на витрине, и ИК-12 держится наполовину. */
+CL.fateOf = f => {
+  const r = CL.classify('risk', 'кредит', f.creditId);
+  return CL.factFate(f, r.ok ? r.code : null);
+};
+/* Список закрыт ровно затем, чтобы по нему фильтровали и считали (ИК-12): «сколько фактов
+   не сыграло без решения комитета» — рабочий вопрос куратора, а не чтение глазами. */
+CL.FATES = ['засчитан',
+  'не засчитан: нет решения комитета',
+  'не засчитан: интервал истёк',
+  'не засчитан: ведёт к более лёгкому значению, чем выбранное',
+  'аннулирован'];
+CL.factCounts = () => {
+  const out = {всего: CL.state.facts.length};
+  CL.FATES.forEach(k => { out[k] = 0; });
+  CL.state.facts.forEach(f => { const k = CL.fateOf(f); out[k] = (out[k] || 0) + 1; });
+  return out;
+};
 
 /* ---------- ЗАКРЫТИЕ ПЕРИОДА И ФИКСАЦИЯ (ADR-0123) ----------------- */
 CL.closePeriod = () => {
@@ -1024,10 +1213,7 @@ CL.closePeriod = () => {
   CL.state.classifiers.forEach(clf => {
     const ver = CL.activeVer(clf.id);
     if(!ver) return;
-    const objs = clf.object === 'кредит'
-      ? CL.state.credits.map(c => ({type:'кредит', id:c.id}))
-      : CL.state.borrowers.map(b => ({type:'заёмщик', id:b.inn}));
-    objs.forEach(o => {
+    CL.objectsOf(clf).forEach(o => {
       const r = CL.classifyWith(ver, CL.valuesOf(o.type, o.id));
       /* ИК-7: вне области запись не пишется вовсе — закрытие дешевеет ровно на такие объекты. */
       if(!r.ok) return;
@@ -1109,6 +1295,19 @@ function act(res, okMsg){
   if(res && res.ok){ if(okMsg) toast(okMsg, 'ok'); }
   else toast((res && (res.why || (res.refusals || [])[0])) || 'отказано', 'err');
   render();
+}
+/* Модалка вместо prompt()/confirm(): модальные окна браузера блокируют страницу целиком и
+   в дизайн-системе АСУБК не используются ни в одном макете. */
+function openModal(html){
+  if(typeof document === 'undefined') return;
+  const h = document.getElementById('modalHost');
+  h.innerHTML = '<div class="modal">' + html + '</div>';
+  h.classList.add('open');
+}
+function closeModal(){
+  if(typeof document === 'undefined') return;
+  const h = document.getElementById('modalHost');
+  h.classList.remove('open'); h.innerHTML = '';
 }
 
 /* ------------------------ ЭКРАН: КЛАССИФИКАТОРЫ --------------------- */
@@ -1206,10 +1405,29 @@ function viewClassifiers(){
         <div class="note">Значения ведутся здесь. В разделе «Справочники» строки
         <code>borrower-groups</code> и <code>loan-payment-capacity-groups</code> остаются
         зеркалом на чтение: у классификации одна дверь (ADR-0125 §3).</div></div>
+      ${CL.canEditConstructor() ? `<div class="card">
+        <h3>Завести классификатор</h3>
+        <div class="fld" style="margin-bottom:8px"><label>Идентификатор</label>
+          <input id="ncId" placeholder="например: pledgeQuality"></div>
+        <div class="fld" style="margin-bottom:8px"><label>Наименование</label>
+          <input id="ncName" placeholder="Качество обеспечения"></div>
+        <div class="fld"><label>Объект классификации</label>
+          <select id="ncObj"><option>кредит</option><option>заёмщик</option></select></div>
+        <button class="btn btn-primary" style="margin-top:10px" onclick="CL.addClassifierUI()">Завести</button>
+        <div class="note">Четвёртая классификация появляется <b>настройкой, а не релизом</b>
+          (ADR-0120): новый классификатор открывается пустым черновиком и до публикации
+          никого не классифицирует. Объект задаётся здесь и потом не меняется — сменить его
+          значило бы обессмыслить уже сделанные записи фиксации.</div>
+      </div>` : ''}
     </div>
     <div class="body">
       <div class="card">
         <h3>${esc(clf.name)} <span class="small">· объект: ${clf.object}</span></h3>
+        ${clf.stopped ? `<div class="banner warn"><b>Действие прекращено ${fmt(clf.stopped.until)}</b> —
+          ${esc(clf.stopped.reason)} <span class="small">(${esc(clf.stopped.by)}, ${fmt(clf.stopped.at)})</span>.
+          Классификатор значений не назначает; записи закрытых периодов читаются по своим редакциям
+          и остаются на месте — классификатор не удаляется никогда (ИК-19). Возобновляет его
+          публикация новой редакции.</div>` : ''}
         <div class="kv">
           <div class="k">Показана редакция</div><div class="v">${shown.no} ${verPill(shown)}</div>
           <div class="k">Основание</div><div class="v">${esc(shown.basis || '— (черновик)')}</div>
@@ -1226,7 +1444,8 @@ function viewClassifiers(){
         </div>
         <div class="btn-row">
           ${draft ? '' : `<button class="btn btn-primary" onclick="act(CL.newDraft('${clf.id}'),'заведена новая редакция — правьте черновик')">Новая редакция</button>`}
-          ${draft && !editable && CL.canEditConstructor() ? '' : ''}
+          ${active && CL.canEditConstructor()
+            ? `<button class="btn btn-danger" onclick="CL.stopUI('${clf.id}')">Прекратить действие</button>` : ''}
         </div>
         <div class="note">${draft
           ? 'Действующая редакция не правится: правки идут в черновик и вступают в силу публикацией (ИК-2).'
@@ -1261,8 +1480,11 @@ function viewClassifiers(){
              умолчанию, показатели живы, дата не раньше начала открытого периода ${fmt(CL.startOfOpen())}.</div>`}
         <div class="note">Отказ не молчит и не копится по одному: перечисляются все причины сразу (§0.3).
         Дата ввода в действие может быть в прошлом, но не раньше начала открытого периода — иначе
-        версия дотянулась бы до зафиксированного (ИК-4).</div>
+        версия дотянулась бы до зафиксированного; и не позже сегодняшнего дня — публикация вводит
+        редакцию в действие немедленно, отложенного пуска в модели нет (ИК-4).</div>
       </div>` : ''}
+
+      ${draft ? dryRunCard(clf.id) : ''}
 
       <div class="card">
         <h3>Журнал редакций</h3>
@@ -1288,6 +1510,75 @@ CL.publishUI = clfId => {
   if(res.ok){ toast('редакция ' + res.no + ' введена в действие', 'ok'); render(); }
   else { toast(res.refusals[0], 'err'); render(); }
 };
+CL.addClassifierUI = () => {
+  const g = id => (($('#' + id) || {}).value || '').trim();
+  const res = CL.addClassifier({id:g('ncId'), name:g('ncName'), object:g('ncObj')});
+  if(res.ok) CL.state.curClf = res.id;
+  act(res, 'классификатор заведён — редакция 1 открыта черновиком');
+};
+CL.stopUI = clfId => {
+  const clf = CL.clf(clfId);
+  openModal(`<div class="modal-h"><span class="mt">Прекращение действия: ${esc(clf.name)}</span>
+      <button class="modal-x" onclick="closeModal()">✕</button></div>
+    <div class="modal-b">
+      <p class="small">Классификатор не удаляется: записи закрытых периодов ссылаются на его
+        редакции и обязаны остаться читаемыми (ИК-19). Действующая редакция закрывается датой,
+        после неё значений не назначается вовсе — витрина скажет причину, а закрытие периода
+        записей по этому классификатору не сделает.</p>
+      <label class="small"><b>Дата прекращения</b> — не раньше начала открытого периода
+        ${fmt(CL.startOfOpen())} и не позже сегодняшнего дня (ИК-4)</label>
+      <input id="stopUntil" type="date" value="${CL.state.today}"
+        style="height:36px;width:100%;border:1px solid var(--border-strong);border-radius:4px;padding:0 10px;margin-bottom:10px">
+      <label class="small"><b>Причина</b> — обязательна</label>
+      <textarea id="stopReason" placeholder="например: Порядок №41 отменил классификацию по этому признаку"></textarea>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-danger" onclick="CL.stopDo('${clfId}')">Прекратить действие</button>
+    </div>`);
+};
+CL.stopDo = clfId => {
+  const res = CL.stopClassifier(clfId, {until:(($('#stopUntil') || {}).value || ''),
+    reason:(($('#stopReason') || {}).value || '')});
+  if(res.ok) closeModal();
+  act(res, 'действие классификатора прекращено');
+};
+
+/* Сухой прогон виден рядом с кнопкой публикации всегда, а не по кнопке «показать»: публикация
+   необратима, и цена её последствий не должна зависеть от того, догадался ли администратор
+   заглянуть в предпросмотр (ИК-2). */
+function dryRunCard(clfId){
+  const r = CL.dryRun(clfId);
+  if(!r.ok) return '';
+  const rows = r.rows.map(o => {
+    const was = o.was.ok ? esc(o.was.label) : '<span class="muted">нет значения</span>';
+    const will = o.will.ok ? esc(o.will.label) : '<span class="muted">нет значения</span>';
+    return `<tr${o.changed ? '' : ' class="out"'}>
+      <td class="mono">${esc(o.objId)}</td>
+      <td>${was}<div class="small">${esc((o.was.why || [])[0] || '')}</div></td>
+      <td>${o.changed ? '<b>' + will + '</b>' : will}<div class="small">${esc((o.will.why || [])[0] || '')}</div></td>
+      <td>${o.changed ? '<span class="pill warn">изменится</span>' : '<span class="pill neutral">как есть</span>'}</td></tr>`;
+  }).join('');
+  return `<div class="card">
+    <h3>Сухой прогон черновика ${r.verNo}${r.baseNo ? ' против действующей редакции ' + r.baseNo : ' (действующей редакции нет)'}</h3>
+    <div class="chips">
+      <span class="chip">объектов <span class="n">${r.cnt.total}</span></span>
+      <span class="chip${r.cnt.changed ? ' on' : ''}">изменится <span class="n">${r.cnt.changed}</span></span>
+      <span class="chip">со значением сейчас <span class="n">${r.cnt.inNow}</span></span>
+      <span class="chip">со значением после <span class="n">${r.cnt.inDraft}</span></span>
+      <span class="chip">потеряют значение <span class="n">${r.cnt.lost}</span></span>
+      <span class="chip">получат значение <span class="n">${r.cnt.gained}</span></span>
+    </div>
+    <table class="cgrid"><thead><tr><th>Объект</th><th>Сейчас</th><th>Станет</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table>
+    ${r.refusals.length ? `<div class="banner warn">Прогон считает даже непубликуемый черновик —
+      это предпросмотр, а не проверка: публикацию всё равно держат ${r.refusals.length} отказов выше.</div>` : ''}
+    <div class="note">Прогон <b>ничего не записывает и никому не назначает</b>: значение по-прежнему
+      ставит только действующая редакция (ИК-1). Строки «потеряют значение» — это, как правило, выход
+      объекта из области версии; это законный исход, но он обязан быть виден до публикации, а не после
+      (ИК-7). Строки «как есть» приглушены, чтобы разница читалась глазами.</div>
+  </div>`;
+}
 
 /* ------------------------ ЭКРАН: ПОКАЗАТЕЛИ ------------------------- */
 function viewIndicators(){
@@ -1347,7 +1638,8 @@ CL.addIndicatorUI = () => {
 /* --------------------------- ЭКРАН: ФАКТЫ --------------------------- */
 function factRow(f, showCredit){
   const k = KIND(f.kindId);
-  const cls = f.annulled ? 'annul' : (CL.factFate(f) === 'засчитан' ? 'yes' : 'no');
+  const fate = CL.fateOf(f);
+  const cls = f.annulled ? 'annul' : (fate === 'засчитан' ? 'yes' : 'no');
   const late = f.counted !== f.occurred;
   return `<tr>
     ${showCredit ? '<td class="mono">' + esc(f.creditId) + '</td>' : ''}
@@ -1359,11 +1651,21 @@ function factRow(f, showCredit){
     <td>${f.until ? fmt(f.until) : '<span class="muted">бессрочно</span>'}</td>
     <td class="${cls === 'annul' ? 'muted' : ''}">${f.annulled
       ? 'аннулирован ' + fmt(f.annulled.at) + '<div class="small">' + esc(f.annulled.reason) + '</div>'
-      : esc(CL.factFate(f))}</td>
+      : esc(fate)}</td>
     <td>${f.annulled ? '' : `<button class="btn btn-secondary btn-sm" onclick="CL.annulUI('${f.id}')">аннулировать</button>`}</td></tr>`;
 }
 function viewFacts(){
-  const rows = CL.state.facts.map(f => factRow(f, true)).join('');
+  const st = CL.state;
+  const cnt = CL.factCounts();
+  const flt = st.factFilter || null;
+  const shown = st.facts.filter(f => !flt || CL.fateOf(f) === flt);
+  const rows = shown.length
+    ? shown.map(f => factRow(f, true)).join('')
+    : `<tr><td colspan="8" class="muted">фактов с судьбой «${esc(flt)}» нет</td></tr>`;
+  const chips = `<div class="chips">
+    <span class="chip${flt ? '' : ' on'}" onclick="CL.factFilterUI(null)">все факты <span class="n">${cnt['всего']}</span></span>
+    ${CL.FATES.map(k => `<span class="chip${flt === k ? ' on' : ''}" onclick="CL.factFilterUI('${esc(k)}')">${esc(k)} <span class="n">${cnt[k]}</span></span>`).join('')}
+  </div>`;
   const creditOpts = CL.state.credits.map(c => `<option>${esc(c.id)}</option>`).join('');
   const kindOpts = FACTOR_KINDS.map(k => `<option value="${k.id}">${esc(k.name)} — ${esc(k.norm)}, ${esc(k.level)}</option>`).join('');
   return `<p class="page-lead">Руками вводится <b>факт</b>, а не значение: категорию по фактам выводит
@@ -1385,25 +1687,47 @@ function viewFacts(){
     </div>
     <div class="card">
       <h3>Реестр фактов</h3>
+      ${chips}
       <table class="cgrid"><thead><tr><th>Кредит</th><th>ID</th><th>Вид фактора</th>
         <th>Наступил</th><th>Решение комитета</th><th>Действует до</th><th>Судьба</th><th></th></tr></thead>
         <tbody>${rows}</tbody></table>
       <div class="note">Причины незачёта — закрытый список из трёх: нет решения комитета · интервал
         истёк · ведёт к более лёгкому значению, чем выбранное. Свободного текста в этой колонке нет,
-        иначе по ней нельзя было бы ни фильтровать, ни считать (ИК-12).</div>
+        иначе по ней нельзя было бы ни фильтровать, ни считать (ИК-12) — счётчики и фильтр выше и есть
+        та самая работа, ради которой список закрыт. Сумма по судьбам равна числу фактов: судьба у
+        факта ровно одна.</div>
+      <div class="note">Судьба считается против значения, которое кредит имеет <b>сейчас</b>: третья
+        причина («ведёт к более лёгкому значению, чем выбранное») без выбранного значения не
+        существует вовсе. Поэтому у кредита вне области или без действующей редакции факт с решением
+        комитета остаётся «засчитан» — незачесть его нечему.</div>
       <div class="note">Аннулирование не удаляет факт: он остаётся в реестре с причиной и автором,
         а пересчёт затрагивает только открытый период (ADR-0122, ИК-8).</div>
     </div>`;
 }
+CL.factFilterUI = k => { CL.state.factFilter = k || null; render(); };
 CL.addFactUI = () => {
   const g = id => (($('#' + id) || {}).value || '').trim();
   act(CL.addFact({creditId:g('fCredit'), kindId:g('fKind'), occurred:g('fWhen'),
     doc:g('fDoc') || null, until:g('fUntil') || null}), 'факт заведён');
 };
 CL.annulUI = id => {
-  const reason = typeof prompt === 'function' ? prompt('Причина аннулирования факта ' + id + ':') : 'ошибка ввода';
-  if(!reason) return;
-  act(CL.annulFact(id, reason), 'факт аннулирован');
+  openModal(`<div class="modal-h"><span class="mt">Аннулирование факта ${esc(id)}</span>
+      <button class="modal-x" onclick="closeModal()">✕</button></div>
+    <div class="modal-b">
+      <p class="small">Факт не удаляется: он остаётся в реестре с пометкой, причиной и автором,
+        а пересчёт затрагивает только открытый период (ADR-0122, ИК-8).</p>
+      <label class="small"><b>Причина аннулирования</b> — обязательна</label>
+      <textarea id="annulReason" placeholder="например: решение комитета относится к другому кредиту"></textarea>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-danger" onclick="CL.annulDo('${esc(id)}')">Аннулировать</button>
+    </div>`);
+};
+CL.annulDo = id => {
+  const res = CL.annulFact(id, (($('#annulReason') || {}).value || '').trim());
+  if(res.ok) closeModal();
+  act(res, 'факт аннулирован');
 };
 
 /* ------------------------- ЭКРАН: ВИТРИНА --------------------------- */
@@ -1524,6 +1848,7 @@ function viewPeriods(){
       ${canClose ? 'Закрытие возможно с ' + fmt(asOf) + ' — срез на 1-е число, срок сдачи отчёта п. 12 — ' + fmt(day15(nextM(open))) + '.'
                  : 'Закрывать рано: период не завершён, закрытие откроется ' + fmt(asOf) + ' (ИК-13).'}
     </div>
+    ${closePreviewCard()}
     <div class="btn-row" style="margin-bottom:14px">
       <button class="btn btn-primary" onclick="CL.closeUI()" ${canClose && CL.canClosePeriod() ? '' : 'disabled'}>
         Закрыть период ${open ? monLabel(open) : ''}</button>
@@ -1562,6 +1887,37 @@ function viewPeriods(){
       <table class="cgrid"><thead><tr><th>Дата</th><th>Кто</th><th>Что</th></tr></thead>
       <tbody>${st.log.map(l => `<tr><td>${fmt(l.at)}</td><td>${esc(l.who)}</td><td>${esc(l.msg)}</td></tr>`).join('')}</tbody>
       </table></div>` : ''}`;
+}
+/* Закрытие периода необратимо (ИК-13), поэтому состав будущих записей показан ДО кнопки —
+   и отдельной строкой назван случай «записи не будет вовсе»: классификатор без действующей
+   редакции. Отчёт п. 12 обязан различать «вне области» и «записи нет», и различие обязано
+   быть видно закрывающему, а не читателю отчёта задним числом. */
+function closePreviewCard(){
+  const pv = CL.closePreview();
+  if(!pv.ok) return '';
+  const rows = pv.rows.map(r => `<tr${r.verNo === null ? ' class="out"' : ''}>
+    <td>${esc(r.clf)}</td>
+    <td>${r.verNo === null ? '<span class="muted">нет</span>' : r.verNo}</td>
+    <td class="mono">${r.total}</td>
+    <td class="mono">${r.verNo === null ? '<span class="muted">0</span>' : '<b>' + r.willWrite + '</b>'}</td>
+    <td class="mono">${r.verNo === null ? '—' : r.out}</td>
+    <td class="small">${esc(r.why || 'записи пишутся по редакции ' + r.verNo + '; объекты вне области пропускаются (ИК-7)')}</td></tr>`).join('');
+  return `<div class="card">
+    <h3>Что будет записано при закрытии ${monLabel(pv.period)}</h3>
+    <div class="chips">
+      <span class="chip on">записей будет <span class="n">${pv.willWrite}</span></span>
+      <span class="chip">вне области <span class="n">${pv.out}</span></span>
+      <span class="chip">классификаторов без записи <span class="n">${pv.silent}</span></span>
+      <span class="chip">срез на <span class="n">${fmt(pv.asOf)}</span></span>
+    </div>
+    <table class="cgrid"><thead><tr><th>Классификатор</th><th>Редакция</th><th>Объектов</th>
+      <th>Записей</th><th>Вне области</th><th>Примечание</th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="note">Предпросмотр считает тем же движком и той же областью, что и само закрытие, —
+      это не отдельная оценка, а тот же расчёт без записи (ИК-1). «Вне области» — норма: объект
+      законно остаётся без значения. «Классификатор без записи» — не норма и не поломка данных,
+      а прямое следствие того, что действующей редакции нет; если это не так задумано, публикуйте
+      редакцию до закрытия, потому что задним числом период не открыть (ИК-13).</div>
+  </div>`;
 }
 CL.closeUI = () => {
   const res = CL.closePeriod();
