@@ -6,6 +6,13 @@
 // регистрации ДС. Расхождение здесь = комитет одобрил одно, заёмщик получил другое.
 // Zero-dep: оба макета исполняются в node:vm без DOM, как в restructuring-check.mjs.
 //   node scripts/inspect/cross-engine-check.mjs
+//
+// С 19.08.2026 эта проверка — ПОДМНОЖЕСТВО сторожа зеркал: те же 13 условий графика
+// прогоняются в scripts/inspect/mirror-check.mjs против канона движка
+// (mockups/calc-core/calc-core.html, ADR-0135), где сверяется ещё и текст объявлений, и
+// весь сид числами. Файл оставлен до волны уборки — он назван в журналах волн кредита и
+// реструктуризации; снимать его заодно с выносом ядра значило бы менять две вещи одним
+// движением (mockups/calc-core/ASUBK-status-razrabotki.md, «Что осталось расходиться», п. 3).
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
