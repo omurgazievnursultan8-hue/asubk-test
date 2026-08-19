@@ -74,6 +74,11 @@ Track state in `STATUS.md`; `README.md` maps which file holds what.
   `scripts/check_tasks.py`. The eight files handed over before that date are frozen
   legacy and are not converted; a module reworked in substance is reissued whole under
   the same filename.
+- **Locating an ID: run `scripts/find.py`, don't grep the tree.** `python3 scripts/find.py P15-R33`
+  returns the definition line and every mention as `file:line` in ~0.5s. Read only those lines —
+  `TODO.md` is 500 KB and the task HTMLs run to 4000+ lines, so opening one to find a single ID
+  is the expensive mistake this script exists to prevent. `--list P15` enumerates a whole prefix.
+  IDs reported as «без определения» are real dangling references, not parser misses.
 - Every claim about app behavior should be backed by an in-app verification; cite
   the inspection script and date (e.g. "проверено 2026-06-19, `scripts/inspect/...`").
 - When you edit `STATUS.md`, update its "Last updated" date line.
@@ -107,6 +112,13 @@ python3 scripts/check_points.py            # report + exit 1 on dead citations
 python3 scripts/check_points.py --strict   # moved-but-existing points fail too
 python3 scripts/check_points.py --map      # the renumbering table
 python3 scripts/check_points.py --list     # points parsed out of the source
+
+# Find where an ID lives instead of grepping the tree or reading whole files.
+# 651 IDs (P2-R1, P1-12, E2E-09, ADR-0004, Г-26) across 328 .md and 48 .html.
+python3 scripts/find.py P15-R33            # definition + every mention, file:line
+python3 scripts/find.py "неосвоенный остаток"   # headings first, then matching files
+python3 scripts/find.py --list P15         # every ID under a prefix, with titles
+python3 scripts/find.py --build            # regenerate INDEX.md (derived, never hand-edit)
 ```
 
 `build_tz_html.py` gotcha: the banner kick-line and the routes strip are **hardcoded to
