@@ -79,7 +79,7 @@
   зеркалом соседних модулей и здесь не редактируются.
 
   SMOKE (node scripts/inspect/classification-check.mjs):
-   SMOKE 2026-08-19 · 52/52 PASS
+   SMOKE 2026-08-19 · 54/54 PASS
       PASS  #1  показателей 11, без владельца 0, снятых 1, перечислений без домена 0
       PASS  #2  действующая ред. 2 с 2026-07-06, прошлая ред. 1 до 2026-07-05
       PASS  #3  у «Группы платёжеспособности» только черновик, значений 3, действующей нет
@@ -132,6 +132,8 @@
       PASS  #50  предпросмотр закрытия сошёлся с закрытием: записей 9 = 9, классификаторов без записи 1 — ИК-13
       PASS  #51  счётчики судьбы: всего 5 = сумма по пяти судьбам; третья причина видна и в реестре (1) — ИК-12
       PASS  #52  браузерных диалогов в макете нет (0), подтверждения идут модалкой — дизайн-система АСУБК
+      PASS  #53  новый классификатор доведён до действия: реквизиты пишутся в черновик (отказов было 2, стало 0), публикация без аргументов прошла — КФ-Д6
+      PASS  #54  форма публикации: кнопка отказами не блокируется, оба поля привязаны к черновику, список отказов перерисовывается — КФ-Д6
 -->
 <style>
 :root{
@@ -1001,6 +1003,17 @@ CL.publish = (clfId, opts) => {
   log('опубликована редакция ' + d.no + ' классификатора «' + CL.clf(clfId).name + '» с ' + fmt(d.from));
   return {ok:true, no:d.no};
 };
+/* Основание и дата ввода — реквизиты черновика, а не аргументы публикации: пока они писались
+   только внутри publish(), в черновике они оставались пустыми, список отказов держал «не указано
+   основание» и «не указана дата ввода», кнопка от этого гасла — и черновик было не опубликовать
+   вовсе (КФ-Д6). Пишем их при вводе, как любую другую правку черновика. */
+CL.setVerMeta = (clfId, patch) => {
+  const bad = guardDraft(clfId); if(bad) return {ok:false, why:bad};
+  const d = CL.draftVer(clfId);
+  if(patch.basis !== undefined) d.basis = patch.basis;
+  if(patch.from !== undefined) d.from = patch.from;
+  return {ok:true};
+};
 CL.addValue = (clfId, label) => {
   const bad = guardDraft(clfId); if(bad) return {ok:false, why:bad};
   const d = CL.draftVer(clfId);
@@ -1468,17 +1481,16 @@ function viewClassifiers(){
         <h3>Публикация редакции ${draft.no}</h3>
         <div class="form-row">
           <div class="fld"><label>Основание (норма и редакция)</label>
-            <input id="pubBasis" value="${esc(draft.basis)}" placeholder="например: Порядок №41 от 06.07.2026, п. 11"></div>
+            <input id="pubBasis" value="${esc(draft.basis)}" oninput="CL.metaUI('${clf.id}')"
+              placeholder="например: Порядок №41 от 06.07.2026, п. 11"></div>
           <div class="fld"><label>Дата ввода в действие</label>
-            <input id="pubFrom" type="date" value="${esc(draft.from)}"></div>
-          <button class="btn btn-success" onclick="CL.publishUI('${clf.id}')" ${refusals.length ? 'disabled' : ''}>Ввести в действие</button>
+            <input id="pubFrom" type="date" value="${esc(draft.from)}" oninput="CL.metaUI('${clf.id}')"></div>
+          <button class="btn btn-success" onclick="CL.publishUI('${clf.id}')">Ввести в действие</button>
         </div>
-        ${refusals.length
-          ? `<div class="banner danger" style="margin-top:12px"><b>Публикация невозможна — ${refusals.length}:</b>
-             <ul>${refusals.map(r => '<li>' + esc(r) + '</li>').join('')}</ul></div>`
-          : `<div class="banner ok" style="margin-top:12px">Проверки пройдены: список замкнут значением по
-             умолчанию, показатели живы, дата не раньше начала открытого периода ${fmt(CL.startOfOpen())}.</div>`}
+        <div id="pubRefusals">${pubBanner(refusals)}</div>
         <div class="note">Отказ не молчит и не копится по одному: перечисляются все причины сразу (§0.3).
+        Список пересчитывается по мере заполнения полей, а кнопка не гаснет: причину обязано быть
+        видно, а не угадывать по недоступной кнопке (КФ-Д6).
         Дата ввода в действие может быть в прошлом, но не раньше начала открытого периода — иначе
         версия дотянулась бы до зафиксированного; и не позже сегодняшнего дня — публикация вводит
         редакцию в действие немедленно, отложенного пуска в модели нет (ИК-4).</div>
@@ -1509,6 +1521,12 @@ CL.publishUI = clfId => {
   const res = CL.publish(clfId, {basis, from});
   if(res.ok){ toast('редакция ' + res.no + ' введена в действие', 'ok'); render(); }
   else { toast(res.refusals[0], 'err'); render(); }
+};
+CL.metaUI = clfId => {
+  CL.setVerMeta(clfId, {basis:(($('#pubBasis') || {}).value || ''),
+    from:(($('#pubFrom') || {}).value || '')});
+  const el = $('#pubRefusals');
+  if(el) el.innerHTML = pubBanner(CL.publishChecks(clfId, CL.draftVer(clfId)));
 };
 CL.addClassifierUI = () => {
   const g = id => (($('#' + id) || {}).value || '').trim();
@@ -1543,6 +1561,14 @@ CL.stopDo = clfId => {
   if(res.ok) closeModal();
   act(res, 'действие классификатора прекращено');
 };
+
+function pubBanner(refusals){
+  return refusals.length
+    ? `<div class="banner danger" style="margin-top:12px"><b>Публикация невозможна — ${refusals.length}:</b>
+       <ul>${refusals.map(r => '<li>' + esc(r) + '</li>').join('')}</ul></div>`
+    : `<div class="banner ok" style="margin-top:12px">Проверки пройдены: список замкнут значением по
+       умолчанию, показатели живы, дата не раньше начала открытого периода ${fmt(CL.startOfOpen())}.</div>`;
+}
 
 /* Сухой прогон виден рядом с кнопкой публикации всегда, а не по кнопке «показать»: публикация
    необратима, и цена её последствий не должна зависеть от того, догадался ли администратор

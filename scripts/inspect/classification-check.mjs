@@ -361,6 +361,33 @@ const cred = id => CL.classify('risk', 'кредит', id);
     `браузерных диалогов в макете нет (${dialogs.length}), подтверждения идут модалкой — дизайн-система АСУБК`);
 })();
 
+/* ---------- I. Публикация нового классификатора: путь от заведения до действия ---------- */
+(() => {
+  CL.seed();
+  // Проходим ровно тот путь, что делает администратор руками: завёл — наполнил — опубликовал.
+  CL.addClassifier({ id: 'pledge', name: 'Качество обеспечения', object: 'кредит' });
+  CL.addValue('pledge', 'достаточное');
+  CL.setDefault('pledge', CL.draftVer('pledge').values[0].code);
+  const beforeMeta = CL.publishChecks('pledge', CL.draftVer('pledge'));
+  // Поля формы пишутся в черновик по мере ввода — не в момент нажатия кнопки (КФ-Д6).
+  CL.setVerMeta('pledge', { basis: 'Порядок №41 от 06.07.2026, п. 11' });
+  CL.setVerMeta('pledge', { from: CL.state.today });
+  const afterMeta = CL.publishChecks('pledge', CL.draftVer('pledge'));
+  const live = CL.publish('pledge');            // без opts: реквизиты уже в черновике
+  const cls = CL.classify('pledge', 'кредит', 'КД-2024/117');
+  ok(53, has(beforeMeta, 'не указано основание') && has(beforeMeta, 'не указана дата ввода') &&
+        afterMeta.length === 0 && live.ok && live.no === 1 &&
+        CL.activeVer('pledge').basis.includes('№41') && cls.ok && cls.label === 'достаточное',
+    `новый классификатор доведён до действия: реквизиты пишутся в черновик (отказов было ${beforeMeta.length}, стало ${afterMeta.length}), публикация без аргументов прошла — КФ-Д6`);
+
+  // Сторож разметки: кнопка публикации не гаснет от отказов, поля привязаны к черновику.
+  const card = m[1].slice(m[1].indexOf('<h3>Публикация редакции'), m[1].indexOf('<h3>Журнал редакций'));
+  const deadBtn = /publishUI[\s\S]{0,120}disabled/.test(card);
+  const bound = /id="pubBasis"[\s\S]{0,160}oninput/.test(card) && /id="pubFrom"[\s\S]{0,160}oninput/.test(card);
+  ok(54, !deadBtn && bound && /id="pubRefusals"/.test(card),
+    `форма публикации: кнопка отказами не блокируется, оба поля привязаны к черновику, список отказов перерисовывается — КФ-Д6`);
+})();
+
 /* ---------- G. Сторож текста: инварианты и решения названы в файле ---------- */
 (() => {
   const iks = Array.from({ length: 19 }, (_, i) => 'ИК-' + (i + 1)).filter(k => !new RegExp(k + '(\\D|$)').test(src));
