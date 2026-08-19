@@ -79,7 +79,7 @@
   зеркалом соседних модулей и здесь не редактируются.
 
   SMOKE (node scripts/inspect/classification-check.mjs):
-   SMOKE 2026-08-19 · 54/54 PASS
+   SMOKE 2026-08-19 · 60/60 PASS
       PASS  #1  показателей 11, без владельца 0, снятых 1, перечислений без домена 0
       PASS  #2  действующая ред. 2 с 2026-07-06, прошлая ред. 1 до 2026-07-05
       PASS  #3  у «Группы платёжеспособности» только черновик, значений 3, действующей нет
@@ -134,6 +134,12 @@
       PASS  #52  браузерных диалогов в макете нет (0), подтверждения идут модалкой — дизайн-система АСУБК
       PASS  #53  новый классификатор доведён до действия: реквизиты пишутся в черновик (отказов было 2, стало 0), публикация без аргументов прошла — КФ-Д6
       PASS  #54  форма публикации: кнопка отказами не блокируется, оба поля привязаны к черновику, список отказов перерисовывается — КФ-Д6
+      PASS  #55  экран разведён: список открывает карточку по строке, карточка несёт значения, журнал и прекращение действия, крошка возвращает в список
+      PASS  #56  роль «Наблюдатель»: в карточке 2 кнопок и все — вкладки, в списке ни одной; названа роль, которая правит; погашенных нет — §0.3
+      PASS  #57  вкладка публикации: есть у черновика администратора, нет у действующей редакции и нет у наблюдателя — вместо неё значения, а не пустой экран
+      PASS  #58  реестр показателей: поиск сужает 11 → 3, фильтр по объекту → 6; строки перерисовываются точечно, фокус поиска не теряется — КФ-Д6
+      PASS  #59  карточка показателя: «Где используется» 1 живых ссылок, снятие отказывает списком до нажатия, кнопка не блокируется — ИК-16
+      PASS  #60  пояснения: 21 блоков живы в разметке, по умолчанию свёрнуты тумблером в шапке — экран читается, объяснение доступно
 -->
 <style>
 :root{
@@ -336,6 +342,35 @@ table.cgrid tbody tr.out td{ background:var(--asubk-gray-50); color:var(--text-m
 .chip.on{ background:var(--asubk-blue); border-color:var(--asubk-blue); color:#fff; }
 .chip .n{ font-weight:var(--weight-semibold); margin-left:6px; }
 
+/* ---- крошки, тумблер пояснений ---- */
+.crumb{ font:var(--font-label); color:var(--text-muted); }
+.crumb-title.link{ cursor:pointer; color:var(--text-link); }
+.crumb-title.link:hover{ text-decoration:underline; }
+.tgl{ height:32px; border-radius:var(--radius-pill); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 12px; cursor:pointer; }
+.tgl.on{ background:var(--asubk-blue-tint); border-color:var(--asubk-blue); color:var(--asubk-blue); }
+.notes-off .note{ display:none; }
+
+/* ---- вкладки карточки ---- */
+.tabs{ display:flex; gap:2px; border-bottom:1px solid var(--border-default); margin:16px 0 14px; flex-wrap:wrap; }
+.tab{ border:none; background:none; cursor:pointer; padding:9px 14px; margin-bottom:-1px;
+  font:var(--font-label); color:var(--text-muted); border-bottom:2px solid transparent; }
+.tab:hover{ color:var(--text-body); }
+.tab.on{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:var(--weight-semibold); }
+
+/* ---- список: строка открывает карточку ---- */
+table.cgrid tbody tr.pick{ cursor:pointer; }
+table.cgrid tbody tr.pick:hover td{ background:var(--surface-hover); }
+.rowname{ font-weight:var(--weight-medium); color:var(--text-link); }
+
+/* ---- панель над списком: завести · поиск · фильтр ---- */
+.toolbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:12px; }
+.toolbar input[type=search]{ height:32px; min-width:250px; border-radius:var(--radius-md);
+  border:1px solid var(--border-strong); background:var(--surface-card);
+  color:var(--text-body); font:var(--font-label); padding:0 10px; }
+.toolbar input[type=search]:focus{ outline:none; border-color:var(--border-focus); box-shadow:var(--shadow-focus); }
+.toolbar .chips{ margin:0; }
+
 /* ---- toast ---- */
 #toastWrap{ position:fixed; right:18px; bottom:18px; display:flex; flex-direction:column; gap:8px; z-index:50; }
 .toast{ background:var(--asubk-ink); color:#fff; padding:10px 14px; border-radius:var(--radius-md);
@@ -363,7 +398,9 @@ table.cgrid tbody tr.out td{ background:var(--asubk-gray-50); color:var(--text-m
   <div class="main">
     <div class="topbar">
       <div class="crumb-title" id="title">Классификаторы</div>
+      <span class="crumb" id="crumb"></span>
       <div class="right">
+        <button class="tgl" id="notesBtn" onclick="CL.toggleNotes()">Пояснения: выкл</button>
         <span><label>Дата среза</label><select id="asOf" onchange="CL.setAsOf(this.value)"></select></span>
         <span><label>Роль</label><select id="role" onchange="CL.setRole(this.value)"></select></span>
       </div>
@@ -417,7 +454,11 @@ function seed(){
     role:'Администратор классификации',
     asOf:'2026-08-14',
     view:'clf',
-    curClf:'risk',
+    /* Маршрут: curClf/curInd пусты — показан список, заполнены — карточка. Держится в
+       состоянии, а не в DOM, чтобы смоук проверял разметку экрана так же, как браузер. */
+    curClf:null, clfVer:null, clfTab:'values',
+    curInd:null, indQ:'', indObj:'все',
+    notes:false,                      /* пояснения по умолчанию свёрнуты (КФ-22) */
     closedPeriods:['2026-05','2026-06'],
     months:['2026-05','2026-06','2026-07','2026-08'],
     log:[]
@@ -1269,18 +1310,52 @@ const esc = s => String(s == null ? '' : s).replace(/[<>&"]/g, m => ({'<':'&lt;'
 const $ = s => (typeof document === 'undefined' ? null : document.querySelector(s));
 const pillFor = code => code === 'high' ? 'err' : code === 'mid' ? 'warn' : code === 'low' ? 'ok' : 'neutral';
 
-CL.go = v => { CL.state.view = v; render(); };
+/* Переход по разделу всегда возвращает к списку: боковое меню называет раздел, а не
+   последний открытый объект. */
+CL.go = v => { const st = CL.state; st.view = v; st.curClf = null; st.curInd = null; render(); };
+CL.open = id => { const st = CL.state; st.curClf = id; st.clfVer = null; st.clfTab = 'values'; render(); };
+CL.openInd = id => { CL.state.curInd = id; render(); };
+CL.back = () => { const st = CL.state; if(st.view === 'ind') st.curInd = null; else st.curClf = null; render(); };
+CL.tab = k => { CL.state.clfTab = k; render(); };
+CL.showVer = no => { CL.state.clfVer = no; render(); };
+CL.toggleNotes = () => { CL.state.notes = !CL.state.notes; render(); };
 CL.setRole = r => { CL.state.role = r; render(); };
 CL.setAsOf = d => { CL.state.asOf = d; render(); };
 
 const TITLES = {clf:'Классификаторы', ind:'Реестр показателей', facts:'Факты (п. 11)',
   show:'Витрина результата', per:'Периоды и фиксация'};
 
+/* Разметка панели собирается отдельно от её вставки в DOM: смоук вызывает panelHtml()
+   без браузера и проверяет ровно то, что увидит человек (роль, вкладки, фильтры). */
+function deepName(){
+  const st = CL.state;
+  if(st.view === 'clf' && st.curClf) return (CL.clf(st.curClf) || {}).name || '';
+  if(st.view === 'ind' && st.curInd) return (CL.ind(st.curInd) || {}).name || '';
+  return '';
+}
+function panelHtml(){
+  const st = CL.state;
+  return st.view === 'clf'  ? viewClassifiers() :
+         st.view === 'ind'  ? viewIndicators()  :
+         st.view === 'facts'? viewFacts()       :
+         st.view === 'show' ? viewShowcase()    : viewPeriods();
+}
+CL.panelHtml = panelHtml;
+CL.deepName = deepName;
+
 function render(){
   if(typeof document === 'undefined') return;   // без DOM рисовать нечего (смоук)
   const st = CL.state;
   document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.v === st.view));
-  $('#title').textContent = TITLES[st.view];
+  const deep = deepName();
+  const title = $('#title');
+  title.textContent = TITLES[st.view];
+  title.className = 'crumb-title' + (deep ? ' link' : '');
+  title.onclick = deep ? CL.back : null;
+  $('#crumb').textContent = deep ? '/ ' + deep : '';
+  const nb = $('#notesBtn');
+  nb.textContent = 'Пояснения: ' + (st.notes ? 'вкл' : 'выкл');
+  nb.className = 'tgl' + (st.notes ? ' on' : '');
   const sel = $('#role');
   sel.innerHTML = ROLES.map(r => `<option${r === st.role ? ' selected' : ''}>${esc(r)}</option>`).join('');
   const dates = [first('2026-06'), first('2026-07'), st.today];
@@ -1288,11 +1363,9 @@ function render(){
     CL.isClosed(d) ? 'закрытый период' : 'открытый период'}</option>`).join('');
   $('#foot').innerHTML = `Учётный период <b>${monLabel(CL.openPeriod() || '—')}</b> — открыт.<br>
     Сегодня ${fmt(st.today)}. Закрыто: ${st.closedPeriods.map(monLabel).join(', ') || '—'}.`;
-  $('#panel').innerHTML =
-    st.view === 'clf'  ? viewClassifiers() :
-    st.view === 'ind'  ? viewIndicators()  :
-    st.view === 'facts'? viewFacts()       :
-    st.view === 'show' ? viewShowcase()    : viewPeriods();
+  const panel = $('#panel');
+  panel.className = 'panel-wrap' + (st.notes ? '' : ' notes-off');
+  panel.innerHTML = panelHtml();
 }
 CL.render = render;
 
@@ -1384,131 +1457,224 @@ function valueHtml(clfId, ver, v, idx, editable){
     </div>
     <div class="val-b">${body}</div></div>`;
 }
+/* ------------------------ ЭКРАН: КЛАССИФИКАТОРЫ ---------------------
+ * Экран разведён надвое: СПИСОК (что вообще заведено в системе) и КАРТОЧКА одного
+ * классификатора (редакции, значения, публикация, журнал). Раньше карточки всех
+ * классификаторов висели одной простынёй и переключались колонкой слева: пока их три,
+ * это читалось, но модуль обещает четвёртый и пятый НАСТРОЙКОЙ, а не релизом (ADR-0120) —
+ * простыня растёт вместе с ними, а список не растёт. Маршрут держится в состоянии
+ * (curClf, clfTab, clfVer), а не в DOM, поэтому смоук проверяет ту же разметку, что видит
+ * человек. Обратный путь — крошка в шапке, как в макете кредита.
+ * ------------------------------------------------------------------- */
+function clfState(c){
+  const a = CL.activeVer(c.id), d = CL.draftVer(c.id);
+  if(c.stopped) return {pill:'<span class="pill err">действие прекращено</span>',
+    small:'с ' + fmt(c.stopped.until) + ' · ' + esc(c.stopped.reason)};
+  if(a && d)    return {pill:'<span class="pill warn">есть черновик</span>', small:'редакция ' + d.no + ' готовится'};
+  if(a)         return {pill:'<span class="pill ok">действует</span>', small:''};
+  if(d)         return {pill:'<span class="pill info">только черновик</span>', small:'значений пока не назначает'};
+  return {pill:'<span class="pill neutral">редакций нет</span>', small:''};
+}
+/* Роль без права правки не получает погашенных кнопок: их не показывают вовсе, а строкой
+   названо, кто вправе. Недоступная кнопка — тот же молчаливый отказ, что и пустой экран:
+   человек видит запрет и не видит причины (§0.3, урок КФ-Д6). */
+function readOnlyBanner(what){
+  return CL.canEditConstructor() ? '' :
+    `<div class="banner info">Только просмотр: ${what} правит роль
+      <b>«Администратор классификации»</b> — переключается в шапке. Кнопки настройки не показаны
+      вовсе: погашенная кнопка сообщила бы о запрете, но не о причине (§0.3).</div>`;
+}
 function viewClassifiers(){
-  const st = CL.state;
-  const list = st.classifiers.map(c => {
-    const a = CL.activeVer(c.id), d = CL.draftVer(c.id);
-    return `<button class="clf ${c.id === st.curClf ? 'on' : ''}" onclick="CL.pick('${c.id}')">
-      <b>${esc(c.name)}</b>
-      <span class="small">объект: ${c.object} · ${a ? 'редакция ' + a.no + ', действует с ' + fmt(a.from) : 'действующей редакции нет'}${d ? ' · есть черновик' : ''}</span></button>`;
+  return CL.state.curClf ? clfDetail(CL.state.curClf) : clfList();
+}
+function clfList(){
+  const rows = CL.state.classifiers.map(c => {
+    const a = CL.activeVer(c.id), d = CL.draftVer(c.id), s = clfState(c);
+    const vals = a ? a.values.length : (d ? d.values.length : 0);
+    return `<tr class="pick" onclick="CL.open('${c.id}')">
+      <td><span class="rowname">${esc(c.name)}</span><div class="small mono">${esc(c.id)}</div></td>
+      <td>${esc(c.object)}</td>
+      <td>${a ? 'редакция ' + a.no : '<span class="muted">нет</span>'}</td>
+      <td>${a ? fmt(a.from) : '—'}</td>
+      <td class="mono">${vals}</td>
+      <td>${s.pill}${s.small ? '<div class="small">' + s.small + '</div>' : ''}</td></tr>`;
   }).join('');
+  return `<p class="page-lead">Классификатор — набор значений с условиями над показателями реестра.
+    Список отвечает на один вопрос: что заведено, по какой редакции работает и есть ли готовящаяся.
+    Правка живёт внутри карточки — строка списка ничего необратимого не делает.</p>
+    ${readOnlyBanner('классификаторы')}
+    <div class="toolbar">
+      ${CL.canEditConstructor() ? '<button class="btn btn-primary" onclick="CL.newClfUI()">+ Классификатор</button>' : ''}
+      <span class="small">всего ${CL.state.classifiers.length}</span>
+    </div>
+    <table class="cgrid"><thead><tr><th>Наименование</th><th>Объект</th><th>Действующая редакция</th>
+      <th>Действует с</th><th>Значений</th><th>Состояние</th></tr></thead>
+      <tbody>${rows}</tbody></table>
+    <div class="note">«Только черновик» — классификатор заведён, но ещё никого не классифицирует
+      (ADR-0125); «действие прекращено» — редакций больше не назначает, но записи закрытых периодов
+      по нему читаются по-прежнему, потому что классификатор не удаляется никогда (ИК-19).</div>
+    <div class="note">Значения ведутся здесь. В разделе «Справочники» строки
+      <code>borrower-groups</code> и <code>loan-payment-capacity-groups</code> остаются
+      зеркалом на чтение: у классификации одна дверь (ADR-0125 §3).</div>`;
+}
+CL.newClfUI = () => {
+  openModal(`<div class="modal-h"><span class="mt">Завести классификатор</span>
+      <button class="modal-x" onclick="closeModal()">✕</button></div>
+    <div class="modal-b">
+      <p class="small">Четвёртая классификация появляется <b>настройкой, а не релизом</b> (ADR-0120):
+        новый классификатор открывается пустым черновиком и до публикации никого не классифицирует.
+        Объект задаётся здесь и потом не меняется — сменить его значило бы обессмыслить уже
+        сделанные записи фиксации.</p>
+      <div class="fld" style="margin-bottom:10px"><label>Идентификатор</label>
+        <input id="ncId" placeholder="например: pledgeQuality"></div>
+      <div class="fld" style="margin-bottom:10px"><label>Наименование</label>
+        <input id="ncName" placeholder="Качество обеспечения"></div>
+      <div class="fld"><label>Объект классификации</label>
+        <select id="ncObj"><option>кредит</option><option>заёмщик</option></select></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="CL.addClassifierUI()">Завести</button>
+    </div>`);
+};
+CL.addClassifierUI = () => {
+  const g = id => (($('#' + id) || {}).value || '').trim();
+  const res = CL.addClassifier({id:g('ncId'), name:g('ncName'), object:g('ncObj')});
+  /* Заведение сразу открывает карточку нового черновика: заводят не ради строки в списке,
+     а чтобы наполнить редакцию — и заполнять её больше негде. */
+  if(res.ok){ closeModal(); const st = CL.state; st.curClf = res.id; st.clfVer = null; st.clfTab = 'values'; }
+  act(res, 'классификатор заведён — редакция 1 открыта черновиком');
+};
 
-  const clf = CL.clf(st.curClf);
-  const draft = CL.draftVer(clf.id);
-  const active = CL.activeVer(clf.id);
-  const shown = draft || active || clf.versions[clf.versions.length - 1];
-  const editable = !!draft && CL.canEditConstructor() && shown === draft;
-  const refusals = draft ? CL.publishChecks(clf.id, draft) : [];
-
-  const journal = clf.versions.slice().sort((a, b) => b.no - a.no).map(v => `
-    <tr><td><b>${v.no}</b></td><td>${verPill(v)}</td>
-      <td>${esc(v.basis || '—')}</td>
-      <td>${v.from ? fmt(v.from) : '—'}${v.until ? ' — ' + fmt(v.until) : ''}</td>
-      <td>${esc(v.by || '—')}${v.at ? '<div class="small">' + fmt(v.at) + '</div>' : ''}</td>
-      <td>${v.values.length}</td></tr>`).join('');
+function clfDetail(clfId){
+  const clf = CL.clf(clfId);
+  if(!clf){ CL.state.curClf = null; return clfList(); }
+  const st = CL.state;
+  const draft = CL.draftVer(clfId), active = CL.activeVer(clfId);
+  const last = clf.versions.slice().sort((a, b) => b.no - a.no)[0];
+  const shown = clf.versions.find(v => v.no === st.clfVer) || draft || active || last;
+  const editable = !!draft && shown === draft && CL.canEditConstructor();
+  const canPub = !!draft && CL.canEditConstructor();
+  let tab = st.clfTab || 'values';
+  if(tab === 'pub' && !canPub) tab = 'values';
 
   const scope = (shown.scope || []).length
     ? shown.scope.map(p => { const i = CL.ind(p.i) || {name:p.i};
         return `<code class="mono">${esc(i.name)}</code> ${p.op} <code class="mono">${esc(shownVal(p.v))}</code>`; }).join(' и ')
     : 'все объекты типа «' + clf.object + '»';
 
-  return `<div class="cols">
-    <div class="side">
-      <div class="card"><h3>Классификаторы</h3>${list}
-        <div class="note">Значения ведутся здесь. В разделе «Справочники» строки
-        <code>borrower-groups</code> и <code>loan-payment-capacity-groups</code> остаются
-        зеркалом на чтение: у классификации одна дверь (ADR-0125 §3).</div></div>
-      ${CL.canEditConstructor() ? `<div class="card">
-        <h3>Завести классификатор</h3>
-        <div class="fld" style="margin-bottom:8px"><label>Идентификатор</label>
-          <input id="ncId" placeholder="например: pledgeQuality"></div>
-        <div class="fld" style="margin-bottom:8px"><label>Наименование</label>
-          <input id="ncName" placeholder="Качество обеспечения"></div>
-        <div class="fld"><label>Объект классификации</label>
-          <select id="ncObj"><option>кредит</option><option>заёмщик</option></select></div>
-        <button class="btn btn-primary" style="margin-top:10px" onclick="CL.addClassifierUI()">Завести</button>
-        <div class="note">Четвёртая классификация появляется <b>настройкой, а не релизом</b>
-          (ADR-0120): новый классификатор открывается пустым черновиком и до публикации
-          никого не классифицирует. Объект задаётся здесь и потом не меняется — сменить его
-          значило бы обессмыслить уже сделанные записи фиксации.</div>
-      </div>` : ''}
+  /* Переключатель редакций — не «история», а рабочий выбор: одна и та же карточка показывает
+     черновик, действующую и прошлые, и по прошлой видно, чем именно посчитан закрытый период (ИК-8). */
+  const switcher = `<div class="chips">${clf.versions.slice().sort((a, b) => b.no - a.no)
+    .map(v => `<span class="chip${v === shown ? ' on' : ''}" onclick="CL.showVer(${v.no})">редакция ${v.no} · ${v.status}</span>`)
+    .join('')}</div>`;
+
+  const tabBtn = (k, label) => `<button class="tab${tab === k ? ' on' : ''}" onclick="CL.tab('${k}')">${label}</button>`;
+  const body = tab === 'pub' ? tabPublication(clf, draft)
+             : tab === 'journal' ? tabJournal(clf)
+             : tabValues(clf, shown, editable);
+
+  return `<div class="card">
+    <h3>${esc(clf.name)} <span class="small">· объект: ${clf.object} · <code class="mono">${esc(clf.id)}</code></span></h3>
+    ${readOnlyBanner('редакции классификатора')}
+    ${clf.stopped ? `<div class="banner warn"><b>Действие прекращено ${fmt(clf.stopped.until)}</b> —
+      ${esc(clf.stopped.reason)} <span class="small">(${esc(clf.stopped.by)}, ${fmt(clf.stopped.at)})</span>.
+      Классификатор значений не назначает; записи закрытых периодов читаются по своим редакциям
+      и остаются на месте — классификатор не удаляется никогда (ИК-19). Возобновляет его
+      публикация новой редакции.</div>` : ''}
+    ${switcher}
+    <div class="kv">
+      <div class="k">Показана редакция</div><div class="v">${shown.no} ${verPill(shown)}</div>
+      <div class="k">Основание</div><div class="v">${esc(shown.basis || '— (черновик)')}</div>
+      <div class="k">Действует</div><div class="v">${shown.from ? fmt(shown.from) : '—'}${
+        shown.until ? ' — ' + fmt(shown.until) : (shown.status === 'действующая' ? ' — по настоящее время' : '')}</div>
+      <div class="k">Ввёл в действие</div><div class="v">${esc(shown.by || '—')}${shown.at ? ', ' + fmt(shown.at) : ''}</div>
+      <div class="k">Область (условие входа)</div><div class="v">${scope}</div>
+      <div class="k">Значения сравнимы по тяжести</div><div class="v">
+        ${shown.comparable ? 'да' : 'нет'}
+        ${editable ? `<button class="btn btn-secondary btn-sm" style="margin-left:8px"
+            onclick="act(CL.setComparable('${clf.id}', ${!shown.comparable}))">переключить</button>` : ''}
+        <div class="small">${shown.comparable
+          ? 'разбор идёт от тяжёлого, свёртка worst-of на заёмщика разрешена (ИК-6)'
+          : 'порядок разбора тяжести не означает — свернуть такие значения нельзя (ИК-6)'}</div></div>
     </div>
-    <div class="body">
-      <div class="card">
-        <h3>${esc(clf.name)} <span class="small">· объект: ${clf.object}</span></h3>
-        ${clf.stopped ? `<div class="banner warn"><b>Действие прекращено ${fmt(clf.stopped.until)}</b> —
-          ${esc(clf.stopped.reason)} <span class="small">(${esc(clf.stopped.by)}, ${fmt(clf.stopped.at)})</span>.
-          Классификатор значений не назначает; записи закрытых периодов читаются по своим редакциям
-          и остаются на месте — классификатор не удаляется никогда (ИК-19). Возобновляет его
-          публикация новой редакции.</div>` : ''}
-        <div class="kv">
-          <div class="k">Показана редакция</div><div class="v">${shown.no} ${verPill(shown)}</div>
-          <div class="k">Основание</div><div class="v">${esc(shown.basis || '— (черновик)')}</div>
-          <div class="k">Действует с</div><div class="v">${shown.from ? fmt(shown.from) : '—'}</div>
-          <div class="k">Ввёл в действие</div><div class="v">${esc(shown.by || '—')}${shown.at ? ', ' + fmt(shown.at) : ''}</div>
-          <div class="k">Область (условие входа)</div><div class="v">${scope}</div>
-          <div class="k">Значения сравнимы по тяжести</div><div class="v">
-            ${shown.comparable ? 'да' : 'нет'}
-            ${editable ? `<button class="btn btn-secondary btn-sm" style="margin-left:8px"
-                onclick="act(CL.setComparable('${clf.id}', ${!shown.comparable}))">переключить</button>` : ''}
-            <div class="small">${shown.comparable
-              ? 'разбор идёт от тяжёлого, свёртка worst-of на заёмщика разрешена (ИК-6)'
-              : 'порядок разбора тяжести не означает — свернуть такие значения нельзя (ИК-6)'}</div></div>
-        </div>
-        <div class="btn-row">
-          ${draft ? '' : `<button class="btn btn-primary" onclick="act(CL.newDraft('${clf.id}'),'заведена новая редакция — правьте черновик')">Новая редакция</button>`}
-          ${active && CL.canEditConstructor()
-            ? `<button class="btn btn-danger" onclick="CL.stopUI('${clf.id}')">Прекратить действие</button>` : ''}
-        </div>
-        <div class="note">${draft
-          ? 'Действующая редакция не правится: правки идут в черновик и вступают в силу публикацией (ИК-2).'
-          : 'Правка действующей редакции невозможна. «Новая редакция» откроет черновик — копию действующей.'}</div>
-      </div>
-
-      <div class="card">
-        <h3>Значения и условия — в порядке разбора</h3>
-        ${shown.values.map((v, i) => valueHtml(clf.id, shown, v, i, editable)).join('')}
-        ${editable ? `<div class="btn-row">
-          <input id="newVal" placeholder="наименование значения" style="height:36px;min-width:260px;border:1px solid var(--border-strong);border-radius:4px;padding:0 10px">
-          <button class="btn btn-secondary" onclick="CL.addValueUI('${clf.id}')">+ значение</button></div>` : ''}
-        <div class="note">Объекту присваивается <b>первое значение</b>, у которого сработало хотя бы одно
-        условие; внутри значения проверяются все условия, и в объяснение уходят все сработавшие (ИК-11).
-        Условие — конъюнкция скалярных предикатов над показателями реестра: свободных формул,
-        скриптов и обращений к таблицам в конструкторе нет (ADR-0120, ADR-0125 §1).</div>
-      </div>
-
-      ${draft ? `<div class="card">
-        <h3>Публикация редакции ${draft.no}</h3>
-        <div class="form-row">
-          <div class="fld"><label>Основание (норма и редакция)</label>
-            <input id="pubBasis" value="${esc(draft.basis)}" oninput="CL.metaUI('${clf.id}')"
-              placeholder="например: Порядок №41 от 06.07.2026, п. 11"></div>
-          <div class="fld"><label>Дата ввода в действие</label>
-            <input id="pubFrom" type="date" value="${esc(draft.from)}" oninput="CL.metaUI('${clf.id}')"></div>
-          <button class="btn btn-success" onclick="CL.publishUI('${clf.id}')">Ввести в действие</button>
-        </div>
-        <div id="pubRefusals">${pubBanner(refusals)}</div>
-        <div class="note">Отказ не молчит и не копится по одному: перечисляются все причины сразу (§0.3).
-        Список пересчитывается по мере заполнения полей, а кнопка не гаснет: причину обязано быть
-        видно, а не угадывать по недоступной кнопке (КФ-Д6).
-        Дата ввода в действие может быть в прошлом, но не раньше начала открытого периода — иначе
-        версия дотянулась бы до зафиксированного; и не позже сегодняшнего дня — публикация вводит
-        редакцию в действие немедленно, отложенного пуска в модели нет (ИК-4).</div>
-      </div>` : ''}
-
-      ${draft ? dryRunCard(clf.id) : ''}
-
-      <div class="card">
-        <h3>Журнал редакций</h3>
-        <table class="cgrid"><thead><tr><th>№</th><th>Статус</th><th>Основание</th>
-          <th>Действует</th><th>Кто ввёл</th><th>Значений</th></tr></thead>
-          <tbody>${journal}</tbody></table>
-        <div class="note">Запись фиксации ссылается на конкретную редакцию, а не на «текущую»:
-        поэтому июнь читается по редакции 1, даже когда действует редакция 2 (ИК-8).</div>
-      </div>
-    </div></div>`;
+    ${CL.canEditConstructor() ? `<div class="btn-row">
+      ${draft ? '' : `<button class="btn btn-primary" onclick="act(CL.newDraft('${clf.id}'),'заведена новая редакция — правьте черновик')">Новая редакция</button>`}
+      ${active ? `<button class="btn btn-danger" onclick="CL.stopUI('${clf.id}')">Прекратить действие</button>` : ''}
+    </div>` : ''}
+    <div class="note">${draft
+      ? 'Действующая редакция не правится: правки идут в черновик и вступают в силу публикацией (ИК-2).'
+      : 'Правка действующей редакции невозможна. «Новая редакция» откроет черновик — копию действующей.'}
+      Прекращение действия живёт только здесь, в карточке: необратимую операцию нельзя вешать на
+      строку списка, где её нажимают мимоходом (ИК-19).</div>
+  </div>
+  <div class="tabs">
+    ${tabBtn('values', 'Значения и условия')}
+    ${canPub ? tabBtn('pub', 'Публикация редакции ' + draft.no) : ''}
+    ${tabBtn('journal', 'Журнал редакций')}
+  </div>
+  ${body}`;
 }
-CL.pick = id => { CL.state.curClf = id; render(); };
+
+function tabValues(clf, shown, editable){
+  return `<div class="card">
+    <h3>Значения и условия — в порядке разбора <span class="small">· редакция ${shown.no}, ${shown.status}</span></h3>
+    ${shown.values.length ? shown.values.map((v, i) => valueHtml(clf.id, shown, v, i, editable)).join('')
+      : '<div class="banner warn">Значений нет: пока список пуст, редакция не публикуется и никого не классифицирует (ИК-3).</div>'}
+    ${editable ? `<div class="btn-row">
+      <input id="newVal" placeholder="наименование значения" style="height:36px;min-width:260px;border:1px solid var(--border-strong);border-radius:4px;padding:0 10px">
+      <button class="btn btn-secondary" onclick="CL.addValueUI('${clf.id}')">+ значение</button></div>` : ''}
+    <div class="note">Объекту присваивается <b>первое значение</b>, у которого сработало хотя бы одно
+    условие; внутри значения проверяются все условия, и в объяснение уходят все сработавшие (ИК-11).
+    Условие — конъюнкция скалярных предикатов над показателями реестра: свободных формул,
+    скриптов и обращений к таблицам в конструкторе нет (ADR-0120, ADR-0125 §1).</div>
+  </div>`;
+}
+
+/* Вкладка публикации существует только у черновика и только у администратора: у остальных
+   её нет в ряду вкладок вовсе — пустая вкладка «нельзя» ничего не объясняет. */
+function tabPublication(clf, draft){
+  const refusals = CL.publishChecks(clf.id, draft);
+  return `<div class="card">
+    <h3>Публикация редакции ${draft.no}</h3>
+    <div class="form-row">
+      <div class="fld"><label>Основание (норма и редакция)</label>
+        <input id="pubBasis" value="${esc(draft.basis)}" oninput="CL.metaUI('${clf.id}')"
+          placeholder="например: Порядок №41 от 06.07.2026, п. 11"></div>
+      <div class="fld"><label>Дата ввода в действие</label>
+        <input id="pubFrom" type="date" value="${esc(draft.from)}" oninput="CL.metaUI('${clf.id}')"></div>
+      <button class="btn btn-success" onclick="CL.publishUI('${clf.id}')">Ввести в действие</button>
+    </div>
+    <div id="pubRefusals">${pubBanner(refusals)}</div>
+    <div class="note">Отказ не молчит и не копится по одному: перечисляются все причины сразу (§0.3).
+    Список пересчитывается по мере заполнения полей, а кнопка не гаснет: причину обязано быть
+    видно, а не угадывать по недоступной кнопке (КФ-Д6).
+    Дата ввода в действие может быть в прошлом, но не раньше начала открытого периода — иначе
+    версия дотянулась бы до зафиксированного; и не позже сегодняшнего дня — публикация вводит
+    редакцию в действие немедленно, отложенного пуска в модели нет (ИК-4).</div>
+  </div>
+  ${dryRunCard(clf.id)}`;
+}
+
+function tabJournal(clf){
+  const journal = clf.versions.slice().sort((a, b) => b.no - a.no).map(v => `
+    <tr class="pick" onclick="CL.showVer(${v.no})"><td><b>${v.no}</b></td><td>${verPill(v)}</td>
+      <td>${esc(v.basis || '—')}</td>
+      <td>${v.from ? fmt(v.from) : '—'}${v.until ? ' — ' + fmt(v.until) : ''}</td>
+      <td>${esc(v.by || '—')}${v.at ? '<div class="small">' + fmt(v.at) + '</div>' : ''}</td>
+      <td>${v.values.length}</td></tr>`).join('');
+  return `<div class="card">
+    <h3>Журнал редакций</h3>
+    <table class="cgrid"><thead><tr><th>№</th><th>Статус</th><th>Основание</th>
+      <th>Действует</th><th>Кто ввёл</th><th>Значений</th></tr></thead>
+      <tbody>${journal}</tbody></table>
+    <div class="note">Запись фиксации ссылается на конкретную редакцию, а не на «текущую»:
+    поэтому июнь читается по редакции 1, даже когда действует редакция 2 (ИК-8). Строка журнала
+    открывает свою редакцию на вкладке значений — прошлое читается, но не правится (ИК-2).</div>
+  </div>`;
+}
+
+CL.pick = id => CL.open(id);          /* прежнее имя перехода — карточка одна и та же */
 CL.addValueUI = clfId => {
   const el = $('#newVal');
   const label = el && el.value.trim();
@@ -1519,7 +1685,7 @@ CL.publishUI = clfId => {
   const basis = ($('#pubBasis') || {}).value || '';
   const from = ($('#pubFrom') || {}).value || '';
   const res = CL.publish(clfId, {basis, from});
-  if(res.ok){ toast('редакция ' + res.no + ' введена в действие', 'ok'); render(); }
+  if(res.ok){ CL.state.clfVer = null; CL.state.clfTab = 'values'; toast('редакция ' + res.no + ' введена в действие', 'ok'); render(); }
   else { toast(res.refusals[0], 'err'); render(); }
 };
 CL.metaUI = clfId => {
@@ -1527,12 +1693,6 @@ CL.metaUI = clfId => {
     from:(($('#pubFrom') || {}).value || '')});
   const el = $('#pubRefusals');
   if(el) el.innerHTML = pubBanner(CL.publishChecks(clfId, CL.draftVer(clfId)));
-};
-CL.addClassifierUI = () => {
-  const g = id => (($('#' + id) || {}).value || '').trim();
-  const res = CL.addClassifier({id:g('ncId'), name:g('ncName'), object:g('ncObj')});
-  if(res.ok) CL.state.curClf = res.id;
-  act(res, 'классификатор заведён — редакция 1 открыта черновиком');
 };
 CL.stopUI = clfId => {
   const clf = CL.clf(clfId);
@@ -1558,7 +1718,7 @@ CL.stopUI = clfId => {
 CL.stopDo = clfId => {
   const res = CL.stopClassifier(clfId, {until:(($('#stopUntil') || {}).value || ''),
     reason:(($('#stopReason') || {}).value || '')});
-  if(res.ok) closeModal();
+  if(res.ok){ closeModal(); CL.state.clfVer = null; }
   act(res, 'действие классификатора прекращено');
 };
 
@@ -1606,59 +1766,142 @@ function dryRunCard(clfId){
   </div>`;
 }
 
-/* ------------------------ ЭКРАН: ПОКАЗАТЕЛИ ------------------------- */
+/* ------------------------ ЭКРАН: ПОКАЗАТЕЛИ -------------------------
+ * Тот же разворот, что у классификаторов: список отвечает «что есть и кто это считает»,
+ * карточка — «где это используется и можно ли снять» (ИК-16).
+ * ------------------------------------------------------------------- */
 function viewIndicators(){
-  const rows = CL.state.indicators.map(i => {
+  return CL.state.curInd ? indDetail(CL.state.curInd) : indList();
+}
+CL.indShown = () => {
+  const st = CL.state;
+  const q = (st.indQ || '').trim().toLowerCase();
+  return st.indicators.filter(i =>
+    (st.indObj === 'все' || i.obj === st.indObj) &&
+    (!q || i.name.toLowerCase().includes(q) || i.id.toLowerCase().includes(q)));
+};
+CL.indRowsHtml = () => {
+  const list = CL.indShown();
+  if(!list.length) return `<tr><td colspan="7" class="muted">по этому запросу показателей нет</td></tr>`;
+  return list.map(i => {
     const used = CL.usedBy(i.id);
-    return `<tr${i.retired ? ' class="out"' : ''}>
-      <td class="mono">${esc(i.id)}</td>
-      <td>${esc(i.name)}${i.note ? '<div class="small">' + esc(i.note) + '</div>' : ''}</td>
+    return `<tr class="pick${i.retired ? ' out' : ''}" onclick="CL.openInd('${i.id}')">
+      <td><span class="rowname">${esc(i.name)}</span><div class="small mono">${esc(i.id)}</div></td>
       <td>${esc(i.obj)}</td>
       <td>${esc(i.type)}${i.domain ? '<div class="small">' + i.domain.map(esc).join(' · ') + '</div>' : ''}</td>
       <td>${esc(i.src)}</td>
       <td>${esc(i.owner)}</td>
-      <td>${used.length ? used.map(u => esc(u.clf) + ' <span class="small">ред. ' + u.verNo + ', ' + esc(u.where) + '</span>').join('<br>') : '<span class="muted">не используется</span>'}</td>
-      <td>${i.retired ? '<span class="pill neutral">снят</span>'
-        : `<button class="btn btn-secondary btn-sm" onclick="act(CL.retireIndicator('${i.id}'),'показатель снят')">снять</button>`}</td></tr>`;
+      <td class="mono">${used.length}</td>
+      <td>${i.retired ? '<span class="pill neutral">снят</span>' : '<span class="pill ok">в реестре</span>'}</td></tr>`;
   }).join('');
+};
+function indList(){
+  const st = CL.state;
+  const objChip = o => `<span class="chip${st.indObj === o ? ' on' : ''}" onclick="CL.indObjUI('${o}')">${o}</span>`;
   return `<p class="page-lead">Показатель — именованный вход классификатора, а не поле объекта.
     Реестр хранит имя, тип, объект, источник и владельца; способа вычисления в нём нет — он у
     владельца данных (ADR-0120 §1–2).</p>
-    <div class="card">
-      <h3>Реестр показателей</h3>
-      <table class="cgrid"><thead><tr><th>Идентификатор</th><th>Наименование</th><th>Объект</th>
-        <th>Тип</th><th>Источник</th><th>Владелец</th><th>Используется</th><th></th></tr></thead>
-        <tbody>${rows}</tbody></table>
-      <div class="note">Показатели-перечисления <code>procKind</code>, <code>roleEnd</code> и
-        <code>overdueLayer</code> уже свернули коллекцию связанных записей (процедуры, события роли,
-        слои требования) — поэтому предикат остаётся скалярным и квантора в конструкторе нет
-        (ADR-0125 §1).</div>
-      <div class="note">Пара <code>daysOverdue</code> + <code>overdueLayer</code> считается платежами
-        одним расчётом и публикуется вместе: одно число без имени слоя показывать нельзя — заёмщик,
-        честно платящий по мировому соглашению, увидел бы чужую просрочку без пояснения (ИК-18).</div>
-      <div class="note">Снять показатель, на который ссылается действующая редакция, нельзя (ИК-16):
-        правило осталось бы без входа. Сначала новая редакция без него — потом снятие.</div>
+    ${readOnlyBanner('реестр показателей')}
+    <div class="toolbar">
+      ${CL.canEditConstructor() ? '<button class="btn btn-primary" onclick="CL.newIndUI()">+ Показатель</button>' : ''}
+      <input type="search" id="indQ" value="${esc(st.indQ)}" oninput="CL.indSearch(this.value)"
+        placeholder="поиск по наименованию или идентификатору">
+      <span class="chips">${objChip('все')}${objChip('кредит')}${objChip('заёмщик')}</span>
+      <span class="small" id="indCount">показано ${CL.indShown().length} из ${st.indicators.length}</span>
     </div>
-    <div class="card">
-      <h3>Завести показатель</h3>
+    <table class="cgrid"><thead><tr><th>Наименование</th><th>Объект</th><th>Тип</th>
+      <th>Источник</th><th>Владелец</th><th>Исп.</th><th>Состояние</th></tr></thead>
+      <tbody id="indRows">${CL.indRowsHtml()}</tbody></table>
+    <div class="note">Колонка «исп.» считает живые редакции, которые на показатель ссылаются;
+      где именно — видно в карточке. Владелец отвечает на вопрос «кому писать, если величина врёт»,
+      и потому обязателен (ADR-0120 §2).</div>
+    <div class="note">Показатели-перечисления <code>procKind</code>, <code>roleEnd</code> и
+      <code>overdueLayer</code> уже свернули коллекцию связанных записей (процедуры, события роли,
+      слои требования) — поэтому предикат остаётся скалярным и квантора в конструкторе нет
+      (ADR-0125 §1).</div>
+    <div class="note">Пара <code>daysOverdue</code> + <code>overdueLayer</code> считается платежами
+      одним расчётом и публикуется вместе: одно число без имени слоя показывать нельзя — заёмщик,
+      честно платящий по мировому соглашению, увидел бы чужую просрочку без пояснения (ИК-18).</div>`;
+}
+/* Поиск перерисовывает ТОЛЬКО строки таблицы: полный render() на каждом нажатии клавиши
+   отобрал бы у поля фокус — тот же приём, что у списка отказов публикации (КФ-Д6). */
+CL.indSearch = v => {
+  CL.state.indQ = v;
+  const t = $('#indRows'); if(t) t.innerHTML = CL.indRowsHtml();
+  const c = $('#indCount');
+  if(c) c.textContent = 'показано ' + CL.indShown().length + ' из ' + CL.state.indicators.length;
+};
+CL.indObjUI = o => { CL.state.indObj = o; render(); };
+
+function indDetail(indId){
+  const ind = CL.ind(indId);
+  if(!ind){ CL.state.curInd = null; return indList(); }
+  const used = CL.usedBy(indId);
+  const live = used.filter(u => u.status === 'действующая');
+  const rows = used.length ? used.map(u => `<tr>
+      <td>${esc(u.clf)}</td><td>редакция ${u.verNo}</td>
+      <td>${u.status === 'действующая' ? '<span class="pill ok">действующая</span>' : '<span class="pill warn">черновик</span>'}</td>
+      <td>${esc(u.where)}</td></tr>`).join('')
+    : `<tr><td colspan="4" class="muted">ни одна живая редакция на показатель не ссылается</td></tr>`;
+  return `<div class="card">
+    <h3>${esc(ind.name)} <span class="small">· <code class="mono">${esc(ind.id)}</code></span></h3>
+    ${readOnlyBanner('реестр показателей')}
+    <div class="kv">
+      <div class="k">Объект</div><div class="v">${esc(ind.obj)}</div>
+      <div class="k">Тип</div><div class="v">${esc(ind.type)}</div>
+      <div class="k">Домен</div><div class="v">${ind.domain ? ind.domain.map(esc).join(' · ') : '<span class="muted">не перечисление</span>'}</div>
+      <div class="k">Источник</div><div class="v">${esc(ind.src)}</div>
+      <div class="k">Владелец (кто считает)</div><div class="v">${esc(ind.owner)}</div>
+      <div class="k">Состояние</div><div class="v">${ind.retired ? '<span class="pill neutral">снят с реестра</span>' : '<span class="pill ok">в реестре</span>'}</div>
+    </div>
+    ${ind.note ? '<div class="note">' + esc(ind.note) + '</div>' : ''}
+  </div>
+  <div class="card">
+    <h3>Где используется</h3>
+    <table class="cgrid"><thead><tr><th>Классификатор</th><th>Редакция</th><th>Статус</th><th>Где</th></tr></thead>
+      <tbody>${rows}</tbody></table>
+    ${ind.retired ? '' : (live.length
+      ? `<div class="banner danger" style="margin-top:12px"><b>Снять с реестра нельзя — ${live.length}:</b>
+          <ul>${live.map(u => '<li>' + esc(u.clf) + ', редакция ' + u.verNo + ' (' + esc(u.where) + ')</li>').join('')}</ul>
+          Сначала новая редакция без этого показателя — потом снятие (ИК-16).</div>`
+      : `<div class="banner ok" style="margin-top:12px">Действующие редакции на показатель не ссылаются — снять можно.</div>`)}
+    ${!ind.retired && CL.canEditConstructor() ? `<div class="btn-row">
+      <button class="btn btn-danger" onclick="act(CL.retireIndicator('${ind.id}'),'показатель снят с реестра')">Снять с реестра</button>
+    </div>` : ''}
+    <div class="note">Снять показатель, на который ссылается действующая редакция, нельзя (ИК-16):
+      правило осталось бы без входа. Причина названа списком до нажатия, а кнопка не гаснет — отказ
+      обязан быть читаемым, а не угадываемым (§0.3, КФ-Д6).</div>
+  </div>`;
+}
+CL.newIndUI = () => {
+  openModal(`<div class="modal-h"><span class="mt">Завести показатель</span>
+      <button class="modal-x" onclick="closeModal()">✕</button></div>
+    <div class="modal-b">
+      <p class="small">Владелец обязателен: реестр хранит имя того, кто считает величину, и не хранит
+        способ вычисления. Домен перечисления заводится вместе с показателем — предикат сравнивает
+        значение с элементом домена, а не со свободной строкой.</p>
+      <div class="fld" style="margin-bottom:10px"><label>Идентификатор</label>
+        <input id="niId" placeholder="например: pledgeCover"></div>
+      <div class="fld" style="margin-bottom:10px"><label>Наименование</label>
+        <input id="niName" placeholder="Покрытие залогом ниже порога"></div>
       <div class="form-row">
-        <div class="fld"><label>Идентификатор</label><input id="niId" placeholder="например: pledgeCover"></div>
-        <div class="fld"><label>Наименование</label><input id="niName" placeholder="Покрытие залогом ниже порога"></div>
         <div class="fld"><label>Объект</label><select id="niObj"><option>кредит</option><option>заёмщик</option></select></div>
         <div class="fld"><label>Тип</label><select id="niType"><option>булево</option><option>число</option><option>перечисление</option></select></div>
         <div class="fld"><label>Владелец (кто считает)</label><input id="niOwner" placeholder="например: Залог"></div>
-        <button class="btn btn-primary" onclick="CL.addIndicatorUI()">Завести</button>
       </div>
-      <div class="note">Владелец обязателен: реестр хранит имя того, кто считает величину, и не хранит
-        способ вычисления. Домен перечисления заводится вместе с показателем — предикат сравнивает
-        значение с элементом домена, а не со свободной строкой.</div>
-    </div>`;
-}
+    </div>
+    <div class="modal-f">
+      <button class="btn btn-secondary" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="CL.addIndicatorUI()">Завести</button>
+    </div>`);
+};
 CL.addIndicatorUI = () => {
   const g = id => (($('#' + id) || {}).value || '').trim();
   const type = g('niType');
-  act(CL.addIndicator({id:g('niId'), name:g('niName'), obj:g('niObj'), type,
-    domain: type === 'перечисление' ? ['нет','да'] : null, owner:g('niOwner')}), 'показатель заведён');
+  const res = CL.addIndicator({id:g('niId'), name:g('niName'), obj:g('niObj'), type,
+    domain: type === 'перечисление' ? ['нет','да'] : null, owner:g('niOwner')});
+  if(res.ok) closeModal();
+  act(res, 'показатель заведён');
 };
 
 /* --------------------------- ЭКРАН: ФАКТЫ --------------------------- */

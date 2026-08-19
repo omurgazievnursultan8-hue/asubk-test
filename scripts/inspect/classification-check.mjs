@@ -381,11 +381,101 @@ const cred = id => CL.classify('risk', 'кредит', id);
     `новый классификатор доведён до действия: реквизиты пишутся в черновик (отказов было ${beforeMeta.length}, стало ${afterMeta.length}), публикация без аргументов прошла — КФ-Д6`);
 
   // Сторож разметки: кнопка публикации не гаснет от отказов, поля привязаны к черновику.
-  const card = m[1].slice(m[1].indexOf('<h3>Публикация редакции'), m[1].indexOf('<h3>Журнал редакций'));
+  const card = m[1].slice(m[1].indexOf('function tabPublication'), m[1].indexOf('function tabJournal'));
   const deadBtn = /publishUI[\s\S]{0,120}disabled/.test(card);
   const bound = /id="pubBasis"[\s\S]{0,160}oninput/.test(card) && /id="pubFrom"[\s\S]{0,160}oninput/.test(card);
   ok(54, !deadBtn && bound && /id="pubRefusals"/.test(card),
     `форма публикации: кнопка отказами не блокируется, оба поля привязаны к черновику, список отказов перерисовывается — КФ-Д6`);
+})();
+
+/* ---------- J. Экраны: список → карточка, роли, вкладки, фильтр ---------- *
+ * panelHtml() собирает ту же разметку, что видит человек, и не трогает DOM — поэтому
+ * вид экрана проверяется здесь, а не только глазами в браузере.
+ * ------------------------------------------------------------------------- */
+(() => {
+  CL.seed();
+  const listHtml = CL.panelHtml();
+  const rowsForAll = CL.state.classifiers.every(c => listHtml.includes(`CL.open('${c.id}')`));
+  const listIsList = !listHtml.includes('<h3>Значения и условия') && !listHtml.includes('Прекратить действие');
+  CL.open('risk');
+  const cardHtml = CL.panelHtml();
+  const inCard = cardHtml.includes('Значения и условия') && cardHtml.includes('Журнал редакций') &&
+                 cardHtml.includes('Прекратить действие') && CL.deepName() === 'Категория кредитного риска';
+  CL.back();
+  ok(55, rowsForAll && listIsList && inCard && CL.state.curClf === null &&
+        CL.panelHtml().includes('<th>Состояние</th>'),
+    `экран разведён: список открывает карточку по строке, карточка несёт значения, журнал и прекращение действия, крошка возвращает в список`);
+
+  // Роль без права правки: кнопок настройки нет вовсе, строка называет того, кто правит.
+  CL.state.role = 'Наблюдатель';
+  const roList = CL.panelHtml();
+  CL.open('risk');
+  const roCard = CL.panelHtml();
+  // Кнопок настройки в разметке нет вовсе: остаются только вкладки (переход, а не правка).
+  const btns = roCard.match(/<button[^>]*>/g) || [];
+  const onlyNav = btns.every(b => /class="tab/.test(b));
+  const noEdit = onlyNav && !roCard.includes('act(CL.') && !roCard.includes('CL.stopUI') &&
+                 !/<button/.test(roList);
+  const named = roCard.includes('Только просмотр') && roCard.includes('Администратор классификации');
+  const noDisabled = !/<button[^>]*disabled/.test(roCard);
+  ok(56, noEdit && named && noDisabled,
+    `роль «Наблюдатель»: в карточке ${btns.length} кнопок и все — вкладки, в списке ни одной; названа роль, которая правит; погашенных нет — §0.3`);
+})();
+
+(() => {
+  CL.seed();
+  // Вкладка публикации есть только у черновика и только у администратора.
+  CL.open('risk');                       // действующая ред. 2, черновика нет
+  const noPub = !CL.panelHtml().includes('Публикация редакции');
+  CL.open('pay');                        // только черновик, ред. 1
+  const withPub = CL.panelHtml().includes('Публикация редакции 1');
+  CL.state.clfTab = 'pub';
+  const pubTab = CL.panelHtml().includes('id="pubBasis"') && CL.panelHtml().includes('Сухой прогон черновика');
+  CL.state.role = 'Наблюдатель';
+  const roNoPub = !CL.panelHtml().includes('id="pubBasis"');   // вкладка снята, экран не пуст
+  const roValues = CL.panelHtml().includes('Значения и условия');
+  ok(57, noPub && withPub && pubTab && roNoPub && roValues,
+    `вкладка публикации: есть у черновика администратора, нет у действующей редакции и нет у наблюдателя — вместо неё значения, а не пустой экран`);
+})();
+
+(() => {
+  CL.seed();
+  CL.go('ind');
+  const all = CL.indShown().length;
+  CL.state.indQ = 'просроч';
+  const byName = CL.indShown();
+  CL.state.indQ = '';
+  CL.state.indObj = 'заёмщик';
+  const byObj = CL.indShown();
+  const allBorrower = byObj.every(i => i.obj === 'заёмщик');
+  CL.state.indObj = 'все';
+  const listHtml = CL.panelHtml();
+  ok(58, all === CL.state.indicators.length && byName.length > 0 && byName.length < all &&
+        byObj.length > 0 && byObj.length < all && allBorrower &&
+        listHtml.includes('id="indRows"') && listHtml.includes('CL.indSearch(this.value)'),
+    `реестр показателей: поиск сужает ${all} → ${byName.length}, фильтр по объекту → ${byObj.length}; строки перерисовываются точечно, фокус поиска не теряется — КФ-Д6`);
+
+  // Карточка показателя: где используется + отказ снятия списком, кнопка не гаснет.
+  CL.openInd('daysOverdue');
+  const used = CL.usedBy('daysOverdue').filter(u => u.status === 'действующая');
+  const card = CL.panelHtml();
+  const shows = card.includes('Где используется') && used.every(u => card.includes(u.clf));
+  const refusesByList = card.includes('Снять с реестра нельзя') && card.includes('ИК-16');
+  const liveBtn = card.includes('CL.retireIndicator(') && !/<button[^>]*disabled[^>]*>\s*Снять/.test(card);
+  CL.openInd('oldRating');                      // снятый — кнопки снятия нет вовсе
+  const retired = CL.panelHtml().includes('снят с реестра') && !CL.panelHtml().includes('CL.retireIndicator(');
+  ok(59, shows && refusesByList && liveBtn && retired && used.length > 0,
+    `карточка показателя: «Где используется» ${used.length} живых ссылок, снятие отказывает списком до нажатия, кнопка не блокируется — ИК-16`);
+})();
+
+(() => {
+  CL.seed();
+  const notes = (src.match(/class="note"/g) || []).length;
+  const off = /\.notes-off \.note\{ display:none; \}/.test(src);
+  const wired = m[1].includes("'panel-wrap' + (st.notes ? '' : ' notes-off')") &&
+                m[1].includes('CL.toggleNotes');
+  ok(60, CL.state.notes === false && off && wired && notes >= 15,
+    `пояснения: ${notes} блоков живы в разметке, по умолчанию свёрнуты тумблером в шапке — экран читается, объяснение доступно`);
 })();
 
 /* ---------- G. Сторож текста: инварианты и решения названы в файле ---------- */
