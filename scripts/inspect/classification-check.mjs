@@ -1,4 +1,4 @@
-// Headless smoke для mockups/classification/classification.html (ИК-1…ИК-21, ADR-0120…0137).
+// Headless smoke для mockups/classification/classification.html (ИК-1…ИК-22, ADR-0120…0137).
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, конструктора, фактов, шва и фиксации, а не разметка.
@@ -627,13 +627,118 @@ const draftOf = clfId => { CL.newDraft(clfId); return CL.draftVer(clfId); };
     `связки написаны словом: «или» между блоками ${ors} раз, «и» между предикатами ${ands} раз, у значения — фраза о связке; область правится на том же экране — КФ-Д7, КФ-Д8`);
 })();
 
+/* ---------- H. Волна 5: девять дефектов ручного прогона (КФ-Д9…КФ-Д17) ---------- */
+(() => {
+  CL.seed();
+  // КФ-Д12: редакция задним числом раньше действующей — отказ, а не отрицательный интервал.
+  const cur = CL.activeVer('risk');
+  const d = draftOf('risk');
+  d.basis = 'Порядок №41 от 06.07.2026, п. 11';
+  const refus = CL.publishChecks('risk', Object.assign(d, { from: '2026-07-02' }));
+  const res = CL.publish('risk', { basis: d.basis, from: '2026-07-02' });
+  const after = CL.activeVer('risk');
+  ok(74, cur.from === '2026-07-06' && refus.length === 1 &&
+       has(refus, 'не позже начала действующей редакции 2 от 06.07.2026') && !res.ok &&
+       after === cur && cur.until === null,
+    `дата ввода 02.07.2026 раньше действующей ред. 2 от 06.07.2026 отклонена: «${refus[0]}» — отрицательного интервала действия и двух действующих редакций сразу нет (ИК-22, КФ-Д12)`);
+
+  // КФ-Д17: согласование числительного при одном отказе.
+  CL.state.curClf = 'risk'; CL.state.clfTab = 'pub'; CL.state.view = 'clf';
+  const pub = CL.panelHtml();
+  ok(83, /держит\s+1\s+отказ\s+выше/.test(pub) && !/1 отказов/.test(pub),
+    `один отказ пишется «держит 1 отказ выше», а не «держат 1 отказов» — КФ-Д17`);
+})();
+
+(() => {
+  CL.seed();
+  // КФ-Д13: домен перечисления заводится вместе с показателем и приходит с экрана.
+  const base = { obj: 'кредит', type: 'перечисление', owner: 'Залог' };
+  const noDom = CL.addIndicator({ ...base, id: 'x1', name: 'X1', domain: [] });
+  const one   = CL.addIndicator({ ...base, id: 'x2', name: 'X2', domain: ['полное'] });
+  const dup   = CL.addIndicator({ ...base, id: 'x3', name: 'X3', domain: ['полное', 'полное'] });
+  const good  = CL.addIndicator({ ...base, id: 'pledgeLevel', name: 'Уровень покрытия залогом',
+    domain: ['полное', ' частичное ', 'отсутствует'] });
+  const stray = CL.addIndicator({ id: 'x4', name: 'X4', obj: 'кредит', type: 'булево',
+    domain: ['да', 'нет'], owner: 'Залог' });
+  const dom = (CL.ind('pledgeLevel') || {}).domain || [];
+  ok(75, !noDom.ok && !one.ok && !dup.ok && !stray.ok && good.ok &&
+       dom.length === 3 && dom[1] === 'частичное' && /id="niDomain"/.test(src) &&
+       !/domain: type === 'перечисление' \? \['нет','да'\]/.test(src),
+    `перечисление без домена, с одним членом и с повтором не заводится; домен читается с экрана (#niDomain), а не подставляется кодом: «${dom.join(' · ')}» — КФ-Д13`);
+})();
+
+(() => {
+  // КФ-Д9 · КФ-Д10 · КФ-Д14 — свойства разметки и обработчиков, DOM для них не нужен.
+  const staleHandlers = (src.match(/onchange="act\(CL\.set(RuleNorm|RuleLabel)/g) || []).length;
+  const quiet = (src.match(/oninput="CL\.quiet\(/g) || []).length;
+  ok(76, staleHandlers === 0 && quiet >= 3 && /CL\.quiet = res =>/.test(src),
+    `текстовые поля правила и число предиката правятся без перерисовки панели (${quiet} поля на oninput → CL.quiet), иначе первое нажатие соседней кнопки пропадает — КФ-Д9`);
+
+  const errSlots = (src.match(/id="modalErr"/g) || []).length;
+  const modalActs = (src.match(/modalAct\(/g) || []).length;
+  const toastAbove = /#toastWrap\{[^}]*z-index:70/.test(src);
+  const overlayAt = /\.overlay\{[^}]*z-index:60/.test(src);
+  ok(77, errSlots === 4 && modalActs >= 5 && toastAbove && overlayAt,
+    `отказ печатается внутри модального окна (${errSlots} окна с блоком причины), а тост поднят над затемнением (70 > 60) — КФ-Д10`);
+
+  ok(80, /<div id="dryRun">/.test(src) && /dr\.innerHTML = dryRunCard\(clfId\)/.test(src),
+    `сухой прогон пересчитывается тем же вводом, что и список отказов — двух взаимоисключающих утверждений в одном окне не остаётся, КФ-Д14`);
+})();
+
+(() => {
+  CL.seed();
+  // КФ-Д11: набранное в форме факта живёт в состоянии и переживает перерисовку.
+  CL.state.view = 'facts';
+  CL.state.factForm = { credit: 'КД-2025/043', kind: 'f-noAct', when: '2026-08-10',
+    doc: 'протокол КАБК №11 от 10.08.2026', until: '' };
+  const h = CL.panelHtml();
+  ok(78, /<option selected>КД-2025\/043<\/option>/.test(h) &&
+       /value="f-noAct" selected/.test(h) && /id="fWhen"[^>]*value="2026-08-10"/.test(h) &&
+       /value="протокол КАБК №11 от 10\.08\.2026"/.test(h),
+    `форма факта рисуется из состояния: отказ по одному полю не стирает остальные четыре — КФ-Д11`);
+
+  // КФ-Д16: наблюдателю не показывают форму и кнопки, которых у него нет.
+  CL.seed();
+  CL.state.view = 'facts'; CL.state.role = 'Наблюдатель';
+  const obs = CL.panelHtml();
+  const insp = (CL.seed(), CL.state.view = 'facts', CL.state.role = 'Кредитный инспектор', CL.panelHtml());
+  ok(79, !/Завести факт по кредиту/.test(obs) && !/>аннулировать</.test(obs) &&
+       /Только просмотр/.test(obs) && /Завести факт по кредиту/.test(insp) && />аннулировать</.test(insp),
+    `экран фактов развёрнут по роли: у наблюдателя формы и кнопок нет вовсе, у инспектора есть — КФ-Д16`);
+})();
+
+(() => {
+  CL.seed();
+  // КФ-Д15: реестр фактов кредита не гаснет вместе со значением.
+  const f = CL.addFact({ creditId: 'КД-2026/012', kindId: 'f-nonTarget', occurred: CL.state.today,
+    doc: 'протокол КАБК №12 от 14.08.2026' });
+  CL.state.view = 'show';
+  const row = CL.panelHtml().split('<tr').find(r => r.includes('КД-2026/012'));
+  const blind = CL.classify('risk', 'кредит', 'КД-2026/012');
+  ok(81, f.ok && !blind.ok && blind.nodata === true && /значения нет/.test(row) &&
+       /Реестр фактов кредита/.test(row) && /засчитан/.test(row),
+    `у кредита без значения (${blind.why[0].slice(0, 40)}…) реестр фактов виден и факт числится засчитанным — причина отказа и судьба факта разные вопросы, КФ-Д15`);
+})();
+
+(() => {
+  CL.seed();
+  // КФ-Д17: графа «Значений» считает ту редакцию, о которой говорит графа состояния.
+  const vals = CL.activeVer('risk').values.length;
+  const stop = CL.stopClassifier('risk', { reason: 'Порядок №41 отменил классификацию по этому признаку' });
+  CL.state.view = 'clf'; CL.state.curClf = null;
+  const row = CL.panelHtml().split('<tr').find(r => r.includes('risk'));
+  ok(82, stop.ok && vals === 3 && new RegExp('<td class="mono">' + vals + '</td>').test(row) &&
+       /действие прекращено/.test(row),
+    `у прекращённого классификатора графа «Значений» показывает ${vals} — значения последней редакции, а не ноль при трёх заведённых, КФ-Д17`);
+})();
+
 /* ---------- G. Сторож текста: инварианты и решения названы в файле ---------- */
 (() => {
-  const iks = Array.from({ length: 21 }, (_, i) => 'ИК-' + (i + 1)).filter(k => !new RegExp(k + '(\\D|$)').test(src));
+  const iks = Array.from({ length: 22 }, (_, i) => 'ИК-' + (i + 1)).filter(k => !new RegExp(k + '(\\D|$)').test(src));
   const adrs = ['ADR-0120','ADR-0121','ADR-0122','ADR-0123','ADR-0124','ADR-0125','ADR-0126','ADR-0127','ADR-0137']
     .filter(a => !src.includes(a));
   ok(43, iks.length === 0 && adrs.length === 0,
-    `в файле названы все 21 инвариант и 9 решений${iks.length ? ' · нет: ' + iks.join(',') : ''}${adrs.length ? ' · нет: ' + adrs.join(',') : ''}`);
+    `в файле названы все 22 инварианта и 9 решений${iks.length ? ' · нет: ' + iks.join(',') : ''}${adrs.length ? ' · нет: ' + adrs.join(',') : ''}`);
 
   const hardcoded = /(п\.\s*11\.3|п\.\s*19\.1|исполнительные листы)/.test(
     m[1].slice(m[1].indexOf('ДВИЖОК'), m[1].indexOf('ШОВ')));
