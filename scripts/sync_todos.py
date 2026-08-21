@@ -18,6 +18,7 @@ import datetime
 import os
 import re
 import sys
+import time
 
 SHEET_KEY = "1hawaSxsCEZObOvEB-US8jztUDdSvOMGXWqY0LeeaFew"
 
@@ -234,6 +235,29 @@ def main():
     import gspread
     from google.oauth2.service_account import Credentials
 
+    # Sheets отпускает 60 записей в минуту на пользователя, а полный прогон делает по три
+    # на вкладку (resize + clear + update) плюс штамп и форматирование — на 22 вкладках это
+    # ~68 запросов, и прогон стабильно упирался в 429 где-то на двадцатой. Держим темп сами и
+    # повторяем те записи, что всё-таки попали в отказ.
+    sent = []
+
+    def w(fn, *a, **kw):
+        for attempt in range(6):
+            now = time.monotonic()
+            sent[:] = [t for t in sent if now - t < 60]
+            if len(sent) >= 55:
+                time.sleep(max(0.0, 61 - (now - sent[0])))
+            try:
+                out = fn(*a, **kw)
+            except gspread.exceptions.APIError as e:
+                if "429" not in str(e):
+                    raise
+                time.sleep(20 * (attempt + 1))
+                continue
+            sent.append(time.monotonic())
+            return out
+        sys.exit("ERROR: Sheets write quota did not clear after retries — try again in a minute.")
+
     creds = Credentials.from_service_account_file(
         args.creds, scopes=["https://www.googleapis.com/auth/spreadsheets"])
     sa_email = getattr(creds, "service_account_email", "<unknown>")
@@ -250,28 +274,28 @@ def main():
             need = max(len(rows) + 1, MIN_ROWS)
             if title in existing:
                 ws = existing[title]
-                ws.resize(rows=need, cols=len(HEADER_RU) + 2)
-                ws.clear()
+                w(ws.resize, rows=need, cols=len(HEADER_RU) + 2)
+                w(ws.clear)
             else:
-                ws = sh.add_worksheet(title=title, rows=need,
-                                      cols=len(HEADER_RU) + 2)
-            ws.update(values=[HEADER_RU] + rows, range_name="A1")
+                ws = w(sh.add_worksheet, title=title, rows=need,
+                       cols=len(HEADER_RU) + 2)
+            w(ws.update, values=[HEADER_RU] + rows, range_name="A1")
             sheets.append((ws, rows))
 
         # Stamp sync time on the first tab.
         if sheets:
-            sheets[0][0].update(values=[[f"Обновлено {ts} из TODO.md"]], range_name="G1")
+            w(sheets[0][0].update, values=[[f"Обновлено {ts} из TODO.md"]], range_name="G1")
 
         # Remove leftover tabs not in our set.
         for title, ws in existing.items():
             if title not in wanted:
-                sh.del_worksheet(ws)
+                w(sh.del_worksheet, ws)
 
         # One batched formatting pass for all tabs.
         requests = []
         for index, (ws, rows) in enumerate(sheets):
             requests += sheet_requests(ws.id, index, len(rows) + 1)
-        sh.batch_update({"requests": requests})
+        w(sh.batch_update, {"requests": requests})
 
     except gspread.exceptions.APIError as e:
         if "PERMISSION_DENIED" in str(e) or "403" in str(e):
