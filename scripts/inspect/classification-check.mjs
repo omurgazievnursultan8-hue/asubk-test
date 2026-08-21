@@ -1,4 +1,4 @@
-// Headless smoke для mockups/classification/classification.html (ИК-1…ИК-19, ADR-0120…0127).
+// Headless smoke для mockups/classification/classification.html (ИК-1…ИК-21, ADR-0120…0137).
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, конструктора, фактов, шва и фиксации, а не разметка.
@@ -53,13 +53,14 @@ const cred = id => CL.classify('risk', 'кредит', id);
   const r117 = cred('КД-2024/117');
   ok(4, r117.ok && r117.code === 'high' && r117.fired.length === 2 &&
        has(r117.fired.map(f => f.norm), 'п. 19.1') && has(r117.fired.map(f => f.norm), 'п. 11.3'),
-    `КД-2024/117 → ${r117.label}, сработавших условий ${r117.fired.length} (${r117.fired.map(f => f.norm).join(' + ')}) — ИК-11`);
+    `КД-2024/117 → ${r117.label}, сработавших правил ${r117.fired.length} (${r117.fired.map(f => f.norm).join(' + ')}) — ИК-11`);
 
   const r210 = cred('КД-2023/210');
   const v = CL.indicatorsOfCredit(CL.credit('КД-2023/210'));
   ok(5, r210.ok && r210.code === 'mid' && v.daysOverdue === 200 && v.defer181 === true &&
-       has(r210.fired.map(f => f.norm), 'п. 16.1'),
-    `КД-2023/210: 200 дн, отложение п. 19.1 включено → ${r210.label} по ${r210.fired.map(f => f.norm).join(', ')}`);
+       has(r210.fired.map(f => f.norm), 'п. 11.2') &&
+       has(r210.fired.map(f => f.label), 'просрочка'),
+    `КД-2023/210: 200 дн, отложение п. 19.1 включено → ${r210.label} по ${r210.fired.map(f => f.norm + ' («' + f.label + '»)').join(', ')}`);
 
   const r004 = cred('КД-2019/004');
   ok(6, !r004.ok && r004.out === true && has(r004.why, 'вне области'),
@@ -72,7 +73,7 @@ const cred = id => CL.classify('risk', 'кредит', id);
 
   const r088 = cred('КД-2025/088');
   ok(8, r088.ok && r088.code === 'mid' && r088.fired.length === 2,
-    `КД-2025/088 → ${r088.label}, условий сработало ${r088.fired.length} (просрочка + фактор п. 11.2)`);
+    `КД-2025/088 → ${r088.label}, правил сработало ${r088.fired.length} (просрочка + фактор п. 11.2)`);
 
   const i101 = CL.indicatorsOfCredit(CL.credit('КД-2025/101'));
   const r101 = cred('КД-2025/101');
@@ -115,7 +116,7 @@ const cred = id => CL.classify('risk', 'кредит', id);
   const after = cred('КД-2025/088');
   ok(17, !noReason.ok && annul.ok && CL.state.facts.some(f => f.id === 'F-003') &&
         before === 2 && after.fired.length === 1 && after.code === 'mid',
-    `аннулирование без причины отклонено; после аннулирования F-003 факт остался в реестре, условий ${before} → ${after.fired.length}, значение ${after.label}`);
+    `аннулирование без причины отклонено; после аннулирования F-003 факт остался в реестре, правил ${before} → ${after.fired.length}, значение ${after.label}`);
 
   CL.state.role = 'Наблюдатель';
   const denied = CL.addFact({ creditId: 'КД-2025/043', kindId: 'f-noAct', occurred: '2026-08-02' });
@@ -144,7 +145,7 @@ const cred = id => CL.classify('risk', 'кредит', id);
   const nowLast = d.values[d.values.length - 1];
   ok(21, posBefore === dfltIdx - 1 && nowLast.code === added.code && !nowLast.rules.length &&
         d.values.filter(v => v.dflt).length === 1,
-    `новое значение встало перед замыкающим (${posBefore + 1}-м); после «сделать по умолчанию» оно последнее и без условий — ИК-3`);
+    `новое значение встало перед замыкающим (${posBefore + 1}-м); после «сделать по умолчанию» оно последнее и без правил — ИК-3`);
 })();
 
 (() => {
@@ -188,8 +189,8 @@ const cred = id => CL.classify('risk', 'кредит', id);
     `правило заёмщика с показателем кредита отклонено — ИК-15`);
   ok(28, has(chk, 'снятый показатель') && has(chk, 'не входит в домен'),
     `снятый показатель и константа вне домена отклонены — ИК-5`);
-  ok(29, has(chk, 'значения по умолчанию') && has(chk, 'есть условия'),
-    `условие у значения по умолчанию отклонено — ИК-3`);
+  ok(29, has(chk, 'значения по умолчанию') && has(chk, 'есть правила'),
+    `правило у значения по умолчанию отклонено — ИК-3`);
 })();
 
 /* ---------- E. Реестр показателей ---------- */
@@ -216,15 +217,20 @@ const cred = id => CL.classify('risk', 'кредит', id);
   CL.state.role = 'Администратор классификации';
   ok(33, !denied.ok, `наблюдатель период не закрывает: «${denied.why}»`);
 
+  /* Записи получают только те, кто и в области, и с данными: «вне области» (ИК-7) и
+     «нет данных» (ИК-20) — два разных законных повода не писать запись. */
+  const riskOk = CL.state.credits.filter(c => CL.classify('risk', 'кредит', c.id).ok).length;
+  const subOk  = CL.state.borrowers.filter(b => CL.classify('sub', 'заёмщик', b.inn).ok).length;
   const activeCredits = CL.state.credits.filter(c => c.active).length;
   const res = CL.closePeriod();
   const written = CL.state.records.filter(r => r.period === '2026-07');
   const outOfScope = written.filter(r => r.objType === 'кредит' && !CL.credit(r.objId).active);
   ok(34, res.ok && res.period === '2026-07' &&
-        written.filter(r => r.clfId === 'risk').length === activeCredits &&
-        written.filter(r => r.clfId === 'sub').length === CL.state.borrowers.length &&
+        written.filter(r => r.clfId === 'risk').length === riskOk &&
+        written.filter(r => r.clfId === 'sub').length === subOk &&
+        riskOk < activeCredits && subOk < CL.state.borrowers.length &&
         outOfScope.length === 0,
-    `июль закрыт: записей ${written.length} (риск ${activeCredits} действующих кредитов + подгруппа ${CL.state.borrowers.length} заёмщиков), объектов вне области 0 — ИК-7`);
+    `июль закрыт: записей ${written.length} (риск ${riskOk} из ${activeCredits} действующих кредитов + подгруппа ${subOk} из ${CL.state.borrowers.length} заёмщиков); без записи остались вне области и без данных — ИК-7, ИК-20`);
 
   const again = CL.closePeriod();
   ok(35, CL.openPeriod() === '2026-08' && !again.ok && /не завершён/.test(again.why),
@@ -233,8 +239,8 @@ const cred = id => CL.classify('risk', 'кредит', id);
   const rep = CL.report12('2026-07');
   const sum = rep.rows.reduce((a, r) => a + r.count, 0);
   ok(36, rep.asOf === '2026-08-01' && rep.deadline === '2026-08-15' && rep.late === false &&
-        rep.total === activeCredits && sum === activeCredits,
-    `отчёт п. 12 за июль: по состоянию на ${rep.asOf}, срок ${rep.deadline}, сформирован ${rep.closedAt} — в срок; кредитов ${rep.total}`);
+        rep.total === riskOk && sum === riskOk,
+    `отчёт п. 12 за июль: по состоянию на ${rep.asOf}, срок ${rep.deadline}, сформирован ${rep.closedAt} — в срок; кредитов ${rep.total} (столько же, сколько записей)`);
 
   const closed = CL.riskCategory('кредит', 'КД-2024/117', '2026-07-15');
   const live = CL.riskCategory('кредит', 'КД-2024/117', CL.state.today);
@@ -322,7 +328,8 @@ const cred = id => CL.classify('risk', 'кредит', id);
   // Сухой прогон считает, но ничего не пишет: значение ставит только действующая редакция (ИК-1).
   CL.newDraft('risk');
   const draft = CL.draftVer('risk');
-  draft.scope = [{ i: 'creditActive', op: '=', v: true }, { i: 'daysOverdue', op: '≥', v: 300 }];
+  draft.scope = [{ label: 'действующий кредит с большой просрочкой',
+                   preds: [{ i: 'creditActive', op: '=', v: true }, { i: 'daysOverdue', op: '≥', v: 300 }] }];
   const before = JSON.stringify(CL.state);
   const dry = CL.dryRun('risk');
   const afterState = JSON.stringify(CL.state);
@@ -396,10 +403,10 @@ const cred = id => CL.classify('risk', 'кредит', id);
   CL.seed();
   const listHtml = CL.panelHtml();
   const rowsForAll = CL.state.classifiers.every(c => listHtml.includes(`CL.open('${c.id}')`));
-  const listIsList = !listHtml.includes('<h3>Значения и условия') && !listHtml.includes('Прекратить действие');
+  const listIsList = !listHtml.includes('<h3>Значения и правила') && !listHtml.includes('Прекратить действие');
   CL.open('risk');
   const cardHtml = CL.panelHtml();
-  const inCard = cardHtml.includes('Значения и условия') && cardHtml.includes('Журнал редакций') &&
+  const inCard = cardHtml.includes('Значения и правила') && cardHtml.includes('Журнал редакций') &&
                  cardHtml.includes('Прекратить действие') && CL.deepName() === 'Категория кредитного риска';
   CL.back();
   ok(55, rowsForAll && listIsList && inCard && CL.state.curClf === null &&
@@ -433,7 +440,7 @@ const cred = id => CL.classify('risk', 'кредит', id);
   const pubTab = CL.panelHtml().includes('id="pubBasis"') && CL.panelHtml().includes('Сухой прогон черновика');
   CL.state.role = 'Наблюдатель';
   const roNoPub = !CL.panelHtml().includes('id="pubBasis"');   // вкладка снята, экран не пуст
-  const roValues = CL.panelHtml().includes('Значения и условия');
+  const roValues = CL.panelHtml().includes('Значения и правила');
   ok(57, noPub && withPub && pubTab && roNoPub && roValues,
     `вкладка публикации: есть у черновика администратора, нет у действующей редакции и нет у наблюдателя — вместо неё значения, а не пустой экран`);
 })();
@@ -478,13 +485,155 @@ const cred = id => CL.classify('risk', 'кредит', id);
     `пояснения: ${notes} блоков живы в разметке, по умолчанию свёрнуты тумблером в шапке — экран читается, объяснение доступно`);
 })();
 
+/* ---------- H. Волна 4: ИЛИ, «одно из списка», строгие операторы, область, ИК-20/ИК-21 ---------- */
+
+// Правило значения адресуется парой (код значения, номер правила); область — тем же,
+// но с псевдо-кодом CL.SCOPE. Ниже правки идут по черновику: действующая не правится (ИК-2).
+const draftOf = clfId => { CL.newDraft(clfId); return CL.draftVer(clfId); };
+
+(() => {
+  CL.seed();
+  const d = draftOf('risk');
+  const high = d.values.find(v => v.code === 'high');
+  // Строгие операторы: «свыше 180» — это > 180, а не ≥ 180.
+  const strict = high.rules[0].preds[0];
+  const at180 = CL.classifyWith(d, {creditActive:true, daysOverdue:180, defer181:false, factorLevel:'нет', overdueLayer:'свободный слой'}, true);
+  const at181 = CL.classifyWith(d, {creditActive:true, daysOverdue:181, defer181:false, factorLevel:'нет', overdueLayer:'свободный слой'}, true);
+  ok(61, strict.op === '>' && strict.v === 180 && at180.code === 'mid' && at181.code === 'high',
+    `строгий оператор: «${strict.op} ${strict.v}» даёт на 180 дн — ${at180.label}, на 181 дн — ${at181.label}; ≥ 181 и > 180 совпали бы только на целых днях`);
+
+  // ИЛИ между правилами значения: каждое правило доводит до значения в одиночку (ИК-11).
+  const byOverdue = CL.classifyWith(d, {creditActive:true, daysOverdue:200, defer181:false, factorLevel:'нет', overdueLayer:'свободный слой'}, true);
+  const byFactor  = CL.classifyWith(d, {creditActive:true, daysOverdue:0,   defer181:false, factorLevel:'высокий', overdueLayer:'нет просрочки'}, true);
+  const both      = CL.classifyWith(d, {creditActive:true, daysOverdue:200, defer181:false, factorLevel:'высокий', overdueLayer:'свободный слой'}, true);
+  ok(62, high.rules.length === 2 && byOverdue.code === 'high' && byFactor.code === 'high' &&
+        both.fired.length === 2 && byOverdue.fired.length === 1 && byFactor.fired.length === 1,
+    `ИЛИ между правилами: значение «${byOverdue.label}» берётся любым из ${high.rules.length} правил порознь, вместе сработали оба — ИК-11`);
+
+  // Подпись различает два правила одного пункта; без неё публикация отказывает (ИК-21).
+  const mid = d.values.find(v => v.code === 'mid');
+  const sameNorm = mid.rules.every(r => r.norm === 'п. 11.2') && mid.rules.every(r => !!r.label);
+  const withLabels = CL.publishChecks('risk', d).filter(x => /ИК-21/.test(x)).length;
+  CL.setRuleLabel('risk', 'mid', 0, '');
+  const noLabel = CL.publishChecks('risk', d).filter(x => /ИК-21/.test(x));
+  ok(63, sameNorm && withLabels === 0 && noLabel.length === 1 && /п\. 11\.2/.test(noLabel[0]),
+    `повтор пункта внутри значения: с подписями отказов нет, без подписи — «${noLabel[0]}» — ИК-21`);
+})();
+
+(() => {
+  CL.seed();
+  const d = draftOf('risk');
+  // «Одно из списка»: ∈ по членам домена показателя-перечисления.
+  CL.addRule('risk', 'mid', 'проектное решение');
+  const ri = d.values.find(v => v.code === 'mid').rules.length - 1;
+  CL.addPred('risk', 'mid', ri);
+  CL.setPred('risk', 'mid', ri, 0, 'i', 'overdueLayer');
+  CL.setPred('risk', 'mid', ri, 0, 'op', '∈');
+  // Переход «=» → «∈» переносит уже выбранное значение в список: снимаем его вручную.
+  CL.togglePredMember('risk', 'mid', ri, 0, 'нет просрочки', false);
+  CL.togglePredMember('risk', 'mid', ri, 0, 'мировое соглашение', true);
+  CL.togglePredMember('risk', 'mid', ri, 0, 'реструктуризация', true);
+  const p = d.values.find(v => v.code === 'mid').rules[ri].preds[0];
+  const inSet  = CL.classifyWith(d, {creditActive:true, daysOverdue:0, defer181:false, factorLevel:'нет', overdueLayer:'мировое соглашение'}, true);
+  const outSet = CL.classifyWith(d, {creditActive:true, daysOverdue:0, defer181:false, factorLevel:'нет', overdueLayer:'нет просрочки'}, true);
+  ok(64, p.op === '∈' && p.set.length === 2 && p.v === undefined &&
+        inSet.code === 'mid' && outSet.code === 'low',
+    `«одно из»: ${p.set.map(x => '«' + x + '»').join(' / ')} → ${inSet.label}; вне списка → ${outSet.label}`);
+
+  // ∉ зеркально, и переключение оператора не теряет уже выбранное.
+  CL.setPred('risk', 'mid', ri, 0, 'op', '∉');
+  const notIn = CL.classifyWith(d, {creditActive:true, daysOverdue:0, defer181:false, factorLevel:'нет', overdueLayer:'нет просрочки'}, true);
+  CL.setPred('risk', 'mid', ri, 0, 'op', '=');
+  const scalar = d.values.find(v => v.code === 'mid').rules[ri].preds[0];
+  ok(65, notIn.code === 'mid' && scalar.v === 'мировое соглашение' && scalar.set === undefined,
+    `«ни одно из» даёт зеркальный ответ (${notIn.label}); при переходе к «=» правая часть не обнулилась, осталась «${scalar.v}»`);
+
+  // Проверки множества перед публикацией (ИК-5).
+  CL.setPred('risk', 'mid', ri, 0, 'op', '∈');
+  CL.togglePredMember('risk', 'mid', ri, 0, 'мировое соглашение', false);
+  const empty = CL.publishChecks('risk', d).filter(x => /пустой список/.test(x));
+  CL.togglePredMember('risk', 'mid', ri, 0, 'нет просрочки', true);
+  CL.togglePredMember('risk', 'mid', ri, 0, 'свободный слой', true);
+  CL.togglePredMember('risk', 'mid', ri, 0, 'мировое соглашение', true);
+  CL.togglePredMember('risk', 'mid', ri, 0, 'реструктуризация', true);
+  const whole = CL.publishChecks('risk', d).filter(x => /весь домен/.test(x));
+  CL.setPred('risk', 'mid', ri, 0, 'i', 'daysOverdue');
+  CL.setPred('risk', 'mid', ri, 0, 'op', '∈');
+  const wrongType = CL.publishChecks('risk', d).filter(x => /только к показателю-перечислению/.test(x));
+  ok(66, empty.length === 1 && whole.length === 1 && wrongType.length >= 1,
+    `множество проверяется до публикации: пустой список, весь домен целиком и «одно из» на числе — три отказа по делу (ИК-5)`);
+})();
+
+(() => {
+  CL.seed();
+  const d = draftOf('risk');
+  // Область — такой же список правил: вторая альтернатива входа через ИЛИ (КФ-Д8).
+  CL.addRule('risk', CL.SCOPE, '');
+  CL.setRuleLabel('risk', CL.SCOPE, 1, 'кредит закрыт в этом году');
+  CL.addPred('risk', CL.SCOPE, 1);
+  CL.setPred('risk', CL.SCOPE, 1, 0, 'i', 'daysOverdue');
+  CL.setPred('risk', CL.SCOPE, 1, 0, 'op', '>');
+  CL.setPred('risk', CL.SCOPE, 1, 0, 'v', '0');
+  const vals = {creditActive:false, daysOverdue:5, defer181:false, factorLevel:'нет', overdueLayer:'свободный слой'};
+  const bySecond = CL.classifyWith(d, vals, true);
+  const outAll = CL.classifyWith(d, {creditActive:false, daysOverdue:0, defer181:false, factorLevel:'нет', overdueLayer:'нет просрочки'}, true);
+  ok(67, d.scope.length === 2 && bySecond.ok && bySecond.code === 'mid' &&
+        !outAll.ok && outAll.out === true && /ни одно из правил входа/.test(outAll.why[0]) &&
+        /\(1\)/.test(outAll.why[0]) && /\(2\)/.test(outAll.why[0]),
+    `область из ${d.scope.length} правил через ИЛИ: вход по второму даёт «${bySecond.label}»; отказ называет обе альтернативы — ИК-7`);
+
+  // Пустая область впускает всех.
+  const sub = CL.activeVer('sub');
+  const anyone = CL.classify('sub', 'заёмщик', '22508199500821');
+  ok(68, (sub.scope || []).length === 0 && anyone.ok,
+    `пустая область впускает всех: у подгруппы заёмщика правил входа нет, «${CL.borrower('22508199500821').name}» → ${anyone.label}`);
+})();
+
+(() => {
+  CL.seed();
+  // Нет данных — отказ с названным показателем и владельцем, а не тихий откат к умолчанию (ИК-20).
+  const blind = CL.classify('risk', 'кредит', 'КД-2026/012');
+  const named = CL.ind('daysOverdue');
+  const fold = CL.foldBorrower('01503200110077');
+  ok(69, !blind.ok && blind.nodata === true && has(blind.why, named.name) && has(blind.why, named.owner) &&
+        has(blind.why, 'ИК-20') && blind.code === undefined,
+    `нет данных → «${blind.why[0]}» — значения нет вовсе, к умолчанию объект не съезжает — ИК-20`);
+  ok(70, !fold.ok && fold.nodata === true && has(fold.why, 'КД-2026/012'),
+    `свёртка заёмщика при неполном наборе запрещена: «${fold.why[0]}» — худшее из неполного не худшее`);
+
+  // Предпросмотр закрытия различает «вне области» и «нет данных».
+  const pv = CL.closePreview();
+  const risk = pv.rows.find(r => /риск/i.test(r.clf));
+  ok(71, pv.ok && pv.out > 0 && pv.nodata > 0 && risk.out === 2 && risk.nodata === 1 &&
+        risk.willWrite + risk.out + risk.nodata === risk.total,
+    `предпросмотр разделил исходы: записей ${risk.willWrite}, вне области ${risk.out}, нет данных ${risk.nodata} — в сумме все ${risk.total} кредитов`);
+})();
+
+(() => {
+  CL.seed();
+  // Наборы операторов по типу показателя и связки, написанные словом на экране (КФ-Д7).
+  const num  = CL.opsFor(CL.ind('daysOverdue'));
+  const enm  = CL.opsFor(CL.ind('factorLevel'));
+  const bool = CL.opsFor(CL.ind('creditActive'));
+  ok(72, num.join('') === '>≥<≤=≠' && enm.join('') === '=≠∈∉' && bool.join('') === '=≠',
+    `операторы по типу: число ${num.join(' ')} · перечисление ${enm.join(' ')} · булево ${bool.join(' ')}`);
+
+  CL.open('risk');
+  const html = CL.panelHtml();
+  const ors = (html.match(/class="or">или</g) || []).length;
+  const ands = (html.match(/class="and">и</g) || []).length;
+  ok(73, ors >= 2 && ands >= 1 && /любое из 2<\/b> правил/.test(html) &&
+        /правила через ИЛИ/.test(html) && /Область — кто вообще классифицируется/.test(html),
+    `связки написаны словом: «или» между блоками ${ors} раз, «и» между предикатами ${ands} раз, у значения — фраза о связке; область правится на том же экране — КФ-Д7, КФ-Д8`);
+})();
+
 /* ---------- G. Сторож текста: инварианты и решения названы в файле ---------- */
 (() => {
-  const iks = Array.from({ length: 19 }, (_, i) => 'ИК-' + (i + 1)).filter(k => !new RegExp(k + '(\\D|$)').test(src));
-  const adrs = ['ADR-0120','ADR-0121','ADR-0122','ADR-0123','ADR-0124','ADR-0125','ADR-0126','ADR-0127']
+  const iks = Array.from({ length: 21 }, (_, i) => 'ИК-' + (i + 1)).filter(k => !new RegExp(k + '(\\D|$)').test(src));
+  const adrs = ['ADR-0120','ADR-0121','ADR-0122','ADR-0123','ADR-0124','ADR-0125','ADR-0126','ADR-0127','ADR-0137']
     .filter(a => !src.includes(a));
   ok(43, iks.length === 0 && adrs.length === 0,
-    `в файле названы все 19 инвариантов и 8 решений волны${iks.length ? ' · нет: ' + iks.join(',') : ''}${adrs.length ? ' · нет: ' + adrs.join(',') : ''}`);
+    `в файле названы все 21 инвариант и 9 решений${iks.length ? ' · нет: ' + iks.join(',') : ''}${adrs.length ? ' · нет: ' + adrs.join(',') : ''}`);
 
   const hardcoded = /(п\.\s*11\.3|п\.\s*19\.1|исполнительные листы)/.test(
     m[1].slice(m[1].indexOf('ДВИЖОК'), m[1].indexOf('ШОВ')));
@@ -495,7 +644,7 @@ const cred = id => CL.classify('risk', 'кредит', id);
 const pass = results.filter(r => r.pass).length;
 const lines = results.slice().sort((a, b) => a.n - b.n)
   .map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-const stamp = `SMOKE 2026-08-19 · ${pass}/${results.length} PASS\n` + lines.join('\n');
+const stamp = `SMOKE 2026-08-21 · ${pass}/${results.length} PASS\n` + lines.join('\n');
 console.log(stamp);
 
 const marker = 'SMOKE (node scripts/inspect/classification-check.mjs):';
