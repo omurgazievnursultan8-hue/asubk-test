@@ -1,0 +1,2936 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Классификация · редакция 1 · P19 · АСУБК</title>
+<!--
+  Формат — docs/tasks/FORMAT.md, анатомия карточки формата 2 (meta.format = 2). Данные лежат
+  JSON-островом (#tasks-data), проверка — python3 scripts/check_tasks.py
+  docs/tasks/p19-klassifikatsiya-tasks.html. Пакет передачи — этот файл +
+  mockups/classification/classification.html, все ссылки внутри — по голому имени файла
+  (папка передаётся поштучно). Свод (карта данных, опись экранов, словарь, сквозной пример)
+  читается один раз в начале — карточка несёт только дельту к нему. Редакция 1 — прошлых
+  номеров нет, панели «Номера» в файле тоже нет.
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC;
+  --asubk-link:#005FDB; --asubk-green:#158443;
+  --asubk-red:#E03A3A; --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-blue-tint:rgba(0,106,245,0.08);
+  --asubk-green-tint:rgba(21,132,67,0.10);
+  --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --border-default:var(--asubk-border-base);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --shadow-card:0 1px 2px rgba(24,39,57,0.06);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; }
+body{ font:400 16px/1.5 var(--asubk-font); color:var(--text-body); background:var(--asubk-gray-100); }
+.wrap{ max-width:1160px; margin:0 auto; padding:0 24px 64px; }
+
+.hero{ background:var(--asubk-white); border-bottom:1px solid var(--border-default); padding:28px 0 22px; margin-bottom:20px; }
+.hero .wrap{ padding-bottom:0; }
+.crumbs{ font-size:13px; color:var(--text-muted); margin-bottom:8px; }
+h1{ font:600 26px/1.25 var(--asubk-font); color:var(--text-heading); margin:0 0 8px; }
+.lead{ color:var(--text-muted); font-size:15px; max-width:82ch; margin:0 0 14px; }
+.lead code{ background:var(--asubk-gray-150); padding:1px 5px; border-radius:3px; font-size:13px; }
+.lead b{ color:var(--text-body); }
+.revbar{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:16px; }
+.revchip{ font:600 12px/1 var(--asubk-font); padding:6px 10px; border-radius:var(--radius-pill); background:var(--asubk-blue-tint); color:var(--asubk-link); }
+.revchip.replaces{ background:var(--asubk-gray-150); color:var(--text-muted); }
+
+.tiles{ display:flex; flex-wrap:wrap; gap:10px; }
+.tile{ appearance:none; cursor:pointer; text-align:left; background:var(--asubk-white);
+  border:1px solid var(--border-default); border-radius:var(--radius-lg); padding:10px 16px; min-width:118px;
+  font:inherit; color:inherit; transition:border-color .12s, box-shadow .12s; }
+.tile:hover{ border-color:var(--asubk-border-strong); }
+.tile.on{ border-color:var(--asubk-blue); box-shadow:0 0 0 2px var(--asubk-blue-tint); }
+.tile .n{ display:block; font:600 22px/1.15 var(--asubk-font); color:var(--text-heading); }
+.tile .l{ display:block; font-size:12.5px; color:var(--text-muted); margin-top:2px; }
+
+section.panel{ background:var(--asubk-white); border:1px solid var(--border-default); border-radius:var(--radius-lg);
+  padding:18px 20px; margin:12px 0; box-shadow:var(--shadow-card); }
+section.panel > h2{ font:600 16px/1.3 var(--asubk-font); color:var(--text-heading); margin:0 0 10px; }
+section.panel > h2 .sub{ font-weight:400; color:var(--text-muted); font-size:13px; }
+.panel p{ margin:6px 0; font-size:14.5px; }
+.panel ul{ margin:6px 0; padding-left:20px; font-size:14.5px; }
+.panel li{ margin-bottom:4px; }
+
+.guide-item{ padding:12px 0; border-bottom:1px solid var(--asubk-gray-150); }
+.guide-item:last-child{ border-bottom:none; }
+.guide-item h3{ font:600 14.5px/1.3 var(--asubk-font); color:var(--asubk-blue-hover); margin:0 0 6px; }
+
+.openq{ display:flex; gap:10px; align-items:baseline; padding:8px 0; border-bottom:1px dashed var(--asubk-gray-150); font-size:13.5px; }
+.openq:last-child{ border-bottom:none; }
+.openq a{ color:var(--asubk-link); text-decoration:none; font-weight:600; white-space:nowrap; }
+.openq a:hover{ text-decoration:underline; }
+.openq .oq-default{ color:var(--text-muted); }
+
+/* Свод: карта данных, опись экранов, словарь, сквозной пример, номера */
+.ent{ border:1px solid var(--asubk-gray-200); border-radius:var(--radius-md); background:var(--asubk-gray-50);
+  padding:10px 12px; margin:8px 0; }
+.ent h4{ font:600 14px/1.3 var(--asubk-font); color:var(--text-heading); margin:0 0 4px;
+  display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; }
+.ent .key{ font:400 12.5px/1.3 var(--asubk-font); color:var(--asubk-link);
+  background:var(--asubk-blue-tint); border-radius:var(--radius-pill); padding:2px 9px; }
+.ent .note{ font-size:13px; color:var(--text-muted); margin:0 0 6px; }
+.ent ul{ margin:0; padding-left:18px; font-size:14px; }
+.ent li{ margin-bottom:3px; }
+.ent li b{ font-weight:600; color:var(--text-heading); }
+
+.scr{ border:1px solid var(--asubk-gray-200); border-radius:var(--radius-md); background:var(--asubk-white);
+  padding:10px 12px; margin:8px 0; }
+.scr h4{ font:600 14px/1.3 var(--asubk-font); color:var(--text-heading); margin:0 0 5px; }
+.scr .note{ font-size:13px; color:var(--text-muted); margin:0 0 6px; }
+.scr .chips{ display:flex; flex-wrap:wrap; gap:6px; }
+.scr .col{ font-size:12.5px; color:var(--text-body); background:var(--asubk-gray-100);
+  border:1px solid var(--border-default); border-radius:var(--radius-pill); padding:3px 9px; }
+.scr .act{ font-size:12.5px; color:var(--asubk-green); background:var(--asubk-green-tint);
+  border:1px solid rgba(21,132,67,0.22); border-radius:var(--radius-pill); padding:3px 9px; }
+.scr .cap{ font:600 11px/1 var(--asubk-font); text-transform:uppercase; letter-spacing:.06em;
+  color:var(--asubk-ink-45); margin:8px 0 4px; display:block; }
+
+.gloss{ display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:8px; }
+.gloss div{ font-size:13.5px; border-bottom:1px dashed var(--asubk-gray-150); padding:6px 0; }
+.gloss b{ color:var(--text-heading); }
+
+table.idmap{ border-collapse:collapse; width:100%; font-size:13.5px; }
+table.idmap th{ text-align:left; font:600 12px/1 var(--asubk-font); text-transform:uppercase;
+  letter-spacing:.06em; color:var(--asubk-ink-45); padding:6px 8px; border-bottom:1px solid var(--border-default); }
+table.idmap td{ padding:6px 8px; border-bottom:1px solid var(--asubk-gray-150); vertical-align:top; }
+table.idmap td.old{ color:var(--text-muted); white-space:nowrap; }
+table.idmap td.new a{ color:var(--asubk-link); text-decoration:none; font-weight:600; white-space:nowrap; }
+table.idmap td.new a:hover{ text-decoration:underline; }
+
+.bar{ position:sticky; top:0; z-index:5; background:var(--asubk-gray-100);
+  padding:14px 0 12px; margin-bottom:4px; border-bottom:1px solid var(--border-default); }
+.bar .row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.search{ flex:1; min-width:240px; height:36px; padding:0 12px; font:inherit; font-size:14px;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--asubk-white); color:inherit; }
+.search:focus{ outline:none; border-color:var(--asubk-blue); box-shadow:0 0 0 2px var(--asubk-blue-tint); }
+select{ height:36px; padding:0 8px; font:inherit; font-size:14px; background:var(--asubk-white);
+  border:1px solid var(--border-default); border-radius:var(--radius-md); color:inherit; }
+.btn{ height:36px; padding:0 14px; font:inherit; font-size:14px; cursor:pointer;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--asubk-white); color:inherit; }
+.btn:hover{ background:var(--asubk-gray-50); }
+.btn-p{ background:var(--asubk-blue); border-color:var(--asubk-blue); color:#fff; }
+.btn-p:hover{ background:var(--asubk-blue-hover); }
+.count{ font-size:13px; color:var(--text-muted); margin-left:auto; white-space:nowrap; }
+
+.group{ margin-top:26px; }
+.group > h2{ font:600 15px/1.3 var(--asubk-font); color:var(--text-muted); margin:0 0 10px;
+  text-transform:uppercase; letter-spacing:.05em; display:flex; align-items:center; gap:8px; }
+.group > h2 .g-n{ font-weight:400; color:var(--asubk-ink-45); text-transform:none; letter-spacing:0; }
+
+.card{ background:var(--asubk-white); border:1px solid var(--border-default); border-left:3px solid var(--asubk-blue);
+  border-radius:var(--radius-lg); padding:16px 18px; margin-bottom:10px; box-shadow:var(--shadow-card); scroll-margin-top:70px; }
+.c-head{ display:flex; flex-wrap:wrap; align-items:baseline; gap:10px; }
+.id{ font:600 13px/1 var(--asubk-font); letter-spacing:.02em; color:var(--asubk-link);
+  background:var(--asubk-blue-tint); padding:5px 8px; border-radius:var(--radius-md); white-space:nowrap; }
+.step{ font:600 12px/1 var(--asubk-font); color:var(--asubk-ink-45); background:var(--asubk-gray-100);
+  border:1px solid var(--border-default); padding:5px 8px; border-radius:var(--radius-md); white-space:nowrap; }
+.c-title{ font:600 17px/1.35 var(--asubk-font); color:var(--text-heading); flex:1; min-width:260px; margin:0; }
+
+.blk{ margin-top:12px; }
+.blk .lbl{ font:600 12px/1 var(--asubk-font); text-transform:uppercase; letter-spacing:.06em;
+  color:var(--asubk-ink-45); display:block; margin-bottom:5px; }
+.blk p{ margin:0; font-size:15px; }
+.blk ul{ margin:0; padding-left:20px; font-size:15px; }
+.blk li{ margin-bottom:4px; }
+.why{ color:var(--text-muted); }
+.subh{ font:600 13.5px/1.3 var(--asubk-font); color:var(--text-body); margin:8px 0 3px; }
+
+.build{ background:var(--asubk-blue-tint); border-radius:var(--radius-md); padding:11px 13px; margin-top:12px; }
+.build .lbl{ color:var(--asubk-blue-hover); }
+.build p{ font-size:15.5px; color:var(--text-heading); }
+
+.steps{ margin:0; padding-left:22px; font-size:15px; }
+.steps li{ margin-bottom:5px; }
+
+.ex{ border:1px solid rgba(21,132,67,0.22); border-left:3px solid var(--asubk-green);
+  background:var(--asubk-green-tint); border-radius:var(--radius-md); padding:11px 13px; margin-top:12px; }
+.ex .lbl{ color:var(--asubk-green); }
+.ex .src{ font-size:13px; color:var(--text-muted); margin:0 0 7px; }
+.ex .exh{ font:600 12.5px/1 var(--asubk-font); color:var(--asubk-ink-45); display:block; margin:7px 0 3px;
+  text-transform:uppercase; letter-spacing:.05em; }
+.ex ul{ margin:0; padding-left:20px; font-size:14.5px; }
+.ex li{ margin-bottom:3px; }
+
+.terms{ display:flex; flex-wrap:wrap; gap:8px; }
+.terms .term{ font-size:13px; background:var(--asubk-gray-50); border:1px solid var(--asubk-gray-200);
+  border-radius:var(--radius-md); padding:6px 10px; }
+.terms .term b{ color:var(--text-heading); }
+
+.look{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:13px; }
+.look a{ color:var(--asubk-link); text-decoration:none; background:var(--asubk-blue-tint); padding:4px 9px; border-radius:var(--radius-pill); }
+.look a:hover{ text-decoration:underline; }
+.look .route{ color:var(--text-muted); }
+.look .defect{ color:#9E1F1F; background:#FCE6E6; padding:4px 9px; border-radius:var(--radius-pill); }
+
+.openbox{ background:var(--asubk-amber-tint); border-left:3px solid var(--asubk-amber); border-radius:0 var(--radius-md) var(--radius-md) 0;
+  padding:9px 12px; margin-top:6px; font-size:13.5px; }
+.openbox b{ color:#8A6508; }
+
+.c-foot{ margin-top:13px; padding-top:11px; border-top:1px solid var(--asubk-gray-150);
+  display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.tag{ font-size:12px; color:var(--text-muted); background:var(--asubk-gray-100);
+  border:1px solid var(--border-default); border-radius:var(--radius-pill); padding:3px 9px; }
+.dep{ font-size:12px; color:var(--asubk-link); background:var(--asubk-white); text-decoration:none;
+  border:1px solid rgba(0,106,245,0.25); border-radius:var(--radius-pill); padding:3px 9px; }
+.dep:hover{ background:var(--asubk-blue-tint); }
+
+.card details{ margin-top:11px; border-top:1px solid var(--asubk-gray-150); padding-top:9px; }
+.card details summary{ cursor:pointer; font-size:13px; color:var(--text-muted); list-style:none; user-select:none; }
+.card details summary::-webkit-details-marker{ display:none; }
+.card details summary::before{ content:'▸ '; color:var(--asubk-ink-45); }
+.card details[open] summary::before{ content:'▾ '; }
+.card details summary:hover{ color:var(--asubk-link); }
+
+/* Свёрнутые панели свода */
+.panel details.fold > summary{ cursor:pointer; list-style:none; user-select:none;
+  font:600 16px/1.3 var(--asubk-font); color:var(--text-heading);
+  display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; }
+.panel details.fold > summary::-webkit-details-marker{ display:none; }
+.panel details.fold > summary::before{ content:'▸'; color:var(--asubk-ink-45); font-weight:400; }
+.panel details.fold[open] > summary::before{ content:'▾'; }
+.panel details.fold > summary:hover{ color:var(--asubk-link); }
+.panel details.fold > summary .sub{ font-weight:400; color:var(--text-muted); font-size:13px; }
+.panel details.fold > summary .cnt{ font:600 12px/1 var(--asubk-font); color:var(--asubk-link);
+  background:var(--asubk-blue-tint); border-radius:var(--radius-pill); padding:4px 9px; }
+.panel details.fold > .foldbody{ margin-top:12px; }
+.traps{ margin-top:8px; font-size:13.5px; color:var(--text-muted); background:var(--asubk-gray-50);
+  border:1px solid var(--asubk-gray-150); border-radius:var(--radius-md); padding:10px 12px; }
+.traps ul{ margin:0; padding-left:18px; }
+.traps li{ margin-bottom:4px; }
+
+.empty{ text-align:center; padding:48px 0; color:var(--text-muted); font-size:15px; }
+.footerbar{ margin-top:32px; font-size:13px; color:var(--text-muted); border-top:1px solid var(--border-default); padding-top:14px; }
+code{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; }
+@media print{ .bar{ position:static; } .card details{ display:none; }
+  .panel details.fold > .foldbody{ display:block; } .card{ break-inside:avoid; } }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="crumbs">АСУБК · Модуль «Классификация» · Постановка задач для разработки</div>
+    <h1 id="hero-title">Классификация — задачи для команды разработки</h1>
+    <div class="revbar" id="revbar"></div>
+    <p class="lead" id="hero-lead"></p>
+    <div class="tiles" id="tiles"></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="panel" id="panel-guide">
+    <details class="fold">
+      <summary>Справка модуля <span class="sub">что модулю принадлежит и где его границы</span>
+        <span class="cnt" id="guide-cnt"></span></summary>
+      <div class="foldbody" id="guide-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-atlas">
+    <details class="fold">
+      <summary>Карта данных <span class="sub">модель целиком: сущности, ключи, поля — карточка несёт только дельту</span>
+        <span class="cnt" id="atlas-cnt"></span></summary>
+      <div class="foldbody" id="atlas-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-screens">
+    <details class="fold">
+      <summary>Опись экранов <span class="sub">весь интерфейс модуля списком: где что живёт</span>
+        <span class="cnt" id="screens-cnt"></span></summary>
+      <div class="foldbody" id="screens-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-gloss">
+    <details class="fold">
+      <summary>Словарь <span class="sub">слова этой постановки в её собственном значении</span>
+        <span class="cnt" id="gloss-cnt"></span></summary>
+      <div class="foldbody" id="gloss-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-walk">
+    <details class="fold">
+      <summary>Сквозной пример <span class="sub">один кредит от входных показателей до записи фиксации, с числами</span>
+        <span class="cnt" id="walk-cnt"></span></summary>
+      <div class="foldbody" id="walk-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-open">
+    <details class="fold">
+      <summary>Открытые вопросы <span class="sub">умолчания, на которых строим; ответ заказчика переносит в следующую редакцию</span>
+        <span class="cnt" id="openq-cnt"></span></summary>
+      <div class="foldbody" id="openq-list"></div>
+    </details>
+  </section>
+
+  <div class="bar">
+    <div class="row">
+      <input class="search" id="q" type="search" placeholder="Поиск по номеру, заголовку, тексту…" autocomplete="off">
+      <select id="fStage"><option value="">Все этапы</option></select>
+      <button class="btn" id="reset">Сбросить</button>
+      <button class="btn btn-p" id="expand">Раскрыть ловушки</button>
+      <span class="count" id="count"></span>
+    </div>
+  </div>
+
+  <div id="list"></div>
+
+  <div class="footerbar">
+    <p><b>Порядок сборки — по этапам, не строгой очередью.</b> Внутри этапа карточки независимы и
+       берутся в любом порядке; между этапами — барьер и приёмка пачкой. Зависимость (значок
+       <span class="dep" style="display:inline">↔ P19-Rn</span>) указывает только назад — на уже
+       готовую карточку.</p>
+    <p><b>Как читать карточку.</b> Свод наверху читается один раз: карта данных, опись экранов,
+       словарь и сквозной пример. Карточка после этого несёт только своё — что строим, зачем, какие
+       поля добавляются, как выглядит экран, шаги, пример с числами и приёмку. Числа во всех
+       примерах взяты из витрины макета, имя записи стоит в строке «Источник».</p>
+    <p><b>Разделение источников.</b> Модель, правила, приёмка и границы живут только здесь. Приоритет
+       и статус исполнения — в <code>TODO.md</code> (реестр). Расхождение по логике модуля решает эта
+       постановка, расхождение по виду интерфейса — макет <code>classification.html</code>.</p>
+    <p>Вопросы по постановке — общий чат команды. Ответ, полученный там, попадает в карточку и журнал
+       редакции следующего выпуска этого файла (см. «Версионирование», <code>FORMAT.md</code>).</p>
+  </div>
+</div>
+
+
+<script type="application/json" id="tasks-data">
+{
+ "meta": {
+  "module": "classification",
+  "title": "Классификация",
+  "phase": 19,
+  "format": 2,
+  "revision": 1,
+  "date": "2026-08-21",
+  "registry": "### Классификация (целевая модель)",
+  "package": [
+   "classification.html"
+  ]
+ },
+ "guide": [
+  {
+   "h": "Что делает модуль и где его границы",
+   "items": [
+    "Модуль отвечает на один вопрос и отвечает на него всем, кто спрашивает: <b>какое значение классификатора имеет объект на дату — и почему именно это</b>.",
+    "Три классификации системы — категория кредитного риска по кредиту, подгруппа заёмщика, группа платёжеспособности — не три механизма, а <b>три набора данных одного конструктора</b>. Четвёртая обязана появляться настройкой, а не релизом: это главное обещание модуля, и по нему его надо принимать.",
+    "<b>Входит:</b> чтение реестра показателей и гейт на снятии используемого · конструктор редакций (значения, правила, предикаты, область) · публикация редакции с проверками · разбор объекта и объяснение результата · ввод фактов п. 11 и их судьба · закрытие периода с записями фиксации · отчёт п. 12 · единственный шов наружу.",
+    "<b>Не входит:</b> ведение реестра показателей — им владеет модуль статистики, классификация реестр читает и отвечает, где показатель используется · вычисление самих показателей — их считает модуль-владелец (дней просрочки — платежи, вид живой процедуры — взыскание, действующий ли кредит — кредиты) · решения коллегиальных органов (принимаются во взыскании, сюда приходят реквизитом факта) · меры, сроки и маршруты взыскания · поведение, привязанное к значению: что делать с «высоким риском», решает взыскание, а не классификация.",
+    "Граница проходит по глаголу: <b>классификация не считает вход и не распоряжается выходом</b>. Она разбирает вход по опубликованному правилу и объясняет разбор.",
+    "<b>В коде разбора не должно быть ни одного пункта Порядка, ни одной ступени лестницы, ни одного порога.</b> Всё это — данные редакции. Смена редакции нормы — работа администратора в конструкторе, а не задача на разработку; если для новой редакции понадобился программист, модуль собран неправильно."
+   ]
+  },
+  {
+   "h": "Как читать этот файл",
+   "items": [
+    "Сначала свод: карта данных, опись экранов, словарь и сквозной пример. Он общий для всех карточек и читается один раз — карточка добавляет к нему только своё.",
+    "Эталон интерфейса и поведения — макет <a href=\"classification.html\">classification.html</a>: он исполняется в браузере, а не рисует картинку. Числа во всех примерах взяты из его витрины, запись названа по имени (кредит <b>КД-2024/117</b>, факт <b>F-001</b>).",
+    "Расхождение <b>по логике модуля</b> решает эта постановка, расхождение <b>по виду интерфейса</b> — макет.",
+    "Живого экрана в тестовом стенде нет: модуль проектируется с нуля, поэтому дефектов стенда в карточках не бывает.",
+    "Порядок сборки — по этапам, не строгой очередью: внутри этапа карточки независимы, между этапами — барьер и приёмка пачкой."
+   ]
+  },
+  {
+   "h": "Инварианты — проверяются на каждой карточке",
+   "items": [
+    "<b>И-1.</b> Значение нигде не вводится и не правится руками — его ставит движок. Ни экрана, ни интерфейса, ни миграции, которые бы его писали, не существует.",
+    "<b>И-2.</b> Действующая редакция не правится: правка — это новый черновик, открытый копией действующей.",
+    "<b>И-3.</b> Редакция публикуется только замкнутой: ровно одно значение по умолчанию, оно последнее в списке и без правил.",
+    "<b>И-4.</b> Дата ввода в действие не раньше начала открытого периода и не позже сегодняшнего дня: публикация вводит редакцию немедленно, отложенного пуска в модели нет.",
+    "<b>И-5.</b> Правило, ссылающееся на снятый показатель, на константу вне домена, на оператор не своего типа либо на пустой список у «одно из», публикацию не проходит.",
+    "<b>И-6.</b> Свёртка «худшее по кредитам» разрешена только у редакции, объявившей себя сравнимой. Лестница подгруппы такого признака не несёт и не сворачивается.",
+    "<b>И-7.</b> Объект вне области значения не получает: запись фиксации по нему не пишется, а витрина говорит почему, а не ставит прочерк. Пустая область впускает всех.",
+    "<b>И-8.</b> Закрытый период неизменен: за него отдаётся запись фиксации, а не пересчёт — в том числе по прежней редакции.",
+    "<b>И-9.</b> Факт, наступивший в закрытом периоде, принимается, но учитывается с начала открытого; в реестре стоят обе даты.",
+    "<b>И-10.</b> Факт без реквизитов решения комитета в показатель не попадает.",
+    "<b>И-11.</b> Объяснение несёт <b>все</b> сработавшие правила выбранного значения, а не первое из них.",
+    "<b>И-12.</b> Незачтённый факт виден в реестре фактов кредита с причиной из закрытого списка трёх: нет решения комитета · интервал истёк · ведёт к более лёгкому значению, чем выбранное.",
+    "<b>И-13.</b> Периоды закрываются по порядку и только после окончания месяца; закрытый обратно не открывается.",
+    "<b>И-14.</b> Классификация не запирает работу: просроченный срок сдачи отчёта п. 12 печатается предупреждением, а не блокировкой.",
+    "<b>И-15.</b> Правило кредита вправе читать показатели заёмщика; обратного чтения нет — вниз идут показатели, вверх свёртка значений.",
+    "<b>И-16.</b> Показатель, на который ссылается действующая редакция, с реестра не снимается.",
+    "<b>И-17.</b> Значение без правил, не объявленное значением по умолчанию, недостижимо — редакция с ним не публикуется.",
+    "<b>И-18.</b> «Дней просрочки» и «слой-источник просрочки» — пара одного владельца: одно число без имени слоя не показывается нигде.",
+    "<b>И-19.</b> Классификатор не удаляется — он прекращает действие датой и причиной; записи закрытых периодов ссылаются на его редакции и обязаны остаться читаемыми.",
+    "<b>И-20.</b> Показатель, которого владелец не отдал, <b>не считается ложным</b>: объект остаётся без значения, отказ называет показатель и владельца, запись не пишется. Молчаливый откат к значению по умолчанию запрещён — на категории риска он читается как «низкий риск» по причине отсутствия данных.",
+    "<b>И-21.</b> Два правила одного значения с одним и тем же пунктом основания обязаны нести подпись — иначе объяснение назовёт пункт дважды и не скажет, что именно сработало.",
+    "<b>И-22.</b> Две редакции одного классификатора не действуют одновременно: дата ввода строго позже начала действующей редакции, и публикация закрывает прошлую этой же датой.",
+    "<b>Ни один исход не молчит.</b> «Черновик не классифицирует», «действующей редакции нет», «вне области», «нет данных», «редакция не замкнута» — у каждого отказа есть текст с причиной и адресатом. Погашенная кнопка без объяснения — тот же молчаливый отказ и в модуле запрещена."
+   ]
+  }
+ ],
+ "atlas": [
+  {
+   "n": "Классификатор",
+   "key": "код классификатора",
+   "note": "Что именно классифицируем. Заводится настройкой, не релизом; не удаляется — прекращает действие.",
+   "fields": [
+    "<b>код</b> — строка, задаётся при заведении, неизменен",
+    "<b>наименование</b> — строка, обязательно",
+    "<b>объект</b> — «кредит» либо «заёмщик»; задан у классификатора, а не у редакции, и не меняется: смена объекта — это другой классификатор",
+    "<b>дата прекращения действия</b> — дата, пусто у живого",
+    "<b>причина прекращения</b> — текст, обязателен вместе с датой"
+   ]
+  },
+  {
+   "n": "Редакция классификатора",
+   "key": "классификатор + номер редакции",
+   "note": "Носитель всей настройки. Правится только в статусе черновика.",
+   "fields": [
+    "<b>номер</b> — целое, сквозное по классификатору",
+    "<b>статус</b> — черновик · действующая · прошлая; три состояния, не пересекаются",
+    "<b>основание</b> — норма и её редакция словами, обязательно для публикации",
+    "<b>дата ввода в действие</b> — дата, обязательна для публикации",
+    "<b>дата закрытия</b> — дата, проставляется публикацией следующей редакции",
+    "<b>признак сравнимости</b> — булево: разрешает ли порядок значений считаться тяжестью",
+    "<b>область</b> — список правил входа, может быть пустым",
+    "<b>значения</b> — упорядоченный набор",
+    "<b>кто и когда опубликовал</b> — автор и отметка времени"
+   ]
+  },
+  {
+   "n": "Значение",
+   "key": "редакция + код значения",
+   "note": "Исход разбора. Порядок значений и есть порядок разбора.",
+   "fields": [
+    "<b>код</b> — строка, уникальна внутри редакции",
+    "<b>ярлык</b> — то, что читает человек",
+    "<b>порядок</b> — целое; разбор идёт сверху вниз",
+    "<b>признак «по умолчанию»</b> — булево, ровно у одного значения",
+    "<b>основание</b> — пункт нормы у значения по умолчанию (у остальных основание живёт в правилах)",
+    "<b>правила</b> — список, у значения по умолчанию пуст"
+   ]
+  },
+  {
+   "n": "Правило",
+   "key": "значение + порядковый номер",
+   "note": "Между правилами одного значения — ИЛИ. Форма движка — дизъюнкция конъюнкций без скобок и вложенности.",
+   "fields": [
+    "<b>пункт основания</b> — текст нормы или ступени, обязателен",
+    "<b>подпись</b> — короткая фраза о том, что ловит правило; обязательна, как только пункт внутри значения повторился",
+    "<b>предикаты</b> — список, соединённый И, минимум один"
+   ]
+  },
+  {
+   "n": "Предикат",
+   "key": "правило + порядковый номер",
+   "note": "Скалярен: не ходит по коллекциям, не агрегирует, не знает слова «любой». Правая часть — всегда константа.",
+   "fields": [
+    "<b>показатель</b> — ссылка на реестр",
+    "<b>оператор</b> — из набора, заданного типом показателя: число «больше, больше-равно, меньше, меньше-равно, равно, не равно» · перечисление «равно, не равно, одно из, не одно из» · булево «равно, не равно»",
+    "<b>константа</b> — скаляр по типу показателя либо набор членов домена у «одно из»"
+   ]
+  },
+  {
+   "n": "Показатель",
+   "key": "код показателя",
+   "note": "Реестр — контракт: что за вход, кто его считает, в каких значениях бывает. Способа вычисления реестр не хранит.",
+   "fields": [
+    "<b>код</b> и <b>наименование</b> — строки",
+    "<b>объект</b> — «кредит» либо «заёмщик»",
+    "<b>тип</b> — число · перечисление · булево",
+    "<b>домен</b> — список членов, обязателен и только у перечисления, не менее двух членов, без повторов",
+    "<b>источник</b> — расчёт либо ввод факта",
+    "<b>владелец</b> — модуль, отвечающий за смысл значения; обязателен",
+    "<b>снят с реестра</b> — булево + дата и причина"
+   ]
+  },
+  {
+   "n": "Значение показателя на срез",
+   "key": "показатель + объект + дата среза",
+   "note": "То, что владелец отдал модулю. Различие «не отдан» и «отдан пустым» толкует владелец, а не классификация.",
+   "fields": [
+    "<b>значение</b> — по типу показателя",
+    "<b>признак «отдан»</b> — булево; неотданный показатель ложью не считается",
+    "<b>дата среза</b> — на какую дату отдано"
+   ]
+  },
+  {
+   "n": "Вид фактора п. 11 (справочник)",
+   "key": "код вида",
+   "note": "Зеркало нормы: уровень приходит из справочника вместе с видом, пользователь его не выбирает. Конструктором не правится.",
+   "fields": [
+    "<b>наименование</b> — шесть видов затравки: нецелевое использование средств · утрата предмета залога · сокрытие имущества от взыскания · уклонение от подписания акта сверки · ухудшение состояния предмета залога · непредставление отчётности",
+    "<b>уровень</b> — «средний» либо «высокий», задан нормой",
+    "<b>пункт</b> — п. 11.2 у среднего, п. 11.3 у высокого"
+   ]
+  },
+  {
+   "n": "Факт п. 11",
+   "key": "номер факта",
+   "note": "Руками вводится факт, а не значение. Не удаляется — аннулируется с причиной.",
+   "fields": [
+    "<b>кредит</b> — ссылка на объект",
+    "<b>вид фактора</b> — ссылка на справочник",
+    "<b>дата наступления</b> — обязательна, не в будущем",
+    "<b>дата учёта</b> — вычисляется: дата наступления либо начало открытого периода, если наступление в закрытом",
+    "<b>интервал действия</b> — дата «жив до», может быть пустой (бессрочно)",
+    "<b>реквизиты решения комитета</b> — текст; без него факт в показатель не входит",
+    "<b>автор</b> — кто завёл",
+    "<b>аннулирование</b> — причина, кто, когда; пусто у живого факта"
+   ]
+  },
+  {
+   "n": "Учётный период",
+   "key": "год-месяц",
+   "note": "Открытый период — единственное место, где что-то может измениться.",
+   "fields": [
+    "<b>состояние</b> — открыт либо закрыт",
+    "<b>кто и когда закрыл</b> — автор и отметка времени"
+   ]
+  },
+  {
+   "n": "Запись фиксации",
+   "key": "период + классификатор + объект",
+   "note": "Единственный источник правды о прошлом. Пишется закрытием периода, не правится никогда.",
+   "fields": [
+    "<b>номер редакции</b> — которой посчитано; без него прошлое нечитаемо",
+    "<b>код и ярлык значения</b>",
+    "<b>сработавшие правила</b> — с пунктами основания, подписями и подставленными значениями показателей",
+    "<b>засчитанные факты</b> — список номеров",
+    "<b>дата «по состоянию на»</b> — 1-е число следующего месяца",
+    "<b>кто и когда закрыл период</b>"
+   ]
+  },
+  {
+   "n": "Отчёт п. 12",
+   "key": "период",
+   "note": "Строится по закрытому периоду, по состоянию на 1-е число; срок сдачи — не позднее 15-го.",
+   "fields": [
+    "<b>строки по значениям</b> — в порядке значений действующей редакции",
+    "<b>отдельная строка</b> — записи с кодами прежних редакций, не подогнанные под текущие",
+    "<b>признак просрочки срока</b> — предупреждение с числом дней, не блокировка"
+   ]
+  },
+  {
+   "n": "Запись журнала действий",
+   "key": "порядковый номер",
+   "note": "Кто что сделал в модуле. Публикация, прекращение действия, ввод и аннулирование факта, закрытие периода.",
+   "fields": [
+    "<b>кто</b> — пользователь и роль",
+    "<b>что</b> — действие словами, с объектом",
+    "<b>когда</b> — отметка времени"
+   ]
+  }
+ ],
+ "screens": [
+  {
+   "n": "Классификаторы — список",
+   "note": "Точка входа настройки. Отвечает на «что есть и в каком оно состоянии»; необратимых операций на строке списка нет.",
+   "cols": [
+    "наименование",
+    "объект",
+    "действующая редакция",
+    "действует с",
+    "значений",
+    "состояние"
+   ],
+   "acts": [
+    "завести классификатор",
+    "открыть карточку"
+   ]
+  },
+  {
+   "n": "Карточка классификатора",
+   "note": "Отвечает на «как это устроено». Переключатель редакций в шапке, реквизиты показанной редакции, три вкладки ниже.",
+   "cols": [
+    "номер редакции",
+    "статус",
+    "основание",
+    "действует с",
+    "закрыта",
+    "признак сравнимости"
+   ],
+   "acts": [
+    "новая редакция копией действующей",
+    "прекратить действие классификатора"
+   ]
+  },
+  {
+   "n": "Вкладка «Значения и правила»",
+   "note": "Конструктор черновика: только у черновика и только у роли, которая правит.",
+   "cols": [
+    "значение",
+    "порядок",
+    "признак «по умолчанию»",
+    "правила значения",
+    "предикаты правила",
+    "область редакции"
+   ],
+   "acts": [
+    "добавить и удалить значение",
+    "переставить порядок",
+    "добавить правило (или)",
+    "добавить предикат (и)",
+    "править область",
+    "объявить сравнимость"
+   ]
+  },
+  {
+   "n": "Вкладка «Публикация редакции N»",
+   "note": "Живёт только у черновика. Список отказов и сухой прогон пересчитываются одним вводом.",
+   "cols": [
+    "основание редакции",
+    "дата ввода в действие",
+    "список отказов",
+    "прогон: есть → стало бы",
+    "счётчики прогона"
+   ],
+   "acts": [
+    "опубликовать"
+   ]
+  },
+  {
+   "n": "Вкладка «Журнал редакций»",
+   "cols": [
+    "номер",
+    "статус",
+    "основание",
+    "действует с",
+    "закрыта",
+    "кто и когда опубликовал"
+   ],
+   "note": "Только чтение; отсюда видно, какой редакцией посчитан любой прошлый период."
+  },
+  {
+   "n": "Реестр показателей — список (чтение)",
+   "note": "Поиск по наименованию и коду, фильтр по объекту. Фильтр перерисовывает строки, а не страницу: полная перерисовка отнимает фокус у поля.",
+   "cols": [
+    "наименование",
+    "код",
+    "объект",
+    "тип",
+    "источник",
+    "владелец",
+    "состояние"
+   ],
+   "acts": [
+    "завести показатель",
+    "открыть карточку"
+   ]
+  },
+  {
+   "n": "Карточка показателя",
+   "cols": [
+    "тип",
+    "домен",
+    "источник",
+    "владелец",
+    "состояние",
+    "где используется — классификатор, редакция, значение или область"
+   ],
+   "acts": [
+    "снять с реестра"
+   ],
+   "note": "«Где используется» строится по живым редакциям и объясняет отказ снятия до нажатия."
+  },
+  {
+   "n": "Факты (п. 11)",
+   "note": "Форма заведения и реестр фактов. У роли без права ввода формы и кнопок нет вовсе — вместо них строка о том, кто вправе.",
+   "cols": [
+    "номер",
+    "кредит",
+    "вид фактора",
+    "уровень",
+    "пункт",
+    "наступил",
+    "учтён с",
+    "действует до",
+    "решение комитета",
+    "судьба",
+    "автор"
+   ],
+   "acts": [
+    "завести факт",
+    "аннулировать с причиной",
+    "фильтр по судьбе",
+    "счётчики по судьбам"
+   ]
+  },
+  {
+   "n": "Витрина результата",
+   "note": "Читательский экран: значение объекта на выбранную дату с полным объяснением и источником ответа.",
+   "cols": [
+    "объект",
+    "дата",
+    "значение",
+    "объяснение — все сработавшие правила",
+    "источник ответа: запись фиксации / расчёт / записи нет",
+    "реестр фактов кредита"
+   ],
+   "acts": [
+    "выбрать объект",
+    "сменить дату"
+   ]
+  },
+  {
+   "n": "Периоды и фиксация",
+   "note": "Предпросмотр состава записей, закрытие периода, журнал записей, отчёт п. 12.",
+   "cols": [
+    "период",
+    "состояние",
+    "классификатор",
+    "редакция",
+    "объектов",
+    "записей будет",
+    "вне области",
+    "без данных",
+    "записи не будет вовсе"
+   ],
+   "acts": [
+    "предпросмотр закрытия",
+    "закрыть период",
+    "открыть отчёт п. 12"
+   ]
+  }
+ ],
+ "glossary": [
+  {
+   "t": "классификатор",
+   "d": "что именно классифицируем: категория кредитного риска, подгруппа заёмщика, группа платёжеспособности. Объект задан у него, а не у редакции."
+  },
+  {
+   "t": "редакция",
+   "d": "версия настройки классификатора: значения, правила, область, основание, дата ввода. Именно она классифицирует, и именно её номер несёт запись фиксации."
+  },
+  {
+   "t": "значение",
+   "d": "исход разбора: «Высокий кредитный риск», «2.2 · Исполнительные листы». Порядок значений и есть порядок разбора."
+  },
+  {
+   "t": "замыкающее значение по умолчанию",
+   "d": "единственное значение без правил и обязательно последнее; отвечает за «правила проверены и не сработали» — и только за это."
+  },
+  {
+   "t": "правило",
+   "d": "пункт основания + подпись + конъюнкция предикатов. Между правилами одного значения — ИЛИ. Слово «условие» здесь не используется: оно занято условием кредитного договора."
+  },
+  {
+   "t": "предикат",
+   "d": "показатель, оператор и константа: «дней просрочки больше 180». Скалярен — по коллекциям не ходит."
+  },
+  {
+   "t": "показатель",
+   "d": "именованный вход разбора с типом, доменом и владельцем. Способа вычисления модуль не знает."
+  },
+  {
+   "t": "владелец показателя",
+   "d": "модуль, который считает значение и отвечает за его смысл: платежи, кредиты, взыскание, заёмщик. Адресат, к которому идут, когда данных нет."
+  },
+  {
+   "t": "домен",
+   "d": "закрытый список членов у показателя-перечисления. Константа вне домена до публикации доживать не должна."
+  },
+  {
+   "t": "область редакции",
+   "d": "список правил входа: кто вообще классифицируется этой редакцией. Пустая область впускает всех."
+  },
+  {
+   "t": "признак сравнимости",
+   "d": "объявление редакции о том, что порядок её значений — это тяжесть. Без него свёртка «худшее по кредитам» технически запрещена."
+  },
+  {
+   "t": "разбор",
+   "d": "четыре шага движка: область → полнота входа → значения сверху вниз → замыкание."
+  },
+  {
+   "t": "объяснение",
+   "d": "все сработавшие правила выбранного значения с пунктами, подписями и подставленными числами. Не «первое сработавшее»."
+  },
+  {
+   "t": "факт п. 11",
+   "d": "введённое человеком событие по кредиту (нецелевое использование, утрата залога и т. д.) с реквизитами решения комитета."
+  },
+  {
+   "t": "судьба факта",
+   "d": "что с фактом стало: засчитан · нет решения комитета · интервал истёк · ведёт к более лёгкому значению, чем выбранное. Плюс техническое «аннулирован». Список закрытый — по нему фильтруют и считают."
+  },
+  {
+   "t": "засчитанный фактор",
+   "d": "живой факт с решением комитета; из засчитанных собирается показатель «максимальный уровень действующего фактора п. 11»."
+  },
+  {
+   "t": "слой-источник просрочки",
+   "d": "имя слоя требования, давшего худшую просрочку: свободный слой, мировое соглашение, реструктуризация. Число дней без имени слоя обманывает."
+  },
+  {
+   "t": "нет данных",
+   "d": "исход разбора, когда владелец не отдал показатель, на который стоит правило. Не «ложь» и не значение по умолчанию — отдельный отказ с названным адресатом."
+  },
+  {
+   "t": "сухой прогон",
+   "d": "симуляция публикации: по каждому объекту «есть» против «стало бы», ничего не пишется и никому не назначается."
+  },
+  {
+   "t": "запись фиксации",
+   "d": "строка, написанная закрытием периода: период, редакция, объект, значение, правила, факты. Прошлое читается ею, а не пересчётом."
+  },
+  {
+   "t": "открытый период",
+   "d": "самый ранний незакрытый месяц; единственное место, где значения ещё могут измениться."
+  },
+  {
+   "t": "свёртка",
+   "d": "категория заёмщика как худшая по его действующим кредитам. Живёт в шве, а не в конструкторе, и запрещена по неполному набору."
+  },
+  {
+   "t": "шов",
+   "d": "единственная дверь наружу: «значение на дату» и её именованный частный случай «категория риска». Потребитель не разбирает объект сам и записи фиксации напрямую не читает."
+  }
+ ],
+ "walkthrough": {
+  "src": "КД-2024/117 · ОсОО «Ак-Жол» (ИНН 02107201910148) · дата разбора 14.08.2026",
+  "note": "витрина макета, редакция 2 классификатора «Категория кредитного риска» действует с 06.07.2026",
+  "groups": [
+   {
+    "h": "1. Вход — что отдали владельцы",
+    "items": [
+     "Платежи: «дней просрочки (худший слой)» = <b>214</b>, «слой-источник просрочки» = <b>свободный слой</b> — пара одного расчёта, показывается вместе.",
+     "Кредиты: «кредит действующий» = <b>да</b>.",
+     "Взыскание: «перевод на 181-й день отложен» = <b>нет</b>.",
+     "Классификация сама: «максимальный уровень действующего фактора п. 11» = <b>высокий</b> — свёрнут из засчитанных фактов кредита."
+    ]
+   },
+   {
+    "h": "2. Область — классифицируется ли объект",
+    "items": [
+     "Область редакции 2 — одно правило входа: «кредит действующий = да». Выполнено, разбор продолжается.",
+     "Для сравнения: у КД-2019/004 «кредит действующий = нет» — значения нет вовсе, витрина печатает «вне области», запись фиксации не пишется."
+    ]
+   },
+   {
+    "h": "3. Полнота входа — до перебора значений",
+    "items": [
+     "Правила редакции 2 стоят на четырёх показателях; все четыре отданы, разбор идёт дальше.",
+     "Для сравнения: у КД-2026/012 платежи расчёт просрочки не публиковали — пара «дней просрочки / слой-источник» не отдана целиком, и объект остаётся без значения с отказом «классифицировать нечем: “Дней просрочки (худший слой)” (владелец — Платежи) не отдан». Ноль дней здесь был бы выдумкой в пользу заёмщика."
+    ]
+   },
+   {
+    "h": "4. Разбор — сверху вниз, первое сработавшее",
+    "items": [
+     "Значение 1 «Высокий кредитный риск», правило по п. 19.1 («просрочка 181+ дней, перевод не отложен»): 214 > 180 — истина, «отложен = нет» — истина. Правило сработало.",
+     "Второе правило того же значения, п. 11.3 («засчитанный фактор высокого уровня»): «уровень фактора = высокий» — истина. Тоже сработало.",
+     "Разбор останавливается на первом сработавшем значении: <b>Высокий кредитный риск</b>. Значения «Средний» и замыкающее «Низкий» не рассматриваются."
+    ]
+   },
+   {
+    "h": "5. Объяснение — все сработавшие правила, а не первое",
+    "items": [
+     "«просрочка 181+ дней, перевод не отложен: дней просрочки (худший слой) > 180 (сейчас 214) и перевод на 181-й день отложен = нет — п. 19.1»",
+     "«засчитанный фактор высокого уровня: максимальный уровень действующего фактора п. 11 = высокий — п. 11.3»",
+     "Убрать второе основание нельзя: снятие фактора категорию не изменит, и проверяющему это надо видеть."
+    ]
+   },
+   {
+    "h": "6. Факты кредита и их судьба",
+    "items": [
+     "<b>F-001</b> «Нецелевое использование средств», наступил 22.05.2026, протокол КАБК № 14 от 22.05.2026 — <b>засчитан</b>, он и дал уровень «высокий».",
+     "<b>F-005</b> «Уклонение от подписания акта сверки» (средний, п. 11.2), протокол КАБК № 21 от 18.07.2026 — <b>не засчитан: ведёт к более лёгкому значению, чем выбранное</b>. В объяснение не идёт, в реестре виден."
+    ]
+   },
+   {
+    "h": "7. Заёмщик — свёртка по кредитам",
+    "items": [
+     "У ОсОО «Ак-Жол» два действующих кредита: КД-2024/117 — высокий, КД-2025/043 — низкий. Свёртка «худшее по действующим» даёт заёмщику <b>высокий</b>.",
+     "Свёртка разрешена только потому, что редакция 2 объявлена сравнимой. Лестницу подгруппы свернуть нельзя: «исполнительные листы» и «погашена» несравнимы вообще."
+    ]
+   },
+   {
+    "h": "8. Закрытие периода и прошлое",
+    "items": [
+     "Июнь 2026 закрыт 03.07.2026 <b>редакцией 1</b>, где порог среднего был 30 дней. Запись по КД-2024/117 несёт: период 2026-06, редакция 1, «Высокий кредитный риск», правило п. 19.1 «дней просрочки ≥ 181 (на срез 183)», факт F-001, «по состоянию на» 01.07.2026.",
+     "После публикации редакции 2 июнь читается по-прежнему: за закрытый период отдаётся запись, а не пересчёт.",
+     "Отчёт п. 12 за июнь строится по 9 записям периода, срок сдачи — не позднее 15.07.2026."
+    ]
+   }
+  ]
+ },
+ "stages": [
+  {
+   "n": 1,
+   "title": "Реестр показателей и вход"
+  },
+  {
+   "n": 2,
+   "title": "Конструктор редакции"
+  },
+  {
+   "n": 3,
+   "title": "Публикация"
+  },
+  {
+   "n": 4,
+   "title": "Движок и объяснение"
+  },
+  {
+   "n": 5,
+   "title": "Факты п. 11"
+  },
+  {
+   "n": 6,
+   "title": "Период, фиксация, отчёт"
+  },
+  {
+   "n": 7,
+   "title": "Швы наружу и роли"
+  }
+ ],
+ "cards": [
+  {
+   "id": "P19-R1",
+   "stage": 1,
+   "title": "Реестр показателей: контракт входа, который классификация читает",
+   "build": "Чтение реестра показателей: список с поиском и фильтром по объекту, карточка показателя, таблица «Где используется» и гейт снятия — ответ классификации на запрос владельца реестра. Заведение и снятие показателя живут в модуле статистики, который реестром владеет.",
+   "why": "Реестр — контракт между всеми, кто меряет объект: он говорит, что за величина, кто её считает и в каких значениях она бывает. Способ вычисления в нём не хранится сознательно — иначе появится второе место правды о просрочке, и два числа разойдутся в первый же месяц. Владелец у показателя обязателен: когда данных не будет, отказ обязан назвать адресата, к которому идти.",
+   "look": {
+    "mock": "classification.html",
+    "route": "экран «Реестр показателей» → строка списка → карточка показателя"
+   },
+   "screen": [
+    {
+     "n": "Реестр показателей — список",
+     "note": "Поиск по наименованию и коду, фильтр по объекту перерисовывают строки, а не страницу. В классификации экран читательский.",
+     "cols": [
+      "наименование",
+      "код",
+      "объект",
+      "тип",
+      "источник",
+      "владелец",
+      "состояние"
+     ],
+     "acts": [
+      "открыть карточку"
+     ]
+    },
+    {
+     "n": "Карточка показателя",
+     "note": "«Где используется» строится по живым редакциям — по правилам значений и по правилам области.",
+     "cols": [
+      "тип",
+      "домен",
+      "источник",
+      "владелец",
+      "состояние",
+      "где используется"
+     ],
+     "acts": [
+      "ответить на запрос снятия"
+     ]
+    }
+   ],
+   "steps": [
+    "Читать показатель по контракту: код, наименование, объект, тип, домен, источник, владелец, признак снятия с датой и причиной.",
+    "Взять затравку из одиннадцати показателей макета — четыре по кредиту от платежей, кредитов и взыскания, шесть по заёмщику, один снятый.",
+    "Показывать список с поиском по наименованию и коду и фильтром по объекту; кнопок заведения и правки в классификации нет.",
+    "Построить «Где используется»: классификатор, номер редакции, значение или область — по всем живым редакциям.",
+    "Отвечать на запрос снятия списком мест использования: есть живая ссылка — снятие запрещено, и места названы поимённо.",
+    "Показывать снятый показатель отдельным состоянием: он остаётся видимым и новых ссылок не принимает.",
+    "Держать единственный показатель собственного счёта — «максимальный уровень действующего фактора п. 11»: его считает сама классификация, потому что он свёртка её же фактов."
+   ],
+   "rules": [
+    {
+     "h": "Что реестр хранит и чего не хранит",
+     "items": [
+      "Владелец обязателен. «Дней просрочки» принадлежит платежам, «вид живой подтверждённой процедуры» — взысканию, «терминальный исход роли» — заёмщику.",
+      "Способа вычисления в реестре нет ни в каком виде — ни формулой, ни ссылкой на неё.",
+      "Квантор по коллекции свёрнут внутрь показателя его владельцем: не «есть слой с просрочкой ≥ 181», а «дней просрочки (худший слой)». Поэтому предикат остаётся скалярным (И-18).",
+      "Показателя вне реестра не существует ни для кого: нужна величина, которой в реестре нет, — её сперва заводят у владельца реестра."
+     ]
+    },
+    {
+     "h": "Направление чтения и снятие",
+     "items": [
+      "Правило классификатора кредита вправе читать показатели заёмщика; правило классификатора заёмщика показатель кредита читать не может (И-15). Иначе появится цикл: категория заёмщика через показатель кредита, а тот — через категорию заёмщика.",
+      "Показатель, на который ссылается действующая редакция, не снимается (И-16): живое правило осталось бы без входа. Гейт двусторонний — снятие идёт у владельца реестра, а список живых ссылок даёт классификация.",
+      "Ссылки прошлых редакций снятию не мешают — их читают записи фиксации, а не движок.",
+      "Правка домена под живым правилом запрещена там же, где заведение: домен — контракт, и его правка сломала бы проверку публикации задним числом."
+     ]
+    }
+   ],
+   "example": {
+    "src": "показатель «Дней просрочки (худший слой)» · реестр макета",
+    "given": [
+     "Число, владелец — Платежи, используется в 2 редакциях классификатора риска.",
+     "Показатель «Внутренний рейтинг заёмщика» (перечисление A / B / C) снят 01.07.2026 с причиной «методика рейтинга отменена вместе с прежней редакцией»."
+    ],
+    "do": [
+     "Запросить снятие «Дней просрочки» и открыть карточку снятого рейтинга."
+    ],
+    "get": [
+     "Снятие отказано, места использования названы: «Категория кредитного риска», редакция 2, значения «Высокий» и «Средний».",
+     "Снятый рейтинг в списке виден с состоянием «снят 01.07.2026», а в выпадающем списке редактора правил его нет."
+    ]
+   },
+   "terms": [
+    {
+     "t": "затравка",
+     "d": "начальный набор данных, с которым модуль поставляется: показатели, справочник факторов, два настроенных классификатора."
+    }
+   ],
+   "accept": [
+    "Классификация читает реестр и не даёт завести, переименовать или снять показатель со своих экранов.",
+    "«Где используется» показывает классификатор, номер редакции и место — значение или область.",
+    "Запрос снятия показателя, на который ссылается действующая редакция, получает отказ со списком мест использования.",
+    "Снятый показатель остаётся в списке с состоянием «снят», датой и причиной.",
+    "В выпадающем списке редактора правил снятые показатели отсутствуют.",
+    "Поиск и фильтр по объекту не отнимают фокус у поля ввода при наборе.",
+    "Показатели кредита недоступны для выбора в правилах классификатора заёмщика."
+   ],
+   "notIn": [
+    "Заведение показателя, домен и правка контракта — работа владельца реестра, модуля статистики.",
+    "Приём значений показателей от владельцев — P19-R2.",
+    "Ссылки на показатель из правил и проверка типов при публикации — P19-R5 и P19-R8."
+   ],
+   "deps": [],
+   "extDeps": [
+    {
+     "what": "модуль статистики ведёт реестр показателей: заведение, домен, снятие, ответственность за состав"
+    },
+    {
+     "what": "модули-владельцы (платежи, кредиты, взыскание, заёмщик) названы и известны как источники значений"
+    }
+   ],
+   "traps": [
+    "<b>Реестр в макете правится изнутри классификации.</b> Макет писался до переезда реестра к статистике: там есть кнопки заведения и снятия. В целевой модели их в классификации нет — остаются чтение, «Где используется» и ответ на запрос снятия."
+   ]
+  },
+  {
+   "id": "P19-R2",
+   "stage": 1,
+   "title": "Приём значений показателей: «не отдан» — не ложь",
+   "build": "Приём значений показателей от модулей-владельцев на дату среза и признак «отдан». Неотданный показатель хранится как молчание владельца, а не как ложь или ноль.",
+   "why": "Это фундамент, на котором стоит главный отказ модуля. Движок с молчаливым «нет» всегда доезжает до значения по умолчанию, а по умолчанию у категории риска — «низкий риск»: кредит, по которому платежи ещё не публиковали расчёт, попал бы в отчёт п. 12 наравне с проверенными. Ошибка не выглядит как ошибка — она выглядит как хорошая новость, и в этом её цена.",
+   "look": {
+    "mock": "classification.html",
+    "route": "витрина результата → кредит КД-2026/012 → отказ «классифицировать нечем»"
+   },
+   "data": [
+    {
+     "n": "Значение показателя на срез",
+     "key": "показатель + объект + дата среза",
+     "note": "Единственная форма, в которой вход попадает в модуль.",
+     "fields": [
+      "<b>признак «отдан»</b> — булево; хранится отдельно от значения и никогда не выводится из него",
+      "<b>дата среза</b> — на какую дату владелец опубликовал значение",
+      "<b>кто опубликовал</b> — модуль-владелец"
+     ]
+    }
+   ],
+   "steps": [
+    "Завести хранение значения показателя по объекту на дату среза вместе с признаком «отдан».",
+    "Сделать приём значений от владельцев пакетом: модуль публикует свой набор, классификация его принимает и не толкует.",
+    "Принимать парные показатели одним пакетом: «дней просрочки (худший слой)» и «слой-источник просрочки» приходят вместе либо не приходят вовсе.",
+    "Отдать движку чтение «значение и признак отдан», без права подставить умолчание.",
+    "Показывать в витрине входной срез объекта: какой показатель чем заполнен и кто владелец."
+   ],
+   "rules": [
+    {
+     "h": "Молчание владельца",
+     "items": [
+      "Отличать «не отдан» от «отдан пустым» обязан владелец показателя, а не классификация: она видит только факт молчания и не имеет права его толковать.",
+      "Никакого умолчания при чтении: ни нуля у числа, ни «нет» у булева, ни первого члена домена у перечисления.",
+      "Пара «дней просрочки» и «слой-источник» считается одним расчётом: нет расчёта — нет обоих (И-18). Ноль дней вместо молчания означал бы «просрочки нет», а на самом деле неизвестно."
+     ]
+    }
+   ],
+   "example": {
+    "src": "КД-2026/012 · ОсОО «Тянь-Шань Строй» · выдан 12.08.2026",
+    "given": [
+     "Кредит действующий = да (отдан модулем кредитов).",
+     "Платежи расчёт просрочки на срез не публиковали: у кредита нет ни одного слоя, пара показателей не отдана.",
+     "Правила действующей редакции 2 стоят в том числе на «дней просрочки»."
+    ],
+    "do": [
+     "Запросить значение классификатора риска на 14.08.2026."
+    ],
+    "get": [
+     "Значения нет. Отказ: «классифицировать нечем: “Дней просрочки (худший слой)” (владелец — Платежи) не отдан, а правило редакции на нём стоит».",
+     "Кредит не получает «Низкий кредитный риск» и в записи фиксации периода не попадает."
+    ]
+   },
+   "terms": [
+    {
+     "t": "срез",
+     "d": "дата, на которую владелец опубликовал значение показателя."
+    },
+    {
+     "t": "слой требования",
+     "d": "часть долга со своим режимом и своей просрочкой: свободный слой, мировое соглашение, реструктуризация."
+    }
+   ],
+   "accept": [
+    "Показатель, не отданный владельцем, хранится с признаком «не отдан», а не значением по умолчанию.",
+    "Чтение неотданного показателя движком возвращает молчание, а не ложь и не ноль.",
+    "Пара «дней просрочки» и «слой-источник» отдаётся и читается только вместе.",
+    "Витрина объекта печатает входной срез: каждый показатель, его значение либо «не отдан», и владельца.",
+    "Кредит без опубликованного расчёта просрочки значения не получает, а отказ называет показатель и владельца.",
+    "Ни один экран не показывает число дней просрочки без имени слоя-источника."
+   ],
+   "notIn": [
+    "Поведение разбора при неполном входе — P19-R11.",
+    "Запрет свёртки по неполному набору — P19-R22."
+   ],
+   "deps": [
+    "P19-R1"
+   ],
+   "extDeps": [
+    {
+     "what": "платежи публикуют пару «дней просрочки (худший слой) + слой-источник» на срез"
+    },
+    {
+     "what": "кредиты публикуют признак «кредит действующий»"
+    },
+    {
+     "what": "взыскание публикует признак отложения перевода на 181-й день"
+    }
+   ]
+  },
+  {
+   "id": "P19-R3",
+   "stage": 2,
+   "title": "Классификатор и редакции: три статуса, черновик копией",
+   "build": "Классификатор с объектом и списком редакций: заведение классификатора настройкой, три непересекающихся статуса редакции, новая редакция открывается копией действующей, журнал редакций.",
+   "why": "Здесь проверяется главное обещание модуля: четвёртая классификация появляется настройкой, а не релизом. Статусы держат второе обещание — действующую редакцию нельзя править: правка задним числом переписала бы прошлое, которое уже роздано потребителям и вписано в отчёты.",
+   "look": {
+    "mock": "classification.html",
+    "route": "экран «Классификаторы» → строка списка → карточка → переключатель редакций и вкладка «Журнал редакций»"
+   },
+   "steps": [
+    "Завести классификатор и редакцию по карте данных; объект задать у классификатора и запретить его смену.",
+    "Сделать заведение классификатора из списка: новый классификатор открывается пустой редакцией 1 в статусе черновика и никого не классифицирует.",
+    "Реализовать три статуса и переходы между ними: черновик → действующая (публикацией), действующая → прошлая (публикацией следующей).",
+    "Запретить правку действующей и прошлой редакции физически: конструктор работает только с черновиком.",
+    "Сделать «Новая редакция» — открывает черновик <b>копией</b> действующей редакции, а не чистым листом.",
+    "Разрешить не более одного черновика на классификатор.",
+    "Собрать журнал редакций: номер, статус, основание, действует с, закрыта, кто и когда опубликовал.",
+    "Показать состояние классификатора в списке: действует · есть черновик · только черновик · действие прекращено · редакций нет."
+   ],
+   "rules": [
+    {
+     "h": "Статусы",
+     "items": [
+      "Черновик правится и не классифицирует. Действующая классифицирует и не правится. Прошлая не делает ни того, ни другого, но её читают записи фиксации закрытых периодов.",
+      "Правка действующей редакции невозможна физически, а не по праву доступа (И-2).",
+      "Объект («кредит» либо «заёмщик») задан у классификатора: сменить объект — значит завести другой классификатор, иначе прошлые записи фиксации потеряли бы смысл."
+     ]
+    },
+    {
+     "h": "Список и карточка",
+     "items": [
+      "Список отвечает на «что есть и в каком оно состоянии», карточка — на «как это устроено». Необратимые операции живут только в карточке: со строки списка их нажимают мимоходом.",
+      "Графа «значений» в списке считает ту редакцию, о которой говорит соседняя графа состояния: у прекращённого классификатора — последнюю по номеру, а не ноль."
+     ]
+    }
+   ],
+   "example": {
+    "src": "классификатор «Группа платёжеспособности» · затравка макета",
+    "given": [
+     "Классификатор заведён, у него одна редакция в статусе черновика, значений 3 («Высокая», «Средняя», «Низкая»), правил нет."
+    ],
+    "do": [
+     "Открыть список классификаторов и посмотреть строку."
+    ],
+    "get": [
+     "Состояние «только черновик», действующей редакции нет, значений 3.",
+     "Запрос значения по любому заёмщику отвечает «действующей редакции нет», а не пустотой.",
+     "Это законное состояние, а не ошибка данных: методики групп в норме пока нет."
+    ]
+   },
+   "terms": [
+    {
+     "t": "черновик",
+     "d": "единственный статус редакции, который правится; классифицировать он не может."
+    }
+   ],
+   "accept": [
+    "Новый классификатор заводится с экрана и сразу получает пустую редакцию 1 в статусе черновика.",
+    "Правка действующей редакции недоступна: конструктор открывается только на черновике.",
+    "«Новая редакция» создаёт черновик копией действующей, включая значения, правила и область.",
+    "Второй черновик у классификатора не заводится, и отказ это объясняет.",
+    "Объект классификатора после заведения не меняется.",
+    "Список показывает состояние каждого классификатора одним из пяти значений.",
+    "Журнал редакций показывает по каждой редакции статус, основание, даты и автора публикации."
+   ],
+   "notIn": [
+    "Значения и их порядок — P19-R4.",
+    "Правила и предикаты — P19-R5.",
+    "Публикация и её проверки — P19-R8.",
+    "Прекращение действия классификатора — P19-R9."
+   ],
+   "deps": [
+    "P19-R1"
+   ]
+  },
+  {
+   "id": "P19-R4",
+   "stage": 2,
+   "title": "Значения редакции: порядок разбора и замыкающее значение",
+   "build": "Набор значений черновика: код, ярлык, перестановка порядка, признак «по умолчанию». Порядок значений и есть порядок разбора, а последнее значение замыкает список.",
+   "why": "Порядок — не украшение списка: он и есть логика доминирования. Лестница подгруппы заёмщика работает только порядком, а не рангом тяжести у каждого значения. Замыкающее значение закрывает вопрос «а если ничего не сработало» на уровне модели, а не на уровне удачи: без него часть объектов молча осталась бы без значения, и это молчание пришлось бы объяснять в каждом потребителе.",
+   "look": {
+    "mock": "classification.html",
+    "route": "карточка классификатора → вкладка «Значения и правила»"
+   },
+   "steps": [
+    "Завести значение с кодом, ярлыком, порядком и признаком «по умолчанию».",
+    "Сделать добавление, удаление и перестановку значений внутри черновика.",
+    "Сделать объявление значения замыкающим: признак «по умолчанию» переносится, а не задваивается.",
+    "Печатать у замыкающего значения его собственное основание — пункт нормы, по которому оно наступает.",
+    "Показать в конструкторе, что разбор идёт сверху вниз: первое значение, у которого сработало хотя бы одно правило, побеждает."
+   ],
+   "rules": [
+    {
+     "h": "Замыкание",
+     "items": [
+      "Ровно одно значение обязано быть замыкающим: последним в списке и без правил (И-3).",
+      "Замыкающее значение отвечает за «правила проверены и не сработали» — и только за это. За «правила проверить было нечем» отвечает отказ «нет данных», и путать эти два исхода нельзя.",
+      "У замыкающего значения тоже есть основание: у категории риска это п. 11.1 — «низкий риск» есть набор качественных признаков и по дням не наступает вовсе.",
+      "Значение без правил, не объявленное замыкающим, недостижимо — редакция с ним не публикуется (И-17)."
+     ]
+    },
+    {
+     "h": "Порядок",
+     "items": [
+      "Отдельного ранга тяжести у значения нет: при объявленной сравнимости тяжесть есть позиция в списке.",
+      "Порядок в лестнице подгруппы — это доминирование, а не тяжесть: первым стоит «Кредитов не было»."
+     ]
+    }
+   ],
+   "example": {
+    "src": "редакция 2 классификатора «Категория кредитного риска» · 3 значения",
+    "given": [
+     "Порядок: 1 «Высокий кредитный риск» (2 правила), 2 «Средний кредитный риск» (2 правила), 3 «Низкий кредитный риск» (правил нет, замыкающее, основание п. 11.1)."
+    ],
+    "do": [
+     "Переставить «Низкий» на вторую позицию и попробовать опубликовать."
+    ],
+    "get": [
+     "Отказ публикации: замыкающее значение не последнее в списке.",
+     "После возврата на третью позицию отказ уходит; список отказов пересчитывается сразу, без повторного нажатия."
+    ]
+   },
+   "terms": [
+    {
+     "t": "доминирование",
+     "d": "свойство порядка, при котором верхнее значение выигрывает у нижнего, даже если сработали оба."
+    }
+   ],
+   "accept": [
+    "Значение добавляется, удаляется и переставляется только в черновике.",
+    "Признак «по умолчанию» стоит ровно у одного значения; объявление второго снимает его с первого.",
+    "Редакция без значений не публикуется.",
+    "Редакция, где замыкающее значение не последнее, не публикуется.",
+    "Редакция, где у замыкающего значения есть правила, не публикуется.",
+    "Значение без правил и без признака «по умолчанию» держит отказ «недостижимо».",
+    "У замыкающего значения печатается его основание."
+   ],
+   "notIn": [
+    "Правила и предикаты значения — P19-R5.",
+    "Список проверок публикации целиком — P19-R8.",
+    "Порядок разбора в движке — P19-R10."
+   ],
+   "deps": [
+    "P19-R3"
+   ]
+  },
+  {
+   "id": "P19-R5",
+   "stage": 2,
+   "title": "Правила и предикаты: ИЛИ поверх И, операторы по типу показателя",
+   "build": "Редактор правил значения: правило несёт пункт основания, подпись и конъюнкцию предикатов; правила одного значения соединены ИЛИ. Набор операторов предиката задан типом показателя, правая часть — константа.",
+   "why": "Это язык, на котором администратор ГФХ переносит норму в систему, и читать его он должен глазами. Форма движка — дизъюнкция конъюнкций без скобок: любая формулировка Порядка в неё раскладывается, а вложенность прочитать нельзя — это уже программа, тогда как правило обязано попадать в объяснение заёмщику дословно.",
+   "look": {
+    "mock": "classification.html",
+    "route": "карточка классификатора → вкладка «Значения и правила» → блок правил значения"
+   },
+   "steps": [
+    "Завести правило и предикат по карте данных, привязав правило к значению, а предикат — к правилу.",
+    "Сделать добавление правила («или») и добавление предиката внутри правила («и»), с удалением того и другого.",
+    "Задать набор операторов от типа показателя и не предлагать никакого другого: число — шесть сравнений, перечисление — равно, не равно, «одно из», «не одно из», булево — равно и не равно.",
+    "Сделать правую часть виджетом по типу: число — поле, перечисление — список членов домена, «одно из» — галочки по тем же членам.",
+    "Сохранить введённое при смене оператора: «равно» → «одно из» переносит константу первым членом списка, обратно — берёт первый член.",
+    "Сделать поля пункта основания и подписи текстовыми, с сохранением по вводу и без перерисовки экрана.",
+    "Печатать связку словом: «или» между правилами, «и» между предикатами, «любое из N правил» в заголовке значения."
+   ],
+   "rules": [
+    {
+     "h": "Форма",
+     "items": [
+      "Между правилами одного значения — ИЛИ, внутри правила — И. Скобок и вложенности нет: там, где хочется скобок, пишутся два правила, и оба попадут в объяснение.",
+      "Пункт основания обязателен и пишется словами нормы: он уезжает в объяснение, в запись фиксации и в отчёт.",
+      "Подпись необязательна, пока пункт внутри значения не повторился, и обязательна, как только повторился (И-21)."
+     ]
+    },
+    {
+     "h": "Предикат",
+     "items": [
+      "Правая часть — всегда константа. Показателя справа не бывает: норма таких сравнений не просит ни разу, а совместимость типов, доменов и владельцев на обеих сторонах пришлось бы держать отдельно.",
+      "Строгие сравнения нужны буквально: норма говорит «свыше 180 календарных дней» и «от 181 календарных дней и более» — правило пишется той формулировкой, что стоит в норме, а не пересчитывается в уме.",
+      "«Одно из» — сокращение записи, а не новая сила движка: то же выражается несколькими правилами через ИЛИ. Берут его там, где члены списка ведут к одному значению; где каждый член ведёт к своему — правила остаются раздельными.",
+      "Предикат скаляр: по коллекциям не ходит, не агрегирует и слова «любой» не знает."
+     ]
+    }
+   ],
+   "example": {
+    "src": "значение «Высокий кредитный риск» · редакция 2 · 2 правила",
+    "given": [
+     "Правило 1, п. 19.1, подпись «просрочка 181+ дней, перевод не отложен»: «дней просрочки (худший слой) > 180» <b>и</b> «перевод на 181-й день отложен = нет».",
+     "Правило 2, п. 11.3, подпись «засчитанный фактор высокого уровня»: «максимальный уровень действующего фактора п. 11 = высокий»."
+    ],
+    "do": [
+     "Открыть значение в конструкторе."
+    ],
+    "get": [
+     "В заголовке значения — «любое из 2 правил», между блоками стоит слово «или», внутри правила 1 между предикатами — «и».",
+     "На КД-2024/117 (214 дней, отложения нет, фактор высокий) срабатывают оба правила, и в объяснение уйдут оба."
+    ]
+   },
+   "terms": [
+    {
+     "t": "дизъюнкция конъюнкций",
+     "d": "форма «(A и B) или (C и D)» без скобок и вложенности — вся выразительная сила движка."
+    },
+    {
+     "t": "конъюнкция",
+     "d": "набор предикатов, соединённых И: правило срабатывает, только если истинны все."
+    }
+   ],
+   "accept": [
+    "Правило добавляется и удаляется у любого значения, кроме замыкающего.",
+    "Предикат добавляется и удаляется внутри правила; правило без предикатов держит отказ публикации.",
+    "Список операторов зависит от типа показателя и другого набора не предлагает.",
+    "Правая часть у перечисления выбирается из домена; свободного ввода нет нигде.",
+    "Смена оператора «равно» ↔ «одно из» переносит уже введённое, а не обнуляет его.",
+    "Между правилами на экране напечатано «или», между предикатами — «и», в заголовке значения с двумя и более правилами — «любое из N правил».",
+    "Набор текста в поле пункта основания или подписи не перерисовывает экран: нажатие соседней кнопки срабатывает с первого раза.",
+    "Правило без пункта основания держит отказ публикации."
+   ],
+   "notIn": [
+    "Область редакции тем же редактором — P19-R6.",
+    "Проверки правил при публикации списком — P19-R8.",
+    "Печать сработавших правил в объяснении — P19-R12."
+   ],
+   "deps": [
+    "P19-R1",
+    "P19-R4"
+   ],
+   "traps": [
+    "Верхней границы у среднего риска намеренно нет, хотя п. 11.2 её называет: при отложении перевода кредит с 200 днями обязан остаться средним. Дописать «не более 180» — значит уронить такой кредит в низкий риск мимо отложения. Граница живёт в правиле высокого риска, а разбор сверху вниз делает её у среднего лишней.",
+    "Оператора «одно из» в затравке нет намеренно: факторы-списки п. 11.2 и п. 11.3 свёрнуты владельцем в один показатель уровня, а три ступени процедур взыскания ведут к трём разным подгруппам и сокращению не подлежат."
+   ]
+  },
+  {
+   "id": "P19-R6",
+   "stage": 2,
+   "title": "Область редакции — тот же список правил",
+   "build": "Область редакции как список правил входа тем же редактором, что и правила значения: кто вообще классифицируется этой редакцией. Пустая область впускает всех.",
+   "why": "Область отвечает не «какое значение», а «классифицируется ли объект вообще», и проверяется до значений. Устройство у неё то же самое не ради экономии кода, а ради разговора: администратор учит язык правил один раз. Пока область была отдельным списком предикатов, вход задавался только через И, и альтернативный вход обходили лишним показателем у владельца.",
+   "look": {
+    "mock": "classification.html",
+    "route": "карточка классификатора → вкладка «Значения и правила» → блок «Область редакции»"
+   },
+   "data": [
+    {
+     "n": "Редакция классификатора",
+     "note": "Дельта к своду: область — не отдельная сущность, а список правил у редакции.",
+     "fields": [
+      "<b>область</b> — список правил той же формы, что у значения: пункт или подпись входа плюс конъюнкция предикатов"
+     ]
+    }
+   ],
+   "steps": [
+    "Хранить область как список правил редакции — той же формы, что правила значения.",
+    "Дать области тот же редактор: добавление правила («или»), добавление предиката («и»), те же виджеты правой части.",
+    "Проверять область теми же проверками публикации, что и правила значения, без второго списка проверок.",
+    "Считать пустую область впускающей всех и написать это на экране словами.",
+    "Печатать отказ входа со <b>всеми</b> альтернативами, а не с первой из них, подставляя текущие значения показателей."
+   ],
+   "rules": [
+    {
+     "h": "Поведение",
+     "items": [
+      "Не прошёл область — значения нет вовсе (И-7): недействующий кредит не «низкий риск», у него категории нет.",
+      "Витрина печатает причину, а не прочерк; запись фиксации по такому объекту не пишется.",
+      "Пустота области означает «нет ограничения», а не «никого»: обратное прочтение сделало бы новый классификатор мёртвым по умолчанию и молча.",
+      "Отдельного списка проверок у области нет и заводить его не надо — иначе появится вторая правда о том, что такое законное правило."
+     ]
+    }
+   ],
+   "example": {
+    "src": "КД-2019/004 · ИП Сыдыков А. Т. · кредит не действует",
+    "given": [
+     "Область редакции 2: одно правило входа «кредит действующий = да».",
+     "У классификатора «Подгруппа заёмщика» область пуста — подгруппу получает каждый заёмщик."
+    ],
+    "do": [
+     "Запросить категорию риска по КД-2019/004 на 14.08.2026."
+    ],
+    "get": [
+     "Значения нет. Текст: «вне области классификатора: кредит действующий = да (сейчас нет)».",
+     "В предпросмотре закрытия периода этот кредит попадает в графу «вне области», а не в «без данных»."
+    ]
+   },
+   "terms": [
+    {
+     "t": "правило входа",
+     "d": "правило области: определяет, участвует ли объект в разборе этой редакцией."
+    }
+   ],
+   "accept": [
+    "Область правится тем же редактором и теми же виджетами, что правила значения.",
+    "У области можно завести два и более правила входа, соединённых ИЛИ.",
+    "Пустая область впускает всех, и на экране это написано словами.",
+    "Объект вне области значения не получает, а витрина печатает причину.",
+    "Отказ входа перечисляет все правила входа с подставленными текущими значениями.",
+    "Проверки публикации срабатывают на правилах области так же, как на правилах значения."
+   ],
+   "notIn": [
+    "Редактор правил как таковой — P19-R5.",
+    "Разделение «вне области» и «нет данных» в предпросмотре закрытия — P19-R19."
+   ],
+   "deps": [
+    "P19-R5"
+   ]
+  },
+  {
+   "id": "P19-R7",
+   "stage": 2,
+   "title": "Экран конструктора: список → карточка, вкладки, роль без права",
+   "build": "Вид настроечных экранов: список с колонкой состояния, карточка с переключателем редакций и тремя вкладками, свёрнутые пояснения, отсутствие кнопок у роли без права правки.",
+   "why": "До разведения на список и карточку оба классификатора со всеми редакциями и одиннадцать показателей лежали одной простынёй; как только классификаторов стало четыре, читать её стало нельзя. Кнопка, погашенная у роли без права, сообщает о запрете и молчит о причине — это тот же молчаливый отказ, который в модуле запрещён.",
+   "look": {
+    "mock": "classification.html",
+    "route": "экран «Классификаторы»: список → карточка → вкладки «Значения и правила», «Публикация редакции N», «Журнал редакций»"
+   },
+   "screen": [
+    {
+     "n": "Карточка классификатора",
+     "note": "Вкладка публикации живёт только у черновика и только у роли, которая правит.",
+     "cols": [
+      "переключатель редакций",
+      "реквизиты показанной редакции",
+      "вкладки"
+     ],
+     "acts": [
+      "новая редакция",
+      "прекратить действие",
+      "переключить редакцию",
+      "свернуть и развернуть пояснения"
+     ]
+    }
+   ],
+   "steps": [
+    "Развести оба настроечных экрана на список и карточку; необратимые операции оставить только в карточке.",
+    "Поставить в список колонку состояния с пятью значениями и показать действующую редакцию с датой её ввода.",
+    "Собрать карточку: переключатель редакций в шапке, реквизиты показанной редакции, три вкладки ниже.",
+    "Скрыть у роли без права правки кнопки настройки целиком и назвать строкой роль, которая правит.",
+    "Свернуть пояснения тумблером в шапке: разбор устройства нужен, но закрывать собой экран он не должен.",
+    "Сделать поиск и фильтры перерисовывающими строки, а не страницу."
+   ],
+   "rules": [
+    {
+     "h": "Правила экрана, общие для модуля",
+     "items": [
+      "Список отвечает на «что есть и в каком оно состоянии», карточка — на «как это устроено».",
+      "Роль без права правки видит те же данные и не видит кнопок: скрывается способ изменить, а не сведения. Читать можно всё — и действующую редакцию, и черновик, и журнал.",
+      "Отказ по праву доступа тоже говорит текстом: «наблюдатель факты не вводит», «период закрывает администратор классификации».",
+      "Подтверждения идут окном модуля: браузерных диалогов подтверждения в интерфейсе нет — они блокируют страницу целиком.",
+      "Отказ, случившийся в модальном окне, печатается внутри окна: окно не закрывается, набранное остаётся на месте."
+     ]
+    }
+   ],
+   "example": {
+    "src": "классификатор «Категория кредитного риска» · роль «Наблюдатель»",
+    "given": [
+     "У классификатора 2 редакции: действующая 2 от 06.07.2026 и прошлая 1 (закрыта 05.07.2026)."
+    ],
+    "do": [
+     "Открыть карточку под ролью «Наблюдатель» и переключить редакцию на прошлую."
+    ],
+    "get": [
+     "Значения, правила и область редакции 1 читаются полностью.",
+     "Кнопок «новая редакция», «прекратить действие», «добавить правило» на экране нет вовсе, вместо них строка о том, что правит администратор классификации.",
+     "Вкладки «Публикация редакции» у наблюдателя нет."
+    ]
+   },
+   "terms": [
+    {
+     "t": "состояние классификатора",
+     "d": "одно из пяти: действует · есть черновик · только черновик · действие прекращено · редакций нет."
+    }
+   ],
+   "accept": [
+    "Со строки списка необратимую операцию выполнить нельзя — только из карточки.",
+    "Колонка состояния показывает одно из пяти значений и совпадает с содержимым карточки.",
+    "Переключатель редакций открывает любую редакцию на чтение, включая прошлые.",
+    "У роли без права правки кнопки настройки отсутствуют, а не погашены, и названа роль, которая правит.",
+    "Вкладка публикации есть только у черновика.",
+    "Пояснения свёрнуты по умолчанию и разворачиваются тумблером.",
+    "Набор в поле поиска не отнимает фокус и не перерисовывает страницу целиком.",
+    "Отказ в модальном окне печатается внутри окна, окно остаётся открытым, введённые поля сохраняются."
+   ],
+   "notIn": [
+    "Права ролей по действиям и журнал действий — P19-R23.",
+    "Содержимое вкладки публикации — P19-R8 и P19-R14."
+   ],
+   "deps": [
+    "P19-R3",
+    "P19-R5"
+   ]
+  },
+  {
+   "id": "P19-R8",
+   "stage": 3,
+   "title": "Публикация: проверки списком и реквизиты черновика",
+   "build": "Проверка черновика целиком перед вводом в действие: отказ выдаётся <b>списком</b> всех нарушений сразу, основание и дата ввода — реквизиты черновика, кнопка публикации отказами не блокируется.",
+   "why": "Публикация необратима: отменить редакцию можно только следующей редакцией. Поэтому проверяется вся редакция сразу — одна причина за раз есть тот же молчаливый отказ, растянутый на пять итераций. Недоступная кнопка тоже молчит: причину обязано быть видно, а не угадывать.",
+   "look": {
+    "mock": "classification.html",
+    "route": "карточка классификатора → вкладка «Публикация редакции N» → список отказов"
+   },
+   "steps": [
+    "Собрать проверку редакции целиком, возвращающую список нарушений, а не первое из них.",
+    "Сделать основание и дату ввода полями черновика: пишутся по мере ввода, как любая другая правка.",
+    "Пересчитывать список отказов на каждый ввод, не блокируя кнопку публикации.",
+    "Проверить замкнутость набора значений, достижимость каждого значения и непустоту правил.",
+    "Проверить каждый предикат против реестра показателей: существование, снятие, тип, домен, оператор.",
+    "Проверить пункты основания и подписи: пункт обязателен, подпись обязательна при повторе пункта внутри значения.",
+    "Проверить направление чтения: правило классификатора заёмщика не ссылается на показатель кредита.",
+    "Проверить даты: не раньше начала открытого периода, не позже сегодняшнего дня, строго позже начала действующей редакции.",
+    "Применить тот же список проверок к правилам области, не заводя для неё второго списка."
+   ],
+   "rules": [
+    {
+     "h": "Что проверяется",
+     "items": [
+      "Значения: набор непуст · ровно одно значение по умолчанию · оно замыкает список · правил у него нет · нет недостижимых значений без правил.",
+      "Правила: правило непусто · пункт основания указан · два правила одного значения с одним пунктом обязаны нести подпись.",
+      "Предикаты: показатель существует и не снят · тип константы совпал с типом показателя · константа входит в домен · сравнение применено к числу · «одно из» применено к перечислению · список у «одно из» не пуст и не покрывает домен целиком · каждый член списка входит в домен.",
+      "Реквизиты: основание редакции указано · дата ввода указана · дата в окне «начало открытого периода — сегодня» · дата строго позже начала действующей редакции."
+     ]
+    },
+    {
+     "h": "Почему именно так",
+     "items": [
+      "Отложенного пуска в модели нет: статуса «утверждена, ждёт даты» не существует, а редакция с датой в будущем действовала бы уже сегодня, обманывая читателя.",
+      "Проверки открытого периода мало для запрета двух одновременных редакций: обе даты могут лежать внутри одного открытого периода, и тогда новая редакция вводится раньше действующей (И-22).",
+      "Черновик, не проходящий проверки, — законное состояние, а не ошибка данных."
+     ]
+    }
+   ],
+   "example": {
+    "src": "«Группа платёжеспособности» · редакция 1 · черновик со значениями без правил",
+    "given": [
+     "Три значения: «Высокая», «Средняя», «Низкая». Правил нет ни у одного. Значение по умолчанию не объявлено. Основание и дата ввода пусты."
+    ],
+    "do": [
+     "Открыть вкладку публикации и нажать «Опубликовать»."
+    ],
+    "get": [
+     "Кнопка нажимается, публикация не происходит, отказ печатается списком из 5 пунктов: нет значения по умолчанию · три значения без правил недостижимы · не указано основание · не указана дата ввода.",
+     "После заполнения основания список пересчитывается тем же вводом, без повторного нажатия."
+    ]
+   },
+   "terms": [
+    {
+     "t": "замкнутость редакции",
+     "d": "состояние, при котором любой объект в области получает какое-то значение: ровно одно замыкающее значение стоит последним."
+    }
+   ],
+   "accept": [
+    "Отказ печатается списком всех нарушений сразу, а не по одному.",
+    "Кнопка публикации не блокируется отказами и всегда нажимается.",
+    "Основание и дата ввода сохраняются в черновике по мере ввода и переживают уход с вкладки.",
+    "Список отказов пересчитывается на каждый ввод.",
+    "Дата ввода раньше начала открытого периода, позже сегодняшнего дня либо не позже начала действующей редакции — три разных отказа с разными текстами.",
+    "Предикат на снятом показателе, константа вне домена и «одно из» на числе держат отказ каждый со своим текстом.",
+    "Два правила одного значения с одинаковым пунктом без подписи держат отказ.",
+    "Правила области дают те же отказы, что правила значения."
+   ],
+   "notIn": [
+    "Предпросмотр последствий публикации — P19-R14.",
+    "Сам переход в действующую редакцию и закрытие прошлой — P19-R9."
+   ],
+   "open": [
+    {
+     "ask": "Кто и в какой срок обязан достроить черновик классификатора, у которого значения заведены, а правил нет",
+     "default": "срока нет: черновик висит, пока его не опубликуют, и в предпросмотре закрытия периода такой классификатор считается графой «без действующей редакции»",
+     "impact": "если срок назовут, добавится напоминание владельцу методики; проверки публикации и поведение движка не меняются"
+    }
+   ],
+   "deps": [
+    "P19-R4",
+    "P19-R5",
+    "P19-R6"
+   ]
+  },
+  {
+   "id": "P19-R9",
+   "stage": 3,
+   "title": "Ввод в действие, смена редакции и прекращение действия",
+   "build": "Публикация черновика: он становится действующим с указанной даты, прежняя редакция закрывается днём раньше, в журнал пишется основание. Плюс прекращение действия классификатора без удаления.",
+   "why": "Смена редакции — это стык двух правд во времени, и он обязан быть стык в стык: день, не покрытый ни одной редакцией, оставит запрос на эту дату без ответа, а день, покрытый двумя, сделает ответ зависящим от порядка перебора. Прекращение действия отвечает на «методику отменили»: удалить классификатор нельзя, на него ссылаются записи фиксации закрытых периодов.",
+   "look": {
+    "mock": "classification.html",
+    "route": "карточка классификатора → «Опубликовать» → вкладка «Журнал редакций»; кнопка «Прекратить действие»"
+   },
+   "steps": [
+    "Реализовать публикацию: черновик получает статус действующей и дату ввода, прежняя действующая — статус прошлой и дату закрытия.",
+    "Считать дату закрытия прежней редакции днём раньше даты ввода новой — без зазора и без наложения.",
+    "Записать в журнал редакций основание, автора и время публикации.",
+    "Запретить публикацию датой, не превосходящей начала действующей редакции: два действующих набора правил на один день недопустимы.",
+    "Сделать прекращение действия классификатора: последняя редакция закрывается датой, новые запросы отвечают «действие прекращено».",
+    "Не удалять ни классификатор, ни редакции ни при каких условиях."
+   ],
+   "rules": [
+    {
+     "h": "Время",
+     "items": [
+      "Действующая редакция ровно одна на дату (И-22): вопрос всегда «по какой редакции», и ответ обязан быть однозначным.",
+      "Прошлые редакции живут вечно и читаются: запись фиксации закрытого периода ссылается на номер редакции, и по нему обязано открываться то, что тогда действовало (И-8).",
+      "Отменить публикацию нельзя — только опубликовать следующую редакцию. Отмена задним числом переписала бы уже розданные потребителям значения.",
+      "Прекращение действия — это состояние классификатора, а не удаление: строка остаётся в списке с датой и основанием."
+     ]
+    }
+   ],
+   "example": {
+    "src": "«Категория кредитного риска» · переход редакции 1 → 2",
+    "given": [
+     "Редакция 1 действовала с начала методики; черновик редакции 2 готов, дата ввода 06.07.2026, основание — приказ об утверждении редакции Порядка от 06.07.2026."
+    ],
+    "do": [
+     "Опубликовать редакцию 2."
+    ],
+    "get": [
+     "Редакция 2 действует с 06.07.2026, редакция 1 закрыта 05.07.2026 — стык без зазора.",
+     "Запрос значения на 05.07.2026 отвечает по редакции 1, на 06.07.2026 — по редакции 2.",
+     "В журнале редакций стоят основание, автор и время публикации."
+    ]
+   },
+   "terms": [
+    {
+     "t": "стык редакций",
+     "d": "пара дат «закрыта / действует с», между которыми нет ни одного непокрытого дня."
+    }
+   ],
+   "accept": [
+    "После публикации прежняя редакция закрыта днём раньше даты ввода новой.",
+    "Ни одна дата не покрыта двумя редакциями и ни одна не осталась без редакции.",
+    "Запрос значения на дату прошлой редакции отвечает по её правилам, а не по действующим.",
+    "Публикация датой не позже начала действующей редакции отклоняется.",
+    "Журнал редакций содержит основание, автора и время каждой публикации.",
+    "Прекращение действия закрывает последнюю редакцию и оставляет классификатор в списке с состоянием «действие прекращено».",
+    "Классификатор и редакции не удаляются ни одним действием интерфейса.",
+    "После прекращения действия запрос значения отвечает текстом «действие прекращено с такой-то даты», а не пустотой."
+   ],
+   "notIn": [
+    "Проверки перед публикацией — P19-R8.",
+    "Пересчёт закрытых периодов — его нет, см. P19-R18."
+   ],
+   "deps": [
+    "P19-R8"
+   ]
+  },
+  {
+   "id": "P19-R10",
+   "stage": 4,
+   "title": "Движок разбора: четыре шага и их порядок",
+   "build": "Ядро модуля: разбор объекта на дату за четыре шага — редакция на дату, область, значения сверху вниз, замыкающее значение. Ни нормы, ни лестницы подгрупп внутри кода нет.",
+   "why": "Порядок шагов и есть смысл: область до значений отделяет «не классифицируется» от «низкий риск», а разбор сверху вниз даёт доминирование без ранга тяжести. Движок обязан не знать ничего о содержании — ни про 180 дней, ни про пункт 11, ни про лестницу подгрупп: как только он это узнает, четвёртый классификатор снова потребует релиза.",
+   "look": {
+    "mock": "classification.html",
+    "route": "витрина результата → любой кредит → карточка разбора"
+   },
+   "steps": [
+    "Шаг 1: по дате запроса выбрать редакцию классификатора — действующую на эту дату, а не последнюю по номеру.",
+    "Шаг 2: проверить область; не прошёл — вернуть отказ входа со всеми альтернативами и остановиться.",
+    "Шаг 3: перебрать значения в порядке списка, для каждого проверить его правила: сработало хотя бы одно — значение найдено.",
+    "Шаг 4: не сработало ни одно правило ни у одного значения — вернуть замыкающее значение с его основанием.",
+    "Собирать по дороге разбор для объяснения: какие правила проверялись, какие сработали, с какими значениями показателей.",
+    "Держать движок свободным от предметных знаний: ни одной константы нормы, ни одной ветки по коду классификатора."
+   ],
+   "rules": [
+    {
+     "h": "Порядок и его последствия",
+     "items": [
+      "Разбор сверху вниз: первое значение, у которого сработало правило, побеждает, остальные не проверяются на предмет ответа, но проверяются для объяснения.",
+      "Верхняя граница у нижних значений не нужна: её роль играет порядок. Именно поэтому у среднего риска нет «не более 180 дней».",
+      "Замыкающее значение наступает только после того, как все правила проверены и не сработали.",
+      "Один и тот же движок исполняет действующую редакцию, черновик в сухом прогоне и прошлую редакцию при чтении закрытого периода — второй реализации разбора в системе быть не должно."
+     ]
+    }
+   ],
+   "example": {
+    "src": "КД-2025/088 · ОсОО «Береке» · 12 дней просрочки · 14.08.2026",
+    "given": [
+     "Область: кредит действующий = да — прошёл.",
+     "«Высокий»: правило 1 (>180 и нет отложения) — 12 не больше 180, не сработало; правило 2 (фактор высокого уровня) — фактора нет, не сработало.",
+     "«Средний»: правило 1 (просрочка от 61 до 180) — 12 не в диапазоне; правило 2 (фактор среднего уровня) — нет."
+    ],
+    "do": [
+     "Запросить категорию риска."
+    ],
+    "get": [
+     "«Низкий кредитный риск» — замыкающее значение, основание п. 11.1.",
+     "В объяснении написано «правила проверены, ни одно не сработало», а не «нет данных»: это разные исходы."
+    ]
+   },
+   "terms": [
+    {
+     "t": "разбор",
+     "d": "исполнение редакции по одному объекту на одну дату; его результат — значение либо отказ."
+    }
+   ],
+   "accept": [
+    "Разбор выбирает редакцию по дате запроса, а не последнюю опубликованную.",
+    "Объект вне области значения не получает, и шаги 3–4 не исполняются.",
+    "Первое сверху значение со сработавшим правилом побеждает нижние.",
+    "Объект, у которого не сработало ни одно правило, получает замыкающее значение с его основанием.",
+    "В коде движка нет ни одной константы нормы и ни одной ветки по коду классификатора.",
+    "Сухой прогон, витрина и чтение закрытого периода используют один и тот же разбор.",
+    "Разбор на дату прошлой редакции даёт результат по её правилам."
+   ],
+   "notIn": [
+    "Поведение при неполном входе — P19-R11.",
+    "Печать объяснения — P19-R12.",
+    "Свёртка по нескольким кредитам — P19-R22."
+   ],
+   "deps": [
+    "P19-R2",
+    "P19-R6",
+    "P19-R9"
+   ],
+   "traps": [
+    "Соблазн зашить лестницу подгрупп заёмщика в код велик — ступеней всего пять и они «очевидные». Но лестница выражается порядком значений и правилами на показателе «вид живой подтверждённой процедуры», и как только она попадёт в код, изменение методики снова станет релизом. Проверка держится смоук-тестом макета: в разборе не должно быть ни номеров пунктов, ни названий ступеней."
+   ]
+  },
+  {
+   "id": "P19-R11",
+   "stage": 4,
+   "title": "Полнота входа: отказ «нет данных» вместо значения по умолчанию",
+   "build": "Проверка полноты входа перед разбором: если показатель, на котором стоит правило, не отдан владельцем, значения нет — движок возвращает отказ с именем показателя и его владельцем.",
+   "why": "Это главный отказ модуля, и он держится вопреки удобству: молчание владельца похоже на «нет», а «нет» доводит объект до замыкающего значения — то есть до «низкого риска». Отчёт п. 12 получит цифру, отличить которую от честной нельзя. Лучше пустая клетка с именем адресата, чем правдоподобная цифра без источника.",
+   "look": {
+    "mock": "classification.html",
+    "route": "витрина результата → КД-2026/012 → отказ «классифицировать нечем»"
+   },
+   "steps": [
+    "Собрать перед разбором список показателей, которые встречаются в правилах области и значений выбранной редакции.",
+    "Проверить каждый на признак «отдан»; неотданный — остановить разбор и вернуть отказ.",
+    "Написать в отказе имя показателя и его владельца, а при нескольких — все.",
+    "Не подставлять умолчаний ни на одном шаге: ни ноль, ни ложь, ни первый член домена.",
+    "Показать отказ на витрине текстом, а в предпросмотре закрытия — отдельной графой «без данных».",
+    "Не писать записи фиксации по объекту без значения."
+   ],
+   "rules": [
+    {
+     "h": "Границы проверки",
+     "items": [
+      "Проверяются только показатели, действительно используемые редакцией: показатель не отдан, но ни в одном правиле не участвует — это не мешает разбору.",
+      "«Правила проверить нечем» и «правила проверены, не сработали» — разные исходы, и на экране они звучат разными фразами (И-20).",
+      "Отказ адресный: владелец назван, чтобы читатель знал, к кому идти, а не просто видел «данных нет».",
+      "Пара «дней просрочки» и «слой-источник» неполна, если не отдан любой из двух."
+     ]
+    }
+   ],
+   "example": {
+    "src": "КД-2026/012 · выдан 12.08.2026 · расчёт просрочки не публиковался",
+    "given": [
+     "Правила редакции 2 стоят на показателях «дней просрочки (худший слой)», «перевод на 181-й день отложен», «максимальный уровень действующего фактора п. 11».",
+     "Платежи пару показателей просрочки не отдали, остальные отданы."
+    ],
+    "do": [
+     "Открыть кредит в витрине результата."
+    ],
+    "get": [
+     "Категории нет. Текст: «классифицировать нечем: “Дней просрочки (худший слой)” (владелец — Платежи) не отдан, а правило редакции на нём стоит».",
+     "В предпросмотре закрытия периода кредит в графе «без данных», и до его исправления период закрывается с этой цифрой на виду."
+    ]
+   },
+   "terms": [
+    {
+     "t": "полнота входа",
+     "d": "состояние, при котором каждый показатель, используемый редакцией, отдан владельцем."
+    }
+   ],
+   "accept": [
+    "Неотданный показатель, использованный редакцией, останавливает разбор и не даёт значения.",
+    "Отказ называет показатель и владельца; при нескольких неотданных перечислены все.",
+    "Неотданный показатель, не использованный редакцией, разбору не мешает.",
+    "Ни один шаг разбора не подставляет умолчание вместо молчания владельца.",
+    "«Нет данных» и «правила не сработали» звучат на экране разными фразами.",
+    "По объекту без значения запись фиксации не пишется.",
+    "Неотданный «слой-источник» при отданных «днях просрочки» тоже даёт отказ."
+   ],
+   "notIn": [
+    "Приём значений от владельцев — P19-R2.",
+    "Графы предпросмотра закрытия — P19-R19."
+   ],
+   "deps": [
+    "P19-R10"
+   ]
+  },
+  {
+   "id": "P19-R12",
+   "stage": 4,
+   "title": "Объяснение результата: все сработавшие правила",
+   "build": "Карточка разбора: почему получилось это значение — все сработавшие правила с пунктами основания и подписями, подставленные значения показателей, номер редакции и дата.",
+   "why": "Объяснение — предъявляемый документ: его читают заёмщик, проверяющий и суд, и оно обязано сойтись с текстом нормы дословно. Одно правило вместо всех сработавших снимает основания: кредит, попавший в высокий риск сразу двумя правилами — по просрочке и по засчитанному фактору, — обязан показывать оба пункта, иначе снятие одного основания выглядит снятием категории.",
+   "look": {
+    "mock": "classification.html",
+    "route": "витрина результата → КД-2024/117 → карточка «Почему»"
+   },
+   "screen": [
+    {
+     "n": "Карточка разбора объекта",
+     "note": "Открывается и из витрины, и из сухого прогона — вид один и тот же.",
+     "cols": [
+      "значение",
+      "редакция и дата",
+      "область",
+      "сработавшие правила",
+      "входной срез показателей"
+     ],
+     "acts": [
+      "открыть редакцию",
+      "перейти к факту п. 11"
+     ]
+    }
+   ],
+   "steps": [
+    "Собрать в разборе все сработавшие правила победившего значения, а не первое из них.",
+    "Печатать по каждому правилу пункт основания, подпись и предикаты с подставленными значениями показателей.",
+    "Показать проверку области отдельной строкой: прошёл, по какому правилу входа.",
+    "Показать входной срез: каждый использованный показатель, его значение либо «не отдан», владелец и дата среза.",
+    "Написать номер редакции и дату, на которую сделан разбор, и дать открыть редакцию по ссылке.",
+    "Для замыкающего значения печатать «правила проверены, ни одно не сработало» и основание самого значения.",
+    "Держать один вид карточки для витрины, сухого прогона и чтения закрытого периода."
+   ],
+   "rules": [
+    {
+     "h": "Что обязано быть видно",
+     "items": [
+      "Все сработавшие правила победившего значения, каждое со своим пунктом (И-11).",
+      "Подпись правила различает два правила с одним пунктом: без неё в объяснении встанут два одинаковых основания.",
+      "Значения показателей подставлены в текст предиката: «дней просрочки (худший слой) = 214 > 180», а не «условие выполнено».",
+      "Число дней просрочки не печатается без имени слоя-источника (И-18): 214 дней по мировому соглашению и 214 дней по свободному слою — разные вещи."
+     ]
+    }
+   ],
+   "example": {
+    "src": "КД-2024/117 · ОсОО «Ак-Жол» · 214 дней · 14.08.2026",
+    "given": [
+     "Сработали оба правила высокого риска: п. 19.1 «просрочка 181+ дней, перевод не отложен» и п. 11.3 «засчитанный фактор высокого уровня» (факт F-001, нецелевое использование)."
+    ],
+    "do": [
+     "Открыть карточку «Почему»."
+    ],
+    "get": [
+     "Значение «Высокий кредитный риск», редакция 2 от 06.07.2026, разбор на 14.08.2026.",
+     "Оба правила напечатаны: «дней просрочки (худший слой) = 214 (слой: свободный) > 180 и перевод на 181-й день отложен = нет» и «максимальный уровень действующего фактора п. 11 = высокий».",
+     "Из второго правила открывается факт F-001 с его датой и решением."
+    ]
+   },
+   "terms": [
+    {
+     "t": "входной срез",
+     "d": "перечень значений показателей, с которыми исполнялся разбор, вместе с владельцами и датами."
+    }
+   ],
+   "accept": [
+    "В карточке разбора напечатаны все сработавшие правила победившего значения.",
+    "У каждого правила видны пункт основания и подпись.",
+    "Предикаты напечатаны с подставленными значениями показателей, а не общими словами.",
+    "Строка области показывает, по какому правилу входа объект прошёл.",
+    "Входной срез перечисляет использованные показатели, значения либо «не отдан», владельцев и даты срезов.",
+    "Замыкающее значение объясняется фразой «правила проверены, ни одно не сработало» и своим основанием.",
+    "Номер редакции и дата разбора указаны, редакция открывается по ссылке.",
+    "Дни просрочки нигде не показаны без имени слоя-источника."
+   ],
+   "notIn": [
+    "Свёртка «худшее по кредитам» и её объяснение — P19-R22.",
+    "Факты п. 11 как таковые — P19-R15."
+   ],
+   "deps": [
+    "P19-R10",
+    "P19-R11"
+   ]
+  },
+  {
+   "id": "P19-R13",
+   "stage": 4,
+   "title": "Витрина результата: значение на дату и его источник",
+   "build": "Экран результата по объектам: значение каждого классификатора на выбранную дату, отказы текстом наравне со значениями, переход в разбор, фильтры по значению и по состоянию.",
+   "why": "Витрина — то место, где модуль показывают приёмке, и она же черновой отчёт: пока значения не собраны на один экран, «правила настроены» проверить нельзя. Отказ здесь равноправен значению: прочерк вместо текста заставил бы читателя догадываться, чего именно не хватает.",
+   "look": {
+    "mock": "classification.html",
+    "route": "экран «Витрина результата» → выбор даты → строка кредита"
+   },
+   "screen": [
+    {
+     "n": "Витрина результата",
+     "note": "Дата меняется вручную; по умолчанию — сегодня.",
+     "cols": [
+      "объект",
+      "категория риска",
+      "подгруппа заёмщика",
+      "состояние",
+      "дата разбора"
+     ],
+     "acts": [
+      "сменить дату",
+      "открыть разбор",
+      "фильтровать по значению"
+     ]
+    }
+   ],
+   "steps": [
+    "Собрать список объектов со значениями всех действующих классификаторов на выбранную дату.",
+    "Печатать в клетке либо значение, либо текст отказа: «вне области», «нет данных», «действующей редакции нет».",
+    "Дать сменить дату и пересчитать всю витрину по редакциям, действовавшим на неё.",
+    "Открывать разбор объекта нажатием на клетку.",
+    "Дать фильтр по значению и по состоянию, чтобы найти все объекты без данных одним движением."
+   ],
+   "rules": [
+    {
+     "h": "Поведение",
+     "items": [
+      "Витрина ничего не хранит: это чтение через движок, а не таблица результатов. Хранят только записи фиксации закрытых периодов.",
+      "Дата в прошлом читается по редакции, действовавшей тогда, а не по текущей.",
+      "Отказ показывается тем же текстом, что в карточке разбора: два разных текста об одном исходе — два разных объяснения."
+     ]
+    }
+   ],
+   "example": {
+    "src": "витрина на 14.08.2026 · 8 кредитов затравки",
+    "given": [
+     "КД-2024/117 — 214 дней, фактор высокого уровня; КД-2023/210 — 200 дней с отложением перевода; КД-2019/004 — не действует; КД-2026/012 — расчёт не публиковался."
+    ],
+    "do": [
+     "Открыть витрину на 14.08.2026 и отфильтровать по состоянию «без данных»."
+    ],
+    "get": [
+     "КД-2024/117 — «Высокий», КД-2023/210 — «Средний» (отложение держит его на среднем при 200 днях), КД-2019/004 — «вне области», КД-2026/012 — «нет данных».",
+     "Фильтр оставляет один кредит — КД-2026/012."
+    ]
+   },
+   "terms": [
+    {
+     "t": "витрина",
+     "d": "экран чтения значений по объектам на дату; результатов не хранит."
+    }
+   ],
+   "accept": [
+    "Витрина показывает значения всех действующих классификаторов по каждому объекту.",
+    "Отказ печатается текстом в той же клетке, где стояло бы значение.",
+    "Смена даты пересчитывает витрину по редакциям, действовавшим на эту дату.",
+    "Нажатие на клетку открывает разбор этого объекта.",
+    "Фильтр по состоянию находит все объекты без данных и все объекты вне области.",
+    "Тексты отказов на витрине и в карточке разбора совпадают дословно."
+   ],
+   "notIn": [
+    "Устройство разбора — P19-R10.",
+    "Записи фиксации периода — P19-R18."
+   ],
+   "deps": [
+    "P19-R12"
+   ]
+  },
+  {
+   "id": "P19-R14",
+   "stage": 4,
+   "title": "Сухой прогон черновика",
+   "build": "Прогон черновика по объектам открытого периода без публикации: сколько объектов сменят значение, куда именно, и разбор любого объекта по правилам черновика.",
+   "why": "Публикация необратима, а редакция читается глазами: правило выглядит правильным ровно до первого прогона. Прогон переводит «правила вроде верные» в «184 кредита останутся низким риском, 12 уйдут в высокий» — и разница между ожидаемым и полученным всплывает до ввода в действие, а не в отчёте п. 12.",
+   "look": {
+    "mock": "classification.html",
+    "route": "карточка классификатора → вкладка «Публикация редакции N» → блок сухого прогона"
+   },
+   "steps": [
+    "Прогнать черновик по всем объектам открытого периода тем же движком, что и действующую редакцию.",
+    "Сложить итог в таблицу переходов: было по действующей редакции → станет по черновику, с числом объектов в каждой клетке.",
+    "Показать отдельными строками объекты, выпавшие из области, и объекты без данных.",
+    "Дать открыть разбор любого объекта по правилам черновика — тем же объяснением, что и в витрине.",
+    "Пересчитывать прогон по кнопке, а не на каждый ввод: он ходит по всем объектам периода."
+   ],
+   "rules": [
+    {
+     "h": "Что прогон делает и чего не делает",
+     "items": [
+      "Прогон ничего не пишет: ни значений, ни записей фиксации, ни журнала — это чтение.",
+      "Считается по объектам открытого периода и на его дату; закрытые периоды прогон не трогает, их значения уже зафиксированы.",
+      "Черновик, не проходящий проверки публикации, прогоняется всё равно там, где он исполним: администратору полезно увидеть последствия до того, как он дочинил реквизиты.",
+      "Прогон — не проверка публикации и её не заменяет: он показывает последствия, а не законность."
+     ]
+    }
+   ],
+   "example": {
+    "src": "черновик редакции 3 «Категория кредитного риска» · открытый период 2026-07",
+    "given": [
+     "В черновике к правилу высокого риска добавлен предикат «слой-источник просрочки = свободный слой».",
+     "В периоде 6 действующих кредитов, из них 2 с просрочкой свыше 180 дней по слою мирового соглашения."
+    ],
+    "do": [
+     "Нажать «Прогнать черновик»."
+    ],
+    "get": [
+     "Таблица переходов: «Высокий → Средний» 2 кредита, остальные без изменений.",
+     "Открыв разбор КД-2025/101, видно, что правило высокого риска больше не срабатывает: слой-источник — мировое соглашение.",
+     "Это и есть та цена, которую администратор оценивает до публикации."
+    ]
+   },
+   "terms": [
+    {
+     "t": "сухой прогон",
+     "d": "исполнение черновика по живым данным без записи результата."
+    }
+   ],
+   "accept": [
+    "Прогон не создаёт ни значений, ни записей фиксации, ни строк журнала.",
+    "Таблица переходов показывает пары «было → станет» с числом объектов.",
+    "Объекты вне области и объекты без данных показаны отдельными строками, а не смешаны с переходами.",
+    "Разбор любого объекта по черновику открывается тем же объяснением, что в витрине.",
+    "Прогон работает и на черновике, не прошедшем проверки публикации.",
+    "Повторное нажатие пересчитывает прогон по текущему состоянию черновика."
+   ],
+   "notIn": [
+    "Проверки законности черновика — P19-R8.",
+    "Устройство объяснения — P19-R12."
+   ],
+   "deps": [
+    "P19-R8",
+    "P19-R10"
+   ]
+  },
+  {
+   "id": "P19-R15",
+   "stage": 5,
+   "title": "Справочник видов факторов п. 11 и заведение факта",
+   "build": "Справочник видов факторов с уровнем и пунктом основания и заведение факта по кредиту: вид, дата наступления, реквизиты решения комитета, срок действия. Уровень факта берётся из вида.",
+   "why": "Факторы п. 11 — качественные признаки, которые из чисел не выводятся: нецелевое использование или утрату обеспечения устанавливает человек. Движку при этом нужен не текст факта, а один показатель — худший уровень действующих факторов; иначе правило пришлось бы писать по каждому виду отдельно и переписывать при каждой правке нормы.",
+   "look": {
+    "mock": "classification.html",
+    "route": "экран «Факты п. 11» → «Завести факт» → карточка факта"
+   },
+   "screen": [
+    {
+     "n": "Факты п. 11",
+     "note": "Экран развёрнут по роли: кредитный работник заводит, наблюдатель читает.",
+     "cols": [
+      "кредит",
+      "вид фактора",
+      "уровень",
+      "пункт",
+      "дата наступления",
+      "учтён с",
+      "решение комитета",
+      "срок до",
+      "судьба"
+     ],
+     "acts": [
+      "завести факт",
+      "аннулировать",
+      "фильтровать по судьбе"
+     ]
+    }
+   ],
+   "steps": [
+    "Завести справочник видов факторов по карте данных: код, наименование, уровень, пункт основания.",
+    "Наполнить его затравкой: три вида высокого уровня по п. 11.3 и три вида среднего по п. 11.2.",
+    "Сделать заведение факта: кредит, вид, дата наступления, реквизиты решения комитета, срок действия.",
+    "Ставить уровень и пункт факта из вида и не хранить их в самом факте.",
+    "Отклонять дату наступления в будущем и заведение факта ролью без права.",
+    "Считать дату учёта: наступил в открытом периоде — учитывается с даты наступления, наступил в закрытом — с начала открытого.",
+    "Хранить набранное в форме заведения в состоянии экрана: отказ не должен стирать введённое.",
+    "Считать показатель «максимальный уровень действующего фактора п. 11» свёрткой действующих фактов кредита."
+   ],
+   "rules": [
+    {
+     "h": "Уровень живёт в виде, а не в факте",
+     "items": [
+      "Уровень и пункт — реквизиты вида: правка нормы меняет справочник, а не сотни заведённых фактов.",
+      "Действующим считается факт, у которого есть реквизиты решения комитета, наступила дата учёта, не истёк срок действия и нет аннулирования.",
+      "Свёртка берёт худший уровень среди действующих фактов кредита: высокий важнее среднего, «нет» — когда действующих факторов нет.",
+      "Факт без решения комитета в показатель не попадает (И-10), но заводится и виден: человек обязан знать, что с ним."
+     ]
+    },
+    {
+     "h": "Две даты",
+     "items": [
+      "Дата наступления и дата учёта расходятся ровно тогда, когда факт наступил в закрытом периоде (И-9): прошлое не переписывается, но факт не теряется.",
+      "Срок действия необязателен: он есть у факторов, которые перестают действовать сами — просроченная отчётность закрывается сдачей."
+     ]
+    }
+   ],
+   "example": {
+    "src": "факт F-003 · КД-2025/088 · снижение стоимости обеспечения",
+    "given": [
+     "Вид «Снижение стоимости обеспечения»: уровень средний, п. 11.2.",
+     "Наступил 12.06.2026 — в закрытом июне; решение комитета есть, протокол КАБК № 19 от 30.06.2026."
+    ],
+    "do": [
+     "Завести факт и запросить показатель уровня по кредиту."
+    ],
+    "get": [
+     "В реестре стоят обе даты: наступил 12.06.2026, учтён с 01.07.2026.",
+     "Записи закрытого июня не изменились; показатель уровня по кредиту равен «средний» с июля."
+    ]
+   },
+   "terms": [
+    {
+     "t": "фактор п. 11",
+     "d": "качественный признак ухудшения, устанавливаемый человеком; уровень задан видом фактора."
+    },
+    {
+     "t": "свёртка уровня",
+     "d": "худший уровень среди действующих фактов кредита — единственная форма, в которой факты видит движок."
+    }
+   ],
+   "accept": [
+    "Справочник видов содержит код, наименование, уровень и пункт основания.",
+    "Факт заводится с кредитом, видом, датой наступления, реквизитами решения и сроком действия.",
+    "Уровень и пункт факта берутся из вида и в факте не правятся.",
+    "Дата наступления в будущем не принимается.",
+    "Факт, наступивший в закрытом периоде, учитывается с начала открытого, и в реестре стоят обе даты.",
+    "Факт без реквизитов решения комитета в показатель уровня не попадает.",
+    "Факт с истёкшим сроком действия в показатель уровня не попадает.",
+    "Набранное в форме заведения переживает отказ и перерисовку списка.",
+    "Показатель уровня равен худшему уровню среди действующих фактов кредита."
+   ],
+   "notIn": [
+    "Судьба факта и её причины — P19-R16.",
+    "Аннулирование — P19-R17."
+   ],
+   "deps": [
+    "P19-R1"
+   ]
+  },
+  {
+   "id": "P19-R16",
+   "stage": 5,
+   "title": "Судьба факта: закрытый список причин незачёта",
+   "build": "Судьба факта, выводимая из его реквизитов: засчитан · не засчитан по одной из трёх причин · аннулирован. Судьба печатается в реестре, считается счётчиками и работает фильтром.",
+   "why": "Заведённый факт, который ни на что не повлиял, — самое опасное место модуля: человек считает, что признак учтён, а движок его не видит. Закрытый список причин отвечает на «почему не сработало» одинаковыми словами в реестре, в разборе и в фильтре; свободная формулировка сделала бы фильтр по причине бесполезным, а сам список — недоказуемым.",
+   "look": {
+    "mock": "classification.html",
+    "route": "экран «Факты п. 11» → счётчики над списком → графа «Судьба»"
+   },
+   "steps": [
+    "Выводить судьбу факта из его реквизитов, а не хранить её полем: хранимая судьба разошлась бы с реквизитами при первой же правке нормы.",
+    "Считать три причины незачёта закрытым списком: нет решения комитета · срок действия истёк · ведёт к более лёгкому значению, чем выбранное.",
+    "Считать третью причину по правилам действующей редакции, а не по таблице рангов: какое значение дал бы фактор сам по себе, видно из правил.",
+    "Поставить счётчики по судьбам над списком и сделать их фильтром.",
+    "Печатать реестр фактов и по кредиту, у которого значения нет: там он и нужен для разбора.",
+    "Показывать судьбу в разборе рядом с правилом по фактору: сработало или не сработало и почему."
+   ],
+   "rules": [
+    {
+     "h": "Три причины и ни одной сверх",
+     "items": [
+      "Список закрыт (И-12): каждая причина различима по реквизитам факта, и по каждой можно отфильтровать.",
+      "«Ведёт к более лёгкому значению» — не ошибка ввода: факт учтён, но кредит уже в более тяжёлом значении по другому правилу. Скрывать такой факт нельзя, иначе фильтр по причине всегда пуст.",
+      "Судьба «аннулирован» старше остальных: аннулированный факт не разбирается на причины.",
+      "Реестр фактов не зависит от наличия значения у кредита: отсутствие категории — повод открыть факты, а не спрятать их."
+     ]
+    }
+   ],
+   "example": {
+    "src": "экран фактов · затравка F-001…F-005 · 14.08.2026",
+    "given": [
+     "F-001 — решение есть, срок открыт, кредит высокого риска: засчитан.",
+     "F-002 — решения комитета нет. F-004 — срок действия истёк 31.07.2026.",
+     "F-005 — средний фактор на кредите, который уже высокого риска."
+    ],
+    "do": [
+     "Открыть экран фактов и нажать счётчик «не засчитан: ведёт к более лёгкому значению»."
+    ],
+    "get": [
+     "Фильтр оставляет F-005; в графе «Судьба» стоит та же фраза, что в счётчике.",
+     "F-002 и F-004 стоят со своими причинами, и обе взяты из закрытого списка трёх.",
+     "В показатель уровня по КД-2024/117 входит только F-001."
+    ]
+   },
+   "terms": [
+    {
+     "t": "судьба факта",
+     "d": "выводимое состояние: засчитан, аннулирован либо не засчитан по одной из трёх причин."
+    }
+   ],
+   "accept": [
+    "Судьба выводится из реквизитов факта и нигде не хранится отдельным полем.",
+    "Причин незачёта ровно три, и они совпадают дословно в реестре, в счётчиках и в фильтре.",
+    "Причина «ведёт к более лёгкому значению» считается по правилам редакции, а не по отдельной таблице рангов.",
+    "Счётчики по судьбам стоят над списком и работают фильтром.",
+    "Реестр фактов открывается и по кредиту без значения классификатора.",
+    "Аннулированный факт показан судьбой «аннулирован» и на причины не разбирается.",
+    "В разборе объекта рядом с правилом по фактору видно, какой факт сработал."
+   ],
+   "notIn": [
+    "Заведение факта и справочник видов — P19-R15.",
+    "Аннулирование — P19-R17."
+   ],
+   "deps": [
+    "P19-R15"
+   ]
+  },
+  {
+   "id": "P19-R17",
+   "stage": 5,
+   "title": "Аннулирование факта с причиной",
+   "build": "Аннулирование ошибочно заведённого факта: причина обязательна, факт остаётся в списке с судьбой «аннулирован», из свёртки уровня уходит, удаления нет.",
+   "why": "Ошибки при заведении неизбежны — не тот кредит, не тот вид. Удалять такой факт нельзя: он уже мог попасть в объяснение и в запись фиксации закрытого периода, и исчезновение строки сделало бы прошлое объяснение непроверяемым. Аннулирование с причиной — единственный способ признать ошибку, не переписывая историю.",
+   "look": {
+    "mock": "classification.html",
+    "route": "экран «Факты п. 11» → карточка факта → «Аннулировать»"
+   },
+   "steps": [
+    "Сделать аннулирование факта из любой судьбы, кроме уже аннулированной.",
+    "Требовать причину текстом; без неё аннулирование не выполняется, а отказ печатается внутри окна.",
+    "Записать автора и время аннулирования вместе с причиной.",
+    "Убрать аннулированный факт из свёртки уровня, оставив его в списке.",
+    "Запретить удаление факта любым действием интерфейса."
+   ],
+   "rules": [
+    {
+     "h": "Что происходит с прошлым",
+     "items": [
+      "Записи фиксации закрытых периодов не пересчитываются: значение, зафиксированное с этим фактом, остаётся как было (И-8).",
+      "Текущий разбор пересчитывается сразу: свёртка уровня меняется, и категория может уйти вниз тем же днём.",
+      "Аннулирование не отменяется: ошибка в самом аннулировании исправляется новым фактом, а не воскрешением старого."
+     ]
+    }
+   ],
+   "example": {
+    "src": "факт F-003 · КД-2025/088 · заведён по ошибке не на тот кредит",
+    "given": [
+     "F-003 засчитан, уровень средний; на кредите это единственный действующий факт, и показатель уровня равен «средний»."
+    ],
+    "do": [
+     "Открыть карточку и нажать «Аннулировать», оставив причину пустой, затем указать причину «заведён на другой кредит»."
+    ],
+    "get": [
+     "Первое нажатие: окно не закрывается, отказ «нужна причина» напечатан внутри него, набранное на месте.",
+     "После указания причины факт получает судьбу «аннулирован», остаётся в списке, показатель уровня по кредиту падает до «нет», а записи закрытых периодов остаются нетронутыми."
+    ]
+   },
+   "terms": [
+    {
+     "t": "аннулирование",
+     "d": "признание факта ошибочным: он перестаёт действовать, но не исчезает."
+    }
+   ],
+   "accept": [
+    "Аннулирование доступно из любой судьбы, кроме «аннулирован».",
+    "Без причины аннулирование не выполняется, а отказ печатается внутри окна, не закрывая его.",
+    "Причина, автор и время аннулирования сохранены и видны в карточке.",
+    "Аннулированный факт остаётся в списке и в счётчиках.",
+    "Свёртка уровня после аннулирования пересчитывается сразу.",
+    "Записи фиксации закрытых периодов после аннулирования не меняются.",
+    "Удаления факта нет ни в одном месте интерфейса."
+   ],
+   "notIn": [
+    "Судьбы и счётчики — P19-R16.",
+    "Неизменность закрытого периода — P19-R18."
+   ],
+   "deps": [
+    "P19-R16"
+   ]
+  },
+  {
+   "id": "P19-R18",
+   "stage": 6,
+   "title": "Записи фиксации и закрытие учётного периода",
+   "build": "Учётные периоды и их закрытие: по каждому объекту в области пишется запись фиксации — значение, номер редакции, сработавшие правила и засчитанные факты. Закрытый период не пересчитывается никогда.",
+   "why": "Отчётность обязана быть воспроизводимой: через год проверяющий спросит, почему в июне у кредита стоял высокий риск, и ответ должен читаться из записи, а не собираться заново по сегодняшним данным. Пересчёт закрытого периода превратил бы сданный отчёт в переменную величину — вчерашняя цифра менялась бы от сегодняшней правки факта.",
+   "look": {
+    "mock": "classification.html",
+    "route": "экран «Периоды и фиксация» → «Закрыть период» → записи фиксации"
+   },
+   "screen": [
+    {
+     "n": "Периоды и фиксация",
+     "note": "Периоды идут подряд; открытый ровно один.",
+     "cols": [
+      "период",
+      "состояние",
+      "записей",
+      "кто закрыл",
+      "когда"
+     ],
+     "acts": [
+      "предпросмотр закрытия",
+      "закрыть период",
+      "открыть записи",
+      "отчёт"
+     ]
+    }
+   ],
+   "steps": [
+    "Завести учётный период по карте данных: месяц, состояние, автор и время закрытия.",
+    "Держать открытым ровно один период и закрывать их по порядку, самый ранний первым.",
+    "Разрешать закрытие только после окончания месяца: с 1-го числа следующего, не раньше.",
+    "Писать при закрытии запись по каждому объекту в области каждого классификатора с действующей редакцией.",
+    "Класть в запись номер редакции, код и ярлык значения, сработавшие правила с пунктами, номера засчитанных фактов, дату «по состоянию на» и автора закрытия.",
+    "Писать по замыкающему значению строку правил «по умолчанию» с его основанием — запись без правил читалась бы как потерянная.",
+    "Не писать записи по объектам вне области и по объектам без данных.",
+    "Запретить правку и пересчёт записей закрытого периода любым последующим событием."
+   ],
+   "rules": [
+    {
+     "h": "Неизменность",
+     "items": [
+      "Запись самодостаточна: она хранит номер редакции и сработавшие правила, а не ссылку на сегодняшнее состояние (И-8).",
+      "Ни аннулирование факта, ни публикация новой редакции, ни поздний расчёт просрочки закрытый период не трогают (И-8).",
+      "Закрытый период обратно не открывается: исправление идёт следующим периодом, как в бухгалтерии.",
+      "Прошлые редакции не удаляются: запись ссылается на номер, и по нему обязано открываться то, что тогда действовало.",
+      "Закрытие — операция администратора классификации; другой роли отказ говорит текстом."
+     ]
+    }
+   ],
+   "example": {
+    "src": "период 2026-06 · закрыт · 9 записей фиксации",
+    "given": [
+     "Все 9 записей сделаны по редакции 1 классификатора риска — она действовала в июне.",
+     "Редакция 2 введена 06.07.2026, то есть уже после закрытия периода."
+    ],
+    "do": [
+     "Открыть записи периода 2026-06 и сравнить с витриной на сегодня."
+    ],
+    "get": [
+     "Записи июня показывают значения по редакции 1 и открываются вместе с её правилами.",
+     "Витрина на 14.08.2026 по тем же кредитам считает уже по редакции 2 — расхождение законно и объяснимо номером редакции в записи."
+    ]
+   },
+   "terms": [
+    {
+     "t": "запись фиксации",
+     "d": "снимок разбора объекта за период: значение, редакция, сработавшие правила, засчитанные факты."
+    }
+   ],
+   "accept": [
+    "Открытый период всегда ровно один, закрытие идёт по порядку месяцев.",
+    "Закрытие до окончания месяца отклоняется и называет дату, с которой оно возможно.",
+    "Закрытие пишет запись по каждому объекту в области каждого классификатора с действующей редакцией.",
+    "Запись содержит номер редакции, значение, сработавшие правила, номера засчитанных фактов и дату «по состоянию на».",
+    "По замыкающему значению в записи стоит строка «по умолчанию» с основанием значения.",
+    "По объектам вне области и без данных записи не пишутся.",
+    "Аннулирование факта и публикация новой редакции не меняют ни одной записи закрытого периода.",
+    "Закрытый период не открывается обратно ни одним действием интерфейса.",
+    "Роль без права закрытия получает отказ текстом с названием роли, которая закрывает."
+   ],
+   "notIn": [
+    "Предпросмотр перед закрытием — P19-R19.",
+    "Отчёт по закрытому периоду — P19-R20."
+   ],
+   "deps": [
+    "P19-R12",
+    "P19-R9"
+   ]
+  },
+  {
+   "id": "P19-R19",
+   "stage": 6,
+   "title": "Предпросмотр закрытия: четыре разные графы",
+   "build": "Предпросмотр перед закрытием периода: сколько объектов получат значение, сколько вне области, сколько без данных, сколько без действующей редакции — четырьмя раздельными числами.",
+   "why": "Закрытие необратимо, а «без данных» — единственная графа, которую надо чинить до него, а не после. Слить её с «вне области» значит спрятать незаполненный вход за законной причиной: оба выглядят как «значения нет», но первое — недоделанная работа владельца, а второе — норма.",
+   "look": {
+    "mock": "classification.html",
+    "route": "экран «Периоды и фиксация» → «Предпросмотр закрытия»"
+   },
+   "steps": [
+    "Прогнать движок по всем объектам периода на его последнюю дату, ничего не записывая.",
+    "Разложить итог на четыре числа: получат значение · вне области · без данных · без действующей редакции.",
+    "Дать раскрыть каждое число списком объектов с причиной по каждому.",
+    "Показать в графе «получат значение» разбивку по значениям классификатора.",
+    "Разрешить закрытие периода при ненулевой графе «без данных», предупредив, что записи по этим объектам не появятся.",
+    "Повторять предпросмотр по кнопке — данные владельцев меняются между попытками."
+   ],
+   "rules": [
+    {
+     "h": "Четыре исхода — четыре причины",
+     "items": [
+      "«Вне области» — законно: недействующий кредит категории не имеет.",
+      "«Без данных» — недоделанная работа: владелец не отдал показатель, и это чинится до закрытия.",
+      "«Без действующей редакции» — методики нет вовсе: у «Группы платёжеспособности» есть только черновик.",
+      "«Получат значение» — включая замыкающее: низкий риск это тоже результат разбора.",
+      "Слияние граф запрещено (И-20): числа складываются, а причины — нет."
+     ]
+    }
+   ],
+   "example": {
+    "src": "предпросмотр закрытия периода 2026-07 · 8 кредитов затравки",
+    "given": [
+     "Один кредит не действует, один без опубликованного расчёта просрочки, остальные полны."
+    ],
+    "do": [
+     "Нажать «Предпросмотр закрытия»."
+    ],
+    "get": [
+     "Получат значение — 6, вне области — 1, без данных — 1, без действующей редакции — 0.",
+     "Раскрытие графы «без данных» показывает КД-2026/012 с причиной и владельцем показателя.",
+     "Закрыть период можно и так, но записи по этому кредиту не появятся, и это сказано словами до нажатия."
+    ]
+   },
+   "terms": [
+    {
+     "t": "предпросмотр закрытия",
+     "d": "чтение, показывающее состав будущих записей фиксации до необратимого действия."
+    }
+   ],
+   "accept": [
+    "Предпросмотр показывает четыре раздельных числа и не объединяет их.",
+    "Каждое число раскрывается списком объектов с причиной по каждому.",
+    "Графа «получат значение» разложена по значениям классификатора.",
+    "Предпросмотр ничего не записывает.",
+    "Закрытие при ненулевой графе «без данных» возможно, а последствие названо словами до нажатия.",
+    "Повторный предпросмотр пересчитывает числа по текущим данным."
+   ],
+   "notIn": [
+    "Само закрытие и записи — P19-R18.",
+    "Отказ «нет данных» в разборе — P19-R11."
+   ],
+   "deps": [
+    "P19-R18"
+   ]
+  },
+  {
+   "id": "P19-R20",
+   "stage": 6,
+   "title": "Отчёт п. 12 по закрытому периоду",
+   "build": "Отчёт по закрытому периоду: распределение объектов по значениям классификатора риска из записей фиксации, по состоянию на 1-е число, срок сдачи не позднее 15-го, просрочка срока — предупреждение.",
+   "why": "Отчёт — то, ради чего модуль считает: цифра уходит наружу и должна сходиться с записями объект в объект. Строить его прогоном по сегодняшним данным нельзя — тогда две выгрузки одного периода в разные дни разойдутся, а объяснить расхождение будет нечем.",
+   "look": {
+    "mock": "classification.html",
+    "route": "экран «Периоды и фиксация» → закрытый период → «Отчёт п. 12»"
+   },
+   "steps": [
+    "Строить отчёт исключительно по записям фиксации выбранного периода, не исполняя движок.",
+    "Считать дату «по состоянию на» первым числом следующего месяца, срок сдачи — пятнадцатым.",
+    "Раскладывать записи по значениям в порядке действующей редакции и печатать число объектов в каждом.",
+    "Выносить записи с кодами прежних редакций отдельной строкой, а не подгонять их под текущие значения.",
+    "Печатать признак просрочки срока предупреждением с числом дней, не запирая ни отчёт, ни период.",
+    "Показывать в шапке период, дату закрытия, автора и общее число записей.",
+    "Дать раскрыть любую строку списком объектов с переходом в запись фиксации."
+   ],
+   "rules": [
+    {
+     "h": "Откуда берутся числа",
+     "items": [
+      "Ни одно число отчёта не считается движком заново: источник — записи фиксации (И-8).",
+      "Две выгрузки одного периода в разные дни совпадают до объекта — иначе отчёт не документ.",
+      "Значения прежних редакций не переименовываются и не сливаются с текущими: строка прежних редакций честнее подогнанной цифры.",
+      "Просроченный срок сдачи печатается предупреждением, а не блокировкой (И-14): классификация не запирает работу."
+     ]
+    }
+   ],
+   "example": {
+    "src": "отчёт за период 2026-06 · 9 записей фиксации",
+    "given": [
+     "Записи июня сделаны по редакции 1; распределение — 2 высокого риска, 3 среднего, 4 низкого.",
+     "Отчёт за июнь сдаётся по состоянию на 01.07.2026, срок — 15.07.2026."
+    ],
+    "do": [
+     "Построить отчёт, затем аннулировать засчитанный факт по одному из кредитов высокого риска и построить отчёт заново."
+    ],
+    "get": [
+     "Оба отчёта одинаковы — 2 / 3 / 4: читаются записи, а не сегодняшние данные.",
+     "В шапке стоят период, дата закрытия и автор; при построении после 15-го числа сверху печатается предупреждение о просрочке с числом дней."
+    ]
+   },
+   "terms": [
+    {
+     "t": "по состоянию на",
+     "d": "дата, на которую отчёт описывает портфель: 1-е число месяца, следующего за отчётным."
+    }
+   ],
+   "accept": [
+    "Все числа отчёта берутся из записей фиксации, движок при построении не исполняется.",
+    "Повторное построение после изменения текущих данных даёт те же числа.",
+    "Строки идут в порядке значений действующей редакции, а число объектов в каждой сходится с числом записей.",
+    "Записи с кодами прежних редакций стоят отдельной строкой.",
+    "Дата «по состоянию на» — 1-е число следующего месяца, срок сдачи — 15-е.",
+    "Просрочка срока печатается предупреждением с числом дней и ничего не блокирует.",
+    "Любая строка раскрывается списком объектов с переходом в запись фиксации."
+   ],
+   "notIn": [
+    "Записи фиксации — P19-R18.",
+    "Предпросмотр закрытия — P19-R19."
+   ],
+   "deps": [
+    "P19-R18"
+   ],
+   "open": [
+    {
+     "ask": "Нужны ли в отчёте суммы задолженности по каждому значению, кроме числа объектов",
+     "default": "нет: отчёт даёт число объектов по значениям, суммы берёт отчётность из расчётного ядра на ту же дату",
+     "impact": "если суммы понадобятся, добавится колонка и обращение к расчётному ядру; способ построения из записей фиксации не меняется"
+    }
+   ]
+  },
+  {
+   "id": "P19-R21",
+   "stage": 7,
+   "title": "Шов наружу: значение на дату и категория риска для потребителей",
+   "build": "Единственный способ прочитать классификацию снаружи: значение классификатора по объекту на дату — либо значение с объяснением, либо отказ с причиной. Прямого чтения таблиц модуля нет.",
+   "why": "Потребителей у категории риска несколько — резервы, отчётность, взыскание, и каждый из них соблазняется собственным вычислением «по-быстрому». Один шов держит одну правду: как только резервы посчитают просрочку сами, две цифры разойдутся, а спорить будет нечем — обе выведены из одних данных разными правилами.",
+   "look": {
+    "mock": "classification.html",
+    "route": "витрина результата → карточка разбора — тот же ответ, что уходит потребителю"
+   },
+   "steps": [
+    "Сделать чтение «значение классификатора по объекту на дату» единственной точкой входа для внешних модулей.",
+    "Возвращать вместе со значением номер редакции, дату разбора и сработавшие правила.",
+    "Возвращать отказ типизированно: вне области · нет данных · действующей редакции нет · действие прекращено.",
+    "Отдавать по закрытым периодам запись фиксации, а не свежий разбор.",
+    "Закрыть прямое чтение внутренних таблиц модуля для всех потребителей."
+   ],
+   "rules": [
+    {
+     "h": "Что видит потребитель",
+     "items": [
+      "Ответ всегда одной формы: значение с объяснением либо отказ с причиной — пустоты в шве нет (И-20).",
+      "Отказ не обмениваем на значение по умолчанию ни у одного потребителя: молчание здесь дороже правдоподобной цифры.",
+      "Дата обязательна в запросе: «сейчас» подставляется явно, а не подразумевается — иначе история читалась бы сегодняшними правилами.",
+      "Пересчёт классификации никого не уведомляет: потребитель спрашивает, а не подписывается."
+     ]
+    }
+   ],
+   "example": {
+    "src": "потребитель — расчёт резервов · КД-2023/210 · 30.06.2026",
+    "given": [
+     "Кредит с 200 днями просрочки и отложением перевода на 181-й день; период 2026-06 закрыт."
+    ],
+    "do": [
+     "Запросить категорию риска на 30.06.2026."
+    ],
+    "get": [
+     "Ответ по записи фиксации: «Средний кредитный риск», редакция 1, правило по просрочке с отложением.",
+     "Запрос на 14.08.2026 идёт уже через свежий разбор по редакции 2, и это два разных пути одного шва."
+    ]
+   },
+   "terms": [
+    {
+     "t": "шов",
+     "d": "единственная разрешённая точка чтения модуля снаружи."
+    }
+   ],
+   "accept": [
+    "Внешний потребитель получает значение только через чтение «на дату», без прямого доступа к таблицам.",
+    "Ответ содержит значение, номер редакции, дату разбора и сработавшие правила.",
+    "Отказ возвращается одним из четырёх типов и всегда с причиной.",
+    "Запрос по дате закрытого периода отвечает записью фиксации, а не новым разбором.",
+    "Запрос без даты не принимается.",
+    "Ни один потребитель не подставляет собственное значение вместо отказа."
+   ],
+   "notIn": [
+    "Свёртка по нескольким кредитам заёмщика — P19-R22.",
+    "Приём входных значений от владельцев — P19-R2."
+   ],
+   "deps": [
+    "P19-R13",
+    "P19-R18"
+   ]
+  },
+  {
+   "id": "P19-R22",
+   "stage": 7,
+   "title": "Свёртка «худшее по кредитам» и её запреты",
+   "build": "Свёртка значений нескольких кредитов заёмщика в одно: худшее по объявленному порядку, только у классификатора с признаком сравнимости, и только при полном наборе значений.",
+   "why": "Вопрос «какая категория у заёмщика в целом» задают постоянно, и ответ на него обязан быть определён, а не собран на глаз. Но сравнимость есть не у всякого классификатора: лестница подгрупп упорядочена по доминированию, а не по тяжести, и «худшее» на ней — бессмыслица, выглядящая как ответ.",
+   "look": {
+    "mock": "classification.html",
+    "route": "витрина результата → строка заёмщика с несколькими кредитами"
+   },
+   "data": [
+    {
+     "n": "Редакция классификатора",
+     "note": "Дельта к своду: реквизит редакции, а не классификатора — сравнимость объявляется вместе с набором значений и живёт ровно столько, сколько живёт редакция.",
+     "fields": [
+      "<b>сравнимость значений</b> — булево; при «нет» свёртка запрещена, и шов отвечает отказом, а не худшим по порядку"
+     ]
+    }
+   ],
+   "steps": [
+    "Завести у редакции признак сравнимости значений и показать его в конструкторе рядом с набором значений.",
+    "Держать свёртку в шве, а не в конструкторе: схему «кредиты этого заёмщика» знает шов, редакция о ней не знает ничего.",
+    "Считать свёрткой худшее значение по порядку списка редакции, которой сделан разбор или запись.",
+    "Отказывать в свёртке, если хотя бы у одного кредита заёмщика значения нет по причине «нет данных».",
+    "Отвечать «категории нет», если в области редакции не оказалось ни одного кредита заёмщика.",
+    "Печатать в объяснении свёртки кредит-источник худшего значения и число учтённых кредитов."
+   ],
+   "rules": [
+    {
+     "h": "Три запрета",
+     "items": [
+      "Свёртка есть только у редакции с объявленной сравнимостью (И-6): у лестницы подгрупп её нет.",
+      "Неполный набор — отказ, а не свёртка по остатку (И-20): «худшее из известных» звучит как ответ, но означает «мы не смотрели на часть кредитов».",
+      "Кто участвует, решает область редакции: кредит вне области в свёртку не входит и отказа не вызывает. Если в области не оказалось ни одного кредита заёмщика — категории нет (И-7), и это не то же самое, что «нет данных».",
+      "Свёртка по закрытому периоду читает записи фиксации и сравнивает значения по той редакции, которой запись сделана: несравнимая редакция запрещает свёртку и в прошлом.",
+      "Порядок значений — единственный источник тяжести: отдельного ранга у значения нет."
+     ]
+    }
+   ],
+   "example": {
+    "src": "заёмщик ОсОО «Ак-Жол» · два действующих кредита",
+    "given": [
+     "КД-2024/117 — «Высокий», КД-2025/043 — «Низкий».",
+     "Редакция 2 объявила значения сравнимыми; её область — «кредит действующий = да», поэтому в свёртку идут оба кредита."
+    ],
+    "do": [
+     "Посмотреть строку заёмщика в витрине; затем снять расчёт просрочки с КД-2025/043."
+    ],
+    "get": [
+     "Свёртка «Высокий», источник — КД-2024/117.",
+     "После снятия расчёта свёртки нет вовсе: отказ «нет значения по КД-2025/043», а не «Высокий по остатку»."
+    ]
+   },
+   "terms": [
+    {
+     "t": "сравнимость значений",
+     "d": "объявленное свойство классификатора: его значения упорядочены по тяжести, и худшее определено."
+    }
+   ],
+   "accept": [
+    "Свёртка доступна только у редакции с объявленной сравнимостью, и отказ называет причину.",
+    "Свёртка равна худшему значению по порядку списка, а не по отдельному рангу.",
+    "Отсутствие значения хотя бы у одного кредита области даёт отказ, а не свёртку по остатку.",
+    "Кредиты вне области редакции в расчёт не входят и отказа не вызывают; заёмщик без единого кредита в области получает «категории нет».",
+    "В объяснении свёртки назван кредит-источник худшего значения.",
+    "У классификатора подгруппы заёмщика свёртка не предлагается ни на одном экране."
+   ],
+   "notIn": [
+    "Разбор одного объекта — P19-R10.",
+    "Шов чтения наружу — P19-R21."
+   ],
+   "open": [
+    {
+     "ask": "Как читать свёртку по заёмщику, у которого в области редакции нет ни одного кредита — «категории нет» или отдельное значение вроде «кредитов нет»",
+     "default": "«категории нет» с причиной: значение заводится только тем, кто объявит его в редакции набором значений",
+     "impact": "если заказчик попросит отдельное значение, оно появляется настройкой редакции, а не правкой шва: поведение свёртки не меняется"
+    }
+   ],
+   "deps": [
+    "P19-R21"
+   ]
+  },
+  {
+   "id": "P19-R23",
+   "stage": 7,
+   "title": "Роли, отказ текстом и журнал действий",
+   "build": "Три роли — администратор классификации, кредитный работник, наблюдатель — с разными правами; журнал действий по настройке, фактам и периодам; отказ по праву доступа говорит текстом.",
+   "why": "Настройка классификации меняет цифру в отчётности, поэтому каждое изменение обязано иметь автора и время. Разделение ролей нужно ровно затем же: тот, кто заводит факты по кредиту, не должен переписывать правила, по которым эти факты считаются.",
+   "look": {
+    "mock": "classification.html",
+    "route": "переключатель роли в шапке макета → любой настроечный экран"
+   },
+   "steps": [
+    "Завести три роли и раздать права: настройка и периоды — администратору, факты — кредитному работнику, чтение — всем.",
+    "Скрывать у роли без права кнопки действия целиком, оставляя данные видимыми.",
+    "Называть в строке вместо кнопок роль, которая это действие выполняет.",
+    "Писать в журнал действий: публикация редакции, прекращение действия, заведение и решение по факту, аннулирование, закрытие периода.",
+    "Класть в запись журнала автора, время, объект и суть изменения.",
+    "Показывать журнал на карточке объекта и отдельным экраном с фильтром по виду действия."
+   ],
+   "rules": [
+    {
+     "h": "Права и отказы",
+     "items": [
+      "Наблюдатель видит всё и не меняет ничего — включая черновики и журнал.",
+      "Кредитный работник заводит факты и принимает по ним решения, но правил не трогает.",
+      "Отказ по праву доступа звучит текстом с названием роли, а не гашением кнопки: погашенная кнопка без объяснения — тот же молчаливый отказ.",
+      "Записи журнала не удаляются и не правятся."
+     ]
+    }
+   ],
+   "example": {
+    "src": "роль «Кредитный работник» · экран фактов и экран классификаторов",
+    "given": [
+     "Роль вправе заводить факты и принимать по ним решения; настройка классификаторов ей недоступна."
+    ],
+    "do": [
+     "Открыть экран фактов, завести факт, затем открыть карточку классификатора."
+    ],
+    "get": [
+     "На экране фактов кнопки заведения и решения есть, действие пишется в журнал с автором и временем.",
+     "В карточке классификатора кнопок настройки нет вовсе, а строка сообщает, что редакции ведёт администратор классификации.",
+     "Журнал по классификатору при этом читается полностью — все 2 редакции и их публикации."
+    ]
+   },
+   "terms": [
+    {
+     "t": "журнал действий",
+     "d": "неизменяемый перечень изменений с автором, временем и сутью."
+    }
+   ],
+   "accept": [
+    "Роли три, и права каждой разведены по действиям, а не по экранам.",
+    "Роль без права видит данные и не видит кнопок действия.",
+    "Вместо скрытых кнопок напечатана роль, которая это действие выполняет.",
+    "Публикация, прекращение действия, заведение и решение по факту, аннулирование и закрытие периода пишутся в журнал.",
+    "Запись журнала содержит автора, время, объект и суть изменения.",
+    "Записи журнала не правятся и не удаляются.",
+    "Журнал доступен на карточке объекта и отдельным экраном с фильтром по виду действия.",
+    "Наблюдатель читает черновики и журнал наравне с остальными ролями."
+   ],
+   "notIn": [
+    "Вид настроечных экранов — P19-R7.",
+    "Журнал редакций классификатора — P19-R3."
+   ],
+   "deps": [
+    "P19-R7",
+    "P19-R17",
+    "P19-R18"
+   ]
+  }
+ ]
+}
+</script>
+
+
+<script>
+const DATA = JSON.parse(document.getElementById('tasks-data').textContent);
+const { meta, guide, atlas, screens, glossary, walkthrough, stages, cards } = DATA;
+
+document.title = `Классификация · редакция ${meta.revision} · P19 · АСУБК`;
+document.getElementById('hero-title').textContent =
+  `${meta.title} — задачи для команды разработки`;
+
+document.getElementById('revbar').innerHTML = `
+  <span class="revchip">Редакция ${meta.revision} · ${meta.date}</span>
+  <span class="revchip replaces">${cards.length} задач · ${stages.length} этапов</span>
+`;
+
+document.getElementById('hero-lead').innerHTML = `
+  ${cards.length} задач, собранных в ${stages.length} этапов (не строгую очередь — см. подвал страницы).
+  Модуль проектируется <b>с нуля</b>: живого экрана в тестовом стенде нет, предшественника в старой
+  системе тоже. Эталон интерфейса и поведения — макет <code>${meta.package[0]}</code>: он исполняет
+  описанное здесь на живых данных (движок макета проверен смоук-тестом, 83 проверки). Начните со
+  свода: карта данных, опись экранов, словарь и сквозной пример — общие для всех карточек, карточка
+  добавляет к ним только своё.
+`;
+
+function tiles(){
+  const data = [
+    { l:'Задач', n:cards.length },
+    { l:'Этапов', n:stages.length },
+    { l:'Сущностей', n:(atlas||[]).length, fold:'panel-atlas' },
+    { l:'Экранов', n:(screens||[]).length, fold:'panel-screens' },
+    { l:'Терминов', n:(glossary||[]).length, fold:'panel-gloss' },
+    { l:'Сквозной пример', n:((walkthrough||{}).groups||[]).length, fold:'panel-walk' },
+    { l:'Открытых вопросов', n:cards.reduce((a,c)=>a+(c.open||[]).length,0), fold:'panel-open' },
+    { l:'Справка модуля', n:(guide||[]).length, fold:'panel-guide' },
+  ];
+  document.getElementById('tiles').innerHTML = data.map(d =>
+    `<div class="tile"${d.fold?` data-fold="${d.fold}"`:''}><span class="n">${d.n}</span><span class="l">${d.l}</span></div>`).join('');
+  document.querySelectorAll('.tile[data-fold]').forEach(t => t.onclick = () => {
+    const dt = document.querySelector(`#${t.dataset.fold} details.fold`);
+    dt.open = !dt.open;
+    t.classList.toggle('on', dt.open);
+    if (dt.open && dt.scrollIntoView) dt.scrollIntoView({ block:'nearest' });
+  });
+}
+tiles();
+
+// Справка модуля
+document.getElementById('guide-cnt').textContent = `${(guide||[]).length} раздела`;
+document.getElementById('guide-list').innerHTML = (guide||[]).map(g => `
+  <div class="guide-item">
+    <h3>${g.h}</h3>
+    <ul>${(g.items||[]).map(i=>`<li>${i}</li>`).join('')}</ul>
+  </div>`).join('');
+
+// Карта данных
+function entHtml(e){
+  return `<div class="ent">
+    <h4>${e.n}${e.key?`<span class="key">ключ: ${e.key}</span>`:''}</h4>
+    ${e.note?`<p class="note">${e.note}</p>`:''}
+    <ul>${(e.fields||[]).map(f=>`<li>${f}</li>`).join('')}</ul>
+  </div>`;
+}
+document.getElementById('atlas-cnt').textContent = `${(atlas||[]).length} сущностей`;
+document.getElementById('atlas-list').innerHTML = (atlas||[]).map(entHtml).join('');
+
+// Опись экранов
+function scrHtml(s){
+  return `<div class="scr">
+    <h4>${s.n}</h4>
+    ${s.note?`<p class="note">${s.note}</p>`:''}
+    ${(s.cols||[]).length?`<span class="cap">Колонки и поля</span><div class="chips">${s.cols.map(c=>`<span class="col">${c}</span>`).join('')}</div>`:''}
+    ${(s.acts||[]).length?`<span class="cap">Действия</span><div class="chips">${s.acts.map(a=>`<span class="act">${a}</span>`).join('')}</div>`:''}
+  </div>`;
+}
+document.getElementById('screens-cnt').textContent = `${(screens||[]).length} экранов`;
+document.getElementById('screens-list').innerHTML = (screens||[]).map(scrHtml).join('');
+
+// Словарь
+document.getElementById('gloss-cnt').textContent = `${(glossary||[]).length} терминов`;
+document.getElementById('gloss-list').innerHTML =
+  `<div class="gloss">${(glossary||[]).map(t=>`<div><b>${t.t}</b> — ${t.d}</div>`).join('')}</div>`;
+
+// Сквозной пример
+document.getElementById('walk-cnt').textContent = `${((walkthrough||{}).groups||[]).length} шагов`;
+document.getElementById('walk-list').innerHTML = walkthrough ? `
+  <p class="note" style="font-size:13px;color:var(--text-muted);margin:0 0 8px">
+    Источник: ${walkthrough.src}${walkthrough.note?` · ${walkthrough.note}`:''}</p>
+  ${(walkthrough.groups||[]).map(g=>`
+    <div class="guide-item"><h3>${g.h}</h3>
+      <ul>${(g.items||[]).map(i=>`<li>${i}</li>`).join('')}</ul></div>`).join('')}` : '';
+
+// Открытые вопросы — сводка по всем карточкам
+(function renderOpenQ(){
+  const rows = [];
+  cards.forEach(c => (c.open||[]).forEach(o => rows.push({...o, cid:c.id, title:c.title})));
+  document.getElementById('openq-cnt').textContent = rows.length;
+  document.getElementById('openq-list').innerHTML = rows.length
+    ? rows.map(o => `
+        <div class="openq">
+          <a href="#card-${o.cid}">${o.cid}</a>
+          <span><b>${o.ask}</b> — умолчание: <span class="oq-default">${o.default}</span></span>
+        </div>`).join('')
+    : '<p style="color:var(--text-muted)">Открытых вопросов нет.</p>';
+})();
+
+// Фильтр этапов
+const stageSel = document.getElementById('fStage');
+stages.forEach(s => {
+  const n = cards.filter(c => c.stage === s.n).length;
+  stageSel.insertAdjacentHTML('beforeend', `<option value="${s.n}">Этап ${s.n} · ${s.title} (${n})</option>`);
+});
+
+const F = { q:'', stage:'' };
+
+function depChip(id){
+  const c = cards.find(x=>x.id===id);
+  return `<a class="dep" href="#card-${id}" title="${c?c.title:''}">↔ ${id}</a>`;
+}
+
+function groupsHtml(groups){
+  if(!groups) return '';
+  return groups.map(g => `<div class="subh">${g.h}</div><ul>${(g.items||[]).map(i=>`<li>${i}</li>`).join('')}</ul>`).join('');
+}
+
+function lookHtml(look){
+  if(!look) return '';
+  const parts = [];
+  if(look.mock) parts.push(`<a href="${look.mock}" target="_blank" rel="noopener">${look.mock.split('#')[0]}</a>`);
+  if(look.route) parts.push(`<span class="route">${look.route}</span>`);
+  if(look.mockNote) parts.push(`<span class="route">${look.mockNote}</span>`);
+  if(look.tz) parts.push(`<a href="${look.tz}" target="_blank" rel="noopener">ТЗ ${look.tz.split('#')[1]?('· '+look.tz.split('#')[1]):''}</a>`);
+  if(look.defect) parts.push(`<span class="defect">дефект ${look.defect}</span>`);
+  return `<div class="look">${parts.join('')}</div>`;
+}
+
+function exampleHtml(ex){
+  if(!ex) return '';
+  const part = (h, items) => (items||[]).length
+    ? `<span class="exh">${h}</span><ul>${items.map(i=>`<li>${i}</li>`).join('')}</ul>` : '';
+  return `<div class="ex">
+    <span class="lbl">Пример</span>
+    <p class="src">Источник: ${ex.src}</p>
+    ${part('Дано', ex.given)}${part('Делаем', ex.do)}${part('Получаем', ex.get)}
+  </div>`;
+}
+
+function openHtml(open){
+  if(!open || !open.length) return '';
+  return open.map(o => `
+    <div class="openbox">
+      <b>Решения нет:</b> ${o.ask} Умолчание — ${o.default} При другом ответе: ${o.impact}
+    </div>`).join('');
+}
+
+function trapsHtml(traps){
+  if(!traps || !traps.length) return '';
+  return `<details><summary>Ловушки</summary><div class="traps"><ul>${traps.map(t=>`<li>${t}</li>`).join('')}</ul></div></details>`;
+}
+
+function extHtml(ext){
+  if(!ext || !ext.length) return '';
+  return `<div class="blk"><span class="lbl">Нужно от соседей</span><ul>${
+    ext.map(e=>`<li>${e.href?`<a href="${e.href}">${e.what}</a>`:e.what}</li>`).join('')}</ul></div>`;
+}
+
+function card(c){
+  return `<article class="card" id="card-${c.id}" data-id="${c.id}" data-stage="${c.stage}">
+    <div class="c-head">
+      <span class="id">${c.id}</span>
+      <span class="step">Этап ${c.stage}</span>
+      <h3 class="c-title">${c.title}</h3>
+    </div>
+    <div class="blk build"><span class="lbl">Что строим</span><p>${c.build||''}</p></div>
+    <div class="blk"><span class="lbl">Зачем</span><p class="why">${c.why}</p></div>
+    ${lookHtml(c.look) ? `<div class="blk"><span class="lbl">Где смотреть</span>${lookHtml(c.look)}</div>` : ''}
+    ${c.data ? `<div class="blk"><span class="lbl">Данные</span>${(c.data||[]).map(entHtml).join('')}</div>` : ''}
+    ${c.screen ? `<div class="blk"><span class="lbl">Экран</span>${(c.screen||[]).map(scrHtml).join('')}</div>` : ''}
+    <div class="blk"><span class="lbl">Шаги</span><ol class="steps">${(c.steps||[]).map(s=>`<li>${s}</li>`).join('')}</ol></div>
+    ${c.rules ? `<div class="blk"><span class="lbl">Правила</span>${groupsHtml(c.rules)}</div>` : ''}
+    ${exampleHtml(c.example)}
+    ${c.terms ? `<div class="blk"><span class="lbl">Термины</span><div class="terms">${
+      (c.terms||[]).map(t=>`<span class="term"><b>${t.t}</b> — ${t.d}</span>`).join('')}</div></div>` : ''}
+    <div class="blk"><span class="lbl">Приёмка</span><ul>${(c.accept||[]).map(a=>`<li>${a}</li>`).join('')}</ul></div>
+    ${openHtml(c.open)}
+    ${extHtml(c.extDeps)}
+    <div class="blk"><span class="lbl">Не в этой задаче</span><ul>${(c.notIn||[]).map(a=>`<li>${a}</li>`).join('')}</ul></div>
+    <div class="c-foot">
+      <span class="tag">${stages.find(s=>s.n===c.stage).title}</span>
+      ${(c.deps||[]).map(depChip).join('')}
+    </div>
+    ${trapsHtml(c.traps)}
+  </article>`;
+}
+
+function render(){
+  const q = F.q.trim().toLowerCase();
+  const sel = cards.filter(c => {
+    if (F.stage && String(c.stage) !== String(F.stage)) return false;
+    if (!q) return true;
+    const hay = JSON.stringify(c).toLowerCase();
+    return hay.includes(q);
+  });
+  const list = document.getElementById('list');
+  if(!sel.length){ list.innerHTML = '<div class="empty">Ничего не найдено. Сбросьте фильтры.</div>'; }
+  else {
+    list.innerHTML = stages.filter(s => sel.some(c=>c.stage===s.n)).map(s => {
+      const rows = sel.filter(c => c.stage === s.n);
+      return `<section class="group"><h2>Этап ${s.n} · ${s.title} <span class="g-n">· ${rows.length}</span></h2>
+              ${rows.map(card).join('')}</section>`;
+    }).join('');
+  }
+  document.getElementById('count').textContent = `Показано ${sel.length} из ${cards.length}`;
+}
+
+document.getElementById('q').oninput      = e => { F.q = e.target.value; render(); };
+document.getElementById('fStage').onchange= e => { F.stage = e.target.value; render(); };
+document.getElementById('reset').onclick  = () => {
+  F.q=''; F.stage='';
+  document.getElementById('q').value=''; document.getElementById('fStage').value='';
+  render();
+};
+let expanded = false;
+document.getElementById('expand').onclick = e => {
+  expanded = !expanded;
+  document.querySelectorAll('#list details').forEach(d => d.open = expanded);
+  e.target.textContent = expanded ? 'Свернуть ловушки' : 'Раскрыть ловушки';
+};
+
+render();
+</script>
+</body>
+</html>

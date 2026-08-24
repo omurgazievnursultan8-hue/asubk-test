@@ -1,0 +1,1633 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Анализ · АСУБК</title>
+<!--
+  РАБОЧИЙ ПРОТОТИП (single-file) — модуль «Анализ», раздел финансового анализа (TO-BE).
+  Не картинка: логика ниже ИСПОЛНЯЕТСЯ. Методика подбирается по типу лица НА ДАТУ
+  ОТЧЁТНОСТИ, коэффициенты считает машина по объявлению методики, утверждение
+  фиксирует снимок основания, а новая версия отчётности утверждённое не пересчитывает —
+  она его помечает. Ни одного коэффициента в коде нет: вычислитель складывает строки,
+  которые ему назвала запись методики, и слова «ликвидность» в нём не встречается.
+
+  Волна 1 (21.08.2026) вывела модель на бумаге: ADR-0153…ADR-0155 плюс канон логики.
+  Этот файл — волна 2: та же модель, доведённая до исполняемого эталона поведения.
+  Смоук: `node scripts/inspect/analysis-check.mjs`.
+  Канон логики — `mockups/analysis/ASUBK-analiz-logika.md` (пять сущностей, снимок,
+  срок → обязательство → дефект, все 14 инвариантов с причиной);
+  журнал волн — `ASUBK-status-razrabotki.md`.
+
+  check_points:ignore-start
+  Норма приходит в модуль сроком, а не содержанием методики: пунктов Порядка в этом
+  файле нет и быть не должно — расписание анализа держит срок само.
+  check_points:ignore-end
+
+  РЕШЕНИЯ, НА КОТОРЫХ СТОИТ МОДУЛЬ
+  ADR-0153 заключение хранит снимок основания, а не ссылку на живой источник;
+  ADR-0154 состав среза объявляет шаблон отчётности — своего конструктора у анализа нет;
+  ADR-0155 анализ отдаёт зеркало и факт: в чужие карточки не пишет и задач не ставит.
+  Поверх: ADR-0001 (производные не хранятся; снимок — названное исключение),
+  ADR-0112 (корректировка против нового заключения), ADR-0122 (факт руками, значение
+  машиной), ADR-0124 (вычислитель один), ADR-0135 (швы называются вопросом),
+  ADR-0146 §2 (стрелка одна: классификация анализ не читает), ADR-0152 §2 (паспорт ответа).
+
+  ИНВАРИАНТЫ, КОТОРЫЕ РАЗРАБОТЧИК ОБЯЗАН СОХРАНИТЬ (ИА-1…ИА-14)
+  ИА-1  Утверждённое заключение не пересчитывается никогда (ADR-0153).
+  ИА-2  Черновик снимка не имеет и основанием ни для чего не служит.
+  ИА-3  Коэффициент вводу не подлежит: человек вносит отчётность, значение ставит машина.
+  ИА-4  Методика выбирается по типу лица НА ДАТУ ОТЧЁТНОСТИ, а не на сегодня.
+  ИА-5  Редакция методики, на которую есть ссылка из заключения, не снимается.
+  ИА-6  Показателя вне реестра в обзоре не бывает (раздел обзоров ждёт отчётность).
+  ИА-7  Обзор ссылается на шаблон и его редакцию, состав не копирует (ADR-0154).
+  ИА-8  Число в обзоре без паспорта не показывается и не хранится (ADR-0152 §2).
+  ИА-9  Анализ не пишет ни в одно чужое поле: наружу — зеркало (ADR-0155 §1).
+  ИА-10 Классификация анализ не читает: стрелка одна (ADR-0146 §2).
+  ИА-11 Обзор задач не порождает; задачу ставит человек со ссылкой на обзор.
+  ИА-12 Обязательство закрывается фактом — утверждённым заключением, а не отметкой.
+  ИА-13 Дефект анализ не хранит: отдаёт факт, дефект считает сопровождение.
+  ИА-14 Отсутствие заключения печатается словами «анализа нет».
+
+  ДЕМО ПОКРЫВАЕТ: четыре типа лица — четыре методики, единой формы нет · лицо, снявшееся
+  с учёта как ИП: отчётность за 2025 считается методикой ИП, за 1П 2026 — методикой
+  физлица · живой черновик против замороженного снимка · уточнённый баланс, поданный
+  после утверждения: пометка «источник изменён», пересчёта нет, правильный ход — новое
+  заключение за тот же период · корректировку с основанием против переиздания (ADR-0112)
+  · отказ ввести коэффициент руками и отказ вывести вывод из порогов · ведущего куратора
+  чужого заёмщика · заёмщика без заключений — «анализа нет» словами, дефект с влиянием
+  «на допуск» и гейт заявки · черновик, который обязательства НЕ закрывает · заёмщика без
+  действующих кредитов, которому расписание ничего не вменяет · отказ классификации
+  читать шов · раздел обзоров, запертый до появления шаблона отчётности.
+
+  ГРАНИЦЫ МАКЕТА: раздела аналитических обзоров здесь нет — он ждёт модуль отчётности
+  (ADR-0154, границы), и экран «Обзоры» показывает именно отказ, а не заглушку с
+  конструктором. Заёмщик, кураторство, заявка и сопровождение взяты зеркалом и здесь не
+  редактируются; дефект и гейт заявки смоделированы как ЧУЖОЙ счёт (ИА-13) — в состоянии
+  модуля поля дефектов нет.
+
+  SMOKE 2026-08-21 · 38/38 PASS
+     PASS  #1  методик 4, все с применимостью по типу лица; коэффициентов 16, с операцией вне списка 0, с текстом формулы 0, со строкой вне справочника 0 — ИА-3
+     PASS  #2  методика «для всех» и вторая методика на тот же тип лица не заводятся: «методика без применимости по типу лица не заводится: единой …»
+     PASS  #3  в вычислителе (1868 симв.) названий коэффициентов нет — ИА-3
+     PASS  #4  коэффициент заведён записью, без единой правки кода (было 2, стало 3); заключение за 1П 2026 считается прежней редакцией (2 коэф.) — новая действует с 2026-08-21 (ИА-4)
+     PASS  #5  снявшийся с учёта ИП: 2025 год считается «Оценка индивидуального предпринимателя», 1П 2026 — «Оценка дохода и платёжеспособности физического лица»; «сегодня» на выбор не влияет (ИА-4)
+     PASS  #6  в выборе типа лица и редакции слова «сегодня» нет ни в каком виде: функция принимает дату отчётности
+     PASS  #7  редакция тоже датирована: 2025 год по ред. 1, 1П 2026 по ред. 2 (действует с 01.04.2026) — ИА-5
+     PASS  #8  снимок появился из approve(), а не выписан литералом: 5 коэф., строки основания и редакция методики внутри (ADR-0153 §2)
+     PASS  #9  утверждённое не пересчитывается даже когда источник изменился в базе: снимок отвечает сам за себя (ИА-1)
+     PASS  #10  черновик считается живьём и снимка не имеет; наружу шов отдаёт последнее утверждённое (ФА-6), а не черновик (ИА-2)
+     PASS  #11  уточнённый баланс подан после утверждения: пометка есть, пересчёта нет; рядом показано, что дал бы пересчёт (1.2203 → 1.1183) — и это не записывается в заключение
+     PASS  #12  без текста и без вывода не утверждается; утверждённое второй раз не подписывается — «заключение ФА-10 уже утверждено 21.08.2026: втор…» (§2.3)
+     PASS  #13  второй черновик за тот же период не заводится: «за период «1П 2026» уже открыт черновик ФА-9: второй чернови…»
+     PASS  #14  с непосчитанным коэффициентом заключение не утверждается: «не посчитан коэффициент «Свободный остаток»: в отчётности не заполнены…» — подпись стоит под полным основанием
+     PASS  #15  корректировка требует основания, чисел не трогает и снимок не пересчитывает: «снимок не тронут: корректировка исправляет запись, а не пере…»
+     PASS  #16  переиздание — только когда изменились обстоятельства: ФА-10 на версии 2, прежнее ФА-7 остаётся в истории
+     PASS  #17  утверждённое напрямую не правится и не удаляется — оба отказа названы словами, а не отсутствием кнопки
+     PASS  #18  финанализ ведёт ведущий куратор своего заёмщика: чужому отказ с именем куратора, отделу анализа — отказ по роли
+     PASS  #19  методику ведёт отдел анализа; задним числом не публикуется (ИА-5); операция — только из списка ratio, share, diff
+     PASS  #20  редакция со ссылкой из заключения не снимается: «редакция 2 используется заключениями ФА-7: снять её значит оставить сн…»
+     PASS  #21  расписание правит администратор, и срок пересчитывается от него: отсрочка 10 дней → срок 2026-07-10 (§7)
+     PASS  #22  срок = конец периода + отсрочка (30.06 + 45 дн = 14.08); обязательство закрыто ФАКТОМ — утверждённым ФА-7 (ИА-12)
+     PASS  #23  у заёмщика без заключения дефект «финанализ за 1П 2026 не проведён» с влиянием «на допуск», просрочка 7 дн., основание — строка расписания
+     PASS  #24  черновик обязательства не закрывает: «зательство закрывается фактом, а не черновиком (ИА-2, ИА-12)»
+     PASS  #25  заёмщику без действующих кредитов расписание анализа ничего не вменяет — и это сказано словами
+     PASS  #26  отметки «выполнено» нет, поля дефекта в состоянии модуля нет: дефект считается, а не хранится (ИА-13, ADR-0135)
+     PASS  #27  гейт заявки читает дефект «на допуск»: заявка ЗЯ-2026/318 — на рассмотрении не проходит, у заёмщика с анализом — проходит
+     PASS  #28  наружу два шва; коэффициентов и черновиков не отдаёт ни один: «шва «analysisRatios» нет: коэффициент — не текущее значение …»
+     PASS  #29  классификация анализ не читает ни в одной форме, задачу анализ не ставит — оба отказа названы: «классификация анализ не читает ни в одной форме: сужден…»
+     PASS  #30  analysisVerdict отдаёт номер, дату, вывод и пометку об изменившемся источнике — без чисел; analysisDone отдаёт факт
+     PASS  #31  отсутствие заключения — это ответ словами «анализа нет», а не пустое место (ИА-14)
+     PASS  #32  семь отказов названы словами и сослались на решение (ИА-9, ИА-11, ИА-10, ИА-3, ADR-0122 §3, ADR-0145 §4, ADR-0153 §6) — «кнопки нет» не считается объяснением
+     PASS  #33  версия требует завершённого периода, документа-основания и полной формы, объявленной методикой; новая версия — 3-я
+     PASS  #34  прежние версии не затёрты: ФА-7 по-прежнему стоит на версии 1, хотя поданы версии 2 и 3 (§2.1)
+     PASS  #35  обзор не заводится и своего конструктора состава в модуле нет ни одной функцией; ИА-6…ИА-8 записаны и ждут отчётность
+     PASS  #36  пять экранов рисуются без ошибок; зеркало названо зеркалом, снимок стоит под заключением, обзоры показывают отказ, а не заглушку
+     PASS  #37  заёмщик без кредитов: «анализа нет» и «расписание ничего не вменяет» — оба словами; у просрочившего на карточке виден чужой счёт и гейт заявки
+     PASS  #38  администратору расписание открыто на правку, куратору реестр методик — на чтение с названной причиной (§13)
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-link:#005FDB;
+  --asubk-green:#158443; --asubk-green-hover:#106A36; --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+  --asubk-ink:#192434; --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
+  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+  --asubk-red-tint:#FCE6E6; --asubk-green-tint:rgba(21,132,67,0.10);
+  --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong); --border-focus:var(--asubk-blue);
+  --action-primary:var(--asubk-blue); --action-success:var(--asubk-green); --action-danger:var(--asubk-red);
+  --status-success-bg:var(--asubk-green-tint); --status-info-bg:var(--asubk-blue-tint);
+  --status-warning-bg:var(--asubk-amber-tint); --status-error-bg:var(--asubk-red-tint);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600;
+  --leading-tight:1.2; --leading-snug:1.35; --leading-normal:1.5;
+  --font-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--asubk-font);
+  --font-label:var(--weight-regular) var(--text-sm)/var(--leading-snug) var(--asubk-font);
+  --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
+  --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --control-h:36px; --header-h:56px; --sidebar-w:290px;
+  --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
+.app{ display:flex; height:100vh; width:100%; }
+
+/* ---- sidebar ---- */
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
+  display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+.brand{ padding:18px 16px 4px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
+  color:var(--text-heading); letter-spacing:0.04em; }
+.brand small{ display:block; font:var(--weight-regular) 12px/1.4 var(--asubk-font);
+  color:var(--text-muted); letter-spacing:0; margin-top:4px; }
+.nav{ flex:1; overflow-y:auto; padding:12px 0 8px; }
+.nav-sec{ padding:9px 16px 4px; font:var(--weight-semibold) 12px/1.3 var(--asubk-font);
+  color:var(--text-placeholder); text-transform:uppercase; letter-spacing:0.05em; }
+.nav-item{ display:flex; align-items:center; gap:9px; padding:8px 16px; text-decoration:none; width:100%;
+  color:rgba(27,43,65,0.72); font:var(--weight-regular) var(--text-base)/1.4 var(--asubk-font);
+  cursor:pointer; background:none; border:none; text-align:left; }
+.nav-item:hover{ background:rgba(24,39,57,0.05); }
+.nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); font-weight:var(--weight-medium); }
+.nav-item .cnt{ margin-left:auto; color:var(--text-placeholder); font-size:12px; }
+.nav-item.locked{ color:var(--text-placeholder); }
+.sidebar-foot{ padding:12px 16px; border-top:1px solid var(--border-default);
+  font:var(--weight-regular) 12px/1.45 var(--asubk-font); color:var(--text-muted); }
+
+/* ---- main ---- */
+.main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
+.topbar{ min-height:var(--header-h); flex:none; border-bottom:1px solid var(--border-default);
+  display:flex; align-items:center; gap:14px; padding:8px 20px; flex-wrap:wrap; }
+.crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
+.topbar .right{ margin-left:auto; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.topbar label{ font:var(--font-label); color:var(--text-muted); margin-right:6px; }
+.topbar select{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 10px; cursor:pointer; }
+.content{ flex:1; overflow:auto; }
+.panel-wrap{ padding:18px 24px 60px; max-width:1140px; }
+
+/* ---- headings, notes ---- */
+.section-h{ font:var(--weight-semibold) 16px/1.2 var(--asubk-font); color:var(--text-heading); margin:24px 0 6px; }
+.section-h:first-child{ margin-top:0; }
+.page-lead{ font:var(--font-label); color:var(--text-muted); margin:2px 0 16px; max-width:900px; }
+.note{ font:var(--font-label); color:var(--text-muted); margin:8px 0 0; max-width:900px; }
+.note code, .page-lead code{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; color:var(--asubk-blue); }
+
+/* ---- banners ---- */
+.banner{ border-radius:var(--radius-md); padding:10px 14px; margin-bottom:12px; font:var(--font-label); }
+.banner.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.banner.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.banner.danger{ background:var(--status-error-bg); color:var(--asubk-red); }
+.banner.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.banner b{ font-weight:var(--weight-semibold); }
+.banner ul{ margin:6px 0 0; padding-left:20px; } .banner li{ margin-bottom:3px; }
+
+/* ---- pills ---- */
+.pill{ display:inline-block; padding:2px 9px; border-radius:var(--radius-pill);
+  font:var(--weight-medium) 12px/1.5 var(--asubk-font); white-space:nowrap; }
+.pill.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.pill.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.pill.err{ background:var(--status-error-bg); color:var(--asubk-red); }
+.pill.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.pill.neutral{ background:var(--asubk-tint-fill); color:var(--text-muted); }
+
+/* ---- buttons ---- */
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; height:var(--control-h);
+  padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
+  font:var(--weight-semibold) var(--text-base)/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
+.btn:disabled{ opacity:.45; cursor:not-allowed; }
+.btn-primary{ background:var(--action-primary); color:#fff; }
+.btn-primary:hover:not(:disabled){ background:var(--asubk-blue-hover); }
+.btn-success{ background:var(--action-success); color:#fff; }
+.btn-success:hover:not(:disabled){ background:var(--asubk-green-hover); }
+.btn-danger{ background:var(--action-danger); color:#fff; }
+.btn-danger:hover:not(:disabled){ background:var(--asubk-red-hover); }
+.btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
+.btn-secondary:hover:not(:disabled){ background:var(--surface-hover); }
+.btn-sm{ height:28px; padding:0 9px; font-size:12.5px; font-weight:var(--weight-medium); }
+.btn-row{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+
+/* ---- tables ---- */
+table.cgrid{ width:100%; border-collapse:collapse; font:var(--font-label);
+  border:1px solid var(--border-default); background:var(--surface-card); }
+table.cgrid thead th{ text-align:left; padding:10px 12px; background:var(--surface-panel);
+  border-bottom:1px solid var(--asubk-grid-line); font:var(--weight-semibold) var(--text-sm)/1.35 var(--asubk-font);
+  color:var(--text-heading); white-space:nowrap; }
+table.cgrid tbody td{ padding:9px 12px; border-bottom:1px solid var(--asubk-grid-line);
+  vertical-align:top; color:var(--text-body); }
+table.cgrid tbody tr:last-child td{ border-bottom:none; }
+table.cgrid tbody tr.out td{ background:var(--asubk-gray-50); color:var(--text-muted); }
+table.cgrid tbody tr.hl td{ background:var(--asubk-blue-tint); }
+table.cgrid td.num{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+table.cgrid tfoot td{ padding:9px 12px; background:var(--surface-panel);
+  font-weight:var(--weight-semibold); border-top:1px solid var(--asubk-grid-line); }
+.muted{ color:var(--text-muted); }
+.mono{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12.5px; }
+.small{ font:var(--weight-regular) 12.5px/1.45 var(--asubk-font); color:var(--text-muted); }
+.small b, .small em{ color:var(--text-body); font-style:normal; font-weight:var(--weight-medium); }
+
+/* ---- cards ---- */
+.card{ border:1px solid var(--border-default); border-radius:var(--radius-md);
+  padding:16px 18px; margin-bottom:14px; background:var(--surface-card); }
+.card > h3{ margin:0 0 10px; font:var(--weight-semibold) 15px/1.25 var(--asubk-font); color:var(--text-heading); }
+.card > h3 .small{ font-weight:var(--weight-regular); }
+.card.frozen{ background:var(--asubk-gray-50); border-color:var(--border-strong); }
+.cols{ display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap; }
+.side{ flex:0 0 260px; } .body{ flex:1; min-width:460px; }
+.meta{ font:var(--font-label); color:var(--text-muted); margin:0 0 10px; }
+.meta b{ color:var(--text-body); font-weight:var(--weight-medium); }
+.kv{ display:grid; grid-template-columns:230px 1fr; gap:6px 14px; font:var(--font-label); }
+.kv .k{ color:var(--text-muted); } .kv .v{ color:var(--text-body); }
+
+.fld{ display:flex; flex-direction:column; gap:5px; }
+.fld > label{ font:var(--font-label); color:var(--text-muted); }
+.fld select, .fld input, .fld textarea{ border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 10px; min-width:210px; }
+.fld select, .fld input{ height:var(--control-h); }
+.fld textarea{ min-height:92px; padding:8px 10px; min-width:100%; resize:vertical; font:var(--font-label); }
+.form-row{ display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; }
+.form-row.tight{ gap:10px; }
+
+/* ---- explanation blocks ---- */
+.why{ font:var(--weight-regular) 12.5px/1.5 var(--asubk-font); color:var(--text-muted); margin-top:4px; }
+.why em{ font-style:normal; color:var(--text-body); font-weight:var(--weight-medium); }
+.facts{ margin-top:8px; border-top:1px dashed var(--border-default); padding-top:6px; }
+.facts .f{ font:var(--weight-regular) 12.5px/1.5 var(--asubk-font); color:var(--text-muted); margin-bottom:4px; }
+.facts .f.no{ color:var(--asubk-red); }
+.facts .f.yes em{ color:var(--asubk-green); }
+
+/* ---- toast ---- */
+#toastWrap{ position:fixed; right:18px; bottom:18px; display:flex; flex-direction:column; gap:8px; z-index:50; }
+.toast{ background:var(--asubk-ink); color:#fff; padding:10px 14px; border-radius:var(--radius-md);
+  font:var(--font-label); max-width:420px; box-shadow:0 6px 20px rgba(24,39,57,0.25); }
+.toast.err{ background:var(--asubk-red); } .toast.ok{ background:var(--asubk-green); }
+
+/* ---- зеркало чужого поля (ИА-9, ADR-0155 §1) ---- */
+.mirror{ border:1px dashed var(--border-strong); border-left:3px solid var(--asubk-blue);
+  border-radius:var(--radius-md); background:var(--surface-panel); padding:10px 14px; margin-bottom:12px; }
+.mirror .row{ font:var(--font-label); color:var(--text-body); margin-bottom:3px; }
+.mirror .row:last-child{ margin-bottom:0; }
+.mirror .k{ color:var(--text-muted); display:inline-block; min-width:190px; }
+.mirror.err{ border-left-color:var(--asubk-red); }
+.mirror.none{ border-left-color:var(--asubk-amber); }
+
+/* ---- паспорт снимка (ADR-0153 §1) ---- */
+.pass{ border:1px solid var(--border-default); border-left:3px solid var(--asubk-green);
+  border-radius:var(--radius-md); background:var(--surface-card); padding:10px 14px; margin-bottom:12px; }
+.pass .row{ font:var(--font-label); color:var(--text-body); margin-bottom:3px; }
+.pass .row:last-child{ margin-bottom:0; }
+.pass .k{ color:var(--text-muted); display:inline-block; min-width:190px; }
+.pass.warn{ border-left-color:var(--asubk-amber); }
+
+/* ---- документ ---- */
+.doc-head{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:4px; }
+.doc-head h2{ margin:0; font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); }
+.verdict{ font:var(--weight-semibold) 15px/1.3 var(--asubk-font); color:var(--text-heading); }
+.concl{ font:var(--font-label); color:var(--text-body); white-space:pre-wrap; margin:6px 0 0; }
+.thr{ font-variant-numeric:tabular-nums; white-space:nowrap; }
+.lineform{ display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:10px 16px; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">АСУБК<small>Модуль «Анализ» · прототип TO-BE</small></div>
+    <div class="nav">
+      <div class="nav-sec">Финансовый анализ</div>
+      <button class="nav-item" data-v="borrower" onclick="AN.go('borrower')">Заёмщик · Финансы</button>
+      <button class="nav-item" data-v="doc" onclick="AN.go('doc')">Финанализ (документ)</button>
+      <div class="nav-sec">Настройка</div>
+      <button class="nav-item" data-v="methods" onclick="AN.go('methods')">Реестр методик</button>
+      <button class="nav-item" data-v="schedule" onclick="AN.go('schedule')">Расписание и швы</button>
+      <div class="nav-sec">Ждёт отчётность</div>
+      <button class="nav-item locked" data-v="reviews" onclick="AN.go('reviews')">Аналитические обзоры</button>
+    </div>
+    <div class="sidebar-foot" id="foot"></div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb-title" id="title">Заёмщик · Финансы</div>
+      <div class="right">
+        <span><label>Заёмщик</label><select id="subj" onchange="AN.pickSubj(this.value)"></select></span>
+        <span><label>Роль</label><select id="role" onchange="AN.setRole(this.value)"></select></span>
+      </div>
+    </div>
+    <div class="content"><div class="panel-wrap" id="panel"></div></div>
+  </div>
+</div>
+<div id="toastWrap"></div>
+
+<script>
+/* =====================================================================
+ *  МОДУЛЬ «АНАЛИЗ» — исполняемый прототип, раздел финансового анализа
+ *  Слои файла: даты → справочники (строки отчётности, методики, расписание) →
+ *  мир соседей (заёмщики, кураторство, заявка) → отчётность → вычислитель
+ *  коэффициентов → состояние → операции → снимок и швы → срок и дефект → экраны.
+ *
+ *  Главное, что этот файл доказывает исполнением: вычислитель не знает ни одного
+ *  коэффициента. Он складывает строки, которые ему назвала ЗАПИСЬ методики, — пятый
+ *  коэффициент заводится строкой в редакции, а не веткой в коде (ИА-3, ADR-0122).
+ * ===================================================================== */
+const AN = {};
+
+/* ------------------------------ ДАТЫ ------------------------------- */
+const fmt = iso => iso ? iso.slice(8,10)+'.'+iso.slice(5,7)+'.'+iso.slice(0,4) : '—';
+const daysBetween = (a,b) => Math.round((Date.parse(b)-Date.parse(a))/86400000);
+const addDays = (iso,n) => new Date(Date.parse(iso)+n*86400000).toISOString().slice(0,10);
+const plural = (n,a,b,c) => { const x=n%100, y=n%10; return x>4&&x<21 ? c : y===1 ? a : y>1&&y<5 ? b : c; };
+const dayWord = d => d + ' ' + plural(d,'день','дня','дней');
+const clone = o => JSON.parse(JSON.stringify(o));
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const $ = sel => (typeof document === 'undefined' ? null : document.querySelector(sel));
+const uniq = a => a.filter((x,i) => a.indexOf(x) === i);
+
+/* ------------------------- РОЛИ И ВЫВОДЫ ---------------------------- *
+   Вывод ставит человек. Правило, ставящее значение по порогу, — это уже
+   классификация, а классификация анализ не читает и не слушает (ИА-10).      */
+const ROLES = ['Ведущий куратор (Бекова Н.)','Ведущий куратор (Асанов А.)',
+               'Сотрудник отдела анализа','Руководитель подразделения','Администратор'];
+const WHO = {'Ведущий куратор (Бекова Н.)':'Бекова Н.','Ведущий куратор (Асанов А.)':'Асанов А.',
+             'Сотрудник отдела анализа':'Осмонова Г.','Руководитель подразделения':'Тентимишев К.',
+             'Администратор':'Администратор'};
+const VERDICTS = ['удовлетворительное','удовлетворительное с оговорками','неудовлетворительное'];
+
+/* Швов два, и каждый назван вопросом (форма ADR-0135 §4). Третьего нет. */
+const SEAMS = ['analysisVerdict','analysisDone'];
+const NO_SEAM = {
+  analysisRatios: 'шва «analysisRatios» нет: коэффициент — не текущее значение объекта, '+
+    'он живёт внутри снимка своего заключения (ADR-0153 §6)',
+  analysisText:   'текста заключения шов не отдаёт целиком: за ним ходят в документ, где рядом стоит его снимок',
+  analysisDraft:  'черновиков шов не отдаёт: незаконченная работа, показанная как результат, читается как результат (ИА-2)'
+};
+
+/* Кто вправе спрашивать. Классификация в списке есть и читать НЕ вправе — ИА-10. */
+const CONSUMERS = [
+  {module:'заявка и комиссия', may:['analysisVerdict'], note:'вкладка «Заключения», отдел analytics'},
+  {module:'сопровождение',     may:['analysisDone'],    note:'обязательство закрывается фактом (ИА-12)'},
+  {module:'кураторство',       may:['analysisDone'],    note:'нагрузка куратора'},
+  {module:'отчётность',        may:['analysisVerdict','analysisDone'], note:'печать и выгрузка — там (ADR-0145 §4)'},
+  {module:'задачи',            may:[], why:'задачу ставит человек со ссылкой на обзор как основание: '+
+    'шва «поручить» у анализа нет (ИА-11)'},
+  {module:'классификация',     may:[], why:'классификация анализ не читает ни в одной форме: суждение — '+
+    'не вход классификации (ИА-10, ADR-0122 §3, ADR-0146 §2)'}
+];
+
+/* -------------------- СТРОКИ ФОРМ ВВОДА ОТЧЁТНОСТИ ------------------ *
+   Общий справочник строк. Какие из них показать человеку — объявляет методика:
+   единой формы «для всех» нет, потому что незаполнимое поле в общей форме
+   неотличимо от незаполненного (§2.2 канона).                                */
+const LINES = [
+  {id:'ta_cur',    name:'Оборотные активы',                     unit:'сом'},
+  {id:'li_short',  name:'Краткосрочные обязательства',          unit:'сом'},
+  {id:'eq',        name:'Собственный капитал',                  unit:'сом'},
+  {id:'bal',       name:'Валюта баланса',                       unit:'сом'},
+  {id:'rev',       name:'Выручка за период',                    unit:'сом'},
+  {id:'profit',    name:'Чистая прибыль за период',             unit:'сом'},
+  {id:'ebitda',    name:'Прибыль до процентов, налогов и амортизации', unit:'сом'},
+  {id:'debt_all',  name:'Кредиты и займы, всего',               unit:'сом'},
+  {id:'cf_oper',   name:'Поток от операционной деятельности',   unit:'сом'},
+  {id:'debt_serv', name:'Платежи по обслуживанию долга за период', unit:'сом'},
+  {id:'rev_ip',    name:'Доход от деятельности за период',      unit:'сом'},
+  {id:'exp_ip',    name:'Расходы по деятельности за период',    unit:'сом'},
+  {id:'net_ip',    name:'Чистый доход за период',               unit:'сом'},
+  {id:'pay_ip',    name:'Платежи по кредитам за период',        unit:'сом'},
+  {id:'inc',       name:'Подтверждённый доход за месяц',        unit:'сом'},
+  {id:'exp_fix',   name:'Обязательные расходы за месяц',        unit:'сом'},
+  {id:'pay_fl',    name:'Платёж по кредитам за месяц',          unit:'сом'},
+  {id:'inc_grp',   name:'Совокупный доход членов группы за месяц', unit:'сом'},
+  {id:'pay_grp',   name:'Платёж группы за месяц',               unit:'сом'},
+  {id:'members',   name:'Членов в группе',                      unit:'чел.'}
+];
+
+/* ------------------------- РЕЕСТР МЕТОДИК --------------------------- *
+   Методика объявляет: применимость по типу лица, формы ввода и коэффициенты.
+   Коэффициент объявляет ИСТОЧНИК своих чисел — строки отчётности и операцию из
+   закрытого списка. Поля с текстом формулы или кодом здесь нет: расширение —
+   решением, а не вкусом автора методики.                                      */
+const OPS = {
+  ratio: {sign:'÷', apply:(a,b) => b ? a/b : null},
+  share: {sign:'÷ … × 100%', apply:(a,b) => b ? a/b*100 : null},
+  diff:  {sign:'−', apply:(a,b) => a-b}
+};
+const METHODS = [
+  {id:'m-org', name:'Финансовый анализ организации', ptype:'организация', owner:'Отдел анализа',
+   editions:[
+    {n:1, since:'2024-01-01', note:'первая редакция',
+     lines:['ta_cur','li_short','eq','bal','rev','profit','ebitda','debt_all'],
+     coefs:[
+      {id:'k-cur',  name:'Коэффициент текущей ликвидности', num:['ta_cur'], den:['li_short'], op:'ratio', fmt:'ratio', thr:{cmp:'>=', v:1.0}},
+      {id:'k-auto', name:'Коэффициент автономии',           num:['eq'],     den:['bal'],      op:'ratio', fmt:'ratio', thr:{cmp:'>=', v:0.3}},
+      {id:'k-ros',  name:'Рентабельность продаж',           num:['profit'], den:['rev'],      op:'share', fmt:'pct',   thr:{cmp:'>=', v:5}},
+      {id:'k-dte',  name:'Долг к операционной прибыли',     num:['debt_all'], den:['ebitda'], op:'ratio', fmt:'ratio', thr:{cmp:'<=', v:4}}
+     ]},
+    {n:2, since:'2026-04-01', note:'порог ликвидности поднят до 1,2; добавлено покрытие долга потоком',
+     lines:['ta_cur','li_short','eq','bal','rev','profit','ebitda','debt_all','cf_oper','debt_serv'],
+     coefs:[
+      {id:'k-cur',  name:'Коэффициент текущей ликвидности', num:['ta_cur'], den:['li_short'], op:'ratio', fmt:'ratio', thr:{cmp:'>=', v:1.2}},
+      {id:'k-auto', name:'Коэффициент автономии',           num:['eq'],     den:['bal'],      op:'ratio', fmt:'ratio', thr:{cmp:'>=', v:0.3}},
+      {id:'k-ros',  name:'Рентабельность продаж',           num:['profit'], den:['rev'],      op:'share', fmt:'pct',   thr:{cmp:'>=', v:5}},
+      {id:'k-dte',  name:'Долг к операционной прибыли',     num:['debt_all'], den:['ebitda'], op:'ratio', fmt:'ratio', thr:{cmp:'<=', v:4}},
+      {id:'k-dscr', name:'Покрытие обслуживания долга потоком', num:['cf_oper'], den:['debt_serv'], op:'ratio', fmt:'ratio', thr:{cmp:'>=', v:1.25}}
+     ]}
+   ]},
+  {id:'m-ip', name:'Оценка индивидуального предпринимателя', ptype:'индивидуальный предприниматель',
+   owner:'Отдел анализа',
+   editions:[
+    {n:1, since:'2024-01-01', note:'первая редакция',
+     lines:['rev_ip','exp_ip','net_ip','pay_ip'],
+     coefs:[
+      {id:'k-marg', name:'Рентабельность деятельности', num:['net_ip'], den:['rev_ip'], op:'share', fmt:'pct',   thr:{cmp:'>=', v:10}},
+      {id:'k-dsr',  name:'Платёж к чистому доходу',     num:['pay_ip'], den:['net_ip'], op:'share', fmt:'pct',   thr:{cmp:'<=', v:50}},
+      {id:'k-cov',  name:'Покрытие платежа доходом',    num:['net_ip'], den:['pay_ip'], op:'ratio', fmt:'ratio', thr:{cmp:'>=', v:2}}
+     ]}
+   ]},
+  {id:'m-fl', name:'Оценка дохода и платёжеспособности физического лица', ptype:'физическое лицо',
+   owner:'Отдел анализа',
+   editions:[
+    {n:1, since:'2024-01-01', note:'первая редакция',
+     lines:['inc','exp_fix','pay_fl'],
+     coefs:[
+      {id:'k-pti',  name:'Платёж к доходу',   num:['pay_fl'], den:['inc'],              op:'share', fmt:'pct',   thr:{cmp:'<=', v:50}},
+      {id:'k-free', name:'Свободный остаток', num:['inc'],    den:['exp_fix','pay_fl'], op:'diff',  fmt:'money', thr:{cmp:'>=', v:8000}}
+     ]}
+   ]},
+  {id:'m-grp', name:'Оценка группового заёмщика', ptype:'групповой заёмщик', owner:'Отдел анализа',
+   editions:[
+    {n:1, since:'2024-06-01', note:'документ ведётся на группе; доход собирается по членам (открытый вопрос «а»)',
+     lines:['inc_grp','pay_grp','members'],
+     coefs:[
+      {id:'k-gpti', name:'Платёж группы к доходу группы', num:['pay_grp'], den:['inc_grp'], op:'share', fmt:'pct',   thr:{cmp:'<=', v:45}},
+      {id:'k-gavg', name:'Доход на члена группы',         num:['inc_grp'], den:['members'], op:'ratio', fmt:'money', thr:{cmp:'>=', v:12000}}
+     ]}
+   ]}
+];
+
+/* ----------------------- РАСПИСАНИЕ АНАЛИЗА ------------------------- *
+   Единственный источник срока в системе. Сопровождение читает его и ведёт
+   обязательство; второго календаря нет (§7 канона).                          */
+const FREQ = {
+  'полугодие': {name:'раз в полгода',
+    last: today => Number(today.slice(5,7)) > 6
+      ? {label:'1П ' + today.slice(0,4), end: today.slice(0,4)+'-06-30'}
+      : {label:'2П ' + (Number(today.slice(0,4))-1), end: (Number(today.slice(0,4))-1)+'-12-31'}},
+  'год': {name:'раз в год',
+    last: today => ({label: (Number(today.slice(0,4))-1)+' год', end: (Number(today.slice(0,4))-1)+'-12-31'})}
+};
+const SCHEDULE = [
+  {id:'sc-org', ptype:'организация',                        freq:'полугодие', grace:45, needLoans:true, since:'2026-01-01'},
+  {id:'sc-ip',  ptype:'индивидуальный предприниматель',     freq:'полугодие', grace:45, needLoans:true, since:'2026-01-01'},
+  {id:'sc-fl',  ptype:'физическое лицо',                    freq:'полугодие', grace:45, needLoans:true, since:'2026-01-01'},
+  {id:'sc-grp', ptype:'групповой заёмщик',                  freq:'полугодие', grace:60, needLoans:true, since:'2026-01-01'}
+];
+
+/* --------------------- МИР СОСЕДЕЙ (ЗЕРКАЛО) ------------------------ *
+   Заёмщики, кураторство и заявки здесь не редактируются: они чужие. Тип лица
+   ИСТОРИЧЕН — именно поэтому методика выбирается на дату отчётности (ИА-4).   */
+const SUBJECTS = [
+  {id:'b-1', name:'ОсОО «Ак-Жол Агро»', inn:'02508199710085', curator:'Бекова Н.',
+   branch:'Чуйский филиал', loans:2, appl:null,
+   ptype:[{since:'2019-03-12', v:'организация'}]},
+  {id:'b-2', name:'Мамытов Т.А.', inn:'22106198500431', curator:'Бекова Н.',
+   branch:'Чуйский филиал', loans:1, appl:null,
+   ptype:[{since:'2021-05-01', v:'индивидуальный предприниматель'},
+          {since:'2026-02-10', v:'физическое лицо', note:'снят с учёта как ИП 10.02.2026'}]},
+  {id:'b-3', name:'Асанова Ж.К.', inn:'21203198800256', curator:'Асанов А.',
+   branch:'Ошский филиал', loans:1, appl:'ЗЯ-2026/318 — на рассмотрении',
+   ptype:[{since:'2018-01-01', v:'физическое лицо'}]},
+  {id:'b-4', name:'Группа «Достук»', inn:'—', curator:'Бекова Н.',
+   branch:'Чуйский филиал', loans:1, appl:null,
+   ptype:[{since:'2024-06-01', v:'групповой заёмщик'}]},
+  {id:'b-5', name:'ОсОО «Тянь-Шань Логистик»', inn:'01703202110044', curator:'Бекова Н.',
+   branch:'Чуйский филиал', loans:0, appl:null,
+   ptype:[{since:'2021-03-17', v:'организация'}]}
+];
+
+/* Периоды отчётности — общий справочник; «ещё не завершился» проверяется датой. */
+const PERIODS = [
+  {label:'2025 год', end:'2025-12-31'},
+  {label:'1П 2026',  end:'2026-06-30'},
+  {label:'2П 2026',  end:'2026-12-31'}
+];
+
+/* --------------------- ОТЧЁТНОСТЬ ЗАЁМЩИКА -------------------------- *
+   Реквизит ЗАЁМЩИКА, а не документа анализа: одну версию читают несколько
+   заключений. Версии не затирают друг друга (§2.1 канона).                   */
+const REPORTS = [
+  {id:'r-101', subj:'b-1', period:'2025 год', at:'2025-12-31', ver:1, filed:'2026-02-14',
+   basis:'бухгалтерский баланс и ОПиУ за 2025 год от 14.02.2026', by:'Бекова Н.',
+   vals:{ta_cur:41800000, li_short:35900000, eq:56400000, bal:171000000, rev:88200000,
+         profit:5900000, ebitda:19400000, debt_all:88000000}},
+  {id:'r-102', subj:'b-1', period:'1П 2026', at:'2026-06-30', ver:1, filed:'2026-07-10',
+   basis:'баланс и ОПиУ за 1 полугодие 2026 от 10.07.2026', by:'Бекова Н.',
+   vals:{ta_cur:48200000, li_short:39500000, eq:61000000, bal:184000000, rev:96400000,
+         profit:7350000, ebitda:21800000, debt_all:92000000, cf_oper:24300000, debt_serv:18900000}},
+  {id:'r-103', subj:'b-1', period:'1П 2026', at:'2026-06-30', ver:2, filed:'2026-08-12',
+   basis:'уточнённый баланс за 1 полугодие 2026 от 12.08.2026 (доначислены обязательства)', by:'Бекова Н.',
+   vals:{ta_cur:48200000, li_short:43100000, eq:57400000, bal:184000000, rev:96400000,
+         profit:7350000, ebitda:21800000, debt_all:95600000, cf_oper:24300000, debt_serv:18900000}},
+  {id:'r-201', subj:'b-2', period:'2025 год', at:'2025-12-31', ver:1, filed:'2026-02-20',
+   basis:'налоговая отчётность ИП за 2025 год от 20.02.2026', by:'Бекова Н.',
+   vals:{rev_ip:14600000, exp_ip:12420000, net_ip:2180000, pay_ip:960000}},
+  {id:'r-202', subj:'b-2', period:'1П 2026', at:'2026-06-30', ver:1, filed:'2026-07-18',
+   basis:'справка о доходах и выписка по счёту от 18.07.2026', by:'Бекова Н.',
+   vals:{inc:78000, exp_fix:41000, pay_fl:39000}},
+  {id:'r-401', subj:'b-4', period:'1П 2026', at:'2026-06-30', ver:1, filed:'2026-07-22',
+   basis:'ведомость доходов членов группы от 22.07.2026', by:'Бекова Н.',
+   vals:{inc_grp:186000, pay_grp:74000, members:7}}
+];
+
+/* Заключения. Утверждённые в сиде проходят тот же путь approve(), что и руками:
+   снимок не выписан в литерале, он ФИКСИРУЕТСЯ операцией (ADR-0153 §2). */
+const SEED_ANALYSES = [
+  {no:'ФА-6', subj:'b-2', period:'2025 год', report:'r-201', by:'Бекова Н.',
+   text:'Доход стабилен, торговая точка работает круглогодично. Платёж обслуживается из '+
+     'текущего оборота, товарные остатки достаточны. Замечаний по деятельности нет.',
+   verdict:'удовлетворительное', approvedAt:'2026-03-05'},
+  {no:'ФА-7', subj:'b-1', period:'1П 2026', report:'r-102', by:'Бекова Н.',
+   text:'Оборот вырос к прошлому полугодию, поток покрывает обслуживание долга. Долговая '+
+     'нагрузка к операционной прибыли выше порога методики — рост заимствований опережает '+
+     'прибыль; рекомендую ограничить новые обязательства до конца года.',
+   verdict:'удовлетворительное с оговорками', approvedAt:'2026-07-20'},
+  {no:'ФА-8', subj:'b-4', period:'1П 2026', report:'r-401', by:'Бекова Н.',
+   text:'Группа платит без просрочек второй цикл, состав не менялся. Доход на члена группы '+
+     'выше порога, нагрузка умеренная.',
+   verdict:'удовлетворительное', approvedAt:'2026-08-04'},
+  {no:'ФА-9', subj:'b-2', period:'1П 2026', report:'r-202', by:'Бекова Н.',
+   text:'', verdict:null, approvedAt:null}
+];
+
+/* ------------------------- ДОСТУП К ЗАПИСЯМ -------------------------- */
+const SUBJ   = id => AN.state.subjects.find(s => s.id === id);
+const METHOD = id => AN.state.methods.find(m => m.id === id);
+const REPORT = id => AN.state.reports.find(r => r.id === id);
+const DOC    = no => AN.state.analyses.find(a => a.no === no);
+const LINE   = id => LINES.find(l => l.id === id);
+AN.SUBJ = SUBJ; AN.METHOD = METHOD; AN.REPORT = REPORT; AN.DOC = DOC; AN.LINE = LINE;
+AN.seams = () => SEAMS.slice();
+AN.consumers = () => clone(CONSUMERS);
+AN.verdicts = () => VERDICTS.slice();
+AN.ops = () => Object.keys(OPS);
+
+/* ==ВЫЧИСЛИТЕЛЬ== ---------------------------------------------------- *
+   Ниже — весь расчёт модуля. Он работает с ЗАПИСЯМИ: берёт из объявления
+   коэффициента список строк, складывает их значения и применяет операцию из
+   закрытого списка. Названия коэффициентов сюда не попадают ни одним словом —
+   пятый коэффициент методики заводится записью, а не веткой (ИА-3).           */
+function fold(vals, ids){ return (ids||[]).reduce((s,id) => s + (vals[id]==null ? 0 : Number(vals[id])), 0); }
+function missingOf(coef, vals){
+  return (coef.num||[]).concat(coef.den||[]).filter(id => vals[id]==null || vals[id]==='');
+}
+function passes(thr, v){
+  if(v == null || !thr) return null;
+  return thr.cmp === '>=' ? v >= thr.v : thr.cmp === '<=' ? v <= thr.v : null;
+}
+function calcCoef(coef, vals){
+  const miss = missingOf(coef, vals);
+  if(miss.length) return {id:coef.id, name:coef.name, v:null, pass:null, missing:miss};
+  const a = fold(vals, coef.num);
+  const b = coef.den && coef.den.length ? fold(vals, coef.den) : 1;
+  const raw = OPS[coef.op].apply(a, b);
+  const v = raw == null ? null : Math.round(raw*10000)/10000;
+  return {id:coef.id, name:coef.name, v, pass:passes(coef.thr, v), missing:[]};
+}
+function calcAll(edition, vals){ return (edition.coefs||[]).map(c => calcCoef(c, vals)); }
+/* Тип лица и методика — тоже выбор по записи, и выбор ДАТИРОВАННЫЙ (ИА-4):
+   спрашивается дата отчётности, «сегодня» в эту функцию не приходит вовсе. */
+function typeOn(subj, dateISO){
+  const rows = (subj.ptype||[]).filter(p => p.since <= dateISO).sort((x,y) => x.since < y.since ? -1 : 1);
+  return rows.length ? rows[rows.length-1] : null;
+}
+function editionOn(method, dateISO){
+  const rows = (method.editions||[]).filter(e => e.since <= dateISO && !e.retired)
+    .sort((x,y) => x.since < y.since ? -1 : 1);
+  return rows.length ? rows[rows.length-1] : null;
+}
+/* ==/ВЫЧИСЛИТЕЛЬ== */
+
+AN.typeOn = (subjId, dateISO) => { const t = typeOn(SUBJ(subjId), dateISO); return t ? t.v : null; };
+AN.methodFor = (subjId, dateISO) => {
+  const s = SUBJ(subjId); if(!s) return {ok:false, why:'заёмщик не найден'};
+  const t = typeOn(s, dateISO);
+  if(!t) return {ok:false, why:'тип лица на '+fmt(dateISO)+' не установлен: методику выбрать не из чего'};
+  const m = AN.state.methods.find(x => x.ptype === t.v);
+  if(!m) return {ok:false, why:'для типа лица «'+t.v+'» методики нет: единой методики «для всех» в системе не бывает (§2.2)'};
+  const ed = editionOn(m, dateISO);
+  if(!ed) return {ok:false, why:'у методики «'+m.name+'» нет редакции, действующей на '+fmt(dateISO)};
+  return {ok:true, ptype:t.v, ptypeSince:t.since, method:m, ed,
+    why:'тип лица на дату отчётности '+fmt(dateISO)+' — «'+t.v+'»; редакция '+ed.n+' от '+fmt(ed.since)};
+};
+
+/* ---------------------------- СОСТОЯНИЕ ----------------------------- */
+function seed(){
+  const st = {
+    today:'2026-08-21',
+    role:'Ведущий куратор (Бекова Н.)',
+    view:'borrower',
+    subj:'b-1',
+    doc:'ФА-7',
+    subjects: clone(SUBJECTS),
+    methods:  clone(METHODS),
+    schedule: clone(SCHEDULE),
+    reports:  clone(REPORTS),
+    analyses: [],
+    templates: [],        /* шаблоны отчётности: их нет, и своих мы не заводим (ADR-0154) */
+    reviews:  [],         /* аналитические обзоры: раздел заперт до появления отчётности */
+    log: []
+  };
+  AN.state = st;
+  /* Заключения проводятся операциями, а не выписываются готовыми: снимок обязан
+     появиться из approve(), иначе макет доказывал бы литерал, а не поведение. */
+  SEED_ANALYSES.forEach(a => {
+    const r = REPORT(a.report);
+    const mf = AN.methodFor(a.subj, r.at);
+    st.analyses.push({no:a.no, subj:a.subj, period:a.period, report:a.report, reportVer:r.ver,
+      method:mf.method.id, ed:mf.ed.n, state:'черновик', text:a.text, verdict:a.verdict,
+      by:a.by, createdAt:r.filed, approvedAt:null, snapshot:null, corrections:[], prev:null});
+  });
+  SEED_ANALYSES.filter(a => a.approvedAt).forEach(a => {
+    const doc = DOC(a.no);
+    const res = freeze(doc, a.by, a.approvedAt);
+    if(!res.ok) throw new Error('сид: '+a.no+' — '+res.why);
+  });
+  st.log = [];
+  return st;
+}
+AN.seed = () => { AN.state = seed(); return AN.state; };
+function log(msg){ AN.state.log.unshift({at: AN.state.today, who: WHO[AN.state.role], msg}); }
+
+/* ------------------------- ДОСТУП И РОЛИ ---------------------------- */
+AN.who = () => WHO[AN.state.role];
+AN.isCurator = () => AN.state.role.indexOf('Ведущий куратор') === 0;
+AN.isAnalyst = () => AN.state.role === 'Сотрудник отдела анализа';
+AN.isAdmin   = () => AN.state.role === 'Администратор';
+AN.leads = subjId => { const s = SUBJ(subjId); return !!s && AN.isCurator() && s.curator === AN.who(); };
+AN.mayLead = subjId => {
+  const s = SUBJ(subjId);
+  if(!s) return {ok:false, why:'заёмщик не найден'};
+  if(!AN.isCurator()) return {ok:false, why:'финанализ ведёт ведущий куратор заёмщика; роль «'+
+    AN.state.role+'» его не ведёт (§13 канона)'};
+  if(s.curator !== AN.who()) return {ok:false, why:'ведущий куратор заёмщика «'+s.name+'» — '+
+    s.curator+'; чужого заёмщика вести нельзя'};
+  return {ok:true};
+};
+
+/* --------------------------- ОТЧЁТНОСТЬ ----------------------------- */
+AN.reportsOf = subjId => AN.state.reports.filter(r => r.subj === subjId)
+  .sort((a,b) => a.at === b.at ? a.ver - b.ver : (a.at < b.at ? -1 : 1));
+AN.latestReport = (subjId, period) => {
+  const rs = AN.reportsOf(subjId).filter(r => r.period === period);
+  return rs.length ? rs[rs.length-1] : null;
+};
+AN.usedBy = reportId => AN.state.analyses.filter(a => a.report === reportId).map(a => a.no);
+AN.addReport = spec => {
+  const s = SUBJ(spec.subj);
+  if(!s) return {ok:false, why:'заёмщик не найден'};
+  const lead = AN.mayLead(spec.subj);
+  if(!lead.ok) return lead;
+  const p = PERIODS.find(x => x.label === spec.period);
+  if(!p) return {ok:false, why:'периода «'+spec.period+'» в справочнике нет'};
+  if(p.end >= AN.state.today) return {ok:false, why:'период «'+p.label+'» ещё не завершился: '+
+    'отчётность за него вносится с '+fmt(addDays(p.end,1))};
+  if(!spec.basis) return {ok:false, why:'версия отчётности без документа-основания не вносится: '+
+    'у каждой версии свои дата и основание (§2.1)'};
+  const mf = AN.methodFor(spec.subj, p.end);
+  if(!mf.ok) return mf;
+  const empty = mf.ed.lines.filter(id => spec.vals[id]==null || spec.vals[id]==='');
+  if(empty.length) return {ok:false, why:'не заполнены строки формы: '+
+    empty.map(id => '«'+LINE(id).name+'»').join(', ')+' — форму объявляет методика «'+mf.method.name+'»'};
+  const prev = AN.reportsOf(spec.subj).filter(r => r.period === spec.period);
+  const r = {id:'r-'+(9000+AN.state.reports.length), subj:spec.subj, period:p.label, at:p.end,
+    ver: prev.length+1, filed: AN.state.today, basis: spec.basis, by: AN.who(),
+    vals: Object.keys(spec.vals).reduce((o,k) => { o[k] = Number(spec.vals[k]); return o; }, {})};
+  AN.state.reports.push(r);
+  log('внесена отчётность '+s.name+', '+r.period+', версия '+r.ver);
+  return {ok:true, report:r, note: prev.length ? 'версия '+r.ver+': прежняя не затёрта и остаётся основанием своих заключений' : null};
+};
+
+/* ------------------------ ЖИЗНЬ ЗАКЛЮЧЕНИЯ -------------------------- */
+AN.liveRatios = docNo => {
+  const d = DOC(docNo); if(!d) return {ok:false, why:'заключение не найдено'};
+  const r = REPORT(d.report); const m = METHOD(d.method);
+  const ed = m.editions.find(e => e.n === d.ed);
+  return {ok:true, live:true, rows: calcAll(ed, r.vals), ed, method:m, report:r};
+};
+/* Что видит человек: у черновика — живой расчёт, у утверждённого — снимок (ИА-1). */
+AN.ratiosOf = docNo => {
+  const d = DOC(docNo); if(!d) return {ok:false, why:'заключение не найдено'};
+  if(d.state === 'утверждено') return {ok:true, live:false, rows: clone(d.snapshot.ratios),
+    ed: d.snapshot.edSnap, method: METHOD(d.method), report: REPORT(d.snapshot.report)};
+  return AN.liveRatios(docNo);
+};
+AN.newAnalysis = spec => {
+  const lead = AN.mayLead(spec.subj);
+  if(!lead.ok) return lead;
+  const r = REPORT(spec.report);
+  if(!r || r.subj !== spec.subj) return {ok:false, why:'версия отчётности не найдена у этого заёмщика'};
+  const dup = AN.state.analyses.find(a => a.subj === spec.subj && a.period === r.period && a.state === 'черновик');
+  if(dup) return {ok:false, why:'за период «'+r.period+'» уже открыт черновик '+dup.no+
+    ': второй черновик того же периода не заводится'};
+  const mf = AN.methodFor(spec.subj, r.at);
+  if(!mf.ok) return mf;
+  const no = 'ФА-'+(AN.state.analyses.length + 6);
+  const d = {no, subj:spec.subj, period:r.period, report:r.id, reportVer:r.ver,
+    method:mf.method.id, ed:mf.ed.n, state:'черновик', text:'', verdict:null,
+    by:AN.who(), createdAt:AN.state.today, approvedAt:null, snapshot:null, corrections:[],
+    prev: spec.prev || null};
+  AN.state.analyses.push(d);
+  log('заведён черновик '+no+' по '+SUBJ(spec.subj).name+', '+r.period);
+  return {ok:true, doc:d, why:mf.why};
+};
+AN.setText = (docNo, text) => {
+  const d = DOC(docNo); if(!d) return {ok:false, why:'заключение не найдено'};
+  if(d.state === 'утверждено') return AN.tryEditApproved(docNo);
+  const lead = AN.mayLead(d.subj); if(!lead.ok) return lead;
+  d.text = String(text||''); return {ok:true};
+};
+AN.setVerdict = (docNo, v) => {
+  const d = DOC(docNo); if(!d) return {ok:false, why:'заключение не найдено'};
+  if(d.state === 'утверждено') return AN.tryEditApproved(docNo);
+  const lead = AN.mayLead(d.subj); if(!lead.ok) return lead;
+  if(VERDICTS.indexOf(v) < 0) return {ok:false, why:'вывода «'+v+'» в перечне нет'};
+  d.verdict = v; return {ok:true};
+};
+
+/* Утверждение = единственная подпись. Оно же фиксирует снимок (ADR-0153 §2). */
+function freeze(d, who, atISO){
+  const r = REPORT(d.report);
+  if(!r) return {ok:false, why:'версия отчётности не найдена'};
+  const m = METHOD(d.method);
+  const ed = m.editions.find(e => e.n === d.ed);
+  if(!ed) return {ok:false, why:'редакция методики не найдена'};
+  if(!String(d.text||'').trim()) return {ok:false, why:'заключение без текста не утверждается: '+
+    'подпись стоит под суждением, а не под таблицей коэффициентов'};
+  if(!d.verdict) return {ok:false, why:'вывод не выбран: утверждается суждение, а не расчёт'};
+  const rows = calcAll(ed, r.vals);
+  const bad = rows.filter(x => x.v == null);
+  if(bad.length) return {ok:false, why:'не посчитан коэффициент «'+bad[0].name+'»: в отчётности '+
+    'не заполнены строки '+bad[0].missing.map(id => '«'+LINE(id).name+'»').join(', ')};
+  d.state = 'утверждено';
+  d.approvedAt = atISO;
+  d.by = who;
+  d.snapshot = {
+    at: atISO, by: who,
+    method: m.id, methodName: m.name, ed: ed.n, edSince: ed.since,
+    report: r.id, reportVer: r.ver, reportPeriod: r.period, reportAt: r.at, reportFiled: r.filed,
+    reportBasis: r.basis,
+    ptype: (typeOn(SUBJ(d.subj), r.at)||{}).v,
+    lines: clone(r.vals),
+    edSnap: clone(ed),
+    ratios: rows,
+    verdict: d.verdict
+  };
+  return {ok:true};
+}
+AN.approve = docNo => {
+  const d = DOC(docNo); if(!d) return {ok:false, why:'заключение не найдено'};
+  if(d.state === 'утверждено') return {ok:false, why:'заключение '+d.no+' уже утверждено '+
+    fmt(d.approvedAt)+': второй подписи у документа нет (§2.3)'};
+  const lead = AN.mayLead(d.subj); if(!lead.ok) return lead;
+  const res = freeze(d, AN.who(), AN.state.today);
+  if(res.ok) log('утверждено '+d.no+' — '+d.verdict);
+  return res;
+};
+
+/* Изменился источник — заключение помечается, но НЕ пересчитывается (ИА-1). */
+AN.sourceChanged = docNo => {
+  const d = DOC(docNo);
+  if(!d || d.state !== 'утверждено') return [];
+  const notes = [];
+  const newer = AN.state.reports.filter(r => r.subj === d.subj && r.period === d.snapshot.reportPeriod &&
+    r.ver > d.snapshot.reportVer).sort((a,b) => a.ver - b.ver);
+  newer.forEach(r => notes.push({what:'отчётность', text:'за тот же период подана версия '+r.ver+
+    ' от '+fmt(r.filed)+' — «'+r.basis+'»', at:r.filed, report:r.id}));
+  return notes;
+};
+/* Что дал бы пересчёт сегодня. Показывается РЯДОМ и никуда не записывается:
+   это объяснение пометки, а не новое значение заключения. */
+AN.wouldBe = docNo => {
+  const d = DOC(docNo);
+  if(!d || d.state !== 'утверждено') return null;
+  const r = AN.latestReport(d.subj, d.snapshot.reportPeriod);
+  if(!r || r.ver === d.snapshot.reportVer) return null;
+  return {report:r, rows: calcAll(d.snapshot.edSnap, r.vals)};
+};
+
+/* Два механизма правки (ADR-0112): корректировка ошибки — и новое заключение. */
+AN.correct = (docNo, spec) => {
+  const d = DOC(docNo); if(!d) return {ok:false, why:'заключение не найдено'};
+  if(d.state !== 'утверждено') return {ok:false, why:'черновик правится прямо, корректировка ему не нужна'};
+  const lead = AN.mayLead(d.subj); if(!lead.ok) return lead;
+  if(['текст','вывод'].indexOf(spec.field) < 0) return {ok:false, why:'корректировкой правится текст '+
+    'заключения или вывод; числа корректировкой не правятся — они в снимке (ИА-1)'};
+  if(!String(spec.basis||'').trim()) return {ok:false, why:'корректировка без основания не принимается: '+
+    'у исправления обязан быть документ, которым оно объяснено (ADR-0112)'};
+  if(spec.field === 'вывод' && VERDICTS.indexOf(spec.value) < 0) return {ok:false, why:'вывода «'+spec.value+'» в перечне нет'};
+  const was = spec.field === 'текст' ? d.text : d.verdict;
+  if(spec.field === 'текст') d.text = spec.value; else d.verdict = spec.value;
+  d.corrections.push({at:AN.state.today, by:AN.who(), field:spec.field, was, now:spec.value, basis:spec.basis});
+  log('корректировка '+d.no+' ('+spec.field+')');
+  return {ok:true, note:'снимок не тронут: корректировка исправляет запись, а не пересчитывает основание'};
+};
+AN.reissue = docNo => {
+  const d = DOC(docNo); if(!d) return {ok:false, why:'заключение не найдено'};
+  if(d.state !== 'утверждено') return {ok:false, why:'переиздаётся утверждённое заключение; черновик правится сам'};
+  const lead = AN.mayLead(d.subj); if(!lead.ok) return lead;
+  const r = AN.latestReport(d.subj, d.period);
+  if(!r) return {ok:false, why:'отчётности за период нет'};
+  if(r.id === d.report) return {ok:false, why:'основание то же самое: новое заключение заводится, когда '+
+    'изменились обстоятельства — иначе это корректировка (ADR-0112)'};
+  const res = AN.newAnalysis({subj:d.subj, report:r.id, prev:d.no});
+  if(res.ok) log('переиздание '+d.no+' → '+res.doc.no+' на версии '+r.ver);
+  return res;
+};
+
+/* ---------------------------- ШВЫ НАРУЖУ ---------------------------- *
+   Два ответа, каждый назван вопросом (форма ADR-0135 §4). Черновиков не отдаёт
+   ни один: незаконченная работа, показанная как результат, читается как результат. */
+AN.analysisVerdict = subjId => {
+  const s = SUBJ(subjId);
+  if(!s) return {ok:false, why:'заёмщик не найден'};
+  const list = AN.state.analyses.filter(a => a.subj === subjId && a.state === 'утверждено')
+    .sort((a,b) => a.approvedAt < b.approvedAt ? -1 : 1);
+  if(!list.length) return {ok:true, none:true, text:'анализа нет', subj:subjId};
+  const d = list[list.length-1];
+  return {ok:true, none:false, subj:subjId, verdict:d.verdict, no:d.no, at:d.approvedAt,
+    period:d.period, method:METHOD(d.method).name, ed:d.ed,
+    changed: AN.sourceChanged(d.no).length > 0};
+};
+AN.analysisDone = (subjId, period) => {
+  const d = AN.state.analyses.find(a => a.subj === subjId && a.period === period && a.state === 'утверждено');
+  return d ? {ok:true, done:true, at:d.approvedAt, no:d.no} : {ok:true, done:false, at:null, no:null};
+};
+AN.callSeam = (module, seam, arg, period) => {
+  const c = CONSUMERS.find(x => x.module === module);
+  if(!c) return {ok:false, why:'модуль «'+module+'» шва не спрашивает'};
+  if(NO_SEAM[seam]) return {ok:false, why:NO_SEAM[seam]};
+  if(SEAMS.indexOf(seam) < 0) return {ok:false, why:'шва «'+seam+'» нет: швов два — '+SEAMS.join(', ')};
+  if(c.may.indexOf(seam) < 0) return {ok:false, why: c.why || ('модулю «'+module+'» шов «'+seam+'» не открыт')};
+  return {ok:true, answer: seam === 'analysisVerdict' ? AN.analysisVerdict(arg) : AN.analysisDone(arg, period)};
+};
+
+/* ------------------ СРОК → ОБЯЗАТЕЛЬСТВО → ДЕФЕКТ -------------------- *
+   Расписание — наше. Обязательство и дефект — ЧУЖИЕ: они считаются в
+   сопровождении и здесь только показаны зеркалом (ИА-13). Ни одного поля с
+   дефектом в состоянии модуля нет — найдите его, и это будет ошибкой.          */
+AN.dueOf = subjId => {
+  const s = SUBJ(subjId);
+  if(!s) return {required:false, why:'заёмщик не найден'};
+  const today = AN.state.today;
+  const rows = AN.state.schedule.filter(r => r.since <= today);
+  const ptypeNow = AN.typeOn(subjId, today);
+  const row = rows.find(r => r.ptype === ptypeNow);
+  if(!row) return {required:false, why:'для типа лица «'+ptypeNow+'» строки расписания нет'};
+  if(row.needLoans && !s.loans) return {required:false, row:row.id,
+    why:'действующих кредитов нет: строка расписания «'+row.id+'» вменяет анализ только при них'};
+  const p = FREQ[row.freq].last(today);
+  return {required:true, row:row.id, freq:row.freq, freqName:FREQ[row.freq].name,
+    period:p.label, end:p.end, grace:row.grace, due: addDays(p.end, row.grace)};
+};
+/* Зеркало чужого счёта: как сопровождение прочитает наш факт и что получит гейт. */
+AN.mirrorDefect = subjId => {
+  const d = AN.dueOf(subjId);
+  if(!d.required) return {defect:false, due:null, why:d.why};
+  const done = AN.analysisDone(subjId, d.period);
+  if(done.done) return {defect:false, due:d, done, why:'обязательство закрыто фактом: '+
+    done.no+' утверждено '+fmt(done.at)+' (ИА-12)'};
+  const late = daysBetween(d.due, AN.state.today);
+  if(late <= 0) return {defect:false, due:d, done, why:'срок ещё не вышел: до '+fmt(d.due)+
+    ' осталось '+dayWord(-late)};
+  const draft = AN.state.analyses.find(a => a.subj === subjId && a.period === d.period && a.state === 'черновик');
+  return {defect:true, due:d, done, late,
+    code:'финанализ за '+d.period+' не проведён', influence:'на допуск',
+    why:'срок '+fmt(d.due)+' вышел '+dayWord(late)+' назад'+
+      (draft ? '; черновик '+draft.no+' есть, но обязательство закрывается фактом, а не черновиком (ИА-2, ИА-12)' : ''),
+    basis:'расписание анализа, строка «'+d.row+'»'};
+};
+AN.mirrorGate = subjId => {
+  const m = AN.mirrorDefect(subjId);
+  const s = SUBJ(subjId);
+  if(!m.defect) return {pass:true, text:'дефектов с влиянием «на допуск» от анализа нет'};
+  return {pass:false, text:'на комиссию нельзя: дефект «'+m.code+'» с влиянием «'+m.influence+'» — '+m.why,
+    appl: s.appl};
+};
+
+/* --------------------- МЕТОДИКИ: ВЕДЁТ ОТДЕЛ АНАЛИЗА ----------------- */
+AN.refsOfEdition = (methodId, n) =>
+  AN.state.analyses.filter(a => a.method === methodId && a.ed === n).map(a => a.no);
+AN.addEdition = spec => {
+  if(!AN.isAnalyst()) return {ok:false, why:'редакции методики ведёт отдел анализа; роль «'+
+    AN.state.role+'» методику не правит (§13: методика содержательная, а не техническая)'};
+  const m = METHOD(spec.method);
+  if(!m) return {ok:false, why:'методики «'+spec.method+'» нет'};
+  if(spec.since < AN.state.today) return {ok:false, why:'редакция публикуется датой и задним числом '+
+    'не публикуется: прошлые периоды считались по действовавшей редакции (ИА-5, образец ADR-0125)'};
+  if(m.editions.some(e => e.n === spec.n)) return {ok:false, why:'редакция '+spec.n+' уже есть'};
+  if(!spec.coefs || !spec.coefs.length) return {ok:false, why:'редакция без коэффициентов не публикуется'};
+  const badOp = spec.coefs.filter(c => Object.keys(OPS).indexOf(c.op) < 0);
+  if(badOp.length) return {ok:false, why:'операция «'+badOp[0].op+'» вне закрытого списка: '+
+    Object.keys(OPS).join(', ') + ' — выражение здесь не заводится, это была бы формула в коде'};
+  const badLine = spec.coefs.reduce((acc,c) => acc.concat((c.num||[]).concat(c.den||[])), [])
+    .filter(id => !LINE(id));
+  if(badLine.length) return {ok:false, why:'строки «'+badLine[0]+'» в справочнике форм нет'};
+  m.editions.push(clone(spec));
+  log('опубликована редакция '+spec.n+' методики «'+m.name+'»');
+  return {ok:true};
+};
+AN.retireEdition = (methodId, n) => {
+  if(!AN.isAnalyst()) return {ok:false, why:'редакции методики ведёт отдел анализа'};
+  const m = METHOD(methodId);
+  if(!m) return {ok:false, why:'методики нет'};
+  const ed = m.editions.find(e => e.n === n);
+  if(!ed) return {ok:false, why:'редакции нет'};
+  const refs = AN.refsOfEdition(methodId, n);
+  if(refs.length) return {ok:false, why:'редакция '+n+' используется заключениями '+refs.join(', ')+
+    ': снять её значит оставить снимок ссылаться в пустоту (ИА-5)'};
+  ed.retired = true;
+  log('снята редакция '+n+' методики «'+m.name+'»');
+  return {ok:true};
+};
+AN.addMethod = spec => {
+  if(!AN.isAnalyst()) return {ok:false, why:'методики ведёт отдел анализа'};
+  if(!spec.ptype) return {ok:false, why:'методика без применимости по типу лица не заводится: '+
+    'единой методики «для всех» нет — незаполнимое поле в общей форме неотличимо от незаполненного (§2.2)'};
+  if(AN.state.methods.some(m => m.ptype === spec.ptype)) return {ok:false,
+    why:'для типа лица «'+spec.ptype+'» методика уже есть: вторую заводить незачем, редакция — механизм изменения'};
+  AN.state.methods.push(clone(spec));
+  return {ok:true};
+};
+
+/* ------------------------- РАСПИСАНИЕ: АДМИН ------------------------- */
+AN.setSchedule = (rowId, patch) => {
+  if(!AN.isAdmin()) return {ok:false, why:'расписание анализа правит администратор; роль «'+
+    AN.state.role+'» его не правит (§13)'};
+  const r = AN.state.schedule.find(x => x.id === rowId);
+  if(!r) return {ok:false, why:'строки расписания нет'};
+  if(patch.freq && !FREQ[patch.freq]) return {ok:false, why:'периодичности «'+patch.freq+'» нет'};
+  Object.keys(patch).forEach(k => { r[k] = patch[k]; });
+  log('изменена строка расписания «'+rowId+'»');
+  return {ok:true, note:'срок пересчитан от расписания — второго календаря в системе нет (§7)'};
+};
+
+/* ------------------------- ЧЕГО ЗДЕСЬ НЕЛЬЗЯ ------------------------ *
+   Отказы названы словами и проверяются смоуком: «кнопки нет» — не объяснение.  */
+AN.trySetRatio = () => ({ok:false, why:'коэффициент вводу не подлежит: человек вносит отчётность, '+
+  'значение ставит машина (ИА-3, ADR-0122). Неверное число правится версией отчётности, а не полем'});
+AN.tryDeriveVerdict = () => ({ok:false, why:'вывод из порогов не выводится: правило, ставящее значение '+
+  'по порогу, — это классификация, а она анализ не читает и не слушает (ИА-10, ADR-0122 §3). '+
+  'Пороги подсвечивают, суждение ставит человек'});
+AN.tryEditApproved = docNo => ({ok:false, why:'утверждённое заключение '+docNo+' не правится: ошибка '+
+  'исправляется корректировкой с основанием, изменившиеся обстоятельства — новым заключением за тот же '+
+  'период (два механизма ADR-0112)'});
+AN.tryDelete = docNo => ({ok:false, why:'удаления утверждённого заключения нет: '+docNo+' остаётся в '+
+  'истории, даже когда его сменило новое (ADR-0112)'});
+AN.tryMarkDone = () => ({ok:false, why:'отметки «выполнено» в анализе нет: обязательство закрывается '+
+  'фактом — утверждённым заключением, а не признаком (ИА-12)'});
+AN.tryWriteBorrowerField = () => ({ok:false, why:'анализ в чужие поля не пишет: «внесено в поля объекта» '+
+  'исполняется зеркалом в шапке заёмщика, а не второй копией вывода (ИА-9, ADR-0155 §1)'});
+AN.tryCreateTask = () => ({ok:false, why:'задач анализ не ставит: задачу заводит руководитель в модуле '+
+  'задач, и она несёт ссылку на заключение как основание (ИА-11, ADR-0155 §4)'});
+AN.tryClassify = () => ({ok:false, why:'категорию анализ не присваивает и классификацию не кормит: '+
+  'слой ниже (ИА-10, ADR-0146 §2)'});
+AN.tryCurrentRatio = subjId => ({ok:false, why:'текущего значения коэффициента у заёмщика нет: снимок '+
+  'объясняет вывод своего заключения и источником значения ни для кого не является (ADR-0153 §6). '+
+  'Нужна величина по объекту — её выводит ядро швами calc*'});
+AN.tryPrint = () => ({ok:false, why:'печать и выгрузка идут через отчётность: анализ объявляет и печатает '+
+  'форму не сам (ADR-0145 §4)'});
+
+/* ---------------- РАЗДЕЛ ОБЗОРОВ: ЗАПЕРТ ДО ОТЧЁТНОСТИ --------------- */
+AN.templates = () => AN.state.templates.slice();
+AN.newReview = spec => {
+  if(!AN.state.templates.length) return {ok:false, why:'обзор не заводится: он обязан ссылаться на шаблон '+
+    'отчётности, а модуля отчётности в системе ещё нет. Заводить конструктор состава «временно у себя» '+
+    'запрещено — второй конструктор среза не сойдётся с первым (ADR-0154, границы)'};
+  return {ok:false, why:'шаблон найден, но раздел обзоров в этой волне не реализован'};
+};
+AN.tryOwnBuilder = () => ({ok:false, why:'своего конструктора состава среза у анализа нет и не будет: '+
+  'состав объявляет шаблон отчётности, обзор на него ссылается и состав не копирует (ИА-7, ADR-0154 §2)'});
+AN.pendingInvariants = () => [
+  {id:'ИА-6', text:'Показателя вне реестра в обзоре не бывает', wait:'реестр показателей — у статистики (ADR-0150 §5)'},
+  {id:'ИА-7', text:'Обзор ссылается на шаблон и его редакцию, состав не копирует', wait:'шаблон — у отчётности (ADR-0154)'},
+  {id:'ИА-8', text:'Число в обзоре без паспорта не показывается', wait:'паспорт приходит со швом статистики (ADR-0152 §2)'}
+];
+
+/* ------------------------- ПРЕДСТАВЛЕНИЕ ---------------------------- *
+   Форматирование — представление, а не значение: в снимке лежат числа.        */
+function money(v){
+  if(v == null) return '—';
+  const p = (Math.round(v*100)/100).toFixed(2).split('.');
+  return p[0].replace(/\B(?=(\d{3})+(?!\d))/g,' ')+','+p[1];
+}
+function coefText(coef, row){
+  if(!row || row.v == null) return '—';
+  if(coef.fmt === 'pct')   return String(Math.round(row.v*10)/10).replace('.',',')+' %';
+  if(coef.fmt === 'money') return money(row.v)+' сом';
+  return String(Math.round(row.v*100)/100).replace('.',',');
+}
+function thrText(coef){
+  if(!coef.thr) return '—';
+  const sign = coef.thr.cmp === '>=' ? '≥' : '≤';
+  const v = coef.fmt === 'pct' ? String(coef.thr.v).replace('.',',')+' %'
+          : coef.fmt === 'money' ? money(coef.thr.v)+' сом'
+          : String(coef.thr.v).replace('.',',');
+  return sign+' '+v;
+}
+function betterWord(coef){ return coef.thr && coef.thr.cmp === '>=' ? 'выше — лучше' : 'ниже — лучше'; }
+function formulaText(coef){
+  const nm = ids => ids.map(id => LINE(id) ? LINE(id).name : id).join(' + ');
+  if(coef.op === 'diff')  return nm(coef.num)+' − ('+nm(coef.den)+')';
+  if(coef.op === 'share') return nm(coef.num)+' ÷ '+nm(coef.den)+' × 100%';
+  return nm(coef.num)+' ÷ '+nm(coef.den);
+}
+function coefOf(ed, id){ return (ed.coefs||[]).find(c => c.id === id); }
+function statePill(d){
+  return d.state === 'утверждено'
+    ? '<span class="pill ok">утверждено '+fmt(d.approvedAt)+'</span>'
+    : '<span class="pill neutral">черновик</span>';
+}
+function verdictPill(v){
+  if(!v) return '<span class="pill neutral">вывод не поставлен</span>';
+  const cls = v === 'удовлетворительное' ? 'ok' : v === 'неудовлетворительное' ? 'err' : 'warn';
+  return '<span class="pill '+cls+'">'+esc(v)+'</span>';
+}
+function ratioTable(ed, rows, opts){
+  const o = opts || {};
+  return '<table class="cgrid"><thead><tr><th>Коэффициент</th><th>Из чего считается</th>'+
+    '<th class="num">Значение</th><th class="num">Порог</th><th>Оценка</th></tr></thead><tbody>'+
+    rows.map(r => {
+      const c = coefOf(ed, r.id) || {fmt:'ratio'};
+      const bad = r.pass === false;
+      return '<tr'+(bad ? ' class="hl"' : '')+'><td><b>'+esc(r.name)+'</b>'+
+        (o.was ? '' : '')+'</td>'+
+        '<td class="small">'+esc(formulaText(c))+'</td>'+
+        '<td class="num">'+esc(coefText(c, r))+'</td>'+
+        '<td class="num thr">'+esc(thrText(c))+' <span class="muted">('+betterWord(c)+')</span></td>'+
+        '<td>'+(r.v == null ? '<span class="pill err">не посчитан</span>'
+              : r.pass ? '<span class="pill ok">в норме</span>'
+                       : '<span class="pill warn">вне порога</span>')+'</td></tr>';
+    }).join('')+'</tbody></table>';
+}
+function linesTable(ed, vals, vals2){
+  return '<table class="cgrid"><thead><tr><th>Строка формы</th><th class="num">Значение</th>'+
+    (vals2 ? '<th class="num">Версия рядом</th>' : '')+'</tr></thead><tbody>'+
+    ed.lines.map(id => {
+      const l = LINE(id);
+      const diff = vals2 && vals2[id] !== vals[id];
+      return '<tr'+(diff ? ' class="hl"' : '')+'><td>'+esc(l.name)+'</td>'+
+        '<td class="num">'+esc(money(vals[id]))+'</td>'+
+        (vals2 ? '<td class="num">'+esc(money(vals2[id]))+(diff ? ' <span class="pill warn">иначе</span>' : '')+'</td>' : '')+
+        '</tr>';
+    }).join('')+'</tbody></table>';
+}
+
+/* --------------------------- НАВИГАЦИЯ ------------------------------ */
+const TITLES = {borrower:'Заёмщик · Финансы', doc:'Финанализ (документ)',
+  methods:'Реестр методик', schedule:'Расписание и швы', reviews:'Аналитические обзоры'};
+AN.go = v => { AN.state.view = v; render(); };
+AN.setRole = r => { AN.state.role = r; render(); };
+AN.pickSubj = id => { AN.state.subj = id;
+  const own = AN.state.analyses.filter(a => a.subj === id);
+  if(own.length) AN.state.doc = own[own.length-1].no;
+  render(); };
+AN.openDoc = no => { AN.state.doc = no; AN.state.view = 'doc'; render(); };
+
+function render(){
+  if(typeof document === 'undefined') return;            /* без DOM рисовать нечего (смоук) */
+  const st = AN.state;
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.v === st.view));
+  $('#title').textContent = TITLES[st.view];
+  $('#role').innerHTML = ROLES.map(r => '<option'+(r === st.role ? ' selected' : '')+'>'+esc(r)+'</option>').join('');
+  $('#subj').innerHTML = st.subjects.map(s => '<option value="'+s.id+'"'+(s.id === st.subj ? ' selected' : '')+'>'+
+    esc(s.name)+'</option>').join('');
+  const s = SUBJ(st.subj);
+  const md = AN.mirrorDefect(st.subj);
+  $('#foot').innerHTML = 'Сегодня '+fmt(st.today)+'. Вы — <b>'+esc(WHO[st.role])+'</b>.<br>'+
+    'Заёмщик: <b>'+esc(s.name)+'</b>, ведущий куратор '+esc(s.curator)+'.<br>'+
+    (md.defect ? '<span class="pill err">дефект от анализа</span> ' + esc(md.code)
+               : '<span class="pill ok">дефектов от анализа нет</span>');
+  $('#panel').innerHTML =
+    st.view === 'borrower' ? viewBorrower() :
+    st.view === 'doc'      ? viewDoc() :
+    st.view === 'methods'  ? viewMethods() :
+    st.view === 'schedule' ? viewSchedule() : viewReviews();
+}
+AN.render = render;
+function toast(msg, kind){
+  if(typeof document === 'undefined') return;
+  const w = document.getElementById('toastWrap'); if(!w) return;
+  const t = document.createElement('div');
+  t.className = 'toast'+(kind ? ' '+kind : '');
+  t.textContent = msg; w.appendChild(t);
+  setTimeout(() => t.remove(), 6000);
+}
+function act(res, okMsg){
+  if(res && res.ok){ if(okMsg) toast(res.note ? okMsg+' — '+res.note : okMsg, 'ok'); }
+  else toast((res && res.why) || 'отказано', 'err');
+  render();
+}
+AN.act = act;
+
+/* =================== ЭКРАН 1: ЗАЁМЩИК · ФИНАНСЫ ===================== */
+function mirrorStrip(subjId){
+  const v = AN.analysisVerdict(subjId);
+  const md = AN.mirrorDefect(subjId);
+  const gate = AN.mirrorGate(subjId);
+  const rows = [];
+  rows.push('<div class="row"><span class="k">Анализ</span>'+
+    (v.none ? '<b>анализа нет</b> <span class="muted">— печатается словами: пустое место '+
+      'неотличимо от непоказанного (ИА-14)</span>'
+            : verdictPill(v.verdict)+' <b>'+esc(v.no)+'</b> · '+fmt(v.at)+' · '+esc(v.period)+
+              (v.changed ? ' <span class="pill warn">источник изменён после утверждения</span>' : ''))+'</div>');
+  rows.push('<div class="row"><span class="k">Откуда это поле</span><span class="muted">зеркало шва '+
+    '<code>analysisVerdict</code>: анализ в карточку заёмщика не пишет (ИА-9, ADR-0155 §1)</span></div>');
+  rows.push('<div class="row"><span class="k">Обязательство</span>'+
+    (md.due && md.due.required
+      ? esc(md.due.freqName)+', период <b>'+esc(md.due.period)+'</b>, срок '+fmt(md.due.due)+
+        ' <span class="muted">(расписание анализа, строка «'+esc(md.due.row)+'»)</span>'
+      : '<span class="muted">'+esc(md.why)+'</span>')+'</div>');
+  if(md.due && md.due.required)
+    rows.push('<div class="row"><span class="k">Счёт сопровождения</span>'+
+      (md.defect ? '<span class="pill err">дефект</span> '+esc(md.code)+' · влияние «'+esc(md.influence)+'» — '+
+        esc(md.why)+' <span class="muted">считается, не хранится (ИА-13)</span>'
+                 : '<span class="pill ok">дефекта нет</span> <span class="muted">'+esc(md.why)+'</span>')+'</div>');
+  if(!gate.pass)
+    rows.push('<div class="row"><span class="k">Гейт заявки</span><span class="pill err">не пропускает</span> '+
+      esc(gate.text)+(gate.appl ? ' <span class="muted">('+esc(gate.appl)+')</span>' : '')+'</div>');
+  return '<div class="mirror'+(md.defect ? ' err' : v.none ? ' none' : '')+'">'+rows.join('')+'</div>';
+}
+function reportForm(subjId){
+  const st = AN.state;
+  const per = st.newPeriod || '1П 2026';
+  const p = PERIODS.find(x => x.label === per);
+  const mf = AN.methodFor(subjId, p.end);
+  const head = '<div class="form-row tight"><div class="fld"><label>Период отчётности</label>'+
+    '<select onchange="AN.setNewPeriod(this.value)">'+PERIODS.map(x => '<option'+
+      (x.label === per ? ' selected' : '')+'>'+esc(x.label)+'</option>').join('')+'</select></div>'+
+    '<div class="fld" style="flex:1"><label>Документ-основание</label>'+
+    '<input id="rBasis" placeholder="например: уточнённый баланс за 1 полугодие 2026 от 21.08.2026"></div></div>';
+  if(!mf.ok) return '<div class="card"><h3>Внести отчётность</h3>'+head+
+    '<div class="banner danger">'+esc(mf.why)+'</div></div>';
+  return '<div class="card"><h3>Внести отчётность <span class="small">— форму объявляет методика, '+
+    'а её выбирает тип лица на дату отчётности (ИА-4)</span></h3>'+head+
+    '<div class="why"><em>'+esc(mf.method.name)+'</em>, редакция '+mf.ed.n+' от '+fmt(mf.ed.since)+
+    ' — '+esc(mf.why)+'</div>'+
+    '<div class="lineform" style="margin-top:12px">'+mf.ed.lines.map(id => {
+      const l = LINE(id);
+      return '<div class="fld"><label>'+esc(l.name)+', '+esc(l.unit)+'</label>'+
+        '<input class="rl" data-line="'+id+'" placeholder="0"></div>';
+    }).join('')+'</div>'+
+    '<div class="btn-row"><button class="btn btn-primary btn-sm" onclick="AN.addReportUI()">Внести версию</button>'+
+    '<button class="btn btn-secondary btn-sm" onclick="AN.act(AN.trySetRatio())">Ввести коэффициент руками</button></div>'+
+    '<div class="why">Новая версия прежнюю не затирает: у каждой свои дата и основание, '+
+    'и каждая остаётся основанием своих заключений (§2.1).</div></div>';
+}
+AN.setNewPeriod = p => { AN.state.newPeriod = p; render(); };
+AN.addReportUI = () => {
+  const vals = {};
+  if(typeof document !== 'undefined')
+    document.querySelectorAll('.rl').forEach(i => { if(i.value !== '') vals[i.dataset.line] = i.value; });
+  act(AN.addReport({subj:AN.state.subj, period:AN.state.newPeriod || '1П 2026',
+    basis: ($('#rBasis')||{}).value, vals}), 'версия отчётности внесена');
+};
+AN.newAnalysisUI = reportId => act(AN.newAnalysis({subj:AN.state.subj, report:reportId}), 'черновик заведён');
+
+function viewBorrower(){
+  const st = AN.state;
+  const s = SUBJ(st.subj);
+  const reps = AN.reportsOf(st.subj);
+  const docs = st.analyses.filter(a => a.subj === st.subj);
+  const lead = AN.mayLead(st.subj);
+  return '<h2 class="section-h">'+esc(s.name)+' <span class="small">— вкладка «Финансы» карточки заёмщика</span></h2>'+
+    '<div class="page-lead">Отчётность — реквизит заёмщика, а не документа анализа: одну версию читают '+
+    'несколько заключений. Вывод в шапке — зеркало шва, а не записанное сюда поле.</div>'+
+    '<div class="card"><h3>Шапка заёмщика</h3>'+
+      '<div class="kv"><span class="k">ИНН</span><span class="v mono">'+esc(s.inn)+'</span>'+
+      '<span class="k">Тип лица сегодня</span><span class="v">'+esc(AN.typeOn(s.id, st.today))+
+        ((s.ptype||[]).length > 1 ? ' <span class="muted">('+esc((s.ptype[s.ptype.length-1].note)||'')+')</span>' : '')+'</span>'+
+      '<span class="k">Ведущий куратор</span><span class="v">'+esc(s.curator)+'</span>'+
+      '<span class="k">Действующих кредитов</span><span class="v">'+s.loans+'</span></div>'+
+      '<div style="margin-top:12px">'+mirrorStrip(st.subj)+'</div>'+
+    '</div>'+
+    '<h2 class="section-h">Финансовая отчётность <span class="small">— версиями</span></h2>'+
+    (reps.length ? '<table class="cgrid"><thead><tr><th>Период</th><th>Версия</th><th>Дата отчётности</th>'+
+      '<th>Подана</th><th>Основание</th><th>Читают заключения</th><th></th></tr></thead><tbody>'+
+      reps.map(r => '<tr><td>'+esc(r.period)+'</td><td>'+r.ver+'</td><td>'+fmt(r.at)+'</td>'+
+        '<td>'+fmt(r.filed)+'</td><td class="small">'+esc(r.basis)+'</td>'+
+        '<td>'+(AN.usedBy(r.id).join(', ') || '<span class="muted">—</span>')+'</td>'+
+        '<td>'+(lead.ok ? '<button class="btn btn-secondary btn-sm" onclick="AN.newAnalysisUI(\''+r.id+
+          '\')">Новый финанализ</button>' : '')+'</td></tr>').join('')+'</tbody></table>'
+      : '<div class="banner info">Отчётность не вносилась.</div>')+
+    (lead.ok ? reportForm(st.subj) : '<div class="banner warn">'+esc(lead.why)+'</div>')+
+    '<h2 class="section-h">Финансовые анализы</h2>'+
+    (docs.length ? '<table class="cgrid"><thead><tr><th>Номер</th><th>Период</th><th>Методика</th>'+
+      '<th>Основание</th><th>Состояние</th><th>Вывод</th><th></th></tr></thead><tbody>'+
+      docs.map(d => {
+        const ch = AN.sourceChanged(d.no);
+        return '<tr'+(d.state === 'черновик' ? ' class="out"' : '')+'><td><b>'+esc(d.no)+'</b>'+
+          (d.prev ? ' <span class="muted">← '+esc(d.prev)+'</span>' : '')+'</td>'+
+          '<td>'+esc(d.period)+'</td>'+
+          '<td class="small">'+esc(METHOD(d.method).name)+', ред. '+d.ed+'</td>'+
+          '<td class="small">версия '+d.reportVer+' от '+fmt(REPORT(d.report).filed)+'</td>'+
+          '<td>'+statePill(d)+(ch.length ? ' <span class="pill warn">источник изменён</span>' : '')+'</td>'+
+          '<td>'+verdictPill(d.verdict)+'</td>'+
+          '<td><button class="btn btn-secondary btn-sm" onclick="AN.openDoc(\''+d.no+'\')">Открыть</button></td></tr>';
+      }).join('')+'</tbody></table>'
+      : '<div class="banner warn"><b>Анализа нет.</b> Так это и печатается — словами: пустое место '+
+        'неотличимо от непоказанного (ИА-14).</div>')+
+    '<div class="card"><h3>Чего на этой карточке сделать нельзя</h3>'+
+      '<div class="btn-row">'+
+      '<button class="btn btn-secondary btn-sm" onclick="AN.act(AN.tryWriteBorrowerField())">Записать вывод в поле заёмщика</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="AN.act(AN.tryMarkDone())">Отметить анализ выполненным</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="AN.act(AN.tryCreateTask())">Поставить задачу куратору</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="AN.act(AN.tryCurrentRatio(AN.state.subj))">Показать текущую ликвидность заёмщика</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="AN.act(AN.tryClassify())">Присвоить категорию по выводу</button>'+
+      '</div><div class="why">Каждый отказ назван словами: «кнопки нет» — не объяснение для того, кто '+
+      'через год будет читать этот экран.</div></div>';
+}
+
+/* ================= ЭКРАН 2: ФИНАНАЛИЗ (ДОКУМЕНТ) ==================== */
+AN.saveDraftUI = () => {
+  const no = AN.state.doc;
+  const t = AN.setText(no, ($('#dText')||{}).value);
+  if(!t.ok) return act(t);
+  const v = ($('#dVerdict')||{}).value;
+  act(v ? AN.setVerdict(no, v) : t, 'черновик сохранён');
+};
+AN.approveUI = () => {
+  AN.setText(AN.state.doc, ($('#dText')||{}).value);
+  const v = ($('#dVerdict')||{}).value; if(v) AN.setVerdict(AN.state.doc, v);
+  act(AN.approve(AN.state.doc), 'заключение утверждено: снимок основания зафиксирован');
+};
+AN.correctUI = () => act(AN.correct(AN.state.doc, {field: ($('#cField')||{}).value,
+  value: ($('#cField')||{}).value === 'вывод' ? ($('#cVerdict')||{}).value : ($('#cText')||{}).value,
+  basis: ($('#cBasis')||{}).value}), 'корректировка внесена');
+AN.reissueUI = () => act(AN.reissue(AN.state.doc), 'заведено новое заключение за тот же период');
+
+function snapshotCard(d){
+  const s = d.snapshot;
+  return '<div class="card frozen"><h3>Снимок основания <span class="small">— зафиксирован утверждением '+
+    fmt(s.at)+', '+esc(s.by)+' (ADR-0153)</span></h3>'+
+    '<div class="pass"><div class="row"><span class="k">Дата расчёта</span><b>'+fmt(s.at)+'</b> '+
+      '<span class="muted">— значения посчитаны в этот момент и с тех пор не пересчитывались (ИА-1)</span></div>'+
+    '<div class="row"><span class="k">Основание</span>версия '+s.reportVer+' отчётности за '+esc(s.reportPeriod)+
+      ' от '+fmt(s.reportFiled)+' <span class="muted">— «'+esc(s.reportBasis)+'»</span></div>'+
+    '<div class="row"><span class="k">Методика</span>'+esc(s.methodName)+', редакция '+s.ed+' от '+fmt(s.edSince)+
+      ' <span class="muted">— ссылка на редакцию, а не копия формул (ADR-0153 §3)</span></div>'+
+    '<div class="row"><span class="k">Тип лица на дату отчётности</span>'+esc(s.ptype)+'</div></div>'+
+    '<div class="section-h" style="margin-top:6px">Строки отчётности, вошедшие в снимок</div>'+
+    linesTable(s.edSnap, s.lines)+
+    '<div class="why">Снимок объясняет вывод и источником текущего значения ни для кого не является '+
+    '(ADR-0153 §6): спросить у заёмщика «его коэффициент ликвидности» нельзя.</div></div>';
+}
+function changedBlock(d){
+  const notes = AN.sourceChanged(d.no);
+  if(!notes.length) return '';
+  const w = AN.wouldBe(d.no);
+  let out = '<div class="banner warn"><b>Источник изменён после утверждения.</b><ul>'+
+    notes.map(n => '<li>'+esc(n.text)+'</li>').join('')+'</ul>'+
+    'Заключение помечено, но не пересчитано: подпись стоит под числами, а не под ссылкой на них (ИА-1).</div>';
+  if(w){
+    const rows = w.rows;
+    const ed = d.snapshot.edSnap;
+    out += '<div class="card"><h3>Что дал бы пересчёт по новой версии <span class="small">— показано рядом, '+
+      'в заключение не пишется</span></h3>'+
+      '<table class="cgrid"><thead><tr><th>Коэффициент</th><th class="num">В снимке</th>'+
+      '<th class="num">По версии '+w.report.ver+'</th><th>Что изменилось</th></tr></thead><tbody>'+
+      rows.map(r => {
+        const old = d.snapshot.ratios.find(x => x.id === r.id) || {};
+        const c = coefOf(ed, r.id) || {fmt:'ratio'};
+        const same = old.v === r.v;
+        return '<tr'+(same ? '' : ' class="hl"')+'><td>'+esc(r.name)+'</td>'+
+          '<td class="num">'+esc(coefText(c, old))+'</td>'+
+          '<td class="num">'+esc(coefText(c, r))+'</td>'+
+          '<td>'+(same ? '<span class="muted">без изменений</span>'
+            : (old.pass !== r.pass ? '<span class="pill err">оценка меняется</span>' : '<span class="pill warn">число меняется</span>'))+
+          '</td></tr>';
+      }).join('')+'</tbody></table>'+
+      '<div class="why">Правильный ход — <em>новое заключение за тот же период</em> на новой версии: '+
+      'обстоятельства изменились, а прежняя подпись остаётся в истории (ADR-0112).</div>'+
+      '<div class="btn-row"><button class="btn btn-primary btn-sm" onclick="AN.reissueUI()">Новое заключение за тот же период</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="AN.act(AN.tryEditApproved(AN.state.doc))">Пересчитать утверждённое</button></div></div>';
+  }
+  return out;
+}
+function draftBlock(d, lead){
+  if(!lead.ok) return '<div class="banner warn">'+esc(lead.why)+'</div>';
+  return '<div class="card"><h3>Заключение и вывод <span class="small">— пишет ведущий куратор; '+
+    'коэффициенты в этой карточке не редактируются (ИА-3)</span></h3>'+
+    '<div class="fld"><label>Текст заключения</label><textarea id="dText">'+esc(d.text)+'</textarea></div>'+
+    '<div class="form-row" style="margin-top:10px"><div class="fld"><label>Вывод</label>'+
+    '<select id="dVerdict"><option value="">— не выбран —</option>'+
+    VERDICTS.map(v => '<option'+(v === d.verdict ? ' selected' : '')+'>'+esc(v)+'</option>').join('')+
+    '</select></div></div>'+
+    '<div class="btn-row"><button class="btn btn-secondary" onclick="AN.saveDraftUI()">Сохранить черновик</button>'+
+    '<button class="btn btn-success" onclick="AN.approveUI()">Утвердить</button>'+
+    '<button class="btn btn-secondary btn-sm" onclick="AN.act(AN.tryDeriveVerdict())">Поставить вывод по порогам</button>'+
+    '<button class="btn btn-secondary btn-sm" onclick="AN.act(AN.trySetRatio())">Ввести коэффициент руками</button></div>'+
+    '<div class="why">Утверждение — <em>единственная подпись</em>: документ является материалом, а решение '+
+    'по нему принимает тот, кто принимает решение по заявке (§2.3).</div></div>';
+}
+function correctBlock(d, lead){
+  if(!lead.ok) return '';
+  return '<div class="card"><h3>Правка утверждённого <span class="small">— два механизма ADR-0112</span></h3>'+
+    '<div class="form-row tight"><div class="fld"><label>Что правим</label>'+
+    '<select id="cField" onchange="AN.render()"><option>текст</option><option>вывод</option></select></div>'+
+    '<div class="fld" style="flex:1"><label>Основание корректировки</label>'+
+    '<input id="cBasis" placeholder="например: служебная записка № 12 от 21.08.2026"></div></div>'+
+    '<div class="fld" style="margin-top:10px"><label>Новое значение</label>'+
+    '<textarea id="cText">'+esc(d.text)+'</textarea></div>'+
+    '<div class="fld" style="margin-top:10px"><label>Новый вывод (если правится вывод)</label>'+
+    '<select id="cVerdict">'+VERDICTS.map(v => '<option'+(v === d.verdict ? ' selected' : '')+'>'+
+      esc(v)+'</option>').join('')+'</select></div>'+
+    '<div class="btn-row"><button class="btn btn-primary btn-sm" onclick="AN.correctUI()">Внести корректировку</button>'+
+    '<button class="btn btn-secondary btn-sm" onclick="AN.reissueUI()">Новое заключение за тот же период</button>'+
+    '<button class="btn btn-danger btn-sm" onclick="AN.act(AN.tryDelete(AN.state.doc))">Удалить заключение</button></div>'+
+    '<div class="why"><em>Ошибка</em> исправляется корректировкой с основанием — снимок при этом не трогается. '+
+    '<em>Изменившиеся обстоятельства</em> — новым заключением за тот же период. Удаления утверждённого нет.</div></div>';
+}
+function viewDoc(){
+  const st = AN.state;
+  const d = DOC(st.doc);
+  if(!d) return '<div class="banner info">Заключение не выбрано: откройте его из карточки заёмщика.</div>';
+  const s = SUBJ(d.subj);
+  const r = REPORT(d.report);
+  const m = METHOD(d.method);
+  const rt = AN.ratiosOf(d.no);
+  const lead = AN.mayLead(d.subj);
+  const mf = AN.methodFor(d.subj, r.at);
+  const hist = st.analyses.filter(a => a.subj === d.subj && a.period === d.period && a.no !== d.no);
+  return '<div class="doc-head"><h2>'+esc(d.no)+' · '+esc(s.name)+'</h2>'+statePill(d)+verdictPill(d.verdict)+
+      (AN.sourceChanged(d.no).length ? '<span class="pill warn">источник изменён после утверждения</span>' : '')+'</div>'+
+    '<div class="page-lead">Финансовый анализ заёмщика — документ-суждение на пару «заёмщик × период '+
+    'отчётности». Порядок работы ТЗ: ввод данных → расчёт коэффициентов → ввод результатов.</div>'+
+    changedBlock(d)+
+    '<div class="card"><h3>Основание</h3><div class="kv">'+
+      '<span class="k">Заёмщик</span><span class="v">'+esc(s.name)+'</span>'+
+      '<span class="k">Период отчётности</span><span class="v">'+esc(d.period)+', дата отчётности '+fmt(r.at)+'</span>'+
+      '<span class="k">Версия отчётности</span><span class="v">версия '+d.reportVer+' от '+fmt(r.filed)+
+        ' <span class="muted">— «'+esc(r.basis)+'»</span></span>'+
+      '<span class="k">Тип лица на дату отчётности</span><span class="v">'+esc(AN.typeOn(d.subj, r.at))+
+        ' <span class="muted">— не на сегодня: «'+esc(AN.typeOn(d.subj, st.today))+'» (ИА-4)</span></span>'+
+      '<span class="k">Методика</span><span class="v">'+esc(m.name)+', редакция '+d.ed+
+        ' <span class="muted">— '+esc(mf.ok ? mf.why : '')+'</span></span>'+
+      '<span class="k">Ведёт</span><span class="v">'+esc(d.by)+' <span class="muted">— ведущий куратор заёмщика</span></span>'+
+    '</div></div>'+
+    '<div class="card"><h3>Коэффициенты '+(rt.live
+        ? '<span class="small">— живой расчёт: черновик считается заново при каждом показе</span>'
+        : '<span class="small">— из снимка: утверждённое не пересчитывается (ИА-1)</span>')+'</h3>'+
+      ratioTable(rt.ed, rt.rows)+
+      '<div class="why">Значения ставит машина по объявлению методики: человек вносит отчётность, '+
+      'а не коэффициент (ИА-3, ADR-0122). Порог подсвечивает — вывод ставит человек.</div></div>'+
+    (d.state === 'утверждено'
+      ? '<div class="card"><h3>Заключение</h3><div class="verdict">'+verdictPill(d.verdict)+'</div>'+
+        '<p class="concl">'+esc(d.text)+'</p>'+
+        '<div class="why">Утверждено '+fmt(d.approvedAt)+', '+esc(d.by)+'. Подпись одна: согласования у '+
+        'документа нет (§2.3).</div></div>'+snapshotCard(d)+correctBlock(d, lead)
+      : draftBlock(d, lead))+
+    (d.corrections.length ? '<div class="card"><h3>Корректировки</h3><table class="cgrid"><thead><tr>'+
+      '<th>Когда</th><th>Кто</th><th>Что</th><th>Было</th><th>Стало</th><th>Основание</th></tr></thead><tbody>'+
+      d.corrections.map(c => '<tr><td>'+fmt(c.at)+'</td><td>'+esc(c.by)+'</td><td>'+esc(c.field)+'</td>'+
+        '<td class="small">'+esc(String(c.was).slice(0,60))+'</td><td class="small">'+esc(String(c.now).slice(0,60))+'</td>'+
+        '<td class="small">'+esc(c.basis)+'</td></tr>').join('')+'</tbody></table>'+
+      '<div class="why">Снимок корректировкой не тронут: исправлена запись, а не основание.</div></div>' : '')+
+    (hist.length ? '<div class="card"><h3>Другие заключения за тот же период</h3><table class="cgrid"><thead><tr>'+
+      '<th>Номер</th><th>Состояние</th><th>Вывод</th><th>Основание</th><th></th></tr></thead><tbody>'+
+      hist.map(h => '<tr><td>'+esc(h.no)+'</td><td>'+statePill(h)+'</td><td>'+verdictPill(h.verdict)+'</td>'+
+        '<td class="small">версия '+h.reportVer+'</td>'+
+        '<td><button class="btn btn-secondary btn-sm" onclick="AN.openDoc(\''+h.no+'\')">Открыть</button></td></tr>').join('')+
+      '</tbody></table><div class="why">Прежнее заключение остаётся: наружу шов отдаёт последнее '+
+      'утверждённое, история — в документе.</div></div>' : '');
+}
+
+/* ==================== ЭКРАН 3: РЕЕСТР МЕТОДИК ======================= */
+AN.addEditionUI = () => {
+  const m = ($('#eMethod')||{}).value;
+  const base = METHOD(m).editions.filter(e => !e.retired).slice(-1)[0];
+  act(AN.addEdition({method:m, n: Math.max.apply(null, METHOD(m).editions.map(e => e.n))+1,
+    since: ($('#eSince')||{}).value || AN.state.today,
+    note: ($('#eNote')||{}).value || 'новая редакция',
+    lines: base.lines.slice(), coefs: clone(base.coefs)}), 'редакция опубликована');
+};
+AN.retireEditionUI = (m, n) => act(AN.retireEdition(m, n), 'редакция снята');
+AN.tryUniversalMethodUI = () => act(AN.addMethod({id:'m-all', name:'Универсальная методика',
+  ptype:null, editions:[]}));
+AN.tryBackdatedUI = () => act(AN.addEdition({method:'m-org', n:9, since:'2026-01-01',
+  note:'задним числом', lines:['ta_cur','li_short'],
+  coefs:[{id:'k-cur', name:'Коэффициент текущей ликвидности', num:['ta_cur'], den:['li_short'],
+    op:'ratio', fmt:'ratio', thr:{cmp:'>=', v:1.5}}]}));
+AN.tryFormulaCoefUI = () => act(AN.addEdition({method:'m-org', n:8, since:AN.state.today,
+  note:'с выражением', lines:['ta_cur','li_short'],
+  coefs:[{id:'k-expr', name:'Своя формула', num:['ta_cur'], den:['li_short'], op:'median',
+    fmt:'ratio', thr:{cmp:'>=', v:1}}]}));
+
+function viewMethods(){
+  const st = AN.state;
+  return '<h2 class="section-h">Реестр методик <span class="small">— владелец: отдел анализа</span></h2>'+
+    '<div class="page-lead">Методика — именованный способ прочитать отчётность: формы ввода, коэффициенты, '+
+    'пороги и правило чтения. Применимость объявлена <b>типом лица</b>; единой методики «для всех» нет.</div>'+
+    st.methods.map(m => {
+      const cur = editionOn(m, st.today);
+      return '<div class="card"><h3>'+esc(m.name)+' <span class="small">— тип лица: '+esc(m.ptype)+'</span></h3>'+
+        '<table class="cgrid"><thead><tr><th>Редакция</th><th>Действует с</th><th>Коэффициентов</th>'+
+        '<th>Строк формы</th><th>Ссылки из заключений</th><th>Чем отличается</th><th></th></tr></thead><tbody>'+
+        m.editions.map(e => {
+          const refs = AN.refsOfEdition(m.id, e.n);
+          return '<tr'+(e.retired ? ' class="out"' : (cur && cur.n === e.n ? ' class="hl"' : ''))+'>'+
+            '<td><b>ред. '+e.n+'</b>'+(cur && cur.n === e.n ? ' <span class="pill info">действует</span>' : '')+
+            (e.retired ? ' <span class="pill neutral">снята</span>' : '')+'</td>'+
+            '<td>'+fmt(e.since)+'</td><td>'+e.coefs.length+'</td><td>'+e.lines.length+'</td>'+
+            '<td>'+(refs.join(', ') || '<span class="muted">нет</span>')+'</td>'+
+            '<td class="small">'+esc(e.note)+'</td>'+
+            '<td><button class="btn btn-secondary btn-sm" onclick="AN.retireEditionUI(\''+m.id+'\','+e.n+')">Снять</button></td></tr>';
+        }).join('')+'</tbody></table>'+
+        (cur ? '<div class="section-h" style="margin-top:12px">Коэффициенты действующей редакции</div>'+
+          '<table class="cgrid"><thead><tr><th>Коэффициент</th><th>Из чего считается</th><th>Операция</th>'+
+          '<th class="num">Порог</th><th>Чтение</th></tr></thead><tbody>'+
+          cur.coefs.map(c => '<tr><td><b>'+esc(c.name)+'</b> <span class="muted mono">'+esc(c.id)+'</span></td>'+
+            '<td class="small">'+esc(formulaText(c))+'</td><td>'+esc(c.op)+'</td>'+
+            '<td class="num thr">'+esc(thrText(c))+'</td><td class="small">'+esc(betterWord(c))+'</td></tr>').join('')+
+          '</tbody></table>'+
+          '<div class="why">Запись объявляет <em>строки и операцию</em>, а не текст формулы: вычислитель '+
+          'складывает то, что ему назвали, и названий коэффициентов не знает (ИА-3).</div>' : '')+
+      '</div>';
+    }).join('')+
+    (AN.isAnalyst() ? '<div class="card"><h3>Опубликовать редакцию</h3>'+
+      '<div class="form-row tight"><div class="fld"><label>Методика</label><select id="eMethod">'+
+      st.methods.map(m => '<option value="'+m.id+'">'+esc(m.name)+'</option>').join('')+'</select></div>'+
+      '<div class="fld"><label>Действует с</label><input id="eSince" value="'+st.today+'"></div>'+
+      '<div class="fld" style="flex:1"><label>Чем отличается</label><input id="eNote" placeholder="например: порог нагрузки снижен до 45%"></div></div>'+
+      '<div class="btn-row"><button class="btn btn-primary btn-sm" onclick="AN.addEditionUI()">Опубликовать</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="AN.tryBackdatedUI()">Опубликовать задним числом</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="AN.tryFormulaCoefUI()">Коэффициент своей формулой</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="AN.tryUniversalMethodUI()">Завести методику «для всех»</button></div></div>'
+      : '<div class="banner info">Методики ведёт отдел анализа: под ролью «'+esc(st.role)+'» реестр открыт на чтение. '+
+        'Администратор правит расписание, но не методику — она содержательная, а не техническая (§13).</div>')+
+    '<div class="card"><h3>Чего в реестре завести нельзя</h3><div class="facts">'+
+      '<div class="f no">методику без применимости по типу лица — «для всех» неотличимо от «ни для кого» (§2.2)</div>'+
+      '<div class="f no">редакцию задним числом — прошлые периоды считались по действовавшей (ИА-5)</div>'+
+      '<div class="f no">коэффициент с текстом формулы или операцией вне закрытого списка ('+
+        esc(Object.keys(OPS).join(', '))+')</div>'+
+      '<div class="f no">снять редакцию, на которую ссылается хоть одно заключение (ИА-5)</div>'+
+      '</div></div>';
+}
+
+/* ================= ЭКРАН 4: РАСПИСАНИЕ И ШВЫ ======================== */
+AN.setScheduleUI = rowId => act(AN.setSchedule(rowId, {
+  freq: ($('#f-'+rowId)||{}).value,
+  grace: Number(($('#g-'+rowId)||{}).value),
+  needLoans: (($('#n-'+rowId)||{}).value === 'да')
+}), 'строка расписания «'+rowId+'» изменена');
+AN.callSeamUI = () => {
+  const module = ($('#sModule')||{}).value, seam = ($('#sSeam')||{}).value;
+  const subjId = ($('#sSubj')||{}).value;
+  const d = AN.dueOf(subjId);
+  const res = AN.callSeam(module, seam, subjId, d.required ? d.period : null);
+  AN.state.seamOut = res.ok
+    ? {ok:true, module, seam, text: JSON.stringify(res.answer, null, 2)}
+    : {ok:false, module, seam, text: res.why};
+  render();
+};
+
+function scheduleTable(){
+  const st = AN.state, admin = AN.isAdmin();
+  return '<table class="cgrid"><thead><tr><th>Строка</th><th>Тип лица</th><th>Периодичность</th>'+
+    '<th class="num">Отсрочка после конца периода</th><th>Только при действующих кредитах</th>'+
+    '<th>Действует с</th>'+(admin ? '<th></th>' : '')+'</tr></thead><tbody>'+
+    st.schedule.map(r => '<tr><td class="mono">'+esc(r.id)+'</td><td>'+esc(r.ptype)+'</td>'+
+      '<td>'+(admin ? '<select id="f-'+r.id+'">'+Object.keys(FREQ).map(f =>
+          '<option'+(f === r.freq ? ' selected' : '')+'>'+esc(f)+'</option>').join('')+'</select>'
+        : esc(FREQ[r.freq].name))+'</td>'+
+      '<td class="num">'+(admin ? '<input id="g-'+r.id+'" value="'+r.grace+'" style="width:60px">'
+        : dayWord(r.grace))+'</td>'+
+      '<td>'+(admin ? '<select id="n-'+r.id+'"><option'+(r.needLoans ? ' selected' : '')+'>да</option>'+
+        '<option'+(r.needLoans ? '' : ' selected')+'>нет</option></select>' : (r.needLoans ? 'да' : 'нет'))+'</td>'+
+      '<td>'+fmt(r.since)+'</td>'+
+      (admin ? '<td><button class="btn btn-secondary btn-sm" onclick="AN.setScheduleUI(\''+r.id+'\')">Сохранить</button></td>' : '')+
+      '</tr>').join('')+'</tbody></table>';
+}
+function obligationTable(){
+  return '<table class="cgrid"><thead><tr><th>Заёмщик</th><th>Тип лица сегодня</th><th>Период</th>'+
+    '<th>Срок</th><th>Факт</th><th>Что видит сопровождение</th></tr></thead><tbody>'+
+    AN.state.subjects.map(s => {
+      const m = AN.mirrorDefect(s.id);
+      if(!m.due) return '<tr class="out"><td>'+esc(s.name)+'</td><td>'+esc(AN.typeOn(s.id, AN.state.today))+'</td>'+
+        '<td colspan="3"><span class="muted">анализ не вменён</span></td><td class="small">'+esc(m.why)+'</td></tr>';
+      return '<tr'+(m.defect ? ' class="hl"' : '')+'><td>'+esc(s.name)+'</td>'+
+        '<td>'+esc(AN.typeOn(s.id, AN.state.today))+'</td><td>'+esc(m.due.period)+'</td>'+
+        '<td>'+fmt(m.due.due)+' <span class="muted small">= конец периода '+fmt(m.due.end)+' + '+
+          dayWord(m.due.grace)+'</span></td>'+
+        '<td>'+(m.done && m.done.done ? '<span class="pill ok">'+esc(m.done.no)+'</span>'
+          : '<span class="pill neutral">нет</span>')+'</td>'+
+        '<td class="small">'+(m.defect ? '<span class="pill err">дефект «на допуск»</span> '+esc(m.why)
+          : esc(m.why))+'</td></tr>';
+    }).join('')+'</tbody></table>';
+}
+function seamPlayground(){
+  const st = AN.state, out = st.seamOut;
+  return '<div class="card"><h3>Позвать шов <span class="small">— наружу их два, и оба отвечают '+
+    'о заёмщике, а не о числах</span></h3>'+
+    '<div class="form-row tight"><div class="fld"><label>Кто спрашивает</label><select id="sModule">'+
+      CONSUMERS.map(c => '<option'+(out && out.module === c.module ? ' selected' : '')+'>'+
+        esc(c.module)+'</option>').join('')+'</select></div>'+
+    '<div class="fld"><label>Какой шов</label><select id="sSeam">'+
+      SEAMS.concat(Object.keys(NO_SEAM)).map(x => '<option'+(out && out.seam === x ? ' selected' : '')+'>'+
+        esc(x)+'</option>').join('')+'</select></div>'+
+    '<div class="fld"><label>О ком</label><select id="sSubj">'+
+      st.subjects.map(s => '<option value="'+s.id+'"'+(s.id === st.subj ? ' selected' : '')+'>'+
+        esc(s.name)+'</option>').join('')+'</select></div></div>'+
+    '<div class="btn-row"><button class="btn btn-primary btn-sm" onclick="AN.callSeamUI()">Спросить</button></div>'+
+    (out ? '<div class="pass'+(out.ok ? '' : ' warn')+'" style="margin-top:10px">'+
+      '<div class="row"><span class="k">'+(out.ok ? 'Ответ' : 'Отказ')+'</span>'+
+      '<span class="mono small" style="white-space:pre-wrap">'+esc(out.text)+'</span></div></div>' : '')+
+    '<div class="why">Шов «analysisVerdict» отдаёт последнее <em>утверждённое</em> заключение — номер, дату, '+
+    'вывод и пометку об изменившемся источнике; коэффициентов он не отдаёт (ADR-0153 §6). Заёмщику без '+
+    'анализа шов отвечает «анализа нет» — это ответ, а не пустое место (ИА-14).</div></div>';
+}
+function consumerTable(){
+  return '<table class="cgrid"><thead><tr><th>Модуль</th><th>Что вправе спросить</th><th>Почему так</th>'+
+    '</tr></thead><tbody>'+
+    CONSUMERS.map(c => '<tr'+(c.may.length ? '' : ' class="out"')+'><td>'+esc(c.module)+'</td>'+
+      '<td>'+(c.may.length ? c.may.map(x => '<span class="pill info mono">'+esc(x)+'</span> ').join('')
+        : '<span class="pill err">ничего</span>')+'</td>'+
+      '<td class="small">'+esc(c.note || c.why)+'</td></tr>').join('')+'</tbody></table>';
+}
+function viewSchedule(){
+  return '<h2 class="section-h">Расписание анализа <span class="small">— владелец: администратор</span></h2>'+
+    '<div class="page-lead">Расписание — <b>единственный источник срока</b>: периодичность по типу лица, '+
+    'отсрочка после конца периода и условие «только при действующих кредитах». Второго календаря в '+
+    'системе нет.</div>'+
+    '<div class="card"><h3>Строки расписания</h3>'+scheduleTable()+
+      (AN.isAdmin() ? '<div class="why">Администратор правит <em>срок</em>. Методику он не трогает: '+
+        'она содержательная и её ведёт отдел анализа (§13).</div>'
+        : '<div class="banner info" style="margin-top:10px">Роль «'+esc(AN.state.role)+'» расписание не правит: '+
+          'его ведёт администратор. Переключите роль в шапке, чтобы попробовать.</div>')+'</div>'+
+    '<div class="card"><h3>Обязательства по всем заёмщикам <span class="small">— считается здесь, '+
+      'хранится в сопровождении (ИА-13)</span></h3>'+obligationTable()+
+      '<div class="why">Обязательство закрывается <em>фактом</em> — утверждённым заключением за период; '+
+      'отметки «выполнено» в модуле нет (ИА-12). Дефект <em>считается</em> по расписанию и факту, полем '+
+      'нигде не лежит: его хранение — вторая правда о том же (ADR-0135).</div>'+
+      '<div class="btn-row"><button class="btn btn-secondary btn-sm" onclick="AN.act(AN.tryMarkDone())">Отметить «выполнено»</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="AN.act(AN.tryCreateTask())">Поставить задачу куратору</button></div></div>'+
+    seamPlayground()+
+    '<div class="card"><h3>Кто вправе спрашивать</h3>'+consumerTable()+
+      '<div class="why">Классификация в списке есть и не читает анализ <em>ни в одной форме</em>: суждение '+
+      'человека не должно становиться входом расчёта категории (ИА-10, ADR-0146 §2). Это не забытая строка, '+
+      'а названный отказ.</div>'+
+      '<div class="btn-row"><button class="btn btn-secondary btn-sm" onclick="AN.act(AN.tryClassify())">Отдать вывод в классификацию</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="AN.act(AN.tryPrint())">Напечатать форму из анализа</button></div></div>'+
+    '<div class="card"><h3>Журнал действий</h3>'+
+      (AN.state.log.length ? '<table class="cgrid"><thead><tr><th>Когда</th><th>Кто</th><th>Что</th>'+
+        '</tr></thead><tbody>'+AN.state.log.slice(0,12).map(l => '<tr><td>'+fmt(l.at)+'</td>'+
+        '<td>'+esc(l.who)+'</td><td class="small">'+esc(l.msg)+'</td></tr>').join('')+'</tbody></table>'
+        : '<div class="muted small">Пока пусто: сделайте что-нибудь на других экранах.</div>')+'</div>';
+}
+
+/* ============= ЭКРАН 5: ОБЗОРЫ — ЗАПЕРТО ДО ОТЧЁТНОСТИ ============== */
+function viewReviews(){
+  const p = AN.pendingInvariants();
+  return '<h2 class="section-h">Аналитические обзоры <span class="pill neutral">раздел не реализован</span></h2>'+
+    '<div class="page-lead">Второй род работы модуля: обзор портфеля — срез статистики с текстом-объяснением '+
+    'и подписью. В этой волне он <b>намеренно не сделан</b>.</div>'+
+    '<div class="banner warn"><b>Почему заперто.</b> Обзор обязан ссылаться на <em>шаблон отчётности</em> — '+
+    'состав среза объявляет шаблон, а обзор его не копирует. Модуля отчётности в системе ещё нет, поэтому '+
+    'ссылаться не на что. Завести «пока свой» конструктор состава запрещено: второй конструктор среза не '+
+    'сойдётся с первым, и одна и та же цифра станет разной в отчёте и в обзоре (ADR-0154).</div>'+
+    '<div class="card"><h3>Что произойдёт, если попробовать</h3>'+
+      '<div class="btn-row"><button class="btn btn-primary btn-sm" onclick="AN.act(AN.newReview({}))">Завести обзор</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="AN.act(AN.tryOwnBuilder())">Свой конструктор состава</button></div>'+
+      '<div class="why">Отказ назван словами и держится кодом, а не отсутствием кнопки: макет обязан '+
+      'объяснять границу тому, кто увидит его через год.</div></div>'+
+    '<div class="card"><h3>Инварианты в ожидании <span class="small">— записаны сейчас, проверяются, '+
+      'когда придёт отчётность</span></h3>'+
+      '<table class="cgrid"><thead><tr><th>Инвариант</th><th>Формулировка</th><th>Чего ждёт</th>'+
+      '</tr></thead><tbody>'+p.map(x => '<tr class="out"><td class="mono">'+esc(x.id)+'</td>'+
+      '<td>'+esc(x.text)+'</td><td class="small">'+esc(x.wait)+'</td></tr>').join('')+'</tbody></table>'+
+      '<div class="why">Показатели обзора берутся из реестра статистики, числа приходят швом с паспортом '+
+      '(дата пересчёта, глубина, охват) — без паспорта число в обзоре не показывается (ADR-0152).</div></div>'+
+    '<div class="card"><h3>Что уже готово к обзорам</h3><div class="facts">'+
+      '<div class="f yes"><em>да</em> — раздел финанализа целиком: документ, снимок, методики, расписание, швы</div>'+
+      '<div class="f yes"><em>да</em> — правило подписи: у обзора она такая же одна, как у заключения</div>'+
+      '<div class="f no">нет — шаблон отчётности и его редакции</div>'+
+      '<div class="f no">нет — шов статистики с паспортом числа</div>'+
+      '</div></div>';
+}
+
+/* --------------------------- ЗАПУСК --------------------------------- */
+AN.seed();
+if(typeof window !== 'undefined'){ window.AN = AN; }
+render();
+</script>
+</body>
+</html>
