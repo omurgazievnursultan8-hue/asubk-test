@@ -1,0 +1,1843 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Отчётность · АСУБК</title>
+<!--
+  РАБОЧИЙ ПРОТОТИП (single-file) — модуль «Отчётность» (TO-BE), волна 2.
+  Не картинка: логика ниже ИСПОЛНЯЕТСЯ. Отчёт здесь определяется объявленностью
+  состава, а не печатью; числа морозит не выпуск, а НАЗВАННЫЙ ПОЛУЧАТЕЛЬ; своей
+  формулы и своего запроса к базе у модуля нет ни одного — данные приходят только
+  четырьмя швами. Отказы названы словами и держатся кодом, а не отсутствием кнопки.
+
+  Волна 1 (23.08.2026) вывела модель на бумаге: ADR-0156…ADR-0161 плюс канон логики.
+  Этот файл — волна 2: та же модель, доведённая до исполняемого эталона поведения.
+  Смоук: `node scripts/inspect/reports-check.mjs`.
+  Канон логики — `ASUBK-otchetnost-logika.md` (семь сущностей, две ступени выпуска,
+  четыре шва, все 16 инвариантов с причиной); журнал волн — `ASUBK-status-razrabotki.md`.
+
+  КАРТА: ЭКРАН → РАЗДЕЛ КАНОНА
+    Реестр шаблонов   → §2.1–2.3, §13.1        Конструктор     → §3, §4
+    Выпуск            → §5, §13.4              Журнал выпусков → §5, §6, §12
+    Календарь сдачи   → §7                     Швы и соседи    → §11, §12, §16
+    Волна 3 (заперта) → §8 бланки-верстальщик, §9 рабочие списки, §10 дашборды
+
+  ЧЕГО В МОДУЛЕ НЕТ — И ЭТО РЕШЕНИЕ, А НЕ НЕДОДЕЛКА
+    · нет своей формулы и своего справочника полей: показатель только из реестра
+      статистики, поле только из публичного перечня объекта (ИО-2, ADR-0150);
+    · нет запросов к базе: четыре шва — единственный вход, обойти область видимости
+      модуль не может физически (ИО-3, ADR-0158);
+    · нет кнопки «отметить сданным»: обязательство закрывает выпуск (ИО-12);
+    · нет постановки задач: отчётность показывает, но не поручает (ИО-13, ADR-0160);
+    · нет удаления выпуска: факт вечен, расходник — только файл предварительного (ИО-11);
+    · нет docx наружу с получателем: снимок в редактируемом формате — не снимок (ИО-10).
+
+  ДЕМО ПОКРЫВАЕТ: пять отказов публикации §4 дословно · переименование поля в ядре
+  ломает публикацию и НАЗЫВАЕТ ВИНОВНИКА · показатель, выведенный из реестра · показатель,
+  неисчислимый налету, в режиме «сейчас» · основание нормы, названное не публикующим ·
+  предварительный выпуск против окончательного с получателем · получатель ссылкой, а не
+  строкой · усечённый видимостью охват на шаблоне с обязательным полным охватом → выпуск
+  предварительный и получателя назвать нельзя · открытие закрытого периода → метка
+  «числа изменились после сдачи» на выпусках СО СНИМКОМ и обратный ход «что мы отдали
+  наружу и кому» поимённо · корректирующий выпуск, не гасящий прежний · обязательство,
+  закрытое фактом выпуска, и отказ проставить «сдано» рукой · просроченное обязательство,
+  по которому модуль задачу НЕ ставит · шесть перепечаток бланка, не сжигающих шесть
+  номеров · ручная серия канцелярии, ловящая дубль · файл предварительного, погасший по
+  сроку, со строкой журнала на месте.
+
+  ГРАНИЦЫ МАКЕТА
+    · TODAY заморожено (2026-08-24): системных часов макет не знает;
+    · файлы не генерируются — xls/pdf/docx смоделированы форматом выпуска и его судьбой,
+      а не байтами; «печать» даёт паспорт, строку журнала и номер;
+    · статистика, ядро, справочники и оргструктура взяты ЗЕРКАЛОМ: их эталон лежит в
+      своих модулях, здесь — заглушка ровно на ширину шва;
+    · верстальщик макета бланка, рабочие списки и дашборды — волна 3; экран показывает
+      отказ с причиной, а не заглушку с конструктором;
+    · ролей в макете пять — как в §17 канона.
+
+  РЕШЕНИЯ, НА КОТОРЫХ СТОИТ МОДУЛЬ
+  ADR-0156 отчёт — объявленный состав, а не печать; продукт конструктора — личный черновик;
+  ADR-0157 выпуск с названным получателем морозит числа и файл (второе и последнее
+           исключение из ADR-0001); получатель — ссылка; метка расхождения со сданным;
+  ADR-0158 четвёртый шов objectRows у ядра; своих запросов к базе у отчётности нет;
+  ADR-0159 исчислимость налету — свойство показателя, объявляет владелец реестра;
+  ADR-0160 отчётность показывает обязательство, но не поручает задачу;
+  ADR-0161 наружу с получателем уходит только pdf; номер тратится вместе со снимком.
+  Поверх: ADR-0001 (производные не хранятся), ADR-0089/0112 (числа за закрытый период
+  законно меняются), ADR-0125 §2 (черновик → публикация), ADR-0150 (показатель только из
+  реестра), ADR-0152 (швы, паспорт ответа, область видимости), ADR-0153/0154 (анализ).
+
+  ИНВАРИАНТЫ, КОТОРЫЕ РАЗРАБОТЧИК ОБЯЗАН СОХРАНИТЬ (ИО-1…ИО-16)
+  ИО-1  Шаблоном состав становится публикацией, не сборкой.
+  ИО-2  Отчётность не считает: показатель только из реестра, поле только из перечня.
+  ИО-3  Своих запросов к базе нет — только четыре шва.
+  ИО-4  Числа морозит не выпуск, а названный получатель.
+  ИО-5  Получатель — ссылка, не строка.
+  ИО-6  Ответ без паспорта не показывается и не хранится.
+  ИО-7  Проверяемое заранее валит публикацию, а не выпуск.
+  ИО-8  Непроверяемое заранее делает выпуск предварительным.
+  ИО-9  Номер серии тратится вместе со снимком.
+  ИО-10 Наружу с получателем уходит только pdf.
+  ИО-11 Факт выпуска неудалим, файл предварительного — расходник.
+  ИО-12 Обязательство закрывает выпуск, а не отметка.
+  ИО-13 Отчётность задач не порождает.
+  ИО-14 Состав рабочего списка заморожен; выбывшие видны выбывшими (волна 3).
+  ИО-15 Паспорт у плитки, не у дашборда (волна 3).
+  ИО-16 Обзор ссылается на выпуск, своего снимка не заводит.
+
+  SMOKE 2026-08-24 · 50/50 PASS
+     PASS  #1  личный черновик «Справка о задолженности» не виден даже уполномоченному, пока автор не попросил публикации — ИО-1
+     PASS  #2  пользователь опубликовать не может: «публикует уполномоченный по отчётности: роль «Пользователь (Осмонова Г…»
+     PASS  #3  состояние шаблона СЧИТАЕТСЯ, а не хранится: «черновик» → «опубликован» после публикации
+     PASS  #4  выпуск личного черновика отклонён: «выпускать можно только опубликованную редакцию: «Средняя про…»
+     PASS  #5  подстановка не из перечня названа дословно: «в макете {{остаток_осн}}, объект «кредит» такого поля не объявляет»
+     PASS  #6  норму называет публикующий, а не автор черновика: «сослаться на пункт нормы может только публикующий: в личном черновике …»
+     PASS  #7  выведенный показатель ловится на публикации: «показатель «Доля проблемных кредитов» выведен 12.08.2026, шаблону нужна новая редакция»
+     PASS  #8  неисчислимый налету показатель в режиме «сейчас» отклонён причиной владельца реестра — ADR-0159
+     PASS  #9  чистый черновик проходит все пять проверок и становится шаблоном организации
+     PASS  #10  основание, вписанное не публикующим, остаётся просьбой: «сослаться на пункт нормы может только публикующий: основание «п. 12 По…»
+     PASS  #11  в движке состава (1978 симв.) и движке бланка (700) нет ни базы, ни формулы: запрещённых имён 0 — ИО-2, ИО-3
+     PASS  #12  «свой запрос» и «своя формула» — названные отказы, а не отсутствующие кнопки
+     PASS  #13  шов вернул 3 строк и произнёс «скрыто 5»; итог посчитан по видимым строкам (15000000 против 62650000) — иначе итог рассказал бы то, чего в строках нет, §13.2
+     PASS  #14  снимка на 01.09.2026 нет — подставлен ближайший на 2026-08-01; на 01.01.2026 снимка нет вовсе
+     PASS  #15  предварительный выпуск: снимка нет, получателя нет, номера нет, файл живёт 90 дней и гаснет 2026-11-22 — §5, ADR-0161 §7
+     PASS  #16  окончательный без получателя отклонён: «окончательный выпуск бывает только с названным получателем: числа моро…» — ИО-4
+     PASS  #17  получатель строкой отклонён ссылкой на справочник — ИО-5, ADR-0157 §3
+     PASS  #18  docx получателю отклонён: наружу с получателем — только pdf, ИО-10, ADR-0161 §2
+     PASS  #19  окончательный выпуск: снимок с 2 итогами заморожен, файл бессрочен, форматы — pdf
+     PASS  #20  усечённый видимостью охват не запрещает выпуск — он делает его предварительным и запрещает называть получателя: «шаблон требует полного охвата: область видимости скрыла 5 объектов — охват ответ…» — ИО-8, §13.4
+     PASS  #21  выпуск по неопубликованному/неисполнимому шаблону отклонён: «выпускать можно только опубликованную редакцию: «Доля пробле…»
+     PASS  #22  перепечатка предварительного бланка номера не сжигает: следующий по-прежнему 37 — ИО-9, ADR-0161 §5
+     PASS  #23  номер УВ-2026/037 потрачен ВМЕСТЕ со снимком; получатель бланка — контрагент объекта, ссылкой (ИО-5)
+     PASS  #24  бланку адресат из справочника не выбирается: «у бланка получатель не выбирается из справочника адресатов: им являетс…»
+     PASS  #25  ручная серия: номер вводит канцелярия, система его не выдаёт, но дубль ловит — ADR-0161 §6
+     PASS  #26  бланк печатает тот, у кого шаблон в круге И объект видим: «объект «КД-2025/088» вне области видимости роли «Пользователь (Осмонова Г.)»: бл…» — §13.3
+     PASS  #27  у бланка своих полей нет: подстановка вне публичного перечня ловится тем же законом, что и колонка отчёта
+     PASS  #28  файл предварительного выпуска от 10.04.2026 погашен 2026-07-09, строка журнала осталась — ADR-0161 §7
+     PASS  #29  удаления выпуска нет: «выпуск ВП-104 не удаляется: журнал заведён ради вопроса «что мы отдали наружу» —…» — ИО-11
+     PASS  #30  открытие периода правит снимок статистики — и расхождение ЗАРАБОТАНО пересчётом: Сумма просроченной задолженности 0→9950000; Кредитов с просрочкой 0→1
+     PASS  #31  предварительные выпуски метки не получают — метить нечего: они и не морозили чисел
+     PASS  #32  корректирующий выпуск ВП-105 уточняет ВП-103, прежний не погашен: связь видна с обеих сторон — §6
+     PASS  #33  повторное уточнение того же выпуска отклонено
+     PASS  #34  закрытый период открывает главный бухгалтер — ADR-0089
+     PASS  #35  девять обязательств выведены из правила «ежемесячно, не позднее 15-го числа месяца, следующего за отчётным»: май сдан, по июлю один сдан с опозданием и 2 просрочены на 9 дней
+     PASS  #36  обязательство закрыл выпуск ВП-103 с названным получателем, а не отметка
+     PASS  #37  «отметить сданным» и «поставить задачу» — названные отказы; наружу отдаётся ОСНОВАНИЕ задачи — ИО-12, ИО-13
+     PASS  #38  предварительный выпуск обязательства не закрывает — оно осталось просроченным
+     PASS  #39  окончательный выпуск с получателем закрыл обязательство dep-prom — ИО-12
+     PASS  #40  круг и расписание изменены, редакций по-прежнему 1: они не меняют вопроса
+     PASS  #41  круг ведёт уполномоченный, а не автор черновика
+     PASS  #42  переименование поля в ядре сломало 3 шаблона (t-overdue, t-portfolio, t-claim — и отчёт, и бланк: закон один) и НАЗВАЛО виновника — ADR-0158 §4
+     PASS  #43  владельцу реестра показан список ломающихся шаблонов до вывода показателя: t-overdue, t-osh — ADR-0159
+     PASS  #44  карточка объекта видит зеркалом, что по кредиту уходило наружу: УВ-2026/037
+     PASS  #45  наружу нет ни строк ответа, ни черновиков; лишний шов лишнему потребителю не отдаётся
+     PASS  #46  анализ ссылается на выпуск как на снимок основания — ИО-16, ADR-0157 §4
+     PASS  #47  рабочие списки, дашборды и верстальщик бланка отложены явно, с уже определённым поведением — ИО-14, ИО-15
+     PASS  #48  вход в модуль — ровно четыре шва: три у статистики (ADR-0152) и objectRows у ядра (ADR-0158)
+     PASS  #49  семь экранов × пять ролей = 35 отрисовок без исключений (162 КБ разметки)
+     PASS  #50  отказы и границы проговорены на самих экранах, а не спрятаны за отсутствием кнопки
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-link:#005FDB;
+  --asubk-green:#158443; --asubk-green-hover:#106A36; --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+  --asubk-ink:#192434; --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
+  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+  --asubk-red-tint:#FCE6E6; --asubk-green-tint:rgba(21,132,67,0.10);
+  --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong); --border-focus:var(--asubk-blue);
+  --action-primary:var(--asubk-blue); --action-success:var(--asubk-green); --action-danger:var(--asubk-red);
+  --status-success-bg:var(--asubk-green-tint); --status-info-bg:var(--asubk-blue-tint);
+  --status-warning-bg:var(--asubk-amber-tint); --status-error-bg:var(--asubk-red-tint);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600;
+  --leading-tight:1.2; --leading-snug:1.35; --leading-normal:1.5;
+  --font-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--asubk-font);
+  --font-label:var(--weight-regular) var(--text-sm)/var(--leading-snug) var(--asubk-font);
+  --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
+  --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --control-h:36px; --header-h:56px; --sidebar-w:290px;
+  --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
+.app{ display:flex; height:100vh; width:100%; }
+
+/* ---- sidebar ---- */
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
+  display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+.brand{ padding:18px 16px 4px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
+  color:var(--text-heading); letter-spacing:0.04em; }
+.brand small{ display:block; font:var(--weight-regular) 12px/1.4 var(--asubk-font);
+  color:var(--text-muted); letter-spacing:0; margin-top:4px; }
+.nav{ flex:1; overflow-y:auto; padding:12px 0 8px; }
+.nav-sec{ padding:9px 16px 4px; font:var(--weight-semibold) 12px/1.3 var(--asubk-font);
+  color:var(--text-placeholder); text-transform:uppercase; letter-spacing:0.05em; }
+.nav-item{ display:flex; align-items:center; gap:9px; padding:8px 16px; text-decoration:none; width:100%;
+  color:rgba(27,43,65,0.72); font:var(--weight-regular) var(--text-base)/1.4 var(--asubk-font);
+  cursor:pointer; background:none; border:none; text-align:left; }
+.nav-item:hover{ background:rgba(24,39,57,0.05); }
+.nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); font-weight:var(--weight-medium); }
+.nav-item .cnt{ margin-left:auto; color:var(--text-placeholder); font-size:12px; }
+.nav-item.locked{ color:var(--text-placeholder); }
+.sidebar-foot{ padding:12px 16px; border-top:1px solid var(--border-default);
+  font:var(--weight-regular) 12px/1.45 var(--asubk-font); color:var(--text-muted); }
+
+/* ---- main ---- */
+.main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
+.topbar{ min-height:var(--header-h); flex:none; border-bottom:1px solid var(--border-default);
+  display:flex; align-items:center; gap:14px; padding:8px 20px; flex-wrap:wrap; }
+.crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
+.topbar .right{ margin-left:auto; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.topbar label{ font:var(--font-label); color:var(--text-muted); margin-right:6px; }
+.topbar select{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 10px; cursor:pointer; }
+.content{ flex:1; overflow:auto; }
+.panel-wrap{ padding:18px 24px 60px; max-width:1140px; }
+
+/* ---- headings, notes ---- */
+.section-h{ font:var(--weight-semibold) 16px/1.2 var(--asubk-font); color:var(--text-heading); margin:24px 0 6px; }
+.section-h:first-child{ margin-top:0; }
+.page-lead{ font:var(--font-label); color:var(--text-muted); margin:2px 0 16px; max-width:900px; }
+.note{ font:var(--font-label); color:var(--text-muted); margin:8px 0 0; max-width:900px; }
+.note code, .page-lead code{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; color:var(--asubk-blue); }
+
+/* ---- banners ---- */
+.banner{ border-radius:var(--radius-md); padding:10px 14px; margin-bottom:12px; font:var(--font-label); }
+.banner.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.banner.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.banner.danger{ background:var(--status-error-bg); color:var(--asubk-red); }
+.banner.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.banner b{ font-weight:var(--weight-semibold); }
+.banner ul{ margin:6px 0 0; padding-left:20px; } .banner li{ margin-bottom:3px; }
+
+/* ---- pills ---- */
+.pill{ display:inline-block; padding:2px 9px; border-radius:var(--radius-pill);
+  font:var(--weight-medium) 12px/1.5 var(--asubk-font); white-space:nowrap; }
+.pill.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.pill.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.pill.err{ background:var(--status-error-bg); color:var(--asubk-red); }
+.pill.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.pill.neutral{ background:var(--asubk-tint-fill); color:var(--text-muted); }
+
+/* ---- buttons ---- */
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; height:var(--control-h);
+  padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
+  font:var(--weight-semibold) var(--text-base)/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
+.btn:disabled{ opacity:.45; cursor:not-allowed; }
+.btn-primary{ background:var(--action-primary); color:#fff; }
+.btn-primary:hover:not(:disabled){ background:var(--asubk-blue-hover); }
+.btn-success{ background:var(--action-success); color:#fff; }
+.btn-success:hover:not(:disabled){ background:var(--asubk-green-hover); }
+.btn-danger{ background:var(--action-danger); color:#fff; }
+.btn-danger:hover:not(:disabled){ background:var(--asubk-red-hover); }
+.btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
+.btn-secondary:hover:not(:disabled){ background:var(--surface-hover); }
+.btn-sm{ height:28px; padding:0 9px; font-size:12.5px; font-weight:var(--weight-medium); }
+.btn-row{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+
+/* ---- tables ---- */
+table.cgrid{ width:100%; border-collapse:collapse; font:var(--font-label);
+  border:1px solid var(--border-default); background:var(--surface-card); }
+table.cgrid thead th{ text-align:left; padding:10px 12px; background:var(--surface-panel);
+  border-bottom:1px solid var(--asubk-grid-line); font:var(--weight-semibold) var(--text-sm)/1.35 var(--asubk-font);
+  color:var(--text-heading); white-space:nowrap; }
+table.cgrid tbody td{ padding:9px 12px; border-bottom:1px solid var(--asubk-grid-line);
+  vertical-align:top; color:var(--text-body); }
+table.cgrid tbody tr:last-child td{ border-bottom:none; }
+table.cgrid tbody tr.out td{ background:var(--asubk-gray-50); color:var(--text-muted); }
+table.cgrid tbody tr.hl td{ background:var(--asubk-blue-tint); }
+table.cgrid td.num{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+table.cgrid tfoot td{ padding:9px 12px; background:var(--surface-panel);
+  font-weight:var(--weight-semibold); border-top:1px solid var(--asubk-grid-line); }
+.muted{ color:var(--text-muted); }
+.mono{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12.5px; }
+.small{ font:var(--weight-regular) 12.5px/1.45 var(--asubk-font); color:var(--text-muted); }
+.small b, .small em{ color:var(--text-body); font-style:normal; font-weight:var(--weight-medium); }
+
+/* ---- cards ---- */
+.card{ border:1px solid var(--border-default); border-radius:var(--radius-md);
+  padding:16px 18px; margin-bottom:14px; background:var(--surface-card); }
+.card > h3{ margin:0 0 10px; font:var(--weight-semibold) 15px/1.25 var(--asubk-font); color:var(--text-heading); }
+.card > h3 .small{ font-weight:var(--weight-regular); }
+.card.frozen{ background:var(--asubk-gray-50); border-color:var(--border-strong); }
+.cols{ display:flex; gap:20px; align-items:flex-start; flex-wrap:wrap; }
+.side{ flex:0 0 260px; } .body{ flex:1; min-width:460px; }
+.meta{ font:var(--font-label); color:var(--text-muted); margin:0 0 10px; }
+.meta b{ color:var(--text-body); font-weight:var(--weight-medium); }
+.kv{ display:grid; grid-template-columns:230px 1fr; gap:6px 14px; font:var(--font-label); }
+.kv .k{ color:var(--text-muted); } .kv .v{ color:var(--text-body); }
+
+.fld{ display:flex; flex-direction:column; gap:5px; }
+.fld > label{ font:var(--font-label); color:var(--text-muted); }
+.fld select, .fld input, .fld textarea{ border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 10px; min-width:210px; }
+.fld select, .fld input{ height:var(--control-h); }
+.fld textarea{ min-height:92px; padding:8px 10px; min-width:100%; resize:vertical; font:var(--font-label); }
+.form-row{ display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; }
+.form-row.tight{ gap:10px; }
+
+/* ---- explanation blocks ---- */
+.why{ font:var(--weight-regular) 12.5px/1.5 var(--asubk-font); color:var(--text-muted); margin-top:4px; }
+.why em{ font-style:normal; color:var(--text-body); font-weight:var(--weight-medium); }
+.facts{ margin-top:8px; border-top:1px dashed var(--border-default); padding-top:6px; }
+.facts .f{ font:var(--weight-regular) 12.5px/1.5 var(--asubk-font); color:var(--text-muted); margin-bottom:4px; }
+.facts .f.no{ color:var(--asubk-red); }
+.facts .f.yes em{ color:var(--asubk-green); }
+
+/* ---- toast ---- */
+#toastWrap{ position:fixed; right:18px; bottom:18px; display:flex; flex-direction:column; gap:8px; z-index:50; }
+.toast{ background:var(--asubk-ink); color:#fff; padding:10px 14px; border-radius:var(--radius-md);
+  font:var(--font-label); max-width:420px; box-shadow:0 6px 20px rgba(24,39,57,0.25); }
+.toast.err{ background:var(--asubk-red); } .toast.ok{ background:var(--asubk-green); }
+
+/* ---- зеркало чужого поля (ИА-9, ADR-0155 §1) ---- */
+.mirror{ border:1px dashed var(--border-strong); border-left:3px solid var(--asubk-blue);
+  border-radius:var(--radius-md); background:var(--surface-panel); padding:10px 14px; margin-bottom:12px; }
+.mirror .row{ font:var(--font-label); color:var(--text-body); margin-bottom:3px; }
+.mirror .row:last-child{ margin-bottom:0; }
+.mirror .k{ color:var(--text-muted); display:inline-block; min-width:190px; }
+.mirror.err{ border-left-color:var(--asubk-red); }
+.mirror.none{ border-left-color:var(--asubk-amber); }
+
+/* ---- паспорт снимка (ADR-0153 §1) ---- */
+.pass{ border:1px solid var(--border-default); border-left:3px solid var(--asubk-green);
+  border-radius:var(--radius-md); background:var(--surface-card); padding:10px 14px; margin-bottom:12px; }
+.pass .row{ font:var(--font-label); color:var(--text-body); margin-bottom:3px; }
+.pass .row:last-child{ margin-bottom:0; }
+.pass .k{ color:var(--text-muted); display:inline-block; min-width:190px; }
+.pass.warn{ border-left-color:var(--asubk-amber); }
+
+/* ---- документ ---- */
+.doc-head{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:4px; }
+.doc-head h2{ margin:0; font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); }
+.verdict{ font:var(--weight-semibold) 15px/1.3 var(--asubk-font); color:var(--text-heading); }
+.concl{ font:var(--font-label); color:var(--text-body); white-space:pre-wrap; margin:6px 0 0; }
+.thr{ font-variant-numeric:tabular-nums; white-space:nowrap; }
+.lineform{ display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:10px 16px; }
+
+/* ---- отчётность: снимок, паспорт выпуска, шов ---- */
+.snap{ border:1px solid var(--border-strong); border-left:3px solid var(--asubk-green);
+  border-radius:var(--radius-md); background:var(--asubk-gray-50); padding:10px 14px; margin-bottom:12px; }
+.snap.prelim{ border-left-color:var(--asubk-amber); background:var(--surface-card); }
+.snap .row{ font:var(--font-label); color:var(--text-body); margin-bottom:3px; }
+.snap .row:last-child{ margin-bottom:0; }
+.snap .k{ color:var(--text-muted); display:inline-block; min-width:200px; }
+.seam{ border:1px solid var(--border-default); border-left:3px solid var(--asubk-blue);
+  border-radius:var(--radius-md); background:var(--surface-panel); padding:8px 12px; margin-bottom:10px;
+  font:var(--font-label); color:var(--text-body); }
+.seam .q{ color:var(--text-muted); }
+.sheet{ border:1px solid var(--border-strong); border-radius:var(--radius-md);
+  background:var(--surface-card); padding:16px 18px; margin-bottom:12px; }
+.sheet .sheet-h{ font:var(--weight-semibold) 15px/1.3 var(--asubk-font); color:var(--text-heading); margin-bottom:2px; }
+.sheet .sheet-sub{ font:var(--font-label); color:var(--text-muted); margin-bottom:12px; }
+.foot-pass{ margin-top:10px; padding-top:8px; border-top:1px dashed var(--border-default);
+  font:var(--weight-regular) 12px/1.5 var(--asubk-font); color:var(--text-muted); }
+.foot-pass b{ color:var(--text-body); font-weight:var(--weight-medium); }
+.totals{ display:flex; gap:20px; flex-wrap:wrap; margin:10px 0 2px; }
+.tot{ border:1px solid var(--border-default); border-radius:var(--radius-md);
+  padding:9px 14px; background:var(--surface-panel); min-width:210px; }
+.tot .tn{ font:var(--font-label); color:var(--text-muted); }
+.tot .tv{ font:var(--weight-semibold) 18px/1.25 var(--asubk-font); color:var(--text-heading);
+  font-variant-numeric:tabular-nums; }
+.tot .tp{ font:var(--weight-regular) 11.5px/1.4 var(--asubk-font); color:var(--text-placeholder); margin-top:2px; }
+.chips{ display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 0; }
+.step{ display:flex; gap:10px; align-items:flex-start; margin-bottom:10px; }
+.step .num{ flex:none; width:22px; height:22px; border-radius:50%; background:var(--asubk-blue-tint);
+  color:var(--asubk-blue); font:var(--weight-semibold) 12px/22px var(--asubk-font); text-align:center; }
+.tmpl-kind{ font:var(--weight-medium) 12px/1.5 var(--asubk-font); }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">АСУБК<small>Модуль «Отчётность» · прототип TO-BE</small></div>
+    <div class="nav">
+      <div class="nav-sec">Работа</div>
+      <button class="nav-item" data-v="registry" onclick="RP.go('registry')">Реестр шаблонов</button>
+      <button class="nav-item" data-v="builder"  onclick="RP.go('builder')">Конструктор</button>
+      <button class="nav-item" data-v="issue"    onclick="RP.go('issue')">Выпуск</button>
+      <button class="nav-item" data-v="journal"  onclick="RP.go('journal')">Журнал выпусков</button>
+      <button class="nav-item" data-v="calendar" onclick="RP.go('calendar')">Календарь сдачи</button>
+      <div class="nav-sec">Границы</div>
+      <button class="nav-item" data-v="seams"    onclick="RP.go('seams')">Швы и соседи</button>
+      <div class="nav-sec">Волна 3</div>
+      <button class="nav-item locked" data-v="wave3" onclick="RP.go('wave3')">Бланки · списки · дашборд</button>
+    </div>
+    <div class="sidebar-foot" id="foot"></div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb-title" id="title">Реестр шаблонов</div>
+      <div class="right">
+        <span><label>Роль</label><select id="role" onchange="RP.setRole(this.value)"></select></span>
+      </div>
+    </div>
+    <div class="content"><div class="panel-wrap" id="panel"></div></div>
+  </div>
+</div>
+<div id="toastWrap"></div>
+
+<script>
+/* =====================================================================
+ *  МОДУЛЬ «ОТЧЁТНОСТЬ» — исполняемый прототип, волна 2
+ *  Слои файла: даты → мир соседей зеркалом (подразделения, адресаты, публичные
+ *  перечни полей ядра, реестр показателей статистики, объекты и их снимки по датам)
+ *  → ЧЕТЫРЕ ШВА → движок состава → состояние → операции (публикация, выпуск,
+ *  открытие периода, обязательства, серии) → швы наружу → экраны.
+ *
+ *  Главное, что этот файл доказывает исполнением: движок состава не знает базы.
+ *  Он умеет спросить четыре вопроса и напечатать ответ с паспортом — ни одного
+ *  обращения к массиву объектов и ни одной своей формулы в нём нет (ИО-2, ИО-3).
+ * ===================================================================== */
+const RP = {};
+
+/* ------------------------------ ДАТЫ И СТРОКИ ----------------------- */
+const fmt = iso => iso ? iso.slice(8,10)+'.'+iso.slice(5,7)+'.'+iso.slice(0,4) : '—';
+const daysBetween = (a,b) => Math.round((Date.parse(b)-Date.parse(a))/86400000);
+const addDays = (iso,n) => new Date(Date.parse(iso)+n*86400000).toISOString().slice(0,10);
+const plural = (n,a,b,c) => { const x=n%100, y=n%10; return x>4&&x<21 ? c : y===1 ? a : y>1&&y<5 ? b : c; };
+const dayWord = d => d + ' ' + plural(d,'день','дня','дней');
+const objWord = n => n + ' ' + plural(n,'объект','объекта','объектов');
+const clone = o => JSON.parse(JSON.stringify(o));
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const $ = sel => (typeof document === 'undefined' ? null : document.querySelector(sel));
+const uniq = a => a.filter((x,i) => a.indexOf(x) === i);
+const money = v => v == null ? '—' : Math.round(v).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+const MONTHS_N = ['январь','февраль','март','апрель','май','июнь','июль','август',
+                  'сентябрь','октябрь','ноябрь','декабрь'];
+const monthLabel = iso => MONTHS_N[+iso.slice(5,7)-1] + ' ' + iso.slice(0,4);
+/* Первое число месяца, следующего за месяцем даты. */
+const firstOfNext = iso => { const y=+iso.slice(0,4), m=+iso.slice(5,7);
+  return (m===12 ? (y+1)+'-01' : y+'-'+String(m+1).padStart(2,'0'))+'-01'; };
+const dayOfMonth = (iso, d) => iso.slice(0,7)+'-'+String(d).padStart(2,'0');
+
+/* ================== МИР СОСЕДЕЙ — ЗЕРКАЛО, НЕ ЭТАЛОН =================
+   Всё в этом блоке принадлежит другим модулям и заведено ровно на ширину шва.
+   Эталон подразделений — оргструктура, показателей — статистика, полей и
+   объектов — ядро, адресатов — справочники (ADR-0157 §3).                    */
+
+const DEPTS = [
+  {id:'dep-admin', name:'Департамент администрирования кредитов'},
+  {id:'dep-prom',  name:'Отраслевой департамент промышленности'},
+  {id:'rep-osh',   name:'Региональное представительство «Ош»'}
+];
+const DEPT = id => DEPTS.find(d => d.id === id);
+const deptName = id => (DEPT(id) || {name:id}).name;
+
+/* Справочник адресатов сдачи. Получатель — ссылка сюда, а не строка: «Минфин»
+   и «МФ КР» иначе станут двумя разными адресатами в журнале (ИО-5).          */
+const ADDRESSEES = [
+  {id:'a-mf',  name:'Министерство финансов Кыргызской Республики', short:'Минфин КР'},
+  {id:'a-kab', name:'Комитет по администрированию бюджетных кредитов', short:'Комитет'},
+  {id:'a-me',  name:'Министерство экономики и коммерции Кыргызской Республики', short:'Минэконом'}
+];
+const ADDR = id => ADDRESSEES.find(a => a.id === id);
+
+/* Публичные перечни полей — владелец ЯДРО (ADR-0158 §4). Отчётность их читает
+   и своих не заводит. Переименование поля здесь ломает публикацию шаблона и
+   называет виновником ядро, а не автора шаблона.                             */
+const FIELDS = {
+  credit: {name:'кредит', owner:'ядро · кредиты', fields:[
+    {id:'no',        name:'Номер договора'},
+    {id:'borrower',  name:'Заёмщик'},
+    {id:'dept',      name:'Подразделение'},
+    {id:'sum',       name:'Сумма договора'},
+    {id:'debt_main', name:'Остаток основного долга'},
+    {id:'days',      name:'Дней просрочки'},
+    {id:'status',    name:'Состояние'}
+  ]},
+  borrower: {name:'заёмщик', owner:'ядро · заёмщики', fields:[
+    {id:'name',   name:'Наименование'},
+    {id:'inn',    name:'ИНН'},
+    {id:'dept',   name:'Подразделение'},
+    {id:'status', name:'Состояние'}
+  ]}
+};
+const FIELD = (obj, fid) => (FIELDS[obj] ? FIELDS[obj].fields.find(f => f.id === fid) : null);
+
+/* Реестр показателей — владелец СТАТИСТИКА (ADR-0150). `live` — объявленная
+   владельцем исчислимость налету (ADR-0159): без неё режим «сейчас» обещает
+   то, чего нет. `withdrawn` — дата вывода показателя из реестра.             */
+const STATS = [
+  {id:'s-overdue-sum', name:'Сумма просроченной задолженности', unit:'сом', live:true},
+  {id:'s-overdue-cnt', name:'Кредитов с просрочкой',            unit:'ед.', live:true},
+  {id:'s-portfolio',   name:'Остаток основного долга, всего',   unit:'сом', live:true},
+  {id:'s-avg-late',    name:'Средняя просрочка',                unit:'дн.', live:false,
+   why:'считается ночным прогоном по живой базе: налету средняя не берётся'},
+  {id:'s-recovery',    name:'Собираемость за период',           unit:'%',   live:false,
+   why:'нужен закрытый период и сверка платежей — до конца периода величины нет'},
+  {id:'s-npl',         name:'Доля проблемных кредитов',         unit:'%',   live:true,
+   withdrawn:'2026-08-12', why:'выведен владельцем реестра: методика заменена классификацией'}
+];
+const STAT = id => STATS.find(s => s.id === id);
+
+/* Объекты ядра — живое состояние («сейчас»). */
+const OBJECTS = [
+  {id:'kr-1', type:'credit', no:'КД-2024/117', borrower:'ОсОО «Ак-Дан»',          dept:'dep-prom',  sum:12000000, debt_main:7400000,  days:0,  status:'действует', closed:null},
+  {id:'kr-2', type:'credit', no:'КД-2024/203', borrower:'ОсОО «Нарын-Агро»',      dept:'dep-prom',  sum:8500000,  debt_main:5100000,  days:42, status:'просрочен', closed:null},
+  {id:'kr-3', type:'credit', no:'КД-2025/014', borrower:'ИП Садыков А. Т.',       dept:'rep-osh',   sum:3000000,  debt_main:1850000,  days:17, status:'просрочен', closed:null},
+  {id:'kr-4', type:'credit', no:'КД-2025/088', borrower:'ОсОО «Тянь-Шань Строй»', dept:'dep-admin', sum:45000000, debt_main:31200000, days:0,  status:'действует', closed:null},
+  {id:'kr-5', type:'credit', no:'КД-2023/311', borrower:'ОсОО «Кара-Балта Мел»',  dept:'dep-admin', sum:20000000, debt_main:0,        days:0,  status:'закрыт',    closed:'2026-08-14'},
+  {id:'kr-6', type:'credit', no:'КД-2025/126', borrower:'ОсОО «Ош-Текстиль»',     dept:'rep-osh',   sum:6200000,  debt_main:4900000,  days:93, status:'просрочен', closed:null},
+  {id:'kr-7', type:'credit', no:'КД-2026/007', borrower:'КФХ «Жайыл»',            dept:'dep-prom',  sum:2500000,  debt_main:2500000,  days:0,  status:'действует', closed:null},
+  {id:'kr-8', type:'credit', no:'КД-2024/259', borrower:'ОсОО «Иссык-Куль Тур»',  dept:'dep-admin', sum:15000000, debt_main:9700000,  days:5,  status:'просрочен', closed:null}
+];
+const OBJ = id => OBJECTS.find(o => o.id === id);
+
+/* Снимки состояния по датам — владелец статистика (ADR-0123: строка на дату).
+   Отчёт «на дату» читает отсюда швом, а не считает сам. Открытие закрытого
+   периода (ADR-0089) правит именно эту таблицу — и потому расхождение со
+   сданным в макете ЗАРАБОТАНО, а не нарисовано.                              */
+const HIST = {
+  '2026-06-01': {
+    'kr-1':{debt_main:8100000, days:0,  status:'действует'}, 'kr-2':{debt_main:5900000, days:0,  status:'действует'},
+    'kr-3':{debt_main:2100000, days:0,  status:'действует'}, 'kr-4':{debt_main:33800000,days:0,  status:'действует'},
+    'kr-5':{debt_main:1400000, days:0,  status:'действует'}, 'kr-6':{debt_main:5400000, days:32, status:'просрочен'},
+    'kr-7':{debt_main:2500000, days:0,  status:'действует'}, 'kr-8':{debt_main:10900000,days:0,  status:'действует'}
+  },
+  '2026-07-01': {
+    'kr-1':{debt_main:7800000, days:0,  status:'действует'}, 'kr-2':{debt_main:5600000, days:11, status:'просрочен'},
+    'kr-3':{debt_main:2000000, days:0,  status:'действует'}, 'kr-4':{debt_main:32900000,days:0,  status:'действует'},
+    'kr-5':{debt_main:700000,  days:0,  status:'действует'}, 'kr-6':{debt_main:5200000, days:62, status:'просрочен'},
+    'kr-7':{debt_main:2500000, days:0,  status:'действует'}, 'kr-8':{debt_main:10300000,days:0,  status:'действует'}
+  },
+  '2026-08-01': {
+    'kr-1':{debt_main:7400000, days:0,  status:'действует'}, 'kr-2':{debt_main:5300000, days:12, status:'просрочен'},
+    'kr-3':{debt_main:1900000, days:0,  status:'действует'}, 'kr-4':{debt_main:31900000,days:0,  status:'действует'},
+    'kr-5':{debt_main:200000,  days:0,  status:'действует'}, 'kr-6':{debt_main:5000000, days:63, status:'просрочен'},
+    'kr-7':{debt_main:2500000, days:0,  status:'действует'}, 'kr-8':{debt_main:9900000, days:0,  status:'действует'}
+  }
+};
+const HIST_DATES = Object.keys(HIST);
+
+/* ===================== ЧЕТЫРЕ ШВА — ЕДИНСТВЕННЫЙ ВХОД =================
+   Три шва статистики (ADR-0152) обслуживают «на дату»; четвёртый, objectRows
+   у ядра, добавлен решением ADR-0158 ради режима «сейчас». Своих запросов к
+   базе у отчётности нет вовсе: всё, что ниже, принадлежит СОСЕДЯМ и здесь
+   стоит заглушкой ровно на ширину вопроса. Область видимости применяется
+   ВНУТРИ шва — поэтому обойти её отчётность не может физически (ИО-3).
+
+   Вопрос шву задаётся вместе с разрезом (cut): скрытым считается то, что
+   разрезу подходит, а области видимости — нет. Это и есть «усечение,
+   произнесённое вслух» (§13.4).
+   ==ШВЫ==                                                                    */
+const SEAMS_IN = [
+  {id:'statSlice',  owner:'статистика', q:'значение показателя в разрезе на дату'},
+  {id:'statSeries', owner:'статистика', q:'ряд значений показателя по датам'},
+  {id:'statRows',   owner:'статистика', q:'строки объектов на дату'},
+  {id:'objectRows', owner:'ядро',       q:'перечисление живых объектов: поля и показатели налету'}
+];
+
+/* Числа считает СТАТИСТИКА. Этот кусок — её зеркало, а не формула отчётности:
+   в модуле отчётности своей формулы нет ни одной (ИО-2, ADR-0150).           */
+function statValue(statId, rows){
+  const late = rows.filter(r => r.days > 0);
+  if(statId === 's-overdue-sum') return rows.reduce((a,r) => a + (r.days > 0 ? r.debt_main : 0), 0);
+  if(statId === 's-overdue-cnt') return late.length;
+  if(statId === 's-portfolio')   return rows.reduce((a,r) => a + r.debt_main, 0);
+  if(statId === 's-avg-late')    return late.length ? Math.round(late.reduce((a,r) => a + r.days, 0)/late.length) : 0;
+  if(statId === 's-npl')         return rows.length ? Math.round(late.length/rows.length*1000)/10 : 0;
+  if(statId === 's-recovery')    return 87.4;
+  return null;
+}
+/* Ближайший снимок не позже спрошенной даты. Подстановка соседней даты
+   называется в паспорте и делает выпуск предварительным (ADR-0152 §5).       */
+function nearestSnapshot(asOf){
+  const before = HIST_DATES.filter(d => d.localeCompare(asOf) !== 1).sort();
+  return before.length ? before[before.length-1] : null;
+}
+function applyCut(rows, cut){
+  if(!cut) return rows;
+  let r = rows;
+  if(cut.dept) r = r.filter(x => x.dept === cut.dept);
+  if(cut.obj)  r = r.filter(x => x.id === cut.obj);
+  return r;
+}
+const SEAM = {
+  /* ЯДРО. Живые объекты: поля перечня + показатели, объявленные исчислимыми. */
+  objectRows(objType, cut, scope){
+    const all = applyCut(OBJECTS.filter(o => o.type === objType), cut);
+    const vis = all.filter(o => scope.indexOf(o.dept) !== -1);
+    return {rows: clone(vis), hidden: all.length - vis.length, substituted:null,
+      passport:{seam:'objectRows', owner:'ядро', asOf:null, mode:'сейчас',
+        scope: scope.slice(), depth:'живое состояние на момент вопроса'}};
+  },
+  /* СТАТИСТИКА. Строки объектов на дату — из её снимков, не из живой базы.   */
+  statRows(objType, asOf, cut, scope){
+    const real = nearestSnapshot(asOf);
+    if(!real) return {rows:[], hidden:0, substituted:null, missing:true,
+      passport:{seam:'statRows', owner:'статистика', asOf, mode:'на дату', scope: scope.slice()}};
+    const snap = HIST[real];
+    const all = applyCut(OBJECTS.filter(o => o.type === objType).map(o => {
+      const s = snap[o.id] || {};
+      return {id:o.id, no:o.no, borrower:o.borrower, dept:o.dept, sum:o.sum,
+              debt_main:s.debt_main, days:s.days, status:s.status, closed:o.closed};
+    }), cut);
+    const vis = all.filter(o => scope.indexOf(o.dept) !== -1);
+    return {rows: clone(vis), hidden: all.length - vis.length,
+      substituted: real === asOf ? null : real,
+      passport:{seam:'statRows', owner:'статистика', asOf: real, asked: asOf, mode:'на дату',
+        scope: scope.slice(), depth:'снимок статистики на '+fmt(real)}};
+  },
+  /* СТАТИСТИКА. Значение показателя в разрезе. Агрегат считается только по
+     видимым строкам (§13.2): иначе итог рассказал бы то, чего в строках нет. */
+  statSlice(statId, cut, asOf, scope){
+    const meta = STAT(statId);
+    if(!meta) return {value:null, why:'показателя «'+statId+'» в реестре нет', passport:null};
+    const src = asOf ? SEAM.statRows('credit', asOf, cut, scope) : SEAM.objectRows('credit', cut, scope);
+    if(src.missing) return {value:null, why:'снимка на '+fmt(asOf)+' у статистики нет', passport:null};
+    return {value: statValue(statId, src.rows), unit: meta.unit, hidden: src.hidden,
+      substituted: src.substituted,
+      passport:{seam:'statSlice', owner:'статистика', asOf: asOf ? src.passport.asOf : null,
+        mode: asOf ? 'на дату' : 'сейчас', scope: scope.slice(),
+        cut: cut && cut.dept ? deptName(cut.dept) : 'без разреза'}};
+  },
+  /* СТАТИСТИКА. Ряд значений по датам — для плиток и динамики.               */
+  statSeries(statId, dates, cut, scope){
+    return {points: dates.map(d => ({at:d, value: SEAM.statSlice(statId, cut, d, scope).value})),
+      passport:{seam:'statSeries', owner:'статистика', mode:'на дату', scope: scope.slice()}};
+  },
+  /* КОНТРАКТЫ, а не данные (ADR-0158 §4): публичный перечень полей объекта и
+     паспорт показателя. Их отчётность тоже не заводит у себя.                */
+  fieldList(objType){ const o = FIELDS[objType];
+    return o ? {object:objType, name:o.name, owner:o.owner, fields: clone(o.fields)} : null; },
+  statMeta(statId){ const s = STAT(statId); return s ? clone(s) : null; },
+  objectTypes(){ return Object.keys(FIELDS); }
+};
+/* ==/ШВЫ== */
+
+/* ================== ДВИЖОК СОСТАВА — ОТВЕТ ПО ОБЪЯВЛЕНИЮ ==============
+   Всё, что он умеет: спросить швы о том, что объявила редакция, и собрать
+   ответ с паспортом. Ниже нет ни одного обращения к базе и ни одной формулы —
+   имён OBJECTS, HIST, STATS, FIELDS в этом блоке не встречается (ИО-2, ИО-3).
+   ==ДВИЖОК==                                                                 */
+function compose(tpl, ed, params, viewer){
+  const scope = viewer.scope.slice();
+  const cut = {dept: params.dept || null};
+  const asOf = ed.mode === 'на дату' ? params.asOf : null;
+  const src = asOf ? SEAM.statRows(ed.object, asOf, cut, scope)
+                   : SEAM.objectRows(ed.object, cut, scope);
+  const list = SEAM.fieldList(ed.object);
+  const cols = ed.fields.map(fid => {
+    const f = list.fields.find(x => x.id === fid);
+    return {id:fid, name: f ? f.name : null, lost: !f};
+  });
+  const rows = src.rows.slice().sort((a,b) =>
+    ed.order === 'по просрочке' ? (b.days - a.days) || String(a.no).localeCompare(String(b.no))
+                                : String(a.no).localeCompare(String(b.no)));
+  const totals = ed.stats.map(sid => {
+    const meta = SEAM.statMeta(sid);
+    const r = SEAM.statSlice(sid, cut, asOf, scope);
+    return {id:sid, name: meta ? meta.name : sid, unit: meta ? meta.unit : '',
+            value:r.value, why:r.why, passport:r.passport};
+  });
+  /* Что нельзя проверить на публикации — делает выпуск предварительным (ИО-8). */
+  const soft = [];
+  if(src.hidden > 0) soft.push('область видимости скрыла '+objWord(src.hidden)+
+    ' — охват ответа неполный');
+  if(src.substituted) soft.push('снимка на '+fmt(asOf)+' нет, подставлен ближайший на '+
+    fmt(src.substituted));
+  if(src.missing) soft.push('снимка статистики на '+fmt(asOf)+' нет вовсе');
+  return {
+    cols, rows, totals, hidden: src.hidden, substituted: src.substituted, missing: !!src.missing,
+    soft,
+    passport:{
+      asOf: asOf ? src.passport.asOf : null,
+      mode: ed.mode,
+      frozen: false,
+      scope: scope.map(deptName),
+      edition: ed.n,
+      template: tpl.name,
+      params: clone(params),
+      hidden: src.hidden,
+      seams: uniq([src.passport.seam].concat(totals.map(t => t.passport ? t.passport.seam : null)
+        .filter(Boolean)))
+    }
+  };
+}
+/* ==/ДВИЖОК== */
+
+/* ============================ РОЛИ (§17) =============================
+   Область видимости — не право модуля, а свойство человека: она приезжает
+   вместе с ролью и применяется внутри шва. Публикует только уполномоченный;
+   печатает бланк — делопроизводитель; отметки «сдано» нет ни у кого.        */
+const ALL_DEPTS = DEPTS.map(d => d.id);
+const ROLES = [
+  {id:'user',  title:'Пользователь (Осмонова Г.)',                  who:'Осмонова Г.',
+   dept:'dep-prom',  scope:['dep-prom']},
+  {id:'auth',  title:'Уполномоченный по отчётности (Тентимишев К.)', who:'Тентимишев К.',
+   dept:'dep-admin', scope:ALL_DEPTS.slice()},
+  {id:'clerk', title:'Делопроизводитель (Абдырахманова С.)',        who:'Абдырахманова С.',
+   dept:'dep-admin', scope:ALL_DEPTS.slice()},
+  {id:'head',  title:'Руководитель подразделения (Асанов А.)',      who:'Асанов А.',
+   dept:'dep-admin', scope:['dep-admin']},
+  {id:'buh',   title:'Главный бухгалтер (Бекова Н.)',               who:'Бекова Н.',
+   dept:'dep-admin', scope:ALL_DEPTS.slice()}
+];
+const ROLE_TITLES = ROLES.map(r => r.title);
+const ROLE = title => ROLES.find(r => r.title === title) || ROLES[0];
+
+/* Исполнитель обязательства назван у обязательства, а не выведен из круга:
+   круг — доступ, а не ответственность (§7).                                  */
+const RESPONSIBLE = {'dep-admin':'Асанов А.', 'dep-prom':'Осмонова Г.', 'rep-osh':'Мамытов Э.'};
+
+/* ===================== ШАБЛОНЫ ОТЧЁТНОСТИ (§2.1–2.3) ==================
+   Вид — один из двух и только: отчёт о множестве объектов, бланк об одном
+   (§2.2, ADR-0156). Вне редакции живут круг, расписание, «пригоден для
+   обзора», «полный охват обязателен» и серия: они меняются, не порождая
+   новой редакции, потому что не меняют вопроса.                             */
+const KINDS = ['отчёт','бланк'];
+function templatesSeed(){ return [
+  {id:'t-overdue', kind:'отчёт', name:'Просроченная задолженность по состоянию на 1-е число',
+   owner:'Тентимишев К.', asked:true,
+   basis:{doc:'Порядок №41 (ред. 06.07.2026)', point:'п. 12'},
+   circle:ALL_DEPTS.slice(), forReview:true, fullCoverage:true, series:null,
+   schedule:{freq:'ежемесячно', dueDay:15, since:'2026-05-01',
+     asOfRule:'первое число месяца, следующего за отчётным',
+     text:'ежемесячно, не позднее 15-го числа месяца, следующего за отчётным'},
+   editions:[{n:1, state:'опубликована', since:'2026-05-20', by:'Тентимишев К.', at:'2026-05-20',
+     object:'credit', mode:'на дату', order:'по просрочке',
+     fields:['no','borrower','dept','debt_main','days'],
+     stats:['s-overdue-sum','s-overdue-cnt'], cuts:['dept'], subs:[],
+     params:[{id:'period', role:'вопроса', name:'Отчётный месяц'},
+             {id:'dept',   role:'отбора',  name:'Подразделение'}]}]},
+
+  {id:'t-portfolio', kind:'отчёт', name:'Портфель — оперативный срез',
+   owner:'Тентимишев К.', asked:true,
+   basis:{doc:'Регламент оперативного мониторинга ФКФ', point:null},
+   circle:ALL_DEPTS.slice(), forReview:true, fullCoverage:false, series:null, schedule:null,
+   editions:[{n:1, state:'опубликована', since:'2026-04-01', by:'Тентимишев К.', at:'2026-04-01',
+     object:'credit', mode:'сейчас', order:'по номеру',
+     fields:['no','borrower','dept','debt_main','days','status'],
+     stats:['s-portfolio','s-overdue-cnt'], cuts:['dept'], subs:[],
+     params:[{id:'dept', role:'отбора', name:'Подразделение'}]}]},
+
+  {id:'t-notice', kind:'бланк', name:'Уведомление о наступающем платеже',
+   owner:'Абдырахманова С.', asked:true,
+   basis:{doc:'Порядок №41 (ред. 06.07.2026)', point:'п. 15'},
+   circle:ALL_DEPTS.slice(), forReview:false, fullCoverage:false, schedule:null,
+   series:{prefix:'УВ-2026/', manual:false, next:37, used:[]},
+   editions:[{n:1, state:'опубликована', since:'2026-05-20', by:'Тентимишев К.', at:'2026-05-20',
+     object:'credit', mode:'сейчас', order:'по номеру', fields:[], stats:[], cuts:[],
+     subs:['no','borrower','debt_main'], layout:'бланк уведомления (docx)',
+     params:[{id:'obj', role:'вопроса', name:'Кредит'}]}]},
+
+  {id:'t-claim', kind:'бланк', name:'Первичная претензия',
+   owner:'Абдырахманова С.', asked:true,
+   basis:{doc:'Порядок №41 (ред. 06.07.2026)', point:'п. 16'},
+   circle:ALL_DEPTS.slice(), forReview:false, fullCoverage:false, schedule:null,
+   series:{prefix:'ПР-2026/', manual:true, next:null, used:['ПР-2026/014']},
+   editions:[{n:1, state:'опубликована', since:'2026-06-01', by:'Тентимишев К.', at:'2026-06-01',
+     object:'credit', mode:'сейчас', order:'по номеру', fields:[], stats:[], cuts:[],
+     subs:['no','borrower','debt_main','days'], layout:'бланк претензии (docx)',
+     params:[{id:'obj', role:'вопроса', name:'Кредит'}]}]},
+
+  /* --- личные черновики: шаблоном их делает публикация (ИО-1) --- */
+  {id:'t-avg', kind:'отчёт', name:'Средняя просрочка по департаментам',
+   owner:'Осмонова Г.', asked:true, basis:null,
+   circle:ALL_DEPTS.slice(), forReview:false, fullCoverage:false, series:null, schedule:null,
+   editions:[{n:1, state:'черновик', since:null, by:'Осмонова Г.', at:'2026-08-20',
+     object:'credit', mode:'сейчас', order:'по номеру',
+     fields:['dept'], stats:['s-avg-late'], cuts:['dept'], subs:[],
+     params:[{id:'dept', role:'отбора', name:'Подразделение'}]}]},
+
+  {id:'t-npl', kind:'отчёт', name:'Доля проблемных кредитов',
+   owner:'Осмонова Г.', asked:true, basis:null,
+   circle:ALL_DEPTS.slice(), forReview:true, fullCoverage:false, series:null, schedule:null,
+   editions:[{n:1, state:'черновик', since:null, by:'Осмонова Г.', at:'2026-08-21',
+     object:'credit', mode:'на дату', order:'по номеру',
+     fields:['no','borrower','days'], stats:['s-npl'], cuts:['dept'], subs:[],
+     params:[{id:'period', role:'вопроса', name:'Отчётный месяц'}]}]},
+
+  {id:'t-ref', kind:'бланк', name:'Справка о задолженности',
+   owner:'Осмонова Г.', asked:false, basis:null, basisAsk:{doc:'Порядок №41', point:'п. 12'},
+   circle:['dep-prom'], forReview:false, fullCoverage:false, schedule:null,
+   series:{prefix:'СП-2026/', manual:false, next:1, used:[]},
+   editions:[{n:1, state:'черновик', since:null, by:'Осмонова Г.', at:'2026-08-22',
+     object:'credit', mode:'сейчас', order:'по номеру', fields:[], stats:[], cuts:[],
+     subs:['no','borrower','остаток_осн'], layout:'бланк справки (docx)',
+     params:[{id:'obj', role:'вопроса', name:'Кредит'}]}]},
+
+  {id:'t-osh', kind:'отчёт', name:'Просрочка свыше 60 дней — свод для комитета',
+   owner:'Осмонова Г.', asked:true, basis:null,
+   circle:ALL_DEPTS.slice(), forReview:true, fullCoverage:false, series:null, schedule:null,
+   editions:[{n:1, state:'черновик', since:null, by:'Осмонова Г.', at:'2026-08-23',
+     object:'credit', mode:'на дату', order:'по просрочке',
+     fields:['no','borrower','dept','days','debt_main'], stats:['s-overdue-sum'], cuts:['dept'], subs:[],
+     params:[{id:'period', role:'вопроса', name:'Отчётный месяц'},
+             {id:'dept',   role:'отбора',  name:'Подразделение'}]}]}
+]; }
+
+/* Зеркала соседей мутируются операциями демо (ядро переименовало поле,
+   статистика вывела показатель, открытие периода поправило снимок). Затравка
+   их возвращает — иначе проверки потекли бы одна в другую.                   */
+const FIELDS0 = clone(FIELDS), STATS0 = clone(STATS), HIST0 = clone(HIST);
+function restoreMirrors(){
+  Object.keys(FIELDS0).forEach(k => { FIELDS[k] = clone(FIELDS0[k]); });
+  STATS.length = 0; clone(STATS0).forEach(s => STATS.push(s));
+  Object.keys(HIST0).forEach(k => { HIST[k] = clone(HIST0[k]); });
+}
+
+/* ============================= СОСТОЯНИЕ ============================== */
+const TODAY = '2026-08-24';
+const FILE_DAYS = 90;                     /* срок жизни файла предварительного
+                                             выпуска, единый на систему (§5) */
+RP.FILE_DAYS = FILE_DAYS;
+
+function seed(){
+  restoreMirrors();
+  const st = {
+    today: TODAY, role: ROLES[1].title, view: 'registry',
+    templates: templatesSeed(),
+    issues: [], seq: 100,
+    periods: {'май 2026':{state:'закрыт'}, 'июнь 2026':{state:'закрыт'}, 'июль 2026':{state:'закрыт'}},
+    log: [],
+    sel: {tpl:'t-overdue', draft:'t-avg', issue:null, obj:'kr-2',
+          params:{asOf:'2026-08-01', dept:''}, recipient:'a-mf', kind:'предварительный'}
+  };
+  RP.state = st;
+  /* Затравочные выпуски делаются НАСТОЯЩЕЙ операцией: снимок в журнале —
+     тот, что произвёл движок, а не выписанный литералом.                    */
+  const was = st.role;
+  st.role = ROLES[1].title;                                   /* уполномоченный */
+  RP.issue('t-overdue', {params:{asOf:'2026-06-01', dept:''}, kind:'окончательный',
+    recipient:'a-mf', at:'2026-06-12'});
+  RP.issue('t-overdue', {params:{asOf:'2026-07-01', dept:''}, kind:'окончательный',
+    recipient:'a-mf', at:'2026-07-14'});
+  RP.issue('t-overdue', {params:{asOf:'2026-08-01', dept:'dep-admin'}, kind:'окончательный',
+    recipient:'a-mf', at:'2026-08-18'});
+  RP.issue('t-portfolio', {params:{asOf:null, dept:''}, kind:'предварительный', at:'2026-04-10'});
+  st.role = was;
+  RP.gcFiles();
+  return st;
+}
+RP.seed = () => { seed(); return RP.state; };
+RP.roles = () => ROLE_TITLES.slice();
+RP.kinds = () => KINDS.slice();
+RP.viewer = () => ROLE(RP.state.role);
+RP.who = () => RP.viewer().who;
+RP.isAuth  = () => RP.viewer().id === 'auth';
+RP.isClerk = () => RP.viewer().id === 'clerk';
+RP.depts = () => clone(DEPTS);
+RP.addressees = () => clone(ADDRESSEES);
+RP.stats = () => clone(STATS);
+RP.fieldsOf = obj => SEAM.fieldList(obj);
+RP.seamsIn = () => clone(SEAMS_IN);
+RP.objects = () => clone(OBJECTS);
+function log(msg){ RP.state.log.unshift({at: RP.state.today, who: RP.who(), msg}); }
+RP.log = () => clone(RP.state.log);
+
+const TPL = id => RP.state.templates.find(t => t.id === id);
+const ISS = id => RP.state.issues.find(i => i.id === id);
+RP.TPL = TPL; RP.ISS = ISS;
+const pubEd = t => t.editions.filter(e => e.state === 'опубликована').slice(-1)[0] || null;
+const draftEd = t => t.editions.filter(e => e.state === 'черновик').slice(-1)[0] || null;
+RP.pubEd = tid => { const t = TPL(tid); return t ? clone(pubEd(t)) : null; };
+RP.draftEd = tid => { const t = TPL(tid); return t ? clone(draftEd(t)) : null; };
+
+/* Период отчёта — месяц, ПРЕДШЕСТВУЮЩИЙ дате состояния: снимок на 1 июля
+   отвечает за июнь. Обязательство и метка расхождения говорят периодом.      */
+function periodOfAsOf(asOf){
+  if(!asOf) return null;
+  const y = +asOf.slice(0,4), m = +asOf.slice(5,7);
+  const d = asOf.slice(8,10) === '01' ? (m === 1 ? (y-1)+'-12' : y+'-'+String(m-1).padStart(2,'0'))
+                                      : asOf.slice(0,7);
+  return MONTHS_N[+d.slice(5,7)-1]+' '+d.slice(0,4);
+}
+function asOfOfPeriod(period){
+  return HIST_DATES.filter(d => periodOfAsOf(d) === period)[0] || null;
+}
+RP.periodOfAsOf = periodOfAsOf; RP.asOfOfPeriod = asOfOfPeriod;
+RP.periods = () => clone(RP.state.periods);
+
+/* ==================== ВИДИМОСТЬ ШАБЛОНОВ (§13.1) =====================
+   Опубликованный шаблон виден тем, кто в круге. Черновик — ЛИЧНЫЙ: пока
+   автор не попросил публикации, его не видит даже уполномоченный (ИО-1).    */
+RP.visibleTemplates = () => {
+  const v = RP.viewer();
+  return RP.state.templates.filter(t => {
+    const pub = pubEd(t);
+    if(pub) return t.circle.indexOf(v.dept) !== -1 || v.scope.length === ALL_DEPTS.length;
+    if(t.owner === v.who) return true;
+    return !!t.asked && RP.isAuth();
+  }).map(t => t.id);
+};
+RP.maySee = tid => RP.visibleTemplates().indexOf(tid) !== -1;
+
+/* Состояние шаблона СЧИТАЕТСЯ, а не хранится: «неисполним» — это ответ на
+   вопрос «что сейчас с перечнем и реестром», а не поле в записи.            */
+RP.tplState = tid => {
+  const t = TPL(tid); if(!t) return null;
+  const ed = pubEd(t);
+  if(!ed) return {state:'черновик', why:'состав собран, но не опубликован: шаблоном его делает публикация (ИО-1)'};
+  const b = brokenBy(t, ed);
+  return b ? {state:'неисполним', why:b} : {state:'опубликован', why:null};
+};
+function brokenBy(t, ed){
+  const list = SEAM.fieldList(ed.object);
+  const lost = ed.fields.concat(ed.subs || []).filter(fid => !list.fields.some(f => f.id === fid));
+  if(lost.length) return 'поле «'+lost[0]+'» объект «'+list.name+'» больше не объявляет — '+
+    'перечень изменил его владелец ('+list.owner+'), шаблону нужна новая редакция';
+  const gone = ed.stats.map(SEAM.statMeta).filter(s => s && s.withdrawn);
+  if(gone.length) return 'показатель «'+gone[0].name+'» выведен '+fmt(gone[0].withdrawn)+
+    ' — шаблону нужна новая редакция';
+  return null;
+}
+RP.brokenTemplates = () => RP.state.templates.filter(t => {
+  const ed = pubEd(t); return ed && brokenBy(t, ed); })
+  .map(t => ({id:t.id, name:t.name, why: brokenBy(t, pubEd(t))}));
+
+/* ================= ПУБЛИКАЦИЯ: ГДЕ ЛОВЯТСЯ ОШИБКИ (§4) ================
+   Всё проверяемое заранее проверяется ЗДЕСЬ, а не на выпуске: к моменту
+   выпуска за экраном человек с задачей, а не с настройкой (ИО-7).           */
+RP.publishChecks = tid => {
+  const t = TPL(tid); if(!t) return [{ok:false, why:'шаблона нет'}];
+  const ed = draftEd(t);
+  if(!ed) return [{ok:false, why:'у шаблона нет черновой редакции: публиковать нечего'}];
+  const list = SEAM.fieldList(ed.object);
+  const out = [];
+  /* 1. подстановка не из публичного перечня */
+  (ed.subs || []).forEach(s => { if(!list.fields.some(f => f.id === s))
+    out.push({check:'подстановка', ok:false,
+      why:'в макете {{'+s+'}}, объект «'+list.name+'» такого поля не объявляет'}); });
+  /* 2. показатель выведен из реестра */
+  ed.stats.forEach(sid => { const m = SEAM.statMeta(sid);
+    if(m && m.withdrawn) out.push({check:'показатель выведен', ok:false,
+      why:'показатель «'+m.name+'» выведен '+fmt(m.withdrawn)+', шаблону нужна новая редакция'}); });
+  /* 3. показатель неисчислим налету при режиме «сейчас» */
+  if(ed.mode === 'сейчас') ed.stats.forEach(sid => { const m = SEAM.statMeta(sid);
+    if(m && !m.live) out.push({check:'исчислимость налету', ok:false,
+      why:'показатель «'+m.name+'» налету не берётся: '+m.why}); });
+  /* 4. нормативное основание, названное не публикующим */
+  if(t.basisAsk) out.push({check:'основание', ok:false,
+    why:'сослаться на пункт нормы может только публикующий: в личном черновике вписано «'+
+      t.basisAsk.point+' '+t.basisAsk.doc+'», уполномоченный называет основание сам'});
+  /* 5. поле ядра переименовано или снято */
+  ed.fields.forEach(fid => { if(!list.fields.some(f => f.id === fid))
+    out.push({check:'поле ядра', ok:false,
+      why:'поле «'+fid+'» объект «'+list.name+'» больше не объявляет: перечень изменил его '+
+        'владелец ('+list.owner+') — виноват не шаблон'}); });
+  return out;
+};
+RP.publish = tid => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
+  if(!RP.isAuth()) return {ok:false, why:'публикует уполномоченный по отчётности: роль «'+
+    RP.state.role+'» собирает личный черновик, но шаблоном его не делает (ИО-1, ADR-0156 §2)'};
+  if(!RP.maySee(tid)) return {ok:false, why:'черновик «'+t.name+'» личный: пока автор ('+t.owner+
+    ') не попросил публикации, его состав не виден никому'};
+  const ed = draftEd(t);
+  if(!ed) return {ok:false, why:'у шаблона нет черновой редакции: публиковать нечего'};
+  const bad = RP.publishChecks(tid);
+  if(bad.length) return {ok:false, why: bad[0].why, all: bad};
+  ed.state = 'опубликована'; ed.since = RP.state.today; ed.at = RP.state.today; ed.by = RP.who();
+  t.asked = false;
+  log('опубликована редакция '+ed.n+' шаблона «'+t.name+'»');
+  return {ok:true, note:'редакция '+ed.n+' опубликована '+fmt(RP.state.today)};
+};
+RP.askPublish = tid => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
+  if(t.owner !== RP.who()) return {ok:false, why:'черновик чужой: попросить публикации может автор'};
+  t.asked = true; log('черновик «'+t.name+'» передан на публикацию');
+  return {ok:true, note:'уполномоченный увидит состав и проверит его §4'};
+};
+RP.setBasis = (tid, basis) => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
+  if(!RP.isAuth()) { t.basisAsk = basis;
+    return {ok:false, why:'сослаться на пункт нормы может только публикующий: основание «'+
+      basis.point+' '+basis.doc+'» записано в черновик как просьба, а не как основание'}; }
+  t.basis = basis; t.basisAsk = null; log('основание шаблона «'+t.name+'» — '+basis.point);
+  return {ok:true, note:'основание названо уполномоченным'};
+};
+/* Круг, расписание, «пригоден для обзора» и серия живут ВНЕ редакции: их
+   правка не порождает новой редакции, потому что не меняет вопроса (§2.1).  */
+RP.setCircle = (tid, depts) => { const t = TPL(tid);
+  if(!RP.isAuth()) return {ok:false, why:'круг подразделений ведёт уполномоченный по отчётности'};
+  t.circle = depts.slice(); log('круг шаблона «'+t.name+'» изменён');
+  return {ok:true, note:'новой редакции не понадобилось: круг — не часть вопроса'}; };
+RP.setSchedule = (tid, sch) => { const t = TPL(tid);
+  if(!RP.isAuth()) return {ok:false, why:'расписание сдачи ведёт уполномоченный по отчётности'};
+  t.schedule = sch; log('расписание шаблона «'+t.name+'» изменено');
+  return {ok:true, note:'обязательства перечитаются из правила — календарь дат руками не ведётся'}; };
+
+/* ==================== ДВИЖОК БЛАНКА (§8) ==============================
+   Тот же закон: подстановки берутся из публичного перечня швом, своих полей
+   у бланка нет. ==ДВИЖОК-БЛАНК==                                           */
+function composeBlank(tpl, ed, objId, viewer){
+  const src = SEAM.objectRows(ed.object, {obj:objId}, viewer.scope.slice());
+  const list = SEAM.fieldList(ed.object);
+  const row = src.rows[0] || null;
+  const subs = (ed.subs || []).map(sid => {
+    const f = list.fields.find(x => x.id === sid);
+    return {id:sid, name: f ? f.name : null, lost: !f, value: row && f ? row[sid] : null};
+  });
+  return {row, subs, hidden: src.hidden,
+    passport:{asOf:null, mode:ed.mode, frozen:false, scope: viewer.scope.map(deptName),
+      edition: ed.n, template: tpl.name, params:{obj:objId}, hidden: src.hidden,
+      seams:['objectRows']}};
+}
+/* ==/ДВИЖОК-БЛАНК== */
+
+/* ===================== ВЫПУСК: ДВЕ СТУПЕНИ (§5) ======================= */
+RP.preview = (tid, params) => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
+  const ed = pubEd(t) || draftEd(t);
+  const v = RP.viewer();
+  if(t.kind === 'бланк') return {ok:true, kind:'бланк', data: composeBlank(t, ed, params.obj, v)};
+  return {ok:true, kind:'отчёт', data: compose(t, ed, params, v)};
+};
+RP.issue = (tid, spec) => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
+  const v = RP.viewer();
+  const ed = pubEd(t);
+  if(!ed) return {ok:false, why:'выпускать можно только опубликованную редакцию: «'+t.name+
+    '» — личный черновик (ИО-1)'};
+  if(t.circle.indexOf(v.dept) === -1) return {ok:false, why:'шаблон «'+t.name+'» не в круге '+
+    'подразделения «'+deptName(v.dept)+'»: круг ведёт уполномоченный (§13.1)'};
+  const br = brokenBy(t, ed);
+  if(br) return {ok:false, why:'шаблон неисполним: '+br};
+  if(typeof spec.recipient === 'string' && spec.recipient && !ADDR(spec.recipient))
+    return {ok:false, why:'получатель — ссылка на справочник адресатов, а не строка: '+
+      '«'+spec.recipient+'» и «Минфин КР» станут в журнале двумя разными адресатами (ИО-5)'};
+  const at = spec.at || RP.state.today;
+  const params = clone(spec.params || {});
+  let data, soft = [], hidden = 0;
+
+  if(t.kind === 'бланк'){
+    /* Два замка (§13.3): шаблон в круге И объект видим. */
+    const o = OBJ(params.obj);
+    if(!o) return {ok:false, why:'объект для бланка не назван'};
+    data = composeBlank(t, ed, params.obj, v);
+    if(!data.row) return {ok:false, why:'объект «'+o.no+'» вне области видимости роли «'+
+      RP.state.role+'»: бланк печатает тот, у кого шаблон в круге И объект видим — два замка (§13.3)'};
+    const lost = data.subs.filter(s => s.lost);
+    if(lost.length) return {ok:false, why:'в макете {{'+lost[0].id+'}}, объект «'+
+      SEAM.fieldList(ed.object).name+'» такого поля не объявляет'};
+  } else {
+    data = compose(t, ed, params, v);
+    soft = data.soft.slice(); hidden = data.hidden;
+    if(data.missing) return {ok:false, why:'снимка статистики на '+fmt(params.asOf)+
+      ' нет вовсе: спросить нечего (ИО-6)'};
+  }
+
+  /* Ступень. Непроверяемое заранее не запрещает выпуск — оно делает его
+     предварительным (ИО-8). На шаблоне с обязательным полным охватом это
+     ещё и запрещает называть получателя (§13.4).                          */
+  let kind = spec.kind === 'окончательный' ? 'окончательный' : 'предварительный';
+  let note = null, recipient = null;
+  if(kind === 'окончательный'){
+    /* У отчёта получатель выбирается из справочника адресатов; у бланка им
+       является контрагент объекта, и ссылка берётся из самого объекта — но
+       в обоих случаях это ССЫЛКА, а не набранная строка (ИО-5).             */
+    if(t.kind === 'бланк'){
+      if(spec.recipient) return {ok:false, why:'у бланка получатель не выбирается из справочника '+
+        'адресатов: им является контрагент объекта, и ссылка на него берётся из самого объекта (ИО-5)'};
+    } else if(!spec.recipient) return {ok:false, why:'окончательный выпуск бывает только с названным '+
+      'получателем: числа морозит получатель, а не кнопка (ИО-4, ADR-0157 §2)'};
+    if(spec.format && spec.format !== 'pdf') return {ok:false, why:'наружу с получателем уходит '+
+      'только pdf: снимок в редактируемом формате — не снимок ('+spec.format+' отклонён, ИО-10)'};
+    if(soft.length){
+      kind = 'предварительный';
+      note = t.fullCoverage
+        ? 'шаблон требует полного охвата: '+soft[0]+'; назвать получателя нельзя, выпуск '+
+          'остался предварительным (§13.4)'
+        : 'выпуск сделан предварительным: '+soft[0]+' (ИО-8)';
+    } else {
+      recipient = t.kind === 'бланк'
+        ? {ref: params.obj, name: OBJ(params.obj).borrower, viaObject:true}
+        : {ref: spec.recipient, name: ADDR(spec.recipient).name};
+    }
+  }
+
+  /* Номер серии тратится ВМЕСТЕ СО СНИМКОМ: перепечатка черновика номера
+     не сжигает (ИО-9). Ручная серия — журнал ведёт канцелярия (§8).        */
+  let number = null;
+  if(t.kind === 'бланк' && kind === 'окончательный'){
+    if(t.series.manual){
+      if(!spec.number) return {ok:false, why:'серия «'+t.series.prefix+'» ручная: журнал '+
+        'исходящих ведёт канцелярия, номер вводится рукой — система его не выдаёт'};
+      if(t.series.used.indexOf(spec.number) !== -1) return {ok:false, why:'номер «'+spec.number+
+        '» в серии уже занят: система номера не выдаёт, но дубль ловит'};
+      number = spec.number; t.series.used.push(number);
+    } else {
+      number = t.series.prefix + String(t.series.next).padStart(3,'0');
+      t.series.next += 1; t.series.used.push(number);
+    }
+  }
+
+  const passport = clone(data.passport);
+  passport.frozen = kind === 'окончательный';
+  passport.issuedAt = at; passport.by = RP.who();
+  const coverage = params.dept ? [params.dept]
+    : v.scope.filter(d => t.circle.indexOf(d) !== -1);
+  const id = 'ВП-' + (++RP.state.seq);
+  const rec = {
+    id, tpl: t.id, tplName: t.name, kindTpl: t.kind, ed: ed.n, kind, at, by: RP.who(),
+    recipient, params, coverage, passport, number,
+    period: t.kind === 'отчёт' ? periodOfAsOf(params.asOf) : null,
+    obj: t.kind === 'бланк' ? params.obj : null,
+    formats: kind === 'окончательный' ? ['pdf']
+           : (t.kind === 'бланк' ? ['docx','pdf'] : ['xls','pdf']),
+    snapshot: kind === 'окончательный'
+      ? (t.kind === 'бланк'
+          ? {at, subs: clone(data.subs)}
+          : {at, rows: clone(data.rows), totals: data.totals.map(x =>
+              ({id:x.id, name:x.name, unit:x.unit, value:x.value}))})
+      : null,
+    fileAlive: true,
+    fileUntil: kind === 'окончательный' ? null : addDays(at, FILE_DAYS),
+    fileDeadAt: null, diverged: false, divergedAt: null, correctionOf: null, correctedBy: null,
+    note
+  };
+  RP.state.issues.push(rec);
+  log((kind === 'окончательный' ? 'окончательный выпуск ' : 'предварительный выпуск ')+id+
+    ' по шаблону «'+t.name+'»'+(recipient ? ', получатель '+recipient.name : ''));
+  return {ok:true, id, kind, note: note || (kind === 'окончательный'
+    ? 'числа и файл заморожены снимком'+(number ? ', номер '+number : '')
+    : 'обязательства не закрывает, снимка не даёт, номера не тратит'), rec: clone(rec)};
+};
+RP.reprint = tid => RP.issue(tid, {params: clone(RP.state.sel.params), kind:'предварительный'});
+
+/* Факт выпуска вечен; расходник — только файл предварительного (ИО-11).    */
+RP.deleteIssue = id => {
+  const i = ISS(id); if(!i) return {ok:false, why:'выпуска нет'};
+  return {ok:false, why:'выпуск '+id+' не удаляется: журнал заведён ради вопроса «что мы отдали '+
+    'наружу» — стёртая строка отвечает на него неправдой (ИО-11). Гаснет только файл '+
+    'предварительного выпуска, по сроку'};
+};
+RP.gcFiles = () => {
+  let n = 0;
+  RP.state.issues.forEach(i => { if(i.kind === 'предварительный' && i.fileAlive &&
+    i.fileUntil && i.fileUntil.localeCompare(RP.state.today) === -1){
+      i.fileAlive = false; i.fileDeadAt = i.fileUntil; n++; } });
+  return {ok:true, n, note:'файлов погашено: '+n+'; строки журнала на месте'};
+};
+
+/* ================== РАСХОЖДЕНИЕ СО СДАННЫМ (§6) =======================
+   Метка не отзывает выпуск: сданное остаётся сданным, но перестаёт молча
+   считаться верным.                                                        */
+RP.recompute = id => {
+  const i = ISS(id); if(!i || !i.snapshot || !i.snapshot.totals) return null;
+  const t = TPL(i.tpl), ed = t.editions.find(e => e.n === i.ed);
+  const now = compose(t, ed, i.params, {scope: i.coverage.slice()});
+  const diffs = i.snapshot.totals.map(s => {
+    const n = now.totals.find(x => x.id === s.id);
+    return {name: s.name, unit: s.unit, was: s.value, now: n ? n.value : null};
+  }).filter(d => d.was !== d.now);
+  return {diffs, changed: diffs.length > 0};
+};
+RP.reopenPeriod = (period, why) => {
+  const asOf = asOfOfPeriod(period);
+  if(!asOf) return {ok:false, why:'период «'+period+'» снимком не закрыт: открывать нечего'};
+  if(RP.viewer().id !== 'buh' && !RP.isAuth()) return {ok:false,
+    why:'закрытый период открывает главный бухгалтер: правка чисел задним числом — его решение (ADR-0089)'};
+  RP.state.periods[period] = {state:'открыт заново', why, at: RP.state.today};
+  /* Правка приходит из ядра и меняет снимок статистики — расхождение
+     ЗАРАБОТАНО пересчётом, а не проставлено флагом.                        */
+  HIST[asOf]['kr-8'].debt_main = 9950000;
+  HIST[asOf]['kr-8'].days = 22;
+  HIST[asOf]['kr-8'].status = 'просрочен';
+  let marked = 0;
+  RP.state.issues.forEach(i => {
+    if(!i.snapshot || i.period !== period) return;
+    const r = RP.recompute(i.id);
+    if(r && r.changed){ i.diverged = true; i.divergedAt = RP.state.today; marked++; }
+  });
+  log('период «'+period+'» открыт заново: '+why);
+  return {ok:true, marked, note:'выпусков со снимком помечено: '+marked+
+    '; предварительные выпуски метки не получают — метить нечего (§6)'};
+};
+RP.whatWentOut = period => RP.state.issues
+  .filter(i => i.period === period && i.recipient)
+  .map(i => ({id:i.id, at:i.at, to:i.recipient.name, tpl:i.tplName, number:i.number,
+              diverged:i.diverged, coverage:i.coverage.map(deptName)}));
+RP.corrective = id => {
+  const prev = ISS(id); if(!prev) return {ok:false, why:'выпуска нет'};
+  if(!prev.recipient) return {ok:false, why:'уточнять нечего: предварительный выпуск наружу не уходил'};
+  if(prev.correctedBy) return {ok:false, why:'выпуск '+id+' уже уточнён выпуском '+prev.correctedBy};
+  const res = RP.issue(prev.tpl, {params: clone(prev.params), kind:'окончательный',
+    recipient: prev.recipient.ref});
+  if(!res.ok) return res;
+  const next = ISS(res.id);
+  next.correctionOf = id; prev.correctedBy = res.id;
+  log('корректирующий выпуск '+res.id+' уточняет '+id);
+  return {ok:true, id: res.id, note:'прежний выпуск '+id+' не погашен: он остаётся сданным, '+
+    'связь видна с обеих сторон'};
+};
+
+/* ================= КАЛЕНДАРЬ И ОБЯЗАТЕЛЬСТВА (§7) =====================
+   Обязательства ПОРОЖДАЮТСЯ правилом расписания, а не ведутся списком дат
+   (решение открытого вопроса §19 п.2). Состояние считается из выпусков.     */
+RP.obligations = () => {
+  const out = [];
+  RP.state.templates.forEach(t => {
+    const ed = pubEd(t); if(!t.schedule || !ed) return;
+    let m = t.schedule.since;
+    for(let guard = 0; guard < 60; guard++){
+      const asOf = firstOfNext(m);
+      if(asOf.localeCompare(RP.state.today) === 1) break;
+      const due = dayOfMonth(asOf, t.schedule.dueDay);
+      const period = periodOfAsOf(asOf);
+      t.circle.forEach(dep => {
+        const done = RP.state.issues.filter(i => i.tpl === t.id && i.kind === 'окончательный' &&
+          i.recipient && i.params.asOf === asOf && i.coverage.indexOf(dep) !== -1)[0] || null;
+        const state = done ? (done.at.localeCompare(due) === 1 ? 'сдано с опозданием' : 'сдано')
+          : (RP.state.today.localeCompare(due) === 1 ? 'просрочено' : 'ожидается');
+        out.push({id: t.id+'/'+asOf+'/'+dep, tpl:t.id, tplName:t.name, dept:dep,
+          deptName: deptName(dep), period, asOf, due, state,
+          who: RESPONSIBLE[dep] || '—', issue: done ? done.id : null,
+          late: state === 'просрочено' ? daysBetween(due, RP.state.today) : 0});
+      });
+      m = asOf;
+    }
+  });
+  return out;
+};
+RP.markDelivered = oblId => ({ok:false, why:'отметки «сдано» в модуле нет: обязательство '+
+  'закрывает ВЫПУСК с названным получателем, а не отметка — сданное без выпуска — это несданное '+
+  'с отметкой (ИО-12, ADR-0160 §2)'});
+RP.autoTask = oblId => ({ok:false, why:'задачу по просроченному обязательству отчётность не '+
+  'ставит: у поручения должен быть автор, отвечающий за нагрузку. Модуль показывает, но не '+
+  'поручает (ИО-13, ADR-0160)'});
+RP.taskBasis = oblId => {
+  const o = RP.obligations().find(x => x.id === oblId);
+  if(!o) return null;
+  return {kind:'обязательство по отчётности', ref:o.id, text:'«'+o.tplName+'» за '+o.period+
+    ', '+o.deptName+', срок '+fmt(o.due), state:o.state,
+    note:'это ОСНОВАНИЕ задачи; саму задачу заводит человек в модуле задач (ADR-0160 §4)'};
+};
+
+/* ======================= МУТАЦИИ СОСЕДЕЙ (демо) ======================= */
+RP.renameField = (objType, fid, newId, newName) => {
+  const o = FIELDS[objType]; if(!o) return {ok:false, why:'объекта нет'};
+  const f = o.fields.find(x => x.id === fid); if(!f) return {ok:false, why:'поля нет'};
+  f.id = newId; f.name = newName || f.name;
+  log('ядро переименовало поле «'+fid+'» → «'+newId+'» в перечне объекта «'+o.name+'»');
+  const broken = RP.brokenTemplates();
+  return {ok:true, broken, note:'публичный перечень — шов: переименование ломает публикацию '+
+    'и называет виновника ('+o.owner+'), сломано шаблонов: '+broken.length+' (ADR-0158 §4)'};
+};
+RP.withdrawStat = sid => {
+  const s = STAT(sid); if(!s) return {ok:false, why:'показателя нет'};
+  s.withdrawn = RP.state.today;
+  const list = RP.breakingTemplates(sid);
+  log('статистика вывела показатель «'+s.name+'» из реестра');
+  return {ok:true, breaking:list, note:'владельцу реестра показан список шаблонов, которые '+
+    'сломаются: '+list.length+' (§16)'};
+};
+RP.breakingTemplates = sid => RP.state.templates
+  .filter(t => t.editions.some(e => e.stats.indexOf(sid) !== -1))
+  .map(t => ({id:t.id, name:t.name,
+    where: t.editions.filter(e => e.stats.indexOf(sid) !== -1).map(e => 'ред. '+e.n+' ('+e.state+')')}));
+
+/* ========================= ШВЫ НАРУЖУ (§12) =========================== */
+const SEAMS_OUT = [
+  {id:'reportIssues',      q:'что предъявлялось по этому объекту',      to:'карточка объекта, зеркалом'},
+  {id:'reportObligations', q:'что за подразделением к сроку',           to:'задачи и руководитель'},
+  {id:'reportTemplate',    q:'пригоден ли шаблон для обзора, какая редакция текущая', to:'анализ'}
+];
+const NO_SEAM_OUT = {
+  reportRows:    'строк ответа шов не отдаёт: за строками ходят в выпуск, где рядом стоит его '+
+                 'паспорт — число без паспорта не показывается (ИО-6)',
+  reportDraft:   'черновиков шов не отдаёт: незаконченный состав, показанный как шаблон, '+
+                 'читается как шаблон (ИО-1)',
+  reportQuery:   'произвольного запроса отчётность не отдаёт и не имеет: у неё самой своих '+
+                 'запросов к базе нет, только четыре шва (ИО-3)'
+};
+const CONSUMERS = [
+  {module:'карточка объекта (ядро)', may:['reportIssues'], note:'зеркало «какие бумаги уходили»'},
+  {module:'задачи',        may:['reportObligations'], note:'обязательство — основание задачи; '+
+    'поручает человек (ИО-13)'},
+  {module:'руководитель',  may:['reportObligations'], note:'календарь своего подразделения'},
+  {module:'анализ',        may:['reportTemplate'],    note:'обзор ссылается на шаблон и на выпуск, '+
+    'своего снимка не заводит (ИО-16)'},
+  {module:'статистика',    may:[], why:'отчётность статистике не отдаёт ничего швом: список '+
+    'шаблонов, ломающихся при выводе показателя, — экран владельца реестра, а не контракт'}
+];
+RP.seamsOut = () => clone(SEAMS_OUT);
+RP.noSeamOut = () => clone(NO_SEAM_OUT);
+RP.consumers = () => clone(CONSUMERS);
+RP.reportIssues = objId => RP.state.issues.filter(i => i.obj === objId)
+  .map(i => ({id:i.id, kind:i.kind, at:i.at, tpl:i.tplName,
+    to: i.recipient ? i.recipient.name : null, number:i.number}));
+RP.reportObligations = dep => RP.obligations().filter(o => o.dept === dep)
+  .map(o => ({tpl:o.tplName, period:o.period, due:o.due, state:o.state, who:o.who}));
+RP.reportTemplate = tid => { const t = TPL(tid); if(!t) return null;
+  const ed = pubEd(t);
+  return {id:t.id, name:t.name, forReview: t.forReview, edition: ed ? ed.n : null,
+    basis: t.basis, kind: t.kind,
+    note:'обзор ссылается на выпуск как на снимок основания и своего снимка не заводит (ИО-16)'}; };
+RP.callSeamOut = (module, seam, arg) => {
+  const c = CONSUMERS.find(x => x.module === module);
+  if(!c) return {ok:false, why:'такого потребителя нет'};
+  if(NO_SEAM_OUT[seam]) return {ok:false, why: NO_SEAM_OUT[seam]};
+  if(!SEAMS_OUT.some(s => s.id === seam)) return {ok:false, why:'шва «'+seam+'» у отчётности нет'};
+  if(c.may.indexOf(seam) === -1) return {ok:false, why: c.why ||
+    ('модуль «'+module+'» шов «'+seam+'» не спрашивает')};
+  const data = seam === 'reportIssues' ? RP.reportIssues(arg)
+             : seam === 'reportObligations' ? RP.reportObligations(arg)
+             : RP.reportTemplate(arg);
+  return {ok:true, data};
+};
+RP.ownQuery = () => ({ok:false, why:'своего запроса к базе у отчётности нет: четыре шва — '+
+  'единственный вход, и потому обойти область видимости она не может физически (ИО-3, ADR-0158 §2)'});
+RP.ownFormula = () => ({ok:false, why:'своей формулы у отчётности нет: показатель берётся из '+
+  'реестра статистики, поле — из публичного перечня объекта. Вторая формула той же величины '+
+  'разошлась бы с первой (ИО-2, ADR-0150)'});
+RP.newWorklist = () => ({ok:false, why:'рабочие списки — волна 3: замороженный состав объектов, '+
+  'выбывшие показаны выбывшими, закрытие вместо стирания (ИО-14, §9 канона)'});
+RP.newDashboard = () => ({ok:false, why:'дашборды — волна 3: плитка показывает объявленный отчёт, '+
+  'паспорт у каждой плитки, а не у экрана (ИО-15, §10 канона)'});
+RP.layoutEditor = () => ({ok:false, why:'верстальщик макета бланка — волна 3: здесь бланк уже '+
+  'сверстан, а проверяется закон подстановок и номера (§8 канона)'});
+
+/* ============================== ЭКРАНЫ =============================== */
+const pill = (t, c) => '<span class="pill'+(c?' '+c:'')+'">'+esc(t)+'</span>';
+const kv = rows => '<div class="kv">'+rows.map(r =>
+  '<div class="k">'+esc(r[0])+'</div><div class="v">'+(r[2] ? r[1] : esc(r[1]))+'</div>').join('')+'</div>';
+const stateCls = s => s === 'опубликован' ? 'ok' : s === 'неисполним' ? 'err' : 'neutral';
+const oblCls = s => s === 'сдано' ? 'ok' : s === 'сдано с опозданием' ? 'warn'
+  : s === 'просрочено' ? 'err' : 'info';
+
+function passportBox(p, frozen){
+  const rows = [];
+  rows.push(['режим', p.mode]);
+  if(p.mode === 'на дату') rows.push(['состояние на', fmt(p.asOf)]);
+  rows.push(['редакция шаблона', 'ред. '+p.edition]);
+  rows.push(['область видимости', p.scope.join(', ')]);
+  if(p.hidden) rows.push(['скрыто видимостью', objWord(p.hidden)+' — охват ответа неполный']);
+  rows.push(['спрошенные швы', p.seams ? p.seams.join(', ') : 'objectRows']);
+  rows.push(['числа', frozen ? 'заморожены снимком' : 'живые, пересчитываются при каждом показе']);
+  return '<div class="snap'+(frozen?'':' prelim')+'">'+rows.map(r =>
+    '<div class="row"><span class="k">'+esc(r[0])+'</span>'+esc(r[1])+'</div>').join('')+'</div>';
+}
+
+/* ------------------------------ РЕЕСТР ------------------------------- */
+function scRegistry(){
+  const v = RP.viewer(), vis = RP.visibleTemplates();
+  const hiddenDrafts = RP.state.templates.filter(t => vis.indexOf(t.id) === -1);
+  let h = '<div class="page-lead">Шаблон — <em>объявленный состав ответа</em>. Пока состав не '+
+    'опубликован, он личный черновик автора: шаблоном его делает публикация, а не сохранение '+
+    '(ИО-1, ADR-0156 §2). Печать и экран к делу отношения не имеют — отчёт определяется '+
+    'объявленностью, а не способом показа (ADR-0156 §1).</div>';
+  h += '<table class="cgrid"><thead><tr><th>Шаблон</th><th>Вид</th><th>Состояние</th>'+
+    '<th>Ред.</th><th>Основание</th><th>Круг</th><th>Расписание</th><th></th></tr></thead><tbody>';
+  vis.forEach(tid => {
+    const t = TPL(tid), st = RP.tplState(tid);
+    h += '<tr'+(st.state === 'неисполним' ? ' class="out"' : '')+'>'+
+      '<td><b>'+esc(t.name)+'</b><div class="small mono">'+esc(t.id)+'</div>'+
+        (st.why ? '<div class="why">'+esc(st.why)+'</div>' : '')+'</td>'+
+      '<td><span class="tmpl-kind">'+esc(t.kind)+'</span>'+
+        (t.series ? '<div class="small mono">'+esc(t.series.prefix)+
+          (t.series.manual ? ' · ручная' : ' · сквозная')+'</div>' : '')+'</td>'+
+      '<td>'+pill(st.state, stateCls(st.state))+'</td>'+
+      '<td>'+(RP.pubEd(tid) ? 'ред. '+RP.pubEd(tid).n : '—')+'</td>'+
+      '<td class="small">'+(t.basis ? esc((t.basis.point ? t.basis.point+' ' : '')+t.basis.doc)
+        : '<span class="muted">не названо</span>')+'</td>'+
+      '<td class="small">'+esc(t.circle.map(deptName).join('; '))+'</td>'+
+      '<td class="small">'+(t.schedule ? esc(t.schedule.text) : '<span class="muted">по требованию</span>')+'</td>'+
+      '<td><div class="btn-row" style="margin:0">'+
+        '<button class="btn btn-secondary btn-sm" onclick="RP.openBuilder(\''+t.id+'\')">Состав</button>'+
+        (st.state === 'опубликован'
+          ? '<button class="btn btn-primary btn-sm" onclick="RP.openIssue(\''+t.id+'\')">Выпустить</button>' : '')+
+      '</div></td></tr>';
+  });
+  h += '</tbody></table>';
+
+  h += '<div class="card" style="margin-top:14px"><h3>Чего вы здесь не видите — и почему</h3>'+
+    '<div class="small">Роль «'+esc(v.title)+'», область видимости: '+
+      esc(v.scope.map(deptName).join('; '))+'.</div>'+
+    (hiddenDrafts.length
+      ? '<div class="facts">'+hiddenDrafts.map(t => '<div class="f no">'+esc(t.name)+' — личный '+
+          'черновик '+esc(t.owner)+(t.asked ? ', передан на публикацию (виден уполномоченному)'
+            : ', публикации не просили: не видит никто, кроме автора')+'</div>').join('')+'</div>'
+      : '<div class="facts"><div class="f yes"><em>всё, что есть в системе, вам видно</em></div></div>')+
+    '</div>';
+
+  const broken = RP.brokenTemplates();
+  if(broken.length) h += '<div class="banner danger"><b>Неисполнимые шаблоны: '+broken.length+'.</b> '+
+    broken.map(b => esc(b.name)+' — '+esc(b.why)).join('<br>')+'</div>';
+
+  h += '<div class="card"><h3>Соседи меняются — модуль это переживает вслух</h3>'+
+    '<div class="small">Публичный перечень полей и реестр показателей — <em>швы</em>, а не '+
+    'локальные справочники. Их правка ломает публикацию шаблона и <em>называет виновника</em> '+
+    '(ADR-0158 §4, §16 канона).</div><div class="btn-row">'+
+    '<button class="btn btn-secondary btn-sm" onclick="RP.demoRename()">Ядро переименовало «Дней просрочки» → days_overdue</button>'+
+    '<button class="btn btn-secondary btn-sm" onclick="RP.demoWithdraw()">Статистика выводит «Сумма просроченной задолженности»</button>'+
+    '<button class="btn btn-secondary btn-sm" onclick="RP.reset()">Вернуть исходное состояние</button>'+
+    '</div></div>';
+  return h;
+}
+RP.openBuilder = tid => { RP.state.sel.draft = tid; RP.state.view = 'builder'; render(); };
+RP.openIssue   = tid => { RP.state.sel.tpl = tid; RP.state.view = 'issue'; render(); };
+RP.demoRename = () => { const r = RP.renameField('credit','days','days_overdue','Дней просрочки');
+  toast(r.note, r.broken.length ? 'err' : 'ok'); render(); };
+RP.demoWithdraw = () => { const r = RP.withdrawStat('s-overdue-sum');
+  toast(r.note, 'err'); render(); };
+RP.reset = () => { const view = RP.state.view; RP.seed(); RP.state.view = view;
+  toast('исходное состояние восстановлено','ok'); render(); };
+
+/* ---------------------------- КОНСТРУКТОР ---------------------------- */
+function scBuilder(){
+  const vis = RP.visibleTemplates();
+  let tid = RP.state.sel.draft;
+  if(vis.indexOf(tid) === -1) tid = vis[0];
+  const t = TPL(tid), ed = draftEd(t) || pubEd(t), list = SEAM.fieldList(ed.object);
+  const checks = draftEd(t) ? RP.publishChecks(tid) : [];
+  let h = '<div class="page-lead">Конструктор собирает <em>вопрос</em>: объект, режим, поля из '+
+    'публичного перечня владельца, показатели из реестра статистики. Своей формулы и своего '+
+    'перечня полей у отчётности нет ни одной (ИО-2, ИО-3) — поэтому вторая версия той же '+
+    'величины здесь физически не заводится.</div>';
+  h += '<div class="form-row"><div class="fld"><label>Шаблон</label><select onchange="RP.selDraft(this.value)">'+
+    vis.map(id => '<option value="'+id+'"'+(id===tid?' selected':'')+'>'+esc(TPL(id).name)+'</option>').join('')+
+    '</select></div></div>';
+
+  h += '<div class="cols" style="margin-top:14px"><div class="body"><div class="card"><h3>Состав редакции '+
+    ed.n+' <span class="small">· '+esc(ed.state)+'</span></h3>'+
+    kv([
+      ['Вид шаблона', t.kind],
+      ['Объект', list.name+' (владелец перечня — '+list.owner+')'],
+      ['Режим', ed.mode + (ed.mode === 'сейчас'
+        ? ' — спрашивается шов objectRows у ядра' : ' — спрашиваются швы статистики')],
+      ['Поля', ed.fields.length ? ed.fields.map(f => { const x = list.fields.find(y => y.id === f);
+        return x ? esc(x.name) : '<span style="color:var(--asubk-red)">'+esc(f)+' — нет в перечне</span>'; }).join(', ')
+        : '<span class="muted">—</span>', true],
+      ['Подстановки бланка', (ed.subs||[]).length ? (ed.subs||[]).map(s => { const x = list.fields.find(y => y.id === s);
+        return '{{'+esc(s)+'}}' + (x ? '' : ' <span style="color:var(--asubk-red)">— нет в перечне</span>'); }).join(', ')
+        : '<span class="muted">—</span>', true],
+      ['Показатели', ed.stats.length ? ed.stats.map(s => { const m = SEAM.statMeta(s);
+        return m ? esc(m.name)+(m.withdrawn ? ' <span style="color:var(--asubk-red)">— выведен '+fmt(m.withdrawn)+'</span>'
+          : (m.live ? '' : ' <span style="color:var(--asubk-amber)">— налету не берётся</span>')) : esc(s); }).join('; ')
+        : '<span class="muted">—</span>', true],
+      ['Параметры', ed.params.map(p => p.name+' ('+p.role+')').join('; ')],
+      ['Разрезы', ed.cuts.length ? ed.cuts.map(deptCutName).join(', ') : '—']
+    ])+'</div>';
+
+  h += '<div class="card"><h3>Пять проверок публикации (§4)</h3>'+
+    '<div class="small">Отказ громкий и <em>на публикации</em>, а не тихая неточность в выпуске: '+
+    'к моменту выпуска за экраном человек с задачей, а не с настройкой (ИО-7).</div>';
+  if(!draftEd(t)) h += '<div class="banner info">У шаблона нет черновой редакции — публиковать нечего.</div>';
+  else if(!checks.length) h += '<div class="banner ok">Все пять проверок пройдены. '+
+    'Публикация превратит личный черновик в шаблон организации.</div>';
+  else h += '<div class="facts">'+checks.map(c => '<div class="f no"><b>'+esc(c.check)+':</b> '+
+    esc(c.why)+'</div>').join('')+'</div>';
+  h += '<div class="btn-row">'+
+    '<button class="btn btn-primary btn-sm" onclick="RP.doPublish(\''+t.id+'\')">Опубликовать редакцию</button>'+
+    '<button class="btn btn-secondary btn-sm" onclick="RP.doAsk(\''+t.id+'\')">Попросить публикации</button>'+
+    '<button class="btn btn-secondary btn-sm" onclick="RP.doBasis(\''+t.id+'\')">Сослаться на п. 12 Порядка №41</button>'+
+    '</div></div>';
+
+  h += '<div class="card"><h3>Что правится без новой редакции</h3>'+
+    '<div class="small">Круг, расписание, признак «пригоден для обзора» и серия живут <em>вне</em> '+
+    'редакции: они не меняют вопроса, а значит не порождают новой редакции (§2.1).</div>'+
+    kv([['Круг подразделений', t.circle.map(deptName).join('; ')],
+        ['Расписание сдачи', t.schedule ? t.schedule.text : 'по требованию'],
+        ['Пригоден для обзора', t.forReview ? 'да' : 'нет'],
+        ['Полный охват обязателен', t.fullCoverage ? 'да — получателя нельзя назвать при усечённом охвате (§13.4)' : 'нет']])+
+    '<div class="btn-row">'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.doCircle(\''+t.id+'\')">Сузить круг до департамента промышленности</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.doSchedule(\''+t.id+'\')">Назначить ежемесячную сдачу к 15-му</button>'+
+    '</div></div></div>';
+
+  h += '<div class="side"><div class="mirror"><div class="row"><span class="k">публичный перечень</span>'+
+    esc(list.name)+'</div><div class="row"><span class="k">владелец</span>'+esc(list.owner)+'</div>'+
+    list.fields.map(f => '<div class="row"><span class="k">'+esc(f.id)+'</span>'+esc(f.name)+'</div>').join('')+
+    '</div><div class="small">Это <em>зеркало</em> чужого контракта. Отчётность его читает швом '+
+    '<span class="mono">fieldList</span> и своих полей не заводит — иначе переименование в ядре '+
+    'тихо разошлось бы с шаблоном.</div>'+
+    '<div class="mirror none" style="margin-top:12px"><div class="row"><span class="k">реестр показателей</span>'+
+    'владелец — статистика</div>'+
+    STATS.map(s => '<div class="row"><span class="k">'+esc(s.name)+'</span>'+
+      (s.withdrawn ? 'выведен '+fmt(s.withdrawn) : (s.live ? 'налету — да' : 'налету — нет'))+'</div>').join('')+
+    '</div></div></div>';
+  return h;
+}
+const deptCutName = c => c === 'dept' ? 'по подразделению' : c;
+RP.selDraft = id => { RP.state.sel.draft = id; render(); };
+RP.doPublish = id => act(RP.publish(id), 'редакция опубликована');
+RP.doAsk = id => act(RP.askPublish(id), 'черновик передан на публикацию');
+RP.doBasis = id => act(RP.setBasis(id, {doc:'Порядок №41 (ред. 06.07.2026)', point:'п. 12'}), 'основание названо');
+RP.doCircle = id => act(RP.setCircle(id, ['dep-prom']), 'круг изменён');
+RP.doSchedule = id => act(RP.setSchedule(id, {freq:'ежемесячно', dueDay:15, since:'2026-05-01',
+  asOfRule:'первое число месяца, следующего за отчётным',
+  text:'ежемесячно, не позднее 15-го числа месяца, следующего за отчётным'}), 'расписание назначено');
+
+/* ------------------------------ ВЫПУСК ------------------------------- */
+function scIssue(){
+  const vis = RP.visibleTemplates().filter(id => RP.pubEd(id));
+  if(!vis.length) return '<div class="banner warn">Опубликованных шаблонов вам не видно: '+
+    'выпускать можно только опубликованную редакцию (ИО-1).</div>';
+  let tid = RP.state.sel.tpl;
+  if(vis.indexOf(tid) === -1) tid = vis[0];
+  const t = TPL(tid), ed = pubEd(t), sel = RP.state.sel;
+  const isBlank = t.kind === 'бланк';
+  const params = isBlank ? {obj: sel.obj} : {asOf: sel.params.asOf, dept: sel.params.dept};
+  const prev = RP.preview(tid, params);
+
+  let h = '<div class="page-lead">Выпуск — <em>предъявление ответа</em>. Ступеней две: '+
+    'предварительно (числа живые, обязательства не закрываются, номер не тратится) и '+
+    'окончательно с названным получателем — тогда числа и файл морозятся снимком. '+
+    'Морозит именно получатель, а не кнопка «сохранить» (ИО-4, ADR-0157 §2).</div>';
+
+  h += '<div class="form-row"><div class="fld"><label>Шаблон</label>'+
+    '<select onchange="RP.selTpl(this.value)">'+vis.map(id =>
+      '<option value="'+id+'"'+(id===tid?' selected':'')+'>'+esc(TPL(id).name)+'</option>').join('')+'</select></div>';
+  if(isBlank) h += '<div class="fld"><label>Кредит (объект бланка)</label>'+
+    '<select onchange="RP.setObj(this.value)">'+OBJECTS.map(o =>
+      '<option value="'+o.id+'"'+(o.id===sel.obj?' selected':'')+'>'+esc(o.no+' · '+o.borrower)+'</option>').join('')+
+    '</select></div>';
+  else {
+    if(ed.mode === 'на дату') h += '<div class="fld"><label>Отчётный месяц</label>'+
+      '<select onchange="RP.setAsOf(this.value)">'+HIST_DATES.map(d =>
+        '<option value="'+d+'"'+(d===sel.params.asOf?' selected':'')+'>'+esc(periodOfAsOf(d))+
+        ' (состояние на '+fmt(d)+')</option>').join('')+
+      '<option value="2026-09-01"'+(sel.params.asOf==='2026-09-01'?' selected':'')+
+      '>август 2026 (снимка нет — будет подстановка)</option></select></div>';
+    h += '<div class="fld"><label>Подразделение (разрез)</label><select onchange="RP.setDept(this.value)">'+
+      '<option value="">все подразделения круга</option>'+DEPTS.map(d =>
+        '<option value="'+d.id+'"'+(d.id===sel.params.dept?' selected':'')+'>'+esc(d.name)+'</option>').join('')+
+      '</select></div>';
+  }
+  h += '</div>';
+
+  /* --- предпросмотр --- */
+  h += '<div class="sheet" style="margin-top:14px"><div class="sheet-h">'+esc(t.name)+'</div>'+
+    '<div class="sheet-sub">ред. '+ed.n+' · '+esc(t.basis ? (t.basis.point ? t.basis.point+' ' : '')+t.basis.doc
+      : 'основание не названо')+'</div>';
+  if(isBlank){
+    const d = prev.data;
+    if(!d.row) h += '<div class="banner danger">Объект вне области видимости роли: бланк печатает тот, '+
+      'у кого шаблон в круге <b>и</b> объект видим — два замка (§13.3).</div>';
+    else {
+      h += '<div class="lineform">'+d.subs.map(s => '<div class="small"><b>{{'+esc(s.id)+'}}</b> → '+
+        (s.lost ? '<span style="color:var(--asubk-red)">поля нет в перечне</span>'
+          : esc(typeof s.value === 'number' ? money(s.value) : s.value))+
+        '<div class="muted">'+esc(s.name || '—')+'</div></div>').join('')+'</div>';
+      h += '<div class="foot-pass">Подстановки берутся из <b>публичного перечня</b> объекта тем же '+
+        'швом, что и колонки отчёта: своих полей у бланка нет (§8).</div>';
+    }
+  } else {
+    const d = prev.data;
+    h += '<table class="cgrid"><thead><tr>'+d.cols.map(c =>
+      '<th>'+(c.lost ? '<span style="color:var(--asubk-red)">'+esc(c.id)+' — нет в перечне</span>' : esc(c.name))+
+      '</th>').join('')+'</tr></thead><tbody>';
+    d.rows.forEach(r => { h += '<tr>'+d.cols.map(c => {
+      const val = r[c.id];
+      return '<td'+(typeof val === 'number' ? ' class="num"' : '')+'>'+
+        esc(typeof val === 'number' ? money(val) : (val == null ? '—' : val))+'</td>'; }).join('')+'</tr>'; });
+    if(!d.rows.length) h += '<tr><td colspan="'+Math.max(1,d.cols.length)+'" class="muted">строк нет</td></tr>';
+    h += '</tbody></table>';
+    h += '<div class="totals">'+d.totals.map(x => '<div class="tot"><div class="tn">'+esc(x.name)+'</div>'+
+      '<div class="tv">'+(x.value == null ? '—' : esc(money(x.value)))+' <span class="small">'+esc(x.unit)+'</span></div>'+
+      '<div class="tp">'+esc(x.why || 'считается по видимым строкам (§13.2)')+'</div></div>').join('')+'</div>';
+    h += passportBox(d.passport, false);
+    if(d.soft.length) h += '<div class="banner warn"><b>Проверить заранее это было нельзя.</b> '+
+      d.soft.map(esc).join('; ')+'. Такой выпуск станет предварительным, даже если запросить '+
+      'окончательный (ИО-8).</div>';
+  }
+  h += '</div>';
+
+  /* --- ступень --- */
+  h += '<div class="card"><h3>Ступень выпуска</h3><div class="form-row">'+
+    '<div class="fld"><label>Ступень</label><select onchange="RP.setKind(this.value)">'+
+      ['предварительный','окончательный'].map(k => '<option'+(k===sel.kind?' selected':'')+'>'+k+'</option>').join('')+
+    '</select></div>'+
+    '<div class="fld"><label>Получатель'+(isBlank ? ' — контрагент объекта, ссылкой' : ' (справочник адресатов)')+'</label>'+
+      '<select onchange="RP.setRecipient(this.value)"'+
+        (sel.kind==='окончательный' && !isBlank ?'':' disabled')+'>'+
+      ADDRESSEES.map(a => '<option value="'+a.id+'"'+(a.id===sel.recipient?' selected':'')+'>'+esc(a.name)+'</option>').join('')+
+    '</select></div>';
+  if(isBlank && t.series && t.series.manual) h += '<div class="fld"><label>Номер (серия ручная)</label>'+
+    '<input value="'+esc(sel.number||'')+'" onchange="RP.setNumber(this.value)" placeholder="ПР-2026/015"></div>';
+  h += '<div class="fld"><label>&nbsp;</label>'+
+    '<button class="btn btn-primary" onclick="RP.doIssue()">Выпустить</button></div></div>';
+  h += '<div class="facts">'+
+    '<div class="f">предварительный — обязательств не закрывает, снимка не даёт, номера не тратит; '+
+      'файл живёт '+dayWord(RP.FILE_DAYS)+' и гаснет (§5, ADR-0161 §7)</div>'+
+    '<div class="f">окончательный — только с названным получателем и только pdf: снимок в '+
+      'редактируемом формате не снимок (ИО-10, ADR-0161 §2)</div>'+
+    (isBlank && t.series ? '<div class="f">серия <b>'+esc(t.series.prefix)+'</b>'+
+      (t.series.manual ? ' ручная — номер вводит канцелярия, система ловит дубль'
+        : ' сквозная — следующий номер '+esc(t.series.prefix+String(t.series.next).padStart(3,'0')))+
+      '; номер тратится вместе со снимком (ИО-9)</div>' : '')+
+    '</div>';
+  h += '<div class="btn-row">'+
+    '<button class="btn btn-secondary btn-sm" onclick="RP.demoStringRecipient()">Вписать получателя строкой «Минфин КР»</button>'+
+    '<button class="btn btn-secondary btn-sm" onclick="RP.demoDocx()">Отдать получателю docx</button>'+
+    '</div></div>';
+  return h;
+}
+RP.selTpl = id => { RP.state.sel.tpl = id; render(); };
+RP.setObj = id => { RP.state.sel.obj = id; render(); };
+RP.setAsOf = v => { RP.state.sel.params.asOf = v; render(); };
+RP.setDept = v => { RP.state.sel.params.dept = v; render(); };
+RP.setKind = v => { RP.state.sel.kind = v; render(); };
+RP.setRecipient = v => { RP.state.sel.recipient = v; render(); };
+RP.setNumber = v => { RP.state.sel.number = v; render(); };
+RP.doIssue = () => {
+  const sel = RP.state.sel, t = TPL(sel.tpl) || TPL(RP.visibleTemplates()[0]);
+  const params = t.kind === 'бланк' ? {obj: sel.obj} : {asOf: sel.params.asOf, dept: sel.params.dept};
+  const r = RP.issue(t.id, {params, kind: sel.kind,
+    recipient: (sel.kind === 'окончательный' && t.kind !== 'бланк') ? sel.recipient : null,
+    number: sel.number});
+  if(r.ok){ RP.state.sel.issue = r.id; RP.state.view = 'journal'; }
+  act(r, r.ok ? 'выпуск '+r.id+': '+r.note : '');
+};
+RP.demoStringRecipient = () => { const sel = RP.state.sel, t = TPL(sel.tpl);
+  act(RP.issue(t.id, {params:{asOf:sel.params.asOf, dept:sel.params.dept, obj:sel.obj},
+    kind:'окончательный', recipient:'Минфин КР'})); };
+RP.demoDocx = () => { const sel = RP.state.sel, t = TPL(sel.tpl);
+  act(RP.issue(t.id, {params:{asOf:sel.params.asOf, dept:sel.params.dept, obj:sel.obj},
+    kind:'окончательный', recipient:sel.recipient, format:'docx'})); };
+
+/* ------------------------------ ЖУРНАЛ ------------------------------- */
+function scJournal(){
+  const iss = RP.state.issues.slice().reverse();
+  let h = '<div class="page-lead">Факт выпуска <em>вечен</em>: журнал заведён ради вопроса «что мы '+
+    'отдали наружу», и стёртая строка отвечает на него неправдой (ИО-11). Расходник — только файл '+
+    'предварительного выпуска, по единому сроку.</div>';
+  h += '<table class="cgrid"><thead><tr><th>Выпуск</th><th>Шаблон</th><th>Ступень</th>'+
+    '<th>Получатель</th><th>Номер</th><th>Охват</th><th>Файл</th><th></th></tr></thead><tbody>';
+  iss.forEach(i => {
+    h += '<tr'+(i.diverged ? ' class="hl"' : (i.fileAlive ? '' : ' class="out"'))+'>'+
+      '<td><b class="mono">'+esc(i.id)+'</b><div class="small">'+fmt(i.at)+' · '+esc(i.by)+'</div>'+
+        (i.period ? '<div class="small">период: '+esc(i.period)+'</div>' : '')+'</td>'+
+      '<td>'+esc(i.tplName)+'<div class="small">ред. '+i.ed+' · '+esc(i.kindTpl)+'</div></td>'+
+      '<td>'+pill(i.kind, i.kind === 'окончательный' ? 'ok' : 'info')+
+        (i.diverged ? '<div>'+pill('расхождение со сданным','err')+'</div>' : '')+
+        (i.correctionOf ? '<div class="small">уточняет '+esc(i.correctionOf)+'</div>' : '')+
+        (i.correctedBy ? '<div class="small">уточнён выпуском '+esc(i.correctedBy)+'</div>' : '')+
+        (i.note ? '<div class="why">'+esc(i.note)+'</div>' : '')+'</td>'+
+      '<td class="small">'+(i.recipient ? esc(i.recipient.name) : '<span class="muted">не назывался</span>')+'</td>'+
+      '<td class="mono">'+(i.number ? esc(i.number) : '—')+'</td>'+
+      '<td class="small">'+esc(i.coverage.map(deptName).join('; ') || '—')+
+        (i.passport.hidden ? '<div class="why">скрыто видимостью: '+objWord(i.passport.hidden)+'</div>' : '')+'</td>'+
+      '<td class="small">'+(i.kind === 'окончательный' ? 'заморожен снимком, pdf'
+        : (i.fileAlive ? 'живёт до '+fmt(i.fileUntil) : 'погашен '+fmt(i.fileDeadAt)+', строка осталась'))+'</td>'+
+      '<td><div class="btn-row" style="margin:0">'+
+        '<button class="btn btn-secondary btn-sm" onclick="RP.selIssue(\''+i.id+'\')">Паспорт</button>'+
+        (i.recipient ? '<button class="btn btn-secondary btn-sm" onclick="RP.doCorrective(\''+i.id+'\')">Уточнить</button>' : '')+
+        '<button class="btn btn-danger btn-sm" onclick="RP.doDelete(\''+i.id+'\')">Удалить</button>'+
+      '</div></td></tr>';
+  });
+  h += '</tbody></table>';
+
+  const sel = ISS(RP.state.sel.issue);
+  if(sel){
+    h += '<div class="card'+(sel.snapshot ? ' frozen' : '')+'" style="margin-top:14px"><h3>Паспорт выпуска '+
+      esc(sel.id)+'</h3>'+passportBox(sel.passport, !!sel.snapshot);
+    if(sel.snapshot && sel.snapshot.totals){
+      h += '<div class="totals">'+sel.snapshot.totals.map(x => '<div class="tot"><div class="tn">'+esc(x.name)+
+        '</div><div class="tv">'+esc(money(x.value))+' <span class="small">'+esc(x.unit)+'</span></div>'+
+        '<div class="tp">снимок на '+fmt(sel.snapshot.at)+'</div></div>').join('')+'</div>';
+      const rc = RP.recompute(sel.id);
+      if(rc && rc.changed) h += '<div class="banner danger"><b>Расхождение со сданным.</b> '+
+        rc.diffs.map(d => esc(d.name)+': сдано '+money(d.was)+', сейчас '+money(d.now)).join('; ')+
+        '. Выпуск не отзывается — сданное остаётся сданным, но перестаёт молча считаться верным (§6).</div>';
+    }
+    if(!sel.snapshot) h += '<div class="banner info">Снимка нет: предварительный выпуск числа не морозит, '+
+      'обязательства не закрывает и метку расхождения получить не может — метить нечего.</div>';
+    h += '</div>';
+  }
+
+  h += '<div class="card"><h3>Период открыли заново — что мы отдали наружу</h3>'+
+    '<div class="small">Правка задним числом разрешена (<span class="mono">ADR-0089</span>), и '+
+    'потому нужен обратный ход: <em>по затронутому периоду показать всё, что уже ушло получателю</em> '+
+    '(ADR-0157 §5).</div>'+
+    '<div class="btn-row"><button class="btn btn-secondary btn-sm" onclick="RP.doReopen()">'+
+      'Открыть заново период «июль 2026» (сторно платежа по КД-2024/259)</button></div>';
+  const perOut = RP.whatWentOut('июль 2026');
+  if(perOut.length) h += '<table class="cgrid" style="margin-top:12px"><thead><tr><th>Выпуск</th>'+
+    '<th>Дата</th><th>Кому</th><th>Что</th><th>Метка</th></tr></thead><tbody>'+
+    perOut.map(r => '<tr><td class="mono">'+esc(r.id)+'</td><td>'+fmt(r.at)+'</td><td>'+esc(r.to)+
+      '</td><td>'+esc(r.tpl)+'</td><td>'+(r.diverged ? pill('расхождение','err') : pill('совпадает','ok'))+
+      '</td></tr>').join('')+'</tbody></table>';
+  h += '</div>';
+  return h;
+}
+RP.selIssue = id => { RP.state.sel.issue = id; render(); };
+RP.doDelete = id => act(RP.deleteIssue(id));
+RP.doCorrective = id => { const r = RP.corrective(id); if(r.ok) RP.state.sel.issue = r.id; act(r, r.note); };
+RP.doReopen = () => act(RP.reopenPeriod('июль 2026',
+  'сторнирован ошибочно отражённый платёж по КД-2024/259'), 'период открыт заново');
+
+/* ----------------------------- КАЛЕНДАРЬ ----------------------------- */
+function scCalendar(){
+  const obl = RP.obligations();
+  const byPeriod = {};
+  obl.forEach(o => { (byPeriod[o.period] = byPeriod[o.period] || []).push(o); });
+  let h = '<div class="page-lead">Обязательство — <em>именованная сдача к сроку</em>. Оно не '+
+    'заводится списком дат: календарь <em>порождается правилом расписания</em> шаблона, и потому '+
+    'смена срока переписывает будущее целиком, а не по одной строке (решение открытого вопроса §19 п.2).</div>';
+  RP.state.templates.filter(t => t.schedule && pubEd(t)).forEach(t => {
+    h += '<div class="seam"><b>'+esc(t.name)+'</b> — <span class="q">'+esc(t.schedule.text)+
+      '; дата состояния: '+esc(t.schedule.asOfRule)+'</span></div>'; });
+  Object.keys(byPeriod).forEach(p => {
+    h += '<div class="card"><h3>'+esc(p)+' <span class="small">· срок '+fmt(byPeriod[p][0].due)+'</span></h3>'+
+      '<table class="cgrid"><thead><tr><th>Подразделение</th><th>Исполнитель</th><th>Состояние</th>'+
+      '<th>Закрыто выпуском</th><th></th></tr></thead><tbody>'+
+      byPeriod[p].map(o => '<tr><td>'+esc(o.deptName)+'</td><td class="small">'+esc(o.who)+'</td>'+
+        '<td>'+pill(o.state, oblCls(o.state))+(o.late ? ' <span class="small">'+dayWord(o.late)+'</span>' : '')+'</td>'+
+        '<td class="mono">'+(o.issue ? esc(o.issue) : '—')+'</td>'+
+        '<td><div class="btn-row" style="margin:0">'+
+          '<button class="btn btn-secondary btn-sm" onclick="RP.doMark(\''+o.id+'\')">Отметить сданным</button>'+
+          '<button class="btn btn-secondary btn-sm" onclick="RP.doTask(\''+o.id+'\')">Поставить задачу</button>'+
+          '<button class="btn btn-secondary btn-sm" onclick="RP.doBasisTask(\''+o.id+'\')">Основание задачи</button>'+
+        '</div></td></tr>').join('')+'</tbody></table></div>';
+  });
+  h += '<div class="card"><h3>Две кнопки, которых в модуле нет</h3><div class="facts">'+
+    '<div class="f no"><b>«Отметить сданным».</b> Обязательство закрывает выпуск с названным '+
+      'получателем: сданное без выпуска — это несданное с отметкой (ИО-12, ADR-0160 §2).</div>'+
+    '<div class="f no"><b>«Поставить задачу автоматически».</b> У поручения должен быть автор, '+
+      'отвечающий за нагрузку. Модуль показывает, но не поручает (ИО-13, ADR-0160).</div>'+
+    '</div></div>';
+  return h;
+}
+RP.doMark = id => act(RP.markDelivered(id));
+RP.doTask = id => act(RP.autoTask(id));
+RP.doBasisTask = id => { const b = RP.taskBasis(id);
+  toast(b ? b.text+' — '+b.note : 'обязательства нет', 'ok'); };
+
+/* ------------------------------- ШВЫ --------------------------------- */
+function scSeams(){
+  let h = '<div class="page-lead">Своих запросов к базе у отчётности <em>нет вовсе</em>: вход — '+
+    'четыре шва, и потому обойти область видимости она не может физически (ИО-3, ADR-0158 §2). '+
+    'Область видимости применяется <em>внутри</em> шва, а усечение произносится вслух в паспорте (§13.4).</div>';
+  h += '<div class="card"><h3>Четыре шва внутрь</h3>'+
+    RP.seamsIn().map(s => '<div class="seam"><b class="mono">'+esc(s.id)+'</b> — <span class="q">'+
+      esc(s.q)+'</span> · владелец: '+esc(s.owner)+'</div>').join('')+
+    '<div class="btn-row">'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.demoSeam(\'objectRows\')">Спросить objectRows</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.demoSeam(\'statRows\')">Спросить statRows на 01.08.2026</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.demoSeam(\'statSlice\')">Спросить statSlice</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.demoOwnQuery()">Сделать свой запрос к базе</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.demoOwnFormula()">Завести свою формулу</button>'+
+    '</div></div>';
+  h += '<div class="card"><h3>Три шва наружу и кто их спрашивает</h3>'+
+    '<table class="cgrid"><thead><tr><th>Потребитель</th><th>Что спрашивает</th><th>Зачем</th></tr></thead><tbody>'+
+    RP.consumers().map(c => '<tr'+(c.may.length?'':' class="out"')+'><td>'+esc(c.module)+'</td>'+
+      '<td class="mono">'+(c.may.length ? esc(c.may.join(', ')) : '—')+'</td>'+
+      '<td class="small">'+esc(c.note || c.why)+'</td></tr>').join('')+'</tbody></table>'+
+    '<div class="facts">'+Object.keys(RP.noSeamOut()).map(k => '<div class="f no"><b class="mono">'+
+      esc(k)+'</b> — '+esc(RP.noSeamOut()[k])+'</div>').join('')+'</div>'+
+    '<div class="btn-row">'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.demoOut(\'карточка объекта (ядро)\',\'reportIssues\')">Карточка объекта спрашивает reportIssues</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.demoOut(\'анализ\',\'reportRows\')">Анализ просит строки ответа</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.demoOut(\'задачи\',\'reportTemplate\')">Задачи просят шаблон</button>'+
+    '</div></div>';
+  h += '<div class="card"><h3>Что модуль требует от соседей</h3><table class="cgrid"><thead><tr>'+
+    '<th>От кого</th><th>Что</th><th>Решение</th></tr></thead><tbody>'+
+    [['Ядро','публичные перечни полей по каждому объекту + шов objectRows','ADR-0158'],
+     ['Статистика','признак «исчислим налету» у показателя + экран «что сломается при выводе»','ADR-0159'],
+     ['Анализ','ссылка на выпуск вместо своего снимка','ADR-0157 §4'],
+     ['Задачи','второй вид основания — обязательство по отчётности','ADR-0160 §4'],
+     ['Справочники','справочник адресатов сдачи','ADR-0157 §3']].map(r =>
+      '<tr><td>'+esc(r[0])+'</td><td class="small">'+esc(r[1])+'</td><td class="mono">'+esc(r[2])+'</td></tr>').join('')+
+    '</tbody></table></div>';
+  return h;
+}
+RP.demoSeam = id => {
+  const v = RP.viewer(), cut = {dept: RP.state.sel.params.dept || null};
+  const r = id === 'objectRows' ? SEAM.objectRows('credit', cut, v.scope.slice())
+          : id === 'statRows'   ? SEAM.statRows('credit','2026-08-01', cut, v.scope.slice())
+          : SEAM.statSlice('s-portfolio', cut, null, v.scope.slice());
+  const n = r.rows ? r.rows.length : r.value;
+  toast(id+': '+(r.rows ? objWord(n) : 'значение '+money(n)+' '+r.unit)+
+    ', скрыто видимостью '+objWord(r.hidden||0), 'ok');
+};
+RP.demoOwnQuery = () => act(RP.ownQuery());
+RP.demoOwnFormula = () => act(RP.ownFormula());
+RP.demoOut = (mod, seam) => { const arg = seam === 'reportIssues' ? RP.state.sel.obj
+    : seam === 'reportObligations' ? RP.viewer().dept : RP.state.sel.tpl;
+  const r = RP.callSeamOut(mod, seam, arg);
+  if(r.ok) toast(mod+' ← '+seam+': '+JSON.stringify(r.data).slice(0,220), 'ok'); else act(r); };
+
+/* ----------------------------- ВОЛНА 3 ------------------------------- */
+function scWave3(){
+  return '<div class="page-lead">Волна 2 — <em>ядро закона</em>: объявленный состав, публикация с '+
+    'пятью отказами, две ступени выпуска, снимок и расхождение, обязательства из правила. Три '+
+    'экрана оставлены волне 3 сознательно: их поведение уже определено инвариантами, но их '+
+    'демонстрация ничего не добавила бы к доказательству ядра.</div>'+
+  '<div class="card"><h3>Что откроется в волне 3</h3><div class="facts">'+
+    '<div class="f"><b>Верстальщик макета бланка (§8).</b> Здесь бланк уже свёрстан, и проверяется '+
+      'закон подстановок и номера, а не редактор вёрстки.</div>'+
+    '<div class="f"><b>Рабочие списки (§9, ИО-14).</b> Замороженный состав объектов, выбывшие '+
+      'показаны выбывшими, список кончается закрытием, а не стиранием.</div>'+
+    '<div class="f"><b>Дашборды (§10, ИО-15).</b> Плитка показывает объявленный отчёт; паспорт у '+
+      'каждой плитки, а не один сверху — иначе «на дату» и «сейчас» смешаются в одном экране.</div>'+
+    '</div><div class="btn-row">'+
+      '<button class="btn btn-secondary btn-sm" onclick="act(RP.layoutEditor())">Открыть верстальщик</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="act(RP.newWorklist())">Создать рабочий список</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="act(RP.newDashboard())">Собрать дашборд</button>'+
+    '</div></div>';
+}
+
+/* --------------------------- КАРКАС ЭКРАНА --------------------------- */
+const VIEWS = {
+  registry:{title:'Реестр шаблонов', fn:scRegistry},
+  builder: {title:'Конструктор',     fn:scBuilder},
+  issue:   {title:'Выпуск',          fn:scIssue},
+  journal: {title:'Журнал выпусков', fn:scJournal},
+  calendar:{title:'Календарь сдачи', fn:scCalendar},
+  seams:   {title:'Швы и соседи',    fn:scSeams},
+  wave3:   {title:'Волна 3 — заперто', fn:scWave3}
+};
+function toast(msg, kind){
+  if(typeof document === 'undefined') return;
+  const el = document.createElement('div');
+  el.className = 'toast'+(kind ? ' '+kind : '');
+  el.textContent = msg;
+  document.getElementById('toastWrap').appendChild(el);
+  setTimeout(() => el.remove(), 7000);
+}
+function act(res, okMsg){
+  if(res && res.ok) toast(okMsg || res.note || 'готово','ok');
+  else toast((res && res.why) || 'отказано','err');
+  render();
+}
+RP.go = v => { RP.state.view = v; render(); };
+RP.setRole = title => { RP.state.role = title;
+  toast('роль: '+title+'; область видимости — '+ROLE(title).scope.map(deptName).join('; '),'ok');
+  render(); };
+function render(){
+  if(typeof document === 'undefined') return;
+  const st = RP.state, view = VIEWS[st.view] ? st.view : 'registry';
+  document.getElementById('title').textContent = VIEWS[view].title;
+  document.getElementById('panel').innerHTML = VIEWS[view].fn();
+  document.querySelectorAll('.nav-item').forEach(b =>
+    b.classList.toggle('active', b.dataset.v === view));
+  const sel = document.getElementById('role');
+  if(sel.options.length !== ROLE_TITLES.length){
+    sel.innerHTML = ROLE_TITLES.map(t => '<option>'+esc(t)+'</option>').join(''); }
+  sel.value = st.role;
+  const v = RP.viewer(), obl = RP.obligations();
+  document.getElementById('foot').innerHTML =
+    '<div class="row"><b>'+fmt(st.today)+'</b> — сегодня в макете</div>'+
+    '<div class="row">видно: '+esc(v.scope.map(deptName).join('; '))+'</div>'+
+    '<div class="row">шаблонов видно: '+RP.visibleTemplates().length+' из '+st.templates.length+'</div>'+
+    '<div class="row">выпусков: '+st.issues.length+', просрочено обязательств: '+
+      obl.filter(o => o.state === 'просрочено').length+'</div>';
+}
+RP.seed();
+if(typeof window !== 'undefined'){ window.RP = RP; window.SEAM = SEAM; window.act = act;
+  window.VIEWS = VIEWS; }
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,408 @@
+// Headless smoke для mockups/reports/reports.html (ИО-1…ИО-16, ADR-0156…0161).
+// Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
+// render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
+// Проверяется поведение: объявленность состава, пять отказов публикации, две ступени
+// выпуска, снимок и расхождение со сданным, серии и номера, обязательства из правила,
+// четыре шва внутрь и три наружу, названные отказы вместо отсутствующих кнопок.
+// Блоки, которые правят состояние, начинаются с RP.seed() — состояние между ними не течёт.
+//   node scripts/inspect/reports-check.mjs
+import { readFileSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+import vm from 'node:vm';
+
+const __dir = dirname(fileURLToPath(import.meta.url));
+const HTML  = resolve(__dir, '../../mockups/reports/reports.html');
+const src   = readFileSync(HTML, 'utf8');
+
+const m = src.match(/<script>([\s\S]*?)<\/script>/);
+if (!m) { console.error('<script> не найден в HTML'); process.exit(1); }
+const win = {};
+const sandbox = { window: win, console, setTimeout: () => {}, clearTimeout: () => {} };
+vm.createContext(sandbox);
+vm.runInContext(m[1], sandbox, { filename: 'reports.inline.js' });
+const RP = win.RP, SEAM = win.SEAM;
+if (!RP) { console.error('window.RP не экспортирован'); process.exit(1); }
+
+const results = [];
+const ok = (n, cond, note = '') => results.push({ n, pass: !!cond, note });
+const has = (s, part) => String(s || '').includes(part);
+const R = { user:'Пользователь (Осмонова Г.)', auth:'Уполномоченный по отчётности (Тентимишев К.)',
+            clerk:'Делопроизводитель (Абдырахманова С.)', head:'Руководитель подразделения (Асанов А.)',
+            buh:'Главный бухгалтер (Бекова Н.)' };
+const as = r => { RP.state.role = R[r]; };
+
+/* ---------- A. Шаблоном состав делает публикация (ИО-1, ADR-0156 §2) ---------- */
+(() => {
+  RP.seed();
+  as('auth');
+  const authSees = RP.visibleTemplates();
+  as('user');
+  const userSees = RP.visibleTemplates();
+  const tRef = RP.state.templates.find(t => t.id === 't-ref');   // asked:false, автор — Осмонова
+  ok(1, authSees.indexOf('t-ref') === -1 && userSees.indexOf('t-ref') !== -1 && tRef.asked === false,
+    `личный черновик «${tRef.name}» не виден даже уполномоченному, пока автор не попросил публикации — ИО-1`);
+
+  as('user');
+  const pub = RP.publish('t-osh');
+  ok(2, !pub.ok && has(pub.why, 'публикует уполномоченный') && has(pub.why, 'ИО-1'),
+    `пользователь опубликовать не может: «${pub.why.slice(0, 70)}…»`);
+
+  as('auth');
+  const st0 = RP.tplState('t-osh');
+  const pub2 = RP.publish('t-osh');
+  const st1 = RP.tplState('t-osh');
+  ok(3, st0.state === 'черновик' && pub2.ok && st1.state === 'опубликован',
+    `состояние шаблона СЧИТАЕТСЯ, а не хранится: «${st0.state}» → «${st1.state}» после публикации`);
+
+  as('auth');
+  const iss = RP.issue('t-avg', { params:{}, kind:'предварительный' });
+  ok(4, !iss.ok && has(iss.why, 'только опубликованную редакцию'),
+    `выпуск личного черновика отклонён: «${iss.why.slice(0, 60)}…»`);
+})();
+
+/* ---------- B. Пять отказов публикации, все на публикации (§4, ИО-7) ---------- */
+(() => {
+  RP.seed();
+  as('auth');
+  const ref = RP.publishChecks('t-ref');
+  const sub = ref.find(c => c.check === 'подстановка');
+  const bas = ref.find(c => c.check === 'основание');
+  ok(5, sub && has(sub.why, 'в макете {{остаток_осн}}') && has(sub.why, 'такого поля не объявляет'),
+    `подстановка не из перечня названа дословно: «${sub ? sub.why : '—'}»`);
+  ok(6, bas && has(bas.why, 'сослаться на пункт нормы может только публикующий'),
+    `норму называет публикующий, а не автор черновика: «${bas ? bas.why.slice(0, 70) : '—'}…»`);
+
+  const npl = RP.publishChecks('t-npl');
+  ok(7, npl.length === 1 && has(npl[0].why, 'выведен 12.08.2026') && has(npl[0].why, 'новая редакция'),
+    `выведенный показатель ловится на публикации: «${npl[0].why}»`);
+
+  const avg = RP.publishChecks('t-avg');
+  ok(8, avg.length === 1 && has(avg[0].why, 'налету не берётся') && has(avg[0].why, 'ночным прогоном'),
+    `неисчислимый налету показатель в режиме «сейчас» отклонён причиной владельца реестра — ADR-0159`);
+
+  const osh = RP.publishChecks('t-osh');
+  ok(9, osh.length === 0 && RP.publish('t-osh').ok,
+    `чистый черновик проходит все пять проверок и становится шаблоном организации`);
+
+  as('user');
+  const bs = RP.setBasis('t-osh', { doc:'Порядок №41', point:'п. 12' });
+  ok(10, !bs.ok && has(bs.why, 'как просьба, а не как основание'),
+    `основание, вписанное не публикующим, остаётся просьбой: «${bs.why.slice(0, 70)}…»`);
+})();
+
+/* ---------- C. Своей формулы и своего запроса нет (ИО-2, ИО-3) ---------- */
+(() => {
+  const eng = m[1].slice(m[1].indexOf('==ДВИЖОК=='), m[1].indexOf('==/ДВИЖОК=='));
+  const blank = m[1].slice(m[1].indexOf('==ДВИЖОК-БЛАНК=='), m[1].indexOf('==/ДВИЖОК-БЛАНК=='));
+  const banned = ['OBJECTS', 'HIST', 'STATS[', 'FIELDS[', 'statValue', 'nearestSnapshot']
+    .filter(w => eng.includes(w) || blank.includes(w));
+  ok(11, banned.length === 0 && eng.length > 800,
+    `в движке состава (${eng.length} симв.) и движке бланка (${blank.length}) нет ни базы, ни формулы: ` +
+    `запрещённых имён ${banned.length} — ИО-2, ИО-3`);
+
+  RP.seed();
+  const q = RP.ownQuery(), f = RP.ownFormula();
+  ok(12, !q.ok && has(q.why, 'обойти область видимости она не может физически') &&
+        !f.ok && has(f.why, 'Вторая формула той же величины разошлась бы с первой'),
+    `«свой запрос» и «своя формула» — названные отказы, а не отсутствующие кнопки`);
+})();
+
+/* ---------- D. Видимость применяется внутри шва (§13.2, §13.4) ---------- */
+(() => {
+  RP.seed();
+  as('user');                                   // область видимости — только dep-prom
+  const v = RP.viewer();
+  const rows = SEAM.objectRows('credit', { dept:null }, v.scope.slice());
+  const slice = SEAM.statSlice('s-portfolio', { dept:null }, null, v.scope.slice());
+  as('auth');
+  const all = SEAM.statSlice('s-portfolio', { dept:null }, null, RP.viewer().scope.slice());
+  ok(13, rows.rows.length === 3 && rows.hidden === 5 && slice.value < all.value,
+    `шов вернул ${rows.rows.length} строк и произнёс «скрыто ${rows.hidden}»; итог посчитан по видимым ` +
+    `строкам (${slice.value} против ${all.value}) — иначе итог рассказал бы то, чего в строках нет, §13.2`);
+
+  const sub = SEAM.statRows('credit', '2026-09-01', { dept:null }, RP.viewer().scope.slice());
+  const none = SEAM.statRows('credit', '2026-01-01', { dept:null }, RP.viewer().scope.slice());
+  ok(14, sub.substituted === '2026-08-01' && none.missing === true,
+    `снимка на 01.09.2026 нет — подставлен ближайший на ${sub.substituted}; на 01.01.2026 снимка нет вовсе`);
+})();
+
+/* ---------- E. Две ступени выпуска: числа морозит получатель (ИО-4, ИО-8) ---------- */
+(() => {
+  RP.seed();
+  as('auth');
+  const prelim = RP.issue('t-overdue', { params:{ asOf:'2026-08-01', dept:'' }, kind:'предварительный' });
+  const pr = RP.ISS(prelim.id);
+  ok(15, prelim.ok && pr.snapshot === null && pr.recipient === null && pr.number === null &&
+        pr.fileUntil === RP.state.today.slice(0,4) + '-11-22',
+    `предварительный выпуск: снимка нет, получателя нет, номера нет, файл живёт ${RP.FILE_DAYS} дней ` +
+    `и гаснет ${pr.fileUntil} — §5, ADR-0161 §7`);
+
+  const noRec = RP.issue('t-overdue', { params:{ asOf:'2026-08-01', dept:'' }, kind:'окончательный' });
+  ok(16, !noRec.ok && has(noRec.why, 'числа морозит получатель, а не кнопка'),
+    `окончательный без получателя отклонён: «${noRec.why.slice(0, 70)}…» — ИО-4`);
+
+  const strRec = RP.issue('t-overdue', { params:{ asOf:'2026-08-01', dept:'' },
+    kind:'окончательный', recipient:'Минфин КР' });
+  ok(17, !strRec.ok && has(strRec.why, 'станут в журнале двумя разными адресатами'),
+    `получатель строкой отклонён ссылкой на справочник — ИО-5, ADR-0157 §3`);
+
+  const docx = RP.issue('t-overdue', { params:{ asOf:'2026-08-01', dept:'' },
+    kind:'окончательный', recipient:'a-mf', format:'docx' });
+  ok(18, !docx.ok && has(docx.why, 'снимок в редактируемом формате — не снимок'),
+    `docx получателю отклонён: наружу с получателем — только pdf, ИО-10, ADR-0161 §2`);
+
+  const fin = RP.issue('t-overdue', { params:{ asOf:'2026-08-01', dept:'' },
+    kind:'окончательный', recipient:'a-mf' });
+  const f = RP.ISS(fin.id);
+  ok(19, fin.ok && f.kind === 'окончательный' && f.snapshot && f.snapshot.totals.length === 2 &&
+        f.passport.frozen === true && f.fileUntil === null && f.formats.join() === 'pdf',
+    `окончательный выпуск: снимок с ${f.snapshot.totals.length} итогами заморожен, файл бессрочен, форматы — ${f.formats.join()}`);
+
+  as('user');                                    // видит только dep-prom, шаблон требует полного охвата
+  const cut = RP.issue('t-overdue', { params:{ asOf:'2026-08-01', dept:'' },
+    kind:'окончательный', recipient:'a-mf' });
+  const c = RP.ISS(cut.id);
+  ok(20, cut.ok && c.kind === 'предварительный' && c.recipient === null &&
+        has(c.note, 'полного охвата') && has(c.note, '§13.4'),
+    `усечённый видимостью охват не запрещает выпуск — он делает его предварительным и запрещает ` +
+    `называть получателя: «${c.note.slice(0, 80)}…» — ИО-8, §13.4`);
+
+  const gone = RP.issue('t-npl', { params:{ asOf:'2026-01-01' }, kind:'предварительный' });
+  ok(21, !gone.ok, `выпуск по неопубликованному/неисполнимому шаблону отклонён: «${gone.why.slice(0, 60)}…»`);
+})();
+
+/* ---------- F. Бланк: два замка, подстановки, серии и номера (§8, ИО-9) ---------- */
+(() => {
+  RP.seed();
+  as('clerk');
+  const before = RP.TPL('t-notice').series.next;
+  const pre = RP.issue('t-notice', { params:{ obj:'kr-2' }, kind:'предварительный' });
+  ok(22, pre.ok && RP.ISS(pre.id).number === null && RP.TPL('t-notice').series.next === before,
+    `перепечатка предварительного бланка номера не сжигает: следующий по-прежнему ${before} — ИО-9, ADR-0161 §5`);
+
+  const fin = RP.issue('t-notice', { params:{ obj:'kr-2' }, kind:'окончательный' });
+  const f = RP.ISS(fin.id);
+  ok(23, fin.ok && f.number === 'УВ-2026/037' && RP.TPL('t-notice').series.next === before + 1 &&
+        f.snapshot && f.recipient && f.recipient.name === 'ОсОО «Нарын-Агро»' && f.recipient.viaObject,
+    `номер ${f.number} потрачен ВМЕСТЕ со снимком; получатель бланка — контрагент объекта, ссылкой (ИО-5)`);
+
+  const addr = RP.issue('t-notice', { params:{ obj:'kr-2' }, kind:'окончательный', recipient:'a-mf' });
+  ok(24, !addr.ok && has(addr.why, 'контрагент объекта'),
+    `бланку адресат из справочника не выбирается: «${addr.why.slice(0, 70)}…»`);
+
+  const noNum = RP.issue('t-claim', { params:{ obj:'kr-6' }, kind:'окончательный' });
+  const dup   = RP.issue('t-claim', { params:{ obj:'kr-6' }, kind:'окончательный', number:'ПР-2026/014' });
+  const good  = RP.issue('t-claim', { params:{ obj:'kr-6' }, kind:'окончательный', number:'ПР-2026/015' });
+  ok(25, !noNum.ok && has(noNum.why, 'журнал исходящих ведёт канцелярия') &&
+        !dup.ok && has(dup.why, 'система номера не выдаёт, но дубль ловит') && good.ok,
+    `ручная серия: номер вводит канцелярия, система его не выдаёт, но дубль ловит — ADR-0161 §6`);
+
+  as('user');                                   // dep-prom; kr-4 — dep-admin
+  const lock = RP.issue('t-notice', { params:{ obj:'kr-4' }, kind:'предварительный' });
+  ok(26, !lock.ok && has(lock.why, 'два замка'),
+    `бланк печатает тот, у кого шаблон в круге И объект видим: «${lock.why.slice(0, 80)}…» — §13.3`);
+
+  RP.seed();
+  as('auth');
+  RP.state.templates.find(t => t.id === 't-ref').asked = true;
+  const badSub = RP.publishChecks('t-ref').find(c => c.check === 'подстановка');
+  ok(27, !!badSub, `у бланка своих полей нет: подстановка вне публичного перечня ловится тем же законом, что и колонка отчёта`);
+})();
+
+/* ---------- G. Журнал вечен, файл предварительного — расходник (ИО-11) ---------- */
+(() => {
+  RP.seed();
+  const old = RP.state.issues.find(i => i.kind === 'предварительный');
+  ok(28, old && old.fileAlive === false && old.fileDeadAt === '2026-07-09' && RP.state.issues.length === 4,
+    `файл предварительного выпуска от 10.04.2026 погашен ${old.fileDeadAt}, строка журнала осталась — ADR-0161 §7`);
+
+  const del = RP.deleteIssue(old.id);
+  ok(29, !del.ok && has(del.why, 'стёртая строка отвечает на него неправдой') &&
+        RP.state.issues.length === 4,
+    `удаления выпуска нет: «${del.why.slice(0, 80)}…» — ИО-11`);
+})();
+
+/* ---------- H. Расхождение со сданным и обратный ход (§6, ADR-0157 §5) ---------- */
+(() => {
+  RP.seed();
+  as('buh');
+  const before = RP.whatWentOut('июль 2026');
+  const re = RP.reopenPeriod('июль 2026', 'сторно платежа');
+  const after = RP.whatWentOut('июль 2026');
+  const marked = RP.state.issues.filter(i => i.diverged);
+  const rc = RP.recompute(marked[0] ? marked[0].id : '—');
+  ok(30, re.ok && re.marked === 1 && before.length === 1 && after[0].diverged === true &&
+        rc && rc.changed && rc.diffs.length > 0,
+    `открытие периода правит снимок статистики — и расхождение ЗАРАБОТАНО пересчётом: ` +
+    `${rc.diffs.map(d => d.name + ' ' + d.was + '→' + d.now).join('; ')}`);
+
+  const prelimMarked = RP.state.issues.filter(i => i.diverged && !i.snapshot);
+  ok(31, prelimMarked.length === 0,
+    `предварительные выпуски метки не получают — метить нечего: они и не морозили чисел`);
+
+  const iss = marked[0].id;
+  const corr = RP.corrective(iss);
+  const prev = RP.ISS(iss), next = RP.ISS(corr.id);
+  ok(32, corr.ok && next.correctionOf === iss && prev.correctedBy === corr.id &&
+        prev.diverged === true && next.diverged === false && next.recipient.ref === prev.recipient.ref,
+    `корректирующий выпуск ${corr.id} уточняет ${iss}, прежний не погашен: связь видна с обеих сторон — §6`);
+
+  const again = RP.corrective(iss);
+  ok(33, !again.ok && has(again.why, 'уже уточнён'), `повторное уточнение того же выпуска отклонено`);
+
+  RP.seed();
+  as('user');
+  const noRight = RP.reopenPeriod('июль 2026', 'проба');
+  ok(34, !noRight.ok && has(noRight.why, 'главный бухгалтер'),
+    `закрытый период открывает главный бухгалтер — ADR-0089`);
+})();
+
+/* ---------- I. Обязательства порождаются правилом (§7, ИО-12, ИО-13) ---------- */
+(() => {
+  RP.seed();
+  as('auth');
+  const obl = RP.obligations();
+  const may = obl.filter(o => o.period === 'май 2026');
+  const jul = obl.filter(o => o.period === 'июль 2026');
+  const late = jul.filter(o => o.state === 'просрочено');
+  ok(35, obl.length === 9 && may.every(o => o.state === 'сдано') &&
+        jul.find(o => o.dept === 'dep-admin').state === 'сдано с опозданием' &&
+        late.length === 2 && late[0].late === 9,
+    `девять обязательств выведены из правила «${RP.TPL('t-overdue').schedule.text}»: май сдан, ` +
+    `по июлю один сдан с опозданием и ${late.length} просрочены на ${late[0].late} дней`);
+
+  const closed = jul.find(o => o.dept === 'dep-admin');
+  ok(36, closed.issue && RP.ISS(closed.issue).recipient !== null,
+    `обязательство закрыл выпуск ${closed.issue} с названным получателем, а не отметка`);
+
+  const mark = RP.markDelivered(late[0].id), task = RP.autoTask(late[0].id);
+  const basis = RP.taskBasis(late[0].id);
+  ok(37, !mark.ok && has(mark.why, 'сданное без выпуска — это несданное с отметкой') &&
+        !task.ok && has(task.why, 'Модуль показывает, но не поручает') &&
+        basis && has(basis.note, 'саму задачу заводит человек'),
+    `«отметить сданным» и «поставить задачу» — названные отказы; наружу отдаётся ОСНОВАНИЕ задачи — ИО-12, ИО-13`);
+
+  const prelimClose = RP.issue('t-overdue', { params:{ asOf:'2026-08-01', dept:'dep-prom' },
+    kind:'предварительный' });
+  const stillLate = RP.obligations().find(o => o.id === late[0].id);
+  ok(38, prelimClose.ok && stillLate.state === 'просрочено',
+    `предварительный выпуск обязательства не закрывает — оно осталось просроченным`);
+
+  const fin = RP.issue('t-overdue', { params:{ asOf:'2026-08-01', dept:'dep-prom' },
+    kind:'окончательный', recipient:'a-kab' });
+  const now = RP.obligations().find(o => o.id === late[0].id);
+  ok(39, fin.ok && now.state === 'сдано с опозданием' && now.issue === fin.id,
+    `окончательный выпуск с получателем закрыл обязательство ${now.id.split('/').pop()} — ИО-12`);
+})();
+
+/* ---------- J. Круг и расписание правятся без новой редакции (§2.1) ---------- */
+(() => {
+  RP.seed();
+  as('auth');
+  const t = RP.TPL('t-portfolio');
+  const eds = t.editions.length;
+  const c = RP.setCircle('t-portfolio', ['dep-prom']);
+  const s = RP.setSchedule('t-portfolio', { freq:'ежемесячно', dueDay:15, since:'2026-05-01',
+    asOfRule:'первое число месяца, следующего за отчётным', text:'ежемесячно, к 15-му' });
+  ok(40, c.ok && s.ok && t.editions.length === eds && has(c.note, 'круг — не часть вопроса'),
+    `круг и расписание изменены, редакций по-прежнему ${t.editions.length}: они не меняют вопроса`);
+
+  as('user');
+  const c2 = RP.setCircle('t-portfolio', ['rep-osh']);
+  ok(41, !c2.ok && has(c2.why, 'уполномоченный'), `круг ведёт уполномоченный, а не автор черновика`);
+})();
+
+/* ---------- K. Перечень полей и реестр показателей — швы, а не справочники (§16) ---------- */
+(() => {
+  RP.seed();
+  as('auth');
+  const r = RP.renameField('credit', 'days', 'days_overdue', 'Дней просрочки');
+  const st = RP.tplState('t-overdue');
+  const iss = RP.issue('t-overdue', { params:{ asOf:'2026-08-01', dept:'' }, kind:'предварительный' });
+  ok(42, r.ok && r.broken.length === 3 && has(st.why, 'перечень изменил его владелец (ядро · кредиты)') &&
+        st.state === 'неисполним' && !iss.ok && has(iss.why, 'шаблон неисполним'),
+    `переименование поля в ядре сломало ${r.broken.length} шаблона (${r.broken.map(b => b.id).join(', ')} — ` +
+    `и отчёт, и бланк: закон один) и НАЗВАЛО виновника — ADR-0158 §4`);
+
+  RP.seed();
+  as('auth');
+  const w = RP.withdrawStat('s-overdue-sum');
+  ok(43, w.ok && w.breaking.length === 2 && w.breaking.some(b => b.id === 't-overdue'),
+    `владельцу реестра показан список ломающихся шаблонов до вывода показателя: ${w.breaking.map(b => b.id).join(', ')} — ADR-0159`);
+})();
+
+/* ---------- L. Три шва наружу и то, чего наружу нет (§12) ---------- */
+(() => {
+  RP.seed();
+  as('clerk');
+  RP.issue('t-notice', { params:{ obj:'kr-2' }, kind:'окончательный' });
+  const card = RP.callSeamOut('карточка объекта (ядро)', 'reportIssues', 'kr-2');
+  const rows = RP.callSeamOut('анализ', 'reportRows', 't-overdue');
+  const draft = RP.callSeamOut('анализ', 'reportDraft', 't-avg');
+  const wrong = RP.callSeamOut('задачи', 'reportTemplate', 't-overdue');
+  const tpl = RP.reportTemplate('t-overdue');
+  ok(44, card.ok && card.data.length === 1 && card.data[0].number === 'УВ-2026/037',
+    `карточка объекта видит зеркалом, что по кредиту уходило наружу: ${card.data[0].number}`);
+  ok(45, !rows.ok && has(rows.why, 'число без паспорта не показывается') &&
+        !draft.ok && has(draft.why, 'читается как шаблон') &&
+        !wrong.ok && has(wrong.why, 'шов «reportTemplate» не спрашивает'),
+    `наружу нет ни строк ответа, ни черновиков; лишний шов лишнему потребителю не отдаётся`);
+  ok(46, has(tpl.note, 'своего снимка не заводит') && RP.consumers().find(c => c.module === 'статистика').may.length === 0,
+    `анализ ссылается на выпуск как на снимок основания — ИО-16, ADR-0157 §4`);
+})();
+
+/* ---------- M. Волна 3 заперта названными отказами, а не пустыми экранами ---------- */
+(() => {
+  RP.seed();
+  const w = RP.newWorklist(), d = RP.newDashboard(), l = RP.layoutEditor();
+  ok(47, !w.ok && has(w.why, 'закрытие вместо стирания') &&
+        !d.ok && has(d.why, 'паспорт у каждой плитки') &&
+        !l.ok && has(l.why, 'волна 3'),
+    `рабочие списки, дашборды и верстальщик бланка отложены явно, с уже определённым поведением — ИО-14, ИО-15`);
+
+  const seams = RP.seamsIn();
+  ok(48, seams.length === 4 && seams.filter(s => s.owner === 'статистика').length === 3 &&
+        seams.find(s => s.id === 'objectRows').owner === 'ядро',
+    `вход в модуль — ровно четыре шва: три у статистики (ADR-0152) и objectRows у ядра (ADR-0158)`);
+})();
+
+/* ---------- N. Все экраны рисуются каждой ролью и говорят словами ---------- */
+(() => {
+  RP.seed();
+  const VIEWS = win.VIEWS;
+  const names = Object.keys(VIEWS);
+  const bad = [];
+  let total = 0;
+  Object.keys(R).forEach(role => { as(role); names.forEach(v => {
+    try { const html = VIEWS[v].fn(); total += html.length;
+      if (typeof html !== 'string' || html.length < 200) bad.push(role + '/' + v); }
+    catch (e) { bad.push(role + '/' + v + ': ' + e.message); } }); });
+  ok(49, bad.length === 0 && names.length === 7,
+    `семь экранов × пять ролей = ${names.length * 5} отрисовок без исключений (${Math.round(total / 1000)} КБ разметки)`);
+
+  as('auth');
+  const reg = VIEWS.registry.fn(), cal = VIEWS.calendar.fn(), jr = VIEWS.journal.fn();
+  ok(50, has(reg, 'Чего вы здесь не видите') && has(cal, 'Две кнопки, которых в модуле нет') &&
+        has(jr, 'что мы отдали наружу'),
+    `отказы и границы проговорены на самих экранах, а не спрятаны за отсутствием кнопки`);
+})();
+
+/* ---- отчёт ---- */
+const pass = results.filter(r => r.pass).length;
+const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
+console.log(`SMOKE 2026-08-24 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
+
+const body = lines.map(l => '  ' + l).join('\n');
+const injected = `  SMOKE 2026-08-24 · ${pass}/${results.length} PASS\n` + body;
+if (src.includes('  SMOKE_PLACEHOLDER')) {
+  writeFileSync(HTML, src.replace('  SMOKE_PLACEHOLDER', injected), 'utf8');
+  console.log('\n→ результат вставлен в шапку reports.html');
+} else {
+  const re = /( {2}SMOKE \d{4}-\d{2}-\d{2} · \d+\/\d+ PASS\n)[\s\S]*?(\n-->)/;
+  if (re.test(src)) {
+    writeFileSync(HTML, src.replace(re, injected + '$2'), 'utf8');
+    console.log('\n→ результат обновлён в шапке reports.html');
+  }
+}
+process.exit(pass === results.length ? 0 : 1);
