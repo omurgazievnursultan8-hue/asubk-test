@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Отчётность · АСУБК</title>
 <!--
-  РАБОЧИЙ ПРОТОТИП (single-file) — модуль «Отчётность» (TO-BE), волна 3.
+  РАБОЧИЙ ПРОТОТИП (single-file) — модуль «Отчётность» (TO-BE), волна 4.
   Не картинка: логика ниже ИСПОЛНЯЕТСЯ. Отчёт здесь определяется объявленностью
   состава, а не печатью; числа морозит не выпуск, а НАЗВАННЫЙ ПОЛУЧАТЕЛЬ; своей
   формулы и своего запроса к базе у модуля нет ни одного — данные приходят только
@@ -15,13 +15,17 @@
   Волна 2 (24.08.2026) довела её до исполняемого эталона: ядро закона в семи экранах.
   Волна 3 (24.08.2026) закрыла оставшиеся три — верстальщик бланка, рабочие списки,
   дашборды: заперто отказами больше ничего, каждый инвариант доказан исполнением.
+  Волна 4 (24.08.2026) внесла исполняемую часть сверки с легаси (`ОЧ-25`…`ОЧ-33`,
+  `requirements/legacy/10-reports.md`): итоговые строки по уровням разреза — швом, а не
+  сложением; лист выгрузки как часть редакции с объявленным порядком полос и перечнем
+  форматов; выпуск фоновым заданием с состояниями и паспортом от момента заказа.
   Смоук: `node scripts/inspect/reports-check.mjs`.
   Канон логики — `ASUBK-otchetnost-logika.md` (семь сущностей, две ступени выпуска,
-  четыре шва, все 16 инвариантов с причиной); журнал волн — `ASUBK-status-razrabotki.md`.
+  четыре шва, все 19 инвариантов с причиной); журнал волн — `ASUBK-status-razrabotki.md`.
 
   КАРТА: ЭКРАН → РАЗДЕЛ КАНОНА
     Реестр шаблонов   → §2.1–2.3, §13.1        Конструктор     → §3, §4
-    Выпуск            → §5, §13.4              Журнал выпусков → §5, §6, §12
+    Выпуск            → §5, §3 п. 8, §13.4     Журнал выпусков → §5, §6, §12
     Календарь сдачи   → §7                     Швы и соседи    → §11, §12, §16
     Верстальщик бланка→ §8                      Рабочие списки  → §9
     Дашборд           → §10                     Границы макета  → §14, §19
@@ -41,7 +45,13 @@
       ничего не значит (§2.2);
     · нет пополнения и стирания рабочего списка: состав заморожен, список кончается
       закрытием (ИО-14);
-    · нет общего паспорта у дашборда и внешних плиток: паспорт у каждой плитки (ИО-15).
+    · нет общего паспорта у дашборда и внешних плиток: паспорт у каждой плитки (ИО-15);
+    · нет сложения частных итогов: итог по уровню спрашивается швом — доля, средняя и
+      количество уникальных не аддитивны (ИО-17);
+    · нет правки листа выгрузки у выпуска и у опубликованной редакции: «как было
+      напечатано» предъявлено вместе с числами (ИО-18);
+    · нет второй даты у столбца: дата состояния у ответа одна, сравнение двух состояний —
+      отдельный вопрос (ИО-19, §19 п. 6).
 
   ДЕМО ПОКРЫВАЕТ: пять отказов публикации §4 дословно · переименование поля в ядре
   ломает публикацию и НАЗЫВАЕТ ВИНОВНИКА · показатель, выведенный из реестра · показатель,
@@ -57,7 +67,14 @@
   сроку, со строкой журнала на месте · подстановки бланка, выведенные разбором текста, и
   новая редакция вместо правки опубликованного макета · рабочий список, замороженный
   выпуском, с выбывшим объектом, показанным выбывшим, и с закрытием вместо стирания ·
-  дашборд с паспортом у каждой плитки, личной перекладкой и возвратом «как объявлено».
+  дашборд с паспортом у каждой плитки, личной перекладкой и возвратом «как объявлено» ·
+  два уровня разреза с итоговой строкой по объявленному уровню, спрошенной пакетным
+  statSlice · попытка сложить доли по подразделениям, отклонённая числами (83,3 % против
+  25 % на охвате) · итог, поставленный перед уровнями, отклонённый порядком полос ·
+  правка листа у сданного выпуска и у опубликованной редакции · формат, которого лист
+  не объявлял · столбец на своей дате · правило отбора, поданное рабочим списком ·
+  заказ выпуска со строкой журнала до чисел, шагами «считается» → «готов» и ошибкой
+  на отсутствующем снимке, не сжигающей номер серии.
 
   ГРАНИЦЫ МАКЕТА
     · TODAY заморожено (2026-08-24): системных часов макет не знает;
@@ -67,7 +84,10 @@
       своих модулях, здесь — заглушка ровно на ширину шва;
     · ЭЦП и штампа подписи нет: §19 п. 4 канона ещё открыт, и кнопка раньше решения
       решила бы его молча;
-    · ролей в макете пять — как в §17 канона.
+    · ролей в макете пять — как в §17 канона;
+    · очереди заданий нет: состояния выпуска показаны и проверяются, но шаг делает кнопка —
+      макет показывает состояния, а не изображает медленность;
+    · второй даты для сравнения нет: §19 п. 6 канона открыт (ИО-19).
 
   РЕШЕНИЯ, НА КОТОРЫХ СТОИТ МОДУЛЬ
   ADR-0156 отчёт — объявленный состав, а не печать; продукт конструктора — личный черновик;
@@ -98,8 +118,11 @@
   ИО-14 Состав рабочего списка заморожен; выбывшие видны выбывшими.
   ИО-15 Паспорт у плитки, не у дашборда.
   ИО-16 Обзор ссылается на выпуск, своего снимка не заводит.
+  ИО-17 Итог по уровню разреза приходит швом; модуль частные итоги не складывает.
+  ИО-18 Печатное представление объявлено редакцией, а не настроено экраном.
+  ИО-19 Дата состояния у ответа одна; вторая дата — отдельный вопрос.
 
-  SMOKE 2026-08-24 · 66/66 PASS
+  SMOKE 2026-08-24 · 81/81 PASS
      PASS  #1  личный черновик «Справка о задолженности» не виден даже уполномоченному, пока автор не попросил публикации — ИО-1
      PASS  #2  пользователь опубликовать не может: «публикует уполномоченный по отчётности: роль «Пользователь (Осмонова Г…»
      PASS  #3  состояние шаблона СЧИТАЕТСЯ, а не хранится: «черновик» → «опубликован» после публикации
@@ -110,7 +133,7 @@
      PASS  #8  неисчислимый налету показатель в режиме «сейчас» отклонён причиной владельца реестра — ADR-0159
      PASS  #9  чистый черновик проходит все пять проверок и становится шаблоном организации
      PASS  #10  основание, вписанное не публикующим, остаётся просьбой: «сослаться на пункт нормы может только публикующий: основание «п. 12 По…»
-     PASS  #11  в движке состава (2003 симв.) и движке бланка (700) нет ни базы, ни формулы: запрещённых имён 0 — ИО-2, ИО-3
+     PASS  #11  в движке состава (5336 симв.) и движке бланка (700) нет ни базы, ни формулы: запрещённых имён 0 — ИО-2, ИО-3
      PASS  #12  «свой запрос» и «своя формула» — названные отказы, а не отсутствующие кнопки
      PASS  #13  шов вернул 3 строк и произнёс «скрыто 5»; итог посчитан по видимым строкам (15000000 против 62650000) — иначе итог рассказал бы то, чего в строках нет, §13.2
      PASS  #14  снимка на 01.09.2026 нет — подставлен ближайший на 2026-08-01; на 01.01.2026 снимка нет вовсе
@@ -164,8 +187,23 @@
      PASS  #62  личная перекладка живёт поверх объявленной и не трогает её: «вернуть как объявлено» возвращает 2 плитки — иначе возвращать было бы не к чему
      PASS  #63  неисполнимый отчёт плитка проговаривает словами, а не показывает пустое место: показатель «Сумма просроченной задолженности» выведен 24.08.2026 — шаблону нужна новая редакция
      PASS  #64  вход в модуль — ровно четыре шва: три у статистики (ADR-0152) и objectRows у ядра (ADR-0158)
-     PASS  #65  десять экранов × пять ролей = 50 отрисовок без исключений (213 КБ разметки)
+     PASS  #65  десять экранов × пять ролей = 50 отрисовок без исключений (249 КБ разметки)
      PASS  #66  отказы и границы проговорены на самих экранах, а не спрятаны за отсутствием кнопки
+     PASS  #67  итог уровня приходит швом, а не сложением: доли по 3 подразделениям в сумме дают 83.3 %, а на всём охвате показатель равен 25 % — модуль складывать не вправе (ИО-17)
+     PASS  #68  разрезы печатаются уровнями: подразделение+итог → состояние кредита; 3 группы первого уровня, 5 второго, строк в группах 8 из 8
+     PASS  #69  итоговая строка печатается только по объявленному уровню: у подразделения она есть и спрошена пакетным statSlice, у состояния кредита — нет, потому что редакция её не объявляла
+     PASS  #70  лист выгрузки объявлен редакцией и попадает в паспорт: книжная, полосы заголовок → шапка → уровни → итог → подвал, форматы xlsx · pdf (ИО-18)
+     PASS  #71  итог перед уровнями отклонён: итог поставлен ПЕРЕД уровнями: так печатает легаси, и читающий видит общую сумму раньше слагаемы…
+     PASS  #72  лист правится там же, где состав: в черновике и уполномоченным; у опубликованной редакции — только новой редакцией, иначе сданное перепечаталось бы иначе (ИО-18, ИО-2)
+     PASS  #73  лист у выпуска не правится: печатное представление предъявлено вместе с числами — иначе один и тот же сданный отчёт у двух людей печатается по-разному (ИО-18)
+     PASS  #74  перечень форматов — часть листа редакции, а не набор кнопок: xlsx отдан, csv отклонён (объявлено xlsx · pdf)
+     PASS  #75  в снимок ложится ПОКАЗАННАЯ величина, в объявленной разрядности: доля 33,3 % печатается как 33 %, и расхождение сравнивает показанное с показанным, а не ловит шум ниже разрядности (ОЧ-32)
+     PASS  #76  окончательный выпуск отдаётся только pdf, чем бы ни был объявлен лист: снимок в редактируемом формате — не снимок (ИО-10)
+     PASS  #77  выпуск — заказ, а не нажатие: строка журнала и паспорт заведены в момент заказа (редакция, дата, охват известны), числа — в шаге «считается»; состояния заказан → считается → готов → ошибка
+     PASS  #78  задание кончается СОСТОЯНИЕМ, а не пустотой: снимка на 01.01.2026 нет — ошибка, строка в журнале осталась и говорит почему
+     PASS  #79  номер серии тратится вместе со снимком, а не при заказе: после заказа следующий остался 37, после «готов» стал 38, выпуску достался УВ-2026/037 (ИО-9)
+     PASS  #80  две привычки легаси названы отказом: дата состояния у ответа одна (ИО-19), а правило отбора — не рабочий список: список это замороженный состав, правило живёт параметром редакции (§9)
+     PASS  #81  волна 4 проговорена на экранах: полосы и итоги уровней в конструкторе и предпросмотре, состояния задания в выпуске и журнале, отказы легаси на границах
 -->
 <style>
 :root{
@@ -330,6 +368,15 @@ table.cgrid tfoot td{ padding:9px 12px; background:var(--surface-panel);
 
 /* ---- toast ---- */
 #toastWrap{ position:fixed; right:18px; bottom:18px; display:flex; flex-direction:column; gap:8px; z-index:50; }
+    .cgrid tr.grp td{background:var(--asubk-tint-fill);border-top:1px solid var(--border-strong)}
+.cgrid tr.grp.g2 td{background:var(--surface-hover);padding-left:22px}
+.cgrid tr.gtot td{background:var(--asubk-green-tint);font-size:12px}
+.bands{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:10px 0 4px}
+    .band{display:inline-block;padding:4px 10px;border:1px solid var(--border-default);border-radius:6px;
+      background:#fff;font-size:12px}
+    .band.lv{border-color:var(--asubk-blue);color:var(--asubk-blue)}
+    .band.tot{border-color:var(--asubk-green);color:var(--asubk-green);font-weight:600}
+    .bands .arr{color:var(--text-muted);font-size:12px}
 .toast{ background:var(--asubk-ink); color:#fff; padding:10px 14px; border-radius:var(--radius-md);
   font:var(--font-label); max-width:420px; box-shadow:0 6px 20px rgba(24,39,57,0.25); }
 .toast.err{ background:var(--asubk-red); } .toast.ok{ background:var(--asubk-green); }
@@ -570,7 +617,8 @@ const HIST_DATES = Object.keys(HIST);
    произнесённое вслух» (§13.4).
    ==ШВЫ==                                                                    */
 const SEAMS_IN = [
-  {id:'statSlice',  owner:'статистика', q:'значение показателя в разрезе на дату'},
+  {id:'statSlice',  owner:'статистика', q:'значение показателя в разрезе на дату; ' +
+    'пакетная форма — по каждому значению разреза сразу (итоги уровней, ОЧ-25)'},
   {id:'statSeries', owner:'статистика', q:'ряд значений показателя по датам'},
   {id:'statRows',   owner:'статистика', q:'строки объектов на дату'},
   {id:'objectRows', owner:'ядро',       q:'перечисление живых объектов: поля и показатели налету'}
@@ -600,8 +648,17 @@ function applyCut(rows, cut){
   if(cut.dept) r = r.filter(x => x.dept === cut.dept);
   if(cut.obj)  r = r.filter(x => x.id === cut.obj);
   if(cut.ids)  r = r.filter(x => cut.ids.indexOf(x.id) !== -1);
+  /* Значение уровня разреза — такой же отбор, как подразделение: второй уровень
+     спрашивается внутри значения первого (ОЧ-25).                             */
+  if(cut.at)   r = r.filter(x => x[cut.at.by] === cut.at.key);
   return r;
 }
+/* Округление объявлено составом редакции (§3 п. 2): величина уходит в файл уже
+   округлённой, иначе сданное и пересчитанное расходятся в копейках (ОЧ-32).   */
+const roundTo = (v, dp) => v == null ? null :
+  (dp == null ? v : Math.round(v * Math.pow(10, dp)) / Math.pow(10, dp));
+const CUT_NAMES = {dept:'подразделение', status:'состояние кредита'};
+const cutName = by => CUT_NAMES[by] || by;
 const SEAM = {
   /* ЯДРО. Живые объекты: поля перечня + показатели, объявленные исчислимыми. */
   objectRows(objType, cut, scope){
@@ -641,6 +698,23 @@ const SEAM = {
         mode: asOf ? 'на дату' : 'сейчас', scope: scope.slice(),
         cut: cut && cut.dept ? deptName(cut.dept) : 'без разреза'}};
   },
+  /* СТАТИСТИКА, пакетная форма того же вопроса: итог по КАЖДОМУ значению
+     разреза. Пятым швом это не становится — вопрос тот же, что у statSlice,
+     спрошенный оптом; складывать частные итоги модуль не вправе (ИО-17).      */
+  statSliceBy(statId, by, cut, asOf, scope){
+    const meta = STAT(statId);
+    if(!meta) return {by, groups:[], why:'показателя «'+statId+'» в реестре нет'};
+    const src = asOf ? SEAM.statRows('credit', asOf, cut, scope) : SEAM.objectRows('credit', cut, scope);
+    if(src.missing) return {by, groups:[], why:'снимка на '+fmt(asOf)+' у статистики нет'};
+    const keys = uniq(src.rows.map(r => r[by]));
+    return {by, unit: meta.unit,
+      groups: keys.map(k => { const part = src.rows.filter(r => r[by] === k);
+        return {key:k, count: part.length, value: statValue(statId, part)}; }),
+      hidden: src.hidden, substituted: src.substituted,
+      passport:{seam:'statSlice', owner:'статистика', form:'пакетная', by,
+        asOf: asOf ? src.passport.asOf : null, mode: asOf ? 'на дату' : 'сейчас',
+        scope: scope.slice()}};
+  },
   /* СТАТИСТИКА. Ряд значений по датам — для плиток и динамики.               */
   statSeries(statId, dates, cut, scope){
     return {points: dates.map(d => ({at:d, value: SEAM.statSlice(statId, cut, d, scope).value})),
@@ -660,6 +734,47 @@ const SEAM = {
    ответ с паспортом. Ниже нет ни одного обращения к базе и ни одной формулы —
    имён OBJECTS, HIST, STATS, FIELDS в этом блоке не встречается (ИО-2, ИО-3).
    ==ДВИЖОК==                                                                 */
+/* ==================== МАКЕТ ВЫГРУЗКИ (§3 п. 8) ========================
+   Печатное представление принадлежит РЕДАКЦИИ, а не экрану: сданное печатается
+   одинаково у всех, и «как было напечатано» — часть предъявленного (ИО-18).
+   Полосы объявлены списком, а не выведены из положения ячеек, как в легаси —
+   оттуда лист, где ИТОГО стоит перед группами (ОЧ-26, ОЧ-33).                */
+const BANDS = ['заголовок','шапка','уровни','итог','подвал'];
+const SHEET0 = {orient:'альбомная', repeatHeader:true, footer:'паспорт',
+  bands: BANDS.slice(), formats:['xlsx','csv','pdf'], widths:'по содержимому'};
+const sheetOfEd = ed => Object.assign({}, SHEET0, ed.sheet || {});
+const dpOf = (ed, sid) => (ed.dp && ed.dp[sid] != null) ? ed.dp[sid] : null;
+const levelName = (by, key) => by === 'dept' ? deptName(key) : String(key == null ? '—' : key);
+
+/* Итог по значению уровня НЕ складывается модулем: доля, средняя и количество
+   уникальных не аддитивны (ИО-17). Он спрашивается пакетной формой statSlice —
+   одним вопросом на показатель, а не по вопросу на группу.                    */
+function levelTotals(ed, by, cut, asOf, scope){
+  const packs = {};
+  ed.stats.forEach(sid => { packs[sid] = SEAM.statSliceBy(sid, by, cut, asOf, scope); });
+  return key => ed.stats.map(sid => {
+    const meta = SEAM.statMeta(sid), p = packs[sid];
+    const g = (p.groups || []).find(x => x.key === key);
+    const dp = dpOf(ed, sid);
+    return {id:sid, name: meta ? meta.name : sid, unit: meta ? meta.unit : '',
+      value: g ? g.value : null, shown: roundTo(g ? g.value : null, dp), dp,
+      why: p.why || null, seam:'statSlice (пакетно)'};
+  });
+}
+function bandsFor(ed, levels, li, rows, cut, asOf, scope){
+  const lv = levels[li];
+  const ask = lv.total ? levelTotals(ed, lv.by, cut, asOf, scope) : null;
+  return uniq(rows.map(r => r[lv.by])).map(key => {
+    const part = rows.filter(r => r[lv.by] === key);
+    const inner = Object.assign({}, cut, {at:{by: lv.by, key}});
+    return {level: lv.level, by: lv.by, key, name: levelName(lv.by, key), count: part.length,
+      totals: ask ? ask(key) : null,
+      children: li + 1 < levels.length
+        ? bandsFor(ed, levels, li + 1, part, inner, asOf, scope) : null,
+      rows: li + 1 < levels.length ? null : part};
+  });
+}
+
 function compose(tpl, ed, params, viewer){
   const scope = viewer.scope.slice();
   const cut = {dept: params.dept || null, ids: params.ids || null};
@@ -677,9 +792,16 @@ function compose(tpl, ed, params, viewer){
   const totals = ed.stats.map(sid => {
     const meta = SEAM.statMeta(sid);
     const r = SEAM.statSlice(sid, cut, asOf, scope);
+    const dp = dpOf(ed, sid);
     return {id:sid, name: meta ? meta.name : sid, unit: meta ? meta.unit : '',
-            value:r.value, why:r.why, passport:r.passport};
+            value:r.value, shown: roundTo(r.value, dp), dp, why:r.why, passport:r.passport};
   });
+  /* Уровни разрезов объявлены редакцией вместе с тем, печатается ли по уровню
+     итог (§3 п. 4). Итоги приходят швом; модуль их не складывает (ИО-17).     */
+  const levels = (ed.cuts || []).map((by, i) => ({by, level: i + 1, name: cutName(by),
+    total: (ed.levelTotals || []).indexOf(by) !== -1}));
+  const groups = levels.length ? bandsFor(ed, levels, 0, rows, cut, asOf, scope) : null;
+  const sheet = sheetOfEd(ed);
   /* Что нельзя проверить на публикации — делает выпуск предварительным (ИО-8). */
   const soft = [];
   if(src.hidden > 0) soft.push('область видимости скрыла '+objWord(src.hidden)+
@@ -688,7 +810,8 @@ function compose(tpl, ed, params, viewer){
     fmt(src.substituted));
   if(src.missing) soft.push('снимка статистики на '+fmt(asOf)+' нет вовсе');
   return {
-    cols, rows, totals, hidden: src.hidden, substituted: src.substituted, missing: !!src.missing,
+    cols, rows, totals, levels, groups, sheet,
+    hidden: src.hidden, substituted: src.substituted, missing: !!src.missing,
     soft,
     passport:{
       asOf: asOf ? src.passport.asOf : null,
@@ -699,6 +822,13 @@ function compose(tpl, ed, params, viewer){
       template: tpl.name,
       params: clone(params),
       hidden: src.hidden,
+      /* «Как было напечатано» — часть предъявленного, поэтому лист попадает в
+         паспорт, а не остаётся настройкой экрана (ИО-18).                      */
+      sheet:{orient: sheet.orient, bands: sheet.bands.slice(), formats: sheet.formats.slice()},
+      levels: levels.map(l => l.name + (l.total ? ' (с итогом)' : '')),
+      rounding: ed.stats.map(sid => { const dp = dpOf(ed, sid);
+        return dp == null ? null : (SEAM.statMeta(sid) || {name:sid}).name + ' → ' +
+          (dp === 0 ? 'целых' : dp + ' зн.'); }).filter(Boolean),
       seams: uniq([src.passport.seam].concat(totals.map(t => t.passport ? t.passport.seam : null)
         .filter(Boolean)))
     }
@@ -747,7 +877,11 @@ function templatesSeed(){ return [
    editions:[{n:1, state:'опубликована', since:'2026-05-20', by:'Тентимишев К.', at:'2026-05-20',
      object:'credit', mode:'на дату', order:'по просрочке',
      fields:['no','borrower','dept','debt_main','days'],
-     stats:['s-overdue-sum','s-overdue-cnt'], cuts:['dept'], subs:[],
+     stats:['s-overdue-sum','s-overdue-cnt'], cuts:['dept','status'], levelTotals:['dept'],
+     dp:{'s-overdue-sum':0, 's-overdue-cnt':0}, subs:[],
+     sheet:{orient:'книжная', repeatHeader:true, footer:'паспорт',
+       bands:['заголовок','шапка','уровни','итог','подвал'], formats:['xlsx','pdf'],
+       widths:'по содержимому'},
      params:[{id:'period', role:'вопроса', name:'Отчётный месяц'},
              {id:'dept',   role:'отбора',  name:'Подразделение'}]}]},
 
@@ -758,7 +892,8 @@ function templatesSeed(){ return [
    editions:[{n:1, state:'опубликована', since:'2026-04-01', by:'Тентимишев К.', at:'2026-04-01',
      object:'credit', mode:'сейчас', order:'по номеру',
      fields:['no','borrower','dept','debt_main','days','status'],
-     stats:['s-portfolio','s-overdue-cnt'], cuts:['dept'], subs:[],
+     stats:['s-portfolio','s-overdue-cnt'], cuts:['dept'], levelTotals:['dept'],
+     dp:{'s-portfolio':0, 's-overdue-cnt':0}, subs:[],
      params:[{id:'dept', role:'отбора', name:'Подразделение'}]}]},
 
   {id:'t-notice', kind:'бланк', name:'Уведомление о наступающем платеже',
@@ -799,7 +934,8 @@ function templatesSeed(){ return [
    circle:ALL_DEPTS.slice(), forReview:false, fullCoverage:false, series:null, schedule:null,
    editions:[{n:1, state:'черновик', since:null, by:'Осмонова Г.', at:'2026-08-20',
      object:'credit', mode:'сейчас', order:'по номеру',
-     fields:['dept'], stats:['s-avg-late'], cuts:['dept'], subs:[],
+     fields:['dept'], stats:['s-avg-late'], cuts:['dept'], levelTotals:['dept'],
+     dp:{'s-avg-late':0}, subs:[],
      params:[{id:'dept', role:'отбора', name:'Подразделение'}]}]},
 
   {id:'t-npl', kind:'отчёт', name:'Доля проблемных кредитов',
@@ -807,7 +943,8 @@ function templatesSeed(){ return [
    circle:ALL_DEPTS.slice(), forReview:true, fullCoverage:false, series:null, schedule:null,
    editions:[{n:1, state:'черновик', since:null, by:'Осмонова Г.', at:'2026-08-21',
      object:'credit', mode:'на дату', order:'по номеру',
-     fields:['no','borrower','days'], stats:['s-npl'], cuts:['dept'], subs:[],
+     fields:['no','borrower','days'], stats:['s-npl'], cuts:['dept'], levelTotals:['dept'],
+     dp:{'s-npl':0}, subs:[],
      params:[{id:'period', role:'вопроса', name:'Отчётный месяц'}]}]},
 
   {id:'t-ref', kind:'бланк', name:'Справка о задолженности',
@@ -827,7 +964,8 @@ function templatesSeed(){ return [
    circle:ALL_DEPTS.slice(), forReview:true, fullCoverage:false, series:null, schedule:null,
    editions:[{n:1, state:'черновик', since:null, by:'Осмонова Г.', at:'2026-08-23',
      object:'credit', mode:'на дату', order:'по просрочке',
-     fields:['no','borrower','dept','days','debt_main'], stats:['s-overdue-sum'], cuts:['dept'], subs:[],
+     fields:['no','borrower','dept','days','debt_main'], stats:['s-overdue-sum'], cuts:['dept'],
+     levelTotals:['dept'], dp:{'s-overdue-sum':0}, subs:[],
      params:[{id:'period', role:'вопроса', name:'Отчётный месяц'},
              {id:'dept',   role:'отбора',  name:'Подразделение'}]}]}
 ]; }
@@ -1057,7 +1195,27 @@ RP.preview = (tid, params) => {
   if(t.kind === 'бланк') return {ok:true, kind:'бланк', data: composeBlank(t, ed, params.obj, v)};
   return {ok:true, kind:'отчёт', data: compose(t, ed, params, v)};
 };
-RP.issue = (tid, spec) => {
+/* ======================= ВЫПУСК — ЗАКАЗ, А НЕ НАЖАТИЕ ==================
+   Легаси считает синхронно: 90–107 с на портфеле в 51 268 субъектов, окно
+   висит, отмены нет (ОЧ-30). Здесь заказ и счёт разведены. Дешёвые проверки —
+   при ЗАКАЗЕ; счёт, снимок, номер и получатель — в шаге «считается». Строка
+   журнала и паспорт заводятся в момент заказа: кто, чем, на какую дату и каким
+   охватом — известно сразу, неизвестны только числа (§5).                   */
+const JOB_STATES = ['заказан','считается','готов','ошибка'];
+RP.jobStates = () => JOB_STATES.slice();
+
+function orderPassport(t, ed, params, v){
+  const sheet = sheetOfEd(ed);
+  return {asOf: ed.mode === 'на дату' ? params.asOf : null, mode: ed.mode, frozen:false,
+    scope: v.scope.map(deptName), edition: ed.n, template: t.name, params: clone(params),
+    hidden: 0, ordered: true,
+    sheet:{orient: sheet.orient, bands: sheet.bands.slice(), formats: sheet.formats.slice()},
+    levels: (ed.cuts || []).map(by => cutName(by) +
+      ((ed.levelTotals || []).indexOf(by) !== -1 ? ' (с итогом)' : '')),
+    rounding: [], seams: []};
+}
+
+RP.order = (tid, spec) => {
   const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
   const v = RP.viewer();
   const ed = pubEd(t);
@@ -1072,34 +1230,22 @@ RP.issue = (tid, spec) => {
       '«'+spec.recipient+'» и «Минфин КР» станут в журнале двумя разными адресатами (ИО-5)'};
   const at = spec.at || RP.state.today;
   const params = clone(spec.params || {});
-  let data, soft = [], hidden = 0;
+  const asked = spec.kind === 'окончательный' ? 'окончательный' : 'предварительный';
 
+  /* Бланк проверяется целиком при заказе: он об ОДНОМ объекте, счёт дешёвый. */
   if(t.kind === 'бланк'){
-    /* Два замка (§13.3): шаблон в круге И объект видим. */
     const o = OBJ(params.obj);
     if(!o) return {ok:false, why:'объект для бланка не назван'};
-    data = composeBlank(t, ed, params.obj, v);
+    const data = composeBlank(t, ed, params.obj, v);
     if(!data.row) return {ok:false, why:'объект «'+o.no+'» вне области видимости роли «'+
       RP.state.role+'»: бланк печатает тот, у кого шаблон в круге И объект видим — два замка (§13.3)'};
     const lost = data.subs.filter(s => s.lost);
     if(lost.length) return {ok:false, why:'в макете {{'+lost[0].id+'}}, объект «'+
       SEAM.fieldList(ed.object).name+'» такого поля не объявляет'};
-  } else {
-    data = compose(t, ed, params, v);
-    soft = data.soft.slice(); hidden = data.hidden;
-    if(data.missing) return {ok:false, why:'снимка статистики на '+fmt(params.asOf)+
-      ' нет вовсе: спросить нечего (ИО-6)'};
   }
-
-  /* Ступень. Непроверяемое заранее не запрещает выпуск — оно делает его
-     предварительным (ИО-8). На шаблоне с обязательным полным охватом это
-     ещё и запрещает называть получателя (§13.4).                          */
-  let kind = spec.kind === 'окончательный' ? 'окончательный' : 'предварительный';
-  let note = null, recipient = null;
-  if(kind === 'окончательный'){
-    /* У отчёта получатель выбирается из справочника адресатов; у бланка им
-       является контрагент объекта, и ссылка берётся из самого объекта — но
-       в обоих случаях это ССЫЛКА, а не набранная строка (ИО-5).             */
+  /* Что можно отклонить, не считая, — отклоняется при заказе: незачем занимать
+     очередь заданием, которое всё равно кончится отказом.                    */
+  if(asked === 'окончательный'){
     if(t.kind === 'бланк'){
       if(spec.recipient) return {ok:false, why:'у бланка получатель не выбирается из справочника '+
         'адресатов: им является контрагент объекта, и ссылка на него берётся из самого объекта (ИО-5)'};
@@ -1107,6 +1253,66 @@ RP.issue = (tid, spec) => {
       'получателем: числа морозит получатель, а не кнопка (ИО-4, ADR-0157 §2)'};
     if(spec.format && spec.format !== 'pdf') return {ok:false, why:'наружу с получателем уходит '+
       'только pdf: снимок в редактируемом формате — не снимок ('+spec.format+' отклонён, ИО-10)'};
+    if(t.kind === 'бланк' && t.series && t.series.manual){
+      if(!spec.number) return {ok:false, why:'серия «'+t.series.prefix+'» ручная: журнал '+
+        'исходящих ведёт канцелярия, номер вводится рукой — система его не выдаёт'};
+      if(t.series.used.indexOf(spec.number) !== -1) return {ok:false, why:'номер «'+spec.number+
+        '» в серии уже занят: система номера не выдаёт, но дубль ловит'};
+    }
+  }
+
+  const coverage = params.dept ? [params.dept]
+    : v.scope.filter(dp => t.circle.indexOf(dp) !== -1);
+  const id = 'ВП-' + (++RP.state.seq);
+  const rec = {
+    id, tpl: t.id, tplName: t.name, kindTpl: t.kind, ed: ed.n,
+    kind:'заказан', asked, state:'заказан', at, by: RP.who(),
+    recipient: null, params, coverage, passport: orderPassport(t, ed, params, v), number: null,
+    period: t.kind === 'отчёт' ? periodOfAsOf(params.asOf) : null,
+    obj: t.kind === 'бланк' ? params.obj : null,
+    formats: null, snapshot: null,
+    ask:{recipient: spec.recipient || null, format: spec.format || null, number: spec.number || null},
+    fileAlive: true, fileUntil: null, fileDeadAt: null,
+    diverged: false, divergedAt: null, correctionOf: null, correctedBy: null,
+    note: null, error: null
+  };
+  RP.state.issues.push(rec);
+  log('заказан выпуск '+id+' по шаблону «'+t.name+'», ступень при заказе — '+asked);
+  return {ok:true, id, state:'заказан', done:false,
+    note:'заказ принят: строка журнала и паспорт есть, чисел ещё нет'};
+};
+
+/* Шаг задания. Отдельным вызовом, а не таймером: макет показывает состояния,
+   а не изображает медленность.                                              */
+RP.step = id => {
+  const rec = ISS(id); if(!rec) return {ok:false, why:'выпуска нет'};
+  const t = TPL(rec.tpl), ed = t.editions.find(e => e.n === rec.ed);
+  if(rec.state === 'готов')  return doneResult(rec);
+  if(rec.state === 'ошибка') return {ok:false, id, state:'ошибка', done:true, why: rec.error};
+  if(rec.state === 'заказан'){
+    rec.state = 'считается';
+    return {ok:true, id, state:'считается', done:false, note:'задание считает — окно свободно'};
+  }
+
+  let data, soft = [];
+  if(rec.kindTpl === 'бланк'){
+    data = composeBlank(t, ed, rec.params.obj, RP.viewer());
+  } else {
+    data = compose(t, ed, rec.params, RP.viewer());
+    soft = data.soft.slice();
+    if(data.missing){
+      rec.state = 'ошибка';
+      rec.error = 'снимка статистики на '+fmt(rec.params.asOf)+' нет вовсе: спросить нечего (ИО-6)';
+      log('выпуск '+id+' кончился ошибкой: снимка на '+fmt(rec.params.asOf)+' нет');
+      return {ok:false, id, state:'ошибка', done:true, why: rec.error};
+    }
+  }
+
+  /* Ступень. Непроверяемое заранее не запрещает выпуск — оно делает его
+     предварительным (ИО-8). На шаблоне с обязательным полным охватом это
+     ещё и запрещает называть получателя (§13.4).                          */
+  let kind = rec.asked, note = null, recipient = null;
+  if(kind === 'окончательный'){
     if(soft.length){
       kind = 'предварительный';
       note = t.fullCoverage
@@ -1115,21 +1321,22 @@ RP.issue = (tid, spec) => {
         : 'выпуск сделан предварительным: '+soft[0]+' (ИО-8)';
     } else {
       recipient = t.kind === 'бланк'
-        ? {ref: params.obj, name: OBJ(params.obj).borrower, viaObject:true}
-        : {ref: spec.recipient, name: ADDR(spec.recipient).name};
+        ? {ref: rec.params.obj, name: OBJ(rec.params.obj).borrower, viaObject:true}
+        : {ref: rec.ask.recipient, name: ADDR(rec.ask.recipient).name};
     }
   }
 
-  /* Номер серии тратится ВМЕСТЕ СО СНИМКОМ: перепечатка черновика номера
-     не сжигает (ИО-9). Ручная серия — журнал ведёт канцелярия (§8).        */
+  /* Номер серии тратится ВМЕСТЕ СО СНИМКОМ, то есть в этом шаге, а не при
+     заказе: заказ, кончившийся отказом, номера не жжёт (ИО-9).             */
   let number = null;
-  if(t.kind === 'бланк' && kind === 'окончательный'){
+  if(rec.kindTpl === 'бланк' && kind === 'окончательный'){
     if(t.series.manual){
-      if(!spec.number) return {ok:false, why:'серия «'+t.series.prefix+'» ручная: журнал '+
-        'исходящих ведёт канцелярия, номер вводится рукой — система его не выдаёт'};
-      if(t.series.used.indexOf(spec.number) !== -1) return {ok:false, why:'номер «'+spec.number+
-        '» в серии уже занят: система номера не выдаёт, но дубль ловит'};
-      number = spec.number; t.series.used.push(number);
+      if(t.series.used.indexOf(rec.ask.number) !== -1){
+        rec.state = 'ошибка';
+        rec.error = 'номер «'+rec.ask.number+'» в серии уже занят: система номера не выдаёт, но дубль ловит';
+        return {ok:false, id, state:'ошибка', done:true, why: rec.error};
+      }
+      number = rec.ask.number; t.series.used.push(number);
     } else {
       number = t.series.prefix + String(t.series.next).padStart(3,'0');
       t.series.next += 1; t.series.used.push(number);
@@ -1138,34 +1345,40 @@ RP.issue = (tid, spec) => {
 
   const passport = clone(data.passport);
   passport.frozen = kind === 'окончательный';
-  passport.issuedAt = at; passport.by = RP.who();
-  const coverage = params.dept ? [params.dept]
-    : v.scope.filter(d => t.circle.indexOf(d) !== -1);
-  const id = 'ВП-' + (++RP.state.seq);
-  const rec = {
-    id, tpl: t.id, tplName: t.name, kindTpl: t.kind, ed: ed.n, kind, at, by: RP.who(),
-    recipient, params, coverage, passport, number,
-    period: t.kind === 'отчёт' ? periodOfAsOf(params.asOf) : null,
-    obj: t.kind === 'бланк' ? params.obj : null,
-    formats: kind === 'окончательный' ? ['pdf']
-           : (t.kind === 'бланк' ? ['docx','pdf'] : ['xls','pdf']),
-    snapshot: kind === 'окончательный'
-      ? (t.kind === 'бланк'
-          ? {at, subs: clone(data.subs)}
-          : {at, rows: clone(data.rows), totals: data.totals.map(x =>
-              ({id:x.id, name:x.name, unit:x.unit, value:x.value}))})
-      : null,
-    fileAlive: true,
-    fileUntil: kind === 'окончательный' ? null : addDays(at, FILE_DAYS),
-    fileDeadAt: null, diverged: false, divergedAt: null, correctionOf: null, correctedBy: null,
-    note
-  };
-  RP.state.issues.push(rec);
+  passport.issuedAt = rec.at; passport.by = rec.by; passport.ordered = false;
+  rec.kind = kind; rec.state = 'готов'; rec.note = note; rec.recipient = recipient;
+  rec.number = number; rec.passport = passport;
+  rec.formats = kind === 'окончательный' ? ['pdf']
+    : (rec.kindTpl === 'бланк' ? ['docx','pdf'] : sheetOfEd(ed).formats.slice());
+  /* В снимок ложится ПОКАЗАННАЯ величина: сдано то, что напечатано, иначе
+     расхождение срабатывает на копейках ниже объявленной разрядности (ОЧ-32). */
+  rec.snapshot = kind === 'окончательный'
+    ? (rec.kindTpl === 'бланк'
+        ? {at: rec.at, subs: clone(data.subs)}
+        : {at: rec.at, rows: clone(data.rows), totals: data.totals.map(x =>
+            ({id:x.id, name:x.name, unit:x.unit, dp:x.dp,
+              value: x.shown != null ? x.shown : x.value}))})
+    : null;
+  rec.fileUntil = kind === 'окончательный' ? null : addDays(rec.at, FILE_DAYS);
   log((kind === 'окончательный' ? 'окончательный выпуск ' : 'предварительный выпуск ')+id+
-    ' по шаблону «'+t.name+'»'+(recipient ? ', получатель '+recipient.name : ''));
-  return {ok:true, id, kind, note: note || (kind === 'окончательный'
-    ? 'числа и файл заморожены снимком'+(number ? ', номер '+number : '')
-    : 'обязательства не закрывает, снимка не даёт, номера не тратит'), rec: clone(rec)};
+    ' готов по шаблону «'+t.name+'»'+(recipient ? ', получатель '+recipient.name : ''));
+  return doneResult(rec);
+};
+function doneResult(rec){
+  return {ok:true, id: rec.id, kind: rec.kind, state:'готов', done:true,
+    note: rec.note || (rec.kind === 'окончательный'
+      ? 'числа и файл заморожены снимком'+(rec.number ? ', номер '+rec.number : '')
+      : 'обязательства не закрывает, снимка не даёт, номера не тратит'),
+    rec: clone(rec)};
+}
+/* Синхронная обёртка: заказ + шаги до конца. Экран так не делает — так делает
+   тот, кому нужен ответ здесь и сейчас (перепечатка, демонстрация, смоук).  */
+RP.issue = (tid, spec) => {
+  const o = RP.order(tid, spec);
+  if(!o.ok) return o;
+  let r = o;
+  for(let i = 0; i < 8 && !r.done; i++) r = RP.step(o.id);
+  return r;
 };
 RP.reprint = tid => RP.issue(tid, {params: clone(RP.state.sel.params), kind:'предварительный'});
 
@@ -1193,7 +1406,10 @@ RP.recompute = id => {
   const now = compose(t, ed, i.params, {scope: i.coverage.slice()});
   const diffs = i.snapshot.totals.map(s => {
     const n = now.totals.find(x => x.id === s.id);
-    return {name: s.name, unit: s.unit, was: s.value, now: n ? n.value : null};
+    /* Сравнивается ПОКАЗАННОЕ с ПОКАЗАННЫМ — в той же разрядности, в какой
+       сдавали, иначе метка загорится на шуме ниже неё (ОЧ-32).              */
+    const nv = n ? (n.shown != null ? n.shown : n.value) : null;
+    return {name: s.name, unit: s.unit, was: s.value, now: nv};
   }).filter(d => d.was !== d.now);
   return {diffs, changed: diffs.length > 0};
 };
@@ -1406,6 +1622,134 @@ RP.insertToken = (tid, kind, id) => {
   if(!ed) return {ok:false, why:'текст опубликованного макета не правится: заведите новую редакцию (§8)'};
   return RP.setLayout(tid, (ed.layoutText || '') + '{{' + id + '}}');
 };
+/* ================= МАКЕТ ВЫГРУЗКИ И УРОВНИ (§3 пп. 4, 8) ===============
+   Лист — часть редакции: «как было напечатано» предъявлено вместе с числами
+   (ИО-18). Правится он там же, где состав, — в черновике и уполномоченным.  */
+RP.sheetOf = tid => { const t = TPL(tid); if(!t) return null;
+  const ed = pubEd(t) || draftEd(t); if(!ed) return null;
+  const s = sheetOfEd(ed);
+  return {ed: ed.n, state: ed.state, orient: s.orient, repeatHeader: s.repeatHeader,
+    footer: s.footer, bands: s.bands.slice(), formats: s.formats.slice(), widths: s.widths,
+    levels: (ed.cuts || []).map(by => ({by, name: cutName(by),
+      total: (ed.levelTotals || []).indexOf(by) !== -1})),
+    rounding: (ed.stats || []).map(sid => ({id: sid,
+      name: (SEAM.statMeta(sid) || {name: sid}).name, dp: dpOf(ed, sid)}))};
+};
+function draftForEdit(tid){
+  const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
+  if(!RP.isAuth()) return {ok:false, why:'лист выгрузки правит уполномоченный по отчётности: '+
+    'печатное представление предъявляется вместе с числами и потому принадлежит редакции, '+
+    'а не экрану пользователя (ИО-18, §13.1)'};
+  const ed = draftEd(t);
+  if(!ed) return {ok:false, why:'редакция «'+t.name+'» опубликована: печатное представление '+
+    'объявлено ею и задним числом не меняется — сданное печатается так, как было сдано. '+
+    'Нужен другой лист — нужна НОВАЯ РЕДАКЦИЯ (ИО-18, ИО-2)'};
+  return {ok:true, t, ed};
+}
+RP.setSheet = (tid, patch) => {
+  const g = draftForEdit(tid); if(!g.ok) return g;
+  const cur = sheetOfEd(g.ed);
+  if(patch.formats){
+    const bad = patch.formats.filter(f => ['xlsx','csv','pdf','docx'].indexOf(f) === -1);
+    if(bad.length) return {ok:false, why:'формата «'+bad[0]+'» модуль не отдаёт: xlsx · csv · pdf '+
+      'для отчёта, docx (черновик) и pdf для бланка (§2.2)'};
+  }
+  if(patch.bands) return RP.setBands(tid, patch.bands);
+  g.ed.sheet = Object.assign({}, cur, patch);
+  log('лист выгрузки «'+g.t.name+'» правлен в черновике ред. '+g.ed.n);
+  return {ok:true, note:'лист правлен в черновике: наружу уйдёт при публикации редакции'};
+};
+/* Порядок полос ОБЪЯВЛЕН, а не выведен из положения ячеек: в легаси ИТОГО
+   печатается ПЕРЕД группами, потому что порядок там — побочный результат
+   номеров строк макета (ОЧ-26, ОЧ-33).                                      */
+RP.setBands = (tid, bands) => {
+  const g = draftForEdit(tid); if(!g.ok) return g;
+  const miss = BANDS.filter(b => bands.indexOf(b) === -1);
+  if(miss.length) return {ok:false, why:'полоса «'+miss[0]+'» из листа выброшена: полосы '+
+    'переставляются, но не пропадают — лист состоит из '+BANDS.join(' · ')};
+  const bad = bands.filter(b => BANDS.indexOf(b) === -1);
+  if(bad.length) return {ok:false, why:'полосы «'+bad[0]+'» в листе не бывает'};
+  if(bands.indexOf('итог') < bands.indexOf('уровни')) return {ok:false,
+    why:'итог поставлен ПЕРЕД уровнями: так печатает легаси, и читающий видит общую сумму '+
+    'раньше слагаемых, из которых она якобы сложена. Итог — последняя полоса тела листа (ОЧ-26)'};
+  if(bands.indexOf('шапка') > bands.indexOf('уровни')) return {ok:false,
+    why:'шапка таблицы поставлена после строк: столбцы называются до того, как их читают'};
+  const cur = sheetOfEd(g.ed);
+  g.ed.sheet = Object.assign({}, cur, {bands: bands.slice()});
+  log('порядок полос листа «'+g.t.name+'» изменён: '+bands.join(' → '));
+  return {ok:true, note:'порядок полос: '+bands.join(' → ')};
+};
+RP.setLevelTotals = (tid, arr) => {
+  const g = draftForEdit(tid); if(!g.ok) return g;
+  const out = (arr || []).filter(by => (g.ed.cuts || []).indexOf(by) === -1);
+  if(out.length) return {ok:false, why:'итог просят по «'+cutName(out[0])+'», а такого уровня '+
+    'разреза в редакции нет: итог печатается по уровню, а не сам по себе'};
+  g.ed.levelTotals = (arr || []).slice();
+  log('итоги по уровням «'+g.t.name+'»: '+((arr || []).map(cutName).join(', ') || 'нет'));
+  return {ok:true, note:'итог печатается по уровням: '+((arr || []).map(cutName).join(', ') || '—')+
+    '; величина спрашивается швом, модуль её не складывает (ИО-17)'};
+};
+/* Отказы, которыми модуль отвечает на привычки легаси. */
+RP.setSheetOnIssue = (id, patch) => {
+  const i = ISS(id); if(!i) return {ok:false, why:'выпуска нет'};
+  return {ok:false, why:'лист выгрузки у выпуска ВП-'+i.id.replace('ВП-','')+' не правится: '+
+    'печатное представление объявлено редакцией '+i.ed+' и предъявлено вместе с числами. '+
+    'Иначе один и тот же сданный отчёт у двух людей печатается по-разному (ИО-18)'};
+};
+RP.exportIssue = (id, fmt) => {
+  const i = ISS(id); if(!i) return {ok:false, why:'выпуска нет'};
+  if(i.state !== 'готов') return {ok:false, why:'выпуск ещё '+i.state+': выгружать нечего'};
+  if(i.kind === 'окончательный' && fmt !== 'pdf') return {ok:false,
+    why:'наружу с получателем уходит только pdf: снимок в редактируемом формате — не снимок '+
+    '('+fmt+' отклонён, ИО-10)'};
+  if((i.formats || []).indexOf(fmt) === -1) return {ok:false,
+    why:'формата «'+fmt+'» этот шаблон не объявляет: перечень форматов — часть листа выгрузки '+
+    'в редакции '+i.ed+', а не набор кнопок экрана ('+(i.formats || []).join(' · ')+')'};
+  log('выпуск '+i.id+' выгружен в '+fmt);
+  return {ok:true, note:'файл '+fmt+' отдан; лист — '+i.passport.sheet.orient+', полосы: '+
+    i.passport.sheet.bands.join(' → ')};
+};
+/* Легаси даёт «На дату» КАЖДОЙ ячейке: один лист может смешать остаток на
+   01.07 со ставкой на 01.08, и ответ перестаёт быть ответом на одну дату.   */
+RP.setColumnDate = (tid, fid, date) => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
+  const list = SEAM.fieldList((pubEd(t) || draftEd(t)).object);
+  const f = list.fields.find(x => x.id === fid);
+  return {ok:false, why:'дата состояния у ответа ОДНА: «'+(f ? f.name : fid)+'» нельзя взять '+
+    'на '+fmt(date)+', пока остальные столбцы стоят на другой дате — иначе лист перестаёт быть '+
+    'ответом на один вопрос, а паспорт перестаёт быть проверяемым (ИО-19). Нужна вторая дата — '+
+    'это сравнение двух состояний, отдельный вопрос (§19 п. 6)'};
+};
+/* Итог по уровню НЕ складывается модулем. Доказательство — числами.         */
+RP.foldLevelsSelf = tid => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
+  const ed = pubEd(t) || draftEd(t);
+  const sid = (ed.stats || [])[0];
+  if(!sid) return {ok:false, why:'показателей у редакции нет — складывать нечего'};
+  const v = RP.viewer();
+  const cut = {dept:null, ids:null};
+  const asOf = ed.mode === 'на дату' ? RP.state.sel.params.asOf : null;
+  const pack = SEAM.statSliceBy(sid, 'dept', cut, asOf, v.scope.slice());
+  const whole = SEAM.statSlice(sid, cut, asOf, v.scope.slice());
+  const sum = pack.groups.reduce((a, g) => a + (g.value || 0), 0);
+  const meta = SEAM.statMeta(sid);
+  /* Округлять доказательство нельзя: разница видна как раз в десятых.       */
+  const exact = v => v == null ? '—' : String(Math.round(v * 10) / 10).replace('.', ',');
+  return {ok:false, sum, real: whole.value, stat: meta ? meta.name : sid,
+    unit: meta ? meta.unit : '', parts: pack.groups.length,
+    why:'модуль не складывает частные итоги сам: «'+(meta ? meta.name : sid)+'» по '+
+      pack.groups.length+' подразделениям в сумме даёт '+exact(sum)+' '+(meta ? meta.unit : '')+
+      ', а на всём охвате показатель равен '+exact(whole.value)+' '+(meta ? meta.unit : '')+
+      '. Доля, средняя и количество уникальных не аддитивны — итог уровня спрашивается швом '+
+      'отдельным вопросом (ИО-17, ОЧ-25)'};
+};
+/* Легаси хранит отбор внутри «шаблона» списком объектов — состав и правило
+   слиты, и «почему объект здесь» ответить нечем (ОЧ-28).                    */
+RP.ruleAsWorklist = (name, rule) => ({ok:false, why:'правило отбора «'+(rule || 'остаток > 100 млн')+
+  '» — не рабочий список: список это ЗАМОРОЖЕННЫЙ СОСТАВ, отобранный выпуском в момент времени, '+
+  'и он отвечает «чем кончилось» по каждому объекту (ИО-14). Правило же живёт параметром '+
+  'редакции и каждый раз даёт новый состав. Слить их — потерять и то и другое (§9)'});
+
 RP.docxNote = () => ({ok:false, why:'docx — формат черновика: наружу с получателем уходит только '+
   'pdf (ИО-10). Другой текст насовсем делается правкой макета и новой редакцией, а не правкой '+
   'выпущенного файла (§8)'});
@@ -1463,6 +1807,7 @@ RP.closeWorklist = (id, why) => {
   log('список «'+w.name+'» закрыт: '+w.why);
   return {ok:true, note:'закрытый список читается, но не пополняется; строки остаются на месте'};
 };
+RP.doRuleList = () => act(RP.ruleAsWorklist('крупные кредиты', 'остаток > 100 млн'));
 RP.deleteWorklist = id => ({ok:false, why:'рабочий список не стирается — он кончается ЗАКРЫТИЕМ: '+
   'стёртый список отвечает неправдой на вопрос «кого обзванивали» (ИО-14, §9)'});
 RP.worklistTask = id => ({ok:false, why:'рабочий список никому ничего не поручает: у поручения '+
@@ -1562,7 +1907,12 @@ function passportBox(p, frozen){
   rows.push(['редакция шаблона', 'ред. '+p.edition]);
   rows.push(['область видимости', p.scope.join(', ')]);
   if(p.hidden) rows.push(['скрыто видимостью', objWord(p.hidden)+' — охват ответа неполный']);
-  rows.push(['спрошенные швы', p.seams ? p.seams.join(', ') : 'objectRows']);
+  if(p.levels && p.levels.length) rows.push(['уровни разрезов', p.levels.join('; ')]);
+  if(p.rounding && p.rounding.length) rows.push(['разрядность', p.rounding.join('; ')]);
+  if(p.sheet) rows.push(['лист выгрузки', p.sheet.orient+'; полосы: '+p.sheet.bands.join(' → ')+
+    '; форматы: '+p.sheet.formats.join(' · ')]);
+  rows.push(['спрошенные швы', p.seams && p.seams.length ? p.seams.join(', ')
+    : (p.ordered ? 'ещё ни одного — заказ принят, числа не спрошены' : 'objectRows')]);
   rows.push(['числа', frozen ? 'заморожены снимком' : 'живые, пересчитываются при каждом показе']);
   return '<div class="snap'+(frozen?'':' prelim')+'">'+rows.map(r =>
     '<div class="row"><span class="k">'+esc(r[0])+'</span>'+esc(r[1])+'</div>').join('')+'</div>';
@@ -1666,7 +2016,11 @@ function scBuilder(){
           : (m.live ? '' : ' <span style="color:var(--asubk-amber)">— налету не берётся</span>')) : esc(s); }).join('; ')
         : '<span class="muted">—</span>', true],
       ['Параметры', ed.params.map(p => p.name+' ('+p.role+')').join('; ')],
-      ['Разрезы', ed.cuts.length ? ed.cuts.map(deptCutName).join(', ') : '—']
+      ['Разрезы и уровни', ed.cuts.length ? ed.cuts.map((c, i) => (i+1)+'-й уровень — '+cutName(c)+
+        ((ed.levelTotals || []).indexOf(c) !== -1 ? ' <b>с итоговой строкой</b>' : '')).join('; ') : '—', true],
+      ['Разрядность', (ed.stats || []).map(s => { const dp = dpOf(ed, s);
+        return dp == null ? null : (SEAM.statMeta(s) || {name:s}).name+' → '+
+          (dp === 0 ? 'целых' : dp+' зн.'); }).filter(Boolean).join('; ') || '<span class="muted">не объявлена</span>', true]
     ])+'</div>';
 
   h += '<div class="card"><h3>Пять проверок публикации (§4)</h3>'+
@@ -1695,6 +2049,31 @@ function scBuilder(){
       '<button class="btn btn-secondary btn-sm" onclick="RP.doSchedule(\''+t.id+'\')">Назначить ежемесячную сдачу к 15-му</button>'+
     '</div></div></div>';
 
+  /* Лист выгрузки и итоги уровней — состав редакции, а не настройка экрана
+     (§3 пп. 4, 8; ИО-17, ИО-18). Карточка показывает и то и другое вместе,
+     потому что порядок полос без итогов уровней бессмыслен.                  */
+  const sh = RP.sheetOf(t.id);
+  h += '<div class="card"><h3>Итоги уровней и лист выгрузки</h3>'+
+    '<div class="small">В легаси печатное представление собирается из номеров строк макета, и '+
+    'потому <em>ИТОГО печатается перед группами</em>, из которых оно якобы сложено. Здесь полосы '+
+    '<em>объявлены</em> списком, а итог по уровню спрашивается швом: доля, средняя и количество '+
+    'уникальных не аддитивны, и складывать частные итоги модуль не вправе (ИО-17, ОЧ-25, ОЧ-26).</div>'+
+    '<div class="bands">'+sh.bands.map((b, i) => '<span class="band'+(b === 'итог' ? ' tot' :
+      (b === 'уровни' ? ' lv' : ''))+'">'+(i+1)+'. '+esc(b)+'</span>').join('<span class="arr">→</span>')+
+    '</div>'+
+    kv([['Ориентация листа', sh.orient],
+        ['Шапка на каждой странице', sh.repeatHeader ? 'да' : 'нет'],
+        ['Подвал', sh.footer === 'паспорт' ? 'паспорт ответа (кто, чем, на какую дату, каким охватом)' : sh.footer],
+        ['Форматы выгрузки', sh.formats.join(' · ')+' — перечень объявлен редакцией, а не набором кнопок'],
+        ['Итоги по уровням', sh.levels.filter(l => l.total).map(l => l.name).join('; ') ||
+          '<span class="muted">нет</span>', true]])+
+    '<div class="btn-row">'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.doBands(\''+t.id+'\')">Поставить итог перед уровнями</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.doFold(\''+t.id+'\')">Сложить итоги уровней самим</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.doLandscape(\''+t.id+'\')">Развернуть лист альбомно</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.doColDate(\''+t.id+'\')">Взять один столбец на другую дату</button>'+
+    '</div></div></div>';
+
   h += '<div class="side"><div class="mirror"><div class="row"><span class="k">публичный перечень</span>'+
     esc(list.name)+'</div><div class="row"><span class="k">владелец</span>'+esc(list.owner)+'</div>'+
     list.fields.map(f => '<div class="row"><span class="k">'+esc(f.id)+'</span>'+esc(f.name)+'</div>').join('')+
@@ -1714,9 +2093,38 @@ RP.doPublish = id => act(RP.publish(id), 'редакция опубликова�
 RP.doAsk = id => act(RP.askPublish(id), 'черновик передан на публикацию');
 RP.doBasis = id => act(RP.setBasis(id, {doc:'Порядок №41 (ред. 06.07.2026)', point:'п. 12'}), 'основание названо');
 RP.doCircle = id => act(RP.setCircle(id, ['dep-prom']), 'круг изменён');
+RP.doBands = id => act(RP.setBands(id, ['заголовок','шапка','итог','уровни','подвал']));
+RP.doLandscape = id => act(RP.setSheet(id, {orient:'альбомная'}), 'лист развёрнут альбомно');
+RP.doColDate = id => { const ed = pubEd(TPL(id)) || draftEd(TPL(id));
+  act(RP.setColumnDate(id, (ed.fields || ['debt_main'])[ed.fields.length - 1], '2026-07-01')); };
+RP.doFold = id => { const r = RP.foldLevelsSelf(id);
+  act(r); };
 RP.doSchedule = id => act(RP.setSchedule(id, {freq:'ежемесячно', dueDay:15, since:'2026-05-01',
   asOfRule:'первое число месяца, следующего за отчётным',
   text:'ежемесячно, не позднее 15-го числа месяца, следующего за отчётным'}), 'расписание назначено');
+
+/* Полосы уровней. Итог печатается ПОСЛЕ строк своей группы и приходит швом:
+   складывать частные итоги модуль не вправе (ИО-17, ОЧ-25).                 */
+function cellRow(r, cols){
+  return '<tr>'+cols.map(c => { const val = r[c.id];
+    return '<td'+(typeof val === 'number' ? ' class="num"' : '')+'>'+
+      esc(typeof val === 'number' ? money(val) : (val == null ? '—' : val))+'</td>'; }).join('')+'</tr>';
+}
+function bandRows(gs, cols, depth){
+  const lvl = depth || 1;
+  return gs.map(g => {
+    let out = '<tr class="grp g'+lvl+'"><td colspan="'+cols.length+'">'+
+      '<b>'+esc(g.name)+'</b> <span class="small">'+esc(objWord(g.count))+'</span></td></tr>';
+    out += g.children ? bandRows(g.children, cols, lvl + 1)
+                      : (g.rows || []).map(r => cellRow(r, cols)).join('');
+    if(g.totals) out += '<tr class="gtot"><td colspan="'+cols.length+'">Итог по «'+esc(g.name)+'»: '+
+      g.totals.map(x => esc(x.name)+' — <b>'+(x.shown == null ? '—' : esc(money(x.shown)))+'</b> '+
+        esc(x.unit)).join(' · ')+
+      ' <span class="small">спрошен швом <span class="mono">statSlice</span> пакетно; '+
+      'модуль его не складывал (ИО-17)</span></td></tr>';
+    return out;
+  }).join('');
+}
 
 /* ------------------------------ ВЫПУСК ------------------------------- */
 function scIssue(){
@@ -1774,18 +2182,25 @@ function scIssue(){
     }
   } else {
     const d = prev.data;
+    /* Порядок полос берётся из ЛИСТА редакции, а не из порядка кода: в легаси
+       он выведен из номеров строк макета, и ИТОГО печатается перед группами
+       (ОЧ-26, ОЧ-33).                                                        */
+    h += '<div class="bands">'+d.sheet.bands.map((b, i) => '<span class="band'+(b === 'итог' ? ' tot' :
+      (b === 'уровни' ? ' lv' : ''))+'">'+(i+1)+'. '+esc(b)+'</span>').join('<span class="arr">→</span>')+
+      '<span class="arr">·</span><span class="small">лист '+esc(d.sheet.orient)+
+      ', форматы: '+esc(d.sheet.formats.join(' · '))+'</span></div>';
     h += '<table class="cgrid"><thead><tr>'+d.cols.map(c =>
       '<th>'+(c.lost ? '<span style="color:var(--asubk-red)">'+esc(c.id)+' — нет в перечне</span>' : esc(c.name))+
       '</th>').join('')+'</tr></thead><tbody>';
-    d.rows.forEach(r => { h += '<tr>'+d.cols.map(c => {
-      const val = r[c.id];
-      return '<td'+(typeof val === 'number' ? ' class="num"' : '')+'>'+
-        esc(typeof val === 'number' ? money(val) : (val == null ? '—' : val))+'</td>'; }).join('')+'</tr>'; });
+    if(d.groups && d.groups.length) h += bandRows(d.groups, d.cols);
+    else d.rows.forEach(r => { h += cellRow(r, d.cols); });
     if(!d.rows.length) h += '<tr><td colspan="'+Math.max(1,d.cols.length)+'" class="muted">строк нет</td></tr>';
     h += '</tbody></table>';
     h += '<div class="totals">'+d.totals.map(x => '<div class="tot"><div class="tn">'+esc(x.name)+'</div>'+
-      '<div class="tv">'+(x.value == null ? '—' : esc(money(x.value)))+' <span class="small">'+esc(x.unit)+'</span></div>'+
-      '<div class="tp">'+esc(x.why || 'считается по видимым строкам (§13.2)')+'</div></div>').join('')+'</div>';
+      '<div class="tv">'+(x.shown == null ? '—' : esc(money(x.shown)))+' <span class="small">'+esc(x.unit)+'</span></div>'+
+      '<div class="tp">'+esc(x.why || (x.dp != null
+        ? 'считается по видимым строкам (§13.2); разрядность объявлена редакцией'
+        : 'считается по видимым строкам (§13.2)'))+'</div></div>').join('')+'</div>';
     h += passportBox(d.passport, false);
     if(d.soft.length) h += '<div class="banner warn"><b>Проверить заранее это было нельзя.</b> '+
       d.soft.map(esc).join('; ')+'. Такой выпуск станет предварительным, даже если запросить '+
@@ -1806,7 +2221,7 @@ function scIssue(){
   if(isBlank && t.series && t.series.manual) h += '<div class="fld"><label>Номер (серия ручная)</label>'+
     '<input value="'+esc(sel.number||'')+'" onchange="RP.setNumber(this.value)" placeholder="ПР-2026/015"></div>';
   h += '<div class="fld"><label>&nbsp;</label>'+
-    '<button class="btn btn-primary" onclick="RP.doIssue()">Выпустить</button></div></div>';
+    '<button class="btn btn-primary" onclick="RP.doOrder()">Заказать выпуск</button></div></div>';
   h += '<div class="facts">'+
     '<div class="f">предварительный — обязательств не закрывает, снимка не даёт, номера не тратит; '+
       'файл живёт '+dayWord(RP.FILE_DAYS)+' и гаснет (§5, ADR-0161 §7)</div>'+
@@ -1821,6 +2236,27 @@ function scIssue(){
     '<button class="btn btn-secondary btn-sm" onclick="RP.demoStringRecipient()">Вписать получателя строкой «Минфин КР»</button>'+
     '<button class="btn btn-secondary btn-sm" onclick="RP.demoDocx()">Отдать получателю docx</button>'+
     '</div></div>';
+
+  /* --- задания --- */
+  const jobs = RP.state.issues.filter(i => i.state !== 'готов');
+  h += '<div class="card"><h3>Задания на выпуск</h3>'+
+    '<div class="small">Выпуск — <em>заказ</em>, а не нажатие: в легаси тот же вопрос по портфелю '+
+    'в 51 268 субъектов считается 90–107 секунд синхронно, и окно всё это время висит (ОЧ-30). '+
+    'Строка журнала и паспорт заводятся <b>в момент заказа</b> — кто, чем, на какую дату и каким '+
+    'охватом, известно сразу; неизвестны только числа. Состояния: '+
+    RP.jobStates().join(' → ')+'.</div>';
+  if(!jobs.length) h += '<div class="banner ok">Незакрытых заданий нет.</div>';
+  else h += '<table class="cgrid"><thead><tr><th>Заказ</th><th>Шаблон</th><th>Ступень при заказе</th>'+
+    '<th>Состояние</th><th></th></tr></thead><tbody>'+jobs.map(j =>
+      '<tr><td class="mono">'+esc(j.id)+'<div class="small">'+fmt(j.at)+' · '+esc(j.by)+'</div></td>'+
+      '<td class="small">'+esc(j.tplName)+'<div class="small">ред. '+j.ed+'</div></td>'+
+      '<td class="small">'+esc(j.asked)+'</td>'+
+      '<td>'+pill(j.state, j.state === 'ошибка' ? 'err' : (j.state === 'считается' ? 'warn' : 'info'))+
+        (j.error ? '<div class="why">'+esc(j.error)+'</div>' : '')+'</td>'+
+      '<td>'+(j.state === 'ошибка' ? '<span class="small muted">задание кончилось; строка осталась</span>'
+        : '<button class="btn btn-secondary btn-sm" onclick="RP.doStep(\''+j.id+'\')">Шаг задания</button>')+
+      '</td></tr>').join('')+'</tbody></table>';
+  h += '</div>';
   return h;
 }
 RP.selTpl = id => { RP.state.sel.tpl = id; render(); };
@@ -1830,12 +2266,21 @@ RP.setDept = v => { RP.state.sel.params.dept = v; render(); };
 RP.setKind = v => { RP.state.sel.kind = v; render(); };
 RP.setRecipient = v => { RP.state.sel.recipient = v; render(); };
 RP.setNumber = v => { RP.state.sel.number = v; render(); };
-RP.doIssue = () => {
+function issueSpec(){
   const sel = RP.state.sel, t = TPL(sel.tpl) || TPL(RP.visibleTemplates()[0]);
   const params = t.kind === 'бланк' ? {obj: sel.obj} : {asOf: sel.params.asOf, dept: sel.params.dept};
-  const r = RP.issue(t.id, {params, kind: sel.kind,
+  return {t, spec:{params, kind: sel.kind,
     recipient: (sel.kind === 'окончательный' && t.kind !== 'бланк') ? sel.recipient : null,
-    number: sel.number});
+    number: sel.number}};
+}
+RP.doOrder = () => { const q = issueSpec();
+  const r = RP.order(q.t.id, q.spec);
+  act(r, r.ok ? 'заказ '+r.id+' принят: чисел ещё нет, строка журнала уже есть' : ''); };
+RP.doStep = id => { const r = RP.step(id);
+  if(r.done && r.ok){ RP.state.sel.issue = id; RP.state.view = 'journal'; }
+  act(r, r.ok ? (r.done ? 'выпуск '+id+': '+r.note : r.note) : ''); };
+RP.doIssue = () => { const q = issueSpec();
+  const r = RP.issue(q.t.id, q.spec);
   if(r.ok){ RP.state.sel.issue = r.id; RP.state.view = 'journal'; }
   act(r, r.ok ? 'выпуск '+r.id+': '+r.note : '');
 };
@@ -1851,7 +2296,8 @@ function scJournal(){
   const iss = RP.state.issues.slice().reverse();
   let h = '<div class="page-lead">Факт выпуска <em>вечен</em>: журнал заведён ради вопроса «что мы '+
     'отдали наружу», и стёртая строка отвечает на него неправдой (ИО-11). Расходник — только файл '+
-    'предварительного выпуска, по единому сроку.</div>';
+    'предварительного выпуска, по единому сроку. Строка появляется <b>в момент заказа</b>, до '+
+    'того как посчитаны числа: заказ уже известен целиком, и в журнале видно, что он был (§5).</div>';
   h += '<table class="cgrid"><thead><tr><th>Выпуск</th><th>Шаблон</th><th>Ступень</th>'+
     '<th>Получатель</th><th>Номер</th><th>Охват</th><th>Файл</th><th></th></tr></thead><tbody>';
   iss.forEach(i => {
@@ -1859,7 +2305,11 @@ function scJournal(){
       '<td><b class="mono">'+esc(i.id)+'</b><div class="small">'+fmt(i.at)+' · '+esc(i.by)+'</div>'+
         (i.period ? '<div class="small">период: '+esc(i.period)+'</div>' : '')+'</td>'+
       '<td>'+esc(i.tplName)+'<div class="small">ред. '+i.ed+' · '+esc(i.kindTpl)+'</div></td>'+
-      '<td>'+pill(i.kind, i.kind === 'окончательный' ? 'ok' : 'info')+
+      '<td>'+pill(i.kind, i.kind === 'окончательный' ? 'ok'
+          : (i.state === 'ошибка' ? 'err' : (i.state === 'готов' ? 'info' : 'warn')))+
+        (i.state !== 'готов' ? '<div class="small">задание: '+esc(i.state)+
+          ', ступень при заказе — '+esc(i.asked)+'</div>' : '')+
+        (i.error ? '<div class="why">'+esc(i.error)+'</div>' : '')+
         (i.diverged ? '<div>'+pill('расхождение со сданным','err')+'</div>' : '')+
         (i.correctionOf ? '<div class="small">уточняет '+esc(i.correctionOf)+'</div>' : '')+
         (i.correctedBy ? '<div class="small">уточнён выпуском '+esc(i.correctedBy)+'</div>' : '')+
@@ -1868,11 +2318,17 @@ function scJournal(){
       '<td class="mono">'+(i.number ? esc(i.number) : '—')+'</td>'+
       '<td class="small">'+esc(i.coverage.map(deptName).join('; ') || '—')+
         (i.passport.hidden ? '<div class="why">скрыто видимостью: '+objWord(i.passport.hidden)+'</div>' : '')+'</td>'+
-      '<td class="small">'+(i.kind === 'окончательный' ? 'заморожен снимком, pdf'
-        : (i.fileAlive ? 'живёт до '+fmt(i.fileUntil) : 'погашен '+fmt(i.fileDeadAt)+', строка осталась'))+'</td>'+
+      '<td class="small">'+(i.state !== 'готов' ? '<span class="muted">файла ещё нет — задание '+
+          esc(i.state)+'</span>'
+        : (i.kind === 'окончательный' ? 'заморожен снимком, pdf'
+        : (i.fileAlive ? 'живёт до '+fmt(i.fileUntil)+'<div class="small">'+
+            esc((i.formats || []).join(' · '))+'</div>'
+          : 'погашен '+fmt(i.fileDeadAt)+', строка осталась')))+'</td>'+
       '<td><div class="btn-row" style="margin:0">'+
         '<button class="btn btn-secondary btn-sm" onclick="RP.selIssue(\''+i.id+'\')">Паспорт</button>'+
         (i.recipient ? '<button class="btn btn-secondary btn-sm" onclick="RP.doCorrective(\''+i.id+'\')">Уточнить</button>' : '')+
+        (i.state === 'готов' ? '<button class="btn btn-secondary btn-sm" onclick="RP.doSheetIssue(\''+
+          i.id+'\')">Поправить лист</button>' : '')+
         '<button class="btn btn-danger btn-sm" onclick="RP.doDelete(\''+i.id+'\')">Удалить</button>'+
       '</div></td></tr>';
   });
@@ -1891,6 +2347,13 @@ function scJournal(){
         rc.diffs.map(d => esc(d.name)+': сдано '+money(d.was)+', сейчас '+money(d.now)).join('; ')+
         '. Выпуск не отзывается — сданное остаётся сданным, но перестаёт молча считаться верным (§6).</div>';
     }
+    if(sel.state === 'готов') h += '<div class="btn-row">'+
+      (sel.formats || []).map(f => '<button class="btn btn-secondary btn-sm" onclick="RP.doExport(\''+
+        sel.id+'\',\''+f+'\')">Выгрузить '+esc(f)+'</button>').join('')+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.doExport(\''+sel.id+
+        '\',\'csv\')">Выгрузить csv</button></div>'+
+      '<div class="small">Перечень форматов объявлен листом редакции — экран его не расширяет '+
+      '(ИО-18).</div>';
     if(!sel.snapshot) h += '<div class="banner info">Снимка нет: предварительный выпуск числа не морозит, '+
       'обязательства не закрывает и метку расхождения получить не может — метить нечего.</div>';
     h += '</div>';
@@ -1912,6 +2375,8 @@ function scJournal(){
   return h;
 }
 RP.selIssue = id => { RP.state.sel.issue = id; render(); };
+RP.doSheetIssue = id => act(RP.setSheetOnIssue(id, {orient:'альбомная'}));
+RP.doExport = (id, f) => act(RP.exportIssue(id, f));
 RP.doDelete = id => act(RP.deleteIssue(id));
 RP.doCorrective = id => { const r = RP.corrective(id); if(r.ok) RP.state.sel.issue = r.id; act(r, r.note); };
 RP.doReopen = () => act(RP.reopenPeriod('июль 2026',
@@ -2112,8 +2577,11 @@ function scWorklists(){
     '<div class="fld"><label>Название списка</label><input id="wlName" placeholder="Обзвон по просрочке, август"></div>'+
     '</div><div class="btn-row">'+
       '<button class="btn btn-primary btn-sm" onclick="RP.uiMakeWorklist()">Отобрать и заморозить</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.doRuleList()">Завести список правилом '+
+        '«остаток &gt; 100 млн»</button>'+
     '</div><div class="foot-pass">Замораживается <b>состав</b>, не числа: список хранит ссылки на '+
-      'объекты. Иначе «обзвонили всех» перестало бы быть проверяемым (ИО-14).</div></div>';
+      'объекты. Иначе «обзвонили всех» перестало бы быть проверяемым (ИО-14). Правило отбора — '+
+      'не список: оно живёт параметром редакции и каждый раз даёт новый состав (§9, ОЧ-28).</div></div>';
 
   if(!mine.length) return h + '<div class="banner info">Рабочих списков пока нет.</div>';
 
@@ -2249,9 +2717,30 @@ function scBounds(){
       'зеркалом ровно на ширину шва: эталон у оргструктуры, статистики, ядра и справочников '+
       '(ADR-0157 §3). Свои запросы к базе и свои формулы в модуле запрещены (ИО-2, ИО-3) — '+
       'проверяется смоуком по отмеченному блоку движка.</div>'+
+    '<div class="f no"><b>Вторая дата у ответа.</b> Дата состояния одна (ИО-19). Сравнение двух '+
+      'состояний — отдельный вопрос: чей это разрез, что печатается в столбцах и как называется '+
+      'отклонение, ещё не решено (§19 п. 6). В легаси вторая дата приделана к КАЖДОЙ ячейке, и '+
+      'лист смешивает остаток на 01.07 со ставкой на 01.08.</div>'+
+    '<div class="f no"><b>Настоящая очередь заданий.</b> Состояния выпуска ('+
+      RP.jobStates().join(' → ')+') показаны и проверяются, но шаг делается кнопкой, а не '+
+      'исполнителем: макет показывает состояния, а не изображает медленность.</div>'+
     '<div class="f no"><b>Хранилище.</b> Состояние живёт в памяти страницы: «Сбросить макет» '+
       'возвращает начальную сцену вместе с зеркалами соседей.</div>'+
     '</div></div>'+
+  '<div class="card"><h3>Отказы, вычитанные из легаси (сверка 24.08.2026)</h3>'+
+    '<div class="small">Старая система умеет всё это — и каждый раз ценой того, что ответ '+
+    'перестаёт быть проверяемым. Кнопки ниже показывают отказы вслух, а не прячут их за '+
+    'отсутствием кнопки.</div>'+
+    '<div class="btn-row">'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.doFold(\'t-npl\')">Сложить доли по подразделениям</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.doBands(\'t-avg\')">Итог перед группами</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.doColDate(\'t-overdue\')">Столбец на свою дату</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.doRuleList()">Правило отбора рабочим списком</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.doSheetLast()">Поправить лист у сданного выпуска</button>'+
+    '</div>'+
+    '<div class="foot-pass">Источник: <span class="mono">requirements/legacy/10-reports.md</span> — '+
+    'метамодель отчётности старой системы и два прогона на живых данных (51 268 субъектов, '+
+    '90–107 с синхронного счёта).</div></div>'+
   '<div class="card"><h3>Что доказано исполнением</h3><div class="facts">'+
     '<div class="f yes"><em>Движок не знает базы.</em> В отмеченном блоке нет имён OBJECTS, HIST, '+
       'STATS, FIELDS — только четыре шва.</div>'+
@@ -2263,6 +2752,11 @@ function scBounds(){
       'хранится: единственный источник правды — текст макета.</div>'+
     '</div></div>';
 }
+
+RP.doSheetLast = () => { const done = RP.state.issues.filter(i => i.state === 'готов');
+  const last = done[done.length - 1];
+  act(last ? RP.setSheetOnIssue(last.id, {orient:'альбомная'})
+           : {ok:false, why:'готовых выпусков нет — править нечего'}); };
 
 /* --------------------------- КАРКАС ЭКРАНА --------------------------- */
 const VIEWS = {

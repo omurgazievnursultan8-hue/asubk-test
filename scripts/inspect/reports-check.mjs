@@ -530,6 +530,144 @@ const as = r => { RP.state.role = R[r]; };
     `отказы и границы проговорены на самих экранах, а не спрятаны за отсутствием кнопки`);
 })();
 
+/* ---------- R. Волна 4: итоги уровней, лист выгрузки, выпуск заданием ---------- */
+(() => {
+  RP.seed(); as('auth');
+  const fold = RP.foldLevelsSelf('t-npl');
+  ok(67, !fold.ok && fold.parts === 3 && Math.abs(fold.sum - 83.3) < 0.05 && fold.real === 25 &&
+        has(fold.why, 'ИО-17'),
+    `итог уровня приходит швом, а не сложением: доли по ${fold.parts} подразделениям в сумме дают ` +
+    `${fold.sum} %, а на всём охвате показатель равен ${fold.real} % — модуль складывать не вправе (ИО-17)`);
+
+  const pv = RP.preview('t-overdue', { asOf: RP.state.sel.params.asOf, dept: null }).data;
+  const lvl = pv.levels.map(l => l.name + (l.total ? '+итог' : ''));
+  const inner = pv.groups.reduce((a, g) => a + g.children.length, 0);
+  const cnt = pv.groups.reduce((a, g) => a + g.count, 0);
+  ok(68, pv.levels.length === 2 && lvl[0] === 'подразделение+итог' && lvl[1] === 'состояние кредита' &&
+        cnt === pv.rows.length && inner >= 4 &&
+        pv.groups.every(g => g.children.every(c => c.rows && c.rows.length)),
+    `разрезы печатаются уровнями: ${lvl.join(' → ')}; ${pv.groups.length} группы первого уровня, ` +
+    `${inner} второго, строк в группах ${cnt} из ${pv.rows.length}`);
+
+  ok(69, pv.groups.every(g => g.totals && g.totals.length === 2) &&
+        pv.groups.every(g => g.children.every(c => c.totals === null)) &&
+        pv.groups.every(g => g.totals.every(t => t.seam === 'statSlice (пакетно)')),
+    `итоговая строка печатается только по объявленному уровню: у подразделения она есть и спрошена ` +
+    `пакетным statSlice, у состояния кредита — нет, потому что редакция её не объявляла`);
+
+  const sh = RP.sheetOf('t-overdue');
+  ok(70, sh.orient === 'книжная' && sh.bands.join(' ') === 'заголовок шапка уровни итог подвал' &&
+        sh.formats.join('·') === 'xlsx·pdf' &&
+        pv.passport.sheet.bands.join(' ') === sh.bands.join(' ') &&
+        pv.passport.levels[0] === 'подразделение (с итогом)' && pv.passport.rounding.length === 2,
+    `лист выгрузки объявлен редакцией и попадает в паспорт: ${sh.orient}, полосы ` +
+    `${sh.bands.join(' → ')}, форматы ${sh.formats.join(' · ')} (ИО-18)`);
+
+  const badOrder = RP.setBands('t-avg', ['заголовок','шапка','итог','уровни','подвал']);
+  const lost = RP.setBands('t-avg', ['заголовок','шапка','уровни','подвал']);
+  ok(71, !badOrder.ok && has(badOrder.why, 'ОЧ-26') && !lost.ok && has(lost.why, 'итог'),
+    `итог перед уровнями отклонён: ${badOrder.why.slice(0, 96)}…`);
+
+  const onPub = RP.setSheet('t-overdue', { orient:'альбомная' });
+  as('user');
+  const byUser = RP.setSheet('t-avg', { orient:'альбомная' });
+  as('auth');
+  const onDraft = RP.setSheet('t-avg', { orient:'альбомная' });
+  ok(72, !onPub.ok && has(onPub.why, 'НОВАЯ РЕДАКЦИЯ') && !byUser.ok && has(byUser.why, 'ИО-18') &&
+        onDraft.ok && RP.sheetOf('t-avg').orient === 'альбомная',
+    `лист правится там же, где состав: в черновике и уполномоченным; у опубликованной редакции — ` +
+    `только новой редакцией, иначе сданное перепечаталось бы иначе (ИО-18, ИО-2)`);
+})();
+
+(() => {
+  RP.seed(); as('auth');
+  const prelim = RP.issue('t-overdue', { params:{ asOf: RP.state.sel.params.asOf, dept:null },
+    kind:'предварительный' });
+  const xlsx = RP.exportIssue(prelim.id, 'xlsx');
+  const csv  = RP.exportIssue(prelim.id, 'csv');
+  const fixSheet = RP.setSheetOnIssue(prelim.id, { orient:'альбомная' });
+  ok(73, !fixSheet.ok && has(fixSheet.why, 'ИО-18') && has(fixSheet.why, 'редакцией'),
+    `лист у выпуска не правится: печатное представление предъявлено вместе с числами — ` +
+    `иначе один и тот же сданный отчёт у двух людей печатается по-разному (ИО-18)`);
+  ok(74, xlsx.ok && !csv.ok && has(csv.why, 'не объявляет'),
+    `перечень форматов — часть листа редакции, а не набор кнопок: xlsx отдан, csv отклонён ` +
+    `(объявлено ${prelim.rec.formats.join(' · ')})`);
+
+  const fin = RP.issue('t-overdue', { params:{ asOf: RP.state.sel.params.asOf, dept:null },
+    kind:'окончательный', recipient: RP.addressees()[0].id });
+  const finXlsx = RP.exportIssue(fin.id, 'xlsx');
+  const snap = fin.rec.snapshot.totals;
+  const now = RP.preview('t-overdue', { asOf: RP.state.sel.params.asOf, dept:null }).data.totals;
+  const rc = RP.recompute(fin.id);
+  const grp = RP.preview('t-npl', { asOf: RP.state.sel.params.asOf }).data.groups.map(g => g.totals[0]);
+  const rounded = grp.filter(t => t.value !== t.shown);
+  ok(75, snap.every((s, i) => s.value === now[i].shown && s.dp === 0) && !rc.changed &&
+        rounded.length >= 1 && rounded.every(t => t.dp === 0 && t.shown === Math.round(t.value)),
+    `в снимок ложится ПОКАЗАННАЯ величина, в объявленной разрядности: доля ` +
+    `${String(rounded[0].value).replace('.', ',')} % печатается как ${rounded[0].shown} %, и ` +
+    `расхождение сравнивает показанное с показанным, а не ловит шум ниже разрядности (ОЧ-32)`);
+  ok(76, fin.kind === 'окончательный' && !finXlsx.ok && has(finXlsx.why, 'ИО-10'),
+    `окончательный выпуск отдаётся только pdf, чем бы ни был объявлен лист: снимок в редактируемом ` +
+    `формате — не снимок (ИО-10)`);
+})();
+
+(() => {
+  RP.seed(); as('auth');
+  const o = RP.order('t-overdue', { params:{ asOf: RP.state.sel.params.asOf, dept:null },
+    kind:'предварительный' });
+  /* Снимок состояния строки СРАЗУ после заказа: ISS отдаёт живую запись, и
+     шаги задания её меняют — сравнивать надо с тем, что было при заказе.     */
+  const at0 = JSON.parse(JSON.stringify(RP.ISS(o.id)));
+  const s1 = RP.step(o.id);
+  const s2 = RP.step(o.id);
+  ok(77, o.ok && o.state === 'заказан' && at0.state === 'заказан' && at0.snapshot === null &&
+        at0.passport.ordered === true && at0.passport.seams.length === 0 &&
+        at0.passport.edition === 1 && s1.state === 'считается' && s2.state === 'готов' &&
+        s2.done && RP.jobStates().join('→') === 'заказан→считается→готов→ошибка',
+    `выпуск — заказ, а не нажатие: строка журнала и паспорт заведены в момент заказа (редакция, ` +
+    `дата, охват известны), числа — в шаге «считается»; состояния ${RP.jobStates().join(' → ')}`);
+
+  const bad = RP.order('t-overdue', { params:{ asOf:'2026-01-01', dept:null }, kind:'предварительный' });
+  RP.step(bad.id);
+  const err = RP.step(bad.id);
+  const errRow = RP.ISS(bad.id);
+  ok(78, bad.ok && !err.ok && err.state === 'ошибка' && has(err.why, 'ИО-6') &&
+        errRow.state === 'ошибка' && errRow.snapshot === null && RP.ISS(bad.id) !== undefined,
+    `задание кончается СОСТОЯНИЕМ, а не пустотой: снимка на 01.01.2026 нет — ошибка, строка ` +
+    `в журнале осталась и говорит почему`);
+
+  as('clerk');
+  const t = RP.state.templates.find(x => x.id === 't-notice');
+  const before = t.series.next;
+  const ob = RP.order('t-notice', { params:{ obj: RP.objects()[0].id }, kind:'окончательный' });
+  const atOrder = t.series.next;
+  RP.step(ob.id); const done = RP.step(ob.id);
+  ok(79, ob.ok && atOrder === before && t.series.next === before + 1 &&
+        done.rec.number === t.series.prefix + String(before).padStart(3,'0'),
+    `номер серии тратится вместе со снимком, а не при заказе: после заказа следующий остался ` +
+    `${atOrder}, после «готов» стал ${t.series.next}, выпуску достался ${done.rec.number} (ИО-9)`);
+})();
+
+(() => {
+  RP.seed(); as('auth');
+  const colDate = RP.setColumnDate('t-overdue', 'debt_main', '2026-07-01');
+  const rule = RP.ruleAsWorklist('крупные', 'остаток > 100 млн');
+  ok(80, !colDate.ok && has(colDate.why, 'ИО-19') && has(colDate.why, '§19 п. 6') &&
+        !rule.ok && has(rule.why, 'ИО-14') && has(rule.why, '§9'),
+    `две привычки легаси названы отказом: дата состояния у ответа одна (ИО-19), а правило отбора — ` +
+    `не рабочий список: список это замороженный состав, правило живёт параметром редакции (§9)`);
+
+  const V = win.VIEWS;
+  const b = V.builder.fn(), i = V.issue.fn(), bo = V.bounds.fn(), w = V.worklists.fn();
+  RP.order('t-overdue', { params:{ asOf: RP.state.sel.params.asOf, dept:null }, kind:'предварительный' });
+  const j = V.journal.fn(), i2 = V.issue.fn();
+  ok(81, has(b, 'Итоги уровней и лист выгрузки') && has(i, 'Задания на выпуск') &&
+        has(i, 'Итог по «') && has(i2, 'Шаг задания') && has(j, 'задание: заказан') &&
+        has(bo, 'Отказы, вычитанные из легаси') && has(w, 'Правило отбора — '),
+    `волна 4 проговорена на экранах: полосы и итоги уровней в конструкторе и предпросмотре, ` +
+    `состояния задания в выпуске и журнале, отказы легаси на границах`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
