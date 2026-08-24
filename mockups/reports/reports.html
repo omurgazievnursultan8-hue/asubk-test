@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Отчётность · АСУБК</title>
 <!--
-  РАБОЧИЙ ПРОТОТИП (single-file) — модуль «Отчётность» (TO-BE), волна 4.
+  РАБОЧИЙ ПРОТОТИП (single-file) — модуль «Отчётность» (TO-BE), волна 5.
   Не картинка: логика ниже ИСПОЛНЯЕТСЯ. Отчёт здесь определяется объявленностью
   состава, а не печатью; числа морозит не выпуск, а НАЗВАННЫЙ ПОЛУЧАТЕЛЬ; своей
   формулы и своего запроса к базе у модуля нет ни одного — данные приходят только
@@ -19,13 +19,18 @@
   `requirements/legacy/10-reports.md`): итоговые строки по уровням разреза — швом, а не
   сложением; лист выгрузки как часть редакции с объявленным порядком полос и перечнем
   форматов; выпуск фоновым заданием с состояниями и паспортом от момента заказа.
+  Волна 5 (24.08.2026) закрыла дыру между «посмотреть» и «выпустить» (ADR-0162): редакция
+  объявляет ДВА списка — состав по умолчанию и перечень допустимых отклонений; экран
+  крутится только внутри границ, показ несёт шапку с меткой «не выпуск», сохранённая
+  накрутка — «Вид», восьмая сущность модуля; паспорт хранит показанный состав целиком,
+  а накрученное выпускается предварительно и никогда окончательным.
   Смоук: `node scripts/inspect/reports-check.mjs`.
-  Канон логики — `ASUBK-otchetnost-logika.md` (семь сущностей, две ступени выпуска,
-  четыре шва, все 19 инвариантов с причиной); журнал волн — `ASUBK-status-razrabotki.md`.
+  Канон логики — `ASUBK-otchetnost-logika.md` (восемь сущностей, две ступени выпуска,
+  четыре шва, все 22 инварианта с причиной); журнал волн — `ASUBK-status-razrabotki.md`.
 
   КАРТА: ЭКРАН → РАЗДЕЛ КАНОНА
     Реестр шаблонов   → §2.1–2.3, §13.1        Конструктор     → §3, §4
-    Выпуск            → §5, §3 п. 8, §13.4     Журнал выпусков → §5, §6, §12
+    Показ и выпуск    → §5, §3 п. 9, §13.4     Журнал выпусков → §5, §6, §12
     Календарь сдачи   → §7                     Швы и соседи    → §11, §12, §16
     Верстальщик бланка→ §8                      Рабочие списки  → §9
     Дашборд           → §10                     Границы макета  → §14, §19
@@ -38,6 +43,11 @@
     · нет кнопки «отметить сданным»: обязательство закрывает выпуск (ИО-12);
     · нет постановки задач: отчётность показывает, но не поручает (ИО-13, ADR-0160);
     · нет удаления выпуска: факт вечен, расходник — только файл предварительного (ИО-11);
+    · нет свободной крутилки «как в СУГС»: экран крутится ровно в тех границах, что
+      объявила редакция, — иначе «отчёт по субсидиям» перестаёт быть общим именем
+      (ИО-20, ADR-0162);
+    · нет общих и передаваемых видов: общим состав становится ровно одним способом —
+      публикацией редакции (ADR-0156); передают выпуск, у которого есть паспорт;
     · нет docx наружу с получателем: снимок в редактируемом формате — не снимок (ИО-10);
     · нет отдельного списка подстановок бланка: подстановки ЕСТЬ текст макета, список
       выводится разбором — иначе список и текст со временем разошлись бы (§8);
@@ -101,7 +111,7 @@
   законно меняются), ADR-0125 §2 (черновик → публикация), ADR-0150 (показатель только из
   реестра), ADR-0152 (швы, паспорт ответа, область видимости), ADR-0153/0154 (анализ).
 
-  ИНВАРИАНТЫ, КОТОРЫЕ РАЗРАБОТЧИК ОБЯЗАН СОХРАНИТЬ (ИО-1…ИО-16)
+  ИНВАРИАНТЫ, КОТОРЫЕ РАЗРАБОТЧИК ОБЯЗАН СОХРАНИТЬ (ИО-1…ИО-22)
   ИО-1  Шаблоном состав становится публикацией, не сборкой.
   ИО-2  Отчётность не считает: показатель только из реестра, поле только из перечня.
   ИО-3  Своих запросов к базе нет — только четыре шва.
@@ -121,8 +131,11 @@
   ИО-17 Итог по уровню разреза приходит швом; модуль частные итоги не складывает.
   ИО-18 Печатное представление объявлено редакцией, а не настроено экраном.
   ИО-19 Дата состояния у ответа одна; вторая дата — отдельный вопрос.
+  ИО-20 Экран крутится только в границах, объявленных редакцией; за границей — личный черновик.
+  ИО-21 Накрученный состав выпускается предварительно и никогда окончательно.
+  ИО-22 Паспорт хранит показанный состав целиком, а не дельту от умолчания.
 
-  SMOKE 2026-08-24 · 81/81 PASS
+  SMOKE 2026-08-24 · 104/104 PASS
      PASS  #1  личный черновик «Справка о задолженности» не виден даже уполномоченному, пока автор не попросил публикации — ИО-1
      PASS  #2  пользователь опубликовать не может: «публикует уполномоченный по отчётности: роль «Пользователь (Осмонова Г…»
      PASS  #3  состояние шаблона СЧИТАЕТСЯ, а не хранится: «черновик» → «опубликован» после публикации
@@ -133,7 +146,7 @@
      PASS  #8  неисчислимый налету показатель в режиме «сейчас» отклонён причиной владельца реестра — ADR-0159
      PASS  #9  чистый черновик проходит все пять проверок и становится шаблоном организации
      PASS  #10  основание, вписанное не публикующим, остаётся просьбой: «сослаться на пункт нормы может только публикующий: основание «п. 12 По…»
-     PASS  #11  в движке состава (5336 симв.) и движке бланка (700) нет ни базы, ни формулы: запрещённых имён 0 — ИО-2, ИО-3
+     PASS  #11  в движке состава (13599 симв.) и движке бланка (700) нет ни базы, ни формулы: запрещённых имён 0 — ИО-2, ИО-3
      PASS  #12  «свой запрос» и «своя формула» — названные отказы, а не отсутствующие кнопки
      PASS  #13  шов вернул 3 строк и произнёс «скрыто 5»; итог посчитан по видимым строкам (15000000 против 62650000) — иначе итог рассказал бы то, чего в строках нет, §13.2
      PASS  #14  снимка на 01.09.2026 нет — подставлен ближайший на 2026-08-01; на 01.01.2026 снимка нет вовсе
@@ -187,7 +200,7 @@
      PASS  #62  личная перекладка живёт поверх объявленной и не трогает её: «вернуть как объявлено» возвращает 2 плитки — иначе возвращать было бы не к чему
      PASS  #63  неисполнимый отчёт плитка проговаривает словами, а не показывает пустое место: показатель «Сумма просроченной задолженности» выведен 24.08.2026 — шаблону нужна новая редакция
      PASS  #64  вход в модуль — ровно четыре шва: три у статистики (ADR-0152) и objectRows у ядра (ADR-0158)
-     PASS  #65  десять экранов × пять ролей = 50 отрисовок без исключений (249 КБ разметки)
+     PASS  #65  десять экранов × пять ролей = 50 отрисовок без исключений (275 КБ разметки)
      PASS  #66  отказы и границы проговорены на самих экранах, а не спрятаны за отсутствием кнопки
      PASS  #67  итог уровня приходит швом, а не сложением: доли по 3 подразделениям в сумме дают 83.3 %, а на всём охвате показатель равен 25 % — модуль складывать не вправе (ИО-17)
      PASS  #68  разрезы печатаются уровнями: подразделение+итог → состояние кредита; 3 группы первого уровня, 5 второго, строк в группах 8 из 8
@@ -204,6 +217,29 @@
      PASS  #79  номер серии тратится вместе со снимком, а не при заказе: после заказа следующий остался 37, после «готов» стал 38, выпуску достался УВ-2026/037 (ИО-9)
      PASS  #80  две привычки легаси названы отказом: дата состояния у ответа одна (ИО-19), а правило отбора — не рабочий список: список это замороженный состав, правило живёт параметром редакции (§9)
      PASS  #81  волна 4 проговорена на экранах: полосы и итоги уровней в конструкторе и предпросмотре, состояния задания в выпуске и журнале, отказы легаси на границах
+     PASS  #82  редакция объявляет ДВА списка: состав по умолчанию (подразделение → состояние кредита) и перечень допустимых отклонений (разрезы: состояние кредита; показатели: Остаток основного долга, всего); показ несёт шапку с меткой «не выпуск» (ИО-20, ADR-0162 §1, §5)
+     PASS  #83  внутри границ это ТОТ ЖЕ отчёт: разрешённый разрез «состояние кредита» снят — остался один уровень (3 группы), шапка честно говорит «состав накручен»
+     PASS  #84  жёсткий уровень не снимается: «разрез «подразделение» объявлен составом редакции 1 и отклонением не назван: убр…»
+     PASS  #85  выход за границу — не показ, а личный черновик: разрез «заёмщик» редакция отклонением не объявляла, и модуль называет это словом, а не гасит кнопку (ИО-20, ADR-0162 §2)
+     PASS  #86  разрешённый показатель добавляется экраном без новой редакции: было 2, стало 3 — «Остаток основного долга, всего» объявлен допустимым отклонением
+     PASS  #87  жёсткий показатель не прячется: «показатель «Кредитов с просрочкой» объявлен составом редакции 1 и отклонением не…»
+     PASS  #88  порядок жёстких уровней принадлежит редакции: «жёсткие уровни переставлены: редакция 1 объявила порядок «подразделение → состоя…»
+     PASS  #89  объявленное отклонение углубляет разрез: третьим уровнем встал «заёмщик» — подразделение → состояние кредита → заёмщик
+     PASS  #90  снятое углубление — ДРУГОЙ ШОВ, а не спрятанные строки: статRows/objectRows не спрошены вовсе, ответ собран пакетным statSlice (statSlice (пакетно) · statSlice) — потому оно и объявляется редакцией (ADR-0162 §8)
+     PASS  #91  там, где углубление отклонением не объявлено, его не снять: «углубление до строк объектов редакция 1 отклонением не объявила: это другой шов …»
+     PASS  #92  раскладка свободна и отклонением не считается — клетки те же, вопрос тот же; в выпуск она не уходит вовсе: лист принадлежит редакции (ИО-18, ADR-0162 §8)
+     PASS  #93  сохранённая накрутка — ВИД, восьмая сущность: имя, владелец, список, удаление; безымянных и одноимённых видов не бывает (ADR-0162 §3)
+     PASS  #94  вид личный и на публикацию не идёт никогда: общим состав становится ровно одним способом — публикацией редакции; передают выпуск, у которого есть паспорт (ADR-0162 §3)
+     PASS  #95  вид не расширяет границ: он живёт ПОВЕРХ чужой опубликованной редакции, а не вместо неё
+     PASS  #96  чужим способом смотреть не пользуются: «вид «моя просрочка» принадлежит Тентимишев К.: вид личный, чужим спосо…»
+     PASS  #97  вид переживает правку редакции, но не отменяет её: уровень «состояние кредита» редакция 2 объявила составом — вернулся в показ, и притом В ОБЪЯВЛЕННОМ ПОРЯДКЕ (ADR-0162 §4)
+     PASS  #98  ставшая недопустимой часть отваливается С ПОМЕТКОЙ, остальное работает: ни молчаливой подмены, ни блокировки всего вида из-за чужой правки соседнего столбца
+     PASS  #99  границы крутилки — часть СОСТАВА, а не настройка экрана: объявляет уполномоченный, живут в редакции и задним числом не расширяются, иначе вчерашний показ и сегодняшний спорят о том, что было можно (ИО-20)
+     PASS  #100  паспорт хранит ПОКАЗАННЫЙ СОСТАВ ЦЕЛИКОМ, а не дельту и не флаг: разрезы «подразделение», показателей 2 — снимок восстанавливается из паспорта, не вычитая одно из другого (ИО-22)
+     PASS  #101  накрученное выпускается, но НИКОГДА окончательным: «окончательный выпуск идёт только составом по умолчанию: накрученное сдать нельзя…»
+     PASS  #102  перечень отклонений — подмножество доступного, а не список пожеланий: публикация ловит 3 невозможных отклонения ШЕСТОЙ проверкой; у бланка крутить нечего — он говорит об одном объекте (§2.2, ADR-0162 §1)
+     PASS  #103  крутить вправе всякий, кто вправе смотреть: отдельного права нет, а свобода экрана видимости не расширяет — 5 строк остались скрыты областью видимости (ADR-0162 §9, ADR-0152 §3)
+     PASS  #104  волна 5 проговорена на экранах: крутилка с жёсткими элементами и шапка показа в выпуске, перечень допустимых отклонений и шестая проверка в конструкторе
 -->
 <style>
 :root{
@@ -657,7 +693,7 @@ function applyCut(rows, cut){
    округлённой, иначе сданное и пересчитанное расходятся в копейках (ОЧ-32).   */
 const roundTo = (v, dp) => v == null ? null :
   (dp == null ? v : Math.round(v * Math.pow(10, dp)) / Math.pow(10, dp));
-const CUT_NAMES = {dept:'подразделение', status:'состояние кредита'};
+const CUT_NAMES = {dept:'подразделение', status:'состояние кредита', borrower:'заёмщик'};
 const cutName = by => CUT_NAMES[by] || by;
 const SEAM = {
   /* ЯДРО. Живые объекты: поля перечня + показатели, объявленные исчислимыми. */
@@ -761,6 +797,118 @@ function levelTotals(ed, by, cut, asOf, scope){
       why: p.why || null, seam:'statSlice (пакетно)'};
   });
 }
+/* ============ ГРАНИЦЫ КРУТИЛКИ И НАКРУТКА (§3 п. 9, ADR-0162) =========
+   Редакция объявляет ДВА списка: состав по умолчанию и перечень допустимых
+   отклонений. Экран крутится только внутри второго; вышел за него — это уже
+   другой вопрос, то есть личный черновик, а не показ (ИО-20).
+   Перечень РАЗРЕШЁННОГО, а не признак «жёсткий/свободный» на весь отчёт и не
+   флаг на каждой ячейке: по второй дороге легаси пришло к 928 ячейкам с
+   личным position (ОЧ-33).                                                  */
+const LAYOUTS = ['показатели в колонках','показатели в строках'];
+const boundsOf = ed => { const f = ed.free || {};
+  return {cuts:(f.cuts || []).slice(), stats:(f.stats || []).slice(), drill: !!f.drill}; };
+const baseOf = ed => ({cuts:(ed.cuts || []).slice(), stats:(ed.stats || []).slice(),
+  drill: ed.drill !== false, layout: LAYOUTS[0]});
+const statName = sid => (SEAM.statMeta(sid) || {name:sid}).name;
+const sameOrder = (a, b) => a.join('|') === b.join('|');
+
+function twistCheck(ed, twist){
+  const base = baseOf(ed), B = boundsOf(ed);
+  if(!twist) return {ok:true, twist:base, deviated:false, dev:null};
+  const w = {cuts:  twist.cuts  ? twist.cuts.slice()  : base.cuts.slice(),
+             stats: twist.stats ? twist.stats.slice() : base.stats.slice(),
+             drill: twist.drill == null ? base.drill : !!twist.drill,
+             layout: twist.layout || base.layout};
+  if(LAYOUTS.indexOf(w.layout) === -1) return {ok:false,
+    why:'раскладки «'+w.layout+'» не бывает: '+LAYOUTS.join(' · ')};
+  if(uniq(w.cuts).length !== w.cuts.length) return {ok:false,
+    why:'разрез назван дважды: уровень бывает один'};
+  if(uniq(w.stats).length !== w.stats.length) return {ok:false,
+    why:'показатель назван дважды: второй такой же колонки не бывает'};
+  const addC = w.cuts.filter(c => base.cuts.indexOf(c) === -1);
+  const hidC = base.cuts.filter(c => w.cuts.indexOf(c) === -1);
+  const badAddC = addC.filter(c => B.cuts.indexOf(c) === -1);
+  if(badAddC.length) return {ok:false, why:'разрез «'+cutName(badAddC[0])+'» редакция '+ed.n+
+    ' допустимым отклонением не объявила: добавить его — задать другой вопрос. Такой состав '+
+    'собирается ЛИЧНЫМ ЧЕРНОВИКОМ, а не крутилкой показа (ИО-20)'};
+  const badHidC = hidC.filter(c => B.cuts.indexOf(c) === -1);
+  if(badHidC.length) return {ok:false, why:'разрез «'+cutName(badHidC[0])+'» объявлен составом '+
+    'редакции '+ed.n+' и отклонением не назван: убрать его — уже другой отчёт (ИО-20)'};
+  const hardC = base.cuts.filter(c => B.cuts.indexOf(c) === -1);
+  if(!sameOrder(w.cuts.filter(c => hardC.indexOf(c) !== -1), hardC)) return {ok:false,
+    why:'жёсткие уровни переставлены: редакция '+ed.n+' объявила порядок «'+
+    hardC.map(cutName).join(' → ')+'», переставляются только объявленные отклонения (ИО-20)'};
+  const addS = w.stats.filter(s => base.stats.indexOf(s) === -1);
+  const hidS = base.stats.filter(s => w.stats.indexOf(s) === -1);
+  const badAddS = addS.filter(s => B.stats.indexOf(s) === -1);
+  if(badAddS.length) return {ok:false, why:'показатель «'+statName(badAddS[0])+'» редакция '+ed.n+
+    ' допустимым отклонением не объявила: перечень отклонений — список разрешённого, а не всё, '+
+    'что есть в реестре (ИО-20)'};
+  const badHidS = hidS.filter(s => B.stats.indexOf(s) === -1);
+  if(badHidS.length) return {ok:false, why:'показатель «'+statName(badHidS[0])+'» объявлен '+
+    'составом редакции '+ed.n+' и отклонением не назван: спрятать его — уже другой отчёт (ИО-20)'};
+  const hardS = base.stats.filter(s => B.stats.indexOf(s) === -1);
+  if(!sameOrder(w.stats.filter(s => hardS.indexOf(s) !== -1), hardS)) return {ok:false,
+    why:'жёсткие показатели переставлены: их порядок объявлен редакцией '+ed.n};
+  const nometa = w.stats.filter(s => !SEAM.statMeta(s));
+  if(nometa.length) return {ok:false, why:'показателя «'+nometa[0]+'» в реестре статистики нет'};
+  const dead = w.stats.map(s => SEAM.statMeta(s)).filter(m => m && m.withdrawn);
+  if(dead.length) return {ok:false, why:'показатель «'+dead[0].name+'» выведен из реестра '+
+    fmt(dead[0].withdrawn)+': показать его нельзя ни составом, ни отклонением'};
+  /* Углубление до строк объектов — ОТКЛОНЕНИЕ, требующее объявления: это
+     другой шов, другой объём ответа и другая видимость полей (ADR-0162 §8). */
+  if(w.drill !== base.drill && !B.drill) return {ok:false, why:'углубление до строк объектов '+
+    'редакция '+ed.n+' отклонением не объявила: это другой шов — statRows вместо пакетного '+
+    'statSlice, другой объём ответа и другая видимость полей объекта (ADR-0162 §8)'};
+  if(!w.drill && !w.stats.length) return {ok:false, why:'без строк объектов и без показателей '+
+    'смотреть нечего: углубление снимают тогда, когда остаются итоги разрезов'};
+  const dev = {addedCuts:addC, hiddenCuts:hidC, addedStats:addS, hiddenStats:hidS,
+    movedCuts: !addC.length && !hidC.length && !sameOrder(w.cuts, base.cuts),
+    movedStats: !addS.length && !hidS.length && !sameOrder(w.stats, base.stats),
+    drill: w.drill !== base.drill, layout: w.layout !== base.layout};
+  /* Раскладка в отклонение НЕ засчитывается: клетки те же, вопрос тот же —
+     и в выпуск она не уходит вовсе, лист принадлежит редакции (ИО-18).      */
+  const deviated = !!(addC.length || hidC.length || addS.length || hidS.length || dev.drill ||
+    !sameOrder(w.cuts, base.cuts) || !sameOrder(w.stats, base.stats));
+  return {ok:true, twist:w, deviated, dev};
+}
+/* Накрутка живёт ПОВЕРХ опубликованной редакции и ничего в ней не меняет:
+   отсюда копия, а не правка (ИО-2).                                        */
+const withTwist = (ed, w) => Object.assign({}, ed, {cuts: w.cuts.slice(), stats: w.stats.slice(),
+  levelTotals: (ed.levelTotals || []).filter(c => w.cuts.indexOf(c) !== -1),
+  drill: w.drill, layout: w.layout});
+/* Показанный состав — целиком, а не дельтой от умолчания: снимок должен
+   восстанавливаться из паспорта, не полагаясь на вычитание (ИО-22).        */
+const shownOf = (ed, drill) => ({cuts:(ed.cuts || []).map(cutName),
+  stats:(ed.stats || []).map(statName), drill: !!drill,
+  layout: LAYOUTS.indexOf(ed.layout) !== -1 ? ed.layout : LAYOUTS[0]});
+
+/* Ответ БЕЗ строк объектов: спрошен только пакетный statSlice, statRows не
+   спрашивался вовсе. Дата состояния, охват и подстановка снимка приходят из
+   его же паспорта — своих запросов к базе нет и здесь (ИО-2).              */
+function sliceOnly(ed, cut, asOf, scope){
+  const by = (ed.cuts || [])[0] || 'dept';
+  const p = SEAM.statSliceBy(ed.stats[0], by, cut, asOf, scope);
+  if(!p.passport) return {rows:[], hidden:0, substituted:null, missing:true,
+    passport:{seam:'statSlice (пакетно)', owner:'статистика', asOf,
+      mode: asOf ? 'на дату' : 'сейчас', scope: scope.slice()}};
+  return {rows:[], hidden: p.hidden || 0, substituted: p.substituted || null, missing:false,
+    passport:{seam:'statSlice (пакетно)', owner:'статистика', asOf: p.passport.asOf,
+      mode: p.passport.mode, scope: scope.slice(),
+      depth:'без строк объектов: спрошены итоги разрезов'}};
+}
+function bandsNoRows(ed, levels, li, cut, asOf, scope){
+  const lv = levels[li];
+  const ask = lv.total ? levelTotals(ed, lv.by, cut, asOf, scope) : null;
+  const probe = SEAM.statSliceBy(ed.stats[0], lv.by, cut, asOf, scope);
+  return (probe.groups || []).map(g => {
+    const inner = Object.assign({}, cut, {at:{by: lv.by, key: g.key}});
+    return {level: lv.level, by: lv.by, key: g.key, name: levelName(lv.by, g.key), count: g.count,
+      totals: ask ? ask(g.key) : null,
+      children: li + 1 < levels.length ? bandsNoRows(ed, levels, li + 1, inner, asOf, scope) : null,
+      rows: null};
+  });
+}
 function bandsFor(ed, levels, li, rows, cut, asOf, scope){
   const lv = levels[li];
   const ask = lv.total ? levelTotals(ed, lv.by, cut, asOf, scope) : null;
@@ -779,16 +927,21 @@ function compose(tpl, ed, params, viewer){
   const scope = viewer.scope.slice();
   const cut = {dept: params.dept || null, ids: params.ids || null};
   const asOf = ed.mode === 'на дату' ? params.asOf : null;
-  const src = asOf ? SEAM.statRows(ed.object, asOf, cut, scope)
-                   : SEAM.objectRows(ed.object, cut, scope);
+  /* Углубление до строк объектов — ДРУГОЙ ШОВ: снятое углубление значит, что
+     statRows не спрашивается вовсе, а ответ собирается пакетным statSlice.
+     Потому оно и объявляется редакцией, а не крутится молча (ADR-0162 §8).  */
+  const drill = ed.drill !== false || !ed.stats.length;
+  const src = drill ? (asOf ? SEAM.statRows(ed.object, asOf, cut, scope)
+                            : SEAM.objectRows(ed.object, cut, scope))
+                    : sliceOnly(ed, cut, asOf, scope);
   const list = SEAM.fieldList(ed.object);
   const cols = ed.fields.map(fid => {
     const f = list.fields.find(x => x.id === fid);
     return {id:fid, name: f ? f.name : null, lost: !f};
   });
-  const rows = src.rows.slice().sort((a,b) =>
+  const rows = drill ? src.rows.slice().sort((a,b) =>
     ed.order === 'по просрочке' ? (b.days - a.days) || String(a.no).localeCompare(String(b.no))
-                                : String(a.no).localeCompare(String(b.no)));
+                                : String(a.no).localeCompare(String(b.no))) : [];
   const totals = ed.stats.map(sid => {
     const meta = SEAM.statMeta(sid);
     const r = SEAM.statSlice(sid, cut, asOf, scope);
@@ -800,7 +953,9 @@ function compose(tpl, ed, params, viewer){
      итог (§3 п. 4). Итоги приходят швом; модуль их не складывает (ИО-17).     */
   const levels = (ed.cuts || []).map((by, i) => ({by, level: i + 1, name: cutName(by),
     total: (ed.levelTotals || []).indexOf(by) !== -1}));
-  const groups = levels.length ? bandsFor(ed, levels, 0, rows, cut, asOf, scope) : null;
+  const groups = levels.length
+    ? (drill ? bandsFor(ed, levels, 0, rows, cut, asOf, scope)
+             : bandsNoRows(ed, levels, 0, cut, asOf, scope)) : null;
   const sheet = sheetOfEd(ed);
   /* Что нельзя проверить на публикации — делает выпуск предварительным (ИО-8). */
   const soft = [];
@@ -826,6 +981,9 @@ function compose(tpl, ed, params, viewer){
          паспорт, а не остаётся настройкой экрана (ИО-18).                      */
       sheet:{orient: sheet.orient, bands: sheet.bands.slice(), formats: sheet.formats.slice()},
       levels: levels.map(l => l.name + (l.total ? ' (с итогом)' : '')),
+      /* Показанный состав целиком: два выпуска по одной редакции могут
+         показывать разное, и паспорт обязан это помнить (ИО-22).            */
+      shown: shownOf(ed, drill),
       rounding: ed.stats.map(sid => { const dp = dpOf(ed, sid);
         return dp == null ? null : (SEAM.statMeta(sid) || {name:sid}).name + ' → ' +
           (dp === 0 ? 'целых' : dp + ' зн.'); }).filter(Boolean),
@@ -878,6 +1036,10 @@ function templatesSeed(){ return [
      object:'credit', mode:'на дату', order:'по просрочке',
      fields:['no','borrower','dept','debt_main','days'],
      stats:['s-overdue-sum','s-overdue-cnt'], cuts:['dept','status'], levelTotals:['dept'],
+     /* Границы крутилки объявлены редакцией: состояние кредита можно снимать
+        и переставлять, остаток — добавлять; уровень «подразделение» и оба
+        объявленных показателя жёсткие, углубление не крутится (§3 п. 9).   */
+     free:{cuts:['status'], stats:['s-portfolio'], drill:false},
      dp:{'s-overdue-sum':0, 's-overdue-cnt':0}, subs:[],
      sheet:{orient:'книжная', repeatHeader:true, footer:'паспорт',
        bands:['заголовок','шапка','уровни','итог','подвал'], formats:['xlsx','pdf'],
@@ -892,7 +1054,10 @@ function templatesSeed(){ return [
    editions:[{n:1, state:'опубликована', since:'2026-04-01', by:'Тентимишев К.', at:'2026-04-01',
      object:'credit', mode:'сейчас', order:'по номеру',
      fields:['no','borrower','dept','debt_main','days','status'],
-     stats:['s-portfolio','s-overdue-cnt'], cuts:['dept'], levelTotals:['dept'],
+     stats:['s-portfolio','s-overdue-cnt'], cuts:['dept','status'], levelTotals:['dept'],
+     /* Обратный случай: оба уровня жёсткие, зато разрешено углубление снимать
+        (тогда statRows не спрашивается вовсе) и добавлять сумму просрочки.  */
+     free:{cuts:['borrower'], stats:['s-overdue-sum'], drill:true},
      dp:{'s-portfolio':0, 's-overdue-cnt':0}, subs:[],
      params:[{id:'dept', role:'отбора', name:'Подразделение'}]}]},
 
@@ -996,10 +1161,12 @@ function seed(){
     issues: [], seq: 100,
     periods: {'май 2026':{state:'закрыт'}, 'июнь 2026':{state:'закрыт'}, 'июль 2026':{state:'закрыт'}},
     worklists: [], wseq: 0,
+    views: [], vseq: 0,                /* личные виды — восьмая сущность (§2.8) */
     dash: {personal:{}},              /* личная перекладка поверх объявленной на роль (§10) */
     log: [],
     sel: {tpl:'t-overdue', draft:'t-avg', issue:null, obj:'kr-2', blank:'t-notice', wl:null,
-          params:{asOf:'2026-08-01', dept:''}, recipient:'a-mf', kind:'предварительный'}
+          params:{asOf:'2026-08-01', dept:''}, recipient:'a-mf', kind:'предварительный',
+          twist:null, view:null, viewName:'', dropped:null}
   };
   /* Подстановки НЕ ведутся списком: они есть текст макета, список выводится
      разбором (§8). Иначе список и текст со временем разошлись бы.           */
@@ -1127,6 +1294,20 @@ RP.publishChecks = tid => {
     out.push({check:'поле ядра', ok:false,
       why:'поле «'+fid+'» объект «'+list.name+'» больше не объявляет: перечень изменил его '+
         'владелец ('+list.owner+') — виноват не шаблон'}); });
+  /* 6. допустимое отклонение, которого не может быть: перечень отклонений —
+     подмножество доступного, а не список пожеланий (ADR-0162 §1).          */
+  const B = boundsOf(ed);
+  B.cuts.forEach(c => { if(!CUT_NAMES[c]) out.push({check:'допустимое отклонение', ok:false,
+    why:'разрезом «'+c+'» отчётность не разрезает: отклонения берутся из того же перечня, '+
+      'что и состав'}); });
+  B.stats.forEach(sid => { const m = SEAM.statMeta(sid);
+    if(!m) out.push({check:'допустимое отклонение', ok:false,
+      why:'показателя «'+sid+'» в реестре статистики нет: перечень отклонений — не список пожеланий'});
+    else if(m.withdrawn) out.push({check:'допустимое отклонение', ok:false,
+      why:'показатель «'+m.name+'» выведен '+fmt(m.withdrawn)+': разрешать экрану выведенное нечего'});
+    else if(ed.mode === 'сейчас' && !m.live) out.push({check:'допустимое отклонение', ok:false,
+      why:'показатель «'+m.name+'» налету не берётся: '+m.why+' — разрешить его экрану значит '+
+        'пообещать невыполнимое'}); });
   return out;
 };
 RP.publish = tid => {
@@ -1187,13 +1368,184 @@ function composeBlank(tpl, ed, objId, viewer){
 }
 /* ==/ДВИЖОК-БЛАНК== */
 
-/* ===================== ВЫПУСК: ДВЕ СТУПЕНИ (§5) ======================= */
-RP.preview = (tid, params) => {
+/* ========================= ПОКАЗ (§5, ADR-0162) =======================
+   Показ — не выпуск, но и не пустое место: снимка не морозит, номера не
+   тратит, следа в журнале не оставляет, — и потому несёт ШАПКУ. Скриншот
+   уходит в переписку и обязан отвечать за себя сам (ИО-6, ADR-0162 §5).    */
+function showHead(t, ed, params, v, chk, viewName, dropped){
+  return {kind:'показ', label:'не выпуск', template: t.name, edition: ed.n, editionState: ed.state,
+    mode: ed.mode, asOf: ed.mode === 'на дату' ? (params.asOf || null) : null,
+    params: clone(params), scope: v.scope.map(deptName), who: v.who,
+    view: viewName || null, dropped: (dropped || []).slice(),
+    composition: chk ? shownOf(withTwist(ed, chk.twist), chk.twist.drill) : null,
+    deviated: chk ? chk.deviated : false,
+    note:'снимка не морозит, номера не тратит, следа в журнале не оставляет'};
+}
+RP.show = (tid, params, twist) => {
   const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
   const ed = pubEd(t) || draftEd(t);
+  if(!ed) return {ok:false, why:'у шаблона нет ни опубликованной редакции, ни черновой'};
   const v = RP.viewer();
-  if(t.kind === 'бланк') return {ok:true, kind:'бланк', data: composeBlank(t, ed, params.obj, v)};
-  return {ok:true, kind:'отчёт', data: compose(t, ed, params, v)};
+  const pr = params || {};
+  if(t.kind === 'бланк'){
+    if(twist && (twist.cuts || twist.stats || twist.drill != null)) return {ok:false,
+      why:'бланк не крутится: он говорит об ОДНОМ объекте — ни разрезов, ни показателей у него '+
+        'нет вовсе (§2.2)'};
+    return {ok:true, kind:'бланк', data: composeBlank(t, ed, pr.obj, v), deviated:false,
+      twist:null, head: showHead(t, ed, pr, v, null, null, null)};
+  }
+  const chk = twistCheck(ed, twist || null);
+  if(!chk.ok) return chk;
+  const edEff = withTwist(ed, chk.twist);
+  return {ok:true, kind:'отчёт', data: compose(t, edEff, pr, v), twist: chk.twist,
+    deviated: chk.deviated, dev: chk.dev,
+    head: showHead(t, ed, pr, v, chk, twist && twist.view, twist && twist.dropped)};
+};
+/* Показ по умолчанию — тот же вызов без накрутки. */
+RP.preview = (tid, params) => RP.show(tid, params, null);
+
+/* ======================= ВИД — ВОСЬМАЯ СУЩНОСТЬ (§2.8) ================
+   Личная именованная накрутка: «как я привык смотреть этот отчёт». Не
+   черновик и не редакция — живёт ПОВЕРХ чужой опубликованной редакции,
+   чисел не хранит и на публикацию не идёт никогда (ADR-0162 §3).          */
+RP.bounds = tid => { const t = TPL(tid); if(!t) return null;
+  const ed = pubEd(t) || draftEd(t); if(!ed) return null;
+  const B = boundsOf(ed), b = baseOf(ed);
+  return {ed: ed.n, cuts: B.cuts.slice(), stats: B.stats.slice(), drill: B.drill,
+    cutNames: B.cuts.map(cutName), statNames: B.stats.map(statName),
+    base:{cuts: b.cuts.slice(), stats: b.stats.slice(), drill: b.drill, layout: b.layout},
+    layouts: LAYOUTS.slice()}; };
+RP.defaultOf = tid => { const b = RP.bounds(tid); return b ? b.base : null; };
+RP.layouts = () => LAYOUTS.slice();
+
+RP.saveView = (tid, name, twist) => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
+  if(t.kind === 'бланк') return {ok:false, why:'у бланка вида не бывает: крутить нечего (§2.2)'};
+  const ed = pubEd(t);
+  if(!ed) return {ok:false, why:'вид живёт ПОВЕРХ опубликованной редакции, а у «'+t.name+
+    '» её нет: пока состав личный черновик, вид ему не нужен (ИО-1)'};
+  const nm = String(name || '').trim();
+  if(!nm) return {ok:false, why:'у вида должно быть имя: безымянный вид — это состояние экрана, '+
+    'а не способ смотреть'};
+  const chk = twistCheck(ed, twist || null);
+  if(!chk.ok) return {ok:false, why: chk.why};
+  if(RP.state.views.some(x => x.owner === RP.who() && x.tpl === tid && x.name === nm))
+    return {ok:false, why:'вид «'+nm+'» у вас уже есть: имя различает ваши способы смотреть'};
+  const id = 'ВД-' + (++RP.state.vseq);
+  RP.state.views.push({id, name: nm, tpl: tid, owner: RP.who(), at: RP.state.today,
+    twist:{cuts: chk.twist.cuts.slice(), stats: chk.twist.stats.slice(),
+           drill: chk.twist.drill, layout: chk.twist.layout}});
+  log('сохранён вид «'+nm+'» для шаблона «'+t.name+'»');
+  return {ok:true, id, note:'вид личный: передают не его, а выпуск (ADR-0162 §3)'};
+};
+RP.myViews = tid => RP.state.views
+  .filter(x => x.owner === RP.who() && (!tid || x.tpl === tid)).map(clone);
+RP.deleteView = id => { const i = RP.state.views.findIndex(x => x.id === id);
+  if(i === -1) return {ok:false, why:'вида нет'};
+  if(RP.state.views[i].owner !== RP.who()) return {ok:false, why:'вид чужой: он личный'};
+  const nm = RP.state.views[i].name; RP.state.views.splice(i, 1);
+  log('вид «'+nm+'» удалён');
+  return {ok:true, note:'вид удалён; ни один выпуск от этого не изменился — паспорт хранит '+
+    'показанный состав целиком, а не ссылку на вид (ИО-22)'}; };
+RP.shareView = (id, who) => { const vw = RP.state.views.find(x => x.id === id);
+  if(!vw) return {ok:false, why:'вида нет'};
+  return {ok:false, why:'вид «'+vw.name+'» не передаётся '+(who ? '('+who+') ' : '')+
+    '— он личный. Общим состав становится ровно одним способом — публикацией редакции '+
+    '(ADR-0156); передают ВЫПУСК: у него есть паспорт, дата состояния и показанный состав'}; };
+RP.publishView = id => { const vw = RP.state.views.find(x => x.id === id);
+  if(!vw) return {ok:false, why:'вида нет'};
+  return {ok:false, why:'вид «'+vw.name+'» на публикацию не идёт: он живёт поверх чужой '+
+    'опубликованной редакции, а не вместо неё. Нужен общий состав — нужна новая редакция '+
+    'шаблона (ИО-1, ADR-0162 §3)'}; };
+
+/* Жёсткая часть состава возвращается в показ В ОБЪЯВЛЕННОМ ПОРЯДКЕ: вид
+   переживает правку редакции, но не отменяет её (ADR-0162 §4).            */
+function reconcile(baseList, freeList, kept){
+  const hard = baseList.filter(x => freeList.indexOf(x) === -1);
+  const res = kept.slice();
+  hard.filter(x => res.indexOf(x) === -1).forEach(x => {
+    const prev = hard[hard.indexOf(x) - 1];
+    const at = prev ? res.indexOf(prev) + 1 : 0;
+    res.splice(at < 0 ? res.length : at, 0, x);
+  });
+  return res;
+}
+/* Вид привязан к ШАБЛОНУ и сверяется при каждом показе: ставшая недопустимой
+   часть отваливается С ПОМЕТКОЙ, остальное работает. Ни молчаливой подмены,
+   ни блокировки всего вида из-за чужой правки соседнего столбца.           */
+RP.applyView = id => {
+  const vw = RP.state.views.find(x => x.id === id);
+  if(!vw) return {ok:false, why:'вида нет'};
+  if(vw.owner !== RP.who()) return {ok:false, why:'вид «'+vw.name+'» принадлежит '+vw.owner+
+    ': вид личный, чужим способом смотреть не пользуются (ADR-0162 §3)'};
+  const t = TPL(vw.tpl); if(!t) return {ok:false, why:'шаблона нет'};
+  const ed = pubEd(t);
+  if(!ed) return {ok:false, why:'у шаблона «'+t.name+'» нет опубликованной редакции'};
+  const base = baseOf(ed), B = boundsOf(ed), dropped = [];
+  const okCut = c => base.cuts.indexOf(c) !== -1 || B.cuts.indexOf(c) !== -1;
+  vw.twist.cuts.filter(c => !okCut(c)).forEach(c => dropped.push('разрез «'+cutName(c)+
+    '» редакция '+ed.n+' допустимым отклонением больше не объявляет — отвалился'));
+  const cuts = reconcile(base.cuts, B.cuts, vw.twist.cuts.filter(okCut));
+  cuts.filter(c => vw.twist.cuts.indexOf(c) === -1).forEach(c => dropped.push('уровень «'+
+    cutName(c)+'» редакция '+ed.n+' объявила составом — вернулся в показ'));
+  const okStat = s => { const m = SEAM.statMeta(s);
+    return !!m && !m.withdrawn && (base.stats.indexOf(s) !== -1 || B.stats.indexOf(s) !== -1); };
+  vw.twist.stats.filter(s => !okStat(s)).forEach(s => { const m = SEAM.statMeta(s);
+    dropped.push('показатель «'+(m ? m.name : s)+'» '+(m && m.withdrawn
+      ? 'выведен из реестра '+fmt(m.withdrawn)
+      : 'редакцией '+ed.n+' отклонением больше не объявлен')+' — отвалился'); });
+  const stats = reconcile(base.stats, B.stats, vw.twist.stats.filter(okStat));
+  stats.filter(s => vw.twist.stats.indexOf(s) === -1).forEach(s => dropped.push('показатель «'+
+    statName(s)+'» редакция '+ed.n+' объявила составом — вернулся в показ'));
+  let drill = vw.twist.drill;
+  if(drill !== base.drill && !B.drill){ drill = base.drill;
+    dropped.push('углубление до строк объектов редакция '+ed.n+' отклонением больше не '+
+      'объявляет — вернулось как объявлено'); }
+  let chk = twistCheck(ed, {cuts, stats, drill, layout: vw.twist.layout});
+  if(!chk.ok){ dropped.push('остаток вида редакции '+ed.n+' не годится ('+chk.why+
+    ') — показан состав по умолчанию'); chk = twistCheck(ed, null); }
+  return {ok:true, view: clone(vw), ed: ed.n, dropped, deviated: chk.deviated,
+    twist: Object.assign({}, chk.twist, {view: vw.name, dropped}),
+    note: dropped.length
+      ? 'вид «'+vw.name+'» сверен с редакцией '+ed.n+': отвалилось пунктов — '+dropped.length+
+        ', остальное работает'
+      : 'вид «'+vw.name+'» сверен с редакцией '+ed.n+' целиком'};
+};
+RP.showView = (id, params) => { const a = RP.applyView(id); if(!a.ok) return a;
+  const r = RP.show(a.view.tpl, params, a.twist);
+  if(!r.ok) return r;
+  return Object.assign({}, r, {view: a.view, dropped: a.dropped, note: a.note}); };
+
+/* Перечень допустимых отклонений — часть РЕДАКЦИИ, а не настройка экрана:
+   границы объявляются там же, где состав, и задним числом не расширяются.  */
+RP.setFree = (tid, patch) => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
+  if(!RP.isAuth()) return {ok:false, why:'перечень допустимых отклонений объявляет '+
+    'уполномоченный по отчётности: границы крутилки — часть состава, а не настройка экрана '+
+    '(ИО-20, §13.1)'};
+  const ed = draftEd(t);
+  if(!ed) return {ok:false, why:'редакция «'+t.name+'» опубликована: границы крутилки объявлены '+
+    'ею и задним числом не расширяются — иначе вчерашний показ и сегодняшний спорят о том, что '+
+    'было можно. Нужна НОВАЯ РЕДАКЦИЯ (ИО-2, ИО-20)'};
+  const f = Object.assign({}, boundsOf(ed), patch || {});
+  const badCut = (f.cuts || []).filter(c => !CUT_NAMES[c]);
+  if(badCut.length) return {ok:false, why:'разрезом «'+badCut[0]+'» отчётность не разрезает: '+
+    'отклонения берутся из того же перечня, что и состав (ADR-0162 §1)'};
+  const badStat = (f.stats || []).filter(s => !SEAM.statMeta(s));
+  if(badStat.length) return {ok:false, why:'показателя «'+badStat[0]+'» в реестре статистики '+
+    'нет: перечень отклонений — не список пожеланий'};
+  const dead = (f.stats || []).map(s => SEAM.statMeta(s)).filter(m => m.withdrawn);
+  if(dead.length) return {ok:false, why:'показатель «'+dead[0].name+'» выведен '+
+    fmt(dead[0].withdrawn)+': разрешать экрану выведенное нечего — его не покажет и состав'};
+  if(ed.mode === 'сейчас'){
+    const slow = (f.stats || []).map(s => SEAM.statMeta(s)).filter(m => !m.live);
+    if(slow.length) return {ok:false, why:'показатель «'+slow[0].name+'» налету не берётся: '+
+      slow[0].why+' — разрешить его экрану значит пообещать невыполнимое (ADR-0159)'};
+  }
+  ed.free = {cuts:(f.cuts || []).slice(), stats:(f.stats || []).slice(), drill: !!f.drill};
+  log('границы крутилки «'+t.name+'» объявлены в черновике ред. '+ed.n);
+  return {ok:true, note:'отклонения объявлены в черновике: разрезов — '+ed.free.cuts.length+
+    ', показателей — '+ed.free.stats.length+', углубление '+(ed.free.drill ? 'крутится' : 'жёсткое')};
 };
 /* ======================= ВЫПУСК — ЗАКАЗ, А НЕ НАЖАТИЕ ==================
    Легаси считает синхронно: 90–107 с на портфеле в 51 268 субъектов, окно
@@ -1204,14 +1556,18 @@ RP.preview = (tid, params) => {
 const JOB_STATES = ['заказан','считается','готов','ошибка'];
 RP.jobStates = () => JOB_STATES.slice();
 
-function orderPassport(t, ed, params, v){
+function orderPassport(t, ed, params, v, edEff){
   const sheet = sheetOfEd(ed);
+  const e = edEff || ed;
   return {asOf: ed.mode === 'на дату' ? params.asOf : null, mode: ed.mode, frozen:false,
     scope: v.scope.map(deptName), edition: ed.n, template: t.name, params: clone(params),
     hidden: 0, ordered: true,
     sheet:{orient: sheet.orient, bands: sheet.bands.slice(), formats: sheet.formats.slice()},
-    levels: (ed.cuts || []).map(by => cutName(by) +
-      ((ed.levelTotals || []).indexOf(by) !== -1 ? ' (с итогом)' : '')),
+    levels: (e.cuts || []).map(by => cutName(by) +
+      ((e.levelTotals || []).indexOf(by) !== -1 ? ' (с итогом)' : '')),
+    /* Показанный состав известен уже при заказе: числа неизвестны, а чем
+       спрошено — известно (ИО-22).                                          */
+    shown: t.kind === 'бланк' ? null : shownOf(e, e.drill !== false),
     rounding: [], seams: []};
 }
 
@@ -1231,6 +1587,22 @@ RP.order = (tid, spec) => {
   const at = spec.at || RP.state.today;
   const params = clone(spec.params || {});
   const asked = spec.kind === 'окончательный' ? 'окончательный' : 'предварительный';
+
+  /* Накрученный показ выпускается — но НИКОГДА окончательным: обязательство
+     берётся на объявленной форме, а не на той, что человек сложил себе под
+     задачу. Получатель сравнивает присланное с прошлым разом, а не с
+     паспортом (ИО-21, ADR-0162 §6). Раскладка в выпуск не уходит вовсе:
+     лист принадлежит редакции (ИО-18).                                      */
+  let twist = null, edEff = ed;
+  if(t.kind === 'отчёт'){
+    const chk = twistCheck(ed, spec.twist || null);
+    if(!chk.ok) return chk;
+    if(chk.deviated && asked === 'окончательный') return {ok:false, why:'окончательный выпуск '+
+      'идёт только составом по умолчанию: накрученное сдать нельзя — получатель сравнивает '+
+      'присланное с прошлым разом, а не с паспортом (ИО-21, ADR-0162 §6)'};
+    twist = Object.assign({}, chk.twist, {layout: baseOf(ed).layout});
+    edEff = withTwist(ed, twist);
+  }
 
   /* Бланк проверяется целиком при заказе: он об ОДНОМ объекте, счёт дешёвый. */
   if(t.kind === 'бланк'){
@@ -1267,7 +1639,9 @@ RP.order = (tid, spec) => {
   const rec = {
     id, tpl: t.id, tplName: t.name, kindTpl: t.kind, ed: ed.n,
     kind:'заказан', asked, state:'заказан', at, by: RP.who(),
-    recipient: null, params, coverage, passport: orderPassport(t, ed, params, v), number: null,
+    recipient: null, params, coverage, passport: orderPassport(t, ed, params, v, edEff),
+    twist: twist && twistCheck(ed, twist).deviated ? twist : null,
+    deviated: !!(twist && twistCheck(ed, twist).deviated), number: null,
     period: t.kind === 'отчёт' ? periodOfAsOf(params.asOf) : null,
     obj: t.kind === 'бланк' ? params.obj : null,
     formats: null, snapshot: null,
@@ -1298,7 +1672,7 @@ RP.step = id => {
   if(rec.kindTpl === 'бланк'){
     data = composeBlank(t, ed, rec.params.obj, RP.viewer());
   } else {
-    data = compose(t, ed, rec.params, RP.viewer());
+    data = compose(t, rec.twist ? withTwist(ed, rec.twist) : ed, rec.params, RP.viewer());
     soft = data.soft.slice();
     if(data.missing){
       rec.state = 'ошибка';
@@ -1345,6 +1719,7 @@ RP.step = id => {
 
   const passport = clone(data.passport);
   passport.frozen = kind === 'окончательный';
+  passport.deviated = !!rec.deviated;
   passport.issuedAt = rec.at; passport.by = rec.by; passport.ordered = false;
   rec.kind = kind; rec.state = 'готов'; rec.note = note; rec.recipient = recipient;
   rec.number = number; rec.passport = passport;
@@ -1918,6 +2293,34 @@ function passportBox(p, frozen){
     '<div class="row"><span class="k">'+esc(r[0])+'</span>'+esc(r[1])+'</div>').join('')+'</div>';
 }
 
+/* Шапка ПОКАЗА: то же обещание, что у паспорта, распространённое на экран —
+   скриншот уходит в переписку и обязан отвечать за себя сам (ADR-0162 §5). */
+function showBox(head){
+  if(!head) return '';
+  const rows = [['показ', 'НЕ ВЫПУСК — '+head.note]];
+  rows.push(['отчёт', head.template+' · ред. '+head.edition+
+    (head.editionState === 'черновик' ? ' (черновик: личный состав)' : '')]);
+  rows.push(['режим', head.mode]);
+  if(head.asOf) rows.push(['состояние на', fmt(head.asOf)]);
+  rows.push(['область видимости', head.scope.join(', ')]);
+  rows.push(['смотрит', head.who]);
+  if(head.composition) rows.push(['показанный состав',
+    'разрезы: '+(head.composition.cuts.join(' → ') || 'нет')+
+    '; показатели: '+(head.composition.stats.join('; ') || 'нет')+
+    '; строки объектов: '+(head.composition.drill ? 'печатаются' : 'не печатаются — спрошены '+
+      'только итоги разрезов')+'; раскладка: '+head.composition.layout]);
+  rows.push(['состав', head.deviated
+    ? 'НАКРУЧЕН на экране в границах, объявленных редакцией (ИО-20)'
+    : 'по умолчанию, как объявила редакция']);
+  if(head.view) rows.push(['вид', head.view+' — личный: передают не его, а выпуск']);
+  let h = '<div class="snap prelim">'+rows.map(r =>
+    '<div class="row"><span class="k">'+esc(r[0])+'</span>'+esc(r[1])+'</div>').join('')+'</div>';
+  if(head.dropped && head.dropped.length) h += '<div class="banner warn"><b>Вид сверен с '+
+    'редакцией.</b> '+head.dropped.map(esc).join('; ')+'. Отвалившееся названо, остальное '+
+    'работает — молчаливой подмены не бывает (ADR-0162 §4).</div>';
+  return h;
+}
+
 /* ------------------------------ РЕЕСТР ------------------------------- */
 function scRegistry(){
   const v = RP.viewer(), vis = RP.visibleTemplates();
@@ -2023,11 +2426,11 @@ function scBuilder(){
           (dp === 0 ? 'целых' : dp+' зн.'); }).filter(Boolean).join('; ') || '<span class="muted">не объявлена</span>', true]
     ])+'</div>';
 
-  h += '<div class="card"><h3>Пять проверок публикации (§4)</h3>'+
+  h += '<div class="card"><h3>Шесть проверок публикации (§4)</h3>'+
     '<div class="small">Отказ громкий и <em>на публикации</em>, а не тихая неточность в выпуске: '+
     'к моменту выпуска за экраном человек с задачей, а не с настройкой (ИО-7).</div>';
   if(!draftEd(t)) h += '<div class="banner info">У шаблона нет черновой редакции — публиковать нечего.</div>';
-  else if(!checks.length) h += '<div class="banner ok">Все пять проверок пройдены. '+
+  else if(!checks.length) h += '<div class="banner ok">Все шесть проверок пройдены. '+
     'Публикация превратит личный черновик в шаблон организации.</div>';
   else h += '<div class="facts">'+checks.map(c => '<div class="f no"><b>'+esc(c.check)+':</b> '+
     esc(c.why)+'</div>').join('')+'</div>';
@@ -2035,6 +2438,29 @@ function scBuilder(){
     '<button class="btn btn-primary btn-sm" onclick="RP.doPublish(\''+t.id+'\')">Опубликовать редакцию</button>'+
     '<button class="btn btn-secondary btn-sm" onclick="RP.doAsk(\''+t.id+'\')">Попросить публикации</button>'+
     '<button class="btn btn-secondary btn-sm" onclick="RP.doBasis(\''+t.id+'\')">Сослаться на п. 12 Порядка №41</button>'+
+    '</div></div>';
+
+  /* Границы крутилки — часть РЕДАКЦИИ: объявляются там же, где состав, и
+     задним числом не расширяются (ИО-20, ADR-0162 §1).                     */
+  const bo = RP.bounds(t.id);
+  h += '<div class="card"><h3>Допустимые отклонения (§3 п. 9)</h3>'+
+    '<div class="small">Второй список рядом с составом: что экрану разрешено крутить. Перечень '+
+    '<em>разрешённого</em> — не признак «жёсткий / свободный» на весь отчёт и не флаг на каждой '+
+    'ячейке: по второй дороге легаси пришло к 928 ячейкам с личным <span class="mono">position</span> '+
+    '(ОЧ-33). Что не названо отклонением — не крутится: такой состав собирается личным '+
+    'черновиком (ИО-20).</div>'+
+    kv([['Разрезы — включать, убирать, переставлять', bo.cutNames.join('; ') ||
+          '<span class="muted">нет — уровни жёсткие</span>', true],
+        ['Показатели — скрывать и добавлять', bo.statNames.join('; ') ||
+          '<span class="muted">нет — состав показателей жёсткий</span>', true],
+        ['Углубление до строк объектов', bo.drill
+          ? 'крутится: снятое углубление меняет шов — statRows не спрашивается вовсе'
+          : 'объявлено редакцией, экраном не трогается'],
+        ['Раскладка', 'свободна всегда: '+bo.layouts.join(' · ')+' — клетки те же, вопрос тот же'],
+        ['Окончательный выпуск', 'только составом по умолчанию: накрученное сдать нельзя (ИО-21)']])+
+    '<div class="btn-row">'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.doFreeWithdrawn(\''+t.id+'\')">Разрешить экрану выведенный показатель</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.doFreePub()">Расширить границы опубликованной редакции</button>'+
     '</div></div>';
 
   h += '<div class="card"><h3>Что правится без новой редакции</h3>'+
@@ -2092,6 +2518,8 @@ RP.selDraft = id => { RP.state.sel.draft = id; render(); };
 RP.doPublish = id => act(RP.publish(id), 'редакция опубликована');
 RP.doAsk = id => act(RP.askPublish(id), 'черновик передан на публикацию');
 RP.doBasis = id => act(RP.setBasis(id, {doc:'Порядок №41 (ред. 06.07.2026)', point:'п. 12'}), 'основание названо');
+RP.doFreeWithdrawn = id => act(RP.setFree(id, {stats:['s-npl']}));
+RP.doFreePub = () => act(RP.setFree('t-overdue', {cuts:['dept','status'], stats:['s-portfolio']}));
 RP.doCircle = id => act(RP.setCircle(id, ['dep-prom']), 'круг изменён');
 RP.doBands = id => act(RP.setBands(id, ['заголовок','шапка','итог','уровни','подвал']));
 RP.doLandscape = id => act(RP.setSheet(id, {orient:'альбомная'}), 'лист развёрнут альбомно');
@@ -2136,12 +2564,21 @@ function scIssue(){
   const t = TPL(tid), ed = pubEd(t), sel = RP.state.sel;
   const isBlank = t.kind === 'бланк';
   const params = isBlank ? {obj: sel.obj} : {asOf: sel.params.asOf, dept: sel.params.dept};
-  const prev = RP.preview(tid, params);
+  /* Сначала ПОКАЗ, и только потом выпуск: показ крутится в границах редакции,
+     выпуск — нет (ИО-20, ИО-21, ADR-0162).                                  */
+  const wTwist = isBlank ? null : (sel.twist
+    ? Object.assign({}, sel.twist, {dropped: sel.dropped || null}) : null);
+  let prev = RP.show(tid, params, wTwist), twistWhy = null;
+  if(!prev.ok){ twistWhy = prev.why; prev = RP.show(tid, params, null); }
 
-  let h = '<div class="page-lead">Выпуск — <em>предъявление ответа</em>. Ступеней две: '+
-    'предварительно (числа живые, обязательства не закрываются, номер не тратится) и '+
-    'окончательно с названным получателем — тогда числа и файл морозятся снимком. '+
-    'Морозит именно получатель, а не кнопка «сохранить» (ИО-4, ADR-0157 §2).</div>';
+  let h = '<div class="page-lead">Сначала <em>показ</em>, потом выпуск. Показ считается по '+
+    'редакции и значениям параметров, снимка не морозит, номера не тратит и следа в журнале не '+
+    'оставляет — потому рядом с числами стоит шапка с меткой «не выпуск» (ADR-0162 §5). '+
+    'Выпуск — <em>предъявление ответа</em>, ступеней две: предварительно (числа живые, '+
+    'обязательства не закрываются) и окончательно с названным получателем — тогда числа и файл '+
+    'морозятся снимком. Морозит именно получатель, а не кнопка «сохранить» (ИО-4, ADR-0157 §2).</div>';
+  if(twistWhy) h += '<div class="banner danger"><b>Накрутка не принята.</b> '+esc(twistWhy)+
+    '. Показан состав по умолчанию.</div>';
 
   h += '<div class="form-row"><div class="fld"><label>Шаблон</label>'+
     '<select onchange="RP.selTpl(this.value)">'+vis.map(id =>
@@ -2164,7 +2601,61 @@ function scIssue(){
   }
   h += '</div>';
 
-  /* --- предпросмотр --- */
+  /* --- как смотреть: крутилка в границах редакции (§3 п. 9, ИО-20) --- */
+  if(!isBlank){
+    const bo = RP.bounds(tid), w = prev.twist, base = bo.base, mine = RP.myViews(tid);
+    h += '<div class="card"><h3>Как смотреть — в границах, объявленных редакцией '+bo.ed+'</h3>'+
+      '<div class="small">Редакция объявляет <em>два</em> списка: состав по умолчанию и перечень '+
+      'допустимых отклонений. Внутри границ это тот же отчёт; за границей — другой вопрос, то '+
+      'есть личный черновик, а не показ (ИО-20). Раскладка объявления не требует вовсе — клетки '+
+      'те же; углубление до строк объектов требует: это другой шов (ADR-0162 §8).</div>';
+    h += '<div class="form-row"><div class="fld"><label>Разрезы — уровни слева направо</label>'+
+      '<div class="btn-row" style="margin:0">'+
+      uniq(base.cuts.concat(bo.cuts)).map(c => { const on = w.cuts.indexOf(c) !== -1,
+        hard = bo.cuts.indexOf(c) === -1;
+        return '<button class="btn btn-sm '+(on ? 'btn-primary' : 'btn-secondary')+'"'+
+          (hard ? ' disabled title="уровень объявлен составом: отклонением не назван"' : '')+
+          ' onclick="RP.twistCut(\''+c+'\')">'+esc(cutName(c))+
+          (hard ? ' · жёстко' : '')+'</button>'; }).join('')+
+      w.cuts.filter(c => bo.cuts.indexOf(c) !== -1).map(c =>
+        '<button class="btn btn-secondary btn-sm" onclick="RP.twistUp(\''+c+'\')" '+
+        'title="поднять уровень выше">↑ '+esc(cutName(c))+'</button>').join('')+
+      '</div></div>';
+    h += '<div class="fld"><label>Показатели</label><div class="btn-row" style="margin:0">'+
+      uniq(base.stats.concat(bo.stats)).map(s => { const on = w.stats.indexOf(s) !== -1,
+        hard = bo.stats.indexOf(s) === -1;
+        return '<button class="btn btn-sm '+(on ? 'btn-primary' : 'btn-secondary')+'"'+
+          (hard ? ' disabled title="показатель объявлен составом: отклонением не назван"' : '')+
+          ' onclick="RP.twistStat(\''+s+'\')">'+esc(statName(s))+
+          (hard ? ' · жёстко' : '')+'</button>'; }).join('')+'</div></div></div>';
+    h += '<div class="form-row"><div class="fld"><label>Строки объектов (углубление)</label>'+
+      '<button class="btn btn-sm '+(w.drill ? 'btn-primary' : 'btn-secondary')+'"'+
+        (bo.drill ? '' : ' disabled title="редакция углубление отклонением не объявила"')+
+        ' onclick="RP.twistDrill()">'+(w.drill ? 'печатаются — спрошен statRows'
+          : 'не печатаются — спрошен только statSlice')+'</button></div>'+
+      '<div class="fld"><label>Раскладка (объявления не требует)</label>'+
+      '<select onchange="RP.twistLayout(this.value)">'+RP.layouts().map(l =>
+        '<option'+(l === w.layout ? ' selected' : '')+'>'+esc(l)+'</option>').join('')+
+      '</select></div>'+
+      '<div class="fld"><label>Личный вид</label><select onchange="RP.useView(this.value)">'+
+        '<option value="">— без вида, состав по умолчанию —</option>'+mine.map(vw =>
+          '<option value="'+vw.id+'"'+(vw.id === sel.view ? ' selected' : '')+'>'+
+          esc(vw.name)+'</option>').join('')+'</select></div>'+
+      '<div class="fld"><label>Сохранить накрутку видом</label>'+
+        '<input value="'+esc(sel.viewName || '')+'" onchange="RP.setViewName(this.value)" '+
+        'placeholder="как я смотрю просрочку"></div></div>';
+    h += '<div class="btn-row">'+
+      '<button class="btn btn-primary btn-sm" onclick="RP.doSaveView()">Сохранить вид</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.twistReset()">Вернуть состав по умолчанию</button>'+
+      (sel.view ? '<button class="btn btn-secondary btn-sm" onclick="RP.doDropView()">Удалить вид</button>'+
+        '<button class="btn btn-secondary btn-sm" onclick="RP.doShareView()">Передать вид коллеге</button>'+
+        '<button class="btn btn-secondary btn-sm" onclick="RP.doPublishView()">Опубликовать вид для всех</button>' : '')+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.doTwistOut()">Добавить разрез «заёмщик»</button>'+
+      '</div></div>';
+  }
+
+  /* --- показ: шапка, потом числа --- */
+  h += showBox(prev.head);
   h += '<div class="sheet" style="margin-top:14px"><div class="sheet-h">'+esc(t.name)+'</div>'+
     '<div class="sheet-sub">ред. '+ed.n+' · '+esc(t.basis ? (t.basis.point ? t.basis.point+' ' : '')+t.basis.doc
       : 'основание не названо')+'</div>';
@@ -2211,8 +2702,10 @@ function scIssue(){
   /* --- ступень --- */
   h += '<div class="card"><h3>Ступень выпуска</h3><div class="form-row">'+
     '<div class="fld"><label>Ступень</label><select onchange="RP.setKind(this.value)">'+
-      ['предварительный','окончательный'].map(k => '<option'+(k===sel.kind?' selected':'')+'>'+k+'</option>').join('')+
-    '</select></div>'+
+      ['предварительный','окончательный'].map(k => '<option'+(k===sel.kind?' selected':'')+
+        (k === 'окончательный' && prev.deviated ? ' disabled' : '')+'>'+k+'</option>').join('')+
+    '</select>'+(prev.deviated ? '<div class="why">состав накручен на экране: окончательный '+
+      'выпуск идёт только составом по умолчанию (ИО-21)</div>' : '')+'</div>'+
     '<div class="fld"><label>Получатель'+(isBlank ? ' — контрагент объекта, ссылкой' : ' (справочник адресатов)')+'</label>'+
       '<select onchange="RP.setRecipient(this.value)"'+
         (sel.kind==='окончательный' && !isBlank ?'':' disabled')+'>'+
@@ -2227,6 +2720,9 @@ function scIssue(){
       'файл живёт '+dayWord(RP.FILE_DAYS)+' и гаснет (§5, ADR-0161 §7)</div>'+
     '<div class="f">окончательный — только с названным получателем и только pdf: снимок в '+
       'редактируемом формате не снимок (ИО-10, ADR-0161 §2)</div>'+
+    (prev.deviated ? '<div class="f no">накрученный показ выпускается <b>предварительно</b>: '+
+      'паспорт запишет показанный состав целиком (ИО-22), а сдать его нельзя — обязательство '+
+      'берётся на объявленной форме (ИО-21, ADR-0162 §6)</div>' : '')+
     (isBlank && t.series ? '<div class="f">серия <b>'+esc(t.series.prefix)+'</b>'+
       (t.series.manual ? ' ручная — номер вводит канцелярия, система ловит дубль'
         : ' сквозная — следующий номер '+esc(t.series.prefix+String(t.series.next).padStart(3,'0')))+
@@ -2259,7 +2755,48 @@ function scIssue(){
   h += '</div>';
   return h;
 }
-RP.selTpl = id => { RP.state.sel.tpl = id; render(); };
+RP.selTpl = id => { const sel = RP.state.sel;
+  /* Накрутка привязана к шаблону: смена шаблона её не переносит.            */
+  sel.tpl = id; sel.twist = null; sel.view = null; sel.dropped = null; render(); };
+function curTwist(){ const sel = RP.state.sel;
+  const b = sel.twist || RP.defaultOf(sel.tpl);
+  return {cuts: b.cuts.slice(), stats: b.stats.slice(), drill: b.drill, layout: b.layout}; }
+function setTwist(w){ const sel = RP.state.sel;
+  const r = RP.show(sel.tpl, {asOf: sel.params.asOf, dept: sel.params.dept}, w);
+  if(!r.ok) return act(r);
+  sel.twist = w; sel.view = null; sel.dropped = null;
+  if(r.deviated && sel.kind === 'окончательный') sel.kind = 'предварительный';
+  render(); }
+RP.twistCut = c => { const w = curTwist(); const i = w.cuts.indexOf(c);
+  if(i === -1) w.cuts.push(c); else w.cuts.splice(i, 1); setTwist(w); };
+RP.twistStat = s => { const w = curTwist(); const i = w.stats.indexOf(s);
+  if(i === -1) w.stats.push(s); else w.stats.splice(i, 1); setTwist(w); };
+RP.twistDrill = () => { const w = curTwist(); w.drill = !w.drill; setTwist(w); };
+RP.twistLayout = v => { const w = curTwist(); w.layout = v; setTwist(w); };
+RP.twistUp = c => { const w = curTwist(); const i = w.cuts.indexOf(c);
+  if(i > 0){ w.cuts.splice(i, 1); w.cuts.splice(i - 1, 0, c); } setTwist(w); };
+RP.twistReset = () => { const sel = RP.state.sel;
+  sel.twist = null; sel.view = null; sel.dropped = null; render(); };
+RP.doTwistOut = () => { const w = curTwist();
+  if(w.cuts.indexOf('borrower') === -1) w.cuts.push('borrower'); setTwist(w); };
+RP.setViewName = v => { RP.state.sel.viewName = v; };
+RP.doSaveView = () => { const sel = RP.state.sel;
+  const r = RP.saveView(sel.tpl, sel.viewName, sel.twist || null);
+  if(r.ok){ sel.view = r.id; sel.viewName = ''; }
+  act(r); };
+RP.useView = id => { const sel = RP.state.sel;
+  if(!id) return RP.twistReset();
+  const a = RP.applyView(id);
+  if(!a.ok) return act(a);
+  sel.view = id; sel.tpl = a.view.tpl; sel.dropped = a.dropped;
+  sel.twist = {cuts: a.twist.cuts, stats: a.twist.stats, drill: a.twist.drill,
+    layout: a.twist.layout, view: a.view.name};
+  if(a.deviated && sel.kind === 'окончательный') sel.kind = 'предварительный';
+  act({ok:true, note: a.note}); };
+RP.doDropView = () => { const sel = RP.state.sel; const r = RP.deleteView(sel.view);
+  if(r.ok){ sel.view = null; sel.twist = null; sel.dropped = null; } act(r); };
+RP.doShareView = () => act(RP.shareView(RP.state.sel.view, 'Асанов А.'));
+RP.doPublishView = () => act(RP.publishView(RP.state.sel.view));
 RP.setObj = id => { RP.state.sel.obj = id; render(); };
 RP.setAsOf = v => { RP.state.sel.params.asOf = v; render(); };
 RP.setDept = v => { RP.state.sel.params.dept = v; render(); };
@@ -2270,6 +2807,7 @@ function issueSpec(){
   const sel = RP.state.sel, t = TPL(sel.tpl) || TPL(RP.visibleTemplates()[0]);
   const params = t.kind === 'бланк' ? {obj: sel.obj} : {asOf: sel.params.asOf, dept: sel.params.dept};
   return {t, spec:{params, kind: sel.kind,
+    twist: t.kind === 'бланк' ? null : (sel.twist || null),
     recipient: (sel.kind === 'окончательный' && t.kind !== 'бланк') ? sel.recipient : null,
     number: sel.number}};
 }

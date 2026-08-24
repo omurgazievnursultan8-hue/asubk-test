@@ -1,4 +1,4 @@
-// Headless smoke для mockups/reports/reports.html (ИО-1…ИО-16, ADR-0156…0161).
+// Headless smoke для mockups/reports/reports.html (ИО-1…ИО-22, ADR-0156…0162).
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение: объявленность состава, пять отказов публикации, две ступени
@@ -666,6 +666,209 @@ const as = r => { RP.state.role = R[r]; };
         has(bo, 'Отказы, вычитанные из легаси') && has(w, 'Правило отбора — '),
     `волна 4 проговорена на экранах: полосы и итоги уровней в конструкторе и предпросмотре, ` +
     `состояния задания в выпуске и журнале, отказы легаси на границах`);
+})();
+
+/* ---------- W. Экран крутится в границах редакции (ИО-20…ИО-22, ADR-0162) ---------- */
+(() => {
+  RP.seed(); as('auth');
+  const asOf = RP.state.sel.params.asOf;
+  const b = RP.bounds('t-overdue');
+  const d0 = RP.show('t-overdue', { asOf, dept:null }, null);
+  ok(82, b.cuts.join() === 'status' && b.stats.join() === 's-portfolio' && b.drill === false &&
+        b.base.cuts.join() === 'dept,status' && d0.ok && d0.deviated === false &&
+        d0.head.label === 'не выпуск' && d0.head.kind === 'показ' &&
+        d0.head.composition.cuts.join(' → ') === 'подразделение → состояние кредита',
+    `редакция объявляет ДВА списка: состав по умолчанию (${d0.head.composition.cuts.join(' → ')}) ` +
+    `и перечень допустимых отклонений (разрезы: ${b.cutNames.join('; ')}; показатели: ` +
+    `${b.statNames.join('; ')}); показ несёт шапку с меткой «${d0.head.label}» (ИО-20, ADR-0162 §1, §5)`);
+
+  const hid = RP.show('t-overdue', { asOf, dept:null }, { cuts:['dept'] });
+  ok(83, hid.ok && hid.deviated === true && hid.data.groups.length === 3 &&
+        hid.data.groups[0].children === null &&
+        hid.head.composition.cuts.join() === 'подразделение' && hid.head.deviated === true,
+    `внутри границ это ТОТ ЖЕ отчёт: разрешённый разрез «состояние кредита» снят — остался один ` +
+    `уровень (${hid.data.groups.length} группы), шапка честно говорит «состав накручен»`);
+
+  const hidHard = RP.show('t-overdue', { asOf, dept:null }, { cuts:['status'] });
+  ok(84, !hidHard.ok && has(hidHard.why, 'подразделение') && has(hidHard.why, 'ИО-20') &&
+        has(hidHard.why, 'отклонением не назван'),
+    `жёсткий уровень не снимается: «${hidHard.why.slice(0, 80)}…»`);
+
+  const addOut = RP.show('t-overdue', { asOf, dept:null }, { cuts:['dept','status','borrower'] });
+  ok(85, !addOut.ok && has(addOut.why, 'ЛИЧНЫМ ЧЕРНОВИКОМ') && has(addOut.why, 'ИО-20'),
+    `выход за границу — не показ, а личный черновик: разрез «заёмщик» редакция отклонением не ` +
+    `объявляла, и модуль называет это словом, а не гасит кнопку (ИО-20, ADR-0162 §2)`);
+
+  const addS = RP.show('t-overdue', { asOf, dept:null },
+    { stats:['s-overdue-sum','s-overdue-cnt','s-portfolio'] });
+  ok(86, addS.ok && addS.deviated === true && addS.data.totals.length === 3 &&
+        addS.data.totals[2].id === 's-portfolio' && d0.data.totals.length === 2,
+    `разрешённый показатель добавляется экраном без новой редакции: было ${d0.data.totals.length}, ` +
+    `стало ${addS.data.totals.length} — «${addS.data.totals[2].name}» объявлен допустимым отклонением`);
+
+  const hidS = RP.show('t-overdue', { asOf, dept:null }, { stats:['s-overdue-sum'] });
+  ok(87, !hidS.ok && has(hidS.why, 'Кредитов с просрочкой') && has(hidS.why, 'объявлен составом'),
+    `жёсткий показатель не прячется: «${hidS.why.slice(0, 80)}…»`);
+})();
+
+(() => {
+  RP.seed(); as('auth');
+  const mv = RP.show('t-portfolio', {}, { cuts:['status','dept'] });
+  ok(88, !mv.ok && has(mv.why, 'жёсткие уровни переставлены') && has(mv.why, 'ИО-20'),
+    `порядок жёстких уровней принадлежит редакции: «${mv.why.slice(0, 80)}…»`);
+
+  const add = RP.show('t-portfolio', {}, { cuts:['dept','status','borrower'] });
+  const l3 = add.ok && add.data.groups[0].children && add.data.groups[0].children[0].children;
+  ok(89, add.ok && add.deviated === true && !!l3 && l3.length >= 1 &&
+        add.head.composition.cuts.join(' → ') === 'подразделение → состояние кредита → заёмщик',
+    `объявленное отклонение углубляет разрез: третьим уровнем встал «заёмщик» — ` +
+    `${add.head.composition.cuts.join(' → ')}`);
+
+  const noRows = RP.show('t-portfolio', {}, { drill:false });
+  const seams = noRows.ok ? noRows.data.passport.seams : [];
+  ok(90, noRows.ok && noRows.deviated === true && noRows.data.rows.length === 0 &&
+        seams.indexOf('objectRows') === -1 && seams.indexOf('statRows') === -1 &&
+        seams.indexOf('statSlice (пакетно)') !== -1 &&
+        noRows.data.groups[0].count > 0 && noRows.data.passport.shown.drill === false,
+    `снятое углубление — ДРУГОЙ ШОВ, а не спрятанные строки: статRows/objectRows не спрошены ` +
+    `вовсе, ответ собран пакетным statSlice (${seams.join(' · ')}) — потому оно и объявляется ` +
+    `редакцией (ADR-0162 §8)`);
+
+  const noDrill = RP.show('t-overdue', { asOf: RP.state.sel.params.asOf, dept:null }, { drill:false });
+  ok(91, !noDrill.ok && has(noDrill.why, 'другой шов') && has(noDrill.why, 'ADR-0162 §8'),
+    `там, где углубление отклонением не объявлено, его не снять: «${noDrill.why.slice(0, 80)}…»`);
+})();
+
+(() => {
+  RP.seed(); as('auth');
+  const asOf = RP.state.sel.params.asOf;
+  const lay = RP.show('t-overdue', { asOf, dept:null }, { layout:'показатели в строках' });
+  const o = RP.order('t-overdue', { params:{ asOf, dept:null }, kind:'предварительный',
+    twist:{ layout:'показатели в строках' } });
+  RP.step(o.id); RP.step(o.id);
+  const rec = RP.ISS(o.id);
+  ok(92, lay.ok && lay.deviated === false && lay.head.composition.layout === 'показатели в строках' &&
+        rec.deviated === false && rec.passport.shown.layout === 'показатели в колонках' &&
+        RP.layouts().length === 2,
+    `раскладка свободна и отклонением не считается — клетки те же, вопрос тот же; в выпуск она ` +
+    `не уходит вовсе: лист принадлежит редакции (ИО-18, ADR-0162 §8)`);
+})();
+
+(() => {
+  RP.seed(); as('auth');
+  const sv = RP.saveView('t-overdue', 'моя просрочка', { cuts:['dept'] });
+  const dup = RP.saveView('t-overdue', 'моя просрочка', { cuts:['dept'] });
+  const mine = RP.myViews('t-overdue');
+  ok(93, sv.ok && has(sv.note, 'передают не его, а выпуск') && mine.length === 1 &&
+        mine[0].owner === 'Тентимишев К.' && !dup.ok && has(dup.why, 'уже есть'),
+    `сохранённая накрутка — ВИД, восьмая сущность: имя, владелец, список, удаление; ` +
+    `безымянных и одноимённых видов не бывает (ADR-0162 §3)`);
+
+  const sh = RP.shareView(sv.id, 'Асанов А.');
+  const pu = RP.publishView(sv.id);
+  ok(94, !sh.ok && has(sh.why, 'передают ВЫПУСК') && has(sh.why, 'ADR-0156') &&
+        !pu.ok && has(pu.why, 'нужна новая редакция') && has(pu.why, 'ИО-1'),
+    `вид личный и на публикацию не идёт никогда: общим состав становится ровно одним способом — ` +
+    `публикацией редакции; передают выпуск, у которого есть паспорт (ADR-0162 §3)`);
+
+  const bad = RP.saveView('t-overdue', 'за границей', { cuts:['dept','status','borrower'] });
+  ok(95, !bad.ok && has(bad.why, 'ЛИЧНЫМ ЧЕРНОВИКОМ'),
+    `вид не расширяет границ: он живёт ПОВЕРХ чужой опубликованной редакции, а не вместо неё`);
+
+  as('head');
+  const alien = RP.applyView(sv.id);
+  ok(96, !alien.ok && has(alien.why, 'принадлежит Тентимишев К.') && has(alien.why, 'вид личный'),
+    `чужим способом смотреть не пользуются: «${alien.why.slice(0, 70)}…»`);
+})();
+
+(() => {
+  RP.seed(); as('auth');
+  const sv = RP.saveView('t-overdue', 'моя просрочка',
+    { cuts:['dept'], stats:['s-overdue-sum','s-overdue-cnt','s-portfolio'] });
+  const ne = RP.newEdition('t-overdue');
+  const sf = RP.setFree('t-overdue', { cuts:[], stats:[], drill:false });
+  const pb = RP.publish('t-overdue');
+  const ap = RP.applyView(sv.id);
+  const back = ap.dropped.filter(x => has(x, 'вернулся в показ'));
+  const gone = ap.dropped.filter(x => has(x, 'отвалился'));
+  ok(97, ne.ok && sf.ok && pb.ok && ap.ok && ap.ed === 2 && back.length === 1 &&
+        has(back[0], 'состояние кредита') && ap.twist.cuts.join() === 'dept,status',
+    `вид переживает правку редакции, но не отменяет её: уровень «состояние кредита» редакция 2 ` +
+    `объявила составом — вернулся в показ, и притом В ОБЪЯВЛЕННОМ ПОРЯДКЕ (ADR-0162 §4)`);
+  ok(98, gone.length === 1 && has(gone[0], 'Остаток основного долга') && ap.deviated === false &&
+        has(ap.note, 'остальное работает') && RP.myViews('t-overdue').length === 1,
+    `ставшая недопустимой часть отваливается С ПОМЕТКОЙ, остальное работает: ни молчаливой ` +
+    `подмены, ни блокировки всего вида из-за чужой правки соседнего столбца`);
+})();
+
+(() => {
+  RP.seed(); as('user');
+  const f1 = RP.setFree('t-overdue', { cuts:['status'] });
+  as('auth');
+  const f2 = RP.setFree('t-overdue', { cuts:['status'] });
+  RP.newEdition('t-overdue');
+  const f3 = RP.setFree('t-overdue', { stats:['s-npl'] });
+  const f4 = RP.setFree('t-overdue', { cuts:['moon'] });
+  ok(99, !f1.ok && has(f1.why, 'уполномоченный') && !f2.ok && has(f2.why, 'НОВАЯ РЕДАКЦИЯ') &&
+        has(f2.why, 'задним числом') && !f3.ok && has(f3.why, 'выведен') &&
+        !f4.ok && has(f4.why, 'отчётность не разрезает'),
+    `границы крутилки — часть СОСТАВА, а не настройка экрана: объявляет уполномоченный, живут ` +
+    `в редакции и задним числом не расширяются, иначе вчерашний показ и сегодняшний спорят ` +
+    `о том, что было можно (ИО-20)`);
+})();
+
+(() => {
+  RP.seed(); as('auth');
+  const asOf = RP.state.sel.params.asOf;
+  const o = RP.order('t-overdue', { params:{ asOf, dept:null }, kind:'предварительный',
+    twist:{ cuts:['dept'] } });
+  RP.step(o.id); const done = RP.step(o.id);
+  const rec = RP.ISS(o.id);
+  const fin = RP.order('t-overdue', { params:{ asOf, dept:null }, kind:'окончательный',
+    recipient:'a-mf', twist:{ cuts:['dept'] } });
+  ok(100, o.ok && done.done && rec.deviated === true && rec.passport.deviated === true &&
+        rec.passport.shown.cuts.join() === 'подразделение' &&
+        rec.passport.shown.stats.length === 2 && rec.passport.shown.drill === true &&
+        rec.kind === 'предварительный',
+    `паспорт хранит ПОКАЗАННЫЙ СОСТАВ ЦЕЛИКОМ, а не дельту и не флаг: разрезы ` +
+    `«${rec.passport.shown.cuts.join('; ')}», показателей ${rec.passport.shown.stats.length} — ` +
+    `снимок восстанавливается из паспорта, не вычитая одно из другого (ИО-22)`);
+  ok(101, !fin.ok && has(fin.why, 'ИО-21') && has(fin.why, 'только составом по умолчанию') &&
+        has(fin.why, 'получатель сравнивает присланное с прошлым разом'),
+    `накрученное выпускается, но НИКОГДА окончательным: «${fin.why.slice(0, 80)}…»`);
+})();
+
+(() => {
+  RP.seed(); as('auth');
+  const bl = RP.show('t-notice', { obj: RP.objects()[0].id }, { cuts:['dept'] });
+  RP.newEdition('t-portfolio');
+  const dr = RP.state.templates.find(t => t.id === 't-portfolio')
+    .editions.find(e => e.state === 'черновик');
+  dr.free = { cuts:['moon'], stats:['s-npl','s-avg-late'], drill:false };
+  const ch = RP.publishChecks('t-portfolio').filter(c => c.check === 'допустимое отклонение');
+  const pb = RP.publish('t-portfolio');
+  ok(102, !bl.ok && has(bl.why, 'бланк не крутится') && ch.length === 3 && !pb.ok &&
+        ch.some(c => has(c.why, 'не разрезает')) && ch.some(c => has(c.why, 'выведен')) &&
+        ch.some(c => has(c.why, 'пообещать невыполнимое')),
+    `перечень отклонений — подмножество доступного, а не список пожеланий: публикация ловит ` +
+    `${ch.length} невозможных отклонения ШЕСТОЙ проверкой; у бланка крутить нечего — он говорит ` +
+    `об одном объекте (§2.2, ADR-0162 §1)`);
+
+  RP.seed(); as('user');
+  const my = RP.show('t-portfolio', {}, { cuts:['dept','status','borrower'] });
+  ok(103, my.ok && my.deviated === true && my.head.scope.join() === 'Отраслевой департамент промышленности' &&
+        my.data.hidden > 0 && my.data.rows.every(r => r.dept === 'dep-prom'),
+    `крутить вправе всякий, кто вправе смотреть: отдельного права нет, а свобода экрана видимости ` +
+    `не расширяет — ${my.data.hidden} строк остались скрыты областью видимости (ADR-0162 §9, ADR-0152 §3)`);
+
+  RP.seed(); as('auth');
+  const V = win.VIEWS;
+  const i = V.issue.fn(), b = V.builder.fn();
+  ok(104, has(i, 'Как смотреть — в границах, объявленных редакцией') && has(i, 'НЕ ВЫПУСК') &&
+        has(i, 'Личный вид') && has(i, 'жёстко') && has(b, 'Допустимые отклонения (§3 п. 9)') &&
+        has(b, 'Шесть проверок публикации'),
+    `волна 5 проговорена на экранах: крутилка с жёсткими элементами и шапка показа в выпуске, ` +
+    `перечень допустимых отклонений и шестая проверка в конструкторе`);
 })();
 
 /* ---- отчёт ---- */
