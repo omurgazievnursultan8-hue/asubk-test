@@ -352,22 +352,162 @@ const as = r => { RP.state.role = R[r]; };
     `анализ ссылается на выпуск как на снимок основания — ИО-16, ADR-0157 §4`);
 })();
 
-/* ---------- M. Волна 3 заперта названными отказами, а не пустыми экранами ---------- */
+/* ---------- M. Верстальщик бланка: подстановки есть текст макета (§8) ---------- */
 (() => {
   RP.seed();
-  const w = RP.newWorklist(), d = RP.newDashboard(), l = RP.layoutEditor();
-  ok(47, !w.ok && has(w.why, 'закрытие вместо стирания') &&
-        !d.ok && has(d.why, 'паспорт у каждой плитки') &&
-        !l.ok && has(l.why, 'волна 3'),
-    `рабочие списки, дашборды и верстальщик бланка отложены явно, с уже определённым поведением — ИО-14, ИО-15`);
+  as('clerk');
+  const notice = RP.layoutOf('t-notice'), claim = RP.layoutOf('t-claim');
+  const stored = win.RP.state.templates.find(t => t.id === 't-notice').editions[0];
+  ok(47, notice.subs.join(',') === 'borrower,no,debt_main' && claim.subs.length === 4 &&
+        stored.subs.join(',') === notice.subs.join(','),
+    `список подстановок нигде не ведётся руками: он выведен разбором {{…}} в тексте макета — ` +
+    `«${notice.subs.join(', ')}» у уведомления, ${claim.subs.length} у претензии (§8)`);
 
+  const edit = RP.setLayout('t-notice', 'другой текст');
+  ok(48, !edit.ok && has(edit.why, 'новая редакция'),
+    `текст опубликованного макета не правится на месте: другой текст насовсем — это новая редакция`);
+
+  as('auth');
+  const ne = RP.newEdition('t-notice');
+  const again = RP.newEdition('t-notice');
+  const set = RP.setLayout('t-notice', 'УВЕДОМЛЕНИЕ\n\nКому: {{borrower}}\nДоговор {{no}}.');
+  const after = RP.layoutOf('t-notice');
+  ok(49, ne.ok && ne.n === 2 && !again.ok && has(again.why, 'черновая редакция') &&
+        set.ok && after.subs.length === 2 && RP.pubEd('t-notice').n === 1,
+    `новая редакция копируется с опубликованной и правится, прежняя продолжает печататься; ` +
+    `подстановок стало ${after.subs.length} — список пересчитан по тексту, а не поправлен отдельно`);
+
+  const stat = RP.insertToken('t-notice', 'stat', 's-overdue-sum');
+  ok(50, !stat.ok && has(stat.why, 'МНОЖЕСТВЕ') && has(stat.why, 'бланк'),
+    `показатель в бланк не вставляется: величина о множестве объектов в разговоре об одном ничего ` +
+    `не значит — такой вопрос задаётся отчётом (§2.2)`);
+
+  const fld = RP.insertToken('t-notice', 'field', 'days');
+  ok(51, fld.ok && RP.layoutOf('t-notice').subs.indexOf('days') !== -1 &&
+        has(RP.layoutOf('t-notice').text, '{{days}}'),
+    `поле вставляется из публичного перечня ядра и сразу видно разбору: своих полей у бланка нет (ИО-2)`);
+
+  const rep = RP.setLayout('t-overdue', 'текст');
+  const dx = RP.docxNote();
+  const bad = RP.layoutOf('t-ref');
+  ok(52, !rep.ok && has(rep.why, 'колонки') && !dx.ok && has(dx.why, 'только pdf') &&
+        bad.subs.indexOf('остаток_осн') !== -1,
+    `у отчёта макета нет (состав — колонки и показатели); docx остаётся форматом черновика; ` +
+    `подстановка «остаток_осн» в справке видна разбором как отсутствующая в перечне`);
+})();
+
+/* ---------- N. Рабочий список: замороженный состав без чисел (§9, ИО-14) ---------- */
+(() => {
+  RP.seed();
+  as('auth');
+  const iss = RP.state.issues.find(i => i.kind === 'окончательный' && i.kindTpl === 'отчёт');
+  const noname = RP.makeWorklist(iss.id, '');
+  const fromBlank = RP.makeWorklist(
+    RP.state.issues.find(i => i.kindTpl === 'бланк') ? RP.state.issues.find(i => i.kindTpl === 'бланк').id : 'нет', 'x');
+  const mk = RP.makeWorklist(iss.id, 'Обзвон по просрочке, июнь');
+  const w = RP.WL(mk.id);
+  const keys = Object.keys(w);
+  ok(53, mk.ok && w.objects.length === iss.snapshot.rows.length &&
+        keys.indexOf('rows') === -1 && keys.indexOf('totals') === -1 &&
+        w.objects.every(id => typeof id === 'string'),
+    `список отобран выпуском ${iss.id} и заморожен: ${w.objects.length} ссылок на объекты и ни одного числа (§9)`);
+  ok(54, !noname.ok && has(noname.why, 'называется') && !fromBlank.ok,
+    `безымянный список не заводится (его нельзя ни передать, ни спросить «чем кончилось»); ` +
+    `из бланка об одном объекте отбирать нечего`);
+
+  const before = RP.worklistRows(w.id);
+  const live = before.rows.find(r => r && r.id === 'kr-2');
+  const close = RP.demoCloseObject('kr-2');
+  const after = RP.worklistRows(w.id);
+  const gone = after.rows.find(r => r && r.id === 'kr-2');
+  ok(55, live.debt_main === 5100000 && close.ok &&
+        after.rows.length === before.rows.length && gone && gone.closed &&
+        gone.debt_main === 0 && after.gone === before.gone + 1,
+    `величины всегда текущие (шов спрашивается заново), а выбывший показан выбывшим: строка ` +
+    `осталась на месте с отметкой «закрыт», а не исчезла — иначе список солгал бы о том, кого обзванивали`);
+
+  const add = RP.addToWorklist(w.id, 'kr-1');
+  const del = RP.deleteWorklist(w.id);
+  const task = RP.worklistTask(w.id);
+  ok(56, !add.ok && has(add.why, 'заморожен') && !del.ok && has(del.why, 'ЗАКРЫТИЕМ') &&
+        !task.ok && has(task.why, 'нагрузку'),
+    `состав не пополняется, список не стирается и никому ничего не поручает — ИО-14, ИО-13`);
+
+  const by = RP.issueByWorklist('t-portfolio', w.id, {kind:'предварительный'});
+  const rec = RP.state.issues.find(i => i.id === by.id);
+  ok(57, by.ok && rec.params.worklist === w.id &&
+        rec.params.ids.length === w.objects.length && RP.seamsIn().length === 4,
+    `список — законный параметр отбора следующего выпуска: перечень объектов ушёл в разрез и ` +
+    `спрошен тем же швом, пятого шва не понадобилось`);
+
+  RP.handWorklist(w.id, 'dep-admin');
+  as('head');
+  const seenHead = RP.visibleWorklists().length;
+  as('user');
+  const seenUser = RP.visibleWorklists().length;
+  as('auth');
+  const cl = RP.closeWorklist(w.id, 'обзвон окончен');
+  const hand2 = RP.handWorklist(w.id, 'dep-prom');
+  const readable = RP.worklistRows(w.id);
+  ok(58, seenHead === 1 && seenUser === 0 && cl.ok &&
+        !hand2.ok && has(hand2.why, 'окончена') && readable.rows.length === w.objects.length,
+    `переданный список видит круг подразделения, а не весь модуль; закрытый читается, но не ` +
+    `передаётся и не пополняется — работа окончена (§9)`);
+})();
+
+/* ---------- O. Дашборд: плитка показывает объявленный отчёт (§10, ИО-15) ---------- */
+(() => {
+  RP.seed();
+  as('auth');
+  const declared = RP.declaredTiles();
+  as('clerk');
+  const clerkTiles = RP.dashTiles();
+  as('auth');
+  ok(59, declared.length === 2 && clerkTiles.length === 0 && !RP.dashPersonal(),
+    `раскладка объявлена на роль, а не собирается с нуля: первый день не начинается с пустого экрана`);
+
+  const draft = RP.addTile('t-avg', {});
+  const blank = RP.addTile('t-notice', {});
+  const ext = RP.addExternalTile('https://bi.example/kpi');
+  ok(60, !draft.ok && has(draft.why, 'ОБЪЯВЛЕННЫЙ') && !blank.ok && has(blank.why, 'множестве') &&
+        !ext.ok && has(ext.why, 'своего состава'),
+    `плиткой не становятся ни личный черновик, ни бланк, ни внешний источник: плитка — способ ` +
+    `показать объявленный отчёт, и клик раскрывает его целиком (ИО-1, §10)`);
+
+  const tiles = RP.dashTiles().map(t => RP.tileData(t));
+  const modes = tiles.map(t => t.passport.mode);
+  const dp = RP.dashPassport();
+  ok(61, tiles.every(t => t.passport && t.passport.seams.length) &&
+        modes.indexOf('на дату') !== -1 && modes.indexOf('сейчас') !== -1 &&
+        !dp.ok && has(dp.why, 'единой даты'),
+    `паспорт у каждой плитки, а не один сверху: рядом стоят «${modes.join('» и «')}», и общий ` +
+    `паспорт создавал бы вид единой даты, которого нет (ИО-15)`);
+
+  const addOk = RP.addTile('t-portfolio', {dept:'dep-prom'});
+  const personal = RP.dashTiles().length;
+  const stillDeclared = RP.declaredTiles().length;
+  const rst = RP.resetDash();
+  ok(62, addOk.ok && personal === 3 && stillDeclared === 2 && RP.dashPersonal() === false &&
+        rst.ok && RP.dashTiles().length === 2,
+    `личная перекладка живёт поверх объявленной и не трогает её: «вернуть как объявлено» ` +
+    `возвращает ${stillDeclared} плитки — иначе возвращать было бы не к чему`);
+
+  RP.withdrawStat('s-overdue-sum');
+  const broken = RP.dashTiles().map(t => RP.tileData(t)).filter(t => t.broken);
+  ok(63, broken.length === 1 && has(broken[0].broken, 'выведен'),
+    `неисполнимый отчёт плитка проговаривает словами, а не показывает пустое место: ${broken[0].broken}`);
+})();
+
+/* ---------- P. Вход в модуль — четыре шва и ни одного своего запроса ---------- */
+(() => {
+  RP.seed();
   const seams = RP.seamsIn();
-  ok(48, seams.length === 4 && seams.filter(s => s.owner === 'статистика').length === 3 &&
+  ok(64, seams.length === 4 && seams.filter(s => s.owner === 'статистика').length === 3 &&
         seams.find(s => s.id === 'objectRows').owner === 'ядро',
     `вход в модуль — ровно четыре шва: три у статистики (ADR-0152) и objectRows у ядра (ADR-0158)`);
 })();
 
-/* ---------- N. Все экраны рисуются каждой ролью и говорят словами ---------- */
+/* ---------- Q. Все экраны рисуются каждой ролью и говорят словами ---------- */
 (() => {
   RP.seed();
   const VIEWS = win.VIEWS;
@@ -378,13 +518,15 @@ const as = r => { RP.state.role = R[r]; };
     try { const html = VIEWS[v].fn(); total += html.length;
       if (typeof html !== 'string' || html.length < 200) bad.push(role + '/' + v); }
     catch (e) { bad.push(role + '/' + v + ': ' + e.message); } }); });
-  ok(49, bad.length === 0 && names.length === 7,
-    `семь экранов × пять ролей = ${names.length * 5} отрисовок без исключений (${Math.round(total / 1000)} КБ разметки)`);
+  ok(65, bad.length === 0 && names.length === 10,
+    `десять экранов × пять ролей = ${names.length * 5} отрисовок без исключений (${Math.round(total / 1000)} КБ разметки)`);
 
   as('auth');
   const reg = VIEWS.registry.fn(), cal = VIEWS.calendar.fn(), jr = VIEWS.journal.fn();
-  ok(50, has(reg, 'Чего вы здесь не видите') && has(cal, 'Две кнопки, которых в модуле нет') &&
-        has(jr, 'что мы отдали наружу'),
+  const bl = VIEWS.blank.fn(), wl = VIEWS.worklists.fn(), bo = VIEWS.bounds.fn();
+  ok(66, has(reg, 'Чего вы здесь не видите') && has(cal, 'Две кнопки, которых в модуле нет') &&
+        has(jr, 'что мы отдали наружу') && has(bl, 'список выведен разбором') &&
+        has(wl, 'Поручений он не несёт') && has(bo, 'Чего в макете нет и почему'),
     `отказы и границы проговорены на самих экранах, а не спрятаны за отсутствием кнопки`);
 })();
 

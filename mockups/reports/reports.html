@@ -5,14 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Отчётность · АСУБК</title>
 <!--
-  РАБОЧИЙ ПРОТОТИП (single-file) — модуль «Отчётность» (TO-BE), волна 2.
+  РАБОЧИЙ ПРОТОТИП (single-file) — модуль «Отчётность» (TO-BE), волна 3.
   Не картинка: логика ниже ИСПОЛНЯЕТСЯ. Отчёт здесь определяется объявленностью
   состава, а не печатью; числа морозит не выпуск, а НАЗВАННЫЙ ПОЛУЧАТЕЛЬ; своей
   формулы и своего запроса к базе у модуля нет ни одного — данные приходят только
   четырьмя швами. Отказы названы словами и держатся кодом, а не отсутствием кнопки.
 
   Волна 1 (23.08.2026) вывела модель на бумаге: ADR-0156…ADR-0161 плюс канон логики.
-  Этот файл — волна 2: та же модель, доведённая до исполняемого эталона поведения.
+  Волна 2 (24.08.2026) довела её до исполняемого эталона: ядро закона в семи экранах.
+  Волна 3 (24.08.2026) закрыла оставшиеся три — верстальщик бланка, рабочие списки,
+  дашборды: заперто отказами больше ничего, каждый инвариант доказан исполнением.
   Смоук: `node scripts/inspect/reports-check.mjs`.
   Канон логики — `ASUBK-otchetnost-logika.md` (семь сущностей, две ступени выпуска,
   четыре шва, все 16 инвариантов с причиной); журнал волн — `ASUBK-status-razrabotki.md`.
@@ -21,7 +23,8 @@
     Реестр шаблонов   → §2.1–2.3, §13.1        Конструктор     → §3, §4
     Выпуск            → §5, §13.4              Журнал выпусков → §5, §6, §12
     Календарь сдачи   → §7                     Швы и соседи    → §11, §12, §16
-    Волна 3 (заперта) → §8 бланки-верстальщик, §9 рабочие списки, §10 дашборды
+    Верстальщик бланка→ §8                      Рабочие списки  → §9
+    Дашборд           → §10                     Границы макета  → §14, §19
 
   ЧЕГО В МОДУЛЕ НЕТ — И ЭТО РЕШЕНИЕ, А НЕ НЕДОДЕЛКА
     · нет своей формулы и своего справочника полей: показатель только из реестра
@@ -31,7 +34,14 @@
     · нет кнопки «отметить сданным»: обязательство закрывает выпуск (ИО-12);
     · нет постановки задач: отчётность показывает, но не поручает (ИО-13, ADR-0160);
     · нет удаления выпуска: факт вечен, расходник — только файл предварительного (ИО-11);
-    · нет docx наружу с получателем: снимок в редактируемом формате — не снимок (ИО-10).
+    · нет docx наружу с получателем: снимок в редактируемом формате — не снимок (ИО-10);
+    · нет отдельного списка подстановок бланка: подстановки ЕСТЬ текст макета, список
+      выводится разбором — иначе список и текст со временем разошлись бы (§8);
+    · нет показателя в бланке: величина о множестве объектов в разговоре об одном
+      ничего не значит (§2.2);
+    · нет пополнения и стирания рабочего списка: состав заморожен, список кончается
+      закрытием (ИО-14);
+    · нет общего паспорта у дашборда и внешних плиток: паспорт у каждой плитки (ИО-15).
 
   ДЕМО ПОКРЫВАЕТ: пять отказов публикации §4 дословно · переименование поля в ядре
   ломает публикацию и НАЗЫВАЕТ ВИНОВНИКА · показатель, выведенный из реестра · показатель,
@@ -44,7 +54,10 @@
   закрытое фактом выпуска, и отказ проставить «сдано» рукой · просроченное обязательство,
   по которому модуль задачу НЕ ставит · шесть перепечаток бланка, не сжигающих шесть
   номеров · ручная серия канцелярии, ловящая дубль · файл предварительного, погасший по
-  сроку, со строкой журнала на месте.
+  сроку, со строкой журнала на месте · подстановки бланка, выведенные разбором текста, и
+  новая редакция вместо правки опубликованного макета · рабочий список, замороженный
+  выпуском, с выбывшим объектом, показанным выбывшим, и с закрытием вместо стирания ·
+  дашборд с паспортом у каждой плитки, личной перекладкой и возвратом «как объявлено».
 
   ГРАНИЦЫ МАКЕТА
     · TODAY заморожено (2026-08-24): системных часов макет не знает;
@@ -52,8 +65,8 @@
       а не байтами; «печать» даёт паспорт, строку журнала и номер;
     · статистика, ядро, справочники и оргструктура взяты ЗЕРКАЛОМ: их эталон лежит в
       своих модулях, здесь — заглушка ровно на ширину шва;
-    · верстальщик макета бланка, рабочие списки и дашборды — волна 3; экран показывает
-      отказ с причиной, а не заглушку с конструктором;
+    · ЭЦП и штампа подписи нет: §19 п. 4 канона ещё открыт, и кнопка раньше решения
+      решила бы его молча;
     · ролей в макете пять — как в §17 канона.
 
   РЕШЕНИЯ, НА КОТОРЫХ СТОИТ МОДУЛЬ
@@ -82,11 +95,11 @@
   ИО-11 Факт выпуска неудалим, файл предварительного — расходник.
   ИО-12 Обязательство закрывает выпуск, а не отметка.
   ИО-13 Отчётность задач не порождает.
-  ИО-14 Состав рабочего списка заморожен; выбывшие видны выбывшими (волна 3).
-  ИО-15 Паспорт у плитки, не у дашборда (волна 3).
+  ИО-14 Состав рабочего списка заморожен; выбывшие видны выбывшими.
+  ИО-15 Паспорт у плитки, не у дашборда.
   ИО-16 Обзор ссылается на выпуск, своего снимка не заводит.
 
-  SMOKE 2026-08-24 · 50/50 PASS
+  SMOKE 2026-08-24 · 66/66 PASS
      PASS  #1  личный черновик «Справка о задолженности» не виден даже уполномоченному, пока автор не попросил публикации — ИО-1
      PASS  #2  пользователь опубликовать не может: «публикует уполномоченный по отчётности: роль «Пользователь (Осмонова Г…»
      PASS  #3  состояние шаблона СЧИТАЕТСЯ, а не хранится: «черновик» → «опубликован» после публикации
@@ -97,7 +110,7 @@
      PASS  #8  неисчислимый налету показатель в режиме «сейчас» отклонён причиной владельца реестра — ADR-0159
      PASS  #9  чистый черновик проходит все пять проверок и становится шаблоном организации
      PASS  #10  основание, вписанное не публикующим, остаётся просьбой: «сослаться на пункт нормы может только публикующий: основание «п. 12 По…»
-     PASS  #11  в движке состава (1978 симв.) и движке бланка (700) нет ни базы, ни формулы: запрещённых имён 0 — ИО-2, ИО-3
+     PASS  #11  в движке состава (2003 симв.) и движке бланка (700) нет ни базы, ни формулы: запрещённых имён 0 — ИО-2, ИО-3
      PASS  #12  «свой запрос» и «своя формула» — названные отказы, а не отсутствующие кнопки
      PASS  #13  шов вернул 3 строк и произнёс «скрыто 5»; итог посчитан по видимым строкам (15000000 против 62650000) — иначе итог рассказал бы то, чего в строках нет, §13.2
      PASS  #14  снимка на 01.09.2026 нет — подставлен ближайший на 2026-08-01; на 01.01.2026 снимка нет вовсе
@@ -133,10 +146,26 @@
      PASS  #44  карточка объекта видит зеркалом, что по кредиту уходило наружу: УВ-2026/037
      PASS  #45  наружу нет ни строк ответа, ни черновиков; лишний шов лишнему потребителю не отдаётся
      PASS  #46  анализ ссылается на выпуск как на снимок основания — ИО-16, ADR-0157 §4
-     PASS  #47  рабочие списки, дашборды и верстальщик бланка отложены явно, с уже определённым поведением — ИО-14, ИО-15
-     PASS  #48  вход в модуль — ровно четыре шва: три у статистики (ADR-0152) и objectRows у ядра (ADR-0158)
-     PASS  #49  семь экранов × пять ролей = 35 отрисовок без исключений (162 КБ разметки)
-     PASS  #50  отказы и границы проговорены на самих экранах, а не спрятаны за отсутствием кнопки
+     PASS  #47  список подстановок нигде не ведётся руками: он выведен разбором {{…}} в тексте макета — «borrower, no, debt_main» у уведомления, 4 у претензии (§8)
+     PASS  #48  текст опубликованного макета не правится на месте: другой текст насовсем — это новая редакция
+     PASS  #49  новая редакция копируется с опубликованной и правится, прежняя продолжает печататься; подстановок стало 2 — список пересчитан по тексту, а не поправлен отдельно
+     PASS  #50  показатель в бланк не вставляется: величина о множестве объектов в разговоре об одном ничего не значит — такой вопрос задаётся отчётом (§2.2)
+     PASS  #51  поле вставляется из публичного перечня ядра и сразу видно разбору: своих полей у бланка нет (ИО-2)
+     PASS  #52  у отчёта макета нет (состав — колонки и показатели); docx остаётся форматом черновика; подстановка «остаток_осн» в справке видна разбором как отсутствующая в перечне
+     PASS  #53  список отобран выпуском ВП-101 и заморожен: 8 ссылок на объекты и ни одного числа (§9)
+     PASS  #54  безымянный список не заводится (его нельзя ни передать, ни спросить «чем кончилось»); из бланка об одном объекте отбирать нечего
+     PASS  #55  величины всегда текущие (шов спрашивается заново), а выбывший показан выбывшим: строка осталась на месте с отметкой «закрыт», а не исчезла — иначе список солгал бы о том, кого обзванивали
+     PASS  #56  состав не пополняется, список не стирается и никому ничего не поручает — ИО-14, ИО-13
+     PASS  #57  список — законный параметр отбора следующего выпуска: перечень объектов ушёл в разрез и спрошен тем же швом, пятого шва не понадобилось
+     PASS  #58  переданный список видит круг подразделения, а не весь модуль; закрытый читается, но не передаётся и не пополняется — работа окончена (§9)
+     PASS  #59  раскладка объявлена на роль, а не собирается с нуля: первый день не начинается с пустого экрана
+     PASS  #60  плиткой не становятся ни личный черновик, ни бланк, ни внешний источник: плитка — способ показать объявленный отчёт, и клик раскрывает его целиком (ИО-1, §10)
+     PASS  #61  паспорт у каждой плитки, а не один сверху: рядом стоят «на дату» и «сейчас», и общий паспорт создавал бы вид единой даты, которого нет (ИО-15)
+     PASS  #62  личная перекладка живёт поверх объявленной и не трогает её: «вернуть как объявлено» возвращает 2 плитки — иначе возвращать было бы не к чему
+     PASS  #63  неисполнимый отчёт плитка проговаривает словами, а не показывает пустое место: показатель «Сумма просроченной задолженности» выведен 24.08.2026 — шаблону нужна новая редакция
+     PASS  #64  вход в модуль — ровно четыре шва: три у статистики (ADR-0152) и objectRows у ядра (ADR-0158)
+     PASS  #65  десять экранов × пять ролей = 50 отрисовок без исключений (213 КБ разметки)
+     PASS  #66  отказы и границы проговорены на самих экранах, а не спрятаны за отсутствием кнопки
 -->
 <style>
 :root{
@@ -374,10 +403,12 @@ table.cgrid tfoot td{ padding:9px 12px; background:var(--surface-panel);
       <button class="nav-item" data-v="issue"    onclick="RP.go('issue')">Выпуск</button>
       <button class="nav-item" data-v="journal"  onclick="RP.go('journal')">Журнал выпусков</button>
       <button class="nav-item" data-v="calendar" onclick="RP.go('calendar')">Календарь сдачи</button>
+      <button class="nav-item" data-v="blank"    onclick="RP.go('blank')">Верстальщик бланка</button>
+      <button class="nav-item" data-v="worklists" onclick="RP.go('worklists')">Рабочие списки</button>
+      <button class="nav-item" data-v="dash"     onclick="RP.go('dash')">Дашборд</button>
       <div class="nav-sec">Границы</div>
       <button class="nav-item" data-v="seams"    onclick="RP.go('seams')">Швы и соседи</button>
-      <div class="nav-sec">Волна 3</div>
-      <button class="nav-item locked" data-v="wave3" onclick="RP.go('wave3')">Бланки · списки · дашборд</button>
+      <button class="nav-item" data-v="bounds"   onclick="RP.go('bounds')">Границы макета</button>
     </div>
     <div class="sidebar-foot" id="foot"></div>
   </aside>
@@ -568,6 +599,7 @@ function applyCut(rows, cut){
   let r = rows;
   if(cut.dept) r = r.filter(x => x.dept === cut.dept);
   if(cut.obj)  r = r.filter(x => x.id === cut.obj);
+  if(cut.ids)  r = r.filter(x => cut.ids.indexOf(x.id) !== -1);
   return r;
 }
 const SEAM = {
@@ -630,7 +662,7 @@ const SEAM = {
    ==ДВИЖОК==                                                                 */
 function compose(tpl, ed, params, viewer){
   const scope = viewer.scope.slice();
-  const cut = {dept: params.dept || null};
+  const cut = {dept: params.dept || null, ids: params.ids || null};
   const asOf = ed.mode === 'на дату' ? params.asOf : null;
   const src = asOf ? SEAM.statRows(ed.object, asOf, cut, scope)
                    : SEAM.objectRows(ed.object, cut, scope);
@@ -736,7 +768,13 @@ function templatesSeed(){ return [
    series:{prefix:'УВ-2026/', manual:false, next:37, used:[]},
    editions:[{n:1, state:'опубликована', since:'2026-05-20', by:'Тентимишев К.', at:'2026-05-20',
      object:'credit', mode:'сейчас', order:'по номеру', fields:[], stats:[], cuts:[],
-     subs:['no','borrower','debt_main'], layout:'бланк уведомления (docx)',
+     subs:[], layout:'бланк уведомления (docx)',
+     layoutText:'УВЕДОМЛЕНИЕ о наступающем платеже\n\n'+
+       'Кому: {{borrower}}\n'+
+       'По кредитному договору {{no}}\n\n'+
+       'Уведомляем, что по договору {{no}} наступает срок очередного платежа.\n'+
+       'Остаток основного долга на дату уведомления — {{debt_main}} сом.\n\n'+
+       'Просим обеспечить наличие средств на счёте.',
      params:[{id:'obj', role:'вопроса', name:'Кредит'}]}]},
 
   {id:'t-claim', kind:'бланк', name:'Первичная претензия',
@@ -746,7 +784,13 @@ function templatesSeed(){ return [
    series:{prefix:'ПР-2026/', manual:true, next:null, used:['ПР-2026/014']},
    editions:[{n:1, state:'опубликована', since:'2026-06-01', by:'Тентимишев К.', at:'2026-06-01',
      object:'credit', mode:'сейчас', order:'по номеру', fields:[], stats:[], cuts:[],
-     subs:['no','borrower','debt_main','days'], layout:'бланк претензии (docx)',
+     subs:[], layout:'бланк претензии (docx)',
+     layoutText:'ПРЕТЕНЗИЯ\n\n'+
+       'Кому: {{borrower}}\n'+
+       'По кредитному договору {{no}}\n\n'+
+       'По состоянию на дату претензии просрочка составляет {{days}} дней,\n'+
+       'остаток основного долга — {{debt_main}} сом.\n\n'+
+       'Требуем погасить задолженность в срок, установленный договором.',
      params:[{id:'obj', role:'вопроса', name:'Кредит'}]}]},
 
   /* --- личные черновики: шаблоном их делает публикация (ИО-1) --- */
@@ -772,7 +816,10 @@ function templatesSeed(){ return [
    series:{prefix:'СП-2026/', manual:false, next:1, used:[]},
    editions:[{n:1, state:'черновик', since:null, by:'Осмонова Г.', at:'2026-08-22',
      object:'credit', mode:'сейчас', order:'по номеру', fields:[], stats:[], cuts:[],
-     subs:['no','borrower','остаток_осн'], layout:'бланк справки (docx)',
+     subs:[], layout:'бланк справки (docx)',
+     layoutText:'СПРАВКА о задолженности\n\n'+
+       'Выдана {{borrower}} по договору {{no}}.\n'+
+       'Остаток основного долга — {{остаток_осн}} сом.',
      params:[{id:'obj', role:'вопроса', name:'Кредит'}]}]},
 
   {id:'t-osh', kind:'отчёт', name:'Просрочка свыше 60 дней — свод для комитета',
@@ -788,11 +835,13 @@ function templatesSeed(){ return [
 /* Зеркала соседей мутируются операциями демо (ядро переименовало поле,
    статистика вывела показатель, открытие периода поправило снимок). Затравка
    их возвращает — иначе проверки потекли бы одна в другую.                   */
-const FIELDS0 = clone(FIELDS), STATS0 = clone(STATS), HIST0 = clone(HIST);
+const FIELDS0 = clone(FIELDS), STATS0 = clone(STATS), HIST0 = clone(HIST),
+      OBJECTS0 = clone(OBJECTS);
 function restoreMirrors(){
   Object.keys(FIELDS0).forEach(k => { FIELDS[k] = clone(FIELDS0[k]); });
   STATS.length = 0; clone(STATS0).forEach(s => STATS.push(s));
   Object.keys(HIST0).forEach(k => { HIST[k] = clone(HIST0[k]); });
+  OBJECTS.length = 0; clone(OBJECTS0).forEach(o => OBJECTS.push(o));
 }
 
 /* ============================= СОСТОЯНИЕ ============================== */
@@ -808,10 +857,16 @@ function seed(){
     templates: templatesSeed(),
     issues: [], seq: 100,
     periods: {'май 2026':{state:'закрыт'}, 'июнь 2026':{state:'закрыт'}, 'июль 2026':{state:'закрыт'}},
+    worklists: [], wseq: 0,
+    dash: {personal:{}},              /* личная перекладка поверх объявленной на роль (§10) */
     log: [],
-    sel: {tpl:'t-overdue', draft:'t-avg', issue:null, obj:'kr-2',
+    sel: {tpl:'t-overdue', draft:'t-avg', issue:null, obj:'kr-2', blank:'t-notice', wl:null,
           params:{asOf:'2026-08-01', dept:''}, recipient:'a-mf', kind:'предварительный'}
   };
+  /* Подстановки НЕ ведутся списком: они есть текст макета, список выводится
+     разбором (§8). Иначе список и текст со временем разошлись бы.           */
+  st.templates.forEach(t => t.editions.forEach(e => {
+    if(e.layoutText) e.subs = parseSubs(e.layoutText); }));
   RP.state = st;
   /* Затравочные выпуски делаются НАСТОЯЩЕЙ операцией: снимок в журнале —
      тот, что произвёл движок, а не выписанный литералом.                    */
@@ -1300,12 +1355,197 @@ RP.ownQuery = () => ({ok:false, why:'своего запроса к базе у 
 RP.ownFormula = () => ({ok:false, why:'своей формулы у отчётности нет: показатель берётся из '+
   'реестра статистики, поле — из публичного перечня объекта. Вторая формула той же величины '+
   'разошлась бы с первой (ИО-2, ADR-0150)'});
-RP.newWorklist = () => ({ok:false, why:'рабочие списки — волна 3: замороженный состав объектов, '+
-  'выбывшие показаны выбывшими, закрытие вместо стирания (ИО-14, §9 канона)'});
-RP.newDashboard = () => ({ok:false, why:'дашборды — волна 3: плитка показывает объявленный отчёт, '+
-  'паспорт у каждой плитки, а не у экрана (ИО-15, §10 канона)'});
-RP.layoutEditor = () => ({ok:false, why:'верстальщик макета бланка — волна 3: здесь бланк уже '+
-  'сверстан, а проверяется закон подстановок и номера (§8 канона)'});
+/* ==================== ВЁРСТКА МАКЕТА БЛАНКА (§8) ======================
+   Подстановки не ведутся списком — они ЕСТЬ текст макета: список выводится
+   разбором. Список рядом с текстом со временем разошёлся бы с ним, и тогда
+   проверка на публикации проверяла бы не то, что напечатается.              */
+function parseSubs(text){
+  const out = [], re = /\{\{([^{}]+)\}\}/g;
+  let m2;
+  while((m2 = re.exec(String(text || '')))) out.push(m2[1].trim());
+  return uniq(out);
+}
+RP.parseSubs = parseSubs;
+RP.layoutOf = tid => { const t = TPL(tid); if(!t) return null;
+  const ed = draftEd(t) || pubEd(t);
+  return ed ? {n: ed.n, state: ed.state, text: ed.layoutText || '', subs: parseSubs(ed.layoutText)} : null; };
+
+RP.setLayout = (tid, text) => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
+  if(t.kind !== 'бланк') return {ok:false, why:'макет верстается у бланка: у отчёта состав — это '+
+    'колонки и показатели, а не текст (§2.2)'};
+  const ed = draftEd(t);
+  if(!ed) return {ok:false, why:'текст опубликованного макета не правится: другой текст насовсем — '+
+    'это новая редакция, а не правка на месте (§8). Заведите редакцию '+(pubEd(t).n + 1)};
+  if(!RP.isAuth() && !RP.isClerk() && t.owner !== RP.who())
+    return {ok:false, why:'макет чужого бланка не правится: черновик личный, пока автор ('+t.owner+
+      ') не попросил публикации'};
+  ed.layoutText = text; ed.subs = parseSubs(text);
+  return {ok:true, note:'подстановок в тексте: '+ed.subs.length+' — список выведен разбором, а не введён руками'};
+};
+RP.newEdition = tid => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
+  if(!RP.isAuth()) return {ok:false, why:'новую редакцию заводит уполномоченный по отчётности'};
+  if(draftEd(t)) return {ok:false, why:'у шаблона уже есть черновая редакция '+draftEd(t).n+
+    ': двух незаконченных составов у одного шаблона не бывает'};
+  const base = pubEd(t);
+  if(!base) return {ok:false, why:'копировать нечего: опубликованной редакции нет'};
+  const ed = clone(base);
+  ed.n = base.n + 1; ed.state = 'черновик'; ed.since = null; ed.at = RP.state.today; ed.by = RP.who();
+  t.editions.push(ed);
+  log('заведена редакция '+ed.n+' шаблона «'+t.name+'»');
+  return {ok:true, n: ed.n, note:'редакция '+ed.n+' скопирована с '+base.n+
+    '; прежняя продолжает работать, пока новая не опубликована'};
+};
+RP.insertToken = (tid, kind, id) => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
+  if(kind === 'stat') { const m = SEAM.statMeta(id);
+    return {ok:false, why:'показатель «'+(m ? m.name : id)+'» — величина о МНОЖЕСТВЕ объектов; '+
+      'бланк говорит об одном, и места ей в нём нет (§2.2). Такой вопрос задаётся отчётом'}; }
+  const ed = draftEd(t);
+  if(!ed) return {ok:false, why:'текст опубликованного макета не правится: заведите новую редакцию (§8)'};
+  return RP.setLayout(tid, (ed.layoutText || '') + '{{' + id + '}}');
+};
+RP.docxNote = () => ({ok:false, why:'docx — формат черновика: наружу с получателем уходит только '+
+  'pdf (ИО-10). Другой текст насовсем делается правкой макета и новой редакцией, а не правкой '+
+  'выпущенного файла (§8)'});
+
+/* ===================== РАБОЧИЕ СПИСКИ (§9, ИО-14) =====================
+   Список отбирается ВЫПУСКОМ, называется и замораживается. Чисел не хранит —
+   только объекты; их величины всегда текущие и берутся швом заново.          */
+RP.makeWorklist = (issueId, name) => {
+  const i = ISS(issueId); if(!i) return {ok:false, why:'выпуска нет'};
+  if(i.kindTpl !== 'отчёт') return {ok:false, why:'список отбирается отчётом о множестве объектов: '+
+    'бланк говорит об одном, отбирать из него нечего'};
+  if(!name) return {ok:false, why:'список называется при создании: безымянный список нельзя передать '+
+    'и нельзя спросить «чем кончилось»'};
+  const rows = i.snapshot && i.snapshot.rows ? i.snapshot.rows
+    : compose(TPL(i.tpl), TPL(i.tpl).editions.find(e => e.n === i.ed), i.params, RP.viewer()).rows;
+  if(!rows.length) return {ok:false, why:'в выпуске нет строк: замораживать нечего'};
+  const id = 'РС-' + (++RP.state.wseq);
+  RP.state.worklists.push({id, name, from: i.id, fromName: i.tplName,
+    at: RP.state.today, by: RP.who(), dept: null, state:'открыт', closed:null, why:null,
+    objects: rows.map(r => r.id)});
+  log('рабочий список «'+name+'» отобран выпуском '+i.id+', объектов: '+rows.length);
+  return {ok:true, id, note:'состав заморожен: '+objWord(rows.length)+
+    '; чисел список не хранит — величины всегда текущие'};
+};
+RP.worklistRows = id => {
+  const w = WL(id); if(!w) return null;
+  const v = RP.viewer();
+  const src = SEAM.objectRows('credit', {ids: w.objects.slice()}, v.scope.slice());
+  const seen = {}; src.rows.forEach(r => { seen[r.id] = r; });
+  return {
+    rows: w.objects.map(oid => seen[oid] || null),
+    hidden: w.objects.length - src.rows.length,
+    gone: src.rows.filter(r => r.closed).length
+  };
+};
+RP.handWorklist = (id, dept) => {
+  const w = WL(id); if(!w) return {ok:false, why:'списка нет'};
+  if(w.state === 'закрыт') return {ok:false, why:'закрытый список читается, но не передаётся: '+
+    'работа по нему окончена ('+fmt(w.closed)+')'};
+  w.dept = dept;
+  log('список «'+w.name+'» передан подразделению «'+deptName(dept)+'»');
+  return {ok:true, note:'список видят все, кто в круге подразделения; поручений он не несёт (ИО-13)'};
+};
+RP.addToWorklist = (id, objId) => {
+  const w = WL(id); if(!w) return {ok:false, why:'списка нет'};
+  if(w.state === 'закрыт') return {ok:false, why:'закрытый список читается, не пополняется'};
+  return {ok:false, why:'состав рабочего списка заморожен: он отобран выпуском '+w.from+
+    ' и после названия не пополняется — иначе «обзвонили всех» перестаёт быть проверяемым (ИО-14). '+
+    'Нужен другой состав — отберите новым выпуском'};
+};
+RP.closeWorklist = (id, why) => {
+  const w = WL(id); if(!w) return {ok:false, why:'списка нет'};
+  if(w.state === 'закрыт') return {ok:false, why:'список уже закрыт '+fmt(w.closed)};
+  w.state = 'закрыт'; w.closed = RP.state.today; w.why = why || 'работа окончена';
+  log('список «'+w.name+'» закрыт: '+w.why);
+  return {ok:true, note:'закрытый список читается, но не пополняется; строки остаются на месте'};
+};
+RP.deleteWorklist = id => ({ok:false, why:'рабочий список не стирается — он кончается ЗАКРЫТИЕМ: '+
+  'стёртый список отвечает неправдой на вопрос «кого обзванивали» (ИО-14, §9)'});
+RP.worklistTask = id => ({ok:false, why:'рабочий список никому ничего не поручает: у поручения '+
+  'должен быть автор, отвечающий за нагрузку (ИО-13, ADR-0160)'});
+const WL = id => RP.state.worklists.find(w => w.id === id);
+RP.WL = WL;
+RP.visibleWorklists = () => {
+  const v = RP.viewer();
+  return RP.state.worklists.filter(w => w.by === RP.who() ||
+    (w.dept && v.scope.indexOf(w.dept) !== -1));
+};
+/* Список — законный параметр отбора следующего выпуска. Пятого шва он не
+   потребовал: перечень объектов уходит в РАЗРЕЗ и спрашивается тем же швом. */
+RP.issueByWorklist = (tid, wlId, spec) => {
+  const w = WL(wlId); if(!w) return {ok:false, why:'списка нет'};
+  const sp = clone(spec || {});
+  sp.params = sp.params || {};
+  sp.params.ids = w.objects.slice(); sp.params.worklist = w.id;
+  return RP.issue(tid, sp);
+};
+/* Демонстрация выбытия: ядро закрыло кредит уже ПОСЛЕ заморозки состава.    */
+RP.demoCloseObject = objId => {
+  const o = OBJ(objId); if(!o) return {ok:false, why:'объекта нет'};
+  o.closed = RP.state.today; o.status = 'закрыт'; o.debt_main = 0; o.days = 0;
+  log('ядро закрыло кредит '+o.no);
+  return {ok:true, note:'в рабочих списках он останется строкой «закрыт '+fmt(RP.state.today)+
+    '» — выбывший показан выбывшим, а не исчезает (§9)'};
+};
+
+/* ========================= ДАШБОРДЫ (§10) ============================
+   Плитка — способ показать ОБЪЯВЛЕННЫЙ отчёт; своего состава у неё нет.
+   Раскладка объявлена на роль, поверх живёт личная перекладка с возвратом.  */
+const DASH_ROLE = {
+  auth:  [{tpl:'t-overdue',   params:{asOf:'2026-08-01', dept:''}},
+          {tpl:'t-portfolio', params:{dept:''}}],
+  head:  [{tpl:'t-portfolio', params:{dept:'dep-admin'}},
+          {tpl:'t-overdue',   params:{asOf:'2026-08-01', dept:'dep-admin'}}],
+  user:  [{tpl:'t-portfolio', params:{dept:'dep-prom'}}],
+  clerk: [],
+  buh:   [{tpl:'t-overdue',   params:{asOf:'2026-08-01', dept:''}}]
+};
+RP.declaredTiles = () => clone(DASH_ROLE[RP.viewer().id] || []);
+RP.dashTiles = () => { const p = RP.state.dash.personal[RP.viewer().id];
+  return p ? clone(p) : RP.declaredTiles(); };
+RP.dashPersonal = () => !!RP.state.dash.personal[RP.viewer().id];
+function personalTiles(){ const id = RP.viewer().id;
+  if(!RP.state.dash.personal[id]) RP.state.dash.personal[id] = RP.declaredTiles();
+  return RP.state.dash.personal[id]; }
+RP.addTile = (tid, params) => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
+  if(!RP.maySee(tid)) return {ok:false, why:'этого шаблона вам не видно: личная раскладка — не '+
+    'личный отчёт, добавить можно только доступное (§10)'};
+  if(!pubEd(t)) return {ok:false, why:'на дашборд ставится ОБЪЯВЛЕННЫЙ отчёт: «'+t.name+'» — '+
+    'личный черновик, плитки из него не бывает (ИО-1, §10)'};
+  if(t.kind !== 'отчёт') return {ok:false, why:'плитка показывает отчёт о множестве объектов: '+
+    'бланк говорит об одном и на дашборде ничего не сообщает'};
+  personalTiles().push({tpl:tid, params: clone(params || {})});
+  return {ok:true, note:'плитка добавлена в личную раскладку; объявленная на роль не тронута'};
+};
+RP.removeTile = i => { const p = personalTiles();
+  if(i < 0 || i >= p.length) return {ok:false, why:'плитки нет'};
+  const t = p.splice(i, 1)[0];
+  return {ok:true, note:'плитка «'+TPL(t.tpl).name+'» убрана из личной раскладки'}; };
+RP.resetDash = () => { const id = RP.viewer().id;
+  if(!RP.state.dash.personal[id]) return {ok:false, why:'личной перекладки нет: раскладка и так '+
+    'та, что объявлена на роль'};
+  delete RP.state.dash.personal[id];
+  return {ok:true, note:'вернулась раскладка, объявленная на роль — первый день не начинается '+
+    'с пустого экрана (§10)'}; };
+RP.addExternalTile = url => ({ok:false, why:'внешние источники на дашборде запрещены: плитка '+
+  'своего состава не имеет — она показывает объявленный отчёт, и клик раскрывает его целиком (§10)'});
+RP.dashPassport = () => ({ok:false, why:'общего паспорта у дашборда нет и быть не может: рядом '+
+  'стоят плитки «на дату» и «сейчас», и один паспорт сверху создавал бы вид единой даты, '+
+  'которого нет (ИО-15, §10)'});
+RP.tileData = tile => {
+  const t = TPL(tile.tpl); if(!t) return null;
+  const ed = pubEd(t); if(!ed) return null;
+  const br = brokenBy(t, ed);
+  if(br) return {broken: br, name: t.name};
+  const d = compose(t, ed, tile.params, RP.viewer());
+  return {name: t.name, tpl: t.id, totals: d.totals, rows: d.rows.length,
+    passport: d.passport, soft: d.soft};
+};
 
 /* ============================== ЭКРАНЫ =============================== */
 const pill = (t, c) => '<span class="pill'+(c?' '+c:'')+'">'+esc(t)+'</span>';
@@ -1768,23 +2008,259 @@ RP.demoOut = (mod, seam) => { const arg = seam === 'reportIssues' ? RP.state.sel
   const r = RP.callSeamOut(mod, seam, arg);
   if(r.ok) toast(mod+' ← '+seam+': '+JSON.stringify(r.data).slice(0,220), 'ok'); else act(r); };
 
-/* ----------------------------- ВОЛНА 3 ------------------------------- */
-function scWave3(){
-  return '<div class="page-lead">Волна 2 — <em>ядро закона</em>: объявленный состав, публикация с '+
-    'пятью отказами, две ступени выпуска, снимок и расхождение, обязательства из правила. Три '+
-    'экрана оставлены волне 3 сознательно: их поведение уже определено инвариантами, но их '+
-    'демонстрация ничего не добавила бы к доказательству ядра.</div>'+
-  '<div class="card"><h3>Что откроется в волне 3</h3><div class="facts">'+
-    '<div class="f"><b>Верстальщик макета бланка (§8).</b> Здесь бланк уже свёрстан, и проверяется '+
-      'закон подстановок и номера, а не редактор вёрстки.</div>'+
-    '<div class="f"><b>Рабочие списки (§9, ИО-14).</b> Замороженный состав объектов, выбывшие '+
-      'показаны выбывшими, список кончается закрытием, а не стиранием.</div>'+
-    '<div class="f"><b>Дашборды (§10, ИО-15).</b> Плитка показывает объявленный отчёт; паспорт у '+
-      'каждой плитки, а не один сверху — иначе «на дату» и «сейчас» смешаются в одном экране.</div>'+
+/* -------------------- ВЕРСТАЛЬЩИК МАКЕТА БЛАНКА (§8) ----------------- */
+RP.selBlank = tid => { RP.state.sel.blank = tid; render(); };
+RP.uiSetLayout = () => { const el = $('#layoutText');
+  act(RP.setLayout(RP.state.sel.blank, el ? el.value : '')); };
+function scBlank(){
+  const vis = RP.visibleTemplates().filter(id => TPL(id).kind === 'бланк');
+  if(!vis.length) return '<div class="banner info">Роли не видно ни одного бланка: '+
+    'верстать нечего.</div>';
+  const tid = vis.indexOf(RP.state.sel.blank) !== -1 ? RP.state.sel.blank : vis[0];
+  const t = TPL(tid), pub = pubEd(t), dr = draftEd(t), ed = dr || pub;
+  const list = RP.fieldsOf(ed.object);
+  const subs = parseSubs(ed.layoutText);
+
+  let h = '<div class="page-lead">Бланк говорит <em>об одном объекте</em>: у него есть макет и '+
+    'подстановки, взятые из <b>публичного перечня</b> тем же швом, что и колонки отчёта — своих '+
+    'полей у бланка нет (§8, ИО-2). Подстановки не ведутся отдельным списком: они <em>есть</em> '+
+    'текст макета, а список выведен разбором — иначе список и текст со временем разошлись бы, и '+
+    'проверка на публикации проверяла бы не то, что напечатается.</div>';
+
+  h += '<div class="form-row"><div class="fld"><label>Бланк</label>'+
+    '<select onchange="RP.selBlank(this.value)">'+vis.map(id =>
+      '<option value="'+id+'"'+(id===tid?' selected':'')+'>'+esc(TPL(id).name)+'</option>').join('')+
+    '</select></div>'+
+    '<div class="fld"><label>Редакция в работе</label><select disabled><option>ред. '+ed.n+' · '+
+      esc(ed.state)+'</option></select></div></div>';
+
+  if(!dr) h += '<div class="banner warn"><b>Правится только черновая редакция.</b> Ред. '+pub.n+
+    ' опубликована и работает: другой текст насовсем — это <b>новая редакция</b>, а не правка на '+
+    'месте (§8). Прежняя продолжает печататься, пока новая не опубликована.'+
+    '<div class="btn-row"><button class="btn btn-primary btn-sm" onclick="act(RP.newEdition(\''+tid+
+      '\'))">Завести редакцию '+(pub.n+1)+'</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="act(RP.setLayout(\''+tid+
+      '\',\'другой текст\'))">Править текст опубликованной</button></div></div>';
+
+  h += '<div class="cols"><div>';
+  h += '<div class="card"><h3>Макет '+(dr ? '(ред. '+dr.n+' · черновик)' : '(ред. '+pub.n+' · только чтение)')+'</h3>'+
+    '<div class="fld"><textarea id="layoutText" rows="9"'+(dr ? '' : ' disabled')+'>'+
+      esc(ed.layoutText || '')+'</textarea></div>'+
+    (dr ? '<div class="btn-row"><button class="btn btn-primary btn-sm" onclick="RP.uiSetLayout()">'+
+      'Сохранить макет</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="act(RP.docxNote())">Выгрузить docx получателю</button>'+
+      '</div>' : '')+'</div>';
+
+  h += '<div class="card"><h3>Подстановки — выведены разбором текста</h3>';
+  if(!subs.length) h += '<div class="muted small">в тексте нет ни одной подстановки</div>';
+  else h += '<div class="mirror">'+subs.map(id => {
+    const f = list.fields.find(x => x.id === id);
+    return '<div class="row"><span class="k mono">{{'+esc(id)+'}}</span>'+
+      (f ? esc(f.name) : '<span class="err">поля нет в перечне «'+esc(list.name)+'» — бланк неисполним</span>')+
+      '</div>'; }).join('')+'</div>';
+  h += '<div class="foot-pass">Подстановок в тексте: <b>'+subs.length+'</b>. Список не хранится — '+
+    'он получен разбором <b>{{…}}</b> в тексте макета: единственный источник правды — сам текст.</div></div>';
+  h += '</div><div class="side">';
+
+  h += '<div class="card"><h3 class="small">Вставить из перечня «'+esc(list.name)+'»</h3>'+
+    '<div class="chips">'+list.fields.map(f =>
+      '<button class="btn btn-secondary btn-sm" onclick="act(RP.insertToken(\''+tid+'\',\'field\',\''+
+      f.id+'\'))">'+esc(f.name)+'</button>').join('')+'</div>'+
+    '<div class="foot-pass">Перечень объявляет <b>ядро</b> — отчётность его только спрашивает '+
+      '(шов objectRows, ADR-0158).</div></div>';
+
+  h += '<div class="card"><h3 class="small">Вставить показатель</h3><div class="chips">'+
+    RP.stats().map(s => '<button class="btn btn-secondary btn-sm" onclick="act(RP.insertToken(\''+
+      tid+'\',\'stat\',\''+s.id+'\'))">'+esc(s.name)+'</button>').join('')+'</div>'+
+    '<div class="foot-pass">Показатель — величина о <b>множестве</b> объектов. Бланк говорит об '+
+      'одном, и места ей в нём нет (§2.2): такой вопрос задаётся отчётом.</div></div>';
+
+  h += '<div class="card"><h3 class="small">Серия и номер</h3>'+kv([
+    ['серия', t.series ? t.series.prefix : '—'],
+    ['порядок', t.series ? (t.series.manual ? 'ручная — номер вводит делопроизводитель'
+      : 'сквозная — следующий '+t.series.prefix+String(t.series.next).padStart(3,'0')) : '—'],
+    ['занято номеров', t.series ? String(t.series.used.length) : '—'],
+    ['номера', t.series && t.series.used.length ? t.series.used.join(', ') : '—']
+  ])+'<div class="foot-pass">Номер тратится <b>вместе со снимком</b>, на окончательном выпуске: '+
+    'предварительный печатается без номера, иначе в серии зияли бы дыры (ИО-9).</div></div>';
+
+  h += '</div></div>';
+  return h;
+}
+
+/* ---------------------- РАБОЧИЕ СПИСКИ (§9, ИО-14) ------------------- */
+RP.selWL = id => { RP.state.sel.wl = id; render(); };
+RP.uiMakeWorklist = () => { const s = $('#wlFrom'), n = $('#wlName');
+  const r = RP.makeWorklist(s ? s.value : null, n ? n.value.trim() : '');
+  if(r.ok) RP.state.sel.wl = r.id;
+  act(r, r.ok ? 'список '+r.id+': '+r.note : ''); };
+RP.uiHand = id => { const s = $('#wlDept'); act(RP.handWorklist(id, s ? s.value : null)); };
+RP.uiCloseWL = id => { const s = $('#wlWhy'); act(RP.closeWorklist(id, s ? s.value.trim() : '')); };
+function scWorklists(){
+  const mine = RP.visibleWorklists();
+  const src = RP.state.issues.filter(i => i.kind === 'окончательный' && i.kindTpl === 'отчёт');
+  let h = '<div class="page-lead">Рабочий список — <em>кого сейчас обзванивают</em>. Отбирается '+
+    '<b>выпуском</b>, называется и замораживается. Чисел не хранит — только объекты; их величины '+
+    'всегда текущие и спрашиваются швом заново (§9). Поручений он не несёт: у поручения должен быть '+
+    'автор, отвечающий за нагрузку (ИО-13).</div>';
+
+  h += '<div class="card"><h3>Отобрать выпуском</h3><div class="form-row">'+
+    '<div class="fld"><label>Выпуск (окончательный отчёт)</label><select id="wlFrom">'+
+      (src.length ? src.map(i => '<option value="'+i.id+'">'+esc(i.id+' · '+i.tplName+
+        (i.period ? ' · '+i.period : ''))+'</option>').join('')
+        : '<option value="">окончательных выпусков ещё нет</option>')+'</select></div>'+
+    '<div class="fld"><label>Название списка</label><input id="wlName" placeholder="Обзвон по просрочке, август"></div>'+
     '</div><div class="btn-row">'+
-      '<button class="btn btn-secondary btn-sm" onclick="act(RP.layoutEditor())">Открыть верстальщик</button>'+
-      '<button class="btn btn-secondary btn-sm" onclick="act(RP.newWorklist())">Создать рабочий список</button>'+
-      '<button class="btn btn-secondary btn-sm" onclick="act(RP.newDashboard())">Собрать дашборд</button>'+
+      '<button class="btn btn-primary btn-sm" onclick="RP.uiMakeWorklist()">Отобрать и заморозить</button>'+
+    '</div><div class="foot-pass">Замораживается <b>состав</b>, не числа: список хранит ссылки на '+
+      'объекты. Иначе «обзвонили всех» перестало бы быть проверяемым (ИО-14).</div></div>';
+
+  if(!mine.length) return h + '<div class="banner info">Рабочих списков пока нет.</div>';
+
+  h += '<table class="cgrid"><thead><tr><th>Список</th><th>Отобран</th><th>Объектов</th>'+
+    '<th>Передан</th><th>Состояние</th><th></th></tr></thead><tbody>';
+  mine.forEach(w => { h += '<tr'+(w.state === 'закрыт' ? ' class="out"' : '')+'>'+
+    '<td><b>'+esc(w.name)+'</b><div class="small mono">'+esc(w.id)+'</div></td>'+
+    '<td class="small">выпуском '+esc(w.from)+'<div class="muted">'+esc(w.fromName)+' · '+fmt(w.at)+'</div></td>'+
+    '<td class="num">'+w.objects.length+'</td>'+
+    '<td class="small">'+esc(w.dept ? deptName(w.dept) : '—')+'</td>'+
+    '<td>'+pill(w.state, w.state === 'закрыт' ? 'neutral' : 'ok')+
+      (w.why ? '<div class="small muted">'+esc(w.why)+'</div>' : '')+'</td>'+
+    '<td><button class="btn btn-secondary btn-sm" onclick="RP.selWL(\''+w.id+'\')">Открыть</button></td>'+
+    '</tr>'; });
+  h += '</tbody></table>';
+
+  const w = WL(RP.state.sel.wl) || mine[0];
+  const d = RP.worklistRows(w.id);
+  h += '<div class="section-h">Список «'+esc(w.name)+'»</div>';
+  h += '<div class="sheet"><div class="sheet-h">'+esc(w.name)+'</div>'+
+    '<div class="sheet-sub">состав заморожен '+fmt(w.at)+' выпуском '+esc(w.from)+
+      ' · величины — текущие, на момент показа</div>';
+  h += '<table class="cgrid"><thead><tr><th>Кредит</th><th>Заёмщик</th><th>Подразделение</th>'+
+    '<th>Долг, сом</th><th>Дней</th><th>Состояние</th></tr></thead><tbody>';
+  d.rows.forEach((r, i) => {
+    if(!r) { h += '<tr class="out"><td colspan="6" class="muted small">объект '+
+      esc(w.objects[i])+' — вне области видимости роли: строка не показана, но из состава не '+
+      'исчезла (§13.1)</td></tr>'; return; }
+    h += '<tr'+(r.closed ? ' class="out"' : '')+'>'+
+      '<td class="mono">'+esc(r.no)+'</td><td>'+esc(r.borrower)+'</td>'+
+      '<td class="small">'+esc(deptName(r.dept))+'</td>'+
+      '<td class="num">'+esc(money(r.debt_main))+'</td><td class="num">'+r.days+'</td>'+
+      '<td>'+(r.closed ? pill('выбыл '+fmt(r.closed),'neutral') : pill(r.status || 'в работе','info'))+'</td></tr>';
+  });
+  h += '</tbody></table>';
+  if(d.hidden) h += '<div class="banner warn">Область видимости скрыла '+objWord(d.hidden)+
+    ': охват показа неполный, и об этом сказано вслух (§13.4).</div>';
+  if(d.gone) h += '<div class="banner info"><b>Выбывший показан выбывшим.</b> '+objWord(d.gone)+
+    ' закрыт ядром уже после заморозки состава — строка осталась на месте с отметкой, а не '+
+    'исчезла: иначе список солгал бы о том, кого обзванивали (§9).</div>';
+  h += '<div class="foot-pass">Список хранит <b>ссылки на объекты</b> и ни одного числа: долг и '+
+    'дни в таблице спрошены швом <b>objectRows</b> заново, на момент показа.</div></div>';
+
+  h += '<div class="cols"><div>';
+  h += '<div class="card"><h3>Работа со списком</h3><div class="form-row">'+
+    '<div class="fld"><label>Передать подразделению</label><select id="wlDept">'+DEPTS.map(x =>
+      '<option value="'+x.id+'"'+(x.id===w.dept?' selected':'')+'>'+esc(x.name)+'</option>').join('')+
+    '</select></div>'+
+    '<div class="fld"><label>Причина закрытия</label><input id="wlWhy" placeholder="обзвон окончен"></div>'+
+    '</div><div class="btn-row">'+
+      '<button class="btn btn-primary btn-sm" onclick="RP.uiHand(\''+w.id+'\')">Передать</button>'+
+      '<button class="btn btn-success btn-sm" onclick="act(RP.issueByWorklist(\'t-portfolio\',\''+w.id+
+        '\',{kind:\'предварительный\'}))">Выпустить отчёт по списку</button>'+
+      '<button class="btn btn-danger btn-sm" onclick="RP.uiCloseWL(\''+w.id+'\')">Закрыть список</button>'+
+    '</div><div class="foot-pass">Список — <b>законный параметр отбора</b> следующего выпуска: '+
+      'перечень объектов уходит в разрез и спрашивается тем же швом. Пятого шва это не потребовало.</div></div>';
+  h += '</div><div class="side">';
+  h += '<div class="card"><h3 class="small">Чего список не делает</h3><div class="btn-row">'+
+    '<button class="btn btn-secondary btn-sm" onclick="act(RP.addToWorklist(\''+w.id+'\',\'kr-1\'))">Добавить объект</button>'+
+    '<button class="btn btn-secondary btn-sm" onclick="act(RP.deleteWorklist(\''+w.id+'\'))">Удалить список</button>'+
+    '<button class="btn btn-secondary btn-sm" onclick="act(RP.worklistTask(\''+w.id+'\'))">Поручить обзвон</button>'+
+    '<button class="btn btn-secondary btn-sm" onclick="act(RP.demoCloseObject(\''+w.objects[0]+'\'))">Ядро закрывает кредит</button>'+
+    '</div></div>';
+  h += '</div></div>';
+  return h;
+}
+
+/* ---------------------------- ДАШБОРД (§10) -------------------------- */
+RP.uiAddTile = () => { const s = $('#dashTpl');
+  act(RP.addTile(s ? s.value : null, {asOf:'2026-08-01', dept:''})); };
+function scDash(){
+  const tiles = RP.dashTiles(), personal = RP.dashPersonal();
+  const vis = RP.visibleTemplates();
+  let h = '<div class="page-lead">Плитка — способ показать <em>объявленный отчёт</em>: своего '+
+    'состава у неё нет, внешних источников не бывает, клик раскрывает отчёт целиком (§10). '+
+    'Раскладка <b>объявлена на роль</b> — первый день не начинается с пустого экрана; поверх живёт '+
+    'личная перекладка со «вернуть как объявлено». Личная раскладка — не личный отчёт.</div>';
+
+  h += '<div class="banner '+(personal ? 'warn' : 'info')+'">Раскладка: <b>'+
+    (personal ? 'личная перекладка' : 'как объявлено на роль «'+esc(RP.viewer().title)+'»')+
+    '</b> · плиток '+tiles.length+
+    '<div class="btn-row"><button class="btn btn-secondary btn-sm" onclick="act(RP.resetDash())">'+
+      'Вернуть как объявлено</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="act(RP.dashPassport())">Паспорт дашборда</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="act(RP.addExternalTile(\'https://bi.example/kpi\'))">'+
+      'Плитка из внешнего источника</button></div></div>';
+
+  if(!tiles.length) h += '<div class="banner info">На эту роль плиток не объявлено.</div>';
+  tiles.forEach((tile, i) => {
+    const d = RP.tileData(tile);
+    h += '<div class="card"><h3>'+esc(d ? d.name : tile.tpl)+'</h3>';
+    if(!d) h += '<div class="banner danger">Шаблона нет.</div>';
+    else if(d.broken) h += '<div class="banner danger"><b>Отчёт неисполним:</b> '+esc(d.broken)+
+      '. Плитка это говорит, а не показывает пустое место.</div>';
+    else {
+      h += '<div class="totals">'+d.totals.map(x => '<div class="tot"><div class="tn">'+esc(x.name)+
+        '</div><div class="tv">'+(x.value == null ? '—' : esc(money(x.value)))+' <span class="small">'+
+        esc(x.unit)+'</span></div><div class="tp">'+esc(x.why || 'по видимым строкам (§13.2)')+
+        '</div></div>').join('')+'</div>';
+      h += '<div class="small muted">строк в ответе: '+d.rows+'</div>';
+      h += passportBox(d.passport, false);
+      if(d.soft.length) h += '<div class="banner warn">'+esc(d.soft.join('; '))+'</div>';
+    }
+    h += '<div class="btn-row"><button class="btn btn-secondary btn-sm" onclick="RP.openIssue(\''+
+      tile.tpl+'\')">Раскрыть целиком</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="act(RP.removeTile('+i+'))">Убрать плитку</button>'+
+      '</div></div>';
+  });
+
+  h += '<div class="card"><h3>Добавить плитку</h3><div class="form-row"><div class="fld">'+
+    '<label>Шаблон (только видимый)</label><select id="dashTpl">'+vis.map(id =>
+      '<option value="'+id+'">'+esc(TPL(id).name)+' · '+esc(TPL(id).kind)+
+      (pubEd(TPL(id)) ? '' : ' · черновик')+'</option>').join('')+'</select></div></div>'+
+    '<div class="btn-row"><button class="btn btn-primary btn-sm" onclick="RP.uiAddTile()">Добавить</button></div>'+
+    '<div class="foot-pass">Паспорт — <b>у каждой плитки</b>, не у экрана: рядом стоят «на дату» и '+
+      '«сейчас», и один паспорт сверху создавал бы вид единой даты, которого нет (ИО-15).</div></div>';
+  return h;
+}
+
+/* --------------------------- ГРАНИЦЫ МАКЕТА -------------------------- */
+function scBounds(){
+  return '<div class="page-lead">Макет — <em>исполняемый стандарт поведения</em>, а не приложение. '+
+    'Он доказывает исполнением закон отчётности: объявленный состав, две ступени выпуска, снимок и '+
+    'расхождение, обязательства из правила, бланк с подстановками из перечня, рабочий список и '+
+    'дашборд. Ниже — то, чего в нём сознательно нет.</div>'+
+  '<div class="card"><h3>Чего в макете нет и почему</h3><div class="facts">'+
+    '<div class="f no"><b>ЭЦП и штамп подписи.</b> Открытый вопрос §19 п. 4: пока не решено, '+
+      'подписывается ли выпуск в модуле или файл уходит на подпись наружу. Рисовать кнопку раньше '+
+      'решения — значит решить его молча.</div>'+
+    '<div class="f no"><b>Настоящие файлы xls/pdf/docx.</b> Форматы названы и различены по ступеням '+
+      '(наружу с получателем — только pdf, ИО-10), но генерация файла — работа реализации, не закона.</div>'+
+    '<div class="f no"><b>Соседи.</b> Подразделения, показатели, поля, объекты и адресаты заведены '+
+      'зеркалом ровно на ширину шва: эталон у оргструктуры, статистики, ядра и справочников '+
+      '(ADR-0157 §3). Свои запросы к базе и свои формулы в модуле запрещены (ИО-2, ИО-3) — '+
+      'проверяется смоуком по отмеченному блоку движка.</div>'+
+    '<div class="f no"><b>Хранилище.</b> Состояние живёт в памяти страницы: «Сбросить макет» '+
+      'возвращает начальную сцену вместе с зеркалами соседей.</div>'+
+    '</div></div>'+
+  '<div class="card"><h3>Что доказано исполнением</h3><div class="facts">'+
+    '<div class="f yes"><em>Движок не знает базы.</em> В отмеченном блоке нет имён OBJECTS, HIST, '+
+      'STATS, FIELDS — только четыре шва.</div>'+
+    '<div class="f yes"><em>Затравочные выпуски настоящие.</em> Снимки в журнале произвёл сам '+
+      'RP.issue, а не литерал в коде.</div>'+
+    '<div class="f yes"><em>Расхождение заработано.</em> Период переоткрыт, снимок статистики изменён, '+
+      'пересчёт разошёлся со сданным — и выпуск помечен расхождением сам.</div>'+
+    '<div class="f yes"><em>Подстановки выведены разбором.</em> Список подстановок бланка нигде не '+
+      'хранится: единственный источник правды — текст макета.</div>'+
     '</div></div>';
 }
 
@@ -1795,8 +2271,11 @@ const VIEWS = {
   issue:   {title:'Выпуск',          fn:scIssue},
   journal: {title:'Журнал выпусков', fn:scJournal},
   calendar:{title:'Календарь сдачи', fn:scCalendar},
+  blank:   {title:'Верстальщик макета бланка', fn:scBlank},
+  worklists:{title:'Рабочие списки',  fn:scWorklists},
+  dash:    {title:'Дашборд',          fn:scDash},
   seams:   {title:'Швы и соседи',    fn:scSeams},
-  wave3:   {title:'Волна 3 — заперто', fn:scWave3}
+  bounds:  {title:'Границы макета',  fn:scBounds}
 };
 function toast(msg, kind){
   if(typeof document === 'undefined') return;
