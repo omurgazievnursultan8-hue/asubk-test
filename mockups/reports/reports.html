@@ -1027,7 +1027,7 @@ const KINDS = ['отчёт','бланк'];
 function templatesSeed(){ return [
   {id:'t-overdue', kind:'отчёт', name:'Просроченная задолженность по состоянию на 1-е число',
    owner:'Тентимишев К.', asked:true,
-   basis:{doc:'Порядок №41 (ред. 06.07.2026)', point:'п. 12'},
+   basis:{doc:'Порядок №41 (ред. 06.07.2026)', point:'12'},
    circle:ALL_DEPTS.slice(), forReview:true, fullCoverage:true, series:null,
    schedule:{freq:'ежемесячно', dueDay:15, since:'2026-05-01',
      asOfRule:'первое число месяца, следующего за отчётным',
@@ -1063,7 +1063,7 @@ function templatesSeed(){ return [
 
   {id:'t-notice', kind:'бланк', name:'Уведомление о наступающем платеже',
    owner:'Абдырахманова С.', asked:true,
-   basis:{doc:'Порядок №41 (ред. 06.07.2026)', point:'п. 15'},
+   basis:{doc:'Порядок №41 (ред. 06.07.2026)', point:'15'},
    circle:ALL_DEPTS.slice(), forReview:false, fullCoverage:false, schedule:null,
    series:{prefix:'УВ-2026/', manual:false, next:37, used:[]},
    editions:[{n:1, state:'опубликована', since:'2026-05-20', by:'Тентимишев К.', at:'2026-05-20',
@@ -1079,7 +1079,7 @@ function templatesSeed(){ return [
 
   {id:'t-claim', kind:'бланк', name:'Первичная претензия',
    owner:'Абдырахманова С.', asked:true,
-   basis:{doc:'Порядок №41 (ред. 06.07.2026)', point:'п. 16'},
+   basis:{doc:'Порядок №41 (ред. 06.07.2026)', point:'16'},
    circle:ALL_DEPTS.slice(), forReview:false, fullCoverage:false, schedule:null,
    series:{prefix:'ПР-2026/', manual:true, next:null, used:['ПР-2026/014']},
    editions:[{n:1, state:'опубликована', since:'2026-06-01', by:'Тентимишев К.', at:'2026-06-01',
@@ -1113,7 +1113,7 @@ function templatesSeed(){ return [
      params:[{id:'period', role:'вопроса', name:'Отчётный месяц'}]}]},
 
   {id:'t-ref', kind:'бланк', name:'Справка о задолженности',
-   owner:'Осмонова Г.', asked:false, basis:null, basisAsk:{doc:'Порядок №41', point:'п. 12'},
+   owner:'Осмонова Г.', asked:false, basis:null, basisAsk:{doc:'Порядок №41', point:'12'},
    circle:['dep-prom'], forReview:false, fullCoverage:false, schedule:null,
    series:{prefix:'СП-2026/', manual:false, next:1, used:[]},
    editions:[{n:1, state:'черновик', since:null, by:'Осмонова Г.', at:'2026-08-22',
@@ -1288,7 +1288,7 @@ RP.publishChecks = tid => {
   /* 4. нормативное основание, названное не публикующим */
   if(t.basisAsk) out.push({check:'основание', ok:false,
     why:'сослаться на пункт нормы может только публикующий: в личном черновике вписано «'+
-      t.basisAsk.point+' '+t.basisAsk.doc+'», уполномоченный называет основание сам'});
+      'п. '+t.basisAsk.point+' '+t.basisAsk.doc+'», уполномоченный называет основание сам'});
   /* 5. поле ядра переименовано или снято */
   ed.fields.forEach(fid => { if(!list.fields.some(f => f.id === fid))
     out.push({check:'поле ядра', ok:false,
@@ -1335,8 +1335,8 @@ RP.setBasis = (tid, basis) => {
   const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
   if(!RP.isAuth()) { t.basisAsk = basis;
     return {ok:false, why:'сослаться на пункт нормы может только публикующий: основание «'+
-      basis.point+' '+basis.doc+'» записано в черновик как просьба, а не как основание'}; }
-  t.basis = basis; t.basisAsk = null; log('основание шаблона «'+t.name+'» — '+basis.point);
+      'п. '+basis.point+' '+basis.doc+'» записано в черновик как просьба, а не как основание'}; }
+  t.basis = basis; t.basisAsk = null; log('основание шаблона «'+t.name+'» — п. '+basis.point);
   return {ok:true, note:'основание названо уполномоченным'};
 };
 /* Круг, расписание, «пригоден для обзора» и серия живут ВНЕ редакции: их
@@ -2341,7 +2341,7 @@ function scRegistry(){
           (t.series.manual ? ' · ручная' : ' · сквозная')+'</div>' : '')+'</td>'+
       '<td>'+pill(st.state, stateCls(st.state))+'</td>'+
       '<td>'+(RP.pubEd(tid) ? 'ред. '+RP.pubEd(tid).n : '—')+'</td>'+
-      '<td class="small">'+(t.basis ? esc((t.basis.point ? t.basis.point+' ' : '')+t.basis.doc)
+      '<td class="small">'+(t.basis ? esc((t.basis.point ? 'п. '+t.basis.point+' ' : '')+t.basis.doc)
         : '<span class="muted">не названо</span>')+'</td>'+
       '<td class="small">'+esc(t.circle.map(deptName).join('; '))+'</td>'+
       '<td class="small">'+(t.schedule ? esc(t.schedule.text) : '<span class="muted">по требованию</span>')+'</td>'+
@@ -2517,7 +2517,7 @@ const deptCutName = c => c === 'dept' ? 'по подразделению' : c;
 RP.selDraft = id => { RP.state.sel.draft = id; render(); };
 RP.doPublish = id => act(RP.publish(id), 'редакция опубликована');
 RP.doAsk = id => act(RP.askPublish(id), 'черновик передан на публикацию');
-RP.doBasis = id => act(RP.setBasis(id, {doc:'Порядок №41 (ред. 06.07.2026)', point:'п. 12'}), 'основание названо');
+RP.doBasis = id => act(RP.setBasis(id, {doc:'Порядок №41 (ред. 06.07.2026)', point:'12'}), 'основание названо');
 RP.doFreeWithdrawn = id => act(RP.setFree(id, {stats:['s-npl']}));
 RP.doFreePub = () => act(RP.setFree('t-overdue', {cuts:['dept','status'], stats:['s-portfolio']}));
 RP.doCircle = id => act(RP.setCircle(id, ['dep-prom']), 'круг изменён');
@@ -2657,7 +2657,7 @@ function scIssue(){
   /* --- показ: шапка, потом числа --- */
   h += showBox(prev.head);
   h += '<div class="sheet" style="margin-top:14px"><div class="sheet-h">'+esc(t.name)+'</div>'+
-    '<div class="sheet-sub">ред. '+ed.n+' · '+esc(t.basis ? (t.basis.point ? t.basis.point+' ' : '')+t.basis.doc
+    '<div class="sheet-sub">ред. '+ed.n+' · '+esc(t.basis ? (t.basis.point ? 'п. '+t.basis.point+' ' : '')+t.basis.doc
       : 'основание не названо')+'</div>';
   if(isBlank){
     const d = prev.data;

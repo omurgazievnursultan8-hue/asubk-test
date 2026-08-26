@@ -53,6 +53,11 @@ SCANNED = [
     "mockups/classification/ASUBK-klassifikatsiya-logika.md",
     "mockups/classification/ASUBK-status-razrabotki.md",
     "scripts/inspect/classification-check.mjs",
+    "mockups/reports/ASUBK-otchetnost-logika.md",
+    "mockups/reports/ASUBK-otchetnost-katalog.md",
+    "mockups/reports/ASUBK-status-razrabotki.md",
+    "mockups/reports/reports.html",
+    "scripts/inspect/reports-check.mjs",
     "requirements/tz/13-collection.html",
     "docs/tasks/p14-collection-tasks.html",
     "docs/adr/*.md",
@@ -84,6 +89,11 @@ MIGRATED = {
     "mockups/classification/ASUBK-status-razrabotki.md",
     "scripts/inspect/classification-check.mjs",
     "scripts/inspect/collection-check.mjs",
+    "mockups/reports/ASUBK-otchetnost-logika.md",
+    "mockups/reports/ASUBK-otchetnost-katalog.md",
+    "mockups/reports/ASUBK-status-razrabotki.md",
+    "mockups/reports/reports.html",
+    "scripts/inspect/reports-check.mjs",
     "CONTEXT.md",
 }
 
