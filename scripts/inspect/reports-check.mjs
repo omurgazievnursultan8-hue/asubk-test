@@ -185,11 +185,13 @@ const as = r => { RP.state.role = R[r]; };
   const fin = RP.issue('t-notice', { params:{ obj:'kr-2' }, kind:'окончательный' });
   const f = RP.ISS(fin.id);
   ok(23, fin.ok && f.number === 'УВ-2026/037' && RP.TPL('t-notice').series.next === before + 1 &&
-        f.snapshot && f.recipient && f.recipient.name === 'ОсОО «Нарын-Агро»' && f.recipient.viaObject,
-    `номер ${f.number} потрачен ВМЕСТЕ со снимком; получатель бланка — контрагент объекта, ссылкой (ИО-5)`);
+        f.snapshot && f.recipient && f.recipient.name === 'ОсОО «Нарын-Агро»' &&
+        f.recipient.ref === 'su-2' && f.recipient.role === 'заёмщик' && f.recipient.viaObject === 'kr-2',
+    `номер ${f.number} потрачен ВМЕСТЕ со снимком; получатель бланка — ССЫЛКА на лицо ` +
+    `(${f.recipient.ref}, роль «${f.recipient.role}»), объект — только дорога к нему (ИО-5, ИО-28)`);
 
   const addr = RP.issue('t-notice', { params:{ obj:'kr-2' }, kind:'окончательный', recipient:'a-mf' });
-  ok(24, !addr.ok && has(addr.why, 'контрагент объекта'),
+  ok(24, !addr.ok && has(addr.why, 'лицо, связанное с объектом ролью'),
     `бланку адресат из справочника не выбирается: «${addr.why.slice(0, 70)}…»`);
 
   const noNum = RP.issue('t-claim', { params:{ obj:'kr-6' }, kind:'окончательный' });
@@ -326,7 +328,7 @@ const as = r => { RP.state.role = R[r]; };
   const r = RP.renameField('credit', 'days', 'days_overdue', 'Дней просрочки');
   const st = RP.tplState('t-overdue');
   const iss = RP.issue('t-overdue', { params:{ asOf:'2026-08-01', dept:'' }, kind:'предварительный' });
-  ok(42, r.ok && r.broken.length === 4 && has(st.why, 'перечень изменил его владелец (ядро · кредиты)') &&
+  ok(42, r.ok && r.broken.length === 5 && has(st.why, 'перечень изменил его владелец (ядро · кредиты)') &&
         st.state === 'неисполним' && !iss.ok && has(iss.why, 'шаблон неисполним'),
     `переименование поля в ядре сломало ${r.broken.length} шаблона (${r.broken.map(b => b.id).join(', ')} — ` +
     `и отчёт, и бланк: закон один) и НАЗВАЛО виновника — ADR-0158 §4`);
@@ -902,7 +904,7 @@ const as = r => { RP.state.role = R[r]; };
   const norms = sc.must.filter(r => r.kind === 'норма');
   const forms = RP.forms();
   ok(107, forms.length === 14 && forms.filter(f => f.obligatory).length === 12 &&
-        gaps.length === 8 && gaps.filter(g => g.nowhere).length === 6 &&
+        gaps.length === 7 && gaps.filter(g => g.nowhere).length === 5 &&
         norms.length === gaps.length &&
         norms.every(r => r.state === 'шаблон не заведён' && !r.obligation && !r.schedule) &&
         has(norms[0].why, 'выпуск предъявляет редакцию, а редакции нет'),
@@ -1050,11 +1052,13 @@ const as = r => { RP.state.role = R[r]; };
   const sc = RP.showcase();
   const claim = sc.must.concat(sc.rest).find(r => r.id === 't-claim');
   const last = sc.must[sc.must.length - 1];
-  ok(124, claim && claim.access.ok === false && last.id === 't-claim' &&
+  const shut = sc.must.filter(r => !r.access.ok);
+  ok(124, claim && claim.access.ok === false && shut.indexOf(last) !== -1 &&
         has(claim.access.why, 'не в круге подразделения') && claim.access.who &&
-        sc.must.filter(r => !r.access.ok).length === 1,
+        shut.length === 2 && shut.every(r => sc.must.indexOf(r) >= sc.must.length - shut.length),
     `недоступное по кругу не прячется, а приглушается В КОНЦЕ с причиной и с тем, у кого доступ: ` +
-    `«${claim.name}» — круг «${claim.access.who}» (§13.1, ОЧ-42)`);
+    `${shut.length} строки («${shut.map(r => r.name).join('», «')}») — круг «${claim.access.who}» ` +
+    `(§13.1, ОЧ-42)`);
 
   RP.seed(); as('auth');
   RP.state.view = 'showcase';
@@ -1244,6 +1248,69 @@ const as = r => { RP.state.role = R[r]; };
         has(rec.note, 'подставлен ближайший на 01.08.2026'),
     `акт по подставленной дате окончательным не бывает: снимка на 10.08.2026 нет, подставлен ` +
     `ближайший — выпуск остался предварительным, без получателя и без номера (ADR-0152 §5, ИО-8)`);
+})();
+
+/* ---------- Z. Получатель бланка — лицо в объявленной роли (волна 11, ADR-0167) ---------- */
+(() => {
+  RP.seed();
+  as('clerk');
+  const g = RP.issue('t-guar', { params:{ obj:'kr-6' }, kind:'окончательный' });
+  const rec = RP.ISS(g.id);
+  const sub = RP.layoutOf('t-guar').subs;
+  ok(142, g.ok && rec.recipient.ref === 'su-8' && rec.recipient.role === 'поручитель' &&
+        rec.recipient.viaObject === 'kr-6' && sub.indexOf('borrower') !== -1,
+    `подстановка — не получатель: в теле требования печатается {{borrower}} («ОсОО «Ош-Текстиль»», ` +
+    `о ком речь), а бумага уходит ${rec.recipient.name} — ${rec.recipient.ref}, роль ` +
+    `«${rec.recipient.role}» (ADR-0167 §3)`);
+
+  const none = RP.issue('t-guar', { params:{ obj:'kr-1' }, kind:'окончательный' });
+  ok(143, !none.ok && has(none.why, 'такого лица нет: получателя назвать некем') &&
+        has(none.why, 'Роль объявляет редакция'),
+    `роли нет — отказ по имени, а не пустая строка в бумаге: «${none.why.slice(0, 80)}…» (ИО-28)`);
+
+  RP.seed(); as('auth');
+  const t = RP.TPL('t-recon'); const ed = t.editions[t.editions.length - 1];
+  const keep = ed.addressee; ed.addressee = null; ed.state = 'черновик';
+  const bad = RP.publishChecks('t-recon').find(c => c.check === 'адресат бланка');
+  ed.addressee = keep;
+  ok(144, !!bad && has(bad.why, 'роль объявляет редакция, а не человек на выпуске'),
+    `бланк без объявленной роли получателя не публикуется: роль — свойство редакции, и проверка ` +
+    `стоит там же, где остальные пять (ИО-28, ADR-0167 §2)`);
+})();
+
+(() => {
+  RP.seed(); as('clerk');
+  /* у su-4 два договора — kr-4 и kr-8: лицо одно, бумаг две */
+  RP.issue('t-notice', { params:{ obj:'kr-4' }, kind:'окончательный' });
+  RP.issue('t-notice', { params:{ obj:'kr-8' }, kind:'окончательный' });
+  const byObj  = RP.callSeamOut('карточка объекта (ядро)', 'reportIssues', 'kr-4');
+  const bySubj = RP.callSeamOut('классификация', 'reportIssues', { subject:'su-4' });
+  const wrongKey = RP.callSeamOut('карточка объекта (ядро)', 'reportIssues', { subject:'su-4' });
+  ok(145, byObj.ok && byObj.data.length === 1 && bySubj.ok && bySubj.key === 'лицо' &&
+        bySubj.data.length === 2 && bySubj.data.every(r => r.toRef === 'su-4') &&
+        !wrongKey.ok && has(wrongKey.why, 'ключом «лицо»'),
+    `тот же шов, второй ключ: по договору ${byObj.data.length} бумага, по ЛИЦУ ${bySubj.data.length} — ` +
+    `у заёмщика договоров несколько, а уклоняется он один (п. 11 п.п. 2); карточке объекта ключ ` +
+    `«лицо» не отдаётся — вопрос не её (ADR-0167 §5)`);
+})();
+
+(() => {
+  RP.seed(); as('auth');
+  const adm  = RP.obligations().find(o => o.tpl === 't-recon' && o.dept === 'dep-admin');
+  const prom = RP.obligations().find(o => o.tpl === 't-recon' && o.dept === 'dep-prom');
+  const guarHasNoSchedule = !RP.TPL('t-guar').schedule &&
+        !RP.obligations().some(o => o.tpl === 't-guar');
+  ok(146, adm.cover.need === 3 && adm.cover.needSubj === 2 &&
+        prom.cover.need === 2 && prom.cover.needSubj === 2 && guarHasNoSchedule,
+    `знаменатель нормы и знаменатель охвата — разные величины, и это сказано вслух: у ` +
+    `администрирования ${adm.cover.need} договора, но ${adm.cover.needSubj} лица (КД-2025/088 и ` +
+    `КД-2024/259 — один заёмщик). Счёт по договорам строже, раньше нормы не закроется (ОЧ-61, ` +
+    `ADR-0167 §4); требование поручителю расписания не несёт и обязательства не порождает (ADR-0164)`);
+
+  const cal = win.VIEWS.calendar.fn();
+  ok(147, has(cal, 'норма считает лиц (п. 9), охват считает договоры') &&
+        has(cal, 'лиц: 0 из 2') && has(cal, 'договоров'),
+    `расхождение печатается в клетке охвата, а не прячется: «2 из 3 договоров · лиц: 0 из 2»`);
 })();
 
 /* ---- отчёт ---- */
