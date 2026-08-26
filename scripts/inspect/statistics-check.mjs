@@ -1,4 +1,5 @@
-// Headless smoke для mockups/statistics/statistics.html (ИС-1…ИС-20, ADR-0145…0152).
+// Headless smoke для mockups/statistics/statistics.html (ИС-1…ИС-25, ADR-0145…0152 + 0176…0180).
+// Блок S закрывает бывшие дефекты макета СС-Д1/Д2/Д3/Д6 (вопрос целиком, а не его половина).
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -34,7 +35,7 @@ const TODAY = '2026-08-21';
   const badSrc = st.indicators.filter(i => ['шов','поле','агрегат'].indexOf(i.src) < 0);
   const formula = st.indicators.filter(i => 'formula' in i || 'expr' in i || 'выражение' in i);
   const badFn = st.indicators.filter(i => i.src === 'агрегат' && ST.aggFns().indexOf(i.fn) < 0);
-  ok(1, st.objects.length === 5 && st.indicators.length >= 25 && badSrc.length === 0 &&
+  ok(1, st.objects.length === 8 && st.indicators.length >= 25 && badSrc.length === 0 &&
        formula.length === 0 && badFn.length === 0,
     `объектов ${st.objects.length}, показателей ${st.indicators.length}; без объявленного источника ${badSrc.length}, с формулой ${formula.length}, с функцией вне списка ${badFn.length} — ИС-6, ИС-7`);
 
@@ -68,8 +69,8 @@ const TODAY = '2026-08-21';
     const r = ST.statSlice({obj: o.id, dims: [o.dims[0]], meas: ['a-count'], date: TODAY});
     return {name: o.name, ok: r.ok, n: r.ok ? r.n : 0, g: r.ok ? r.groups.length : 0};
   });
-  ok(6, each.every(x => x.ok && x.n > 0),
-    `пять объектов одним движком: ${each.map(x => x.name + ' ' + x.n + '/' + x.g + ' групп').join(' · ')}`);
+  ok(6, each.every(x => x.ok && x.n > 0) && each.length === 8,
+    `восемь объектов одним движком: ${each.map(x => x.name + ' ' + x.n + '/' + x.g + ' групп').join(' · ')}`);
 
   const cr = ST.statSlice({obj:'obj-credit', dims:['d-branch'], meas:['a-count','a-sumdebt'], date: TODAY});
   const bo = ST.statSlice({obj:'obj-borrower', dims:['d-ptype'], meas:['a-count','a-sumbcnt'], date: TODAY});
@@ -96,7 +97,7 @@ const TODAY = '2026-08-21';
   const run = ST.run('2026-08-20', {});
   const after = ST.statSlice({obj:'obj-guarantee', dims:['d-region'], meas:['a-count','a-sumgsec'], date:'2026-08-20'});
   ok(9, !before.ok && mi.ok && ai.ok && add.ok && run.ok && after.ok && after.n === 3 && after.groups.length === 3,
-    `шестой объект заведён записью: до — «${before.why}», после — ${after.n} объектов в ${after.groups.length} группах, без единой правки движка (ИС-18)`);
+    `девятый объект заведён записью: до — «${before.why}», после — ${after.n} объектов в ${after.groups.length} группах, без единой правки движка (ИС-18)`);
 
   const bad = ST.addObject({id:'obj-ghost', name:'Призрак', dims:[], meas:[]});
   ok(10, !bad.ok && has(bad.why, 'владелец не отдаёт'),
@@ -244,7 +245,8 @@ const TODAY = '2026-08-21';
         may.dims['d-category'] === 'Низкий кредитный риск' && aug.dims['d-category'] === 'Средний кредитный риск',
     `смена куратора 15.07 майскую строку не переписала: май — ${may.dims['d-curator']}, август — ${aug.dims['d-curator']} — ИС-4`);
 
-  const add = ST.addDim({id:'d-segment', name:'Сегмент портфеля', obj:'obj-credit', src:'поле', key:'industry'});
+  const add = ST.addDim({id:'d-segment', name:'Сегмент портфеля', obj:'obj-credit', src:'поле',
+    key:'industry', perObject:'одно'});
   const past = ST.statSlice({obj:'obj-credit', dims:['d-segment'], meas:['a-count'], date:'2026-05-31'});
   ST.run(TODAY, {manual:true, reason:'разметка новым разрезом'});
   const now = ST.statSlice({obj:'obj-credit', dims:['d-segment'], meas:['a-count'], date: TODAY});
@@ -324,18 +326,19 @@ const TODAY = '2026-08-21';
 
 /* ---------- M. Сторож текста: инварианты и решения названы в файле ---------- */
 (() => {
-  const iss = Array.from({ length: 20 }, (_, i) => 'ИС-' + (i + 1)).filter(k => !new RegExp(k + '(\\D|$)').test(src));
-  const adrs = ['ADR-0145','ADR-0146','ADR-0147','ADR-0148','ADR-0149','ADR-0150','ADR-0151','ADR-0152']
+  const iss = Array.from({ length: 25 }, (_, i) => 'ИС-' + (i + 1)).filter(k => !new RegExp(k + '(\\D|$)').test(src));
+  const adrs = ['ADR-0145','ADR-0146','ADR-0147','ADR-0148','ADR-0149','ADR-0150','ADR-0151','ADR-0152',
+                'ADR-0176','ADR-0177','ADR-0178','ADR-0179']
     .filter(a => !src.includes(a));
   ok(42, iss.length === 0 && adrs.length === 0,
-    `в файле названы все 20 инвариантов и 8 решений волны${iss.length ? ' · нет: ' + iss.join(',') : ''}${adrs.length ? ' · нет: ' + adrs.join(',') : ''}`);
+    `в файле названы все 25 инвариантов и 12 решений двух волн${iss.length ? ' · нет: ' + iss.join(',') : ''}${adrs.length ? ' · нет: ' + adrs.join(',') : ''}`);
 
-  const screens = ['Конструктор среза','Журнал срезов','Реестры'].filter(s => !src.includes(s));
+  const screens = ['Конструктор среза','Журнал срезов','Выгрузки','Реестры'].filter(s => !src.includes(s));
   ok(43, screens.length === 0 && !/ST\.editRow|правка строки среза\s*—\s*экран/i.test(src),
-    `экранов три (конструктор · журнал · реестры), экрана правки строки среза нет — ИС-2`);
+    `экранов четыре (конструктор · журнал · выгрузки · реестры), экрана правки строки среза нет — ИС-2`);
 })();
 
-/* ---------- N. Экраны рисуются (DOM-заглушка, три экрана × роли) ---------- */
+/* ---------- N. Экраны рисуются (DOM-заглушка, четыре экрана × роли) ---------- */
 (() => {
   const el = () => ({ innerHTML:'', textContent:'', dataset:{},
     classList:{toggle(){}, add(){}, remove(){}}, appendChild(){}, remove(){} });
@@ -347,16 +350,18 @@ const TODAY = '2026-08-21';
 
   ST.seed();
   const errs = [];
-  ['build','journal','setup'].forEach(v => { const e = draw(() => ST.go(v)); if (e) errs.push(v + ': ' + e); });
+  ['build','journal','exports','setup'].forEach(v => { const e = draw(() => ST.go(v)); if (e) errs.push(v + ': ' + e); });
   ST.go('build');
   const b = panel();
   ST.go('journal'); const j = panel();
+  ST.go('exports'); const x = panel();
   ST.go('setup');   const g = panel();
   ok(44, errs.length === 0 &&
         has(b, 'Вопрос к статистике') && has(b, 'statSlice') && has(b, 'Дата расчёта') && has(b, 'Зеркальные плитки') &&
         has(j, 'Прогоны') && has(j, 'Периоды и фиксация') && has(j, 'Зеркало чужого действия') &&
-        has(g, 'Реестр объектов статистики') && has(g, 'Чего здесь завести нельзя'),
-    `три экрана рисуются без ошибок${errs.length ? ': ' + errs.join(' · ') : ''}; паспорт стоит НАД результатом, зеркало закрытия периода помечено`);
+        has(x, 'Очередь заданий') && has(x, 'Чего на этом экране нет') &&
+        has(g, 'Реестр объектов статистики') && has(g, 'Ссылки потребителей') && has(g, 'Чего здесь завести нельзя'),
+    `четыре экрана рисуются без ошибок${errs.length ? ': ' + errs.join(' · ') : ''}; паспорт стоит НАД результатом, зеркало закрытия периода помечено`);
 
   ST.go('build');
   const s0 = ST.statSlice(ST.state.q);
@@ -370,20 +375,178 @@ const TODAY = '2026-08-21';
   ST.setRole('Наблюдатель');
   const obs = panel();
   ST.setRole('Администратор статистики');
-  ok(46, has(modes[0].html, 'ряд по четырём датам') && has(modes[0].html, 'смешанно') &&
+  ok(46, has(modes[0].html, 'ряд по 4 датам, шаг месяц') && has(modes[0].html, 'смешанно') &&
         has(modes[1].html, 'Строки среза') && has(modes[1].html, 'Сходится с реестром') &&
         has(obs, 'Наблюдателю конструктор не открыт') && has(obs, 'Зеркальные плитки'),
     `ряд («смешанно» назван) и строки рисуются тем же экраном; наблюдателю конструктор закрыт текстом, готовые плитки с паспортом ему открыты`);
 })();
 
+/* ---------- O. Разрез несёт уровни и корзины (ADR-0176) ---------- */
+(() => {
+  ST.seed();
+  const t = ST.statSlice({obj:'obj-credit', dims:['d-region'], meas:['a-count','a-sumdebt'], date: TODAY});
+  const top = t.ok ? t.groups.map(g => g.key).join(' · ') : '';
+  const kids = t.ok ? t.groups.reduce((n,g) => n + g.children.length, 0) : 0;
+  ok(47, t.ok && t.hier && t.hier.depth === 2 && kids > 0 &&
+        t.groups.every(g => g.n === g.own + g.children.reduce((x,c) => x + c.n, 0)),
+    `ответ — дерево всегда: ${t.groups.length} узлов верхнего уровня (${top}), ниже ${kids}; каждый узел считается по своим строкам (ADR-0176 §5, §6)`);
+
+  const orphan = t.ok ? t.groups.find(g => g.key === 'Таласская') : null;
+  const lvl1 = ST.statSlice({obj:'obj-credit', dims:['d-region'], meas:['a-count'], date: TODAY, levels:{'d-region':1}});
+  const sumTop = t.ok ? t.groups.reduce((x,g) => x + g.n, 0) : -1;
+  ok(48, orphan && orphan.n === 1 && orphan.own === 1 && orphan.children.length === 0 &&
+        lvl1.ok && lvl1.hier.depth === 1 && lvl1.n === t.n && sumTop === t.n,
+    `объект без нижнего уровня остаётся у родителя и не исчезает: «Таласская» — своих ${orphan ? orphan.own : '—'}; уровень спрашивается вопросом (ИС-22)`);
+
+  const bad = ST.statSlice({obj:'obj-credit', dims:['d-region'], meas:['a-count'], date: TODAY, levels:{'d-region':3}});
+  const noB = ST.statSlice({obj:'obj-credit', dims:['d-cdate'], meas:['a-count'], date: TODAY});
+  const yr  = ST.statSlice({obj:'obj-credit', dims:['d-cdate'], meas:['a-count'], date: TODAY, buckets:{'d-cdate':'год'}});
+  const qt  = ST.statSlice({obj:'obj-credit', dims:['d-cdate'], meas:['a-count'], date: TODAY, buckets:{'d-cdate':'квартал'}});
+  ok(49, !bad.ok && has(bad.why, 'ИС-22') && !noB.ok && has(noB.why, 'ИС-23') &&
+        yr.ok && qt.ok && qt.groups.length > yr.groups.length && yr.n === qt.n,
+    `корзина обязательна и берётся из объявленных: без корзины — отказ «${String(noB.why).slice(0, 48)}…»; год ${yr.groups.length} групп, квартал ${qt.groups.length}, строк одинаково ${yr.n} (ИС-23)`);
+
+  const br = ST.statSlice({obj:'obj-credit', dims:['d-branch'], meas:['a-count'], date: TODAY});
+  const divs = br.ok ? br.groups.map(g => g.key) : [];
+  const dimBr = ST.state.dims.find(d => d.id === 'd-branch');
+  ok(50, br.ok && dimBr.owner && dimBr.levels.length === 2 &&
+        divs.every(k => /дивизион/i.test(k)) && br.groups.some(g => g.children.length > 0),
+    `верхний уровень взят у владельца справочника («${dimBr.owner}»), второй копии оргструктуры здесь нет: ${divs.join(' · ')} (ADR-0176 §7)`);
+
+  const many = ST.addDim({id:'d-rk', name:'Вид погашения', obj:'obj-credit', src:'поле', key:'kind', perObject:'много'});
+  const mute = ST.addDim({id:'d-rk2', name:'Вид погашения', obj:'obj-credit', src:'поле', key:'kind'});
+  ok(51, !many.ok && has(many.why, 'ИС-21') && !mute.ok &&
+        ST.OBJ('obj-repay') && ST.OBJ('obj-repay').dims.indexOf('d-repkind') >= 0,
+    `многозначный разрез не заводится — он объект: «${String(many.why).slice(0, 70)}…»; вид погашения живёт разрезом у погашения (ADR-0179 §1)`);
+})();
+
+/* ---------- P. statRows двоичен, сверка — выгрузкой (ADR-0178) ---------- */
+(() => {
+  ST.seed();
+  const few = ST.statRows({obj:'obj-credit', date: TODAY});
+  const many = ST.statRows({obj:'obj-repay', date: TODAY});
+  const trunc = many.ok ? 0 : (many.rows || []).length;
+  ok(52, few.ok && few.rows.length === 8 && !many.ok && many.overLimit &&
+        many.n === 14 && trunc === 0 && has(many.why, String(many.n)) && has(many.why, 'ИС-22'),
+    `ответ двоичен: 8 строк отдаются целиком, 14 — отказ, называющий ЧИСЛО (${many.n}) при пороге ${many.limit}; усечённого ответа нет (ADR-0178 §1, §4)`);
+
+  const pagers = Object.keys(ST).filter(k => /page|offset|limitRows|truncate/i.test(k));
+  const job = ST.exportJob({obj:'obj-repay', date: TODAY});
+  const p = job.ok ? job.job.passport : null;
+  ok(53, pagers.length === 0 && job.ok && job.job.n === 14 && p && p.asOf && p.fixation && p.scope &&
+        job.job.file && ST.exportsList().length === 1,
+    `сверка целиком идёт заданием ${job.ok ? job.job.id : '—'}, паспорт едет ВНУТРИ файла (${p ? p.asOf : '—'} · ${p ? p.fixation : '—'}); страниц и усечения в швах нет (ADR-0178 §5)`);
+
+  ST.setRole('Аналитик');
+  const cur = ST.statRows({obj:'obj-repay', date: TODAY});
+  ST.setRole('Администратор статистики');
+  ok(54, cur.ok && cur.rows.length < 14 && cur.rows.length <= ST.rowsLimit &&
+        has(cur.passport.scope, 'доступным вам'),
+    `порог считается ПОСЛЕ ролевых правил: аналитику видно ${cur.ok ? cur.rows.length : '—'} из 14 — список он получает, а не отказ из-за чужого множества (ADR-0178 §3)`);
+
+  const w = ST.workList('obj-credit', TODAY);
+  ok(55, w.ok && has(w.note, 'сутки, а не расхождение') && w.list.length > 0,
+    `второе действие числа названо отдельно от первого: «${String(w.note).slice(0, 70)}…» (ИС-14, врезка ADR-0152 §4)`);
+})();
+
+/* ---------- Q. Паспорт: ровно две формы (ИС-24) ---------- */
+(() => {
+  ST.seed();
+  const r = ST.statSlice({obj:'obj-credit', dims:['d-branch'], meas:['a-count'], date: TODAY});
+  const sh = r.ok ? r.passport.short : '';
+  ok(56, r.ok && ST.passportForms().length === 2 && typeof sh === 'string' &&
+        /на \d\d\.\d\d/.test(sh) && has(sh, 'фикс') && sh.length < 60 &&
+        ST.passportShort(r.passport) === sh,
+    `форм паспорта ровно две, и краткую объявляет производитель: «${sh}» (ИС-24, врезка ADR-0152 §2)`);
+})();
+
+/* ---------- R. Обратный индекс ссылок (ADR-0177) ---------- */
+(() => {
+  ST.seed();
+  const before = ST.refsTo('a-sumdebt').length;
+  const anon = ST.publishRefs({uses:['a-sumdebt']});
+  const pub = ST.publishRefs({consumer:'кураторство', edition:'карточка куратора, ред. 4',
+    owner:'Кураторство', uses:['a-sumdebt']});
+  const after = ST.refsTo('a-sumdebt').length;
+  const re = ST.publishRefs({consumer:'кураторство', edition:'карточка куратора, ред. 4',
+    owner:'Кураторство', uses:[]});
+  ok(57, !anon.ok && has(anon.why, 'ADR-0177 §2') && pub.ok && after === before + 1 &&
+        re.ok && ST.refsTo('a-sumdebt').length === before,
+    `ссылку публикует ПОТРЕБИТЕЛЬ со своей редакцией, переиздание без ссылки её снимает: ${before} → ${after} → ${ST.refsTo('a-sumdebt').length} (ADR-0177 §2)`);
+
+  const stop = ST.retireIndicator('a-sumdebt');
+  const names = stop.breaks ? stop.breaks.map(x => x.consumer).join(' · ') : '';
+  const go = ST.retireIndicator('a-sumdebt', true);
+  ok(58, !stop.ok && stop.needsConfirm && stop.breaks.length >= 2 && has(stop.why, 'ИС-25') &&
+        names.length > 0 && go.ok && go.broke.length >= 2 && !ST.IND('a-sumdebt'),
+    `вывод не запрещён чужой публикацией, но назван поимённо: сломается у ${names} (ИС-25, ADR-0177 §4)`);
+
+  const live = ST.setLive('m-debt', false);
+  const agg = ST.setLive('a-sumbcnt', false);
+  ok(59, !live.ok && has(live.why, 'ADR-0159') && agg.ok && ST.liveOf('a-sumbcnt').live === false &&
+        ST.liveOf('m-debt').editable === false,
+    `исчислимость налету правится только у агрегатов: у шва она производна от источника — «${String(live.why).slice(0, 60)}…»`);
+})();
+
+/* ---------- S. Вопрос целиком: даты ряда, фильтр, форма разреза, состав прогона ---------- */
+(() => {
+  ST.seed();
+  const st = ST.state;
+  const d4 = ST.seriesDates();
+  st.q.series = {step:'квартал', points:4};
+  const dq = ST.seriesDates();
+  st.q.series = {step:'месяц', points:6};
+  const d6 = ST.seriesDates();
+  st.q.series = {step:'месяц', points:4};
+  ok(60, d4.length === 4 && d4[3] === st.q.date && d6.length === 6 && dq.length === 4 &&
+        dq[3] === st.q.date && dq[2] < d4[2] &&
+        ST.statSeries({obj:'obj-credit', meas:'a-count', dates: dq}).ok,
+    `даты ряда — часть вопроса, а не константа: шаг месяц ${d4.join(' · ')}; шаг квартал ${dq.join(' · ')}; точек 4 или ${d6.length} (СС-Д1)`);
+
+  const vals = ST.filterValues('d-branch');
+  const byBucket = ST.filterValues('d-cdate');
+  st.q.filter = {dim:'d-branch', value: vals[0]};
+  const nar = ST.statSlice({obj:'obj-credit', dims:['d-branch'], meas:['a-count'], date: st.q.date, filter: st.q.filter});
+  st.q.filter = null;
+  const all = ST.statSlice({obj:'obj-credit', dims:['d-branch'], meas:['a-count'], date: st.q.date});
+  ok(61, vals.length > 0 && vals.some(v => v.indexOf(' / ') > 0) && nar.ok && nar.n < all.n &&
+        has(nar.passport.filter, String(vals[0]).split(' / ').pop()) &&
+        byBucket.length > 0 && byBucket.every(v => /^\d{4}$/.test(v)),
+    `фильтр строится списком значений ИЗ СТРОК среза, а не чужим справочником (ИС-4): у подразделения ${vals.length} значений обоих уровней, у разреза-даты — корзины (${byBucket.join(' · ')}), а не сырые даты; сужение названо в паспорте: ${nar.ok ? nar.n : '—'} из ${all.n} (СС-Д2)`);
+
+  ST.seed();
+  const taken = ST.addDim({id:'d-industry', name:'Отрасль', obj:'obj-credit', src:'поле',
+    key:'industry', perObject:'одно'});
+  const noRef = ST.addDim({id:'d-fdate', name:'Дата погашения', obj:'obj-repay', src:'поле',
+    key:'date', perObject:'одно', buckets:['год','месяц']});
+  const withRef = ST.addDim({id:'d-div2', name:'Подразделение выдачи', obj:'obj-repay', src:'поле',
+    key:'branch', perObject:'одно', ref:'org', owner:'Оргструктура (кадры)',
+    levels:['дивизион','филиал']});
+  const dd = ST.state.dims.find(d => d.id === 'd-div2');
+  const fd = ST.state.dims.find(d => d.id === 'd-fdate');
+  const free = ST.statSlice({obj:'obj-repay', dims:['d-fdate'], meas:['a-count'], date: TODAY,
+    buckets:{'d-fdate':'неделя'}});
+  ok(62, !taken.ok && noRef.ok && withRef.ok && dd && dd.owner === 'Оргструктура (кадры)' &&
+        dd.levels.length === 2 && fd.buckets.length === 2 && !free.ok,
+    `разрез заводится формой со всем, что требует модель: корзины списком (${fd ? fd.buckets.join(' · ') : '—'}, «неделя» мимо реестра не спрашивается) и ВЛАДЕЛЕЦ уровней («${dd ? dd.owner : '—'}»), а не напечатанная иерархия; занятый идентификатор — «${taken.why}» (ADR-0176 §7, ИС-23, СС-Д3)`);
+
+  ST.seed();
+  const r = ST.state.runs.filter(x => x.parts && x.parts.length).slice(-1)[0];
+  const sum = r ? r.parts.reduce((n,p) => n + p.n, 0) : -1;
+  const zero = r ? r.parts.filter(p => p.n === 0).length : -1;
+  ok(63, r && r.parts.length === ST.state.objects.length && sum === r.written &&
+        r.parts.every(p => 'name' in p && 'n' in p),
+    `состав прогона поимённый: ${r ? r.parts.length : '—'} объектов, сумма по объектам ${sum} = строк ${r ? r.written : '—'}; объект с нулём виден строкой (их ${zero}), а не отсутствием (СС-Д6)`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-const stamp = `SMOKE 2026-08-21 · ${pass}/${results.length} PASS\n` + lines.join('\n');
+const stamp = `SMOKE 2026-08-26 · ${pass}/${results.length} PASS\n` + lines.join('\n');
 console.log(stamp);
 
 const body = lines.map(l => '  ' + l).join('\n');
-const injected = `  SMOKE 2026-08-21 · ${pass}/${results.length} PASS\n` + body;
+const injected = `  SMOKE 2026-08-26 · ${pass}/${results.length} PASS\n` + body;
 if (src.includes('  SMOKE_PLACEHOLDER')) {
   writeFileSync(HTML, src.replace('  SMOKE_PLACEHOLDER', injected), 'utf8');
   console.log('\n→ результат вставлен в шапку statistics.html');
