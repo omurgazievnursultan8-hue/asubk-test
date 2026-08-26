@@ -328,7 +328,7 @@ const TODAY = '2026-08-21';
 (() => {
   const iss = Array.from({ length: 25 }, (_, i) => 'ИС-' + (i + 1)).filter(k => !new RegExp(k + '(\\D|$)').test(src));
   const adrs = ['ADR-0145','ADR-0146','ADR-0147','ADR-0148','ADR-0149','ADR-0150','ADR-0151','ADR-0152',
-                'ADR-0166','ADR-0167','ADR-0168','ADR-0169']
+                'ADR-0168','ADR-0169','ADR-0170','ADR-0171']
     .filter(a => !src.includes(a));
   ok(42, iss.length === 0 && adrs.length === 0,
     `в файле названы все 25 инвариантов и 12 решений двух волн${iss.length ? ' · нет: ' + iss.join(',') : ''}${adrs.length ? ' · нет: ' + adrs.join(',') : ''}`);
@@ -381,7 +381,7 @@ const TODAY = '2026-08-21';
     `ряд («смешанно» назван) и строки рисуются тем же экраном; наблюдателю конструктор закрыт текстом, готовые плитки с паспортом ему открыты`);
 })();
 
-/* ---------- O. Разрез несёт уровни и корзины (ADR-0166) ---------- */
+/* ---------- O. Разрез несёт уровни и корзины (ADR-0168) ---------- */
 (() => {
   ST.seed();
   const t = ST.statSlice({obj:'obj-credit', dims:['d-region'], meas:['a-count','a-sumdebt'], date: TODAY});
@@ -389,7 +389,7 @@ const TODAY = '2026-08-21';
   const kids = t.ok ? t.groups.reduce((n,g) => n + g.children.length, 0) : 0;
   ok(47, t.ok && t.hier && t.hier.depth === 2 && kids > 0 &&
         t.groups.every(g => g.n === g.own + g.children.reduce((x,c) => x + c.n, 0)),
-    `ответ — дерево всегда: ${t.groups.length} узлов верхнего уровня (${top}), ниже ${kids}; каждый узел считается по своим строкам (ADR-0166 §5, §6)`);
+    `ответ — дерево всегда: ${t.groups.length} узлов верхнего уровня (${top}), ниже ${kids}; каждый узел считается по своим строкам (ADR-0168 §5, §6)`);
 
   const orphan = t.ok ? t.groups.find(g => g.key === 'Таласская') : null;
   const lvl1 = ST.statSlice({obj:'obj-credit', dims:['d-region'], meas:['a-count'], date: TODAY, levels:{'d-region':1}});
@@ -411,16 +411,16 @@ const TODAY = '2026-08-21';
   const dimBr = ST.state.dims.find(d => d.id === 'd-branch');
   ok(50, br.ok && dimBr.owner && dimBr.levels.length === 2 &&
         divs.every(k => /дивизион/i.test(k)) && br.groups.some(g => g.children.length > 0),
-    `верхний уровень взят у владельца справочника («${dimBr.owner}»), второй копии оргструктуры здесь нет: ${divs.join(' · ')} (ADR-0166 §7)`);
+    `верхний уровень взят у владельца справочника («${dimBr.owner}»), второй копии оргструктуры здесь нет: ${divs.join(' · ')} (ADR-0168 §7)`);
 
   const many = ST.addDim({id:'d-rk', name:'Вид погашения', obj:'obj-credit', src:'поле', key:'kind', perObject:'много'});
   const mute = ST.addDim({id:'d-rk2', name:'Вид погашения', obj:'obj-credit', src:'поле', key:'kind'});
   ok(51, !many.ok && has(many.why, 'ИС-21') && !mute.ok &&
         ST.OBJ('obj-repay') && ST.OBJ('obj-repay').dims.indexOf('d-repkind') >= 0,
-    `многозначный разрез не заводится — он объект: «${String(many.why).slice(0, 70)}…»; вид погашения живёт разрезом у погашения (ADR-0169 §1)`);
+    `многозначный разрез не заводится — он объект: «${String(many.why).slice(0, 70)}…»; вид погашения живёт разрезом у погашения (ADR-0171 §1)`);
 })();
 
-/* ---------- P. statRows двоичен, сверка — выгрузкой (ADR-0168) ---------- */
+/* ---------- P. statRows двоичен, сверка — выгрузкой (ADR-0170) ---------- */
 (() => {
   ST.seed();
   const few = ST.statRows({obj:'obj-credit', date: TODAY});
@@ -428,21 +428,21 @@ const TODAY = '2026-08-21';
   const trunc = many.ok ? 0 : (many.rows || []).length;
   ok(52, few.ok && few.rows.length === 8 && !many.ok && many.overLimit &&
         many.n === 14 && trunc === 0 && has(many.why, String(many.n)) && has(many.why, 'ИС-22'),
-    `ответ двоичен: 8 строк отдаются целиком, 14 — отказ, называющий ЧИСЛО (${many.n}) при пороге ${many.limit}; усечённого ответа нет (ADR-0168 §1, §4)`);
+    `ответ двоичен: 8 строк отдаются целиком, 14 — отказ, называющий ЧИСЛО (${many.n}) при пороге ${many.limit}; усечённого ответа нет (ADR-0170 §1, §4)`);
 
   const pagers = Object.keys(ST).filter(k => /page|offset|limitRows|truncate/i.test(k));
   const job = ST.exportJob({obj:'obj-repay', date: TODAY});
   const p = job.ok ? job.job.passport : null;
   ok(53, pagers.length === 0 && job.ok && job.job.n === 14 && p && p.asOf && p.fixation && p.scope &&
         job.job.file && ST.exportsList().length === 1,
-    `сверка целиком идёт заданием ${job.ok ? job.job.id : '—'}, паспорт едет ВНУТРИ файла (${p ? p.asOf : '—'} · ${p ? p.fixation : '—'}); страниц и усечения в швах нет (ADR-0168 §5)`);
+    `сверка целиком идёт заданием ${job.ok ? job.job.id : '—'}, паспорт едет ВНУТРИ файла (${p ? p.asOf : '—'} · ${p ? p.fixation : '—'}); страниц и усечения в швах нет (ADR-0170 §5)`);
 
   ST.setRole('Аналитик');
   const cur = ST.statRows({obj:'obj-repay', date: TODAY});
   ST.setRole('Администратор статистики');
   ok(54, cur.ok && cur.rows.length < 14 && cur.rows.length <= ST.rowsLimit &&
         has(cur.passport.scope, 'доступным вам'),
-    `порог считается ПОСЛЕ ролевых правил: аналитику видно ${cur.ok ? cur.rows.length : '—'} из 14 — список он получает, а не отказ из-за чужого множества (ADR-0168 §3)`);
+    `порог считается ПОСЛЕ ролевых правил: аналитику видно ${cur.ok ? cur.rows.length : '—'} из 14 — список он получает, а не отказ из-за чужого множества (ADR-0170 §3)`);
 
   const w = ST.workList('obj-credit', TODAY);
   ok(55, w.ok && has(w.note, 'сутки, а не расхождение') && w.list.length > 0,
@@ -460,7 +460,7 @@ const TODAY = '2026-08-21';
     `форм паспорта ровно две, и краткую объявляет производитель: «${sh}» (ИС-24, врезка ADR-0152 §2)`);
 })();
 
-/* ---------- R. Обратный индекс ссылок (ADR-0167) ---------- */
+/* ---------- R. Обратный индекс ссылок (ADR-0169) ---------- */
 (() => {
   ST.seed();
   const before = ST.refsTo('a-sumdebt').length;
@@ -470,16 +470,16 @@ const TODAY = '2026-08-21';
   const after = ST.refsTo('a-sumdebt').length;
   const re = ST.publishRefs({consumer:'кураторство', edition:'карточка куратора, ред. 4',
     owner:'Кураторство', uses:[]});
-  ok(57, !anon.ok && has(anon.why, 'ADR-0167 §2') && pub.ok && after === before + 1 &&
+  ok(57, !anon.ok && has(anon.why, 'ADR-0169 §2') && pub.ok && after === before + 1 &&
         re.ok && ST.refsTo('a-sumdebt').length === before,
-    `ссылку публикует ПОТРЕБИТЕЛЬ со своей редакцией, переиздание без ссылки её снимает: ${before} → ${after} → ${ST.refsTo('a-sumdebt').length} (ADR-0167 §2)`);
+    `ссылку публикует ПОТРЕБИТЕЛЬ со своей редакцией, переиздание без ссылки её снимает: ${before} → ${after} → ${ST.refsTo('a-sumdebt').length} (ADR-0169 §2)`);
 
   const stop = ST.retireIndicator('a-sumdebt');
   const names = stop.breaks ? stop.breaks.map(x => x.consumer).join(' · ') : '';
   const go = ST.retireIndicator('a-sumdebt', true);
   ok(58, !stop.ok && stop.needsConfirm && stop.breaks.length >= 2 && has(stop.why, 'ИС-25') &&
         names.length > 0 && go.ok && go.broke.length >= 2 && !ST.IND('a-sumdebt'),
-    `вывод не запрещён чужой публикацией, но назван поимённо: сломается у ${names} (ИС-25, ADR-0167 §4)`);
+    `вывод не запрещён чужой публикацией, но назван поимённо: сломается у ${names} (ИС-25, ADR-0169 §4)`);
 
   const live = ST.setLive('m-debt', false);
   const agg = ST.setLive('a-sumbcnt', false);
@@ -528,7 +528,7 @@ const TODAY = '2026-08-21';
     buckets:{'d-fdate':'неделя'}});
   ok(62, !taken.ok && noRef.ok && withRef.ok && dd && dd.owner === 'Оргструктура (кадры)' &&
         dd.levels.length === 2 && fd.buckets.length === 2 && !free.ok,
-    `разрез заводится формой со всем, что требует модель: корзины списком (${fd ? fd.buckets.join(' · ') : '—'}, «неделя» мимо реестра не спрашивается) и ВЛАДЕЛЕЦ уровней («${dd ? dd.owner : '—'}»), а не напечатанная иерархия; занятый идентификатор — «${taken.why}» (ADR-0166 §7, ИС-23, СС-Д3)`);
+    `разрез заводится формой со всем, что требует модель: корзины списком (${fd ? fd.buckets.join(' · ') : '—'}, «неделя» мимо реестра не спрашивается) и ВЛАДЕЛЕЦ уровней («${dd ? dd.owner : '—'}»), а не напечатанная иерархия; занятый идентификатор — «${taken.why}» (ADR-0168 §7, ИС-23, СС-Д3)`);
 
   ST.seed();
   const r = ST.state.runs.filter(x => x.parts && x.parts.length).slice(-1)[0];
