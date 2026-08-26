@@ -1098,6 +1098,49 @@ const as = r => { RP.state.role = R[r]; };
     `неисполняемые нормы строкой без кнопки, четыре дороги с показанного`);
 })();
 
+/* ---------- T. Три стола в навигации — раскладка, а не права (ОЧ-55) ---------- */
+(() => {
+  RP.seed();
+  const V = win.VIEWS;
+  const nav = (src.match(/<div class="nav">([\s\S]*?)<div class="sidebar-foot"/) || [])[1] || '';
+  const groups = nav.split(/<div class="nav-sec">/).slice(1).map(ch => ({
+    title: (ch.match(/^([^<]*)/) || [])[1].trim(),
+    hint:  (ch.match(/<small>([^<]*)<\/small>/) || [])[1] || '',
+    items: [...ch.matchAll(/data-v="([a-z]+)"/g)].map(m => m[1]) }));
+  const titles = groups.map(g => g.title);
+
+  ok(129, groups.length === 4 &&
+        titles.join(' · ') === 'Смотреть и сдавать · Настраивать · След · Границы' &&
+        groups.every(g => g.hint.trim().length > 10),
+    `навигация разложена на три стола заказчика плюс служебный: ${titles.join(' · ')}; ` +
+    `у каждого подписано, чей это стол`);
+
+  const flat = groups.flatMap(g => g.items);
+  const uniq = [...new Set(flat)];
+  const missing = Object.keys(V).filter(v => flat.indexOf(v) === -1);
+  ok(130, flat.length === 11 && uniq.length === 11 && missing.length === 0 &&
+        groups.map(g => g.items.length).join('/') === '5/3/1/2',
+    `перегруппировка ничего не потеряла и не задвоила: все 11 экранов ровно по разу, ` +
+    `раскладка 5 / 3 / 1 / 2`);
+
+  // Стол «Настраивать» — не право: пользователь собирает там личные черновики (§17).
+  const nastr = groups[1].items;
+  as('user');
+  let drew = true;
+  try { nastr.forEach(v => { if (V[v].fn().length < 200) drew = false; }); } catch (e) { drew = false; }
+  ok(131, nastr.join(',') === 'registry,builder,blank' && drew &&
+        !has(nav, 'locked') && !/data-role|hidden/.test(nav),
+    `стол «Настраивать» пользователю НЕ заперт: все три его экрана рисуются ролью Осмоновой Г. — ` +
+    `иначе личный черновик собирать негде (§17); скрытых по роли пунктов в навигации нет`);
+
+  as('auth');
+  ok(132, groups[0].items[0] === 'showcase' && groups[0].items[1] === 'issue' &&
+        groups[2].items.join(',') === 'journal' &&
+        has(nav, '>Показ и выпуск<') && V.issue.title === 'Показ и выпуск отчёта',
+    `порядок столов говорит сам: витрина первым пунктом первого стола, за ней показ и выпуск; ` +
+    `журнал вынесен в «След» — он ни настройка, ни потребление, а то, что предъявлено`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
