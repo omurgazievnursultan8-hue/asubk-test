@@ -63,6 +63,7 @@ SCANNED = [
     "docs/adr/*.md",
     "docs/voprosy-zakazchiku/2026-08-04-vzyskanie.md",
     "docs/voprosy-zakazchiku/2026-08-09-vzyskanie.md",
+    "docs/voprosy-zakazchiku/2026-08-26-otchetnost.md",
     "scripts/inspect/collection-check.mjs",
     "STATUS.md",
     "TODO.md",
@@ -76,6 +77,7 @@ SCANNED = [
 MIGRATED = {
     "docs/voprosy-zakazchiku/2026-08-04-vzyskanie.md",
     "docs/voprosy-zakazchiku/2026-08-09-vzyskanie.md",
+    "docs/voprosy-zakazchiku/2026-08-26-otchetnost.md",
     "mockups/collection/ASUBK-vzyskanie-logika.md",
     "docs/adr/*.md",
     "mockups/collection/ASUBK-status-razrabotki.md",

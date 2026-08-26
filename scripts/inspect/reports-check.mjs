@@ -1141,6 +1141,30 @@ const as = r => { RP.state.role = R[r]; };
     `журнал вынесен в «След» — он ни настройка, ни потребление, а то, что предъявлено`);
 })();
 
+/* ---------- U. Расписание календарное; срок бланка чужой (ОЧ-56, ADR-0164) ---------- */
+(() => {
+  RP.seed();
+  const T = RP.state.templates;
+  const sched = T.filter(t => t.schedule);
+  const keys = [...new Set(sched.flatMap(t => Object.keys(t.schedule)))].sort();
+  const eventish = sched.filter(t => /рабочих дн|со дня|с момента|до даты платежа/.test(
+    (t.schedule.text || '') + ' ' + (t.schedule.asOfRule || '')));
+
+  ok(133, keys.every(k => ['freq','dueDay','since','asOfRule','text'].indexOf(k) !== -1) &&
+        sched.every(t => typeof t.schedule.freq === 'string' && typeof t.schedule.dueDay === 'number') &&
+        eventish.length === 0,
+    `расписание записано календарным правилом и только им: поля ${keys.join(', ')}; ` +
+    `ни одного якоря «от события» (${eventish.length} шаблонов со сроком в рабочих днях от даты)`);
+
+  const blanks = T.filter(t => t.kind === 'бланк');
+  const blanksWithSchedule = blanks.filter(t => t.schedule);
+  ok(134, blanks.length > 0 && blanksWithSchedule.length === 0 &&
+        sched.length > 0 && sched.every(t => t.kind === 'отчёт'),
+    `ни один из ${blanks.length} бланков не несёт расписания — их сроки отсчитываются от события ` +
+    `объекта и принадлежат взысканию и сопровождению, а не отчётности (ADR-0164); ` +
+    `расписание есть только у отчётов (${sched.map(t => t.id).join(', ')})`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
