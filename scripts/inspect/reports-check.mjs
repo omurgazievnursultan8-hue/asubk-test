@@ -123,9 +123,9 @@ const as = r => { RP.state.role = R[r]; };
     `строкам (${slice.value} против ${all.value}) — иначе итог рассказал бы то, чего в строках нет, §13.2`);
 
   const sub = SEAM.statRows('credit', '2026-09-01', { dept:null }, RP.viewer().scope.slice());
-  const none = SEAM.statRows('credit', '2026-01-01', { dept:null }, RP.viewer().scope.slice());
+  const none = SEAM.statRows('credit', '2025-12-01', { dept:null }, RP.viewer().scope.slice());
   ok(14, sub.substituted === '2026-08-01' && none.missing === true,
-    `снимка на 01.09.2026 нет — подставлен ближайший на ${sub.substituted}; на 01.01.2026 снимка нет вовсе`);
+    `снимка на 01.09.2026 нет — подставлен ближайший на ${sub.substituted}; на 01.12.2025 снимка нет вовсе`);
 })();
 
 /* ---------- E. Две ступени выпуска: числа морозит получатель (ИО-4, ИО-8) ---------- */
@@ -263,11 +263,12 @@ const as = r => { RP.state.role = R[r]; };
 (() => {
   RP.seed();
   as('auth');
-  const obl = RP.obligations();
+  const all = RP.obligations();
+  const obl = all.filter(o => o.tpl === 't-overdue');
   const may = obl.filter(o => o.period === 'май 2026');
   const jul = obl.filter(o => o.period === 'июль 2026');
   const late = jul.filter(o => o.state === 'просрочено');
-  ok(35, obl.length === 9 && may.every(o => o.state === 'сдано') &&
+  ok(35, obl.length === 9 && all.length === 12 && may.every(o => o.state === 'сдано') &&
         jul.find(o => o.dept === 'dep-admin').state === 'сдано с опозданием' &&
         late.length === 2 && late[0].late === 9,
     `девять обязательств выведены из правила «${RP.TPL('t-overdue').schedule.text}»: май сдан, ` +
@@ -325,7 +326,7 @@ const as = r => { RP.state.role = R[r]; };
   const r = RP.renameField('credit', 'days', 'days_overdue', 'Дней просрочки');
   const st = RP.tplState('t-overdue');
   const iss = RP.issue('t-overdue', { params:{ asOf:'2026-08-01', dept:'' }, kind:'предварительный' });
-  ok(42, r.ok && r.broken.length === 3 && has(st.why, 'перечень изменил его владелец (ядро · кредиты)') &&
+  ok(42, r.ok && r.broken.length === 4 && has(st.why, 'перечень изменил его владелец (ядро · кредиты)') &&
         st.state === 'неисполним' && !iss.ok && has(iss.why, 'шаблон неисполним'),
     `переименование поля в ядре сломало ${r.broken.length} шаблона (${r.broken.map(b => b.id).join(', ')} — ` +
     `и отчёт, и бланк: закон один) и НАЗВАЛО виновника — ADR-0158 §4`);
@@ -529,7 +530,7 @@ const as = r => { RP.state.role = R[r]; };
   as('auth');
   const reg = VIEWS.registry.fn(), cal = VIEWS.calendar.fn(), jr = VIEWS.journal.fn();
   const bl = VIEWS.blank.fn(), wl = VIEWS.worklists.fn(), bo = VIEWS.bounds.fn();
-  ok(66, has(reg, 'Чего вы здесь не видите') && has(cal, 'Две кнопки, которых в модуле нет') &&
+  ok(66, has(reg, 'Чего вы здесь не видите') && has(cal, 'Три кнопки, которых в модуле нет') &&
         has(jr, 'что мы отдали наружу') && has(bl, 'список выведен разбором') &&
         has(wl, 'Поручений он не несёт') && has(bo, 'Чего в макете нет и почему'),
     `отказы и границы проговорены на самих экранах, а не спрятаны за отсутствием кнопки`);
@@ -632,13 +633,13 @@ const as = r => { RP.state.role = R[r]; };
     `выпуск — заказ, а не нажатие: строка журнала и паспорт заведены в момент заказа (редакция, ` +
     `дата, охват известны), числа — в шаге «считается»; состояния ${RP.jobStates().join(' → ')}`);
 
-  const bad = RP.order('t-overdue', { params:{ asOf:'2026-01-01', dept:null }, kind:'предварительный' });
+  const bad = RP.order('t-overdue', { params:{ asOf:'2025-12-01', dept:null }, kind:'предварительный' });
   RP.step(bad.id);
   const err = RP.step(bad.id);
   const errRow = RP.ISS(bad.id);
   ok(78, bad.ok && !err.ok && err.state === 'ошибка' && has(err.why, 'ИО-6') &&
         errRow.state === 'ошибка' && errRow.snapshot === null && RP.ISS(bad.id) !== undefined,
-    `задание кончается СОСТОЯНИЕМ, а не пустотой: снимка на 01.01.2026 нет — ошибка, строка ` +
+    `задание кончается СОСТОЯНИЕМ, а не пустотой: снимка на 01.12.2025 нет — ошибка, строка ` +
     `в журнале осталась и говорит почему`);
 
   as('clerk');
@@ -901,7 +902,7 @@ const as = r => { RP.state.role = R[r]; };
   const norms = sc.must.filter(r => r.kind === 'норма');
   const forms = RP.forms();
   ok(107, forms.length === 14 && forms.filter(f => f.obligatory).length === 12 &&
-        gaps.length === 9 && gaps.filter(g => g.nowhere).length === 6 &&
+        gaps.length === 8 && gaps.filter(g => g.nowhere).length === 6 &&
         norms.length === gaps.length &&
         norms.every(r => r.state === 'шаблон не заведён' && !r.obligation && !r.schedule) &&
         has(norms[0].why, 'выпуск предъявляет редакцию, а редакции нет'),
@@ -920,7 +921,7 @@ const as = r => { RP.state.role = R[r]; };
     `шаблона (ADR-0163 §5, §7)`);
 
   const oblBefore = RP.obligations().length;
-  ok(109, oblBefore === 9 && !RP.obligations().some(o => gaps.some(g => g.id === o.tpl)) &&
+  ok(109, oblBefore === 12 && !RP.obligations().some(o => gaps.some(g => g.id === o.tpl)) &&
         !has(V.calendar.fn(), gaps[0].name),
     `неисполняемая норма обязательств НЕ порождает: их по-прежнему ${oblBefore} и все от шаблонов; ` +
     `в календарь сдачи такая строка не попадает — срок объявляется расписанием, а расписание живёт ` +
@@ -1150,19 +1151,99 @@ const as = r => { RP.state.role = R[r]; };
   const eventish = sched.filter(t => /рабочих дн|со дня|с момента|до даты платежа/.test(
     (t.schedule.text || '') + ' ' + (t.schedule.asOfRule || '')));
 
-  ok(133, keys.every(k => ['freq','dueDay','since','asOfRule','text'].indexOf(k) !== -1) &&
+  ok(133, keys.every(k => ['freq','dueDay','dueMonth','since','asOfRule','text'].indexOf(k) !== -1) &&
         sched.every(t => typeof t.schedule.freq === 'string' && typeof t.schedule.dueDay === 'number') &&
+        sched.every(t => t.schedule.freq !== 'ежегодно' || typeof t.schedule.dueMonth === 'number') &&
         eventish.length === 0,
     `расписание записано календарным правилом и только им: поля ${keys.join(', ')}; ` +
     `ни одного якоря «от события» (${eventish.length} шаблонов со сроком в рабочих днях от даты)`);
 
+  /* Правило различает ПРИРОДУ СРОКА, а не вид формы (ADR-0164 §3): бланк с
+     календарным сроком расписание несёт, бланк со сроком от события — нет.   */
   const blanks = T.filter(t => t.kind === 'бланк');
-  const blanksWithSchedule = blanks.filter(t => t.schedule);
-  ok(134, blanks.length > 0 && blanksWithSchedule.length === 0 &&
-        sched.length > 0 && sched.every(t => t.kind === 'отчёт'),
-    `ни один из ${blanks.length} бланков не несёт расписания — их сроки отсчитываются от события ` +
-    `объекта и принадлежат взысканию и сопровождению, а не отчётности (ADR-0164); ` +
-    `расписание есть только у отчётов (${sched.map(t => t.id).join(', ')})`);
+  const withSch = blanks.filter(t => t.schedule);
+  const recon = RP.TPL('t-recon');
+  ok(134, withSch.length === 1 && withSch[0].id === 't-recon' &&
+        recon.schedule.freq === 'ежегодно' && eventish.length === 0 &&
+        blanks.filter(t => !t.schedule).length === blanks.length - 1 &&
+        sched.some(t => t.kind === 'отчёт') && sched.some(t => t.kind === 'бланк'),
+    `расписание живёт по природе срока, а не по виду формы: из ${blanks.length} бланков его несёт ` +
+    `ровно один — акт сверки («${recon.schedule.text.slice(0, 46)}…»), у остальных срок ` +
+    `отсчитывается от события объекта и принадлежит взысканию и сопровождению (ADR-0164 §3)`);
+})();
+
+/* ---------- V. Полный охват меряется объектами; подпись — не выпуск (ИО-27, ОЧ-59) ---------- */
+(() => {
+  RP.seed();
+  as('auth');
+  const obl = RP.obligations().filter(o => o.tpl === 't-recon');
+  const prom = obl.find(o => o.dept === 'dep-prom');
+  const admin = obl.find(o => o.dept === 'dep-admin');
+  ok(135, obl.length === 3 && obl.every(o => o.asOf === '2026-01-01' && o.due === '2026-09-01') &&
+        obl.every(o => o.period === 'состояние на 01.01.2026') &&
+        obl.every(o => o.state === 'ожидается') && obl.every(o => o.cover),
+    `у бланка с календарным сроком обязательство ЕСТЬ и порождается тем же правилом: ${obl.length} ` +
+    `строки на состояние 01.01.2026 со сроком до 01.09.2026 — «${RP.TPL('t-recon').schedule.asOfRule}»`);
+
+  /* Знаменатель — снимок, а не живой перечень: kr-5 закрыт 14.08.2026, но на 1
+     января действовал (акт с ним обязаны), kr-7 выдан в 2026 и в знаменатель
+     не попал, хотя в живом перечне подразделения стоит.                       */
+  const live = RP.objects().filter(o => o.dept === 'dep-prom');
+  const needProm = prom.cover.missing.map(m => m.id).sort().join(',');
+  ok(136, prom.cover.need === 2 && needProm === 'kr-1,kr-2' && live.length === 3 &&
+        admin.cover.need === 3 && admin.cover.missing.some(m => m.id === 'kr-5') &&
+        RP.objects().find(o => o.id === 'kr-5').status === 'закрыт',
+    `знаменатель полноты берётся из снимка на дату состояния: у «Пром» ${prom.cover.need} из ` +
+    `${live.length} живых (kr-7 выдан позже 1 января), у администрирования ${admin.cover.need} — ` +
+    `вместе с kr-5, закрытым 14.08.2026, но действовавшим на дату сверки (ИО-27)`);
+
+  /* Акт печатается по состоянию НА ДАТУ — из шва статистики, а не из ядра:
+     иначе акт на 1 января нёс бы сегодняшние числа.                          */
+  as('user');
+  const show = RP.show('t-recon', { obj:'kr-1', asOf:'2026-01-01' });
+  const jan = show.data.subs.find(s => s.id === 'debt_main');
+  const now = RP.show('t-notice', { obj:'kr-1' }).data.subs.find(s => s.id === 'debt_main');
+  ok(137, show.ok && show.data.passport.seams.join() === 'statRows' &&
+        show.data.passport.asOf === '2026-01-01' && jan.value === 9600000 &&
+        now.value === 7400000 && RP.show('t-notice', { obj:'kr-1' }).data.passport.seams.join() === 'objectRows',
+    `бланк «на дату» читает снимок статистики, а не живое ядро: остаток в акте на 01.01.2026 — ` +
+    `${jan.value / 1000000} млн, в уведомлении «сейчас» — ${now.value / 1000000} млн; швы разные ` +
+    `(statRows против objectRows), закон общий`);
+
+  const noDate = RP.order('t-recon', { params:{ obj:'kr-1' }, kind:'окончательный' });
+  const early = RP.order('t-recon', { params:{ obj:'kr-7', asOf:'2026-01-01' }, kind:'окончательный' });
+  ok(138, !noDate.ok && has(noDate.why, 'без даты состояния печатать нечего') &&
+        !early.ok && has(early.why, 'заведён позже даты состояния'),
+    `два отказа названы словами: бланк «на дату» без даты состояния не печатается, а объект, ` +
+    `которого на эту дату ещё не было, в акт не попадает вовсе — «${early.why.slice(0, 52)}…»`);
+
+  const one = RP.issue('t-recon', { params:{ obj:'kr-1', asOf:'2026-01-01' }, kind:'окончательный' });
+  const half = RP.obligations().find(o => o.id === prom.id);
+  const two = RP.issue('t-recon', { params:{ obj:'kr-2', asOf:'2026-01-01' }, kind:'окончательный' });
+  const full = RP.obligations().find(o => o.id === prom.id);
+  ok(139, one.ok && half.cover.got === 1 && half.state === 'ожидается' &&
+        half.cover.missing[0].id === 'kr-2' && two.ok && full.cover.got === 2 &&
+        full.state === 'сдано' && full.issues.length === 2 &&
+        RP.ISS(one.id).recipient.viaObject && RP.ISS(one.id).number === 'АС-2026/001',
+    `обязательство с полным охватом закрывает не бумага, а ВСЕ бумаги: после первого акта ` +
+    `${half.cover.got} из ${half.cover.need} и «${half.state}» с поимённым остатком, после второго — ` +
+    `«${full.state}»; получатель у каждого свой заёмщик, номер из серии (§13.4, ИО-27)`);
+
+  const signed = RP.markSigned(prom.id);
+  ok(140, !signed.ok && has(signed.why, 'событие контрагента, а не выпуск') &&
+        has(signed.why, 'ОЧ-59') && has(RP.markDelivered(prom.id).why, 'ИО-12'),
+    `«отметить подписанным» — такой же названный отказ, как «отметить сданным»: обязательство ` +
+    `меряется тем, что модуль ПРОИЗВОДИТ, а подпись заёмщика ведёт сопровождение на объекте (ОЧ-59)`);
+
+  /* Подставленный снимок мягко валит акт в предварительный: на подпись бумага
+     с чужой датой состояния не уходит.                                       */
+  const sub = RP.issue('t-recon', { params:{ obj:'kr-1', asOf:'2026-08-10' }, kind:'окончательный' });
+  const rec = RP.ISS(sub.id);
+  ok(141, sub.ok && rec.kind === 'предварительный' && rec.recipient === null &&
+        rec.number === null && has(rec.note, 'полного охвата') &&
+        has(rec.note, 'подставлен ближайший на 01.08.2026'),
+    `акт по подставленной дате окончательным не бывает: снимка на 10.08.2026 нет, подставлен ` +
+    `ближайший — выпуск остался предварительным, без получателя и без номера (ADR-0152 §5, ИО-8)`);
 })();
 
 /* ---- отчёт ---- */
