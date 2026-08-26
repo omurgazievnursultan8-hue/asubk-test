@@ -1,9 +1,10 @@
-// Headless smoke для mockups/reports/reports.html (ИО-1…ИО-22, ADR-0156…0162).
+// Headless smoke для mockups/reports/reports.html (ИО-1…ИО-26, ADR-0156…0163).
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение: объявленность состава, пять отказов публикации, две ступени
 // выпуска, снимок и расхождение со сданным, серии и номера, обязательства из правила,
-// четыре шва внутрь и три наружу, названные отказы вместо отсутствующих кнопок.
+// четыре шва внутрь и три наружу, названные отказы вместо отсутствующих кнопок,
+// витрина потребителя и справочник форм (обязательная форма без шаблона — строка без кнопки).
 // Блоки, которые правят состояние, начинаются с RP.seed() — состояние между ними не течёт.
 //   node scripts/inspect/reports-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -289,8 +290,12 @@ const as = r => { RP.state.role = R[r]; };
   ok(38, prelimClose.ok && stillLate.state === 'просрочено',
     `предварительный выпуск обязательства не закрывает — оно осталось просроченным`);
 
+  /* Сдаёт разрез тот, за кем обязательство: уполномоченный его показывает, а
+     окончательно выпускает Осмонова Г. — ИО-25, проверка 106.               */
+  as('user');
   const fin = RP.issue('t-overdue', { params:{ asOf:'2026-08-01', dept:'dep-prom' },
     kind:'окончательный', recipient:'a-kab' });
+  as('auth');
   const now = RP.obligations().find(o => o.id === late[0].id);
   ok(39, fin.ok && now.state === 'сдано с опозданием' && now.issue === fin.id,
     `окончательный выпуск с получателем закрыл обязательство ${now.id.split('/').pop()} — ИО-12`);
@@ -518,8 +523,8 @@ const as = r => { RP.state.role = R[r]; };
     try { const html = VIEWS[v].fn(); total += html.length;
       if (typeof html !== 'string' || html.length < 200) bad.push(role + '/' + v); }
     catch (e) { bad.push(role + '/' + v + ': ' + e.message); } }); });
-  ok(65, bad.length === 0 && names.length === 10,
-    `десять экранов × пять ролей = ${names.length * 5} отрисовок без исключений (${Math.round(total / 1000)} КБ разметки)`);
+  ok(65, bad.length === 0 && names.length === 11,
+    `одиннадцать экранов × пять ролей = ${names.length * 5} отрисовок без исключений (${Math.round(total / 1000)} КБ разметки)`);
 
   as('auth');
   const reg = VIEWS.registry.fn(), cal = VIEWS.calendar.fn(), jr = VIEWS.journal.fn();
@@ -871,13 +876,235 @@ const as = r => { RP.state.role = R[r]; };
     `перечень допустимых отклонений и шестая проверка в конструкторе`);
 })();
 
+/* ---------- S. Витрина, справочник форм, право сдачи (волна 6) ----------
+   ОЧ-41…ОЧ-49, ИО-23…ИО-26, ADR-0163. Витрина — вход потребителя; реестр
+   шаблонов остаётся столом уполномоченного и здесь не проверяется.        */
+(() => {
+  RP.seed(); as('auth');
+  const sc = RP.showcase();
+  const all = sc.must.concat(sc.rest);
+  const drafts = RP.state.templates.filter(t => !t.editions.some(e => e.state === 'опубликована'));
+  ok(105, sc.must.length > 0 && sc.rest.length > 0 && drafts.length > 0 &&
+        all.filter(r => r.kind === 'шаблон').length === RP.state.templates.length - drafts.length &&
+        !all.some(r => drafts.some(d => d.id === r.id)),
+    `витрина — вход потребителя: ${all.length} строк, из них ${all.filter(r => r.kind === 'шаблон').length} ` +
+    `опубликованных шаблонов; ${drafts.length} личных черновиков не показано вовсе — спросить можно ` +
+    `только объявленное (ОЧ-41, ИО-1)`);
+
+  ok(106, sc.must.every(r => r.obligatory) && sc.rest.every(r => !r.obligatory) &&
+        sc.rest.every(r => r.kind === 'шаблон'),
+    `группы — по обязательности, а не по объекту: обязательных ${sc.must.length}, остальных ` +
+    `${sc.rest.length}; незаведённых НЕобязательных форм в витрине нет вовсе — каталог остаётся ` +
+    `предложением, а не договорённостью (ОЧ-42, ADR-0163 §4)`);
+
+  const gaps = RP.formGaps();
+  const norms = sc.must.filter(r => r.kind === 'норма');
+  const forms = RP.forms();
+  ok(107, forms.length === 14 && forms.filter(f => f.obligatory).length === 12 &&
+        gaps.length === 9 && gaps.filter(g => g.nowhere).length === 6 &&
+        norms.length === gaps.length &&
+        norms.every(r => r.state === 'шаблон не заведён' && !r.obligation && !r.schedule) &&
+        has(norms[0].why, 'выпуск предъявляет редакцию, а редакции нет'),
+    `обязательная форма без шаблона видна как НЕИСПОЛНЯЕМАЯ НОРМА: обязательных ` +
+    `${forms.filter(f => f.obligatory).length}, шаблон заведён у ${forms.filter(f => f.obligatory).length - gaps.length}, ` +
+    `${gaps.length} строк без кнопки, из них ${gaps.filter(g => g.nowhere).length} не заведено нигде — ` +
+    `срок по норме идёт независимо от того, завели мы шаблон (ИО-23, ОЧ-40)`);
+
+  const V = win.VIEWS;
+  const showH = V.showcase.fn();
+  ok(108, has(showH, 'кнопки нет: выпуск предъявляет редакцию') &&
+        has(showH, RP.formsOwner()) && norms.every(r => r.goTo === RP.formsOwner()) &&
+        has(showH, 'срока система не знает'),
+    `у неисполняемой нормы нет кнопки, но названы основание и тот, к кому идти: «${RP.formsOwner()}» — ` +
+    `справочник ведёт тот же, кто публикует редакции; срока система не знает, он живёт расписанием ` +
+    `шаблона (ADR-0163 §5, §7)`);
+
+  const oblBefore = RP.obligations().length;
+  ok(109, oblBefore === 9 && !RP.obligations().some(o => gaps.some(g => g.id === o.tpl)) &&
+        !has(V.calendar.fn(), gaps[0].name),
+    `неисполняемая норма обязательств НЕ порождает: их по-прежнему ${oblBefore} и все от шаблонов; ` +
+    `в календарь сдачи такая строка не попадает — срок объявляется расписанием, а расписание живёт ` +
+    `на шаблоне (ADR-0163 §6)`);
+})();
+
+(() => {
+  RP.seed(); as('auth');
+  const dup = RP.linkForm('t-portfolio', 'ФО-01');
+  const alien = RP.linkForm('t-notice', 'ФО-26');
+  const noform = RP.linkForm('t-portfolio', 'ФО-99');
+  ok(110, !dup.ok && has(dup.why, RP.TPL('t-overdue').name) && has(dup.why, 'ИО-24') &&
+        has(dup.why, 'ОЧ-39') && has(dup.why, 'кладётся параметром редакции'),
+    `одна форма — не более одного шаблона, и отказ НАЗЫВАЕТ первый вслух: «${dup.why.slice(0, 70)}…» ` +
+    `— защита от легаси-копирования устройством, а не дисциплиной (ИО-24)`);
+  ok(111, !alien.ok && has(alien.why, 'вид объявляет форма, шаблон её реализует') &&
+        !noform.ok && has(noform.why, 'согласованным перечнем'),
+    `вид объявляет форма, а не шаблон; справочник наполняется согласованным перечнем, а не всеми ` +
+    `строками каталога — «${noform.why.slice(0, 60)}…»`);
+
+  const rel = RP.linkForm('t-avg', 'ФО-26');
+  ok(112, !rel.ok && RP.formTpl('ФО-26').id === 't-portfolio' &&
+        RP.formOf('t-overdue').id === 'ФО-01' && RP.formOf('t-avg') === null,
+    `связь объявляется НА ШАБЛОНЕ и второго источника правды нет: «какую форму я реализую» ` +
+    `спрашивается у шаблона, форма о том, чего у неё нет, не знает`);
+})();
+
+(() => {
+  RP.seed(); as('auth');
+  /* Право окончательного выпуска — то же обязательство, прочитанное с другого
+     конца: отдельного права на роли не заводится (ОЧ-45).                   */
+  const alien = RP.finalRight('t-overdue', ['dep-prom']);
+  const whole = RP.finalRight('t-overdue', null);
+  const free  = RP.finalRight('t-portfolio', null);
+  ok(113, !alien.ok && has(alien.why, 'окончательно выпускает тот, за кем обязательство') &&
+        has(alien.why, 'Осмонова Г.') && has(alien.why, 'ИО-25') &&
+        has(alien.why, 'смотреть волен всякий в круге'),
+    `чужой разрез окончательно не сдаётся: «${alien.why.slice(0, 74)}…» — посмотреть и выгрузить ` +
+    `предварительно вправе всякий в круге`);
+  ok(114, whole.ok && whole.whole === true && free.ok && free.free === true &&
+        has(free.note, 'обязательства у шаблона нет'),
+    `свод по всему кругу сдаёт тот, кто ведёт шаблон (обязательство перед получателем его); ` +
+    `где обязательства нет вовсе — окончательно выпускает всякий в круге`);
+
+  const ord = RP.order('t-overdue', { params:{ asOf:'2026-08-01', dept:'dep-prom' },
+    kind:'окончательный', recipient:'a-kab' });
+  as('user');
+  const mine = RP.finalRight('t-overdue', ['dep-prom']);
+  const ordMine = RP.order('t-overdue', { params:{ asOf:'2026-08-01', dept:'dep-prom' },
+    kind:'окончательный', recipient:'a-kab' });
+  ok(115, !ord.ok && has(ord.why, 'ИО-25') && mine.ok && has(mine.note, 'обязательство за вами') &&
+        ordMine.ok,
+    `правило одно на показ и на выпуск: уполномоченному заказ окончательного по чужому разрезу ` +
+    `отклонён тем же текстом, а Осмоновой Г. — принят (ИО-25, §13.6)`);
+
+  as('auth');
+  const subs = RP.whoSubmits('t-overdue');
+  ok(116, subs.length === 3 && subs.every(s => s.who && s.who !== '—') &&
+        RP.whoSubmits('t-portfolio') === null,
+    `«за кем» названо подразделением, а не ролью: ${subs.map(s => s.who).join('; ')} — иначе сдача ` +
+    `встала бы на отпуске; у шаблона без расписания сдающего нет вовсе`);
+
+  as('head');
+  const scr = win.VIEWS.issue.fn();
+  ok(117, has(scr, 'Ступень выпуска') &&
+        (has(scr, 'окончательно выпускает тот, за кем обязательство') ||
+         has(scr, 'обязательство за вами')),
+    `экран выпуска проговаривает право словами, а не гасит кнопку молча: рядом со ступенью стоит ` +
+    `либо «обязательство за вами», либо имя того, с кого спросят`);
+})();
+
+(() => {
+  RP.seed(); as('auth');
+  const def = RP.defaultAsOf();
+  ok(118, RP.state.sel.params.asOf === def && RP.hasSnapshot(def) &&
+        !RP.hasSnapshot('2026-09-01') && def === '2026-08-01',
+    `экран открывается на периоде, у которого СНИМОК ЕСТЬ (${def}): иначе умолчание показывало бы ` +
+    `числа, которыми нельзя отчитаться, и разница «посмотрел / сдал» размылась бы (ИО-26)`);
+
+  RP.state.sel.params.asOf = '2026-09-01';
+  const warn = win.VIEWS.issue.fn();
+  ok(119, has(warn, 'За этот период снимка нет') && has(warn, 'ближайшему более раннему') &&
+        has(warn, 'ИО-26'),
+    `период без снимка назван вслух: молчаливая подстановка соседней даты — это ответ на другой ` +
+    `вопрос под именем заказанного (ИО-26, ОЧ-44)`);
+
+  RP.seed(); as('auth');
+  RP.selTpl('t-portfolio');
+  const gate = win.VIEWS.issue.fn();
+  RP.askLive();
+  const live = win.VIEWS.issue.fn();
+  ok(120, has(gate, 'Числа не запрошены') && has(gate, 'Посчитать на сейчас') &&
+        !has(gate, 'sheet-h') && has(live, 'sheet-h') && !has(live, 'Числа не запрошены') &&
+        !has(win.VIEWS.issue.fn(), 'Числа не запрошены'),
+    `момент показа ВЫВЕДЕН из режима времени, а не назначен: «на дату» считается сразу, «сейчас» — ` +
+    `по кнопке, потому что это живой запрос к ядру, а не готовые строки прогона (ОЧ-44)`);
+})();
+
+(() => {
+  RP.seed(); as('auth');
+  const before = RP.state.issues.length;
+  const ex = RP.exportShown('t-overdue', { asOf: RP.defaultAsOf(), dept:'' }, null, 'xlsx');
+  const rec = RP.ISS(ex.id);
+  ok(121, ex.ok && RP.state.issues.length === before + 1 && rec.kind === 'предварительный' &&
+        rec.passport && has(ex.note, 'выгрузка — это выпуск') && has(ex.note, 'строка остаётся'),
+    `выгрузка — не соседняя кнопка, а предварительный выпуск: строка ${ex.id} в журнале, паспорт и ` +
+    `показанный состав целиком; файл гаснет через ${RP.FILE_DAYS} дней, строка остаётся (ОЧ-49, ИО-11)`);
+
+  const noName = RP.worklistShown('t-overdue', { asOf: RP.defaultAsOf(), dept:'' }, null, '  ');
+  const wl = RP.worklistShown('t-overdue', { asOf: RP.defaultAsOf(), dept:'' }, null,
+    'обзвон по просрочке, август');
+  ok(122, !noName.ok && has(noName.why, 'список называется при создании') && wl.ok &&
+        RP.ISS(wl.issue).kind === 'предварительный' && has(wl.note, 'заморожен паспортом'),
+    `рабочий список тоже идёт через выпуск: список по определению замороженный состав, а морозить ` +
+    `нечего, пока у ответа нет паспорта — ${wl.id} отобран выпуском ${wl.issue} (ИО-14, ОЧ-49)`);
+
+  const sc = win.VIEWS.issue.fn();
+  ok(123, has(sc, 'Что делают с показанным — четыре дороги') &&
+        has(sc, 'Завести рабочий список') && has(sc, 'вид ничего не морозит'),
+    `четыре дороги названы на экране: выгрузить, выпустить окончательно, сохранить видом, завести ` +
+    `рабочий список — и три из них выпуск; бесследно уходит только вид`);
+})();
+
+(() => {
+  RP.seed(); as('user');
+  const sc = RP.showcase();
+  const claim = sc.must.concat(sc.rest).find(r => r.id === 't-claim');
+  const last = sc.must[sc.must.length - 1];
+  ok(124, claim && claim.access.ok === false && last.id === 't-claim' &&
+        has(claim.access.why, 'не в круге подразделения') && claim.access.who &&
+        sc.must.filter(r => !r.access.ok).length === 1,
+    `недоступное по кругу не прячется, а приглушается В КОНЦЕ с причиной и с тем, у кого доступ: ` +
+    `«${claim.name}» — круг «${claim.access.who}» (§13.1, ОЧ-42)`);
+
+  RP.seed(); as('auth');
+  RP.state.view = 'showcase';
+  RP.openForm('t-notice');                      /* бланк — тупик, а не формирование */
+  const stayed = RP.state.view;
+  RP.openForm('t-overdue');
+  ok(125, stayed === 'showcase' && RP.state.view === 'issue' &&
+        has(win.VIEWS.showcase.fn(), 'Где печатается'),
+    `бланк в витрине — не формирование, а «где печатается»: своего перечня объектов витрина не ` +
+    `держит (на трёх записях выпадашка работает, на живых двенадцати тысячах — нет), объект ` +
+    `называет карточка или рабочий список (ОЧ-43)`);
+
+  RP.seed(); as('auth');
+  const v = RP.saveView('t-overdue', 'моя просрочка', null);
+  RP.openViewOf(v.id);
+  ok(126, v.ok && RP.state.view === 'issue' && RP.state.sel.view === v.id &&
+        RP.state.sel.tpl === 't-overdue' && has(win.VIEWS.showcase.fn(), 'Мои виды'),
+    `вид стоит в витрине отдельной строкой и открывается ОДНИМ прогоном: автоподстановка последнего ` +
+    `вида отклонена — двое сказали бы «открыл отчёт по просрочке» и увидели разные таблицы (ОЧ-48)`);
+})();
+
+(() => {
+  RP.seed();
+  const V = win.VIEWS;
+  const bad = [];
+  Object.keys(R).forEach(role => { as(role);
+    try { const html = V.showcase.fn();
+      if (html.length < 2000) bad.push(role + ': ' + html.length); }
+    catch (e) { bad.push(role + ': ' + e.message); } });
+  as('auth');
+  const sh = V.showcase.fn();
+  ok(127, bad.length === 0 && has(sh, 'Чего вы здесь не видите') &&
+        has(sh, 'Личных черновиков здесь нет вовсе') &&
+        has(sh, 'Обязательства такая строка не порождает') &&
+        has(sh, 'Годового срока макет не считает'),
+    `витрина рисуется каждой ролью и договаривает границы вслух: черновиков нет, незаведённых ` +
+    `необязательных нет, обязательств норма не порождает, годовой срок — граница макета`);
+
+  ok(128, has(sh, 'Витрина — стол') && has(sh, 'Обязательные') && has(sh, 'Остальные') &&
+        has(V.issue.fn(), 'четыре дороги') && Object.keys(V)[0] === 'showcase',
+    `волна 6 проговорена на экранах: витрина первым экраном модуля, группы по обязательности, ` +
+    `неисполняемые нормы строкой без кнопки, четыре дороги с показанного`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-console.log(`SMOKE 2026-08-24 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
+console.log(`SMOKE 2026-08-26 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
 
 const body = lines.map(l => '  ' + l).join('\n');
-const injected = `  SMOKE 2026-08-24 · ${pass}/${results.length} PASS\n` + body;
+const injected = `  SMOKE 2026-08-26 · ${pass}/${results.length} PASS\n` + body;
 if (src.includes('  SMOKE_PLACEHOLDER')) {
   writeFileSync(HTML, src.replace('  SMOKE_PLACEHOLDER', injected), 'utf8');
   console.log('\n→ результат вставлен в шапку reports.html');
