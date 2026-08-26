@@ -191,8 +191,10 @@ const as = r => { RP.state.role = R[r]; };
     `(${f.recipient.ref}, роль «${f.recipient.role}»), объект — только дорога к нему (ИО-5, ИО-28)`);
 
   const addr = RP.issue('t-notice', { params:{ obj:'kr-2' }, kind:'окончательный', recipient:'a-mf' });
-  ok(24, !addr.ok && has(addr.why, 'лицо, связанное с объектом ролью'),
-    `бланку адресат из справочника не выбирается: «${addr.why.slice(0, 70)}…»`);
+  ok(24, !addr.ok && has(addr.why, 'справочника адресатов сдачи') &&
+        has(addr.why, 'подразделение своего объекта'),
+    `бланку адресат сдачи не выбирается: получателя объявляет РЕДАКЦИЯ одним из четырёх видов — ` +
+    `«${addr.why.slice(0, 70)}…» (ИО-5, ADR-0168 §1)`);
 
   const noNum = RP.issue('t-claim', { params:{ obj:'kr-6' }, kind:'окончательный' });
   const dup   = RP.issue('t-claim', { params:{ obj:'kr-6' }, kind:'окончательный', number:'ПР-2026/014' });
@@ -328,7 +330,7 @@ const as = r => { RP.state.role = R[r]; };
   const r = RP.renameField('credit', 'days', 'days_overdue', 'Дней просрочки');
   const st = RP.tplState('t-overdue');
   const iss = RP.issue('t-overdue', { params:{ asOf:'2026-08-01', dept:'' }, kind:'предварительный' });
-  ok(42, r.ok && r.broken.length === 5 && has(st.why, 'перечень изменил его владелец (ядро · кредиты)') &&
+  ok(42, r.ok && r.broken.length === 9 && has(st.why, 'перечень изменил его владелец (ядро · кредиты)') &&
         st.state === 'неисполним' && !iss.ok && has(iss.why, 'шаблон неисполним'),
     `переименование поля в ядре сломало ${r.broken.length} шаблона (${r.broken.map(b => b.id).join(', ')} — ` +
     `и отчёт, и бланк: закон один) и НАЗВАЛО виновника — ADR-0158 §4`);
@@ -904,7 +906,7 @@ const as = r => { RP.state.role = R[r]; };
   const norms = sc.must.filter(r => r.kind === 'норма');
   const forms = RP.forms();
   ok(107, forms.length === 14 && forms.filter(f => f.obligatory).length === 12 &&
-        gaps.length === 7 && gaps.filter(g => g.nowhere).length === 5 &&
+        gaps.length === 2 && gaps.filter(g => g.nowhere).length === 0 &&
         norms.length === gaps.length &&
         norms.every(r => r.state === 'шаблон не заведён' && !r.obligation && !r.schedule) &&
         has(norms[0].why, 'выпуск предъявляет редакцию, а редакции нет'),
@@ -1055,7 +1057,7 @@ const as = r => { RP.state.role = R[r]; };
   const shut = sc.must.filter(r => !r.access.ok);
   ok(124, claim && claim.access.ok === false && shut.indexOf(last) !== -1 &&
         has(claim.access.why, 'не в круге подразделения') && claim.access.who &&
-        shut.length === 2 && shut.every(r => sc.must.indexOf(r) >= sc.must.length - shut.length),
+        shut.length === 7 && shut.every(r => sc.must.indexOf(r) >= sc.must.length - shut.length),
     `недоступное по кругу не прячется, а приглушается В КОНЦЕ с причиной и с тем, у кого доступ: ` +
     `${shut.length} строки («${shut.map(r => r.name).join('», «')}») — круг «${claim.access.who}» ` +
     `(§13.1, ОЧ-42)`);
@@ -1273,9 +1275,9 @@ const as = r => { RP.state.role = R[r]; };
   const keep = ed.addressee; ed.addressee = null; ed.state = 'черновик';
   const bad = RP.publishChecks('t-recon').find(c => c.check === 'адресат бланка');
   ed.addressee = keep;
-  ok(144, !!bad && has(bad.why, 'роль объявляет редакция, а не человек на выпуске'),
-    `бланк без объявленной роли получателя не публикуется: роль — свойство редакции, и проверка ` +
-    `стоит там же, где остальные пять (ИО-28, ADR-0167 §2)`);
+  ok(144, !!bad && has(bad.why, 'вид адресата — часть вопроса, а не настройка минуты'),
+    `бланк без объявленного адресата не публикуется: и вид, и значение — свойство редакции, и ` +
+    `проверка стоит там же, где остальные (ИО-28, ADR-0167 §2, ADR-0168 §1)`);
 })();
 
 (() => {
@@ -1311,6 +1313,99 @@ const as = r => { RP.state.role = R[r]; };
   ok(147, has(cal, 'норма считает лиц (п. 9), охват считает договоры') &&
         has(cal, 'лиц: 0 из 2') && has(cal, 'договоров'),
     `расхождение печатается в клетке охвата, а не прячется: «2 из 3 договоров · лиц: 0 из 2»`);
+})();
+
+/* ---------- AA. Бумага внутрь организации (волна 12, ADR-0168) ---------- */
+(() => {
+  RP.seed(); as('clerk');
+  const m = RP.issue('t-memo-dpo', { params:{ obj:'kr-2' }, kind:'окончательный' });
+  const rec = RP.ISS(m.id);
+  const legal = RP.orgUnits().find(u => u.id === 'dep-legal');
+  ok(148, m.ok && rec.recipient.kind === 'подразделение' && rec.recipient.ref === 'dep-legal' &&
+        rec.recipient.name === 'Департамент правового обеспечения' && rec.recipient.role === null &&
+        rec.recipient.viaObject === 'kr-2' && rec.number === 'СЗ-2026/001' && rec.snapshot &&
+        legal && legal.credits === false && RP.depts().every(d => d.id !== 'dep-legal'),
+    `получатель бывает не лицом: служебная записка ушла ПОДРАЗДЕЛЕНИЮ ссылкой (${rec.recipient.ref}), ` +
+    `номер ${rec.number} потрачен и числа заморожены — «внутрь» не значит «не выпуск» (ADR-0157 §1, ` +
+    `ADR-0168 §1). ДПО кредитов не ведёт и в область видимости не входит (ИО-29)`);
+
+  /* Одна редакция — разные адресаты: получатель вычисляется от объекта.
+     Выпустить её в макете некому: круг записки — ДПО, а роли ДПО нет (ОЧ-63). */
+  const b1 = RP.blankRecipient('t-memo-back', 'kr-2');
+  const b2 = RP.blankRecipient('t-memo-back', 'kr-6');
+  const noPrint = RP.issue('t-memo-back', { params:{ obj:'kr-2' }, kind:'окончательный' });
+  ok(149, b1.ok && b2.ok && b1.text === b2.text && b1.rec.ref === 'dep-prom' &&
+        b2.rec.ref === 'rep-osh' && b1.rec.byObject && b2.rec.byObject &&
+        !noPrint.ok && has(noPrint.why, 'не в круге подразделения'),
+    `«подразделение объекта» — адресат разный у каждой бумаги при ОДНОЙ редакции («${b1.text}»): ` +
+    `по ${b1.rec.viaNo} это «${b1.rec.name}», по ${b2.rec.viaNo} — «${b2.rec.name}» (ADR-0168 §2). ` +
+    `Кто её печатает — вопрос к заказчику: круг у записки ДПО, а такой роли в макете нет (ОЧ-63)`);
+
+  const ch = RP.issue('t-memo-chair', { params:{ obj:'kr-4' }, kind:'окончательный' });
+  const rc = RP.ISS(ch.id);
+  ok(150, ch.ok && rc.recipient.kind === 'должность' && rc.recipient.ref === 'p-chair' &&
+        rc.recipient.name === 'Председатель Правления',
+    `получатель — ДОЛЖНОСТЬ, а не человек: председатель сменится, адресат останется; имени того, ` +
+    `кто её занимал, отчётность не хранит — это вопрос оргструктуры (ADR-0168 §3)`);
+})();
+
+(() => {
+  RP.seed(); as('auth');
+  const t = RP.TPL('t-memo-dpo'); const ed = t.editions[t.editions.length - 1];
+  const keep = ed.addressee; ed.state = 'черновик';
+  ed.addressee = {kind:'подразделение', unit:'dep-hr'};
+  const noUnit = RP.publishChecks('t-memo-dpo').find(c => c.check === 'адресат бланка');
+  ed.addressee = {kind:'канцелярия'};
+  const noKind = RP.publishChecks('t-memo-dpo').find(c => c.check === 'адресат бланка');
+  ed.addressee = keep; ed.state = 'опубликована';
+  ok(151, !!noUnit && has(noUnit.why, 'в оргструктуре нет') && has(noUnit.why, 'не пополняет') &&
+        !!noKind && has(noKind.why, 'вида получателя «канцелярия» не бывает'),
+    `проверяются оба: ВИД объявляет редакция, ЗНАЧЕНИЕ ведёт сосед — подразделения «dep-hr» в ` +
+    `оргструктуре нет, вида «канцелярия» не бывает (ИО-2, ИО-29, ADR-0168 §1)`);
+})();
+
+(() => {
+  RP.seed(); as('clerk');
+  /* Залогодатель бывает третьим лицом: у КД-2025/126 заложило имущество КФХ
+     «Жайыл», а должник — «Ош-Текстиль»; у КД-2024/203 обе роли на одном лице. */
+  const p1 = RP.issue('t-pledge', { params:{ obj:'kr-6' }, kind:'окончательный' });
+  const p2 = RP.issue('t-pledge', { params:{ obj:'kr-2' }, kind:'окончательный' });
+  const none = RP.issue('t-pledge', { params:{ obj:'kr-1' }, kind:'окончательный' });
+  const r1 = RP.ISS(p1.id), r2 = RP.ISS(p2.id);
+  ok(152, p1.ok && r1.recipient.ref === 'su-7' && r1.recipient.role === 'залогодатель' &&
+        p2.ok && r2.recipient.ref === 'su-2' && r2.recipient.role === 'залогодатель' &&
+        !none.ok && has(none.why, 'роли «залогодатель»'),
+    `третья роль ядра работает как первые две: извещение по ${r1.recipient.viaNo} ушло ` +
+    `${r1.recipient.name} (не заёмщику), по ${r2.recipient.viaNo} — тому же лицу в двух ролях; ` +
+    `у КД-2024/117 залогодателя нет — отказ по имени роли (ADR-0167 §2)`);
+})();
+
+(() => {
+  RP.seed(); as('clerk');
+  RP.issue('t-notice',   { params:{ obj:'kr-4' }, kind:'окончательный' });
+  RP.issue('t-memo-dpo', { params:{ obj:'kr-4' }, kind:'окончательный' });
+  const bySubj = RP.callSeamOut('классификация', 'reportIssues', { subject:'su-4' });
+  const byObj  = RP.callSeamOut('карточка объекта (ядро)', 'reportIssues', 'kr-4');
+  ok(153, bySubj.ok && bySubj.data.length === 1 && bySubj.data[0].tpl === 'Уведомление о наступающем платеже' &&
+        byObj.ok && byObj.data.length === 2 &&
+        byObj.data.some(r => r.toKind === 'подразделение'),
+    `ключ «лицо» отбирает по ВИДУ получателя: по договору бумаг ${byObj.data.length}, а лицу ` +
+    `предъявлена ${bySubj.data.length} — служебная записка ушла подразделению и в историю лица ` +
+    `не попадает (ADR-0168 §4)`);
+})();
+
+(() => {
+  RP.seed(); as('head');
+  const sc = RP.showcase();
+  const back = sc.must.concat(sc.rest).find(r => r.id === 't-memo-back');
+  const gaps = RP.formGaps().map(g => g.id);
+  const five = ['ФО-31','ФО-33','ФО-36','ФО-37','ФО-39'];
+  ok(154, back && back.access.ok === false && five.every(f => !!RP.formTpl(f)) &&
+        gaps.length === 2 && gaps.indexOf('ФО-35') !== -1 && gaps.indexOf('ФО-38') !== -1 &&
+        RP.formGaps().every(g => !g.nowhere),
+    `пять незаведённых обязательных бланков внесены — норм без шаблона осталось ${gaps.length} ` +
+    `(${gaps.join(', ')}), и обе заведены в легаси; возврат материалов пишет ДПО, а такой роли в ` +
+    `макете нет — строка приглушена, а не спрятана (ОЧ-63, §14.1)`);
 })();
 
 /* ---- отчёт ---- */
