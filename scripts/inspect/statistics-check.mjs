@@ -35,7 +35,7 @@ const TODAY = '2026-08-21';
   const badSrc = st.indicators.filter(i => ['шов','поле','агрегат'].indexOf(i.src) < 0);
   const formula = st.indicators.filter(i => 'formula' in i || 'expr' in i || 'выражение' in i);
   const badFn = st.indicators.filter(i => i.src === 'агрегат' && ST.aggFns().indexOf(i.fn) < 0);
-  ok(1, st.objects.length === 8 && st.indicators.length >= 25 && badSrc.length === 0 &&
+  ok(1, st.objects.length === 8 && st.indicators.length >= 85 && badSrc.length === 0 &&
        formula.length === 0 && badFn.length === 0,
     `объектов ${st.objects.length}, показателей ${st.indicators.length}; без объявленного источника ${badSrc.length}, с формулой ${formula.length}, с функцией вне списка ${badFn.length} — ИС-6, ИС-7`);
 
@@ -311,15 +311,15 @@ const TODAY = '2026-08-21';
         !seam.ok && has(seam.why, 'ADR-0150 §3') && !fn.ok && has(fn.why, 'вне закрытого списка'),
     `формула — «${f.why.slice(0, 60)}…»; доля — представление; несуществующий шов — задача ядру; функция вне списка — «${fn.why}»`);
 
-  const good = ST.addIndicator({id:'m-fee', name:'Плата за неосвоенный остаток', obj:'obj-credit',
+  const good = ST.addIndicator({id:'m-idle', name:'Плата за неосвоенный остаток', obj:'obj-credit',
     src:'шов', seam:'calcAccrual', field:'interest', money:true, type:'сумма'});
-  const agg = ST.addIndicator({id:'a-sumfee', name:'Плата, итого', obj:'obj-credit', src:'агрегат', fn:'sum', over:'m-fee'});
+  const agg = ST.addIndicator({id:'a-sumidle', name:'Плата, итого', obj:'obj-credit', src:'агрегат', fn:'sum', over:'m-idle'});
   ST.run(TODAY, {manual:true, reason:'заведён новый показатель'});
-  const use = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-sumfee'], date: TODAY});
-  ok(40, good.ok && agg.ok && use.ok && use.total['a-sumfee'].v > 0,
+  const use = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-sumidle'], date: TODAY});
+  ok(40, good.ok && agg.ok && use.ok && use.total['a-sumidle'].v > 0,
     `показатель заведён записью и сразу считается ближайшим прогоном — без правки кода (ADR-0150 §1)`);
 
-  const busy = ST.retireIndicator('m-fee');
+  const busy = ST.retireIndicator('m-idle');
   ok(41, !busy.ok && has(busy.why, 'используется агрегатами'),
     `показатель под агрегатом не снимается: «${busy.why}»`);
 })();
@@ -539,14 +539,68 @@ const TODAY = '2026-08-21';
     `состав прогона поимённый: ${r ? r.parts.length : '—'} объектов, сумма по объектам ${sum} = строк ${r ? r.written : '—'}; объект с нулём виден строкой (их ${zero}), а не отсутствием (СС-Д6)`);
 })();
 
+/* ---------- T. Волна 6: полный состав показателей кредита ----------
+   Реестр вырос с 37 записей до 85, и держат его не глаза, а тождества ядра:
+   «остаток = просрочено + срочно» и «свод = сумма семи статей» (ТЗ 18 §5.1). */
+(() => {
+  ST.seed();
+  const ART = ['m-coll','m-fee','m-debt','m-aint','m-int','m-apen','m-pen'];
+  const OVR = ['m-ocoll','m-ofee','m-odebt','m-oaint','m-oint','m-oapen','m-open'];
+  const rows = ST.statRows({obj:'obj-credit', date: TODAY}).rows;
+  const val = (r, id) => (r.inds[id] ? r.inds[id].v : 0);
+  const r2  = x => Math.round(x * 100) / 100;
+  const bad = rows.filter(r =>
+    Math.abs(val(r,'m-total') - r2(ART.reduce((a,i) => a + val(r,i), 0))) > 0.01 ||
+    Math.abs(val(r,'m-over')  - r2(OVR.reduce((a,i) => a + val(r,i), 0))) > 0.01 ||
+    Math.abs(val(r,'m-total') - (val(r,'m-over') + val(r,'m-curr')))      > 0.01);
+  ok(64, rows.length === 8 && bad.length === 0,
+    `на всех ${rows.length} строках держатся оба тождества ядра: свод = сумма семи статей и остаток = просрочено + срочно${bad.length ? ' · ломается: ' + bad.map(r => r.ref).join(', ') : ''} (ТЗ 18 §5.1)`);
+
+  /* ФО-01 «Просроченная задолженность на 1-е число» (обязательна, Порядок №41 п. 12) —
+     это срез по ступеням срока, а не набор показателей «просрочено 30–90» (ИС-23). */
+  const fo1 = ST.statSlice({obj:'obj-credit', dims:['d-odays'], date: TODAY,
+    inds:['a-count','a-sumtotal','a-sumover','a-sumcurr'], buckets:{'d-odays':'ступени'}});
+  const keys = fo1.ok ? fo1.groups.map(g => g.key) : [];
+  const lead = keys.map(k => parseInt(k, 10));
+  const sorted = lead.every((n, i) => i === 0 || lead[i-1] <= n);
+  const sumG = fo1.ok ? fo1.groups.reduce((a, g) => a + g.values['a-sumover'].v, 0) : -1;
+  ok(65, fo1.ok && keys.length >= 3 && sorted && Math.abs(sumG - fo1.total['a-sumover'].v) < 0.01,
+    `ФО-01 собирается срезом по ступеням срока: ${keys.join(' · ')} — по возрастанию, сумма групп сходится с итогом (ИС-14, ИС-23)`);
+
+  const acc  = ST.flowBetween({obj:'obj-credit', inds:'m-accr', from:'2026-07-15', to:'2026-08-18'});
+  const woff = ST.flowBetween({obj:'obj-credit', inds:'m-woff', from:'2026-07-15', to:'2026-08-18'});
+  const stat = ST.flowBetween({obj:'obj-credit', inds:'m-total', from:'2026-07-15', to:'2026-08-18'});
+  ok(66, acc.ok && woff.ok && !stat.ok && has(stat.why, 'ИС-17'),
+    `за период спрашивается только нарастающее: начислено ${acc.ok ? acc.value : '—'}, списано ${woff.ok ? woff.value : '—'}; «Задолженность всего» отбита — «${String(stat.why).slice(0, 48)}…»`);
+
+  /* Срез принимает ТОЛЬКО агрегаты (смоук #36) — значит строчный показатель без агрегата
+     в портфельный вопрос не попадает вовсе. Пара обязательна, и её проверяют, а не помнят. */
+  const cred = ST.OBJ('obj-credit');
+  const base = cred.inds.filter(m => ST.IND(m).src !== 'агрегат');
+  const covered = base.filter(m => ST.state.indicators.some(i => i.src === 'агрегат' && i.over === m));
+  const seams = ['calcDebt','calcAccrual','calcAllocation','calcSchedule','calcForecast']
+    .filter(sm => !base.some(m => ST.IND(m).seam === sm));
+  ok(67, base.length === 28 && covered.length === base.length && seams.length === 0,
+    `у кредита ${base.length} строчных показателей, и у каждого есть агрегат — иначе в срез он не попадёт (#36); пять швов ядра прочитаны, непрочитанных нет${seams.length ? ': ' + seams.join(', ') : ''}`);
+
+  /* ИС-26: дата на срезе выражается числом дней от даты вопроса — среднюю дату
+     сложить не из чего, а среднее число дней складывается. */
+  const dated = ST.state.indicators.filter(i => i.type === 'дата');
+  const sched = ST.statSlice({obj:'obj-credit', dims:[], date: TODAY,
+    inds:['a-minndays','a-avgndays','a-maxfdays']});
+  ok(68, dated.length === 0 && sched.ok && sched.total['a-avgndays'].v > 0 &&
+        ST.IND('m-ndays').unit === 'дн.' && ST.IND('m-fdays').unit === 'дн.',
+    `показателя типа «дата» в реестре нет ни одного: график отвечает днями — ближайший платёж минимум через ${sched.ok ? sched.total['a-minndays'].v : '—'} дн., в среднем ${sched.ok ? sched.total['a-avgndays'].v : '—'} дн. (ИС-26)`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-const stamp = `SMOKE 2026-08-26 · ${pass}/${results.length} PASS\n` + lines.join('\n');
+const stamp = `SMOKE 2026-08-27 · ${pass}/${results.length} PASS\n` + lines.join('\n');
 console.log(stamp);
 
 const body = lines.map(l => '  ' + l).join('\n');
-const injected = `  SMOKE 2026-08-26 · ${pass}/${results.length} PASS\n` + body;
+const injected = `  SMOKE 2026-08-27 · ${pass}/${results.length} PASS\n` + body;
 if (src.includes('  SMOKE_PLACEHOLDER')) {
   writeFileSync(HTML, src.replace('  SMOKE_PLACEHOLDER', injected), 'utf8');
   console.log('\n→ результат вставлен в шапку statistics.html');

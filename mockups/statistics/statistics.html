@@ -20,7 +20,16 @@
   (ADR-0176…ADR-0179) и попутно закрыла четыре бывших дефекта макета: даты ряда стали частью
   вопроса (шаг и число точек), фильтр задаётся конструктором со значениями ИЗ СТРОК среза,
   разрез заводится формой с корзинами и владельцем уровней, прогон пишет поимённый состав
-  (СС-Д1, СС-Д2, СС-Д3, СС-Д6). Смоук: `node scripts/inspect/statistics-check.mjs`.
+  (СС-Д1, СС-Д2, СС-Д3, СС-Д6).
+  Волна 5 (27.08.2026) упразднила слово «мера»: единственное имя измеряющей записи —
+  показатель (СС-57); поведение не тронуто, поле строки среза meas → inds.
+  Волна 6 (27.08.2026) довела объект «Кредит» до ПОЛНОГО состава показателей по правилу
+  ADR-0181: показателем становится величина, которую спрашивают о МНОЖЕСТВЕ, — 28 строчных
+  и 33 агрегата (было 6 и 7), реестр модуля 37 → 85 записей, прочитаны все пять швов ядра.
+  Ступени срока неплатежа заведены КОРЗИНОЙ разреза, а не семью показателями (ADR-0176 §3),
+  и оба тождества ТЗ 18 §5.1 — остаток = просрочено + срочно, свод = сумма семи статей —
+  держатся в зеркале ядра по построению, а не подгонкой демо-данных (проверка #64).
+  Смоук: `node scripts/inspect/statistics-check.mjs`.
   Канон логики — `mockups/statistics/ASUBK-statistika-logika.md` (шесть сущностей, реестр
   показателей как контракт, валюта и потоки, три шва и паспорт, все инварианты с
   причиной); журнал волн — `ASUBK-status-razrabotki.md`.
@@ -42,7 +51,10 @@
   ADR-0176 разрез несёт уровни и корзины; родитель считается, а не складывается из детей;
   ADR-0177 обратный индекс ссылок потребителей — вторая хранимая вещь модуля;
   ADR-0178 statRows двоичен: полный список или отказ с числом; сверка целиком — выгрузкой;
-  ADR-0179 многозначность разреза означает нижележащий объект; реестр — восемь объектов.
+  ADR-0179 многозначность разреза означает нижележащий объект; реестр — восемь объектов;
+  ADR-0180 фильтр вопроса — ДНФ без скобок: наборы через ИЛИ, сравнения через И;
+  ADR-0181 показателем становится клетка шва, которую спрашивают о множестве; величина
+           об одном объекте остаётся в ядре, матрица величин целиком — сечение.
   Поверх: ADR-0135 (пять швов ядра), ADR-0124 (вычислитель один), ADR-0120 (реестр
   показателей), ADR-0123 (фиксация записью), ADR-0113 (препятствия закрытия периода).
 
@@ -78,6 +90,10 @@
   ИС-24 Форм паспорта ровно две — полная и краткая, и обе объявляет производитель ответа.
   ИС-25 Вывод показателя не запрещается чужой публикацией, но обязан назвать поимённо,
         что сломается (ADR-0177 §4).
+  ИС-26 Дата на срезе выражается числом дней от даты среза: показателя типа «дата» не
+        бывает — среднюю дату сложить не из чего (ADR-0181 §4).
+  ИС-27 Показателем именуется клетка шва, которую спрашивают о множестве; матрица величин
+        целиком — сечение, а не набор показателей (ADR-0181 §1–§2).
 
   ДЕМО ПОКРЫВАЕТ: восемь объектов на одном движке (кредит и заёмщик — непохожая пара:
   разные разрезы, разные показатели, разное множество) · прогон, пропуск ночи с причиной и
@@ -116,8 +132,8 @@
   что паспорт едет ВНУТРИ файла. Разрезы «по видам документа» и «по важности документа»
   (ТЗ №19, №20) отложены до модуля документооборота — заводятся строками реестра.
 
-  SMOKE 2026-08-26 · 63/63 PASS
-     PASS  #1  объектов 8, показателей 37; без объявленного источника 0, с формулой 0, с функцией вне списка 0 — ИС-6, ИС-7
+  SMOKE 2026-08-27 · 68/68 PASS
+     PASS  #1  объектов 8, показателей 85; без объявленного источника 0, с формулой 0, с функцией вне списка 0 — ИС-6, ИС-7
      PASS  #2  заёмщик — самостоятельный объект со своими показателями, а не свёртка кредита (ИС-19)
      PASS  #3  форма строки закрыта: obj · ref · date · dims · inds · fixed · by — ни сомового эквивалента, ни долей, ни дельт (ИС-15)
      PASS  #4  правки строки нет ни операцией, ни экраном: «строку среза пишет только прогон: правки строк в модуле нет (ИС-2)»
@@ -153,7 +169,7 @@
      PASS  #34  классификация статистику не читает ни в одной форме: «классификация статистику не читает ни в одной форме: слой ниже (ИС-5, ADR-0146 §2)»
      PASS  #35  швов три, четвёртого нет: «шва «statAll» нет: швов три, четвёртый не заводится (ADR-0152 §1)»; отчётность получает срез с паспортом
      PASS  #36  показатель среза — агрегат («в срезе показатель — агрегат: «Остаток основного долга» строчный, спросите его швом statRows»); показателя вне реестра не существует ни для кого («показателя «m-ghost» нет в реестре — для витрины его не существует (ИС-7)»)
-     PASS  #37  прогон записал 46 строк, обратившись к ядру 70 раз: ни одна величина по объекту здесь не выводится (ИС-1), хранимых агрегатов в строке нет (ИС-3)
+     PASS  #37  прогон записал 46 строк, обратившись к ядру 254 раз: ни одна величина по объекту здесь не выводится (ИС-1), хранимых агрегатов в строке нет (ИС-3)
      PASS  #38  итог — группировка тех же строк, а не отдельное число: сумма групп сходится с итогом до копейки (ИС-3)
      PASS  #39  формула — «в записи показателя нет поля формулы: запись объявляет ОТКУД…»; доля — представление; несуществующий шов — задача ядру; функция вне списка — «функция «median» вне закрытого списка: count, sum, avg, min, max»
      PASS  #40  показатель заведён записью и сразу считается ближайшим прогоном — без правки кода (ADR-0150 §1)
@@ -180,6 +196,11 @@
      PASS  #61  фильтр строится списком значений ИЗ СТРОК среза, а не чужим справочником (ИС-4): у подразделения 6 значений обоих уровней, у разреза-даты — корзины (2021 · 2022 · 2023 · 2024 · 2025 · 2026), а не сырые даты; сужение названо в паспорте: 1 из 8 (СС-Д2)
      PASS  #62  разрез заводится формой со всем, что требует модель: корзины списком (год · месяц, «неделя» мимо реестра не спрашивается) и ВЛАДЕЛЕЦ уровней («Оргструктура (кадры)»), а не напечатанная иерархия; занятый идентификатор — «идентификатор пуст или занят» (ADR-0176 §7, ИС-23, СС-Д3)
      PASS  #63  состав прогона поимённый: 8 объектов, сумма по объектам 46 = строк 46; объект с нулём виден строкой (их 0), а не отсутствием (СС-Д6)
+     PASS  #64  на всех 8 строках держатся оба тождества ядра: свод = сумма семи статей и остаток = просрочено + срочно (ТЗ 18 §5.1)
+     PASS  #65  ФО-01 собирается срезом по ступеням срока: 0 дн. · 91–180 дн. · 181+ дн. — по возрастанию, сумма групп сходится с итогом (ИС-14, ИС-23)
+     PASS  #66  за период спрашивается только нарастающее: начислено 318473.9, списано 22780; «Задолженность всего» отбита — ««Задолженность всего» не поток: разностью двух с…»
+     PASS  #67  у кредита 28 строчных показателей, и у каждого есть агрегат — иначе в срез он не попадёт (#36); пять швов ядра прочитаны, непрочитанных нет
+     PASS  #68  показателя типа «дата» в реестре нет ни одного: график отвечает днями — ближайший платёж минимум через 1 дн., в среднем 16.9 дн. (ИС-26)
 -->
 <style>
 :root{
@@ -306,6 +327,9 @@ table.cgrid tbody tr.out td{ background:var(--asubk-gray-50); color:var(--text-m
 /* Нижний уровень дерева: тише по имени, но НЕ серее по числам — это не «выпавшая»
    строка, а такой же ответ, только мельче зерном. */
 table.cgrid tbody tr.lvl td:first-child{ color:var(--text-muted); }
+/* Заголовок группы внутри таблицы: реестр читается по объектам, а не одним полотном. */
+table.cgrid tbody tr.grp td{ background:var(--surface-panel); color:var(--text-body);
+  border-bottom:1px solid var(--border-default); padding:8px 12px; }
 .muted{ color:var(--text-muted); }
 .mono{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12.5px; }
 .small{ font:var(--weight-regular) 12.5px/1.45 var(--asubk-font); color:var(--text-muted); }
@@ -354,6 +378,14 @@ table.cgrid tbody tr.lvl td:first-child{ color:var(--text-muted); }
 
 /* ---- конструктор среза ---- */
 .chips{ display:flex; gap:6px; flex-wrap:wrap; margin-top:5px; }
+/* Подпись блока внутри самой ленты: блоки объявлены полем grp записи показателя, поэтому
+   разметка их не перечисляет — она печатает то, что пришло из реестра. */
+.chips-grp{ flex-basis:100%; margin:8px 0 -1px; font:var(--font-label); font-weight:var(--weight-medium);
+  color:var(--text-muted); text-transform:uppercase; letter-spacing:.04em; font-size:11px; }
+.chips-grp:first-child{ margin-top:0; }
+/* Строк среза по кредиту 28 колонок — таблица едет вбок внутри карточки, а не тянет страницу. */
+.tscroll{ overflow-x:auto; }
+.tscroll table{ min-width:100%; width:max-content; }
 .chip{ display:inline-flex; align-items:center; gap:6px; padding:4px 10px; cursor:pointer;
   border:1px solid var(--border-default); border-radius:var(--radius-pill);
   background:var(--surface-card); font:var(--font-label); color:var(--text-body); }
@@ -478,6 +510,12 @@ const DIMS = [
   {id:'d-curator',   name:'Куратор',           src:'история', key:'curator', since:'2020-01-01'},
   {id:'d-category',  name:'Категория риска',   src:'шов', seam:'riskCategory', field:'category',
    since:'2020-01-01', note:'шов классификации (ADR-0124); статистика её не выводит'},
+  /* Ступени по сроку неплатежа — КОРЗИНА, а не набор показателей: строка хранит число
+     как есть, ступень применяется при чтении, и смена набора прошлое не переписывает
+     (ADR-0176 §3, ИС-23). Границы объявлены записью — свободной ступени не бывает. */
+  {id:'d-odays',     name:'Срок неплатежа',    src:'шов', seam:'calcDebt', field:'daysOverdue',
+   buckets:['ступени'], edges:[1,31,91,181], unit:'дн.', since:'2020-01-01',
+   note:'ФО-01 — просроченная задолженность по ступеням срока'},
   {id:'d-industry',  name:'Отрасль',           src:'поле', key:'industry', since:'2020-01-01'},
   {id:'d-cur',       name:'Валюта договора',   src:'поле', key:'cur',      since:'2020-01-01'},
   {id:'d-status',    name:'Статус',            src:'история', key:'status', since:'2020-01-01'},
@@ -526,18 +564,72 @@ const REF = {
    Запись объявляет ИСТОЧНИК и молчит о способе. Поля формулы нет — ИС-6.
    Три вида источника: «шов» (ADR-0135) · «поле» (атрибут владельца) · «агрегат». */
 const INDICATORS = [
-  /* --- кредит --- */
-  {id:'m-debt',   name:'Остаток основного долга', obj:'obj-credit', type:'сумма', src:'шов',
+  /* --- кредит: свод долга. Именуется то, что называет ВНЕШНИЙ потребитель — ФО-01
+     (обязательна, Порядок №41 п. 12), ФО-02 свод по портфелю, легаси-поля
+     v_ls_total_outstanding / v_ls_total_overdue (ИС-27, ADR-0181). --- */
+  {id:'m-total',  name:'Задолженность всего',     obj:'obj-credit', type:'сумма', src:'шов', grp:'свод',
+   seam:'calcDebt', field:'total', money:true, unit:'валюта договора'},
+  {id:'m-over',   name:'Просрочено всего',        obj:'obj-credit', type:'сумма', src:'шов', grp:'свод',
+   seam:'calcDebt', field:'overdue', money:true, unit:'валюта договора'},
+  {id:'m-curr',   name:'Срочно всего',            obj:'obj-credit', type:'сумма', src:'шов', grp:'свод',
+   seam:'calcDebt', field:'current', money:true, unit:'валюта договора'},
+  /* --- кредит: остаток по семи статьям очереди (ТЗ 18 §5.1) --- */
+  {id:'m-coll',   name:'Расходы по обращению взысканию', obj:'obj-credit', type:'сумма', src:'шов', grp:'статьи — остаток',
+   seam:'calcDebt', field:'collection', money:true, unit:'валюта договора'},
+  {id:'m-fee',    name:'Сборы и комиссии',        obj:'obj-credit', type:'сумма', src:'шов', grp:'статьи — остаток',
+   seam:'calcDebt', field:'charges', money:true, unit:'валюта договора'},
+  {id:'m-debt',   name:'Остаток основного долга', obj:'obj-credit', type:'сумма', src:'шов', grp:'статьи — остаток',
    seam:'calcDebt', field:'principal', money:true, unit:'валюта договора'},
-  {id:'m-accr',   name:'Начисленные проценты',    obj:'obj-credit', type:'сумма', src:'шов',
-   seam:'calcAccrual', field:'interest', money:true, unit:'валюта договора'},
-  {id:'m-odays',  name:'Дней просрочки',          obj:'obj-credit', type:'число', src:'шов',
+  {id:'m-aint',   name:'Накопленные проценты',    obj:'obj-credit', type:'сумма', src:'шов', grp:'статьи — остаток',
+   seam:'calcDebt', field:'accInterest', money:true, unit:'валюта договора'},
+  {id:'m-int',    name:'Остаток процентов',       obj:'obj-credit', type:'сумма', src:'шов', grp:'статьи — остаток',
+   seam:'calcDebt', field:'interest', money:true, unit:'валюта договора'},
+  {id:'m-apen',   name:'Накопленная пеня',        obj:'obj-credit', type:'сумма', src:'шов', grp:'статьи — остаток',
+   seam:'calcDebt', field:'accPenalty', money:true, unit:'валюта договора'},
+  {id:'m-pen',    name:'Пеня',                    obj:'obj-credit', type:'сумма', src:'шов', grp:'статьи — остаток',
+   seam:'calcDebt', field:'penalty', money:true, unit:'валюта договора'},
+  /* --- кредит: просроченная часть тех же семи статей — это и есть ФО-01 --- */
+  {id:'m-ocoll',  name:'Просрочено — расходы по обращению взысканию', obj:'obj-credit', type:'сумма', src:'шов', grp:'статьи — просрочено',
+   seam:'calcDebt', field:'over_collection', money:true, unit:'валюта договора'},
+  {id:'m-ofee',   name:'Просрочено — сборы и комиссии', obj:'obj-credit', type:'сумма', src:'шов', grp:'статьи — просрочено',
+   seam:'calcDebt', field:'over_charges', money:true, unit:'валюта договора'},
+  {id:'m-odebt',  name:'Просрочено — основной долг', obj:'obj-credit', type:'сумма', src:'шов', grp:'статьи — просрочено',
+   seam:'calcDebt', field:'over_principal', money:true, unit:'валюта договора'},
+  {id:'m-oaint',  name:'Просрочено — накопленные проценты', obj:'obj-credit', type:'сумма', src:'шов', grp:'статьи — просрочено',
+   seam:'calcDebt', field:'over_accInterest', money:true, unit:'валюта договора'},
+  {id:'m-oint',   name:'Просрочено — проценты',   obj:'obj-credit', type:'сумма', src:'шов', grp:'статьи — просрочено',
+   seam:'calcDebt', field:'over_interest', money:true, unit:'валюта договора'},
+  {id:'m-oapen',  name:'Просрочено — накопленная пеня', obj:'obj-credit', type:'сумма', src:'шов', grp:'статьи — просрочено',
+   seam:'calcDebt', field:'over_accPenalty', money:true, unit:'валюта договора'},
+  {id:'m-open',   name:'Просрочено — пеня',       obj:'obj-credit', type:'сумма', src:'шов', grp:'статьи — просрочено',
+   seam:'calcDebt', field:'over_penalty', money:true, unit:'валюта договора'},
+  /* --- кредит: неплатёж --- */
+  {id:'m-odays',  name:'Дней просрочки',          obj:'obj-credit', type:'число', src:'шов', grp:'неплатёж',
    seam:'calcDebt', field:'daysOverdue', unit:'дн.'},
-  {id:'m-issued', name:'Выдано всего',            obj:'obj-credit', type:'сумма', src:'шов',
+  {id:'m-ddays',  name:'Спорных дней',            obj:'obj-credit', type:'число', src:'шов', grp:'неплатёж',
+   seam:'calcDebt', field:'disputedDays', unit:'дн.'},
+  /* --- кредит: потоки нарастающим итогом и переплата. Период считается разностью
+     двух строк, и только у нарастающего (ИС-17). --- */
+  {id:'m-issued', name:'Выдано всего',            obj:'obj-credit', type:'сумма', src:'шов', grp:'потоки',
    seam:'calcAllocation', field:'issuedTotal', money:true, flow:true, unit:'валюта договора'},
-  {id:'m-repaid', name:'Погашено всего',          obj:'obj-credit', type:'сумма', src:'шов',
+  {id:'m-repaid', name:'Погашено всего',          obj:'obj-credit', type:'сумма', src:'шов', grp:'потоки',
    seam:'calcAllocation', field:'repaidTotal', money:true, flow:true, unit:'валюта договора'},
-  {id:'m-amount', name:'Сумма договора',          obj:'obj-credit', type:'сумма', src:'поле',
+  {id:'m-accr',   name:'Начислено процентов всего', obj:'obj-credit', type:'сумма', src:'шов', grp:'потоки',
+   seam:'calcAccrual', field:'interest', money:true, flow:true, unit:'валюта договора'},
+  {id:'m-woff',   name:'Списано всего',           obj:'obj-credit', type:'сумма', src:'шов', grp:'потоки',
+   seam:'calcDebt', field:'writtenOff', money:true, flow:true, unit:'валюта договора'},
+  {id:'m-oplus',  name:'Переплата',               obj:'obj-credit', type:'сумма', src:'шов', grp:'потоки',
+   seam:'calcDebt', field:'overpaid', money:true, unit:'валюта договора'},
+  /* --- кредит: график и прогноз. Дата на срезе выражается ЧИСЛОМ ДНЕЙ от даты
+     вопроса: среднюю дату сложить не из чего, а среднее число дней — можно (ИС-26). --- */
+  {id:'m-npay',   name:'Сумма ближайшего платежа', obj:'obj-credit', type:'сумма', src:'шов', grp:'график',
+   seam:'calcSchedule', field:'nextAmount', money:true, unit:'валюта договора'},
+  {id:'m-ndays',  name:'Дней до ближайшего платежа', obj:'obj-credit', type:'число', src:'шов', grp:'график',
+   seam:'calcSchedule', field:'nextInDays', unit:'дн.'},
+  {id:'m-fdays',  name:'Дней до полного погашения', obj:'obj-credit', type:'число', src:'шов', grp:'график',
+   seam:'calcForecast', field:'fullInDays', unit:'дн.'},
+  /* --- кредит: поле договора --- */
+  {id:'m-amount', name:'Сумма договора',          obj:'obj-credit', type:'сумма', src:'поле', grp:'договор',
    key:'amount', money:true, unit:'валюта договора'},
   /* --- заёмщик: свои показатели, а не свёртка кредитов (ИС-19) --- */
   {id:'m-bdebt',  name:'Совокупный долг заёмщика', obj:'obj-borrower', type:'сумма', src:'шов',
@@ -561,12 +653,38 @@ const INDICATORS = [
    key:'over', unit:'дн.'},
   /* --- агрегаты: функция из закрытого списка, ни одного выражения --- */
   {id:'a-count',    name:'Число объектов',          obj:'*', type:'число', src:'агрегат', fn:'count'},
-  {id:'a-sumdebt',  name:'Сумма остатка ОД',        obj:'obj-credit', src:'агрегат', fn:'sum', over:'m-debt'},
-  {id:'a-sumaccr',  name:'Сумма начисленных процентов', obj:'obj-credit', src:'агрегат', fn:'sum', over:'m-accr'},
-  {id:'a-avgodays', name:'Средняя просрочка',       obj:'obj-credit', src:'агрегат', fn:'avg', over:'m-odays'},
-  {id:'a-maxodays', name:'Худшая просрочка',        obj:'obj-credit', src:'агрегат', fn:'max', over:'m-odays'},
-  {id:'a-sumissued',name:'Выдано всего (нарастающим)', obj:'obj-credit', src:'агрегат', fn:'sum', over:'m-issued'},
-  {id:'a-sumrepaid',name:'Погашено всего (нарастающим)', obj:'obj-credit', src:'агрегат', fn:'sum', over:'m-repaid'},
+  {id:'a-sumtotal', name:'Задолженность всего, итого', obj:'obj-credit', src:'агрегат', grp:'свод', fn:'sum', over:'m-total'},
+  {id:'a-sumover',  name:'Просрочено, итого',       obj:'obj-credit', src:'агрегат', grp:'свод', fn:'sum', over:'m-over'},
+  {id:'a-sumcurr',  name:'Срочно, итого',           obj:'obj-credit', src:'агрегат', grp:'свод', fn:'sum', over:'m-curr'},
+  {id:'a-sumcoll',  name:'Расходы по взысканию, итого', obj:'obj-credit', src:'агрегат', grp:'статьи — остаток', fn:'sum', over:'m-coll'},
+  {id:'a-sumfee',   name:'Сборы и комиссии, итого', obj:'obj-credit', src:'агрегат', grp:'статьи — остаток', fn:'sum', over:'m-fee'},
+  {id:'a-sumdebt',  name:'Сумма остатка ОД',        obj:'obj-credit', src:'агрегат', grp:'статьи — остаток', fn:'sum', over:'m-debt'},
+  {id:'a-sumaint',  name:'Накопленные проценты, итого', obj:'obj-credit', src:'агрегат', grp:'статьи — остаток', fn:'sum', over:'m-aint'},
+  {id:'a-sumint',   name:'Остаток процентов, итого', obj:'obj-credit', src:'агрегат', grp:'статьи — остаток', fn:'sum', over:'m-int'},
+  {id:'a-sumapen',  name:'Накопленная пеня, итого', obj:'obj-credit', src:'агрегат', grp:'статьи — остаток', fn:'sum', over:'m-apen'},
+  {id:'a-sumpen',   name:'Пеня, итого',             obj:'obj-credit', src:'агрегат', grp:'статьи — остаток', fn:'sum', over:'m-pen'},
+  {id:'a-sumocoll', name:'Просрочено — расходы по взысканию, итого', obj:'obj-credit', src:'агрегат', grp:'статьи — просрочено', fn:'sum', over:'m-ocoll'},
+  {id:'a-sumofee',  name:'Просрочено — сборы, итого', obj:'obj-credit', src:'агрегат', grp:'статьи — просрочено', fn:'sum', over:'m-ofee'},
+  {id:'a-sumodebt', name:'Просрочено — ОД, итого',  obj:'obj-credit', src:'агрегат', grp:'статьи — просрочено', fn:'sum', over:'m-odebt'},
+  {id:'a-sumoaint', name:'Просрочено — накопленные проценты, итого', obj:'obj-credit', src:'агрегат', grp:'статьи — просрочено', fn:'sum', over:'m-oaint'},
+  {id:'a-sumoint',  name:'Просрочено — проценты, итого', obj:'obj-credit', src:'агрегат', grp:'статьи — просрочено', fn:'sum', over:'m-oint'},
+  {id:'a-sumoapen', name:'Просрочено — накопленная пеня, итого', obj:'obj-credit', src:'агрегат', grp:'статьи — просрочено', fn:'sum', over:'m-oapen'},
+  {id:'a-sumopen',  name:'Просрочено — пеня, итого', obj:'obj-credit', src:'агрегат', grp:'статьи — просрочено', fn:'sum', over:'m-open'},
+  {id:'a-avgodays', name:'Средняя просрочка',       obj:'obj-credit', src:'агрегат', grp:'неплатёж', fn:'avg', over:'m-odays'},
+  {id:'a-maxodays', name:'Худшая просрочка',        obj:'obj-credit', src:'агрегат', grp:'неплатёж', fn:'max', over:'m-odays'},
+  {id:'a-avgddays', name:'Средний спорный срок',    obj:'obj-credit', src:'агрегат', grp:'неплатёж', fn:'avg', over:'m-ddays'},
+  {id:'a-maxddays', name:'Наибольший спорный срок', obj:'obj-credit', src:'агрегат', grp:'неплатёж', fn:'max', over:'m-ddays'},
+  {id:'a-sumissued',name:'Выдано всего (нарастающим)', obj:'obj-credit', src:'агрегат', grp:'потоки', fn:'sum', over:'m-issued'},
+  {id:'a-sumrepaid',name:'Погашено всего (нарастающим)', obj:'obj-credit', src:'агрегат', grp:'потоки', fn:'sum', over:'m-repaid'},
+  {id:'a-sumaccr',  name:'Начислено процентов, итого', obj:'obj-credit', src:'агрегат', grp:'потоки', fn:'sum', over:'m-accr'},
+  {id:'a-sumwoff',  name:'Списано всего, итого',    obj:'obj-credit', src:'агрегат', grp:'потоки', fn:'sum', over:'m-woff'},
+  {id:'a-sumoplus', name:'Переплата, итого',        obj:'obj-credit', src:'агрегат', grp:'потоки', fn:'sum', over:'m-oplus'},
+  {id:'a-sumnpay',  name:'Ближайшие платежи, итого', obj:'obj-credit', src:'агрегат', grp:'график', fn:'sum', over:'m-npay'},
+  {id:'a-minndays', name:'Ближайший платёж — минимум дней', obj:'obj-credit', src:'агрегат', grp:'график', fn:'min', over:'m-ndays'},
+  {id:'a-avgndays', name:'Ближайший платёж — среднее дней', obj:'obj-credit', src:'агрегат', grp:'график', fn:'avg', over:'m-ndays'},
+  {id:'a-avgfdays', name:'До полного погашения — среднее дней', obj:'obj-credit', src:'агрегат', grp:'график', fn:'avg', over:'m-fdays'},
+  {id:'a-maxfdays', name:'До полного погашения — максимум дней', obj:'obj-credit', src:'агрегат', grp:'график', fn:'max', over:'m-fdays'},
+  {id:'a-sumamount',name:'Сумма договоров, итого',  obj:'obj-credit', src:'агрегат', grp:'договор', fn:'sum', over:'m-amount'},
   {id:'a-sumbdebt', name:'Совокупный долг',         obj:'obj-borrower', src:'агрегат', fn:'sum', over:'m-bdebt'},
   {id:'a-sumbcnt',  name:'Договоров всего',         obj:'obj-borrower', src:'агрегат', fn:'sum', over:'m-bcnt'},
   {id:'a-sumcval',  name:'Оценочная стоимость, итого', obj:'obj-collateral', src:'агрегат', fn:'sum', over:'m-cval'},
@@ -599,9 +717,20 @@ const INDICATORS = [
    массиве — в макете это показано операцией ST.addObject.                       */
 const OBJECTS = [
   {id:'obj-credit', name:'Кредит', plural:'кредиты', owner:'Кредиты', refName:'номер договора',
-   dims:['d-branch','d-curator','d-category','d-industry','d-cur','d-status','d-region','d-cdate','d-line'],
-   inds:['m-debt','m-accr','m-odays','m-issued','m-repaid','m-amount',
-         'a-count','a-sumdebt','a-sumaccr','a-avgodays','a-maxodays','a-sumissued','a-sumrepaid']},
+   dims:['d-branch','d-curator','d-category','d-odays','d-industry','d-cur','d-status','d-region',
+         'd-cdate','d-line'],
+   inds:['m-total','m-over','m-curr',
+         'm-coll','m-fee','m-debt','m-aint','m-int','m-apen','m-pen',
+         'm-ocoll','m-ofee','m-odebt','m-oaint','m-oint','m-oapen','m-open',
+         'm-odays','m-ddays',
+         'm-issued','m-repaid','m-accr','m-woff','m-oplus',
+         'm-npay','m-ndays','m-fdays','m-amount',
+         'a-count','a-sumtotal','a-sumover','a-sumcurr',
+         'a-sumcoll','a-sumfee','a-sumdebt','a-sumaint','a-sumint','a-sumapen','a-sumpen',
+         'a-sumocoll','a-sumofee','a-sumodebt','a-sumoaint','a-sumoint','a-sumoapen','a-sumopen',
+         'a-avgodays','a-maxodays','a-avgddays','a-maxddays',
+         'a-sumissued','a-sumrepaid','a-sumaccr','a-sumwoff','a-sumoplus',
+         'a-sumnpay','a-minndays','a-avgndays','a-avgfdays','a-maxfdays','a-sumamount']},
   {id:'obj-borrower', name:'Заёмщик', plural:'заёмщики', owner:'Заёмщики', refName:'ИНН',
    dims:['d-branch','d-curator','d-category','d-industry','d-ptype','d-region'],
    inds:['m-bdebt','m-bcnt','m-bworst','a-count','a-sumbdebt','a-sumbcnt']},
@@ -668,7 +797,7 @@ const WORLD = {
   it('КД-2023/210', {cdate:'2023-05-04', line:'оборотная', cur:'KGS', amount:3400000, industry:'Сельское хозяйство', region:'Ошская', district:'Кара-Сууйский'},
     {branch:[['2023-05-04','Ошский филиал']], curator:[['2025-01-01','Бекова Н.']],
      status:[['2023-05-04','действующий']], category:[['2026-01-01','Средний кредитный риск'],['2026-07-01','Высокий кредитный риск']]},
-    {principal:[2870000,-41000], interest:[96300,17800], daysOverdue:[128,30], issuedTotal:[3400000,0], repaidTotal:[530000,41000]}),
+    {principal:[2870000,-41000], interest:[96300,17800], daysOverdue:[128,30], issuedTotal:[3400000,0], repaidTotal:[530000,41000], disputedDays:[31,0]}),
   it('КД-2025/043', {cdate:'2025-02-19', line:'оборотная', cur:'USD', amount:180000, industry:'Торговля', region:'Чуйская', district:'Аламудунский'},
     {branch:[['2025-02-19','Головной офис']], curator:[['2025-02-19','Бекова Н.']],
      status:[['2025-02-19','действующий']], category:[['2026-01-01','Низкий кредитный риск']]},
@@ -684,11 +813,11 @@ const WORLD = {
   it('КД-2022/065', {cdate:'2022-04-01', line:'инвестиционная', cur:'KGS', amount:5100000, industry:'Строительство', region:'Чуйская', district:'Аламудунский'},
     {branch:[['2022-04-01','Головной офис']], curator:[['2025-01-01','Асанов А.']],
      status:[['2022-04-01','действующий']], category:[['2026-01-01','Высокий кредитный риск']]},
-    {principal:[3980000,-52000], interest:[214000,31500], daysOverdue:[214,30], issuedTotal:[5100000,0], repaidTotal:[1120000,52000]}),
+    {principal:[3980000,-52000], interest:[214000,31500], daysOverdue:[214,30], issuedTotal:[5100000,0], repaidTotal:[1120000,52000], disputedDays:[90,0]}),
   it('КД-2021/012', {cdate:'2021-09-15', line:'оборотная', cur:'KGS', amount:900000, industry:'Торговля', region:'Ошская', district:'Узгенский'},
     {branch:[['2021-09-15','Ошский филиал']], curator:[['2025-01-01','Бекова Н.']],
      status:[['2021-09-15','действующий'],['2026-07-20','погашен']], category:[['2026-01-01','Низкий кредитный риск']]},
-    {principal:[86000,-43000], interest:[1900,0], daysOverdue:[0,0], issuedTotal:[900000,0], repaidTotal:[814000,43000]}),
+    {principal:[86000,-43000], interest:[1900,0], daysOverdue:[0,0], issuedTotal:[900000,0], repaidTotal:[814000,43000], overpaid:[1250,0]}),
   it('КД-2026/007', {cdate:'2026-02-03', line:'инвестиционная', cur:'KGS', amount:2200000, industry:'Сельское хозяйство', region:'Таласская'},
     {branch:[['2026-02-03','Ошский филиал']], curator:[['2026-02-03','Асанов А.']],
      status:[['2026-02-03','действующий']], category:[['2026-01-01','Низкий кредитный риск']]},
@@ -829,6 +958,10 @@ const WORLD = {
  *  не выводит ни одной (ИС-1). Счётчик вызовов открыт наружу — смоук им
  *  доказывает, что каждый показатель-«шов» действительно пришёл из ядра.
  * =================================================================== */
+/* Семь статей задолженности в порядке очереди ТЗ 18 §5.1. Порядок объявлен ЗДЕСЬ,
+   в зеркале ядра, и статистике не известен: она спрашивает поле шва по имени. */
+const ARTICLES = ['collection','charges','principal','accInterest','interest','accPenalty','penalty'];
+
 const CORE = {
   calls: 0,
   grow(item, field, dateISO){
@@ -838,16 +971,72 @@ const CORE = {
     const v = base + per30 * (daysBetween(ANCHOR, dateISO) / 30);
     return Math.round(Math.max(field === 'daysOverdue' ? 0 : 0, v) * 100) / 100;
   },
-  money(item, field, dateISO){
+  cell(item, value, dateISO){
     const cur = item.f.cur || 'KGS';
     const r = rateOn(cur, dateISO);
-    return {value: CORE.grow(item, field, dateISO), cur, rate: r.rate, rateDate: r.rateDate, dated: r.dated};
+    return {value, cur, rate: r.rate, rateDate: r.rateDate, dated: r.dated};
+  },
+  money(item, field, dateISO){ return CORE.cell(item, CORE.grow(item, field, dateISO), dateISO); },
+  /* Раскладка долга по семи статьям. Зеркало держит НЕ семь независимых чисел, а функцию
+     от тех же коэффициентов: тождества ядра «остаток = просрочено + срочно» и «свод =
+     сумма статей» обязаны держаться ПО ПОСТРОЕНИЮ. Иначе сторож проверял бы аккуратность
+     набора демонстрационных данных, а не движок (ТЗ 18 §5.1, ADR-0150 §3). */
+  debtParts(item, dateISO){
+    const r2 = x => Math.round(x * 100) / 100;
+    const P = CORE.grow(item, 'principal', dateISO) || 0;
+    const A = CORE.grow(item, 'interest', dateISO) || 0;
+    const d = Math.round(CORE.grow(item, 'daysOverdue', dateISO) || 0);
+    const amt = item.f.amount || 0;
+    const rest = {
+      collection:  d > 180 ? r2(amt * 0.004) : 0,
+      charges:     r2(amt * 0.001),
+      principal:   r2(P),
+      accInterest: d > 0 ? r2(A * 0.20) : 0,
+      interest:    r2(A * 0.45),
+      accPenalty:  d > 90 ? r2(P * 0.00008 * d) : 0,
+      penalty:     d > 0 ? r2(P * 0.00020 * d) : 0
+    };
+    /* Срочная часть НЕ выводится отдельной формулой: она разность. Тождество тогда не
+       сверяется, а соблюдается — ровно то, чего E2E-09 не сделал в легаси. */
+    const over = {
+      collection:  rest.collection,
+      charges:     d > 0 ? rest.charges : 0,
+      principal:   d > 0 ? r2(rest.principal * Math.min(1, d / 360)) : 0,
+      accInterest: rest.accInterest,
+      interest:    d > 0 ? r2(rest.interest * Math.min(1, d / 90)) : 0,
+      accPenalty:  rest.accPenalty,
+      penalty:     rest.penalty
+    };
+    const total   = r2(ARTICLES.reduce((s, a) => s + rest[a], 0));
+    const overdue = r2(ARTICLES.reduce((s, a) => s + over[a], 0));
+    return {rest, over, total, overdue, current: r2(total - overdue), days: d,
+      disputed:   Math.round(CORE.grow(item, 'disputedDays', dateISO) || 0),
+      writtenOff: d > 180 ? r2(amt * 0.002 * ((d - 180) / 30)) : 0,
+      overpaid:   r2(CORE.grow(item, 'overpaid', dateISO) || 0)};
+  },
+  daysToDue(dateISO, due){
+    const y = Number(dateISO.slice(0,4)), m = Number(dateISO.slice(5,7)), d = Number(dateISO.slice(8,10));
+    if(d < due) return due - d;
+    return new Date(Date.UTC(y, m, 0)).getUTCDate() - d + due;
   },
   /* --- ADR-0135 §4: пять дверей ядра --- */
   calcDebt(item, dateISO){
     CORE.calls++;
-    const p = CORE.money(item, 'principal', dateISO);
-    return {principal: p, daysOverdue: {value: Math.round(CORE.grow(item, 'daysOverdue', dateISO) || 0)}};
+    const p = CORE.debtParts(item, dateISO);
+    const out = {
+      daysOverdue:  {value: p.days},
+      disputedDays: {value: p.disputed},
+      total:      CORE.cell(item, p.total,      dateISO),
+      overdue:    CORE.cell(item, p.overdue,    dateISO),
+      current:    CORE.cell(item, p.current,    dateISO),
+      writtenOff: CORE.cell(item, p.writtenOff, dateISO),
+      overpaid:   CORE.cell(item, p.overpaid,   dateISO)
+    };
+    ARTICLES.forEach(a => {
+      out[a] = CORE.cell(item, p.rest[a], dateISO);
+      out['over_' + a] = CORE.cell(item, p.over[a], dateISO);
+    });
+    return out;
   },
   calcAccrual(item, dateISO){ CORE.calls++; return {interest: CORE.money(item, 'interest', dateISO)}; },
   calcAllocation(item, dateISO){
@@ -855,8 +1044,29 @@ const CORE = {
     return {issuedTotal: CORE.money(item, 'issuedTotal', dateISO),
             repaidTotal: CORE.money(item, 'repaidTotal', dateISO)};
   },
-  calcSchedule(item, dateISO){ CORE.calls++; return {version: {value: 'действующая на ' + dateISO}}; },
-  calcForecast(item, dateISO){ CORE.calls++; return {expected: CORE.money(item, 'principal', dateISO)}; },
+  /* График и прогноз отвечают ДНЯМИ от даты вопроса, а не датой: среднюю дату сложить
+     не из чего, а «в среднем 12 дней до платежа» — осмысленный итог портфеля (ИС-26). */
+  calcSchedule(item, dateISO){
+    CORE.calls++;
+    const p = CORE.debtParts(item, dateISO);
+    /* День платежа — число месяца из даты договора: у каждого договора он свой, поэтому
+       «минимум дней до платежа» по портфелю — осмысленный вопрос, а не константа. */
+    const due = Math.min(28, Number((item.f.cdate || '2020-01-15').slice(8, 10)) || 15);
+    const plan = Math.round((item.f.amount || 0) * 0.031 * 100) / 100;
+    return {version: {value: 'действующая на ' + dateISO},
+            nextAmount: CORE.cell(item, Math.min(plan, p.total), dateISO),
+            nextInDays: {value: CORE.daysToDue(dateISO, due)}};
+  },
+  calcForecast(item, dateISO){
+    CORE.calls++;
+    const p = CORE.debtParts(item, dateISO);
+    const per30 = ((item.k || {}).principal || [0, 0])[1];
+    const pace = per30 < 0 ? -per30 : 0;
+    /* Полное погашение считается по СВОДУ, а не по телу: остаток в 1 755 сом при нулевом
+       теле — это и есть осиротевшая копейка E2E-13/14, и прогноз обязан её видеть. */
+    return {expected: CORE.cell(item, p.rest.principal, dateISO),
+            fullInDays: {value: pace > 0 ? Math.round(p.total / pace * 30) : null}};
+  },
   /* Шов классификации (ADR-0124): категория приходит готовой, здесь её не выводят. */
   riskCategory(item, dateISO){ CORE.calls++; return {category: {value: valueOn(item.h.category, dateISO)}}; },
   read(seam, item, dateISO){
@@ -948,8 +1158,15 @@ ST.readDim = readDim; ST.readInd = readInd; ST.buildRow = buildRow;
    строка хранит дату как есть, поэтому смена набора корзин прошлое не переписывает
    и ИС-4 не задет. Свободной корзины не бывает — набор объявлен записью разреза. */
 const QN = ['I','II','III','IV'];
-function bucketOf(v, bucket){
+function bucketOf(v, bucket, spec){
   if(v == null) return null;
+  /* Границы — данные записи, а не ветка функции: новый набор ступеней заводится строкой. */
+  if(spec && spec.edges){
+    const n = Number(v), e = spec.edges, u = spec.unit ? ' ' + spec.unit : '';
+    if(n < e[0]) return (e[0] - 1) + u;
+    for(let i = 0; i < e.length - 1; i++) if(n < e[i+1]) return e[i] + '–' + (e[i+1] - 1) + u;
+    return e[e.length - 1] + '+' + u;
+  }
   const t = String(v);
   if(bucket === 'год')     return t.slice(0,4);
   if(bucket === 'квартал') return t.slice(0,4)+' · '+QN[Math.floor((Number(t.slice(5,7))-1)/3)]+' кв.';
@@ -964,7 +1181,7 @@ function dimKey(d, val, q){
     const path = (Array.isArray(val) ? val : [val]).slice(0, lvl);
     return path.length ? path.join(' / ') : null;
   }
-  if(d && d.buckets) return bucketOf(val, q && q.buckets && q.buckets[d.id]);
+  if(d && d.buckets) return bucketOf(val, q && q.buckets && q.buckets[d.id], d);
   return String(val);
 }
 ST.bucketOf = bucketOf;
@@ -1310,7 +1527,7 @@ ST.statSlice = q => {
       if(!map.has(key)) map.set(key, {key, parts: path.slice(0, lvl), rows: []});
       map.get(key).rows.push(r);
     });
-    return [...map.values()].sort((a,b) => a.key.localeCompare(b.key,'ru')).map(g => {
+    return [...map.values()].sort((a,b) => a.key.localeCompare(b.key,'ru',{numeric:true})).map(g => {
       const nd = node(g.key, g.parts, g.rows, lvl);
       if(lvl < depth) nd.children = branchAt(g.rows, lvl + 1);
       nd.own = nd.n - nd.children.reduce((x,c) => x + c.n, 0);
@@ -1327,7 +1544,7 @@ ST.statSlice = q => {
       if(!map.has(key)) map.set(key, {key, parts, rows: []});
       map.get(key).rows.push(r);
     });
-    groups = [...map.values()].sort((a,b) => a.key.localeCompare(b.key,'ru'))
+    groups = [...map.values()].sort((a,b) => a.key.localeCompare(b.key,'ru',{numeric:true}))
       .map(g => node(g.key, g.parts, g.rows, 1));
   }
   const total = inds.reduce((acc, m) => { acc[m] = aggValue(m, rows); return acc; }, {});
@@ -1806,8 +2023,19 @@ function pickBar(){
   const objs = st.objects.map(x => chip(x.id === st.q.obj, x.name, "ST.pickObj('"+x.id+"')")).join('');
   const dims = o.dims.map(d => chip(st.q.dims.indexOf(d) >= 0, DIM(d).name, "ST.toggleDim('"+d+"')",
     DIM(d).since > st.q.date)).join('');
-  const inds = o.inds.filter(m => IND(m).src === 'агрегат')
-    .map(m => chip(st.q.inds.indexOf(m) >= 0, IND(m).name, "ST.toggleInd('"+m+"')")).join('');
+  /* 33 агрегата кредита плоской лентой нечитаемы. Блок берётся из поля grp записи —
+     ни одного названия блока в разметке нет: заведут показатель с новым grp, и блок
+     появится сам (ИС-18 держит сборщик строк, здесь тот же приём для экрана). */
+  const aggChip = m => chip(st.q.inds.indexOf(m) >= 0, IND(m).name, "ST.toggleInd('"+m+"')");
+  const aggs = o.inds.filter(m => IND(m).src === 'агрегат');
+  const blocks = [];
+  aggs.forEach(m => { const g = IND(m).grp || '';
+    const b = blocks.find(x => x.g === g) || (blocks.push({g, ms: []}), blocks[blocks.length - 1]);
+    b.ms.push(m); });
+  const inds = blocks.length > 2
+    ? blocks.map(b => (b.g ? '<span class="chips-grp">'+esc(b.g)+'</span>' : '')+
+        b.ms.map(aggChip).join('')).join('')
+    : aggs.map(aggChip).join('');
   const modes = [['slice','Срез — сколько и на сколько'],['series','Ряд — как менялось'],['rows','Строки — кто именно']]
     .map(([k,n]) => chip(st.q.mode === k, n, "ST.setMode('"+k+"')")).join('');
   /* Уровень и корзина — не «настройки отображения», а часть вопроса: они меняют то,
@@ -1977,8 +2205,8 @@ function rowsBlock(refs, title){
   return (title ? '' : passportHtml(res.passport))+
     '<div class="card"><h3>'+esc(title || 'Строки среза')+' <span class="small">— '+res.rows.length+' шт.</span>'+
     (title ? ' <button class="btn btn-secondary btn-sm" onclick="ST.clearDrill()">закрыть детализацию</button>' : '')+'</h3>'+
-    '<table class="cgrid"><thead><tr>'+head+'</tr></thead><tbody>'+
-    (body || '<tr><td colspan="12" class="muted">строк нет</td></tr>')+'</tbody></table>'+
+    '<div class="tscroll"><table class="cgrid"><thead><tr>'+head+'</tr></thead><tbody>'+
+    (body || '<tr><td colspan="12" class="muted">строк нет</td></tr>')+'</tbody></table></div>'+
     '<p class="note">'+(same
       ? '<b>Сходится с реестром «'+esc(o.owner)+'» один в один</b> ('+list.length+' из '+list.length+') — ИС-14.'
       : '<b class="pill err">расхождение с реестром</b> — это дефект, а не особенность (ИС-14).')+
@@ -2261,7 +2489,13 @@ function viewSetup(){
     '<td>'+o.inds.filter(m => IND(m).src !== 'агрегат').length+' строчных · '+
       o.inds.filter(m => IND(m).src === 'агрегат').length+' агрегатов</td>'+
     '<td class="num">'+(WORLD[o.id] || []).length+'</td></tr>').join('');
-  const inds = st.indicators.map(i => '<tr><td class="mono">'+esc(i.id)+'</td><td>'+esc(i.name)+'</td>'+
+  /* Реестр вырос до 85 записей: строки собраны по объекту, к которому объявлен показатель.
+     Порядок объектов — порядок их первого появления в реестре, а не напечатанный список. */
+  const indGrp = [];
+  st.indicators.forEach(i => { const k = i.obj;
+    const b = indGrp.find(x => x.k === k) || (indGrp.push({k, is: []}), indGrp[indGrp.length - 1]);
+    b.is.push(i); });
+  const indRow = i => '<tr><td class="mono">'+esc(i.id)+'</td><td>'+esc(i.name)+'</td>'+
     '<td>'+esc(i.obj === '*' ? 'любой' : OBJ(i.obj) ? OBJ(i.obj).name : i.obj)+'</td>'+
     '<td>'+(i.src === 'шов' ? '<span class="pill info">шов ядра</span> <span class="mono">'+esc(i.seam)+'.'+esc(i.field)+'</span>' :
       i.src === 'поле' ? '<span class="pill neutral">поле объекта</span> <span class="mono">'+esc(i.key)+'</span>' :
@@ -2274,7 +2508,12 @@ function viewSetup(){
       '\')">снять</button>'+(i.src === 'агрегат' ? ' <button class="btn btn-secondary btn-sm" onclick="ST.liveUI(\''+
       i.id+'\','+(ST.liveOf(i.id).live ? 'false' : 'true')+')">'+(ST.liveOf(i.id).live ? 'считать прогоном' :
       'считать налету')+'</button>' : '')+'</td>' : '<td class="muted small">ведёт администратор</td>')+
-    '</tr>').join('');
+    '</tr>';
+  const inds = indGrp.map(b => '<tr class="grp"><td colspan="8"><b>'+
+    esc(b.k === '*' ? 'Любой объект' : OBJ(b.k) ? OBJ(b.k).name : b.k)+'</b> <span class="small">— '+
+    b.is.length+' записей: '+b.is.filter(i => i.src !== 'агрегат').length+' строчных · '+
+    b.is.filter(i => i.src === 'агрегат').length+' агрегатов</span></td></tr>'+
+    b.is.map(indRow).join('')).join('');
   const refCard = st.retire ? '<div class="card"><h3>Снятие показателя «'+esc(IND(st.retire.id) ?
       IND(st.retire.id).name : st.retire.id)+'» — что сломается</h3>'+
     '<div class="banner warn">'+esc(st.retire.why)+'</div>'+
@@ -2305,7 +2544,7 @@ function refCell(id){
 }
   const forms = ST.canAdmin() ? '<div class="card"><h3>Завести показатель</h3>'+
     '<div class="form-row">'+
-    '<div class="fld"><label>Идентификатор</label><input id="iId" value="m-fee"></div>'+
+    '<div class="fld"><label>Идентификатор</label><input id="iId" value="m-idle"></div>'+
     '<div class="fld"><label>Наименование</label><input id="iName" value="Плата за неосвоенный остаток"></div>'+
     '<div class="fld"><label>Объект</label><select id="iObj">'+
       st.objects.map(o => '<option value="'+o.id+'">'+esc(o.name)+'</option>').join('')+'</select></div>'+
