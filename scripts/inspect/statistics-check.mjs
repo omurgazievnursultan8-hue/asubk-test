@@ -326,12 +326,12 @@ const TODAY = '2026-08-21';
 
 /* ---------- M. Сторож текста: инварианты и решения названы в файле ---------- */
 (() => {
-  const iss = Array.from({ length: 25 }, (_, i) => 'ИС-' + (i + 1)).filter(k => !new RegExp(k + '(\\D|$)').test(src));
+  const iss = Array.from({ length: 30 }, (_, i) => 'ИС-' + (i + 1)).filter(k => !new RegExp(k + '(\\D|$)').test(src));
   const adrs = ['ADR-0145','ADR-0146','ADR-0147','ADR-0148','ADR-0149','ADR-0150','ADR-0151','ADR-0152',
-                'ADR-0176','ADR-0177','ADR-0178','ADR-0179']
+                'ADR-0176','ADR-0177','ADR-0178','ADR-0179','ADR-0180','ADR-0183','ADR-0184','ADR-0185','ADR-0186']
     .filter(a => !src.includes(a));
   ok(42, iss.length === 0 && adrs.length === 0,
-    `в файле названы все 25 инвариантов и 12 решений двух волн${iss.length ? ' · нет: ' + iss.join(',') : ''}${adrs.length ? ' · нет: ' + adrs.join(',') : ''}`);
+    `в файле названы все 30 инвариантов и 17 решений${iss.length ? ' · нет: ' + iss.join(',') : ''}${adrs.length ? ' · нет: ' + adrs.join(',') : ''}`);
 
   const screens = ['Конструктор среза','Журнал срезов','Выгрузки','Реестры'].filter(s => !src.includes(s));
   ok(43, screens.length === 0 && !/ST\.editRow|правка строки среза\s*—\s*экран/i.test(src),
@@ -591,6 +591,139 @@ const TODAY = '2026-08-21';
   ok(68, dated.length === 0 && sched.ok && sched.total['a-avgndays'].v > 0 &&
         ST.IND('m-ndays').unit === 'дн.' && ST.IND('m-fdays').unit === 'дн.',
     `показателя типа «дата» в реестре нет ни одного: график отвечает днями — ближайший платёж минимум через ${sched.ok ? sched.total['a-minndays'].v : '—'} дн., в среднем ${sched.ok ? sched.total['a-avgndays'].v : '—'} дн. (ИС-26)`);
+})();
+
+/* ---------- U. Волна 7: полный состав показателей заёмщика ----------
+   Заёмщик — не свёртка кредитов, но и не второй счётчик того же: его величины приходят
+   ПОРТФЕЛЬНЫМ швом ядра (ADR-0174, ADR-0184), а держит их тождество «свод = сумма
+   одиночных ответов», проверяемое по каждой валюте до копейки. */
+(() => {
+  ST.seed();
+  const OWN = ['calcPortfolio','riskCategory','leadCurator'];
+  const SINGLE = ['calcDebt','calcAccrual','calcAllocation','calcSchedule','calcForecast'];
+  const bInds = ST.OBJ('obj-borrower').inds.map(i => ST.IND(i)).filter(i => i.src !== 'агрегат');
+  const alien = bInds.filter(i => i.src === 'шов' && SINGLE.indexOf(i.seam) >= 0);
+  const fields = bInds.filter(i => i.src === 'поле').map(i => i.key);
+  ok(69, bInds.length === 20 && alien.length === 0 &&
+        bInds.filter(i => i.src === 'шов').every(i => OWN.indexOf(i.seam) >= 0) &&
+        bInds.filter(i => i.seam === 'calcPortfolio').length === 14,
+    `у заёмщика ${bInds.length} строчных показателей, и ни один не берёт шов ОДНОГО кредита${alien.length ? ': ' + alien.map(i => i.id).join(', ') : ''}: величины портфеля спрашиваются портфельным вопросом (ИС-28, ADR-0184 §1); полем осталось только собственное — ${fields.join(', ')}`);
+
+  /* Свод портфеля = сумма одиночных ответов, ПО КАЖДОЙ ВАЛЮТЕ и до копейки. Курса в
+     проверке нет вовсе: сравниваются доллары с долларами (ADR-0174 §2, ADR-0184 §3). */
+  const crows = ST.statRows({obj:'obj-credit', date: TODAY}).rows;
+  const brows = ST.statRows({obj:'obj-borrower', date: TODAY}).rows;
+  const single = {};
+  crows.forEach(r => {
+    const inn = r.dims['d-binn'], c = r.inds['m-total'];
+    if(!inn || !c) return;
+    single[inn] = single[inn] || {};
+    single[inn][c.cur] = Math.round(((single[inn][c.cur] || 0) + c.v) * 100) / 100;
+  });
+  const broken = [];
+  brows.forEach(r => {
+    const parts = ST.partsOf(r.inds['m-btotal']);
+    const want = single[r.ref] || {};
+    Object.keys(want).forEach(cur => {
+      const got = parts.find(x => x.cur === cur);
+      if(!got || Math.abs(got.v - want[cur]) > 0.01) broken.push(r.ref + ' ' + cur);
+    });
+    if(parts.length !== Object.keys(want).length) broken.push(r.ref + ' состав');
+    /* Тождество ядра «остаток = просрочено + срочно» держится и на строке заёмщика —
+       по каждой валюте отдельно (ADR-0183 §3 применительно к портфелю). */
+    const o = ST.partsOf(r.inds['m-bover']), c = ST.partsOf(r.inds['m-bcurr']);
+    parts.forEach(t => {
+      const op = (o.find(x => x.cur === t.cur) || {v:0}).v;
+      const cp = (c.find(x => x.cur === t.cur) || {v:0}).v;
+      if(Math.abs(t.v - (op + cp)) > 0.01) broken.push(r.ref + ' ' + t.cur + ' тождество');
+    });
+  });
+  const checked = Object.keys(single).length;
+  ok(70, brows.length === 8 && checked >= 5 && broken.length === 0,
+    `свод портфеля равен сумме одиночных ответов по каждой валюте у всех ${checked} заёмщиков с договорами${broken.length ? ' · ломается: ' + broken.join(', ') : ''}, и на строке заёмщика держится остаток = просрочено + срочно (ADR-0174 §2)`);
+
+  /* Разновалютный портфель молчит одним числом и говорит составом. Сомовый эквивалент
+     считается при показе из тех же частей и в строке не лежит (ИС-15, ADR-0151 §2). */
+  const mix = brows.find(r => r.dims['d-bcur'] === 'разновалютный');
+  const mixCell = mix ? mix.inds['m-btotal'] : null;
+  const mixParts = ST.partsOf(mixCell);
+  const stored = brows.some(r => Object.keys(r.inds).some(k => 'som' in r.inds[k] || 'сом' in r.inds[k]));
+  const agg = ST.statSlice({obj:'obj-borrower', dims:['d-ptype'], inds:['a-sumbtotal'], date: TODAY});
+  const tot = agg.ok ? agg.total['a-sumbtotal'] : null;
+  ok(71, mixCell && mixCell.v == null && mixParts.length === 2 && ST.somOf(mixCell) > 0 &&
+        !stored && tot && tot.mixed && tot.mixed.length === 3 && tot.by &&
+        has(tot.note, 'EUR') && has(tot.note, 'USD'),
+    `разновалютный портфель (${mix ? mix.ref : '—'}) называет состав ${mixParts.map(x => x.v + ' ' + x.cur).join(' + ')} и молчит одним числом; в сом сводится при показе (≈ ${mixCell ? ST.somOf(mixCell) : '—'}), в строке эквивалента нет; итог называет состав поимённо: «${tot ? String(tot.note).slice(0, 64) : '—'}…»`);
+
+  /* Число договоров — клетка шва, а не поле владельца: производная в поле есть второй
+     источник (ADR-0001). Доказательство — оно меняется вслед за СТАТУСОМ договора. */
+  const cnt = ST.IND('m-bcnt');
+  const was = ST.statRows({obj:'obj-borrower', date:'2026-05-31'}).rows.find(r => r.ref === '45607195804119');
+  const now = brows.find(r => r.ref === '45607195804119');
+  const stale = ST.state.indicators.filter(i => i.src === 'поле' && i.key === 'contracts');
+  ok(72, cnt.src === 'шов' && cnt.seam === 'calcPortfolio' && stale.length === 0 &&
+        was && was.inds['m-bcnt'].v === 1 && now.inds['m-bcnt'].v === 0 &&
+        now.inds['m-bclosed'].v === 1,
+    `число договоров приходит швом и следует за статусом: у 45607195804119 на 31.05 — ${was ? was.inds['m-bcnt'].v : '—'} действующий, на 18.08 — ${now.inds['m-bcnt'].v} действующих и ${now.inds['m-bclosed'].v} закрытый; поля «contracts» в реестре нет (ADR-0184 §2)`);
+
+  /* Типизированное правило агрегата (ADR-0185 §3, ИС-29) — по ВСЕМ восьми объектам:
+     у числа и суммы агрегат обязателен, у перечисления и булева запрещён. */
+  const NUM = ['число','сумма'], FLAT = ['перечисление','булево'];
+  const need = [], forbid = [];
+  ST.state.objects.forEach(o => o.inds.map(i => ST.IND(i)).filter(i => i && i.src !== 'агрегат')
+    .forEach(i => {
+      const aggs = ST.state.indicators.filter(a => a.src === 'агрегат' && a.over === i.id);
+      if(NUM.indexOf(i.type) >= 0 && aggs.length === 0) need.push(i.id);
+      if(FLAT.indexOf(i.type) >= 0 && aggs.length > 0) forbid.push(i.id);
+    }));
+  const flat = ST.state.indicators.filter(i => FLAT.indexOf(i.type) >= 0);
+  ok(73, need.length === 0 && forbid.length === 0 && flat.length === 5,
+    `правило агрегата типизировано и проверено на всех ${ST.state.objects.length} объектах: без пары ${need.length}, с лишней парой ${forbid.length}; ${flat.length} показателей-перечислений и булевых входят в срез разрезом либо сравнением, а не средним (ИС-29)`);
+
+  /* Подгруппа — ОДИН разрез с двумя уровнями: группа есть первая цифра подгруппы, как в
+     модуле-владельце. Второй записи «Группа» в реестре нет (ADR-0185 §1, ADR-0012). */
+  const sg = ST.statSlice({obj:'obj-borrower', dims:['d-subgroup'], inds:['a-count'], date: TODAY});
+  const dsg = ST.DIM('d-subgroup');
+  const kids = sg.ok ? sg.groups.reduce((a, g) => a.concat(g.children.map(c => c.parts)), []) : [];
+  const derived = kids.every(pr => pr[0] === pr[1].slice(0, 1));
+  const twins = ST.state.dims.filter(d => d.field === 'subgroup');
+  ok(74, sg.ok && dsg.levels.length === 2 && dsg.owner === 'Классификация' &&
+        kids.length > 0 && derived && twins.length === 1 &&
+        sg.groups.reduce((a, g) => a + g.n, 0) === 8,
+    `группа выводится из подгруппы, а не заводится вторым разрезом: ${kids.map(k => k.join(' / ')).join(' · ')}; записей о подгруппе в реестре ${twins.length}, владелец — «${dsg.owner}» (ADR-0185 §1)`);
+
+  /* Ведущий куратор ВЫЧИСЛЯЕТСЯ (куратор договора с наибольшим остатком ОД), а не
+     назначается; «ведущего подразделения» хранимым полем не бывает (ТЗ 16 §3.2, §11). */
+  const bd = ST.OBJ('obj-borrower').dims.map(d => ST.DIM(d));
+  const kept = bd.filter(d => d.src === 'история' && ['curator','branch'].indexOf(d.key) >= 0);
+  const lead = brows.find(r => r.ref === '22903197505433');
+  const his = crows.filter(r => r.dims['d-binn'] === '22903197505433')
+    .map(r => r.dims['d-curator'] + ' (' + r.inds['m-debt'].v + ')');
+  ok(75, kept.length === 0 && ST.DIM('d-lcurator').seam === 'leadCurator' &&
+        ST.DIM('d-lbranch').seam === 'leadCurator' && lead.dims['d-lcurator'] === 'Асанов А.' &&
+        his.length === 2,
+    `ведущий куратор вычислен, а не закреплён: у 22903197505433 договоры ведут ${his.join(' и ')}, ведущим стал ${lead.dims['d-lcurator']} — по наибольшему остатку ОД; разрезов «куратор/подразделение» с источником-историей у заёмщика ${kept.length} (ТЗ 16 §11, P18-R16)`);
+
+  /* Счёт объектов другого уровня — вопрос ТОМУ объекту (ADR-0186, ИС-30). Срез кредитов
+     по ИНН показывает шесть заёмщиков, а их восемь: двое без договоров в него не попадают
+     вовсе — распределённый счёт ответил бы на другой вопрос, не заметив этого. */
+  const dist = ST.addIndicator({id:'a-cdinn', name:'Заёмщиков в срезе', obj:'obj-credit',
+    src:'агрегат', fn:'countDistinct', over:'m-total'});
+  const byInn = ST.statSlice({obj:'obj-credit', dims:['d-binn'], inds:['a-count'], date: TODAY});
+  const all = ST.statSlice({obj:'obj-borrower', dims:[], inds:['a-count'], date: TODAY});
+  ok(76, !dist.ok && has(dist.why, 'ИС-30') && ST.aggFns().length === 5 &&
+        byInn.ok && byInn.groups.length === 6 && all.ok && all.total['a-count'].v === 8,
+    `счёт объектов другого уровня отбит и направлен: «${String(dist.why).slice(0, 62)}…»; в срезе кредитов заёмщиков видно ${byInn.groups.length}, а их ${all.total['a-count'].v} — двое без договоров, и правильный ответ даёт только сам объект (ADR-0186)`);
+
+  /* Заёмщик без договоров ВООБЩЕ остаётся строкой среза: число договоров у него честный
+     ноль, а суммы ОТСУТСТВУЮТ — «ноль» пришлось бы назвать в какой-то валюте. */
+  const empty = brows.find(r => r.ref === '77105198711204');
+  const inSlice = ST.statSlice({obj:'obj-borrower', dims:['d-bstate'], inds:['a-count','a-sumbtotal'], date: TODAY});
+  const g = inSlice.ok ? inSlice.groups.find(x => x.key === 'без договоров') : null;
+  ok(77, empty && empty.inds['m-bcnt'].v === 0 && !empty.inds['m-btotal'] &&
+        !empty.inds['m-bodays'] && empty.dims['d-bstate'] === 'без договоров' &&
+        g && g.n === 2 && g.values['a-sumbtotal'].v === 0,
+    `заёмщик без договоров вовсе не исчезает и не подделывается нулём: строка есть, договоров ${empty.inds['m-bcnt'].v}, свода нет вовсе, состояние «${empty.dims['d-bstate']}» — таких ${g ? g.n : '—'} (ИС-19)`);
 })();
 
 /* ---- отчёт ---- */

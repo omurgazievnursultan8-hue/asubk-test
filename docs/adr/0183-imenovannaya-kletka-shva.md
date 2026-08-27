@@ -2,7 +2,7 @@
 
 **Статус:** принято · 2026-08-27 · модуль «Статистика» (потребители — отчётность, дашборд,
 анализ, надзор) · опирается на
-[ADR-0150](./0150-pokazatel-obyavlyaet-istochnik-bez-formuly.md) (показатель объявляет
+[ADR-0150](./0150-pokazatel-obyavlennyy-istochnik-a-ne-formula.md) (показатель объявляет
 источник и не несёт формулы),
 [ADR-0179](./0179-mnogoznachnost-razreza-nizhelezhashchiy-obekt.md) (многозначность —
 нижележащий объект, а не набор показателей),
