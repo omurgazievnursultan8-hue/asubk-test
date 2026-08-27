@@ -580,7 +580,7 @@ const TODAY = '2026-08-21';
   const covered = base.filter(m => ST.state.indicators.some(i => i.src === 'агрегат' && i.over === m));
   const seams = ['calcDebt','calcAccrual','calcAllocation','calcSchedule','calcForecast']
     .filter(sm => !base.some(m => ST.IND(m).seam === sm));
-  ok(67, base.length === 28 && covered.length === base.length && seams.length === 0,
+  ok(67, base.length === 31 && covered.length === base.length && seams.length === 0,
     `у кредита ${base.length} строчных показателей, и у каждого есть агрегат — иначе в срез он не попадёт (#36); пять швов ядра прочитаны, непрочитанных нет${seams.length ? ': ' + seams.join(', ') : ''}`);
 
   /* ИС-26: дата на срезе выражается числом дней от даты вопроса — среднюю дату
@@ -677,7 +677,7 @@ const TODAY = '2026-08-21';
       if(FLAT.indexOf(i.type) >= 0 && aggs.length > 0) forbid.push(i.id);
     }));
   const flat = ST.state.indicators.filter(i => FLAT.indexOf(i.type) >= 0);
-  ok(73, need.length === 0 && forbid.length === 0 && flat.length === 5,
+  ok(73, need.length === 0 && forbid.length === 0 && flat.length === 6,
     `правило агрегата типизировано и проверено на всех ${ST.state.objects.length} объектах: без пары ${need.length}, с лишней парой ${forbid.length}; ${flat.length} показателей-перечислений и булевых входят в срез разрезом либо сравнением, а не средним (ИС-29)`);
 
   /* Подгруппа — ОДИН разрез с двумя уровнями: группа есть первая цифра подгруппы, как в
@@ -724,6 +724,131 @@ const TODAY = '2026-08-21';
         !empty.inds['m-bodays'] && empty.dims['d-bstate'] === 'без договоров' &&
         g && g.n === 2 && g.values['a-sumbtotal'].v === 0,
     `заёмщик без договоров вовсе не исчезает и не подделывается нулём: строка есть, договоров ${empty.inds['m-bcnt'].v}, свода нет вовсе, состояние «${empty.dims['d-bstate']}» — таких ${g ? g.n : '—'} (ИС-19)`);
+})();
+
+/* ---------- V. Волна 8: полный состав показателей залога ----------
+   Предмет залога обеспечивает МНОГО кредитов долями, и кредит обеспечен МНОГИМИ предметами.
+   Шов одного кредита показателем предмета быть не может по той же причине, по какой им не
+   стал шов одного кредита у заёмщика (ИС-28), но владелец у вопроса другой: множество
+   выбирает junction ОТНЕСЕНИЕ_ЗАЛОГА, и долю в нём знает только залог (ИС-31, ADR-0190).
+   Держит всё тождество «сумма требований по предметам = сумма под риском по кредитам». */
+(() => {
+  const CORE_SEAMS = ['calcDebt','calcAccrual','calcAllocation','calcSchedule','calcForecast'];
+  const zr = ST.statRows({obj:'obj-collateral', date: TODAY});
+  const cr = ST.statRows({obj:'obj-credit', date: TODAY});
+  const zrows = zr.ok ? zr.rows : [];
+  const crows = cr.ok ? cr.rows : [];
+  const Z = ref => zrows.find(r => r.ref === ref);
+  const C = ref => crows.find(r => r.ref === ref);
+
+  /* Владелец портфельного шва — владелец МНОЖЕСТВА, а не всегда ядро (ИС-31). Ядро отвечает
+     о ДОГОВОРЕ и правильно делает; сложить его ответы по долям вправе только залог. */
+  const cinds = ST.OBJ('obj-collateral').inds.map(i => ST.IND(i)).filter(Boolean);
+  const seamed = cinds.filter(i => i.src === 'шов');
+  const single = seamed.filter(i => CORE_SEAMS.indexOf(i.seam) >= 0);
+  const pledge = seamed.filter(i => i.seam === 'calcPledge');
+  const covD = ['d-covstate','d-covreq'].map(d => ST.DIM(d));
+  const covI = ST.OBJ('obj-credit').inds.map(i => ST.IND(i))
+    .filter(i => i && i.seam === 'calcCoverage');
+  ok(78, single.length === 0 && pledge.length === seamed.length && seamed.length === 9 &&
+        covI.length === 3 && covD.every(d => d.seam === 'calcCoverage' && d.owner === 'Залог'),
+    `владелец шва есть владелец МНОЖЕСТВА: у предмета ${seamed.length} шовных показателей и все идут calcPledge, шов ОДНОГО кредита не читает ни один (${single.length}); обеспеченность кредита приходит calcCoverage — швом залога, не ядра (ИС-31, ADR-0190 §1)`);
+
+  /* Тождество волны: требование предмета взвешено его долей в обеспечении кредита, и потому
+     сумма по предметам РАВНА сумме под риском обеспеченных кредитов — по каждой валюте до
+     копейки. Прежняя запись (шов одного кредита) на этом тождестве и ломалась. */
+  const acc = (rows, id) => { const by = {};
+    rows.forEach(r => { const c = r.inds[id]; if(!c) return;
+      (c.parts || [{cur: c.cur, value: c.v}]).forEach(p =>
+        by[p.cur] = Math.round(((by[p.cur] || 0) + p.value) * 100) / 100); });
+    return by; };
+  const left  = acc(zrows, 'm-csec');
+  const right = acc(crows.filter(r => r.inds['m-secured']), 'm-crisk');
+  const curs = Object.keys(left);
+  const tied = curs.length === Object.keys(right).length &&
+               curs.every(c => Math.abs(left[c] - right[c]) < 0.01);
+  const dbl = Z('ЗЛ-2022/18');
+  const pair = ['КД-2022/065','КД-2023/210'].map(C).filter(Boolean);
+  const naive = pair.reduce((a, r) => a + r.inds['m-crisk'].v, 0);
+  ok(79, zrows.length === 7 && tied && curs.length > 0 && dbl && pair.length === 2 &&
+        dbl.inds['m-csec'].v < naive,
+    `требование предмета взвешено долей: сумма по ${zrows.length} предметам сходится с суммой под риском ${crows.filter(r => r.inds['m-secured']).length} обеспеченных кредитов до копейки (${curs.map(c => left[c] + ' ' + c).join(' + ')}); у предмета под двумя договорами она ${dbl ? dbl.inds['m-csec'].v : '—'} против ${naive} «в лоб» — прежняя запись считала бы второе (ADR-0190 §2)`);
+
+  /* База обеспечения — сумма под риском, а не остаток ОД (ADR-0011): невыбранный лимит
+     обеспечивать обязаны заранее. Один и тот же предмет с одной базой порог берёт, с
+     другой — нет; это не оттенок формулировки, а разный исход гейта. */
+  const line = C('КД-2026/007');
+  const sec = line ? line.inds['m-secured'].v : 0;
+  const risk = line ? line.inds['m-crisk'].v : 0;
+  const od = line ? line.inds['m-debt'].v : 0;
+  const byOd = od ? Math.round(sec / od * 1000) / 10 : 0;
+  const byRisk = risk ? Math.round(sec / risk * 1000) / 10 : 0;
+  ok(80, line && risk > od && byOd >= 120 && byRisk < 120 &&
+        line.dims['d-covstate'] === 'ниже порога' && line.dims['d-covreq'] === '120 %',
+    `база решает исход: обеспечение ${sec} против остатка ОД ${od} — ${byOd} % и порог взят, против суммы под риском ${risk} (те же плюс ${Math.round((risk - od) * 100) / 100} неосвоенных) — ${byRisk} %, и состояние «${line ? line.dims['d-covstate'] : '—'}» (ADR-0011)`);
+
+  /* Предмет — ВЕЩЬ: у неё своя валюта оценки (ADR-0009) и своя дата принятия. Реквизитами
+     договора вещь не режется — после перезалога договоров у неё много (ИС-21). Две оси
+     состояния независимы (§3.1): «в залоге» при просроченном запрете — не противоречие. */
+  const cd = ST.OBJ('obj-collateral').dims.map(d => ST.DIM(d));
+  const dealD = cd.filter(d => d.id === 'd-cur' || d.id === 'd-zdate');
+  const kind = ST.DIM('d-collkind');
+  const z77 = Z('ЗЛ-2023/77');
+  ok(81, dealD.length === 0 && cd.length === 11 && ST.DIM('d-ccur').key === 'cur' &&
+        ST.DIM('d-ccur').owner === 'Залог' && ST.DIM('d-cadm').key === 'adm' &&
+        kind.levels && kind.levels.length === 2 && kind.ref === 'collkind' &&
+        z77 && z77.dims['d-czstate'] === 'в залоге' && z77.dims['d-cban'] === 'просрочен' &&
+        z77.dims['d-collkind'][0] === 'движимый неликвидный',
+    `у вещи своя валюта оценки и своя дата принятия: разрезов ДОГОВОРА («валюта договора», «дата залогового договора») у предмета ${dealD.length} из ${cd.length}; вид двухуровневый — класс ликвидности берётся справочником владельца; две оси состояния независимы: ЗЛ-2023/77 «${z77 ? z77.dims['d-czstate'] : '—'}» при запрете «${z77 ? z77.dims['d-cban'] : '—'}» (ADR-0009, §3.1, ИС-21)`);
+
+  /* Отношение двух величин показателем не бывает (ИС-32): в срез входят числитель и
+     знаменатель, индекс считается при чтении — как сомовый эквивалент (ИС-15). Иначе он
+     стал бы третьей хранимой величиной, расходящейся с обеими своими частями. */
+  const ratios = ST.state.indicators.filter(i => i.unit === '%' || i.type === 'доля' ||
+    /обеспеченност|покрыти|индекс/i.test(i.name || ''));
+  const w = C('КД-2024/117');
+  const idx = w ? Math.round(w.inds['m-secured'].v / w.inds['m-crisk'].v * 1000) / 10 : 0;
+  ok(82, ratios.length === 0 && w && w.inds['m-secured'] && w.inds['m-crisk'] &&
+        idx >= 120 && w.dims['d-covstate'] === 'обеспечен' && w.dims['d-covreq'] === '120 %',
+    `отношения показателем нет ни одного (${ratios.length} записей с единицей «%» или типом «доля»): в строке лежат числитель ${w ? w.inds['m-secured'].v : '—'} и знаменатель ${w ? w.inds['m-crisk'].v : '—'}, индекс ${idx} % считается при чтении, а требуемый порог назван разрезом (ИС-32, ИС-15)`);
+
+  /* Предмет без отнесений — та же форма, что заёмщик без договоров (ИС-19): строка есть,
+     число кредитов честный ноль, а ТРЕБОВАНИЯ отсутствуют вовсе — «ноль» пришлось бы
+     назвать в какой-то валюте и по какому-то кредиту, а их нет. */
+  const free = Z('ЗЛ-2025/60');
+  const ctl = ST.statSlice({obj:'obj-collateral', dims:['d-cctl'], inds:['a-count'], date: TODAY});
+  ok(83, free && free.inds['m-ccred'].v === 0 && free.inds['m-cdeals'].v === 0 &&
+        !free.inds['m-csec'] && free.inds['m-calloc'].v === 0 &&
+        free.inds['m-cfree'].v === free.inds['m-cpledge'].v &&
+        free.dims['d-cctl'] === 'отнесений нет' && !free.dims['d-csolv'] &&
+        ctl.ok && ctl.groups.length === 5,
+    `предмет без отнесений остаётся строкой: кредитов ${free ? free.inds['m-ccred'].v : '—'}, требований нет ВОВСЕ, доступная залоговая равна всей залоговой (${free ? free.inds['m-cfree'].v : '—'}), группы платёжеспособности нет — резолвить не от кого; состояний контроля в срезе ${ctl.ok ? ctl.groups.length : '—'} (ИС-19)`);
+
+  /* Периодичность обследования — матрица «группа платёжеспособности × движимое/недвижимое»
+     (Р-3), а не свойство вида: одна и та же недвижимость смотрится раз в год у платящего
+     и раз в квартал у третьей группы. Банкрот — по договору со спецадминистратором, и
+     авто-просрочка ему не поднимается вовсе: срока нет, а не «срок нарушен». */
+  const bank = zrows.filter(r => r.dims['d-cctl'] === 'по договору со спецадминистратором');
+  const re = Z('ЗЛ-2024/41');
+  const mv = Z('ЗЛ-2025/09');
+  const grid = re && mv && re.inds['m-csurv'].v + re.inds['m-cnext'].v === 365 &&
+               mv.inds['m-csurv'].v + mv.inds['m-cnext'].v === 90;
+  ok(84, grid && bank.length === 3 && bank.every(r => !r.inds['m-cnext']) &&
+        re.dims['d-csolv'][0] === '1' && mv.dims['d-csolv'][0] === '2' &&
+        mv.dims['d-cctl'] === 'просрочен' && mv.inds['m-cnext'].v < 0,
+    `срок контроля берётся матрицей «группа × движимое/недвижимое», а не видом: недвижимость группы 1 — 365 дн. (осталось ${re ? re.inds['m-cnext'].v : '—'}), движимое группы 2 — 90 дн. и просрочка ${mv ? mv.inds['m-cnext'].v : '—'}; у ${bank.length} предметов банкрота контроль «по договору со спецадминистратором», авто-просрочка не поднимается (Р-3)`);
+
+  /* Перезалог (§4.1): предмет стоит под несколькими нашими договорами, каждый следующий —
+     на ОСТАТОЧНУЮ залоговую стоимость. Инвариант junction: Σ долей ≤ залоговой, и она же
+     раскладывается на отнесённое плюс доступное — на каждом предмете без исключения. */
+  const over = zrows.filter(r => r.inds['m-calloc'].v > r.inds['m-cpledge'].v + 0.001);
+  const closed = zrows.every(r => Math.abs(r.inds['m-cpledge'].v - r.inds['m-calloc'].v -
+                                           r.inds['m-cfree'].v) < 0.01);
+  const kf = dbl ? Math.round(dbl.inds['m-cval'].v * 0.7 * 100) / 100 : 0;
+  ok(85, over.length === 0 && closed && dbl && dbl.inds['m-cdeals'].v === 2 &&
+        dbl.inds['m-ccred'].v === 2 && dbl.inds['m-cpledge'].v === kf &&
+        dbl.inds['m-cfree'].v > 0,
+    `перезалог: ЗЛ-2022/18 стоит под ${dbl ? dbl.inds['m-cdeals'].v : '—'} договорами и ${dbl ? dbl.inds['m-ccred'].v : '—'} кредитами, отнесено ${dbl ? dbl.inds['m-calloc'].v : '—'} из залоговых ${dbl ? dbl.inds['m-cpledge'].v : '—'} (оценочные ${dbl ? dbl.inds['m-cval'].v : '—'} × 0,7), доступно ${dbl ? dbl.inds['m-cfree'].v : '—'}; Σ долей не превышает залоговую нигде (${over.length} нарушений), и на всех ${zrows.length} предметах залоговая = отнесённое + доступное (§4.1, Р-19)`);
 })();
 
 /* ---- отчёт ---- */
