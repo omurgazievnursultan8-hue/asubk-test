@@ -40,13 +40,13 @@ const TODAY = '2026-08-21';
     `объектов ${st.objects.length}, показателей ${st.indicators.length}; без объявленного источника ${badSrc.length}, с формулой ${formula.length}, с функцией вне списка ${badFn.length} — ИС-6, ИС-7`);
 
   const b = ST.OBJ('obj-borrower');
-  ok(2, b && b.owner === 'Заёмщики' && b.meas.indexOf('m-bdebt') >= 0 &&
-       ST.OBJ('obj-credit').meas.indexOf('m-bdebt') < 0,
-    `заёмщик — самостоятельный объект со своими мерами, а не свёртка кредита (ИС-19)`);
+  ok(2, b && b.owner === 'Заёмщики' && b.inds.indexOf('m-bdebt') >= 0 &&
+       ST.OBJ('obj-credit').inds.indexOf('m-bdebt') < 0,
+    `заёмщик — самостоятельный объект со своими показателями, а не свёртка кредита (ИС-19)`);
 
   const shape = ST.ROW_SHAPE;
   ok(3, shape.length === 7 && shape.indexOf('som') < 0 && shape.indexOf('доля') < 0 &&
-       shape.join(',') === 'obj,ref,date,dims,meas,fixed,by',
+       shape.join(',') === 'obj,ref,date,dims,inds,fixed,by',
     `форма строки закрыта: ${shape.join(' · ')} — ни сомового эквивалента, ни долей, ни дельт (ИС-15)`);
 
   const edit = ST.tryEditRow();
@@ -62,44 +62,44 @@ const TODAY = '2026-08-21';
   const words = ['кредит','заём','заем','залог','взыскан','поручит','куратор','филиал','просрочк']
     .filter(w => new RegExp(w, 'i').test(builder));
   ok(5, words.length === 0,
-    `в сборщике строк (readDim/readMeas/buildRow/doRun) слов предметной области нет${words.length ? ': ' + words.join(', ') : ''} — ИС-18`);
+    `в сборщике строк (readDim/readInd/buildRow/doRun) слов предметной области нет${words.length ? ': ' + words.join(', ') : ''} — ИС-18`);
 
   ST.seed();
   const each = ST.state.objects.map(o => {
-    const r = ST.statSlice({obj: o.id, dims: [o.dims[0]], meas: ['a-count'], date: TODAY});
+    const r = ST.statSlice({obj: o.id, dims: [o.dims[0]], inds: ['a-count'], date: TODAY});
     return {name: o.name, ok: r.ok, n: r.ok ? r.n : 0, g: r.ok ? r.groups.length : 0};
   });
   ok(6, each.every(x => x.ok && x.n > 0) && each.length === 8,
     `восемь объектов одним движком: ${each.map(x => x.name + ' ' + x.n + '/' + x.g + ' групп').join(' · ')}`);
 
-  const cr = ST.statSlice({obj:'obj-credit', dims:['d-branch'], meas:['a-count','a-sumdebt'], date: TODAY});
-  const bo = ST.statSlice({obj:'obj-borrower', dims:['d-ptype'], meas:['a-count','a-sumbcnt'], date: TODAY});
-  ok(7, cr.ok && bo.ok && cr.dims[0] !== bo.dims[0] && cr.meas[1] !== bo.meas[1] &&
+  const cr = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count','a-sumdebt'], date: TODAY});
+  const bo = ST.statSlice({obj:'obj-borrower', dims:['d-ptype'], inds:['a-count','a-sumbcnt'], date: TODAY});
+  ok(7, cr.ok && bo.ok && cr.dims[0] !== bo.dims[0] && cr.inds[1] !== bo.inds[1] &&
        bo.groups.some(g => g.parts[0] === 'физическое лицо'),
-    `непохожая пара на одном движке: кредит по подразделениям (${cr.n}) и заёмщик по типу лица (${bo.n}) — разные разрезы, разные меры, разные множества`);
+    `непохожая пара на одном движке: кредит по подразделениям (${cr.n}) и заёмщик по типу лица (${bo.n}) — разные разрезы, разные показатели, разные множества`);
 
   const zero = ST.statRows({obj:'obj-borrower', date: TODAY}).rows.find(r => r.ref === '45607195804119');
-  ok(8, zero && zero.meas['m-bcnt'].v === 0,
-    `заёмщик без действующих кредитов в срезе есть (договоров ${zero && zero.meas['m-bcnt'].v}) — при свёртке кредитов он исчез бы вовсе (ИС-19)`);
+  ok(8, zero && zero.inds['m-bcnt'].v === 0,
+    `заёмщик без действующих кредитов в срезе есть (договоров ${zero && zero.inds['m-bcnt'].v}) — при свёртке кредитов он исчез бы вовсе (ИС-19)`);
 })();
 
 /* ---------- C. Шестой объект — строкой реестра, а не релизом ---------- */
 (() => {
   ST.seed();
-  const before = ST.statSlice({obj:'obj-guarantee', dims:[], meas:['a-count'], date: TODAY});
+  const before = ST.statSlice({obj:'obj-guarantee', dims:[], inds:['a-count'], date: TODAY});
   const mi = ST.addIndicator({id:'m-gsec', name:'Обеспечиваемые требования', obj:'obj-guarantee',
     src:'шов', seam:'calcDebt', field:'principal', money:true, type:'сумма'});
   const ai = ST.addIndicator({id:'a-sumgsec', name:'Обеспечено требований, итого', obj:'obj-guarantee',
     src:'агрегат', fn:'sum', over:'m-gsec'});
   const add = ST.addObject({id:'obj-guarantee', name:'Поручительство', plural:'поручительства',
     owner:'Обеспечение', refName:'номер поручительства',
-    dims:['d-branch','d-curator','d-region','d-ptype'], meas:['m-gsec','a-count','a-sumgsec']});
+    dims:['d-branch','d-curator','d-region','d-ptype'], inds:['m-gsec','a-count','a-sumgsec']});
   const run = ST.run('2026-08-20', {});
-  const after = ST.statSlice({obj:'obj-guarantee', dims:['d-region'], meas:['a-count','a-sumgsec'], date:'2026-08-20'});
+  const after = ST.statSlice({obj:'obj-guarantee', dims:['d-region'], inds:['a-count','a-sumgsec'], date:'2026-08-20'});
   ok(9, !before.ok && mi.ok && ai.ok && add.ok && run.ok && after.ok && after.n === 3 && after.groups.length === 3,
     `девятый объект заведён записью: до — «${before.why}», после — ${after.n} объектов в ${after.groups.length} группах, без единой правки движка (ИС-18)`);
 
-  const bad = ST.addObject({id:'obj-ghost', name:'Призрак', dims:[], meas:[]});
+  const bad = ST.addObject({id:'obj-ghost', name:'Призрак', dims:[], inds:[]});
   ok(10, !bad.ok && has(bad.why, 'владелец не отдаёт'),
     `объект без множества владельца не заводится: «${bad.why}» — статистика объектов не заводит, она их считает`);
 })();
@@ -159,9 +159,9 @@ const TODAY = '2026-08-21';
   ok(18, !bad.ok && has(bad.why, 'ИС-10') && has(bad.why, 'дата расчёта'),
     `ответа без паспорта не бывает: «${bad.why}»`);
 
-  const s = ST.statSlice({obj:'obj-credit', dims:['d-branch'], meas:['a-count'], date: TODAY});
+  const s = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date: TODAY});
   const r = ST.statRows({obj:'obj-credit', date: TODAY});
-  const q = ST.statSeries({obj:'obj-credit', meas:'a-sumdebt', dates:['2026-05-31','2026-06-30','2026-07-31','2026-08-18']});
+  const q = ST.statSeries({obj:'obj-credit', inds:'a-sumdebt', dates:['2026-05-31','2026-06-30','2026-07-31','2026-08-18']});
   const full = [s, r, q].every(x => x.ok && x.passport && x.passport.asOf && x.passport.fixation && x.passport.scope && x.passport.filter);
   ok(19, full && ST.seams().length === 3,
     `все три шва (${ST.seams().join(' · ')}) отдают паспорт с датой расчёта, признаком фиксации и областью видимости — ИС-10`);
@@ -175,7 +175,7 @@ const TODAY = '2026-08-21';
         q.points[3].fixation === 'не зафиксировано',
     `ряд честно называется смешанным: ${q.points.map(x => x.date.slice(0,7) + ' ' + x.fixation).join(' · ')} — ИС-10`);
 
-  const may = ST.statSlice({obj:'obj-credit', dims:[], meas:['a-count'], date:'2026-05-31'});
+  const may = ST.statSlice({obj:'obj-credit', dims:[], inds:['a-count'], date:'2026-05-31'});
   const d = ST.divergence('2026-05', 'obj-credit', 'm-debt');
   ok(22, may.passport.fixation === 'зафиксировано' && has(may.passport.divergence, 'корректировка') &&
         d.ok && d.shown && d.delta === 16320.17 && d.today > d.fixed,
@@ -185,9 +185,9 @@ const TODAY = '2026-08-21';
 /* ---------- G. Роли режут строки ДО группировки ---------- */
 (() => {
   ST.seed();
-  const all = ST.statSlice({obj:'obj-credit', dims:['d-branch'], meas:['a-count','a-sumdebt'], date: TODAY});
+  const all = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count','a-sumdebt'], date: TODAY});
   ST.setRole('Аналитик');
-  const mine = ST.statSlice({obj:'obj-credit', dims:['d-branch'], meas:['a-count','a-sumdebt'], date: TODAY});
+  const mine = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count','a-sumdebt'], date: TODAY});
   const list = ST.registryList('obj-credit', '2026-08-18');
   const refs = mine.groups.reduce((a, g) => a.concat(g.refs), []).sort();
   ok(23, mine.n < all.n && refs.join('|') === list.join('|') &&
@@ -213,13 +213,13 @@ const TODAY = '2026-08-21';
   ST.seed();
   const rows = ST.statRows({obj:'obj-credit', date:'2026-08-18'}).rows;
   const usd = rows.find(r => r.ref === 'КД-2025/043');
-  const cell = usd.meas['m-debt'];
-  const stored = rows.some(r => Object.keys(r.meas).some(k => 'som' in r.meas[k] || 'share' in r.meas[k]));
+  const cell = usd.inds['m-debt'];
+  const stored = rows.some(r => Object.keys(r.inds).some(k => 'som' in r.inds[k] || 'share' in r.inds[k]));
   ok(27, cell.cur === 'USD' && cell.rate === 88.30 && cell.rateDate === '2026-08-18' && !stored,
     `сумма — в валюте договора с курсом и датой курса (${cell.v} ${cell.cur} × ${cell.rate} от ${cell.rateDate}); сомовый эквивалент не хранится — ИС-16, ИС-15`);
 
-  const mixed = ST.statSlice({obj:'obj-credit', dims:[], meas:['a-sumdebt'], date:'2026-08-18'}).total['a-sumdebt'];
-  const one = ST.statSlice({obj:'obj-credit', dims:[], meas:['a-sumdebt'], date:'2026-08-18',
+  const mixed = ST.statSlice({obj:'obj-credit', dims:[], inds:['a-sumdebt'], date:'2026-08-18'}).total['a-sumdebt'];
+  const one = ST.statSlice({obj:'obj-credit', dims:[], inds:['a-sumdebt'], date:'2026-08-18',
     filter:{dim:'d-cur', value:'USD'}}).total['a-sumdebt'];
   ok(28, !!mixed.mixed && mixed.mixed.length === 3 && has(mixed.note, 'разновалютное') &&
         one.cur === 'USD' && !one.mixed,
@@ -229,8 +229,8 @@ const TODAY = '2026-08-21';
         ST.pointsBetween(12.4, 15.9) === 3.5,
     `доля, дельта и сомовый эквивалент считаются при показе (${ST.shareOf(1,4)}% · ${ST.pointsBetween(12.4,15.9)} п.п.) и не хранятся — ИС-15`);
 
-  const flow = ST.flowBetween({obj:'obj-credit', meas:'m-repaid', from:'2026-07-15', to:'2026-08-18'});
-  const notFlow = ST.flowBetween({obj:'obj-credit', meas:'m-debt', from:'2026-07-15', to:'2026-08-18'});
+  const flow = ST.flowBetween({obj:'obj-credit', inds:'m-repaid', from:'2026-07-15', to:'2026-08-18'});
+  const notFlow = ST.flowBetween({obj:'obj-credit', inds:'m-debt', from:'2026-07-15', to:'2026-08-18'});
   ok(30, flow.ok && flow.baseDate === '2026-06-30' && has(flow.passport.baseNote, 'вместо 15.07.2026') &&
         flow.value > 0 && !notFlow.ok && has(notFlow.why, 'ИС-17'),
     `период — разность двух нарастающих итогов; база названа: «${flow.passport.baseNote}», за интервал погашено ${Math.round(flow.value)} сом. Не поток разностью не считается: «${notFlow.why}»`);
@@ -247,9 +247,9 @@ const TODAY = '2026-08-21';
 
   const add = ST.addDim({id:'d-segment', name:'Сегмент портфеля', obj:'obj-credit', src:'поле',
     key:'industry', perObject:'одно'});
-  const past = ST.statSlice({obj:'obj-credit', dims:['d-segment'], meas:['a-count'], date:'2026-05-31'});
+  const past = ST.statSlice({obj:'obj-credit', dims:['d-segment'], inds:['a-count'], date:'2026-05-31'});
   ST.run(TODAY, {manual:true, reason:'разметка новым разрезом'});
-  const now = ST.statSlice({obj:'obj-credit', dims:['d-segment'], meas:['a-count'], date: TODAY});
+  const now = ST.statSlice({obj:'obj-credit', dims:['d-segment'], inds:['a-count'], date: TODAY});
   ok(32, add.ok && add.since === TODAY && !past.ok && has(past.why, 'действует вперёд') && now.ok && now.groups.length > 1,
     `новый разрез действует вперёд: прошлое — «${past.why}»; сегодня — ${now.groups.length} групп`);
 })();
@@ -264,20 +264,20 @@ const TODAY = '2026-08-21';
   ok(33, same && extra.length === 0,
     `детализация сходится со списком реестра «Кредиты» один в один (${reg.length} из ${reg.length}); карточек, документов и связей шов не отдаёт — ИС-14`);
 
-  const clf = ST.callSeam('классификация', 'statSlice', {obj:'obj-credit', dims:[], meas:['a-count'], date: TODAY});
+  const clf = ST.callSeam('классификация', 'statSlice', {obj:'obj-credit', dims:[], inds:['a-count'], date: TODAY});
   const noClf = ST.consumers().find(c => c.module === 'классификация').may.length;
   ok(34, !clf.ok && has(clf.why, 'ИС-5') && noClf === 0,
     `классификация статистику не читает ни в одной форме: «${clf.why}»`);
 
   const fourth = ST.callSeam('отчётность', 'statAll', {});
-  const rep = ST.callSeam('отчётность', 'statSlice', {obj:'obj-credit', dims:['d-branch'], meas:['a-count'], date: TODAY});
+  const rep = ST.callSeam('отчётность', 'statSlice', {obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date: TODAY});
   ok(35, !fourth.ok && has(fourth.why, 'четвёртый не заводится') && rep.ok && !!rep.passport,
     `швов три, четвёртого нет: «${fourth.why}»; отчётность получает срез с паспортом`);
 
-  const rowMeas = ST.statSlice({obj:'obj-credit', dims:[], meas:['m-debt'], date: TODAY});
-  const ghost = ST.statSlice({obj:'obj-credit', dims:[], meas:['m-ghost'], date: TODAY});
-  ok(36, !rowMeas.ok && has(rowMeas.why, 'statRows') && !ghost.ok && has(ghost.why, 'ИС-7'),
-    `мера среза — агрегат («${rowMeas.why}»); показателя вне реестра не существует ни для кого («${ghost.why}»)`);
+  const rowInd = ST.statSlice({obj:'obj-credit', dims:[], inds:['m-debt'], date: TODAY});
+  const ghost = ST.statSlice({obj:'obj-credit', dims:[], inds:['m-ghost'], date: TODAY});
+  ok(36, !rowInd.ok && has(rowInd.why, 'statRows') && !ghost.ok && has(ghost.why, 'ИС-7'),
+    `показатель среза — агрегат («${rowInd.why}»); показателя вне реестра не существует ни для кого («${ghost.why}»)`);
 })();
 
 /* ---------- K. Ни одной величины здесь не выводится ---------- */
@@ -287,11 +287,11 @@ const TODAY = '2026-08-21';
   const run = ST.run('2026-08-20', {});
   const calls = ST.coreCalls();
   const rows = ST.statRows({obj:'obj-credit', date:'2026-08-20'}).rows;
-  const noAgg = rows.every(r => Object.keys(r.meas).every(k => ST.IND(k).src !== 'агрегат'));
+  const noAgg = rows.every(r => Object.keys(r.inds).every(k => ST.IND(k).src !== 'агрегат'));
   ok(37, run.ok && calls > 0 && noAgg,
     `прогон записал ${run.written} строк, обратившись к ядру ${calls} раз: ни одна величина по объекту здесь не выводится (ИС-1), хранимых агрегатов в строке нет (ИС-3)`);
 
-  const slice = ST.statSlice({obj:'obj-credit', dims:['d-branch'], meas:['a-count','a-sumdebt'], date:'2026-08-20'});
+  const slice = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count','a-sumdebt'], date:'2026-08-20'});
   const sumOfGroups = slice.groups.reduce((s, g) => s + g.values['a-sumdebt'].v, 0);
   ok(38, Math.abs(sumOfGroups - slice.total['a-sumdebt'].v) < 0.01 &&
         slice.groups.reduce((s, g) => s + g.n, 0) === slice.n,
@@ -315,7 +315,7 @@ const TODAY = '2026-08-21';
     src:'шов', seam:'calcAccrual', field:'interest', money:true, type:'сумма'});
   const agg = ST.addIndicator({id:'a-sumfee', name:'Плата, итого', obj:'obj-credit', src:'агрегат', fn:'sum', over:'m-fee'});
   ST.run(TODAY, {manual:true, reason:'заведён новый показатель'});
-  const use = ST.statSlice({obj:'obj-credit', dims:['d-branch'], meas:['a-sumfee'], date: TODAY});
+  const use = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-sumfee'], date: TODAY});
   ok(40, good.ok && agg.ok && use.ok && use.total['a-sumfee'].v > 0,
     `показатель заведён записью и сразу считается ближайшим прогоном — без правки кода (ADR-0150 §1)`);
 
@@ -384,7 +384,7 @@ const TODAY = '2026-08-21';
 /* ---------- O. Разрез несёт уровни и корзины (ADR-0176) ---------- */
 (() => {
   ST.seed();
-  const t = ST.statSlice({obj:'obj-credit', dims:['d-region'], meas:['a-count','a-sumdebt'], date: TODAY});
+  const t = ST.statSlice({obj:'obj-credit', dims:['d-region'], inds:['a-count','a-sumdebt'], date: TODAY});
   const top = t.ok ? t.groups.map(g => g.key).join(' · ') : '';
   const kids = t.ok ? t.groups.reduce((n,g) => n + g.children.length, 0) : 0;
   ok(47, t.ok && t.hier && t.hier.depth === 2 && kids > 0 &&
@@ -392,21 +392,21 @@ const TODAY = '2026-08-21';
     `ответ — дерево всегда: ${t.groups.length} узлов верхнего уровня (${top}), ниже ${kids}; каждый узел считается по своим строкам (ADR-0176 §5, §6)`);
 
   const orphan = t.ok ? t.groups.find(g => g.key === 'Таласская') : null;
-  const lvl1 = ST.statSlice({obj:'obj-credit', dims:['d-region'], meas:['a-count'], date: TODAY, levels:{'d-region':1}});
+  const lvl1 = ST.statSlice({obj:'obj-credit', dims:['d-region'], inds:['a-count'], date: TODAY, levels:{'d-region':1}});
   const sumTop = t.ok ? t.groups.reduce((x,g) => x + g.n, 0) : -1;
   ok(48, orphan && orphan.n === 1 && orphan.own === 1 && orphan.children.length === 0 &&
         lvl1.ok && lvl1.hier.depth === 1 && lvl1.n === t.n && sumTop === t.n,
     `объект без нижнего уровня остаётся у родителя и не исчезает: «Таласская» — своих ${orphan ? orphan.own : '—'}; уровень спрашивается вопросом (ИС-22)`);
 
-  const bad = ST.statSlice({obj:'obj-credit', dims:['d-region'], meas:['a-count'], date: TODAY, levels:{'d-region':3}});
-  const noB = ST.statSlice({obj:'obj-credit', dims:['d-cdate'], meas:['a-count'], date: TODAY});
-  const yr  = ST.statSlice({obj:'obj-credit', dims:['d-cdate'], meas:['a-count'], date: TODAY, buckets:{'d-cdate':'год'}});
-  const qt  = ST.statSlice({obj:'obj-credit', dims:['d-cdate'], meas:['a-count'], date: TODAY, buckets:{'d-cdate':'квартал'}});
+  const bad = ST.statSlice({obj:'obj-credit', dims:['d-region'], inds:['a-count'], date: TODAY, levels:{'d-region':3}});
+  const noB = ST.statSlice({obj:'obj-credit', dims:['d-cdate'], inds:['a-count'], date: TODAY});
+  const yr  = ST.statSlice({obj:'obj-credit', dims:['d-cdate'], inds:['a-count'], date: TODAY, buckets:{'d-cdate':'год'}});
+  const qt  = ST.statSlice({obj:'obj-credit', dims:['d-cdate'], inds:['a-count'], date: TODAY, buckets:{'d-cdate':'квартал'}});
   ok(49, !bad.ok && has(bad.why, 'ИС-22') && !noB.ok && has(noB.why, 'ИС-23') &&
         yr.ok && qt.ok && qt.groups.length > yr.groups.length && yr.n === qt.n,
     `корзина обязательна и берётся из объявленных: без корзины — отказ «${String(noB.why).slice(0, 48)}…»; год ${yr.groups.length} групп, квартал ${qt.groups.length}, строк одинаково ${yr.n} (ИС-23)`);
 
-  const br = ST.statSlice({obj:'obj-credit', dims:['d-branch'], meas:['a-count'], date: TODAY});
+  const br = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date: TODAY});
   const divs = br.ok ? br.groups.map(g => g.key) : [];
   const dimBr = ST.state.dims.find(d => d.id === 'd-branch');
   ok(50, br.ok && dimBr.owner && dimBr.levels.length === 2 &&
@@ -452,7 +452,7 @@ const TODAY = '2026-08-21';
 /* ---------- Q. Паспорт: ровно две формы (ИС-24) ---------- */
 (() => {
   ST.seed();
-  const r = ST.statSlice({obj:'obj-credit', dims:['d-branch'], meas:['a-count'], date: TODAY});
+  const r = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date: TODAY});
   const sh = r.ok ? r.passport.short : '';
   ok(56, r.ok && ST.passportForms().length === 2 && typeof sh === 'string' &&
         /на \d\d\.\d\d/.test(sh) && has(sh, 'фикс') && sh.length < 60 &&
@@ -500,15 +500,15 @@ const TODAY = '2026-08-21';
   st.q.series = {step:'месяц', points:4};
   ok(60, d4.length === 4 && d4[3] === st.q.date && d6.length === 6 && dq.length === 4 &&
         dq[3] === st.q.date && dq[2] < d4[2] &&
-        ST.statSeries({obj:'obj-credit', meas:'a-count', dates: dq}).ok,
+        ST.statSeries({obj:'obj-credit', inds:'a-count', dates: dq}).ok,
     `даты ряда — часть вопроса, а не константа: шаг месяц ${d4.join(' · ')}; шаг квартал ${dq.join(' · ')}; точек 4 или ${d6.length} (СС-Д1)`);
 
   const vals = ST.filterValues('d-branch');
   const byBucket = ST.filterValues('d-cdate');
   st.q.filter = {dim:'d-branch', value: vals[0]};
-  const nar = ST.statSlice({obj:'obj-credit', dims:['d-branch'], meas:['a-count'], date: st.q.date, filter: st.q.filter});
+  const nar = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date: st.q.date, filter: st.q.filter});
   st.q.filter = null;
-  const all = ST.statSlice({obj:'obj-credit', dims:['d-branch'], meas:['a-count'], date: st.q.date});
+  const all = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date: st.q.date});
   ok(61, vals.length > 0 && vals.some(v => v.indexOf(' / ') > 0) && nar.ok && nar.n < all.n &&
         has(nar.passport.filter, String(vals[0]).split(' / ').pop()) &&
         byBucket.length > 0 && byBucket.every(v => /^\d{4}$/.test(v)),
@@ -524,7 +524,7 @@ const TODAY = '2026-08-21';
     levels:['дивизион','филиал']});
   const dd = ST.state.dims.find(d => d.id === 'd-div2');
   const fd = ST.state.dims.find(d => d.id === 'd-fdate');
-  const free = ST.statSlice({obj:'obj-repay', dims:['d-fdate'], meas:['a-count'], date: TODAY,
+  const free = ST.statSlice({obj:'obj-repay', dims:['d-fdate'], inds:['a-count'], date: TODAY,
     buckets:{'d-fdate':'неделя'}});
   ok(62, !taken.ok && noRef.ok && withRef.ok && dd && dd.owner === 'Оргструктура (кадры)' &&
         dd.levels.length === 2 && fd.buckets.length === 2 && !free.ok,

@@ -10,7 +10,7 @@
   периода их фиксирует, три шва отвечают на три вопроса и каждый ответ несёт паспорт,
   детализация сходится со списком реестра, роль сужает множество ДО группировки. Ничего из
   этого не зашито кодом: все восемь объектов собраны ИЗ ДАННЫХ, и в сборщике строк
-  (buildRow/runFor/readDim/readMeas) слова «кредит» нет ни одного.
+  (buildRow/runFor/readDim/readInd) слова «кредит» нет ни одного.
 
   Волна 1 (21.08.2026) вывела модель на бумаге: ADR-0145…ADR-0152 плюс канон логики.
   Волна 2 — этот файл: та же модель, доведённая до исполняемого эталона поведения.
@@ -80,7 +80,7 @@
         что сломается (ADR-0177 §4).
 
   ДЕМО ПОКРЫВАЕТ: восемь объектов на одном движке (кредит и заёмщик — непохожая пара:
-  разные разрезы, разные меры, разное множество) · прогон, пропуск ночи с причиной и
+  разные разрезы, разные показатели, разное множество) · прогон, пропуск ночи с причиной и
   внеплановый ручной пересчёт с актором · закрытие мая и июня человеком и отказ прогона
   писать в закрытое · расхождение зафиксированного мая с сегодняшним пересчётом (есть
   корректировка, учтена в июле) · запрос на дату без строк — отдаётся ближайшая предыдущая
@@ -118,12 +118,12 @@
 
   SMOKE 2026-08-26 · 63/63 PASS
      PASS  #1  объектов 8, показателей 37; без объявленного источника 0, с формулой 0, с функцией вне списка 0 — ИС-6, ИС-7
-     PASS  #2  заёмщик — самостоятельный объект со своими мерами, а не свёртка кредита (ИС-19)
-     PASS  #3  форма строки закрыта: obj · ref · date · dims · meas · fixed · by — ни сомового эквивалента, ни долей, ни дельт (ИС-15)
+     PASS  #2  заёмщик — самостоятельный объект со своими показателями, а не свёртка кредита (ИС-19)
+     PASS  #3  форма строки закрыта: obj · ref · date · dims · inds · fixed · by — ни сомового эквивалента, ни долей, ни дельт (ИС-15)
      PASS  #4  правки строки нет ни операцией, ни экраном: «строку среза пишет только прогон: правки строк в модуле нет (ИС-2)»
-     PASS  #5  в сборщике строк (readDim/readMeas/buildRow/doRun) слов предметной области нет — ИС-18
+     PASS  #5  в сборщике строк (readDim/readInd/buildRow/doRun) слов предметной области нет — ИС-18
      PASS  #6  восемь объектов одним движком: Кредит 8/3 групп · Заёмщик 5/3 групп · Залог 4/3 групп · Дело взыскания 3/3 групп · Задание кураторства 4/3 групп · Кредитная программа 3/2 групп · Погашение 14/3 групп · Мера взыскания 5/3 групп
-     PASS  #7  непохожая пара на одном движке: кредит по подразделениям (8) и заёмщик по типу лица (5) — разные разрезы, разные меры, разные множества
+     PASS  #7  непохожая пара на одном движке: кредит по подразделениям (8) и заёмщик по типу лица (5) — разные разрезы, разные показатели, разные множества
      PASS  #8  заёмщик без действующих кредитов в срезе есть (договоров 0) — при свёртке кредитов он исчез бы вовсе (ИС-19)
      PASS  #9  девятый объект заведён записью: до — «объекта «obj-guarantee» нет в реестре объектов (ИС-18)», после — 3 объектов в 3 группах, без единой правки движка (ИС-18)
      PASS  #10  объект без множества владельца не заводится: «множества «obj-ghost» владелец не отдаёт: статистика объектов не заводит, она их считает» — статистика объектов не заводит, она их считает
@@ -152,7 +152,7 @@
      PASS  #33  детализация сходится со списком реестра «Кредиты» один в один (8 из 8); карточек, документов и связей шов не отдаёт — ИС-14
      PASS  #34  классификация статистику не читает ни в одной форме: «классификация статистику не читает ни в одной форме: слой ниже (ИС-5, ADR-0146 §2)»
      PASS  #35  швов три, четвёртого нет: «шва «statAll» нет: швов три, четвёртый не заводится (ADR-0152 §1)»; отчётность получает срез с паспортом
-     PASS  #36  мера среза — агрегат («в срезе мера — агрегат: «Остаток основного долга» строчный, спросите его швом statRows»); показателя вне реестра не существует ни для кого («показателя «m-ghost» нет в реестре — для витрины его не существует (ИС-7)»)
+     PASS  #36  показатель среза — агрегат («в срезе показатель — агрегат: «Остаток основного долга» строчный, спросите его швом statRows»); показателя вне реестра не существует ни для кого («показателя «m-ghost» нет в реестре — для витрины его не существует (ИС-7)»)
      PASS  #37  прогон записал 46 строк, обратившись к ядру 70 раз: ни одна величина по объекту здесь не выводится (ИС-1), хранимых агрегатов в строке нет (ИС-3)
      PASS  #38  итог — группировка тех же строк, а не отдельное число: сумма групп сходится с итогом до копейки (ИС-3)
      PASS  #39  формула — «в записи показателя нет поля формулы: запись объявляет ОТКУД…»; доля — представление; несуществующий шов — задача ядру; функция вне списка — «функция «median» вне закрытого списка: count, sum, avg, min, max»
@@ -415,7 +415,7 @@ table.cgrid tfoot td{ padding:9px 12px; background:var(--surface-panel);
  *  ядро (швы ADR-0135) → состояние и прогон → фиксация → три шва → операции → экраны.
  *
  *  Главное, что этот файл доказывает исполнением: сборщик строк не знает ни одного
- *  слова предметной области. buildRow/readDim/readMeas работают с ЗАПИСЯМИ реестров —
+ *  слова предметной области. buildRow/readDim/readInd работают с ЗАПИСЯМИ реестров —
  *  девятый объект заводится строкой в OBJECTS, а не веткой в коде (ИС-18, ADR-0149).
  * ===================================================================== */
 const ST = {};
@@ -539,7 +539,7 @@ const INDICATORS = [
    seam:'calcAllocation', field:'repaidTotal', money:true, flow:true, unit:'валюта договора'},
   {id:'m-amount', name:'Сумма договора',          obj:'obj-credit', type:'сумма', src:'поле',
    key:'amount', money:true, unit:'валюта договора'},
-  /* --- заёмщик: свои меры, а не свёртка кредитов (ИС-19) --- */
+  /* --- заёмщик: свои показатели, а не свёртка кредитов (ИС-19) --- */
   {id:'m-bdebt',  name:'Совокупный долг заёмщика', obj:'obj-borrower', type:'сумма', src:'шов',
    seam:'calcDebt', field:'principal', money:true, unit:'валюта договора'},
   {id:'m-bcnt',   name:'Число договоров',          obj:'obj-borrower', type:'число', src:'поле',
@@ -600,33 +600,33 @@ const INDICATORS = [
 const OBJECTS = [
   {id:'obj-credit', name:'Кредит', plural:'кредиты', owner:'Кредиты', refName:'номер договора',
    dims:['d-branch','d-curator','d-category','d-industry','d-cur','d-status','d-region','d-cdate','d-line'],
-   meas:['m-debt','m-accr','m-odays','m-issued','m-repaid','m-amount',
+   inds:['m-debt','m-accr','m-odays','m-issued','m-repaid','m-amount',
          'a-count','a-sumdebt','a-sumaccr','a-avgodays','a-maxodays','a-sumissued','a-sumrepaid']},
   {id:'obj-borrower', name:'Заёмщик', plural:'заёмщики', owner:'Заёмщики', refName:'ИНН',
    dims:['d-branch','d-curator','d-category','d-industry','d-ptype','d-region'],
-   meas:['m-bdebt','m-bcnt','m-bworst','a-count','a-sumbdebt','a-sumbcnt']},
+   inds:['m-bdebt','m-bcnt','m-bworst','a-count','a-sumbdebt','a-sumbcnt']},
   {id:'obj-collateral', name:'Залог', plural:'предметы залога', owner:'Залог', refName:'номер предмета',
    dims:['d-branch','d-curator','d-collkind','d-region','d-cur','d-zdate'],
-   meas:['m-cval','m-csec','a-count','a-sumcval','a-sumcsec']},
+   inds:['m-cval','m-csec','a-count','a-sumcval','a-sumcsec']},
   {id:'obj-case', name:'Дело взыскания', plural:'дела взыскания', owner:'Взыскание', refName:'номер дела',
    dims:['d-branch','d-curator','d-phase','d-region'],
-   meas:['m-claim','m-phdays','a-count','a-sumclaim','a-avgphdays']},
+   inds:['m-claim','m-phdays','a-count','a-sumclaim','a-avgphdays']},
   {id:'obj-task', name:'Задание кураторства', plural:'задания', owner:'Кураторство', refName:'номер задания',
    dims:['d-branch','d-curator','d-ttype','d-tstate'],
-   meas:['m-tover','a-count','a-maxtover','a-avgtover']},
+   inds:['m-tover','a-count','a-maxtover','a-avgtover']},
   /* Три объекта волны 3. Программа — мало записей, длинная жизнь, лимит полем;
      погашение — много записей, точка во времени. Обобщение ADR-0149 проверяется
      наконец непохожими объектами, а не пятью однотипными. */
   {id:'obj-program', name:'Кредитная программа', plural:'кредитные программы', owner:'Программы',
    refName:'шифр программы',
    dims:['d-curator','d-psource','d-pstate','d-line','d-cur'],
-   meas:['m-plimit','m-pissued','a-count','a-sumplimit','a-sumpissued']},
+   inds:['m-plimit','m-pissued','a-count','a-sumplimit','a-sumpissued']},
   {id:'obj-repay', name:'Погашение', plural:'погашения', owner:'Погашения', refName:'номер операции',
    dims:['d-branch','d-curator','d-repkind','d-cur','d-region'],
-   meas:['m-ramount','a-count','a-sumramount']},
+   inds:['m-ramount','a-count','a-sumramount']},
   {id:'obj-measure', name:'Мера взыскания', plural:'меры взыскания', owner:'Взыскание', refName:'номер меры',
    dims:['d-branch','d-curator','d-mkind','d-mresult','d-region'],
-   meas:['m-mclaim','a-count','a-summclaim']}
+   inds:['m-mclaim','a-count','a-summclaim']}
 ];
 
 /* --------------------------- КУРСЫ ВАЛЮТ ---------------------------- *
@@ -827,7 +827,7 @@ const WORLD = {
 /* ===================== ЯДРО РАСЧЁТА (ЗЕРКАЛО) =======================
  *  Пять швов ADR-0135. Единственный источник величин по объекту: статистика
  *  не выводит ни одной (ИС-1). Счётчик вызовов открыт наружу — смоук им
- *  доказывает, что каждая мера-«шов» действительно пришла из ядра.
+ *  доказывает, что каждый показатель-«шов» действительно пришёл из ядра.
  * =================================================================== */
 const CORE = {
   calls: 0,
@@ -889,7 +889,7 @@ function readDim(dimId, item, dateISO){
   if(d.since > dateISO) return null;                       /* разрез действует вперёд */
   return d.levels ? readPath(d, item, dateISO) : readSrc(d, item, dateISO);
 }
-/* Один читатель на все случаи: разрез, уровень разреза и мера-«поле» берут значение
+/* Один читатель на все случаи: разрез, уровень разреза и показатель-«поле» берут значение
    одинаково — записью, а не веткой (ИС-18). */
 function readSrc(spec, item, dateISO){
   if(!spec) return null;
@@ -918,7 +918,7 @@ function readPath(d, item, dateISO){
   for(const v of vals){ if(v == null) break; path.push(v); }
   return path.length ? path : null;
 }
-function readMeas(indId, item, dateISO){
+function readInd(indId, item, dateISO){
   const m = IND(indId);
   if(!m || m.src === 'агрегат') return null;               /* агрегат в строке не лежит — ИС-3 */
   if(m.src === 'поле'){
@@ -938,12 +938,12 @@ function readMeas(indId, item, dateISO){
 }
 function buildRow(objId, item, dateISO){
   const o = OBJ(objId);
-  const dims = {}, meas = {};
+  const dims = {}, inds = {};
   o.dims.forEach(id => { const v = readDim(id, item, dateISO); if(v != null) dims[id] = v; });
-  o.meas.forEach(id => { const c = readMeas(id, item, dateISO); if(c) meas[id] = c; });
-  return {obj: objId, ref: item.id, date: dateISO, dims, meas, fixed: null, by: 'прогон'};
+  o.inds.forEach(id => { const c = readInd(id, item, dateISO); if(c) inds[id] = c; });
+  return {obj: objId, ref: item.id, date: dateISO, dims, inds, fixed: null, by: 'прогон'};
 }
-ST.readDim = readDim; ST.readMeas = readMeas; ST.buildRow = buildRow;
+ST.readDim = readDim; ST.readInd = readInd; ST.buildRow = buildRow;
 /* Корзина — функция от СОХРАНЁННОГО значения, применяемая при чтении (ADR-0176 §3):
    строка хранит дату как есть, поэтому смена набора корзин прошлое не переписывает
    и ИС-4 не задет. Свободной корзины не бывает — набор объявлен записью разреза. */
@@ -970,7 +970,7 @@ function dimKey(d, val, q){
 ST.bucketOf = bucketOf;
 /* Форма строки закрыта: ни сомового эквивалента, ни долей, ни дельт, ни агрегатов
    (ИС-3, ИС-15) — всё это считается при показе из того, что лежит здесь. */
-ST.ROW_SHAPE = ['obj','ref','date','dims','meas','fixed','by'];
+ST.ROW_SHAPE = ['obj','ref','date','dims','inds','fixed','by'];
 
 /* ========================= ПРОГОН И ФИКСАЦИЯ ======================== */
 function doRun(st, dateISO, kind, actor, reason){
@@ -1025,13 +1025,13 @@ function seed(){
     ],
     /* Корректировка за май, вскрывшаяся в июле: прошлое неизменно, но расхождение
        обязано быть видно строкой (ИС-11, ADR-0148 §5). */
-    corrections: [{month:'2026-05', obj:'obj-credit', ref:'КД-2023/210', meas:'m-debt',
+    corrections: [{month:'2026-05', obj:'obj-credit', ref:'КД-2023/210', inds:'m-debt',
       delta: 16320.17, at:'2026-07-14', basis:'акт сверки № 41 от 14.07.2026'}],
     /* Роль сужает мир: у аналитика и наблюдателя свой портфель (ADR-0152 §3). */
     scope: {'Аналитик':'Бекова Н.', 'Наблюдатель':'Бекова Н.'},
-    q: {obj:'obj-credit', dims:['d-branch'], meas:['a-count','a-sumdebt'], date:'2026-08-21',
+    q: {obj:'obj-credit', dims:['d-branch'], inds:['a-count','a-sumdebt'], date:'2026-08-21',
         mode:'slice', filter:null, levels:{}, buckets:{}, series:{step:'месяц', points:4}},
-    flow: {meas:'m-repaid', from:'2026-07-15', to:'2026-08-18'},
+    flow: {inds:'m-repaid', from:'2026-07-15', to:'2026-08-18'},
     drill: null
   };
   ST.state = st;
@@ -1233,7 +1233,7 @@ function aggValue(indId, rows){
   if(I.fn === 'count') return {v: rows.length, kind:'число'};
   const over = IND(I.over);
   if(!over) return null;
-  const cells = rows.map(r => r.meas[I.over]).filter(c => c && c.v != null);
+  const cells = rows.map(r => r.inds[I.over]).filter(c => c && c.v != null);
   if(!over.money) return {v: Math.round(AGG_FNS[I.fn].apply(cells.map(c => c.v))*10)/10, kind:'число', unit: over.unit};
   const curs = uniq(cells.map(c => c.cur));
   const rd = cells.length ? cells.map(c => c.rateDate).sort().slice(-1)[0] : null;
@@ -1268,11 +1268,11 @@ function checkQuery(q, needAgg){
       return 'у разреза «'+D.name+'» уровней '+D.levels.length+': '+D.levels.map(L => L.name).join(' → ')+
         ' — запрошенного уровня нет (ИС-22, ADR-0176 §4)';
   }
-  for(const m of (q.meas || [])){
+  for(const m of (q.inds || [])){
     const I = IND(m);
     if(!I) return 'показателя «'+m+'» нет в реестре — для витрины его не существует (ИС-7)';
     if(I.obj !== '*' && I.obj !== q.obj) return 'показатель «'+I.name+'» объявлен для другого объекта';
-    if(needAgg && I.src !== 'агрегат') return 'в срезе мера — агрегат: «'+I.name+
+    if(needAgg && I.src !== 'агрегат') return 'в срезе показатель — агрегат: «'+I.name+
       '» строчный, спросите его швом statRows';
   }
   return null;
@@ -1288,14 +1288,14 @@ ST.statSlice = q => {
   let rows = rowsAt(st, q.obj, res.asOf);
   rows = applyScope(rows);                                   /* ДО группировки — ИС-13 */
   rows = applyFilter(rows, q.filter);
-  const dims = q.dims || [], meas = q.meas || [];
+  const dims = q.dims || [], inds = q.inds || [];
   /* Форма ответа ОДНА — дерево (ADR-0176 §6). У плоского разреза оно вырождается в
      один уровень, поэтому потребителю не приходится знать двух форм ответа. */
   const hier = dims.length === 1 && DIM(dims[0]) && DIM(dims[0]).levels ? DIM(dims[0]) : null;
   const depth = hier ? Math.min((q.levels && q.levels[hier.id]) || hier.levels.length, hier.levels.length) : 1;
   const node = (key, parts, rws, lvl) => ({
     key, parts, level: lvl, n: rws.length, refs: rws.map(r => r.ref),
-    values: meas.reduce((acc, m) => { acc[m] = aggValue(m, rws); return acc; }, {}),
+    values: inds.reduce((acc, m) => { acc[m] = aggValue(m, rws); return acc; }, {}),
     children: [], own: rws.length
   });
   /* Числа узла считаются ПО СТРОКАМ УЗЛА, а не складыванием детей (ADR-0176 §5): доля
@@ -1330,8 +1330,8 @@ ST.statSlice = q => {
     groups = [...map.values()].sort((a,b) => a.key.localeCompare(b.key,'ru'))
       .map(g => node(g.key, g.parts, g.rows, 1));
   }
-  const total = meas.reduce((acc, m) => { acc[m] = aggValue(m, rows); return acc; }, {});
-  return emit({groups, tree: groups, dims, meas, total, n: rows.length,
+  const total = inds.reduce((acc, m) => { acc[m] = aggValue(m, rows); return acc; }, {});
+  return emit({groups, tree: groups, dims, inds, total, n: rows.length,
       hier: hier ? {dim: hier.id, levels: hier.levels.map(L => L.name), depth} : null,
       buckets: q.buckets || null},
     passportFor(st, q.obj, q.date, res, rows, q.filter));
@@ -1352,7 +1352,7 @@ ST.statSeries = q => {
   const st = ST.state;
   const dates = (q.dates || []).slice().sort();
   if(!dates.length) return {ok:false, why:'ряд без дат не строится'};
-  const bad = checkQuery({obj:q.obj, dims:[], meas:[q.meas], date: dates[dates.length-1]}, true);
+  const bad = checkQuery({obj:q.obj, dims:[], inds:[q.inds], date: dates[dates.length-1]}, true);
   if(bad) return {ok:false, why: bad};
   const points = [], used = [];
   for(const d of dates){
@@ -1361,13 +1361,13 @@ ST.statSeries = q => {
     let rows = applyFilter(applyScope(rowsAt(st, q.obj, res.asOf)), q.filter);
     used.push.apply(used, rows);
     points.push({date:d, asOf:res.asOf, age:res.age, substituted:res.substituted,
-      fixation: fixationOf(rows), n: rows.length, value: aggValue(q.meas, rows)});
+      fixation: fixationOf(rows), n: rows.length, value: aggValue(q.inds, rows)});
   }
   const last = resolveAsOf(st, q.obj, dates[dates.length-1]);
   const p = passportFor(st, q.obj, dates[dates.length-1], last, used, q.filter);
   p.fixation = fixationOf(used);
   p.range = fmt(dates[0])+' — '+fmt(dates[dates.length-1]);
-  return emit({points, meas:q.meas}, p);
+  return emit({points, inds:q.inds}, p);
 };
 
 /* Порог — параметр ЭКСПЛУАТАЦИИ, а не модели (ADR-0178 §2): в системе он берётся
@@ -1378,7 +1378,7 @@ ST.rowsLimit = 12;
    Порог считается ПОСЛЕ ролевых правил (ADR-0178 §3): иначе отказ выдавал бы размер
    чужого множества, а куратор с сорока строками получал бы отказ из-за холдинга. */
 function rowsFor(st, q){
-  const bad = checkQuery({obj:q.obj, dims:[], meas:[], date:q.date}, false);
+  const bad = checkQuery({obj:q.obj, dims:[], inds:[], date:q.date}, false);
   if(bad) return {ok:false, why: bad};
   const res = resolveAsOf(st, q.obj, q.date);
   if(!res) return {ok:false, why:'строк на '+fmt(q.date)+' и ранее нет: подстановка запрещена (ИС-12)'};
@@ -1457,8 +1457,8 @@ ST.registryList = (objId, dateISO, filter) => {
    начало интервала нет, НАЗЫВАЕТСЯ (ADR-0151 §2). */
 ST.flowBetween = q => {
   const st = ST.state;
-  const I = IND(q.meas);
-  if(!I) return {ok:false, why:'показателя «'+q.meas+'» нет в реестре (ИС-7)'};
+  const I = IND(q.inds);
+  if(!I) return {ok:false, why:'показателя «'+q.inds+'» нет в реестре (ИС-7)'};
   if(!I.flow) return {ok:false, why:'«'+I.name+'» не поток: разностью двух строк считаются только нарастающие итоги (ИС-17)'};
   const a = resolveAsOf(st, q.obj, q.from), b = resolveAsOf(st, q.obj, q.to);
   if(!b) return {ok:false, why:'строк на '+fmt(q.to)+' и ранее нет (ИС-12)'};
@@ -1466,9 +1466,9 @@ ST.flowBetween = q => {
   const baseRows = a ? applyFilter(applyScope(rowsAt(st, q.obj, a.asOf)), q.filter) : [];
   let sum = 0; const born = [];
   endRows.forEach(r => {
-    const end = r.meas[q.meas]; if(!end) return;
+    const end = r.inds[q.inds]; if(!end) return;
     const bs = baseRows.find(x => x.ref === r.ref);
-    const base = bs && bs.meas[q.meas] ? bs.meas[q.meas].v : 0;
+    const base = bs && bs.inds[q.inds] ? bs.inds[q.inds].v : 0;
     if(!bs) born.push(r.ref);
     sum += (end.v - base) * (end.rate || 1);
   });
@@ -1521,7 +1521,7 @@ ST.addIndicator = spec => {
   if(spec.src === 'поле' && !spec.key) return {ok:false, why:'поле объекта не названо'};
   st.indicators.push(clone(spec));
   const o = OBJ(spec.obj);
-  if(o && o.meas.indexOf(spec.id) < 0) o.meas.push(spec.id);
+  if(o && o.inds.indexOf(spec.id) < 0) o.inds.push(spec.id);
   log('заведён показатель «'+spec.name+'» (источник: '+spec.src+')');
   return {ok:true, id: spec.id};
 };
@@ -1537,7 +1537,7 @@ ST.retireIndicator = (id, confirm) => {
   if(refs.length && !confirm) return {ok:false, needsConfirm:true, breaks: refs,
     why:'на показатель ссылаются '+refs.length+': '+refs.map(r => r.consumer+' · '+r.edition).join(' · ')+
       '. Вывод возможен — но экран обязан назвать это поимённо, а не отказать молча (ИС-25, ADR-0177 §4)'};
-  st.objects.forEach(o => { const i = o.meas.indexOf(id); if(i >= 0) o.meas.splice(i,1); });
+  st.objects.forEach(o => { const i = o.inds.indexOf(id); if(i >= 0) o.inds.splice(i,1); });
   st.indicators.splice(st.indicators.findIndex(x => x.id === id), 1);
   const broken = ST.refsTo(id);
   log('показатель «'+I.name+'» снят с реестра'+(broken.length ? ': сломано ссылок — '+broken.length : ''));
@@ -1616,18 +1616,18 @@ ST.addObject = spec => {
   if(!spec || !spec.id || OBJ(spec.id)) return {ok:false, why:'идентификатор пуст или занят'};
   if(!WORLD[spec.id]) return {ok:false, why:'множества «'+spec.id+'» владелец не отдаёт: статистика объектов не заводит, она их считает'};
   for(const d of (spec.dims || [])) if(!DIM(d)) return {ok:false, why:'разреза «'+d+'» нет в реестре разрезов'};
-  for(const m of (spec.meas || [])) if(!IND(m)) return {ok:false, why:'показателя «'+m+'» нет в реестре показателей (ИС-7)'};
+  for(const m of (spec.inds || [])) if(!IND(m)) return {ok:false, why:'показателя «'+m+'» нет в реестре показателей (ИС-7)'};
   st.objects.push(clone(spec));
   log('заведён объект статистики «'+spec.name+'» — строки появятся ближайшим прогоном');
   return {ok:true, id: spec.id};
 };
 /* Явное расхождение зафиксированного с сегодняшним пересчётом (ИС-11). */
-ST.divergence = (month, objId, measId) => {
+ST.divergence = (month, objId, indId) => {
   const st = ST.state;
   if(!st.closedPeriods.includes(month)) return {ok:false, why:'период '+monLabel(month)+' не закрыт: расхождению неоткуда взяться'};
-  const cs = st.corrections.filter(c => c.month === month && c.obj === objId && c.meas === measId);
+  const cs = st.corrections.filter(c => c.month === month && c.obj === objId && c.inds === indId);
   const rows = st.rows.filter(r => r.obj === objId && ym(r.date) === month && r.fixed);
-  const fixedSum = rows.reduce((s, r) => s + ((r.meas[measId] || {}).v || 0) * ((r.meas[measId] || {}).rate || 1), 0);
+  const fixedSum = rows.reduce((s, r) => s + ((r.inds[indId] || {}).v || 0) * ((r.inds[indId] || {}).rate || 1), 0);
   const delta = cs.reduce((s, c) => s + c.delta, 0);
   return {ok:true, month, fixed: Math.round(fixedSum*100)/100, today: Math.round((fixedSum + delta)*100)/100,
     delta, corrections: clone(cs), shown: !!cs.length};
@@ -1740,7 +1740,7 @@ function passportHtml(p){
 /* ==================== ЭКРАН 1: КОНСТРУКТОР СРЕЗА ==================== */
 ST.pickObj = id => { const st = ST.state; const o = OBJ(id);
   st.q.obj = id; st.q.dims = []; st.q.levels = {}; st.q.buckets = {};
-  st.q.meas = o.meas.filter(m => IND(m).src === 'агрегат').slice(0,2);
+  st.q.inds = o.inds.filter(m => IND(m).src === 'агрегат').slice(0,2);
   st.q.filter = null; st.drill = null; st.work = null; addDimToQ(o.dims[0]); render(); };
 /* Корзина у разреза-даты не «по умолчанию любая»: вопрос без корзины не задаётся вовсе,
    поэтому при выборе разреза корзина берётся первой из объявленных (ИС-23). */
@@ -1790,7 +1790,7 @@ ST.exportUI = () => { const st = ST.state;
 ST.workUI = () => { const st = ST.state; st.work = ST.workList(st.q.obj, st.q.date); render(); };
 ST.closeWork = () => { ST.state.work = null; render(); };
 ST.showPass = i => { ST.state.tilePass = ST.state.tilePass === i ? null : i; render(); };
-ST.toggleMeas = id => { const a = ST.state.q.meas, i = a.indexOf(id);
+ST.toggleInd = id => { const a = ST.state.q.inds, i = a.indexOf(id);
   if(i >= 0) a.splice(i,1); else a.push(id); ST.state.drill = null; render(); };
 ST.setMode = m => { ST.state.q.mode = m; ST.state.drill = null; render(); };
 ST.drillTo = key => { ST.state.drill = key; render(); };
@@ -1806,8 +1806,8 @@ function pickBar(){
   const objs = st.objects.map(x => chip(x.id === st.q.obj, x.name, "ST.pickObj('"+x.id+"')")).join('');
   const dims = o.dims.map(d => chip(st.q.dims.indexOf(d) >= 0, DIM(d).name, "ST.toggleDim('"+d+"')",
     DIM(d).since > st.q.date)).join('');
-  const meas = o.meas.filter(m => IND(m).src === 'агрегат')
-    .map(m => chip(st.q.meas.indexOf(m) >= 0, IND(m).name, "ST.toggleMeas('"+m+"')")).join('');
+  const inds = o.inds.filter(m => IND(m).src === 'агрегат')
+    .map(m => chip(st.q.inds.indexOf(m) >= 0, IND(m).name, "ST.toggleInd('"+m+"')")).join('');
   const modes = [['slice','Срез — сколько и на сколько'],['series','Ряд — как менялось'],['rows','Строки — кто именно']]
     .map(([k,n]) => chip(st.q.mode === k, n, "ST.setMode('"+k+"')")).join('');
   /* Уровень и корзина — не «настройки отображения», а часть вопроса: они меняют то,
@@ -1837,10 +1837,10 @@ function pickBar(){
   return '<div class="card"><div class="pickbar">'+
     '<div><h4>Объект статистики</h4><div class="chips">'+objs+'</div></div>'+
     '<div><h4>Разрезы</h4><div class="chips">'+dims+'</div></div>'+lvlBar+bktBar+
-    '<div><h4>Меры (агрегаты закрытого списка)</h4><div class="chips">'+meas+'</div></div>'+
+    '<div><h4>Показатели (агрегаты закрытого списка)</h4><div class="chips">'+inds+'</div></div>'+
     '<div><h4>Вопрос</h4><div class="chips">'+modes+'</div></div>'+
-    '</div>'+fBar+'<p class="note">Объект, разрезы и меры — записи реестров: сборщик строк не знает ни одного '+
-    'из этих слов (ИС-18). Меры среза — только агрегаты закрытого списка '+esc(ST.aggFns().join(' · '))+
+    '</div>'+fBar+'<p class="note">Объект, разрезы и показатели — записи реестров: сборщик строк не знает ни одного '+
+    'из этих слов (ИС-18). Показатели среза — только агрегаты закрытого списка '+esc(ST.aggFns().join(' · '))+
     '(ADR-0150 §2); строчный показатель спрашивается швом <code>statRows</code>. '+
     'Разрез с уровнями спрашивается уровнем, разрез-дата — корзиной из объявленного списка: '+
     'свободной корзины («по неделям») в запросе не бывает — это заявка владельцу реестра '+
@@ -1849,7 +1849,7 @@ function pickBar(){
 }
 
 function sliceTable(res){
-  const dims = res.dims, cols = res.meas.filter(m => m !== 'a-count');
+  const dims = res.dims, cols = res.inds.filter(m => m !== 'a-count');
   const cell = (g) => '<td class="num"><button onclick="ST.drillTo(\''+esc(g.key).replace(/'/g,"")+'\')">'+
     g.n+'</button></td>'+cols.map(m => '<td class="num">'+cellText(g.values[m])+'</td>').join('');
   let head, body, span;
@@ -1895,9 +1895,9 @@ function sliceTable(res){
 
 function seriesBlock(){
   const st = ST.state;
-  const m = st.q.meas.find(x => IND(x).fn !== 'count') || st.q.meas[0] || 'a-count';
+  const m = st.q.inds.find(x => IND(x).fn !== 'count') || st.q.inds[0] || 'a-count';
   const dts = ST.seriesDates();
-  const res = ST.statSeries({obj: st.q.obj, meas: m, dates: dts, filter: st.q.filter});
+  const res = ST.statSeries({obj: st.q.obj, inds: m, dates: dts, filter: st.q.filter});
   if(!res.ok) return '<div class="banner danger">'+esc(res.why)+'</div>';
   const vals = res.points.map(p => p.value ? (p.value.som != null ? p.value.som : p.value.v) : 0);
   const top = Math.max.apply(null, vals.concat([1]));
@@ -1962,18 +1962,18 @@ function rowsBlock(refs, title){
   if(!res.ok) return '<div class="banner danger">'+esc(res.why)+'</div>';
   const o = OBJ(st.q.obj);
   const dims = o.dims.filter(d => DIM(d).since <= st.q.date);
-  const meas = o.meas.filter(m => IND(m).src !== 'агрегат');
+  const inds = o.inds.filter(m => IND(m).src !== 'агрегат');
   const head = '<th>'+esc(o.refName)+'</th>'+dims.map(d => '<th>'+esc(DIM(d).name)+'</th>').join('')+
-    meas.map(m => '<th>'+esc(IND(m).name)+'</th>').join('');
+    inds.map(m => '<th>'+esc(IND(m).name)+'</th>').join('');
   const body = res.rows.map(r => '<tr><td class="mono">'+esc(r.ref)+'</td>'+
     dims.map(d => '<td>'+esc(r.dims[d] == null ? '—' : r.dims[d])+'</td>').join('')+
-    meas.map(m => { const c = r.meas[m]; const I = IND(m);
+    inds.map(m => { const c = r.inds[m]; const I = IND(m);
       return '<td class="num">'+(c == null ? '—' : I.money ? esc(money(c.v, c.cur)) : esc(num(c.v, I.unit)))+'</td>'; }).join('')+
     '</tr>').join('');
   const list = ST.registryList(st.q.obj, res.passport.asOf, st.q.filter)
     .filter(id => !refs || refs.indexOf(id) >= 0);
   const same = list.join('|') === res.rows.map(r => r.ref).sort().join('|');
-  const rate = res.rows.map(r => Object.values(r.meas).find(c => c && c.rateDate)).filter(Boolean)[0];
+  const rate = res.rows.map(r => Object.values(r.inds).find(c => c && c.rateDate)).filter(Boolean)[0];
   return (title ? '' : passportHtml(res.passport))+
     '<div class="card"><h3>'+esc(title || 'Строки среза')+' <span class="small">— '+res.rows.length+' шт.</span>'+
     (title ? ' <button class="btn btn-secondary btn-sm" onclick="ST.clearDrill()">закрыть детализацию</button>' : '')+'</h3>'+
@@ -1989,16 +1989,16 @@ function rowsBlock(refs, title){
 
 function flowBlock(){
   const st = ST.state, o = OBJ(st.q.obj);
-  const flows = o.meas.filter(m => IND(m).flow);
+  const flows = o.inds.filter(m => IND(m).flow);
   if(!flows.length) return '<div class="card"><h3>Поток за период</h3>'+
     '<p class="note">У объекта «'+esc(o.name)+'» нарастающих показателей нет: считать разность нечего.</p></div>';
-  const meas = flows.indexOf(st.flow.meas) >= 0 ? st.flow.meas : flows[0];
-  const res = ST.flowBetween({obj: st.q.obj, meas, from: st.flow.from, to: st.flow.to, filter: st.q.filter});
+  const inds = flows.indexOf(st.flow.inds) >= 0 ? st.flow.inds : flows[0];
+  const res = ST.flowBetween({obj: st.q.obj, inds, from: st.flow.from, to: st.flow.to, filter: st.q.filter});
   const opts = (sel, k) => DATES.map(d => '<option value="'+d+'"'+(d === sel ? ' selected' : '')+'>'+fmt(d)+'</option>').join('');
   return '<div class="card"><h3>Поток за произвольный период <span class="small">— разность двух строк (ИС-17)</span></h3>'+
     '<div class="form-row">'+
-    '<div class="fld"><label>Показатель</label><select onchange="ST.setFlow(\'meas\', this.value)">'+
-      flows.map(m => '<option value="'+m+'"'+(m === meas ? ' selected' : '')+'>'+esc(IND(m).name)+'</option>').join('')+
+    '<div class="fld"><label>Показатель</label><select onchange="ST.setFlow(\'inds\', this.value)">'+
+      flows.map(m => '<option value="'+m+'"'+(m === inds ? ' selected' : '')+'>'+esc(IND(m).name)+'</option>').join('')+
     '</select></div>'+
     '<div class="fld"><label>С даты</label><select onchange="ST.setFlow(\'from\', this.value)">'+
       '<option value="2026-05-12"'+(st.flow.from === '2026-05-12' ? ' selected' : '')+'>12.05.2026</option>'+
@@ -2007,7 +2007,7 @@ function flowBlock(){
     '<div class="fld"><label>По дату</label><select onchange="ST.setFlow(\'to\', this.value)">'+opts(st.flow.to)+'</select></div>'+
     '</div>'+
     (res.ok
-      ? passportHtml(res.passport)+'<div class="kv"><div class="k">'+esc(IND(meas).name)+' за период</div>'+
+      ? passportHtml(res.passport)+'<div class="kv"><div class="k">'+esc(IND(inds).name)+' за период</div>'+
         '<div class="v"><b>'+esc(money(res.value,'KGS'))+'</b>'+
         (res.born.length ? ' <span class="muted">· объектов, родившихся внутри периода: '+res.born.length+
           ' (их база — ноль)</span>' : '')+'</div></div>'+
@@ -2021,17 +2021,17 @@ function tilesBlock(){
   const st = ST.state;
   const tiles = [
     {module:'кредиты', title:'Карточка кредита · портфель подразделения',
-     q:{obj:'obj-credit', dims:['d-branch'], meas:['a-count','a-sumdebt'], date: st.q.date}},
+     q:{obj:'obj-credit', dims:['d-branch'], inds:['a-count','a-sumdebt'], date: st.q.date}},
     {module:'ведомство', title:'Свод ведомства · портфель по категориям',
-     q:{obj:'obj-credit', dims:['d-category'], meas:['a-count','a-sumdebt'], date: st.q.date}},
+     q:{obj:'obj-credit', dims:['d-category'], inds:['a-count','a-sumdebt'], date: st.q.date}},
     {module:'кураторство', title:'Карточка куратора · задания',
-     q:{obj:'obj-task', dims:['d-tstate'], meas:['a-count','a-maxtover'], date: st.q.date}}
+     q:{obj:'obj-task', dims:['d-tstate'], inds:['a-count','a-maxtover'], date: st.q.date}}
   ];
   const html = tiles.map((t, i) => {
     const r = ST.callSeam(t.module, 'statSlice', t.q);
     if(!r.ok) return '<div class="card"><h3>'+esc(t.title)+'</h3><div class="banner danger">'+esc(r.why)+'</div></div>';
     const lines = r.groups.map(g => '<div class="row"><span class="k">'+esc(g.parts[g.parts.length-1] || g.key || 'всего')+
-      '</span>'+g.n+' · '+cellText(g.values[t.q.meas[1]])+'</div>').join('');
+      '</span>'+g.n+' · '+cellText(g.values[t.q.inds[1]])+'</div>').join('');
     /* Краткая форма паспорта — одна строка, и объявлена ПРОИЗВОДИТЕЛЕМ: сокращать
        по-своему потребитель не вправе, иначе три модуля сократят по-разному (ИС-24). */
     return '<div class="card"><h3>'+esc(t.title)+' <span class="small">— модуль «'+esc(t.module)+'»</span></h3>'+
@@ -2041,7 +2041,7 @@ function tilesBlock(){
       (st.tilePass === i ? 'свернуть паспорт' : 'полный паспорт')+'</button></div></div>'+
       (st.tilePass === i ? passportHtml(r.passport) : '')+'</div>';
   }).join('');
-  const refused = ST.callSeam('классификация', 'statSlice', {obj:'obj-credit', dims:[], meas:['a-count'], date: st.q.date});
+  const refused = ST.callSeam('классификация', 'statSlice', {obj:'obj-credit', dims:[], inds:['a-count'], date: st.q.date});
   return '<h2 class="section-h">Зеркальные плитки у соседей</h2>'+
     '<p class="page-lead">Плитка берёт <code>statSlice</code> и печатает паспорт рядом с числом. '+
     'Плиток «число без даты» в системе не остаётся (ИС-10). Форм паспорта <b>ровно две</b>, и обе '+
@@ -2060,7 +2060,7 @@ function viewBuild(){
     'Отказ по праву доступа говорит текстом, а не пропадающей кнопкой: наблюдателю доступны готовые '+
     'срезы и плитки (роли — §13 канона).</div>'+tilesBlock();
   let out = '<h2 class="section-h">Вопрос к статистике</h2>'+
-    '<p class="page-lead">Объект → разрезы → меры → дата. Три вопроса — три шва: '+
+    '<p class="page-lead">Объект → разрезы → показатели → дата. Три вопроса — три шва: '+
     '<code>statSlice</code> (сколько и на сколько) · <code>statSeries</code> (как менялось) · '+
     '<code>statRows</code> (кто именно в числе). Четвёртого нет: «дай всё» — не вопрос.</p>'+pickBar();
   if(st.q.mode === 'series') return out + seriesBlock() + workBlock() + flowBlock() + tilesBlock();
@@ -2212,7 +2212,7 @@ ST.addDimFormUI = () => {
 ST.addDimUI = () => act(ST.addDim({id:'d-segment', name:'Сегмент портфеля', obj:'obj-credit',
   src:'поле', key:'industry', perObject:'одно'}), 'разрез заведён — действует вперёд');
 /* Корзина, которой в записи нет, — не запрос, а заявка владельцу реестра (ИС-23). */
-ST.tryFreeBucketUI = () => act(ST.statSlice({obj:'obj-credit', dims:['d-cdate'], meas:['a-count'],
+ST.tryFreeBucketUI = () => act(ST.statSlice({obj:'obj-credit', dims:['d-cdate'], inds:['a-count'],
   date: ST.state.q.date, buckets:{'d-cdate':'неделя'}}));
 /* Проверка ИС-21: «вид погашения» у КРЕДИТА многозначен — значит это не разрез кредита,
    а нижележащий объект «погашение», у которого вид один (ADR-0179 §1). */
@@ -2238,7 +2238,7 @@ ST.publishUI = () => act(ST.publishRefs({consumer:'кураторство', edit
 ST.unpublishUI = () => act(ST.publishRefs({consumer:'кураторство', edition:'карточка куратора, ред. 4',
   owner:'Кураторство', uses:[]}), 'редакция опубликована без ссылок — прежние сняты');
 ST.liveUI = (id, val) => act(ST.setLive(id, val));
-/* Девятый объект — три записи реестров подряд: мера, агрегат над ней, сам объект.
+/* Девятый объект — три записи реестров подряд: показатель, агрегат над ним, сам объект.
    Ни одной правки движка (ИС-18, ADR-0149). */
 ST.addObjUI = () => {
   const a = ST.addIndicator({id:'m-gsec', name:'Обеспечиваемые требования', obj:'obj-guarantee',
@@ -2249,7 +2249,7 @@ ST.addObjUI = () => {
   if(!b.ok) return act(b);
   act(ST.addObject({id:'obj-guarantee', name:'Поручительство', plural:'поручительства',
     owner:'Обеспечение', refName:'номер поручительства',
-    dims:['d-branch','d-curator','d-region','d-ptype'], meas:['m-gsec','a-count','a-sumgsec']}),
+    dims:['d-branch','d-curator','d-region','d-ptype'], inds:['m-gsec','a-count','a-sumgsec']}),
     'объект заведён: строки появятся ближайшим прогоном');
 };
 
@@ -2258,8 +2258,8 @@ function viewSetup(){
   const objs = st.objects.map(o => '<tr><td><b>'+esc(o.name)+'</b><div class="small">'+esc(o.id)+'</div></td>'+
     '<td>'+esc(o.owner)+'</td>'+
     '<td>'+o.dims.map(d => esc(DIM(d).name)).join(' · ')+'</td>'+
-    '<td>'+o.meas.filter(m => IND(m).src !== 'агрегат').length+' строчных · '+
-      o.meas.filter(m => IND(m).src === 'агрегат').length+' агрегатов</td>'+
+    '<td>'+o.inds.filter(m => IND(m).src !== 'агрегат').length+' строчных · '+
+      o.inds.filter(m => IND(m).src === 'агрегат').length+' агрегатов</td>'+
     '<td class="num">'+(WORLD[o.id] || []).length+'</td></tr>').join('');
   const inds = st.indicators.map(i => '<tr><td class="mono">'+esc(i.id)+'</td><td>'+esc(i.name)+'</td>'+
     '<td>'+esc(i.obj === '*' ? 'любой' : OBJ(i.obj) ? OBJ(i.obj).name : i.obj)+'</td>'+
