@@ -586,16 +586,26 @@ const pd = CR.pd;
 
 /* 44. Зеркало платежей двигает остаток, а неподтверждённый платёж — нет (Р-5 + ADR-0010).
    Прежняя модель не умела ни того ни другого: платёж «Подтверждён ЦК» у К-1 не менял
-   ничего, потому что долг читался из засеянного ledger. */
+   ничего, потому что долг читался из засеянного ledger.
+   НА СКОЛЬКО ДВИГАЕТ — РЕШАЕТ ОЧЕРЕДЬ, А НЕ РЕГИСТРАТОР (РЯ-Д5). Прежде платёж приходил
+   сюда с готовым `layers:{principal:10000}`, и сторож ждал ровно −10 000. Свода по
+   статьям у платежа больше нет: 10 000 разносятся очередью по датам наступления, и до
+   тела доходит только то, что осталось после процентов и пени. Сторожится поэтому не
+   круглое число, а тождество: остаток упал ровно на строку «Основной долг» этого
+   платежа, и она меньше суммы платежа — потому что часть ушла в другие статьи. */
 (() => { const db = CR.seedDb(); const c = byId(db,'K-1');
   const before = CR.derive(c).debt.principal.bal;
   c.mirror.payments.push({ num:99, date:CR.TODAY, amount:10000, tranche:1, reg:'Ручной ввод',
-    match:'Ожидает ЦК', frozen:false, layers:{ principal:10000 } });
+    match:'Ожидает ЦК', frozen:false });
   const pending = CR.derive(c).debt.principal.bal;
-  c.mirror.payments[c.mirror.payments.length-1].match = 'Подтверждён ЦК';
+  const pay = c.mirror.payments[c.mirror.payments.length-1];
+  pay.match = 'Подтверждён ЦК';
   const confirmed = CR.derive(c).debt.principal.bal;
-  ok(44, pending === before && confirmed === Math.round((before - 10000)*100)/100,
-     `было=${before} ожидает=${pending} подтверждён=${confirmed}`);
+  const od = CR.allocFold(CR.allocOf(c, pay).lines).principal;
+  ok(44, pending === before && od > 0 && od < 10000
+      && Math.abs(confirmed - Math.round((before - od)*100)/100) < 0.01,
+     `было=${before} ожидает=${pending} подтверждён=${confirmed}`
+     + ` (строка ОД платежа ${od} из 10000 — остальное в другие статьи)`);
 })();
 
 /* 45. Периодичность работает (КР-13): «ежеквартально» даёт вчетверо меньше позиций,
@@ -781,12 +791,14 @@ const pd = CR.pd;
   const gw  = c.mirror.payments.find(p => p.reg==='Шлюз' && p.match==='Ожидает ЦК');
   const man = c.mirror.payments.find(p => p.reg==='Ручной ввод' && p.match==='Ожидает ЦК');
   const gwCounts = CR.paymentCounts(gw), manCounts = CR.paymentCounts(man);
+  // тело платежа берётся из СТРОК разнесения (РЯ-Д5): свода по статьям у платежа нет
+  const gwPrincipal = CR.allocFold(CR.allocOf(c, gw).lines).principal;
   const withGw = CR.derive(c).debt.principal.bal;
   gw.reg = 'Ручной ввод';                                   // ТОТ ЖЕ статус, другой канал
   const asManual = CR.derive(c).debt.principal.bal;
   ok(58, gwCounts===true && manCounts===false
-      && Math.abs((asManual - withGw) - gw.layers.principal) < 0.01,
-     `шлюзом остаток=${withGw}, тем же статусом вручную=${asManual} (разница ${Math.round(asManual-withGw)} = ОД платежа ${gw.layers.principal})`);
+      && Math.abs((asManual - withGw) - gwPrincipal) < 0.01,
+     `шлюзом остаток=${withGw}, тем же статусом вручную=${asManual} (разница ${Math.round(asManual-withGw)} = ОД платежа ${gwPrincipal})`);
 })();
 /* 58b. Восстановленный платёж (позднее подтверждение ЦК) двигает остаток, сторнированный
    не двигает, но ОСТАЁТСЯ ВИДЕН: сторно ≠ удаление. */
@@ -795,16 +807,30 @@ const pd = CR.pd;
   const storno   = db.credits.find(c => (c.mirror.payments||[]).some(p => p.match==='Сторно (таймаут)'));
   const pR = restored.mirror.payments.find(p => p.match==='Восстановлен');
   const pS = storno.mirror.payments.find(p => p.match==='Сторно (таймаут)');
+  // тело платежа — свод его СТРОК разнесения (РЯ-Д5), хранимого свода по статьям нет
+  const foldOD = cc => CR.allocFold(CR.allocLinesAt(cc, CR.TODAY)).principal;
   const paidR  = CR.derive(restored).debt.principal.paid;
+  const odR    = CR.allocFold(CR.allocOf(restored, pR).lines).principal;
   const before = CR.derive(storno).ledger.pool.principal;
   const shown  = storno.mirror.payments.length;             // сторно ≠ удаление
   pS.match = 'Подтверждён ЦК';                              // ЕСЛИ БЫ подтвердили
   const after = CR.derive(storno).ledger.pool.principal;
+  const odS   = CR.allocFold(CR.allocOf(storno, pS).lines).principal;
+  /* ПУЛ РАСТЁТ БОЛЬШЕ, ЧЕМ НА СВОЙ ПЛАТЁЖ, — И ЭТО ПРАВИЛО, А НЕ СБОЙ (РЯ-Д5). Пока
+     разнесение хранилось у платежа, подтверждение сторно добавляло в пул ровно его
+     строки. Теперь разнесение ВЫВОДИТСЯ по срезу «платежи строго раньше», и признанный
+     платёж входит в срез СОСЕДА: у К-1 подтверждение платежа от 18.07 сдвинуло разнесение
+     платежа от 21.07 на 232,79 сверх собственных 3 588,79. Сторожится поэтому тождество,
+     которое обязано держаться в обоих состояниях: ПУЛ = СВОД СТРОК зачитываемых платежей,
+     и второго счётчика погашенного нет (иначе это E2E-09). */
   ok('58b', CR.paymentCounts(pR)===true && CR.paymentCounts(pS)===true
-      && paidR === pR.layers.principal
-      && Math.abs((after - before) - pS.layers.principal) < 0.01
+      && paidR === odR
+      && Math.abs(before - 5255.46) < 0.01 && after > before && odS > 0
+      && Math.abs(after - foldOD(storno)) < 0.01
+      && (after - before) >= odS - 0.01
       && shown === storno.mirror.payments.length,
-     `восстановлен: погашено ОД=${paidR} · сторно вне пула: ${before} → ${after} при подтверждении (+${pS.layers.principal}), из зеркала не исчез`);
+     `восстановлен: погашено ОД=${paidR} · сторно вне пула: ${before} → ${after} при подтверждении`
+     + ` (своих ${odS} + ${Math.round(((after-before)-odS)*100)/100} у соседа по срезу), из зеркала не исчез`);
 })();
 /* 59. СПОРНАЯ ПЕНЯ (КР-46). Пеня периода сторно ВЫЧИСЛЕНА, но в требование не входит и
    категорию не двигает: снятие статуса «ждёт комиссии» возвращает и то и другое. */
@@ -831,16 +857,21 @@ const pd = CR.pd;
    она посчитана в расчёте, но остаток статьи по ней нулевой, и Г-14 её не называет. */
 (() => { const db = CR.seedDb(); const c = byId(db,'K-1');
   const d = CR.derive(c);
-  const rawPen = d.ledger.rows.reduce((a,r) => a + r.penaltyAccrued, 0);
+  const rawPen = Math.round(d.ledger.rows.reduce((a,r) => a + r.penaltyAccrued, 0)*100)/100;
+  const claim  = Math.round(d.ledger.rows.reduce((a,r) => a + r.penaltyClaimable, 0)*100)/100;
   const g = CR.gate(c, 'repay', {});
-  /* Правило прежнее: спорная пеня в требование НЕ входит. Изменилось слагаемое рядом с
-     ней — пеня за двухдневное опоздание платежа 20.06 (ADR-0129 §2), и она в требование
-     входит, поэтому Г-14 теперь её называет. Сторожим само вычитание: требование = всё
-     начисленное минус спорное, и спорная копейка в гейт не попадает. */
+  /* Правило прежнее: спорная пеня в требование НЕ входит. Изменилось то, ЧЕМ кончается
+     неспорная часть. Пеня за двухдневное опоздание платежа 20.06 (ADR-0129 §2) требуется —
+     и с РЯ-Д5 её гасит очередь: платёж 21.07 разнесён по датам наступления и берёт эти
+     9,71 строкой «Пеня» на 18.06. Требование по статье поэтому НОЛЬ, и Г-14 её не
+     называет, хотя начислено 29,84. Это и есть §4.4 в сильной форме: спорные 20,13
+     не попадают в гейт ни через требование, ни через разнесение — срез платежа видит то
+     же окно спора, что и лист (сторнированное поступление из среза не выбрасывается). */
   ok('59b', rawPen > 0 && d.debt.penalty.disputed > 0
-      && Math.abs(d.debt.penalty.bal - (Math.round(rawPen*100)/100 - d.debt.penalty.disputed)) < 0.05
-      && d.debt.penalty.bal > 0 && g.reasons.some(r => /Пеня/.test(r)),
-     `пеня посчитана=${Math.round(rawPen*100)/100}, спорна=${d.debt.penalty.disputed}, в требовании=${d.debt.penalty.bal}; Г-14 называет только неспорную`);
+      && Math.abs(claim - (rawPen - d.debt.penalty.disputed)) < 0.05
+      && Math.abs(d.debt.penalty.paid - claim) < 0.01 && d.debt.penalty.bal === 0
+      && !g.reasons.some(r => /Пеня/.test(r)) && g.reasons.length > 0,
+     `пеня начислена=${rawPen}, спорна=${d.debt.penalty.disputed}, требуется=${claim}, погашена разнесением=${d.debt.penalty.paid} → в требовании=${d.debt.penalty.bal}; Г-14 её не называет`);
 })();
 /* 60. СЛОЙ РЕШЕНИЯ СУДА (КР-47). Решение с присуждённой суммой останавливает начисление
    НА СВОЮ ДОЛЮ; режим определяется датой решения и прилипает к нему. Решение без суммы
@@ -879,19 +910,77 @@ const pd = CR.pd;
      `К-6 переплата %=${d.overpay.interest} (пул ${d.ledger.pool.interest} − начислено ${d.debt.interest.accrued}) · всего кредитов с переплатой ${over.length}`);
 })();
 /* 62. ВАЛЮТА ПОСТУПЛЕНИЯ — реквизит платежа, разнесение всегда в валюте кредита (И-16):
-   Σ layers = amount при совпадении валют и amount / rate при расхождении. */
+   Σ разнесённого = amount при совпадении валют и amount / rate при расхождении.
+   С РЯ-Д5 у `paymentAllocated` два довода: разнесение выводится ПО КРЕДИТУ, и платежа
+   для этого мало. Прежний однодоводный вызов молчал: `allocOf(p, undefined)` отдавал
+   пустой список, `if (!alloc) continue` пропускал КАЖДЫЙ платёж, и сторож ходил по
+   пустому множеству, отчитываясь «нарушителей=0». Поэтому здесь же сторожится, что
+   множество непустое. */
 (() => { const db = CR.seedDb();
-  const bad = [];
+  const bad = []; let seen = 0;
   for (const c of db.credits) for (const p of (c.mirror.payments||[])){
-    const alloc = CR.paymentAllocated(p); if (!alloc) continue;
+    const alloc = CR.paymentAllocated(c, p); if (!alloc) continue;
+    seen++;
     const cur = CR.paymentCurrency(p, c);
     const expect = (cur === (c.currency||'KGS')) ? (p.amount||0) : (p.amount||0) / (p.rate||1);
     if (Math.abs(alloc - expect) > 0.5) bad.push(c.id + '#' + p.num);
   }
   const fx = db.credits.find(c => (c.mirror.payments||[]).some(p => p.currency && p.currency !== c.currency));
   const pfx = fx && fx.mirror.payments.find(p => p.currency && p.currency !== fx.currency);
-  ok(62, bad.length === 0 && !!pfx && pfx.rate > 0,
-     `нарушителей=${bad.length} · валютный случай: ${fx&&fx.id} ${pfx&&pfx.amount} ${pfx&&pfx.currency} @ ${pfx&&pfx.rate} → ${pfx&&CR.paymentAllocated(pfx)} ${fx&&fx.currency}`);
+  ok(62, bad.length === 0 && seen > 20 && !!pfx && pfx.rate > 0,
+     `разнесённых платежей=${seen}, нарушителей=${bad.length} · валютный случай: ${fx&&fx.id} ${pfx&&pfx.amount} ${pfx&&pfx.currency} @ ${pfx&&pfx.rate} → ${pfx&&CR.paymentAllocated(fx,pfx)} ${fx&&fx.currency}`);
+})();
+/* 62b. ЧЕТЫРЕ КООРДИНАТЫ РАЗНЕСЕНИЯ (РЯ-Д5, ADR-0060 §2). Свод по статьям у платежа
+   больше не хранится: платёж несёт СТРОКИ «срок · слой · транш · статья», а пара чисел
+   выводится из них. Сторожится это по всему набору сразу, потому что дефект был именно
+   такой формы — не «неверное число», а «числа есть, ответить нечем»:
+     · Σ строк + нераспределённое = сумма платежа В ВАЛЮТЕ КРЕДИТА, копейка в копейку
+       (§7.3: хвост отдаётся отдельным полем, а не растворяется в переплате);
+     · у каждой строки заполнены все четыре координаты. Транш пуст только там, где его
+       нет в модели: комиссии живут на кредите (Д-10), плата за неосвоенный остаток —
+       на своём транше без номера (КВ-70, ADR-0134), и обе помечены;
+     · слой строки — либо свободный, либо существующий слой решения суда;
+     · ПУЛ = СВОД СТРОК. Второго счётчика погашенного нет — именно его расхождение с
+       входом и есть легаси-дефект E2E-09, ради которого разнесение стало выводимым;
+     · замороженный платёж отдаёт СНИМОК, и снимок — те же строки, что лежат в базе
+       (ADR-0055: заморозка делает снимок, каскада пересчёта нет). */
+(() => { const db = CR.seedDb();
+  const ARTS = new Set(['Основной долг','Проценты','Пеня','Сборы и комиссии',
+    'Накопленные проценты','Накопленная пеня']);
+  const bad = [];
+  let pays = 0, lines = 0, snaps = 0;
+  for (const c of db.credits){
+    const layerIds = new Set(CR.derive(c).courtLayers.map(L => L.id));
+    for (const p of (c.mirror.payments||[])){
+      const a = CR.allocOf(c, p); if (!a.lines.length && !a.unallocated) continue;
+      pays++; lines += a.lines.length;
+      if (a.snapshot){
+        snaps++;
+        const same = a.lines.length === (p.alloc||[]).length
+          && a.lines.every((l,i) => l.due === p.alloc[i].due && l.article === p.alloc[i].article
+              && l.amount === p.alloc[i].amount && l.tranche === p.alloc[i].tranche);
+        if (!same) bad.push(c.id + '#' + p.num + ': снимок пересчитан');
+      }
+      const sum = Math.round((a.lines.reduce((x,l) => x + l.amount, 0) + a.unallocated)*100)/100;
+      if (Math.abs(sum - CR.paymentBase(p)) > 0.005)
+        bad.push(c.id + '#' + p.num + ': Σ' + sum + ' ≠ ' + CR.paymentBase(p));
+      for (const l of a.lines){
+        if (!/^\d{2}\.\d{2}\.\d{4}$/.test(String(l.due||''))) bad.push(c.id + '#' + p.num + ': срок пуст');
+        if (!ARTS.has(l.article)) bad.push(c.id + '#' + p.num + ': статья «' + l.article + '»');
+        if (!(l.amount > 0.005)) bad.push(c.id + '#' + p.num + ': нулевая строка');
+        if (!(l.layer === 'free' || layerIds.has(l.layer))) bad.push(c.id + '#' + p.num + ': слой ' + l.layer);
+        if (l.tranche == null && !(l.fee || l.article === 'Сборы и комиссии'))
+          bad.push(c.id + '#' + p.num + ': транш пуст у «' + l.article + '»');
+      }
+    }
+    const money = CR.allocLinesAt(c, CR.TODAY).filter(l => !(l.fee || /^Накопленн/.test(l.article)));
+    const f = CR.allocFold(money), pool = CR.derive(c).ledger.pool;
+    for (const k of ['principal','interest','penalty','fees'])
+      if (Math.abs((pool[k]||0) - f[k]) > 0.01) bad.push(c.id + ': пул.' + k + ' ' + pool[k] + ' ≠ свод ' + f[k]);
+  }
+  ok('62b', bad.length === 0 && pays > 20 && lines > pays && snaps > 0,
+     `платежей с разнесением=${pays}, строк=${lines}, снимков=${snaps}, нарушителей=${bad.length}`
+     + (bad.length ? ' — ' + bad.slice(0,3).join(' | ') : ''));
 })();
 /* 63. РАСЧЁТ ДАЛЬШЕ СНИМКА подписан как предварительный (КР-51): начисленное кредит
    выводит на любую дату, погашенное знает только до снимка зеркала. */
@@ -1957,12 +2046,21 @@ const pd = CR.pd;
         woBad.push(`K-7/т${s.trancheNo}: нарастающий перенос ${lr.runOut}/${lr.runIn}`
                    + ` против ${wantOut}/${wantIn}`);
     }
+    /* ПЕРЕНЕСЕННОЕ СЧИТАЕТСЯ, А НЕ ПОМНИТСЯ. Тут стояли константы 360 000 — «остаток
+       транша №1 после платежа в 40 000 тела», — и с РЯ-Д5 они устарели: флагманский
+       платёж K-7 кладёт на первый транш не 40 000, а 33 426,61 (остальное ушло в
+       проценты, пеню и досрочную строку ВТОРОГО транша), и уходящий остаток вырос
+       ровно на разницу. Числу тут вообще не место: ДС забирает ВСЁ непогашенное, и
+       стеречь надо это тождество, а не его сегодняшнее значение. */
+    const t7    = c7.tranches[0];
+    const rest7 = r2(CR2.disbursedSum(t7) - CR2.paidPrincipalOfTranche(c7, t7, CR2.TODAY));
     ok(173, woBad.length === 0 && off.length === 3 && offHeads === off.length
             && offRows === off.length && heads === 0
-            && moved7 === 360000 && got7 === 360000 && off7 === 0 && mvH,
+            && Math.abs(moved7 - rest7) < 0.02 && Math.abs(got7 - moved7) < 0.02
+            && moved7 > 0 && off7 === 0 && mvH,
        `списанных кредитов ${off.length}, расхождений ${woBad.length}`
        + `${woBad.length ? ' — ' + woBad.slice(0, 3).join(' | ') : ''}`
-       + ` · K-7: перенесено ${moved7}, принято ${got7}, списано ${off7}`
+       + ` · K-7: перенесено ${moved7}, принято ${got7}, непогашенный остаток т1 ${rest7}, списано ${off7}`
        + ` · «Списано» в шапке у ${offHeads} из ${off.length} списанных и ${heads} раз(а) у K-7`
        + ` · строка свода «Списано за баланс» у ${offRows} из ${off.length}`
        + ` · пара переноса в шапке ${mvH}`);
@@ -2013,6 +2111,10 @@ const pd = CR.pd;
     const segOf = no => (sheet.find(s => s.trancheNo === no) || { rows: [] }).rows;
     const baseAt = (no, date) => (segOf(no).find(r => r.date === date) || {}).base;
     const was9 = baseAt(src7.no, '12.04.2026'), now9 = baseAt(src7.no, '01.05.2026');
+    /* Обе базы — тоже расчёт, а не память (см. 173): до ДС транш держит освоенное за
+       вычетом погашенного тела, после — на 200 000 меньше. Константы 360 000 / 160 000
+       держались на прежнем плоском разнесении K-7 и с РЯ-Д5 стали ложью. */
+    const rest7 = CR.disbursedSum(src7) - CR.paidPrincipalOfTranche(k7, src7, CR.TODAY);
     const gotIn = (segOf(k7.tranches[1].no).filter(r => r.base != null)[0] || {}).date;
     const k1 = db.credits.find(x => x.id === 'K-1'), t1 = k1.tranches[0];
     const was = CR.trancheScheduleRows(t1), FROM = was[3].date;
@@ -2023,7 +2125,7 @@ const pd = CR.pd;
     ok(174, bad.length === 0 && nb > 200
             && dsVer.length > 0 && rows7.length > 0 && CR.pd(last7) < CR.pd('01.01.2027')
             && Math.abs(CR.trancheBalanceAt(k7, src7, CR.TODAY)) < 0.005
-            && Math.abs(was9 - 360000) < 0.02 && Math.abs(now9 - 160000) < 0.02
+            && Math.abs(was9 - rest7) < 0.02 && Math.abs(now9 - (rest7 - 200000)) < 0.02
             && gotIn === '01.05.2026'
             && past.length >= 3 && kept && (nv.rows || []).length > past.length,
        `отрезков с базой ${nb}, расхождений ${bad.length}`
@@ -3717,31 +3819,39 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
 })();
 
 /* 99. ПОРЯДОК ОЧЕРЕДИ — один, по дате наступления (ADR-0060 §2: «независимо от того,
-   чьи они»), ненаступившее хвостом. K-1: комиссия 1 000 от 18.05.2026 (не погашена),
-   позиция 18.06.2026 погашена целиком и в перечень не попадает, 18.07.2026 просрочена,
-   дальше 22 будущие позиции. Комиссия идёт первой строкой не по статье, а по дате —
-   и несёт tranche:null (допущение Д-10: транша у комиссии в модели нет). */
+   чьи они»), ненаступившее хвостом; нулевые строки не публикуются.
+   С РЯ-Д5 это правило стало видно на комиссии. Разнесение теперь выводится очередью, а
+   комиссия 1 000 от 18.05.2026 — САМАЯ РАННЯЯ строка кредита: платёж от 21.07 гасит её
+   целиком, следом добирает проценты и пеню за 18.06 и остатком доходит до тела. В листе
+   от неё остаётся «погашено 1 000 при остатке 0», и в перечень она поэтому не попадает —
+   не нулевой строкой, а никак. Позиция 18.06.2026 уходит из перечня по той же причине.
+   Правило «первая строка — по ДАТЕ, а не по статье» от этого не исчезает, и сторожится
+   на том же кредите без зеркала платежей: там комиссия снова первая и несёт tranche:null
+   (допущение Д-10: транша у комиссии в модели нет). */
 (() => { const db = CR.seedDb(); const c = byId(db,'K-1');
-  const rs = CR.derive(c).queue.rows;
+  const d = CR.derive(c);
+  const rs = d.queue.rows;
   let mono = true, tail = true, seenFuture = false;
   for (let i = 0; i < rs.length; i++){
     if (i && pd(rs[i].due) < pd(rs[i-1].due)) mono = false;
     if (rs[i].future) seenFuture = true; else if (seenFuture) tail = false;
   }
-  const fee = rs[0] || {};
+  const fLed = (d.ledger.feeRows || [])[0] || {};
+  const fLine = CR.allocLinesAt(c, CR.TODAY).find(l => l.article === 'Сборы и комиссии') || {};
+  const bare = JSON.parse(JSON.stringify(c)); bare.mirror.payments = [];
+  const rb = CR.derive(bare).queue.rows, first = rb[0] || {};
   ok(99, rs.length > 0 && mono && tail
       && rs.every(r => r.urg === (r.future ? 'cur' : 'over'))
       && rs.every(r => r.layer === 'free' || /^L-\d+$/.test(r.layer))
-      && fee.article === 'Сборы и комиссии' && fee.tranche === null && fee.due === '18.05.2026'
-      /* Позиция 18.06.2026 закрыта платежом 20.06 — на два дня позже срока, и с ADR-0129 §2
-         эти два дня начислены пенёй. В очереди она поэтому стоит, но ТОЛЬКО пенёй: тела и
-         процентов по ней не осталось. Прежде её не было вовсе — пеня считалась на базе даты
-         среза, то есть на нуле. */
-      && rs.filter(r => r.due === '18.06.2026').every(r => r.article === 'Пеня')
-      && rs.some(r => r.due === '18.06.2026' && r.article === 'Пеня'),
+      && !rs.some(r => r.article === 'Сборы и комиссии')
+      && !rs.some(r => r.due === '18.06.2026')
+      && fLed._paid === 1000 && fLed._bal === 0
+      && fLine.due === '18.05.2026' && fLine.tranche === null && fLine.amount === 1000
+      && first.article === 'Сборы и комиссии' && first.tranche === null && first.due === '18.05.2026',
      `строк=${rs.length}, ненаступивших=${rs.filter(r=>r.future).length},`
-     + ` первая — ${fee.article} на ${fee.due}, порядок дат ${mono?'не убывает':'СБИТ'},`
-     + ` хвост ${tail?'в конце':'ПЕРЕМЕШАН'}`);
+     + ` первая — ${(rs[0]||{}).article} на ${(rs[0]||{}).due}, порядок дат ${mono?'не убывает':'СБИТ'},`
+     + ` хвост ${tail?'в конце':'ПЕРЕМЕШАН'}; комиссия погашена разнесением (${fLed._paid}/${fLed._bal})`
+     + ` и в перечень не попала, без зеркала — ${first.article} на ${first.due} первой`);
 })();
 
 /* 101…105 — ПРОГНОЗ ПОСЛЕ РАЗБОРА 10.08.2026 (ADR-0104). */
