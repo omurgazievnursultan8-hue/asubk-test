@@ -35,7 +35,7 @@ const TODAY = '2026-08-21';
   const badSrc = st.indicators.filter(i => ['шов','поле','агрегат'].indexOf(i.src) < 0);
   const formula = st.indicators.filter(i => 'formula' in i || 'expr' in i || 'выражение' in i);
   const badFn = st.indicators.filter(i => i.src === 'агрегат' && ST.aggFns().indexOf(i.fn) < 0);
-  ok(1, st.objects.length === 8 && st.indicators.length >= 85 && badSrc.length === 0 &&
+  ok(1, st.objects.length === 9 && st.indicators.length >= 85 && badSrc.length === 0 &&
        formula.length === 0 && badFn.length === 0,
     `объектов ${st.objects.length}, показателей ${st.indicators.length}; без объявленного источника ${badSrc.length}, с формулой ${formula.length}, с функцией вне списка ${badFn.length} — ИС-6, ИС-7`);
 
@@ -69,8 +69,8 @@ const TODAY = '2026-08-21';
     const r = ST.statSlice({obj: o.id, dims: [o.dims[0]], inds: ['a-count'], date: TODAY});
     return {name: o.name, ok: r.ok, n: r.ok ? r.n : 0, g: r.ok ? r.groups.length : 0};
   });
-  ok(6, each.every(x => x.ok && x.n > 0) && each.length === 8,
-    `восемь объектов одним движком: ${each.map(x => x.name + ' ' + x.n + '/' + x.g + ' групп').join(' · ')}`);
+  ok(6, each.every(x => x.ok && x.n > 0) && each.length === 9,
+    `девять объектов одним движком: ${each.map(x => x.name + ' ' + x.n + '/' + x.g + ' групп').join(' · ')}`);
 
   const cr = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count','a-sumdebt'], date: TODAY});
   const bo = ST.statSlice({obj:'obj-borrower', dims:['d-ptype'], inds:['a-count','a-sumbcnt'], date: TODAY});
@@ -97,7 +97,7 @@ const TODAY = '2026-08-21';
   const run = ST.run('2026-08-20', {});
   const after = ST.statSlice({obj:'obj-guarantee', dims:['d-region'], inds:['a-count','a-sumgsec'], date:'2026-08-20'});
   ok(9, !before.ok && mi.ok && ai.ok && add.ok && run.ok && after.ok && after.n === 3 && after.groups.length === 3,
-    `девятый объект заведён записью: до — «${before.why}», после — ${after.n} объектов в ${after.groups.length} группах, без единой правки движка (ИС-18)`);
+    `десятый объект заведён записью: до — «${before.why}», после — ${after.n} объектов в ${after.groups.length} группах, без единой правки движка (ИС-18)`);
 
   const bad = ST.addObject({id:'obj-ghost', name:'Призрак', dims:[], inds:[]});
   ok(10, !bad.ok && has(bad.why, 'владелец не отдаёт'),
@@ -917,7 +917,7 @@ const TODAY = '2026-08-21';
     dims:['d-branch','d-curator','d-region','d-ptype'], inds:['a-count']});
   const guess = /первое звено|первый прогон|Object\.values\(item\.h\)/.test(
     m[1].slice(m[1].indexOf('function bornOn'), m[1].indexOf('function readPath')));
-  ok(89, declared.length === 8 && !noBorn.ok && has(noBorn.why, 'ИС-33') && !guess,
+  ok(89, declared.length === 9 && !noBorn.ok && has(noBorn.why, 'ИС-33') && !guess,
     `рождение объявлено, а не угадано: у всех ${declared.length} объектов born со ссылкой на реквизит владельца, объект без него не заводится — «${noBorn.why}» (ИС-18, ИС-33)`);
 
   /* ИС-14 на дате: тот же человек, открывший реестр владельца НА ТУ ЖЕ дату, обязан
@@ -926,6 +926,104 @@ const TODAY = '2026-08-21';
   const pairs = D.map(d => ST.registryList('obj-repay', d, null).length + '/' + cnt('obj-repay', d));
   ok(90, same,
     `реестр владельца на дату и состав среза сходятся по всем пяти датам (${pairs.join(' · ')}) — и сходятся теперь на ВЕРНОМ числе, а не на общем итоге мира (ИС-14, ИС-33)`);
+})();
+
+/* ---------- N. Волна 10: дело и требование, дедуп-ключ, удельная величина ---------- */
+(() => {
+  ST.seed();
+  const st = ST.state;
+  const D = '2026-08-18';
+
+  /* ИС-34. Сумма групп БОЛЬШЕ итога — и это не расхождение счёта, а устройство: один
+     кредит стоит и в филиале заёмщика, и в филиале поручителя, но денег вдвое не
+     становится. Проверяется по построению набора: солидарная пара разведена по филиалам. */
+  const br = ST.statSlice({obj:'obj-claim', dims:['d-branch'], levels:{'d-branch':2},
+    inds:['a-count','a-sumclsum'], date: D});
+  const sumG = Math.round(br.groups.reduce((n, g) => n + ((g.values['a-sumclsum']||{}).v||0), 0)*100)/100;
+  const tot  = Math.round((br.total['a-sumclsum']||{}).v*100)/100;
+  const dd   = (br.total['a-sumclsum']||{}).dedup;
+  ok(91, br.ok && dd && dd.by === 'd-clcred' && dd.keys === 3 && dd.dropped === 3 &&
+        sumG > tot && Math.abs(sumG - tot) > 1,
+    `дедуп-ключ: строк ${br.n}, кредитов ${dd && dd.keys}, схлопнуто ${dd && dd.dropped}; сумма филиалов ${sumG} БОЛЬШЕ итога ${tot} — один кредит честно стоит в двух филиалах, но денег вдвое не становится (ИС-34, ADR-0199)`);
+
+  /* Молча расходиться нельзя: паспорт называет ключ поимённо и говорит, сколько строк
+     схлопнулось. Без этой строки ответ читался бы как ошибка счёта (ИС-10). */
+  const note = (br.passport.dedup || [])[0];
+  ok(92, note && note.by === 'd-clcred' && note.rows === 6 && note.keys === 3 &&
+        has(note.text, 'Кредит требования') && has(note.text, 'ИС-34'),
+    `паспорт НАЗЫВАЕТ ключ, а не молчит: «${note ? note.text : '—'}»`);
+
+  /* Тождество ИС-3/ИС-14 послаблено ровно там, где объявлен ключ, и НИГДЕ больше:
+     у показателя без ключа сумма групп сходится с итогом до копейки, как прежде. */
+  const cr = ST.statSlice({obj:'obj-credit', dims:['d-branch'], levels:{'d-branch':2},
+    inds:['a-count','a-sumdebt'], date: D});
+  /* Разновалютный итог сводится в сом ПОКАЗОМ и лежит в `v`; одновалютный несёт и `som`.
+     Сверяются одни и те же части по одним и тем же курсам — потому равенство точное. */
+  const som = c => c ? (c.som != null ? c.som : c.v) : 0;
+  const sumC = cr.groups.reduce((n, g) => n + som(g.values['a-sumdebt']), 0);
+  const totC = som(cr.total['a-sumdebt']);
+  const keyless = st.indicators.filter(i => i.src !== 'агрегат' && !i.dedupBy).length;
+  ok(93, cr.ok && Math.abs(sumC - totC) < 0.01 && !(cr.total['a-sumdebt']||{}).dedup && keyless > 60,
+    `послабление точечное: у ${keyless} показателей без ключа сумма групп сходится с итогом до копейки (${Math.round(sumC*100)/100} = ${Math.round(totC*100)/100}) и отметки дедупа в ответе нет вовсе (ИС-3, ИС-14)`);
+
+  /* ИС-21: фаза уехала с дела на требование, и отказ обязан НАЗВАТЬ ДОРОГУ, а не просто
+     отвергнуть — иначе разрез читался бы как исчезнувший. */
+  const ph = ST.statSlice({obj:'obj-case', dims:['d-phase'], inds:['a-count'], date: D});
+  const phOk = ST.statSlice({obj:'obj-claim', dims:['d-phase'], inds:['a-count'], date: D});
+  ok(94, !ph.ok && has(ph.why, 'Требование взыскания') && has(ph.why, 'ИС-21') &&
+        phOk.ok && phOk.groups.length >= 2,
+    `фаза спрашивается у того, у кого она одна: делу отказано и указана дорога — «${ph.why}»; у требования тот же разрез отвечает ${phOk.groups.length} фазами`);
+
+  /* Ни одной производной величины в поле: «дней в фазе» считается из журнала фаз при
+     чтении, а не лежит реквизитом, который кто-то обязан не забыть обновить (ADR-0001). */
+  const W = vm.runInContext('WORLD', sandbox);
+  const stored = Object.keys(W).reduce((n, o) => n + W[o].filter(x =>
+    Object.keys(x.f).some(k => /phdays|daysin|срок/i.test(k))).length, 0);
+  const claim = ST.statRows({obj:'obj-claim', date: D}).rows.find(r => r.ref === 'ТВ-2026/03-1');
+  ok(95, stored === 0 && claim && claim.inds['m-clphdays'].v > 0,
+    `производной величины полем не лежит нигде (${stored} записей): «дней в фазе» у ТВ-2026/03-1 — ${claim && claim.inds['m-clphdays'].v} дн. — свёрнуто из журнала фаз при чтении (ИС-1, ADR-0001)`);
+
+  /* ИС-28 + ИС-31: у объекта О МНОГИХ шва одного кредита нет ни одного, а портфельный шов
+     принадлежит ВЛАДЕЛЬЦУ МНОЖЕСТВА — здесь взысканию, потому что связь «дело × кредит ×
+     роль» знает только оно. Второй названный случай правила после залога (#78). */
+  const cInds = st.indicators.filter(i => i.obj === 'obj-case' && i.src === 'шов');
+  const one = cInds.filter(i => i.seam === 'calcDebt' || i.seam === 'calcPortfolio');
+  ok(96, cInds.length === 4 && one.length === 0 && cInds.every(i => i.seam === 'casePortfolio'),
+    `портфельный шов дела принадлежит взысканию: ${cInds.length} шовных показателей, все идут casePortfolio, шов ОДНОГО кредита не читает ни один (${one.length}) — множество выбирает связь «дело × кредит × роль», и знает её только владелец (ИС-28, ИС-31)`);
+
+  /* ИС-35: удельная величина показателем не заводится вовсе. Отказ обязан указать пару
+     «срез + счёт» и предупредить о занижении знаменателя. */
+  const per = ST.addIndicator({id:'m-perc', name:'Требований на куратора', obj:'obj-claim',
+    src:'агрегат', fn:'avg', over:'m-clsum'});
+  ok(97, !per.ok && has(per.why, 'ИС-30') && has(per.why, 'ИС-35') && has(per.why, 'занижает'),
+    `удельная величина отбита и разложена на пару: «${per.why}»`);
+
+  /* И занижение это не гипотеза: кураторов в мире трое, а в срезе требований их видно
+     двое — у третьего требований нет, и в срез он не попадает ВОВСЕ. Знаменатель,
+     снятый со среза, систематически меньше настоящего. */
+  const curSlice = ST.statSlice({obj:'obj-task', dims:['d-curator'], inds:['a-count'], date: D});
+  const curAll = new Set();
+  Object.keys(W).forEach(o => W[o].forEach(x => (x.h.curator || []).forEach(([d, v]) => {
+    if (d <= D) curAll.add(v); })));
+  ok(98, curSlice.ok && curSlice.groups.length === 2 && curAll.size === 3,
+    `знаменатель со среза занижен систематически: кураторов в мире ${curAll.size}, а в срезе заданий видно ${curSlice.groups.length} — у третьего заданий нет, и «в среднем на куратора» со среза завысило бы нагрузку в полтора раза (ИС-35)`);
+
+  /* СС-Д9 закрыт ПО ПОСТРОЕНИЮ, а не подгонкой чисел: «погашено всего» больше не
+     самостоятельный ряд, а сумма платежей своего кредита. Сверка идёт по каждому
+     договору в ЕГО валюте — без пересчёта в сом, потому что курс на две даты разный. */
+  const A = '2026-06-30', B = '2026-08-18';
+  const rowsAt = d => ST.statRows({obj:'obj-credit', date: d}).rows;
+  const ca = rowsAt(A), cb = rowsAt(B);
+  const bad = cb.filter(r => {
+    const a0 = ca.find(x => x.ref === r.ref);
+    const delta = Math.round(((r.inds['m-repaid'].v||0) - ((a0 && a0.inds['m-repaid'].v)||0))*100)/100;
+    const pays = Math.round(W['obj-repay'].filter(p => p.f.credit === r.ref &&
+      p.f.rdate > A && p.f.rdate <= B).reduce((n, p) => n + p.f.amount, 0)*100)/100;
+    return Math.abs(delta - pays) > 0.005;
+  });
+  const orphan = W['obj-repay'].filter(p => !W['obj-credit'].some(c => c.id === p.f.credit));
+  ok(99, bad.length === 0 && orphan.length === 0 && cb.length === 8,
+    `СС-Д9 закрыт по построению: на всех ${cb.length} договорах приращение «погашено» за 30.06→18.08 равно сумме платежей ЭТОГО договора до копейки (расхождений ${bad.length}), и ни один платёж не висит без кредита (${orphan.length}) — два ряда одних денег стали одним (ИС-1, ИС-14)`);
 })();
 
 /* ---- отчёт ---- */
