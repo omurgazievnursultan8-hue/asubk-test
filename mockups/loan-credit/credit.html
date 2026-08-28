@@ -5861,7 +5861,8 @@ function buildLedger(c, asOf){
      Иначе списанный кредит с остатком продолжал бы копить пеню годами — у К-6б это
      давало 1032 дня просрочки и пеню, превышающую половину тела долга. */
   let lim = pd(asOf || TODAY);
-  if (c.closure && c.closure.reason && c.closure.date && pd(c.closure.date) < lim) lim = pd(c.closure.date);
+  const closedAt = (c.closure && c.closure.reason && c.closure.date) ? pd(c.closure.date) : null;
+  if (closedAt && closedAt < lim) lim = closedAt;
   const rows = [];
   const grid = calcGrid(c, fd(lim));                      // критические даты — одни на весь расчёт (ADR-0129 §1)
   const segsByTranche = new Map();                        // сквозная лента отрезков транша — для вида «По датам»
@@ -6068,6 +6069,14 @@ function buildLedger(c, asOf){
       perTranchePen.set(k, cell);
     }
   }
+  /* ЗАМЕРШЕМУ РАСЧЁТУ ЦЕНУ ДНЯ ВПЕРЁД НАЗЫВАТЬ НЕ ИЗ ЧЕГО. Закрытый кредит начисление
+     остановил (`lim`, выше): завтрашнего дня, за который набежала бы пеня, у него нет —
+     и в САМ день закрытия тоже, потому что цена эта относится к дню ПОСЛЕ среза.
+     Пока цену печатал только экран, ненулевая цифра у закрытого кредита читалась как
+     лишняя строка; расчётная проекция хранит её СКОРОСТЬЮ и множит на дни (ADR-0193) — и
+     та же цифра стала растущей после закрытия просрочкой: у К-6б 17,38/дн давали 1 199,50
+     к 23.07.2026 при нуле у свода. */
+  const frozenFwd = !!(closedAt && closedAt <= pd(asOf || TODAY));
   for (const r of rows){
     r.penaltyCharged   = round2(Math.max(0, r.penaltyAccrued - r.penaltyFrozen));
     /* к взысканию — то, что можно требовать сегодня: без приостановленного и без спорного */
@@ -6075,19 +6084,20 @@ function buildLedger(c, asOf){
     /* пеня ЗА ДЕНЬ ВПЕРЁД — единственная величина пени, которую прогноз имеет право
        называть: цена одного дня бездействия. Считается по базе НА ДАТУ СРЕЗА (день вперёд
        начнётся с неё), поэтому стоит отдельно от интеграла. Слой, приостановивший пеню,
-       даёт ноль. Длинного горизонта у неё нет намеренно: penaltyMaxPct в макете не
-       применяется (шаг 4), и на месяцы такая цифра росла бы без потолка. */
+       и замерший расчёт дают ноль. Длинного горизонта у неё нет намеренно: penaltyMaxPct
+       в макете не применяется (шаг 4), и на месяцы такая цифра росла бы без потолка. */
     const CLf   = layerOf(r);
     const iBase = Math.max(0, round2((r.interestDue || 0) - r.interestPaid - (r.interestWritten || 0)));
+    const noFwd = frozenFwd || (CLf && !CLf.mode.penalty);
     const perDayNow = (r.principalBal + iBase > 0.005)
       ? r.principalBal * (r.penaltyMain / 100) + iBase * (r.penaltyInt / 100) : 0;
-    r.penaltyPerDayFwd = round2((CLf && !CLf.mode.penalty) ? 0 : perDayNow);
+    r.penaltyPerDayFwd = round2(noFwd ? 0 : perDayNow);
     /* ТА ЖЕ ЦЕНА ДНЯ, НО БЕЗ ОКРУГЛЕНИЯ. Округлённую берёт ПОКАЗ — её печатают как
        деньги. Её же МНОЖАТ НА ДНИ: расчётная проекция хранит скорость и досчитывает
        ответ между критическими датами (ADR-0193). Копейка, округлённая у каждой из
        десяти позиций и помноженная на месяц, копейкой быть перестаёт — по той же
        причине, по которой не округляется `cell.perDay` у листа. */
-    r.penaltyPerDayFwdRaw = (CLf && !CLf.mode.penalty) ? 0 : perDayNow;
+    r.penaltyPerDayFwdRaw = noFwd ? 0 : perDayNow;
   }
   /* второй проход: пеня гасится после основного долга и процентов */
   for (const r of rows){
@@ -6512,13 +6522,29 @@ function debtOf(led, disbursed){
      строкой «Списано за баланс», по образцу приостановленного судом и спорной пени.
      Срочная часть — то, что ещё не наступило по графику. */
   const W = led.writtenOffArt || { principal: led.writtenOff || 0 };
-  d.principal.written = round2(W.principal || 0);
+  /* СПИСАНО — СКОЛЬКО ЧИСЛИЛОСЬ, А НЕ СКОЛЬКО НАЗВАЛИ (КВ-63). Решение о безнадёжности
+     называет сумму по статье, но СНЯТЬ оно может только то, что по ней числилось. Срез
+     стоит здесь, а не в листе: сколько числилось, знает свод — у тела это освоенное минус
+     погашенное (позиции будущих сроков носителя ещё не имеют, а долг уже есть), у
+     начисляемых статей — начисленное минус погашенное. Без среза «списано» печаталось
+     больше начисленного: свод такую строку прятал `Math.max(0, …)`, а безветочная проекция
+     (ADR-0193) показывала ОТРИЦАТЕЛЬНЫЙ остаток — у К-6б решение назвало 80 329,51 пени
+     при 63 553,86 числившихся, и −16 775,65 висели ячейкой. Излишек не исчезает и задним
+     числом не досписывается: это ВЕЛИЧИНА СО СВОИМ ИМЕНЕМ — «решение назвало больше, чем
+     числилось», по образцу переплаты (`d.overpay`, выше). */
+  const excess = {};
+  const writeOff = (k, had) => {
+    const ordered = round2(W[k] || 0), put = round2(Math.min(ordered, Math.max(0, had)));
+    excess[k] = round2(ordered - put);
+    return put;
+  };
+  d.principal.written = writeOff('principal', round2((disbursed || 0) - d.principal.paid));
   d.principal.bal  = round2(Math.max(0, (disbursed || 0) - d.principal.paid - d.principal.written));
   d.principal.term = round2(Math.max(0, d.principal.bal - d.principal.overdue));
   for (const k of ['interest','penalty','fees']){
     /* списанное — третье вычитаемое рядом с погашенным (КВ-63). Просрочка сюда уже пришла
        уменьшенной: позиции гасились списанием в buildLedger, сборы — своим _written. */
-    d[k].written = round2(W[k] || 0);
+    d[k].written = writeOff(k, round2(d[k].accrued - d[k].paid));
     d[k].bal  = round2(Math.max(0, d[k].accrued - d[k].paid - d[k].written));   // проценты/пеня/сборы начисляются, а не выдаются
     d[k].term = round2(Math.max(0, d[k].bal - d[k].overdue));
   }
@@ -6526,6 +6552,7 @@ function debtOf(led, disbursed){
      не погашено (ADR-0093 §3 — два уровня перемножаются, а не подменяют друг друга).
      Срочная часть — ненаступившие взносы, назначенные документом: полный итог минус
      наступившее. Остаток = срочное + просроченное, как у любой статьи. */
+  const accExcess = {};
   for (const k of ['accInterest','accPenalty']){
     const total = round2(((led.artTotal || {})[k]) || d[k].accrued);
     d[k].overdue = round2(Math.max(0, d[k].accrued - d[k].paid));
@@ -6538,7 +6565,12 @@ function debtOf(led, disbursed){
     let w = d[k].written;
     const cut = Math.min(w, d[k].overdue);
     d[k].overdue = round2(d[k].overdue - cut); w = round2(w - cut);
-    d[k].term    = round2(Math.max(0, d[k].term - w));
+    const cutT = Math.min(w, d[k].term);
+    d[k].term    = round2(d[k].term - cutT); w = round2(w - cutT);
+    /* и здесь списано столько, сколько ЛЕГЛО (как в `writeOff` выше): у накопленных носителя-позиции нет,
+       поэтому легшее считает свод — тем же порядком, каким снимал. */
+    d[k].written = round2(d[k].written - w);
+    accExcess[k] = w;
     d[k].bal     = round2(d[k].term + d[k].overdue);
   }
   for (const k of ['principal','interest','penalty','fees','accInterest','accPenalty'])
@@ -6550,6 +6582,14 @@ function debtOf(led, disbursed){
     .reduce((a, k) => a + (d[k].written || 0), 0)) };
   for (const k of ['principal','interest','penalty','accInterest','accPenalty','fees'])
     d.written[k] = d[k].written || 0;
+  /* РЕШЕНИЕ НАЗВАЛО БОЛЬШЕ, ЧЕМ ЧИСЛИЛОСЬ — величина со своим именем, а не разность,
+     которую каждый читатель вычтет по-своему (та же идиома, что у переплаты). Ноль по всем статьям — обычный
+     случай, и строку эту свод не печатает. */
+  d.writeOffExcess = { total: 0 };
+  for (const k of ['principal','interest','penalty','accInterest','accPenalty','fees']){
+    d.writeOffExcess[k] = round2((excess[k] || 0) + (accExcess[k] || 0));
+    d.writeOffExcess.total = round2(d.writeOffExcess.total + d.writeOffExcess[k]);
+  }
   return d;
 }
 /* ШЕСТЬ СТАТЕЙ ДОЛГА (ADR-0093 §1). Порядок здесь — ПОКАЗА, а не погашения: накопленная
@@ -6568,6 +6608,14 @@ function writtenParts(debt){
   const W = debt.written || {};
   return DEBT_ARTICLES.filter(a => (W[a.key] || 0) > 0.005)
     .map(a => a.label.toLowerCase() + ' ' + money(W[a.key])).join(' · ');
+}
+/* ТОТ ЖЕ РАЗБОР ДЛЯ ИЗЛИШКА (КВ-63): «решение назвало больше, чем числилось» — величина
+   со своим именем, и статьи ей нужны по тому же доводу, что и списанному: одно число в
+   строке не скажет, по какой статье решение промахнулось. */
+function excessParts(debt){
+  const X = debt.writeOffExcess || {};
+  return DEBT_ARTICLES.filter(a => (X[a.key] || 0) > 0.005)
+    .map(a => a.label.toLowerCase() + ' ' + money(X[a.key])).join(' · ');
 }
 const DEBT_ARTICLES = [
   { key:'principal',   label:'Основной долг' },
@@ -10917,6 +10965,13 @@ if (typeof document !== 'undefined') {
              остаться на экране — иначе 58 000 у K-6b исчезают между сводом и решением Правления
              бесследно. В «Погашено» его класть нельзя: денег заёмщик не вносил. */''}
         ${(d.debt.written||{}).total>0?`<tr><td>Списано за баланс</td><td colspan="2" class="text-muted" style="font:var(--font-label)">весь долг, снятый с баланса решением о признании его безнадёжным: ${writtenParts(d.debt)}. Остаток кредита гасит, погашением не является: денег заёмщик не вносил</td><td style="text-align:right">${money(d.debt.written.total)}</td><td></td></tr>`:''}
+        ${/* РЕШЕНИЕ НАЗВАЛО БОЛЬШЕ, ЧЕМ ЧИСЛИЛОСЬ (КВ-63) — строка-исключение по образцу
+             «Переплаты»: снять решение может только то, что по статье числилось, и срез
+             стоит в своде (`debtOf`). Разница не исчезает и задним числом не досписывается —
+             это повод вернуться к решению, а не к балансу. У К-6б решение назвало 80 329,51
+             пени при 63 553,86 числившихся; без этой строки 16 775,65 пропадали молча, а
+             безветочная проекция показывала ячейку в минусе. */''}
+        ${(d.debt.writeOffExcess||{}).total>0?`<tr><td>Решение назвало сверх числившегося</td><td colspan="2" class="text-muted" style="font:var(--font-label)">решение о безнадёжности назвало по статье больше, чем по ней числилось (${excessParts(d.debt)}): снято только числившееся, разница на баланс не легла и задним числом не досписывается</td><td style="text-align:right">${money(d.debt.writeOffExcess.total)}</td><td></td></tr>`:''}
         ${d.collectionCosts>0?`<tr><td>Расходы по обращению взыскания ${lockHtml()}</td><td colspan="2" class="text-muted" style="font:var(--font-label)">статья взыскания — в остаток кредита и в гейт «Погашен» не входит</td><td style="text-align:right">${money(d.collectionCosts)}</td><td></td></tr>`:''}
         ${(d.debt.interest.frozen>0||d.debt.penalty.frozen>0)?`<tr><td>Приостановлено решением суда</td><td colspan="2" class="text-muted" style="font:var(--font-label)">начислению по договору подлежало, но на присуждённую долю начисление остановлено (проценты ${money(d.debt.interest.frozen)} · пеня ${money(d.debt.penalty.frozen)}) — в остаток не входит</td><td style="text-align:right">${money(round2(d.debt.interest.frozen+d.debt.penalty.frozen))}</td><td></td></tr>`:''}
         ${d.debt.penalty.disputed>0?`<tr><td>Спорная пеня</td><td colspan="2" class="text-muted" style="font:var(--font-label)">пеня за период сторнированного платежа: вычислена, но до решения комиссии в требование не входит и категорию не двигает</td><td style="text-align:right">${money(d.debt.penalty.disputed)}</td><td></td></tr>`:''}
