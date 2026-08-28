@@ -1,0 +1,2995 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Анализ · редакция 1 · P20 · АСУБК</title>
+<!--
+  Формат — docs/tasks/FORMAT.md, анатомия карточки формата 2 (meta.format = 2). Данные лежат
+  JSON-островом (#tasks-data), проверка — python3 scripts/check_tasks.py
+  docs/tasks/p20-analiz-tasks.html. Пакет передачи — этот файл +
+  mockups/analysis/analysis.html, все ссылки внутри — по голому имени файла
+  (папка передаётся поштучно). Свод (карта данных, опись экранов, словарь, сквозной пример)
+  читается один раз в начале — карточка несёт только дельту к нему. Редакция 1 — раздел финанализа целиком; раздел
+  аналитических обзоров придёт редакцией 2, после модуля отчётности.
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC;
+  --asubk-link:#005FDB; --asubk-green:#158443;
+  --asubk-red:#E03A3A; --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-blue-tint:rgba(0,106,245,0.08);
+  --asubk-green-tint:rgba(21,132,67,0.10);
+  --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --border-default:var(--asubk-border-base);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --shadow-card:0 1px 2px rgba(24,39,57,0.06);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; }
+body{ font:400 16px/1.5 var(--asubk-font); color:var(--text-body); background:var(--asubk-gray-100); }
+.wrap{ max-width:1160px; margin:0 auto; padding:0 24px 64px; }
+
+.hero{ background:var(--asubk-white); border-bottom:1px solid var(--border-default); padding:28px 0 22px; margin-bottom:20px; }
+.hero .wrap{ padding-bottom:0; }
+.crumbs{ font-size:13px; color:var(--text-muted); margin-bottom:8px; }
+h1{ font:600 26px/1.25 var(--asubk-font); color:var(--text-heading); margin:0 0 8px; }
+.lead{ color:var(--text-muted); font-size:15px; max-width:82ch; margin:0 0 14px; }
+.lead code{ background:var(--asubk-gray-150); padding:1px 5px; border-radius:3px; font-size:13px; }
+.lead b{ color:var(--text-body); }
+.revbar{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:16px; }
+.revchip{ font:600 12px/1 var(--asubk-font); padding:6px 10px; border-radius:var(--radius-pill); background:var(--asubk-blue-tint); color:var(--asubk-link); }
+.revchip.replaces{ background:var(--asubk-gray-150); color:var(--text-muted); }
+
+.tiles{ display:flex; flex-wrap:wrap; gap:10px; }
+.tile{ appearance:none; cursor:pointer; text-align:left; background:var(--asubk-white);
+  border:1px solid var(--border-default); border-radius:var(--radius-lg); padding:10px 16px; min-width:118px;
+  font:inherit; color:inherit; transition:border-color .12s, box-shadow .12s; }
+.tile:hover{ border-color:var(--asubk-border-strong); }
+.tile.on{ border-color:var(--asubk-blue); box-shadow:0 0 0 2px var(--asubk-blue-tint); }
+.tile .n{ display:block; font:600 22px/1.15 var(--asubk-font); color:var(--text-heading); }
+.tile .l{ display:block; font-size:12.5px; color:var(--text-muted); margin-top:2px; }
+
+section.panel{ background:var(--asubk-white); border:1px solid var(--border-default); border-radius:var(--radius-lg);
+  padding:18px 20px; margin:12px 0; box-shadow:var(--shadow-card); }
+section.panel > h2{ font:600 16px/1.3 var(--asubk-font); color:var(--text-heading); margin:0 0 10px; }
+section.panel > h2 .sub{ font-weight:400; color:var(--text-muted); font-size:13px; }
+.panel p{ margin:6px 0; font-size:14.5px; }
+.panel ul{ margin:6px 0; padding-left:20px; font-size:14.5px; }
+.panel li{ margin-bottom:4px; }
+
+.guide-item{ padding:12px 0; border-bottom:1px solid var(--asubk-gray-150); }
+.guide-item:last-child{ border-bottom:none; }
+.guide-item h3{ font:600 14.5px/1.3 var(--asubk-font); color:var(--asubk-blue-hover); margin:0 0 6px; }
+
+.openq{ display:flex; gap:10px; align-items:baseline; padding:8px 0; border-bottom:1px dashed var(--asubk-gray-150); font-size:13.5px; }
+.openq:last-child{ border-bottom:none; }
+.openq a{ color:var(--asubk-link); text-decoration:none; font-weight:600; white-space:nowrap; }
+.openq a:hover{ text-decoration:underline; }
+.openq .oq-default{ color:var(--text-muted); }
+
+/* Свод: карта данных, опись экранов, словарь, сквозной пример, номера */
+.ent{ border:1px solid var(--asubk-gray-200); border-radius:var(--radius-md); background:var(--asubk-gray-50);
+  padding:10px 12px; margin:8px 0; }
+.ent h4{ font:600 14px/1.3 var(--asubk-font); color:var(--text-heading); margin:0 0 4px;
+  display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; }
+.ent .key{ font:400 12.5px/1.3 var(--asubk-font); color:var(--asubk-link);
+  background:var(--asubk-blue-tint); border-radius:var(--radius-pill); padding:2px 9px; }
+.ent .note{ font-size:13px; color:var(--text-muted); margin:0 0 6px; }
+.ent ul{ margin:0; padding-left:18px; font-size:14px; }
+.ent li{ margin-bottom:3px; }
+.ent li b{ font-weight:600; color:var(--text-heading); }
+
+.scr{ border:1px solid var(--asubk-gray-200); border-radius:var(--radius-md); background:var(--asubk-white);
+  padding:10px 12px; margin:8px 0; }
+.scr h4{ font:600 14px/1.3 var(--asubk-font); color:var(--text-heading); margin:0 0 5px; }
+.scr .note{ font-size:13px; color:var(--text-muted); margin:0 0 6px; }
+.scr .chips{ display:flex; flex-wrap:wrap; gap:6px; }
+.scr .col{ font-size:12.5px; color:var(--text-body); background:var(--asubk-gray-100);
+  border:1px solid var(--border-default); border-radius:var(--radius-pill); padding:3px 9px; }
+.scr .act{ font-size:12.5px; color:var(--asubk-green); background:var(--asubk-green-tint);
+  border:1px solid rgba(21,132,67,0.22); border-radius:var(--radius-pill); padding:3px 9px; }
+.scr .cap{ font:600 11px/1 var(--asubk-font); text-transform:uppercase; letter-spacing:.06em;
+  color:var(--asubk-ink-45); margin:8px 0 4px; display:block; }
+
+.gloss{ display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:8px; }
+.gloss div{ font-size:13.5px; border-bottom:1px dashed var(--asubk-gray-150); padding:6px 0; }
+.gloss b{ color:var(--text-heading); }
+
+table.idmap{ border-collapse:collapse; width:100%; font-size:13.5px; }
+table.idmap th{ text-align:left; font:600 12px/1 var(--asubk-font); text-transform:uppercase;
+  letter-spacing:.06em; color:var(--asubk-ink-45); padding:6px 8px; border-bottom:1px solid var(--border-default); }
+table.idmap td{ padding:6px 8px; border-bottom:1px solid var(--asubk-gray-150); vertical-align:top; }
+table.idmap td.old{ color:var(--text-muted); white-space:nowrap; }
+table.idmap td.new a{ color:var(--asubk-link); text-decoration:none; font-weight:600; white-space:nowrap; }
+table.idmap td.new a:hover{ text-decoration:underline; }
+
+.bar{ position:sticky; top:0; z-index:5; background:var(--asubk-gray-100);
+  padding:14px 0 12px; margin-bottom:4px; border-bottom:1px solid var(--border-default); }
+.bar .row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.search{ flex:1; min-width:240px; height:36px; padding:0 12px; font:inherit; font-size:14px;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--asubk-white); color:inherit; }
+.search:focus{ outline:none; border-color:var(--asubk-blue); box-shadow:0 0 0 2px var(--asubk-blue-tint); }
+select{ height:36px; padding:0 8px; font:inherit; font-size:14px; background:var(--asubk-white);
+  border:1px solid var(--border-default); border-radius:var(--radius-md); color:inherit; }
+.btn{ height:36px; padding:0 14px; font:inherit; font-size:14px; cursor:pointer;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--asubk-white); color:inherit; }
+.btn:hover{ background:var(--asubk-gray-50); }
+.btn-p{ background:var(--asubk-blue); border-color:var(--asubk-blue); color:#fff; }
+.btn-p:hover{ background:var(--asubk-blue-hover); }
+.count{ font-size:13px; color:var(--text-muted); margin-left:auto; white-space:nowrap; }
+
+.group{ margin-top:26px; }
+.group > h2{ font:600 15px/1.3 var(--asubk-font); color:var(--text-muted); margin:0 0 10px;
+  text-transform:uppercase; letter-spacing:.05em; display:flex; align-items:center; gap:8px; }
+.group > h2 .g-n{ font-weight:400; color:var(--asubk-ink-45); text-transform:none; letter-spacing:0; }
+
+.card{ background:var(--asubk-white); border:1px solid var(--border-default); border-left:3px solid var(--asubk-blue);
+  border-radius:var(--radius-lg); padding:16px 18px; margin-bottom:10px; box-shadow:var(--shadow-card); scroll-margin-top:70px; }
+.c-head{ display:flex; flex-wrap:wrap; align-items:baseline; gap:10px; }
+.id{ font:600 13px/1 var(--asubk-font); letter-spacing:.02em; color:var(--asubk-link);
+  background:var(--asubk-blue-tint); padding:5px 8px; border-radius:var(--radius-md); white-space:nowrap; }
+.step{ font:600 12px/1 var(--asubk-font); color:var(--asubk-ink-45); background:var(--asubk-gray-100);
+  border:1px solid var(--border-default); padding:5px 8px; border-radius:var(--radius-md); white-space:nowrap; }
+.c-title{ font:600 17px/1.35 var(--asubk-font); color:var(--text-heading); flex:1; min-width:260px; margin:0; }
+
+.blk{ margin-top:12px; }
+.blk .lbl{ font:600 12px/1 var(--asubk-font); text-transform:uppercase; letter-spacing:.06em;
+  color:var(--asubk-ink-45); display:block; margin-bottom:5px; }
+.blk p{ margin:0; font-size:15px; }
+.blk ul{ margin:0; padding-left:20px; font-size:15px; }
+.blk li{ margin-bottom:4px; }
+.why{ color:var(--text-muted); }
+.subh{ font:600 13.5px/1.3 var(--asubk-font); color:var(--text-body); margin:8px 0 3px; }
+
+.build{ background:var(--asubk-blue-tint); border-radius:var(--radius-md); padding:11px 13px; margin-top:12px; }
+.build .lbl{ color:var(--asubk-blue-hover); }
+.build p{ font-size:15.5px; color:var(--text-heading); }
+
+.steps{ margin:0; padding-left:22px; font-size:15px; }
+.steps li{ margin-bottom:5px; }
+
+.ex{ border:1px solid rgba(21,132,67,0.22); border-left:3px solid var(--asubk-green);
+  background:var(--asubk-green-tint); border-radius:var(--radius-md); padding:11px 13px; margin-top:12px; }
+.ex .lbl{ color:var(--asubk-green); }
+.ex .src{ font-size:13px; color:var(--text-muted); margin:0 0 7px; }
+.ex .exh{ font:600 12.5px/1 var(--asubk-font); color:var(--asubk-ink-45); display:block; margin:7px 0 3px;
+  text-transform:uppercase; letter-spacing:.05em; }
+.ex ul{ margin:0; padding-left:20px; font-size:14.5px; }
+.ex li{ margin-bottom:3px; }
+
+.terms{ display:flex; flex-wrap:wrap; gap:8px; }
+.terms .term{ font-size:13px; background:var(--asubk-gray-50); border:1px solid var(--asubk-gray-200);
+  border-radius:var(--radius-md); padding:6px 10px; }
+.terms .term b{ color:var(--text-heading); }
+
+.look{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:13px; }
+.look a{ color:var(--asubk-link); text-decoration:none; background:var(--asubk-blue-tint); padding:4px 9px; border-radius:var(--radius-pill); }
+.look a:hover{ text-decoration:underline; }
+.look .route{ color:var(--text-muted); }
+.look .defect{ color:#9E1F1F; background:#FCE6E6; padding:4px 9px; border-radius:var(--radius-pill); }
+
+.openbox{ background:var(--asubk-amber-tint); border-left:3px solid var(--asubk-amber); border-radius:0 var(--radius-md) var(--radius-md) 0;
+  padding:9px 12px; margin-top:6px; font-size:13.5px; }
+.openbox b{ color:#8A6508; }
+
+.c-foot{ margin-top:13px; padding-top:11px; border-top:1px solid var(--asubk-gray-150);
+  display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.tag{ font-size:12px; color:var(--text-muted); background:var(--asubk-gray-100);
+  border:1px solid var(--border-default); border-radius:var(--radius-pill); padding:3px 9px; }
+.dep{ font-size:12px; color:var(--asubk-link); background:var(--asubk-white); text-decoration:none;
+  border:1px solid rgba(0,106,245,0.25); border-radius:var(--radius-pill); padding:3px 9px; }
+.dep:hover{ background:var(--asubk-blue-tint); }
+
+.card details{ margin-top:11px; border-top:1px solid var(--asubk-gray-150); padding-top:9px; }
+.card details summary{ cursor:pointer; font-size:13px; color:var(--text-muted); list-style:none; user-select:none; }
+.card details summary::-webkit-details-marker{ display:none; }
+.card details summary::before{ content:'▸ '; color:var(--asubk-ink-45); }
+.card details[open] summary::before{ content:'▾ '; }
+.card details summary:hover{ color:var(--asubk-link); }
+
+/* Свёрнутые панели свода */
+.panel details.fold > summary{ cursor:pointer; list-style:none; user-select:none;
+  font:600 16px/1.3 var(--asubk-font); color:var(--text-heading);
+  display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; }
+.panel details.fold > summary::-webkit-details-marker{ display:none; }
+.panel details.fold > summary::before{ content:'▸'; color:var(--asubk-ink-45); font-weight:400; }
+.panel details.fold[open] > summary::before{ content:'▾'; }
+.panel details.fold > summary:hover{ color:var(--asubk-link); }
+.panel details.fold > summary .sub{ font-weight:400; color:var(--text-muted); font-size:13px; }
+.panel details.fold > summary .cnt{ font:600 12px/1 var(--asubk-font); color:var(--asubk-link);
+  background:var(--asubk-blue-tint); border-radius:var(--radius-pill); padding:4px 9px; }
+.panel details.fold > .foldbody{ margin-top:12px; }
+.traps{ margin-top:8px; font-size:13.5px; color:var(--text-muted); background:var(--asubk-gray-50);
+  border:1px solid var(--asubk-gray-150); border-radius:var(--radius-md); padding:10px 12px; }
+.traps ul{ margin:0; padding-left:18px; }
+.traps li{ margin-bottom:4px; }
+
+.empty{ text-align:center; padding:48px 0; color:var(--text-muted); font-size:15px; }
+.footerbar{ margin-top:32px; font-size:13px; color:var(--text-muted); border-top:1px solid var(--border-default); padding-top:14px; }
+code{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; }
+@media print{ .bar{ position:static; } .card details{ display:none; }
+  .panel details.fold > .foldbody{ display:block; } .card{ break-inside:avoid; } }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="crumbs">АСУБК · Модуль «Анализ» · Постановка задач для разработки</div>
+    <h1 id="hero-title">Анализ — задачи для команды разработки</h1>
+    <div class="revbar" id="revbar"></div>
+    <p class="lead" id="hero-lead"></p>
+    <div class="tiles" id="tiles"></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="panel" id="panel-guide">
+    <details class="fold">
+      <summary>Справка модуля <span class="sub">что модулю принадлежит и где его границы</span>
+        <span class="cnt" id="guide-cnt"></span></summary>
+      <div class="foldbody" id="guide-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-atlas">
+    <details class="fold">
+      <summary>Карта данных <span class="sub">модель целиком: сущности, ключи, поля — карточка несёт только дельту</span>
+        <span class="cnt" id="atlas-cnt"></span></summary>
+      <div class="foldbody" id="atlas-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-screens">
+    <details class="fold">
+      <summary>Опись экранов <span class="sub">весь интерфейс модуля списком: где что живёт</span>
+        <span class="cnt" id="screens-cnt"></span></summary>
+      <div class="foldbody" id="screens-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-gloss">
+    <details class="fold">
+      <summary>Словарь <span class="sub">слова этой постановки в её собственном значении</span>
+        <span class="cnt" id="gloss-cnt"></span></summary>
+      <div class="foldbody" id="gloss-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-walk">
+    <details class="fold">
+      <summary>Сквозной пример <span class="sub">один заёмщик от отчётности до шва наружу, с числами</span>
+        <span class="cnt" id="walk-cnt"></span></summary>
+      <div class="foldbody" id="walk-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-open">
+    <details class="fold">
+      <summary>Открытые вопросы <span class="sub">умолчания, на которых строим; ответ заказчика переносит в следующую редакцию</span>
+        <span class="cnt" id="openq-cnt"></span></summary>
+      <div class="foldbody" id="openq-list"></div>
+    </details>
+  </section>
+
+  <div class="bar">
+    <div class="row">
+      <input class="search" id="q" type="search" placeholder="Поиск по номеру, заголовку, тексту…" autocomplete="off">
+      <select id="fStage"><option value="">Все этапы</option></select>
+      <button class="btn" id="reset">Сбросить</button>
+      <button class="btn btn-p" id="expand">Раскрыть ловушки</button>
+      <span class="count" id="count"></span>
+    </div>
+  </div>
+
+  <div id="list"></div>
+
+  <div class="footerbar">
+    <p><b>Порядок сборки — по этапам, не строгой очередью.</b> Внутри этапа карточки независимы и
+       берутся в любом порядке; между этапами — барьер и приёмка пачкой. Зависимость (значок
+       <span class="dep" style="display:inline">↔ P20-Rn</span>) указывает только назад — на уже
+       готовую карточку.</p>
+    <p><b>Как читать карточку.</b> Свод наверху читается один раз: карта данных, опись экранов,
+       словарь и сквозной пример. Карточка после этого несёт только своё — что строим, зачем, какие
+       поля добавляются, как выглядит экран, шаги, пример с числами и приёмку. Числа во всех
+       примерах взяты из витрины макета, имя записи стоит в строке «Источник».</p>
+    <p><b>Разделение источников.</b> Модель, правила, приёмка и границы живут только здесь. Приоритет
+       и статус исполнения — в <code>TODO.md</code> (реестр). Расхождение по логике модуля решает эта
+       постановка, расхождение по виду интерфейса — макет <code>analysis.html</code>.</p>
+    <p>Вопросы по постановке — общий чат команды. Ответ, полученный там, попадает в карточку и журнал
+       редакции следующего выпуска этого файла (см. «Версионирование», <code>FORMAT.md</code>).</p>
+  </div>
+</div>
+
+
+<script type="application/json" id="tasks-data">
+{
+ "meta": {
+  "module": "analysis",
+  "title": "Анализ",
+  "phase": 20,
+  "format": 2,
+  "revision": 1,
+  "date": "2026-08-28",
+  "registry": "### Анализ (целевая модель)",
+  "package": [
+   "analysis.html"
+  ]
+ },
+ "guide": [
+  {
+   "h": "Что входит в эту редакцию, а что нет",
+   "items": [
+    "Строится <b>раздел первый — финансовый анализ заёмщика</b>, целиком: справочник строк формы отчётности, реестр методик с редакциями, ввод отчётности версиями, вычислитель коэффициентов, документ с одной подписью, снимок основания, два механизма правки, расписание и срок, два шва наружу.",
+    "<b>Раздел аналитических обзоров в эту редакцию не входит.</b> Обзор обязан ссылаться на шаблон отчётности и его редакцию, а модуля отчётности в системе ещё нет; заводить «временно свой» конструктор состава среза запрещено решением <code>ADR-0154</code> — второй конструктор не сойдётся с первым. Обзор придёт редакцией 2 этого файла, после отчётности.",
+    "Модуль проектируется <b>с нуля</b>: живого экрана в тестовом стенде нет, предшественника в старой системе тоже нет. Эталон поведения и интерфейса — макет <a href=\"analysis.html\">analysis.html</a>: он исполняет описанное здесь на живых данных, движок проверен смоуком, 44 проверки. При расхождении по логике модуля прав этот файл, по виду интерфейса — макет.",
+    "Норма содержания методик не задаёт: ни Порядок №41, ни ПКМ №554 не перечисляют финансовых коэффициентов. Норма приходит в модуль <b>сроком</b> — требованием анализировать финансово-хозяйственное состояние заёмщика; этот срок держит расписание анализа."
+   ]
+  },
+  {
+   "h": "Чего модуль не делает — это решения, а не недоделки",
+   "items": [
+    "<b>Не выводит суммы по объекту</b> — остаток, начисленное, просрочку и график даёт расчётное ядро швами <code>calc*</code>: вычислитель в системе один.",
+    "<b>Не считает агрегаты и ряды</b> — это статистика; <b>не объявляет состав среза и не печатает форму</b> — это отчётность.",
+    "<b>Не присваивает категорию и не кормит классификацию.</b> Стрелка одна: классификация анализ не читает ни в одной форме, суждение — не вход классификации.",
+    "<b>Не пишет ни в одно чужое поле.</b> Требование «по завершению анализа информация вносится в поля объекта» исполняется <b>зеркалом</b> в шапке заёмщика, а не второй копией вывода.",
+    "<b>Не ставит задач и не блокирует заявку.</b> Задачу заводит человек со ссылкой на заключение; заявку останавливает гейт, читая чужой дефект.",
+    "<b>Не считает и не хранит дефект.</b> Анализ отдаёт факт — есть утверждённое заключение за период или нет; дефект по нему считает сопровождение."
+   ]
+  },
+  {
+   "h": "Инварианты модуля — проверяются в приёмке каждой карточки",
+   "items": [
+    "<b>ИА-1.</b> Утверждённое заключение не пересчитывается никогда.",
+    "<b>ИА-2.</b> Черновик снимка не имеет и основанием ни для чего не служит.",
+    "<b>ИА-3.</b> Коэффициент вводу не подлежит: человек вносит отчётность, значение ставит машина.",
+    "<b>ИА-4.</b> Методика выбирается по типу лица на дату отчётности, а не на сегодня.",
+    "<b>ИА-5.</b> Редакция методики, на которую ссылается заключение, не снимается.",
+    "<b>ИА-6.</b> Показателя вне реестра в обзоре не бывает <i>(ждёт раздела обзоров)</i>.",
+    "<b>ИА-7.</b> Обзор ссылается на шаблон и его редакцию, состав не копирует <i>(ждёт раздела обзоров)</i>.",
+    "<b>ИА-8.</b> Число в обзоре без паспорта не показывается и не хранится <i>(ждёт раздела обзоров)</i>.",
+    "<b>ИА-9.</b> Анализ не пишет ни в одно чужое поле.",
+    "<b>ИА-10.</b> Классификация анализ не читает.",
+    "<b>ИА-11.</b> Заключение задач не порождает; задачу ставит человек со ссылкой на него.",
+    "<b>ИА-12.</b> Обязательство закрывается фактом — утверждённым заключением, а не отметкой.",
+    "<b>ИА-13.</b> Дефект анализ не хранит: отдаёт факт, дефект считает сопровождение.",
+    "<b>ИА-14.</b> Отсутствие заключения печатается словами «анализа нет».",
+    "<b>ИА-15.</b> Вывод в снимок не входит: снимок — основание, а не суждение.",
+    "<b>ИА-16.</b> Заключение за период, по которому уже подписано другое, — переиздание, и правило у него одно, какой бы дверью его ни завели.",
+    "<b>ИА-17.</b> Действующая на дату запись выбирается везде одним порядком — по дате вступления, последней.",
+    "<b>ИА-18.</b> Строку формы отчётности заводит отдел анализа записью, а не разработчик правкой кода."
+   ]
+  }
+ ],
+ "atlas": [
+  {
+   "n": "Строка формы отчётности",
+   "key": "код строки",
+   "note": "общий справочник, из которого редакция методики собирает форму ввода; ведёт отдел анализа",
+   "fields": [
+    "<b>код</b> — латиница, цифры и подчёркивание, с буквы; по нему ссылается редакция методики",
+    "<b>название</b> — то, что читает человек в форме",
+    "<b>единица измерения</b> — обязательна: число без единицы неотличимо от числа в другой единице",
+    "<b>признак снятия</b> — снятая строка в новые редакции не берётся, но остаётся читаемой"
+   ]
+  },
+  {
+   "n": "Методика",
+   "key": "код методики",
+   "note": "именованный способ прочитать отчётность; одна методика на тип лица, единой «для всех» нет",
+   "fields": [
+    "<b>название</b>",
+    "<b>применимость по типу лица</b> — организация, индивидуальный предприниматель, физическое лицо, групповой заёмщик",
+    "<b>владелец</b> — отдел анализа",
+    "<b>редакции</b> — список, механизм изменения методики"
+   ]
+  },
+  {
+   "n": "Редакция методики",
+   "key": "методика + номер редакции",
+   "note": "публикуется датой, задним числом не публикуется, не правится после публикации",
+   "fields": [
+    "<b>номер</b> и <b>дата вступления в силу</b>",
+    "<b>примечание</b> — чем эта редакция отличается от прежней",
+    "<b>перечень строк формы</b> — что человек вводит",
+    "<b>перечень коэффициентов</b> — что считает машина",
+    "<b>признак снятия</b> — снять можно только редакцию, на которую не ссылается ни одно заключение"
+   ]
+  },
+  {
+   "n": "Коэффициент редакции",
+   "key": "редакция + код коэффициента",
+   "note": "объявляет источник своих чисел записью; поля с текстом формулы нет",
+   "fields": [
+    "<b>название</b> — то, что видит человек в таблице документа",
+    "<b>строки числителя</b> и <b>строки знаменателя</b> — коды строк формы",
+    "<b>операция</b> — из закрытого списка: отношение, доля в процентах, разность",
+    "<b>формат показа</b> — отношение, проценты, деньги",
+    "<b>порог</b> — сравнение (не менее / не более) и значение"
+   ]
+  },
+  {
+   "n": "Финансовая отчётность заёмщика (версия)",
+   "key": "заёмщик + период + номер версии",
+   "note": "реквизит ЗАЁМЩИКА, а не документа анализа: одну версию читают несколько заключений",
+   "fields": [
+    "<b>период</b> и <b>дата конца периода</b>",
+    "<b>номер версии</b> — уточнённая отчётность не затирает прежнюю",
+    "<b>дата подачи</b> и <b>документ-основание</b> — обязательны у каждой версии",
+    "<b>кто внёс</b> — ведущий куратор заёмщика",
+    "<b>значения строк формы</b> — код строки → число"
+   ]
+  },
+  {
+   "n": "Период отчётности",
+   "key": "метка периода",
+   "note": "общий справочник; за незавершившийся период отчётность не вносится",
+   "fields": [
+    "<b>метка</b> — «2025 год», «1П 2026»",
+    "<b>дата конца периода</b>"
+   ]
+  },
+  {
+   "n": "Финансовый анализ заёмщика (документ)",
+   "key": "номер документа",
+   "note": "документ-суждение на пару заёмщик × период отчётности; ведёт ведущий куратор заёмщика",
+   "fields": [
+    "<b>заёмщик</b>, <b>период</b>, <b>версия отчётности</b> — основание",
+    "<b>методика и номер редакции</b> — выбраны на дату конца периода при заведении",
+    "<b>текст заключения</b> и <b>вывод</b> — из перечня трёх значений",
+    "<b>состояние</b> — черновик или утверждено; третьего нет",
+    "<b>автор</b> и <b>дата утверждения</b>",
+    "<b>снимок основания</b> — появляется утверждением",
+    "<b>таблица корректировок</b> — «было → стало» с документом-основанием",
+    "<b>ссылка «переиздаёт»</b> — номер прежнего заключения за тот же период; проставляет машина"
+   ]
+  },
+  {
+   "n": "Снимок основания",
+   "key": "живёт внутри утверждённого заключения, своего ключа не имеет",
+   "note": "фиксируется утверждением; объясняет вывод и источником текущего значения ни для кого не является",
+   "fields": [
+    "<b>дата утверждения</b> и <b>кто утвердил</b>",
+    "<b>ссылка на редакцию методики</b> и её дата вступления — ссылка, а не копия формул",
+    "<b>версия отчётности</b>, её период, дата подачи и документ-основание",
+    "<b>тип лица на дату отчётности</b>",
+    "<b>значения строк формы</b> — копия на момент подписи",
+    "<b>коэффициенты со значениями, порогами и отметкой</b>",
+    "<b>вывода в снимке нет</b> — он живёт в документе и правится корректировкой"
+   ]
+  },
+  {
+   "n": "Корректировка",
+   "key": "документ + порядковый номер",
+   "note": "первый из двух механизмов правки: исправление ошибки в записи",
+   "fields": [
+    "<b>поле</b> — текст заключения или вывод; числа корректировкой не правятся",
+    "<b>было</b> и <b>стало</b>",
+    "<b>основание</b> — документ, которым исправление объяснено; обязательно",
+    "<b>кто</b> и <b>когда</b>"
+   ]
+  },
+  {
+   "n": "Строка расписания анализа",
+   "key": "код строки",
+   "note": "единственный источник срока финанализа в системе; второго календаря нет",
+   "fields": [
+    "<b>тип лица</b> — к кому строка относится",
+    "<b>периодичность</b> — раз в полгода или раз в год",
+    "<b>отсрочка</b> — сколько дней после конца периода даётся на анализ",
+    "<b>признак «только при действующих кредитах»</b>",
+    "<b>дата вступления в силу</b> — строка выбирается датированно"
+   ]
+  },
+  {
+   "n": "Тип лица заёмщика (историчная запись)",
+   "key": "заёмщик + дата вступления",
+   "note": "ЧУЖАЯ сущность, модуль её читает и не пишет; лицо меняет правоспособность во времени",
+   "fields": [
+    "<b>дата вступления</b>",
+    "<b>значение</b> — организация, ИП, физическое лицо, групповой заёмщик"
+   ]
+  },
+  {
+   "n": "Заёмщик",
+   "key": "ключ субъекта",
+   "note": "ЧУЖАЯ карточка: анализ читает её и не пишет в неё ни одного поля",
+   "fields": [
+    "<b>наименование</b>, <b>ИНН</b>, <b>филиал</b>",
+    "<b>ведущий куратор</b> — приходит из кураторства",
+    "<b>число действующих кредитов</b> — от него зависит, вменяет ли расписание анализ",
+    "<b>заявка на рассмотрении</b> — читается гейтом, анализ её не трогает"
+   ]
+  }
+ ],
+ "screens": [
+  {
+   "n": "Карточка заёмщика → вкладка «Финансы»",
+   "note": "точка входа раздела: отчётность и заключения по одному заёмщику",
+   "cols": [
+    "период",
+    "версия",
+    "подана",
+    "документ-основание",
+    "кто внёс",
+    "чем используется",
+    "номер заключения",
+    "состояние",
+    "вывод",
+    "дата утверждения"
+   ],
+   "acts": [
+    "Внести отчётность",
+    "Завести заключение по версии",
+    "Открыть заключение"
+   ]
+  },
+  {
+   "n": "Шапка карточки заёмщика — зеркало анализа",
+   "note": "ЧУЖОЙ экран: анализ отдаёт показ, а не запись. Заключений нет — печатается «анализа нет»",
+   "cols": [
+    "вывод",
+    "номер заключения",
+    "дата утверждения",
+    "срок следующего анализа",
+    "состояние обязательства"
+   ],
+   "acts": [
+    "Открыть заключение"
+   ]
+  },
+  {
+   "n": "Финанализ (документ)",
+   "note": "один экран на документ; у черновика расчёт живой, у утверждённого — снимок",
+   "cols": [
+    "основание — версия отчётности и её документ",
+    "методика и редакция",
+    "таблица коэффициентов: название, значение, порог, отметка",
+    "текст заключения",
+    "вывод",
+    "снимок основания",
+    "пометка «источник изменился»",
+    "что дал бы пересчёт",
+    "таблица корректировок",
+    "связь «переиздаёт» и «переиздано в»"
+   ],
+   "acts": [
+    "Сохранить черновик",
+    "Утвердить",
+    "Корректировать с основанием",
+    "Новое заключение за тот же период",
+    "Открыть прежнее заключение"
+   ]
+  },
+  {
+   "n": "Реестр методик",
+   "note": "ведёт отдел анализа; здесь же карточка «Справочник строк формы отчётности»",
+   "cols": [
+    "методика",
+    "тип лица",
+    "редакции: номер, дата вступления, примечание",
+    "строки формы редакции",
+    "коэффициенты редакции с порогами",
+    "код строки",
+    "название строки",
+    "единица",
+    "кем названа"
+   ],
+   "acts": [
+    "Завести методику",
+    "Опубликовать редакцию",
+    "Снять редакцию",
+    "Завести строку",
+    "Снять строку"
+   ]
+  },
+  {
+   "n": "Расписание анализа",
+   "note": "правит администратор; читает сопровождение — отсюда берётся срок обязательства",
+   "cols": [
+    "строка",
+    "тип лица",
+    "периодичность",
+    "отсрочка в днях",
+    "только при действующих кредитах",
+    "действует с",
+    "срок по каждому заёмщику"
+   ],
+   "acts": [
+    "Править строку"
+   ]
+  },
+  {
+   "n": "Швы наружу (служебный экран приёмки)",
+   "note": "показывает, что именно отдают оба шва и кому они открыты; в промышленной сборке не обязателен",
+   "cols": [
+    "шов",
+    "вопрос",
+    "ответ",
+    "кто вправе спрашивать",
+    "чего шов не отдаёт"
+   ],
+   "acts": [
+    "Спросить шов от имени модуля"
+   ]
+  },
+  {
+   "n": "Аналитические обзоры",
+   "note": "в этой редакции НЕ строится: экран показывает, почему раздел заперт до модуля отчётности, и какие инварианты ждут его появления",
+   "cols": [
+    "ожидающие инварианты",
+    "чего не хватает"
+   ],
+   "acts": []
+  }
+ ],
+ "glossary": [
+  {
+   "t": "строка формы отчётности",
+   "d": "запись справочника — код, название, единица; из строк редакция методики собирает форму ввода"
+  },
+  {
+   "t": "методика",
+   "d": "именованный способ прочитать отчётность: формы ввода, коэффициенты, пороги; применима к одному типу лица"
+  },
+  {
+   "t": "редакция методики",
+   "d": "версия методики, опубликованная датой; прошлые периоды считаются той редакцией, что действовала тогда"
+  },
+  {
+   "t": "коэффициент",
+   "d": "объявленное редакцией отношение, доля или разность строк формы; человек его не вводит"
+  },
+  {
+   "t": "порог",
+   "d": "сравнение «не менее» или «не более» со значением; порог подсвечивает, но вывод не ставит"
+  },
+  {
+   "t": "тип лица",
+   "d": "историчный реквизит заёмщика: организация, ИП, физическое лицо, групповой заёмщик"
+  },
+  {
+   "t": "действующая на дату запись",
+   "d": "из записей, вступивших в силу не позже даты, берётся последняя по дате вступления — один порядок на весь модуль"
+  },
+  {
+   "t": "период отчётности",
+   "d": "«2025 год», «1П 2026»; у периода есть дата конца, от неё считается всё остальное"
+  },
+  {
+   "t": "версия отчётности",
+   "d": "порция введённых руками чисел за период; уточнение заводит новую версию и не затирает прежнюю"
+  },
+  {
+   "t": "финанализ",
+   "d": "документ-суждение на пару заёмщик × период; в макете нумеруется ФА-N"
+  },
+  {
+   "t": "черновик",
+   "d": "состояние документа до подписи: коэффициенты живые, снимка нет, основанием ни для чего не служит"
+  },
+  {
+   "t": "утверждено",
+   "d": "состояние после единственной подписи: снимок зафиксирован, прямая правка закрыта"
+  },
+  {
+   "t": "вывод",
+   "d": "одно из трёх: удовлетворительное · удовлетворительное с оговорками · неудовлетворительное"
+  },
+  {
+   "t": "снимок основания",
+   "d": "всё, из чего собран вывод, на момент подписи: значения, ссылка на редакцию, версия отчётности, тип лица, дата"
+  },
+  {
+   "t": "живой расчёт",
+   "d": "показ коэффициентов черновика: считается заново при каждом открытии"
+  },
+  {
+   "t": "пометка «источник изменился»",
+   "d": "отметка на утверждённом заключении о том, что появилась новая версия отчётности за тот же период"
+  },
+  {
+   "t": "что дал бы пересчёт",
+   "d": "справочный показ рядом с пометкой: числа по новой версии; никуда не записывается"
+  },
+  {
+   "t": "корректировка",
+   "d": "первый механизм правки: исправление текста или вывода с обязательным документом-основанием"
+  },
+  {
+   "t": "переиздание",
+   "d": "второй механизм: новое заключение за тот же период на более новой версии основания; связь с прежним ставит машина"
+  },
+  {
+   "t": "расписание анализа",
+   "d": "строки «тип лица → периодичность, отсрочка, охват»; единственный источник срока"
+  },
+  {
+   "t": "отсрочка",
+   "d": "сколько дней после конца периода даётся на анализ; срок = конец периода + отсрочка"
+  },
+  {
+   "t": "обязательство",
+   "d": "чужая сущность сопровождения: оно ведётся по нашему сроку и закрывается нашим фактом"
+  },
+  {
+   "t": "дефект «на допуск»",
+   "d": "чужой счёт: сопровождение считает его из просроченного срока, гейт заявки его читает; анализ его не хранит"
+  },
+  {
+   "t": "зеркало",
+   "d": "показ нашего вывода на чужой карточке — вместо записи в чужое поле"
+  },
+  {
+   "t": "шов",
+   "d": "названный вопросом ответ модуля наружу; швов два, третьего нет"
+  }
+ ],
+ "walkthrough": {
+  "src": "b-1 · ОсОО «Ак-Жол Агро» (ИНН 02508199710085) · период 1П 2026 · заключение ФА-7",
+  "note": "витрина макета analysis.html, сегодняшняя дата стенда — 21.08.2026",
+  "groups": [
+   {
+    "h": "1. Отчётность",
+    "items": [
+     "Куратор Бекова Н. вносит версию 1 за 1П 2026, подана 10.07.2026, основание — «баланс и ОПиУ за 1 полугодие 2026 от 10.07.2026».",
+     "Форму объявила методика: 10 строк. Оборотные активы 48 200 000 сом, краткосрочные обязательства 39 500 000, собственный капитал 61 000 000, валюта баланса 184 000 000, чистая прибыль 7 350 000, выручка 96 400 000, прибыль до процентов и амортизации 21 800 000, кредиты и займы 92 000 000, поток от операционной деятельности 24 300 000, платежи по обслуживанию долга 18 900 000."
+    ]
+   },
+   {
+    "h": "2. Методика на дату",
+    "items": [
+     "Тип лица заёмщика на 30.06.2026 — «организация» (с 12.03.2019), значит методика «Финансовый анализ организации».",
+     "Действующая на 30.06.2026 редакция — <b>2 от 01.04.2026</b> («порог ликвидности поднят до 1,2; добавлено покрытие долга потоком»), а не редакция 1 от 01.01.2024 и не та, что выйдет позже."
+    ]
+   },
+   {
+    "h": "3. Коэффициенты считает машина",
+    "items": [
+     "Текущая ликвидность 48 200 000 ÷ 39 500 000 = <b>1,2203</b> при пороге не менее 1,2 — в пороге.",
+     "Автономия 61 000 000 ÷ 184 000 000 = 0,3315 при пороге не менее 0,3 — в пороге.",
+     "Рентабельность продаж 7 350 000 ÷ 96 400 000 × 100 = 7,62% при пороге не менее 5 — в пороге.",
+     "Долг к операционной прибыли 92 000 000 ÷ 21 800 000 = <b>4,2202</b> при пороге не более 4 — <b>вне порога</b>.",
+     "Покрытие обслуживания долга потоком 24 300 000 ÷ 18 900 000 = 1,2857 при пороге не менее 1,25 — в пороге."
+    ]
+   },
+   {
+    "h": "4. Заключение и подпись",
+    "items": [
+     "Куратор пишет текст и ставит вывод «удовлетворительное с оговорками» — из перечня; из порогов вывод не выводится, хотя один коэффициент вне порога.",
+     "Утверждение 20.07.2026 фиксирует снимок: 10 значений строк, 5 коэффициентов с порогами и отметками, ссылка на редакцию 2 от 01.04.2026, версия отчётности 1, тип лица «организация», дата.",
+     "Вывода в снимке нет — он живёт в документе."
+    ]
+   },
+   {
+    "h": "5. Источник изменился",
+    "items": [
+     "12.08.2026 подана версия 2 за тот же период: краткосрочные обязательства 43 100 000 (было 39 500 000), собственный капитал 57 400 000, кредиты и займы 95 600 000.",
+     "ФА-7 <b>помечено</b>, но не пересчитано: в документе по-прежнему 1,2203 и 4,2202.",
+     "Рядом показано «что дал бы пересчёт»: ликвидность 1,1183 — уже вне порога 1,2, долг 4,3853. Эти числа никуда не записываются."
+    ]
+   },
+   {
+    "h": "6. Переиздание",
+    "items": [
+     "На версии 2 заводится <b>ФА-10</b>, и машина проставляет связь «переиздаёт ФА-7» — сама, из данных.",
+     "Попытка завести заключение на версии 1 отклоняется: «основание то же самое» — на прежней версии это была бы корректировка.",
+     "ФА-7 остаётся в истории; удаления утверждённого заключения в модуле нет."
+    ]
+   },
+   {
+    "h": "7. Срок и обязательство",
+    "items": [
+     "Строка расписания sc-org: организация, раз в полгода, отсрочка 45 дней, только при действующих кредитах (у заёмщика их 2), действует с 01.01.2026.",
+     "Последний завершённый период на 21.08.2026 — 1П 2026, конец 30.06.2026; срок = 30.06.2026 + 45 дней = <b>14.08.2026</b>.",
+     "Обязательство закрыто <b>фактом</b>: ФА-7 утверждено 20.07.2026. Дефекта нет, и ни одного поля с дефектом в модуле не заведено."
+    ]
+   },
+   {
+    "h": "8. Наружу",
+    "items": [
+     "Шов analysisVerdict по заёмщику отдаёт: «удовлетворительное с оговорками», ФА-7, 20.07.2026, период 1П 2026, методика «Финансовый анализ организации», редакция 2, признак «источник изменился».",
+     "Шов analysisDone за 1П 2026 отдаёт «да, 20.07.2026». Черновики не отдаёт ни один из двух швов.",
+     "В шапке карточки заёмщика те же вывод, номер и дата стоят зеркалом — ни одно поле чужой карточки анализом не записано."
+    ]
+   }
+  ]
+ },
+ "stages": [
+  {
+   "n": 1,
+   "title": "Справочники и датированный выбор"
+  },
+  {
+   "n": 2,
+   "title": "Отчётность заёмщика"
+  },
+  {
+   "n": 3,
+   "title": "Вычислитель"
+  },
+  {
+   "n": 4,
+   "title": "Документ и подпись"
+  },
+  {
+   "n": 5,
+   "title": "Снимок и два механизма правки"
+  },
+  {
+   "n": 6,
+   "title": "Срок, обязательство, зеркало"
+  },
+  {
+   "n": 7,
+   "title": "Швы наружу, роли, названные отказы"
+  }
+ ],
+ "cards": [
+  {
+   "id": "P20-R1",
+   "stage": 1,
+   "title": "Справочник строк формы отчётности: словарь, которым говорят все методики",
+   "build": "Справочник строк формы отчётности: код, название, единица измерения, снятие. Из этих строк редакции методик собирают формы ввода. Ведёт справочник отдел анализа, записью в интерфейсе.",
+   "why": "Если каждая методика заведёт «оборотные активы» своим полем, четыре методики дадут четыре несводимых поля с одним смыслом. Общий справочник делает строку одной на всю систему: методика её выбирает, а не переизобретает. Единица измерения обязательна потому, что число без неё неотличимо от числа в другой единице, и первая же выгрузка сложит сомы с процентами. Заводит строку отдел анализа, а не разработчик правкой кода: новая строка отчётности — рабочее событие, а не релиз.",
+   "look": {
+    "mock": "analysis.html",
+    "route": "экран «Методики» → карточка «Справочник строк формы отчётности»"
+   },
+   "screen": [
+    {
+     "n": "Справочник строк формы отчётности",
+     "note": "Живёт рядом с реестром методик: строку заводят там же, где её потом выбирают в редакцию.",
+     "cols": [
+      "код",
+      "название",
+      "единица измерения",
+      "состояние",
+      "кем используется"
+     ],
+     "acts": [
+      "Завести строку",
+      "Снять строку"
+     ]
+    }
+   ],
+   "steps": [
+    "Хранить строку: код, название, единица измерения, признак снятия.",
+    "Проверять код при заведении: латиница, цифры и подчёркивание, начинается с буквы, уникален.",
+    "Требовать единицу измерения — сохранение без неё не проходит.",
+    "Взять затравку из двадцати строк макета: балансовые, из отчёта о прибылях, денежного потока и строки по физлицу.",
+    "Снятую строку показывать состоянием и не предлагать её при сборке новой редакции методики.",
+    "Оставлять снятую строку читаемой везде, где на неё уже ссылаются прежние редакции и снимки."
+   ],
+   "rules": [
+    {
+     "h": "Что строка есть и чего в ней нет",
+     "items": [
+      "Строка — это словарная единица, а не поле формы: формой она становится только внутри редакции методики.",
+      "Значения в строке не хранятся: значения принадлежат версии отчётности заёмщика.",
+      "Способа вычисления в строке нет — строку вводит человек. Всё, что считается, объявляется коэффициентом редакции.",
+      "Снятие не удаление: код остаётся занятым навсегда, чтобы старый снимок не потерял подпись к своему числу."
+     ]
+    },
+    {
+     "h": "Кто ведёт",
+     "items": [
+      "Владелец справочника — отдел анализа. Кураторы его читают.",
+      "Переименование строки разрешено: смысл несёт код, а название — подпись для человека.",
+      "Правка кода запрещена — это заведение новой строки."
+     ]
+    }
+   ],
+   "example": {
+    "src": "справочник строк макета analysis.html",
+    "given": [
+     "В справочнике 20 строк; среди них ca «Оборотные активы» (сом), li_short «Краткосрочные обязательства» (сом), rev «Выручка» (сом), inc «Совокупный доход в месяц» (сом)."
+    ],
+    "do": [
+     "Завести строку с кодом «ca» и снять строку «rev»."
+    ],
+    "get": [
+     "Заведение отклонено: код занят.",
+     "«Выручка» получает состояние «снята», в сборщике новой редакции её больше нет, а в опубликованной редакции 2 методики организации она осталась и продолжает читаться."
+    ]
+   },
+   "terms": [
+    {
+     "t": "строка формы отчётности",
+     "d": "словарная единица: код, название, единица измерения; из строк редакция методики собирает форму ввода."
+    }
+   ],
+   "accept": [
+    "Строка заводится в интерфейсе отделом анализа — без правки кода и без релиза.",
+    "Сохранение строки без единицы измерения отклоняется.",
+    "Заведение строки с уже занятым кодом отклоняется с указанием занявшей строки.",
+    "Код проверяется по правилу: латиница, цифры, подчёркивание, начинается с буквы.",
+    "Снятая строка не предлагается при сборке новой редакции методики.",
+    "Снятая строка остаётся читаемой в опубликованных редакциях и в снимках, которые на неё ссылаются.",
+    "Переименование строки меняет подпись во всех формах и не меняет ни одного сохранённого значения.",
+    "В затравке 20 строк, покрывающих все четыре методики."
+   ],
+   "notIn": [
+    "Перечень строк конкретной формы ввода — P20-R3, там он собирается из этого справочника.",
+    "Значения строк по заёмщику — P20-R5.",
+    "Всё, что вычисляется, — P20-R8."
+   ],
+   "deps": [],
+   "traps": [
+    "<b>Соблазн держать формулу в строке.</b> Строка «Коэффициент текущей ликвидности» в справочнике недопустима: тогда её станут вводить руками, и одно и то же число появится и введённым, и вычисленным. Всё вычисляемое живёт коэффициентом редакции и вводу не подлежит."
+   ]
+  },
+  {
+   "id": "P20-R2",
+   "stage": 1,
+   "title": "Реестр методик: по одной на тип лица, единой «для всех» нет",
+   "build": "Реестр методик анализа: карточка методики с названием, типом лица, владельцем и списком редакций. Заводит и ведёт отдел анализа.",
+   "why": "Организация, индивидуальный предприниматель, физическое лицо и групповой заёмщик читаются по-разному: у физлица нет баланса, а у организации нет платёжеспособности в смысле доли платежа в доходе. Одна методика «на всех» вынудила бы держать пустыми половину строк и сравнивать несравнимое. Привязка к типу лица делает выбор методики машинным и однозначным: у типа лица на дату отчётности методика ровно одна.",
+   "look": {
+    "mock": "analysis.html",
+    "route": "экран «Методики» → список методик → карточка методики"
+   },
+   "screen": [
+    {
+     "n": "Реестр методик",
+     "note": "Список слева, карточка справа; редакции показаны внутри карточки.",
+     "cols": [
+      "методика",
+      "тип лица",
+      "владелец",
+      "число редакций",
+      "действующая редакция"
+     ],
+     "acts": [
+      "Завести методику",
+      "Открыть карточку"
+     ]
+    }
+   ],
+   "steps": [
+    "Хранить методику: код, название, применимость по типу лица, владелец.",
+    "Держать типы лица закрытым перечнем: организация, индивидуальный предприниматель, физическое лицо, групповой заёмщик.",
+    "Запрещать вторую методику на тот же тип лица: иначе выбор перестанет быть машинным.",
+    "Взять затравку из четырёх методик макета — по одной на каждый тип лица.",
+    "Показывать в карточке список редакций с номерами, датами вступления и примечаниями.",
+    "Не давать удалить методику, у которой есть хотя бы одна опубликованная редакция."
+   ],
+   "rules": [
+    {
+     "h": "Одна методика на тип лица",
+     "items": [
+      "Проверка при заведении: тип лица не занят другой методикой. Занят — отказ с именем занявшей.",
+      "Изменение методики идёт редакцией, а не правкой карточки: карточка держит только имя и адресата.",
+      "Групповой заёмщик — отдельный тип лица со своей методикой, а не разновидность организации."
+     ]
+    },
+    {
+     "h": "Владелец",
+     "items": [
+      "Владелец методики — отдел анализа. Куратор методику читает и не правит.",
+      "Куратор вправе видеть, какая методика применится к его заёмщику на любую дату, — это объяснение будущего расчёта."
+     ]
+    }
+   ],
+   "example": {
+    "src": "реестр методик макета",
+    "given": [
+     "4 методики: «Финансовый анализ организации» (организация, 2 редакции), «Анализ индивидуального предпринимателя» (ИП), «Оценка платёжеспособности физического лица» (физлицо), «Анализ группового заёмщика» (групповой)."
+    ],
+    "do": [
+     "Завести пятую методику с типом лица «организация»."
+    ],
+    "get": [
+     "Отказ: тип лица «организация» уже закреплён за методикой «Финансовый анализ организации»; изменение идёт её новой редакцией."
+    ]
+   },
+   "terms": [
+    {
+     "t": "методика",
+     "d": "именованный способ прочитать отчётность одного типа лица: формы ввода, коэффициенты, пороги."
+    }
+   ],
+   "accept": [
+    "Заведение второй методики на уже занятый тип лица отклоняется с именем занявшей методики.",
+    "Перечень типов лица закрыт четырьмя значениями; свободного ввода нет.",
+    "В затравке четыре методики — по одной на каждый тип лица.",
+    "Карточка методики показывает все её редакции с номерами, датами вступления и примечаниями.",
+    "Удаление методики с опубликованной редакцией отклоняется.",
+    "Куратор видит карточку методики целиком и не имеет действий правки.",
+    "Групповой заёмщик обслуживается отдельной методикой, а не методикой организации."
+   ],
+   "notIn": [
+    "Содержимое методики — формы и коэффициенты — живёт в редакции, P20-R3.",
+    "Выбор методики под конкретное заключение — P20-R4."
+   ],
+   "deps": [
+    "P20-R1"
+   ],
+   "extDeps": [
+    {
+     "what": "тип лица заёмщика ведётся модулем заёмщика историчными записями; анализ его читает"
+    }
+   ]
+  },
+  {
+   "id": "P20-R3",
+   "stage": 1,
+   "title": "Редакция методики: публикуется датой, после публикации не правится",
+   "build": "Редакция методики: номер, дата вступления в силу, примечание, перечень строк формы ввода и перечень коэффициентов с источниками, операцией, форматом и порогом. Публикация и снятие редакции.",
+   "why": "Методика живёт годами и меняется: поднимается порог, добавляется коэффициент. Если править её на месте, прошлогоднее заключение задним числом окажется посчитанным по правилам, которых тогда не было, и объяснить его будет нечем. Редакция с датой вступления решает это целиком: период считается той редакцией, что действовала на его конец. Отсюда же запрет править опубликованное — правка была бы тем же переписыванием прошлого, только незаметным.",
+   "look": {
+    "mock": "analysis.html",
+    "route": "экран «Методики» → карточка методики → редакция → «Строки формы» и «Коэффициенты»"
+   },
+   "screen": [
+    {
+     "n": "Редакция методики",
+     "note": "Две таблицы: что человек вводит и что считает машина. У опубликованной редакции обе доступны только на чтение.",
+     "cols": [
+      "номер",
+      "действует с",
+      "примечание",
+      "строки формы",
+      "коэффициент",
+      "числитель",
+      "знаменатель",
+      "операция",
+      "формат",
+      "порог"
+     ],
+     "acts": [
+      "Опубликовать редакцию",
+      "Снять редакцию"
+     ]
+    }
+   ],
+   "steps": [
+    "Хранить редакцию: номер, дата вступления, примечание, перечень строк формы, перечень коэффициентов.",
+    "Собирать форму ввода выбором строк из общего справочника; строк вне справочника в редакции не бывает.",
+    "Хранить коэффициент записью: название, коды строк числителя, коды строк знаменателя, операция, формат показа, порог.",
+    "Держать операции закрытым перечнем: отношение, доля в процентах, разность. Свободной формулы нет.",
+    "Требовать примечание при публикации: чем эта редакция отличается от прежней.",
+    "Запрещать публикацию задним числом — датой раньше сегодняшней и раньше даты уже опубликованной редакции.",
+    "Закрывать правку опубликованной редакции целиком: изменение идёт следующей редакцией.",
+    "Разрешать снятие редакции только тогда, когда на неё не ссылается ни одно заключение."
+   ],
+   "rules": [
+    {
+     "h": "Коэффициент объявлен записью",
+     "items": [
+      "Числитель и знаменатель — перечни кодов строк; несколько строк складываются.",
+      "Операция берётся из закрытого перечня. Текста формулы в системе нет ни в одном поле — иначе он станет вторым местом правды и разойдётся с записью.",
+      "Порог — сравнение «не менее» или «не более» и значение. Порог подсвечивает число и вывода не ставит.",
+      "Коэффициент вправе ссылаться только на строки, включённые в форму этой же редакции."
+     ]
+    },
+    {
+     "h": "Даты и снятие",
+     "items": [
+      "Дата вступления — единственное, чем редакции упорядочены. Номер редакции — подпись для человека.",
+      "Ссылка заключения держит редакцию: снятие такой редакции отклоняется с именем заключения. Иначе утверждённый снимок потеряет объяснение.",
+      "Снятая редакция остаётся читаемой у прежних заключений и не выбирается для новых."
+     ]
+    }
+   ],
+   "example": {
+    "src": "методика «Финансовый анализ организации» · макет",
+    "given": [
+     "Редакция 1 действует с 01.01.2024. Редакция 2 опубликована с 01.04.2026 с примечанием «порог ликвидности поднят до 1,2; добавлено покрытие долга потоком».",
+     "Редакция 2 объявляет 10 строк формы и 5 коэффициентов; текущая ликвидность — отношение строки ca к строке li_short, порог не менее 1,2."
+    ],
+    "do": [
+     "Изменить порог ликвидности в редакции 2 и снять редакцию 2."
+    ],
+    "get": [
+     "Правка отклонена: опубликованная редакция не правится, изменение идёт редакцией 3.",
+     "Снятие отклонено: на редакцию 2 ссылается заключение ФА-7 от 20.07.2026."
+    ]
+   },
+   "terms": [
+    {
+     "t": "редакция методики",
+     "d": "версия методики с датой вступления в силу; после публикации не правится."
+    },
+    {
+     "t": "порог",
+     "d": "сравнение «не менее» или «не более» со значением; подсвечивает коэффициент и вывода не ставит."
+    }
+   ],
+   "accept": [
+    "Публикация редакции датой раньше сегодняшней отклоняется.",
+    "Публикация датой раньше уже опубликованной редакции отклоняется.",
+    "Публикация без примечания отклоняется.",
+    "Любая правка опубликованной редакции — строк, коэффициентов, порогов — отклоняется.",
+    "Коэффициент со ссылкой на строку, не входящую в форму этой редакции, не сохраняется.",
+    "Операция выбирается из трёх значений; поля со свободным текстом формулы в интерфейсе нет.",
+    "Снятие редакции, на которую ссылается заключение, отклоняется с именем заключения.",
+    "Снятая редакция читается у прежних заключений и не выбирается для новых.",
+    "Редакция 2 методики организации в затравке содержит 10 строк формы и 5 коэффициентов с порогами."
+   ],
+   "notIn": [
+    "Как из редакции получаются числа — P20-R8.",
+    "Как редакция выбирается под период — P20-R4.",
+    "Форма ввода отчётности, построенная по перечню строк редакции, — P20-R6."
+   ],
+   "deps": [
+    "P20-R1",
+    "P20-R2"
+   ],
+   "traps": [
+    "<b>Поле «формула» кажется удобнее семи полей.</b> Строка вида «ca / li_short» читается человеком, но не проверяется машиной: опечатку в коде строки видно только в момент расчёта, а снятие строки становится незаметным. Поэтому источники хранятся кодами, операция — перечнем, и обе проверки идут при публикации, а не при счёте."
+   ]
+  },
+  {
+   "id": "P20-R4",
+   "stage": 1,
+   "title": "Датированный выбор: одна процедура на все историчные записи модуля",
+   "build": "Единая процедура выбора действующей на дату записи и три её применения: тип лица заёмщика, редакция методики, строка расписания анализа. Один порядок, одно место в коде.",
+   "why": "Модуль трижды спрашивает «что действовало тогда»: какой был тип лица на конец периода, какая редакция методики, какая строка расписания. Написанные порознь, эти три выбора неизбежно разъедутся — где-то возьмут первую подходящую, где-то последнюю, где-то сравнят даты строго вместо нестрого, и расхождение вскроется через год на одном заёмщике. Одна процедура делает поведение одинаковым по построению и объяснимым одной фразой.",
+   "look": {
+    "mock": "analysis.html",
+    "route": "экран «Методики» → «Методика на дату»; экран «Расписание» → колонка «действует с»"
+   },
+   "steps": [
+    "Реализовать выбор: из записей, вступивших в силу не позже даты, взять последнюю по дате вступления.",
+    "Сравнивать дату вступления с датой нестрого: запись, вступившая в силу в тот же день, действует.",
+    "Возвращать пустой результат явно — «на эту дату действующей записи нет», а не первую попавшуюся.",
+    "Применить процедуру к типу лица заёмщика, к редакции методики и к строке расписания анализа.",
+    "Считать датой выбора для заключения дату конца периода отчётности, а не сегодняшнюю дату.",
+    "Показать выбор человеку: в карточке методики — «какая редакция применится на дату», с датой и номером."
+   ],
+   "rules": [
+    {
+     "h": "Дата выбора",
+     "items": [
+      "Дата конца периода — единственная дата выбора при заведении заключения. Сегодняшняя дата на выбор не влияет никак.",
+      "Иначе отчётность за 2024 год, поданная сегодня, посчиталась бы по методике 2026 года, а тип лица взялся бы нынешний — у ИП, ставшего физлицом, это меняет саму форму ввода.",
+      "Один раз выбранные при заведении методика и редакция в документе фиксируются: последующая публикация новой редакции документ не трогает."
+     ]
+    },
+    {
+     "h": "Где это видно",
+     "items": [
+      "Карточка методики умеет отвечать на вопрос о произвольной дате — это объяснение будущего расчёта до его запуска.",
+      "Снимок утверждённого заключения хранит ссылку на выбранную редакцию и её дату вступления."
+     ]
+    }
+   ],
+   "example": {
+    "src": "b-1 ОсОО «Ак-Жол Агро» и b-2 Мамытов Т.А. · макет",
+    "given": [
+     "У b-1 тип лица «организация» с 12.03.2019. У b-2 «индивидуальный предприниматель» с 01.05.2021 и «физическое лицо» с 10.02.2026.",
+     "Редакции методики организации: 1 с 01.01.2024, 2 с 01.04.2026."
+    ],
+    "do": [
+     "Спросить методику на 30.06.2026 для b-1 и на 31.12.2025 для b-2."
+    ],
+    "get": [
+     "Для b-1: методика «Финансовый анализ организации», редакция 2 от 01.04.2026 — 10 строк, 5 коэффициентов.",
+     "Для b-2 на 31.12.2025: тип лица «индивидуальный предприниматель», методика ИП — хотя сегодня b-2 уже физическое лицо."
+    ]
+   },
+   "terms": [
+    {
+     "t": "действующая на дату запись",
+     "d": "из записей, вступивших в силу не позже даты, последняя по дате вступления."
+    }
+   ],
+   "accept": [
+    "Выбор действующей записи реализован одной процедурой и вызывается из всех трёх мест.",
+    "Запись, вступившая в силу в саму дату выбора, считается действующей.",
+    "Отсутствие действующей записи возвращается явным ответом, а не первой попавшейся записью.",
+    "Методика и редакция для заключения выбираются на дату конца периода, а не на сегодня.",
+    "Для заёмщика, сменившего тип лица, отчётность за прошлый период читается прежней методикой.",
+    "Карточка методики отвечает, какая редакция действует на произвольно заданную дату.",
+    "Публикация новой редакции не меняет методику и редакцию уже заведённых документов."
+   ],
+   "notIn": [
+    "Сами историчные записи типа лица ведёт модуль заёмщика.",
+    "Расписание анализа как справочник — P20-R17."
+   ],
+   "deps": [
+    "P20-R2",
+    "P20-R3"
+   ],
+   "extDeps": [
+    {
+     "what": "модуль заёмщика хранит тип лица историчными записями с датой вступления, а не одним полем"
+    }
+   ]
+  },
+  {
+   "id": "P20-R5",
+   "stage": 2,
+   "title": "Отчётность заёмщика версиями: реквизит заёмщика, а не приложение к заключению",
+   "build": "Финансовая отчётность заёмщика: период, версия, дата подачи, документ-основание, кто внёс, значения строк формы. Уточнение заводит новую версию и прежнюю не затирает.",
+   "why": "Заёмщик подаёт отчётность в кредитную организацию независимо от того, будет ли по ней заключение: одну версию читают заявка, мониторинг и два разных анализа. Сделай её приложением к документу — и вторая копия тех же чисел появится в первый же месяц. Версионность нужна ровно потому, что уточнённая отчётность приходит регулярно: затирание прежних чисел мгновенно оставило бы утверждённое заключение без основания, по которому его подписывали.",
+   "look": {
+    "mock": "analysis.html",
+    "route": "карточка заёмщика → вкладка «Финансы» → «Внести отчётность»"
+   },
+   "data": [
+    {
+     "n": "Финансовая отчётность заёмщика (версия)",
+     "key": "заёмщик + период + номер версии",
+     "note": "Живёт на заёмщике; заключение на неё ссылается и её не содержит.",
+     "fields": [
+      "<b>период</b> и его дата конца",
+      "<b>номер версии</b> — сквозной внутри пары заёмщик + период",
+      "<b>дата подачи</b> — обязательна",
+      "<b>документ-основание</b> — обязателен, называет, чем отчётность подтверждена",
+      "<b>кто внёс</b> — ведущий куратор заёмщика",
+      "<b>значения строк</b> — код строки формы, число"
+     ]
+    }
+   ],
+   "steps": [
+    "Хранить версию отчётности на заёмщике, отдельно от документов анализа.",
+    "Требовать при внесении: период, дату подачи, документ-основание. Без основания сохранения нет.",
+    "Нумеровать версии внутри пары заёмщик и период, начиная с первой.",
+    "Запрещать внесение отчётности за незавершившийся период: дата конца периода позже сегодняшней — отказ.",
+    "Показывать все версии периода списком, а не только последнюю.",
+    "Помечать в списке, какими заключениями каждая версия использована.",
+    "Не давать удалить версию, на которую ссылается хотя бы одно заключение."
+   ],
+   "rules": [
+    {
+     "h": "Версии",
+     "items": [
+      "Уточнение — всегда новая версия. Правка чисел в прежней версии закрыта: она уже подписана чьим-то заключением.",
+      "Прежние версии остаются видимыми и читаемыми — по ним объясняются старые выводы.",
+      "«Последняя версия периода» — вычисляемое понятие, отдельного признака у версии нет."
+     ]
+    },
+    {
+     "h": "Кто вносит",
+     "items": [
+      "Вносит ведущий куратор заёмщика. Отдел анализа отчётность не вводит — он ведёт методики.",
+      "Незавершившийся период закрыт всем: анализировать полугодие до его конца нечего."
+     ]
+    }
+   ],
+   "example": {
+    "src": "b-1 ОсОО «Ак-Жол Агро», период 1П 2026 · макет",
+    "given": [
+     "Версия 1 подана 10.07.2026, основание «баланс и ОПиУ за 1 полугодие 2026 от 10.07.2026», внесла Бекова Н. Краткосрочные обязательства 39 500 000 сом.",
+     "12.08.2026 подана версия 2, основание «уточнённый баланс (доначислены обязательства)»: краткосрочные обязательства 43 100 000, собственный капитал 57 400 000, кредиты и займы 95 600 000."
+    ],
+    "do": [
+     "Исправить обязательства прямо в версии 1 и удалить её."
+    ],
+    "get": [
+     "Правка отклонена: уточнение вносится новой версией.",
+     "Удаление отклонено: на версию 1 ссылается заключение ФА-7."
+    ]
+   },
+   "terms": [
+    {
+     "t": "версия отчётности",
+     "d": "порция введённых руками чисел за период; уточнение заводит новую версию."
+    },
+    {
+     "t": "период отчётности",
+     "d": "«2025 год», «1П 2026»; у периода есть дата конца."
+    }
+   ],
+   "accept": [
+    "Внесение отчётности без даты подачи или без документа-основания отклоняется.",
+    "Внесение отчётности за незавершившийся период отклоняется с названной причиной.",
+    "Уточнение заводит новую версию; числа прежней версии остаются неизменными.",
+    "Правка значений в уже сохранённой версии закрыта.",
+    "Все версии периода видны списком, а не только последняя.",
+    "В строке версии видно, какими заключениями она использована.",
+    "Удаление версии, на которую ссылается заключение, отклоняется.",
+    "Отчётность хранится на заёмщике и доступна независимо от наличия заключений."
+   ],
+   "notIn": [
+    "Форма, в которой вводятся значения, — P20-R6.",
+    "Что происходит с подписанным заключением при появлении новой версии — P20-R14."
+   ],
+   "deps": [
+    "P20-R1",
+    "P20-R4"
+   ],
+   "extDeps": [
+    {
+     "what": "справочник периодов отчётности с датами конца периода — общесистемный"
+    }
+   ]
+  },
+  {
+   "id": "P20-R6",
+   "stage": 2,
+   "title": "Форма ввода строится редакцией методики, а не версталась заранее",
+   "build": "Форма внесения отчётности: перечень полей берётся из редакции методики, действующей на дату конца периода для типа лица этого заёмщика. Единицы измерения подписаны у каждого поля.",
+   "why": "У физлица и организации разные строки — верстать обе формы в коде значит хоронить в релизе каждое изменение методики. Форма, собранная из записей редакции, меняется вместе с методикой в тот же день и без разработчика. И ровно эта форма гарантирует, что коэффициенты найдут свои строки: вводится то и только то, на что редакция ссылается.",
+   "look": {
+    "mock": "analysis.html",
+    "route": "карточка заёмщика → вкладка «Финансы» → «Внести отчётность» → форма строк"
+   },
+   "steps": [
+    "Определить тип лица заёмщика на дату конца выбранного периода и взять его методику.",
+    "Взять действующую на ту же дату редакцию и построить поля по её перечню строк.",
+    "Подписать каждое поле названием строки и её единицей измерения.",
+    "Показать над формой, какой методикой и какой редакцией форма собрана, с датой вступления.",
+    "Отказать с объяснением, если на дату конца периода действующей редакции нет.",
+    "Принимать только числа; пустое поле означает «строка не заполнена», а не ноль.",
+    "Не сохранять версию, пока заполнены не все строки формы: отказ называет пустые строки и методику, которая форму объявила."
+   ],
+   "rules": [
+    {
+     "h": "Собирается, а не верстается",
+     "items": [
+      "Порядок полей задаёт перечень строк редакции.",
+      "Поля вне перечня в форме не появляются: лишнее число некому прочесть.",
+      "Смена редакции меняет форму со следующего периода — прежние версии отчётности остаются в своих полях."
+     ]
+    },
+    {
+     "h": "Полнота, пустое и ноль",
+     "items": [
+      "Версия вносится целиком: неполная форма не сохраняется, и отказ называет пустые строки поимённо.",
+      "Полнота проверяется здесь, на входе, — это первый рубеж; второй стоит в вычислителе, на случай версии, внесённой до появления строки в форме.",
+      "Пустая строка и ноль различаются: ноль — введённое число и вводу подлежит, пустое — отсутствие данных.",
+      "Различие имеет последствие: нулевая выручка даёт нулевой знаменатель и свою причину, а не «нет данных»."
+     ]
+    }
+   ],
+   "example": {
+    "src": "b-2 Мамытов Т.А., период 1П 2026 · макет",
+    "given": [
+     "Тип лица b-2 на 30.06.2026 — «физическое лицо» (с 10.02.2026); методика «Оценка платёжеспособности физического лица».",
+     "Её редакция объявляет строки дохода, расходов и платежей — балансовых строк в форме нет."
+    ],
+    "do": [
+     "Открыть внесение отчётности за 1П 2026 для b-2."
+    ],
+    "get": [
+     "Форма показывает поля дохода и платежей: совокупный доход 78 000 сом в месяц, постоянные расходы 41 000, платежи по кредитам 39 000.",
+     "Поля «Оборотные активы» в форме нет — при том, что за 2025 год у того же заёмщика вводилась форма индивидуального предпринимателя."
+    ]
+   },
+   "terms": [
+    {
+     "t": "форма ввода",
+     "d": "перечень полей отчётности, собранный из строк редакции методики."
+    }
+   ],
+   "accept": [
+    "Перечень полей формы совпадает с перечнем строк редакции, действующей на дату конца периода.",
+    "Каждое поле подписано названием строки и её единицей измерения.",
+    "Над формой показаны методика, номер редакции и её дата вступления.",
+    "Для физического лица в форме нет балансовых строк, для организации — нет строк дохода физлица.",
+    "Отсутствие действующей редакции на дату конца периода даёт отказ с объяснением, а не пустую форму.",
+    "Пустое поле и введённый ноль различаются при сохранении и в вычислителе.",
+    "Версия с незаполненной строкой формы не сохраняется; отказ называет пустые строки и методику.",
+    "Смена типа лица заёмщика меняет форму для нового периода и не трогает прежние версии."
+   ],
+   "notIn": [
+    "Перечень строк редакции — P20-R3.",
+    "Хранение и версионность введённого — P20-R5."
+   ],
+   "deps": [
+    "P20-R3",
+    "P20-R4",
+    "P20-R5"
+   ]
+  },
+  {
+   "id": "P20-R7",
+   "stage": 2,
+   "title": "Вкладка «Финансы» карточки заёмщика — точка входа раздела",
+   "build": "Вкладка «Финансы»: таблица отчётности по периодам и версиям, таблица заключений с состоянием и выводом, переходы «внести отчётность», «завести заключение по версии», «открыть заключение».",
+   "why": "Модуль не имеет собственного рабочего места: анализ ведётся по заёмщику и живёт в его карточке — там же, где куратор видит кредиты и обязательства. Одна вкладка, показывающая рядом основание и суждение, снимает главный вопрос куратора: по какой отчётности подписано то, что стоит в шапке, и не появилось ли основание новее.",
+   "look": {
+    "mock": "analysis.html",
+    "route": "карточка заёмщика → вкладка «Финансы»"
+   },
+   "screen": [
+    {
+     "n": "Вкладка «Финансы»",
+     "note": "Две таблицы одна под другой: сверху основания, снизу суждения. Строки связаны.",
+     "cols": [
+      "период",
+      "версия",
+      "подана",
+      "документ-основание",
+      "кто внёс",
+      "использована заключениями",
+      "заключение",
+      "состояние",
+      "вывод",
+      "утверждено",
+      "методика и редакция"
+     ],
+     "acts": [
+      "Внести отчётность",
+      "Завести заключение по версии",
+      "Открыть заключение"
+     ]
+    }
+   ],
+   "steps": [
+    "Показать отчётность заёмщика по периодам, внутри периода — всеми версиями, новые сверху.",
+    "Показать в строке версии, какими заключениями она использована.",
+    "Показать заключения заёмщика: номер, период, состояние, вывод, дату утверждения, методику и редакцию.",
+    "Дать завести заключение прямо со строки версии — основание тогда выбрано без ошибки.",
+    "Пометить версии, по которым заключения нет, и заключения, у которых появилось основание новее.",
+    "Показать вкладку и заёмщику без единой версии отчётности — пустой, с обеими кнопками."
+   ],
+   "rules": [
+    {
+     "h": "Что видно сразу",
+     "items": [
+      "Черновики видны наравне с утверждёнными и помечены состоянием: скрытый черновик заводят второй раз.",
+      "Связь версия — заключение показана с обеих сторон.",
+      "Срок следующего анализа на этой вкладке не дублируется: он живёт в шапке карточки."
+     ]
+    },
+    {
+     "h": "Права",
+     "items": [
+      "Вкладку видит тот, кто видит карточку заёмщика.",
+      "Кнопки внесения и заведения доступны ведущему куратору заёмщика; остальным вкладка читательская."
+     ]
+    }
+   ],
+   "example": {
+    "src": "b-1 ОсОО «Ак-Жол Агро» · макет",
+    "given": [
+     "Периоды: 2025 год (версия 1) и 1П 2026 (версии 1 и 2). Заключения: ФА-6 за 2025 год и ФА-7 за 1П 2026, оба утверждены."
+    ],
+    "do": [
+     "Открыть вкладку «Финансы»."
+    ],
+    "get": [
+     "Версия 2 за 1П 2026 от 12.08.2026 помечена «заключения нет».",
+     "ФА-7 показано с выводом «удовлетворительное с оговорками», датой 20.07.2026 и пометкой, что появилось основание новее."
+    ]
+   },
+   "terms": [
+    {
+     "t": "ведущий куратор",
+     "d": "сотрудник, отвечающий за заёмщика; приходит из модуля кураторства, анализом не назначается."
+    }
+   ],
+   "accept": [
+    "Вкладка показывает отчётность по периодам и всем версиям, новые сверху.",
+    "Вкладка показывает заключения с номером, периодом, состоянием, выводом, датой и редакцией методики.",
+    "Заведение заключения доступно прямо со строки версии, и основание при этом подставлено.",
+    "Версия без заключения помечена, заключение с более новым основанием — помечено отдельно.",
+    "Черновики показаны наравне с утверждёнными и отличаются состоянием.",
+    "Связь версия — заключение видна с обеих сторон.",
+    "У заёмщика без отчётности вкладка открывается пустой, с доступными действиями.",
+    "Не ведущему куратору вкладка открывается читательской."
+   ],
+   "notIn": [
+    "Шапка карточки с выводом и сроком — P20-R19.",
+    "Заведение и содержимое самого заключения — P20-R10 и далее."
+   ],
+   "deps": [
+    "P20-R5",
+    "P20-R6"
+   ]
+  },
+  {
+   "id": "P20-R8",
+   "stage": 3,
+   "title": "Вычислитель: коэффициенты считаются из записей редакции, формул в коде нет",
+   "build": "Вычислитель: по перечню коэффициентов редакции и значениям строк версии отчётности получить значения, сравнить с порогами и вернуть таблицу «название, значение, порог, отметка».",
+   "why": "Коэффициент вводу не подлежит — человек вносит отчётность, значение ставит машина. Иначе в системе появятся два числа одного смысла: введённое и вычислимое, и первое же расхождение будет нечем разрешить. А раз редакция объявляет источники записью, вычислитель обязан читать эту запись, а не повторять её кодом: захардкоженная формула переживёт публикацию новой редакции и молча посчитает по старому.",
+   "look": {
+    "mock": "analysis.html",
+    "route": "документ финанализа → таблица коэффициентов"
+   },
+   "steps": [
+    "Сложить значения строк числителя и отдельно строк знаменателя по кодам из записи коэффициента.",
+    "Применить операцию перечня: отношение — деление; доля в процентах — деление и умножение на сто; разность — вычитание знаменателя из числителя.",
+    "Округлить результат до четырёх знаков после запятой — один порядок округления на весь модуль.",
+    "Сравнить с порогом записи и вернуть отметку «в пороге» или «вне порога».",
+    "Показать значение в формате коэффициента: отношением, процентами или деньгами.",
+    "Вернуть таблицу целиком, включая коэффициенты, которые посчитать не удалось, с их причиной.",
+    "Не хранить вычисленное у черновика: у него расчёт живой и повторяется при каждом открытии."
+   ],
+   "rules": [
+    {
+     "h": "Один вычислитель",
+     "items": [
+      "Живой расчёт черновика и расчёт при утверждении — одна и та же процедура; расхождение между показом и снимком исключено по построению.",
+      "Порог только подсвечивает. Вывод из порогов не выводится ни в каком случае — его ставит человек.",
+      "Формата «текст формулы» в интерфейсе нет: пользователю показываются название, значение и порог."
+     ]
+    },
+    {
+     "h": "Чего вычислитель не делает",
+     "items": [
+      "Не берёт числа ниоткуда, кроме значений строк указанной версии отчётности: ни из кредитов, ни из платежей.",
+      "Не подставляет ноль вместо отсутствующего значения.",
+      "Не пересчитывает утверждённое заключение — там показывается снимок."
+     ]
+    }
+   ],
+   "example": {
+    "src": "ФА-7 · b-1 · 1П 2026 · редакция 2 методики организации · макет",
+    "given": [
+     "Оборотные активы 48 200 000 сом, краткосрочные обязательства 39 500 000, собственный капитал 61 000 000, валюта баланса 184 000 000, чистая прибыль 7 350 000, выручка 96 400 000, прибыль до процентов и амортизации 21 800 000, кредиты и займы 92 000 000, поток от операционной деятельности 24 300 000, платежи по обслуживанию долга 18 900 000."
+    ],
+    "do": [
+     "Посчитать пять коэффициентов редакции 2."
+    ],
+    "get": [
+     "Текущая ликвидность 1,2203 при пороге не менее 1,2 — в пороге; автономия 0,3315 при пороге не менее 0,3 — в пороге.",
+     "Рентабельность продаж 7,62% при пороге не менее 5 — в пороге; покрытие обслуживания долга 1,2857 при пороге не менее 1,25 — в пороге.",
+     "Долг к операционной прибыли 4,2202 при пороге не более 4 — вне порога."
+    ]
+   },
+   "terms": [
+    {
+     "t": "живой расчёт",
+     "d": "показ коэффициентов черновика: считается заново при каждом открытии и нигде не хранится."
+    }
+   ],
+   "accept": [
+    "Значения коэффициентов вводу не подлежат ни на одном экране.",
+    "Коэффициенты считаются по записям редакции; ни одна формула не зашита в код.",
+    "Результат округляется до четырёх знаков и в этом виде попадает в снимок.",
+    "Формат показа применяется только к показу и не влияет на сохранённое значение.",
+    "Отметка о пороге ставится сравнением из записи коэффициента.",
+    "Живой расчёт черновика и расчёт при утверждении дают одинаковые числа на одних данных.",
+    "Вычислитель не берёт чисел ниоткуда, кроме значений строк указанной версии отчётности.",
+    "Пять коэффициентов ФА-7 дают 1,2203 · 0,3315 · 7,62% · 4,2202 · 1,2857."
+   ],
+   "notIn": [
+    "Отказы вычислителя и их причины — P20-R9.",
+    "Фиксация посчитанного — P20-R13."
+   ],
+   "deps": [
+    "P20-R3",
+    "P20-R5"
+   ],
+   "traps": [
+    "<b>Округление в двух местах.</b> Если показ округляет до двух знаков, а снимок хранит четыре, утверждённое заключение и его печать разойдутся в последнем разряде на глазах у проверяющего. Округление одно: четыре знака при счёте, формат — только на показе."
+   ]
+  },
+  {
+   "id": "P20-R9",
+   "stage": 3,
+   "title": "Посчитать нельзя: причина называется, а подпись под неполным основанием не ставится",
+   "build": "Поведение вычислителя, когда посчитать нельзя: незаполненная строка источника и нулевой знаменатель. Коэффициент возвращается без значения с названной причиной, и заключение с таким коэффициентом не утверждается.",
+   "why": "Подстановка нуля вместо отсутствующего числа — самый дорогой из тихих отказов: она даёт правдоподобный коэффициент, который пройдёт порог и попадёт в подписанный снимок. Названная причина стоит куратору минуты, а неназванная — неверного вывода, обнаруженного через полгода. Подпись же при непосчитанном коэффициенте закрыта потому, что снимок обязан быть полным: заключение, подписанное на трёх коэффициентах из пяти, невозможно ни сравнить с прошлым, ни объяснить проверяющему.",
+   "look": {
+    "mock": "analysis.html",
+    "route": "документ финанализа → таблица коэффициентов, строки с прочерком; «Утвердить»"
+   },
+   "steps": [
+    "Проверить перед счётом, что все строки источника заполнены; недостающие собрать поимённо.",
+    "Вернуть коэффициент без значения с причиной, называющей незаполненные строки по именам.",
+    "Не считать отсутствие данных провалом порога: у коэффициента третье состояние, а не отметка «вне порога».",
+    "Отдельной причиной вернуть нулевой знаменатель: складывать его с отсутствием данных нельзя, лечатся они по-разному.",
+    "Показывать такой коэффициент прочерком, а не нулём, и без отметки о пороге.",
+    "Отказать в утверждении, назвав коэффициент и незаполненные строки.",
+    "Различать пустую строку и введённый ноль: ноль — данные, пустое — их отсутствие."
+   ],
+   "rules": [
+    {
+     "h": "Причина обязана быть названа",
+     "items": [
+      "Отказ адресный: он называет строку, которую надо заполнить, а не «недостаточно данных».",
+      "Пустое значение и нулевой знаменатель дают разные причины: первое лечится внесением отчётности, второе — разбором самой отчётности.",
+      "Невычислимый коэффициент не считается ни «в пороге», ни «вне порога»: это третье состояние, а не провал порога.",
+      "Это второй рубеж: полноту формы проверяет внесение версии (P20-R5, P20-R6), поэтому сюда доходят нулевой знаменатель и версия, внесённая до появления строки в форме."
+     ]
+    },
+    {
+     "h": "Подпись под полным основанием",
+     "items": [
+      "Утверждение при любом непосчитанном коэффициенте отклоняется — это названный отказ, а не отключённая кнопка.",
+      "Лечение одно: дозаполнить отчётность новой версией. Обойти отказ подписью нельзя.",
+      "Коэффициент, неприменимый к этой отчётности по существу, убирается редакцией методики, а не подписью на неполном наборе."
+     ]
+    }
+   ],
+   "example": {
+    "src": "b-1 ОсОО «Ак-Жол Агро», 1П 2026 · редакция 2 методики организации · макет",
+    "given": [
+     "Рентабельность продаж = чистая прибыль ÷ выручка × 100, порог не менее 5.",
+     "Внесена версия, где выручка введена нулём: ноль — заполненное значение, полноту формы внесение пропускает."
+    ],
+    "do": [
+     "Открыть черновик заключения и попробовать его утвердить."
+    ],
+    "get": [
+     "Рентабельность показана прочерком, без отметки о пороге; остальные четыре коэффициента посчитаны — автономия 0,3315, долг к прибыли 4,2202.",
+     "Причина названа как «знаменатель равен нулю: выручка за период равна 0», а не как отсутствие данных.",
+     "Утверждение отклонено: «не посчитан коэффициент “Рентабельность продаж”» — снимок обязан быть полным."
+    ]
+   },
+   "terms": [
+    {
+     "t": "невычислимый коэффициент",
+     "d": "коэффициент без значения с названной причиной; порогу не противопоставляется и подписи не допускает."
+    }
+   ],
+   "accept": [
+    "Незаполненная строка источника даёт коэффициент без значения, а не ноль.",
+    "Причина называет недостающие строки поимённо.",
+    "Нулевой знаменатель даёт отдельную причину, называющую строку знаменателя.",
+    "Невычислимый коэффициент показан прочерком и без отметки о пороге.",
+    "Утверждение при любом непосчитанном коэффициенте отклоняется с названием коэффициента и строк.",
+    "Пустая строка и введённый ноль различаются: ноль считается данными.",
+    "Ни в одном месте отсутствующее значение не подменяется нулём."
+   ],
+   "notIn": [
+    "Сам счёт — P20-R8.",
+    "Прочие одиннадцать названных отказов модуля — P20-R22."
+   ],
+   "deps": [
+    "P20-R8"
+   ],
+   "traps": [
+    "<b>Нулевой знаменатель теряется в общей причине.</b> В макете обе беды приходят одним отказом «не заполнены строки», и при нулевом знаменателе список строк оказывается пуст — текст читается как оборванный. Причин должно быть две: «строка не заполнена» лечится внесением отчётности, «знаменатель равен нулю» — разбором самой отчётности."
+   ]
+  },
+  {
+   "id": "P20-R10",
+   "stage": 4,
+   "title": "Заведение заключения: заёмщик, период, версия основания, методика на дату",
+   "build": "Заведение документа финанализа: выбор заёмщика и версии отчётности, машинный подбор методики и редакции на дату конца периода, создание черновика с номером.",
+   "why": "Всё, чем заключение потом объясняется, определяется в момент заведения: основание, методика, редакция, тип лица. Оставь любое из этого на потом — и документ окажется посчитанным по одним правилам, а подписанным при других. Выбор методики машинный, потому что ручной означал бы, что куратор вправе выбрать себе правила счёта, а это ровно то, чего редакции и призваны не допускать.",
+   "look": {
+    "mock": "analysis.html",
+    "route": "вкладка «Финансы» → «Завести заключение по версии» → документ"
+   },
+   "data": [
+    {
+     "n": "Финансовый анализ заёмщика (документ)",
+     "key": "номер документа",
+     "note": "Суждение на пару заёмщик и период отчётности.",
+     "fields": [
+      "<b>заёмщик, период, версия отчётности</b> — основание",
+      "<b>методика и номер редакции</b> — подобраны при заведении и в документе зафиксированы",
+      "<b>состояние</b> — черновик или утверждено, третьего нет",
+      "<b>автор</b> — ведущий куратор заёмщика",
+      "<b>ссылка «переиздаёт»</b> — проставляется машиной, если за период уже есть подписанное заключение"
+     ]
+    }
+   ],
+   "steps": [
+    "Заводить документ только от выбранной версии отчётности — «заключение без основания» не существует.",
+    "Определить тип лица на дату конца периода, взять его методику и действующую на ту же дату редакцию.",
+    "Зафиксировать методику и номер редакции в документе: последующие публикации его не трогают.",
+    "Присвоить номер и создать документ в состоянии «черновик».",
+    "Записать автором ведущего куратора заёмщика.",
+    "Отказать с объяснением, если на дату конца периода нет действующей редакции для этого типа лица.",
+    "Проставить ссылку «переиздаёт», если за тот же период уже есть утверждённое заключение."
+   ],
+   "rules": [
+    {
+     "h": "Что фиксируется сразу",
+     "items": [
+      "Основание, методика и редакция при заведении фиксируются намертво: сменить их правкой документа нельзя, это заведение другого документа.",
+      "Тип лица берётся на дату конца периода, а не сегодняшний. У заёмщика, сменившего правоспособность, это меняет форму и коэффициенты.",
+      "Пар заёмщик и период с несколькими заключениями не запрещено — это переиздание, и правило у него своё."
+     ]
+    },
+    {
+     "h": "Состояния",
+     "items": [
+      "Состояний ровно два: черновик и утверждено. Ни «на согласовании», ни «отклонено» в модуле нет — согласование ведётся вне документа.",
+      "Черновик виден на вкладке «Финансы» и основанием ни для чего не служит: ни один шов его не отдаёт."
+     ]
+    }
+   ],
+   "example": {
+    "src": "b-1, версия 1 отчётности за 1П 2026 · макет",
+    "given": [
+     "Тип лица на 30.06.2026 — организация; действующая редакция методики организации — 2 от 01.04.2026."
+    ],
+    "do": [
+     "Завести заключение по версии 1."
+    ],
+    "get": [
+     "Создан черновик ФА-7: методика «Финансовый анализ организации», редакция 2, автор Бекова Н., 5 коэффициентов, живой расчёт.",
+     "Ссылки «переиздаёт» нет: подписанных заключений за 1П 2026 ещё не было."
+    ]
+   },
+   "terms": [
+    {
+     "t": "финанализ",
+     "d": "документ-суждение на пару заёмщик и период; в макете нумеруется ФА-N."
+    },
+    {
+     "t": "черновик",
+     "d": "состояние до подписи: снимка нет, основанием ни для чего не служит."
+    }
+   ],
+   "accept": [
+    "Заведение заключения без выбранной версии отчётности невозможно.",
+    "Методика и редакция подбираются машинно по дате конца периода и не выбираются человеком.",
+    "Тип лица берётся на дату конца периода, а не сегодняшний.",
+    "Подобранные методика и редакция фиксируются в документе и не меняются при последующих публикациях.",
+    "Документ создаётся в состоянии «черновик»; состояний в модуле ровно два.",
+    "Автором записывается ведущий куратор заёмщика.",
+    "Отсутствие действующей редакции на дату конца периода даёт отказ с объяснением.",
+    "Черновик не отдаётся ни одним швом и основанием ни для чего не служит."
+   ],
+   "notIn": [
+    "Текст и вывод — P20-R11.",
+    "Подпись — P20-R12.",
+    "Правило переиздания целиком — P20-R16."
+   ],
+   "deps": [
+    "P20-R4",
+    "P20-R6",
+    "P20-R8"
+   ]
+  },
+  {
+   "id": "P20-R11",
+   "stage": 4,
+   "title": "Текст заключения и вывод из перечня трёх значений",
+   "build": "Содержательная часть документа: текст заключения свободной формой и вывод, выбираемый из трёх значений. Ни то ни другое машиной не подставляется.",
+   "why": "Вывод обязан быть сопоставим между заёмщиками и годами — свободная формулировка сделала бы невозможной любую сводку и любой шов наружу. Три значения дают сопоставимость, а свободный текст — место для всего, что тремя словами не выражается. Машина вывод не подставляет: пороги показывают, где числа выбиваются, но решение о состоянии заёмщика — суждение человека, и подписывает его человек.",
+   "look": {
+    "mock": "analysis.html",
+    "route": "документ финанализа → поля «Текст заключения» и «Вывод»"
+   },
+   "steps": [
+    "Держать перечень выводов закрытым: удовлетворительное, удовлетворительное с оговорками, неудовлетворительное.",
+    "Оставить вывод у нового черновика незаполненным — предзаполнения по порогам нет.",
+    "Принимать текст заключения свободной формой, с сохранением абзацев.",
+    "Сохранять текст и вывод у черновика в любой момент, не требуя полноты.",
+    "Требовать заполненный вывод при утверждении и объяснять отказ, если он пуст.",
+    "Показывать вывод одинаково на документе, во вкладке «Финансы», в шапке заёмщика и в шве."
+   ],
+   "rules": [
+    {
+     "h": "Вывод и пороги",
+     "items": [
+      "Соответствие «все коэффициенты в пороге — значит удовлетворительное» не действует ни в одну сторону.",
+      "Заключение с коэффициентом вне порога и выводом «удовлетворительное» допустимо: причина объясняется текстом.",
+      "Никакого правила вывода в системе не записано и записывать его не следует: это подмена суждения счётом."
+     ]
+    },
+    {
+     "h": "Текст",
+     "items": [
+      "Текст обязателен при утверждении наравне с выводом: вывод без обоснования не читается.",
+      "Текст правится у черновика свободно, а после подписи — только корректировкой с основанием."
+     ]
+    }
+   ],
+   "example": {
+    "src": "черновик ФА-7 · b-1 · макет",
+    "given": [
+     "Пять коэффициентов посчитаны: четыре в пороге, долг к операционной прибыли 4,2202 при пороге не более 4 — вне порога."
+    ],
+    "do": [
+     "Утвердить черновик с пустым выводом, затем поставить вывод «удовлетворительное с оговорками» и текст."
+    ],
+    "get": [
+     "Первая попытка отклонена с названной причиной: вывод не выбран.",
+     "После заполнения заключение подписывается; вывод «удовлетворительное с оговорками» выбран человеком, а не выведен из того, что один коэффициент выбился."
+    ]
+   },
+   "terms": [
+    {
+     "t": "вывод",
+     "d": "одно из трёх: удовлетворительное, удовлетворительное с оговорками, неудовлетворительное."
+    }
+   ],
+   "accept": [
+    "Перечень выводов закрыт тремя значениями.",
+    "У нового черновика вывод пуст: предзаполнения по порогам нет.",
+    "Утверждение с пустым выводом отклоняется с названной причиной.",
+    "Утверждение с пустым текстом заключения отклоняется.",
+    "Черновик сохраняется с частично заполненными текстом и выводом.",
+    "Заключение с коэффициентом вне порога и выводом «удовлетворительное» сохраняется и утверждается.",
+    "Вывод показан одинаково в документе, во вкладке «Финансы», в шапке заёмщика и в шве."
+   ],
+   "notIn": [
+    "Проверки и последствия подписи — P20-R12.",
+    "Правка текста и вывода после подписи — P20-R15."
+   ],
+   "deps": [
+    "P20-R10"
+   ]
+  },
+  {
+   "id": "P20-R12",
+   "stage": 4,
+   "title": "Утверждение — единственная подпись, и после неё пересчёта нет",
+   "build": "Переход черновика в «утверждено»: проверки перед подписью, фиксация автора и даты, закрытие прямой правки, запрет повторного утверждения и удаления.",
+   "why": "Заключение — документ, на который потом ссылаются заявка, комиссия и проверяющий: его ценность в том, что оно не менялось с момента подписи. Одна подпись, а не маршрут согласования, выбрана сознательно — маршрут потребовал бы состояний, которых модуль не ведёт, и всё равно оставил бы вопрос, какое из состояний считать основанием. Утверждённое не пересчитывается никогда: пересчёт задним числом лишил бы смысла и снимок, и саму подпись.",
+   "look": {
+    "mock": "analysis.html",
+    "route": "документ финанализа → «Утвердить»"
+   },
+   "steps": [
+    "Проверить перед подписью: вывод выбран, текст заполнен, основание на месте.",
+    "Отказать в подписи, если хотя бы один коэффициент посчитать не удалось, назвав коэффициент и незаполненные строки.",
+    "Записать автора подписи и дату утверждения.",
+    "Зафиксировать снимок основания тем же действием.",
+    "Закрыть прямую правку всех полей документа.",
+    "Отказать на повторное утверждение и на удаление утверждённого — обоими названными отказами.",
+    "Не пересчитывать утверждённое заключение ни при каком последующем событии."
+   ],
+   "rules": [
+    {
+     "h": "Что подпись меняет",
+     "items": [
+      "До подписи документ — черновик и основанием ни для чего не служит; после — читается швами и печатается.",
+      "Правка после подписи идёт только двумя механизмами: корректировкой и переизданием.",
+      "Удаления утверждённого заключения в модуле нет вовсе — ни куратору, ни администратору."
+     ]
+    },
+    {
+     "h": "Чего подпись не запускает",
+     "items": [
+      "Ни одной задачи не порождается: задачу заводит человек со ссылкой на заключение.",
+      "Ни одно поле чужой карточки не записывается.",
+      "Классификация о подписи не извещается и заключение не читает."
+     ]
+    }
+   ],
+   "example": {
+    "src": "черновик ФА-7 → утверждение 20.07.2026 · макет",
+    "given": [
+     "Черновик заполнен: вывод «удовлетворительное с оговорками», текст на месте, 5 коэффициентов посчитаны."
+    ],
+    "do": [
+     "Утвердить, затем попытаться утвердить второй раз, отредактировать текст и удалить документ."
+    ],
+    "get": [
+     "ФА-7 утверждено 20.07.2026, автор записан, снимок зафиксирован.",
+     "Повторное утверждение, правка и удаление отклонены тремя названными отказами; в шапке заёмщика появился вывод, ни одно поле карточки при этом не записано."
+    ]
+   },
+   "terms": [
+    {
+     "t": "утверждено",
+     "d": "состояние после единственной подписи: снимок зафиксирован, прямая правка закрыта."
+    }
+   ],
+   "accept": [
+    "Утверждение записывает автора и дату и фиксирует снимок одним действием.",
+    "После подписи прямая правка всех полей документа закрыта.",
+    "Повторное утверждение отклоняется названным отказом.",
+    "Удаление утверждённого заключения отклоняется — для любой роли.",
+    "Подпись при непосчитанном коэффициенте отклоняется — снимок обязан быть полным.",
+    "Утверждённое заключение не пересчитывается ни при уточнении отчётности, ни при публикации новой редакции методики.",
+    "Подпись не создаёт задач и не записывает ни одного поля чужой карточки.",
+    "Классификация о подписи не извещается."
+   ],
+   "notIn": [
+    "Состав снимка — P20-R13.",
+    "Оба механизма правки — P20-R15 и P20-R16.",
+    "Швы наружу — P20-R20."
+   ],
+   "deps": [
+    "P20-R9",
+    "P20-R11"
+   ],
+   "traps": [
+    "<b>Соблазн пересчитать «раз данные уточнились».</b> Автопересчёт утверждённого выглядит заботой, а на деле стирает то самое, ради чего заключение подписывали: числа, при которых принималось решение. Уточнение основания приводит к пометке и, если нужно, к переизданию — но никогда к молчаливой смене чисел в подписанном документе."
+   ]
+  },
+  {
+   "id": "P20-R13",
+   "stage": 5,
+   "title": "Снимок основания: всё, из чего собран вывод, — кроме самого вывода",
+   "build": "Фиксация снимка при утверждении: дата и автор, ссылка на редакцию методики, версия отчётности с её датой подачи и документом-основанием, тип лица, значения строк, коэффициенты с порогами и отметками. Вывода в снимке нет.",
+   "why": "Через два года заключение придётся объяснить: почему тогда получилось именно это. Ссылки на живые данные к тому времени изменятся — отчётность уточнится, методика выйдет новой редакцией. Снимок отвечает на вопрос «из чего» без обращения к сегодняшнему состоянию. Вывод в снимок не входит потому, что снимок — основание, а не суждение: вывод правится корректировкой, и его копия в снимке немедленно стала бы вторым, расходящимся ответом.",
+   "look": {
+    "mock": "analysis.html",
+    "route": "утверждённый документ → блок «Снимок основания»"
+   },
+   "data": [
+    {
+     "n": "Снимок основания",
+     "key": "живёт внутри утверждённого заключения",
+     "note": "Появляется подписью, после неё неизменен.",
+     "fields": [
+      "<b>дата утверждения и автор</b>",
+      "<b>ссылка на редакцию методики</b> и её дата вступления — ссылка, а не копия формул",
+      "<b>версия отчётности</b>, период, дата подачи, документ-основание",
+      "<b>тип лица на дату отчётности</b>",
+      "<b>значения строк формы</b> — копия на момент подписи",
+      "<b>коэффициенты</b> со значениями, порогами и отметками",
+      "<b>вывода нет</b> — он живёт в документе"
+     ]
+    }
+   ],
+   "steps": [
+    "Собрать снимок в момент утверждения одним действием с подписью.",
+    "Копировать значения строк формы, а не ссылаться на версию: уточнение версии не должно менять снимок.",
+    "Хранить методику ссылкой на редакцию с её датой вступления, а не копией перечня коэффициентов.",
+    "Хранить коэффициенты со значением, порогом и отметкой в том виде, в каком они были показаны.",
+    "Не включать в снимок вывод и текст заключения.",
+    "Показывать снимок на документе развёрнутым блоком, доступным только на чтение.",
+    "Не давать снимку появиться у черновика ни при каком действии."
+   ],
+   "rules": [
+    {
+     "h": "Ссылка или копия",
+     "items": [
+      "Значения строк — копия: версия отчётности не меняется, но снимок обязан быть самодостаточным при её удалении из показа.",
+      "Редакция методики — ссылка: она и так не правится после публикации, а копия перечня формул стала бы вторым местом правды.",
+      "Ссылка держит редакцию от снятия — это и есть причина запрета снимать редакцию, на которую ссылаются."
+     ]
+    },
+    {
+     "h": "Чем снимок не является",
+     "items": [
+      "Снимок никому не служит источником текущего значения: сегодняшние числа берутся из отчётности, а не отсюда.",
+      "Снимок не отдаётся швами: наружу уходит вывод и факт, а не внутренности документа."
+     ]
+    }
+   ],
+   "example": {
+    "src": "снимок ФА-7 · макет",
+    "given": [
+     "ФА-7 утверждено 20.07.2026 по версии 1 отчётности за 1П 2026, редакция 2 методики организации."
+    ],
+    "do": [
+     "Открыть снимок и перечислить его поля."
+    ],
+    "get": [
+     "В снимке: дата и автор, ссылка на редакцию 2 от 01.04.2026, версия 1 с датой подачи 10.07.2026 и её документ-основание, тип лица «организация», 10 значений строк, 5 коэффициентов с порогами и отметками.",
+     "Поля «вывод» в снимке нет — вывод «удовлетворительное с оговорками» стоит в документе."
+    ]
+   },
+   "terms": [
+    {
+     "t": "снимок основания",
+     "d": "зафиксированное подписью содержимое основания: значения, ссылка на редакцию, версия, тип лица, дата."
+    }
+   ],
+   "accept": [
+    "Снимок появляется в момент утверждения и у черновика отсутствует при любом действии.",
+    "Значения строк формы хранятся в снимке копией и не меняются при подаче новой версии отчётности.",
+    "Методика хранится ссылкой на редакцию с датой вступления, а не копией перечня коэффициентов.",
+    "Коэффициенты хранятся со значением, порогом и отметкой.",
+    "Тип лица на дату отчётности присутствует в снимке.",
+    "Поля «вывод» в снимке нет — проверяется перечислением полей.",
+    "Ссылка снимка на редакцию удерживает её от снятия.",
+    "Снимок доступен только на чтение и не отдаётся швами."
+   ],
+   "notIn": [
+    "Что происходит при появлении новой версии основания — P20-R14.",
+    "Правка вывода — P20-R15."
+   ],
+   "deps": [
+    "P20-R12"
+   ]
+  },
+  {
+   "id": "P20-R14",
+   "stage": 5,
+   "title": "Пометка «источник изменился» и справочное «что дал бы пересчёт»",
+   "build": "Обнаружение более новой версии отчётности за период утверждённого заключения: пометка на документе с описанием новой версии и справочный показ коэффициентов по ней. Ни то ни другое документ не меняет.",
+   "why": "Молчание при уточнённой отчётности — худший исход: куратор ссылается на подписанное заключение, не зная, что основание под ним поменялось. Автопересчёт — второй худший: он стирает числа, при которых принималось решение. Пометка держит середину — сообщает и не трогает. Справочный показ существует ровно для одного решения: стоит ли переиздавать. Он показывает цену вопроса числами, поэтому нигде не хранится и никем не читается.",
+   "look": {
+    "mock": "analysis.html",
+    "route": "утверждённый документ → пометка «источник изменился» и блок «что дал бы пересчёт»"
+   },
+   "steps": [
+    "Считать пометку по данным: за периодом заключения есть версия отчётности новее использованной.",
+    "Показать в пометке номер новой версии, её дату подачи и документ-основание.",
+    "Дать рядом справочный показ коэффициентов по новой версии, посчитанных тем же вычислителем и той же редакцией.",
+    "Отличать справочные числа от снимка видом: они не подменяют таблицу документа.",
+    "Не сохранять справочные числа нигде и не отдавать их швами.",
+    "Отдавать признак «источник изменился» в шов вывода отдельным полем.",
+    "Предложить со страницы переход к переизданию — без автоматического заведения документа."
+   ],
+   "rules": [
+    {
+     "h": "Пометка вычисляется, а не хранится",
+     "items": [
+      "Отдельного поля «помечено» нет: признак выводится из версий отчётности при каждом показе.",
+      "Иначе пометку пришлось бы гасить руками, и она разошлась бы с данными.",
+      "У черновика пометки не бывает: его основание всегда можно сменить заведением заново."
+     ]
+    },
+    {
+     "h": "Показ не равен действию",
+     "items": [
+      "Справочный расчёт не создаёт документа и не меняет ни одного поля.",
+      "Решение переиздавать — человеческое. Пометка ни к чему не обязывает: уточнение могло быть косметическим."
+     ]
+    }
+   ],
+   "example": {
+    "src": "ФА-7 после подачи версии 2 · макет",
+    "given": [
+     "ФА-7 подписано по версии 1. 12.08.2026 подана версия 2 с основанием «уточнённый баланс (доначислены обязательства)»."
+    ],
+    "do": [
+     "Открыть ФА-7."
+    ],
+    "get": [
+     "Пометка называет версию 2 от 12.08.2026 и её основание; в таблице документа по-прежнему 1,2203 и 4,2202.",
+     "Справочный показ: ликвидность 1,1183 — уже вне порога 1,2, долг к прибыли 4,3853, автономия 0,312. Эти числа нигде не сохранены и в шов не уходят."
+    ]
+   },
+   "terms": [
+    {
+     "t": "пометка «источник изменился»",
+     "d": "вычисляемый признак: за периодом заключения появилась версия отчётности новее использованной."
+    },
+    {
+     "t": "что дал бы пересчёт",
+     "d": "справочный показ коэффициентов по новой версии; не хранится и не отдаётся."
+    }
+   ],
+   "accept": [
+    "Пометка появляется, как только за периодом подана версия новее использованной.",
+    "Пометка вычисляется из данных: отдельного хранимого признака нет.",
+    "Пометка называет номер новой версии, её дату подачи и документ-основание.",
+    "Числа в таблице утверждённого документа при появлении пометки не меняются.",
+    "Справочный расчёт показывает коэффициенты по новой версии и отличается видом от снимка.",
+    "Справочные числа не сохраняются и не отдаются ни одним швом.",
+    "Признак «источник изменился» присутствует в ответе шва вывода.",
+    "У черновика пометки не возникает."
+   ],
+   "notIn": [
+    "Заведение нового заключения по новой версии — P20-R16.",
+    "Состав шва вывода — P20-R20."
+   ],
+   "deps": [
+    "P20-R5",
+    "P20-R13"
+   ]
+  },
+  {
+   "id": "P20-R15",
+   "stage": 5,
+   "title": "Корректировка: исправление записи при том же основании, с документом",
+   "build": "Первый из двух механизмов правки утверждённого заключения: корректировка текста или вывода с обязательным документом-основанием и таблицей «было — стало».",
+   "why": "Ошибка в записи бывает и после подписи: вывод выбран не тот, текст противоречит числам. Прямая правка это скрыла бы, а переиздание неуместно — основание-то не менялось. Корректировка исправляет запись и оставляет след того, что исправлялось: именно это отличает исправление от подмены. Обязательный документ-основание нужен затем, что решение об исправлении принимается не в системе, и в системе должно быть видно, чем оно принято.",
+   "look": {
+    "mock": "analysis.html",
+    "route": "утверждённый документ → «Корректировать» → таблица корректировок"
+   },
+   "steps": [
+    "Разрешать корректировать только текст заключения и вывод.",
+    "Требовать документ-основание: без него корректировка не сохраняется.",
+    "Записывать «было», «стало», основание, автора и дату отдельной строкой.",
+    "Показывать все корректировки таблицей в документе, не пряча их под раскрытие.",
+    "Оставлять снимок и числа корректировкой нетронутыми.",
+    "Отдавать в шов исправленный вывод — актуальное значение, а не первоначальное."
+   ],
+   "rules": [
+    {
+     "h": "Что корректировкой не правится",
+     "items": [
+      "Числа, значения строк, коэффициенты и снимок — никогда: их источник менялся бы молча.",
+      "Основание, методика и редакция — тоже: их смена означает другое заключение, то есть переиздание.",
+      "Состояние документа корректировка не меняет: он остаётся утверждённым."
+     ]
+    },
+    {
+     "h": "След",
+     "items": [
+      "Корректировок может быть несколько; порядок и авторство видны.",
+      "Первоначальное значение остаётся читаемым в таблице — исправление не стирает исправленного."
+     ]
+    }
+   ],
+   "example": {
+    "src": "ФА-7 · корректировка вывода · макет",
+    "given": [
+     "ФА-7 утверждено 20.07.2026 с выводом «удовлетворительное с оговорками»."
+    ],
+    "do": [
+     "Скорректировать вывод на «неудовлетворительное» без основания, затем с основанием «протокол кредитного комитета»."
+    ],
+    "get": [
+     "Первая попытка отклонена: основание обязательно.",
+     "Со второй в документе появляется строка «вывод: было “удовлетворительное с оговорками” — стало “неудовлетворительное”», снимок и все 5 коэффициентов не тронуты, шов отдаёт новый вывод."
+    ]
+   },
+   "terms": [
+    {
+     "t": "корректировка",
+     "d": "исправление текста или вывода утверждённого заключения с обязательным документом-основанием."
+    }
+   ],
+   "accept": [
+    "Корректировка без документа-основания не сохраняется.",
+    "Корректировке подлежат только текст заключения и вывод.",
+    "Числа, коэффициенты и снимок корректировкой не меняются.",
+    "Каждая корректировка записывается строкой «было — стало» с автором и датой.",
+    "Таблица корректировок видна в документе без раскрытия.",
+    "Первоначальное значение остаётся читаемым после исправления.",
+    "Состояние документа после корректировки остаётся «утверждено».",
+    "Шов вывода отдаёт исправленное значение, а не первоначальное."
+   ],
+   "notIn": [
+    "Правка при изменившемся основании — P20-R16.",
+    "Пометка о новой версии — P20-R14."
+   ],
+   "deps": [
+    "P20-R13"
+   ]
+  },
+  {
+   "id": "P20-R16",
+   "stage": 5,
+   "title": "Переиздание одной дверью: правило одно, каким бы путём его ни завели",
+   "build": "Второй механизм правки: новое заключение за тот же период на более новой версии основания. Правило переиздания и проставление связи с прежним живут в одном месте — в заведении документа.",
+   "why": "К переизданию ведут два пути: кнопка «переиздать» на старом документе и обычное заведение заключения за тот же период. Если правило написать дважды, пути разойдутся — один проставит связь, другой нет, и в системе появятся два подписанных заключения за период без указания, какое из них действующее. Поэтому кнопка сделана коротким путём к общему заведению, а не отдельным действием со своей логикой.",
+   "look": {
+    "mock": "analysis.html",
+    "route": "утверждённый документ → «Новое заключение за тот же период»; вкладка «Финансы» → «Завести заключение по версии»"
+   },
+   "steps": [
+    "Проверять при заведении, есть ли за парой заёмщик и период утверждённое заключение.",
+    "Считать заведение переизданием, если оно есть, и требовать основание новее использованного прежним.",
+    "Отказать с названной причиной, если выбрана та же версия основания: при том же основании правка — это корректировка.",
+    "Проставлять ссылку «переиздаёт» машиной, выводя её из данных, а не из того, какой кнопкой пришли.",
+    "Показывать связь с обеих сторон: «переиздаёт» на новом и «переиздано в» на прежнем.",
+    "Оставлять прежнее заключение утверждённым и читаемым: оно не отменяется и не удаляется.",
+    "Отдавать в шов последнее по дате утверждения заключение периода.",
+    "Сделать кнопку на старом документе коротким путём к общему заведению с предзаполненной новой версией."
+   ],
+   "rules": [
+    {
+     "h": "Одно правило",
+     "items": [
+      "Проверка новизны основания живёт в заведении документа и работает для обоих путей одинаково.",
+      "Связь «переиздаёт» выводится из данных — заёмщик, период, дата утверждения, — а не хранится как намерение пользователя.",
+      "Переиздание черновика не бывает: черновик просто заводится заново."
+     ]
+    },
+    {
+     "h": "История",
+     "items": [
+      "Прежнее заключение остаётся полноценным документом со своим снимком: по нему объясняются прошлые решения.",
+      "Цепочка переизданий может быть длиннее двух; действующим считается последнее подписанное."
+     ]
+    }
+   ],
+   "example": {
+    "src": "b-1 · 1П 2026 · переиздание ФА-7 · макет",
+    "given": [
+     "За 1П 2026 утверждено ФА-7 по версии 1. Есть версия 2 от 12.08.2026."
+    ],
+    "do": [
+     "Завести заключение по версии 2, затем по версии 1."
+    ],
+    "get": [
+     "По версии 2 создан черновик ФА-10 со связью «переиздаёт ФА-7», проставленной машиной; у ФА-7 появилось «переиздано в ФА-10».",
+     "По версии 1 заведение отклонено: основание то же самое — исправление при том же основании идёт корректировкой."
+    ]
+   },
+   "terms": [
+    {
+     "t": "переиздание",
+     "d": "новое заключение за тот же период на более новой версии основания; связь ставит машина."
+    }
+   ],
+   "accept": [
+    "Заведение заключения за период, где уже есть утверждённое, требует более новой версии основания.",
+    "Заведение на той же версии основания отклоняется с указанием, что исправление идёт корректировкой.",
+    "Связь «переиздаёт» проставляется машиной и не зависит от того, каким путём заведён документ.",
+    "Кнопка на старом документе и заведение из вкладки «Финансы» дают одинаковый результат.",
+    "Связь видна с обеих сторон: «переиздаёт» и «переиздано в».",
+    "Прежнее заключение остаётся утверждённым, читаемым и со своим снимком.",
+    "Шов вывода отдаёт последнее по дате утверждения заключение периода.",
+    "Цепочка длиной более двух заключений строится и показывается целиком."
+   ],
+   "notIn": [
+    "Корректировка при том же основании — P20-R15.",
+    "Пометка, с которой обычно начинается переиздание, — P20-R14."
+   ],
+   "deps": [
+    "P20-R10",
+    "P20-R14",
+    "P20-R15"
+   ],
+   "traps": [
+    "<b>Две кнопки — две реализации.</b> Соблазн написать «переиздать» отдельным действием велик: там уже известен исходный документ, и связь ставится тривиально. Но тогда заведение из вкладки «Финансы» останется без проверки и без связи, и период получит два независимых подписанных заключения. Кнопка обязана вызывать то же заведение."
+   ]
+  },
+  {
+   "id": "P20-R17",
+   "stage": 6,
+   "title": "Расписание анализа: единственный источник срока в системе",
+   "build": "Справочник строк расписания: тип лица, периодичность, отсрочка в днях, признак «только при действующих кредитах», дата вступления в силу. Правит администратор.",
+   "why": "Норма требует анализировать финансово-хозяйственное состояние заёмщика, но перечня коэффициентов не даёт — в модуль она приходит именно сроком. Держать срок настройкой, а не константой в коде, нужно потому, что периодичность и отсрочка меняются решением, а не релизом. Один справочник на всю систему нужен затем, что второй календарь немедленно разойдётся с первым, и заёмщик получит два разных срока с двух экранов.",
+   "look": {
+    "mock": "analysis.html",
+    "route": "экран «Расписание анализа»"
+   },
+   "screen": [
+    {
+     "n": "Расписание анализа",
+     "note": "Сверху строки справочника, снизу — вычисленный срок по каждому заёмщику витрины.",
+     "cols": [
+      "строка",
+      "тип лица",
+      "периодичность",
+      "отсрочка, дней",
+      "только при действующих кредитах",
+      "действует с",
+      "заёмщик",
+      "период",
+      "срок",
+      "состояние обязательства"
+     ],
+     "acts": [
+      "Править строку"
+     ]
+    }
+   ],
+   "steps": [
+    "Хранить строку расписания: код, тип лица, периодичность, отсрочка, признак охвата, дата вступления.",
+    "Держать периодичность закрытым перечнем: раз в полгода, раз в год.",
+    "Выбирать строку датированно — тем же порядком, что методику и тип лица.",
+    "Взять затравку из четырёх строк макета — по одной на тип лица.",
+    "Показать рядом со справочником вычисленный срок по каждому заёмщику: справочник без последствий не проверяется.",
+    "Ограничить правку администратором; куратор расписание читает."
+   ],
+   "rules": [
+    {
+     "h": "Охват",
+     "items": [
+      "Признак «только при действующих кредитах» определяет, вменяется ли анализ вообще: заёмщику без кредитов строка обязательства не создаёт.",
+      "Число действующих кредитов приходит из модуля кредитов; анализ его не считает.",
+      "Заёмщик без действующих кредитов получает не «просрочено», а «не требуется» с названной причиной."
+     ]
+    },
+    {
+     "h": "Один справочник",
+     "items": [
+      "Второго места, где задаётся периодичность анализа, в системе нет — ни в сопровождении, ни в настройках заёмщика.",
+      "Сопровождение ведёт обязательство по этому сроку и своего календаря не заводит."
+     ]
+    }
+   ],
+   "example": {
+    "src": "расписание макета",
+    "given": [
+     "Строки: организация — полгода, отсрочка 45 дней, только при кредитах; ИП — полгода, 45; физлицо — полгода, 45; групповой — полгода, 60. Все действуют с 01.01.2026."
+    ],
+    "do": [
+     "Прочитать строку для организации и применить её к b-5 ОсОО «Тянь-Шань Логистик» без действующих кредитов."
+    ],
+    "get": [
+     "Для организаций анализ вменяется раз в полгода с отсрочкой 45 дней.",
+     "Для b-5 обязательство не создаётся: «действующих кредитов нет — строка расписания вменяет анализ только при них»."
+    ]
+   },
+   "terms": [
+    {
+     "t": "расписание анализа",
+     "d": "справочник строк «тип лица — периодичность, отсрочка, охват»; единственный источник срока."
+    },
+    {
+     "t": "отсрочка",
+     "d": "сколько дней после конца периода даётся на анализ."
+    }
+   ],
+   "accept": [
+    "Строка расписания заводится и правится в интерфейсе, а не в коде.",
+    "Периодичность выбирается из двух значений.",
+    "Строка выбирается датированно — той же процедурой, что методика и тип лица.",
+    "В затравке четыре строки — по одной на тип лица.",
+    "Заёмщику без действующих кредитов строка с признаком охвата обязательства не создаёт.",
+    "Число действующих кредитов берётся из модуля кредитов и в анализе не считается.",
+    "Экран показывает вычисленный срок по каждому заёмщику рядом со справочником.",
+    "Правка доступна администратору; куратору экран читательский."
+   ],
+   "notIn": [
+    "Вычисление срока по строке — P20-R18.",
+    "Обязательство и дефект ведёт сопровождение."
+   ],
+   "deps": [
+    "P20-R4"
+   ],
+   "open": [
+    {
+     "ask": "Одинаковы ли отсрочки по типам лица и не нужна ли отдельная периодичность для крупных заёмщиков",
+     "default": "45 дней для организаций, индивидуальных предпринимателей и физических лиц, 60 — для групповых; периодичность у всех полугодовая",
+     "impact": "меняются только значения строк справочника; вычисление срока, отказы и обязательство остаются прежними"
+    }
+   ]
+  },
+  {
+   "id": "P20-R18",
+   "stage": 6,
+   "title": "Срок в два прохода и именованный отказ при расхождении расписания",
+   "build": "Вычисление срока следующего анализа: первым проходом — периодичность по типу лица заёмщика, вторым — последний завершённый период и срок как конец периода плюс отсрочка. Расхождение периодичностей даёт названный отказ.",
+   "why": "Срок нельзя посчитать одним проходом: сначала надо узнать, каким шагом идут периоды, и только потом — какой период последний завершённый. У группового заёмщика члены бывают разного типа лица, и периодичности расходятся; молча взять первую попавшуюся значило бы назначить срок наугад и получить дефект из воздуха. Названный отказ вместо догадки оставляет решение человеку и говорит, что именно разошлось.",
+   "look": {
+    "mock": "analysis.html",
+    "route": "экран «Расписание анализа» → нижняя таблица сроков; шапка карточки заёмщика"
+   },
+   "steps": [
+    "Первым проходом определить тип лица заёмщика на сегодня и взять действующую строку расписания.",
+    "Вернуть «не требуется» с причиной, если строка вменяет анализ только при действующих кредитах, а их нет.",
+    "Вторым проходом найти последний период, завершившийся к сегодняшнему дню, с шагом из первого прохода.",
+    "Посчитать срок: дата конца периода плюс отсрочка в днях.",
+    "Вернуть вместе со сроком период и строку расписания, по которой он получен, — срок без объяснения непроверяем.",
+    "Вернуть названный отказ, если периодичности участников расходятся, и перечислить расхождение.",
+    "Не хранить вычисленный срок: он считается при показе."
+   ],
+   "rules": [
+    {
+     "h": "Два прохода, а не один",
+     "items": [
+      "Периодичность и период определяются раздельно: период невозможно найти, не зная шага.",
+      "Дата отсчёта — конец периода, а не дата подачи отчётности и не дата прошлого заключения.",
+      "Сегодняшняя дата участвует только в поиске последнего завершившегося периода."
+     ]
+    },
+    {
+     "h": "Отказ вместо догадки",
+     "items": [
+      "Расхождение периодичностей возвращается отказом с перечислением того, что разошлось.",
+      "Отказ показывается на месте срока и обязательства не создаёт — ни просроченного, ни выполненного.",
+      "Молчаливый выбор одной из периодичностей запрещён: он создаёт дефект, которого никто не назначал."
+     ]
+    }
+   ],
+   "example": {
+    "src": "сроки по заёмщикам витрины на 21.08.2026 · макет",
+    "given": [
+     "Организации и физлица — полгода, отсрочка 45 дней. Последний завершённый период — 1П 2026 с концом 30.06.2026."
+    ],
+    "do": [
+     "Посчитать срок для b-1 (организация, 2 кредита), b-2 (физлицо) и b-5 (организация, кредитов нет)."
+    ],
+    "get": [
+     "b-1: срок 14.08.2026 по строке организации, период 1П 2026. b-2: срок 14.08.2026 по строке физлица.",
+     "b-5: анализ не требуется — «действующих кредитов нет: строка расписания вменяет анализ только при них»."
+    ]
+   },
+   "terms": [
+    {
+     "t": "срок анализа",
+     "d": "дата конца последнего завершённого периода плюс отсрочка строки расписания."
+    }
+   ],
+   "accept": [
+    "Срок считается двумя проходами: сначала периодичность, затем последний завершённый период.",
+    "Датой отсчёта служит дата конца периода, а не дата подачи отчётности.",
+    "Срок возвращается вместе с периодом и строкой расписания, по которой получен.",
+    "Заёмщик без действующих кредитов получает ответ «не требуется» с названной причиной.",
+    "Расхождение периодичностей возвращает названный отказ с перечислением расхождения.",
+    "При отказе обязательство не создаётся — ни просроченное, ни выполненное.",
+    "Срок нигде не хранится и считается при показе.",
+    "Для организации и физлица на 21.08.2026 срок за 1П 2026 равен 14.08.2026."
+   ],
+   "notIn": [
+    "Справочник расписания — P20-R17.",
+    "Показ срока в шапке и закрытие обязательства фактом — P20-R19."
+   ],
+   "deps": [
+    "P20-R17"
+   ],
+   "extDeps": [
+    {
+     "what": "модуль кредитов отвечает на вопрос о числе действующих кредитов заёмщика"
+    }
+   ],
+   "open": [
+    {
+     "ask": "Как считается срок для группового заёмщика, если члены группы разного типа лица",
+     "default": "документ ведётся на группе; расхождение периодичностей возвращается названным отказом, и срок назначает человек",
+     "impact": "если правило сведения назовут, отказ заменится вычислением; состав документа и швы не меняются"
+    }
+   ]
+  },
+  {
+   "id": "P20-R19",
+   "stage": 6,
+   "title": "Зеркало в шапке заёмщика и чужой дефект: показ вместо записи",
+   "build": "Показ в шапке карточки заёмщика: вывод последнего утверждённого заключения, его номер и дата, срок следующего анализа, состояние обязательства. Ни одно поле карточки при этом не записывается.",
+   "why": "Требование «по завершению анализа информация вносится в поля объекта» исполняется зеркалом, а не записью. Запись создала бы вторую копию вывода, которая после первой же корректировки разойдётся с документом, и вопрос «какая из двух правильная» станет неразрешимым. Зеркало даёт то же самое человеку и оставляет одно место правды. Дефект по той же причине не хранится: анализ отдаёт факт, а считает дефект сопровождение — иначе счёт разойдётся с обязательством.",
+   "look": {
+    "mock": "analysis.html",
+    "route": "карточка заёмщика → шапка"
+   },
+   "screen": [
+    {
+     "n": "Шапка карточки заёмщика — блок анализа",
+     "note": "ЧУЖОЙ экран. Анализ отдаёт содержимое блока и в карточку не пишет.",
+     "cols": [
+      "вывод",
+      "заключение",
+      "утверждено",
+      "срок следующего анализа",
+      "состояние обязательства"
+     ],
+     "acts": [
+      "Открыть заключение"
+     ]
+    }
+   ],
+   "steps": [
+    "Показывать вывод последнего утверждённого заключения с номером, датой и периодом.",
+    "Печатать словами «анализа нет», если утверждённых заключений у заёмщика нет.",
+    "Показывать рядом срок следующего анализа и период, за который он вменён.",
+    "Показывать состояние обязательства фактом: закрыто утверждённым заключением за период или не закрыто.",
+    "Не показывать черновики: до подписи показывать нечего.",
+    "Не записывать ни одного поля карточки заёмщика ни при подписи, ни при корректировке.",
+    "Не хранить и не считать число дней просрочки обязательства — этим ведает сопровождение."
+   ],
+   "rules": [
+    {
+     "h": "Зеркало",
+     "items": [
+      "Источник у блока один — документ. Корректировка вывода меняет блок в тот же момент, потому что копии нет.",
+      "Блок читательский: действий, кроме перехода к заключению, в нём нет.",
+      "Отсутствие анализа печатается словами, а не пустотой: пустое место читается как «ещё не загрузилось»."
+     ]
+    },
+    {
+     "h": "Дефект — чужой",
+     "items": [
+      "Анализ отдаёт факт: есть утверждённое заключение за период или нет.",
+      "Дефект «на допуск» считает сопровождение из просроченного срока, а гейт заявки читает его у сопровождения.",
+      "Поля «дефект» в модуле нет ни в каком виде — иначе появится второй счёт, расходящийся с обязательством."
+     ]
+    }
+   ],
+   "example": {
+    "src": "шапка карточки b-1 на 21.08.2026 · макет",
+    "given": [
+     "Срок анализа за 1П 2026 — 14.08.2026. ФА-7 утверждено 20.07.2026 с выводом «удовлетворительное с оговорками»."
+    ],
+    "do": [
+     "Открыть карточку b-1 и карточку заёмщика без заключений."
+    ],
+    "get": [
+     "У b-1 в шапке: вывод, ФА-7, 20.07.2026, срок 14.08.2026; обязательство закрыто фактом — заключение утверждено до срока, дефекта нет.",
+     "У заёмщика без заключений на том же месте напечатано «анализа нет», и ни одно поле его карточки анализом не тронуто."
+    ]
+   },
+   "terms": [
+    {
+     "t": "зеркало",
+     "d": "показ вывода анализа на чужой карточке вместо записи в её поле."
+    },
+    {
+     "t": "обязательство",
+     "d": "сущность сопровождения: ведётся по нашему сроку и закрывается нашим фактом."
+    }
+   ],
+   "accept": [
+    "Шапка показывает вывод, номер заключения, дату утверждения и период.",
+    "При отсутствии утверждённых заключений на том же месте напечатано «анализа нет».",
+    "Черновики в шапке не показываются.",
+    "Срок следующего анализа и состояние обязательства показаны рядом с выводом.",
+    "Ни одно поле карточки заёмщика не записывается — ни при подписи, ни при корректировке.",
+    "Корректировка вывода меняет содержимое шапки немедленно, потому что копии вывода нет.",
+    "Поля «дефект» и «дней просрочки обязательства» в модуле отсутствуют.",
+    "Обязательство показано закрытым фактом утверждённого заключения за период."
+   ],
+   "notIn": [
+    "Счёт дефекта и напоминания — модуль сопровождения.",
+    "Гейт заявки по дефекту анализа — модуль заявки.",
+    "Вычисление срока — P20-R18."
+   ],
+   "deps": [
+    "P20-R12",
+    "P20-R18"
+   ],
+   "extDeps": [
+    {
+     "what": "сопровождение ведёт обязательство по анализу и считает дефект «на допуск» из просроченного срока"
+    },
+    {
+     "what": "шапка карточки заёмщика — экран модуля заёмщика, он отводит место под блок анализа"
+    }
+   ]
+  },
+  {
+   "id": "P20-R20",
+   "stage": 7,
+   "title": "Два шва наружу и закрытый список потребителей",
+   "build": "Два шва модуля: вывод последнего утверждённого заключения по заёмщику и факт наличия утверждённого заключения за период. Оба отдают только подписанное. Третьего шва нет.",
+   "why": "Каждый шов — обещание на годы: его читают чужие модули, и снять его потом дороже, чем не заводить. Два вопроса покрывают всех известных потребителей: заявке и комиссии нужен вывод, сопровождению и кураторству — факт, отчётности — оба. Черновик не отдаётся ни одним швом ровно потому, что он ничем не подписан: отданный наружу, он немедленно стал бы основанием чужого решения. Прямое чтение документов чужими модулями закрыто — иначе швом станет вся внутренняя структура.",
+   "look": {
+    "mock": "analysis.html",
+    "route": "служебный экран «Швы наружу»"
+   },
+   "screen": [
+    {
+     "n": "Швы наружу",
+     "note": "Служебный экран приёмки: показывает оба ответа и потребителей. В промышленной сборке не обязателен.",
+     "cols": [
+      "шов",
+      "вопрос",
+      "ответ",
+      "кто спрашивает",
+      "чего не отдаёт"
+     ],
+     "acts": [
+      "Спросить шов от имени модуля"
+     ]
+    }
+   ],
+   "steps": [
+    "Реализовать шов вывода: по заёмщику вернуть вывод, номер заключения, дату утверждения, период, методику с номером редакции и признак «источник изменился».",
+    "Реализовать шов факта: по заёмщику и периоду вернуть, есть ли утверждённое заключение, и дату утверждения.",
+    "Отдавать в обоих швах только утверждённые заключения; черновики не отдавать никогда.",
+    "Отдавать в шве вывода последнее по дате утверждения заключение — с учётом переизданий.",
+    "Отдавать актуальный вывод с учётом корректировок, а не первоначальный.",
+    "Вернуть «анализа нет» отдельным ответом, а не пустотой, когда утверждённых заключений нет.",
+    "Не заводить швов на коэффициенты, тексты и черновики — они наружу не выходят."
+   ],
+   "rules": [
+    {
+     "h": "Кто читает",
+     "items": [
+      "Вывод читают заявка и комиссия — для допуска и для решения.",
+      "Факт читают сопровождение и кураторство — для обязательства и для картины по портфелю.",
+      "Отчётность читает оба.",
+      "Классификация не читает ни одного: суждение анализа входом классификации не является, и обратной стрелки тоже нет.",
+      "Задачи не читают ничего: заключение задач не порождает."
+     ]
+    },
+    {
+     "h": "Чего швы не отдают",
+     "items": [
+      "Значений коэффициентов, текста заключения и содержимого снимка наружу нет: за подробностями идут в документ.",
+      "Справочный расчёт «что дал бы пересчёт» не отдаётся ни в каком виде.",
+      "Третьего шва в этой редакции не заводится: обзоры придут вместе с модулем отчётности."
+     ]
+    }
+   ],
+   "example": {
+    "src": "швы по b-1 · макет",
+    "given": [
+     "ФА-7 утверждено 20.07.2026 за 1П 2026, есть более новая версия основания. За 2025 год утверждено ФА-6."
+    ],
+    "do": [
+     "Спросить оба шва."
+    ],
+    "get": [
+     "Шов вывода: «удовлетворительное с оговорками», ФА-7, 20.07.2026, период 1П 2026, методика «Финансовый анализ организации», редакция 2, признак «источник изменился» — да.",
+     "Шов факта за 1П 2026: да, 20.07.2026, ФА-7. Черновики в обоих ответах отсутствуют."
+    ]
+   },
+   "terms": [
+    {
+     "t": "шов",
+     "d": "названный вопросом ответ модуля наружу; швов два, третьего нет."
+    }
+   ],
+   "accept": [
+    "Швов ровно два; третьего в модуле не заведено.",
+    "Оба шва отдают только утверждённые заключения; черновик не отдаётся никогда.",
+    "Шов вывода возвращает вывод, номер, дату, период, методику с номером редакции и признак «источник изменился».",
+    "Шов факта возвращает наличие утверждённого заключения за период и дату утверждения.",
+    "Шов вывода отдаёт последнее по дате утверждения заключение и учитывает корректировки.",
+    "Отсутствие заключений возвращается ответом «анализа нет», а не пустотой.",
+    "Ни коэффициенты, ни текст, ни снимок, ни справочный расчёт наружу не отдаются.",
+    "Классификация ни одного шва анализа не читает, и обратной ссылки тоже нет."
+   ],
+   "notIn": [
+    "Суммы по объекту отдаёт расчётное ядро, а не анализ.",
+    "Дефект и обязательство — сопровождение.",
+    "Раздел аналитических обзоров и его швы — редакция 2 этого файла."
+   ],
+   "deps": [
+    "P20-R12",
+    "P20-R15",
+    "P20-R16"
+   ]
+  },
+  {
+   "id": "P20-R21",
+   "stage": 7,
+   "title": "Роли и видимость: кто ведёт методики, кто вносит, кто читает",
+   "build": "Разграничение прав: отдел анализа ведёт справочник строк и методики, ведущий куратор вносит отчётность и ведёт заключения по своим заёмщикам, администратор правит расписание, остальные читают.",
+   "why": "Методики и заключения — разные по природе объекты: первые задают правила для всех, вторые суждение об одном заёмщике. Дай куратору править методику — и правила счёта станут предметом переговоров по конкретному заёмщику. Дай отделу анализа вести заключения — и ответственность за заёмщика разъедется с кураторством. Видимость наследуется от заёмщика потому, что заводить у финанализа собственный контур доступа не за чем: он ничего не добавляет к тому, что и так видно в карточке.",
+   "look": {
+    "mock": "analysis.html",
+    "route": "все экраны модуля: состав действий зависит от роли"
+   },
+   "steps": [
+    "Дать отделу анализа заведение строк справочника, методик и публикацию редакций.",
+    "Дать ведущему куратору заёмщика внесение отчётности, заведение, правку черновика, утверждение, корректировку и переиздание по своим заёмщикам.",
+    "Дать администратору правку расписания анализа.",
+    "Открыть чтение методик и редакций всем, кто работает с заёмщиками: расчёт обязан быть объясним читателю.",
+    "Наследовать видимость финанализа от видимости карточки заёмщика.",
+    "Убирать недоступные действия с экрана, а не показывать их отключёнными без причины.",
+    "Отказывать на чужого заёмщика названным отказом с указанием ведущего куратора."
+   ],
+   "rules": [
+    {
+     "h": "Разделение",
+     "items": [
+      "Отдел анализа заключений не ведёт и отчётности не вносит.",
+      "Куратор методик не правит и редакций не публикует.",
+      "Утверждение принадлежит тому же куратору: отдельного утверждающего в модуле нет, согласование ведётся вне документа."
+     ]
+    },
+    {
+     "h": "Видимость",
+     "items": [
+      "Собственного контура доступа у финанализа нет: видим заёмщик — видим и его анализ.",
+      "Методики и справочник строк видны всем читателям — это условие объяснимости расчёта.",
+      "Расписание видно всем, правится администратором."
+     ]
+    }
+   ],
+   "example": {
+    "src": "роли витрины макета",
+    "given": [
+     "Ведущий куратор b-1 — Бекова Н.; методиками ведает отдел анализа."
+    ],
+    "do": [
+     "Открыть карточку b-1 куратором другого заёмщика и открыть редакцию методики куратором."
+    ],
+    "get": [
+     "Кнопок внесения и заведения нет; попытка утвердить ФА-7 отклонена с указанием, что ведущий куратор — Бекова Н.",
+     "Редакция 2 методики организации открыта на чтение: видны 10 строк и 5 коэффициентов с порогами, кнопки публикации нет."
+    ]
+   },
+   "terms": [
+    {
+     "t": "отдел анализа",
+     "d": "владелец справочника строк и методик; заключений не ведёт."
+    }
+   ],
+   "accept": [
+    "Куратор не имеет действий заведения методики и публикации редакции ни на одном экране.",
+    "Отдел анализа не имеет действий внесения отчётности и утверждения заключения.",
+    "Действия по заёмщику доступны его ведущему куратору; на чужого заёмщика следует названный отказ.",
+    "Отказ по чужому заёмщику называет ведущего куратора.",
+    "Методики, редакции и справочник строк открыты на чтение всем, кто работает с заёмщиками.",
+    "Расписание анализа правится администратором и читается всеми.",
+    "Видимость финанализа совпадает с видимостью карточки заёмщика — собственного контура нет.",
+    "Недоступные действия с экрана убраны, а не показаны отключёнными без причины."
+   ],
+   "notIn": [
+    "Назначение ведущего куратора — модуль кураторства.",
+    "Настройка ролей и учётных записей — общесистемная."
+   ],
+   "deps": [
+    "P20-R3",
+    "P20-R7",
+    "P20-R17"
+   ],
+   "extDeps": [
+    {
+     "what": "кураторство назначает ведущего куратора заёмщика; анализ его читает"
+    }
+   ],
+   "open": [
+    {
+     "ask": "Видят ли финанализ заёмщика сотрудники других филиалов, работающие с ним по заявке",
+     "default": "видимость финанализа наследуется от видимости карточки заёмщика — кому видна карточка, тому виден и анализ",
+     "impact": "если правило сузят, появится отдельная проверка на показе документа и в шве вывода; состав данных не меняется"
+    }
+   ]
+  },
+  {
+   "id": "P20-R22",
+   "stage": 7,
+   "title": "Одиннадцать названных отказов: запрет, который объясняет себя",
+   "build": "Свод отказов модуля: каждый запрет отвечает текстом, называющим причину и адресата. Молчаливого отказа и отключённой кнопки без объяснения в модуле нет.",
+   "why": "Отказ без причины стоит дороже самого запрета: пользователь не понимает, что делать, и обходит систему — заводит второй документ, звонит в поддержку, вносит числа руками. Названный отказ превращает запрет в подсказку и заодно служит приёмкой: проверить можно каждый, а неназванный запрет проверить нечем. Собраны они в одну карточку потому, что тексты должны быть согласованы между собой, а не написаны по одному в семи местах.",
+   "look": {
+    "mock": "analysis.html",
+    "route": "все экраны модуля: любое запрещённое действие отвечает текстом"
+   },
+   "steps": [
+    "Реализовать отказ на ручной ввод коэффициента: значение ставит машина по отчётности.",
+    "Реализовать отказ на автоматический вывод из порогов: вывод выбирает человек.",
+    "Реализовать отказы на правку, повторное утверждение и удаление утверждённого заключения.",
+    "Реализовать отказ на отметку об исполнении обязательства: оно закрывается фактом, а не отметкой.",
+    "Реализовать отказ на запись в поле чужой карточки и отказ на постановку задачи из заключения.",
+    "Реализовать отказ на выдачу категории и на чтение анализа классификацией.",
+    "Реализовать отказы на текущее значение из снимка, на печать отсутствующего анализа пустотой и на собственный конструктор состава среза.",
+    "Проверить каждый отказ приёмкой: текст называет причину и, где уместно, адресата."
+   ],
+   "rules": [
+    {
+     "h": "Как устроен текст",
+     "items": [
+      "Отказ называет причину, а не правило: «утверждённое заключение не пересчитывается» вместо «действие недоступно».",
+      "Где есть адресат — он назван: строку заводит отдел анализа, задачу ставит человек, дефект считает сопровождение.",
+      "Где есть выход — он назван: при том же основании — корректировка, при новом — переиздание."
+     ]
+    },
+    {
+     "h": "Три отказа стоят на границах модуля",
+     "items": [
+      "Категорию анализ не выдаёт и классификации не отдаётся: стрелки нет ни в одну сторону.",
+      "Собственного конструктора состава среза модуль не заводит — он придёт из отчётности вместе с разделом обзоров.",
+      "Отсутствие анализа печатается словами «анализа нет», а не пустым местом."
+     ]
+    }
+   ],
+   "example": {
+    "src": "свод отказов макета",
+    "given": [
+     "ФА-7 утверждено 20.07.2026; обязательство за 1П 2026 закрыто фактом."
+    ],
+    "do": [
+     "Попробовать ввести коэффициент руками, вывести вывод из порогов, удалить ФА-7 и отметить обязательство исполненным."
+    ],
+    "get": [
+     "Четыре отказа с разными текстами: значение ставит машина по отчётности; вывод выбирает человек; утверждённое заключение не удаляется; обязательство закрывается фактом — ФА-7 утверждено 20.07.2026.",
+     "Всего в модуле 11 названных отказов, каждый проверяется отдельно."
+    ]
+   },
+   "terms": [
+    {
+     "t": "названный отказ",
+     "d": "запрет, отвечающий текстом с причиной и, где уместно, адресатом."
+    }
+   ],
+   "accept": [
+    "Каждый из одиннадцати отказов проверяется отдельно и отвечает текстом.",
+    "Ни один запрет не выражен молчанием или отключённой кнопкой без объяснения.",
+    "Отказ на ручной ввод коэффициента называет, что значение ставит машина по отчётности.",
+    "Отказ на исполнение обязательства отметкой называет утверждённое заключение, которым оно закрыто.",
+    "Отказ на запись в чужое поле называет зеркало как способ показа.",
+    "Отказ на постановку задачи называет человека как того, кто её заводит.",
+    "Отказ на выдачу категории и на чтение анализа классификацией стоит с обеих сторон границы.",
+    "Отказ на собственный конструктор состава среза называет отчётность как источник шаблона.",
+    "Печать при отсутствии анализа выводит слова «анализа нет», а не пустое место.",
+    "Отказы при том же и при новом основании называют разные выходы: корректировку и переиздание."
+   ],
+   "notIn": [
+    "Отказы вычислителя по недостающим данным — P20-R9.",
+    "Отказ при расхождении периодичностей расписания — P20-R18."
+   ],
+   "deps": [
+    "P20-R9",
+    "P20-R12",
+    "P20-R16",
+    "P20-R19",
+    "P20-R20"
+   ]
+  }
+ ]
+}
+</script>
+
+
+<script>
+const DATA = JSON.parse(document.getElementById('tasks-data').textContent);
+const { meta, guide, atlas, screens, glossary, walkthrough, stages, cards } = DATA;
+
+document.title = `Анализ · редакция ${meta.revision} · P20 · АСУБК`;
+document.getElementById('hero-title').textContent =
+  `${meta.title} — задачи для команды разработки`;
+
+document.getElementById('revbar').innerHTML = `
+  <span class="revchip">Редакция ${meta.revision} · ${meta.date}</span>
+  <span class="revchip replaces">${cards.length} задач · ${stages.length} этапов</span>
+`;
+
+document.getElementById('hero-lead').innerHTML = `
+  ${cards.length} задач, собранных в ${stages.length} этапов (не строгую очередь — см. подвал страницы).
+  Модуль проектируется <b>с нуля</b>: живого экрана в тестовом стенде нет, предшественника в старой
+  системе тоже. Эталон интерфейса и поведения — макет <code>${meta.package[0]}</code>: он исполняет
+  описанное здесь на живых данных (движок макета проверен смоук-тестом, 44 проверки). Начните со
+  свода: карта данных, опись экранов, словарь и сквозной пример — общие для всех карточек, карточка
+  добавляет к ним только своё.
+`;
+
+function tiles(){
+  const data = [
+    { l:'Задач', n:cards.length },
+    { l:'Этапов', n:stages.length },
+    { l:'Сущностей', n:(atlas||[]).length, fold:'panel-atlas' },
+    { l:'Экранов', n:(screens||[]).length, fold:'panel-screens' },
+    { l:'Терминов', n:(glossary||[]).length, fold:'panel-gloss' },
+    { l:'Сквозной пример', n:((walkthrough||{}).groups||[]).length, fold:'panel-walk' },
+    { l:'Открытых вопросов', n:cards.reduce((a,c)=>a+(c.open||[]).length,0), fold:'panel-open' },
+    { l:'Справка модуля', n:(guide||[]).length, fold:'panel-guide' },
+  ];
+  document.getElementById('tiles').innerHTML = data.map(d =>
+    `<div class="tile"${d.fold?` data-fold="${d.fold}"`:''}><span class="n">${d.n}</span><span class="l">${d.l}</span></div>`).join('');
+  document.querySelectorAll('.tile[data-fold]').forEach(t => t.onclick = () => {
+    const dt = document.querySelector(`#${t.dataset.fold} details.fold`);
+    dt.open = !dt.open;
+    t.classList.toggle('on', dt.open);
+    if (dt.open && dt.scrollIntoView) dt.scrollIntoView({ block:'nearest' });
+  });
+}
+tiles();
+
+// Справка модуля
+document.getElementById('guide-cnt').textContent = `${(guide||[]).length} раздела`;
+document.getElementById('guide-list').innerHTML = (guide||[]).map(g => `
+  <div class="guide-item">
+    <h3>${g.h}</h3>
+    <ul>${(g.items||[]).map(i=>`<li>${i}</li>`).join('')}</ul>
+  </div>`).join('');
+
+// Карта данных
+function entHtml(e){
+  return `<div class="ent">
+    <h4>${e.n}${e.key?`<span class="key">ключ: ${e.key}</span>`:''}</h4>
+    ${e.note?`<p class="note">${e.note}</p>`:''}
+    <ul>${(e.fields||[]).map(f=>`<li>${f}</li>`).join('')}</ul>
+  </div>`;
+}
+document.getElementById('atlas-cnt').textContent = `${(atlas||[]).length} сущностей`;
+document.getElementById('atlas-list').innerHTML = (atlas||[]).map(entHtml).join('');
+
+// Опись экранов
+function scrHtml(s){
+  return `<div class="scr">
+    <h4>${s.n}</h4>
+    ${s.note?`<p class="note">${s.note}</p>`:''}
+    ${(s.cols||[]).length?`<span class="cap">Колонки и поля</span><div class="chips">${s.cols.map(c=>`<span class="col">${c}</span>`).join('')}</div>`:''}
+    ${(s.acts||[]).length?`<span class="cap">Действия</span><div class="chips">${s.acts.map(a=>`<span class="act">${a}</span>`).join('')}</div>`:''}
+  </div>`;
+}
+document.getElementById('screens-cnt').textContent = `${(screens||[]).length} экранов`;
+document.getElementById('screens-list').innerHTML = (screens||[]).map(scrHtml).join('');
+
+// Словарь
+document.getElementById('gloss-cnt').textContent = `${(glossary||[]).length} терминов`;
+document.getElementById('gloss-list').innerHTML =
+  `<div class="gloss">${(glossary||[]).map(t=>`<div><b>${t.t}</b> — ${t.d}</div>`).join('')}</div>`;
+
+// Сквозной пример
+document.getElementById('walk-cnt').textContent = `${((walkthrough||{}).groups||[]).length} шагов`;
+document.getElementById('walk-list').innerHTML = walkthrough ? `
+  <p class="note" style="font-size:13px;color:var(--text-muted);margin:0 0 8px">
+    Источник: ${walkthrough.src}${walkthrough.note?` · ${walkthrough.note}`:''}</p>
+  ${(walkthrough.groups||[]).map(g=>`
+    <div class="guide-item"><h3>${g.h}</h3>
+      <ul>${(g.items||[]).map(i=>`<li>${i}</li>`).join('')}</ul></div>`).join('')}` : '';
+
+// Открытые вопросы — сводка по всем карточкам
+(function renderOpenQ(){
+  const rows = [];
+  cards.forEach(c => (c.open||[]).forEach(o => rows.push({...o, cid:c.id, title:c.title})));
+  document.getElementById('openq-cnt').textContent = rows.length;
+  document.getElementById('openq-list').innerHTML = rows.length
+    ? rows.map(o => `
+        <div class="openq">
+          <a href="#card-${o.cid}">${o.cid}</a>
+          <span><b>${o.ask}</b> — умолчание: <span class="oq-default">${o.default}</span></span>
+        </div>`).join('')
+    : '<p style="color:var(--text-muted)">Открытых вопросов нет.</p>';
+})();
+
+// Фильтр этапов
+const stageSel = document.getElementById('fStage');
+stages.forEach(s => {
+  const n = cards.filter(c => c.stage === s.n).length;
+  stageSel.insertAdjacentHTML('beforeend', `<option value="${s.n}">Этап ${s.n} · ${s.title} (${n})</option>`);
+});
+
+const F = { q:'', stage:'' };
+
+function depChip(id){
+  const c = cards.find(x=>x.id===id);
+  return `<a class="dep" href="#card-${id}" title="${c?c.title:''}">↔ ${id}</a>`;
+}
+
+function groupsHtml(groups){
+  if(!groups) return '';
+  return groups.map(g => `<div class="subh">${g.h}</div><ul>${(g.items||[]).map(i=>`<li>${i}</li>`).join('')}</ul>`).join('');
+}
+
+function lookHtml(look){
+  if(!look) return '';
+  const parts = [];
+  if(look.mock) parts.push(`<a href="${look.mock}" target="_blank" rel="noopener">${look.mock.split('#')[0]}</a>`);
+  if(look.route) parts.push(`<span class="route">${look.route}</span>`);
+  if(look.mockNote) parts.push(`<span class="route">${look.mockNote}</span>`);
+  if(look.tz) parts.push(`<a href="${look.tz}" target="_blank" rel="noopener">ТЗ ${look.tz.split('#')[1]?('· '+look.tz.split('#')[1]):''}</a>`);
+  if(look.defect) parts.push(`<span class="defect">дефект ${look.defect}</span>`);
+  return `<div class="look">${parts.join('')}</div>`;
+}
+
+function exampleHtml(ex){
+  if(!ex) return '';
+  const part = (h, items) => (items||[]).length
+    ? `<span class="exh">${h}</span><ul>${items.map(i=>`<li>${i}</li>`).join('')}</ul>` : '';
+  return `<div class="ex">
+    <span class="lbl">Пример</span>
+    <p class="src">Источник: ${ex.src}</p>
+    ${part('Дано', ex.given)}${part('Делаем', ex.do)}${part('Получаем', ex.get)}
+  </div>`;
+}
+
+function openHtml(open){
+  if(!open || !open.length) return '';
+  return open.map(o => `
+    <div class="openbox">
+      <b>Решения нет:</b> ${o.ask} Умолчание — ${o.default} При другом ответе: ${o.impact}
+    </div>`).join('');
+}
+
+function trapsHtml(traps){
+  if(!traps || !traps.length) return '';
+  return `<details><summary>Ловушки</summary><div class="traps"><ul>${traps.map(t=>`<li>${t}</li>`).join('')}</ul></div></details>`;
+}
+
+function extHtml(ext){
+  if(!ext || !ext.length) return '';
+  return `<div class="blk"><span class="lbl">Нужно от соседей</span><ul>${
+    ext.map(e=>`<li>${e.href?`<a href="${e.href}">${e.what}</a>`:e.what}</li>`).join('')}</ul></div>`;
+}
+
+function card(c){
+  return `<article class="card" id="card-${c.id}" data-id="${c.id}" data-stage="${c.stage}">
+    <div class="c-head">
+      <span class="id">${c.id}</span>
+      <span class="step">Этап ${c.stage}</span>
+      <h3 class="c-title">${c.title}</h3>
+    </div>
+    <div class="blk build"><span class="lbl">Что строим</span><p>${c.build||''}</p></div>
+    <div class="blk"><span class="lbl">Зачем</span><p class="why">${c.why}</p></div>
+    ${lookHtml(c.look) ? `<div class="blk"><span class="lbl">Где смотреть</span>${lookHtml(c.look)}</div>` : ''}
+    ${c.data ? `<div class="blk"><span class="lbl">Данные</span>${(c.data||[]).map(entHtml).join('')}</div>` : ''}
+    ${c.screen ? `<div class="blk"><span class="lbl">Экран</span>${(c.screen||[]).map(scrHtml).join('')}</div>` : ''}
+    <div class="blk"><span class="lbl">Шаги</span><ol class="steps">${(c.steps||[]).map(s=>`<li>${s}</li>`).join('')}</ol></div>
+    ${c.rules ? `<div class="blk"><span class="lbl">Правила</span>${groupsHtml(c.rules)}</div>` : ''}
+    ${exampleHtml(c.example)}
+    ${c.terms ? `<div class="blk"><span class="lbl">Термины</span><div class="terms">${
+      (c.terms||[]).map(t=>`<span class="term"><b>${t.t}</b> — ${t.d}</span>`).join('')}</div></div>` : ''}
+    <div class="blk"><span class="lbl">Приёмка</span><ul>${(c.accept||[]).map(a=>`<li>${a}</li>`).join('')}</ul></div>
+    ${openHtml(c.open)}
+    ${extHtml(c.extDeps)}
+    <div class="blk"><span class="lbl">Не в этой задаче</span><ul>${(c.notIn||[]).map(a=>`<li>${a}</li>`).join('')}</ul></div>
+    <div class="c-foot">
+      <span class="tag">${stages.find(s=>s.n===c.stage).title}</span>
+      ${(c.deps||[]).map(depChip).join('')}
+    </div>
+    ${trapsHtml(c.traps)}
+  </article>`;
+}
+
+function render(){
+  const q = F.q.trim().toLowerCase();
+  const sel = cards.filter(c => {
+    if (F.stage && String(c.stage) !== String(F.stage)) return false;
+    if (!q) return true;
+    const hay = JSON.stringify(c).toLowerCase();
+    return hay.includes(q);
+  });
+  const list = document.getElementById('list');
+  if(!sel.length){ list.innerHTML = '<div class="empty">Ничего не найдено. Сбросьте фильтры.</div>'; }
+  else {
+    list.innerHTML = stages.filter(s => sel.some(c=>c.stage===s.n)).map(s => {
+      const rows = sel.filter(c => c.stage === s.n);
+      return `<section class="group"><h2>Этап ${s.n} · ${s.title} <span class="g-n">· ${rows.length}</span></h2>
+              ${rows.map(card).join('')}</section>`;
+    }).join('');
+  }
+  document.getElementById('count').textContent = `Показано ${sel.length} из ${cards.length}`;
+}
+
+document.getElementById('q').oninput      = e => { F.q = e.target.value; render(); };
+document.getElementById('fStage').onchange= e => { F.stage = e.target.value; render(); };
+document.getElementById('reset').onclick  = () => {
+  F.q=''; F.stage='';
+  document.getElementById('q').value=''; document.getElementById('fStage').value='';
+  render();
+};
+let expanded = false;
+document.getElementById('expand').onclick = e => {
+  expanded = !expanded;
+  document.querySelectorAll('#list details').forEach(d => d.open = expanded);
+  e.target.textContent = expanded ? 'Свернуть ловушки' : 'Раскрыть ловушки';
+};
+
+render();
+</script>
+</body>
+</html>
