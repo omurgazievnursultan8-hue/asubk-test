@@ -5822,6 +5822,12 @@ function buildLedger(c, asOf){
     const perDayNow = (r.principalBal + iBase > 0.005)
       ? r.principalBal * (r.penaltyMain / 100) + iBase * (r.penaltyInt / 100) : 0;
     r.penaltyPerDayFwd = round2((CLf && !CLf.mode.penalty) ? 0 : perDayNow);
+    /* ТА ЖЕ ЦЕНА ДНЯ, НО БЕЗ ОКРУГЛЕНИЯ. Округлённую берёт ПОКАЗ — её печатают как
+       деньги. Её же МНОЖАТ НА ДНИ: расчётная проекция хранит скорость и досчитывает
+       ответ между критическими датами (ADR-0193). Копейка, округлённая у каждой из
+       десяти позиций и помноженная на месяц, копейкой быть перестаёт — по той же
+       причине, по которой не округляется `cell.perDay` у листа. */
+    r.penaltyPerDayFwdRaw = (CLf && !CLf.mode.penalty) ? 0 : perDayNow;
   }
   /* второй проход: пеня гасится после основного долга и процентов */
   for (const r of rows){
