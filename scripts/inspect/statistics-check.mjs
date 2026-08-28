@@ -1,4 +1,4 @@
-// Headless smoke для mockups/statistics/statistics.html (ИС-1…ИС-25, ADR-0145…0152 + 0176…0180).
+// Headless smoke для mockups/statistics/statistics.html (ИС-1…ИС-33, ADR-0145…0152 + 0176…0197).
 // Блок S закрывает бывшие дефекты макета СС-Д1/Д2/Д3/Д6 (вопрос целиком, а не его половина).
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
@@ -92,7 +92,7 @@ const TODAY = '2026-08-21';
   const ai = ST.addIndicator({id:'a-sumgsec', name:'Обеспечено требований, итого', obj:'obj-guarantee',
     src:'агрегат', fn:'sum', over:'m-gsec'});
   const add = ST.addObject({id:'obj-guarantee', name:'Поручительство', plural:'поручительства',
-    owner:'Обеспечение', refName:'номер поручительства',
+    owner:'Обеспечение', refName:'номер поручительства', born:{src:'поле', key:'gdate'},
     dims:['d-branch','d-curator','d-region','d-ptype'], inds:['m-gsec','a-count','a-sumgsec']});
   const run = ST.run('2026-08-20', {});
   const after = ST.statSlice({obj:'obj-guarantee', dims:['d-region'], inds:['a-count','a-sumgsec'], date:'2026-08-20'});
@@ -851,14 +851,91 @@ const TODAY = '2026-08-21';
     `перезалог: ЗЛ-2022/18 стоит под ${dbl ? dbl.inds['m-cdeals'].v : '—'} договорами и ${dbl ? dbl.inds['m-ccred'].v : '—'} кредитами, отнесено ${dbl ? dbl.inds['m-calloc'].v : '—'} из залоговых ${dbl ? dbl.inds['m-cpledge'].v : '—'} (оценочные ${dbl ? dbl.inds['m-cval'].v : '—'} × 0,7), доступно ${dbl ? dbl.inds['m-cfree'].v : '—'}; Σ долей не превышает залоговую нигде (${over.length} нарушений), и на всех ${zrows.length} предметах залоговая = отнесённое + доступное (§4.1, Р-19)`);
 })();
 
+/* ---------- Z. Рождение строки: ИС-33, ADR-0197 (волна 9) ---------- */
+(() => {
+  ST.seed();
+  const st = ST.state;
+  const D = ['2026-05-31','2026-06-30','2026-07-31','2026-08-10','2026-08-18'];
+  const cnt = (o, d) => st.rows.filter(r => r.obj === o && r.date === d).length;
+  const line = o => D.map(d => cnt(o, d));
+  const eq = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+
+  /* Состав среза меняется во времени, потому что объекты РОЖДАЮТСЯ. До 27.08.2026 строки
+     писались на все прошлые даты сразу: срез на 31.05 показывал 14 платежей, ни один из
+     которых тогда не существовал (июнь–август), — и «платежей за июль» через разность
+     двух дат выходило ноль. Смерть при этом состояние, а не исчезновение: однажды
+     родившись, объект из состава уже не выпадает, и ряд не убывает нигде. */
+  const rep9 = line('obj-repay'), cas = line('obj-case');
+  const tsk = line('obj-task'),   mes = line('obj-measure');
+  const stable = ['obj-credit','obj-borrower','obj-collateral','obj-program']
+    .every(o => line(o).every(n => n === cnt(o, D[0])));
+  const monotone = st.objects.every(o => line(o.id).every((n, i, a) => i === 0 || n >= a[i-1]));
+  ok(86, eq(rep9, [0,4,10,12,14]) && eq(cas, [2,2,2,3,3]) && eq(tsk, [1,2,3,4,4]) &&
+        eq(mes, [3,3,3,5,5]) && stable && monotone,
+    `состав среза идёт за рождением: погашения ${rep9.join('·')}, дела ${cas.join('·')}, задания ${tsk.join('·')}, меры ${mes.join('·')}; долгоживущие четыре объекта неизменны, и ни у одного объекта состав не убывает — смерть это состояние, а не пропажа строки (ИС-33)`);
+
+  /* Пустой ответ и несосчитанная дата — РАЗНЫЕ вещи. Даты прогонов теперь берутся
+     журналом, а не наличием строк: иначе 31.05 у погашений читалось бы как «прогона не
+     было» и молча подменилось бы предыдущей датой, которой тоже нет (ИС-12, ИС-19). */
+  const empty = ST.statSlice({obj:'obj-repay', dims:['d-repkind'], inds:['a-count','a-sumramount'],
+    date:'2026-05-31'});
+  const may = st.runs.find(r => r.date === '2026-05-31');
+  const part = may && may.parts.find(p => p.obj === 'obj-repay');
+  const noborn = st.runs.filter(r => r.parts).reduce((n, r) =>
+    n + r.parts.reduce((k, p) => k + (p.noborn || 0), 0), 0);
+  ok(87, empty.ok && empty.n === 0 && empty.groups.length === 0 &&
+        empty.passport.asOf === '2026-05-31' && empty.passport.substituted === false &&
+        part && part.n === 0 && part.unborn === 14 && noborn === 0,
+    `«строк ноль» не «прогона не было»: срез от 31.05 отвечает пустотой на СВОЮ дату (подстановки нет), а прогон называет ненаступившее поимённо — ${part ? part.unborn : '—'} ещё не рождённых; записей с необъявленным рождением во всём мире ${noborn} (ИС-12, ИС-19, СС-Д6)`);
+
+  /* ИС-17: период — разность двух накопленных итогов. Рождение внутри периода эту
+     разность РАСЩЕПЛЯЕТ: в ней сидит и движение старых, и всё требование новорождённого.
+     Ни одна половина сама по себе разности не равна — и потому «прирост» читать
+     движением нельзя. Отсутствие строки при этом обязано быть отсутствием, а не нулём:
+     нулём оно дало бы движение, которого не было, пустотой — потеряло бы поступление. */
+  const at = d => ST.statRows({obj:'obj-case', date: d}).rows;
+  const r31 = at('2026-07-31'), r10 = at('2026-08-10');
+  const nb = r10.find(r => r.ref === 'ДВ-2026/07');
+  const born31 = r31.some(r => r.ref === 'ДВ-2026/07');
+  const sum = rs => Math.round(rs.reduce((n, r) => n + (r.inds['m-claim'] || {}).v, 0) * 100) / 100;
+  const old31 = sum(r31), old10 = sum(r10.filter(r => r.ref !== 'ДВ-2026/07'));
+  const delta = Math.round((sum(r10) - old31) * 100) / 100;
+  const move  = Math.round((old10 - old31) * 100) / 100;
+  const claim = nb ? Math.round(nb.inds['m-claim'].v * 100) / 100 : 0;
+  ok(88, !born31 && nb && r31.length === 2 && r10.length === 3 &&
+        Math.abs(delta - (move + claim)) < 0.01 && Math.abs(delta - claim) > 0.01 &&
+        claim > 0 && move < 0,
+    `рождение внутри периода расщепляет разность: итог вырос на ${delta} = движение двух прежних (${move}) + требование родившегося 01.08 (${claim}); на 31.07 его строки НЕТ ВОВСЕ — не нулевая, а отсутствующая, иначе «прирост» показал бы движение, которого не было (ИС-17, ИС-19, ИС-33)`);
+
+  /* Рождение — объявленный реквизит, а не догадка движка: его не выводят из первого
+     звена истории и не подставляют «датой первого прогона». Объект без него не
+     заводится вовсе — иначе дефект вернулся бы следующей же строкой реестра. */
+  const SRC = ['поле','история','шов'];
+  const declared = st.objects.filter(o => o.born && SRC.indexOf(o.born.src) >= 0);
+  const noBorn = ST.addObject({id:'obj-guarantee', name:'Поручительство', plural:'поручительства',
+    owner:'Обеспечение', refName:'номер поручительства',
+    dims:['d-branch','d-curator','d-region','d-ptype'], inds:['a-count']});
+  const guess = /первое звено|первый прогон|Object\.values\(item\.h\)/.test(
+    m[1].slice(m[1].indexOf('function bornOn'), m[1].indexOf('function readPath')));
+  ok(89, declared.length === 8 && !noBorn.ok && has(noBorn.why, 'ИС-33') && !guess,
+    `рождение объявлено, а не угадано: у всех ${declared.length} объектов born со ссылкой на реквизит владельца, объект без него не заводится — «${noBorn.why}» (ИС-18, ИС-33)`);
+
+  /* ИС-14 на дате: тот же человек, открывший реестр владельца НА ТУ ЖЕ дату, обязан
+     увидеть тот же состав. До волны 9 сходилось неверно — оба показывали все 14. */
+  const same = D.every(d => ST.registryList('obj-repay', d, null).length === cnt('obj-repay', d));
+  const pairs = D.map(d => ST.registryList('obj-repay', d, null).length + '/' + cnt('obj-repay', d));
+  ok(90, same,
+    `реестр владельца на дату и состав среза сходятся по всем пяти датам (${pairs.join(' · ')}) — и сходятся теперь на ВЕРНОМ числе, а не на общем итоге мира (ИС-14, ИС-33)`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-const stamp = `SMOKE 2026-08-27 · ${pass}/${results.length} PASS\n` + lines.join('\n');
+const stamp = `SMOKE 2026-08-28 · ${pass}/${results.length} PASS\n` + lines.join('\n');
 console.log(stamp);
 
 const body = lines.map(l => '  ' + l).join('\n');
-const injected = `  SMOKE 2026-08-27 · ${pass}/${results.length} PASS\n` + body;
+const injected = `  SMOKE 2026-08-28 · ${pass}/${results.length} PASS\n` + body;
 if (src.includes('  SMOKE_PLACEHOLDER')) {
   writeFileSync(HTML, src.replace('  SMOKE_PLACEHOLDER', injected), 'utf8');
   console.log('\n→ результат вставлен в шапку statistics.html');
