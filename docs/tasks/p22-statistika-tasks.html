@@ -1,0 +1,3520 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Статистика · редакция 1 · P22 · АСУБК</title>
+<!--
+  Формат — docs/tasks/FORMAT.md, анатомия карточки формата 2 (meta.format = 2). Данные лежат
+  JSON-островом (#tasks-data), проверка — python3 scripts/check_tasks.py
+  docs/tasks/p22-statistika-tasks.html. Пакет передачи — этот файл +
+  mockups/statistics/statistics.html + requirements/tz/19-statistika.html, все ссылки внутри —
+  по голому имени файла (папка передаётся поштучно). Свод (карта данных, опись экранов, словарь,
+  сквозной пример) читается один раз в начале — карточка несёт только дельту к нему.
+  Редакция 1 — прошлых номеров нет, панели «Номера» в файле тоже нет.
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC;
+  --asubk-link:#005FDB; --asubk-green:#158443;
+  --asubk-red:#E03A3A; --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-blue-tint:rgba(0,106,245,0.08);
+  --asubk-green-tint:rgba(21,132,67,0.10);
+  --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --border-default:var(--asubk-border-base);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --shadow-card:0 1px 2px rgba(24,39,57,0.06);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; }
+body{ font:400 16px/1.5 var(--asubk-font); color:var(--text-body); background:var(--asubk-gray-100); }
+.wrap{ max-width:1160px; margin:0 auto; padding:0 24px 64px; }
+
+.hero{ background:var(--asubk-white); border-bottom:1px solid var(--border-default); padding:28px 0 22px; margin-bottom:20px; }
+.hero .wrap{ padding-bottom:0; }
+.crumbs{ font-size:13px; color:var(--text-muted); margin-bottom:8px; }
+h1{ font:600 26px/1.25 var(--asubk-font); color:var(--text-heading); margin:0 0 8px; }
+.lead{ color:var(--text-muted); font-size:15px; max-width:82ch; margin:0 0 14px; }
+.lead code{ background:var(--asubk-gray-150); padding:1px 5px; border-radius:3px; font-size:13px; }
+.lead b{ color:var(--text-body); }
+.revbar{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:16px; }
+.revchip{ font:600 12px/1 var(--asubk-font); padding:6px 10px; border-radius:var(--radius-pill); background:var(--asubk-blue-tint); color:var(--asubk-link); }
+.revchip.replaces{ background:var(--asubk-gray-150); color:var(--text-muted); }
+
+.tiles{ display:flex; flex-wrap:wrap; gap:10px; }
+.tile{ appearance:none; cursor:pointer; text-align:left; background:var(--asubk-white);
+  border:1px solid var(--border-default); border-radius:var(--radius-lg); padding:10px 16px; min-width:118px;
+  font:inherit; color:inherit; transition:border-color .12s, box-shadow .12s; }
+.tile:hover{ border-color:var(--asubk-border-strong); }
+.tile.on{ border-color:var(--asubk-blue); box-shadow:0 0 0 2px var(--asubk-blue-tint); }
+.tile .n{ display:block; font:600 22px/1.15 var(--asubk-font); color:var(--text-heading); }
+.tile .l{ display:block; font-size:12.5px; color:var(--text-muted); margin-top:2px; }
+
+section.panel{ background:var(--asubk-white); border:1px solid var(--border-default); border-radius:var(--radius-lg);
+  padding:18px 20px; margin:12px 0; box-shadow:var(--shadow-card); }
+section.panel > h2{ font:600 16px/1.3 var(--asubk-font); color:var(--text-heading); margin:0 0 10px; }
+section.panel > h2 .sub{ font-weight:400; color:var(--text-muted); font-size:13px; }
+.panel p{ margin:6px 0; font-size:14.5px; }
+.panel ul{ margin:6px 0; padding-left:20px; font-size:14.5px; }
+.panel li{ margin-bottom:4px; }
+
+.guide-item{ padding:12px 0; border-bottom:1px solid var(--asubk-gray-150); }
+.guide-item:last-child{ border-bottom:none; }
+.guide-item h3{ font:600 14.5px/1.3 var(--asubk-font); color:var(--asubk-blue-hover); margin:0 0 6px; }
+
+.openq{ display:flex; gap:10px; align-items:baseline; padding:8px 0; border-bottom:1px dashed var(--asubk-gray-150); font-size:13.5px; }
+.openq:last-child{ border-bottom:none; }
+.openq a{ color:var(--asubk-link); text-decoration:none; font-weight:600; white-space:nowrap; }
+.openq a:hover{ text-decoration:underline; }
+.openq .oq-default{ color:var(--text-muted); }
+
+/* Свод: карта данных, опись экранов, словарь, сквозной пример, номера */
+.ent{ border:1px solid var(--asubk-gray-200); border-radius:var(--radius-md); background:var(--asubk-gray-50);
+  padding:10px 12px; margin:8px 0; }
+.ent h4{ font:600 14px/1.3 var(--asubk-font); color:var(--text-heading); margin:0 0 4px;
+  display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; }
+.ent .key{ font:400 12.5px/1.3 var(--asubk-font); color:var(--asubk-link);
+  background:var(--asubk-blue-tint); border-radius:var(--radius-pill); padding:2px 9px; }
+.ent .note{ font-size:13px; color:var(--text-muted); margin:0 0 6px; }
+.ent ul{ margin:0; padding-left:18px; font-size:14px; }
+.ent li{ margin-bottom:3px; }
+.ent li b{ font-weight:600; color:var(--text-heading); }
+
+.scr{ border:1px solid var(--asubk-gray-200); border-radius:var(--radius-md); background:var(--asubk-white);
+  padding:10px 12px; margin:8px 0; }
+.scr h4{ font:600 14px/1.3 var(--asubk-font); color:var(--text-heading); margin:0 0 5px; }
+.scr .note{ font-size:13px; color:var(--text-muted); margin:0 0 6px; }
+.scr .chips{ display:flex; flex-wrap:wrap; gap:6px; }
+.scr .col{ font-size:12.5px; color:var(--text-body); background:var(--asubk-gray-100);
+  border:1px solid var(--border-default); border-radius:var(--radius-pill); padding:3px 9px; }
+.scr .act{ font-size:12.5px; color:var(--asubk-green); background:var(--asubk-green-tint);
+  border:1px solid rgba(21,132,67,0.22); border-radius:var(--radius-pill); padding:3px 9px; }
+.scr .cap{ font:600 11px/1 var(--asubk-font); text-transform:uppercase; letter-spacing:.06em;
+  color:var(--asubk-ink-45); margin:8px 0 4px; display:block; }
+
+.gloss{ display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:8px; }
+.gloss div{ font-size:13.5px; border-bottom:1px dashed var(--asubk-gray-150); padding:6px 0; }
+.gloss b{ color:var(--text-heading); }
+
+table.idmap{ border-collapse:collapse; width:100%; font-size:13.5px; }
+table.idmap th{ text-align:left; font:600 12px/1 var(--asubk-font); text-transform:uppercase;
+  letter-spacing:.06em; color:var(--asubk-ink-45); padding:6px 8px; border-bottom:1px solid var(--border-default); }
+table.idmap td{ padding:6px 8px; border-bottom:1px solid var(--asubk-gray-150); vertical-align:top; }
+table.idmap td.old{ color:var(--text-muted); white-space:nowrap; }
+table.idmap td.new a{ color:var(--asubk-link); text-decoration:none; font-weight:600; white-space:nowrap; }
+table.idmap td.new a:hover{ text-decoration:underline; }
+
+.bar{ position:sticky; top:0; z-index:5; background:var(--asubk-gray-100);
+  padding:14px 0 12px; margin-bottom:4px; border-bottom:1px solid var(--border-default); }
+.bar .row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.search{ flex:1; min-width:240px; height:36px; padding:0 12px; font:inherit; font-size:14px;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--asubk-white); color:inherit; }
+.search:focus{ outline:none; border-color:var(--asubk-blue); box-shadow:0 0 0 2px var(--asubk-blue-tint); }
+select{ height:36px; padding:0 8px; font:inherit; font-size:14px; background:var(--asubk-white);
+  border:1px solid var(--border-default); border-radius:var(--radius-md); color:inherit; }
+.btn{ height:36px; padding:0 14px; font:inherit; font-size:14px; cursor:pointer;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--asubk-white); color:inherit; }
+.btn:hover{ background:var(--asubk-gray-50); }
+.btn-p{ background:var(--asubk-blue); border-color:var(--asubk-blue); color:#fff; }
+.btn-p:hover{ background:var(--asubk-blue-hover); }
+.count{ font-size:13px; color:var(--text-muted); margin-left:auto; white-space:nowrap; }
+
+.group{ margin-top:26px; }
+.group > h2{ font:600 15px/1.3 var(--asubk-font); color:var(--text-muted); margin:0 0 10px;
+  text-transform:uppercase; letter-spacing:.05em; display:flex; align-items:center; gap:8px; }
+.group > h2 .g-n{ font-weight:400; color:var(--asubk-ink-45); text-transform:none; letter-spacing:0; }
+
+.card{ background:var(--asubk-white); border:1px solid var(--border-default); border-left:3px solid var(--asubk-blue);
+  border-radius:var(--radius-lg); padding:16px 18px; margin-bottom:10px; box-shadow:var(--shadow-card); scroll-margin-top:70px; }
+.c-head{ display:flex; flex-wrap:wrap; align-items:baseline; gap:10px; }
+.id{ font:600 13px/1 var(--asubk-font); letter-spacing:.02em; color:var(--asubk-link);
+  background:var(--asubk-blue-tint); padding:5px 8px; border-radius:var(--radius-md); white-space:nowrap; }
+.step{ font:600 12px/1 var(--asubk-font); color:var(--asubk-ink-45); background:var(--asubk-gray-100);
+  border:1px solid var(--border-default); padding:5px 8px; border-radius:var(--radius-md); white-space:nowrap; }
+.c-title{ font:600 17px/1.35 var(--asubk-font); color:var(--text-heading); flex:1; min-width:260px; margin:0; }
+
+.blk{ margin-top:12px; }
+.blk .lbl{ font:600 12px/1 var(--asubk-font); text-transform:uppercase; letter-spacing:.06em;
+  color:var(--asubk-ink-45); display:block; margin-bottom:5px; }
+.blk p{ margin:0; font-size:15px; }
+.blk ul{ margin:0; padding-left:20px; font-size:15px; }
+.blk li{ margin-bottom:4px; }
+.why{ color:var(--text-muted); }
+.subh{ font:600 13.5px/1.3 var(--asubk-font); color:var(--text-body); margin:8px 0 3px; }
+
+.build{ background:var(--asubk-blue-tint); border-radius:var(--radius-md); padding:11px 13px; margin-top:12px; }
+.build .lbl{ color:var(--asubk-blue-hover); }
+.build p{ font-size:15.5px; color:var(--text-heading); }
+
+.steps{ margin:0; padding-left:22px; font-size:15px; }
+.steps li{ margin-bottom:5px; }
+
+.ex{ border:1px solid rgba(21,132,67,0.22); border-left:3px solid var(--asubk-green);
+  background:var(--asubk-green-tint); border-radius:var(--radius-md); padding:11px 13px; margin-top:12px; }
+.ex .lbl{ color:var(--asubk-green); }
+.ex .src{ font-size:13px; color:var(--text-muted); margin:0 0 7px; }
+.ex .exh{ font:600 12.5px/1 var(--asubk-font); color:var(--asubk-ink-45); display:block; margin:7px 0 3px;
+  text-transform:uppercase; letter-spacing:.05em; }
+.ex ul{ margin:0; padding-left:20px; font-size:14.5px; }
+.ex li{ margin-bottom:3px; }
+
+.terms{ display:flex; flex-wrap:wrap; gap:8px; }
+.terms .term{ font-size:13px; background:var(--asubk-gray-50); border:1px solid var(--asubk-gray-200);
+  border-radius:var(--radius-md); padding:6px 10px; }
+.terms .term b{ color:var(--text-heading); }
+
+.look{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:13px; }
+.look a{ color:var(--asubk-link); text-decoration:none; background:var(--asubk-blue-tint); padding:4px 9px; border-radius:var(--radius-pill); }
+.look a:hover{ text-decoration:underline; }
+.look .route{ color:var(--text-muted); }
+.look .defect{ color:#9E1F1F; background:#FCE6E6; padding:4px 9px; border-radius:var(--radius-pill); }
+
+.openbox{ background:var(--asubk-amber-tint); border-left:3px solid var(--asubk-amber); border-radius:0 var(--radius-md) var(--radius-md) 0;
+  padding:9px 12px; margin-top:6px; font-size:13.5px; }
+.openbox b{ color:#8A6508; }
+
+.c-foot{ margin-top:13px; padding-top:11px; border-top:1px solid var(--asubk-gray-150);
+  display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.tag{ font-size:12px; color:var(--text-muted); background:var(--asubk-gray-100);
+  border:1px solid var(--border-default); border-radius:var(--radius-pill); padding:3px 9px; }
+.dep{ font-size:12px; color:var(--asubk-link); background:var(--asubk-white); text-decoration:none;
+  border:1px solid rgba(0,106,245,0.25); border-radius:var(--radius-pill); padding:3px 9px; }
+.dep:hover{ background:var(--asubk-blue-tint); }
+
+.card details{ margin-top:11px; border-top:1px solid var(--asubk-gray-150); padding-top:9px; }
+.card details summary{ cursor:pointer; font-size:13px; color:var(--text-muted); list-style:none; user-select:none; }
+.card details summary::-webkit-details-marker{ display:none; }
+.card details summary::before{ content:'▸ '; color:var(--asubk-ink-45); }
+.card details[open] summary::before{ content:'▾ '; }
+.card details summary:hover{ color:var(--asubk-link); }
+
+/* Свёрнутые панели свода */
+.panel details.fold > summary{ cursor:pointer; list-style:none; user-select:none;
+  font:600 16px/1.3 var(--asubk-font); color:var(--text-heading);
+  display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; }
+.panel details.fold > summary::-webkit-details-marker{ display:none; }
+.panel details.fold > summary::before{ content:'▸'; color:var(--asubk-ink-45); font-weight:400; }
+.panel details.fold[open] > summary::before{ content:'▾'; }
+.panel details.fold > summary:hover{ color:var(--asubk-link); }
+.panel details.fold > summary .sub{ font-weight:400; color:var(--text-muted); font-size:13px; }
+.panel details.fold > summary .cnt{ font:600 12px/1 var(--asubk-font); color:var(--asubk-link);
+  background:var(--asubk-blue-tint); border-radius:var(--radius-pill); padding:4px 9px; }
+.panel details.fold > .foldbody{ margin-top:12px; }
+.traps{ margin-top:8px; font-size:13.5px; color:var(--text-muted); background:var(--asubk-gray-50);
+  border:1px solid var(--asubk-gray-150); border-radius:var(--radius-md); padding:10px 12px; }
+.traps ul{ margin:0; padding-left:18px; }
+.traps li{ margin-bottom:4px; }
+
+.empty{ text-align:center; padding:48px 0; color:var(--text-muted); font-size:15px; }
+.footerbar{ margin-top:32px; font-size:13px; color:var(--text-muted); border-top:1px solid var(--border-default); padding-top:14px; }
+code{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; }
+@media print{ .bar{ position:static; } .card details{ display:none; }
+  .panel details.fold > .foldbody{ display:block; } .card{ break-inside:avoid; } }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="crumbs">АСУБК · Модуль «Статистика» · Постановка задач для разработки</div>
+    <h1 id="hero-title">Статистика — задачи для команды разработки</h1>
+    <div class="revbar" id="revbar"></div>
+    <p class="lead" id="hero-lead"></p>
+    <div class="tiles" id="tiles"></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="panel" id="panel-guide">
+    <details class="fold">
+      <summary>Справка модуля <span class="sub">что модулю принадлежит и где его границы</span>
+        <span class="cnt" id="guide-cnt"></span></summary>
+      <div class="foldbody" id="guide-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-atlas">
+    <details class="fold">
+      <summary>Карта данных <span class="sub">модель целиком: сущности, ключи, поля — карточка несёт только дельту</span>
+        <span class="cnt" id="atlas-cnt"></span></summary>
+      <div class="foldbody" id="atlas-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-screens">
+    <details class="fold">
+      <summary>Опись экранов <span class="sub">весь интерфейс модуля списком: где что живёт</span>
+        <span class="cnt" id="screens-cnt"></span></summary>
+      <div class="foldbody" id="screens-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-gloss">
+    <details class="fold">
+      <summary>Словарь <span class="sub">слова этой постановки в её собственном значении</span>
+        <span class="cnt" id="gloss-cnt"></span></summary>
+      <div class="foldbody" id="gloss-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-walk">
+    <details class="fold">
+      <summary>Сквозной пример <span class="sub">один кредит от входных показателей до записи фиксации, с числами</span>
+        <span class="cnt" id="walk-cnt"></span></summary>
+      <div class="foldbody" id="walk-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-open">
+    <details class="fold">
+      <summary>Открытые вопросы <span class="sub">умолчания, на которых строим; ответ заказчика переносит в следующую редакцию</span>
+        <span class="cnt" id="openq-cnt"></span></summary>
+      <div class="foldbody" id="openq-list"></div>
+    </details>
+  </section>
+
+  <div class="bar">
+    <div class="row">
+      <input class="search" id="q" type="search" placeholder="Поиск по номеру, заголовку, тексту…" autocomplete="off">
+      <select id="fStage"><option value="">Все этапы</option></select>
+      <button class="btn" id="reset">Сбросить</button>
+      <button class="btn btn-p" id="expand">Раскрыть ловушки</button>
+      <span class="count" id="count"></span>
+    </div>
+  </div>
+
+  <div id="list"></div>
+
+  <div class="footerbar">
+    <p><b>Порядок сборки — по этапам, не строгой очередью.</b> Между этапами — барьер и приёмка
+       пачкой. Внутри этапа карточка берётся, когда готова названная ею зависимость (значок
+       <span class="dep" style="display:inline">↔ P22-Rn</span>) — он указывает только назад, на уже
+       готовую карточку.</p>
+    <p><b>Как читать карточку.</b> Свод наверху читается один раз: карта данных, опись экранов,
+       словарь и сквозной пример. Карточка после этого несёт только своё — что строим, зачем, какие
+       поля добавляются, как выглядит экран, шаги, пример с числами и приёмку. Числа во всех
+       примерах взяты из витрины макета, имя записи стоит в строке «Источник».</p>
+    <p><b>Разделение источников.</b> Модель, правила, приёмка и границы живут только здесь. Приоритет
+       и статус исполнения — в <code>TODO.md</code> (реестр). Расхождение по логике модуля решает эта
+       постановка, расхождение по механике счёта — макет <code>statistics.html</code>. Форму фильтра, наоборот,
+       решает постановка: в макете он собран частным случаем.</p>
+    <p>Вопросы по постановке — общий чат команды. Ответ, полученный там, попадает в карточку и журнал
+       редакции следующего выпуска этого файла (см. «Версионирование», <code>FORMAT.md</code>).</p>
+  </div>
+</div>
+
+
+<script type="application/json" id="tasks-data">
+{
+ "meta": {
+  "module": "statistics",
+  "title": "Статистика",
+  "phase": 22,
+  "format": 2,
+  "revision": 1,
+  "date": "2026-08-28",
+  "registry": "### Статистика (целевая модель)",
+  "package": [
+   "statistics.html",
+   "19-statistika.html"
+  ]
+ },
+ "guide": [
+  {
+   "h": "Что делает модуль и где его границы",
+   "items": [
+    "Модуль отвечает на один вопрос и отвечает на него всем, кто спрашивает: <b>сколько объектов и на какую сумму, в таком-то разрезе, на такую-то дату</b> — и на дату прошлую тоже. Своей арифметики у него нет ни одной: величины по объекту он берёт швами владельцев и записывает.",
+    "Три шва названы вопросом, а не потребителем: <b>statSlice</b> (сколько и на сколько, в таком-то разрезе, на такую-то дату) · <b>statSeries</b> (как это менялось) · <b>statRows</b> (кто именно в этом числе). Четвёртого шва нет и не будет: «дай всё» — не вопрос.",
+    "<b>Входит:</b> реестры объектов, показателей и разрезов · ночной прогон и журнал срезов · строка среза как единственный атом хранения · фиксация закрытием учётного периода и маркер расхождения · три шва с паспортом ответа · фильтр вопроса и ролевые правила · выгрузка-задание · обратный индекс ссылок.",
+    "<b>Не входит:</b> ни одна величина по одному объекту — остаток, начисление, разнесение, график, прогноз, дни просрочки считает расчётное ядро; категорию и подгруппу присваивает классификация; печать и утверждённые формы — отчётность; суждение «портфель ухудшается» — анализ; оперативные списки для работы — реестр модуля-владельца живым запросом на сегодня.",
+    "<b>Хранимого у модуля ровно две вещи:</b> строка среза и обратный индекс ссылок. Агрегатов не хранится ни одного — любая сумма и любой счётчик собираются группировкой строк при чтении. Долей, дельт и сомового эквивалента в строке нет: это представление, а не величина.",
+    "Порядок слоёв не обсуждается: <b>ядро → классификация → статистика → анализ</b>, одна стрелка. Классификация статистику не читает ни в одной форме, и реализация обязана падать на попытке обращения из предиката к любому шву статистики.",
+    "Объектов счёта девять: кредит · заёмщик · залог · дело взыскания · требование взыскания · задание кураторства · кредитная программа · погашение · мера взыскания. Объект — <b>комплект записей реестра, а не ветка кода</b>: последние четыре заведены записями, без единой правки движка."
+   ]
+  },
+  {
+   "h": "Как читать этот файл",
+   "items": [
+    "Сначала свод: карта данных, опись экранов, словарь и сквозной пример. Он общий для всех карточек и читается один раз — карточка добавляет к нему только своё.",
+    "Эталон механики — макет <a href=\"statistics.html\">statistics.html</a>: он исполняется, а не рисует картинку. Числа во всех примерах сняты с его витрины на дату среза <b>18.08.2026</b>: кредиты <b>КД-2023/210</b>, <b>КД-2022/065</b>, <b>КД-2025/088</b>; заёмщики <b>22903197505433</b> и <b>01234199010101</b> (разновалютный портфель); дело <b>ДВ-2026/03</b> и три его требования.",
+    "Постановка построена на разделе ТЗ <a href=\"19-statistika.html\">19 «Статистика»</a>, редакция 3 от 28.08.2026. Ссылка «где смотреть» в каждой карточке ведёт прямо в её пункт.",
+    "Живого экрана в стенде нет и не будет: статистики как модуля в приложении не существует, дефектов стенда у неё не бывает. Экраны в описи — витрина макета.",
+    "<b>Расхождение макета с постановкой одно и названо честно:</b> фильтр в макете собран частным случаем — один набор из одного сравнения. Форму фильтра решает раздел ТЗ, а не прототип; реализация делается по постановке. Расхождение по механике счёта, наоборот, решает макет.",
+    "Порядок сборки — по этапам, не строгой очередью: внутри этапа карточки независимы, между этапами — барьер и приёмка пачкой."
+   ]
+  },
+  {
+   "h": "Инварианты — проверяются на каждой карточке",
+   "items": [
+    "<b>ИС-1.</b> Статистика не выводит ни одной величины по одному объекту — только берёт швами. Второй вычислитель означает второе число.",
+    "<b>ИС-2.</b> Строку среза пишет только прогон; экрана правки строки нет и не появится.",
+    "<b>ИС-3.</b> Хранимых агрегатов нет ни одного. Оговорка <b>ИС-34</b>: у показателя с объявленным дедуп-ключом группировка идёт после схлопывания, и сумма групп итогу не равна.",
+    "<b>ИС-4.</b> Значения разрезов лежат в строке, а не резолвятся при чтении: строка от 31.05 несёт куратора и категорию такими, какими они были 31.05.",
+    "<b>ИС-5.</b> Классификация не читает статистику ни в одной форме.",
+    "<b>ИС-6.</b> В записи показателя нет поля формулы: запись объявляет, откуда берётся величина, и молчит о том, как она получается.",
+    "<b>ИС-7.</b> Показателя вне реестра не существует ни для кого — ни для витрины, ни для предиката, ни для выгрузки.",
+    "<b>ИС-8.</b> Зафиксированный период не перезаписывается ничем и никем.",
+    "<b>ИС-9.</b> Защёлка одна — закрытие учётного периода человеком; у фиксации есть актор.",
+    "<b>ИС-10.</b> Всякий ответ несёт дату расчёта, признак фиксации и область видимости. Без них не отдаётся.",
+    "<b>ИС-11.</b> В зафиксированном расчёте стоит маркер расхождения; само число открывается действием и подписано «не отчётное».",
+    "<b>ИС-12.</b> Дата, на которую нет строк, не подменяется молча: берётся ближайшая предыдущая и её возраст называется.",
+    "<b>ИС-13.</b> Ролевые правила применяются к строкам до группировки.",
+    "<b>ИС-14.</b> statRows сходится с реестром объектов один в один на одну дату. Оговорка <b>ИС-34</b>: при объявленном ключе сходится состав строк, а не сумма величин по группам.",
+    "<b>ИС-15.</b> Сомовый эквивалент, доли и дельты не хранятся.",
+    "<b>ИС-16.</b> Сумма отдаётся в валюте договора, с курсом и датой курса.",
+    "<b>ИС-17.</b> Потоки хранятся нарастающим итогом, период — разность двух строк. Оговорка <b>ИС-33</b>: рождение внутри периода разность расщепляет.",
+    "<b>ИС-18.</b> Объект статистики — комплект записей реестра, а не ветка кода.",
+    "<b>ИС-19.</b> Заёмщик — свой объект со своей строкой, а не свёртка кредитов; пусто — не ноль.",
+    "<b>ИС-20.</b> Статистика не запирает учётный период.",
+    "<b>ИС-21.</b> Значений разреза у объекта много на одну дату → разрез принадлежит нижележащему объекту.",
+    "<b>ИС-22.</b> Усечённого и постраничного statRows не бывает: полный список или отказ с числом.",
+    "<b>ИС-23.</b> Корзины и уровни разреза объявлены в реестре; свободных не бывает.",
+    "<b>ИС-24.</b> Родительский уровень statSlice считается по строкам, а не складывается из детей.",
+    "<b>ИС-25.</b> Краткую форму паспорта объявляет статистика; потребитель паспорт не сокращает. Вывод показателя называет поимённо, что сломается.",
+    "<b>ИС-26.</b> Дата на срезе выражается числом дней от даты среза; показателя типа «дата» не бывает.",
+    "<b>ИС-27.</b> Показателем именуется клетка шва, которую спрашивают о множестве; матрица величин целиком — сечение, а не набор показателей.",
+    "<b>ИС-28.</b> Показатель объекта, который спрашивают о многих, берётся портфельным швом; шов одного кредита таким показателем не бывает.",
+    "<b>ИС-29.</b> Агрегат обязателен у числа и суммы и запрещён у перечисления и булева.",
+    "<b>ИС-30.</b> Счёт объектов другого уровня — вопрос тому объекту, а не функция здесь; count distinct в закрытом списке нет.",
+    "<b>ИС-31.</b> Портфельный шов принадлежит владельцу множества: если множество выбирает чужая связь, шов держит её владелец, а не ядро.",
+    "<b>ИС-32.</b> Отношение двух величин показателем не бывает: в срез входят числитель и знаменатель, деление — при чтении.",
+    "<b>ИС-33.</b> Строки нет до рождения объекта; отсутствие строки — третье состояние, не «пусто» и не «ноль».",
+    "<b>ИС-34.</b> У показателя, чьи строки пересекаются по чужому ключу, объявлен дедуп-ключ — разрез этого же объекта; схлопывание идёт перед агрегатом и на каждом узле, представителем берётся наибольшая величина, паспорт ключ называет.",
+    "<b>ИС-35.</b> Удельная величина показателем не бывает — это пара «срез + счёт»: знаменатель есть счёт объектов другого уровня и спрашивается у того объекта.",
+    "<b>Ни один отказ не молчит.</b> «Объекта нет в реестре», «показатель объявлен для другого объекта», «корзина не объявлена», «4 118 строк — списком не отдаётся», «исчислимость правится только у агрегатов» — у каждого случая есть текст с причиной и с именем того, что мешает. Отказ обязан называть дорогу, а не просто отвергать."
+   ]
+  }
+ ],
+ "atlas": [
+  {
+   "n": "Запись объекта статистики",
+   "key": "идентификатор объекта",
+   "note": "Что считаем. Комплект записей, а не ветка кода: сборщик строк не знает слова «кредит».",
+   "fields": [
+    "<b>имя и множественное имя</b> — строки, обязательно; печатаются в отказах и в паспорте",
+    "<b>владелец множества</b> — модуль, обязательно; у него берётся состав на дату среза",
+    "<b>рождение</b> — ссылка на реквизит владельца, обязательно; до него строки нет вовсе",
+    "<b>набор разрезов</b> — ссылки на записи разрезов, минимум одна",
+    "<b>набор показателей</b> — ссылки на записи показателей, минимум одна",
+    "<b>имя реестра владельца</b> — куда ведёт действие «работать со списком»"
+   ]
+  },
+  {
+   "n": "Запись показателя",
+   "key": "идентификатор показателя",
+   "note": "Чем меряем. Объявляет, откуда берётся величина, и молчит о том, как она получается.",
+   "fields": [
+    "<b>наименование</b> — строка, обязательно",
+    "<b>объект</b> — ссылка на запись объекта, обязательно; в чужом срезе показатель не спрашивается",
+    "<b>тип значения</b> — сумма · число · перечисление · булево, обязательно",
+    "<b>вид источника</b> — шов владельца · поле объекта · агрегат, обязательно",
+    "<b>ссылка на шов или поле</b> — имя шва и имя клетки ответа либо имя реквизита владельца",
+    "<b>функция агрегата и основание</b> — только у агрегата: количество · сумма · среднее · минимум · максимум над названным показателем",
+    "<b>единицы, шкала, округление</b> — обязательно у числа и суммы; округление применяется при показе",
+    "<b>признак датируемости</b> — булево",
+    "<b>признак «исчислим налету»</b> — булево; виден у всех, правится только у агрегатов",
+    "<b>признак нарастающего итога</b> — булево; без него вопрос «за период» отбивается",
+    "<b>дедуп-ключ</b> — ссылка на разрез этого же объекта, необязательно; у непересекающихся строк его нет вовсе"
+   ]
+  },
+  {
+   "n": "Запись разреза",
+   "key": "идентификатор разреза",
+   "note": "Как режем множество. Не ссылка на поле, а запись со своей формой.",
+   "fields": [
+    "<b>наименование</b> — строка, обязательно",
+    "<b>объект</b> — ссылка на запись объекта, обязательно",
+    "<b>источник значения</b> — реквизит владельца, шов или справочник, обязательно",
+    "<b>корзины</b> — объявленный список огрублений («год · квартал · месяц»), необязательно; первая объявленная — по умолчанию",
+    "<b>уровни</b> — объявленный список ступеней («область · район»), необязательно; сам список значений берётся у владельца справочника"
+   ]
+  },
+  {
+   "n": "Строка среза",
+   "key": "объект + запись владельца + дата среза",
+   "note": "Единственный атом хранения. Пишет её только прогон; экрана правки не существует.",
+   "fields": [
+    "<b>объект</b> — ссылка на запись объекта, обязательно",
+    "<b>ссылка на запись владельца</b> — идентификатор кредита, заёмщика, дела, обязательно",
+    "<b>дата среза</b> — дата, обязательно; одна на весь прогон",
+    "<b>значения разрезов</b> — по значению на каждый разрез объекта, какими они были на эту дату",
+    "<b>значения показателей</b> — по значению на каждый строчный показатель; агрегатов строка не несёт",
+    "<b>признак фиксации</b> — ставится закрытием учётного периода, а не прогоном"
+   ]
+  },
+  {
+   "n": "Часть суммы по валюте",
+   "key": "строка среза + показатель + код валюты",
+   "note": "Разрешение для разновалютного множества: одного числа у него нет вовсе, и пусто здесь — честный отказ, а не дефект отображения.",
+   "fields": [
+    "<b>код валюты</b> — обязательно",
+    "<b>сумма в валюте</b> — обязательно",
+    "<b>курс на дату среза и дата курса</b> — обязательно; у сомовой части курс равен 1",
+    "<b>признак разновалютности</b> — булево; при нём значение показателя пусто, а части названы поимённо"
+   ]
+  },
+  {
+   "n": "Запись прогона",
+   "key": "дата среза + вид",
+   "note": "Ночная сборка строк на одну календарную дату. Пропуск — такая же запись, а не дыра в журнале.",
+   "fields": [
+    "<b>дата среза</b> — дата, обязательно; одна на весь прогон независимо от времени обхода",
+    "<b>вид</b> — плановый · внеплановый · пропуск, обязательно",
+    "<b>время</b> — когда прогон отработал",
+    "<b>актор и причина</b> — обязательны у внепланового и у пропуска",
+    "<b>число записанных строк</b> — целое",
+    "<b>состав поимённо</b> — по объекту: записано · рождением ещё не наступило · рождение объявлено, а у владельца пусто"
+   ]
+  },
+  {
+   "n": "Фиксация",
+   "key": "учётный период",
+   "note": "Единственный акт модуля, у которого есть актор: всё остальное делает прогон, а у прогона фамилии нет.",
+   "fields": [
+    "<b>учётный период</b> — тот же самый, который закрывают платежи и кредиты; своего периода статистики нет",
+    "<b>дата закрытия</b> — дата, обязательно",
+    "<b>кто закрыл</b> — человек, обязательно; закрытие без актора отклоняется"
+   ]
+  },
+  {
+   "n": "Ссылка обратного индекса",
+   "key": "показатель + потребитель + редакция",
+   "note": "Вторая и последняя хранимая вещь модуля. Публикует ссылку потребитель, держит её статистика.",
+   "fields": [
+    "<b>показатель</b> — ссылка на запись реестра, обязательно",
+    "<b>потребитель</b> — отчётность · классификация · дашборд, обязательно",
+    "<b>редакция</b> — чем ссылка опубликована: шаблон и графа, редакция классификатора, набор плиток роли",
+    "<b>владелец</b> — подразделение, к которому идти",
+    "<b>дата публикации</b> — дата"
+   ]
+  },
+  {
+   "n": "Вопрос среза",
+   "key": "не хранится — принадлежит одному вопросу одного человека",
+   "note": "Библиотеки сохранённых вопросов у статистики нет: вопрос, который хочется вернуть завтра, — это шаблон отчётности или плитка роли.",
+   "fields": [
+    "<b>объект</b> — обязательно",
+    "<b>дата</b> — либо дата среза, либо шаг (месяц · квартал) и число точек",
+    "<b>разрезы</b> — список, у каждого названы корзина и уровень",
+    "<b>показатели</b> — список; у среза только агрегаты закрытого списка",
+    "<b>фильтр</b> — необязательно; пустой печатается словами «фильтра нет»"
+   ]
+  },
+  {
+   "n": "Фильтр вопроса",
+   "key": "часть вопроса; отдельной сущностью не хранится",
+   "note": "Дизъюнкция наборов, набор — конъюнкция сравнений. Скобок нет: там, где хочется вложенности, пишется второй набор.",
+   "fields": [
+    "<b>наборы</b> — список, соединяются через ИЛИ; минимум один",
+    "<b>сравнения набора</b> — список, соединяются через И; минимум одно",
+    "<b>левая часть сравнения</b> — разрез или показатель этого же объекта",
+    "<b>оператор</b> — по типу значения: перечисление = ≠ ∈ ∉ · число &gt; ≥ &lt; ≤ = ≠ · дата = ≠ ∈ ∉ и «в диапазоне» · булево = ≠",
+    "<b>правая часть</b> — всегда константа; сравнения «показатель против показателя» не бывает"
+   ]
+  },
+  {
+   "n": "Паспорт ответа",
+   "key": "ответ шва",
+   "note": "Обязательная часть любого ответа всех трёх швов. Ответ без паспорта не отдаётся вовсе.",
+   "fields": [
+    "<b>дата расчёта</b> — дата строк, из которых собран ответ, и её возраст относительно запрошенной",
+    "<b>признак фиксации</b> — зафиксировано · не зафиксировано · смешанно",
+    "<b>область видимости</b> — по какому множеству построен ответ и почему оно такое",
+    "<b>строка фильтра</b> — фильтр целиком, все наборы и все сравнения; пустой печатается словами",
+    "<b>отметка дедупа</b> — только там, где у показателя объявлен ключ: имя ключа, число строк, число ключей",
+    "<b>краткая форма</b> — одна строка для плиточного контекста; сокращает только статистика"
+   ]
+  },
+  {
+   "n": "Выгрузка-задание",
+   "key": "идентификатор задания",
+   "note": "Полная сверка выше порога statRows. Живёт дольше вопроса, который её породил, поэтому у выгрузок свой экран.",
+   "fields": [
+    "<b>объект, дата среза, фильтр</b> — вопрос, которым задание порождено",
+    "<b>кто заказал и когда</b> — человек и дата, обязательно",
+    "<b>состояние</b> — в очереди · готово · ошибка",
+    "<b>число строк</b> — целое",
+    "<b>ссылка на файл</b> — появляется в состоянии «готово»",
+    "<b>паспорт</b> — лежит внутри файла, а не только на экране"
+   ]
+  }
+ ],
+ "screens": [
+  {
+   "n": "Конструктор среза",
+   "note": "Точка входа модуля. Вопрос собирается слева направо и в этом же порядке печатается в паспорте.",
+   "cols": [
+    "объект",
+    "разрезы (корзина, уровень)",
+    "показатели",
+    "дата или ряд",
+    "фильтр"
+   ],
+   "acts": [
+    "собрать вопрос",
+    "спросить",
+    "перейти в детализацию по любой ячейке",
+    "открыть полный паспорт"
+   ]
+  },
+  {
+   "n": "Ответ-дерево",
+   "note": "Форма ответа statSlice — дерево всегда. У плоского разреза оно вырождается в глубину один, а колонка «своих» не показывается.",
+   "cols": [
+    "группа",
+    "число объектов",
+    "значения показателей",
+    "своих"
+   ],
+   "acts": [
+    "раскрыть узел",
+    "провалиться в детализацию",
+    "сменить уровень разреза"
+   ]
+  },
+  {
+   "n": "Ответ-ряд",
+   "note": "Форма ответа statSeries. У ряда два уровня паспорта: свой у ряда и свой у каждой точки.",
+   "cols": [
+    "точка",
+    "дата строк",
+    "возраст",
+    "признак фиксации",
+    "значение"
+   ],
+   "acts": [
+    "сменить шаг и число точек",
+    "открыть паспорт точки"
+   ]
+  },
+  {
+   "n": "Детализация",
+   "note": "Ответ statRows: полный список или отказ с числом. Усечённого списка не бывает ни при каких параметрах.",
+   "cols": [
+    "объект",
+    "значения разрезов",
+    "значения показателей"
+   ],
+   "acts": [
+    "сверить с реестром владельца",
+    "заказать выгрузку",
+    "перейти в реестр владельца на сегодня"
+   ]
+  },
+  {
+   "n": "Журнал срезов",
+   "note": "Часть контракта, а не служебный лог: им объясняется всякая странность в паспорте, поэтому он показывается пользователю.",
+   "cols": [
+    "дата среза",
+    "вид",
+    "время",
+    "актор",
+    "причина",
+    "строк",
+    "состав поимённо"
+   ],
+   "acts": [
+    "раскрыть состав прогона",
+    "запустить внеплановый пересчёт"
+   ]
+  },
+  {
+   "n": "Настройки — реестр объектов",
+   "note": "Здесь администратор заводит новый объект и здесь же видит, чего завести не может.",
+   "cols": [
+    "имя",
+    "владелец множества",
+    "рождение",
+    "разрезов",
+    "показателей"
+   ],
+   "acts": [
+    "завести объект",
+    "открыть набор разрезов",
+    "открыть набор показателей"
+   ]
+  },
+  {
+   "n": "Настройки — реестр показателей",
+   "note": "Перед выводом показателя экран показывает поимённо, что сломается и чьё оно. Тем же экраном проходит смена признака «исчислим налету».",
+   "cols": [
+    "наименование",
+    "объект",
+    "тип",
+    "вид источника",
+    "шов или поле",
+    "единицы",
+    "исчислим налету",
+    "дедуп-ключ"
+   ],
+   "acts": [
+    "завести показатель",
+    "сменить признак исчислимости",
+    "вывести показатель (два шага)",
+    "посмотреть, кто ссылается"
+   ]
+  },
+  {
+   "n": "Настройки — разрезы",
+   "note": "Явный список «чего здесь завести нельзя» стоит на экране заранее: свободной корзины, своего дерева уровней, формулы.",
+   "cols": [
+    "наименование",
+    "объект",
+    "источник значения",
+    "корзины",
+    "уровни"
+   ],
+   "acts": [
+    "завести разрез",
+    "объявить корзины",
+    "объявить уровни"
+   ]
+  },
+  {
+   "n": "Расхождение зафиксированного периода",
+   "note": "Открывается действием с маркера. Число на этом экране подписано «это не отчётное число».",
+   "cols": [
+    "период",
+    "зафиксировано",
+    "сегодняшний пересчёт",
+    "разница",
+    "основание"
+   ],
+   "acts": [
+    "открыть основание корректировки",
+    "вернуться к зафиксированному числу"
+   ]
+  },
+  {
+   "n": "Выгрузки",
+   "note": "Свой экран, а не карточка в конструкторе: задание живёт дольше вопроса и смотрят его через день и не тем же человеком.",
+   "cols": [
+    "задание",
+    "объект",
+    "дата среза",
+    "заказал",
+    "когда",
+    "состояние",
+    "файл"
+   ],
+   "acts": [
+    "заказать выгрузку",
+    "скачать файл",
+    "посмотреть вопрос задания"
+   ]
+  },
+  {
+   "n": "Зеркальные плитки в карточках соседей",
+   "note": "Кредит, заёмщик, программа, дело взыскания, куратор, ведомство. Плитка берёт statSlice и печатает краткую форму паспорта рядом с числом; плиток «число без даты» в системе не остаётся.",
+   "cols": [
+    "число",
+    "краткая форма паспорта"
+   ],
+   "acts": [
+    "открыть полный паспорт",
+    "перейти в конструктор с этим вопросом"
+   ]
+  }
+ ],
+ "glossary": [
+  {
+   "t": "объект статистики",
+   "d": "что считаем: кредит, заёмщик, залог, дело, требование, задание, программа, погашение, мера. Заводится комплектом записей реестра; кода, знающего слово «кредит», в сборщике строк нет."
+  },
+  {
+   "t": "показатель",
+   "d": "чем меряем: именованный вход с объявленным источником и без формулы. Объявлен для своего объекта и в чужом срезе не спрашивается."
+  },
+  {
+   "t": "разрез",
+   "d": "как режем множество. Разрез режет, показатель измеряет; одно поле бывает и тем и другим — это две разные записи реестра."
+  },
+  {
+   "t": "мера",
+   "d": "слово, которое в статистике не употребляется вовсе: оно занято мерой взыскания — одним из девяти объектов счёта. «Меры меры взыскания» произнести нельзя."
+  },
+  {
+   "t": "корзина",
+   "d": "огрубление значения разреза внутри уровня: «дата договора · корзины год, квартал, месяц». Применяется при чтении к сохранённому значению; по умолчанию берётся первая объявленная."
+  },
+  {
+   "t": "уровень",
+   "d": "ступень иерархии внутри разреза: «территория · уровни область, район». Список значений принадлежит владельцу справочника и здесь не заводится."
+  },
+  {
+   "t": "строка среза",
+   "d": "одна строка на объект на дату: ссылка на объект, дата, все значения разрезов и все строчные показатели. Агрегатов не несёт."
+  },
+  {
+   "t": "прогон",
+   "d": "ночная сборка строк на одну календарную дату. Дата среза одна на весь прогон, независимо от того, во сколько батч дошёл до объекта."
+  },
+  {
+   "t": "пропуск",
+   "d": "ночь без прогона, записанная событием журнала с причиной. «Прогона не было» и «прогон упал» — разные строки объяснения."
+  },
+  {
+   "t": "рождение",
+   "d": "реквизит владельца, на который ссылается запись объекта: дата договора, постановка на учёт, открытие дела. До него строки нет вовсе — это третье состояние, не «пусто» и не «ноль»."
+  },
+  {
+   "t": "фиксация",
+   "d": "признак строки, поставленный закрытием учётного периода человеком. Единственный акт модуля, у которого есть актор."
+  },
+  {
+   "t": "защёлка",
+   "d": "месяц. День и неделя — кэш, год — сборка из двенадцати зафиксированных месяцев. Своего «периода статистики» нет."
+  },
+  {
+   "t": "паспорт ответа",
+   "d": "три обязательных поля любого ответа: дата расчёта с возрастом, признак фиксации, область видимости. Без паспорта ответ не отдаётся."
+  },
+  {
+   "t": "краткая форма",
+   "d": "одна строка паспорта для плиточного контекста: «на 25.08 (вчера) · не зафикс. · вам видно 47». Сокращать вправе только статистика; третьей формы не существует."
+  },
+  {
+   "t": "область видимости",
+   "d": "по какому множеству построен ответ и почему оно такое. В паспорте называется отдельной строкой от фильтра: одно срезано ролью, другое — руками."
+  },
+  {
+   "t": "фильтр",
+   "d": "сужение вопроса: дизъюнкция наборов без скобок. Принадлежит одному вопросу одного человека, ничем не публикуется и никого не обязывает."
+  },
+  {
+   "t": "набор",
+   "d": "конъюнкция сравнений внутри фильтра. Слово выбрано вместо «правила» намеренно: правило принадлежит опубликованной редакции классификации, а набор — одному вопросу."
+  },
+  {
+   "t": "сравнение",
+   "d": "«разрез или показатель — оператор — константа». Правая часть всегда константа: сравнения «показатель против показателя» не бывает."
+  },
+  {
+   "t": "шов",
+   "d": "именованный вопрос, на который модуль отвечает наружу. Их три: statSlice, statSeries, statRows. Четвёртого нет — «дай всё» не вопрос."
+  },
+  {
+   "t": "портфельный шов",
+   "d": "шов, отвечающий о множестве объектов сразу. Принадлежит владельцу множества: заёмщика считает ядро, предмет залога — залог, дело — взыскание."
+  },
+  {
+   "t": "дедуп-ключ",
+   "d": "разрез этого же объекта, по которому величина считается один раз. Схлопывание идёт перед агрегатом и на каждом узле дерева; представителем берётся наибольшая величина."
+  },
+  {
+   "t": "нарастающий итог",
+   "d": "признак записи показателя: величина хранится накопленной от рождения объекта, а любой период считается разностью двух строк. Пока признак не проставлен, вопрос «за период» отбивается."
+  },
+  {
+   "t": "часть по валюте",
+   "d": "«валюта · сумма · курс · дата курса». У договора часть одна и значение равно ей; у разновалютного портфеля значения нет вовсе, и части названы поимённо."
+  },
+  {
+   "t": "агрегат",
+   "d": "функция закрытого списка по строкам среза: количество, сумма, среднее, минимум, максимум. Функции count distinct в списке нет."
+  },
+  {
+   "t": "обратный индекс",
+   "d": "таблица «показатель → кто на него ссылается». Ссылку публикует потребитель своей редакцией; переиздание редакции без ссылки её снимает."
+  },
+  {
+   "t": "выгрузка-задание",
+   "d": "асинхронная полная сверка выше порога statRows: файл с паспортом внутри. Собственный экран, потому что задание живёт дольше вопроса."
+  },
+  {
+   "t": "маркер расхождения",
+   "d": "подпись рядом с зафиксированным числом: «за май есть корректировка, учтена в июле». Само число расхождения открывается действием и подписано «не отчётное»."
+  },
+  {
+   "t": "сходимость с реестром",
+   "d": "требование, чтобы statRows вернул те же строки, что человек увидит в реестре владельца на ту же дату. Расхождение — дефект, а не особенность."
+  }
+ ],
+ "walkthrough": {
+  "src": "Дело взыскания <b>ДВ-2026/03</b> · кредит <b>КД-2023/210</b> (3 400 000 сом, Ошский филиал, Кара-Сууйский район) · три требования <b>ТВ-2026/03-1</b>, <b>-2</b>, <b>-3</b> · дата среза <b>18.08.2026</b>",
+  "note": "витрина макета: 9 объектов, 148 показателей, 45 разрезов, 241 строка, 6 записей прогона",
+  "groups": [
+   {
+    "h": "1. Вход — что отдали владельцы",
+    "items": [
+     "Взыскание отдало множество требований связью «дело × кредит × роль» и портфельный шов дела: величины по одному договору шов берёт у ядра и сам не считает.",
+     "Кредит отдал поля объекта: сумма договора <b>3 400 000</b> сом, валюта KGS, отрасль «Сельское хозяйство», область Ошская, район Кара-Сууйский.",
+     "Классификация отдала категорию швом: с 01.07.2026 у <b>КД-2023/210</b> она «Высокий кредитный риск», до того была «Средний».",
+     "Оргструктура отдала подразделение на дату и список уровней справочника: дивизион → филиал."
+    ]
+   },
+   {
+    "h": "2. Рождение и ночной прогон",
+    "items": [
+     "Рождением требования объявлена дата его выставления. У трёх требований дела это <b>01.03.2026</b>, <b>08.05.2026</b> и <b>15.06.2026</b> — до этих дат строк по ним нет вовсе.",
+     "Прогон <b>31.07.2026</b> записал по объекту «Требование взыскания» <b>5</b> строк и отдельной строкой назвал: <b>1</b> запись рождением ещё не наступила. «Строк 5» само по себе этого не сказало бы.",
+     "Прогон <b>18.08.2026</b> записал <b>58</b> строк составом поимённо: Кредит 8 · Заёмщик 8 · Залог 7 · Дело взыскания 3 · Требование взыскания 6 · Задание кураторства 4 · Кредитная программа 3 · Погашение 14 · Мера взыскания 5.",
+     "Ночь <b>19.08.2026</b> прогона не дала: в журнале запись вида «пропуск», актор «планировщик», причина «сбой ночного планировщика: задание не стартовало», записано 0 строк."
+    ]
+   },
+   {
+    "h": "3. Что легло в строки",
+    "items": [
+     "<b>ТВ-2026/03-1</b> — роль «заёмщик», Ошский филиал (Южный дивизион), фаза «судебная», охват «вся задолженность», сумма требования <b>3 032 183,45</b>, в фазе <b>48</b> дней.",
+     "<b>ТВ-2026/03-2</b> — роль «поручитель», Головной офис (Центральный дивизион), фаза «досудебная», охват «вся задолженность», сумма <b>3 032 183,45</b>, в фазе <b>102</b> дня.",
+     "<b>ТВ-2026/03-3</b> — роль «залогодатель», Ошский филиал, фаза «досудебная», охват «просроченная сумма», сумма <b>1 858 319,28</b>, в фазе <b>64</b> дня.",
+     "Фаза у трёх требований одного дела разная — иск к заёмщику подан, к поручителю ещё нет. Поэтому фаза принадлежит требованию, а не делу: у дела на дату значений много."
+    ]
+   },
+   {
+    "h": "4. Вопрос и ответ",
+    "items": [
+     "Вопрос: объект «Требование взыскания», разрез «Подразделение» на уровне дивизиона, показатели «Число объектов» и «Сумма требований, итого», дата <b>18.08.2026</b>, фильтра нет.",
+     "Ответ-дерево: <b>Восточный дивизион</b> — 1 требование, <b>610 733,75</b> · <b>Центральный</b> — 2 требования, <b>7 409 052,81</b> · <b>Южный</b> — 3 требования, <b>6 693 815,40</b>.",
+     "Сумма групп — <b>14 713 601,96</b>. Итог — <b>8 019 786,56</b>. Расхождение почти вдвое, и ни одно из чисел не ошибочно.",
+     "Задвоены не строки, а деньги: один кредит держат три требования, и каждое показывает полную сумму верно — её и правда взыскивают с этого лица целиком, солидарно."
+    ]
+   },
+   {
+    "h": "5. Дедуп-ключ и паспорт",
+    "items": [
+     "У показателя «Сумма требования» объявлен дедуп-ключ — разрез «Кредит требования». Схлопывание идёт перед агрегатом и на каждом узле: в Южном дивизионе 3 строки дают 2 ключа, одна схлопнута.",
+     "Представителем ключа берётся наибольшая величина: из <b>3 032 183,45</b> (вся задолженность) и <b>1 858 319,28</b> (просроченная сумма) остаётся первая. Охват уже долга не бывает, а сложить часть с целым значило бы посчитать часть дважды.",
+     "Паспорт называет ключ словами: «„Сумма требования“ считается один раз на „Кредит требования“: строк 6, ключей 3, схлопнуто 3. Сумма строк итогу не равна — и не должна».",
+     "Краткая форма для плитки: «на 18.08 (сегодня) · не зафикс. · всего 6». Область видимости и фильтр в полной форме стоят раздельными строками."
+    ]
+   },
+   {
+    "h": "6. Детализация и сходимость",
+    "items": [
+     "statRows на ту же дату возвращает <b>6</b> строк — все, включая схлопнутые. Требований в срезе ровно столько, сколько строк: схлопывается величина, а не строка.",
+     "Со списком реестра взыскания на 18.08.2026 состав сходится один в один; расходится ровно одна вещь — сумма по группам, и паспорт называет, почему.",
+     "Порог показа в витрине — <b>12</b> строк. Кредитов 8, они отдаются списком; погашений 14, и вместо списка приходит отказ «в этом числе 14 строк, порог показа — 12».",
+     "Полная сверка идёт выгрузкой-заданием: <b>ВГ-001</b>, объект «Погашение», дата 18.08.2026, состояние «в очереди», файл с паспортом внутри."
+    ]
+   },
+   {
+    "h": "7. Что было бы неправдой",
+    "items": [
+     "Спросить у дела фазу — отказ: «на дату у него значений много — спрашивается он у „Требование взыскания“». Отказ вычисляет адресата по реестру, а не печатает его текстом.",
+     "Завести показатель «доля просрочки» — отказ: отношение в строку не кладётся, в срез входят числитель и знаменатель, деление идёт при чтении.",
+     "Спросить «требований на куратора» — отказ с разложением на пару «срез + счёт» и с предупреждением: знаменатель, снятый со среза, занижен систематически, потому что куратор без требований в срез не попадает вовсе.",
+     "Пересчитать 31.07 после закрытия июля — отказ: «период июль 2026 зафиксирован: строки не перезаписываются ни при каких правах»."
+    ]
+   }
+  ]
+ },
+ "stages": [
+  {
+   "n": 1,
+   "title": "Реестры и прогон"
+  },
+  {
+   "n": 2,
+   "title": "Журнал и пересчёт"
+  },
+  {
+   "n": 3,
+   "title": "Период и фиксация"
+  },
+  {
+   "n": 4,
+   "title": "Вопрос и ответ"
+  },
+  {
+   "n": 5,
+   "title": "Ряд и паспорт"
+  },
+  {
+   "n": 6,
+   "title": "Детализация и выгрузка"
+  },
+  {
+   "n": 7,
+   "title": "Контракт наружу"
+  },
+  {
+   "n": 8,
+   "title": "Роли и зеркала"
+  }
+ ],
+ "cards": [
+  {
+   "id": "P22-R1",
+   "stage": 1,
+   "title": "Реестр объектов статистики: девять объектов заведены записями, а не кодом",
+   "build": "Запись объекта счёта и её экран в настройках. Объект называет владельца множества, реквизит рождения, набор разрезов и набор показателей. Сборщик строк объекта не знает: он читает запись и идёт к владельцу.",
+   "why": "Объектов счёта девять, и они кончатся не на девятом: сегодня спрашивают о делах взыскания, завтра о заданиях кураторства. Если объект — ветка кода, каждый новый вопрос становится релизом, а девять веток разъезжаются в мелочах. Записью реестра объект заводит администратор за час, и все девять ведут себя одинаково по построению, а не по договорённости. Проверка простая: последние четыре объекта макета заведены без единой правки движка.",
+   "look": {
+    "mock": "statistics.html",
+    "route": "Настройки → Реестр объектов → карточка объекта",
+    "tz": "19-statistika.html#s3-1"
+   },
+   "data": [
+    {
+     "n": "Запись объекта статистики",
+     "key": "идентификатор объекта",
+     "note": "Комплект записей, а не класс. Одна форма на все девять и на все будущие.",
+     "fields": [
+      "<b>имя и множественное имя</b> — строки, обязательно: печатаются в паспорте и в отказах",
+      "<b>владелец множества</b> — модуль, обязательно; у него берётся состав на дату среза",
+      "<b>рождение</b> — ссылка на реквизит владельца, обязательно",
+      "<b>набор разрезов</b> — ссылки на записи разрезов, минимум одна",
+      "<b>набор показателей</b> — ссылки на записи показателей, минимум одна",
+      "<b>имя реестра владельца</b> — куда ведёт действие «работать со списком»"
+     ]
+    }
+   ],
+   "screen": [
+    {
+     "n": "Настройки — реестр объектов",
+     "note": "Экран администратора. Здесь же видно, чего завести нельзя.",
+     "cols": [
+      "имя",
+      "владелец множества",
+      "рождение",
+      "разрезов",
+      "показателей"
+     ],
+     "acts": [
+      "завести объект",
+      "открыть набор разрезов",
+      "открыть набор показателей"
+     ]
+    }
+   ],
+   "steps": [
+    "Завести форму записи объекта шестью полями и хранить её в реестре, а не в коде.",
+    "Отклонять объект без владельца множества, без рождения, без единого разреза или без единого показателя — с текстом, называющим недостающее поле.",
+    "Брать состав множества на дату среза только у владельца: своего перечня объектов у статистики нет ни для одного из девяти.",
+    "Держать имя и множественное имя раздельно: «Требование взыскания» и «требований» стоят в разных местах ответа.",
+    "Показывать в карточке объекта числа его наборов и вести из них в реестры разрезов и показателей.",
+    "Проверить расширяемость приёмкой: завести десятый объект записями и получить по нему строки ближайшим прогоном, не трогая код."
+   ],
+   "rules": [
+    {
+     "h": "Что принадлежит объекту, а что владельцу",
+     "items": [
+      "Состав множества на дату — владельца. Статистика спрашивает «кто у тебя есть на 18.08.2026» и записывает ответ строками.",
+      "Значения разрезов и показателей — тоже владельца: своих величин у статистики нет ни одной.",
+      "Статистике принадлежат ровно две вещи: запись о том, что такой объект считается, и строки среза по нему.",
+      "Имя реестра владельца обязательно: из детализации человек уходит работать со списком туда, где список живой, а не в снимок."
+     ]
+    },
+    {
+     "h": "Чего в реестре объектов не бывает",
+     "items": [
+      "Поля формулы: объект не считает, он называет, кого считать.",
+      "Своего справочника значений: списки территорий, филиалов и категорий принадлежат их владельцам.",
+      "Объекта без владельца множества — «считаем всё, что найдём» не заводится вовсе."
+     ]
+    }
+   ],
+   "example": {
+    "src": "Витрина макета на дату среза 18.08.2026: 9 объектов, 148 показателей, 45 разрезов",
+    "given": [
+     "Записи объектов: Кредит (13 разрезов, 67 показателей) · Заёмщик (13 / 37) · Залог (11 / 23) · Дело взыскания (3 / 9) · Требование взыскания (7 / 5) · Задание кураторства (4 / 4) · Кредитная программа (5 / 5) · Погашение (5 / 3) · Мера взыскания (5 / 3).",
+     "Последние четыре заведены записями реестра позже остальных."
+    ],
+    "do": [
+     "Открыть реестр объектов и сравнить, чем «Мера взыскания» отличается от «Кредита» в устройстве."
+    ],
+    "get": [
+     "Ничем, кроме содержимого полей: одна форма, один сборщик, одни швы.",
+     "Разница только в числах наборов — 5 разрезов и 3 показателя против 13 и 67."
+    ]
+   },
+   "terms": [
+    {
+     "t": "владелец множества",
+     "d": "модуль, у которого спрашивается состав объектов на дату. Не «источник данных вообще», а адресат одного конкретного вопроса «кто у тебя есть»."
+    }
+   ],
+   "accept": [
+    "Девять объектов заведены записями реестра; в сборщике строк нет ни одного условия по имени объекта.",
+    "Объект без владельца множества, без рождения, без разрезов или без показателей не сохраняется, и отказ называет недостающее поле.",
+    "Десятый объект заводится записями и обсчитывается ближайшим прогоном без правки кода.",
+    "Состав множества на дату берётся только у владельца — своего перечня объектов нет.",
+    "Имя реестра владельца заполнено у всех девяти и ведёт в живой список.",
+    "Имя и множественное имя хранятся раздельно и обе формы встречаются в текстах ответов.",
+    "Карточка объекта показывает числа его наборов и ведёт в оба реестра."
+   ],
+   "notIn": [
+    "Само рождение и третье состояние строки — P22-R2.",
+    "Форма записи показателя — P22-R3, форма записи разреза — P22-R5.",
+    "Списки значений территорий, филиалов и категорий — их владельцам."
+   ],
+   "deps": [],
+   "extDeps": [
+    {
+     "what": "кредит, взыскание, кураторство, платежи и залог отдают состав своих множеств на произвольную прошедшую дату"
+    },
+    {
+     "what": "оргструктура отдаёт подразделение объекта на дату, а не только текущее"
+    }
+   ],
+   "traps": [
+    "<b>Соблазн сделать объект перечислением в коде.</b> Девять значений выглядят закрытым списком ровно до первой просьбы посчитать что-то десятое, и тогда переписывать приходится сборщик, швы и экраны разом. Реестр стоит дешевле в тот же день, когда заводится второй объект."
+   ]
+  },
+  {
+   "id": "P22-R2",
+   "stage": 1,
+   "title": "Рождение объекта: строки нет до него, и это третье состояние, а не ноль",
+   "build": "Реквизит рождения в записи объекта и правило прогона: до рождения строка не пишется вовсе. Состав прогона называет непришедшее поимённо, а ответ различает «не родилось», «пусто» и «ноль».",
+   "why": "Без рождения ряд врёт в обе стороны. Объект, которого ещё не было, попадает в знаменатель нулём и занижает среднее; исчезнув из выборки, он выглядит выбывшим, хотя не появлялся. Ноль и отсутствие — разные ответы: «долга ноль» значит погашено, «строки нет» значит не выдан. Третье состояние приходится вводить явно, потому что склеить его с нулём можно один раз, а разделить обратно — уже никогда.",
+   "look": {
+    "mock": "statistics.html",
+    "route": "Журнал срезов → строка прогона → состав поимённо",
+    "tz": "19-statistika.html#s3-1"
+   },
+   "data": [
+    {
+     "n": "Ссылка на рождение",
+     "key": "поле записи объекта",
+     "note": "Указывает не на дату вообще, а на конкретный реквизит владельца.",
+     "fields": [
+      "<b>вид источника</b> — поле объекта или шов владельца",
+      "<b>имя реквизита</b> — дата договора, дата постановки на учёт, дата открытия дела, дата выставления требования",
+      "<b>поведение при пустом реквизите</b> — строка не пишется, запись попадает в состав прогона строкой «рождение объявлено, а у владельца пусто»"
+     ]
+    }
+   ],
+   "steps": [
+    "Требовать ссылку на рождение у каждой записи объекта; объект без неё не сохраняется.",
+    "Не писать строку раньше даты рождения ни при каких обстоятельствах, включая внеплановый пересчёт задним числом.",
+    "Различать в составе прогона три причины: записано · рождением ещё не наступило · рождение объявлено, а у владельца пусто.",
+    "Отдавать в ответе отсутствие строки отдельно от пустого значения и от нуля, и печатать это словами, а не пустой ячейкой.",
+    "Не подставлять ноль в знаменатель среднего по объектам, которых на дату не было.",
+    "Проверять новый объект на исторических датах: ряд за прошлый год обязан начинаться там, где родился первый объект, а не в первой точке ряда."
+   ],
+   "rules": [
+    {
+     "h": "Три состояния и их слова",
+     "items": [
+      "<b>Строки нет</b> — объекта на дату не существовало. В ответе печатается «на эту дату объекта ещё не было».",
+      "<b>Значение пусто</b> — объект был, величина не определена: разновалютный портфель, не выставленное требование.",
+      "<b>Значение ноль</b> — объект был, величина посчитана и равна нулю: долг погашен.",
+      "Складывать эти три в одну ячейку нельзя даже ради красоты таблицы: разбирать их потом придётся человеку по первичным документам."
+     ]
+    },
+    {
+     "h": "Что делает состав прогона",
+     "items": [
+      "Показывает по объекту три числа вместо одного: сколько записано, сколько не родилось, у скольких рождение объявлено, а реквизит пуст.",
+      "Второе число — норма и объяснение; третье — сигнал к владельцу: реквизит обязателен, а не заполнен.",
+      "«Строк 5» без разбивки не отличает нормального дня от дня, когда владелец сломал заполнение даты."
+     ]
+    }
+   ],
+   "example": {
+    "src": "Объект «Требование взыскания», прогоны 31.07 · 10.08 · 18.08.2026",
+    "given": [
+     "Требования дела ДВ-2026/03 выставлены 01.03.2026, 08.05.2026 и 15.06.2026; требование ТВ-2026/07-1 — 01.08.2026.",
+     "Рождением объявлена дата выставления требования."
+    ],
+    "do": [
+     "Посмотреть состав трёх прогонов по этому объекту."
+    ],
+    "get": [
+     "31.07: записано <b>5</b>, рождением ещё не наступило <b>1</b>.",
+     "10.08: записано <b>6</b> — то самое требование родилось.",
+     "18.08: записано <b>6</b>, непришедших нет.",
+     "Без разбивки переход «5 → 6» выглядел бы ростом взыскания, хотя это календарь."
+    ]
+   },
+   "terms": [
+    {
+     "t": "рождение",
+     "d": "реквизит владельца, до наступления которого строки объекта нет вовсе. Не «дата создания записи в базе», а событие предметной области."
+    },
+    {
+     "t": "третье состояние",
+     "d": "отсутствие строки как самостоятельный ответ, отличный и от пустого значения, и от нуля."
+    }
+   ],
+   "accept": [
+    "Запись объекта без ссылки на рождение не сохраняется.",
+    "Строка на дату раньше рождения не пишется ни плановым прогоном, ни внеплановым пересчётом.",
+    "Состав прогона показывает по объекту три числа, а не одно.",
+    "Ответ различает «строки нет», «значение пусто» и «значение ноль» и печатает каждое своими словами.",
+    "Объект, которого на дату не было, не попадает в знаменатель среднего.",
+    "Ряд по новому объекту начинается с даты рождения первого объекта, а не с первой точки ряда.",
+    "Пустой реквизит рождения у владельца даёт строку состава «рождение объявлено, а у владельца пусто», а не молчаливый пропуск."
+   ],
+   "notIn": [
+    "Форма записи объекта — P22-R1.",
+    "Журнал прогонов и пропуск — P22-R7.",
+    "Расщепление разности периода рождением — P22-R15."
+   ],
+   "deps": [
+    "P22-R1"
+   ],
+   "extDeps": [
+    {
+     "what": "владельцы гарантируют заполненность реквизита рождения: пустая дата договора у кредита — дефект владельца, а не статистики"
+    }
+   ],
+   "open": [
+    {
+     "ask": "Какой реквизит владельца считается рождением объекта?",
+     "default": "первое звено истории записи: постановка на учёт заёмщика, открытие дела, выдача задания, утверждение программы, дата платежа, дата применения меры; у кредита и предмета залога — дата договора и дата принятия в залог",
+     "impact": "Форма правила не меняется, состав среза — меняется. Для заёмщика вопрос не праздный: заёмщик без единого договора остаётся строкой, значит рождением ему служит постановка на учёт, а не дата первого договора."
+    }
+   ],
+   "traps": [
+    "<b>«Пусть будет ноль, так таблица ровнее».</b> Ровная таблица здесь стоит дороже: ноль вместо отсутствия ломает средние, доли и любой ряд с новыми объектами, и обнаруживается это через месяцы, на расхождении с отчётностью."
+   ]
+  },
+  {
+   "id": "P22-R3",
+   "stage": 1,
+   "title": "Реестр показателей: источник объявлен, формулы нет",
+   "build": "Запись показателя и её экран. Три вида источника — шов владельца, поле объекта, агрегат над названным показателем. Поля формулы в записи нет: она объявляет, откуда берётся величина, и молчит о том, как.",
+   "why": "Поле формулы превращает реестр во второй вычислитель, а второй вычислитель — это второе число по тому же вопросу. Расхождение всплывает не в статистике, а в отчётности, и разбирать его приходится сверкой двух реализаций. Пока источник объявлен ссылкой, ответ проверяется одним походом к владельцу. Реестр обязан быть контрактом «что можно спросить», а не языком расчёта.",
+   "look": {
+    "mock": "statistics.html",
+    "route": "Настройки → Реестр показателей → карточка показателя",
+    "tz": "19-statistika.html#s3-2"
+   },
+   "data": [
+    {
+     "n": "Запись показателя",
+     "key": "идентификатор показателя",
+     "note": "Одиннадцать полей. Ни одно из них не хранит выражение.",
+     "fields": [
+      "<b>наименование, объект, тип значения</b> — обязательно; тип: сумма · число · перечисление · булево",
+      "<b>вид источника</b> — шов владельца · поле объекта · агрегат",
+      "<b>ссылка на шов и клетку ответа</b> либо <b>имя реквизита владельца</b>",
+      "<b>функция агрегата и основание</b> — только у агрегата: количество · сумма · среднее · минимум · максимум над названным показателем",
+      "<b>единицы, шкала, округление</b> — обязательно у числа и суммы",
+      "<b>датируемость</b> и <b>нарастающий итог</b> — булевы признаки",
+      "<b>исчислим налету</b> — булев признак; виден у всех, правится только у агрегатов"
+     ]
+    }
+   ],
+   "steps": [
+    "Завести форму записи показателя и отклонять любое поле, хранящее выражение, с текстом «запись объявляет, откуда берётся величина, и молчит о том, как».",
+    "Требовать у показателя объект и запрещать спрашивать его в срезе другого объекта.",
+    "Требовать агрегат у типов «сумма» и «число» и запрещать его у «перечисления» и «булева».",
+    "Брать показатель о множестве только портфельным швом владельца: шов одного кредита показателем не бывает.",
+    "Отклонять отношение двух величин — в срез входят числитель и знаменатель, деление идёт при чтении.",
+    "Отклонять удельную величину: знаменатель есть счёт объектов другого уровня и спрашивается у того объекта.",
+    "Отдавать признак «исчислим налету» на чтение у всех показателей, а на правку — только у агрегатов, с отказом, называющим причину.",
+    "Не показывать наружу показателя, которого нет в реестре, — ни витрине, ни предикату, ни выгрузке."
+   ],
+   "rules": [
+    {
+     "h": "Три источника и их границы",
+     "items": [
+      "<b>Шов владельца</b> — величина, которую владелец считает сам: остаток, начисленные проценты, дни просрочки. Ссылка называет шов и клетку ответа.",
+      "<b>Поле объекта</b> — реквизит, лежащий у владельца готовым: сумма договора, валюта, отрасль.",
+      "<b>Агрегат</b> — функция закрытого списка над названным показателем этого же объекта. Функции count distinct в списке нет: счёт объектов другого уровня — вопрос тому объекту.",
+      "Портфельный шов принадлежит владельцу множества: если множество выбирает чужая связь, шов держит её владелец, а не ядро."
+     ]
+    },
+    {
+     "h": "Чего показателем не бывает",
+     "items": [
+      "Отношения: «доля просрочки» — это два показателя и деление при чтении.",
+      "Удельной величины: «требований на куратора» — это пара «срез плюс счёт», и знаменатель берётся у объекта «Задание кураторства».",
+      "Даты: дата на срезе выражается числом дней от даты среза.",
+      "Матрицы величин целиком: сечение шва — не набор показателей, показателем именуется одна клетка, которую спрашивают о множестве."
+     ]
+    }
+   ],
+   "example": {
+    "src": "Реестр макета на 18.08.2026: <b>148</b> показателей, из них у объекта «Кредит» — <b>67</b>, у «Требования взыскания» — <b>5</b>",
+    "given": [
+     "Показатель «Сумма требования»: объект «Требование взыскания», тип «сумма», источник — портфельный шов взыскания.",
+     "Показатель «Сумма остатка ОД»: агрегат «сумма» над строчным показателем остатка; у заёмщика 22903197505433 с двумя кредитами он даёт <b>6 605 100</b>."
+    ],
+    "do": [
+     "Спросить «Сумму требования» в срезе объекта «Кредит».",
+     "Завести показатель «Доля просрочки» с выражением из двух величин."
+    ],
+    "get": [
+     "Первое: «показатель „Сумма требования“ объявлен для другого объекта».",
+     "Второе: «в записи показателя нет поля формулы: запись объявляет ОТКУДА берётся величина и молчит о том, КАК».",
+     "Оба отказа называют правило, а не просто отвергают ввод."
+    ]
+   },
+   "terms": [
+    {
+     "t": "исчислим налету",
+     "d": "признак того, что величину можно получить прямым обращением к владельцу без строк среза. У агрегатов он снимается: агрегат считается по строкам."
+    },
+    {
+     "t": "сечение",
+     "d": "матрица величин шва целиком. Показателем именуется одна её клетка, спрошенная о множестве; сечение показателем не бывает."
+    }
+   ],
+   "accept": [
+    "В записи показателя нет ни одного поля, хранящего выражение; попытка завести формулу отклоняется с текстом правила.",
+    "Показатель одного объекта не спрашивается в срезе другого — отказ называет объект показателя.",
+    "Агрегат обязателен у суммы и числа и запрещён у перечисления и булева.",
+    "Отношение и удельная величина отклоняются с разложением на составляющие.",
+    "Показателя типа «дата» завести нельзя: предлагается число дней от даты среза.",
+    "Признак «исчислим налету» читается у всех, правится только у агрегатов.",
+    "Показателя вне реестра не видит ни витрина, ни предикат, ни выгрузка.",
+    "Портфельный показатель ссылается на шов владельца множества, а не на шов одного объекта."
+   ],
+   "notIn": [
+    "Дедуп-ключ показателя — P22-R4.",
+    "Обратный индекс и снятие показателя — P22-R19 и P22-R20.",
+    "Сами величины: их считает владелец, статистика их только берёт."
+   ],
+   "deps": [
+    "P22-R1"
+   ],
+   "extDeps": [
+    {
+     "what": "владельцы держат портфельные швы: заёмщика считает расчётное ядро, предмет залога — залог, дело — взыскание"
+    },
+    {
+     "what": "классификация отдаёт категорию и подгруппу швом на дату"
+    }
+   ],
+   "open": [
+    {
+     "ask": "Откуда берётся лимит кредитной программы — показатель есть, а реквизита у владельца нет?",
+     "default": "реквизит заводит владелец кредитных программ и отдаёт полем объекта; статистика лимит не выводит и не хранит",
+     "impact": "Если лимит окажется производным, он всё равно придёт швом владельца, а не будет считаться здесь; плитка «освоено N % лимита» в любом случае делит при чтении."
+    }
+   ],
+   "traps": [
+    "<b>Формула кажется дешёвой ровно один раз.</b> Первое выражение в реестре выглядит удобной мелочью, но с него начинается второй вычислитель, и дальше расхождение с ядром находит уже отчётность.",
+    "<b>count distinct просится в список функций.</b> Он там не нужен: счёт объектов другого уровня спрашивается у того объекта и отвечается его строками."
+   ]
+  },
+  {
+   "id": "P22-R4",
+   "stage": 1,
+   "title": "Дедуп-ключ: величина, которую нельзя складывать дважды",
+   "build": "Необязательное поле записи показателя — ссылка на разрез этого же объекта. При нём агрегату предшествует схлопывание, на каждом узле дерева, представителем берётся наибольшая величина, а паспорт называет ключ и числа.",
+   "why": "Одно дело взыскания держит три требования — к заёмщику, поручителю и залогодателю, — и каждое показывает полную сумму долга верно: её и правда взыскивают с этого лица целиком. Сложить их значит получить втрое больший портфель взыскания, и число это уйдёт в отчётность. Убирать строки нельзя — требований действительно три. Значит, схлопывать надо величину, а не строку, и говорить об этом вслух в паспорте.",
+   "look": {
+    "mock": "statistics.html",
+    "route": "Конструктор → объект «Требование взыскания» → показатель «Сумма требования» → паспорт",
+    "tz": "19-statistika.html#s3-2"
+   },
+   "data": [
+    {
+     "n": "Дедуп-ключ",
+     "key": "поле записи показателя",
+     "note": "Ссылка на разрез этого же объекта. У непересекающихся показателей поля нет вовсе — пустым оно не бывает по смыслу.",
+     "fields": [
+      "<b>разрез-ключ</b> — по какому признаку величина считается один раз",
+      "<b>правило представителя</b> — наибольшая величина в группе ключа",
+      "<b>отметка в паспорте</b> — имя ключа, число строк, число ключей, число схлопнутых"
+     ]
+    }
+   ],
+   "steps": [
+    "Добавить полю дедуп-ключа единственный допустимый вид значения — разрез того же объекта; чужой разрез отклонять.",
+    "Выполнять схлопывание перед агрегатом, а не после: сначала одна величина на ключ, потом сумма или среднее.",
+    "Схлопывать на каждом узле дерева отдельно, а не один раз на итоге: в группе ключей меньше, чем в целом.",
+    "Брать представителем ключа наибольшую величину и объяснять это охватом: охват уже долга не бывает, а часть с целым не складывается.",
+    "Печатать в паспорте отметку дедупа словами и не прятать её в подсказку.",
+    "Не схлопывать строки: их число остаётся прежним и в детализации, и в счётчике объектов."
+   ],
+   "rules": [
+    {
+     "h": "Что схлопывается, а что нет",
+     "items": [
+      "Схлопывается величина показателя, у которого объявлен ключ. Счётчик объектов и состав строк не меняются.",
+      "Схлопывание идёт на каждом узле: сумма групп итогу не равна, и это не ошибка, а следствие ключа.",
+      "Представитель — наибольшая величина группы: из «вся задолженность» и «просроченная сумма» остаётся первая, потому что вторая — её часть.",
+      "У показателя без пересечения строк поля ключа нет: заводить его «на всякий случай» нельзя."
+     ]
+    },
+    {
+     "h": "Что обязан сказать паспорт",
+     "items": [
+      "Имя показателя, имя ключа и три числа: строк, ключей, схлопнуто.",
+      "Прямое предупреждение: «Сумма строк итогу не равна — и не должна».",
+      "Молчаливый дедуп хуже задвоения: неверное число хотя бы заметят, а необъяснённое верное будут считать ошибкой системы."
+     ]
+    }
+   ],
+   "example": {
+    "src": "Срез требований по подразделению на 18.08.2026, показатель «Сумма требований, итого»",
+    "given": [
+     "Шесть строк требований, у трёх из них общий кредит; у показателя объявлен ключ — разрез «Кредит требования»."
+    ],
+    "do": [
+     "Спросить срез на уровне дивизиона и сложить группы вручную."
+    ],
+    "get": [
+     "Восточный <b>610 733,75</b> (1 строка, 1 ключ) · Центральный <b>7 409 052,81</b> (2 / 2) · Южный <b>6 693 815,40</b> (3 строки, 2 ключа, 1 схлопнута).",
+     "Сумма групп <b>14 713 601,96</b>, итог <b>8 019 786,56</b> — строк 6, ключей 3, схлопнуто 3.",
+     "Паспорт печатает это дословно, и расхождение перестаёт быть загадкой."
+    ]
+   },
+   "terms": [
+    {
+     "t": "представитель ключа",
+     "d": "величина, оставшаяся от группы одинаковых ключей. Берётся наибольшая, потому что меньшие — её части по охвату."
+    },
+    {
+     "t": "охват требования",
+     "d": "что именно требуют: всю задолженность или только просроченную сумму. Определяет, какая величина в группе больше."
+    }
+   ],
+   "accept": [
+    "Дедуп-ключ ссылается только на разрез того же объекта; чужой разрез отклоняется.",
+    "Схлопывание идёт перед агрегатом и отдельно на каждом узле дерева.",
+    "Представителем берётся наибольшая величина группы.",
+    "Число строк и счётчик объектов схлопыванием не меняются.",
+    "Паспорт называет имя ключа и три числа: строк, ключей, схлопнуто.",
+    "Паспорт прямо предупреждает, что сумма групп итогу не равна.",
+    "У показателя без пересечения строк поля дедуп-ключа нет вовсе."
+   ],
+   "notIn": [
+    "Остальные поля записи показателя — P22-R3.",
+    "Форма паспорта целиком — P22-R16.",
+    "Сходимость детализации с реестром — P22-R17."
+   ],
+   "deps": [
+    "P22-R3"
+   ],
+   "extDeps": [
+    {
+     "what": "взыскание отдаёт связь «требование → кредит» и охват требования как значения разрезов"
+    }
+   ],
+   "open": [
+    {
+     "ask": "По какому слою объявляется дедуп-ключ требования взыскания?",
+     "default": "кредит: величина считается один раз на кредит требования, роли обязанного лица — закрытая четвёрка «заёмщик · поручитель · гарант · залогодатель» до записи справочника владельцем",
+     "impact": "Меняется запись реестра, а не движок: другой слой ключа объявляется реквизитом показателя, другой перечень ролей — записью справочника взыскания."
+    }
+   ],
+   "traps": [
+    "<b>Схлопнуть один раз на итоге — почти правильно и всегда неверно.</b> В группе ключей меньше, чем во всём множестве, и итог, посчитанный по-другому, чем узлы, даёт третье число, которого не ждёт никто.",
+    "<b>Убрать «лишние» строки из детализации.</b> Требований действительно три, и человек, сверяющий список с реестром взыскания, обязан увидеть все три."
+   ]
+  },
+  {
+   "id": "P22-R5",
+   "stage": 1,
+   "title": "Разрезы: корзины и уровни объявлены записью, свободных не бывает",
+   "build": "Запись разреза и её экран. Разрез — не ссылка на поле, а запись с источником значения, объявленным списком корзин и объявленным списком уровней. Список значений уровня принадлежит владельцу справочника.",
+   "why": "Свободная корзина, приходящая мимо реестра, делает вопрос непроверяемым: «по неделям» сегодня значит одно, завтра другое, и повторить прошлый ответ нельзя. Объявленный список корзин превращает огрубление в часть контракта — его видно в реестре и печатается в паспорте. Уровни устроены так же: ступени объявляет статистика, а сами значения территорий и филиалов держит их владелец, иначе справочник раздвоится.",
+   "look": {
+    "mock": "statistics.html",
+    "route": "Настройки → Разрезы → карточка разреза",
+    "tz": "19-statistika.html#s3-3"
+   },
+   "data": [
+    {
+     "n": "Запись разреза",
+     "key": "идентификатор разреза",
+     "note": "Разрез режет, показатель измеряет. Одно поле бывает и тем и другим — это две разные записи.",
+     "fields": [
+      "<b>наименование и объект</b> — обязательно",
+      "<b>источник значения</b> — реквизит владельца, шов или справочник, обязательно",
+      "<b>корзины</b> — объявленный список огрублений, необязательно; первая объявленная берётся по умолчанию",
+      "<b>уровни</b> — объявленный список ступеней, необязательно; сами значения берутся у владельца справочника"
+     ]
+    }
+   ],
+   "screen": [
+    {
+     "n": "Настройки — разрезы",
+     "note": "Список «чего здесь завести нельзя» стоит на экране заранее, а не всплывает отказом.",
+     "cols": [
+      "наименование",
+      "объект",
+      "источник значения",
+      "корзины",
+      "уровни"
+     ],
+     "acts": [
+      "завести разрез",
+      "объявить корзины",
+      "объявить уровни"
+     ]
+    }
+   ],
+   "steps": [
+    "Завести форму записи разреза и хранить корзины и уровни списками в самой записи.",
+    "Принимать в вопросе только объявленные корзины и уровни, отказ формулировать перечислением объявленных.",
+    "Брать по умолчанию первую объявленную корзину, а не самую мелкую и не последнюю выбранную человеком.",
+    "Не заводить своего дерева значений: список областей и районов, филиалов и дивизионов принадлежит владельцу справочника.",
+    "Проверять правило принадлежности: если у объекта на дату значений разреза много, разрез принадлежит нижележащему объекту.",
+    "Хранить значение разреза в строке среза, а не резолвить его при чтении, — огрубление корзиной применяется к сохранённому значению."
+   ],
+   "rules": [
+    {
+     "h": "Корзина и уровень — разные вещи",
+     "items": [
+      "<b>Корзина</b> огрубляет значение внутри одного уровня: дата договора по году, кварталу, месяцу.",
+      "<b>Уровень</b> — ступень иерархии: область и район, дивизион и филиал.",
+      "Оба объявлены в записи и оба печатаются в паспорте вопроса рядом с именем разреза.",
+      "Свободной корзины, приходящей мимо реестра, не существует: новая заводится записью."
+     ]
+    },
+    {
+     "h": "Кому принадлежит разрез",
+     "items": [
+      "Тому объекту, у которого на дату значение одно. Много значений — признак того, что спрашивать надо ниже.",
+      "Фаза взыскания принадлежит требованию, а не делу: у трёх требований одного дела фазы разные, потому что иск к заёмщику подан, а к поручителю ещё нет.",
+      "Отказ вычисляет правильного адресата по реестру и называет его, а не печатает общее правило текстом."
+     ]
+    }
+   ],
+   "example": {
+    "src": "Разрезы макета: «Дата кредитного договора» и «Фаза взыскания», 18.08.2026",
+    "given": [
+     "У разреза «Дата кредитного договора» объявлены корзины: год · квартал · месяц.",
+     "Разрез «Фаза взыскания» объявлен для объекта «Требование взыскания»."
+    ],
+    "do": [
+     "Спросить срез кредитов с корзиной «неделя».",
+     "Спросить фазу взыскания у объекта «Дело взыскания»."
+    ],
+    "get": [
+     "Первое: «разрез „Дата кредитного договора“ спрашивается корзиной из объявленных: год · квартал · месяц. Свободной корзины, приходящей мимо реестра, не существует».",
+     "Второе: «разрез „Фаза взыскания“ объекту „Дело взыскания“ не принадлежит: на дату у него значений много — спрашивается он у „Требование взыскания“»."
+    ]
+   },
+   "terms": [
+    {
+     "t": "корзина",
+     "d": "объявленное огрубление значения внутри уровня. Применяется при чтении к сохранённому в строке значению, а не подменяет его."
+    },
+    {
+     "t": "уровень",
+     "d": "объявленная ступень иерархии разреза. Ступени объявляет статистика, значения ступеней держит владелец справочника."
+    }
+   ],
+   "accept": [
+    "Корзины и уровни хранятся списками в записи разреза, а не выводятся из типа поля.",
+    "Необъявленная корзина отклоняется, и отказ перечисляет объявленные.",
+    "По умолчанию берётся первая объявленная корзина.",
+    "Своего дерева значений разрез не заводит: список ступеней берётся у владельца справочника.",
+    "Разрез, у которого на дату много значений, не принадлежит этому объекту, и отказ называет правильный объект по реестру.",
+    "Значение разреза лежит в строке среза, и корзина применяется к сохранённому значению.",
+    "Одно и то же поле, заведённое и разрезом, и показателем, даёт две независимые записи реестра."
+   ],
+   "notIn": [
+    "Дерево ответа и родительские уровни — P22-R14.",
+    "Сохранение значений разрезов в строку — P22-R6.",
+    "Списки территорий и подразделений — владельцам справочников."
+   ],
+   "deps": [
+    "P22-R1"
+   ],
+   "extDeps": [
+    {
+     "what": "справочники отдают ступени и значения территорий и оргструктуры, включая состояние на прошедшую дату"
+    }
+   ],
+   "open": [
+    {
+     "ask": "Сколько значений у разреза подгруппы платёжеспособности — одиннадцать или девять?",
+     "default": "девять, но решает не статистика: перечень значений принадлежит классификации, разрез несёт лишь ссылку на справочник и берёт значения швом",
+     "impact": "Меняется справочник владельца, а не запись разреза и не движок: статистика показывает столько групп, сколько владелец отдаст. Закрытого списка подгрупп в реестре статистики нет и заводить его нельзя."
+    }
+   ],
+   "traps": [
+    "<b>«Пусть корзину задаёт пользователь строкой».</b> Так вопрос перестаёт быть воспроизводимым: тот же текст завтра огрубит иначе, а паспорт этого не покажет.",
+    "<b>Скопировать справочник территорий к себе.</b> Копия расходится с оригиналом на первом же переименовании района, и расхождение приходит в отчётность, а не в лог."
+   ]
+  },
+  {
+   "id": "P22-R6",
+   "stage": 1,
+   "title": "Ночной прогон и строка среза: единственный писатель модуля",
+   "build": "Сборщик строк и форма строки среза. Прогон обходит объекты реестра, берёт у владельцев состав и значения и пишет по строке на объект. Дата среза одна на весь прогон; экрана правки строки не существует.",
+   "why": "Один писатель — единственный способ, которым срез остаётся воспроизводимым. Если строку можно поправить руками, любое число становится непроверяемым: неизвестно, что в нём от владельца, а что от человека. Дата среза одна на прогон по той же причине: батч идёт часами, и если каждый объект подпишется своим временем, срез перестанет быть срезом. Значения разрезов при этом ложатся в строку намертво — иначе прошлое начнёт меняться задним числом.",
+   "look": {
+    "mock": "statistics.html",
+    "route": "Журнал срезов → строка прогона → строки среза",
+    "tz": "19-statistika.html#s3-4"
+   },
+   "data": [
+    {
+     "n": "Строка среза",
+     "key": "объект + запись владельца + дата среза",
+     "note": "Единственный атом хранения модуля. Агрегатов не несёт: они собираются группировкой при чтении.",
+     "fields": [
+      "<b>объект и ссылка на запись владельца</b> — обязательно",
+      "<b>дата среза</b> — дата, обязательно; одна на весь прогон",
+      "<b>значения разрезов</b> — по значению на каждый разрез объекта, какими они были на эту дату",
+      "<b>значения строчных показателей</b> — величины, взятые швами и полями",
+      "<b>признак фиксации</b> — ставится закрытием периода, а не прогоном"
+     ]
+    },
+    {
+     "n": "Часть суммы по валюте",
+     "key": "строка + показатель + код валюты",
+     "note": "Сомовый эквивалент не хранится: он представление, а не величина.",
+     "fields": [
+      "<b>код валюты, сумма, курс, дата курса</b> — обязательно; у сомовой части курс равен 1",
+      "<b>признак разновалютности</b> — при нём значение показателя пусто, а части названы поимённо"
+     ]
+    }
+   ],
+   "steps": [
+    "Собирать строки одним сборщиком по записям реестра: перечень объектов и набор их полей приходят данными, а не кодом.",
+    "Ставить всем строкам прогона одну дату среза независимо от времени обхода объекта.",
+    "Записывать значения разрезов в строку и никогда не резолвить их при чтении.",
+    "Не писать в строку агрегатов, долей, дельт и сомового эквивалента.",
+    "Хранить сумму частями по валютам; при нескольких валютах оставлять значение показателя пустым и называть части.",
+    "Не заводить экрана правки строки и отклонять правку с текстом «строку среза пишет только прогон».",
+    "Не ставить признак фиксации прогоном: это дело закрытия периода."
+   ],
+   "rules": [
+    {
+     "h": "Что лежит в строке",
+     "items": [
+      "Значения разрезов на дату среза: строка от 31.05 несёт куратора и категорию такими, какими они были 31.05, даже если сегодня они другие.",
+      "Строчные показатели — те, что берутся швом или полем. Агрегат в строке не лежит: он функция над строками.",
+      "Сумма — в валюте договора, с курсом и датой курса. Пересчёт в сомы делается при показе и в строке не остаётся."
+     ]
+    },
+    {
+     "h": "Чего прогон не делает",
+     "items": [
+      "Не считает ни одной величины сам: всё, что в строке, взято швом или полем владельца.",
+      "Не пишет строку раньше рождения объекта.",
+      "Не перезаписывает зафиксированный период.",
+      "Не подписывает объекты разным временем: у прогона одна дата, а не расписание обхода."
+     ]
+    }
+   ],
+   "example": {
+    "src": "Прогон 18.08.2026, витрина макета",
+    "given": [
+     "Девять объектов реестра, 45 разрезов, 148 показателей."
+    ],
+    "do": [
+     "Запустить плановый прогон и посмотреть состав."
+    ],
+    "get": [
+     "Записано <b>58</b> строк: Кредит 8 · Заёмщик 8 · Залог 7 · Дело 3 · Требование 6 · Задание 4 · Программа 3 · Погашение 14 · Мера 5.",
+     "Строка заёмщика 01234199010101 несёт по показателю задолженности пустое значение и две части: EUR <b>104 725,62</b> по курсу 96,4 на 18.08.2026 и KGS <b>883 093,67</b>.",
+     "Пустое значение здесь честное: одного числа у разновалютного портфеля нет вовсе."
+    ]
+   },
+   "terms": [
+    {
+     "t": "дата среза",
+     "d": "календарная дата, на которую собран весь прогон. Не время выполнения батча и не время обращения к владельцу."
+    },
+    {
+     "t": "строчный показатель",
+     "d": "показатель, чьё значение лежит в строке. Противопоставлен агрегату, который считается по строкам при чтении."
+    }
+   ],
+   "accept": [
+    "Все строки одного прогона несут одну дату среза.",
+    "Значения разрезов сохранены в строку; ответ на прошлую дату не меняется при смене куратора сегодня.",
+    "В строке нет агрегатов, долей, дельт и сомового эквивалента.",
+    "Сумма хранится частями по валютам с курсом и датой курса; при нескольких валютах значение показателя пусто, а части названы.",
+    "Экрана правки строки нет, и попытка правки отклоняется с текстом правила.",
+    "Признак фиксации прогоном не ставится.",
+    "Строка раньше рождения объекта не пишется.",
+    "Сборщик не содержит условий по именам объектов: перечень приходит из реестра."
+   ],
+   "notIn": [
+    "Журнал прогонов, пропуск и состав поимённо — P22-R7.",
+    "Внеплановый пересчёт — P22-R8.",
+    "Фиксация — P22-R9."
+   ],
+   "deps": [
+    "P22-R1",
+    "P22-R2",
+    "P22-R3",
+    "P22-R5"
+   ],
+   "extDeps": [
+    {
+     "what": "владельцы отвечают на вопрос о составе и значениях на произвольную прошедшую дату, а не только на сегодня"
+    },
+    {
+     "what": "справочники отдают курс валюты на дату среза"
+    }
+   ],
+   "traps": [
+    "<b>Подписать каждый объект временем его обхода.</b> Выглядит точнее, а на деле разрушает срез: остаток кредита взят в 02:10, а платёж по нему прошёл в 03:40, и строки перестают быть одновременными.",
+    "<b>Положить в строку сомовый эквивалент «чтобы не считать каждый раз».</b> Курс меняется, и вчерашний эквивалент завтра станет неверным числом, которое уже нельзя отличить от верного."
+   ]
+  },
+  {
+   "id": "P22-R7",
+   "stage": 2,
+   "title": "Журнал срезов: пропуск — событие с причиной, а не дыра",
+   "build": "Экран журнала и запись прогона. Каждая ночь оставляет строку: плановый, внеплановый или пропуск, с временем, актором, причиной, числом строк и составом поимённо по каждому объекту.",
+   "why": "Журнал объясняет всякую странность в паспорте, поэтому он показывается пользователю, а не лежит служебным логом. «Прогона не было» и «прогон упал» — разные строки объяснения и разные действия. Без записи пропуска дыра в датах неотличима от нормального выходного, и подстановка ближайшей предыдущей даты выглядит сбоем вместо правила. Состав поимённо нужен по той же причине: «строк 5» не отличает спокойного дня от дня, когда владелец сломал заполнение реквизита.",
+   "look": {
+    "mock": "statistics.html",
+    "route": "Журнал срезов",
+    "tz": "19-statistika.html#s9"
+   },
+   "data": [
+    {
+     "n": "Запись прогона",
+     "key": "дата среза + вид",
+     "note": "Пропуск — такая же запись, а не отсутствие записи.",
+     "fields": [
+      "<b>дата среза и вид</b> — плановый · внеплановый · пропуск, обязательно",
+      "<b>время</b> — когда прогон отработал",
+      "<b>актор и причина</b> — обязательны у внепланового и у пропуска",
+      "<b>число записанных строк</b> — целое; у пропуска ноль",
+      "<b>состав поимённо</b> — по объекту: записано · рождением ещё не наступило · рождение объявлено, а у владельца пусто"
+     ]
+    }
+   ],
+   "screen": [
+    {
+     "n": "Журнал срезов",
+     "note": "Пользовательский экран: им объясняется возраст даты в паспорте.",
+     "cols": [
+      "дата среза",
+      "вид",
+      "время",
+      "актор",
+      "причина",
+      "строк",
+      "состав поимённо"
+     ],
+     "acts": [
+      "раскрыть состав прогона",
+      "запустить внеплановый пересчёт"
+     ]
+    }
+   ],
+   "steps": [
+    "Писать запись прогона на каждую календарную ночь, включая ту, в которую прогона не было.",
+    "Требовать причину и актора у пропуска и у внепланового прогона; у планового их не спрашивать.",
+    "Раскрывать состав прогона по объектам тремя числами, а не одним.",
+    "Показывать журнал пользователю модуля, а не только администратору.",
+    "Связывать журнал с паспортом: возраст даты в ответе объясняется строкой журнала, на которую можно перейти.",
+    "Не удалять и не переписывать записей журнала: неудачная ночь остаётся в истории."
+   ],
+   "rules": [
+    {
+     "h": "Три вида записи",
+     "items": [
+      "<b>Плановый</b> — ночная сборка по расписанию. Актор — планировщик, причина не требуется.",
+      "<b>Внеплановый</b> — пересчёт по требованию человека. Актор и причина обязательны.",
+      "<b>Пропуск</b> — ночь без строк. Актор и причина обязательны, число строк ноль."
+     ]
+    },
+    {
+     "h": "Зачем состав поимённо",
+     "items": [
+      "Отличает «объектов стало меньше» от «владелец не отдал данные».",
+      "Отличает нормальный рост числа строк от того, что новый объект наконец родился.",
+      "Даёт адресата: строка «рождение объявлено, а у владельца пусто» указывает на модуль, а не на статистику."
+     ]
+    }
+   ],
+   "example": {
+    "src": "Журнал макета: 6 записей прогона",
+    "given": [
+     "Ночь 19.08.2026 прогона не дала."
+    ],
+    "do": [
+     "Открыть журнал и спросить срез кредитов на 19.08.2026."
+    ],
+    "get": [
+     "В журнале строка: вид «пропуск», актор «планировщик», причина «сбой ночного планировщика: задание не стартовало», записано 0.",
+     "Срез отвечен строками от 18.08.2026 с возрастом <b>1 день</b>, и паспорт называет пропуск дословно.",
+     "Краткая форма: «на 18.08 (1 день назад) · не зафикс. · всего 8»."
+    ]
+   },
+   "terms": [
+    {
+     "t": "пропуск",
+     "d": "запись журнала о ночи без прогона, с актором и причиной. Отсутствие записи пропуском не является — это дефект журнала."
+    },
+    {
+     "t": "состав прогона",
+     "d": "разбивка записанного по объектам тремя числами: записано, не родилось, реквизит рождения пуст."
+    }
+   ],
+   "accept": [
+    "На каждую календарную ночь есть запись журнала, включая ночи без прогона.",
+    "Пропуск и внеплановый прогон не сохраняются без актора и причины.",
+    "Состав раскрывается по объектам тремя числами.",
+    "Журнал доступен пользователю модуля, а не только администратору.",
+    "Возраст даты в паспорте объясняется строкой журнала, и на неё можно перейти.",
+    "Записи журнала не удаляются и не переписываются.",
+    "У пропуска число записанных строк равно нулю, а не пусто."
+   ],
+   "notIn": [
+    "Запуск внепланового пересчёта и его правила — P22-R8.",
+    "Подстановка ближайшей даты в ответе — P22-R16.",
+    "Форма строки среза — P22-R6."
+   ],
+   "deps": [
+    "P22-R6"
+   ],
+   "extDeps": [
+    {
+     "what": "планировщик сообщает о несостоявшемся запуске, а не молчит: без этого пропуск некому записать"
+    }
+   ],
+   "traps": [
+    "<b>Считать журнал служебным логом.</b> Тогда он оказывается там, куда пользователю нет доступа, и возраст даты в паспорте объяснить нечем — а объяснять придётся, потому что спрашивают об этом каждый раз."
+   ]
+  },
+  {
+   "id": "P22-R8",
+   "stage": 2,
+   "title": "Внеплановый пересчёт: с актором, причиной и запретом на закрытый период",
+   "build": "Действие «пересчитать за дату» в журнале. Требует актора и причины, пишет запись вида «внеплановый» и перезаписывает строки этой даты. На зафиксированном периоде отказывает, называя период и порядок его открытия.",
+   "why": "Пересчёт нужен ровно тогда, когда владелец исправил данные задним числом, и без него срез остаётся неверным до следующей ночи. Но тот же механизм — единственный способ переписать историю, поэтому у него есть фамилия и причина. Зафиксированный период он не трогает вовсе: там строки уже ушли в отчётность, и молчаливая перезапись означала бы два разных числа под одной датой. Открытие закрытого периода — общий порядок системы, а не кнопка внутри статистики.",
+   "look": {
+    "mock": "statistics.html",
+    "route": "Журнал срезов → пересчитать за дату",
+    "tz": "19-statistika.html#s9"
+   },
+   "steps": [
+    "Завести действие «пересчитать за дату» на экране журнала и требовать актора и причину.",
+    "Перезаписывать строки указанной даты целиком, а не дописывать недостающие.",
+    "Отказывать на дате внутри зафиксированного периода с текстом, называющим период и общий порядок его открытия.",
+    "Писать запись журнала вида «внеплановый» с числом строк и составом поимённо, как у планового.",
+    "Не писать строк раньше рождения объекта и при пересчёте задним числом.",
+    "Не менять признака фиксации: пересчёт строки трогает, защёлку — нет."
+   ],
+   "rules": [
+    {
+     "h": "Когда пересчёт уместен",
+     "items": [
+      "Владелец исправил данные задним числом: изменился остаток, переоформлен договор, отменено требование.",
+      "Прогон не состоялся, и дыру закрывают вручную, не дожидаясь следующей ночи.",
+      "Пересчёт «для проверки» — тоже законный повод, но причина пишется словами, а не «тест»."
+     ]
+    },
+    {
+     "h": "Границы действия",
+     "items": [
+      "Зафиксированный период не перезаписывается ни при каких правах: администратор статистики здесь равен наблюдателю.",
+      "Пересчёт не запирает и не открывает учётный период — статистика периодом не распоряжается.",
+      "Пересчёт не создаёт новой даты среза: он переписывает строки существующей календарной даты."
+     ]
+    }
+   ],
+   "example": {
+    "src": "Пересчёт за 31.07.2026 после закрытия июля",
+    "given": [
+     "Июль 2026 закрыт человеком: «Сыдыкова А. (главный бухгалтер)», зафиксировано 49 строк."
+    ],
+    "do": [
+     "Запустить внеплановый пересчёт за 31.07.2026 от имени администратора статистики."
+    ],
+    "get": [
+     "Отказ: «период июль 2026 зафиксирован: строки не перезаписываются ни при каких правах. Открытие закрытого периода — общий порядок системы».",
+     "Отказ называет и период, и дорогу: человек уходит открывать период туда, где это делается, а не ищет права в статистике."
+    ]
+   },
+   "terms": [
+    {
+     "t": "внеплановый прогон",
+     "d": "пересчёт строк существующей даты по требованию человека. Отличается от планового наличием актора и причины, а не механикой сборки."
+    }
+   ],
+   "accept": [
+    "Пересчёт не запускается без актора и причины.",
+    "Строки указанной даты перезаписываются целиком.",
+    "Пересчёт даты внутри зафиксированного периода отклоняется с именем периода и указанием общего порядка его открытия.",
+    "Запись журнала вида «внеплановый» содержит число строк и состав поимённо.",
+    "Строка раньше рождения объекта не появляется и при пересчёте задним числом.",
+    "Признак фиксации пересчётом не меняется.",
+    "Новой даты среза пересчёт не создаёт."
+   ],
+   "notIn": [
+    "Журнал и его экран — P22-R7.",
+    "Фиксация и её защёлка — P22-R9.",
+    "Маркер расхождения — P22-R10."
+   ],
+   "deps": [
+    "P22-R6",
+    "P22-R7"
+   ],
+   "extDeps": [
+    {
+     "what": "общий порядок открытия закрытого учётного периода принадлежит бухгалтерскому контуру и вызывается оттуда"
+    }
+   ],
+   "traps": [
+    "<b>Разрешить пересчёт закрытого периода администратору «под ответственность».</b> Это ровно тот случай, когда под одной датой окажутся два числа: одно в отчётности, другое на экране, и различить их будет нечем."
+   ]
+  },
+  {
+   "id": "P22-R9",
+   "stage": 3,
+   "title": "Фиксация: одна защёлка — закрытие учётного периода человеком",
+   "build": "Признак фиксации строк и его единственный источник — закрытие того же учётного периода, который закрывают платежи и кредиты. У фиксации есть актор; своего периода у статистики нет.",
+   "why": "Периодов в системе четыре — день, неделя, месяц, год, — но защёлка нужна одна, иначе «зафиксировано» станет относительным словом: зафиксировано в недельном разрезе и не зафиксировано в месячном. Защёлкой выбран месяц, потому что месяц закрывает бухгалтерия, и статистика присоединяется к чужому акту вместо изобретения своего. Актор обязателен: период закрывает человек, а не календарь, и у зафиксированного числа должна быть фамилия.",
+   "look": {
+    "mock": "statistics.html",
+    "route": "Конструктор → срез на дату внутри закрытого периода → паспорт",
+    "tz": "19-statistika.html#s8-1"
+   },
+   "data": [
+    {
+     "n": "Фиксация",
+     "key": "учётный период",
+     "note": "Единственный акт модуля с актором: всё остальное делает прогон, а у прогона фамилии нет.",
+     "fields": [
+      "<b>учётный период</b> — тот же, который закрывают платежи и кредиты",
+      "<b>дата закрытия</b> — дата, обязательно",
+      "<b>кто закрыл</b> — человек, обязательно; закрытие без актора отклоняется"
+     ]
+    }
+   ],
+   "steps": [
+    "Подписываться на закрытие учётного периода и ставить признак фиксации строкам, попавшим в закрытый месяц.",
+    "Отклонять закрытие без актора с текстом «период закрывает человек, а не календарь».",
+    "Считать день и неделю кэшем: они не фиксируются и перестраиваются свободно.",
+    "Собирать год из двенадцати зафиксированных месяцев, а не фиксировать отдельно.",
+    "Отдавать в паспорте три состояния фиксации: зафиксировано · не зафиксировано · смешанно.",
+    "Не запирать учётный период собственными условиями: незавершённый прогон — предупреждение, а не блокировка."
+   ],
+   "rules": [
+    {
+     "h": "Четыре периода, одна защёлка",
+     "items": [
+      "День и неделя — кэш: пересобираются, не фиксируются, в паспорте всегда «не зафиксировано».",
+      "Месяц — защёлка: закрывается человеком, после чего строки неизменны.",
+      "Год — сборка из двенадцати зафиксированных месяцев; собственного акта закрытия у него нет.",
+      "Смешанное состояние возникает у ряда, часть точек которого попала в закрытые месяцы, а часть нет."
+     ]
+    },
+    {
+     "h": "Что фиксация не делает",
+     "items": [
+      "Не запирает период: статистика не имеет права остановить закрытие месяца.",
+      "Не меняет строк: она только ставит признак, после которого их нельзя переписать.",
+      "Не отменяется внутри статистики: открытие закрытого периода идёт общим порядком."
+     ]
+    }
+   ],
+   "example": {
+    "src": "Закрытие июля 2026 в макете",
+    "given": [
+     "Открытый период — <b>2026-07</b>; на 31.07.2026 записано 8 строк по кредитам."
+    ],
+    "do": [
+     "Закрыть период, не называя актора.",
+     "Закрыть период от имени «Сыдыкова А. (главный бухгалтер)» и спросить срез на 31.07.2026."
+    ],
+    "get": [
+     "Первое: «фиксация без актора невозможна: период закрывает человек, а не календарь».",
+     "Второе: зафиксировано <b>49</b> строк; срез отвечает с признаком «зафиксировано», краткая форма — «на 31.07 (сегодня) · зафикс. · всего 8».",
+     "Проверка незапирания: препятствий закрытию августа нет, есть предупреждение «прогон за 19.08.2026 не состоялся»."
+    ]
+   },
+   "terms": [
+    {
+     "t": "защёлка",
+     "d": "период, закрытие которого делает строки неизменными. В системе она одна — месяц."
+    },
+    {
+     "t": "смешанная фиксация",
+     "d": "состояние ответа, часть строк которого попала в закрытые периоды, а часть нет. Встречается у рядов и печатается в паспорте отдельным словом."
+    }
+   ],
+   "accept": [
+    "Признак фиксации ставится только закрытием учётного периода, и другого источника у него нет.",
+    "Закрытие без актора отклоняется с текстом правила.",
+    "День и неделя не фиксируются никогда.",
+    "Год собирается из зафиксированных месяцев и своего акта закрытия не имеет.",
+    "Паспорт отдаёт три состояния фиксации, включая смешанное.",
+    "Статистика не блокирует закрытие периода: незавершённый прогон даёт предупреждение, а не отказ.",
+    "После фиксации строки не переписываются ни прогоном, ни пересчётом."
+   ],
+   "notIn": [
+    "Маркер расхождения зафиксированного числа — P22-R10.",
+    "Запрет пересчёта закрытого периода — P22-R8.",
+    "Общий порядок открытия периода — бухгалтерскому контуру."
+   ],
+   "deps": [
+    "P22-R6",
+    "P22-R8"
+   ],
+   "extDeps": [
+    {
+     "what": "платежи и кредиты закрывают учётный период и сообщают об этом событием с актором и датой"
+    }
+   ],
+   "traps": [
+    "<b>Завести «период статистики» отдельно от учётного.</b> Два периода расходятся на первом же переоткрытии месяца, и тогда «зафиксировано» перестаёт значить то же самое в отчётности и на экране.",
+    "<b>Дать статистике право задержать закрытие месяца.</b> Это ставит вспомогательный модуль поперёк основного процесса ради собственной полноты."
+   ]
+  },
+  {
+   "id": "P22-R10",
+   "stage": 3,
+   "title": "Маркер расхождения: зафиксированное число не молчит о корректировке",
+   "build": "Подпись рядом с зафиксированным числом, если сегодняшний пересчёт той же даты даёт другую величину, и экран расхождения по действию с неё. Само число расхождения подписано «это не отчётное число».",
+   "why": "Зафиксированное число неизменно — и правильно. Но корректировка, пришедшая позже, существует, и человек, видящий на экране одно, а в акте сверки другое, обязан узнать об этом от системы, а не от аудитора. Маркер решает обе задачи разом: отчётное число остаётся тем, каким его сдали, а факт расхождения назван вслух. Открывается расхождение действием, чтобы не превращать таблицу в два числа рядом — иначе непонятно, какое из них брать в форму.",
+   "look": {
+    "mock": "statistics.html",
+    "route": "Конструктор → срез внутри закрытого периода → маркер → экран расхождения",
+    "tz": "19-statistika.html#s8-2"
+   },
+   "screen": [
+    {
+     "n": "Расхождение зафиксированного периода",
+     "note": "Открывается действием с маркера. Число здесь подписано «это не отчётное число».",
+     "cols": [
+      "период",
+      "зафиксировано",
+      "сегодняшний пересчёт",
+      "разница",
+      "основание"
+     ],
+     "acts": [
+      "открыть основание корректировки",
+      "вернуться к зафиксированному числу"
+     ]
+    }
+   ],
+   "steps": [
+    "Сравнивать зафиксированное значение с сегодняшним пересчётом той же даты при показе, не сохраняя результат сравнения.",
+    "Ставить маркер рядом с числом, а не вместо него, и формулировать подпись словами периода: «за май есть корректировка, учтена в июле».",
+    "Открывать экран расхождения только действием с маркера.",
+    "Подписывать число сегодняшнего пересчёта прямо: «это не отчётное число».",
+    "Показывать основание корректировки строкой с документом и датой и вести в него.",
+    "Не менять зафиксированного числа ни при каком расхождении."
+   ],
+   "rules": [
+    {
+     "h": "Что показывает маркер",
+     "items": [
+      "Факт расхождения, период, в котором оно возникло, и период, в котором корректировка учтена.",
+      "Разницу — на отдельном экране, а не в ячейке таблицы.",
+      "Основание: документ, номер и дата. «Разница есть» без основания — половина ответа."
+     ]
+    },
+    {
+     "h": "Чего маркер не делает",
+     "items": [
+      "Не правит зафиксированное число и не предлагает его переписать.",
+      "Не появляется у незафиксированных периодов: там пересчёт и есть текущее число.",
+      "Не хранится: сравнение делается при показе, иначе появится третье число со своей датой актуальности."
+     ]
+    }
+   ],
+   "example": {
+    "src": "Май 2026, показатель остатка основного долга",
+    "given": [
+     "За май зафиксировано <b>33 137 000</b>. Позже прошла корректировка по кредиту КД-2023/210."
+    ],
+    "do": [
+     "Открыть срез за май и нажать маркер."
+    ],
+    "get": [
+     "Сегодняшний пересчёт — <b>33 153 320,17</b>, разница <b>16 320,17</b>.",
+     "Основание: акт сверки № 41 от 14.07.2026; корректировка учтена в июле.",
+     "Зафиксированное число на экране среза осталось прежним, и в форму идёт именно оно."
+    ]
+   },
+   "terms": [
+    {
+     "t": "маркер расхождения",
+     "d": "подпись у зафиксированного числа о существовании более поздней корректировки. Не альтернативное значение, а указание на документ."
+    },
+    {
+     "t": "не отчётное число",
+     "d": "величина сегодняшнего пересчёта закрытой даты. Показывается для объяснения расхождения и никуда не сдаётся."
+    }
+   ],
+   "accept": [
+    "Маркер появляется только там, где зафиксированное значение расходится с сегодняшним пересчётом.",
+    "Зафиксированное число остаётся на экране и не подменяется пересчётом.",
+    "Разница и основание открываются отдельным экраном по действию.",
+    "Число сегодняшнего пересчёта подписано «это не отчётное число».",
+    "Основание содержит документ, номер и дату и ведёт в него.",
+    "Результат сравнения не хранится: он вычисляется при показе.",
+    "У незафиксированных периодов маркера нет."
+   ],
+   "notIn": [
+    "Сама фиксация и её защёлка — P22-R9.",
+    "Запрет перезаписи закрытых строк — P22-R8.",
+    "Форма паспорта — P22-R16."
+   ],
+   "deps": [
+    "P22-R9"
+   ],
+   "extDeps": [
+    {
+     "what": "владельцы держат основание корректировки документом с номером и датой, а не только изменённой величиной"
+    }
+   ],
+   "traps": [
+    "<b>Показать два числа рядом в одной таблице.</b> Тогда каждый читатель решает сам, какое из них верное, и в форму попадают оба — в разных подразделениях разные."
+   ]
+  },
+  {
+   "id": "P22-R11",
+   "stage": 4,
+   "title": "Конструктор среза: вопрос собирается слева направо и так же печатается",
+   "build": "Точка входа модуля. Человек называет объект, разрезы с корзиной и уровнем, показатели, дату или ряд и фильтр. Тот же порядок печатается в паспорте: вопрос и его описание совпадают дословно.",
+   "why": "Совпадение порядка сборки и порядка печати — не косметика: по паспорту вопрос обязан воспроизводиться без догадок, а расходящиеся порядки заставляют читателя переставлять части в уме. Конструктор ещё и единственное место, где отказ приходит вовремя: показатель чужого объекта отсекается при выборе, а не после нажатия «спросить». Вопрос при этом нигде не сохраняется — то, что хочется вернуть завтра, становится шаблоном отчётности или плиткой роли.",
+   "look": {
+    "mock": "statistics.html",
+    "route": "Конструктор среза",
+    "tz": "19-statistika.html#s12"
+   },
+   "data": [
+    {
+     "n": "Вопрос среза",
+     "key": "не хранится — принадлежит одному вопросу одного человека",
+     "note": "Библиотеки сохранённых вопросов у статистики нет и не заводится.",
+     "fields": [
+      "<b>объект</b> — обязательно",
+      "<b>дата</b> — либо дата среза, либо шаг и число точек",
+      "<b>разрезы</b> — список; у каждого названы корзина и уровень",
+      "<b>показатели</b> — список; у среза только агрегаты закрытого списка",
+      "<b>фильтр</b> — необязательно; пустой печатается словами «фильтра нет»"
+     ]
+    }
+   ],
+   "screen": [
+    {
+     "n": "Конструктор среза",
+     "note": "Вопрос собирается слева направо и в этом же порядке печатается в паспорте.",
+     "cols": [
+      "объект",
+      "разрезы (корзина, уровень)",
+      "показатели",
+      "дата или ряд",
+      "фильтр"
+     ],
+     "acts": [
+      "собрать вопрос",
+      "спросить",
+      "перейти в детализацию по ячейке",
+      "открыть полный паспорт"
+     ]
+    }
+   ],
+   "steps": [
+    "Выстроить сборку вопроса в фиксированном порядке: объект → разрезы → показатели → дата → фильтр.",
+    "Ограничивать выбор реестром: после выбора объекта показывать только его разрезы и его показатели.",
+    "Спрашивать корзину и уровень там, где они объявлены, и подставлять первую объявленную корзину по умолчанию.",
+    "Печатать вопрос в паспорте тем же порядком и теми же словами, какими он собран.",
+    "Не сохранять вопрос: предлагать вместо этого шаблон отчётности или плитку роли.",
+    "Вести из любой ячейки ответа в детализацию тем же вопросом, без пересборки."
+   ],
+   "rules": [
+    {
+     "h": "Порядок и его смысл",
+     "items": [
+      "Объект первым: он определяет, что вообще можно спросить дальше.",
+      "Разрезы раньше показателей: без них вопрос «сколько» не имеет группировки, а показатели читаются в контексте разреза.",
+      "Дата отдельно от разрезов: дата среза — не разрез, а точка наблюдения.",
+      "Фильтр последним: он сужает уже собранный вопрос и печатается отдельной строкой паспорта, потому что фильтр и область видимости — разные сужения."
+     ]
+    },
+    {
+     "h": "Чего в конструкторе нет",
+     "items": [
+      "Библиотеки сохранённых вопросов: у вопроса нет владельца, редакции и срока — сохранять нечего.",
+      "Свободного текстового запроса: спрашивается только то, что объявлено реестром.",
+      "Выбора «все объекты сразу»: объект в вопросе один."
+     ]
+    }
+   ],
+   "example": {
+    "src": "Вопрос о требованиях взыскания на 18.08.2026",
+    "given": [
+     "Объект «Требование взыскания», разрез «Подразделение» на уровне дивизиона, показатели «Число объектов» и «Сумма требований, итого», фильтра нет."
+    ],
+    "do": [
+     "Собрать вопрос и открыть полный паспорт ответа."
+    ],
+    "get": [
+     "Паспорт печатает вопрос тем же порядком, а строку фильтра — словами «фильтра нет — спрошено обо всём доступном множестве».",
+     "Область видимости стоит отдельной строкой: «по всем объектам „Требование взыскания“ системы: 6».",
+     "Попытка добавить показатель кредита в этот вопрос отсекается на выборе, а не после «спросить»."
+    ]
+   },
+   "terms": [
+    {
+     "t": "вопрос среза",
+     "d": "набор из объекта, разрезов, показателей, даты и фильтра. Не хранится: у него нет ни владельца, ни редакции."
+    }
+   ],
+   "accept": [
+    "Порядок сборки вопроса фиксирован и совпадает с порядком его печати в паспорте.",
+    "После выбора объекта предлагаются только его разрезы и показатели.",
+    "Корзина и уровень спрашиваются там, где объявлены; по умолчанию берётся первая объявленная корзина.",
+    "Пустой фильтр печатается словами, а не пропускается.",
+    "Вопрос нигде не сохраняется, и на просьбу сохранить экран называет шаблон отчётности и плитку роли.",
+    "Из любой ячейки ответа открывается детализация тем же вопросом.",
+    "Объект в вопросе ровно один."
+   ],
+   "notIn": [
+    "Тексты отказов — P22-R12.",
+    "Форма фильтра — P22-R13.",
+    "Сам расчёт ответа — P22-R14."
+   ],
+   "deps": [
+    "P22-R1",
+    "P22-R3",
+    "P22-R5"
+   ],
+   "extDeps": [],
+   "traps": [
+    "<b>«Добавим кнопку „сохранить вопрос“ — просят же».</b> Сохранённый вопрос немедленно начинает жить как отчёт: на него ссылаются, его пересылают, его правит второй человек. Всё это уже есть у шаблона отчётности, и там у него есть редакция и владелец."
+   ]
+  },
+  {
+   "id": "P22-R12",
+   "stage": 4,
+   "title": "Отказы, называющие дорогу: адресат вычисляется по реестру",
+   "build": "Общий механизм отказа для всех швов и всех экранов настроек. Отказ называет причину, имя того, что мешает, и адресата: правильный объект, правильный шов, объявленный список или составляющие запрещённой величины.",
+   "why": "Отказ, который просто отвергает, перекладывает работу на человека и порождает обходные пути: не приняли показатель — заведут второй, похожий. Отказ, называющий дорогу, заканчивает вопрос на месте. Адресат при этом обязан вычисляться по реестру, а не печататься текстом: текст устареет на первом же переносе разреза, и система начнёт уверенно посылать не туда. Это дешевле сделать один раз механизмом, чем двадцать раз строкой в каждом месте.",
+   "look": {
+    "mock": "statistics.html",
+    "route": "Конструктор → заведомо неверный вопрос",
+    "tz": "19-statistika.html#s15"
+   },
+   "steps": [
+    "Завести единую форму отказа: причина, имя мешающего объекта или показателя, вычисленный адресат, ссылка на правило.",
+    "Вычислять адресата по реестру: правильный объект разреза, объект показателя, владелец шва, объявленный список корзин.",
+    "Разлагать запрещённую величину на составляющие: отношение — на числитель и знаменатель, удельную — на пару «срез плюс счёт».",
+    "Предупреждать при разложении удельной величины, что знаменатель, снятый со среза, занижен систематически.",
+    "Ставить перечень «чего здесь завести нельзя» на экраны настроек заранее, а не только в момент отказа.",
+    "Не отказывать молча ни в одном шве и ни на одном экране: отказ без текста — дефект."
+   ],
+   "rules": [
+    {
+     "h": "Четыре вида отказа",
+     "items": [
+      "<b>Не тому объекту</b> — разрез или показатель принадлежит другому объекту; отказ называет правильный.",
+      "<b>Не из объявленного</b> — корзина, уровень или функция агрегата не объявлены; отказ перечисляет объявленные.",
+      "<b>Не бывает такой величиной</b> — отношение, удельная величина, показатель типа «дата»; отказ разлагает на допустимые части.",
+      "<b>Не здесь</b> — правка строки, пересчёт закрытого периода, сохранение вопроса; отказ называет место, где это делается."
+     ]
+    },
+    {
+     "h": "Как устроен текст",
+     "items": [
+      "Сначала что не так, потом почему, потом куда идти. Порядок неизменен во всех отказах.",
+      "Имена берутся из реестра дословно, в кавычках, чтобы их можно было найти поиском.",
+      "Правило называется коротко и без ссылки на внутренние коды: человеку нужен смысл, а не номер."
+     ]
+    }
+   ],
+   "example": {
+    "src": "Четыре отказа макета на 18.08.2026",
+    "given": [
+     "Реестр: 9 объектов, 148 показателей, 45 разрезов."
+    ],
+    "do": [
+     "Спросить фазу взыскания у дела, сумму требования у кредита, завести формулу, спросить корзину «неделя»."
+    ],
+    "get": [
+     "«разрез „Фаза взыскания“ объекту „Дело взыскания“ не принадлежит: на дату у него значений много — спрашивается он у „Требование взыскания“».",
+     "«показатель „Сумма требования“ объявлен для другого объекта».",
+     "«в записи показателя нет поля формулы: запись объявляет ОТКУДА берётся величина и молчит о том, КАК».",
+     "«разрез „Дата кредитного договора“ спрашивается корзиной из объявленных: год · квартал · месяц»."
+    ]
+   },
+   "terms": [
+    {
+     "t": "адресат отказа",
+     "d": "объект, шов или экран, куда отказ отправляет спрашивающего. Вычисляется по реестру, а не хранится текстом."
+    }
+   ],
+   "accept": [
+    "У всех отказов одна форма: причина, имя мешающего, адресат, правило.",
+    "Адресат вычисляется по реестру и меняется вместе с реестром без правки текстов.",
+    "Отношение и удельная величина отклоняются с разложением на допустимые составляющие.",
+    "Разложение удельной величины сопровождается предупреждением о систематически заниженном знаменателе.",
+    "Экраны настроек несут перечень «чего здесь завести нельзя» до попытки.",
+    "Ни один шов и ни один экран не отказывает без текста.",
+    "Имена в отказе совпадают с именами реестра дословно."
+   ],
+   "notIn": [
+    "Правила, на которые ссылаются отказы, — в карточках соответствующих реестров.",
+    "Отказ statRows по числу строк — P22-R17.",
+    "Отказ снятия показателя — P22-R20."
+   ],
+   "deps": [
+    "P22-R3",
+    "P22-R5",
+    "P22-R11"
+   ],
+   "extDeps": [],
+   "traps": [
+    "<b>Написать адресата строкой в тексте отказа.</b> Первый же перенос разреза с дела на требование оставит систему уверенно указывать в старое место — и это хуже, чем не указывать вовсе."
+   ]
+  },
+  {
+   "id": "P22-R13",
+   "stage": 4,
+   "title": "Фильтр вопроса: дизъюнкция наборов без скобок",
+   "build": "Форма фильтра: наборы соединяются через ИЛИ, сравнения внутри набора — через И, скобок нет. Левая часть — разрез или показатель этого же объекта, правая всегда константа. Фильтр целиком печатается в паспорте.",
+   "why": "Скобки в фильтре читаются неверно чаще, чем верно: человек видит длинную строку и достраивает приоритеты по-своему, а система считает по своим. Плоские наборы читаются однозначно — там, где хочется вложенности, пишется второй набор. Ограничение правой части константой отсекает сравнение показателя с показателем: оно требует общей даты и общего охвата, которых у двух величин может не быть, и молча даёт неверный ответ вместо отказа.",
+   "look": {
+    "mock": "statistics.html",
+    "route": "Конструктор → фильтр",
+    "tz": "19-statistika.html#s11-1"
+   },
+   "data": [
+    {
+     "n": "Фильтр вопроса",
+     "key": "часть вопроса; отдельной сущностью не хранится",
+     "note": "Слово «набор» выбрано вместо «правила» намеренно: правило принадлежит опубликованной редакции классификации, набор — одному вопросу.",
+     "fields": [
+      "<b>наборы</b> — список, соединяются через ИЛИ; минимум один",
+      "<b>сравнения набора</b> — список, соединяются через И; минимум одно",
+      "<b>левая часть</b> — разрез или показатель этого же объекта",
+      "<b>оператор</b> — по типу: перечисление = ≠ ∈ ∉ · число &gt; ≥ &lt; ≤ = ≠ · дата = ≠ ∈ ∉ и «в диапазоне» · булево = ≠",
+      "<b>правая часть</b> — всегда константа"
+     ]
+    }
+   ],
+   "steps": [
+    "Завести форму фильтра двумя уровнями: наборы через ИЛИ, сравнения внутри набора через И.",
+    "Не вводить скобок и не показывать их в интерфейсе; вложенность предлагать вторым набором.",
+    "Ограничивать список операторов типом левой части и не показывать неприменимых.",
+    "Принимать в правой части только константу и отказывать на сравнение с показателем, называя причину.",
+    "Разрешать в левой части и разрезы, и показатели того же объекта — и запрещать чужие.",
+    "Печатать фильтр в паспорте целиком: все наборы и все сравнения, пустой — словами.",
+    "Не сохранять фильтр и не публиковать его: он принадлежит одному вопросу одного человека."
+   ],
+   "rules": [
+    {
+     "h": "Почему без скобок",
+     "items": [
+      "Дизъюнкция наборов покрывает все практические случаи: любое выражение раскладывается в список конъюнкций.",
+      "Плоская форма читается одинаково всеми: приоритет операций угадывать не приходится.",
+      "Длинный фильтр становится длинным списком наборов, и это честнее, чем короткая строка, которую понимают двое из десяти."
+     ]
+    },
+    {
+     "h": "Фильтр и видимость — разные сужения",
+     "items": [
+      "Фильтр человек задал руками, видимость наложила роль. В паспорте они стоят разными строками.",
+      "Слить их в одну строку значит скрыть, что часть множества человеку недоступна вовсе.",
+      "Пустой фильтр печатается словами «фильтра нет — спрошено обо всём доступном множестве»: «доступном» здесь и есть след видимости."
+     ]
+    }
+   ],
+   "example": {
+    "src": "Фильтр по требованиям взыскания",
+    "given": [
+     "Нужны требования, где либо фаза судебная и срок в фазе больше 30 дней, либо сумма превышает 3 000 000."
+    ],
+    "do": [
+     "Собрать фильтр двумя наборами и открыть паспорт."
+    ],
+    "get": [
+     "Набор 1: «Фаза взыскания» = «судебная» И «Дней в фазе» &gt; 30. Набор 2: «Сумма требования» &gt; 3 000 000.",
+     "Паспорт печатает оба набора целиком, а не «фильтр задан».",
+     "Попытка сравнить «Сумма требования» с «Сумма просроченная» отклоняется: правая часть — всегда константа."
+    ]
+   },
+   "terms": [
+    {
+     "t": "набор",
+     "d": "конъюнкция сравнений внутри фильтра. Соединяется с другими наборами через ИЛИ; скобок между ними нет."
+    },
+    {
+     "t": "сравнение",
+     "d": "тройка «левая часть — оператор — константа». Левая часть принадлежит объекту вопроса."
+    }
+   ],
+   "accept": [
+    "Фильтр имеет ровно два уровня: наборы через ИЛИ, сравнения через И.",
+    "Скобок в форме и в интерфейсе нет.",
+    "Список операторов ограничен типом левой части.",
+    "Правая часть принимает только константу; сравнение с показателем отклоняется с текстом.",
+    "Левая часть принадлежит объекту вопроса; чужие разрезы и показатели недоступны.",
+    "Паспорт печатает фильтр целиком, а пустой — словами.",
+    "Фильтр нигде не сохраняется и никуда не публикуется.",
+    "Строка фильтра и строка области видимости в паспорте раздельны."
+   ],
+   "notIn": [
+    "Ролевые правила и область видимости — P22-R21.",
+    "Порядок сборки вопроса — P22-R11.",
+    "Печать паспорта — P22-R16."
+   ],
+   "deps": [
+    "P22-R11"
+   ],
+   "extDeps": [],
+   "traps": [
+    "<b>Макет собрал фильтр частным случаем — один набор из одного сравнения.</b> Это упрощение прототипа, а не образец: форму фильтра решает постановка, и реализовать надо оба уровня сразу, иначе второй уровень придётся вводить через уже написанные экраны."
+   ]
+  },
+  {
+   "id": "P22-R14",
+   "stage": 4,
+   "title": "Шов statSlice: сколько объектов и на какую сумму, в разрезе, на дату",
+   "build": "Первый и главный шов. Принимает объект, разрезы, показатели, дату и фильтр, возвращает дерево групп с числами и паспортом. Родительский узел считается по строкам, а не складывается из детей.",
+   "why": "Родительский узел, сложенный из детей, теряет объекты, у которых значение разреза на этом уровне есть, а на нижнем нет — и потеря эта молчаливая. Считать по строкам дороже ровно на одну группировку и честнее на все такие случаи; заодно это единственный способ показать колонку «своих» и объяснить, почему сумма детей меньше родителя. Форма ответа при этом всегда дерево: у плоского разреза оно вырождается в глубину один, и второй формы отдавать не нужно.",
+   "look": {
+    "mock": "statistics.html",
+    "route": "Конструктор → спросить → ответ-дерево",
+    "tz": "19-statistika.html#s10"
+   },
+   "screen": [
+    {
+     "n": "Ответ-дерево",
+     "note": "У плоского разреза дерево вырождается в глубину один, и колонка «своих» не показывается.",
+     "cols": [
+      "группа",
+      "число объектов",
+      "значения показателей",
+      "своих"
+     ],
+     "acts": [
+      "раскрыть узел",
+      "провалиться в детализацию",
+      "сменить уровень разреза"
+     ]
+    }
+   ],
+   "steps": [
+    "Принимать вопрос целиком: объект, список разрезов с корзиной и уровнем, список показателей, дату, фильтр.",
+    "Отбирать строки на дату, применять ролевые правила и фильтр к строкам до группировки.",
+    "Считать каждый узел дерева по строкам этого узла, а не сложением детей.",
+    "Схлопывать по дедуп-ключу перед агрегатом и отдельно на каждом узле.",
+    "Показывать колонку «своих» там, где у узла есть и дети, и собственные строки.",
+    "Возвращать дерево всегда, вырождая его в один уровень у плоского разреза.",
+    "Прикладывать паспорт к каждому ответу без исключений."
+   ],
+   "rules": [
+    {
+     "h": "Как считается узел",
+     "items": [
+      "По строкам, попавшим в узел, включая те, что не попали ни в одного ребёнка.",
+      "«Своих» — число строк узла, не отнесённых ни к одному дочернему значению. Ноль в этой колонке значит, что разбиение полное.",
+      "Итог верхнего уровня считается так же — по всем строкам ответа, а не сложением узлов.",
+      "Сумма детей меньше родителя — нормальная ситуация, и колонка «своих» её объясняет."
+     ]
+    },
+    {
+     "h": "Что шов не отдаёт",
+     "items": [
+      "Долей и процентов: они представление и считаются при показе.",
+      "Дельт к прошлому периоду: это вопрос ряда, а не среза.",
+      "Списка объектов: за ним идут в детализацию.",
+      "Ответа без паспорта — ни при каких параметрах."
+     ]
+    }
+   ],
+   "example": {
+    "src": "Срез кредитов по территории, уровень района, 18.08.2026",
+    "given": [
+     "Разрез «Территория» объявлен двумя уровнями: область и район."
+    ],
+    "do": [
+     "Спросить срез на уровне района и посмотреть колонку «своих»."
+    ],
+    "get": [
+     "Иссык-Кульская <b>1</b> (детей 1, своих 0) · Ошская <b>2</b> (детей 2) · Таласская <b>1</b> (детей 0, <b>своих 1</b>) · Чуйская <b>4</b> (детей 2).",
+     "У Таласской области район не заполнен, и кредит виден только в родителе: сложение детей потеряло бы его молча.",
+     "Итог считается по всем строкам ответа и совпадает с числом объектов в паспорте."
+    ]
+   },
+   "terms": [
+    {
+     "t": "своих",
+     "d": "число строк узла, не отнесённых ни к одному дочернему значению разреза. Делает видимой неполноту разбиения."
+    }
+   ],
+   "accept": [
+    "Каждый узел дерева считается по своим строкам, а не сложением детей.",
+    "Колонка «своих» показывается там, где у узла есть и дети, и собственные строки.",
+    "Ролевые правила и фильтр применяются к строкам до группировки.",
+    "Схлопывание по дедуп-ключу идёт перед агрегатом на каждом узле.",
+    "Форма ответа — всегда дерево, у плоского разреза глубиной один.",
+    "Долей, процентов и дельт шов не отдаёт.",
+    "Ответ без паспорта не отдаётся ни при каких параметрах."
+   ],
+   "notIn": [
+    "Ряд и потоки за период — P22-R15.",
+    "Список объектов — P22-R17.",
+    "Форма паспорта — P22-R16."
+   ],
+   "deps": [
+    "P22-R4",
+    "P22-R6",
+    "P22-R11",
+    "P22-R13"
+   ],
+   "extDeps": [],
+   "traps": [
+    "<b>Сложить родителя из детей ради скорости.</b> Экономия — одна группировка, цена — молчаливая потеря объектов с незаполненным нижним уровнем; на территориях это случается постоянно."
+   ]
+  },
+  {
+   "id": "P22-R15",
+   "stage": 5,
+   "title": "Шов statSeries: как это менялось, и разность периода с расщеплением рождением",
+   "build": "Второй шов. Принимает объект, один показатель, список дат и фильтр, возвращает точки с собственными паспортами. Потоки хранятся нарастающим итогом, период считается разностью двух строк.",
+   "why": "Ряд — это не срез, повторённый несколько раз: у каждой точки своя дата строк, свой возраст и свой признак фиксации, и склеивать их в один паспорт нельзя. Разность двух строк как способ получить период избавляет от хранения периодических величин, которые пришлось бы пересчитывать при каждой корректировке. Но у разности есть край: объект, родившийся внутри периода, не имеет начальной строки, и его величина целиком новорождённая, а не движение прежних.",
+   "look": {
+    "mock": "statistics.html",
+    "route": "Конструктор → ряд → ответ-ряд",
+    "tz": "19-statistika.html#s7"
+   },
+   "screen": [
+    {
+     "n": "Ответ-ряд",
+     "note": "Два уровня паспорта: свой у ряда и свой у каждой точки.",
+     "cols": [
+      "точка",
+      "дата строк",
+      "возраст",
+      "признак фиксации",
+      "значение"
+     ],
+     "acts": [
+      "сменить шаг и число точек",
+      "открыть паспорт точки"
+     ]
+    }
+   ],
+   "steps": [
+    "Принимать в ряде ровно один показатель: ряд отвечает об одной величине во времени.",
+    "Отвечать каждую точку строками её даты, подставляя ближайшую предыдущую и называя возраст.",
+    "Отдавать паспорт ряду и отдельный паспорт каждой точке.",
+    "Считать период разностью двух строк только у показателей с признаком нарастающего итога; без признака вопрос «за период» отбивать.",
+    "Расщеплять разность на движение прежних объектов и величину новорождённых, когда внутри периода есть рождения.",
+    "Брать базой периода дату строк, а не запрошенную дату, и называть подстановку словами.",
+    "Отдавать признак фиксации ряда третьим состоянием «смешанно», когда точки попали в разные периоды."
+   ],
+   "rules": [
+    {
+     "h": "Точка ряда",
+     "items": [
+      "Дата строк, возраст относительно запрошенной даты и признак фиксации — у каждой точки свои.",
+      "Точка, отвечающая подстановкой, не молчит: возраст называется числом дней.",
+      "Значение точки считается так же, как срез: те же ролевые правила, тот же дедуп, тот же фильтр."
+     ]
+    },
+    {
+     "h": "Разность и рождение",
+     "items": [
+      "Разность двух строк даёт движение только у объектов, существовавших на обе даты.",
+      "Родившийся внутри периода объект начальной строки не имеет: его величина целиком относится к новорождённым.",
+      "Ответ отдаёт три числа: движение прежних, величина новорождённых, итог. Одно число здесь скрывает, что рост дал не портфель, а календарь.",
+      "База периода называется явно: «база периода: 09.05 вместо 11.05» — иначе разность посчитана не от того, что просили."
+     ]
+    }
+   ],
+   "example": {
+    "src": "Ряд по кредитам, показатель «Сумма договоров, итого»",
+    "given": [
+     "Даты ряда: 31.05 · 30.06 · 31.07 · 21.08.2026."
+    ],
+    "do": [
+     "Спросить ряд и открыть паспорт последней точки."
+    ],
+    "get": [
+     "<b>34 069 819,90</b> → <b>33 481 826,92</b> → <b>33 347 592,59</b> → <b>33 236 755,24</b>.",
+     "Последняя точка отвечена строками от 18.08.2026, возраст <b>3 дня</b>, и паспорт точки это называет.",
+     "Паспорт ряда: диапазон «31.05.2026 — 21.08.2026», фиксация «смешанно», краткая форма «на 18.08 (3 дня назад) · фикс. смешанно · всего 32».",
+     "Разность с рождением внутри периода отдаётся тремя числами: <b>−3 812,54</b> движение прежних, <b>612 732,16</b> новорождённое, <b>608 919,62</b> итог."
+    ]
+   },
+   "terms": [
+    {
+     "t": "нарастающий итог",
+     "d": "признак записи показателя: величина хранится накопленной от рождения объекта. Без признака вопрос «за период» не задаётся."
+    },
+    {
+     "t": "база периода",
+     "d": "дата строк, от которой фактически посчитана разность. Совпадает с запрошенной не всегда и называется в ответе."
+    }
+   ],
+   "accept": [
+    "Ряд принимает ровно один показатель.",
+    "У каждой точки свои дата строк, возраст и признак фиксации.",
+    "Паспорт есть и у ряда, и у каждой точки.",
+    "Вопрос «за период» отбивается у показателя без признака нарастающего итога.",
+    "Разность с рождением внутри периода отдаётся тремя числами, а не одним.",
+    "База периода называется явно, когда отличается от запрошенной даты.",
+    "Признак фиксации ряда принимает состояние «смешанно»."
+   ],
+   "notIn": [
+    "Срез на одну дату — P22-R14.",
+    "Правила подстановки ближайшей даты — P22-R16.",
+    "Признак нарастающего итога в записи показателя — P22-R3."
+   ],
+   "deps": [
+    "P22-R3",
+    "P22-R14"
+   ],
+   "extDeps": [],
+   "traps": [
+    "<b>Один паспорт на весь ряд.</b> Точки бывают разного возраста и разной фиксации, и общий паспорт врёт о каждой из них по-своему.",
+    "<b>Отдать разность одним числом.</b> Рост, целиком созданный новыми договорами, выглядит тогда как рост по прежним — и решение принимается по несуществующей динамике."
+   ]
+  },
+  {
+   "id": "P22-R16",
+   "stage": 5,
+   "title": "Паспорт ответа: три поля, две формы, подстановка вслух",
+   "build": "Обязательная часть ответа всех трёх швов: дата расчёта с возрастом, признак фиксации, область видимости, плюс строка фильтра и отметка дедупа. Краткую форму объявляет статистика; сокращать паспорт потребителю нельзя.",
+   "why": "Число без даты и без области видимости неотличимо от неверного: два человека получают разные величины и оба правы. Паспорт делает разницу видимой, поэтому ответ без него не отдаётся вовсе — это не украшение, а часть контракта. Краткую форму статистика объявляет сама по той же причине: если сокращать разрешить потребителю, каждая плитка сократит по-своему, и первым выпадет ровно то, что объясняет расхождение.",
+   "look": {
+    "mock": "statistics.html",
+    "route": "Любой ответ → полный паспорт",
+    "tz": "19-statistika.html#s10-4"
+   },
+   "data": [
+    {
+     "n": "Паспорт ответа",
+     "key": "ответ шва",
+     "note": "Ответ без паспорта не отдаётся ни одним швом.",
+     "fields": [
+      "<b>дата расчёта</b> — дата строк и её возраст относительно запрошенной",
+      "<b>признак фиксации</b> — зафиксировано · не зафиксировано · смешанно",
+      "<b>область видимости</b> — по какому множеству построен ответ и почему оно такое",
+      "<b>строка фильтра</b> — целиком; пустой печатается словами",
+      "<b>отметка дедупа</b> — имя ключа, число строк, число ключей, число схлопнутых",
+      "<b>краткая форма</b> — одна строка для плиточного контекста"
+     ]
+    }
+   ],
+   "steps": [
+    "Прикладывать паспорт к каждому ответу всех трёх швов и не давать возможности его отключить.",
+    "Подставлять ближайшую предыдущую дату, если на запрошенную строк нет, и называть возраст числом дней.",
+    "Называть причину подстановки строкой журнала: пропуск с его причиной, а не «данных нет».",
+    "Печатать область видимости и фильтр раздельными строками.",
+    "Отдавать краткую форму готовой строкой; принимать её потребители обязаны как есть.",
+    "Не заводить третьей формы паспорта: полная и краткая, других нет.",
+    "Выражать дату на срезе числом дней от даты среза, а не календарной датой показателя."
+   ],
+   "rules": [
+    {
+     "h": "Полная форма",
+     "items": [
+      "Три обязательных поля стоят всегда, даже когда ответ пуст.",
+      "Возраст называется числом дней и словами: «на 18.08 (3 дня назад)».",
+      "Область видимости объясняет, почему множество такое: роль, куратор, подразделение.",
+      "Отметка дедупа появляется только там, где ключ объявлен, и называет три числа."
+     ]
+    },
+    {
+     "h": "Краткая форма",
+     "items": [
+      "Одна строка: дата с возрастом, фиксация, число объектов. «на 18.08 (сегодня) · не зафикс. · всего 6».",
+      "Для ограниченной видимости она говорит «вам видно», а не «всего»: разница между «всего 8» и «вам видно 5» — половина смысла плитки.",
+      "Собирает её статистика; потребитель печатает готовую строку и полный паспорт открывает действием."
+     ]
+    }
+   ],
+   "example": {
+    "src": "Срез требований на 18.08.2026 и срез на 19.08.2026",
+    "given": [
+     "Ночь 19.08.2026 — пропуск, причина «сбой ночного планировщика: задание не стартовало»."
+    ],
+    "do": [
+     "Спросить обе даты и сравнить паспорта."
+    ],
+    "get": [
+     "18.08: краткая форма «на 18.08 (сегодня) · не зафикс. · всего 6», область видимости «по всем объектам „Требование взыскания“ системы: 6», фильтр «фильтра нет — спрошено обо всём доступном множестве».",
+     "19.08: ответ дан строками от 18.08 с возрастом <b>1 день</b>, и паспорт называет пропуск дословно вместе с его причиной.",
+     "Отметка дедупа в первом ответе: «„Сумма требования“ считается один раз на „Кредит требования“: строк 6, ключей 3, схлопнуто 3»."
+    ]
+   },
+   "terms": [
+    {
+     "t": "возраст даты",
+     "d": "разница в днях между запрошенной датой и датой строк, которыми отвечено. Печатается словами, а не только числом."
+    },
+    {
+     "t": "подстановка",
+     "d": "ответ строками ближайшей предыдущей даты, когда на запрошенную строк нет. Молчаливой не бывает."
+    }
+   ],
+   "accept": [
+    "Паспорт есть у каждого ответа всех трёх швов, и отключить его нельзя.",
+    "Подстановка ближайшей даты называет возраст числом дней и причину строкой журнала.",
+    "Область видимости и фильтр стоят раздельными строками.",
+    "Краткая форма приходит готовой строкой и потребителем не пересобирается.",
+    "Краткая форма при ограниченной видимости говорит «вам видно», а не «всего».",
+    "Третьей формы паспорта не существует.",
+    "Отметка дедупа появляется только при объявленном ключе и называет три числа.",
+    "Дата на срезе выражается числом дней от даты среза."
+   ],
+   "notIn": [
+    "Ролевые правила, формирующие область видимости, — P22-R21.",
+    "Маркер расхождения — P22-R10.",
+    "Плитки, печатающие краткую форму, — P22-R22."
+   ],
+   "deps": [
+    "P22-R7",
+    "P22-R9",
+    "P22-R14",
+    "P22-R15"
+   ],
+   "extDeps": [],
+   "traps": [
+    "<b>Разрешить потребителю сокращать паспорт «под свою плитку».</b> Сокращают все одинаково: выбрасывают дату и область видимости — то есть ровно то, ради чего паспорт заводился."
+   ]
+  },
+  {
+   "id": "P22-R17",
+   "stage": 6,
+   "title": "Шов statRows: полный список или отказ с числом, и сходимость с реестром",
+   "build": "Третий шов. Возвращает строки, стоящие за числом: объект, значения разрезов, значения показателей. Усечённого и постраничного ответа не бывает — выше порога приходит отказ, называющий число строк и порог.",
+   "why": "Усечённый список опаснее отказа: человек видит двадцать строк из четырёх тысяч, сверяет их и делает вывод обо всём множестве. Порог с честным отказом переводит такой случай в выгрузку, где список полон и подписан паспортом. Сходимость с реестром владельца — вторая половина того же требования: если детализация показывает не то, что человек видит в реестре на ту же дату, доверие к числу теряется целиком, и это дефект, а не особенность снимка.",
+   "look": {
+    "mock": "statistics.html",
+    "route": "Ответ → провалиться в детализацию",
+    "tz": "19-statistika.html#s10-5"
+   },
+   "screen": [
+    {
+     "n": "Детализация",
+     "note": "Полный список или отказ с числом. Усечённого списка не бывает ни при каких параметрах.",
+     "cols": [
+      "объект",
+      "значения разрезов",
+      "значения показателей"
+     ],
+     "acts": [
+      "сверить с реестром владельца",
+      "заказать выгрузку",
+      "перейти в реестр владельца на сегодня"
+     ]
+    }
+   ],
+   "steps": [
+    "Возвращать строки на дату с теми же ролевыми правилами и тем же фильтром, что и срез.",
+    "Отдавать список целиком либо отказывать, называя число строк и порог; страниц не заводить.",
+    "Формулировать отказ действием: предложить выгрузку-задание тем же вопросом.",
+    "Не схлопывать строк по дедуп-ключу: схлопывается величина, а список остаётся полным.",
+    "Обеспечивать сходимость с реестром владельца на ту же дату по составу строк один в один.",
+    "Вести действием в реестр владельца на сегодня, отличая снимок от живого списка словами."
+   ],
+   "rules": [
+    {
+     "h": "Порог и его смысл",
+     "items": [
+      "Порог — параметр показа, а не ограничение данных: за полным списком идут в выгрузку.",
+      "Отказ называет и число строк, и порог: «в этом числе 14 строк, порог показа — 12».",
+      "Постраничного ответа нет: страница — тот же усечённый список, только с кнопкой."
+     ]
+    },
+    {
+     "h": "Сходимость",
+     "items": [
+      "Состав строк детализации на дату совпадает с реестром владельца на ту же дату один в один.",
+      "Расходится ровно одно — сумма по группам у показателя с дедуп-ключом, и паспорт называет почему.",
+      "Реестр владельца на сегодня — другой список: он живой, и это говорится словами, а не подразумевается."
+     ]
+    }
+   ],
+   "example": {
+    "src": "Детализация на 18.08.2026, порог показа 12",
+    "given": [
+     "Кредитов в срезе 8, погашений 14, требований 6."
+    ],
+    "do": [
+     "Провалиться в детализацию по кредитам, по погашениям и по требованиям."
+    ],
+    "get": [
+     "Кредиты: список из <b>8</b> строк.",
+     "Погашения: отказ «в этом числе 14 строк, порог показа — 12» и предложение заказать выгрузку.",
+     "Требования: <b>6</b> строк, включая три схлопнутые по величине, — состав сходится с реестром взыскания один в один."
+    ]
+   },
+   "terms": [
+    {
+     "t": "порог показа",
+     "d": "число строк, выше которого список не отдаётся на экран. Параметр показа, а не предел данных."
+    },
+    {
+     "t": "сходимость с реестром",
+     "d": "требование совпадения состава детализации со списком владельца на ту же дату. Расхождение — дефект."
+    }
+   ],
+   "accept": [
+    "Список отдаётся целиком либо не отдаётся вовсе; усечённых и постраничных ответов нет.",
+    "Отказ называет число строк и порог и предлагает выгрузку тем же вопросом.",
+    "Дедуп-ключ на состав строк не влияет.",
+    "Состав строк на дату совпадает с реестром владельца один в один.",
+    "Действие ведёт в реестр владельца на сегодня, и разница со снимком названа словами.",
+    "Ролевые правила и фильтр применяются те же, что и в срезе.",
+    "Паспорт приложен и к списку, и к отказу."
+   ],
+   "notIn": [
+    "Выгрузка-задание и её экран — P22-R18.",
+    "Схлопывание величины — P22-R4.",
+    "Дерево ответа — P22-R14."
+   ],
+   "deps": [
+    "P22-R14",
+    "P22-R16"
+   ],
+   "extDeps": [
+    {
+     "what": "владельцы держат реестры, отвечающие на состав множества на прошедшую дату, — иначе сходимость нечем проверить"
+    }
+   ],
+   "open": [
+    {
+     "ask": "Каков порог показа у детализации?",
+     "default": "величина берётся замером на живых объёмах и настраивается эксплуатацией; до замера — тысяча строк",
+     "impact": "Меняется одно число в настройке; двоичность ответа — список или отказ — не обсуждается ни при каком пороге."
+    }
+   ],
+   "traps": [
+    "<b>Добавить страницы «раз всё равно просят».</b> Постраничный список выглядит полным и потому опаснее отказа: сверяют первую страницу, а вывод делают обо всём множестве."
+   ]
+  },
+  {
+   "id": "P22-R18",
+   "stage": 6,
+   "title": "Выгрузка-задание: своя очередь, свой экран, паспорт внутри файла",
+   "build": "Асинхронная полная сверка выше порога детализации. Задание помнит вопрос, актора и состояние, а файл несёт паспорт внутри себя. Экран «Выгрузки» отдельный: задание живёт дольше вопроса.",
+   "why": "Задание переживает сессию, в которой родилось: файл смотрят через день и часто не тот человек, который заказывал. Карточка в конструкторе такого не выдерживает — вопрос давно закрыт, а файл нужен. Паспорт кладётся внутрь файла по той же причине: за пределами экрана у числа не остаётся ни даты, ни области видимости, и выгруженная таблица становится числом без происхождения ровно в тот момент, когда её пересылают дальше.",
+   "look": {
+    "mock": "statistics.html",
+    "route": "Детализация → заказать выгрузку → экран «Выгрузки»",
+    "tz": "19-statistika.html#s12"
+   },
+   "data": [
+    {
+     "n": "Выгрузка-задание",
+     "key": "идентификатор задания",
+     "note": "Живёт дольше вопроса, которым порождено.",
+     "fields": [
+      "<b>объект, дата среза, фильтр</b> — вопрос задания",
+      "<b>кто заказал и когда</b> — человек и дата, обязательно",
+      "<b>состояние</b> — в очереди · готово · ошибка",
+      "<b>число строк</b> — целое",
+      "<b>ссылка на файл</b> — появляется в состоянии «готово»",
+      "<b>паспорт</b> — лежит внутри файла, а не только на экране"
+     ]
+    }
+   ],
+   "screen": [
+    {
+     "n": "Выгрузки",
+     "note": "Отдельный экран, а не карточка в конструкторе.",
+     "cols": [
+      "задание",
+      "объект",
+      "дата среза",
+      "заказал",
+      "когда",
+      "состояние",
+      "файл"
+     ],
+     "acts": [
+      "заказать выгрузку",
+      "скачать файл",
+      "посмотреть вопрос задания"
+     ]
+    }
+   ],
+   "steps": [
+    "Заводить задание тем же вопросом, на котором детализация отказала, без пересборки.",
+    "Сохранять в задании объект, дату среза, фильтр, актора и время заказа.",
+    "Вести три состояния и показывать их на экране; ошибку сопровождать причиной.",
+    "Класть паспорт внутрь файла, а не только на экран задания.",
+    "Применять к выгрузке те же ролевые правила, что и к срезу: выгрузка не обход видимости.",
+    "Хранить задания после закрытия сессии и показывать их владельцу и администратору."
+   ],
+   "rules": [
+    {
+     "h": "Что несёт файл",
+     "items": [
+      "Строки в том же составе, что вернула бы детализация без порога.",
+      "Паспорт целиком: дата расчёта с возрастом, фиксация, область видимости, фильтр, отметка дедупа.",
+      "Имя файла, по которому видно объект и дату среза, — иначе через день их не восстановить."
+     ]
+    },
+    {
+     "h": "Границы выгрузки",
+     "items": [
+      "Выгрузка не расширяет видимости: наблюдателю она отдаёт ровно то, что он видит на экране.",
+      "Выгрузка не заменяет отчётности: у неё нет утверждённой формы и подписи, и она этого не изображает.",
+      "Выгрузка не переживает изменения строк задним числом: она снимок на момент выполнения, и дата в паспорте это фиксирует."
+     ]
+    }
+   ],
+   "example": {
+    "src": "Отказ детализации по погашениям на 18.08.2026",
+    "given": [
+     "Строк 14, порог показа 12."
+    ],
+    "do": [
+     "Заказать выгрузку с экрана детализации и открыть экран «Выгрузки»."
+    ],
+    "get": [
+     "Задание <b>ВГ-001</b>: объект «Погашение», дата среза 18.08.2026, строк 14, заказал «Администратор статистики», 21.08.2026, состояние «в очереди».",
+     "По готовности — файл <b>statRows-obj-repay-2026-08-18</b> с паспортом внутри.",
+     "Вопрос задания открывается с экрана: через день видно, что именно спрашивали."
+    ]
+   },
+   "terms": [
+    {
+     "t": "выгрузка-задание",
+     "d": "асинхронная полная сверка выше порога показа. Отличается от отчёта отсутствием утверждённой формы и подписи."
+    }
+   ],
+   "accept": [
+    "Задание заводится тем же вопросом, на котором отказала детализация.",
+    "В задании сохранены объект, дата среза, фильтр, актор и время заказа.",
+    "Состояний три, и ошибка сопровождается причиной.",
+    "Паспорт лежит внутри файла, а не только на экране.",
+    "Ролевые правила применяются к выгрузке те же, что к срезу.",
+    "Задания переживают сессию и видны владельцу и администратору.",
+    "Имя файла содержит объект и дату среза."
+   ],
+   "notIn": [
+    "Порог показа и отказ детализации — P22-R17.",
+    "Утверждённые печатные формы — отчётности.",
+    "Состав паспорта — P22-R16."
+   ],
+   "deps": [
+    "P22-R16",
+    "P22-R17"
+   ],
+   "extDeps": [
+    {
+     "what": "инфраструктура фоновых заданий и файлового хранилища с доступом по правам пользователя"
+    }
+   ],
+   "traps": [
+    "<b>Отдать файл без паспорта.</b> Пересланная таблица мгновенно теряет дату и область видимости, и спорить о ней потом будут по памяти."
+   ]
+  },
+  {
+   "id": "P22-R19",
+   "stage": 7,
+   "title": "Обратный индекс: кто на показатель ссылается и чьё это",
+   "build": "Вторая и последняя хранимая вещь модуля: таблица «показатель → потребитель → редакция → владелец → дата». Ссылку публикует потребитель своей редакцией; переиздание редакции без ссылки её снимает.",
+   "why": "Реестр показателей — контракт наружу, а у контракта должна быть видна другая сторона. Без обратного индекса вопрос «что сломается, если убрать показатель» решается рассылкой писем, и ответ приходит после того, как сломалось. Публиковать ссылку обязан потребитель, потому что только он знает, в какой графе и какой редакции показатель использован; статистика хранит и показывает, но не догадывается. Снятие ссылки переизданием редакции избавляет от отдельного действия «удалить ссылку», которое всегда забывают.",
+   "look": {
+    "mock": "statistics.html",
+    "route": "Настройки → Реестр показателей → кто ссылается",
+    "tz": "19-statistika.html#s5-2"
+   },
+   "data": [
+    {
+     "n": "Ссылка обратного индекса",
+     "key": "показатель + потребитель + редакция",
+     "note": "Публикует потребитель, держит статистика.",
+     "fields": [
+      "<b>показатель</b> — ссылка на запись реестра, обязательно",
+      "<b>потребитель</b> — отчётность · классификация · дашборд, обязательно",
+      "<b>редакция</b> — шаблон и графа, редакция классификатора, набор плиток роли",
+      "<b>владелец</b> — подразделение, к которому идти",
+      "<b>дата публикации</b> — дата"
+     ]
+    }
+   ],
+   "steps": [
+    "Принимать публикацию ссылки от потребителя и не изобретать ссылок самостоятельно.",
+    "Требовать в ссылке редакцию и владельца: без них ссылка не отвечает на вопрос «куда идти».",
+    "Снимать ссылки переизданием редакции потребителя: то, чего нет в новой редакции, снимается автоматически.",
+    "Показывать индекс на карточке показателя списком с датой публикации.",
+    "Не давать редактировать индекс вручную из статистики.",
+    "Отдавать индекс наружу тем же контрактом: потребитель должен уметь спросить, на что он сам ссылается."
+   ],
+   "rules": [
+    {
+     "h": "Кто что делает",
+     "items": [
+      "<b>Потребитель</b> публикует: он знает графу, редакцию и подразделение-владельца.",
+      "<b>Статистика</b> хранит и показывает: своих суждений о нужности показателя у неё нет.",
+      "<b>Владелец</b> в ссылке — подразделение, а не человек: к подразделению можно прийти через год, к уволившемуся сотруднику нельзя."
+     ]
+    },
+    {
+     "h": "Жизнь ссылки",
+     "items": [
+      "Появляется публикацией редакции потребителя.",
+      "Исчезает переизданием той же редакции без неё.",
+      "Не исчезает сама по себе и не устаревает по времени: старая ссылка означает старую живую редакцию."
+     ]
+    }
+   ],
+   "example": {
+    "src": "Обратный индекс макета: четыре ссылки",
+    "given": [
+     "Показатели остатка основного долга, дней просрочки и максимальной просрочки."
+    ],
+    "do": [
+     "Открыть карточку показателя остатка и посмотреть, кто ссылается."
+    ],
+    "get": [
+     "Ведомство: «Свод ведомства · плитка „портфель“», Отдел сводной отчётности, 02.07.2026.",
+     "Отчётность: «Форма 1-К, графа 4», Управление отчётности, 11.06.2026.",
+     "У других показателей: «Аналитический обзор просрочки, раздел 2» (03.08.2026) и «Рабочий стол куратора · плитка „просрочено“» (14.08.2026).",
+     "Каждая ссылка называет графу и подразделение — по ней идут разговаривать, а не гадать."
+    ]
+   },
+   "terms": [
+    {
+     "t": "редакция ссылки",
+     "d": "конкретное место у потребителя: шаблон и графа, редакция классификатора, набор плиток роли. Без неё ссылка бесполезна."
+    }
+   ],
+   "accept": [
+    "Ссылки публикует потребитель; статистика их не создаёт.",
+    "Ссылка без редакции и без владельца не принимается.",
+    "Переиздание редакции без ссылки снимает её автоматически.",
+    "Индекс показан на карточке показателя с датами публикации.",
+    "Ручного редактирования индекса из статистики нет.",
+    "Потребитель может спросить, на что ссылается он сам.",
+    "Владельцем в ссылке названо подразделение, а не человек."
+   ],
+   "notIn": [
+    "Двухшаговое снятие показателя — P22-R20.",
+    "Запись показателя — P22-R3.",
+    "Содержимое шаблонов отчётности — отчётности."
+   ],
+   "deps": [
+    "P22-R3"
+   ],
+   "extDeps": [
+    {
+     "what": "отчётность, классификация и дашборды публикуют ссылки при каждом издании своей редакции"
+    }
+   ],
+   "traps": [
+    "<b>Завести ссылки в статистике «пока потребители не готовы».</b> Такой индекс устаревает молча и опаснее пустого: на него полагаются, а он описывает позапрошлую редакцию."
+   ]
+  },
+  {
+   "id": "P22-R20",
+   "stage": 7,
+   "title": "Снятие показателя: два шага, и первый называет поимённо, что сломается",
+   "build": "Вывод показателя из реестра. Первый шаг перечисляет потребителей по обратному индексу и не выполняет ничего; второй выполняет вывод после подтверждения. Показатель, на который ссылается агрегат, не выводится вовсе.",
+   "why": "Молчаливый отказ и молчаливое удаление плохи одинаково. Отказ заставляет обходить систему — заведут показатель-дубль и будут поддерживать оба; удаление ломает чужую отчётность в неизвестный момент. Два шага решают обе задачи: администратор видит поимённо, чью графу он гасит, и решает сам. Ссылка агрегата — другой случай: это внутренняя целостность реестра, и здесь отказ окончательный, потому что сломается сам показатель, а не чужой экран.",
+   "look": {
+    "mock": "statistics.html",
+    "route": "Настройки → Реестр показателей → вывести показатель",
+    "tz": "19-statistika.html#s5-3"
+   },
+   "steps": [
+    "Разделить вывод показателя на два действия: показать последствия и подтвердить.",
+    "Перечислять на первом шаге всех потребителей по обратному индексу с редакцией и владельцем.",
+    "Не выполнять на первом шаге ничего и не менять состояния реестра.",
+    "Отказывать окончательно, если на показатель ссылается агрегат, и называть агрегат по имени.",
+    "Не удалять выведенный показатель физически: строки прошлых срезов остаются читаемыми.",
+    "Не отдавать выведенный показатель наружу: ни витрине, ни предикату, ни выгрузке."
+   ],
+   "rules": [
+    {
+     "h": "Два шага",
+     "items": [
+      "Первый шаг — список потребителей: «на показатель ссылаются двое: свод ведомства и форма отчётности».",
+      "Второй шаг — подтверждение с тем же списком перед глазами.",
+      "Вывод возможен даже при ссылках: экран обязан назвать последствия поимённо, а не отказать молча."
+     ]
+    },
+    {
+     "h": "Когда вывод невозможен",
+     "items": [
+      "Показатель служит основанием агрегата: сломается сам реестр, а не чужой экран.",
+      "Отказ называет агрегат по имени, чтобы администратор знал, что выводить сначала.",
+      "Ссылка потребителя останавливающим обстоятельством не является — она предупреждающее."
+     ]
+    }
+   ],
+   "example": {
+    "src": "Две попытки вывода в реестре макета",
+    "given": [
+     "На показатель остатка основного долга ссылаются два потребителя; на показатель задолженности ссылается агрегат «Сумма остатка ОД»."
+    ],
+    "do": [
+     "Вывести оба показателя."
+    ],
+    "get": [
+     "Первый: подтверждение с перечнем — «на показатель ссылаются 2: свод ведомства и форма отчётности. Вывод возможен — но экран обязан назвать это поимённо, а не отказать молча».",
+     "Второй: окончательный отказ — «показатель используется агрегатами: Сумма остатка ОД».",
+     "Разница между предупреждением и запретом видна сразу и не требует чтения справки."
+    ]
+   },
+   "terms": [
+    {
+     "t": "вывод показателя",
+     "d": "снятие показателя с обращения без физического удаления. Прошлые строки остаются читаемыми, новые вопросы им не задаются."
+    }
+   ],
+   "accept": [
+    "Вывод показателя разделён на два действия, и первое ничего не меняет.",
+    "Первый шаг перечисляет потребителей с редакцией и владельцем.",
+    "Вывод при наличии ссылок возможен после подтверждения.",
+    "Показатель, служащий основанием агрегата, не выводится, и агрегат назван по имени.",
+    "Выведенный показатель не удаляется физически; прошлые строки читаются.",
+    "Выведенный показатель не отдаётся наружу ни одному потребителю.",
+    "Молчаливого отказа и молчаливого удаления нет ни в одном случае."
+   ],
+   "notIn": [
+    "Обратный индекс и публикация ссылок — P22-R19.",
+    "Форма записи показателя — P22-R3.",
+    "Общие правила отказов — P22-R12."
+   ],
+   "deps": [
+    "P22-R12",
+    "P22-R19"
+   ],
+   "extDeps": [],
+   "traps": [
+    "<b>Запретить вывод при любой ссылке.</b> Тогда реестр зарастает: показатель, которым давно никто не пользуется, снять нельзя, а вместо него заводят новый — и оба остаются навсегда."
+   ]
+  },
+  {
+   "id": "P22-R21",
+   "stage": 8,
+   "title": "Роли и видимость: правила применяются к строкам до группировки",
+   "build": "Ролевые правила статистики и их место в расчёте: отбор строк, затем фильтр, затем группировка. Агрегат — тоже раскрытие: сумма по недоступным объектам их выдаёт. Область видимости печатается в паспорте.",
+   "why": "Отфильтровать результат после группировки значит показать чужие числа: сумма по филиалу, куда роль не пускает, раскрывает его портфель точнее, чем список. Поэтому правило применяется к строкам, до того как из них собран агрегат. Второе следствие того же: краткая форма паспорта обязана говорить «вам видно», а не «всего», иначе два человека сравнят свои числа и решат, что система считает по-разному.",
+   "look": {
+    "mock": "statistics.html",
+    "route": "Конструктор → срез под разными ролями → область видимости",
+    "tz": "19-statistika.html#s13"
+   },
+   "steps": [
+    "Применять ролевые правила к строкам среза до фильтра и до группировки.",
+    "Считать агрегат раскрытием: сумма и счёт по недоступным строкам не отдаются даже без списка.",
+    "Печатать область видимости в паспорте отдельной строкой с объяснением, почему множество такое.",
+    "Отличать в краткой форме «вам видно N» от «всего N».",
+    "Применять те же правила к детализации и к выгрузке: обхода видимости через другой шов нет.",
+    "Отдавать администратору полное множество и называть это в паспорте так же явно, как ограничение."
+   ],
+   "rules": [
+    {
+     "h": "Порядок расчёта",
+     "items": [
+      "Строки на дату → ролевые правила → фильтр вопроса → дедуп по ключу → агрегат → дерево.",
+      "Переставить первые два шага нельзя: фильтр сужает уже доступное, а не наоборот.",
+      "Дедуп идёт после видимости: схлопывать недоступные строки не с чем."
+     ]
+    },
+    {
+     "h": "Видимость и фильтр — разные строки паспорта",
+     "items": [
+      "Видимость наложена ролью, фильтр задан руками; в одну строку они не сливаются.",
+      "Пустой фильтр при ограниченной роли печатается как «фильтра нет — спрошено обо всём доступном множестве».",
+      "Слово «доступном» здесь и есть след видимости, и убирать его нельзя."
+     ]
+    }
+   ],
+   "example": {
+    "src": "Один вопрос под двумя ролями, 18.08.2026",
+    "given": [
+     "Аналитик ограничен куратором «Бекова Н.», администратор — не ограничен."
+    ],
+    "do": [
+     "Спросить срез кредитов по подразделению обеими ролями."
+    ],
+    "get": [
+     "Аналитик: область видимости «по 5 объектам „Кредит“, доступным вам: роль „Аналитик“, куратор Бекова Н.».",
+     "Администратор: «по всем объектам „Кредит“ системы: 8», Восточный <b>610 733,75</b> · Центральный <b>28 172 546,54</b> · Южный <b>4 453 474,95</b>.",
+     "Числа разные, и паспорт объясняет почему — без него это выглядело бы ошибкой расчёта."
+    ]
+   },
+   "terms": [
+    {
+     "t": "агрегат как раскрытие",
+     "d": "правило, по которому сумма и счёт считаются раскрытием сведений наравне со списком: по ним восстанавливается недоступное множество."
+    }
+   ],
+   "accept": [
+    "Ролевые правила применяются к строкам до фильтра и до группировки.",
+    "Агрегат по недоступным строкам не отдаётся ни в одном шве.",
+    "Область видимости стоит в паспорте отдельной строкой с объяснением.",
+    "Краткая форма различает «вам видно N» и «всего N».",
+    "Детализация и выгрузка подчиняются тем же правилам, что и срез.",
+    "Полное множество администратора названо в паспорте так же явно, как ограничение.",
+    "Порядок расчёта зафиксирован и проверяется тестом на переставленных шагах."
+   ],
+   "notIn": [
+    "Форма фильтра — P22-R13.",
+    "Состав паспорта — P22-R16.",
+    "Матрица прав по ролям — общему контуру доступа."
+   ],
+   "deps": [
+    "P22-R13",
+    "P22-R14",
+    "P22-R16"
+   ],
+   "extDeps": [
+    {
+     "what": "общий контур доступа отдаёт роль пользователя и её ограничение значением разреза"
+    }
+   ],
+   "traps": [
+    "<b>Отфильтровать результат после группировки.</b> Выглядит как то же самое, а на деле отдаёт агрегат по недоступным объектам — и это раскрытие, которое не заметит ни один тест на списки."
+   ]
+  },
+  {
+   "id": "P22-R22",
+   "stage": 8,
+   "title": "Зеркальные плитки: у соседей не остаётся чисел без даты",
+   "build": "Плитки в карточках кредита, заёмщика, программы, дела взыскания, куратора и на своде ведомства. Плитка берёт срез статистики, печатает число и краткую форму паспорта рядом и ведёт в конструктор тем же вопросом.",
+   "why": "Число без даты на чужом экране — главный источник споров: одно подразделение видит одно, другое другое, и оба ссылаются на систему. Плитка с краткой формой паспорта закрывает вопрос на месте: видно, на какую дату посчитано, зафиксировано ли и по какому множеству. Переход в конструктор тем же вопросом делает плитку не тупиком, а входом: человек, усомнившийся в числе, разбирается сам, вместо того чтобы писать письмо.",
+   "look": {
+    "mock": "statistics.html",
+    "route": "Карточка кредита → плитка → полный паспорт",
+    "tz": "19-statistika.html#s16"
+   },
+   "screen": [
+    {
+     "n": "Зеркальные плитки в карточках соседей",
+     "note": "Плиток «число без даты» после этой карточки в системе не остаётся.",
+     "cols": [
+      "число",
+      "краткая форма паспорта"
+     ],
+     "acts": [
+      "открыть полный паспорт",
+      "перейти в конструктор с этим вопросом"
+     ]
+    }
+   ],
+   "steps": [
+    "Собрать перечень мест, где сегодня показываются числа о множествах, и заменить их плитками статистики.",
+    "Печатать краткую форму паспорта рядом с числом, а не в подсказке при наведении.",
+    "Открывать полный паспорт действием с плитки.",
+    "Вести в конструктор тем же вопросом, без пересборки руками.",
+    "Не давать потребителю пересобирать краткую форму: она приходит готовой строкой.",
+    "Проверить приёмкой: чисел о множествах без паспорта в системе не остаётся ни одного."
+   ],
+   "rules": [
+    {
+     "h": "Где стоят плитки",
+     "items": [
+      "Карточка кредита и карточка заёмщика — числа по связанным множествам: погашения, требования, залоги.",
+      "Карточка кредитной программы — освоение лимита и число выданных кредитов.",
+      "Карточка дела взыскания — требования и суммы по ним, с отметкой дедупа.",
+      "Рабочий стол куратора и свод ведомства — плитки с ограниченной и полной видимостью соответственно."
+     ]
+    },
+    {
+     "h": "Что плитка обязана нести",
+     "items": [
+      "Число и краткую форму паспорта рядом, в одном поле зрения.",
+      "Отметку дедупа, если у показателя объявлен ключ: иначе сумма на плитке не сойдётся с суммой строк.",
+      "Разницу «вам видно» и «всего»: на рабочем столе куратора это разные вещи."
+     ]
+    }
+   ],
+   "example": {
+    "src": "Плитки у соседей на 18.08.2026",
+    "given": [
+     "Программа ФРР-2024: лимит 250 000 000, выдано 161 000 000. Заёмщик 22903197505433: 2 кредита."
+    ],
+    "do": [
+     "Открыть карточку программы и карточку заёмщика."
+    ],
+    "get": [
+     "Программа: «освоено 64 % лимита» и краткая форма паспорта рядом — доля посчитана при показе, в строке её нет.",
+     "Заёмщик: задолженность <b>7 409 052,81</b>, из них просрочено <b>5 519 951,23</b>, срочно <b>1 889 101,58</b>, основной долг <b>6 605 100</b>.",
+     "Дело ДВ-2026/03: сумма <b>3 032 183,45</b> при трёх требованиях — плитка несёт отметку дедупа, иначе число не сойдётся с суммой строк."
+    ]
+   },
+   "terms": [
+    {
+     "t": "зеркальная плитка",
+     "d": "число о множестве, показанное в чужой карточке средствами статистики. Своего расчёта не имеет и всегда несёт краткую форму паспорта."
+    }
+   ],
+   "accept": [
+    "Плитки стоят в карточках кредита, заёмщика, программы, дела взыскания, на рабочем столе куратора и на своде ведомства.",
+    "Краткая форма паспорта печатается рядом с числом, а не в подсказке.",
+    "Полный паспорт открывается действием с плитки.",
+    "Переход в конструктор идёт тем же вопросом, без пересборки.",
+    "Краткая форма приходит готовой строкой и потребителем не меняется.",
+    "Плитка с дедуп-ключом несёт отметку дедупа.",
+    "Чисел о множествах без паспорта в системе не остаётся.",
+    "Доли и проценты считаются при показе и в строках не хранятся."
+   ],
+   "notIn": [
+    "Состав паспорта и краткая форма — P22-R16.",
+    "Ролевая видимость — P22-R21.",
+    "Оперативные списки для работы — реестрам владельцев живым запросом."
+   ],
+   "deps": [
+    "P22-R16",
+    "P22-R21"
+   ],
+   "extDeps": [
+    {
+     "what": "кредит, заёмщик, программа, взыскание и кураторство отдают места под плитки в своих карточках и снимают собственные счётчики"
+    }
+   ],
+   "open": [
+    {
+     "ask": "Плитка на своде ведомства показывает число по всей системе или по подразделению смотрящего?",
+     "default": "по всей системе: свод ведомства — сводный экран, и ограничивать его ролью смотрящего значит превратить свод в личный отчёт",
+     "impact": "Влияет только на область видимости плиток свода; на остальных экранах правило не меняется."
+    }
+   ],
+   "traps": [
+    "<b>Оставить у соседа «свой быстрый счётчик» рядом с плиткой.</b> Два числа на одном экране расходятся в первый же день, и объяснять разницу приходится каждому, кто её заметил."
+   ]
+  }
+ ]
+}
+</script>
+
+
+<script>
+const DATA = JSON.parse(document.getElementById('tasks-data').textContent);
+const { meta, guide, atlas, screens, glossary, walkthrough, stages, cards, changelog } = DATA;
+
+document.title = `Статистика · редакция ${meta.revision} · P22 · АСУБК`;
+document.getElementById('hero-title').textContent =
+  `${meta.title} — задачи для команды разработки`;
+
+document.getElementById('revbar').innerHTML = `
+  <span class="revchip">Редакция ${meta.revision} · ${meta.date}</span>
+  ${meta.replaces ? `<span class="revchip replaces">заменяет редакцию ${meta.replaces.revision} от ${meta.replaces.date}</span>` : ''}
+  <span class="revchip replaces">${cards.length} задач · ${stages.length} этапов</span>
+`;
+
+/* Журнал редакции: получив редакцию N, разработчик читает десять строк и изменившиеся
+   карточки, а не всю постановку заново (FORMAT.md §6). */
+function changelogHtml(){
+  if (!changelog) return '';
+  const added   = (changelog.added   || []).map(id => `<code>${id}</code>`).join(' · ');
+  const changed = (changelog.changed || []).map(c => `<code>${c.id}</code> — ${c.what}`);
+  const removed = (changelog.removed || []).map(c => `<code>${c.id}</code> → ${c.to}`);
+  const rows = [];
+  if (added)          rows.push(`<li><b>Добавлено:</b> ${added}</li>`);
+  changed.forEach(c => rows.push(`<li><b>Изменено:</b> ${c}</li>`));
+  removed.forEach(c => rows.push(`<li><b>Убрано:</b> ${c}</li>`));
+  if (!rows.length) return '';
+  return `<div class="blk" style="margin-top:16px">
+    <span class="lbl">Журнал редакции ${meta.revision}</span>
+    <ul>${rows.join('')}</ul>
+  </div>`;
+}
+
+document.getElementById('hero-lead').innerHTML = `
+  ${cards.length} задач, собранных в ${stages.length} этапов (не строгую очередь — см. подвал страницы).
+  Модуль <b>инфраструктурный</b>: живого экрана в тестовом стенде нет, предшественника в старой системе
+  тоже, а расчёт сегодня живёт копиями внутри других макетов. Макет <code>${meta.package[0]}</code>
+  исполняет описанное здесь на живых данных (сторожа: 76/76 объявлений против зеркал, 25 проверок
+  журнала фиксаций), но эталон — эта постановка: там, где макет с ней расходится, прав контракт.
+  Начните со свода: карта данных, опись экранов, словарь и сквозной пример — общие для всех карточек,
+  карточка добавляет к ним только своё.
+` + changelogHtml();
+
+function tiles(){
+  const data = [
+    { l:'Задач', n:cards.length },
+    { l:'Этапов', n:stages.length },
+    { l:'Сущностей', n:(atlas||[]).length, fold:'panel-atlas' },
+    { l:'Экранов', n:(screens||[]).length, fold:'panel-screens' },
+    { l:'Терминов', n:(glossary||[]).length, fold:'panel-gloss' },
+    { l:'Сквозной пример', n:((walkthrough||{}).groups||[]).length, fold:'panel-walk' },
+    { l:'Открытых вопросов', n:cards.reduce((a,c)=>a+(c.open||[]).length,0), fold:'panel-open' },
+    { l:'Справка модуля', n:(guide||[]).length, fold:'panel-guide' },
+  ];
+  document.getElementById('tiles').innerHTML = data.map(d =>
+    `<div class="tile"${d.fold?` data-fold="${d.fold}"`:''}><span class="n">${d.n}</span><span class="l">${d.l}</span></div>`).join('');
+  document.querySelectorAll('.tile[data-fold]').forEach(t => t.onclick = () => {
+    const dt = document.querySelector(`#${t.dataset.fold} details.fold`);
+    dt.open = !dt.open;
+    t.classList.toggle('on', dt.open);
+    if (dt.open && dt.scrollIntoView) dt.scrollIntoView({ block:'nearest' });
+  });
+}
+tiles();
+
+// Справка модуля
+document.getElementById('guide-cnt').textContent = `${(guide||[]).length} раздела`;
+document.getElementById('guide-list').innerHTML = (guide||[]).map(g => `
+  <div class="guide-item">
+    <h3>${g.h}</h3>
+    <ul>${(g.items||[]).map(i=>`<li>${i}</li>`).join('')}</ul>
+  </div>`).join('');
+
+// Карта данных
+function entHtml(e){
+  return `<div class="ent">
+    <h4>${e.n}${e.key?`<span class="key">ключ: ${e.key}</span>`:''}</h4>
+    ${e.note?`<p class="note">${e.note}</p>`:''}
+    <ul>${(e.fields||[]).map(f=>`<li>${f}</li>`).join('')}</ul>
+  </div>`;
+}
+document.getElementById('atlas-cnt').textContent = `${(atlas||[]).length} сущностей`;
+document.getElementById('atlas-list').innerHTML = (atlas||[]).map(entHtml).join('');
+
+// Опись экранов
+function scrHtml(s){
+  return `<div class="scr">
+    <h4>${s.n}</h4>
+    ${s.note?`<p class="note">${s.note}</p>`:''}
+    ${(s.cols||[]).length?`<span class="cap">Колонки и поля</span><div class="chips">${s.cols.map(c=>`<span class="col">${c}</span>`).join('')}</div>`:''}
+    ${(s.acts||[]).length?`<span class="cap">Действия</span><div class="chips">${s.acts.map(a=>`<span class="act">${a}</span>`).join('')}</div>`:''}
+  </div>`;
+}
+document.getElementById('screens-cnt').textContent = `${(screens||[]).length} экранов`;
+document.getElementById('screens-list').innerHTML = (screens||[]).map(scrHtml).join('');
+
+// Словарь
+document.getElementById('gloss-cnt').textContent = `${(glossary||[]).length} терминов`;
+document.getElementById('gloss-list').innerHTML =
+  `<div class="gloss">${(glossary||[]).map(t=>`<div><b>${t.t}</b> — ${t.d}</div>`).join('')}</div>`;
+
+// Сквозной пример
+document.getElementById('walk-cnt').textContent = `${((walkthrough||{}).groups||[]).length} шагов`;
+document.getElementById('walk-list').innerHTML = walkthrough ? `
+  <p class="note" style="font-size:13px;color:var(--text-muted);margin:0 0 8px">
+    Источник: ${walkthrough.src}${walkthrough.note?` · ${walkthrough.note}`:''}</p>
+  ${(walkthrough.groups||[]).map(g=>`
+    <div class="guide-item"><h3>${g.h}</h3>
+      <ul>${(g.items||[]).map(i=>`<li>${i}</li>`).join('')}</ul></div>`).join('')}` : '';
+
+// Открытые вопросы — сводка по всем карточкам
+(function renderOpenQ(){
+  const rows = [];
+  cards.forEach(c => (c.open||[]).forEach(o => rows.push({...o, cid:c.id, title:c.title})));
+  document.getElementById('openq-cnt').textContent = rows.length;
+  document.getElementById('openq-list').innerHTML = rows.length
+    ? rows.map(o => `
+        <div class="openq">
+          <a href="#card-${o.cid}">${o.cid}</a>
+          <span><b>${o.ask}</b> — умолчание: <span class="oq-default">${o.default}</span></span>
+        </div>`).join('')
+    : '<p style="color:var(--text-muted)">Открытых вопросов нет.</p>';
+})();
+
+// Фильтр этапов
+const stageSel = document.getElementById('fStage');
+stages.forEach(s => {
+  const n = cards.filter(c => c.stage === s.n).length;
+  stageSel.insertAdjacentHTML('beforeend', `<option value="${s.n}">Этап ${s.n} · ${s.title} (${n})</option>`);
+});
+
+const F = { q:'', stage:'' };
+
+function depChip(id){
+  const c = cards.find(x=>x.id===id);
+  return `<a class="dep" href="#card-${id}" title="${c?c.title:''}">↔ ${id}</a>`;
+}
+
+function groupsHtml(groups){
+  if(!groups) return '';
+  return groups.map(g => `<div class="subh">${g.h}</div><ul>${(g.items||[]).map(i=>`<li>${i}</li>`).join('')}</ul>`).join('');
+}
+
+function lookHtml(look){
+  if(!look) return '';
+  const parts = [];
+  if(look.mock) parts.push(`<a href="${look.mock}" target="_blank" rel="noopener">${look.mock.split('#')[0]}</a>`);
+  if(look.route) parts.push(`<span class="route">${look.route}</span>`);
+  if(look.mockNote) parts.push(`<span class="route">${look.mockNote}</span>`);
+  if(look.tz) parts.push(`<a href="${look.tz}" target="_blank" rel="noopener">ТЗ ${look.tz.split('#')[1]?('· '+look.tz.split('#')[1]):''}</a>`);
+  if(look.defect) parts.push(`<span class="defect">дефект ${look.defect}</span>`);
+  return `<div class="look">${parts.join('')}</div>`;
+}
+
+function exampleHtml(ex){
+  if(!ex) return '';
+  const part = (h, items) => (items||[]).length
+    ? `<span class="exh">${h}</span><ul>${items.map(i=>`<li>${i}</li>`).join('')}</ul>` : '';
+  return `<div class="ex">
+    <span class="lbl">Пример</span>
+    <p class="src">Источник: ${ex.src}</p>
+    ${part('Дано', ex.given)}${part('Делаем', ex.do)}${part('Получаем', ex.get)}
+  </div>`;
+}
+
+function openHtml(open){
+  if(!open || !open.length) return '';
+  return open.map(o => `
+    <div class="openbox">
+      <b>Решения нет:</b> ${o.ask} Умолчание — ${o.default} При другом ответе: ${o.impact}
+    </div>`).join('');
+}
+
+function trapsHtml(traps){
+  if(!traps || !traps.length) return '';
+  return `<details><summary>Ловушки</summary><div class="traps"><ul>${traps.map(t=>`<li>${t}</li>`).join('')}</ul></div></details>`;
+}
+
+function extHtml(ext){
+  if(!ext || !ext.length) return '';
+  return `<div class="blk"><span class="lbl">Нужно от соседей</span><ul>${
+    ext.map(e=>`<li>${e.href?`<a href="${e.href}">${e.what}</a>`:e.what}</li>`).join('')}</ul></div>`;
+}
+
+function card(c){
+  return `<article class="card" id="card-${c.id}" data-id="${c.id}" data-stage="${c.stage}">
+    <div class="c-head">
+      <span class="id">${c.id}</span>
+      <span class="step">Этап ${c.stage}</span>
+      <h3 class="c-title">${c.title}</h3>
+    </div>
+    <div class="blk build"><span class="lbl">Что строим</span><p>${c.build||''}</p></div>
+    <div class="blk"><span class="lbl">Зачем</span><p class="why">${c.why}</p></div>
+    ${lookHtml(c.look) ? `<div class="blk"><span class="lbl">Где смотреть</span>${lookHtml(c.look)}</div>` : ''}
+    ${c.data ? `<div class="blk"><span class="lbl">Данные</span>${(c.data||[]).map(entHtml).join('')}</div>` : ''}
+    ${c.screen ? `<div class="blk"><span class="lbl">Экран</span>${(c.screen||[]).map(scrHtml).join('')}</div>` : ''}
+    <div class="blk"><span class="lbl">Шаги</span><ol class="steps">${(c.steps||[]).map(s=>`<li>${s}</li>`).join('')}</ol></div>
+    ${c.rules ? `<div class="blk"><span class="lbl">Правила</span>${groupsHtml(c.rules)}</div>` : ''}
+    ${exampleHtml(c.example)}
+    ${c.terms ? `<div class="blk"><span class="lbl">Термины</span><div class="terms">${
+      (c.terms||[]).map(t=>`<span class="term"><b>${t.t}</b> — ${t.d}</span>`).join('')}</div></div>` : ''}
+    <div class="blk"><span class="lbl">Приёмка</span><ul>${(c.accept||[]).map(a=>`<li>${a}</li>`).join('')}</ul></div>
+    ${openHtml(c.open)}
+    ${extHtml(c.extDeps)}
+    <div class="blk"><span class="lbl">Не в этой задаче</span><ul>${(c.notIn||[]).map(a=>`<li>${a}</li>`).join('')}</ul></div>
+    <div class="c-foot">
+      <span class="tag">${stages.find(s=>s.n===c.stage).title}</span>
+      ${(c.deps||[]).map(depChip).join('')}
+    </div>
+    ${trapsHtml(c.traps)}
+  </article>`;
+}
+
+function render(){
+  const q = F.q.trim().toLowerCase();
+  const sel = cards.filter(c => {
+    if (F.stage && String(c.stage) !== String(F.stage)) return false;
+    if (!q) return true;
+    const hay = JSON.stringify(c).toLowerCase();
+    return hay.includes(q);
+  });
+  const list = document.getElementById('list');
+  if(!sel.length){ list.innerHTML = '<div class="empty">Ничего не найдено. Сбросьте фильтры.</div>'; }
+  else {
+    list.innerHTML = stages.filter(s => sel.some(c=>c.stage===s.n)).map(s => {
+      const rows = sel.filter(c => c.stage === s.n);
+      return `<section class="group"><h2>Этап ${s.n} · ${s.title} <span class="g-n">· ${rows.length}</span></h2>
+              ${rows.map(card).join('')}</section>`;
+    }).join('');
+  }
+  document.getElementById('count').textContent = `Показано ${sel.length} из ${cards.length}`;
+}
+
+document.getElementById('q').oninput      = e => { F.q = e.target.value; render(); };
+document.getElementById('fStage').onchange= e => { F.stage = e.target.value; render(); };
+document.getElementById('reset').onclick  = () => {
+  F.q=''; F.stage='';
+  document.getElementById('q').value=''; document.getElementById('fStage').value='';
+  render();
+};
+let expanded = false;
+document.getElementById('expand').onclick = e => {
+  expanded = !expanded;
+  document.querySelectorAll('#list details').forEach(d => d.open = expanded);
+  e.target.textContent = expanded ? 'Свернуть ловушки' : 'Раскрыть ловушки';
+};
+
+render();
+</script>
+</body>
+</html>
