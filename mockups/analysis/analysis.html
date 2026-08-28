@@ -33,7 +33,7 @@
   машиной), ADR-0124 (вычислитель один), ADR-0135 (швы называются вопросом),
   ADR-0146 §2 (стрелка одна: классификация анализ не читает), ADR-0152 §2 (паспорт ответа).
 
-  ИНВАРИАНТЫ, КОТОРЫЕ РАЗРАБОТЧИК ОБЯЗАН СОХРАНИТЬ (ИА-1…ИА-14)
+  ИНВАРИАНТЫ, КОТОРЫЕ РАЗРАБОТЧИК ОБЯЗАН СОХРАНИТЬ (ИА-1…ИА-18)
   ИА-1  Утверждённое заключение не пересчитывается никогда (ADR-0153).
   ИА-2  Черновик снимка не имеет и основанием ни для чего не служит.
   ИА-3  Коэффициент вводу не подлежит: человек вносит отчётность, значение ставит машина.
@@ -48,6 +48,12 @@
   ИА-12 Обязательство закрывается фактом — утверждённым заключением, а не отметкой.
   ИА-13 Дефект анализ не хранит: отдаёт факт, дефект считает сопровождение.
   ИА-14 Отсутствие заключения печатается словами «анализа нет».
+  ИА-15 Вывод в снимок не входит: снимок — основание, а не суждение (ADR-0153 §1).
+  ИА-16 Заключение за период, по которому уже подписано другое, — переиздание, и правило
+        у него одно, какой бы дверью его ни завели.
+  ИА-17 Действующая на дату запись выбирается везде одинаково — по дате вступления,
+        последней; тип лица для срока берётся на конец отчётного периода (ИА-4).
+  ИА-18 Строку формы отчётности заводит отдел анализа записью, а не разработчик правкой кода.
 
   ДЕМО ПОКРЫВАЕТ: четыре типа лица — четыре методики, единой формы нет · лицо, снявшееся
   с учёта как ИП: отчётность за 2025 считается методикой ИП, за 1П 2026 — методикой
@@ -66,10 +72,10 @@
   редактируются; дефект и гейт заявки смоделированы как ЧУЖОЙ счёт (ИА-13) — в состоянии
   модуля поля дефектов нет.
 
-  SMOKE 2026-08-21 · 38/38 PASS
+  SMOKE 2026-08-21 · 44/44 PASS
      PASS  #1  методик 4, все с применимостью по типу лица; коэффициентов 16, с операцией вне списка 0, с текстом формулы 0, со строкой вне справочника 0 — ИА-3
      PASS  #2  методика «для всех» и вторая методика на тот же тип лица не заводятся: «методика без применимости по типу лица не заводится: единой …»
-     PASS  #3  в вычислителе (1868 симв.) названий коэффициентов нет — ИА-3
+     PASS  #3  в вычислителе (2363 симв.) названий коэффициентов нет — ИА-3
      PASS  #4  коэффициент заведён записью, без единой правки кода (было 2, стало 3); заключение за 1П 2026 считается прежней редакцией (2 коэф.) — новая действует с 2026-08-21 (ИА-4)
      PASS  #5  снявшийся с учёта ИП: 2025 год считается «Оценка индивидуального предпринимателя», 1П 2026 — «Оценка дохода и платёжеспособности физического лица»; «сегодня» на выбор не влияет (ИА-4)
      PASS  #6  в выборе типа лица и редакции слова «сегодня» нет ни в каком виде: функция принимает дату отчётности
@@ -105,6 +111,12 @@
      PASS  #36  пять экранов рисуются без ошибок; зеркало названо зеркалом, снимок стоит под заключением, обзоры показывают отказ, а не заглушку
      PASS  #37  заёмщик без кредитов: «анализа нет» и «расписание ничего не вменяет» — оба словами; у просрочившего на карточке виден чужой счёт и гейт заявки
      PASS  #38  администратору расписание открыто на правку, куратору реестр методик — на чтение с названной причиной (§13)
+     PASS  #39  обе двери дают один результат: ФА-10 на версии 2, связь «← ФА-7» проставлена машиной (аргумента prev в вызове больше нет); на прежней версии отказ, за другой период — не переиздание (ИА-16)
+     PASS  #40  ни в одном из 3 снимков поля вывода нет: снимок — основание, а не суждение; после корректировки документ и шов отдают одно значение, а «было» хранит таблица корректировок (ИА-15)
+     PASS  #41  вторая строка того же типа, вступившая в силу 01.03.2026, действует (срок 2026-07-10); вступившая 01.08.2026 — уже после конца периода — не действует (2026-08-14); выбор записи на дату сделан одной функцией (ИА-17)
+     PASS  #42  тип лица берётся на конец периода — и для методики, и для срока: строка «sc-ip», методика «Оценка индивидуального предпринимателя». Разошлись периодичности — назван отказ, а не молча показан чужой срок; дефект из него не рождается
+     PASS  #43  новый показатель отчётности заводится записью отделом анализа и берётся редакцией без правки кода; названная редакцией строка не снимается, снятая и неизвестная в редакцию не берутся (ИА-18)
+     PASS  #44  на экранах видно то же, что в состоянии: справочник строк ведётся из реестра методик, у переиздания названа связь и названо, что дверь одна, у снимка объяснено отсутствие вывода, неразрешённый срок показан словами
 -->
 <style>
 :root{
@@ -388,7 +400,10 @@ const CONSUMERS = [
 /* -------------------- СТРОКИ ФОРМ ВВОДА ОТЧЁТНОСТИ ------------------ *
    Общий справочник строк. Какие из них показать человеку — объявляет методика:
    единой формы «для всех» нет, потому что незаполнимое поле в общей форме
-   неотличимо от незаполненного (§2.2 канона).                                */
+   неотличимо от незаполненного (§2.2 канона).
+   Ниже — НАЧАЛЬНОЕ НАПОЛНЕНИЕ, а не закрытый список: справочник ведёт отдел анализа
+   операциями addLine/retireLine (ИА-18). Иначе методика объявлена «набором форм ввода»,
+   а завести новую строку формы без разработчика нельзя.                      */
 const LINES = [
   {id:'ta_cur',    name:'Оборотные активы',                     unit:'сом'},
   {id:'li_short',  name:'Краткосрочные обязательства',          unit:'сом'},
@@ -574,7 +589,7 @@ const SUBJ   = id => AN.state.subjects.find(s => s.id === id);
 const METHOD = id => AN.state.methods.find(m => m.id === id);
 const REPORT = id => AN.state.reports.find(r => r.id === id);
 const DOC    = no => AN.state.analyses.find(a => a.no === no);
-const LINE   = id => LINES.find(l => l.id === id);
+const LINE   = id => AN.state.lines.find(l => l.id === id);
 AN.SUBJ = SUBJ; AN.METHOD = METHOD; AN.REPORT = REPORT; AN.DOC = DOC; AN.LINE = LINE;
 AN.seams = () => SEAMS.slice();
 AN.consumers = () => clone(CONSUMERS);
@@ -604,17 +619,22 @@ function calcCoef(coef, vals){
   return {id:coef.id, name:coef.name, v, pass:passes(coef.thr, v), missing:[]};
 }
 function calcAll(edition, vals){ return (edition.coefs||[]).map(c => calcCoef(c, vals)); }
+/* Действующая на дату запись выбирается ОДНОЙ функцией (ИА-17). Порядок один и тот же:
+   отобрать вступившие в силу, отсортировать по дате вступления, взять последнюю. Второй
+   способ выбрать ту же запись рано или поздно разойдётся с первым — так и было до волны 4,
+   когда строку расписания брали первой попавшейся, а редакцию методики — правильно. */
+function onDate(rows, dateISO){
+  const list = (rows||[]).filter(r => r.since <= dateISO).sort((x,y) => x.since < y.since ? -1 : 1);
+  return list.length ? list[list.length-1] : null;
+}
 /* Тип лица и методика — тоже выбор по записи, и выбор ДАТИРОВАННЫЙ (ИА-4):
    спрашивается дата отчётности, «сегодня» в эту функцию не приходит вовсе. */
-function typeOn(subj, dateISO){
-  const rows = (subj.ptype||[]).filter(p => p.since <= dateISO).sort((x,y) => x.since < y.since ? -1 : 1);
-  return rows.length ? rows[rows.length-1] : null;
-}
+function typeOn(subj, dateISO){ return onDate(subj.ptype, dateISO); }
 function editionOn(method, dateISO){
-  const rows = (method.editions||[]).filter(e => e.since <= dateISO && !e.retired)
-    .sort((x,y) => x.since < y.since ? -1 : 1);
-  return rows.length ? rows[rows.length-1] : null;
+  return onDate((method.editions||[]).filter(e => !e.retired), dateISO);
 }
+/* Строка расписания выбирается тем же порядком и на ту же дату (ИА-17). */
+function rowOn(rows, ptype, dateISO){ return onDate((rows||[]).filter(r => r.ptype === ptype), dateISO); }
 /* ==/ВЫЧИСЛИТЕЛЬ== */
 
 AN.typeOn = (subjId, dateISO) => { const t = typeOn(SUBJ(subjId), dateISO); return t ? t.v : null; };
@@ -639,6 +659,7 @@ function seed(){
     subj:'b-1',
     doc:'ФА-7',
     subjects: clone(SUBJECTS),
+    lines:    clone(LINES),
     methods:  clone(METHODS),
     schedule: clone(SCHEDULE),
     reports:  clone(REPORTS),
@@ -739,16 +760,32 @@ AN.newAnalysis = spec => {
   const dup = AN.state.analyses.find(a => a.subj === spec.subj && a.period === r.period && a.state === 'черновик');
   if(dup) return {ok:false, why:'за период «'+r.period+'» уже открыт черновик '+dup.no+
     ': второй черновик того же периода не заводится'};
+  /* Заключение за период, по которому уже подписано другое, — это ПЕРЕИЗДАНИЕ, и правило у
+     него одно, какой бы дверью его ни завели (ИА-16): кнопкой у версии отчётности или
+     кнопкой «Новое заключение» в самом документе. Связь с прежним ставит машина: она
+     выводится из данных, а не приносится аргументом вызова — иначе одна из дверей её теряет. */
+  const line = AN.state.analyses.filter(a => a.subj === spec.subj && a.period === r.period &&
+    a.state === 'утверждено').sort((a,b) => a.approvedAt < b.approvedAt ? -1 : 1);
+  const last = line.length ? line[line.length-1] : null;
+  if(last && r.id === last.report) return {ok:false, why:'основание то же самое: новое заключение '+
+    'заводится, когда изменились обстоятельства — иначе это корректировка (ADR-0112). '+
+    'За «'+r.period+'» уже утверждено '+last.no+' на этой же версии '+r.ver};
+  if(last && r.ver < last.reportVer) return {ok:false, why:'версия '+r.ver+' отчётности старше '+
+    'версии '+last.reportVer+', на которой стоит утверждённое '+last.no+': переиздание встаёт '+
+    'на более новое основание, а не на прежнее'};
   const mf = AN.methodFor(spec.subj, r.at);
   if(!mf.ok) return mf;
   const no = 'ФА-'+(AN.state.analyses.length + 6);
   const d = {no, subj:spec.subj, period:r.period, report:r.id, reportVer:r.ver,
     method:mf.method.id, ed:mf.ed.n, state:'черновик', text:'', verdict:null,
     by:AN.who(), createdAt:AN.state.today, approvedAt:null, snapshot:null, corrections:[],
-    prev: spec.prev || null};
+    prev: last ? last.no : null};
   AN.state.analyses.push(d);
-  log('заведён черновик '+no+' по '+SUBJ(spec.subj).name+', '+r.period);
-  return {ok:true, doc:d, why:mf.why};
+  log('заведён черновик '+no+' по '+SUBJ(spec.subj).name+', '+r.period+
+    (last ? ' (переиздание '+last.no+')' : ''));
+  return {ok:true, doc:d, why:mf.why,
+    note: last ? 'за период уже есть утверждённое '+last.no+': новое встало на версию '+r.ver+
+      ' основания, связь проставлена — прежнее остаётся в истории (ADR-0112)' : null};
 };
 AN.setText = (docNo, text) => {
   const d = DOC(docNo); if(!d) return {ok:false, why:'заключение не найдено'};
@@ -789,8 +826,12 @@ function freeze(d, who, atISO){
     ptype: (typeOn(SUBJ(d.subj), r.at)||{}).v,
     lines: clone(r.vals),
     edSnap: clone(ed),
-    ratios: rows,
-    verdict: d.verdict
+    ratios: rows
+    /* Вывода здесь нет и не будет (ИА-15): ADR-0153 §1 перечисляет состав снимка —
+       значения, база, редакция методики, версия отчётности, дата расчёта, — и суждения
+       в перечне нет. Снимок объясняет вывод, но не является его вторым экземпляром:
+       иначе корректировка вывода (ADR-0112) оставляет в одном документе два разных
+       значения одного поля, и наружу уходит то одно, то другое.                       */
   };
   return {ok:true};
 }
@@ -841,15 +882,14 @@ AN.correct = (docNo, spec) => {
   log('корректировка '+d.no+' ('+spec.field+')');
   return {ok:true, note:'снимок не тронут: корректировка исправляет запись, а не пересчитывает основание'};
 };
+/* Ярлык к той же операции: своего правила у него нет — он лишь подставляет последнюю
+   версию основания за период. Проверки и связь живут в newAnalysis (ИА-16). */
 AN.reissue = docNo => {
   const d = DOC(docNo); if(!d) return {ok:false, why:'заключение не найдено'};
   if(d.state !== 'утверждено') return {ok:false, why:'переиздаётся утверждённое заключение; черновик правится сам'};
-  const lead = AN.mayLead(d.subj); if(!lead.ok) return lead;
   const r = AN.latestReport(d.subj, d.period);
   if(!r) return {ok:false, why:'отчётности за период нет'};
-  if(r.id === d.report) return {ok:false, why:'основание то же самое: новое заключение заводится, когда '+
-    'изменились обстоятельства — иначе это корректировка (ADR-0112)'};
-  const res = AN.newAnalysis({subj:d.subj, report:r.id, prev:d.no});
+  const res = AN.newAnalysis({subj:d.subj, report:r.id});
   if(res.ok) log('переиздание '+d.no+' → '+res.doc.no+' на версии '+r.ver);
   return res;
 };
@@ -889,20 +929,35 @@ AN.dueOf = subjId => {
   const s = SUBJ(subjId);
   if(!s) return {required:false, why:'заёмщик не найден'};
   const today = AN.state.today;
-  const rows = AN.state.schedule.filter(r => r.since <= today);
+  /* Тип лица берётся на ту же дату, что и для методики, — на КОНЕЦ ОТЧЁТНОГО ПЕРИОДА
+     (ИА-4, ИА-17, §7 канона). Период объявляет сама строка расписания, поэтому проходов
+     два: первым находим период, вторым — строку, действовавшую на его конец. Обе строки
+     выбираются датированно, а не первой попавшейся. */
   const ptypeNow = AN.typeOn(subjId, today);
-  const row = rows.find(r => r.ptype === ptypeNow);
-  if(!row) return {required:false, why:'для типа лица «'+ptypeNow+'» строки расписания нет'};
+  const first = rowOn(AN.state.schedule, ptypeNow, today);
+  if(!first) return {required:false, why:'для типа лица «'+ptypeNow+'» строки расписания нет'};
+  const p = FREQ[first.freq].last(today);
+  const ptypeEnd = AN.typeOn(subjId, p.end);
+  const row = rowOn(AN.state.schedule, ptypeEnd, p.end);
+  if(!row) return {required:false, why:'на конец периода '+fmt(p.end)+' тип лица — «'+ptypeEnd+
+    '», и строки расписания для него нет'};
+  /* Периодичности разошлись — значит период, от которого считался срок, посчитан по одной
+     строке, а вменяет анализ другая. Молча выбрать любую значит показать чужой срок как
+     свой: отказ называется, и решает человек. */
+  if(row.freq !== first.freq) return {required:false, unresolved:true, row:row.id,
+    why:'срок не определён: тип лица менялся, и строки расписания расходятся периодичностью — '+
+      'по строке «'+first.id+'» ('+FREQ[first.freq].name+') период кончается '+fmt(p.end)+
+      ', а на эту дату действует строка «'+row.id+'» ('+FREQ[row.freq].name+'). '+
+      'Какая из них вменена, решает администратор расписания, а не машина'};
   if(row.needLoans && !s.loans) return {required:false, row:row.id,
     why:'действующих кредитов нет: строка расписания «'+row.id+'» вменяет анализ только при них'};
-  const p = FREQ[row.freq].last(today);
   return {required:true, row:row.id, freq:row.freq, freqName:FREQ[row.freq].name,
-    period:p.label, end:p.end, grace:row.grace, due: addDays(p.end, row.grace)};
+    ptype:ptypeEnd, period:p.label, end:p.end, grace:row.grace, due: addDays(p.end, row.grace)};
 };
 /* Зеркало чужого счёта: как сопровождение прочитает наш факт и что получит гейт. */
 AN.mirrorDefect = subjId => {
   const d = AN.dueOf(subjId);
-  if(!d.required) return {defect:false, due:null, why:d.why};
+  if(!d.required) return {defect:false, due:null, unresolved:!!d.unresolved, why:d.why};
   const done = AN.analysisDone(subjId, d.period);
   if(done.done) return {defect:false, due:d, done, why:'обязательство закрыто фактом: '+
     done.no+' утверждено '+fmt(done.at)+' (ИА-12)'};
@@ -939,9 +994,14 @@ AN.addEdition = spec => {
   const badOp = spec.coefs.filter(c => Object.keys(OPS).indexOf(c.op) < 0);
   if(badOp.length) return {ok:false, why:'операция «'+badOp[0].op+'» вне закрытого списка: '+
     Object.keys(OPS).join(', ') + ' — выражение здесь не заводится, это была бы формула в коде'};
-  const badLine = spec.coefs.reduce((acc,c) => acc.concat((c.num||[]).concat(c.den||[])), [])
-    .filter(id => !LINE(id));
-  if(badLine.length) return {ok:false, why:'строки «'+badLine[0]+'» в справочнике форм нет'};
+  const used = spec.coefs.reduce((acc,c) => acc.concat((c.num||[]).concat(c.den||[])), [])
+    .concat(spec.lines||[]);
+  const badLine = used.filter(id => !LINE(id));
+  if(badLine.length) return {ok:false, why:'строки «'+badLine[0]+'» в справочнике форм нет: '+
+    'её заводит отдел анализа операцией «Завести строку», а не разработчик правкой кода (ИА-18)'};
+  const goneLine = used.filter(id => LINE(id).retired);
+  if(goneLine.length) return {ok:false, why:'строка «'+LINE(goneLine[0]).name+'» снята со справочника: '+
+    'новая редакция на снятую строку не встаёт'};
   m.editions.push(clone(spec));
   log('опубликована редакция '+spec.n+' методики «'+m.name+'»');
   return {ok:true};
@@ -959,6 +1019,50 @@ AN.retireEdition = (methodId, n) => {
   log('снята редакция '+n+' методики «'+m.name+'»');
   return {ok:true};
 };
+/* ---------------- СПРАВОЧНИК СТРОК: ВЕДЁТ ОТДЕЛ АНАЛИЗА -------------- *
+   Строка формы отчётности — такая же запись, как коэффициент и редакция: её заводит
+   отдел анализа, а не разработчик правкой константы (ИА-18). Без этого §2.2 («методика —
+   набор форм ввода») исполнялась бы только наполовину: методика форму объявляет, но взять
+   в неё новый показатель отчётности было бы неоткуда.                                  */
+AN.lines = () => clone(AN.state.lines.filter(l => !l.retired));
+AN.allLines = () => clone(AN.state.lines);
+AN.usedByLine = id => {
+  const out = [];
+  AN.state.methods.forEach(m => (m.editions||[]).forEach(e => {
+    const inCoefs = (e.coefs||[]).some(c => (c.num||[]).concat(c.den||[]).indexOf(id) >= 0);
+    if((e.lines||[]).indexOf(id) >= 0 || inCoefs) out.push('«'+m.name+'», ред. '+e.n);
+  }));
+  return out;
+};
+AN.addLine = spec => {
+  if(!AN.isAnalyst()) return {ok:false, why:'справочник строк формы ведёт отдел анализа; роль «'+
+    AN.state.role+'» его не правит (§13: форма ввода содержательная, а не техническая)'};
+  const id = String(spec.id||'').trim();
+  if(!/^[a-z][a-z0-9_]*$/.test(id)) return {ok:false, why:'код строки — латиница, цифры и '+
+    'подчёркивание, с буквы: по нему на строку ссылается методика, и вслед за названием он не меняется'};
+  if(AN.state.lines.some(l => l.id === id)) return {ok:false, why:'строка «'+id+'» в справочнике уже есть'};
+  if(!String(spec.name||'').trim()) return {ok:false, why:'строка без названия не заводится: '+
+    'в форме её читает человек, а не разработчик'};
+  if(!String(spec.unit||'').trim()) return {ok:false, why:'строка без единицы измерения не заводится: '+
+    'число без единицы неотличимо от числа в другой единице'};
+  AN.state.lines.push({id, name:String(spec.name).trim(), unit:String(spec.unit).trim()});
+  log('заведена строка формы «'+String(spec.name).trim()+'»');
+  return {ok:true, note:'в форме ввода строка появится тогда, когда её назовёт редакция методики: '+
+    'единой формы «для всех» нет (§2.2)'};
+};
+AN.retireLine = id => {
+  if(!AN.isAnalyst()) return {ok:false, why:'справочник строк формы ведёт отдел анализа'};
+  const l = LINE(id);
+  if(!l) return {ok:false, why:'строки «'+id+'» в справочнике нет'};
+  if(l.retired) return {ok:false, why:'строка «'+l.name+'» уже снята'};
+  const used = AN.usedByLine(id);
+  if(used.length) return {ok:false, why:'строка «'+l.name+'» названа редакциями '+used.join(', ')+
+    ': снять её значит оставить снимок ссылаться в пустоту (ИА-5)'};
+  l.retired = true;
+  log('снята строка формы «'+l.name+'»');
+  return {ok:true, note:'снятая строка остаётся читаемой: снимки прежних заключений называют её по имени'};
+};
+
 AN.addMethod = spec => {
   if(!AN.isAnalyst()) return {ok:false, why:'методики ведёт отдел анализа'};
   if(!spec.ptype) return {ok:false, why:'методика без применимости по типу лица не заводится: '+
@@ -1229,6 +1333,10 @@ function viewBorrower(){
         '<td>'+(lead.ok ? '<button class="btn btn-secondary btn-sm" onclick="AN.newAnalysisUI(\''+r.id+
           '\')">Новый финанализ</button>' : '')+'</td></tr>').join('')+'</tbody></table>'
       : '<div class="banner info">Отчётность не вносилась.</div>')+
+    (reps.length ? '<div class="why">«Новый финанализ» у версии отчётности и «Новое заключение за тот '+
+      'же период» в самом документе — <b>одна операция</b> (ИА-16): если за период уже подписано '+
+      'заключение, новое встанет только на более новую версию основания, а связь с прежним проставит '+
+      'машина. Разные двери с разным правилом дают в истории то цепочку, то два независимых документа.</div>' : '')+
     (lead.ok ? reportForm(st.subj) : '<div class="banner warn">'+esc(lead.why)+'</div>')+
     '<h2 class="section-h">Финансовые анализы</h2>'+
     (docs.length ? '<table class="cgrid"><thead><tr><th>Номер</th><th>Период</th><th>Методика</th>'+
@@ -1288,6 +1396,10 @@ function snapshotCard(d){
     '<div class="row"><span class="k">Тип лица на дату отчётности</span>'+esc(s.ptype)+'</div></div>'+
     '<div class="section-h" style="margin-top:6px">Строки отчётности, вошедшие в снимок</div>'+
     linesTable(s.edSnap, s.lines)+
+    '<div class="why"><b>Вывода в снимке нет — и это решение, а не пропуск (ИА-15).</b> Снимок — '+
+    'это <em>основание</em>: значения, база, редакция методики, версия отчётности, дата расчёта '+
+    '(ADR-0153 §1). Суждение живёт в самом заключении и правится корректировкой с основанием; '+
+    'храни его снимок вторым экземпляром — у одного документа стало бы два разных вывода.</div>'+
     '<div class="why">Снимок объясняет вывод и источником текущего значения ни для кого не является '+
     '(ADR-0153 §6): спросить у заёмщика «его коэффициент ликвидности» нельзя.</div></div>';
 }
@@ -1383,6 +1495,10 @@ function viewDoc(){
       '<span class="k">Методика</span><span class="v">'+esc(m.name)+', редакция '+d.ed+
         ' <span class="muted">— '+esc(mf.ok ? mf.why : '')+'</span></span>'+
       '<span class="k">Ведёт</span><span class="v">'+esc(d.by)+' <span class="muted">— ведущий куратор заёмщика</span></span>'+
+      (d.prev ? '<span class="k">Переиздаёт</span><span class="v">'+esc(d.prev)+
+        ' <button class="btn btn-secondary btn-sm" onclick="AN.openDoc(\''+esc(d.prev)+'\')">Открыть</button>'+
+        ' <span class="muted">— заключение за тот же период на прежней версии основания; '+
+        'связь проставлена машиной, какой бы дверью ни завели новое (ИА-16)</span></span>' : '')+
     '</div></div>'+
     '<div class="card"><h3>Коэффициенты '+(rt.live
         ? '<span class="small">— живой расчёт: черновик считается заново при каждом показе</span>'
@@ -1403,12 +1519,18 @@ function viewDoc(){
         '<td class="small">'+esc(c.basis)+'</td></tr>').join('')+'</tbody></table>'+
       '<div class="why">Снимок корректировкой не тронут: исправлена запись, а не основание.</div></div>' : '')+
     (hist.length ? '<div class="card"><h3>Другие заключения за тот же период</h3><table class="cgrid"><thead><tr>'+
-      '<th>Номер</th><th>Состояние</th><th>Вывод</th><th>Основание</th><th></th></tr></thead><tbody>'+
-      hist.map(h => '<tr><td>'+esc(h.no)+'</td><td>'+statePill(h)+'</td><td>'+verdictPill(h.verdict)+'</td>'+
+      '<th>Номер</th><th>Состояние</th><th>Вывод</th><th>Основание</th><th>Связь</th><th></th></tr></thead><tbody>'+
+      hist.map(h => {
+        const succ = st.analyses.find(a => a.prev === h.no);
+        return '<tr><td>'+esc(h.no)+'</td><td>'+statePill(h)+'</td><td>'+verdictPill(h.verdict)+'</td>'+
         '<td class="small">версия '+h.reportVer+'</td>'+
-        '<td><button class="btn btn-secondary btn-sm" onclick="AN.openDoc(\''+h.no+'\')">Открыть</button></td></tr>').join('')+
+        '<td class="small">'+(h.prev ? 'переиздаёт '+esc(h.prev)
+          : succ ? 'переиздано в '+esc(succ.no) : '<span class="muted">—</span>')+'</td>'+
+        '<td><button class="btn btn-secondary btn-sm" onclick="AN.openDoc(\''+h.no+'\')">Открыть</button></td></tr>';
+      }).join('')+
       '</tbody></table><div class="why">Прежнее заключение остаётся: наружу шов отдаёт последнее '+
-      'утверждённое, история — в документе.</div></div>' : '');
+      'утверждённое, история — в документе. Цепочка переизданий читается здесь, а не только '+
+      'списком на карточке заёмщика.</div></div>' : '');
 }
 
 /* ==================== ЭКРАН 3: РЕЕСТР МЕТОДИК ======================= */
@@ -1431,6 +1553,39 @@ AN.tryFormulaCoefUI = () => act(AN.addEdition({method:'m-org', n:8, since:AN.sta
   note:'с выражением', lines:['ta_cur','li_short'],
   coefs:[{id:'k-expr', name:'Своя формула', num:['ta_cur'], den:['li_short'], op:'median',
     fmt:'ratio', thr:{cmp:'>=', v:1}}]}));
+
+AN.addLineUI = () => act(AN.addLine({id: ($('#lId')||{}).value, name: ($('#lName')||{}).value,
+  unit: ($('#lUnit')||{}).value}), 'строка формы заведена');
+AN.retireLineUI = id => act(AN.retireLine(id), 'строка формы снята');
+
+function linesCard(){
+  const rows = AN.allLines();
+  return '<div class="card"><h3>Справочник строк формы отчётности <span class="small">— владелец: '+
+    'отдел анализа</span></h3>'+
+    '<div class="why">Методика объявлена <em>набором форм ввода</em> (§2.2), а форма собирается из '+
+    'этих строк. Строка — такая же запись, как коэффициент: её заводит отдел анализа, а не '+
+    'разработчик правкой кода (ИА-18). Иначе новый показатель отчётности ждёт релиза.</div>'+
+    '<table class="cgrid"><thead><tr><th>Код</th><th>Название строки</th><th>Единица</th>'+
+    '<th>Кто её называет</th>'+(AN.isAnalyst() ? '<th></th>' : '')+'</tr></thead><tbody>'+
+    rows.map(l => {
+      const used = AN.usedByLine(l.id);
+      return '<tr'+(l.retired ? ' class="out"' : '')+'><td class="mono">'+esc(l.id)+
+        (l.retired ? ' <span class="pill neutral">снята</span>' : '')+'</td>'+
+        '<td>'+esc(l.name)+'</td><td>'+esc(l.unit)+'</td>'+
+        '<td class="small">'+(used.join('; ') || '<span class="muted">ни одна редакция — строка заведена, но в форму не взята</span>')+'</td>'+
+        (AN.isAnalyst() ? '<td><button class="btn btn-secondary btn-sm" onclick="AN.retireLineUI(\''+
+          l.id+'\')">Снять</button></td>' : '')+'</tr>';
+    }).join('')+'</tbody></table>'+
+    (AN.isAnalyst() ? '<div class="form-row tight" style="margin-top:12px">'+
+      '<div class="fld"><label>Код</label><input id="lId" placeholder="stock_end"></div>'+
+      '<div class="fld" style="flex:1"><label>Название строки</label><input id="lName" placeholder="Товарные остатки на конец периода"></div>'+
+      '<div class="fld"><label>Единица</label><input id="lUnit" placeholder="сом"></div></div>'+
+      '<div class="btn-row"><button class="btn btn-primary btn-sm" onclick="AN.addLineUI()">Завести строку</button></div>'+
+      '<div class="why">Заведённая строка сама в форму не попадает: её обязана назвать редакция '+
+      'методики — единой формы «для всех» в системе нет (§2.2).</div>'
+      : '<div class="why">Под ролью «'+esc(AN.state.role)+'» справочник открыт на чтение.</div>')+
+    '</div>';
+}
 
 function viewMethods(){
   const st = AN.state;
@@ -1463,6 +1618,7 @@ function viewMethods(){
           'складывает то, что ему назвали, и названий коэффициентов не знает (ИА-3).</div>' : '')+
       '</div>';
     }).join('')+
+    linesCard()+
     (AN.isAnalyst() ? '<div class="card"><h3>Опубликовать редакцию</h3>'+
       '<div class="form-row tight"><div class="fld"><label>Методика</label><select id="eMethod">'+
       st.methods.map(m => '<option value="'+m.id+'">'+esc(m.name)+'</option>').join('')+'</select></div>'+
@@ -1480,6 +1636,8 @@ function viewMethods(){
       '<div class="f no">коэффициент с текстом формулы или операцией вне закрытого списка ('+
         esc(Object.keys(OPS).join(', '))+')</div>'+
       '<div class="f no">снять редакцию, на которую ссылается хоть одно заключение (ИА-5)</div>'+
+      '<div class="f no">редакцию со строкой, которой нет в справочнике форм или которая снята (ИА-18)</div>'+
+      '<div class="f no">снять строку формы, названную хоть одной редакцией (ИА-5)</div>'+
       '</div></div>';
 }
 
@@ -1523,7 +1681,9 @@ function obligationTable(){
     AN.state.subjects.map(s => {
       const m = AN.mirrorDefect(s.id);
       if(!m.due) return '<tr class="out"><td>'+esc(s.name)+'</td><td>'+esc(AN.typeOn(s.id, AN.state.today))+'</td>'+
-        '<td colspan="3"><span class="muted">анализ не вменён</span></td><td class="small">'+esc(m.why)+'</td></tr>';
+        '<td colspan="3">'+(m.unresolved ? '<span class="pill warn">срок не определён</span>'
+          : '<span class="muted">анализ не вменён</span>')+'</td>'+
+        '<td class="small">'+esc(m.why)+'</td></tr>';
       return '<tr'+(m.defect ? ' class="hl"' : '')+'><td>'+esc(s.name)+'</td>'+
         '<td>'+esc(AN.typeOn(s.id, AN.state.today))+'</td><td>'+esc(m.due.period)+'</td>'+
         '<td>'+fmt(m.due.due)+' <span class="muted small">= конец периода '+fmt(m.due.end)+' + '+
