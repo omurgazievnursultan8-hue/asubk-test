@@ -1,5 +1,6 @@
-// Headless smoke для mockups/statistics/statistics.html (ИС-1…ИС-33, ADR-0145…0152 + 0176…0197).
-// Блок S закрывает бывшие дефекты макета СС-Д1/Д2/Д3/Д6 (вопрос целиком, а не его половина).
+// Headless smoke для mockups/statistics/statistics.html (ИС-1…ИС-35, ADR-0145…0152 + 0176…0200).
+// Блок S закрывает бывшие дефекты макета СС-Д1/Д2/Д3/Д6 (вопрос целиком, а не его половина),
+// блок W — СС-Д8 (наборы фильтра, ДНФ без скобок по ADR-0180).
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -27,6 +28,12 @@ const results = [];
 const ok = (n, cond, note = '') => results.push({ n, pass: !!cond, note });
 const has = (s, part) => String(s || '').includes(part);
 const TODAY = '2026-08-21';
+/* Фильтр вопроса — ДНФ без скобок (ADR-0180): F(a, b) — два набора через ИЛИ,
+   F([a, b]) — один набор из двух сравнений через И. Скобок в форме нет, поэтому
+   и в конструкторе смоука их негде поставить. */
+const F  = (...sets) => ({ sets: sets.map(x => ({ cmps: Array.isArray(x) ? x : [x] })) });
+const cD = (id, op, extra) => Object.assign({ kind:'dim', id, op }, extra || {});
+const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {});
 
 /* ---------- A. Реестры: что вообще можно объявить ---------- */
 (() => {
@@ -220,7 +227,7 @@ const TODAY = '2026-08-21';
 
   const mixed = ST.statSlice({obj:'obj-credit', dims:[], inds:['a-sumdebt'], date:'2026-08-18'}).total['a-sumdebt'];
   const one = ST.statSlice({obj:'obj-credit', dims:[], inds:['a-sumdebt'], date:'2026-08-18',
-    filter:{dim:'d-cur', value:'USD'}}).total['a-sumdebt'];
+    filter: F(cD('d-cur', '=', {value:'USD'}))}).total['a-sumdebt'];
   ok(28, !!mixed.mixed && mixed.mixed.length === 3 && has(mixed.note, 'разновалютное') &&
         one.cur === 'USD' && !one.mixed,
     `разновалютный итог называет состав: «${mixed.note}»; однородный отдаётся в своей валюте (${one.cur})`);
@@ -505,7 +512,7 @@ const TODAY = '2026-08-21';
 
   const vals = ST.filterValues('d-branch');
   const byBucket = ST.filterValues('d-cdate');
-  st.q.filter = {dim:'d-branch', value: vals[0]};
+  st.q.filter = F(cD('d-branch', '=', {value: vals[0]}));
   const nar = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date: st.q.date, filter: st.q.filter});
   st.q.filter = null;
   const all = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date: st.q.date});
@@ -1024,6 +1031,177 @@ const TODAY = '2026-08-21';
   const orphan = W['obj-repay'].filter(p => !W['obj-credit'].some(c => c.id === p.f.credit));
   ok(99, bad.length === 0 && orphan.length === 0 && cb.length === 8,
     `СС-Д9 закрыт по построению: на всех ${cb.length} договорах приращение «погашено» за 30.06→18.08 равно сумме платежей ЭТОГО договора до копейки (расхождений ${bad.length}), и ни один платёж не висит без кредита (${orphan.length}) — два ряда одних денег стали одним (ИС-1, ИС-14)`);
+})();
+
+/* ---------- W. Волна 11: наборы фильтра, ДНФ без скобок (ADR-0180) ----------
+   Закрывает СС-Д8: до неё фильтр был одноусловным — один разрез, одно значение.
+   Проверяется не разметка редактора, а СЧЁТ: сколько строк остаётся, какой отказ
+   выдаётся и что печатает паспорт. ------------------------------------------- */
+(() => {
+  ST.seed();
+  const D = '2026-08-18';
+  const sl = (f, obj) => ST.statSlice({obj: obj || 'obj-credit', dims:[], inds:['a-count'], date: D, filter: f});
+  const n  = f => { const r = sl(f); return r.ok ? r.total['a-count'].v : -1; };
+
+  /* Восемь кредитов: KGS — 6, просрочка свыше 100 дней — 4, пересечение — 3. */
+  const A = cD('d-cur', '=', {value:'KGS'}), B = cI('m-odays', '>', {value:100});
+  const nA = n(F(A)), nB = n(F(B)), nAnd = n(F([A, B])), nOr = n(F(A, B));
+  ok(100, nA === 6 && nB === 4 && nAnd === 3 && nOr === 7 && nOr === nA + nB - nAnd,
+    `ДНФ считает: набор из двух сравнений через И — ${nAnd} строк(и) из ${nA} и ${nB}; два набора через ИЛИ — ${nOr} = ${nA} + ${nB} − ${nAnd}. Скобок в форме нет, и глубины больше двух не бывает (ADR-0180 §1, СС-Д8)`);
+
+  const opGt   = sl(F(cD('d-cur', '>', {value:'KGS'})));
+  const opIn   = sl(F(cI('m-odays', '∈', {values:['0']})));
+  const opBool = sl(F(cI('m-bblack', '>', {value:'да'})), 'obj-borrower');
+  const opRng  = sl(F(cD('d-industry', 'в диапазоне', {from:'Торговля', to:'Услуги'})));
+  ok(101, !opGt.ok && has(opGt.why, '= ≠ ∈ ∉') && has(opGt.why, 'ADR-0180 §4') &&
+        !opIn.ok && !opBool.ok && has(opBool.why, 'доступны = ≠') && !opRng.ok,
+    `оператор — от ТИПА значения, а не от вкуса: у перечисления «>» нет («${opGt.why.slice(0, 96)}…»), у числа нет «∈», у булева только «= ≠», «в диапазоне» — только у корзины (ADR-0180 §4)`);
+
+  const byInd = sl(F(cI('m-odays', '>', {value:100})));
+  const agg   = sl(F(cI('a-count', '>', {value:1})));
+  const alien = sl(F(cI('m-odays', '>', {value:1})), 'obj-borrower');
+  const bl    = sl(F(cI('m-bblack', '=', {value:'да'})), 'obj-borrower');
+  const nbl   = sl(F(cI('m-bblack', '=', {value:'нет'})), 'obj-borrower');
+  ok(102, byInd.ok && byInd.total['a-count'].v === 4 && !agg.ok && has(agg.why, 'мера СТРОКИ') &&
+        !alien.ok && bl.ok && bl.total['a-count'].v === 1 && nbl.ok && nbl.total['a-count'].v === 7,
+    `операнд — разрез ИЛИ мера строки: по «Дней просрочки > 100» осталось ${byInd.total['a-count'].v}, по булеву «В чёрном списке» — ${bl.total['a-count'].v} из ${bl.total['a-count'].v + nbl.total['a-count'].v} заёмщиков. Агрегат в фильтр не пускается: «${agg.why.slice(0, 72)}…» (ADR-0180 §3)`);
+
+  const noCur = sl(F(cI('m-debt', '>', {value:100000})));
+  const kgs   = sl(F(cI('m-debt', '>', {value:100000, cur:'KGS'})));
+  const usd   = sl(F(cI('m-debt', '>', {value:100000, cur:'USD'})));
+  ok(103, !noCur.ok && has(noCur.why, 'ADR-0184 §3') && kgs.ok && kgs.total['a-count'].v === 5 &&
+        usd.ok && usd.total['a-count'].v === 1,
+    `денежная константа НЕСЁТ валюту и сравнивается с частью той же валюты, без пересчёта: «> 100 000 сом» ловит ${kgs.total['a-count'].v} кредитов и НЕ ловит долларовый на 143 046,67 USD, «> 100 000 USD» ловит его одного. Без валюты — отказ: «${noCur.why.slice(0, 64)}…» (ADR-0184 §3)`);
+
+  const empty  = sl({sets:[{cmps:[]}]});
+  const noVals = sl(F(cD('d-cur', '∈', {values:[]})));
+  const whole  = sl(F(cD('d-cur', '∈', {values:['KGS','USD','EUR']})));
+  const part   = sl(F(cD('d-cur', '∈', {values:['KGS','USD']})));
+  ok(104, !empty.ok && has(empty.why, 'набор 1 пуст') && !noVals.ok && has(noVals.why, 'пустым списком') &&
+        !whole.ok && has(whole.why, 'весь домен') && part.ok && part.total['a-count'].v === 7,
+    `три отказа §8 — все про сравнение, которое ничего не значит: пустой набор, «∈» с пустым списком и «∈» во весь домен («${whole.why.slice(0, 84)}…»); часть домена проходит и оставляет ${part.total['a-count'].v} из 8 (ADR-0180 §8)`);
+
+  const two  = F([A, B], cD('d-region', '=', {value:'Чуйская'}));
+  const pf   = sl(two).passport.filter;
+  const bare = sl(null).passport.filter;
+  ok(105, has(pf, 'набор 1') && has(pf, 'набор 2') && has(pf, 'либо') &&
+        has(pf, 'Валюта договора = KGS и Дней просрочки > 100') && has(pf, 'Территория = Чуйская') &&
+        !/\+\d|фильтр задан/i.test(pf) && has(bare, 'фильтра нет'),
+    `паспорт печатает фильтр ЦЕЛИКОМ, всеми наборами и сравнениями: «${pf}»; пустой назван строкой: «${bare}». «Фильтр задан» и «+2 условия» — ответ без вопроса (ADR-0180 §6)`);
+
+  const year = sl(F(cD('d-cdate', '∈', {values:['2025','2026'], bucket:'год'})));
+  const qrt  = sl(F(cD('d-cdate', 'в диапазоне', {from:'2025 · I кв.', to:'2025 · III кв.', bucket:'квартал'})));
+  const step = sl(F(cD('d-odays', 'в диапазоне', {from:'91–180 дн.', to:'181+ дн.', bucket:'ступени'})));
+  const mon  = ST.operandValues('dim', 'd-cdate', 'месяц');
+  ok(106, year.ok && year.total['a-count'].v === 4 && qrt.ok && qrt.total['a-count'].v === 3 &&
+        step.ok && step.total['a-count'].v === 4 && has(qrt.passport.filter, '(квартал)') &&
+        mon[0] === 'сентябрь 2021' && mon[mon.length - 1] === 'февраль 2026',
+    `у разреза с корзинами правая часть — КОРЗИНА, а не сырая дата: год ∈ {2025, 2026} — ${year.total['a-count'].v}, квартал в диапазоне I…III кв. 2025 — ${qrt.total['a-count'].v}, ступени 91–180…181+ — ${step.total['a-count'].v}; корзина названа в паспорте, а список идёт порядком корзины, не алфавитом (${mon[0]} … ${mon[mon.length - 1]}) — ADR-0176 §3, ADR-0180 §4`);
+
+  const bare14 = ST.statRows({obj:'obj-repay', date: D});
+  const cut12  = ST.statRows({obj:'obj-repay', date: D,
+    filter: F(cD('d-repkind', '∈', {values:['плановое','досрочное']}))});
+  ST.state.role = 'Аналитик';
+  const seen  = ST.operandValues('dim', 'd-curator');
+  const мой   = sl(F(cD('d-curator', '∈', {values:['Бекова Н.']})));
+  ST.state.role = 'Администратор статистики';
+  const wide  = sl(F(cD('d-curator', '∈', {values:['Бекова Н.']})));
+  ok(107, !bare14.ok && bare14.n === 14 && cut12.ok && cut12.rows.length === 12 &&
+        seen.length === 1 && !мой.ok && has(мой.why, 'весь домен') &&
+        wide.ok && wide.total['a-count'].v === 5,
+    `порядок роль → фильтр → группировка → порог держится с обоих концов: фильтр снимает отказ порога (${bare14.n} строк погашений против порога ${ST.rowsLimit} → ${cut12.ok ? cut12.rows.length : '—'} после отбора), а «весь домен» меряется по УЖЕ урезанному ролью множеству — у аналитика кураторов видно ${seen.length}, и то же сравнение у него отказ, а у администратора оставляет ${wide.ok ? wide.total['a-count'].v : '—'} (ИС-13, ADR-0178 §3, ADR-0180 §7)`);
+
+  const f    = F([A, B]);
+  const rows = ST.statRows({obj:'obj-credit', date: D, filter: f});
+  const reg  = ST.registryList('obj-credit', D, f);
+  const job  = ST.exportJob({obj:'obj-repay', date: D,
+    filter: F(cD('d-repkind', '∈', {values:['плановое','досрочное']}))});
+  const live = {sets:[{cmps:[cD('d-cur', '=', {value:'KGS'})]}]};
+  const job2 = ST.exportJob({obj:'obj-credit', date: D, filter: live});
+  live.sets[0].cmps.push(B);
+  ok(108, rows.ok && reg.join(' ') === rows.rows.map(r => r.ref).sort().join(' ') && reg.length === 3 &&
+        job.ok && job.job.n === 12 && has(job.job.passport.filter, 'Вид погашения ∈ плановое, досрочное') &&
+        job2.ok && job2.job.filter.sets[0].cmps.length === 1,
+    `тот же фильтр даёт тот же состав в реестре ВЛАДЕЛЬЦА (${reg.join(' ')}) — сравнение одно, источника два (ИС-14, ИС-18); в задание выгрузки фильтр едет копией (${job.job.n} строк), и правка вопроса задним числом его не меняет`);
+
+  const kgsF   = F(cD('d-cur', '=', {value:'KGS'}));
+  const ser    = ST.statSeries({obj:'obj-credit', inds:'a-count',
+    dates:['2026-07-31','2026-08-10','2026-08-18'], filter: kgsF});
+  const fl     = ST.flowBetween({obj:'obj-credit', inds:'m-repaid', from:'2026-07-15', to:'2026-08-18', filter: kgsF});
+  const serBad = ST.statSeries({obj:'obj-credit', inds:'a-count', dates:['2026-07-31','2026-08-18'],
+    filter: F(cD('d-cur', '∈', {values:['KGS','USD','EUR']}))});
+  ok(109, ser.ok && ser.points.every(p => p.value.v === 6) && has(ser.passport.filter, 'Валюта договора = KGS') &&
+        fl.ok && Math.round(fl.value) === 825500 && has(fl.passport.filter, 'Валюта договора = KGS') &&
+        !serBad.ok && has(serBad.why, 'весь домен'),
+    `фильтр ОДИН на все швы: срез, ряд (${ser.points.map(p => p.value.v).join(' · ')}), строки, период (${Math.round(fl.value)} сом.) и реестр читают его одинаково и печатают в паспорт; отказ ряду выдаётся один на ряд, а не по точке (ADR-0180 §7)`);
+})();
+
+/* ---------- W2. Редактор наборов: форма собирает то же, что считает ядро ----------
+   Выше проверялся СЧЁТ по готовому фильтру; здесь — что этот фильтр вообще можно НАБРАТЬ
+   формой, что отказ доходит до человека текстом, а не пустотой, и что снятие идёт по
+   одному сравнению, а не всё сразу. ------------------------------------------------- */
+(() => {
+  const el = () => ({ innerHTML:'', textContent:'', dataset:{},
+    classList:{toggle(){}, add(){}, remove(){}}, appendChild(){}, remove(){} });
+  const fields = {};
+  const put = (id, v, sel) => { fields[id] = { value: v, selectedOptions: (sel || []).map(x => ({value:x})) }; };
+  const nodes = {'#panel': el(), '#title': el(), '#foot': el(), '#asOf': el(), '#role': el()};
+  const toasts = [];
+  const wrap = Object.assign(el(), { appendChild(t){ toasts.push(t.textContent); } });
+  sandbox.document = {
+    querySelector: k => nodes[k] || fields[k.slice(1)] || el(),
+    querySelectorAll: () => [],
+    getElementById: id => (id === 'toastWrap' ? wrap : null),
+    createElement: () => el()
+  };
+  const panel = () => nodes['#panel'].innerHTML;
+  /* dropCmp правит фильтр НА МЕСТЕ, поэтому форма снимается сразу, а не ссылкой. */
+  const shape = () => { const f = ST.state.q.filter;
+    return f ? f.sets.map(x => x.cmps.length) : null; };
+
+  ST.seed();
+  ST.state.q.obj = 'obj-credit'; ST.state.q.date = '2026-08-18';
+  ST.go('build');
+
+  /* Первое сравнение — новым набором. */
+  put('fOperand', 'dim:d-cur'); put('fOp', '='); put('fVal', 'KGS'); put('fSet', 'new');
+  ST.addCmp();
+  const one = shape();
+
+  /* Второе — В ТОТ ЖЕ набор (И). */
+  put('fOperand', 'ind:m-odays'); put('fOp', '>'); put('fNum', '100'); put('fSet', '0');
+  ST.addCmp();
+  const and2 = shape();
+
+  /* Третье — новым набором (ИЛИ). */
+  put('fOperand', 'dim:d-region'); put('fOp', '='); put('fVal', 'Чуйская'); put('fSet', 'new');
+  ST.addCmp();
+  const or2 = shape();
+  const built = panel();
+
+  /* Отказ должен ДОЙТИ ДО ЧЕЛОВЕКА текстом и НЕ ТРОНУТЬ уже набранное. */
+  const before = JSON.stringify(ST.state.q.filter);
+  toasts.length = 0;
+  put('fOperand', 'dim:d-cur'); put('fOp', '∈'); put('fVals', '', ['KGS','USD','EUR']); put('fSet', 'new');
+  ST.addCmp();
+  const refused = toasts.join(' | ');
+  const after = JSON.stringify(ST.state.q.filter);
+
+  /* Снятие — по ОДНОМУ сравнению; опустевший набор уходит сам. */
+  ST.dropCmp(1, 0);
+  const dropped = shape();
+  ST.clearFilter();
+  const cleared = ST.state.q.filter;
+  const bare = panel();
+
+  ok(110, String(one) === '1' && String(and2) === '2' && String(or2) === '2,1' &&
+        has(built, 'либо набор 2') && has(built, 'Валюта договора = KGS') &&
+        /* «&gt;» — оператор в чипе экранирован: подпись рисуется текстом, не разметкой. */
+        has(built, 'Дней просрочки &gt; 100') && has(built, 'Территория = Чуйская') &&
+        has(built, 'в набор 1 (И)') && has(built, 'новым набором (ИЛИ)') &&
+        has(refused, 'весь домен') && after === before &&
+        String(dropped) === '2' && cleared === null && !has(bare, 'либо набор'),
+    `редактор набирает ровно ту форму, которую считает ядро: три клика дали «${or2.length} набора, сравнений в них ${or2.join(' и ')}», и добавление спрашивает одно — «в набор 1 (И)» или «новым набором (ИЛИ)». Отказ ДОХОДИТ ТЕКСТОМ и не трогает набранное: «${refused.slice(0, 72)}…» — пустой экран вместо ответа отказом не считается. Снятие идёт по одному сравнению, опустевший набор уходит сам (ADR-0180 §1, §6, §8)`);
 })();
 
 /* ---- отчёт ---- */

@@ -86,6 +86,21 @@
   Попутно закрыт СС-Д9: платёж НАЗЫВАЕТ свой кредит, «погашено всего» стало суммой
   платежей, и приращение за период равно их сумме до копейки на каждом договоре — два ряда
   одних денег стали одним (проверка #99).
+  Волна 11, часть первая (28.08.2026) сняла последнее расхождение макета с моделью — СС-Д8.
+  Фильтр был ОДНОУСЛОВНЫМ: один разрез, одно значение, — а `ADR-0180` объявил его ДНФ без
+  скобок: наборы через ИЛИ, сравнения внутри набора через И. «Валютные кредиты с просрочкой
+  свыше 100 дней ЛИБО все чуйские» одним условием не спрашивается вовсе, и прототип отвечал
+  на вопрос проще заданного. Теперь операнд — разрез ИЛИ мера СТРОКИ (агрегат отбит: у него
+  нет значения в строке), правая часть всегда КОНСТАНТА (показатель против показателя — это
+  показатель реестра, §3), оператор берётся от ТИПА значения, а у разреза с корзинами
+  правая часть — корзина, не сырая дата. Денежная константа несёт свою валюту и меряется
+  частью того же состава, без пересчёта: курса отбора нет, и он не курс показа
+  (ADR-0184 §3, СС-Д4). Три отказа §8 — пустой набор, «∈» с пустым списком, «∈» во весь
+  домен — все про сравнение, которое ничего не сужает, но в паспорте выглядело бы фильтром.
+  Проверка формы живёт в checkQuery и достаётся всем трём швам даром, проверка домена — за
+  ролью, поэтому «весь домен» у аналитика и у администратора решается по-разному. Один и
+  тот же набор читают срез, ряд, строки, период и реестр владельца, а паспорт печатает его
+  ЦЕЛИКОМ: «фильтр задан» и «+2 условия» — ответ без вопроса (проверки #100–#110).
   Смоук: `node scripts/inspect/statistics-check.mjs`.
   Канон логики — `mockups/statistics/ASUBK-statistika-logika.md` (шесть сущностей, реестр
   показателей как контракт, валюта и потоки, три шва и паспорт, все инварианты с
@@ -203,8 +218,9 @@
   кредитов, который при свёртке исчез бы · отказ завести показатель с формулой · отказ
   классификации читать шов статистики · сходимость детализации со списком реестра ·
   ряд, у которого даты — часть вопроса (шаг месяц или квартал, 4/6/8 точек, последняя всегда
-  дата среза) · фильтр конструктором: значения берутся из строк на дату среза, у разреза-даты
-  — корзинами, а не сырой датой, и сужение названо словами в паспорте · форма заведения
+  дата среза) · фильтр наборами (ДНФ без скобок): сравнения внутри набора через И, наборы
+  через ИЛИ, операнд — разрез или мера строки, значения берутся из строк на дату среза, у
+  разреза-даты — корзинами, а не сырой датой, и весь фильтр печатается в паспорте словами · форма заведения
   разреза, которая спрашивает число значений на объект, корзины списком и ВЛАДЕЛЬЦА уровней,
   но не даёт напечатать иерархию руками · поимённый состав прогона в журнале ·
   дерево уровней (дивизион → филиал из справочника кадров; область → район из полей) с
@@ -233,7 +249,7 @@
   что паспорт едет ВНУТРИ файла. Разрезы «по видам документа» и «по важности документа»
   (ТЗ №19, №20) отложены до модуля документооборота — заводятся строками реестра.
 
-  SMOKE 2026-08-28 · 99/99 PASS
+  SMOKE 2026-08-28 · 110/110 PASS
      PASS  #1  объектов 9, показателей 148; без объявленного источника 0, с формулой 0, с функцией вне списка 0 — ИС-6, ИС-7
      PASS  #2  заёмщик — самостоятельный объект со своими показателями, а не свёртка кредита (ИС-19)
      PASS  #3  форма строки закрыта: obj · ref · date · dims · inds · fixed · by — ни сомового эквивалента, ни долей, ни дельт (ИС-15)
@@ -333,6 +349,17 @@
      PASS  #97  удельная величина отбита и разложена на пару: «удельная величина показателем не бывает — это пара «срез + счёт»: числитель берётся счётом СВОИХ строк в нужном разрезе, знаменатель есть счёт объектов другого уровня и спрашивается у ТОГО объекта (ИС-30). Снятый здесь «distinct» занижает знаменатель систематически: у кого ноль строк, тот в срез не попадает вовсе (ИС-35, ADR-0200)»
      PASS  #98  знаменатель со среза занижен систематически: кураторов в мире 3, а в срезе заданий видно 2 — у третьего заданий нет, и «в среднем на куратора» со среза завысило бы нагрузку в полтора раза (ИС-35)
      PASS  #99  СС-Д9 закрыт по построению: на всех 8 договорах приращение «погашено» за 30.06→18.08 равно сумме платежей ЭТОГО договора до копейки (расхождений 0), и ни один платёж не висит без кредита (0) — два ряда одних денег стали одним (ИС-1, ИС-14)
+     PASS  #100  ДНФ считает: набор из двух сравнений через И — 3 строк(и) из 6 и 4; два набора через ИЛИ — 7 = 6 + 4 − 3. Скобок в форме нет, и глубины больше двух не бывает (ADR-0180 §1, СС-Д8)
+     PASS  #101  оператор — от ТИПА значения, а не от вкуса: у перечисления «>» нет («у операнда «Валюта договора» тип значения — перечисление, и оператора «>» у него нет: доступны =…»), у числа нет «∈», у булева только «= ≠», «в диапазоне» — только у корзины (ADR-0180 §4)
+     PASS  #102  операнд — разрез ИЛИ мера строки: по «Дней просрочки > 100» осталось 4, по булеву «В чёрном списке» — 1 из 8 заёмщиков. Агрегат в фильтр не пускается: «фильтр по агрегату «Число объектов» не задаётся: операнд фильтра — мера …» (ADR-0180 §3)
+     PASS  #103  денежная константа НЕСЁТ валюту и сравнивается с частью той же валюты, без пересчёта: «> 100 000 сом» ловит 5 кредитов и НЕ ловит долларовый на 143 046,67 USD, «> 100 000 USD» ловит его одного. Без валюты — отказ: «денежная константа у «Остаток основного долга» дана без валюты: …» (ADR-0184 §3)
+     PASS  #104  три отказа §8 — все про сравнение, которое ничего не значит: пустой набор, «∈» с пустым списком и «∈» во весь домен («сравнение «Валюта договора ∈ …» перечисляет весь домен на дату среза (3 знач.): оно …»); часть домена проходит и оставляет 7 из 8 (ADR-0180 §8)
+     PASS  #105  паспорт печатает фильтр ЦЕЛИКОМ, всеми наборами и сравнениями: «фильтр пользователя: набор 1 — Валюта договора = KGS и Дней просрочки > 100 дн.; либо набор 2 — Территория = Чуйская»; пустой назван строкой: «фильтра нет — спрошено обо всём доступном множестве». «Фильтр задан» и «+2 условия» — ответ без вопроса (ADR-0180 §6)
+     PASS  #106  у разреза с корзинами правая часть — КОРЗИНА, а не сырая дата: год ∈ {2025, 2026} — 4, квартал в диапазоне I…III кв. 2025 — 3, ступени 91–180…181+ — 4; корзина названа в паспорте, а список идёт порядком корзины, не алфавитом (сентябрь 2021 … февраль 2026) — ADR-0176 §3, ADR-0180 §4
+     PASS  #107  порядок роль → фильтр → группировка → порог держится с обоих концов: фильтр снимает отказ порога (14 строк погашений против порога 12 → 12 после отбора), а «весь домен» меряется по УЖЕ урезанному ролью множеству — у аналитика кураторов видно 1, и то же сравнение у него отказ, а у администратора оставляет 5 (ИС-13, ADR-0178 §3, ADR-0180 §7)
+     PASS  #108  тот же фильтр даёт тот же состав в реестре ВЛАДЕЛЬЦА (КД-2022/065 КД-2023/210 КД-2025/088) — сравнение одно, источника два (ИС-14, ИС-18); в задание выгрузки фильтр едет копией (12 строк), и правка вопроса задним числом его не меняет
+     PASS  #109  фильтр ОДИН на все швы: срез, ряд (6 · 6 · 6), строки, период (825500 сом.) и реестр читают его одинаково и печатают в паспорт; отказ ряду выдаётся один на ряд, а не по точке (ADR-0180 §7)
+     PASS  #110  редактор набирает ровно ту форму, которую считает ядро: три клика дали «2 набора, сравнений в них 2 и 1», и добавление спрашивает одно — «в набор 1 (И)» или «новым набором (ИЛИ)». Отказ ДОХОДИТ ТЕКСТОМ и не трогает набранное: «сравнение «Валюта договора ∈ …» перечисляет весь домен на дату среза (3 …» — пустой экран вместо ответа отказом не считается. Снятие идёт по одному сравнению, опустевший набор уходит сам (ADR-0180 §1, §6, §8)
 -->
 <style>
 :root{
@@ -2115,6 +2142,7 @@ function seed(){
     q: {obj:'obj-credit', dims:['d-branch'], inds:['a-count','a-sumdebt'], date:'2026-08-21',
         mode:'slice', filter:null, levels:{}, buckets:{}, series:{step:'месяц', points:4}},
     flow: {inds:'m-repaid', from:'2026-07-15', to:'2026-08-18'},
+    fEdit: null,
     drill: null
   };
   ST.state = st;
@@ -2219,15 +2247,209 @@ function applyScope(rows){
   if(!s) return rows;
   return rows.filter(r => r.dims[s.dim] === s.value);
 }
-function applyFilter(rows, filter){
-  if(!filter || !filter.dim) return rows;
-  const d = DIM(filter.dim);
-  return rows.filter(r => {
-    const v = r.dims[filter.dim];
-    if(d && d.levels) return Array.isArray(v) && v.join(' / ').indexOf(String(filter.value)) === 0;
-    return String(v) === String(filter.value);
-  });
+/* ==================== ФИЛЬТР ВОПРОСА (ADR-0180) ====================== *
+   Форма одна: ДНФ БЕЗ СКОБОК. Фильтр — наборы через ИЛИ, набор — сравнения через И,
+   вложенности нет. Скобки потребовали бы разбора выражения, а вопрос статистики
+   выражением не является: его печатают в паспорт и сверяют глазами.
+   Операнд — разрез или МЕРА СТРОКИ среза; правая часть ВСЕГДА константа. Показатель
+   против показателя — это показатель реестра, а не фильтр (ADR-0180 §3).
+   Порядок применения: роль → фильтр → группировка → порог (ИС-13, ADR-0178 §3).      */
+const FOPS = {
+  'перечисление': ['=','≠','∈','∉'],
+  'число':        ['>','≥','<','≤','=','≠'],
+  'корзина':      ['=','≠','∈','∉','в диапазоне'],
+  'булево':       ['=','≠']
+};
+const LIST_OPS = ['∈','∉'];
+/* Тип значения объявлен записью реестра, а не угадан по данным: у разреза его задаёт
+   наличие корзин (значение спрашивается корзиной — ИС-23), у меры — поле type. */
+function operandOf(c){
+  if(!c || !c.id) return null;
+  if(c.kind === 'ind'){
+    const I = IND(c.id);
+    if(!I) return null;
+    return {kind:'ind', id:c.id, name:I.name, ind:I, money: !!I.money,
+      vtype: (I.type === 'сумма' || I.type === 'число') ? 'число'
+           : I.type === 'булево' ? 'булево' : 'перечисление'};
+  }
+  const d = DIM(c.id);
+  if(!d) return null;
+  return {kind:'dim', id:c.id, name:d.name, dim:d, vtype: d.buckets ? 'корзина' : 'перечисление'};
 }
+ST.operandOf = operandOf;
+ST.filterOps = c => FOPS[(operandOf(c) || {}).vtype] || [];
+function bucketFor(c, o){ return (c && c.bucket) || (o.dim.buckets ? o.dim.buckets[0] : null); }
+/* Список ступеней строится из тех же границ, что и bucketOf: второй записи ступеней
+   не заводится — иначе «31–90 дн.» в фильтре и в группировке разъехались бы. */
+function stepLabels(d){
+  const e = d.edges, u = d.unit ? ' '+d.unit : '', out = [(e[0]-1)+u];
+  for(let i = 0; i < e.length - 1; i++) out.push(e[i]+'–'+(e[i+1]-1)+u);
+  out.push(e[e.length-1]+'+'+u);
+  return out;
+}
+/* Порядок корзин — свойство корзины, а не алфавита: «апрель 2026» < «май 2026», но
+   лексикографически наоборот. Ключ порядка выводится ИЗ ЯРЛЫКА, поэтому «в диапазоне»
+   работает и над строкой среза, и над записью реестра владельца. */
+function bucketOrd(d, label, bucket){
+  if(label == null) return null;
+  const t = String(label);
+  if(d.edges){ const i = stepLabels(d).indexOf(t); return i < 0 ? null : String(i).padStart(2,'0'); }
+  if(bucket === 'год')     return /^\d{4}$/.test(t) ? t : null;
+  if(bucket === 'квартал'){ const m = t.match(/^(\d{4}) · (\S+) кв\.$/);
+    return m && QN.indexOf(m[2]) >= 0 ? m[1]+'-'+(QN.indexOf(m[2])+1) : null; }
+  if(bucket === 'месяц'){ const m = t.match(/^(\S+) (\d{4})$/); if(!m) return null;
+    const k = Object.keys(MON).find(x => MON[x] === m[1]); return k ? m[2]+'-'+k : null; }
+  return t;
+}
+ST.bucketOrd = bucketOrd;
+/* Значение уровневого разреза — ПУТЬ, и константа сравнивается с ним по префиксу до
+   границы уровня: «Иссык-Кульская» ловит «Иссык-Кульская / Тюпский», но не соседнюю
+   область с похожим началом имени. */
+function eqEnum(s, k, prefix){
+  const t = String(k);
+  return s === t || (prefix && s.indexOf(t+' / ') === 0);
+}
+function matchEnum(c, s, prefix){
+  if(c.op === '=') return eqEnum(s, c.value, prefix);
+  if(c.op === '≠') return !eqEnum(s, c.value, prefix);
+  const hit = (c.values || []).some(k => eqEnum(s, k, prefix));
+  return c.op === '∈' ? hit : !hit;
+}
+function matchNum(c, v){
+  const k = Number(c.value);
+  if(!isFinite(k) || v == null) return false;
+  return c.op === '>' ? v > k : c.op === '≥' ? v >= k : c.op === '<' ? v < k
+       : c.op === '≤' ? v <= k : c.op === '=' ? v === k : c.op === '≠' ? v !== k : false;
+}
+function matchBool(c, v){
+  const k = (c.value === true || c.value === 'да' || c.value === 'true');
+  return c.op === '=' ? v === k : v !== k;
+}
+function matchBucket(o, c, lab){
+  if(lab == null) return false;
+  if(c.op !== 'в диапазоне') return matchEnum(c, String(lab), false);
+  const bk = bucketFor(c, o);
+  const a = bucketOrd(o.dim, c.from, bk), b = bucketOrd(o.dim, c.to, bk), x = bucketOrd(o.dim, lab, bk);
+  if(a == null || b == null || x == null) return false;
+  const lo = a <= b ? a : b, hi = a <= b ? b : a;
+  return x >= lo && x <= hi;
+}
+/* Одно сравнение над ЛЮБЫМ источником: строка среза и запись реестра владельца читаются
+   одинаково (ИС-14, ИС-18) — иначе состав числа и состав списка разошлись бы правилами. */
+function cmpMatch(c, src){
+  const o = operandOf(c);
+  if(!o) return false;
+  if(o.kind === 'dim'){
+    const raw = src.dim(o.id);
+    if(raw == null) return false;
+    if(o.vtype === 'корзина') return matchBucket(o, c, bucketOf(raw, bucketFor(c, o), o.dim));
+    return matchEnum(c, Array.isArray(raw) ? raw.join(' / ') : String(raw), !!o.dim.levels);
+  }
+  const cell = src.ind(o.id);
+  if(cell == null) return false;
+  if(o.vtype === 'булево') return matchBool(c, !!cell.v);
+  if(o.vtype === 'перечисление') return cell.v == null ? false : matchEnum(c, String(cell.v), false);
+  /* Денежная константа несёт ВАЛЮТУ, и сравнивается с частью той же валюты. Пересчёта
+     в фильтре нет: он потребовал бы курса, а курс отбора — не курс показа (ADR-0184 §3).
+     Разновалютная клетка молчит значением и говорит составом — часть и берётся. */
+  let v = cell.v;
+  if(o.money){
+    const p = partsOf(cell).find(x => x.cur === (c.cur || 'KGS'));
+    if(!p) return false;
+    v = p.v;
+  }
+  return matchNum(c, v == null ? null : Number(v));
+}
+const rowSrc = r => ({dim: id => r.dims[id], ind: id => r.inds[id]});
+function matchFilter(filter, src){
+  if(!filter || !filter.sets || !filter.sets.length) return true;
+  return filter.sets.some(s => (s.cmps || []).length && s.cmps.every(c => cmpMatch(c, src)));
+}
+function applyFilter(rows, filter){
+  if(!filter || !filter.sets || !filter.sets.length) return rows;
+  return rows.filter(r => matchFilter(filter, rowSrc(r)));
+}
+ST.matchFilter = matchFilter;
+/* Отказы формы (ADR-0180 §8). Все три — про сравнение, которое НИЧЕГО НЕ ЗНАЧИТ и потому
+   молча вернуло бы полное множество под видом отобранного. Отказ говорит текстом. */
+function checkFilterShape(filter, objId){
+  if(!filter) return null;
+  const sets = filter.sets || [];
+  if(!sets.length) return 'фильтр объявлен, а наборов в нём нет: отсутствие фильтра '+
+    'записывается пустым фильтром, а не пустой формой (ADR-0180 §8)';
+  const o = objId ? OBJ(objId) : null;
+  for(let i = 0; i < sets.length; i++){
+    const cmps = sets[i].cmps || [];
+    if(!cmps.length) return 'набор '+(i+1)+' пуст: набор без сравнений не сужает ничего и '+
+      'пропустил бы всё множество под видом отобранного (ADR-0180 §8)';
+    for(const c of cmps){
+      const op = operandOf(c);
+      if(!op) return 'операнда «'+(c.id || '—')+'» нет в реестрах: фильтр называет разрез '+
+        'или меру строки, а не свободное имя (ИС-7, ИС-18)';
+      if(op.kind === 'ind' && op.ind.src === 'агрегат')
+        return 'фильтр по агрегату «'+op.name+'» не задаётся: операнд фильтра — мера СТРОКИ, '+
+          'а агрегат считается уже по отобранному (ADR-0180 §3)';
+      if(o && op.kind === 'dim' && o.dims.indexOf(op.id) < 0)
+        return 'разрез «'+op.name+'» объекту «'+o.name+'» не объявлен (ИС-18)';
+      if(o && op.kind === 'ind' && op.ind.obj !== '*' && op.ind.obj !== objId)
+        return 'мера «'+op.name+'» объявлена для другого объекта';
+      const ops = FOPS[op.vtype] || [];
+      if(ops.indexOf(c.op) < 0)
+        return 'у операнда «'+op.name+'» тип значения — '+op.vtype+', и оператора «'+
+          (c.op || '—')+'» у него нет: доступны '+ops.join(' ')+' (ADR-0180 §4)';
+      if(LIST_OPS.indexOf(c.op) >= 0 && !(c.values || []).length)
+        return 'сравнение «'+op.name+' '+c.op+' …» дано с пустым списком: пустой список '+
+          'не отбирает ничего и читался бы как потеря данных (ADR-0180 §8)';
+      if(c.op === 'в диапазоне' && (!c.from || !c.to))
+        return 'диапазон у «'+op.name+'» назван не с двух концов: корзина начала и корзина конца '+
+          'обязательны (ADR-0180 §4)';
+      if(LIST_OPS.indexOf(c.op) < 0 && c.op !== 'в диапазоне' && (c.value == null || c.value === ''))
+        return 'сравнение «'+op.name+' '+c.op+' …» дано без константы: правая часть фильтра '+
+          'всегда константа (ADR-0180 §3)';
+      if(op.kind === 'ind' && op.money && !c.cur)
+        return 'денежная константа у «'+op.name+'» дана без валюты: суммы сравниваются '+
+          'по валютам, пересчёта в фильтре не бывает (ADR-0184 §3)';
+    }
+  }
+  return null;
+}
+/* Третий отказ — про домен, и потому проверяется по СТРОКАМ, уже урезанным ролью:
+   «весь домен» у куратора и у ведомства разный, и отказ обязан считать по видимому. */
+function domainOf(o, c, rows){
+  const set = new Set();
+  rows.forEach(r => {
+    if(o.kind === 'dim'){
+      const raw = r.dims[o.id];
+      if(raw == null) return;
+      const v = o.vtype === 'корзина' ? bucketOf(raw, bucketFor(c, o), o.dim)
+              : Array.isArray(raw) ? raw.join(' / ') : String(raw);
+      if(v != null) set.add(v);
+    } else {
+      const cell = r.inds[o.id];
+      if(!cell || cell.v == null) return;
+      set.add(o.vtype === 'булево' ? (cell.v ? 'да' : 'нет') : String(cell.v));
+    }
+  });
+  return [...set];
+}
+function checkFilterDomain(filter, rows){
+  if(!filter || !filter.sets) return null;
+  for(const s of (filter.sets || [])) for(const c of (s.cmps || [])){
+    if(c.op !== '∈') continue;
+    const o = operandOf(c);
+    if(!o) continue;
+    const dom = domainOf(o, c, rows);
+    if(!dom.length) continue;
+    const prefix = o.kind === 'dim' && !!o.dim.levels;
+    const out = dom.filter(v => !(c.values || []).some(k => eqEnum(v, k, prefix)));
+    if(!out.length) return 'сравнение «'+o.name+' ∈ …» перечисляет весь домен на дату среза ('+
+      dom.length+' знач.): оно ничего не сужает, а в паспорте выглядело бы заданным фильтром '+
+      'там, где фильтра нет (ADR-0180 §8)';
+  }
+  return null;
+}
+ST.filterCheck = (filter, objId, rows) => checkFilterShape(filter, objId) ||
+  (rows ? checkFilterDomain(filter, rows) : null);
 ST.applyScope = applyScope;
 
 function scopeText(objId, n){
@@ -2236,10 +2458,30 @@ function scopeText(objId, n){
     ? 'по '+n+' объектам «'+o.name+'», доступным вам: роль «'+ST.state.role+'», куратор '+s.value
     : 'по всем объектам «'+o.name+'» системы: '+n;
 }
-function filterText(filter){
-  if(!filter || !filter.dim) return 'фильтра нет — спрошено обо всём доступном множестве';
-  return 'фильтр пользователя: '+DIM(filter.dim).name+' = '+filter.value;
+/* Паспорт печатает фильтр ЦЕЛИКОМ (ADR-0180 §6). «Фильтр задан» и «+2 условия» — это
+   ответ без вопроса: по нему нельзя ни повторить отбор, ни объяснить, почему числа
+   разошлись. Пустой фильтр называется строкой, а не пропускается. */
+function cmpText(c){
+  const o = operandOf(c);
+  if(!o) return '«'+(c.id || '—')+'» — операнда нет в реестрах';
+  const name = o.name + (o.vtype === 'корзина' ? ' ('+bucketFor(c, o)+')' : '');
+  if(c.op === 'в диапазоне') return name+' в диапазоне '+c.from+' — '+c.to;
+  if(LIST_OPS.indexOf(c.op) >= 0) return name+' '+c.op+' '+(c.values || []).join(', ');
+  if(o.vtype === 'булево') return name+' '+c.op+' '+
+    ((c.value === true || c.value === 'да' || c.value === 'true') ? 'да' : 'нет');
+  if(o.kind === 'ind' && o.money) return name+' '+c.op+' '+money(Number(c.value), c.cur);
+  if(o.vtype === 'число') return name+' '+c.op+' '+num(Number(c.value), o.ind && o.ind.unit);
+  return name+' '+c.op+' '+c.value;
 }
+function setText(s){ return (s.cmps || []).map(cmpText).join(' и '); }
+function filterText(filter){
+  const sets = filter && filter.sets ? filter.sets.filter(s => (s.cmps || []).length) : [];
+  if(!sets.length) return 'фильтра нет — спрошено обо всём доступном множестве';
+  if(sets.length === 1) return 'фильтр пользователя: '+setText(sets[0]);
+  return 'фильтр пользователя: '+sets.map((s,i) => 'набор '+(i+1)+' — '+setText(s)).join('; либо ');
+}
+ST.filterText = filterText;
+ST.cmpText = cmpText;
 function fixationOf(rows){
   if(!rows.length) return 'не зафиксировано';
   const f = rows.filter(r => r.fixed).length;
@@ -2448,7 +2690,7 @@ function checkQuery(q, needAgg){
     if(needAgg && I.src !== 'агрегат') return 'в срезе показатель — агрегат: «'+I.name+
       '» строчный, спросите его швом statRows';
   }
-  return null;
+  return checkFilterShape(q.filter, q.obj);
 }
 
 /* Сколько и на сколько, в таком-то разрезе, на такую-то дату. */
@@ -2460,6 +2702,8 @@ ST.statSlice = q => {
   if(!res) return {ok:false, why:'строк на '+fmt(q.date)+' и ранее нет: подстановка запрещена (ИС-12)'};
   let rows = rowsAt(st, q.obj, res.asOf);
   rows = applyScope(rows);                                   /* ДО группировки — ИС-13 */
+  const badF = checkFilterDomain(q.filter, rows);            /* отказ ДО счёта — ADR-0180 §8 */
+  if(badF) return {ok:false, why: badF};
   rows = applyFilter(rows, q.filter);
   const dims = q.dims || [], inds = q.inds || [];
   /* Форма ответа ОДНА — дерево (ADR-0176 §6). У плоского разреза оно вырождается в
@@ -2525,8 +2769,14 @@ ST.statSeries = q => {
   const st = ST.state;
   const dates = (q.dates || []).slice().sort();
   if(!dates.length) return {ok:false, why:'ряд без дат не строится'};
-  const bad = checkQuery({obj:q.obj, dims:[], inds:[q.inds], date: dates[dates.length-1]}, true);
+  const bad = checkQuery({obj:q.obj, dims:[], inds:[q.inds], date: dates[dates.length-1],
+    filter: q.filter}, true);
   if(bad) return {ok:false, why: bad};
+  /* Домен ряда меряется по ПОСЛЕДНЕЙ точке: отказ обязан быть один на ряд, иначе
+     четыре точки дали бы четыре разных вердикта одному и тому же фильтру. */
+  const lastAt = resolveAsOf(st, q.obj, dates[dates.length-1]);
+  const badF = lastAt ? checkFilterDomain(q.filter, applyScope(rowsAt(st, q.obj, lastAt.asOf))) : null;
+  if(badF) return {ok:false, why: badF};
   const points = [], used = [];
   for(const d of dates){
     const res = resolveAsOf(st, q.obj, d);
@@ -2551,11 +2801,14 @@ ST.rowsLimit = 12;
    Порог считается ПОСЛЕ ролевых правил (ADR-0178 §3): иначе отказ выдавал бы размер
    чужого множества, а куратор с сорока строками получал бы отказ из-за холдинга. */
 function rowsFor(st, q){
-  const bad = checkQuery({obj:q.obj, dims:[], inds:[], date:q.date}, false);
+  const bad = checkQuery({obj:q.obj, dims:[], inds:[], date:q.date, filter:q.filter}, false);
   if(bad) return {ok:false, why: bad};
   const res = resolveAsOf(st, q.obj, q.date);
   if(!res) return {ok:false, why:'строк на '+fmt(q.date)+' и ранее нет: подстановка запрещена (ИС-12)'};
-  let rows = applyFilter(applyScope(rowsAt(st, q.obj, res.asOf)), q.filter);
+  let rows = applyScope(rowsAt(st, q.obj, res.asOf));
+  const badF = checkFilterDomain(q.filter, rows);
+  if(badF) return {ok:false, why: badF};
+  rows = applyFilter(rows, q.filter);
   if(q.refs) rows = rows.filter(r => q.refs.indexOf(r.ref) >= 0);
   return {ok:true, rows, res, p: passportFor(st, q.obj, q.date, res, rows, q.filter)};
 }
@@ -2580,7 +2833,8 @@ ST.exportJob = q => {
   const st = ST.state, r = rowsFor(st, q);
   if(!r.ok) return r;
   const job = {id:'ВГ-'+String(st.exports.length + 1).padStart(3,'0'), obj: q.obj, date: q.date,
-    n: r.rows.length, by: st.role, at: st.today, state:'в очереди', filter: q.filter || null,
+    n: r.rows.length, by: st.role, at: st.today, state:'в очереди',
+    filter: q.filter ? clone(q.filter) : null,
     file:'statRows-'+q.obj+'-'+q.date+'.csv', passport: clone(r.p)};
   st.exports.unshift(job);
   log('оформлена выгрузка '+job.id+': '+OBJ(q.obj).name+', строк — '+job.n);
@@ -2615,19 +2869,10 @@ ST.registryList = (objId, dateISO, filter) => {
     const born = bornOn(o, item, dateISO);
     if(born == null || born > dateISO) return false;
     if(s && valueOn(item.h.curator, dateISO) !== s.value) return false;
-    if(filter && filter.dim){
-      const d = DIM(filter.dim);
-      if(d && d.levels){
-        const path = (readPath(d, item, dateISO) || []).join(' / ');
-        if(path.indexOf(String(filter.value)) !== 0) return false;
-      } else {
-        const v = d.src === 'история' ? valueOn(item.h[d.key], dateISO)
-                : d.src === 'поле' ? item.f[d.key]
-                : ((CORE.read(d.seam, item, dateISO) || {})[d.field] || {}).value;
-        if(String(v) !== String(filter.value)) return false;
-      }
-    }
-    return true;
+    /* Фильтр списку и фильтр числу — ОДНО сравнение над разными источниками: у среза
+       строка, у владельца запись на дату. Двух правил здесь не бывает (ИС-14, ИС-18). */
+    return matchFilter(filter, {dim: id => readDim(id, item, dateISO),
+                                ind: id => readInd(id, item, dateISO)});
   }).map(item => item.id).sort();
 };
 
@@ -2640,7 +2885,12 @@ ST.flowBetween = q => {
   if(!I.flow) return {ok:false, why:'«'+I.name+'» не поток: разностью двух строк считаются только нарастающие итоги (ИС-17)'};
   const a = resolveAsOf(st, q.obj, q.from), b = resolveAsOf(st, q.obj, q.to);
   if(!b) return {ok:false, why:'строк на '+fmt(q.to)+' и ранее нет (ИС-12)'};
-  const endRows = applyFilter(applyScope(rowsAt(st, q.obj, b.asOf)), q.filter);
+  const badF = checkFilterShape(q.filter, q.obj);
+  if(badF) return {ok:false, why: badF};
+  const endScoped = applyScope(rowsAt(st, q.obj, b.asOf));
+  const badD = checkFilterDomain(q.filter, endScoped);
+  if(badD) return {ok:false, why: badD};
+  const endRows = applyFilter(endScoped, q.filter);
   const baseRows = a ? applyFilter(applyScope(rowsAt(st, q.obj, a.asOf)), q.filter) : [];
   let sum = 0; const born = [];
   endRows.forEach(r => {
@@ -2984,34 +3234,110 @@ ST.toggleDim = id => { const st = ST.state, a = st.q.dims, i = a.indexOf(id);
   st.drill = null; st.work = null; render(); };
 ST.setLevel = (dimId, n) => { ST.state.q.levels[dimId] = n; ST.state.drill = null; render(); };
 /* Фильтр задаётся ЯВНО, а не только кликом по числу (СС-Д2): значения берутся из строк
-   на дату среза — списком чужих справочников фильтр не наполняется (ИС-4). */
-ST.filterValues = dimId => {
-  const st = ST.state, d = DIM(dimId);
+   на дату среза — списком чужих справочников фильтр не наполняется (ИС-4). Значения
+   МЕРЫ берутся оттуда же: у фильтра один источник на оба вида операнда (ADR-0180 §5). */
+ST.operandValues = (kind, id, bucket) => {
+  const st = ST.state;
+  const o = operandOf({kind, id, bucket});
   const res = resolveAsOf(st, st.q.obj, st.q.date);
-  if(!res || !d) return [];
+  if(!res || !o) return [];
+  const bk = o.vtype === 'корзина' ? (bucket || o.dim.buckets[0]) : null;
   const set = new Set();
   applyScope(rowsAt(st, st.q.obj, res.asOf)).forEach(r => {
-    const v = r.dims[dimId];
-    if(v == null) return;
-    if(Array.isArray(v)){ for(let i = 1; i <= v.length; i++) set.add(v.slice(0,i).join(' / ')); }
-    else if(d.buckets){
-      const q = {buckets: {}};
-      q.buckets[dimId] = st.q.buckets[dimId] || d.buckets[0];
-      set.add(dimKey(d, v, q));
+    if(o.kind === 'dim'){
+      const v = r.dims[id];
+      if(v == null) return;
+      /* У иерархии в список идут ВСЕ уровни пути: «Юг» и «Юг / Ош» — разные вопросы. */
+      if(Array.isArray(v)){ for(let i = 1; i <= v.length; i++) set.add(v.slice(0,i).join(' / ')); }
+      else if(o.vtype === 'корзина'){ const k = bucketOf(v, bk, o.dim); if(k != null) set.add(k); }
+      else set.add(String(v));
+    } else {
+      const c = r.inds[id];
+      if(!c || c.v == null) return;
+      set.add(o.vtype === 'булево' ? (c.v ? 'да' : 'нет') : String(c.v));
     }
-    else set.add(String(v));
   });
-  return [...set].sort((a,b) => String(a).localeCompare(String(b),'ru'));
+  const arr = [...set];
+  /* Корзины сортируются ПОРЯДКОМ КОРЗИНЫ, а не алфавитом: «апрель» перед «маем». */
+  if(o.vtype === 'корзина')
+    return arr.sort((a,b) => String(bucketOrd(o.dim,a,bk)).localeCompare(String(bucketOrd(o.dim,b,bk))));
+  if(o.vtype === 'число') return arr.sort((a,b) => Number(a) - Number(b));
+  return arr.sort((a,b) => String(a).localeCompare(String(b),'ru'));
 };
-ST.applyFilterUI = () => {
+ST.filterValues = dimId => ST.operandValues('dim', dimId, (ST.state.q.buckets || {})[dimId]);
+/* Черновик сравнения живёт в состоянии, а не в DOM: перерисовка не имеет права терять
+   наполовину набранное сравнение — иначе набор из трёх сравнений не соберётся. */
+function fDraft(){
   const st = ST.state;
-  const dim = (($('#fDim') || {}).value || '');
-  const val = (($('#fVal') || {}).value || '');
-  if(!dim || !val) return toast('фильтр называет разрез и значение', 'err');
-  st.q.filter = {dim, value: val}; st.drill = null; st.work = null; render();
+  if(!st.fEdit) st.fEdit = {kind:'dim', id:'', op:'=', bucket:'', value:'', values:[],
+    from:'', to:'', cur:'KGS', set:'new'};
+  return st.fEdit;
+}
+ST.filterOperands = () => {
+  const st = ST.state, o = OBJ(st.q.obj);
+  if(!o) return {dims:[], inds:[]};
+  return {
+    dims: o.dims.filter(id => DIM(id) && DIM(id).since <= st.q.date)
+               .map(id => ({kind:'dim', id, name: DIM(id).name})),
+    /* Операнд — мера СТРОКИ: агрегат в фильтр не попадает даже списком (ADR-0180 §3). */
+    inds: o.inds.filter(id => IND(id) && IND(id).src !== 'агрегат')
+               .map(id => ({kind:'ind', id, name: IND(id).name}))
+  };
 };
-ST.pickFilterDim = () => { ST.state.fDim = (($('#fDim') || {}).value || ''); render(); };
-ST.clearFilter = () => { ST.state.q.filter = null; ST.state.drill = null; render(); };
+ST.pickOperand = () => {
+  const d = fDraft(), sel = String((($('#fOperand') || {}).value || '')).split(':');
+  d.kind = sel[0] || 'dim'; d.id = sel[1] || '';
+  d.op = (ST.filterOps(d) || [])[0] || '=';
+  d.bucket = ''; d.value = ''; d.values = []; d.from = ''; d.to = '';
+  render();
+};
+ST.pickFilterOp     = () => { fDraft().op = (($('#fOp') || {}).value) || '='; render(); };
+ST.pickFilterBucket = () => { fDraft().bucket = (($('#fBucket') || {}).value) || ''; render(); };
+ST.pickFilterSet    = () => { fDraft().set = (($('#fSet') || {}).value) || 'new'; };
+/* Сравнение добавляется в НАБОР (И) либо новым набором (ИЛИ) — двух этих действий
+   довольно, чтобы собрать любую ДНФ, и третьего в форме без скобок не бывает. */
+ST.addCmp = () => {
+  const st = ST.state, d = fDraft();
+  const sel = String((($('#fOperand') || {}).value || d.kind+':'+d.id)).split(':');
+  const c = {kind: sel[0] || 'dim', id: sel[1] || '', op: (($('#fOp') || {}).value) || d.op};
+  const o = operandOf(c);
+  if(!o) return toast('сравнение называет разрез или меру строки', 'err');
+  if(o.vtype === 'корзина') c.bucket = (($('#fBucket') || {}).value) || o.dim.buckets[0];
+  if(c.op === 'в диапазоне'){
+    c.from = (($('#fFrom') || {}).value) || '';
+    c.to   = (($('#fTo')   || {}).value) || '';
+  } else if(LIST_OPS.indexOf(c.op) >= 0){
+    const el = $('#fVals');
+    c.values = el ? [].slice.call(el.selectedOptions).map(x => x.value) : [];
+  } else if(o.vtype === 'число'){
+    c.value = (($('#fNum') || {}).value) || '';
+    if(o.money) c.cur = (($('#fCur') || {}).value) || 'KGS';
+  } else c.value = (($('#fVal') || {}).value) || '';
+  const target = (($('#fSet') || {}).value) || d.set || 'new';
+  const sets = (st.q.filter && st.q.filter.sets) ? clone(st.q.filter.sets) : [];
+  if(target === 'new' || !sets[Number(target)]) sets.push({cmps:[c]});
+  else sets[Number(target)].cmps.push(c);
+  const trial = {sets};
+  /* Отказ показывается ДО применения и текстом: «пусто» вместо ответа — не отказ. */
+  const res = resolveAsOf(st, st.q.obj, st.q.date);
+  const bad = ST.filterCheck(trial, st.q.obj,
+    res ? applyScope(rowsAt(st, st.q.obj, res.asOf)) : null);
+  if(bad) return toast(bad, 'err');
+  st.q.filter = trial;
+  d.set = String(target === 'new' ? sets.length - 1 : Number(target));
+  st.drill = null; st.work = null; render();
+};
+ST.dropCmp = (i, j) => {
+  const st = ST.state, f = st.q.filter;
+  if(!f || !f.sets || !f.sets[i]) return;
+  f.sets[i].cmps.splice(j, 1);
+  if(!f.sets[i].cmps.length) f.sets.splice(i, 1);
+  if(!f.sets.length) st.q.filter = null;
+  fDraft().set = 'new';
+  st.drill = null; st.work = null; render();
+};
+ST.clearFilter = () => { const st = ST.state;
+  st.q.filter = null; fDraft().set = 'new'; st.drill = null; st.work = null; render(); };
 ST.setBucket = (dimId, b) => { ST.state.q.buckets[dimId] = b; ST.state.drill = null; render(); };
 ST.exportUI = () => { const st = ST.state;
   act(ST.exportJob({obj: st.q.obj, date: st.q.date, filter: st.q.filter}),
@@ -3029,6 +3355,70 @@ ST.setFlow = (k, v) => { ST.state.flow[k] = v; render(); };
 function chip(on, label, onclick, off){
   return '<button class="chip'+(on ? ' on' : '')+(off ? ' off' : '')+'"'+
     (off ? ' disabled' : ' onclick="'+onclick+'"')+'>'+esc(label)+'</button>';
+}
+/* Редактор наборов. Фильтр — сужение ВОПРОСА, и он виден строкой целиком, а не следом
+   клика: сравнения набора стоят рядом через «и», наборы разделены словом «либо». Скобок
+   в форме нет, поэтому и рисовать нечего — глубина ровно две (ADR-0180 §1). */
+function filterBar(st){
+  const d = fDraft(), ops = ST.filterOperands(), all = ops.dims.concat(ops.inds);
+  if(!all.length) return '';
+  const cur = all.find(x => x.kind === d.kind && x.id === d.id) || all[0];
+  d.kind = cur.kind; d.id = cur.id;
+  const o = operandOf(d);
+  const opList = FOPS[o.vtype] || [];
+  if(opList.indexOf(d.op) < 0) d.op = opList[0];
+  const bk = o.vtype === 'корзина' ? (d.bucket || o.dim.buckets[0]) : null;
+  if(bk) d.bucket = bk;
+  const vals = (o.vtype === 'корзина' || o.vtype === 'перечисление' || o.vtype === 'булево')
+    ? ST.operandValues(o.kind, o.id, bk) : [];
+  const opt = (v, on) => '<option'+(on ? ' selected' : '')+'>'+esc(v)+'</option>';
+  const grp = (label, list) => list.length ? '<optgroup label="'+esc(label)+'">'+
+    list.map(x => '<option value="'+x.kind+':'+x.id+'"'+
+      (x.kind === cur.kind && x.id === cur.id ? ' selected' : '')+'>'+esc(x.name)+'</option>').join('')+
+    '</optgroup>' : '';
+  const none = '<option value="">— значений на дату среза нет —</option>';
+  let vBox;
+  if(d.op === 'в диапазоне')
+    vBox = '<div class="fld"><label>От корзины</label><select id="fFrom">'+
+        (vals.map(v => opt(v, false)).join('') || none)+'</select></div>'+
+      '<div class="fld"><label>До корзины</label><select id="fTo">'+
+        (vals.map(v => opt(v, false)).join('') || none)+'</select></div>';
+  else if(LIST_OPS.indexOf(d.op) >= 0)
+    vBox = '<div class="fld"><label>Значения (несколько)</label>'+
+      '<select id="fVals" multiple size="4" style="height:auto">'+
+        (vals.map(v => opt(v, false)).join('') || none)+'</select></div>';
+  else if(o.vtype === 'число')
+    vBox = '<div class="fld"><label>Константа'+(o.ind && o.ind.unit ? ', '+esc(o.ind.unit) : '')+
+        '</label><input id="fNum" type="number" step="any" value="'+esc(d.value || '')+'"></div>'+
+      /* Денежная константа НЕСЁТ ВАЛЮТУ: суммы сравниваются по валютам, и «> 1 000 000»
+         без валюты — не константа, а половина константы (ADR-0184 §3). */
+      (o.money ? '<div class="fld"><label>Валюта</label><select id="fCur">'+
+        Object.keys(RATES).map(c => opt(c, c === (d.cur || 'KGS'))).join('')+'</select></div>' : '');
+  else
+    vBox = '<div class="fld"><label>Значение</label><select id="fVal">'+
+      (vals.map(v => opt(v, false)).join('') || none)+'</select></div>';
+  const sets = (st.q.filter && st.q.filter.sets) || [];
+  const setOpts = sets.map((x,i) => '<option value="'+i+'"'+(String(i) === String(d.set) ? ' selected' : '')+
+      '>в набор '+(i+1)+' (И)</option>').join('')+
+    '<option value="new"'+(d.set === 'new' || !sets.length ? ' selected' : '')+'>новым набором (ИЛИ)</option>';
+  const shown = sets.length ? '<div><h4>Фильтр — '+sets.length+' '+
+      plural(sets.length,'набор','набора','наборов')+', сравнений '+
+      sets.reduce((n,x) => n + x.cmps.length, 0)+'</h4><div class="chips">'+
+      sets.map((x,i) => '<span class="chips-grp">'+(i ? 'либо ' : '')+'набор '+(i+1)+'</span>'+
+        x.cmps.map((c,j) => chip(true, cmpText(c)+'   ✕', 'ST.dropCmp('+i+','+j+')')).join('')).join('')+
+      '</div></div>' : '';
+  return shown+'<div class="form-row" style="margin-top:12px">'+
+    '<div class="fld"><label>Операнд</label><select id="fOperand" onchange="ST.pickOperand()">'+
+      grp('Разрезы', ops.dims)+grp('Меры строки', ops.inds)+'</select></div>'+
+    '<div class="fld"><label>Оператор</label><select id="fOp" onchange="ST.pickFilterOp()">'+
+      opList.map(x => opt(x, x === d.op)).join('')+'</select></div>'+
+    (bk ? '<div class="fld"><label>Корзина</label><select id="fBucket" onchange="ST.pickFilterBucket()">'+
+      o.dim.buckets.map(x => opt(x, x === bk)).join('')+'</select></div>' : '')+
+    vBox+
+    '<div class="fld"><label>Куда</label><select id="fSet" onchange="ST.pickFilterSet()">'+setOpts+'</select></div>'+
+    '<button class="btn btn-secondary" onclick="ST.addCmp()">Добавить сравнение</button>'+
+    (sets.length ? '<button class="btn btn-secondary" onclick="ST.clearFilter()">Снять фильтр</button>' : '')+
+    '</div>';
 }
 function pickBar(){
   const st = ST.state, o = OBJ(st.q.obj);
@@ -3060,20 +3450,7 @@ function pickBar(){
   const bktBar = bktD.map(d => '<div><h4>Корзина: '+esc(d.name)+'</h4><div class="chips">'+
     d.buckets.map(b => chip(st.q.buckets[d.id] === b, b, "ST.setBucket('"+d.id+"','"+b+"')")).join('')+
     '</div></div>').join('');
-  /* Фильтр — сужение ВОПРОСА, и он обязан быть виден строкой, а не остаться следом клика. */
-  const fDims = o.dims.filter(d => DIM(d) && DIM(d).since <= st.q.date);
-  const fCur = st.fDim && fDims.indexOf(st.fDim) >= 0 ? st.fDim : fDims[0];
-  const fBar = ST.canBuild() ? '<div class="form-row" style="margin-top:12px">'+
-    '<div class="fld"><label>Фильтр — разрез</label><select id="fDim" onchange="ST.pickFilterDim()">'+
-      fDims.map(d => '<option value="'+d+'"'+(d === fCur ? ' selected' : '')+'>'+esc(DIM(d).name)+
-        '</option>').join('')+'</select></div>'+
-    '<div class="fld"><label>Значение</label><select id="fVal">'+
-      (ST.filterValues(fCur).map(v => '<option'+(st.q.filter && st.q.filter.value === v ? ' selected' : '')+
-        '>'+esc(v)+'</option>').join('') || '<option value="">— значений на дату среза нет —</option>')+
-      '</select></div>'+
-    '<button class="btn btn-secondary" onclick="ST.applyFilterUI()">Применить фильтр</button>'+
-    (st.q.filter ? '<button class="btn btn-secondary" onclick="ST.clearFilter()">Снять фильтр — сейчас «'+
-      esc(st.q.filter.value)+'»</button>' : '')+'</div>' : '';
+  const fBar = ST.canBuild() ? filterBar(st) : '';
   return '<div class="card"><div class="pickbar">'+
     '<div><h4>Объект статистики</h4><div class="chips">'+objs+'</div></div>'+
     '<div><h4>Разрезы</h4><div class="chips">'+dims+'</div></div>'+lvlBar+bktBar+
@@ -3084,8 +3461,11 @@ function pickBar(){
     '(ADR-0150 §2); строчный показатель спрашивается швом <code>statRows</code>. '+
     'Разрез с уровнями спрашивается уровнем, разрез-дата — корзиной из объявленного списка: '+
     'свободной корзины («по неделям») в запросе не бывает — это заявка владельцу реестра '+
-    '(ИС-22, ИС-23, ADR-0176). Фильтр — часть вопроса, а не след клика: значения берутся '+
-    'из строк на дату среза, и в паспорте фильтр назван словами.</p></div>';
+    '(ИС-22, ИС-23, ADR-0176). Фильтр — часть вопроса, а не след клика: он собирается '+
+    'наборами (ДНФ без скобок, ADR-0180), сравнения внутри набора связаны «и», наборы между '+
+    'собой — «либо»; операнд — разрез или мера СТРОКИ, правая часть всегда константа, а '+
+    'значения берутся из строк на дату среза. В паспорте фильтр печатается целиком, всеми '+
+    'наборами и сравнениями: «фильтр задан» — это ответ без вопроса.</p></div>';
 }
 
 function sliceTable(res){
