@@ -3,7 +3,7 @@
 **Статус:** принято · 2026-08-26 · модуль «Статистика» (потребители — отчётность, дашборд,
 анализ) · опирается на [ADR-0152](./0152-tri-shva-po-voprosu-i-oblast-vidimosti.md) (три шва,
 паспорт ответа, область видимости), [ADR-0147](./0147-atom-hraneniya-stroka-obekta-na-datu.md)
-(строка объекта на дату), [ADR-0150](./0150-pokazatel-obyavlyaet-istochnik-bez-formuly.md)
+(строка объекта на дату), [ADR-0150](./0150-pokazatel-obyavlennyy-istochnik-a-ne-formula.md)
 (показатель объявляет источник и не несёт формулы) · берёт форму у
 [ADR-0137](./0137-pravilo-vmesto-usloviya-dnf-bez-skobok.md) (классификация: ДНФ без скобок) ·
 закрывает дефект макета `СС-Д8`
