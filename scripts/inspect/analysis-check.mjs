@@ -3,6 +3,9 @@
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение: снимок, датированный выбор методики, вычислитель из данных,
 // два механизма правки, срок → обязательство → дефект, швы и названные отказы.
+// Блок M (#39…#44) закрывает починки волны 4 — дефекты АН-Д1…АН-Д5: одна дверь переиздания,
+// снимок без вывода, датированный выбор строки расписания, тип лица на конец периода,
+// справочник строк формы как объект ведения.
 // Блоки, которые правят состояние, начинаются с AN.seed() — состояние между ними не течёт.
 //   node scripts/inspect/analysis-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -346,6 +349,124 @@ const TODAY = '2026-08-21';
   const roMethods = panel();
   ok(38, has(adm, 'Сохранить') && has(roMethods, 'Методики ведёт отдел анализа'),
     `администратору расписание открыто на правку, куратору реестр методик — на чтение с названной причиной (§13)`);
+})();
+
+/* ---------- M. Починки волны 4: АН-Д1…АН-Д5 ---------- */
+(() => {
+  /* АН-Д1: у переиздания одно правило, какой бы дверью его ни завели (ИА-16). */
+  AN.seed();
+  const byButton = AN.newAnalysis({ subj: 'b-1', report: 'r-103' });   /* кнопка у версии отчётности */
+  AN.seed();
+  const byDoc = AN.reissue('ФА-7');                                     /* кнопка в самом документе */
+  AN.seed();
+  const sameBasis = AN.newAnalysis({ subj: 'b-1', report: 'r-102' });   /* то же основание */
+  AN.seed();
+  const otherPeriod = AN.newAnalysis({ subj: 'b-1', report: 'r-101' }); /* другой период — не переиздание */
+  const noArg = !/spec\.prev/.test(m[1]);
+  ok(39, byButton.ok && byButton.doc.prev === 'ФА-7' && byDoc.ok && byDoc.doc.prev === 'ФА-7' &&
+        byButton.doc.reportVer === byDoc.doc.reportVer && !sameBasis.ok && has(sameBasis.why, 'основание то же самое') &&
+        otherPeriod.ok && otherPeriod.doc.prev === null && noArg,
+    `обе двери дают один результат: ${byButton.doc.no} на версии ${byButton.doc.reportVer}, связь «← ФА-7» ` +
+    `проставлена машиной (аргумента prev в вызове больше нет); на прежней версии отказ, за другой период — не переиздание (ИА-16)`);
+
+  /* АН-Д2: вывод в снимок не входит (ИА-15, ADR-0153 §1). */
+  AN.seed();
+  const snaps = AN.state.analyses.filter(a => a.snapshot).map(a => a.snapshot);
+  const withVerdict = snaps.filter(s => 'verdict' in s);
+  const was = AN.DOC('ФА-7').verdict;
+  AN.correct('ФА-7', { field: 'вывод', value: 'неудовлетворительное', basis: 'служебная записка № 5 от 21.08.2026' });
+  const c = AN.DOC('ФА-7').corrections[0];
+  ok(40, snaps.length === 3 && withVerdict.length === 0 &&
+        AN.DOC('ФА-7').verdict === 'неудовлетворительное' && AN.analysisVerdict('b-1').verdict === 'неудовлетворительное' &&
+        c.was === was && !('verdict' in AN.DOC('ФА-7').snapshot),
+    `ни в одном из ${snaps.length} снимков поля вывода нет: снимок — основание, а не суждение; ` +
+    `после корректировки документ и шов отдают одно значение, а «было» хранит таблица корректировок (ИА-15)`);
+
+  /* АН-Д3: действующая на дату строка выбирается тем же порядком, что и редакция (ИА-17). */
+  AN.seed();
+  AN.state.schedule.push({ id: 'sc-org-2', ptype: 'организация', freq: 'полугодие', grace: 10,
+    needLoans: true, since: '2026-03-01' });
+  const later = AN.dueOf('b-1');
+  AN.seed();
+  AN.state.schedule.push({ id: 'sc-org-3', ptype: 'организация', freq: 'полугодие', grace: 10,
+    needLoans: true, since: '2026-08-01' });
+  const afterEnd = AN.dueOf('b-1');
+  const onePicker = (m[1].match(/function onDate/g) || []).length === 1 &&
+    /rowOn\(AN\.state\.schedule/.test(m[1]) && !/rows\.find\(r => r\.ptype/.test(m[1]);
+  ok(41, later.row === 'sc-org-2' && later.due === '2026-07-10' &&
+        afterEnd.row === 'sc-org' && afterEnd.due === '2026-08-14' && onePicker,
+    `вторая строка того же типа, вступившая в силу 01.03.2026, действует (срок ${later.due}); вступившая ` +
+    `01.08.2026 — уже после конца периода — не действует (${afterEnd.due}); выбор записи на дату сделан одной функцией (ИА-17)`);
+
+  /* АН-Д4: тип лица для срока — на конец отчётного периода, как и для методики (ИА-4, ИА-17). */
+  AN.seed();
+  AN.SUBJ('b-2').ptype[1].since = '2026-08-01';          /* снялся с учёта ПОСЛЕ конца периода */
+  const atEnd = AN.dueOf('b-2');
+  const mf = AN.methodFor('b-2', '2026-06-30');
+  AN.state.schedule.find(r => r.id === 'sc-ip').freq = 'год';
+  const split = AN.dueOf('b-2');
+  const mirror = AN.mirrorDefect('b-2');
+  ok(42, atEnd.required && atEnd.row === 'sc-ip' && atEnd.ptype === 'индивидуальный предприниматель' &&
+        mf.method.id === 'm-ip' && !split.required && split.unresolved &&
+        has(split.why, 'срок не определён') && has(split.why, 'решает администратор') &&
+        !mirror.defect && mirror.unresolved,
+    `тип лица берётся на конец периода — и для методики, и для срока: строка «${atEnd.row}», методика «${mf.method.name}». ` +
+    `Разошлись периодичности — назван отказ, а не молча показан чужой срок; дефект из него не рождается`);
+
+  /* АН-Д5: строку формы отчётности заводит отдел анализа записью (ИА-18). */
+  AN.seed();
+  const byCurator = AN.addLine({ id: 'stock_end', name: 'Товарные остатки', unit: 'сом' });
+  AN.setRole('Сотрудник отдела анализа');
+  const badId = AN.addLine({ id: 'Товарные остатки', name: 'x', unit: 'сом' });
+  const noUnit = AN.addLine({ id: 'stock_end', name: 'Товарные остатки на конец периода', unit: '' });
+  const added = AN.addLine({ id: 'stock_end', name: 'Товарные остатки на конец периода', unit: 'сом' });
+  const dup = AN.addLine({ id: 'stock_end', name: 'ещё раз', unit: 'сом' });
+  const base = AN.METHOD('m-org').editions.slice(-1)[0];
+  const ed = AN.addEdition({ method: 'm-org', n: 3, since: TODAY, note: 'взята новая строка формы',
+    lines: base.lines.concat(['stock_end']),
+    coefs: base.coefs.concat([{ id: 'k-stock', name: 'Остатки к обязательствам', num: ['stock_end'],
+      den: ['li_short'], op: 'ratio', fmt: 'ratio', thr: { cmp: '>=', v: 0.5 } }]) });
+  const namedBy = AN.usedByLine('stock_end');
+  const retireUsed = AN.retireLine('stock_end');
+  AN.addLine({ id: 'tmp_x', name: 'Временная', unit: 'шт.' });
+  const retireFree = AN.retireLine('tmp_x');
+  const onGone = AN.addEdition({ method: 'm-ip', n: 2, since: TODAY, note: 'на снятой строке',
+    lines: ['rev_ip', 'tmp_x'], coefs: [{ id: 'k-y', name: 'Y', num: ['tmp_x'], den: ['rev_ip'],
+      op: 'ratio', fmt: 'ratio', thr: { cmp: '>=', v: 1 } }] });
+  const unknown = AN.addEdition({ method: 'm-ip', n: 2, since: TODAY, note: 'на неизвестной строке',
+    lines: ['rev_ip'], coefs: [{ id: 'k-z', name: 'Z', num: ['nope'], den: ['rev_ip'],
+      op: 'ratio', fmt: 'ratio', thr: { cmp: '>=', v: 1 } }] });
+  ok(43, !byCurator.ok && has(byCurator.why, 'отдел анализа') && !badId.ok && has(badId.why, 'латиница') &&
+        !noUnit.ok && has(noUnit.why, 'единицы измерения') && added.ok && !dup.ok && has(dup.why, 'уже есть') &&
+        ed.ok && namedBy.length === 1 && !retireUsed.ok && has(retireUsed.why, 'ИА-5') && retireFree.ok &&
+        !onGone.ok && has(onGone.why, 'снята со справочника') && !unknown.ok && has(unknown.why, 'ИА-18'),
+    `новый показатель отчётности заводится записью отделом анализа и берётся редакцией без правки кода; ` +
+    `названная редакцией строка не снимается, снятая и неизвестная в редакцию не берутся (ИА-18)`);
+
+  /* Починенное видно на экранах, а не только в состоянии. */
+  const el = () => ({ innerHTML: '', textContent: '', dataset: {}, value: '',
+    classList: { toggle() {}, add() {}, remove() {} }, appendChild() {}, remove() {} });
+  const nodes = { '#panel': el(), '#title': el(), '#foot': el(), '#role': el(), '#subj': el() };
+  sandbox.document = { querySelector: k => nodes[k] || el(), querySelectorAll: () => [],
+    getElementById: () => null, createElement: () => el() };
+  const panel = () => nodes['#panel'].innerHTML;
+
+  AN.seed();
+  AN.setRole('Сотрудник отдела анализа');
+  AN.go('methods'); const meth = panel();
+  AN.setRole('Ведущий куратор (Бекова Н.)');
+  AN.go('borrower'); const bor = panel();
+  const re2 = AN.newAnalysis({ subj: 'b-1', report: 'r-103' });
+  AN.openDoc(re2.doc.no); const reDoc = panel();
+  AN.openDoc('ФА-7');     const snapDoc = panel();
+  AN.SUBJ('b-2').ptype[1].since = '2026-08-01';
+  AN.state.schedule.find(r => r.id === 'sc-ip').freq = 'год';
+  AN.go('schedule'); const sch = panel();
+  ok(44, has(meth, 'Справочник строк формы отчётности') && has(meth, 'Завести строку') &&
+        has(bor, 'одна операция') && has(reDoc, 'Переиздаёт') && has(reDoc, 'Связь') &&
+        has(snapDoc, 'Вывода в снимке нет') && has(sch, 'срок не определён'),
+    `на экранах видно то же, что в состоянии: справочник строк ведётся из реестра методик, у переиздания ` +
+    `названа связь и названо, что дверь одна, у снимка объяснено отсутствие вывода, неразрешённый срок показан словами`);
 })();
 
 /* ---- отчёт ---- */
