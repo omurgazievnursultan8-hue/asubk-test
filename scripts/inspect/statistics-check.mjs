@@ -1,6 +1,8 @@
 // Headless smoke для mockups/statistics/statistics.html (ИС-1…ИС-35, ADR-0145…0152 + 0176…0200).
 // Блок S закрывает бывшие дефекты макета СС-Д1/Д2/Д3/Д6 (вопрос целиком, а не его половина),
-// блок W — СС-Д8 (наборы фильтра, ДНФ без скобок по ADR-0180).
+// блок W — СС-Д8 (наборы фильтра, ДНФ без скобок по ADR-0180),
+// блок X — волна 11 ч.2: погашение разведено на платёж и поступление (ADR-0183) и
+// фиксирует открытый СС-Д11 (объект без разреза охвата молча пустеет под ролью).
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -42,7 +44,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const badSrc = st.indicators.filter(i => ['шов','поле','агрегат'].indexOf(i.src) < 0);
   const formula = st.indicators.filter(i => 'formula' in i || 'expr' in i || 'выражение' in i);
   const badFn = st.indicators.filter(i => i.src === 'агрегат' && ST.aggFns().indexOf(i.fn) < 0);
-  ok(1, st.objects.length === 9 && st.indicators.length >= 85 && badSrc.length === 0 &&
+  ok(1, st.objects.length === 10 && st.indicators.length >= 85 && badSrc.length === 0 &&
        formula.length === 0 && badFn.length === 0,
     `объектов ${st.objects.length}, показателей ${st.indicators.length}; без объявленного источника ${badSrc.length}, с формулой ${formula.length}, с функцией вне списка ${badFn.length} — ИС-6, ИС-7`);
 
@@ -76,8 +78,8 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
     const r = ST.statSlice({obj: o.id, dims: [o.dims[0]], inds: ['a-count'], date: TODAY});
     return {name: o.name, ok: r.ok, n: r.ok ? r.n : 0, g: r.ok ? r.groups.length : 0};
   });
-  ok(6, each.every(x => x.ok && x.n > 0) && each.length === 9,
-    `девять объектов одним движком: ${each.map(x => x.name + ' ' + x.n + '/' + x.g + ' групп').join(' · ')}`);
+  ok(6, each.every(x => x.ok && x.n > 0) && each.length === 10,
+    `десять объектов одним движком: ${each.map(x => x.name + ' ' + x.n + '/' + x.g + ' групп').join(' · ')}`);
 
   const cr = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count','a-sumdebt'], date: TODAY});
   const bo = ST.statSlice({obj:'obj-borrower', dims:['d-ptype'], inds:['a-count','a-sumbcnt'], date: TODAY});
@@ -104,7 +106,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const run = ST.run('2026-08-20', {});
   const after = ST.statSlice({obj:'obj-guarantee', dims:['d-region'], inds:['a-count','a-sumgsec'], date:'2026-08-20'});
   ok(9, !before.ok && mi.ok && ai.ok && add.ok && run.ok && after.ok && after.n === 3 && after.groups.length === 3,
-    `десятый объект заведён записью: до — «${before.why}», после — ${after.n} объектов в ${after.groups.length} группах, без единой правки движка (ИС-18)`);
+    `одиннадцатый объект заведён записью: до — «${before.why}», после — ${after.n} объектов в ${after.groups.length} группах, без единой правки движка (ИС-18)`);
 
   const bad = ST.addObject({id:'obj-ghost', name:'Призрак', dims:[], inds:[]});
   ok(10, !bad.ok && has(bad.why, 'владелец не отдаёт'),
@@ -924,7 +926,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
     dims:['d-branch','d-curator','d-region','d-ptype'], inds:['a-count']});
   const guess = /первое звено|первый прогон|Object\.values\(item\.h\)/.test(
     m[1].slice(m[1].indexOf('function bornOn'), m[1].indexOf('function readPath')));
-  ok(89, declared.length === 9 && !noBorn.ok && has(noBorn.why, 'ИС-33') && !guess,
+  ok(89, declared.length === 10 && !noBorn.ok && has(noBorn.why, 'ИС-33') && !guess,
     `рождение объявлено, а не угадано: у всех ${declared.length} объектов born со ссылкой на реквизит владельца, объект без него не заводится — «${noBorn.why}» (ИС-18, ИС-33)`);
 
   /* ИС-14 на дате: тот же человек, открывший реестр владельца НА ТУ ЖЕ дату, обязан
@@ -1202,6 +1204,111 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
         has(refused, 'весь домен') && after === before &&
         String(dropped) === '2' && cleared === null && !has(bare, 'либо набор'),
     `редактор набирает ровно ту форму, которую считает ядро: три клика дали «${or2.length} набора, сравнений в них ${or2.join(' и ')}», и добавление спрашивает одно — «в набор 1 (И)» или «новым набором (ИЛИ)». Отказ ДОХОДИТ ТЕКСТОМ и не трогает набранное: «${refused.slice(0, 72)}…» — пустой экран вместо ответа отказом не считается. Снятие идёт по одному сравнению, опустевший набор уходит сам (ADR-0180 §1, §6, §8)`);
+})();
+
+/* ---------- X. Волна 11 ч.2: погашение — платёж и поступление (ADR-0183) ----------
+   Погашение было самым тонким объектом реестра: два показателя на 14 записей. Правило
+   ADR-0183 развело его на ДВА объекта, а не дописало мер: «сумма поступления», «возврат»
+   и «нераспределённый остаток» — величины про МНОЖЕСТВО платежей, а не про платёж, и на
+   сводном поступлении сложились бы дважды (ИС-28, ИС-21, ADR-0198). Проверяется не состав
+   списком, а СЧЁТ: сходятся ли тождества ТЗ 14 на строке среза. ------------------- */
+(() => {
+  ST.seed();
+  const st = ST.state;
+  const D = '2026-08-18';
+  const W = vm.runInContext('WORLD', sandbox);
+  const rowsOf = o => st.rows.filter(r => r.obj === o && r.date === D);
+  const v = (r, i) => (r.inds[i] ? r.inds[i].v : null);
+  const r2 = x => Math.round(x * 100) / 100;
+  const near = (a, b) => Math.abs(a - b) < 0.005;
+  const at = (rr, ref) => rr.find(r => r.ref === ref);
+  const rowInds = o => o.inds.map(ST.IND).filter(i => i.src !== 'агрегат');
+  const pays = rowsOf('obj-repay'), rcs = rowsOf('obj-receipt');
+  const P = ST.OBJ('obj-repay'), R = ST.OBJ('obj-receipt');
+  /* Порядок статей — ADR-0087: расходы → комиссия → ОД → проценты → пеня. */
+  const ART = ['m-palc','m-palf','m-palp','m-pali','m-paln'];
+
+  const bad111 = pays.filter(r => !near(v(r,'m-ramount'), r2(ART.reduce((n, i) => n + v(r, i), 0))));
+  const seam = rowInds(P).filter(i => i.src === 'шов');
+  const compound = seam.filter(i => /_/.test(i.field || ''));
+  const one = at(pays, 'ПГ-2026/1156');
+  ok(111, pays.length === 14 && bad111.length === 0 && seam.length === 7 && compound.length === 0,
+    `сумма платежа = Σ пяти статей на каждой из ${pays.length} строк, расхождений ${bad111.length}: ПГ-2026/1156 — ${ART.map(i => v(one, i)).join(' + ')} = ${v(one,'m-ramount')} (расходы → комиссия → ОД → проценты → пеня, ADR-0087). ОД своей формулы не имеет, он РАЗНОСТЬ; статьи и слои — две проекции одной суммы, ${seam.length} именованных клеток шва (5+2), а не 5×2 матрица, составных имён ${compound.length} (ADR-0183 §2, §3, ADR-0179 §3)`);
+
+  const bad112 = pays.filter(r => !near(v(r,'m-ramount'), r2(v(r,'m-pjud') + v(r,'m-pfree'))));
+  const two = at(pays, 'ПГ-2026/1178');
+  const kgs = ST.statSlice({obj:'obj-repay', dims:['d-repkind'], date: D,
+    inds:['a-sumpjud','a-sumpfree','a-sumramount'], filter: F(cD('d-cur','=',{value:'KGS'}))});
+  const T = kgs.ok ? kgs.total : {};
+  ok(112, bad112.length === 0 && v(two,'m-pjud') > 0 && v(two,'m-pfree') > 0 && kgs.ok &&
+       near(r2(T['a-sumpjud'].v + T['a-sumpfree'].v), T['a-sumramount'].v),
+    `тот же платёж разложен по СЛОЯМ, и слои сходятся к той же сумме, расхождений ${bad112.length}: ПГ-2026/1178 — ${v(two,'m-pjud')} судебный + ${v(two,'m-pfree')} свободный = ${v(two,'m-ramount')}, один платёж на двух слоях сразу (ADR-0043). Свод по KGS: ${T['a-sumpjud'].v} + ${T['a-sumpfree'].v} = ${T['a-sumramount'].v} — «Взыскано» так и осталось свёрткой платежей по слою, мерой оно не хранится (ADR-0030)`);
+
+  const bad113 = rcs.filter(r => !near(v(r,'m-rsum'), r2(v(r,'m-rpaid') + v(r,'m-rret') + v(r,'m-runal'))));
+  const pl = at(rcs, 'ПП-2026/0701'), ov = at(rcs, 'ПП-2026/0851');
+  ok(113, rcs.length === 15 && bad113.length === 0 &&
+       v(pl,'m-rret') === 180000 && v(pl,'m-rpaid') === 520000 && v(ov,'m-runal') === 4000,
+    `инвариант поступления держится на каждой из ${rcs.length} строк, расхождений ${bad113.length}: сумма = Σ платежей + возврат + нераспределённое (ТЗ 14 §2.2). ПП-2026/0701 — ${v(pl,'m-rsum')} = ${v(pl,'m-rpaid')} + ${v(pl,'m-rret')} + ${v(pl,'m-runal')}: доля залогодателя ушла плательщику и погашением НЕ стала (§7.3). ПП-2026/0851 — переплата ${v(ov,'m-runal')} лежит нераспределённым остатком, а не лишним погашением (ADR-0073). Остаток — разность, отдельной формулы у него нет (ИС-1)`);
+
+  const sv = at(rcs, 'ПП-2026/0733');
+  const kids = pays.filter(r => r.dims['d-preceipt'] === 'ПП-2026/0733');
+  const creds = [...new Set(kids.map(r => r.dims['d-pcredit']))];
+  const brs = [...new Set(kids.map(r => String(r.dims['d-branch'])))];
+  const borrowed = R.dims.filter(d => ['d-branch','d-curator','d-region','d-pcredit','d-cur'].indexOf(d) >= 0);
+  ok(114, v(sv,'m-rpays') === 2 && kids.length === 2 && creds.length === 2 && brs.length === 2 &&
+       borrowed.length === 0,
+    `сводное поступление — не платёж: ПП-2026/0733 разнесено на ${v(sv,'m-rpays')} платежа по ${creds.length} разным кредитам (${creds.join(', ')}) в ${brs.length} подразделениях. Поэтому у поступления НЕТ разрезов, которые приходят от кредита — ни «Кредит», ни «Подразделение», ни «Куратор», ни «Территория» (их ${borrowed.length}): значение, оказавшееся многозначным, поднимает уровень, а не сплющивается в клетку (ИС-21, ADR-0198)`);
+
+  const unres = ST.statRows({obj:'obj-receipt', date: D, filter: F(cI('m-rpays','=',{value:0}))});
+  const refs = unres.ok ? unres.rows.map(r => r.ref).sort() : [];
+  const boolDim = R.dims.map(ST.DIM).filter(d => /невыясн|опозн|разнес/i.test(d.name));
+  ok(115, unres.ok && refs.length === 2 && refs.join(' ') === 'ПП-2026/0755 ПП-2026/0844' &&
+       boolDim.length === 0 && has(unres.passport.filter, 'Платежей из поступления = 0'),
+    `«невыясненное» — это ФИЛЬТР, а не разрез: ${refs.length} поступления (${refs.join(', ')}) отобраны сравнением по МЕРЕ СТРОКИ — операнд из ADR-0180 §2, а не из справочника. Второй записи реестра про то же значение нет (булевых разрезов про разнесение ${boolDim.length}, ADR-0185 §1), и сужение названо в паспорте: «${unres.passport.filter}»`);
+
+  const fz = at(rcs, 'ПП-2026/0844');
+  const track = st.rows.filter(r => r.ref === 'ПП-2026/0620').map(r => r.dims['d-rmatch']);
+  const seq = track.filter((x, i) => x !== track[i - 1]);
+  const hist = ['d-rmatch','d-rfrz'].map(ST.DIM).filter(d => d.src === 'история');
+  ok(116, fz.dims['d-rmatch'] === 'расхождение' && fz.dims['d-rfrz'] === 'заморожено' &&
+       hist.length === 2 && seq.join(' → ') === 'отозвано → восстановлено',
+    `три оси ТЗ 14 §3.1 не схлопнуты в один «статус»: ПП-2026/0844 одновременно «${fz.dims['d-rmatch']}» по сопоставлению и «${fz.dims['d-rfrz']}» по заморозке — одним полем это не выразить. Обе оси читаются ИЗ ИСТОРИИ (их ${hist.length}), а не из поля: сопоставление ПП-2026/0620 идёт «${seq.join(' → ')}» и на каждую дату среза отдаёт своё значение (ИС-10, ИС-14)`);
+
+  const role0 = st.role;
+  ST.setRole('Аналитик');
+  const aR = ST.statRows({obj:'obj-receipt', date: D});
+  const aP = ST.statRows({obj:'obj-repay', date: D});
+  ST.setRole(role0);
+  ok(117, aR.ok && aR.rows.length === 0 && aP.ok && aP.rows.length === 9 &&
+       has(aR.passport.scope, 'по 0 объектам'),
+    `СС-Д11 — открыт, зафиксирован здесь: охват режет строки по разрезу «Куратор», а у поступления такого разреза нет и быть не может (см. #114). Аналитик получает ok и ${aR.rows.length} строк там, где платежей ему видно ${aP.rows.length}: паспорт честно печатает «${aR.passport.scope}», но пустой экран вместо отказа — ровно то, что запрещает ИС-24. Объект без разреза охвата обязан отвечать ОТКАЗОМ`);
+
+  const byId = {}; (W['obj-receipt'] || []).forEach(r => byId[r.id] = r);
+  const kin = W['obj-repay'] || [];
+  const drift = kin.filter(p => !byId[p.f.receipt] || byId[p.f.receipt].f.rdate !== p.f.rdate);
+  const noPay = (W['obj-receipt'] || []).filter(r => !kin.some(p => p.f.receipt === r.id));
+  const openM = noPay.every(r => st.closedPeriods.indexOf(r.f.rdate.slice(0, 7)) < 0);
+  ok(118, drift.length === 0 && noPay.length === 2 && openM && st.closedPeriods.length === 2,
+    `дата платежа НАСЛЕДУЕТСЯ от поступления, своей у него нет (ТЗ 14 §2.1): на ${kin.length} платежей расхождений и висячих ссылок ${drift.length} — рождение платежа приходит из родителя, а опознание рождает платёж, а не правит поле (§7.1, ИС-33, ADR-0197). Оба невыясненных (${noPay.map(r => r.id).join(', ')}) лежат в ОТКРЫТЫХ месяцах, закрыты ${st.closedPeriods.join(', ')}: невыясненное не даёт закрыть период (§8.6, ADR-0075)`);
+
+  const iPay = rowInds(P).length, aPay = P.inds.length - iPay;
+  const iRc = rowInds(R).length, aRc = R.inds.length - iRc;
+  const badAgg = st.indicators.filter(i => i.src === 'агрегат' && i.over &&
+    ['перечисление','булево'].indexOf((ST.IND(i.over) || {}).type) >= 0);
+  ok(119, P.dims.length === 8 && iPay === 8 && aPay === 9 &&
+       R.dims.length === 5 && iRc === 6 && aRc === 8 && badAgg.length === 0,
+    `состав по ADR-0183 — без недобора и без набора впрок: платёж — ${P.dims.length} разрезов, ${iPay} мер строки, ${aPay} агрегатов; поступление — ${R.dims.length} / ${iRc} / ${aRc}. Каждый разрез назван внешним потребителем: ФО-41 «Реестр погашений» — кредит, ФО-04 «Погашения за период» — дата, ТЗ 14 §3.1 — три оси, и они стоят у ПОСТУПЛЕНИЯ: своих осей платёж не имеет, он их наследует (ADR-0056). Агрегатов над перечислением и булевым ${badAgg.length} (ИС-29, ADR-0185 §1)`);
+
+  const cur = ['KGS','USD','EUR'].map(c => {
+    const rr = ST.statSlice({obj:'obj-receipt', dims:['d-rchan'], date: D,
+      inds:['a-sumrpaid','a-sumrsum'], filter: F(cD('d-rcur','=',{value:c}))});
+    const pp = ST.statSlice({obj:'obj-repay', dims:['d-repkind'], date: D,
+      inds:['a-sumramount'], filter: F(cD('d-cur','=',{value:c}))});
+    return {c, ok: rr.ok && pp.ok, paid: rr.ok ? rr.total['a-sumrpaid'].v : null,
+            got: rr.ok ? rr.total['a-sumrsum'].v : null, pay: pp.ok ? pp.total['a-sumramount'].v : null};
+  });
+  ok(120, cur.every(x => x.ok && near(x.paid, x.pay)) && cur.some(x => !near(x.got, x.pay)),
+    `«поступило» и «погашено» — разные вопросы, а не расхождение: по КАЖДОЙ валюте разнесённое поступлениями = сумме платежей (${cur.map(x => x.c + ' ' + x.paid + ' = ' + x.pay).join(' · ')}), а поступило больше (${cur.map(x => x.c + ' ' + x.got).join(' · ')}) — разницу держат возврат и нераспределённый остаток. Ни одна сумма не сложена дважды (ИС-28), и разновалютное к одному числу молча не сведено (ADR-0184 §3, СС-Д4)`);
 })();
 
 /* ---- отчёт ---- */
