@@ -68,6 +68,11 @@ SCANNED = [
     "STATUS.md",
     "TODO.md",
     "CONTEXT.md",
+    "mockups/analysis/ASUBK-analiz-logika.md",
+    "mockups/analysis/ASUBK-status-razrabotki.md",
+    "mockups/analysis/analysis.html",
+    "scripts/inspect/analysis-check.mjs",
+    "docs/tasks/p21-analiz-tasks.html",
 ]
 
 # Files already carried over to the numbering in force. They are still checked for
@@ -97,6 +102,11 @@ MIGRATED = {
     "mockups/reports/reports.html",
     "scripts/inspect/reports-check.mjs",
     "CONTEXT.md",
+    "mockups/analysis/ASUBK-analiz-logika.md",
+    "mockups/analysis/ASUBK-status-razrabotki.md",
+    "mockups/analysis/analysis.html",
+    "scripts/inspect/analysis-check.mjs",
+    "docs/tasks/p21-analiz-tasks.html",
 }
 
 # Deliberately out of scope, with the reason — printed so the exclusion stays honest.
