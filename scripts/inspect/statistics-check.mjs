@@ -1,14 +1,15 @@
-// Headless smoke для mockups/statistics/statistics.html (ИС-1…ИС-36, ADR-0145…0152 + 0176…0202).
+// Headless smoke для mockups/statistics/statistics.html (ИС-1…ИС-37, ADR-0145…0152 + 0176…0203).
 // Блок S закрывает бывшие дефекты макета СС-Д1/Д2/Д3/Д6 (вопрос целиком, а не его половина),
 // блок W — СС-Д8 (наборы фильтра, ДНФ без скобок по ADR-0180),
-// блок X — волна 11 ч.2: погашение разведено на платёж и поступление (ADR-0183) и
-// фиксирует открытый СС-Д11 (объект без разреза охвата молча пустеет под ролью),
+// блок X — волна 11 ч.2: погашение разведено на платёж и поступление (ADR-0183),
 // блок Y — волна 12: три тонких объекта под ADR-0201 (объект снят · меры сняты · состав
 // добран) и закрытый СС-Д13 (выбор из пустого набора — прочерк, а не ноль),
 // блок Z — волна 13: у каждой записи реестра есть объект, который ею спрашивает —
 // сирота «Дата залогового договора» молчала с волны 8, владелец заведён строкой (ТЗ #4),
 // блок Э — волна 14: спрашивается дата ПРОГОНА, а не «сегодня» (ИС-36, ADR-0202) —
-// хвост отказывает и называет дорогу, дыра внутри истории подставляет с возрастом (ИС-12).
+// хвост отказывает и называет дорогу, дыра внутри истории подставляет с возрастом (ИС-12),
+// блок Ю — волна 15: закрытый СС-Д11 — охват ролей ОБЪЯВЛЕН реквизитом объекта, а не зашит
+// именем разреза (ИС-37, ADR-0203): режется своим разрезом · общий · отказ с дорогой.
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -1308,9 +1309,9 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const aR = ST.statRows({obj:'obj-receipt', date: D});
   const aP = ST.statRows({obj:'obj-repay', date: D});
   ST.setRole(role0);
-  ok(117, aR.ok && aR.rows.length === 0 && aP.ok && aP.rows.length === 9 &&
-       has(aR.passport.scope, 'по 0 объектам'),
-    `СС-Д11 — открыт, зафиксирован здесь: охват режет строки по разрезу «Куратор», а у поступления такого разреза нет и быть не может (см. #114). Аналитик получает ok и ${aR.rows.length} строк там, где платежей ему видно ${aP.rows.length}: паспорт честно печатает «${aR.passport.scope}», но пустой экран вместо отказа — ровно то, что запрещает ИС-24. Объект без разреза охвата обязан отвечать ОТКАЗОМ`);
+  ok(117, !aR.ok && has(aR.why, 'не спрашивается') && has(aR.why, 'многозначен') &&
+       has(aR.why, 'Платёж') && aP.ok && aP.rows.length === 9,
+    `СС-Д11 ЗАКРЫТ (волна 15): поступление отвечает ОТКАЗОМ с дорогой, а не пустым экраном — «${String(aR.why).slice(0, 96)}…». Куратор у сводного поступления на дату многозначен (см. #114), и объявленный охват объекта — «отказ», а не «режется d-curator»: показать 15 строк целиком нельзя (§9: объём чужой работы не выдаётся даже итогом), показать 0 — соврать. Дорога настоящая и уровнем ниже: платежей аналитику видно ${aP.rows.length} (ИС-37, ADR-0203)`);
 
   const byId = {}; (W['obj-receipt'] || []).forEach(r => byId[r.id] = r);
   const kin = W['obj-repay'] || [];
@@ -1523,6 +1524,96 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
         ran.ok && now.ok && now.passport.asOf === TODAY && now.passport.age === 0 &&
         now.passport.substituted === false,
     `«прогона не было» — это событие журнала, и отказ его называет: «${after.why.slice(0, 96)}…». Запрет не на «сегодня» как таковое: тот же вопрос после прогона отвечает на СВОЮ дату (${now.passport.asOf}, возраст ${now.passport.age}, подстановки нет) — спрашивается написанная строка, а не календарь`);
+})();
+
+/* ---------- Ю. Волна 15: охват объявлен объектом, а не зашит именем разреза ----------
+   СС-Д11 звучал как «объект БЕЗ разреза охвата», и три волны подряд его так и читали.
+   Волна 15 замерила и нашла четвёртый случай — противоположного рода: у ЗАЁМЩИКА разрез
+   охвата ЕСТЬ, он просто зовётся иначе («d-lcurator»: ведущий куратор ВЫЧИСЛЯЕТСЯ, ТЗ 16
+   §11). Зашитое в applyScope имя «d-curator» отдавало аналитику 0 строк из 8 при 3 своих,
+   а паспорт печатал «по 0 объектам, доступным вам» — не пустой экран, а НЕВЕРНЫЙ ответ,
+   заверенный как верный. Класс дефекта, значит, не «объект без разреза», а «охват прибит
+   к имени разреза»: ИС-37, ADR-0203.                                                    */
+(() => {
+  ST.seed();
+  const st = ST.state;
+  const role0 = st.role;
+
+  /* #132 — вход: реквизит обязателен у КАЖДОГО объекта, и состояний ровно три. Тот же
+     урок, что дал #128 (сирота реестра) и СС-Д14: чинится класс, а не случай. */
+  const bad = st.objects.filter(o => {
+    const s = o.scope;
+    if (!s) return true;
+    const kinds = ['dim','open','denied'].filter(k => s[k] != null);
+    if (kinds.length !== 1) return true;
+    if (s.dim) return !ST.DIM(s.dim) || o.dims.indexOf(s.dim) < 0;
+    if (s.denied) return !s.denied.why || !s.denied.road;
+    return typeof s.open !== 'string' || !s.open;
+  });
+  const byKind = k => st.objects.filter(o => o.scope && o.scope[k] != null);
+  const cut = byKind('dim'), open = byKind('open'), den = byKind('denied');
+  const dims = new Set(cut.map(o => o.scope.dim));
+  ok(132, bad.length === 0 && cut.length + open.length + den.length === st.objects.length &&
+        cut.length === 7 && open.length === 1 && den.length === 2 && dims.size === 2,
+    `охват — ОБЪЯВЛЕННЫЙ реквизит записи объекта, девятый после рождения (ИС-37): объектов без него или с двумя состояниями сразу ${bad.length} из ${st.objects.length}. Режутся разрезом ${cut.length}, объявлены общими ${open.length}, отвечают отказом ${den.length}. Разрезов охвата ДВА, а не один (${[...dims].join(', ')}) — и ровно в этом был СС-Д11: имя разреза принадлежит ОБЪЕКТУ, а зашитое в движок «d-curator» молча пустило под нож всех, кто назвал свой охват иначе. У отказа объявлены и причина, и дорога: отказ без дороги — половина ответа (§8.4)`);
+
+  /* #133 — тот самый четвёртый случай, ради которого волна и случилась. */
+  ST.setRole('Аналитик');
+  const B = ST.OBJ('obj-borrower');
+  const bAll = st.rows.filter(r => r.obj === 'obj-borrower' && r.date === ASK);
+  const mine = bAll.filter(r => r.dims['d-lcurator'] === 'Бекова Н.');
+  const bRows = ST.statRows({obj:'obj-borrower', date: ASK});
+  const bReg = ST.registryList('obj-borrower', st.today, null);
+  ok(133, B.scope.dim === 'd-lcurator' && bAll.length === 8 && mine.length === 3 &&
+        bRows.ok && bRows.rows.length === 3 && bReg.length === 3 &&
+        has(bRows.passport.scope, 'ведущий куратор') && bRows.passport.scoped === true,
+    `заёмщик режется СВОИМ разрезом — и до волны 15 не резался вовсе: строк на ${ASK} — ${bAll.length}, из них ведущим куратором Бековой ${mine.length}, а охват показывал 0. Это не «пустой экран вместо отказа», а НЕВЕРНЫЙ ответ: паспорт заверял «по 0 объектам, доступным вам» там, где доступны ${mine.length}. Теперь и срез, и реестр владельца дают ${bRows.rows.length}, а паспорт называет разрез поимённо: «${bRows.passport.scope}»`);
+
+  /* #134 — у охвата ОДИН читатель, тот же, что у разреза (ИС-18). registryList читал
+     «item.h.curator» напрямую: второй читатель, не знающий ни швов, ни полей. Поэтому
+     дорога, которую называет отказ, сама отвечала спрашивающему НОЛЬ. */
+  const seam = ST.DIM('d-lcurator');
+  const world = vm.runInContext('WORLD', sandbox);
+  const noHist = (world['obj-borrower'] || []).filter(i => i.h && i.h.curator).length;
+  const pairs = st.objects.filter(o => o.scope.dim).map(o => ({
+    o, slice: (ST.statRows({obj:o.id, date: ASK}).rows || []).length,
+    reg: ST.registryList(o.id, st.today, null).length}));
+  const drift = pairs.filter(x => x.slice !== x.reg);
+  ok(134, seam.src === 'шов' && seam.seam === 'leadCurator' && noHist === 0 &&
+        drift.length === 0 && pairs.length === 7,
+    `охват читается ТЕМ ЖЕ читателем, что разрез (ИС-18, ИС-37): у «${seam.name}» источник — ${seam.src} «${seam.seam}», истории «curator» у заёмщика нет ни в одной записи мира (${noHist} из ${(world['obj-borrower'] || []).length}), и прежний прямой доступ к item.h.curator не мог его увидеть в принципе. Срез и реестр владельца сходятся на всех ${pairs.length} режущихся объектах, расхождений ${drift.length} (ИС-14): дорога, которую называет отказ, теперь и правда отвечает`);
+
+  /* #135 — «общий» и «не спрашивается» разводит УТЕЧКА, а не вкус (§9, ADR-0203 §3). */
+  const prog = ST.statSlice({obj:'obj-program', dims:['d-pstate'], inds:['a-count'], date: ASK});
+  const rcp = ST.statSlice({obj:'obj-receipt', dims:['d-rchan'], inds:['a-count'], date: ASK});
+  const zd = ST.statSlice({obj:'obj-zdeal', dims:['d-zdate'], inds:['a-count'], date: ASK,
+    buckets:{'d-zdate':'год'}});
+  const rcpWork = ST.workList('obj-receipt');
+  const zdWork = ST.workList('obj-zdeal');
+  const progShort = ST.passportShort(prog.passport);
+  ok(135, prog.ok && prog.n === 5 && prog.passport.scoped === false &&
+        has(prog.passport.scope, 'программа общая') && has(progShort, 'всего 5') &&
+        !rcp.ok && !zd.ok && !rcpWork.ok && !zdWork.ok &&
+        has(rcp.why, 'Платёж') && has(zd.why, 'предмет залога'),
+    `«общий» и «не спрашивается» — РАЗНЫЕ ответы, и разводит их утечка, а не вкус (§9). Программа общая: она не принадлежит куратору, состав программ — общее знание, и аналитик законно видит все ${prog.n}; паспорт это НАЗЫВАЕТ («${prog.passport.scope}»), а краткая форма говорит «всего», не «вам видно» — иначе одно и то же N читалось бы двумя разными утверждениями. Поступление и залоговый договор отказывают: отдать их целиком значит показать объём чужой работы даже итогом. Обе двери закрыты заодно — и срез, и «работать со списком»: иначе отказ обходился бы за один шаг`);
+
+  /* #136 — ворота стоят в ОБЩЕЙ проверке вопроса, и все двери получают их даром (СС-130). */
+  const doors = [
+    ST.statSlice({obj:'obj-receipt', dims:['d-rchan'], inds:['a-count'], date: ASK}),
+    ST.statRows({obj:'obj-receipt', date: ASK}),
+    ST.statSeries({obj:'obj-receipt', inds:'a-sumrsum', dates:['2026-07-31', ASK]}),
+    ST.exportJob({obj:'obj-receipt', date: ASK}),
+    ST.workList('obj-receipt')];
+  ST.setRole('Администратор статистики');
+  const aSlice = ST.statSlice({obj:'obj-receipt', dims:['d-rchan'], inds:['a-count'], date: ASK});
+  const aRows = ST.statRows({obj:'obj-receipt', date: ASK});
+  const aWork = ST.workList('obj-receipt');
+  ST.setRole(role0);
+  ok(136, doors.every(d => d && d.ok === false && has(d.why, 'не спрашивается')) &&
+        doors.every(d => has(d.why, 'ИС-37')) &&
+        aSlice.ok && aSlice.n === 15 && aWork.ok && aWork.n === 15 &&
+        !aRows.ok && !has(aRows.why, 'не спрашивается') && has(aRows.why, 'порог показа'),
+    `ворота охвата стоят в ОБЩЕЙ проверке вопроса, рядом с воротами даты, и все ${doors.length} дверей получают их даром — срез, строки, ряд, выгрузка и список (СС-130): отказ у всех один и тот же, с причиной и дорогой. Роль без сужения проходит: администратору срез отдаёт ${aSlice.n} поступлений, список — ${aWork.n}. Строкам он отказывает — но ПО ДРУГОЙ причине и другими словами: «${String(aRows.why).slice(0, 60)}…» (ИС-22, порог показа). Два отказа на одной двери не сливаются в один: охват говорит «вам этого не спрашивают», порог — «столько списком не отдаётся». Запрет охвата — не на объект, а на пару «объект + роль»`);
 })();
 
 /* ---- отчёт ---- */
