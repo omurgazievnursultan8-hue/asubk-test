@@ -4,7 +4,9 @@
 // блок X — волна 11 ч.2: погашение разведено на платёж и поступление (ADR-0183) и
 // фиксирует открытый СС-Д11 (объект без разреза охвата молча пустеет под ролью),
 // блок Y — волна 12: три тонких объекта под ADR-0201 (объект снят · меры сняты · состав
-// добран) и закрытый СС-Д13 (выбор из пустого набора — прочерк, а не ноль).
+// добран) и закрытый СС-Д13 (выбор из пустого набора — прочерк, а не ноль),
+// блок Z — волна 13: у каждой записи реестра есть объект, который ею спрашивает —
+// сирота «Дата залогового договора» молчала с волны 8, владелец заведён строкой (ТЗ #4).
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -46,7 +48,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const badSrc = st.indicators.filter(i => ['шов','поле','агрегат'].indexOf(i.src) < 0);
   const formula = st.indicators.filter(i => 'formula' in i || 'expr' in i || 'выражение' in i);
   const badFn = st.indicators.filter(i => i.src === 'агрегат' && ST.aggFns().indexOf(i.fn) < 0);
-  ok(1, st.objects.length === 9 && st.indicators.length >= 85 && badSrc.length === 0 &&
+  ok(1, st.objects.length === 10 && st.indicators.length >= 85 && badSrc.length === 0 &&
        formula.length === 0 && badFn.length === 0,
     `объектов ${st.objects.length}, показателей ${st.indicators.length}; без объявленного источника ${badSrc.length}, с формулой ${formula.length}, с функцией вне списка ${badFn.length} — ИС-6, ИС-7`);
 
@@ -76,12 +78,18 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
     `в сборщике строк (readDim/readInd/buildRow/doRun) слов предметной области нет${words.length ? ': ' + words.join(', ') : ''} — ИС-18`);
 
   ST.seed();
+  /* Первый разрез объекта берётся вслепую, и у «Залогового договора» он ЕДИНСТВЕННЫЙ и
+     с корзинами: дата без корзины — не вопрос, а недоговорённость (ADR-0176 §2), и движок
+     обязан отказать. Поэтому корзина называется здесь, а не выключается сторож. */
   const each = ST.state.objects.map(o => {
-    const r = ST.statSlice({obj: o.id, dims: [o.dims[0]], inds: ['a-count'], date: TODAY});
+    const d = ST.DIM(o.dims[0]);
+    const q = {obj: o.id, dims: [o.dims[0]], inds: ['a-count'], date: TODAY};
+    if (d.buckets && d.buckets.length) q.buckets = {[o.dims[0]]: d.buckets[0]};
+    const r = ST.statSlice(q);
     return {name: o.name, ok: r.ok, n: r.ok ? r.n : 0, g: r.ok ? r.groups.length : 0};
   });
-  ok(6, each.every(x => x.ok && x.n > 0) && each.length === 9,
-    `девять объектов одним движком: ${each.map(x => x.name + ' ' + x.n + '/' + x.g + ' групп').join(' · ')}`);
+  ok(6, each.every(x => x.ok && x.n > 0) && each.length === 10,
+    `десять объектов одним движком: ${each.map(x => x.name + ' ' + x.n + '/' + x.g + ' групп').join(' · ')}`);
 
   const cr = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count','a-sumdebt'], date: TODAY});
   const bo = ST.statSlice({obj:'obj-borrower', dims:['d-ptype'], inds:['a-count','a-sumbcnt'], date: TODAY});
@@ -928,7 +936,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
     dims:['d-branch','d-curator','d-region','d-ptype'], inds:['a-count']});
   const guess = /первое звено|первый прогон|Object\.values\(item\.h\)/.test(
     m[1].slice(m[1].indexOf('function bornOn'), m[1].indexOf('function readPath')));
-  ok(89, declared.length === 9 && !noBorn.ok && has(noBorn.why, 'ИС-33') && !guess,
+  ok(89, declared.length === 10 && !noBorn.ok && has(noBorn.why, 'ИС-33') && !guess,
     `рождение объявлено, а не угадано: у всех ${declared.length} объектов born со ссылкой на реквизит владельца, объект без него не заводится — «${noBorn.why}» (ИС-18, ИС-33)`);
 
   /* ИС-14 на дате: тот же человек, открывший реестр владельца НА ТУ ЖЕ дату, обязан
@@ -1342,7 +1350,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
     o.inds.forEach(i => { if (!ST.IND(i)) dangling.push(o.id + '/' + i); });
   });
   const orphan = st.indicators.filter(i => i.src === 'агрегат' && i.fn !== 'count' && !ST.IND(i.over));
-  ok(121, st.objects.length === 9 && !gone.ok && has(gone.why, 'нет в реестре объектов') &&
+  ok(121, st.objects.length === 10 && !gone.ok && has(gone.why, 'нет в реестре объектов') &&
         has(gone.why, 'ИС-18') && !inWorld && dangling.length === 0 && orphan.length === 0,
     `«Задание кураторства» снято СТРОКОЙ реестра, а не релизом: объектов ${st.objects.length}, спрос отвечает отказом — «${gone.why}», а не пустым экраном (ИС-24). Источник снят, а не спрятан: записей в мире 0, висячих ссылок на снятые разрезы и меры ${dangling.length}, агрегатов над несуществующей мерой ${orphan.length}. Владельца, ОТДАЮЩЕГО множество, у заданий нет: кураторство отказывается от них дословно (ТЗ 16 §1.1), своего ТЗ и места в очереди у них нет, ФО-20 ещё спрашивается у заказчика. Вернётся строкой в день, когда владелец появится (ADR-0201 §1)`);
 
@@ -1436,14 +1444,37 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
     `идентификаторы реестра уникальны на ЗАГРУЗКЕ, а не только в форме заведения (СС-Д14): разрезов ${dimsAll.length}, показателей ${st.indicators.length}, объектов ${st.objects.length}, повторов ноль. Две даты — «${pay.name}» (${pay.key}) и «${start.name}» (${start.key}) — живут врозь, и отказ платежам называет ИХ корзины: «${askPay.why.slice(0, 60)}…» (ИС-18, ADR-0176 §7)`);
 })();
 
+/* ---------- Z. Волна 13: у каждой записи реестра есть спрашивающий ---------- */
+(() => {
+  ST.seed();
+  const st = ST.state;
+  const dimsAll = vm.runInContext('DIMS', sandbox);
+  const usedD = new Set(), usedI = new Set();
+  st.objects.forEach(o => { (o.dims || []).forEach(d => usedD.add(d)); (o.inds || []).forEach(i => usedI.add(i)); });
+  const orphanD = dimsAll.filter(d => !usedD.has(d.id));
+  const orphanI = st.indicators.filter(i => !usedI.has(i.id));
+  const zd = ST.DIM('d-zdate');
+  const owner = st.objects.filter(o => (o.dims || []).indexOf('d-zdate') >= 0);
+  const zo = ST.OBJ('obj-zdeal');
+  const ask = ST.statSlice({obj:'obj-zdeal', dims:['d-zdate'], inds:['a-count'],
+    date: TODAY, buckets:{'d-zdate':'год'}});
+  const noBucket = ST.statSlice({obj:'obj-zdeal', dims:['d-zdate'], inds:['a-count'], date: TODAY});
+  ok(128, orphanD.length === 0 && orphanI.length === 0 &&
+        owner.length === 1 && owner[0].id === 'obj-zdeal' &&
+        zd.note === 'ТЗ #4' && zo && zo.owner === 'Залог' && zo.born.key === 'zdate' &&
+        (zo.inds || []).length === 1 && ask.ok && ask.n === 5 && ask.groups.length === 5 &&
+        !noBucket.ok,
+    `у каждой записи реестра есть объект, который ею спрашивает: разрезов без объекта ${orphanD.length} из ${dimsAll.length}, показателей без объекта ${orphanI.length} из ${st.indicators.length}. Сирота была одна и молчала с волны 8 — «${zd.name}» (${zd.note}) сняли с предмета залога как многозначную после перезалога (ИС-21) и оставили без владельца множества, а §10.1 считала параметр исполненным. Владелец заведён СТРОКОЙ реестра (ИС-18): «${zo.name}», множество отдаёт ${zo.owner}, рождение — «${zo.born.key}», состав — один разрез и одно число, ни одной меры строки (ADR-0201 §3). Спрос отвечает: договоров ${ask.n} в ${ask.groups.length} годах; без корзины — отказ «${noBucket.why ? noBucket.why.slice(0, 48) : '—'}…» (ADR-0176 §2)`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-const stamp = `SMOKE 2026-08-28 · ${pass}/${results.length} PASS\n` + lines.join('\n');
+const stamp = `SMOKE 2026-08-29 · ${pass}/${results.length} PASS\n` + lines.join('\n');
 console.log(stamp);
 
 const body = lines.map(l => '  ' + l).join('\n');
-const injected = `  SMOKE 2026-08-28 · ${pass}/${results.length} PASS\n` + body;
+const injected = `  SMOKE 2026-08-29 · ${pass}/${results.length} PASS\n` + body;
 if (src.includes('  SMOKE_PLACEHOLDER')) {
   writeFileSync(HTML, src.replace('  SMOKE_PLACEHOLDER', injected), 'utf8');
   console.log('\n→ результат вставлен в шапку statistics.html');
