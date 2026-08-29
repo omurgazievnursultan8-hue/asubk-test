@@ -115,9 +115,9 @@ const as = r => { RP.state.role = R[r]; };
   as('user');                                   // область видимости — только dep-prom
   const v = RP.viewer();
   const rows = SEAM.objectRows('credit', { dept:null }, v.scope.slice());
-  const slice = SEAM.statSlice('s-portfolio', { dept:null }, null, v.scope.slice());
+  const slice = SEAM.statSlice('s-portfolio', null, { dept:null }, null, v.scope.slice());
   as('auth');
-  const all = SEAM.statSlice('s-portfolio', { dept:null }, null, RP.viewer().scope.slice());
+  const all = SEAM.statSlice('s-portfolio', null, { dept:null }, null, RP.viewer().scope.slice());
   ok(13, rows.rows.length === 3 && rows.hidden === 5 && slice.value < all.value,
     `шов вернул ${rows.rows.length} строк и произнёс «скрыто ${rows.hidden}»; итог посчитан по видимым ` +
     `строкам (${slice.value} против ${all.value}) — иначе итог рассказал бы то, чего в строках нет, §13.2`);
@@ -545,9 +545,9 @@ const as = r => { RP.state.role = R[r]; };
   RP.seed(); as('auth');
   const fold = RP.foldLevelsSelf('t-npl');
   ok(67, !fold.ok && fold.parts === 3 && Math.abs(fold.sum - 83.3) < 0.05 && fold.real === 25 &&
-        has(fold.why, 'ИО-17'),
-    `итог уровня приходит швом, а не сложением: доли по ${fold.parts} подразделениям в сумме дают ` +
-    `${fold.sum} %, а на всём охвате показатель равен ${fold.real} % — модуль складывать не вправе (ИО-17)`);
+        has(fold.why, 'ИО-17') && has(fold.why, 'ИС-24'),
+    `число уровня приходит узлом дерева, а не сложением: доли по ${fold.parts} подразделениям в сумме ` +
+    `дают ${fold.sum} %, а корень того же дерева равен ${fold.real} % — складывать детей нельзя (ИО-17, ИС-24)`);
 
   const pv = RP.preview('t-overdue', { asOf: RP.state.sel.params.asOf, dept: null }).data;
   const lvl = pv.levels.map(l => l.name + (l.total ? '+итог' : ''));
@@ -561,9 +561,9 @@ const as = r => { RP.state.role = R[r]; };
 
   ok(69, pv.groups.every(g => g.totals && g.totals.length === 2) &&
         pv.groups.every(g => g.children.every(c => c.totals === null)) &&
-        pv.groups.every(g => g.totals.every(t => t.seam === 'statSlice (пакетно)')),
-    `итоговая строка печатается только по объявленному уровню: у подразделения она есть и спрошена ` +
-    `пакетным statSlice, у состояния кредита — нет, потому что редакция её не объявляла`);
+        pv.groups.every(g => g.totals.every(t => t.seam === 'statSlice (дерево)')),
+    `итоговая строка печатается только по объявленному уровню: у подразделения она есть и пришла ` +
+    `узлом дерева statSlice, у состояния кредита — нет, потому что редакция её не объявляла`);
 
   const sh = RP.sheetOf('t-overdue');
   ok(70, sh.orient === 'книжная' && sh.bands.join(' ') === 'заголовок шапка уровни итог подвал' &&
@@ -738,10 +738,10 @@ const as = r => { RP.state.role = R[r]; };
   const seams = noRows.ok ? noRows.data.passport.seams : [];
   ok(90, noRows.ok && noRows.deviated === true && noRows.data.rows.length === 0 &&
         seams.indexOf('objectRows') === -1 && seams.indexOf('statRows') === -1 &&
-        seams.indexOf('statSlice (пакетно)') !== -1 &&
+        seams.indexOf('statSlice (дерево)') !== -1 &&
         noRows.data.groups[0].count > 0 && noRows.data.passport.shown.drill === false,
     `снятое углубление — ДРУГОЙ ШОВ, а не спрятанные строки: статRows/objectRows не спрошены ` +
-    `вовсе, ответ собран пакетным statSlice (${seams.join(' · ')}) — потому оно и объявляется ` +
+    `вовсе, ответ собран деревом statSlice (${seams.join(' · ')}) — потому оно и объявляется ` +
     `редакцией (ADR-0162 §8)`);
 
   const noDrill = RP.show('t-overdue', { asOf: RP.state.sel.params.asOf, dept:null }, { drill:false });
