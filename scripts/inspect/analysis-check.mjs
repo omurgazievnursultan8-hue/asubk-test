@@ -6,6 +6,12 @@
 // Блок M (#39…#44) закрывает починки волны 4 — дефекты АН-Д1…АН-Д5: одна дверь переиздания,
 // снимок без вывода, датированный выбор строки расписания, тип лица на конец периода,
 // справочник строк формы как объект ведения.
+// Блок N (#45, #46) закрывает починку волны 6 — дефект АН-Д6: у «посчитать нельзя» две
+// причины (незаполненная строка и нулевой знаменатель), текст у них один на экран и на отказ.
+// Блок O (#47…#52) закрывает волну 7 — сверку с Порядком №41: ключ строки расписания стал
+// парой «тип лица × категория риска» (АН-37), охват и порог — ведомые поля строки (АН-39),
+// обе чужие величины читаются на конец отчётного периода (АН-38), признак «только при
+// действующих кредитах» из строки убран как вторая дверь одного правила (АН-54).
 // Блоки, которые правят состояние, начинаются с AN.seed() — состояние между ними не течёт.
 //   node scripts/inspect/analysis-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -206,9 +212,9 @@ const TODAY = '2026-08-21';
     `редакция со ссылкой из заключения не снимается: «${used.why.slice(0, 70)}…»`);
 
   AN.seed();
-  const curatorSch = AN.setSchedule('sc-fl', { grace: 10 });
+  const curatorSch = AN.setSchedule('sc-fl-high', { grace: 10 });
   AN.setRole('Администратор');
-  const adminSch = AN.setSchedule('sc-fl', { grace: 10 });
+  const adminSch = AN.setSchedule('sc-fl-high', { grace: 10 });
   const due = AN.dueOf('b-3');
   ok(21, !curatorSch.ok && has(curatorSch.why, 'администратор') && adminSch.ok && due.due === '2026-07-10',
     `расписание правит администратор, и срок пересчитывается от него: отсрочка 10 дней → срок ${due.due} (§7)`);
@@ -227,8 +233,12 @@ const TODAY = '2026-08-21';
     `у заёмщика без заключения дефект «${b3.code}» с влиянием «${b3.influence}», просрочка ${b3.late} дн., основание — строка расписания`);
   ok(24, b2.defect && has(b2.why, 'ФА-9') && has(b2.why, 'черновиком'),
     `черновик обязательства не закрывает: «${b2.why.slice(-60)}»`);
-  ok(25, !b5.defect && !b5.due && has(b5.why, 'действующих кредитов нет'),
-    `заёмщику без действующих кредитов расписание анализа ничего не вменяет — и это сказано словами`);
+  ok(25, !b5.defect && !b5.due && has(b5.why, 'категории риска у заёмщика нет') &&
+        has(b5.why, 'без действующих кредитов не применяется') &&
+        !/needLoans/.test(m[1]) && AN.state.schedule.every(r => !('needLoans' in r)),
+    `заёмщику без действующих кредитов расписание анализа ничего не вменяет — и это сказано словами: ` +
+    `«${b5.why.slice(0, 64)}…». Причина ОДНА и приходит от соседа: категории риска у такого заёмщика ` +
+    `нет вовсе, второго признака «только при действующих кредитах» в строке расписания не осталось (АН-54)`);
 
   const mark = AN.tryMarkDone();
   const stateStr = JSON.stringify(AN.state);
@@ -337,7 +347,7 @@ const TODAY = '2026-08-21';
   const empty = panel();
   AN.pickSubj('b-3');
   const nodoc = panel();
-  ok(37, has(empty, 'Анализа нет') && has(empty, 'действующих кредитов нет') &&
+  ok(37, has(empty, 'Анализа нет') && has(empty, 'категории риска у заёмщика нет') &&
         has(nodoc, 'дефект') && has(nodoc, 'Гейт заявки'),
     `заёмщик без кредитов: «анализа нет» и «расписание ничего не вменяет» — оба словами; у просрочившего на карточке виден чужой счёт и гейт заявки`);
 
@@ -384,17 +394,17 @@ const TODAY = '2026-08-21';
 
   /* АН-Д3: действующая на дату строка выбирается тем же порядком, что и редакция (ИА-17). */
   AN.seed();
-  AN.state.schedule.push({ id: 'sc-org-2', ptype: 'организация', freq: 'полугодие', grace: 10,
-    needLoans: true, since: '2026-03-01' });
+  AN.state.schedule.push({ id: 'sc-org-mid-2', ptype: 'организация', risk: 'mid', freq: 'полугодие',
+    grace: 10, limit: 50000000, basis: 'п. 11.2', since: '2026-03-01' });
   const later = AN.dueOf('b-1');
   AN.seed();
-  AN.state.schedule.push({ id: 'sc-org-3', ptype: 'организация', freq: 'полугодие', grace: 10,
-    needLoans: true, since: '2026-08-01' });
+  AN.state.schedule.push({ id: 'sc-org-mid-3', ptype: 'организация', risk: 'mid', freq: 'полугодие',
+    grace: 10, limit: 50000000, basis: 'п. 11.2', since: '2026-08-01' });
   const afterEnd = AN.dueOf('b-1');
   const onePicker = (m[1].match(/function onDate/g) || []).length === 1 &&
     /rowOn\(AN\.state\.schedule/.test(m[1]) && !/rows\.find\(r => r\.ptype/.test(m[1]);
-  ok(41, later.row === 'sc-org-2' && later.due === '2026-07-10' &&
-        afterEnd.row === 'sc-org' && afterEnd.due === '2026-08-14' && onePicker,
+  ok(41, later.row === 'sc-org-mid-2' && later.due === '2026-07-10' &&
+        afterEnd.row === 'sc-org-mid' && afterEnd.due === '2026-08-14' && onePicker,
     `вторая строка того же типа, вступившая в силу 01.03.2026, действует (срок ${later.due}); вступившая ` +
     `01.08.2026 — уже после конца периода — не действует (${afterEnd.due}); выбор записи на дату сделан одной функцией (ИА-17)`);
 
@@ -403,10 +413,10 @@ const TODAY = '2026-08-21';
   AN.SUBJ('b-2').ptype[1].since = '2026-08-01';          /* снялся с учёта ПОСЛЕ конца периода */
   const atEnd = AN.dueOf('b-2');
   const mf = AN.methodFor('b-2', '2026-06-30');
-  AN.state.schedule.find(r => r.id === 'sc-ip').freq = 'год';
+  AN.state.schedule.find(r => r.id === 'sc-ip-high').freq = 'год';
   const split = AN.dueOf('b-2');
   const mirror = AN.mirrorDefect('b-2');
-  ok(42, atEnd.required && atEnd.row === 'sc-ip' && atEnd.ptype === 'индивидуальный предприниматель' &&
+  ok(42, atEnd.required && atEnd.row === 'sc-ip-high' && atEnd.ptype === 'индивидуальный предприниматель' &&
         mf.method.id === 'm-ip' && !split.required && split.unresolved &&
         has(split.why, 'срок не определён') && has(split.why, 'решает администратор') &&
         !mirror.defect && mirror.unresolved,
@@ -460,7 +470,7 @@ const TODAY = '2026-08-21';
   AN.openDoc(re2.doc.no); const reDoc = panel();
   AN.openDoc('ФА-7');     const snapDoc = panel();
   AN.SUBJ('b-2').ptype[1].since = '2026-08-01';
-  AN.state.schedule.find(r => r.id === 'sc-ip').freq = 'год';
+  AN.state.schedule.find(r => r.id === 'sc-ip-high').freq = 'год';
   AN.go('schedule'); const sch = panel();
   ok(44, has(meth, 'Справочник строк формы отчётности') && has(meth, 'Завести строку') &&
         has(bor, 'одна операция') && has(reDoc, 'Переиздаёт') && has(reDoc, 'Связь') &&
@@ -469,13 +479,175 @@ const TODAY = '2026-08-21';
     `названа связь и названо, что дверь одна, у снимка объяснено отсутствие вывода, неразрешённый срок показан словами`);
 })();
 
+/* ---------- N. Волна 6: «посчитать нельзя» называет СВОЮ причину (АН-Д6, ИА-19) ---------- */
+(() => {
+  const el = () => ({ innerHTML: '', textContent: '', dataset: {}, value: '',
+    classList: { toggle() {}, add() {}, remove() {} }, appendChild() {}, remove() {} });
+  const nodes = { '#panel': el(), '#title': el(), '#foot': el(), '#role': el(), '#subj': el() };
+  sandbox.document = { querySelector: k => nodes[k] || el(), querySelectorAll: () => [],
+    getElementById: () => null, createElement: () => el() };
+  const panel = () => nodes['#panel'].innerHTML;
+
+  /* Беда первая: строки заполнены, а знаменатель сложился в ноль. Ноль — ДАННЫЕ, и полноту
+     формы внесение версии пропускает: до вычислителя такая отчётность доходит законно. */
+  AN.seed();
+  const vals = Object.assign({}, AN.REPORT('r-102').vals, { rev: 0 });
+  const filed = AN.addReport({ subj: 'b-1', period: '1П 2026', vals,
+    basis: 'уточнение по выручке от 29.08.2026' });
+  const zd = AN.newAnalysis({ subj: 'b-1', report: filed.report.id });
+  const rows = AN.liveRatios(zd.doc.no).rows;
+  const ros = rows.find(x => x.id === 'k-ros');
+  const counted = rows.filter(x => x.v != null);
+  AN.setText(zd.doc.no, 'Выручка за период равна нулю: рентабельность не считается.');
+  AN.setVerdict(zd.doc.no, 'удовлетворительное');
+  const noSignZero = AN.approve(zd.doc.no);
+  AN.openDoc(zd.doc.no); const zeroScreen = panel();
+
+  /* Беда вторая, и она другая: строки основания в отчётности нет вовсе. */
+  AN.seed();
+  AN.REPORT('r-103').vals.rev = null;
+  const ed = AN.newAnalysis({ subj: 'b-1', report: 'r-103' });
+  const emptyRow = AN.liveRatios(ed.doc.no).rows.find(x => x.id === 'k-ros');
+  AN.setText(ed.doc.no, 'Строка основания не заполнена.');
+  AN.setVerdict(ed.doc.no, 'удовлетворительное');
+  const noSignEmpty = AN.approve(ed.doc.no);
+  AN.openDoc(ed.doc.no); const emptyScreen = panel();
+
+  /* Текст причины собран в ОДНОМ месте, и его читают обе двери — экран и отказ в подписи. */
+  const oneText = (m[1].match(/знаменатель равен нулю/g) || []).length === 1 &&
+    /nocalcWhy\(bad\[0\]\)/.test(m[1]) && /esc\(nocalcWhy\(r\)\)/.test(m[1]);
+
+  ok(45, filed.ok && ros.v === null && ros.nocalc.code === 'zeroden' && ros.missing.length === 0 &&
+        has(AN.nocalcWhy(ros), 'знаменатель равен нулю') && has(AN.nocalcWhy(ros), 'Выручка за период') &&
+        counted.length === 4 && counted.find(x => x.id === 'k-auto').v === 0.3315 &&
+        counted.find(x => x.id === 'k-dte').v === 4.2202 &&
+        emptyRow.nocalc.code === 'empty' && emptyRow.missing.length === 1 &&
+        has(AN.nocalcWhy(emptyRow), 'не заполнены строки') && oneText,
+    `нулевой знаменатель и незаполненная строка — РАЗНЫЕ причины: «${AN.nocalcWhy(ros)}» против ` +
+    `«${AN.nocalcWhy(emptyRow)}»; остальные четыре коэффициента посчитаны (автономия 0,3315, долг ` +
+    `к прибыли 4,2202), ноль в отчётности остаётся данными, текст причины собран одним местом (ИА-19)`);
+
+  ok(46, !noSignZero.ok && has(noSignZero.why, 'Рентабельность продаж') &&
+        has(noSignZero.why, 'знаменатель равен нулю') &&
+        !noSignEmpty.ok && has(noSignEmpty.why, 'не заполнены строки') &&
+        has(zeroScreen, 'не посчитан') && has(zeroScreen, 'знаменатель равен нулю: «Выручка за период» = 0') &&
+        has(emptyScreen, 'в отчётности не заполнены строки «Выручка за период»'),
+    `подпись отклонена той же причиной, что показана на экране: «${noSignZero.why.slice(0, 78)}…»; ` +
+    `в таблице коэффициентов причина стоит под пометкой «не посчитан», а не обрывается пустым списком`);
+})();
+
+/* ---------- O. Волна 7: охват и порог приходят нормой, а не типом лица ---------- */
+(() => {
+  /* АН-37/АН-39: ОХВАТ. Низкого риска в таблице нет вовсе — и это ответ, а не пробел;
+     высокий вменяет анализ безусловно, какой бы маленькой ни была задолженность. */
+  AN.seed();
+  const noLowRow = AN.state.schedule.every(r => r.risk !== 'low');
+  AN.SUBJ('b-1').risk = [{ since: '2025-01-01', v: 'low' }];
+  const low = AN.dueOf('b-1');
+  AN.seed();
+  AN.SUBJ('b-3').debt = [{ since: '2026-01-15', v: 1000 }];
+  const highTiny = AN.dueOf('b-3');
+  ok(47, noLowRow && !low.required && has(low.why, 'Низкий кредитный риск') &&
+        has(low.why, 'плановый анализ финансово-хозяйственного состояния не проводится') &&
+        highTiny.required && highTiny.limit === null && highTiny.basis === 'п. 6.5' &&
+        highTiny.row === 'sc-fl-high',
+    `охват ставит норма, а не тип лица: по низкому риску строки нет и отказ назван — «${low.why.slice(0, 62)}…»; ` +
+    `по высокому анализ вменён при задолженности 1 000 сом, порога у строки нет вовсе (п. 6.5)`);
+
+  /* АН-39: ПОРОГ — поле строки, и сравнение строгое: норма говорит «более», а не «не менее». */
+  AN.seed(); AN.SUBJ('b-1').debt = [{ since: '2025-01-01', v: 32400000 }];
+  const below = AN.dueOf('b-1');
+  AN.seed(); AN.SUBJ('b-1').debt = [{ since: '2025-01-01', v: 50000000 }];
+  const exact = AN.dueOf('b-1');
+  AN.seed();
+  const above = AN.dueOf('b-1');
+  ok(48, !below.required && has(below.why, '32 400 000,00') && has(below.why, '50 000 000,00') &&
+        has(below.why, 'не превышает порог') && has(below.why, 'п. 11.2') && below.row === 'sc-org-mid' &&
+        !exact.required && above.required && above.debt === 81400000 && above.limit === 50000000,
+    `порог сравнивается строго: 32 400 000 и ровно 50 000 000 анализ не вменяют, 81 400 000 — вменяет. ` +
+    `Отказ называет обе величины и пункт: «${below.why.slice(0, 74)}…»`);
+
+  /* АН-38: категория и сумма читаются НА КОНЕЦ ПЕРИОДА — той же датой, что тип лица и
+     редакция методики. У b-1 задолженность падает ниже порога 15.07.2026, уже после конца
+     периода: прочитанная «на сегодня», она сняла бы обязательство за 1П 2026. */
+  AN.seed();
+  const dToday = AN.debtOn('b-1', AN.state.today), dEnd = AN.debtOn('b-1', '2026-06-30');
+  const keptByDate = AN.dueOf('b-1');
+  AN.seed(); AN.SUBJ('b-1').risk.push({ since: '2026-08-01', v: 'high' });
+  const afterEnd = AN.dueOf('b-1');
+  AN.seed(); AN.SUBJ('b-1').risk.push({ since: '2026-05-01', v: 'high' });
+  const beforeEnd = AN.dueOf('b-1');
+  ok(49, dToday === 44900000 && dEnd === 81400000 && keptByDate.required && keptByDate.debt === dEnd &&
+        AN.riskOn('b-1', AN.state.today) === 'high' && afterEnd.risk === 'mid' &&
+        afterEnd.row === 'sc-org-mid' && beforeEnd.risk === 'high' && beforeEnd.row === 'sc-org-high' &&
+        beforeEnd.limit === null,
+    `обе чужие величины взяты на конец периода: задолженность на 30.06 — ${dEnd.toLocaleString('ru-RU')}, на сегодня — ` +
+    `${dToday.toLocaleString('ru-RU')}, срок стоит на первой (АН-38). Категория, поднявшаяся 01.08 — уже после конца ` +
+    `периода, — строку не меняет (${afterEnd.row}); поднявшаяся 01.05 — меняет (${beforeEnd.row})`);
+
+  /* АН-37: порог и охват — ВЕДОМЫЕ поля. Ни числа, ни названия категории в логике срока нет,
+     а администратор меняет обязательность записью — без правки кода. */
+  AN.seed();
+  const dueSrc = m[1].slice(m[1].indexOf('AN.dueOf = subjId =>'), m[1].indexOf('AN.mirrorDefect ='));
+  const dataSrc = m[1].slice(m[1].indexOf('const SCHEDULE = ['), m[1].indexOf('];', m[1].indexOf('const SCHEDULE = [')));
+  const nAll = (m[1].match(/50000000/g) || []).length;
+  const nData = (dataSrc.match(/50000000/g) || []).length;
+  const cleanLogic = !/50\s?000\s?000|Средний кредитный риск|Высокий кредитный риск/.test(dueSrc);
+  AN.setRole('Администратор');
+  const raised = AN.setSchedule('sc-org-mid', { limit: 90000000 });
+  const afterRaise = AN.dueOf('b-1');
+  const cleared = AN.setSchedule('sc-org-mid', { limit: '' });
+  const afterClear = AN.dueOf('b-1');
+  const bad = AN.setSchedule('sc-org-mid', { limit: 'полсотни' });
+  ok(50, nAll === nData && nData === 4 && cleanLogic && raised.ok && !afterRaise.required &&
+        has(afterRaise.why, '90 000 000,00') && cleared.ok && afterClear.required &&
+        afterClear.limit === null && !bad.ok && has(bad.why, 'пустое поле означает'),
+    `порог живёт в записи, а не в коде: число ${nData} раза встречается только в справочнике расписания, ` +
+    `в логике срока нет ни его, ни названий категорий. Администратор поднял порог до 90 000 000 — анализ ` +
+    `перестал вменяться; очистил поле — вменяется безусловно; «полсотни» отклонено словами (ИА-18)`);
+
+  /* АН-23: величины нет — назван отказ, а не показан чужой срок как свой; дефект из
+     неразрешённого срока не рождается (ИА-13). */
+  AN.seed();
+  AN.SUBJ('b-1').debt = [];
+  const noDebt = AN.dueOf('b-1');
+  const noDebtMirror = AN.mirrorDefect('b-1');
+  const gate = AN.mirrorGate('b-1');
+  ok(51, !noDebt.required && noDebt.unresolved && noDebt.row === 'sc-org-mid' &&
+        has(noDebt.why, 'ядро не отдало') && has(noDebt.why, 'решает администратор расписания') &&
+        !noDebtMirror.defect && noDebtMirror.unresolved && gate.pass,
+    `суммы задолженности ядро не отдало — срок не определён и назван словами: «${noDebt.why.slice(0, 66)}…». ` +
+    `Дефект из неразрешённого срока не рождается, и гейт заявки на нём не спотыкается`);
+
+  /* Экран показывает то же, что состояние: пару, порог, основание и обе даты. */
+  const el = () => ({ innerHTML: '', textContent: '', dataset: {}, value: '',
+    classList: { toggle() {}, add() {}, remove() {} }, appendChild() {}, remove() {} });
+  const nodes = { '#panel': el(), '#title': el(), '#foot': el(), '#role': el(), '#subj': el() };
+  sandbox.document = { querySelector: k => nodes[k] || el(), querySelectorAll: () => [],
+    getElementById: () => null, createElement: () => el() };
+  const panel = () => nodes['#panel'].innerHTML;
+  AN.seed();
+  AN.go('schedule');
+  const scr = panel();
+  AN.SUBJ('b-1').debt = [{ since: '2025-01-01', v: 32400000 }];
+  AN.go('schedule');
+  const scrBelow = panel();
+  ok(52, has(scr, 'Категория риска') && has(scr, 'Порог задолженности') && has(scr, 'Основание') &&
+        has(scr, 'порога нет') && has(scr, 'п. 11.2') && has(scr, 'Пара на конец периода') &&
+        has(scr, 'организация × Средний кредитный риск') && has(scr, 'строка «sc-org-mid»') &&
+        has(scrBelow, 'не превышает порог'),
+    `на экране расписания видно то же, что в состоянии: пара, порог (и «порога нет» словами), пункт ` +
+    `основания и пара НА КОНЕЦ ПЕРИОДА рядом с парой на сегодня; отказ по порогу стоит в таблице ` +
+    `обязательств текстом, а не прочерком`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-console.log(`SMOKE 2026-08-21 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
+console.log(`SMOKE 2026-08-29 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
 
 const body = lines.map(l => '  ' + l).join('\n');
-const injected = `  SMOKE 2026-08-21 · ${pass}/${results.length} PASS\n` + body;
+const injected = `  SMOKE 2026-08-29 · ${pass}/${results.length} PASS\n` + body;
 if (src.includes('  SMOKE_PLACEHOLDER')) {
   writeFileSync(HTML, src.replace('  SMOKE_PLACEHOLDER', injected), 'utf8');
   console.log('\n→ результат вставлен в шапку analysis.html');
