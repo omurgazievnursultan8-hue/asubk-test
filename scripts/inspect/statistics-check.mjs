@@ -1,5 +1,10 @@
-// Headless smoke для mockups/statistics/statistics.html (ИС-1…ИС-33, ADR-0145…0152 + 0176…0197).
-// Блок S закрывает бывшие дефекты макета СС-Д1/Д2/Д3/Д6 (вопрос целиком, а не его половина).
+// Headless smoke для mockups/statistics/statistics.html (ИС-1…ИС-35, ADR-0145…0152 + 0176…0200).
+// Блок S закрывает бывшие дефекты макета СС-Д1/Д2/Д3/Д6 (вопрос целиком, а не его половина),
+// блок W — СС-Д8 (наборы фильтра, ДНФ без скобок по ADR-0180),
+// блок X — волна 11 ч.2: погашение разведено на платёж и поступление (ADR-0183) и
+// фиксирует открытый СС-Д11 (объект без разреза охвата молча пустеет под ролью),
+// блок Y — волна 12: три тонких объекта под ADR-0201 (объект снят · меры сняты · состав
+// добран) и закрытый СС-Д13 (выбор из пустого набора — прочерк, а не ноль).
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -27,6 +32,12 @@ const results = [];
 const ok = (n, cond, note = '') => results.push({ n, pass: !!cond, note });
 const has = (s, part) => String(s || '').includes(part);
 const TODAY = '2026-08-21';
+/* Фильтр вопроса — ДНФ без скобок (ADR-0180): F(a, b) — два набора через ИЛИ,
+   F([a, b]) — один набор из двух сравнений через И. Скобок в форме нет, поэтому
+   и в конструкторе смоука их негде поставить. */
+const F  = (...sets) => ({ sets: sets.map(x => ({ cmps: Array.isArray(x) ? x : [x] })) });
+const cD = (id, op, extra) => Object.assign({ kind:'dim', id, op }, extra || {});
+const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {});
 
 /* ---------- A. Реестры: что вообще можно объявить ---------- */
 (() => {
@@ -97,7 +108,7 @@ const TODAY = '2026-08-21';
   const run = ST.run('2026-08-20', {});
   const after = ST.statSlice({obj:'obj-guarantee', dims:['d-region'], inds:['a-count','a-sumgsec'], date:'2026-08-20'});
   ok(9, !before.ok && mi.ok && ai.ok && add.ok && run.ok && after.ok && after.n === 3 && after.groups.length === 3,
-    `десятый объект заведён записью: до — «${before.why}», после — ${after.n} объектов в ${after.groups.length} группах, без единой правки движка (ИС-18)`);
+    `одиннадцатый объект заведён записью: до — «${before.why}», после — ${after.n} объектов в ${after.groups.length} группах, без единой правки движка (ИС-18)`);
 
   const bad = ST.addObject({id:'obj-ghost', name:'Призрак', dims:[], inds:[]});
   ok(10, !bad.ok && has(bad.why, 'владелец не отдаёт'),
@@ -220,7 +231,7 @@ const TODAY = '2026-08-21';
 
   const mixed = ST.statSlice({obj:'obj-credit', dims:[], inds:['a-sumdebt'], date:'2026-08-18'}).total['a-sumdebt'];
   const one = ST.statSlice({obj:'obj-credit', dims:[], inds:['a-sumdebt'], date:'2026-08-18',
-    filter:{dim:'d-cur', value:'USD'}}).total['a-sumdebt'];
+    filter: F(cD('d-cur', '=', {value:'USD'}))}).total['a-sumdebt'];
   ok(28, !!mixed.mixed && mixed.mixed.length === 3 && has(mixed.note, 'разновалютное') &&
         one.cur === 'USD' && !one.mixed,
     `разновалютный итог называет состав: «${mixed.note}»; однородный отдаётся в своей валюте (${one.cur})`);
@@ -505,7 +516,7 @@ const TODAY = '2026-08-21';
 
   const vals = ST.filterValues('d-branch');
   const byBucket = ST.filterValues('d-cdate');
-  st.q.filter = {dim:'d-branch', value: vals[0]};
+  st.q.filter = F(cD('d-branch', '=', {value: vals[0]}));
   const nar = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date: st.q.date, filter: st.q.filter});
   st.q.filter = null;
   const all = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date: st.q.date});
@@ -866,13 +877,13 @@ const TODAY = '2026-08-21';
      двух дат выходило ноль. Смерть при этом состояние, а не исчезновение: однажды
      родившись, объект из состава уже не выпадает, и ряд не убывает нигде. */
   const rep9 = line('obj-repay'), cas = line('obj-case');
-  const tsk = line('obj-task'),   mes = line('obj-measure');
+  const mes = line('obj-measure');
   const stable = ['obj-credit','obj-borrower','obj-collateral','obj-program']
     .every(o => line(o).every(n => n === cnt(o, D[0])));
   const monotone = st.objects.every(o => line(o.id).every((n, i, a) => i === 0 || n >= a[i-1]));
-  ok(86, eq(rep9, [0,4,10,12,14]) && eq(cas, [2,2,2,3,3]) && eq(tsk, [1,2,3,4,4]) &&
+  ok(86, eq(rep9, [0,4,10,12,14]) && eq(cas, [2,2,2,3,3]) &&
         eq(mes, [3,3,3,5,5]) && stable && monotone,
-    `состав среза идёт за рождением: погашения ${rep9.join('·')}, дела ${cas.join('·')}, задания ${tsk.join('·')}, меры ${mes.join('·')}; долгоживущие четыре объекта неизменны, и ни у одного объекта состав не убывает — смерть это состояние, а не пропажа строки (ИС-33)`);
+    `состав среза идёт за рождением: погашения ${rep9.join('·')}, дела ${cas.join('·')}, меры ${mes.join('·')}; долгоживущие четыре объекта неизменны, и ни у одного объекта состав не убывает — смерть это состояние, а не пропажа строки (ИС-33)`);
 
   /* Пустой ответ и несосчитанная дата — РАЗНЫЕ вещи. Даты прогонов теперь берутся
      журналом, а не наличием строк: иначе 31.05 у погашений читалось бы как «прогона не
@@ -998,15 +1009,15 @@ const TODAY = '2026-08-21';
   ok(97, !per.ok && has(per.why, 'ИС-30') && has(per.why, 'ИС-35') && has(per.why, 'занижает'),
     `удельная величина отбита и разложена на пару: «${per.why}»`);
 
-  /* И занижение это не гипотеза: кураторов в мире трое, а в срезе требований их видно
-     двое — у третьего требований нет, и в срез он не попадает ВОВСЕ. Знаменатель,
+  /* И занижение это не гипотеза: кураторов в мире трое, а в срезе мер их видно
+     двое — у третьего мер нет, и в срез он не попадает ВОВСЕ. Знаменатель,
      снятый со среза, систематически меньше настоящего. */
-  const curSlice = ST.statSlice({obj:'obj-task', dims:['d-curator'], inds:['a-count'], date: D});
+  const curSlice = ST.statSlice({obj:'obj-measure', dims:['d-curator'], inds:['a-count'], date: D});
   const curAll = new Set();
   Object.keys(W).forEach(o => W[o].forEach(x => (x.h.curator || []).forEach(([d, v]) => {
     if (d <= D) curAll.add(v); })));
   ok(98, curSlice.ok && curSlice.groups.length === 2 && curAll.size === 3,
-    `знаменатель со среза занижен систематически: кураторов в мире ${curAll.size}, а в срезе заданий видно ${curSlice.groups.length} — у третьего заданий нет, и «в среднем на куратора» со среза завысило бы нагрузку в полтора раза (ИС-35)`);
+    `знаменатель со среза занижен систематически: кураторов в мире ${curAll.size}, а в срезе мер видно ${curSlice.groups.length} — у третьего мер нет, и «в среднем на куратора» со среза завысило бы нагрузку в полтора раза (ИС-35)`);
 
   /* СС-Д9 закрыт ПО ПОСТРОЕНИЮ, а не подгонкой чисел: «погашено всего» больше не
      самостоятельный ряд, а сумма платежей своего кредита. Сверка идёт по каждому
@@ -1024,6 +1035,405 @@ const TODAY = '2026-08-21';
   const orphan = W['obj-repay'].filter(p => !W['obj-credit'].some(c => c.id === p.f.credit));
   ok(99, bad.length === 0 && orphan.length === 0 && cb.length === 8,
     `СС-Д9 закрыт по построению: на всех ${cb.length} договорах приращение «погашено» за 30.06→18.08 равно сумме платежей ЭТОГО договора до копейки (расхождений ${bad.length}), и ни один платёж не висит без кредита (${orphan.length}) — два ряда одних денег стали одним (ИС-1, ИС-14)`);
+})();
+
+/* ---------- W. Волна 11: наборы фильтра, ДНФ без скобок (ADR-0180) ----------
+   Закрывает СС-Д8: до неё фильтр был одноусловным — один разрез, одно значение.
+   Проверяется не разметка редактора, а СЧЁТ: сколько строк остаётся, какой отказ
+   выдаётся и что печатает паспорт. ------------------------------------------- */
+(() => {
+  ST.seed();
+  const D = '2026-08-18';
+  const sl = (f, obj) => ST.statSlice({obj: obj || 'obj-credit', dims:[], inds:['a-count'], date: D, filter: f});
+  const n  = f => { const r = sl(f); return r.ok ? r.total['a-count'].v : -1; };
+
+  /* Восемь кредитов: KGS — 6, просрочка свыше 100 дней — 4, пересечение — 3. */
+  const A = cD('d-cur', '=', {value:'KGS'}), B = cI('m-odays', '>', {value:100});
+  const nA = n(F(A)), nB = n(F(B)), nAnd = n(F([A, B])), nOr = n(F(A, B));
+  ok(100, nA === 6 && nB === 4 && nAnd === 3 && nOr === 7 && nOr === nA + nB - nAnd,
+    `ДНФ считает: набор из двух сравнений через И — ${nAnd} строк(и) из ${nA} и ${nB}; два набора через ИЛИ — ${nOr} = ${nA} + ${nB} − ${nAnd}. Скобок в форме нет, и глубины больше двух не бывает (ADR-0180 §1, СС-Д8)`);
+
+  const opGt   = sl(F(cD('d-cur', '>', {value:'KGS'})));
+  const opIn   = sl(F(cI('m-odays', '∈', {values:['0']})));
+  const opBool = sl(F(cI('m-bblack', '>', {value:'да'})), 'obj-borrower');
+  const opRng  = sl(F(cD('d-industry', 'в диапазоне', {from:'Торговля', to:'Услуги'})));
+  ok(101, !opGt.ok && has(opGt.why, '= ≠ ∈ ∉') && has(opGt.why, 'ADR-0180 §4') &&
+        !opIn.ok && !opBool.ok && has(opBool.why, 'доступны = ≠') && !opRng.ok,
+    `оператор — от ТИПА значения, а не от вкуса: у перечисления «>» нет («${opGt.why.slice(0, 96)}…»), у числа нет «∈», у булева только «= ≠», «в диапазоне» — только у корзины (ADR-0180 §4)`);
+
+  const byInd = sl(F(cI('m-odays', '>', {value:100})));
+  const agg   = sl(F(cI('a-count', '>', {value:1})));
+  const alien = sl(F(cI('m-odays', '>', {value:1})), 'obj-borrower');
+  const bl    = sl(F(cI('m-bblack', '=', {value:'да'})), 'obj-borrower');
+  const nbl   = sl(F(cI('m-bblack', '=', {value:'нет'})), 'obj-borrower');
+  ok(102, byInd.ok && byInd.total['a-count'].v === 4 && !agg.ok && has(agg.why, 'мера СТРОКИ') &&
+        !alien.ok && bl.ok && bl.total['a-count'].v === 1 && nbl.ok && nbl.total['a-count'].v === 7,
+    `операнд — разрез ИЛИ мера строки: по «Дней просрочки > 100» осталось ${byInd.total['a-count'].v}, по булеву «В чёрном списке» — ${bl.total['a-count'].v} из ${bl.total['a-count'].v + nbl.total['a-count'].v} заёмщиков. Агрегат в фильтр не пускается: «${agg.why.slice(0, 72)}…» (ADR-0180 §3)`);
+
+  const noCur = sl(F(cI('m-debt', '>', {value:100000})));
+  const kgs   = sl(F(cI('m-debt', '>', {value:100000, cur:'KGS'})));
+  const usd   = sl(F(cI('m-debt', '>', {value:100000, cur:'USD'})));
+  ok(103, !noCur.ok && has(noCur.why, 'ADR-0184 §3') && kgs.ok && kgs.total['a-count'].v === 5 &&
+        usd.ok && usd.total['a-count'].v === 1,
+    `денежная константа НЕСЁТ валюту и сравнивается с частью той же валюты, без пересчёта: «> 100 000 сом» ловит ${kgs.total['a-count'].v} кредитов и НЕ ловит долларовый на 143 046,67 USD, «> 100 000 USD» ловит его одного. Без валюты — отказ: «${noCur.why.slice(0, 64)}…» (ADR-0184 §3)`);
+
+  const empty  = sl({sets:[{cmps:[]}]});
+  const noVals = sl(F(cD('d-cur', '∈', {values:[]})));
+  const whole  = sl(F(cD('d-cur', '∈', {values:['KGS','USD','EUR']})));
+  const part   = sl(F(cD('d-cur', '∈', {values:['KGS','USD']})));
+  ok(104, !empty.ok && has(empty.why, 'набор 1 пуст') && !noVals.ok && has(noVals.why, 'пустым списком') &&
+        !whole.ok && has(whole.why, 'весь домен') && part.ok && part.total['a-count'].v === 7,
+    `три отказа §8 — все про сравнение, которое ничего не значит: пустой набор, «∈» с пустым списком и «∈» во весь домен («${whole.why.slice(0, 84)}…»); часть домена проходит и оставляет ${part.total['a-count'].v} из 8 (ADR-0180 §8)`);
+
+  const two  = F([A, B], cD('d-region', '=', {value:'Чуйская'}));
+  const pf   = sl(two).passport.filter;
+  const bare = sl(null).passport.filter;
+  ok(105, has(pf, 'набор 1') && has(pf, 'набор 2') && has(pf, 'либо') &&
+        has(pf, 'Валюта договора = KGS и Дней просрочки > 100') && has(pf, 'Территория = Чуйская') &&
+        !/\+\d|фильтр задан/i.test(pf) && has(bare, 'фильтра нет'),
+    `паспорт печатает фильтр ЦЕЛИКОМ, всеми наборами и сравнениями: «${pf}»; пустой назван строкой: «${bare}». «Фильтр задан» и «+2 условия» — ответ без вопроса (ADR-0180 §6)`);
+
+  const year = sl(F(cD('d-cdate', '∈', {values:['2025','2026'], bucket:'год'})));
+  const qrt  = sl(F(cD('d-cdate', 'в диапазоне', {from:'2025 · I кв.', to:'2025 · III кв.', bucket:'квартал'})));
+  const step = sl(F(cD('d-odays', 'в диапазоне', {from:'91–180 дн.', to:'181+ дн.', bucket:'ступени'})));
+  const mon  = ST.operandValues('dim', 'd-cdate', 'месяц');
+  ok(106, year.ok && year.total['a-count'].v === 4 && qrt.ok && qrt.total['a-count'].v === 3 &&
+        step.ok && step.total['a-count'].v === 4 && has(qrt.passport.filter, '(квартал)') &&
+        mon[0] === 'сентябрь 2021' && mon[mon.length - 1] === 'февраль 2026',
+    `у разреза с корзинами правая часть — КОРЗИНА, а не сырая дата: год ∈ {2025, 2026} — ${year.total['a-count'].v}, квартал в диапазоне I…III кв. 2025 — ${qrt.total['a-count'].v}, ступени 91–180…181+ — ${step.total['a-count'].v}; корзина названа в паспорте, а список идёт порядком корзины, не алфавитом (${mon[0]} … ${mon[mon.length - 1]}) — ADR-0176 §3, ADR-0180 §4`);
+
+  const bare14 = ST.statRows({obj:'obj-repay', date: D});
+  const cut12  = ST.statRows({obj:'obj-repay', date: D,
+    filter: F(cD('d-repkind', '∈', {values:['плановое','досрочное']}))});
+  ST.state.role = 'Аналитик';
+  const seen  = ST.operandValues('dim', 'd-curator');
+  const мой   = sl(F(cD('d-curator', '∈', {values:['Бекова Н.']})));
+  ST.state.role = 'Администратор статистики';
+  const wide  = sl(F(cD('d-curator', '∈', {values:['Бекова Н.']})));
+  ok(107, !bare14.ok && bare14.n === 14 && cut12.ok && cut12.rows.length === 12 &&
+        seen.length === 1 && !мой.ok && has(мой.why, 'весь домен') &&
+        wide.ok && wide.total['a-count'].v === 5,
+    `порядок роль → фильтр → группировка → порог держится с обоих концов: фильтр снимает отказ порога (${bare14.n} строк погашений против порога ${ST.rowsLimit} → ${cut12.ok ? cut12.rows.length : '—'} после отбора), а «весь домен» меряется по УЖЕ урезанному ролью множеству — у аналитика кураторов видно ${seen.length}, и то же сравнение у него отказ, а у администратора оставляет ${wide.ok ? wide.total['a-count'].v : '—'} (ИС-13, ADR-0178 §3, ADR-0180 §7)`);
+
+  const f    = F([A, B]);
+  const rows = ST.statRows({obj:'obj-credit', date: D, filter: f});
+  const reg  = ST.registryList('obj-credit', D, f);
+  const job  = ST.exportJob({obj:'obj-repay', date: D,
+    filter: F(cD('d-repkind', '∈', {values:['плановое','досрочное']}))});
+  const live = {sets:[{cmps:[cD('d-cur', '=', {value:'KGS'})]}]};
+  const job2 = ST.exportJob({obj:'obj-credit', date: D, filter: live});
+  live.sets[0].cmps.push(B);
+  ok(108, rows.ok && reg.join(' ') === rows.rows.map(r => r.ref).sort().join(' ') && reg.length === 3 &&
+        job.ok && job.job.n === 12 && has(job.job.passport.filter, 'Вид погашения ∈ плановое, досрочное') &&
+        job2.ok && job2.job.filter.sets[0].cmps.length === 1,
+    `тот же фильтр даёт тот же состав в реестре ВЛАДЕЛЬЦА (${reg.join(' ')}) — сравнение одно, источника два (ИС-14, ИС-18); в задание выгрузки фильтр едет копией (${job.job.n} строк), и правка вопроса задним числом его не меняет`);
+
+  const kgsF   = F(cD('d-cur', '=', {value:'KGS'}));
+  const ser    = ST.statSeries({obj:'obj-credit', inds:'a-count',
+    dates:['2026-07-31','2026-08-10','2026-08-18'], filter: kgsF});
+  const fl     = ST.flowBetween({obj:'obj-credit', inds:'m-repaid', from:'2026-07-15', to:'2026-08-18', filter: kgsF});
+  const serBad = ST.statSeries({obj:'obj-credit', inds:'a-count', dates:['2026-07-31','2026-08-18'],
+    filter: F(cD('d-cur', '∈', {values:['KGS','USD','EUR']}))});
+  ok(109, ser.ok && ser.points.every(p => p.value.v === 6) && has(ser.passport.filter, 'Валюта договора = KGS') &&
+        fl.ok && Math.round(fl.value) === 825500 && has(fl.passport.filter, 'Валюта договора = KGS') &&
+        !serBad.ok && has(serBad.why, 'весь домен'),
+    `фильтр ОДИН на все швы: срез, ряд (${ser.points.map(p => p.value.v).join(' · ')}), строки, период (${Math.round(fl.value)} сом.) и реестр читают его одинаково и печатают в паспорт; отказ ряду выдаётся один на ряд, а не по точке (ADR-0180 §7)`);
+})();
+
+/* ---------- W2. Редактор наборов: форма собирает то же, что считает ядро ----------
+   Выше проверялся СЧЁТ по готовому фильтру; здесь — что этот фильтр вообще можно НАБРАТЬ
+   формой, что отказ доходит до человека текстом, а не пустотой, и что снятие идёт по
+   одному сравнению, а не всё сразу. ------------------------------------------------- */
+(() => {
+  const el = () => ({ innerHTML:'', textContent:'', dataset:{},
+    classList:{toggle(){}, add(){}, remove(){}}, appendChild(){}, remove(){} });
+  const fields = {};
+  const put = (id, v, sel) => { fields[id] = { value: v, selectedOptions: (sel || []).map(x => ({value:x})) }; };
+  const nodes = {'#panel': el(), '#title': el(), '#foot': el(), '#asOf': el(), '#role': el()};
+  const toasts = [];
+  const wrap = Object.assign(el(), { appendChild(t){ toasts.push(t.textContent); } });
+  sandbox.document = {
+    querySelector: k => nodes[k] || fields[k.slice(1)] || el(),
+    querySelectorAll: () => [],
+    getElementById: id => (id === 'toastWrap' ? wrap : null),
+    createElement: () => el()
+  };
+  const panel = () => nodes['#panel'].innerHTML;
+  /* dropCmp правит фильтр НА МЕСТЕ, поэтому форма снимается сразу, а не ссылкой. */
+  const shape = () => { const f = ST.state.q.filter;
+    return f ? f.sets.map(x => x.cmps.length) : null; };
+
+  ST.seed();
+  ST.state.q.obj = 'obj-credit'; ST.state.q.date = '2026-08-18';
+  ST.go('build');
+
+  /* Первое сравнение — новым набором. */
+  put('fOperand', 'dim:d-cur'); put('fOp', '='); put('fVal', 'KGS'); put('fSet', 'new');
+  ST.addCmp();
+  const one = shape();
+
+  /* Второе — В ТОТ ЖЕ набор (И). */
+  put('fOperand', 'ind:m-odays'); put('fOp', '>'); put('fNum', '100'); put('fSet', '0');
+  ST.addCmp();
+  const and2 = shape();
+
+  /* Третье — новым набором (ИЛИ). */
+  put('fOperand', 'dim:d-region'); put('fOp', '='); put('fVal', 'Чуйская'); put('fSet', 'new');
+  ST.addCmp();
+  const or2 = shape();
+  const built = panel();
+
+  /* Отказ должен ДОЙТИ ДО ЧЕЛОВЕКА текстом и НЕ ТРОНУТЬ уже набранное. */
+  const before = JSON.stringify(ST.state.q.filter);
+  toasts.length = 0;
+  put('fOperand', 'dim:d-cur'); put('fOp', '∈'); put('fVals', '', ['KGS','USD','EUR']); put('fSet', 'new');
+  ST.addCmp();
+  const refused = toasts.join(' | ');
+  const after = JSON.stringify(ST.state.q.filter);
+
+  /* Снятие — по ОДНОМУ сравнению; опустевший набор уходит сам. */
+  ST.dropCmp(1, 0);
+  const dropped = shape();
+  ST.clearFilter();
+  const cleared = ST.state.q.filter;
+  const bare = panel();
+
+  ok(110, String(one) === '1' && String(and2) === '2' && String(or2) === '2,1' &&
+        has(built, 'либо набор 2') && has(built, 'Валюта договора = KGS') &&
+        /* «&gt;» — оператор в чипе экранирован: подпись рисуется текстом, не разметкой. */
+        has(built, 'Дней просрочки &gt; 100') && has(built, 'Территория = Чуйская') &&
+        has(built, 'в набор 1 (И)') && has(built, 'новым набором (ИЛИ)') &&
+        has(refused, 'весь домен') && after === before &&
+        String(dropped) === '2' && cleared === null && !has(bare, 'либо набор'),
+    `редактор набирает ровно ту форму, которую считает ядро: три клика дали «${or2.length} набора, сравнений в них ${or2.join(' и ')}», и добавление спрашивает одно — «в набор 1 (И)» или «новым набором (ИЛИ)». Отказ ДОХОДИТ ТЕКСТОМ и не трогает набранное: «${refused.slice(0, 72)}…» — пустой экран вместо ответа отказом не считается. Снятие идёт по одному сравнению, опустевший набор уходит сам (ADR-0180 §1, §6, §8)`);
+})();
+
+/* ---------- X. Волна 11 ч.2: погашение — платёж и поступление (ADR-0183) ----------
+   Погашение было самым тонким объектом реестра: два показателя на 14 записей. Правило
+   ADR-0183 развело его на ДВА объекта, а не дописало мер: «сумма поступления», «возврат»
+   и «нераспределённый остаток» — величины про МНОЖЕСТВО платежей, а не про платёж, и на
+   сводном поступлении сложились бы дважды (ИС-28, ИС-21, ADR-0198). Проверяется не состав
+   списком, а СЧЁТ: сходятся ли тождества ТЗ 14 на строке среза. ------------------- */
+(() => {
+  ST.seed();
+  const st = ST.state;
+  const D = '2026-08-18';
+  const W = vm.runInContext('WORLD', sandbox);
+  const rowsOf = o => st.rows.filter(r => r.obj === o && r.date === D);
+  const v = (r, i) => (r.inds[i] ? r.inds[i].v : null);
+  const r2 = x => Math.round(x * 100) / 100;
+  const near = (a, b) => Math.abs(a - b) < 0.005;
+  const at = (rr, ref) => rr.find(r => r.ref === ref);
+  const rowInds = o => o.inds.map(ST.IND).filter(i => i.src !== 'агрегат');
+  const pays = rowsOf('obj-repay'), rcs = rowsOf('obj-receipt');
+  const P = ST.OBJ('obj-repay'), R = ST.OBJ('obj-receipt');
+  /* Порядок статей — ADR-0087: расходы → комиссия → ОД → проценты → пеня. */
+  const ART = ['m-palc','m-palf','m-palp','m-pali','m-paln'];
+
+  const bad111 = pays.filter(r => !near(v(r,'m-ramount'), r2(ART.reduce((n, i) => n + v(r, i), 0))));
+  const seam = rowInds(P).filter(i => i.src === 'шов');
+  const compound = seam.filter(i => /_/.test(i.field || ''));
+  const one = at(pays, 'ПГ-2026/1156');
+  ok(111, pays.length === 14 && bad111.length === 0 && seam.length === 7 && compound.length === 0,
+    `сумма платежа = Σ пяти статей на каждой из ${pays.length} строк, расхождений ${bad111.length}: ПГ-2026/1156 — ${ART.map(i => v(one, i)).join(' + ')} = ${v(one,'m-ramount')} (расходы → комиссия → ОД → проценты → пеня, ADR-0087). ОД своей формулы не имеет, он РАЗНОСТЬ; статьи и слои — две проекции одной суммы, ${seam.length} именованных клеток шва (5+2), а не 5×2 матрица, составных имён ${compound.length} (ADR-0183 §2, §3, ADR-0179 §3)`);
+
+  const bad112 = pays.filter(r => !near(v(r,'m-ramount'), r2(v(r,'m-pjud') + v(r,'m-pfree'))));
+  const two = at(pays, 'ПГ-2026/1178');
+  const kgs = ST.statSlice({obj:'obj-repay', dims:['d-repkind'], date: D,
+    inds:['a-sumpjud','a-sumpfree','a-sumramount'], filter: F(cD('d-cur','=',{value:'KGS'}))});
+  const T = kgs.ok ? kgs.total : {};
+  ok(112, bad112.length === 0 && v(two,'m-pjud') > 0 && v(two,'m-pfree') > 0 && kgs.ok &&
+       near(r2(T['a-sumpjud'].v + T['a-sumpfree'].v), T['a-sumramount'].v),
+    `тот же платёж разложен по СЛОЯМ, и слои сходятся к той же сумме, расхождений ${bad112.length}: ПГ-2026/1178 — ${v(two,'m-pjud')} судебный + ${v(two,'m-pfree')} свободный = ${v(two,'m-ramount')}, один платёж на двух слоях сразу (ADR-0043). Свод по KGS: ${T['a-sumpjud'].v} + ${T['a-sumpfree'].v} = ${T['a-sumramount'].v} — «Взыскано» так и осталось свёрткой платежей по слою, мерой оно не хранится (ADR-0030)`);
+
+  const bad113 = rcs.filter(r => !near(v(r,'m-rsum'), r2(v(r,'m-rpaid') + v(r,'m-rret') + v(r,'m-runal'))));
+  const pl = at(rcs, 'ПП-2026/0701'), ov = at(rcs, 'ПП-2026/0851');
+  ok(113, rcs.length === 15 && bad113.length === 0 &&
+       v(pl,'m-rret') === 180000 && v(pl,'m-rpaid') === 520000 && v(ov,'m-runal') === 4000,
+    `инвариант поступления держится на каждой из ${rcs.length} строк, расхождений ${bad113.length}: сумма = Σ платежей + возврат + нераспределённое (ТЗ 14 §2.2). ПП-2026/0701 — ${v(pl,'m-rsum')} = ${v(pl,'m-rpaid')} + ${v(pl,'m-rret')} + ${v(pl,'m-runal')}: доля залогодателя ушла плательщику и погашением НЕ стала (§7.3). ПП-2026/0851 — переплата ${v(ov,'m-runal')} лежит нераспределённым остатком, а не лишним погашением (ADR-0073). Остаток — разность, отдельной формулы у него нет (ИС-1)`);
+
+  const sv = at(rcs, 'ПП-2026/0733');
+  const kids = pays.filter(r => r.dims['d-preceipt'] === 'ПП-2026/0733');
+  const creds = [...new Set(kids.map(r => r.dims['d-pcredit']))];
+  const brs = [...new Set(kids.map(r => String(r.dims['d-branch'])))];
+  const borrowed = R.dims.filter(d => ['d-branch','d-curator','d-region','d-pcredit','d-cur'].indexOf(d) >= 0);
+  ok(114, v(sv,'m-rpays') === 2 && kids.length === 2 && creds.length === 2 && brs.length === 2 &&
+       borrowed.length === 0,
+    `сводное поступление — не платёж: ПП-2026/0733 разнесено на ${v(sv,'m-rpays')} платежа по ${creds.length} разным кредитам (${creds.join(', ')}) в ${brs.length} подразделениях. Поэтому у поступления НЕТ разрезов, которые приходят от кредита — ни «Кредит», ни «Подразделение», ни «Куратор», ни «Территория» (их ${borrowed.length}): значение, оказавшееся многозначным, поднимает уровень, а не сплющивается в клетку (ИС-21, ADR-0198)`);
+
+  const unres = ST.statRows({obj:'obj-receipt', date: D, filter: F(cI('m-rpays','=',{value:0}))});
+  const refs = unres.ok ? unres.rows.map(r => r.ref).sort() : [];
+  const boolDim = R.dims.map(ST.DIM).filter(d => /невыясн|опозн|разнес/i.test(d.name));
+  ok(115, unres.ok && refs.length === 2 && refs.join(' ') === 'ПП-2026/0755 ПП-2026/0844' &&
+       boolDim.length === 0 && has(unres.passport.filter, 'Платежей из поступления = 0'),
+    `«невыясненное» — это ФИЛЬТР, а не разрез: ${refs.length} поступления (${refs.join(', ')}) отобраны сравнением по МЕРЕ СТРОКИ — операнд из ADR-0180 §2, а не из справочника. Второй записи реестра про то же значение нет (булевых разрезов про разнесение ${boolDim.length}, ADR-0185 §1), и сужение названо в паспорте: «${unres.passport.filter}»`);
+
+  const fz = at(rcs, 'ПП-2026/0844');
+  const track = st.rows.filter(r => r.ref === 'ПП-2026/0620').map(r => r.dims['d-rmatch']);
+  const seq = track.filter((x, i) => x !== track[i - 1]);
+  const hist = ['d-rmatch','d-rfrz'].map(ST.DIM).filter(d => d.src === 'история');
+  ok(116, fz.dims['d-rmatch'] === 'расхождение' && fz.dims['d-rfrz'] === 'заморожено' &&
+       hist.length === 2 && seq.join(' → ') === 'отозвано → восстановлено',
+    `три оси ТЗ 14 §3.1 не схлопнуты в один «статус»: ПП-2026/0844 одновременно «${fz.dims['d-rmatch']}» по сопоставлению и «${fz.dims['d-rfrz']}» по заморозке — одним полем это не выразить. Обе оси читаются ИЗ ИСТОРИИ (их ${hist.length}), а не из поля: сопоставление ПП-2026/0620 идёт «${seq.join(' → ')}» и на каждую дату среза отдаёт своё значение (ИС-10, ИС-14)`);
+
+  const role0 = st.role;
+  ST.setRole('Аналитик');
+  const aR = ST.statRows({obj:'obj-receipt', date: D});
+  const aP = ST.statRows({obj:'obj-repay', date: D});
+  ST.setRole(role0);
+  ok(117, aR.ok && aR.rows.length === 0 && aP.ok && aP.rows.length === 9 &&
+       has(aR.passport.scope, 'по 0 объектам'),
+    `СС-Д11 — открыт, зафиксирован здесь: охват режет строки по разрезу «Куратор», а у поступления такого разреза нет и быть не может (см. #114). Аналитик получает ok и ${aR.rows.length} строк там, где платежей ему видно ${aP.rows.length}: паспорт честно печатает «${aR.passport.scope}», но пустой экран вместо отказа — ровно то, что запрещает ИС-24. Объект без разреза охвата обязан отвечать ОТКАЗОМ`);
+
+  const byId = {}; (W['obj-receipt'] || []).forEach(r => byId[r.id] = r);
+  const kin = W['obj-repay'] || [];
+  const drift = kin.filter(p => !byId[p.f.receipt] || byId[p.f.receipt].f.rdate !== p.f.rdate);
+  const noPay = (W['obj-receipt'] || []).filter(r => !kin.some(p => p.f.receipt === r.id));
+  const openM = noPay.every(r => st.closedPeriods.indexOf(r.f.rdate.slice(0, 7)) < 0);
+  ok(118, drift.length === 0 && noPay.length === 2 && openM && st.closedPeriods.length === 2,
+    `дата платежа НАСЛЕДУЕТСЯ от поступления, своей у него нет (ТЗ 14 §2.1): на ${kin.length} платежей расхождений и висячих ссылок ${drift.length} — рождение платежа приходит из родителя, а опознание рождает платёж, а не правит поле (§7.1, ИС-33, ADR-0197). Оба невыясненных (${noPay.map(r => r.id).join(', ')}) лежат в ОТКРЫТЫХ месяцах, закрыты ${st.closedPeriods.join(', ')}: невыясненное не даёт закрыть период (§8.6, ADR-0075)`);
+
+  const iPay = rowInds(P).length, aPay = P.inds.length - iPay;
+  const iRc = rowInds(R).length, aRc = R.inds.length - iRc;
+  const badAgg = st.indicators.filter(i => i.src === 'агрегат' && i.over &&
+    ['перечисление','булево'].indexOf((ST.IND(i.over) || {}).type) >= 0);
+  ok(119, P.dims.length === 8 && iPay === 8 && aPay === 9 &&
+       R.dims.length === 5 && iRc === 6 && aRc === 8 && badAgg.length === 0,
+    `состав по ADR-0183 — без недобора и без набора впрок: платёж — ${P.dims.length} разрезов, ${iPay} мер строки, ${aPay} агрегатов; поступление — ${R.dims.length} / ${iRc} / ${aRc}. Каждый разрез назван внешним потребителем: ФО-41 «Реестр погашений» — кредит, ФО-04 «Погашения за период» — дата, ТЗ 14 §3.1 — три оси, и они стоят у ПОСТУПЛЕНИЯ: своих осей платёж не имеет, он их наследует (ADR-0056). Агрегатов над перечислением и булевым ${badAgg.length} (ИС-29, ADR-0185 §1)`);
+
+  const cur = ['KGS','USD','EUR'].map(c => {
+    const rr = ST.statSlice({obj:'obj-receipt', dims:['d-rchan'], date: D,
+      inds:['a-sumrpaid','a-sumrsum'], filter: F(cD('d-rcur','=',{value:c}))});
+    const pp = ST.statSlice({obj:'obj-repay', dims:['d-repkind'], date: D,
+      inds:['a-sumramount'], filter: F(cD('d-cur','=',{value:c}))});
+    return {c, ok: rr.ok && pp.ok, paid: rr.ok ? rr.total['a-sumrpaid'].v : null,
+            got: rr.ok ? rr.total['a-sumrsum'].v : null, pay: pp.ok ? pp.total['a-sumramount'].v : null};
+  });
+  ok(120, cur.every(x => x.ok && near(x.paid, x.pay)) && cur.some(x => !near(x.got, x.pay)),
+    `«поступило» и «погашено» — разные вопросы, а не расхождение: по КАЖДОЙ валюте разнесённое поступлениями = сумме платежей (${cur.map(x => x.c + ' ' + x.paid + ' = ' + x.pay).join(' · ')}), а поступило больше (${cur.map(x => x.c + ' ' + x.got).join(' · ')}) — разницу держат возврат и нераспределённый остаток. Ни одна сумма не сложена дважды (ИС-28), и разновалютное к одному числу молча не сведено (ADR-0184 §3, СС-Д4)`);
+})();
+
+/* ---------- Y. Волна 12: три тонких объекта под правилом ADR-0201 ----------
+   Тонкий объект — не «маленький», а НЕДОСПРОШЕННЫЙ: реестр обещает величину, которой у
+   владельца нет, либо сплющивает в одну клетку то, что владелец различает. Волна 12 взяла
+   три последних таких записи и развела их по трём разным ответам: «Задание кураторства»
+   СНЯТО (владельца, отдающего множество, не нашлось), у «Кредитной программы» сняты обе
+   меры строки (лимита не заводит никто, освоение принадлежит кредиту), «Мера взыскания»
+   ДОБРАНА до состава, который различает ТЗ 13. Проверяется не список, а счёт. --------- */
+(() => {
+  ST.seed();
+  const st = ST.state;
+  const D = '2026-08-18';
+  const W = vm.runInContext('WORLD', sandbox);
+  const rowsOf = o => st.rows.filter(r => r.obj === o && r.date === D);
+  const v = (r, i) => (r.inds[i] ? r.inds[i].v : null);
+  const at = (rr, ref) => rr.find(r => r.ref === ref);
+  const rowInds = o => o.inds.map(ST.IND).filter(i => i.src !== 'агрегат');
+  const M = ST.OBJ('obj-measure'), PR = ST.OBJ('obj-program');
+  const ms = rowsOf('obj-measure');
+
+  /* Снятие объекта — такая же строка реестра, как и заведение (ИС-18): движка оно не
+     касается, но след обязано оставить ОТКАЗОМ, а не пустотой (ИС-24). */
+  const gone = ST.statSlice({obj:'obj-task', dims:['d-branch'], inds:['a-count'], date: D});
+  const inWorld = Object.keys(W).indexOf('obj-task') >= 0;
+  const dangling = [];
+  st.objects.forEach(o => {
+    o.dims.forEach(d => { if (!ST.DIM(d)) dangling.push(o.id + '/' + d); });
+    o.inds.forEach(i => { if (!ST.IND(i)) dangling.push(o.id + '/' + i); });
+  });
+  const orphan = st.indicators.filter(i => i.src === 'агрегат' && i.fn !== 'count' && !ST.IND(i.over));
+  ok(121, st.objects.length === 9 && !gone.ok && has(gone.why, 'нет в реестре объектов') &&
+        has(gone.why, 'ИС-18') && !inWorld && dangling.length === 0 && orphan.length === 0,
+    `«Задание кураторства» снято СТРОКОЙ реестра, а не релизом: объектов ${st.objects.length}, спрос отвечает отказом — «${gone.why}», а не пустым экраном (ИС-24). Источник снят, а не спрятан: записей в мире 0, висячих ссылок на снятые разрезы и меры ${dangling.length}, агрегатов над несуществующей мерой ${orphan.length}. Владельца, ОТДАЮЩЕГО множество, у заданий нет: кураторство отказывается от них дословно (ТЗ 16 §1.1), своего ТЗ и места в очереди у них нет, ФО-20 ещё спрашивается у заказчика. Вернётся строкой в день, когда владелец появится (ADR-0201 §1)`);
+
+  /* Три оси результата ТЗ 13 §9.1 — независимы попарно и в обе стороны: ни одна не
+     выводится из другой, иначе разрезов было бы не три, а один. */
+  const AX = ['d-mresult','d-mrkind','d-mstage'];
+  const dep = [];
+  AX.forEach(a => AX.forEach(b => { if (a !== b &&
+    !ms.some(x => ms.some(y => x !== y && x.dims[a] === y.dims[a] && x.dims[b] !== y.dims[b]))) dep.push(a + '→' + b); }));
+  const hist = ['d-mdeliv','d-mstate'].filter(d => ST.DIM(d).src === 'история');
+  const il = at(ms, 'МВ-2025/44'), rz = at(ms, 'МВ-2026/31');
+  ok(122, dep.length === 0 && hist.length === 2 &&
+        il.dims['d-mrkind'] === rz.dims['d-mrkind'] &&
+        il.dims['d-mresult'] !== rz.dims['d-mresult'] && il.dims['d-mstage'] !== rz.dims['d-mstage'],
+    `три оси ТЗ 13 §9.1 не схлопнуты в один «результат»: пар, где одна ось вывелась бы из другой, ${dep.length} из 6 — МВ-2025/44 и МВ-2026/31 стоят на одном виде результата «${il.dims['d-mrkind']}» при разных результате (${il.dims['d-mresult']} · ${rz.dims['d-mresult']}) и стадии (${il.dims['d-mstage']} · ${rz.dims['d-mstage']}). Доставка и состояние читаются ИЗ ИСТОРИИ (их ${hist.length}), а не полем: на каждую дату среза своё значение (ИС-10, ИС-14)`);
+
+  /* Часы меры. Число дней полем не лежит нигде — оно ПРОИЗВОДНО от даты среза (ADR-0183 §4),
+     и заводятся часы от НАПРАВЛЕНИЯ: невручение срок должника не отменяет (ТЗ 13 §9.2). */
+  const days = ST.statSlice({obj:'obj-measure', dims:['d-mdeliv'], date: D,
+    inds:['a-count','a-maxmdays','a-avgmdays']});
+  const withSent = ms.filter(r => v(r, 'm-mdays') != null);
+  const nod = days.ok ? days.groups.find(g => g.parts[0] === 'вручения не требует') : null;
+  const und = at(ms, 'МВ-2026/27'), del = at(ms, 'МВ-2026/12');
+  ok(123, days.ok && withSent.length === 2 && v(und, 'm-mdays') === 16 && v(del, 'm-mdays') === 159 &&
+        und.dims['d-mdeliv'] === 'направлено, вручение не подтверждено' &&
+        nod && nod.n === 3 && nod.values['a-maxmdays'] === null && nod.values['a-avgmdays'] === null &&
+        days.total['a-maxmdays'].v === 159 && days.total['a-avgmdays'].v === 87.5,
+    `срок течёт от НАПРАВЛЕНИЯ и невручением не отменяется (ТЗ 13 §9.2): у МВ-2026/27 на 18.08 — ${v(und, 'm-mdays')} дн. при «${und.dims['d-mdeliv']}», у вручённой МВ-2026/12 — ${v(del, 'm-mdays')} дн. У видов, которым вручать нечего, направления нет, и срока нет вовсе: мер со сроком ${withSent.length} из ${ms.length}, а в группе «вручения не требует» (${nod ? nod.n : '—'} меры) максимум и среднее — ПРОЧЕРК, а не ноль: выбор из пустого нулём не отвечают (ИС-19, СС-Д13 закрыт). Итог берёт тех, у кого срок есть: max ${days.total['a-maxmdays'].v} · avg ${days.total['a-avgmdays'].v} дн.`);
+
+  /* Дедуп по кредиту (ТЗ 13 §12.1): один долг в итоге считается один раз, сколько бы мер
+     на него ни завели. Сторно (И-3) со среза меру не убирает — её отсекает СУЖЕНИЕ. */
+  const naive = ms.reduce((n, r) => n + v(r, 'm-mclaim'), 0);
+  const all = ST.statSlice({obj:'obj-measure', dims:['d-mkind'], inds:['a-count','a-summclaim'], date: D});
+  const reg = ST.statSlice({obj:'obj-measure', dims:['d-mkind'], inds:['a-count','a-summclaim'], date: D,
+    filter: F(cD('d-mstate', '=', {value:'зарегистрирована'}))});
+  const A = all.ok ? all.total['a-summclaim'] : {}, R = reg.ok ? reg.total['a-summclaim'] : {};
+  const swing = A.v - R.v;
+  ok(124, all.ok && reg.ok && naive === 8392000 && A.v === 7462000 && R.v === 4002000 &&
+        A.dedup && A.dedup.by === 'd-mcred' && A.dedup.keys === 3 && A.dedup.dropped === 2 &&
+        R.dedup.dropped === 1 && all.total['a-count'].v === 5 && reg.total['a-count'].v === 4 &&
+        swing === 3460000,
+    `сумма по мере в ИТОГЕ считается один раз на кредит (ТЗ 13 §12.1): ${ms.length} мер несут ${naive}, а итог ${A.v} — ключей ${A.dedup.keys}, снято ${A.dedup.dropped}; строка своей полной суммы при этом не теряет (ИС-34, ADR-0199). Сторнированная мера со среза НЕ исчезает (И-3), её отсекает сужение — и оно не вычитает 3 980 000, а МЕНЯЕТ представителя ключа: ${A.v} → ${R.v}, разница ${swing}. Мер в срезе ${all.total['a-count'].v}, после сужения ${reg.total['a-count'].v}`);
+
+  /* «Освоено по программе» — величина про множество КРЕДИТОВ, разрезанное по программе.
+     Полем программы она была бы вторым источником тех же денег (ИС-1, ИС-28). */
+  const byProg = ST.statSlice({obj:'obj-credit', dims:['d-program'], inds:['a-count','a-sumissued'], date: D});
+  const byBr = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count','a-sumissued'], date: D});
+  const cover = byProg.ok ? byProg.groups.reduce((n, g) => n + g.n, 0) : -1;
+  const pf = Object.keys(W['obj-program'][0].f);
+  const may = vm.runInContext('CONSUMERS', sandbox).find(c => c.module === 'программы');
+  ok(125, byProg.ok && byBr.ok && byProg.groups.length === 5 && byProg.n === 8 && cover === 8 &&
+        byProg.total['a-sumissued'].v === byBr.total['a-sumissued'].v &&
+        pf.indexOf('limit') < 0 && pf.indexOf('issued') < 0 &&
+        may && may.may.length === 1 && may.may[0] === 'statSlice',
+    `«выдано по программе» собирается СРЕЗОМ КРЕДИТА по разрезу «Кредитная программа», а не полем программы (ADR-0201 §2): ${byProg.groups.length} групп на ${byProg.n} кредитов, ни один не потерян и не сосчитан дважды (${cover} из ${byProg.n}), а итог тот же, что по подразделениям (${byProg.total['a-sumissued'].v} = ${byBr.total['a-sumissued'].v}) — множество одно, вопроса два (ИС-28). Полей лимита и освоения у программы больше нет: лимита не заводит ни один владелец, знаменателя у «освоено N %» пока нет вовсе, и это ЗАЯВКА владельцу, а не выдуманное поле (ADR-0150 §3, ИС-1). Программа спрашивает статистику о кредитах: может ${may.may.join(', ')}`);
+
+  /* Границы ADR-0183: правило запрещает и недобор, и набор впрок — но не малый состав.
+     Объект без единой меры строки законен, если строки у него есть и их есть о чём считать. */
+  const iM = rowInds(M).length, aM = M.inds.length - iM;
+  const iP = rowInds(PR).length, aP = PR.inds.length - iP;
+  const prRows = ST.statRows({obj:'obj-program', date: D});
+  const bare = prRows.rows.every(r => r.ref && Object.keys(r.inds).length === 0);
+  const cnt = ST.statSlice({obj:'obj-program', dims:['d-pstate'], inds:['a-count'], date: D});
+  ok(126, PR.dims.length === 9 && iP === 0 && aP === 1 && prRows.rows.length === 5 && bare &&
+        cnt.ok && cnt.total['a-count'].v === 5 && PR.dims.indexOf('d-curator') < 0 &&
+        M.dims.length === 10 && iM === 2 && aM === 4,
+    `состав по ADR-0183 «Границы»: программа — ${PR.dims.length} разрезов, ${iP} мер строки, ${aP} агрегат; мера взыскания — ${M.dims.length} / ${iM} / ${aM}. Объект БЕЗ ЕДИНОЙ меры строки законен: строк ${prRows.rows.length}, у каждой ref и разрезы, и «сколько программ» считается по СТРОКАМ (${cnt.total['a-count'].v}), а не по мере. Разреза «Куратор» у программы нет и быть не может: «ответственные сотрудники» — поле lookup (multi), многозначное на дату, и многозначность поднимает уровень, а не сплющивается в клетку (ИС-21, ADR-0201 §4)`);
+
+  /* Идентификатор записи реестра — ИМЯ, а не подпись: двух записей под одним именем не
+     бывает. Форма заведения занятый идентификатор отбивает (проверка #46), но саму
+     ЗАГРУЗКУ реестра до волны 12 не сторожил никто — и волна завела «Дату начала действия
+     программы» под уже занятым «d-pdate»: поиск отдавал первую запись, «Дата платежа»
+     становилась недостижимой, а срез платежей по дате молча спрашивал корзину чужого
+     разреза. Это СС-Д14: реестр обязан быть непротиворечив на входе, иначе всякий ответ
+     под вопросом (ИС-18, ИС-24, ADR-0176 §7). */
+  const dimsAll = vm.runInContext('DIMS', sandbox);
+  const dup = arr => {
+    const seen = {}, out = [];
+    arr.forEach(id => { seen[id] = (seen[id] || 0) + 1; if (seen[id] === 2) out.push(id); });
+    return out;
+  };
+  const dD = dup(dimsAll.map(d => d.id));
+  const dI = dup(st.indicators.map(i => i.id));
+  const dO = dup(st.objects.map(o => o.id));
+  const pay = ST.DIM('d-pdate'), start = ST.DIM('d-pstart');
+  const askPay = ST.statSlice({obj:'obj-repay', dims:['d-pdate'], inds:['a-count'], date: D});
+  ok(127, dD.length === 0 && dI.length === 0 && dO.length === 0 &&
+        pay && pay.name === 'Дата платежа' && pay.key === 'rdate' &&
+        start && start.name === 'Дата начала действия программы' && start.key === 'pdate' &&
+        !askPay.ok && has(askPay.why, 'Дата платежа') && has(askPay.why, 'месяц'),
+    `идентификаторы реестра уникальны на ЗАГРУЗКЕ, а не только в форме заведения (СС-Д14): разрезов ${dimsAll.length}, показателей ${st.indicators.length}, объектов ${st.objects.length}, повторов ноль. Две даты — «${pay.name}» (${pay.key}) и «${start.name}» (${start.key}) — живут врозь, и отказ платежам называет ИХ корзины: «${askPay.why.slice(0, 60)}…» (ИС-18, ADR-0176 §7)`);
 })();
 
 /* ---- отчёт ---- */

@@ -113,8 +113,8 @@
   новая редакция вместо правки опубликованного макета · рабочий список, замороженный
   выпуском, с выбывшим объектом, показанным выбывшим, и с закрытием вместо стирания ·
   дашборд с паспортом у каждой плитки, личной перекладкой и возвратом «как объявлено» ·
-  два уровня разреза с итоговой строкой по объявленному уровню, спрошенной пакетным
-  statSlice · попытка сложить доли по подразделениям, отклонённая числами (83,3 % против
+  два уровня разреза с итоговой строкой по объявленному уровню, пришедшей узлом
+  дерева statSlice · попытка сложить доли по подразделениям, отклонённая числами (83,3 % против
   25 % на охвате) · итог, поставленный перед уровнями, отклонённый порядком полос ·
   правка листа у сданного выпуска и у опубликованной редакции · формат, которого лист
   не объявлял · столбец на своей дате · правило отбора, поданное рабочим списком ·
@@ -132,7 +132,12 @@
     · ролей в макете пять — как в §17 канона;
     · очереди заданий нет: состояния выпуска показаны и проверяются, но шаг делает кнопка —
       макет показывает состояния, а не изображает медленность;
-    · второй даты для сравнения нет: §19 п. 6 канона открыт (ИО-19).
+    · второй даты для сравнения нет: §19 п. 6 канона открыт (ИО-19);
+    · порога объёма у statRows в макете нет и отказа по объёму он не показывает: восемь
+      объектов зеркала ни в какой порог не упрутся. Закон записан каноном §11 — отказ
+      статистики (ADR-0178) проговаривается как ЕЁ отказ со ссылкой на ЕЁ асинхронную
+      выгрузку и в наш фоновый выпуск не превращается: два фоновых механизма отдают разное
+      (строки против выпуска с номером и паспортом).
 
   РЕШЕНИЯ, НА КОТОРЫХ СТОИТ МОДУЛЬ
   ADR-0156 отчёт — объявленный состав, а не печать; продукт конструктора — личный черновик;
@@ -181,7 +186,7 @@
      PASS  #8  неисчислимый налету показатель в режиме «сейчас» отклонён причиной владельца реестра — ADR-0159
      PASS  #9  чистый черновик проходит все пять проверок и становится шаблоном организации
      PASS  #10  основание, вписанное не публикующим, остаётся просьбой: «сослаться на пункт нормы может только публикующий: основание «п. 12 По…»
-     PASS  #11  в движке состава (13599 симв.) и движке бланка (1632) нет ни базы, ни формулы: запрещённых имён 0 — ИО-2, ИО-3
+     PASS  #11  в движке состава (13744 симв.) и движке бланка (1632) нет ни базы, ни формулы: запрещённых имён 0 — ИО-2, ИО-3
      PASS  #12  «свой запрос» и «своя формула» — названные отказы, а не отсутствующие кнопки
      PASS  #13  шов вернул 3 строк и произнёс «скрыто 5»; итог посчитан по видимым строкам (15000000 против 62650000) — иначе итог рассказал бы то, чего в строках нет, §13.2
      PASS  #14  снимка на 01.09.2026 нет — подставлен ближайший на 2026-08-01; на 01.12.2025 снимка нет вовсе
@@ -235,11 +240,11 @@
      PASS  #62  личная перекладка живёт поверх объявленной и не трогает её: «вернуть как объявлено» возвращает 2 плитки — иначе возвращать было бы не к чему
      PASS  #63  неисполнимый отчёт плитка проговаривает словами, а не показывает пустое место: показатель «Сумма просроченной задолженности» выведен 24.08.2026 — шаблону нужна новая редакция
      PASS  #64  вход в модуль — ровно четыре шва: три у статистики (ADR-0152) и objectRows у ядра (ADR-0158)
-     PASS  #65  одиннадцать экранов × пять ролей = 55 отрисовок без исключений (397 КБ разметки)
+     PASS  #65  одиннадцать экранов × пять ролей = 55 отрисовок без исключений (398 КБ разметки)
      PASS  #66  отказы и границы проговорены на самих экранах, а не спрятаны за отсутствием кнопки
-     PASS  #67  итог уровня приходит швом, а не сложением: доли по 3 подразделениям в сумме дают 83.3 %, а на всём охвате показатель равен 25 % — модуль складывать не вправе (ИО-17)
+     PASS  #67  число уровня приходит узлом дерева, а не сложением: доли по 3 подразделениям в сумме дают 83.3 %, а корень того же дерева равен 25 % — складывать детей нельзя (ИО-17, ИС-24)
      PASS  #68  разрезы печатаются уровнями: подразделение+итог → состояние кредита; 3 группы первого уровня, 5 второго, строк в группах 8 из 8
-     PASS  #69  итоговая строка печатается только по объявленному уровню: у подразделения она есть и спрошена пакетным statSlice, у состояния кредита — нет, потому что редакция её не объявляла
+     PASS  #69  итоговая строка печатается только по объявленному уровню: у подразделения она есть и пришла узлом дерева statSlice, у состояния кредита — нет, потому что редакция её не объявляла
      PASS  #70  лист выгрузки объявлен редакцией и попадает в паспорт: книжная, полосы заголовок → шапка → уровни → итог → подвал, форматы xlsx · pdf (ИО-18)
      PASS  #71  итог перед уровнями отклонён: итог поставлен ПЕРЕД уровнями: так печатает легаси, и читающий видит общую сумму раньше слагаемы…
      PASS  #72  лист правится там же, где состав: в черновике и уполномоченным; у опубликованной редакции — только новой редакцией, иначе сданное перепечаталось бы иначе (ИО-18, ИО-2)
@@ -260,7 +265,7 @@
      PASS  #87  жёсткий показатель не прячется: «показатель «Кредитов с просрочкой» объявлен составом редакции 1 и отклонением не…»
      PASS  #88  порядок жёстких уровней принадлежит редакции: «жёсткие уровни переставлены: редакция 1 объявила порядок «подразделение → состоя…»
      PASS  #89  объявленное отклонение углубляет разрез: третьим уровнем встал «заёмщик» — подразделение → состояние кредита → заёмщик
-     PASS  #90  снятое углубление — ДРУГОЙ ШОВ, а не спрятанные строки: статRows/objectRows не спрошены вовсе, ответ собран пакетным statSlice (statSlice (пакетно) · statSlice) — потому оно и объявляется редакцией (ADR-0162 §8)
+     PASS  #90  снятое углубление — ДРУГОЙ ШОВ, а не спрятанные строки: статRows/objectRows не спрошены вовсе, ответ собран деревом statSlice (statSlice (дерево) · statSlice) — потому оно и объявляется редакцией (ADR-0162 §8)
      PASS  #91  там, где углубление отклонением не объявлено, его не снять: «углубление до строк объектов редакция 1 отклонением не объявила: это другой шов …»
      PASS  #92  раскладка свободна и отклонением не считается — клетки те же, вопрос тот же; в выпуск она не уходит вовсе: лист принадлежит редакции (ИО-18, ADR-0162 §8)
      PASS  #93  сохранённая накрутка — ВИД, восьмая сущность: имя, владелец, список, удаление; безымянных и одноимённых видов не бывает (ADR-0162 §3)
@@ -878,11 +883,12 @@ const HIST_DATES = Object.keys(HIST);
    произнесённое вслух» (§13.4).
    ==ШВЫ==                                                                    */
 const SEAMS_IN = [
-  {id:'statSlice',  owner:'статистика', q:'значение показателя в разрезе на дату; ' +
-    'пакетная форма — по каждому значению разреза сразу (итоги уровней, ОЧ-25)'},
+  {id:'statSlice',  owner:'статистика', q:'значение показателя в разрезе на дату; ответ ВСЕГДА ' +
+    'дерево уровней — плоский разрез вырождается в один уровень (ADR-0176 §6)'},
   {id:'statSeries', owner:'статистика', q:'ряд значений показателя по датам'},
-  {id:'statRows',   owner:'статистика', q:'строки объектов на дату'},
-  {id:'objectRows', owner:'ядро',       q:'перечисление живых объектов: поля и показатели налету'}
+  {id:'statRows',   owner:'статистика', q:'строки объектов на дату; полный список или отказ (ADR-0178)'},
+  {id:'objectRows', owner:'ядро',       q:'перечисление живых объектов: поля и показатели налету; ' +
+    'в v1 отвечает по объектам ядра — по кредиту (ADR-0181 §4)'}
 ];
 
 /* Числа считает СТАТИСТИКА. Этот кусок — её зеркало, а не формула отчётности:
@@ -949,39 +955,42 @@ const SEAM = {
       passport:{seam:'statRows', owner:'статистика', asOf: real, asked: asOf, mode:'на дату',
         scope: scope.slice(), depth:'снимок статистики на '+fmt(real)}};
   },
-  /* СТАТИСТИКА. Значение показателя в разрезе. Агрегат считается только по
-     видимым строкам (§13.2): иначе итог рассказал бы то, чего в строках нет. */
-  statSlice(statId, cut, asOf, scope){
+  /* СТАТИСТИКА, ОДНА дверь. Ответ ВСЕГДА дерево уровней (ADR-0176 §6): плоский
+     разрез вырождается в один уровень, отсутствие разреза — в один корень.
+     Двух форм у одного шва нет намеренно — потребитель, написанный под
+     таблицу, сломался бы на первом же иерархическом разрезе.
+     Числа родительского уровня считает СТАТИСТИКА, отдельной группировкой тех
+     же строк, а не сложением детей (ИС-24): доля области не есть сумма долей
+     районов, а объект с незаполненным нижним уровнем при сворачивании детей
+     просто исчез бы. Отчётности складывать больше нечего — и не из запрета,
+     а потому, что уровни приходят посчитанными (волна 13).
+     Агрегат считается только по видимым строкам (§13.2): иначе итог рассказал
+     бы то, чего в строках нет.                                               */
+  statSlice(statId, by, cut, asOf, scope){
     const meta = STAT(statId);
-    if(!meta) return {value:null, why:'показателя «'+statId+'» в реестре нет', passport:null};
+    const levels = by == null ? [] : (Array.isArray(by) ? by.slice() : [by]);
+    if(!meta) return {levels, value:null, groups:[],
+      why:'показателя «'+statId+'» в реестре нет', passport:null};
     const src = asOf ? SEAM.statRows('credit', asOf, cut, scope) : SEAM.objectRows('credit', cut, scope);
-    if(src.missing) return {value:null, why:'снимка на '+fmt(asOf)+' у статистики нет', passport:null};
-    return {value: statValue(statId, src.rows), unit: meta.unit, hidden: src.hidden,
-      substituted: src.substituted,
-      passport:{seam:'statSlice', owner:'статистика', asOf: asOf ? src.passport.asOf : null,
-        mode: asOf ? 'на дату' : 'сейчас', scope: scope.slice(),
-        cut: cut && cut.dept ? deptName(cut.dept) : 'без разреза'}};
-  },
-  /* СТАТИСТИКА, пакетная форма того же вопроса: итог по КАЖДОМУ значению
-     разреза. Пятым швом это не становится — вопрос тот же, что у statSlice,
-     спрошенный оптом; складывать частные итоги модуль не вправе (ИО-17).      */
-  statSliceBy(statId, by, cut, asOf, scope){
-    const meta = STAT(statId);
-    if(!meta) return {by, groups:[], why:'показателя «'+statId+'» в реестре нет'};
-    const src = asOf ? SEAM.statRows('credit', asOf, cut, scope) : SEAM.objectRows('credit', cut, scope);
-    if(src.missing) return {by, groups:[], why:'снимка на '+fmt(asOf)+' у статистики нет'};
-    const keys = uniq(src.rows.map(r => r[by]));
-    return {by, unit: meta.unit,
-      groups: keys.map(k => { const part = src.rows.filter(r => r[by] === k);
-        return {key:k, count: part.length, value: statValue(statId, part)}; }),
-      hidden: src.hidden, substituted: src.substituted,
-      passport:{seam:'statSlice', owner:'статистика', form:'пакетная', by,
+    if(src.missing) return {levels, value:null, groups:[],
+      why:'снимка на '+fmt(asOf)+' у статистики нет', passport:null};
+    const build = (rows, li) => li >= levels.length ? null
+      : uniq(rows.map(r => r[levels[li]])).map(k => {
+          const part = rows.filter(r => r[levels[li]] === k);
+          return {by: levels[li], key:k, count: part.length,
+            /* Значение уровня — по строкам уровня, не из детей (ИС-24).      */
+            value: statValue(statId, part), children: build(part, li + 1)};
+        });
+    return {levels, value: statValue(statId, src.rows), unit: meta.unit,
+      groups: build(src.rows, 0) || [], hidden: src.hidden, substituted: src.substituted,
+      passport:{seam:'statSlice', owner:'статистика', form:'дерево', by: levels.slice(),
         asOf: asOf ? src.passport.asOf : null, mode: asOf ? 'на дату' : 'сейчас',
-        scope: scope.slice()}};
+        scope: scope.slice(),
+        cut: cut && cut.dept ? deptName(cut.dept) : 'без разреза'}};
   },
   /* СТАТИСТИКА. Ряд значений по датам — для плиток и динамики.               */
   statSeries(statId, dates, cut, scope){
-    return {points: dates.map(d => ({at:d, value: SEAM.statSlice(statId, cut, d, scope).value})),
+    return {points: dates.map(d => ({at:d, value: SEAM.statSlice(statId, null, cut, d, scope).value})),
       passport:{seam:'statSeries', owner:'статистика', mode:'на дату', scope: scope.slice()}};
   },
   /* КОНТРАКТЫ, а не данные (ADR-0158 §4): публичный перечень полей объекта и
@@ -1010,19 +1019,21 @@ const sheetOfEd = ed => Object.assign({}, SHEET0, ed.sheet || {});
 const dpOf = (ed, sid) => (ed.dp && ed.dp[sid] != null) ? ed.dp[sid] : null;
 const levelName = (by, key) => by === 'dept' ? deptName(key) : String(key == null ? '—' : key);
 
-/* Итог по значению уровня НЕ складывается модулем: доля, средняя и количество
-   уникальных не аддитивны (ИО-17). Он спрашивается пакетной формой statSlice —
-   одним вопросом на показатель, а не по вопросу на группу.                    */
+/* Итог по значению уровня НЕ складывается модулем: доля и средняя не аддитивны
+   (ИО-17). Он приходит УРОВНЕМ ДЕРЕВА statSlice — одним вопросом на показатель,
+   а не по вопросу на группу; числа уровня считает статистика (ИС-24).
+   Счёта уникальных в доводе больше нет: `count distinct` статистика из списка
+   показателей выкинула (ADR-0186, ИС-30) — довод стоял бы на несуществующем.  */
 function levelTotals(ed, by, cut, asOf, scope){
   const packs = {};
-  ed.stats.forEach(sid => { packs[sid] = SEAM.statSliceBy(sid, by, cut, asOf, scope); });
+  ed.stats.forEach(sid => { packs[sid] = SEAM.statSlice(sid, by, cut, asOf, scope); });
   return key => ed.stats.map(sid => {
     const meta = SEAM.statMeta(sid), p = packs[sid];
     const g = (p.groups || []).find(x => x.key === key);
     const dp = dpOf(ed, sid);
     return {id:sid, name: meta ? meta.name : sid, unit: meta ? meta.unit : '',
       value: g ? g.value : null, shown: roundTo(g ? g.value : null, dp), dp,
-      why: p.why || null, seam:'statSlice (пакетно)'};
+      why: p.why || null, seam:'statSlice (дерево)'};
   });
 }
 /* ============ ГРАНИЦЫ КРУТИЛКИ И НАКРУТКА (§3 п. 9, ADR-0162) =========
@@ -1086,7 +1097,7 @@ function twistCheck(ed, twist){
   /* Углубление до строк объектов — ОТКЛОНЕНИЕ, требующее объявления: это
      другой шов, другой объём ответа и другая видимость полей (ADR-0162 §8). */
   if(w.drill !== base.drill && !B.drill) return {ok:false, why:'углубление до строк объектов '+
-    'редакция '+ed.n+' отклонением не объявила: это другой шов — statRows вместо пакетного '+
+    'редакция '+ed.n+' отклонением не объявила: это другой шов — statRows вместо дерева '+
     'statSlice, другой объём ответа и другая видимость полей объекта (ADR-0162 §8)'};
   if(!w.drill && !w.stats.length) return {ok:false, why:'без строк объектов и без показателей '+
     'смотреть нечего: углубление снимают тогда, когда остаются итоги разрезов'};
@@ -1111,24 +1122,24 @@ const shownOf = (ed, drill) => ({cuts:(ed.cuts || []).map(cutName),
   stats:(ed.stats || []).map(statName), drill: !!drill,
   layout: LAYOUTS.indexOf(ed.layout) !== -1 ? ed.layout : LAYOUTS[0]});
 
-/* Ответ БЕЗ строк объектов: спрошен только пакетный statSlice, statRows не
+/* Ответ БЕЗ строк объектов: спрошено только дерево statSlice, statRows не
    спрашивался вовсе. Дата состояния, охват и подстановка снимка приходят из
    его же паспорта — своих запросов к базе нет и здесь (ИО-2).              */
 function sliceOnly(ed, cut, asOf, scope){
   const by = (ed.cuts || [])[0] || 'dept';
-  const p = SEAM.statSliceBy(ed.stats[0], by, cut, asOf, scope);
+  const p = SEAM.statSlice(ed.stats[0], by, cut, asOf, scope);
   if(!p.passport) return {rows:[], hidden:0, substituted:null, missing:true,
-    passport:{seam:'statSlice (пакетно)', owner:'статистика', asOf,
+    passport:{seam:'statSlice (дерево)', owner:'статистика', asOf,
       mode: asOf ? 'на дату' : 'сейчас', scope: scope.slice()}};
   return {rows:[], hidden: p.hidden || 0, substituted: p.substituted || null, missing:false,
-    passport:{seam:'statSlice (пакетно)', owner:'статистика', asOf: p.passport.asOf,
+    passport:{seam:'statSlice (дерево)', owner:'статистика', asOf: p.passport.asOf,
       mode: p.passport.mode, scope: scope.slice(),
-      depth:'без строк объектов: спрошены итоги разрезов'}};
+      depth:'без строк объектов: спрошены уровни разрезов'}};
 }
 function bandsNoRows(ed, levels, li, cut, asOf, scope){
   const lv = levels[li];
   const ask = lv.total ? levelTotals(ed, lv.by, cut, asOf, scope) : null;
-  const probe = SEAM.statSliceBy(ed.stats[0], lv.by, cut, asOf, scope);
+  const probe = SEAM.statSlice(ed.stats[0], lv.by, cut, asOf, scope);
   return (probe.groups || []).map(g => {
     const inner = Object.assign({}, cut, {at:{by: lv.by, key: g.key}});
     return {level: lv.level, by: lv.by, key: g.key, name: levelName(lv.by, g.key), count: g.count,
@@ -1156,7 +1167,7 @@ function compose(tpl, ed, params, viewer){
   const cut = {dept: params.dept || null, ids: params.ids || null};
   const asOf = ed.mode === 'на дату' ? params.asOf : null;
   /* Углубление до строк объектов — ДРУГОЙ ШОВ: снятое углубление значит, что
-     statRows не спрашивается вовсе, а ответ собирается пакетным statSlice.
+     statRows не спрашивается вовсе, а ответ собирается деревом statSlice.
      Потому оно и объявляется редакцией, а не крутится молча (ADR-0162 §8).  */
   const drill = ed.drill !== false || !ed.stats.length;
   const src = drill ? (asOf ? SEAM.statRows(ed.object, asOf, cut, scope)
@@ -1172,7 +1183,7 @@ function compose(tpl, ed, params, viewer){
                                 : String(a.no).localeCompare(String(b.no))) : [];
   const totals = ed.stats.map(sid => {
     const meta = SEAM.statMeta(sid);
-    const r = SEAM.statSlice(sid, cut, asOf, scope);
+    const r = SEAM.statSlice(sid, null, cut, asOf, scope);
     const dp = dpOf(ed, sid);
     return {id:sid, name: meta ? meta.name : sid, unit: meta ? meta.unit : '',
             value:r.value, shown: roundTo(r.value, dp), dp, why:r.why, passport:r.passport};
@@ -2829,7 +2840,12 @@ RP.setColumnDate = (tid, fid, date) => {
     'ответом на один вопрос, а паспорт перестаёт быть проверяемым (ИО-19). Нужна вторая дата — '+
     'это сравнение двух состояний, отдельный вопрос (§19 п. 6)'};
 };
-/* Итог по уровню НЕ складывается модулем. Доказательство — числами.         */
+/* Итог по уровню НЕ складывается модулем. Доказательство — числами.
+   Волна 13: сторож остаётся, но довод у него теперь другой. Раньше он звучал
+   «нам нельзя складывать»; теперь — «складывать НЕЧЕГО»: statSlice отдаёт
+   дерево, и число уровня в нём уже посчитано статистикой по строкам уровня
+   (ИС-24, ADR-0176 §6). Сторож показывает, во что обошлась бы самодеятельность,
+   если бы модуль всё-таки сложил детей вместо того, чтобы прочитать узел.   */
 RP.foldLevelsSelf = tid => {
   const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
   const ed = pubEd(t) || draftEd(t);
@@ -2838,19 +2854,18 @@ RP.foldLevelsSelf = tid => {
   const v = RP.viewer();
   const cut = {dept:null, ids:null};
   const asOf = ed.mode === 'на дату' ? RP.state.sel.params.asOf : null;
-  const pack = SEAM.statSliceBy(sid, 'dept', cut, asOf, v.scope.slice());
-  const whole = SEAM.statSlice(sid, cut, asOf, v.scope.slice());
-  const sum = pack.groups.reduce((a, g) => a + (g.value || 0), 0);
+  const tree = SEAM.statSlice(sid, 'dept', cut, asOf, v.scope.slice());
+  const sum = tree.groups.reduce((a, g) => a + (g.value || 0), 0);
   const meta = SEAM.statMeta(sid);
   /* Округлять доказательство нельзя: разница видна как раз в десятых.       */
   const exact = v => v == null ? '—' : String(Math.round(v * 10) / 10).replace('.', ',');
-  return {ok:false, sum, real: whole.value, stat: meta ? meta.name : sid,
-    unit: meta ? meta.unit : '', parts: pack.groups.length,
-    why:'модуль не складывает частные итоги сам: «'+(meta ? meta.name : sid)+'» по '+
-      pack.groups.length+' подразделениям в сумме даёт '+exact(sum)+' '+(meta ? meta.unit : '')+
-      ', а на всём охвате показатель равен '+exact(whole.value)+' '+(meta ? meta.unit : '')+
-      '. Доля, средняя и количество уникальных не аддитивны — итог уровня спрашивается швом '+
-      'отдельным вопросом (ИО-17, ОЧ-25)'};
+  return {ok:false, sum, real: tree.value, stat: meta ? meta.name : sid,
+    unit: meta ? meta.unit : '', parts: tree.groups.length,
+    why:'модуль не складывает уровни сам: «'+(meta ? meta.name : sid)+'» по '+
+      tree.groups.length+' подразделениям в сумме даёт '+exact(sum)+' '+(meta ? meta.unit : '')+
+      ', а корень того же дерева равен '+exact(tree.value)+' '+(meta ? meta.unit : '')+
+      '. Доля и средняя не аддитивны — число уровня приходит узлом дерева, ' +
+      'посчитанным статистикой по строкам уровня (ИО-17, ИС-24)'};
 };
 /* Легаси хранит отбор внутри «шаблона» списком объектов — состав и правило
    слиты, и «почему объект здесь» ответить нечем (ОЧ-28).                    */
@@ -3487,8 +3502,8 @@ function bandRows(gs, cols, depth){
     if(g.totals) out += '<tr class="gtot"><td colspan="'+cols.length+'">Итог по «'+esc(g.name)+'»: '+
       g.totals.map(x => esc(x.name)+' — <b>'+(x.shown == null ? '—' : esc(money(x.shown)))+'</b> '+
         esc(x.unit)).join(' · ')+
-      ' <span class="small">спрошен швом <span class="mono">statSlice</span> пакетно; '+
-      'модуль его не складывал (ИО-17)</span></td></tr>';
+      ' <span class="small">пришёл узлом дерева <span class="mono">statSlice</span>; '+
+      'модуль его не складывал (ИО-17, ИС-24)</span></td></tr>';
     return out;
   }).join('');
 }
@@ -4088,7 +4103,7 @@ RP.demoSeam = id => {
   const v = RP.viewer(), cut = {dept: RP.state.sel.params.dept || null};
   const r = id === 'objectRows' ? SEAM.objectRows('credit', cut, v.scope.slice())
           : id === 'statRows'   ? SEAM.statRows('credit','2026-08-01', cut, v.scope.slice())
-          : SEAM.statSlice('s-portfolio', cut, null, v.scope.slice());
+          : SEAM.statSlice('s-portfolio', null, cut, null, v.scope.slice());
   const n = r.rows ? r.rows.length : r.value;
   toast(id+': '+(r.rows ? objWord(n) : 'значение '+money(n)+' '+r.unit)+
     ', скрыто видимостью '+objWord(r.hidden||0), 'ok');
