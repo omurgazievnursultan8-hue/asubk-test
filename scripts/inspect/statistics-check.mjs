@@ -1,4 +1,4 @@
-// Headless smoke для mockups/statistics/statistics.html (ИС-1…ИС-35, ADR-0145…0152 + 0176…0200).
+// Headless smoke для mockups/statistics/statistics.html (ИС-1…ИС-36, ADR-0145…0152 + 0176…0202).
 // Блок S закрывает бывшие дефекты макета СС-Д1/Д2/Д3/Д6 (вопрос целиком, а не его половина),
 // блок W — СС-Д8 (наборы фильтра, ДНФ без скобок по ADR-0180),
 // блок X — волна 11 ч.2: погашение разведено на платёж и поступление (ADR-0183) и
@@ -6,7 +6,9 @@
 // блок Y — волна 12: три тонких объекта под ADR-0201 (объект снят · меры сняты · состав
 // добран) и закрытый СС-Д13 (выбор из пустого набора — прочерк, а не ноль),
 // блок Z — волна 13: у каждой записи реестра есть объект, который ею спрашивает —
-// сирота «Дата залогового договора» молчала с волны 8, владелец заведён строкой (ТЗ #4).
+// сирота «Дата залогового договора» молчала с волны 8, владелец заведён строкой (ТЗ #4),
+// блок Э — волна 14: спрашивается дата ПРОГОНА, а не «сегодня» (ИС-36, ADR-0202) —
+// хвост отказывает и называет дорогу, дыра внутри истории подставляет с возрастом (ИС-12).
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -34,6 +36,11 @@ const results = [];
 const ok = (n, cond, note = '') => results.push({ n, pass: !!cond, note });
 const has = (s, part) => String(s || '').includes(part);
 const TODAY = '2026-08-21';
+/* Дата ВОПРОСА — не «сегодня», а последний прогон (ИС-36, волна 14). До волны 14 смоук
+   спрашивал TODAY, и каждый такой вопрос молча отвечал строками от 18.08: подстановка в
+   хвосте была не видна ни одной проверке, потому что все числа сходились. TODAY остаётся
+   датой ОПЕРАЦИЙ — прогона, пропуска, оформления выгрузки. */
+const ASK = '2026-08-20';
 /* Фильтр вопроса — ДНФ без скобок (ADR-0180): F(a, b) — два набора через ИЛИ,
    F([a, b]) — один набор из двух сравнений через И. Скобок в форме нет, поэтому
    и в конструкторе смоука их негде поставить. */
@@ -83,7 +90,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
      обязан отказать. Поэтому корзина называется здесь, а не выключается сторож. */
   const each = ST.state.objects.map(o => {
     const d = ST.DIM(o.dims[0]);
-    const q = {obj: o.id, dims: [o.dims[0]], inds: ['a-count'], date: TODAY};
+    const q = {obj: o.id, dims: [o.dims[0]], inds: ['a-count'], date: ASK};
     if (d.buckets && d.buckets.length) q.buckets = {[o.dims[0]]: d.buckets[0]};
     const r = ST.statSlice(q);
     return {name: o.name, ok: r.ok, n: r.ok ? r.n : 0, g: r.ok ? r.groups.length : 0};
@@ -91,13 +98,13 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   ok(6, each.every(x => x.ok && x.n > 0) && each.length === 10,
     `десять объектов одним движком: ${each.map(x => x.name + ' ' + x.n + '/' + x.g + ' групп').join(' · ')}`);
 
-  const cr = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count','a-sumdebt'], date: TODAY});
-  const bo = ST.statSlice({obj:'obj-borrower', dims:['d-ptype'], inds:['a-count','a-sumbcnt'], date: TODAY});
+  const cr = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count','a-sumdebt'], date: ASK});
+  const bo = ST.statSlice({obj:'obj-borrower', dims:['d-ptype'], inds:['a-count','a-sumbcnt'], date: ASK});
   ok(7, cr.ok && bo.ok && cr.dims[0] !== bo.dims[0] && cr.inds[1] !== bo.inds[1] &&
        bo.groups.some(g => g.parts[0] === 'физическое лицо'),
     `непохожая пара на одном движке: кредит по подразделениям (${cr.n}) и заёмщик по типу лица (${bo.n}) — разные разрезы, разные показатели, разные множества`);
 
-  const zero = ST.statRows({obj:'obj-borrower', date: TODAY}).rows.find(r => r.ref === '45607195804119');
+  const zero = ST.statRows({obj:'obj-borrower', date: ASK}).rows.find(r => r.ref === '45607195804119');
   ok(8, zero && zero.inds['m-bcnt'].v === 0,
     `заёмщик без действующих кредитов в срезе есть (договоров ${zero && zero.inds['m-bcnt'].v}) — при свёртке кредитов он исчез бы вовсе (ИС-19)`);
 })();
@@ -105,7 +112,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
 /* ---------- C. Шестой объект — строкой реестра, а не релизом ---------- */
 (() => {
   ST.seed();
-  const before = ST.statSlice({obj:'obj-guarantee', dims:[], inds:['a-count'], date: TODAY});
+  const before = ST.statSlice({obj:'obj-guarantee', dims:[], inds:['a-count'], date: ASK});
   const mi = ST.addIndicator({id:'m-gsec', name:'Обеспечиваемые требования', obj:'obj-guarantee',
     src:'шов', seam:'calcDebt', field:'principal', money:true, type:'сумма'});
   const ai = ST.addIndicator({id:'a-sumgsec', name:'Обеспечено требований, итого', obj:'obj-guarantee',
@@ -129,8 +136,10 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const st = ST.state;
   const planned = st.runs.filter(r => r.kind === 'плановый').length;
   const skipped = st.runs.filter(r => r.kind === 'пропуск');
-  ok(11, planned === 5 && skipped.length === 1 && skipped[0].date === '2026-08-19' && !!skipped[0].reason,
-    `журнал: плановых прогонов ${planned}, пропуск ${skipped[0].date} — «${skipped[0].reason}»`);
+  const last = st.runs.filter(r => r.kind !== 'пропуск').map(r => r.date).sort().slice(-1)[0];
+  ok(11, planned === 6 && skipped.length === 1 && skipped[0].date === '2026-08-19' && !!skipped[0].reason &&
+        last === '2026-08-20' && last < TODAY && st.q.date === last,
+    `журнал: плановых прогонов ${planned}, пропуск ${skipped[0].date} — «${skipped[0].reason}». Пропуск лежит ВНУТРИ истории (после него был прогон ${last}), а сегодня ${TODAY} прогона ещё не было — умолчание вопроса стоит на ${st.q.date}, а не на «сегодня» (ИС-36)`);
 
   const future = ST.run('2026-09-01', {});
   const noReason = ST.run(TODAY, {manual: true});
@@ -178,17 +187,21 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   ok(18, !bad.ok && has(bad.why, 'ИС-10') && has(bad.why, 'дата расчёта'),
     `ответа без паспорта не бывает: «${bad.why}»`);
 
-  const s = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date: TODAY});
-  const r = ST.statRows({obj:'obj-credit', date: TODAY});
+  const s = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date: ASK});
+  const r = ST.statRows({obj:'obj-credit', date: ASK});
   const q = ST.statSeries({obj:'obj-credit', inds:'a-sumdebt', dates:['2026-05-31','2026-06-30','2026-07-31','2026-08-18']});
   const full = [s, r, q].every(x => x.ok && x.passport && x.passport.asOf && x.passport.fixation && x.passport.scope && x.passport.filter);
   ok(19, full && ST.seams().length === 3,
     `все три шва (${ST.seams().join(' · ')}) отдают паспорт с датой расчёта, признаком фиксации и областью видимости — ИС-10`);
 
-  const p = s.passport;
-  ok(20, p.asOf === '2026-08-18' && p.substituted === true && p.age === 3 &&
-        has(p.skipped, '19.08.2026') && has(p.skipped, 'пропуск'),
-    `спрошено 21.08, отдано на ${p.asOf} · возраст ${p.age} дн. · почему: ${p.skipped} — ИС-12`);
+  /* ИС-12 после волны 14 — про дыру ВНУТРИ истории, а не про хвост: 19.08 пропущено,
+     20.08 прогон был, значит дыра окончательна и лучшего ответа, чем 18.08, не будет. */
+  const gap = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date:'2026-08-19'});
+  const p = gap.passport;
+  ok(20, p.asOf === '2026-08-18' && p.substituted === true && p.age === 1 &&
+        has(p.skipped, '19.08.2026') && has(p.skipped, 'пропуск') &&
+        s.passport.substituted === false && s.passport.age === 0,
+    `дыра внутри истории отвечает подстановкой с названным возрастом: спрошено 19.08, отдано на ${p.asOf} · возраст ${p.age} дн. · почему: ${p.skipped}. Вопрос на дату прогона подстановки не требует вовсе (${s.passport.asOf}, возраст ${s.passport.age}) — ИС-12`);
 
   ok(21, q.passport.fixation === 'смешанно' && q.points[0].fixation === 'зафиксировано' &&
         q.points[3].fixation === 'не зафиксировано',
@@ -204,9 +217,9 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
 /* ---------- G. Роли режут строки ДО группировки ---------- */
 (() => {
   ST.seed();
-  const all = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count','a-sumdebt'], date: TODAY});
+  const all = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count','a-sumdebt'], date: ASK});
   ST.setRole('Аналитик');
-  const mine = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count','a-sumdebt'], date: TODAY});
+  const mine = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count','a-sumdebt'], date: ASK});
   const list = ST.registryList('obj-credit', '2026-08-18');
   const refs = mine.groups.reduce((a, g) => a.concat(g.refs), []).sort();
   ok(23, mine.n < all.n && refs.join('|') === list.join('|') &&
@@ -267,34 +280,38 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const add = ST.addDim({id:'d-segment', name:'Сегмент портфеля', obj:'obj-credit', src:'поле',
     key:'industry', perObject:'одно'});
   const past = ST.statSlice({obj:'obj-credit', dims:['d-segment'], inds:['a-count'], date:'2026-05-31'});
+  /* Здесь же видно вторую половину ИС-36: «сегодня» спрашивается не по праву «сегодня», а
+     потому что прогон написал строки. До прогона вопрос на TODAY отказ, после — ответ. */
+  const shut = ST.statSlice({obj:'obj-credit', dims:['d-segment'], inds:['a-count'], date: TODAY});
   ST.run(TODAY, {manual:true, reason:'разметка новым разрезом'});
   const now = ST.statSlice({obj:'obj-credit', dims:['d-segment'], inds:['a-count'], date: TODAY});
-  ok(32, add.ok && add.since === TODAY && !past.ok && has(past.why, 'действует вперёд') && now.ok && now.groups.length > 1,
-    `новый разрез действует вперёд: прошлое — «${past.why}»; сегодня — ${now.groups.length} групп`);
+  ok(32, add.ok && add.since === TODAY && !past.ok && has(past.why, 'действует вперёд') &&
+        !shut.ok && has(shut.why, 'ИС-36') && now.ok && now.groups.length > 1,
+    `новый разрез действует вперёд: прошлое — «${past.why}»; сегодня — ${now.groups.length} групп, и спросить сегодня стало можно только ПОСЛЕ прогона (до него — «${shut.why.slice(0,60)}…»)`);
 })();
 
 /* ---------- J. Сходимость с реестром владельца и швы ---------- */
 (() => {
   ST.seed();
-  const r = ST.statRows({obj:'obj-credit', date: TODAY});
+  const r = ST.statRows({obj:'obj-credit', date: ASK});
   const reg = ST.registryList('obj-credit', r.passport.asOf);
   const same = r.rows.map(x => x.ref).sort().join('|') === reg.join('|');
   const extra = r.rows.filter(x => 'документы' in x || 'связи' in x || 'card' in x);
   ok(33, same && extra.length === 0,
     `детализация сходится со списком реестра «Кредиты» один в один (${reg.length} из ${reg.length}); карточек, документов и связей шов не отдаёт — ИС-14`);
 
-  const clf = ST.callSeam('классификация', 'statSlice', {obj:'obj-credit', dims:[], inds:['a-count'], date: TODAY});
+  const clf = ST.callSeam('классификация', 'statSlice', {obj:'obj-credit', dims:[], inds:['a-count'], date: ASK});
   const noClf = ST.consumers().find(c => c.module === 'классификация').may.length;
   ok(34, !clf.ok && has(clf.why, 'ИС-5') && noClf === 0,
     `классификация статистику не читает ни в одной форме: «${clf.why}»`);
 
   const fourth = ST.callSeam('отчётность', 'statAll', {});
-  const rep = ST.callSeam('отчётность', 'statSlice', {obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date: TODAY});
+  const rep = ST.callSeam('отчётность', 'statSlice', {obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date: ASK});
   ok(35, !fourth.ok && has(fourth.why, 'четвёртый не заводится') && rep.ok && !!rep.passport,
     `швов три, четвёртого нет: «${fourth.why}»; отчётность получает срез с паспортом`);
 
-  const rowInd = ST.statSlice({obj:'obj-credit', dims:[], inds:['m-debt'], date: TODAY});
-  const ghost = ST.statSlice({obj:'obj-credit', dims:[], inds:['m-ghost'], date: TODAY});
+  const rowInd = ST.statSlice({obj:'obj-credit', dims:[], inds:['m-debt'], date: ASK});
+  const ghost = ST.statSlice({obj:'obj-credit', dims:[], inds:['m-ghost'], date: ASK});
   ok(36, !rowInd.ok && has(rowInd.why, 'statRows') && !ghost.ok && has(ghost.why, 'ИС-7'),
     `показатель среза — агрегат («${rowInd.why}»); показателя вне реестра не существует ни для кого («${ghost.why}»)`);
 })();
@@ -334,6 +351,8 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
     src:'шов', seam:'calcAccrual', field:'interest', money:true, type:'сумма'});
   const agg = ST.addIndicator({id:'a-sumidle', name:'Плата, итого', obj:'obj-credit', src:'агрегат', fn:'sum', over:'m-idle'});
   ST.run(TODAY, {manual:true, reason:'заведён новый показатель'});
+  /* Спрашивается дата ТОГО прогона, который показатель посчитал: на 20.08 записи ещё
+     не было, и её отсутствие там — не дефект, а порядок слоёв (ИС-36 + ADR-0147 §4). */
   const use = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-sumidle'], date: TODAY});
   ok(40, good.ok && agg.ok && use.ok && use.total['a-sumidle'].v > 0,
     `показатель заведён записью и сразу считается ближайшим прогоном — без правки кода (ADR-0150 §1)`);
@@ -403,7 +422,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
 /* ---------- O. Разрез несёт уровни и корзины (ADR-0176) ---------- */
 (() => {
   ST.seed();
-  const t = ST.statSlice({obj:'obj-credit', dims:['d-region'], inds:['a-count','a-sumdebt'], date: TODAY});
+  const t = ST.statSlice({obj:'obj-credit', dims:['d-region'], inds:['a-count','a-sumdebt'], date: ASK});
   const top = t.ok ? t.groups.map(g => g.key).join(' · ') : '';
   const kids = t.ok ? t.groups.reduce((n,g) => n + g.children.length, 0) : 0;
   ok(47, t.ok && t.hier && t.hier.depth === 2 && kids > 0 &&
@@ -411,21 +430,21 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
     `ответ — дерево всегда: ${t.groups.length} узлов верхнего уровня (${top}), ниже ${kids}; каждый узел считается по своим строкам (ADR-0176 §5, §6)`);
 
   const orphan = t.ok ? t.groups.find(g => g.key === 'Таласская') : null;
-  const lvl1 = ST.statSlice({obj:'obj-credit', dims:['d-region'], inds:['a-count'], date: TODAY, levels:{'d-region':1}});
+  const lvl1 = ST.statSlice({obj:'obj-credit', dims:['d-region'], inds:['a-count'], date: ASK, levels:{'d-region':1}});
   const sumTop = t.ok ? t.groups.reduce((x,g) => x + g.n, 0) : -1;
   ok(48, orphan && orphan.n === 1 && orphan.own === 1 && orphan.children.length === 0 &&
         lvl1.ok && lvl1.hier.depth === 1 && lvl1.n === t.n && sumTop === t.n,
     `объект без нижнего уровня остаётся у родителя и не исчезает: «Таласская» — своих ${orphan ? orphan.own : '—'}; уровень спрашивается вопросом (ИС-22)`);
 
-  const bad = ST.statSlice({obj:'obj-credit', dims:['d-region'], inds:['a-count'], date: TODAY, levels:{'d-region':3}});
-  const noB = ST.statSlice({obj:'obj-credit', dims:['d-cdate'], inds:['a-count'], date: TODAY});
-  const yr  = ST.statSlice({obj:'obj-credit', dims:['d-cdate'], inds:['a-count'], date: TODAY, buckets:{'d-cdate':'год'}});
-  const qt  = ST.statSlice({obj:'obj-credit', dims:['d-cdate'], inds:['a-count'], date: TODAY, buckets:{'d-cdate':'квартал'}});
+  const bad = ST.statSlice({obj:'obj-credit', dims:['d-region'], inds:['a-count'], date: ASK, levels:{'d-region':3}});
+  const noB = ST.statSlice({obj:'obj-credit', dims:['d-cdate'], inds:['a-count'], date: ASK});
+  const yr  = ST.statSlice({obj:'obj-credit', dims:['d-cdate'], inds:['a-count'], date: ASK, buckets:{'d-cdate':'год'}});
+  const qt  = ST.statSlice({obj:'obj-credit', dims:['d-cdate'], inds:['a-count'], date: ASK, buckets:{'d-cdate':'квартал'}});
   ok(49, !bad.ok && has(bad.why, 'ИС-22') && !noB.ok && has(noB.why, 'ИС-23') &&
         yr.ok && qt.ok && qt.groups.length > yr.groups.length && yr.n === qt.n,
     `корзина обязательна и берётся из объявленных: без корзины — отказ «${String(noB.why).slice(0, 48)}…»; год ${yr.groups.length} групп, квартал ${qt.groups.length}, строк одинаково ${yr.n} (ИС-23)`);
 
-  const br = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date: TODAY});
+  const br = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date: ASK});
   const divs = br.ok ? br.groups.map(g => g.key) : [];
   const dimBr = ST.state.dims.find(d => d.id === 'd-branch');
   ok(50, br.ok && dimBr.owner && dimBr.levels.length === 2 &&
@@ -442,28 +461,28 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
 /* ---------- P. statRows двоичен, сверка — выгрузкой (ADR-0178) ---------- */
 (() => {
   ST.seed();
-  const few = ST.statRows({obj:'obj-credit', date: TODAY});
-  const many = ST.statRows({obj:'obj-repay', date: TODAY});
+  const few = ST.statRows({obj:'obj-credit', date: ASK});
+  const many = ST.statRows({obj:'obj-repay', date: ASK});
   const trunc = many.ok ? 0 : (many.rows || []).length;
   ok(52, few.ok && few.rows.length === 8 && !many.ok && many.overLimit &&
         many.n === 14 && trunc === 0 && has(many.why, String(many.n)) && has(many.why, 'ИС-22'),
     `ответ двоичен: 8 строк отдаются целиком, 14 — отказ, называющий ЧИСЛО (${many.n}) при пороге ${many.limit}; усечённого ответа нет (ADR-0178 §1, §4)`);
 
   const pagers = Object.keys(ST).filter(k => /page|offset|limitRows|truncate/i.test(k));
-  const job = ST.exportJob({obj:'obj-repay', date: TODAY});
+  const job = ST.exportJob({obj:'obj-repay', date: ASK});
   const p = job.ok ? job.job.passport : null;
   ok(53, pagers.length === 0 && job.ok && job.job.n === 14 && p && p.asOf && p.fixation && p.scope &&
         job.job.file && ST.exportsList().length === 1,
     `сверка целиком идёт заданием ${job.ok ? job.job.id : '—'}, паспорт едет ВНУТРИ файла (${p ? p.asOf : '—'} · ${p ? p.fixation : '—'}); страниц и усечения в швах нет (ADR-0178 §5)`);
 
   ST.setRole('Аналитик');
-  const cur = ST.statRows({obj:'obj-repay', date: TODAY});
+  const cur = ST.statRows({obj:'obj-repay', date: ASK});
   ST.setRole('Администратор статистики');
   ok(54, cur.ok && cur.rows.length < 14 && cur.rows.length <= ST.rowsLimit &&
         has(cur.passport.scope, 'доступным вам'),
     `порог считается ПОСЛЕ ролевых правил: аналитику видно ${cur.ok ? cur.rows.length : '—'} из 14 — список он получает, а не отказ из-за чужого множества (ADR-0178 §3)`);
 
-  const w = ST.workList('obj-credit', TODAY);
+  const w = ST.workList('obj-credit', ASK);
   ok(55, w.ok && has(w.note, 'сутки, а не расхождение') && w.list.length > 0,
     `второе действие числа названо отдельно от первого: «${String(w.note).slice(0, 70)}…» (ИС-14, врезка ADR-0152 §4)`);
 })();
@@ -471,7 +490,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
 /* ---------- Q. Паспорт: ровно две формы (ИС-24) ---------- */
 (() => {
   ST.seed();
-  const r = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date: TODAY});
+  const r = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date: ASK});
   const sh = r.ok ? r.passport.short : '';
   ok(56, r.ok && ST.passportForms().length === 2 && typeof sh === 'string' &&
         /на \d\d\.\d\d/.test(sh) && has(sh, 'фикс') && sh.length < 60 &&
@@ -543,7 +562,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
     levels:['дивизион','филиал']});
   const dd = ST.state.dims.find(d => d.id === 'd-div2');
   const fd = ST.state.dims.find(d => d.id === 'd-fdate');
-  const free = ST.statSlice({obj:'obj-repay', dims:['d-fdate'], inds:['a-count'], date: TODAY,
+  const free = ST.statSlice({obj:'obj-repay', dims:['d-fdate'], inds:['a-count'], date: ASK,
     buckets:{'d-fdate':'неделя'}});
   ok(62, !taken.ok && noRef.ok && withRef.ok && dd && dd.owner === 'Оргструктура (кадры)' &&
         dd.levels.length === 2 && fd.buckets.length === 2 && !free.ok,
@@ -565,7 +584,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   ST.seed();
   const ART = ['m-coll','m-fee','m-debt','m-aint','m-int','m-apen','m-pen'];
   const OVR = ['m-ocoll','m-ofee','m-odebt','m-oaint','m-oint','m-oapen','m-open'];
-  const rows = ST.statRows({obj:'obj-credit', date: TODAY}).rows;
+  const rows = ST.statRows({obj:'obj-credit', date: ASK}).rows;
   const val = (r, id) => (r.inds[id] ? r.inds[id].v : 0);
   const r2  = x => Math.round(x * 100) / 100;
   const bad = rows.filter(r =>
@@ -577,7 +596,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
 
   /* ФО-01 «Просроченная задолженность на 1-е число» (обязательна, Порядок №41 п. 12) —
      это срез по ступеням срока, а не набор показателей «просрочено 30–90» (ИС-23). */
-  const fo1 = ST.statSlice({obj:'obj-credit', dims:['d-odays'], date: TODAY,
+  const fo1 = ST.statSlice({obj:'obj-credit', dims:['d-odays'], date: ASK,
     inds:['a-count','a-sumtotal','a-sumover','a-sumcurr'], buckets:{'d-odays':'ступени'}});
   const keys = fo1.ok ? fo1.groups.map(g => g.key) : [];
   const lead = keys.map(k => parseInt(k, 10));
@@ -605,7 +624,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   /* ИС-26: дата на срезе выражается числом дней от даты вопроса — среднюю дату
      сложить не из чего, а среднее число дней складывается. */
   const dated = ST.state.indicators.filter(i => i.type === 'дата');
-  const sched = ST.statSlice({obj:'obj-credit', dims:[], date: TODAY,
+  const sched = ST.statSlice({obj:'obj-credit', dims:[], date: ASK,
     inds:['a-minndays','a-avgndays','a-maxfdays']});
   ok(68, dated.length === 0 && sched.ok && sched.total['a-avgndays'].v > 0 &&
         ST.IND('m-ndays').unit === 'дн.' && ST.IND('m-fdays').unit === 'дн.',
@@ -630,8 +649,8 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
 
   /* Свод портфеля = сумма одиночных ответов, ПО КАЖДОЙ ВАЛЮТЕ и до копейки. Курса в
      проверке нет вовсе: сравниваются доллары с долларами (ADR-0174 §2, ADR-0184 §3). */
-  const crows = ST.statRows({obj:'obj-credit', date: TODAY}).rows;
-  const brows = ST.statRows({obj:'obj-borrower', date: TODAY}).rows;
+  const crows = ST.statRows({obj:'obj-credit', date: ASK}).rows;
+  const brows = ST.statRows({obj:'obj-borrower', date: ASK}).rows;
   const single = {};
   crows.forEach(r => {
     const inn = r.dims['d-binn'], c = r.inds['m-total'];
@@ -667,7 +686,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const mixCell = mix ? mix.inds['m-btotal'] : null;
   const mixParts = ST.partsOf(mixCell);
   const stored = brows.some(r => Object.keys(r.inds).some(k => 'som' in r.inds[k] || 'сом' in r.inds[k]));
-  const agg = ST.statSlice({obj:'obj-borrower', dims:['d-ptype'], inds:['a-sumbtotal'], date: TODAY});
+  const agg = ST.statSlice({obj:'obj-borrower', dims:['d-ptype'], inds:['a-sumbtotal'], date: ASK});
   const tot = agg.ok ? agg.total['a-sumbtotal'] : null;
   ok(71, mixCell && mixCell.v == null && mixParts.length === 2 && ST.somOf(mixCell) > 0 &&
         !stored && tot && tot.mixed && tot.mixed.length === 3 && tot.by &&
@@ -701,7 +720,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
 
   /* Подгруппа — ОДИН разрез с двумя уровнями: группа есть первая цифра подгруппы, как в
      модуле-владельце. Второй записи «Группа» в реестре нет (ADR-0185 §1, ADR-0012). */
-  const sg = ST.statSlice({obj:'obj-borrower', dims:['d-subgroup'], inds:['a-count'], date: TODAY});
+  const sg = ST.statSlice({obj:'obj-borrower', dims:['d-subgroup'], inds:['a-count'], date: ASK});
   const dsg = ST.DIM('d-subgroup');
   const kids = sg.ok ? sg.groups.reduce((a, g) => a.concat(g.children.map(c => c.parts)), []) : [];
   const derived = kids.every(pr => pr[0] === pr[1].slice(0, 1));
@@ -728,8 +747,8 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
      вовсе — распределённый счёт ответил бы на другой вопрос, не заметив этого. */
   const dist = ST.addIndicator({id:'a-cdinn', name:'Заёмщиков в срезе', obj:'obj-credit',
     src:'агрегат', fn:'countDistinct', over:'m-total'});
-  const byInn = ST.statSlice({obj:'obj-credit', dims:['d-binn'], inds:['a-count'], date: TODAY});
-  const all = ST.statSlice({obj:'obj-borrower', dims:[], inds:['a-count'], date: TODAY});
+  const byInn = ST.statSlice({obj:'obj-credit', dims:['d-binn'], inds:['a-count'], date: ASK});
+  const all = ST.statSlice({obj:'obj-borrower', dims:[], inds:['a-count'], date: ASK});
   ok(76, !dist.ok && has(dist.why, 'ИС-30') && ST.aggFns().length === 5 &&
         byInn.ok && byInn.groups.length === 6 && all.ok && all.total['a-count'].v === 8,
     `счёт объектов другого уровня отбит и направлен: «${String(dist.why).slice(0, 62)}…»; в срезе кредитов заёмщиков видно ${byInn.groups.length}, а их ${all.total['a-count'].v} — двое без договоров, и правильный ответ даёт только сам объект (ADR-0186)`);
@@ -737,7 +756,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   /* Заёмщик без договоров ВООБЩЕ остаётся строкой среза: число договоров у него честный
      ноль, а суммы ОТСУТСТВУЮТ — «ноль» пришлось бы назвать в какой-то валюте. */
   const empty = brows.find(r => r.ref === '77105198711204');
-  const inSlice = ST.statSlice({obj:'obj-borrower', dims:['d-bstate'], inds:['a-count','a-sumbtotal'], date: TODAY});
+  const inSlice = ST.statSlice({obj:'obj-borrower', dims:['d-bstate'], inds:['a-count','a-sumbtotal'], date: ASK});
   const g = inSlice.ok ? inSlice.groups.find(x => x.key === 'без договоров') : null;
   ok(77, empty && empty.inds['m-bcnt'].v === 0 && !empty.inds['m-btotal'] &&
         !empty.inds['m-bodays'] && empty.dims['d-bstate'] === 'без договоров' &&
@@ -753,8 +772,8 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
    Держит всё тождество «сумма требований по предметам = сумма под риском по кредитам». */
 (() => {
   const CORE_SEAMS = ['calcDebt','calcAccrual','calcAllocation','calcSchedule','calcForecast'];
-  const zr = ST.statRows({obj:'obj-collateral', date: TODAY});
-  const cr = ST.statRows({obj:'obj-credit', date: TODAY});
+  const zr = ST.statRows({obj:'obj-collateral', date: ASK});
+  const cr = ST.statRows({obj:'obj-credit', date: ASK});
   const zrows = zr.ok ? zr.rows : [];
   const crows = cr.ok ? cr.rows : [];
   const Z = ref => zrows.find(r => r.ref === ref);
@@ -835,7 +854,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
      число кредитов честный ноль, а ТРЕБОВАНИЯ отсутствуют вовсе — «ноль» пришлось бы
      назвать в какой-то валюте и по какому-то кредиту, а их нет. */
   const free = Z('ЗЛ-2025/60');
-  const ctl = ST.statSlice({obj:'obj-collateral', dims:['d-cctl'], inds:['a-count'], date: TODAY});
+  const ctl = ST.statSlice({obj:'obj-collateral', dims:['d-cctl'], inds:['a-count'], date: ASK});
   ok(83, free && free.inds['m-ccred'].v === 0 && free.inds['m-cdeals'].v === 0 &&
         !free.inds['m-csec'] && free.inds['m-calloc'].v === 0 &&
         free.inds['m-cfree'].v === free.inds['m-cpledge'].v &&
@@ -1457,14 +1476,53 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const owner = st.objects.filter(o => (o.dims || []).indexOf('d-zdate') >= 0);
   const zo = ST.OBJ('obj-zdeal');
   const ask = ST.statSlice({obj:'obj-zdeal', dims:['d-zdate'], inds:['a-count'],
-    date: TODAY, buckets:{'d-zdate':'год'}});
-  const noBucket = ST.statSlice({obj:'obj-zdeal', dims:['d-zdate'], inds:['a-count'], date: TODAY});
+    date: ASK, buckets:{'d-zdate':'год'}});
+  const noBucket = ST.statSlice({obj:'obj-zdeal', dims:['d-zdate'], inds:['a-count'], date: ASK});
   ok(128, orphanD.length === 0 && orphanI.length === 0 &&
         owner.length === 1 && owner[0].id === 'obj-zdeal' &&
         zd.note === 'ТЗ #4' && zo && zo.owner === 'Залог' && zo.born.key === 'zdate' &&
         (zo.inds || []).length === 1 && ask.ok && ask.n === 5 && ask.groups.length === 5 &&
         !noBucket.ok,
     `у каждой записи реестра есть объект, который ею спрашивает: разрезов без объекта ${orphanD.length} из ${dimsAll.length}, показателей без объекта ${orphanI.length} из ${st.indicators.length}. Сирота была одна и молчала с волны 8 — «${zd.name}» (${zd.note}) сняли с предмета залога как многозначную после перезалога (ИС-21) и оставили без владельца множества, а §10.1 считала параметр исполненным. Владелец заведён СТРОКОЙ реестра (ИС-18): «${zo.name}», множество отдаёт ${zo.owner}, рождение — «${zo.born.key}», состав — один разрез и одно число, ни одной меры строки (ADR-0201 §3). Спрос отвечает: договоров ${ask.n} в ${ask.groups.length} годах; без корзины — отказ «${noBucket.why ? noBucket.why.slice(0, 48) : '—'}…» (ADR-0176 §2)`);
+})();
+
+/* ---------- Э. Волна 14: спрашивается дата прогона, а не «сегодня» ---------- */
+(() => {
+  ST.seed();
+  const st = ST.state;
+  const q = {obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date: TODAY};
+  const sl = ST.statSlice(q);
+  const rw = ST.statRows({obj:'obj-credit', date: TODAY});
+  const sr = ST.statSeries({obj:'obj-credit', inds:'a-sumdebt', dates:['2026-07-31', TODAY]});
+  const fl = ST.flowBetween({obj:'obj-credit', inds:'m-repaid', from:'2026-07-15', to: TODAY});
+  const shut = [sl, rw, sr, fl];
+  /* Отказ обязан называть дверь, а не только запрет: «как сейчас» отвечает реестр
+     владельца, и он действительно отвечает — иначе отказ был бы тупиком. */
+  const door = ST.registryList('obj-credit', st.today, null);
+  const was = ST.resolveAsOf(TODAY);
+  ok(129, shut.every(x => x && x.ok === false) &&
+        shut.every(x => has(x.why, 'ИС-36') && has(x.why, '20.08.2026')) &&
+        has(sl.why, 'Кредиты') && door.length === 8 && was && was.asOf === '2026-08-20',
+    `все четыре двери отказывают на «сегодня» одинаково: «${sl.why}». До волны 14 тот же вопрос отвечал ЧИСЛОМ — молча строками от ближайшего прогона (${was.asOf}), и расхождение с завтрашним ответом на тот же вопрос поймать было нечем: оба честны. Отказ называет дверь, и дверь отвечает: в реестре «Кредиты» на сегодня ${door.length}`);
+
+  const ds = ST.askDates('obj-credit');
+  const objs = st.objects.map(o => ({o, d: ST.askDates(o.id)}));
+  const empty = objs.filter(x => !x.d.length);
+  const future = objs.filter(x => x.d.length && x.d[x.d.length - 1] > st.today);
+  ok(130, ds.length === 6 && ds.indexOf(TODAY) < 0 && ds[ds.length - 1] === '2026-08-20' &&
+        st.q.date === ds[ds.length - 1] && empty.length === 0 && future.length === 0 &&
+        !ST.dateGate(ds[ds.length - 1]) && !ST.dateGate('2026-08-19'),
+    `спрашиваемые даты — это ЖУРНАЛ ПРОГОНОВ, а не константа файла: ${ds.length} дат у кредита, «сегодня» среди них нет, умолчание вопроса стоит на последней (${st.q.date}). Объектов без единой даты ${empty.length} из ${objs.length}, дат в будущем ${future.length}. Дыра внутри истории воротами НЕ отбивается (19.08 проходит) — её дело ИС-12, а не ИС-36`);
+
+  ST.seed();
+  ST.skip(TODAY, 'окно обслуживания СУБД');
+  const after = ST.statSlice(q);
+  const ran = ST.run(TODAY, {manual:true, reason:'перезапуск после окна обслуживания'});
+  const now = ST.statSlice(q);
+  ok(131, !after.ok && has(after.why, 'пропуск') && has(after.why, 'окно обслуживания СУБД') &&
+        ran.ok && now.ok && now.passport.asOf === TODAY && now.passport.age === 0 &&
+        now.passport.substituted === false,
+    `«прогона не было» — это событие журнала, и отказ его называет: «${after.why.slice(0, 96)}…». Запрет не на «сегодня» как таковое: тот же вопрос после прогона отвечает на СВОЮ дату (${now.passport.asOf}, возраст ${now.passport.age}, подстановки нет) — спрашивается написанная строка, а не календарь`);
 })();
 
 /* ---- отчёт ---- */
