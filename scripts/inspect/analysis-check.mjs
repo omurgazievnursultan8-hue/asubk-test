@@ -6,6 +6,8 @@
 // Блок M (#39…#44) закрывает починки волны 4 — дефекты АН-Д1…АН-Д5: одна дверь переиздания,
 // снимок без вывода, датированный выбор строки расписания, тип лица на конец периода,
 // справочник строк формы как объект ведения.
+// Блок N (#45, #46) закрывает починку волны 6 — дефект АН-Д6: у «посчитать нельзя» две
+// причины (незаполненная строка и нулевой знаменатель), текст у них один на экран и на отказ.
 // Блоки, которые правят состояние, начинаются с AN.seed() — состояние между ними не течёт.
 //   node scripts/inspect/analysis-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -469,13 +471,70 @@ const TODAY = '2026-08-21';
     `названа связь и названо, что дверь одна, у снимка объяснено отсутствие вывода, неразрешённый срок показан словами`);
 })();
 
+/* ---------- N. Волна 6: «посчитать нельзя» называет СВОЮ причину (АН-Д6, ИА-19) ---------- */
+(() => {
+  const el = () => ({ innerHTML: '', textContent: '', dataset: {}, value: '',
+    classList: { toggle() {}, add() {}, remove() {} }, appendChild() {}, remove() {} });
+  const nodes = { '#panel': el(), '#title': el(), '#foot': el(), '#role': el(), '#subj': el() };
+  sandbox.document = { querySelector: k => nodes[k] || el(), querySelectorAll: () => [],
+    getElementById: () => null, createElement: () => el() };
+  const panel = () => nodes['#panel'].innerHTML;
+
+  /* Беда первая: строки заполнены, а знаменатель сложился в ноль. Ноль — ДАННЫЕ, и полноту
+     формы внесение версии пропускает: до вычислителя такая отчётность доходит законно. */
+  AN.seed();
+  const vals = Object.assign({}, AN.REPORT('r-102').vals, { rev: 0 });
+  const filed = AN.addReport({ subj: 'b-1', period: '1П 2026', vals,
+    basis: 'уточнение по выручке от 29.08.2026' });
+  const zd = AN.newAnalysis({ subj: 'b-1', report: filed.report.id });
+  const rows = AN.liveRatios(zd.doc.no).rows;
+  const ros = rows.find(x => x.id === 'k-ros');
+  const counted = rows.filter(x => x.v != null);
+  AN.setText(zd.doc.no, 'Выручка за период равна нулю: рентабельность не считается.');
+  AN.setVerdict(zd.doc.no, 'удовлетворительное');
+  const noSignZero = AN.approve(zd.doc.no);
+  AN.openDoc(zd.doc.no); const zeroScreen = panel();
+
+  /* Беда вторая, и она другая: строки основания в отчётности нет вовсе. */
+  AN.seed();
+  AN.REPORT('r-103').vals.rev = null;
+  const ed = AN.newAnalysis({ subj: 'b-1', report: 'r-103' });
+  const emptyRow = AN.liveRatios(ed.doc.no).rows.find(x => x.id === 'k-ros');
+  AN.setText(ed.doc.no, 'Строка основания не заполнена.');
+  AN.setVerdict(ed.doc.no, 'удовлетворительное');
+  const noSignEmpty = AN.approve(ed.doc.no);
+  AN.openDoc(ed.doc.no); const emptyScreen = panel();
+
+  /* Текст причины собран в ОДНОМ месте, и его читают обе двери — экран и отказ в подписи. */
+  const oneText = (m[1].match(/знаменатель равен нулю/g) || []).length === 1 &&
+    /nocalcWhy\(bad\[0\]\)/.test(m[1]) && /esc\(nocalcWhy\(r\)\)/.test(m[1]);
+
+  ok(45, filed.ok && ros.v === null && ros.nocalc.code === 'zeroden' && ros.missing.length === 0 &&
+        has(AN.nocalcWhy(ros), 'знаменатель равен нулю') && has(AN.nocalcWhy(ros), 'Выручка за период') &&
+        counted.length === 4 && counted.find(x => x.id === 'k-auto').v === 0.3315 &&
+        counted.find(x => x.id === 'k-dte').v === 4.2202 &&
+        emptyRow.nocalc.code === 'empty' && emptyRow.missing.length === 1 &&
+        has(AN.nocalcWhy(emptyRow), 'не заполнены строки') && oneText,
+    `нулевой знаменатель и незаполненная строка — РАЗНЫЕ причины: «${AN.nocalcWhy(ros)}» против ` +
+    `«${AN.nocalcWhy(emptyRow)}»; остальные четыре коэффициента посчитаны (автономия 0,3315, долг ` +
+    `к прибыли 4,2202), ноль в отчётности остаётся данными, текст причины собран одним местом (ИА-19)`);
+
+  ok(46, !noSignZero.ok && has(noSignZero.why, 'Рентабельность продаж') &&
+        has(noSignZero.why, 'знаменатель равен нулю') &&
+        !noSignEmpty.ok && has(noSignEmpty.why, 'не заполнены строки') &&
+        has(zeroScreen, 'не посчитан') && has(zeroScreen, 'знаменатель равен нулю: «Выручка за период» = 0') &&
+        has(emptyScreen, 'в отчётности не заполнены строки «Выручка за период»'),
+    `подпись отклонена той же причиной, что показана на экране: «${noSignZero.why.slice(0, 78)}…»; ` +
+    `в таблице коэффициентов причина стоит под пометкой «не посчитан», а не обрывается пустым списком`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-console.log(`SMOKE 2026-08-21 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
+console.log(`SMOKE 2026-08-29 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
 
 const body = lines.map(l => '  ' + l).join('\n');
-const injected = `  SMOKE 2026-08-21 · ${pass}/${results.length} PASS\n` + body;
+const injected = `  SMOKE 2026-08-29 · ${pass}/${results.length} PASS\n` + body;
 if (src.includes('  SMOKE_PLACEHOLDER')) {
   writeFileSync(HTML, src.replace('  SMOKE_PLACEHOLDER', injected), 'utf8');
   console.log('\n→ результат вставлен в шапку analysis.html');
