@@ -16,7 +16,12 @@
 // блок АА — волна 17 ч.2: перезакрытие периода (ИС-50, ADR-0204 §4, ADR-0157 §6) —
 // переспросить (сброс сверху вниз, распоряжение обязательно) · переписать (строки
 // расфиксированы и пишутся заново) · пометить (выпуски на прежних числах помечены,
-// но НЕ переизданы: числа мёрзнут один раз, ИО-4, а переиздавать решает человек, ИО-34).
+// но НЕ переизданы: числа мёрзнут один раз, ИО-4, а переиздавать решает человек, ИО-34),
+// блок АБ — волна 17 ч.3: разрез несёт ОБЪЕКТ ОПРЕДЕЛЕНИЯ (ИС-40, ADR-0206) — «область»
+// заёмщика и «область выдачи кредита» суть две записи реестра, а не одна с оговоркой:
+// имя уточняется объектом, справочник значений один, сложение законно только внутри
+// объекта, а сверка разнообъектных срезов запрещена, а не подозрительна (закрыт хвост
+// §15 п. 4 канона — тот, из-за которого срез кредитов фильтровался, а срез заёмщиков нет).
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -121,17 +126,35 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
 (() => {
   ST.seed();
   const before = ST.statSlice({obj:'obj-guarantee', dims:[], inds:['a-count'], date: ASK});
-  const mi = ST.addIndicator({id:'m-gsec', name:'Обеспечиваемые требования', obj:'obj-guarantee',
+  const mi = ST.addIndicator({id:'m-gsec', name:'Требования, обеспеченные поручительством', obj:'obj-guarantee',
     src:'шов', seam:'calcDebt', field:'principal', money:true, type:'сумма'});
-  const ai = ST.addIndicator({id:'a-sumgsec', name:'Обеспечено требований, итого', obj:'obj-guarantee',
+  const ai = ST.addIndicator({id:'a-sumgsec', name:'Обеспечено поручительствами, итого', obj:'obj-guarantee',
     src:'агрегат', fn:'sum', over:'m-gsec'});
-  const add = ST.addObject({id:'obj-guarantee', name:'Поручительство', plural:'поручительства',
+  /* Волна 17: состав объекта — только СВОИ разрезы. «Территория выдачи кредита»
+     определена на кредите, и взять её в поручительство значило бы завести второй смысл
+     под одним именем (ИС-40, ADR-0206 §3). Обстановка переписана, утверждение прежнее. */
+  const alien = ST.addObject({id:'obj-guarantee', name:'Поручительство', plural:'поручительства',
     owner:'Обеспечение', refName:'номер поручительства', born:{src:'поле', key:'gdate'},
     dims:['d-branch','d-curator','d-region','d-ptype'], inds:['m-gsec','a-count','a-sumgsec']});
-  const run = ST.run('2026-08-20', {});
-  const after = ST.statSlice({obj:'obj-guarantee', dims:['d-region'], inds:['a-count','a-sumgsec'], date:'2026-08-20'});
-  ok(9, !before.ok && mi.ok && ai.ok && add.ok && run.ok && after.ok && after.n === 3 && after.groups.length === 3,
-    `одиннадцатый объект заведён записью: до — «${before.why}», после — ${after.n} объектов в ${after.groups.length} группах, без единой правки движка (ИС-18)`);
+  const add = ST.addObject({id:'obj-guarantee', name:'Поручительство', plural:'поручительства',
+    owner:'Обеспечение', refName:'номер поручительства', born:{src:'поле', key:'gdate'},
+    scope:{dim:'d-gcurator'}, dims:[], inds:['m-gsec','a-count','a-sumgsec']});
+  const own = [
+    {id:'d-gbranch', obj:'obj-guarantee', name:'Подразделение поручительства', src:'история',
+     key:'branch', perObject:'одно', owner:'Оргструктура (кадры)', ref:'org',
+     levels:[{name:'дивизион', src:'справочник'}, {name:'филиал', src:'история', key:'branch'}]},
+    {id:'d-gcurator', obj:'obj-guarantee', name:'Куратор поручительства', src:'история',
+     key:'curator', perObject:'одно'},
+    {id:'d-gregion', obj:'obj-guarantee', name:'Территория поручительства', src:'поле',
+     key:'region', perObject:'одно', owner:'Справочник административного деления',
+     levels:[{name:'область', src:'поле', key:'region'}, {name:'район', src:'поле', key:'district'}]},
+    {id:'d-gptype', obj:'obj-guarantee', name:'Тип лица поручителя', src:'поле',
+     key:'ptype', perObject:'одно'}].map(spec => ST.addDim(spec));
+  const run = ST.run(TODAY, {});
+  const after = ST.statSlice({obj:'obj-guarantee', dims:['d-gregion'], inds:['a-count','a-sumgsec'], date: TODAY});
+  ok(9, !before.ok && mi.ok && ai.ok && !alien.ok && has(alien.why, 'ИС-40') && add.ok &&
+        own.every(r => r.ok) && run.ok && after.ok && after.n === 3 && after.groups.length === 3,
+    `одиннадцатый объект заведён записью: до — «${before.why}», после — ${after.n} объектов в ${after.groups.length} группах, без единой правки движка (ИС-18). Состав собран из ${own.length} СВОИХ разрезов: чужие в него не берутся — «${String(alien.why).slice(0, 88)}…» (ИС-40, ADR-0206 §3), а справочник значений у своей записи тот же (ADR-0206 §5)`);
 
   const bad = ST.addObject({id:'obj-ghost', name:'Призрак', dims:[], inds:[]});
   ok(10, !bad.ok && has(bad.why, 'владелец не отдаёт'),
@@ -692,8 +715,29 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
     });
   });
   const checked = Object.keys(single).length;
-  ok(70, brows.length === 8 && checked >= 5 && broken.length === 0,
-    `свод портфеля равен сумме одиночных ответов по каждой валюте у всех ${checked} заёмщиков с договорами${broken.length ? ' · ломается: ' + broken.join(', ') : ''}, и на строке заёмщика держится остаток = просрочено + срочно (ADR-0174 §2)`);
+  /* Волна 17, ADR-0206 §4: сторож УСИЛЕН. Тождество сумм по «кредиту» и по «заёмщику»
+     держится, пока фильтры применены к ОДНОМУ объекту, — и до волны 17 это условие нигде
+     не было записано: «отфильтровать срез кредитов по области, а срез заёмщиков не
+     отфильтровать» было ВЫРАЗИМО, потому что «область» в реестре лежала одной записью.
+     Расхождение выглядело арифметической ошибкой, а было двумя разными фильтрами под одним
+     именем. Теперь условие видно из ИМЁН разрезов и держится дверью, а не аккуратностью:
+     чужой разрез не берётся ни в группировку, ни в фильтр. */
+  const cReg = ST.DIM('d-region'), bReg = ST.DIM('d-bregion');
+  const named = !!cReg && !!bReg && cReg.obj === 'obj-credit' && bReg.obj === 'obj-borrower' &&
+        cReg.name !== bReg.name && has(cReg.name, 'кредита') && has(bReg.name, 'заёмщика');
+  const crossG = ST.statSlice({obj:'obj-credit', dims:['d-bregion'], inds:['a-count'], date: ASK});
+  const crossF = ST.statSlice({obj:'obj-credit', dims:['d-region'], inds:['a-count'], date: ASK,
+    filter: F(cD('d-bregion', '=', {value:'Ошская'}))});
+  /* Живой случай мира: у человека своя область — и кредит, выданный в ДРУГОЙ. */
+  const lvl1 = v => [].concat(v)[0];
+  const him  = brows.find(r => r.ref === '22903197505433');
+  const hisC = crows.filter(r => r.dims['d-binn'] === '22903197505433');
+  const hisR = hisC.map(r => lvl1(r.dims['d-region']));
+  const ownR = him ? lvl1(him.dims['d-bregion']) : null;
+  ok(70, brows.length === 8 && checked >= 5 && broken.length === 0 &&
+        named && !crossG.ok && has(crossG.why, 'ИС-40') && !crossF.ok && has(crossF.why, 'ИС-40') &&
+        ownR === 'Ошская' && hisR.indexOf('Ошская') >= 0 && hisR.indexOf('Чуйская') >= 0,
+    `свод портфеля равен сумме одиночных ответов по каждой валюте у всех ${checked} заёмщиков с договорами${broken.length ? ' · ломается: ' + broken.join(', ') : ''}, и на строке заёмщика держится остаток = просрочено + срочно (ADR-0174 §2). Тождество держится, ПОКА фильтры применены к одному объекту, и с волны 17 это условие держит дверь, а не аккуратность: «${cReg.name}» и «${bReg.name}» — две записи реестра, и спросить кредиты чужой территорией нельзя ни группировкой, ни фильтром («${String(crossF.why).slice(0, 74)}…»). У заёмщика ${him.ref} область ${ownR}, а его кредиты выданы в ${hisR.join(' и ')} — на одном человеке значения РАСХОДЯТСЯ законно; пока обе трактовки лежали под именем «Территория», это расхождение выглядело арифметической ошибкой, и объяснять его было нечем: имя врало (ИС-40, ADR-0206 §4)`);
 
   /* Разновалютный портфель молчит одним числом и говорит составом. Сомовый эквивалент
      считается при показе из тех же частей и в строке не лежит (ИС-15, ADR-0151 §2). */
@@ -990,7 +1034,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   /* ИС-34. Сумма групп БОЛЬШЕ итога — и это не расхождение счёта, а устройство: один
      кредит стоит и в филиале заёмщика, и в филиале поручителя, но денег вдвое не
      становится. Проверяется по построению набора: солидарная пара разведена по филиалам. */
-  const br = ST.statSlice({obj:'obj-claim', dims:['d-branch'], levels:{'d-branch':2},
+  const br = ST.statSlice({obj:'obj-claim', dims:['d-clbranch'], levels:{'d-clbranch':2},
     inds:['a-count','a-sumclsum'], date: D});
   const sumG = Math.round(br.groups.reduce((n, g) => n + ((g.values['a-sumclsum']||{}).v||0), 0)*100)/100;
   const tot  = Math.round((br.total['a-sumclsum']||{}).v*100)/100;
@@ -1054,7 +1098,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   /* И занижение это не гипотеза: кураторов в мире трое, а в срезе мер их видно
      двое — у третьего мер нет, и в срез он не попадает ВОВСЕ. Знаменатель,
      снятый со среза, систематически меньше настоящего. */
-  const curSlice = ST.statSlice({obj:'obj-measure', dims:['d-curator'], inds:['a-count'], date: D});
+  const curSlice = ST.statSlice({obj:'obj-measure', dims:['d-mcurator'], inds:['a-count'], date: D});
   const curAll = new Set();
   Object.keys(W).forEach(o => W[o].forEach(x => (x.h.curator || []).forEach(([d, v]) => {
     if (d <= D) curAll.add(v); })));
@@ -1131,7 +1175,8 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const pf   = sl(two).passport.filter;
   const bare = sl(null).passport.filter;
   ok(105, has(pf, 'набор 1') && has(pf, 'набор 2') && has(pf, 'либо') &&
-        has(pf, 'Валюта договора = KGS и Дней просрочки > 100') && has(pf, 'Территория = Чуйская') &&
+        has(pf, 'Валюта кредитного договора = KGS и Дней просрочки > 100') &&
+        has(pf, 'Территория выдачи кредита = Чуйская') &&
         !/\+\d|фильтр задан/i.test(pf) && has(bare, 'фильтра нет'),
     `паспорт печатает фильтр ЦЕЛИКОМ, всеми наборами и сравнениями: «${pf}»; пустой назван строкой: «${bare}». «Фильтр задан» и «+2 условия» — ответ без вопроса (ADR-0180 §6)`);
 
@@ -1176,8 +1221,8 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const fl     = ST.flowBetween({obj:'obj-credit', inds:'m-repaid', from:'2026-07-15', to:'2026-08-18', filter: kgsF});
   const serBad = ST.statSeries({obj:'obj-credit', inds:'a-count', dates:['2026-07-31','2026-08-18'],
     filter: F(cD('d-cur', '∈', {values:['KGS','USD','EUR']}))});
-  ok(109, ser.ok && ser.points.every(p => p.value.v === 6) && has(ser.passport.filter, 'Валюта договора = KGS') &&
-        fl.ok && Math.round(fl.value) === 825500 && has(fl.passport.filter, 'Валюта договора = KGS') &&
+  ok(109, ser.ok && ser.points.every(p => p.value.v === 6) && has(ser.passport.filter, 'Валюта кредитного договора = KGS') &&
+        fl.ok && Math.round(fl.value) === 825500 && has(fl.passport.filter, 'Валюта кредитного договора = KGS') &&
         !serBad.ok && has(serBad.why, 'весь домен'),
     `фильтр ОДИН на все швы: срез, ряд (${ser.points.map(p => p.value.v).join(' · ')}), строки, период (${Math.round(fl.value)} сом.) и реестр читают его одинаково и печатают в паспорт; отказ ряду выдаётся один на ряд, а не по точке (ADR-0180 §7)`);
 })();
@@ -1241,9 +1286,9 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const bare = panel();
 
   ok(110, String(one) === '1' && String(and2) === '2' && String(or2) === '2,1' &&
-        has(built, 'либо набор 2') && has(built, 'Валюта договора = KGS') &&
+        has(built, 'либо набор 2') && has(built, 'Валюта кредитного договора = KGS') &&
         /* «&gt;» — оператор в чипе экранирован: подпись рисуется текстом, не разметкой. */
-        has(built, 'Дней просрочки &gt; 100') && has(built, 'Территория = Чуйская') &&
+        has(built, 'Дней просрочки &gt; 100') && has(built, 'Территория выдачи кредита = Чуйская') &&
         has(built, 'в набор 1 (И)') && has(built, 'новым набором (ИЛИ)') &&
         has(refused, 'весь домен') && after === before &&
         String(dropped) === '2' && cleared === null && !has(bare, 'либо набор'),
@@ -1282,7 +1327,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const bad112 = pays.filter(r => !near(v(r,'m-ramount'), r2(v(r,'m-pjud') + v(r,'m-pfree'))));
   const two = at(pays, 'ПГ-2026/1178');
   const kgs = ST.statSlice({obj:'obj-repay', dims:['d-repkind'], date: D,
-    inds:['a-sumpjud','a-sumpfree','a-sumramount'], filter: F(cD('d-cur','=',{value:'KGS'}))});
+    inds:['a-sumpjud','a-sumpfree','a-sumramount'], filter: F(cD('d-pcur','=',{value:'KGS'}))});
   const T = kgs.ok ? kgs.total : {};
   ok(112, bad112.length === 0 && v(two,'m-pjud') > 0 && v(two,'m-pfree') > 0 && kgs.ok &&
        near(r2(T['a-sumpjud'].v + T['a-sumpfree'].v), T['a-sumramount'].v),
@@ -1297,8 +1342,9 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const sv = at(rcs, 'ПП-2026/0733');
   const kids = pays.filter(r => r.dims['d-preceipt'] === 'ПП-2026/0733');
   const creds = [...new Set(kids.map(r => r.dims['d-pcredit']))];
-  const brs = [...new Set(kids.map(r => String(r.dims['d-branch'])))];
-  const borrowed = R.dims.filter(d => ['d-branch','d-curator','d-region','d-pcredit','d-cur'].indexOf(d) >= 0);
+  const brs = [...new Set(kids.map(r => String(r.dims['d-pbranch'])))];
+  const borrowed = R.dims.filter(d => ['d-branch','d-curator','d-region','d-cur',
+    'd-pbranch','d-pcurator','d-pregion','d-pcur','d-pcredit'].indexOf(d) >= 0);
   ok(114, v(sv,'m-rpays') === 2 && kids.length === 2 && creds.length === 2 && brs.length === 2 &&
        borrowed.length === 0,
     `сводное поступление — не платёж: ПП-2026/0733 разнесено на ${v(sv,'m-rpays')} платежа по ${creds.length} разным кредитам (${creds.join(', ')}) в ${brs.length} подразделениях. Поэтому у поступления НЕТ разрезов, которые приходят от кредита — ни «Кредит», ни «Подразделение», ни «Куратор», ни «Территория» (их ${borrowed.length}): значение, оказавшееся многозначным, поднимает уровень, а не сплющивается в клетку (ИС-21, ADR-0198)`);
@@ -1350,7 +1396,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
     const rr = ST.statSlice({obj:'obj-receipt', dims:['d-rchan'], date: D,
       inds:['a-sumrpaid','a-sumrsum'], filter: F(cD('d-rcur','=',{value:c}))});
     const pp = ST.statSlice({obj:'obj-repay', dims:['d-repkind'], date: D,
-      inds:['a-sumramount'], filter: F(cD('d-cur','=',{value:c}))});
+      inds:['a-sumramount'], filter: F(cD('d-pcur','=',{value:c}))});
     return {c, ok: rr.ok && pp.ok, paid: rr.ok ? rr.total['a-sumrpaid'].v : null,
             got: rr.ok ? rr.total['a-sumrsum'].v : null, pay: pp.ok ? pp.total['a-sumramount'].v : null};
   });
@@ -1570,9 +1616,14 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const byKind = k => st.objects.filter(o => o.scope && o.scope[k] != null);
   const cut = byKind('dim'), open = byKind('open'), den = byKind('denied');
   const dims = new Set(cut.map(o => o.scope.dim));
+  /* Волна 17: у каждого режущегося объекта разрез охвата теперь СВОЙ и определён НА НЁМ
+     же — «Куратор кредита» и «Куратор меры взыскания» суть разные признаки, и одно имя
+     «Куратор» на семь объектов означало бы, что охват семи объектов сложим (ИС-40). */
+  const alienScope = cut.filter(o => (ST.DIM(o.scope.dim) || {}).obj !== o.id);
   ok(132, bad.length === 0 && cut.length + open.length + den.length === st.objects.length &&
-        cut.length === 7 && open.length === 1 && den.length === 2 && dims.size === 2,
-    `охват — ОБЪЯВЛЕННЫЙ реквизит записи объекта, девятый после рождения (ИС-37): объектов без него или с двумя состояниями сразу ${bad.length} из ${st.objects.length}. Режутся разрезом ${cut.length}, объявлены общими ${open.length}, отвечают отказом ${den.length}. Разрезов охвата ДВА, а не один (${[...dims].join(', ')}) — и ровно в этом был СС-Д11: имя разреза принадлежит ОБЪЕКТУ, а зашитое в движок «d-curator» молча пустило под нож всех, кто назвал свой охват иначе. У отказа объявлены и причина, и дорога: отказ без дороги — половина ответа (§8.4)`);
+        cut.length === 7 && open.length === 1 && den.length === 2 && dims.size === 7 &&
+        alienScope.length === 0 &&
+    `охват — ОБЪЯВЛЕННЫЙ реквизит записи объекта, девятый после рождения (ИС-37): объектов без него или с двумя состояниями сразу ${bad.length} из ${st.objects.length}. Режутся разрезом ${cut.length}, объявлены общими ${open.length}, отвечают отказом ${den.length}. Разрезов охвата СЕМЬ — по одному на режущийся объект (${[...dims].join(', ')}), и каждый определён НА СВОЁМ объекте (чужих ${alienScope.length}). Ровно в этом был СС-Д11: имя разреза принадлежит ОБЪЕКТУ, а зашитое в движок «d-curator» молча пустило под нож всех, кто назвал свой охват иначе; одно имя «Куратор» на семь объектов вдобавок заявляло бы, что охваты семи объектов между собой складываются (ИС-40, ADR-0206 §3). У отказа объявлены и причина, и дорога: отказ без дороги — половина ответа (§8.4)`);
 
   /* #133 — тот самый четвёртый случай, ради которого волна и случилась. */
   ST.setRole('Аналитик');
@@ -1852,6 +1903,172 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
         cl.ok && cl.opened === false && has(clLog, 'переспрос') && !has(clLog, 'ОТКРЫТ') &&
         bs.ok && bs.opened === true && has(bsLog, 'ОТКРЫТ') && has(bsLog, O2.no),
     `тонкость ADR-0204 §4 исполняется, а не пересказывается: снятие защёлки «статистика» и «классификация» открытием НЕ называется («${upLog.slice(0, 88)}…») — верхние слои не открываются никогда, они переспрашивают и защёлкиваются заново; открывается ровно один слой, нижний («${bsLog.slice(0, 60)}…»). Иначе через год «сняли защёлку классификации» прочтут как «открыли период классификации», и вернётся ровно тот вопрос, который ADR закрывал. Перезакрытие повторяемо: колонка несёт ПОСЛЕДНЕЕ распоряжение (${ord1} → ${ord2}), а у выпуска пометок ${marks.length} — вторая не затирает первую, потому что сданное расходилось дважды и по разным основаниям (ИС-50, ADR-0157 §5)`);
+})();
+
+/* ---------- АБ. Волна 17 ч.3: разрез несёт ОБЪЕКТ ОПРЕДЕЛЕНИЯ (ИС-40, ADR-0206) ----------
+   Имя разреза называет признак и молчит о том, ЧЕЙ это признак. «Область» у заёмщика своя
+   (регистрация субъекта), у кредита своя (область выдачи), и для человека из Оша, взявшего
+   кредит в бишкекском филиале, это РАЗНЫЕ значения. Пока в реестре лежала одна запись
+   «Территория», система обязана была выбрать трактовку молча — и выбирала разную в разных
+   местах: срез кредитов, отфильтрованный «по области», расходился со срезом заёмщиков, и
+   расхождение выглядело арифметической ошибкой. Объяснить его было нечем: ИМЯ ВРЁТ — ровно
+   хвост §15 п. 4 канона. Лечится не подписью в отчёте и не параметром запроса, а восьмым
+   реквизитом породы «разрез»: объект определения обязателен, имя уточняется им, а сложение
+   по разрезу законно только внутри его объекта (ADR-0206 §2, §3).
+   Проверяется здесь не наличие поля, а то, что на нём стоят ДВЕРИ: реестр, состав объекта,
+   группировка и фильтр. Поле без дверей — обещание в примечании. */
+(() => {
+  ST.seed();
+  const st = ST.state;
+  const total0 = st.dims.length;
+
+  /* #148 — реквизит обязателен, и дверь объясняет ПОЧЕМУ, а не отвечает «нельзя». */
+  const noObj  = st.dims.filter(d => !d.obj);
+  const ghost  = st.dims.filter(d => !ST.OBJ(d.obj));
+  const anyObj = st.dims.filter(d => d.obj === '*' || d.obj === 'любой');
+  const bare   = ST.addDim({id:'d-t1', name:'Территория', src:'поле', key:'region', perObject:'одно'});
+  const star   = ST.addDim({id:'d-t2', obj:'*', name:'Территория чего-нибудь', src:'поле',
+    key:'region', perObject:'одно'});
+  const nowhere = ST.addDim({id:'d-t3', obj:'obj-nope', name:'Территория ниоткуда', src:'поле',
+    key:'region', perObject:'одно'});
+  const good   = ST.addDim({id:'d-t4', obj:'obj-credit', name:'Территория залоговой заявки',
+    src:'поле', key:'region', perObject:'одно'});
+  ok(148, noObj.length === 0 && ghost.length === 0 && anyObj.length === 0 &&
+        !bare.ok && has(bare.why, 'имя врёт') && has(bare.why, 'ИС-40') &&
+        !star.ok && has(star.why, 'признак всегда') &&
+        !nowhere.ok && has(nowhere.why, 'ссылка на запись реестра') && good.ok,
+    `объект определения — ВОСЬМОЙ реквизит породы «разрез», и он обязателен: записей без него 0 из ${total0}, с несуществующим объектом 0, с «любым объектом» 0. Дверь не пускает и НАЗЫВАЕТ причину: «${String(bare.why).slice(0, 96)}…» — это не «поле не заполнено», а объяснение, чем кончится незаполненное. «Любой объект» отбит отдельно: признак всегда чей-то, ничейного не бывает. Объект определения — ссылка на запись реестра, а не свободное имя (ИС-18): иначе разрез сослался бы на объект, которого нет, и отвечал бы неизвестно про что (ИС-40, ADR-0206 §2)`);
+
+  /* #149 — одноимённых записей в реестре нет; правило одно на ОБЕ породы (ADR-0206 §6). */
+  ST.seed();
+  const nD = ST.state.dims.length, nI = ST.state.indicators.length;
+  const pool = ST.state.dims.map(d => ({r:d, k:'разрез'}))
+    .concat(ST.state.indicators.map(i => ({r:i, k:'показатель'})));
+  const clash = [];
+  pool.forEach((a, i) => pool.slice(i + 1).forEach(b => {
+    if(a.r.name === b.r.name) clash.push({a, b, cross: a.r.obj !== b.r.obj, kinds: a.k !== b.k});
+  }));
+  const dimClash = clash.filter(c => c.a.k === 'разрез' && c.b.k === 'разрез');
+  const indClash = clash.filter(c => c.a.k === 'показатель' && c.b.k === 'показатель');
+  const bareName = ST.state.dims.filter(d =>
+    ['Территория','Область','Подразделение','Куратор','Отрасль','Валюта договора'].indexOf(d.name) >= 0);
+  const takenD = ST.addDim({id:'d-t5', obj:'obj-collateral', name:'Территория заёмщика', src:'поле',
+    key:'region', perObject:'одно'});
+  const takenI = ST.addIndicator({id:'m-t6', obj:'obj-case', name:'Территория заёмщика', src:'поле',
+    key:'region', type:'перечисление'});
+  const crossKind = ST.addDim({id:'d-t7', obj:'obj-collateral', name:'Требования, обеспеченные залогом',
+    src:'поле', key:'region', perObject:'одно'});
+  const okName = ST.addDim({id:'d-t8', obj:'obj-collateral', name:'Территория оценщика', src:'поле',
+    key:'region', perObject:'одно'});
+  ok(149, dimClash.length === 0 && indClash.length === 0 && bareName.length === 0 &&
+        clash.length === 1 && clash[0].kinds && !clash[0].cross &&
+        !takenD.ok && has(takenD.why, 'в реестре занято') && has(takenD.why, 'Заёмщик') &&
+        !takenI.ok && has(takenI.why, 'в реестре занято') &&
+        !crossKind.ok && has(crossKind.why, 'm-csec') && okName.ok,
+    `одноимённых записей в реестре нет ни при каких объектах: среди ${nD} разрезов совпадений имён 0, среди ${nI} показателей 0, голых «Территория» · «Подразделение» · «Куратор» 0. Уцелела ровно одна пара имён — «${clash[0].a.r.name}» у разреза и показателя ОДНОГО объекта, читающих ОДНУ клетку шва: это одна величина в двух породах, а не две под одним именем (ADR-0185 §3, ADR-0209). Дверь отбивает занятое имя и называет ВЛАДЕЛЬЦА: «${String(takenD.why).slice(0, 80)}…»; правило одно на обе породы — показателю «Территория заёмщика» отказано так же (ADR-0206 §6), и разрезу под именем суммы тоже: два числа, которые нельзя сложить, — два имени, а не одно с оговоркой в примечании`);
+
+  /* #150 — один справочник значений, РАЗНАЯ дорога до него (ADR-0206 §5, ADR-0176 §7). */
+  ST.seed();
+  const cR = ST.DIM('d-region'), bR = ST.DIM('d-bregion');
+  const geo = ST.state.dims.filter(d => d.owner === 'Справочник административного деления');
+  const forks = {};
+  ST.state.dims.filter(d => d.owner && d.levels).forEach(d => {
+    (forks[d.owner] = forks[d.owner] || new Set()).add(JSON.stringify(d.levels) + '|' + (d.ref || ''));
+  });
+  const twoHier = Object.keys(forks).filter(k => forks[k].size > 1);
+  const sameRoad = (a, b) => a.src === b.src && a.key === b.key && a.obj === b.obj;
+  const sameDict = cR.owner === bR.owner &&
+        JSON.stringify(cR.levels) === JSON.stringify(bR.levels);
+  const cSet = ST.statSlice({obj:'obj-credit',   dims:['d-region'],  inds:['a-count'], date: ASK});
+  const bSet = ST.statSlice({obj:'obj-borrower', dims:['d-bregion'], inds:['a-count'], date: ASK});
+  const cKeys = cSet.groups.map(g => g.key).sort().join('|');
+  const bKeys = bSet.groups.map(g => g.key).sort().join('|');
+  ok(150, cR.id !== bR.id && cR.name !== bR.name && cR.obj !== bR.obj && sameDict &&
+        geo.length === 6 && twoHier.length === 0 && cKeys === bKeys && !sameRoad(cR, bR),
+    `записей ${geo.length} — справочник ОДИН: у «${cR.name}» и «${bR.name}» совпадают владелец («${cR.owner}») и уровни (${cR.levels.map(l => l.name).join(' → ')}) знак в знак, а списки областей, добытые двумя РАЗНЫМИ дорогами, совпали: ${cKeys}. Второго экземпляра иерархии не заведено ни одного — у каждого владельца справочника ровно одна (расщеплённых ${twoHier.length}): иначе на «сколько районов в области» нашлось бы два ответа, и оба были бы честны (ADR-0176 §7). Объект определения меняет ДОРОГУ до значения, а не список значений (ADR-0206 §5) — потому дублируется запись реестра, а не справочник`);
+
+  /* #151 — на одном человеке значения расходятся ЗАКОННО, и это читается из имён. */
+  ST.seed();
+  const bRows = ST.statRows({obj:'obj-borrower', date: ASK}).rows;
+  const cRows = ST.statRows({obj:'obj-credit',   date: ASK}).rows;
+  const lvl1  = v => [].concat(v)[0];
+  const man   = bRows.find(r => r.ref === '22903197505433');
+  const mine  = cRows.filter(r => r.dims['d-binn'] === '22903197505433');
+  const mineR = mine.map(r => lvl1(r.dims['d-region']));
+  const manR  = lvl1(man.dims['d-bregion']);
+  const cGr = ST.statSlice({obj:'obj-credit',   dims:['d-region'],  inds:['a-count'], date: ASK});
+  const bGr = ST.statSlice({obj:'obj-borrower', dims:['d-bregion'], inds:['a-count'], date: ASK});
+  const cnt = (s, k) => ((s.groups.find(g => g.key === k) || {}).values || {})['a-count'].v;
+  const shapeC = cGr.groups.map(g => g.key + ':' + g.values['a-count'].v).join(' · ');
+  const shapeB = bGr.groups.map(g => g.key + ':' + g.values['a-count'].v).join(' · ');
+  ok(151, manR === 'Ошская' && mine.length === 2 &&
+        mineR.indexOf('Ошская') >= 0 && mineR.indexOf('Чуйская') >= 0 &&
+        shapeC !== shapeB && cnt(cGr, 'Чуйская') === 4 && cnt(bGr, 'Чуйская') === 3 &&
+        cnt(cGr, 'Ошская') === 2 && cnt(bGr, 'Ошская') === 3 &&
+        cGr.total['a-count'].v === 8 && bGr.total['a-count'].v === 8,
+    `случай, ради которого всё это и заведено, в мире ЕСТЬ: у заёмщика ${man.ref} область ${manR}, а его кредиты выданы в ${mineR.join(' и ')} — ${mine.map(r => r.ref).join(', ')}. Один человек лежит в группе «Ошская» среза заёмщиков, а его кредит — в группе «Чуйская» среза кредитов, и это не ошибка данных, а два разных признака. Группировки поэтому РАЗНЫЕ: кредиты ${shapeC}; заёмщики ${shapeB}. Различает их ИМЯ разреза — «${cR.name}» против «${bR.name}», — а не расхождение чисел: итог у обоих срезов 8, и совпадение это ровно ничего не доказывает (ИС-40, ADR-0206 §1)`);
+
+  /* #152 — чужой разрез не берётся в состав объекта, и дверей на это ДВЕ. */
+  ST.seed();
+  const alienObj = ST.addObject({id:'obj-guarantee', name:'Поручительство', plural:'поручительства',
+    owner:'Обеспечение', refName:'номер поручительства', born:{src:'поле', key:'gdate'},
+    scope:{open:'обеспечение общее'}, dims:['d-bregion'], inds:['a-count']});
+  const ownObj = ST.addObject({id:'obj-guarantee', name:'Поручительство', plural:'поручительства',
+    owner:'Обеспечение', refName:'номер поручительства', born:{src:'поле', key:'gdate'},
+    scope:{open:'обеспечение общее'}, dims:[], inds:['a-count']});
+  const ownDim = ST.addDim({id:'d-gregion2', obj:'obj-guarantee', name:'Территория поручительства',
+    src:'поле', key:'region', perObject:'одно', owner:'Справочник административного деления',
+    levels: JSON.parse(JSON.stringify(ST.DIM('d-region').levels))});
+  const G = ST.OBJ('obj-guarantee');
+  const alienIn = G.dims.filter(d => (ST.DIM(d) || {}).obj !== 'obj-guarantee');
+  const orphan = ST.state.objects.filter(o =>
+    o.dims.some(d => !ST.DIM(d) || ST.DIM(d).obj !== o.id));
+  ok(152, !alienObj.ok && has(alienObj.why, 'Заёмщик') && has(alienObj.why, 'ИС-40') &&
+        has(alienObj.why, 'Заведите свою запись') && ownObj.ok && ownDim.ok &&
+        G.dims.length === 1 && G.dims[0] === 'd-gregion2' && alienIn.length === 0 &&
+        orphan.length === 0,
+    `разрез нельзя приложить к ЧУЖОМУ объекту, и отказ называет объект определения поимённо: «${String(alienObj.why).slice(0, 104)}…». Дверей на это две, и закрыты они заодно: состав объекта не берёт чужую запись, а заведение разреза не берёт чужой объект — иначе запрет обходился бы за один шаг (сперва завести объект без разрезов, потом дописать чужой). Свой разрез заводится СВОЕЙ записью и берёт тот же справочник значений; в реестре объектов чужих разрезов в составе 0 из ${ST.state.objects.length} (ИС-40, ADR-0206 §3, §5)`);
+
+  /* #153 — сверка разнообъектных срезов: ЗАПРЕЩЁННАЯ операция, а не подозрительная. */
+  ST.seed();
+  const alienF = {sets:[{cmps:[{kind:'dim', id:'d-bregion', op:'=', value:'Ошская'}]}]};
+  const doors = {
+    'срез':     ST.statSlice({obj:'obj-credit', dims:['d-region'], inds:['a-count'], date: ASK, filter: alienF}),
+    'строки':   ST.statRows({obj:'obj-credit', date: ASK, filter: alienF}),
+    'ряд':      ST.statSeries({obj:'obj-credit', inds:'a-count', dates:[ASK], filter: alienF}),
+    'период':   ST.flowBetween({obj:'obj-credit', inds:'m-repaid', from:'2026-07-15', to: ASK, filter: alienF}),
+    'выгрузка': ST.exportJob({obj:'obj-credit', date: ASK, filter: alienF})
+  };
+  const shut = Object.keys(doors).filter(k => !doors[k].ok &&
+    has(doors[k].why, 'ИС-40') && has(doors[k].why, 'Заёмщик'));
+  const mute = Object.keys(doors).every(k => !doors[k].groups && !doors[k].total &&
+    !doors[k].rows && doors[k].value == null);
+  const byDim = ST.statSlice({obj:'obj-credit', dims:['d-bregion'], inds:['a-count'], date: ASK});
+  const legal = ST.statSlice({obj:'obj-credit', dims:['d-region'], inds:['a-count'], date: ASK,
+    filter: F(cD('d-region', '=', {value:'Чуйская'}))});
+  ok(153, shut.length === 5 && mute && !byDim.ok && has(byDim.why, 'ADR-0206 §3') &&
+        has(byDim.why, 'Территория выдачи кредита') && has(byDim.why, 'не сверяются') &&
+        legal.ok && legal.total['a-count'].v === 4,
+    `сравнение срезов по разнообъектным разрезам — операция ЗАПРЕЩЁННАЯ, а не подозрительная (ADR-0206 §4): чужой разрез отбивают все ${shut.length} дверей — ${shut.join(' · ')} — и отбивают ОДИНАКОВО, потому что ворота стоят в общей проверке вопроса, а не в каждой двери отдельно. Ни одна не возвращает при этом чисел (${mute}): сверять нечего в принципе, а не «результат помечен как сомнительный» — иначе кто-нибудь сверил бы и объяснил расхождение округлением. Группировка чужим разрезом отбита тем же правилом и называет дорогу — «…${String(byDim.why).slice(-92)}». Свой разрез в том же вопросе считается: Чуйская — ${legal.total['a-count'].v} кредита`);
+
+  /* #154 — сложение по разрезу законно ТОЛЬКО внутри его объекта (ADR-0174 механически). */
+  ST.seed();
+  const sums = [];
+  ST.state.dims.forEach(d => {
+    const o = ST.OBJ(d.obj);
+    if(!o || o.dims.indexOf(d.id) < 0) return;
+    const s = ST.statSlice({obj:o.id, dims:[d.id], inds:['a-count'], date: ASK});
+    if(!s.ok || !s.groups.length) return;
+    const g = s.groups.reduce((n, x) => n + x.values['a-count'].v, 0);
+    sums.push({dim:d.id, obj:o.id, ok: g === s.total['a-count'].v, n: s.total['a-count'].v});
+  });
+  const brokenSum = sums.filter(x => !x.ok);
+  const foreign = ST.state.dims.filter(d => {
+    const o = ST.OBJ(d.obj);
+    return !o || o.dims.indexOf(d.id) < 0;
+  });
+  ok(154, sums.length >= 20 && brokenSum.length === 0 && foreign.length === 0,
+    `требование ADR-0174 «свод равен сумме одиночных» проверяется теперь МЕХАНИЧЕСКИ, потому что есть по чему: сумма берётся по тому объекту, который назвал разрез. Проверено ${sums.length} пар «разрез + его объект» — расхождений ${brokenSum.length}${brokenSum.length ? ' (' + brokenSum.map(x => x.dim).join(', ') + ')' : ''}. Ни одного разреза, объявленного на объекте и в состав этого объекта не вошедшего, нет (${foreign.length}): объект определения и состав — одна и та же связь, прочитанная с двух сторон, и разъехаться им нечем. Сложение по разрезу законно только внутри его объекта — за границей объекта складывать было бы можно лишь потому, что имена совпали (ИС-40, ADR-0206 §3)`);
 })();
 
 /* ---- отчёт ---- */
