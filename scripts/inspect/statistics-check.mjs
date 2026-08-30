@@ -133,9 +133,9 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
 (() => {
   ST.seed();
   const before = ST.statSlice({obj:'obj-guarantee', dims:[], inds:['a-count'], date: ASK});
-  const mi = ST.addIndicator({id:'m-gsec', name:'Требования, обеспеченные поручительством', obj:'obj-guarantee',
+  const mi = ST.addIndicator({dates:1, id:'m-gsec', name:'Требования, обеспеченные поручительством', obj:'obj-guarantee',
     src:'шов', seam:'calcDebt', field:'principal', money:true, type:'сумма'});
-  const ai = ST.addIndicator({id:'a-sumgsec', name:'Обеспечено поручительствами, итого', obj:'obj-guarantee',
+  const ai = ST.addIndicator({dates:1, id:'a-sumgsec', name:'Обеспечено поручительствами, итого', obj:'obj-guarantee',
     src:'агрегат', fn:'sum', over:'m-gsec'});
   /* Волна 17: состав объекта — только СВОИ разрезы. «Территория выдачи кредита»
      определена на кредите, и взять её в поручительство значило бы завести второй смысл
@@ -148,15 +148,15 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
     scope:{dim:'d-gcurator'}, dims:[], inds:['m-gsec','a-count','a-sumgsec']});
   const own = [
     {id:'d-gbranch', obj:'obj-guarantee', name:'Подразделение поручительства', src:'история',
-     key:'branch', perObject:'одно', owner:'Оргструктура (кадры)', ref:'org',
+     key:'branch', perObject:'одно', dates:1, owner:'Оргструктура (кадры)', ref:'org',
      levels:[{name:'дивизион', src:'справочник'}, {name:'филиал', src:'история', key:'branch'}]},
     {id:'d-gcurator', obj:'obj-guarantee', name:'Куратор поручительства', src:'история',
-     key:'curator', perObject:'одно'},
+     key:'curator', perObject:'одно', dates:1},
     {id:'d-gregion', obj:'obj-guarantee', name:'Территория поручительства', src:'поле',
-     key:'region', perObject:'одно', owner:'Справочник административного деления',
+     key:'region', perObject:'одно', dates:1, owner:'Справочник административного деления',
      levels:[{name:'область', src:'поле', key:'region'}, {name:'район', src:'поле', key:'district'}]},
     {id:'d-gptype', obj:'obj-guarantee', name:'Тип лица поручителя', src:'поле',
-     key:'ptype', perObject:'одно'}].map(spec => ST.addDim(spec));
+     key:'ptype', perObject:'одно', dates:1}].map(spec => ST.addDim(spec));
   const run = ST.run(TODAY, {});
   const after = ST.statSlice({obj:'obj-guarantee', dims:['d-gregion'], inds:['a-count','a-sumgsec'], date: TODAY});
   ok(9, !before.ok && mi.ok && ai.ok && !alien.ok && has(alien.why, 'ИС-40') && add.ok &&
@@ -278,7 +278,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
     `итог аналитика (${Math.round(totalMine)}) — не итог системы (${Math.round(totalAll)}): закрытая сумма не добывается вычитанием двух доступных срезов`);
 
   ST.setRole('Наблюдатель');
-  ok(26, ST.canBuild() === false && ST.canAdmin() === false && ST.addIndicator({id:'x'}).ok === false,
+  ok(26, ST.canBuild() === false && ST.canAdmin() === false && ST.addIndicator({dates:1, id:'x'}).ok === false,
     `наблюдателю конструктор и реестры закрыты — отказ по праву доступа, а не пропавшая кнопка`);
   ST.setRole('Администратор статистики');
 })();
@@ -320,7 +320,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
         may.dims['d-category'] === 'Низкий кредитный риск' && aug.dims['d-category'] === 'Средний кредитный риск',
     `смена куратора 15.07 майскую строку не переписала: май — ${may.dims['d-curator']}, август — ${aug.dims['d-curator']} — ИС-4`);
 
-  const add = ST.addDim({id:'d-segment', name:'Сегмент портфеля', obj:'obj-credit', src:'поле',
+  const add = ST.addDim({dates:1, id:'d-segment', name:'Сегмент портфеля', obj:'obj-credit', src:'поле',
     key:'industry', perObject:'одно'});
   const past = ST.statSlice({obj:'obj-credit', dims:['d-segment'], inds:['a-count'], date:'2026-05-31'});
   /* Здесь же видно вторую половину ИС-36: «сегодня» спрашивается не по праву «сегодня», а
@@ -380,19 +380,19 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
 /* ---------- L. Реестр показателей: что завести нельзя ---------- */
 (() => {
   ST.seed();
-  const f = ST.addIndicator({id:'m-x', name:'Доля просрочки', obj:'obj-credit', src:'агрегат',
+  const f = ST.addIndicator({dates:1, id:'m-x', name:'Доля просрочки', obj:'obj-credit', src:'агрегат',
     fn:'sum', over:'m-debt', formula:'sum(overdue)/sum(debt)'});
-  const der = ST.addIndicator({id:'m-y', name:'Доля просрочки', obj:'obj-credit', src:'агрегат', fn:'sum', over:'m-debt'});
-  const seam = ST.addIndicator({id:'m-z', name:'Ожидаемые потери', obj:'obj-credit', src:'шов',
+  const der = ST.addIndicator({dates:1, id:'m-y', name:'Доля просрочки', obj:'obj-credit', src:'агрегат', fn:'sum', over:'m-debt'});
+  const seam = ST.addIndicator({dates:1, id:'m-z', name:'Ожидаемые потери', obj:'obj-credit', src:'шов',
     seam:'calcExpectedLoss', field:'ecl', money:true});
-  const fn = ST.addIndicator({id:'m-w', name:'Медиана долга', obj:'obj-credit', src:'агрегат', fn:'median', over:'m-debt'});
+  const fn = ST.addIndicator({dates:1, id:'m-w', name:'Медиана долга', obj:'obj-credit', src:'агрегат', fn:'median', over:'m-debt'});
   ok(39, !f.ok && has(f.why, 'ИС-6') && !der.ok && has(der.why, 'ИС-15') &&
         !seam.ok && has(seam.why, 'ADR-0150 §3') && !fn.ok && has(fn.why, 'вне закрытого списка'),
     `формула — «${f.why.slice(0, 60)}…»; доля — представление; несуществующий шов — задача ядру; функция вне списка — «${fn.why}»`);
 
-  const good = ST.addIndicator({id:'m-idle', name:'Плата за неосвоенный остаток', obj:'obj-credit',
+  const good = ST.addIndicator({dates:1, id:'m-idle', name:'Плата за неосвоенный остаток', obj:'obj-credit',
     src:'шов', seam:'calcAccrual', field:'interest', money:true, type:'сумма'});
-  const agg = ST.addIndicator({id:'a-sumidle', name:'Плата, итого', obj:'obj-credit', src:'агрегат', fn:'sum', over:'m-idle'});
+  const agg = ST.addIndicator({dates:1, id:'a-sumidle', name:'Плата, итого', obj:'obj-credit', src:'агрегат', fn:'sum', over:'m-idle'});
   ST.run(TODAY, {manual:true, reason:'заведён новый показатель'});
   /* Спрашивается дата ТОГО прогона, который показатель посчитал: на 20.08 записи ещё
      не было, и её отсутствие там — не дефект, а порядок слоёв (ИС-36 + ADR-0147 §4). */
@@ -496,8 +496,8 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
         divs.every(k => /дивизион/i.test(k)) && br.groups.some(g => g.children.length > 0),
     `верхний уровень взят у владельца справочника («${dimBr.owner}»), второй копии оргструктуры здесь нет: ${divs.join(' · ')} (ADR-0176 §7)`);
 
-  const many = ST.addDim({id:'d-rk', name:'Вид погашения', obj:'obj-credit', src:'поле', key:'kind', perObject:'много'});
-  const mute = ST.addDim({id:'d-rk2', name:'Вид погашения', obj:'obj-credit', src:'поле', key:'kind'});
+  const many = ST.addDim({dates:1, id:'d-rk', name:'Вид погашения', obj:'obj-credit', src:'поле', key:'kind', perObject:'много'});
+  const mute = ST.addDim({dates:1, id:'d-rk2', name:'Вид погашения', obj:'obj-credit', src:'поле', key:'kind'});
   ok(51, !many.ok && has(many.why, 'ИС-21') && !mute.ok &&
         ST.OBJ('obj-repay') && ST.OBJ('obj-repay').dims.indexOf('d-repkind') >= 0,
     `многозначный разрез не заводится — он объект: «${String(many.why).slice(0, 70)}…»; вид погашения живёт разрезом у погашения (ADR-0179 §1)`);
@@ -607,11 +607,11 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
     `фильтр строится списком значений ИЗ СТРОК среза, а не чужим справочником (ИС-4): у подразделения ${vals.length} значений обоих уровней, у разреза-даты — корзины (${byBucket.join(' · ')}), а не сырые даты; сужение названо в паспорте: ${nar.ok ? nar.n : '—'} из ${all.n} (СС-Д2)`);
 
   ST.seed();
-  const taken = ST.addDim({id:'d-industry', name:'Отрасль', obj:'obj-credit', src:'поле',
+  const taken = ST.addDim({dates:1, id:'d-industry', name:'Отрасль', obj:'obj-credit', src:'поле',
     key:'industry', perObject:'одно'});
-  const noRef = ST.addDim({id:'d-fdate', name:'Дата погашения', obj:'obj-repay', src:'поле',
+  const noRef = ST.addDim({dates:1, id:'d-fdate', name:'Дата погашения', obj:'obj-repay', src:'поле',
     key:'date', perObject:'одно', buckets:['год','месяц']});
-  const withRef = ST.addDim({id:'d-div2', name:'Подразделение выдачи', obj:'obj-repay', src:'поле',
+  const withRef = ST.addDim({dates:1, id:'d-div2', name:'Подразделение выдачи', obj:'obj-repay', src:'поле',
     key:'branch', perObject:'одно', ref:'org', owner:'Оргструктура (кадры)',
     levels:['дивизион','филиал']});
   const dd = ST.state.dims.find(d => d.id === 'd-div2');
@@ -820,7 +820,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   /* Счёт объектов другого уровня — вопрос ТОМУ объекту (ADR-0186, ИС-30). Срез кредитов
      по ИНН показывает шесть заёмщиков, а их восемь: двое без договоров в него не попадают
      вовсе — распределённый счёт ответил бы на другой вопрос, не заметив этого. */
-  const dist = ST.addIndicator({id:'a-cdinn', name:'Заёмщиков в срезе', obj:'obj-credit',
+  const dist = ST.addIndicator({dates:1, id:'a-cdinn', name:'Заёмщиков в срезе', obj:'obj-credit',
     src:'агрегат', fn:'countDistinct', over:'m-total'});
   const byInn = ST.statSlice({obj:'obj-credit', dims:['d-binn'], inds:['a-count'], date: ASK});
   const all = ST.statSlice({obj:'obj-borrower', dims:[], inds:['a-count'], date: ASK});
@@ -1106,7 +1106,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
 
   /* ИС-35: удельная величина показателем не заводится вовсе. Отказ обязан указать пару
      «срез + счёт» и предупредить о занижении знаменателя. */
-  const per = ST.addIndicator({id:'m-perc', name:'Требований на куратора', obj:'obj-claim',
+  const per = ST.addIndicator({dates:1, id:'m-perc', name:'Требований на куратора', obj:'obj-claim',
     src:'агрегат', fn:'avg', over:'m-clsum'});
   ok(97, !per.ok && has(per.why, 'ИС-30') && has(per.why, 'ИС-35') && has(per.why, 'занижает'),
     `удельная величина отбита и разложена на пару: «${per.why}»`);
@@ -1946,12 +1946,12 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const noObj  = st.dims.filter(d => !d.obj);
   const ghost  = st.dims.filter(d => !ST.OBJ(d.obj));
   const anyObj = st.dims.filter(d => d.obj === '*' || d.obj === 'любой');
-  const bare   = ST.addDim({id:'d-t1', name:'Территория', src:'поле', key:'region', perObject:'одно'});
-  const star   = ST.addDim({id:'d-t2', obj:'*', name:'Территория чего-нибудь', src:'поле',
+  const bare   = ST.addDim({dates:1, id:'d-t1', name:'Территория', src:'поле', key:'region', perObject:'одно'});
+  const star   = ST.addDim({dates:1, id:'d-t2', obj:'*', name:'Территория чего-нибудь', src:'поле',
     key:'region', perObject:'одно'});
-  const nowhere = ST.addDim({id:'d-t3', obj:'obj-nope', name:'Территория ниоткуда', src:'поле',
+  const nowhere = ST.addDim({dates:1, id:'d-t3', obj:'obj-nope', name:'Территория ниоткуда', src:'поле',
     key:'region', perObject:'одно'});
-  const good   = ST.addDim({id:'d-t4', obj:'obj-credit', name:'Территория залоговой заявки',
+  const good   = ST.addDim({dates:1, id:'d-t4', obj:'obj-credit', name:'Территория залоговой заявки',
     src:'поле', key:'region', perObject:'одно'});
   ok(148, noObj.length === 0 && ghost.length === 0 && anyObj.length === 0 &&
         !bare.ok && has(bare.why, 'имя врёт') && has(bare.why, 'ИС-40') &&
@@ -1972,13 +1972,13 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const indClash = clash.filter(c => c.a.k === 'показатель' && c.b.k === 'показатель');
   const bareName = ST.state.dims.filter(d =>
     ['Территория','Область','Подразделение','Куратор','Отрасль','Валюта договора'].indexOf(d.name) >= 0);
-  const takenD = ST.addDim({id:'d-t5', obj:'obj-collateral', name:'Территория заёмщика', src:'поле',
+  const takenD = ST.addDim({dates:1, id:'d-t5', obj:'obj-collateral', name:'Территория заёмщика', src:'поле',
     key:'region', perObject:'одно'});
-  const takenI = ST.addIndicator({id:'m-t6', obj:'obj-case', name:'Территория заёмщика', src:'поле',
+  const takenI = ST.addIndicator({dates:1, id:'m-t6', obj:'obj-case', name:'Территория заёмщика', src:'поле',
     key:'region', type:'перечисление'});
-  const crossKind = ST.addDim({id:'d-t7', obj:'obj-collateral', name:'Требования, обеспеченные залогом',
+  const crossKind = ST.addDim({dates:1, id:'d-t7', obj:'obj-collateral', name:'Требования, обеспеченные залогом',
     src:'поле', key:'region', perObject:'одно'});
-  const okName = ST.addDim({id:'d-t8', obj:'obj-collateral', name:'Территория оценщика', src:'поле',
+  const okName = ST.addDim({dates:1, id:'d-t8', obj:'obj-collateral', name:'Территория оценщика', src:'поле',
     key:'region', perObject:'одно'});
   ok(149, dimClash.length === 0 && indClash.length === 0 && bareName.length === 0 &&
         clash.length === 1 && clash[0].kinds && !clash[0].cross &&
@@ -2036,7 +2036,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const ownObj = ST.addObject({id:'obj-guarantee', name:'Поручительство', plural:'поручительства',
     owner:'Обеспечение', refName:'номер поручительства', born:{src:'поле', key:'gdate'},
     scope:{open:'обеспечение общее'}, dims:[], inds:['a-count']});
-  const ownDim = ST.addDim({id:'d-gregion2', obj:'obj-guarantee', name:'Территория поручительства',
+  const ownDim = ST.addDim({dates:1, id:'d-gregion2', obj:'obj-guarantee', name:'Территория поручительства',
     src:'поле', key:'region', perObject:'одно', owner:'Справочник административного деления',
     levels: JSON.parse(JSON.stringify(ST.DIM('d-region').levels))});
   const G = ST.OBJ('obj-guarantee');
@@ -2120,9 +2120,9 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   st.dims.push({kind:'разрез', id:'d-ghost', name:'Призрак признака', obj:'obj-credit', src:'поле', key:'k'});
   st.indicators.push({kind:'показатель', id:'m-ghost', name:'Призрак числа', obj:'obj-credit'});
   const ghost = st.registry.length === n0 && !ST.REC('d-ghost') && !ST.REC('m-ghost');
-  const third = ST.addRecord({kind:'свод', id:'x-roll', name:'Свод портфеля', obj:'obj-credit',
+  const third = ST.addRecord({dates:1, kind:'свод', id:'x-roll', name:'Свод портфеля', obj:'obj-credit',
     src:'поле', key:'k'});
-  const bare  = ST.addRecord({id:'x-none', name:'Запись без породы', obj:'obj-credit',
+  const bare  = ST.addRecord({dates:1, id:'x-none', name:'Запись без породы', obj:'obj-credit',
     src:'поле', key:'k'});
   ok(155, noKind.length === 0 && nInd + nDim === reg.length && own.length === 0 &&
         typeof dDesc.get === 'function' && dDesc.value === undefined &&
@@ -2142,13 +2142,13 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
     r.history[0].what !== 'заведена');
   const bothOK = KINDS.every(k => R2.filter(r => r.kind === k)
     .every(r => r.since && r.access && ('until' in r) && ('note' in r)));
-  const noName = ST.addIndicator({id:'m-n1', obj:'obj-credit', src:'поле', key:'k',
+  const noName = ST.addIndicator({dates:1, id:'m-n1', obj:'obj-credit', src:'поле', key:'k',
     type:'сумма', unit:'сом'});
-  const noObjI = ST.addIndicator({id:'m-n2', name:'Проба без объекта', src:'поле', key:'k',
+  const noObjI = ST.addIndicator({dates:1, id:'m-n2', name:'Проба без объекта', src:'поле', key:'k',
     type:'сумма', unit:'сом'});
-  const noObjD = ST.addDim({id:'d-n3', name:'Проба без объекта два', src:'поле', key:'k',
+  const noObjD = ST.addDim({dates:1, id:'d-n3', name:'Проба без объекта два', src:'поле', key:'k',
     perObject:'одно'});
-  const born = ST.addIndicator({id:'m-n4', name:'Проба даты заведения', obj:'obj-credit',
+  const born = ST.addIndicator({dates:1, id:'m-n4', name:'Проба даты заведения', obj:'obj-credit',
     src:'поле', key:'k', type:'сумма', unit:'сом'});
   const N4 = ST.IND('m-n4');
   ok(156, gaps.length === 0 && declared.length === 0 && noHist.length === 0 && bothOK &&
@@ -2167,19 +2167,19 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const badRoll = IND3.filter(r => ROLLS.indexOf(r.roll) < 0);
   const noType  = IND3.filter(r => !ST.typeOf(r.id));
   const noUnit  = IND3.filter(r => FLAT.indexOf(ST.typeOf(r.id)) < 0 && !ST.unitOf(r.id));
-  const noSrc   = ST.addIndicator({id:'m-i1', name:'Проба без источника', obj:'obj-credit',
+  const noSrc   = ST.addIndicator({dates:1, id:'m-i1', name:'Проба без источника', obj:'obj-credit',
     type:'сумма', unit:'сом'});
-  const myRoll  = ST.addIndicator({id:'m-i2', name:'Проба со своим сводом', obj:'obj-credit',
+  const myRoll  = ST.addIndicator({dates:1, id:'m-i2', name:'Проба со своим сводом', obj:'obj-credit',
     src:'поле', key:'k', type:'сумма', unit:'сом', roll:'по-своему'});
-  const mute    = ST.addIndicator({id:'m-i3', name:'Проба без типа', obj:'obj-credit',
+  const mute    = ST.addIndicator({dates:1, id:'m-i3', name:'Проба без типа', obj:'obj-credit',
     src:'поле', key:'industry'});
-  const noU     = ST.addIndicator({id:'m-i4', name:'Проба без единицы', obj:'obj-credit',
+  const noU     = ST.addIndicator({dates:1, id:'m-i4', name:'Проба без единицы', obj:'obj-credit',
     src:'поле', key:'k', type:'сумма'});
-  const live    = ST.addIndicator({id:'m-i5', name:'Проба исчислимости', obj:'obj-credit',
+  const live    = ST.addIndicator({dates:1, id:'m-i5', name:'Проба исчислимости', obj:'obj-credit',
     src:'поле', key:'k', type:'сумма', unit:'сом', live:false});
-  const dedup   = ST.addIndicator({id:'a-i6', name:'Проба дедупа', obj:'obj-credit',
+  const dedup   = ST.addIndicator({dates:1, id:'a-i6', name:'Проба дедупа', obj:'obj-credit',
     src:'агрегат', fn:'sum', over:'m-odays', dedupBy:'d-branch'});
-  const agg     = ST.addIndicator({id:'a-i7', name:'Проба наследования', obj:'obj-credit',
+  const agg     = ST.addIndicator({dates:1, id:'a-i7', name:'Проба наследования', obj:'obj-credit',
     src:'агрегат', fn:'sum', over:'m-odays'});
   const A = ST.IND('a-i7');
   ok(157, badSrc.length === 0 && badRoll.length === 0 && noType.length === 0 && noUnit.length === 0 &&
@@ -2202,16 +2202,16 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const refBare = DIM4.filter(r => r.ref && !r.owner);
   const lvlBare = DIM4.filter(r => r.levels && !r.owner && !r.ref);
   const spread  = ORDERS.map(o => o + ' — ' + DIM4.filter(d => d.order === o).length);
-  const noWhose = ST.addDim({id:'d-d1', name:'Проба ничья', src:'поле', key:'k', perObject:'одно'});
-  const alpha   = ST.addDim({id:'d-d2', name:'Проба по алфавиту', obj:'obj-credit', src:'поле',
+  const noWhose = ST.addDim({dates:1, id:'d-d1', name:'Проба ничья', src:'поле', key:'k', perObject:'одно'});
+  const alpha   = ST.addDim({dates:1, id:'d-d2', name:'Проба по алфавиту', obj:'obj-credit', src:'поле',
     key:'k', perObject:'одно', order:'по алфавиту'});
-  const empty   = ST.addDim({id:'d-d3', name:'Проба пустого порядка', obj:'obj-credit', src:'поле',
+  const empty   = ST.addDim({dates:1, id:'d-d3', name:'Проба пустого порядка', obj:'obj-credit', src:'поле',
     key:'k', perObject:'одно', order:'по объявленному порядку'});
-  const noOwner = ST.addDim({id:'d-d4', name:'Проба без владельца', obj:'obj-credit', src:'поле',
+  const noOwner = ST.addDim({dates:1, id:'d-d4', name:'Проба без владельца', obj:'obj-credit', src:'поле',
     key:'k', perObject:'одно', ref:'Справочник отраслей'});
-  const noPer   = ST.addDim({id:'d-d5', name:'Проба без кратности', obj:'obj-credit', src:'поле',
+  const noPer   = ST.addDim({dates:1, id:'d-d5', name:'Проба без кратности', obj:'obj-credit', src:'поле',
     key:'k'});
-  const good    = ST.addDim({id:'d-d6', name:'Проба годного разреза', obj:'obj-credit', src:'поле',
+  const good    = ST.addDim({dates:1, id:'d-d6', name:'Проба годного разреза', obj:'obj-credit', src:'поле',
     key:'k', perObject:'одно'});
   ok(158, badOrd.length === 0 && noObj.length === 0 && refBare.length === 0 && lvlBare.length === 0 &&
         !noWhose.ok && has(noWhose.why, 'объект определения') &&
@@ -2227,14 +2227,14 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const F_IND = vm.runInContext('F_IND', sandbox), F_DIM = vm.runInContext('F_DIM', sandbox);
   const R5 = ST.registry();
   const alienIn = R5.filter(r => (r.kind === 'показатель' ? F_DIM : F_IND).some(k => k in r));
-  const unitOnDim = ST.addDim({id:'d-a1', name:'Проба с единицей', obj:'obj-credit', src:'поле',
+  const unitOnDim = ST.addDim({dates:1, id:'d-a1', name:'Проба с единицей', obj:'obj-credit', src:'поле',
     key:'k', perObject:'одно', unit:'дн.'});
-  const lvlOnInd  = ST.addIndicator({id:'m-a2', name:'Проба с иерархией', obj:'obj-credit',
+  const lvlOnInd  = ST.addIndicator({dates:1, id:'m-a2', name:'Проба с иерархией', obj:'obj-credit',
     src:'поле', key:'k', type:'сумма', unit:'сом',
     levels:[{name:'область', src:'поле', key:'region'}]});
-  const perOnInd  = ST.addIndicator({id:'m-a3', name:'Проба с кратностью', obj:'obj-credit',
+  const perOnInd  = ST.addIndicator({dates:1, id:'m-a3', name:'Проба с кратностью', obj:'obj-credit',
     src:'поле', key:'k', type:'сумма', unit:'сом', perObject:'одно'});
-  const dedOnDim  = ST.addDim({id:'d-a4', name:'Проба с дедупом', obj:'obj-credit', src:'поле',
+  const dedOnDim  = ST.addDim({dates:1, id:'d-a4', name:'Проба с дедупом', obj:'obj-credit', src:'поле',
     key:'k', perObject:'одно', dedupBy:'d-branch'});
   const named = [unitOnDim, lvlOnInd, perOnInd, dedOnDim];
   ok(159, alienIn.length === 0 &&
@@ -2250,14 +2250,14 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const FF = vm.runInContext('FORMULA_FIELDS', sandbox);
   const R6 = ST.registry();
   const withF = R6.filter(r => FF.some(k => k in r));
-  const fInd  = ST.addIndicator({id:'m-f1', name:'Доля просрочки в портфеле', obj:'obj-credit',
+  const fInd  = ST.addIndicator({dates:1, id:'m-f1', name:'Доля просрочки в портфеле', obj:'obj-credit',
     src:'поле', key:'k', type:'сумма', unit:'сом', formula:'m-over / m-debt'});
-  const fDim  = ST.addDim({id:'d-f2', name:'Проба с выражением', obj:'obj-credit', src:'поле',
+  const fDim  = ST.addDim({dates:1, id:'d-f2', name:'Проба с выражением', obj:'obj-credit', src:'поле',
     key:'k', perObject:'одно', 'формула':'region == "Чуйская"'});
-  const fBkt  = ST.addDim({id:'d-f3', name:'Корзина по выражению', obj:'obj-credit', src:'шов',
+  const fBkt  = ST.addDim({dates:1, id:'d-f3', name:'Корзина по выражению', obj:'obj-credit', src:'шов',
     seam:'calcDebt', field:'daysOverdue', perObject:'одно', buckets:['ступени'], edges:[1,31],
     basis:'m-odays', expr:'days > 30'});
-  const okBkt = ST.addDim({id:'d-f4', name:'Корзина по границам', obj:'obj-credit', src:'шов',
+  const okBkt = ST.addDim({dates:1, id:'d-f4', name:'Корзина по границам', obj:'obj-credit', src:'шов',
     seam:'calcDebt', field:'daysOverdue', perObject:'одно', buckets:['ступени'],
     edges:[1,31,91], basis:'m-odays'});
   ok(160, withF.length === 0 && FF.length >= 4 &&
@@ -2305,9 +2305,9 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const gName = G ? G.name : '(запись стёрта)', gUntil = G ? G.until : '(даты нет)';
   const cells1 = ST.statRows({obj:'obj-borrower', date: ASK}).rows.filter(r => r.inds['m-bworst']).length;
   const twice = ST.retire('m-bworst', true);
-  ST.addIndicator({id:'m-nb', name:'Проба основания корзин', obj:'obj-credit', src:'поле',
+  ST.addIndicator({dates:1, id:'m-nb', name:'Проба основания корзин', obj:'obj-credit', src:'поле',
     key:'k', type:'число', unit:'дн.'});
-  ST.addDim({id:'d-nb', name:'Проба корзины над ним', obj:'obj-credit', src:'поле', key:'k',
+  ST.addDim({dates:1, id:'d-nb', name:'Проба корзины над ним', obj:'obj-credit', src:'поле', key:'k',
     perObject:'одно', buckets:['ступени'], edges:[1,31,91], basis:'m-nb'});
   const basis = ST.retire('m-nb', true);
   const keyed = ST.retire('d-clcred', true);
@@ -2333,9 +2333,9 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const dupOf = arr => arr.filter((x, i) => arr.indexOf(x) !== i);
   const dupCol  = dupOf(mart0.map(c => c.col));
   const unlogged = mart0.filter(c => !log0.some(x => x.op === 'ADD COLUMN' && x.col === c.col));
-  const addI = ST.addIndicator({id:'m-m1', name:'Проба колонки числа', obj:'obj-credit',
+  const addI = ST.addIndicator({dates:1, id:'m-m1', name:'Проба колонки числа', obj:'obj-credit',
     src:'поле', key:'k', type:'сумма', unit:'сом'});
-  const addD = ST.addDim({id:'d-m2', name:'Проба колонки признака', obj:'obj-credit',
+  const addD = ST.addDim({dates:1, id:'d-m2', name:'Проба колонки признака', obj:'obj-credit',
     src:'поле', key:'k', perObject:'одно'});
   const tail = ST.martLog().slice(-2);
   const grew = ST.mart().length === mart0.length + 2 && ST.martLog().length === log0.length + 2;
@@ -2361,13 +2361,13 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
     d.edges.every((e, i) => !i || e > d.edges[i - 1]));
   const label45  = ST.bucketOf(45, 'ступени', D);
   const label200 = ST.bucketOf(200, 'ступени', D);
-  const noEdges = ST.addDim({id:'d-b1', name:'Проба основания без границ', obj:'obj-credit',
+  const noEdges = ST.addDim({dates:1, id:'d-b1', name:'Проба основания без границ', obj:'obj-credit',
     src:'поле', key:'k', perObject:'одно', basis:'m-odays'});
-  const noBasis = ST.addDim({id:'d-b2', name:'Проба границ без основания', obj:'obj-credit',
+  const noBasis = ST.addDim({dates:1, id:'d-b2', name:'Проба границ без основания', obj:'obj-credit',
     src:'поле', key:'k', perObject:'одно', edges:[1, 31, 91]});
-  const wrongB  = ST.addDim({id:'d-b3', name:'Проба основания не той породы', obj:'obj-credit',
+  const wrongB  = ST.addDim({dates:1, id:'d-b3', name:'Проба основания не той породы', obj:'obj-credit',
     src:'поле', key:'k', perObject:'одно', basis:'d-branch', edges:[1, 31]});
-  const backB   = ST.addDim({id:'d-b4', name:'Проба границ задом наперёд', obj:'obj-credit',
+  const backB   = ST.addDim({dates:1, id:'d-b4', name:'Проба границ задом наперёд', obj:'obj-credit',
     src:'поле', key:'k', perObject:'одно', buckets:['ступени'], edges:[91, 31, 1], basis:'m-odays'});
   ST.state.registry.find(r => r.id === 'd-odays').edges = [1, 61];
   const after = ST.bucketOf(45, 'ступени', ST.DIM('d-odays'));
@@ -2380,6 +2380,131 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
         !wrongB.ok && has(wrongB.why, 'показателем реестра не объявлено') &&
         !backB.ok && has(backB.why, 'по возрастанию'),
     `одна величина в двух ролях — ДВЕ записи, связанные явно, а не одна с оговоркой: «${I.name}» (${I.id}, порода «${I.kind}», источник шва) и «${D.name}» (${D.id}, порода «${D.kind}»), и вторая НАЗЫВАЕТ первую своим основанием. Пар таких ${pairs.length}, и у каждой основание — существующий показатель, а границы возрастают. Границы живут В РЕЕСТРЕ, а не в настройке отчёта: правка записи меняет разметку («${label45}» → «${after}»), тогда как настройка отчёта называет лишь КОРЗИНУ. Иначе «просрочка 31–90» означала бы разное от отчёта к отчёту, и спорить было бы не с чем. Единицы корзина не носит своей — берёт у основания (${ST.unitOf('d-odays')}, собственного реквизита нет), потому что второй записи не за чем спорить, в чём измеряется чужая величина: ${label200} — это дни, названные один раз. Половина связи — отказ: основание без границ, границы без основания, основание чужой породы, границы задом наперёд (ИС-23, ИС-43, ADR-0209 §5)`);
+})();
+
+/* ---------- АГ. Одна дата — колонка, много дат — работа анализа (ИС-47, ADR-0220) ------ *
+   Что кладётся в строку среза колонкой, решалось до сих пор по частным случаям: сомовый
+   эквивалент разбирался отдельно, доли отдельно, курсовая разница отдельно, а «показатель
+   изменения остатка» ловился списком подстрок в имени. Список — не критерий: «темп роста
+   портфеля» и «миграция из категории в категорию» не содержат ни одного его слова, а
+   «Прирост стоимости залога» содержит и при этом законен. ADR-0220 делает критерий
+   механическим: запись ОБЪЯВЛЯЕТ, сколько дат среза нужно, чтобы величину вычислить, и
+   проверяется это ДО заведения. Одна дата — колонка; две и больше — не колонка никогда,
+   потому что строка принадлежит одной дате (ADR-0147), двухдатное число не принадлежит ни
+   одной из них, а колонка вышла бы производной от СОСЕДНЕЙ строки, которой при разрежённом
+   хранении может не быть (ADR-0215). Проверяется здесь не наличие поля, а то, что число
+   что-то РЕШАЕТ: имя не решает ничего, отказ называет адрес, однодатные величины остаются
+   в прежних рамках, и породой правило не обходится. */
+(() => {
+  ST.seed();
+
+  /* #165 — реквизит объявлен у КАЖДОЙ записи, а вопрос задаётся ДО заведения. */
+  const RAW = vm.runInContext('REGISTRY', sandbox);
+  const F_COMMON = vm.runInContext('F_COMMON', sandbox);
+  const reg165 = ST.registry();
+  const notOne = reg165.filter(r => r.dates !== 1);
+  const rawMany = RAW.filter(r => r.dates !== undefined && r.dates !== 1);
+  const n165 = ST.state.registry.length;
+  const mute = ST.addIndicator({id:'m-q1', name:'Проба немого вопроса', obj:'obj-credit',
+    src:'поле', key:'k', type:'сумма', unit:'сом'});
+  const zero = ST.addIndicator({id:'m-q2', name:'Проба нуля дат', obj:'obj-credit',
+    src:'поле', key:'k', type:'сумма', unit:'сом', dates:0});
+  const half = ST.addIndicator({id:'m-q3', name:'Проба полутора дат', obj:'obj-credit',
+    src:'поле', key:'k', type:'сумма', unit:'сом', dates:1.5});
+  const one  = ST.addIndicator({id:'m-q4', name:'Проба одной даты', obj:'obj-credit',
+    src:'поле', key:'k', type:'сумма', unit:'сом', dates:1});
+  ok(165, notOne.length === 0 && rawMany.length === 0 && F_COMMON.indexOf('dates') >= 0 &&
+        !mute.ok && has(mute.why, 'не спрошено') && has(mute.why, 'ИС-47') &&
+        !zero.ok && has(zero.why, 'целым и не меньше одного') &&
+        !half.ok && has(half.why, 'целым и не меньше одного') &&
+        one.ok && ST.REC('m-q4').dates === 1 &&
+        ST.state.registry.length === n165 + 1 && !ST.REC('m-q1') && !ST.REC('m-q2'),
+    `«сколько дат среза нужно, чтобы величину вычислить» — реквизит ОБЩИЙ обеим породам (он в списке общих: ${F_COMMON.join(', ')}), и объявлен он у каждой из ${reg165.length} записей реестра: требующих больше одной даты — ${notOne.length}, и в исходном литерале реестра таких же ${rawMany.length}. Правило проверяемо не только на новых записях: не объявляй его старые, оно держалось бы на слове, и первая же ревизия реестра не смогла бы ответить, законна ли колонка. Умолчания у вопроса нет: молчание — отказ («${String(mute.why).slice(0, 74)}…»), потому что подставленная дверью «одна» превратила бы заявку на изменение остатка в колонку остатка под именем изменения, и имя бы врало (ИС-40). Ответ обязан быть целым и не меньше одного — 0 и 1,5 отбиты. Проверка идёт ДО кладовой: три отказа реестра не тронули, вырос он ровно на одну законную запись (${n165} → ${ST.state.registry.length}), и записей «m-q1»/«m-q2» в нём нет — иначе отказ был бы уборкой уже написанного (ИС-47, ADR-0220 §1)`);
+
+  /* #166 — критерий МЕХАНИЧЕСКИЙ: решает объявленное число, а не слово в имени. */
+  ST.seed();
+  const SHOWN = vm.runInContext('SHOWN', sandbox);
+  /* Список, которым многодатность угадывалась до ADR-0220. Заявки нарочно переименованы
+     так, что ни одно его слово в них не встречается: угадывай сторож по имени — он бы их
+     пропустил, и все четыре стали бы колонками. */
+  const OLD = ['доля','дельта','сомовый эквивалент','процент от','прирост'];
+  const noWord = s => OLD.every(w => s.toLowerCase().indexOf(w) < 0) &&
+                      SHOWN.every(w => s.toLowerCase().indexOf(w) < 0);
+  const n166 = ST.state.registry.length;
+  const asked = [
+    {id:'m-w1', name:'Сдвиг остатка от точки к точке', dates:2, was:'изменение остатка за месяц'},
+    {id:'m-w2', name:'Скорость набора портфеля', dates:2, was:'темп роста портфеля'},
+    {id:'m-w3', name:'Переход кредита между категориями риска', dates:2, was:'миграция из категории в категорию'},
+    {id:'m-w4', name:'Просрочка, сглаженная за 90 дней', dates:90, was:'скользящее среднее за 90 дней'}
+  ].map(x => Object.assign({}, x, {r: ST.addIndicator({id:x.id, name:x.name, obj:'obj-credit',
+    src:'поле', key:'k', type:'сумма', unit:'сом', dates:x.dates})}));
+  /* Та же заявка с тем же именем, но объявленной одной датой, — законная запись. Это не
+     дыра, а то же, чем стоит `perObject`: реестр СПРАШИВАЕТ там, где по данным проверить
+     нельзя, и солгавший в ответе заводит запись, имя которой врёт (ИС-40). Зато видно, что
+     решает ЧИСЛО: имя у обеих проб одно и то же. */
+  const sameName = ST.addIndicator({id:'m-w5', name:'Скорость набора портфеля', obj:'obj-credit',
+    src:'поле', key:'k', type:'сумма', unit:'сом', dates:1});
+  ok(166, asked.every(x => !x.r.ok && has(x.r.why, 'ИС-47') && has(x.r.why, 'ADR-0220') &&
+        !has(x.r.why, 'ИС-15') && noWord(x.name)) &&
+        ST.state.registry.length === n166 + 1 && asked.every(x => !ST.REC(x.id)) &&
+        sameName.ok && ST.REC('m-w5').dates === 1,
+    `четыре заявки, названные ADR-0220 поимённо, отвергнуты ПО ЧИСЛУ ДАТ: ${asked.map(x => `«${x.name}» (${x.was}) — ${x.dates}`).join(' · ')}. Каждая переименована так, что ни одного слова из прежнего списка подстрок (${OLD.join(', ')}) в ней нет: угадывай дверь по имени — все четыре прошли бы и стали колонками, а «темп» и «миграция» не попали бы в список и при самом длинном перечислении, потому что заявку пишет человек и словами своими. Отказ у всех четырёх один и тот же и на ИС-15 не ссылается ни разу — представление тут ни при чём. Обратное тоже верно: ТА ЖЕ заявка «Скорость набора портфеля» с объявленной ОДНОЙ датой заведена свободно (дат среза ${sameName.ok ? ST.REC('m-w5').dates : '—'}), то есть решает не имя, а объявленное число — ровно как у `+"`perObject`"+`: реестр спрашивает там, где по данным проверить нечем (ИС-47, ADR-0220 §1)`);
+
+  /* #167 — отказ называет АДРЕС, а не «нельзя»; курсовая разница — тот же случай (§5). */
+  ST.seed();
+  const delta = ST.addIndicator({id:'m-a1', name:'Сдвиг остатка от точки к точке', obj:'obj-credit',
+    src:'поле', key:'k', type:'сумма', unit:'сом', dates:2});
+  const fx    = ST.addIndicator({id:'m-a2', name:'Курсовая разница между срезами', obj:'obj-credit',
+    src:'поле', key:'k', type:'сумма', unit:'сом', dates:2});
+  const shown = ST.addIndicator({id:'m-a3', name:'Доля просрочки в портфеле', obj:'obj-credit',
+    src:'поле', key:'k', type:'сумма', unit:'сом', dates:1});
+  const addr = w => has(w, 'ГРАФА ИЗМЕНЕНИЯ') && has(w, 'ADR-0218') &&
+                    has(w, 'ОБЗОР АНАЛИЗА') && has(w, 'ADR-0155');
+  ok(167, !delta.ok && addr(delta.why) && has(delta.why, 'ADR-0147') && has(delta.why, 'ADR-0215') &&
+        !fx.ok && addr(fx.why) && has(fx.why, 'ADR-0151 §3') &&
+        !shown.ok && has(shown.why, 'ИС-15') && !has(shown.why, 'ИС-47') && !addr(shown.why),
+    `отказ не молчит и не говорит «нельзя» — он называет АДРЕС, потому что заявитель спрашивает про нужную ему величину, а не про устройство хранилища: одна пара дат внутри выпуска — графа изменения отчёта, она считается один раз и мёрзнет вместе с документом (ADR-0218); ряд по многим датам — обзор анализа, который читает готовые срезы и хранит снимок основания, а не колонку (ADR-0155). Тем же ответом отвечено курсовой разнице: она РАЗНОСТЬ ДВУХ СРЕЗОВ (ADR-0151 §3), а не отдельный расчёт, и разбирать её особым случаем больше не надо — «${String(fx.why).slice(0, 88)}…». Довод назван в самом отказе, и он двойной: строка принадлежит одной дате (ADR-0147), а колонка вышла бы производной от соседней строки, которой при разрежённом хранении может не быть (ADR-0215). Адрес у разных отказов РАЗНЫЙ: доле отвечено про показ, а не про даты («${String(shown.why).slice(0, 70)}…»), и ИС-47 в её отказе нет — иначе однодатную величину отправили бы в анализ ни за что (ИС-47, ADR-0220 §5, §6)`);
+
+  /* #168 — две величины на одной дате — по-прежнему ОДНА дата (§2), и слово в имени
+     больше не основание ни для отказа, ни для допуска. */
+  ST.seed();
+  const perUnit = ST.addIndicator({id:'m-p1', name:'Требований на куратора', obj:'obj-claim',
+    src:'поле', key:'k', type:'число', unit:'шт.', dates:1});
+  const share   = ST.addIndicator({id:'m-p2', name:'Доля просрочки в портфеле', obj:'obj-credit',
+    src:'поле', key:'k', type:'сумма', unit:'сом', dates:1});
+  const shareTwo= ST.addIndicator({id:'m-p3', name:'Доля просрочки в портфеле', obj:'obj-credit',
+    src:'поле', key:'k', type:'сумма', unit:'сом', dates:2});
+  const growth  = ST.addIndicator({id:'m-p4', name:'Прирост стоимости залога по оценке',
+    obj:'obj-collateral', src:'поле', key:'k', type:'сумма', unit:'сом', dates:1});
+  const OLD168 = ['доля','дельта','сомовый эквивалент','процент от','прирост'];
+  ok(168, !perUnit.ok && has(perUnit.why, 'ИС-35') && has(perUnit.why, 'ADR-0200') &&
+        !has(perUnit.why, 'ИС-47') &&
+        !share.ok && has(share.why, 'ИС-15') && !has(share.why, 'ИС-47') &&
+        !shareTwo.ok && has(shareTwo.why, 'ИС-47') && !has(shareTwo.why, 'ИС-15') &&
+        growth.ok && ST.REC('m-p4').dates === 1 &&
+        OLD168.some(w => 'Прирост стоимости залога по оценке'.toLowerCase().indexOf(w) >= 0),
+    `две величины на одной дате — это по-прежнему ОДНА дата, и новое правило их рамок не трогает: удельная величина отбита как пара «срез + счёт» («${String(perUnit.why).slice(0, 62)}…», ИС-35, ADR-0200), доля — как представление (ИС-15), и ИС-47 не назван ни в одном из двух отказов. Ужесточи правило на них — и спор о хранении доли решался бы дважды и по-разному: ADR-0150 §4 говорит одно, число дат другое. Зато ТА ЖЕ доля, объявленная о ДВУХ датах, отбита уже по числу дат, а не по имени, и это не придирка: доля мая к апрелю не принадлежит ни маю, ни апрелю. Обратный случай — «Прирост стоимости залога по оценке»: слово «прирост» в имени есть, оно стояло в прежнем списке подстрок, а величина законна — поле объекта, читаемое НА ДАТУ, и запись заведена (дат среза ${ST.REC('m-p4').dates}). Под старой эвристикой её отвергли бы, и объяснить отказ было бы нечем (ИС-47, ADR-0220 §2)`);
+
+  /* #169 — породой правило не обходится: третьей породы нет, а переезд проверяется тем же
+     валидатором (ADR-0209 §5, ADR-0220, «Границы»). */
+  ST.seed();
+  const n169 = ST.state.registry.length;
+  const third = ST.addRecord({kind:'свод', id:'x-t1', name:'Темп роста портфеля', obj:'obj-credit',
+    src:'поле', key:'k', dates:2});
+  const born = ST.addIndicator({id:'m-k1', name:'Стоимость залога по оценке', obj:'obj-collateral',
+    src:'поле', key:'k', type:'сумма', unit:'сом', dates:1});
+  const move2 = ST.changeKind('m-k1', 'разрез', 'Э.', {perObject:'одно', dates:2});
+  /* Порода снимается СЛЕПКОМ: `REC` отдаёт живую запись, и прочитанная после переезда
+     она рассказала бы про его исход, а не про отбитую попытку. */
+  const stillKind = ST.REC('m-k1').kind;
+  const move1 = ST.changeKind('m-k1', 'разрез', 'Э.', {perObject:'одно'});
+  const after = ST.REC('m-k1');
+  ok(169, !third.ok && has(third.why, 'третьей породы') && !ST.REC('x-t1') &&
+        born.ok && stillKind === 'показатель' &&
+        !move2.ok && has(move2.why, 'порода не сменена') && has(move2.why, 'ИС-47') &&
+        move1.ok && after.kind === 'разрез' && after.dates === 1 &&
+        ST.state.registry.length === n169 + 1,
+    `правило не обходится ни породой, ни переездом. Свод и темп записями реестра не становятся НИ В КАКОЙ породе: третьей породы нет вовсе («${String(third.why).slice(0, 70)}…»), и завести многодатную величину «сбоку», объявив её чем-то третьим, физически нечем. Переезд породы — рядовая правка настройки, и потому он идёт через ТОТ ЖЕ валидатор: попытка сменить породу и заодно объявить две даты отбита («${String(move2.why).slice(0, 78)}…»), запись осталась породы «${stillKind}». Стой проверка только в двери заведения, обход стоил бы двух шагов: завести законную однодатную запись, а следом «уточнить» её при переезде — и колонка-дельта появилась бы в реестре с целой историей. Реквизит при законном переезде ПЕРЕЕЗЖАЕТ вместе с записью (порода «${after.kind}», дат среза ${after.dates}), а не спрашивается заново: потеряй он ответ — и запись осталась бы в реестре без ответа на вопрос, отказом на который она вообще заводилась (ИС-47, ИС-43, ADR-0220, ADR-0209 §5)`);
 })();
 
 /* ---- отчёт ---- */
