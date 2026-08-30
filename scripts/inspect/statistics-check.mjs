@@ -22,6 +22,13 @@
 // имя уточняется объектом, справочник значений один, сложение законно только внутри
 // объекта, а сверка разнообъектных срезов запрещена, а не подозрительна (закрыт хвост
 // §15 п. 4 канона — тот, из-за которого срез кредитов фильтровался, а срез заёмщиков нет).
+// блок АВ — волна 17 ч.4: реестр ОДИН, а запись ОБЪЯВЛЯЕТ породу — показатель или разрез
+// (ИС-43, ADR-0209): кладовая одна и виды на неё ничего не хранят · обязательные реквизиты
+// расписаны по породам и проверяются одной проверкой · чужой реквизит отбит по имени ·
+// формулы нет ни у одной породы, и корзина не исключение · переезд породы сохраняет запись,
+// идентификатор и историю · запись не удаляется, а прекращает действие с даты · схема
+// витрины порождена реестром и растёт только ADD COLUMN · одна величина в двух ролях —
+// две записи, связанные явно, с границами корзин в реестре, а не в настройке отчёта.
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -553,9 +560,18 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const stop = ST.retireIndicator('a-sumdebt');
   const names = stop.breaks ? stop.breaks.map(x => x.consumer).join(' · ') : '';
   const go = ST.retireIndicator('a-sumdebt', true);
+  /* Волна 17: вывод есть ДАТА ПРЕКРАЩЕНИЯ, а не вырезание записи из реестра (ИС-43,
+     ADR-0209 §6). В строках, написанных до сегодня, колонка «a-sumdebt» ЗАПОЛНЕНА, и
+     стёртая запись оставила бы в клетке число без имени — прочитать его было бы нечем.
+     Обстановка переписана, утверждение прежнее и проверяется строже: спросить показатель
+     начиная с сегодня больше нечем, потому что из состава объекта он ушёл. */
+  const left = ST.IND('a-sumdebt');
+  const asked = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-sumdebt'], date: TODAY});
   ok(58, !stop.ok && stop.needsConfirm && stop.breaks.length >= 2 && has(stop.why, 'ИС-25') &&
-        names.length > 0 && go.ok && go.broke.length >= 2 && !ST.IND('a-sumdebt'),
-    `вывод не запрещён чужой публикацией, но назван поимённо: сломается у ${names} (ИС-25, ADR-0177 §4)`);
+        names.length > 0 && go.ok && go.broke.length >= 2 &&
+        left && left.until === ST.state.today && ST.actsOn('a-sumdebt', ST.state.today) === false &&
+        ST.OBJ('obj-credit').inds.indexOf('a-sumdebt') < 0 && !asked.ok && ST.martCol('a-sumdebt'),
+    `вывод не запрещён чужой публикацией, но назван поимённо: сломается у ${names} (ИС-25, ADR-0177 §4). Вывод — дата прекращения (${left && left.until}), а не вырезание: запись в реестре осталась, из состава объекта ушла, спросить её нечем («${String(asked.why).slice(0, 48)}…»), а колонка витрины НЕ убрана — в ней числа прошлых строк (ADR-0209 §6)`);
 
   const live = ST.setLive('m-debt', false);
   const agg = ST.setLive('a-sumbcnt', false);
@@ -1509,7 +1525,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
      становилась недостижимой, а срез платежей по дате молча спрашивал корзину чужого
      разреза. Это СС-Д14: реестр обязан быть непротиворечив на входе, иначе всякий ответ
      под вопросом (ИС-18, ИС-24, ADR-0176 §7). */
-  const dimsAll = vm.runInContext('DIMS', sandbox);
+  const dimsAll = vm.runInContext('REGISTRY.filter(r => r.kind === "разрез")', sandbox);
   const dup = arr => {
     const seen = {}, out = [];
     arr.forEach(id => { seen[id] = (seen[id] || 0) + 1; if (seen[id] === 2) out.push(id); });
@@ -1518,9 +1534,13 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const dD = dup(dimsAll.map(d => d.id));
   const dI = dup(st.indicators.map(i => i.id));
   const dO = dup(st.objects.map(o => o.id));
+  /* Волна 17: кладовая ОДНА (ИС-43, ADR-0209), и уникальность идентификатора спрашивается
+     по ней целиком, а не по породам врозь: одинаковый id у показателя и разреза был бы тем
+     же СС-Д14, только между породами. Обстановка переписана, утверждение прежнее. */
+  const dR = dup(vm.runInContext('REGISTRY', sandbox).map(r => r.id));
   const pay = ST.DIM('d-pdate'), start = ST.DIM('d-pstart');
   const askPay = ST.statSlice({obj:'obj-repay', dims:['d-pdate'], inds:['a-count'], date: D});
-  ok(127, dD.length === 0 && dI.length === 0 && dO.length === 0 &&
+  ok(127, dD.length === 0 && dI.length === 0 && dO.length === 0 && dR.length === 0 &&
         pay && pay.name === 'Дата платежа' && pay.key === 'rdate' &&
         start && start.name === 'Дата начала действия программы' && start.key === 'pdate' &&
         !askPay.ok && has(askPay.why, 'Дата платежа') && has(askPay.why, 'месяц'),
@@ -1531,7 +1551,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
 (() => {
   ST.seed();
   const st = ST.state;
-  const dimsAll = vm.runInContext('DIMS', sandbox);
+  const dimsAll = vm.runInContext('REGISTRY.filter(r => r.kind === "разрез")', sandbox);
   const usedD = new Set(), usedI = new Set();
   st.objects.forEach(o => { (o.dims || []).forEach(d => usedD.add(d)); (o.inds || []).forEach(i => usedI.add(i)); });
   const orphanD = dimsAll.filter(d => !usedD.has(d.id));
@@ -2069,6 +2089,297 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   });
   ok(154, sums.length >= 20 && brokenSum.length === 0 && foreign.length === 0,
     `требование ADR-0174 «свод равен сумме одиночных» проверяется теперь МЕХАНИЧЕСКИ, потому что есть по чему: сумма берётся по тому объекту, который назвал разрез. Проверено ${sums.length} пар «разрез + его объект» — расхождений ${brokenSum.length}${brokenSum.length ? ' (' + brokenSum.map(x => x.dim).join(', ') + ')' : ''}. Ни одного разреза, объявленного на объекте и в состав этого объекта не вошедшего, нет (${foreign.length}): объект определения и состав — одна и та же связь, прочитанная с двух сторон, и разъехаться им нечем. Сложение по разрезу законно только внутри его объекта — за границей объекта складывать было бы можно лишь потому, что имена совпали (ИС-40, ADR-0206 §3)`);
+})();
+
+/* ---------- АВ. Волна 17 ч.4: реестр ОДИН, запись объявляет ПОРОДУ (ИС-43, ADR-0209) -------
+   Реквизиты записи прирастали по одному и в разных решениях: источник объявил ADR-0150,
+   правило свода — ADR-0174, уровни и корзины — ADR-0176, дедуп-ключ — ADR-0199,
+   исчислимость — ADR-0159, объект определения — ADR-0206. Ни одно из них не сказало, ЧЕМ
+   запись является целиком, и обязательность реквизита оказалась свойством ДВЕРИ: что
+   спрашивал `addDim`, то у разреза и было обязательным. Двери писались в разные волны, и
+   одна успела спросить объект определения, а другая — нет; разница жила до дня, когда её
+   заметили. ADR-0209 объявляет породу ОБЪЯВЛЕННЫМ реквизитом: пород ровно две, кладовая
+   одна, список реквизитов закрыт с обеих сторон, проверка одна.
+   Проверяется здесь не наличие полей, а то, что порода что-то РЕШАЕТ: чужой реквизит
+   отбит по имени, формулы нет ни у одной породы, переезд сохраняет запись и историю,
+   прекращение — дата, а не стирание, и схема витрины растёт только вперёд. */
+(() => {
+  ST.seed();
+  const st = ST.state;
+  const KINDS = vm.runInContext('KINDS', sandbox);
+  const reg = ST.registry();
+
+  /* #155 — кладовая ОДНА, а `st.dims`/`st.indicators` — виды, которые ничего не хранят. */
+  const noKind = reg.filter(r => KINDS.indexOf(r.kind) < 0);
+  const nInd = reg.filter(r => r.kind === 'показатель').length;
+  const nDim = reg.filter(r => r.kind === 'разрез').length;
+  const own  = Object.keys(st).filter(k => k === 'dims' || k === 'indicators');
+  const dDesc = Object.getOwnPropertyDescriptor(st, 'dims');
+  const iDesc = Object.getOwnPropertyDescriptor(st, 'indicators');
+  const n0 = st.registry.length;
+  st.dims.push({kind:'разрез', id:'d-ghost', name:'Призрак признака', obj:'obj-credit', src:'поле', key:'k'});
+  st.indicators.push({kind:'показатель', id:'m-ghost', name:'Призрак числа', obj:'obj-credit'});
+  const ghost = st.registry.length === n0 && !ST.REC('d-ghost') && !ST.REC('m-ghost');
+  const third = ST.addRecord({kind:'свод', id:'x-roll', name:'Свод портфеля', obj:'obj-credit',
+    src:'поле', key:'k'});
+  const bare  = ST.addRecord({id:'x-none', name:'Запись без породы', obj:'obj-credit',
+    src:'поле', key:'k'});
+  ok(155, noKind.length === 0 && nInd + nDim === reg.length && own.length === 0 &&
+        typeof dDesc.get === 'function' && dDesc.value === undefined &&
+        typeof iDesc.get === 'function' && iDesc.value === undefined && ghost &&
+        ST.IND('d-branch') === undefined && ST.DIM('m-odays') === undefined &&
+        !third.ok && has(third.why, 'ИС-43') && has(third.why, 'третьей породы') &&
+        !bare.ok && has(bare.why, 'ADR-0209'),
+    `кладовая ОДНА: ${reg.length} записей, из них ${nInd} породы «показатель» и ${nDim} породы «разрез», без породы — ${noKind.length}. Складов больше нет: `+"`st.dims`"+` и `+"`st.indicators`"+` не поля состояния, а ВИДЫ (собственных полей с такими именами ${own.length}, у обоих есть геттер и нет значения) — положить запись «в разрезы» физически некуда, и брошенная в вид запись исчезает (реестр остался ${n0}, `+"`REC('d-ghost')`"+` пуст). До ADR-0209 порода была СЛЕДСТВИЕМ места хранения, и запись, попавшая не в тот массив, меняла породу молча. Теперь `+"`IND`"+` и `+"`DIM`"+` — чтение одного хранилища с проверкой ОБЪЯВЛЕННОЙ породы: разрез через дверь показателя не читается и наоборот. Третьей породы нет: «${String(third.why).slice(0, 84)}…» (ИС-43, ADR-0209, «Границы»)`);
+
+  /* #156 — общие реквизиты (§1) есть у КАЖДОЙ записи обеих пород, а не у той, чья дверь их спросила. */
+  ST.seed();
+  const R2 = ST.registry();
+  const need = ['id','kind','name','obj','since','access'];
+  const gaps = need.map(k => ({k, n: R2.filter(r => !r[k]).length})).filter(x => x.n);
+  const declared = ['until','note'].map(k => ({k, n: R2.filter(r => !(k in r)).length})).filter(x => x.n);
+  const noHist = R2.filter(r => !Array.isArray(r.history) || !r.history.length ||
+    r.history[0].what !== 'заведена');
+  const bothOK = KINDS.every(k => R2.filter(r => r.kind === k)
+    .every(r => r.since && r.access && ('until' in r) && ('note' in r)));
+  const noName = ST.addIndicator({id:'m-n1', obj:'obj-credit', src:'поле', key:'k',
+    type:'сумма', unit:'сом'});
+  const noObjI = ST.addIndicator({id:'m-n2', name:'Проба без объекта', src:'поле', key:'k',
+    type:'сумма', unit:'сом'});
+  const noObjD = ST.addDim({id:'d-n3', name:'Проба без объекта два', src:'поле', key:'k',
+    perObject:'одно'});
+  const born = ST.addIndicator({id:'m-n4', name:'Проба даты заведения', obj:'obj-credit',
+    src:'поле', key:'k', type:'сумма', unit:'сом'});
+  const N4 = ST.IND('m-n4');
+  ok(156, gaps.length === 0 && declared.length === 0 && noHist.length === 0 && bothOK &&
+        !noName.ok && has(noName.why, 'наименование') &&
+        !noObjI.ok && has(noObjI.why, 'ИС-18') && !noObjD.ok && has(noObjD.why, 'ИС-40') &&
+        born.ok && N4.since === ST.state.today && N4.until === null &&
+        ST.actsOn('m-n4', ST.state.today) === true && ST.actsOn('m-n4', '2026-07-01') === false,
+    `семь общих реквизитов (§1) стоят у КАЖДОЙ из ${R2.length} записей обеих пород: пустых среди обязательных ${gaps.length}, необъявленных среди «может быть пусто» ${declared.length}, без истории ${noHist.length}. Пустой реквизит и отсутствующий — разные вещи: `+"`until: null`"+` значит «не прекращена», а отсутствие ключа значило бы, что вопроса не задавали. Именно этого у показателей до ADR-0209 не спрашивали вовсе — даты заведения; новая запись действует ВПЕРЁД (заведена ${N4.since}, на 01.07 не действует), и прошлое ею не размечается. Отказ общий, а довод у пород разный: показателю — «${String(noObjI.why).slice(0, 52)}…» (ИС-18), разрезу — «${String(noObjD.why).slice(0, 52)}…» (ИС-40). Обязательность стала свойством ПОРОДЫ, а не двери: раньше объект определения спрашивал `+"`addDim`"+`, а `+"`addIndicator`"+` — нет, и разница жила ровно потому, что двери писали в разные волны`);
+
+  /* #157 — реквизиты породы «показатель» (§2): источник · свод · тип и единица · налету · дедуп. */
+  ST.seed();
+  const IND3 = ST.registry().filter(r => r.kind === 'показатель');
+  const ROLLS = vm.runInContext('ROLLS', sandbox);
+  const FLAT  = vm.runInContext('FLAT_TYPES', sandbox);
+  const badSrc  = IND3.filter(r => ['шов','поле','агрегат'].indexOf(r.src) < 0);
+  const badRoll = IND3.filter(r => ROLLS.indexOf(r.roll) < 0);
+  const noType  = IND3.filter(r => !ST.typeOf(r.id));
+  const noUnit  = IND3.filter(r => FLAT.indexOf(ST.typeOf(r.id)) < 0 && !ST.unitOf(r.id));
+  const noSrc   = ST.addIndicator({id:'m-i1', name:'Проба без источника', obj:'obj-credit',
+    type:'сумма', unit:'сом'});
+  const myRoll  = ST.addIndicator({id:'m-i2', name:'Проба со своим сводом', obj:'obj-credit',
+    src:'поле', key:'k', type:'сумма', unit:'сом', roll:'по-своему'});
+  const mute    = ST.addIndicator({id:'m-i3', name:'Проба без типа', obj:'obj-credit',
+    src:'поле', key:'industry'});
+  const noU     = ST.addIndicator({id:'m-i4', name:'Проба без единицы', obj:'obj-credit',
+    src:'поле', key:'k', type:'сумма'});
+  const live    = ST.addIndicator({id:'m-i5', name:'Проба исчислимости', obj:'obj-credit',
+    src:'поле', key:'k', type:'сумма', unit:'сом', live:false});
+  const dedup   = ST.addIndicator({id:'a-i6', name:'Проба дедупа', obj:'obj-credit',
+    src:'агрегат', fn:'sum', over:'m-odays', dedupBy:'d-branch'});
+  const agg     = ST.addIndicator({id:'a-i7', name:'Проба наследования', obj:'obj-credit',
+    src:'агрегат', fn:'sum', over:'m-odays'});
+  const A = ST.IND('a-i7');
+  ok(157, badSrc.length === 0 && badRoll.length === 0 && noType.length === 0 && noUnit.length === 0 &&
+        !noSrc.ok && has(noSrc.why, 'одним из трёх') &&
+        !myRoll.ok && has(myRoll.why, 'правило свода') && has(myRoll.why, ROLLS.join(' · ')) &&
+        !mute.ok && has(mute.why, 'не определён тип') && has(mute.why, 'ADR-0209 §2') &&
+        !noU.ok && has(noU.why, 'не определена единица') &&
+        !live.ok && has(live.why, 'исчислимость налету') &&
+        !dedup.ok && has(dedup.why, 'СТРОЧНОГО') &&
+        agg.ok && ST.typeOf('a-i7') === 'число' && ST.unitOf('a-i7') === 'дн.' &&
+        A.roll === 'аддитивный' && A.live === true,
+    `пять реквизитов породы «показатель» (§2) стоят у всех ${IND3.length} записей: источник вне закрытых трёх — ${badSrc.length}, правило свода вне трёх — ${badRoll.length}, без определённого типа — ${noType.length}, без единицы при неплоском типе — ${noUnit.length}. «Определён» здесь не значит «подставлен по умолчанию»: у шва и поля тип ОБЪЯВЛЕН, у агрегата НАСЛЕДУЕТСЯ от названной записи — «${A.name}» есть sum по «Дней просрочки», и потому тип ${ST.typeOf('a-i7')}, единица ${ST.unitOf('a-i7')}, свод ${A.roll}, налету ${A.live}. Молчание записи ответом не считается: без типа — отказ, без единицы — отказ («${String(noU.why).slice(0, 74)}…»), потому что число без единицы складывается с любым другим числом без единицы и сумма выйдет всегда. Своё правило свода — та же формула, только в поле правила: «${String(myRoll.why).slice(0, 60)}…» (ИС-43, ADR-0209 §2)`);
+
+  /* #158 — реквизиты породы «разрез» (§3): справочник · уровни и корзины · порядок · объект. */
+  ST.seed();
+  const DIM4 = ST.registry().filter(r => r.kind === 'разрез');
+  const ORDERS = vm.runInContext('ORDERS', sandbox);
+  const badOrd  = DIM4.filter(r => ORDERS.indexOf(r.order) < 0);
+  const noObj   = DIM4.filter(r => !ST.OBJ(r.obj));
+  const refBare = DIM4.filter(r => r.ref && !r.owner);
+  const lvlBare = DIM4.filter(r => r.levels && !r.owner && !r.ref);
+  const spread  = ORDERS.map(o => o + ' — ' + DIM4.filter(d => d.order === o).length);
+  const noWhose = ST.addDim({id:'d-d1', name:'Проба ничья', src:'поле', key:'k', perObject:'одно'});
+  const alpha   = ST.addDim({id:'d-d2', name:'Проба по алфавиту', obj:'obj-credit', src:'поле',
+    key:'k', perObject:'одно', order:'по алфавиту'});
+  const empty   = ST.addDim({id:'d-d3', name:'Проба пустого порядка', obj:'obj-credit', src:'поле',
+    key:'k', perObject:'одно', order:'по объявленному порядку'});
+  const noOwner = ST.addDim({id:'d-d4', name:'Проба без владельца', obj:'obj-credit', src:'поле',
+    key:'k', perObject:'одно', ref:'Справочник отраслей'});
+  const noPer   = ST.addDim({id:'d-d5', name:'Проба без кратности', obj:'obj-credit', src:'поле',
+    key:'k'});
+  const good    = ST.addDim({id:'d-d6', name:'Проба годного разреза', obj:'obj-credit', src:'поле',
+    key:'k', perObject:'одно'});
+  ok(158, badOrd.length === 0 && noObj.length === 0 && refBare.length === 0 && lvlBare.length === 0 &&
+        !noWhose.ok && has(noWhose.why, 'объект определения') &&
+        !alpha.ok && has(alpha.why, 'порядок значений объявляется одним из трёх') &&
+        !empty.ok && has(empty.why, 'объявлять нечего') &&
+        !noOwner.ok && has(noOwner.why, 'владелец его — нет') &&
+        !noPer.ok && has(noPer.why, 'ИС-21') &&
+        good.ok && ST.DIM('d-d6').order === 'по значению',
+    `четыре реквизита породы «разрез» (§3) стоят у всех ${DIM4.length} записей: порядок вне закрытых трёх — ${badOrd.length} (${spread.join(' · ')}), без существующего объекта определения — ${noObj.length}, справочник без владельца — ${refBare.length}, уровни без владельца — ${lvlBare.length}. Порядок не угадывается по данным, а ВЫВОДИТСЯ из объявленного: объявлены корзины или уровни — порядок объявленный, назван справочник — порядок его, не названо ничего — по значению (${ST.DIM('d-d6').order}). Список закрыт: «по алфавиту» и «как в отчёте» — не значения порядка, а разные ответы в разных отчётах; объявленный порядок при пустой записи отбит отдельно — «${String(empty.why).slice(0, 62)}…»: упорядочивают названный список, а не обещание упорядочить (ИС-43, ADR-0209 §3, ADR-0176 §7)`);
+
+  /* #159 — реквизит ЧУЖОЙ породы — отказ по имени, а не необязательное поле. */
+  ST.seed();
+  const F_IND = vm.runInContext('F_IND', sandbox), F_DIM = vm.runInContext('F_DIM', sandbox);
+  const R5 = ST.registry();
+  const alienIn = R5.filter(r => (r.kind === 'показатель' ? F_DIM : F_IND).some(k => k in r));
+  const unitOnDim = ST.addDim({id:'d-a1', name:'Проба с единицей', obj:'obj-credit', src:'поле',
+    key:'k', perObject:'одно', unit:'дн.'});
+  const lvlOnInd  = ST.addIndicator({id:'m-a2', name:'Проба с иерархией', obj:'obj-credit',
+    src:'поле', key:'k', type:'сумма', unit:'сом',
+    levels:[{name:'область', src:'поле', key:'region'}]});
+  const perOnInd  = ST.addIndicator({id:'m-a3', name:'Проба с кратностью', obj:'obj-credit',
+    src:'поле', key:'k', type:'сумма', unit:'сом', perObject:'одно'});
+  const dedOnDim  = ST.addDim({id:'d-a4', name:'Проба с дедупом', obj:'obj-credit', src:'поле',
+    key:'k', perObject:'одно', dedupBy:'d-branch'});
+  const named = [unitOnDim, lvlOnInd, perOnInd, dedOnDim];
+  ok(159, alienIn.length === 0 &&
+        named.every(r => !r.ok && has(r.why, 'принадлежит породе') && has(r.why, 'ADR-0209')) &&
+        has(unitOnDim.why, 'единица измерения') && has(unitOnDim.why, 'показатель') &&
+        has(lvlOnInd.why, 'уровни (иерархия)') && has(lvlOnInd.why, 'разрез') &&
+        has(perOnInd.why, 'значений на один объект') && has(dedOnDim.why, 'дедуп-ключ') &&
+        F_IND.every(k => F_DIM.indexOf(k) < 0),
+    `список реквизитов закрыт с ОБЕИХ сторон: ${F_IND.length} у показателя, ${F_DIM.length} у разреза, пересечения нет ни одного, и записей с чужим реквизитом в реестре 0 из ${R5.length}. Чужой реквизит — ОТКАЗ, а не пустое поле в форме: «${String(unitOnDim.why).slice(0, 96)}…». Отказ называет и реквизит по-русски, и породу-владельца, потому что запись с единицей измерения у признака — это запись, про которую не объявлено, чем она должна быть, и проверить в ней нечего не потому, что проверку забыли, а потому, что нечего. Все четыре подмены отбиты одинаково — единица у признака, иерархия у числа, кратность значений у числа, дедуп-ключ у признака (ИС-43, ADR-0209 §1–§3, «Отвергнуто»)`);
+
+  /* #160 — формулы нет НИ У ОДНОЙ породы (§4); корзина исключением не является. */
+  ST.seed();
+  const FF = vm.runInContext('FORMULA_FIELDS', sandbox);
+  const R6 = ST.registry();
+  const withF = R6.filter(r => FF.some(k => k in r));
+  const fInd  = ST.addIndicator({id:'m-f1', name:'Доля просрочки в портфеле', obj:'obj-credit',
+    src:'поле', key:'k', type:'сумма', unit:'сом', formula:'m-over / m-debt'});
+  const fDim  = ST.addDim({id:'d-f2', name:'Проба с выражением', obj:'obj-credit', src:'поле',
+    key:'k', perObject:'одно', 'формула':'region == "Чуйская"'});
+  const fBkt  = ST.addDim({id:'d-f3', name:'Корзина по выражению', obj:'obj-credit', src:'шов',
+    seam:'calcDebt', field:'daysOverdue', perObject:'одно', buckets:['ступени'], edges:[1,31],
+    basis:'m-odays', expr:'days > 30'});
+  const okBkt = ST.addDim({id:'d-f4', name:'Корзина по границам', obj:'obj-credit', src:'шов',
+    seam:'calcDebt', field:'daysOverdue', perObject:'одно', buckets:['ступени'],
+    edges:[1,31,91], basis:'m-odays'});
+  ok(160, withF.length === 0 && FF.length >= 4 &&
+        [fInd, fDim, fBkt].every(r => !r.ok && has(r.why, 'ADR-0209 §4')) &&
+        has(fInd.why, 'ни у показателя, ни у разреза') && has(fInd.why, 'ИС-6') &&
+        okBkt.ok && ST.DIM('d-f4').edges.length === 3,
+    `поля формулы нет ни у одной породы: ${R6.length} записей × ${FF.length} имён, под которыми выражение пробирается в реестр (${FF.join(', ')}), — совпадений 0. Отказ один на обе породы: «${String(fDim.why).slice(0, 88)}…». Разрез здесь не привилегирован — корзина ИСКЛЮЧЕНИЕМ НЕ ЯВЛЯЕТСЯ: она не выводит новой величины, она раскладывает существующую по объявленным ГРАНИЦАМ, и та же корзина без выражения заводится свободно (${okBkt.ok}, границ ${ST.DIM('d-f4').edges.length}). Разница не косметическая: границы — данные записи, выражение — вторая реализация правила, которая разойдётся с ядром молча и в свой срок (ИС-6, ИС-43, ADR-0150, ADR-0209 §4)`);
+
+  /* #161 — переезд породы: та же запись, тот же идентификатор, история цела. */
+  ST.seed();
+  const b1 = {n: ST.state.registry.length, mart: ST.mart().length, log: ST.martLog().length};
+  const noReq = ST.changeKind('d-industry', 'показатель');
+  const same  = ST.changeKind('d-industry', 'разрез');
+  const third2 = ST.changeKind('d-industry', 'свод', 'Э.', {});
+  const tied  = ST.changeKind('m-odays', 'разрез', 'Э.', {perObject:'одно'});
+  const was   = ST.registry().find(r => r.id === 'd-industry');
+  const moved = ST.changeKind('d-industry', 'показатель', 'Мамбетов Э.', {type:'перечисление'});
+  const now   = ST.REC('d-industry');
+  const hist  = now.history[now.history.length - 1];
+  const O = ST.OBJ('obj-credit');
+  ok(161, !noReq.ok && has(noReq.why, 'порода не сменена') && has(noReq.why, 'не определён тип') &&
+        !same.ok && has(same.why, 'переезжать некуда') &&
+        !third2.ok && has(third2.why, 'третьей породы') &&
+        !tied.ok && has(tied.why, 'ссылаются как на') && has(tied.why, 'корзины разрезов') &&
+        moved.ok && moved.was === 'разрез' && moved.dropped.join() === 'order' &&
+        now.id === 'd-industry' && now.name === was.name && now.since === was.since &&
+        now.kind === 'показатель' && !('order' in now) &&
+        now.history.length === was.history.length + 1 && hist.what === 'смена породы' &&
+        hist.from === 'разрез' && hist.who === 'Мамбетов Э.' && hist.dropped.join() === 'order' &&
+        !!ST.IND('d-industry') && ST.DIM('d-industry') === undefined &&
+        O.inds.indexOf('d-industry') >= 0 && O.dims.indexOf('d-industry') < 0 &&
+        ST.state.registry.length === b1.n && ST.mart().length === b1.mart &&
+        ST.martLog().length === b1.log,
+    `переезд породы — рядовая правка настройки, а не заведение новой записи: «${now.name}» ушла из разрезов в показатели, и при этом идентификатор тот же (${now.id}), имя то же, дата заведения та же (${now.since}), история ДОПИСАНА, а не начата заново (${was.history.length} → ${now.history.length}, последняя запись «${hist.what}: ${hist.from} → ${hist.kind}», кем — ${hist.who}). Реквизиты прежней породы сняты ПОИМЁННО (${moved.dropped.join(', ')}), недостающие спрошены — без них отказ, и отказ объясняет чем: «${String(noReq.why).slice(0, 70)}…». Состав объекта переставлен, реестр не вырос (${ST.state.registry.length}), схема витрины не тронута вовсе (${ST.mart().length} колонок, ${ST.martLog().length} строк журнала). Бесплатным переезд не бывает: на запись могли сослаться как на запись СВОЕЙ породы — «${String(tied.why).slice(0, 92)}…», и оборвалась бы такая ссылка молча, на первом прогоне (ИС-7, ИС-43, ADR-0209 §5)`);
+
+  /* #162 — запись не удаляется, а ПРЕКРАЩАЕТ ДЕЙСТВИЕ с даты (§6). */
+  ST.seed();
+  const b2 = {n: ST.state.registry.length, mart: ST.mart().length, log: ST.martLog().length};
+  const cells0 = ST.statRows({obj:'obj-borrower', date: ASK}).rows.filter(r => r.inds['m-bworst']).length;
+  const gone = ST.retire('m-bworst', true, 'Мамбетов Э.');
+  const G = ST.REC('m-bworst');
+  /* Сторож обязан ПАДАТЬ, а не рушиться: стёртая запись — ровно тот случай, который он
+     ловит, и на ней он должен дать отказ с доводом, а не TypeError без номера. */
+  const gHist = (G && G.history[G.history.length - 1]) || {};
+  const gName = G ? G.name : '(запись стёрта)', gUntil = G ? G.until : '(даты нет)';
+  const cells1 = ST.statRows({obj:'obj-borrower', date: ASK}).rows.filter(r => r.inds['m-bworst']).length;
+  const twice = ST.retire('m-bworst', true);
+  ST.addIndicator({id:'m-nb', name:'Проба основания корзин', obj:'obj-credit', src:'поле',
+    key:'k', type:'число', unit:'дн.'});
+  ST.addDim({id:'d-nb', name:'Проба корзины над ним', obj:'obj-credit', src:'поле', key:'k',
+    perObject:'одно', buckets:['ступени'], edges:[1,31,91], basis:'m-nb'});
+  const basis = ST.retire('m-nb', true);
+  const keyed = ST.retire('d-clcred', true);
+  ok(162, gone.ok && gone.until === ST.state.today && G && G.until === ST.state.today &&
+        ST.state.registry.length === b2.n + 2 && ST.mart().length === b2.mart + 2 &&
+        gHist.what === 'прекращена' && gHist.who === 'Мамбетов Э.' && !!G &&
+        ST.actsOn('m-bworst', ST.state.today) === false &&
+        ST.actsOn('m-bworst', '2026-07-01') === true &&
+        ST.OBJ('obj-borrower').inds.indexOf('m-bworst') < 0 &&
+        !!ST.martCol('m-bworst') && cells0 === cells1 && cells1 > 0 &&
+        !twice.ok && has(twice.why, 'вторая дата') &&
+        !basis.ok && has(basis.why, 'основание корзин') &&
+        !keyed.ok && has(keyed.why, 'дедуп-ключ показателей'),
+    `запись из реестра НЕ ИСЧЕЗАЕТ: «${gName}» прекращена с ${gUntil}, но лежит на месте (реестр ${b2.n} → ${ST.state.registry.length} — вырос на две пробные записи, не убыл), колонка витрины цела, и в строках 18.08 её клетка как была заполнена в ${cells0} строках, так и осталась (${cells1}). Стерев запись, мы оставили бы в этих клетках ЧИСЛО БЕЗ ИМЕНИ — прочитать его было бы больше нечем (ИС-4, ADR-0147 §4). Прекращение действует ВПЕРЁД: на сегодня запись не действует, на 01.07 действует, из состава объекта ушла — спрашивать её начиная с сегодня нечем. Дата одна: «${String(twice.why).slice(0, 62)}…». Вывод не бесплатен и там, где на запись ссылаются ПОИМЁННО: основание корзин — «${String(basis.why).slice(0, 56)}…», дедуп-ключ — отказ по той же причине; а ссылки потребителей вывод не запрещают, а обязывают назвать поимённо (#58, ИС-25, ADR-0177 §4)`);
+
+  /* #163 — схема витрины ПОРОЖДЕНА реестром: одна операция, обратного хода нет (§6). */
+  ST.seed();
+  const mart0 = ST.mart(), log0 = ST.martLog();
+  const ops = [...new Set(log0.map(x => x.op))];
+  const notNull = mart0.filter(c => c.nullable !== true);
+  const orphan  = mart0.filter(c => !ST.REC(c.col));
+  const uncol   = ST.state.registry.filter(r => !ST.martCol(r.id));
+  const dupOf = arr => arr.filter((x, i) => arr.indexOf(x) !== i);
+  const dupCol  = dupOf(mart0.map(c => c.col));
+  const unlogged = mart0.filter(c => !log0.some(x => x.op === 'ADD COLUMN' && x.col === c.col));
+  const addI = ST.addIndicator({id:'m-m1', name:'Проба колонки числа', obj:'obj-credit',
+    src:'поле', key:'k', type:'сумма', unit:'сом'});
+  const addD = ST.addDim({id:'d-m2', name:'Проба колонки признака', obj:'obj-credit',
+    src:'поле', key:'k', perObject:'одно'});
+  const tail = ST.martLog().slice(-2);
+  const grew = ST.mart().length === mart0.length + 2 && ST.martLog().length === log0.length + 2;
+  ST.changeKind('d-industry', 'показатель', 'Э.', {type:'перечисление'});
+  ST.retire('m-bworst', true, 'Э.');
+  const still = ST.mart().length === mart0.length + 2 && ST.martLog().length === log0.length + 2;
+  const opsAll = [...new Set(ST.martLog().map(x => x.op))];
+  ok(163, ops.length === 1 && ops[0] === 'ADD COLUMN' && notNull.length === 0 &&
+        orphan.length === 0 && uncol.length === 0 && dupCol.length === 0 &&
+        unlogged.length === 0 && mart0.length === log0.length &&
+        addI.ok && addD.ok && addI.col === 'm-m1' && addD.col === 'd-m2' && grew &&
+        tail.every(x => x.op === 'ADD COLUMN' && x.nullable === true && x.who && x.why) &&
+        still && opsAll.length === 1 && ST.martCol('d-industry').kindAt === 'разрез' &&
+        !!ST.martCol('m-bworst'),
+    `схема витрины не рисуется отдельно, а ПОРОЖДАЕТСЯ реестром: колонок ${mart0.length} на ${mart0.length} записей, безымянных ${orphan.length}, бесколоночных ${uncol.length}, повторных ${dupCol.length}, незажурналенных ${unlogged.length}. Операция в журнале РОВНО ОДНА на весь модуль — ${opsAll.join(', ')}, и все ${mart0.length} колонок nullable (не nullable — ${notNull.length}). Nullable — не мягкость, а факт: строки, написанные до заведения записи, в этой колонке пусты, и заполнить их задним числом нечем. Новая запись любой породы добавляет колонку той же дверью, что и демо-мир (ADD COLUMN ${addI.col} и ${addD.col}, обе с автором и основанием) — обойди сторож этот путь, он перестал бы что-либо доказывать. Обратного хода нет: ни переезд породы, ни прекращение записи схемы не трогают (${ST.mart().length} колонок — ровно те же, что после двух заведений), колонка помнит породу МОМЕНТА заведения (${ST.martCol('d-industry').kindAt}) и принадлежит записи, а не породе (ИС-43, ADR-0209 §6)`);
+
+  /* #164 — одна величина в двух ролях — ДВЕ записи, связанные явно (§5). */
+  ST.seed();
+  const I = ST.IND('m-odays'), D = ST.DIM('d-odays');
+  const pairs = ST.registry().filter(r => r.basis);
+  const tiedOK = pairs.every(d => d.kind === 'разрез' && !!ST.IND(d.basis) &&
+    Array.isArray(d.edges) && d.edges.length &&
+    d.edges.every((e, i) => !i || e > d.edges[i - 1]));
+  const label45  = ST.bucketOf(45, 'ступени', D);
+  const label200 = ST.bucketOf(200, 'ступени', D);
+  const noEdges = ST.addDim({id:'d-b1', name:'Проба основания без границ', obj:'obj-credit',
+    src:'поле', key:'k', perObject:'одно', basis:'m-odays'});
+  const noBasis = ST.addDim({id:'d-b2', name:'Проба границ без основания', obj:'obj-credit',
+    src:'поле', key:'k', perObject:'одно', edges:[1, 31, 91]});
+  const wrongB  = ST.addDim({id:'d-b3', name:'Проба основания не той породы', obj:'obj-credit',
+    src:'поле', key:'k', perObject:'одно', basis:'d-branch', edges:[1, 31]});
+  const backB   = ST.addDim({id:'d-b4', name:'Проба границ задом наперёд', obj:'obj-credit',
+    src:'поле', key:'k', perObject:'одно', buckets:['ступени'], edges:[91, 31, 1], basis:'m-odays'});
+  ST.state.registry.find(r => r.id === 'd-odays').edges = [1, 61];
+  const after = ST.bucketOf(45, 'ступени', ST.DIM('d-odays'));
+  ok(164, I.id !== D.id && I.name !== D.name && I.kind !== D.kind && D.basis === I.id &&
+        pairs.length === 2 && tiedOK &&
+        !('unit' in D) && ST.unitOf('d-odays') === ST.unitOf('m-odays') &&
+        label45 === '31–90 дн.' && label200 === '181+ дн.' && after === '1–60 дн.' &&
+        !noEdges.ok && has(noEdges.why, 'не назвал границ') &&
+        !noBasis.ok && has(noBasis.why, 'основанием') &&
+        !wrongB.ok && has(wrongB.why, 'показателем реестра не объявлено') &&
+        !backB.ok && has(backB.why, 'по возрастанию'),
+    `одна величина в двух ролях — ДВЕ записи, связанные явно, а не одна с оговоркой: «${I.name}» (${I.id}, порода «${I.kind}», источник шва) и «${D.name}» (${D.id}, порода «${D.kind}»), и вторая НАЗЫВАЕТ первую своим основанием. Пар таких ${pairs.length}, и у каждой основание — существующий показатель, а границы возрастают. Границы живут В РЕЕСТРЕ, а не в настройке отчёта: правка записи меняет разметку («${label45}» → «${after}»), тогда как настройка отчёта называет лишь КОРЗИНУ. Иначе «просрочка 31–90» означала бы разное от отчёта к отчёту, и спорить было бы не с чем. Единицы корзина не носит своей — берёт у основания (${ST.unitOf('d-odays')}, собственного реквизита нет), потому что второй записи не за чем спорить, в чём измеряется чужая величина: ${label200} — это дни, названные один раз. Половина связи — отказ: основание без границ, границы без основания, основание чужой породы, границы задом наперёд (ИС-23, ИС-43, ADR-0209 §5)`);
 })();
 
 /* ---- отчёт ---- */
