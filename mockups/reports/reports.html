@@ -175,7 +175,7 @@
   ИО-21 Накрученный состав выпускается предварительно и никогда окончательно.
   ИО-22 Паспорт хранит показанный состав целиком, а не дельту от умолчания.
 
-  SMOKE 2026-08-26 · 156/156 PASS
+  SMOKE 2026-08-26 · 157/157 PASS
      PASS  #1  личный черновик «Справка о задолженности» не виден даже уполномоченному, пока автор не попросил публикации — ИО-1
      PASS  #2  пользователь опубликовать не может: «публикует уполномоченный по отчётности: роль «Пользователь (Осмонова Г…»
      PASS  #3  состояние шаблона СЧИТАЕТСЯ, а не хранится: «черновик» → «опубликован» после публикации
@@ -240,7 +240,7 @@
      PASS  #62  личная перекладка живёт поверх объявленной и не трогает её: «вернуть как объявлено» возвращает 2 плитки — иначе возвращать было бы не к чему
      PASS  #63  неисполнимый отчёт плитка проговаривает словами, а не показывает пустое место: показатель «Сумма просроченной задолженности» выведен 24.08.2026 — шаблону нужна новая редакция
      PASS  #64  вход в модуль — ровно четыре шва: три у статистики (ADR-0152) и objectRows у ядра (ADR-0158)
-     PASS  #65  одиннадцать экранов × пять ролей = 55 отрисовок без исключений (355 КБ разметки)
+     PASS  #65  одиннадцать экранов × пять ролей = 55 отрисовок без исключений (354 КБ разметки)
      PASS  #66  отказы и границы проговорены на самих экранах, а не спрятаны за отсутствием кнопки
      PASS  #67  число уровня приходит узлом дерева, а не сложением: доли по 3 подразделениям в сумме дают 83.3 %, а корень того же дерева равен 25 % — складывать детей нельзя (ИО-17, ИС-24)
      PASS  #68  разрезы печатаются уровнями: подразделение+итог → состояние кредита; 3 группы первого уровня, 5 второго, строк в группах 8 из 8
@@ -332,6 +332,7 @@
      PASS  #153  ключ «лицо» отбирает по ВИДУ получателя: по договору бумаг 2, а лицу предъявлена 1 — служебная записка ушла подразделению и в историю лица не попадает (ADR-0168 §4)
      PASS  #154  пять незаведённых обязательных бланков внесены — норм без шаблона осталось 2 (ФО-35, ФО-38), и обе заведены в легаси; возврат материалов пишет ДПО, а такой роли в макете нет — строка приглушена, а не спрятана (ОЧ-63, §14.1)
      PASS  #155  красное число стоит на корешке той вкладки, где горит: пока ничего не просрочено — его нет вовсе, после 01.09 у «Бланков» появляется 1; открывать вкладку ради проверки не надо, а «ожидается» в красное не красится — иначе на 41 форме гореть будет всё
+     PASS  #157  строка не повторяет то, что одинаково у всех: документ основания назван один раз в шапке столбца (в теле его нет), редакции в строке нет вовсе — она одна на витрину, вид формы стал корешком вкладки; просроченная строка помечена полосой на срезе, и полоса со счётчиком корешка появляются вместе
 -->
 <style>
 :root{
@@ -459,9 +460,12 @@ table.cgrid tbody td{ padding:9px 12px; border-bottom:1px solid var(--asubk-grid
 table.cgrid tbody tr:last-child td{ border-bottom:none; }
 table.cgrid tbody tr.out td{ background:var(--asubk-gray-50); color:var(--text-muted); }
 table.cgrid tbody tr.hl td{ background:var(--asubk-blue-tint); }
-table.cgrid tbody tr.sect td{ background:var(--surface-panel); padding:7px 12px;
+/* Разделитель групп набран как рубрика (та же манера, что у разделов меню), а не
+   как вторая серая шапка: двух одинаковых полос подряд глаз не различает. */
+table.cgrid tbody tr.sect td{ background:var(--surface-card); padding:11px 12px 5px;
   border-top:1px solid var(--border-strong); border-bottom:1px solid var(--asubk-grid-line);
-  font:var(--weight-semibold) 12.5px/1.4 var(--asubk-font); color:var(--text-heading); }
+  font:var(--weight-semibold) 11.5px/1.4 var(--asubk-font); color:var(--text-muted);
+  text-transform:uppercase; letter-spacing:0.05em; }
 table.cgrid tbody tr.sect:first-child td{ border-top:none; }
 table.cgrid tbody tr.sect .n{ font-weight:var(--weight-regular); color:var(--text-muted); }
 table.cgrid td.num{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
@@ -583,6 +587,36 @@ table.cgrid tfoot td{ padding:9px 12px; background:var(--surface-panel);
 .tabs button.on .n{ color:var(--asubk-blue); }
 .tabs .burn{ background:var(--asubk-red); color:var(--asubk-white); border-radius:var(--radius-pill);
   font:var(--weight-semibold) 11px/1 var(--asubk-font); padding:3px 6px; }
+
+/* ---- витрина ---- */
+/* Таблица сама себе рамка: карточка вокруг неё давала рамку в рамке и отступ,
+   из-за которого шапка столбцов висела в воздухе. */
+.tblwrap{ border:1px solid var(--border-default); border-radius:var(--radius-md);
+  overflow:hidden; background:var(--surface-card); margin-bottom:14px; }
+.tblwrap > table.cgrid{ border:none; }
+.tblwrap table.cgrid tbody tr:not(.sect):hover td{ background:var(--surface-hover); }
+.fname{ font:var(--weight-medium) var(--text-sm)/1.35 var(--asubk-font); color:var(--text-heading); }
+.fmeta{ margin-top:4px; display:flex; flex-wrap:wrap; gap:5px 8px; align-items:center;
+  font:var(--weight-regular) 12px/1.4 var(--asubk-font); color:var(--text-muted); }
+.fmeta .code{ font-family:ui-monospace,Menlo,Consolas,monospace; color:var(--text-placeholder); }
+.fmeta .tag{ background:var(--asubk-tint-fill); border-radius:3px; padding:1px 6px; }
+.fmeta .to{ color:var(--text-body); }
+/* Состояние строки названо словом и держится полосой на срезе, а не заливкой
+   всей строки: заливка гасила и название формы — единственное, что ищут глазами. */
+table.cgrid tbody tr.out td{ background:var(--asubk-gray-50); }
+table.cgrid tbody tr.out td:first-child{ box-shadow:inset 3px 0 var(--asubk-gray-200); }
+table.cgrid tbody tr.gap td:first-child{ box-shadow:inset 3px 0 var(--asubk-amber); }
+/* Полоса на срезе строки — то же красное, что и на корешке вкладки: счётчик
+   говорит, где горит, полоса — какая именно строка. */
+table.cgrid tbody tr.late td:first-child{ box-shadow:inset 3px 0 var(--asubk-red); }
+table.cgrid tbody tr.out .fname{ color:var(--text-body); }
+.pt{ font:var(--weight-medium) 13px/1.35 var(--asubk-font); color:var(--text-body);
+  font-variant-numeric:tabular-nums; white-space:nowrap; }
+.dash{ color:var(--text-placeholder); }
+table.cgrid thead th .th-sub{ display:block; margin-top:2px;
+  font:var(--weight-regular) 11.5px/1.3 var(--asubk-font); color:var(--text-muted); }
+.form-row .fld input.wide{ min-width:320px; }
+td.act{ text-align:right; white-space:nowrap; }
 </style>
 </head>
 <body>
@@ -3099,6 +3133,11 @@ function showBox(head){
    объектная разбивка разваливается (кредит 13 форм, остальные четырнадцать
    объектов по одной — оглавление, где половина пунктов сама себе раздел,
    ОЧ-42). Объект не выброшен, а стал чипом.                                */
+/* Основание отдаётся разобранным: пункт и документ живут в разных местах
+   строки, а склеенная строка нужна тем, кто печатает основание целиком.   */
+const basisOf = b => b && ({
+  point: b.point ? 'п. '+b.point+(b.sub ? ' '+b.sub : '') : null, doc: b.doc,
+  text: (b.point ? 'п. '+b.point+(b.sub ? ' '+b.sub : '')+' ' : '')+b.doc });
 RP.showcase = () => {
   const v = RP.viewer(), obl = RP.obligations(), rows = [];
   RP.state.templates.forEach(t => {
@@ -3115,7 +3154,7 @@ RP.showcase = () => {
     rows.push({
       kind:'шаблон', id: t.id, form: t.form || null, name: t.name, tplKind: t.kind,
       object: SEAM.fieldList(ed.object).name,
-      basis: t.basis ? (t.basis.point ? 'п. '+t.basis.point+' ' : '')+t.basis.doc : null,
+      basis: basisOf(t.basis), to: f ? f.to : null,
       obligatory: !!(f && f.obligatory), state: st.state, why: st.why,
       schedule: t.schedule ? t.schedule.text : null,
       obligation: cur ? {period: cur.period, due: cur.due, state: cur.state, who: cur.who} : null,
@@ -3130,8 +3169,7 @@ RP.showcase = () => {
      потому что нет шаблона, а основание публично: оно в норме (§13.7).      */
   RP.formGaps().forEach(g => rows.push({
     kind:'норма', id: g.id, form: g.id, name: g.name, tplKind: g.kind, object: g.object,
-    basis: (g.basis.point ? 'п. '+g.basis.point+(g.basis.sub ? ' '+g.basis.sub : '')+' ' : '')+
-      g.basis.doc,
+    basis: basisOf(g.basis),
     obligatory:true, state:'шаблон не заведён', why: g.why, schedule:null,
     obligation:null, lastFinal:null, submits:null, nowhere: g.nowhere, to: g.to,
     access:{ok:true}, goTo: g.who
@@ -3169,6 +3207,9 @@ function oblPill(o){
     (o.state === 'сдано с опозданием' ? 'warn' : 'ok'));
   return pill(o.state, cls)+'<div class="small">'+esc(o.period)+' · срок '+fmt(o.due)+'</div>';
 }
+/* Редакция Порядка одна на все строки витрины — повторённая одиннадцать раз, она
+   шум; её место в карточке формы, где решают, по какой редакции выпускать.    */
+const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
 /* Первичное деление витрины — ВИД ФОРМЫ, а не обязательность: у отчёта и бланка
    разные глаголы (отчёт смотрят, бланк печатают адресату), и деление по
    обязательности на живом каталоге вырождается — обязательных 12 из 41, всё
@@ -3196,14 +3237,19 @@ function scShowcase(){
 
   if(tab === 'виды'){
     return h + (mine.length
-      ? '<div class="card"><table class="cgrid"><thead><tr><th>Вид</th><th>Форма</th>'+
-        '<th>Сохранён</th><th></th></tr></thead><tbody>'+
-        mine.map(vw => '<tr><td><b>'+esc(vw.name)+'</b><div class="small mono">'+esc(vw.id)+'</div></td>'+
+      ? '<div class="tblwrap"><table class="cgrid">'+
+        '<colgroup><col style="width:40%"><col style="width:33%"><col style="width:13%">'+
+        '<col style="width:14%"></colgroup>'+
+        '<thead><tr><th>Вид</th><th>Форма</th><th>Сохранён</th><th></th></tr></thead><tbody>'+
+        mine.map(vw => '<tr><td><div class="fname">'+esc(vw.name)+'</div>'+
+          '<div class="fmeta"><span class="code">'+esc(vw.id)+'</span></div></td>'+
           '<td class="small">'+esc(TPL(vw.tpl) ? TPL(vw.tpl).name : vw.tpl)+'</td>'+
           '<td class="small">'+fmt(vw.at)+'</td>'+
-          '<td><button class="btn btn-secondary btn-sm" onclick="RP.openViewOf(\''+vw.id+'\')">'+
-          'Открыть видом</button></td></tr>').join('')+'</tbody></table></div>'
-      : '<div class="banner ok">Сохранённых видов у вас нет.</div>');
+          '<td class="act"><button class="btn btn-secondary btn-sm" onclick="RP.openViewOf(\''+
+          vw.id+'\')">Открыть видом</button></td></tr>').join('')+'</tbody></table></div>'
+      /* Пустой экран говорит, чем он заполняется, и называет кнопку, а не себя. */
+      : '<div class="banner ok">Сохранённых видов нет. Вид заводится на показе '+
+        'кнопкой «Сохранить вид».</div>');
   }
 
   /* Отбор считается по строкам ОТКРЫТОЙ вкладки: объекты у отчётов и бланков
@@ -3216,43 +3262,63 @@ function scShowcase(){
     (!obj || r.object === obj);
 
   h += '<div class="form-row"><div class="fld"><label>Поиск по названию</label>'+
-    '<input value="'+esc(sel.scQ || '')+'" onchange="RP.scSet(\'scQ\', this.value)" '+
+    '<input class="wide" value="'+esc(sel.scQ || '')+'" onchange="RP.scSet(\'scQ\', this.value)" '+
     'placeholder="просрочка, претензия, акт…"></div>'+
-    '<div class="fld"><label>Объект</label><div class="btn-row" style="margin:0">'+
-    [''].concat(objs).map(o => '<button class="btn btn-sm '+
-      (obj === o ? 'btn-primary' : 'btn-secondary')+'" onclick="RP.scSet(\'scObj\',\''+
-      esc(o)+'\')">'+esc(o || 'все')+'</button>').join('')+'</div></div></div>';
+    /* Чипы объекта появляются, только когда есть из чего выбирать: единственный
+       объект — не отбор, а мёртвый переключатель, занимающий строку. */
+    (objs.length > 1
+      ? '<div class="fld"><label>Объект</label><div class="btn-row" style="margin:0">'+
+        [''].concat(objs).map(o => '<button class="btn btn-sm '+
+          (obj === o ? 'btn-primary' : 'btn-secondary')+'" onclick="RP.scSet(\'scObj\',\''+
+          esc(o)+'\')">'+esc(o || 'все')+'</button>').join('')+'</div></div>'
+      : '')+'</div>';
 
   /* Обязательность делит строки ВНУТРИ одной таблицы, а не двумя таблицами:
      столбцы и действия у групп одни и те же, и вторая шапка ради одной-двух
      строк ничего не объясняет. Пустой группы не бывает вовсе — её нет в
      разметке, а не «0 строк» карточкой с выдуманной причиной.               */
+  /* В строке оставлено то, что РАЗЛИЧАЕТ формы. Объект показан, только когда во
+     вкладке их несколько; адресат — на бланках, потому что бланк тем и определён,
+     кому он уходит. Вид формы из строки убран: он теперь корешок вкладки.      */
+  const many = uniq(kin.map(r => r.object)).length > 1;
+  /* Документ основания печатается в строке, только если он НЕ тот, что у
+     большинства форм вкладки: одиннадцать одинаковых «Порядок №41» — фон, а не
+     сведения. Преобладающий назван один раз, в шапке столбца; при равенстве
+     документов преобладающего нет, и каждая строка называет свой.            */
+  const docs = kin.filter(r => r.basis).map(r => docShort(r.basis.doc));
+  const dcnt = d => docs.filter(x => x === d).length;
+  const top = docs.length ? uniq(docs).sort((a, b) => dcnt(b) - dcnt(a))[0] : null;
+  const prevail = top && dcnt(top) * 2 > kin.length ? top : null;
   const row = r => {
-      const muted = !r.access.ok || r.kind === 'норма';
-      return '<tr'+(muted ? ' class="out"' : '')+'>'+
-        '<td><b>'+esc(r.name)+'</b>'+
-          '<div class="small mono">'+esc(r.form || r.id)+' · '+esc(r.tplKind)+'</div>'+
-          (r.kind === 'норма'
-            ? '<div class="why">шаблон не заведён</div>'
+      const gap = r.kind === 'норма';
+      const late = !!(r.obligation && r.obligation.state === 'просрочено');
+      return '<tr'+(gap ? ' class="out gap"'
+                  : (!r.access.ok ? ' class="out"' : (late ? ' class="late"' : '')))+'>'+
+        '<td><div class="fname">'+esc(r.name)+'</div>'+
+          '<div class="fmeta"><span class="code">'+esc(r.form || r.id)+'</span>'+
+          (many ? '<span class="tag">'+esc(r.object)+'</span>' : '')+
+          (tab === 'бланк' && r.to ? '<span class="to">→ '+esc(r.to)+'</span>' : '')+'</div>'+
+          (gap
+            ? '<div class="why">шаблон не заведён · Завести — '+esc(r.goTo)+'</div>'
             : (r.access.ok ? '' : '<div class="why">не в круге. Доступ у: '+
                 esc(r.access.who)+'</div>'))+'</td>'+
-        '<td class="small">'+esc(r.object)+(r.kind === 'норма' && r.to
-          ? '<div class="muted">адресат: '+esc(r.to)+'</div>' : '')+'</td>'+
-        '<td class="small">'+(r.basis ? esc(r.basis) : '<span class="muted">не названо</span>')+'</td>'+
-        '<td class="small">'+(r.kind === 'норма'
+        '<td>'+(r.basis
+          ? (r.basis.point ? '<div class="pt">'+esc(r.basis.point)+'</div>' : '')+
+            (docShort(r.basis.doc) === prevail ? ''
+              : '<div class="small">'+esc(docShort(r.basis.doc))+'</div>')
+          : '<span class="muted small">не названо</span>')+'</td>'+
+        '<td class="small">'+(gap
           ? '<span class="muted">срока нет</span>'
           : oblPill(r.obligation)+(r.obligation && r.obligation.who
               ? '<div class="muted">сдаёт: '+esc(r.obligation.who)+'</div>' : ''))+'</td>'+
         '<td class="small">'+(r.lastFinal
-          ? esc(r.lastFinal.id)+' · '+fmt(r.lastFinal.at)+'<div class="muted">'+
+          ? '<b>'+esc(r.lastFinal.id)+'</b> · '+fmt(r.lastFinal.at)+'<div class="muted">'+
             esc(r.lastFinal.to)+(r.lastFinal.number ? ' · '+esc(r.lastFinal.number) : '')+'</div>'
-          : '<span class="muted">не выпускалась</span>')+'</td>'+
-        '<td>'+(r.kind === 'норма'
-          ? '<span class="small muted">Завести — '+esc(r.goTo)+'</span>'
-          : (!r.access.ok ? '<span class="small muted">не в круге</span>'
+          : '<span class="dash">—</span>')+'</td>'+
+        '<td class="act">'+(gap || !r.access.ok ? '<span class="dash">—</span>'
             : '<button class="btn '+(r.tplKind === 'бланк' ? 'btn-secondary' : 'btn-primary')+
               ' btn-sm" onclick="RP.openForm(\''+r.id+'\')">'+
-              (r.tplKind === 'бланк' ? 'Где печатается' : 'Открыть')+'</button>'))+
+              (r.tplKind === 'бланк' ? 'Где печатается' : 'Открыть')+'</button>')+
         '</td></tr>';
   };
 
@@ -3265,11 +3331,17 @@ function scShowcase(){
   if(!secs.some(s => s.shown.length))
     return h+'<div class="banner warn">Под отбор не попало ничего.</div>';
 
-  h += '<div class="card"><table class="cgrid"><thead><tr><th>Форма</th><th>О чём</th>'+
-    '<th>Основание</th><th>Срок и обязательство</th>'+
+  /* Доли столбцов заданы явно: без них «Форма» ломалась в три строки, а справа
+     от «Последнего выпуска» пустовала треть ширины. */
+  h += '<div class="tblwrap"><table class="cgrid">'+
+    '<colgroup><col style="width:35%"><col style="width:12%"><col style="width:20%">'+
+    '<col style="width:21%"><col style="width:12%"></colgroup>'+
+    '<thead><tr><th>Форма</th><th>Основание'+
+    (prevail ? '<span class="th-sub">'+esc(prevail)+'</span>' : '')+
+    '</th><th>Срок и обязательство</th>'+
     '<th>Последний окончательный выпуск</th><th></th></tr></thead><tbody>';
   secs.forEach(s => {
-    h += '<tr class="sect"><td colspan="6">'+esc(s.title)+
+    h += '<tr class="sect"><td colspan="5">'+esc(s.title)+
       ' <span class="n">· '+s.shown.length+
       (s.shown.length === s.inTab.length ? '' : ' из '+s.inTab.length)+'</span></td></tr>';
     h += s.shown.map(row).join('');    /* «0 из 12» сказано самим разделителем */
