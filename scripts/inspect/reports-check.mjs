@@ -32,6 +32,11 @@ const R = { user:'Пользователь (Осмонова Г.)', auth:'Упо
             clerk:'Делопроизводитель (Абдырахманова С.)', head:'Руководитель подразделения (Асанов А.)',
             buh:'Главный бухгалтер (Бекова Н.)' };
 const as = r => { RP.state.role = R[r]; };
+/* Витрина разложена по вкладкам «виды · отчёт · бланк»: проверка, которой нужна
+   вся витрина, а не открытая вкладка, склеивает их сама.                     */
+const SC_TABS = ['виды', 'отчёт', 'бланк'];
+const showTab = t => { RP.state.sel.scTab = t; return win.VIEWS.showcase.fn(); };
+const showAll = () => SC_TABS.map(showTab).join('\n');
 
 /* ---------- A. Шаблоном состав делает публикация (ИО-1, ADR-0156 §2) ---------- */
 (() => {
@@ -916,7 +921,7 @@ const as = r => { RP.state.role = R[r]; };
     `срок по норме идёт независимо от того, завели мы шаблон (ИО-23, ОЧ-40)`);
 
   const V = win.VIEWS;
-  const showH = V.showcase.fn();
+  const showH = showAll();
   ok(108, !has(showH, "RP.openForm('" + norms[0].id) &&
         has(showH, 'Завести — ' + RP.formsOwner()) &&
         norms.every(r => r.goTo === RP.formsOwner()) &&
@@ -1070,7 +1075,7 @@ const as = r => { RP.state.role = R[r]; };
   const stayed = RP.state.view;
   RP.openForm('t-overdue');
   ok(125, stayed === 'showcase' && RP.state.view === 'issue' &&
-        has(win.VIEWS.showcase.fn(), 'Где печатается'),
+        has(showTab('бланк'), 'Где печатается'),
     `бланк в витрине — не формирование, а «где печатается»: своего перечня объектов витрина не ` +
     `держит (на трёх записях выпадашка работает, на живых двенадцати тысячах — нет), объект ` +
     `называет карточка или рабочий список (ОЧ-43)`);
@@ -1089,22 +1094,43 @@ const as = r => { RP.state.role = R[r]; };
   const V = win.VIEWS;
   const bad = [];
   Object.keys(R).forEach(role => { as(role);
-    try { const html = V.showcase.fn();
-      if (html.length < 2000) bad.push(role + ': ' + html.length); }
-    catch (e) { bad.push(role + ': ' + e.message); } });
+    SC_TABS.forEach(t => {
+      try { const html = showTab(t);
+        /* у каждой вкладки обязаны быть корешки и тело — таблица либо названный
+           пустой ответ; молча пустая вкладка считается поломкой.             */
+        if (!has(html, 'class="tabs"') || !(has(html, '<table') || has(html, 'banner')))
+          bad.push(role + '/' + t + ': ' + html.length); }
+      catch (e) { bad.push(role + '/' + t + ': ' + e.message); } }); });
   as('auth');
-  const sh = V.showcase.fn();
+  const sh = showAll();
   const marks = (sh.match(/(?:ADR-\d|ОЧ-\d|ИО-\d|ФО-\d\d\s*§|§\s*\d)/g) || []);
   ok(127, bad.length === 0 && marks.length === 0 && !has(sh, 'page-lead') &&
         !has(sh, 'class="facts"'),
-    `витрина рисуется каждой ролью и несёт только рабочее: ни одной ссылки на решение или ` +
-    `инвариант, ни вводного абзаца, ни карточки примечаний — экран для потребителя, ` +
+    `каждая вкладка рисуется каждой ролью и несёт только рабочее: ни одной ссылки на решение ` +
+    `или инвариант, ни вводного абзаца, ни карточки примечаний — экран для потребителя, ` +
     `а доводы живут в каноне`);
 
-  ok(128, has(sh, 'Обязательные') && has(sh, 'Остальные') && has(sh, 'Мои виды') &&
+  RP.state.sel.scTab = '';
+  const first = V.showcase.fn();
+  const blanks = RP.showcase().must.concat(RP.showcase().rest).filter(r => r.tplKind === 'бланк');
+  ok(128, has(first, 'Мои виды') && has(first, 'Отчёты') && has(first, 'Бланки') &&
+        has(first, 'class="on"') && !has(first, 'Где печатается') && blanks.length > 0 &&
+        blanks.every(r => !has(first, "openForm('" + r.id)) &&
+        has(showTab('отчёт'), 'Обязательные') && has(showTab('отчёт'), 'По запросу') &&
         has(V.issue.fn(), 'четыре дороги') && Object.keys(V)[0] === 'showcase',
-    `волна 6 проговорена на экранах: витрина первым экраном модуля, группы по обязательности, ` +
-    `неисполняемые нормы строкой без кнопки, четыре дороги с показанного`);
+    `витрина первым экраном модуля и разложена по ВИДУ ФОРМЫ: три корешка со счётчиками, ` +
+    `открыта ровно одна вкладка, ${blanks.length} бланков в ленту отчётов не подмешаны; ` +
+    `обязательность делит уже внутри вкладки, четыре дороги — с показанного`);
+
+  const rep = showTab('отчёт'), bl = showTab('бланк');
+  const tables = s => (String(s).match(/<table/g) || []).length;
+  const sects = s => (String(s).match(/class="sect"/g) || []).length;
+  ok(156, tables(rep) === 1 && sects(rep) === 2 && tables(bl) === 1 && sects(bl) === 1 &&
+        !has(bl, 'По запросу') && !has(bl, 'Под отбор не попало') &&
+        has(rep, 'Обязательные <span class="n">· 1</span>'),
+    `обязательность делит строки ВНУТРИ одной таблицы: на «Отчётах» одна шапка и два ` +
+    `разделителя, на «Бланках» — один, потому что бланков «по запросу» не существует и ` +
+    `пустой группы нет в разметке вовсе (а не «0 строк» с выдуманной причиной отбора)`);
 })();
 
 /* ---------- T. Три стола в навигации — раскладка, а не права (ОЧ-55) ---------- */
@@ -1408,6 +1434,23 @@ const as = r => { RP.state.role = R[r]; };
     `пять незаведённых обязательных бланков внесены — норм без шаблона осталось ${gaps.length} ` +
     `(${gaps.join(', ')}), и обе заведены в легаси; возврат материалов пишет ДПО, а такой роли в ` +
     `макете нет — строка приглушена, а не спрятана (ОЧ-63, §14.1)`);
+})();
+
+/* ---- U. Корешок несёт срочность: красный счётчик на вкладке (ОЧ-71) ---- */
+(() => {
+  RP.seed(); as('clerk');
+  const before = win.VIEWS.showcase.fn();
+  RP.state.today = '2026-09-05';                 /* срок акта сверки — 01.09 */
+  const after = win.VIEWS.showcase.fn();
+  const late = RP.showcase().must.concat(RP.showcase().rest)
+    .filter(r => r.obligation && r.obligation.state === 'просрочено');
+  ok(155, !has(before, 'class="burn"') && late.length > 0 &&
+        has(after, '<span class="burn">' + late.length + '</span>') &&
+        late.every(r => r.tplKind === 'бланк') &&
+        after.indexOf('class="burn"') > after.indexOf("scTab','бланк'"),
+    `красное число стоит на корешке той вкладки, где горит: пока ничего не просрочено — его нет ` +
+    `вовсе, после 01.09 у «Бланков» появляется ${late.length}; открывать вкладку ради проверки ` +
+    `не надо, а «ожидается» в красное не красится — иначе на 41 форме гореть будет всё`);
 })();
 
 /* ---- отчёт ---- */
