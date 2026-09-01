@@ -1,0 +1,1389 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>СУГС — Отчёт по субсидированию кредитов</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --navy:    #0f2744;
+  --navy2:   #1a3a5c;
+  --accent:  #0ea5e9;
+  --surface: #f4f7fb;
+  --border:  #c8d9ee;
+  --border2: #dce8f5;
+  --white:   #ffffff;
+  --text:    #0f2744;
+  --text2:   #4a6080;
+  --text3:   #7a90a8;
+  --green-bg: #e8f5e9;  --green-text: #2e7d32;  --green-border: #a5d6a7;
+  --amber-bg: #fff8e1;  --amber-text: #e65100;  --amber-border: #ffe082;
+  --red-bg:   #fdecea;  --red-text:   #b71c1c;  --red-border:   #ef9a9a;
+  --teal-bg:  #e0f2f1;  --teal-text:  #00695c;  --teal-border:  #80cbc4;
+  --font: 'IBM Plex Sans', sans-serif;
+  --mono: 'IBM Plex Mono', monospace;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font); background: var(--surface); color: var(--text); font-size: 13px; }
+
+/* ── APP LAYOUT ── */
+.app { display: flex; min-height: 100vh; }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  width: 292px; min-width: 292px;
+  background: var(--navy);
+  position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  display: flex; flex-direction: column;
+  border-right: 1px solid #0a1e38;
+}
+.sb-logo {
+  padding: 14px 18px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  position: sticky; top: 0; z-index: 10; background: var(--navy);
+}
+.sb-logo .sys { font-size: 11px; color: #7ab0d0; letter-spacing: .08em; text-transform: uppercase; }
+.sb-logo .name { font-size: 14px; color: #fff; font-weight: 700; margin-top: 2px; line-height: 1.3; }
+.divider { height: 1px; background: rgba(255,255,255,0.07); margin: 4px 0; }
+.sb-sec { padding: 10px 14px 6px; }
+.stitle { font-size: 9px; text-transform: uppercase; letter-spacing: .12em; color: #7ab0d0; font-weight: 600; margin-bottom: 8px; }
+.fg { margin-bottom: 8px; }
+.fl { display: block; font-size: 10px; color: #7a90a8; margin-bottom: 3px; font-weight: 500; }
+.fc {
+  width: 100%; padding: 6px 8px; border-radius: 5px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06); color: #d0e8f8;
+  font-family: var(--font); font-size: 12px; outline: none;
+  transition: border-color .15s;
+}
+.fc:focus { border-color: var(--accent); }
+.fc option { background: #0f2744; color: #d0e8f8; }
+
+/* ── Древовидный фильтр ── */
+.tree-filter {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 5px; overflow: hidden; font-size: 11px;
+}
+.tf-row {
+  display: flex; align-items: center;
+  padding: 0 6px; height: 22px; cursor: pointer; user-select: none;
+  transition: background .1s; gap: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.04); overflow: hidden;
+}
+.tf-row:last-child { border-bottom: none; }
+.tf-row:hover { background: rgba(255,255,255,0.06); }
+.tf-toggle {
+  width: 16px; min-width: 16px; height: 16px;
+  display: flex; align-items: center; justify-content: center;
+  color: #7ab0d0; font-size: 10px; font-family: var(--mono);
+  border: 1px solid rgba(255,255,255,0.15); border-radius: 2px;
+  background: rgba(255,255,255,0.04); margin-right: 4px; line-height: 1;
+}
+.tf-toggle.empty { border-color: transparent; background: transparent; color: transparent; }
+.tf-cb {
+  width: 13px; min-width: 13px; height: 13px;
+  border: 1.5px solid rgba(255,255,255,0.3); border-radius: 2px;
+  background: transparent; display: flex; align-items: center; justify-content: center;
+  margin-right: 5px; transition: border-color .1s, background .1s; flex-shrink: 0;
+}
+.tf-row.checked .tf-cb  { background: var(--accent); border-color: var(--accent); }
+.tf-row.partial .tf-cb  { background: rgba(14,165,233,0.35); border-color: var(--accent); }
+.tf-cb-tick { display: none; }
+.tf-row.checked .tf-cb-tick { display: block; }
+.tf-row.partial .tf-cb-tick { display: block; opacity: .5; }
+.tf-icon { display: none; }
+.tf-label { color: #c8e0f4; font-size: 11px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tf-row.tf-root > .tf-label { color: #e0f0ff; font-weight: 600; }
+.tf-children { display: block; }
+.tf-children.collapsed { display: none; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+
+/* dimlist */
+.dimlist { list-style: none; display: flex; flex-direction: column; gap: 3px; }
+.dimitem {
+  display: flex; align-items: center; gap: 6px;
+  background: rgba(255,255,255,0.05); border-radius: 5px;
+  padding: 5px 8px; cursor: grab; border: 1px solid transparent;
+  transition: background .12s;
+}
+.dimitem.dragging { opacity: .4; }
+.dimitem.dragover { border-color: var(--accent); background: rgba(14,165,233,.15); }
+.dimitem.off { opacity: .45; }
+.dh { color: #7ab0d0; font-size: 14px; cursor: grab; user-select: none; }
+.dimitem input[type=checkbox] { accent-color: var(--accent); width: 13px; height: 13px; cursor: pointer; }
+.dn { font-family: var(--mono); font-size: 10px; color: #7ab0d0; min-width: 12px; }
+.dl { font-size: 11px; color: #b8d6f0; }
+
+/* metric checks */
+.metric-checks { display: flex; flex-direction: column; gap: 5px; }
+.mc-item { display: flex; align-items: center; gap: 7px; }
+.mc-item input { accent-color: var(--accent); width: 13px; height: 13px; cursor: pointer; }
+.mc-item label { font-size: 11px; color: #b8d6f0; cursor: pointer; }
+
+/* metric group separator */
+.mc-sep { height: 1px; background: rgba(255,255,255,0.1); margin: 4px 0; }
+.mc-grouptitle { font-size: 9px; color: #5a8ab0; text-transform: uppercase; letter-spacing: .1em; margin-bottom: 4px; margin-top: 2px; }
+
+/* buttons */
+.btn-gen {
+  display: block; width: 100%; padding: 9px;
+  background: var(--accent); color: #fff; font-weight: 700;
+  font-size: 13px; border: none; border-radius: 6px; cursor: pointer;
+  font-family: var(--font); margin-bottom: 6px; transition: opacity .15s;
+}
+.btn-gen:hover { opacity: .88; }
+.btn-xls {
+  display: block; width: 100%; padding: 8px;
+  background: transparent; color: #5dd87a;
+  font-size: 12px; border: 1px solid #3aaa55; border-radius: 6px; cursor: pointer;
+  font-family: var(--font); font-weight: 600; transition: background .15s;
+}
+.btn-xls:hover { background: rgba(93,216,122,.1); }
+.sb-btns { padding: 10px 14px 14px; position: sticky; bottom: 0; background: var(--navy); border-top: 1px solid rgba(255,255,255,0.08); z-index: 10; }
+
+/* ── MAIN ── */
+.main { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: auto; height: 100vh; }
+
+/* toolbar */
+.toolbar {
+  background: var(--white); border-bottom: 1px solid var(--border);
+  padding: 12px 22px; display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 20;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.tb-left .rcode { font-size: 11px; color: var(--text3); font-family: var(--mono); }
+.tb-left .rtname { font-size: 16px; font-weight: 700; color: var(--navy); margin-top: 1px; }
+.tb-right { font-size: 11px; color: var(--text3); text-align: right; }
+
+/* report area */
+.report-area { padding: 18px 22px; flex: 1; }
+
+/* KPI cards */
+.sum-row { display: grid; grid-template-columns: repeat(5,1fr); gap: 12px; margin-bottom: 18px; }
+.kcard {
+  background: var(--white); border: 1px solid var(--border);
+  border-radius: 8px; padding: 14px 16px;
+}
+.kcard .kt { font-size: 11px; color: var(--text3); margin-bottom: 5px; text-transform: uppercase; letter-spacing: .06em; }
+.kcard .kv { font-family: var(--mono); font-size: 18px; font-weight: 700; color: var(--navy); }
+.kcard .ks { font-size: 11px; color: var(--text2); margin-top: 4px; }
+.kcard.green .kv { color: var(--green-text); }
+.kcard.amber .kv { color: var(--amber-text); }
+.kcard.red   .kv { color: var(--red-text); }
+.kcard.teal  .kv { color: var(--teal-text); }
+
+/* rep-card */
+.rep-card { background: var(--white); border: 1px solid var(--border); border-radius: 8px; }
+.rep-head {
+  padding: 14px 18px 10px; border-bottom: 1px solid var(--border2);
+  background: linear-gradient(0deg, #f8fbff 0%, #fff 100%);
+}
+.rorg  { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: .08em; }
+.rtitle { font-size: 15px; font-weight: 700; color: var(--navy); margin: 3px 0 2px; }
+.rsub  { font-size: 11px; color: var(--text2); }
+.frow  { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px 18px; background: var(--surface); border-bottom: 1px solid var(--border2); max-height: 80px; overflow-y: auto; }
+.fc2   { display: flex; align-items: center; gap: 5px; }
+.flab  { font-size: 10px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
+.fval  { font-size: 11px; color: var(--navy2); font-weight: 600; background: var(--border2); padding: 2px 7px; border-radius: 4px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mrow  { display: flex; gap: 18px; padding: 6px 18px; background: var(--surface); border-bottom: 1px solid var(--border2); }
+.mi    { font-size: 11px; color: var(--text3); }
+.mi b  { color: var(--text); }
+.legrow { display: flex; gap: 16px; padding: 6px 18px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.li    { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text2); }
+.ld    { width: 14px; height: 14px; border-radius: 3px; }
+
+/* table wrapper */
+.tw table { border-collapse: collapse; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; }
+th, td { padding: 5px 8px; border: 1px solid var(--border2); vertical-align: middle; white-space: nowrap; }
+
+/* header rows */
+/* hg-cred: заголовок группы "Кредиты" */
+tr.hg th.zone-cred { background: #0d2e1a; color: #6db98a; }
+/* hg-sub: заголовок группы "Субсидирование" */
+tr.hg th.zone-sub  { background: #0a1e38; color: #7ab0d0; }
+/* hg-итого pivot */
+tr.hg th.zone-pivot { background: #0a1e38; color: #7ab0d0; }
+tr.hg th { position: sticky; top: 0; z-index: 6; font-size: 11px; text-align: center; font-family: var(--font); font-weight: 600; }
+tr.hm th { background: #edf4fc; color: #1d5fa6; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; position: sticky; top: 0; z-index: 5; }
+
+/* data rows */
+tr.g0 td { background: #1a3a5c; color: #90bbdd; font-weight: 700; }
+tr.g1 td { background: #edf4fc; color: #1d5fa6; font-weight: 600; }
+tr.g2 td { background: #f5f9ff; color: #2d6a9f; font-weight: 600; }
+tr.dr td { background: #fff; color: var(--text); }
+tr.dr:hover td { background: #f7faff; }
+tr.tot td { background: var(--navy); color: #d8eaf8; font-weight: 700; font-family: var(--mono); font-size: 12px; position: sticky; top: 0; z-index: 4; }
+
+/* cell helpers */
+.num { text-align: right; font-family: var(--mono); }
+.ctr { text-align: center; }
+.tal { text-align: left; }
+.cg-sep { border-right: 2px solid var(--border) !important; }
+.cg-sep-green { border-right: 2px solid #80cbc4 !important; }
+
+/* match status badges */
+.b-match    { display:inline-block; padding:1px 7px; border-radius:12px; font-size:11px; font-family:var(--mono); font-weight:600; background:var(--green-bg); color:var(--green-text); border:1px solid var(--green-border); }
+.b-diff     { display:inline-block; padding:1px 7px; border-radius:12px; font-size:11px; font-family:var(--mono); font-weight:600; background:var(--amber-bg); color:var(--amber-text); border:1px solid var(--amber-border); }
+.b-missing  { display:inline-block; padding:1px 7px; border-radius:12px; font-size:11px; font-family:var(--mono); font-weight:600; background:var(--red-bg); color:var(--red-text); border:1px solid var(--red-border); }
+
+/* rep-foot */
+.rep-foot { padding: 8px 18px; background: var(--surface); border-top: 1px solid var(--border2); font-size: 11px; color: var(--text3); text-align: right; }
+.empty { padding: 48px; text-align: center; color: var(--text3); }
+.empty svg { margin-bottom: 10px; opacity: .35; }
+.empty p { font-size: 13px; }
+
+/* scrollbar */
+.sidebar::-webkit-scrollbar { width: 5px; }
+.sidebar::-webkit-scrollbar-track { background: transparent; }
+.sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ══ SIDEBAR ══ -->
+<aside class="sidebar">
+  <div class="sb-logo">
+    <div class="sys">ОАО «ГФХ» · СУГС</div>
+    <div class="name" id="sbReportName">Отчёт по субсидированию кредитов</div>
+    <div id="sbReportMeta" style="font-size:10px;color:#7ab0d0;margin-top:4px;line-height:1.4;display:none"></div>
+  </div>
+
+  <div class="sb-sec">
+    <div class="stitle">Период (заявки банков)</div>
+    <div class="row2">
+      <div class="fg">
+        <label class="fl">С</label>
+        <input type="date" id="dateFrom" class="fc" value="2025-01-01">
+      </div>
+      <div class="fg">
+        <label class="fl">По</label>
+        <input type="date" id="dateTo" class="fc" value="2025-06-30">
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="sb-sec">
+    <div class="stitle">Фильтры</div>
+    <div class="fg">
+      <div class="tree-filter" id="filterTree">
+
+        <!-- Корень -->
+        <div class="tf-row tf-root checked" data-val="all" data-group="root" style="padding-left:4px">
+          <div class="tf-toggle" data-toggle="ft-all">−</div>
+          <div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <span class="tf-label">Все фильтры</span>
+        </div>
+        <div class="tf-children" id="ft-all">
+
+          <!-- Гос. программа → Проекты -->
+          <div class="tf-row checked" data-val="all" data-group="fGov" style="padding-left:20px">
+            <div class="tf-toggle" data-toggle="ft-gov">+</div>
+            <div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <span class="tf-label">Гос. программа</span>
+          </div>
+          <div class="tf-children collapsed" id="ft-gov">
+            <div class="tf-row checked" data-val="fsh" data-group="fGov" style="padding-left:36px">
+              <div class="tf-toggle" data-toggle="ft-gov-fsh">+</div>
+              <div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <span class="tf-label">Финансирование с/х</span>
+            </div>
+            <div class="tf-children collapsed" id="ft-gov-fsh">
+              <div class="tf-row checked" data-val="fsh1"  data-group="fPrj" style="padding-left:52px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">ФСХ-1</span></div>
+              <div class="tf-row checked" data-val="fsh2"  data-group="fPrj" style="padding-left:52px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">ФСХ-2</span></div>
+              <div class="tf-row checked" data-val="fsh3"  data-group="fPrj" style="padding-left:52px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">ФСХ-3</span></div>
+              <div class="tf-row checked" data-val="fsh5"  data-group="fPrj" style="padding-left:52px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">ФСХ-5</span></div>
+            </div>
+            <div class="tf-row checked" data-val="msb" data-group="fGov" style="padding-left:36px">
+              <div class="tf-toggle" data-toggle="ft-gov-msb">+</div>
+              <div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <span class="tf-label">Поддержка МСБ</span>
+            </div>
+            <div class="tf-children collapsed" id="ft-gov-msb">
+              <div class="tf-row checked" data-val="msb1" data-group="fPrj" style="padding-left:52px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">МСБ-1</span></div>
+              <div class="tf-row checked" data-val="msb2" data-group="fPrj" style="padding-left:52px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">МСБ-2</span></div>
+            </div>
+            <div class="tf-row checked" data-val="agro" data-group="fGov" style="padding-left:36px">
+              <div class="tf-toggle" data-toggle="ft-gov-agro">+</div>
+              <div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <span class="tf-label">Аграрное развитие</span>
+            </div>
+            <div class="tf-children collapsed" id="ft-gov-agro">
+              <div class="tf-row checked" data-val="agro1" data-group="fPrj" style="padding-left:52px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">АГРО-1</span></div>
+              <div class="tf-row checked" data-val="agro2" data-group="fPrj" style="padding-left:52px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">АГРО-2</span></div>
+            </div>
+          </div>
+
+          <!-- Банки -->
+          <div class="tf-row checked" data-val="all" data-group="fBank" style="padding-left:20px">
+            <div class="tf-toggle" data-toggle="ft-bank">+</div>
+            <div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <span class="tf-label">Банк-агент</span>
+          </div>
+          <div class="tf-children collapsed" id="ft-bank">
+            <div class="tf-row checked" data-val="ayyl"   data-group="fBank" style="padding-left:36px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">Айыл Банк</span></div>
+            <div class="tf-row checked" data-val="rsk"    data-group="fBank" style="padding-left:36px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">РСК Банк</span></div>
+            <div class="tf-row checked" data-val="bakay"  data-group="fBank" style="padding-left:36px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">Бакай Банк</span></div>
+            <div class="tf-row checked" data-val="optima" data-group="fBank" style="padding-left:36px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">Оптима Банк</span></div>
+          </div>
+
+          <!-- Направление -->
+          <div class="tf-row checked" data-val="all" data-group="fDir" style="padding-left:20px">
+            <div class="tf-toggle" data-toggle="ft-dir">+</div>
+            <div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <span class="tf-label">Направление</span>
+          </div>
+          <div class="tf-children collapsed" id="ft-dir">
+            <div class="tf-row checked" data-val="apk"  data-group="fDir" style="padding-left:36px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">АПК</span></div>
+            <div class="tf-row checked" data-val="torg" data-group="fDir" style="padding-left:36px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">Торговля</span></div>
+            <div class="tf-row checked" data-val="prod" data-group="fDir" style="padding-left:36px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">Производство</span></div>
+            <div class="tf-row checked" data-val="serv" data-group="fDir" style="padding-left:36px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">Услуги</span></div>
+          </div>
+
+          <!-- Срок -->
+          <div class="tf-row checked" data-val="all" data-group="fTerm" style="padding-left:20px">
+            <div class="tf-toggle" data-toggle="ft-term">+</div>
+            <div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <span class="tf-label">Срок кредита</span>
+          </div>
+          <div class="tf-children collapsed" id="ft-term">
+            <div class="tf-row checked" data-val="12" data-group="fTerm" style="padding-left:36px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">12 мес.</span></div>
+            <div class="tf-row checked" data-val="24" data-group="fTerm" style="padding-left:36px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">24 мес.</span></div>
+            <div class="tf-row checked" data-val="36" data-group="fTerm" style="padding-left:36px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">36 мес.</span></div>
+            <div class="tf-row checked" data-val="48" data-group="fTerm" style="padding-left:36px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">48 мес.</span></div>
+            <div class="tf-row checked" data-val="60" data-group="fTerm" style="padding-left:36px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">60 мес.</span></div>
+          </div>
+
+          <!-- Регион / Район -->
+          <div class="tf-row checked" data-val="all" data-group="fRegDist" style="padding-left:20px">
+            <div class="tf-toggle" data-toggle="ft-regdist">+</div>
+            <div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <span class="tf-label">Регион / Район</span>
+          </div>
+          <div class="tf-children collapsed" id="ft-regdist">
+            <div class="tf-row checked" data-val="chuy" data-group="fReg" style="padding-left:36px">
+              <div class="tf-toggle" data-toggle="ft-r-chuy">+</div>
+              <div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <span class="tf-label">Чуйская область</span>
+            </div>
+            <div class="tf-children collapsed" id="ft-r-chuy">
+              <div class="tf-row checked" data-val="alamudun" data-group="fDist" style="padding-left:52px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">Аламудунский р-н</span></div>
+              <div class="tf-row checked" data-val="sokuluk" data-group="fDist" style="padding-left:52px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">Сокулукский р-н</span></div>
+            </div>
+            <div class="tf-row checked" data-val="osh" data-group="fReg" style="padding-left:36px">
+              <div class="tf-toggle" data-toggle="ft-r-osh">+</div>
+              <div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <span class="tf-label">Ошская область</span>
+            </div>
+            <div class="tf-children collapsed" id="ft-r-osh">
+              <div class="tf-row checked" data-val="uzgen" data-group="fDist" style="padding-left:52px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">Узгенский р-н</span></div>
+              <div class="tf-row checked" data-val="karasuu" data-group="fDist" style="padding-left:52px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">Кара-Сууский р-н</span></div>
+            </div>
+            <div class="tf-row checked" data-val="issyk" data-group="fReg" style="padding-left:36px">
+              <div class="tf-toggle" data-toggle="ft-r-issyk">+</div>
+              <div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <span class="tf-label">Иссык-Кульская обл.</span>
+            </div>
+            <div class="tf-children collapsed" id="ft-r-issyk">
+              <div class="tf-row checked" data-val="tyup" data-group="fDist" style="padding-left:52px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">Тюпский р-н</span></div>
+            </div>
+            <div class="tf-row checked" data-val="jalal" data-group="fReg" style="padding-left:36px">
+              <div class="tf-toggle" data-toggle="ft-r-jalal">+</div>
+              <div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <span class="tf-label">Джалал-Абадская обл.</span>
+            </div>
+            <div class="tf-children collapsed" id="ft-r-jalal">
+              <div class="tf-row checked" data-val="nooken" data-group="fDist" style="padding-left:52px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">Ноокенский р-н</span></div>
+            </div>
+            <div class="tf-row checked" data-val="naryn" data-group="fReg" style="padding-left:36px">
+              <div class="tf-toggle" data-toggle="ft-r-naryn">+</div>
+              <div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <span class="tf-label">Нарынская обл.</span>
+            </div>
+            <div class="tf-children collapsed" id="ft-r-naryn">
+              <div class="tf-row checked" data-val="atbashi" data-group="fDist" style="padding-left:52px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">Ат-Башинский р-н</span></div>
+            </div>
+            <div class="tf-row checked" data-val="bishkek" data-group="fReg" style="padding-left:36px">
+              <div class="tf-toggle" data-toggle="ft-r-bsh">+</div>
+              <div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+              <span class="tf-label">г. Бишкек</span>
+            </div>
+            <div class="tf-children collapsed" id="ft-r-bsh">
+              <div class="tf-row checked" data-val="pervomay" data-group="fDist" style="padding-left:52px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">Первомайский р-н</span></div>
+              <div class="tf-row checked" data-val="sverd" data-group="fDist" style="padding-left:52px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">Свердловский р-н</span></div>
+            </div>
+          </div>
+
+          <!-- Статус совпадения -->
+          <div class="tf-row checked" data-val="all" data-group="fMatch" style="padding-left:20px">
+            <div class="tf-toggle" data-toggle="ft-match">+</div>
+            <div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <span class="tf-label">Статус сверки</span>
+          </div>
+          <div class="tf-children collapsed" id="ft-match">
+            <div class="tf-row checked" data-val="match"   data-group="fMatch" style="padding-left:36px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">Совпадает</span></div>
+            <div class="tf-row checked" data-val="diff"    data-group="fMatch" style="padding-left:36px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">Расхождение</span></div>
+            <div class="tf-row checked" data-val="missing" data-group="fMatch" style="padding-left:36px"><div class="tf-toggle empty"></div><div class="tf-cb"><svg class="tf-cb-tick" width="9" height="7" viewBox="0 0 9 7" fill="none"><polyline points="1,3.5 3.5,6 8,1" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div><span class="tf-label">Нет заявки банка</span></div>
+          </div>
+
+        </div><!-- /ft-all -->
+      </div><!-- /tree-filter -->
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="sb-sec">
+    <div class="stitle">Строки (вертикальные разрезы)</div>
+    <ul class="dimlist" id="dimList">
+      <li class="dimitem" data-dim="govprog" draggable="true">
+        <span class="dh">≡</span><input type="checkbox" checked><span class="dn">1</span><span class="dl">Гос. программа</span>
+      </li>
+      <li class="dimitem" data-dim="project" draggable="true">
+        <span class="dh">≡</span><input type="checkbox" checked><span class="dn">2</span><span class="dl">Проект</span>
+      </li>
+      <li class="dimitem" data-dim="bank" draggable="true">
+        <span class="dh">≡</span><input type="checkbox" checked><span class="dn">3</span><span class="dl">Банк-агент</span>
+      </li>
+      <li class="dimitem" data-dim="region" draggable="true">
+        <span class="dh">≡</span><input type="checkbox"><span class="dn"></span><span class="dl">Регион</span>
+      </li>
+      <li class="dimitem" data-dim="district" draggable="true">
+        <span class="dh">≡</span><input type="checkbox"><span class="dn"></span><span class="dl">Район</span>
+      </li>
+      <li class="dimitem" data-dim="direction" draggable="true">
+        <span class="dh">≡</span><input type="checkbox"><span class="dn"></span><span class="dl">Направление</span>
+      </li>
+      <li class="dimitem" data-dim="term" draggable="true">
+        <span class="dh">≡</span><input type="checkbox"><span class="dn"></span><span class="dl">Срок (мес.)</span>
+      </li>
+    </ul>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="sb-sec">
+    <div class="stitle">Колонки (горизонтальный разрез)</div>
+    <div class="fg">
+      <label class="fl">Pivot по</label>
+      <select id="pivotDim" class="fc">
+        <option value="none">Без разреза</option>
+        <option value="period_month" selected>По месяцам</option>
+        <option value="period_quarter">По кварталам</option>
+        <option value="period_year">По годам</option>
+        <option value="bank">По банкам</option>
+        <option value="direction">По направлениям</option>
+        <option value="region">По регионам</option>
+        <option value="govprog">По гос. программам</option>
+        <option value="project">По проектам</option>
+        <option value="term">По срокам (мес.)</option>
+      </select>
+    </div>
+    <div class="fg" id="metricsBlock">
+      <label class="fl">Метрики субсидирования (по периодам)</label>
+      <div class="metric-checks">
+        <div class="mc-item"><input type="checkbox" class="mchk" value="calcCoeff" checked id="m7"><label for="m7">К (сист.) — коэф. системы</label></div>
+        <div class="mc-item"><input type="checkbox" class="mchk" value="calcSubsidy" checked id="m3"><label for="m3">Расчётная субсидия, сом</label></div>
+        <div class="mc-sep"></div>
+        <div class="mc-item"><input type="checkbox" class="mchk" value="bankCoeff" checked id="m8"><label for="m8">К (банк) — коэф. банка</label></div>
+        <div class="mc-item"><input type="checkbox" class="mchk" value="bankSubsidy" checked id="m4"><label for="m4">Заявлено банком, сом</label></div>
+        <div class="mc-sep"></div>
+        <div class="mc-item"><input type="checkbox" class="mchk" value="paidSubsidy" checked id="m5"><label for="m5">К выплате, сом</label></div>
+        <div class="mc-item"><input type="checkbox" class="mchk" value="diff" id="m6"><label for="m6">Расхождение, сом</label></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="sb-sec">
+    <div class="stitle">Детализация</div>
+    <div class="fg">
+      <label class="fl">Уровень отображения</label>
+      <select id="detailLevel" class="fc">
+        <option value="rows">Строки кредитов + разрезы</option>
+        <option value="groups">Только разрезы (без строк)</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="sb-btns">
+    <button class="btn-gen" onclick="generate()">▶ Сформировать</button>
+    <button class="btn-xls" onclick="exportXls()">⬇ Скачать Excel</button>
+  </div>
+</aside>
+
+<!-- ══ MAIN ══ -->
+<div class="main">
+  <div class="toolbar">
+    <div class="tb-left">
+      <div class="rcode">СУГС · ОАО «Государственный финансовый холдинг»</div>
+      <div class="rtname">Р-02 — Отчёт по субсидированию кредитов</div>
+    </div>
+    <div class="tb-right" id="tbMeta">—</div>
+  </div>
+
+  <div class="report-area">
+    <div class="sum-row" id="kpiRow">
+      <div class="kcard"><div class="kt">Кредитов</div><div class="kv" id="k1">—</div><div class="ks">шт.</div></div>
+      <div class="kcard"><div class="kt">Сумма кредитов</div><div class="kv" id="k2">—</div><div class="ks">сом</div></div>
+      <div class="kcard"><div class="kt">Расчётная субсидия</div><div class="kv" id="k3">—</div><div class="ks">сом</div></div>
+      <div class="kcard teal"><div class="kt">Заявлено банками</div><div class="kv" id="k4">—</div><div class="ks">сом</div></div>
+      <div class="kcard green"><div class="kt">К выплате</div><div class="kv" id="k5">—</div><div class="ks">сом</div></div>
+    </div>
+
+    <div class="rep-card" id="repCard">
+      <div class="rep-head">
+        <div class="rorg">ОАО «Государственный финансовый холдинг» · СУГС</div>
+        <div class="rtitle" id="rTitle">Р-02 — Отчёт по субсидированию кредитов</div>
+        <div class="rsub" id="rSub">Нажмите «Сформировать»</div>
+      </div>
+      <div class="frow" id="fRow"></div>
+      <div class="mrow" id="mRow"><div class="mi">Готов к формированию</div></div>
+      <div class="legrow">
+        <div class="li"><div class="ld" style="background:var(--green-bg);border:1px solid var(--green-border)"></div>Совпадает</div>
+        <div class="li"><div class="ld" style="background:var(--amber-bg);border:1px solid var(--amber-border)"></div>Расхождение</div>
+        <div class="li"><div class="ld" style="background:var(--red-bg);border:1px solid var(--red-border)"></div>Нет заявки банка</div>
+      </div>
+      <div class="tw" id="tableWrap">
+        <div class="empty">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+          <p>Задайте параметры и нажмите «Сформировать»</p>
+        </div>
+      </div>
+      <div class="rep-foot" id="repFoot">СУГС · ОАО «ГФХ» · Кыргызская Республика</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════
+//  ДАННЫЕ — тестовый массив субсидирования
+//  Каждая запись = один кредитный договор за один расчётный период (месяц)
+//  creditAmount  — сумма выданного кредита (из данных банка)
+//  calcSubsidy   — сумма субсидии рассчитанная системой
+//  bankSubsidy   — сумма субсидии заявленная банком
+//  matchStatus   — 'match' | 'diff' | 'missing'
+//  paidSubsidy   — сумма к выплате (= calcSubsidy если match, иначе min или 0)
+// ════════════════════════════════════════════════════
+var DATA = [
+  // ФСХ-2 · Айыл Банк · Чуйская
+  // calcCoeff = calcSubsidy / creditAmount (коэффициент системы)
+  // bankCoeff = bankSubsidy / creditAmount (коэффициент банка; 0 если нет заявки)
+  {creditNo:'КР-2025-00001', govprog:'Финансирование сельского хозяйства', project:'ФСХ-2', bank:'Айыл Банк', region:'Чуйская область', district:'Аламудунский р-н', direction:'АПК', term:36, period:'2025-01', creditCount:1, creditAmount:12400000, calcSubsidy:890000,  bankSubsidy:890000,  matchStatus:'match',   paidSubsidy:890000,  diff:0,      calcCoeff:0.07177, bankCoeff:0.07177},
+  {creditNo:'КР-2025-00002', govprog:'Финансирование сельского хозяйства', project:'ФСХ-2', bank:'Айыл Банк', region:'Чуйская область', district:'Аламудунский р-н', direction:'АПК', term:36, period:'2025-02', creditCount:1, creditAmount:9800000,  calcSubsidy:720000,  bankSubsidy:720000,  matchStatus:'match',   paidSubsidy:720000,  diff:0,      calcCoeff:0.07347, bankCoeff:0.07347},
+  {creditNo:'КР-2025-00003', govprog:'Финансирование сельского хозяйства', project:'ФСХ-2', bank:'Айыл Банк', region:'Ошская область',   district:'Узгенский р-н',    direction:'АПК', term:24, period:'2025-01', creditCount:1, creditAmount:7200000,  calcSubsidy:540000,  bankSubsidy:580000,  matchStatus:'diff',    paidSubsidy:0,       diff:-40000, calcCoeff:0.07500, bankCoeff:0.08056},
+  {creditNo:'КР-2025-00004', govprog:'Финансирование сельского хозяйства', project:'ФСХ-2', bank:'Айыл Банк', region:'Ошская область',   district:'Узгенский р-н',    direction:'АПК', term:24, period:'2025-02', creditCount:1, creditAmount:6500000,  calcSubsidy:480000,  bankSubsidy:480000,  matchStatus:'match',   paidSubsidy:480000,  diff:0,      calcCoeff:0.07385, bankCoeff:0.07385},
+  {creditNo:'КР-2025-00005', govprog:'Финансирование сельского хозяйства', project:'ФСХ-3', bank:'Айыл Банк', region:'Иссык-Кульская обл.', district:'Тюпский р-н',  direction:'АПК', term:36, period:'2025-03', creditCount:1, creditAmount:5100000,  calcSubsidy:380000,  bankSubsidy:0,       matchStatus:'missing', paidSubsidy:0,       diff:0,      calcCoeff:0.07451, bankCoeff:0},
+  {creditNo:'КР-2025-00006', govprog:'Финансирование сельского хозяйства', project:'ФСХ-3', bank:'Айыл Банк', region:'Чуйская область',    district:'Аламудунский р-н', direction:'АПК', term:36, period:'2025-03', creditCount:1, creditAmount:11200000, calcSubsidy:830000,  bankSubsidy:830000,  matchStatus:'match',   paidSubsidy:830000,  diff:0,      calcCoeff:0.07411, bankCoeff:0.07411},
+  {creditNo:'КР-2025-00007', govprog:'Финансирование сельского хозяйства', project:'ФСХ-5', bank:'Айыл Банк', region:'Чуйская область',    district:'Аламудунский р-н', direction:'АПК', term:48, period:'2025-04', creditCount:1, creditAmount:14500000, calcSubsidy:1050000, bankSubsidy:1050000, matchStatus:'match',   paidSubsidy:1050000, diff:0,      calcCoeff:0.07241, bankCoeff:0.07241},
+  {creditNo:'КР-2025-00008', govprog:'Финансирование сельского хозяйства', project:'ФСХ-5', bank:'Айыл Банк', region:'Нарынская обл.',    district:'Ат-Башинский р-н', direction:'АПК', term:60, period:'2025-05', creditCount:1, creditAmount:8300000,  calcSubsidy:610000,  bankSubsidy:610000,  matchStatus:'match',   paidSubsidy:610000,  diff:0,      calcCoeff:0.07349, bankCoeff:0.07349},
+
+  // ФСХ-1 · РСК Банк
+  {creditNo:'КР-2025-00009', govprog:'Финансирование сельского хозяйства', project:'ФСХ-1', bank:'РСК Банк',  region:'г. Бишкек',        district:'Первомайский р-н', direction:'АПК', term:36, period:'2025-01', creditCount:1, creditAmount:18500000, calcSubsidy:1380000, bankSubsidy:1380000, matchStatus:'match',   paidSubsidy:1380000, diff:0,      calcCoeff:0.07459, bankCoeff:0.07459},
+  {creditNo:'КР-2025-00010', govprog:'Финансирование сельского хозяйства', project:'ФСХ-1', bank:'РСК Банк',  region:'г. Бишкек',        district:'Свердловский р-н', direction:'АПК', term:36, period:'2025-02', creditCount:1, creditAmount:22000000, calcSubsidy:1640000, bankSubsidy:1700000, matchStatus:'diff',    paidSubsidy:0,       diff:-60000, calcCoeff:0.07455, bankCoeff:0.07727},
+  {creditNo:'КР-2025-00011', govprog:'Финансирование сельского хозяйства', project:'ФСХ-2', bank:'РСК Банк',  region:'Чуйская область',    district:'Аламудунский р-н', direction:'АПК', term:24, period:'2025-02', creditCount:1, creditAmount:15600000, calcSubsidy:1170000, bankSubsidy:1170000, matchStatus:'match',   paidSubsidy:1170000, diff:0,      calcCoeff:0.07500, bankCoeff:0.07500},
+  {creditNo:'КР-2025-00012', govprog:'Финансирование сельского хозяйства', project:'ФСХ-3', bank:'РСК Банк',  region:'Ошская область',     district:'Кара-Сууский р-н', direction:'АПК', term:36, period:'2025-03', creditCount:1, creditAmount:13400000, calcSubsidy:998000,  bankSubsidy:998000,  matchStatus:'match',   paidSubsidy:998000,  diff:0,      calcCoeff:0.07448, bankCoeff:0.07448},
+  {creditNo:'КР-2025-00013', govprog:'Финансирование сельского хозяйства', project:'ФСХ-5', bank:'РСК Банк',  region:'г. Бишкек',         district:'Первомайский р-н', direction:'АПК', term:48, period:'2025-04', creditCount:1, creditAmount:26500000, calcSubsidy:1970000, bankSubsidy:0,       matchStatus:'missing', paidSubsidy:0,       diff:0,      calcCoeff:0.07434, bankCoeff:0},
+  {creditNo:'КР-2025-00014', govprog:'Финансирование сельского хозяйства', project:'ФСХ-5', bank:'РСК Банк',  region:'Чуйская область',    district:'Сокулукский р-н',  direction:'АПК', term:60, period:'2025-05', creditCount:1, creditAmount:19800000, calcSubsidy:1470000, bankSubsidy:1470000, matchStatus:'match',   paidSubsidy:1470000, diff:0,      calcCoeff:0.07424, bankCoeff:0.07424},
+
+  // МСБ · Бакай Банк
+  {creditNo:'КР-2025-00015', govprog:'Поддержка малого и среднего бизнеса', project:'МСБ-1', bank:'Бакай Банк', region:'г. Бишкек',       district:'Первомайский р-н', direction:'Торговля',    term:24, period:'2025-01', creditCount:1, creditAmount:8500000,  calcSubsidy:637000,  bankSubsidy:637000,  matchStatus:'match',   paidSubsidy:637000,  diff:0,      calcCoeff:0.07494, bankCoeff:0.07494},
+  {creditNo:'КР-2025-00016', govprog:'Поддержка малого и среднего бизнеса', project:'МСБ-1', bank:'Бакай Банк', region:'г. Бишкек',       district:'Свердловский р-н', direction:'Производство',term:36, period:'2025-02', creditCount:1, creditAmount:12000000, calcSubsidy:894000,  bankSubsidy:920000,  matchStatus:'diff',    paidSubsidy:0,       diff:-26000, calcCoeff:0.07450, bankCoeff:0.07667},
+  {creditNo:'КР-2025-00017', govprog:'Поддержка малого и среднего бизнеса', project:'МСБ-2', bank:'Бакай Банк', region:'Чуйская область',  district:'Аламудунский р-н', direction:'Торговля',    term:12, period:'2025-03', creditCount:1, creditAmount:4200000,  calcSubsidy:312000,  bankSubsidy:312000,  matchStatus:'match',   paidSubsidy:312000,  diff:0,      calcCoeff:0.07429, bankCoeff:0.07429},
+  {creditNo:'КР-2025-00018', govprog:'Поддержка малого и среднего бизнеса', project:'МСБ-2', bank:'Бакай Банк', region:'Ошская область',   district:'Узгенский р-н',    direction:'Услуги',      term:24, period:'2025-04', creditCount:1, creditAmount:6800000,  calcSubsidy:507000,  bankSubsidy:507000,  matchStatus:'match',   paidSubsidy:507000,  diff:0,      calcCoeff:0.07456, bankCoeff:0.07456},
+
+  // МСБ · Оптима Банк
+  {creditNo:'КР-2025-00019', govprog:'Поддержка малого и среднего бизнеса', project:'МСБ-1', bank:'Оптима Банк', region:'г. Бишкек',      district:'Первомайский р-н', direction:'Торговля',    term:36, period:'2025-01', creditCount:1, creditAmount:16500000, calcSubsidy:1230000, bankSubsidy:1230000, matchStatus:'match',   paidSubsidy:1230000, diff:0,      calcCoeff:0.07455, bankCoeff:0.07455},
+  {creditNo:'КР-2025-00020', govprog:'Поддержка малого и среднего бизнеса', project:'МСБ-2', bank:'Оптима Банк', region:'Чуйская область', district:'Сокулукский р-н',  direction:'Производство',term:24, period:'2025-02', creditCount:1, creditAmount:9400000,  calcSubsidy:700000,  bankSubsidy:0,       matchStatus:'missing', paidSubsidy:0,       diff:0,      calcCoeff:0.07447, bankCoeff:0},
+  {creditNo:'КР-2025-00021', govprog:'Поддержка малого и среднего бизнеса', project:'МСБ-1', bank:'Оптима Банк', region:'г. Бишкек',      district:'Свердловский р-н', direction:'Услуги',      term:36, period:'2025-03', creditCount:1, creditAmount:11200000, calcSubsidy:833000,  bankSubsidy:833000,  matchStatus:'match',   paidSubsidy:833000,  diff:0,      calcCoeff:0.07438, bankCoeff:0.07438},
+
+  // АГРО · Айыл Банк
+  {creditNo:'КР-2025-00022', govprog:'Аграрное развитие регионов', project:'АГРО-1', bank:'Айыл Банк', region:'Джалал-Абадская обл.', district:'Ноокенский р-н', direction:'АПК', term:36, period:'2025-01', creditCount:1, creditAmount:7100000,  calcSubsidy:529000,  bankSubsidy:529000,  matchStatus:'match',   paidSubsidy:529000,  diff:0,      calcCoeff:0.07451, bankCoeff:0.07451},
+  {creditNo:'КР-2025-00023', govprog:'Аграрное развитие регионов', project:'АГРО-1', bank:'Айыл Банк', region:'Ошская область',       district:'Узгенский р-н',    direction:'АПК', term:24, period:'2025-02', creditCount:1, creditAmount:5900000,  calcSubsidy:440000,  bankSubsidy:460000,  matchStatus:'diff',    paidSubsidy:0,       diff:-20000, calcCoeff:0.07458, bankCoeff:0.07797},
+  {creditNo:'КР-2025-00024', govprog:'Аграрное развитие регионов', project:'АГРО-2', bank:'Айыл Банк', region:'Нарынская обл.',       district:'Ат-Башинский р-н', direction:'АПК', term:48, period:'2025-03', creditCount:1, creditAmount:9200000,  calcSubsidy:684000,  bankSubsidy:684000,  matchStatus:'match',   paidSubsidy:684000,  diff:0,      calcCoeff:0.07435, bankCoeff:0.07435},
+  {creditNo:'КР-2025-00025', govprog:'Аграрное развитие регионов', project:'АГРО-2', bank:'Айыл Банк', region:'Иссык-Кульская обл.', district:'Тюпский р-н',      direction:'АПК', term:36, period:'2025-04', creditCount:1, creditAmount:6400000,  calcSubsidy:476000,  bankSubsidy:476000,  matchStatus:'match',   paidSubsidy:476000,  diff:0,      calcCoeff:0.07438, bankCoeff:0.07438},
+  {creditNo:'КР-2025-00026', govprog:'Аграрное развитие регионов', project:'АГРО-1', bank:'РСК Банк',  region:'Чуйская область',      district:'Аламудунский р-н', direction:'АПК', term:36, period:'2025-05', creditCount:1, creditAmount:14200000, calcSubsidy:1057000, bankSubsidy:1057000, matchStatus:'match',   paidSubsidy:1057000, diff:0,      calcCoeff:0.07444, bankCoeff:0.07444},
+  {creditNo:'КР-2025-00027', govprog:'Аграрное развитие регионов', project:'АГРО-2', bank:'РСК Банк',  region:'Ошская область',       district:'Кара-Сууский р-н', direction:'АПК', term:60, period:'2025-06', creditCount:1, creditAmount:18700000, calcSubsidy:1391000, bankSubsidy:0,       matchStatus:'missing', paidSubsidy:0,       diff:0,      calcCoeff:0.07439, bankCoeff:0},
+];
+
+// ════════════════════════════════════════════════════
+//  СПРАВОЧНИКИ (для фильтров)
+// ════════════════════════════════════════════════════
+var GOVPROG_MAP = {
+  fsh:  'Финансирование сельского хозяйства',
+  msb:  'Поддержка малого и среднего бизнеса',
+  agro: 'Аграрное развитие регионов'
+};
+var PROJ_MAP = {
+  fsh1:'ФСХ-1', fsh2:'ФСХ-2', fsh3:'ФСХ-3', fsh5:'ФСХ-5',
+  msb1:'МСБ-1', msb2:'МСБ-2',
+  agro1:'АГРО-1', agro2:'АГРО-2'
+};
+var BANK_MAP = {
+  ayyl:'Айыл Банк', rsk:'РСК Банк', bakay:'Бакай Банк', optima:'Оптима Банк'
+};
+var DIR_MAP = {
+  apk:'АПК', torg:'Торговля', prod:'Производство', serv:'Услуги'
+};
+var REG_MAP = {
+  chuy:'Чуйская область', osh:'Ошская область', issyk:'Иссык-Кульская обл.',
+  jalal:'Джалал-Абадская обл.', naryn:'Нарынская обл.', bishkek:'г. Бишкек'
+};
+var DISTRICT_MAP = {
+  alamudun:'Аламудунский р-н', sokuluk:'Сокулукский р-н',
+  uzgen:'Узгенский р-н', karasuu:'Кара-Сууский р-н',
+  tyup:'Тюпский р-н', atbashi:'Ат-Башинский р-н',
+  nooken:'Ноокенский р-н', pervomay:'Первомайский р-н', sverd:'Свердловский р-н'
+};
+var MONTHS = ['Янв','Фев','Мар','Апр','Май','Июн','Июл','Авг','Сен','Окт','Ноя','Дек'];
+
+var DIM_LABEL   = { govprog:'Гос. программа', project:'Проект', bank:'Банк', region:'Регион', district:'Район', direction:'Направление', term:'Срок (мес.)' };
+// Метрики pivot-зоны (субсидии — разбиваются по периодам)
+var METRIC_LABEL = {
+  calcSubsidy:  'Расчётная, сом',
+  bankSubsidy:  'Заявлено, сом',
+  paidSubsidy:  'К выплате, сом',
+  diff:         'Расхождение, сом',
+  calcCoeff:    'К (сист.)',
+  bankCoeff:    'К (банк)'
+};
+
+// Левая (кредитная) зона — фиксированные колонки, не в pivot
+var CRED_LABEL = {
+  creditCount:  'Кол-во, шт.',
+  creditAmount: 'Сумма кредитов, сом'
+};
+
+// ════════════════════════════════════════════════════
+//  HELPERS
+// ════════════════════════════════════════════════════
+function n(v)  { if (v === 0) return '—'; return Math.round(v).toLocaleString('ru-RU'); }
+function nz(v) { return Math.round(v).toLocaleString('ru-RU'); }
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function now() {
+  var d = new Date(), p = function(x){return x<10?'0'+x:x;};
+  return p(d.getDate())+'.'+p(d.getMonth()+1)+'.'+d.getFullYear()+' '+p(d.getHours())+':'+p(d.getMinutes());
+}
+function fmtDate(s) { if (!s) return '—'; var p=s.split('-'); return p[2]+'.'+p[1]+'.'+p[0]; }
+
+// ════════════════════════════════════════════════════
+//  FILTER
+// ════════════════════════════════════════════════════
+function getCfSelected(group) {
+  return Array.from(document.querySelectorAll('#filterTree .tf-row[data-group="'+group+'"]:not([data-val="all"]).checked'))
+    .map(function(el){ return el.getAttribute('data-val'); });
+}
+function isAllSelected(group) {
+  var h = document.querySelector('#filterTree .tf-row[data-group="'+group+'"][data-val="all"]');
+  return h && h.classList.contains('checked');
+}
+function filterData() {
+  var gs  = isAllSelected('fGov')   ? [] : getCfSelected('fGov');
+  var ps  = isAllSelected('fPrj')   ? [] : getCfSelected('fPrj');
+  var bs  = isAllSelected('fBank')  ? [] : getCfSelected('fBank');
+  var ds  = isAllSelected('fDir')   ? [] : getCfSelected('fDir');
+  var rs  = isAllSelected('fReg')   ? [] : getCfSelected('fReg');
+  var ts  = isAllSelected('fTerm')  ? [] : getCfSelected('fTerm');
+  var ms  = isAllSelected('fMatch') ? [] : getCfSelected('fMatch');
+  var distSel = isAllSelected('fDist') ? [] : getCfSelected('fDist');
+  var df = document.getElementById('dateFrom').value.substring(0,7);
+  var dt = document.getElementById('dateTo').value.substring(0,7);
+
+  return DATA.filter(function(row) {
+    if (gs.length) {
+      var k = Object.keys(GOVPROG_MAP).find(function(k){ return GOVPROG_MAP[k]===row.govprog; });
+      if (gs.indexOf(k) === -1) return false;
+    }
+    if (ps.length) {
+      var k = Object.keys(PROJ_MAP).find(function(k){ return PROJ_MAP[k]===row.project; });
+      if (!k || ps.indexOf(k) === -1) return false;
+    }
+    if (bs.length) {
+      var k = Object.keys(BANK_MAP).find(function(k){ return BANK_MAP[k]===row.bank; });
+      if (bs.indexOf(k) === -1) return false;
+    }
+    if (ds.length) {
+      var k = Object.keys(DIR_MAP).find(function(k){ return DIR_MAP[k]===row.direction; });
+      if (ds.indexOf(k) === -1) return false;
+    }
+    if (rs.length) {
+      var k = Object.keys(REG_MAP).find(function(k){ return REG_MAP[k]===row.region; });
+      if (rs.indexOf(k) === -1) return false;
+    }
+    if (ts.length && ts.indexOf(String(row.term)) === -1) return false;
+    if (ms.length && ms.indexOf(row.matchStatus) === -1) return false;
+    if (distSel.length) {
+      var k = Object.keys(DISTRICT_MAP).find(function(k){ return DISTRICT_MAP[k]===row.district; });
+      if (!k || distSel.indexOf(k) === -1) return false;
+    }
+    if (row.period < df || row.period > dt) return false;
+    return true;
+  });
+}
+
+// ════════════════════════════════════════════════════
+//  DIMS & METRICS
+// ════════════════════════════════════════════════════
+function getVDims() {
+  var result = [];
+  document.querySelectorAll('#dimList .dimitem').forEach(function(it) {
+    if (it.querySelector('input').checked) result.push(it.getAttribute('data-dim'));
+  });
+  return result;
+}
+function getMetrics() {
+  return Array.from(document.querySelectorAll('.mchk:checked')).map(function(c){ return c.value; });
+}
+// Кредитные колонки всегда фиксированы (не чекбоксы)
+var CRED_COLS = ['creditCount', 'creditAmount'];
+
+// ════════════════════════════════════════════════════
+//  PIVOT
+// ════════════════════════════════════════════════════
+function pivotKey(row, pdim) {
+  if (pdim === 'period_month')   return row.period;
+  if (pdim === 'period_quarter') { var p=row.period.split('-'); return p[0]+'-Q'+Math.ceil(parseInt(p[1])/3); }
+  if (pdim === 'period_year')    return row.period.split('-')[0];
+  if (pdim === 'term')           return String(row.term);
+  if (pdim === 'govprog')        return row.govprog;
+  return String(row[pdim]);
+}
+function pivotLabel(key, pdim) {
+  if (pdim === 'period_month')   { var p=key.split('-'); return MONTHS[parseInt(p[1])-1]+' '+p[0]; }
+  if (pdim === 'period_quarter') { var p=key.split('-Q'); return 'Q'+p[1]+' '+p[0]; }
+  if (pdim === 'period_year')    return key+' г.';
+  if (pdim === 'term')           return key+' мес.';
+  return key;
+}
+function getPivotKeys(rows, pdim) {
+  var seen={}, order=[];
+  rows.forEach(function(r){ var k=pivotKey(r,pdim); if(!seen[k]){seen[k]=1; order.push(k);} });
+  if (['period_month','period_quarter','period_year','term'].indexOf(pdim)>=0) order.sort();
+  return order;
+}
+
+// ════════════════════════════════════════════════════
+//  AGGREGATION
+// ════════════════════════════════════════════════════
+function sumArr(rows) {
+  var s = rows.reduce(function(a, r) {
+    return {
+      creditCount:      a.creditCount  + (+r.creditCount  || 0),
+      creditAmount:     a.creditAmount + (+r.creditAmount || 0),
+      calcSubsidy:      a.calcSubsidy  + (+r.calcSubsidy  || 0),
+      bankSubsidy:      a.bankSubsidy  + (+r.bankSubsidy  || 0),
+      paidSubsidy:      a.paidSubsidy  + (+r.paidSubsidy  || 0),
+      diff:             a.diff         + (+r.diff         || 0),
+      // для взвешенного среднего: накапливаем сумму (К × сумма_кредита)
+      _calcCoeffW:      a._calcCoeffW  + (+r.calcCoeff || 0) * (+r.creditAmount || 0),
+      _bankCoeffW:      a._bankCoeffW  + (+r.bankCoeff  || 0) * (+r.creditAmount || 0)
+    };
+  }, {creditCount:0, creditAmount:0, calcSubsidy:0, bankSubsidy:0, paidSubsidy:0, diff:0, _calcCoeffW:0, _bankCoeffW:0});
+  // взвешенное среднее = сумма(К×сумма) / общая_сумма
+  s.calcCoeff = s.creditAmount ? s._calcCoeffW / s.creditAmount : 0;
+  s.bankCoeff = s.creditAmount ? s._bankCoeffW / s.creditAmount : 0;
+  return s;
+}
+function sumByPivot(rows, pkeys, pdim) {
+  var res = {};
+  pkeys.forEach(function(k){ res[k]={creditCount:0,creditAmount:0,calcSubsidy:0,bankSubsidy:0,paidSubsidy:0,diff:0,calcCoeff:0,bankCoeff:0,_calcCoeffW:0,_bankCoeffW:0}; });
+  rows.forEach(function(r){
+    var k = pivotKey(r, pdim);
+    if (!res[k]) return;
+    var ca = +r.creditAmount || 0;
+    res[k].creditCount  += (+r.creditCount  || 0);
+    res[k].creditAmount += ca;
+    res[k].calcSubsidy  += (+r.calcSubsidy  || 0);
+    res[k].bankSubsidy  += (+r.bankSubsidy  || 0);
+    res[k].paidSubsidy  += (+r.paidSubsidy  || 0);
+    res[k].diff         += (+r.diff         || 0);
+    res[k]._calcCoeffW  += (+r.calcCoeff || 0) * ca;
+    res[k]._bankCoeffW  += (+r.bankCoeff  || 0) * ca;
+  });
+  // финализируем взвешенное среднее
+  pkeys.forEach(function(k){
+    res[k].calcCoeff = res[k].creditAmount ? res[k]._calcCoeffW / res[k].creditAmount : 0;
+    res[k].bankCoeff = res[k].creditAmount ? res[k]._bankCoeffW / res[k].creditAmount : 0;
+  });
+  return res;
+}
+
+// ════════════════════════════════════════════════════
+//  GROUPS
+// ════════════════════════════════════════════════════
+function buildGroups(rows, dims) {
+  if (!dims.length) return rows;
+  var dim=dims[0], rest=dims.slice(1), map={}, order=[];
+  rows.forEach(function(r){ var k=String(r[dim]); if(!map[k]){map[k]=[];order.push(k);} map[k].push(r); });
+  return order.map(function(k){ return {key:k, dim:dim, children:buildGroups(map[k],rest)}; });
+}
+function flatLeaves(nodes) {
+  var out=[];
+  function walk(x){
+    if(Array.isArray(x)){x.forEach(walk);return;}
+    if(x.children&&x.children.length&&x.children[0]&&x.children[0].dim){x.children.forEach(walk);return;}
+    if(x.children){x.children.forEach(function(r){out.push(r);});return;}
+    out.push(x);
+  }
+  walk(nodes); return out;
+}
+
+// ════════════════════════════════════════════════════
+//  MATCH STATUS BADGE (для строк кредитов)
+// ════════════════════════════════════════════════════
+function matchBadge(status) {
+  if (status === 'match')   return '<span class="b-match">Совпадает</span>';
+  if (status === 'diff')    return '<span class="b-diff">Расхождение</span>';
+  if (status === 'missing') return '<span class="b-missing">Нет заявки</span>';
+  return '';
+}
+// Доминирующий статус группы
+function groupMatchStatus(rows) {
+  var hasMissing = rows.some(function(r){ return r.matchStatus === 'missing'; });
+  var hasDiff    = rows.some(function(r){ return r.matchStatus === 'diff'; });
+  if (hasMissing) return 'missing';
+  if (hasDiff)    return 'diff';
+  return 'match';
+}
+
+// ════════════════════════════════════════════════════
+//  METRIC CELLS — субсидийные (pivot-зона)
+// ════════════════════════════════════════════════════
+function subCells(s, metrics, sep) {
+  var html = '';
+  var cols = getOrderedCols(metrics);
+  var last = cols.length - 1;
+  cols.forEach(function(col, i) {
+    var isLast = (i === last);
+    var cls = 'num' + (sep && isLast ? ' cg-sep' : '');
+    var m = col.key;
+    if (m === 'calcCoeff') {
+      var v = s.calcCoeff || 0;
+      html += '<td class="'+cls+'" style="color:var(--text2);font-family:var(--mono);font-size:11px">' + (v ? v.toFixed(6) : '<span style="color:var(--text3)">—</span>') + '</td>';
+    }
+    if (m === 'calcSubsidy') {
+      html += '<td class="'+cls+'">' + (s.calcSubsidy ? nz(s.calcSubsidy) : '<span style="color:var(--text3)">—</span>') + '</td>';
+    }
+    if (m === 'bankCoeff') {
+      var v = s.bankCoeff || 0;
+      html += '<td class="'+cls+'" style="color:var(--text2);font-family:var(--mono);font-size:11px">' + (v ? v.toFixed(6) : '<span style="color:var(--text3)">—</span>') + '</td>';
+    }
+    if (m === 'bankSubsidy') {
+      html += '<td class="'+cls+'">' + (s.bankSubsidy ? nz(s.bankSubsidy) : '<span style="color:var(--text3)">—</span>') + '</td>';
+    }
+    if (m === 'paidSubsidy') {
+      html += '<td class="'+cls+'" style="color:var(--green-text)">' + (s.paidSubsidy ? nz(s.paidSubsidy) : '<span style="color:var(--text3)">—</span>') + '</td>';
+    }
+    if (m === 'diff') {
+      var d = s.diff || 0;
+      var st = d < 0 ? 'color:var(--red-text)' : (d > 0 ? 'color:var(--green-text)' : 'color:var(--text3)');
+      html += '<td class="'+cls+'" style="'+st+'">' + (d !== 0 ? nz(d) : '—') + '</td>';
+    }
+  });
+  return html;
+}
+
+// Возвращает упорядоченный список колонок для заголовков
+function getOrderedCols(metrics) {
+  var cols = [];
+  if (metrics.indexOf('calcCoeff')   >= 0) cols.push({key:'calcCoeff',   label:'К (сист.)'});
+  if (metrics.indexOf('calcSubsidy') >= 0) cols.push({key:'calcSubsidy', label:METRIC_LABEL['calcSubsidy']});
+  if (metrics.indexOf('bankCoeff')   >= 0) cols.push({key:'bankCoeff',   label:'К (банк)'});
+  if (metrics.indexOf('bankSubsidy') >= 0) cols.push({key:'bankSubsidy', label:METRIC_LABEL['bankSubsidy']});
+  if (metrics.indexOf('paidSubsidy') >= 0) cols.push({key:'paidSubsidy', label:METRIC_LABEL['paidSubsidy']});
+  if (metrics.indexOf('diff')        >= 0) cols.push({key:'diff',        label:METRIC_LABEL['diff']});
+  return cols;
+}
+
+// ════════════════════════════════════════════════════
+//  RENDER TABLE
+//  Структура:
+//    LEFT ZONE (sticky): разрезы | № кредита | Кол-во | Сумма кредитов
+//    PIVOT ZONE: Итого [calcSubsidy, bankSubsidy, paidSubsidy, diff]
+//                Период1 [...]  Период2 [...]  ...
+// ════════════════════════════════════════════════════
+function renderTable(rows, dims, metrics, pdim) {
+  var hasPivot = pdim !== 'none';
+  var pkeys    = hasPivot ? getPivotKeys(rows, pdim) : [];
+  var html     = '<table id="repTable">';
+  var showRows = document.getElementById('detailLevel').value === 'rows';
+  var groups   = buildGroups(rows, dims);
+  var grand    = sumArr(rows);
+  var GC       = ['g0','g1','g2'];
+
+  // ── Ширина левой зоны ──────────────────────────────
+  // разрезы + колонка "№ кредита" + 2 кредитных колонки
+  var dimCols  = dims.length + 1;           // разрезы + № кредита/статус
+  var credCols = CRED_COLS.length;          // creditCount + creditAmount
+  var leftCols = dimCols + credCols;        // суммарно для colspan в группах/итогах
+
+  // ── HEADERS ────────────────────────────────────────
+  if (hasPivot) {
+    // hg — верхняя строка
+    html += '<thead><tr class="hg">';
+    // Левая зона занимает 2 строки
+    html += '<th class="tal cg-sep left-zone" rowspan="2" colspan="'+dimCols+'">Разрезы / № кредита</th>';
+    // Кредитные колонки — тоже 2 строки (не разбиваются по pivot)
+    CRED_COLS.forEach(function(c, i) {
+      var isLast = (i === CRED_COLS.length - 1);
+      html += '<th class="ctr zone-cred'+(isLast?' cg-sep':'')+'" rowspan="2" style="vertical-align:bottom">'+esc(CRED_LABEL[c])+'</th>';
+    });
+    // Итого субсидии
+    var ordCols = getOrderedCols(metrics);
+    if (ordCols.length) {
+      html += '<th colspan="'+ordCols.length+'" class="zone-sub cg-sep">Итого</th>';
+    }
+    // Периоды
+    pkeys.forEach(function(pk) {
+      html += '<th colspan="'+ordCols.length+'" class="zone-sub cg-sep">'+esc(pivotLabel(pk, pdim))+'</th>';
+    });
+    html += '</tr>';
+
+    // hm — нижняя строка (упорядоченные метки)
+    html += '<tr class="hm">';
+    // Итого-метрики
+    ordCols.forEach(function(col, i) {
+      var isLast = (i === ordCols.length - 1);
+      html += '<th class="ctr'+(isLast?' cg-sep':'')+'">' + esc(col.label) + '</th>';
+    });
+    // Метки для каждого периода
+    pkeys.forEach(function() {
+      ordCols.forEach(function(col, i) {
+        var isLast = (i === ordCols.length - 1);
+        html += '<th class="ctr'+(isLast?' cg-sep':'')+'">' + esc(col.label) + '</th>';
+      });
+    });
+    html += '</tr></thead>';
+
+  } else {
+    // Без pivot: одна строка hg для заголовков зон + hm для меток
+    var ordCols = getOrderedCols(metrics);
+    html += '<thead><tr class="hg">';
+    html += '<th class="tal cg-sep left-zone" rowspan="2" colspan="'+dimCols+'">Разрезы / № кредита</th>';
+    CRED_COLS.forEach(function(c, i) {
+      var isLast = (i === CRED_COLS.length - 1);
+      html += '<th class="ctr zone-cred'+(isLast?' cg-sep':'')+'" rowspan="2" style="vertical-align:bottom">'+esc(CRED_LABEL[c])+'</th>';
+    });
+    if (ordCols.length) {
+      html += '<th colspan="'+ordCols.length+'" class="zone-sub cg-sep">Субсидирование</th>';
+    }
+    html += '</tr><tr class="hm">';
+    ordCols.forEach(function(col, i) {
+      var isLast = (i === ordCols.length - 1);
+      html += '<th class="ctr'+(isLast?' cg-sep':'')+'">' + esc(col.label) + '</th>';
+    });
+    html += '</tr></thead>';
+  }
+
+  // ── BODY ───────────────────────────────────────────
+  html += '<tbody>';
+
+  // Функция: кредитные ячейки (фиксированная зона, не sticky, но левее pivot)
+  function credCells(s, isTot) {
+    var h = '';
+    CRED_COLS.forEach(function(c, i) {
+      var isLast = (i === CRED_COLS.length - 1);
+      var cls = 'num' + (isLast ? ' cg-sep' : '');
+      if (c === 'creditCount')  h += '<td class="'+cls+'">' + (s.creditCount  ? nz(s.creditCount)  : '<span style="color:var(--text3)">—</span>') + '</td>';
+      if (c === 'creditAmount') h += '<td class="'+cls+'">' + (s.creditAmount ? nz(s.creditAmount) : '<span style="color:var(--text3)">—</span>') + '</td>';
+    });
+    return h;
+  }
+
+  // Функция: pivot-ячейки субсидий (Итого + периоды)
+  function pivotSubCells(leaves) {
+    var totSub  = sumArr(leaves);
+    var pivData = hasPivot ? sumByPivot(leaves, pkeys, pdim) : {};
+    var h = subCells(totSub, metrics, true);
+    if (hasPivot) {
+      pkeys.forEach(function(pk) {
+        var s = pivData[pk] || {calcSubsidy:0,bankSubsidy:0,paidSubsidy:0,diff:0,calcCoeff:0,bankCoeff:0};
+        h += subCells(s, metrics, true);
+      });
+    }
+    return h;
+  }
+
+  // ─ ИТОГО ─
+  html += '<tr class="tot">';
+  html += '<td class="tal left-zone" colspan="'+dimCols+'">ИТОГО</td>';
+  html += credCells(grand, true);
+  html += pivotSubCells(rows);
+  html += '</tr>';
+
+  // ─ Группы ─
+  function renderNode(node, depth) {
+    var isLeaf = !node.children[0] || !node.children[0].dim;
+    var leaves = flatLeaves([node]);
+    var grpStatus = groupMatchStatus(leaves);
+    var gc = GC[Math.min(depth, GC.length - 1)];
+    var statusBadge = grpStatus !== 'match' ? ' &nbsp;' + matchBadge(grpStatus) : '';
+
+    html += '<tr class="'+gc+'">';
+    html += '<td class="tal left-zone" colspan="'+dimCols+'">'+esc(node.key)+statusBadge+'</td>';
+    html += credCells(sumArr(leaves), false);
+    html += pivotSubCells(leaves);
+    html += '</tr>';
+
+    if (isLeaf) {
+      if (showRows) {
+        leaves.forEach(function(r) {
+          html += '<tr class="dr">';
+          html += '<td class="tal left-zone" colspan="'+dimCols+'">';
+          html += '<span style="font-family:var(--mono);font-size:11px">'+esc(r.creditNo)+'</span> ';
+          html += matchBadge(r.matchStatus);
+          html += '</td>';
+          html += credCells(r, false);
+          // Для строки кредита в pivot: только его период заполнен
+          if (hasPivot) {
+            var rTot = {calcSubsidy:+r.calcSubsidy||0, bankSubsidy:+r.bankSubsidy||0, paidSubsidy:+r.paidSubsidy||0, diff:+r.diff||0, calcCoeff:+r.calcCoeff||0, bankCoeff:+r.bankCoeff||0};
+            var rPivot = {};
+            pkeys.forEach(function(pk){ rPivot[pk]={calcSubsidy:0,bankSubsidy:0,paidSubsidy:0,diff:0,calcCoeff:0,bankCoeff:0}; });
+            var rk = pivotKey(r, pdim);
+            if (rPivot[rk] !== undefined) rPivot[rk] = rTot;
+            html += subCells(rTot, metrics, true);
+            pkeys.forEach(function(pk) { html += subCells(rPivot[pk], metrics, true); });
+          } else {
+            html += subCells(r, metrics, true);
+          }
+          html += '</tr>';
+        });
+      }
+    } else {
+      node.children.forEach(function(child){ renderNode(child, depth + 1); });
+    }
+  }
+
+  if (groups.length && groups[0] && groups[0].dim) {
+    groups.forEach(function(g){ renderNode(g, 0); });
+  } else {
+    if (showRows) {
+      rows.forEach(function(r) {
+        html += '<tr class="dr">';
+        html += '<td class="tal left-zone" colspan="'+dimCols+'">';
+        html += '<span style="font-family:var(--mono);font-size:11px">'+esc(r.creditNo)+'</span> ';
+        html += matchBadge(r.matchStatus);
+        html += '</td>';
+        html += credCells(r, false);
+        html += subCells(r, metrics, true);
+        html += '</tr>';
+      });
+    }
+  }
+
+  html += '</tbody></table>';
+  return html;
+}
+
+// ════════════════════════════════════════════════════
+//  GENERATE
+// ════════════════════════════════════════════════════
+function generate() {
+  var rows    = filterData();
+  var dims    = getVDims();
+  var metrics = getMetrics();
+  var pdim    = document.getElementById('pivotDim').value;
+  var df      = document.getElementById('dateFrom').value;
+  var dt      = document.getElementById('dateTo').value;
+
+  if (!metrics.length) { alert('Выберите хотя бы одну метрику'); return; }
+
+  var grand = sumArr(rows);
+  document.getElementById('k1').textContent = nz(grand.creditCount);
+  document.getElementById('k2').textContent = nz(grand.creditAmount);
+  document.getElementById('k3').textContent = nz(grand.calcSubsidy);
+  document.getElementById('k4').textContent = nz(grand.bankSubsidy);
+  document.getElementById('k5').textContent = nz(grand.paidSubsidy);
+
+  document.getElementById('tbMeta').textContent = 'Сформирован: ' + now();
+  document.getElementById('sbReportMeta').style.display = '';
+  document.getElementById('sbReportMeta').textContent = fmtDate(df) + ' — ' + fmtDate(dt) + ' · ' + rows.length + ' строк';
+
+  var dimStr = dims.length ? dims.map(function(d){ return DIM_LABEL[d]; }).join(' → ') : 'без разреза';
+  var pivStr = pdim !== 'none' ? ' · Колонки: ' + document.querySelector('#pivotDim option:checked').textContent : '';
+  document.getElementById('rSub').textContent = 'Строки: ' + dimStr + pivStr;
+
+  function selLabels(group) {
+    if (isAllSelected(group)) return 'Все';
+    return Array.from(document.querySelectorAll('#filterTree .tf-row[data-group="'+group+'"]:not([data-val="all"]).checked'))
+      .map(function(el){ return el.querySelector('.tf-label').textContent; }).join(', ') || 'Не выбрано';
+  }
+  var fhtml = '';
+  fhtml += '<div class="fc2"><span class="flab">Период</span><span class="fval">'+fmtDate(df)+' — '+fmtDate(dt)+'</span></div>';
+  fhtml += '<div class="fc2"><span class="flab">Гос. программа</span><span class="fval">'+esc(selLabels('fGov'))+'</span></div>';
+  fhtml += '<div class="fc2"><span class="flab">Банк</span><span class="fval">'+esc(selLabels('fBank'))+'</span></div>';
+  fhtml += '<div class="fc2"><span class="flab">Направление</span><span class="fval">'+esc(selLabels('fDir'))+'</span></div>';
+  fhtml += '<div class="fc2"><span class="flab">Срок</span><span class="fval">'+esc(selLabels('fTerm'))+'</span></div>';
+  fhtml += '<div class="fc2"><span class="flab">Регион</span><span class="fval">'+esc(selLabels('fReg'))+'</span></div>';
+  fhtml += '<div class="fc2"><span class="flab">Статус</span><span class="fval">'+esc(selLabels('fMatch'))+'</span></div>';
+  document.getElementById('fRow').innerHTML = fhtml;
+
+  document.getElementById('mRow').innerHTML =
+    '<div class="mi">Сформирован: <b>' + now() + '</b></div>' +
+    '<div class="mi">Строк: <b>' + rows.length + '</b></div>' +
+    '<div class="mi">Совпадений: <b>' + rows.filter(function(r){ return r.matchStatus==='match'; }).length + '</b></div>' +
+    '<div class="mi">Расхождений: <b>' + rows.filter(function(r){ return r.matchStatus==='diff'; }).length + '</b></div>' +
+    '<div class="mi">Без заявки: <b>' + rows.filter(function(r){ return r.matchStatus==='missing'; }).length + '</b></div>';
+
+  var wrap = document.getElementById('tableWrap');
+  if (!rows.length) {
+    wrap.innerHTML = '<div class="empty"><p>Нет данных по заданным фильтрам</p></div>';
+  } else {
+    wrap.innerHTML = renderTable(rows, dims, metrics, pdim);
+  }
+
+  // Sticky — как в оригинале
+  setTimeout(function() {
+    var tw  = document.getElementById('tableWrap');
+    var tbl = tw ? tw.querySelector('table') : null;
+    if (!tbl) return;
+    var toolbarH = document.querySelector('.toolbar').getBoundingClientRect().height;
+    var hgRows = tbl.querySelectorAll('tr.hg th');
+    var hmRows = tbl.querySelectorAll('tr.hm th');
+    if (hgRows.length && hmRows.length) {
+      hgRows.forEach(function(th){ th.style.top = toolbarH + 'px'; });
+      var hgH = tbl.querySelector('tr.hg').getBoundingClientRect().height;
+      hmRows.forEach(function(th){ th.style.top = (toolbarH + hgH) + 'px'; });
+    } else {
+      hmRows.forEach(function(th){ th.style.top = toolbarH + 'px'; });
+    }
+    var theadH = tbl.querySelector('thead') ? tbl.querySelector('thead').getBoundingClientRect().height : 0;
+    tbl.querySelectorAll('tr.tot td').forEach(function(td){ td.style.top = (toolbarH + theadH) + 'px'; });
+
+    tbl.querySelectorAll('th.left-zone, td.left-zone').forEach(function(cell) {
+      var row   = cell.parentElement;
+      var zones = Array.from(row.querySelectorAll('.left-zone'));
+      var span  = parseInt(cell.getAttribute('colspan') || 1);
+      cell.style.position = 'sticky';
+      cell.style.zIndex   = cell.tagName === 'TH' ? '7' : (cell.closest('tr.tot') ? '5' : '3');
+      cell.style.left     = '0px';
+
+      var tr = cell.closest('tr');
+      if (!tr) return;
+      if (tr.classList.contains('hg'))  {
+        // hg: определяем цвет по классу ячейки
+        if (cell.classList.contains('zone-cred')) cell.style.background = '#0d2e1a';
+        else cell.style.background = '#0a1e38';
+      }
+      else if (tr.classList.contains('hm'))  cell.style.background = '#edf4fc';
+      else if (tr.classList.contains('tot')) cell.style.background = 'var(--navy)';
+      else if (tr.classList.contains('g0'))  cell.style.background = '#1a3a5c';
+      else if (tr.classList.contains('g1'))  cell.style.background = '#edf4fc';
+      else if (tr.classList.contains('g2'))  cell.style.background = '#f5f9ff';
+      else if (tr.classList.contains('dr'))  cell.style.background = '#fff';
+    });
+
+    tbl.querySelectorAll('tr').forEach(function(tr) {
+      var zones = tr.querySelectorAll('.left-zone');
+      if (zones.length > 0) {
+        var last = zones[zones.length - 1];
+        last.style.boxShadow = '3px 0 6px rgba(0,0,0,0.15)';
+        last.style.clipPath  = 'inset(0px -10px 0px 0px)';
+      }
+    });
+
+    tbl.querySelectorAll('tr.dr').forEach(function(tr) {
+      tr.addEventListener('mouseenter', function() {
+        tr.querySelectorAll('td.left-zone').forEach(function(td){ td.style.background = '#f7faff'; });
+      });
+      tr.addEventListener('mouseleave', function() {
+        tr.querySelectorAll('td.left-zone').forEach(function(td){ td.style.background = '#fff'; });
+      });
+    });
+  }, 50);
+
+  document.getElementById('repFoot').textContent =
+    'СУГС · ОАО «ГФХ» · Кыргызская Республика · Строк: ' + rows.length + ' · ' + now();
+}
+
+// ════════════════════════════════════════════════════
+//  EXPORT XLS
+// ════════════════════════════════════════════════════
+function exportXls() {
+  var tbl = document.getElementById('repTable');
+  if (!tbl) { alert('Сначала сформируйте отчёт'); return; }
+  var html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">' +
+    '<head><meta charset="UTF-8"><style>td{mso-number-format:"@";}</style></head><body>' +
+    tbl.outerHTML + '</body></html>';
+  var blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'SUGS_Subsidii_' + new Date().toISOString().substring(0,10) + '.xls';
+  a.click();
+}
+
+// ════════════════════════════════════════════════════
+//  ЕДИНОЕ ДЕРЕВО ФИЛЬТРОВ
+// ════════════════════════════════════════════════════
+(function() {
+  window.addEventListener('DOMContentLoaded', function() {
+    var tree = document.getElementById('filterTree');
+    if (!tree) return;
+
+    tree.querySelectorAll('.tf-toggle:not(.empty)').forEach(function(tog) {
+      tog.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var targetId = tog.getAttribute('data-toggle');
+        var block = document.getElementById(targetId);
+        if (!block) return;
+        var collapsed = block.classList.toggle('collapsed');
+        tog.textContent = collapsed ? '+' : '−';
+      });
+    });
+
+    function syncGroup(group) {
+      var header = tree.querySelector('.tf-row[data-group="'+group+'"][data-val="all"]');
+      if (!header) return;
+      var items = Array.from(tree.querySelectorAll('.tf-row[data-group="'+group+'"]:not([data-val="all"])'));
+      var n = items.filter(function(i){ return i.classList.contains('checked'); }).length;
+      header.classList.remove('checked','partial');
+      if (n === items.length) header.classList.add('checked');
+      else if (n > 0)         header.classList.add('partial');
+      if (group === 'fReg' || group === 'fDist') {
+        var rdH = tree.querySelector('.tf-row[data-group="fRegDist"][data-val="all"]');
+        if (rdH) {
+          var rdI = Array.from(tree.querySelectorAll('.tf-row[data-group="fReg"]:not([data-val="all"]), .tf-row[data-group="fDist"]:not([data-val="all"])'));
+          var rdn = rdI.filter(function(i){ return i.classList.contains('checked'); }).length;
+          rdH.classList.remove('checked','partial');
+          if (rdn === rdI.length) rdH.classList.add('checked');
+          else if (rdn > 0)       rdH.classList.add('partial');
+        }
+      }
+    }
+
+    function syncRoot() {
+      var rootRow  = tree.querySelector('.tf-root');
+      var groups   = ['fGov','fPrj','fTerm','fBank','fDir','fRegDist','fReg','fDist','fMatch'];
+      var allFull  = groups.every(function(g) {
+        var h = tree.querySelector('.tf-row[data-group="'+g+'"][data-val="all"]');
+        return !h || h.classList.contains('checked');
+      });
+      var anyChk   = groups.some(function(g) {
+        return tree.querySelectorAll('.tf-row[data-group="'+g+'"].checked').length > 0;
+      });
+      rootRow.classList.remove('checked','partial');
+      if (allFull)      rootRow.classList.add('checked');
+      else if (anyChk)  rootRow.classList.add('partial');
+    }
+
+    tree.querySelectorAll('.tf-row[data-val="all"]:not(.tf-root)').forEach(function(header) {
+      header.addEventListener('click', function(e) {
+        var tog = header.querySelector('.tf-toggle');
+        if (e.target === tog || tog.contains(e.target)) return;
+        var group = header.getAttribute('data-group');
+        var items;
+        if (group === 'fRegDist') {
+          items = Array.from(tree.querySelectorAll('.tf-row[data-group="fReg"]:not([data-val="all"]), .tf-row[data-group="fDist"]:not([data-val="all"])'));
+        } else {
+          items = Array.from(tree.querySelectorAll('.tf-row[data-group="'+group+'"]:not([data-val="all"])'));
+        }
+        var isChecked = header.classList.contains('checked') || header.classList.contains('partial');
+        header.classList.remove('checked','partial');
+        if (isChecked) {
+          items.forEach(function(i){ i.classList.remove('checked'); });
+        } else {
+          header.classList.add('checked');
+          items.forEach(function(i){ i.classList.add('checked'); });
+        }
+        syncRoot();
+      });
+    });
+
+    var rootRow = tree.querySelector('.tf-root');
+    rootRow.addEventListener('click', function(e) {
+      var tog = rootRow.querySelector('.tf-toggle');
+      if (e.target === tog || tog.contains(e.target)) return;
+      var isChecked = rootRow.classList.contains('checked') || rootRow.classList.contains('partial');
+      var allRows = Array.from(tree.querySelectorAll('.tf-row:not(.tf-root)'));
+      rootRow.classList.remove('checked','partial');
+      if (isChecked) {
+        allRows.forEach(function(r){ r.classList.remove('checked','partial'); });
+      } else {
+        rootRow.classList.add('checked');
+        allRows.forEach(function(r){ r.classList.remove('partial'); r.classList.add('checked'); });
+      }
+    });
+
+    tree.querySelectorAll('.tf-row:not([data-val="all"])').forEach(function(item) {
+      item.addEventListener('click', function() {
+        item.classList.toggle('checked');
+        var group = item.getAttribute('data-group');
+        syncGroup(group);
+        syncRoot();
+      });
+    });
+  });
+})();
+
+// ════════════════════════════════════════════════════
+//  PIVOT visibility
+// ════════════════════════════════════════════════════
+document.getElementById('pivotDim').addEventListener('change', function() {
+  document.getElementById('metricsBlock').style.display = this.value === 'none' ? 'none' : '';
+});
+
+// ════════════════════════════════════════════════════
+//  DRAG-AND-DROP
+// ════════════════════════════════════════════════════
+(function() {
+  var dragged = null;
+  function updateNums() {
+    var items = document.querySelectorAll('#dimList .dimitem');
+    var num = 1;
+    items.forEach(function(item) {
+      var chk = item.querySelector('input');
+      var dn  = item.querySelector('.dn');
+      if (chk.checked) { dn.textContent = num++; item.classList.remove('off'); }
+      else             { dn.textContent = '';    item.classList.add('off'); }
+    });
+  }
+  window.addEventListener('DOMContentLoaded', function() {
+    updateNums();
+    var list = document.getElementById('dimList');
+    list.querySelectorAll('.dimitem').forEach(function(item) {
+      item.addEventListener('dragstart', function(e) {
+        dragged = item;
+        setTimeout(function(){ item.classList.add('dragging'); }, 0);
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      item.addEventListener('dragend', function() {
+        item.classList.remove('dragging');
+        list.querySelectorAll('.dimitem').forEach(function(i){ i.classList.remove('dragover'); });
+        updateNums();
+      });
+      item.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        if (item !== dragged) item.classList.add('dragover');
+      });
+      item.addEventListener('dragleave', function() { item.classList.remove('dragover'); });
+      item.addEventListener('drop', function(e) {
+        e.preventDefault();
+        item.classList.remove('dragover');
+        if (dragged && item !== dragged) {
+          var arr = Array.from(list.querySelectorAll('.dimitem'));
+          var fi  = arr.indexOf(dragged), ti = arr.indexOf(item);
+          if (fi < ti) list.insertBefore(dragged, item.nextSibling);
+          else         list.insertBefore(dragged, item);
+          updateNums();
+        }
+      });
+      item.querySelector('input').addEventListener('change', updateNums);
+    });
+  });
+})();
+
+// ════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════
+window.addEventListener('load', generate);
+</script>
+</body>
+</html>
