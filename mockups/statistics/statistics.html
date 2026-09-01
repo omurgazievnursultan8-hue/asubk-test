@@ -1250,6 +1250,7 @@ body{ font:var(--font-body); color:var(--text-body); background:var(--surface-pa
 .mx-date-select{ width:100%; border:1.5px solid var(--border-strong); border-radius:var(--radius-md);
   padding:6px 8px; font:var(--font-label); background:var(--surface-card); color:var(--text-body); }
 .mx-date-select.closed{ border-color:var(--asubk-green); }
+.mx-obj-cur{ font:var(--font-page-title); color:var(--text-heading); margin-bottom:6px; }
 .mx-checklist{ display:flex; flex-direction:column; gap:2px; max-height:130px; overflow-y:auto;
   min-width:210px; border:1px solid var(--border-strong); border-radius:var(--radius-md); padding:5px 8px; }
 .mx-check{ display:flex; align-items:center; gap:6px; font:var(--font-label); cursor:pointer; }
@@ -8316,7 +8317,8 @@ ST.mxChanged = () => { const st = ST.state; return !st.mAsked || mxSig(st.mq) !=
 ST.mxAsk = () => { const st = ST.state; st.mAsked = mxClone(st.mq); st.drill = null; render(); };
 ST.mxPickObj = id => { const st = ST.state; st.mq = defaultMq(id);
   const ds = ST.askDates(id); st.mq.date = ds.length ? ds[ds.length - 1] : null;
-  st.mAsked = mxClone(st.mq); st.drill = null; render(); };
+  st.mAsked = mxClone(st.mq); st.drill = null; st.mObjOpen = false; render(); };
+ST.mxToggleObjOpen = () => { ST.state.mObjOpen = !ST.state.mObjOpen; render(); };
 ST.mxSetDate = d => { ST.state.mq.date = d; render(); };
 ST.mxToggleDim = id => { const st = ST.state, mq = st.mq, i = mq.dims.indexOf(id);
   if(i >= 0){ mq.dims.splice(i,1); delete mq.axis[id]; delete mq.levels[id]; delete mq.buckets[id]; }
@@ -8348,9 +8350,17 @@ function mxDateBlock(st){
     '<div class="muted" style="margin-top:4px">прогонов: '+ds.length+'</div></div>';
 }
 function mxObjBlock(st){
-  const mq = st.mq;
-  const objs = st.objects.map(x => chip(x.id === mq.obj, x.name, "ST.mxPickObj('"+x.id+"')")).join('');
-  return '<div class="mx-block"><h4>Объект</h4><div class="chips">'+objs+'</div></div>';
+  const mq = st.mq, cur = OBJ(mq.obj);
+  if(!st.mObjOpen)
+    return '<div class="mx-block"><h4>Объект</h4><div class="mx-obj-cur">'+esc(cur.name)+'</div>'+
+      '<button class="btn btn-secondary" onclick="ST.mxToggleObjOpen()">изменить</button></div>';
+  const groups = [];
+  st.objects.forEach(x => { let g = groups.find(g => g.owner === x.owner);
+    if(!g){ g = {owner:x.owner, items:[]}; groups.push(g); } g.items.push(x); });
+  const body = groups.map(g => '<span class="chips-grp">'+esc(g.owner)+'</span>'+
+    g.items.map(x => chip(x.id === mq.obj, x.name, "ST.mxPickObj('"+x.id+"')")).join('')).join('');
+  return '<div class="mx-block"><h4>Объект</h4><div class="chips">'+body+'</div>'+
+    '<button class="btn btn-secondary" style="margin-top:8px" onclick="ST.mxToggleObjOpen()">свернуть</button></div>';
 }
 function mxDimsBlock(st){
   const mq = st.mq, o = OBJ(mq.obj), canAsk = ST.canBuild();
