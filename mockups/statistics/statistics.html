@@ -1247,7 +1247,9 @@ body{ font:var(--font-body); color:var(--text-body); background:var(--surface-pa
 .mx-dim-sub{ padding:2px 0 4px 32px; }
 .mx-sub{ display:flex; align-items:center; gap:6px; font:var(--font-label); margin-bottom:2px; }
 .mx-date-row{ display:flex; align-items:center; gap:8px; }
-.mx-date-row select{ flex:1; }
+.mx-date-select{ width:100%; border:1.5px solid var(--border-strong); border-radius:var(--radius-md);
+  padding:6px 8px; font:var(--font-label); background:var(--surface-card); color:var(--text-body); }
+.mx-date-select.closed{ border-color:var(--asubk-green); }
 .mx-checklist{ display:flex; flex-direction:column; gap:2px; max-height:130px; overflow-y:auto;
   min-width:210px; border:1px solid var(--border-strong); border-radius:var(--radius-md); padding:5px 8px; }
 .mx-check{ display:flex; align-items:center; gap:6px; font:var(--font-label); cursor:pointer; }
@@ -8341,8 +8343,7 @@ function mxDateBlock(st){
     fmt(d)+' · '+(ST.isClosed(d) ? 'закрытый' : 'открытый')+'</option>').join('');
   const closed = mq.date ? ST.isClosed(mq.date) : null;
   return '<div class="mx-block"><h4>Дата</h4>'+
-    (ds.length ? '<div class="mx-date-row"><select onchange="ST.mxSetDate(this.value)">'+opts+'</select>'+
-        '<span class="pill '+(closed ? 'ok' : 'neutral')+'">'+(closed ? 'закрытый' : 'открытый')+'</span></div>'
+    (ds.length ? '<select class="mx-date-select'+(closed ? ' closed' : '')+'" onchange="ST.mxSetDate(this.value)">'+opts+'</select>'
                 : '<div class="banner warn">на этот объект нет ни одного прогона</div>')+
     '<div class="muted" style="margin-top:4px">прогонов: '+ds.length+'</div></div>';
 }
