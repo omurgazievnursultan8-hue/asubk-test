@@ -552,12 +552,16 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   ok(42, iss.length === 0 && adrs.length === 0,
     `в файле названы все 30 инвариантов и 17 решений${iss.length ? ' · нет: ' + iss.join(',') : ''}${adrs.length ? ' · нет: ' + adrs.join(',') : ''}`);
 
-  const screens = ['Конструктор среза','Журнал срезов','Выгрузки','Реестры'].filter(s => !src.includes(s));
+  /* Волна 18: пятый экран — «Конструктор среза» (матрица, новый) встал первым в
+     «Работе», старый переименован в «Швы статистики» — сравниваем два экрана на
+     одном движке (Q1/Q22). Обе строки должны стоять РОЗНЬ: старое имя «Конструктор
+     среза» больше не годится само по себе, оно теперь имя НОВОГО экрана. */
+  const screens = ['Конструктор среза','Швы статистики','Журнал срезов','Выгрузки','Реестры'].filter(s => !src.includes(s));
   ok(43, screens.length === 0 && !/ST\.editRow|правка строки среза\s*—\s*экран/i.test(src),
-    `экранов четыре (конструктор · журнал · выгрузки · реестры), экрана правки строки среза нет — ИС-2`);
+    `экранов пять (матрица · швы статистики · журнал · выгрузки · реестры), экрана правки строки среза нет — ИС-2`);
 })();
 
-/* ---------- N. Экраны рисуются (DOM-заглушка, четыре экрана × роли) ---------- */
+/* ---------- N. Экраны рисуются (DOM-заглушка, пять экранов × роли) ---------- */
 (() => {
   const el = () => ({ innerHTML:'', textContent:'', dataset:{},
     classList:{toggle(){}, add(){}, remove(){}}, appendChild(){}, remove(){} });
@@ -569,13 +573,17 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
 
   ST.seed();
   const errs = [];
-  ['build','journal','exports','setup'].forEach(v => { const e = draw(() => ST.go(v)); if (e) errs.push(v + ': ' + e); });
+  /* «matrix» — новый пятый экран (волна 18); гоняется тем же заглушечным DOM,
+     что и остальные четыре. */
+  ['matrix','build','journal','exports','setup'].forEach(v => { const e = draw(() => ST.go(v)); if (e) errs.push(v + ': ' + e); });
+  ST.go('matrix'); const mx = panel();
   ST.go('build');
   const b = panel();
   ST.go('journal'); const j = panel();
   ST.go('exports'); const x = panel();
   ST.go('setup');   const g = panel();
   ok(44, errs.length === 0 &&
+        has(mx, 'matrix-qcol') && has(mx, 'matrix-ans') &&
         has(b, 'Вопрос к статистике') && has(b, 'statSlice') && has(b, 'Дата расчёта') && has(b, 'Зеркальные плитки') &&
         has(j, 'Прогоны') && has(j, 'Календарь учётных периодов') &&
         has(j, 'Простановка колонок: чужие действия и своё') &&
@@ -4714,6 +4722,81 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
         has(runLeg.why, 'не считает, не видит и не перепишет') &&
         !has(runLeg.why, 'зафиксирован'),
     `прогон легаси НЕ ВИДИТ — и не потому, что отфильтрован, а по построению: очередь строится ПО МИРУ, по тому, что живёт в реестрах сегодня, а не по написанным строкам. КД-2019/017 и КД-2021/044 в сегодняшнем мире отсутствуют, и в кандидатах их ${ghosts.length}: чтобы прогон их тронул, пришлось бы сначала завести их в реестр. Фильтр «пропусти легаси» пришлось бы держать в КАЖДОМ месте, где прогон трогает строки, и однажды одно место забыли бы — вместо этого его нет нигде. Прогон за 21.08 написал ${run228.written} строк, легаси-строк было ${legBefore}, стало ${legAfter}, и ни у одной не сдвинулась запись фиксации (${touched}). В очередь перестроения легаси не попадает ни одной записью (${ST.queue().length}), а прогон за легаси-дату отказан У ВХОДА и ПО ГРАНИЦЕ, а не по фиксации: «${String(runLeg.why).slice(0, 96)}…» — отказ «период зафиксирован» тоже был бы ok=false, но позвал бы за распоряжением о перезакрытии, то есть по дороге, которой для легаси нет. Исправление легаси-итога — НОВЫЙ ВЫПУСК МИГРАЦИИ с журнальной записью, и актор там человек: ночь чужую историю не переписывает (ИС-41, ADR-0207 §5, границы)`);
+})();
+
+/* ---------- АЗ. Волна 18: «Конструктор среза» — матрица (Q1–Q25) ---------- */
+(() => {
+  const seedMx = (q) => { ST.seed(); const st = ST.state; st.mq = q; st.mAsked = sandbox.mxClone(q); return st; };
+  const mqBase = { obj:'obj-credit', dims:['d-region','d-cur'], axis:{'d-region':'rows','d-cur':'cols'},
+    levels:{'d-region':1}, buckets:{}, inds:['a-count','a-sumtotal'], date:'2026-08-20', filter:null };
+
+  /* #229 — «Матрица = три вызова движка, а не арифметика» (ADR-0176 §5): клетки,
+     крайняя строка и крайняя колонка — три РАЗНЫХ обращения к statSlice, и клетка
+     может отказать (разновалютный свод), хотя соседняя не откажет — сумма так себя
+     вести не может, только независимо посчитанный ответ. */
+  const st229 = seedMx(mqBase);
+  const calls229 = [];
+  const orig229 = ST.statSlice;
+  ST.statSlice = (q) => { calls229.push(q.dims ? q.dims.slice() : []); return orig229(q); };
+  const html229 = sandbox.matrixAnswer(st229);
+  ST.statSlice = orig229;
+  ok(229, calls229.length === 3 &&
+        JSON.stringify(calls229[0]) === JSON.stringify(['d-region']) &&
+        JSON.stringify(calls229[1]) === JSON.stringify(['d-region','d-cur']) &&
+        JSON.stringify(calls229[2]) === JSON.stringify(['d-cur']) &&
+        has(html229, 'свод отказан'),
+    `матрица «Территория × Валюта» сделала ровно ${calls229.length} вызова statSlice — строки (${JSON.stringify(calls229[0])}), клетки (${JSON.stringify(calls229[1])}), колонки (${JSON.stringify(calls229[2])}) — и угол взят у любого из них (res.total), а не сложен; клетка со смешанной валютой честно отказала свои соседи не тронув`);
+
+  /* #230 — ось разреза (строки↔колонки) — раскладка, не вопрос (Q12): смена оси
+     не трогает mAsked и не зажигает «вопрос изменён». */
+  const st230 = seedMx(mqBase);
+  const before230 = ST.mxChanged();
+  ST.mxSetAxis('d-region', 'cols');
+  ok(230, before230 === false && ST.mxChanged() === false &&
+        st230.mq.axis['d-region'] === 'cols' && st230.mAsked.axis['d-region'] === 'rows',
+    `смена оси разреза (строки→колонки) переставила ЖИВОЙ mq (axis теперь «${st230.mq.axis['d-region']}»), но mAsked остался прежним («${st230.mAsked.axis['d-region']}») и «⚠ вопрос изменён» не загорелся — раскладка ответа не меняет (Q12/Q25)`);
+
+  /* #231 — уровень разреза — часть ВОПРОСА (Q4/Q17): меняет mAsked только по кнопке
+     «Спросить», до неё зажигает предупреждение и ответ остаётся старым. */
+  const st231 = seedMx(mqBase);
+  ST.mxSetLevel('d-region', 2);
+  const flaggedBeforeAsk = ST.mxChanged();
+  const levelBeforeAsk = st231.mAsked.levels['d-region'];
+  ST.mxAsk();
+  ok(231, flaggedBeforeAsk === true && levelBeforeAsk === 1 &&
+        st231.mAsked.levels['d-region'] === 2 && ST.mxChanged() === false,
+    `смена уровня разреза (область→район) сразу зажгла «⚠ вопрос изменён» (было ${flaggedBeforeAsk}), а ответ ждал кнопки — mAsked.levels остался «1» до «Спросить» и стал «2» только после (Q12)`);
+
+  /* #232 — наблюдателю ответ и раскладка видны, но органов сбора вопроса нет
+     (Q15·D): запрет — на СПРАШИВАНИЕ, не на СМОТРЕНИЕ. */
+  const st232 = seedMx(sandbox.defaultMq('obj-credit'));
+  st232.role = 'Наблюдатель';
+  const qcolObs = sandbox.matrixQuestionCol(st232);
+  ok(232, !has(qcolObs, 'Спросить') && !has(qcolObs, 'mx-ask'),
+    has(qcolObs, 'Спросить')
+      ? `ДЫРА против Q15·D: под ролью «Наблюдатель» колонка вопроса всё ещё рисует кнопку «Спросить» и блок «mx-ask» — matrixQuestionCol() не проверяет ST.canBuild()/роль вовсе, наблюдателю открыт полный конструктор, а не только просмотр`
+      : `наблюдателю (роль «Наблюдатель») колонка вопроса не предлагает «Спросить» — органов сбора нет, ответ и раскладка остаются живыми`);
+
+  /* #233 — пустой ответ держит форму ответа (Q14): шапка/«Итого» на месте, причина
+     названа словами паспорта, «снять фильтр» — когда причина снимаемая. */
+  const st233 = seedMx({ obj:'obj-credit', dims:['d-region'], axis:{'d-region':'rows'}, levels:{'d-region':1},
+    buckets:{}, inds:['a-count'], date:'2026-08-20',
+    filter:{sets:[{cmps:[{kind:'ind', id:'m-odays', op:'>', value:'9999'}]}]} });
+  const html233 = sandbox.matrixAnswer(st233);
+  ok(233, has(html233, '<thead>') && has(html233, 'class="tot"') &&
+        has(html233, 'снять фильтр') && has(html233, st233.mAsked.filter ? 'фильтр' : ''),
+    `пустая матрица (фильтр никого не пропустил) держит шапку и липкую «Итого», а в теле — причина словами паспорта и «снять фильтр»; состояния «до первого вопроса» нет`);
+
+  /* #234 — ширина названа числом, раскладка не заперта порогом (Q5): баннер на
+     широкой матрице, тишина на узкой. */
+  const st234w = seedMx({ obj:'obj-credit', dims:['d-region','d-cur'], axis:{'d-region':'rows','d-cur':'cols'},
+    levels:{'d-region':1}, buckets:{}, inds:['a-count','a-sumtotal','a-avgodays'], date:'2026-08-20', filter:null });
+  const wide = sandbox.matrixAnswer(st234w);
+  const st234n = seedMx({ obj:'obj-credit', dims:['d-region'], axis:{'d-region':'rows'}, levels:{'d-region':1},
+    buckets:{}, inds:['a-count'], date:'2026-08-20', filter:null });
+  const narrow = sandbox.matrixAnswer(st234n);
+  ok(234, has(wide, 'banner info') && /\d+\s*px/.test(wide) && !has(narrow, 'banner info'),
+    `широкая матрица (2 блока × 3 показателя) называет ширину числом в пикселях и не блокирует раскладку; узкая матрица (1 блок × 1 показатель) баннер не показывает`);
 })();
 
 /* ---- отчёт ---- */

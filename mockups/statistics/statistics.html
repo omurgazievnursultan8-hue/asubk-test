@@ -908,7 +908,7 @@
   заданий» (ТЗ №21, №22) — до владельца, отдающего множество заданий. Все четыре заводятся
   строками реестра, и все четыре названы заказчику письмом 29.08.2026, а не приёмкой.
 
-  SMOKE 2026-08-31 · 228/228 PASS
+  SMOKE 2026-08-31 · 234/234 PASS
      PASS  #1  объектов 10, показателей 285 — 171 своих и 114 сомовых сторон, и у каждой стороны валютная запись на месте; разрезов 84, всего записей реестра 369. Счёт назван точным числом, а не «не меньше 85»: неравенство пережило бы молча потерю сотни записей, а потеря близнеца — это денежная величина, которую нельзя сложить по портфелю. Без объявленного источника 0, с формулой 0 (сомовая сторона — не формула, а вторая колонка той же величины), с функцией вне списка 0 — ИС-6, ИС-7, ИС-44
      PASS  #2  заёмщик — самостоятельный объект со своими показателями, а не свёртка кредита (ИС-19)
      PASS  #3  форма строки закрыта: obj · ref · date · dims · inds · when · srcs · fixed · by — долей и дельт нет (ИС-15). Полей девять, но носителей ЗНАЧЕНИЙ по-прежнему два: рядов четыре и вместе они покрывают форму без остатка, не пересекаясь ни одним полем: АДРЕС (obj · ref · date) · ЗНАЧЕНИЯ (dims · inds) · ПРОИСХОЖДЕНИЕ (when) · СУДЬБА (srcs · fixed · by). Прежний критерий различения на четвёртом ряду сломался и заменён: ключей в ряду значений 67 и каждый — запись реестра, но ключей в ряду ПРОИСХОЖДЕНИЯ 67 и каждый — тоже запись реестра, так что по именам эти ряды не разводятся. Разводит их словарь: значений в ряду происхождения 67, и все до одного — слова закрытого списка из двух (на дату · текущее), величины среди них нет ни одной (ИС-39, ADR-0205 §1). Ряд судьбы стоит особняком по-прежнему: ключей 2 (классификация, ядро), и не запись реестра ни один — это имена СОСЕДЕЙ (ИС-42, ADR-0208 §2). Сомовая величина вошла в строку колонкой внутри inds под именем записи реестра «Остаток основного долга в сомах» (12631020.96 сом), а не полем формы: поле нельзя назвать в отчёте и прекратить датой, запись — можно (ИС-44, ADR-0214 §2)
@@ -951,7 +951,7 @@
      PASS  #40  показатель заведён записью и сразу считается ближайшим прогоном — без правки кода (ADR-0150 §1): пришёл ПАРОЙ (m-idle + m-idle-som, агрегат a-sumidle-som над близнецом m-idle-som), сомовая колонка легла в строку тем же прогоном (35346.67 сом.), а итог по разновалютному множеству — 1274926 сом.
      PASS  #41  показатель под агрегатом не снимается: «показатель используется агрегатами: Плата, итого»
      PASS  #42  в файле названы все 30 инвариантов и 17 решений
-     PASS  #43  экранов четыре (конструктор · журнал · выгрузки · реестры), экрана правки строки среза нет — ИС-2
+     PASS  #43  экранов пять (матрица · швы статистики · журнал · выгрузки · реестры), экрана правки строки среза нет — ИС-2
      PASS  #44  четыре экрана рисуются без ошибок; паспорт стоит НАД результатом, а календарь периодов показан ТРЕМЯ колонками (учёт · классификация · статистика) — одна пилюля «зафиксирован/открыт» не отвечала, до какого слоя доехало закрытие и чья фамилия в каждой колонке (ИС-38). Чужое действие по-прежнему помечено как чужое
      PASS  #45  детализация открывается из ячейки среза и сходится со списком реестра прямо на экране (ИС-14)
      PASS  #46  ряд («смешанно» назван) и строки рисуются тем же экраном; наблюдателю конструктор закрыт текстом, готовые плитки с паспортом ему открыты
@@ -1137,6 +1137,12 @@
      PASS  #226  граница запуска 2026-05-01 не переносит НИЧЕГО ни в одну сторону, и это не про точность, а про ВОСКРЕШЕНИЕ: КД-2021/044 живёт только в легаси-итогах, в сегодняшнем мире его нет — на 31.03 его строк 1, на 31.05 0. Подстановка «на дату» через границу подала бы его в майском срезе живым договором. Срез до запуска состоит из 6 строк, и ВСЕ они легаси; после — 8, и НИ ОДНОЙ легаси. Даты спроса делятся тем же швом: 6 легаси и 6 прогонных. Ворота различают 3 причины разными словами: «на 15.04.2026 легаси-итога нет: последний — 31.03.2026, и новы…» (легаси-хвост — новых не будет), «на 15.05.2026 строк нет: первая строка по эту сторону запуска 01.05.2026 н…» (дыра между последним итогом и первым прогоном), «на 25.08.2026 прогона не было: последний про…» (прежний ИС-36, про легаси в нём ни слова). ВНУТРИ своей стороны подстановка работает как работала: 14.02 отвечает 2025-12-31 с пометкой замены. А там, где подходит СТАРЫЙ отказ, новый не заводится: до первой легаси-строки отвечает ИС-12 своими словами — «строк на 30.06.2024 и ранее нет: подстановка запрещена (ИС-12)». Запретов от волны не прибавилось, прибавился один шов (ИС-41, ADR-0207 §7)
      PASS  #227  ряд «Остаток ОД в сомах» через запуск — это 0, 0, 32332260, 31868889.63: на графике взрывной рост портфеля, на деле — сомового близнеца старая система не считала вовсе, ADR-0214 её не застал. Молчащий ряд выглядит однородным ровно там, где однородным не является, и потому состав НАЗВАН — «ряд идёт ЧЕРЕЗ ЗАПУСК 01.05.2026: редакции формы в нём разные — легаси и действующая. Точки по р…», той же фигурой, какой называется состав разновалютной клетки (ADR-0151 §4). Отметка стоит НА СТЫКЕ, а не на ряде: 1 точка из 4, 2026-06-30 — «редакции формы разные: «легаси» → «действующая», и форма легаси не собирала «Остаток основного долга в сомах» — изменение между …», и она НАЗЫВАЕТ недостающую величину (m-debt-som), потому что несопоставима не «история вообще», а конкретная пара соседей. У счёта записей недостачи нет (форма легаси считала 6 против 8), и отметка там короче на хвост: она про РЕДАКЦИЮ, а не про недостачу. Разницу между точками модуль НЕ СЧИТАЕТ — графа изменения живёт у отчётности (ИС-47), посчитай он сам, у числа завёлся бы второй производитель; он отдаёт ПОМЕТКУ, чтобы графа её напечатала. Однородный ряд не оброс ни словом (отметок 0, состав не назван): пометка, стоящая всегда, не значит ничего (ИС-41, ADR-0207 §6)
      PASS  #228  прогон легаси НЕ ВИДИТ — и не потому, что отфильтрован, а по построению: очередь строится ПО МИРУ, по тому, что живёт в реестрах сегодня, а не по написанным строкам. КД-2019/017 и КД-2021/044 в сегодняшнем мире отсутствуют, и в кандидатах их 0: чтобы прогон их тронул, пришлось бы сначала завести их в реестр. Фильтр «пропусти легаси» пришлось бы держать в КАЖДОМ месте, где прогон трогает строки, и однажды одно место забыли бы — вместо этого его нет нигде. Прогон за 21.08 написал 34 строк, легаси-строк было 34, стало 34, и ни у одной не сдвинулась запись фиксации (0). В очередь перестроения легаси не попадает ни одной записью (0), а прогон за легаси-дату отказан У ВХОДА и ПО ГРАНИЦЕ, а не по фиксации: «прогон за 31.12.2024 не запускается: дата раньше запуска 01.05.2026. До запуска историю собирала…» — отказ «период зафиксирован» тоже был бы ok=false, но позвал бы за распоряжением о перезакрытии, то есть по дороге, которой для легаси нет. Исправление легаси-итога — НОВЫЙ ВЫПУСК МИГРАЦИИ с журнальной записью, и актор там человек: ночь чужую историю не переписывает (ИС-41, ADR-0207 §5, границы)
+     PASS  #229  матрица «Территория × Валюта» сделала ровно 3 вызова statSlice — строки (["d-region"]), клетки (["d-region","d-cur"]), колонки (["d-cur"]) — и угол взят у любого из них (res.total), а не сложен; клетка со смешанной валютой честно отказала свои соседи не тронув
+     PASS  #230  смена оси разреза (строки→колонки) переставила ЖИВОЙ mq (axis теперь «cols»), но mAsked остался прежним («rows») и «⚠ вопрос изменён» не загорелся — раскладка ответа не меняет (Q12/Q25)
+     PASS  #231  смена уровня разреза (область→район) сразу зажгла «⚠ вопрос изменён» (было true), а ответ ждал кнопки — mAsked.levels остался «1» до «Спросить» и стал «2» только после (Q12)
+     PASS  #232  наблюдателю (роль «Наблюдатель») колонка вопроса не предлагает «Спросить» — органов сбора нет, ответ и раскладка остаются живыми
+     PASS  #233  пустая матрица (фильтр никого не пропустил) держит шапку и липкую «Итого», а в теле — причина словами паспорта и «снять фильтр»; состояния «до первого вопроса» нет
+     PASS  #234  широкая матрица (2 блока × 3 показателя) называет ширину числом в пикселях и не блокирует раскладку; узкая матрица (1 блок × 1 показатель) баннер не показывает
 -->
 <style>
 :root{
@@ -1207,7 +1213,45 @@ body{ font:var(--font-body); color:var(--text-body); background:var(--surface-pa
   background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 10px; cursor:pointer; }
 .content{ flex:1; overflow:auto; }
 .panel-wrap{ padding:18px 24px 60px; max-width:1140px; }
+.panel-wrap.wide{ max-width:none; }
 .view{ display:none; } .view.active{ display:block; }
+
+/* ---- sidebar toggle (burger) ---- */
+.app.no-sidebar .sidebar{ display:none; }
+.burger{ width:32px; height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); cursor:pointer; font-size:16px; line-height:1;
+  flex:none; }
+.burger:hover{ background:rgba(24,39,57,0.05); }
+
+/* ---- матрица (конструктор среза) ---- */
+.matrix-shell{ display:flex; align-items:flex-start; gap:16px; }
+.matrix-qcol{ width:292px; flex:none; position:relative; }
+.matrix-qcol.collapsed{ width:auto; }
+.matrix-ans{ flex:1; min-width:0; }
+.mx-qcol-collapse, .mx-qcol-open{ background:none; border:1px solid var(--border-strong);
+  border-radius:var(--radius-md); width:24px; height:24px; cursor:pointer; margin-bottom:8px; }
+.mx-block{ border:1px solid var(--border-strong); border-radius:var(--radius-md); padding:10px 12px; margin-bottom:10px; }
+.mx-block h4{ margin:0 0 6px; font:var(--font-label); color:var(--text-muted); }
+.mx-dimlist{ list-style:none; margin:0; padding:0; }
+.mx-dim{ display:flex; align-items:center; gap:4px; padding:4px 0; font:var(--font-label); }
+.mx-dim:not(.on){ color:var(--text-muted); }
+.mx-dim .dh{ width:14px; cursor:grab; }
+.mx-dim .dn{ width:16px; color:var(--text-muted); }
+.mx-dim .dl{ flex:1; }
+.mx-mv{ background:none; border:none; cursor:pointer; padding:0 2px; font-size:11px; }
+.mx-axis{ display:flex; gap:2px; }
+.mx-axis button{ font-size:11px; padding:2px 5px; border:1px solid var(--border-strong);
+  border-radius:4px; background:var(--surface-card); cursor:pointer; }
+.mx-axis button.on{ background:var(--asubk-blue); color:#fff; border-color:transparent; }
+.mx-dim-sub{ padding:2px 0 4px 26px; }
+.mx-sub{ display:flex; align-items:center; gap:6px; font:var(--font-label); margin-bottom:2px; }
+.mx-filter-line{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.mx-ask{ position:sticky; bottom:0; background:var(--surface-page); padding-top:6px; }
+.mx-overlay{ position:fixed; inset:0; background:rgba(15,23,35,0.45); z-index:50;
+  display:flex; align-items:flex-start; justify-content:center; padding:40px 24px; overflow:auto; }
+.mx-overlay-card{ background:var(--surface-card); border-radius:var(--radius-md); padding:20px 24px;
+  max-width:960px; width:100%; box-shadow:0 8px 30px rgba(0,0,0,0.2); }
+.mx-overlay-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
 
 /* ---- headings, notes ---- */
 .section-h{ font:var(--weight-semibold) 16px/1.2 var(--asubk-font); color:var(--text-heading); margin:24px 0 6px; }
@@ -1339,6 +1383,29 @@ table.cgrid td.num button{ background:none; border:none; padding:0; cursor:point
 table.cgrid tfoot td{ padding:9px 12px; background:var(--surface-panel);
   font-weight:var(--weight-semibold); border-top:1px solid var(--asubk-grid-line); }
 
+/* ---- матрица: ответ (Q21 · B — липнет имя клетки: шапка сверху, разрезы слева,
+   «Итого»-строка под шапкой) ---- */
+.pass-bar{ position:sticky; top:0; z-index:7; display:flex; align-items:center; gap:10px;
+  height:22px; padding:6px 10px; background:var(--surface-panel); border:1px solid var(--border-default);
+  border-radius:var(--radius-md); margin-bottom:8px; font:var(--font-label); }
+.pass-bar .muted{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.mx-scroll{ overflow:auto; max-width:100%; border:1px solid var(--border-default); border-radius:var(--radius-md); }
+table.mx-grid{ border-collapse:separate; border-spacing:0; }
+table.mx-grid thead th{ position:sticky; background:var(--surface-panel); z-index:3; }
+table.mx-grid thead tr.hg th{ top:44px; z-index:4; }
+table.mx-grid thead tr.hm th{ top:79px; z-index:3; }
+table.mx-grid th.tot-h{ background:var(--asubk-blue-tint); }
+table.mx-grid tbody.mx-tot td{ position:sticky; top:113px; z-index:2; background:var(--surface-panel);
+  font-weight:var(--weight-semibold); border-bottom:1px solid var(--border-default); }
+table.mx-grid td:first-child, table.mx-grid th.rowdim-h{ position:sticky; left:0; z-index:2;
+  background:var(--surface-card); box-shadow:1px 0 0 var(--asubk-grid-line); }
+table.mx-grid thead tr.hg th.rowdim-h{ z-index:5; background:var(--surface-panel); }
+table.mx-grid tbody.mx-tot td:first-child{ z-index:5; }
+th.mx-sortable{ cursor:pointer; user-select:none; }
+th.mx-sortable:hover{ color:var(--asubk-link); }
+.chev{ background:none; border:none; cursor:pointer; padding:0 4px 0 0; font-size:11px; color:var(--text-muted); }
+td.mx-ref-cell{ position:relative; }
+
 /* ---- ряд (statSeries) ---- */
 .spark{ display:flex; align-items:flex-end; gap:10px; height:120px; margin:10px 0 4px; }
 .spark .bar{ flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; gap:4px; }
@@ -1349,12 +1416,13 @@ table.cgrid tfoot td{ padding:9px 12px; background:var(--surface-panel);
 </head>
 <body>
 
-<div class="app">
+<div class="app" id="app">
   <aside class="sidebar">
     <div class="brand">АСУБК<small>Модуль «Статистика» · прототип TO-BE</small></div>
     <div class="nav">
       <div class="nav-sec">Работа</div>
-      <button class="nav-item" data-v="build" onclick="ST.go('build')">Конструктор среза</button>
+      <button class="nav-item" data-v="matrix" onclick="ST.go('matrix')">Конструктор среза</button>
+      <button class="nav-item" data-v="build" onclick="ST.go('build')">Швы статистики</button>
       <button class="nav-item" data-v="journal" onclick="ST.go('journal')">Журнал срезов</button>
       <button class="nav-item" data-v="exports" onclick="ST.go('exports')">Выгрузки</button>
       <div class="nav-sec">Настройка</div>
@@ -1365,6 +1433,7 @@ table.cgrid tfoot td{ padding:9px 12px; background:var(--surface-panel);
 
   <div class="main">
     <div class="topbar">
+      <button class="burger" onclick="ST.toggleSidebar()" title="Показать/скрыть меню">☰</button>
       <div class="crumb-title" id="title">Конструктор среза</div>
       <div class="right">
         <span><label>Дата</label><select id="asOf" onchange="ST.setDate(this.value)"></select></span>
@@ -4980,7 +5049,15 @@ function seed(){
         mode:'slice', filter:null, levels:{}, buckets:{}, series:{step:'месяц', points:4}},
     flow: {inds:'m-repaid', from:'2026-07-15', to:'2026-08-18'},
     fEdit: null,
-    drill: null
+    drill: null,
+    /* Матрица (Q16/Q4): mq — черновик вопроса, mAsked — последнее «Спросить», по нему
+       читает таблица (task 3). Ось живёт ОТДЕЛЬНО от st.q.dims-порядка — dims здесь
+       порядок И состав разом, axis — где стоит каждый включённый разрез. */
+    mq: defaultMq('obj-credit'),
+    mAsked: null,
+    mFilterOpen: false,
+    mFEdit: null,
+    mxQColCollapsed: false
   };
   ST.state = st;
   /* Виды на ОДНУ кладовую. `st.indicators` и `st.dims` ничего не хранят — они читают
@@ -5012,6 +5089,8 @@ function seed(){
      напрямую: помощники слоя показа к моменту сборки состояния ещё не объявлены. */
   st.q.date = st.runs.filter(r => (r.parts || []).some(p => p.obj === st.q.obj))
     .map(r => r.date).sort().slice(-1)[0];
+  st.mq.date = st.q.date;
+  st.mAsked = mxClone(st.mq);   /* страницы «до первого вопроса» не бывает (Q14) */
   /* Май и июнь закрыты по ВСЕМ трём слоям — разными людьми и в разные даты. Одной общей
      колонкой «закрыт» их не описать: учёт закрывает бухгалтерия 5 июня, категории
      защёлкивает администратор классификации 7-го, статистика датирует 8-го (ИС-9,
@@ -5979,7 +6058,26 @@ function editionNote(st, objId, res, rows, inds, dims){
   }
   return parts.length ? parts.join(' · ') : null;
 }
-function passportFor(st, objId, requested, res, rows, filter, inds, dims){
+/* «Состав» — то, что было СПРОШЕНО: разрезы по порядку с их уровнем/корзиной (и осью,
+   когда её имеет смысл называть — матрица), затем показатели. Печатает то, чего на
+   скриншоте не прочесть; в краткую форму не входит (см. довод у shortPassport, Q6/Q24). */
+function compositionText(dims, inds, meta){
+  if(!Array.isArray(dims) || !dims.length) return null;
+  meta = meta || {};
+  const levels = meta.levels || {}, buckets = meta.buckets || {}, colDim = meta.colDim;
+  const dimPart = dims.map(d => {
+    const D = DIM(d); if(!D) return d;
+    let label = '«'+D.name+'»';
+    if(D.levels && levels[d]){ const L = D.levels[levels[d]-1]; if(L) label += ' ('+L.name+')'; }
+    if(buckets[d]) label += ' ('+buckets[d]+')';
+    if(colDim && d === colDim) label += ' (в колонках)';
+    return label;
+  }).join(' · ');
+  const indPart = (inds || []).filter(id => id && id !== '*')
+    .map(id => { const I = IND(id); return I ? '«'+I.name+'»' : id; }).join(', ');
+  return dimPart + (indPart ? ' — '+indPart : '');
+}
+function passportFor(st, objId, requested, res, rows, filter, inds, dims, meta){
   /* Фамилия и дата фиксации берутся из ЗАЩЁЛКИ ПЕРИОДА ОТВЕТА, а не из строк ответа — по
      тому же доводу, что и само слово «зафиксировано» (ADR-0216, границы: «в каком
      состоянии период» — реквизит, отдельный от «кто ответил»). Прежний счёт по первой
@@ -6002,6 +6100,7 @@ function passportFor(st, objId, requested, res, rows, filter, inds, dims){
     scope: scopeText(objId, rows.length),
     scoped: !!(ST.scopeOf(objId) || {}).dim,
     filter: filterText(filter),
+    composition: compositionText(dims, inds, meta),
     n: rows.length,
     skipped: skipNote(st, requested, res.asOf),
     divergence: divergenceNote(st, objId, res.asOf),
@@ -6335,7 +6434,8 @@ ST.statSlice = q => {
   return emit({groups, tree: groups, dims, inds, total, n: rows.length,
       hier: hier ? {dim: hier.id, levels: hier.levels.map(L => L.name), depth} : null,
       buckets: q.buckets || null},
-    passportFor(st, q.obj, q.date, res, rows, q.filter, inds, dims));
+    passportFor(st, q.obj, q.date, res, rows, q.filter, inds, dims,
+      {levels: q.levels, buckets: q.buckets, colDim: q.colDim}));
 };
 /* Узел ищется по всему дереву: детализация родителя обязана открываться так же,
    как детализация листа. */
@@ -7611,7 +7711,9 @@ function cellText(val){
 ST.go = v => { ST.state.view = v; ST.state.drill = null; render(); };
 ST.setRole = r => { ST.state.role = r; ST.state.drill = null; render(); };
 ST.setDate = d => { ST.state.q.date = d; ST.state.drill = null; render(); };
-const TITLES = {build:'Конструктор среза', journal:'Журнал срезов', exports:'Выгрузки', setup:'Реестры'};
+ST.toggleSidebar = () => { if(typeof document === 'undefined') return;
+  const app = document.getElementById('app'); if(app) app.classList.toggle('no-sidebar'); };
+const TITLES = {matrix:'Конструктор среза', build:'Швы статистики', journal:'Журнал срезов', exports:'Выгрузки', setup:'Реестры'};
 
 function render(){
   if(typeof document === 'undefined') return;             /* без DOM рисовать нечего (смоук) */
@@ -7635,7 +7737,9 @@ function render(){
     (s ? 'Ваш мир: куратор <b>'+esc(s)+'</b>; каким разрезом он режет — объявляет объект, '+
          'и объект, которому охват неприменим, отвечает отказом, а не пустым экраном.'
        : 'Ваш мир: без ограничения.');
+  $('#panel').className = 'panel-wrap' + (st.view === 'matrix' ? ' wide' : '');
   $('#panel').innerHTML =
+    st.view === 'matrix'  ? viewMatrix()  :
     st.view === 'build'   ? viewBuild()   :
     st.view === 'journal' ? viewJournal() :
     st.view === 'exports' ? viewExports() : viewSetup();
@@ -7681,6 +7785,7 @@ function passportHtml(p){
     '<span class="muted">'+esc(p.dating.text)+'</span></div>');
   rows.push('<div class="row"><span class="k">Область видимости</span>'+esc(p.scope)+'</div>');
   rows.push('<div class="row"><span class="k">Фильтр</span><span class="muted">'+esc(p.filter)+'</span></div>');
+  if(p.composition) rows.push('<div class="row"><span class="k">Состав</span><span class="muted">'+esc(p.composition)+'</span></div>');
   if(p.baseNote) rows.push('<div class="row"><span class="k">База периода</span>'+esc(p.baseNote)+'</div>');
   /* Третий ответ печатается БЕЗ тревожного класса: «не менялось» — норма, а не деградация
      (ИС-45, ADR-0215 §2). Деградацию несёт соседняя строка «Почему не на дату». */
@@ -8067,13 +8172,14 @@ function workBlock(){
     'а здесь список владельца на сегодня. Одно число, два разных действия, и подпись обязана назвать '+
     'разницу словами (ИС-14).</p></div>';
 }
-function rowsBlock(refs, title){
+function rowsBlock(refs, title, q, closeFn){
   const st = ST.state;
-  const res = ST.statRows({obj: st.q.obj, date: st.q.date, filter: st.q.filter, refs});
+  q = q || st.q; closeFn = closeFn || 'ST.clearDrill()';
+  const res = ST.statRows({obj: q.obj, date: q.date, filter: q.filter, refs});
   if(!res.ok && res.overLimit) return refusalCard(res);
   if(!res.ok) return '<div class="banner danger">'+esc(res.why)+'</div>';
-  const o = OBJ(st.q.obj);
-  const dims = o.dims.filter(d => DIM(d).since <= st.q.date);
+  const o = OBJ(q.obj);
+  const dims = o.dims.filter(d => DIM(d).since <= q.date);
   const inds = o.inds.filter(m => IND(m).src !== 'агрегат');
   const head = '<th>'+esc(o.refName)+'</th>'+dims.map(d => '<th>'+esc(DIM(d).name)+'</th>').join('')+
     inds.map(m => '<th>'+esc(IND(m).name)+'</th>').join('');
@@ -8088,13 +8194,13 @@ function rowsBlock(refs, title){
       const cls = (I.type === 'перечисление' || I.type === 'булево') ? '' : ' class="num"';
       return '<td'+cls+'>'+indCellText(r.inds[m], I, r)+'</td>'; }).join('')+
     '</tr>').join('');
-  const list = ST.registryList(st.q.obj, res.passport.asOf, st.q.filter)
+  const list = ST.registryList(q.obj, res.passport.asOf, q.filter)
     .filter(id => !refs || refs.indexOf(id) >= 0);
   const same = list.join('|') === res.rows.map(r => r.ref).sort().join('|');
   const rate = res.rows.map(r => Object.values(r.inds).find(c => c && c.rateDate)).filter(Boolean)[0];
   return (title ? '' : passportHtml(res.passport))+
     '<div class="card"><h3>'+esc(title || 'Строки среза')+' <span class="small">— '+res.rows.length+' шт.</span>'+
-    (title ? ' <button class="btn btn-secondary btn-sm" onclick="ST.clearDrill()">закрыть детализацию</button>' : '')+'</h3>'+
+    (title ? ' <button class="btn btn-secondary btn-sm" onclick="'+closeFn+'">закрыть детализацию</button>' : '')+'</h3>'+
     '<div class="tscroll"><table class="cgrid"><thead><tr>'+head+'</tr></thead><tbody>'+
     (body || '<tr><td colspan="12" class="muted">строк нет</td></tr>')+'</tbody></table></div>'+
     '<p class="note">'+(same
@@ -8176,6 +8282,496 @@ function tilesBlock(){
     '<p class="note">Кольцо ТЗ разрезано различением, а не порядком запуска: «статистический показатель» '+
     'в предикате классификатора — свёртка по самому объекту (это расчёт), а не срез по множеству чужих '+
     '(ИС-5, ADR-0146 §2).</p></div>';
+}
+
+/* ============= МАТРИЦА: КОЛОНКА ВОПРОСА (Q2/Q4/Q11/Q12/Q16-Q18/Q20) ============= */
+/* Один разрез — не больше — стоит в колонках (Q4); остальные включённые разрезы —
+   строки, со своим порядком и вложенностью (Q17). Ось разреза — раскладка, а не
+   вопрос (Q12): смена оси не трогает mAsked и не зажигает предупреждение. */
+function defaultMq(objId){
+  const o = OBJ(objId);
+  const dims = (o.dims || []).slice(0,2);
+  const axis = {}; dims.forEach((d,i) => axis[d] = i === 0 ? 'rows' : 'cols');
+  const levels = {}; dims.forEach(d => { const D = DIM(d); if(D && D.levels) levels[d] = D.levels.length; });
+  const buckets = {}; dims.forEach(d => { const D = DIM(d); if(D && D.buckets) buckets[d] = D.buckets[0]; });
+  return {obj:objId, dims, axis, levels, buckets,
+    inds: o.inds.filter(m => IND(m).src === 'агрегат').slice(0,2),
+    date:null, filter:null};
+}
+function mxClone(mq){ return JSON.parse(JSON.stringify(mq)); }
+/* Подпись ВОПРОСА, не раскладки: ось, порядок и сортировка сюда не входят — это
+   ровно то же самое различение, которого потребовал Q12. */
+function mxSig(mq){
+  const dimsPart = mq.dims.slice().sort().map(d => d+':'+(mq.levels[d]||'')+':'+(mq.buckets[d]||'')).join('|');
+  return JSON.stringify({obj:mq.obj, date:mq.date, dims:dimsPart, inds:mq.inds.slice().sort(), filter:mq.filter});
+}
+ST.mxChanged = () => { const st = ST.state; return !st.mAsked || mxSig(st.mq) !== mxSig(st.mAsked); };
+ST.mxAsk = () => { const st = ST.state; st.mAsked = mxClone(st.mq); st.drill = null; render(); };
+ST.mxPickObj = id => { const st = ST.state; st.mq = defaultMq(id);
+  const ds = ST.askDates(id); st.mq.date = ds.length ? ds[ds.length - 1] : null;
+  st.mAsked = mxClone(st.mq); st.drill = null; render(); };
+ST.mxSetDate = d => { ST.state.mq.date = d; render(); };
+ST.mxToggleDim = id => { const st = ST.state, mq = st.mq, i = mq.dims.indexOf(id);
+  if(i >= 0){ mq.dims.splice(i,1); delete mq.axis[id]; delete mq.levels[id]; delete mq.buckets[id]; }
+  else { mq.dims.push(id); mq.axis[id] = 'rows';
+    const D = DIM(id); if(D && D.levels) mq.levels[id] = D.levels.length;
+    if(D && D.buckets) mq.buckets[id] = D.buckets[0]; }
+  render(); };
+ST.mxSetAxis = (id, ax) => { const st = ST.state, mq = st.mq;
+  if(ax === 'cols') Object.keys(mq.axis).forEach(d => { if(d !== id && mq.axis[d] === 'cols') mq.axis[d] = 'rows'; });
+  mq.axis[id] = ax; render(); };
+ST.mxMoveDim = (id, dir) => { const st = ST.state, a = st.mq.dims, i = a.indexOf(id), j = i + dir;
+  if(i < 0 || j < 0 || j >= a.length) return; const t = a[i]; a[i] = a[j]; a[j] = t; render(); };
+ST.mxSetLevel = (id, n) => { ST.state.mq.levels[id] = n; render(); };
+ST.mxSetBucket = (id, b) => { ST.state.mq.buckets[id] = b; render(); };
+ST.mxToggleInd = id => { const st = ST.state, a = st.mq.inds, i = a.indexOf(id);
+  if(i >= 0) a.splice(i,1); else a.push(id); render(); };
+ST.mxToggleFilterModal = () => { ST.state.mFilterOpen = !ST.state.mFilterOpen; render(); };
+ST.mxToggleQCol = () => { ST.state.mxQColCollapsed = !ST.state.mxQColCollapsed; render(); };
+
+function mxDateBlock(st){
+  const mq = st.mq, ds = ST.askDates(mq.obj);
+  if(!mq.date && ds.length) mq.date = ds[ds.length - 1];
+  const opts = ds.map(d => '<option value="'+d+'"'+(d === mq.date ? ' selected' : '')+'>'+
+    fmt(d)+' · '+(ST.isClosed(d) ? 'закрытый' : 'открытый')+'</option>').join('');
+  return '<div class="mx-block"><h4>Дата</h4>'+
+    (ds.length ? '<select onchange="ST.mxSetDate(this.value)">'+opts+'</select>'
+                : '<div class="banner warn">на этот объект нет ни одного прогона</div>')+
+    '<div class="muted" style="margin-top:4px">прогонов: '+ds.length+'</div></div>';
+}
+function mxObjBlock(st){
+  const mq = st.mq;
+  const objs = st.objects.map(x => chip(x.id === mq.obj, x.name, "ST.mxPickObj('"+x.id+"')")).join('');
+  return '<div class="mx-block"><h4>Объект</h4><div class="chips">'+objs+'</div></div>';
+}
+function mxDimsBlock(st){
+  const mq = st.mq, o = OBJ(mq.obj), canAsk = ST.canBuild();
+  if(!canAsk){
+    const rows = mq.dims.map(id => { const D = DIM(id), ax = mq.axis[id];
+      const lvl = D.levels && mq.levels[id] ? ' ('+esc(D.levels[mq.levels[id]-1].name)+')' : '';
+      const bkt = D.buckets && mq.buckets[id] ? ' ('+esc(mq.buckets[id])+')' : '';
+      return '<li class="mx-dim on"><span class="dl">'+esc(D.name)+lvl+bkt+'</span>'+
+        '<span class="mx-axis"><button class="'+(ax === 'rows' ? 'on' : '')+'" onclick="ST.mxSetAxis(\''+id+'\',\'rows\')">⇅ строки</button>'+
+        '<button class="'+(ax === 'cols' ? 'on' : '')+'" onclick="ST.mxSetAxis(\''+id+'\',\'cols\')">⇄ кол</button></span></li>';
+    }).join('');
+    return '<div class="mx-block"><h4>Разрезы</h4><ul class="mx-dimlist">'+(rows || '<li class="muted">нет</li>')+'</ul></div>';
+  }
+  const rows = o.dims.map(id => {
+    const D = DIM(id), on = mq.dims.indexOf(id) >= 0, ord = on ? mq.dims.indexOf(id) + 1 : null;
+    const ax = mq.axis[id];
+    const axisBtn = on ? '<span class="mx-axis">'+
+        '<button class="'+(ax === 'rows' ? 'on' : '')+'" onclick="ST.mxSetAxis(\''+id+'\',\'rows\')">⇅ строки</button>'+
+        '<button class="'+(ax === 'cols' ? 'on' : '')+'" onclick="ST.mxSetAxis(\''+id+'\',\'cols\')">⇄ кол</button>'+
+      '</span>' : '';
+    const mv = on ? '<button class="mx-mv" title="выше" onclick="ST.mxMoveDim(\''+id+'\',-1)">▲</button>'+
+      '<button class="mx-mv" title="ниже" onclick="ST.mxMoveDim(\''+id+'\',1)">▼</button>' : '';
+    const lvl = on && D.levels ? '<div class="mx-sub"><label>Уровень</label><select onchange="ST.mxSetLevel(\''+id+'\',this.value)">'+
+      D.levels.map((L,i) => '<option value="'+(i+1)+'"'+((mq.levels[id]||D.levels.length) === i+1 ? ' selected' : '')+'>'+esc(L.name)+'</option>').join('')+
+      '</select></div>' : '';
+    const bkt = on && D.buckets ? '<div class="mx-sub"><label>Корзина</label><select onchange="ST.mxSetBucket(\''+id+'\',this.value)">'+
+      D.buckets.map(b => '<option'+(mq.buckets[id] === b ? ' selected' : '')+'>'+esc(b)+'</option>').join('')+
+      '</select></div>' : '';
+    return '<li class="mx-dim'+(on ? ' on' : '')+'" draggable="'+(on ? 'true' : 'false')+'" data-dim="'+id+'"'+
+      (on ? ' ondragstart="ST._mxDrag=\''+id+'\'" ondragover="event.preventDefault()" '+
+            'ondrop="ST.mxMoveDimTo(\''+id+'\',ST._mxDrag)"' : '')+'>'+
+      '<span class="dh">'+(on ? '≡' : '')+'</span>'+
+      '<input type="checkbox" '+(on ? 'checked' : '')+' onchange="ST.mxToggleDim(\''+id+'\')">'+
+      '<span class="dn">'+(ord || '')+'</span><span class="dl">'+esc(D.name)+'</span>'+mv+axisBtn+
+      '</li>'+(lvl || bkt ? '<div class="mx-dim-sub">'+lvl+bkt+'</div>' : '');
+  }).join('');
+  return '<div class="mx-block"><h4>Разрезы</h4><ul class="mx-dimlist">'+rows+'</ul></div>';
+}
+ST.mxMoveDimTo = (targetId, draggedId) => { const st = ST.state, a = st.mq.dims;
+  if(!draggedId || draggedId === targetId) return;
+  const i = a.indexOf(draggedId), j = a.indexOf(targetId);
+  if(i < 0 || j < 0) return;
+  a.splice(i,1); a.splice(a.indexOf(targetId), 0, draggedId); render(); };
+function mxIndsBlock(st){
+  const mq = st.mq, o = OBJ(mq.obj), canAsk = ST.canBuild();
+  if(!canAsk){
+    return '<div class="mx-block"><h4>Показатели</h4><div class="muted">'+
+      esc(mq.inds.map(m => IND(m).name).join(' · ') || 'нет')+'</div></div>';
+  }
+  const aggChip = m => chip(mq.inds.indexOf(m) >= 0, IND(m).name, "ST.mxToggleInd('"+m+"')");
+  const aggs = o.inds.filter(m => IND(m).src === 'агрегат');
+  const blocks = [];
+  aggs.forEach(m => { const g = IND(m).grp || '';
+    const b = blocks.find(x => x.g === g) || (blocks.push({g, ms: []}), blocks[blocks.length - 1]);
+    b.ms.push(m); });
+  const inds = blocks.length > 2
+    ? blocks.map(b => (b.g ? '<span class="chips-grp">'+esc(b.g)+'</span>' : '')+b.ms.map(aggChip).join('')).join('')
+    : aggs.map(aggChip).join('');
+  return '<div class="mx-block"><h4>Показатели</h4><div class="chips">'+inds+'</div></div>';
+}
+function mxFilterBlock(st){
+  const mq = st.mq, canAsk = ST.canBuild();
+  return '<div class="mx-block"><h4>Фильтр</h4><div class="mx-filter-line">'+
+    '<span class="muted">'+esc(filterText(mq.filter))+'</span>'+
+    (canAsk ? '<button class="btn btn-secondary" onclick="ST.mxToggleFilterModal()">изменить</button>' : '')+
+    '</div></div>';
+}
+/* filterBar/fDraft читают ST.state.q напрямую (не параметр) — переиспользовать их как
+   есть значило бы редактировать чужой фильтр (старого экрана) из-под новой колонки.
+   Тот же редактор, но привязанный к st.mq и своему черновику st.mFEdit. */
+function mfDraft(){
+  const st = ST.state;
+  if(!st.mFEdit) st.mFEdit = {kind:'dim', id:'', op:'=', bucket:'', value:'', values:[],
+    from:'', to:'', cur:'KGS', set:'new'};
+  return st.mFEdit;
+}
+function mxFilterOperands(){
+  const mq = ST.state.mq, o = OBJ(mq.obj);
+  if(!o) return {dims:[], inds:[]};
+  return {
+    dims: o.dims.filter(id => DIM(id) && DIM(id).since <= mq.date).map(id => ({kind:'dim', id, name: DIM(id).name})),
+    inds: o.inds.filter(id => IND(id) && IND(id).src !== 'агрегат').map(id => ({kind:'ind', id, name: IND(id).name}))
+  };
+}
+ST.mxOperandValues = (kind, id, bucket) => {
+  const st = ST.state, mq = st.mq;
+  const o = operandOf({kind, id, bucket});
+  const res = resolveAsOf(st, mq.obj, mq.date);
+  if(!res || !o) return [];
+  const bk = o.vtype === 'корзина' ? (bucket || o.dim.buckets[0]) : null;
+  const set = new Set();
+  applyScope(rowsAsOf(st, mq.obj, res.asOf), mq.obj).forEach(r => {
+    if(o.kind === 'dim'){
+      const v = r.dims[id];
+      if(v == null) return;
+      if(Array.isArray(v)){ for(let i = 1; i <= v.length; i++) set.add(v.slice(0,i).join(' / ')); }
+      else if(o.vtype === 'корзина'){ const k = bucketOf(v, bk, o.dim); if(k != null) set.add(k); }
+      else set.add(String(v));
+    } else {
+      const c = r.inds[id];
+      if(!c || c.v == null) return;
+      set.add(String(c.v));
+    }
+  });
+  return Array.from(set).sort((a,b) => a.localeCompare(b,'ru',{numeric:true}));
+};
+ST.mxPickOperand = () => {
+  const d = mfDraft(), sel = String((($('#mfOperand') || {}).value || '')).split(':');
+  d.kind = sel[0] || 'dim'; d.id = sel[1] || '';
+  d.op = (ST.filterOps(d) || [])[0] || '=';
+  d.bucket = ''; d.value = ''; d.values = []; d.from = ''; d.to = ''; render();
+};
+ST.mxPickFilterOp     = () => { mfDraft().op = (($('#mfOp') || {}).value) || '='; render(); };
+ST.mxPickFilterBucket = () => { mfDraft().bucket = (($('#mfBucket') || {}).value) || ''; render(); };
+ST.mxPickFilterSet    = () => { mfDraft().set = (($('#mfSet') || {}).value) || 'new'; };
+ST.mxAddCmp = () => {
+  const st = ST.state, mq = st.mq, d = mfDraft();
+  const sel = String((($('#mfOperand') || {}).value || d.kind+':'+d.id)).split(':');
+  const c = {kind: sel[0] || 'dim', id: sel[1] || '', op: (($('#mfOp') || {}).value) || d.op};
+  const o = operandOf(c);
+  if(!o) return toast('сравнение называет разрез или меру строки', 'err');
+  if(o.vtype === 'корзина') c.bucket = (($('#mfBucket') || {}).value) || o.dim.buckets[0];
+  if(c.op === 'в диапазоне'){
+    c.from = (($('#mfFrom') || {}).value) || ''; c.to = (($('#mfTo') || {}).value) || '';
+  } else if(LIST_OPS.indexOf(c.op) >= 0){
+    const el = $('#mfVals');
+    c.values = el ? [].slice.call(el.selectedOptions).map(x => x.value) : [];
+  } else if(o.vtype === 'число'){
+    c.value = (($('#mfNum') || {}).value) || '';
+    if(o.money) c.cur = (($('#mfCur') || {}).value) || 'KGS';
+  } else c.value = (($('#mfVal') || {}).value) || '';
+  const target = (($('#mfSet') || {}).value) || d.set || 'new';
+  const sets = (mq.filter && mq.filter.sets) ? clone(mq.filter.sets) : [];
+  if(target === 'new' || !sets[Number(target)]) sets.push({cmps:[c]});
+  else sets[Number(target)].cmps.push(c);
+  const trial = {sets};
+  const res = resolveAsOf(st, mq.obj, mq.date);
+  const bad = ST.filterCheck(trial, mq.obj, res ? applyScope(rowsAsOf(st, mq.obj, res.asOf), mq.obj) : null);
+  if(bad) return toast(bad, 'err');
+  mq.filter = trial;
+  d.set = String(target === 'new' ? sets.length - 1 : Number(target));
+  render();
+};
+ST.mxDropCmp = (i, j) => {
+  const st = ST.state, f = st.mq.filter;
+  if(!f || !f.sets || !f.sets[i]) return;
+  f.sets[i].cmps.splice(j, 1);
+  if(!f.sets[i].cmps.length) f.sets.splice(i, 1);
+  if(!f.sets.length) st.mq.filter = null;
+  mfDraft().set = 'new'; render();
+};
+ST.mxClearFilter = () => { ST.state.mq.filter = null; mfDraft().set = 'new'; render(); };
+function mxFilterBar(st){
+  const mq = st.mq, d = mfDraft(), ops = mxFilterOperands(), all = ops.dims.concat(ops.inds);
+  if(!all.length) return '<p class="muted">на этом объекте нет операндов фильтра</p>';
+  const cur = all.find(x => x.kind === d.kind && x.id === d.id) || all[0];
+  d.kind = cur.kind; d.id = cur.id;
+  const o = operandOf(d);
+  const opList = FOPS[o.vtype] || [];
+  if(opList.indexOf(d.op) < 0) d.op = opList[0];
+  const bk = o.vtype === 'корзина' ? (d.bucket || o.dim.buckets[0]) : null;
+  if(bk) d.bucket = bk;
+  const vals = (o.vtype === 'корзина' || o.vtype === 'перечисление' || o.vtype === 'булево')
+    ? ST.mxOperandValues(o.kind, o.id, bk) : [];
+  const opt = (v, on) => '<option'+(on ? ' selected' : '')+'>'+esc(v)+'</option>';
+  const grp = (label, list) => list.length ? '<optgroup label="'+esc(label)+'">'+
+    list.map(x => '<option value="'+x.kind+':'+x.id+'"'+
+      (x.kind === cur.kind && x.id === cur.id ? ' selected' : '')+'>'+esc(x.name)+'</option>').join('')+
+    '</optgroup>' : '';
+  const none = '<option value="">— значений на дату среза нет —</option>';
+  let vBox;
+  if(d.op === 'в диапазоне')
+    vBox = '<div class="fld"><label>От корзины</label><select id="mfFrom">'+(vals.map(v => opt(v,false)).join('') || none)+'</select></div>'+
+      '<div class="fld"><label>До корзины</label><select id="mfTo">'+(vals.map(v => opt(v,false)).join('') || none)+'</select></div>';
+  else if(LIST_OPS.indexOf(d.op) >= 0)
+    vBox = '<div class="fld"><label>Значения (несколько)</label><select id="mfVals" multiple size="4" style="height:auto">'+
+      (vals.map(v => opt(v,false)).join('') || none)+'</select></div>';
+  else if(o.vtype === 'число')
+    vBox = '<div class="fld"><label>Константа'+(o.ind && o.ind.unit ? ', '+esc(o.ind.unit) : '')+'</label>'+
+      '<input id="mfNum" type="number" step="any" value="'+esc(d.value || '')+'"></div>'+
+      (o.money ? '<div class="fld"><label>Валюта</label><select id="mfCur">'+
+        Object.keys(RATES).map(c => opt(c, c === (d.cur || 'KGS'))).join('')+'</select></div>' : '');
+  else
+    vBox = '<div class="fld"><label>Значение</label><select id="mfVal">'+(vals.map(v => opt(v,false)).join('') || none)+'</select></div>';
+  const sets = (mq.filter && mq.filter.sets) || [];
+  const setOpts = sets.map((x,i) => '<option value="'+i+'"'+(String(i) === String(d.set) ? ' selected' : '')+
+      '>в набор '+(i+1)+' (И)</option>').join('')+
+    '<option value="new"'+(d.set === 'new' || !sets.length ? ' selected' : '')+'>новым набором (ИЛИ)</option>';
+  const shown = sets.length ? '<div><h4>Фильтр — '+sets.length+' '+
+      plural(sets.length,'набор','набора','наборов')+', сравнений '+
+      sets.reduce((n,x) => n + x.cmps.length, 0)+'</h4><div class="chips">'+
+      sets.map((x,i) => '<span class="chips-grp">'+(i ? 'либо ' : '')+'набор '+(i+1)+'</span>'+
+        x.cmps.map((c,j) => chip(true, cmpText(c)+'   ✕', 'ST.mxDropCmp('+i+','+j+')')).join('')).join('')+
+      '</div></div>' : '';
+  return shown+'<div class="form-row" style="margin-top:12px">'+
+    '<div class="fld"><label>Операнд</label><select id="mfOperand" onchange="ST.mxPickOperand()">'+
+      grp('Разрезы', ops.dims)+grp('Меры строки', ops.inds)+'</select></div>'+
+    '<div class="fld"><label>Оператор</label><select id="mfOp" onchange="ST.mxPickFilterOp()">'+
+      opList.map(x => opt(x, x === d.op)).join('')+'</select></div>'+
+    (bk ? '<div class="fld"><label>Корзина</label><select id="mfBucket" onchange="ST.mxPickFilterBucket()">'+
+      o.dim.buckets.map(x => opt(x, x === bk)).join('')+'</select></div>' : '')+
+    vBox+
+    '<div class="fld"><label>Куда</label><select id="mfSet" onchange="ST.mxPickFilterSet()">'+setOpts+'</select></div>'+
+    '<button class="btn btn-secondary" onclick="ST.mxAddCmp()">Добавить сравнение</button>'+
+    (sets.length ? '<button class="btn btn-secondary" onclick="ST.mxClearFilter()">Снять фильтр</button>' : '')+
+    '</div>';
+}
+function mxFilterModal(st){
+  if(!st.mFilterOpen) return '';
+  return '<div class="mx-overlay" onclick="if(event.target===this) ST.mxToggleFilterModal()">'+
+    '<div class="mx-overlay-card"><div class="mx-overlay-head"><h3>Фильтр</h3>'+
+    '<button class="btn btn-secondary" onclick="ST.mxToggleFilterModal()">закрыть</button></div>'+
+    mxFilterBar(st)+'</div></div>';
+}
+function matrixQuestionCol(st){
+  if(st.mxQColCollapsed) return '<button class="mx-qcol-open" onclick="ST.mxToggleQCol()" title="Показать вопрос">››</button>';
+  const changed = ST.mxChanged();
+  const canAsk = ST.canBuild();
+  return '<button class="mx-qcol-collapse" onclick="ST.mxToggleQCol()" title="Свернуть колонку вопроса">‹‹</button>'+
+    mxDateBlock(st)+mxObjBlock(st)+mxDimsBlock(st)+mxIndsBlock(st)+mxFilterBlock(st)+
+    (canAsk ? '<div class="mx-ask">'+
+      (changed ? '<div class="banner warn">⚠ вопрос изменён</div>' : '')+
+      '<button class="btn btn-primary" onclick="ST.mxAsk()">Спросить</button>'+
+      '</div>' : '')+
+    (canAsk ? mxFilterModal(st) : '');
+}
+
+/* ============= МАТРИЦА: ОТВЕТ (Q3/Q5/Q8-Q10/Q13/Q14/Q19/Q21/Q25) =============
+   Три вызова движка, а не арифметика: клетки, крайняя колонка (Итого-блок), крайняя
+   строка (Итого-строка), угол — res.total, посчитанный один раз и переиспользуемый
+   (ADR-0176 §5). Упрощение сессии: когда колоночный разрез задан, строковое дерево
+   схлопывается до листьев своего заявленного уровня — того же уровня, которым посчитаны
+   клетки; настоящая вложенность родитель/дети (собственные числа узла, не сумма детей)
+   доступна только БЕЗ колоночного разреза — тогда строковый вызов и есть клеточный, и
+   движок уже строит дерево сам (branchAt). Полная k-уровневая вложенность НЕСКОЛЬКИХ
+   строчных разрезов ОДНОВРЕМЕННО с колоночным разрезом потребовала бы вызова на каждую
+   глубину отдельно (грунт Q17, «2k+1 вызовов») — сюда не уместилась, отмечено в отчёте. */
+function mxAxisDims(mq){
+  return {rowsDims: mq.dims.filter(d => mq.axis[d] === 'rows'),
+          colDim: mq.dims.find(d => mq.axis[d] === 'cols') || null};
+}
+function mxLeaves(groups){
+  const out = [];
+  (groups || []).forEach(g => { if(g.children && g.children.length) out.push.apply(out, mxLeaves(g.children)); else out.push(g); });
+  return out;
+}
+/* Хвост, а не ноль (Q25): «—» и «⊘» сортировкой не притворяются числом — уходят в
+   конец СВОЕЙ группой, сохраняя между собой исходный (алфавитный) порядок. */
+function mxSortKey(val){ return (!val || val.refused || val.v == null) ? null : val.v; }
+function mxApplySort(list, valFn, sort){
+  if(!sort || !sort.ind) return list;
+  const have = [], none = [];
+  list.forEach(n => { const k = mxSortKey(valFn(n)); (k == null ? none : have).push({n,k}); });
+  have.sort((a,b) => sort.dir === 'asc' ? a.k - b.k : b.k - a.k);
+  return have.map(x => x.n).concat(none.map(x => x.n));
+}
+function mxSortTree(nodes, valFn, sort){
+  /* Сортировка ВНУТРИ родителя (Q25 · A): каждый уровень дерева переставляется отдельно
+     от своего, а не распрямлением — родительская строка своя отвеченная величина
+     (ADR-0176 §5), а не сумма детей, и распрямление стёрло бы её. */
+  nodes = mxApplySort(nodes.slice(), valFn, sort);
+  nodes.forEach(n => { if(n.children && n.children.length) n.children = mxSortTree(n.children, valFn, sort); });
+  return nodes;
+}
+
+function matrixAnswer(st){
+  const mq = st.mAsked;
+  if(!st.mSort) st.mSort = {};
+  if(!st.mCollapsed) st.mCollapsed = {};
+  if(st.mDrill === undefined) st.mDrill = null;
+  if(st.mRefKey === undefined) st.mRefKey = null;
+  const {rowsDims, colDim} = mxAxisDims(mq);
+  const base = {obj: mq.obj, date: mq.date, levels: mq.levels, buckets: mq.buckets, filter: mq.filter, inds: mq.inds};
+  const rowsRes = ST.statSlice(Object.assign({}, base, {dims: rowsDims}));
+  if(!rowsRes.ok) return '<div class="banner danger">'+esc(rowsRes.why)+'</div>';
+  const cellsRes = colDim ? ST.statSlice(Object.assign({}, base, {dims: rowsDims.concat([colDim]), colDim})) : rowsRes;
+  if(colDim && !cellsRes.ok) return '<div class="banner danger">'+esc(cellsRes.why)+'</div>';
+  const colRes = colDim ? ST.statSlice(Object.assign({}, base, {dims: [colDim]})) : null;
+  if(colDim && !colRes.ok) return '<div class="banner danger">'+esc(colRes.why)+'</div>';
+
+  const inds = mq.inds.length ? mq.inds : ['a-count'];
+  const flatCols = colDim ? mxLeaves(colRes.groups) : [];
+  const rowSlots = !colDim ? 0 : (rowsDims.length === 0 ? 0 : (rowsRes.hier ? 1 : rowsDims.length));
+
+  const cellMap = new Map();
+  if(colDim){
+    mxLeaves(cellsRes.groups).forEach(g => {
+      const rk = rowSlots ? g.parts.slice(0, rowSlots).join('§') : '';
+      const cv = rowSlots ? g.parts[rowSlots] : g.key;
+      cellMap.set(rk + '||' + cv, g);
+    });
+  }
+  function rowKeyOf(node){ return (rowsRes.hier ? [node.key] : node.parts).join('§'); }
+  function cellFor(node, colKey){ return (!colDim || colKey === 'total') ? node : (cellMap.get(rowKeyOf(node) + '||' + colKey) || null); }
+  function valFor(node, colKey, ind){ const g = cellFor(node, colKey); return g ? g.values[ind] : null; }
+  function nFor(node, colKey){ const g = cellFor(node, colKey); return g ? g.n : 0; }
+  function refsFor(node, colKey){ const g = cellFor(node, colKey); return g ? g.refs : []; }
+
+  /* Ширина названа числом, не заперта порогом (Q5): раскладка свободна. */
+  const numBlocks = (colDim ? flatCols.length : 0) + 1;
+  const AVAIL = 620;
+  const approxW = numBlocks * (1 + inds.length) * 90;
+  const widthNote = approxW > AVAIL
+    ? '<div class="banner info">блоков '+numBlocks+' × колонок '+(1+inds.length)+' ≈ '+approxW+
+      ' px, видимой ширины ≈ '+AVAIL+' px — таблица прокручивается вбок.</div>' : '';
+
+  /* Пустой ответ держит форму ответа (Q14). */
+  const empty = rowsRes.n === 0;
+  const emptyCause = mq.filter ? rowsRes.passport.filter : rowsRes.passport.scope;
+
+  const blocks = [{key:'total', label:'Итого'}].concat(flatCols.map(c => ({key:c.key, label:c.key})));
+  const sortArrow = (blockKey, ind) => st.mSort.blockKey === blockKey && st.mSort.ind === ind
+    ? (st.mSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
+  const thead =
+    '<tr class="hg"><th class="rowdim-h" rowspan="2">'+
+      esc((rowsDims.map(d => DIM(d).name).join(' · ')) || 'Всего')+'</th>'+
+      blocks.map(b => '<th colspan="'+Math.max(1,inds.length)+'" class="'+(b.key==='total'?'tot-h':'')+'">'+esc(b.label)+'</th>').join('')+
+    '</tr>'+
+    '<tr class="hm">'+blocks.map(b => inds.map(m =>
+      '<th class="num mx-sortable" onclick="ST.mxSort(\''+b.key+'\',\''+m+'\')" title="сортировать">'+
+        esc(IND(m).name)+sortArrow(b.key, m)+'</th>').join('')).join('')+
+    '</tr>';
+
+  /* Отказ свода — клетка в ширину числа, по клику выноска с составом, датой курса и
+     двумя дорогами (Q19); обе меняют st.mq и потому сами зажигают «⚠ вопрос изменён»
+     через ST.mxChanged() — второй сигнал заводить не пришлось. */
+  function cellHtml(node, blockKey, ind){
+    if(IND(ind) && IND(ind).fn === 'count'){
+      const n = nFor(node, blockKey), refs = refsFor(node, blockKey), warn = n > ST.rowsLimit;
+      if(!n) return '<td class="num muted">—</td>';
+      return '<td class="num"><button class="'+(warn?'pill warn':'')+'"'+
+        (warn ? ' title="в числе '+n+' строк — порог показа '+ST.rowsLimit+'"' : '')+
+        ' onclick=\'ST.mxDrillSet('+JSON.stringify(refs)+','+
+          JSON.stringify((node.parts && node.parts.length ? node.parts.join(' · ') : node.key)+(blockKey!=='total'?' · '+blockKey:''))+
+        ')\'>'+n+'</button></td>';
+    }
+    const val = valFor(node, blockKey, ind);
+    if(val && val.refused){
+      const pid = (node.key||'')+'|'+blockKey+'|'+ind, open = st.mRefKey === pid;
+      const somId = ind+'-som';
+      return '<td class="num mx-ref-cell"><button class="pill warn" onclick="ST.mxRefOpen('+JSON.stringify(pid)+')">свод отказан</button>'+
+        (open ? '<div class="mx-overlay" onclick="if(event.target===this) ST.mxRefClose()">'+
+          '<div class="mx-overlay-card" style="max-width:360px"><div class="mx-overlay-head"><h3>Свод отказан</h3>'+
+          '<button class="btn btn-secondary" onclick="ST.mxRefClose()">закрыть</button></div>'+
+          '<p class="note">'+esc(val.why || val.note || '')+'</p>'+
+          (val.rateDate ? '<p class="small muted">курс на '+fmt(val.rateDate)+'</p>' : '')+
+          '<div class="btn-row">'+
+            (IND(somId) ? '<button class="btn btn-secondary btn-sm" onclick="ST.mxTakeSom('+JSON.stringify(ind)+')">взять «'+esc(IND(somId).name)+'»</button>' : '')+
+            '<button class="btn btn-secondary btn-sm" onclick="ST.mxCurToCols()">валюту в колонки</button>'+
+          '</div></div></div>' : '')+'</td>';
+    }
+    return '<td class="num">'+cellText(val)+'</td>';
+  }
+
+  function rowHtml(node, depth){
+    const collapsed = !!st.mCollapsed[node.key];
+    const hasKids = !colDim && node.children && node.children.length;
+    const chevron = hasKids ? '<button class="chev" onclick="ST.mxToggleCollapse('+JSON.stringify(node.key)+')">'+(collapsed?'▸':'▾')+'</button>' : '';
+    const label = (node.parts && node.parts.length ? node.parts[node.parts.length-1] : node.key) || 'всего';
+    let html = '<tr'+(depth>1?' class="lvl"':'')+'><td style="padding-left:'+(10+(depth-1)*20)+'px">'+chevron+esc(label)+'</td>'+
+      blocks.map(b => inds.map(m => cellHtml(node, b.key, m)).join('')).join('')+'</tr>';
+    if(hasKids && !collapsed) html += node.children.map(c => rowHtml(c, depth+1)).join('');
+    return html;
+  }
+
+  let rowsList = colDim ? mxLeaves(rowsRes.groups) : rowsRes.groups;
+  if(st.mSort.ind) rowsList = colDim
+    ? mxApplySort(rowsList, n => valFor(n, st.mSort.blockKey, st.mSort.ind), st.mSort)
+    : mxSortTree(rowsList, n => n.values[st.mSort.ind], st.mSort);
+
+  const bodyRows = empty
+    ? '<tr><td colspan="'+(1+blocks.length*Math.max(1,inds.length))+'">'+esc(emptyCause)+
+        (mq.filter ? ' <button class="btn btn-secondary btn-sm" onclick="ST.mxClearFilter()">снять фильтр</button>' : '')+'</td></tr>'
+    : (rowsList.map(n => rowHtml(n, 1)).join('') || '<tr><td colspan="'+(1+blocks.length*Math.max(1,inds.length))+'" class="muted">строк нет</td></tr>');
+
+  const totalRow = '<tr class="tot"><td>Итого</td>'+
+    blocks.map(b => inds.map(m => {
+      if(IND(m) && IND(m).fn === 'count'){
+        const n = b.key === 'total' ? rowsRes.n : (flatCols.find(c => c.key === b.key) || {n:0}).n;
+        return '<td class="num">'+n+'</td>';
+      }
+      const val = b.key === 'total' ? rowsRes.total[m] : (flatCols.find(c => c.key === b.key) || {values:{}}).values[m];
+      return '<td class="num">'+cellText(val)+'</td>';
+    }).join('')).join('')+'</tr>';
+
+  /* Детализация — тот же блок, что у старого экрана (Q9/Q13), но не его вопрос: свой
+     `q` (obj/date/filter из st.mAsked) и своя кнопка закрытия, чтобы не трогать st.q. */
+  const drill = st.mDrill ? rowsBlock(st.mDrill.refs, 'Кто именно — '+st.mDrill.title,
+    {obj: mq.obj, date: mq.date, filter: mq.filter}, 'ST.mxDrillClose()') : '';
+
+  /* Q7 — краткая форма липкой полосой, полная по кнопке; тот же приём, что у плиток
+     (ST.showPass/tilePass), своё поле состояния — st.mPassOpen, чтобы не спорить с ними. */
+  const pass = (colDim ? cellsRes : rowsRes).passport;
+  const passBar = '<div class="pass-bar"><span class="muted">'+esc(pass.short)+'</span>'+
+    '<button class="btn btn-secondary btn-sm" onclick="ST.mxTogglePass()">'+
+    (st.mPassOpen ? 'свернуть паспорт' : 'полный паспорт')+'</button></div>'+
+    (st.mPassOpen ? passportHtml(pass) : '');
+
+  return passBar+widthNote+
+    '<div class="mx-scroll"><table class="cgrid mx-grid"><thead>'+thead+'</thead>'+
+    '<tbody class="mx-tot">'+totalRow+'</tbody>'+
+    '<tbody>'+bodyRows+'</tbody>'+
+    '</table></div>'+drill;
+}
+ST.mxSort = (blockKey, ind) => { const st = ST.state, s = st.mSort || {};
+  if(s.blockKey === blockKey && s.ind === ind) s.dir = s.dir === 'asc' ? 'desc' : 'asc';
+  else { s.blockKey = blockKey; s.ind = ind; s.dir = 'desc'; }
+  st.mSort = s; render(); };
+ST.mxToggleCollapse = key => { ST.state.mCollapsed[key] = !ST.state.mCollapsed[key]; render(); };
+ST.mxDrillSet = (refs, title) => { ST.state.mDrill = {refs, title}; render(); };
+ST.mxDrillClose = () => { ST.state.mDrill = null; render(); };
+ST.mxRefOpen = key => { ST.state.mRefKey = key; render(); };
+ST.mxRefClose = () => { ST.state.mRefKey = null; render(); };
+ST.mxTakeSom = ind => { const st = ST.state, a = st.mq.inds, i = a.indexOf(ind), alt = ind+'-som';
+  if(i >= 0 && IND(alt)) a[i] = alt; st.mRefKey = null; render(); };
+ST.mxCurToCols = () => { const st = ST.state, mq = st.mq, id = 'd-cur';
+  if(mq.dims.indexOf(id) < 0){ mq.dims.push(id); mq.axis[id] = 'rows';
+    const D = DIM(id); if(D && D.buckets) mq.buckets[id] = D.buckets[0]; }
+  Object.keys(mq.axis).forEach(d => { if(d !== id && mq.axis[d] === 'cols') mq.axis[d] = 'rows'; });
+  mq.axis[id] = 'cols'; st.mRefKey = null; render(); };
+ST.mxTogglePass = () => { ST.state.mPassOpen = !ST.state.mPassOpen; render(); };
+
+function viewMatrix(){
+  const st = ST.state;
+  if(!st.mAsked) st.mAsked = mxClone(st.mq);   /* страницы «до первого вопроса» не бывает (Q14) */
+  return '<div class="matrix-shell">'+
+    '<div class="matrix-qcol'+(st.mxQColCollapsed ? ' collapsed' : '')+'" id="matrixQCol">'+matrixQuestionCol(st)+'</div>'+
+    '<div class="matrix-ans" id="matrixAns">'+matrixAnswer(st)+'</div>'+
+    '</div>';
 }
 
 function viewBuild(){
