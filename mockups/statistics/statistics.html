@@ -3785,6 +3785,7 @@ const SOM_SUFFIX = '-som';
 const CUR_DIM = {'obj-credit':'d-cur', 'obj-borrower':'d-bcur', 'obj-collateral':'d-ccur',
   'obj-case':'d-ocur', 'obj-claim':'d-clcur', 'obj-program':'d-pgcur', 'obj-repay':'d-pcur',
   'obj-receipt':'d-rcur', 'obj-measure':'d-mcur'};
+ST.CUR_DIM = CUR_DIM;
 const isSomRow = r => !!r && r.kind === KIND.IND && r.src !== 'агрегат' && !!r.money && !r.somOf;
 function somTwinOf(r){
   const t = clone(r);
@@ -5064,13 +5065,17 @@ function seed(){
     /* Матрица (Q16/Q4): mq — черновик вопроса, mAsked — последнее «Спросить», по нему
        читает таблица (task 3). Ось живёт ОТДЕЛЬНО от st.q.dims-порядка — dims здесь
        порядок И состав разом, axis — где стоит каждый включённый разрез. */
-    mq: defaultMq('obj-credit'),
+    /* `defaultMq` спрашивает сомовых близнецов через `REC` (ADR-0214), а `REC` до первого
+       присвоения `ST.state = st` читает ГОЛЫЙ `REGISTRY` — близнецов там ещё нет (см.
+       `REC` выше). Дефолт вычисляется НИЖЕ, сразу после присвоения, а не здесь. */
+    mq: null,
     mAsked: null,
     mFilterOpen: false,
     mFEdit: null,
     mxQColCollapsed: false
   };
   ST.state = st;
+  st.mq = defaultMq('obj-credit');
   /* Виды на ОДНУ кладовую. `st.indicators` и `st.dims` ничего не хранят — они читают
      реестр и отбирают объявленную породу, и потому разъехаться с ним не могут. Положить
      запись «в dims» больше некуда: складов нет, есть реестр (ИС-43, ADR-0209). Виды
@@ -8367,9 +8372,18 @@ function defaultMq(objId){
   const axis = {}; dims.forEach((d,i) => axis[d] = i === 0 ? 'rows' : 'cols');
   const levels = {}; dims.forEach(d => { const D = DIM(d); if(D && D.levels) levels[d] = D.levels.length; });
   const buckets = {}; dims.forEach(d => { const D = DIM(d); if(D && D.buckets) buckets[d] = D.buckets[0]; });
-  return {obj:objId, dims, axis, levels, buckets,
-    inds: o.inds.filter(m => IND(m).src === 'агрегат').slice(0,2),
-    date:null, filter:null};
+  /* Дефолт не берёт разрез «Валюта» (его нет среди первых dims почти нигде), а денежный
+     показатель складывается только внутри него (ADR-0214 §1) — валютный оригинал упёрся бы
+     в «свод отказан» на первом же экране, до того как юзер вообще успел что-то спросить.
+     Первый экран берёт сомовый двойник: он аддитивен всегда и того же смысла (ИС-44).
+     Валютный остаётся в реестре и в чипах — юзер берёт его сам, обычно вместе с разрезом
+     «Валюта» (см. подсказку в `mxIndsBlock`). */
+  const inds = [];
+  o.inds.filter(m => IND(m).src === 'агрегат').some(m => {
+    inds.push(ST.somIdOf(m) || m);
+    return inds.length >= 2;
+  });
+  return {obj:objId, dims, axis, levels, buckets, inds, date:null, filter:null};
 }
 function mxClone(mq){ return JSON.parse(JSON.stringify(mq)); }
 /* Подпись ВОПРОСА, не раскладки: ось, порядок и сортировка сюда не входят — это
@@ -8495,7 +8509,24 @@ function mxIndsBlock(st){
   const inds = blocks.length > 2
     ? blocks.map(b => (b.g ? '<span class="chips-grp">'+esc(b.g)+'</span>' : '')+b.ms.map(aggChip).join('')).join('')
     : aggs.map(aggChip).join('');
-  return '<div class="mx-block"><h4>Показатели</h4><div class="chips">'+inds+'</div></div>';
+  /* Валютный показатель складывается только внутри разреза «Валюта» (ADR-0214 §1) — без
+     него свод по разновалютному множеству откажет ПОКЛЕТОЧНО (Q19). Подсказка встаёт СРАЗУ
+     при выборе показателя, а не после того, как юзер докликается до клетки с «свод
+     отказан»: тот же выбор («добавить разрез» / «взять сомовый»), но на шаг раньше. */
+  const curDim = ST.CUR_DIM[mq.obj];
+  const risky = curDim && mq.dims.indexOf(curDim) < 0
+    ? mq.inds.filter(m => ST.somIdOf(m)) : [];
+  const hint = risky.length
+    ? '<div class="banner info">'+risky.map(m =>
+        '«'+esc(IND(m).name)+'» аддитивен только внутри разреза «'+esc(DIM(curDim).name)+'»: '+
+        'без него свод по разновалютному множеству откажет. '+
+        '<button class="btn btn-secondary btn-sm" onclick="ST.mxToggleDim(\''+curDim+'\')">'+
+          'добавить разрез «'+esc(DIM(curDim).name)+'»</button> '+
+        '<button class="btn btn-secondary btn-sm" onclick="ST.mxTakeSom(\''+m+'\')">'+
+          'взять «'+esc(IND(m+SOM_SUFFIX).name)+'»</button>'
+      ).join('<br>')+'</div>'
+    : '';
+  return '<div class="mx-block"><h4>Показатели</h4><div class="chips">'+inds+'</div>'+hint+'</div>';
 }
 function mxFilterBlock(st){
   const mq = st.mq, canAsk = ST.canBuild();
@@ -8911,7 +8942,8 @@ ST.mxDrillClose = () => { ST.state.mDrill = null; render(); };
 ST.mxRefOpen = key => { ST.state.mRefKey = key; render(); };
 ST.mxRefClose = () => { ST.state.mRefKey = null; render(); };
 ST.mxTakeSom = ind => { const st = ST.state, a = st.mq.inds, i = a.indexOf(ind), alt = ind+'-som';
-  if(i >= 0 && IND(alt)) a[i] = alt; st.mRefKey = null; render(); };
+  if(i >= 0 && IND(alt)){ if(a.indexOf(alt) >= 0) a.splice(i,1); else a[i] = alt; }
+  st.mRefKey = null; render(); };
 ST.mxCurToCols = () => { const st = ST.state, mq = st.mq, id = 'd-cur';
   if(mq.dims.indexOf(id) < 0){ mq.dims.push(id); mq.axis[id] = 'rows';
     const D = DIM(id); if(D && D.buckets) mq.buckets[id] = D.buckets[0]; }
