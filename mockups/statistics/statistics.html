@@ -8464,14 +8464,19 @@ function mxDimsBlock(st){
       D.buckets.map(b => '<option'+(mq.buckets[id] === b ? ' selected' : '')+'>'+esc(b)+'</option>').join('')+
       '</select></div>' : '';
     return '<li class="mx-dim'+(on ? ' on' : '')+'" draggable="'+(on ? 'true' : 'false')+'" data-dim="'+id+'"'+
-      (on ? ' ondragstart="ST._mxDrag=\''+id+'\'" ondragover="event.preventDefault()" '+
-            'ondrop="ST.mxMoveDimTo(\''+id+'\',ST._mxDrag)"' : '')+'>'+
+      (on ? ' ondragstart="ST.mxDragStart(event,\''+id+'\')" ondragend="ST.mxDragEnd(event)"' : '')+'>'+
       '<span class="dh">'+(on ? '≡' : '')+'</span>'+
       '<input type="checkbox" '+(on ? 'checked' : '')+' onchange="ST.mxToggleDim(\''+id+'\')">'+
       '<span class="dn">'+(ord || '')+'</span><span class="dl">'+esc(D.name)+'</span>'+mv+
       '</li>'+(lvl || bkt ? '<div class="mx-dim-sub">'+lvl+bkt+'</div>' : '');
   }).join('');
-  return '<div class="mx-block"><h4>Разрезы</h4><ul class="mx-dimlist">'+rows+'</ul></div>';
+  /* Пер-<li> ondragover/ondrop оставляли мёртвые зоны — подпанели «Уровень»/«Корзина»
+     и промежутки между строками не принимали drop, из-за чего перетаскивание казалось
+     нерабочим при малейшем промахе мимо строки-цели. Слушаем на всём <ul> и находим
+     ближайшую строку по Y координате курсора (ST.mxDragOver/mxDrop) — drop работает
+     в любой точке списка, а не только точно на целевой строке. */
+  return '<div class="mx-block"><h4>Разрезы</h4>'+
+    '<ul class="mx-dimlist" ondragover="ST.mxDragOver(event)" ondrop="ST.mxDrop(event)">'+rows+'</ul></div>';
 }
 function mxColBlock(st){
   if(!ST.canBuild()) return '';
@@ -8489,11 +8494,20 @@ function mxColBlock(st){
   return '<div class="mx-block"><h4>Колонка</h4>'+
     '<select class="mx-obj-select" onchange="ST.mxSetColDim(this.value)">'+opts+'</select>'+lvl+bkt+'</div>';
 }
-ST.mxMoveDimTo = (targetId, draggedId) => { const st = ST.state, a = st.mq.dims;
-  if(!draggedId || draggedId === targetId) return;
-  const i = a.indexOf(draggedId), j = a.indexOf(targetId);
-  if(i < 0 || j < 0) return;
-  a.splice(i,1); a.splice(a.indexOf(targetId), 0, draggedId); render(); };
+ST.mxDragStart = (e, id) => { ST._mxDrag = id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', id); };
+ST.mxDragEnd = () => { ST._mxDrag = null; };
+ST.mxDragOver = e => { if(ST._mxDrag) e.preventDefault(); };
+ST.mxDrop = e => {
+  e.preventDefault();
+  const id = ST._mxDrag; if(!id) return;
+  const st = ST.state, a = st.mq.dims, i = a.indexOf(id);
+  if(i < 0) return;
+  const items = Array.from(e.currentTarget.querySelectorAll('li.mx-dim.on'));
+  const before = items.find(li => li.getAttribute('data-dim') !== id &&
+    e.clientY < li.getBoundingClientRect().top + li.getBoundingClientRect().height / 2);
+  a.splice(i, 1);
+  a.splice(before ? a.indexOf(before.getAttribute('data-dim')) : a.length, 0, id);
+  ST._mxDrag = null; render(); };
 function mxIndsBlock(st){
   const mq = st.mq, o = OBJ(mq.obj), canAsk = ST.canBuild();
   if(!canAsk){
