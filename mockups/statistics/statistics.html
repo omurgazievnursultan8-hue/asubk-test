@@ -1394,7 +1394,10 @@ table.cgrid tfoot td{ padding:9px 12px; background:var(--surface-panel);
   border-radius:var(--radius-md); margin-bottom:8px; font:var(--font-label); }
 .pass-bar .muted{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .mx-scroll{ overflow:auto; max-width:100%; border:1px solid var(--border-default); border-radius:var(--radius-md); }
-table.mx-grid{ border-collapse:separate; border-spacing:0; }
+/* width:auto, не 100% от .cgrid (Q28): при ширине-в-проценте лишнее место таблица
+   раздаёт всем колонкам поровну, включая rowdim-h — авторазметке всё равно, что
+   его содержимому нужно меньше; авто-ширина отдаёт колонке ровно то, что просит. */
+table.mx-grid{ border-collapse:separate; border-spacing:0; width:auto; }
 table.mx-grid thead th{ position:sticky; background:var(--surface-panel); z-index:3; }
 table.mx-grid thead tr.hg th{ top:44px; z-index:4; }
 table.mx-grid thead tr.hm th{ top:79px; z-index:3; }
@@ -1404,6 +1407,10 @@ table.mx-grid tbody.mx-tot td{ position:sticky; top:113px; z-index:2; background
 table.mx-grid td:first-child, table.mx-grid th.rowdim-h{ position:sticky; left:0; z-index:2;
   background:var(--surface-card); box-shadow:1px 0 0 var(--asubk-grid-line); }
 table.mx-grid thead tr.hg th.rowdim-h{ z-index:5; background:var(--surface-panel); }
+/* Ширина через дочерний блок, не через max-width на самой th (Q28): в auto-layout
+   таблицы max-width клетки игнорируется, если у таблицы есть запас по ширине —
+   width, наоборот, распорке подчиняется. */
+.rowdim-h-wrap{ width:170px; white-space:normal; word-break:break-word; line-height:1.35; }
 table.mx-grid tbody.mx-tot td:first-child{ z-index:5; }
 th.mx-sortable{ cursor:pointer; user-select:none; }
 th.mx-sortable:hover{ color:var(--asubk-link); }
@@ -7808,6 +7815,7 @@ function render(){
     st.view === 'build'   ? viewBuild()   :
     st.view === 'journal' ? viewJournal() :
     st.view === 'exports' ? viewExports() : viewSetup();
+  if(st.view === 'matrix') mxFixStickyOffsets();
 }
 ST.render = render;
 
@@ -8703,6 +8711,22 @@ function mxSortTree(nodes, valFn, sort){
   return nodes;
 }
 
+/* Отступы липкой шапки таблицы (top:44/79/113 в CSS) исходят из ОДНОСТРОЧНЫХ строк
+   шапки — при разрезах ИЛИ показателей длиннее одной строки текст переносится, и
+   вторая строка шапки, а следом строка «Итого», наезжают на выросшую первую (Q28).
+   Числа не подобрать заранее — сколько строк перенесётся, знает только браузер после
+   раскладки, поэтому досчитывается здесь, после каждой отрисовки матрицы. */
+function mxFixStickyOffsets(){
+  const table = document.querySelector('table.mx-grid');
+  if(!table) return;
+  const hgRow = table.querySelector('thead tr.hg'), hmRow = table.querySelector('thead tr.hm');
+  if(!hgRow || !hmRow) return;
+  const base = 44;                                          /* верхняя строка ни от чего не зависит */
+  const hgH = hgRow.getBoundingClientRect().height, hmH = hmRow.getBoundingClientRect().height;
+  Array.from(hmRow.children).forEach(c => { c.style.top = (base + hgH) + 'px'; });
+  const totRow = table.querySelector('tbody.mx-tot tr');
+  if(totRow) Array.from(totRow.children).forEach(c => { c.style.top = (base + hgH + hmH) + 'px'; });
+}
 function matrixAnswer(st){
   const mq = st.mAsked;
   if(!st.mSort) st.mSort = {};
@@ -8790,8 +8814,8 @@ function matrixAnswer(st){
   const sortArrow = (blockKey, ind) => st.mSort.blockKey === blockKey && st.mSort.ind === ind
     ? (st.mSort.dir === 'asc' ? ' ▲' : ' ▼') : '';
   const thead =
-    '<tr class="hg"><th class="rowdim-h" rowspan="2">'+
-      esc((rowsDims.map(d => DIM(d).name).join(' · ')) || 'Всего')+'</th>'+
+    '<tr class="hg"><th class="rowdim-h" rowspan="2"><div class="rowdim-h-wrap">'+
+      (rowsDims.length ? rowsDims.map(d => esc(DIM(d).name)).join('<br>') : 'Всего')+'</div></th>'+
       blocks.map(b => '<th colspan="'+Math.max(1,inds.length)+'" class="'+(b.key==='total'?'tot-h':'')+'">'+esc(b.label)+'</th>').join('')+
     '</tr>'+
     '<tr class="hm">'+blocks.map(b => inds.map(m =>
