@@ -1,0 +1,1382 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Задания · АСУБК</title>
+<!--
+  АСУБК · модуль «Задания» · прототип волны 1+2+3+4 (волна 2 подключает первого
+  настоящего соседа — Оргструктуру; волна 3 — второго, Статистику; волна 4 —
+  третьего, Отчётность)
+  ================================================================
+  Рабочий прототип: логика внутри тега script реально исполняется (не картинка).
+  window.ZD — движок, доступен смоук-тесту scripts/inspect/zadaniya-check.mjs.
+
+  Модуль шестой (глагол «поручает»), заведён волной 16 (ADR-0210, ADR-0211),
+  логика доразобрана волной 17 (ADR-0227…ADR-0231, 31.08.2026). Опирается на:
+    ADR-0210 — поводы берутся ОПРОСОМ, не присылаются соседом.
+    ADR-0211 — ИЗ-3: повод = состояние с устойчивым ключом «вид · объект · период»,
+               не событие; каждый опрос — полная сверка множества (идемпотентно).
+    ADR-0227 — ИЗ-5: задание = пара «повод × действие», ≤1 открытое на пару.
+               ИЗ-6: исход выводится ПЕРЕКРЁСТНО из двух осей журнала, не хранится
+               полем. ИЗ-7: у каждого задания — независимая ось подтверждения
+               (отпадение повода ИЛИ обязательный контролёр).
+    ADR-0228 — ИЗ-8: три реестра (вид повода / действие / правило), без уровня
+               «шаблон». ИЗ-9: правка правила действует смешанно (снимок / текущая
+               редакция). ИЗ-10: повод несёт признаки, не числа.
+    ADR-0229 — ИЗ-11: сосед — критерий, не список. ИЗ-12: ответ = множество / отказ /
+               таймаут; молчание ⇒ заморозка, не пустота. ИЗ-13: ключ шва, база
+               срока = max(дата состояния, дата ввода вида в действие).
+    ADR-0230 — ИЗ-14: уведомления — закрытый список из 9 состояний, только о работе.
+               ИЗ-15: датированное число — у статистики, у заданий — строки.
+               ИЗ-16: гигиена модуля идёт его же механизмом (6 своих видов повода),
+               экрана «здоровья» нет, три жанра экранов.
+    ADR-0231 — ИЗ-17: две волны выпуска. Волна 1 = вся эта страница: ядро без
+               единого настоящего соседа, доказывает себя САМООПРОСОМ по своим же
+               6 видам повода. Приёмка — не «код есть», а РАБОТАЮЩИЙ самоопрос:
+               непустой прогон, идемпотентный повтор, воспроизведённая заморозка
+               при недоступном источнике.
+
+  Границы волны 1 (осознанные, не забытые):
+    · Единственный «сосед» на этом экране — сам механизм (самоопрос). Реальных
+      соседей (кадры/оргструктура/заёмщик) волна 2 подключает по одному со своим
+      низким порогом свёртки на старте (ADR-0231 п.4-5).
+    · Оргструктура/сотрудники — учебный мок на 5 человек, НЕ интеграция с P11/P12.
+    · Рабочий календарь — упрощённый (сб/вс), не единая функция P17 (ADR-0229 п.13,
+      долг волны 2).
+    · Общесистемный справочник видов объекта (долг 14, ADR-0229 п.9) — здесь один
+      вид объекта «задание» (для самопроверки), достаточный ровно для волны 1.
+    · «Задание по правилу в ручном режиме» демонстрируется на виде повода
+      «вид повода не введён в действие» (единственное ручное правило) — второй род
+      ручного задания (ИЗ-5 п.5) наряду со свободным поручением.
+
+  Волна 2 (02.09.2026) — первый настоящий сосед, записями реестра (ADR-0231 п.4,
+  ADR-0228 ИЗ-8), движок не правился, кроме одной обобщённой ветки шва:
+    · Подключена Оргструктура — problemsAt(d) из mockups/org-structure/org-structure.html:1103,
+      шесть списков (headVacant/actingExpiring/invariant/noStaff/liqBlocked/orphanTerr) →
+      шесть новых видов повода pk-org-*. Зеркалится ОТВЕТ (форма данных из тех же шести
+      ключей), не код problemsAt: движок problemsAt держит свои UNITS/ASSIGN/ACTING —
+      тащить их сюда значило бы вторую копию чужого механизма, ровно то, что запрещает
+      критерий соседа (ADR-0229 ИЗ-11); опрос по сети получил бы такой же плоский ответ.
+      Решение и альтернатива (маркеры <<< mirror:calc-core >>> из credit.html, отвергнута
+      как решение для чужого механизма, а не общего расчётного ядра) — в журнале волны 2.
+    · Первое подключение — намеренно низкий порог свёртки 2 (ADR-0231 п.5, ИЗ-12 п.8):
+      headVacant (3 демо-строки) сворачивается в один вал-таск, три остальных непустых
+      списка (по 1 строке) выдают задания поштучно как обычно.
+    · База срока — max(дата состояния у соседа, дата ввода вида в действие) (ИЗ-13):
+      демо-строка headVacant датирована 20.07.2026, задолго до подключения 02.09.2026 —
+      povod.stateDate прижимается к дате подключения, а не тащит месячный хвост.
+    · Кадры — НЕ подключены этой волной: problemsAt у самих кадров (P12-R19,
+      docs/tasks/p12-employees-tasks.html) числится «mock», в mockups/employee/employee.html
+      функции нет — подключать нечего, это долг соседа, не долг макета. Отдельно —
+      «руководитель исполнителя на дату» у resolveActor (mockups/employee/employee.html:987)
+      тоже отсутствует как реквизит ответа (сам resolveActor уже общий — принимает любой id,
+      не только куратора); адресация pk-org-* временно жёстко на E4 (администратор модуля),
+      с пометкой в реестре — тоже долг соседа (ADR-0231 п.6/п.7).
+    · Заёмщик — НЕ источник опроса (ADR-0229, «Последствия»: КЗ-13 остаётся витриной,
+      датированные строки в неё приходят ИЗ заданий, поток в обратную сторону). Физически
+      КЗ-13 живёт в отдельном самодостаточном файле requirements/tz/04-zaemshchik.html —
+      подключать его как источник значило бы либо тащить сеть/хранилище между двумя HTML,
+      либо мержить два разных экрана в один файл; оба варианта отвергнуты, граница
+      зафиксирована в журнале волны 2, а не решена кодом.
+
+  Волна 3 (02.09.2026) — второй настоящий сосед, тем же приёмом (записи реестра, движок
+  сверки не правился, кроме одной новой ветки шва — computeExpectedForKind):
+    · Подключена Статистика — ST.askLeads('задания', d) из mockups/statistics/statistics.html:6944
+      (дверь уже покрыта её собственным смоуком #199), один вид повода pk-stat-neighbor-silent
+      (единственный жанр, отдаваемый дверью — LEAD_KINDS=['сосед молчит']). Зеркалится ОТВЕТ
+      (statMirrorAt повторяет форму ST.silenceLeads), не код статистики — та же причина, что и
+      у Оргструктуры в волне 2 (ADR-0229 ИЗ-11): NEIGHBOURS/ST.state держат единоличный движок
+      статистики, тащить их сюда — вторая копия чужого механизма.
+    · Ключ шва — ЦЕЛИКОМ тот, что отдаёт сосед («сосед-молчит/взыскание/с-2026-08-20»), не
+      пересобран в свою тройку «kindId|type:id|», как у Оргструктуры: у статистики период уже
+      устойчив и назван по формуле ADR-0208 §7 — пересборка завела бы ВТОРОЙ ключ на тот же
+      повод (директива волны 3, решение — в журнале волны 3).
+    · Демо-сценарий — тот же, что смоук статистики #199: сосед-модуль «взыскание» молчит
+      3 прогона подряд с 20.08.2026 (причины «отказал по правам», «недоступен»).
+    · Закрытие повода при возврате соседа демонстрируется ОТДЕЛЬНО от заморозки (ИЗ-12 п.6-7,
+      #45): тумблер «статистика больше не молчит» в настройке отдаёт полное, но ПУСТОЕ
+      множество — повод отпадает штатной сверкой ИЗ-3, задание закрывается тем же путём, что
+      любой отпавший повод; это НЕ путь через sourceDown/таймаут.
+    · Взыскание как ОРГАНИЗАЦИОННЫЙ отдел (EMP, сотрудник E5) и «взыскание» как МОДУЛЬ-сосед
+      статистики — разные сущности с одинаковым именем; адресация pk-stat-neighbor-silent
+      временно жёстко на E4 (тот же долг соседа, что у pk-org-*, не долг макета).
+
+  Волна 4 (02.09.2026) — третий настоящий сосед, тем же приёмом (записи реестра, движок
+  сверки не правился, кроме одной новой ветки шва — computeExpectedForKind):
+    · Подключена Отчётность — RP.obligations() из mockups/reports/reports.html:2229, один
+      вид повода pk-rep-obligation-overdue. Из всей формы обязательства (state ∈ {сдано,
+      сдано с опозданием, ожидается, просрочено}) поводом становится только
+      state==='просрочено' — это и есть кандидатная фраза ADR-0210 «срок сдачи формы
+      истекает/истёк» для Отчётности. Зеркалится ОТВЕТ (reportsMirrorAt повторяет форму
+      RP.obligations(), фильтр по состоянию — своим кодом шва, не чужим), не код
+      Отчётности — та же причина ИЗ-11, что у Оргструктуры и Статистики: держать здесь
+      DEPTS/шаблоны/RP.state значило бы вторую копию чужого движка отчётности.
+    · RP.autoTask НЕ вызывается и не зеркалится — это намеренная заглушка-отказ
+      (ADR-0160, ИО-13: «модуль показывает, но не поручает»), а не дверь для соседей;
+      зеркалится только ИДЕЯ формы RP.taskBasis (основание — что/когда/кто, не код) —
+      как текст описания повода.
+    · Ключ шва — ЦЕЛИКОМ тот, что отдаёт сосед (o.id = «t-overdue/<asOf>/<dept>» —
+      собственный композитный id RP.obligations()), тем же приёмом, что у Статистики в
+      волне 3, а не пересобран в свою тройку «kindId|type:id|», как у Оргструктуры: у
+      Отчётности, как и у Статистики, ровно один вид повода на дверь — пересборка не
+      снимает неоднозначность (её и так нет), а заводит ВТОРОЙ ключ на тот же повод.
+      Решение — в журнале волны 4.
+    · Адресация — исследована и НЕ смаплена: RESPONSIBLE[dep] в reports.html:988 отдаёт
+      строку-ИМЯ человека («Асанов А.», «Осмонова Г.», «Мамытов Э.») из СОБСТВЕННОГО
+      ростера Отчётности, а не id из EMP (E1…E5) — ни одно имя не совпадает ни с одним
+      сотрудником EMP, а resolveAssignees и весь движок задания (emp(), chiefOf(),
+      visibleTo()) работают только по id EMP. Подставить имя как assignee означало бы
+      завести задание, невидимое ни одному зрителю (viewer всегда id из EMP) — реальный,
+      а не косметический дефект. Адресация pk-rep-obligation-overdue временно жёстко на
+      E4, тем же приёмом и по той же причине, что у pk-org-* и pk-stat-neighbor-silent
+      (разные, несовместимые ростеры людей у разных соседей — долг соседей, не долг
+      макета).
+    · Демо-данные — 5 строк RP.obligations() одного шаблона (t-overdue, ежемесячная форма
+      о просроченной задолженности): 3 просрочены (dep-admin/dep-prom/rep-osh, период
+      «июнь 2026», срок 2026-07-15 — на ~7 недель раньше подключения 02.09.2026, для
+      проверки clamp ИЗ-13) и 2 НЕ povod-worthy (одна «сдано» за июль, одна «ожидается»
+      за август) — проверяют, что фильтр по state берёт только «просрочено», а не всю
+      форму соседа целиком.
+    · Первое подключение — тот же намеренно низкий порог свёртки 2 (ADR-0231 п.5,
+      ИЗ-12 п.8): 3 просроченных обязательства выше порога сворачиваются в один вал-таск,
+      это реалистичный демо-сценарий (три подразделения одновременно не сдали один и тот
+      же ежемесячный отчёт), а не подогнанные данные.
+    · База срока — max(due обязательства у соседа, дата ввода вида в действие) (ИЗ-13):
+      due='2026-07-15' у всех трёх демо-строк далеко раньше подключения 02.09.2026 —
+      povod.stateDate прижимается к дате подключения; признак «дней_просрочки» тем не
+      менее честно хранит реальную давность у соседа (как и у Оргструктуры/Статистики).
+
+  Экраны (ровно три жанра, ИЗ-16 п.12): Очередь заданий (мои·отдела) · Карточка
+  задания (выдвижная панель) · Настройка (виды повода / действия / правила /
+  журнал прогонов). Экрана «здоровья» нет намеренно (ИЗ-16 п.12, «Отвергнуто»).
+
+  SMOKE (node scripts/inspect/zadaniya-check.mjs):
+   SMOKE 2026-09-02 · 53/53 PASS
+      PASS  #1  прогон PR9 на дату 2026-09-02: все четыре источника волны 1-4 (self, orgstruct, statistics, reports) ответили «множество» (ИЗ-12 п.5)
+      PASS  #2  первый прогон непустой на собственных видах (source[0]=self): 3 новых повода из 3 демо-заданий, заведённых ДО опроса (ИЗ-17 приёмка)
+      PASS  #3  три ключа тройкой «вид · объект · период» (ИЗ-13 п.9) среди собственных видов (org-поводы того же прогона проверяются отдельно, #33+): pk-await-long|task:T3|, pk-overdue|task:T1|, pk-rejected|task:T7|
+      PASS  #4  на каждый новый повод СВОЕГО вида правило в авто-режиме выдало задание с редакцией правила (ИЗ-9 п.7): T11:pk-overdue, T14:pk-rejected, T17:pk-await-long
+      PASS  #5  повторный прогон той же датой: new=0, matched=3, gone=0 — полная сверка множества идемпотентна (ИЗ-3 п.2)
+      PASS  #6  повторный прогон не выдал второе задание поверх открытого — иначе ключ «повод × действие» перестал бы держать ≤1 открытое задание на пару (ИЗ-5 п.5)
+      PASS  #7  прогон с недоступным источником объявлен НЕполным в журнале прогонов, а не тихо пропущен (ИЗ-12 п.7)
+      PASS  #8  молчание соседа не есть пустота: все 13 повода заморожены, не отпали («состояние не подтверждено», ИЗ-12 п.6), в журнал повода вписано «заморожен»
+      PASS  #9  следующий успешный прогон воспроизводится: заморозка снимается, ни один повод не потерян и не пересчитан как «новый» (сравнить с A/B — тот же результат при том же входе)
+      PASS  #10  разморозка — отдельная запись журнала «разморожен», не молчаливый откат статуса
+      PASS  #11  шесть собственных видов повода, порядок как в ADR-0230 п.10: pk-overdue · pk-rejected · pk-await-long · pk-lapsed-review · pk-neighbor-silent · pk-kind-inactive
+      PASS  #12  три реестра держат разные вещи (ИЗ-8 п.1-3): вид повода — владелец/объект/признаки/порог/чувствительность, действие — формулировку и важность, правило — режим/автора/срок/редакции; уровня «шаблон» нет
+      PASS  #13  пять правил авто-режима, одно ручное («вид повода не введён в действие») — демонстрирует ручной триггер
+      PASS  #14  у задания нет поля-состояния — состояние читается функцией по последней записи журнала (ADR-0136 §5)
+      PASS  #15  переход дописал журнал, не переписал прежнюю запись — журнал только растёт
+      PASS  #16  более ранняя запись журнала не изменилась переходом — задним числом журнал не переписывается
+      PASS  #17  у незакрытого задания исхода нет — исход не поле, а вывод только из терминальной записи (ИЗ-6)
+      PASS  #18  «снято» — исход, доступный только после предварительного «отказано» (releaseTask отбит бы иначе)
+      PASS  #19  свободное поручение обязано иметь контролёра — единственную независимую ось подтверждения у работы без собственного повода: «свободное поручение обязано иметь контролёра (ИЗ-7 п.13)»
+      PASS  #20  с контролёром свободное поручение заводится штатно
+      PASS  #21  первый род — свободное поручение без повода и ключа, с обязательным контролёром: 4 демо-задания заведены до первого опроса
+      PASS  #22  второй род — правило существует и режим ручной; повод «вид не введён в действие» появился, но задание сам опрос не выдал (mode!=='авто' в handleNewForKind)
+      PASS  #23  человек нажимает «поручить вручную» — задание рождается по тому же правилу, тем же путём issueRuleTask, что и авто-режим (единый механизм, ИЗ-8 п.3)
+      PASS  #24  просроченное задание, рождённое поводом «просрочено», НЕ породило второй повод «просрочено» на себя — originKind===kindId стопорит рекурсию за один шаг, а не настраиваемой глубиной
+      PASS  #25  деактивация обнулила дату ввода в действие — реквизит-рубильник (ИЗ-13 п.12)
+      PASS  #26  не введённый в действие вид не породил СВОЙ повод (T7 остался без «задание отклонено»), но факт неактивности сам стал поводом «вид повода не введён в действие» — оба положения ИЗ-13 п.12 в одном прогоне
+      PASS  #27  после «ввести в действие» вид снова порождает поводы — рубильник обратим
+      PASS  #28  девять состояний, ни одного информационного («кредит выдан») — список закрыт буквально (ИЗ-14 п.1-2)
+      PASS  #29  самоопрос породил уведомления, и каждое — из закрытого списка (движок бросил бы на восьмом глаголе)
+      PASS  #30  все семь ADR и все используемые ИЗ-номера названы в шапке файла
+      PASS  #31  «сегодня» заморожено константой '2026-09-02' в состоянии, системных часов в движке нет — прогон воспроизводится между запусками смоука
+      PASS  #32  ровно один открывающий и один закрывающий тег script во всём файле, включая шапку и уже вписанный отчёт — наивный извлекатель регэкспом (этот смоук и его аналог для kuratorstvo) иначе режет не с того места
+      PASS  #33  первое подключение Оргструктуры: полное множество за все шесть видов сразу, 6 новых поводов (3 headVacant + 1 acting-expiring + 1 no-staff + 1 orphan-terr; invariant/liq-blocked пусты на этих демо-данных — #36)
+      PASS  #34  первое подключение — намеренно низкий порог свёртки 2 (ADR-0231 п.5, ИЗ-12 п.8): 3 вакансии руководителя выше порога свернулись в один вал-таск T27, ни одного поштучного задания на эти три повода не выдано
+      PASS  #35  три остальных непустых вида Оргструктуры (acting-expiring/no-staff/orphan-terr) — по 1 строке, ниже порога свёртки 2 — выдают задания поштучно как обычно, без свёртки
+      PASS  #36  пустые списки соседа (invariant/liq-blocked на этих демо-данных) дают ноль поводов без ошибки — полное множество допускает пустой ответ по виду, это не молчание источника (ИЗ-3)
+      PASS  #37  ключ шва на реальных видах объекта Оргструктуры держит ту же тройку «вид повода · (вид объекта+id) · период» (ИЗ-13 п.9), объект — не «task», как у собственных видов, а unit/employee/territory: pk-org-head-vacant|unit:ЦА — Кредитный отдел| · pk-org-head-vacant|unit:Ошская область|
+      PASS  #38  демо-строка headVacant датирована у соседа 20.07.2026 (задолго до подключения), но povod.stateDate прижат к дате ввода вида в действие 02.09.2026 (ИЗ-13 п.9 — база срока = max(дата состояния у соседа, дата активации), защита от вала backdated-состояний на первом подключении); признак «дней_вакансии» тем не менее честно хранит реальную давность у соседа
+      PASS  #39  Заёмщик/КЗ-13 не участвует ни в одном прогоне как источник опроса — односторонний поток в обратную сторону (ADR-0229 «Последствия»): КЗ-13 остаётся витриной, датированные строки приходят ИЗ заданий, не наоборот (не подключался — граница задокументирована в журнале волны 2, не решена кодом; 4 источника волны 1-4 — self/orgstruct/statistics/reports)
+      PASS  #40  независимая заморозка по отдельному источнику (opts.downSources, волна 2): молчит только Оргструктура — её 6 повода замерзают, self остаётся цел (3 appeared без изменений) — источники не гасят друг друга, недоступность соседа не есть недоступность модуля
+      PASS  #41  первый прогон от Статистики непустой (демо-повод взыскания): источник «Статистика (ST.askLeads)» ответил «множество», 1 новый повод «сосед-молчит/взыскание/с-2026-08-20», правило в авто-режиме сразу выдало задание T39 (подключение — записью реестра, ADR-0231 п.4)
+      PASS  #42  повторный прогон той же датой на источнике Статистики: new=0, matched=1, gone=0, второе задание поверх открытого не выдано — полная сверка идемпотентна и здесь (ИЗ-3 п.2), тем же движком, что у self/orgstruct
+      PASS  #43  ключ шва — целиком тот, что отдаёт сосед («сосед-молчит/взыскание/с-2026-08-20»), не пересобран в свою тройку «kindId|type:id|» (ИЗ-13 п.9 — не переизобретать период); вид объекта — «module» на реальном соседе «взыскание», не «task», как у собственных видов
+      PASS  #44  независимая заморозка третьего источника: молчит только Статистика — её 1 повод замерзает, self (3) и Оргструктура (6) остаются целы без изменений — три источника не гасят друг друга (ИЗ-12 п.6)
+      PASS  #45  когда сосед перестаёт молчать (streak обнуляется у Статистики — полное, но ПУСТОЕ множество, не таймаут), повод отпадает штатной сверкой ИЗ-3, а не заморозкой: журнал повода — «отпал»; открытое на него задание не тихо закрыто, а помечено «отпало» — тем же путём, что и любое непринятое задание с отпавшим поводом (handleGoneForKind), и само становится кандидатом на собственный повод «отпавшее задание требует разбора» (pk-lapsed-review) при следующем самоопросе
+      PASS  #46  первый прогон от Отчётности непустой: источник «Отчётность (RP.obligations)» ответил «множество», 3 новых повода (только state==='просрочено' из всей формы RP.obligations() — кандидатная фраза ADR-0210 «срок сдачи формы истекает/истёк»); подключение — записью реестра, четвёртым в SOURCES (ADR-0231 п.4)
+      PASS  #47  первое подключение — намеренно низкий порог свёртки 2 (ADR-0231 п.5, ИЗ-12 п.8): 3 просроченных обязательства (dep-admin/dep-prom/rep-osh за один и тот же период) выше порога свернулись в один вал-таск T44, ни одного поштучного задания на эти три повода не выдано
+      PASS  #48  повторный прогон той же датой на источнике Отчётности: new=0, matched=3, gone=0, второй вал-таск поверх открытого не выдан — полная сверка идемпотентна и здесь (ИЗ-3 п.2), тем же движком, что у self/orgstruct/statistics
+      PASS  #49  ключ шва — целиком тот, что отдаёт сосед (o.id из RP.obligations(), «t-overdue/2026-07-01/dep-admin, t-overdue/2026-07-01/dep-prom, t-overdue/2026-07-01/rep-osh»), тем же приёмом, что у Статистики в волне 3 — не пересобран в свою тройку «kindId|type:id|» (ИЗ-13 п.9, у Отчётности тоже ровно один вид повода на дверь); вид объекта — «obligation», объект — подразделение (dept), не «task», как у собственных видов
+      PASS  #50  демо-строки обязательства датированы у соседа due=2026-07-15 (~7 недель до подключения 02.09.2026), но povod.stateDate прижат к дате ввода вида в действие 02.09.2026 (ИЗ-13 п.9 — база срока = max(due у соседа, дата активации), тот же clamp, что у Оргструктуры/Статистики #38/#38); признак «дней_просрочки» тем не менее честно хранит реальную давность у соседа (49 дн.)
+      PASS  #51  фильтр по state==='просрочено' действительно отсёк НЕ-povod-worthy строки соседа (RP.obligations() отдаёт 5 строк одного шаблона: 3 «просрочено» за июнь + 1 «сдано» за июль + 1 «ожидается» за август) — поводов ровно 3, все с периодом «июнь 2026», ни одна строка «сдано»/«ожидается» повода не породила
+      PASS  #52  независимая заморозка четвёртого источника: молчит только Отчётность — её 3 повода замерзают, self (3), Оргструктура (6) и Статистика (1) остаются целы без изменений — четыре источника не гасят друг друга (ИЗ-12 п.6)
+      PASS  #53  сторож структуры источников волны 4: SOURCES держит ровно 4 записи, четвёртая — Отчётность (RP.obligations), подключённая тем же приёмом реестра, что Оргструктура и Статистика — движок runPoll()/computeExpectedForKind не переписан целиком, только дополнена одна ветка сверки (ADR-0228 ИЗ-8)
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-link:#005FDB;
+  --asubk-green:#158443; --asubk-green-hover:#106A36; --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+  --asubk-ink:#192434; --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
+  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+  --asubk-red-tint:#FCE6E6; --asubk-green-tint:rgba(21,132,67,0.10);
+  --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong); --border-focus:var(--asubk-blue);
+  --action-primary:var(--asubk-blue); --action-success:var(--asubk-green); --action-danger:var(--asubk-red);
+  --status-success-bg:var(--asubk-green-tint); --status-info-bg:var(--asubk-blue-tint);
+  --status-warning-bg:var(--asubk-amber-tint); --status-error-bg:var(--asubk-red-tint);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600;
+  --leading-tight:1.2; --leading-snug:1.35; --leading-normal:1.5;
+  --font-body:var(--weight-regular) var(--text-base)/var(--leading-normal) var(--asubk-font);
+  --font-label:var(--weight-regular) var(--text-sm)/var(--leading-snug) var(--asubk-font);
+  --font-page-title:var(--weight-semibold) var(--text-lg)/var(--leading-tight) var(--asubk-font);
+  --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --control-h:36px; --header-h:56px; --sidebar-w:290px;
+  --shadow-focus:0 0 0 2px rgba(0,106,245,0.35);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
+.app{ display:flex; height:100vh; width:100%; }
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
+  display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+.brand{ padding:18px 16px 4px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
+  color:var(--text-heading); letter-spacing:0.04em; }
+.brand small{ display:block; font:var(--weight-regular) 12px/1.4 var(--asubk-font);
+  color:var(--text-muted); letter-spacing:0; margin-top:4px; }
+.nav{ flex:1; overflow-y:auto; padding:12px 0 8px; }
+.nav-sec{ padding:9px 16px 4px; font:var(--weight-semibold) 12px/1.3 var(--asubk-font);
+  color:var(--text-placeholder); text-transform:uppercase; letter-spacing:0.05em; }
+.nav-item{ display:flex; align-items:center; gap:9px; padding:8px 16px; text-decoration:none; width:100%;
+  color:rgba(27,43,65,0.72); font:var(--weight-regular) var(--text-base)/1.4 var(--asubk-font);
+  cursor:pointer; background:none; border:none; text-align:left; }
+.nav-item:hover{ background:rgba(24,39,57,0.05); }
+.nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); font-weight:var(--weight-medium); }
+.nav-item .cnt{ margin-left:auto; color:var(--text-placeholder); font-size:12px; }
+.sidebar-foot{ padding:12px 16px; border-top:1px solid var(--border-default);
+  font:var(--weight-regular) 12px/1.45 var(--asubk-font); color:var(--text-muted); }
+.main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
+.topbar{ min-height:var(--header-h); flex:none; border-bottom:1px solid var(--border-default);
+  display:flex; align-items:center; gap:14px; padding:8px 20px; flex-wrap:wrap; }
+.crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
+.topbar .right{ margin-left:auto; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+.topbar label{ font:var(--font-label); color:var(--text-muted); margin-right:6px; }
+.topbar select{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 10px; cursor:pointer; }
+.content{ flex:1; overflow:auto; }
+.panel-wrap{ padding:18px 24px 60px; max-width:1180px; }
+.view{ display:none; } .view.active{ display:block; }
+.section-h{ font:var(--weight-semibold) 16px/1.2 var(--asubk-font); color:var(--text-heading); margin:24px 0 6px; }
+.section-h:first-child{ margin-top:0; }
+.drawer-mask{ position:fixed; inset:0; background:rgba(24,39,57,0.28); z-index:40; }
+.drawer{ position:fixed; top:0; right:0; height:100vh; width:min(860px,92vw); z-index:41;
+  background:var(--surface-page); border-left:1px solid var(--border-default);
+  box-shadow:-10px 0 30px rgba(24,39,57,0.18); display:flex; flex-direction:column; }
+.drawer-h{ flex:none; display:flex; align-items:center; gap:12px; padding:14px 20px;
+  border-bottom:1px solid var(--border-default); background:var(--surface-card); }
+.drawer-h h3{ margin:0; font:var(--weight-semibold) 15px/1.25 var(--asubk-font); color:var(--text-heading); }
+.drawer-x{ margin-left:auto; background:none; border:none; cursor:pointer; font-size:18px;
+  line-height:1; color:var(--text-muted); padding:2px 6px; }
+.drawer-x:hover{ color:var(--text-body); }
+.drawer-b{ flex:1; overflow:auto; padding:16px 20px 40px; }
+.banner{ border-radius:var(--radius-md); padding:10px 14px; margin-bottom:12px; font:var(--font-label); }
+.banner.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.banner.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.banner.danger{ background:var(--status-error-bg); color:var(--asubk-red); }
+.banner.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.banner b{ font-weight:var(--weight-semibold); }
+.banner ul{ margin:6px 0 0; padding-left:20px; } .banner li{ margin-bottom:3px; }
+.pill{ display:inline-block; padding:2px 9px; border-radius:var(--radius-pill);
+  font:var(--weight-medium) 12px/1.5 var(--asubk-font); white-space:nowrap; }
+.pill.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.pill.warn{ background:var(--status-warning-bg); color:var(--asubk-amber); }
+.pill.err{ background:var(--status-error-bg); color:var(--asubk-red); }
+.pill.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.pill.neutral{ background:var(--asubk-tint-fill); color:var(--text-muted); }
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; height:var(--control-h);
+  padding:0 14px; border:1px solid transparent; border-radius:var(--radius-md);
+  font:var(--weight-semibold) var(--text-base)/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
+.btn:disabled{ opacity:.45; cursor:not-allowed; }
+.btn-primary{ background:var(--action-primary); color:#fff; }
+.btn-primary:hover:not(:disabled){ background:var(--asubk-blue-hover); }
+.btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
+.btn-secondary:hover:not(:disabled){ background:var(--surface-hover); }
+.btn-secondary.on{ border-color:var(--asubk-blue); background:var(--asubk-blue-tint); color:var(--asubk-blue); }
+.btn-sm{ height:28px; padding:0 9px; font-size:12.5px; font-weight:var(--weight-medium); }
+.btn-row{ display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; align-items:flex-end; }
+.rolebar{ display:flex; flex-wrap:wrap; gap:6px; margin:0 0 14px; }
+.rolebar button{ display:inline-flex; align-items:center; gap:7px; padding:5px 12px;
+  border:1px solid var(--border-default); border-radius:var(--radius-pill);
+  background:var(--surface-card); color:var(--text-body);
+  font:var(--weight-medium) 12.5px/1.5 var(--asubk-font); cursor:pointer; white-space:nowrap; }
+.rolebar button:hover{ background:var(--surface-hover); }
+.rolebar button.on{ border-color:var(--asubk-blue); background:var(--asubk-blue-tint);
+  color:var(--asubk-blue); font-weight:var(--weight-semibold); }
+.rolebar .dot{ width:7px; height:7px; border-radius:50%; flex:none; }
+.rolebar .dot.warn{ background:var(--asubk-amber); }
+.rolebar .dot.err{ background:var(--asubk-red); }
+table.cgrid{ width:100%; border-collapse:collapse; font:var(--font-label);
+  border:1px solid var(--border-default); background:var(--surface-card); }
+table.cgrid thead th{ text-align:left; padding:10px 12px; background:var(--surface-panel);
+  border-bottom:1px solid var(--asubk-grid-line); font:var(--weight-semibold) var(--text-sm)/1.35 var(--asubk-font);
+  color:var(--text-heading); white-space:nowrap; }
+table.cgrid tbody td{ padding:9px 12px; border-bottom:1px solid var(--asubk-grid-line);
+  vertical-align:top; color:var(--text-body); }
+table.cgrid tbody tr:last-child td{ border-bottom:none; }
+table.cgrid tbody tr.hole td{ background:var(--asubk-gray-50); }
+table.cgrid tbody tr.over td{ background:var(--status-error-bg); }
+table.cgrid tbody tr.sub td{ background:var(--surface-panel); }
+table.cgrid select{ height:30px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 8px; max-width:280px; }
+.muted{ color:var(--text-muted); }
+.mono{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12.5px; }
+.small{ font:var(--weight-regular) 12.5px/1.45 var(--asubk-font); color:var(--text-muted); }
+.small b, .small em{ color:var(--text-body); font-style:normal; font-weight:var(--weight-medium); }
+.linky{ background:none; border:none; padding:0; cursor:pointer; color:var(--text-link);
+  font:var(--font-label); text-decoration:underline; }
+.card{ border:1px solid var(--border-default); border-radius:var(--radius-md);
+  padding:16px 18px; margin-bottom:14px; background:var(--surface-card); }
+.card > h3{ margin:0 0 10px; font:var(--weight-semibold) 15px/1.25 var(--asubk-font); color:var(--text-heading); }
+.card > h3 .small{ font-weight:var(--weight-regular); }
+.card-head{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:0 0 10px; }
+.card-head h3{ margin:0; font:var(--weight-semibold) 15px/1.25 var(--asubk-font); color:var(--text-heading); }
+.card-head > .btn{ margin-left:auto; }
+.kv{ display:grid; grid-template-columns:210px 1fr; gap:6px 14px; font:var(--font-label); }
+.kv .k{ color:var(--text-muted); } .kv .v{ color:var(--text-body); }
+.chip{ display:inline-flex; align-items:center; gap:6px; padding:2px 9px; border-radius:var(--radius-pill);
+  background:var(--asubk-tint-fill); font:var(--weight-medium) 12px/1.7 var(--asubk-font);
+  color:var(--text-body); margin-right:6px; }
+.chip button{ background:none; border:none; cursor:pointer; color:var(--text-muted); padding:0; font-size:12px; }
+.fld{ display:flex; flex-direction:column; gap:5px; }
+.fld > label{ font:var(--font-label); color:var(--text-muted); }
+.fld select, .fld input, .fld textarea{ border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:6px 10px; min-width:210px; }
+.fld select, .fld input{ height:var(--control-h); }
+.form-row{ display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; margin-bottom:12px; }
+.why{ font:var(--weight-regular) 12.5px/1.5 var(--asubk-font); color:var(--text-muted); margin-top:4px; }
+.tabs{ display:flex; gap:4px; border-bottom:1px solid var(--border-default); margin-bottom:14px; }
+.tabs button{ background:none; border:none; padding:8px 14px; cursor:pointer; font:var(--font-label);
+  color:var(--text-muted); border-bottom:2px solid transparent; margin-bottom:-1px; }
+.tabs button.on{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:var(--weight-semibold); }
+#toastWrap{ position:fixed; right:18px; bottom:18px; display:flex; flex-direction:column; gap:8px; z-index:50; }
+.toast{ background:var(--asubk-ink); color:#fff; padding:10px 14px; border-radius:var(--radius-md);
+  font:var(--font-label); max-width:460px; box-shadow:0 6px 20px rgba(24,39,57,0.25); }
+.toast.err{ background:var(--asubk-red); } .toast.ok{ background:var(--asubk-green); }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">АСУБК<small>Задания · шестой модуль · прототип волны 1+2+3+4</small></div>
+    <div class="nav">
+      <div class="nav-sec">Работа</div>
+      <button class="nav-item" data-v="queue" onclick="ZD.go('queue')">Очередь заданий<span class="cnt" id="qCnt"></span></button>
+      <div class="nav-sec">Настройка</div>
+      <button class="nav-item" data-v="settings" onclick="ZD.go('settings')">Виды повода · действия · правила</button>
+      <button class="nav-item" data-v="runs" onclick="ZD.go('runs')">Журнал прогонов<span class="cnt" id="rCnt"></span></button>
+    </div>
+    <div class="sidebar-foot" id="foot"></div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb-title" id="title">Очередь заданий</div>
+      <div class="right">
+        <span><label>Дата среза</label><select id="asOf" onchange="ZD.setAsOf(this.value)"></select></span>
+        <span><label>Смотрю как</label><select id="viewer" onchange="ZD.setViewer(this.value)"></select></span>
+        <span><button class="btn btn-secondary btn-sm" onclick="ZD.go('notif')">🔔 Уведомления <span id="nCnt"></span></button></span>
+      </div>
+    </div>
+    <div class="content"><div class="panel-wrap" id="panel"></div></div>
+  </div>
+</div>
+<div id="toastWrap"></div>
+
+<script>
+/* =====================================================================
+   ZD — движок модуля «Задания», волна 1.
+   Журналы (task.journal, povod.journal) — только дозапись, состояние
+   выводится чтением последней записи, отдельным полем не хранится (ИЗ-6 п.11
+   вместе с ADR-0136 §5).
+   ===================================================================== */
+window.ZD = (function(){
+
+/* ---------- 0. учебный мок оргструктуры (НЕ интеграция с P11/P12) ---------- */
+const EMP = [
+  {id:'E1', name:'Есенова А.Т.',      role:'специалист',              dept:'Сопровождение', chief:'E2'},
+  {id:'E2', name:'Токтогулов Б.С.',   role:'заведующий отделом',      dept:'Сопровождение', chief:'E4'},
+  {id:'E3', name:'Нурланова Ж.К.',    role:'специалист',              dept:'Сопровождение', chief:'E2'},
+  {id:'E4', name:'Абдразакова С.М.',  role:'администратор модуля',    dept:'Администрирование', chief:null},
+  {id:'E5', name:'Садыков Р.И.',      role:'заведующий отделом',      dept:'Взыскание',     chief:'E4'},
+];
+function emp(id){ return EMP.find(e=>e.id===id); }
+function chiefOf(id){ const e=emp(id); return e && e.chief; }
+function chiefChainIncludes(empId, targetChief){
+  let cur = emp(empId);
+  while(cur && cur.chief){ if(cur.chief===targetChief) return true; cur = emp(cur.chief); }
+  return false;
+}
+function subordinatesOf(id){ return EMP.filter(e=>chiefChainIncludes(e.id,id)); }
+
+/* ---------- 1. даты: упрощённый рабочий календарь (сб/вс) ----------
+   Заглушка вместо единой функции P17 (docs/tasks/p17-restrukturizatsiya-tasks.html).
+   Интеграция — долг волны 2 (ADR-0229 п.13). */
+function addDays(iso,n){ const d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
+function addWorkdays(iso,n){
+  let d = new Date(iso+'T00:00:00'), c=0;
+  while(c<n){ d.setDate(d.getDate()+1); const wd=d.getDay(); if(wd!==0&&wd!==6) c++; }
+  return d.toISOString().slice(0,10);
+}
+function workdaysBetween(a,b){ // a..b, a<b
+  let d=new Date(a+'T00:00:00'), end=new Date(b+'T00:00:00'), c=0;
+  while(d<end){ d.setDate(d.getDate()+1); const wd=d.getDay(); if(wd!==0&&wd!==6) c++; }
+  return c;
+}
+function fmt(iso){ if(!iso) return '—'; const [y,m,d]=iso.split('-'); return `${d}.${m}.${y}`; }
+
+/* ---------- 2. реестры (ИЗ-8): вид повода · действие · правило ---------- */
+function seedPovodKinds(){ return [
+  {id:'pk-overdue',       title:'Просрочено задание',                    objectType:'task',      traits:['давность_раб_дней'], rollup:20, sensitive:false, createdAt:'2026-08-16', activatedAt:'2026-08-16'},
+  {id:'pk-rejected',      title:'Задание отклонено',                     objectType:'task',      traits:[],                    rollup:20, sensitive:false, createdAt:'2026-08-16', activatedAt:'2026-08-16'},
+  {id:'pk-await-long',    title:'Ожидает приёмки дольше срока',          objectType:'task',      traits:['давность_раб_дней'], rollup:20, sensitive:false, createdAt:'2026-08-16', activatedAt:'2026-08-16'},
+  {id:'pk-lapsed-review', title:'Отпавшее задание требует разбора',      objectType:'task',      traits:[],                    rollup:20, sensitive:false, createdAt:'2026-08-16', activatedAt:'2026-08-16'},
+  {id:'pk-neighbor-silent',title:'Сосед не отвечает',                    objectType:'source',    traits:['прогонов_подряд'],   rollup:5,  sensitive:true,  createdAt:'2026-08-16', activatedAt:'2026-08-16'},
+  {id:'pk-kind-inactive', title:'Вид повода не введён в действие',       objectType:'povodKind', traits:['дней_с_заведения'],  rollup:20, sensitive:false, createdAt:'2026-08-16', activatedAt:'2026-08-16'},
+  // волна 2 (02.09.2026) — первый настоящий сосед, Оргструктура (problemsAt, шесть списков),
+  // порог свёртки НАМЕРЕННО низкий на первом подключении (ADR-0231 п.5, ИЗ-12 п.8):
+  {id:'pk-org-head-vacant',     title:'Вакансия руководителя подразделения',      objectType:'unit',     traits:['дней_вакансии'],   rollup:2, sensitive:false, createdAt:'2026-09-02', activatedAt:'2026-09-02'},
+  {id:'pk-org-acting-expiring', title:'Заканчивается и.о. руководителя',          objectType:'unit',     traits:[],                  rollup:2, sensitive:false, createdAt:'2026-09-02', activatedAt:'2026-09-02'},
+  {id:'pk-org-invariant',       title:'Нарушен инвариант основного назначения',   objectType:'employee', traits:[],                  rollup:2, sensitive:false, createdAt:'2026-09-02', activatedAt:'2026-09-02'},
+  {id:'pk-org-no-staff',        title:'Подразделение без штата',                  objectType:'unit',     traits:[],                  rollup:2, sensitive:false, createdAt:'2026-09-02', activatedAt:'2026-09-02'},
+  {id:'pk-org-liq-blocked',     title:'Ликвидация заблокирована',                 objectType:'unit',     traits:[],                  rollup:2, sensitive:false, createdAt:'2026-09-02', activatedAt:'2026-09-02'},
+  {id:'pk-org-orphan-terr',     title:'Территория без обслуживающего подразделения', objectType:'territory', traits:[],               rollup:2, sensitive:false, createdAt:'2026-09-02', activatedAt:'2026-09-02'},
+  // волна 3 (02.09.2026) — второй настоящий сосед, Статистика (ST.askLeads): единственный
+  // вид, потому что дверь ST.askLeads отдаёт ровно один жанр повода — «сосед молчит»
+  // (LEAD_KINDS=['сосед молчит'] в statistics.html), тот же низкий порог свёртки первого
+  // подключения (ADR-0231 п.5).
+  {id:'pk-stat-neighbor-silent', title:'Сосед статистики молчит',                     objectType:'module',   traits:['прогонов_подряд'], rollup:2, sensitive:false, createdAt:'2026-09-02', activatedAt:'2026-09-02'},
+  // волна 4 (02.09.2026) — третий настоящий сосед, Отчётность (RP.obligations): единственный
+  // вид, потому что povod-worthy у соседа — только строки со state==='просрочено' (кандидатная
+  // фраза ADR-0210 «срок сдачи формы истекает/истёк»), тот же низкий порог свёртки первого
+  // подключения (ADR-0231 п.5).
+  {id:'pk-rep-obligation-overdue', title:'Срок сдачи формы отчётности истёк',          objectType:'obligation', traits:['дней_просрочки'], rollup:2, sensitive:false, createdAt:'2026-09-02', activatedAt:'2026-09-02'},
+]; }
+
+function seedActions(){ return [
+  {id:'act-overdue',  label:'Разобраться с просроченным заданием',      importance:'высокая'},
+  {id:'act-rejected', label:'Рассмотреть отказ и принять решение',      importance:'высокая'},
+  {id:'act-await',    label:'Проверить задержку приёмки',               importance:'средняя'},
+  {id:'act-lapsed',   label:'Разобрать отпавшее задание',               importance:'средняя'},
+  {id:'act-silent',   label:'Проверить недоступность источника',        importance:'высокая'},
+  {id:'act-inactive', label:'Ввести вид повода в действие или снять',   importance:'низкая'},
+  // волна 2 — действия под шесть видов повода Оргструктуры:
+  {id:'act-org-head-vacant',      label:'Закрыть вакансию руководителя подразделения',     importance:'высокая'},
+  {id:'act-org-acting-expiring',  label:'Продлить или закрыть исполнение обязанностей',    importance:'средняя'},
+  {id:'act-org-invariant',        label:'Разрешить конфликт основных назначений',          importance:'высокая'},
+  {id:'act-org-no-staff',         label:'Укомплектовать подразделение или закрыть',        importance:'средняя'},
+  {id:'act-org-liq-blocked',      label:'Снять препятствие ликвидации',                    importance:'средняя'},
+  {id:'act-org-orphan-terr',      label:'Передать территорию действующему подразделению',  importance:'высокая'},
+  // волна 3 — действие под вид повода Статистики:
+  {id:'act-stat-silent',          label:'Разобраться с молчанием соседа-модуля',           importance:'высокая'},
+  // волна 4 — действие под вид повода Отчётности:
+  {id:'act-rep-overdue',          label:'Обеспечить сдачу просроченной формы отчётности',  importance:'высокая'},
+]; }
+
+function seedRules(){ return [
+  {id:'rule-overdue',   kind:'pk-overdue',        action:'act-overdue',  mode:'авто',  author:'E4', dueN:2, dueUnit:'workday', editions:[ed(1,'2026-08-16','E4','запуск волны 1 — самоопрос')]},
+  {id:'rule-rejected',  kind:'pk-rejected',       action:'act-rejected', mode:'авто',  author:'E4', dueN:1, dueUnit:'workday', editions:[ed(1,'2026-08-16','E4','запуск волны 1 — самоопрос')]},
+  {id:'rule-await',     kind:'pk-await-long',     action:'act-await',    mode:'авто',  author:'E4', dueN:2, dueUnit:'workday', editions:[ed(1,'2026-08-16','E4','запуск волны 1 — самоопрос')]},
+  {id:'rule-lapsed',    kind:'pk-lapsed-review',  action:'act-lapsed',   mode:'авто',  author:'E4', dueN:2, dueUnit:'workday', editions:[ed(1,'2026-08-16','E4','запуск волны 1 — самоопрос')]},
+  {id:'rule-silent',    kind:'pk-neighbor-silent',action:'act-silent',   mode:'авто',  author:'E4', dueN:1, dueUnit:'workday', editions:[ed(1,'2026-08-16','E4','запуск волны 1 — самоопрос')]},
+  // ручной род (ИЗ-5 п.5, второй род ручного задания демонстрируется здесь):
+  {id:'rule-inactive',  kind:'pk-kind-inactive',  action:'act-inactive', mode:'ручной',author:'E4', dueN:3, dueUnit:'workday', editions:[ed(1,'2026-08-16','E4','запуск волны 1 — ручной режим для демонстрации ИЗ-5 п.5')]},
+  // волна 2 — правила Оргструктуры, все авто-режим, все с намеренно низким порогом свёртки 2:
+  {id:'rule-org-head-vacant',     kind:'pk-org-head-vacant',     action:'act-org-head-vacant',     mode:'авто', author:'E4', dueN:2, dueUnit:'workday', editions:[ed(1,'2026-09-02','E4','подключение соседа «Оргструктура» — волна 2')]},
+  {id:'rule-org-acting-expiring', kind:'pk-org-acting-expiring', action:'act-org-acting-expiring', mode:'авто', author:'E4', dueN:2, dueUnit:'workday', editions:[ed(1,'2026-09-02','E4','подключение соседа «Оргструктура» — волна 2')]},
+  {id:'rule-org-invariant',       kind:'pk-org-invariant',       action:'act-org-invariant',       mode:'авто', author:'E4', dueN:2, dueUnit:'workday', editions:[ed(1,'2026-09-02','E4','подключение соседа «Оргструктура» — волна 2')]},
+  {id:'rule-org-no-staff',        kind:'pk-org-no-staff',        action:'act-org-no-staff',        mode:'авто', author:'E4', dueN:2, dueUnit:'workday', editions:[ed(1,'2026-09-02','E4','подключение соседа «Оргструктура» — волна 2')]},
+  {id:'rule-org-liq-blocked',     kind:'pk-org-liq-blocked',     action:'act-org-liq-blocked',     mode:'авто', author:'E4', dueN:2, dueUnit:'workday', editions:[ed(1,'2026-09-02','E4','подключение соседа «Оргструктура» — волна 2')]},
+  {id:'rule-org-orphan-terr',     kind:'pk-org-orphan-terr',     action:'act-org-orphan-terr',     mode:'авто', author:'E4', dueN:2, dueUnit:'workday', editions:[ed(1,'2026-09-02','E4','подключение соседа «Оргструктура» — волна 2')]},
+  // волна 3 — правило Статистики, авто-режим, тот же низкий порог свёртки первого подключения:
+  {id:'rule-stat-silent',         kind:'pk-stat-neighbor-silent', action:'act-stat-silent',        mode:'авто', author:'E4', dueN:1, dueUnit:'workday', editions:[ed(1,'2026-09-02','E4','подключение соседа «Статистика» — волна 3')]},
+  // волна 4 — правило Отчётности, авто-режим, тот же низкий порог свёртки первого подключения:
+  {id:'rule-rep-overdue',         kind:'pk-rep-obligation-overdue', action:'act-rep-overdue',      mode:'авто', author:'E4', dueN:1, dueUnit:'workday', editions:[ed(1,'2026-09-02','E4','подключение соседа «Отчётность» — волна 4')]},
+]; }
+function ed(n,from,author,reason){ return {n,from,author,reason}; }
+
+/* эти шесть — единственные, которые модуль опрашивает о себе в волне 1
+   (ИЗ-16 п.10). Порядок = порядок из ADR-0230 п.10. */
+const SELF_KINDS = ['pk-overdue','pk-rejected','pk-await-long','pk-lapsed-review','pk-neighbor-silent','pk-kind-inactive'];
+
+/* волна 2 (ADR-0231 п.4-5, ADR-0228 ИЗ-8) — первый настоящий сосед, Оргструктура.
+   Подключение — записями реестра: ORGSTRUCT_CFG говорит движку шва, из какого списка
+   problemsAt(d) и как строить (объект, дата, признаки) каждый из шести видов повода;
+   движок (computeExpectedForKind) не растёт новыми ветками, кроме одной обобщённой. */
+const ORGSTRUCT_KINDS = ['pk-org-head-vacant','pk-org-acting-expiring','pk-org-invariant','pk-org-no-staff','pk-org-liq-blocked','pk-org-orphan-terr'];
+/* волна 3 (02.09.2026) — второй настоящий сосед, Статистика: mockups/statistics/statistics.html:6944
+   ST.askLeads('задания', d) — дверь, покрытая её же смоуком #199, уже отдающая ровно контракт
+   ИЗ-11/ИЗ-12/ИЗ-13. Тот же приём волны 2: зеркалится форма ОТВЕТА (ST.silenceLeads), не код
+   статистики (её NEIGHBOURS/ST.state держат единоличный движок статистики, тащить их сюда — та
+   же вторая копия чужого механизма, запрещённая ИЗ-11; сетевой опрос получил бы этот же плоский
+   ответ). Решение и демо-сценарий — в журнале волны 3. */
+const STAT_KINDS = ['pk-stat-neighbor-silent'];
+/* волна 4 (02.09.2026) — третий настоящий сосед, Отчётность: mockups/reports/reports.html:2229
+   RP.obligations() — дверь, уже держащая SEAMS_OUT/CONSUMERS запись именно на модуль задач
+   (reports.html:~2330: {module:'задачи', may:['reportObligations'], note:'обязательство —
+   основание задачи; поручает человек (ИО-13)'}). Из полной формы обязательства povod-worthy —
+   только state==='просрочено' (см. computeExpectedForKind), фильтр — свой код шва. */
+const REPORTS_KINDS = ['pk-rep-obligation-overdue'];
+const SOURCES = [
+  {id:'self',       name:'Задания (самоопрос)',       kinds: SELF_KINDS},
+  {id:'orgstruct',  name:'Оргструктура (problemsAt)',  kinds: ORGSTRUCT_KINDS},
+  {id:'statistics', name:'Статистика (ST.askLeads)',   kinds: STAT_KINDS},
+  {id:'reports',    name:'Отчётность (RP.obligations)', kinds: REPORTS_KINDS},
+];
+/* зеркало ОТВЕТА соседа, не его кода (решение волны 2, см. журнал mockups/zadaniya/
+   ASUBK-status-razrabotki.md): форма повторяет problemsAt(d) из
+   mockups/org-structure/org-structure.html:1103 — шесть тех же ключей. headVacant
+   намеренно датирован задолго до подключения (проверка ИЗ-13 clamp), у списков без
+   собственного поля даты (noStaff/liqBlocked/invariant) состояние на день опроса —
+   у настоящего problemsAt эти списки дат тоже не несут. */
+function orgstructMirrorAt(d){
+  return {
+    headVacant: [
+      {unit:'ЦА — Кредитный отдел',       pos:'Начальник отдела',     since:'2026-07-20', days:daysBetween('2026-07-20', d), acting:false},
+      {unit:'Ошская область',             pos:'Руководитель филиала', since:'2026-08-05', days:daysBetween('2026-08-05', d), acting:true},
+      {unit:'Жалал-Абадская область',     pos:'Руководитель филиала', since:'2026-08-12', days:daysBetween('2026-08-12', d), acting:false},
+    ],
+    actingExpiring: [
+      {unit:'Баткенская область', pos:'Руководитель филиала', emp:'Асанов Т.К.', to:'2026-09-10', days:8, reason:'приказ о временном исполнении'},
+    ],
+    invariant: [],
+    noStaff: [
+      {unitId:'unit-narynskaya-obl'},
+    ],
+    liqBlocked: [],
+    orphanTerr: [
+      {unitId:'unit-talas-obl', territory:'Кара-Бууринский район', note:'правопреемник не назначен'},
+    ],
+  };
+}
+const ORGSTRUCT_CFG = {
+  'pk-org-head-vacant':     {list:'headVacant',     objectType:'unit',      id:r=>r.unit,            date:r=>r.since, traits:r=>({дней_вакансии:r.days, и_о:r.acting?'да':'нет'})},
+  'pk-org-acting-expiring': {list:'actingExpiring', objectType:'unit',      id:r=>r.unit+'·'+r.pos,  date:r=>state.today, traits:r=>({до:r.to, дней:r.days, сотрудник:r.emp, причина:r.reason})},
+  'pk-org-invariant':       {list:'invariant',      objectType:'employee',  id:r=>r.empId,           date:r=>state.today, traits:r=>({позиции:(r.posIds||[]).join(', ')})},
+  'pk-org-no-staff':        {list:'noStaff',        objectType:'unit',      id:r=>r.unitId,          date:r=>state.today, traits:r=>({})},
+  'pk-org-liq-blocked':     {list:'liqBlocked',     objectType:'unit',      id:r=>r.unitId,          date:r=>state.today, traits:r=>({причины:(r.reasons||[]).join(', ')})},
+  'pk-org-orphan-terr':     {list:'orphanTerr',     objectType:'territory', id:r=>r.unitId,          date:r=>state.today, traits:r=>({территория:r.territory, примечание:r.note})},
+};
+
+/* зеркало ОТВЕТА Статистики (не её кода) — форма повторяет ST.askLeads('задания', d) →
+   ST.silenceLeads(3) из mockups/statistics/statistics.html:6917-6962. Демо-сценарий — тот же,
+   что statistics' собственный смоук #199 (statistics.html:1110): сосед «взыскание» молчит 3
+   прогона подряд с 20.08.2026, причины «отказал по правам»/«недоступен». state.statCleared —
+   демо-тумблер «сосед снова отвечает» (проверка закрытия повода без заморозки, ИЗ-3 п.2), не
+   тот же механизм, что sourceDown/таймаут (ИЗ-12 п.6-7): здесь сосед ОТВЕЧАЕТ множеством,
+   просто пустым — статистика сама решила, что молчания больше нет, это не «Статистика молчит». */
+function statMirrorAt(d){
+  if(state.statCleared) return {ok:true, module:'статистика', date:d, kinds:['сосед молчит'], full:true, leads:[]};
+  return {ok:true, module:'статистика', date:d, kinds:['сосед молчит'], full:true, leads:[
+    {kind:'сосед молчит', nb:'взыскание', key:'сосед-молчит/взыскание/с-2026-08-20', runs:3,
+     obj:'взыскание', period:'молчание с 2026-08-20', from:'2026-08-20',
+     reasons:['отказал по правам','недоступен'],
+     text:'сосед «взыскание» молчит 3 прогона подряд с 20.08.2026 (отказал по правам, недоступен) — повод модулю заданий (ADR-0208 §7)'},
+  ]};
+}
+
+/* зеркало ОТВЕТА Отчётности (не её кода) — форма повторяет RP.obligations() из
+   mockups/reports/reports.html:2229 целиком (id/tpl/tplName/dept/deptName/period/asOf/due/
+   state/who), включая строки, которые НЕ povod-worthy (state!=='просрочено') — фильтр по
+   состоянию делает свой код шва (computeExpectedForKind), не эта функция, тем же приёмом,
+   что RP.obligations() сама не решает за модуль задач, что считать поводом (ИО-13). who —
+   RESPONSIBLE[dep] соседа (person-name строка, НЕ id EMP — см. журнал волны 4, «Решение
+   адресации»), тащится сюда только для полноты зеркала формы, resolveAssignees её не
+   использует. Три строки dep-admin/dep-prom/rep-osh с due=2026-07-15 намеренно датированы
+   задолго до подключения 02.09.2026 (проверка ИЗ-13 clamp, #на счёт демо ниже); две
+   остальные строки (сдано / ожидается) проверяют, что фильтр берёт только «просрочено». */
+function reportsMirrorAt(d){
+  return [
+    {id:'t-overdue/2026-07-01/dep-admin', tpl:'t-overdue', tplName:'Просроченная задолженность по состоянию на 1-е число',
+     dept:'dep-admin', deptName:'Департамент администрирования кредитов', period:'июнь 2026', asOf:'2026-07-01',
+     due:'2026-07-15', state:'просрочено', who:'Асанов А.'},
+    {id:'t-overdue/2026-07-01/dep-prom', tpl:'t-overdue', tplName:'Просроченная задолженность по состоянию на 1-е число',
+     dept:'dep-prom', deptName:'Отраслевой департамент промышленности', period:'июнь 2026', asOf:'2026-07-01',
+     due:'2026-07-15', state:'просрочено', who:'Осмонова Г.'},
+    {id:'t-overdue/2026-07-01/rep-osh', tpl:'t-overdue', tplName:'Просроченная задолженность по состоянию на 1-е число',
+     dept:'rep-osh', deptName:'Региональное представительство «Ош»', period:'июнь 2026', asOf:'2026-07-01',
+     due:'2026-07-15', state:'просрочено', who:'Мамытов Э.'},
+    // НЕ povod-worthy — сдано в срок за июль (проверка, что фильтр не берёт всё подряд):
+    {id:'t-overdue/2026-08-01/dep-admin', tpl:'t-overdue', tplName:'Просроченная задолженность по состоянию на 1-е число',
+     dept:'dep-admin', deptName:'Департамент администрирования кредитов', period:'июль 2026', asOf:'2026-08-01',
+     due:'2026-08-15', state:'сдано', who:'Асанов А.'},
+    // НЕ povod-worthy — срок ещё не наступил на дату среза 2026-09-02:
+    {id:'t-overdue/2026-09-01/dep-admin', tpl:'t-overdue', tplName:'Просроченная задолженность по состоянию на 1-е число',
+     dept:'dep-admin', deptName:'Департамент администрирования кредитов', period:'август 2026', asOf:'2026-09-01',
+     due:'2026-09-15', state:'ожидается', who:'Асанов А.'},
+  ];
+}
+
+/* ---------- 3. состояние ---------- */
+let state;
+function seedState(){
+  state = {
+    today: '2026-09-02',
+    viewer: 'E4',
+    view: 'queue',
+    settingsTab: 'kinds',
+    povodKinds: seedPovodKinds(),
+    actions: seedActions(),
+    rules: seedRules(),
+    tasks: [],       // {id, kind:'rule'|'free', povodKey|null, originKind|null,
+                      //  action, label, assignee, controller, author, dueDate,
+                      //  ruleId, ruleEdition, importance, journal:[{t,ev,...}]}
+    povods: [],       // {key, kind, objectType, objectId, stateDate, approx,
+                      //  firstSeen, status:'appeared'|'frozen'|'gone', frozenSince,
+                      //  traits, journal:[{t,ev}]}
+    pollRuns: [],      // {id, date, sources:[{name,answer,new,gone,matched,rollup:[kind..]}], complete}
+    notifications: [], // {id, t, kind, taskId, to}
+    sourceDown: {self:false, orgstruct:false, statistics:false, reports:false}, // недоступность на источник, не глобально
+    statCleared: false, // волна 3: демо-тумблер «сосед статистики снова отвечает» (полное, но пустое множество)
+    seq: 1,
+  };
+  seedDemoTasks();
+}
+function nextId(pfx){ return pfx + (state.seq++); }
+
+/* --- свободные поручения, заведённые вручную ДО первого запуска самоопроса —
+   дают самоопросу на что среагировать при первом же прогоне (иначе первый
+   прогон честно пуст, а нам нужно продемонстрировать непустой прогон). --- */
+function seedDemoTasks(){
+  const t1 = mkTask({kind:'free', label:'Сверить остаток по трём просроченным заявкам-63201/63202/63204',
+    assignee:'E1', controller:'E4', author:'E4', dueDate:'2026-08-25', createdAt:'2026-08-20'});
+  const t2 = mkTask({kind:'free', label:'Уточнить контакт заёмщика по делу 54210',
+    assignee:'E3', controller:'E4', author:'E4', dueDate:'2026-08-28', createdAt:'2026-08-21'});
+  // T2 уже заявлено давно, контролёр (E4) с решением тянет — это и есть
+  // «ожидает приёмки дольше срока».
+  claimInternal(t2, '2026-08-24');
+  const t3 = mkTask({kind:'free', label:'Загрузить скан согласия по объекту 33021',
+    assignee:'E1', controller:'E4', author:'E4', dueDate:'2026-09-10', createdAt:'2026-09-01'});
+  const t4 = mkTask({kind:'free', label:'Проверить остаток обеспечения после переоценки залога-8841',
+    assignee:'E5', controller:'E4', author:'E4', dueDate:'2026-08-22', createdAt:'2026-08-18'});
+  rejectInternal(t4, 'не мой участок, перевести на отдел взыскания-2', '2026-08-23');
+}
+function mkTask(p){
+  const t = {
+    id: nextId('T'), kind:p.kind, povodKey:p.povodKey||null, originKind:p.originKind||null,
+    action:p.action||null, label:p.label, assignee:p.assignee, controller:p.controller||null,
+    author:p.author, dueDate:p.dueDate, ruleId:p.ruleId||null, ruleEdition:p.ruleEdition||null,
+    importance:p.importance||'средняя', importanceReason:p.importanceReason||null,
+    journal:[{t:p.createdAt||state.today, ev:'поручено'}],
+  };
+  state.tasks.push(t);
+  notify(t,'поручено');
+  return t;
+}
+function log(entity, ev, extra){ entity.journal.push(Object.assign({t:state.today, ev}, extra||{})); }
+function taskOf(id){ return state.tasks.find(t=>t.id===id); }
+function povodByKey(k){ return state.povods.find(p=>p.key===k); }
+function lastEv(t){ return t.journal[t.journal.length-1].ev; }
+function isTerminal(t){ return lastEv(t)==='закрыто'; }
+function outcomeOf(t){ if(!isTerminal(t)) return null; const e=t.journal[t.journal.length-1]; return {outcome:e.outcome, reason:e.reason||null}; }
+
+const STATE_LABEL = {
+  'поручено':'в работе', 'принято':'принято', 'заявлено':'заявлено (ждёт опроса)',
+  'ожидает приёмки':'ожидает приёмки', 'возвращено':'возвращено', 'отказано':'отказано',
+  'отпало':'отпало — ждёт разбора',
+};
+function displayState(t){
+  if(isTerminal(t)){ const o=outcomeOf(t); return o.outcome==='отпало' ? `закрыто — отпало (${o.reason})` : `закрыто — ${o.outcome}`; }
+  return STATE_LABEL[lastEv(t)] || lastEv(t);
+}
+
+/* ---------- 4. уведомления (ИЗ-14): закрытый список из 9 состояний, только о задании ---------- */
+const NOTIF_KINDS = ['повод-появился','поручено','принято','срок-близко','срок-истёк','эскалация','возвращено','повод-отпал','закрыто'];
+function notify(taskOrPovod, kind, to){
+  if(NOTIF_KINDS.indexOf(kind)===-1) throw new Error('уведомление вне закрытого списка ИЗ-14: '+kind);
+  const taskId = taskOrPovod.id && taskOrPovod.id[0]==='T' ? taskOrPovod.id : (taskOrPovod.taskRef||null);
+  const addressee = to || (taskOrPovod.assignee) || null;
+  state.notifications.push({id:nextId('N'), t:state.today, kind, taskId, to:addressee});
+}
+function notifiedOnce(taskId, kind){ return state.notifications.some(n=>n.taskId===taskId && n.kind===kind); }
+
+/* ---------- 5. переходы задания ---------- */
+function claimInternal(t, asOf){
+  if(t.controller) log(t,'ожидает приёмки',{claimedAt:asOf||state.today});
+  else log(t,'заявлено',{claimedAt:asOf||state.today});
+}
+function claim(taskId){
+  const t = taskOf(taskId); if(!t||isTerminal(t)) return;
+  claimInternal(t);
+  notify(t, t.controller ? 'принято':'принято'); // подача исполнителем фиксируется как «принято» в собственном смысле работы
+}
+function rejectInternal(t, note, asOf){
+  log(t,'отказано',{note, t:asOf||state.today});
+}
+function reject(taskId, note){
+  const t=taskOf(taskId); if(!t||isTerminal(t)) return;
+  rejectInternal(t, note);
+}
+function releaseTask(taskId, reason){ // «снято» — решение автора после отказа
+  const t=taskOf(taskId); if(!t||isTerminal(t)) return;
+  if(lastEv(t)!=='отказано') return;
+  log(t,'закрыто',{outcome:'снято', reason});
+  notify(t,'закрыто');
+}
+function reassignTask(taskId, newAssignee){
+  const t=taskOf(taskId); if(!t||isTerminal(t)) return;
+  if(lastEv(t)!=='отказано') return;
+  t.assignee = newAssignee;
+  log(t,'поручено',{note:'переназначено'});
+  notify(t,'поручено');
+}
+function acceptDecision(taskId, approve, note){ // решение контролёра (только свободные поручения — ИЗ-7 п.13)
+  const t=taskOf(taskId); if(!t||isTerminal(t)) return;
+  if(lastEv(t)!=='ожидает приёмки') return;
+  if(approve){ log(t,'закрыто',{outcome:'исполнено'}); notify(t,'закрыто'); }
+  else { log(t,'возвращено',{note}); notify(t,'возвращено'); }
+}
+function disposeLapsed(taskId, outcome, reason){ // человек разбирает «отпало-до-разбора»
+  const t=taskOf(taskId); if(!t||isTerminal(t)) return;
+  if(lastEv(t)!=='отпало') return;
+  log(t,'закрыто',{outcome, reason});
+  notify(t,'закрыто');
+}
+function createFreeTask(p){ // свободное поручение (ИЗ-5 п.5): объекта и ключа не имеет, контролёр обязателен (ИЗ-7 п.13)
+  if(!p.controller) throw new Error('свободное поручение обязано иметь контролёра (ИЗ-7 п.13)');
+  return mkTask({kind:'free', label:p.label, assignee:p.assignee, controller:p.controller,
+    author:p.author, dueDate:p.dueDate, importance:p.importance||'средняя', createdAt:state.today});
+}
+function issueManual(kindId){ // «задание по правилу в ручном режиме» — второй род ручного задания (ИЗ-5 п.5)
+  const rule = state.rules.find(r=>r.kind===kindId && r.mode==='ручной');
+  if(!rule) return null;
+  const pending = state.povods.filter(p=>p.kind===kindId && p.status!=='gone' &&
+    !state.tasks.some(t=>t.povodKey===p.key && !isTerminal(t)));
+  const out = [];
+  pending.forEach(p=> out.push(issueRuleTask(rule, p)));
+  return out;
+}
+
+/* ---------- 6. самопрос: вычисление ожидаемого множества поводов по каждому из 6 видов ---------- */
+const AWAIT_THRESHOLD_WD = 3;   // «дольше срока» для ожидания приёмки
+const SILENT_THRESHOLD = 2;     // «сосед не отвечает» — подряд промахов
+const INACTIVE_THRESHOLD_D = 3; // «вид не введён в действие дольше срока» — календарных дней
+
+function computeExpectedForKind(kindId, asOf){
+  const out = new Map(); // key -> {kind,objectType,objectId,stateDate,approx,traits}
+  const pkGate = kindOf(kindId);
+  if(!pkGate.activatedAt || pkGate.activatedAt>asOf) return out; // рубильник (ИЗ-13 п.12): вид не введён в действие поводов не порождает
+  if(kindId==='pk-overdue'){
+    state.tasks.forEach(t=>{
+      if(t.originKind==='pk-overdue') return; // жёсткий стопор рекурсии, один шаг (ИЗ-16 п.11)
+      if(isTerminal(t)) return;
+      const st = lastEv(t);
+      if(st!=='поручено' && st!=='принято' && st!=='возвращено') return;
+      if(t.dueDate >= asOf) return;
+      const key = `pk-overdue|task:${t.id}|`;
+      out.set(key, {kind:kindId, objectType:'task', objectId:t.id, stateDate:t.dueDate, approx:false,
+        traits:{давность_раб_дней: workdaysBetween(t.dueDate, asOf)}});
+    });
+  } else if(kindId==='pk-rejected'){
+    state.tasks.forEach(t=>{
+      if(t.originKind==='pk-rejected') return;
+      if(isTerminal(t)) return;
+      if(lastEv(t)!=='отказано') return;
+      const stDate = t.journal[t.journal.length-1].t;
+      out.set(`pk-rejected|task:${t.id}|`, {kind:kindId, objectType:'task', objectId:t.id, stateDate:stDate, approx:false, traits:{}});
+    });
+  } else if(kindId==='pk-await-long'){
+    state.tasks.forEach(t=>{
+      if(t.originKind==='pk-await-long') return;
+      if(isTerminal(t)) return;
+      if(lastEv(t)!=='ожидает приёмки') return;
+      const claimedAt = t.journal[t.journal.length-1].claimedAt || t.journal[t.journal.length-1].t;
+      const wd = workdaysBetween(claimedAt, asOf);
+      if(wd <= AWAIT_THRESHOLD_WD) return;
+      out.set(`pk-await-long|task:${t.id}|`, {kind:kindId, objectType:'task', objectId:t.id, stateDate:claimedAt, approx:false, traits:{давность_раб_дней:wd}});
+    });
+  } else if(kindId==='pk-lapsed-review'){
+    state.tasks.forEach(t=>{
+      if(t.originKind==='pk-lapsed-review') return;
+      if(isTerminal(t)) return;
+      if(lastEv(t)!=='отпало') return;
+      const stDate = t.journal[t.journal.length-1].t;
+      out.set(`pk-lapsed-review|task:${t.id}|`, {kind:kindId, objectType:'task', objectId:t.id, stateDate:stDate, approx:false, traits:{}});
+    });
+  } else if(kindId==='pk-neighbor-silent'){
+    // «сосед» волны 1 — сам механизм; недоступность имитируется тумблером в настройке.
+    const misses = countTrailingMisses(asOf);
+    if(misses >= SILENT_THRESHOLD){
+      out.set('pk-neighbor-silent|source:self|', {kind:kindId, objectType:'source', objectId:'self',
+        stateDate:asOf, approx:true, traits:{прогонов_подряд:misses}});
+    }
+  } else if(kindId==='pk-kind-inactive'){
+    state.povodKinds.forEach(pk=>{
+      if(pk.activatedAt && pk.activatedAt<=asOf) return; // введён — не наш случай
+      const days = daysBetween(pk.createdAt, asOf);
+      if(days < INACTIVE_THRESHOLD_D) return;
+      out.set(`pk-kind-inactive|povodKind:${pk.id}|`, {kind:kindId, objectType:'povodKind', objectId:pk.id,
+        stateDate:pk.createdAt, approx:false, traits:{дней_с_заведения:days}});
+    });
+  } else if(ORGSTRUCT_CFG[kindId]){
+    // волна 2 — единственная обобщённая ветка на всех шестерых видов Оргструктуры (ADR-0228 ИЗ-8):
+    // сама ветка одна, различие между видами — целиком в реестре ORGSTRUCT_CFG.
+    const cfg = ORGSTRUCT_CFG[kindId];
+    const rows = orgstructMirrorAt(asOf)[cfg.list] || [];
+    rows.forEach(r=>{
+      const objectId = cfg.id(r);
+      const stateDate = dateMax(cfg.date(r), pkGate.activatedAt); // ИЗ-13: клемп к дате подключения
+      out.set(`${kindId}|${cfg.objectType}:${objectId}|`, {kind:kindId, objectType:cfg.objectType, objectId,
+        stateDate, approx:false, traits:cfg.traits(r)});
+    });
+  } else if(kindId==='pk-stat-neighbor-silent'){
+    // волна 3 — ключ шва берём ЦЕЛИКОМ у соседа (ИЗ-13 п.9): «сосед-молчит/<nb>/с-<from>» уже
+    // несёт вид+объект+период по формуле статистики (ADR-0208 §7). Пересобирать его в свою
+    // тройку «kindId|type:id|», как для Оргструктуры, значило бы завести ВТОРОЙ ключ на тот же
+    // повод — не прочитать чужой период, а переизобрести его (запрещено директивой волны 3).
+    const ans = statMirrorAt(asOf);
+    (ans.leads||[]).forEach(lead=>{
+      const stateDate = dateMax(lead.from, pkGate.activatedAt); // тот же clamp ИЗ-13, что у Оргструктуры (#38)
+      out.set(lead.key, {kind:kindId, objectType:'module', objectId:lead.nb, stateDate, approx:false,
+        traits:{прогонов_подряд:lead.runs, причины:lead.reasons.join(', ')}});
+    });
+  } else if(kindId==='pk-rep-obligation-overdue'){
+    // волна 4 — ключ шва берём ЦЕЛИКОМ у соседа (ИЗ-13 п.9), тем же приёмом, что у Статистики
+    // в волне 3: o.id уже несёт вид+объект+период (шаблон/дата среза/подразделение). Из всей
+    // формы RP.obligations() povod-worthy только state==='просрочено' — фильтр здесь, не в
+    // reportsMirrorAt (сосед сам ничего не решает за модуль задач, ИО-13).
+    reportsMirrorAt(asOf).filter(o=>o.state==='просрочено').forEach(o=>{
+      const stateDate = dateMax(o.due, pkGate.activatedAt); // тот же clamp ИЗ-13, что у Оргструктуры/Статистики (#38/#50)
+      out.set(o.id, {kind:kindId, objectType:'obligation', objectId:o.dept, stateDate, approx:false,
+        traits:{форма:o.tplName, подразделение:o.deptName, период:o.period, срок:o.due,
+          дней_просрочки:daysBetween(o.due, asOf)}});
+    });
+  }
+  return out;
+}
+function daysBetween(a,b){ return Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000); }
+/* ИЗ-13: база срока = max(дата состояния у соседа, дата ввода вида в действие) —
+   защита от вала на первом подключении, если у соседа состояние старше активации.
+   ISO-строки YYYY-MM-DD сравниваются лексикографически = хронологически. */
+function dateMax(a,b){ return a>b ? a : b; }
+function countTrailingMisses(asOf){
+  let c=0;
+  for(let i=state.pollRuns.length-1;i>=0;i--){
+    const r = state.pollRuns[i];
+    if(r.date>asOf) continue;
+    if(!r.complete) c++; else break;
+  }
+  return c;
+}
+
+/* ---------- 7. сверка множества (ИЗ-3): полная, идемпотентная ---------- */
+function reconcileKind(kindId, asOf){
+  const expected = computeExpectedForKind(kindId, asOf);
+  const newKeys=[], goneKeys=[], matchedKeys=[];
+  state.povods.filter(p=>p.kind===kindId && p.status!=='gone').forEach(p=>{
+    if(!expected.has(p.key)) goneKeys.push(p.key);
+  });
+  goneKeys.forEach(key=>{
+    const p = povodByKey(key);
+    p.status='gone'; log(p,'отпал',{});
+  });
+  expected.forEach((e,key)=>{
+    let p = povodByKey(key);
+    if(!p || p.status==='gone'){
+      if(p){ p.status='appeared'; p.stateDate=e.stateDate; p.approx=e.approx; p.traits=e.traits; log(p,'вновь-появился',{}); }
+      else {
+        p = {key, kind:e.kind, objectType:e.objectType, objectId:e.objectId, stateDate:e.stateDate,
+          approx:e.approx, firstSeen:asOf, status:'appeared', frozenSince:null, traits:e.traits, journal:[]};
+        log(p,'появился',{});
+        state.povods.push(p);
+      }
+      newKeys.push(key);
+      notify({assignee:null}, 'повод-появился', resolveAssignees(kindId, p)[0]);
+    } else {
+      matchedKeys.push(key);
+      p.stateDate=e.stateDate; p.approx=e.approx; p.traits=e.traits;
+      if(p.status==='frozen'){ p.status='appeared'; p.frozenSince=null; log(p,'разморожен',{}); }
+      // независимая ось: заявлено/ожидает приёмки БЕЗ контролёра, а повод всё ещё на месте => возвращено
+      state.tasks.filter(t=>t.povodKey===key && !isTerminal(t)).forEach(t=>{
+        if(!t.controller && (lastEv(t)==='заявлено')){
+          log(t,'возвращено',{}); notify(t,'возвращено');
+        }
+      });
+    }
+  });
+  return {new:newKeys, gone:goneKeys, matched:matchedKeys, kindTitle:kindOf(kindId).title};
+}
+
+function handleGoneForKind(goneKeys, asOf){
+  goneKeys.forEach(key=>{
+    const openTasks = state.tasks.filter(t=>t.povodKey===key && !isTerminal(t));
+    if(openTasks.length===0){
+      const p = povodByKey(key);
+      log(p,'закрыт-системой',{reason:'поручения не было'});
+      return;
+    }
+    openTasks.forEach(t=>{
+      const st = lastEv(t);
+      if(st==='заявлено' || st==='ожидает приёмки'){
+        log(t,'закрыто',{outcome:'исполнено'});
+        notify(t,'закрыто');
+      } else {
+        log(t,'отпало',{});
+        notify(t,'повод-отпал');
+      }
+    });
+  });
+}
+
+function kindOf(id){ return state.povodKinds.find(k=>k.id===id); }
+function actionOf(id){ return state.actions.find(a=>a.id===id); }
+function ruleForKind(kindId){ return state.rules.find(r=>r.kind===kindId); }
+
+function resolveAssignees(kindId, povod){
+  const objId = povod.objectId;
+  switch(kindId){
+    case 'pk-overdue': return [chiefOf(taskOf(objId).assignee) || 'E4'];
+    case 'pk-rejected': return [taskOf(objId).author];
+    case 'pk-await-long': return [taskOf(objId).controller || 'E4'];
+    case 'pk-lapsed-review': return [taskOf(objId).assignee];
+    case 'pk-neighbor-silent': return ['E4'];
+    case 'pk-kind-inactive': return ['E4'];
+    // молчание СТОРОННЕГО модуля (взыскание — источник данных статистики) разбирает тот же
+    // адресат, что и молчание своего источника: администратор модуля, не глава оргструктурного
+    // отдела «Взыскание» — это разные «взыскание» (модуль-поставщик данных статистики vs.
+    // организационное подразделение EMP), путать их значило бы домыслить за соседа.
+    case 'pk-stat-neighbor-silent': return ['E4'];
+    // волна 4: RESPONSIBLE[dep] у Отчётности (reports.html:988) отдаёт СТРОКУ-ИМЯ человека
+    // из собственного ростера Отчётности («Асанов А.» и т.п.), не id из EMP — ни один id
+    // EMP не совпадает ни с одним таким именем, а весь механизм адресации/видимости здесь
+    // (emp(), chiefOf(), visibleTo()) работает только по id EMP. Подставить имя как assignee
+    // завело бы задание, которое не видит ни один зритель (viewer всегда id EMP) — это
+    // реальная, не косметическая причина не мапить. Жёстко E4, тот же долг соседа, что у
+    // pk-org-* и pk-stat-neighbor-silent (несовместимые ростеры людей — исследовано, не
+    // угадано; см. журнал волны 4).
+    case 'pk-rep-obligation-overdue': return ['E4'];
+    // pk-org-* (волна 2) падают сюда, в default — временно жёстко E4, не «руководитель
+    // исполнителя на дату»: у соседа (Кадры) нет ни problemsAt (P12-R19, state:'mock'),
+    // ни этого реквизита у resolveActor (mockups/employee/employee.html:987) — долг соседа,
+    // не долг макета (ADR-0231 п.6/п.7, зафиксировано в журнале волны 2).
+    default: return ['E4'];
+  }
+}
+function computeImportance(action, rule){ return rule.importanceOverride || action.importance; }
+function issueRuleTask(rule, povod){
+  const action = actionOf(rule.action);
+  const assignee = resolveAssignees(rule.kind, povod)[0];
+  const dueDate = rule.dueUnit==='workday' ? addWorkdays(state.today, rule.dueN) : addDays(state.today, rule.dueN);
+  const ed = rule.editions[rule.editions.length-1];
+  const t = mkTask({kind:'rule', povodKey:povod.key, originKind:rule.kind, action:action.id,
+    label: action.label + ' — ' + describePovod(povod), assignee, controller:null, author:rule.author,
+    dueDate, ruleId:rule.id, ruleEdition:ed.n, importance:computeImportance(action, rule), createdAt:state.today});
+  return t;
+}
+function issueRollupTask(kindId, keys){
+  const action = actionOf(ruleForKind(kindId).action);
+  const t = mkTask({kind:'rule', povodKey:null, originKind:kindId, action:action.id,
+    label:`Разобраться с валом: «${kindOf(kindId).title}» — ${keys.length} шт., порог свёртки ${kindOf(kindId).rollup}`,
+    assignee:'E4', controller:null, author:'E4', dueDate:addWorkdays(state.today,1),
+    ruleId:ruleForKind(kindId).id, ruleEdition:ruleForKind(kindId).editions.slice(-1)[0].n,
+    importance:'высокая', createdAt:state.today});
+  t.rollupKeys = keys;
+  return t;
+}
+function describePovod(p){
+  if(p.objectType==='task'){ const t=taskOf(p.objectId); return t ? `«${t.label}» (${p.objectId})` : p.objectId; }
+  if(p.objectType==='povodKind'){ return `вид «${kindOf(p.objectId).title}»`; }
+  if(p.objectType==='unit'){ return `подразделение «${p.objectId}»`; }
+  if(p.objectType==='employee'){ return `сотрудник ${p.objectId}`; }
+  if(p.objectType==='territory'){ return `территория подразделения «${p.objectId}»`; }
+  if(p.objectType==='module'){ return `сосед-модуль «${p.objectId}» (по данным статистики)`; }
+  if(p.objectType==='obligation'){ return `«${p.traits.форма}» за ${p.traits.период}, ${p.traits.подразделение} (срок ${fmt(p.traits.срок)})`; }
+  return p.objectId;
+}
+
+function handleNewForKind(kindId, newKeys, asOf){
+  const rule = ruleForKind(kindId);
+  const pk = kindOf(kindId);
+  if(newKeys.length===0) return {rollup:false};
+  if(newKeys.length > pk.rollup){
+    issueRollupTask(kindId, newKeys);
+    return {rollup:true};
+  }
+  if(rule.mode!=='авто') return {rollup:false}; // ручной режим — человек нажимает «Поручить вручную»
+  newKeys.forEach(key=>{
+    const p = povodByKey(key);
+    issueRuleTask(rule, p);
+  });
+  return {rollup:false};
+}
+function reissueForFreedPairs(kindId, matchedKeys){
+  if(kindOf(kindId).activatedAt===null) return;
+  const rule = ruleForKind(kindId);
+  if(rule.mode!=='авто') return;
+  matchedKeys.forEach(key=>{
+    const p = povodByKey(key);
+    if(p.status!=='appeared') return;
+    // повод может быть покрыт либо поштучным заданием (povodKey), либо вал-таском свёртки
+    // (rollupKeys) — второе вскрылось волной 2 на headVacant (3 > порог 2): без этой проверки
+    // повторный прогон тихо переиздавал бы по заданию на каждый уже свёрнутый повод.
+    const hasOpen = state.tasks.some(t=>!isTerminal(t) &&
+      (t.povodKey===key || (Array.isArray(t.rollupKeys) && t.rollupKeys.indexOf(key)!==-1)));
+    if(!hasOpen) issueRuleTask(rule, p);
+  });
+}
+
+/* ---------- 8. эскалация / срок-близко — периодические проверки ---------- */
+const ESCALATE_WD = 5;
+function checkDeadlines(asOf){
+  state.tasks.forEach(t=>{
+    if(isTerminal(t)) return;
+    const st = lastEv(t);
+    if(st!=='поручено' && st!=='принято' && st!=='возвращено') return;
+    if(t.dueDate>=asOf && daysBetween(asOf,t.dueDate)<=1 && !notifiedOnce(t.id,'срок-близко')){
+      notify(t,'срок-близко');
+    }
+    if(t.dueDate<asOf && !notifiedOnce(t.id,'срок-истёк')){
+      notify(t,'срок-истёк');
+    }
+    if(t.dueDate<asOf && workdaysBetween(t.dueDate,asOf)>=ESCALATE_WD && !notifiedOnce(t.id,'эскалация')){
+      notify(t,'эскалация', chiefOf(t.assignee) || 'E4');
+    }
+  });
+}
+
+/* ---------- 9. прогон опроса — волна 1: один источник (сам механизм); волна 2 добавляет
+   Оргструктуру рядом, тем же циклом, без правки шва (ADR-0231 п.4, ADR-0228 ИЗ-8) ---------- */
+function runPoll(opts){
+  opts = opts || {};
+  const asOf = state.today;
+  const run = {id:nextId('PR'), date:asOf, sources:[], complete:true};
+  SOURCES.forEach(src=>{
+    // opts.down — обратная совместимость волны 1 (гасит все источники разом, как раньше);
+    // opts.downSources — новая волна-2 возможность (гасит источники по отдельности, ИЗ-12);
+    // без опций — читает live-состояние настройки per-source.
+    const isDown = opts.down!==undefined ? opts.down
+      : (opts.downSources ? opts.downSources.indexOf(src.id)!==-1 : !!state.sourceDown[src.id]);
+    if(isDown){
+      run.sources.push({name:src.name, answer:'таймаут', matched:0, new:0, gone:0, rollup:[]});
+      run.complete = false;
+      // заморозка scoped к видам ЭТОГО источника — чужой источник молчания не касается (ИЗ-12).
+      state.povods.filter(p=>p.status==='appeared' && src.kinds.indexOf(p.kind)!==-1).forEach(p=>{
+        p.status='frozen'; p.frozenSince=asOf; log(p,'заморожен',{});
+      });
+      return;
+    }
+    let totalNew=0, totalGone=0, totalMatched=0; const rollupKinds=[];
+    src.kinds.forEach(kindId=>{
+      const {new:nk, gone:gk, matched:mk} = reconcileKind(kindId, asOf);
+      handleGoneForKind(gk, asOf);
+      const r = handleNewForKind(kindId, nk, asOf);
+      reissueForFreedPairs(kindId, mk);
+      if(r.rollup) rollupKinds.push(kindId);
+      totalNew+=nk.length; totalGone+=gk.length; totalMatched+=mk.length;
+    });
+    run.sources.push({name:src.name, answer:'множество', matched:totalMatched, new:totalNew, gone:totalGone, rollup:rollupKinds});
+    if(src.id==='self') checkDeadlines(asOf); // как и в волне 1 — эскалация срока гейтится доступностью self
+  });
+  state.pollRuns.push(run);
+  return run;
+}
+
+/* ---------- 10. видимость (собственные основания, не общесистемная модель доступа — ИЗ-16 границы) ---------- */
+function visibleTo(t, viewerId){
+  if(viewerId===t.assignee || viewerId===t.controller || viewerId===t.author) return true;
+  return chiefChainIncludes(t.assignee, viewerId);
+}
+function queueTasks(scope){
+  const v = state.viewer;
+  return state.tasks.filter(t=>{
+    if(scope==='mine') return t.assignee===v;
+    return visibleTo(t, v);
+  }).sort((a,b)=> (isTerminal(a)-isTerminal(b)) || (a.dueDate<b.dueDate?-1:1));
+}
+
+/* ---------- 11. рендер (no-op вне DOM — смоук-тест исполняет движок в node:vm) ---------- */
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function toast(msg, kind){
+  if(typeof document==='undefined') return;
+  const el = document.createElement('div'); el.className='toast'+(kind?(' '+kind):'');
+  el.textContent = msg; document.getElementById('toastWrap').appendChild(el);
+  setTimeout(()=>el.remove(), 3600);
+}
+
+function go(view){ state.view=view; render(); }
+function setAsOf(v){ state.today=v; render(); }
+function setViewer(v){ state.viewer=v; render(); }
+
+function render(){
+  if(typeof document==='undefined') return;
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.toggle('active', b.dataset.v===state.view));
+  const titles = {queue:'Очередь заданий', settings:'Настройка', runs:'Журнал прогонов', notif:'Уведомления'};
+  document.getElementById('title').textContent = titles[state.view] || '';
+  const asOfSel = document.getElementById('asOf');
+  if(!asOfSel.options.length){
+    ['2026-08-16','2026-08-25','2026-08-28','2026-09-01','2026-09-02','2026-09-03','2026-09-04','2026-09-08','2026-09-10','2026-09-15'].forEach(d=>{
+      const o=document.createElement('option'); o.value=d; o.textContent=fmt(d); asOfSel.appendChild(o);
+    });
+  }
+  asOfSel.value = state.today;
+  const viewerSel = document.getElementById('viewer');
+  if(!viewerSel.options.length){
+    EMP.forEach(e=>{ const o=document.createElement('option'); o.value=e.id; o.textContent=`${e.name} — ${e.role}`; viewerSel.appendChild(o); });
+  }
+  viewerSel.value = state.viewer;
+  document.getElementById('qCnt').textContent = state.tasks.filter(t=>!isTerminal(t)).length || '';
+  document.getElementById('rCnt').textContent = state.pollRuns.length || '';
+  document.getElementById('nCnt').textContent = state.notifications.filter(n=>n.to===state.viewer).length || '';
+  document.getElementById('foot').textContent = `Волна 1+2+3+4 · ADR-0227…0231 · ${EMP.length} сотрудников (мок)`;
+
+  const panel = document.getElementById('panel');
+  if(state.view==='queue') panel.innerHTML = renderQueue();
+  else if(state.view==='settings') panel.innerHTML = renderSettings();
+  else if(state.view==='runs') panel.innerHTML = renderRuns();
+  else if(state.view==='notif') panel.innerHTML = renderNotif();
+}
+
+function renderQueue(){
+  const downSrc = SOURCES.filter(s=>state.sourceDown[s.id]);
+  const banner = downSrc.length
+    ? `<div class="banner warn"><b>Источник недоступен: ${esc(downSrc.map(s=>s.name).join(', '))}.</b> Тумблер «имитировать недоступность» включён в настройке — журнал прогонов. Поводы этого источника замораживаются, не отпадают.</div>` : '';
+  const rows = (scope)=> queueTasks(scope).map(t=>`
+    <tr class="${isTerminal(t)?'hole':(t.dueDate<state.today && !isTerminal(t) ? 'over':'')}">
+      <td><button class="linky" onclick="ZD.openCard('${t.id}')">${t.id}</button></td>
+      <td>${esc(t.label)}</td>
+      <td>${esc(emp(t.assignee)?.name||t.assignee)}</td>
+      <td>${esc(displayState(t))}</td>
+      <td>${fmt(t.dueDate)}</td>
+      <td><span class="pill ${t.importance==='высокая'?'err':t.importance==='средняя'?'warn':'neutral'}">${t.importance}</span></td>
+      <td>${t.kind==='rule'?'<span class="pill info">по правилу</span>':'<span class="pill neutral">свободное</span>'}</td>
+    </tr>`).join('') || '<tr><td colspan="7" class="muted">пусто</td></tr>';
+  const pendingManual = state.povods.filter(p=>p.kind==='pk-kind-inactive' && p.status!=='gone' &&
+    !state.tasks.some(t=>t.povodKey===p.key && !isTerminal(t)));
+  return `
+    ${banner}
+    <div class="section-h">Мои задания (${esc(emp(state.viewer)?.name)})</div>
+    <table class="cgrid"><thead><tr><th>№</th><th>Что сделать</th><th>Исполнитель</th><th>Состояние</th><th>Срок</th><th>Важность</th><th>Род</th></tr></thead>
+      <tbody>${rows('mine')}</tbody></table>
+    <div class="section-h">Отдела (я и мои подчинённые по цепочке)</div>
+    <table class="cgrid"><thead><tr><th>№</th><th>Что сделать</th><th>Исполнитель</th><th>Состояние</th><th>Срок</th><th>Важность</th><th>Род</th></tr></thead>
+      <tbody>${rows('dept')}</tbody></table>
+    ${pendingManual.length ? `
+    <div class="section-h">Ждут ручного поручения (правило «${esc(kindOf('pk-kind-inactive').title)}» в ручном режиме)</div>
+    <table class="cgrid"><thead><tr><th>Повод</th><th>Появился</th><th></th></tr></thead>
+      <tbody>${pendingManual.map(p=>`<tr><td>${esc(describePovod(p))}</td><td>${fmt(p.firstSeen)}</td>
+        <td><button class="btn btn-sm btn-primary" onclick="ZD.issueManual('${p.kind}');ZD.render();">Поручить вручную</button></td></tr>`).join('')}</tbody></table>
+    <div class="why">Второй род ручного задания (ИЗ-5 п.5): правило существует, повод появился, но выдачу решает человек — не ночной опрос.</div>
+    ` : ''}
+    <div class="btn-row">
+      <button class="btn btn-secondary btn-sm" onclick="ZD.openFreeForm()">+ Свободное поручение</button>
+    </div>
+    ${renderFreeForm()}
+  `;
+}
+let freeFormOpen=false;
+function openFreeForm(){ freeFormOpen=true; render(); }
+function renderFreeForm(){
+  if(!freeFormOpen) return '';
+  return `
+  <div class="card">
+    <h3>Новое свободное поручение <span class="small">объекта и ключа не имеет, контролёр обязателен (ИЗ-7 п.13)</span></h3>
+    <div class="form-row">
+      <div class="fld"><label>Формулировка</label><input id="ffLabel"></div>
+      <div class="fld"><label>Кому</label><select id="ffAssignee">${EMP.map(e=>`<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></div>
+      <div class="fld"><label>Контролёр</label><select id="ffController">${EMP.map(e=>`<option value="${e.id}" ${e.id==='E4'?'selected':''}>${esc(e.name)}</option>`).join('')}</select></div>
+      <div class="fld"><label>Срок</label><input type="date" id="ffDue" value="${addDays(state.today,5)}"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary btn-sm" onclick="ZD.submitFree()">Поручить</button>
+      <button class="btn btn-secondary btn-sm" onclick="ZD.cancelFree()">Отмена</button>
+    </div>
+  </div>`;
+}
+function submitFree(){
+  const label = document.getElementById('ffLabel').value.trim();
+  if(!label){ toast('Введите формулировку','err'); return; }
+  createFreeTask({label, assignee:document.getElementById('ffAssignee').value,
+    controller:document.getElementById('ffController').value, author:state.viewer,
+    dueDate:document.getElementById('ffDue').value});
+  freeFormOpen=false; toast('Поручение выдано','ok'); render();
+}
+function cancelFree(){ freeFormOpen=false; render(); }
+
+let cardOpenId=null;
+function openCard(id){ cardOpenId=id; renderCardDrawer(); }
+function closeCard(){ cardOpenId=null; renderCardDrawer(); }
+function renderCardDrawer(){
+  if(typeof document==='undefined') return;
+  let host = document.getElementById('cardHost');
+  if(!host){ host=document.createElement('div'); host.id='cardHost'; document.body.appendChild(host); }
+  if(!cardOpenId){ host.innerHTML=''; return; }
+  const t = taskOf(cardOpenId);
+  const povod = t.povodKey ? povodByKey(t.povodKey) : null;
+  host.innerHTML = `
+  <div class="drawer-mask" onclick="ZD.closeCard()"></div>
+  <div class="drawer">
+    <div class="drawer-h"><h3>Задание ${t.id}</h3><button class="drawer-x" onclick="ZD.closeCard()">×</button></div>
+    <div class="drawer-b">
+      <div class="kv">
+        <div class="k">Формулировка</div><div class="v">${esc(t.label)}</div>
+        <div class="k">Род</div><div class="v">${t.kind==='rule'?'по правилу '+esc(t.ruleId)+' (ред. '+t.ruleEdition+')':'свободное поручение'}</div>
+        <div class="k">Основание</div><div class="v">${povod ? 'повод «'+esc(kindOf(povod.kind).title)+'» · '+esc(describePovod(povod)) : (t.kind==='rule'?'—':'решение автора '+esc(emp(t.author)?.name))}</div>
+        <div class="k">Исполнитель</div><div class="v">${esc(emp(t.assignee)?.name)}</div>
+        <div class="k">Контролёр</div><div class="v">${t.controller?esc(emp(t.controller)?.name):'нет — независимая ось: отпадение повода'}</div>
+        <div class="k">Автор</div><div class="v">${esc(emp(t.author)?.name)}</div>
+        <div class="k">Срок (снимок)</div><div class="v">${fmt(t.dueDate)}</div>
+        <div class="k">Важность</div><div class="v">${t.importance}</div>
+        <div class="k">Состояние</div><div class="v"><b>${esc(displayState(t))}</b></div>
+      </div>
+      <div class="section-h">Действия</div>
+      ${renderTaskActions(t)}
+      <div class="section-h">Журнал (только дозапись)</div>
+      <table class="cgrid"><thead><tr><th>Дата</th><th>Событие</th><th>Подробности</th></tr></thead>
+        <tbody>${t.journal.map(e=>`<tr><td>${fmt(e.t)}</td><td>${esc(e.ev)}</td><td class="small">${esc(JSON.stringify(Object.assign({},e,{t:undefined,ev:undefined})))}</td></tr>`).join('')}</tbody></table>
+    </div>
+  </div>`;
+}
+function renderTaskActions(t){
+  if(isTerminal(t)) return '<div class="muted small">задание закрыто, действий нет</div>';
+  const st = lastEv(t);
+  let html = '';
+  if(st==='поручено' || st==='принято' || st==='возвращено'){
+    html += `<div class="btn-row">
+      <button class="btn btn-primary btn-sm" onclick="ZD.claim('${t.id}');ZD.renderCardDrawer();ZD.render();">Заявить исполнение</button>
+      <button class="btn btn-secondary btn-sm" onclick="ZD.reject('${t.id}', prompt('Причина отказа:')||'без причины');ZD.renderCardDrawer();ZD.render();">Отказаться</button>
+    </div>`;
+  }
+  if(st==='ожидает приёмки'){
+    html += `<div class="btn-row">
+      <button class="btn btn-primary btn-sm" onclick="ZD.acceptDecision('${t.id}',true);ZD.renderCardDrawer();ZD.render();">Принять (исполнено)</button>
+      <button class="btn btn-secondary btn-sm" onclick="ZD.acceptDecision('${t.id}',false, prompt('Причина возврата:')||'');ZD.renderCardDrawer();ZD.render();">Отклонить приёмку</button>
+    </div>`;
+  }
+  if(st==='отказано'){
+    html += `<div class="btn-row">
+      <button class="btn btn-secondary btn-sm" onclick="ZD.releaseTask('${t.id}', prompt('Причина снятия:')||'решение автора');ZD.renderCardDrawer();ZD.render();">Снять (решение автора)</button>
+      <select id="reassignSel">${EMP.map(e=>`<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select>
+      <button class="btn btn-secondary btn-sm" onclick="ZD.reassignTask('${t.id}', document.getElementById('reassignSel').value);ZD.renderCardDrawer();ZD.render();">Переназначить</button>
+    </div>`;
+  }
+  if(st==='отпало'){
+    html += `<div class="banner warn">Повод отпал раньше, чем задание было заявлено — требует разбора человеком (ADR-0227 п.9).</div>
+    <div class="btn-row">
+      <button class="btn btn-primary btn-sm" onclick="ZD.disposeLapsed('${t.id}','исполнено', prompt('Как сделано?')||'сделано мимо системы');ZD.renderCardDrawer();ZD.render();">Закрыть — сделано</button>
+      <select id="lapsedReason"><option value="сделано мимо системы">сделано мимо системы</option><option value="условие изменилось">условие изменилось</option><option value="объект выбыл">объект выбыл</option><option value="ошибка данных">ошибка данных</option><option value="иное">иное</option></select>
+      <button class="btn btn-secondary btn-sm" onclick="ZD.disposeLapsed('${t.id}','отпало', document.getElementById('lapsedReason').value);ZD.renderCardDrawer();ZD.render();">Закрыть — отпало (с причиной)</button>
+    </div>`;
+  }
+  return html || '<div class="muted small">нет доступных действий из этого состояния</div>';
+}
+
+function renderSettings(){
+  const tabs = [['kinds','Виды повода'],['actions','Действия'],['rules','Правила']];
+  const tabBtns = tabs.map(([k,l])=>`<button class="${state.settingsTab===k?'on':''}" onclick="ZD.setSettingsTab('${k}')">${l}</button>`).join('');
+  let body='';
+  if(state.settingsTab==='kinds'){
+    body = `<table class="cgrid"><thead><tr><th>Вид повода</th><th>Объект</th><th>Признаки</th><th>Порог свёртки</th><th>Введён в действие</th><th></th></tr></thead>
+    <tbody>${state.povodKinds.map(k=>`<tr>
+      <td>${esc(k.title)} <span class="mono small">${k.id}</span>${SELF_KINDS.includes(k.id)?' <span class="pill info">свой (ИЗ-16)</span>':''}</td>
+      <td>${esc(k.objectType)}</td><td>${k.traits.join(', ')||'—'}</td>
+      <td><input type="number" value="${k.rollup}" style="width:70px" onchange="ZD.setRollup('${k.id}', this.value)"></td>
+      <td>${k.activatedAt && k.activatedAt<=state.today ? '<span class="pill ok">'+fmt(k.activatedAt)+'</span>' : '<span class="pill warn">не введён</span>'}</td>
+      <td>${k.activatedAt ? `<button class="btn btn-sm btn-secondary" onclick="ZD.deactivateKind('${k.id}')">Деактивировать (демо)</button>`
+                           : `<button class="btn btn-sm btn-primary" onclick="ZD.activateKind('${k.id}')">Ввести в действие</button>`}</td>
+    </tr>`).join('')}</tbody></table>
+    <div class="why">Формула ключа объявлена здесь и больше нигде (ИЗ-8 п.1): «вид повода · (вид объекта + id) · период».</div>`;
+  } else if(state.settingsTab==='actions'){
+    body = `<table class="cgrid"><thead><tr><th>Действие</th><th>Важность по умолчанию</th></tr></thead>
+    <tbody>${state.actions.map(a=>`<tr><td>${esc(a.label)} <span class="mono small">${a.id}</span></td><td>${a.importance}</td></tr>`).join('')}</tbody></table>`;
+  } else if(state.settingsTab==='rules'){
+    body = `<table class="cgrid"><thead><tr><th>Правило</th><th>Вид повода</th><th>Действие</th><th>Режим</th><th>Срок</th><th>Редакций</th></tr></thead>
+    <tbody>${state.rules.map(r=>`<tr>
+      <td class="mono small">${r.id}</td><td>${esc(kindOf(r.kind).title)}</td><td>${esc(actionOf(r.action).label)}</td>
+      <td><span class="pill ${r.mode==='авто'?'info':'neutral'}">${r.mode}</span></td>
+      <td>${r.dueN} ${r.dueUnit==='workday'?'раб.дн.':'кал.дн.'}</td><td>${r.editions.length}</td>
+    </tr>`).join('')}</tbody></table>
+    <div class="why">По снимку (не двигаются у выданных заданий): срок · круг адресатов · автор · контролёр (ИЗ-9 п.5). Состав действий — по действующей редакции (ИЗ-9 п.6).</div>`;
+  }
+  return `<div class="tabs">${tabBtns}</div>${body}`;
+}
+function setSettingsTab(k){ state.settingsTab=k; render(); }
+function setRollup(kindId, v){ kindOf(kindId).rollup = parseInt(v,10)||1; }
+function deactivateKind(kindId){ // демонстрация pk-kind-inactive: снимает активацию, обнуляет createdAt на сегодня минус запас
+  const k = kindOf(kindId); k.activatedAt=null; k.createdAt = addDays(state.today, -(INACTIVE_THRESHOLD_D+1));
+  toast('Вид деактивирован — демо-условие для «вид повода не введён в действие»','ok'); render();
+}
+function activateKind(kindId){ kindOf(kindId).activatedAt = state.today; render(); }
+
+function renderRuns(){
+  const rows = state.pollRuns.slice().reverse().map(r=>`
+    <tr class="${r.complete?'':'over'}">
+      <td>${r.id}</td><td>${fmt(r.date)}</td>
+      <td>${r.sources.map(s=>`${esc(s.name)}: ${esc(s.answer)}`).join('; ')}</td>
+      <td>${r.sources.reduce((a,s)=>a+s.new,0)}</td>
+      <td>${r.sources.reduce((a,s)=>a+s.gone,0)}</td>
+      <td>${r.sources.reduce((a,s)=>a+s.matched,0)}</td>
+      <td>${r.complete ? '<span class="pill ok">полный</span>' : '<span class="pill warn">неполный — молчал источник</span>'}</td>
+      <td>${r.sources.some(s=>s.rollup&&s.rollup.length) ? '<span class="pill err">сработал порог</span>' : '—'}</td>
+    </tr>`).join('') || '<tr><td colspan="8" class="muted">прогонов ещё не было</td></tr>';
+  return `
+  <div class="banner info">Четыре источника (волна 2-4, ADR-0231 п.4-5): <b>Задания (самоопрос)</b> — сам механизм по 6 собственным видам повода (ИЗ-16 п.10); <b>Оргструктура (problemsAt)</b> — второй источник, шесть видов pk-org-*; <b>Статистика (ST.askLeads)</b> — третий источник, вид pk-stat-neighbor-silent; <b>Отчётность (RP.obligations)</b> — четвёртый источник, вид pk-rep-obligation-overdue (только state==='просрочено'). У всех троих настоящих соседей ключ шва — целиком от соседа (ИЗ-13 п.9). Все подключены записями реестра, без правки шва (ADR-0228 ИЗ-8). Кадры и Заёмщик/КЗ-13 не подключены — см. журнал волны 2-4.</div>
+  ${SOURCES.map(s=>`<label><input type="checkbox" ${state.sourceDown[s.id]?'checked':''} onchange="ZD.toggleDown('${s.id}', this.checked)"> имитировать недоступность источника «${esc(s.name)}» (проверка заморозки, ИЗ-12 п.6)</label>`).join('<br>')}
+  <br><label><input type="checkbox" ${state.statCleared?'checked':''} onchange="ZD.toggleStatCleared(this.checked)"> сосед «взыскание» у Статистики перестал молчать (полное, но пустое множество — проверка закрытия повода, не заморозки)</label>
+  <div class="btn-row">
+    <button class="btn btn-primary btn-sm" onclick="ZD.runPollUI()">Прогнать самоопрос на дату среза (${fmt(state.today)})</button>
+  </div>
+  <div class="section-h">Журнал прогонов</div>
+  <table class="cgrid"><thead><tr><th>№</th><th>Дата</th><th>Ответ источника</th><th>Новых</th><th>Отпавших</th><th>Совпало</th><th>Полнота</th><th>Порог</th></tr></thead>
+    <tbody>${rows}</tbody></table>
+  <div class="section-h">Поводы (текущий срез)</div>
+  <table class="cgrid"><thead><tr><th>Ключ</th><th>Вид</th><th>Состояние</th><th>Дата состояния</th><th>Признаки</th></tr></thead>
+    <tbody>${state.povods.slice().reverse().map(p=>`<tr>
+      <td class="mono small">${esc(p.key)}</td><td>${esc(kindOf(p.kind).title)}</td>
+      <td><span class="pill ${p.status==='gone'?'neutral':p.status==='frozen'?'warn':'ok'}">${p.status}</span></td>
+      <td>${fmt(p.stateDate)}${p.approx?' <span class="small">(приблизительно)</span>':''}</td>
+      <td class="small">${esc(JSON.stringify(p.traits||{}))}</td>
+    </tr>`).join('') || '<tr><td colspan="5" class="muted">пусто</td></tr>'}</tbody></table>
+  `;
+}
+function toggleDown(sourceId, v){ state.sourceDown[sourceId]=v; render(); }
+function toggleStatCleared(v){ state.statCleared=v; render(); }
+function runPollUI(){ const r=runPoll(); toast(r.complete?`Прогон ${r.id}: множество получено`:`Прогон ${r.id}: источник молчал — заморозка`, r.complete?'ok':'err'); render(); }
+
+function renderNotif(){
+  const mine = state.notifications.filter(n=>n.to===state.viewer).slice().reverse();
+  return `<table class="cgrid"><thead><tr><th>Дата</th><th>Вид</th><th>Задание</th></tr></thead>
+    <tbody>${mine.map(n=>`<tr><td>${fmt(n.t)}</td><td>${esc(n.kind)}</td>
+      <td>${n.taskId?`<button class="linky" onclick="ZD.openCard('${n.taskId}')">${n.taskId}</button>`:'—'}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">пусто</td></tr>'}</tbody></table>
+  <div class="why">Закрытый список из девяти состояний (ИЗ-14 п.1): повод появился · поручено · принято · срок близко · срок истёк · эскалация · возвращено · повод отпал · закрыто.</div>`;
+}
+
+function init(){
+  if(typeof document==='undefined') return;
+  seedState();
+  render();
+}
+if(typeof document!=='undefined') document.addEventListener('DOMContentLoaded', init);
+
+return {
+  seed: seedState, get state(){ return state; }, EMP,
+  runPoll, claim, reject, releaseTask, reassignTask, acceptDecision, disposeLapsed,
+  createFreeTask, issueManual, mkTask,
+  deriveState: displayState, lastEv, isTerminal, outcomeOf, describePovod,
+  kindOf, actionOf, ruleForKind, povodByKey, taskOf,
+  visibleTo, subordinatesOf, chiefOf, chiefChainIncludes,
+  SELF_KINDS, NOTIF_KINDS,
+  go, setAsOf, setViewer, openCard, closeCard, renderCardDrawer, render,
+  openFreeForm, cancelFree, submitFree, setSettingsTab, setRollup, deactivateKind, activateKind,
+  toggleDown, toggleStatCleared, runPollUI,
+};
+})();
+</script>
+</body>
+</html>
