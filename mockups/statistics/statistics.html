@@ -1233,7 +1233,8 @@ body{ font:var(--font-body); color:var(--text-body); background:var(--surface-pa
 .mx-block{ border:1px solid var(--border-strong); border-radius:var(--radius-md); padding:10px 12px; margin-bottom:10px; }
 .mx-block h4{ margin:0 0 6px; font:var(--font-label); color:var(--text-muted); }
 .mx-dimlist{ list-style:none; margin:0; padding:0; }
-.mx-dim{ display:flex; align-items:center; gap:4px; padding:4px 0; font:var(--font-label); }
+.mx-dim{ display:flex; align-items:center; gap:4px; padding:4px 6px; border-radius:var(--radius-md); margin-bottom:2px; font:var(--font-label); }
+.mx-dim.on{ background:var(--surface-hover); }
 .mx-dim:not(.on){ color:var(--text-muted); }
 .mx-dim .dh{ width:14px; cursor:grab; }
 .mx-dim .dn{ width:16px; color:var(--text-muted); }
@@ -1243,9 +1244,16 @@ body{ font:var(--font-body); color:var(--text-body); background:var(--surface-pa
 .mx-axis button{ font-size:11px; padding:2px 5px; border:1px solid var(--border-strong);
   border-radius:4px; background:var(--surface-card); cursor:pointer; }
 .mx-axis button.on{ background:var(--asubk-blue); color:#fff; border-color:transparent; }
-.mx-dim-sub{ padding:2px 0 4px 26px; }
+.mx-dim-sub{ padding:2px 0 4px 32px; }
 .mx-sub{ display:flex; align-items:center; gap:6px; font:var(--font-label); margin-bottom:2px; }
-.mx-filter-line{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.mx-date-row{ display:flex; align-items:center; gap:8px; }
+.mx-date-select{ width:100%; border:1.5px solid var(--border-strong); border-radius:var(--radius-md);
+  padding:6px 8px; font:var(--font-label); background:var(--surface-card); color:var(--text-body); }
+.mx-date-select.closed{ border-color:var(--asubk-green); }
+.mx-obj-cur{ font:var(--font-page-title); color:var(--text-heading); margin-bottom:6px; }
+.mx-checklist{ display:flex; flex-direction:column; gap:2px; max-height:130px; overflow-y:auto;
+  min-width:210px; border:1px solid var(--border-strong); border-radius:var(--radius-md); padding:5px 8px; }
+.mx-check{ display:flex; align-items:center; gap:6px; font:var(--font-label); cursor:pointer; }
 .mx-ask{ position:sticky; bottom:0; background:var(--surface-page); padding-top:6px; }
 .mx-overlay{ position:fixed; inset:0; background:rgba(15,23,35,0.45); z-index:50;
   display:flex; align-items:flex-start; justify-content:center; padding:40px 24px; overflow:auto; }
@@ -8309,7 +8317,8 @@ ST.mxChanged = () => { const st = ST.state; return !st.mAsked || mxSig(st.mq) !=
 ST.mxAsk = () => { const st = ST.state; st.mAsked = mxClone(st.mq); st.drill = null; render(); };
 ST.mxPickObj = id => { const st = ST.state; st.mq = defaultMq(id);
   const ds = ST.askDates(id); st.mq.date = ds.length ? ds[ds.length - 1] : null;
-  st.mAsked = mxClone(st.mq); st.drill = null; render(); };
+  st.mAsked = mxClone(st.mq); st.drill = null; st.mObjOpen = false; render(); };
+ST.mxToggleObjOpen = () => { ST.state.mObjOpen = !ST.state.mObjOpen; render(); };
 ST.mxSetDate = d => { ST.state.mq.date = d; render(); };
 ST.mxToggleDim = id => { const st = ST.state, mq = st.mq, i = mq.dims.indexOf(id);
   if(i >= 0){ mq.dims.splice(i,1); delete mq.axis[id]; delete mq.levels[id]; delete mq.buckets[id]; }
@@ -8334,15 +8343,24 @@ function mxDateBlock(st){
   if(!mq.date && ds.length) mq.date = ds[ds.length - 1];
   const opts = ds.map(d => '<option value="'+d+'"'+(d === mq.date ? ' selected' : '')+'>'+
     fmt(d)+' · '+(ST.isClosed(d) ? 'закрытый' : 'открытый')+'</option>').join('');
+  const closed = mq.date ? ST.isClosed(mq.date) : null;
   return '<div class="mx-block"><h4>Дата</h4>'+
-    (ds.length ? '<select onchange="ST.mxSetDate(this.value)">'+opts+'</select>'
+    (ds.length ? '<select class="mx-date-select'+(closed ? ' closed' : '')+'" onchange="ST.mxSetDate(this.value)">'+opts+'</select>'
                 : '<div class="banner warn">на этот объект нет ни одного прогона</div>')+
     '<div class="muted" style="margin-top:4px">прогонов: '+ds.length+'</div></div>';
 }
 function mxObjBlock(st){
-  const mq = st.mq;
-  const objs = st.objects.map(x => chip(x.id === mq.obj, x.name, "ST.mxPickObj('"+x.id+"')")).join('');
-  return '<div class="mx-block"><h4>Объект</h4><div class="chips">'+objs+'</div></div>';
+  const mq = st.mq, cur = OBJ(mq.obj);
+  if(!st.mObjOpen)
+    return '<div class="mx-block"><h4>Объект</h4><div class="mx-obj-cur">'+esc(cur.name)+'</div>'+
+      '<button class="btn btn-secondary" onclick="ST.mxToggleObjOpen()">изменить</button></div>';
+  const groups = [];
+  st.objects.forEach(x => { let g = groups.find(g => g.owner === x.owner);
+    if(!g){ g = {owner:x.owner, items:[]}; groups.push(g); } g.items.push(x); });
+  const body = groups.map(g => '<span class="chips-grp">'+esc(g.owner)+'</span>'+
+    g.items.map(x => chip(x.id === mq.obj, x.name, "ST.mxPickObj('"+x.id+"')")).join('')).join('');
+  return '<div class="mx-block"><h4>Объект</h4><div class="chips">'+body+'</div>'+
+    '<button class="btn btn-secondary" style="margin-top:8px" onclick="ST.mxToggleObjOpen()">свернуть</button></div>';
 }
 function mxDimsBlock(st){
   const mq = st.mq, o = OBJ(mq.obj), canAsk = ST.canBuild();
@@ -8405,10 +8423,16 @@ function mxIndsBlock(st){
 }
 function mxFilterBlock(st){
   const mq = st.mq, canAsk = ST.canBuild();
-  return '<div class="mx-block"><h4>Фильтр</h4><div class="mx-filter-line">'+
-    '<span class="muted">'+esc(filterText(mq.filter))+'</span>'+
-    (canAsk ? '<button class="btn btn-secondary" onclick="ST.mxToggleFilterModal()">изменить</button>' : '')+
-    '</div></div>';
+  const sets = (mq.filter && mq.filter.sets) ? mq.filter.sets.filter(s => (s.cmps || []).length) : [];
+  const body = sets.length
+    ? '<div class="chips">'+sets.map((s,i) => '<span class="chips-grp">'+(i ? 'либо ' : '')+'набор '+(i+1)+'</span>'+
+        s.cmps.map((c,j) => chip(true, cmpText(c)+(canAsk ? '   ✕' : ''),
+          canAsk ? "ST.mxDropCmp("+i+","+j+")" : '', !canAsk)).join('')).join('')+'</div>'
+    : '<div class="muted">фильтра нет — спрошено обо всём доступном множестве</div>';
+  return '<div class="mx-block"><h4>Фильтр</h4>'+body+
+    (canAsk ? '<button class="btn btn-secondary" style="margin-top:8px" onclick="ST.mxToggleFilterModal()">'+
+      (sets.length ? 'изменить' : 'добавить условие')+'</button>' : '')+
+    '</div>';
 }
 /* filterBar/fDraft читают ST.state.q напрямую (не параметр) — переиспользовать их как
    есть значило бы редактировать чужой фильтр (старого экрана) из-под новой колонки.
@@ -8469,7 +8493,7 @@ ST.mxAddCmp = () => {
     c.from = (($('#mfFrom') || {}).value) || ''; c.to = (($('#mfTo') || {}).value) || '';
   } else if(LIST_OPS.indexOf(c.op) >= 0){
     const el = $('#mfVals');
-    c.values = el ? [].slice.call(el.selectedOptions).map(x => x.value) : [];
+    c.values = el ? [].slice.call(el.querySelectorAll('input:checked')).map(x => x.value) : [];
   } else if(o.vtype === 'число'){
     c.value = (($('#mfNum') || {}).value) || '';
     if(o.money) c.cur = (($('#mfCur') || {}).value) || 'KGS';
@@ -8518,8 +8542,12 @@ function mxFilterBar(st){
     vBox = '<div class="fld"><label>От корзины</label><select id="mfFrom">'+(vals.map(v => opt(v,false)).join('') || none)+'</select></div>'+
       '<div class="fld"><label>До корзины</label><select id="mfTo">'+(vals.map(v => opt(v,false)).join('') || none)+'</select></div>';
   else if(LIST_OPS.indexOf(d.op) >= 0)
-    vBox = '<div class="fld"><label>Значения (несколько)</label><select id="mfVals" multiple size="4" style="height:auto">'+
-      (vals.map(v => opt(v,false)).join('') || none)+'</select></div>';
+    vBox = '<div class="fld"><label>Значения (несколько)</label>'+
+      (vals.length
+        ? '<div class="mx-checklist" id="mfVals">'+vals.map(v =>
+            '<label class="mx-check"><input type="checkbox" value="'+esc(v)+'"> '+esc(v)+'</label>').join('')+'</div>'
+        : '<div class="muted">— значений на дату среза нет —</div>')+
+      '</div>';
   else if(o.vtype === 'число')
     vBox = '<div class="fld"><label>Константа'+(o.ind && o.ind.unit ? ', '+esc(o.ind.unit) : '')+'</label>'+
       '<input id="mfNum" type="number" step="any" value="'+esc(d.value || '')+'"></div>'+
