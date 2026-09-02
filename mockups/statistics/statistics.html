@@ -8752,15 +8752,31 @@ function mxFixStickyOffsets(){
   if(!table) return;
   const hgRow = table.querySelector('thead tr.hg'), hmRow = table.querySelector('thead tr.hm');
   if(!hgRow || !hmRow) return;
-  const base = 44;                                          /* верхняя строка ни от чего не зависит */
+  const scroller = table.closest('.mx-scroll') || table.parentElement;
+  const base = hgRow.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+  /* base раньше был захардкожен (44px) в предположении, что верхняя строка ни
+     от чего не зависит — но это число разошлось с реальной раскладкой (факт.
+     верх hg — не 44, а ~2px), и лишние ~42px сдвигали липкую «Итого» ВНИЗ от её
+     естественного места ещё ДО всякой прокрутки, из-за чего она наезжала на
+     первую строку дерева. Берём фактический top строки-заголовка, а не константу. */
   const rowH = row => Math.max(...Array.from(row.children).map(c => c.getBoundingClientRect().height));
   /* Угловая ячейка (двусторонняя липкость — top И left, th.rowdim-h) не раздувает
      высоту <tr>, даже когда её текст переносится на 2 строки — высоту берём по
-     самой высокой ЯЧЕЙКЕ строки, а не по самой строке. */
+     самой высокой ЯЧЕЙКЕ строки, а не по самой строке. Мало пересчитать top для
+     нижестоящих липких ячеек — их <tr> тоже надо растянуть явной высотой, иначе
+     обычный (нелипкий) поток (tbody.mx-tot, дерево строк ниже) продолжает мерить
+     себя по заниженной («однострочной») высоте строки, и первая строка дерева
+     утыкается под визуально уехавшую вниз липкую «Итого». */
   const hgH = rowH(hgRow), hmH = rowH(hmRow);
+  hgRow.style.height = hgH + 'px';
+  hmRow.style.height = hmH + 'px';
   Array.from(hmRow.children).forEach(c => { c.style.top = (base + hgH) + 'px'; });
   const totRow = table.querySelector('tbody.mx-tot tr');
-  if(totRow) Array.from(totRow.children).forEach(c => { c.style.top = (base + hgH + hmH) + 'px'; });
+  if(totRow){
+    const totH = rowH(totRow);
+    totRow.style.height = totH + 'px';
+    Array.from(totRow.children).forEach(c => { c.style.top = (base + hgH + hmH) + 'px'; });
+  }
 }
 function matrixAnswer(st){
   const mq = st.mAsked;
