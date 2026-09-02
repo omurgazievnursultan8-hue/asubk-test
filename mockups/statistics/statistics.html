@@ -8753,7 +8753,11 @@ function mxFixStickyOffsets(){
   const hgRow = table.querySelector('thead tr.hg'), hmRow = table.querySelector('thead tr.hm');
   if(!hgRow || !hmRow) return;
   const base = 44;                                          /* верхняя строка ни от чего не зависит */
-  const hgH = hgRow.getBoundingClientRect().height, hmH = hmRow.getBoundingClientRect().height;
+  const rowH = row => Math.max(...Array.from(row.children).map(c => c.getBoundingClientRect().height));
+  /* Угловая ячейка (двусторонняя липкость — top И left, th.rowdim-h) не раздувает
+     высоту <tr>, даже когда её текст переносится на 2 строки — высоту берём по
+     самой высокой ЯЧЕЙКЕ строки, а не по самой строке. */
+  const hgH = rowH(hgRow), hmH = rowH(hmRow);
   Array.from(hmRow.children).forEach(c => { c.style.top = (base + hgH) + 'px'; });
   const totRow = table.querySelector('tbody.mx-tot tr');
   if(totRow) Array.from(totRow.children).forEach(c => { c.style.top = (base + hgH + hmH) + 'px'; });
