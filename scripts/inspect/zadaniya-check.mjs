@@ -1,4 +1,4 @@
-// Headless смоук для mockups/zadaniya/zadaniya.html — волна 1+2+3 модуля «Задания» (шестой модуль).
+// Headless смоук для mockups/zadaniya/zadaniya.html — волна 1+2+3+4 модуля «Задания» (шестой модуль).
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Приёмка волны 1 (ADR-0231, ИЗ-17) — не «код есть», а РАБОТАЮЩИЙ самоопрос:
@@ -30,6 +30,14 @@
 //      (не пересобран), вид объекта «module» на реальном соседе «взыскание», независимая
 //      заморозка третьего источника (не гасит self/orgstruct), закрытие повода штатной сверкой
 //      (не заморозкой) когда сосед отвечает пустым, но полным множеством.
+// Волна 4 (02.09.2026) — третий настоящий сосед, Отчётность (RP.obligations), четвёртым источником
+// в SOURCES, движок сверки снова не менялся, кроме одной новой ветки в computeExpectedForKind:
+//   O  #46-53 — непустой первый прогон (только state==='просрочено' из всей формы), намеренно
+//      низкий порог свёртки (3 просроченных > 2 сворачиваются в вал-таск), идемпотентный повтор,
+//      ИЗ-13 ключ взят ЦЕЛИКОМ у соседа (o.id), ИЗ-13 clamp базы срока на предельно старом due,
+//      фильтр не пропускает НЕ-просроченные строки соседа, независимая заморозка четвёртого
+//      источника (не гасит self/orgstruct/statistics), адресация жёстко на E4 (RESPONSIBLE[dep]
+//      соседа — ростер имён, несовместимый с EMP id — исследовано и задокументировано, не угадано).
 // Блоки, которые правят состояние, начинаются с ZD.seed() — состояние между ними не течёт.
 // Отчёт вписывается в шапку макета после маркера «SMOKE (node …):»; выход 1 при любом FAIL.
 //   node scripts/inspect/zadaniya-check.mjs
@@ -62,9 +70,9 @@ const TODAY = ZD.state.today;
   ZD.seed();
   const before = ZD.state.povods.length;
   const r = ZD.runPoll();
-  ok(1, before === 0 && r.complete === true && r.sources.length === 3 &&
+  ok(1, before === 0 && r.complete === true && r.sources.length === 4 &&
        r.sources.every(s => s.answer === 'множество'),
-    `прогон ${r.id} на дату ${r.date}: все три источника волны 1-3 (self, orgstruct, statistics) ответили «множество» (ИЗ-12 п.5)`);
+    `прогон ${r.id} на дату ${r.date}: все четыре источника волны 1-4 (self, orgstruct, statistics, reports) ответили «множество» (ИЗ-12 п.5)`);
   ok(2, r.sources[0].new === 3 && r.sources[0].matched === 0 && r.sources[0].gone === 0,
     `первый прогон непустой на собственных видах (source[0]=self): 3 новых повода из 3 демо-заданий, ` +
     `заведённых ДО опроса (ИЗ-17 приёмка)`);
@@ -347,10 +355,11 @@ const TODAY = ZD.state.today;
   ZD.seed();
   const r = ZD.runPoll();
   const names = r.sources.map(s => s.name);
-  ok(39, r.sources.length === 3 && !names.some(n => /заёмщик|КЗ-13/i.test(n)),
+  ok(39, r.sources.length === 4 && !names.some(n => /заёмщик|КЗ-13/i.test(n)),
     `Заёмщик/КЗ-13 не участвует ни в одном прогоне как источник опроса — односторонний поток в обратную ` +
     `сторону (ADR-0229 «Последствия»): КЗ-13 остаётся витриной, датированные строки приходят ИЗ заданий, ` +
-    `не наоборот (не подключался — граница задокументирована в журнале волны 2, не решена кодом)`);
+    `не наоборот (не подключался — граница задокументирована в журнале волны 2, не решена кодом; ` +
+    `${r.sources.length} источника волны 1-4 — self/orgstruct/statistics/reports)`);
 })();
 
 (() => {
@@ -445,6 +454,115 @@ const TODAY = ZD.state.today;
     `открытое на него задание не тихо закрыто, а помечено «отпало» — тем же путём, что и любое ` +
     `непринятое задание с отпавшим поводом (handleGoneForKind), и само становится кандидатом на ` +
     `собственный повод «отпавшее задание требует разбора» (pk-lapsed-review) при следующем самоопросе`);
+})();
+
+/* ---------- Волна 4 (02.09.2026) — четвёртый источник, Отчётность (RP.obligations) ---------- */
+(() => {
+  ZD.seed();
+  const before = ZD.state.povods.filter(p => p.kind === 'pk-rep-obligation-overdue').length;
+  const r = ZD.runPoll();
+  const repSrc = r.sources.find(s => s.name.indexOf('Отчётность') !== -1);
+  const repPovods = ZD.state.povods.filter(p => p.kind === 'pk-rep-obligation-overdue');
+  ok(46, before === 0 && repSrc && repSrc.answer === 'множество' && repSrc.new === 3 &&
+       repPovods.length === 3,
+    `первый прогон от Отчётности непустой: источник «${repSrc && repSrc.name}» ответил «множество», ` +
+    `3 новых повода (только state==='просрочено' из всей формы RP.obligations() — ` +
+    `кандидатная фраза ADR-0210 «срок сдачи формы истекает/истёк»); подключение — записью реестра, ` +
+    `четвёртым в SOURCES (ADR-0231 п.4)`);
+})();
+
+(() => {
+  ZD.seed();
+  const r = ZD.runPoll();
+  const repSrc = r.sources.find(s => s.name.indexOf('Отчётность') !== -1);
+  const rollupTask = ZD.state.tasks.find(t => t.originKind === 'pk-rep-obligation-overdue');
+  ok(47, repSrc.rollup.indexOf('pk-rep-obligation-overdue') !== -1 &&
+       !!rollupTask && Array.isArray(rollupTask.rollupKeys) && rollupTask.rollupKeys.length === 3 &&
+       rollupTask.assignee === 'E4',
+    `первое подключение — намеренно низкий порог свёртки 2 (ADR-0231 п.5, ИЗ-12 п.8): 3 просроченных ` +
+    `обязательства (dep-admin/dep-prom/rep-osh за один и тот же период) выше порога свернулись в один ` +
+    `вал-таск ${rollupTask && rollupTask.id}, ни одного поштучного задания на эти три повода не выдано`);
+})();
+
+(() => {
+  ZD.seed();
+  ZD.runPoll();
+  const tasksBefore = ZD.state.tasks.length;
+  const r2 = ZD.runPoll();
+  const repSrc = r2.sources.find(s => s.name.indexOf('Отчётность') !== -1);
+  ok(48, repSrc.new === 0 && repSrc.matched === 3 && repSrc.gone === 0 && ZD.state.tasks.length === tasksBefore,
+    `повторный прогон той же датой на источнике Отчётности: new=0, matched=3, gone=0, второй вал-таск ` +
+    `поверх открытого не выдан — полная сверка идемпотентна и здесь (ИЗ-3 п.2), тем же движком, что у ` +
+    `self/orgstruct/statistics`);
+})();
+
+(() => {
+  ZD.seed();
+  ZD.runPoll();
+  const keys = ZD.state.povods.filter(p => p.kind === 'pk-rep-obligation-overdue').map(p => p.key).sort();
+  const expected = ['t-overdue/2026-07-01/dep-admin','t-overdue/2026-07-01/dep-prom','t-overdue/2026-07-01/rep-osh'].sort();
+  const p = ZD.povodByKey('t-overdue/2026-07-01/dep-admin');
+  ok(49, keys.join('|') === expected.join('|') && p && p.objectType === 'obligation' && p.objectId === 'dep-admin',
+    `ключ шва — целиком тот, что отдаёт сосед (o.id из RP.obligations(), «${keys.join(', ')}»), тем же ` +
+    `приёмом, что у Статистики в волне 3 — не пересобран в свою тройку «kindId|type:id|» (ИЗ-13 п.9, ` +
+    `у Отчётности тоже ровно один вид повода на дверь); вид объекта — «obligation», объект — подразделение ` +
+    `(dept), не «task», как у собственных видов`);
+})();
+
+(() => {
+  ZD.seed();
+  ZD.runPoll();
+  const repPovods = ZD.state.povods.filter(p => p.kind === 'pk-rep-obligation-overdue');
+  const clamped = repPovods.length === 3 && repPovods.every(p => p.stateDate === '2026-09-02');
+  const traitsHonest = repPovods.every(p => p.traits && typeof p.traits.дней_просрочки === 'number' && p.traits.дней_просрочки > 40);
+  ok(50, clamped && traitsHonest,
+    `демо-строки обязательства датированы у соседа due=2026-07-15 (~7 недель до подключения 02.09.2026), но ` +
+    `povod.stateDate прижат к дате ввода вида в действие 02.09.2026 (ИЗ-13 п.9 — база срока = max(due у ` +
+    `соседа, дата активации), тот же clamp, что у Оргструктуры/Статистики #38/#38); признак «дней_просрочки» ` +
+    `тем не менее честно хранит реальную давность у соседа (${repPovods[0] && repPovods[0].traits.дней_просрочки} дн.)`);
+})();
+
+(() => {
+  ZD.seed();
+  ZD.runPoll();
+  const periods = ZD.state.povods.filter(p => p.kind === 'pk-rep-obligation-overdue').map(p => p.traits.период);
+  ok(51, periods.length === 3 && periods.every(pd => pd === 'июнь 2026'),
+    `фильтр по state==='просрочено' действительно отсёк НЕ-povod-worthy строки соседа (RP.obligations() ` +
+    `отдаёт 5 строк одного шаблона: 3 «просрочено» за июнь + 1 «сдано» за июль + 1 «ожидается» за август) — ` +
+    `поводов ровно 3, все с периодом «июнь 2026», ни одна строка «сдано»/«ожидается» повода не породила`);
+})();
+
+(() => {
+  ZD.seed();
+  ZD.runPoll();
+  const selfAppearedBefore = ZD.state.povods.filter(p => ZD.SELF_KINDS.includes(p.kind) && p.status === 'appeared').length;
+  const orgAppearedBefore = ZD.state.povods.filter(p => /^pk-org-/.test(p.kind) && p.status === 'appeared').length;
+  const statAppearedBefore = ZD.state.povods.filter(p => p.kind === 'pk-stat-neighbor-silent' && p.status === 'appeared').length;
+  const r = ZD.runPoll({ downSources: ['reports'] });
+  const repSrc = r.sources.find(s => s.name.indexOf('Отчётность') !== -1);
+  const selfSrc = r.sources.find(s => s.name.indexOf('самоопрос') !== -1);
+  const orgSrc = r.sources.find(s => s.name.indexOf('Оргструктура') !== -1);
+  const statSrc = r.sources.find(s => s.name.indexOf('Статистика') !== -1);
+  const selfStillAppeared = ZD.state.povods.filter(p => ZD.SELF_KINDS.includes(p.kind) && p.status === 'appeared').length;
+  const orgStillAppeared = ZD.state.povods.filter(p => /^pk-org-/.test(p.kind) && p.status === 'appeared').length;
+  const statStillAppeared = ZD.state.povods.filter(p => p.kind === 'pk-stat-neighbor-silent' && p.status === 'appeared').length;
+  const repFrozen = ZD.state.povods.filter(p => p.kind === 'pk-rep-obligation-overdue' && p.status === 'frozen').length;
+  ok(52, r.complete === false && repSrc.answer === 'таймаут' &&
+       selfSrc.answer === 'множество' && orgSrc.answer === 'множество' && statSrc.answer === 'множество' &&
+       selfStillAppeared === selfAppearedBefore && orgStillAppeared === orgAppearedBefore &&
+       statStillAppeared === statAppearedBefore && repFrozen === 3,
+    `независимая заморозка четвёртого источника: молчит только Отчётность — её ${repFrozen} повода замерзают, ` +
+    `self (${selfStillAppeared}), Оргструктура (${orgStillAppeared}) и Статистика (${statStillAppeared}) ` +
+    `остаются целы без изменений — четыре источника не гасят друг друга (ИЗ-12 п.6)`);
+})();
+
+(() => {
+  ZD.seed();
+  const r = ZD.runPoll();
+  ok(53, r.sources.length === 4 && r.sources[3].name.indexOf('Отчётность') !== -1,
+    `сторож структуры источников волны 4: SOURCES держит ровно 4 записи, четвёртая — Отчётность ` +
+    `(RP.obligations), подключённая тем же приёмом реестра, что Оргструктура и Статистика — движок ` +
+    `runPoll()/computeExpectedForKind не переписан целиком, только дополнена одна ветка сверки (ADR-0228 ИЗ-8)`);
 })();
 
 /* ---------- отчёт ---------- */
