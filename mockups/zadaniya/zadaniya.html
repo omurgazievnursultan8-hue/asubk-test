@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Задания · АСУБК</title>
 <!--
-  АСУБК · модуль «Задания» · прототип волны 1+2 (волна 2 подключает первого
-  настоящего соседа — Оргструктуру)
+  АСУБК · модуль «Задания» · прототип волны 1+2+3 (волна 2 подключает первого
+  настоящего соседа — Оргструктуру; волна 3 — второго, Статистику)
   ================================================================
   Рабочий прототип: логика внутри тега script реально исполняется (не картинка).
   window.ZD — движок, доступен смоук-тесту scripts/inspect/zadaniya-check.mjs.
@@ -79,20 +79,42 @@
       либо мержить два разных экрана в один файл; оба варианта отвергнуты, граница
       зафиксирована в журнале волны 2, а не решена кодом.
 
+  Волна 3 (02.09.2026) — второй настоящий сосед, тем же приёмом (записи реестра, движок
+  сверки не правился, кроме одной новой ветки шва — computeExpectedForKind):
+    · Подключена Статистика — ST.askLeads('задания', d) из mockups/statistics/statistics.html:6944
+      (дверь уже покрыта её собственным смоуком #199), один вид повода pk-stat-neighbor-silent
+      (единственный жанр, отдаваемый дверью — LEAD_KINDS=['сосед молчит']). Зеркалится ОТВЕТ
+      (statMirrorAt повторяет форму ST.silenceLeads), не код статистики — та же причина, что и
+      у Оргструктуры в волне 2 (ADR-0229 ИЗ-11): NEIGHBOURS/ST.state держат единоличный движок
+      статистики, тащить их сюда — вторая копия чужого механизма.
+    · Ключ шва — ЦЕЛИКОМ тот, что отдаёт сосед («сосед-молчит/взыскание/с-2026-08-20»), не
+      пересобран в свою тройку «kindId|type:id|», как у Оргструктуры: у статистики период уже
+      устойчив и назван по формуле ADR-0208 §7 — пересборка завела бы ВТОРОЙ ключ на тот же
+      повод (директива волны 3, решение — в журнале волны 3).
+    · Демо-сценарий — тот же, что смоук статистики #199: сосед-модуль «взыскание» молчит
+      3 прогона подряд с 20.08.2026 (причины «отказал по правам», «недоступен»).
+    · Закрытие повода при возврате соседа демонстрируется ОТДЕЛЬНО от заморозки (ИЗ-12 п.6-7,
+      #45): тумблер «статистика больше не молчит» в настройке отдаёт полное, но ПУСТОЕ
+      множество — повод отпадает штатной сверкой ИЗ-3, задание закрывается тем же путём, что
+      любой отпавший повод; это НЕ путь через sourceDown/таймаут.
+    · Взыскание как ОРГАНИЗАЦИОННЫЙ отдел (EMP, сотрудник E5) и «взыскание» как МОДУЛЬ-сосед
+      статистики — разные сущности с одинаковым именем; адресация pk-stat-neighbor-silent
+      временно жёстко на E4 (тот же долг соседа, что у pk-org-*, не долг макета).
+
   Экраны (ровно три жанра, ИЗ-16 п.12): Очередь заданий (мои·отдела) · Карточка
   задания (выдвижная панель) · Настройка (виды повода / действия / правила /
   журнал прогонов). Экрана «здоровья» нет намеренно (ИЗ-16 п.12, «Отвергнуто»).
 
   SMOKE (node scripts/inspect/zadaniya-check.mjs):
-   SMOKE 2026-09-02 · 40/40 PASS
-      PASS  #1  прогон PR9 на дату 2026-09-02: оба источника волны 1+2 (self, orgstruct) ответили «множество» (ИЗ-12 п.5)
+   SMOKE 2026-09-02 · 45/45 PASS
+      PASS  #1  прогон PR9 на дату 2026-09-02: все три источника волны 1-3 (self, orgstruct, statistics) ответили «множество» (ИЗ-12 п.5)
       PASS  #2  первый прогон непустой на собственных видах (source[0]=self): 3 новых повода из 3 демо-заданий, заведённых ДО опроса (ИЗ-17 приёмка)
       PASS  #3  три ключа тройкой «вид · объект · период» (ИЗ-13 п.9) среди собственных видов (org-поводы того же прогона проверяются отдельно, #33+): pk-await-long|task:T3|, pk-overdue|task:T1|, pk-rejected|task:T7|
       PASS  #4  на каждый новый повод СВОЕГО вида правило в авто-режиме выдало задание с редакцией правила (ИЗ-9 п.7): T11:pk-overdue, T14:pk-rejected, T17:pk-await-long
       PASS  #5  повторный прогон той же датой: new=0, matched=3, gone=0 — полная сверка множества идемпотентна (ИЗ-3 п.2)
       PASS  #6  повторный прогон не выдал второе задание поверх открытого — иначе ключ «повод × действие» перестал бы держать ≤1 открытое задание на пару (ИЗ-5 п.5)
       PASS  #7  прогон с недоступным источником объявлен НЕполным в журнале прогонов, а не тихо пропущен (ИЗ-12 п.7)
-      PASS  #8  молчание соседа не есть пустота: все 9 повода заморожены, не отпали («состояние не подтверждено», ИЗ-12 п.6), в журнал повода вписано «заморожен»
+      PASS  #8  молчание соседа не есть пустота: все 10 повода заморожены, не отпали («состояние не подтверждено», ИЗ-12 п.6), в журнал повода вписано «заморожен»
       PASS  #9  следующий успешный прогон воспроизводится: заморозка снимается, ни один повод не потерян и не пересчитан как «новый» (сравнить с A/B — тот же результат при том же входе)
       PASS  #10  разморозка — отдельная запись журнала «разморожен», не молчаливый откат статуса
       PASS  #11  шесть собственных видов повода, порядок как в ADR-0230 п.10: pk-overdue · pk-rejected · pk-await-long · pk-lapsed-review · pk-neighbor-silent · pk-kind-inactive
@@ -125,6 +147,11 @@
       PASS  #38  демо-строка headVacant датирована у соседа 20.07.2026 (задолго до подключения), но povod.stateDate прижат к дате ввода вида в действие 02.09.2026 (ИЗ-13 п.9 — база срока = max(дата состояния у соседа, дата активации), защита от вала backdated-состояний на первом подключении); признак «дней_вакансии» тем не менее честно хранит реальную давность у соседа
       PASS  #39  Заёмщик/КЗ-13 не участвует ни в одном прогоне как источник опроса — односторонний поток в обратную сторону (ADR-0229 «Последствия»): КЗ-13 остаётся витриной, датированные строки приходят ИЗ заданий, не наоборот (не подключался — граница задокументирована в журнале волны 2, не решена кодом)
       PASS  #40  независимая заморозка по отдельному источнику (opts.downSources, волна 2): молчит только Оргструктура — её 6 повода замерзают, self остаётся цел (3 appeared без изменений) — источники не гасят друг друга, недоступность соседа не есть недоступность модуля
+      PASS  #41  первый прогон от Статистики непустой (демо-повод взыскания): источник «Статистика (ST.askLeads)» ответил «множество», 1 новый повод «сосед-молчит/взыскание/с-2026-08-20», правило в авто-режиме сразу выдало задание T39 (подключение — записью реестра, ADR-0231 п.4)
+      PASS  #42  повторный прогон той же датой на источнике Статистики: new=0, matched=1, gone=0, второе задание поверх открытого не выдано — полная сверка идемпотентна и здесь (ИЗ-3 п.2), тем же движком, что у self/orgstruct
+      PASS  #43  ключ шва — целиком тот, что отдаёт сосед («сосед-молчит/взыскание/с-2026-08-20»), не пересобран в свою тройку «kindId|type:id|» (ИЗ-13 п.9 — не переизобретать период); вид объекта — «module» на реальном соседе «взыскание», не «task», как у собственных видов
+      PASS  #44  независимая заморозка третьего источника: молчит только Статистика — её 1 повод замерзает, self (3) и Оргструктура (6) остаются целы без изменений — три источника не гасят друг друга (ИЗ-12 п.6)
+      PASS  #45  когда сосед перестаёт молчать (streak обнуляется у Статистики — полное, но ПУСТОЕ множество, не таймаут), повод отпадает штатной сверкой ИЗ-3, а не заморозкой: журнал повода — «отпал»; открытое на него задание не тихо закрыто, а помечено «отпало» — тем же путём, что и любое непринятое задание с отпавшим поводом (handleGoneForKind), и само становится кандидатом на собственный повод «отпавшее задание требует разбора» (pk-lapsed-review) при следующем самоопросе
 -->
 <style>
 :root{
@@ -294,7 +321,7 @@ table.cgrid select{ height:30px; border-radius:var(--radius-md); border:1px soli
 
 <div class="app">
   <aside class="sidebar">
-    <div class="brand">АСУБК<small>Задания · шестой модуль · прототип волны 1+2</small></div>
+    <div class="brand">АСУБК<small>Задания · шестой модуль · прототип волны 1+2+3</small></div>
     <div class="nav">
       <div class="nav-sec">Работа</div>
       <button class="nav-item" data-v="queue" onclick="ZD.go('queue')">Очередь заданий<span class="cnt" id="qCnt"></span></button>
@@ -377,6 +404,11 @@ function seedPovodKinds(){ return [
   {id:'pk-org-no-staff',        title:'Подразделение без штата',                  objectType:'unit',     traits:[],                  rollup:2, sensitive:false, createdAt:'2026-09-02', activatedAt:'2026-09-02'},
   {id:'pk-org-liq-blocked',     title:'Ликвидация заблокирована',                 objectType:'unit',     traits:[],                  rollup:2, sensitive:false, createdAt:'2026-09-02', activatedAt:'2026-09-02'},
   {id:'pk-org-orphan-terr',     title:'Территория без обслуживающего подразделения', objectType:'territory', traits:[],               rollup:2, sensitive:false, createdAt:'2026-09-02', activatedAt:'2026-09-02'},
+  // волна 3 (02.09.2026) — второй настоящий сосед, Статистика (ST.askLeads): единственный
+  // вид, потому что дверь ST.askLeads отдаёт ровно один жанр повода — «сосед молчит»
+  // (LEAD_KINDS=['сосед молчит'] в statistics.html), тот же низкий порог свёртки первого
+  // подключения (ADR-0231 п.5).
+  {id:'pk-stat-neighbor-silent', title:'Сосед статистики молчит',                     objectType:'module',   traits:['прогонов_подряд'], rollup:2, sensitive:false, createdAt:'2026-09-02', activatedAt:'2026-09-02'},
 ]; }
 
 function seedActions(){ return [
@@ -393,6 +425,8 @@ function seedActions(){ return [
   {id:'act-org-no-staff',         label:'Укомплектовать подразделение или закрыть',        importance:'средняя'},
   {id:'act-org-liq-blocked',      label:'Снять препятствие ликвидации',                    importance:'средняя'},
   {id:'act-org-orphan-terr',      label:'Передать территорию действующему подразделению',  importance:'высокая'},
+  // волна 3 — действие под вид повода Статистики:
+  {id:'act-stat-silent',          label:'Разобраться с молчанием соседа-модуля',           importance:'высокая'},
 ]; }
 
 function seedRules(){ return [
@@ -410,6 +444,8 @@ function seedRules(){ return [
   {id:'rule-org-no-staff',        kind:'pk-org-no-staff',        action:'act-org-no-staff',        mode:'авто', author:'E4', dueN:2, dueUnit:'workday', editions:[ed(1,'2026-09-02','E4','подключение соседа «Оргструктура» — волна 2')]},
   {id:'rule-org-liq-blocked',     kind:'pk-org-liq-blocked',     action:'act-org-liq-blocked',     mode:'авто', author:'E4', dueN:2, dueUnit:'workday', editions:[ed(1,'2026-09-02','E4','подключение соседа «Оргструктура» — волна 2')]},
   {id:'rule-org-orphan-terr',     kind:'pk-org-orphan-terr',     action:'act-org-orphan-terr',     mode:'авто', author:'E4', dueN:2, dueUnit:'workday', editions:[ed(1,'2026-09-02','E4','подключение соседа «Оргструктура» — волна 2')]},
+  // волна 3 — правило Статистики, авто-режим, тот же низкий порог свёртки первого подключения:
+  {id:'rule-stat-silent',         kind:'pk-stat-neighbor-silent', action:'act-stat-silent',        mode:'авто', author:'E4', dueN:1, dueUnit:'workday', editions:[ed(1,'2026-09-02','E4','подключение соседа «Статистика» — волна 3')]},
 ]; }
 function ed(n,from,author,reason){ return {n,from,author,reason}; }
 
@@ -422,9 +458,17 @@ const SELF_KINDS = ['pk-overdue','pk-rejected','pk-await-long','pk-lapsed-review
    problemsAt(d) и как строить (объект, дата, признаки) каждый из шести видов повода;
    движок (computeExpectedForKind) не растёт новыми ветками, кроме одной обобщённой. */
 const ORGSTRUCT_KINDS = ['pk-org-head-vacant','pk-org-acting-expiring','pk-org-invariant','pk-org-no-staff','pk-org-liq-blocked','pk-org-orphan-terr'];
+/* волна 3 (02.09.2026) — второй настоящий сосед, Статистика: mockups/statistics/statistics.html:6944
+   ST.askLeads('задания', d) — дверь, покрытая её же смоуком #199, уже отдающая ровно контракт
+   ИЗ-11/ИЗ-12/ИЗ-13. Тот же приём волны 2: зеркалится форма ОТВЕТА (ST.silenceLeads), не код
+   статистики (её NEIGHBOURS/ST.state держат единоличный движок статистики, тащить их сюда — та
+   же вторая копия чужого механизма, запрещённая ИЗ-11; сетевой опрос получил бы этот же плоский
+   ответ). Решение и демо-сценарий — в журнале волны 3. */
+const STAT_KINDS = ['pk-stat-neighbor-silent'];
 const SOURCES = [
-  {id:'self',      name:'Задания (самоопрос)',      kinds: SELF_KINDS},
-  {id:'orgstruct', name:'Оргструктура (problemsAt)', kinds: ORGSTRUCT_KINDS},
+  {id:'self',       name:'Задания (самоопрос)',       kinds: SELF_KINDS},
+  {id:'orgstruct',  name:'Оргструктура (problemsAt)',  kinds: ORGSTRUCT_KINDS},
+  {id:'statistics', name:'Статистика (ST.askLeads)',   kinds: STAT_KINDS},
 ];
 /* зеркало ОТВЕТА соседа, не его кода (решение волны 2, см. журнал mockups/zadaniya/
    ASUBK-status-razrabotki.md): форма повторяет problemsAt(d) из
@@ -461,6 +505,23 @@ const ORGSTRUCT_CFG = {
   'pk-org-orphan-terr':     {list:'orphanTerr',     objectType:'territory', id:r=>r.unitId,          date:r=>state.today, traits:r=>({территория:r.territory, примечание:r.note})},
 };
 
+/* зеркало ОТВЕТА Статистики (не её кода) — форма повторяет ST.askLeads('задания', d) →
+   ST.silenceLeads(3) из mockups/statistics/statistics.html:6917-6962. Демо-сценарий — тот же,
+   что statistics' собственный смоук #199 (statistics.html:1110): сосед «взыскание» молчит 3
+   прогона подряд с 20.08.2026, причины «отказал по правам»/«недоступен». state.statCleared —
+   демо-тумблер «сосед снова отвечает» (проверка закрытия повода без заморозки, ИЗ-3 п.2), не
+   тот же механизм, что sourceDown/таймаут (ИЗ-12 п.6-7): здесь сосед ОТВЕЧАЕТ множеством,
+   просто пустым — статистика сама решила, что молчания больше нет, это не «Статистика молчит». */
+function statMirrorAt(d){
+  if(state.statCleared) return {ok:true, module:'статистика', date:d, kinds:['сосед молчит'], full:true, leads:[]};
+  return {ok:true, module:'статистика', date:d, kinds:['сосед молчит'], full:true, leads:[
+    {kind:'сосед молчит', nb:'взыскание', key:'сосед-молчит/взыскание/с-2026-08-20', runs:3,
+     obj:'взыскание', period:'молчание с 2026-08-20', from:'2026-08-20',
+     reasons:['отказал по правам','недоступен'],
+     text:'сосед «взыскание» молчит 3 прогона подряд с 20.08.2026 (отказал по правам, недоступен) — повод модулю заданий (ADR-0208 §7)'},
+  ]};
+}
+
 /* ---------- 3. состояние ---------- */
 let state;
 function seedState(){
@@ -480,7 +541,8 @@ function seedState(){
                       //  traits, journal:[{t,ev}]}
     pollRuns: [],      // {id, date, sources:[{name,answer,new,gone,matched,rollup:[kind..]}], complete}
     notifications: [], // {id, t, kind, taskId, to}
-    sourceDown: {self:false, orgstruct:false}, // волна 2: недоступность на источник, не глобально
+    sourceDown: {self:false, orgstruct:false, statistics:false}, // недоступность на источник, не глобально
+    statCleared: false, // волна 3: демо-тумблер «сосед статистики снова отвечает» (полное, но пустое множество)
     seq: 1,
   };
   seedDemoTasks();
@@ -672,6 +734,17 @@ function computeExpectedForKind(kindId, asOf){
       out.set(`${kindId}|${cfg.objectType}:${objectId}|`, {kind:kindId, objectType:cfg.objectType, objectId,
         stateDate, approx:false, traits:cfg.traits(r)});
     });
+  } else if(kindId==='pk-stat-neighbor-silent'){
+    // волна 3 — ключ шва берём ЦЕЛИКОМ у соседа (ИЗ-13 п.9): «сосед-молчит/<nb>/с-<from>» уже
+    // несёт вид+объект+период по формуле статистики (ADR-0208 §7). Пересобирать его в свою
+    // тройку «kindId|type:id|», как для Оргструктуры, значило бы завести ВТОРОЙ ключ на тот же
+    // повод — не прочитать чужой период, а переизобрести его (запрещено директивой волны 3).
+    const ans = statMirrorAt(asOf);
+    (ans.leads||[]).forEach(lead=>{
+      const stateDate = dateMax(lead.from, pkGate.activatedAt); // тот же clamp ИЗ-13, что у Оргструктуры (#38)
+      out.set(lead.key, {kind:kindId, objectType:'module', objectId:lead.nb, stateDate, approx:false,
+        traits:{прогонов_подряд:lead.runs, причины:lead.reasons.join(', ')}});
+    });
   }
   return out;
 }
@@ -762,6 +835,11 @@ function resolveAssignees(kindId, povod){
     case 'pk-lapsed-review': return [taskOf(objId).assignee];
     case 'pk-neighbor-silent': return ['E4'];
     case 'pk-kind-inactive': return ['E4'];
+    // молчание СТОРОННЕГО модуля (взыскание — источник данных статистики) разбирает тот же
+    // адресат, что и молчание своего источника: администратор модуля, не глава оргструктурного
+    // отдела «Взыскание» — это разные «взыскание» (модуль-поставщик данных статистики vs.
+    // организационное подразделение EMP), путать их значило бы домыслить за соседа.
+    case 'pk-stat-neighbor-silent': return ['E4'];
     // pk-org-* (волна 2) падают сюда, в default — временно жёстко E4, не «руководитель
     // исполнителя на дату»: у соседа (Кадры) нет ни problemsAt (P12-R19, state:'mock'),
     // ни этого реквизита у resolveActor (mockups/employee/employee.html:987) — долг соседа,
@@ -796,6 +874,7 @@ function describePovod(p){
   if(p.objectType==='unit'){ return `подразделение «${p.objectId}»`; }
   if(p.objectType==='employee'){ return `сотрудник ${p.objectId}`; }
   if(p.objectType==='territory'){ return `территория подразделения «${p.objectId}»`; }
+  if(p.objectType==='module'){ return `сосед-модуль «${p.objectId}» (по данным статистики)`; }
   return p.objectId;
 }
 
@@ -932,7 +1011,7 @@ function render(){
   document.getElementById('qCnt').textContent = state.tasks.filter(t=>!isTerminal(t)).length || '';
   document.getElementById('rCnt').textContent = state.pollRuns.length || '';
   document.getElementById('nCnt').textContent = state.notifications.filter(n=>n.to===state.viewer).length || '';
-  document.getElementById('foot').textContent = `Волна 1+2 · ADR-0227…0231 · ${EMP.length} сотрудников (мок)`;
+  document.getElementById('foot').textContent = `Волна 1+2+3 · ADR-0227…0231 · ${EMP.length} сотрудников (мок)`;
 
   const panel = document.getElementById('panel');
   if(state.view==='queue') panel.innerHTML = renderQueue();
@@ -1124,8 +1203,9 @@ function renderRuns(){
       <td>${r.sources.some(s=>s.rollup&&s.rollup.length) ? '<span class="pill err">сработал порог</span>' : '—'}</td>
     </tr>`).join('') || '<tr><td colspan="8" class="muted">прогонов ещё не было</td></tr>';
   return `
-  <div class="banner info">Два источника (волна 2, ADR-0231 п.4-5): <b>Задания (самоопрос)</b> — сам механизм по 6 собственным видам повода (ИЗ-16 п.10); <b>Оргструктура (problemsAt)</b> — первый настоящий сосед, шесть видов pk-org-*, подключён записями реестра, без правки шва (ADR-0228 ИЗ-8). Кадры и Заёмщик/КЗ-13 не подключены — см. журнал волны 2.</div>
+  <div class="banner info">Три источника (волна 2-3, ADR-0231 п.4-5): <b>Задания (самоопрос)</b> — сам механизм по 6 собственным видам повода (ИЗ-16 п.10); <b>Оргструктура (problemsAt)</b> — второй сосед, шесть видов pk-org-*; <b>Статистика (ST.askLeads)</b> — третий сосед, вид pk-stat-neighbor-silent (ключ шва — целиком от соседа, ИЗ-13 п.9). Все подключены записями реестра, без правки шва (ADR-0228 ИЗ-8). Кадры и Заёмщик/КЗ-13 не подключены — см. журнал волны 2-3.</div>
   ${SOURCES.map(s=>`<label><input type="checkbox" ${state.sourceDown[s.id]?'checked':''} onchange="ZD.toggleDown('${s.id}', this.checked)"> имитировать недоступность источника «${esc(s.name)}» (проверка заморозки, ИЗ-12 п.6)</label>`).join('<br>')}
+  <br><label><input type="checkbox" ${state.statCleared?'checked':''} onchange="ZD.toggleStatCleared(this.checked)"> сосед «взыскание» у Статистики перестал молчать (полное, но пустое множество — проверка закрытия повода, не заморозки)</label>
   <div class="btn-row">
     <button class="btn btn-primary btn-sm" onclick="ZD.runPollUI()">Прогнать самоопрос на дату среза (${fmt(state.today)})</button>
   </div>
@@ -1143,6 +1223,7 @@ function renderRuns(){
   `;
 }
 function toggleDown(sourceId, v){ state.sourceDown[sourceId]=v; render(); }
+function toggleStatCleared(v){ state.statCleared=v; render(); }
 function runPollUI(){ const r=runPoll(); toast(r.complete?`Прогон ${r.id}: множество получено`:`Прогон ${r.id}: источник молчал — заморозка`, r.complete?'ok':'err'); render(); }
 
 function renderNotif(){
@@ -1170,7 +1251,7 @@ return {
   SELF_KINDS, NOTIF_KINDS,
   go, setAsOf, setViewer, openCard, closeCard, renderCardDrawer, render,
   openFreeForm, cancelFree, submitFree, setSettingsTab, setRollup, deactivateKind, activateKind,
-  toggleDown, runPollUI,
+  toggleDown, toggleStatCleared, runPollUI,
 };
 })();
 </script>

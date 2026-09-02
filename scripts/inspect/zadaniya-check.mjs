@@ -1,4 +1,4 @@
-// Headless смоук для mockups/zadaniya/zadaniya.html — волна 1+2 модуля «Задания» (шестой модуль).
+// Headless смоук для mockups/zadaniya/zadaniya.html — волна 1+2+3 модуля «Задания» (шестой модуль).
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Приёмка волны 1 (ADR-0231, ИЗ-17) — не «код есть», а РАБОТАЮЩИЙ самоопрос:
@@ -24,6 +24,12 @@
 //      обычных вида поштучно, пустые виды без ошибки, ИЗ-13 ключ на реальных видах объекта
 //      (unit/employee/territory, не только task), ИЗ-13 clamp базы срока на backdated-состоянии,
 //      Заёмщик/КЗ-13 подтверждённо отсутствует как источник, независимая заморозка по источнику.
+// Волна 3 (02.09.2026) — второй настоящий сосед, Статистика (ST.askLeads), третьим источником в
+// SOURCES, движок сверки снова не менялся, кроме одной новой ветки в computeExpectedForKind:
+//   N  #41-45 — непустой первый прогон, идемпотентный повтор, ИЗ-13 ключ взят ЦЕЛИКОМ у соседа
+//      (не пересобран), вид объекта «module» на реальном соседе «взыскание», независимая
+//      заморозка третьего источника (не гасит self/orgstruct), закрытие повода штатной сверкой
+//      (не заморозкой) когда сосед отвечает пустым, но полным множеством.
 // Блоки, которые правят состояние, начинаются с ZD.seed() — состояние между ними не течёт.
 // Отчёт вписывается в шапку макета после маркера «SMOKE (node …):»; выход 1 при любом FAIL.
 //   node scripts/inspect/zadaniya-check.mjs
@@ -56,9 +62,9 @@ const TODAY = ZD.state.today;
   ZD.seed();
   const before = ZD.state.povods.length;
   const r = ZD.runPoll();
-  ok(1, before === 0 && r.complete === true && r.sources.length === 2 &&
+  ok(1, before === 0 && r.complete === true && r.sources.length === 3 &&
        r.sources.every(s => s.answer === 'множество'),
-    `прогон ${r.id} на дату ${r.date}: оба источника волны 1+2 (self, orgstruct) ответили «множество» (ИЗ-12 п.5)`);
+    `прогон ${r.id} на дату ${r.date}: все три источника волны 1-3 (self, orgstruct, statistics) ответили «множество» (ИЗ-12 п.5)`);
   ok(2, r.sources[0].new === 3 && r.sources[0].matched === 0 && r.sources[0].gone === 0,
     `первый прогон непустой на собственных видах (source[0]=self): 3 новых повода из 3 демо-заданий, ` +
     `заведённых ДО опроса (ИЗ-17 приёмка)`);
@@ -341,7 +347,7 @@ const TODAY = ZD.state.today;
   ZD.seed();
   const r = ZD.runPoll();
   const names = r.sources.map(s => s.name);
-  ok(39, r.sources.length === 2 && !names.some(n => /заёмщик|КЗ-13/i.test(n)),
+  ok(39, r.sources.length === 3 && !names.some(n => /заёмщик|КЗ-13/i.test(n)),
     `Заёмщик/КЗ-13 не участвует ни в одном прогоне как источник опроса — односторонний поток в обратную ` +
     `сторону (ADR-0229 «Последствия»): КЗ-13 остаётся витриной, датированные строки приходят ИЗ заданий, ` +
     `не наоборот (не подключался — граница задокументирована в журнале волны 2, не решена кодом)`);
@@ -362,6 +368,83 @@ const TODAY = ZD.state.today;
     `независимая заморозка по отдельному источнику (opts.downSources, волна 2): молчит только Оргструктура — ` +
     `её ${orgFrozen} повода замерзают, self остаётся цел (${selfStillAppeared} appeared без изменений) — ` +
     `источники не гасят друг друга, недоступность соседа не есть недоступность модуля`);
+})();
+
+/* ---------- Волна 3 (02.09.2026) — третий источник, Статистика (ST.askLeads) ---------- */
+(() => {
+  ZD.seed();
+  const before = ZD.state.povods.filter(p => p.kind === 'pk-stat-neighbor-silent').length;
+  const r = ZD.runPoll();
+  const statSrc = r.sources.find(s => s.name.indexOf('Статистика') !== -1);
+  const statPovods = ZD.state.povods.filter(p => p.kind === 'pk-stat-neighbor-silent');
+  const task = ZD.state.tasks.find(t => t.originKind === 'pk-stat-neighbor-silent');
+  ok(41, before === 0 && statSrc && statSrc.answer === 'множество' && statSrc.new === 1 &&
+       statPovods.length === 1 && !!task && task.action === 'act-stat-silent',
+    `первый прогон от Статистики непустой (демо-повод взыскания): источник «${statSrc && statSrc.name}» ` +
+    `ответил «множество», 1 новый повод «${statPovods[0] && statPovods[0].key}», правило в авто-режиме ` +
+    `сразу выдало задание ${task && task.id} (подключение — записью реестра, ADR-0231 п.4)`);
+})();
+
+(() => {
+  ZD.seed();
+  ZD.runPoll();
+  const tasksBefore = ZD.state.tasks.length;
+  const r2 = ZD.runPoll();
+  const statSrc = r2.sources.find(s => s.name.indexOf('Статистика') !== -1);
+  ok(42, statSrc.new === 0 && statSrc.matched === 1 && statSrc.gone === 0 && ZD.state.tasks.length === tasksBefore,
+    `повторный прогон той же датой на источнике Статистики: new=0, matched=1, gone=0, второе задание ` +
+    `поверх открытого не выдано — полная сверка идемпотентна и здесь (ИЗ-3 п.2), тем же движком, что у self/orgstruct`);
+})();
+
+(() => {
+  ZD.seed();
+  ZD.runPoll();
+  const p = ZD.state.povods.find(p => p.kind === 'pk-stat-neighbor-silent');
+  const keyIsNeighbours = p && p.key === 'сосед-молчит/взыскание/с-2026-08-20';
+  ok(43, keyIsNeighbours && p.objectType === 'module' && p.objectId === 'взыскание' &&
+       p.traits.прогонов_подряд === 3 && /отказал по правам/.test(p.traits.причины) && /недоступен/.test(p.traits.причины),
+    `ключ шва — целиком тот, что отдаёт сосед («${p && p.key}»), не пересобран в свою тройку ` +
+    `«kindId|type:id|» (ИЗ-13 п.9 — не переизобретать период); вид объекта — «module» на реальном соседе ` +
+    `«взыскание», не «task», как у собственных видов`);
+})();
+
+(() => {
+  ZD.seed();
+  ZD.runPoll();
+  const selfAppearedBefore = ZD.state.povods.filter(p => ZD.SELF_KINDS.includes(p.kind) && p.status === 'appeared').length;
+  const orgAppearedBefore = ZD.state.povods.filter(p => /^pk-org-/.test(p.kind) && p.status === 'appeared').length;
+  const r = ZD.runPoll({ downSources: ['statistics'] });
+  const statSrc = r.sources.find(s => s.name.indexOf('Статистика') !== -1);
+  const selfSrc = r.sources.find(s => s.name.indexOf('самоопрос') !== -1);
+  const orgSrc = r.sources.find(s => s.name.indexOf('Оргструктура') !== -1);
+  const selfStillAppeared = ZD.state.povods.filter(p => ZD.SELF_KINDS.includes(p.kind) && p.status === 'appeared').length;
+  const orgStillAppeared = ZD.state.povods.filter(p => /^pk-org-/.test(p.kind) && p.status === 'appeared').length;
+  const statFrozen = ZD.state.povods.filter(p => p.kind === 'pk-stat-neighbor-silent' && p.status === 'frozen').length;
+  ok(44, r.complete === false && statSrc.answer === 'таймаут' && selfSrc.answer === 'множество' && orgSrc.answer === 'множество' &&
+       selfStillAppeared === selfAppearedBefore && orgStillAppeared === orgAppearedBefore && statFrozen === 1,
+    `независимая заморозка третьего источника: молчит только Статистика — её 1 повод замерзает, ` +
+    `self (${selfStillAppeared}) и Оргструктура (${orgStillAppeared}) остаются целы без изменений — ` +
+    `три источника не гасят друг друга (ИЗ-12 п.6)`);
+})();
+
+(() => {
+  ZD.seed();
+  ZD.runPoll();
+  const task = ZD.state.tasks.find(t => t.originKind === 'pk-stat-neighbor-silent');
+  const povodKeyBefore = task.povodKey;
+  ZD.toggleStatCleared(true);
+  const r2 = ZD.runPoll();
+  const statSrc = r2.sources.find(s => s.name.indexOf('Статистика') !== -1);
+  const p = ZD.povodByKey(povodKeyBefore);
+  const taskAfter = ZD.taskOf(task.id);
+  ok(45, statSrc.answer === 'множество' && statSrc.gone === 1 && p.status === 'gone' &&
+       p.journal[p.journal.length - 1].ev === 'отпал' &&
+       !ZD.isTerminal(taskAfter) && ZD.lastEv(taskAfter) === 'отпало',
+    `когда сосед перестаёт молчать (streak обнуляется у Статистики — полное, но ПУСТОЕ множество, ` +
+    `не таймаут), повод отпадает штатной сверкой ИЗ-3, а не заморозкой: журнал повода — «отпал»; ` +
+    `открытое на него задание не тихо закрыто, а помечено «отпало» — тем же путём, что и любое ` +
+    `непринятое задание с отпавшим поводом (handleGoneForKind), и само становится кандидатом на ` +
+    `собственный повод «отпавшее задание требует разбора» (pk-lapsed-review) при следующем самоопросе`);
 })();
 
 /* ---------- отчёт ---------- */
