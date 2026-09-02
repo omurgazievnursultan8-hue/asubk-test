@@ -1,4 +1,4 @@
-// Headless смоук для mockups/zadaniya/zadaniya.html — волна 1 модуля «Задания» (шестой модуль).
+// Headless смоук для mockups/zadaniya/zadaniya.html — волна 1+2 модуля «Задания» (шестой модуль).
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Приёмка волны 1 (ADR-0231, ИЗ-17) — не «код есть», а РАБОТАЮЩИЙ самоопрос:
@@ -18,6 +18,12 @@
 //      но факт неактивности сам становится поводом («вид повода не введён в действие»);
 //   K  уведомления — закрытый список из девяти состояний (ИЗ-14 п.1);
 //   L  сторож текста: ADR/ИЗ-номера названы в шапке, «сегодня» заморожено константой.
+// Волна 2 (ADR-0231 п.4-5, ADR-0228 ИЗ-8) — первый настоящий сосед, Оргструктура, подключён
+// вторым источником в SOURCES, движок сверки не менялся:
+//   M  #33-40 — полнота множества у нового соседа, порог свёртки первого подключения (2), три
+//      обычных вида поштучно, пустые виды без ошибки, ИЗ-13 ключ на реальных видах объекта
+//      (unit/employee/territory, не только task), ИЗ-13 clamp базы срока на backdated-состоянии,
+//      Заёмщик/КЗ-13 подтверждённо отсутствует как источник, независимая заморозка по источнику.
 // Блоки, которые правят состояние, начинаются с ZD.seed() — состояние между ними не течёт.
 // Отчёт вписывается в шапку макета после маркера «SMOKE (node …):»; выход 1 при любом FAIL.
 //   node scripts/inspect/zadaniya-check.mjs
@@ -50,17 +56,19 @@ const TODAY = ZD.state.today;
   ZD.seed();
   const before = ZD.state.povods.length;
   const r = ZD.runPoll();
-  ok(1, before === 0 && r.complete === true && r.sources.length === 1 &&
-       r.sources[0].answer === 'множество',
-    `прогон ${r.id} на дату ${r.date}: единственный источник самоопроса ответил «множество» (ИЗ-12 п.5)`);
+  ok(1, before === 0 && r.complete === true && r.sources.length === 2 &&
+       r.sources.every(s => s.answer === 'множество'),
+    `прогон ${r.id} на дату ${r.date}: оба источника волны 1+2 (self, orgstruct) ответили «множество» (ИЗ-12 п.5)`);
   ok(2, r.sources[0].new === 3 && r.sources[0].matched === 0 && r.sources[0].gone === 0,
-    `первый прогон непустой: 3 новых повода из 3 демо-заданий, заведённых ДО опроса (ИЗ-17 приёмка)`);
-  const keys = ZD.state.povods.map(p => p.key).sort();
+    `первый прогон непустой на собственных видах (source[0]=self): 3 новых повода из 3 демо-заданий, ` +
+    `заведённых ДО опроса (ИЗ-17 приёмка)`);
+  const keys = ZD.state.povods.filter(p => ZD.SELF_KINDS.includes(p.kind)).map(p => p.key).sort();
   ok(3, keys.join('|') === ['pk-await-long|task:T3|','pk-overdue|task:T1|','pk-rejected|task:T7|'].sort().join('|'),
-    `три ключа тройкой «вид · объект · период» (ИЗ-13 п.9): ${keys.join(', ')}`);
-  const issued = ZD.state.tasks.filter(t => t.originKind);
+    `три ключа тройкой «вид · объект · период» (ИЗ-13 п.9) среди собственных видов ` +
+    `(org-поводы того же прогона проверяются отдельно, #33+): ${keys.join(', ')}`);
+  const issued = ZD.state.tasks.filter(t => t.originKind && ZD.SELF_KINDS.includes(t.originKind));
   ok(4, issued.length === 3 && issued.every(t => t.ruleId && t.ruleEdition === 1),
-    `на каждый новый повод правило в авто-режиме выдало задание с редакцией правила (ИЗ-9 п.7): ` +
+    `на каждый новый повод СВОЕГО вида правило в авто-режиме выдало задание с редакцией правила (ИЗ-9 п.7): ` +
     `${issued.map(t=>t.id+':'+t.originKind).join(', ')}`);
 })();
 
@@ -252,6 +260,108 @@ const TODAY = ZD.state.today;
   ok(32, scriptOpenCount === 1 && scriptCloseCount === 1,
     `ровно один открывающий и один закрывающий тег script во всём файле, включая шапку и уже вписанный ` +
     `отчёт — наивный извлекатель регэкспом (этот смоук и его аналог для kuratorstvo) иначе режет не с того места`);
+})();
+
+/* ---------- M. Волна 2 — Оргструктура подключена первым настоящим соседом ---------- */
+(() => {
+  ZD.seed();
+  const r = ZD.runPoll();
+  const orgSrc = r.sources.find(s => s.name.indexOf('Оргструктура') !== -1);
+  ok(33, !!orgSrc && orgSrc.answer === 'множество' && orgSrc.new === 6,
+    `первое подключение Оргструктуры: полное множество за все шесть видов сразу, 6 новых поводов ` +
+    `(3 headVacant + 1 acting-expiring + 1 no-staff + 1 orphan-terr; invariant/liq-blocked пусты на ` +
+    `этих демо-данных — #36)`);
+})();
+
+(() => {
+  ZD.seed();
+  const r = ZD.runPoll();
+  const orgSrc = r.sources.find(s => s.name.indexOf('Оргструктура') !== -1);
+  const headPovods = ZD.state.povods.filter(p => p.kind === 'pk-org-head-vacant');
+  const rollupTask = ZD.state.tasks.find(t => t.originKind === 'pk-org-head-vacant' && !t.povodKey && Array.isArray(t.rollupKeys));
+  const noIndividual = !ZD.state.tasks.some(t => t.originKind === 'pk-org-head-vacant' && t.povodKey);
+  ok(34, orgSrc.rollup.includes('pk-org-head-vacant') && headPovods.length === 3 &&
+       !!rollupTask && rollupTask.rollupKeys.length === 3 && noIndividual,
+    `первое подключение — намеренно низкий порог свёртки 2 (ADR-0231 п.5, ИЗ-12 п.8): 3 вакансии ` +
+    `руководителя выше порога свернулись в один вал-таск ${rollupTask ? rollupTask.id : '?'}, ни одного ` +
+    `поштучного задания на эти три повода не выдано`);
+})();
+
+(() => {
+  ZD.seed();
+  ZD.runPoll();
+  const kinds = ['pk-org-acting-expiring','pk-org-no-staff','pk-org-orphan-terr'];
+  const okEach = kinds.every(k => {
+    const povods = ZD.state.povods.filter(p => p.kind === k);
+    const tasks = ZD.state.tasks.filter(t => t.originKind === k && t.povodKey);
+    return povods.length === 1 && tasks.length === 1;
+  });
+  ok(35, okEach,
+    `три остальных непустых вида Оргструктуры (acting-expiring/no-staff/orphan-terr) — по 1 строке, ` +
+    `ниже порога свёртки 2 — выдают задания поштучно как обычно, без свёртки`);
+})();
+
+(() => {
+  ZD.seed();
+  let threw = false;
+  try { ZD.runPoll(); } catch (e) { threw = true; }
+  const invPovods = ZD.state.povods.filter(p => p.kind === 'pk-org-invariant');
+  const liqPovods = ZD.state.povods.filter(p => p.kind === 'pk-org-liq-blocked');
+  ok(36, !threw && invPovods.length === 0 && liqPovods.length === 0,
+    `пустые списки соседа (invariant/liq-blocked на этих демо-данных) дают ноль поводов без ошибки — ` +
+    `полное множество допускает пустой ответ по виду, это не молчание источника (ИЗ-3)`);
+})();
+
+(() => {
+  ZD.seed();
+  ZD.runPoll();
+  const orgPovods = ZD.state.povods.filter(p => /^pk-org-/.test(p.kind));
+  const shapeOk = orgPovods.length > 0 &&
+    orgPovods.every(p => /^pk-org-[a-z-]+\|(unit|employee|territory):.+\|$/.test(p.key));
+  ok(37, shapeOk,
+    `ключ шва на реальных видах объекта Оргструктуры держит ту же тройку «вид повода · (вид объекта+id) · ` +
+    `период» (ИЗ-13 п.9), объект — не «task», как у собственных видов, а unit/employee/territory: ` +
+    `${orgPovods.slice(0,2).map(p=>p.key).join(' · ')}`);
+})();
+
+(() => {
+  ZD.seed();
+  ZD.runPoll();
+  const headPovods = ZD.state.povods.filter(p => p.kind === 'pk-org-head-vacant');
+  const clamped = headPovods.length === 3 && headPovods.every(p => p.stateDate === '2026-09-02');
+  const traitsHonest = headPovods.some(p => p.traits && typeof p.traits.дней_вакансии === 'number' && p.traits.дней_вакансии > 0);
+  ok(38, clamped && traitsHonest,
+    `демо-строка headVacant датирована у соседа 20.07.2026 (задолго до подключения), но povod.stateDate ` +
+    `прижат к дате ввода вида в действие 02.09.2026 (ИЗ-13 п.9 — база срока = max(дата состояния у соседа, ` +
+    `дата активации), защита от вала backdated-состояний на первом подключении); признак «дней_вакансии» ` +
+    `тем не менее честно хранит реальную давность у соседа`);
+})();
+
+(() => {
+  ZD.seed();
+  const r = ZD.runPoll();
+  const names = r.sources.map(s => s.name);
+  ok(39, r.sources.length === 2 && !names.some(n => /заёмщик|КЗ-13/i.test(n)),
+    `Заёмщик/КЗ-13 не участвует ни в одном прогоне как источник опроса — односторонний поток в обратную ` +
+    `сторону (ADR-0229 «Последствия»): КЗ-13 остаётся витриной, датированные строки приходят ИЗ заданий, ` +
+    `не наоборот (не подключался — граница задокументирована в журнале волны 2, не решена кодом)`);
+})();
+
+(() => {
+  ZD.seed();
+  ZD.runPoll();
+  const selfAppearedBefore = ZD.state.povods.filter(p => ZD.SELF_KINDS.includes(p.kind) && p.status === 'appeared').length;
+  const orgAppearedBefore = ZD.state.povods.filter(p => /^pk-org-/.test(p.kind) && p.status === 'appeared').length;
+  const r = ZD.runPoll({ downSources: ['orgstruct'] });
+  const orgSrc = r.sources.find(s => s.name.indexOf('Оргструктура') !== -1);
+  const selfSrc = r.sources.find(s => s.name.indexOf('самоопрос') !== -1);
+  const selfStillAppeared = ZD.state.povods.filter(p => ZD.SELF_KINDS.includes(p.kind) && p.status === 'appeared').length;
+  const orgFrozen = ZD.state.povods.filter(p => /^pk-org-/.test(p.kind) && p.status === 'frozen').length;
+  ok(40, r.complete === false && orgSrc.answer === 'таймаут' && selfSrc.answer === 'множество' &&
+       selfStillAppeared === selfAppearedBefore && orgAppearedBefore > 0 && orgFrozen === orgAppearedBefore,
+    `независимая заморозка по отдельному источнику (opts.downSources, волна 2): молчит только Оргструктура — ` +
+    `её ${orgFrozen} повода замерзают, self остаётся цел (${selfStillAppeared} appeared без изменений) — ` +
+    `источники не гасят друг друга, недоступность соседа не есть недоступность модуля`);
 })();
 
 /* ---------- отчёт ---------- */
