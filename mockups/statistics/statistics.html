@@ -8453,7 +8453,12 @@ function mxDimsBlock(st){
     return '<div class="mx-block"><h4>Разрезы</h4><ul class="mx-dimlist">'+(rows || '<li class="muted">нет</li>')+'</ul></div>';
   }
   const rowDims = mq.dims.filter(id => mq.axis[id] === 'rows');
-  const rows = o.dims.filter(id => mq.axis[id] !== 'cols').map(id => {
+  /* Список раньше шёл в порядке каталога (o.dims) независимо от выбранной очерёдности —
+     стрелки/драг меняли номер ord, но строка визуально стояла на месте. Активные разрезы
+     теперь идут первыми, в их реальном порядке (rowDims), — первый разрез сверху, второй
+     под ним и т.д.; невыбранные — следом, в порядке каталога. */
+  const orderedIds = rowDims.concat(o.dims.filter(id => mq.dims.indexOf(id) < 0 && mq.axis[id] !== 'cols'));
+  const rows = orderedIds.map(id => {
     const D = DIM(id), on = mq.dims.indexOf(id) >= 0, ord = on ? rowDims.indexOf(id) + 1 : null;
     const mv = on ? '<button class="mx-mv" title="выше" onclick="ST.mxMoveDim(\''+id+'\',-1)">▲</button>'+
       '<button class="mx-mv" title="ниже" onclick="ST.mxMoveDim(\''+id+'\',1)">▼</button>' : '';
