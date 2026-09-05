@@ -5,6 +5,10 @@
 // отказы словами (объект без живых строк, выведенный и неисчислимый показатель, необъявленный
 // разрез), число узла по строкам узла, корзина при чтении, подстановка даты, фиксация,
 // личность черновика, предварительный выпуск, замороженный рабочий список, просьба о публикации.
+// Волна 21 (E): два новых основных объекта — предмет залога и требование взыскания — со своими
+// полями, показателями и разрезами из реестра статистики; дедуп солидарных сумм (ИС-34).
+// Волна 22 (F): одна колонка — одна величина: строка объекта печатает меру под колонкой своего
+// агрегата (`over`), поле-уровень не повторяет, идентификатор и признаки — в первой колонке.
 //   node scripts/inspect/konstruktor-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -116,6 +120,125 @@ const ME = 'Осмонова Г.', AUTH = 'Тентимишев К.';
   const bs = KB.setBasis(), db = KB.toDashboard(), pb = KB.publish();
   ok(16, p1.ok && !p2.ok && S().asked.to === AUTH && !bs.ok && has(bs.why, 'публикующий') && !db.ok && has(db.why, 'объявленный') && !pb.ok && has(pb.why, AUTH),
     `просьба о публикации уходит ${AUTH}; норму, дашборд и публикацию черновику отказывают словами`);
+})();
+
+/* ---------- E. Волна 21: предмет залога и требование — свои поля, показатели, разрезы (ИО-2, ИО-30, ИС-34, ИС-40) ---------- */
+(() => {
+  KB.seed();
+  const r = KB.setObject('collateral');
+  const a = KB.answer();
+  const st = KB.statsAvail(), cu = KB.cutsAvail(), fl = KB.fields();
+  ok(17, r.ok && !r.switched && a.ok && a.root.count === 41 && a.hidden === 3 && has(a.passport.short, 'вам видно 41') &&
+        st.length === 8 && st.every(x => x.id.startsWith('s-c-') && x.ok) && cu.length === 9 && cu.every(x => x.id.startsWith('c-') && x.ok) &&
+        S().cuts[0].id === 'c-dept' && fl.owner === 'залог · предметы' && fl.fields.length === 16,
+    `предмет залога: перечень объявил «${fl.owner}» (${fl.fields.length} полей), палитра — ${st.length} показателей и ${cu.length + 1} разрезов, и все СВОИ ` +
+    `(ИС-40: «подразделение» кредита к предмету не прикладывается); вам видно ${a.root.count}, скрыто ${a.hidden}`);
+
+  const md = KB.setMode('сейчас');
+  KB.setObject('credit'); KB.setMode('сейчас');
+  const sw = KB.setObject('collateral');
+  ok(18, !md.ok && has(md.why, 'objectRows') && sw.switched && S().mode === 'на дату' && has(sw.why, 'ИО-30'),
+    `у предмета залога живых строк в v1 нет: «сейчас» отказан причиной, а выбор объекта в «сейчас» переключает режим и объясняет (ИО-30)`);
+
+  KB.seed(); KB.setObject('collateral');
+  S().stats = ['s-c-count', 's-c-pledge', 's-c-sec'];
+  S().cuts = [{id:'c-kind', bucket:'класс ликвидности', total:true}];
+  const byClass = KB.answer();
+  const cls = byClass.root.children;
+  const leafRows = n => n.rows ? n.rows : (n.children || []).flatMap(leafRows);
+  const hi = leafRows(cls.find(n => n.key === 'высоколиквидный')).map(x => x.kind);
+  KB.setBucket('c-kind', 'вид');
+  const byKind = KB.answer();
+  ok(19, cls.map(n => n.key).join('|') === 'высоколиквидный|средней ликвидности|низколиквидный' && byKind.root.children.length === 6 &&
+        cls.reduce((s, n) => s + n.count, 0) === 41 && byKind.root.children.reduce((s, n) => s + n.count, 0) === 41 &&
+        hi.every(k => k === 'депозит' || k === 'недвижимость'),
+    `«вид обеспечения» двухуровневый: корзина «класс ликвидности» даёт ${cls.length} узла справочником владельца (ADR-0176 §7), «вид» — ` +
+    `${byKind.root.children.length}; строки узла «высоколиквидный» хранят вид как есть (${[...new Set(hi)].join(', ')})`);
+
+  const sumKidsSec = cls.reduce((s, n) => s + n.values['s-c-sec'], 0), rootSec = byClass.root.values['s-c-sec'];
+  const sumKidsPl = cls.reduce((s, n) => s + n.values['s-c-pledge'], 0), rootPl = byClass.root.values['s-c-pledge'];
+  ok(20, rootSec < sumKidsSec && rootPl === sumKidsPl && rootSec === 131883000,
+    `«обеспечено залогом» дедупится по кредиту: итог ${Math.round(rootSec / 1e6)} млн меньше суммы классов ${Math.round(sumKidsSec / 1e6)} млн — один кредит ` +
+    `под двумя предметами есть один долг (ИС-34); аддитивная «залоговая стоимость» сходится копейка в копейку`);
+
+  KB.seed();
+  const q = KB.setObject('claim');
+  const b = KB.answer();
+  S().stats = ['s-q-count', 's-q-sum', 's-q-avgph'];
+  S().cuts = [{id:'q-role', bucket:null, total:true}];
+  const byRole = KB.answer();
+  const roles = byRole.root.children;
+  const nOf = k => (roles.find(n => n.key === k) || {count:0}).count;
+  const sumKids = roles.reduce((s, n) => s + n.values['s-q-sum'], 0), root = byRole.root.values['s-q-sum'];
+  ok(21, q.ok && b.ok && b.root.count === 28 && b.hidden === 4 && KB.fields().owner === 'взыскание · требования' &&
+        roles.map(n => n.key).join('|') === 'заёмщик|поручитель|залогодатель' && nOf('заёмщик') === 21 && nOf('поручитель') === 6 && nOf('залогодатель') === 1 &&
+        root === roles[0].values['s-q-sum'] && sumKids > root * 1.5 &&
+        byRole.passport.dedup.length === 1 && has(byRole.passport.dedup[0], 'кредит требования'),
+    `требование = дело × кредит × роль: ${b.root.count} требований (${nOf('заёмщик')} к заёмщику, ${nOf('поручитель')} к поручителю, ${nOf('залогодатель')} к залогодателю), ` +
+    `скрыто ${b.hidden}; сумма солидарна — итог ${Math.round(root / 1e6)} млн равен узлу «заёмщик», а сумма ролей ${Math.round(sumKids / 1e6)} млн больше: ` +
+    `паспорт называет дедуп-ключ «кредит требования» (ИС-34, ADR-0199)`);
+
+  S().cuts = [{id:'q-phase', bucket:null, total:false}];
+  const byPhase = KB.answer();
+  const ph = byPhase.root.children;
+  const avgKids = ph.reduce((s, n) => s + n.values['s-q-avgph'], 0), avgRoot = byPhase.root.values['s-q-avgph'];
+  KB.setAsOf('2026-07-31');
+  const july = KB.answer();
+  ok(22, ph.map(n => n.key).join('|') === 'Претензия|Иск|Решение суда|На исполнении' && ph.reduce((s, n) => s + n.count, 0) === 28 &&
+        avgKids > avgRoot * 2 && july.root.count === 21 && july.root.count < byPhase.root.count,
+    `фазы стоят порядком закрытого словаря владельца, не алфавитом; «средний срок в фазе» узла — по строкам узла (сумма средних ${avgKids.toFixed(0)} против ` +
+    `${avgRoot.toFixed(0)} по корню); снимок — это и состав: на 31.07 требований ${july.root.count}, на 31.08 — ${byPhase.root.count} (семь открыты в августе)`);
+
+  KB.seed(); KB.setObject('collateral');
+  S().stats = ['s-c-count', 's-c-avgsurv', 's-c-maxsurv'];
+  S().cuts = [{id:'c-ctl', bucket:null, total:false}];
+  const byCtl = KB.answer();
+  const none = byCtl.root.children.find(n => n.key === 'не обследован');
+  const f = KB.addFilter('surv', '>', 180);
+  KB.setDrill(true);
+  const rows = KB.rowsShown();
+  const ctlSet = [...new Set(rows.map(x => x.ctl))];
+  ok(23, byCtl.root.children.map(n => n.key).join('|') === 'в срок|контроль просрочен|не обследован' && none && none.count === 5 &&
+        none.values['s-c-avgsurv'] === null && none.values['s-c-maxsurv'] === null && byCtl.root.values['s-c-avgsurv'] > 0 &&
+        f.ok && rows.length === 18 && ctlSet.length === 1 && ctlSet[0] === 'контроль просрочен',
+    `«состояние контроля» приходит швом calcPledge: у ${none.count} необследованных срок — прочерк, не ноль (средняя по корню считается по ${41 - none.count} строкам); ` +
+    `фильтр «дней с обследования > 180» и разрез «контроль просрочен» читают одну клетку — ${rows.length} строк, все в одном узле`);
+})();
+
+/* ---------- F. Волна 22: одна колонка — одна величина; строка не повторяет дерево (ADR-0185 §3) ---------- */
+(() => {
+  const scAnswer = win.scAnswer;
+  const count = (h, re) => (h.match(re) || []).length;
+  KB.seed(); KB.setObject('collateral');
+  S().stats = ['s-c-count', 's-c-pledge', 's-c-avgsurv'];
+  S().cuts = [{id:'c-kind', bucket:'класс ликвидности', total:true}];
+  KB.setDrill(true); KB.toggleField('zstate');        // поля умолчания: no, kind, pledger, pledge, surv; + залоговый статус
+  const pl = KB.rowPlan();
+  const html = scAnswer();
+  const rows = KB.rowsShown();
+  const r0 = rows[0];
+  const objRows = html.match(/<tr class="obj">[\s\S]*?<\/tr>/g) || [];
+  const cellsOf = tr => (tr.match(/<td[^>]*>[\s\S]*?<\/td>/g) || []);
+  const first = cellsOf(objRows[0]);
+  ok(24, pl.under['s-c-pledge'] === 'pledge' && pl.under['s-c-avgsurv'] === 'surv' && pl.ident.join() === 'no,pledger' && pl.chips.join() === 'zstate' &&
+        pl.skipped.join() === 'kind' && pl.extra.length === 0 && objRows.length === rows.length && first.length === 4 &&
+        has(first[0], r0.no) && has(first[0], r0.pledger) && has(first[0], 'class="chip"') && has(first[0], r0.zstate) && !has(first[0], r0.kind) &&
+        has(first[1], '·') && has(first[2], String(r0.pledge).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')) && has(first[3], String(r0.surv)) &&
+        has(html, 'узел — сумма · строка — залоговая стоимость') && has(html, 'узел — среднее · строка — дней с последнего обследования') &&
+        has(html, 'стоит уровнем'),
+    `план строки: «залоговая стоимость» и «дней с обследования» встали ПОД колонками своих агрегатов (over реестра), «вид обеспечения» ` +
+    `не печатается — стоит уровнем; номер и залогодатель — идентификатор, залоговый статус — чип; ${objRows.length} строк × ${first.length} ячеек, лишних колонок нет`);
+
+  KB.seed(); KB.setDrill(true);                       // кредит: no, borrower, debt_main, days; уровни — срок неплатежа (days), состояние
+  const p1 = KB.rowPlan(), h1 = scAnswer();
+  KB.toggleStat('s-avg-late'); KB.toggleStat('s-portfolio');
+  const p2 = KB.rowPlan(), h2 = scAnswer();
+  const a2 = KB.answer();
+  ok(25, p1.extra.join() === 'debt_main' && p1.skipped.join() === 'days' && count(h1, /только строки/g) === 1 && p1.under['s-overdue-sum'] === 'overdue' &&
+        p2.extra.length === 0 && p2.under['s-avg-late'] === 'days' && p2.under['s-portfolio'] === 'debt_main' && count(h2, /только строки/g) === 0 &&
+        a2.passport.shown.drill.some(x => has(x, 'Остаток основного долга — под своим агрегатом')) && !a2.passport.shown.drill.some(x => has(x, 'своей колонкой')),
+    `мера без агрегата — своя колонка «только строки» («остаток» у кредита); «дней просрочки» стоит уровнем «срок неплатежа» и не повторяется; ` +
+    `включили «Остаток, всего» — остаток ушёл под свой агрегат, колонок «только строки» 0, паспорт называет размещение`);
 })();
 
 /* ---------- отчёт ---------- */

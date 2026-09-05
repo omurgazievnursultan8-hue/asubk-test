@@ -8,10 +8,17 @@
   Упрощённый прототип (single-file) — страница ПОЛЬЗОВАТЕЛЯ «Конструктор: личный черновик
   состава». Модуль «Отчётность» (TO-BE). Большой макет — reports.html, канон —
   ASUBK-otchetnost-logika.md, журнал волн — ASUBK-status-razrabotki.md (волна 20).
-  Одна роль (Осмонова Г., пользователь), два живых объекта, оба режима времени, дерево уровней
-  с паспортом, углубление до строк, четыре действия и два отказа причиной.
+  Одна роль (Осмонова Г., пользователь), четыре основных объекта (кредит · заёмщик · предмет
+  залога · требование взыскания; живые строки в v1 — только у кредита), оба режима времени,
+  дерево уровней с паспортом, углубление до строк, четыре действия и два отказа причиной.
+  Волна 21: предмет залога и требование заведены записями реестров соседей — поля у владельца
+  (залог, взыскание), показатели и разрезы у статистики по её же реестру (obj-collateral,
+  obj-claim); движок страницы не менялся, кроме дедуп-ключа солидарных сумм (ИС-34).
+  Волна 22: колонки разрезов и строк объединены по роду величины — одна колонка — одна
+  величина: узел печатает агрегат, строка — строчную меру под ним (`over` реестра); поле-уровень
+  в строке не повторяется; идентификатор и признаки — первая колонка (rowPlan).
   Смоук: node scripts/inspect/konstruktor-check.mjs
-  SMOKE 2026-09-05 · 16/16 PASS
+  SMOKE 2026-09-05 · 25/25 PASS
   PASS  # 1  на 31.08 вам видно 47, скрыто областью видимости 3; краткий паспорт: «на 31.08 (5 дней назад) · не зафикс. · вам видно 47»
   PASS  # 2  снимок — это и СОСТАВ: на 31.07 видно 45 (два договора рождены в августе); 31.07 — «зафиксировано», 31.08 — «не зафиксировано»
   PASS  # 3  дата без снимка подставляется ВСЛУХ: спрошено 2026-09-05, показано 2026-08-31, баннер называет подстановку (ИО-26)
@@ -28,6 +35,15 @@
   PASS  #14  выгрузка = предварительный личный выпуск В-Л-1 с паспортом в файле; окончательный отказан: «окончательный выпуск у личного черновика невозможен: числа м…»
   PASS  #15  список без строк отказан; «Долг 181+» заморожен на 5 объектах через выпуск В-Л-2, хотя экран уже показывает 10 — состав под ногами не меняется
   PASS  #16  просьба о публикации уходит Тентимишев К.; норму, дашборд и публикацию черновику отказывают словами
+  PASS  #17  предмет залога: перечень объявил «залог · предметы» (16 полей), палитра — 8 показателей и 10 разрезов, и все СВОИ (ИС-40: «подразделение» кредита к предмету не прикладывается); вам видно 41, скрыто 3
+  PASS  #18  у предмета залога живых строк в v1 нет: «сейчас» отказан причиной, а выбор объекта в «сейчас» переключает режим и объясняет (ИО-30)
+  PASS  #19  «вид обеспечения» двухуровневый: корзина «класс ликвидности» даёт 3 узла справочником владельца (ADR-0176 §7), «вид» — 6; строки узла «высоколиквидный» хранят вид как есть (депозит, недвижимость)
+  PASS  #20  «обеспечено залогом» дедупится по кредиту: итог 132 млн меньше суммы классов 220 млн — один кредит под двумя предметами есть один долг (ИС-34); аддитивная «залоговая стоимость» сходится копейка в копейку
+  PASS  #21  требование = дело × кредит × роль: 28 требований (21 к заёмщику, 6 к поручителю, 1 к залогодателю), скрыто 4; сумма солидарна — итог 40 млн равен узлу «заёмщик», а сумма ролей 77 млн больше: паспорт называет дедуп-ключ «кредит требования» (ИС-34, ADR-0199)
+  PASS  #22  фазы стоят порядком закрытого словаря владельца, не алфавитом; «средний срок в фазе» узла — по строкам узла (сумма средних 224 против 60 по корню); снимок — это и состав: на 31.07 требований 21, на 31.08 — 28 (семь открыты в августе)
+  PASS  #23  «состояние контроля» приходит швом calcPledge: у 5 необследованных срок — прочерк, не ноль (средняя по корню считается по 36 строкам); фильтр «дней с обследования > 180» и разрез «контроль просрочен» читают одну клетку — 18 строк, все в одном узле
+  PASS  #24  план строки: «залоговая стоимость» и «дней с обследования» встали ПОД колонками своих агрегатов (over реестра), «вид обеспечения» не печатается — стоит уровнем; номер и залогодатель — идентификатор, залоговый статус — чип; 41 строк × 4 ячеек, лишних колонок нет
+  PASS  #25  мера без агрегата — своя колонка «только строки» («остаток» у кредита); «дней просрочки» стоит уровнем «срок неплатежа» и не повторяется; включили «Остаток, всего» — остаток ушёл под свой агрегат, колонок «только строки» 0, паспорт называет размещение
 -->
 <style>
 :root{
@@ -187,6 +203,9 @@ table.cgrid tr.obj td{ font-size:12.5px; color:var(--text-muted); background:var
 table.cgrid tr.obj td:first-child{ padding-left:36px; }
 table.cgrid tr.obj td .f{ color:var(--text-body); }
 table.cgrid tr.obj td .sep{ color:var(--text-placeholder); margin:0 6px; }
+table.cgrid tr.obj td .chip{ display:inline-block; margin-left:6px; padding:0 6px; border-radius:var(--radius-pill);
+  background:var(--asubk-tint-fill); color:var(--text-muted); font-size:11.5px; line-height:18px; white-space:nowrap; }
+table.cgrid thead th.num .th-sub{ text-align:right; }
 table.cgrid tr.root td{ background:var(--surface-panel); font-weight:var(--weight-semibold); border-top:2px solid var(--border-strong); }
 .empty{ padding:24px; text-align:center; color:var(--text-muted); font:var(--font-label); }
 
@@ -265,6 +284,8 @@ const ageText = d => { const n = daysBetween(d, TODAY);
   return n === 0 ? 'сегодня' : n === 1 ? 'вчера' : n + ' ' + plural(n, 'день', 'дня', 'дней') + ' назад'; };
 const objWord = n => n + ' ' + plural(n, 'кредит', 'кредита', 'кредитов');
 const brWord = n => n + ' ' + plural(n, 'заёмщик', 'заёмщика', 'заёмщиков');
+const colWord = n => n + ' ' + plural(n, 'предмет залога', 'предмета залога', 'предметов залога');
+const clWord = n => n + ' ' + plural(n, 'требование', 'требования', 'требований');
 
 /* ======================================================================
    1. ЗАГЛУШКИ СОСЕДЕЙ
@@ -291,6 +312,7 @@ const FIELDS = {
     {id:'sum',       name:'Сумма договора',          type:'число', unit:'сом'},
     {id:'date',      name:'Дата договора',           type:'дата'},
     {id:'debt_main', name:'Остаток основного долга', type:'число', unit:'сом'},
+    {id:'overdue',   name:'Просроченная задолженность', type:'число', unit:'сом'},
     {id:'days',      name:'Дней просрочки',          type:'число', unit:'дн.'},
     {id:'status',    name:'Состояние',               type:'словарь', dict:'status'}
   ]},
@@ -299,19 +321,83 @@ const FIELDS = {
     {id:'inn',     name:'ИНН',             type:'текст'},
     {id:'dept',    name:'Подразделение',   type:'словарь', dict:'dept'},
     {id:'curator', name:'Ведущий куратор', type:'словарь', dict:'curator'},
-    {id:'risk',    name:'Категория риска', type:'словарь', dict:'risk'}
-  ]}
+    {id:'risk',    name:'Категория риска', type:'словарь', dict:'risk'},
+    /* портфельные величины заёмщика — шов calcPortfolio ядра (ИС-28), строка их несёт, не выводит */
+    {id:'portfolio', name:'Свод долга по договорам', type:'число', unit:'сом'},
+    {id:'contracts', name:'Число договоров',         type:'число', unit:'ед.'},
+    {id:'worst',     name:'Худшая просрочка',        type:'число', unit:'дн.'}
+  ], drill:['name', 'curator', 'risk']},
+  /* ПРЕДМЕТ ЗАЛОГА — вещь, а не договор (CONTEXT.md «Предмет залога»): у неё свой
+     залогодатель, своя оценка в своей валюте, своя история обследований. Перечень объявил
+     залог; величины «залоговая», «отнесено», «доступно» приходят его швом calcPledge —
+     страница их не выводит (ИС-1, ADR-0190). Живых строк в v1 нет (ИО-30). */
+  collateral: {name:'предмет залога', owner:'залог · предметы', word: colWord, fields:[
+    {id:'no',      name:'Номер предмета',              type:'текст'},
+    {id:'kind',    name:'Вид обеспечения',             type:'словарь', dict:'kind'},
+    {id:'pledger', name:'Залогодатель',                type:'текст'},
+    {id:'dept',    name:'Подразделение',               type:'словарь', dict:'dept'},
+    {id:'region',  name:'Территория',                  type:'словарь', dict:'region'},
+    {id:'cur',     name:'Валюта оценки',               type:'словарь', dict:'cur'},
+    {id:'adm',     name:'Дата принятия в залог',       type:'дата'},
+    {id:'zstate',  name:'Залоговый статус',            type:'словарь', dict:'zstate'},
+    {id:'ban',     name:'Запрет на отчуждение',        type:'словарь', dict:'yesno'},
+    {id:'insured', name:'Застрахован',                 type:'словарь', dict:'yesno'},
+    {id:'val',     name:'Оценочная стоимость',         type:'число', unit:'сом'},
+    {id:'pledge',  name:'Залоговая стоимость',         type:'число', unit:'сом'},
+    {id:'alloc',   name:'Отнесено под кредиты',        type:'число', unit:'сом'},
+    {id:'sec',     name:'Обеспечиваемые требования',   type:'число', unit:'сом'},
+    {id:'ccred',   name:'Обеспечиваемых кредитов',     type:'число', unit:'ед.'},
+    {id:'surv',    name:'Дней с последнего обследования', type:'число', unit:'дн.'}
+  ], drill:['no', 'kind', 'pledger', 'pledge', 'surv']},
+  /* ТРЕБОВАНИЕ ВЗЫСКАНИЯ — дело × кредит × роль обязанного лица (CONTEXT.md «Требование»).
+     Фаза, охват, сумма — выводятся у владельца из журнала мер; перечень объявило взыскание.
+     Требование к заёмщику ставит система на 1-й день просрочки (п. 16.1); к поручителю и
+     залогодателю — второе и третье по тому же кредиту, каждое с ПОЛНОЙ суммой (солидарность). */
+  claim: {name:'требование взыскания', owner:'взыскание · требования', word: clWord, fields:[
+    {id:'no',      name:'Номер требования',            type:'текст'},
+    {id:'caseNo',  name:'Дело взыскания',              type:'текст'},
+    {id:'credit',  name:'Кредит требования',           type:'текст'},
+    {id:'person',  name:'Обязанное лицо',              type:'текст'},
+    {id:'role',    name:'Роль обязанного лица',        type:'словарь', dict:'role'},
+    {id:'basis',   name:'Основание открытия',          type:'словарь', dict:'basis'},
+    {id:'phase',   name:'Фаза взыскания',              type:'словарь', dict:'phase'},
+    {id:'scope',   name:'Охват требования',            type:'словарь', dict:'scope'},
+    {id:'dept',    name:'Подразделение требования',    type:'словарь', dict:'dept'},
+    {id:'curator', name:'Куратор требования',          type:'словарь', dict:'curator'},
+    {id:'cur',     name:'Валюта требования',           type:'словарь', dict:'cur'},
+    {id:'qdate',   name:'Дата открытия',               type:'дата'},
+    {id:'sum',     name:'Сумма требования',            type:'число', unit:'сом'},
+    {id:'phdays',  name:'Дней в текущей фазе',         type:'число', unit:'дн.'}
+  ], drill:['no', 'credit', 'person', 'role', 'phase', 'sum']}
 };
+FIELDS.credit.drill = ['no', 'borrower', 'debt_main', 'days'];
 /* В v1 живые строки (objectRows) ядро отдаёт только по кредиту (ИО-30, ADR-0181 §4). */
 const LIVE_OBJECTS = ['credit'];
 
+/* Справочники значений — у владельца поля; порядок значений — порядок узлов дерева. */
 const DICTS = {
   dept: DEPTS.map(d => d.name),
   program: ['Промышленность', 'Агропереработка', 'Экспорт', 'Малый бизнес'],
   status: ['действующий', 'просроченный', 'на взыскании', 'закрыт'],
   curator: ['Осмонова Г.', 'Кадыров Б.', 'Сыдыкова А.', 'Токтосунов Э.', 'Асанов А.'],
-  risk: ['низкий', 'средний', 'высокий']
+  risk: ['низкий', 'средний', 'высокий'],
+  /* залог: вид обеспечения → класс ликвидности задаёт справочник видов у владельца (ADR-0176 §7) */
+  kind: ['недвижимость', 'земельный участок', 'транспорт', 'оборудование', 'товары в обороте', 'депозит'],
+  kclass: ['высоколиквидный', 'средней ликвидности', 'низколиквидный'],
+  region: ['г. Бишкек', 'Чуйская область', 'Ошская область', 'Иссык-Кульская область'],
+  cur: ['сом', 'USD'],
+  zstate: ['в залоге', 'реализуется', 'освобождён'],
+  ctl: ['в срок', 'контроль просрочен', 'не обследован'],
+  yesno: ['да', 'нет'],
+  /* взыскание */
+  role: ['заёмщик', 'поручитель', 'залогодатель'],
+  basis: ['просрочка', 'привлечение обеспечителя', 'сведения о банкротстве'],
+  phase: ['Претензия', 'Иск', 'Решение суда', 'На исполнении', 'закрыто'],
+  scope: ['просроченная сумма · деньгами', 'полный остаток · деньгами', 'полный остаток · на предмет залога']
 };
+const KIND_CLASS = {'депозит':'высоколиквидный', 'недвижимость':'высоколиквидный', 'транспорт':'средней ликвидности',
+  'земельный участок':'средней ликвидности', 'оборудование':'низколиквидный', 'товары в обороте':'низколиквидный'};
+const KIND_DISCOUNT = {'депозит':0.02, 'недвижимость':0.20, 'транспорт':0.35, 'земельный участок':0.30, 'оборудование':0.45, 'товары в обороте':0.50};
 
 /* СТАТИСТИКА: реестр показателей. Источник объявлен, формулы нет (ADR-0150).
    `live` — исчислимость налету, объявляет владелец реестра (ADR-0159). */
@@ -327,8 +413,48 @@ const STATS = [
   /* Портфельные показатели заёмщика — считает портфельный шов, отчётность их не складывает. */
   {id:'s-b-debt',      object:'borrower', name:'Свод долга по договорам',          unit:'сом', live:true,  agg:'сумма'},
   {id:'s-b-cnt',       object:'borrower', name:'Число договоров',                  unit:'ед.', live:true,  agg:'сумма'},
-  {id:'s-b-worst',     object:'borrower', name:'Худшая просрочка',                 unit:'дн.', live:true,  agg:'максимум'}
+  {id:'s-b-worst',     object:'borrower', name:'Худшая просрочка',                 unit:'дн.', live:true,  agg:'максимум'},
+  /* Предмет залога — агрегаты реестра статистики по obj-collateral (a-count, a-sumcval,
+     a-sumcpledge, a-sumcalloc, a-sumcfree, a-sumcsec, a-maxcsurv, a-avgcsurv). Строчные
+     величины (стоимости, срок без обследования) отдаёт шов залога calcPledge. */
+  {id:'s-c-count',     object:'collateral', name:'Предметов залога, всего',        unit:'ед.', live:false, agg:'количество',
+   why:'строки предмета залога в v1 отдаёт только прогон статистики (ИО-30)'},
+  {id:'s-c-val',       object:'collateral', name:'Оценочная стоимость, итого',     unit:'сом', live:false, agg:'сумма',
+   why:'строки предмета залога в v1 отдаёт только прогон статистики (ИО-30)'},
+  {id:'s-c-pledge',    object:'collateral', name:'Залоговая стоимость, итого',     unit:'сом', live:false, agg:'сумма',
+   why:'строки предмета залога в v1 отдаёт только прогон статистики (ИО-30)'},
+  {id:'s-c-alloc',     object:'collateral', name:'Отнесено под кредиты, итого',    unit:'сом', live:false, agg:'сумма',
+   why:'строки предмета залога в v1 отдаёт только прогон статистики (ИО-30)'},
+  {id:'s-c-free',      object:'collateral', name:'Доступно к перезалогу, итого',   unit:'сом', live:false, agg:'сумма',
+   why:'строки предмета залога в v1 отдаёт только прогон статистики (ИО-30)'},
+  {id:'s-c-sec',       object:'collateral', name:'Обеспечено залогом, итого',      unit:'сом', live:false, agg:'сумма · дедуп по кредиту',
+   dedup:'обеспечиваемый кредит', why:'строки предмета залога в v1 отдаёт только прогон статистики (ИО-30)'},
+  {id:'s-c-maxsurv',   object:'collateral', name:'Худший срок без обследования',   unit:'дн.', live:false, agg:'максимум',
+   why:'строки предмета залога в v1 отдаёт только прогон статистики (ИО-30)'},
+  {id:'s-c-avgsurv',   object:'collateral', name:'Средний срок без обследования',  unit:'дн.', live:false, agg:'среднее',
+   why:'строки предмета залога в v1 отдаёт только прогон статистики (ИО-30)'},
+  /* Требование взыскания — агрегаты по obj-claim (a-count, a-sumclsum, a-avgclphdays).
+     У суммы объявлен ДЕДУП-КЛЮЧ «кредит требования» (ИС-34, ADR-0199): солидарные требования
+     к заёмщику и поручителю правдивы каждое, но долг у кредита один — узел берёт по каждому
+     кредиту наибольшее, и сумма детей уровня «роль» итогу не равна. */
+  {id:'s-q-count',     object:'claim', name:'Требований, всего',                   unit:'ед.', live:false, agg:'количество',
+   why:'строки требования в v1 отдаёт только прогон статистики (ИО-30)'},
+  {id:'s-q-sum',       object:'claim', name:'Сумма требований, итого',             unit:'сом', live:false, agg:'сумма · дедуп по кредиту (ИС-34)',
+   dedup:'кредит требования', why:'строки требования в v1 отдаёт только прогон статистики (ИО-30)'},
+  {id:'s-q-avgph',     object:'claim', name:'Средний срок в фазе',                 unit:'дн.', live:false, agg:'среднее',
+   why:'строки требования в v1 отдаёт только прогон статистики (ИО-30)'}
 ];
+/* Агрегат объявлен НАД строчной мерой — реквизит записи реестра (`over` у a-* статистики).
+   Страница читает его, чтобы строка объекта печатала меру под колонкой своего агрегата:
+   одна колонка — одна величина в двух породах (волна 22, ADR-0185 §3). У «количества» меры нет. */
+const OVER = {
+  's-overdue-sum':'overdue', 's-portfolio':'debt_main', 's-avg-late':'days',
+  's-b-debt':'portfolio', 's-b-cnt':'contracts', 's-b-worst':'worst',
+  's-c-val':'val', 's-c-pledge':'pledge', 's-c-alloc':'alloc', 's-c-free':'free', 's-c-sec':'sec',
+  's-c-maxsurv':'surv', 's-c-avgsurv':'surv',
+  's-q-sum':'sum', 's-q-avgph':'phdays'
+};
+STATS.forEach(s => { if(OVER[s.id]) s.over = OVER[s.id]; });
 const STAT = id => STATS.find(s => s.id === id);
 
 /* СТАТИСТИКА: разрезы. `declared` — прогон собирает по нему строки среза; без
@@ -339,13 +465,40 @@ const CUTS = [
   {id:'status',   object:'credit',   name:'состояние кредита',   declared:true,  field:'status'},
   {id:'late',     object:'credit',   name:'срок неплатежа',      declared:true,  field:'days',
    buckets:{'ступени':['0 дней','1–30 дней','31–90 дней','91–180 дней','181+ дней']}},
-  {id:'cdate',    object:'credit',   name:'дата договора',       declared:true,  field:'date',
+  {id:'cdate',    object:'credit',   name:'дата договора',       declared:true,  field:'date', kind:'дата',
    buckets:{'год':null, 'квартал':null, 'месяц':null}},
   {id:'borrower', object:'credit',   name:'заёмщик',             declared:true,  field:'borrower'},
   {id:'program',  object:'credit',   name:'кредитная программа', declared:false, field:'program'},
   {id:'b-dept',   object:'borrower', name:'подразделение',       declared:true,  field:'dept'},
   {id:'b-cur',    object:'borrower', name:'ведущий куратор',     declared:true,  field:'curator'},
-  {id:'b-risk',   object:'borrower', name:'категория риска',     declared:true,  field:'risk'}
+  {id:'b-risk',   object:'borrower', name:'категория риска',     declared:true,  field:'risk'},
+  /* Предмет залога — разрезы реестра статистики по obj-collateral (d-cbranch, d-ccurator,
+     d-collkind, d-cregion, d-ccur, d-cadm, d-czstate, d-cban, d-cpledger, d-cctl). «Вид
+     обеспечения» двухуровневый: класс ликвидности берётся справочником видов у владельца,
+     от него зависит порог обеспечения (ADR-0176 §7). Свои разрезы — своими записями:
+     «подразделение» кредита к предмету не прикладывается (ИС-40, ADR-0206 §3). */
+  {id:'c-dept',    object:'collateral', name:'подразделение предмета залога', declared:true, field:'dept'},
+  {id:'c-curator', object:'collateral', name:'куратор предмета залога',       declared:true, field:'curator'},
+  {id:'c-kind',    object:'collateral', name:'вид обеспечения',               declared:true, field:'kind',
+   buckets:{'вид':null, 'класс ликвидности':null}},
+  {id:'c-region',  object:'collateral', name:'территория предмета залога',    declared:true, field:'region'},
+  {id:'c-cur',     object:'collateral', name:'валюта оценки',                 declared:true, field:'cur'},
+  {id:'c-adm',     object:'collateral', name:'дата принятия в залог',         declared:true, field:'adm', kind:'дата',
+   buckets:{'год':null, 'квартал':null, 'месяц':null}},
+  {id:'c-zstate',  object:'collateral', name:'залоговый статус',              declared:true, field:'zstate'},
+  {id:'c-ban',     object:'collateral', name:'запрет на отчуждение',          declared:true, field:'ban'},
+  {id:'c-pledger', object:'collateral', name:'залогодатель',                  declared:true, field:'pledger'},
+  {id:'c-ctl',     object:'collateral', name:'состояние контроля',            declared:true, field:'ctl'},
+  /* Требование взыскания — разрезы по obj-claim (d-clbranch, d-clcurator, d-phase, d-clcase,
+     d-clcred, d-crole, d-clscope, d-clcur). Фаза и роль — из закрытых словарей владельца. */
+  {id:'q-dept',    object:'claim', name:'подразделение требования', declared:true, field:'dept'},
+  {id:'q-curator', object:'claim', name:'куратор требования',       declared:true, field:'curator'},
+  {id:'q-phase',   object:'claim', name:'фаза взыскания',           declared:true, field:'phase'},
+  {id:'q-role',    object:'claim', name:'роль обязанного лица',     declared:true, field:'role'},
+  {id:'q-scope',   object:'claim', name:'охват требования',         declared:true, field:'scope'},
+  {id:'q-cur',     object:'claim', name:'валюта требования',        declared:true, field:'cur'},
+  {id:'q-case',    object:'claim', name:'дело взыскания',           declared:true, field:'caseNo'},
+  {id:'q-credit',  object:'claim', name:'кредит требования',        declared:true, field:'credit'}
 ];
 const CUT = id => CUTS.find(c => c.id === id);
 
@@ -405,11 +558,100 @@ const CREDITS = (() => {
     const closedAt = (i === 6 || i === 20) ? '2026-06-15' : null;    // два закрытых: строка остаётся
     const paidAt = (i === 3 || i === 21) ? '2026-09-03' : null;       // погасили просрочку после 31.08
     const program = DICTS.program[Math.floor(rnd() * 4)];
+    const cur = i % 9 === 4 ? 'USD' : 'сом';                          // валюта договора — нужна залогу и требованию
     out.push({id:'c' + pad2(i + 1), no, borrowerId: bid, borrower: b.name, dept: b.dept,
-      program, sum, date, missAt, closedAt, paidAt});
+      program, sum, date, cur, missAt, closedAt, paidAt});
   });
   return out;
 })();
+
+/* ---------- данные: предметы залога (владелец — залог) ---------- */
+/* ~43 предмета: у каждого свой залогодатель (заёмщик или третье лицо), оценка в валюте
+   обеспечиваемого кредита, отнесения под 1–2 кредита одного заёмщика, обследования. Три
+   предмета — у кредитов чужих подразделений (скрыты областью видимости). */
+const THIRD_PARTIES = ['Жумабекова Н. (третье лицо)', 'ОсОО «Кут-Мүлк» (третье лицо)', 'Асанов Т. (третье лицо)'];
+const COLLATERAL = (() => {
+  const rnd = mulberry32(20260905 + 21);
+  const out = [];
+  const byBorrower = {};
+  CREDITS.forEach(c => { (byBorrower[c.borrowerId] = byBorrower[c.borrowerId] || []).push(c); });
+  let n = 0;
+  Object.keys(byBorrower).forEach(bid => {
+    const cs = byBorrower[bid], b = BR(bid);
+    const k = bid === 'b17' ? 2 : bid === 'b18' ? 1 : 2 + Math.floor(rnd() * 2);      // 2–3 предмета на заёмщика
+    for(let j = 0; j < k; j++){
+      n++;
+      const kind = DICTS.kind[Math.floor(rnd() * DICTS.kind.length)];
+      const first = cs[j % cs.length];
+      const secured = [first].concat(cs.filter(c => c !== first && c.cur === first.cur).slice(0, Math.floor(rnd() * 2))); // валюта одна (CONTEXT «Валюта оценки»)
+      const adm = addDays(first.date, Math.floor(rnd() * 20));                                   // принят при выдаче
+      const val = Math.round(secured.reduce((s, c) => s + c.sum, 0) * (1.2 + rnd() * 0.9) / 100000) * 100000;
+      const pledger = n % 4 === 0 ? THIRD_PARTIES[n % 3] : b.name;                               // каждый четвёртый — имущественный залог третьего лица
+      const region = b.dept === 'rep-osh' ? 'Ошская область' : DICTS.region[Math.floor(rnd() * 3)];
+      const lastSurvey = rnd() < 0.12 ? null : addDays('2026-08-31', -Math.floor(rnd() * 300));   // ~12% не обследованы
+      out.push({id:'z' + pad2(n), no:'ПЗ-' + adm.slice(0, 4) + '-' + String(n * 5 + 7).padStart(3, '0'), kind, pledger,
+        dept: b.dept, curator: b.curator, region, cur: first.cur, adm, val, creditIds: secured.map(c => c.id),
+        lastSurvey, ban: rnd() < 0.3 ? 'да' : 'нет', insured: kind === 'депозит' ? 'нет' : rnd() < 0.7 ? 'да' : 'нет'});
+    }
+  });
+  return out;
+})();
+/* Состояние предмета на дату D — строка среза, собранная прогоном по шву залога calcPledge. */
+function collateralAt(z, D){
+  if(z.adm > D) return null;                                          // до принятия предмета нет
+  const cs = z.creditIds.map(id => creditAt(CREDITS.find(c => c.id === id), D)).filter(Boolean);
+  const live = cs.filter(c => c.status !== 'закрыт');
+  const pledge = Math.round(z.val * (1 - KIND_DISCOUNT[z.kind]) / 1000) * 1000;
+  const alloc = Math.min(pledge, live.reduce((s, c) => s + c.debt_main, 0));  // отнесено — не выше залоговой
+  const zstate = !live.length ? 'освобождён' : live.some(c => c.days > 270) ? 'реализуется' : 'в залоге';
+  const surv = z.lastSurvey && z.lastSurvey <= D ? daysBetween(z.lastSurvey, D) : null;
+  const ctl = surv == null ? 'не обследован' : surv > 180 ? 'контроль просрочен' : 'в срок';
+  const secBy = {}; live.forEach(c => { secBy[c.id] = c.debt_main; });   // обеспечиваемое — по каждому кредиту отдельно
+  return {id:z.id, no:z.no, kind:z.kind, pledger:z.pledger, dept:z.dept, curator:z.curator, region:z.region, cur:z.cur,
+    adm:z.adm, zstate, ban:z.ban, insured:z.insured, val:z.val, pledge, alloc, free: pledge - alloc,
+    secBy, sec: live.reduce((s, c) => s + c.debt_main, 0), ccred: live.length, surv, ctl};
+}
+
+/* ---------- данные: требования взыскания (владелец — взыскание) ---------- */
+/* Требование к заёмщику ставит система на 1-й день просрочки; при просрочке свыше 90 дней
+   по кредиту с поручителем открывается второе — к поручителю; свыше 180 и при живом предмете
+   залога — третье, к залогодателю. Дело одно на заёмщика. Погашение закрывает требование,
+   строка остаётся в срезе с фазой «закрыто». */
+const GUARANTORS = ['Асанова Ж.', 'ОсОО «Гарант-Юг»', 'Токтогулов М.', 'ИП Бекова А.', 'ОАО «Кыргызгарант»'];
+const CLAIMS = (() => {
+  const out = [];
+  const caseNo = {};
+  let n = 0;
+  CREDITS.forEach((c, i) => {
+    if(!c.missAt) return;
+    const b = BR(c.borrowerId);
+    if(!caseNo[c.borrowerId]) caseNo[c.borrowerId] = 'ДВ-2026-' + String(Object.keys(caseNo).length * 3 + 11).padStart(3, '0');
+    const base = {credit: c.no, creditId: c.id, caseNo: caseNo[c.borrowerId], dept: c.dept, curator: b.curator, cur: c.cur};
+    out.push(Object.assign({id:'q' + pad2(++n), no:'ТР-2026/' + String(n * 4 + 1).padStart(3, '0'), role:'заёмщик', person: b.name,
+      basis:'просрочка', qdate: c.missAt}, base));
+    if(i % 3 !== 2) out.push(Object.assign({id:'q' + pad2(++n), no:'ТР-2026/' + String(n * 4 + 1).padStart(3, '0'), role:'поручитель',
+      person: GUARANTORS[i % GUARANTORS.length], basis:'привлечение обеспечителя', qdate: addDays(c.missAt, 91)}, base));
+    const z = COLLATERAL.find(x => x.creditIds.indexOf(c.id) !== -1 && x.pledger !== b.name);
+    if(z) out.push(Object.assign({id:'q' + pad2(++n), no:'ТР-2026/' + String(n * 4 + 1).padStart(3, '0'), role:'залогодатель',
+      person: z.pledger, basis:'привлечение обеспечителя', qdate: addDays(c.missAt, 181), onPledge:true}, base));
+  });
+  return out;
+})();
+function claimAt(q, D){
+  if(q.qdate > D) return null;                                        // требование ещё не открыто
+  const c = creditAt(CREDITS.find(x => x.id === q.creditId), D);
+  const closed = !c || c.days === 0;                                  // просрочка погашена или кредит закрыт
+  const age = daysBetween(q.qdate, D);
+  const steps = [['Претензия', 0], ['Иск', 30], ['Решение суда', 90], ['На исполнении', 180]];
+  let phase = 'Претензия', since = 0;
+  steps.forEach(s => { if(age >= s[1]){ phase = s[0]; since = s[1]; } });
+  if(closed){ phase = 'закрыто'; since = age; }
+  const full = c && c.days > 90;
+  const scope = q.onPledge ? 'полный остаток · на предмет залога' : full ? 'полный остаток · деньгами' : 'просроченная сумма · деньгами';
+  const sum = closed ? 0 : full ? c.debt_main : c.overdue;
+  return {id:q.id, no:q.no, caseNo:q.caseNo, credit:q.credit, creditId:q.creditId, person:q.person, role:q.role, basis:q.basis,
+    phase, scope, dept:q.dept, curator:q.curator, cur:q.cur, qdate:q.qdate, sum, phdays: closed ? 0 : age - since};
+}
 
 /* Состояние кредита на дату D — то, что положил бы в строку среза ночной прогон
    (или отдало бы ядро живым запросом). Величины — заглушка ядра; отчётность их не выводит. */
@@ -437,8 +679,10 @@ function borrowerAt(b, D){
 /* Строки среза, собранные «прогоном» на объявленные даты. */
 const HIST = {};
 SNAPSHOTS.forEach(D => { HIST[D] = {
-  credit:   CREDITS.map(c => creditAt(c, D)).filter(Boolean),
-  borrower: BORROWERS.map(b => borrowerAt(b, D)).filter(Boolean) }; });
+  credit:     CREDITS.map(c => creditAt(c, D)).filter(Boolean),
+  borrower:   BORROWERS.map(b => borrowerAt(b, D)).filter(Boolean),
+  collateral: COLLATERAL.map(z => collateralAt(z, D)).filter(Boolean),
+  claim:      CLAIMS.map(q => claimAt(q, D)).filter(Boolean) }; });
 const LIVE = () => ({ credit: CREDITS.map(c => creditAt(c, TODAY)).filter(Boolean) });
 
 /* ======================================================================
@@ -471,35 +715,57 @@ function applyFilters(obj, rows, filters){
 function cutValue(cut, bucket, r){
   const x = r[cut.field];
   if(cut.id === 'late'){ return x === 0 ? '0 дней' : x <= 30 ? '1–30 дней' : x <= 90 ? '31–90 дней' : x <= 180 ? '91–180 дней' : '181+ дней'; }
-  if(cut.id === 'cdate'){ const y = x.slice(0, 4), m = Number(x.slice(5, 7));
+  if(cut.kind === 'дата'){ const y = x.slice(0, 4), m = Number(x.slice(5, 7));
     return bucket === 'год' ? y : bucket === 'квартал' ? y + ' · ' + ['I','II','III','IV'][Math.floor((m - 1) / 3)] + ' кв.'
          : MONTHS_N[m - 1] + ' ' + y; }
+  if(cut.id === 'c-kind' && bucket === 'класс ликвидности') return KIND_CLASS[x];   // уровень выше — справочником владельца
   if(cut.field === 'dept') return deptName(x);
   return String(x);
 }
+/* Порядок узлов — порядок справочника владельца поля; у дат и ступеней — свой. */
+const dictOfCut = cut => { const fd = fieldOf(cut.object, cut.field); return fd && fd.dict ? DICTS[fd.dict] : null; };
 function cutOrder(cut, bucket, keys){
   if(cut.id === 'late') return CUT('late').buckets['ступени'].filter(k => keys.indexOf(k) !== -1);
-  if(cut.id === 'cdate'){ if(bucket === 'месяц') return keys.slice().sort((a, b) => {
+  if(cut.kind === 'дата'){ if(bucket === 'месяц') return keys.slice().sort((a, b) => {
       const pa = a.split(' '), pb = b.split(' ');
       return (pa[1] + pad2(MONTHS_N.indexOf(pa[0]))).localeCompare(pb[1] + pad2(MONTHS_N.indexOf(pb[0]))); });
     return keys.slice().sort(); }
-  if(cut.field === 'dept') return DEPTS.map(d => d.name).filter(k => keys.indexOf(k) !== -1);
-  if(cut.field === 'risk') return DICTS.risk.filter(k => keys.indexOf(k) !== -1);
-  if(cut.field === 'status') return DICTS.status.filter(k => keys.indexOf(k) !== -1);
+  if(cut.id === 'c-kind' && bucket === 'класс ликвидности') return DICTS.kclass.filter(k => keys.indexOf(k) !== -1);
+  const dict = dictOfCut(cut);
+  if(dict) return dict.filter(k => keys.indexOf(k) !== -1);
   return keys.slice().sort((a, b) => a.localeCompare(b, 'ru'));
 }
 /* Величина показателя по множеству строк — считает СТАТИСТИКА (заглушка), не страница. */
 function statValue(statId, rows){
   const sum = f => rows.reduce((s, r) => s + (r[f] || 0), 0);
+  const avg = (f, pick) => { const l = rows.filter(r => r[f] != null && (!pick || pick(r))); return l.length ? l.reduce((s, r) => s + r[f], 0) / l.length : null; };
+  const max = f => { const l = rows.filter(r => r[f] != null); return l.length ? Math.max.apply(null, l.map(r => r[f])) : null; };
+  /* Дедуп по чужому ключу (ИС-34, ADR-0199): строки, пересекающиеся по одному кредиту, схлопываются
+     ПЕРЕД суммой на каждом узле; представитель — наибольшая величина. Потому сумма детей итогу не равна. */
+  const dedupSum = pairsOf => { const best = {}; rows.forEach(r => pairsOf(r).forEach(p => { best[p[0]] = Math.max(best[p[0]] || 0, p[1] || 0); }));
+    return Object.keys(best).reduce((s, k) => s + best[k], 0); };
   switch(statId){
     case 's-overdue-sum': return sum('overdue');
     case 's-overdue-cnt': return rows.filter(r => r.days > 0).length;
     case 's-portfolio':   return sum('debt_main');
     case 's-count':       return rows.length;
-    case 's-avg-late':    { const l = rows.filter(r => r.days > 0); return l.length ? l.reduce((s, r) => s + r.days, 0) / l.length : null; }
+    case 's-avg-late':    return avg('days', r => r.days > 0);
     case 's-b-debt':      return sum('portfolio');
     case 's-b-cnt':       return sum('contracts');
-    case 's-b-worst':     return rows.length ? Math.max.apply(null, rows.map(r => r.worst)) : null;
+    case 's-b-worst':     return max('worst');
+    /* предмет залога */
+    case 's-c-count':     return rows.length;
+    case 's-c-val':       return sum('val');
+    case 's-c-pledge':    return sum('pledge');
+    case 's-c-alloc':     return sum('alloc');
+    case 's-c-free':      return sum('free');
+    case 's-c-sec':       return dedupSum(r => Object.keys(r.secBy).map(k => [k, r.secBy[k]]));   // один кредит под двумя предметами — один долг
+    case 's-c-maxsurv':   return max('surv');
+    case 's-c-avgsurv':   return avg('surv');
+    /* требование */
+    case 's-q-count':     return rows.length;
+    case 's-q-sum':       return dedupSum(r => [[r.creditId, r.sum]]);   // солидарные требования — один долг
+    case 's-q-avgph':     return avg('phdays', r => r.phase !== 'закрыто');
   }
   return null;
 }
@@ -545,8 +811,11 @@ const SEAM = {
     };
     const root = {by:null, key:'всего', path:[], count: src.rows.length, values: values(src.rows),
       children: build(src.rows, 0, []), rows: levels.length ? null : src.rows};
+    /* Дедуп-ключ — реквизит записи реестра, и паспорт его НАЗЫВАЕТ (ИС-34): иначе «сумма
+       строк не равна итогу» читается как ошибка счёта. */
+    const dedup = stats.filter(id => STAT(id).dedup).map(id => STAT(id).name + ' — схлопнуто по ключу «' + STAT(id).dedup + '», сумма строк итогу не равна');
     return {ok:true, root, stats, levels: clone(levels), hidden: src.hidden, substituted: src.substituted || null,
-      passport: Object.assign({}, src.passport, {seams: [asOf ? 'statSlice' : 'objectRows'],
+      passport: Object.assign({}, src.passport, {seams: [asOf ? 'statSlice' : 'objectRows'], dedup,
         form:'дерево', by: levels.map(l => CUT(l.id).name + (l.bucket ? ' (' + l.bucket + ')' : ''))})};
   },
   /* Контракты, не данные: перечень полей, реестр показателей, перечень разрезов. */
@@ -592,7 +861,7 @@ KB.setObject = obj => {
   if(obj === s.object) return {ok:true, switched:false};
   clearNotices();
   s.object = obj; s.stats = []; s.cuts = []; s.filters = []; s.live = null;
-  s.drill = {on:false, fields: obj === 'credit' ? ['no', 'borrower', 'debt_main', 'days'] : ['name', 'curator', 'risk']};
+  s.drill = {on:false, fields: FIELDS[obj].drill.slice()};
   let switched = false, why = null;
   if(s.mode === 'сейчас' && LIVE_OBJECTS.indexOf(obj) === -1){
     s.mode = 'на дату'; switched = true;
@@ -678,6 +947,28 @@ KB.setDrill = on => { const s = S(); clearNotices(); s.drill.on = !!on; return {
 KB.toggleField = fid => { const s = S(); clearNotices(); if(!fieldOf(s.object, fid)) return {ok:false, why:'поля нет в перечне'};
   const i = s.drill.fields.indexOf(fid); if(i !== -1) s.drill.fields.splice(i, 1); else s.drill.fields.push(fid); return {ok:true}; };
 
+/* ---------- план строки объекта (волна 22) ----------
+   Одна колонка — одна величина, строка не повторяет дерево:
+   · under  — statId → поле: строчная мера печатается ПОД колонкой своего агрегата (`over`);
+   · ident  — текстовые поля: первая колонка, идентификатор объекта;
+   · chips  — словарные и датовые признаки: чипы в первой колонке;
+   · extra  — числовые поля без агрегата над ними: своя колонка «только строки»;
+   · skipped — поля, стоящие уровнем: строка и так под своим узлом, повтор не печатается. */
+function rowPlan(){
+  const s = S();
+  const levelFields = s.cuts.map(c => CUT(c.id).field);
+  const under = {};
+  s.stats.forEach(id => { const m = STAT(id); if(m && m.over && fieldOf(s.object, m.over)) under[id] = m.over; });
+  const underFields = uniq(Object.keys(under).map(k => under[k]));
+  const ident = [], chips = [], extra = [], skipped = [];
+  s.drill.fields.forEach(f => { const fd = fieldOf(s.object, f); if(!fd) return;
+    if(levelFields.indexOf(f) !== -1){ skipped.push(f); return; }
+    if(fd.type === 'число'){ if(underFields.indexOf(f) === -1) extra.push(f); return; }
+    (fd.type === 'текст' ? ident : chips).push(f); });
+  return {under, underFields, ident, chips, extra, skipped};
+}
+KB.rowPlan = rowPlan;
+
 /* ---------- ответ ---------- */
 function computeNow(){
   const s = S(), c = composition();
@@ -691,7 +982,10 @@ function computeNow(){
   p.shown = {stats: c.stats.map(id => STAT(id).name),
     cuts: c.cuts.map(x => CUT(x.id).name + (x.bucket ? ' · ' + x.bucket : '') + (x.total ? ' · с итогом' : '')),
     filters: c.filters.filter(f => f.value !== '').map(f => fieldOf(c.object, f.field).name + ' ' + f.op + ' ' + f.value),
-    drill: s.drill.on ? s.drill.fields.map(f => fieldOf(c.object, f).name) : null};
+    drill: s.drill.on ? (() => { const pl = rowPlan(); const nm = f => fieldOf(c.object, f).name;
+      return pl.ident.concat(pl.chips).map(nm)
+        .concat(pl.underFields.map(f => nm(f) + ' — под своим агрегатом'))
+        .concat(pl.extra.map(f => nm(f) + ' — своей колонкой')); })() : null};
   if(c.asOf){ p.age = ageText(p.asOf);
     p.short = 'на ' + fmtShort(p.asOf) + ' (' + p.age + ') · ' + (p.fixed === 'зафиксировано' ? 'зафикс.' : 'не зафикс.') + ' · вам видно ' + visible; }
   else { p.fixed = 'не зафиксировано'; p.short = 'живое ' + fmtShort(TODAY) + ' ' + NOW + ' · не зафикс. · вам видно ' + visible; }
@@ -782,6 +1076,9 @@ function toast(text, kind){ if(!hasDOM) return; const w = document.getElementByI
 function act(r, okText){ if(!r.ok){ toast(r.why, 'err'); } else if(okText || r.note){ toast(okText || r.note, 'ok'); } render(); }
 const val = (id, v) => { if(v == null) return '—'; const m = STAT(id);
   return (m.unit === 'сом' || m.unit === 'ед.') ? money(v) : num1(v); };
+/* Значение поля строки — по типу величины, объявленному владельцем поля. */
+const fval = (fd, x) => x == null ? '—' : fd.type === 'число' ? (fd.unit === 'дн.' ? num1(x) : money(x))
+  : fd.type === 'дата' ? fmt(x) : fd.dict === 'dept' ? deptName(x) : String(x);
 
 function scCompose(){
   const s = S(), fl = KB.fields();
@@ -850,28 +1147,49 @@ function scCompose(){
   h += '<div class="card"><h3>Строки объектов <span class="small">· углубление</span></h3>' +
     '<label class="opt"><input type="checkbox"' + (s.drill.on ? ' checked' : '') + ' onchange="act(KB.setDrill(this.checked))"><span class="t">Показывать строки под последним уровнем' +
     '<small>другой шов (' + (s.mode === 'на дату' ? 'statRows' : 'objectRows') + '), другой объём, поля из публичного перечня</small></span></label>';
-  if(s.drill.on) h += '<div style="margin-top:6px">' + fl.fields.map(x => '<label class="opt" style="padding:3px 0"><input type="checkbox"' +
-    (s.drill.fields.indexOf(x.id) !== -1 ? ' checked' : '') + ' onchange="act(KB.toggleField(\'' + x.id + '\'))"><span class="t">' + esc(x.name) +
-    '</span><span class="u">' + esc(x.type) + '</span></label>').join('') + '</div>';
+  if(s.drill.on){
+    const pl = rowPlan(), lv = s.cuts.map(c => CUT(c.id).field);
+    const on = x => s.drill.fields.indexOf(x.id) !== -1;
+    h += '<div class="small" style="margin-top:8px"><b>Идентификатор и признаки</b> — в первой колонке</div>';
+    h += fl.fields.filter(x => x.type !== 'число').map(x => { const isLevel = lv.indexOf(x.id) !== -1;
+      return '<label class="opt' + (isLevel ? ' off' : '') + '" style="padding:3px 0"><input type="checkbox"' + (on(x) ? ' checked' : '') +
+        (isLevel ? ' disabled' : '') + ' onchange="act(KB.toggleField(\'' + x.id + '\'))"><span class="t">' + esc(x.name) +
+        (isLevel ? '<small>стоит уровнем — строка и так под своим узлом, повтор не печатается</small>' : '') +
+        '</span><span class="u">' + esc(x.type) + '</span></label>'; }).join('');
+    h += '<div class="small" style="margin-top:8px"><b>Величины</b> — колонкой: одна колонка — одна величина</div>';
+    h += fl.fields.filter(x => x.type === 'число').map(x => {
+      const st = Object.keys(pl.under).find(id => pl.under[id] === x.id);
+      if(st) return '<label class="opt" style="padding:3px 0"><input type="checkbox" checked disabled><span class="t">' + esc(x.name) +
+        '<small>под колонкой «' + esc(STAT(st).name) + '»: узел — ' + esc(STAT(st).agg) + ', строка — мера</small></span><span class="u">' + esc(x.unit) + '</span></label>';
+      const agg = STATS.find(m => m.object === s.object && m.over === x.id && !m.withdrawn);
+      return '<label class="opt" style="padding:3px 0"><input type="checkbox"' + (on(x) ? ' checked' : '') + ' onchange="act(KB.toggleField(\'' + x.id + '\'))"><span class="t">' + esc(x.name) +
+        '<small>своей колонкой, только строки' + (agg ? ' · включите «' + esc(agg.name) + '» — встанет под него' : ' · показателя над ней в реестре нет') + '</small></span><span class="u">' + esc(x.unit) + '</span></label>'; }).join('');
+  }
   h += '</div>';
   return h;
 }
 
-function treeRows(a, node, depth){
-  const s = S(), cols = a.stats;
+function treeRows(a, node, depth, plan){
+  const s = S(), cols = a.stats, pl = plan || rowPlan();
   let h = '';
   const ind = '<span class="ind" style="width:' + ((depth - 1) * 18) + 'px"></span>';
+  const extraDots = pl.extra.map(() => '<td class="num muted">·</td>').join('');
   h += '<tr class="grp g' + Math.min(depth, 3) + '"><td>' + ind + esc(node.key) + '<span class="cnt">' + esc(FIELDS[s.object].word(node.count)) + '</span></td>' +
-    cols.map(id => '<td class="num">' + val(id, node.values[id]) + '</td>').join('') + '</tr>';
-  if(node.children) node.children.forEach(ch => { h += treeRows(a, ch, depth + 1); });
+    cols.map(id => '<td class="num">' + val(id, node.values[id]) + '</td>').join('') + extraDots + '</tr>';
+  if(node.children) node.children.forEach(ch => { h += treeRows(a, ch, depth + 1, pl); });
   else if(s.drill.on && node.rows){
-    node.rows.forEach(r => { h += '<tr class="obj"><td>' + s.drill.fields.map(f => { const fd = fieldOf(s.object, f); const x = r[f];
-      const t = fd.type === 'число' ? money(x) : fd.type === 'дата' ? fmt(x) : fd.dict === 'dept' ? deptName(x) : String(x);
-      return '<span class="f" title="' + esc(fd.name) + '">' + esc(t) + '</span>'; }).join('<span class="sep">·</span>') + '</td>' +
-      cols.map(() => '<td class="num muted">·</td>').join('') + '</tr>'; });
+    /* Строка объекта: идентификатор и чипы — в первой колонке; мера — под колонкой своего
+       агрегата; поле-уровень не повторяется (волна 22). */
+    const fd = f => fieldOf(s.object, f);
+    node.rows.forEach(r => {
+      const idt = pl.ident.map(f => '<span class="f" title="' + esc(fd(f).name) + '">' + esc(fval(fd(f), r[f])) + '</span>').join('<span class="sep">·</span>');
+      const ch = pl.chips.map(f => '<span class="chip" title="' + esc(fd(f).name) + '">' + esc(fval(fd(f), r[f])) + '</span>').join('');
+      h += '<tr class="obj"><td>' + (idt || '<span class="f muted">объект</span>') + ch + '</td>' +
+        cols.map(id => pl.under[id] ? '<td class="num">' + esc(fval(fd(pl.under[id]), r[pl.under[id]])) + '</td>' : '<td class="num muted">·</td>').join('') +
+        pl.extra.map(f => '<td class="num">' + esc(fval(fd(f), r[f])) + '</td>').join('') + '</tr>'; });
   }
   if(node.total) h += '<tr class="gtot"><td>' + ind + 'Итог по «' + esc(node.key) + '»</td>' +
-    cols.map(id => '<td class="num"><b>' + val(id, node.values[id]) + '</b></td>').join('') + '</tr>';
+    cols.map(id => '<td class="num"><b>' + val(id, node.values[id]) + '</b></td>').join('') + extraDots + '</tr>';
   return h;
 }
 
@@ -900,18 +1218,31 @@ function scAnswer(){
       (p.hidden ? ', <b>' + p.hidden + ' ' + plural(p.hidden, 'скрыт', 'скрыты', 'скрыты') + ' областью видимости</b>' : '') + '</div>' +
     '<div class="row"><span class="k">показанный состав</span>' + esc(p.shown.stats.join('; ') || '—') + ' · уровни: ' + esc(p.shown.cuts.join(' → ') || 'нет') +
       (p.shown.filters.length ? ' · отбор: ' + esc(p.shown.filters.join('; ')) : '') + (p.shown.drill ? ' · строки: ' + esc(p.shown.drill.join(', ')) : '') + '</div>' +
-    '<div class="row"><span class="k">кто отвечает</span>' + esc(p.owner) + ' · швы ' + esc(p.seams.join(' + ')) + '</div></div>';
+    '<div class="row"><span class="k">кто отвечает</span>' + esc(p.owner) + ' · швы ' + esc(p.seams.join(' + ')) + '</div>' +
+    (p.dedup && p.dedup.length ? '<div class="row"><span class="k">дедуп-ключ</span>' + esc(p.dedup.join('; ')) + ' (ИС-34)</div>' : '') + '</div>';
   /* --- дерево --- */
+  /* Шапка сетки: одна колонка — одна величина; у агрегата с мерой под ним подзаголовок
+     называет обе породы (волна 22). Колонки «только строки» — для мер без агрегата. */
+  const pl = rowPlan(), fdn = f => fieldOf(s.object, f);
+  const firstSub = s.drill.on
+    ? 'уровни · строки: ' + (pl.ident.concat(pl.chips).map(f => fdn(f).name).join(', ') || 'без идентификатора')
+    : 'дерево уровней · число узла — по строкам узла';
   h += '<div class="tblwrap"><table class="cgrid"><thead><tr><th>' + esc(ans.levels.map(l => CUT(l.id).name).join(' → ') || 'всего') +
-    '<span class="th-sub">дерево уровней · число узла — по строкам узла</span></th>' +
-    ans.stats.map(id => '<th class="num">' + esc(STAT(id).name) + '<span class="th-sub">' + esc(STAT(id).unit) + '</span></th>').join('') + '</tr></thead><tbody>';
+    '<span class="th-sub">' + esc(firstSub) + '</span></th>' +
+    ans.stats.map(id => '<th class="num">' + esc(STAT(id).name) + '<span class="th-sub">' + esc(STAT(id).unit) +
+      (s.drill.on && pl.under[id] ? ' · узел — ' + esc(STAT(id).agg.split(' ·')[0]) + ' · строка — ' + esc(fdn(pl.under[id]).name.toLowerCase()) : '') + '</span></th>').join('') +
+    (s.drill.on ? pl.extra.map(f => '<th class="num">' + esc(fdn(f).name) + '<span class="th-sub">' + esc(fdn(f).unit || '') + ' · только строки</span></th>').join('') : '') +
+    '</tr></thead><tbody>';
   if(!ans.stats.length) h += '<tr><td colspan="9" class="empty">Выберите хотя бы один показатель: без него дерево считает только строки.</td></tr>';
-  if(ans.root.children) ans.root.children.forEach(n => { h += treeRows(ans, n, 1); });
-  else if(s.drill.on && ans.root.rows) h += treeRows(ans, ans.root, 1);
+  if(ans.root.children) ans.root.children.forEach(n => { h += treeRows(ans, n, 1, pl); });
+  else if(s.drill.on && ans.root.rows) h += treeRows(ans, ans.root, 1, pl);
   h += '<tr class="root"><td>Всего<span class="cnt" style="font-weight:400;color:var(--text-muted);font-size:12px;margin-left:6px">' + esc(FIELDS[s.object].word(ans.root.count)) + '</span></td>' +
-    ans.stats.map(id => '<td class="num">' + val(id, ans.root.values[id]) + '</td>').join('') + '</tr>';
+    ans.stats.map(id => '<td class="num">' + val(id, ans.root.values[id]) + '</td>').join('') +
+    (s.drill.on ? pl.extra.map(() => '<td class="num muted">·</td>').join('') : '') + '</tr>';
   h += '</tbody></table></div>';
-  if(s.cuts.some(c => c.id === 'dept' || c.id === 'b-dept') && ans.root.children && ans.root.children.length === 1)
+  if(s.drill.on && pl.skipped.length) h += '<div class="why">' + esc(pl.skipped.map(f => '«' + fdn(f).name + '»').join(', ')) +
+    ' в строках не печатается: ' + (pl.skipped.length > 1 ? 'эти поля стоят уровнями' : 'это поле стоит уровнем') + ', и строка уже стоит под своим узлом.</div>';
+  if(s.cuts.some(c => CUT(c.id).field === 'dept') && ans.root.children && ans.root.children.length === 1)
     h += '<div class="why">Уровень «подразделение» дал один узел: область видимости сузила мир до вашего департамента. У уполномоченного узлов было бы ' + DEPTS.length + '.</div>';
   return h + scActions();
 }
@@ -959,10 +1290,12 @@ function render(){
     '<b>Заглушки соседей в этом файле:</b> реестр показателей и разрезов (статистика) · публичные перечни полей (ядро) · строки среза на ' +
     SNAPSHOTS.map(fmt).join(' и ') + ' (ночной прогон) · живое состояние на ' + fmt(TODAY) + ' (ядро). В жизни всё это приходит швами ' +
     '<span class="mono">statSlice · statRows · objectRows</span>; своих запросов к базе и своих формул у страницы нет (ИО-2, ИО-3). ' +
-    'Данные: ' + CREDITS.length + ' кредитов, ' + BORROWERS.length + ' заёмщиков, сгенерированы детерминированно.';
+    'Данные: ' + CREDITS.length + ' кредитов, ' + BORROWERS.length + ' заёмщиков, ' + COLLATERAL.length + ' предметов залога, ' +
+    CLAIMS.length + ' требований взыскания — сгенерированы детерминированно; предмет залога и требование в v1 отвечают только «на дату».';
 }
 if(hasDOM) render();
 window.KB = KB; window.SEAM = SEAM; window.S = S; window.act = act; window.render = render;
+window.scAnswer = scAnswer;   /* для смоука: сетка ответа без DOM */
 </script>
 </body>
 </html>
