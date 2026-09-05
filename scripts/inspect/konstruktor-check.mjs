@@ -1,6 +1,7 @@
-// Headless smoke для mockups/reports/konstruktor.html — упрощённая страница пользователя
-// «Конструктор: личный черновик состава» (волна 20). Zero-dep: вытаскивает <script> из HTML и
-// исполняет логический слой в node:vm без DOM (render() при отсутствии document — no-op).
+// Headless smoke для экрана «Конструктор: личный черновик состава» — волной 24 влит
+// в mockups/reports/reports.html (data-v="draft", fn:scDraft); был отдельным файлом
+// konstruktor.html (волна 20), теперь одна страница. Zero-dep: вытаскивает <script> из
+// HTML и исполняет логический слой в node:vm без DOM (render() при отсутствии document — no-op).
 // Проверяется то, что дев-команда прочитает со страницы: область видимости в паспорте,
 // отказы словами (объект без живых строк, выведенный и неисчислимый показатель, необъявленный
 // разрез), число узла по строкам узла, корзина при чтении, подстановка даты, фиксация,
@@ -9,6 +10,8 @@
 // полями, показателями и разрезами из реестра статистики; дедуп солидарных сумм (ИС-34).
 // Волна 22 (F): одна колонка — одна величина: строка объекта печатает меру под колонкой своего
 // агрегата (`over`), поле-уровень не повторяет, идентификатор и признаки — в первой колонке.
+// Волна 24: логика конструктора влита в общий <script> reports.html внутри своей IIFE
+// (window.KB/S/scAnswer, act переименован в kbAct — не путать с window.act самого reports.html).
 //   node scripts/inspect/konstruktor-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -16,7 +19,7 @@ import { dirname, resolve } from 'node:path';
 import vm from 'node:vm';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
-const HTML  = resolve(__dir, '../../mockups/reports/konstruktor.html');
+const HTML  = resolve(__dir, '../../mockups/reports/reports.html');
 const src   = readFileSync(HTML, 'utf8');
 
 const m = src.match(/<script>([\s\S]*?)<\/script>/);
@@ -24,7 +27,7 @@ if (!m) { console.error('<script> не найден в HTML'); process.exit(1); 
 const win = {};
 const sandbox = { window: win, console, setTimeout: () => {}, clearTimeout: () => {}, prompt: () => '' };
 vm.createContext(sandbox);
-vm.runInContext(m[1], sandbox, { filename: 'konstruktor.inline.js' });
+vm.runInContext(m[1], sandbox, { filename: 'konstruktor-in-reports.inline.js' });
 const KB = win.KB, S = win.S;
 if (!KB) { console.error('window.KB не экспортирован'); process.exit(1); }
 
@@ -244,17 +247,17 @@ const ME = 'Осмонова Г.', AUTH = 'Тентимишев К.';
 /* ---------- отчёт ---------- */
 const pass = results.filter(r => r.pass).length;
 const body = results.map(r => `  ${r.pass ? 'PASS' : 'FAIL'}  #${String(r.n).padStart(2)}  ${r.note}`).join('\n');
-console.log(`konstruktor.html smoke: ${pass}/${results.length} PASS\n` + body);
+console.log(`Конструктор (в reports.html) smoke: ${pass}/${results.length} PASS\n` + body);
 
 const injected = `  SMOKE ${new Date().toISOString().slice(0, 10)} · ${pass}/${results.length} PASS\n` + body;
 if (src.includes('  SMOKE_PLACEHOLDER')) {
   writeFileSync(HTML, src.replace('  SMOKE_PLACEHOLDER', injected), 'utf8');
-  console.log('\n→ результат вставлен в шапку konstruktor.html');
+  console.log('\n→ результат вставлен в шапку reports.html');
 } else {
   const re = /( {2}SMOKE \d{4}-\d{2}-\d{2} · \d+\/\d+ PASS\n)[\s\S]*?(\n-->)/;
   if (re.test(src)) {
     writeFileSync(HTML, src.replace(re, injected + '$2'), 'utf8');
-    console.log('\n→ результат обновлён в шапке konstruktor.html');
+    console.log('\n→ результат обновлён в шапке reports.html');
   }
 }
 process.exit(pass === results.length ? 0 : 1);

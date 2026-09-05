@@ -535,8 +535,8 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
     try { const html = VIEWS[v].fn(); total += html.length;
       if (typeof html !== 'string' || html.length < 200) bad.push(role + '/' + v); }
     catch (e) { bad.push(role + '/' + v + ': ' + e.message); } }); });
-  ok(65, bad.length === 0 && names.length === 11,
-    `одиннадцать экранов × пять ролей = ${names.length * 5} отрисовок без исключений (${Math.round(total / 1000)} КБ разметки)`);
+  ok(65, bad.length === 0 && names.length === 12,
+    `двенадцать экранов × пять ролей = ${names.length * 5} отрисовок без исключений (${Math.round(total / 1000)} КБ разметки)`);
 
   as('auth');
   const reg = VIEWS.registry.fn(), cal = VIEWS.calendar.fn(), jr = VIEWS.journal.fn();
@@ -1155,19 +1155,19 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
   const flat = groups.flatMap(g => g.items);
   const uniq = [...new Set(flat)];
   const missing = Object.keys(V).filter(v => flat.indexOf(v) === -1);
-  ok(130, flat.length === 11 && uniq.length === 11 && missing.length === 0 &&
-        groups.map(g => g.items.length).join('/') === '5/3/1/2',
-    `перегруппировка ничего не потеряла и не задвоила: все 11 экранов ровно по разу, ` +
-    `раскладка 5 / 3 / 1 / 2`);
+  ok(130, flat.length === 12 && uniq.length === 12 && missing.length === 0 &&
+        groups.map(g => g.items.length).join('/') === '5/4/1/2',
+    `перегруппировка ничего не потеряла и не задвоила: все 12 экранов ровно по разу, ` +
+    `раскладка 5 / 4 / 1 / 2 (волна 24: «Конструктор» влит в стол, «Редакция и публикация» — бывший «Конструктор»)`);
 
   // Стол «Настраивать» — не право: пользователь собирает там личные черновики (§17).
   const nastr = groups[1].items;
   as('user');
   let drew = true;
   try { nastr.forEach(v => { if (V[v].fn().length < 200) drew = false; }); } catch (e) { drew = false; }
-  ok(131, nastr.join(',') === 'registry,builder,blank' && drew &&
+  ok(131, nastr.join(',') === 'registry,draft,builder,blank' && drew &&
         !has(nav, 'locked') && !/data-role|hidden/.test(nav),
-    `стол «Настраивать» пользователю НЕ заперт: все три его экрана рисуются ролью Осмоновой Г. — ` +
+    `стол «Настраивать» пользователю НЕ заперт: все четыре его экрана рисуются ролью Осмоновой Г. — ` +
     `иначе личный черновик собирать негде (§17); скрытых по роли пунктов в навигации нет`);
 
   as('auth');
