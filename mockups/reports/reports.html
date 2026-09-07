@@ -292,6 +292,101 @@ table.cgrid thead th .th-sub{ display:block; margin-top:2px;
   font:var(--weight-regular) 11.5px/1.3 var(--asubk-font); color:var(--text-muted); }
 .form-row .fld input.wide{ min-width:320px; }
 td.act{ text-align:right; white-space:nowrap; }
+
+/* ============================================================================
+   КОНСТРУКТОР: ЛИЧНЫЙ ЧЕРНОВИК — классы, которых нет у остальных экранов.
+   Портировано волной 24 из бывшего отдельного файла konstruktor.html (удалён, слит сюда);
+   общие с остальными экранами классы
+   (.card, .banner, .pill, .btn, .fld, .chip, .topbar, table.cgrid и т.п.) не
+   дублируются — экран использует уже объявленные выше. Мелкие расхождения в
+   отступах между двумя макетами (были: .form-row 10px/14px, .fld 4px/5px и т.п.)
+   не тянутся — экран использует те же числа, что и остальные экраны.
+   ============================================================================ */
+.kb a{ color:var(--text-link); }
+
+/* ---- две колонки: состав слева, ответ справа ---- */
+.two{ display:flex; gap:20px; align-items:flex-start; padding:18px 24px 40px; }
+.compose{ flex:0 0 420px; min-width:360px; }
+.answer{ flex:1; min-width:520px; }
+@media (max-width:1100px){ .two{ flex-direction:column; } .compose,.answer{ flex:none; width:100%; min-width:0; } }
+
+/* ---- шапка страницы (крошка/чип «кто вы» внутри экрана) ---- */
+.crumb b{ color:var(--text-body); font-weight:var(--weight-medium); }
+.chip .who{ color:var(--asubk-blue); }
+.chip small{ font-weight:var(--weight-regular); color:var(--text-muted); }
+
+/* ---- баннеры, пилюли ---- */
+.why.no{ color:var(--asubk-red); }
+.why.amb{ color:var(--asubk-amber); }
+
+/* ---- кнопки, поля ---- */
+.btn-xs{ height:24px; padding:0 7px; font-size:12px; font-weight:var(--weight-medium); }
+.seg{ display:inline-flex; border:1px solid var(--border-strong); border-radius:var(--radius-md); overflow:hidden; }
+.seg button{ appearance:none; border:none; background:var(--surface-card); color:var(--text-body);
+  font:var(--weight-medium) 13px/1 var(--asubk-font); padding:0 12px; height:32px; cursor:pointer; }
+.seg button.on{ background:var(--asubk-blue); color:#fff; }
+.seg button + button{ border-left:1px solid var(--border-strong); }
+
+/* ---- строки состава ---- */
+.opt{ display:flex; align-items:flex-start; gap:8px; padding:5px 0; border-bottom:1px dashed var(--asubk-grid-line); cursor:pointer; }
+.opt:last-child{ border-bottom:none; }
+.opt input[type=checkbox]{ margin-top:4px; }
+.opt .t{ flex:1; font:var(--font-label); color:var(--text-body); }
+.opt .t small{ display:block; color:var(--text-muted); font-size:12px; }
+.opt .t small.no{ color:var(--asubk-red); }
+.opt.off .t{ color:var(--text-placeholder); }
+.opt .u{ color:var(--text-placeholder); font-size:12px; white-space:nowrap; }
+.cutrow{ display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px dashed var(--asubk-grid-line); flex-wrap:wrap; }
+.cutrow .lvl{ flex:none; width:22px; height:22px; border-radius:50%; background:var(--asubk-blue-tint);
+  color:var(--asubk-blue); font:var(--weight-semibold) 12px/22px var(--asubk-font); text-align:center; }
+.cutrow .nm{ font:var(--font-label); color:var(--text-body); min-width:120px; }
+.cutrow select{ height:26px; font-size:12.5px; border:1px solid var(--border-strong); border-radius:var(--radius-md);
+  background:var(--surface-card); padding:0 6px; }
+.cutrow label.tot{ font:var(--weight-regular) 12.5px/1.3 var(--asubk-font); color:var(--text-muted); display:inline-flex; gap:4px; align-items:center; cursor:pointer; }
+.cutrow .ctl{ margin-left:auto; display:inline-flex; gap:4px; }
+.fltrow{ display:grid; grid-template-columns:1.3fr .9fr 1.2fr 26px; gap:6px; align-items:center; padding:5px 0; }
+.fltrow select, .fltrow input{ height:28px; font-size:12.5px; border:1px solid var(--border-strong);
+  border-radius:var(--radius-md); background:var(--surface-card); padding:0 6px; min-width:0; }
+.addrow{ display:flex; gap:8px; align-items:center; margin-top:8px; flex-wrap:wrap; }
+.addrow select{ height:28px; font-size:12.5px; border:1px solid var(--border-strong); border-radius:var(--radius-md);
+  background:var(--surface-card); padding:0 6px; max-width:260px; }
+
+/* ---- шапка показа и паспорт ---- */
+.snap{ border:1px solid var(--border-strong); border-left:3px solid var(--asubk-amber);
+  border-radius:var(--radius-md); background:var(--surface-card); padding:10px 14px; margin-bottom:12px; }
+.snap .hd{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px; }
+.snap .hd b{ font:var(--weight-semibold) 15px/1.3 var(--asubk-font); color:var(--text-heading); }
+/* Висячий отступ: перенесённая строка значения не уходит под ключ. */
+.snap .row{ font:var(--font-label); color:var(--text-body); margin-bottom:3px; padding-left:178px; text-indent:-178px; }
+
+/* ---- дерево ---- */
+table.cgrid thead th.num{ text-align:right; }
+table.cgrid thead th.num .th-sub{ text-align:right; }
+table.cgrid tr.grp td{ background:var(--asubk-tint-fill); border-top:1px solid var(--border-strong); font-weight:var(--weight-medium); }
+table.cgrid tr.grp.g2 td{ background:var(--surface-hover); border-top:none; font-weight:var(--weight-regular); }
+table.cgrid tr.grp.g3 td{ background:var(--surface-card); border-top:none; }
+table.cgrid tr.grp .ind{ display:inline-block; }
+table.cgrid tr.grp .cnt{ color:var(--text-muted); font-weight:var(--weight-regular); font-size:12px; margin-left:6px; }
+table.cgrid tr.gtot td{ background:var(--asubk-green-tint); font-size:12.5px; }
+table.cgrid tr.gtot td:first-child{ color:var(--asubk-green); font-weight:var(--weight-medium); }
+table.cgrid tr.obj td{ font-size:12.5px; color:var(--text-muted); background:var(--surface-card); }
+table.cgrid tr.obj td:first-child{ padding-left:36px; }
+table.cgrid tr.obj td .f{ color:var(--text-body); }
+table.cgrid tr.obj td .sep{ color:var(--text-placeholder); margin:0 6px; }
+table.cgrid tr.obj td .chip{ display:inline-block; margin-left:6px; padding:0 6px; border-radius:var(--radius-pill);
+  background:var(--asubk-tint-fill); color:var(--text-muted); font-size:11.5px; line-height:18px; white-space:nowrap; }
+table.cgrid tr.root td{ background:var(--surface-panel); font-weight:var(--weight-semibold); border-top:2px solid var(--border-strong); }
+.empty{ padding:24px; text-align:center; color:var(--text-muted); font:var(--font-label); }
+
+/* ---- действия и след ---- */
+.refuse{ display:flex; gap:8px; align-items:baseline; font:var(--font-label); color:var(--text-muted); padding:4px 0; }
+.refuse b{ color:var(--text-body); font-weight:var(--weight-medium); white-space:nowrap; }
+.refuse .no{ color:var(--asubk-red); white-space:nowrap; }
+.trace{ font:var(--font-label); }
+.trace .it{ padding:6px 0; border-bottom:1px dashed var(--asubk-grid-line); }
+.trace .it:last-child{ border-bottom:none; }
+.trace .id{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; color:var(--asubk-blue); margin-right:6px; }
+.trace .it small{ display:block; color:var(--text-muted); font-size:12px; }
 </style>
 </head>
 <body>
@@ -309,7 +404,8 @@ td.act{ text-align:right; white-space:nowrap; }
       <button class="nav-item" data-v="dash"     onclick="RP.go('dash')">Дашборд</button>
       <div class="nav-sec">Настраивать<small>стол уполномоченного; личный черновик собирает всякий</small></div>
       <button class="nav-item" data-v="registry" onclick="RP.go('registry')">Реестр шаблонов</button>
-      <button class="nav-item" data-v="builder"  onclick="RP.go('builder')">Конструктор</button>
+      <button class="nav-item" data-v="draft"    onclick="RP.go('draft')">Конструктор</button>
+      <button class="nav-item" data-v="builder"  onclick="RP.go('builder')">Редакция и публикация</button>
       <button class="nav-item" data-v="blank"    onclick="RP.go('blank')">Верстальщик бланка</button>
       <div class="nav-sec">След<small>что, кем, когда и кому предъявлено</small></div>
       <button class="nav-item" data-v="journal"  onclick="RP.go('journal')">Журнал выпусков</button>
@@ -4015,11 +4111,1065 @@ RP.doSheetLast = () => { const done = RP.state.issues.filter(i => i.state === '�
   act(last ? RP.setSheetOnIssue(last.id, {orient:'альбомная'})
            : {ok:false, why:'готовых выпусков нет — править нечего'}); };
 
+let scDraft;
+(function(){
+/* ======================================================================
+   УПРОЩЁННЫЙ ПРОТОТИП: страница пользователя «Конструктор — личный черновик».
+   Ниже три слоя, и границу между ними держит текст:
+     1. ЗАГЛУШКИ СОСЕДЕЙ — реестр показателей и разрезов (статистика), публичные
+        перечни полей (ядро), строки среза на даты (ночной прогон), живое состояние
+        (ядро). В жизни всё это приходит швами, здесь — константы и генератор.
+     2. ШВЫ — statSlice · statRows · objectRows: единственный вход в данные
+        (ИО-3). Ответ statSlice — всегда ДЕРЕВО уровней (ADR-0176 §6).
+     3. СТРАНИЦА (KB) — состав вопроса, отказы словами, действия, след.
+   Формул у страницы нет: величину узла считает заглушка статистики (ИО-2).
+   ====================================================================== */
+const TODAY = '2026-09-05', NOW = '14:32';
+const SNAPSHOTS = ['2026-07-31', '2026-08-31'];       // даты, на которые прогон ходил
+const FIXED = {'2026-07-31': true, '2026-08-31': false}; // фиксация = закрытие периода человеком
+const FILE_DAYS = 90;                                  // срок жизни файла предварительного выпуска
+
+/* ---------- утилиты ---------- */
+const clone = x => JSON.parse(JSON.stringify(x));
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const uniq = a => a.filter((x, i) => a.indexOf(x) === i);
+const pad2 = n => (n < 10 ? '0' : '') + n;
+const fmt = d => d ? d.slice(8, 10) + '.' + d.slice(5, 7) + '.' + d.slice(0, 4) : '—';
+const fmtShort = d => d ? d.slice(8, 10) + '.' + d.slice(5, 7) : '—';
+const MONTHS_N = ['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
+const toDate = s => new Date(s + 'T00:00:00Z');
+const daysBetween = (a, b) => Math.round((toDate(b) - toDate(a)) / 86400000);
+const addDays = (s, n) => { const d = toDate(s); d.setUTCDate(d.getUTCDate() + n);
+  return d.getUTCFullYear() + '-' + pad2(d.getUTCMonth() + 1) + '-' + pad2(d.getUTCDate()); };
+const monthsBetween = (a, b) => { const A = toDate(a), B = toDate(b);
+  return Math.max(0, (B.getUTCFullYear() - A.getUTCFullYear()) * 12 + (B.getUTCMonth() - A.getUTCMonth())); };
+const plural = (n, one, few, many) => { const m10 = n % 10, m100 = n % 100;
+  if(m10 === 1 && m100 !== 11) return one; if(m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return few; return many; };
+const money = n => n == null ? '—' : Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+const num1 = n => n == null ? '—' : (Math.round(n * 10) / 10).toString().replace('.', ',');
+const ageText = d => { const n = daysBetween(d, TODAY);
+  return n === 0 ? 'сегодня' : n === 1 ? 'вчера' : n + ' ' + plural(n, 'день', 'дня', 'дней') + ' назад'; };
+const objWord = n => n + ' ' + plural(n, 'кредит', 'кредита', 'кредитов');
+const brWord = n => n + ' ' + plural(n, 'заёмщик', 'заёмщика', 'заёмщиков');
+const colWord = n => n + ' ' + plural(n, 'предмет залога', 'предмета залога', 'предметов залога');
+const clWord = n => n + ' ' + plural(n, 'требование', 'требования', 'требований');
+
+/* ======================================================================
+   1. ЗАГЛУШКИ СОСЕДЕЙ
+   ====================================================================== */
+/* Оргструктура и роли — те же имена, что в reports.html. */
+const DEPTS = [
+  {id:'dep-admin', name:'Департамент администрирования кредитов'},
+  {id:'dep-prom',  name:'Отраслевой департамент промышленности'},
+  {id:'rep-osh',   name:'Региональное представительство «Ош»'},
+  {id:'dep-legal', name:'Департамент правового обеспечения'}
+];
+const deptName = id => (DEPTS.find(d => d.id === id) || {name:id}).name;
+const ME   = {who:'Осмонова Г.', role:'пользователь', dept:'dep-prom', scope:['dep-prom']};
+const AUTH = {who:'Тентимишев К.', role:'уполномоченный по отчётности'};
+
+/* ЯДРО: публичные перечни полей. Тип величины положен полю владельцем — от типа
+   зависит перечень операторов фильтра (§3 п. 5). */
+const FIELDS = {
+  credit: {name:'кредит', owner:'ядро · кредиты', word: objWord, fields:[
+    {id:'no',        name:'Номер договора',          type:'текст'},
+    {id:'borrower',  name:'Заёмщик',                 type:'текст'},
+    {id:'dept',      name:'Подразделение',           type:'словарь', dict:'dept'},
+    {id:'program',   name:'Кредитная программа',     type:'словарь', dict:'program'},
+    {id:'sum',       name:'Сумма договора',          type:'число', unit:'сом'},
+    {id:'date',      name:'Дата договора',           type:'дата'},
+    {id:'debt_main', name:'Остаток основного долга', type:'число', unit:'сом'},
+    {id:'overdue',   name:'Просроченная задолженность', type:'число', unit:'сом'},
+    {id:'days',      name:'Дней просрочки',          type:'число', unit:'дн.'},
+    {id:'status',    name:'Состояние',               type:'словарь', dict:'status'}
+  ]},
+  borrower: {name:'заёмщик', owner:'ядро · заёмщики', word: brWord, fields:[
+    {id:'name',    name:'Наименование',    type:'текст'},
+    {id:'inn',     name:'ИНН',             type:'текст'},
+    {id:'dept',    name:'Подразделение',   type:'словарь', dict:'dept'},
+    {id:'curator', name:'Ведущий куратор', type:'словарь', dict:'curator'},
+    {id:'risk',    name:'Категория риска', type:'словарь', dict:'risk'},
+    /* портфельные величины заёмщика — шов calcPortfolio ядра (ИС-28), строка их несёт, не выводит */
+    {id:'portfolio', name:'Свод долга по договорам', type:'число', unit:'сом'},
+    {id:'contracts', name:'Число договоров',         type:'число', unit:'ед.'},
+    {id:'worst',     name:'Худшая просрочка',        type:'число', unit:'дн.'}
+  ], drill:['name', 'curator', 'risk']},
+  /* ПРЕДМЕТ ЗАЛОГА — вещь, а не договор (CONTEXT.md «Предмет залога»): у неё свой
+     залогодатель, своя оценка в своей валюте, своя история обследований. Перечень объявил
+     залог; величины «залоговая», «отнесено», «доступно» приходят его швом calcPledge —
+     страница их не выводит (ИС-1, ADR-0190). Живых строк в v1 нет (ИО-30). */
+  collateral: {name:'предмет залога', owner:'залог · предметы', word: colWord, fields:[
+    {id:'no',      name:'Номер предмета',              type:'текст'},
+    {id:'kind',    name:'Вид обеспечения',             type:'словарь', dict:'kind'},
+    {id:'pledger', name:'Залогодатель',                type:'текст'},
+    {id:'dept',    name:'Подразделение',               type:'словарь', dict:'dept'},
+    {id:'region',  name:'Территория',                  type:'словарь', dict:'region'},
+    {id:'cur',     name:'Валюта оценки',               type:'словарь', dict:'cur'},
+    {id:'adm',     name:'Дата принятия в залог',       type:'дата'},
+    {id:'zstate',  name:'Залоговый статус',            type:'словарь', dict:'zstate'},
+    {id:'ban',     name:'Запрет на отчуждение',        type:'словарь', dict:'yesno'},
+    {id:'insured', name:'Застрахован',                 type:'словарь', dict:'yesno'},
+    {id:'val',     name:'Оценочная стоимость',         type:'число', unit:'сом'},
+    {id:'pledge',  name:'Залоговая стоимость',         type:'число', unit:'сом'},
+    {id:'alloc',   name:'Отнесено под кредиты',        type:'число', unit:'сом'},
+    {id:'sec',     name:'Обеспечиваемые требования',   type:'число', unit:'сом'},
+    {id:'ccred',   name:'Обеспечиваемых кредитов',     type:'число', unit:'ед.'},
+    {id:'surv',    name:'Дней с последнего обследования', type:'число', unit:'дн.'}
+  ], drill:['no', 'kind', 'pledger', 'pledge', 'surv']},
+  /* ТРЕБОВАНИЕ ВЗЫСКАНИЯ — дело × кредит × роль обязанного лица (CONTEXT.md «Требование»).
+     Фаза, охват, сумма — выводятся у владельца из журнала мер; перечень объявило взыскание.
+     Требование к заёмщику ставит система на 1-й день просрочки (п. 16.1); к поручителю и
+     залогодателю — второе и третье по тому же кредиту, каждое с ПОЛНОЙ суммой (солидарность). */
+  claim: {name:'требование взыскания', owner:'взыскание · требования', word: clWord, fields:[
+    {id:'no',      name:'Номер требования',            type:'текст'},
+    {id:'caseNo',  name:'Дело взыскания',              type:'текст'},
+    {id:'credit',  name:'Кредит требования',           type:'текст'},
+    {id:'person',  name:'Обязанное лицо',              type:'текст'},
+    {id:'role',    name:'Роль обязанного лица',        type:'словарь', dict:'role'},
+    {id:'basis',   name:'Основание открытия',          type:'словарь', dict:'basis'},
+    {id:'phase',   name:'Фаза взыскания',              type:'словарь', dict:'phase'},
+    {id:'scope',   name:'Охват требования',            type:'словарь', dict:'scope'},
+    {id:'dept',    name:'Подразделение требования',    type:'словарь', dict:'dept'},
+    {id:'curator', name:'Куратор требования',          type:'словарь', dict:'curator'},
+    {id:'cur',     name:'Валюта требования',           type:'словарь', dict:'cur'},
+    {id:'qdate',   name:'Дата открытия',               type:'дата'},
+    {id:'sum',     name:'Сумма требования',            type:'число', unit:'сом'},
+    {id:'phdays',  name:'Дней в текущей фазе',         type:'число', unit:'дн.'}
+  ], drill:['no', 'credit', 'person', 'role', 'phase', 'sum']}
+};
+FIELDS.credit.drill = ['no', 'borrower', 'debt_main', 'days'];
+/* В v1 живые строки (objectRows) ядро отдаёт только по кредиту (ИО-30, ADR-0181 §4). */
+const LIVE_OBJECTS = ['credit'];
+
+/* Справочники значений — у владельца поля; порядок значений — порядок узлов дерева. */
+const DICTS = {
+  dept: DEPTS.map(d => d.name),
+  program: ['Промышленность', 'Агропереработка', 'Экспорт', 'Малый бизнес'],
+  status: ['действующий', 'просроченный', 'на взыскании', 'закрыт'],
+  curator: ['Осмонова Г.', 'Кадыров Б.', 'Сыдыкова А.', 'Токтосунов Э.', 'Асанов А.'],
+  risk: ['низкий', 'средний', 'высокий'],
+  /* залог: вид обеспечения → класс ликвидности задаёт справочник видов у владельца (ADR-0176 §7) */
+  kind: ['недвижимость', 'земельный участок', 'транспорт', 'оборудование', 'товары в обороте', 'депозит'],
+  kclass: ['высоколиквидный', 'средней ликвидности', 'низколиквидный'],
+  region: ['г. Бишкек', 'Чуйская область', 'Ошская область', 'Иссык-Кульская область'],
+  cur: ['сом', 'USD'],
+  zstate: ['в залоге', 'реализуется', 'освобождён'],
+  ctl: ['в срок', 'контроль просрочен', 'не обследован'],
+  yesno: ['да', 'нет'],
+  /* взыскание */
+  role: ['заёмщик', 'поручитель', 'залогодатель'],
+  basis: ['просрочка', 'привлечение обеспечителя', 'сведения о банкротстве'],
+  phase: ['Претензия', 'Иск', 'Решение суда', 'На исполнении', 'закрыто'],
+  scope: ['просроченная сумма · деньгами', 'полный остаток · деньгами', 'полный остаток · на предмет залога']
+};
+const KIND_CLASS = {'депозит':'высоколиквидный', 'недвижимость':'высоколиквидный', 'транспорт':'средней ликвидности',
+  'земельный участок':'средней ликвидности', 'оборудование':'низколиквидный', 'товары в обороте':'низколиквидный'};
+const KIND_DISCOUNT = {'депозит':0.02, 'недвижимость':0.20, 'транспорт':0.35, 'земельный участок':0.30, 'оборудование':0.45, 'товары в обороте':0.50};
+
+/* СТАТИСТИКА: реестр показателей. Источник объявлен, формулы нет (ADR-0150).
+   `live` — исчислимость налету, объявляет владелец реестра (ADR-0159). */
+const STATS = [
+  {id:'s-overdue-sum', object:'credit',   name:'Сумма просроченной задолженности', unit:'сом', live:true,  agg:'сумма'},
+  {id:'s-overdue-cnt', object:'credit',   name:'Кредитов с просрочкой',            unit:'ед.', live:true,  agg:'количество'},
+  {id:'s-portfolio',   object:'credit',   name:'Остаток основного долга, всего',   unit:'сом', live:true,  agg:'сумма'},
+  {id:'s-count',       object:'credit',   name:'Кредитов, всего',                  unit:'ед.', live:true,  agg:'количество'},
+  {id:'s-avg-late',    object:'credit',   name:'Средняя просрочка',                unit:'дн.', live:false, agg:'среднее',
+   why:'считается ночным прогоном по живой базе: налету средняя не берётся'},
+  {id:'s-npl',         object:'credit',   name:'Доля проблемных кредитов',         unit:'%',   live:true,  agg:'—',
+   withdrawn:'2026-08-12', why:'выведен владельцем реестра: методика заменена классификацией'},
+  /* Портфельные показатели заёмщика — считает портфельный шов, отчётность их не складывает. */
+  {id:'s-b-debt',      object:'borrower', name:'Свод долга по договорам',          unit:'сом', live:true,  agg:'сумма'},
+  {id:'s-b-cnt',       object:'borrower', name:'Число договоров',                  unit:'ед.', live:true,  agg:'сумма'},
+  {id:'s-b-worst',     object:'borrower', name:'Худшая просрочка',                 unit:'дн.', live:true,  agg:'максимум'},
+  /* Предмет залога — агрегаты реестра статистики по obj-collateral (a-count, a-sumcval,
+     a-sumcpledge, a-sumcalloc, a-sumcfree, a-sumcsec, a-maxcsurv, a-avgcsurv). Строчные
+     величины (стоимости, срок без обследования) отдаёт шов залога calcPledge. */
+  {id:'s-c-count',     object:'collateral', name:'Предметов залога, всего',        unit:'ед.', live:false, agg:'количество',
+   why:'строки предмета залога в v1 отдаёт только прогон статистики (ИО-30)'},
+  {id:'s-c-val',       object:'collateral', name:'Оценочная стоимость, итого',     unit:'сом', live:false, agg:'сумма',
+   why:'строки предмета залога в v1 отдаёт только прогон статистики (ИО-30)'},
+  {id:'s-c-pledge',    object:'collateral', name:'Залоговая стоимость, итого',     unit:'сом', live:false, agg:'сумма',
+   why:'строки предмета залога в v1 отдаёт только прогон статистики (ИО-30)'},
+  {id:'s-c-alloc',     object:'collateral', name:'Отнесено под кредиты, итого',    unit:'сом', live:false, agg:'сумма',
+   why:'строки предмета залога в v1 отдаёт только прогон статистики (ИО-30)'},
+  {id:'s-c-free',      object:'collateral', name:'Доступно к перезалогу, итого',   unit:'сом', live:false, agg:'сумма',
+   why:'строки предмета залога в v1 отдаёт только прогон статистики (ИО-30)'},
+  {id:'s-c-sec',       object:'collateral', name:'Обеспечено залогом, итого',      unit:'сом', live:false, agg:'сумма · дедуп по кредиту',
+   dedup:'обеспечиваемый кредит', why:'строки предмета залога в v1 отдаёт только прогон статистики (ИО-30)'},
+  {id:'s-c-maxsurv',   object:'collateral', name:'Худший срок без обследования',   unit:'дн.', live:false, agg:'максимум',
+   why:'строки предмета залога в v1 отдаёт только прогон статистики (ИО-30)'},
+  {id:'s-c-avgsurv',   object:'collateral', name:'Средний срок без обследования',  unit:'дн.', live:false, agg:'среднее',
+   why:'строки предмета залога в v1 отдаёт только прогон статистики (ИО-30)'},
+  /* Требование взыскания — агрегаты по obj-claim (a-count, a-sumclsum, a-avgclphdays).
+     У суммы объявлен ДЕДУП-КЛЮЧ «кредит требования» (ИС-34, ADR-0199): солидарные требования
+     к заёмщику и поручителю правдивы каждое, но долг у кредита один — узел берёт по каждому
+     кредиту наибольшее, и сумма детей уровня «роль» итогу не равна. */
+  {id:'s-q-count',     object:'claim', name:'Требований, всего',                   unit:'ед.', live:false, agg:'количество',
+   why:'строки требования в v1 отдаёт только прогон статистики (ИО-30)'},
+  {id:'s-q-sum',       object:'claim', name:'Сумма требований, итого',             unit:'сом', live:false, agg:'сумма · дедуп по кредиту (ИС-34)',
+   dedup:'кредит требования', why:'строки требования в v1 отдаёт только прогон статистики (ИО-30)'},
+  {id:'s-q-avgph',     object:'claim', name:'Средний срок в фазе',                 unit:'дн.', live:false, agg:'среднее',
+   why:'строки требования в v1 отдаёт только прогон статистики (ИО-30)'}
+];
+/* Агрегат объявлен НАД строчной мерой — реквизит записи реестра (`over` у a-* статистики).
+   Страница читает его, чтобы строка объекта печатала меру под колонкой своего агрегата:
+   одна колонка — одна величина в двух породах (волна 22, ADR-0185 §3). У «количества» меры нет. */
+const OVER = {
+  's-overdue-sum':'overdue', 's-portfolio':'debt_main', 's-avg-late':'days',
+  's-b-debt':'portfolio', 's-b-cnt':'contracts', 's-b-worst':'worst',
+  's-c-val':'val', 's-c-pledge':'pledge', 's-c-alloc':'alloc', 's-c-free':'free', 's-c-sec':'sec',
+  's-c-maxsurv':'surv', 's-c-avgsurv':'surv',
+  's-q-sum':'sum', 's-q-avgph':'phdays'
+};
+STATS.forEach(s => { if(OVER[s.id]) s.over = OVER[s.id]; });
+const STAT = id => STATS.find(s => s.id === id);
+
+/* СТАТИСТИКА: разрезы. `declared` — прогон собирает по нему строки среза; без
+   объявления разрез доступен только режиму «сейчас» (CONTEXT.md, «Разрез»).
+   Корзина объявлена в записи разреза и применяется ПРИ ЧТЕНИИ. */
+const CUTS = [
+  {id:'dept',     object:'credit',   name:'подразделение',       declared:true,  field:'dept'},
+  {id:'status',   object:'credit',   name:'состояние кредита',   declared:true,  field:'status'},
+  {id:'late',     object:'credit',   name:'срок неплатежа',      declared:true,  field:'days',
+   buckets:{'ступени':['0 дней','1–30 дней','31–90 дней','91–180 дней','181+ дней']}},
+  {id:'cdate',    object:'credit',   name:'дата договора',       declared:true,  field:'date', kind:'дата',
+   buckets:{'год':null, 'квартал':null, 'месяц':null}},
+  {id:'borrower', object:'credit',   name:'заёмщик',             declared:true,  field:'borrower'},
+  {id:'program',  object:'credit',   name:'кредитная программа', declared:false, field:'program'},
+  {id:'b-dept',   object:'borrower', name:'подразделение',       declared:true,  field:'dept'},
+  {id:'b-cur',    object:'borrower', name:'ведущий куратор',     declared:true,  field:'curator'},
+  {id:'b-risk',   object:'borrower', name:'категория риска',     declared:true,  field:'risk'},
+  /* Предмет залога — разрезы реестра статистики по obj-collateral (d-cbranch, d-ccurator,
+     d-collkind, d-cregion, d-ccur, d-cadm, d-czstate, d-cban, d-cpledger, d-cctl). «Вид
+     обеспечения» двухуровневый: класс ликвидности берётся справочником видов у владельца,
+     от него зависит порог обеспечения (ADR-0176 §7). Свои разрезы — своими записями:
+     «подразделение» кредита к предмету не прикладывается (ИС-40, ADR-0206 §3). */
+  {id:'c-dept',    object:'collateral', name:'подразделение предмета залога', declared:true, field:'dept'},
+  {id:'c-curator', object:'collateral', name:'куратор предмета залога',       declared:true, field:'curator'},
+  {id:'c-kind',    object:'collateral', name:'вид обеспечения',               declared:true, field:'kind',
+   buckets:{'вид':null, 'класс ликвидности':null}},
+  {id:'c-region',  object:'collateral', name:'территория предмета залога',    declared:true, field:'region'},
+  {id:'c-cur',     object:'collateral', name:'валюта оценки',                 declared:true, field:'cur'},
+  {id:'c-adm',     object:'collateral', name:'дата принятия в залог',         declared:true, field:'adm', kind:'дата',
+   buckets:{'год':null, 'квартал':null, 'месяц':null}},
+  {id:'c-zstate',  object:'collateral', name:'залоговый статус',              declared:true, field:'zstate'},
+  {id:'c-ban',     object:'collateral', name:'запрет на отчуждение',          declared:true, field:'ban'},
+  {id:'c-pledger', object:'collateral', name:'залогодатель',                  declared:true, field:'pledger'},
+  {id:'c-ctl',     object:'collateral', name:'состояние контроля',            declared:true, field:'ctl'},
+  /* Требование взыскания — разрезы по obj-claim (d-clbranch, d-clcurator, d-phase, d-clcase,
+     d-clcred, d-crole, d-clscope, d-clcur). Фаза и роль — из закрытых словарей владельца. */
+  {id:'q-dept',    object:'claim', name:'подразделение требования', declared:true, field:'dept'},
+  {id:'q-curator', object:'claim', name:'куратор требования',       declared:true, field:'curator'},
+  {id:'q-phase',   object:'claim', name:'фаза взыскания',           declared:true, field:'phase'},
+  {id:'q-role',    object:'claim', name:'роль обязанного лица',     declared:true, field:'role'},
+  {id:'q-scope',   object:'claim', name:'охват требования',         declared:true, field:'scope'},
+  {id:'q-cur',     object:'claim', name:'валюта требования',        declared:true, field:'cur'},
+  {id:'q-case',    object:'claim', name:'дело взыскания',           declared:true, field:'caseNo'},
+  {id:'q-credit',  object:'claim', name:'кредит требования',        declared:true, field:'credit'}
+];
+const CUT = id => CUTS.find(c => c.id === id);
+
+/* Операторы отбора — перечень на систему, по типу величины (§3 п. 5, ОЧ-29). */
+const OPS = {
+  'число':   ['=', '≠', '>', '≥', '<', '≤'],
+  'дата':    ['до', 'на', 'после'],
+  'текст':   ['содержит', 'начинается с'],
+  'словарь': ['равно', 'в списке']
+};
+
+/* ---------- данные: заёмщики и кредиты, детерминированно ---------- */
+const BORROWERS_SRC = [
+  ['b01','ОсОО «Алтын-Тоо»','dep-prom','Осмонова Г.'],  ['b02','ИП Жумабеков А.','dep-prom','Кадыров Б.'],
+  ['b03','ОсОО «Ак-Булак»','dep-prom','Сыдыкова А.'],   ['b04','ОАО «Кыргызтекстиль»','dep-prom','Осмонова Г.'],
+  ['b05','ИП Сыдыкова Н.','dep-prom','Кадыров Б.'],     ['b06','ОсОО «Нур-Агро»','dep-prom','Сыдыкова А.'],
+  ['b07','КФХ «Береке»','dep-prom','Осмонова Г.'],      ['b08','ОсОО «Тянь-Шань Металл»','dep-prom','Кадыров Б.'],
+  ['b09','ИП Токтоналиев Б.','dep-prom','Сыдыкова А.'], ['b10','ОсОО «Кара-Балта Пласт»','dep-prom','Осмонова Г.'],
+  ['b11','ОсОО «Эко-Продукт»','dep-prom','Кадыров Б.'], ['b12','ИП Мамбетова Г.','dep-prom','Сыдыкова А.'],
+  ['b13','ОсОО «Ысык-Көл Логистик»','dep-prom','Осмонова Г.'], ['b14','ОАО «Бишкексүт»','dep-prom','Кадыров Б.'],
+  ['b15','ОсОО «Достук Строй»','dep-prom','Сыдыкова А.'], ['b16','ИП Абдыкадыров Т.','dep-prom','Осмонова Г.'],
+  ['b17','ОсОО «Ош-Нан»','rep-osh','Токтосунов Э.'],    ['b18','ОсОО «Каракол-Сервис»','dep-admin','Асанов А.']
+];
+const BORROWERS = BORROWERS_SRC.map((b, i) => ({id:b[0], name:b[1], dept:b[2], curator:b[3],
+  inn: String(10000000000 + i * 7919 * 1013).slice(0, 12)}));
+const BR = id => BORROWERS.find(b => b.id === id);
+
+/* 50 кредитов: 47 в департаменте Осмоновой, 3 в чужих. Дни просрочки на 31.08 заданы
+   списком, чтобы ступени были заполнены; на 31.07 они на 31 меньше, на 05.09 — на 5 больше. */
+function mulberry32(a){ return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a);
+  t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const LATE_ON_0831 = [4, 9, 15, 22, 27, 30,  35, 48, 61, 77, 88,  95, 120, 140, 166, 179,  214, 233, 290, 402, 611];
+const CREDITS = (() => {
+  const rnd = mulberry32(20260905);
+  const out = [];
+  const owners = [];
+  BORROWERS.filter(b => b.dept === 'dep-prom').forEach((b, i) => { const k = 2 + (i % 3); for(let j = 0; j < k; j++) owners.push(b.id); });
+  while(owners.length < 47) owners.push('b0' + (1 + Math.floor(rnd() * 9)));
+  owners.length = 47;
+  owners.push('b17', 'b17', 'b18');
+  const lateIdx = [];
+  for(let i = 0; i < 21; i++) lateIdx.push(i * 2 + 1);            // 21 просроченный среди первых 47
+  const hiddenLate = {48: 12, 49: 240};                             // из скрытых: один 1–30, один 181+
+  const seqByYear = {};
+  owners.forEach((bid, i) => {
+    const b = BR(bid);
+    const year = i < 45 ? 2022 + Math.floor(rnd() * 4) : 2026;     // два последних видимых рождены в августе 2026
+    const month = i >= 45 && i < 47 ? 8 : 1 + Math.floor(rnd() * (year === 2026 ? 7 : 12));
+    const day = i >= 45 && i < 47 ? (i === 45 ? 10 : 20) : 1 + Math.floor(rnd() * 27);
+    const date = year + '-' + pad2(month) + '-' + pad2(day);
+    seqByYear[year] = (seqByYear[year] || 0) + 1;
+    const no = 'КД-' + year + '-' + String(seqByYear[year] * 7 + 3).padStart(3, '0');
+    const sum = Math.round((500000 + rnd() * 24500000) / 100000) * 100000;
+    const li = lateIdx.indexOf(i);
+    const late0831 = li !== -1 ? LATE_ON_0831[li] : (hiddenLate[i] || 0);
+    const missAt = late0831 ? addDays('2026-08-31', -late0831) : null;
+    const closedAt = (i === 6 || i === 20) ? '2026-06-15' : null;    // два закрытых: строка остаётся
+    const paidAt = (i === 3 || i === 21) ? '2026-09-03' : null;       // погасили просрочку после 31.08
+    const program = DICTS.program[Math.floor(rnd() * 4)];
+    const cur = i % 9 === 4 ? 'USD' : 'сом';                          // валюта договора — нужна залогу и требованию
+    out.push({id:'c' + pad2(i + 1), no, borrowerId: bid, borrower: b.name, dept: b.dept,
+      program, sum, date, cur, missAt, closedAt, paidAt});
+  });
+  return out;
+})();
+
+/* ---------- данные: предметы залога (владелец — залог) ---------- */
+/* ~43 предмета: у каждого свой залогодатель (заёмщик или третье лицо), оценка в валюте
+   обеспечиваемого кредита, отнесения под 1–2 кредита одного заёмщика, обследования. Три
+   предмета — у кредитов чужих подразделений (скрыты областью видимости). */
+const THIRD_PARTIES = ['Жумабекова Н. (третье лицо)', 'ОсОО «Кут-Мүлк» (третье лицо)', 'Асанов Т. (третье лицо)'];
+const COLLATERAL = (() => {
+  const rnd = mulberry32(20260905 + 21);
+  const out = [];
+  const byBorrower = {};
+  CREDITS.forEach(c => { (byBorrower[c.borrowerId] = byBorrower[c.borrowerId] || []).push(c); });
+  let n = 0;
+  Object.keys(byBorrower).forEach(bid => {
+    const cs = byBorrower[bid], b = BR(bid);
+    const k = bid === 'b17' ? 2 : bid === 'b18' ? 1 : 2 + Math.floor(rnd() * 2);      // 2–3 предмета на заёмщика
+    for(let j = 0; j < k; j++){
+      n++;
+      const kind = DICTS.kind[Math.floor(rnd() * DICTS.kind.length)];
+      const first = cs[j % cs.length];
+      const secured = [first].concat(cs.filter(c => c !== first && c.cur === first.cur).slice(0, Math.floor(rnd() * 2))); // валюта одна (CONTEXT «Валюта оценки»)
+      const adm = addDays(first.date, Math.floor(rnd() * 20));                                   // принят при выдаче
+      const val = Math.round(secured.reduce((s, c) => s + c.sum, 0) * (1.2 + rnd() * 0.9) / 100000) * 100000;
+      const pledger = n % 4 === 0 ? THIRD_PARTIES[n % 3] : b.name;                               // каждый четвёртый — имущественный залог третьего лица
+      const region = b.dept === 'rep-osh' ? 'Ошская область' : DICTS.region[Math.floor(rnd() * 3)];
+      const lastSurvey = rnd() < 0.12 ? null : addDays('2026-08-31', -Math.floor(rnd() * 300));   // ~12% не обследованы
+      out.push({id:'z' + pad2(n), no:'ПЗ-' + adm.slice(0, 4) + '-' + String(n * 5 + 7).padStart(3, '0'), kind, pledger,
+        dept: b.dept, curator: b.curator, region, cur: first.cur, adm, val, creditIds: secured.map(c => c.id),
+        lastSurvey, ban: rnd() < 0.3 ? 'да' : 'нет', insured: kind === 'депозит' ? 'нет' : rnd() < 0.7 ? 'да' : 'нет'});
+    }
+  });
+  return out;
+})();
+/* Состояние предмета на дату D — строка среза, собранная прогоном по шву залога calcPledge. */
+function collateralAt(z, D){
+  if(z.adm > D) return null;                                          // до принятия предмета нет
+  const cs = z.creditIds.map(id => creditAt(CREDITS.find(c => c.id === id), D)).filter(Boolean);
+  const live = cs.filter(c => c.status !== 'закрыт');
+  const pledge = Math.round(z.val * (1 - KIND_DISCOUNT[z.kind]) / 1000) * 1000;
+  const alloc = Math.min(pledge, live.reduce((s, c) => s + c.debt_main, 0));  // отнесено — не выше залоговой
+  const zstate = !live.length ? 'освобождён' : live.some(c => c.days > 270) ? 'реализуется' : 'в залоге';
+  const surv = z.lastSurvey && z.lastSurvey <= D ? daysBetween(z.lastSurvey, D) : null;
+  const ctl = surv == null ? 'не обследован' : surv > 180 ? 'контроль просрочен' : 'в срок';
+  const secBy = {}; live.forEach(c => { secBy[c.id] = c.debt_main; });   // обеспечиваемое — по каждому кредиту отдельно
+  return {id:z.id, no:z.no, kind:z.kind, pledger:z.pledger, dept:z.dept, curator:z.curator, region:z.region, cur:z.cur,
+    adm:z.adm, zstate, ban:z.ban, insured:z.insured, val:z.val, pledge, alloc, free: pledge - alloc,
+    secBy, sec: live.reduce((s, c) => s + c.debt_main, 0), ccred: live.length, surv, ctl};
+}
+
+/* ---------- данные: требования взыскания (владелец — взыскание) ---------- */
+/* Требование к заёмщику ставит система на 1-й день просрочки; при просрочке свыше 90 дней
+   по кредиту с поручителем открывается второе — к поручителю; свыше 180 и при живом предмете
+   залога — третье, к залогодателю. Дело одно на заёмщика. Погашение закрывает требование,
+   строка остаётся в срезе с фазой «закрыто». */
+const GUARANTORS = ['Асанова Ж.', 'ОсОО «Гарант-Юг»', 'Токтогулов М.', 'ИП Бекова А.', 'ОАО «Кыргызгарант»'];
+const CLAIMS = (() => {
+  const out = [];
+  const caseNo = {};
+  let n = 0;
+  CREDITS.forEach((c, i) => {
+    if(!c.missAt) return;
+    const b = BR(c.borrowerId);
+    if(!caseNo[c.borrowerId]) caseNo[c.borrowerId] = 'ДВ-2026-' + String(Object.keys(caseNo).length * 3 + 11).padStart(3, '0');
+    const base = {credit: c.no, creditId: c.id, caseNo: caseNo[c.borrowerId], dept: c.dept, curator: b.curator, cur: c.cur};
+    out.push(Object.assign({id:'q' + pad2(++n), no:'ТР-2026/' + String(n * 4 + 1).padStart(3, '0'), role:'заёмщик', person: b.name,
+      basis:'просрочка', qdate: c.missAt}, base));
+    if(i % 3 !== 2) out.push(Object.assign({id:'q' + pad2(++n), no:'ТР-2026/' + String(n * 4 + 1).padStart(3, '0'), role:'поручитель',
+      person: GUARANTORS[i % GUARANTORS.length], basis:'привлечение обеспечителя', qdate: addDays(c.missAt, 91)}, base));
+    const z = COLLATERAL.find(x => x.creditIds.indexOf(c.id) !== -1 && x.pledger !== b.name);
+    if(z) out.push(Object.assign({id:'q' + pad2(++n), no:'ТР-2026/' + String(n * 4 + 1).padStart(3, '0'), role:'залогодатель',
+      person: z.pledger, basis:'привлечение обеспечителя', qdate: addDays(c.missAt, 181), onPledge:true}, base));
+  });
+  return out;
+})();
+function claimAt(q, D){
+  if(q.qdate > D) return null;                                        // требование ещё не открыто
+  const c = creditAt(CREDITS.find(x => x.id === q.creditId), D);
+  const closed = !c || c.days === 0;                                  // просрочка погашена или кредит закрыт
+  const age = daysBetween(q.qdate, D);
+  const steps = [['Претензия', 0], ['Иск', 30], ['Решение суда', 90], ['На исполнении', 180]];
+  let phase = 'Претензия', since = 0;
+  steps.forEach(s => { if(age >= s[1]){ phase = s[0]; since = s[1]; } });
+  if(closed){ phase = 'закрыто'; since = age; }
+  const full = c && c.days > 90;
+  const scope = q.onPledge ? 'полный остаток · на предмет залога' : full ? 'полный остаток · деньгами' : 'просроченная сумма · деньгами';
+  const sum = closed ? 0 : full ? c.debt_main : c.overdue;
+  return {id:q.id, no:q.no, caseNo:q.caseNo, credit:q.credit, creditId:q.creditId, person:q.person, role:q.role, basis:q.basis,
+    phase, scope, dept:q.dept, curator:q.curator, cur:q.cur, qdate:q.qdate, sum, phdays: closed ? 0 : age - since};
+}
+
+/* Состояние кредита на дату D — то, что положил бы в строку среза ночной прогон
+   (или отдало бы ядро живым запросом). Величины — заглушка ядра; отчётность их не выводит. */
+function creditAt(c, D){
+  if(c.date > D) return null;                                        // рождение объекта ещё не наступило
+  const closed = c.closedAt && c.closedAt <= D;
+  let days = 0;
+  if(!closed && c.missAt && c.missAt <= D && !(c.paidAt && c.paidAt <= D)) days = daysBetween(c.missAt, D);
+  const stopAt = c.missAt && c.missAt <= D ? c.missAt : D;
+  const m = monthsBetween(c.date, stopAt);
+  const debt = closed ? 0 : Math.round(c.sum * Math.max(0.08, 1 - m * 0.03) / 100) * 100;
+  const overdue = days > 0 ? Math.round(debt * Math.min(0.85, 0.06 + days / 365 * 0.5) / 100) * 100 : 0;
+  const status = closed ? 'закрыт' : days > 180 ? 'на взыскании' : days > 0 ? 'просроченный' : 'действующий';
+  return {id:c.id, no:c.no, borrower:c.borrower, borrowerId:c.borrowerId, dept:c.dept, program:c.program,
+    sum:c.sum, date:c.date, debt_main:debt, days, overdue, status};
+}
+function borrowerAt(b, D){
+  const cs = CREDITS.filter(c => c.borrowerId === b.id).map(c => creditAt(c, D)).filter(Boolean);
+  if(!cs.length) return null;                                        // рождение заёмщика = первый договор
+  const worst = Math.max.apply(null, cs.map(c => c.days));
+  const risk = worst === 0 ? 'низкий' : worst <= 90 ? 'средний' : 'высокий';
+  return {id:b.id, name:b.name, inn:b.inn, dept:b.dept, curator:b.curator, risk,
+    portfolio: cs.reduce((s, c) => s + c.debt_main, 0), contracts: cs.length, worst};
+}
+/* Строки среза, собранные «прогоном» на объявленные даты. */
+const HIST = {};
+SNAPSHOTS.forEach(D => { HIST[D] = {
+  credit:     CREDITS.map(c => creditAt(c, D)).filter(Boolean),
+  borrower:   BORROWERS.map(b => borrowerAt(b, D)).filter(Boolean),
+  collateral: COLLATERAL.map(z => collateralAt(z, D)).filter(Boolean),
+  claim:      CLAIMS.map(q => claimAt(q, D)).filter(Boolean) }; });
+const LIVE = () => ({ credit: CREDITS.map(c => creditAt(c, TODAY)).filter(Boolean) });
+
+/* ======================================================================
+   2. ШВЫ — единственный вход в данные (ИО-3)
+   ====================================================================== */
+const nearestSnapshot = asOf => { const ok = SNAPSHOTS.filter(d => d <= asOf); return ok.length ? ok[ok.length - 1] : null; };
+const fieldOf = (obj, fid) => FIELDS[obj].fields.find(f => f.id === fid);
+
+/* Отбор применяется у отвечающего: фильтр сужает вопрос, роль сужает мир. */
+function applyFilters(obj, rows, filters){
+  return (filters || []).reduce((rs, f) => {
+    const fd = fieldOf(obj, f.field); if(!fd || f.value === '' || f.value == null) return rs;
+    const v = String(f.value).trim();
+    return rs.filter(r => { const x = r[f.field];
+      switch(fd.type){
+        case 'число': { const n = Number(String(v).replace(/\s/g, '')); if(isNaN(n)) return true;
+          return f.op === '=' ? x === n : f.op === '≠' ? x !== n : f.op === '>' ? x > n : f.op === '≥' ? x >= n :
+                 f.op === '<' ? x < n : x <= n; }
+        case 'дата': return f.op === 'до' ? x < v : f.op === 'на' ? x === v : x > v;
+        case 'текст': { const a = String(x).toLowerCase(), b = v.toLowerCase();
+          return f.op === 'содержит' ? a.indexOf(b) !== -1 : a.indexOf(b) === 0; }
+        case 'словарь': { const val = fd.dict === 'dept' ? deptName(String(x)) : String(x);
+          if(f.op === 'равно') return val === v;
+          return v.split(',').map(s => s.trim()).filter(Boolean).indexOf(val) !== -1; }
+      }
+      return true; });
+  }, rows);
+}
+/* Значение разреза у строки — с корзиной, применённой при чтении. */
+function cutValue(cut, bucket, r){
+  const x = r[cut.field];
+  if(cut.id === 'late'){ return x === 0 ? '0 дней' : x <= 30 ? '1–30 дней' : x <= 90 ? '31–90 дней' : x <= 180 ? '91–180 дней' : '181+ дней'; }
+  if(cut.kind === 'дата'){ const y = x.slice(0, 4), m = Number(x.slice(5, 7));
+    return bucket === 'год' ? y : bucket === 'квартал' ? y + ' · ' + ['I','II','III','IV'][Math.floor((m - 1) / 3)] + ' кв.'
+         : MONTHS_N[m - 1] + ' ' + y; }
+  if(cut.id === 'c-kind' && bucket === 'класс ликвидности') return KIND_CLASS[x];   // уровень выше — справочником владельца
+  if(cut.field === 'dept') return deptName(x);
+  return String(x);
+}
+/* Порядок узлов — порядок справочника владельца поля; у дат и ступеней — свой. */
+const dictOfCut = cut => { const fd = fieldOf(cut.object, cut.field); return fd && fd.dict ? DICTS[fd.dict] : null; };
+function cutOrder(cut, bucket, keys){
+  if(cut.id === 'late') return CUT('late').buckets['ступени'].filter(k => keys.indexOf(k) !== -1);
+  if(cut.kind === 'дата'){ if(bucket === 'месяц') return keys.slice().sort((a, b) => {
+      const pa = a.split(' '), pb = b.split(' ');
+      return (pa[1] + pad2(MONTHS_N.indexOf(pa[0]))).localeCompare(pb[1] + pad2(MONTHS_N.indexOf(pb[0]))); });
+    return keys.slice().sort(); }
+  if(cut.id === 'c-kind' && bucket === 'класс ликвидности') return DICTS.kclass.filter(k => keys.indexOf(k) !== -1);
+  const dict = dictOfCut(cut);
+  if(dict) return dict.filter(k => keys.indexOf(k) !== -1);
+  return keys.slice().sort((a, b) => a.localeCompare(b, 'ru'));
+}
+/* Величина показателя по множеству строк — считает СТАТИСТИКА (заглушка), не страница. */
+function statValue(statId, rows){
+  const sum = f => rows.reduce((s, r) => s + (r[f] || 0), 0);
+  const avg = (f, pick) => { const l = rows.filter(r => r[f] != null && (!pick || pick(r))); return l.length ? l.reduce((s, r) => s + r[f], 0) / l.length : null; };
+  const max = f => { const l = rows.filter(r => r[f] != null); return l.length ? Math.max.apply(null, l.map(r => r[f])) : null; };
+  /* Дедуп по чужому ключу (ИС-34, ADR-0199): строки, пересекающиеся по одному кредиту, схлопываются
+     ПЕРЕД суммой на каждом узле; представитель — наибольшая величина. Потому сумма детей итогу не равна. */
+  const dedupSum = pairsOf => { const best = {}; rows.forEach(r => pairsOf(r).forEach(p => { best[p[0]] = Math.max(best[p[0]] || 0, p[1] || 0); }));
+    return Object.keys(best).reduce((s, k) => s + best[k], 0); };
+  switch(statId){
+    case 's-overdue-sum': return sum('overdue');
+    case 's-overdue-cnt': return rows.filter(r => r.days > 0).length;
+    case 's-portfolio':   return sum('debt_main');
+    case 's-count':       return rows.length;
+    case 's-avg-late':    return avg('days', r => r.days > 0);
+    case 's-b-debt':      return sum('portfolio');
+    case 's-b-cnt':       return sum('contracts');
+    case 's-b-worst':     return max('worst');
+    /* предмет залога */
+    case 's-c-count':     return rows.length;
+    case 's-c-val':       return sum('val');
+    case 's-c-pledge':    return sum('pledge');
+    case 's-c-alloc':     return sum('alloc');
+    case 's-c-free':      return sum('free');
+    case 's-c-sec':       return dedupSum(r => Object.keys(r.secBy).map(k => [k, r.secBy[k]]));   // один кредит под двумя предметами — один долг
+    case 's-c-maxsurv':   return max('surv');
+    case 's-c-avgsurv':   return avg('surv');
+    /* требование */
+    case 's-q-count':     return rows.length;
+    case 's-q-sum':       return dedupSum(r => [[r.creditId, r.sum]]);   // солидарные требования — один долг
+    case 's-q-avgph':     return avg('phdays', r => r.phase !== 'закрыто');
+  }
+  return null;
+}
+
+const SEAM = {
+  /* ЯДРО. Живые строки объекта с полями перечня и исчислимыми налету показателями. */
+  objectRows(obj, filters, scope){
+    if(LIVE_OBJECTS.indexOf(obj) === -1) return {rows:[], hidden:0, refused:true,
+      why:'ядро в v1 отвечает objectRows только по объекту «кредит» (ИО-30, ADR-0181 §4)'};
+    const all = applyFilters(obj, LIVE()[obj], filters);
+    const vis = all.filter(r => scope.indexOf(r.dept) !== -1);
+    return {rows: clone(vis), hidden: all.length - vis.length, substituted:null,
+      passport:{seam:'objectRows', owner:'ядро', asOf:null, mode:'сейчас', at: fmt(TODAY) + ' ' + NOW,
+        scope: scope.slice(), depth:'живое состояние на момент вопроса'}};
+  },
+  /* СТАТИСТИКА. Строки объекта на дату — из снимка, не из живой базы. Снимок — это
+     и СОСТАВ: заведённого позже в нём нет, закрытый после даты — есть. */
+  statRows(obj, asOf, filters, scope){
+    const real = nearestSnapshot(asOf);
+    if(!real) return {rows:[], hidden:0, missing:true, why:'снимка на ' + fmt(asOf) + ' у статистики нет'};
+    const all = applyFilters(obj, HIST[real][obj], filters);
+    const vis = all.filter(r => scope.indexOf(r.dept) !== -1);
+    return {rows: clone(vis), hidden: all.length - vis.length, substituted: real === asOf ? null : real,
+      passport:{seam:'statRows', owner:'статистика', asOf: real, asked: asOf, mode:'на дату',
+        fixed: FIXED[real] ? 'зафиксировано' : 'не зафиксировано', scope: scope.slice(),
+        depth:'снимок статистики на ' + fmt(real)}};
+  },
+  /* СТАТИСТИКА, одна дверь: ответ всегда ДЕРЕВО уровней. Число узла — по строкам узла,
+     не из детей (ИС-24, ИО-17). asOf == null → источник живой (objectRows). */
+  statSlice(obj, statIds, levels, filters, asOf, scope){
+    const src = asOf ? SEAM.statRows(obj, asOf, filters, scope) : SEAM.objectRows(obj, filters, scope);
+    if(src.missing || src.refused) return {ok:false, why: src.why};
+    const stats = statIds.filter(id => STAT(id) && !STAT(id).withdrawn);
+    const values = rows => { const o = {}; stats.forEach(id => { o[id] = statValue(id, rows); }); return o; };
+    const build = (rows, li, path) => {
+      if(li >= levels.length) return null;
+      const lv = levels[li], cut = CUT(lv.id);
+      const keys = cutOrder(cut, lv.bucket, uniq(rows.map(r => cutValue(cut, lv.bucket, r))));
+      return keys.map(k => { const part = rows.filter(r => cutValue(cut, lv.bucket, r) === k);
+        const p = path.concat(k);
+        return {by: lv.id, key: k, path: p, count: part.length, values: values(part),
+          total: !!lv.total, children: build(part, li + 1, p), rows: li === levels.length - 1 ? part : null}; });
+    };
+    const root = {by:null, key:'всего', path:[], count: src.rows.length, values: values(src.rows),
+      children: build(src.rows, 0, []), rows: levels.length ? null : src.rows};
+    /* Дедуп-ключ — реквизит записи реестра, и паспорт его НАЗЫВАЕТ (ИС-34): иначе «сумма
+       строк не равна итогу» читается как ошибка счёта. */
+    const dedup = stats.filter(id => STAT(id).dedup).map(id => STAT(id).name + ' — схлопнуто по ключу «' + STAT(id).dedup + '», сумма строк итогу не равна');
+    return {ok:true, root, stats, levels: clone(levels), hidden: src.hidden, substituted: src.substituted || null,
+      passport: Object.assign({}, src.passport, {seams: [asOf ? 'statSlice' : 'objectRows'], dedup,
+        form:'дерево', by: levels.map(l => CUT(l.id).name + (l.bucket ? ' (' + l.bucket + ')' : ''))})};
+  },
+  /* Контракты, не данные: перечень полей, реестр показателей, перечень разрезов. */
+  fieldList(obj){ const o = FIELDS[obj]; return o ? {object: obj, name: o.name, owner: o.owner, fields: clone(o.fields)} : null; },
+  statList(obj){ return clone(STATS.filter(s => s.object === obj)); },
+  cutList(obj){ return clone(CUTS.filter(c => c.object === obj)); }
+};
+
+/* ======================================================================
+   3. СТРАНИЦА — состав вопроса, отказы словами, действия, след
+   ====================================================================== */
+const KB = { state:null };
+const hasDOM = typeof document !== 'undefined';
+const log = [];
+const note = (kind, text) => { log.push({at: TODAY, kind, text}); if(hasDOM) toast(text, kind); };
+
+KB.seed = () => {
+  KB.state = {
+    name:'Просрочка по ступеням',
+    object:'credit', mode:'на дату', asOf:'2026-08-31',
+    stats:['s-overdue-sum', 's-overdue-cnt'],
+    cuts:[{id:'late', bucket:'ступени', total:true}, {id:'status', bucket:null, total:false}],
+    filters:[],
+    drill:{on:false, fields:['no', 'borrower', 'debt_main', 'days']},
+    live:null,                 // {hash, answer} — «сейчас» считается по кнопке
+    notices:[],                // баннеры до следующего действия
+    drafts:[], issues:[], worklists:[], asked:null,
+    seq:{draft:0, issue:0, list:0}
+  };
+  log.length = 0;
+  return KB.state;
+};
+const S = () => KB.state;
+const composition = () => { const s = S(); return {object:s.object, mode:s.mode, asOf: s.mode === 'на дату' ? s.asOf : null,
+  stats: s.stats.slice(), cuts: clone(s.cuts), filters: clone(s.filters), drill: clone(s.drill)}; };
+const hashOf = () => JSON.stringify(composition());
+const notice = (kind, text) => { S().notices.push({kind, text}); };
+const clearNotices = () => { S().notices = []; };
+
+/* ---------- состав: объект, режим, дата ---------- */
+KB.setObject = obj => {
+  const s = S(); if(!FIELDS[obj]) return {ok:false, why:'объекта «' + obj + '» никто не объявил: публичного перечня полей у него нет'};
+  if(obj === s.object) return {ok:true, switched:false};
+  clearNotices();
+  s.object = obj; s.stats = []; s.cuts = []; s.filters = []; s.live = null;
+  s.drill = {on:false, fields: FIELDS[obj].drill.slice()};
+  let switched = false, why = null;
+  if(s.mode === 'сейчас' && LIVE_OBJECTS.indexOf(obj) === -1){
+    s.mode = 'на дату'; switched = true;
+    why = 'объекту «' + FIELDS[obj].name + '» режим «сейчас» в v1 недоступен: живые строки отдаёт objectRows, а ядро ' +
+      'отвечает им только по кредиту (ИО-30). Переключено на «на дату» — строки даёт снимок статистики';
+    notice('warn', why);
+  }
+  /* Стартовый состав нового объекта — первые два показателя реестра и первый разрез. */
+  const st = SEAM.statList(obj).filter(x => !x.withdrawn && (s.mode === 'на дату' || x.live));
+  s.stats = st.slice(0, 2).map(x => x.id);
+  const c0 = SEAM.cutList(obj).filter(c => c.declared)[0];
+  if(c0) s.cuts = [{id: c0.id, bucket: c0.buckets ? Object.keys(c0.buckets)[0] : null, total: true}];
+  return {ok:true, switched, why};
+};
+KB.setMode = mode => {
+  const s = S(); if(['на дату', 'сейчас'].indexOf(mode) === -1) return {ok:false, why:'режима «' + mode + '» нет: их два'};
+  if(mode === s.mode) return {ok:true, dropped:[]};
+  clearNotices();
+  if(mode === 'сейчас' && LIVE_OBJECTS.indexOf(s.object) === -1)
+    return {ok:false, why:'объекту «' + FIELDS[s.object].name + '» режим «сейчас» в v1 недоступен: ядро отвечает objectRows ' +
+      'только по кредиту (ИО-30). Спросите его «на дату» — или выберите кредит'};
+  s.mode = mode; s.live = null;
+  const dropped = [];
+  if(mode === 'сейчас'){
+    /* Режим — часть вопроса. Что в новом режиме спросить нельзя, отваливается С ПОМЕТКОЙ, а не молча. */
+    s.stats = s.stats.filter(id => { const m = STAT(id); if(m && !m.live){ dropped.push({kind:'показатель', name: m.name,
+      why:'налету не берётся — ' + m.why}); return false; } return true; });
+  } else {
+    s.cuts = s.cuts.filter(c => { const m = CUT(c.id); if(m && !m.declared){ dropped.push({kind:'разрез', name: m.name,
+      why:'в реестре статистики не объявлен: прогон по нему строк не собирает, в срезе на дату его физически нет'}); return false; } return true; });
+  }
+  dropped.forEach(d => notice('warn', d.kind + ' «' + d.name + '» снят из состава: ' + d.why));
+  return {ok:true, dropped};
+};
+KB.setAsOf = d => { const s = S(); clearNotices(); s.asOf = d; s.live = null;
+  if(!nearestSnapshot(d)) return {ok:false, why:'снимков раньше ' + fmt(d) + ' у статистики нет'};
+  if(nearestSnapshot(d) !== d) notice('warn', 'За ' + fmt(d) + ' снимка нет: ночной прогон до этой даты не доходил. Числа посчитаны по ближайшему ' +
+    'более раннему состоянию — ' + fmt(nearestSnapshot(d)) + ', и паспорт назовёт подставленную дату (ИО-26). Сдавать такой показ окончательно нельзя');
+  return {ok:true, substituted: nearestSnapshot(d) === d ? null : nearestSnapshot(d)}; };
+KB.setName = n => { S().name = String(n || '').trim(); return {ok:true}; };
+
+/* ---------- состав: показатели, разрезы, фильтры, строки ---------- */
+KB.statAvail = id => { const s = S(), m = STAT(id);
+  if(!m || m.object !== s.object) return {ok:false, why:'показателя «' + id + '» в реестре по объекту «' + FIELDS[s.object].name + '» нет'};
+  if(m.withdrawn) return {ok:false, why:'выведен ' + fmtShort(m.withdrawn) + ' — ' + m.why + '. Показателя вне реестра не существует (ADR-0150)'};
+  if(s.mode === 'сейчас' && !m.live) return {ok:false, why:'налету не берётся — ' + m.why + '. В режиме «сейчас» спросить нельзя (ADR-0159)'};
+  return {ok:true}; };
+KB.toggleStat = id => { const s = S(); clearNotices();
+  const i = s.stats.indexOf(id); if(i !== -1){ s.stats.splice(i, 1); s.live = null; return {ok:true, on:false}; }
+  const a = KB.statAvail(id); if(!a.ok) return a;
+  s.stats.push(id); s.live = null; return {ok:true, on:true}; };
+KB.cutAvail = id => { const s = S(), c = CUT(id);
+  if(!c || c.object !== s.object) return {ok:false, why:'разреза «' + id + '» у объекта «' + FIELDS[s.object].name + '» нет'};
+  if(s.cuts.some(x => x.id === id)) return {ok:false, why:'разрез «' + c.name + '» уже стоит уровнем'};
+  if(s.mode === 'на дату' && !c.declared) return {ok:false, why:'в реестре статистики не объявлен: прогон по нему строк ' +
+    'не собирает, и в срезе на дату его физически нет. В режиме «сейчас» доступен как поле перечня'};
+  return {ok:true}; };
+KB.addCut = id => { const s = S(); clearNotices(); const a = KB.cutAvail(id); if(!a.ok) return a;
+  const c = CUT(id); s.cuts.push({id, bucket: c.buckets ? Object.keys(c.buckets)[0] : null, total:false}); s.live = null; return {ok:true}; };
+KB.removeCut = id => { const s = S(); clearNotices(); s.cuts = s.cuts.filter(c => c.id !== id); s.live = null; return {ok:true}; };
+KB.moveCut = (id, dir) => { const s = S(); clearNotices(); const i = s.cuts.findIndex(c => c.id === id); const j = i + dir;
+  if(i === -1 || j < 0 || j >= s.cuts.length) return {ok:false, why:'двигать некуда'};
+  const t = s.cuts[i]; s.cuts[i] = s.cuts[j]; s.cuts[j] = t; s.live = null; return {ok:true}; };
+KB.setBucket = (id, b) => { const s = S(); clearNotices(); const c = s.cuts.find(x => x.id === id), m = CUT(id);
+  if(!c || !m.buckets) return {ok:false, why:'у разреза корзины не объявлено'};
+  if(!(b in m.buckets)) return {ok:false, why:'корзины «' + b + '» у разреза «' + m.name + '» не объявлено'};
+  c.bucket = b; s.live = null; return {ok:true}; };
+KB.toggleTotal = id => { const s = S(); clearNotices(); const c = s.cuts.find(x => x.id === id); if(!c) return {ok:false, why:'уровня нет'};
+  c.total = !c.total; return {ok:true, total: c.total}; };
+KB.addFilter = (field, op, value) => { const s = S(); clearNotices(); const fd = fieldOf(s.object, field || FIELDS[s.object].fields[0].id);
+  if(!fd) return {ok:false, why:'поля «' + field + '» в публичном перечне объекта нет'};
+  const ops = OPS[fd.type]; const o = ops.indexOf(op) !== -1 ? op : ops[0];
+  s.filters.push({field: fd.id, op: o, value: value == null ? '' : String(value)}); s.live = null; return {ok:true, i: s.filters.length - 1}; };
+KB.setFilter = (i, patch) => { const s = S(); clearNotices(); const f = s.filters[i]; if(!f) return {ok:false, why:'фильтра нет'};
+  if(patch.field && patch.field !== f.field){ const fd = fieldOf(s.object, patch.field); if(!fd) return {ok:false, why:'поля нет'};
+    f.field = fd.id; f.op = OPS[fd.type][0]; f.value = ''; }
+  if(patch.op){ const fd = fieldOf(s.object, f.field); if(OPS[fd.type].indexOf(patch.op) === -1) return {ok:false,
+    why:'оператор «' + patch.op + '» типу «' + fd.type + '» не положен: перечень операторов задан на систему по типу величины'}; f.op = patch.op; }
+  if(patch.value != null) f.value = String(patch.value);
+  s.live = null; return {ok:true}; };
+KB.removeFilter = i => { const s = S(); clearNotices(); s.filters.splice(i, 1); s.live = null; return {ok:true}; };
+KB.setDrill = on => { const s = S(); clearNotices(); s.drill.on = !!on; return {ok:true}; };
+KB.toggleField = fid => { const s = S(); clearNotices(); if(!fieldOf(s.object, fid)) return {ok:false, why:'поля нет в перечне'};
+  const i = s.drill.fields.indexOf(fid); if(i !== -1) s.drill.fields.splice(i, 1); else s.drill.fields.push(fid); return {ok:true}; };
+
+/* ---------- план строки объекта (волна 22) ----------
+   Одна колонка — одна величина, строка не повторяет дерево:
+   · under  — statId → поле: строчная мера печатается ПОД колонкой своего агрегата (`over`);
+   · ident  — текстовые поля: первая колонка, идентификатор объекта;
+   · chips  — словарные и датовые признаки: чипы в первой колонке;
+   · extra  — числовые поля без агрегата над ними: своя колонка «только строки»;
+   · skipped — поля, стоящие уровнем: строка и так под своим узлом, повтор не печатается. */
+function rowPlan(){
+  const s = S();
+  const levelFields = s.cuts.map(c => CUT(c.id).field);
+  const under = {};
+  s.stats.forEach(id => { const m = STAT(id); if(m && m.over && fieldOf(s.object, m.over)) under[id] = m.over; });
+  const underFields = uniq(Object.keys(under).map(k => under[k]));
+  const ident = [], chips = [], extra = [], skipped = [];
+  s.drill.fields.forEach(f => { const fd = fieldOf(s.object, f); if(!fd) return;
+    if(levelFields.indexOf(f) !== -1){ skipped.push(f); return; }
+    if(fd.type === 'число'){ if(underFields.indexOf(f) === -1) extra.push(f); return; }
+    (fd.type === 'текст' ? ident : chips).push(f); });
+  return {under, underFields, ident, chips, extra, skipped};
+}
+KB.rowPlan = rowPlan;
+
+/* ---------- ответ ---------- */
+function computeNow(){
+  const s = S(), c = composition();
+  const r = SEAM.statSlice(c.object, c.stats, c.cuts, c.filters, c.asOf, ME.scope);
+  if(!r.ok) return r;
+  const visible = r.root.count;
+  const p = r.passport;
+  p.visible = visible; p.hidden = r.hidden;
+  p.scopeText = ME.scope.map(deptName).join('; ');
+  if(s.drill.on) p.seams = p.seams.concat([c.asOf ? 'statRows' : 'objectRows']);
+  p.shown = {stats: c.stats.map(id => STAT(id).name),
+    cuts: c.cuts.map(x => CUT(x.id).name + (x.bucket ? ' · ' + x.bucket : '') + (x.total ? ' · с итогом' : '')),
+    filters: c.filters.filter(f => f.value !== '').map(f => fieldOf(c.object, f.field).name + ' ' + f.op + ' ' + f.value),
+    drill: s.drill.on ? (() => { const pl = rowPlan(); const nm = f => fieldOf(c.object, f).name;
+      return pl.ident.concat(pl.chips).map(nm)
+        .concat(pl.underFields.map(f => nm(f) + ' — под своим агрегатом'))
+        .concat(pl.extra.map(f => nm(f) + ' — своей колонкой')); })() : null};
+  if(c.asOf){ p.age = ageText(p.asOf);
+    p.short = 'на ' + fmtShort(p.asOf) + ' (' + p.age + ') · ' + (p.fixed === 'зафиксировано' ? 'зафикс.' : 'не зафикс.') + ' · вам видно ' + visible; }
+  else { p.fixed = 'не зафиксировано'; p.short = 'живое ' + fmtShort(TODAY) + ' ' + NOW + ' · не зафикс. · вам видно ' + visible; }
+  return r;
+}
+/* «На дату» считается сразу; «сейчас» — по кнопке: живой запрос к ядру не гоняют оттого,
+   что кто-то поставил галочку (§14 п. 4). */
+KB.answer = () => { const s = S();
+  if(s.mode === 'на дату') return Object.assign(computeNow(), {stale:false});
+  if(s.live && s.live.hash === hashOf()) return Object.assign(clone(s.live.answer), {stale:false});
+  return {ok:false, stale:true, answer: s.live ? clone(s.live.answer) : null,
+    why: s.live ? 'состав изменился после последнего расчёта — нажмите «посчитать»' : 'режим «сейчас» считается по кнопке «посчитать»: это живой запрос к ядру'}; };
+KB.compute = () => { const s = S(); const r = computeNow(); if(!r.ok) return r;
+  s.live = {hash: hashOf(), answer: clone(r)}; return Object.assign(clone(r), {stale:false}); };
+KB.rowsShown = () => { const a = KB.answer(); if(!a.ok) return [];
+  const out = []; const walk = n => { if(n.rows) out.push.apply(out, n.rows); (n.children || []).forEach(walk); }; walk(a.root); return out; };
+
+/* ---------- действия ---------- */
+KB.saveDraft = name => { const s = S(); clearNotices(); const nm = String(name == null ? s.name : name).trim();
+  if(!nm) return {ok:false, why:'у черновика должно быть имя: безымянный состав — это состояние экрана, а не черновик'};
+  const id = 'ЧР-' + (++s.seq.draft);
+  s.drafts.push({id, name: nm, author: ME.who, at: TODAY, comp: composition()});
+  s.name = nm; note('ok', 'черновик «' + nm + '» сохранён · виден только вам');
+  return {ok:true, id, note:'личный черновик: виден автору; шаблоном станет только публикацией (ИО-1)'}; };
+KB.draftsOf = who => S().drafts.filter(d => d.author === who).map(clone);
+KB.openDraft = id => { const s = S(); const d = s.drafts.find(x => x.id === id); if(!d) return {ok:false, why:'черновика нет'};
+  if(d.author !== ME.who) return {ok:false, why:'черновик чужой: он личный'};
+  clearNotices(); const c = clone(d.comp);
+  s.object = c.object; s.mode = c.mode; if(c.asOf) s.asOf = c.asOf; s.stats = c.stats; s.cuts = c.cuts; s.filters = c.filters; s.drill = c.drill;
+  s.name = d.name; s.live = null; return {ok:true}; };
+
+KB.exportIssue = fmtName => { const s = S(); clearNotices();
+  const fmts = ['xlsx', 'csv', 'pdf']; if(fmts.indexOf(fmtName) === -1) return {ok:false, why:'формат «' + fmtName + '» отчёту не положен: ' + fmts.join(' · ')};
+  const a = KB.answer(); if(!a.ok) return {ok:false, why:'выгружать нечего: ' + a.why};
+  const id = 'В-Л-' + (++s.seq.issue);
+  const it = {id, kind:'предварительный', personal:true, fmt: fmtName, at: fmt(TODAY) + ' ' + NOW, by: ME.who, draft: s.name,
+    passport: clone(a.passport), fileUntil: addDays(TODAY, FILE_DAYS)};
+  s.issues.push(it); note('ok', 'выпуск ' + id + ' (' + fmtName + ') · предварительный, личный');
+  return {ok:true, id, issue: clone(it), note:'предварительный выпуск: строка в журнале навсегда, файл живёт до ' + fmt(it.fileUntil) +
+    ' (' + FILE_DAYS + ' дней, ИО-11); паспорт вшит в файл (ИО-6)'}; };
+KB.finalIssue = () => ({ok:false, why:'окончательный выпуск у личного черновика невозможен: числа морозит НАЗВАННЫЙ ПОЛУЧАТЕЛЬ (ИО-4), ' +
+  'а получатель и обязательство бывают только у опубликованной редакции, и то составом по умолчанию (ИО-21)'});
+KB.toDashboard = () => ({ok:false, why:'плиткой на дашборд встаёт только объявленный отчёт: за плиткой всегда стоит шаблон отчётности, ' +
+  'а личный черновик шаблоном не является (ИО-1, §10)'});
+KB.publish = () => ({ok:false, why:'публикует уполномоченный по отчётности (' + AUTH.who + '), а не автор: шаблоном состав становится публикацией, ' +
+  'не сборкой (ИО-1, ADR-0156 §2). Вам доступно «попросить публикации»'});
+KB.setBasis = () => ({ok:false, why:'сослаться на пункт нормы из личного черновика нельзя: нормативное основание называет только публикующий (§4)'});
+KB.askPublish = () => { const s = S(); clearNotices();
+  if(s.asked) return {ok:false, why:'просьба уже передана ' + fmt(s.asked.at) + ' — ' + AUTH.who + ' ещё не ответил'};
+  s.asked = {to: AUTH.who, at: TODAY, draft: s.name, comp: composition()};
+  note('ok', 'черновик «' + s.name + '» передан на публикацию: ' + AUTH.who);
+  return {ok:true, note:'до публикации состав остаётся личным черновиком: круг подразделений, расписание и основание назовёт публикующий'}; };
+
+KB.makeWorklist = name => { const s = S(); clearNotices();
+  if(!s.drill.on) return {ok:false, why:'сначала покажите строки объектов: рабочий список замораживает ОБЪЕКТЫ, а не числа (ИО-14). ' +
+    'Пока видно только дерево — замораживать нечего'};
+  const a = KB.answer(); if(!a.ok) return {ok:false, why:'списка не будет: ' + a.why};
+  const rows = KB.rowsShown(); if(!rows.length) return {ok:false, why:'в ответе ни одной строки: список из пустоты не заводится'};
+  const nm = String(name || '').trim(); if(!nm) return {ok:false, why:'у рабочего списка должно быть имя: по нему будут звонить'};
+  /* Список заводится ЧЕРЕЗ предварительный выпуск: морозить нечего, пока у ответа нет паспорта (§14 п. 4). */
+  const iss = KB.exportIssue('xlsx'); if(!iss.ok) return iss;
+  const id = 'РС-' + (++s.seq.list);
+  const wl = {id, name: nm, issue: iss.id, owner: ME.who, dept: null, at: TODAY, closed:false,
+    object: s.object, ids: rows.map(r => r.id), count: rows.length, asOf: a.passport.asOf || TODAY};
+  s.worklists.push(wl); note('ok', 'рабочий список ' + id + ' «' + nm + '»: ' + rows.length + ' объектов, состав заморожен');
+  return {ok:true, id, count: rows.length, issue: iss.id, note:'состав заморожен на выпуске ' + iss.id + '; числа не хранит, величины всегда текущие; ' +
+    'выбывший объект остаётся в списке с пометкой (ИО-14)'}; };
+KB.passWorklist = id => { const s = S(); const wl = s.worklists.find(x => x.id === id); if(!wl) return {ok:false, why:'списка нет'};
+  if(wl.dept) return {ok:false, why:'список уже передан: ' + deptName(wl.dept)};
+  wl.dept = ME.dept; note('ok', 'список ' + id + ' передан подразделению'); return {ok:true, dept: wl.dept}; };
+KB.closeWorklist = id => { const s = S(); const wl = s.worklists.find(x => x.id === id); if(!wl) return {ok:false, why:'списка нет'};
+  wl.closed = true; note('ok', 'список ' + id + ' закрыт: работа окончена, список читается, но не пополняется'); return {ok:true}; };
+
+/* Справочно для экрана и смоука. */
+KB.me = () => clone(ME);
+KB.fields = () => SEAM.fieldList(S().object);
+KB.statsAvail = () => SEAM.statList(S().object).map(m => Object.assign(m, {on: S().stats.indexOf(m.id) !== -1}, KB.statAvail(m.id)));
+KB.cutsAvail = () => SEAM.cutList(S().object).filter(c => !S().cuts.some(x => x.id === c.id)).map(c => Object.assign(c, KB.cutAvail(c.id)));
+KB.log = () => clone(log);
+KB.seed();
+
+/* ======================================================================
+   4. РЕНДЕР — только при наличии DOM; логика выше от него не зависит
+   ====================================================================== */
+function toast(text, kind){ if(!hasDOM) return; const w = document.getElementById('toastWrap'); if(!w) return;
+  const el = document.createElement('div'); el.className = 'toast' + (kind === 'err' ? ' err' : kind === 'ok' ? ' ok' : ''); el.textContent = text;
+  w.appendChild(el); setTimeout(() => el.remove(), 4800); }
+function kbAct(r, okText){ if(!r.ok){ toast(r.why, 'err'); } else if(okText || r.note){ toast(okText || r.note, 'ok'); } render(); }
+const val = (id, v) => { if(v == null) return '—'; const m = STAT(id);
+  return (m.unit === 'сом' || m.unit === 'ед.') ? money(v) : num1(v); };
+/* Значение поля строки — по типу величины, объявленному владельцем поля. */
+const fval = (fd, x) => x == null ? '—' : fd.type === 'число' ? (fd.unit === 'дн.' ? num1(x) : money(x))
+  : fd.type === 'дата' ? fmt(x) : fd.dict === 'dept' ? deptName(x) : String(x);
+
+function scCompose(){
+  const s = S(), fl = KB.fields();
+  let h = '';
+  /* --- вопрос --- */
+  h += '<div class="card"><h3>Вопрос</h3>' +
+    '<div class="form-row"><div class="fld" style="flex:1"><label>Имя черновика</label>' +
+    '<input value="' + esc(s.name) + '" onchange="KB.setName(this.value);render()"></div></div>' +
+    '<div class="form-row" style="margin-top:8px"><div class="fld" style="flex:1"><label>Основной объект</label>' +
+    '<select onchange="KB.ui.obj(this.value)">' + Object.keys(FIELDS).map(o => '<option value="' + o + '"' + (o === s.object ? ' selected' : '') + '>' +
+      esc(FIELDS[o].name) + ' — перечень: ' + esc(FIELDS[o].owner) + '</option>').join('') + '</select></div></div>' +
+    '<div class="form-row" style="margin-top:8px"><div class="fld"><label>Режим времени</label><div class="seg">' +
+    ['на дату', 'сейчас'].map(m => '<button class="' + (s.mode === m ? 'on' : '') + '" onclick="KB.ui.mode(\'' + m + '\')">' + m + '</button>').join('') +
+    '</div></div>';
+  if(s.mode === 'на дату') h += '<div class="fld" style="flex:1"><label>Дата состояния</label><select onchange="KB.ui.asOf(this.value)">' +
+    SNAPSHOTS.map(d => '<option value="' + d + '"' + (d === s.asOf ? ' selected' : '') + '>' + fmt(d) + ' · снимок · ' + (FIXED[d] ? 'зафиксировано' : 'не зафиксировано') + '</option>').join('') +
+    '<option value="' + TODAY + '"' + (s.asOf === TODAY ? ' selected' : '') + '>' + fmt(TODAY) + ' · снимка нет</option></select></div>';
+  else h += '<div class="fld"><label>Живой запрос к ядру</label><button class="btn btn-primary" style="height:32px" onclick="kbAct(KB.compute(),\'посчитано по живому состоянию\')">Посчитать</button></div>';
+  h += '</div><div class="why">' + (s.mode === 'на дату' ? 'Отвечает статистика по строкам ночного прогона; дата состояния одна на весь ответ.'
+    : 'Отвечает ядро живым запросом objectRows; считается по кнопке, чтобы не гонять ядро на каждую галочку.') + '</div></div>';
+
+  /* --- показатели --- */
+  const st = KB.statsAvail();
+  h += '<div class="card"><h3>Показатели <span class="small">· реестр статистики · ' + st.filter(x => x.on).length + ' из ' + st.length + '</span></h3>';
+  h += st.map(m => '<label class="opt' + (m.ok || m.on ? '' : ' off') + '"><input type="checkbox"' + (m.on ? ' checked' : '') + (m.ok || m.on ? '' : ' disabled') +
+    ' onchange="kbAct(KB.toggleStat(\'' + m.id + '\'))"><span class="t">' + esc(m.name) +
+    (m.ok || m.on ? '<small>' + esc(m.agg) + (m.live ? '' : ' · налету не берётся') + '</small>' : '<small class="no">' + esc(m.why) + '</small>') +
+    '</span><span class="u">' + esc(m.unit) + '</span></label>').join('');
+  h += '<div class="why">Показатель — величина с объявленным источником и без формулы; своих величин страница не считает (ИО-2).</div></div>';
+
+  /* --- разрезы --- */
+  h += '<div class="card"><h3>Разрезы <span class="small">· уровни дерева сверху вниз</span></h3>';
+  if(!s.cuts.length) h += '<div class="why">Без разреза ответ — один корень «всего». Добавьте уровень.</div>';
+  h += s.cuts.map((c, i) => { const m = CUT(c.id);
+    return '<div class="cutrow"><span class="lvl">' + (i + 1) + '</span><span class="nm">' + esc(m.name) + '</span>' +
+      (m.buckets ? '<select onchange="kbAct(KB.setBucket(\'' + c.id + '\',this.value))">' + Object.keys(m.buckets).map(b =>
+        '<option' + (b === c.bucket ? ' selected' : '') + '>' + esc(b) + '</option>').join('') + '</select>' : '') +
+      '<label class="tot"><input type="checkbox"' + (c.total ? ' checked' : '') + ' onchange="kbAct(KB.toggleTotal(\'' + c.id + '\'))"> итог</label>' +
+      '<span class="ctl"><button class="btn btn-secondary btn-xs" title="выше" onclick="kbAct(KB.moveCut(\'' + c.id + '\',-1))">↑</button>' +
+      '<button class="btn btn-secondary btn-xs" title="ниже" onclick="kbAct(KB.moveCut(\'' + c.id + '\',1))">↓</button>' +
+      '<button class="btn btn-secondary btn-xs" title="убрать" onclick="kbAct(KB.removeCut(\'' + c.id + '\'))">×</button></span></div>'; }).join('');
+  const ca = KB.cutsAvail();
+  h += '<div class="addrow"><select id="addCut">' + ca.map(c => '<option value="' + c.id + '"' + (c.ok ? '' : ' disabled') + '>' + esc(c.name) +
+    (c.ok ? (c.buckets ? ' · корзины: ' + Object.keys(c.buckets).join(' / ') : '') : ' — недоступен в режиме «' + s.mode + '»') + '</option>').join('') +
+    '</select><button class="btn btn-secondary btn-sm" onclick="kbAct(KB.addCut(document.getElementById(\'addCut\').value))">+ добавить разрез</button></div>';
+  ca.filter(c => !c.ok).forEach(c => { h += '<div class="why amb">«' + esc(c.name) + '» ' + esc(c.why) + '</div>'; });
+  h += '<div class="why">Корзина огрубляет значение при чтении, строка хранит его как есть. Итог уровня приходит узлом дерева, страница его не складывает (ИО-17).</div></div>';
+
+  /* --- фильтры --- */
+  h += '<div class="card"><h3>Фильтры <span class="small">· сужают вопрос; разрез делит ответ</span></h3>';
+  h += s.filters.map((f, i) => { const fd = fieldOf(s.object, f.field);
+    const ops = OPS[fd.type];
+    let vin;
+    if(fd.type === 'словарь' && f.op === 'равно') vin = '<select onchange="kbAct(KB.setFilter(' + i + ',{value:this.value}))"><option value="">—</option>' +
+      DICTS[fd.dict].map(v => '<option' + (v === f.value ? ' selected' : '') + '>' + esc(v) + '</option>').join('') + '</select>';
+    else vin = '<input type="' + (fd.type === 'дата' ? 'date' : 'text') + '" value="' + esc(f.value) + '" placeholder="' +
+      (fd.type === 'число' ? (fd.unit || 'число') : fd.type === 'словарь' ? 'через запятую' : fd.type) + '" onchange="kbAct(KB.setFilter(' + i + ',{value:this.value}))">';
+    return '<div class="fltrow"><select onchange="kbAct(KB.setFilter(' + i + ',{field:this.value}))">' + fl.fields.map(x =>
+        '<option value="' + x.id + '"' + (x.id === f.field ? ' selected' : '') + '>' + esc(x.name) + '</option>').join('') + '</select>' +
+      '<select onchange="kbAct(KB.setFilter(' + i + ',{op:this.value}))">' + ops.map(o => '<option' + (o === f.op ? ' selected' : '') + '>' + esc(o) + '</option>').join('') + '</select>' +
+      vin + '<button class="btn btn-secondary btn-xs" onclick="kbAct(KB.removeFilter(' + i + '))">×</button></div>'; }).join('');
+  h += '<div class="addrow"><button class="btn btn-secondary btn-sm" onclick="kbAct(KB.addFilter())">+ добавить фильтр</button>' +
+    '<span class="small">операторы — по типу величины: число · дата · текст · словарь</span></div></div>';
+
+  /* --- строки объектов --- */
+  h += '<div class="card"><h3>Строки объектов <span class="small">· углубление</span></h3>' +
+    '<label class="opt"><input type="checkbox"' + (s.drill.on ? ' checked' : '') + ' onchange="kbAct(KB.setDrill(this.checked))"><span class="t">Показывать строки под последним уровнем' +
+    '<small>другой шов (' + (s.mode === 'на дату' ? 'statRows' : 'objectRows') + '), другой объём, поля из публичного перечня</small></span></label>';
+  if(s.drill.on){
+    const pl = rowPlan(), lv = s.cuts.map(c => CUT(c.id).field);
+    const on = x => s.drill.fields.indexOf(x.id) !== -1;
+    h += '<div class="small" style="margin-top:8px"><b>Идентификатор и признаки</b> — в первой колонке</div>';
+    h += fl.fields.filter(x => x.type !== 'число').map(x => { const isLevel = lv.indexOf(x.id) !== -1;
+      return '<label class="opt' + (isLevel ? ' off' : '') + '" style="padding:3px 0"><input type="checkbox"' + (on(x) ? ' checked' : '') +
+        (isLevel ? ' disabled' : '') + ' onchange="kbAct(KB.toggleField(\'' + x.id + '\'))"><span class="t">' + esc(x.name) +
+        (isLevel ? '<small>стоит уровнем — строка и так под своим узлом, повтор не печатается</small>' : '') +
+        '</span><span class="u">' + esc(x.type) + '</span></label>'; }).join('');
+    h += '<div class="small" style="margin-top:8px"><b>Величины</b> — колонкой: одна колонка — одна величина</div>';
+    h += fl.fields.filter(x => x.type === 'число').map(x => {
+      const st = Object.keys(pl.under).find(id => pl.under[id] === x.id);
+      if(st) return '<label class="opt" style="padding:3px 0"><input type="checkbox" checked disabled><span class="t">' + esc(x.name) +
+        '<small>под колонкой «' + esc(STAT(st).name) + '»: узел — ' + esc(STAT(st).agg) + ', строка — мера</small></span><span class="u">' + esc(x.unit) + '</span></label>';
+      const agg = STATS.find(m => m.object === s.object && m.over === x.id && !m.withdrawn);
+      return '<label class="opt" style="padding:3px 0"><input type="checkbox"' + (on(x) ? ' checked' : '') + ' onchange="kbAct(KB.toggleField(\'' + x.id + '\'))"><span class="t">' + esc(x.name) +
+        '<small>своей колонкой, только строки' + (agg ? ' · включите «' + esc(agg.name) + '» — встанет под него' : ' · показателя над ней в реестре нет') + '</small></span><span class="u">' + esc(x.unit) + '</span></label>'; }).join('');
+  }
+  h += '</div>';
+  return h;
+}
+
+function treeRows(a, node, depth, plan){
+  const s = S(), cols = a.stats, pl = plan || rowPlan();
+  let h = '';
+  const ind = '<span class="ind" style="width:' + ((depth - 1) * 18) + 'px"></span>';
+  const extraDots = pl.extra.map(() => '<td class="num muted">·</td>').join('');
+  h += '<tr class="grp g' + Math.min(depth, 3) + '"><td>' + ind + esc(node.key) + '<span class="cnt">' + esc(FIELDS[s.object].word(node.count)) + '</span></td>' +
+    cols.map(id => '<td class="num">' + val(id, node.values[id]) + '</td>').join('') + extraDots + '</tr>';
+  if(node.children) node.children.forEach(ch => { h += treeRows(a, ch, depth + 1, pl); });
+  else if(s.drill.on && node.rows){
+    /* Строка объекта: идентификатор и чипы — в первой колонке; мера — под колонкой своего
+       агрегата; поле-уровень не повторяется (волна 22). */
+    const fd = f => fieldOf(s.object, f);
+    node.rows.forEach(r => {
+      const idt = pl.ident.map(f => '<span class="f" title="' + esc(fd(f).name) + '">' + esc(fval(fd(f), r[f])) + '</span>').join('<span class="sep">·</span>');
+      const ch = pl.chips.map(f => '<span class="chip" title="' + esc(fd(f).name) + '">' + esc(fval(fd(f), r[f])) + '</span>').join('');
+      h += '<tr class="obj"><td>' + (idt || '<span class="f muted">объект</span>') + ch + '</td>' +
+        cols.map(id => pl.under[id] ? '<td class="num">' + esc(fval(fd(pl.under[id]), r[pl.under[id]])) + '</td>' : '<td class="num muted">·</td>').join('') +
+        pl.extra.map(f => '<td class="num">' + esc(fval(fd(f), r[f])) + '</td>').join('') + '</tr>'; });
+  }
+  if(node.total) h += '<tr class="gtot"><td>' + ind + 'Итог по «' + esc(node.key) + '»</td>' +
+    cols.map(id => '<td class="num"><b>' + val(id, node.values[id]) + '</b></td>').join('') + extraDots + '</tr>';
+  return h;
+}
+
+function scAnswer(){
+  const s = S();
+  let h = '';
+  s.notices.forEach(n => { h += '<div class="banner ' + n.kind + '">' + esc(n.text) + '</div>'; });
+  const a = KB.answer();
+  if(!a.ok && !a.answer){
+    h += '<div class="banner info"><b>Ответа пока нет.</b> ' + esc(a.why) + '</div>';
+    return h + scActions();
+  }
+  const ans = a.ok ? a : a.answer;
+  if(a.stale) h += '<div class="banner warn"><b>Показан прежний расчёт.</b> ' + esc(a.why) + '</div>';
+  if(ans.substituted) h += '<div class="banner warn"><b>Дата подставлена.</b> Спрошено ' + esc(fmt(ans.passport.asked)) + ', снимка на эту дату нет; показано состояние на ' +
+    esc(fmt(ans.substituted)) + '. Паспорт называет обе даты.</div>';
+  const p = ans.passport;
+  /* --- шапка показа: отвечает сама за себя (ИО-6) --- */
+  h += '<div class="snap"><div class="hd"><b>Личный черновик ' + esc(ME.who) + ' · «' + esc(s.name || 'без имени') + '»</b>' +
+    '<span class="pill warn">НЕ ВЫПУСК</span><span class="pill neutral">' + esc(p.short) + '</span></div>' +
+    '<div class="row"><span class="k">объект · режим</span>' + esc(FIELDS[s.object].name) + ' · ' + esc(s.mode) + '</div>' +
+    '<div class="row"><span class="k">дата состояния</span>' + (p.asOf ? esc(fmt(p.asOf)) + ' — ' + esc(p.age) + (p.asked && p.asked !== p.asOf ? ' <span style="color:var(--asubk-amber)">(спрошено ' + esc(fmt(p.asked)) + ')</span>' : '')
+      : 'живое состояние на ' + esc(p.at)) + '</div>' +
+    '<div class="row"><span class="k">фиксация</span>' + esc(p.fixed) + '</div>' +
+    '<div class="row"><span class="k">область видимости</span>' + esc(p.scopeText) + ' — вам видно ' + esc(FIELDS[s.object].word(p.visible)) +
+      (p.hidden ? ', <b>' + p.hidden + ' ' + plural(p.hidden, 'скрыт', 'скрыты', 'скрыты') + ' областью видимости</b>' : '') + '</div>' +
+    '<div class="row"><span class="k">показанный состав</span>' + esc(p.shown.stats.join('; ') || '—') + ' · уровни: ' + esc(p.shown.cuts.join(' → ') || 'нет') +
+      (p.shown.filters.length ? ' · отбор: ' + esc(p.shown.filters.join('; ')) : '') + (p.shown.drill ? ' · строки: ' + esc(p.shown.drill.join(', ')) : '') + '</div>' +
+    '<div class="row"><span class="k">кто отвечает</span>' + esc(p.owner) + ' · швы ' + esc(p.seams.join(' + ')) + '</div>' +
+    (p.dedup && p.dedup.length ? '<div class="row"><span class="k">дедуп-ключ</span>' + esc(p.dedup.join('; ')) + ' (ИС-34)</div>' : '') + '</div>';
+  /* --- дерево --- */
+  /* Шапка сетки: одна колонка — одна величина; у агрегата с мерой под ним подзаголовок
+     называет обе породы (волна 22). Колонки «только строки» — для мер без агрегата. */
+  const pl = rowPlan(), fdn = f => fieldOf(s.object, f);
+  const firstSub = s.drill.on
+    ? 'уровни · строки: ' + (pl.ident.concat(pl.chips).map(f => fdn(f).name).join(', ') || 'без идентификатора')
+    : 'дерево уровней · число узла — по строкам узла';
+  h += '<div class="tblwrap"><table class="cgrid"><thead><tr><th>' + esc(ans.levels.map(l => CUT(l.id).name).join(' → ') || 'всего') +
+    '<span class="th-sub">' + esc(firstSub) + '</span></th>' +
+    ans.stats.map(id => '<th class="num">' + esc(STAT(id).name) + '<span class="th-sub">' + esc(STAT(id).unit) +
+      (s.drill.on && pl.under[id] ? ' · узел — ' + esc(STAT(id).agg.split(' ·')[0]) + ' · строка — ' + esc(fdn(pl.under[id]).name.toLowerCase()) : '') + '</span></th>').join('') +
+    (s.drill.on ? pl.extra.map(f => '<th class="num">' + esc(fdn(f).name) + '<span class="th-sub">' + esc(fdn(f).unit || '') + ' · только строки</span></th>').join('') : '') +
+    '</tr></thead><tbody>';
+  if(!ans.stats.length) h += '<tr><td colspan="9" class="empty">Выберите хотя бы один показатель: без него дерево считает только строки.</td></tr>';
+  if(ans.root.children) ans.root.children.forEach(n => { h += treeRows(ans, n, 1, pl); });
+  else if(s.drill.on && ans.root.rows) h += treeRows(ans, ans.root, 1, pl);
+  h += '<tr class="root"><td>Всего<span class="cnt" style="font-weight:400;color:var(--text-muted);font-size:12px;margin-left:6px">' + esc(FIELDS[s.object].word(ans.root.count)) + '</span></td>' +
+    ans.stats.map(id => '<td class="num">' + val(id, ans.root.values[id]) + '</td>').join('') +
+    (s.drill.on ? pl.extra.map(() => '<td class="num muted">·</td>').join('') : '') + '</tr>';
+  h += '</tbody></table></div>';
+  if(s.drill.on && pl.skipped.length) h += '<div class="why">' + esc(pl.skipped.map(f => '«' + fdn(f).name + '»').join(', ')) +
+    ' в строках не печатается: ' + (pl.skipped.length > 1 ? 'эти поля стоят уровнями' : 'это поле стоит уровнем') + ', и строка уже стоит под своим узлом.</div>';
+  if(s.cuts.some(c => CUT(c.id).field === 'dept') && ans.root.children && ans.root.children.length === 1)
+    h += '<div class="why">Уровень «подразделение» дал один узел: область видимости сузила мир до вашего департамента. У уполномоченного узлов было бы ' + DEPTS.length + '.</div>';
+  return h + scActions();
+}
+
+function scActions(){
+  const s = S();
+  let h = '<div class="card"><h3>Действия с ответом</h3><div class="btn-row">' +
+    '<button class="btn btn-secondary btn-sm" onclick="kbAct(KB.saveDraft())">Сохранить черновик</button>' +
+    '<button class="btn btn-secondary btn-sm" onclick="kbAct(KB.exportIssue(\'xlsx\'))">Выгрузить xlsx</button>' +
+    '<button class="btn btn-secondary btn-sm" onclick="kbAct(KB.exportIssue(\'pdf\'))">Выгрузить pdf</button>' +
+    '<button class="btn btn-secondary btn-sm" onclick="kbAct(KB.makeWorklist(S().drill.on ? prompt(\'Имя рабочего списка\', S().name) : \'\'))">Завести рабочий список</button>' +
+    '<button class="btn btn-primary btn-sm" onclick="kbAct(KB.askPublish())">Попросить публикации</button></div>' +
+    '<div style="margin-top:10px">' +
+    '<div class="refuse"><b>Выпустить окончательно</b><span class="no">нельзя:</span><span>у черновика нет получателя и обязательства — окончательный выпуск делается по опубликованной редакции составом по умолчанию (ИО-4, ИО-21)</span></div>' +
+    '<div class="refuse"><b>Поставить на дашборд</b><span class="no">нельзя:</span><span>плитка бывает только из объявленного отчёта (ИО-1)</span></div>' +
+    '<div class="refuse"><b>Опубликовать</b><span class="no">не вам:</span><span>публикует ' + esc(AUTH.who) + '; шаблоном состав становится публикацией, не сборкой (ADR-0156 §2)</span></div>' +
+    '</div></div>';
+  /* --- след --- */
+  const n = s.drafts.length + s.issues.length + s.worklists.length + (s.asked ? 1 : 0);
+  h += '<div class="card"><h3>След <span class="small">· ' + (n ? n + ' ' + plural(n, 'запись', 'записи', 'записей') : 'пока пусто') + '</span></h3><div class="trace">';
+  if(s.asked) h += '<div class="it"><span class="id">→</span>черновик «' + esc(s.asked.draft) + '» передан на публикацию: ' + esc(s.asked.to) + ', ' + esc(fmt(s.asked.at)) +
+    '<small>до публикации — личный; круг, расписание и основание назовёт публикующий</small></div>';
+  s.drafts.forEach(d => { h += '<div class="it"><span class="id">' + esc(d.id) + '</span>черновик «' + esc(d.name) + '» · ' + esc(fmt(d.at)) +
+    ' · <a href="#" onclick="kbAct(KB.openDraft(\'' + d.id + '\'));return false">открыть</a><small>виден только вам · ' + esc(FIELDS[d.comp.object].name) + ' · ' + esc(d.comp.mode) + '</small></div>'; });
+  s.issues.forEach(it => { h += '<div class="it"><span class="id">' + esc(it.id) + '</span>предварительный выпуск · ' + esc(it.fmt) + ' · ' + esc(it.at) + ' <span class="pill neutral">личный</span>' +
+    '<small>паспорт: ' + esc(it.passport.short) + ' · файл до ' + esc(fmt(it.fileUntil)) + ', строка навсегда</small></div>'; });
+  s.worklists.forEach(w => { h += '<div class="it"><span class="id">' + esc(w.id) + '</span>рабочий список «' + esc(w.name) + '» · ' + w.count + ' объектов · заморожен выпуском ' + esc(w.issue) +
+    (w.closed ? ' <span class="pill neutral">закрыт</span>' : w.dept ? ' <span class="pill info">передан: ' + esc(deptName(w.dept)) + '</span>' : ' <span class="pill ok">мой</span>') +
+    '<small>' + (w.closed ? 'читается, не пополняется' : '<a href="#" onclick="kbAct(KB.passWorklist(\'' + w.id + '\'));return false">передать подразделению</a> · <a href="#" onclick="kbAct(KB.closeWorklist(\'' + w.id + '\'));return false">закрыть</a>') + '</small></div>'; });
+  if(!n) h += '<div class="small">Сохранённые черновики, личные выпуски и рабочие списки появятся здесь.</div>';
+  h += '</div></div>';
+  return h;
+}
+
+KB.ui = {
+  obj: v => { const r = KB.setObject(v); if(r.switched) toast(r.why, 'err'); render(); },
+  mode: v => { const r = KB.setMode(v); if(!r.ok) toast(r.why, 'err'); else r.dropped.forEach(d => toast(d.kind + ' «' + d.name + '» снят: ' + d.why, 'err')); render(); },
+  asOf: v => { const r = KB.setAsOf(v); if(!r.ok) toast(r.why, 'err'); render(); }
+};
+window.KB = KB; window.S = S; window.scAnswer = scAnswer; window.kbAct = kbAct;
+scDraft = function(){
+  const who = '<div class="chip" style="margin-bottom:12px"><span class="who">' + esc(ME.who) + '</span> · ' +
+    esc(ME.role) + ' <small>· ' + esc(deptName(ME.dept)) + '</small></span></div>';
+  return '<div class="kb"><div class="two"><aside class="compose">' + who + scCompose() +
+    '</aside><main class="answer">' + scAnswer() + '</main></div><div class="foot">' +
+    '<b>Заглушки соседей в этом файле:</b> реестр показателей и разрезов (статистика) · публичные перечни полей (ядро) · строки среза на ' +
+    SNAPSHOTS.map(fmt).join(' и ') + ' (ночной прогон) · живое состояние на ' + fmt(TODAY) + ' (ядро). В жизни всё это приходит швами ' +
+    '<span class="mono">statSlice · statRows · objectRows</span>; своих запросов к базе и своих формул у страницы нет (ИО-2, ИО-3). ' +
+    'Данные: ' + CREDITS.length + ' кредитов, ' + BORROWERS.length + ' заёмщиков, ' + COLLATERAL.length + ' предметов залога, ' +
+    CLAIMS.length + ' требований взыскания — сгенерированы детерминированно; предмет залога и требование в v1 отвечают только «на дату».'; + '</div></div>';
+};
+
+})();
+
 /* --------------------------- КАРКАС ЭКРАНА --------------------------- */
 const VIEWS = {
   showcase:{title:'Отчётность', fn:scShowcase},
   registry:{title:'Реестр шаблонов', fn:scRegistry},
-  builder: {title:'Конструктор',     fn:scBuilder},
+  draft:   {title:'Конструктор',     fn:scDraft},
+  builder: {title:'Редакция и публикация', fn:scBuilder},
   issue:   {title:'Показ и выпуск отчёта', fn:scIssue},
   journal: {title:'Журнал выпусков', fn:scJournal},
   calendar:{title:'Календарь сдачи', fn:scCalendar},
