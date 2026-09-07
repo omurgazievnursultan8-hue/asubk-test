@@ -250,7 +250,6 @@ table.cgrid tfoot td{ padding:9px 12px; background:var(--surface-panel);
 .step{ display:flex; gap:10px; align-items:flex-start; margin-bottom:10px; }
 .step .num{ flex:none; width:22px; height:22px; border-radius:50%; background:var(--asubk-blue-tint);
   color:var(--asubk-blue); font:var(--weight-semibold) 12px/22px var(--asubk-font); text-align:center; }
-.tmpl-kind{ font:var(--weight-medium) 12px/1.5 var(--asubk-font); }
 .tabs{ display:flex; gap:2px; border-bottom:1px solid var(--border-default); margin:0 0 14px; }
 .tabs button{ appearance:none; border:none; background:none; cursor:pointer;
   font:var(--weight-medium) var(--text-sm)/1.4 var(--asubk-font); color:var(--text-muted);
@@ -3138,16 +3137,34 @@ function scShowcase(){
 function scRegistry(){
   const v = RP.viewer(), vis = RP.visibleTemplates();
   const hiddenDrafts = RP.state.templates.filter(t => vis.indexOf(t.id) === -1);
-  let h = '<table class="cgrid"><thead><tr><th>Шаблон</th><th>Вид</th><th>Состояние</th>'+
-    '<th>Ред.</th><th>Основание</th><th>Круг</th><th>Расписание</th><th></th></tr></thead><tbody>';
-  vis.forEach(tid => {
+
+  const cnt  = k => vis.filter(tid => TPL(tid).kind === k).length;
+  const burn = k => vis.filter(tid => TPL(tid).kind === k && RP.tplState(tid).state === 'неисполним').length;
+  /* Тот же приём, что на витрине (scShowcase): у бланка есть серия исходящих,
+     у отчёта её не бывает, общая колонка половину времени пустовала бы —
+     вид формы стал корешком вкладки, а не колонкой строки. */
+  const tab = RP.state.sel.regTab || 'отчёт';
+
+  let h = '<div class="tabs">'+
+    [['отчёт', 'Отчёты', cnt('отчёт'), burn('отчёт')],
+     ['бланк', 'Бланки', cnt('бланк'), burn('бланк')]]
+    .map(t => '<button class="'+(tab === t[0] ? 'on' : '')+'" onclick="RP.scSet(\'regTab\',\''+
+      t[0]+'\')">'+esc(t[1])+'<span class="n">'+t[2]+'</span>'+
+      (t[3] ? '<span class="burn">'+t[3]+'</span>' : '')+'</button>').join('')+'</div>';
+
+  const kin = vis.filter(tid => TPL(tid).kind === tab), isBlank = tab === 'бланк';
+  h += '<table class="cgrid"><thead><tr><th>Шаблон</th>'+
+    (isBlank ? '<th>Серия</th>' : '')+
+    '<th>Состояние</th><th>Ред.</th><th>Основание</th><th>Круг</th><th>Расписание</th><th></th></tr></thead><tbody>';
+  if(!kin.length) h += '<tr><td colspan="'+(isBlank ? 8 : 7)+'">'+
+    '<div class="banner ok">Шаблонов этого вида вам не видно.</div></td></tr>';
+  kin.forEach(tid => {
     const t = TPL(tid), st = RP.tplState(tid);
     h += '<tr'+(st.state === 'неисполним' ? ' class="out"' : '')+'>'+
       '<td><b>'+esc(t.name)+'</b><div class="small mono">'+esc(t.id)+'</div>'+
         (st.why ? '<div class="why">'+esc(st.why)+'</div>' : '')+'</td>'+
-      '<td><span class="tmpl-kind">'+esc(t.kind)+'</span>'+
-        (t.series ? '<div class="small mono">'+esc(t.series.prefix)+
-          (t.series.manual ? ' · ручная' : ' · сквозная')+'</div>' : '')+'</td>'+
+      (isBlank ? '<td class="small mono">'+(t.series ? esc(t.series.prefix)+
+          (t.series.manual ? ' · ручная' : ' · сквозная') : '<span class="muted">—</span>')+'</td>' : '')+
       '<td>'+pill(st.state, stateCls(st.state))+'</td>'+
       '<td>'+(RP.pubEd(tid) ? 'ред. '+RP.pubEd(tid).n : '—')+'</td>'+
       '<td class="small">'+(t.basis ? esc((t.basis.point ? 'п. '+t.basis.point+' ' : '')+t.basis.doc)
