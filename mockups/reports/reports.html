@@ -51,6 +51,8 @@ body{ font:var(--font-body); color:var(--text-body); background:var(--surface-pa
 /* ---- sidebar ---- */
 .sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
   display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+.app.nav-off .sidebar{ width:0; border-right:none; overflow:hidden; }
+.app.nav-off .sidebar *{ visibility:hidden; }
 .brand{ padding:18px 16px 4px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
   color:var(--text-heading); letter-spacing:0.04em; }
 .brand small{ display:block; font:var(--weight-regular) 12px/1.4 var(--asubk-font);
@@ -75,6 +77,8 @@ body{ font:var(--font-body); color:var(--text-body); background:var(--surface-pa
 .main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
 .topbar{ min-height:var(--header-h); flex:none; border-bottom:1px solid var(--border-default);
   display:flex; align-items:center; gap:14px; padding:8px 20px; flex-wrap:wrap; }
+.topbar .menu{ display:flex; color:var(--text-muted); cursor:pointer; flex:none; }
+.topbar .menu:hover{ color:var(--text-heading); }
 .crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
 .topbar .right{ margin-left:auto; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
 .topbar label{ font:var(--font-label); color:var(--text-muted); margin-right:6px; }
@@ -417,6 +421,11 @@ table.cgrid tr.root td{ background:var(--surface-panel); font-weight:var(--weigh
 
   <div class="main">
     <div class="topbar">
+      <span class="menu" title="Свернуть/развернуть меню" role="button" tabindex="0" aria-label="Свернуть меню"
+            aria-expanded="true" onclick="RP.toggleSidebar()"
+            onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();RP.toggleSidebar();}">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </span>
       <div class="crumb-title" id="title">Реестр шаблонов</div>
       <div class="right">
         <span><label>Роль</label><select id="role" onchange="RP.setRole(this.value)"></select></span>
@@ -5288,6 +5297,15 @@ function act(res, okMsg){
   render();
 }
 RP.go = v => { RP.state.view = v; render(); };
+/* Свёрнутость сайдбара живёт классом на .app, не в RP.state: render() каждый раз
+   перерисовывает только #title/#panel, так что переключение переживает любое
+   действие пользователя и не тянет за собой лишнее поле состояния. */
+RP.toggleSidebar = () => {
+  const off = document.querySelector('.app').classList.toggle('nav-off');
+  const b = document.querySelector('.topbar .menu');
+  b.setAttribute('aria-expanded', String(!off));
+  b.setAttribute('aria-label', off ? 'Развернуть меню' : 'Свернуть меню');
+};
 RP.setRole = title => { RP.state.role = title;
   toast('роль: '+title+'; область видимости — '+ROLE(title).scope.map(deptName).join('; '),'ok');
   render(); };
