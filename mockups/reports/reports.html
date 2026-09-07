@@ -51,6 +51,8 @@ body{ font:var(--font-body); color:var(--text-body); background:var(--surface-pa
 /* ---- sidebar ---- */
 .sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
   display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+.app.nav-off .sidebar{ width:0; border-right:none; overflow:hidden; }
+.app.nav-off .sidebar *{ visibility:hidden; }
 .brand{ padding:18px 16px 4px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font);
   color:var(--text-heading); letter-spacing:0.04em; }
 .brand small{ display:block; font:var(--weight-regular) 12px/1.4 var(--asubk-font);
@@ -75,6 +77,8 @@ body{ font:var(--font-body); color:var(--text-body); background:var(--surface-pa
 .main{ flex:1; display:flex; flex-direction:column; min-width:0; background:var(--surface-page); }
 .topbar{ min-height:var(--header-h); flex:none; border-bottom:1px solid var(--border-default);
   display:flex; align-items:center; gap:14px; padding:8px 20px; flex-wrap:wrap; }
+.topbar .menu{ display:flex; color:var(--text-muted); cursor:pointer; flex:none; }
+.topbar .menu:hover{ color:var(--text-heading); }
 .crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
 .topbar .right{ margin-left:auto; display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
 .topbar label{ font:var(--font-label); color:var(--text-muted); margin-right:6px; }
@@ -250,7 +254,6 @@ table.cgrid tfoot td{ padding:9px 12px; background:var(--surface-panel);
 .step{ display:flex; gap:10px; align-items:flex-start; margin-bottom:10px; }
 .step .num{ flex:none; width:22px; height:22px; border-radius:50%; background:var(--asubk-blue-tint);
   color:var(--asubk-blue); font:var(--weight-semibold) 12px/22px var(--asubk-font); text-align:center; }
-.tmpl-kind{ font:var(--weight-medium) 12px/1.5 var(--asubk-font); }
 .tabs{ display:flex; gap:2px; border-bottom:1px solid var(--border-default); margin:0 0 14px; }
 .tabs button{ appearance:none; border:none; background:none; cursor:pointer;
   font:var(--weight-medium) var(--text-sm)/1.4 var(--asubk-font); color:var(--text-muted);
@@ -418,6 +421,11 @@ table.cgrid tr.root td{ background:var(--surface-panel); font-weight:var(--weigh
 
   <div class="main">
     <div class="topbar">
+      <span class="menu" title="Свернуть/развернуть меню" role="button" tabindex="0" aria-label="Свернуть меню"
+            aria-expanded="true" onclick="RP.toggleSidebar()"
+            onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();RP.toggleSidebar();}">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
+      </span>
       <div class="crumb-title" id="title">Реестр шаблонов</div>
       <div class="right">
         <span><label>Роль</label><select id="role" onchange="RP.setRole(this.value)"></select></span>
@@ -2408,7 +2416,9 @@ const SEAMS_OUT = [
     to:'карточка объекта зеркалом, классификация и взыскание — по лицу',
     keys:['объект','лицо']},
   {id:'reportObligations', q:'что за подразделением к сроку',           to:'задачи и руководитель'},
-  {id:'reportTemplate',    q:'пригоден ли шаблон для обзора, какая редакция текущая', to:'анализ'}
+  {id:'reportTemplate',    q:'пригоден ли шаблон для обзора, какая редакция текущая', to:'анализ'},
+  {id:'reportForms',       q:'что я вообще могу отсюда напечатать',
+    to:'карточка объекта', keys:['объект']}
 ];
 const NO_SEAM_OUT = {
   reportRows:    'строк ответа шов не отдаёт: за строками ходят в выпуск, где рядом стоит его '+
@@ -2419,8 +2429,9 @@ const NO_SEAM_OUT = {
                  'запросов к базе нет, только четыре шва (ИО-3)'
 };
 const CONSUMERS = [
-  {module:'карточка объекта (ядро)', may:['reportIssues'], by:['объект'],
-    note:'зеркало «какие бумаги уходили»'},
+  {module:'карточка объекта (ядро)', may:['reportIssues','reportForms'], by:['объект'],
+    note:'зеркало «какие бумаги уходили», и — швом «reportForms» — что вообще можно '+
+      'напечатать (единая витрина печатных форм, а не своя у карточки, ADR-0224)'},
   {module:'классификация', may:['reportIssues'], by:['лицо'],
     note:'уклонение от подписания акта сверки — признак лица, а не договора (п. 11 п.п. 2)'},
   {module:'взыскание',     may:['reportIssues'], by:['лицо','объект'],
@@ -2452,6 +2463,16 @@ RP.reportIssues = objId => RP.state.issues.filter(i => i.obj === objId).map(issu
 RP.issuesToSubject = subjId => RP.state.issues
   .filter(i => i.recipient && i.recipient.kind === 'роль' && i.recipient.ref === subjId)
   .map(issueRow);
+/* Шов «что я вообще могу отсюда напечатать» (ADR-0224, ИО-37): единственная витрина
+   печатных форм — здесь, а не в карточке. В v1 все объекты — «кредит» (ADR-0181 §4),
+   так что фильтра по виду объекта не требуется; когда видов станет больше, добавится
+   сверка ed.object с видом objId. Пустой список — тоже ответ, и с причиной.        */
+RP.reportForms = objId => { const items = RP.state.templates
+    .filter(t => t.kind === 'бланк' && pubEd(t) && RP.maySee(t.id))
+    .map(t => ({id:t.id, name:t.name, edition: pubEd(t).n}));
+  if(!items.length) return {ok:true, items:[], why:'бланков, применимых к этому виду объекта '+
+    'и видных спрашивающему, нет — либо не заведены, либо круг шаблона сюда не дотягивается (ИО-23)'};
+  return {ok:true, items}; };
 RP.reportObligations = dep => RP.obligations().filter(o => o.dept === dep)
   .map(o => ({tpl:o.tplName, period:o.period, due:o.due, state:o.state, who:o.who}));
 RP.reportTemplate = tid => { const t = TPL(tid); if(!t) return null;
@@ -2474,6 +2495,7 @@ RP.callSeamOut = (module, seam, arg) => {
         'ключ «'+(c.by || ['объект']).join('» или «')+'»'};
     return {ok:true, key, data: bySubj ? RP.issuesToSubject(arg.subject) : RP.reportIssues(arg)};
   }
+  if(seam === 'reportForms') return RP.reportForms(arg);
   const data = seam === 'reportObligations' ? RP.reportObligations(arg) : RP.reportTemplate(arg);
   return {ok:true, data};
 };
@@ -3124,16 +3146,34 @@ function scShowcase(){
 function scRegistry(){
   const v = RP.viewer(), vis = RP.visibleTemplates();
   const hiddenDrafts = RP.state.templates.filter(t => vis.indexOf(t.id) === -1);
-  let h = '<table class="cgrid"><thead><tr><th>Шаблон</th><th>Вид</th><th>Состояние</th>'+
-    '<th>Ред.</th><th>Основание</th><th>Круг</th><th>Расписание</th><th></th></tr></thead><tbody>';
-  vis.forEach(tid => {
+
+  const cnt  = k => vis.filter(tid => TPL(tid).kind === k).length;
+  const burn = k => vis.filter(tid => TPL(tid).kind === k && RP.tplState(tid).state === 'неисполним').length;
+  /* Тот же приём, что на витрине (scShowcase): у бланка есть серия исходящих,
+     у отчёта её не бывает, общая колонка половину времени пустовала бы —
+     вид формы стал корешком вкладки, а не колонкой строки. */
+  const tab = RP.state.sel.regTab || 'отчёт';
+
+  let h = '<div class="tabs">'+
+    [['отчёт', 'Отчёты', cnt('отчёт'), burn('отчёт')],
+     ['бланк', 'Бланки', cnt('бланк'), burn('бланк')]]
+    .map(t => '<button class="'+(tab === t[0] ? 'on' : '')+'" onclick="RP.scSet(\'regTab\',\''+
+      t[0]+'\')">'+esc(t[1])+'<span class="n">'+t[2]+'</span>'+
+      (t[3] ? '<span class="burn">'+t[3]+'</span>' : '')+'</button>').join('')+'</div>';
+
+  const kin = vis.filter(tid => TPL(tid).kind === tab), isBlank = tab === 'бланк';
+  h += '<table class="cgrid"><thead><tr><th>Шаблон</th>'+
+    (isBlank ? '<th>Серия</th>' : '')+
+    '<th>Состояние</th><th>Ред.</th><th>Основание</th><th>Круг</th><th>Расписание</th><th></th></tr></thead><tbody>';
+  if(!kin.length) h += '<tr><td colspan="'+(isBlank ? 8 : 7)+'">'+
+    '<div class="banner ok">Шаблонов этого вида вам не видно.</div></td></tr>';
+  kin.forEach(tid => {
     const t = TPL(tid), st = RP.tplState(tid);
     h += '<tr'+(st.state === 'неисполним' ? ' class="out"' : '')+'>'+
       '<td><b>'+esc(t.name)+'</b><div class="small mono">'+esc(t.id)+'</div>'+
         (st.why ? '<div class="why">'+esc(st.why)+'</div>' : '')+'</td>'+
-      '<td><span class="tmpl-kind">'+esc(t.kind)+'</span>'+
-        (t.series ? '<div class="small mono">'+esc(t.series.prefix)+
-          (t.series.manual ? ' · ручная' : ' · сквозная')+'</div>' : '')+'</td>'+
+      (isBlank ? '<td class="small mono">'+(t.series ? esc(t.series.prefix)+
+          (t.series.manual ? ' · ручная' : ' · сквозная') : '<span class="muted">—</span>')+'</td>' : '')+
       '<td>'+pill(st.state, stateCls(st.state))+'</td>'+
       '<td>'+(RP.pubEd(tid) ? 'ред. '+RP.pubEd(tid).n : '—')+'</td>'+
       '<td class="small">'+(t.basis ? esc((t.basis.point ? 'п. '+t.basis.point+' ' : '')+t.basis.doc)
@@ -3143,7 +3183,8 @@ function scRegistry(){
       '<td><div class="btn-row" style="margin:0">'+
         '<button class="btn btn-secondary btn-sm" onclick="RP.openBuilder(\''+t.id+'\')">Состав</button>'+
         (st.state === 'опубликован'
-          ? '<button class="btn btn-primary btn-sm" onclick="RP.openIssue(\''+t.id+'\')">Выпустить</button>' : '')+
+          ? '<button class="btn btn-primary btn-sm" onclick="RP.'+
+            (t.kind === 'бланк' ? 'openBlank' : 'openIssue')+'(\''+t.id+'\')">Выпустить</button>' : '')+
       '</div></td></tr>';
   });
   h += '</tbody></table>';
@@ -3171,6 +3212,7 @@ function scRegistry(){
 }
 RP.openBuilder = tid => { RP.state.sel.draft = tid; RP.state.view = 'builder'; render(); };
 RP.openIssue   = tid => { RP.state.sel.tpl = tid; RP.state.view = 'issue'; render(); };
+RP.openBlank   = tid => { RP.state.sel.blank = tid; RP.state.view = 'blank'; render(); };
 RP.demoRename = () => { const r = RP.renameField('credit','days','days_overdue','Дней просрочки');
   toast(r.note, r.broken.length ? 'err' : 'ok'); render(); };
 RP.demoWithdraw = () => { const r = RP.withdrawStat('s-overdue-sum');
@@ -3327,18 +3369,16 @@ function bandRows(gs, cols, depth){
 
 /* ------------------------------ ВЫПУСК ------------------------------- */
 function scIssue(){
-  const vis = RP.visibleTemplates().filter(id => RP.pubEd(id));
+  const vis = RP.visibleTemplates().filter(id => RP.pubEd(id) && TPL(id).kind === 'отчёт');
   if(!vis.length) return '<div class="banner warn">Опубликованных шаблонов вам не видно: '+
     'выпускать можно только опубликованную редакцию.</div>';
   let tid = RP.state.sel.tpl;
   if(vis.indexOf(tid) === -1) tid = vis[0];
   const t = TPL(tid), ed = pubEd(t), sel = RP.state.sel;
-  const isBlank = t.kind === 'бланк';
-  const params = isBlank ? {obj: sel.obj} : {asOf: sel.params.asOf, dept: sel.params.dept};
+  const params = {asOf: sel.params.asOf, dept: sel.params.dept};
   /* Сначала ПОКАЗ, и только потом выпуск: показ крутится в границах редакции,
      выпуск — нет (ИО-20, ИО-21, ADR-0162).                                  */
-  const wTwist = isBlank ? null : (sel.twist
-    ? Object.assign({}, sel.twist, {dropped: sel.dropped || null}) : null);
+  const wTwist = sel.twist ? Object.assign({}, sel.twist, {dropped: sel.dropped || null}) : null;
   let prev = RP.show(tid, params, wTwist), twistWhy = null;
   if(!prev.ok){ twistWhy = prev.why; prev = RP.show(tid, params, null); }
 
@@ -3349,80 +3389,72 @@ function scIssue(){
   h += '<div class="form-row"><div class="fld"><label>Шаблон</label>'+
     '<select onchange="RP.selTpl(this.value)">'+vis.map(id =>
       '<option value="'+id+'"'+(id===tid?' selected':'')+'>'+esc(TPL(id).name)+'</option>').join('')+'</select></div>';
-  if(isBlank) h += '<div class="fld"><label>Кредит (объект бланка)</label>'+
-    '<select onchange="RP.setObj(this.value)">'+CREDITS().map(o =>
-      '<option value="'+o.id+'"'+(o.id===sel.obj?' selected':'')+'>'+esc(o.no+' · '+o.borrower)+'</option>').join('')+
+  if(ed.mode === 'на дату') h += '<div class="fld"><label>Отчётный месяц</label>'+
+    '<select onchange="RP.setAsOf(this.value)">'+HIST_DATES.map(d =>
+      '<option value="'+d+'"'+(d===sel.params.asOf?' selected':'')+'>'+esc(periodOfAsOf(d))+
+      ' (состояние на '+fmt(d)+')</option>').join('')+
+    '<option value="2026-09-01"'+(sel.params.asOf==='2026-09-01'?' selected':'')+
+    '>август 2026 (снимка нет — будет подстановка)</option></select></div>';
+  h += '<div class="fld"><label>Подразделение (разрез)</label><select onchange="RP.setDept(this.value)">'+
+    '<option value="">все подразделения круга</option>'+DEPTS.map(d =>
+      '<option value="'+d.id+'"'+(d.id===sel.params.dept?' selected':'')+'>'+esc(d.name)+'</option>').join('')+
     '</select></div>';
-  else {
-    if(ed.mode === 'на дату') h += '<div class="fld"><label>Отчётный месяц</label>'+
-      '<select onchange="RP.setAsOf(this.value)">'+HIST_DATES.map(d =>
-        '<option value="'+d+'"'+(d===sel.params.asOf?' selected':'')+'>'+esc(periodOfAsOf(d))+
-        ' (состояние на '+fmt(d)+')</option>').join('')+
-      '<option value="2026-09-01"'+(sel.params.asOf==='2026-09-01'?' selected':'')+
-      '>август 2026 (снимка нет — будет подстановка)</option></select></div>';
-    h += '<div class="fld"><label>Подразделение (разрез)</label><select onchange="RP.setDept(this.value)">'+
-      '<option value="">все подразделения круга</option>'+DEPTS.map(d =>
-        '<option value="'+d.id+'"'+(d.id===sel.params.dept?' selected':'')+'>'+esc(d.name)+'</option>').join('')+
-      '</select></div>';
-  }
   h += '</div>';
   /* Экран открывается на периоде, у которого снимок ЕСТЬ, и говорит вслух, когда
      выбран период без снимка: молчаливая подстановка соседней даты — это ответ
      на другой вопрос под именем заказанного (ИО-26, ОЧ-44).                   */
-  if(!isBlank && ed.mode === 'на дату' && !RP.hasSnapshot(sel.params.asOf))
+  if(ed.mode === 'на дату' && !RP.hasSnapshot(sel.params.asOf))
     h += '<div class="banner warn"><b>За этот период снимка нет.</b> Ночной прогон до '+
       esc(fmt(sel.params.asOf))+' не доходил; числа ниже посчитаны по ближайшему более раннему '+
       'состоянию, и шапка показа назовёт подставленную дату. Сдавать такой показ окончательно '+
       'нельзя: обязательство берётся на объявленном периоде, а не на соседнем.</div>';
 
   /* --- как смотреть: крутилка в границах редакции (§3 п. 9, ИО-20) --- */
-  if(!isBlank){
-    const bo = RP.bounds(tid), w = prev.twist, base = bo.base, mine = RP.myViews(tid);
-    h += '<div class="card"><h3>Как смотреть — в границах, объявленных редакцией '+bo.ed+'</h3>';
-    h += '<div class="form-row"><div class="fld"><label>Разрезы — уровни слева направо</label>'+
-      '<div class="btn-row" style="margin:0">'+
-      uniq(base.cuts.concat(bo.cuts)).map(c => { const on = w.cuts.indexOf(c) !== -1,
-        hard = bo.cuts.indexOf(c) === -1;
-        return '<button class="btn btn-sm '+(on ? 'btn-primary' : 'btn-secondary')+'"'+
-          (hard ? ' disabled title="уровень объявлен составом: отклонением не назван"' : '')+
-          ' onclick="RP.twistCut(\''+c+'\')">'+esc(cutName(c))+
-          (hard ? ' · жёстко' : '')+'</button>'; }).join('')+
-      w.cuts.filter(c => bo.cuts.indexOf(c) !== -1).map(c =>
-        '<button class="btn btn-secondary btn-sm" onclick="RP.twistUp(\''+c+'\')" '+
-        'title="поднять уровень выше">↑ '+esc(cutName(c))+'</button>').join('')+
-      '</div></div>';
-    h += '<div class="fld"><label>Показатели</label><div class="btn-row" style="margin:0">'+
-      uniq(base.stats.concat(bo.stats)).map(s => { const on = w.stats.indexOf(s) !== -1,
-        hard = bo.stats.indexOf(s) === -1;
-        return '<button class="btn btn-sm '+(on ? 'btn-primary' : 'btn-secondary')+'"'+
-          (hard ? ' disabled title="показатель объявлен составом: отклонением не назван"' : '')+
-          ' onclick="RP.twistStat(\''+s+'\')">'+esc(statName(s))+
-          (hard ? ' · жёстко' : '')+'</button>'; }).join('')+'</div></div></div>';
-    h += '<div class="form-row"><div class="fld"><label>Строки объектов (углубление)</label>'+
-      '<button class="btn btn-sm '+(w.drill ? 'btn-primary' : 'btn-secondary')+'"'+
-        (bo.drill ? '' : ' disabled title="редакция углубление отклонением не объявила"')+
-        ' onclick="RP.twistDrill()">'+(w.drill ? 'печатаются — спрошен statRows'
-          : 'не печатаются — спрошен только statSlice')+'</button></div>'+
-      '<div class="fld"><label>Раскладка (объявления не требует)</label>'+
-      '<select onchange="RP.twistLayout(this.value)">'+RP.layouts().map(l =>
-        '<option'+(l === w.layout ? ' selected' : '')+'>'+esc(l)+'</option>').join('')+
-      '</select></div>'+
-      '<div class="fld"><label>Личный вид</label><select onchange="RP.useView(this.value)">'+
-        '<option value="">— без вида, состав по умолчанию —</option>'+mine.map(vw =>
-          '<option value="'+vw.id+'"'+(vw.id === sel.view ? ' selected' : '')+'>'+
-          esc(vw.name)+'</option>').join('')+'</select></div>'+
-      '<div class="fld"><label>Сохранить накрутку видом</label>'+
-        '<input value="'+esc(sel.viewName || '')+'" onchange="RP.setViewName(this.value)" '+
-        'placeholder="как я смотрю просрочку"></div></div>';
-    h += '<div class="btn-row">'+
-      '<button class="btn btn-primary btn-sm" onclick="RP.doSaveView()">Сохранить вид</button>'+
-      '<button class="btn btn-secondary btn-sm" onclick="RP.twistReset()">Вернуть состав по умолчанию</button>'+
-      (sel.view ? '<button class="btn btn-secondary btn-sm" onclick="RP.doDropView()">Удалить вид</button>'+
-        '<button class="btn btn-secondary btn-sm" onclick="RP.doShareView()">Передать вид коллеге</button>'+
-        '<button class="btn btn-secondary btn-sm" onclick="RP.doPublishView()">Опубликовать вид для всех</button>' : '')+
-      '<button class="btn btn-secondary btn-sm" onclick="RP.doTwistOut()">Добавить разрез «заёмщик»</button>'+
-      '</div></div>';
-  }
+  const bo = RP.bounds(tid), w = prev.twist, base = bo.base, mine = RP.myViews(tid);
+  h += '<div class="card"><h3>Как смотреть — в границах, объявленных редакцией '+bo.ed+'</h3>';
+  h += '<div class="form-row"><div class="fld"><label>Разрезы — уровни слева направо</label>'+
+    '<div class="btn-row" style="margin:0">'+
+    uniq(base.cuts.concat(bo.cuts)).map(c => { const on = w.cuts.indexOf(c) !== -1,
+      hard = bo.cuts.indexOf(c) === -1;
+      return '<button class="btn btn-sm '+(on ? 'btn-primary' : 'btn-secondary')+'"'+
+        (hard ? ' disabled title="уровень объявлен составом: отклонением не назван"' : '')+
+        ' onclick="RP.twistCut(\''+c+'\')">'+esc(cutName(c))+
+        (hard ? ' · жёстко' : '')+'</button>'; }).join('')+
+    w.cuts.filter(c => bo.cuts.indexOf(c) !== -1).map(c =>
+      '<button class="btn btn-secondary btn-sm" onclick="RP.twistUp(\''+c+'\')" '+
+      'title="поднять уровень выше">↑ '+esc(cutName(c))+'</button>').join('')+
+    '</div></div>';
+  h += '<div class="fld"><label>Показатели</label><div class="btn-row" style="margin:0">'+
+    uniq(base.stats.concat(bo.stats)).map(s => { const on = w.stats.indexOf(s) !== -1,
+      hard = bo.stats.indexOf(s) === -1;
+      return '<button class="btn btn-sm '+(on ? 'btn-primary' : 'btn-secondary')+'"'+
+        (hard ? ' disabled title="показатель объявлен составом: отклонением не назван"' : '')+
+        ' onclick="RP.twistStat(\''+s+'\')">'+esc(statName(s))+
+        (hard ? ' · жёстко' : '')+'</button>'; }).join('')+'</div></div></div>';
+  h += '<div class="form-row"><div class="fld"><label>Строки объектов (углубление)</label>'+
+    '<button class="btn btn-sm '+(w.drill ? 'btn-primary' : 'btn-secondary')+'"'+
+      (bo.drill ? '' : ' disabled title="редакция углубление отклонением не объявила"')+
+      ' onclick="RP.twistDrill()">'+(w.drill ? 'печатаются — спрошен statRows'
+        : 'не печатаются — спрошен только statSlice')+'</button></div>'+
+    '<div class="fld"><label>Раскладка (объявления не требует)</label>'+
+    '<select onchange="RP.twistLayout(this.value)">'+RP.layouts().map(l =>
+      '<option'+(l === w.layout ? ' selected' : '')+'>'+esc(l)+'</option>').join('')+
+    '</select></div>'+
+    '<div class="fld"><label>Личный вид</label><select onchange="RP.useView(this.value)">'+
+      '<option value="">— без вида, состав по умолчанию —</option>'+mine.map(vw =>
+        '<option value="'+vw.id+'"'+(vw.id === sel.view ? ' selected' : '')+'>'+
+        esc(vw.name)+'</option>').join('')+'</select></div>'+
+    '<div class="fld"><label>Сохранить накрутку видом</label>'+
+      '<input value="'+esc(sel.viewName || '')+'" onchange="RP.setViewName(this.value)" '+
+      'placeholder="как я смотрю просрочку"></div></div>';
+  h += '<div class="btn-row">'+
+    '<button class="btn btn-primary btn-sm" onclick="RP.doSaveView()">Сохранить вид</button>'+
+    '<button class="btn btn-secondary btn-sm" onclick="RP.twistReset()">Вернуть состав по умолчанию</button>'+
+    (sel.view ? '<button class="btn btn-secondary btn-sm" onclick="RP.doDropView()">Удалить вид</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.doShareView()">Передать вид коллеге</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.doPublishView()">Опубликовать вид для всех</button>' : '')+
+    '<button class="btn btn-secondary btn-sm" onclick="RP.doTwistOut()">Добавить разрез «заёмщик»</button>'+
+    '</div></div>';
 
   /* --- показ: шапка, потом числа --- */
   h += showBox(prev.head);
@@ -3431,7 +3463,7 @@ function scIssue(){
      к ядру, и гонять его оттого, что кто-то промахнулся мимо строки списка,
      незачем. Легаси мерил: весь портфель 107 с, отбор вчетверо уже — 90 с;
      стоимость сидит не в числе строк, и кнопка её не лечит (ОЧ-44).         */
-  const liveGate = !isBlank && ed.mode === 'сейчас' && !sel.live;
+  const liveGate = ed.mode === 'сейчас' && !sel.live;
   if(liveGate){
     h += '<div class="card"><h3>Числа не запрошены</h3>'+
       '<div class="small">Режим редакции — <em>сейчас</em>: величины берутся живым запросом.</div>'+
@@ -3441,47 +3473,35 @@ function scIssue(){
   h += '<div class="sheet" style="margin-top:14px"><div class="sheet-h">'+esc(t.name)+'</div>'+
     '<div class="sheet-sub">ред. '+ed.n+' · '+esc(t.basis ? (t.basis.point ? 'п. '+t.basis.point+' ' : '')+t.basis.doc
       : 'основание не названо')+'</div>';
-  if(isBlank){
-    const d = prev.data;
-    if(!d.row) h += '<div class="banner danger">Объект вне области видимости роли: бланк печатает тот, '+
-      'у кого шаблон в круге <b>и</b> объект видим — два замка.</div>';
-    else {
-      h += '<div class="lineform">'+d.subs.map(s => '<div class="small"><b>{{'+esc(s.id)+'}}</b> → '+
-        (s.lost ? '<span style="color:var(--asubk-red)">поля нет в перечне</span>'
-          : esc(typeof s.value === 'number' ? money(s.value) : s.value))+
-        '<div class="muted">'+esc(s.name || '—')+'</div></div>').join('')+'</div>';
-    }
-  } else {
-    const d = prev.data;
-    /* Порядок полос берётся из ЛИСТА редакции, а не из порядка кода: в легаси
-       он выведен из номеров строк макета, и ИТОГО печатается перед группами
-       (ОЧ-26, ОЧ-33).                                                        */
-    h += '<div class="bands">'+d.sheet.bands.map((b, i) => '<span class="band'+(b === 'итог' ? ' tot' :
-      (b === 'уровни' ? ' lv' : ''))+'">'+(i+1)+'. '+esc(b)+'</span>').join('<span class="arr">→</span>')+
-      '<span class="arr">·</span><span class="small">лист '+esc(d.sheet.orient)+
-      ', форматы: '+esc(d.sheet.formats.join(' · '))+'</span></div>';
-    h += '<table class="cgrid"><thead><tr>'+d.cols.map(c =>
-      '<th>'+(c.lost ? '<span style="color:var(--asubk-red)">'+esc(c.id)+' — нет в перечне</span>' : esc(c.name))+
-      '</th>').join('')+'</tr></thead><tbody>';
-    if(d.groups && d.groups.length) h += bandRows(d.groups, d.cols);
-    else d.rows.forEach(r => { h += cellRow(r, d.cols); });
-    if(!d.rows.length) h += '<tr><td colspan="'+Math.max(1,d.cols.length)+'" class="muted">строк нет</td></tr>';
-    h += '</tbody></table>';
-    h += '<div class="totals">'+d.totals.map(x => '<div class="tot"><div class="tn">'+esc(x.name)+'</div>'+
-      '<div class="tv">'+(x.shown == null ? '—' : esc(money(x.shown)))+' <span class="small">'+esc(x.unit)+'</span></div>'+
-      '<div class="tp">'+esc(x.why || 'считается по видимым строкам')+'</div></div>').join('')+'</div>';
-    h += passportBox(d.passport, false);
-    if(d.soft.length) h += '<div class="banner warn"><b>Проверить заранее это было нельзя.</b> '+
-      d.soft.map(esc).join('; ')+'. Такой выпуск станет предварительным, даже если запросить '+
-      'окончательный.</div>';
-  }
+  const d = prev.data;
+  /* Порядок полос берётся из ЛИСТА редакции, а не из порядка кода: в легаси
+     он выведен из номеров строк макета, и ИТОГО печатается перед группами
+     (ОЧ-26, ОЧ-33).                                                        */
+  h += '<div class="bands">'+d.sheet.bands.map((b, i) => '<span class="band'+(b === 'итог' ? ' tot' :
+    (b === 'уровни' ? ' lv' : ''))+'">'+(i+1)+'. '+esc(b)+'</span>').join('<span class="arr">→</span>')+
+    '<span class="arr">·</span><span class="small">лист '+esc(d.sheet.orient)+
+    ', форматы: '+esc(d.sheet.formats.join(' · '))+'</span></div>';
+  h += '<table class="cgrid"><thead><tr>'+d.cols.map(c =>
+    '<th>'+(c.lost ? '<span style="color:var(--asubk-red)">'+esc(c.id)+' — нет в перечне</span>' : esc(c.name))+
+    '</th>').join('')+'</tr></thead><tbody>';
+  if(d.groups && d.groups.length) h += bandRows(d.groups, d.cols);
+  else d.rows.forEach(r => { h += cellRow(r, d.cols); });
+  if(!d.rows.length) h += '<tr><td colspan="'+Math.max(1,d.cols.length)+'" class="muted">строк нет</td></tr>';
+  h += '</tbody></table>';
+  h += '<div class="totals">'+d.totals.map(x => '<div class="tot"><div class="tn">'+esc(x.name)+'</div>'+
+    '<div class="tv">'+(x.shown == null ? '—' : esc(money(x.shown)))+' <span class="small">'+esc(x.unit)+'</span></div>'+
+    '<div class="tp">'+esc(x.why || 'считается по видимым строкам')+'</div></div>').join('')+'</div>';
+  h += passportBox(d.passport, false);
+  if(d.soft.length) h += '<div class="banner warn"><b>Проверить заранее это было нельзя.</b> '+
+    d.soft.map(esc).join('; ')+'. Такой выпуск станет предварительным, даже если запросить '+
+    'окончательный.</div>';
   h += '</div>';
   }
 
   /* --- ступень --- */
   /* Право окончательного выпуска — не роль и не флаг: это то же обязательство,
      прочитанное с другого конца. Сдаёт тот, за кем оно числится (ИО-25).      */
-  const fin = RP.finalRight(t.id, (!isBlank && sel.params.dept) ? [sel.params.dept] : null);
+  const fin = RP.finalRight(t.id, sel.params.dept ? [sel.params.dept] : null);
   h += '<div class="card"><h3>Ступень выпуска</h3><div class="form-row">'+
     '<div class="fld"><label>Ступень</label><select onchange="RP.setKind(this.value)">'+
       ['предварительный','окончательный'].map(k => '<option'+(k===sel.kind?' selected':'')+
@@ -3490,33 +3510,11 @@ function scIssue(){
       'выпуск идёт только составом по умолчанию</div>'
       : (!fin.ok ? '<div class="why">'+esc(fin.why)+'</div>'
         : (fin.note ? '<div class="why">'+esc(fin.note)+'</div>' : '')))+'</div>'+
-    (isBlank ? (function(){
-      /* Получатель бланка не выбирается: редакция объявила ВИД, значение пришло от
-         соседа — ядро называет лицо в роли, оргструктура подразделение и должность
-         (ADR-0168 §1). Экран показывает и вид, и то, во что он развернулся.      */
-      const br = RP.blankRecipient(t.id, sel.params.obj) || {};
-      const r = br.rec;
-      const why = {
-        'роль': 'роль объявлена редакцией, лицо взято по роли у объекта',
-        'подразделение': r && r.byObject
-          ? 'подразделение взято то, что ведёт '+esc(r.viaNo || '')
-          : 'подразделение записано в редакции ссылкой в оргструктуру',
-        'должность': 'адресат — должность, а не человек'
-      };
-      return '<div class="fld"><label>Получатель — '+esc(br.text || '—')+'</label>'+
-        '<div class="mono" style="padding:6px 0">'+(r
-          ? esc(r.name)+' <span class="small muted">'+esc(r.ref)+
-            (r.inn ? ' · ИНН '+esc(r.inn) : '')+'</span>'
-          : '<span class="muted">назвать некем</span>')+'</div>'+
-        '<div class="why">'+(r ? (why[r.kind] || '') : esc(br.why || ''))+'</div></div>';
-    })() :
     '<div class="fld"><label>Получатель (справочник адресатов)</label>'+
       '<select onchange="RP.setRecipient(this.value)"'+
         (sel.kind==='окончательный' ?'':' disabled')+'>'+
       ADDRESSEES.map(a => '<option value="'+a.id+'"'+(a.id===sel.recipient?' selected':'')+'>'+esc(a.name)+'</option>').join('')+
-    '</select></div>');
-  if(isBlank && t.series && t.series.manual) h += '<div class="fld"><label>Номер (серия ручная)</label>'+
-    '<input value="'+esc(sel.number||'')+'" onchange="RP.setNumber(this.value)" placeholder="ПР-2026/015"></div>';
+    '</select></div>';
   h += '<div class="fld"><label>&nbsp;</label>'+
     '<button class="btn btn-primary" onclick="RP.doOrder()">Заказать выпуск</button></div></div>';
   h += '<div class="facts">'+
@@ -3525,10 +3523,6 @@ function scIssue(){
     '<div class="f">окончательный — только с названным получателем и только pdf</div>'+
     (prev.deviated ? '<div class="f no">накрученный показ выпускается <b>предварительно</b>; '+
       'сдать его нельзя</div>' : '')+
-    (isBlank && t.series ? '<div class="f">серия <b>'+esc(t.series.prefix)+'</b>'+
-      (t.series.manual ? ' ручная — номер вводит канцелярия, система ловит дубль'
-        : ' сквозная — следующий номер '+esc(t.series.prefix+String(t.series.next).padStart(3,'0')))+
-      '</div>' : '')+
     '</div>';
   h += '<div class="btn-row">'+
     '<button class="btn btn-secondary btn-sm" onclick="RP.demoStringRecipient()">Вписать получателя строкой «Минфин КР»</button>'+
@@ -3550,15 +3544,15 @@ function scIssue(){
     '</div>'+
     '<div class="form-row"><div class="fld"><label>Формат выгрузки</label>'+
       '<div class="btn-row" style="margin:0">'+
-      (isBlank ? ['docx','pdf'] : sheetOfEd(ed).formats).map(f =>
+      sheetOfEd(ed).formats.map(f =>
         '<button class="btn btn-secondary btn-sm" onclick="RP.doExportShown(\''+f+'\')">'+
         esc(f)+'</button>').join('')+
     '</div></div>'+
-    (isBlank ? '' : '<div class="fld"><label>Имя рабочего списка</label>'+
+    '<div class="fld"><label>Имя рабочего списка</label>'+
       '<input value="'+esc(sel.wlName || '')+'" onchange="RP.setWlName(this.value)" '+
       'placeholder="обзвон по просрочке, август"></div>'+
       '<div class="fld"><label>&nbsp;</label><button class="btn btn-secondary" '+
-      'onclick="RP.doWorklistShown()">Завести рабочий список</button></div>')+
+      'onclick="RP.doWorklistShown()">Завести рабочий список</button></div>'+
     '</div></div>';
 
   /* --- задания --- */
@@ -3583,11 +3577,10 @@ RP.selTpl = id => { const sel = RP.state.sel;
   /* Накрутка привязана к шаблону: смена шаблона её не переносит.            */
   sel.tpl = id; sel.twist = null; sel.view = null; sel.dropped = null; sel.live = false;
   render(); };
-function shownArgs(){ const sel = RP.state.sel, t = TPL(sel.tpl);
-  const isB = t && t.kind === 'бланк';
-  return {tid: sel.tpl, isBlank: isB,
-    params: isB ? {obj: sel.obj} : {asOf: sel.params.asOf, dept: sel.params.dept},
-    twist: isB ? null : (sel.twist || null)}; }
+function shownArgs(){ const sel = RP.state.sel;
+  return {tid: sel.tpl,
+    params: {asOf: sel.params.asOf, dept: sel.params.dept},
+    twist: sel.twist || null}; }
 RP.doExportShown = f => { const a = shownArgs();
   act(RP.exportShown(a.tid, a.params, a.twist, f)); };
 RP.setWlName = v => { RP.state.sel.wlName = v; };
@@ -3824,7 +3817,7 @@ function scSeams(){
       '<button class="btn btn-secondary btn-sm" onclick="RP.demoOwnQuery()">Сделать свой запрос к базе</button>'+
       '<button class="btn btn-secondary btn-sm" onclick="RP.demoOwnFormula()">Завести свою формулу</button>'+
     '</div></div>';
-  h += '<div class="card"><h3>Три шва наружу и кто их спрашивает</h3>'+
+  h += '<div class="card"><h3>Четыре шва наружу и кто их спрашивает</h3>'+
     '<table class="cgrid"><thead><tr><th>Потребитель</th><th>Что спрашивает</th><th>Каким ключом</th>'+
     '<th>Зачем</th></tr></thead><tbody>'+
     RP.consumers().map(c => '<tr'+(c.may.length?'':' class="out"')+'><td>'+esc(c.module)+'</td>'+
@@ -3841,6 +3834,7 @@ function scSeams(){
       '<button class="btn btn-secondary btn-sm" onclick="RP.demoOutSubj(\'карточка объекта (ядро)\')">Карточка объекта спрашивает по лицу</button>'+
       '<button class="btn btn-secondary btn-sm" onclick="RP.demoOut(\'анализ\',\'reportRows\')">Анализ просит строки ответа</button>'+
       '<button class="btn btn-secondary btn-sm" onclick="RP.demoOut(\'задачи\',\'reportTemplate\')">Задачи просят шаблон</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.demoOut(\'карточка объекта (ядро)\',\'reportForms\')">Карточка объекта спрашивает reportForms</button>'+
     '</div></div>';
   h += '<div class="card"><h3>Что модуль требует от соседей</h3><table class="cgrid"><thead><tr>'+
     '<th>От кого</th><th>Что</th><th>Решение</th></tr></thead><tbody>'+
@@ -3868,10 +3862,12 @@ RP.demoSeam = id => {
 };
 RP.demoOwnQuery = () => act(RP.ownQuery());
 RP.demoOwnFormula = () => act(RP.ownFormula());
-RP.demoOut = (mod, seam) => { const arg = seam === 'reportIssues' ? RP.state.sel.obj
+RP.demoOut = (mod, seam) => { const arg = (seam === 'reportIssues' || seam === 'reportForms') ? RP.state.sel.obj
     : seam === 'reportObligations' ? RP.viewer().dept : RP.state.sel.tpl;
   const r = RP.callSeamOut(mod, seam, arg);
-  if(r.ok) toast(mod+' ← '+seam+': '+JSON.stringify(r.data).slice(0,220), 'ok'); else act(r); };
+  if(!r.ok) return act(r);
+  const data = seam === 'reportForms' ? r.items : r.data;
+  toast(mod+' ← '+seam+': '+JSON.stringify(data).slice(0,220), 'ok'); };
 /* Тот же шов, ключ «лицо»: у заёмщика договоров бывает несколько, а уклоняется он
    один — классификации нужен разрез по лицу, а карточке объекта он не нужен.   */
 RP.demoOutSubj = mod => { const s = subjectInRole(RP.state.sel.obj, 'заёмщик');
@@ -3947,8 +3943,116 @@ function scBlank(){
   ])+'</div>';
 
   h += '</div></div>';
+
+  /* --- печать из карточки объекта (§14 п. 7) ---
+     Та же механика заказа, что у отчёта (два шага, паспорт, два замка
+     видимости), приложенная к ОДНОМУ названному объекту. В проде объект
+     приходит уже названным из карточки объекта или рабочего списка — своей
+     витрины объектов у отчётности нет и не будет (ОЧ-43, ADR-0224); выбор
+     ниже держится ради мокапа.                                            */
+  h += '<div class="card"><h3>Печать из карточки объекта</h3>'+
+    '<div class="small muted">Мокап: объект выбирается вручную только потому, что своей витрины '+
+    'объектов у модуля нет — в проде печать открывается уже с названным объектом из его карточки '+
+    'или рабочего списка (ОЧ-43, ADR-0224).</div>';
+  if(!pub) h += '<div class="banner warn">Редакция ещё не опубликована — печатать нечего: '+
+    'выпускать можно только опубликованную (ИО-1).</div></div>';
+  else {
+    const sel = RP.state.sel;
+    const params = {obj: sel.obj};
+    if(pub.mode === 'на дату') params.asOf = sel.params.asOf;
+    const prev = RP.show(tid, params, null), d = prev.data;
+
+    h += '<div class="form-row"><div class="fld"><label>Кредит (объект бланка)</label>'+
+      '<select onchange="RP.setObj(this.value)">'+CREDITS().map(o =>
+        '<option value="'+o.id+'"'+(o.id===sel.obj?' selected':'')+'>'+esc(o.no+' · '+o.borrower)+'</option>').join('')+
+      '</select></div>'+
+      (pub.mode === 'на дату' ? '<div class="fld"><label>Дата состояния</label>'+
+        '<select onchange="RP.setAsOf(this.value)">'+HIST_DATES.map(dt =>
+          '<option value="'+dt+'"'+(dt===sel.params.asOf?' selected':'')+'>'+esc(fmt(dt))+'</option>').join('')+
+        '</select></div>' : '')+
+      '</div>';
+
+    h += showBox(prev.head);
+    h += '<div class="sheet" style="margin-top:14px"><div class="sheet-h">'+esc(t.name)+'</div>'+
+      '<div class="sheet-sub">ред. '+pub.n+' · '+esc(t.basis ? (t.basis.point ? 'п. '+t.basis.point+' ' : '')+t.basis.doc
+        : 'основание не названо')+'</div>';
+    if(!d.row) h += '<div class="banner danger">Объект вне области видимости роли: бланк печатает '+
+      'тот, у кого шаблон в круге <b>и</b> объект видим — два замка.</div>';
+    else h += '<div class="lineform">'+d.subs.map(s => '<div class="small"><b>{{'+esc(s.id)+'}}</b> → '+
+      (s.lost ? '<span style="color:var(--asubk-red)">поля нет в перечне</span>'
+        : esc(typeof s.value === 'number' ? money(s.value) : s.value))+
+      '<div class="muted">'+esc(s.name || '—')+'</div></div>').join('')+'</div>';
+    h += '</div>';
+
+    const fin = RP.finalRight(tid, null);
+    h += '<div class="card" style="margin-top:0"><h3>Ступень выпуска</h3><div class="form-row">'+
+      '<div class="fld"><label>Ступень</label><select onchange="RP.setKind(this.value)">'+
+        ['предварительный','окончательный'].map(k => '<option'+(k===sel.kind?' selected':'')+
+          (k === 'окончательный' && !fin.ok ? ' disabled' : '')+'>'+k+'</option>').join('')+
+      '</select>'+(!fin.ok ? '<div class="why">'+esc(fin.why)+'</div>'
+        : (fin.note ? '<div class="why">'+esc(fin.note)+'</div>' : ''))+'</div>'+
+      (function(){
+        /* Получатель бланка не выбирается: редакция объявила ВИД, значение
+           пришло от соседа — ядро называет лицо в роли (ADR-0168 §1).       */
+        const br = RP.blankRecipient(tid, sel.obj) || {};
+        const r = br.rec;
+        const why = {
+          'роль': 'роль объявлена редакцией, лицо взято по роли у объекта',
+          'подразделение': r && r.byObject
+            ? 'подразделение взято то, что ведёт '+esc(r.viaNo || '')
+            : 'подразделение записано в редакции ссылкой в оргструктуру',
+          'должность': 'адресат — должность, а не человек'
+        };
+        return '<div class="fld"><label>Получатель — '+esc(br.text || '—')+'</label>'+
+          '<div class="mono" style="padding:6px 0">'+(r
+            ? esc(r.name)+' <span class="small muted">'+esc(r.ref)+
+              (r.inn ? ' · ИНН '+esc(r.inn) : '')+'</span>'
+            : '<span class="muted">назвать некем</span>')+'</div>'+
+          '<div class="why">'+(r ? (why[r.kind] || '') : esc(br.why || ''))+'</div></div>';
+      })()+
+      (t.series && t.series.manual ? '<div class="fld"><label>Номер (серия ручная)</label>'+
+        '<input value="'+esc(sel.number||'')+'" onchange="RP.setNumber(this.value)" '+
+        'placeholder="ПР-2026/015"></div>' : '')+
+      '<div class="fld"><label>&nbsp;</label>'+
+      '<button class="btn btn-primary" onclick="RP.doOrderBlank(\''+tid+'\')">Заказать выпуск</button></div></div>';
+    h += '<div class="facts">'+
+      '<div class="f">предварительный — обязательств не закрывает, номера не тратит; '+
+        'файл живёт '+dayWord(RP.FILE_DAYS)+' и гаснет</div>'+
+      '<div class="f">окончательный — только с названным получателем и только pdf</div>'+
+      (t.series ? '<div class="f">серия <b>'+esc(t.series.prefix)+'</b>'+
+        (t.series.manual ? ' ручная — номер вводит канцелярия, система ловит дубль'
+          : ' сквозная — следующий номер '+esc(t.series.prefix+String(t.series.next).padStart(3,'0')))+
+        '</div>' : '')+
+      '</div>';
+    h += '<div class="btn-row">'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.doExportBlank(\''+tid+'\',\'docx\')">Выгрузить docx</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.doExportBlank(\''+tid+'\',\'pdf\')">Выгрузить pdf</button>'+
+      '</div></div>';
+
+    const jobs = RP.state.issues.filter(i => i.tpl === tid && i.state !== 'готов');
+    if(jobs.length) h += '<div class="card"><h3>Задания на выпуск этого бланка</h3>'+
+      '<table class="cgrid"><thead><tr><th>Заказ</th><th>Объект</th><th>Ступень при заказе</th>'+
+      '<th>Состояние</th><th></th></tr></thead><tbody>'+jobs.map(j =>
+        '<tr><td class="mono">'+esc(j.id)+'<div class="small">'+fmt(j.at)+' · '+esc(j.by)+'</div></td>'+
+        '<td class="small">'+esc(OBJ(j.obj) ? OBJ(j.obj).no : j.obj)+'</td>'+
+        '<td class="small">'+esc(j.asked)+'</td>'+
+        '<td>'+pill(j.state, j.state === 'ошибка' ? 'err' : (j.state === 'считается' ? 'warn' : 'info'))+
+          (j.error ? '<div class="why">'+esc(j.error)+'</div>' : '')+'</td>'+
+        '<td>'+(j.state === 'ошибка' ? '<span class="small muted">задание кончилось; строка осталась</span>'
+          : '<button class="btn btn-secondary btn-sm" onclick="RP.doStep(\''+j.id+'\')">Шаг задания</button>')+
+        '</td></tr>').join('')+'</tbody></table></div>';
+  }
   return h;
 }
+RP.doOrderBlank = tid => { const sel = RP.state.sel, t = TPL(tid), ed = pubEd(t);
+  const params = {obj: sel.obj};
+  if(ed && ed.mode === 'на дату') params.asOf = sel.params.asOf;
+  const r = RP.order(tid, {params, kind: sel.kind, twist:null, recipient:null, number: sel.number});
+  act(r, r.ok ? 'заказ '+r.id+' принят: чисел ещё нет, строка журнала уже есть' : ''); };
+RP.doExportBlank = (tid, f) => { const sel = RP.state.sel, t = TPL(tid), ed = pubEd(t);
+  const params = {obj: sel.obj};
+  if(ed && ed.mode === 'на дату') params.asOf = sel.params.asOf;
+  act(RP.exportShown(tid, params, null, f)); };
 
 /* ---------------------- РАБОЧИЕ СПИСКИ (§9, ИО-14) ------------------- */
 RP.selWL = id => { RP.state.sel.wl = id; render(); };
@@ -5193,6 +5297,15 @@ function act(res, okMsg){
   render();
 }
 RP.go = v => { RP.state.view = v; render(); };
+/* Свёрнутость сайдбара живёт классом на .app, не в RP.state: render() каждый раз
+   перерисовывает только #title/#panel, так что переключение переживает любое
+   действие пользователя и не тянет за собой лишнее поле состояния. */
+RP.toggleSidebar = () => {
+  const off = document.querySelector('.app').classList.toggle('nav-off');
+  const b = document.querySelector('.topbar .menu');
+  b.setAttribute('aria-expanded', String(!off));
+  b.setAttribute('aria-label', off ? 'Развернуть меню' : 'Свернуть меню');
+};
 RP.setRole = title => { RP.state.role = title;
   toast('роль: '+title+'; область видимости — '+ROLE(title).scope.map(deptName).join('; '),'ok');
   render(); };
