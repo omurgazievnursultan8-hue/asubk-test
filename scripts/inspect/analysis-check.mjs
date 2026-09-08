@@ -17,6 +17,34 @@
 // группу с повторяющимся блоком членов, свой контур доступа анализ не заводит — обзор
 // читает контур шаблона, финанализ — контур заёмщика, черновик обеих форм — контур в
 // одного автора.
+// Блок U (#85…#89) закрывает волну 15 — дефект АН-Д9 и ИА-26: ключ заключения стал тройкой
+// «заёмщик × период × повод», переиздание идёт внутри повода, шов analysisDone принимает
+// повод третьим аргументом и без него отказывает, расписание вменяет только плановый повод,
+// а виды повода ведёт отдел анализа записью — как строки формы (ADR-0233).
+// Блок V (#90…#95) закрывает волну 15 — ИА-27: коэффициент объявляется КОДОМ ФОРМЫ РАСЧЁТА
+// и её параметрами, а не выражением (ADR-0234). Каталог из шести форм — код разработчика
+// (имя, поимённые параметры, своё слово отказа), объявление разбирается без единого поля
+// свободного текста, четыре беды объявления названы четырьмя разными отказами, знак живёт
+// в коде строки, а «сравнивать не с чем» — третья, СВОЯ причина «посчитать нельзя».
+// Блок W (#96…#102) закрывает волну 15 — ИА-28: отчётность есть реквизит СУБЪЕКТА, а источник
+// назван у КАЖДОЙ СТРОКИ, а не у версии целиком (ADR-0235). Разбор файла — способ заполнить
+// версию, а не второй способ её внести; неразобранная строка называется поимённо; внешний
+// источник объявлен перечнем, но дверью не является, и говорится это прямо; субъект без роли
+// заёмщика отчётность ведёт, а анализа не получает — и швы отвечают о нём своим ответом,
+// отличным от «анализа нет».
+// Блок X (#103…#109) закрывает волну 15 — ИА-29: у запроса финансового пакета есть
+// УСТАНОВЛЕННАЯ ДАТА, от которой норма считает 60 и 90 дней (п. 11.2, п. 11.3), и заведён
+// запрос здесь, потому что состав пакета объявляет редакция методики (ADR-0236). Наружу
+// уходит ФАКТ — даты и посчитанное число дней, без слов суждения и без порогов; классификации
+// открыт факт и по-прежнему закрыто суждение (ИА-10); «анализа нет» получило три различимые
+// причины взамен одного текста (ИА-14); дефекта по запросу модуль не считает.
+// Блок Y (#110…#115) закрывает волну 15 — АН-83 и АН-85: динамика коэффициента ПОКАЗЫВАЕТСЯ,
+// а не хранится. Ряд собирается из снимков прежних утверждённых заключений в момент показа
+// (ADR-0001, ИА-22), упорядочен по КОНЦУ ПЕРИОДА, а не по дате подписи, живёт внутри одного
+// повода и сравнивает только посчитанное одной методикой одной редакции — несопоставимость
+// называется словами и своим кодом (method / edition / nocalc), а не прячется. Поля под ряд
+// в заключении нет, и попытка его завести отказана по имени; строка ТЗ про AI-прогноз
+// отвечена видом изменения во времени, а предсказание отказано по имени (АН-85).
 // Блоки, которые правят состояние, начинаются с AN.seed() — состояние между ними не течёт.
 //   node scripts/inspect/analysis-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -48,13 +76,15 @@ const TODAY = '2026-08-21';
   const st = AN.state;
   const noPtype = st.methods.filter(x => !x.ptype);
   const coefs = st.methods.reduce((a, x) => a.concat(x.editions.reduce((b, e) => b.concat(e.coefs), [])), []);
-  const badOp = coefs.filter(c => AN.ops().indexOf(c.op) < 0);
+  const catalogue = AN.forms().map(f => f.id);
+  const badForm = coefs.filter(c => catalogue.indexOf(c.form) < 0);
   const withFormula = coefs.filter(c => 'formula' in c || 'expr' in c || 'выражение' in c);
-  const badLine = coefs.reduce((a, c) => a.concat(c.num, c.den || []), []).filter(id => !AN.LINE(id));
+  const badLine = coefs.reduce((a, c) => a.concat(AN.linesOf(c)), []).filter(id => !AN.LINE(id));
   ok(1, st.methods.length === 4 && noPtype.length === 0 && coefs.length >= 14 &&
-       badOp.length === 0 && withFormula.length === 0 && badLine.length === 0,
+       badForm.length === 0 && withFormula.length === 0 && badLine.length === 0,
     `методик ${st.methods.length}, все с применимостью по типу лица; коэффициентов ${coefs.length}, ` +
-    `с операцией вне списка ${badOp.length}, с текстом формулы ${withFormula.length}, со строкой вне справочника ${badLine.length} — ИА-3`);
+    `с формой вне каталога (${catalogue.join(', ')}) ${badForm.length}, с текстом формулы ${withFormula.length}, ` +
+    `со строкой вне справочника ${badLine.length} — ИА-3, ИА-27`);
 
   AN.setRole('Сотрудник отдела анализа');
   const univ = AN.addMethod({ id: 'm-all', name: 'Универсальная', ptype: null, editions: [] });
@@ -78,8 +108,8 @@ const TODAY = '2026-08-21';
   const before = AN.liveRatios('ФА-9').rows.length;
   const add = AN.addEdition({ method: 'm-fl', n: base.n + 1, since: TODAY, note: 'пятый коэффициент записью',
     lines: base.lines.concat(['inc']).filter((x, i, a) => a.indexOf(x) === i),
-    coefs: base.coefs.concat([{ id: 'k-new', name: 'Новый показатель', num: ['inc'], den: ['pay_fl'],
-      op: 'ratio', fmt: 'ratio', thr: { cmp: '>=', v: 2 } }]) });
+    coefs: base.coefs.concat([{ id: 'k-new', name: 'Новый показатель', form: 'ratio',
+      p: { num: ['inc'], den: ['pay_fl'] }, fmt: 'ratio', thr: { cmp: '>=', v: 2 } }]) });
   const ed = AN.METHOD('m-fl').editions.slice(-1)[0];
   const after = AN.liveRatios('ФА-9').rows.length;
   ok(4, add.ok && ed.coefs.length === base.coefs.length + 1 && after === before,
@@ -141,7 +171,7 @@ const TODAY = '2026-08-21';
 /* ---------- E. Утверждение = единственная подпись ---------- */
 (() => {
   AN.seed();
-  const nd = AN.newAnalysis({ subj: 'b-1', report: 'r-101' });
+  const nd = AN.newAnalysis({ subj: 'b-1', report: 'r-101', occasion: 'plan' });
   const noText = AN.approve(nd.doc.no);
   AN.setText(nd.doc.no, 'Отчётность за 2025 год принята, деятельность прибыльна.');
   const noVerdict = AN.approve(nd.doc.no);
@@ -152,7 +182,7 @@ const TODAY = '2026-08-21';
         good.ok && !twice.ok && has(twice.why, 'второй подписи'),
     `без текста и без вывода не утверждается; утверждённое второй раз не подписывается — «${twice.why.slice(0, 48)}…» (§2.3)`);
 
-  const dup = AN.newAnalysis({ subj: 'b-2', report: 'r-202' });
+  const dup = AN.newAnalysis({ subj: 'b-2', report: 'r-202', occasion: 'plan' });
   ok(13, !dup.ok && has(dup.why, 'ФА-9') && has(dup.why, 'второй черновик'),
     `второй черновик за тот же период не заводится: «${dup.why.slice(0, 60)}…»`);
 
@@ -201,15 +231,16 @@ const TODAY = '2026-08-21';
 
   AN.seed();
   const byCurator = AN.addEdition({ method: 'm-org', n: 3, since: TODAY, note: 'x', lines: ['ta_cur', 'li_short'],
-    coefs: [{ id: 'k-x', name: 'X', num: ['ta_cur'], den: ['li_short'], op: 'ratio', fmt: 'ratio', thr: { cmp: '>=', v: 1 } }] });
+    coefs: [{ id: 'k-x', name: 'X', form: 'ratio', p: { num: ['ta_cur'], den: ['li_short'] }, fmt: 'ratio', thr: { cmp: '>=', v: 1 } }] });
   AN.setRole('Сотрудник отдела анализа');
   const back = AN.addEdition({ method: 'm-org', n: 3, since: '2026-01-01', note: 'задним числом',
-    lines: ['ta_cur', 'li_short'], coefs: [{ id: 'k-x', name: 'X', num: ['ta_cur'], den: ['li_short'], op: 'ratio', fmt: 'ratio', thr: { cmp: '>=', v: 1 } }] });
+    lines: ['ta_cur', 'li_short'], coefs: [{ id: 'k-x', name: 'X', form: 'ratio', p: { num: ['ta_cur'], den: ['li_short'] }, fmt: 'ratio', thr: { cmp: '>=', v: 1 } }] });
   const expr = AN.addEdition({ method: 'm-org', n: 3, since: TODAY, note: 'выражение',
-    lines: ['ta_cur', 'li_short'], coefs: [{ id: 'k-x', name: 'X', num: ['ta_cur'], den: ['li_short'], op: 'median', fmt: 'ratio', thr: { cmp: '>=', v: 1 } }] });
+    lines: ['ta_cur', 'li_short'], coefs: [{ id: 'k-x', name: 'X', form: 'median', p: { num: ['ta_cur'], den: ['li_short'] }, fmt: 'ratio', thr: { cmp: '>=', v: 1 } }] });
   ok(19, !byCurator.ok && has(byCurator.why, 'отдел анализа') && !back.ok && has(back.why, 'задним числом') &&
-        !expr.ok && has(expr.why, 'закрытого списка'),
-    `методику ведёт отдел анализа; задним числом не публикуется (ИА-5); операция — только из списка ${AN.ops().join(', ')}`);
+        !expr.ok && has(expr.why, 'в каталоге нет') && has(expr.why, 'граница ответственности'),
+    `методику ведёт отдел анализа; задним числом не публикуется (ИА-5); форма расчёта — только из ` +
+    `каталога ${AN.forms().map(f => f.id).join(', ')} (ИА-27)`);
 
   const used = AN.retireEdition('m-org', 2);
   const free = AN.retireEdition('m-ip', 1);
@@ -263,9 +294,13 @@ const TODAY = '2026-08-21';
   const seams = AN.seams();
   const ratios = AN.callSeam('заявка и комиссия', 'analysisRatios', 'b-1');
   const draft = AN.callSeam('заявка и комиссия', 'analysisDraft', 'b-1');
-  ok(28, seams.length === 2 && seams.join(',') === 'analysisVerdict,analysisDone' &&
-        !ratios.ok && has(ratios.why, 'ADR-0153 §6') && !draft.ok && has(draft.why, 'ИА-2'),
-    `наружу два шва; коэффициентов и черновиков не отдаёт ни один: «${ratios.why.slice(0, 60)}…»`);
+  const evad = AN.callSeam('классификация', 'docsEvading', 'b-5', '1П 2026');
+  ok(28, seams.length === 3 && seams.join(',') === 'analysisVerdict,analysisDone,docsRequested' &&
+        !ratios.ok && has(ratios.why, 'ADR-0153 §6') && !draft.ok && has(draft.why, 'ИА-2') &&
+        !evad.ok && has(evad.why, 'это СУЖДЕНИЕ') && has(evad.why, 'решения комитета'),
+    `наружу три шва; коэффициентов и черновиков не отдаёт ни один: «${ratios.why.slice(0, 60)}…». ` +
+    `Третий шов — факт, а не суждение, и готового признака «уклоняется» рядом с ним нет: ` +
+    `«${evad.why.slice(0, 64)}…»`);
 
   const cls = AN.callSeam('классификация', 'analysisVerdict', 'b-1');
   const task = AN.callSeam('задачи', 'analysisVerdict', 'b-1');
@@ -273,7 +308,7 @@ const TODAY = '2026-08-21';
     `классификация анализ не читает ни в одной форме, задачу анализ не ставит — оба отказа названы: «${cls.why.slice(0, 55)}…»`);
 
   const appl = AN.callSeam('заявка и комиссия', 'analysisVerdict', 'b-1');
-  const done = AN.callSeam('сопровождение', 'analysisDone', 'b-1', '1П 2026');
+  const done = AN.callSeam('сопровождение', 'analysisDone', 'b-1', '1П 2026', 'plan');
   ok(30, appl.ok && appl.answer.no === 'ФА-7' && appl.answer.changed === true &&
         !('ratios' in appl.answer) && done.ok && done.answer.done === true,
     `analysisVerdict отдаёт номер, дату, вывод и пометку об изменившемся источнике — без чисел; analysisDone отдаёт факт`);
@@ -399,13 +434,13 @@ const TODAY = '2026-08-21';
 (() => {
   /* АН-Д1: у переиздания одно правило, какой бы дверью его ни завели (ИА-16). */
   AN.seed();
-  const byButton = AN.newAnalysis({ subj: 'b-1', report: 'r-103' });   /* кнопка у версии отчётности */
+  const byButton = AN.newAnalysis({ subj: 'b-1', report: 'r-103', occasion: 'plan' });   /* кнопка у версии отчётности */
   AN.seed();
   const byDoc = AN.reissue('ФА-7');                                     /* кнопка в самом документе */
   AN.seed();
-  const sameBasis = AN.newAnalysis({ subj: 'b-1', report: 'r-102' });   /* то же основание */
+  const sameBasis = AN.newAnalysis({ subj: 'b-1', report: 'r-102', occasion: 'plan' });   /* то же основание */
   AN.seed();
-  const otherPeriod = AN.newAnalysis({ subj: 'b-1', report: 'r-101' }); /* другой период — не переиздание */
+  const otherPeriod = AN.newAnalysis({ subj: 'b-1', report: 'r-101', occasion: 'plan' }); /* другой период — не переиздание */
   const noArg = !/spec\.prev/.test(m[1]);
   ok(39, byButton.ok && byButton.doc.prev === 'ФА-7' && byDoc.ok && byDoc.doc.prev === 'ФА-7' &&
         byButton.doc.reportVer === byDoc.doc.reportVer && !sameBasis.ok && has(sameBasis.why, 'основание то же самое') &&
@@ -420,7 +455,7 @@ const TODAY = '2026-08-21';
   const was = AN.DOC('ФА-7').verdict;
   AN.correct('ФА-7', { field: 'вывод', value: 'неудовлетворительное', basis: 'служебная записка № 5 от 21.08.2026' });
   const c = AN.DOC('ФА-7').corrections[0];
-  ok(40, snaps.length === 3 && withVerdict.length === 0 &&
+  ok(40, snaps.length === 5 && withVerdict.length === 0 &&
         AN.DOC('ФА-7').verdict === 'неудовлетворительное' && AN.analysisVerdict('b-1').verdict === 'неудовлетворительное' &&
         c.was === was && !('verdict' in AN.DOC('ФА-7').snapshot),
     `ни в одном из ${snaps.length} снимков поля вывода нет: снимок — основание, а не суждение; ` +
@@ -468,18 +503,18 @@ const TODAY = '2026-08-21';
   const base = AN.METHOD('m-org').editions.slice(-1)[0];
   const ed = AN.addEdition({ method: 'm-org', n: 3, since: TODAY, note: 'взята новая строка формы',
     lines: base.lines.concat(['stock_end']),
-    coefs: base.coefs.concat([{ id: 'k-stock', name: 'Остатки к обязательствам', num: ['stock_end'],
-      den: ['li_short'], op: 'ratio', fmt: 'ratio', thr: { cmp: '>=', v: 0.5 } }]) });
+    coefs: base.coefs.concat([{ id: 'k-stock', name: 'Остатки к обязательствам', form: 'ratio',
+      p: { num: ['stock_end'], den: ['li_short'] }, fmt: 'ratio', thr: { cmp: '>=', v: 0.5 } }]) });
   const namedBy = AN.usedByLine('stock_end');
   const retireUsed = AN.retireLine('stock_end');
   AN.addLine({ id: 'tmp_x', name: 'Временная', unit: 'шт.' });
   const retireFree = AN.retireLine('tmp_x');
   const onGone = AN.addEdition({ method: 'm-ip', n: 2, since: TODAY, note: 'на снятой строке',
-    lines: ['rev_ip', 'tmp_x'], coefs: [{ id: 'k-y', name: 'Y', num: ['tmp_x'], den: ['rev_ip'],
-      op: 'ratio', fmt: 'ratio', thr: { cmp: '>=', v: 1 } }] });
+    lines: ['rev_ip', 'tmp_x'], coefs: [{ id: 'k-y', name: 'Y', form: 'ratio',
+      p: { num: ['tmp_x'], den: ['rev_ip'] }, fmt: 'ratio', thr: { cmp: '>=', v: 1 } }] });
   const unknown = AN.addEdition({ method: 'm-ip', n: 2, since: TODAY, note: 'на неизвестной строке',
-    lines: ['rev_ip'], coefs: [{ id: 'k-z', name: 'Z', num: ['nope'], den: ['rev_ip'],
-      op: 'ratio', fmt: 'ratio', thr: { cmp: '>=', v: 1 } }] });
+    lines: ['rev_ip'], coefs: [{ id: 'k-z', name: 'Z', form: 'ratio',
+      p: { num: ['nope'], den: ['rev_ip'] }, fmt: 'ratio', thr: { cmp: '>=', v: 1 } }] });
   ok(43, !byCurator.ok && has(byCurator.why, 'отдел анализа') && !badId.ok && has(badId.why, 'латиница') &&
         !noUnit.ok && has(noUnit.why, 'единицы измерения') && added.ok && !dup.ok && has(dup.why, 'уже есть') &&
         ed.ok && namedBy.length === 1 && !retireUsed.ok && has(retireUsed.why, 'ИА-5') && retireFree.ok &&
@@ -500,7 +535,7 @@ const TODAY = '2026-08-21';
   AN.go('methods'); const meth = panel();
   AN.setRole('Ведущий куратор (Бекова Н.)');
   AN.go('borrower'); const bor = panel();
-  const re2 = AN.newAnalysis({ subj: 'b-1', report: 'r-103' });
+  const re2 = AN.newAnalysis({ subj: 'b-1', report: 'r-103', occasion: 'plan' });
   AN.openDoc(re2.doc.no); const reDoc = panel();
   AN.openDoc('ФА-7');     const snapDoc = panel();
   AN.SUBJ('b-2').ptype[1].since = '2026-08-01';
@@ -528,7 +563,7 @@ const TODAY = '2026-08-21';
   const vals = Object.assign({}, AN.REPORT('r-102').vals, { rev: 0 });
   const filed = AN.addReport({ subj: 'b-1', period: '1П 2026', vals,
     basis: 'уточнение по выручке от 29.08.2026' });
-  const zd = AN.newAnalysis({ subj: 'b-1', report: filed.report.id });
+  const zd = AN.newAnalysis({ subj: 'b-1', report: filed.report.id, occasion: 'plan' });
   const rows = AN.liveRatios(zd.doc.no).rows;
   const ros = rows.find(x => x.id === 'k-ros');
   const counted = rows.filter(x => x.v != null);
@@ -540,7 +575,7 @@ const TODAY = '2026-08-21';
   /* Беда вторая, и она другая: строки основания в отчётности нет вовсе. */
   AN.seed();
   AN.REPORT('r-103').vals.rev = null;
-  const ed = AN.newAnalysis({ subj: 'b-1', report: 'r-103' });
+  const ed = AN.newAnalysis({ subj: 'b-1', report: 'r-103', occasion: 'plan' });
   const emptyRow = AN.liveRatios(ed.doc.no).rows.find(x => x.id === 'k-ros');
   AN.setText(ed.doc.no, 'Строка основания не заполнена.');
   AN.setVerdict(ed.doc.no, 'удовлетворительное');
@@ -548,23 +583,25 @@ const TODAY = '2026-08-21';
   AN.openDoc(ed.doc.no); const emptyScreen = panel();
 
   /* Текст причины собран в ОДНОМ месте, и его читают обе двери — экран и отказ в подписи. */
-  const oneText = (m[1].match(/знаменатель равен нулю/g) || []).length === 1 &&
+  const oneText = (m[1].match(/целое равно нулю/g) || []).length === 1 &&
     /nocalcWhy\(bad\[0\]\)/.test(m[1]) && /esc\(nocalcWhy\(r\)\)/.test(m[1]);
 
   ok(45, filed.ok && ros.v === null && ros.nocalc.code === 'zeroden' && ros.missing.length === 0 &&
-        has(AN.nocalcWhy(ros), 'знаменатель равен нулю') && has(AN.nocalcWhy(ros), 'Выручка за период') &&
+        has(AN.nocalcWhy(ros), 'целое равно нулю') && has(AN.nocalcWhy(ros), 'Выручка за период') &&
         counted.length === 4 && counted.find(x => x.id === 'k-auto').v === 0.3315 &&
         counted.find(x => x.id === 'k-dte').v === 4.2202 &&
         emptyRow.nocalc.code === 'empty' && emptyRow.missing.length === 1 &&
         has(AN.nocalcWhy(emptyRow), 'не заполнены строки') && oneText,
-    `нулевой знаменатель и незаполненная строка — РАЗНЫЕ причины: «${AN.nocalcWhy(ros)}» против ` +
-    `«${AN.nocalcWhy(emptyRow)}»; остальные четыре коэффициента посчитаны (автономия 0,3315, долг ` +
-    `к прибыли 4,2202), ноль в отчётности остаётся данными, текст причины собран одним местом (ИА-19)`);
+    `нулевой делитель и незаполненная строка — РАЗНЫЕ причины: «${AN.nocalcWhy(ros)}» против ` +
+    `«${AN.nocalcWhy(emptyRow)}»; делитель назван ТЕМ СЛОВОМ, которым его зовёт форма расчёта («доля» ` +
+    `делит на целое, а не на знаменатель — ИА-27). Остальные четыре коэффициента посчитаны (автономия ` +
+    `0,3315, долг к прибыли 4,2202), ноль в отчётности остаётся данными, текст причины собран одним ` +
+    `местом (ИА-19)`);
 
   ok(46, !noSignZero.ok && has(noSignZero.why, 'Рентабельность продаж') &&
-        has(noSignZero.why, 'знаменатель равен нулю') &&
+        has(noSignZero.why, 'целое равно нулю') &&
         !noSignEmpty.ok && has(noSignEmpty.why, 'не заполнены строки') &&
-        has(zeroScreen, 'не посчитан') && has(zeroScreen, 'знаменатель равен нулю: «Выручка за период» = 0') &&
+        has(zeroScreen, 'не посчитан') && has(zeroScreen, 'целое равно нулю: «Выручка за период» = 0') &&
         has(emptyScreen, 'в отчётности не заполнены строки «Выручка за период»'),
     `подпись отклонена той же причиной, что показана на экране: «${noSignZero.why.slice(0, 78)}…»; ` +
     `в таблице коэффициентов причина стоит под пометкой «не посчитан», а не обрывается пустым списком`);
@@ -1542,13 +1579,772 @@ const TODAY = '2026-08-21';
     `контуре; черновик — граница в одного автора (ИА-24)`);
 })();
 
+/* ================= БЛОК U. ВОЛНА 15 — ПОВОД В КЛЮЧЕ (ИА-26) ================
+   ADR-0233: ключ заключения — тройка «заёмщик × период × повод»; переиздание идёт ВНУТРИ
+   повода, шов analysisDone принимает повод третьим аргументом, расписание вменяет только
+   плановый, а виды повода ведёт отдел анализа записью — как строки формы (ИА-18).
+   Дефект АН-Д9 был двойной: работа вставала (второй документ за период считался
+   переизданием и требовал новой версии основания) и обязательство закрывалось не тем
+   (анализ по заявке молча закрывал плановое п. 6.5). Здесь проверены обе половины.    */
+(() => {
+  const ANALYST = 'Сотрудник отдела анализа';
+
+  AN.seed();
+  const noOcc  = AN.newAnalysis({ subj: 'b-1', report: 'r-103' });
+  const badOcc = AN.newAnalysis({ subj: 'b-1', report: 'r-103', occasion: 'выдумка' });
+  const good   = AN.newAnalysis({ subj: 'b-1', report: 'r-103', occasion: 'plan' });
+  ok(85, !noOcc.ok && has(noOcc.why, 'повод не назван') && has(noOcc.why, 'тройка') &&
+        !badOcc.ok && has(badOcc.why, 'в справочнике нет') &&
+        good.ok && good.doc.occasion === 'plan' &&
+        AN.state.analyses.every(a => !!a.occasion),
+    `повод обязателен и по умолчанию его нет: без повода отказ («${noOcc.why.slice(0, 52)}…»), ` +
+    `с поводом вне справочника — тоже; у всех ${AN.state.analyses.length} заключений повод ` +
+    `заполнен, потому что подстановка «планового, если не сказано иное» и была бы дефектом ` +
+    `АН-Д9, спрятанным в макет (ADR-0233 §1)`);
+
+  /* Первая половина АН-Д9: работа больше не встаёт. Тот же период, ТА ЖЕ версия основания —
+     по тому же поводу отказ, по другому поводу документ заводится и цепочкой не становится. */
+  AN.seed();
+  const sameOcc  = AN.newAnalysis({ subj: 'b-1', report: 'r-102', occasion: 'plan' });
+  const otherOcc = AN.newAnalysis({ subj: 'b-1', report: 'r-102', occasion: 'appl' });
+  const re = AN.reissue('ФА-7');
+  ok(86, !sameOcc.ok && has(sameOcc.why, 'основание то же самое') &&
+        otherOcc.ok && otherOcc.doc.report === 'r-102' && otherOcc.doc.prev === null &&
+        has(otherOcc.note, 'другой повод') && re.ok && re.doc.occasion === 'plan' &&
+        re.doc.prev === 'ФА-7' && re.doc.reportVer === 2,
+    `за 1П 2026 у b-1 подписано плановое ФА-7 на версии 1: по тому же поводу на той же версии ` +
+    `новое не заводится («${sameOcc.why.slice(0, 46)}…»), а по поводу «по заявке» — ` +
+    `${otherOcc.doc.no} заводится на ТОЙ ЖЕ версии и связи с ФА-7 не получает: другой повод — ` +
+    `другой вопрос, а не переиздание. Переиздание же идёт внутри повода: reissue('ФА-7') дал ` +
+    `${re.doc.no}, повод «${AN.occName(re.doc.occasion)}», версия ${re.doc.reportVer}, связь «← ФА-7» (ADR-0233 §4)`);
+
+  /* Шов: повод третьим аргументом, вопрос без повода не задаётся (ADR-0233 §5). */
+  AN.seed();
+  const noOccQ = AN.callSeam('сопровождение', 'analysisDone', 'b-1', '1П 2026');
+  const planQ  = AN.callSeam('сопровождение', 'analysisDone', 'b-1', '1П 2026', 'plan');
+  const applQ  = AN.callSeam('сопровождение', 'analysisDone', 'b-1', '1П 2026', 'appl');
+  ok(87, !noOccQ.ok && has(noOccQ.why, 'вопрос без повода') &&
+        planQ.ok && planQ.answer.done === true && planQ.answer.no === 'ФА-7' &&
+        planQ.answer.occasion === 'plan' &&
+        applQ.ok && applQ.answer.done === false && has(applQ.answer.why, 'ФА-7') &&
+        has(applQ.answer.why, 'не закрывается'),
+    `analysisDone принимает повод третьим аргументом: без повода — ОТКАЗ, а не «да» наугад ` +
+    `(«${noOccQ.why.slice(0, 48)}…»); по плановому — done:true, ФА-7; по поводу «по заявке» — ` +
+    `done:false, и молчания нет: ответ называет ФА-7 и говорит, что обязательство своего ` +
+    `повода им не закрывается`);
+
+  /* Вторая половина АН-Д9: заключение по заявке не закрывает плановое обязательство. */
+  AN.seed();
+  const before = AN.mirrorDefect('b-2');
+  const appl = AN.newAnalysis({ subj: 'b-2', report: 'r-202', occasion: 'appl' });
+  AN.setText(appl.doc.no, 'Заявка на пополнение оборотных средств: доход подтверждён, ' +
+    'свободный остаток положителен.');
+  AN.setVerdict(appl.doc.no, 'удовлетворительное');
+  const signed = AN.approve(appl.doc.no);
+  const after = AN.mirrorDefect('b-2');
+  const seen = AN.analysisVerdict('b-2');
+  ok(88, before.defect && signed.ok && after.defect &&
+        has(after.why, appl.doc.no) && has(after.why, 'по другому поводу') &&
+        seen.no === appl.doc.no,
+    `дефект АН-Д9 закрыт на своём же сценарии: у b-2 плановый анализ за 1П 2026 просрочен, ` +
+    `подписан ${appl.doc.no} ПО ЗАЯВКЕ на той же отчётности — и дефект остался, а причина ` +
+    `названа словами: «${after.why.slice(-72)}». Швы при этом расходятся честно: ` +
+    `analysisVerdict отдаёт наружу ${seen.no} (последнее утверждённое, любого повода), ` +
+    `analysisDone по плановому поводу — по-прежнему «не проведено»`);
+
+  /* Виды повода — объект ведения отдела анализа, а не перечисление в коде (ИА-26, ИА-18). */
+  AN.seed();
+  const asCurator = AN.addOccasion({ id: 'claim', name: 'по взысканию', note: 'при передаче долга' });
+  const usedDraft = AN.newAnalysis({ subj: 'b-1', report: 'r-102', occasion: 'appl' });
+  AN.setRole(ANALYST);
+  const added = AN.addOccasion({ id: 'claim', name: 'по обращению взыскания',
+    note: 'при передаче долга во взыскание — оценка состояния на дату передачи' });
+  const noNote = AN.addOccasion({ id: 'misc', name: 'прочее', note: '' });
+  const retirePlan = AN.retireOccasion('plan');
+  const retireUsed = AN.retireOccasion('appl');
+  const retireFree = AN.retireOccasion('claim');
+  ok(89, !asCurator.ok && added.ok && !noNote.ok && has(noNote.why, 'без объяснения') &&
+        !retirePlan.ok && has(retirePlan.why, 'не снимается') &&
+        !retireUsed.ok && has(retireUsed.why, usedDraft.doc.no) && has(retireUsed.why, 'ИА-5') &&
+        retireFree.ok && AN.state.occasions.length === 4,
+    `справочник поводов ведёт отдел анализа записью: куратору отказ по роли, аналитик заводит ` +
+    `«по обращению взыскания» без правки кода, повод без объяснения не заводится («${noNote.why.slice(0, 44)}…»). ` +
+    `Снятие — по правилу ИА-5 и строже: плановый не снимается вовсе (его вменяет расписание), ` +
+    `«по заявке» не снять, пока на нём стоит ${usedDraft.doc.no}, а неиспользованный снимается`);
+})();
+
+/* ---------------------------------------------------------------------------------------
+   V. ВОЛНА 15, ИА-27 / ADR-0234 — КАТАЛОГ ФОРМ РАСЧЁТА (#90…#95).
+   Развилка волны 14 звучала так: чем объявляется коэффициент — выражением или кодом формы?
+   Выражение потребовало бы интерпретатора, а с ним уехала бы ответственность: считает отдел
+   анализа, отвечает разработчик. Закрыта отказом, а не отсутствием поля. Здесь проверено,
+   что каталог — это КОД (шесть форм, у каждой имя, поимённые параметры и своё слово отказа),
+   что объявление разбирается на форму и параметры без единого поля свободного текста, что
+   отказы трёх разных бед звучат по-разному, и что новые формы СЧИТАЮТ — на отчётности,
+   внесённой обычными операциями, а не на подложенном литерале.                          */
+(() => {
+  const ANALYST = 'Сотрудник отдела анализа';
+  const LEAD    = 'Ведущий куратор (Бекова Н.)';
+  const el = () => ({ innerHTML: '', textContent: '', dataset: {}, value: '',
+    classList: { toggle() {}, add() {}, remove() {} }, appendChild() {}, remove() {} });
+  const nodes = { '#panel': el(), '#title': el(), '#foot': el(), '#role': el(), '#subj': el() };
+  sandbox.document = { querySelector: k => nodes[k] || el(), querySelectorAll: () => [],
+    getElementById: () => null, createElement: () => el() };
+  const panel = () => nodes['#panel'].innerHTML;
+
+  /* Каталог отдаётся наружу целиком, и у каждой формы есть всё, чем она отличается от
+     выражения: имя для человека, параметры с родом и правило отказа своими словами.   */
+  AN.seed();
+  const cat = AN.forms();
+  const lame = cat.filter(f => !f.params.length || f.params.some(p => !p.name || !p.kindName));
+  const coefs = AN.state.methods.reduce((a, m) =>
+    a.concat((m.editions || []).reduce((b, e) => b.concat(e.coefs || []), [])), []);
+  const parsed = coefs.filter(c => cat.some(f => f.id === c.form) && AN.linesOf(c).length > 0);
+  const asText = coefs.filter(c => Object.keys(c).some(k => /formula|expr|выражени/i.test(k)));
+  const diff = cat.find(f => f.id === 'diff'), growth = cat.find(f => f.id === 'growth');
+  ok(90, cat.length === 6 && lame.length === 0 && parsed.length === coefs.length &&
+        asText.length === 0 && !!diff && growth.needsPrev === true &&
+        cat.filter(f => f.denom).length === 5 && AN.state.forms === undefined,
+    `каталог форм расчёта — код, и это видно снаружи: ${cat.length} форм ` +
+    `(${cat.map(f => f.name).join(', ')}), у каждой поимённые параметры со своим родом ` +
+    `(«${cat[0].params[0].name}» — ${cat[0].params[0].kindName}) и своё слово отказа у ${cat.filter(f => f.denom).length} из ` +
+    `${cat.length} («${cat[0].denom}», «${cat[2].denom}»); у «темпа» отдельный признак «нужен ` +
+    `прошлый период». Все ${coefs.length} коэффициентов посеянных методик разобраны на форму и ` +
+    `параметры, поля со свободной формулой нет ни у одного, а в состоянии каталога нет вовсе: ` +
+    `он не объект ведения отдела анализа (ADR-0234 §4)`);
+
+  /* Четыре отказа при публикации, и все ЧЕТЫРЕ разные: текст выражения, форма вне каталога,
+     пропущенный параметр формы, параметр не того рода. Смешать их значило бы послать
+     человека править не то место.                                                      */
+  AN.seed();
+  AN.setRole(ANALYST);
+  const base = AN.METHOD('m-org').editions.slice(-1)[0];
+  const mk = cs => AN.addEdition({ method: 'm-org', n: base.n + 1, since: AN.state.today,
+    note: 'проверка объявления', lines: base.lines.slice(), coefs: cs });
+  const byExpr = mk([{ id: 'k-e', name: 'Своя формула', formula: '(ta_cur - 1230) / li_short',
+    fmt: 'ratio', thr: { cmp: '>=', v: 1 } }]);
+  const byUnknown = mk([{ id: 'k-m', name: 'Медиана по строкам', form: 'median',
+    p: { num: ['ta_cur'], den: ['li_short'] }, fmt: 'ratio', thr: { cmp: '>=', v: 1 } }]);
+  const noParam = mk([{ id: 'k-t', name: 'Оборачиваемость запасов', form: 'turn',
+    p: { flow: 'rev', open: 'ta_cur' }, fmt: 'ratio', thr: { cmp: '>=', v: 1 } }]);
+  const badKind = mk([{ id: 'k-s', name: 'Рентабельность группой строк', form: 'share',
+    p: { part: ['profit'], whole: 'rev' }, fmt: 'pct', thr: { cmp: '>=', v: 5 } }]);
+  const whys = [byExpr.why, byUnknown.why, noParam.why, badKind.why];
+  ok(91, !byExpr.ok && !byUnknown.ok && !noParam.ok && !badKind.ok &&
+        has(byExpr.why, 'выражение здесь не заводится ни одним полем') &&
+        has(byExpr.why, 'язык требует интерпретатора') &&
+        has(byUnknown.why, 'формы расчёта «median» в каталоге нет') &&
+        has(byUnknown.why, 'граница ответственности проходит по границе каталога') &&
+        has(noParam.why, 'не задан параметр формы') && has(noParam.why, 'остаток на конец') &&
+        has(badKind.why, 'строка части (строка)') &&
+        new Set(whys).size === 4 && AN.METHOD('m-org').editions.length === base.n,
+    `объявление проверяется ДО публикации, и четыре беды названы четырьмя разными текстами: ` +
+    `свободная формула — «${byExpr.why.slice(0, 58)}…»; форма вне каталога — «формы расчёта ` +
+    `«median» в каталоге нет», с перечнем каталога и границей ответственности; пропущенный ` +
+    `параметр — «${noParam.why.slice(0, 72)}…»; параметр не того рода (группа строк вместо ` +
+    `строки) — «строка части (строка)». Ни одна из четырёх редакций не опубликована`);
+
+  /* Считают ли новые формы. Отчётность за 2П 2026 вносится ОПЕРАЦИЕЙ куратора после того,
+     как период закрылся, — литерала в фикстуре нет, и редакция публикуется датой.      */
+  AN.seed();
+  AN.setRole(ANALYST);
+  const l1 = AN.addLine({ id: 'stock_open',  name: 'Товарные запасы на начало периода', unit: 'сом' });
+  const l2 = AN.addLine({ id: 'stock_close', name: 'Товарные запасы на конец периода',  unit: 'сом' });
+  const l3 = AN.addLine({ id: 'pay_month',   name: 'Платёж по графику за месяц',        unit: 'сом' });
+  const prevEd = AN.METHOD('m-org').editions.slice(-1)[0];
+  const pub = AN.addEdition({ method: 'm-org', n: prevEd.n + 1, since: AN.state.today,
+    note: 'взяты формы каталога: разность со знаком, оборачиваемость, покрытие долга, темп',
+    lines: prevEd.lines.concat(['stock_open', 'stock_close', 'pay_month']),
+    coefs: prevEd.coefs.concat([
+      { id: 'k-wc',   name: 'Чистый оборотный капитал к балансу', form: 'ratio',
+        p: { num: ['ta_cur', '-li_short'], den: ['bal'] }, fmt: 'ratio', thr: { cmp: '>=', v: 0.05 } },
+      { id: 'k-turn', name: 'Оборачиваемость запасов', form: 'turn',
+        p: { flow: 'rev', open: 'stock_open', close: 'stock_close' }, fmt: 'ratio', thr: { cmp: '>=', v: 2 } },
+      { id: 'k-cov',  name: 'Покрытие месячного платежа потоком', form: 'dscr',
+        p: { flow: 'cf_oper', debt: 'pay_month', months: 6 }, fmt: 'ratio', thr: { cmp: '>=', v: 1.2 } },
+      { id: 'k-gr',   name: 'Темп выручки к прошлому периоду', form: 'growth',
+        p: { line: 'rev', back: 1 }, fmt: 'pct', thr: { cmp: '>=', v: 0 } }
+    ]) });
+  const wc = pub.ok ? AN.METHOD('m-org').editions.slice(-1)[0].coefs.find(c => c.id === 'k-wc') : null;
+  ok(92, l1.ok && l2.ok && l3.ok && pub.ok && !!wc &&
+        AN.linesOf(wc).join(',') === 'ta_cur,li_short,bal' &&
+        wc.p.num[1] === '-li_short' && !('formula' in wc) &&
+        AN.linesOf(AN.METHOD('m-fl').editions[0].coefs.find(c => c.id === 'k-free')).length === 3,
+    `знак — часть кода строки в параметре, а не операция и не выражение: «Чистый оборотный ` +
+    `капитал к балансу» объявлен формой ratio с числителем ['ta_cur','-li_short'] и ` +
+    `знаменателем ['bal'] — «(1200 − 1230) ÷ 1700» записано БЕЗ языка выражений, а строки ` +
+    `коэффициент отдаёт разобранными (${AN.linesOf(wc).join(', ')}). Тем же приёмом живёт ` +
+    `«Свободный остаток» физлица на шестой форме «разность групп строк» (АН-86)`);
+
+  /* Год прошёл: период 2П 2026 закрылся, куратор вносит отчётность, аналитик её читает. */
+  AN.state.today = '2027-01-15';
+  AN.setRole(LEAD);
+  const rep = AN.addReport({ subj: 'b-1', period: '2П 2026',
+    basis: 'баланс и ОПиУ за 2026 год от 15.01.2027',
+    vals: { ta_cur: 52000000, li_short: 41000000, eq: 64000000, bal: 190000000, rev: 105800000,
+      profit: 8100000, ebitda: 23400000, debt_all: 97000000, cf_oper: 26400000, debt_serv: 19800000,
+      stock_open: 18000000, stock_close: 22000000, pay_month: 1650000 } });
+  const doc = AN.newAnalysis({ subj: 'b-1', report: rep.ok ? rep.report.id : 'x', occasion: 'plan' });
+  const rows = doc.ok ? AN.liveRatios(doc.doc.no).rows : [];
+  const val = id => (rows.find(r => r.id === id) || {}).v;
+  ok(93, rep.ok && doc.ok && doc.doc.ed === prevEd.n + 1 &&
+        val('k-wc') === 0.0579 && val('k-turn') === 5.29 && val('k-cov') === 2.6667 &&
+        val('k-gr') === 9.751 && rows.every(r => r.v != null),
+    `четыре формы каталога посчитали на живой отчётности, внесённой операциями: разность со ` +
+    `знаком (52 000 000 − 41 000 000) ÷ 190 000 000 = ${val('k-wc')}; оборачиваемость ` +
+    `105 800 000 ÷ ((18 000 000 + 22 000 000) ÷ 2) = ${val('k-turn')}; покрытие долга ` +
+    `(26 400 000 ÷ 6) ÷ 1 650 000 = ${val('k-cov')}; темп к 1П 2026 (96 400 000) = ` +
+    `${val('k-gr')} %. Прошлый период «темп» спросил у РЕЕСТРА отчётности, а не у своей ` +
+    `записи: какая версия там стояла — вопрос датированный (ИА-4)`);
+
+  /* Третья беда «посчитать нельзя» — СВОЯ: строки заполнены, а сравнивать не с чем. */
+  const rep5 = AN.addReport({ subj: 'b-5', period: '2П 2026',
+    basis: 'баланс и ОПиУ за 2026 год от 15.01.2027',
+    vals: { ta_cur: 12400000, li_short: 9800000, eq: 18300000, bal: 46000000, rev: 31200000,
+      profit: 1900000, ebitda: 5400000, debt_all: 12000000, cf_oper: 6600000, debt_serv: 4100000,
+      stock_open: 4000000, stock_close: 5200000, pay_month: 340000 } });
+  const doc5 = AN.newAnalysis({ subj: 'b-5', report: rep5.ok ? rep5.report.id : 'x', occasion: 'plan' });
+  const rows5 = doc5.ok ? AN.liveRatios(doc5.doc.no).rows : [];
+  const gr5 = rows5.find(r => r.id === 'k-gr') || {};
+  const why5 = AN.nocalcWhy(gr5);
+  AN.setText(doc5.doc.no, 'Первый анализ заёмщика: показатели в норме, сравнение с прошлым ' +
+    'периодом невозможно — отчётность за него не вносилась.');
+  AN.setVerdict(doc5.doc.no, 'удовлетворительное');
+  const sign5 = AN.approve(doc5.doc.no);
+  ok(94, rep5.ok && doc5.ok && gr5.v === null && gr5.nocalc.code === 'noprev' &&
+        gr5.nocalc.lines.join(',') === 'rev' && gr5.missing.length === 0 &&
+        has(why5, 'сравнивать не с чем') && has(why5, 'период «1П 2026»') &&
+        has(why5, '«Выручка за период»') && !has(why5, 'не заполнены') &&
+        rows5.filter(r => r.v == null).length === 1 &&
+        !sign5.ok && has(sign5.why, 'Темп выручки к прошлому периоду') && has(sign5.why, why5),
+    `у «Тянь-Шань Логистик» отчётность за 2П 2026 первая, и «темп» честно не считается третьей ` +
+    `причиной: код noprev, строк незаполненных ноль — «${why5}». Сливать её с «не заполнена ` +
+    `строка» было бы неправдой: человека послали бы вносить то, что он уже внёс, а лечится это ` +
+    `отчётностью за ПРОШЛЫЙ период. Подпись отказана тем же текстом (ИА-16, ИА-19): остальные ` +
+    `${rows5.length - 1} коэффициентов посчитаны, но заключение с непосчитанным не утверждается`);
+
+  /* Экран «Реестр методик»: каталог показан таблицей, коэффициент — разобранным. */
+  AN.seed();
+  AN.setRole(ANALYST);
+  AN.go('methods');
+  const p = panel();
+  ok(95, has(p, 'Каталог форм расчёта') && has(p, 'владелец: разработчик (код, тест, релиз)') &&
+        has(p, '<b>Граница ответственности проходит по границе этой таблицы.</b>') &&
+        has(p, 'разность групп строк') && has(p, 'нужен прошлый период') &&
+        has(p, 'делителя нет — отказать нечем') && has(p, 'знаменатель равен нулю') &&
+        has(p, '<th>Форма расчёта</th>') && has(p, '<th>Параметры формы</th>') &&
+        !has(p, '<th>Формула</th>') &&
+        has(p, 'строки числителя:') && has(p, 'строки уменьшаемого:') &&
+        has(p, 'Свободный остаток') && has(p, 'Завести свою форму расчёта') &&
+        has(p, 'заявка на седьмую форму — обычная задача разработки'),
+    `на «Реестре методик» каталог форм стоит СВОЕЙ таблицей — код, имя, параметры с родом, слово ` +
+    `отказа и кто ею считает, — и владелец назван: разработчик, «граница ответственности ` +
+    `проходит по границе этой таблицы». Коэффициент в редакции показан разобранным: колонки ` +
+    `«Форма расчёта» и «Параметры формы» вместо прежней «Формулы», параметр — строкой со своим ` +
+    `именем («строки числителя: …»). Кнопка «Завести свою форму расчёта» отказывает словами, ` +
+    `а неполнота каталога названа не провалом: «заявка на седьмую форму — обычная задача разработки»`);
+})();
+
+/* ================= БЛОК W. ВОЛНА 15 — ОТЧЁТНОСТЬ У СУБЪЕКТА (ИА-28) ========
+   Вторая развилка волны 15: чей реквизит отчётность и чем отвечать на «откуда это число».
+   Отвечено так: отчётность — реквизит СУБЪЕКТА (лица), а не роли заёмщика и не документа
+   анализа; финанализ при этом ведётся только по роли заёмщика, и это ЗАПРЕТ, снимаемый
+   решением, а не отсутствие модели. Источник же назван у КАЖДОЙ СТРОКИ, а не у версии
+   целиком: версия смешана по природе — файл разобран, две строки поправлены рукой.
+   Здесь проверено, что источник живёт у строки и переезжает в снимок, что разбор файла —
+   способ ЗАПОЛНИТЬ версию, а не второй способ её внести, что неразобранная строка названа
+   ПОИМЁННО, что внешний источник отказан своими словами (объявлен, но не подключён), и что
+   субъект без роли заёмщика отчётность ведёт, а анализа не получает (ADR-0235).        */
+(() => {
+  const LEAD = 'Ведущий куратор (Бекова Н.)';
+  const el = () => ({ innerHTML: '', textContent: '', dataset: {}, value: '',
+    classList: { toggle() {}, add() {}, remove() {} }, appendChild() {}, remove() {} });
+  const nodes = { '#panel': el(), '#title': el(), '#foot': el(), '#role': el(), '#subj': el() };
+  sandbox.document = { querySelector: k => nodes[k] || el(), querySelectorAll: () => [],
+    getElementById: () => null, createElement: () => el() };
+  const panel = () => nodes['#panel'].innerHTML;
+
+  /* Источник — реквизит СТРОКИ. Поля «источник версии» нет ни у одной записи, а молчание
+     о строке читается одним значением по умолчанию, а не пустотой.                     */
+  AN.seed();
+  const mixed = AN.state.reports.find(r => r.id === 'r-103');
+  const silent = AN.state.reports.find(r => r.id === 'r-102');
+  const byHand = Object.keys(mixed.vals).filter(id => AN.srcOf('r-103', id) === 'руками');
+  const byFile = Object.keys(mixed.vals).filter(id => AN.srcOf('r-103', id) === 'из файла');
+  const versionField = AN.state.reports.filter(r =>
+    ['source', 'srcKind', 'srcName', 'origin'].some(k => k in r) || typeof r.src === 'string');
+  const silentAll = Object.keys(silent.vals).every(id => AN.srcOf('r-102', id) === 'руками');
+  ok(96, AN.sources().join(' · ') === 'руками · из файла · из внешнего источника' &&
+        byHand.join(',') === 'li_short,debt_all' && byFile.length === 8 &&
+        versionField.length === 0 && silentAll &&
+        AN.srcOf('r-103', 'li_short') === 'руками' && AN.srcOf('r-103', 'ta_cur') === 'из файла',
+    `источник назван у СТРОКИ, а не у версии: в уточнённом балансе b-1 из ${byFile.length + byHand.length} ` +
+    `строк ${byFile.length} разобраны из файла, а ${byHand.map(id => '«' + AN.LINE(id).name + '»').join(' и ')} ` +
+    `поправлены рукой после доначисления обязательств — ответить на «откуда это число» одним ` +
+    `значением на всю версию тут нечем. Поля «источник версии» нет ни у одной из ` +
+    `${AN.state.reports.length} записей (искали source/srcKind/srcName/origin и src строкой), ` +
+    `а версия, об источнике молчащая, читается целиком как «руками»: умолчание названо, а не пусто`);
+
+  /* Разбор файла — способ ЗАПОЛНИТЬ версию, а не второй способ её внести: заканчивается тем
+     же addReport, и правка рукой поверх разбора — обычный ход, а не исключение.        */
+  AN.setRole(LEAD);
+  const last = AN.reportsOf('b-1').slice(-1)[0];
+  const file = Object.keys(last.vals).map(id => ({ code: id, value: last.vals[id] }));
+  const hand = { li_short: 44800000, debt_all: 97300000 };
+  const up = AN.uploadReport({ subj: 'b-1', period: '1П 2026', file, hand,
+    basis: 'файл выгрузки из учётной системы от 12.08.2026, две строки поправлены рукой' });
+  const nid = up.ok ? up.report.id : 'x';
+  ok(97, up.ok && up.report.ver === 3 && up.report.vals.li_short === 44800000 &&
+        AN.srcOf(nid, 'li_short') === 'руками' && AN.srcOf(nid, 'debt_all') === 'руками' &&
+        AN.srcOf(nid, 'ta_cur') === 'из файла' &&
+        has(up.note, 'разобрано из файла строк: 8') && has(up.note, 'поправлено рукой: 2') &&
+        has(up.note, 'версия смешанная') &&
+        AN.srcOf('r-103', 'li_short') === 'руками' && AN.reportsOf('b-1').length === 4,
+    `версия ${up.report.ver} заполнена РАЗБОРОМ ФАЙЛА и заканчивается тем же addReport: ` +
+    `«${up.note}». Две строки поправлены рукой поверх разбора — у них источник стал «руками», ` +
+    `у остальных восьми остался «из файла», и смешанной версия оказалась честно, а не по ` +
+    `недосмотру. Прежние версии не тронуты: их ${AN.reportsOf('b-1').length - 1}, и источник ` +
+    `строки в r-103 прежний`);
+
+  /* Строка файла, коду справочника не отвечающая, называется ПОИМЁННО и версию не создаёт. */
+  const nBefore = AN.state.reports.length;
+  const bad = AN.uploadReport({ subj: 'b-1', period: '1П 2026', basis: 'файл выгрузки от 12.08.2026',
+    file: file.concat([{ code: 'stroka_1230', name: 'Резервы предстоящих расходов', value: 1400000 }]) });
+  const empty = AN.uploadReport({ subj: 'b-1', period: '1П 2026', file: [], basis: 'пустой файл' });
+  ok(98, !bad.ok && !empty.ok && bad.why !== empty.why &&
+        has(bad.why, '«Резервы предстоящих расходов» (код stroka_1230)') &&
+        has(bad.why, 'по кодам справочника строк (ИА-18)') &&
+        has(bad.why, 'неотличима от строки, которой в отчётности не было') &&
+        has(empty.why, 'файл пуст') && AN.state.reports.length === nBefore,
+    `строка файла вне справочника названа ПОИМЁННО и версию не создаёт: «${bad.why.slice(0, 96)}…». ` +
+    `Молча пропустить её нельзя — пропущенная строка отчётности неотличима от строки, которой в ` +
+    `отчётности не было (ИА-14), а тихий пропуск дал бы неполную версию под видом полной. Пустой ` +
+    `файл отказан СВОИМ текстом («${empty.why}»), а не тем же: разбирать нечего — не то же, что ` +
+    `разобрано не всё. Записей отчётности как было ${nBefore}, так и осталось`);
+
+  /* Внешний источник ОБЪЯВЛЕН перечнем, но дверью не является, и говорится это прямо. */
+  const srcExt = {}; srcExt[file[0].code] = 'из внешнего источника';
+  const srcBad = {}; srcBad[file[0].code] = 'из системы бухгалтерии';
+  const vals = file.reduce((o, x) => { o[x.code] = x.value; return o; }, {});
+  const ext = AN.addReport({ subj: 'b-1', period: '1П 2026', vals, src: srcExt,
+    basis: 'данные ГНС от 12.08.2026' });
+  const alien = AN.addReport({ subj: 'b-1', period: '1П 2026', vals, src: srcBad,
+    basis: 'выгрузка от 12.08.2026' });
+  ok(99, !ext.ok && !alien.ok && ext.why !== alien.why &&
+        has(ext.why, 'в v1 не подключается') && has(ext.why, 'ГНС, Соцфонду и межведомственному обмену') &&
+        has(ext.why, 'вносится руками или разбором файла') &&
+        has(alien.why, 'такого в перечне нет') && has(alien.why, 'Источников три') &&
+        AN.state.reports.length === nBefore,
+    `два разных промаха с источником — два разных отказа. «Из внешнего источника» перечнем ` +
+    `ОБЪЯВЛЕН, но дверью не является, и модуль говорит это прямо: «${ext.why.slice(0, 88)}…» — ` +
+    `объявленное значение перечня не выдаётся за работающий обмен. Значение вне перечня — не ` +
+    `описка, а чужая модель, и текст у него свой: «${alien.why.slice(0, 74)}…». Ни одна из двух ` +
+    `версий не записана`);
+
+  /* Снимок несёт источник ПОСТРОЧНО: «откуда это число» отвечается и через год. */
+  const doc = AN.newAnalysis({ subj: 'b-1', report: 'r-103', occasion: 'plan' });
+  if (doc.ok) {
+    AN.setText(doc.doc.no, 'Уточнённый баланс: обязательства доначислены, ликвидность ниже порога ' +
+      'методики. Основание — версия 2, две строки в ней поправлены рукой после сверки.');
+    AN.setVerdict(doc.doc.no, 'удовлетворительное с оговорками');
+    AN.approve(doc.doc.no);
+  }
+  const snap = doc.ok ? AN.DOC(doc.doc.no).snapshot : null;
+  ok(100, doc.ok && !!snap && snap.lineSrc &&
+        snap.lineSrc.li_short === 'руками' && snap.lineSrc.ta_cur === 'из файла' &&
+        Object.keys(snap.lineSrc).length === Object.keys(snap.lines).length &&
+        snap.lineSrc !== mixed.src && !('src' in snap) && !('source' in snap),
+    `снимок утверждённого заключения несёт источник ПОСТРОЧНО, а не ссылку на живую запись: ` +
+    `${Object.keys(snap.lineSrc).length} строк, и у каждой своё («${snap.lineSrc.ta_cur}» у ` +
+    `оборотных активов, «${snap.lineSrc.li_short}» у краткосрочных обязательств). Через год на ` +
+    `«откуда это число» ответит сам документ (ADR-0153, ИА-1), и ответ не поедет, даже если ` +
+    `реестр отчётности перепишут: карта в снимке своя, а не та же самая. Поля «источник» на ` +
+    `снимке целиком нет — источник у строки, а не у версии`);
+
+  /* Роль в выборе методики не участвует (ИА-4), но АНАЛИЗ ведётся по роли заёмщика. */
+  AN.seed();
+  AN.setRole(LEAD);
+  const guarantor = AN.rolesOf('s-6');
+  const repsBefore = AN.reportsOf('s-6').length;
+  const add6 = AN.addReport({ subj: 's-6', period: '1П 2026',
+    basis: 'уточнённый баланс за 1 полугодие 2026 от 14.08.2026 (к переоценке обеспечения)',
+    vals: { ta_cur: 19700000, li_short: 15100000, eq: 30700000, bal: 72000000, rev: 44100000,
+      profit: 3200000, ebitda: 8900000, debt_all: 26800000, cf_oper: 9700000, debt_serv: 6400000 } });
+  const nDocs = AN.state.analyses.length;
+  const noAn = AN.newAnalysis({ subj: 's-6', report: 'r-601', occasion: 'plan' });
+  const okAn = AN.newAnalysis({ subj: 'b-1', report: 'r-103', occasion: 'plan' });
+  /* Шов о поручителе отвечает СВОИМ ответом: «анализа нет» пообещало бы документ, которого
+     по этому субъекту не будет никогда (ср. b-5 — заёмщик без заключений).            */
+  const vg = AN.analysisVerdict('s-6'), vb = AN.analysisVerdict('b-5');
+  const dg = AN.analysisDone('s-6', '1П 2026', 'plan');
+  ok(101, guarantor.join(', ') === 'поручитель, залогодатель' && !AN.hasRole('s-6', 'заёмщик') &&
+        repsBefore === 1 && add6.ok && add6.report.ver === 2 && AN.reportsOf('s-6').length === 2 &&
+        !noAn.ok && has(noAn.why, 'финанализ ведётся по роли ЗАЁМЩИКА') &&
+        has(noAn.why, 'Отчётность у него ведётся — она реквизит лица') &&
+        has(noAn.why, 'запрет, снимаемый решением, а не отсутствие модели') &&
+        vg.none === true && vg.notBorrower === true && vb.none === true && !vb.notBorrower &&
+        vg.text !== vb.text && vb.text === 'анализа нет' &&
+        has(vg.text, 'анализ не ведётся') && has(vg.text, 'заключения не будет и позже') &&
+        dg.ok && dg.done === false && dg.notBorrower === true &&
+        has(dg.why, 'обязательства нет и не будет') && has(dg.why, 'Это не «срок ещё не наступил»') &&
+        okAn.ok && AN.state.analyses.length === nDocs + 1,
+    `у «Кен-Сай Строй» роли ${guarantor.join(' и ')}, роли заёмщика нет — и это РАЗВОДИТ два ` +
+    `вопроса. Отчётность у него ведётся обычной операцией (версия ${add6.report.ver} внесена, ` +
+    `версий стало ${AN.reportsOf('s-6').length}): она реквизит ЛИЦА, а не роли, и переносить её ` +
+    `куда-то, когда поручитель однажды станет заёмщиком, не понадобится. Финанализ же не ` +
+    `заводится, и отказ звучит своими словами: «${noAn.why.slice(0, 70)}…» — запрет, снимаемый ` +
+    `решением, а не отсутствие модели. По заёмщику та же операция проходит. Наружу шов отвечает ` +
+    `тем же различением: поручителю — «${vg.text.slice(0, 52)}…», а заёмщику b-5 без заключений — ` +
+    `«${vb.text}»; обязательство по нему не «ещё не наступило», а «${dg.why.slice(0, 44)}…»`);
+
+  /* Экраны: роль видна в шапке субъекта, источник — колонкой, расписание вменяет заёмщику. */
+  AN.pickSubj('s-6'); AN.go('borrower'); const g = panel();
+  AN.pickSubj('b-1'); AN.go('borrower'); const b = panel();
+  AN.go('schedule');  const sch = panel();
+  const oblig = sch.split('Позвать шов')[0];   /* до площадки швов — таблица обязательств */
+  AN.openDoc('ФА-7'); const d = panel();
+  ok(102, has(g, 'вкладка «Финансы» карточки субъекта') &&
+        has(g, '<b>У этого субъекта роли заёмщика нет</b>') &&
+        has(g, 'Отчётность ведётся: она реквизит лица') &&
+        has(g, 'запрет, снимаемый решением') && has(g, 'Шапка субъекта') &&
+        has(g, 'из файла — 10') && !has(g, 'Финансовые анализы</h2><table') &&
+        has(b, 'вкладка «Финансы» карточки заёмщика') && has(b, '<th>Источники строк</th>') &&
+        has(b, 'из файла — 8, руками — 2') && has(b, 'Отчётность — реквизит <b>субъекта</b>') &&
+        has(d, '<th>Источник строки</th>') &&
+        !has(oblig, 'Кен-Сай Строй') && has(oblig, 'Ак-Жол Агро') && has(sch, 'Кен-Сай Строй'),
+    `экраны показывают ровно то же разделение. Карточка поручителя — «вкладка «Финансы» ` +
+    `карточки СУБЪЕКТА», с шапкой ролей и баннером «${'У этого субъекта роли заёмщика нет'}»: ` +
+    `отчётность стоит таблицей (сводка «из файла — 10»), анализа нет. Карточка заёмщика — та же ` +
+    `вкладка «карточки заёмщика», колонка «Источники строк» со сводкой смешанной версии ` +
+    `(«из файла — 8, руками — 2»), считаемой В МОМЕНТ ПОКАЗА, а не хранимой (ADR-0001). В снимке ` +
+    `утверждённого заключения источник стоит СВОЕЙ колонкой. В таблице обязательств поручителя ` +
+    `нет вовсе — не «строкой с прочерком», а отсутствием строки: обязательство вменяется роли ` +
+    `заёмщика. В площадке швов ниже он есть, и это не противоречие: спросить о нём можно, и шов ` +
+    `отвечает названным «анализ не ведётся», а не молчанием`);
+})();
+
+/* ================= БЛОК X. ВОЛНА 15 — ЗАПРОС ПАКЕТА (ИА-29) ================
+   Третья развилка волны 15: норма считает 60 и 90 дней «от установленной даты» (п. 11.2,
+   п. 11.3), а такой даты не было ни в одном модуле — куратор считал их по своей переписке.
+   Запрос заведён ЗДЕСЬ, потому что состав пакета объявляет редакция методики, а методики
+   ведёт анализ; наружу же он уходит ФАКТОМ — датами и числом дней, без слов «уклонение»
+   и без предложения категории. Здесь проверено, что запрос — сущность со своими правилами,
+   что дни просрочки считаются, а не лежат, что порогов 60 и 90 в модуле нет ни одного,
+   что третий шов открыт классификации, а суждение ей по-прежнему закрыто, и что «анализа
+   нет» получило различимые причины взамен одного текста (ADR-0236).                    */
+(() => {
+  const LEAD    = 'Ведущий куратор (Бекова Н.)';
+  const ANALYST = 'Сотрудник отдела анализа';
+  const el = () => ({ innerHTML: '', textContent: '', dataset: {}, value: '',
+    classList: { toggle() {}, add() {}, remove() {} }, appendChild() {}, remove() {} });
+  const nodes = { '#panel': el(), '#title': el(), '#foot': el(), '#role': el(), '#subj': el() };
+  sandbox.document = { querySelector: k => nodes[k] || el(), querySelectorAll: () => [],
+    getElementById: () => null, createElement: () => el() };
+  const panel = () => nodes['#panel'].innerHTML;
+
+  /* Запрос несёт установленную дату, состав берёт у редакции методики, а дни просрочки
+     СЧИТАЕТ в момент вопроса — полем они не лежат (ADR-0001).                          */
+  AN.seed();
+  const open5 = AN.openRequest('b-5', '1П 2026');
+  const closed1 = AN.lastRequest('b-1', '1П 2026');
+  const part2 = AN.lastRequest('b-2', '1П 2026');
+  const none3 = AN.lastRequest('b-3', '1П 2026');
+  const stored = AN.state.requests.filter(q =>
+    ['overdue', 'overdueDays', 'days', 'late', 'evading'].some(k => k in q));
+  const thresholds = /60|90/.test(JSON.stringify(AN.state.requests));
+  const wasOver = AN.overdueDays(open5);
+  AN.state.today = '2026-09-01';
+  const nowOver = AN.overdueDays(open5);
+  AN.state.today = '2026-08-21';
+  ok(103, !!open5 && open5.due === '2026-07-10' && open5.got === null &&
+        !!closed1 && closed1.got === '2026-07-10' && closed1.full === true &&
+        !!part2 && part2.got === '2026-07-18' && part2.full === false &&
+        !none3 && stored.length === 0 && !thresholds &&
+        wasOver === 42 && nowOver === 53 && AN.overdueDays(closed1) === 0,
+    `запрос пакета — сущность со своими реквизитами: заёмщик, период, дата запроса, ` +
+    `УСТАНОВЛЕННАЯ ДАТА (${closed1.due} у закрытого, ${open5.due} у незакрытого), редакция ` +
+    `методики, дата получения и отдельная отметка полноты — у b-2 пакет получен ` +
+    `${part2.got}, но НЕ полностью, и «пришло» от «пришло всё» отличено. Дней просрочки в ` +
+    `записи нет ни у одного запроса: они считаются в момент вопроса (${wasOver} дн. на ` +
+    `21.08.2026, ${nowOver} дн. на 01.09.2026) — пролежав сутки, поле стало бы неправдой ` +
+    `(ADR-0001). Порогов 60 и 90 в состоянии модуля нет вовсе: их держат правила ` +
+    `классификации, а мы отдаём число (ADR-0236 §4)`);
+
+  /* Правила заведения: срок обязателен, задним числом не ставится, второго незакрытого
+     запроса по паре не бывает, состав берётся у редакции методики на конец периода.   */
+  AN.setRole(LEAD);
+  const noDue = AN.requestDocs({ subj: 'b-1', period: '2П 2026', due: null });
+  const past  = AN.requestDocs({ subj: 'b-1', period: '2П 2026', due: '2026-08-10' });
+  const alien = AN.requestDocs({ subj: 'b-3', period: '1П 2026', due: '2026-09-05' });
+  const guar  = AN.requestDocs({ subj: 's-6', period: '1П 2026', due: '2026-09-05' });
+  const dbl   = AN.requestDocs({ subj: 'b-5', period: '1П 2026', due: '2026-09-05' });
+  const good  = AN.requestDocs({ subj: 'b-1', period: '1П 2026', due: '2026-09-05' });
+  const whys = [noDue.why, past.why, alien.why, guar.why, dbl.why];
+  ok(104, !noDue.ok && !past.ok && !alien.ok && !guar.ok && !dbl.ok && good.ok &&
+        new Set(whys).size === 5 &&
+        has(noDue.why, 'без УСТАНОВЛЕННОЙ ДАТЫ не отправляется') && has(noDue.why, 'п. 11.2') &&
+        has(past.why, 'не позже даты запроса') &&
+        has(alien.why, 'чужого заёмщика вести нельзя') &&
+        has(guar.why, 'пакет запрашивается для финанализа') &&
+        has(dbl.why, 'уже есть незакрытый запрос ЗП-13') &&
+        has(dbl.why, 'от какой считать 60 дней') &&
+        good.request.ed === 2 && good.request.at === '2026-08-21' &&
+        has(good.note, 'состав пакета — форма редакции 2') &&
+        has(good.note, 'запрос без состава был бы пустой бумагой'),
+    `пять разных промахов при запросе — пять разных отказов: без установленной даты («${
+      noDue.why.slice(0, 48)}…» — без неё запрос не даёт того единственного, ради чего ` +
+    `заводится), со сроком в прошлом, по чужому заёмщику, по субъекту без роли заёмщика и ` +
+    `второй незакрытый по той же паре («две установленные даты на один пакет» — вопрос «от ` +
+    `какой считать 60 дней» стал бы без ответа). Законный запрос состав пакета берёт У ` +
+    `РЕДАКЦИИ МЕТОДИКИ на конец периода: «${good.note.slice(0, 60)}…»`);
+
+  /* Получение — факт с датой; полнота — своя отметка; вторая дата получения не ставится. */
+  const early = AN.receiveDocs({ id: 'ЗП-13', at: '2026-06-01' });
+  const part  = AN.receiveDocs({ id: 'ЗП-13', at: '2026-08-20', full: false });
+  const again = AN.receiveDocs({ id: 'ЗП-13', at: '2026-08-21' });
+  const q13 = AN.state.requests.find(q => q.id === 'ЗП-13');
+  ok(105, !early.ok && has(early.why, 'ответ до вопроса не приходит') &&
+        part.ok && q13.got === '2026-08-20' && q13.full === false &&
+        has(part.note, 'получен НЕ полностью') && AN.overdueDays(q13) === 0 &&
+        !again.ok && has(again.why, 'уже закрыт получением') &&
+        has(again.why, 'уточнение состава ведётся новым запросом'),
+    `получение — ФАКТ с датой: ответ раньше вопроса отказан («${early.why.slice(0, 44)}…»), ` +
+    `полученный не полностью пакет закрывает срок (дней после срока стало ${AN.overdueDays(q13)}), ` +
+    `но отметку полноты держит СВОЮ — слепить «пришло» и «пришло всё» в один признак значило ` +
+    `бы потерять неполный пакет. Второй даты получения у запроса нет: «${again.why.slice(0, 52)}…»`);
+
+  /* Шов отдаёт ФАКТ. Ни одного слова суждения, ни порога, ни категории. */
+  AN.seed();
+  const dq5 = AN.docsRequested('b-5', '1П 2026');
+  const dq3 = AN.docsRequested('b-3', '1П 2026');
+  const dq1 = AN.docsRequested('b-1', '1П 2026');
+  const dq6 = AN.docsRequested('s-6', '1П 2026');
+  const noPer = AN.docsRequested('b-5', null);
+  const words = /уклон|задержк|риск|нарушен|категор|60|90|плохо|недобросовест/i;
+  const dirty = [dq5, dq3, dq1, dq6].filter(a => words.test(JSON.stringify(a)));
+  ok(106, dq5.ok && dq5.requested === true && dq5.overdueDays === 42 && dq5.got === null &&
+        dq3.ok && dq3.requested === false && dq3.overdueDays === 0 &&
+        dq1.ok && dq1.got === '2026-07-10' && dq1.full === true && dq1.overdueDays === 0 &&
+        dq6.ok && dq6.notBorrower === true && dirty.length === 0 &&
+        !noPer.ok && has(noPer.why, 'вопрос без периода шву не задаётся') &&
+        !('verdict' in dq5) && !('ratios' in dq5) && !('category' in dq5),
+    `шов docsRequested отдаёт ФАКТ: у b-5 пакет запрошен ${dq5.at}, срок ${dq5.due}, ответа нет ` +
+    `${dq5.overdueDays} дн.; у b-3 не запрашивался вовсе; у b-1 получен ${dq1.got} полностью. ` +
+    `Слов суждения в ответе нет ни одного (искали «уклонение», «задержка», «риск», «категория»), ` +
+    `порогов 60 и 90 — тоже: сравнивает с ними тот, кто ставит категорию, и делает это не ` +
+    `автоматом. Вывода и коэффициентов шов не отдаёт. Вопрос без периода отказан: «пакет ` +
+    `запрашивается ЗА ПЕРИОД», и «запрашивали ли вообще» — вопрос без ответа`);
+
+  /* ИА-10 цел ПО СУЩЕСТВУ: классификации открыт факт и закрыто суждение. */
+  const clsFact = AN.callSeam('классификация', 'docsRequested', 'b-5', '1П 2026');
+  const clsVerd = AN.callSeam('классификация', 'analysisVerdict', 'b-5');
+  const clsDone = AN.callSeam('классификация', 'analysisDone', 'b-5', '1П 2026', 'plan');
+  const evading = AN.callSeam('классификация', 'docsEvading', 'b-5', '1П 2026');
+  const defect  = AN.tryRequestDefect();
+  ok(107, clsFact.ok && clsFact.answer.overdueDays === 42 &&
+        !clsVerd.ok && has(clsVerd.why, 'ФАКТ, а не суждение') && has(clsVerd.why, 'ИА-10') &&
+        !clsDone.ok && clsDone.why === clsVerd.why &&
+        !evading.ok && has(evading.why, 'это СУЖДЕНИЕ') && has(evading.why, 'решения комитета') &&
+        !defect.ok && has(defect.why, 'дефекта по запросу пакета анализ не считает') &&
+        has(defect.why, 'обязательство вменяется РАСПИСАНИЕМ'),
+    `классификации открыт ФАКТ и закрыто СУЖДЕНИЕ — на этом различении ИА-10 и держится: ` +
+    `docsRequested она получает (${clsFact.answer.overdueDays} дн. после срока), а ` +
+    `analysisVerdict и analysisDone — нет, обоим один отказ: «${clsVerd.why.slice(0, 58)}…». ` +
+    `Готового признака «уклоняется» рядом с фактом не заведено: «${evading.why.slice(0, 56)}…». ` +
+    `И дефекта по запросу модуль не считает — обязательство вменяет расписание, а запрос делает ` +
+    `куратор своим решением (ADR-0236 §6)`);
+
+  /* ИА-14 переписан: «заключения нет» получило РАЗЛИЧИМЫЕ причины. */
+  const w5 = AN.whyNoDoc('b-5', '1П 2026');
+  const w3 = AN.whyNoDoc('b-3', '1П 2026');
+  const w1 = AN.whyNoDoc('b-1', '2П 2026');
+  const done5 = AN.analysisDone('b-5', '1П 2026', 'plan');
+  const done3 = AN.analysisDone('b-3', '1П 2026', 'plan');
+  ok(108, w5.code === 'noanswer' && w3.code === 'norequest' && w1.code === 'norequest' &&
+        new Set([w5.text, w3.text, w1.text]).size === 3 &&
+        has(w5.text, 'пакет запрошен 25.06.2026, срок 10.07.2026, не получен') &&
+        has(w5.text, '42 дн. после срока') && has(w3.text, 'не запрашивался') &&
+        done5.done === false && done5.docs === 'noanswer' && done5.why === w5.text &&
+        done3.done === false && done3.docs === 'norequest' && done3.why === w3.text,
+    `«анализа нет» больше не один текст на две беды: у b-5 «${w5.text}», у b-3 «${w3.text}». ` +
+    `Лечатся они РАЗНЫМИ людьми — первую заёмщик ответом, вторую куратор запросом, — и один ` +
+    `текст послал бы одного из двоих не туда (ИА-14, ADR-0236 §5). Причина уходит и в шов: ` +
+    `analysisDone отдаёт код «${done5.docs}» и тот же текст, что печатается на экране, — ` +
+    `собран он одним местом, а не выписан дважды (ИА-19)`);
+
+  /* Экраны: блок запросов на карточке, причина в зеркале, третий шов в площадке. */
+  AN.seed();
+  AN.setRole(LEAD);
+  AN.pickSubj('b-5'); AN.go('borrower'); const b5 = panel();
+  AN.pickSubj('b-1'); AN.go('borrower'); const b1 = panel();
+  AN.setRole(ANALYST);
+  AN.pickSubj('b-3'); AN.go('borrower'); const b3 = panel();
+  AN.go('schedule'); const sch = panel();
+  ok(109, has(b5, 'Запросы финансового пакета') && has(b5, '<th>Установленная дата</th>') &&
+        has(b5, '<th class="num">Дней после срока</th>') && has(b5, '<b>42</b>') &&
+        has(b5, 'ответа нет') && has(b5, 'Отметить получение') &&
+        has(b5, 'пакет запрошен 25.06.2026, срок 10.07.2026, не получен — 42 дн. после срока') &&
+        has(b1, 'полный') && has(b1, 'Запросить без срока') &&
+        has(b1, 'Посчитать дефект по запросу') &&
+        has(b3, 'Пакет по этому заёмщику не запрашивался') &&
+        has(b3, 'пакет за «1П 2026» не запрашивался') && !has(b3, 'Запросить пакет</button>') &&
+        has(sch, 'docsRequested') && has(sch, 'наружу их три') &&
+        has(sch, '<option>docsEvading</option>') &&
+        has(sch, 'первый, который отдаёт НЕ СУЖДЕНИЕ'),
+    `на карточке заёмщика стоит блок запросов: установленная дата своей колонкой, дни после ` +
+    `срока — считанным числом (42 у b-5), полнота отдельной отметкой. Причина «анализа нет» ` +
+    `печатается В ЗЕРКАЛЕ шапки теми же словами, что уходят в шов: у b-5 «не получен — 42 дн. ` +
+    `после срока», у b-3 «не запрашивался». Кнопки запроса аналитику не показаны — запрашивает ` +
+    `ведущий куратор, — а «Посчитать дефект по запросу» стоит рядом и отказывает словами. В ` +
+    `площадке швов их три, и рядом с ними стоит несуществующий «docsEvading»: спросив его, ` +
+    `человек читает, почему признака «уклоняется» здесь нет и не будет`);
+})();
+
+/* ============ БЛОК Y. ВОЛНА 15 — ДИНАМИКА КОЭФФИЦИЕНТА (АН-83, АН-85) ==========
+   Четвёртая развилка волны 15, и она о ПОКАЗЕ: величина, которой нужны две и более даты,
+   объявлена работой этого модуля ещё инвариантом ИА-22, но исполнялась только в разделе
+   обзоров — у финанализа ряда не было вовсе. Здесь проверено, что ряд СОБИРАЕТСЯ, а не
+   лежит: ни одного его числа в записи заключения нет, порядок берётся по концу периода, а
+   не по дате подписи, ряд строится внутри повода и сравнивает только посчитанное одной
+   редакцией методики, а несопоставимая точка называется словами вместо молчаливого
+   пропуска. Ею же отвечена строка ТЗ «использование AI для прогнозирования»: отвечена
+   ВИДОМ ИЗМЕНЕНИЯ, а предсказание отказано по имени (АН-85).                          */
+(() => {
+  const LEAD = 'Ведущий куратор (Бекова Н.)';
+  const el = () => ({ innerHTML: '', textContent: '', dataset: {}, value: '',
+    classList: { toggle() {}, add() {}, remove() {} }, appendChild() {}, remove() {} });
+  const nodes = { '#panel': el(), '#title': el(), '#foot': el(), '#role': el(), '#subj': el() };
+  sandbox.document = { querySelector: k => nodes[k] || el(), querySelectorAll: () => [],
+    getElementById: () => null, createElement: () => el() };
+  const panel = () => nodes['#panel'].innerHTML;
+
+  /* Ряд СЧИТАЕТСЯ и в записи не лежит: ни одного поля под него — ни в заключении, ни в снимке. */
+  AN.seed();
+  const t = AN.trend('ФА-11', 'k-free');
+  const pti = AN.trend('ФА-11', 'k-pti');
+  const keys = ['trend', 'series', 'dynamics', 'points', 'prevV', 'delta'];
+  const inDoc = AN.state.analyses.filter(a => keys.some(k => k in a));
+  const inSnap = AN.state.analyses.filter(a => a.snapshot && keys.some(k => k in a.snapshot));
+  const store = AN.tryStoreTrend();
+  ok(110, t.ok && t.points.length === 2 && t.apart.length === 0 &&
+        t.points[0].period === '2025 год' && t.points[0].v === 7000 && t.points[0].delta === null &&
+        t.points[1].period === '1П 2026' && t.points[1].v === 17000 && t.points[1].cur === true &&
+        t.points[1].delta.v === 10000 && has(t.points[1].delta.text, '+10 000,00 сом') &&
+        pti.points[1].delta.text === '−5,49 п.п.' &&
+        inDoc.length === 0 && inSnap.length === 0 &&
+        !store.ok && has(store.why, 'ряда значений в заключении не хранится') &&
+        has(store.why, 'разошёлся бы с первым'),
+    `динамика СОБИРАЕТСЯ в момент вопроса: свободный остаток у b-7 — 7 000,00 за «2025 год» ` +
+    `(ФА-10) и 17 000,00 за «1П 2026» (ФА-11), изменение «${t.points[1].delta.text}» посчитано ` +
+    `здесь же. Полей под ряд нет ни у одного заключения и ни у одного снимка (искали trend, ` +
+    `series, dynamics, points, delta) — каждое число уже лежит в снимке СВОЕГО документа, и ` +
+    `второй экземпляр разошёлся бы с первым после первого же переиздания (ADR-0001, довод ` +
+    `ИА-20). Изменение ДОЛИ показано в пунктах: платёж к доходу «${pti.points[1].delta.text}», ` +
+    `а не «в процентах от процента» (ADR-0150 §4)`);
+
+  /* Порядок — по КОНЦУ ПЕРИОДА, а не по дате подписи. Доказано операцией: заключение за
+     прошлый год подписывается СЕГОДНЯ, позже, чем текущее, — и встаёт в ряд прошлым годом. */
+  AN.seed();
+  AN.setRole(LEAD);
+  const late = AN.newAnalysis({ subj: 'b-1', report: 'r-101', occasion: 'plan' });
+  AN.setText(late.doc.no, 'Годовое заключение подписано с опозданием.');
+  AN.setVerdict(late.doc.no, 'удовлетворительное');
+  const okLate = AN.approve(late.doc.no);
+  const cur = AN.trend('ФА-7', 'k-cur');
+  const lateAt = AN.DOC(late.doc.no).approvedAt, curAt = AN.DOC('ФА-7').approvedAt;
+  ok(111, okLate.ok && lateAt > curAt &&
+        cur.ok && cur.points.length === 1 && cur.points[0].cur === true &&
+        cur.apart.length === 1 && cur.apart[0].period === '2025 год' &&
+        cur.apart[0].code === 'edition' && has(cur.apart[0].why, 'считано по редакции 1') &&
+        has(cur.apart[0].why, 'бывает другой величиной') && has(cur.apart[0].why, 'ИА-5'),
+    `${late.doc.no} за «2025 год» подписано ${lateAt} — ПОЗЖЕ, чем ФА-7 за «1П 2026» (${curAt}), — ` +
+    `и всё равно стоит в ряду прошлым годом: порядок берётся у КОНЦА ПЕРИОДА, потому что дата ` +
+    `подписи говорит, когда работали, а период — про что считали. В ряд эта точка не встала по ` +
+    `другой причине и причина названа: «${cur.apart[0].why.slice(0, 62)}…» — у редакции 1 порог ` +
+    `текущей ликвидности 1,0, у редакции 2 он 1,2, и одно имя двух величин одной не делает`);
+
+  /* Ряд строится ВНУТРИ ПОВОДА, а переиздание вытесняет прежнюю точку, а не удваивает её. */
+  AN.seed();
+  AN.setRole(LEAD);
+  const appl = AN.newAnalysis({ subj: 'b-7', report: 'r-701', occasion: 'appl' });
+  AN.setText(appl.doc.no, 'Заключение по заявке на неполном пакете.');
+  AN.setVerdict(appl.doc.no, 'удовлетворительное');
+  AN.approve(appl.doc.no);
+  const stillTwo = AN.trend('ФА-11', 'k-free');
+  const re = AN.reissue({ doc: 'ФА-10', report: 'r-701' });
+  const byAppl = AN.trend(appl.doc.no, 'k-free');
+  ok(112, stillTwo.points.length === 2 && stillTwo.apart.length === 0 &&
+        stillTwo.points[0].no === 'ФА-10' && !re.ok &&
+        byAppl.ok && byAppl.points.length === 1 && byAppl.points[0].cur === true &&
+        byAppl.apart.length === 0,
+    `заключение по заявке за «2025 год» (${appl.doc.no}) в ПЛАНОВЫЙ ряд не вошло: точек ` +
+    `по-прежнему две, и обе плановые. Ключ документа тройной, повод в нём не декорация ` +
+    `(ADR-0233), а заключение по заявке часто считано на неполном пакете — точкой планового ` +
+    `ряда оно сравнивало бы разное. Симметрично: у ряда по заявке прошлых точек нет ни одной, ` +
+    `и это не «нет данных», а «ряд по этому поводу начался сейчас»`);
+
+  /* Другая МЕТОДИКА — не другая редакция: причина своя, и говорится она своими словами. */
+  AN.seed();
+  AN.setRole(LEAD);
+  AN.setText('ФА-9', 'Черновик за 1П 2026.');
+  const draftTrend = AN.trend('ФА-9', 'k-pti');
+  const noCoef = AN.trend('ФА-9', 'k-cov');
+  ok(113, draftTrend.ok && draftTrend.live === true &&
+        draftTrend.points.length === 1 && draftTrend.points[0].cur === true &&
+        draftTrend.points[0].live === true &&
+        draftTrend.apart.length === 1 && draftTrend.apart[0].code === 'method' &&
+        has(draftTrend.apart[0].why, 'считано другой МЕТОДИКОЙ') &&
+        has(draftTrend.apart[0].why, 'Оценка индивидуального предпринимателя') &&
+        has(draftTrend.apart[0].why, 'ИА-4') &&
+        !noCoef.ok && has(noCoef.why, 'в редакции методики этого заключения нет'),
+    `у b-2 прошлое заключение считано методикой ИП (лицо снялось с учёта 10.02.2026), текущее — ` +
+    `методикой физлица, и точка в ряд не встала со СВОЕЙ причиной: «${
+      draftTrend.apart[0].why.slice(0, 58)}…». Причина отличена от «другой редакции» ` +
+    `(code «${draftTrend.apart[0].code}» против «edition»): методику меняет тип лица на дату ` +
+    `отчётности (ИА-4), а редакцию — отдел анализа записью. Текущая точка черновика названа ` +
+    `живым расчётом, а не снимком (ИА-2). Чужой коэффициент шву не задаётся: «${
+      noCoef.why.slice(0, 46)}…»`);
+
+  /* Прогноз: строка ТЗ отвечена динамикой, предсказание отказано ПО ИМЕНИ (АН-85). */
+  const fc = AN.tryForecast();
+  const src = readFileSync(HTML, 'utf8');
+  const words = /прогнозируем|предсказ[аы]|балл заёмщика|скоринг/i.test(
+    JSON.stringify(AN.state.analyses) + JSON.stringify(AN.state.methods));
+  ok(114, !fc.ok && has(fc.why, 'прогноза значений модуль не считает') &&
+        has(fc.why, 'ВИДОМ ИЗМЕНЕНИЯ ВО ВРЕМЕНИ') && has(fc.why, 'суждение под подписью') &&
+        has(fc.why, 'Балльной модели и весов') && !words &&
+        src.indexOf('AN.forecast =') < 0 && src.indexOf('AN.score =') < 0,
+    `строка ТЗ §3.2 «использование AI для прогнозирования» отвечена ВИДОМ ИЗМЕНЕНИЯ ВО ВРЕМЕНИ, ` +
+    `а предсказание отказано по имени: «${fc.why.slice(0, 64)}…». Функции forecast/score в файле ` +
+    `нет ни одной, полей под баллы и веса в методиках и заключениях — тоже: зарезервированное ` +
+    `поле заполняют, а подписать предсказанное число некому — вывод есть суждение под подписью ` +
+    `человека (АН-85)`);
+
+  /* Экран: карточка динамики стоит рядом с коэффициентами и печатает ряд, причину и отказы. */
+  AN.seed();
+  AN.setRole(LEAD);
+  AN.pickSubj('b-7'); AN.openDoc('ФА-11'); const p11 = panel();
+  AN.pickSubj('b-1'); AN.openDoc('ФА-7');  const p7  = panel();
+  ok(115, has(p11, 'Динамика <span class="small">— показывается, не хранится') &&
+        has(p11, '<th class="num">Изменение</th>') && has(p11, '+10 000,00 сом') &&
+        has(p11, '−5,49 п.п.') && has(p11, 'ФА-10, утверждено 25.02.2026') &&
+        has(p11, 'этот документ') && has(p11, 'упорядочен по концу периода, а не по дате подписи') &&
+        has(p11, 'Сохранить ряд в заключении') && has(p11, 'Показать прогноз (AI)') &&
+        has(p7, 'Сравнивать не с чем') && has(p7, 'ряд из одной точки не динамика') &&
+        has(p7, 'прежних утверждённых заключений по поводу «плановый» за более ранние периоды нет'),
+    `карточка «Динамика» стоит РЯДОМ с коэффициентами: у ФА-11 ряд из двух точек с изменением ` +
+    `(+10 000,00 сом и −5,49 п.п.), прошлая точка подписана своей датой, текущая помечена «этот ` +
+    `документ». У ФА-7 прошлых сопоставимых точек нет, и на месте ряда стоят СЛОВА, а не пустая ` +
+    `таблица. Рядом — две кнопки, обе отказывающие: сохранить ряд в заключении и показать прогноз`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-console.log(`SMOKE 2026-08-30 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
+console.log(`SMOKE 2026-09-08 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
 
 const body = lines.map(l => '  ' + l).join('\n');
-const injected = `  SMOKE 2026-08-30 · ${pass}/${results.length} PASS\n` + body;
+const injected = `  SMOKE 2026-09-08 · ${pass}/${results.length} PASS\n` + body;
 if (src.includes('  SMOKE_PLACEHOLDER')) {
   writeFileSync(HTML, src.replace('  SMOKE_PLACEHOLDER', injected), 'utf8');
   console.log('\n→ результат вставлен в шапку analysis.html');
