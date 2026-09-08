@@ -1,8 +1,13 @@
 // Первый ручной прогон макета анализа в НАСТОЯЩЕМ браузере (АН-25). Модуля в
 // fkftest.okmot.kg нет (requirements/tz/21-analiz.html: «Живого экрана нет»), поэтому
 // прогон — по локальному макету через file://, как классификация (wave5-verify.mjs).
-// Известных дефектов у модуля пока нет (АН-Д1…АН-Д8 закрыты) — прогон разведочный:
+// Известных дефектов у модуля пока нет (АН-Д1…АН-Д10 закрыты) — прогон разведочный:
 // реальные клики/select по всем шести экранам и пяти ролям, а не проверка списка багов.
+// Волна 15 (08.09.2026) добавила четыре проверки на свои поверхности — БР-15…БР-18:
+// каталог форм расчёта и отказ завести свою (АН-80, АН-86), блок запросов пакета с днями
+// после срока считанным числом и отказ посчитать дефект (АН-82), карточка динамики с рядом
+// из двух точек и отказ показать прогноз (АН-83, АН-85), колонка источника у строк
+// отчётности (АН-81). Каждая — реальным кликом, отказ читается с экрана, а не из вызова.
 //   node scripts/inspect/analysis-browser-run.mjs
 import { chromium } from 'playwright-core';
 
@@ -206,8 +211,95 @@ await page.waitForTimeout(200);
     `кнопка «Внести корректировку» найдена: ${!!hasBtn}, панель после клика: «${panel.replace(/\s+/g, ' ').trim().slice(0, 140)}…»`);
 }
 
+/* ============ ПОВЕРХНОСТИ ВОЛНЫ 15 (АН-90): каждая — реальным кликом ============ */
+
+/* --- 15. Каталог форм расчёта на «Реестре методик»: своя таблица + отказ завести свою
+   форму (АН-80, АН-86, ИА-27) --- */
+await reset();
+await page.locator('.nav-item[data-v="methods"]').click();
+await page.waitForTimeout(200);
+{
+  const panel = await page.locator('#panel').textContent();
+  const forms = await page.evaluate(() => AN.forms().length);
+  const btn = page.locator('button:has-text("Завести свою форму расчёта")').first();
+  const hasBtn = await btn.count();
+  if (hasBtn) { await btn.click(); await page.waitForTimeout(200); }
+  const err = await vis('#toastWrap .toast.err');
+  const grew = await page.evaluate(() => AN.forms().length);
+  say('БР-15', panel.includes('Каталог форм расчёта') && forms === 6 && hasBtn > 0 &&
+      !!err && !err.covered && grew === 6,
+    `каталог форм стоит своей таблицей, форм ${forms}; «Завести свою форму расчёта» отказывает ` +
+    `на экране: «${(err && err.text || '').slice(0, 90)}», форм после клика ${grew}`);
+}
+
+/* --- 16. Блок запросов пакета на карточке b-5: дни после срока СЧИТАННЫМ числом,
+   отказ посчитать дефект (АН-82, ИА-29) --- */
+await reset();
+await page.selectOption('#subj', 'b-5');
+await page.waitForTimeout(150);
+await page.locator('.nav-item[data-v="borrower"]').click();
+await page.waitForTimeout(200);
+{
+  const panel = await page.locator('#panel').textContent();
+  const over = await page.evaluate(() => AN.overdueDays(AN.requestsOf('b-5')[0]));
+  const btn = page.locator('button:has-text("Посчитать дефект по запросу")').first();
+  const hasBtn = await btn.count();
+  if (hasBtn) { await btn.click(); await page.waitForTimeout(200); }
+  const err = await vis('#toastWrap .toast.err');
+  say('БР-16', panel.includes('Установленная дата') && panel.includes('Дней после срока') &&
+      over === 42 && panel.includes(String(over)) && hasBtn > 0 && !!err && !err.covered,
+    `запрос b-5 виден на экране: установленная дата колонкой, дней после срока ${over} — ` +
+    `число считано, а не хранится; «Посчитать дефект по запросу» отказывает: ` +
+    `«${(err && err.text || '').slice(0, 90)}»`);
+}
+
+/* --- 17. Карточка динамики на ФА-11 (b-7): ряд из двух точек с изменением и отказ
+   показать прогноз (АН-83, АН-85, ИА-22) --- */
+await reset();
+await page.selectOption('#subj', 'b-7');
+await page.waitForTimeout(150);
+await page.locator('.nav-item[data-v="borrower"]').click();
+await page.waitForTimeout(200);
+{
+  const open = page.locator('tr:has-text("ФА-11") button:has-text("Открыть")').first();
+  const hasRow = await open.count();
+  if (hasRow) { await open.click(); await page.waitForTimeout(250); }
+  const panel = await page.locator('#panel').textContent();
+  const before = await page.evaluate(() => JSON.stringify(AN.state.analyses).length);
+  const btn = page.locator('button:has-text("Показать прогноз (AI)")').first();
+  const hasBtn = await btn.count();
+  if (hasBtn) { await btn.click(); await page.waitForTimeout(200); }
+  const err = await vis('#toastWrap .toast.err');
+  const after = await page.evaluate(() => JSON.stringify(AN.state.analyses).length);
+  say('БР-17', hasRow > 0 && panel.includes('Динамика') && panel.includes('+10 000,00 сом') &&
+      panel.includes('этот документ') && hasBtn > 0 && !!err && !err.covered && before === after,
+    `ряд ФА-11 стоит на экране рядом с коэффициентами (+10 000,00 сом, текущая точка помечена ` +
+    `«этот документ»); «Показать прогноз (AI)» отказывает: «${(err && err.text || '').slice(0, 90)}», ` +
+    `состояние заключений не изменилось: ${before === after}`);
+}
+
+/* --- 18. Источник у СТРОКИ отчётности: колонка на карточке b-1 видна и не перекрыта
+   (АН-81, ИА-28) --- */
+await reset();
+await page.locator('.nav-item[data-v="borrower"]').click();
+await page.waitForTimeout(200);
+{
+  const panel = await page.locator('#panel').textContent();
+  const cell = await page.evaluate(() => {
+    const th = [...document.querySelectorAll('#panel th')]
+      .find(x => (x.textContent || '').includes('Источники строк'));
+    if (!th) return null;
+    const r = th.getBoundingClientRect();
+    return { w: Math.round(r.width), h: Math.round(r.height) };
+  });
+  say('БР-18', panel.includes('Источники строк') && panel.includes('из файла') && !!cell &&
+      cell.w > 0 && cell.h > 0,
+    `колонка «Источники строк» на карточке заёмщика видна (${cell ? cell.w + '×' + cell.h : 'нет'}), ` +
+    `сводка источников печатается словами и считается в момент показа`);
+}
+
 const pass = out.filter(r => r.pass).length;
-console.log(`БРАУЗЕР 2026-09-02 · ${pass}/${out.length} PASS · ошибок страницы ${errs.length}`);
+console.log(`БРАУЗЕР 2026-09-08 · ${pass}/${out.length} PASS · ошибок страницы ${errs.length}`);
 out.forEach(r => console.log(`   ${r.pass ? 'PASS' : 'FAIL'}  ${r.n}  ${r.note}`));
 if (errs.length) { console.log('--- ОШИБКИ СТРАНИЦЫ ---'); console.log(errs.slice(0, 20).join('\n')); }
 await ctx.close();
