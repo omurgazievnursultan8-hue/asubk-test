@@ -45,6 +45,12 @@
 // называется словами и своим кодом (method / edition / nocalc), а не прячется. Поля под ряд
 // в заключении нет, и попытка его завести отказана по имени; строка ТЗ про AI-прогноз
 // отвечена видом изменения во времени, а предсказание отказано по имени (АН-85).
+// Блок Z (#116) закрывает волну 17 — сверка с межмодульными решениями, которых канон не
+// читал: ADR-0205 (ИЯ-23) требует, чтобы всякая ОТДАННАЯ ШВОМ ВЕЛИЧИНА несла признак «на
+// дату» или «текущее», и объявляет отсутствие признака дефектом шва. У анализа такая
+// величина одна — дни просрочки ответа в docsRequested; остальное в ответе факты и даты.
+// Признак стоит у величины, а не на ответе целиком (ADR-0205 §1), и дата, на которую
+// посчитано, едет вместе с ним: сдвинули «сегодня» — сдвинулись оба.
 // Блоки, которые правят состояние, начинаются с AN.seed() — состояние между ними не течёт.
 //   node scripts/inspect/analysis-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -2338,13 +2344,41 @@ const TODAY = '2026-08-21';
     `таблица. Рядом — две кнопки, обе отказывающие: сохранить ряд в заключении и показать прогноз`);
 })();
 
+/* ---- Блок Z (#116): величина, отданная швом, несёт признак (ADR-0205, ИЯ-23) ---- */
+(() => {
+  AN.seed();
+  const z5 = AN.docsRequested('b-5', '1П 2026');
+  const z3 = AN.docsRequested('b-3', '1П 2026');
+  const z6 = AN.docsRequested('s-6', '1П 2026');
+  const z1 = AN.docsRequested('b-1', '1П 2026');
+  const all = [z5, z3, z6, z1];
+  /* Признак принадлежит ВЕЛИЧИНЕ, а не ответу: пометки на ответ целиком быть не должно. */
+  const onAnswer = all.filter(a => 'dated' in a || 'kind' in a || 'asOfKind' in a);
+  /* Сдвинули «сегодня» — величина пересчиталась, и дата рядом с ней уехала следом. */
+  AN.state.today = '2026-09-01';
+  const late = AN.docsRequested('b-5', '1П 2026');
+  AN.state.today = '2026-08-21';
+  ok(116, all.every(a => a.overdueDaysKind === 'текущее' && a.asOf === '2026-08-21') &&
+        onAnswer.length === 0 && z5.overdueDays === 42 &&
+        late.overdueDays === 53 && late.asOf === '2026-09-01' &&
+        late.overdueDaysKind === 'текущее' &&
+        z1.got === '2026-07-10' && z1.overdueDays === 0 && z1.asOf === '2026-08-21',
+    `дни просрочки — единственная ВЕЛИЧИНА этих дверей (прочее в ответе даты и факты), и она ` +
+    `уходит с признаком «${z5.overdueDaysKind}» и датой, на которую посчитана: ${z5.overdueDays} дн. ` +
+    `на ${z5.asOf} и ${late.overdueDays} дн. на ${late.asOf} — сдвинули «сегодня», уехали оба. ` +
+    `Признак стоит У ВЕЛИЧИНЫ, а не на ответе целиком (ADR-0205 §1): полей «dated» и «kind» на ` +
+    `ответе нет ни у одного из четырёх случаев — ни у запрошенного, ни у незапрошенного, ни у ` +
+    `полученного, ни у субъекта без роли заёмщика. Ретроспективы шов не обещает: кому нужна ` +
+    `прошлая дата, тот считает её сам из установленной даты и даты получения, обе шов отдаёт`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-console.log(`SMOKE 2026-09-08 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
+console.log(`SMOKE 2026-09-09 · ${pass}/${results.length} PASS\n` + lines.join('\n'));
 
 const body = lines.map(l => '  ' + l).join('\n');
-const injected = `  SMOKE 2026-09-08 · ${pass}/${results.length} PASS\n` + body;
+const injected = `  SMOKE 2026-09-09 · ${pass}/${results.length} PASS\n` + body;
 if (src.includes('  SMOKE_PLACEHOLDER')) {
   writeFileSync(HTML, src.replace('  SMOKE_PLACEHOLDER', injected), 'utf8');
   console.log('\n→ результат вставлен в шапку analysis.html');
