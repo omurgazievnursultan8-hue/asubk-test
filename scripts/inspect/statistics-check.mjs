@@ -5580,13 +5580,28 @@ const FIZ = fizSchema();
   st257.today = '2026-09-02';
   const nocal = ST.run('2026-09-02');
   const nocalRec = st257.runs[st257.runs.length - 1];
+  /* Фикс-раунд 1 (З-15b): догон — тоже прогон, и дату, чьего периода нет в календаре, он
+     не пишет, а записывает пропуском с той же причиной, что ночь (ADR-0245 §6). Сентября в
+     календаре нет: 26.08…01.09 — ещё август (01.09 — его итог, срез на начало дня), 02.09…04.09 —
+     сентябрь. Пропуск 02.09 уже записан ночью выше и вторым не встаёт; повторный догон ни
+     строк, ни пропусков не добавляет. */
+  st257.today = '2026-09-05';
+  const cal257 = ST.catchUp ? ST.catchUp('2026-09-05') : {dates: []};
+  const calAgain257 = ST.catchUp ? ST.catchUp('2026-09-05') : {dates: [1]};
+  const calRows257 = st257.rows.filter(x => x.date >= '2026-09-02').length;
+  const calSkips257 = ['2026-09-02','2026-09-03','2026-09-04'].map(d =>
+    st257.runs.filter(x => x.kind === 'пропуск' && x.date === d && has(x.reason, 'ADR-0245 §6')).length);
+  const calCaught257 = st257.runs.filter(x => x.kind === 'догон' && x.date >= '2026-09-02').length;
   ok(257, cu257.ok && cu257.dates.join() === '2026-08-22,2026-08-23' && T1 === T0 &&
         cuRuns.length === 2 && cuRuns.every(x => x.cand.scan === 'полный' && has(x.cand.why, 'ADR-0245 §2')) &&
         run257.ok && (run257.caught || []).join() === '2026-08-24' &&
         order257 === 'догон 2026-08-24 · плановый 2026-08-25' && Tcore === '2026-08-25' &&
         holes257.length === 0 && again257.dates.length === 0 && skips257 === 3 &&
-        !nocal.ok && nocal.skipped === true && nocalRec.kind === 'пропуск' && has(nocalRec.reason, 'ADR-0245 §6'),
-    `пропуск — запись журнала, а не дыра: пропущено ${skips257} ночи, и каждая догнана своей строкой по порядку (${cu257.dates.join(', ')} — дверью ST.catchUp; ${(run257.caught || []).join(', ')} — прогоном ${'2026-08-25'} перед своей ночью: «${order257}»). Дыр в строках ${holes257.length}. Догон — полный обход со своей причиной и НЕ двигает T соседей (до и после догона T одинаковы: ${T1 === T0}); T двигает ночь (ядро — ${Tcore}), иначе следующая ночь спросила бы соседа с уже съеденной даты (ADR-0245 §2). Повторный догон догонять нечего (${again257.dates.length}). Периода нет в календаре — ночь записана пропуском с причиной: «${String(nocalRec.reason).slice(0, 80)}…» (ADR-0245 §6)`);
+        !nocal.ok && nocal.skipped === true && nocalRec.kind === 'пропуск' && has(nocalRec.reason, 'ADR-0245 §6') &&
+        cal257.dates.length === 7 && cal257.dates[6] === '2026-09-01' &&
+        (cal257.noCalendar || []).join() === '2026-09-02,2026-09-03,2026-09-04' &&
+        calRows257 === 0 && calCaught257 === 0 && calSkips257.join() === '1,1,1' && calAgain257.dates.length === 0,
+    `пропуск — запись журнала, а не дыра: пропущено ${skips257} ночи, и каждая догнана своей строкой по порядку (${cu257.dates.join(', ')} — дверью ST.catchUp; ${(run257.caught || []).join(', ')} — прогоном ${'2026-08-25'} перед своей ночью: «${order257}»). Дыр в строках ${holes257.length}. Догон — полный обход со своей причиной и НЕ двигает T соседей (до и после догона T одинаковы: ${T1 === T0}); T двигает ночь (ядро — ${Tcore}), иначе следующая ночь спросила бы соседа с уже съеденной даты (ADR-0245 §2). Повторный догон догонять нечего (${again257.dates.length}). Периода нет в календаре — ночь записана пропуском с причиной: «${String(nocalRec.reason).slice(0, 80)}…» (ADR-0245 §6). Догон подчиняется тому же правилу: перед 05.09 догнано ${cal257.dates.length} дат (${cal257.dates[0] || '—'}…${cal257.dates[cal257.dates.length - 1] || '—'}), а ${(cal257.noCalendar || []).join(', ') || '—'} вне календаря — строк на них ${calRows257}, догонов ${calCaught257}, пропусков по дате ${calSkips257.join(' · ')}; повторный догон догоняет ${calAgain257.dates.length}`);
 
   /* #258 — повторный прогон за пройденную дату ПЕРЕПИСЫВАЕТ строку на месте, пишет перезапись
      в журнал и не заводит дублей; соседняя дата не тронута. Он же — полный обход: копий в
@@ -5621,7 +5636,11 @@ const FIZ = fizSchema();
   const b259 = ST.seed();
   const c1 = sc();
   const fresh259 = ST.seed(true);
-  const same259 = JSON.stringify(fresh259) === JSON.stringify(ST.seed());
+  /* Фикс-раунд 1: сравнивается КЭШИРОВАННЫЙ мир, взятый до сборки мимо кэша (`b259`, не
+     правленый), со сборкой мимо кэша. Прежнее сравнение `fresh259` со следующим
+     `ST.seed()` мерило сборку с самой собой: `ST.seed(true)` кладёт снимок под тот же ключ, и
+     следующий вызов отдаёт его же — устаревший мир в кэше так не ловился никогда. */
+  const same259 = JSON.stringify(fresh259) === JSON.stringify(b259);
   const R259 = vm.runInContext('RATES', sandbox);
   let miss259 = -1, eur259 = null;
   R259.EUR.push(['2026-08-20', 97.00]);
@@ -5630,10 +5649,63 @@ const FIZ = fizSchema();
     eur259 = (ST.rowsAt('obj-credit', ASK).find(r => r.ref === 'КД-2025/101') || {inds: {}}).inds['m-debt'];
   } finally { R259.EUR.pop(); }
   const back259 = sc().hits; ST.seed(); const hit259 = sc().hits - back259;
+  /* Фикс-раунд 1: ключ — ровно то, что сборка читает (СС-166). Курс — лишь один из входов;
+     правка залогового коэффициента вида (`COLL_K` — данные владельца залога, которых в ключе
+     не было) при прежнем ключе отдавала из кэша вчерашний мир. Проверка двумя путями:
+     1) случай рецензента — правка `COLL_K` обязана дать промах, и мир из `ST.seed()` обязан
+        совпасть со сборкой `seed()` мимо кэша; правка при этом видна в строках залога;
+     2) обход чтений — та же сборка `seed()` идёт с ловушкой на каждом верхнем свойстве
+        каждой константы модуля (и данных-членов `CORE` и `ST`): первое чтение отмечает
+        константу и возвращает свойство на место. Прочитанное обязано совпасть с объявленным
+        входом `ST.seedInputs()` — ни пропущенного, ни лишнего; новая константа, которую
+        сборка начнёт читать, уронит сторож, пока её не внесут в ключ. Ловушка видит чтение
+        свойства, а не `in`/`hasOwnProperty`/`Object.keys` — сборка так констант не читает. */
+  const tag259 = v => Object.prototype.toString.call(v).slice(8, -1);
+  const roots259 = [];
+  for (const [, n] of m[1].matchAll(/^const ([A-Z_][A-Za-z0-9_]*)\s*=/gm)) {
+    if (n === 'ST' || n === 'CORE') continue;
+    const v = vm.runInContext(n, sandbox);
+    if (tag259(v) === 'Object' || tag259(v) === 'Array') roots259.push([n, v]);
+  }
+  [['CORE', vm.runInContext('CORE', sandbox)], ['ST', ST]].forEach(([p, box]) => Object.keys(box).forEach(k => {
+    if (k !== 'state' && (tag259(box[k]) === 'Object' || tag259(box[k]) === 'Array')) roots259.push([p + '.' + k, box[k]]); }));
+  const read259 = new Set(), undo259 = [];
+  const trap259 = () => roots259.forEach(([n, obj]) => Object.getOwnPropertyNames(obj).forEach(k => {
+    const d = Object.getOwnPropertyDescriptor(obj, k);
+    if (!('value' in d) || !d.configurable || typeof d.value === 'function' || (Array.isArray(obj) && k === 'length')) return;
+    let v = d.value;
+    const put = () => Object.defineProperty(obj, k, {value: v, writable: d.writable, enumerable: d.enumerable, configurable: true});
+    Object.defineProperty(obj, k, {configurable: true, enumerable: d.enumerable,
+      get() { read259.add(n); put(); return v; }, set(x) { v = x; put(); }});
+    undo259.push(put);
+  }));
+  const COLL259 = vm.runInContext('COLL_K', sandbox);
+  const collOf259 = w => JSON.stringify(w.rows.filter(r => r.obj === 'obj-collateral').map(r => r.inds));
+  const collWas259 = collOf259(b259);
+  const k259 = COLL259['недвижимость'];
+  let collMiss259 = -1, collMoved259 = false, collSame259 = false;
+  COLL259['недвижимость'] = 0.6;
+  try {
+    const m0 = sc().misses;
+    const hitW = ST.seed();
+    collMiss259 = sc().misses - m0;
+    collMoved259 = collOf259(hitW) !== collWas259;
+    const hitJ = JSON.stringify(hitW);
+    let rawJ = '';
+    trap259();
+    try { rawJ = JSON.stringify(vm.runInContext('seed', sandbox)()); } finally { undo259.forEach(f => f()); }
+    collSame259 = rawJ.length > 0 && hitJ === rawJ;
+  } finally { COLL259['недвижимость'] = k259; ST.seed(); }
+  const decl259 = ST.seedInputs ? ST.seedInputs() : [];
+  const readL259 = [...read259].sort();
+  const unkeyed259 = readL259.filter(n => decl259.indexOf(n) < 0);
+  const idle259 = decl259.filter(n => readL259.indexOf(n) < 0);
   ok(259, b259.today === '2026-08-22' && b259.rows.length === a259.rows.length + 1 &&
         c1.hits > c0.hits && same259 && Array.isArray(b259.indicators) && b259.indicators.length > 0 &&
-        miss259 === 1 && eur259 && eur259.rate === 97 && hit259 === 1 && sc().size <= 3,
-    `кэш демо-мира отдаёт независимую копию: правка одной копии (строк −1, «сегодня» 2030) не доехала до следующей (${b259.rows.length} строк, сегодня ${b259.today}); собранный мимо кэша мир равен кэшированному (${same259}); виды реестра на копии на месте (${b259.indicators.length}). Ключ — отпечаток данных: уточнённый курс евро собирает мир заново (промахов ${miss259}, курс в строке ${eur259 ? eur259.rate : '—'}), а возврат курса снова попадает в кэш (${hit259}). Ключей в кэше ${sc().size} из 3 (СС-166)`);
+        miss259 === 1 && eur259 && eur259.rate === 97 && hit259 === 1 && sc().size <= 3 &&
+        collMiss259 === 1 && collMoved259 && collSame259 &&
+        readL259.length > 0 && unkeyed259.length === 0 && idle259.length === 0,
+    `кэш демо-мира отдаёт независимую копию: правка одной копии (строк −1, «сегодня» 2030) не доехала до следующей (${b259.rows.length} строк, сегодня ${b259.today}); кэшированный мир равен собранному мимо кэша (${same259}); виды реестра на копии на месте (${b259.indicators.length}). Ключ — отпечаток данных: уточнённый курс евро собирает мир заново (промахов ${miss259}, курс в строке ${eur259 ? eur259.rate : '—'}), а возврат курса снова попадает в кэш (${hit259}). Правка залогового коэффициента — тоже промах (${collMiss259}), строки залога сдвинулись (${collMoved259}), и мир из кэша равен сборке мимо него (${collSame259}). Сборка читает ${readL259.length} констант модуля, и ключ — ровно они: не в ключе ${unkeyed259.length ? unkeyed259.join(', ') : 'ни одной'}, в ключе без чтения ${idle259.length ? idle259.join(', ') : 'ни одной'}. Ключей в кэше ${sc().size} из 3 (СС-166)`);
 })();
 
 /* ---- отчёт ---- */
