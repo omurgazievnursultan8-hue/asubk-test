@@ -49,7 +49,9 @@
 // предупреждение · дверь реестра колонку ищет, а не заводит · миграция (ST.migrate)
 // включает дождавшуюся запись и ставит её в очередь досчёта · пара «валютная + сомовая»
 // ждёт и включается целиком, агрегат над ждущим основанием — вместе с ним, и вопрос к ждущей
-// записи — отказ (СС-155) · новый объект без таблицы в релизе — отказ · схемы витрины,
+// записи — отказ на всех дверях, и на периоде с расхождением (СС-155) · пара прекращается
+// целиком и миграцией не возвращается · деньги — только на money_cur/money_som, и наоборот ·
+// новый объект без таблицы в релизе — отказ · схемы витрины,
 // порождаемой реестром, нет · итог в сомах объявляет «сом» и «аддитивный» (ADR-0240 §4).
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
@@ -1944,6 +1946,10 @@ const FIZ = fizSchema();
   const zd = ST.DIM('d-zdate');
   const owner = st.objects.filter(o => (o.dims || []).indexOf('d-zdate') >= 0);
   const zo = ST.OBJ('obj-zdeal');
+  /* Волна 23, правка ревью 1 З-14 (переписан на месте): «владелец заведён СТРОКОЙ реестра
+     (ИС-18)» снято — объект стоит таблицы строк в релизе (ИС-53, ADR-0237 §5). Проверяется
+     и она: договор залога лежит в своей таблице, а запись реестра объектов называет его. */
+  const zt = (ST.release().tables || {})['obj-zdeal'] || {};
   const ask = ST.statSlice({obj:'obj-zdeal', dims:['d-zdate'], inds:['a-count'],
     date: ASK, buckets:{'d-zdate':'год'}});
   const noBucket = ST.statSlice({obj:'obj-zdeal', dims:['d-zdate'], inds:['a-count'], date: ASK});
@@ -1951,8 +1957,9 @@ const FIZ = fizSchema();
         owner.length === 1 && owner[0].id === 'obj-zdeal' &&
         zd.note === 'ТЗ #4' && zo && zo.owner === 'Залог' && zo.born.key === 'zdate' &&
         (zo.inds || []).length === 1 && ask.ok && ask.n === 5 && ask.groups.length === 5 &&
-        !noBucket.ok,
-    `у каждой записи реестра есть объект, который ею спрашивает: разрезов без объекта ${orphanD.length} из ${dimsAll.length}, показателей без объекта ${orphanI.length} из ${st.indicators.length}. Сирота была одна и молчала с волны 8 — «${zd.name}» (${zd.note}) сняли с предмета залога как многозначную после перезалога (ИС-21) и оставили без владельца множества, а §10.1 считала параметр исполненным. Владелец заведён СТРОКОЙ реестра (ИС-18): «${zo.name}», множество отдаёт ${zo.owner}, рождение — «${zo.born.key}», состав — один разрез и одно число, ни одной меры строки (ADR-0201 §3). Спрос отвечает: договоров ${ask.n} в ${ask.groups.length} годах; без корзины — отказ «${noBucket.why ? noBucket.why.slice(0, 48) : '—'}…» (ADR-0176 §2)`);
+        !noBucket.ok && zt.table === 'stat_row_zdeal' && (zt.cols || []).indexOf('d_zdate') >= 0 &&
+        (ST.colOf('d-zdate') || {}).state === 'включена',
+    `у каждой записи реестра есть объект, который ею спрашивает: разрезов без объекта ${orphanD.length} из ${dimsAll.length}, показателей без объекта ${orphanI.length} из ${st.indicators.length}. Сирота была одна и молчала с волны 8 — «${zd.name}» (${zd.note}) сняли с предмета залога как многозначную после перезалога (ИС-21) и оставили без владельца множества, а §10.1 считала параметр исполненным. Владелец — объект «${zo.name}» со своей таблицей строк в релизе (${zt.table}, разрез лежит в ${ST.physOf('d-zdate').join(', ')}) и записью реестра объектов: множество отдаёт ${zo.owner}, рождение — «${zo.born.key}», состав — один разрез и одно число, ни одной меры строки (ИС-53, ADR-0237 §5, ADR-0201 §3). Спрос отвечает: договоров ${ask.n} в ${ask.groups.length} годах; без корзины — отказ «${noBucket.why ? noBucket.why.slice(0, 48) : '—'}…» (ADR-0176 §2)`);
 })();
 
 /* ---------- Э. Волна 14: спрашивается дата прогона, а не «сегодня» ---------- */
@@ -5485,6 +5492,94 @@ const FIZ = fizSchema();
         mig249.ok && inc249 === 'a-w23z,m-w23z' && ST.OBJ('obj-credit').inds.indexOf('a-w23z') >= 0 &&
         (ST.colOf('a-w23z') || {}).state === 'агрегат' && ask249b.ok,
     `агрегат над ждущей записью ждёт вместе с ней: основание «${(ST.REC('m-w23z') || {}).name}» ждёт колонку (${base249.waiting}), и свод над ним заведён, но не включён (${st249}; не хватает — ${miss249.join(', ') || '—'}), спросить его нельзя — «${String(ask249.why).slice(0, 60)}…». Иначе свод ответил бы по несуществующей колонке нулём — наблюдением, которого не было. Миграция колонки основания включила обоих разом (${inc249}), и после прогона свод отвечает (${ask249b.ok}) (ИС-53, ADR-0237 §3, §5; решение СС-155)`);
+
+  /* #250 — ждущая запись закрыта на КАЖДОЙ двери, которая спрашивает величину по имени
+     (правка ревью 1 З-14). Срез и ряд идут через `checkQuery`; период (`flowBetween`) и
+     расхождение (`divergence`) шли мимо него и по ждущему потоку отвечали нулём — тем самым
+     придуманным наблюдением, которое закрывает СС-155. Строки и выгрузка величину по имени
+     не спрашивают, и ждущей записи в строке нет: прогон её не пишет (ИС-53, ADR-0237 §3). */
+  ST.seed();
+  const fl250 = ST.addIndicator({dates:1, id:'m-w23f', name:'Проба ждущего потока', obj:'obj-credit',
+    src:'шов', seam:'calcAccrual', field:'interest', money:true, flow:true, type:'сумма', round:'коп-2',
+    roll:'формульный', rollBy:'d-cur', col:'i_w23f', vtype:'money_cur'});
+  const doors250 = {
+    'период':      ST.flowBetween({obj:'obj-credit', inds:'m-w23f', from:'2026-07-15', to: ASK}),
+    'расхождение': ST.divergence('2026-05', 'obj-credit', 'm-w23f'),
+    'ряд':         ST.statSeries({obj:'obj-credit', inds:'m-w23f', dates:[ASK]})
+  };
+  const shut250 = Object.keys(doors250).filter(k => !doors250[k].ok &&
+    has(doors250[k].why, 'ждёт колонку') && has(doors250[k].why, 'ИС-53'));
+  const mute250 = Object.keys(doors250).every(k => doors250[k].value == null && !doors250[k].total &&
+    !doors250[k].points);
+  const ctl250 = ST.flowBetween({obj:'obj-credit', inds:'m-accr', from:'2026-07-15', to: ASK});
+  ok(250, fl250.ok && fl250.waiting === true && shut250.length === 3 && mute250 && ctl250.ok,
+    `ждущая запись закрыта на каждой двери, спрашивающей величину по имени: из ${Object.keys(doors250).length} дверей отказали ${shut250.length} (${shut250.join(', ')}) — период «${String(doors250['период'].why).slice(0, 70)}…», и ни одна не ответила числом. Прежде период и расхождение шли мимо проверки вопроса и отвечали по ждущему потоку нулём; включённый поток дверь периода считает, как считала (${ctl250.ok}) (ИС-53, ADR-0237 §3; СС-155)`);
+
+  /* #251 — пара прекращается ЦЕЛИКОМ, и прекращённая не возвращается миграцией (правка
+     ревью 1 З-14). Пара «валютная + сомовая» — одна величина (решение D): прекратить одну её
+     сторону значило бы оставить половину — денежную величину без сомовой стороны или сомовую
+     сторону без величины. Прекращение действует вперёд (ADR-0209 §6): миграция, заведшая
+     колонки позже, включает ждущие записи, а прекращённая уже ничего не ждёт. */
+  ST.seed();
+  const T251 = ST.state.today;
+  const pairSpec = id => ({dates:1, id, name:'Проба пары ' + id, obj:'obj-credit', src:'шов',
+    seam:'calcDebt', field:'principal', money:true, type:'сумма', round:'коп-2', roll:'формульный',
+    rollBy:'d-cur', col:id.replace(/-/g, '_').replace(/^m_/, 'i_'), vtype:'money_cur'});
+  const wr = ST.addIndicator(pairSpec('m-w23r'));
+  const wrRet = ST.retire('m-w23r', true, 'Э.');
+  const aw251 = ST.awaiting().map(x => x.id);
+  const mig251 = ST.migrate({obj:'obj-credit', cols:['i_w23r_v', 'i_w23r_som'], note:'колонки прекращённой пары'});
+  const wrR = ST.REC('m-w23r'), wrT = ST.REC('m-w23r-som');
+  const hist251 = r => (r ? r.history : []).map(h => h.what).join(' → ');
+  ST.migrate({obj:'obj-credit', cols:['i_w23q_v', 'i_w23q_som'], note:'включённая пара'});
+  const wq = ST.addIndicator(pairSpec('m-w23q'));
+  const wqRet = ST.retire('m-w23q-som', true, 'Э.');
+  /* Страховка на уровне миграции: прекращённая запись не включается, даже если оказалась в
+     ожидании мимо двери прекращения — прекращена данными, а не `ST.retire`. Состояние
+     подложено руками: обе стороны пары получили дату, из ожидания их никто не снимал. */
+  const ws = ST.addIndicator(pairSpec('m-w23s'));
+  ['m-w23s', 'm-w23s-som'].forEach(id => { ST.REC(id).until = T251; });
+  const mig251b = ST.migrate({obj:'obj-credit', cols:['i_w23s_v', 'i_w23s_som'], note:'колонки прекращённой данными пары'});
+  const leak251 = ['m-w23s', 'm-w23s-som'].filter(id => ST.awaiting().some(x => x.id === id) ||
+    ((ST.REC(id).history || []).slice(-1)[0] || {}).what === 'включена: колонка заведена релизом');
+  const inds251 = ST.OBJ('obj-credit').inds;
+  const gone251 = ['m-w23r', 'm-w23r-som', 'm-w23q', 'm-w23q-som', 'm-w23s', 'm-w23s-som']
+    .filter(id => inds251.indexOf(id) >= 0);
+  ok(251, wr.ok && wr.waiting === true && wrRet.ok && wrR.until === T251 && wrT.until === T251 &&
+        aw251.indexOf('m-w23r') < 0 && aw251.indexOf('m-w23r-som') < 0 &&
+        mig251.ok && (mig251.included || []).length === 0 &&
+        hist251(wrR) === 'заведена, ждёт колонку → прекращена' && hist251(wrT) === hist251(wrR) &&
+        ST.colOf('m-w23r').state === 'прекращена' &&
+        wq.ok && !wq.waiting && wqRet.ok && ST.REC('m-w23q').until === T251 &&
+        ST.REC('m-w23q-som').until === T251 && gone251.length === 0 &&
+        ws.ok && ws.waiting === true && mig251b.ok && (mig251b.included || []).length === 0 &&
+        leak251.length === 0,
+    `пара прекращается целиком: прекратили валютную сторону ждущей пары — прекращены обе (${wrR ? wrR.until : '—'} и ${wrT ? wrT.until : '—'}), обе ушли из ожидания; миграция её колонок никого не включила (${(mig251.included || []).join(', ') || 'никого'}), история — «${hist251(wrR)}». У включённой пары прекращение сомовой стороны прекратило и валютную (${ST.REC('m-w23q') ? ST.REC('m-w23q').until : '—'}), в составе кредита от обеих пар не осталось ни одной стороны (${gone251.join(', ') || 'нет'}). И страховка миграции: пару, прекращённую данными мимо двери, миграция её колонок не включила (${(mig251b.included || []).join(', ') || 'никого'}) и из ожидания сняла (${leak251.join(', ') || 'чисто'}). Прекращение действует вперёд и половин не оставляет (ИС-44, ИС-53, ADR-0209 §6, решение D)`);
+
+  /* #252 — денежная величина лежит на ДЕНЕЖНЫХ колонках, и наоборот (правка ревью 1 З-14).
+     Денежная запись с видом `num` проходила дверь, и близнец ложился на ТУ ЖЕ колонку, что
+     валютная сторона: у пары оказывалась одна колонка на двоих. Вид значения денег — из двух:
+     `money_cur` (`_v` + `_som`) или `money_som` (`_som`); денежный вид у неденежной записи —
+     отказ зеркальный (ADR-0240 §2, §4; схема §12.1). */
+  ST.seed();
+  const m252 = {dates:1, obj:'obj-credit', src:'шов', seam:'calcAccrual', field:'interest', type:'сумма',
+    round:'коп-2', roll:'формульный', rollBy:'d-cur'};
+  const numMoney = ST.addIndicator(Object.assign({id:'m-w23n', name:'Проба денег числом', money:true,
+    col:'i_w23n', vtype:'num'}, m252));
+  const curPlain = ST.addIndicator({dates:1, id:'m-w23k', name:'Проба валютного вида без денег', obj:'obj-credit',
+    src:'поле', key:'amount', type:'сумма', unit:'сом', col:'i_w23k', vtype:'money_cur'});
+  const somPlain = ST.addIndicator({dates:1, id:'m-w23j', name:'Проба сомового вида без денег', obj:'obj-credit',
+    src:'поле', key:'amount', type:'сумма', unit:'сом', roll:'аддитивный', col:'i_w23j', vtype:'money_som'});
+  const dimMoney = ST.addDim({dates:1, id:'d-w23m2', name:'Проба разреза денежного вида', obj:'obj-credit',
+    src:'поле', key:'amount', perObject:'одно', col:'d_w23m2', vtype:'money_cur'});
+  const good252 = ST.addIndicator(Object.assign({id:'m-w23g', name:'Проба денег своим видом', money:true,
+    col:'i_w23g', vtype:'money_cur'}, m252));
+  const bad252 = [numMoney, curPlain, somPlain, dimMoney];
+  const cols252 = good252.ok ? (good252.cols || []).concat(good252.somCols || []) : [];
+  ok(252, bad252.every(r => !r.ok && has(r.why, 'ADR-0240') && has(r.why, 'схема §12.1')) &&
+        !ST.REC('m-w23n') && !ST.REC('m-w23n-som') && !ST.REC('m-w23k') && !ST.REC('m-w23j') &&
+        !ST.REC('d-w23m2') && good252.ok && cols252.length === 2 && cols252[0] !== cols252[1],
+    `деньги лежат на денежных колонках: денежная запись с видом «num» отбита — «${String(numMoney.why).slice(0, 110)}…»; денежный вид у неденежного показателя и у разреза отбит тоже (${bad252.filter(r => !r.ok).length} из ${bad252.length}). Годная пара получила две колонки, а не одну на двоих: ${cols252.join(' и ')} (ИС-44, ADR-0240 §2, §4, схема §12.1)`);
 })();
 
 /* ---- отчёт ---- */
