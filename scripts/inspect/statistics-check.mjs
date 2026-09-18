@@ -53,6 +53,12 @@
 // целиком и миграцией не возвращается · деньги — только на money_cur/money_som, и наоборот ·
 // новый объект без таблицы в релизе — отказ · схемы витрины,
 // порождаемой реестром, нет · итог в сомах объявляет «сом» и «аддитивный» (ADR-0240 §4).
+// блок волны 23 З-15a — срез на начало дня: канун и период строки (ИС-54, ADR-0238 §2,
+// ADR-0245 §8, §9): мир читается на канун (worldAt) одним местом у дверей сборщика (курс,
+// история, шов) · период строки — месяц кануна (periodOf), а не месяц самой даты — строка
+// 01.07 принадлежит июню · итог месяца — строка первого числа следующего (sliceOfMonth) ·
+// рождение сравнивается строго — родившийся в день X виден срезу X+1 · легаси лежит только
+// на первых числах, и период каждой его строки — тот же месяц кануна.
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -79,12 +85,16 @@ if (!ST) { console.error('window.ST не экспортирован'); process.e
 const results = [];
 const ok = (n, cond, note = '') => results.push({ n, pass: !!cond, note });
 const has = (s, part) => String(s || '').includes(part);
-const TODAY = '2026-08-21';
+/* Срез на начало дня (ИС-54, ADR-0238 §2): даты срезов смоука сдвинуты на +1 вместе с
+   календарём демо-мира (СС-162) — та же ночь мира лежит в строке следующего дня. Курс,
+   поставленный «к срезу X», ставится на его канун: `eve(X)`. */
+const eve = d => new Date(Date.parse(d) - 86400000).toISOString().slice(0, 10);
+const TODAY = '2026-08-22';
 /* Дата ВОПРОСА — не «сегодня», а последний прогон (ИС-36, волна 14). До волны 14 смоук
    спрашивал TODAY, и каждый такой вопрос молча отвечал строками от 18.08: подстановка в
    хвосте была не видна ни одной проверке, потому что все числа сходились. TODAY остаётся
    датой ОПЕРАЦИЙ — прогона, пропуска, оформления выгрузки. */
-const ASK = '2026-08-20';
+const ASK = '2026-08-21';
 /* Фильтр вопроса — ДНФ без скобок (ADR-0180): F(a, b) — два набора через ИЛИ,
    F([a, b]) — один набор из двух сравнений через И. Скобок в форме нет, поэтому
    и в конструкторе смоука их негде поставить. */
@@ -166,7 +176,7 @@ const FIZ = fizSchema();
      реестра. Разница принципиальна: поле формы — вещь вне реестра, которую нельзя ни
      назвать в отчёте, ни прекратить датой; колонка `inds` — обычная запись, живущая по
      общим правилам (ИС-15 в части долей, ИС-44, ADR-0214 §2). */
-  const rows3 = ST.statRows({obj:'obj-credit', date:'2026-08-18'}).rows;
+  const rows3 = ST.statRows({obj:'obj-credit', date:'2026-08-19'}).rows;
   const u3 = rows3.find(r => r.ref === 'КД-2025/043');
   const som3 = ST.somIdOf('m-debt');
   /* Волна 17 ч.8 добавила восьмое поле `srcs`, З-10 — девятое `when`, и «форма закрыта»
@@ -334,8 +344,8 @@ const FIZ = fizSchema();
   const planned = st.runs.filter(r => r.kind === 'плановый').length;
   const skipped = st.runs.filter(r => r.kind === 'пропуск');
   const last = st.runs.filter(r => r.kind !== 'пропуск').map(r => r.date).sort().slice(-1)[0];
-  ok(11, planned === 6 && skipped.length === 1 && skipped[0].date === '2026-08-19' && !!skipped[0].reason &&
-        last === '2026-08-20' && last < TODAY && st.q.date === last,
+  ok(11, planned === 6 && skipped.length === 1 && skipped[0].date === '2026-08-20' && !!skipped[0].reason &&
+        last === '2026-08-21' && last < TODAY && st.q.date === last,
     `журнал: плановых прогонов ${planned}, пропуск ${skipped[0].date} — «${skipped[0].reason}». Пропуск лежит ВНУТРИ истории (после него был прогон ${last}), а сегодня ${TODAY} прогона ещё не было — умолчание вопроса стоит на ${st.q.date}, а не на «сегодня» (ИС-36)`);
 
   const future = ST.run('2026-09-01', {});
@@ -356,7 +366,7 @@ const FIZ = fizSchema();
 /* ---------- E. Защёлка одна, и у неё есть фамилия ---------- */
 (() => {
   ST.seed();
-  const closed = ST.run('2026-06-30', {});
+  const closed = ST.run('2026-07-01', {});
   ok(14, !closed.ok && has(closed.why, 'ИС-8') && has(closed.why, 'ADR-0089'),
     `в зафиксированный период не пишет никто: «${closed.why}»`);
 
@@ -384,14 +394,14 @@ const FIZ = fizSchema();
      сделать окончательность пустым словом (ADR-0208 §3). Обе беды выходят одной дверью,
      но в РАЗНЫХ полях, и путать их сторож не даёт. */
   const bl = ST.periodBlockers('2026-08');
-  const mute = ST.run('2026-08-20', {silent:{'классификация':'не уложился в срок'}});
+  const mute = ST.run('2026-08-21', {silent:{'классификация':'не уложился в срок'}});
   const bl2 = ST.periodBlockers('2026-08');
   const b0 = Object.assign({nb:'—', n:0, reasons:[], objs:[], text:'—'}, bl2.blockers[0] || {});
-  ok(17, bl.blockers.length === 0 && bl.warnings.length === 1 && has(bl.warnings[0], '19.08.2026') &&
+  ok(17, bl.blockers.length === 0 && bl.warnings.length === 1 && has(bl.warnings[0], '20.08.2026') &&
         mute.ok && mute.partial > 0 && bl2.blockers.length === 1 &&
         b0.nb === 'классификация' && b0.n === mute.partial &&
         b0.reasons.join() === 'не уложился в срок' && b0.objs.length > 0 &&
-        bl2.warnings.length === 1 && has(bl2.warnings[0], '19.08.2026'),
+        bl2.warnings.length === 1 && has(bl2.warnings[0], '20.08.2026'),
     `пропуск и неполнота выходят одной дверью, но в разных полях (ИС-20 сужена волной 17 ч.8, ИС-42). ПРОПУСК прогона — предупреждение и только: «${bl.warnings[0]}»; починить пропущенную ночь нечем, и блокировка остановила бы календарь навсегда. НЕПОЛНАЯ строка — блокировка: после ночи, в которой «классификация» не уложилась в срок, строк неполных ${mute.partial}, блокировка одна и она называет соседа (${b0.nb}), причину (${b0.reasons.join(' · ') || '—'}), число строк (${b0.n}) и объекты: «${b0.text}» — печатный перечень для разбора ночи, а не текст в логе (ADR-0208 §2, §3). Предупреждение о пропуске при этом никуда не делось (${bl2.warnings.length}): одна беда не подменяет другую`);
 })();
 
@@ -404,17 +414,17 @@ const FIZ = fizSchema();
 
   const s = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date: ASK});
   const r = ST.statRows({obj:'obj-credit', date: ASK});
-  const q = ST.statSeries({obj:'obj-credit', inds:'a-sumdebt', dates:['2026-05-31','2026-06-30','2026-07-31','2026-08-18']});
+  const q = ST.statSeries({obj:'obj-credit', inds:'a-sumdebt', dates:['2026-06-01','2026-07-01','2026-08-01','2026-08-19']});
   const full = [s, r, q].every(x => x.ok && x.passport && x.passport.asOf && x.passport.fixation && x.passport.scope && x.passport.filter);
   ok(19, full && ST.seams().length === 3,
     `все три шва (${ST.seams().join(' · ')}) отдают паспорт с датой расчёта, признаком фиксации и областью видимости — ИС-10`);
 
   /* ИС-12 после волны 14 — про дыру ВНУТРИ истории, а не про хвост: 19.08 пропущено,
      20.08 прогон был, значит дыра окончательна и лучшего ответа, чем 18.08, не будет. */
-  const gap = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date:'2026-08-19'});
+  const gap = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date:'2026-08-20'});
   const p = gap.passport;
-  ok(20, p.asOf === '2026-08-18' && p.substituted === true && p.age === 1 &&
-        has(p.skipped, '19.08.2026') && has(p.skipped, 'пропуск') &&
+  ok(20, p.asOf === '2026-08-19' && p.substituted === true && p.age === 1 &&
+        has(p.skipped, '20.08.2026') && has(p.skipped, 'пропуск') &&
         s.passport.substituted === false && s.passport.age === 0,
     `дыра внутри истории отвечает подстановкой с названным возрастом: спрошено 19.08, отдано на ${p.asOf} · возраст ${p.age} дн. · почему: ${p.skipped}. Вопрос на дату прогона подстановки не требует вовсе (${s.passport.asOf}, возраст ${s.passport.age}) — ИС-12`);
 
@@ -422,7 +432,7 @@ const FIZ = fizSchema();
         q.points[3].fixation === 'не зафиксировано',
     `ряд честно называется смешанным: ${q.points.map(x => x.date.slice(0,7) + ' ' + x.fixation).join(' · ')} — ИС-10`);
 
-  const may = ST.statSlice({obj:'obj-credit', dims:[], inds:['a-count'], date:'2026-05-31'});
+  const may = ST.statSlice({obj:'obj-credit', dims:[], inds:['a-count'], date:'2026-06-01'});
   const d = ST.divergence('2026-05', 'obj-credit', 'm-debt');
   ok(22, may.passport.fixation === 'зафиксировано' && has(may.passport.divergence, 'корректировка') &&
         d.ok && d.shown && d.delta === 16320.17 && d.today > d.fixed,
@@ -440,7 +450,7 @@ const FIZ = fizSchema();
   const all = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count','a-sumdebt', SOMD], date: ASK});
   ST.setRole('Аналитик');
   const mine = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count','a-sumdebt', SOMD], date: ASK});
-  const list = ST.registryList('obj-credit', '2026-08-18');
+  const list = ST.registryList('obj-credit', '2026-08-19');
   const refs = mine.groups.reduce((a, g) => a.concat(g.refs), []).sort();
   ok(23, mine.n < all.n && refs.join('|') === list.join('|') &&
         mine.groups.every(g => g.n === g.refs.length),
@@ -465,7 +475,7 @@ const FIZ = fizSchema();
 /* ---------- H. Валюта, потоки, представление ---------- */
 (() => {
   ST.seed();
-  const rows = ST.statRows({obj:'obj-credit', date:'2026-08-18'}).rows;
+  const rows = ST.statRows({obj:'obj-credit', date:'2026-08-19'}).rows;
   const usd = rows.find(r => r.ref === 'КД-2025/043');
   const cell = usd.inds['m-debt'];
   const stored = rows.some(r => Object.keys(r.inds).some(k => 'som' in r.inds[k] || 'share' in r.inds[k]));
@@ -482,11 +492,11 @@ const FIZ = fizSchema();
         src27 && src27.rate === 88.30 && src27.rateDate === '2026-08-18' && src27.cur === 'USD',
     `сумма — в валюте договора с курсом и датой курса (${cell.v} ${cell.cur} × ${cell.rate} от ${cell.rateDate}); сомовой стороны валютная клетка в себе не несёт (приложением к чужой клетке величина не живёт), а несёт её СОСЕДНЯЯ колонка — ${(somCell || {}).v} ${(somCell || {}).cur}, и рядом с числом лежит основание: ${(src27 || {}).value} ${(src27 || {}).cur} × ${(src27 || {}).rate} от ${(src27 || {}).rateDate}. Перемножить и сверить можно не выходя из строки — ИС-16, ИС-44, ADR-0214 §4, §5`);
 
-  const mixed = ST.statSlice({obj:'obj-credit', dims:[], inds:['a-sumdebt'], date:'2026-08-18'}).total['a-sumdebt'];
-  const one = ST.statSlice({obj:'obj-credit', dims:[], inds:['a-sumdebt'], date:'2026-08-18',
+  const mixed = ST.statSlice({obj:'obj-credit', dims:[], inds:['a-sumdebt'], date:'2026-08-19'}).total['a-sumdebt'];
+  const one = ST.statSlice({obj:'obj-credit', dims:[], inds:['a-sumdebt'], date:'2026-08-19',
     filter: F(cD('d-cur', '=', {value:'USD'}))}).total['a-sumdebt'];
   const somAgg = ST.statSlice({obj:'obj-credit', dims:[], inds:[ST.somIdOf('a-sumdebt')],
-    date:'2026-08-18'}).total[ST.somIdOf('a-sumdebt')];
+    date:'2026-08-19'}).total[ST.somIdOf('a-sumdebt')];
   /* Волна 17. Прежде #28 доказывал, что разновалютный итог ЧИСЛО выдаёт, но состав при
      нём называет. Теперь он доказывает, что числа не выдаёт вовсе: число там было
      сомовой величиной под валютным именем, и читатель, взявший его и не прочитавший
@@ -514,9 +524,9 @@ const FIZ = fizSchema();
         ST.shareOf(1, 4) === 25 && ST.pointsBetween(12.4, 15.9) === 3.5,
     `доля и дельта по-прежнему считаются при показе (${ST.shareOf(1,4)}% · ${ST.pointsBetween(12.4,15.9)} п.п.) и не хранятся — ИС-15. Сомовая величина показом больше НЕ считается: ST.somOf в модуле нет вовсе (${somShown}), показ берёт готовое число соседней колонки (${ST.somValue(usd, 'm-debt')}) — четвёртое место со своим округлением закрыто (ИС-44, ADR-0214 §3, §6)`);
 
-  const flow = ST.flowBetween({obj:'obj-credit', inds:'m-repaid', from:'2026-07-15', to:'2026-08-18'});
-  const notFlow = ST.flowBetween({obj:'obj-credit', inds:'m-debt', from:'2026-07-15', to:'2026-08-18'});
-  ok(30, flow.ok && flow.baseDate === '2026-06-30' && has(flow.passport.baseNote, 'вместо 15.07.2026') &&
+  const flow = ST.flowBetween({obj:'obj-credit', inds:'m-repaid', from:'2026-07-15', to:'2026-08-19'});
+  const notFlow = ST.flowBetween({obj:'obj-credit', inds:'m-debt', from:'2026-07-15', to:'2026-08-19'});
+  ok(30, flow.ok && flow.baseDate === '2026-07-01' && has(flow.passport.baseNote, 'вместо 15.07.2026') &&
         flow.value > 0 && !notFlow.ok && has(notFlow.why, 'ИС-17'),
     `период — разность двух нарастающих итогов; база названа: «${flow.passport.baseNote}», за интервал погашено ${Math.round(flow.value)} сом. Не поток разностью не считается: «${notFlow.why}»`);
 })();
@@ -524,8 +534,8 @@ const FIZ = fizSchema();
 /* ---------- I. Разрез лежит в строке и действует вперёд ---------- */
 (() => {
   ST.seed();
-  const may = ST.statRows({obj:'obj-credit', date:'2026-05-31'}).rows.find(r => r.ref === 'КД-2024/117');
-  const aug = ST.statRows({obj:'obj-credit', date:'2026-08-18'}).rows.find(r => r.ref === 'КД-2024/117');
+  const may = ST.statRows({obj:'obj-credit', date:'2026-06-01'}).rows.find(r => r.ref === 'КД-2024/117');
+  const aug = ST.statRows({obj:'obj-credit', date:'2026-08-19'}).rows.find(r => r.ref === 'КД-2024/117');
   ok(31, may.dims['d-curator'] === 'Асанов А.' && aug.dims['d-curator'] === 'Бекова Н.' &&
         may.dims['d-category'] === 'Низкий кредитный риск' && aug.dims['d-category'] === 'Средний кредитный риск',
     `смена куратора 15.07 майскую строку не переписала: май — ${may.dims['d-curator']}, август — ${aug.dims['d-curator']} — ИС-4`);
@@ -536,7 +546,7 @@ const FIZ = fizSchema();
   ST.migrate({obj:'obj-credit', cols:['d_segment_id','d_segment_lbl'], note:'сегмент портфеля'});
   const add = ST.addDim({dates:1, id:'d-segment', name:'Сегмент портфеля', obj:'obj-credit', src:'поле',
     key:'industry', perObject:'одно', col:'d_segment', vtype:'ref'});
-  const past = ST.statSlice({obj:'obj-credit', dims:['d-segment'], inds:['a-count'], date:'2026-05-31'});
+  const past = ST.statSlice({obj:'obj-credit', dims:['d-segment'], inds:['a-count'], date:'2026-06-01'});
   /* Здесь же видно вторую половину ИС-36: «сегодня» спрашивается не по праву «сегодня», а
      потому что прогон написал строки. До прогона вопрос на TODAY отказ, после — ответ. */
   const shut = ST.statSlice({obj:'obj-credit', dims:['d-segment'], inds:['a-count'], date: TODAY});
@@ -577,9 +587,9 @@ const FIZ = fizSchema();
 (() => {
   ST.seed();
   ST.resetCoreCalls();
-  const run = ST.run('2026-08-20', {});
+  const run = ST.run('2026-08-21', {});
   const calls = ST.coreCalls();
-  const rows = ST.statRows({obj:'obj-credit', date:'2026-08-20'}).rows;
+  const rows = ST.statRows({obj:'obj-credit', date:'2026-08-21'}).rows;
   const noAgg = rows.every(r => Object.keys(r.inds).every(k => ST.IND(k).src !== 'агрегат'));
   ok(37, run.ok && calls > 0 && noAgg,
     `прогон записал ${run.written} строк, обратившись к ядру ${calls} раз: ни одна величина по объекту здесь не выводится (ИС-1), хранимых агрегатов в строке нет (ИС-3)`);
@@ -589,7 +599,7 @@ const FIZ = fizSchema();
      разновалютному множеству нечего, и она честно отбита; тождество от этого не пропало,
      оно переехало на ту запись, где сложение законно. Утверждение прежнее. */
   const SD = ST.somIdOf('a-sumdebt');
-  const slice = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count','a-sumdebt', SD], date:'2026-08-20'});
+  const slice = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count','a-sumdebt', SD], date:'2026-08-21'});
   const sumOfGroups = slice.groups.reduce((s, g) => s + g.values[SD].v, 0);
   ok(38, Math.abs(sumOfGroups - slice.total[SD].v) < 0.01 &&
         slice.groups.reduce((s, g) => s + g.n, 0) === slice.n &&
@@ -917,9 +927,9 @@ const FIZ = fizSchema();
         fo1.total['a-sumover'].refused && fo1.total['a-sumover'].som === SOV,
     `ФО-01 собирается срезом по ступеням срока: ${keys.join(' · ')} — по возрастанию, сумма групп сходится с итогом (${Math.round(sumG*100)/100} = ${Math.round(fo1.total[SOV].v*100)/100} сом., ИС-14, ИС-23). Ступень валюту не выбирает: просроченное в ВАЛЮТЕ ДОГОВОРА по такому множеству отбито с адресом на «${ST.IND(SOV).name}» (ИС-44)`);
 
-  const acc  = ST.flowBetween({obj:'obj-credit', inds:'m-accr', from:'2026-07-15', to:'2026-08-18'});
-  const woff = ST.flowBetween({obj:'obj-credit', inds:'m-woff', from:'2026-07-15', to:'2026-08-18'});
-  const stat = ST.flowBetween({obj:'obj-credit', inds:'m-total', from:'2026-07-15', to:'2026-08-18'});
+  const acc  = ST.flowBetween({obj:'obj-credit', inds:'m-accr', from:'2026-07-15', to:'2026-08-19'});
+  const woff = ST.flowBetween({obj:'obj-credit', inds:'m-woff', from:'2026-07-15', to:'2026-08-19'});
+  const stat = ST.flowBetween({obj:'obj-credit', inds:'m-total', from:'2026-07-15', to:'2026-08-19'});
   ok(66, acc.ok && woff.ok && !stat.ok && has(stat.why, 'ИС-17'),
     `за период спрашивается только нарастающее: начислено ${acc.ok ? acc.value : '—'}, списано ${woff.ok ? woff.value : '—'}; «Задолженность всего» отбита — «${String(stat.why).slice(0, 48)}…»`);
 
@@ -1083,7 +1093,7 @@ const FIZ = fizSchema();
      Теперь на закрытии `i_credits` СТОИТ, а `i_closed_credits` прибавляет единицу;
      «действующих» не хранится вовсе и считается при чтении разностью всего − закрытых. */
   const cnt = ST.IND('m-bcnt');
-  const was = ST.statRows({obj:'obj-borrower', date:'2026-05-31'}).rows.find(r => r.ref === '45607195804119');
+  const was = ST.statRows({obj:'obj-borrower', date:'2026-06-01'}).rows.find(r => r.ref === '45607195804119');
   const now = brows.find(r => r.ref === '45607195804119');
   const stale = ST.state.indicators.filter(i => i.src === 'поле' && i.key === 'contracts');
   const live72 = r => r ? r.inds['m-bcnt'].v - r.inds['m-bclosed'].v : null;
@@ -1296,7 +1306,7 @@ const FIZ = fizSchema();
 (() => {
   ST.seed();
   const st = ST.state;
-  const D = ['2026-05-31','2026-06-30','2026-07-31','2026-08-10','2026-08-18'];
+  const D = ['2026-06-01','2026-07-01','2026-08-01','2026-08-11','2026-08-19'];
   /* Волна 17: состав среза читается СРЕЗОМ (ИС-45) — при разрежённом хранении строки
      ровно на эту дату есть только у изменившихся, а состав от этого не меняется. */
   const cnt = (o, d) => ST.rowsAsOf(o, d).length;
@@ -1321,13 +1331,13 @@ const FIZ = fizSchema();
      журналом, а не наличием строк: иначе 31.05 у погашений читалось бы как «прогона не
      было» и молча подменилось бы предыдущей датой, которой тоже нет (ИС-12, ИС-19). */
   const empty = ST.statSlice({obj:'obj-repay', dims:['d-repkind'], inds:['a-count','a-sumramount'],
-    date:'2026-05-31'});
-  const may = st.runs.find(r => r.date === '2026-05-31');
+    date:'2026-06-01'});
+  const may = st.runs.find(r => r.date === '2026-06-01');
   const part = may && may.parts.find(p => p.obj === 'obj-repay');
   const noborn = st.runs.filter(r => r.parts).reduce((n, r) =>
     n + r.parts.reduce((k, p) => k + (p.noborn || 0), 0), 0);
   ok(87, empty.ok && empty.n === 0 && empty.groups.length === 0 &&
-        empty.passport.asOf === '2026-05-31' && empty.passport.substituted === false &&
+        empty.passport.asOf === '2026-06-01' && empty.passport.substituted === false &&
         part && part.n === 0 && part.unborn === 14 && noborn === 0,
     `«строк ноль» не «прогона не было»: срез от 31.05 отвечает пустотой на СВОЮ дату (подстановки нет), а прогон называет ненаступившее поимённо — ${part ? part.unborn : '—'} ещё не рождённых; записей с необъявленным рождением во всём мире ${noborn} (ИС-12, ИС-19, СС-Д6)`);
 
@@ -1337,7 +1347,7 @@ const FIZ = fizSchema();
      движением нельзя. Отсутствие строки при этом обязано быть отсутствием, а не нулём:
      нулём оно дало бы движение, которого не было, пустотой — потеряло бы поступление. */
   const at = d => ST.statRows({obj:'obj-case', date: d}).rows;
-  const r31 = at('2026-07-31'), r10 = at('2026-08-10');
+  const r31 = at('2026-08-01'), r10 = at('2026-08-11');
   const nb = r10.find(r => r.ref === 'ДВ-2026/07');
   const born31 = r31.some(r => r.ref === 'ДВ-2026/07');
   const sum = rs => Math.round(rs.reduce((n, r) => n + (r.inds['m-claim'] || {}).v, 0) * 100) / 100;
@@ -1380,7 +1390,7 @@ const FIZ = fizSchema();
 (() => {
   ST.seed();
   const st = ST.state;
-  const D = '2026-08-18';
+  const D = '2026-08-19';
 
   /* ИС-34. Сумма групп БОЛЬШЕ итога — и это не расхождение счёта, а устройство: один
      кредит стоит и в филиале заёмщика, и в филиале поручителя, но денег вдвое не
@@ -1466,7 +1476,7 @@ const FIZ = fizSchema();
   /* СС-Д9 закрыт ПО ПОСТРОЕНИЮ, а не подгонкой чисел: «погашено всего» больше не
      самостоятельный ряд, а сумма платежей своего кредита. Сверка идёт по каждому
      договору в ЕГО валюте — без пересчёта в сом, потому что курс на две даты разный. */
-  const A = '2026-06-30', B = '2026-08-18';
+  const A = '2026-07-01', B = '2026-08-19';
   const rowsAt = d => ST.statRows({obj:'obj-credit', date: d}).rows;
   const ca = rowsAt(A), cb = rowsAt(B);
   const bad = cb.filter(r => {
@@ -1487,7 +1497,7 @@ const FIZ = fizSchema();
    выдаётся и что печатает паспорт. ------------------------------------------- */
 (() => {
   ST.seed();
-  const D = '2026-08-18';
+  const D = '2026-08-19';
   const sl = (f, obj) => ST.statSlice({obj: obj || 'obj-credit', dims:[], inds:['a-count'], date: D, filter: f});
   const n  = f => { const r = sl(f); return r.ok ? r.total['a-count'].v : -1; };
 
@@ -1575,9 +1585,9 @@ const FIZ = fizSchema();
 
   const kgsF   = F(cD('d-cur', '=', {value:'KGS'}));
   const ser    = ST.statSeries({obj:'obj-credit', inds:'a-count',
-    dates:['2026-07-31','2026-08-10','2026-08-18'], filter: kgsF});
-  const fl     = ST.flowBetween({obj:'obj-credit', inds:'m-repaid', from:'2026-07-15', to:'2026-08-18', filter: kgsF});
-  const serBad = ST.statSeries({obj:'obj-credit', inds:'a-count', dates:['2026-07-31','2026-08-18'],
+    dates:['2026-08-01','2026-08-11','2026-08-19'], filter: kgsF});
+  const fl     = ST.flowBetween({obj:'obj-credit', inds:'m-repaid', from:'2026-07-15', to:'2026-08-19', filter: kgsF});
+  const serBad = ST.statSeries({obj:'obj-credit', inds:'a-count', dates:['2026-08-01','2026-08-19'],
     filter: F(cD('d-cur', '∈', {values:['KGS','USD','EUR']}))});
   ok(109, ser.ok && ser.points.every(p => p.value.v === 6) && has(ser.passport.filter, 'Валюта кредитного договора = KGS') &&
         fl.ok && Math.round(fl.value) === 825500 && has(fl.passport.filter, 'Валюта кредитного договора = KGS') &&
@@ -1609,7 +1619,7 @@ const FIZ = fizSchema();
     return f ? f.sets.map(x => x.cmps.length) : null; };
 
   ST.seed();
-  ST.state.q.obj = 'obj-credit'; ST.state.q.date = '2026-08-18';
+  ST.state.q.obj = 'obj-credit'; ST.state.q.date = '2026-08-19';
   ST.go('build');
 
   /* Первое сравнение — новым набором. */
@@ -1662,7 +1672,7 @@ const FIZ = fizSchema();
 (() => {
   ST.seed();
   const st = ST.state;
-  const D = '2026-08-18';
+  const D = '2026-08-19';
   const W = vm.runInContext('WORLD', sandbox);
   const rowsOf = o => ST.rowsAsOf(o, D);
   const v = (r, i) => (r.inds[i] ? r.inds[i].v : null);
@@ -1822,7 +1832,7 @@ const FIZ = fizSchema();
 (() => {
   ST.seed();
   const st = ST.state;
-  const D = '2026-08-18';
+  const D = '2026-08-19';
   const W = vm.runInContext('WORLD', sandbox);
   const rowsOf = o => ST.rowsAsOf(o, D);
   const v = (r, i) => (r.inds[i] ? r.inds[i].v : null);
@@ -1969,7 +1979,7 @@ const FIZ = fizSchema();
   const q = {obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date: TODAY};
   const sl = ST.statSlice(q);
   const rw = ST.statRows({obj:'obj-credit', date: TODAY});
-  const sr = ST.statSeries({obj:'obj-credit', inds:'a-sumdebt', dates:['2026-07-31', TODAY]});
+  const sr = ST.statSeries({obj:'obj-credit', inds:'a-sumdebt', dates:['2026-08-01', TODAY]});
   const fl = ST.flowBetween({obj:'obj-credit', inds:'m-repaid', from:'2026-07-15', to: TODAY});
   const shut = [sl, rw, sr, fl];
   /* Отказ обязан называть дверь, а не только запрет: «как сейчас» отвечает реестр
@@ -1977,8 +1987,8 @@ const FIZ = fizSchema();
   const door = ST.registryList('obj-credit', st.today, null);
   const was = ST.resolveAsOf(TODAY);
   ok(129, shut.every(x => x && x.ok === false) &&
-        shut.every(x => has(x.why, 'ИС-36') && has(x.why, '20.08.2026')) &&
-        has(sl.why, 'Кредиты') && door.length === 8 && was && was.asOf === '2026-08-20',
+        shut.every(x => has(x.why, 'ИС-36') && has(x.why, '21.08.2026')) &&
+        has(sl.why, 'Кредиты') && door.length === 8 && was && was.asOf === '2026-08-21',
     `все четыре двери отказывают на «сегодня» одинаково: «${sl.why}». До волны 14 тот же вопрос отвечал ЧИСЛОМ — молча строками от ближайшего прогона (${was.asOf}), и расхождение с завтрашним ответом на тот же вопрос поймать было нечем: оба честны. Отказ называет дверь, и дверь отвечает: в реестре «Кредиты» на сегодня ${door.length}`);
 
   const ds = ST.askDates('obj-credit');
@@ -1991,9 +2001,9 @@ const FIZ = fizSchema();
      журнала, легаси — из строк, и лежат они СТРОГО по свою сторону запуска. */
   const dsRun = ds.filter(d => d >= ST.LAUNCH()), dsLeg = ds.filter(d => d < ST.LAUNCH());
   ok(130, ds.length === 12 && dsRun.length === 6 && dsLeg.length === 6 &&
-        ds.indexOf(TODAY) < 0 && ds[ds.length - 1] === '2026-08-20' &&
+        ds.indexOf(TODAY) < 0 && ds[ds.length - 1] === '2026-08-21' &&
         st.q.date === ds[ds.length - 1] && empty.length === 0 && future.length === 0 &&
-        !ST.dateGate(ds[ds.length - 1]) && !ST.dateGate('2026-08-19'),
+        !ST.dateGate(ds[ds.length - 1]) && !ST.dateGate('2026-08-20'),
     `спрашиваемые даты — это ЖУРНАЛ ПРОГОНОВ, а не константа файла: ${dsRun.length} прогонных дат у кредита, «сегодня» среди них нет, умолчание вопроса стоит на последней (${st.q.date}). Объектов без единой даты ${empty.length} из ${objs.length}, дат в будущем ${future.length}. Дыра внутри истории воротами НЕ отбивается (19.08 проходит) — её дело ИС-12, а не ИС-36. Второе слагаемое списка — ${dsLeg.length} ЛЕГАСИ-дат (${dsLeg[0].slice(0,7)}…${dsLeg[dsLeg.length-1].slice(0,7)}), и они не из журнала: прогон их не писал и не видит, читаются они из строк — законно ровно потому, что легаси-строка окончательна по построению (ИС-41, ADR-0207 §5)`);
 
   ST.seed();
@@ -2093,7 +2103,7 @@ const FIZ = fizSchema();
   const doors = [
     ST.statSlice({obj:'obj-receipt', dims:['d-rchan'], inds:['a-count'], date: ASK}),
     ST.statRows({obj:'obj-receipt', date: ASK}),
-    ST.statSeries({obj:'obj-receipt', inds:'a-sumrsum', dates:['2026-07-31', ASK]}),
+    ST.statSeries({obj:'obj-receipt', inds:'a-sumrsum', dates:['2026-08-01', ASK]}),
     ST.exportJob({obj:'obj-receipt', date: ASK}),
     ST.workList('obj-receipt')];
   ST.setRole('Администратор статистики');
@@ -2148,7 +2158,7 @@ const FIZ = fizSchema();
         has(statFirst.why, 'учёт') && has(statFirst.why, 'классификация') &&
         has(statFirst.why, 'ИС-38') && has(statFirst.why, 'ADR-0204') &&
         !clsFirst.ok && clsFirst.blockedBy === 'учёт' && !has(clsFirst.why, 'ADR-0204 §4') &&
-        !ST.isClosed('2026-07-31') && ST.openPeriod('учёт') === '2026-07',
+        !ST.isClosed('2026-08-01') && ST.openPeriod('учёт') === '2026-07',
     `порядок стережёт САМ справочник, и отказ называет незакрытый слой поимённо: «${statFirst.why}». Не «нельзя» вообще — сказано, ЧЕГО ждать и от кого. Классификация через голову учёта тоже не проходит (${clsFirst.blockedBy}): правило одно на все слои и читается из места слоя в списке, а не из веток «если статистика». Пока каскад собирался процедурой в чьём-то коде, рассогласование слоёв было штатным состоянием, и «ещё не доехало» от «сломалось» не отличалось ничем (ADR-0204, отвергнутое)`);
 
   /* #139 — снизу вверх, и именно по одной: «все сразу» — не то же самое. */
@@ -2159,7 +2169,7 @@ const FIZ = fizSchema();
   const jul = ST.calendar().find(p => p.month === '2026-07');
   ok(139, a.ok && !mid.ok && mid.blockedBy === 'классификация' && !has(mid.why, '«учёт»') &&
         b.ok && c.ok && c.fixed > 0 && c.layer === 'статистика' &&
-        ST.isClosed('2026-07-31') && ST.openPeriod() === '2026-08' &&
+        ST.isClosed('2026-08-01') && ST.openPeriod() === '2026-08' &&
         jul.latches['учёт'].at === '2026-08-05' && jul.latches['классификация'].at === '2026-08-07' &&
         jul.latches['статистика'].by === 'Мамбетов Э., администратор статистики',
     `порядок именно СНИЗУ ВВЕРХ, а не «все сразу»: после учёта статистика всё ещё отказывает и называет уже другой слой («${mid.blockedBy}»), и только после него проходит — зафиксировано строк ${c.fixed}. Каскад виден строкой: до какого слоя доехало закрытие июля, видит любой участник, не спрашивая никого (ADR-0204 §3). Фиксация строк — эффект ВЕРХНЕГО СЛОЯ, а не справочника: календарь стережёт порядок и ничьих чисел не трогает (§6)`);
@@ -2170,7 +2180,7 @@ const FIZ = fizSchema();
   const noWho = LAY.map(L => ST.closeLayer('2026-07', L, ''));
   const before = LAY.map(L => ST.openPeriod(L)).join('|');
   ST.run(TODAY, {});
-  ST.skip('2026-08-19', 'повторное окно обслуживания');
+  ST.skip('2026-08-20', 'повторное окно обслуживания');
   const after = LAY.map(L => ST.openPeriod(L)).join('|');
   /* Колонки легаси проставлены не справочником и не человеком, а выпуском миграции, и в
      счёт «справочник не актор» не идут: он их и не ставил (ИС-41, ADR-0207 §3). */
@@ -2188,15 +2198,15 @@ const FIZ = fizSchema();
   const may2 = ST.calendar().find(p => p.month === '2026-05');
   const saved = may2.latches['статистика'];
   delete may2.latches['статистика'];                 /* снимаем ОДНУ колонку в справочнике */
-  const seen = {open: ST.openPeriod(), closed: ST.isClosed('2026-05-31'),
+  const seen = {open: ST.openPeriod(), closed: ST.isClosed('2026-06-01'),
                 fix: ST.fixationOfMonth('2026-05'),
                 div: ST.divergence('2026-05', 'obj-credit', 'm-debt'),
-                run: ST.run('2026-05-31', {}),
+                run: ST.run('2026-06-01', {}),
                 lower: !!may2.latches['учёт'] && !!may2.latches['классификация']};
   may2.latches['статистика'] = saved;
   ok(141, own.length === 0 && seen.open === '2026-05' && seen.closed === false &&
         seen.fix === null && !seen.div.ok && seen.run.ok && seen.lower === true &&
-        ST.isClosed('2026-05-31') === true && ST.openPeriod() === '2026-07' &&
+        ST.isClosed('2026-06-01') === true && ST.openPeriod() === '2026-07' &&
         ST.latch('2026-05', 'учёт').by !== ST.latch('2026-05', 'статистика').by,
     `календарь ОДИН, и он общий: своих полей «закрытых периодов» у состояния статистики не осталось (${own.length}), а снятая ПРЯМО В СПРАВОЧНИКЕ колонка статистики мая мгновенно меняет ответ всех её читателей разом — открытый период, isClosed, фиксация строк, расхождение и даже запрет прогона за 31.05 (ИС-8). Колонки учёта и классификации при этом остаются на месте (${seen.lower}): слои в одной строке независимы, и «май закрыт» без имени слоя — вопрос без ответа. Вернули колонку — вернулись все ответы. Пока список был свой, он мог разъехаться с общим, и оба были бы честны (ADR-0204, контекст)`);
 
@@ -2225,7 +2235,10 @@ const FIZ = fizSchema();
   const CLS = 'Турдубаева А., администратор классификации';
   const STA = 'Мамбетов Э., администратор статистики';
   const ORD = {no:'РП-118 от 21.08.2026', basis:'акт сверки № 41 от 14.07.2026'};
-  const mFixed = m => ST.state.rows.filter(r => r.date.slice(0, 7) === m && r.fixed).length;
+  /* Период строки — периода строки, а не месяц её собственной даты (ИС-54): месячный
+     слепок лежит на первом числе СЛЕДУЮЩЕГО месяца, и «строк мая» без ST.periodOf
+     не нашлось бы ни одной (ADR-0238 §2). */
+  const mFixed = m => ST.state.rows.filter(r => ST.periodOf(r.date) === m && r.fixed).length;
   const why = r => String((r && r.why) || '(отказа нет)');
   const lastLog = () => ((ST.state.log[0] || {}).msg || '(журнал пуст)');
 
@@ -2262,18 +2275,18 @@ const FIZ = fizSchema();
      другом: прогон теперь РАССМАТРИВАЕТ эти строки и находит их неизменными (same),
      а не пропускает как зафиксированные (kept). Контрфакт исполняется, а не
      предполагается: метка ставится обратно руками, и тот же прогон уходит в kept. */
-  const reRun = ST.run('2026-05-31', {});
-  ST.state.rows.forEach(r => { if(r.date.slice(0, 7) === '2026-05')
+  const reRun = ST.run('2026-06-01', {});
+  ST.state.rows.forEach(r => { if(ST.periodOf(r.date) === '2026-05')
     r.fixed = {period:'2026-05', at: TODAY, by: WHO}; });
-  const keptRun = ST.run('2026-05-31', {});
-  ST.state.rows.forEach(r => { if(r.date.slice(0, 7) === '2026-05') r.fixed = null; });
+  const keptRun = ST.run('2026-06-01', {});
+  ST.state.rows.forEach(r => { if(ST.periodOf(r.date) === '2026-05') r.fixed = null; });
   ok(144, !lower.ok && lower.blockedBy === 'статистика' && has(lower.why, 'СВЕРХУ ВНИЗ') &&
         !mid.ok && mid.blockedBy === 'статистика' &&
         re.ok && re.opened === 'учёт' && re.reasked.join('|') === 'статистика|классификация' &&
         re.dropped.join('|') === 'статистика|классификация|учёт' &&
         Object.keys(may144.latches).length === 0 &&
         fixedBefore > 0 && fixedAfter === 0 && re.unfixed === fixedBefore && shapeOk &&
-        ST.isClosed('2026-05-31') === false && ST.openPeriod('учёт') === '2026-05' &&
+        ST.isClosed('2026-06-01') === false && ST.openPeriod('учёт') === '2026-05' &&
         reRun.ok && reRun.kept === 0 && reRun.same === fixedBefore && reRun.written === 0 &&
         keptRun.ok && keptRun.kept === fixedBefore && keptRun.same === 0 &&
         ST.state.log.some(l => has(l.msg, ORD.no) && has(l.msg, 'перезакрыт')),
@@ -2295,13 +2308,13 @@ const FIZ = fizSchema();
         u1.ok && c1.ok && s1.ok && s1.fixed > 0 &&
         LAY.every(L => may145.latches[L].order === ORD.no) &&
         may145.latches['учёт'].at === TODAY && atFirst !== TODAY &&
-        ST.isClosed('2026-05-31') === true && ST.openPeriod() === '2026-07' &&
+        ST.isClosed('2026-06-01') === true && ST.openPeriod() === '2026-07' &&
         ST.fixationOfMonth('2026-05').at === TODAY,
     `повторная простановка идёт СНИЗУ ВВЕРХ и той же дверью, что первая: через голову учёта статистика по-прежнему отказывает и называет слой («${topFirst.blockedBy}»), а пройдя по порядку — фиксирует строки заново (${s1.fixed}). Второго механизма закрытия не завелось: перезакрытие сняло защёлки и ушло, закрывают те же люди тем же действием. Колонка при ПЕРВОМ закрытии несла «${keysFirst}», при повторном несёт «${keysAgain}» (${may145.latches['учёт'].order}): дата простановки сменилась с ${atFirst} на ${TODAY}, и без номера распоряжения «май закрыт 21 августа» не отличить от опоздавшего первого закрытия — а это разные вещи, и у второго есть подписанное основание, которое получатель сданного вправе спросить (ADR-0204 §1, ИС-50, ADR-0157 §6)`);
 
   /* #146 — выпуск ПОМЕЧЕН, но не переиздан; выпуск на другой период не тронут. */
   ST.seed();
-  const jMay = ST.exportJob({obj:'obj-credit', date:'2026-05-31', filter: null});
+  const jMay = ST.exportJob({obj:'obj-credit', date:'2026-06-01', filter: null});
   const jAug = ST.exportJob({obj:'obj-repay', date: ASK, filter: null});
   const snap = ST.exportsList().map(j => ({id: j.id, n: j.n, file: j.file, state: j.state,
     by: j.by, at: j.at, p: JSON.stringify(j.passport)}));
@@ -2326,7 +2339,7 @@ const FIZ = fizSchema();
   /* #147 — верхние слои не открываются НИКОГДА, и пометки накапливаются, а не заменяются. */
   ST.seed();
   const O2 = {no:'РП-204 от 21.08.2026', basis:'предписание внутреннего аудита № 7'};
-  ST.exportJob({obj:'obj-credit', date:'2026-05-31', filter: null});
+  ST.exportJob({obj:'obj-credit', date:'2026-06-01', filter: null});
   const close5 = () => { ST.closeLayer('2026-05', 'учёт', WHO, TODAY);
                          ST.closeLayer('2026-05', 'классификация', CLS, TODAY);
                          return ST.closePeriod('2026-05', STA); };
@@ -3444,9 +3457,9 @@ const FIZ = fizSchema();
      считается, потому что разность двух сомовых снимков несёт курсовую разницу. Отказ
      называет адрес; период по валютной нарастающей считается и приводится к сому один раз. */
   st = ST.seed();
-  const flowSom = ST.flowBetween({obj:'obj-credit', inds:'m-accr-som', from:'2026-07-15', to:'2026-08-18'});
-  const flowCur = ST.flowBetween({obj:'obj-credit', inds:'m-accr', from:'2026-07-15', to:'2026-08-18'});
-  const stock = ST.flowBetween({obj:'obj-credit', inds:'m-total', from:'2026-07-15', to:'2026-08-18'});
+  const flowSom = ST.flowBetween({obj:'obj-credit', inds:'m-accr-som', from:'2026-07-15', to:'2026-08-19'});
+  const flowCur = ST.flowBetween({obj:'obj-credit', inds:'m-accr', from:'2026-07-15', to:'2026-08-19'});
+  const stock = ST.flowBetween({obj:'obj-credit', inds:'m-total', from:'2026-07-15', to:'2026-08-19'});
   const div = ST.divergence('2026-05', 'obj-credit', 'm-debt');
   ok(182, !flowSom.ok && has(flowSom.why, 'КУРСОВУЮ РАЗНИЦУ') && has(flowSom.why, 'Начислено процентов всего') &&
         has(flowSom.why, 'ADR-0151 §3') && has(flowSom.why, 'ADR-0214 §7') &&
@@ -3480,7 +3493,7 @@ const FIZ = fizSchema();
      объявлено записью, и наследование агрегата — чтение реквизита основания, а не догадка. */
   const aggUsd183 = ST.statSlice({obj:'obj-credit', dims:[], inds:['a-sumdebt'], date: ASK,
     filter: F(cD('d-cur','=',{value:'USD'}))}).total['a-sumdebt'];
-  const flow183 = ST.flowBetween({obj:'obj-credit', inds:'m-accr', from:'2026-07-15', to:'2026-08-18'});
+  const flow183 = ST.flowBetween({obj:'obj-credit', inds:'m-accr', from:'2026-07-15', to:'2026-08-19'});
   const div183 = ST.divergence('2026-05', 'obj-credit', 'm-debt');
   /* ДВЕРЬ СПРАШИВАЕТ: молчание — отказ, неизвестное правило — отказ с перечислением
      объявленных, правило у неденежной записи — отказ, правило у разреза — чужая порода. */
@@ -3616,17 +3629,17 @@ const FIZ = fizSchema();
   const P = q => ST.statRows(q).passport;
   const p1 = P({obj:'obj-credit', date: ASK});                 /* написано на эту дату   */
   const p2 = P({obj:'obj-repay',  date: ASK});                 /* не менялось с такой-то */
-  const p3 = P({obj:'obj-credit', date:'2026-08-19'});         /* нет данных: подстановка */
+  const p3 = P({obj:'obj-credit', date:'2026-08-20'});         /* нет данных: подстановка */
   const H185 = vm.runInContext('passportHtml', sandbox);
   const h1 = H185(p1), h2 = H185(p2), h3 = H185(p3);
   ok(185, p1.substituted === false && p1.age === 0 && p1.dense === 8 && p1.carried === 0 &&
         p1.density === null && !/class="pass warn"/.test(h1) && h1.indexOf('Плотность') < 0 &&
         p2.substituted === false && p2.age === 0 && p2.asOf === ASK &&
         p2.dense === 0 && p2.carried === 14 && p2.n === 14 &&
-        has(p2.density, 'не менялось') && has(p2.density, 'действуют с 30.06.2026') &&
+        has(p2.density, 'не менялось') && has(p2.density, 'действуют с 01.07.2026') &&
         has(p2.density, 'а не «нет данных»') && has(p2.density, 'ИС-45') &&
         !/class="pass warn"/.test(h2) && h2.indexOf('Плотность') >= 0 &&
-        p3.substituted === true && p3.asOf === '2026-08-18' && p3.age === 1 &&
+        p3.substituted === true && p3.asOf === '2026-08-19' && p3.age === 1 &&
         has(p3.skipped, 'пропуск') && /class="pass warn"/.test(h3),
     `паспорт различает ТРИ ответа, а не два. Первый — написано на эту дату: «Кредит» на ${ASK}, строк ${p1.dense}, перенесённых ${p1.carried}, про плотность сказать нечего (${p1.density === null ? 'строки нет' : 'ЕСТЬ ЗАПИСЬ'}), и паспорт спокоен. Второй — НЕ МЕНЯЛОСЬ: «Погашение» на ту же дату отвечает ${p2.n} строками, из которых написано на эту дату ${p2.dense}, а перенесено ${p2.carried}, и паспорт говорит вслух: «${String(p2.density).slice(0, 96)}…». Он ТОЖЕ спокоен — «не менялось» есть полноценный ответ, и красить его тревогой значило бы объявить нормальную работу подозрительной. Третий — НЕТ ДАННЫХ: вопрос на 19.08 подставляет 18.08 с возрастом ${p3.age} и называет причину («${String(p3.skipped).slice(0, 52)}…»), и вот ТУТ паспорт помечен тревогой. Склей второй с третьим — «не менялось с 30.06» читалось бы как «данных нет», и первый же читатель принял бы действующее число за дыру (ИС-45, ИС-12, ADR-0215 §2)`);
 
@@ -3638,27 +3651,36 @@ const FIZ = fizSchema();
      в закрытый период НЕЗАФИКСИРОВАННЫМИ, а дописать их потом ИС-8 уже не даст. */
   ST.seed();
   const run186 = ST.run('2026-07-15');
-  const sparseBefore = OBJS.filter(o => ST.rowsAt(o, '2026-07-31').length < ST.rowsAsOf(o, '2026-07-31').length);
+  const sparseBefore = OBJS.filter(o => ST.rowsAt(o, '2026-08-01').length < ST.rowsAsOf(o, '2026-08-01').length);
   const cl1 = ST.closeLayer('2026-07', 'учёт', 'Осмонова Г., главный бухгалтер', '2026-08-05');
   const cl2 = ST.closeLayer('2026-07', 'классификация', 'Турдубаева А., администратор классификации', '2026-08-07');
   const cp186 = ST.closePeriod('2026-07', 'Мамбетов Э., администратор статистики');
-  const sparseAfter = OBJS.filter(o => ST.rowsAt(o, '2026-07-31').length < ST.rowsAsOf(o, '2026-07-31').length);
+  const sparseAfter = OBJS.filter(o => ST.rowsAt(o, '2026-08-01').length < ST.rowsAsOf(o, '2026-08-01').length);
   const sparseMid   = OBJS.filter(o => ST.rowsAt(o, '2026-07-15').length < ST.rowsAsOf(o, '2026-07-15').length);
-  const july186 = ST.state.rows.filter(r => r.date >= '2026-07-01' && r.date <= '2026-07-31');
-  const made186 = ST.state.rows.filter(r => r.by === 'защёлка' && r.date === '2026-07-31');
+  /* Строки июля — те, чей ПЕРИОД июль (ИС-54): дата 01.07 несёт канун 30.06 и
+     принадлежит ещё июню (её зафиксировало закрытие июня), поэтому граница окна —
+     ST.periodOf, а не «с первого числа» (ADR-0238 §2). */
+  const july186 = ST.state.rows.filter(r => ST.periodOf(r.date) === '2026-07');
+  const made186 = ST.state.rows.filter(r => r.by === 'защёлка' && r.date === '2026-08-01');
   const rec186  = ST.state.runs.filter(r => r.kind === 'защёлка').pop();
   const log186  = ST.state.log.filter(l => has(l.msg, 'слепок дописал'));
   /* Волна 23 (переписан на месте): МВ-2026/12 больше не меняется каждую ночь — «дней с
      направления» снят (схема §11), — поэтому 15.07 она «без изменений» (написано 37 → 36,
      без изменений 21 → 22), в июле строк 100 → 99, и на 31.07 защёлка материализует её
-     слепком (19 → 20). Порядок «слепок, потом фиксация» и §5 проверяются как прежде. */
-  ok(186, run186.ok && run186.written === 36 && run186.same === 22 && run186.born === 7 &&
+     слепком (19 → 20). Порядок «слепок, потом фиксация» и §5 проверяются как прежде.
+     Волна 23 З-15a (переписан на месте, ИС-54, ADR-0238 §2): рождение дня X видно
+     срезу X+1, а не X, — три объекта с датой рождения ровно 15.07 в срезе 15.07 ещё
+     не рождены (написано 36 → 33, born 7 → 4). Ту же строку сдвигает и период: месячный
+     слепок закрытия июля лежит на 01.08 и принадлежит июлю, а строка САМОГО 01.07
+     принадлежит июню (закрыта его закрытием) — окно «строк июля» считается по
+     ST.periodOf, и фиксированных в нём 99 → 96. */
+  ok(186, run186.ok && run186.written === 33 && run186.same === 22 && run186.born === 4 &&
         sparseBefore.length === 6 && cl1.ok && cl2.ok &&
-        cp186.ok && cp186.fixed === 99 && cp186.dense === 20 &&
+        cp186.ok && cp186.fixed === 96 && cp186.dense === 20 &&
         sparseAfter.length === 0 && sparseMid.length === 6 &&
-        july186.length === 99 && july186.every(r => r.fixed) &&
+        july186.length === 96 && july186.every(r => r.fixed) &&
         made186.length === 20 && made186.every(r => r.fixed) &&
-        rec186 && rec186.date === '2026-07-31' && rec186.written === 20 &&
+        rec186 && rec186.date === '2026-08-01' && rec186.written === 20 &&
         rec186.actor === 'Мамбетов Э., администратор статистики' &&
         has(rec186.reason, 'закрытие периода июль 2026') && rec186.parts.length === 10 &&
         log186.length === 1 && has(log186[0].msg, 'слепок дописал — ' + cp186.dense),
@@ -3676,7 +3698,9 @@ const FIZ = fizSchema();
     .find(r => r.ref === 'КД-2025/043') || {inds:{}}).inds['m-total-som'] || {});
   const was187 = cellOf187().v;
   const nRows187 = st.rows.length;
-  RATES.USD.push([ASK, 90.15]);
+  /* Курс — факт мира, отвечает на канун (ИС-54): прогон за ASK читает мир на
+     worldAt(ASK) = eve(ASK), и «уточнён задним числом» ставится туда же (приём #202). */
+  RATES.USD.push([eve(ASK), 90.15]);
   const run187 = ST.run(ASK, {manual:true, reason:'курс доллара уточнён задним числом'});
   const rec187 = ST.state.runs[ST.state.runs.length - 1];
   const rw187 = rec187.parts.filter(p => p.rewrote.length);
@@ -3694,9 +3718,9 @@ const FIZ = fizSchema();
         e187.fields.every(f => !!ST.REC(f)) && e187.fields.indexOf('m-total') >= 0 &&
         e187.fields.indexOf('m-total-som') >= 0 &&
         Object.keys(dup187).every(k => dup187[k] === 1) &&
-        cell187.v !== was187 && (cell187.parts || []).every(p => p.rateDate === ASK) &&
+        cell187.v !== was187 && (cell187.parts || []).every(p => p.rateDate === eve(ASK)) &&
         J187.indexOf(String(was187)) < 0 && J187.indexOf('88.3') < 0,
-    `перезапись внутри ОТКРЫТОГО периода — событие журнала, а не тихая правка и не вторая история. Курс доллара уточнён задним числом на ${ASK}, прогон повторён вручную: строк написано ${run187.written}, из них ПЕРЕЗАПИСАНО на месте ${run187.rewrote} (${rw187.map(p => p.name).join(' и ')}) — физически строк прибавилось ${ST.state.rows.length - nRows187}, потому что перезапись копии не плодит (дублей на дату ${Object.keys(dup187).filter(k => dup187[k] > 1).length}), а ${run187.same} строк не изменились вовсе и не написаны. Журнал называет ССЫЛКУ и ПОЛЯ: «${e187.ref}», ${e187.fields.length} величин — ${e187.fields.slice(0, 3).map(f => '«' + (ST.REC(f) || {name: f}).name + '»').join(', ')} и далее, — и каждое имя разрешается реестром, а не печатается идентификатором. Чего в журнале НЕТ — так это перезаписанных значений: прежней суммы ${was187} в записях прогонов не найти (${J187.indexOf(String(was187)) < 0 ? 'нет' : 'ЕСТЬ'}), прежнего курса 88.3 тоже. Строка несёт НОВЫЙ курс (дата курса «${((cell187.parts || [])[0] || {}).rateDate}»), и история у неё одна — она сама. Храни журнал ещё и старые значения — рядом с историей строки завелась бы вторая, и на первом же расхождении спорили бы, которая из них история (ИС-45, ADR-0215 §6, ADR-0157 §6)`);
+    `перезапись внутри ОТКРЫТОГО периода — событие журнала, а не тихая правка и не вторая история. Курс доллара уточнён задним числом на ${eve(ASK)} (курс — факт мира, отвечает на канун прогона за ${ASK}, ИС-54), прогон повторён вручную: строк написано ${run187.written}, из них ПЕРЕЗАПИСАНО на месте ${run187.rewrote} (${rw187.map(p => p.name).join(' и ')}) — физически строк прибавилось ${ST.state.rows.length - nRows187}, потому что перезапись копии не плодит (дублей на дату ${Object.keys(dup187).filter(k => dup187[k] > 1).length}), а ${run187.same} строк не изменились вовсе и не написаны. Журнал называет ССЫЛКУ и ПОЛЯ: «${e187.ref}», ${e187.fields.length} величин — ${e187.fields.slice(0, 3).map(f => '«' + (ST.REC(f) || {name: f}).name + '»').join(', ')} и далее, — и каждое имя разрешается реестром, а не печатается идентификатором. Чего в журнале НЕТ — так это перезаписанных значений: прежней суммы ${was187} в записях прогонов не найти (${J187.indexOf(String(was187)) < 0 ? 'нет' : 'ЕСТЬ'}), прежнего курса 88.3 тоже. Строка несёт НОВЫЙ курс (дата курса «${((cell187.parts || [])[0] || {}).rateDate}»), и история у неё одна — она сама. Храни журнал ещё и старые значения — рядом с историей строки завелась бы вторая, и на первом же расхождении спорили бы, которая из них история (ИС-45, ADR-0215 §6, ADR-0157 §6)`);
 
   /* #188 — ПОКАЗАТЕЛЬ, ОБЪЯВЛЕННЫЙ ПОСРЕДИ ОТКРЫТОГО ПЕРИОДА (§7). Разрежённость и
      заведение записи сходятся ровно здесь: у объекта, который «не менялся», строки на
@@ -3727,8 +3751,8 @@ const FIZ = fizSchema();
   const qAfter188 = ST.queue().filter(q => q.obj === 'obj-program');
   const p188 = ST.state.runs[ST.state.runs.length - 1].parts.find(p => p.obj === 'obj-program');
   const now188 = ST.rowsAt('obj-program', TODAY);
-  const old188 = ST.rowsAt('obj-program', '2026-05-31');
-  const back188 = ST.statRows({obj:'obj-program', date:'2026-05-31'});
+  const old188 = ST.rowsAt('obj-program', '2026-06-01');
+  const back188 = ST.statRows({obj:'obj-program', date:'2026-06-01'});
   ok(188, bare188.ok && bp188.n === 0 && bp188.same === 0 && bp188.skip === 5 &&
         mig188.ok && add188.ok && !add188.waiting && add188.since === TODAY &&
         ST.colOf('m-w17').state === 'включена' &&
@@ -3752,9 +3776,9 @@ const FIZ = fizSchema();
   ST.seed();
   const a189 = ST.statRows({obj:'obj-repay', date: ASK});
   const carried189 = ST.rowsAsOf('obj-repay', ASK);
-  const b189 = ST.statRows({obj:'obj-credit', date:'2026-05-31'});
+  const b189 = ST.statRows({obj:'obj-credit', date:'2026-06-01'});
   const ser189 = ST.statSeries({obj:'obj-credit', inds:'a-sumdebt',
-    dates:['2026-05-31','2026-06-30','2026-07-31', ASK]});
+    dates:['2026-06-01','2026-07-01','2026-08-01', ASK]});
   ok(189, a189.passport.fixation === 'не зафиксировано' && a189.passport.fixedBy === null &&
         a189.passport.carried === 14 && carried189.length === 14 &&
         carried189.filter(r => r.fixed).length === 3 &&
@@ -3786,9 +3810,9 @@ const FIZ = fizSchema();
   /* Поток: база периода лежит на разрежённой дате, и два заёмщика приходят в неё
      переносом. Читай базу по дате — они бы «родились» внутри периода, и весь их
      нарастающий итог лёг бы в движение месяца (ИС-17, ADR-0151 §2). */
-  const fl190 = ST.flowBetween({obj:'obj-borrower', inds:'m-brepaid', from:'2026-07-31', to: ASK});
-  const baseAt190 = ST.rowsAt('obj-borrower', '2026-07-31').length;
-  const baseAs190 = ST.rowsAsOf('obj-borrower', '2026-07-31').length;
+  const fl190 = ST.flowBetween({obj:'obj-borrower', inds:'m-brepaid', from:'2026-08-01', to: ASK});
+  const baseAt190 = ST.rowsAt('obj-borrower', '2026-08-01').length;
+  const baseAs190 = ST.rowsAsOf('obj-borrower', '2026-08-01').length;
   ok(190, ST.rowsAt(O190, ASK).length === 0 && ST.rowsAsOf(O190, ASK).length === 5 &&
         doors190.every(n => n === 5) && sl190.passport.dense === 0 && sl190.passport.carried === 5 &&
         sl190.passport.asOf === ASK && wl190.asOf === ASK &&
@@ -3817,8 +3841,11 @@ const FIZ = fizSchema();
   const pg191 = ST.statRows({obj:'obj-program', date:'2026-07-15'});
   const pgFix191 = [...new Set(ST.rowsAsOf('obj-program', '2026-07-15')
     .map(r => (r.fixed || {}).at))];
-  /* Погашения на ту же дату — СМЕШАННЫЙ: четыре строки свои, четыре перенесены, и дат
-     фиксации в ответе две. Ответ обязан назвать ОДНУ — ту, что у периода. */
+  /* Погашения на ту же дату — СМЕШАННЫЙ: своих строк было четыре, а стало две, и дат
+     фиксации в ответе две. Ответ обязан назвать ОДНУ — ту, что у периода.
+     Волна 23 З-15a (переписан на месте, ИС-54, ADR-0238 §2): рождение дня X видно
+     срезу X+1, а не X, — два платежа с датой поступления ровно 15.07 в срезе 15.07
+     ещё не рождены (своих строк 4 → 2, перенесённых по-прежнему 4). */
   const rp191 = ST.statRows({obj:'obj-repay', date:'2026-07-15'});
   const rpFix191 = [...new Set(ST.rowsAsOf('obj-repay', '2026-07-15')
     .map(r => (r.fixed || {}).at))].sort();
@@ -3831,7 +3858,7 @@ const FIZ = fizSchema();
         pg191.passport.fixedAt === lt191.at && pg191.passport.fixedBy === lt191.by &&
         pg191.passport.dense === 0 && pg191.passport.carried === 5 &&
         rpFix191.length === 2 && rp191.passport.fixedAt === lt191.at &&
-        rp191.passport.dense === 4 && rp191.passport.carried === 4 &&
+        rp191.passport.dense === 2 && rp191.passport.carried === 4 &&
         op191.passport.fixation === 'не зафиксировано' &&
         op191.passport.fixedBy === null && op191.passport.fixedAt === null && opFixed191 === 8,
     `подпись фиксации — реквизит ПЕРИОДА ОТВЕТА, а не строк, которыми ответ собран. Июль закрыт ${lt191.by} ${lt191.at}. Ответ по «Кредитной программе» на 15.07 не имеет НИ ОДНОЙ своей строки (написано ${pg191.passport.dense}, перенесено ${pg191.passport.carried}), и все перенесённые заморожены ${pgFix191.join(', ')} — на закрытии ИЮНЯ. Паспорт подписывает его июльской защёлкой (${pg191.passport.fixedAt}), а не июньской: считай подпись по строкам — и под июльским числом стояла бы дата чужого месяца. У погашений на ту же дату случай смешанный: дат фиксации в ответе две (${rpFix191.join(' и ')}), своих строк ${rp191.passport.dense}, перенесённых ${rp191.passport.carried}, — ответ всё равно называет ОДНУ, июльскую. Обратная сторона: в ОТКРЫТОМ августе подписи нет вовсе (${String(op191.passport.fixedBy)}), хотя зафиксированных строк в ответе ${opFixed191} из ${op191.passport.n} — не изменится их ПРОШЛОЕ, а ответ дан на открытую дату и перепишется весь (ИС-9, ИС-45, ADR-0216 границы, ADR-0215 §2)`);
@@ -3846,7 +3873,7 @@ const FIZ = fizSchema();
      ряда, но считается множеством записей, а не суммой точек (ИС-45, ADR-0215 §2). */
   ST.seed();
   const ser192 = ST.statSeries({obj:'obj-repay', inds:'a-count',
-    dates:['2026-06-30','2026-07-31','2026-08-10', ASK]});
+    dates:['2026-07-01','2026-08-01','2026-08-11', ASK]});
   const pts192 = ser192.points || [];
   const sum192 = pts192.reduce((k, pt) => k + pt.n, 0);
   const last192 = pts192[pts192.length - 1] || {};
@@ -3856,7 +3883,7 @@ const FIZ = fizSchema();
         ser192.passport.n === 14 && has(ser192.passport.scope, ': 14') && sum192 === 40 &&
         pts192.map(pt => pt.dense + '/' + pt.carried).join(' ') === '4/0 7/3 4/8 0/14' &&
         pts192[0].density === null && has(last192.density, 'не менялось — 14') &&
-        has(last192.density, 'действуют с 30.06.2026') &&
+        has(last192.density, 'действуют с 01.07.2026') &&
         ser192.passport.fixation === 'смешанно',
     `плотность у РЯДА не спрашивается: она про одну отвеченную дату, а у ряда их четыре. Точки говорят о себе сами — написано/перенесено ${pts192.map(pt => pt.dense + '/' + pt.carried).join(' · ')}: у 30.06 все четыре строки свои и строка «Плотность» у неё не печатается вовсе, к ${ASK} своих не осталось ни одной («${String(last192.density).slice(0, 52)}…»). Паспорт ряда её не печатает (${has(html192, 'Плотность') ? 'ЕСТЬ' : 'нет'}) и не выдумывает: dense ${String(ser192.passport.dense)}, carried ${String(ser192.passport.carried)}. А СОСТАВ у ряда есть, и он МНОЖЕСТВО, а не сумма: точки дают в сумме ${sum192} строк, потому что перенесённая строка входит в каждую точку, где действует, — но платежей в системе ${ser192.passport.n}, и охват называет именно их («${ser192.passport.scope}»). Сложи ряд одним мешком — и он отчитался бы охватом ${sum192} при системных ${ser192.passport.n}, и «не менялось» посчиталось бы по числу, которого нет (ИС-45, ИС-34, ADR-0215 §2)`);
 })();
@@ -3898,8 +3925,8 @@ const FIZ = fizSchema();
   const notReal = declared.filter(sm => typeof CORE193[sm] !== 'function');
   const noNb = ST.addIndicator({id:'m-x9', name:'Проба соседа', obj:'obj-credit', src:'шов',
     seam:'grow', field:'x', type:'число', unit:'ед.', dates:1});
-  const badNb = ST.run('2026-08-20', {silent:{'ядро расчёта':'недоступен'}});
-  const badWhy = ST.run('2026-08-20', {silent:{'ядро':'сеть моргнула'}});
+  const badNb = ST.run('2026-08-21', {silent:{'ядро расчёта':'недоступен'}});
+  const badWhy = ST.run('2026-08-21', {silent:{'ядро':'сеть моргнула'}});
   /* Волна 23 (переписан на месте): швов, которые реестр называет, 15 → 14. `measureClock`
      кормил одну запись — «дней с направления меры», — а её схема считает при чтении, не
      храня (§11, ADR-0244 «Границы»); шов остаётся ОБЪЯВЛЕННЫМ у взыскания, потому что
@@ -3919,7 +3946,7 @@ const FIZ = fizSchema();
      и молчание попало бы в колонку по одной дороге и не попало по другой: строка объявила
      бы себя полной, потеряв половину величин. Проверяется и по коду: чтение ядра внутри
      сборщика встречается ровно там, где стоит дверь. */
-  const cols = o => { const r = ST.rowsAsOf(o, '2026-08-20')[0]; return Object.keys((r || {}).srcs || {}).sort(); };
+  const cols = o => { const r = ST.rowsAsOf(o, '2026-08-21')[0]; return Object.keys((r || {}).srcs || {}).sort(); };
   const cCred = cols('obj-credit'), cBorr = cols('obj-borrower'), cDeal = cols('obj-zdeal');
   const cCase = cols('obj-case'), cProg = cols('obj-program');
   const door = m[1].slice(m[1].indexOf('function readDim'), m[1].indexOf('ST.ROW_SHAPE'));
@@ -3938,9 +3965,9 @@ const FIZ = fizSchema();
      наследует молчание сама собой, потому что считается ИЗ величины, а не рядом с ней:
      нет основания — нет и сомовой колонки, и подставить ей ноль неоткуда. */
   ST.seed();
-  const was195 = ST.rowsAsOf('obj-credit', '2026-08-18').find(r => r.ref === 'КД-2025/043');
-  const mute195 = ST.run('2026-08-20', {silent:{'ядро':'недоступен'}});
-  const now195 = ST.state.rows.filter(r => r.date === '2026-08-20' && r.obj === 'obj-credit')
+  const was195 = ST.rowsAsOf('obj-credit', '2026-08-19').find(r => r.ref === 'КД-2025/043');
+  const mute195 = ST.run('2026-08-21', {silent:{'ядро':'недоступен'}});
+  const now195 = ST.state.rows.filter(r => r.date === '2026-08-21' && r.obj === 'obj-credit')
     .find(r => r.ref === 'КД-2025/043');
   const riskD = (ST.state.registry.find(r => r.kind === 'разрез' && r.obj === 'obj-credit' &&
     r.seam === 'riskCategory') || {}).id;
@@ -3961,13 +3988,13 @@ const FIZ = fizSchema();
      в паспорте, а не выдана за целое. Паспорт несёт её в обеих формах — полной и краткой,
      и в разметке она красится тревогой, как и всё, что меняет цену ответа (ИС-10). */
   ST.seed();
-  ST.run('2026-08-20', {silent:{'классификация':'не уложился в срок'}});
-  const rr196 = ST.statRows({obj:'obj-credit', date:'2026-08-20'});
-  const sl196 = ST.statSlice({obj:'obj-credit', date:'2026-08-20', inds:['a-count','a-sumdebt']});
+  ST.run('2026-08-21', {silent:{'классификация':'не уложился в срок'}});
+  const rr196 = ST.statRows({obj:'obj-credit', date:'2026-08-21'});
+  const sl196 = ST.statSlice({obj:'obj-credit', date:'2026-08-21', inds:['a-count','a-sumdebt']});
   const p196 = rr196.passport.partial || {n:0, neighbours:[], text:'—'};
   const html196 = vm.runInContext('passportHtml', sandbox)(rr196.passport);
   ST.seed();
-  const clean196 = ST.statRows({obj:'obj-credit', date:'2026-08-20'});
+  const clean196 = ST.statRows({obj:'obj-credit', date:'2026-08-21'});
   const htmlC196 = vm.runInContext('passportHtml', sandbox)(clean196.passport);
   ok(196, rr196.ok && sl196.ok && rr196.passport.partial && p196.n === 8 &&
         p196.neighbours.join() === 'классификация' &&
@@ -3984,9 +4011,9 @@ const FIZ = fizSchema();
      слово: дозаполнено то, что раньше не пришло ОТ МОЛЧАВШЕГО соседа и теперь пришло от
      ответившего; всё прочее — перезапись. Колонка источника при этом переворачивается. */
   ST.seed();
-  const mute197 = ST.run('2026-08-20', {silent:{'ядро':'недоступен'}});
-  const fill197 = ST.run('2026-08-20', {});
-  const row197 = ST.state.rows.filter(r => r.date === '2026-08-20' && r.obj === 'obj-credit')
+  const mute197 = ST.run('2026-08-21', {silent:{'ядро':'недоступен'}});
+  const fill197 = ST.run('2026-08-21', {});
+  const row197 = ST.state.rows.filter(r => r.date === '2026-08-21' && r.obj === 'obj-credit')
     .find(r => r.ref === 'КД-2025/043');
   const bl197 = ST.periodBlockers('2026-08').blockers.length;
   ok(197, mute197.ok && mute197.partial > 0 && mute197.filled === 0 && mute197.rewrote > 0 &&
@@ -4004,12 +4031,12 @@ const FIZ = fizSchema();
      текст в логе. Обратная сторона обязательна: починка идёт ОБЫЧНЫМ прогоном, и после
      неё та же защёлка проходит той же дверью — иначе блокировка была бы тупиком. */
   ST.seed();
-  ST.run('2026-07-31', {silent:{'классификация':'ответил ошибкой'}});
+  ST.run('2026-08-01', {silent:{'классификация':'ответил ошибкой'}});
   const low198 = [ST.closeLayer('2026-07', 'учёт', 'Осмонова Г., главный бухгалтер', '2026-08-05'),
                   ST.closeLayer('2026-07', 'классификация', 'Турдубаева А., администратор классификации', '2026-08-07')];
   const no198 = ST.closePeriod('2026-07', 'Осмонова Г., главный бухгалтер');
   const fix198 = ST.fixationOfMonth('2026-07');
-  const fill198 = ST.run('2026-07-31', {});
+  const fill198 = ST.run('2026-08-01', {});
   const yes198 = ST.closePeriod('2026-07', 'Осмонова Г., главный бухгалтер');
   ok(198, low198.every(r => r.ok) && !no198.ok && no198.blockers && no198.blockers.length === 1 &&
         has(no198.why, 'строки неполны') && has(no198.why, 'ответил ошибкой') &&
@@ -4027,16 +4054,16 @@ const FIZ = fizSchema();
      ГРАНИЦА: модуля заданий в макете нет, и повод здесь ОБЪЯВЛЕН, а не отдан. */
   ST.seed();
   const l0 = ST.silenceLeads();
-  ST.run('2026-08-20', {silent:{'взыскание':'отказал по правам'}});
-  ST.run('2026-08-20', {silent:{'взыскание':'отказал по правам'}});
+  ST.run('2026-08-21', {silent:{'взыскание':'отказал по правам'}});
+  ST.run('2026-08-21', {silent:{'взыскание':'отказал по правам'}});
   const l2 = ST.silenceLeads();
-  ST.run('2026-08-20', {silent:{'взыскание':'недоступен','кураторство':'недоступен'}});
+  ST.run('2026-08-21', {silent:{'взыскание':'недоступен','кураторство':'недоступен'}});
   const l3 = ST.silenceLeads();
   const k3 = Object.assign({nb:'—', key:'—', runs:0, reasons:[], text:'—'}, l3[0] || {});
-  ST.run('2026-08-20', {});
+  ST.run('2026-08-21', {});
   const l4 = ST.silenceLeads();
   ok(199, l0.length === 0 && l2.length === 0 && l3.length === 1 &&
-        k3.nb === 'взыскание' && k3.key === 'сосед-молчит/взыскание/с-2026-08-20' && k3.runs === 3 &&
+        k3.nb === 'взыскание' && k3.key === 'сосед-молчит/взыскание/с-2026-08-21' && k3.runs === 3 &&
         k3.reasons.length === 2 && has(k3.text, '3 прогона подряд') && l4.length === 0 &&
         ST.silenceLeads(2).length === 0,
     `затянувшееся молчание — повод, а не заметка: после одной и двух ночей поводов ${l0.length} и ${l2.length}, после третьей — один, и он называет соседа, срок и причины («${k3.text}»). Причин у повода ${k3.reasons.length} (${k3.reasons.join(' · ')}): за три ночи сосед успел отказать по правам и стать недоступным, и повод несёт обе — действия у них разные. Ключ устойчив («${k3.key}»), иначе каждую ночь заводился бы новый повод об одном и том же (ADR-0211). Ответившая ночь счёт обнуляет (${l4.length}): повод ею и закрывается. Считается по ЖУРНАЛУ, а не по строкам — сосед, молчавший там, где ничего не менялось, строки не оставил вовсе (ИС-45). ГРАНИЦА: модуля заданий в макете нет, повод ОБЪЯВЛЕН, а не отдан (ИС-42, ADR-0208 §7)`);
@@ -4054,9 +4081,9 @@ const FIZ = fizSchema();
      Ночь была, прогон её отработал, журнал о ней помнит — цена ей одна лишняя строка. */
   ST.seed();
   const before200 = ST.state.rows.length;
-  ST.run('2026-08-20', {silent:{'кураторство':'недоступен'}});
-  ST.run('2026-08-20', {});
-  const rows200 = ST.state.rows.filter(r => r.date === '2026-08-20');
+  ST.run('2026-08-21', {silent:{'кураторство':'недоступен'}});
+  ST.run('2026-08-21', {});
+  const rows200 = ST.state.rows.filter(r => r.date === '2026-08-21');
   const key200 = r => JSON.stringify([r.dims, r.inds]);
   const dup200 = rows200.filter(r => {
     const prevs = ST.state.rows.filter(x => x.obj === r.obj && x.ref === r.ref && x.date < r.date)
@@ -4129,7 +4156,7 @@ const FIZ = fizSchema();
   ST.closeLayer('2026-07', 'учёт', 'Осмонова Г., главный бухгалтер', '2026-08-05');
   ST.closeLayer('2026-07', 'классификация', 'Турдубаева А., администратор классификации', '2026-08-07');
   const sparse201 = () => ST.state.objects.filter(o =>
-    ST.rowsAt(o.id, '2026-07-31').length < ST.rowsAsOf(o.id, '2026-07-31').length).length;
+    ST.rowsAt(o.id, '2026-08-01').length < ST.rowsAsOf(o.id, '2026-08-01').length).length;
   const wasSparse201 = sparse201();
   const close201 = ST.closePeriod('2026-07', 'Осмонова Г., главный бухгалтер');
   const latch201 = ST.state.runs[ST.state.runs.length - 1];
@@ -4154,7 +4181,10 @@ const FIZ = fizSchema();
   ST.seed();
   const RATES202 = vm.runInContext('RATES', sandbox);
   const bare202 = ST.candidates(TODAY);
-  RATES202.USD.push([TODAY, 91.10]);
+  /* Курс — факт МИРА, а он отвечает на канун (ИС-54): чтобы попасть в окно
+     movedCurs(sinceISO, TODAY) = (worldAt(since), worldAt(TODAY)] = (…, eve(TODAY)],
+     запись курса ставится датой eve(TODAY), а не самим TODAY (ADR-0238 §2). */
+  RATES202.USD.push([eve(TODAY), 91.10]);
   const c202 = ST.candidates(TODAY);
   const keys202 = a => a.map(x => x.obj + '|' + x.ref);
   const kd202 = keys202(c202.by['критическая дата']);
@@ -4186,13 +4216,13 @@ const FIZ = fizSchema();
   const before203 = ST.polls().reduce((a, p) => (a[p.nb] = p.T, a), {});
   const run203 = ST.run(TODAY, {silent:{'ядро':'недоступен'}});
   const after203 = ST.polls().reduce((a, p) => (a[p.nb] = p.T, a), {});
-  const next203 = ST.candidates('2026-08-22').polls.reduce((a, p) => (a[p.nb] = p, a), {});
+  const next203 = ST.candidates('2026-08-23').polls.reduce((a, p) => (a[p.nb] = p, a), {});
   const vz203 = ST.polls().find(p => p.nb === 'взыскание');
   ok(203, before203['ядро'] === ASK && after203['ядро'] === ASK &&
         after203['классификация'] === TODAY && after203['погашения'] === TODAY &&
         after203['кураторство'] === TODAY && vz203.T === null && vz203.asks === false &&
         next203['ядро'].from === ASK && next203['классификация'].from === TODAY &&
-        next203['ядро'].to === '2026-08-22' && run203.ok,
+        next203['ядро'].to === '2026-08-23' && run203.ok,
     `момент «после чего спрашивать» — реквизит ПАРЫ «прогон + сосед», а не одна дата на прогон (ADR-0221 §2). Ядро в эту ночь промолчало — и его T остался на ${after203['ядро']}, тогда как у ответивших сдвинулся на ${after203['классификация']}. Следующая ночь спросит ядро за БОЛЬШИЙ интервал: окно ${next203['ядро'].from} → ${next203['ядро'].to} против ${next203['классификация'].from} → ${next203['классификация'].to} у остальных, и пропущенная ночь возвращается в опрос сама. Сдвинь общее T за всех — изменения молчавшего соседа не вернулись бы никогда: спрашивать их было бы уже не с чего. У соседа, который отвечать не умеет, T нет вовсе (${String(vz203.T)}) — и это не пропуск в данных, а другое состояние: спрашивать его не начинали (§5)`);
 
   /* #204 — ДЕГРАДАЦИЯ ЗАКОННА, И ПАСПОРТ РАЗЛИЧАЕТ ТРИ РАЗНЫЕ ВЕЩИ. «Сосед назвал ноль»,
@@ -4349,7 +4379,7 @@ const FIZ = fizSchema();
    окончательность берётся у КОЛОНКИ СЛОЯ соседа, и три реквизита соседа не выводятся
    друг из друга.                                                                        */
 (() => {
-  const J    = '2026-07-31';
+  const J    = '2026-08-01';
   const WHO  = 'Осмонова Г., главный бухгалтер';
   const KLS  = 'Турдубаева А., администратор классификации';
   /* Нижние колонки календаря — предусловие закрытия, а не часть проверяемого (ИС-38,
@@ -4402,7 +4432,7 @@ const FIZ = fizSchema();
      обеспечения», переписанный в карточке, отравляет майский срез ровно так же, как
      переписанный счёт дней. */
   ST.seed();
-  const D210 = '2026-05-31';
+  const D210 = '2026-06-01';
   const q210 = (dims, inds) => ST.statSlice({obj:'obj-collateral', date: D210, dims, inds});
   const cln210 = q210(['d-cbranch'],  ['a-sumcpledge']);
   const ind210 = q210(['d-cbranch'],  ['a-maxcsurv']);
@@ -4422,7 +4452,7 @@ const FIZ = fizSchema();
         dt(ind210).now.join() === 'm-csurv' && dt(ind210).now.indexOf('a-maxcsurv') < 0 &&
         dt(ind210).names.join() === '«Дней с последнего обследования»' &&
         has(sh(ind210), 'ТЕКУЩЕЕ 1') &&
-        has(dt(ind210).text, 'взяты в сегодняшней редакции, а не на 31.05.2026') &&
+        has(dt(ind210).text, 'взяты в сегодняшней редакции, а не на 01.06.2026') &&
         dim210.ok && dt(dim210).word === 'смешанно' && dt(dim210).now.join() === 'd-collkind' &&
         /* Волна 23 (переписан на месте): в строке залога 27 → 20 величин, текущих 12 → 9.
            Сняты «валюта оценки» (разрез), «страхование» и сомовые близнецы (ADR-0244 §4,
@@ -4452,7 +4482,9 @@ const FIZ = fizSchema();
   ST.seed();
   lower();
   CORE.DATING.calcDebt = keep211.filter(f => f !== 'total');
-  RATES.USD.push([J, 91.10]);
+  /* Курс — факт мира, отвечает на канун (ИС-54, приём #202): доспрос слепка J видит мир
+     на worldAt(J) = eve(J), и «уточнён задним числом» ставится туда же. */
+  RATES.USD.push([eve(J), 91.10]);
   const rew211  = ST.closePeriod('2026-07', WHO);
   const post211 = ST.state.rows.filter(r => r.obj === 'obj-credit' && r.date === J);
   const moved211 = post211.filter(r => r.by === 'защёлка');
@@ -4489,7 +4521,8 @@ const FIZ = fizSchema();
   ST.seed(); lower();
   const snap212 = {};
   ST.state.rows.filter(r => r.date === J).forEach(r => { snap212[r.obj + '|' + r.ref] = JSON.stringify(r.inds); });
-  RATES.USD.push([J, 91.10]);
+  /* Тот же приём, что у #211: курс ставится на канун слепка (worldAt(J) = eve(J), ИС-54). */
+  RATES.USD.push([eve(J), 91.10]);
   const r212 = ST.closePeriod('2026-07', WHO);
   const j212 = ST.state.runs[ST.state.runs.length - 1];
   const chg212 = ST.state.rows.filter(r => r.date === J)
@@ -4705,13 +4738,13 @@ const FIZ = fizSchema();
   const keep218 = cr218.h.curator;
   cr218.h.curator = [['2025-01-01','Асанов А.'], ['2026-07-15','Бекова Н.'], ['2026-08-15','Садыков М.']];
   ST.resetCoreCalls(); ST.resetObjectRowCalls();
-  const a218 = ST.consumerAsk({module:'отчётность', obj:'obj-credit', date:'2026-07-31',
+  const a218 = ST.consumerAsk({module:'отчётность', obj:'obj-credit', date:'2026-08-01',
     need:['d-curator', 'm-debt', 'к-curator']});
   const core218 = ST.coreCalls(), rows218 = ST.objectRowCalls();
   const r218 = (a218.rows || []).find(x => x.ref === 'КД-2024/117') || {cells:{}};
   const cell = id => r218.cells[id] || {};
   const p218 = a218.passport || {dating:{}};
-  const one218 = ST.consumerAsk({module:'отчётность', obj:'obj-credit', date:'2026-07-31',
+  const one218 = ST.consumerAsk({module:'отчётность', obj:'obj-credit', date:'2026-08-01',
     need:['m-debt']});
   const tw218 = ST.twins('obj-credit');
   const paired218 = tw218.filter(t => t.twin), bare218 = tw218.filter(t => !t.twin);
@@ -4745,11 +4778,11 @@ const FIZ = fizSchema();
   const d219 = p218.dating || {};
   const o219 = (one218.passport || {dating:{}});
   ok(219, p218.mixed === true && ad219.length === 2 &&
-        st219.n === 2 && st219.asOf === '2026-07-31' &&
+        st219.n === 2 && st219.asOf === '2026-08-01' &&
         lv219.n === 1 && lv219.owner === 'Кредиты' && lv219.at === ST.state.today &&
         has(p218.addressText, 'Строка СМЕШАННАЯ') &&
-        has(p218.addressText, 'реквизиты от владельца «Кредиты» на 21.08.2026') &&
-        has(p218.addressText, 'числа от статистики на 31.07.2026') &&
+        has(p218.addressText, 'реквизиты от владельца «Кредиты» на 22.08.2026') &&
+        has(p218.addressText, 'числа от статистики на 01.08.2026') &&
         has(p218.addressText, 'скрывать смешение — нет') &&
         d219.word === 'смешанно' && d219.n === 3 && (d219.now || []).length === 1 &&
         (d219.now || [])[0] === 'к-curator' && (d219.names || [])[0] === '«куратор»' &&
@@ -4788,13 +4821,13 @@ const FIZ = fizSchema();
      не читает статистику ни в одной форме (ИС-5, слой ниже), программам открыт свод, но
      не построчный ответ, а незаявленный модуль не становится потребителем оттого, что
      дозвонился. Отказ спроса ДВОИЧНЫЙ: одна неадресуемая величина отменяет ответ целиком. */
-  const cls221 = ST.consumerAsk({module:'классификация', obj:'obj-credit', date:'2026-08-20', need:['m-debt']});
-  const prg221 = ST.consumerAsk({module:'программы', obj:'obj-credit', date:'2026-08-20', need:['m-debt']});
-  const prgL221 = ST.consumerAsk({module:'программы', obj:'obj-credit', date:'2026-08-20', need:['к-curator']});
-  const nob221 = ST.consumerAsk({module:'выдумка', obj:'obj-credit', date:'2026-08-20', need:['m-debt']});
-  const bin221 = ST.consumerAsk({module:'отчётность', obj:'obj-credit', date:'2026-08-20', need:['m-debt', 'calcDebt']});
-  const emp221 = ST.consumerAsk({module:'отчётность', obj:'obj-credit', date:'2026-08-20', need:[]});
-  const oid221 = ST.consumerAsk({module:'отчётность', obj:'obj-nope', date:'2026-08-20', need:['m-debt']});
+  const cls221 = ST.consumerAsk({module:'классификация', obj:'obj-credit', date:'2026-08-21', need:['m-debt']});
+  const prg221 = ST.consumerAsk({module:'программы', obj:'obj-credit', date:'2026-08-21', need:['m-debt']});
+  const prgL221 = ST.consumerAsk({module:'программы', obj:'obj-credit', date:'2026-08-21', need:['к-curator']});
+  const nob221 = ST.consumerAsk({module:'выдумка', obj:'obj-credit', date:'2026-08-21', need:['m-debt']});
+  const bin221 = ST.consumerAsk({module:'отчётность', obj:'obj-credit', date:'2026-08-21', need:['m-debt', 'calcDebt']});
+  const emp221 = ST.consumerAsk({module:'отчётность', obj:'obj-credit', date:'2026-08-21', need:[]});
+  const oid221 = ST.consumerAsk({module:'отчётность', obj:'obj-nope', date:'2026-08-21', need:['m-debt']});
   ok(221, cls221.ok === false && has(cls221.why, 'ни в одной форме') && has(cls221.why, 'ИС-5') &&
         prg221.ok === false && has(prg221.why, 'построчный ответ статистики не открыт') &&
         has(prg221.why, 'ему объявлены statSlice') && has(prg221.road, 'спросите то же сводом') &&
@@ -4844,12 +4877,12 @@ const FIZ = fizSchema();
   const st = ST.state;
   const load = ST.legacyLoad();
   const legRows = st.rows.filter(r => ST.isLegacyRow(r));
-  const lr = ST.rowsAsOf('obj-credit', '2025-12-31')[0] || {};
+  const lr = ST.rowsAsOf('obj-credit', '2026-01-01')[0] || {};
   const shape = JSON.stringify(Object.keys(lr)) === JSON.stringify(ST.ROW_SHAPE);
   const whenVals = Array.from(new Set(Object.values(lr.when || {})));
   const srcKeys = Object.keys(lr.srcs || {});
   const legCal = ST.calendar().filter(pr => pr.legacy);
-  const sl223 = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date:'2025-12-31'});
+  const sl223 = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date:'2026-01-01'});
 
   /* #223 — ЛЕГАСИ-ИТОГ ПРИХОДИТ СТРОКОЙ, УЖЕ ОКОНЧАТЕЛЬНОЙ, И ФОРМА СТРОКИ НЕ ВЫРОСЛА.
      Соблазн был обратный: завести десятое поле «редакция формы» — и получить форму строки,
@@ -4885,7 +4918,7 @@ const FIZ = fizSchema();
   const noClose = ST.closeLayer('2025-12', 'учёт', 'Осмонова Г., главный бухгалтер', '2026-01-05');
   const noOpen = ST.openLayer('2025-12', 'статистика', {no:'№ 9', basis:'проверка'}, 'Осмонова Г.');
   const noReopen = ST.reopenPeriod('2025-12', {no:'№ 9', basis:'проверка'}, 'Осмонова Г.');
-  const noRun = ST.run('2025-12-31');
+  const noRun = ST.run('2026-01-01');
   const quiet224 = JSON.stringify([ST.state.periods, ST.state.rows.length, ST.state.log.length]) === snap224;
   const whys = [noClose.why, noOpen.why, noReopen.why, noRun.why];
   const distinct = Array.from(new Set(whys)).length;
@@ -4920,23 +4953,23 @@ const FIZ = fizSchema();
 
 (() => {
   ST.seed();
-  const sec = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-sumsecured'], date:'2025-12-31'});
+  const sec = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-sumsecured'], date:'2026-01-01'});
   const secTot = (sec.total || {})['a-sumsecured'] || {};
-  const dbt = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-sumdebt'], date:'2025-12-31'});
+  const dbt = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-sumdebt'], date:'2026-01-01'});
   const dbtTot = (dbt.total || {})['a-sumdebt'] || {};
-  const byCur = ST.statSlice({obj:'obj-credit', dims:['d-cur'], inds:['a-sumdebt'], date:'2025-12-31'});
+  const byCur = ST.statSlice({obj:'obj-credit', dims:['d-cur'], inds:['a-sumdebt'], date:'2026-01-01'});
   const gv = k => ((byCur.groups.find(g => g.key === k) || {values:{}}).values['a-sumdebt'] || {}).v;
-  const rows225 = ST.statRows({obj:'obj-credit', date:'2025-12-31'});
-  const now225 = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date:'2026-08-20'});
+  const rows225 = ST.statRows({obj:'obj-credit', date:'2026-01-01'});
+  const now225 = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date:'2026-08-21'});
   ST.setRole('Аналитик');
-  const an225 = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date:'2025-12-31'});
+  const an225 = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date:'2026-01-01'});
   ST.setRole('Администратор статистики');
 
   /* #225 — НЕСОБИРАВШЕЕСЯ ПРИШЛО ОТСУТСТВУЮЩИМ, НО СВОД ПО НЁМ ДАЁТ ПРАВДОПОДОБНЫЙ НОЛЬ.
      Это самое опасное место всей волны, и оно НЕ ЛЕЧИТСЯ ОТКАЗОМ. Свод суммы по пустому
      множеству — законный ноль (ИС-... сумма пустого множества равна нулю, и отменять это
      ради легаси нельзя: тогда сломается обычный ноль). Значит, число выйдет ПРАВДОПОДОБНЫМ:
-     «обеспечения на 31.12.2025 — 0 сом» читается как факт, а не как отсутствие формы.
+     «обеспечения на 01.01.2026 — 0 сом» читается как факт, а не как отсутствие формы.
      Единственная защита — СЛОВО РЯДОМ С ЧИСЛОМ, и оно обязано ехать ТУДА ЖЕ, КУДА ЕДЕТ
      ЧИСЛО. Потому редакция формы попала и в КРАТКИЙ паспорт, под плитку (ADR-0205 §4):
      развёрнутый паспорт открывают не всегда, а плитку видят всегда.
@@ -4970,8 +5003,8 @@ const FIZ = fizSchema();
   ST.seed();
   const ds = ST.askDates('obj-credit');
   const dsLeg = ds.filter(d => d < ST.LAUNCH()), dsRun = ds.filter(d => d >= ST.LAUNCH());
-  const before = ST.rowsAsOf('obj-credit', '2026-03-31');
-  const after = ST.rowsAsOf('obj-credit', '2026-05-31');
+  const before = ST.rowsAsOf('obj-credit', '2026-04-01');
+  const after = ST.rowsAsOf('obj-credit', '2026-06-01');
   const gone = after.filter(r => r.ref === 'КД-2021/044').length;
   const was = before.filter(r => r.ref === 'КД-2021/044').length;
   const gApril = ST.dateGate('2026-04-15', 'obj-credit');
@@ -4987,7 +5020,7 @@ const FIZ = fizSchema();
      через границу дала бы его в июньском срезе живым договором. Проверяется именно это:
      после запуска его строк НОЛЬ, до запуска — одна.
      Внутри своей стороны подстановка работает как работала (ИС-12): 14.02 отвечает
-     31.12.2025. Граница режет ЧЕРЕЗ СЕБЯ, а не вообще.
+     01.01.2026. Граница режет ЧЕРЕЗ СЕБЯ, а не вообще.
      И там, где старый отказ уже подходит, новый не заводится: до первой легаси-строки
      отвечает ИС-12 своими словами, а не «легаси» — запретов от волны не прибавилось. */
   ok(226, ds.length === 12 && dsLeg.length === 6 && dsRun.length === 6 &&
@@ -4998,16 +5031,16 @@ const FIZ = fizSchema();
         has(gApril, 'НОВЫЙ ВЫПУСК, а не ночь') &&
         has(gMay, 'через границу не переносится') && has(gMay, 'ADR-0207 §7') &&
         has(gAug, 'прогона не было') && !has(gAug, 'легаси') && gates === 3 &&
-        inside.ok && inside.passport.asOf === '2025-12-31' &&
+        inside.ok && inside.passport.asOf === '2026-01-01' &&
         inside.passport.substituted === true && inside.passport.edition === 'легаси' &&
         early.ok === false && has(early.why, 'подстановка запрещена (ИС-12)') &&
         !has(early.why, 'легаси'),
     `граница запуска ${ST.LAUNCH()} не переносит НИЧЕГО ни в одну сторону, и это не про точность, а про ВОСКРЕШЕНИЕ: КД-2021/044 живёт только в легаси-итогах, в сегодняшнем мире его нет — на 31.03 его строк ${was}, на 31.05 ${gone}. Подстановка «на дату» через границу подала бы его в майском срезе живым договором. Срез до запуска состоит из ${before.length} строк, и ВСЕ они легаси; после — ${after.length}, и НИ ОДНОЙ легаси. Даты спроса делятся тем же швом: ${dsLeg.length} легаси и ${dsRun.length} прогонных. Ворота различают ${gates} причины разными словами: «${String(gApril).slice(0, 62)}…» (легаси-хвост — новых не будет), «${String(gMay).slice(0, 74)}…» (дыра между последним итогом и первым прогоном), «${String(gAug).slice(0, 44)}…» (прежний ИС-36, про легаси в нём ни слова). ВНУТРИ своей стороны подстановка работает как работала: 14.02 отвечает ${String(inside.passport.asOf)} с пометкой замены. А там, где подходит СТАРЫЙ отказ, новый не заводится: до первой легаси-строки отвечает ИС-12 своими словами — «${String(early.why)}». Запретов от волны не прибавилось, прибавился один шов (ИС-41, ADR-0207 §7)`);
 
-  const D = ['2025-09-30', '2025-12-31', '2026-06-30', '2026-07-31'];
+  const D = ['2025-10-01', '2026-01-01', '2026-07-01', '2026-08-01'];
   const som = ST.statSeries({obj:'obj-credit', inds:'a-sumdebt-som', dates:D});
   const cnt = ST.statSeries({obj:'obj-credit', inds:'a-count', dates:D});
-  const flat = ST.statSeries({obj:'obj-credit', inds:'a-sumdebt-som', dates:['2025-09-30', '2025-12-31']});
+  const flat = ST.statSeries({obj:'obj-credit', inds:'a-sumdebt-som', dates:['2025-10-01', '2026-01-01']});
   const brk = som.points.filter(pt => pt.editionBreak);
   const brkC = cnt.points.filter(pt => pt.editionBreak);
 
@@ -5027,7 +5060,7 @@ const FIZ = fizSchema();
         som.points[0].value.v === 0 && som.points[1].value.v === 0 &&
         som.points[2].value.v === 32332260 &&
         som.points.map(pt => pt.edition).join('|') === 'легаси|легаси|действующая|действующая' &&
-        brk.length === 1 && brk[0].date === '2026-06-30' &&
+        brk.length === 1 && brk[0].date === '2026-07-01' &&
         has(brk[0].editionBreak, '«легаси» → «действующая»') &&
         has(brk[0].editionBreak, 'форма легаси не собирала «Остаток основного долга в сомах»') &&
         has(brk[0].editionBreak, 'несопоставимо') &&
@@ -5045,15 +5078,15 @@ const FIZ = fizSchema();
 
   const st = ST.state;
   const legBefore = st.rows.filter(r => ST.isLegacyRow(r)).length;
-  const cand = ST.candidates('2026-08-21', true);
+  const cand = ST.candidates('2026-08-22', true);
   const candJSON = JSON.stringify(cand);
   const ghosts = ['КД-2019/017', 'КД-2021/044'].filter(ref => candJSON.indexOf(ref) >= 0);
-  const run228 = ST.run('2026-08-21');
+  const run228 = ST.run('2026-08-22');
   /* Отказ у входа проверяется НЕ ПРОСТО ФАКТОМ, а причиной: «период зафиксирован» тоже
      вернул бы ok=false — и отправил бы человека за распоряжением о перезакрытии, то есть
      ровно по той дороге, которой для легаси не существует. Дверь обязана отбить по
      ГРАНИЦЕ ЗАПУСКА, до всякого разговора о фиксации (ADR-0207 §5, §7). */
-  const runLeg = ST.run('2024-12-31');
+  const runLeg = ST.run('2025-01-01');
   const legAfter = st.rows.filter(r => ST.isLegacyRow(r)).length;
   const touched = st.rows.filter(r => ST.isLegacyRow(r) && r.fixed.at !== ST.legacyLoad().at).length;
 
@@ -5069,7 +5102,7 @@ const FIZ = fizSchema();
   ok(228, ghosts.length === 0 && cand.ok &&
         /* Волна 23 (переписан на месте): прогон за 21.08 пишет 30 строк, а не 34 — довод
            у #201. Легаси-строк по-прежнему 34: их число с ночным совпадало случайно. */
-        run228.ok && run228.written === 30 && run228.date === '2026-08-21' &&
+        run228.ok && run228.written === 30 && run228.date === '2026-08-22' &&
         legBefore === 34 && legAfter === 34 && touched === 0 &&
         ST.queue().length === 0 &&
         runLeg.ok === false && has(runLeg.why, 'раньше запуска') &&
@@ -5580,6 +5613,59 @@ const FIZ = fizSchema();
         !ST.REC('m-w23n') && !ST.REC('m-w23n-som') && !ST.REC('m-w23k') && !ST.REC('m-w23j') &&
         !ST.REC('d-w23m2') && good252.ok && cols252.length === 2 && cols252[0] !== cols252[1],
     `деньги лежат на денежных колонках: денежная запись с видом «num» отбита — «${String(numMoney.why).slice(0, 110)}…»; денежный вид у неденежного показателя и у разреза отбит тоже (${bad252.filter(r => !r.ok).length} из ${bad252.length}). Годная пара получила две колонки, а не одну на двоих: ${cols252.join(' и ')} (ИС-44, ADR-0240 §2, §4, схема §12.1)`);
+})();
+
+/* ===== Волна 23 · З-15a — срез на начало дня: канун и период строки (ИС-54, ADR-0238 §2,
+   ADR-0245 §8, §9). Строка с датой D — состояние на НАЧАЛО дня D: мир на конец D−1. Отсюда
+   три правила, и каждое движок считает одним местом: мир читается на канун, период строки
+   — месяц кануна, итог месяца M — строка первого числа M+1. ===== */
+(() => {
+  /* #253 — строка 01.07 принадлежит ИЮНЮ. Защёлка июня фиксирует именно её, а 02.07 — уже
+     июльская и открытая. Прогон за 01.07 отбит как за закрытый период (ИС-8). */
+  ST.seed();
+  const per253 = ST.periodOf ? [ST.periodOf('2026-07-01'), ST.periodOf('2026-07-02'), ST.periodOf('2026-01-01')] : [];
+  const sl253 = ST.sliceOfMonth ? [ST.sliceOfMonth('2026-06'), ST.sliceOfMonth('2026-12')] : [];
+  const jun253 = ST.state.rows.filter(r => r.obj === 'obj-credit' && r.date === '2026-07-01');
+  const shut253 = ST.run('2026-07-01', {});
+  const open253 = ST.run('2026-07-02', {});
+  ok(253, per253.join() === '2026-06,2026-07,2025-12' && sl253.join() === '2026-07-01,2027-01-01' &&
+        jun253.length === 8 && jun253.every(r => r.fixed && r.fixed.period === '2026-06') &&
+        ST.isClosed('2026-07-01') && !ST.isClosed('2026-07-02') &&
+        !shut253.ok && has(shut253.why, 'июнь 2026') && has(shut253.why, 'ИС-8') && open253.ok,
+    `срез на начало дня: строка 01.07 — ${per253[0] || '—'}, 02.07 — ${per253[1] || '—'}, 01.01 — ${per253[2] || '—'}; итог месяца — первое число следующего (${sl253.join(' · ') || '—'}). Защёлка июня фиксирует строки 01.07: кредитов ${jun253.length}, все с периодом «2026-06». Прогон за 01.07 отбит как за закрытый июнь («${String(shut253.why).slice(0, 60)}…»), за 02.07 — идёт (${open253.ok}). Период строки = месяц(slice − 1), и считается он одним местом (ИС-54, ADR-0238 §2, ADR-0245 §8)`);
+
+  /* #254 — строка на D собрана из мира на конец D−1. Проверены все три двери мира: курс,
+     история разреза и рождение объекта. */
+  ST.seed();
+  const W254 = vm.runInContext('WORLD', sandbox);
+  const usd254 = W254['obj-credit'].find(x => x.id === 'КД-2025/043');
+  const kd254 = W254['obj-credit'].find(x => x.id === 'КД-2024/117');
+  const rd254 = r => ((r && r.inds['m-debt']) || {}).rateDate;
+  const r0701 = ST.state.rows.find(r => r.obj === 'obj-credit' && r.ref === 'КД-2025/043' && r.date === '2026-07-01');
+  const b0630 = ST.buildRow('obj-credit', usd254, '2026-06-30');
+  const cur15 = ST.readDim('d-curator', kd254, '2026-07-15'), cur16 = ST.readDim('d-curator', kd254, '2026-07-16');
+  const reg05 = ST.registryList('obj-repay', '2026-06-05'), reg06 = ST.registryList('obj-repay', '2026-06-06');
+  const wa254 = ST.worldAt ? ST.worldAt('2026-07-01') : null;
+  ok(254, wa254 === '2026-06-30' && rd254(r0701) === '2026-06-30' && rd254(b0630) === '2026-05-31' &&
+        cur15 === 'Асанов А.' && cur16 === 'Бекова Н.' &&
+        reg05.indexOf('ПГ-2026/1102') < 0 && reg06.indexOf('ПГ-2026/1102') >= 0,
+    `срез на D читает мир на конец D−1 (ИС-54, ADR-0238 §2). Курс: строка USD на 01.07 несёт курс от ${rd254(r0701)}, собранная на 30.06 — от ${rd254(b0630)}. История: куратор КД-2024/117 сменился 15.07 — срез 15.07 его ещё не видит (${cur15}), срез 16.07 видит (${cur16}). Рождение: платёж ПГ-2026/1102 от 05.06 в срезе 05.06 не значится (${reg05.indexOf('ПГ-2026/1102') < 0}), в срезе 06.06 значится (${reg06.indexOf('ПГ-2026/1102') >= 0}) — событие дня D лежит в строке D+1`);
+
+  /* #255 — легаси-итоги лежат на первых числах, и период их — месяц кануна: итог старой
+     системы «на 31.03.2026» есть срез на начало 01.04 (ADR-0238 §2, ADR-0245 §9). Срез 01.05
+     видит мир на конец 30.04 — это ещё легаси-сторона, и прогон за него отбит границей
+     запуска; 02.05 — уже своя сторона (сейчас отбит закрытым маем, а не запуском). */
+  ST.seed();
+  const leg255 = ST.state.rows.filter(r => ST.isLegacyRow(r));
+  const days255 = [...new Set(leg255.map(r => r.date))].sort();
+  const pre255 = ST.run('2026-05-01', {});
+  const own255 = ST.run('2026-05-02', {});
+  ok(255, days255.length === 6 && days255.every(d => d.slice(8) === '01') &&
+        days255[0] === '2025-01-01' && days255[5] === '2026-04-01' &&
+        leg255.every(r => ST.periodOf && r.fixed.period === ST.periodOf(r.date)) && ST.isLegacyMonth('2026-03') &&
+        !pre255.ok && has(pre255.why, 'раньше запуска') &&
+        !own255.ok && has(own255.why, 'ИС-8') && !has(own255.why, 'запуска'),
+    `легаси — только первые числа: дат ${days255.length} (${days255.join(' · ')}), период каждой строки — месяц кануна (итог «на 31.03.2026» лежит строкой 01.04 и принадлежит марту, закрытому выпуском миграции: ${ST.isLegacyMonth('2026-03')}). Срез 01.05 — ещё легаси-сторона, прогон отбит границей запуска («${String(pre255.why).slice(0, 70)}…»); 02.05 — своя сторона, и отбит он уже закрытым маем, а не запуском (ИС-54, ИС-41, ADR-0245 §9)`);
 })();
 
 /* ---- отчёт ---- */
