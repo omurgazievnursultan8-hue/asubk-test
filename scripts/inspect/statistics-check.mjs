@@ -26,8 +26,8 @@
 // (ИС-43, ADR-0209): кладовая одна и виды на неё ничего не хранят · обязательные реквизиты
 // расписаны по породам и проверяются одной проверкой · чужой реквизит отбит по имени ·
 // формулы нет ни у одной породы, и корзина не исключение · переезд породы сохраняет запись,
-// идентификатор и историю · запись не удаляется, а прекращает действие с даты · схема
-// витрины порождена реестром и растёт только ADD COLUMN · одна величина в двух ролях —
+// идентификатор и историю · запись не удаляется, а прекращает действие с даты · колонку
+// заводит релиз, реестр ссылается на неё (волна 23; до неё — ADD COLUMN) · одна величина в двух ролях —
 // две записи, связанные явно, с границами корзин в реестре, а не в настройке отчёта.
 // блок волны 17 З-10 — датировка величины и доспрос защёлки (ИС-39 + ИС-46,
 // ADR-0205 × ADR-0216) — признак «на дату»/«текущее» принадлежит ВЕЛИЧИНЕ, а не шву, и
@@ -44,6 +44,13 @@
 // схемы (таблица, способ хранения, колонки) · у каждой действующей записи есть колонки
 // релиза своего объекта · снятое по ADR-0244 §4 снято поимённо, добавленное заведено с
 // колонкой · итоги заёмщика, залога и дела — одной сомовой записью без близнеца (ADR-0240).
+// блок волны 23 З-14 — механизм релиза (ИС-53, ADR-0237): реестр сверяется с релизом при
+// старте — запись без колонки ждёт её и в состав объекта не входит, колонка без записи —
+// предупреждение · дверь реестра колонку ищет, а не заводит · миграция (ST.migrate)
+// включает дождавшуюся запись и ставит её в очередь досчёта · пара «валютная + сомовая»
+// ждёт и включается целиком, агрегат над ждущим основанием — вместе с ним, и вопрос к ждущей
+// записи — отказ (СС-155) · новый объект без таблицы в релизе — отказ · схемы витрины,
+// порождаемой реестром, нет · итог в сомах объявляет «сом» и «аддитивный» (ADR-0240 §4).
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -203,7 +210,7 @@ const FIZ = fizSchema();
   const words = ['кредит','заём','заем','залог','взыскан','поручит','куратор','филиал','просрочк']
     .filter(w => new RegExp(w, 'i').test(builder));
   ok(5, words.length === 0,
-    `в сборщике строк (readDim/readInd/buildRow/doRun) слов предметной области нет${words.length ? ': ' + words.join(', ') : ''} — ИС-18`);
+    `в сборщике строк (readDim/readInd/buildRow/doRun) слов предметной области нет${words.length ? ': ' + words.join(', ') : ''} — механизм прогона общий, таблица у объекта своя (ADR-0237 §7; ИС-18 снят, эта его часть осталась)`);
 
   ST.seed();
   /* Первый разрез объекта берётся вслепую, и у «Залогового договора» он ЕДИНСТВЕННЫЙ и
@@ -239,34 +246,51 @@ const FIZ = fizSchema();
     `заёмщик без действующих кредитов в срезе есть (договоров всего ${zero && zero.inds['m-bcnt'].v}, закрытых ${zero && zero.inds['m-bclosed'].v}, действующих при чтении ${live8}) — при свёртке кредитов он исчез бы вовсе (ИС-19)`);
 })();
 
-/* ---------- C. Шестой объект — строкой реестра, а не релизом ---------- */
+/* ---------- C. Одиннадцатый объект — миграцией и записями, а не веткой кода ---------- */
+/* Волна 23 (переписан на месте, ADR-0237 §5, §7): «шестой объект — строкой реестра, а не
+   релизом» (ИС-18) снят. Новый объект стоит миграции — таблицы строк `stat_row_<объект>` с
+   колонками, — и до неё запись реестра объектов отбита (ИС-53). Сторож доказывает то, что
+   от ИС-18 осталось: после миграции объект заводится ЗАПИСЯМИ, а сборщик строк и прогон не
+   правятся — механизм общий, таблица своя (§7). Поручительство снято моделью (ADR-0244 §4) —
+   здесь это проба двери, а не объект модели: таблицы его в `RELEASE` нет, и сторож #236 её не
+   видит. Разрезы и показатель называют колонки новой таблицы — `col` и `vtype` (ИС-53, §3). */
 (() => {
   ST.seed();
   const before = ST.statSlice({obj:'obj-guarantee', dims:[], inds:['a-count'], date: ASK});
+  const G_OBJ = {id:'obj-guarantee', name:'Поручительство', plural:'поручительства',
+    owner:'Обеспечение', refName:'номер поручительства', born:{src:'поле', key:'gdate'},
+    scope:{dim:'d-gcurator'}, dims:[], inds:['a-count']};
+  const noTable = ST.addObject(G_OBJ);
+  const mig = ST.migrateTable({obj:'obj-guarantee', table:'stat_row_guarantee', storage:'state',
+    note:'проба двери: одиннадцатый объект',
+    cols:['object_id','slice_date','run_id','src_core','src_detail','is_partial','now_cols','cur','rate','rate_date',
+          'd_unit_id','d_unit_lbl','d_unit_parent_id','d_unit_parent_lbl','d_curator_id','d_curator_lbl',
+          'd_terr_region_id','d_terr_region_lbl','d_terr_district_id','d_terr_district_lbl','d_ptype',
+          'i_secured_v','i_secured_som']});
   /* Волна 17: состав объекта — только СВОИ разрезы. «Территория выдачи кредита»
      определена на кредите, и взять её в поручительство значило бы завести второй смысл
      под одним именем (ИС-40, ADR-0206 §3). Обстановка переписана, утверждение прежнее. */
   const alien = ST.addObject({id:'obj-guarantee', name:'Поручительство', plural:'поручительства',
     owner:'Обеспечение', refName:'номер поручительства', born:{src:'поле', key:'gdate'},
     dims:['d-branch','d-curator','d-region','d-ptype'], inds:['a-count']});
-  const add = ST.addObject({id:'obj-guarantee', name:'Поручительство', plural:'поручительства',
-    owner:'Обеспечение', refName:'номер поручительства', born:{src:'поле', key:'gdate'},
-    scope:{dim:'d-gcurator'}, dims:[], inds:['a-count']});
+  const add = ST.addObject(G_OBJ);
   const own = [
     {id:'d-gbranch', obj:'obj-guarantee', name:'Подразделение поручительства', src:'история',
      key:'branch', perObject:'одно', dates:1, owner:'Оргструктура (кадры)', ref:'org',
-     levels:[{name:'дивизион', src:'справочник'}, {name:'филиал', src:'история', key:'branch'}]},
+     levels:[{name:'дивизион', src:'справочник', col:'d_unit_parent', vtype:'ref'},
+             {name:'филиал', src:'история', key:'branch', col:'d_unit', vtype:'ref'}]},
     {id:'d-gcurator', obj:'obj-guarantee', name:'Куратор поручительства', src:'история',
-     key:'curator', perObject:'одно', dates:1},
+     key:'curator', perObject:'одно', dates:1, col:'d_curator', vtype:'ref'},
     {id:'d-gregion', obj:'obj-guarantee', name:'Территория поручительства', src:'поле',
      key:'region', perObject:'одно', dates:1, owner:'Справочник административного деления',
-     levels:[{name:'область', src:'поле', key:'region'}, {name:'район', src:'поле', key:'district'}]},
+     levels:[{name:'область', src:'поле', key:'region', col:'d_terr_region', vtype:'ref'},
+             {name:'район', src:'поле', key:'district', col:'d_terr_district', vtype:'ref'}]},
     {id:'d-gptype', obj:'obj-guarantee', name:'Тип лица поручителя', src:'поле',
-     key:'ptype', perObject:'одно', dates:1},
+     key:'ptype', perObject:'одно', dates:1, col:'d_ptype', vtype:'code'},
     /* Волна 17: у объекта с денежной величиной обязан быть СВОЙ разрез валюты — чужой не
        годится, складывать по разрезу законно только внутри его объекта (ИС-40, ИС-44). */
     {id:'d-gcur', obj:'obj-guarantee', name:'Валюта поручительства', src:'поле',
-     key:'cur', perObject:'одно', dates:1}].map(spec => ST.addDim(spec));
+     key:'cur', perObject:'одно', dates:1, col:'cur', vtype:'cur'}].map(spec => ST.addDim(spec));
   /* Порядок записей переставлен: разрезы заводятся ДО денежного показателя, потому что с
      волны 17 денежная величина обязана НАЗВАТЬ разрез, внутри которого складывается, а
      назвать можно только существующее. Прежний порядок (показатель → объект → разрезы)
@@ -276,22 +300,25 @@ const FIZ = fizSchema();
     obj:'obj-guarantee', src:'шов', seam:'calcDebt', field:'principal', money:true, type:'сумма'});
   const mi = ST.addIndicator({dates:1, id:'m-gsec', name:'Требования, обеспеченные поручительством', obj:'obj-guarantee',
     src:'шов', seam:'calcDebt', field:'principal', money:true, type:'сумма',
-    round:'коп-2', roll:'формульный', rollBy:'d-gcur'});
+    round:'коп-2', roll:'формульный', rollBy:'d-gcur', col:'i_secured', vtype:'money_cur'});
   const ai = ST.addIndicator({dates:1, id:'a-sumgsec', name:'Обеспечено поручительствами, итого', obj:'obj-guarantee',
     src:'агрегат', fn:'sum', over:'m-gsec'});
   const gInds = ST.OBJ('obj-guarantee').inds;
+  const gOrphans = ST.orphanCols().filter(c => c.obj === 'obj-guarantee').map(c => c.col);
   const run = ST.run(TODAY, {});
   const after = ST.statSlice({obj:'obj-guarantee', dims:['d-gregion'], inds:['a-count','a-sumgsec'], date: TODAY});
   const gRow = ST.statRows({obj:'obj-guarantee', date: TODAY}).rows[0];
-  ok(9, !before.ok && mi.ok && ai.ok && !alien.ok && has(alien.why, 'ИС-40') && add.ok &&
-        own.every(r => r.ok) && run.ok && after.ok && after.n === 3 && after.groups.length === 3 &&
+  ok(9, !before.ok && !noTable.ok && has(noTable.why, 'ИС-53') && mig.ok &&
+        mi.ok && !mi.waiting && ai.ok && !alien.ok && has(alien.why, 'ИС-40') && add.ok &&
+        own.every(r => r.ok && !r.waiting) && !gOrphans.length &&
+        run.ok && after.ok && after.n === 3 && after.groups.length === 3 &&
         !mute.ok && has(mute.why, 'ИС-44') && has(mute.why, 'Валюта поручительства') &&
         mi.som === 'm-gsec-som' && ai.som === 'a-sumgsec-som' &&
         gInds.indexOf('m-gsec-som') >= 0 && gInds.indexOf('a-sumgsec-som') >= 0 &&
         !!ST.IND('a-sumgsec') && ST.IND('a-sumgsec').roll === 'формульный' &&
         ST.IND('a-sumgsec').rollBy === 'd-gcur' &&
         gRow && gRow.inds['m-gsec-som'] && gRow.inds['m-gsec-som'].v > 0,
-    `одиннадцатый объект заведён записью: до — «${before.why}», после — ${after.n} объектов в ${(after.groups || []).length} группах, без единой правки движка (ИС-18). Состав собран из ${own.length} СВОИХ разрезов: чужие в него не берутся — «${String(alien.why).slice(0, 88)}…» (ИС-40, ADR-0206 §3), а справочник значений у своей записи тот же (ADR-0206 §5). Денежная запись заводится только с НАЗВАННЫМ разрезом свода — молчаливая отбита с адресом: «${String(mute.why).slice(0, 96)}…»; заведённая пришла ПАРОЙ (${mi.som} и ${ai.som} — второй унаследовал разрез свода «${(ST.IND('a-sumgsec') || {}).rollBy}» от того, что складывает), оба легли в состав объекта и посчитаны тем же прогоном (${((gRow || {inds:{}}).inds['m-gsec-som'] || {}).v} сом.)`);
+    `одиннадцатый объект стоит миграции, а не правки движка: до миграции запись объекта отбита — «${String(noTable.why).slice(0, 80)}…» (ИС-53), миграция завела ${mig.table} (${(mig.cols || []).length} колонок), и после неё объект заведён записями: до — «${before.why}», после — ${after.n} объектов в ${(after.groups || []).length} группах тем же прогоном, что у десяти остальных (механизм общий, таблица своя — ADR-0237 §7). Состав собран из ${own.length} СВОИХ разрезов, и все легли на колонки таблицы (колонок без записи ${gOrphans.length}): чужие в него не берутся — «${String(alien.why).slice(0, 88)}…» (ИС-40, ADR-0206 §3), а справочник значений у своей записи тот же (ADR-0206 §5). Денежная запись заводится только с НАЗВАННЫМ разрезом свода — молчаливая отбита с адресом: «${String(mute.why).slice(0, 96)}…»; заведённая пришла ПАРОЙ (${mi.som} и ${ai.som} — второй унаследовал разрез свода «${(ST.IND('a-sumgsec') || {}).rollBy}» от того, что складывает), оба легли в состав объекта и посчитаны тем же прогоном (${((gRow || {inds:{}}).inds['m-gsec-som'] || {}).v} сом.)`);
 
   const bad = ST.addObject({id:'obj-ghost', name:'Призрак', dims:[], inds:[]});
   ok(10, !bad.ok && has(bad.why, 'владелец не отдаёт'),
@@ -501,8 +528,12 @@ const FIZ = fizSchema();
         may.dims['d-category'] === 'Низкий кредитный риск' && aug.dims['d-category'] === 'Средний кредитный риск',
     `смена куратора 15.07 майскую строку не переписала: май — ${may.dims['d-curator']}, август — ${aug.dims['d-curator']} — ИС-4`);
 
+  /* Волна 23 (переписан на месте): релиз идёт ПЕРЕД записью — колонку `d_segment` заводит
+     миграция, запись её называет (ИС-53, ADR-0237 §2, §3). Утверждение прежнее: новый
+     разрез действует вперёд. */
+  ST.migrate({obj:'obj-credit', cols:['d_segment_id','d_segment_lbl'], note:'сегмент портфеля'});
   const add = ST.addDim({dates:1, id:'d-segment', name:'Сегмент портфеля', obj:'obj-credit', src:'поле',
-    key:'industry', perObject:'одно'});
+    key:'industry', perObject:'одно', col:'d_segment', vtype:'ref'});
   const past = ST.statSlice({obj:'obj-credit', dims:['d-segment'], inds:['a-count'], date:'2026-05-31'});
   /* Здесь же видно вторую половину ИС-36: «сегодня» спрашивается не по праву «сегодня», а
      потому что прогон написал строки. До прогона вопрос на TODAY отказ, после — ответ. */
@@ -580,10 +611,14 @@ const FIZ = fizSchema();
   /* Волна 17: денежная строчная величина заводится, НАЗВАВ разрез своего свода — умолчания
      «аддитивна» у денег больше нет (ИС-44, ADR-0214 §1). Обстановка переписана, утверждение
      прежнее и усилено: заведение по-прежнему одна запись без правки кода, но записей теперь
-     ДВЕ и вторую заводит не заказчик, а сборка — и обе считает тот же ближайший прогон. */
+     ДВЕ и вторую заводит не заказчик, а сборка — и обе считает тот же ближайший прогон.
+     Волна 23 (переписан на месте): колонку пары заводит релиз, и идёт он ПЕРЕД записью —
+     запись называет `i_idle` видом `money_cur` (ИС-53, ADR-0237 §2, §3). Правки кода
+     по-прежнему нет. */
+  ST.migrate({obj:'obj-credit', cols:['i_idle_v','i_idle_som'], note:'плата за неосвоенный остаток'});
   const good = ST.addIndicator({dates:1, id:'m-idle', name:'Плата за неосвоенный остаток', obj:'obj-credit',
     src:'шов', seam:'calcAccrual', field:'interest', money:true, type:'сумма',
-    round:'коп-2', roll:'формульный', rollBy:'d-cur'});
+    round:'коп-2', roll:'формульный', rollBy:'d-cur', col:'i_idle', vtype:'money_cur'});
   const agg = ST.addIndicator({dates:1, id:'a-sumidle', name:'Плата, итого', obj:'obj-credit', src:'агрегат', fn:'sum', over:'m-idle'});
   ST.run(TODAY, {manual:true, reason:'заведён новый показатель'});
   /* Спрашивается дата ТОГО прогона, который показатель посчитал: на 20.08 записи ещё
@@ -594,7 +629,7 @@ const FIZ = fizSchema();
         good.som === 'm-idle-som' && agg.som === 'a-sumidle-som' &&
         ST.IND('a-sumidle-som').over === 'm-idle-som' &&
         idleRow.inds['m-idle-som'] && idleRow.inds['m-idle-som'].v > 0,
-    `показатель заведён записью и сразу считается ближайшим прогоном — без правки кода (ADR-0150 §1): пришёл ПАРОЙ (${good.id || 'm-idle'} + ${good.som}, агрегат ${agg.som} над близнецом ${(ST.IND('a-sumidle-som') || {}).over}), сомовая колонка легла в строку тем же прогоном (${((idleRow || {inds:{}}).inds['m-idle-som'] || {}).v} сом.), а итог по разновалютному множеству — ${Math.round(((use.total || {})[agg.som] || {}).v)} сом.`);
+    `показатель заведён записью на колонку релиза и сразу считается ближайшим прогоном — без правки кода (ADR-0150 §1, ИС-53): пришёл ПАРОЙ (${good.id || 'm-idle'} + ${good.som}, агрегат ${agg.som} над близнецом ${(ST.IND('a-sumidle-som') || {}).over}), сомовая колонка легла в строку тем же прогоном (${((idleRow || {inds:{}}).inds['m-idle-som'] || {}).v} сом.), а итог по разновалютному множеству — ${Math.round(((use.total || {})[agg.som] || {}).v)} сом.`);
 
   const busy = ST.retireIndicator('m-idle');
   ok(41, !busy.ok && has(busy.why, 'используется агрегатами'),
@@ -775,8 +810,11 @@ const FIZ = fizSchema();
   ok(58, !stop.ok && stop.needsConfirm && stop.breaks.length >= 2 && has(stop.why, 'ИС-25') &&
         names.length > 0 && go.ok && go.broke.length >= 2 &&
         left && left.until === ST.state.today && ST.actsOn('a-sumdebt', ST.state.today) === false &&
-        ST.OBJ('obj-credit').inds.indexOf('a-sumdebt') < 0 && !asked.ok && ST.martCol('a-sumdebt'),
-    `вывод не запрещён чужой публикацией, но назван поимённо: сломается у ${names} (ИС-25, ADR-0177 §4). Вывод — дата прекращения (${left && left.until}), а не вырезание: запись в реестре осталась, из состава объекта ушла, спросить её нечем («${String(asked.why).slice(0, 48)}…»), а колонка витрины НЕ убрана — в ней числа прошлых строк (ADR-0209 §6)`);
+        ST.OBJ('obj-credit').inds.indexOf('a-sumdebt') < 0 && !asked.ok &&
+        /* Волна 23 (переписан на месте): «колонка витрины НЕ убрана» — у агрегата колонки нет
+           вовсе, он считается при чтении (ADR-0237 §5); прекращение и тут ничего не удаляет. */
+        ST.colOf('a-sumdebt').state === 'агрегат' && ST.physOf('a-sumdebt').length === 0,
+    `вывод не запрещён чужой публикацией, но назван поимённо: сломается у ${names} (ИС-25, ADR-0177 §4). Вывод — дата прекращения (${left && left.until}), а не вырезание: запись в реестре осталась, из состава объекта ушла, спросить её нечем («${String(asked.why).slice(0, 48)}…»). Колонки у агрегата не было и нет — он считается при чтении из колонок строки, и удалять при выводе нечего; колонку строчной записи не удаляют никогда (ADR-0209 §6, ADR-0237 §4, §5)`);
 
   const live = ST.setLive('m-debt', false);
   const agg = ST.setLive('a-sumbcnt', false);
@@ -812,18 +850,26 @@ const FIZ = fizSchema();
     `фильтр строится списком значений ИЗ СТРОК среза, а не чужим справочником (ИС-4): у подразделения ${vals.length} значений обоих уровней, у разреза-даты — корзины (${byBucket.join(' · ')}), а не сырые даты; сужение названо в паспорте: ${nar.ok ? nar.n : '—'} из ${all.n} (СС-Д2)`);
 
   ST.seed();
+  /* Волна 23 (переписан на месте): релиз идёт перед записью — колонку `d_fdate` заводит
+     миграция, уровни подразделения лежат на колонках релиза платежа `d_unit_parent` и
+     `d_unit` (ИС-53, ADR-0237 §3, ADR-0241 §4). Уровни объявлены объектами с колонками,
+     а не голыми именами: голое имя уровня не называет, где он лежит в строке. Утверждение
+     сторожа прежнее — форма разреза и корзины. */
+  ST.migrate({obj:'obj-repay', cols:['d_fdate'], note:'дата погашения'});
   const taken = ST.addDim({dates:1, id:'d-industry', name:'Отрасль', obj:'obj-credit', src:'поле',
     key:'industry', perObject:'одно'});
   const noRef = ST.addDim({dates:1, id:'d-fdate', name:'Дата погашения', obj:'obj-repay', src:'поле',
-    key:'date', perObject:'одно', buckets:['год','месяц']});
+    key:'date', perObject:'одно', buckets:['год','месяц'], col:'d_fdate', vtype:'date'});
   const withRef = ST.addDim({dates:1, id:'d-div2', name:'Подразделение выдачи', obj:'obj-repay', src:'поле',
     key:'branch', perObject:'одно', ref:'org', owner:'Оргструктура (кадры)',
-    levels:['дивизион','филиал']});
+    levels:[{name:'дивизион', src:'справочник', col:'d_unit_parent', vtype:'ref'},
+            {name:'филиал', src:'поле', key:'branch', col:'d_unit', vtype:'ref'}]});
   const dd = ST.state.dims.find(d => d.id === 'd-div2');
   const fd = ST.state.dims.find(d => d.id === 'd-fdate');
   const free = ST.statSlice({obj:'obj-repay', dims:['d-fdate'], inds:['a-count'], date: ASK,
     buckets:{'d-fdate':'неделя'}});
-  ok(62, !taken.ok && noRef.ok && withRef.ok && dd && dd.owner === 'Оргструктура (кадры)' &&
+  ok(62, !taken.ok && noRef.ok && !noRef.waiting && withRef.ok && !withRef.waiting &&
+        dd && dd.owner === 'Оргструктура (кадры)' &&
         dd.levels.length === 2 && fd.buckets.length === 2 && !free.ok,
     `разрез заводится формой со всем, что требует модель: корзины списком (${fd ? fd.buckets.join(' · ') : '—'}, «неделя» мимо реестра не спрашивается) и ВЛАДЕЛЕЦ уровней («${dd ? dd.owner : '—'}»), а не напечатанная иерархия; занятый идентификатор — «${taken.why}» (ADR-0176 §7, ИС-23, СС-Д3)`);
 
@@ -1307,13 +1353,18 @@ const FIZ = fizSchema();
      заводится вовсе — иначе дефект вернулся бы следующей же строкой реестра. */
   const SRC = ['поле','история','шов'];
   const declared = st.objects.filter(o => o.born && SRC.indexOf(o.born.src) >= 0);
+  /* Волна 23 (переписан на месте): новый объект стоит релиза (ИС-53, ADR-0237 §5), и без
+     таблицы строк отказ пришёл бы раньше рождения. Поэтому таблица заводится миграцией
+     ПЕРВОЙ — и отказ по-прежнему про рождение, ради которого сторож стоит. */
+  const tbl89 = ST.migrateTable({obj:'obj-guarantee', table:'stat_row_guarantee', storage:'state',
+    cols:['object_id','slice_date','run_id','now_cols']});
   const noBorn = ST.addObject({id:'obj-guarantee', name:'Поручительство', plural:'поручительства',
     owner:'Обеспечение', refName:'номер поручительства',
     dims:['d-branch','d-curator','d-region','d-ptype'], inds:['a-count']});
   const guess = /первое звено|первый прогон|Object\.values\(item\.h\)/.test(
     m[1].slice(m[1].indexOf('function bornOn'), m[1].indexOf('function readPath')));
-  ok(89, declared.length === 10 && !noBorn.ok && has(noBorn.why, 'ИС-33') && !guess,
-    `рождение объявлено, а не угадано: у всех ${declared.length} объектов born со ссылкой на реквизит владельца, объект без него не заводится — «${noBorn.why}» (ИС-18, ИС-33)`);
+  ok(89, declared.length === 10 && tbl89.ok && !noBorn.ok && has(noBorn.why, 'ИС-33') && !guess,
+    `рождение объявлено, а не угадано: у всех ${declared.length} объектов born со ссылкой на реквизит владельца, объект без него не заводится даже с таблицей строк в релизе — «${noBorn.why}» (ИС-33, ИС-53)`);
 
   /* ИС-14 на дате: тот же человек, открывший реестр владельца НА ТУ ЖЕ дату, обязан
      увидеть тот же состав. До волны 9 сходилось неверно — оба показывали все 14. */
@@ -1778,8 +1829,10 @@ const FIZ = fizSchema();
   const M = ST.OBJ('obj-measure'), PR = ST.OBJ('obj-program');
   const ms = rowsOf('obj-measure');
 
-  /* Снятие объекта — такая же строка реестра, как и заведение (ИС-18): движка оно не
-     касается, но след обязано оставить ОТКАЗОМ, а не пустотой (ИС-24). */
+  /* Снятие объекта движка не касается — механизм прогона общий (ADR-0237 §7), — но след
+     обязано оставить ОТКАЗОМ, а не пустотой (ИС-24). Волна 23 (переписан на месте): довод
+     «вернётся строкой» снят — заведение объекта стоит релиза, таблицы строк (ИС-53,
+     ADR-0237 §5). «ИС-18» в тексте отказа движка — находка СС-Д21. */
   const gone = ST.statSlice({obj:'obj-task', dims:['d-branch'], inds:['a-count'], date: D});
   const inWorld = Object.keys(W).indexOf('obj-task') >= 0;
   const dangling = [];
@@ -1790,7 +1843,7 @@ const FIZ = fizSchema();
   const orphan = st.indicators.filter(i => i.src === 'агрегат' && i.fn !== 'count' && !ST.IND(i.over));
   ok(121, st.objects.length === 10 && !gone.ok && has(gone.why, 'нет в реестре объектов') &&
         has(gone.why, 'ИС-18') && !inWorld && dangling.length === 0 && orphan.length === 0,
-    `«Задание кураторства» снято СТРОКОЙ реестра, а не релизом: объектов ${st.objects.length}, спрос отвечает отказом — «${gone.why}», а не пустым экраном (ИС-24). Источник снят, а не спрятан: записей в мире 0, висячих ссылок на снятые разрезы и меры ${dangling.length}, агрегатов над несуществующей мерой ${orphan.length}. Владельца, ОТДАЮЩЕГО множество, у заданий нет: кураторство отказывается от них дословно (ТЗ 16 §1.1), своего ТЗ и места в очереди у них нет, ФО-20 ещё спрашивается у заказчика. Вернётся строкой в день, когда владелец появится (ADR-0201 §1)`);
+    `«Задание кураторства» снято СТРОКОЙ реестра, а не релизом: объектов ${st.objects.length}, спрос отвечает отказом — «${gone.why}», а не пустым экраном (ИС-24). Источник снят, а не спрятан: записей в мире 0, висячих ссылок на снятые разрезы и меры ${dangling.length}, агрегатов над несуществующей мерой ${orphan.length}. Владельца, ОТДАЮЩЕГО множество, у заданий нет: кураторство отказывается от них дословно (ТЗ 16 §1.1), своего ТЗ и места в очереди у них нет, ФО-20 ещё спрашивается у заказчика. Вернётся в день, когда владелец появится, — релизом: таблица строк и записи реестра (ИС-53, ADR-0237 §5; ADR-0201 §1)`);
 
   /* #122 — снят волной 23 (З-13): «три оси результата меры независимы попарно, доставка и
      состояние читаются из истории» больше не часть модели. Результат меры — один исход,
@@ -2316,8 +2369,10 @@ const FIZ = fizSchema();
     key:'region', perObject:'одно'});
   const nowhere = ST.addDim({dates:1, id:'d-t3', obj:'obj-nope', name:'Территория ниоткуда', src:'поле',
     key:'region', perObject:'одно'});
+  /* Волна 23: годная запись называет колонку (ИС-53, ADR-0237 §3); колонки в релизе нет, и
+     запись заводится в «ждёт колонку» — сторожу важен приём двери, а не включение. */
   const good   = ST.addDim({dates:1, id:'d-t4', obj:'obj-credit', name:'Территория залоговой заявки',
-    src:'поле', key:'region', perObject:'одно'});
+    src:'поле', key:'region', perObject:'одно', col:'d_zterr', vtype:'ref'});
   ok(148, noObj.length === 0 && ghost.length === 0 && anyObj.length === 0 &&
         !bare.ok && has(bare.why, 'имя врёт') && has(bare.why, 'ИС-40') &&
         !star.ok && has(star.why, 'признак всегда') &&
@@ -2344,7 +2399,7 @@ const FIZ = fizSchema();
   const crossKind = ST.addDim({dates:1, id:'d-t7', obj:'obj-collateral', name:'Требования, обеспеченные залогом',
     src:'поле', key:'region', perObject:'одно'});
   const okName = ST.addDim({dates:1, id:'d-t8', obj:'obj-collateral', name:'Территория оценщика', src:'поле',
-    key:'region', perObject:'одно'});
+    key:'region', perObject:'одно', col:'d_appr_terr', vtype:'ref'});
   ok(149, dimClash.length === 0 && indClash.length === 0 && bareName.length === 0 &&
         clash.length === 1 && clash[0].kinds && !clash[0].cross &&
         !takenD.ok && has(takenD.why, 'в реестре занято') && has(takenD.why, 'Заёмщик') &&
@@ -2399,8 +2454,15 @@ const FIZ = fizSchema();
         cGr.total['a-count'].v === 8 && bGr.total['a-count'].v === 8,
     `случай, ради которого всё это и заведено, в мире ЕСТЬ: у заёмщика ${man.ref} область ${manR}, а его кредиты выданы в ${mineR.join(' и ')} — ${mine.map(r => r.ref).join(', ')}. Один человек лежит в группе «Ошская» среза заёмщиков, а его кредит — в группе «Чуйская» среза кредитов, и это не ошибка данных, а два разных признака. Группировки поэтому РАЗНЫЕ: кредиты ${shapeC}; заёмщики ${shapeB}. Различает их ИМЯ разреза — «${cR.name}» против «${bR.name}», — а не расхождение чисел: итог у обоих срезов 8, и совпадение это ровно ничего не доказывает (ИС-40, ADR-0206 §1)`);
 
-  /* #152 — чужой разрез не берётся в состав объекта, и дверей на это ДВЕ. */
+  /* #152 — чужой разрез не берётся в состав объекта, и дверей на это ДВЕ.
+     Волна 23 (переписан на месте): новый объект стоит релиза (ИС-53, ADR-0237 §5), поэтому
+     таблица строк заводится миграцией ПЕРВОЙ — иначе обе двери отказали бы раньше, по
+     релизу, и сторож перестал бы доказывать своё. Свой разрез ложится на колонки этой
+     таблицы — уровни «Территории выдачи кредита» несут `col`, и пара та же. */
   ST.seed();
+  const tbl152 = ST.migrateTable({obj:'obj-guarantee', table:'stat_row_guarantee', storage:'state',
+    cols:['object_id','slice_date','run_id','now_cols',
+          'd_terr_region_id','d_terr_region_lbl','d_terr_district_id','d_terr_district_lbl']});
   const alienObj = ST.addObject({id:'obj-guarantee', name:'Поручительство', plural:'поручительства',
     owner:'Обеспечение', refName:'номер поручительства', born:{src:'поле', key:'gdate'},
     scope:{open:'обеспечение общее'}, dims:['d-bregion'], inds:['a-count']});
@@ -2414,8 +2476,8 @@ const FIZ = fizSchema();
   const alienIn = G.dims.filter(d => (ST.DIM(d) || {}).obj !== 'obj-guarantee');
   const orphan = ST.state.objects.filter(o =>
     o.dims.some(d => !ST.DIM(d) || ST.DIM(d).obj !== o.id));
-  ok(152, !alienObj.ok && has(alienObj.why, 'Заёмщик') && has(alienObj.why, 'ИС-40') &&
-        has(alienObj.why, 'Заведите свою запись') && ownObj.ok && ownDim.ok &&
+  ok(152, tbl152.ok && !alienObj.ok && has(alienObj.why, 'Заёмщик') && has(alienObj.why, 'ИС-40') &&
+        has(alienObj.why, 'Заведите свою запись') && ownObj.ok && ownDim.ok && !ownDim.waiting &&
         G.dims.length === 1 && G.dims[0] === 'd-gregion2' && alienIn.length === 0 &&
         orphan.length === 0,
     `разрез нельзя приложить к ЧУЖОМУ объекту, и отказ называет объект определения поимённо: «${String(alienObj.why).slice(0, 104)}…». Дверей на это две, и закрыты они заодно: состав объекта не берёт чужую запись, а заведение разреза не берёт чужой объект — иначе запрет обходился бы за один шаг (сперва завести объект без разрезов, потом дописать чужой). Свой разрез заводится СВОЕЙ записью и берёт тот же справочник значений; в реестре объектов чужих разрезов в составе 0 из ${ST.state.objects.length} (ИС-40, ADR-0206 §3, §5)`);
@@ -2473,7 +2535,8 @@ const FIZ = fizSchema();
    одна, список реквизитов закрыт с обеих сторон, проверка одна.
    Проверяется здесь не наличие полей, а то, что порода что-то РЕШАЕТ: чужой реквизит
    отбит по имени, формулы нет ни у одной породы, переезд сохраняет запись и историю,
-   прекращение — дата, а не стирание, и схема витрины растёт только вперёд. */
+   прекращение — дата, а не стирание, и колонка у записи обратного хода не имеет
+   (с волны 23 колонку заводит релиз, а не запись — ИС-53, ADR-0237 §3, §4). */
 (() => {
   ST.seed();
   const st = ST.state;
@@ -2519,8 +2582,10 @@ const FIZ = fizSchema();
     type:'сумма', unit:'сом'});
   const noObjD = ST.addDim({dates:1, id:'d-n3', name:'Проба без объекта два', src:'поле', key:'k',
     perObject:'одно'});
+  /* Волна 23: годная запись называет колонку (ИС-53); колонки в релизе нет — запись ждёт
+     её, а дата заведения и прекращения у неё те же. */
   const born = ST.addIndicator({dates:1, id:'m-n4', name:'Проба даты заведения', obj:'obj-credit',
-    src:'поле', key:'k', type:'сумма', unit:'сом'});
+    src:'поле', key:'k', type:'сумма', unit:'сом', col:'i_n4', vtype:'num'});
   const N4 = ST.IND('m-n4');
   ok(156, gaps.length === 0 && declared.length === 0 && noHist.length === 0 && bothOK &&
         !noName.ok && has(noName.why, 'наименование') &&
@@ -2582,8 +2647,9 @@ const FIZ = fizSchema();
     key:'k', perObject:'одно', ref:'Справочник отраслей'});
   const noPer   = ST.addDim({dates:1, id:'d-d5', name:'Проба без кратности', obj:'obj-credit', src:'поле',
     key:'k'});
+  /* Волна 23: годная запись называет колонку (ИС-53) — без неё отказ другой причиной. */
   const good    = ST.addDim({dates:1, id:'d-d6', name:'Проба годного разреза', obj:'obj-credit', src:'поле',
-    key:'k', perObject:'одно'});
+    key:'k', perObject:'одно', col:'d_d6', vtype:'code'});
   ok(158, badOrd.length === 0 && noObj.length === 0 && refBare.length === 0 && lvlBare.length === 0 &&
         !noWhose.ok && has(noWhose.why, 'объект определения') &&
         !alpha.ok && has(alpha.why, 'порядок значений объявляется одним из трёх') &&
@@ -2630,16 +2696,20 @@ const FIZ = fizSchema();
     basis:'m-odays', expr:'days > 30'});
   const okBkt = ST.addDim({dates:1, id:'d-f4', name:'Корзина по границам', obj:'obj-credit', src:'шов',
     seam:'calcDebt', field:'daysOverdue', perObject:'одно', buckets:['ступени'],
-    edges:[1,31,91], basis:'m-odays'});
+    edges:[1,31,91], basis:'m-odays', col:'d_f4', vtype:'cls'});   /* колонка — ИС-53, волна 23 */
   ok(160, withF.length === 0 && FF.length >= 4 &&
         [fInd, fDim, fBkt].every(r => !r.ok && has(r.why, 'ADR-0209 §4')) &&
         has(fInd.why, 'ни у показателя, ни у разреза') && has(fInd.why, 'ИС-6') &&
         okBkt.ok && ST.DIM('d-f4').edges.length === 3,
     `поля формулы нет ни у одной породы: ${R6.length} записей × ${FF.length} имён, под которыми выражение пробирается в реестр (${FF.join(', ')}), — совпадений 0. Отказ один на обе породы: «${String(fDim.why).slice(0, 88)}…». Разрез здесь не привилегирован — корзина ИСКЛЮЧЕНИЕМ НЕ ЯВЛЯЕТСЯ: она не выводит новой величины, она раскладывает существующую по объявленным ГРАНИЦАМ, и та же корзина без выражения заводится свободно (${okBkt.ok}, границ ${ST.DIM('d-f4').edges.length}). Разница не косметическая: границы — данные записи, выражение — вторая реализация правила, которая разойдётся с ядром молча и в свой срок (ИС-6, ИС-43, ADR-0150, ADR-0209 §4)`);
 
-  /* #161 — переезд породы: та же запись, тот же идентификатор, история цела. */
+  /* #161 — переезд породы: та же запись, тот же идентификатор, история цела.
+     Волна 23 (переписан на месте): колонку записи заводит релиз, и переезд породы её не
+     трогает — сравниваются колонка записи и релиз, а не схема витрины, которой больше нет
+     (ИС-53, ADR-0237 §3, §4). */
   ST.seed();
-  const b1 = {n: ST.state.registry.length, mart: ST.mart().length, log: ST.martLog().length};
+  const b1 = {n: ST.state.registry.length, cols: ST.physOf('d-industry').join(),
+              rel: JSON.stringify(ST.release()), st: ST.colOf('d-industry').state};
   const noReq = ST.changeKind('d-industry', 'показатель');
   const same  = ST.changeKind('d-industry', 'разрез');
   const third2 = ST.changeKind('d-industry', 'свод', 'Э.', {});
@@ -2660,13 +2730,17 @@ const FIZ = fizSchema();
         hist.from === 'разрез' && hist.who === 'Мамбетов Э.' && hist.dropped.join() === 'order' &&
         !!ST.IND('d-industry') && ST.DIM('d-industry') === undefined &&
         O.inds.indexOf('d-industry') >= 0 && O.dims.indexOf('d-industry') < 0 &&
-        ST.state.registry.length === b1.n && ST.mart().length === b1.mart &&
-        ST.martLog().length === b1.log,
-    `переезд породы — рядовая правка настройки, а не заведение новой записи: «${now.name}» ушла из разрезов в показатели, и при этом идентификатор тот же (${now.id}), имя то же, дата заведения та же (${now.since}), история ДОПИСАНА, а не начата заново (${was.history.length} → ${now.history.length}, последняя запись «${hist.what}: ${hist.from} → ${hist.kind}», кем — ${hist.who}). Реквизиты прежней породы сняты ПОИМЁННО (${moved.dropped.join(', ')}), недостающие спрошены — без них отказ, и отказ объясняет чем: «${String(noReq.why).slice(0, 70)}…». Состав объекта переставлен, реестр не вырос (${ST.state.registry.length}), схема витрины не тронута вовсе (${ST.mart().length} колонок, ${ST.martLog().length} строк журнала). Бесплатным переезд не бывает: на запись могли сослаться как на запись СВОЕЙ породы — «${String(tied.why).slice(0, 92)}…», и оборвалась бы такая ссылка молча, на первом прогоне (ИС-7, ИС-43, ADR-0209 §5)`);
+        ST.state.registry.length === b1.n && b1.cols !== '' &&
+        ST.physOf('d-industry').join() === b1.cols && JSON.stringify(ST.release()) === b1.rel &&
+        b1.st === 'включена' && ST.colOf('d-industry').state === 'включена',
+    `переезд породы — рядовая правка настройки, а не заведение новой записи: «${now.name}» ушла из разрезов в показатели, и при этом идентификатор тот же (${now.id}), имя то же, дата заведения та же (${now.since}), история ДОПИСАНА, а не начата заново (${was.history.length} → ${now.history.length}, последняя запись «${hist.what}: ${hist.from} → ${hist.kind}», кем — ${hist.who}). Реквизиты прежней породы сняты ПОИМЁННО (${moved.dropped.join(', ')}), недостающие спрошены — без них отказ, и отказ объясняет чем: «${String(noReq.why).slice(0, 70)}…». Состав объекта переставлен, реестр не вырос (${ST.state.registry.length}), колонка та же (${ST.physOf('d-industry').join(', ')}), релиз не тронут вовсе: колонку заводит и не снимает релиз, а порода — реквизит записи (ИС-53, ADR-0237 §3, §4). Бесплатным переезд не бывает: на запись могли сослаться как на запись СВОЕЙ породы — «${String(tied.why).slice(0, 92)}…», и оборвалась бы такая ссылка молча, на первом прогоне (ИС-7, ИС-43, ADR-0209 §5)`);
 
-  /* #162 — запись не удаляется, а ПРЕКРАЩАЕТ ДЕЙСТВИЕ с даты (§6). */
+  /* #162 — запись не удаляется, а ПРЕКРАЩАЕТ ДЕЙСТВИЕ с даты (§6).
+     Волна 23 (переписан на месте): «колонка цела» проверяется по релизу — колонка записи
+     осталась в таблице объекта и сиротой не стала, потому что прекращённая запись её по-
+     прежнему называет; релиз вывод записи не трогает вовсе (ИС-53, ADR-0237 §4). */
   ST.seed();
-  const b2 = {n: ST.state.registry.length, mart: ST.mart().length, log: ST.martLog().length};
+  const b2 = {n: ST.state.registry.length, rel: JSON.stringify(ST.release())};
   const cells0 = ST.statRows({obj:'obj-borrower', date: ASK}).rows.filter(r => r.inds['m-bworst']).length;
   const gone = ST.retire('m-bworst', true, 'Мамбетов Э.');
   const G = ST.REC('m-bworst');
@@ -2677,51 +2751,65 @@ const FIZ = fizSchema();
   const cells1 = ST.statRows({obj:'obj-borrower', date: ASK}).rows.filter(r => r.inds['m-bworst']).length;
   const twice = ST.retire('m-bworst', true);
   ST.addIndicator({dates:1, id:'m-nb', name:'Проба основания корзин', obj:'obj-credit', src:'поле',
-    key:'k', type:'число', unit:'дн.'});
+    key:'k', type:'число', unit:'дн.', col:'i_nb', vtype:'int'});
   ST.addDim({dates:1, id:'d-nb', name:'Проба корзины над ним', obj:'obj-credit', src:'поле', key:'k',
-    perObject:'одно', buckets:['ступени'], edges:[1,31,91], basis:'m-nb'});
+    perObject:'одно', buckets:['ступени'], edges:[1,31,91], basis:'m-nb', col:'d_nb', vtype:'cls'});
+  const bwCols = ST.physOf('m-bworst'), bwRel = ST.release().tables['obj-borrower'].cols;
   const basis = ST.retire('m-nb', true);
   const keyed = ST.retire('d-clcred', true);
   ok(162, gone.ok && gone.until === ST.state.today && G && G.until === ST.state.today &&
-        ST.state.registry.length === b2.n + 2 && ST.mart().length === b2.mart + 2 &&
+        ST.state.registry.length === b2.n + 2 && JSON.stringify(ST.release()) === b2.rel &&
         gHist.what === 'прекращена' && gHist.who === 'Мамбетов Э.' && !!G &&
         ST.actsOn('m-bworst', ST.state.today) === false &&
         ST.actsOn('m-bworst', '2026-07-01') === true &&
         ST.OBJ('obj-borrower').inds.indexOf('m-bworst') < 0 &&
-        !!ST.martCol('m-bworst') && cells0 === cells1 && cells1 > 0 &&
+        bwCols.length > 0 && bwCols.every(c => bwRel.indexOf(c) >= 0) &&
+        !ST.orphanCols().some(c => bwCols.indexOf(c.col) >= 0) && cells0 === cells1 && cells1 > 0 &&
         !twice.ok && has(twice.why, 'вторая дата') &&
         !basis.ok && has(basis.why, 'основание корзин') &&
         !keyed.ok && has(keyed.why, 'дедуп-ключ показателей'),
-    `запись из реестра НЕ ИСЧЕЗАЕТ: «${gName}» прекращена с ${gUntil}, но лежит на месте (реестр ${b2.n} → ${ST.state.registry.length} — вырос на две пробные записи, не убыл), колонка витрины цела, и в строках 18.08 её клетка как была заполнена в ${cells0} строках, так и осталась (${cells1}). Стерев запись, мы оставили бы в этих клетках ЧИСЛО БЕЗ ИМЕНИ — прочитать его было бы больше нечем (ИС-4, ADR-0147 §4). Прекращение действует ВПЕРЁД: на сегодня запись не действует, на 01.07 действует, из состава объекта ушла — спрашивать её начиная с сегодня нечем. Дата одна: «${String(twice.why).slice(0, 62)}…». Вывод не бесплатен и там, где на запись ссылаются ПОИМЁННО: основание корзин — «${String(basis.why).slice(0, 56)}…», дедуп-ключ — отказ по той же причине; а ссылки потребителей вывод не запрещают, а обязывают назвать поимённо (#58, ИС-25, ADR-0177 §4)`);
+    `запись из реестра НЕ ИСЧЕЗАЕТ: «${gName}» прекращена с ${gUntil}, но лежит на месте (реестр ${b2.n} → ${ST.state.registry.length} — вырос на две пробные записи, не убыл), колонка релиза цела (${bwCols.join(', ')}) и сиротой не стала — прекращённая запись её по-прежнему называет (ADR-0237 §4), и в строках 18.08 её клетка как была заполнена в ${cells0} строках, так и осталась (${cells1}). Стерев запись, мы оставили бы в этих клетках ЧИСЛО БЕЗ ИМЕНИ — прочитать его было бы больше нечем (ИС-4, ADR-0147 §4). Прекращение действует ВПЕРЁД: на сегодня запись не действует, на 01.07 действует, из состава объекта ушла — спрашивать её начиная с сегодня нечем. Дата одна: «${String(twice.why).slice(0, 62)}…». Вывод не бесплатен и там, где на запись ссылаются ПОИМЁННО: основание корзин — «${String(basis.why).slice(0, 56)}…», дедуп-ключ — отказ по той же причине; а ссылки потребителей вывод не запрещают, а обязывают назвать поимённо (#58, ИС-25, ADR-0177 §4)`);
 
-  /* #163 — схема витрины ПОРОЖДЕНА реестром: одна операция, обратного хода нет (§6). */
+  /* #163 — реестр ССЫЛАЕТСЯ на колонки релиза, а не порождает их (§6).
+     Волна 23 (переписан на месте): прежде сторож проверял схему витрины, порождённую
+     реестром, — одна операция ADD COLUMN, свой журнал DDL, колонка помнит породу момента
+     заведения (`kindAt`). ADR-0237 эту схему снял: колонку заводит миграция релиза, журнал
+     колонок ведёт Liquibase, своего журнала DDL у статистики нет (§2, §6). Проверки
+     `ST.mart`/`ST.martLog`/`kindAt` сняты вместе с ней; суть осталась — дверь реестра схему
+     не меняет, у каждой записи ровно свои колонки, и обратного хода у колонки нет
+     (ИС-53, ADR-0237 §3, §4). */
   ST.seed();
-  const mart0 = ST.mart(), log0 = ST.martLog();
-  const ops = [...new Set(log0.map(x => x.op))];
-  const notNull = mart0.filter(c => c.nullable !== true);
-  const orphan  = mart0.filter(c => !ST.REC(c.col));
-  const uncol   = ST.state.registry.filter(r => !ST.martCol(r.id));
-  const dupOf = arr => arr.filter((x, i) => arr.indexOf(x) !== i);
-  const dupCol  = dupOf(mart0.map(c => c.col));
-  const unlogged = mart0.filter(c => !log0.some(x => x.op === 'ADD COLUMN' && x.col === c.col));
+  const rel0 = ST.release(), relJ0 = JSON.stringify(rel0);
+  const live0 = ST.state.registry.filter(r => r.src !== 'агрегат');
+  const inRel = (obj, c) => !!rel0.tables[obj] && rel0.tables[obj].cols.indexOf(c) >= 0;
+  const unnamed = live0.filter(r => !ST.physOf(r.id).length);
+  const offRel  = live0.filter(r => ST.physOf(r.id).some(c => !inRel(r.obj, c)));
+  /* Одна колонка у двух записей законна ровно в одном случае — одна величина в двух ролях
+     (разрез и показатель над одним полем, §5): источник у них один. Две записи с РАЗНЫМИ
+     источниками на одной колонке писали бы в неё разное. */
+  const byCol = {};
+  live0.forEach(r => ST.physOf(r.id).forEach(c => { (byCol[r.obj + '.' + c] = byCol[r.obj + '.' + c] || []).push(r); }));
+  const srcOf = r => [r.src, r.seam, r.field, r.key].join('|');
+  const shared = Object.keys(byCol).filter(k => byCol[k].length > 1);
+  const dupCol = shared.filter(k => byCol[k].some(r => srcOf(r) !== srcOf(byCol[k][0])));
+  const orph0 = ST.orphanCols();
   const addI = ST.addIndicator({dates:1, id:'m-m1', name:'Проба колонки числа', obj:'obj-credit',
-    src:'поле', key:'k', type:'сумма', unit:'сом'});
+    src:'поле', key:'k', type:'сумма', unit:'сом', col:'i_m1', vtype:'num'});
   const addD = ST.addDim({dates:1, id:'d-m2', name:'Проба колонки признака', obj:'obj-credit',
-    src:'поле', key:'k', perObject:'одно'});
-  const tail = ST.martLog().slice(-2);
-  const grew = ST.mart().length === mart0.length + 2 && ST.martLog().length === log0.length + 2;
+    src:'поле', key:'k', perObject:'одно', col:'d_m2', vtype:'code'});
+  const kept = JSON.stringify(ST.release()) === relJ0;
   ST.changeKind('d-industry', 'показатель', 'Э.', {type:'перечисление'});
   ST.retire('m-bworst', true, 'Э.');
-  const still = ST.mart().length === mart0.length + 2 && ST.martLog().length === log0.length + 2;
-  const opsAll = [...new Set(ST.martLog().map(x => x.op))];
-  ok(163, ops.length === 1 && ops[0] === 'ADD COLUMN' && notNull.length === 0 &&
-        orphan.length === 0 && uncol.length === 0 && dupCol.length === 0 &&
-        unlogged.length === 0 && mart0.length === log0.length &&
-        addI.ok && addD.ok && addI.col === 'm-m1' && addD.col === 'd-m2' && grew &&
-        tail.every(x => x.op === 'ADD COLUMN' && x.nullable === true && x.who && x.why) &&
-        still && opsAll.length === 1 && ST.martCol('d-industry').kindAt === 'разрез' &&
-        !!ST.martCol('m-bworst'),
-    `схема витрины не рисуется отдельно, а ПОРОЖДАЕТСЯ реестром: колонок ${mart0.length} на ${mart0.length} записей, безымянных ${orphan.length}, бесколоночных ${uncol.length}, повторных ${dupCol.length}, незажурналенных ${unlogged.length}. Операция в журнале РОВНО ОДНА на весь модуль — ${opsAll.join(', ')}, и все ${mart0.length} колонок nullable (не nullable — ${notNull.length}). Nullable — не мягкость, а факт: строки, написанные до заведения записи, в этой колонке пусты, и заполнить их задним числом нечем. Новая запись любой породы добавляет колонку той же дверью, что и демо-мир (ADD COLUMN ${addI.col} и ${addD.col}, обе с автором и основанием) — обойди сторож этот путь, он перестал бы что-либо доказывать. Обратного хода нет: ни переезд породы, ни прекращение записи схемы не трогают (${ST.mart().length} колонок — ровно те же, что после двух заведений), колонка помнит породу МОМЕНТА заведения (${ST.martCol('d-industry').kindAt}) и принадлежит записи, а не породе (ИС-43, ADR-0209 §6)`);
+  const still = JSON.stringify(ST.release()) === relJ0;
+  const ddl = ST.relLog().filter(x => /ADD COLUMN|DROP|ALTER/.test(x.msg));
+  const bw = ST.physOf('m-bworst');
+  ok(163, live0.length > 0 && unnamed.length === 0 && offRel.length === 0 && dupCol.length === 0 && shared.length > 0 &&
+        orph0.length > 0 && orph0.every(c => c.col.indexOf('d_terr_aokrug') === 0) &&
+        addI.ok && addD.ok && addI.waiting === true && addD.waiting === true &&
+        ST.colOf('m-m1').state === 'ждёт колонку' && ST.colOf('d-m2').state === 'ждёт колонку' &&
+        kept && still && ddl.length === 0 && ST.colOf('d-industry').state === 'включена' &&
+        bw.length > 0 && bw.every(c => inRel('obj-borrower', c)),
+    `реестр не порождает схему, а ССЫЛАЕТСЯ на неё: из ${live0.length} записей с колонками безымянных ${unnamed.length}, названных мимо релиза ${offRel.length}, двух записей с разным источником на одной колонке ${dupCol.length} (общая колонка у одной величины в двух ролях — ${shared.length}, §5); колонки релиза без записи — только заведомая пара ${orph0.map(c => c.col).join(', ')} (#241). Дверь реестра схему не меняет: две новые записи любой породы (${(addI.cols || []).join(', ')} и ${(addD.cols || []).join(', ')}) легли в «ждёт колонку», релиз тот же; переезд породы и прекращение записи его тоже не тронули — колонка прекращённой «${ST.REC('m-bworst').name}» (${bw.join(', ')}) на месте, а строк DDL в журнале релиза ${ddl.length}: колонку заводит changeset, журнал колонок ведёт Liquibase. Схема витрины, порождаемая реестром, и «порода момента заведения» у колонки сняты вместе с ADR-0209 §6 (ИС-53, ADR-0237 §2, §3, §4, §6)`);
 
   /* #164 — одна величина в двух ролях — ДВЕ записи, связанные явно (§5). */
   ST.seed();
@@ -2783,7 +2871,7 @@ const FIZ = fizSchema();
   const half = ST.addIndicator({id:'m-q3', name:'Проба полутора дат', obj:'obj-credit',
     src:'поле', key:'k', type:'сумма', unit:'сом', dates:1.5});
   const one  = ST.addIndicator({id:'m-q4', name:'Проба одной даты', obj:'obj-credit',
-    src:'поле', key:'k', type:'сумма', unit:'сом', dates:1});
+    src:'поле', key:'k', type:'сумма', unit:'сом', dates:1, col:'i_q4', vtype:'num'});  /* волна 23: годная запись называет колонку (ИС-53) */
   ok(165, notOne.length === 0 && rawMany.length === 0 && F_COMMON.indexOf('dates') >= 0 &&
         !mute.ok && has(mute.why, 'не спрошено') && has(mute.why, 'ИС-47') &&
         !zero.ok && has(zero.why, 'целым и не меньше одного') &&
@@ -2817,7 +2905,7 @@ const FIZ = fizSchema();
      нельзя, и солгавший в ответе заводит запись, имя которой врёт (ИС-40). Зато видно, что
      решает ЧИСЛО: имя у обеих проб одно и то же. */
   const sameName = ST.addIndicator({id:'m-w5', name:'Скорость набора портфеля', obj:'obj-credit',
-    src:'поле', key:'k', type:'сумма', unit:'сом', dates:1});
+    src:'поле', key:'k', type:'сумма', unit:'сом', dates:1, col:'i_w5', vtype:'num'});  /* волна 23: годная запись называет колонку (ИС-53) */
   ok(166, asked.every(x => !x.r.ok && has(x.r.why, 'ИС-47') && has(x.r.why, 'ADR-0220') &&
         !has(x.r.why, 'ИС-15') && noWord(x.name)) &&
         ST.state.registry.length === n166 + 1 && asked.every(x => !ST.REC(x.id)) &&
@@ -2849,7 +2937,8 @@ const FIZ = fizSchema();
   const shareTwo= ST.addIndicator({id:'m-p3', name:'Доля просрочки в портфеле', obj:'obj-credit',
     src:'поле', key:'k', type:'сумма', unit:'сом', dates:2});
   const growth  = ST.addIndicator({id:'m-p4', name:'Прирост стоимости залога по оценке',
-    obj:'obj-collateral', src:'поле', key:'k', type:'сумма', unit:'сом', dates:1});
+    obj:'obj-collateral', src:'поле', key:'k', type:'сумма', unit:'сом', dates:1,
+    col:'i_p4', vtype:'num'});  /* волна 23: годная запись называет колонку (ИС-53) */
   const OLD168 = ['доля','дельта','сомовый эквивалент','процент от','прирост'];
   ok(168, !perUnit.ok && has(perUnit.why, 'ИС-35') && has(perUnit.why, 'ADR-0200') &&
         !has(perUnit.why, 'ИС-47') &&
@@ -2866,7 +2955,7 @@ const FIZ = fizSchema();
   const third = ST.addRecord({kind:'свод', id:'x-t1', name:'Темп роста портфеля', obj:'obj-credit',
     src:'поле', key:'k', dates:2});
   const born = ST.addIndicator({id:'m-k1', name:'Стоимость залога по оценке', obj:'obj-collateral',
-    src:'поле', key:'k', type:'сумма', unit:'сом', dates:1});
+    src:'поле', key:'k', type:'сумма', unit:'сом', dates:1, col:'i_k1', vtype:'num'});  /* волна 23: годная запись называет колонку (ИС-53) */
   const move2 = ST.changeKind('m-k1', 'разрез', 'Э.', {perObject:'одно', dates:2});
   /* Порода снимается СЛЕПКОМ: `REC` отдаёт живую запись, и прочитанная после переезда
      она рассказала бы про его исход, а не про отбитую попытку. */
@@ -2890,7 +2979,7 @@ const FIZ = fizSchema();
    ADR-0214 разводит два показателя: сумма в валюте договора и сумма в сомах — РАЗНЫЕ
    величины с РАЗНЫМИ именами, и вторая — полноправная запись реестра, материализованная
    колонкой замороженной строки. Проверяется здесь пять вещей, и ни одна не про «красиво»:
-   запись есть запись (имя, единица, свод, состав объекта, колонка витрины, паспорт);
+   запись есть запись (имя, единица, свод, состав объекта, колонка релиза, паспорт);
    пересчёт живёт в ОДНОМ месте и принадлежит ядру, а правило округления объявлено один раз;
    каждая сомовая клетка КАЖДОЙ строки каждого прогона перемножается сторожем и сверяется —
    и сторож ловит подброшенный дефект; свод валютной записи по разновалютному множеству есть
@@ -2908,7 +2997,10 @@ const FIZ = fizSchema();
 
   /* #170 — сомовая величина есть ЗАПИСЬ РЕЕСТРА, а не пометка на чужой клетке: своё имя,
      своя единица, своё правило свода, свой источник, место в составе объекта, колонка
-     витрины и паспорт у ответа. Всё то, чего у «эквивалента при показе» не было. */
+     и паспорт у ответа. Всё то, чего у «эквивалента при показе» не было.
+     Волна 23 (переписан на месте): колонка — не «заведённая витриной», а колонка релиза,
+     на которую запись ссылается: `_som` той же основы, что `_v` валютной стороны, в той же
+     таблице объекта (ИС-53, ADR-0237 §3, ADR-0242 §1). */
   const cur170 = ST.REC('m-debt'), som170 = ST.REC('m-debt-som');
   const cInds = ST.OBJ('obj-credit').inds;
   const nextTo = cInds.indexOf('m-debt-som') === cInds.indexOf('m-debt') + 1;
@@ -2916,7 +3008,8 @@ const FIZ = fizSchema();
   const cell170 = rows170.rows[0].inds['m-debt-som'];
   const sl170 = ST.callSeam('отчётность', 'statSlice',
     {obj:'obj-credit', dims:['d-branch'], inds:['a-sumdebt-som'], date: ASK});
-  const col170 = ST.martCol('m-debt-som');
+  const col170 = ST.colOf('m-debt-som'), cur170c = ST.colOf('m-debt');
+  const base170 = c => String(c).replace(/_(v|som)$/, '');
   const reg170 = ST.registry().filter(r => r.id === 'm-debt-som');
   ok(170, som170 && som170.kind === 'показатель' && som170.name === cur170.name + ' в сомах' &&
         som170.name !== cur170.name && som170.unit === 'сом' && cur170.unit !== 'сом' &&
@@ -2928,9 +3021,11 @@ const FIZ = fizSchema();
         cell170 && cell170.v > 0 && cell170.cur === 'KGS' &&
         sl170.ok && sl170.total['a-sumdebt-som'].v > 0 &&
         sl170.passport && sl170.passport.asOf && sl170.passport.fixation && sl170.passport.scope &&
-        col170 && col170.nullable === true && col170.type === 'сумма' &&
+        col170 && col170.state === 'включена' && col170.table === cur170c.table &&
+        col170.cols.length === 1 && /_som$/.test(col170.cols[0]) && /_v$/.test(cur170c.cols[0]) &&
+        base170(col170.cols[0]) === base170(cur170c.cols[0]) &&
         !('formula' in som170) && !('expr' in som170),
-    `сомовая величина — ЗАПИСЬ РЕЕСТРА, а не пометка на чужой клетке. У неё СВОЁ имя, и оно отличается от валютного не оговоркой, а буквами: «${cur170.name}» (${cur170.unit}) и «${som170.name}» (${som170.unit}) — два числа, которые нельзя сложить между собой, не носят одного имени (ИС-40). Она лежит в ОДНОЙ кладовой с остальными (${st.registry.length} записей), читается дверью своей породы и не читается чужой, стоит в составе объекта СРАЗУ за своей валютной стороной (${cInds.indexOf('m-debt')} → ${cInds.indexOf('m-debt-som')}), названа именем в вопросе через шов и отвечает с паспортом (${sl170.passport.short}), а витрина завела ей колонку — ${col170.col}, nullable, порода «${col170.kindAt}». Всё перечисленное — ровно то, чего у «эквивалента при показе» не было ни одного: его нельзя было назвать в отчёте, поставить в состав, прекратить датой и спросить швом. Свод у неё «${som170.roll}» и другим не бывает — в этом весь смысл её отдельного имени; поля формулы у записи нет (ИС-44, ADR-0214 §2, ADR-0150 §1)`);
+    `сомовая величина — ЗАПИСЬ РЕЕСТРА, а не пометка на чужой клетке. У неё СВОЁ имя, и оно отличается от валютного не оговоркой, а буквами: «${cur170.name}» (${cur170.unit}) и «${som170.name}» (${som170.unit}) — два числа, которые нельзя сложить между собой, не носят одного имени (ИС-40). Она лежит в ОДНОЙ кладовой с остальными (${st.registry.length} записей), читается дверью своей породы и не читается чужой, стоит в составе объекта СРАЗУ за своей валютной стороной (${cInds.indexOf('m-debt')} → ${cInds.indexOf('m-debt-som')}), названа именем в вопросе через шов и отвечает с паспортом (${sl170.passport.short}), а колонка у неё — колонка релиза ${col170.table}.${col170.cols.join()}, той же основы, что ${cur170c.cols.join()} валютной стороны: величина одна, сторон две (ADR-0237 §3, ADR-0242 §1). Всё перечисленное — ровно то, чего у «эквивалента при показе» не было ни одного: его нельзя было назвать в отчёте, поставить в состав, прекратить датой и спросить швом. Свод у неё «${som170.roll}» и другим не бывает — в этом весь смысл её отдельного имени; поля формулы у записи нет (ИС-44, ADR-0214 §2, ADR-0150 §1)`);
 
   /* #171 — пересчёт в ОДНОМ месте и принадлежит ЯДРУ; правило округления объявлено один
      раз. Довод механический: до волны 17 умножали на курс ЧЕТЫРЕ места, и каждое округляло
@@ -3170,19 +3265,23 @@ const FIZ = fizSchema();
   const taken = ST.addIndicator({dates:1, id:'m-n1', name:'Сумма остатка ОД', obj:'obj-borrower',
     src:'поле', key:'k', type:'сумма', unit:'сом'});
   const decoy = ST.addIndicator({dates:1, id:'m-n2', name:'Плата за простой в сомах', obj:'obj-credit',
-    src:'поле', key:'k', type:'сумма', unit:'сом'});
+    src:'поле', key:'k', type:'сумма', unit:'сом', col:'i_n2', vtype:'num'});
   const clash = ST.addIndicator({dates:1, id:'m-n3', name:'Плата за простой', obj:'obj-credit',
     src:'шов', seam:'calcAccrual', field:'interest', money:true, type:'сумма',
-    round:'коп-2', roll:'формульный', rollBy:'d-cur'});
+    round:'коп-2', roll:'формульный', rollBy:'d-cur', col:'i_n3', vtype:'money_cur'});
   /* Волна 23 (переписан на месте): близнецов 114 → 74 — у итогов в сомах пары нет
-     (ADR-0240 §4), и часть записей снята сверкой со схемой. Правило имени то же. */
+     (ADR-0240 §4), и часть записей снята сверкой со схемой. Правило имени то же.
+     З-14: пробы называют колонку (ИС-53) — иначе пару отбила бы дверь каталога раньше
+     проверки имени, и сторож доказывал бы не то; «колонки витрины не завели» читается
+     теперь как «в ждущие колонку не встала» — схемы витрины больше нет (ADR-0237 §3). */
   ok(176, twins.length === 74 && sameName.length === 0 && dup.length === 0 &&
         shared.length === 1 && twinShared.length === 0 &&
         twins.every(t => /\sв сомах$/.test(t.name)) &&
         !taken.ok && has(taken.why, 'ИС-40') &&
         decoy.ok && !clash.ok && has(clash.why, 'сомовая запись к') && has(clash.why, 'ИС-40') &&
-        has(clash.why, 'Валютная тоже не заведена') && !ST.REC('m-n3') && !ST.martCol('m-n3'),
-    `имя у сомовой записи ДРУГОЕ, и это проверено на всех ${twins.length} близнецах: совпавших с валютным именем ${sameName.length}, незаконно одноимённых пар во всём реестре ${dup.length}, и ни один близнец не попал даже в законное совпадение (${twinShared.length}). Совпадение имён в реестре осталось единственное и прежнее — «${shared[0][0].name}» (${shared[0].map(r => r.id + ':' + r.kind).join(' и ')}): один факт объекта «${(ST.OBJ(shared[0][0].obj) || {}).name}», прочитанный дорогой ${road176(shared[0][0])} и как величина, и как признак, — звать его двумя именами значило бы утверждать, что это два факта. Правило ИС-40 при этом живо и не притупилось: занятое имя по-прежнему отбивается («${String(taken.why).slice(0, 60)}…»). Близнец не льгота: он идёт ЧЕРЕЗ ТУ ЖЕ проверку. Подложена запись «Плата за простой в сомах» — законная и заведённая; следом заводится денежная «Плата за простой», близнец которой назвался бы так же, — и отбита ВСЯ ПАРА: «${String(clash.why).slice(0, 96)}…», причём валютной записи в реестре тоже не осталось (${ST.REC('m-n3') ? 'осталась' : 'нет'}) и колонки витрины ей не завели (${ST.martCol('m-n3') ? 'завели' : 'нет'}). Иначе в реестре жила бы половина пары: денежная величина без сомовой стороны, о которой узнали бы на сведении двух отчётов (ИС-40, ИС-44, ADR-0206 §6, ADR-0214 §2)`);
+        has(clash.why, 'Валютная тоже не заведена') && !ST.REC('m-n3') && !ST.colOf('m-n3') &&
+        !ST.awaiting().some(a => a.id === 'm-n3' || a.id === 'm-n3-som'),
+    `имя у сомовой записи ДРУГОЕ, и это проверено на всех ${twins.length} близнецах: совпавших с валютным именем ${sameName.length}, незаконно одноимённых пар во всём реестре ${dup.length}, и ни один близнец не попал даже в законное совпадение (${twinShared.length}). Совпадение имён в реестре осталось единственное и прежнее — «${shared[0][0].name}» (${shared[0].map(r => r.id + ':' + r.kind).join(' и ')}): один факт объекта «${(ST.OBJ(shared[0][0].obj) || {}).name}», прочитанный дорогой ${road176(shared[0][0])} и как величина, и как признак, — звать его двумя именами значило бы утверждать, что это два факта. Правило ИС-40 при этом живо и не притупилось: занятое имя по-прежнему отбивается («${String(taken.why).slice(0, 60)}…»). Близнец не льгота: он идёт ЧЕРЕЗ ТУ ЖЕ проверку. Подложена запись «Плата за простой в сомах» — законная и заведённая; следом заводится денежная «Плата за простой», близнец которой назвался бы так же, — и отбита ВСЯ ПАРА: «${String(clash.why).slice(0, 96)}…», причём валютной записи в реестре тоже не осталось (${ST.REC('m-n3') ? 'осталась' : 'нет'}) и в ждущие колонку она не встала (${ST.awaiting().some(a => a.id === 'm-n3') ? 'встала' : 'нет'}). Иначе в реестре жила бы половина пары: денежная величина без сомовой стороны, о которой узнали бы на сведении двух отчётов (ИС-40, ИС-44, ADR-0206 §6, ADR-0214 §2)`);
 
   /* #177 — запрет ПРЕДСТАВЛЕНИЯ жив и сузился ровно на треть: было три причины, осталось
      две. ИС-15 не отменён — отменена ОДНА его строка (ADR-0214 отменил ADR-0151 §2,
@@ -3194,7 +3293,7 @@ const FIZ = fizSchema();
     src:'поле', key:'k', type:'число', unit:'%'});
   const somReq = ST.addIndicator({dates:1, id:'m-s3', name:'Сомовый эквивалент обеспечения', obj:'obj-credit',
     src:'шов', seam:'calcCoverage', field:'secured', money:true, type:'сумма',
-    round:'коп-2', roll:'формульный', rollBy:'d-cur'});
+    round:'коп-2', roll:'формульный', rollBy:'d-cur', col:'i_s3', vtype:'money_cur'});  /* волна 23: годная запись называет колонку (ИС-53) */
   ok(177, SHOWN.length === 2 && SHOWN.indexOf('доля') >= 0 && SHOWN.indexOf('процент от') >= 0 &&
         SHOWN.indexOf('сомовый эквивалент') < 0 &&
         !share.ok && has(share.why, 'ИС-15') && !has(share.why, 'ИС-47') &&
@@ -3247,7 +3346,7 @@ const FIZ = fizSchema();
     src:'поле', key:'k', type:'число', unit:'дн.', rollBy:'d-cur'});
   const good179 = ST.addIndicator({dates:1, id:'m-r5', name:'Комиссия за ведение счёта', obj:'obj-credit',
     src:'шов', seam:'calcAccrual', field:'interest', money:true, type:'сумма',
-    round:'коп-2', roll:'формульный', rollBy:'d-cur'});
+    round:'коп-2', roll:'формульный', rollBy:'d-cur', col:'i_r5', vtype:'money_cur'});  /* волна 23: годная запись называет колонку (ИС-53) */
   ok(179, moneyRows.length === 37 && badRoll.length === 0 && badBy.length === 0 &&
         somRows.length === 17 && badSom.length === 0 &&
         !bare179.ok && has(bare179.why, 'ИС-44') && has(bare179.why, 'Валюта кредитного договора') &&
@@ -3260,9 +3359,13 @@ const FIZ = fizSchema();
     `неаддитивность объявлена РЕКВИЗИТОМ записи, а не поведением движка: у всех ${moneyRows.length} денежных строчных записей реестра, возникших в валюте, свод «формульный» (нарушителей ${badRoll.length}) и назван обязательный разрез — валюта СВОЕГО объекта (нарушителей ${badBy.length}). Итоги в сомах (${somRows.length}) аддитивны — и это тоже ОБЪЯВЛЕНО записью, а не подразумевается: свод «аддитивный», единица «сом», разреза свода нет (нарушителей ${badSom.length}, ADR-0240 §4). Дверь СПРАШИВАЕТ и не догадывается: молчание отбито и адресовано — «${String(bare179.why).slice(0, 92)}…»; несуществующий разрез отбит («${String(ghost179.why).slice(0, 56)}…»); ЧУЖОЙ разрез валюты отбит отдельно, потому что складывать по признаку, которого в строке нет, нечем, — и отбит С АДРЕСОМ: назван и чужой объект (d-bcur на obj-borrower), и свой разрез валюты, который тут и нужен («${String(alien179.why).slice(-96)}»); и наоборот — разрез свода при неформульном своде тоже отбит: ограничивать сложение у аддитивной величины нечего. Правило проверяемо, а не декларативно: та же запись с названным разрезом заводится свободно (${good179.ok ? 'm-r5: свод «' + ST.REC('m-r5').roll + '», разрез «' + (ST.DIM(ST.REC('m-r5').rollBy) || {}).name + '»' : 'НЕ ЗАВЕЛАСЬ: ' + good179.why}). Умолчания «аддитивна» у денег нет и быть не может — оно и было ловушкой (ИС-44, ADR-0214 §1, ADR-0209 §2)`);
 
   /* #180 — близнец порождается МЕХАНИЧЕСКИ и в ОДНОМ месте: на сборке реестра и в двери
-     заведения работает один и тот же порождатель, один валидатор, один `normRec` и одна
-     дверь в схему витрины. Забытый близнец дал бы денежную величину, которую нельзя
-     сложить по портфелю, и узналось бы об этом на сведении двух отчётов. */
+     заведения работает один и тот же порождатель, один валидатор и один `normRec`.
+     Забытый близнец дал бы денежную величину, которую нельзя сложить по портфелю, и
+     узналось бы об этом на сведении двух отчётов.
+     Волна 23 (переписан на месте): «одна дверь в схему витрины» снята вместе со схемой
+     (ADR-0237). Колонки пары заводит миграция релиза ДО записи, запись ссылается на них, и
+     дверь реестра релиз не трогает — проверяется это вместо операций ADD COLUMN
+     (ИС-53, ADR-0237 §2, §3). */
   st = ST.seed();
   const allInd = st.registry.filter(r => r.kind === 'показатель');
   /* Волна 23 (переписан на месте): близнец порождается у величины, ВОЗНИКШЕЙ в валюте, и
@@ -3282,23 +3385,25 @@ const FIZ = fizSchema();
   const declAt = (CODE.match(/declareTwin\(/g) || []).length;
   const shapeAt = (CODE.match(/function somTwinOf\(/g) || []).length;
   const shapeUse = (CODE.match(/somTwinOf\(/g) || []).length;
-  const n180 = st.registry.length, mart180 = ST.mart().length;
+  const n180 = st.registry.length;
+  const mig180 = ST.migrate({obj:'obj-claim', cols:['i_t9_v','i_t9_som'], note:'госпошлина по требованию'});
+  const rel180 = JSON.stringify(ST.release());
   const door = ST.addIndicator({dates:1, id:'m-t9', name:'Госпошлина по требованию', obj:'obj-claim',
     src:'шов', seam:'claimDebt', field:'amount', money:true, type:'сумма',
-    round:'коп-2', roll:'формульный', rollBy:'d-clcur'});
+    round:'коп-2', roll:'формульный', rollBy:'d-clcur', col:'i_t9', vtype:'money_cur'});
   const dTwin = ST.REC('m-t9-som');
   const cl = ST.OBJ('obj-claim').inds;
-  const ops180 = ST.martLog().slice(-2).map(l => l.op);
   ok(180, noTwinRow.length === 0 && noTwinAgg.length === 0 && overTwin.length === 0 &&
         moneyAgg.length === 37 && somOnly180.length === 17 && twinnedSom.length === 0 &&
         shapeAt === 1 && shapeUse === 2 && declAt === 3 &&
-        door.ok && door.som === 'm-t9-som' && door.somCol === 'm-t9-som' &&
+        mig180.ok && mig180.added.length === 2 && door.ok && !door.waiting && door.som === 'm-t9-som' &&
+        (door.cols || []).join() === 'i_t9_v' && (door.somCols || []).join() === 'i_t9_som' &&
         dTwin && dTwin.somOf === 'm-t9' && dTwin.unit === 'сом' && dTwin.roll === 'аддитивный' &&
         dTwin.since === ST.REC('m-t9').since && Array.isArray(dTwin.history) &&
         cl.indexOf('m-t9-som') === cl.indexOf('m-t9') + 1 &&
-        st.registry.length === n180 + 2 && ST.mart().length === mart180 + 2 &&
-        ops180.join(',') === 'ADD COLUMN,ADD COLUMN' && ST.martCol('m-t9-som').nullable === true,
-    `близнец порождается МЕХАНИЧЕСКИ и в одном месте. На сборке реестра денежных строчных записей без сомовой стороны ${noTwinRow.length}, денежных агрегатов без неё ${noTwinAgg.length} из ${moneyAgg.length}, и у каждого такого агрегата близнец считает ИМЕННО близнеца (расхождений ${overTwin.length}) — иначе сомовый итог складывал бы валютные колонки. Устройство близнеца описано ровно один раз (${shapeAt} объявление `+"`somTwinOf`"+`, ${shapeUse} обращения), объявление неаддитивности и порождение — одна строка `+"`declareTwin`"+` на обе дороги в реестр (${declAt} обращения: сборка, дверь и само объявление). Дверь проверена делом: одна заявка «${(ST.REC('m-t9') || {}).name || 'ОТБИТА: ' + door.why}» положила в реестр ДВЕ записи (${n180} → ${st.registry.length}), близнец получил ту же дату заведения (${dTwin ? dTwin.since : 'близнеца нет'}), свою историю, место в составе объекта сразу за origin'ом (${cl.indexOf('m-t9')} → ${cl.indexOf('m-t9-som')}) и свою колонку витрины — обе операции журнала «${ops180.join(' · ')}», nullable, без единого UPDATE. Заводи близнеца отдельным вызовом — и первый же забытый дал бы денежную величину, которую нельзя сложить по портфелю, а узналось бы это на сведении двух отчётов (ИС-44, ADR-0214 §2, ADR-0209 §6)`);
+        st.registry.length === n180 + 2 && JSON.stringify(ST.release()) === rel180 &&
+        ST.colOf('m-t9-som').state === 'включена' && ST.colOf('m-t9').state === 'включена',
+    `близнец порождается МЕХАНИЧЕСКИ и в одном месте. На сборке реестра денежных строчных записей без сомовой стороны ${noTwinRow.length}, денежных агрегатов без неё ${noTwinAgg.length} из ${moneyAgg.length}, и у каждого такого агрегата близнец считает ИМЕННО близнеца (расхождений ${overTwin.length}) — иначе сомовый итог складывал бы валютные колонки. Устройство близнеца описано ровно один раз (${shapeAt} объявление `+"`somTwinOf`"+`, ${shapeUse} обращения), объявление неаддитивности и порождение — одна строка `+"`declareTwin`"+` на обе дороги в реестр (${declAt} обращения: сборка, дверь и само объявление). Дверь проверена делом: одна заявка «${(ST.REC('m-t9') || {}).name || 'ОТБИТА: ' + door.why}» положила в реестр ДВЕ записи (${n180} → ${st.registry.length}), близнец получил ту же дату заведения (${dTwin ? dTwin.since : 'близнеца нет'}), свою историю, место в составе объекта сразу за origin'ом (${cl.indexOf('m-t9')} → ${cl.indexOf('m-t9-som')}) и свою колонку релиза — ${(door.somCols || []).join()} рядом с ${(door.cols || []).join()}: обе завела миграция до записи, а дверь реестра релиз не тронула (ИС-53, ADR-0237 §3). Заводи близнеца отдельным вызовом — и первый же забытый дал бы денежную величину, которую нельзя сложить по портфелю, а узналось бы это на сведении двух отчётов (ИС-44, ADR-0214 §2, ADR-0209 §6)`);
 
   /* #181 — реестр ВЫРОС, и сторожа волны ч.4, считавшие его размер, обновлены ПО ФАКТУ, а
      не смягчены до неравенства. Заодно — три новых разреза валюты у объектов, у которых
@@ -3314,14 +3419,19 @@ const FIZ = fizSchema();
      (ADR-0240 §4): близнецов 114 → 74. Разрез валюты дела снят вместе с валютой дела
      (ADR-0244 §4) — своих разрезов валюты из трёх, заведённых волной 17, осталось два. */
   const newDims = ['d-clcur','d-mcur'].map(ST.DIM);
-  const martCols = ST.mart().length;
-  const somCols = ST.mart().filter(c => (ST.IND(c.col) || {}).somOf).length;
+  /* З-14 (переписан на месте): «схема витрины порождена реестром запись в запись» снята
+     (ADR-0237). Вместо неё — сверка с релизом: у каждой строчной записи свои колонки в
+     релизе, у агрегата колонок нет (§5), ждущих колонку на старте нет. */
+  const withCols = st.registry.filter(r => ST.physOf(r.id).length).length;
+  const aggN = st.registry.filter(r => r.src === 'агрегат').length;
+  const somCols = st.registry.filter(r => r.somOf && ST.physOf(r.id).length).length;
   ok(181, st.registry.length === 308 && nInd === 229 && nDim === 79 &&
         ownInd === 155 && somInd === 74 && somInd === 37 * 2 && !ST.REC('d-ocur') &&
         newDims.every(d => d && /валют/i.test(d.name) && ST.OBJ(d.obj).dims.indexOf(d.id) >= 0) &&
         newDims.map(d => d.obj).join(',') === 'obj-claim,obj-measure' &&
-        martCols === st.registry.length && somCols === 74,
-    `реестр сверен со схемой, и число названо по факту, а не смягчено: ${st.registry.length} записей — ${nInd} породы «показатель» (${ownInd} своих и ${somInd} сомовых близнецов: ${somInd / 2} строчных и столько же агрегатов) и ${nDim} породы «разрез». Схема витрины порождена реестром запись в запись (${martCols} колонок, из них сомовых ${somCols}). Своих разрезов валюты у объектов, заведённых волной 17, осталось два — ${newDims.map(d => d ? '«' + d.name + '» у ' + ST.OBJ(d.obj).name : '—').join(', ')}: разрез валюты дела снят вместе с валютой дела (${ST.REC('d-ocur') ? 'ОСТАЛСЯ' : 'снят'}), итоги дела только в сомах (ADR-0244 §4, ADR-0240 §4; ИС-40, ИС-44, ADR-0214 §1, ADR-0206 §3)`);
+        withCols === 191 && aggN === 117 && withCols + aggN === st.registry.length &&
+        somCols === 37 && ST.awaiting().length === 0,
+    `реестр сверен со схемой, и число названо по факту, а не смягчено: ${st.registry.length} записей — ${nInd} породы «показатель» (${ownInd} своих и ${somInd} сомовых близнецов: ${somInd / 2} строчных и столько же агрегатов) и ${nDim} породы «разрез». Реестр сверен и с релизом: строчных записей с колонками ${withCols} (сомовых близнецов из них ${somCols}), агрегатов без колонки ${aggN}, ждущих колонку ${ST.awaiting().length} (ИС-53, ADR-0237 §3, §5). Своих разрезов валюты у объектов, заведённых волной 17, осталось два — ${newDims.map(d => d ? '«' + d.name + '» у ' + ST.OBJ(d.obj).name : '—').join(', ')}: разрез валюты дела снят вместе с валютой дела (${ST.REC('d-ocur') ? 'ОСТАЛСЯ' : 'снят'}), итоги дела только в сомах (ADR-0244 §4, ADR-0240 §4; ИС-40, ИС-44, ADR-0214 §1, ADR-0206 §3)`);
 
   /* #182 — ADR-0151 §3 оставлен в силе (ADR-0214 §7): период по СОМОВОЙ записи не
      считается, потому что разность двух сомовых снимков несёт курсовую разницу. Отказ
@@ -3382,7 +3492,7 @@ const FIZ = fizSchema();
     unit:'сом', roll:'аддитивный', somOf:'m-debt'});
   const good183 = ST.addIndicator({dates:1, id:'m-q7', name:'Комиссия за выдачу', obj:'obj-credit',
     src:'шов', seam:'calcAccrual', field:'interest', money:true, type:'сумма',
-    round: RULE, roll:'формульный', rollBy:'d-cur'});
+    round: RULE, roll:'формульный', rollBy:'d-cur', col:'i_q7', vtype:'money_cur'});  /* колонка — ИС-53, волна 23 */
   /* Что дверь оставила в реестре, снимается ДО пересева: `ST.seed()` пересобирает
      состояние целиком, и спрошенное после него ответило бы про другой реестр. */
   const left183 = {q1: !!ST.REC('m-q1'), q2: !!ST.REC('m-q2'), q3: !!ST.REC('m-q3'),
@@ -3591,8 +3701,14 @@ const FIZ = fizSchema();
   const bare188 = ST.run(TODAY);
   const bp188 = ST.state.runs[ST.state.runs.length - 1].parts.find(p => p.obj === 'obj-program');
   ST.seed();
+  /* Волна 23 (переписан на месте): колонку заводит релиз, а не запись (ИС-53, ADR-0237 §3).
+     Миграция идёт первой, и запись, найдя колонку, включается сразу — дальше сторож тот же:
+     очередь досчёта ставит заведение записи, пишет прогон. Путь «запись ждёт → миграция →
+     включение» с той же очередью держит #245. */
+  const mig188 = ST.migrate({obj:'obj-program', cols:['i_w17'], note:'вид перечисления по программе'});
   const add188 = ST.addIndicator({dates:1, id:'m-w17', name:'Вид перечисления по программе',
-    obj:'obj-program', src:'поле', key:'pkind', type:'перечисление', roll:'только-свод'});
+    obj:'obj-program', src:'поле', key:'pkind', type:'перечисление', roll:'только-свод',
+    col:'i_w17', vtype:'code'});
   /* Волна 17 ч.9 добавила сюда ЗВЕНО, без которого §7 перестал бы работать молча. Прогон
      с ИС-48 обходит кандидатов, а кандидат — это одно из четырёх множеств (ADR-0221 §1), и
      заведение колонки не попадает ни в одно: соседи программы не называли (у неё вообще нет
@@ -3607,7 +3723,8 @@ const FIZ = fizSchema();
   const old188 = ST.rowsAt('obj-program', '2026-05-31');
   const back188 = ST.statRows({obj:'obj-program', date:'2026-05-31'});
   ok(188, bare188.ok && bp188.n === 0 && bp188.same === 0 && bp188.skip === 5 &&
-        add188.ok && add188.since === TODAY && ST.martCol('m-w17') &&
+        mig188.ok && add188.ok && !add188.waiting && add188.since === TODAY &&
+        ST.colOf('m-w17').state === 'включена' &&
         q188.length === 5 && q188.every(q => q.why === 'досчёт') && qAfter188.length === 0 &&
         run188.ok && p188.n === 5 && p188.same === 0 && p188.born === 0 &&
         run188.written === bare188.written + 5 &&
@@ -5160,6 +5277,214 @@ const FIZ = fizSchema();
   ok(239, totals.length === 15 && !notSom.length && !twinned.length &&
         totals.every(r => ST.unitOf(r.id) === 'сом'),
     `итоги заёмщика, залога, дела и договора — только в сомах: денежных записей ${totals.length}, не сомовых ${notSom.length}${notSom.length ? ' (' + notSom.join(', ') + ')' : ''}, с валютным близнецом ${twinned.length}. Состав по валютам без jsonb не хранится и не складывается, а вопрос «сколько у заёмщика в долларах» точнее отвечают строки его кредитов (ИС-56, ADR-0240 §4, §5)`);
+})();
+
+/* ===== Волна 23 З-14 — механизм релиза: колонку заводит релиз, реестр ссылается на неё (ИС-53) =====
+   Запись реестра больше не порождает колонку (ADD COLUMN снят вместе со схемой витрины):
+   колонку заводит миграция релиза, а приложение при старте СВЕРЯЕТ одно с другим. Запись
+   без колонки ждёт, колонка без записи предупреждает; агрегат релиза не стоит, новый объект
+   стоит таблицы (ADR-0237 §3, §5, §6). ST.migrate — аналог changeset'а Liquibase в макете:
+   релиз идёт ПЕРЕД записью, и запись, дождавшаяся своих колонок, включается им. */
+(() => {
+  /* #240 — сверка при старте: запись без колонки не включается, колонка без записи
+     предупреждает (ADR-0237 §3). */
+  ST.seed();
+  const aw0 = ST.awaiting ? ST.awaiting() : null, or0 = ST.orphanCols ? ST.orphanCols() : null;
+  /* Сверка обязана ДЕЛАТЬ, а не числиться: на демо-релизе ждущих нет, и «ноль» прошёл бы и
+     без неё. Поэтому из релиза старта вынимаются две колонки — подпись отрасли и сомовая
+     сторона остатка ОД, — и пересев обязан поставить в «ждёт колонку» отрасль и ОБЕ
+     половины пары, вынуть их из состава кредита и назвать каждую в журнале сверки
+     (ADR-0237 §3, схема §12.1); своды над парой ждут вместе с ней (СС-155, #249). Сторож
+     добавлен по итогам мутации «сверка не вынимает запись из состава» — без этой половины
+     она выживала. Релиз возвращается на место в `finally`. */
+  const REL240 = vm.runInContext('RELEASE', sandbox).tables['obj-credit'].cols;
+  const cut240 = ['d_industry_lbl', 'i_od_som'].map(c => ({c, i: REL240.indexOf(c)})).sort((x, y) => y.i - x.i);
+  let aw240 = [], dims240 = [], inds240 = [], log240 = [], agg240 = [];
+  cut240.forEach(x => REL240.splice(x.i, 1));
+  try {
+    ST.seed();
+    aw240 = ST.awaiting ? ST.awaiting() : [];
+    dims240 = ST.OBJ('obj-credit').dims.slice(); inds240 = ST.OBJ('obj-credit').inds.slice();
+    log240 = (ST.state.relLog || []).filter(l => /^ждёт (колонку|основание)/.test(l.msg || '')).map(l => l.msg);
+    agg240 = ST.state.registry.filter(r => r.src === 'агрегат' && /^m-debt(-som)?$/.test(r.over || '')).map(r => r.id);
+  } finally {
+    cut240.slice().reverse().forEach(x => REL240.splice(x.i, 0, x.c));
+    ST.seed();
+  }
+  const wait240 = aw240.map(x => x.id).sort().join();
+  ok(240, Array.isArray(aw0) && aw0.length === 0 && Array.isArray(or0) &&
+        or0.every(c => !/^(object_id|slice_date|run_id|src_|is_partial|now_cols|cur$|rate)/.test(c.col)) &&
+        ST.state.log.concat(ST.state.relLog || []).some(l => /колонка без записи/.test(l.msg || '')) === (or0.length > 0) &&
+        cut240.every(x => x.i >= 0) && agg240.length === 2 &&
+        wait240 === ['d-industry', 'm-debt', 'm-debt-som'].concat(agg240).sort().join() &&
+        dims240.indexOf('d-industry') < 0 && ['m-debt', 'm-debt-som'].concat(agg240).every(id => inds240.indexOf(id) < 0) &&
+        log240.length === 5 && (ST.awaiting ? ST.awaiting() : [0]).length === 0,
+    `сверка реестра с релизом идёт при старте: ждут колонку ${aw0 ? aw0.length : '—'}, колонок без записи ${or0 ? or0.length : '—'} — служебные в этот счёт не входят, и каждая такая колонка названа предупреждением в журнале. Колонка без записи — поле у соседа, выведенное релизом, но ещё не названное в реестре (ADR-0237 §3). Сверка проверена делом: релиз без ${cut240.map(x => x.c).join(' и ')} поставил в «ждёт колонку» ${wait240 || 'никого'} — пару обе половины разом, и своды над ней с ними, — вынул их из состава кредита и назвал каждую в журнале (${log240.length}); релиз возвращён, ждущих снова ${(ST.awaiting ? ST.awaiting() : []).length} (схема §12.1)`);
+
+  /* #241 — дверь без релиза: разрез-поле с колонкой, которой в релизе нет, заводится в
+     «ждёт колонку» и в состав объекта не входит; с колонкой, что в релизе есть, — включается.
+     Вторая половина берёт колонку-сироту ПО ИМЕНИ (решение контролёра A): айылный округ
+     выдачи — пара `ref`, которую релиз кредита вывел раньше записи (ADR-0237 §3). Вид
+     значения по суффиксу колонки не угадывается: `_id` бывает и у `ref`, и у голого `id`. */
+  ST.seed();
+  const w = ST.addRecord({kind:'разрез', id:'d-w23a', name:'Признак ожидания', obj:'obj-credit', src:'поле', key:'w23',
+    perObject:'одно', dates:1, col:'d_w23_missing', vtype:'bool'});
+  const inObj = ST.OBJ('obj-credit').dims.indexOf('d-w23a') >= 0;
+  const awaitW = (ST.awaiting ? ST.awaiting() : []).some(a => a.id === 'd-w23a');
+  const ORPHAN = {col:'d_terr_aokrug', vtype:'ref'};
+  const orphan = (ST.orphanCols ? ST.orphanCols() : []).find(c => c.obj === 'obj-credit' && c.col.indexOf(ORPHAN.col + '_') === 0);
+  const g = orphan ? ST.addRecord({kind:'разрез', id:'d-w23b', name:'Айылный округ выдачи кредита', obj:'obj-credit',
+    src:'поле', key:'aokrug', perObject:'одно', dates:1, col: ORPHAN.col, vtype: ORPHAN.vtype}) : {ok:false};
+  const orphanLeft = (ST.orphanCols ? ST.orphanCols() : []).filter(c => c.col.indexOf(ORPHAN.col + '_') === 0).length;
+  ok(241, w.ok && w.waiting === true && !inObj && awaitW && g.ok && !g.waiting &&
+        ST.OBJ('obj-credit').dims.indexOf('d-w23b') >= 0 && orphanLeft === 0,
+    `без релиза запись о новой колонке не пропадает и не включается: «Признак ожидания» заведён (${w.ok}), стоит в «ждёт колонку» (${awaitW}) и в состав кредита не вошёл (${inObj}). Запись о колонке, которую релиз уже завёл${orphan ? ' (' + orphan.col + ')' : ''}, включается сразу (${g.ok && !g.waiting}), и колонок без записи у айылного округа не осталось (${orphanLeft}) — это и есть единственный случай, где колонка без релиза не нужна (ADR-0237, «Контекст», §5)`);
+
+  /* #242 — агрегат релиза не требует (ADR-0237 §5). */
+  ST.seed();
+  const a = ST.addRecord({kind:'показатель', id:'a-w23', name:'Наибольший остаток ОД', obj:'obj-credit', src:'агрегат',
+    fn:'max', over:'m-debt-som', dates:1});
+  ok(242, a.ok && !a.waiting && ST.OBJ('obj-credit').inds.indexOf('a-w23') >= 0 && ST.physOf('a-w23').length === 0,
+    `агрегат заводится без релиза и включается сразу (${a.ok && !a.waiting}), колонок у него нет (${ST.physOf('a-w23').length}): он считается при чтении (ADR-0237 §5)`);
+
+  /* #243 — новый объект стоит релиза (ИС-53 вместо ИС-18). */
+  ST.seed();
+  const obj = ST.addObject({id:'obj-guarantee', name:'Поручительство', plural:'поручительства', owner:'Залог',
+    born:{src:'поле', key:'gdate'}, scope:{open:'—'}, dims:[], inds:['a-count']});
+  ok(243, !obj.ok && has(obj.why, 'релиз') && has(obj.why, 'ИС-53') && !ST.OBJ('obj-guarantee'),
+    `новый объект без таблицы в релизе не заводится: «${String(obj.why).slice(0, 110)}…». Шестой объект больше не стоит одной строки данных — он стоит миграции: таблицы строк, сущности Jmix и записи реестра (ИС-53, ADR-0237 §5, снят ИС-18)`);
+
+  /* #244 — схемы, порождаемой реестром, больше нет (ADR-0237, переписан ADR-0209 §6). */
+  ST.seed();
+  ok(244, ST.mart === undefined && ST.martLog === undefined && ST.martCol === undefined &&
+        !('mart' in ST.state) && !('martLog' in ST.state) && !/ADD COLUMN/.test(JSON.stringify(ST.state.log)),
+    `витрина, растущая от записи реестра (ADD COLUMN), снята целиком: дверей ST.mart/martLog/martCol нет, в состоянии нет ни схемы, ни её журнала, в журнале нет ни одного ADD COLUMN. Журнал колонок ведёт Liquibase, своей таблицы DDL у статистики нет (ADR-0237 §6)`);
+
+  /* #245 — путь записи через релиз: заведена → ждёт колонку → миграция → включена
+     (решение контролёра B). Миграция чужих колонок её не трогает; миграция её колонки
+     включает её так же, как включилась бы запись, заведённая после релиза: в состав
+     объекта, в очередь досчёта и в ближайший прогон (ADR-0237 §2, §3, ADR-0215 §7). */
+  ST.seed();
+  const add245 = ST.addRecord({kind:'разрез', id:'d-w23m', name:'Проба линии кредитования', obj:'obj-credit',
+    src:'поле', key:'line', perObject:'одно', dates:1, col:'d_w23_line', vtype:'code'});
+  const ask245 = ST.statSlice({obj:'obj-credit', dims:['d-w23m'], inds:['a-count'], date: ASK});
+  const open245 = () => ST.state.queue.filter(q => !q.done && q.why === 'досчёт').length;
+  const q0 = open245();
+  const nope245 = ST.migrate ? ST.migrate({obj:'obj-nope', cols:['d_w23_line']}) : {ok:true};
+  const other245 = ST.migrate ? ST.migrate({obj:'obj-credit', cols:['d_w23_other'], note:'соседняя колонка'}) : {ok:false};
+  const still245 = !!ST.colOf && ST.colOf('d-w23m').state === 'ждёт колонку' &&
+    ST.OBJ('obj-credit').dims.indexOf('d-w23m') < 0 && open245() === q0;
+  const warn245 = (ST.orphanCols ? ST.orphanCols() : []).some(c => c.col === 'd_w23_other');
+  const mig245 = ST.migrate ? ST.migrate({obj:'obj-credit', cols:['d_w23_line'], note:'поле договора выведено в статистику'}) : {ok:false};
+  const col245 = ST.colOf ? ST.colOf('d-w23m') : {};
+  const q1 = open245();
+  const again245 = ST.migrate ? ST.migrate({obj:'obj-credit', cols:['d_w23_line']}) : {ok:false};
+  const run245 = ST.run(TODAY, {});
+  const rows245 = ST.statRows({obj:'obj-credit', date: TODAY}).rows || [];
+  const filled245 = rows245.filter(r => r.dims && r.dims['d-w23m'] != null).length;
+  const hist245 = ((ST.REC('d-w23m') || {}).history || []).map(h => h.what);
+  ok(245, add245.ok && add245.waiting === true && !ask245.ok && has(ask245.why, 'ждёт колонку') &&
+        !nope245.ok && has(nope245.why, 'ИС-53') &&
+        other245.ok && still245 && warn245 &&
+        mig245.ok && (mig245.included || []).indexOf('d-w23m') >= 0 && col245.state === 'включена' &&
+        col245.table === 'stat_row_credit' && ST.OBJ('obj-credit').dims.indexOf('d-w23m') >= 0 &&
+        !(ST.awaiting ? ST.awaiting() : [{id:'d-w23m'}]).some(x => x.id === 'd-w23m') && q1 > q0 &&
+        again245.ok && (again245.added || []).length === 0 && run245.ok && filled245 > 0 &&
+        hist245.length === 2 && (ST.state.relLog || []).some(l => /d_w23_line/.test(l.msg || '')),
+    `запись идёт через релиз, а не мимо него: заведена в «ждёт колонку» (${add245.waiting}), спросить по ней нельзя — «${String(ask245.why).slice(0, 60)}…». Миграция чужой колонки её не включила (${still245}) — колонка d_w23_other встала предупреждением «без записи» (${warn245}); миграция к объекту без таблицы отбита: «${String(nope245.why).slice(0, 70)}…». Миграция её колонки включила её (${col245.state}, ${col245.table}): она вернулась в состав кредита, ушла из списка ожидания, поставила досчёт в очередь (${q0} → ${q1}), и ближайший прогон заполнил её у ${filled245} строк. Повторная миграция той же колонки ничего не добавила (${(again245.added || []).length}); история записи — «${hist245.join(' → ')}», журнал релиза называет колонку (ИС-53, ADR-0237 §2, §3, ADR-0215 §7)`);
+
+  /* #246 — дверь каталога (решения контролёра C и F). Колонка и вид значения обязательны
+     у всякой записи, кроме агрегата, а у агрегата колонки нет вовсе; вид значения — из
+     закрытого списка схемы (§12.1). Проверка стоит ПОСЛЕДНЕЙ: запись, у которой не хватает
+     и типа, и колонки, слышит о типе — своя причина у каждого сторожа породы остаётся
+     своей. Итог в сомах (`money_som`) объявляет единицу «сом» и свод «аддитивный»:
+     валютной стороны у него нет, и спросить свод «внутри валюты» не у чего (ADR-0240 §4). */
+  ST.seed();
+  const base246 = {dates:1, obj:'obj-credit', src:'поле', key:'amount', type:'число', unit:'шт.'};
+  const noCol = ST.addIndicator(Object.assign({id:'m-w23c', name:'Проба без колонки'}, base246));
+  const badVt = ST.addIndicator(Object.assign({id:'m-w23v', name:'Проба чужого вида', col:'i_w23v', vtype:'money'}, base246));
+  const order246 = ST.addIndicator({dates:1, id:'m-w23t', name:'Проба без типа и колонки', obj:'obj-credit', src:'поле', key:'amount'});
+  const aggCol = ST.addIndicator({dates:1, id:'a-w23c', name:'Проба агрегата с колонкой', obj:'obj-credit',
+    src:'агрегат', fn:'max', over:'m-debt-som', col:'i_w23c', vtype:'num'});
+  const som = {dates:1, obj:'obj-borrower', src:'шов', seam:'calcPortfolio', field:'total', type:'сумма',
+    money:true, round:'коп-2', col:'i_w23s', vtype:'money_som'};
+  const somCur  = ST.addIndicator(Object.assign({id:'m-w23s1', name:'Проба итога в валюте', unit:'валюта договора', roll:'аддитивный'}, som));
+  const somMute = ST.addIndicator(Object.assign({id:'m-w23s2', name:'Проба итога без свода', unit:'сом'}, som));
+  const somOk   = ST.addIndicator(Object.assign({id:'m-w23s3', name:'Проба итога в сомах', unit:'сом', roll:'аддитивный'}, som));
+  ok(246, !noCol.ok && has(noCol.why, 'колонка') && has(noCol.why, 'ИС-53') &&
+        !badVt.ok && has(badVt.why, 'money_cur') && has(badVt.why, 'схема §12.1') &&
+        !order246.ok && has(order246.why, 'тип') && !has(order246.why, 'ИС-53') &&
+        !aggCol.ok && has(aggCol.why, 'ADR-0237 §5') &&
+        !somCur.ok && has(somCur.why, 'ADR-0240 §4') && !somMute.ok && has(somMute.why, 'ADR-0240 §4') &&
+        somOk.ok && somOk.waiting === true && !ST.REC('m-w23s3-som'),
+    `запись ссылается на колонку по имени, и дверь это спрашивает: без колонки — «${String(noCol.why).slice(0, 70)}…»; вид значения вне списка — «${String(badVt.why).slice(0, 60)}…»; агрегат с колонкой — «${String(aggCol.why).slice(0, 60)}…». Проверка каталога последняя: у записи без типа и без колонки причина — тип («${String(order246.why).slice(0, 50)}…»). Итог в сомах без единицы «сом» и без свода «аддитивный» отбит дважды — «${String(somCur.why).slice(0, 80)}…»; объявивший оба заведён (ждёт колонку ${somOk.waiting}) и близнеца не получил (ИС-53, ADR-0237 §3, §5, ADR-0240 §4)`);
+
+  /* #247 — пара «валютная + сомовая» одна величина, и ждёт она целиком (решение D, схема
+     §12.1: «У пары проверяются обе колонки»). Валютная половина в релизе есть, сомовой нет —
+     ждут обе; релиз сомовой включает обе разом, и близнец встаёт сразу за своей записью. */
+  ST.seed();
+  ST.migrate && ST.migrate({obj:'obj-credit', cols:['i_w23p_v'], note:'валютная половина пары'});
+  const pair = ST.addIndicator({dates:1, id:'m-w23p', name:'Проба пары', obj:'obj-credit', src:'шов', seam:'calcDebt',
+    field:'principal', money:true, type:'сумма', round:'коп-2', roll:'формульный', rollBy:'d-cur',
+    col:'i_w23p', vtype:'money_cur'});
+  const halves = ['m-w23p', 'm-w23p-som'];
+  const waitBoth = !!ST.colOf && halves.every(id => ST.colOf(id).state === 'ждёт колонку') &&
+    halves.every(id => ST.OBJ('obj-credit').inds.indexOf(id) < 0);
+  const miss247 = ((ST.awaiting ? ST.awaiting() : []).find(x => x.id === 'm-w23p') || {}).missing || [];
+  const mig247 = ST.migrate ? ST.migrate({obj:'obj-credit', cols:['i_w23p_som'], note:'сомовая половина пары'}) : {ok:false};
+  const inds247 = ST.OBJ('obj-credit').inds;
+  const inBoth = !!ST.colOf && halves.every(id => ST.colOf(id).state === 'включена');
+  ok(247, pair.ok && pair.waiting === true && pair.som === 'm-w23p-som' && waitBoth &&
+        miss247.join() === 'i_w23p_som' && mig247.ok && inBoth &&
+        (mig247.included || []).slice().sort().join() === 'm-w23p,m-w23p-som' &&
+        inds247.indexOf('m-w23p-som') === inds247.indexOf('m-w23p') + 1,
+    `пара ждёт целиком: валютная колонка в релизе есть, сомовой нет (не хватает ${miss247.join(', ') || '—'}) — и в «ждёт колонку» стоят обе записи (${waitBoth}). Половина пары в состав не входит: она была бы денежной величиной, которую нельзя сложить по портфелю. Релиз сомовой колонки включил обе разом (${(mig247.included || []).join(', ')}), и близнец встал сразу за своей записью (ИС-44, ИС-53, ADR-0214 §2, схема §12.1)`);
+
+  /* #248 — иерархия ложится колонками уровней (решение E). Уровень со своим источником
+     без колонки отбит, и отказ называет уровень; новый уровень с колонкой, которой в релизе
+     нет, ждёт — «новый уровень иерархии — релиз» (ADR-0237 §5). Уровень «справочник»
+     выводится при чтении из уровня ниже, и колонки у него может не быть: группа — первая
+     цифра подгруппы (ADR-0241 §3) — такие записи включены с самого старта. */
+  ST.seed();
+  const lv = JSON.parse(JSON.stringify(ST.DIM('d-region').levels));
+  const terr = {dates:1, obj:'obj-credit', src:'поле', key:'region', perObject:'одно',
+    owner:'Справочник административного деления'};
+  const noLvl = ST.addDim(Object.assign({id:'d-w23h1', name:'Проба уровня без колонки',
+    levels:[lv[0], lv[1], {name:'айылный округ', src:'поле', key:'aokrug'}]}, terr));
+  const newLvl = ST.addDim(Object.assign({id:'d-w23h2', name:'Проба нового уровня',
+    levels:[lv[0], lv[1], {name:'село', src:'поле', key:'village', col:'d_terr_village', vtype:'ref'}]}, terr));
+  const miss248 = ((ST.awaiting ? ST.awaiting() : []).find(x => x.id === 'd-w23h2') || {}).missing || [];
+  const derived = ['d-subgroup', 'd-csolv'].map(id => ({id, st: ST.colOf ? ST.colOf(id).state : '—',
+    bare: (ST.DIM(id).levels || []).filter(L => !L.col).map(L => L.name)}));
+  ok(248, !noLvl.ok && has(noLvl.why, 'айылный округ') && has(noLvl.why, 'ИС-53') &&
+        newLvl.ok && newLvl.waiting === true && miss248.join() === 'd_terr_village_id,d_terr_village_lbl' &&
+        derived.every(d => d.st === 'включена' && d.bare.join() === 'группа'),
+    `иерархия ложится колонками уровней: уровень без колонки отбит поимённо — «${String(noLvl.why).slice(0, 90)}…»; новый уровень «село» с колонкой, которой релиз не завёл, ждёт (${miss248.join(', ')}). Уровень, выводимый при чтении, колонки не требует: ${derived.map(d => d.id + ' — ' + d.st + ', без колонки «' + d.bare.join() + '»').join('; ')} (ИС-53, ADR-0237 §5, ADR-0241 §3, §4)`);
+
+  /* #249 — агрегат над ждущей записью ждёт вместе с ней (решение СС-155 волны 23). Агрегат
+     релиза не стоит (§5), но считается он из колонки основания: пока колонки нет, свод ответил
+     бы по ней нулём — придуманным наблюдением, а не прочерком, — и запись, которая «в вопросы
+     не входит», вошла бы в них через свой агрегат. Включает агрегат та же миграция, что его
+     основание (ADR-0237 §3, §5). Найдено самопроверкой З-14: до решения свод отвечал 0. */
+  ST.seed();
+  const base249 = ST.addIndicator({dates:1, id:'m-w23z', name:'Проба основания свода', obj:'obj-credit',
+    src:'поле', key:'amount', type:'сумма', unit:'сом', col:'i_w23z', vtype:'num'});
+  const agg249 = ST.addIndicator({dates:1, id:'a-w23z', name:'Проба свода над ждущей', obj:'obj-credit',
+    src:'агрегат', fn:'sum', over:'m-w23z'});
+  const ask249 = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-w23z'], date: ASK});
+  const st249 = ST.colOf ? (ST.colOf('a-w23z') || {}).state : '—';
+  const inObj249 = ST.OBJ('obj-credit').inds.indexOf('a-w23z') >= 0;
+  const miss249 = ((ST.awaiting ? ST.awaiting() : []).find(x => x.id === 'a-w23z') || {}).missing || [];
+  const mig249 = ST.migrate ? ST.migrate({obj:'obj-credit', cols:['i_w23z'], note:'основание свода'}) : {ok:false};
+  const inc249 = (mig249.included || []).slice().sort().join();
+  ST.run(TODAY, {});
+  const ask249b = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-w23z'], date: TODAY});
+  ok(249, base249.ok && base249.waiting === true && agg249.ok && agg249.waiting === true &&
+        st249 === 'ждёт колонку' && !inObj249 && !ask249.ok && has(ask249.why, 'ждёт колонку') &&
+        has(ask249.why, 'ИС-53') && has(miss249.join(), 'Проба основания свода') &&
+        mig249.ok && inc249 === 'a-w23z,m-w23z' && ST.OBJ('obj-credit').inds.indexOf('a-w23z') >= 0 &&
+        (ST.colOf('a-w23z') || {}).state === 'агрегат' && ask249b.ok,
+    `агрегат над ждущей записью ждёт вместе с ней: основание «${(ST.REC('m-w23z') || {}).name}» ждёт колонку (${base249.waiting}), и свод над ним заведён, но не включён (${st249}; не хватает — ${miss249.join(', ') || '—'}), спросить его нельзя — «${String(ask249.why).slice(0, 60)}…». Иначе свод ответил бы по несуществующей колонке нулём — наблюдением, которого не было. Миграция колонки основания включила обоих разом (${inc249}), и после прогона свод отвечает (${ask249b.ok}) (ИС-53, ADR-0237 §3, §5; решение СС-155)`);
 })();
 
 /* ---- отчёт ---- */
