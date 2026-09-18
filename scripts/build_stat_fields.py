@@ -10,15 +10,17 @@
 вместо метки /*__DATA__*/null.
 
     python3 scripts/build_stat_fields.py                  # пути по умолчанию
-    python3 scripts/build_stat_fields.py --strict         # таблица без словаря — ошибка
     python3 scripts/build_stat_fields.py <fizschema.md> <polya.md> <out.html>
 
 Проверки (не сошлось — страница не пишется):
 - счёт колонок таблиц строк сверяется со сводкой §0.1;
-- у таблицы, описанной в словаре, каждая колонка схемы лежит ровно в одном поле, каждая
-  колонка поля есть в схеме, и все колонки поля — из одной группы схемы.
-Таблица без раздела в словаре — предупреждение (с --strict — ошибка); на странице у неё
-показывается смысл из схемы.
+- у каждой таблицы — строк и служебной — есть раздел в словаре;
+- каждая колонка схемы лежит ровно в одном поле, каждая колонка поля есть в схеме, и все
+  колонки поля — из одной группы схемы;
+- пометка ⚑ («у соседа пока нет») строки схемы переходит к полю, которое забрало строку
+  целиком. Если строка разделена на несколько полей, ⚑ ставится в тексте тех полей, к
+  которым она относится; ⚑ строки, не дошедший ни до одного поля, и ⚑ в поле без пометки
+  в схеме — ошибка.
 """
 import html
 import itertools
@@ -426,7 +428,7 @@ def parse_dict(lines):
             names = [n for t in re.findall(r'`([^`]+)`', c[1]) for n in expand(t)]
             assert names, ('поле без колонок', part, c[0])
             b['fields'].append({'name': c[0], 'cols': names, 'what': md(c[2]), 'why': md(c[3]),
-                                'basis': md(c[4]),
+                                'basis': md(c[4]), 'flag_mark': any('⚑' in x for x in c[2:]),
                                 'text': ' '.join([c[0], ' '.join(names), plain(c[2]), plain(c[3]), plain(c[4])]).lower()})
         elif line.startswith('### '):
             continue
@@ -470,6 +472,7 @@ def attach_objects(objects, blocks):
         gi_of = dict(schema)
         for g in o['groups']:
             g['fields'] = []
+        flagged = {}  # id строки схемы с ⚑ → поля, получившие пометку
         for f in b['fields']:
             rows = []
             for c in f['cols']:
@@ -484,11 +487,21 @@ def attach_objects(objects, blocks):
             for r in rows:
                 if r['source'] not in srcs:
                     srcs.append(r['source'])
+            # ⚑ строки схемы переходит к полю, забравшему строку целиком; поле с частью
+            # строки помечено, только если ⚑ стоит в его собственном тексте
+            own = f.pop('flag_mark')
+            assert not own or any(r['flag'] for r in rows), (o['table'], '⚑ у поля, а в схеме нет', f['name'])
+            flag = any(r['flag'] and (own or set(r['colnames']) <= set(f['cols'])) for r in rows)
+            for r in rows:
+                if r['flag'] and flag:
+                    flagged.setdefault(id(r), []).append(f['name'])
             f.update({'n': len(f['cols']), 'type': md(' · '.join(types)),
-                      'source': ' · '.join(srcs), 'flag': any(r['flag'] for r in rows),
+                      'source': ' · '.join(srcs), 'flag': flag,
                       'warn': any(r['warn'] for r in rows)})
             f['text'] += ' ' + ' '.join(plain(r['source']) for r in rows).lower()
             o['groups'][gi_of[f['cols'][0]]]['fields'].append(f)
+        lost = [' '.join(r['cols']) for g in o['groups'] for r in g['rows'] if r['flag'] and id(r) not in flagged]
+        assert not lost, (o['table'], '⚑ строки схемы не дошёл ни до одного поля — поставьте ⚑ в тексте поля', lost)
         o['described'] = True
         o['about'] = render_md(b['about'], {})
     return missing
@@ -511,6 +524,7 @@ def attach_services(services, blocks):
             cover(t['table'], [(n, 0) for n in names], b['fields'])
             col = {c['name']: c for c in t['cols']}
             for f in b['fields']:
+                assert not f.pop('flag_mark'), (t['table'], '⚑ у служебной таблицы', f['name'])
                 types = []
                 for c in f['cols']:
                     if col[c]['type'] and col[c]['type'] not in types:
@@ -543,7 +557,6 @@ def legend_html(legend):
 
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
-    strict = '--strict' in sys.argv
     src, dct, out = (Path(args[0]), Path(args[1]), Path(args[2])) if len(args) > 2 else (SRC, DICT, OUT)
     objects, legend, summary, total, services = parse_schema(join_bullets(src.read_text(encoding='utf-8').splitlines()))
     check_counts(objects, summary, total)
@@ -551,10 +564,7 @@ def main():
     logic_lines, blocks = parse_dict(dct.read_text(encoding='utf-8').splitlines())
     miss = attach_objects(objects, blocks) + attach_services(services, blocks)
     assert not blocks, ('в словаре описаны таблицы, которых нет в схеме', sorted(blocks))
-    if miss:
-        msg = f'нет раздела в словаре: {", ".join(miss)}'
-        assert not strict, msg
-        print('предупреждение — ' + msg, file=sys.stderr)
+    assert not miss, f'нет раздела в словаре: {", ".join(miss)}'
     toc = []
     logic = render_md(logic_lines, {'{{tables}}': tables_html(objects, summary), '{{legend}}': legend_html(legend)}, toc)
     for o in objects:

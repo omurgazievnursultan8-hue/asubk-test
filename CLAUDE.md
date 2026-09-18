@@ -102,8 +102,11 @@ python3 scripts/sync_todos.py --dry-run   # preview rows, no network
 # (gov-blue design system, sticky sidebar nav auto-built from h2/h3).
 python3 scripts/build_tz_html.py requirements/tz/03-zayavka-komissiya.md [out.html]
 
-# Rebuild the statistics fields page (every column of the 11 stat_row_* tables)
-# from mockups/statistics/ASUBK-statistika-fizschema.md. Rerun after each schema edit.
+# Rebuild the statistics fields page for developers: storage logic plus every column of
+# the 11 stat_row_* tables and 18 service tables, explained field by field. Built from
+# mockups/statistics/ASUBK-statistika-fizschema.md (columns) + ASUBK-statistika-polya.md
+# (what/why per field). Fails and writes nothing if any column is undescribed or described
+# twice. Rerun after every edit to either file; a new schema column needs a dictionary line.
 python3 scripts/build_stat_fields.py      # -> mockups/statistics/statistics-fields.html
 
 # Validate dev task files against docs/tasks/FORMAT.md before handing them over.
