@@ -39,6 +39,11 @@
 // разные · после защёлки дата отвечается ЧТЕНИЕМ, а не пересчётом · окончательность
 // берётся у КОЛОНКИ СЛОЯ соседа в общем календаре, и три реквизита соседа (слой · умение
 // отвечать на опрос · объявленная датировка) не выводятся друг из друга.
+// блок волны 23 З-13 — реестр ложится на физическую схему (ИС-53…ИС-56, ADR-0237…0245):
+// схема читается из fizschema.md, а не переписана в смоук · релиз макета — подмножество
+// схемы (таблица, способ хранения, колонки) · у каждой действующей записи есть колонки
+// релиза своего объекта · снятое по ADR-0244 §4 снято поимённо, добавленное заведено с
+// колонкой · итоги заёмщика, залога и дела — одной сомовой записью без близнеца (ADR-0240).
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -78,6 +83,47 @@ const F  = (...sets) => ({ sets: sets.map(x => ({ cmps: Array.isArray(x) ? x : [
 const cD = (id, op, extra) => Object.assign({ kind:'dim', id, op }, extra || {});
 const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {});
 
+/* ---- физическая схема: колонки таблиц строк из fizschema.md (волна 23, ИС-53) ----
+   Релиз макета сверяется с документом схемы, а не с собственной копией списка: список,
+   переписанный в смоук, разошёлся бы со схемой ровно так же тихо, как макет. Запись в
+   схеме сжатая — `i_{total,over}_{v,som}` и слоты `d_clsN_*`; раскрытие проверяется
+   счётом: сумма колонок строки таблицы равна графе «шт.», заголовок раздела — сумме. */
+const FIZ_MD = resolve(__dir, '../../mockups/statistics/ASUBK-statistika-fizschema.md');
+function fizSchema(){
+  const lines = readFileSync(FIZ_MD, 'utf8').split('\n');
+  const brace = t => t.split(/(\{[^}]*\})/).reduce((acc, p) => {
+    const opts = p.startsWith('{') ? p.slice(1, -1).split(',') : [p];
+    return acc.flatMap(a => opts.map(o => a + o));
+  }, ['']);
+  const expand = cell => {
+    const slot = cell.match(/`(\w+?)N_(\w+)` · `_(\w+)` · `_(\w+)`/);
+    if (cell.includes('…') && slot) {
+      const out = [];
+      for (let i = 1; i <= 10; i++) for (const s of [slot[2], slot[3], slot[4]]) out.push(`${slot[1]}${i}_${s}`);
+      return out;
+    }
+    return [...cell.matchAll(/`([^`]+)`/g)].flatMap(m => brace(m[1]));
+  };
+  const tables = {}; let cur = null, grp = false;
+  for (const line of lines) {
+    const h = line.match(/^## \d+\. `(stat_row_\w+)` — .+? · колонок: (\d+)$/);
+    if (h) { cur = h[1]; tables[cur] = {want: +h[2], cols: [], bad: [], storage: null}; grp = false; continue; }
+    if (line.startsWith('## ')) { cur = null; continue; }
+    if (!cur) continue;
+    const s = line.match(/^- \*\*Способ хранения:\*\* `(\w+)`/);
+    if (s) { tables[cur].storage = s[1]; continue; }
+    if (line.startsWith('### ')) { grp = true; continue; }
+    if (grp && line.startsWith('| `')) {
+      const c = line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(x => x.trim());
+      const n = +c[1].replace(/[`*]/g, ''), cols = expand(c[0]);
+      if (cols.length !== n) tables[cur].bad.push(c[0]);
+      tables[cur].cols.push(...cols);
+    }
+  }
+  return tables;
+}
+const FIZ = fizSchema();
+
 /* ---------- A. Реестры: что вообще можно объявить ---------- */
 (() => {
   ST.seed();
@@ -88,10 +134,13 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   /* Волна 17 ч.6: реестр ВЫРОС на 114 сомовых записей, и счёт здесь назван ПО ФАКТУ, а не
      смягчён до «не меньше 85». Неравенство пережило бы и потерю сотни записей молча —
      а именно потеря близнеца и есть та ошибка, которую этот сторож теперь ловит (ИС-44). */
+  /* Волна 23 (переписан на месте): реестр сверен со схемой и УМЕНЬШИЛСЯ — снятые записи
+     (ADR-0244 §4, «Снято» разделов схемы) и итоги без близнеца (ADR-0240 §4). Счёт снова
+     назван точным числом: неравенство пропустило бы и потерю, и лишнее. */
   const own1 = st.indicators.filter(i => !i.somOf), twin1 = st.indicators.filter(i => i.somOf);
-  ok(1, st.objects.length === 10 && st.indicators.length === 285 && own1.length === 171 &&
-       twin1.length === 114 && twin1.every(t => !!ST.IND(t.somOf)) &&
-       st.dims.length === 84 && ST.registry().length === 369 && badSrc.length === 0 &&
+  ok(1, st.objects.length === 10 && st.indicators.length === 229 && own1.length === 155 &&
+       twin1.length === 74 && twin1.every(t => !!ST.IND(t.somOf)) &&
+       st.dims.length === 79 && ST.registry().length === 308 && badSrc.length === 0 &&
        formula.length === 0 && badFn.length === 0,
     `объектов ${st.objects.length}, показателей ${st.indicators.length} — ${own1.length} своих и ${twin1.length} сомовых сторон, и у каждой стороны валютная запись на месте; разрезов ${st.dims.length}, всего записей реестра ${ST.registry().length}. Счёт назван точным числом, а не «не меньше 85»: неравенство пережило бы молча потерю сотни записей, а потеря близнеца — это денежная величина, которую нельзя сложить по портфелю. Без объявленного источника ${badSrc.length}, с формулой ${formula.length} (сомовая сторона — не формула, а вторая колонка той же величины), с функцией вне списка ${badFn.length} — ИС-6, ИС-7, ИС-44`);
 
@@ -159,11 +208,15 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   ST.seed();
   /* Первый разрез объекта берётся вслепую, и у «Залогового договора» он ЕДИНСТВЕННЫЙ и
      с корзинами: дата без корзины — не вопрос, а недоговорённость (ADR-0176 §2), и движок
-     обязан отказать. Поэтому корзина называется здесь, а не выключается сторож. */
+     обязан отказать. Поэтому корзина называется здесь, а не выключается сторож.
+     Волна 23 (переписан на месте): у «Дела взыскания» разрезов не осталось вовсе —
+     подразделение, куратор, территория и валюта сняты (ADR-0243, ADR-0244 §4), и дело
+     режется через строки требований. Такой объект спрашивается без разреза: свойство
+     «десять объектов одним движком» от этого не меняется. */
   const each = ST.state.objects.map(o => {
-    const d = ST.DIM(o.dims[0]);
-    const q = {obj: o.id, dims: [o.dims[0]], inds: ['a-count'], date: ASK};
-    if (d.buckets && d.buckets.length) q.buckets = {[o.dims[0]]: d.buckets[0]};
+    const d0 = o.dims[0], d = d0 ? ST.DIM(d0) : null;
+    const q = {obj: o.id, dims: d0 ? [d0] : [], inds: ['a-count'], date: ASK};
+    if (d && d.buckets && d.buckets.length) q.buckets = {[d0]: d.buckets[0]};
     const r = ST.statSlice(q);
     return {name: o.name, ok: r.ok, n: r.ok ? r.n : 0, g: r.ok ? r.groups.length : 0};
   });
@@ -830,12 +883,19 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
      распространено на близнецов: ни одна сомовая запись не осталась невидимой для среза. */
   const orig = base.filter(m => !ST.IND(m).somOf);
   const twin = base.filter(m => ST.IND(m).somOf);
+  /* Волна 23 (переписан на месте): близнец есть только у величины, ВОЗНИКШЕЙ в валюте
+     (ADR-0240 §2). Обеспечение по кредиту и ликвидными видами схема держит одной сомовой
+     колонкой (`i_secured_som`, `i_secliq_som`, схема §1.3) — это итог по предметам
+     залога, оценённым в сомах, и валютной стороны у него нет. Близнецов 27 → 25. */
   const moneyOrig = orig.filter(m => ST.IND(m).money);
-  ok(67, orig.length === 31 && twin.length === 27 && base.length === 58 &&
+  const moneyCur = moneyOrig.filter(m => ST.IND(m).vtype !== 'money_som');
+  const moneySom = moneyOrig.filter(m => ST.IND(m).vtype === 'money_som');
+  ok(67, orig.length === 31 && twin.length === 25 && base.length === 56 &&
         covered.length === base.length && seams.length === 0 &&
-        twin.length === moneyOrig.length &&
+        twin.length === moneyCur.length && moneySom.join(',') === 'm-secured,m-secliq' &&
+        moneySom.every(m => !ST.somIdOf(m) && ST.unitOf(m) === 'сом') &&
         twin.every(m => orig.indexOf(ST.IND(m).somOf) >= 0),
-    `у кредита ${orig.length} строчных показателей, и у каждого есть агрегат — иначе в срез он не попадёт (#36); пять швов ядра прочитаны, непрочитанных нет${seams.length ? ': ' + seams.join(', ') : ''}. Рядом с каждой из ${moneyOrig.length} денежных стоит своя сомовая запись (${twin.length} близнецов, всего ${base.length} строчных), и агрегат есть у каждой из них тоже — сомовая сторона не «пометка на клетке», а такая же запись реестра (ИС-44, ADR-0214 §2)`);
+    `у кредита ${orig.length} строчных показателей, и у каждого есть агрегат — иначе в срез он не попадёт (#36); пять швов ядра прочитаны, непрочитанных нет${seams.length ? ': ' + seams.join(', ') : ''}. Рядом с каждой из ${moneyCur.length} денежных величин в валюте договора стоит своя сомовая запись (${twin.length} близнецов, всего ${base.length} строчных), и агрегат есть у каждой из них тоже — сомовая сторона не «пометка на клетке», а такая же запись реестра (ИС-44, ADR-0214 §2). Ещё ${moneySom.length} денежные (${moneySom.join(', ')}) — итоги в сомах сами по себе, без валютной стороны и без близнеца (ADR-0240 §4)`);
 
   /* ИС-26: дата на срезе выражается числом дней от даты вопроса — среднюю дату
      сложить не из чего, а среднее число дней складывается. */
@@ -861,11 +921,16 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const bInds = bAll.filter(i => !i.somOf), bTwin = bAll.filter(i => i.somOf);
   const alien = bInds.filter(i => i.src === 'шов' && SINGLE.indexOf(i.seam) >= 0);
   const fields = bInds.filter(i => i.src === 'поле').map(i => i.key);
-  ok(69, bInds.length === 20 && bTwin.length === 9 && alien.length === 0 &&
+  /* Волна 23 (переписан на месте): строчных у заёмщика 20 → 16 — сняты лимит (ADR-0244 §4)
+     и три фактора п. 11, уехавшие к кредиту (СС-140). Близнецов 9 → 0: итоги заёмщика —
+     сомовые записи сами (ADR-0240 §4), и денежная величина здесь читает портфельный шов
+     ОДИН раз, а не дважды парой. */
+  const bSom = bInds.filter(i => i.money);
+  ok(69, bInds.length === 16 && bTwin.length === 0 && alien.length === 0 &&
         bAll.filter(i => i.src === 'шов').every(i => OWN.indexOf(i.seam) >= 0) &&
         bInds.filter(i => i.seam === 'calcPortfolio').length === 14 &&
-        bTwin.every(i => i.seam === ST.IND(i.somOf).seam),
-    `у заёмщика ${bInds.length} строчных показателей, и ни один не берёт шов ОДНОГО кредита${alien.length ? ': ' + alien.map(i => i.id).join(', ') : ''}: величины портфеля спрашиваются портфельным вопросом (ИС-28, ADR-0184 §1); полем осталось только собственное — ${fields.join(', ')}. Сомовых близнецов ${bTwin.length}, и каждый читает ТОТ ЖЕ портфельный шов, что его валютная сторона: второго источника денег у заёмщика не завелось (ИС-44, ADR-0214 §2)`);
+        bSom.length === 8 && bSom.every(i => i.vtype === 'money_som' && i.seam === 'calcPortfolio'),
+    `у заёмщика ${bInds.length} строчных показателей, и ни один не берёт шов ОДНОГО кредита${alien.length ? ': ' + alien.map(i => i.id).join(', ') : ''}: величины портфеля спрашиваются портфельным вопросом (ИС-28, ADR-0184 §1); полем осталось только собственное — ${fields.join(', ')}. Денежных ${bSom.length}, и все — итоги в сомах без близнеца (близнецов ${bTwin.length}): каждый читает портфельный шов один раз, второго источника денег у заёмщика не завелось (ИС-44, ADR-0240 §4)`);
 
   /* Свод портфеля = сумма одиночных ответов, ПО КАЖДОЙ ВАЛЮТЕ и до копейки. Курса в
      проверке нет вовсе: сравниваются доллары с долларами (ADR-0174 §2, ADR-0184 §3). */
@@ -879,8 +944,13 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
     single[inn][c.cur] = Math.round(((single[inn][c.cur] || 0) + c.v) * 100) / 100;
   });
   const broken = [];
+  /* Волна 23 (переписан на месте): итог заёмщика — одна сомовая колонка (ADR-0240 §4), и
+     состав по валютам лежит не клеткой, а ОСНОВАНИЕМ её пересчёта (`from`: валюта, число,
+     курс — по части на валюту). Тождество «свод = сумма одиночных ответов по каждой валюте
+     до копейки» сверяется с этим основанием — курса в проверке по-прежнему нет. */
+  const fromOf = c => ((c && c.from) || []).map(p => ({cur: p.cur, v: p.value}));
   brows.forEach(r => {
-    const parts = ST.partsOf(r.inds['m-btotal']);
+    const parts = fromOf(r.inds['m-btotal']);
     const want = single[r.ref] || {};
     Object.keys(want).forEach(cur => {
       const got = parts.find(x => x.cur === cur);
@@ -889,7 +959,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
     if(parts.length !== Object.keys(want).length) broken.push(r.ref + ' состав');
     /* Тождество ядра «остаток = просрочено + срочно» держится и на строке заёмщика —
        по каждой валюте отдельно (ADR-0183 §3 применительно к портфелю). */
-    const o = ST.partsOf(r.inds['m-bover']), c = ST.partsOf(r.inds['m-bcurr']);
+    const o = fromOf(r.inds['m-bover']), c = fromOf(r.inds['m-bcurr']);
     parts.forEach(t => {
       const op = (o.find(x => x.cur === t.cur) || {v:0}).v;
       const cp = (c.find(x => x.cur === t.cur) || {v:0}).v;
@@ -927,31 +997,29 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
      и датой курса по каждой части рядом. Прежде здесь доказывалось, что эквивалент
      считается показом и в строке его нет; теперь доказывается, что он в строке ЕСТЬ, что
      он один, что он проверяем перемножением частей и что свод валютной записи по
-     разновалютному множеству отказывает, а сомовой — отвечает (ИС-44, ADR-0214). */
+     разновалютному множеству отказывает, а сомовой — отвечает (ИС-44, ADR-0214).
+     Волна 23 ПЕРЕПИСАЛА сторож на месте (ADR-0240 §4 переписал ADR-0184 §3): итог заёмщика
+     — ОДНА сомовая колонка, валютной стороны у него нет вовсе. Клетки «состав, молчащий
+     числом» в строке больше нет, близнеца тоже нет: запись `m-btotal` сама сомовая. Что
+     осталось доказывать и доказывается: число одно, проверяемо перемножением частей ядра
+     с курсом и датой курса по каждой, и свод по разновалютному множеству ОТВЕЧАЕТ во всех
+     группах — отказывать больше не в чем (ИС-56). */
   const mix = brows.find(r => r.dims['d-bcur'] === 'разновалютный');
   const mixCell = mix ? mix.inds['m-btotal'] : null;
-  const mixParts = ST.partsOf(mixCell);
-  const mixSom = mix ? mix.inds[ST.somIdOf('m-btotal')] : null;
-  const byHand = mixParts.reduce((a, x) => a + x.v * x.rate, 0);
+  const from = (mixCell && mixCell.from) || [];
+  const byHand = from.reduce((a, x) => a + x.value * x.rate, 0);
   const stored = brows.some(r => Object.keys(r.inds).some(k => 'som' in r.inds[k] || 'сом' in r.inds[k]));
-  const agg = ST.statSlice({obj:'obj-borrower', dims:['d-ptype'],
-    inds:['a-sumbtotal', ST.somIdOf('a-sumbtotal')], date: ASK});
+  const agg = ST.statSlice({obj:'obj-borrower', dims:['d-ptype'], inds:['a-sumbtotal'], date: ASK});
   const tot = agg.ok ? agg.total['a-sumbtotal'] : null;
-  const totSom = agg.ok ? agg.total[ST.somIdOf('a-sumbtotal')] : null;
-  /* Отказ ПОКЛЕТОЧНЫЙ: одновалютные группы того же среза отвечают числом в своей валюте,
-     а отказывает ровно та группа, которая разновалютна. Это не половина ответа, а ровно
-     то, что объявлено реквизитом: аддитивна ВНУТРИ разреза (ADR-0214 §1). */
-  const gAns = agg.ok ? agg.groups.filter(g => !g.values['a-sumbtotal'].refused) : [];
-  const gRef = agg.ok ? agg.groups.filter(g =>  g.values['a-sumbtotal'].refused) : [];
-  ok(71, mixCell && mixCell.v == null && mixParts.length === 2 && !stored &&
-        mixSom && mixSom.cur === 'KGS' && mixSom.v === Math.round(byHand * 100)/100 &&
-        mixSom.from && mixSom.from.length === 2 && mixSom.from.every(x => x.rate > 0 && x.rateDate) &&
-        tot && tot.refused === true && tot.v === undefined && tot.mixed.length === 3 && tot.by &&
-        has(tot.note, 'EUR') && has(tot.note, 'USD') && has(tot.why, 'в сомах') &&
-        totSom && !totSom.refused && totSom.v > 0 && totSom.cur === 'KGS' &&
-        gAns.length === 2 && gRef.length === 1 &&
-        gAns.every(g => g.values['a-sumbtotal'].cur && g.values[ST.somIdOf('a-sumbtotal')].v > 0),
-    `разновалютный портфель (${mix ? mix.ref : '—'}) называет состав ${mixParts.map(x => x.v + ' ' + x.cur).join(' + ')} и молчит одним числом — а сомовая колонка ТОЙ ЖЕ строки отвечает одним: ${(mixSom || {}).v} ${(mixSom || {}).cur}, и это ровно ${mixParts.map(x => x.v + '×' + x.rate).join(' + ')}, посчитанное ядром; курс и дата курса лежат рядом с числом, приложением к чужой клетке величина не живёт. Свод валютной записи по разновалютному множеству ОТКАЗАН («${String(tot.note)}»), сомовой — ${(totSom || {}).v} ${(totSom || {}).cur}. Отказ поклеточный: групп ${agg.groups.length}, ответили числом ${gAns.length} (${gAns.map(g => g.values['a-sumbtotal'].cur).join(', ')}), отказала ${gRef.length} — та, что разновалютна (ИС-44, ADR-0214 §1, §2, §4)`);
+  const gAns = agg.ok ? agg.groups.filter(g => g.values['a-sumbtotal'] && !g.values['a-sumbtotal'].refused &&
+    g.values['a-sumbtotal'].cur === 'KGS') : [];
+  ok(71, mixCell && mixCell.cur === 'KGS' && mixCell.v === Math.round(byHand * 100)/100 &&
+        from.length === 2 && from.every(x => x.cur && x.rate > 0 && x.rateDate) && !stored &&
+        ST.IND('m-btotal').vtype === 'money_som' && ST.unitOf('m-btotal') === 'сом' &&
+        ST.somIdOf('m-btotal') === null && ST.somIdOf('a-sumbtotal') === null &&
+        tot && !tot.refused && tot.v > 0 && tot.cur === 'KGS' &&
+        agg.groups.length === 3 && gAns.length === 3,
+    `разновалютный портфель (${mix ? mix.ref : '—'}) лежит в строке заёмщика ОДНИМ числом в сомах: ${(mixCell || {}).v} ${(mixCell || {}).cur}, и это ровно ${from.map(x => x.value + ' ' + x.cur + '×' + x.rate).join(' + ')}, посчитанное ядром; курс и дата курса по каждой части лежат рядом с числом. Валютной стороны у итога нет, близнеца тоже (${ST.somIdOf('m-btotal')}): состав по валютам без jsonb не хранится, а «сколько в долларах» отвечают строки кредитов (ADR-0240 §4, §5). Свод по разновалютному множеству ОТВЕЧАЕТ — ${(tot || {}).v} ${(tot || {}).cur}, и во всех ${agg.groups.length} группах по виду лица числом в сомах (${gAns.length}): отказывать больше не в чем (ИС-56; до волны 23 здесь стерегли отказ валютного свода, ИС-44, ADR-0214 §1)`);
 
   /* Число договоров — клетка шва, а не поле владельца: производная в поле есть второй
      источник (ADR-0001). Доказательство — оно меняется вслед за СТАТУСОМ договора. */
@@ -975,7 +1043,9 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
       if(FLAT.indexOf(i.type) >= 0 && aggs.length > 0) forbid.push(i.id);
     }));
   const flat = ST.state.indicators.filter(i => FLAT.indexOf(i.type) >= 0);
-  ok(73, need.length === 0 && forbid.length === 0 && flat.length === 6,
+  /* Волна 23 (переписан на месте): перечислений и булевых 6 → 2 — сняты «застрахован»
+     (схема держит состояние страховки, §4) и три фактора у заёмщика (СС-140). */
+  ok(73, need.length === 0 && forbid.length === 0 && flat.length === 2,
     `правило агрегата типизировано и проверено на всех ${ST.state.objects.length} объектах: без пары ${need.length}, с лишней парой ${forbid.length}; ${flat.length} показателей-перечислений и булевых входят в срез разрезом либо сравнением, а не средним (ИС-29)`);
 
   /* Подгруппа — ОДИН разрез с двумя уровнями: группа есть первая цифра подгруппы, как в
@@ -1051,8 +1121,11 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const covD = ['d-covstate','d-covreq'].map(d => ST.DIM(d));
   const covI = ST.OBJ('obj-credit').inds.map(i => ST.IND(i))
     .filter(i => i && i.seam === 'calcCoverage' && !i.somOf);
+  /* Волна 23 (переписан на месте): близнецов у предмета 4 → 0 — оценка залога всегда в
+     сомах, и денежные величины предмета суть сомовые записи сами (ADR-0240 §4, ADR-0244 §4). */
   ok(78, single.length === 0 && pledge.length === seamedAll.length && seamed.length === 9 &&
-        seamTwin.length === 4 && seamTwin.every(i => i.seam === 'calcPledge') &&
+        seamTwin.length === 0 &&
+        seamed.filter(i => i.money).every(i => i.vtype === 'money_som') &&
         covI.length === 3 && covD.every(d => d.seam === 'calcCoverage' && d.owner === 'Залог'),
     `владелец шва есть владелец МНОЖЕСТВА: у предмета ${seamed.length} шовных показателей и все идут calcPledge, шов ОДНОГО кредита не читает ни один (${single.length}); обеспеченность кредита приходит calcCoverage — швом залога, не ядра (ИС-31, ADR-0190 §1)`);
 
@@ -1096,12 +1169,16 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const dealD = cd.filter(d => d.id === 'd-cur' || d.id === 'd-zdate');
   const kind = ST.DIM('d-collkind');
   const z77 = Z('ЗЛ-2023/77');
-  ok(81, dealD.length === 0 && cd.length === 11 && ST.DIM('d-ccur').key === 'cur' &&
-        ST.DIM('d-ccur').owner === 'Залог' && ST.DIM('d-cadm').key === 'adm' &&
-        kind.levels && kind.levels.length === 2 && kind.ref === 'collkind' &&
+  /* Волна 23 (переписан на месте): две части прежнего утверждения сняты ADR-0244 §4 —
+     «валюты оценки» у вещи нет (оценка всегда в сомах), и вид одноуровневый (класс
+     ликвидности — слот классификатора администратора, ADR-0241 §5, а не уровень вида).
+     Свойство, ради которого сторож заведён, живо и проверяется прежним: реквизитами
+     ДОГОВОРА вещь не режется, дата принятия своя, две оси состояния независимы. */
+  ok(81, dealD.length === 0 && cd.length === 10 && !ST.DIM('d-ccur') && ST.DIM('d-cadm').key === 'adm' &&
+        !kind.levels && !kind.ref && kind.col === 'd_kind' &&
         z77 && z77.dims['d-czstate'] === 'в залоге' && z77.dims['d-cban'] === 'просрочен' &&
-        z77.dims['d-collkind'][0] === 'движимый неликвидный',
-    `у вещи своя валюта оценки и своя дата принятия: разрезов ДОГОВОРА («валюта договора», «дата залогового договора») у предмета ${dealD.length} из ${cd.length}; вид двухуровневый — класс ликвидности берётся справочником владельца; две оси состояния независимы: ЗЛ-2023/77 «${z77 ? z77.dims['d-czstate'] : '—'}» при запрете «${z77 ? z77.dims['d-cban'] : '—'}» (ADR-0009, §3.1, ИС-21)`);
+        z77.dims['d-collkind'] === 'техника',
+    `у вещи своя дата принятия, а реквизитами договора она не режется: разрезов ДОГОВОРА («валюта договора», «дата залогового договора») у предмета ${dealD.length} из ${cd.length}; «валюты оценки» у предмета нет вовсе (${ST.DIM('d-ccur') ? 'ОСТАЛАСЬ' : 'снята'}) — оценка всегда в сомах; вид одноуровневый (у ЗЛ-2023/77 — «${z77 ? z77.dims['d-collkind'] : '—'}»), класс ликвидности — классификатор администратора, а не уровень вида (ADR-0244 §4, ADR-0241 §5); две оси состояния независимы: ЗЛ-2023/77 «${z77 ? z77.dims['d-czstate'] : '—'}» при запрете «${z77 ? z77.dims['d-cban'] : '—'}» (§3.1, ИС-21)`);
 
   /* Отношение двух величин показателем не бывает (ИС-32): в срез входят числитель и
      знаменатель, индекс считается при чтении — как сомовый эквивалент (ИС-15). Иначе он
@@ -1295,8 +1372,11 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const cAll = st.indicators.filter(i => i.obj === 'obj-case' && i.src === 'шов');
   const cInds = cAll.filter(i => !i.somOf);
   const one = cAll.filter(i => i.seam === 'calcDebt' || i.seam === 'calcPortfolio');
+  /* Волна 23 (переписан на месте): близнецов у дела 2 → 0 — итоги дела только в сомах,
+     валюты у дела нет (ADR-0244 §4, ADR-0240 §4). */
   ok(96, cInds.length === 4 && one.length === 0 && cAll.every(i => i.seam === 'casePortfolio') &&
-        cAll.filter(i => i.somOf).length === 2,
+        cAll.filter(i => i.somOf).length === 0 &&
+        cInds.filter(i => i.money).every(i => i.vtype === 'money_som'),
     `портфельный шов дела принадлежит взысканию: ${cInds.length} шовных показателей, все идут casePortfolio, шов ОДНОГО кредита не читает ни один (${one.length}) — множество выбирает связь «дело × кредит × роль», и знает её только владелец (ИС-28, ИС-31)`);
 
   /* ИС-35: удельная величина показателем не заводится вовсе. Отказ обязан указать пару
@@ -1535,24 +1615,41 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const seamSom = rowInds(P).filter(i => i.src === 'шов' && i.somOf);
   const compound = seam.filter(i => /_/.test(i.field || ''));
   const one = at(pays, 'ПГ-2026/1156');
-  ok(111, pays.length === 14 && bad111.length === 0 && seam.length === 7 && compound.length === 0 &&
-        seamSom.length === 7 && seamSom.every(i => i.field === ST.IND(i.somOf).field),
-    `сумма платежа = Σ пяти статей на каждой из ${pays.length} строк, расхождений ${bad111.length}: ПГ-2026/1156 — ${ART.map(i => v(one, i)).join(' + ')} = ${v(one,'m-ramount')} (расходы → комиссия → ОД → проценты → пеня, ADR-0087). ОД своей формулы не имеет, он РАЗНОСТЬ; статьи и слои — две проекции одной суммы, ${seam.length} именованных клеток шва (5+2), а не 5×2 матрица, составных имён ${compound.length} (ADR-0183 §2, §3, ADR-0179 §3)`);
+  /* Волна 23 (переписан на месте): клеток шва в строке платежа шесть, а не семь —
+     свободный слой снят и читается при чтении как «сумма − судебный» (схема §9). Статей
+     по-прежнему пять, слой в строке — один, судебный. */
+  ok(111, pays.length === 14 && bad111.length === 0 && seam.length === 6 && compound.length === 0 &&
+        seamSom.length === 6 && seamSom.every(i => i.field === ST.IND(i.somOf).field),
+    `сумма платежа = Σ пяти статей на каждой из ${pays.length} строк, расхождений ${bad111.length}: ПГ-2026/1156 — ${ART.map(i => v(one, i)).join(' + ')} = ${v(one,'m-ramount')} (расходы → комиссия → ОД → проценты → пеня, ADR-0087). ОД своей формулы не имеет, он РАЗНОСТЬ; статьи и слой — две проекции одной суммы, ${seam.length} именованных клеток шва (5 статей + судебный слой; свободный — разность при чтении, схема §9), а не 5×2 матрица, составных имён ${compound.length} (ADR-0183 §2, §3, ADR-0179 §3)`);
 
-  const bad112 = pays.filter(r => !near(v(r,'m-ramount'), r2(v(r,'m-pjud') + v(r,'m-pfree'))));
+  /* Волна 23 (переписан на месте): свободный слой больше не хранится — схема читает его
+     разностью «сумма − судебный» (схема §9). Свойство то же — один платёж лежит на двух
+     слоях сразу, и слои сходятся к сумме, — но второй слой теперь ВЫЧИСЛЯЕТСЯ из строки,
+     и проверять надо, что разность законна: судебный слой не больше суммы ни на одной
+     строке, у ПГ-2026/1178 обе части положительны, а записи свободного слоя в реестре нет. */
+  const free112 = r => r2(v(r,'m-ramount') - v(r,'m-pjud'));
+  const bad112 = pays.filter(r => v(r,'m-pjud') == null || free112(r) < 0);
   const two = at(pays, 'ПГ-2026/1178');
   const kgs = ST.statSlice({obj:'obj-repay', dims:['d-repkind'], date: D,
-    inds:['a-sumpjud','a-sumpfree','a-sumramount'], filter: F(cD('d-pcur','=',{value:'KGS'}))});
+    inds:['a-sumpjud','a-sumramount'], filter: F(cD('d-pcur','=',{value:'KGS'}))});
   const T = kgs.ok ? kgs.total : {};
-  ok(112, bad112.length === 0 && v(two,'m-pjud') > 0 && v(two,'m-pfree') > 0 && kgs.ok &&
-       near(r2(T['a-sumpjud'].v + T['a-sumpfree'].v), T['a-sumramount'].v),
-    `тот же платёж разложен по СЛОЯМ, и слои сходятся к той же сумме, расхождений ${bad112.length}: ПГ-2026/1178 — ${v(two,'m-pjud')} судебный + ${v(two,'m-pfree')} свободный = ${v(two,'m-ramount')}, один платёж на двух слоях сразу (ADR-0043). Свод по KGS: ${T['a-sumpjud'].v} + ${T['a-sumpfree'].v} = ${T['a-sumramount'].v} — «Взыскано» так и осталось свёрткой платежей по слою, мерой оно не хранится (ADR-0030)`);
+  const tFree = kgs.ok ? r2(T['a-sumramount'].v - T['a-sumpjud'].v) : null;
+  ok(112, bad112.length === 0 && v(two,'m-pjud') > 0 && free112(two) > 0 && kgs.ok &&
+       tFree > 0 && !ST.REC('m-pfree') && !ST.REC('a-sumpfree'),
+    `тот же платёж разложен по СЛОЯМ, и слои сходятся к той же сумме, расхождений ${bad112.length}: ПГ-2026/1178 — ${v(two,'m-pjud')} судебный + ${free112(two)} свободный = ${v(two,'m-ramount')}, один платёж на двух слоях сразу (ADR-0043). Свободный слой с волны 23 не хранится: он разность «сумма − судебный» той же строки и читается при чтении (схема §9), записи его в реестре нет (${ST.REC('m-pfree') ? 'ЕСТЬ' : 'нет'}). Свод по KGS: ${kgs.ok ? T['a-sumpjud'].v : '—'} судебный из ${kgs.ok ? T['a-sumramount'].v : '—'}, свободный ${tFree} — «Взыскано» так и осталось свёрткой платежей по слою, мерой оно не хранится (ADR-0030)`);
 
-  const bad113 = rcs.filter(r => !near(v(r,'m-rsum'), r2(v(r,'m-rpaid') + v(r,'m-rret') + v(r,'m-runal'))));
+  /* Волна 23 (переписан на месте): нераспределённый остаток снят как запись — схема
+     считает его при чтении разностью `i_amount − i_paid − i_ret` (схема §10.3). Инвариант
+     ТЗ 14 §2.2 от этого не исчез, а сменил форму: разность, которой нет в строке,
+     разойтись с ней не может, и проверять остаётся, что она НЕОТРИЦАТЕЛЬНА на каждой
+     строке — разнесено и возвращено никогда не больше, чем поступило. */
+  const unal = r => r2(v(r,'m-rsum') - v(r,'m-rpaid') - v(r,'m-rret'));
+  const bad113 = rcs.filter(r => !(unal(r) >= 0));
   const pl = at(rcs, 'ПП-2026/0701'), ov = at(rcs, 'ПП-2026/0851');
   ok(113, rcs.length === 15 && bad113.length === 0 &&
-       v(pl,'m-rret') === 180000 && v(pl,'m-rpaid') === 520000 && v(ov,'m-runal') === 4000,
-    `инвариант поступления держится на каждой из ${rcs.length} строк, расхождений ${bad113.length}: сумма = Σ платежей + возврат + нераспределённое (ТЗ 14 §2.2). ПП-2026/0701 — ${v(pl,'m-rsum')} = ${v(pl,'m-rpaid')} + ${v(pl,'m-rret')} + ${v(pl,'m-runal')}: доля залогодателя ушла плательщику и погашением НЕ стала (§7.3). ПП-2026/0851 — переплата ${v(ov,'m-runal')} лежит нераспределённым остатком, а не лишним погашением (ADR-0073). Остаток — разность, отдельной формулы у него нет (ИС-1)`);
+       v(pl,'m-rret') === 180000 && v(pl,'m-rpaid') === 520000 && unal(pl) === 0 && unal(ov) === 4000 &&
+       !ST.REC('m-runal'),
+    `инвариант поступления держится на каждой из ${rcs.length} строк, расхождений ${bad113.length}: сумма = Σ платежей + возврат + нераспределённое (ТЗ 14 §2.2). Нераспределённое с волны 23 не хранится — оно разность той же строки и читается при чтении (схема §10.3), записи его в реестре нет (${ST.REC('m-runal') ? 'ЕСТЬ' : 'нет'}), и проверяется, что разность ни на одной строке не ушла в минус. ПП-2026/0701 — ${v(pl,'m-rsum')} = ${v(pl,'m-rpaid')} + ${v(pl,'m-rret')} + ${unal(pl)}: доля залогодателя ушла плательщику и погашением НЕ стала (§7.3). ПП-2026/0851 — переплата ${unal(ov)} лежит нераспределённым остатком, а не лишним погашением (ADR-0073). Остаток — разность, отдельной формулы у него нет (ИС-1)`);
 
   const sv = at(rcs, 'ПП-2026/0733');
   const kids = pays.filter(r => r.dims['d-preceipt'] === 'ПП-2026/0733');
@@ -1613,8 +1710,12 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const somRc = R.inds.filter(i => ST.IND(i).somOf).length;
   const badAgg = st.indicators.filter(i => i.src === 'агрегат' && i.over &&
     ['перечисление','булево'].indexOf((ST.IND(i.over) || {}).type) >= 0);
-  ok(119, P.dims.length === 8 && iPay === 8 && aPay === 9 && somPay === 16 &&
-       R.dims.length === 5 && iRc === 6 && aRc === 8 && somRc === 8 && badAgg.length === 0,
+  /* Волна 23 (переписан на месте): числа названы по факту после сверки со схемой — у
+     платежа снят свободный слой с его сводом (8 → 7 мер, 9 → 8 агрегатов, близнецов 16 →
+     14), у поступления — нераспределённый остаток и «дней без опознания» с тремя сводами
+     (6 → 4 мер, 8 → 5 агрегатов, близнецов 8 → 6): их схема считает при чтении (§9, §10.3). */
+  ok(119, P.dims.length === 8 && iPay === 7 && aPay === 8 && somPay === 14 &&
+       R.dims.length === 5 && iRc === 4 && aRc === 5 && somRc === 6 && badAgg.length === 0,
     `состав по ADR-0183 — без недобора и без набора впрок: платёж — ${P.dims.length} разрезов, ${iPay} мер строки, ${aPay} агрегатов; поступление — ${R.dims.length} / ${iRc} / ${aRc}. Каждый разрез назван внешним потребителем: ФО-41 «Реестр погашений» — кредит, ФО-04 «Погашения за период» — дата, ТЗ 14 §3.1 — три оси, и они стоят у ПОСТУПЛЕНИЯ: своих осей платёж не имеет, он их наследует (ADR-0056). Агрегатов над перечислением и булевым ${badAgg.length} (ИС-29, ADR-0185 §1)`);
 
   const cur = ['KGS','USD','EUR'].map(c => {
@@ -1677,31 +1778,16 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
         has(gone.why, 'ИС-18') && !inWorld && dangling.length === 0 && orphan.length === 0,
     `«Задание кураторства» снято СТРОКОЙ реестра, а не релизом: объектов ${st.objects.length}, спрос отвечает отказом — «${gone.why}», а не пустым экраном (ИС-24). Источник снят, а не спрятан: записей в мире 0, висячих ссылок на снятые разрезы и меры ${dangling.length}, агрегатов над несуществующей мерой ${orphan.length}. Владельца, ОТДАЮЩЕГО множество, у заданий нет: кураторство отказывается от них дословно (ТЗ 16 §1.1), своего ТЗ и места в очереди у них нет, ФО-20 ещё спрашивается у заказчика. Вернётся строкой в день, когда владелец появится (ADR-0201 §1)`);
 
-  /* Три оси результата ТЗ 13 §9.1 — независимы попарно и в обе стороны: ни одна не
-     выводится из другой, иначе разрезов было бы не три, а один. */
-  const AX = ['d-mresult','d-mrkind','d-mstage'];
-  const dep = [];
-  AX.forEach(a => AX.forEach(b => { if (a !== b &&
-    !ms.some(x => ms.some(y => x !== y && x.dims[a] === y.dims[a] && x.dims[b] !== y.dims[b]))) dep.push(a + '→' + b); }));
-  const hist = ['d-mdeliv','d-mstate'].filter(d => ST.DIM(d).src === 'история');
-  const il = at(ms, 'МВ-2025/44'), rz = at(ms, 'МВ-2026/31');
-  ok(122, dep.length === 0 && hist.length === 2 &&
-        il.dims['d-mrkind'] === rz.dims['d-mrkind'] &&
-        il.dims['d-mresult'] !== rz.dims['d-mresult'] && il.dims['d-mstage'] !== rz.dims['d-mstage'],
-    `три оси ТЗ 13 §9.1 не схлопнуты в один «результат»: пар, где одна ось вывелась бы из другой, ${dep.length} из 6 — МВ-2025/44 и МВ-2026/31 стоят на одном виде результата «${il.dims['d-mrkind']}» при разных результате (${il.dims['d-mresult']} · ${rz.dims['d-mresult']}) и стадии (${il.dims['d-mstage']} · ${rz.dims['d-mstage']}). Доставка и состояние читаются ИЗ ИСТОРИИ (их ${hist.length}), а не полем: на каждую дату среза своё значение (ИС-10, ИС-14)`);
+  /* #122 — снят волной 23 (З-13): «три оси результата меры независимы попарно, доставка и
+     состояние читаются из истории» больше не часть модели. Результат меры — один исход,
+     значение справочника своего вида (ADR-0028), и оси «вид результата» и «стадия
+     исполнения» вместе с трёхзначной историей доставки схема сняла (схема §11 «Снято»,
+     ADR-0244 «Границы»: состав колонок — в схеме). Номер не переиспользуется. */
 
-  /* Часы меры. Число дней полем не лежит нигде — оно ПРОИЗВОДНО от даты среза (ADR-0183 §4),
-     и заводятся часы от НАПРАВЛЕНИЯ: невручение срок должника не отменяет (ТЗ 13 §9.2). */
-  const days = ST.statSlice({obj:'obj-measure', dims:['d-mdeliv'], date: D,
-    inds:['a-count','a-maxmdays','a-avgmdays']});
-  const withSent = ms.filter(r => v(r, 'm-mdays') != null);
-  const nod = days.ok ? days.groups.find(g => g.parts[0] === 'вручения не требует') : null;
-  const und = at(ms, 'МВ-2026/27'), del = at(ms, 'МВ-2026/12');
-  ok(123, days.ok && withSent.length === 2 && v(und, 'm-mdays') === 16 && v(del, 'm-mdays') === 159 &&
-        und.dims['d-mdeliv'] === 'направлено, вручение не подтверждено' &&
-        nod && nod.n === 3 && nod.values['a-maxmdays'] === null && nod.values['a-avgmdays'] === null &&
-        days.total['a-maxmdays'].v === 159 && days.total['a-avgmdays'].v === 87.5,
-    `срок течёт от НАПРАВЛЕНИЯ и невручением не отменяется (ТЗ 13 §9.2): у МВ-2026/27 на 18.08 — ${v(und, 'm-mdays')} дн. при «${und.dims['d-mdeliv']}», у вручённой МВ-2026/12 — ${v(del, 'm-mdays')} дн. У видов, которым вручать нечего, направления нет, и срока нет вовсе: мер со сроком ${withSent.length} из ${ms.length}, а в группе «вручения не требует» (${nod ? nod.n : '—'} меры) максимум и среднее — ПРОЧЕРК, а не ноль: выбор из пустого нулём не отвечают (ИС-19, СС-Д13 закрыт). Итог берёт тех, у кого срок есть: max ${days.total['a-maxmdays'].v} · avg ${days.total['a-avgmdays'].v} дн.`);
+  /* #123 — снят волной 23 (З-13): «дней с направления меры» хранимым числом больше не
+     часть модели. Схема держит дату направления `d_sentdate` и считает срок при чтении как
+     D − `d_sentdate` (схема §11 «Снято из макета … хранимым числом»; ADR-0244 «Границы»);
+     записи `m-mdays`, `a-maxmdays`, `a-avgmdays` сняты. Номер не переиспользуется. */
 
   /* Дедуп по кредиту (ТЗ 13 §12.1): один долг в итоге считается один раз, сколько бы мер
      на него ни завели. Сторно (И-3) со среза меру не убирает — её отсекает СУЖЕНИЕ. */
@@ -1741,9 +1827,12 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const prRows = ST.statRows({obj:'obj-program', date: D});
   const bare = prRows.rows.every(r => r.ref && Object.keys(r.inds).length === 0);
   const cnt = ST.statSlice({obj:'obj-program', dims:['d-pstate'], inds:['a-count'], date: D});
+  /* Волна 23 (переписан на месте): состав меры назван по факту после сверки со схемой —
+     11 → 7 разрезов (сняты «вид результата», «стадия», «доставка», «территория»), 2 → 1
+     мера строки и 4 → 2 агрегата (сняты «дней с направления» и два его свода): схема §11. */
   ok(126, PR.dims.length === 9 && iP === 0 && aP === 1 && prRows.rows.length === 5 && bare &&
         cnt.ok && cnt.total['a-count'].v === 5 && PR.dims.indexOf('d-curator') < 0 &&
-        M.dims.length === 11 && iM === 2 && aM === 4 && ST.DIM('d-mcur').obj === 'obj-measure' &&
+        M.dims.length === 7 && iM === 1 && aM === 2 && ST.DIM('d-mcur').obj === 'obj-measure' &&
         M.inds.filter(i => ST.IND(i).somOf).length === 2,
     `состав по ADR-0183 «Границы»: программа — ${PR.dims.length} разрезов, ${iP} мер строки, ${aP} агрегат; мера взыскания — ${M.dims.length} / ${iM} / ${aM}. Объект БЕЗ ЕДИНОЙ меры строки законен: строк ${prRows.rows.length}, у каждой ref и разрезы, и «сколько программ» считается по СТРОКАМ (${cnt.total['a-count'].v}), а не по мере. Разреза «Куратор» у программы нет и быть не может: «ответственные сотрудники» — поле lookup (multi), многозначное на дату, и многозначность поднимает уровень, а не сплющивается в клетку (ИС-21, ADR-0201 §4)`);
 
@@ -1875,10 +1964,14 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
      же — «Куратор кредита» и «Куратор меры взыскания» суть разные признаки, и одно имя
      «Куратор» на семь объектов означало бы, что охват семи объектов сложим (ИС-40). */
   const alienScope = cut.filter(o => (ST.DIM(o.scope.dim) || {}).obj !== o.id);
+  /* Волна 23 (переписан на месте): режутся разрезом 7 → 6, общими 1 → 2 — у дела разреза
+     куратора больше нет (ADR-0243), и до правила `via` (З-19) оно объявлено общим. Заодно
+     исправлен давний изъян записи: перед текстом стояло `&&` вместо запятой, и пояснение
+     уходило в условие — сторож печатал пустую строку. */
   ok(132, bad.length === 0 && cut.length + open.length + den.length === st.objects.length &&
-        cut.length === 7 && open.length === 1 && den.length === 2 && dims.size === 7 &&
-        alienScope.length === 0 &&
-    `охват — ОБЪЯВЛЕННЫЙ реквизит записи объекта, девятый после рождения (ИС-37): объектов без него или с двумя состояниями сразу ${bad.length} из ${st.objects.length}. Режутся разрезом ${cut.length}, объявлены общими ${open.length}, отвечают отказом ${den.length}. Разрезов охвата СЕМЬ — по одному на режущийся объект (${[...dims].join(', ')}), и каждый определён НА СВОЁМ объекте (чужих ${alienScope.length}). Ровно в этом был СС-Д11: имя разреза принадлежит ОБЪЕКТУ, а зашитое в движок «d-curator» молча пустило под нож всех, кто назвал свой охват иначе; одно имя «Куратор» на семь объектов вдобавок заявляло бы, что охваты семи объектов между собой складываются (ИС-40, ADR-0206 §3). У отказа объявлены и причина, и дорога: отказ без дороги — половина ответа (§8.4)`);
+        cut.length === 6 && open.length === 2 && den.length === 2 && dims.size === 6 &&
+        alienScope.length === 0,
+    `охват — ОБЪЯВЛЕННЫЙ реквизит записи объекта, девятый после рождения (ИС-37): объектов без него или с двумя состояниями сразу ${bad.length} из ${st.objects.length}. Режутся разрезом ${cut.length}, объявлены общими ${open.length}, отвечают отказом ${den.length}. Разрезов охвата ШЕСТЬ — по одному на режущийся объект (${[...dims].join(', ')}), и каждый определён НА СВОЁМ объекте (чужих ${alienScope.length}). Ровно в этом был СС-Д11: имя разреза принадлежит ОБЪЕКТУ, а зашитое в движок «d-curator» молча пустило под нож всех, кто назвал свой охват иначе; одно имя «Куратор» на все объекты вдобавок заявляло бы, что их охваты между собой складываются (ИС-40, ADR-0206 §3). У отказа объявлены и причина, и дорога: отказ без дороги — половина ответа (§8.4)`);
 
   /* #133 — тот самый четвёртый случай, ради которого волна и случилась. */
   ST.setRole('Аналитик');
@@ -1902,8 +1995,10 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
     o, slice: (ST.statRows({obj:o.id, date: ASK}).rows || []).length,
     reg: ST.registryList(o.id, st.today, null).length}));
   const drift = pairs.filter(x => x.slice !== x.reg);
+  /* Волна 23 (переписан на месте): режущихся объектов 7 → 6 — дело больше не режется своим
+     разрезом (ADR-0243; до З-19 оно общее). */
   ok(134, seam.src === 'шов' && seam.seam === 'leadCurator' && noHist === 0 &&
-        drift.length === 0 && pairs.length === 7,
+        drift.length === 0 && pairs.length === 6,
     `охват читается ТЕМ ЖЕ читателем, что разрез (ИС-18, ИС-37): у «${seam.name}» источник — ${seam.src} «${seam.seam}», истории «curator» у заёмщика нет ни в одной записи мира (${noHist} из ${(world['obj-borrower'] || []).length}), и прежний прямой доступ к item.h.curator не мог его увидеть в принципе. Срез и реестр владельца сходятся на всех ${pairs.length} режущихся объектах, расхождений ${drift.length} (ИС-14): дорога, которую называет отказ, теперь и правда отвечает`);
 
   /* #135 — «общий» и «не спрашивается» разводит УТЕЧКА, а не вкус (§9, ADR-0203 §3). */
@@ -2247,20 +2342,26 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   ST.seed();
   const cR = ST.DIM('d-region'), bR = ST.DIM('d-bregion');
   const geo = ST.state.dims.filter(d => d.owner === 'Справочник административного деления');
+  /* Волна 23 (переписан на месте): у уровней появились колонки (`col`/`vtype`), и они у
+     каждой таблицы строк свои — у меры подразделение автора лежит в `d_reg_unit`, а не в
+     `d_unit` (схема §11.2). Колонка — имя в ТАБЛИЦЕ, а не свойство справочника, поэтому
+     иерархия сравнивается без неё: уровни, их дороги и справочник. Записей территории
+     6 → 4 — у дела и меры своей территории нет (ADR-0244 §4, схема §6, §11). */
+  const lvOf = d => JSON.stringify((d.levels || []).map(L => {
+    const c = Object.assign({}, L); delete c.col; delete c.vtype; return c; }));
   const forks = {};
   ST.state.dims.filter(d => d.owner && d.levels).forEach(d => {
-    (forks[d.owner] = forks[d.owner] || new Set()).add(JSON.stringify(d.levels) + '|' + (d.ref || ''));
+    (forks[d.owner] = forks[d.owner] || new Set()).add(lvOf(d) + '|' + (d.ref || ''));
   });
   const twoHier = Object.keys(forks).filter(k => forks[k].size > 1);
   const sameRoad = (a, b) => a.src === b.src && a.key === b.key && a.obj === b.obj;
-  const sameDict = cR.owner === bR.owner &&
-        JSON.stringify(cR.levels) === JSON.stringify(bR.levels);
+  const sameDict = cR.owner === bR.owner && lvOf(cR) === lvOf(bR);
   const cSet = ST.statSlice({obj:'obj-credit',   dims:['d-region'],  inds:['a-count'], date: ASK});
   const bSet = ST.statSlice({obj:'obj-borrower', dims:['d-bregion'], inds:['a-count'], date: ASK});
   const cKeys = cSet.groups.map(g => g.key).sort().join('|');
   const bKeys = bSet.groups.map(g => g.key).sort().join('|');
   ok(150, cR.id !== bR.id && cR.name !== bR.name && cR.obj !== bR.obj && sameDict &&
-        geo.length === 6 && twoHier.length === 0 && cKeys === bKeys && !sameRoad(cR, bR),
+        geo.length === 4 && twoHier.length === 0 && cKeys === bKeys && !sameRoad(cR, bR),
     `записей ${geo.length} — справочник ОДИН: у «${cR.name}» и «${bR.name}» совпадают владелец («${cR.owner}») и уровни (${cR.levels.map(l => l.name).join(' → ')}) знак в знак, а списки областей, добытые двумя РАЗНЫМИ дорогами, совпали: ${cKeys}. Второго экземпляра иерархии не заведено ни одного — у каждого владельца справочника ровно одна (расщеплённых ${twoHier.length}): иначе на «сколько районов в области» нашлось бы два ответа, и оба были бы честны (ADR-0176 §7). Объект определения меняет ДОРОГУ до значения, а не список значений (ADR-0206 §5) — потому дублируется запись реестра, а не справочник`);
 
   /* #151 — на одном человеке значения расходятся ЗАКОННО, и это читается из имён. */
@@ -2866,12 +2967,37 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
      прогонов по всем объектам: сомовая колонка обязана быть произведением валютной колонки
      ТОЙ ЖЕ строки на курс ТОЙ ЖЕ строки, с объявленным округлением. Ни одного взгляда за
      пределы строки: основание пересчёта заморожено в ней самой (ADR-0214 §4, §5). */
+  /* Волна 23 (переписан на месте): сомовых клеток стало ДВА рода. Близнец — сомовая
+     сторона валютной величины, сверяется с валютной клеткой той же строки, как прежде. Итог
+     (`money_som`: портфель заёмщика, оценка залога, итоги дела, обеспечение кредита) —
+     сомовая запись САМА, валютной клетки рядом нет (ADR-0240 §4); её число сверяется с
+     основанием пересчёта в той же клетке — валюта, число, курс, дата курса по каждой части.
+     Не сверяй сторож итоги — треть сомовых чисел витрины осталась бы непроверенной. */
+  const somOnlyWhy = (id, c) => {
+    if(!c || c.v == null) return 'сомовой клетки нет';
+    if(c.cur !== 'KGS') return 'итог не в сомах: ' + c.cur;
+    const basis = c.from || [];
+    if(!basis.length) return 'у итога нет основания пересчёта';
+    if(basis.some(b => !(b.rate > 0) || !b.rateDate)) return 'курс не назван';
+    const rule = ST.roundOf(id);
+    if(!rule) return 'запись не назвала правила округления';
+    if(c.round !== rule) return 'применённое правило «' + c.round + '» не равно объявленному «' + rule + '»';
+    const byHand = CORE.somRound(basis.reduce((n, b) => n + b.value * b.rate, 0), rule);
+    if(Math.abs(c.v - byHand) > 0.005) return 'число не равно произведению: ' + c.v + ' ≠ ' + byHand;
+    return null;
+  };
   const audit = () => {
     const bad = [];
-    let seen = 0;
+    let seen = 0, som = 0;
     ST.state.rows.forEach(r => {
       Object.keys(r.inds).forEach(id => {
         const rec = ST.IND(id);
+        if(rec && rec.vtype === 'money_som' && !rec.somOf && rec.src !== 'агрегат'){
+          const why = somOnlyWhy(id, r.inds[id]);
+          seen++; som++;
+          if(why) bad.push({ref: r.ref, date: r.date, id, why});
+          return;
+        }
         if(!rec || !rec.somOf) return;
         const c = r.inds[id], o = r.inds[rec.somOf];
         const why = (() => {
@@ -2906,7 +3032,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
         if(why) bad.push({ref: r.ref, date: r.date, id, why});
       });
     });
-    return {bad, seen};
+    return {bad, seen, som};
   };
   const a172 = audit();
   /* Волна 17 З-12: сверяются ПО-ПРЕЖНЕМУ все написанные строки — легаси в том числе, — но
@@ -2927,9 +3053,14 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
      сомовые клетки по фиксированному числу, при разрежении молча пропустил бы треть мира
      и остался бы зелёным. Строки слепка сверяются наравне с прогонными — иначе именно то,
      что уходит наружу, осталось бы непроверенным. */
-  ok(172, a172.bad.length === 0 && a172.seen === 2127 && dates172.length === 6 && objs172.length === 10 &&
-        own172.length === 258 && leg172.length === 34 && legSom172 === 0,
-    `сверено НЕ на примере, а на каждой записи: ${a172.seen} сомовых клеток в ${own172.length} строках ${objs172.length} объектов за все ${dates172.length} прогонов (${dates172[0].slice(5)}…${dates172[dates172.length-1].slice(5)}), расхождений ${a172.bad.length}. Сверка идёт ВНУТРИ строки: сомовое число обязано равняться сумме частей валютной клетки той же строки, умноженных на курс той же строки, по правилу округления, НАЗВАННОМУ В ЗАПИСИ (и применённое ядром обязано совпасть с объявленным — оно лежит в клетке рядом с курсом), и основание пересчёта обязано совпасть с составом клетки часть в часть — валюта, число, курс, дата курса. Заглядывать в справочник курсов сторожу не нужно и НЕЛЬЗЯ: справочник живой, а строка заморожена, и сверка с живым курсом ловила бы переоценку вместо ошибки (ИС-44, ADR-0214 §4, §5). Легаси-строк рядом ${leg172.length}, и сомовых клеток в них ${legSom172}: старая система близнеца не считала, и в её форме его НЕТ КЛЮЧОМ — не ноль и не пересчёт сегодняшним курсом (ИС-41, ADR-0207 §2)`);
+  /* Волна 23: строк 258 → 248 — снятые счётчики дней («дней с направления меры», «дней без
+     опознания» поступления) росли каждую ночь и потому заставляли писать строку каждую
+     ночь; схема считает их при чтении (§10.3, §11), и десять строк-копий больше не пишутся.
+     Сомовых клеток 2127 → 2023: близнецов стало меньше (итоги без пары), зато итоги
+     сверяются теперь сами (576 клеток). */
+  ok(172, a172.bad.length === 0 && a172.seen === 2023 && a172.som === 576 && dates172.length === 6 && objs172.length === 10 &&
+        own172.length === 248 && leg172.length === 34 && legSom172 === 0,
+    `сверено НЕ на примере, а на каждой записи: ${a172.seen} сомовых клеток в ${own172.length} строках ${objs172.length} объектов за все ${dates172.length} прогонов (${dates172[0].slice(5)}…${dates172[dates172.length-1].slice(5)}), расхождений ${a172.bad.length}; из них ${a172.som} — итоги в сомах без валютной пары, сверенные со своим основанием пересчёта (ADR-0240 §4). Сверка идёт ВНУТРИ строки: сомовое число обязано равняться сумме частей валютной клетки той же строки, умноженных на курс той же строки, по правилу округления, НАЗВАННОМУ В ЗАПИСИ (и применённое ядром обязано совпасть с объявленным — оно лежит в клетке рядом с курсом), и основание пересчёта обязано совпасть с составом клетки часть в часть — валюта, число, курс, дата курса. Заглядывать в справочник курсов сторожу не нужно и НЕЛЬЗЯ: справочник живой, а строка заморожена, и сверка с живым курсом ловила бы переоценку вместо ошибки (ИС-44, ADR-0214 §4, §5). Легаси-строк рядом ${leg172.length}, и сомовых клеток в них ${legSom172}: старая система близнеца не считала, и в её форме его НЕТ КЛЮЧОМ — не ноль и не пересчёт сегодняшним курсом (ИС-41, ADR-0207 §2)`);
 
   /* #173 — тот же сторож на ПОДБРОШЕННОМ дефекте. Сторож, который не умеет провалиться,
      ничего не доказывает: проверяется, что он называет ИМЕННО испорченные строки и
@@ -2981,22 +3112,27 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
 
   /* #175 — курс и дата курса лежат В СТРОКЕ рядом с сомовым числом. Сторожу не нужно
      выходить из строки, чтобы перемножить и сверить, — и это относится не только к
-     одновалютной клетке договора, но и к разновалютному портфелю заёмщика. */
+     одновалютной клетке договора, но и к разновалютному портфелю заёмщика.
+     Волна 23 переписала вторую половину на месте: итог заёмщика — одна сомовая колонка
+     без валютной пары (ADR-0240 §4), и разновалютный портфель ложится в неё одним числом,
+     а основание пересчёта — по части на валюту — лежит в той же клетке. Прежней пары
+     «валютная молчит составом + сомовая отвечает числом» у итога больше нет. */
   const rr = ST.statRows({obj:'obj-credit', date: ASK}).rows;
   const usd = rr.find(r => r.inds['m-debt'].cur === 'USD');
   const o175 = usd.inds['m-debt'], s175 = usd.inds['m-debt-som'];
   const pr = ST.statRows({obj:'obj-borrower', date: ASK}).rows
-    .find(r => (r.inds['m-btotal'].parts || []).length > 1);
-  const po = pr.inds['m-btotal'], ps = pr.inds['m-btotal-som'];
-  const byRow = CORE.somRound((po.parts || []).reduce((n, p) => n + p.value * p.rate, 0), ST.roundOf('m-btotal-som'));
-  ok(175, !!s175 && !!ps && o175.rate > 1 && o175.rateDate && o175.cur === 'USD' &&
+    .find(r => ((r.inds['m-btotal'] || {}).from || []).length > 1);
+  const ps = (pr || {inds:{}}).inds['m-btotal'] || {};
+  const byRow = CORE.somRound((ps.from || []).reduce((n, p) => n + p.value * p.rate, 0), ST.roundOf('m-btotal'));
+  ok(175, !!s175 && !!pr && o175.rate > 1 && o175.rateDate && o175.cur === 'USD' &&
         (s175.from || []).length === 1 && s175.from[0].rate === o175.rate &&
         s175.from[0].rateDate === o175.rateDate && s175.from[0].cur === 'USD' &&
         Math.abs(s175.v - CORE.somRound(o175.v * o175.rate, ST.roundOf('m-debt-som'))) < 0.005 &&
-        po.v === null && (po.parts || []).length > 1 &&
-        ps.from.length === po.parts.length && ps.from.every(x => x.rate > 0 && x.rateDate) &&
-        Math.abs(ps.v - byRow) < 0.005 && ST.somValue(usd, 'm-debt') === s175.v,
-    `курс и дата курса лежат В СТРОКЕ, рядом с сомовым числом: «${usd.ref}» — ${o175.v} ${o175.cur} × ${o175.rate} от ${(((s175 || {}).from || [])[0] || {}).rateDate} = ${(s175 || {}).v} сом. (основание в строке: ${((s175 || {}).from || []).length} част.), и перемножить это можно не выходя из строки, не открывая ни справочника курсов, ни другой строки. То же и там, где валюта не одна: портфель «${pr.ref}» в валютной колонке молчит одним числом (${po.v}) и говорит СОСТАВОМ — ${po.parts.map(p => p.value + ' ' + p.cur + ' × ' + p.rate).join(' + ')}, — а сомовая колонка отвечает одним числом ${(ps || {}).v}, и основание у него по каждой части своё и своё же лежит в строке. Заморожено ОСНОВАНИЕ, а не только результат: переоценка завтрашним курсом вчерашнюю строку не трогает, потому что сверять её не с чем, кроме неё самой (ИС-16, ИС-44, ADR-0214 §4, §5)`);
+        ps.cur === 'KGS' && ps.from.length > 1 &&
+        new Set(ps.from.map(x => x.cur)).size === ps.from.length &&
+        ps.from.every(x => x.rate > 0 && x.rateDate) &&
+        Math.abs(ps.v - byRow) < 0.005 && !pr.inds['m-btotal-som'] && ST.somValue(usd, 'm-debt') === s175.v,
+    `курс и дата курса лежат В СТРОКЕ, рядом с сомовым числом: «${usd.ref}» — ${o175.v} ${o175.cur} × ${o175.rate} от ${(((s175 || {}).from || [])[0] || {}).rateDate} = ${(s175 || {}).v} сом. (основание в строке: ${((s175 || {}).from || []).length} част.), и перемножить это можно не выходя из строки, не открывая ни справочника курсов, ни другой строки. То же и там, где валюта не одна: портфель «${(pr || {}).ref}» ложится ОДНОЙ сомовой колонкой — ${ps.v} ${ps.cur}, — а основание у числа по каждой части своё и своё же лежит в клетке: ${(ps.from || []).map(p => p.value + ' ' + p.cur + ' × ' + p.rate).join(' + ')}. Валютной колонки у итога заёмщика нет (${pr && pr.inds['m-btotal-som'] ? 'ЕСТЬ близнец' : 'и близнеца нет'}): состав по валютам отвечают строки его кредитов (ADR-0240 §4). Заморожено ОСНОВАНИЕ, а не только результат: переоценка завтрашним курсом вчерашнюю строку не трогает, потому что сверять её не с чем, кроме неё самой (ИС-16, ИС-44, ADR-0214 §4, §5, ADR-0240 §4)`);
 
   /* #176 — имя сомовой записи ДРУГОЕ, и правило одноимённости (ИС-40) на близнецах не
      срабатывает вхолостую: 114 новых записей прошли ту же проверку имени, что и все
@@ -3024,7 +3160,9 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const clash = ST.addIndicator({dates:1, id:'m-n3', name:'Плата за простой', obj:'obj-credit',
     src:'шов', seam:'calcAccrual', field:'interest', money:true, type:'сумма',
     round:'коп-2', roll:'формульный', rollBy:'d-cur'});
-  ok(176, twins.length === 114 && sameName.length === 0 && dup.length === 0 &&
+  /* Волна 23 (переписан на месте): близнецов 114 → 74 — у итогов в сомах пары нет
+     (ADR-0240 §4), и часть записей снята сверкой со схемой. Правило имени то же. */
+  ok(176, twins.length === 74 && sameName.length === 0 && dup.length === 0 &&
         shared.length === 1 && twinShared.length === 0 &&
         twins.every(t => /\sв сомах$/.test(t.name)) &&
         !taken.ok && has(taken.why, 'ИС-40') &&
@@ -3072,7 +3210,15 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
      плюс НАЗВАННЫЙ обязательный разрез, и разрез этот — валюта СВОЕГО объекта. Проверяется
      и в реестре (у всех), и в двери (четырьмя отказами). */
   st = ST.seed();
-  const moneyRows = st.registry.filter(r => r.kind === 'показатель' && r.money && !r.somOf && r.src !== 'агрегат');
+  /* Волна 23 (переписан на месте): денежных строчных записей теперь ДВА рода. Величина,
+     возникшая в валюте (`money_cur`), по-прежнему неаддитивна и называет разрез валюты
+     своего объекта. Итог в сомах (`money_som`) — одна валюта по построению, и свод его
+     ОБЪЯВЛЕН аддитивным: не умолчанием, а реквизитом записи, с единицей «сом» и без
+     разреза свода (ADR-0240 §4). Сторож считает оба рода порознь. */
+  const moneyAll = st.registry.filter(r => r.kind === 'показатель' && r.money && !r.somOf && r.src !== 'агрегат');
+  const moneyRows = moneyAll.filter(r => r.vtype !== 'money_som');
+  const somRows = moneyAll.filter(r => r.vtype === 'money_som');
+  const badSom = somRows.filter(r => r.roll !== 'аддитивный' || r.rollBy || ST.unitOf(r.id) !== 'сом');
   const badRoll = moneyRows.filter(r => r.roll !== 'формульный');
   const badBy = moneyRows.filter(r => { const d = ST.DIM(r.rollBy); return !d || d.obj !== r.obj; });
   const bare179 = ST.addIndicator({dates:1, id:'m-r1', name:'Комиссия за ведение счёта', obj:'obj-credit',
@@ -3088,7 +3234,8 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const good179 = ST.addIndicator({dates:1, id:'m-r5', name:'Комиссия за ведение счёта', obj:'obj-credit',
     src:'шов', seam:'calcAccrual', field:'interest', money:true, type:'сумма',
     round:'коп-2', roll:'формульный', rollBy:'d-cur'});
-  ok(179, moneyRows.length === 57 && badRoll.length === 0 && badBy.length === 0 &&
+  ok(179, moneyRows.length === 37 && badRoll.length === 0 && badBy.length === 0 &&
+        somRows.length === 17 && badSom.length === 0 &&
         !bare179.ok && has(bare179.why, 'ИС-44') && has(bare179.why, 'Валюта кредитного договора') &&
         has(bare179.why, 'd-cur') &&
         !ghost179.ok && has(ghost179.why, 'd-nope') &&
@@ -3096,7 +3243,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
         has(alien179.why, 'd-bcur') && has(alien179.why, 'obj-credit') && has(alien179.why, 'd-cur') &&
         !idle179.ok && has(idle179.why, 'ограничивать нечего') &&
         good179.ok && ST.REC('m-r5').roll === 'формульный' && ST.REC('m-r5').rollBy === 'd-cur',
-    `неаддитивность объявлена РЕКВИЗИТОМ записи, а не поведением движка: у всех ${moneyRows.length} денежных строчных записей реестра свод «формульный» (нарушителей ${badRoll.length}) и назван обязательный разрез — валюта СВОЕГО объекта (нарушителей ${badBy.length}). Дверь СПРАШИВАЕТ и не догадывается: молчание отбито и адресовано — «${String(bare179.why).slice(0, 92)}…»; несуществующий разрез отбит («${String(ghost179.why).slice(0, 56)}…»); ЧУЖОЙ разрез валюты отбит отдельно, потому что складывать по признаку, которого в строке нет, нечем, — и отбит С АДРЕСОМ: назван и чужой объект (d-bcur на obj-borrower), и свой разрез валюты, который тут и нужен («${String(alien179.why).slice(-96)}»); и наоборот — разрез свода при неформульном своде тоже отбит: ограничивать сложение у аддитивной величины нечего. Правило проверяемо, а не декларативно: та же запись с названным разрезом заводится свободно (${good179.ok ? 'm-r5: свод «' + ST.REC('m-r5').roll + '», разрез «' + (ST.DIM(ST.REC('m-r5').rollBy) || {}).name + '»' : 'НЕ ЗАВЕЛАСЬ: ' + good179.why}). Умолчания «аддитивна» у денег нет и быть не может — оно и было ловушкой (ИС-44, ADR-0214 §1, ADR-0209 §2)`);
+    `неаддитивность объявлена РЕКВИЗИТОМ записи, а не поведением движка: у всех ${moneyRows.length} денежных строчных записей реестра, возникших в валюте, свод «формульный» (нарушителей ${badRoll.length}) и назван обязательный разрез — валюта СВОЕГО объекта (нарушителей ${badBy.length}). Итоги в сомах (${somRows.length}) аддитивны — и это тоже ОБЪЯВЛЕНО записью, а не подразумевается: свод «аддитивный», единица «сом», разреза свода нет (нарушителей ${badSom.length}, ADR-0240 §4). Дверь СПРАШИВАЕТ и не догадывается: молчание отбито и адресовано — «${String(bare179.why).slice(0, 92)}…»; несуществующий разрез отбит («${String(ghost179.why).slice(0, 56)}…»); ЧУЖОЙ разрез валюты отбит отдельно, потому что складывать по признаку, которого в строке нет, нечем, — и отбит С АДРЕСОМ: назван и чужой объект (d-bcur на obj-borrower), и свой разрез валюты, который тут и нужен («${String(alien179.why).slice(-96)}»); и наоборот — разрез свода при неформульном своде тоже отбит: ограничивать сложение у аддитивной величины нечего. Правило проверяемо, а не декларативно: та же запись с названным разрезом заводится свободно (${good179.ok ? 'm-r5: свод «' + ST.REC('m-r5').roll + '», разрез «' + (ST.DIM(ST.REC('m-r5').rollBy) || {}).name + '»' : 'НЕ ЗАВЕЛАСЬ: ' + good179.why}). Умолчания «аддитивна» у денег нет и быть не может — оно и было ловушкой (ИС-44, ADR-0214 §1, ADR-0209 §2)`);
 
   /* #180 — близнец порождается МЕХАНИЧЕСКИ и в ОДНОМ месте: на сборке реестра и в двери
      заведения работает один и тот же порождатель, один валидатор, один `normRec` и одна
@@ -3104,9 +3251,18 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
      сложить по портфелю, и узналось бы об этом на сведении двух отчётов. */
   st = ST.seed();
   const allInd = st.registry.filter(r => r.kind === 'показатель');
-  const noTwinRow = allInd.filter(r => r.money && !r.somOf && r.src !== 'агрегат' && !ST.REC(r.id + '-som'));
+  /* Волна 23 (переписан на месте): близнец порождается у величины, ВОЗНИКШЕЙ в валюте, и
+     только у неё (ADR-0240 §2). Итог в сомах (`money_som`) сам сомовый, и близнеца у него
+     нет ни у строчной записи, ни у её свода — это тоже проверяется, в обе стороны. */
+  const noTwinRow = allInd.filter(r => r.money && !r.somOf && r.src !== 'агрегат' &&
+    r.vtype !== 'money_som' && !ST.REC(r.id + '-som'));
+  const somOnly180 = allInd.filter(r => r.vtype === 'money_som' && r.src !== 'агрегат');
+  const somAgg180 = allInd.filter(r => r.src === 'агрегат' && !r.somOf && ST.REC(r.over) &&
+    ST.REC(r.over).vtype === 'money_som');
+  const twinnedSom = somOnly180.concat(somAgg180).filter(r => ST.REC(r.id + '-som'));
   const moneyAgg = allInd.filter(r => r.src === 'агрегат' && !r.somOf && r.fn !== 'count' &&
-    ST.REC(r.over) && ST.REC(r.over).money && !ST.REC(r.over).somOf);
+    ST.REC(r.over) && ST.REC(r.over).money && !ST.REC(r.over).somOf &&
+    ST.REC(r.over).vtype !== 'money_som');
   const noTwinAgg = moneyAgg.filter(r => !ST.REC(r.id + '-som'));
   const overTwin = moneyAgg.filter(r => (ST.REC(r.id + '-som') || {}).over !== r.over + '-som');
   const declAt = (CODE.match(/declareTwin\(/g) || []).length;
@@ -3120,7 +3276,8 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const cl = ST.OBJ('obj-claim').inds;
   const ops180 = ST.martLog().slice(-2).map(l => l.op);
   ok(180, noTwinRow.length === 0 && noTwinAgg.length === 0 && overTwin.length === 0 &&
-        moneyAgg.length === 57 && shapeAt === 1 && shapeUse === 2 && declAt === 3 &&
+        moneyAgg.length === 37 && somOnly180.length === 17 && twinnedSom.length === 0 &&
+        shapeAt === 1 && shapeUse === 2 && declAt === 3 &&
         door.ok && door.som === 'm-t9-som' && door.somCol === 'm-t9-som' &&
         dTwin && dTwin.somOf === 'm-t9' && dTwin.unit === 'сом' && dTwin.roll === 'аддитивный' &&
         dTwin.since === ST.REC('m-t9').since && Array.isArray(dTwin.history) &&
@@ -3137,15 +3294,20 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const nDim = st.registry.filter(r => r.kind === 'разрез').length;
   const ownInd = st.registry.filter(r => r.kind === 'показатель' && !r.somOf).length;
   const somInd = nInd - ownInd;
-  const newDims = ['d-ocur','d-clcur','d-mcur'].map(ST.DIM);
+  /* Волна 23 (переписан на месте): реестр УМЕНЬШИЛСЯ по сверке со схемой, и число снова
+     названо по факту — 369 → 308. Сняты записи, которых схема не знает (ADR-0244 §4 и
+     §9–§11 схемы), итоги заёмщика, залога и дела стали сомовыми записями без близнеца
+     (ADR-0240 §4): близнецов 114 → 74. Разрез валюты дела снят вместе с валютой дела
+     (ADR-0244 §4) — своих разрезов валюты из трёх, заведённых волной 17, осталось два. */
+  const newDims = ['d-clcur','d-mcur'].map(ST.DIM);
   const martCols = ST.mart().length;
   const somCols = ST.mart().filter(c => (ST.IND(c.col) || {}).somOf).length;
-  ok(181, st.registry.length === 369 && nInd === 285 && nDim === 84 &&
-        ownInd === 171 && somInd === 114 && somInd === 57 * 2 &&
+  ok(181, st.registry.length === 308 && nInd === 229 && nDim === 79 &&
+        ownInd === 155 && somInd === 74 && somInd === 37 * 2 && !ST.REC('d-ocur') &&
         newDims.every(d => d && /валют/i.test(d.name) && ST.OBJ(d.obj).dims.indexOf(d.id) >= 0) &&
-        newDims.map(d => d.obj).join(',') === 'obj-case,obj-claim,obj-measure' &&
-        martCols === st.registry.length && somCols === 114,
-    `реестр вырос по факту, и число названо, а не смягчено: ${st.registry.length} записей — ${nInd} породы «показатель» (${ownInd} своих и ${somInd} сомовых близнецов: ${somInd / 2} строчных и столько же агрегатов) и ${nDim} породы «разрез». Схема витрины порождена реестром запись в запись (${martCols} колонок, из них сомовых ${somCols}). Трём объектам заведён СВОЙ разрез валюты — ${newDims.map(d => '«' + d.name + '» у ' + ST.OBJ(d.obj).name).join(', ')}: денежные величины у них были, а назвать разрез, внутри которого они складываются, было нечем, и чужой для этого не годится (ИС-40, ИС-44, ADR-0214 §1, ADR-0206 §3)`);
+        newDims.map(d => d.obj).join(',') === 'obj-claim,obj-measure' &&
+        martCols === st.registry.length && somCols === 74,
+    `реестр сверен со схемой, и число названо по факту, а не смягчено: ${st.registry.length} записей — ${nInd} породы «показатель» (${ownInd} своих и ${somInd} сомовых близнецов: ${somInd / 2} строчных и столько же агрегатов) и ${nDim} породы «разрез». Схема витрины порождена реестром запись в запись (${martCols} колонок, из них сомовых ${somCols}). Своих разрезов валюты у объектов, заведённых волной 17, осталось два — ${newDims.map(d => d ? '«' + d.name + '» у ' + ST.OBJ(d.obj).name : '—').join(', ')}: разрез валюты дела снят вместе с валютой дела (${ST.REC('d-ocur') ? 'ОСТАЛСЯ' : 'снят'}), итоги дела только в сомах (ADR-0244 §4, ADR-0240 §4; ИС-40, ИС-44, ADR-0214 §1, ADR-0206 §3)`);
 
   /* #182 — ADR-0151 §3 оставлен в силе (ADR-0214 §7): период по СОМОВОЙ записи не
      считается, потому что разность двух сомовых снимков несёт курсовую разницу. Отказ
@@ -3225,10 +3387,13 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const gone183 = !row1183.inds['m-debt-som'];
   const kept183 = (row1183.inds['m-total-som'] || {}).round === RULE;
   ST.REC('m-debt-som').round = RULE;
+  /* Волна 23 (переписан на месте): денежных записей 171 → 128 — итоги в сомах без пары
+     (ADR-0240 §4) и снятые сверкой. Объявляют правило сами 91 (строчные, включая итоги в
+     сомах, и их сомовые стороны), наследуют 37 сомовых сводов. Правило по-прежнему одно. */
   ok(183, F183.indexOf('round') >= 0 && RU183.round === 'правило округления' &&
-        money183.length === 171 && noRule183.length === 0 &&
+        money183.length === 128 && noRule183.length === 0 &&
         rules183.length === 1 && rules183[0] === RULE &&
-        own183.length === 114 && inh183.length === 57 &&
+        own183.length === 91 && inh183.length === 37 &&
         inh183.every(r => r.src === 'агрегат' && ST.roundOf(r.over) === RULE) &&
         alienRule183.length === 0 && pairBad183.length === 0 &&
         aggUsd183.round === RULE && flow183.ok && flow183.round === RULE &&
@@ -3301,8 +3466,12 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const repay184 = {at: ST.rowsAt('obj-repay', ASK).length, asOf: ST.rowsAsOf('obj-repay', ASK).length};
   const cred184  = {at: ST.rowsAt('obj-credit', ASK).length, asOf: ST.rowsAsOf('obj-credit', ASK).length};
   const prog184  = {at: ST.rowsAt('obj-program', ASK).length, asOf: ST.rowsAsOf('obj-program', ASK).length};
-  ok(184, own184.length === 258 && leg184.length === 34 && would184 === 379 && skip184 > 0 &&
-        at184 === 258 && asOf184 === 379 && at184 === own184.length && lost184 === 0 &&
+  /* Волна 23 (переписан на месте): хранимых строк 258 → 248, плотный состав тот же — 379.
+     Десять строк были «изменением» только потому, что в них лежали счётчики дней от даты
+     среза («дней с направления меры», «дней без опознания»), растущие каждую ночь сами;
+     схема считает их при чтении (§10.3, §11), и разрежённость стала честнее. */
+  ok(184, own184.length === 248 && leg184.length === 34 && would184 === 379 && skip184 > 0 &&
+        at184 === 248 && asOf184 === 379 && at184 === own184.length && lost184 === 0 &&
         repay184.at === 0 && repay184.asOf === 14 &&
         cred184.at === 8 && cred184.asOf === 8 &&
         prog184.at === 0 && prog184.asOf === 5,
@@ -3348,13 +3517,17 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const made186 = ST.state.rows.filter(r => r.by === 'защёлка' && r.date === '2026-07-31');
   const rec186  = ST.state.runs.filter(r => r.kind === 'защёлка').pop();
   const log186  = ST.state.log.filter(l => has(l.msg, 'слепок дописал'));
-  ok(186, run186.ok && run186.written === 37 && run186.same === 21 && run186.born === 7 &&
+  /* Волна 23 (переписан на месте): МВ-2026/12 больше не меняется каждую ночь — «дней с
+     направления» снят (схема §11), — поэтому 15.07 она «без изменений» (написано 37 → 36,
+     без изменений 21 → 22), в июле строк 100 → 99, и на 31.07 защёлка материализует её
+     слепком (19 → 20). Порядок «слепок, потом фиксация» и §5 проверяются как прежде. */
+  ok(186, run186.ok && run186.written === 36 && run186.same === 22 && run186.born === 7 &&
         sparseBefore.length === 6 && cl1.ok && cl2.ok &&
-        cp186.ok && cp186.fixed === 100 && cp186.dense === 19 &&
+        cp186.ok && cp186.fixed === 99 && cp186.dense === 20 &&
         sparseAfter.length === 0 && sparseMid.length === 6 &&
-        july186.length === 100 && july186.every(r => r.fixed) &&
-        made186.length === 19 && made186.every(r => r.fixed) &&
-        rec186 && rec186.date === '2026-07-31' && rec186.written === 19 &&
+        july186.length === 99 && july186.every(r => r.fixed) &&
+        made186.length === 20 && made186.every(r => r.fixed) &&
+        rec186 && rec186.date === '2026-07-31' && rec186.written === 20 &&
         rec186.actor === 'Мамбетов Э., администратор статистики' &&
         has(rec186.reason, 'закрытие периода июль 2026') && rec186.parts.length === 10 &&
         log186.length === 1 && has(log186[0].msg, 'слепок дописал — ' + cp186.dense),
@@ -3589,8 +3762,12 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
     seam:'grow', field:'x', type:'число', unit:'ед.', dates:1});
   const badNb = ST.run('2026-08-20', {silent:{'ядро расчёта':'недоступен'}});
   const badWhy = ST.run('2026-08-20', {silent:{'ядро':'сеть моргнула'}});
+  /* Волна 23 (переписан на месте): швов, которые реестр называет, 15 → 14. `measureClock`
+     кормил одну запись — «дней с направления меры», — а её схема считает при чтении, не
+     храня (§11, ADR-0244 «Границы»); шов остаётся ОБЪЯВЛЕННЫМ у взыскания, потому что
+     объявление — про соседа, а не про то, кто из реестра его сегодня читает. */
   ok(193, nbs.length === 5 && orphanSeam.length === 0 && twice.length === 0 &&
-        notReal.length === 0 && usedSeams.length === 15 &&
+        notReal.length === 0 && usedSeams.length === 14 &&
         !noNb.ok && has(noNb.why, 'ничьим не бывает') &&
         !badNb.ok && has(badNb.why, 'ИС-42') && has(badNb.why, 'объявленные:') &&
         !badWhy.ok && has(badWhy.why, 'причин четыре') &&
@@ -3790,10 +3967,16 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
    которой повод ОТДАЁТСЯ, а не объявляется (ADR-0210 §1, ADR-0211).                        */
 (() => {
   /* #201 — ЧЕТЫРЕ МНОЖЕСТВА, И «ПРОПУЩЕНО» — ПЯТАЯ КОЛОНКА ПАСПОРТА. Ночь перестала быть
-     пропорциональной портфелю: из 76 живых записей прогон за 21.08 берёт 37 и не трогает
-     39. Кандидат при этом — не обещание изменения, а АДРЕС РАБОТЫ: из 37 обойдённых 34
-     написаны, 3 оказались без изменений, и это законно — иначе «кандидат» значило бы
-     «точно изменился», и первое же «посмотрели, не изменилось» выглядело бы ошибкой опроса.
+     пропорциональной портфелю: из 76 живых записей прогон за 21.08 берёт 30 и не трогает
+     46. Кандидат при этом — не обещание изменения, а АДРЕС РАБОТЫ: «посмотрели, не
+     изменилось» законно — иначе «кандидат» значило бы «точно изменился», и первое же
+     такое «без изменений» выглядело бы ошибкой опроса. В эту ночь его нет, и держит его
+     #206 (очередь приносит программу, у которой не изменилось ничего).
+     Волна 23 (переписан на месте): было 37 кандидатов (34 написано, 3 без изменений, 39 не
+     обойдено). Ушли пять мер, которых взыскание обходило целиком ради «дней с направления»
+     (`measureClock`), и две квитанции, которые погашения называли ради «дней без
+     опознания», — оба счётчика растут сами каждую ночь, и схема считает их при чтении
+     (§10.3, §11). Ночь стала короче ровно на то, что менялось только от хода времени.
      На защёлке обход полный и по своему доводу: слепок УДОСТОВЕРЯЕТ состояние, а не
      приращает его, и брать для него кандидатов значило бы сдать наружу month-end, собранный
      из тех, кого ночь случайно заметила (§3). Тем же доводом полон первый прогон мира
@@ -3812,8 +3995,8 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   const wasSparse201 = sparse201();
   const close201 = ST.closePeriod('2026-07', 'Осмонова Г., главный бухгалтер');
   const latch201 = ST.state.runs[ST.state.runs.length - 1];
-  ok(201, c201.ok && c201.full === false && c201.n === 37 && r201.cand.n === 37 &&
-        r201.written === 34 && r201.same === 3 && r201.skip === 39 &&
+  ok(201, c201.ok && c201.full === false && c201.n === 30 && r201.cand.n === 30 &&
+        r201.written === 30 && r201.same === 0 && r201.skip === 46 &&
         r201.written + r201.same + r201.skip === 76 &&
         Object.keys(j201.cand.by).length === 4 &&
         Object.keys(j201.cand.by).join(' · ') === 'опрос · критическая дата · свой факт · очередь' &&
@@ -3821,7 +4004,7 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
         again201.cand.scan === 'полный' && has(again201.cand.why, 'УДОСТОВЕРЯЕТ состояние') &&
         close201.ok && latch201.kind === 'защёлка' && latch201.cand.scan === 'полный' &&
         has(latch201.cand.why, 'ADR-0221 §3') && wasSparse201 === 6 && sparse201() === 0,
-    `внутри открытого периода ночь берёт КАНДИДАТОВ, на защёлке — всех (ИС-48). За ${TODAY} кандидатов ${c201.n} из ${r201.written + r201.same + r201.skip} живых записей: написано ${r201.written}, без изменений ${r201.same}, НЕ ОБОЙДЕНО ${r201.skip}. «Пропущено» и «без изменений» — разные колонки паспорта, и слить их нельзя: первое значит «не смотрели вовсе», второе — «посмотрели, и состояние прежнее». Отсюда же и то, что кандидат — не обещание изменения, а адрес работы: ${r201.same} обойдённых записей ничего не изменили, и это не ошибка опроса. Источников в паспорте ровно четыре, поимённо (${Object.keys(j201.cand.by).join(' · ')}), и ни один не выводится из остальных (ADR-0221 §1). Полный обход объявляется своим доводом, а не умолчанием: первый прогон мира — «${String(first201.cand.why).slice(0, 44)}…», повторный прогон за пройденную дату — «${String(again201.cand.why).slice(0, 52)}…», защёлка — «${String(latch201.cand.why).slice(0, 46)}…». Защёлка это и делает: разрежённых объектов на 31.07 было ${wasSparse201}, после закрытия ${sparse201()} — слепок собран по всему охвату, а не по тем, кого ночь заметила (§3, ADR-0215 §4)`);
+    `внутри открытого периода ночь берёт КАНДИДАТОВ, на защёлке — всех (ИС-48). За ${TODAY} кандидатов ${c201.n} из ${r201.written + r201.same + r201.skip} живых записей: написано ${r201.written}, без изменений ${r201.same}, НЕ ОБОЙДЕНО ${r201.skip}. «Пропущено» и «без изменений» — разные колонки паспорта, и слить их нельзя: первое значит «не смотрели вовсе», второе — «посмотрели, и состояние прежнее». Отсюда же и то, что кандидат — не обещание изменения, а адрес работы: в эту ночь без изменений ${r201.same} — все обойдённые и правда сдвинулись, — а «посмотрели, не изменилось» держит #206, и там это не ошибка опроса. Источников в паспорте ровно четыре, поимённо (${Object.keys(j201.cand.by).join(' · ')}), и ни один не выводится из остальных (ADR-0221 §1). Полный обход объявляется своим доводом, а не умолчанием: первый прогон мира — «${String(first201.cand.why).slice(0, 44)}…», повторный прогон за пройденную дату — «${String(again201.cand.why).slice(0, 52)}…», защёлка — «${String(latch201.cand.why).slice(0, 46)}…». Защёлка это и делает: разрежённых объектов на 31.07 было ${wasSparse201}, после закрытия ${sparse201()} — слепок собран по всему охвату, а не по тем, кого ночь заметила (§3, ADR-0215 §4)`);
 
   /* #202 — КРИТИЧЕСКАЯ ДАТА — САМОСТОЯТЕЛЬНОЕ МНОЖЕСТВО, И ЭТО ПРОВЕРЯЕТСЯ ДЕЛОМ, А НЕ
      СЛОВОМ. Курс — факт ВРЕМЕНИ, а не соседа: у ядра ничего не менялось, оно и не назовёт
@@ -3843,10 +4026,16 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   RATES202.USD.pop();
   ST.seed();
   const flat202 = ST.run(TODAY);
+  /* Волна 23 (переписан на месте): ночь без уточнения курса пишет 34 → 30 строк (довод —
+     у #201: ушли меры и квитанции, менявшиеся только от хода времени). Шесть записей
+     критической даты — прежние шесть, и заёмщик среди них держится не близнецом, которого
+     у сомового итога больше нет (ADR-0240), а основанием `from`: `fxCursOf` читает
+     валютность итога по нему. */
   ok(202, bare202.by['критическая дата'].length === 0 && bare202.moved.length === 0 &&
         c202.moved.join() === 'USD' && kd202.length === 6 && only202.length === 4 &&
+        kd202.indexOf('obj-borrower|10510198203112') >= 0 &&
         has((c202.by['критическая дата'][0] || {}).why, 'курс USD менялся после') &&
-        run202.written === flat202.written + 4 && flat202.written === 34 &&
+        run202.written === flat202.written + 4 && flat202.written === 30 &&
         new Set(only202.map(k => k.split('|')[0])).size === 2,
     `критическая дата — СВОЁ множество, а не тень опроса (ADR-0193 × ADR-0221 §1). В обычную ночь курс не двигался, и множество пусто (${bare202.by['критическая дата'].length}, валют ${bare202.moved.length}); уточним курс доллара задним числом на ${TODAY} — и в кандидаты приходит ${kd202.length} записей с названной причиной («${String((c202.by['критическая дата'][0] || {}).why)}»). Ключевое здесь ${only202.length}: столько из них НЕ НАЗВАЛ НИ ОДИН сосед — у ядра и погашений по этим записям не изменилось ничего, изменилось ВРЕМЯ. Записи эти лежат в ${new Set(only202.map(k => k.split('|')[0])).size} объектах, и ночь без множества 2 прошла бы мимо них молча: написано ${run202.written} против ${flat202.written}, разница ${run202.written - flat202.written} — ровно те строки, чья сомовая сторона разошлась бы с курсом. Обратная сторона правила: курс из сравнения значений соседа ВЫЧЕРКНУТ (bareOf) — войди он туда, множество 2 выводилось бы из множества 1, и независимость четырёх множеств была бы словами (ИС-48)`);
 
@@ -3872,7 +4061,11 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
      «сосед не ответил этой ночью» и «сосед не умеет отвечать никогда» — три состояния с
      тремя разными действиями, и слить их значило бы получить ночь, про которую нельзя
      сказать, была она полной или дырявой (ADR-0221, «Последствия»). Деградация стоит
-     времени и НЕ порождает потерь: непонятливый сосед обходится полностью, как на защёлке. */
+     времени и НЕ порождает потерь: непонятливый сосед обходится полностью, как на защёлке.
+     Волна 23 (переписан на месте): взыскание обходит 9 записей в двух объектах, а не 14 в
+     трёх. Мера к соседу больше не ходит: единственное, что она у него брала, — «дней с
+     направления» (`measureClock`), и это считается при чтении (схема §11). Дело и
+     требование ходят по-прежнему. */
   ST.seed();
   const c204 = ST.candidates(TODAY);
   const p204 = c204.polls.reduce((a, p) => (a[p.nb] = p, a), {});
@@ -3883,9 +4076,10 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   ok(204, p204['классификация'].ok === true && p204['классификация'].named === 0 &&
         p204['классификация'].degraded === false &&
         p204['взыскание'].ok === false && p204['взыскание'].degraded === true &&
-        p204['взыскание'].asks === false && p204['взыскание'].scanned === 14 &&
+        p204['взыскание'].asks === false && p204['взыскание'].scanned === 9 &&
         p204['взыскание'].named === 0 && has(p204['взыскание'].why, 'ADR-0221 §5') &&
-        scan204.length === 14 && objs204.length === 3 &&
+        scan204.length === 9 && objs204.length === 2 &&
+        objs204.slice().sort().join() === 'obj-case,obj-claim' &&
         pm204.degraded === true && pm204.asks === true &&
         has(pm204.why, 'не ответил в эту ночь: не уложился в срок') &&
         mute204.n >= c204.n,
@@ -3916,7 +4110,10 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
      способ её НАЙТИ, и одно наполняет другое (ADR-0196 × ADR-0221, границы). Поводов у
      очереди три, и они закрыты: очередь без повода не разбирается никогда — снять её нечем
      и объяснить нечем. Закрывается запись ОТМЕТКОЙ, а не удалением: «работа была и сделана»
-     обязано отличаться от «работы не было». */
+     обязано отличаться от «работы не было».
+     Волна 23 (переписан на месте): кандидатов 38 → 31, написано 34 → 30, без изменений
+     4 → 1, не обойдено 38 → 45 — довод у #201. Единственное «без изменений» теперь и есть
+     поставленная руками программа: тем яснее, что кандидат — адрес, а не обещание. */
   ST.seed();
   const bad206 = [ST.enqueue('obj-program', 'БК-2021', 'что-нибудь'),
                   ST.enqueue('obj-program', 'нет-такой', 'досчёт'),
@@ -3932,9 +4129,9 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   ok(206, bad206.every(r => !r.ok) && has(bad206[0].why, 'поводов очереди три') &&
         has(bad206[1].why, 'существующая запись, а не имя') && !role206.ok &&
         has(role206.why, 'администратор статистики') &&
-        add206.ok && twice206.ok && ST.queueWhy().length === 3 && c206.n === 38 &&
+        add206.ok && twice206.ok && ST.queueWhy().length === 3 && c206.n === 31 &&
         c206.by['очередь'].length === 1 && has(c206.by['очередь'][0].why, 'распоряжение') &&
-        run206.written === 34 && run206.same === 4 && run206.skip === 38 &&
+        run206.written === 30 && run206.same === 1 && run206.skip === 45 &&
         ST.queue().length === 0 && ST.queue(true).length === 1 &&
         done206.done.how === 'обойдён прогоном',
     `очередь опросом НЕ отменена: одно ставит работу, другое её находит (ADR-0196 × ADR-0221 §1). Поставленная руками «БК-2021» приходит в кандидаты четвёртым множеством («${c206.by['очередь'][0].why}») — ${c206.n} против ${c206.n - 1} без неё, — и прогон её обходит, хотя ни один сосед её не называл и критической даты у неё нет. Написано при этом ${run206.written}, без изменений ${run206.same}: у программы и правда ничего не изменилось, и это законно — кандидат есть адрес работы, а не обещание перемены. Поводов у очереди три (${ST.queueWhy().join(' · ')}), список закрыт («${String(bad206[0].why).slice(0, 46)}…»), запись должна существовать («${String(bad206[1].why).slice(0, 44)}…»), а ставит работу администратор («${String(role206.why).slice(0, 44)}…»). Повтор той же постановки очередь не удваивает (записей ${ST.queue(true).length}), и закрывается она ОТМЕТКОЙ, а не удалением («${done206.done.how}»): сотри разобранное — и «работа была и сделана» перестало бы отличаться от «работы не было»`);
@@ -4044,7 +4241,11 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
     .reduce((a, r) => a.concat(Object.keys(r.when || {}).map(k => r.when[k])), [])
     .filter(v => ST.DATING.indexOf(v) < 0);
   const R209 = id => REC209(id) || {name:'—', seam:'—'};
-  ok(209, pl209.length === 15 && asof209.length === 11 && now209.length === 4 &&
+  /* Волна 23 (переписан на месте): одна дверь отдаёт 11 записей, а не 15, «на дату» — 7,
+     а не 11. Ушли четыре сомовых близнеца залоговых сумм: оценка залога всегда в сомах, и
+     итог объекта — одна сомовая запись без близнеца (ADR-0240). Расхождение признака
+     внутри одной двери — то, что проверка держит, — от этого не изменилось. */
+  ok(209, pl209.length === 11 && asof209.length === 7 && now209.length === 4 &&
         now209.join() === 'd-cctl,m-cnext,m-creval,m-csurv' &&
         row209.when['m-cpledge'] === 'на дату' && row209.when['m-csurv'] === 'текущее' &&
         REC209('m-cpledge').seam === 'calcPledge' && REC209('m-csurv').seam === 'calcPledge' &&
@@ -4085,7 +4286,11 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
         has(sh(ind210), 'ТЕКУЩЕЕ 1') &&
         has(dt(ind210).text, 'взяты в сегодняшней редакции, а не на 31.05.2026') &&
         dim210.ok && dt(dim210).word === 'смешанно' && dt(dim210).now.join() === 'd-collkind' &&
-        dt(all210).word === 'смешанно' && dt(all210).n === 27 && dt(all210).now.length === 12,
+        /* Волна 23 (переписан на месте): в строке залога 27 → 20 величин, текущих 12 → 9.
+           Сняты «валюта оценки» (разрез), «страхование» и сомовые близнецы (ADR-0244 §4,
+           ADR-0240); из текущих ушли «валюта оценки», сомовый близнец оценки и страхование. */
+        dt(all210).word === 'смешанно' && dt(all210).n === 20 && dt(all210).now.length === 9 &&
+        dt(all210).now.indexOf('d-ccur') < 0 && dt(all210).now.indexOf('m-cins') < 0,
     `датировка — ЧЕТВЁРТЫЙ обязательный реквизит паспорта, и берёт он ХУДШЕЕ по ответу (ИС-39, ADR-0205 §2). Срез «${dt(cln210).asof.join(' × ')}» весь собран на дату — паспорт говорит «${dt(cln210).word}» (${dt(cln210).n} величины) и строку про текущее не печатает вовсе. Замени ОДИН показатель на «Дней с последнего обследования» — и ответ становится «${dt(ind210).word}» при тех же ${dt(ind210).n} величинах, с именем виновника (${dt(ind210).names.join(' · ')}) и краткой формой паспорта «${sh(ind210)}», где «ТЕКУЩЕЕ 1» встало рядом с датой и признаком фиксации. Правило несимметрично намеренно: назови смесь «на дату» — и получатель поверит, что майский отчёт, пересобранный в августе, повторится числом в число, а он разойдётся без всякой ошибки. Датируется ОСНОВАНИЕ агрегата, а не агрегат: в «now» стоит «${dt(ind210).now.join()}», а не «a-maxcsurv», — своего происхождения у суммы нет вовсе (ИС-3). РАЗРЕЗ СЧИТАЕТСЯ НАРАВНЕ: тот же чистый показатель под разрезом «${dt(dim210).now.join()}» даёт «${dt(dim210).word}» — переписанный в карточке вид обеспечения отравляет майский срез ровно так же, как счёт дней. Список строк спрашивает обо ВСЁМ, что в строке видно: ${dt(all210).n} величин, из них текущих ${dt(all210).now.length}`);
 
   /* #211 — `when` В СРАВНЕНИЕ СТРОК НЕ ВХОДИТ (ADR-0205 §5). Это не упущение, а механизм.
@@ -4119,7 +4324,11 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   /* Отчёт проверки читает СЛОМАННЫЙ мир тоже: пустой список переписанных — как раз то
      состояние, ради которого проверка написана, и падать на нём она не вправе. */
   const mv211 = moved211[0] || {ref:'—', when:{}};
-  ok(211, flat211.ok && flat211.dense === 19 && flat211.refreshed === 0 &&
+  /* Волна 23 (переписан на месте): защёлка дописывает 20 строк, а не 19 — МВ-2026/12
+     больше не меняется каждую ночь («дней с направления» снят, схема §11), и 31.07 для неё
+     материализуется слепком (довод у #186). Правка объявления по-прежнему не переписывает
+     ни одной. */
+  ok(211, flat211.ok && flat211.dense === 20 && flat211.refreshed === 0 &&
         cred211.length === 8 && held211.length === 8 &&
         rew211.ok && rew211.refreshed === 4 &&
         moved211.length === 1 && moved211[0].ref === 'КД-2025/043' &&
@@ -4152,11 +4361,15 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
   RATES.USD.pop();
   const kdw212 = (kd212 || {inds:{}});
   const cell212 = (id, o) => ((o || {})[id] || {}).v;
-  ok(212, base212.ok && base212.dense === 19 && base212.refreshed === 0 &&
-        r212.ok && r212.dense === 19 && r212.refreshed === 4 && r212.fixed === 63 &&
-        j212.kind === 'защёлка' && j212.written === 23 &&
+  /* Волна 23 (переписан на месте): дописано 19 → 20, всего 23 → 24 (довод у #186 и #211);
+     переписанных по-прежнему 4, и заёмщик среди них — его сомовый итог пересчитан от
+     основания по уточнённому курсу, хотя близнеца у итога больше нет (ADR-0240). */
+  ok(212, base212.ok && base212.dense === 20 && base212.refreshed === 0 &&
+        r212.ok && r212.dense === 20 && r212.refreshed === 4 && r212.fixed === 63 &&
+        j212.kind === 'защёлка' && j212.written === 24 &&
         j212.written === j212.repoll.made + j212.repoll.again &&
-        j212.repoll.made === 19 && j212.repoll.again === 4 && j212.repoll.done === true &&
+        j212.repoll.made === 20 && j212.repoll.again === 4 && j212.repoll.done === true &&
+        chg212.some(r => r.obj === 'obj-borrower') &&
         j212.cand.scan === 'полный' &&
         chg212.length === 4 && kd212 &&
         cell212('m-total-som', was212) === 12920251.35 && cell212('m-total-som', kdw212.inds) === 13390613.18 &&
@@ -4716,7 +4929,9 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
      и ни у одной не сдвинулась запись фиксации. Исправление легаси-итога — новый выпуск
      миграции с журнальной записью, актор — человек. Ночь чужую историю не переписывает. */
   ok(228, ghosts.length === 0 && cand.ok &&
-        run228.ok && run228.written === 34 && run228.date === '2026-08-21' &&
+        /* Волна 23 (переписан на месте): прогон за 21.08 пишет 30 строк, а не 34 — довод
+           у #201. Легаси-строк по-прежнему 34: их число с ночным совпадало случайно. */
+        run228.ok && run228.written === 30 && run228.date === '2026-08-21' &&
         legBefore === 34 && legAfter === 34 && touched === 0 &&
         ST.queue().length === 0 &&
         runLeg.ok === false && has(runLeg.why, 'раньше запуска') &&
@@ -4866,14 +5081,81 @@ const cI = (id, op, extra) => Object.assign({ kind:'ind', id, op }, extra || {})
     `довод убран под замок, а не из макета: на конструкторе среза ${zam(locks(b))}, на реестрах ${zam(locks(c))}, и текст лежит в разметке целиком — «Объект, разрезы и показатели — записи реестров», «Число объектов — ссылка», «Заёмщик стоит здесь самостоятельным объектом» читаются внутри <details>, а не пропали. Ответ снаружи: дорога вопроса, паспорт и «Срез» стоят до первого замка — спрятать под кат «сколько» было бы ответом без вопроса, тем же дефектом, что «фильтр задан» вместо формы фильтра. Имён замков ${all.length} и все разные (${uniq.length}), «зачем так» на всех подряд не стоит ни разу: одинаковое имя не различает доводы. Подвал держит факты сеанса — период, дату, прогон, фиксацию, — а «почему спрашивается дата прогона» ушло под замок: подвал виден на каждом экране`);
 })();
 
+/* ===== Волна 23 — макет и сторожа догоняют физическую схему (ИС-53…ИС-58, СС-Д18) ===== */
+(() => {
+  ST.seed();
+  const names = Object.keys(FIZ);
+  const total = names.reduce((s, t) => s + FIZ[t].cols.length, 0);
+  const off = names.filter(t => FIZ[t].cols.length !== FIZ[t].want || FIZ[t].bad.length);
+  const dups = names.filter(t => new Set(FIZ[t].cols).size !== FIZ[t].cols.length);
+  const noStore = names.filter(t => !FIZ[t].storage);
+  ok(235, names.length === 11 && total === 602 && !off.length && !dups.length && !noStore.length,
+    `схема читается смоуком сама, а не переписана в него: таблиц ${names.length}, колонок ${total} (в схеме — 602), разделов с расхождением счёта ${off.length}${off.length ? ' (' + off.join(', ') + ')' : ''}, с повторами ${dups.length}, без способа хранения ${noStore.length}. Сжатая запись раскрывается и сверяется графой «шт.»: список, переписанный в смоук, разошёлся бы со схемой так же тихо, как макет (ИС-53, ADR-0237 §3)`);
+
+  /* #236 — релиз макета есть подмножество схемы: таблица названа как в схеме, способ
+     хранения тот же, и ни одной колонки, которой схема не знает. */
+  const R = ST.release ? ST.release() : {tables: {}};
+  const relObjs = Object.keys(R.tables);
+  const relBad = [];
+  relObjs.forEach(o => {
+    const t = R.tables[o], f = FIZ[t.table];
+    if (!f) { relBad.push(o + ': таблицы ' + t.table + ' в схеме нет'); return; }
+    if (f.storage !== t.storage) relBad.push(t.table + ': способ ' + t.storage + ' ≠ ' + f.storage);
+    t.cols.filter(c => f.cols.indexOf(c) < 0).forEach(c => relBad.push(t.table + '.' + c));
+  });
+  const objsNoRel = ST.state.objects.filter(o => !R.tables[o.id]).map(o => o.id);
+  ok(236, relObjs.length >= 10 && !relBad.length && !objsNoRel.length,
+    `релиз макета — подмножество схемы: таблиц в релизе ${relObjs.length}, у каждого объекта своя (без таблицы ${objsNoRel.length}${objsNoRel.length ? ': ' + objsNoRel.join(', ') : ''}); колонок и способов хранения, которых схема не знает, ${relBad.length}${relBad.length ? ' — ' + relBad.slice(0, 6).join('; ') : ''}. Колонку заводит релиз, а не запись реестра (ИС-53, ADR-0237 §1–§3)`);
+
+  /* #237 — каждая действующая запись ложится в колонки релиза своего объекта. Агрегату
+     колонка не нужна — он считается при чтении (ADR-0237 §5). */
+  const recs = ST.state.registry.filter(r => r.src !== 'агрегат' && !r.until);
+  const physOf = id => (typeof ST.physOf === 'function' ? ST.physOf(id) : []);
+  const unmapped = recs.filter(r => !physOf(r.id).length).map(r => r.id);
+  const outside = [];
+  recs.forEach(r => {
+    const t = R.tables[r.obj];
+    physOf(r.id).filter(c => !t || t.cols.indexOf(c) < 0).forEach(c => outside.push(r.id + '→' + c));
+  });
+  const aggWithCol = ST.state.registry.filter(r => r.src === 'агрегат' && r.col).map(r => r.id);
+  ok(237, typeof ST.physOf === 'function' && recs.length > 100 && !unmapped.length && !outside.length && !aggWithCol.length,
+    `каждая из ${recs.length} действующих записей реестра лежит в колонках релиза своего объекта: без колонки ${unmapped.length}${unmapped.length ? ' (' + unmapped.slice(0, 8).join(', ') + ')' : ''}, с колонкой вне релиза ${outside.length}${outside.length ? ' (' + outside.slice(0, 6).join(', ') + ')' : ''}. У агрегатов колонки нет ни одной (${aggWithCol.length}) — агрегат считается при чтении и релиза не стоит (ИС-53, ADR-0237 §3, §5)`);
+
+  /* #238 — снятое снято, добавленное добавлено (СС-Д18, ADR-0244 §4). Поимённо, а не
+     счётом: счёт сходится и тогда, когда одна снятая запись вернулась, а одна новая не
+     завелась. Добавленное проверяется вместе с колонкой — запись без места в релизе
+     была бы тем же ведомственным словом, что и снятая. */
+  const gone = ['d-ccur','m-blimit','a-sumblimit','d-bstatus','m-bevade','m-bnodocs','m-bnomon',
+                'd-obranch','d-ocurator','d-oregion','d-ocur'];
+  const still = gone.filter(id => ST.REC(id));
+  const born = ['d-kind','d-decision','d-sstate','d-rf-evade','d-rf-nomon'];
+  const missing = born.filter(id => !ST.REC(id) || !ST.physOf(id).length);
+  const liqLevel = (ST.REC('d-collkind') || {levels: []}).levels || [];
+  ok(238, !still.length && !missing.length && !liqLevel.some(L => /ликвидн/i.test(L.name)) &&
+        ST.REC('d-kind').obj === 'obj-credit' && ST.REC('d-rf-evade').obj === 'obj-credit',
+    `снятое снято поимённо (осталось ${still.length}${still.length ? ': ' + still.join(', ') : ''}): «валюта оценки», лимит задолженности, статус «Активный», три фактора у заёмщика, подразделение, куратор, территория и валюта дела. Добавлено (не хватает ${missing.length}${missing.length ? ': ' + missing.join(', ') : ''}): вид кредита и основание выдачи — у самого кредита (ТЗ #12, #13), факторы риска — у кредита признаками, состояние субъекта — у заёмщика. Класс ликвидности уровнем вида не стоит (ADR-0244 §4, ADR-0243, СС-140, СС-141)`);
+
+  /* #239 — итог только в сомах и без близнеца (ADR-0240 §4). Счёт точный, а не «не
+     меньше»: 8 у заёмщика, 5 у залога, 2 у дела, 0 у договора залога. Нижняя граница
+     пропустила бы итог, вернувшийся валютной записью с близнецом, — он лёг бы сверх
+     счёта, а не вместо сомового. */
+  const totals = ST.state.registry.filter(r => r.money && r.src !== 'агрегат' &&
+    ['obj-borrower','obj-collateral','obj-case','obj-zdeal'].indexOf(r.obj) >= 0);
+  const notSom = totals.filter(r => r.vtype !== 'money_som' || r.somOf).map(r => r.id);
+  const twinned = totals.filter(r => ST.REC(r.id + ST.SOM_SUFFIX)).map(r => r.id);
+  ok(239, totals.length === 15 && !notSom.length && !twinned.length &&
+        totals.every(r => ST.unitOf(r.id) === 'сом'),
+    `итоги заёмщика, залога, дела и договора — только в сомах: денежных записей ${totals.length}, не сомовых ${notSom.length}${notSom.length ? ' (' + notSom.join(', ') + ')' : ''}, с валютным близнецом ${twinned.length}. Состав по валютам без jsonb не хранится и не складывается, а вопрос «сколько у заёмщика в долларах» точнее отвечают строки его кредитов (ИС-56, ADR-0240 §4, §5)`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-const stamp = `SMOKE 2026-09-07 · ${pass}/${results.length} PASS\n` + lines.join('\n');
+const stamp = `SMOKE 2026-09-18 · ${pass}/${results.length} PASS\n` + lines.join('\n');
 console.log(stamp);
 
 const body = lines.map(l => '  ' + l).join('\n');
-const injected = `  SMOKE 2026-09-07 · ${pass}/${results.length} PASS\n` + body;
+const injected = `  SMOKE 2026-09-18 · ${pass}/${results.length} PASS\n` + body;
 if (src.includes('  SMOKE_PLACEHOLDER')) {
   writeFileSync(HTML, src.replace('  SMOKE_PLACEHOLDER', injected), 'utf8');
   console.log('\n→ результат вставлен в шапку statistics.html');
