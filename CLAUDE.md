@@ -102,6 +102,10 @@ python3 scripts/sync_todos.py --dry-run   # preview rows, no network
 # (gov-blue design system, sticky sidebar nav auto-built from h2/h3).
 python3 scripts/build_tz_html.py requirements/tz/03-zayavka-komissiya.md [out.html]
 
+# Rebuild the statistics fields page (every column of the 11 stat_row_* tables)
+# from mockups/statistics/ASUBK-statistika-fizschema.md. Rerun after each schema edit.
+python3 scripts/build_stat_fields.py      # -> mockups/statistics/statistics-fields.html
+
 # Validate dev task files against docs/tasks/FORMAT.md before handing them over.
 python3 scripts/check_tasks.py                       # all files that carry a JSON island
 python3 scripts/check_tasks.py docs/tasks/<file>.html

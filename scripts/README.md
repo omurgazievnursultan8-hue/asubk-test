@@ -86,3 +86,21 @@ fields, open questions naming a default, contiguous stages.
 
 The eight files handed over before 02.08.2026 carry no JSON island; they are reported
 as frozen legacy and skipped.
+
+---
+
+# Statistics fields page
+
+`build_stat_fields.py` renders `mockups/statistics/statistics-fields.html` — a searchable
+reference of every column in the 11 `stat_row_*` tables — from
+`mockups/statistics/ASUBK-statistika-fizschema.md`. The page shell lives next to the script
+in `build_stat_fields.tpl.html`; the data is injected as JSON. Stdlib only.
+
+```bash
+python3 scripts/build_stat_fields.py                           # default paths
+python3 scripts/build_stat_fields.py <fizschema.md> <out.html>
+```
+
+Rerun it after every edit to the physical schema. Column counts are checked against the
+§0.1 summary (per table: service / dimensions / indicators / total, plus the grand total);
+on a mismatch it fails and writes nothing. The page itself is never hand-edited.

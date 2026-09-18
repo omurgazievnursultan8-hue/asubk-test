@@ -1,0 +1,375 @@
+<title>Поля статистики АСУБК</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --ground:#F3F5F9;
+  --surface:#FFFFFF;
+  --surface-2:#F8F9FB;
+  --line:#E2E7EE;
+  --line-strong:#CDD5E0;
+  --ink:#192434;
+  --ink-2:#4A5668;
+  --ink-3:#6E7A8C;
+  --accent:#006AF5;
+  --accent-ink:#005FDB;
+  --accent-soft:#E6F0FE;
+  --svc:#7A8699;
+  --svc-soft:#EEF1F5;
+  --dim:#006AF5;
+  --dim-soft:#E6F0FE;
+  --ind:#158443;
+  --ind-soft:#E4F3EA;
+  --flag:#9A6B00;
+  --flag-soft:#FBF1D9;
+  --warn:#C42E2E;
+  --warn-soft:#FCE6E6;
+  --code-bg:#EEF2F7;
+  --shadow:0 1px 2px rgba(25,36,52,.06),0 4px 16px rgba(25,36,52,.05);
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#0E141D;--surface:#151D29;--surface-2:#19222F;--line:#263244;--line-strong:#34435A;
+    --ink:#E4EAF2;--ink-2:#B3BECD;--ink-3:#8793A5;
+    --accent:#4B93FF;--accent-ink:#79AEFF;--accent-soft:#16294A;
+    --svc:#8F9BAE;--svc-soft:#1F2835;--dim:#4B93FF;--dim-soft:#16294A;--ind:#3FB872;--ind-soft:#133222;
+    --flag:#E0AE3E;--flag-soft:#33280F;--warn:#F07070;--warn-soft:#3A1A1C;--code-bg:#1D2735;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.25);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0E141D;--surface:#151D29;--surface-2:#19222F;--line:#263244;--line-strong:#34435A;
+  --ink:#E4EAF2;--ink-2:#B3BECD;--ink-3:#8793A5;
+  --accent:#4B93FF;--accent-ink:#79AEFF;--accent-soft:#16294A;
+  --svc:#8F9BAE;--svc-soft:#1F2835;--dim:#4B93FF;--dim-soft:#16294A;--ind:#3FB872;--ind-soft:#133222;
+  --flag:#E0AE3E;--flag-soft:#33280F;--warn:#F07070;--warn-soft:#3A1A1C;--code-bg:#1D2735;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 4px 16px rgba(0,0,0,.25);
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5;padding-inline:20px;padding-block:0 48px}
+.wrap{max-width:1320px;margin:0 auto}
+code{font-family:var(--mono);font-size:.86em;background:var(--code-bg);padding:.05em .3em;border-radius:4px;overflow-wrap:break-word}
+td.cols code{overflow-wrap:anywhere}
+strong{font-weight:600}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* шапка */
+.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px;padding-block:28px 20px;border-bottom:1px solid var(--line)}
+.eyebrow{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:500}
+h1{font-size:28px;line-height:1.15;margin:.25em 0 0;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+.lead{margin:.4em 0 0;color:var(--ink-2);max-width:68ch}
+.totals{display:flex;gap:20px;font-variant-numeric:tabular-nums}
+.totals div{display:flex;flex-direction:column}
+.totals b{font-size:24px;font-weight:600;line-height:1.1}
+.totals span{font-size:12px;color:var(--ink-3)}
+
+/* раскладка */
+.layout{display:grid;grid-template-columns:272px minmax(0,1fr);gap:28px;padding-top:20px;align-items:start}
+.rail{position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px);display:flex;flex-direction:column;gap:2px}
+.rail h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:500;margin:0 0 6px 10px}
+.obj{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;text-align:left;border:1px solid transparent;background:none;border-radius:8px;padding:8px 10px;cursor:pointer}
+.obj:hover{background:var(--surface)}
+.obj[aria-current="true"]{background:var(--surface);border-color:var(--line);box-shadow:var(--shadow)}
+.obj .nm{font-weight:500}
+.obj[aria-current="true"] .nm{color:var(--accent-ink);font-weight:600}
+.obj .ct{font-variant-numeric:tabular-nums;color:var(--ink-2);font-size:13px}
+.obj .bar{grid-column:1 / -1;height:4px;display:flex;border-radius:2px;overflow:hidden;background:var(--line)}
+.obj .bar i{display:block;height:100%}
+.bar .s{background:var(--svc)}.bar .d{background:var(--dim)}.bar .p{background:var(--ind)}
+.obj .tb{grid-column:1 / -1;font-family:var(--mono);font-size:11.5px;color:var(--ink-3)}
+.key{display:flex;flex-wrap:wrap;gap:6px 12px;margin:12px 10px 0;font-size:12px;color:var(--ink-3)}
+.key span{display:inline-flex;align-items:center;gap:5px}
+.key i{width:10px;height:4px;border-radius:2px;display:inline-block}
+
+/* паспорт объекта */
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+.head{padding:20px 22px 18px;display:grid;gap:14px}
+.head-row{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 16px}
+.head h2{margin:0;font-size:22px;font-weight:600;text-wrap:balance}
+.head .tbl{font-family:var(--mono);font-size:13px;color:var(--ink-3)}
+.comp{display:flex;flex-wrap:wrap;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px;font-size:12.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.chip.s{background:var(--svc-soft);color:var(--ink-2)}
+.chip.d{background:var(--dim-soft);color:var(--accent-ink)}
+.chip.p{background:var(--ind-soft);color:var(--ind)}
+.chip.f{background:var(--flag-soft);color:var(--flag)}
+.chip.w{background:var(--warn-soft);color:var(--warn)}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px 24px;margin:0}
+.facts div{display:flex;flex-direction:column;gap:1px;min-width:0}
+.facts dt{font-size:12px;color:var(--ink-3)}
+.facts dd{margin:0;color:var(--ink)}
+
+/* панель фильтров */
+.tools{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding:12px 22px;background:var(--surface);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.search{position:relative;flex:1 1 260px;min-width:0}
+.search input{width:100%;border:1px solid var(--line-strong);background:var(--surface-2);border-radius:8px;padding:8px 32px 8px 34px}
+.search input:focus{border-color:var(--accent);outline:none;box-shadow:0 0 0 3px var(--accent-soft)}
+.search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--ink-3)}
+.search .clear{position:absolute;right:4px;top:50%;transform:translateY(-50%);border:0;background:none;border-radius:6px;padding:4px 8px;cursor:pointer;color:var(--ink-3)}
+.search .clear:hover{color:var(--ink);background:var(--line)}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;flex-wrap:wrap}
+.seg button{border:0;background:var(--surface);padding:7px 12px;cursor:pointer;font-size:13px;color:var(--ink-2)}
+.seg button+button{border-left:1px solid var(--line-strong)}
+.seg button[aria-pressed="true"]{background:var(--accent);color:#fff}
+.tog{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--ink-2);cursor:pointer;user-select:none}
+.tog input{width:16px;height:16px;accent-color:var(--accent)}
+.status:empty{display:none}
+.status{flex-basis:100%;font-size:12.5px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+
+/* таблицы */
+.body{padding:6px 22px 22px}
+.grp{margin-top:18px}
+.grp h3{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2)}
+.grp h3 i{width:8px;height:8px;border-radius:2px;display:inline-block}
+.grp h3 .n{font-weight:500;color:var(--ink-3);letter-spacing:0;text-transform:none;font-variant-numeric:tabular-nums}
+.objlabel{margin:26px 0 0;padding-top:14px;border-top:1px solid var(--line);display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.objlabel:first-child{border-top:0;margin-top:10px;padding-top:0}
+.objlabel button{border:0;background:none;padding:0;font-size:17px;font-weight:600;color:var(--accent-ink);cursor:pointer}
+.objlabel button:hover{text-decoration:underline}
+.objlabel span{font-family:var(--mono);font-size:12px;color:var(--ink-3)}
+table{width:100%;border-collapse:collapse}
+th{font-size:12px;font-weight:500;color:var(--ink-3);text-align:left;padding:6px 10px;border-bottom:1px solid var(--line-strong)}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--surface-2)}
+td.cols{width:30%}
+td.cols .names{display:flex;flex-wrap:wrap;gap:4px}
+td.cols code{font-size:12.5px;color:var(--ink);background:var(--code-bg)}
+td.n{width:48px;text-align:right;font-variant-numeric:tabular-nums;color:var(--ink-2)}
+td.type{width:17%;font-family:var(--mono);font-size:12px;color:var(--ink-2)}
+td.type code{background:none;padding:0;font-size:inherit}
+td.src{width:20%;color:var(--ink-2)}
+td.src .fl{display:inline-block;margin-right:4px;padding:0 6px;border-radius:4px;background:var(--flag-soft);color:var(--flag);font-size:12px;font-weight:600}
+tr.warn td.mean{box-shadow:inset 3px 0 0 var(--warn)}
+tr.flag td.src{color:var(--flag)}
+.note{margin:18px 0 0;padding:10px 14px;border-radius:8px;background:var(--surface-2);color:var(--ink-2);font-size:13px;border:1px solid var(--line)}
+.empty{padding:36px 10px;text-align:center;color:var(--ink-3)}
+.empty b{display:block;color:var(--ink);font-size:15px;margin-bottom:4px}
+
+/* легенда имён */
+details.legend{margin-top:16px}
+details.legend summary{cursor:pointer;color:var(--accent-ink);font-weight:500;width:max-content;max-width:100%}
+.legend-box{margin-top:10px;overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:4px 14px}
+.legend-box table{min-width:560px}
+.foot{margin-top:28px;color:var(--ink-3);font-size:12.5px;max-width:80ch}
+
+@media (max-width: 900px){
+  .layout{grid-template-columns:minmax(0,1fr);gap:14px}
+  .rail{position:static;flex-direction:row;overflow-x:auto;gap:6px;padding-bottom:6px;scrollbar-width:thin}
+  .rail h2,.key{display:none}
+  .obj{flex:0 0 auto;min-width:150px;border-color:var(--line);background:var(--surface)}
+}
+@media (max-width: 700px){
+  body{padding-inline:16px}
+  h1{font-size:23px}
+  .head,.body{padding-inline:14px}
+  .tools{padding-inline:14px}
+  thead{display:none}
+  table,tbody,tr,td{display:block;width:auto}
+  tr{padding:10px 0;border-bottom:1px solid var(--line)}
+  tr:last-child{border-bottom:0}
+  td{border:0;padding:2px 0}
+  td.cols,td.type,td.src{width:auto}
+  td.n{display:none}
+  td.type::before{content:"тип: ";font-family:var(--sans);color:var(--ink-3)}
+  td.src::before{content:"источник: ";color:var(--ink-3)}
+  tr.warn td.mean{box-shadow:none;border-left:3px solid var(--warn);padding-left:8px}
+  .legend-box table{min-width:0}
+}
+@media (prefers-reduced-motion: no-preference){
+  .obj,.seg button{transition:background-color .15s,color .15s,border-color .15s}
+}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Модуль «Статистика» · физическая схема · волна 22 · 17.09.2026</div>
+      <h1>Поля статистики АСУБК</h1>
+      <p class="lead">Что лежит в строке каждого объекта: колонка, тип PostgreSQL, смысл и кто отдаёт значение. Собрано из <code>ASUBK-statistika-fizschema.md</code>, решения — <code>ADR-0237</code>…<code>ADR-0245</code>.</p>
+    </div>
+    <div class="totals" id="totals"></div>
+  </header>
+
+  <details class="legend">
+    <summary>Как читать имена колонок</summary>
+    <div class="legend-box"><table><thead><tr><th>Часть имени</th><th>Значение</th><th>Пример</th></tr></thead><tbody id="legend"></tbody></table></div>
+  </details>
+
+  <div class="layout">
+    <nav class="rail" id="rail" aria-label="Объекты статистики">
+      <h2>Объекты · 11 таблиц</h2>
+    </nav>
+
+    <main class="panel" id="main">
+      <section class="head" id="head"></section>
+      <div class="tools">
+        <label class="search" for="q">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="5" stroke="currentColor" stroke-width="1.6"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <input id="q" type="search" placeholder="Искать по всем объектам: куратор, i_od, ядро, CHECK…" autocomplete="off" aria-label="Поиск по полям всех объектов">
+          <button class="clear" id="clear" type="button" hidden aria-label="Очистить поиск">✕</button>
+        </label>
+        <div class="seg" role="group" aria-label="Группа колонок" id="seg">
+          <button type="button" data-g="all" aria-pressed="true">Все</button>
+          <button type="button" data-g="svc" aria-pressed="false">Служебные</button>
+          <button type="button" data-g="dim" aria-pressed="false">Разрезы</button>
+          <button type="button" data-g="ind" aria-pressed="false">Показатели</button>
+        </div>
+        <label class="tog" for="flagOnly"><input type="checkbox" id="flagOnly"> только ⚑ — у соседа поля пока нет</label>
+        <div class="status" id="status" aria-live="polite"></div>
+      </div>
+      <section class="body" id="body"></section>
+    </main>
+  </div>
+
+  <p class="foot">⚑ — у соседа этой величины или поля пока нет, заявка записана в его журнал («Входящее от статистики»). ⚠ — утверждённый список расходится с моделью владельца, вопрос в §15 схемы. <code>NULL</code> в колонке значит «сосед молчал», а не ноль. Деньги — <code>numeric(20,2)</code>; итоги по множествам — только в сомах.</p>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const OBJ = DATA.objects;
+const KIND = {svc:{label:'Служебные',cls:'s',color:'var(--svc)'},dim:{label:'Разрезы',cls:'d',color:'var(--dim)'},ind:{label:'Показатели',cls:'p',color:'var(--ind)'}};
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const plural = (n, a, b, c) => { const m10=n%10, m100=n%100; return m10===1&&m100!==11?a:(m10>=2&&m10<=4&&(m100<12||m100>14)?b:c); };
+
+const state = {obj: 'credit', q: '', g: 'all', flag: false};
+try { const s = JSON.parse(localStorage.getItem('stat-fields') || '{}'); Object.assign(state, {obj: s.obj || state.obj, g: s.g || 'all', flag: !!s.flag}); } catch (e) {}
+const fromHash = location.hash.slice(1);
+if (OBJ.some(o => o.slug === fromHash)) state.obj = fromHash;
+const save = () => { try { localStorage.setItem('stat-fields', JSON.stringify({obj: state.obj, g: state.g, flag: state.flag})); } catch (e) {} };
+
+function kindCounts(o) {
+  const c = {svc:0, dim:0, ind:0};
+  o.groups.forEach(g => { c[g.kind] += g.count; });
+  return c;
+}
+function flagCount(o) {
+  let f = 0, w = 0;
+  o.groups.forEach(g => g.rows.forEach(r => { if (r.flag) f += r.n; if (r.warn) w++; }));
+  return {f, w};
+}
+
+// шапка: итоги
+(function totals() {
+  const all = OBJ.reduce((a, o) => a + o.total, 0);
+  const fl = OBJ.reduce((a, o) => a + flagCount(o).f, 0);
+  $('#totals').innerHTML = `<div><b>${OBJ.length}</b><span>таблиц строк</span></div><div><b>${all}</b><span>колонок</span></div><div><b>${fl}</b><span>колонок ждут соседа ⚑</span></div>`;
+})();
+
+// легенда
+$('#legend').innerHTML = DATA.legend.map(l => `<tr><td>${l.part}</td><td>${l.meaning}</td><td>${l.example}</td></tr>`).join('');
+
+// левая колонка
+const MAX = Math.max(...OBJ.map(o => o.total));
+const rail = $('#rail');
+OBJ.forEach(o => {
+  const c = kindCounts(o);
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'obj'; b.dataset.slug = o.slug; b.id = 'obj-' + o.slug;
+  const w = x => (x / MAX * 100).toFixed(2) + '%';
+  b.innerHTML = `<span class="nm">${esc(o.title[0].toUpperCase() + o.title.slice(1))}</span><span class="ct">${o.total}</span>`
+    + `<span class="bar" title="служебные ${c.svc} · разрезы ${c.dim} · показатели ${c.ind}"><i class="s" style="width:${w(c.svc)}"></i><i class="d" style="width:${w(c.dim)}"></i><i class="p" style="width:${w(c.ind)}"></i></span>`
+    + `<span class="tb">${esc(o.table)}</span>`;
+  b.addEventListener('click', () => { state.obj = o.slug; state.q = ''; $('#q').value = ''; save(); render(); history.replaceState(null, '', '#' + o.slug); });
+  rail.appendChild(b);
+});
+const key = document.createElement('div');
+key.className = 'key';
+key.innerHTML = `<span><i style="background:var(--svc)"></i>служебные</span><span><i style="background:var(--dim)"></i>разрезы</span><span><i style="background:var(--ind)"></i>показатели</span>`;
+rail.appendChild(key);
+
+function rowMatch(r, g) {
+  if (state.g !== 'all' && g.kind !== state.g) return false;
+  if (state.flag && !r.flag) return false;
+  if (state.q) {
+    const words = state.q.toLowerCase().split(/\s+/).filter(Boolean);
+    if (!words.every(w => r.text.includes(w))) return false;
+  }
+  return true;
+}
+
+function rowHtml(r) {
+  const names = r.cols.map(c => `<code>${esc(c)}</code>`).join('');
+  const src = (r.flag ? '<span class="fl" title="у соседа пока нет">⚑</span>' : '') + r.source.replace(/\s*⚑\s*/g, ' ');
+  return `<tr class="${r.flag ? 'flag' : ''} ${r.warn ? 'warn' : ''}"><td class="cols"><div class="names">${names}</div></td><td class="n">${r.n}</td><td class="type">${r.type}</td><td class="mean">${r.meaning}</td><td class="src">${src}</td></tr>`;
+}
+
+function groupsHtml(o) {
+  let html = '', rows = 0, cols = 0;
+  o.groups.forEach(g => {
+    const rs = g.rows.filter(r => rowMatch(r, g));
+    if (!rs.length) return;
+    const n = rs.reduce((a, r) => a + r.n, 0);
+    rows += rs.length; cols += n;
+    const k = KIND[g.kind];
+    const shown = n === g.count ? `${g.count}` : `${n} из ${g.count}`;
+    html += `<div class="grp"><h3><i style="background:${k.color}"></i>${esc(g.name)} <span class="n">· ${shown}</span></h3>`
+      + `<div><table><thead><tr><th>Колонка</th><th style="text-align:right">шт.</th><th>Тип</th><th>Смысл</th><th>Источник</th></tr></thead><tbody>`
+      + rs.map(rowHtml).join('') + `</tbody></table></div></div>`;
+  });
+  return {html, rows, cols};
+}
+
+function render() {
+  const o = OBJ.find(x => x.slug === state.obj) || OBJ[0];
+  document.querySelectorAll('.obj').forEach(b => b.setAttribute('aria-current', String(b.dataset.slug === o.slug && !state.q)));
+  document.querySelectorAll('#seg button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.g === state.g)));
+  $('#flagOnly').checked = state.flag;
+  $('#clear').hidden = !state.q;
+
+  const c = kindCounts(o), fc = flagCount(o);
+  const head = $('#head');
+  if (state.q) {
+    head.innerHTML = `<div class="head-row"><h2>Поиск по всем объектам</h2><span class="tbl">«${esc(state.q)}»</span></div>`;
+  } else {
+    head.innerHTML = `<div class="head-row"><h2>${esc(o.title[0].toUpperCase() + o.title.slice(1))}</h2><span class="tbl">${esc(o.table)} · ${o.total} ${plural(o.total,'колонка','колонки','колонок')}</span></div>`
+      + `<div class="comp"><span class="chip s">служебные ${c.svc}</span><span class="chip d">разрезы ${c.dim}</span><span class="chip p">показатели ${c.ind}</span>`
+      + (fc.f ? `<span class="chip f">⚑ ждут соседа: ${fc.f}</span>` : '')
+      + (fc.w ? `<span class="chip w">⚠ расходится с владельцем: ${fc.w}</span>` : '') + `</div>`
+      + `<dl class="facts">${o.facts.map(f => `<div><dt>${esc(f.label)}</dt><dd>${f.value}</dd></div>`).join('')}</dl>`;
+  }
+
+  const body = $('#body');
+  let html = '', rows = 0, cols = 0, hitObjs = 0;
+  if (state.q) {
+    OBJ.forEach(x => {
+      const r = groupsHtml(x);
+      if (!r.rows) return;
+      hitObjs++; rows += r.rows; cols += r.cols;
+      html += `<div class="objlabel"><button type="button" data-go="${x.slug}">${esc(x.title[0].toUpperCase() + x.title.slice(1))}</button><span>${esc(x.table)}</span></div>` + r.html;
+    });
+    $('#status').textContent = rows
+      ? `Найдено ${rows} ${plural(rows,'строка','строки','строк')} схемы (${cols} ${plural(cols,'колонка','колонки','колонок')}) в ${hitObjs} ${plural(hitObjs,'объекте','объектах','объектах')}`
+      : '';
+  } else {
+    const r = groupsHtml(o);
+    html = r.html; rows = r.rows; cols = r.cols;
+    const filtered = state.g !== 'all' || state.flag;
+    $('#status').textContent = filtered ? `Показано ${cols} из ${o.total} ${plural(o.total,'колонки','колонок','колонок')}` : '';
+    if (rows) html += o.notes.map(n => `<p class="note">${n}</p>`).join('');
+  }
+  if (!rows) {
+    const why = state.q ? `По запросу «${esc(state.q)}» с текущими фильтрами ничего нет.` : 'В этой таблице нет колонок под выбранные фильтры.';
+    html = `<div class="empty"><b>Ничего не найдено</b>${why} Сбросьте группу на «Все» или снимите «только ⚑».</div>`;
+  }
+  body.innerHTML = html;
+  body.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => {
+    state.obj = b.dataset.go; state.q = ''; $('#q').value = ''; save(); render();
+    history.replaceState(null, '', '#' + state.obj);
+    $('#main').scrollIntoView({block: 'start'});
+  }));
+}
+
+let t;
+$('#q').addEventListener('input', e => { clearTimeout(t); t = setTimeout(() => { state.q = e.target.value.trim(); render(); }, 120); });
+$('#clear').addEventListener('click', () => { state.q = ''; $('#q').value = ''; render(); $('#q').focus(); });
+$('#seg').addEventListener('click', e => { const b = e.target.closest('button[data-g]'); if (!b) return; state.g = b.dataset.g; save(); render(); });
+$('#flagOnly').addEventListener('change', e => { state.flag = e.target.checked; save(); render(); });
+window.addEventListener('hashchange', () => { const h = location.hash.slice(1); if (OBJ.some(o => o.slug === h)) { state.obj = h; state.q = ''; $('#q').value = ''; render(); } });
+render();
+</script>
