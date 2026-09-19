@@ -105,6 +105,9 @@
 // блок волны 23 З-17 — деньги (ИС-56, ADR-0240): валюта, курс и дата курса один раз на строку,
 // клетка — одно число; курс строки только к остаткам, у потока обе колонки от ядра по курсам
 // операций; курс события — на день события; итоги заёмщика, залога, договора, дела — в сомах.
+// блок волны 23 З-18a — закрытый словарь (ИС-57, ADR-0241 §2): список значений лежит у таблицы
+// в релизе, значение вне списка не пишется и называется в журнале сверки, новое значение —
+// миграцией; состояния платежа и меры — коды схемы.
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -2024,7 +2027,7 @@ const FIZ = fizSchema();
   const naive = ms.reduce((n, r) => n + v(r, 'm-mclaim'), 0);
   const all = ST.statSlice({obj:'obj-measure', dims:['d-mkind'], inds:['a-count','a-summclaim'], date: D});
   const reg = ST.statSlice({obj:'obj-measure', dims:['d-mkind'], inds:['a-count','a-summclaim'], date: D,
-    filter: F(cD('d-mstate', '=', {value:'зарегистрирована'}))});
+    filter: F(cD('d-mstate', '=', {value:'действует'}))});
   const A = all.ok ? all.total['a-summclaim'] : {}, R = reg.ok ? reg.total['a-summclaim'] : {};
   const swing = A.v - R.v;
   ok(124, all.ok && reg.ok && naive === 8392000 && A.v === 7462000 && R.v === 4002000 &&
@@ -4090,7 +4093,7 @@ const FIZ = fizSchema();
   W198['obj-receipt'].push({id:'ПП-2026/0739', f:{rdate:'2026-07-19', cur:'KGS', chan:'банк', amount:12000, returned:0},
     h:{match:[['2026-07-19','подтверждено']], frz:[['2026-07-19','открыто']]}, k:{}});
   W198['obj-repay'].push({id:'ПГ-2026/1166', f:{credit:'КД-2021/012', receipt:'ПП-2026/0739', rdate:'2026-07-19',
-      bdate:'2026-07-19', pstate:'подтверждён', cur:'KGS', kind:'плановое', region:'Ошская', district:'Узгенский', amount:12000},
+      bdate:'2026-07-19', pstate:'confirmed', cur:'KGS', kind:'плановое', region:'Ошская', district:'Узгенский', amount:12000},
     h:{branch:[['2026-07-19','Ошское РП']], curator:[['2026-07-19','Бекова Н.']]}, k:{}});
   try {
     ev198run = ST.run('2026-07-20', {silent:{'погашения':'недоступен'}});
@@ -6336,7 +6339,7 @@ const FIZ = fizSchema();
   let r265, rows265, at0801, atToday, rows1211, rows1212, at1211a, at1211b, at1212;
   const pay265 = (id, rdate, bdate) => ({id,
     f:{credit:'КД-2024/117', receipt:'ПП-2026/0755', rdate, bdate,
-       pstate:'подтверждён', cur:'KGS', kind:'плановое', region:'Чуйская', district:'Сокулукский', amount:18000},
+       pstate:'confirmed', cur:'KGS', kind:'плановое', region:'Чуйская', district:'Сокулукский', amount:18000},
     h:{branch:[[rdate,'Кредитный департамент']], curator:[[rdate,'Бекова Н.']]}});
   const at265 = (ref, d) => ST.rowsAsOf('obj-repay', d).find(r => r.ref === ref);
   const rowsOf265 = ref => ST.state.rows.filter(r => r.obj === 'obj-repay' && r.ref === ref);
@@ -6376,8 +6379,8 @@ const FIZ = fizSchema();
     .filter(x => x.ref === 'ПГ-2026/1196');
   try {
     const p = W['obj-repay'][i266];
-    p.f.pstate = 'сторнирован';
-    p.h.pstate = [['2026-08-12', 'подтверждён'], ['2026-08-21', 'сторнирован']];
+    p.f.pstate = 'reversed';
+    p.h.pstate = [['2026-08-12', 'confirmed'], ['2026-08-21', 'reversed']];
     ST.enqueue('obj-repay', 'ПГ-2026/1196', 'распоряжение', 'сторно платежа');
     r266 = ST.run(TODAY);
     rows266 = ST.state.rows.filter(r => r.obj === 'obj-repay' && r.ref === 'ПГ-2026/1196');
@@ -6385,7 +6388,7 @@ const FIZ = fizSchema();
     rw266 = (ST.state.runs[ST.state.runs.length - 1].parts.find(x => x.obj === 'obj-repay') || {rewrote: []}).rewrote;
     flow266 = rep266(TODAY) - rep266('2026-08-01');
     ev266 = ST.state.rows.filter(r => r.obj === 'obj-repay' && r.date > '2026-08-01' && r.date <= TODAY &&
-        r.dims['d-pcredit'] === 'КД-2022/065' && !(r.part === 'original' && r.dims['d-paystate'] === 'сторнирован'))
+        r.dims['d-pcredit'] === 'КД-2022/065' && !(r.part === 'original' && r.dims['d-paystate'] === 'reversed'))
       .reduce((n, r) => n + (v(r, 'm-ramount') || 0), 0);
     /* Правка ревью 1 З-16a. Повтор той же ночи сравнивает ДЕЙСТВУЮЩЕЕ с действующим:
        сторнированная исходная в сумму не входит и у строки, собранной заново, — перезаписи
@@ -6436,7 +6439,7 @@ const FIZ = fizSchema();
       .map(r => r.date + ':' + r.dims['d-rmatch']).join();
   } finally { W['obj-receipt'].splice(W['obj-receipt'].indexOf(rc0899), 1); }
   ok(266, before266 === 52000 && r266.ok && rows266.length === 1 && rows266[0].date === '2026-08-13' &&
-        rows266[0].part === 'original' && rows266[0].dims['d-paystate'] === 'сторнирован' && !rows266[0].fixed &&
+        rows266[0].part === 'original' && rows266[0].dims['d-paystate'] === 'reversed' && !rows266[0].fixed &&
         rw266.some(x => x.ref === 'ПГ-2026/1196' && x.fields.indexOf('d-paystate') >= 0) &&
         v(eff266, 'm-ramount') === 0 && flow266 === 0 && ev266 === flow266 &&
         again266.length === 0 && nAgain266 === 0 && effLate266 === 0 && late266 === '2026-08-13:отозвано' && born266 === '2026-08-13:отозвано' &&
@@ -6488,7 +6491,7 @@ const FIZ = fizSchema();
   const byCredit267 = ref => {
     const o = {};
     ST.state.rows.filter(r => r.obj === 'obj-repay' && r.ref === ref &&
-        !(r.part === 'original' && r.dims['d-paystate'] === 'сторнирован'))
+        !(r.part === 'original' && r.dims['d-paystate'] === 'reversed'))
       .forEach(r => { const c = r.dims['d-pcredit']; o[c] = cents267((o[c] || 0) + (v(r, 'm-ramount') || 0)); });
     return Object.keys(o).filter(k => o[k] !== 0).sort().map(k => k + ':' + o[k]).join();
   };
@@ -6499,7 +6502,7 @@ const FIZ = fizSchema();
   const night267 = note => { ST.enqueue('obj-repay', 'ПГ-2026/1102', 'распоряжение', note); return ST.run(TODAY); };
   ST.seed();
   const sto267 = scen267('ПГ-2026/1102', p => {
-    p.f.pstate = 'сторнирован'; p.h.pstate = [['2026-06-05', 'подтверждён'], ['2026-08-21', 'сторнирован']];
+    p.f.pstate = 'reversed'; p.h.pstate = [['2026-06-05', 'confirmed'], ['2026-08-21', 'reversed']];
     night267('сторно платежа закрытого июня');
     const a = v(eff1102(), 'm-ramount');
     /* Повтор ночи находит событие «без изменений»: ни строки, ни перезаписи. */
@@ -6595,7 +6598,7 @@ const FIZ = fizSchema();
   let stoRate267 = {rows: [], mk: [], n: []}, spliced267 = false;
   try {
     stoRate267 = scen267('ПГ-2026/1127', p => {
-      p.f.pstate = 'сторнирован'; p.h.pstate = [['2026-06-18', 'подтверждён'], ['2026-08-20', 'сторнирован']];
+      p.f.pstate = 'reversed'; p.h.pstate = [['2026-06-18', 'confirmed'], ['2026-08-20', 'reversed']];
       ST.enqueue('obj-repay', 'ПГ-2026/1127', 'распоряжение', 'сторно валютного платежа');
       ST.run(ASK, {manual: true, reason: 'сторно валютного платежа'});
       const out = {rows: [rows1127().length], mk: [mk1127().length], n: []};
@@ -6745,7 +6748,7 @@ const FIZ = fizSchema();
   bor268.f.bdate = '2026-06-10'; bor268.h.sstate = [['2026-06-10', 'действует']];
   const pay268 = {id: 'ПГ-2026/1268',
     f: {credit: 'КД-2024/117', receipt: 'ПП-2026/0755', rdate: '2026-06-10', bdate: '2026-06-10',
-        pstate: 'подтверждён', cur: 'KGS', kind: 'плановое', region: 'Чуйская', district: 'Сокулукский', amount: 18000},
+        pstate: 'confirmed', cur: 'KGS', kind: 'плановое', region: 'Чуйская', district: 'Сокулукский', amount: 18000},
     h: {branch: [['2026-06-10', 'Кредитный департамент']], curator: [['2026-06-10', 'Бекова Н.']]}};
   const mute268 = ST.state.rows.find(r => r.obj === 'obj-borrower' && r.ref === '22903197505433' && r.date === '2026-06-01');
   if(mute268){ delete mute268.inds['m-bworst']; mute268.srcs['классификация'] = {ok: false, src: 'шов', why: 'недоступен'}; }
@@ -6850,7 +6853,7 @@ const FIZ = fizSchema();
   Wm.push({id: 'МВ-2026/41', f: {mdate: '2026-08-12', cur: 'KGS', kind: 'претензия', credit: 'КД-2022/065',
              targets: ['ТВ-2025/11-2'], result: 'в работе', sent: '2026-08-12', amount: 90000},
            h: {branch: [['2026-08-12', 'Кредитный департамент']], curator: [['2026-08-12', 'Асанов А.']],
-               mstate: [['2026-08-12', 'зарегистрирована']]}, k: {}});
+               mstate: [['2026-08-12', 'действует']]}, k: {}});
   const m41 = () => Wm.find(m => m.id === 'МВ-2026/41');
   try {
     ST.run(TODAY);
@@ -6904,7 +6907,7 @@ const FIZ = fizSchema();
     Wm.push({id: 'МВ-2026/42', f: {mdate: '2026-05-20', cur: 'KGS', kind: 'претензия', credit: 'КД-2023/210',
                targets: ['ТВ-2026/03-2'], result: 'в работе', sent: '2026-05-20', amount: 70000},
              h: {branch: [['2026-05-20', 'Ошское РП']], curator: [['2026-05-20', 'Бекова Н.']],
-                 mstate: [['2026-05-20', 'зарегистрирована']]}, k: {}});
+                 mstate: [['2026-05-20', 'действует']]}, k: {}});
     ST.run(TODAY, {manual: true, reason: 'мера закрытого мая'});
     Wm.find(m => m.id === 'МВ-2026/42').f.targets = ['ТВ-2026/03-2', 'ТВ-2026/03-1'];
     ST.state.today = D23;
@@ -6990,7 +6993,7 @@ const FIZ = fizSchema();
     ST.run(TODAY);
     const born = pair('МВ-2026/51') + ' ' + stOf('МВ-2026/51', TODAY) + ' | ' + pair('МВ-2026/31') + ' ' + stOf('МВ-2026/31', TODAY);
     [Wm[i31], Wm.find(m => m.id === 'МВ-2026/51')].forEach(m => {
-      m.h.mstate = m.h.mstate.concat([['2026-08-22', 'зарегистрирована']]);
+      m.h.mstate = m.h.mstate.concat([['2026-08-22', 'действует']]);
       ST.enqueue('obj-measure', m.id, 'распоряжение', 'сторно меры снято');
     });
     ST.state.today = D23;
@@ -7018,7 +7021,7 @@ const FIZ = fizSchema();
         rm269.off === 'сторнирована' &&
         cl269.rows === '05-09:03-1+* 05-09:03-2* 08-22:03-1× 08-22:03-2+' && none269(cl269.bad) &&
         all269(cl269.cnt, '5/5') && cl269.mk === 2 &&
-        cl269.ask === 'зарегистрирована, представитель' && cl269.now === 'сторнирована' &&
+        cl269.ask === 'действует, представитель' && cl269.now === 'сторнирована' &&
         back269.rows === '05-09:03-1+* 05-09:03-2*' && none269(back269.bad) && back269.mk === 0 &&
         once269.w === 0 && once269.tally === 'skip 0, kept 1, same 2, unborn 2, n 0' &&
         once269.rows === '05-09:03-1+* 05-09:03-2*' &&
@@ -7034,8 +7037,8 @@ const FIZ = fizSchema();
         solo269.reps === '21:03-1 22:03-1 23:03-1 24:03-2 25:03-3' &&
         uns269.born === '08-10:11-1+ сторнирована | 08-10:11-1+ 08-10:11-2 сторнирована' &&
         uns269.two === '08-10:11-1+ 08-10:11-2' && uns269.one === '08-10:11-1+' &&
-        uns269.n === 3 && uns269.rw === 3 && uns269.st === 'зарегистрирована' &&
-        all269(uns269.at, 'зарегистрирована/зарегистрирована'),
+        uns269.n === 3 && uns269.rw === 3 && uns269.st === 'действует' &&
+        all269(uns269.at, 'действует/действует'),
     `мера направлена на цели, и строка лежит у пары (ИС-55, схема §11.2): пар ${pairs.size}, мер ${dist.size}. Представитель у каждой меры один — цель-заёмщик (${[...prim].join(' · ')}); по нему считаются суммы, а число мер — различными мерами: срез отвечает ${cnt269.ok ? cnt269.total['a-count'].v : '—'}, а не ${pairs.size}. Дверь меры на дату отдаёт все пары (${door269.length}), срез — представителей (СС-175). Цели меняются — представитель один (правка ревью 1 З-16b; строки: «+» представитель, «×» сторнирована, «*» зафиксирована). Открытый август, МВ-2026/41: заёмщика добавили — пересчёт ночи 21.08 после ночи 22.08 пару не родил (не тронуто ${late269.kept}, рождено ${late269.created}), плановая ночь 23.08 без распоряжения родила её сама (${add269.created || '—'}) этой ночью, а поручителя сняла с представительства новой строкой на 23.08, а не на месте 13.08 — ${add269.rows || '—'}, решения ночи: ${add269.tally || '—'}; заёмщика сняли — ${rm269.rows || '—'}, его пара на 23.08 — «${rm269.off || '—'}». Закрытый май, МВ-2026/19: заёмщика сняли — ${cl269.rows || '—'}, маркеров ${cl269.mk}; заёмщик на 21.08 — «${cl269.ask || '—'}», на 22.08 — «${cl269.now || '—'}»; вернули — ${back269.rows || '—'}, маркеров ${back269.mk}. Дат с другим числом представителей, чем один, — ${[add269.bad, rm269.bad, cl269.bad, back269.bad].map(a => (a || ['—']).length).join(' · ')}; число мер на дату (срез/различных) — ${[].concat(add269.cnt || [], rm269.cnt || [], cl269.cnt || []).join(' · ')}. Прогон за закрытое 15.06 с новой целью — ${once269.tally || '—'}: мера в одном решении ночи, а не в «не тронуто» и «без изменений» сразу. Мера закрытого мая МВ-2026/42, родившаяся ночью 22.08, получила заёмщика ночью 23.08 — ${late42.rows || '—'}: смена представителя легла одной датой, ночью 23.08, дат без представителя ${(late42.bad || ['—']).length}, число мер ${(late42.cnt || []).join(' · ')}. Пары на разных датах (правка ревью 2 З-16b, МВ-2026/19: заёмщик и поручитель зафиксированы 09.05, залогодатель родился 22.08 в открытом августе): заёмщика сняли ночью 26.08 и вернули ночью 27.08 без распоряжения — ${wide269.rows || '—'}, маркеров ${wide269.mk}; решения ночей — ${wide269.t26 || '—'} и ${wide269.t27 || '—'}; представитель по датам — ${wide269.reps || '—'}; число мер 21–25.08 до ночи 26.08 — ${(wide269.c0 || []).join(' · ')}, после неё — ${(wide269.c1 || []).join(' · ')}, после ночи 27.08 — ${(wide269.c2 || []).join(' · ')}: ответ на уже отвеченную дату не меняется. Каждая смена набора видна ночи сама — снятие цели 22.08, возврат снятой 23.08, новый набор 24.08, перестановка целей (только смена представителя) 25.08, всё без распоряжения: записано ${solo269.t || '—'}, не обойдено ${solo269.skip || '—'}; строки ${solo269.rows || '—'}; представитель по датам — ${solo269.reps || '—'}, дат с другим числом представителей ${(solo269.bad || ['—']).length}, число мер ${(solo269.cnt || []).join(' · ')}. Сторно всей меры снято с 22.08 (правка ревью 3 З-16b) — поправка состояния, а не смена набора: до снятия клон об одной цели и МВ-2026/31 — ${uns269.born || '—'}; после — МВ-2026/31 о двух целях — ${uns269.two || '—'}, клон об одной цели — ${uns269.one || '—'}; ночь 23.08 записала ${uns269.n}, из них на месте ${uns269.rw}, состояние строк «${uns269.st || '—'}»; ответ на 15.08, 22.08 и 23.08 (две цели/одна) — ${(uns269.at || []).join(' · ')}`);
 
   /* #270 — у меры поправка — строка ПОЛНОГО состояния пары на срез исправления, не приращение:
@@ -7066,7 +7069,7 @@ const FIZ = fizSchema();
   W270.push({id: 'МВ-2026/40', f: {mdate: '2026-08-12', cur: 'KGS', kind: 'претензия', credit: 'КД-2025/088',
                targets: ['ТВ-2026/07-1'], result: 'без ответа', sent: '2026-08-12', amount: 150000},
              h: {branch: [['2026-08-12', 'Иссык-Кульское РП']], curator: [['2026-08-12', 'Асанов А.']],
-                 mstate: [['2026-08-12', 'зарегистрирована'], ['2026-08-20', 'сторнирована']]}, k: {}});
+                 mstate: [['2026-08-12', 'действует'], ['2026-08-20', 'сторнирована']]}, k: {}});
   try {
     const rn = ST.run(TODAY);
     const cr = (lastPart270().created || []).filter(x => x.ref === 'МВ-2026/40');
@@ -7169,8 +7172,8 @@ const FIZ = fizSchema();
     p.f.credit = 'КД-2025/088';
     p.h.credit = [['2026-06-05', 'КД-2024/117'], ['2026-08-21', 'КД-2025/088']];
     const s = W['obj-repay'][iS];
-    s.f.pstate = 'сторнирован';
-    s.h.pstate = [['2026-08-12', 'подтверждён'], ['2026-08-21', 'сторнирован']];
+    s.f.pstate = 'reversed';
+    s.h.pstate = [['2026-08-12', 'confirmed'], ['2026-08-21', 'reversed']];
     const rc = W['obj-receipt'][iR];
     rc.h.match = rc.h.match.concat([['2026-08-21', 'отозвано']]);
     ['ПГ-2026/1102', 'ПГ-2026/1196'].forEach(id => ST.enqueue('obj-repay', id, 'распоряжение', 'правка платежа'));
@@ -7187,7 +7190,7 @@ const FIZ = fizSchema();
   }
   ok(271, !!a271 && a271.dims['d-pcredit'] === 'КД-2024/117' && v(a271, 'm-ramount') === 28000 &&
         !!b271 && b271.part === 'rebind' && b271.dims['d-pcredit'] === 'КД-2025/088' && v(b271, 'm-ramount') === 28000 &&
-        !!s271 && v(s271, 'm-ramount') === 0 && s271.dims['d-paystate'] === 'сторнирован' &&
+        !!s271 && v(s271, 'm-ramount') === 0 && s271.dims['d-paystate'] === 'reversed' &&
         !!rc271 && rc271.dims['d-rmatch'] === 'отозвано' && v(rc271, 'm-rsum') === 28000 &&
         m271.length === 2 && m271.every(r => r.dims['d-mstate'] === 'сторнирована'),
     `событие на дату — одна дверь на способ (ИС-55): ПГ-2026/1102 на ${ASK} — ${a271 ? a271.dims['d-pcredit'] : '—'}, на ${TODAY} — ${b271 ? b271.dims['d-pcredit'] : '—'}: сторно и перепривязка легли на одну дату, и побеждает перепривязка (схема §9), сумма та же. Сторнированный ПГ-2026/1196 — ${v(s271, 'm-ramount')}: «погашено» = NOT (исходная AND сторнирована). Поступление ПП-2026/0611 — «${rc271 ? rc271.dims['d-rmatch'] : '—'}» при прежней сумме. Мера МВ-2026/31 — последняя строка каждой пары (${m271.length}), состояние «${m271.length ? m271[0].dims['d-mstate'] : '—'}»`);
@@ -7246,8 +7249,8 @@ const FIZ = fizSchema();
     p.h.credit = [['2026-06-05', 'КД-2024/117'], ['2026-08-21', 'КД-2025/088']];
     ST.enqueue('obj-repay', 'ПГ-2026/1102', 'распоряжение', 'перепривязка к КД-2025/088');
     const s = W['obj-repay'][iS272];
-    s.f.pstate = 'сторнирован';
-    s.h.pstate = [['2026-07-02', 'подтверждён'], ['2026-08-21', 'сторнирован']];
+    s.f.pstate = 'reversed';
+    s.h.pstate = [['2026-07-02', 'confirmed'], ['2026-08-21', 'reversed']];
     ST.enqueue('obj-repay', 'ПГ-2026/1141', 'распоряжение', 'сторно июльского платежа в августе');
     ST.run(TODAY);
     after272 = bad272();
@@ -7308,8 +7311,8 @@ const FIZ = fizSchema();
     ST.state.today = S01;
     ST.catchUp(S01);
     const p = W['obj-repay'][i273];
-    p.f.pstate = 'сторнирован';
-    p.h.pstate = [['2026-08-12', 'подтверждён'], ['2026-08-31', 'сторнирован']];
+    p.f.pstate = 'reversed';
+    p.h.pstate = [['2026-08-12', 'confirmed'], ['2026-08-31', 'reversed']];
     ST.enqueue('obj-repay', 'ПГ-2026/1196', 'распоряжение', 'сторно 31.08');
     const r = ST.run(S01);
     s273 = {ok: r.ok,
@@ -7318,7 +7321,7 @@ const FIZ = fizSchema();
       rw: partOf('obj-repay').rewrote.filter(x => x.ref === 'ПГ-2026/1196').map(x => x.fields.join()).join(),
       bad: badOf('2026-08-01', S01)};
   } finally { W['obj-repay'][i273] = JSON.parse(k273); }
-  ok(273, s273.ok && s273.rows === '08-13:original:сторнирован' && s273.mk === 0 &&
+  ok(273, s273.ok && s273.rows === '08-13:original:reversed' && s273.mk === 0 &&
         s273.rw === 'd-paystate' && s273.bad.length === 0,
     `исправление в месяце строки — на месте (СС-180): ПГ-2026/1196 (строка 13.08) сторнирован 31.08, ночь 01.09 — срез августа, а не сентября (месяц кануна, ADR-0238 §2): строки ${s273.rows || '—'}, маркеров ${s273.mk}, журнал перезаписи — ${s273.rw || '—'}. Тождество августа (01.08, 01.09] — расхождений ${s273.bad.length} (ADR-0239 §3, §6)`);
 
@@ -7396,7 +7399,7 @@ const FIZ = fizSchema();
   Wm.push({id: 'МВ-2026/45', f: {mdate: '2026-07-20', cur: 'KGS', kind: 'претензия', credit: 'КД-2022/065',
              targets: ['ТВ-2025/11-1', 'ТВ-2025/11-2'], result: 'в работе', sent: '2026-07-20', amount: 300000},
            h: {branch: [['2026-07-20', 'Кредитный департамент']], curator: [['2026-07-20', 'Асанов А.']],
-               mstate: [['2026-07-20', 'зарегистрирована']]}, k: {}});
+               mstate: [['2026-07-20', 'действует']]}, k: {}});
   let s276 = {};
   const rows276 = () => rowsOf('obj-measure', 'МВ-2026/45').map(x => x.date.slice(5) + ':' + x.part.slice(-4) + ':' + x.dims['d-mresult']).join(' ');
   const at276 = d => ST.measureAt(d).filter(x => x.ref === 'МВ-2026/45').map(x => x.dims['d-mresult']).join();
@@ -7437,7 +7440,7 @@ const FIZ = fizSchema();
     const src = Wm.find(x => x.id === 'МВ-2026/31');
     const x = JSON.parse(JSON.stringify(src));
     x.id = 'МВ-2026/61';
-    x.h.mstate = [['2026-08-09', 'зарегистрирована']];
+    x.h.mstate = [['2026-08-09', 'действует']];
     Wm.push(x);
     const me = () => Wm.find(y => y.id === 'МВ-2026/61');
     const night = (d, why) => { ST.state.today = d; ST.enqueue('obj-measure', 'МВ-2026/61', 'распоряжение', why); ST.run(d); };
@@ -7449,12 +7452,12 @@ const FIZ = fizSchema();
       night('2026-08-24', 'мера сторнирована');
       if(variant === 'А'){
         me().f.targets = ['ТВ-2025/11-1', 'ТВ-2025/11-2'];
-        me().h.mstate = me().h.mstate.concat([['2026-08-24', 'зарегистрирована']]);
+        me().h.mstate = me().h.mstate.concat([['2026-08-24', 'действует']]);
         night('2026-08-25', 'цель возвращена, сторно снято');
       } else {
         me().f.targets = ['ТВ-2025/11-1', 'ТВ-2025/11-2'];
         night('2026-08-25', 'цель возвращена');
-        me().h.mstate = me().h.mstate.concat([['2026-08-25', 'зарегистрирована']]);
+        me().h.mstate = me().h.mstate.concat([['2026-08-25', 'действует']]);
         night('2026-08-26', 'сторно снято');
       }
       const at = d => ST.measureAt(d).filter(y => y.ref === 'МВ-2026/61')
@@ -7517,7 +7520,7 @@ const FIZ = fizSchema();
                         ST.enqueue('obj-measure', x.id, 'распоряжение', 'сторно'); });
     ST.run(TODAY);
     const storno = sig279('МВ-2026/19') + ' | ' + sig279('МВ-2026/52') + ' | ' + mkOf('МВ-2026/19').length + '/' + mkOf('МВ-2026/52').length;
-    both.forEach(x => { x.h.mstate = x.h.mstate.concat([['2026-08-22', 'зарегистрирована']]);
+    both.forEach(x => { x.h.mstate = x.h.mstate.concat([['2026-08-22', 'действует']]);
                         ST.enqueue('obj-measure', x.id, 'распоряжение', 'сторно снято'); });
     ST.state.today = D23;
     ST.run(D23);
@@ -7638,6 +7641,91 @@ const FIZ = fizSchema();
         !!bor281 && his281.map(r => ST.rowCur(r, 'm-debt')).sort().join() === 'EUR,KGS' &&
         bor281.inds['m-brepaid'].v === sum281,
     `поток — обе колонки от ядра, по курсам операций. КД-2025/043 на ${ASK}: выдано ${v281('m-issued')} USD = ${v281('m-issued-som')} сом. по курсу дня выдачи (${rateOn('USD', ANCHOR).rate}), а не ${CORE.somRound(v281('m-issued') * fx281, R)} по курсу строки ${fx281} — выданное не переоценивается; погашено ${v281('m-repaid')} USD = ${v281('m-repaid-som')} сом., и сторож сложил платежи по курсам их дней сам (${byDay281}), а курс строки дал бы ${CORE.somRound(v281('m-repaid') * fx281, R)}. Остаток той же строки — на курс строки: ${v281('m-debt')} × ${fx281} = ${v281('m-debt-som')}. Погашено за июнь — ${jun281.value} сом. разностью сомовых колонок; приведение разностей по валютам курсом конца периода дало бы ${CORE.somRound(old281, R)} — курсовую разницу внутри движения. Итог заёмщика 01234199010101 (кредиты ${his281.map(r => ST.rowCur(r, 'm-debt')).join(' + ')}) по потоку «погашено» — ${bor281 ? bor281.inds['m-brepaid'].v : '—'}, ровно сумма сомовых потоков его договоров (${sum281}) (ИС-56, ADR-0240 §3, §4)`);
+})();
+
+/* ===== Волна 23 · З-18a — закрытый словарь: список значений в релизе (ИС-57, ADR-0241 §2).
+   Колонка вида `code` — `text` + CHECK: значения задаёт модель, список лежит у таблицы в
+   релизе, значение вне списка не пишется, новое значение приходит релизом. ===== */
+(() => {
+  const W = vm.runInContext('WORLD', sandbox);
+
+  /* #282 — у каждой колонки закрытого словаря есть список, и списков без колонки нет. Колонки
+     словаря таблицы — колонки записей вида `code` её объекта и вид поправки события там, где
+     он есть в ключе. Каждое значение каждой хранимой строки — в списке своей колонки: и у
+     строк прогона, и у легаси, и у поправок событий. Два словаря, которые выводит сама
+     статистика, приведены к схеме: состояние платежа — коды `pending · confirmed · reversed`
+     (схема §9.2), состояние меры — `действует · сторнирована` (схема §11.2); прежних слов
+     («подтверждён», «зарегистрирована») нет ни в мире, ни в строках (СС-194). */
+  ST.seed();
+  const rel282 = ST.release();
+  const codeCols = o => {
+    const t = rel282.tables[o];
+    const own = ST.OBJ(o).dims.map(ST.DIM).filter(d => d && d.vtype === 'code' && d.col).map(d => d.col);
+    return own.concat(t.cols.indexOf('d_corr_kind') >= 0 ? ['d_corr_kind'] : [])
+      .filter((c, i, a) => a.indexOf(c) === i).sort();
+  };
+  const shape282 = Object.keys(rel282.tables).filter(o =>
+    codeCols(o).join() !== Object.keys(rel282.tables[o].checks || {}).sort().join() ||
+    Object.keys(rel282.tables[o].checks).some(c => !rel282.tables[o].checks[c].length));
+  const bad282 = [];
+  ST.state.rows.forEach(r => {
+    const ck = rel282.tables[r.obj].checks;
+    if(r.part != null && ck.d_corr_kind && ck.d_corr_kind.indexOf(r.part) < 0) bad282.push(r.ref + ' ' + r.part);
+    Object.keys(r.dims).forEach(id => {
+      const d = ST.DIM(id);
+      if(d && d.vtype === 'code' && ck[d.col] && ck[d.col].indexOf(r.dims[id]) < 0) bad282.push(r.ref + ' ' + d.col + '=' + r.dims[id]);
+    });
+  });
+  /* Вид поправки события назначает сама статистика из объявленного `corr` объекта: он обязан
+     лежать в списке `d_corr_kind` своей таблицы целиком. */
+  const corr282 = Object.keys(rel282.tables).filter(o => (ST.OBJ(o) || {}).corr)
+    .filter(o => ST.OBJ(o).corr.some(k => ((rel282.tables[o].checks || {}).d_corr_kind || []).indexOf(k) < 0 &&
+                                           rel282.tables[o].cols.indexOf('d_corr_kind') >= 0));
+  const nCk282 = Object.keys(rel282.tables).reduce((n, o) => n + Object.keys(rel282.tables[o].checks).length, 0);
+  const pay282 = rel282.tables['obj-repay'].checks.d_pay_state.join();
+  const msr282 = rel282.tables['obj-measure'].checks.d_mstate.join();
+  const old282 = W['obj-repay'].filter(p => [p.f.pstate].concat((p.h.pstate || []).map(x => x[1]))
+      .some(v => v != null && ['pending', 'confirmed', 'reversed'].indexOf(v) < 0)).length +
+    W['obj-measure'].filter(m => (m.h.mstate || []).some(x => ['действует', 'сторнирована'].indexOf(x[1]) < 0)).length;
+  const legacy282 = ST.state.rows.filter(r => ST.isLegacyRow(r)).length;
+  ok(282, shape282.length === 0 && nCk282 === 19 && bad282.length === 0 && legacy282 > 0 && corr282.length === 0 &&
+        pay282 === 'pending,confirmed,reversed' && msr282 === 'действует,сторнирована' && old282 === 0,
+    `закрытый словарь — список значений в релизе: у ${nCk282} колонок вида «code» и вида поправки события списки лежат у таблиц, таблиц со списком не на месте ${shape282.length} (${shape282.join(', ') || '—'}); значений вне списка в ${ST.state.rows.length} хранимых строках, из них ${legacy282} легаси, — ${bad282.length}${bad282.length ? ' (' + bad282.slice(0, 3).join('; ') + ')' : ''}; объявленный вид поправки вне списка своей таблицы — у ${corr282.length} объектов. Словари, которые выводит сама статистика, — по схеме: состояние платежа ${pay282}, состояние меры ${msr282}; записей мира с прежними словами ${old282} (ИС-57, ADR-0241 §2, СС-193, СС-194)`);
+
+  /* #283 — значение вне списка отбивается, новое значение приходит релизом. Кредит получает
+     статус, которого в словаре нет: ночь строку не пишет — ни с этим словом, ни пустой (пустое
+     значило бы «сосед молчал», а он ответил), — и отказ ложится в журнал сверки релиза с
+     именем колонки и значения. Прочие строки ночи пишутся. Миграция, расширившая CHECK,
+     впускает значение: та же работа следующей ночью строку пишет. Миграция не ставит список на
+     чужую колонку и не принимает список не списком. Значение классификатора так не стережётся
+     — у него списка нет (З-18b). */
+  ST.seed();
+  const c283 = W['obj-credit'].find(x => x.id === 'КД-2024/117');
+  const keep283 = JSON.stringify(c283.h.status);
+  let miss283 = null, log283 = '', rest283 = 0, all283 = 0, mig283 = {}, back283 = null, wrong283 = {}, flat283 = {};
+  try {
+    c283.h.status = c283.h.status.concat([['2026-08-21', 'приостановлен']]);
+    ST.enqueue('obj-credit', 'КД-2024/117', 'распоряжение', 'приостановлен договор');
+    ST.run(TODAY);
+    const today283 = ST.rowsAt('obj-credit', TODAY);
+    miss283 = today283.find(r => r.ref === 'КД-2024/117') || null;
+    rest283 = today283.length;
+    all283 = ST.rowsAt('obj-credit', ASK).length;
+    log283 = (ST.relLog().filter(e => e.who === 'CHECK').slice(-1)[0] || {}).msg || '';
+    wrong283 = ST.migrate({obj:'obj-credit', check:{d_nope:['x']}});
+    flat283 = ST.migrate({obj:'obj-credit', check:{d_status:'приостановлен'}});
+    mig283 = ST.migrate({obj:'obj-credit', check:{d_status:['приостановлен']}, note:'статус «приостановлен» у «Кредитов»'});
+    ST.enqueue('obj-credit', 'КД-2024/117', 'распоряжение', 'приостановлен договор');
+    ST.run(TODAY);
+    back283 = ST.rowsAt('obj-credit', TODAY).find(r => r.ref === 'КД-2024/117') || null;
+  } finally { c283.h.status = JSON.parse(keep283); }
+  ST.seed();
+  ok(283, miss283 === null && rest283 === all283 - 1 &&
+        /stat_row_credit\.d_status = «приостановлен»/.test(log283) &&
+        wrong283.ok === false && flat283.ok === false &&
+        mig283.ok === true && (mig283.widened || []).join() === 'd_status + «приостановлен»' &&
+        !!back283 && back283.dims['d-status'] === 'приостановлен',
+    `значение вне словаря отбивается: КД-2024/117 со статусом «приостановлен» ночью ${TODAY} строки не получил (${miss283 ? 'строка есть' : 'строки нет'}), прочие легли — ${rest283} из ${all283}; журнал сверки релиза: «${log283.slice(0, 120)}…». Миграция, поставившая список на чужую колонку, — ${wrong283.ok ? 'принята' : 'отказ'}, список не списком — ${flat283.ok ? 'принят' : 'отказ'}; миграция CHECK ${(mig283.widened || []).join(', ') || '—'} — и та же работа строку пишет: «${back283 ? back283.dims['d-status'] : '—'}» (ИС-57, ADR-0241 §2, СС-195)`);
 })();
 
 /* ---- отчёт ---- */
