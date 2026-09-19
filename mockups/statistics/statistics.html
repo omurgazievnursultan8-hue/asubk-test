@@ -989,7 +989,7 @@
   заданий» (ТЗ №21, №22) — до владельца, отдающего множество заданий. Все четыре заводятся
   строками реестра, и все четыре названы заказчику письмом 29.08.2026, а не приёмкой.
 
-  SMOKE 2026-09-18 · 279/279 PASS
+  SMOKE 2026-09-18 · 280/280 PASS
      PASS  #1  объектов 11, показателей 229 — 155 своих и 74 сомовых сторон, и у каждой стороны валютная запись на месте; разрезов 87, всего записей реестра 316. Счёт назван точным числом, а не «не меньше 85»: неравенство пережило бы молча потерю сотни записей, а потеря близнеца — это денежная величина, которую нельзя сложить по портфелю. Без объявленного источника 0, с формулой 0 (сомовая сторона — не формула, а вторая колонка той же величины), с функцией вне списка 0 — ИС-6, ИС-7, ИС-44
      PASS  #2  заёмщик — самостоятельный объект со своими показателями, а не свёртка кредита (ИС-19)
      PASS  #3  форма строки закрыта: obj · ref · date · part · dims · lbls · inds · fx · now · srcs · fixed · by — долей и дельт нет (ИС-15). Полей двенадцать — десятое, «part», стоит в адресе (СС-170), одиннадцатое, «fx», курс строки, и двенадцатое, «lbls», подписи разрезов на дату, — в ряду значений (ИС-56, ИС-57); подписей у строки 10, и каждая — у разреза, чей ключ лежит в dims: рядов четыре и вместе они покрывают форму без остатка, не пересекаясь ни одним полем: АДРЕС (obj · ref · date · part) · ЗНАЧЕНИЯ (dims · lbls · inds · fx) · ПРОИСХОЖДЕНИЕ (now) · СУДЬБА (srcs · fixed · by). Критерий различения на четвёртом ряду — форма: ключей в ряду значений 81 и каждый — запись реестра со значением, а ряд ПРОИСХОЖДЕНИЯ — массив из 11 имён записей реестра без единого значения, и каждое называет величину той же строки (11): «текущими» собраны они, прочие — «на дату» (ИС-39, ADR-0242). Ряд судьбы стоит особняком по-прежнему: ключей 2 (классификация, ядро), и не запись реестра ни один — это имена СОСЕДЕЙ (ИС-42, ADR-0208 §2). Сомовая величина вошла в строку колонкой внутри inds под именем записи реестра «Остаток основного долга в сомах» (12631020.96 сом), а не полем формы: поле нельзя назвать в отчёте и прекратить датой, запись — можно (ИС-44, ADR-0214 §2). Форму держит каждая строка: из 2491 хранимых (строк событий 30) и 29 действующих ответов событий на 21.08 вне формы 0
@@ -1269,6 +1269,7 @@
      PASS  #297  у записи одна открытая задача (ADR-0245 §4): «БК-2021» поставлена досчётом 22.08 и распоряжением 23.08 — открытых 1, вид manual, пересчёт с 2026-08-22, закрыть не раньше 2026-08-23, поводы досчёт + распоряжение; ночь 22.08 оставила её открытой (1), ночь 23.08 закрыла (0). Виды задач — retro,manual,reopen. Молчание ядра дало 23 неполных строк, задач дозаполнения 0: неполные записи (23) зовёт в ночь 23.08 сама строка — все в источнике «очередь» (true) (ADR-0208 §5 уточнён)
      PASS  #298  журнал перезаписи — имена колонок и причина, значений нет (ADR-0245 §4, ADR-0215 §6): повторная ночь после молчания ядра дописала 23 строк — записей «backfill» 23; внеплановый пересчёт после смены состояния «БК-2021» — «manual: d-pstate». Записей о днях закрытого месяца 0: при закрытии они уходят, первые числа остаются
      PASS  #299  ответ соседа — ключ и самая ранняя дата действия (ADR-0245 §3, ИС-49 сужен): смена куратора «КД-2024/117» с 10.08, названная 22.08, переписала строки с 11.08 (было «Бекова Н.», стало «Касымов Т.»), строка 10.08 прежняя («Бекова Н.»); retro-пересчётов по датам 52, записей журнала «retro» 11. Ночь молчания «кураторства» ответов не забрала (ждут 2). Дата в закрытом июне — retro с первого открытого дня 2026-07-02. Задач открыто 0: ночь 23.08 закрыла обе
+     PASS  #300  счётчики прогона — по способу хранения (ADR-0245 §2): у 3 событий «скопировано» не относится, new_rows/corr_rows названы; у 8 состояний — наоборот; markers у всех (true). Потерянная строка программы — сверка «failed»: obj-program: строк на 2026-08-22 — 4, написано 5; срез на 2026-08-22 — «срез на 22.08.2026 не опубликован: прогон «плановый» разошёл…»; повторный прогон «done», срез отвечает
 -->
 <style>
 :root{
@@ -5094,11 +5095,18 @@ function lastRowBefore(st, objId, ref, dateISO){
    строки закрыта десятью полями (ИС-15, СС-170). У состояния список пуст — его ночь и есть
    дата строки. */
 function newTally(){ return {n:0, kept:0, unborn:0, noborn:0, same:0, born:0, have:0,
-                             partial:0, skip:0, copied:0, written:0, rewrote:[], filled:[], created:[]}; }
+                             partial:0, skip:0, copied:0, written:0, corr:0, marks:0,
+                             rewrote:[], filled:[], created:[]}; }
+/* СЧЁТЧИКИ ПО СПОСОБУ ХРАНЕНИЯ (ADR-0245 §2, СС-209): «скопировано» — только у состояний,
+   `new_rows` (рождённые строки событий) и `corr_rows` (поправки) — только у событий, `markers`
+   — у всех. «Не относится» — `null`, а не ноль: ноль у события значил бы «копий не было», а
+   копий у события не бывает вовсе. */
 function partOf(o, t){
-  return {obj: o.id, name: o.name, n: t.n, kept: t.kept, unborn: t.unborn, noborn: t.noborn,
+  const store = storageOf(o.id), ev = store === 'event_delta' || store === 'event_full';
+  return {obj: o.id, name: o.name, store, n: t.n, kept: t.kept, unborn: t.unborn, noborn: t.noborn,
           same: t.same, born: t.born, have: t.have, partial: t.partial, skip: t.skip,
-          copied: t.copied, written: t.written, rewrote: t.rewrote, filled: t.filled,
+          copied: ev ? null : t.copied, written: t.written, rewrote: t.rewrote, filled: t.filled,
+          new_rows: ev ? t.born : null, corr_rows: ev ? t.corr : null, markers: t.marks,
           created: t.created};
 }
 /* До рождения строки НЕТ — и это третье состояние, не «пусто» и не «ноль» (ИС-33).
@@ -5891,8 +5899,8 @@ function deltaNight(st, o, item, D, cand, silent, t){
   if(stale.length) t.rewrote.push({ref: item.id, fields: diff});
   unmarkCorrected(st, o, item.id, null, D);
   let w = 0;
-  fresh.forEach(r => { w += put(r); });
-  if(fresh.length) markCorrected(st, o, item.id, null, orig.date, 'original', moved, D, D);
+  fresh.forEach(r => { const x = put(r); w += x; t.corr += x; });
+  if(fresh.length){ markCorrected(st, o, item.id, null, orig.date, 'original', moved, D, D); t.marks++; }
   return w;
 }
 /* МАРКЕР «ИСПРАВЛЕНО ПОЗЖЕ» — одним местом у обоих способов событий (ADR-0239 §5, ADR-0148
@@ -6118,7 +6126,8 @@ function fullNight(st, o, item, D, cand, silent, t){
     if(x.born){ t.born++; t.created.push({ref: item.id, target: x.tgt}); }
     if(x.sp && x.sp.rewrote.length) t.rewrote.push({ref: item.id, target: x.tgt, fields: x.sp.rewrote});
     if(x.sp && x.sp.filled.length)  t.filled.push({ref: item.id, target: x.tgt, fields: x.sp.filled});
-    if(x.mark) markCorrected(st, o, item.id, x.tgt, x.mark.slice, null, x.mark.changed, x.put.date, D);
+    if(x.mark){ markCorrected(st, o, item.id, x.tgt, x.mark.slice, null, x.mark.changed, x.put.date, D);
+                t.marks++; t.corr++; }
   });
   /* Отбитая запись — «не тронуто» один раз на меру, как и отбитый набор; работа из очереди
      снимается только с легшим набором. */
@@ -6139,6 +6148,43 @@ function eventAt(st, objId, D){
       .map(tgt => fullAt(st, objId, ref, tgt, D))));
   return null;
 }
+/* СВЕРКА В КОНЦЕ ПРОГОНА (ADR-0245 §2, СС-209). Счётчики — обещание, а не отчёт: форма — по
+   способу хранения; у события рождённых и поправок не больше написанного; у состояния строк
+   на дату ровно столько, сколько прогон назвал написанными (строка на каждую дату, ИС-54).
+   Не сошлось — прогон `failed`, и дата не публикуется: читатель получает отказ с причиной, а
+   не число, которое никто не удостоверил. Защёлка сюда не ходит: её доспрос пишет не все
+   строки даты, и тождество у неё своё (#63). */
+function reconcileRun(st, i){
+  const r = st.runs[i];
+  if(!r || !r.parts) return null;
+  const bad = [];
+  r.parts.forEach(p => {
+    const ev = p.store === 'event_delta' || p.store === 'event_full';
+    if(typeof p.markers !== 'number') bad.push(p.obj+': markers не назван');
+    if(ev){
+      if(p.copied !== null || p.new_rows == null || p.corr_rows == null)
+        bad.push(p.obj+': у события «скопировано» не относится, new_rows и corr_rows обязательны');
+      else if(p.new_rows + p.corr_rows > p.written)
+        bad.push(p.obj+': рождённых и поправок '+(p.new_rows + p.corr_rows)+' при написанных '+p.written);
+      return;
+    }
+    if(p.new_rows !== null || p.corr_rows !== null) bad.push(p.obj+': у состояния new_rows и corr_rows не относятся');
+    if(p.store !== 'state') return;
+    /* Тождество состояния (СС-164): написанное — пересчитанное, «без изменений» и копии. */
+    if(p.written !== p.n + p.same + p.copied)
+      bad.push(p.obj+': написано '+p.written+' ≠ '+p.n+' + '+p.same+' + '+p.copied);
+    const on = st.rows.filter(x => x.obj === p.obj && x.date === r.date && !x.fixed).length;
+    if(on !== p.written) bad.push(p.obj+': строк на '+r.date+' — '+on+', написано '+p.written);
+  });
+  r.status = bad.length ? 'failed' : 'done';
+  r.failed = bad;
+  return r.status;
+}
+ST.reconcileRun = i => {
+  const k = i == null ? ST.state.runs.length - 1 : i;
+  const s = reconcileRun(ST.state, k);
+  return {ok: s === 'done', status: s, failed: clone((ST.state.runs[k] || {}).failed || [])};
+};
 function doRun(st, dateISO, kind, actor, reason, silent, how){
   how = how || {};
   let written = 0;
@@ -6258,6 +6304,7 @@ function doRun(st, dateISO, kind, actor, reason, silent, how){
        прогона (ADR-0221, последствия). Без него «кандидатов не было» неотличимо от
        «опрос не состоялся», а ночь полного обхода — от ночи, когда обходить было некого. */
     cand: candSummary(cand)});
+  reconcileRun(st, st.runs.length - 1);
   /* `T` двигает ТОЛЬКО ночной прогон (ADR-0245 §2): догон и повторное открытие удостоверяют
      прошлую дату, и сдвинь они `T` — следующая ночь спросила бы соседа с уже съеденной даты.
      У ответившего `T` двигается только вперёд, молчавшему остаётся прежним (ADR-0221 §2):
@@ -7374,7 +7421,8 @@ ST.run = (dateISO, opts) => {
       (kept ? ' · зафиксировано, пропущено — '+kept : '')+' · скопировано — '+copied+
       (caught.length ? ' · догнано — '+caught.map(fmt).join(', ') : '')+
       (cu.noCalendar.length ? ' · вне календаря, пропуск — '+cu.noCalendar.map(fmt).join(', ') : '')+candLine);
-  return {ok:true, date: dateISO, written, kind, same, kept, born, rewrote, filled, partial,
+  return {ok: rec.status !== 'failed', status: rec.status, failed: clone(rec.failed || []),
+          date: dateISO, written, kind, same, kept, born, rewrote, filled, partial,
           skip, copied, caught, noCalendar: cu.noCalendar, cand: clone(c), fed: fed.n, retro: retro.length};
 };
 /* Догон отдельной дверью: ночь начинается с него, и спросить «что догнано и тронут ли T»
@@ -7661,6 +7709,10 @@ ST.eventFlow = (objId, indId, from, to, byDim) => {
 function askDates(st, objId){ return datesOf(st, objId); }
 ST.askDates = objId => askDates(ST.state, objId || ST.state.q.obj);
 function dateGate(st, objId, requested){
+  /* Дата, прогон которой разошёлся счётчиками, не публикуется (ADR-0245 §2, СС-209). */
+  const fr = st.runs.filter(r => r.date === requested && r.status).slice(-1)[0];
+  if(fr && fr.status === 'failed') return 'срез на '+fmt(requested)+' не опубликован: прогон «'+fr.kind+
+    '» разошёлся счётчиками — '+fr.failed.join('; ')+'. Дата вернётся с прогоном, у которого счётчики сойдутся (ADR-0245 §2)';
   const o = OBJ(objId);
   const ds = askDates(st, objId);
   if(!ds.length) return 'прогон ни разу не писал строк объекта «'+(o ? o.name : objId)+

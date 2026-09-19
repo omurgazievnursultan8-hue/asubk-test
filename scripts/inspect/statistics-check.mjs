@@ -131,6 +131,8 @@
 // блок волны 23 З-22c — ответ соседа ключом и датой действия (ADR-0245 §3): дата в открытом
 // месяце — retro с её следующего дня, в закрытом — с первого открытого; ответ молчавшего
 // соседа ждёт; retro пишет журнал перезаписи с причиной «retro».
+// блок волны 23 З-22d — счётчики прогона (ADR-0245 §2): «скопировано» только у состояний,
+// new_rows/corr_rows только у событий, markers у всех; не сошлось — failed, дата не публикуется.
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -8485,6 +8487,36 @@ const FIZ = fizSchema();
         r299.log.length > 0 && r299.log.every(e => e.changed.indexOf('d-curator') >= 0 && e.date >= '2026-08-11') &&
         r299.open === 0 && t117.from === '2026-08-11' && t210.from === '2026-07-02' && f210.closed === true,
     `ответ соседа — ключ и самая ранняя дата действия (ADR-0245 §3, ИС-49 сужен): смена куратора «КД-2024/117» с 10.08, названная 22.08, переписала строки с 11.08 (было «${r299.before.d11}», стало «${r299.after.d11}»), строка 10.08 прежняя («${r299.after.d10}»); retro-пересчётов по датам ${r299.retro.length}, записей журнала «retro» ${r299.log.length}. Ночь молчания «кураторства» ответов не забрала (ждут ${r299.waiting}). Дата в закрытом июне — retro с первого открытого дня ${t210.from}. Задач открыто ${r299.open}: ночь 23.08 закрыла обе`);
+})();
+
+/* ===== Волна 23 · З-22d — счётчики прогона и сверка (ADR-0245 §2, СС-209) ===== */
+(() => {
+  /* #300 — счётчики по способу хранения и сверка в конце прогона. Потерянная строка (её
+     изображает удаление после прогона) ловится сверкой: прогон failed, дата не публикуется,
+     повторный прогон возвращает её. */
+  ST.seed();
+  const run300 = ST.run(TODAY);
+  const rec300 = ST.state.runs[ST.state.runs.length - 1];
+  /* Статус снимается сразу: сверка заново ниже пишет в ту же запись журнала. */
+  const recSt300 = rec300.status;
+  const ev300 = rec300.parts.filter(p => p.store === 'event_delta' || p.store === 'event_full');
+  const st300 = rec300.parts.filter(p => p.store === 'state');
+  const shape300 = ev300.every(p => p.copied === null && typeof p.new_rows === 'number' && typeof p.corr_rows === 'number') &&
+    st300.every(p => p.new_rows === null && p.corr_rows === null && typeof p.copied === 'number') &&
+    rec300.parts.every(p => typeof p.markers === 'number');
+  const q300 = obj => ST.statSlice({obj, dims: [], inds: ['a-count'], date: TODAY});
+  const before300 = q300('obj-credit');
+  const i300 = ST.state.rows.findIndex(r => r.obj === 'obj-program' && r.date === TODAY);
+  ST.state.rows.splice(i300, 1);
+  const rc300 = ST.reconcileRun();
+  const cut300 = q300('obj-credit');
+  const again300 = ST.run(TODAY);
+  const back300 = q300('obj-credit');
+  ST.seed();
+  ok(300, run300.ok && recSt300 === 'done' && shape300 && ev300.length > 0 && st300.length > 0 &&
+        before300.ok && !rc300.ok && rc300.status === 'failed' && rc300.failed.some(x => has(x, 'obj-program')) &&
+        !cut300.ok && has(cut300.why, 'не опубликован') && again300.ok && again300.status === 'done' && back300.ok,
+    `счётчики прогона — по способу хранения (ADR-0245 §2): у ${ev300.length} событий «скопировано» не относится, new_rows/corr_rows названы; у ${st300.length} состояний — наоборот; markers у всех (${shape300}). Потерянная строка программы — сверка «${rc300.status}»: ${(rc300.failed || []).join('; ')}; срез на ${TODAY} — «${String(cut300.why || 'ответил').slice(0, 60)}…»; повторный прогон «${again300.status}», срез ${back300.ok ? 'отвечает' : 'отказ'}`);
 })();
 
 /* ---- отчёт ---- */
