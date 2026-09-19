@@ -92,15 +92,29 @@ as frozen legacy and skipped.
 # Statistics fields page
 
 `build_stat_fields.py` renders `mockups/statistics/statistics-fields.html` — a searchable
-reference of every column in the 11 `stat_row_*` tables — from
-`mockups/statistics/ASUBK-statistika-fizschema.md`. The page shell lives next to the script
-in `build_stat_fields.tpl.html`; the data is injected as JSON. Stdlib only.
+developer reference: how the statistics module stores data, then every column of the 11
+`stat_row_*` tables and the 18 service tables, explained field by field. Two sources:
+
+- `mockups/statistics/ASUBK-statistika-fizschema.md` — the columns, types and sources (master);
+- `mockups/statistics/ASUBK-statistika-polya.md` — the dictionary: §0 storage logic, then one
+  section per table with fields «что это · зачем · опора».
+
+The page shell lives next to the script in `build_stat_fields.tpl.html`; the data is injected
+as JSON. Stdlib only.
 
 ```bash
-python3 scripts/build_stat_fields.py                           # default paths
-python3 scripts/build_stat_fields.py <fizschema.md> <out.html>
+python3 scripts/build_stat_fields.py                                   # default paths
+python3 scripts/build_stat_fields.py <fizschema.md> <polya.md> <out.html>
 ```
 
-Rerun it after every edit to the physical schema. Column counts are checked against the
-§0.1 summary (per table: service / dimensions / indicators / total, plus the grand total);
-on a mismatch it fails and writes nothing. The page itself is never hand-edited.
+Rerun it after every edit to either file. On any mismatch it fails and writes nothing:
+
+- column counts against the fizschema §0.1 summary (per table and grand total);
+- every table has a dictionary section; every schema column sits in exactly one field, every
+  field column exists in the schema, and a field never spans two schema groups;
+- the ⚑ mark («the neighbour doesn't have it yet») of a schema row passes to the field that
+  takes the whole row. When a row is split across fields, put ⚑ in the text of the fields it
+  applies to; a row ⚑ that reaches no field, or a field ⚑ with no mark in the schema, fails.
+
+So a new schema column needs a dictionary line before the page builds. The page itself is
+never hand-edited.

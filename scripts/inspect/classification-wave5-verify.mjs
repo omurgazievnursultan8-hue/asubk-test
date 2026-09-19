@@ -153,7 +153,7 @@ await page.waitForTimeout(250);
     const tr = Array.from(document.querySelectorAll('tr')).find(t => t.textContent.includes('КД-2026/012'));
     return tr ? tr.textContent.replace(/\s+/g, ' ') : null;
   });
-  say('КФ-Д15', !!row && /значения нет/.test(row) && /Реестр фактов кредита/.test(row) && /засчитан/.test(row),
+  say('КФ-Д15', !!row && /нет данных/.test(row) && /Реестр фактов кредита/.test(row) && /засчитан/.test(row),
     `строка КД-2026/012: «${(row || '').slice(0, 130)}…»`);
 }
 
