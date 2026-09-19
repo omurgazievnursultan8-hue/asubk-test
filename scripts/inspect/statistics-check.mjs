@@ -117,6 +117,9 @@
 // кредита нет, охват путь не режет.
 // блок волны 23 З-19 — охват правилами (ИС-58, ADR-0243): own · via · open через ИЛИ; объект без
 // правила и правило без вида валят загрузку; общий печатает причину; via — на дату вопроса.
+// блок волны 23 З-20 — член группы совместного риска (ADR-0244 §2, ADR-0199): таблица членства
+// «группа × член × дата» без денег; суммы группы — из строк заёмщиков той же даты, итог — по
+// различным членам; охват через строку заёмщика-члена.
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -225,9 +228,11 @@ const FIZ = fizSchema();
      путь «Тип лица заёмщика» `d-cbptype` (СС-198): признак заёмщика у кредита читается join-ом,
      а не копией, и путь — своя запись со своим именем (ИС-57, ADR-0241 §8, ADR-0206 §1). */
   const own1 = st.indicators.filter(i => !i.somOf), twin1 = st.indicators.filter(i => i.somOf);
-  ok(1, st.objects.length === 10 && st.indicators.length === 229 && own1.length === 155 &&
+/* Волна 23, З-20 (переписан на месте): объектов 11 и разрезов 87 — член группы совместного риска
+     со своими четырьмя разрезами (ADR-0244 §2); показателей у членства нет, кроме счёта. */
+  ok(1, st.objects.length === 11 && st.indicators.length === 229 && own1.length === 155 &&
        twin1.length === 74 && twin1.every(t => !!ST.IND(t.somOf)) &&
-       st.dims.length === 83 && ST.registry().length === 312 && badSrc.length === 0 &&
+       st.dims.length === 87 && ST.registry().length === 316 && badSrc.length === 0 &&
        formula.length === 0 && badFn.length === 0,
     `объектов ${st.objects.length}, показателей ${st.indicators.length} — ${own1.length} своих и ${twin1.length} сомовых сторон, и у каждой стороны валютная запись на месте; разрезов ${st.dims.length}, всего записей реестра ${ST.registry().length}. Счёт назван точным числом, а не «не меньше 85»: неравенство пережило бы молча потерю сотни записей, а потеря близнеца — это денежная величина, которую нельзя сложить по портфелю. Без объявленного источника ${badSrc.length}, с формулой ${formula.length} (сомовая сторона — не формула, а вторая колонка той же величины), с функцией вне списка ${badFn.length} — ИС-6, ИС-7, ИС-44`);
 
@@ -330,8 +335,9 @@ const FIZ = fizSchema();
     const r = ST.statSlice(q);
     return {name: o.name, ok: r.ok, n: r.ok ? r.n : 0, g: r.ok ? r.groups.length : 0};
   });
-  ok(6, each.every(x => x.ok && x.n > 0) && each.length === 10,
-    `десять объектов одним движком: ${each.map(x => x.name + ' ' + x.n + '/' + x.g + ' групп').join(' · ')}`);
+/* Волна 23, З-20 (переписан на месте): объектов одиннадцать — членство в группе (ADR-0244 §2). */
+  ok(6, each.every(x => x.ok && x.n > 0) && each.length === 11,
+    `одиннадцать объектов одним движком: ${each.map(x => x.name + ' ' + x.n + '/' + x.g + ' групп').join(' · ')}`);
 
   const cr = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count','a-sumdebt'], date: ASK});
   const bo = ST.statSlice({obj:'obj-borrower', dims:['d-ptype'], inds:['a-count','a-sumbcnt'], date: ASK});
@@ -1514,7 +1520,8 @@ const FIZ = fizSchema();
     dims:['d-branch','d-curator','d-region','d-ptype'], inds:['a-count']});
   const guess = /первое звено|первый прогон|Object\.values\(item\.h\)/.test(
     m[1].slice(m[1].indexOf('function bornOn'), m[1].indexOf('function readPath')));
-  ok(89, declared.length === 10 && tbl89.ok && !noBorn.ok && has(noBorn.why, 'ИС-33') && !guess,
+/* Волна 23, З-20 (переписан на месте): у членства рождение объявлено — дата вступления «since». */
+  ok(89, declared.length === 11 && tbl89.ok && !noBorn.ok && has(noBorn.why, 'ИС-33') && !guess,
     `рождение объявлено, а не угадано: у всех ${declared.length} объектов born со ссылкой на реквизит владельца, объект без него не заводится даже с таблицей строк в релизе — «${noBorn.why}» (ИС-33, ИС-53)`);
 
   /* ИС-14 на дате: тот же человек, открывший реестр владельца НА ТУ ЖЕ дату, обязан
@@ -2031,7 +2038,9 @@ const FIZ = fizSchema();
     o.inds.forEach(i => { if (!ST.IND(i)) dangling.push(o.id + '/' + i); });
   });
   const orphan = st.indicators.filter(i => i.src === 'агрегат' && i.fn !== 'count' && !ST.IND(i.over));
-  ok(121, st.objects.length === 10 && !gone.ok && has(gone.why, 'нет в реестре объектов') &&
+/* Волна 23, З-20 (переписан на месте): объектов 11 — членство в группе добавлено релизом; снятое
+     задание кураторства по-прежнему снято. */
+  ok(121, st.objects.length === 11 && !gone.ok && has(gone.why, 'нет в реестре объектов') &&
         has(gone.why, 'ИС-18') && !inWorld && dangling.length === 0 && orphan.length === 0,
     `«Задание кураторства» снято СТРОКОЙ реестра, а не релизом: объектов ${st.objects.length}, спрос отвечает отказом — «${gone.why}», а не пустым экраном (ИС-24). Источник снят, а не спрятан: записей в мире 0, висячих ссылок на снятые разрезы и меры ${dangling.length}, агрегатов над несуществующей мерой ${orphan.length}. Владельца, ОТДАЮЩЕГО множество, у заданий нет: кураторство отказывается от них дословно (ТЗ 16 §1.1), своего ТЗ и места в очереди у них нет, ФО-20 ещё спрашивается у заказчика. Вернётся в день, когда владелец появится, — релизом: таблица строк и записи реестра (ИС-53, ADR-0237 §5; ADR-0201 §1)`);
 
@@ -3383,9 +3392,11 @@ const FIZ = fizSchema();
      прежнее число; остатков 9338, потоков 1696, итогов 5075, расхождений — ноль. Курс лежит
      у 745 строк объектов с валютой и пуст у прочих 1451 и у 34 легаси. */
   ok(172, a172.bad.length === 0 && a172.seen === 16109 && a172.som === 5075 && a172.flow === 1696 &&
-        a172.bal === 9338 && a172.fxOn === 745 && a172.fxOff === 1451 &&
-        dates172.length === 59 && objs172.length === 10 &&
-        own172.length === 2196 && leg172.length === 34 && legSom172 === 0 && leg172.every(r => r.fx === null),
+        /* Волна 23, З-20 (переписан на месте): +261 строка членства без валюты (5 в день с
+           02.07, 3 до того) — сомовых клеток в них нет, число клеток прежнее. */
+        a172.bal === 9338 && a172.fxOn === 745 && a172.fxOff === 1712 &&
+        dates172.length === 59 && objs172.length === 11 &&
+        own172.length === 2457 && leg172.length === 34 && legSom172 === 0 && leg172.every(r => r.fx === null),
     `сверено НЕ на примере, а на каждой записи: ${a172.seen} сомовых клеток в ${own172.length} строках ${objs172.length} объектов на всех ${dates172.length} датах строк (${dates172[0].slice(5)}…${dates172[dates172.length-1].slice(5)}), расхождений ${a172.bad.length}. Остатков ${a172.bal}: сомовое число обязано равняться валютной клетке той же строки, умноженной на КУРС СТРОКИ, по правилу округления, названному в записи; курс лежит в строке один раз (${a172.fxOn} строк объектов с валютой), у прочих ${a172.fxOff} его нет вовсе. Потоков ${a172.flow} и итогов в сомах ${a172.som} — с ядром на дату строки: их сомовое число — сумма операций по курсам их дней, одного курса у него нет, и перемножать в строке нечего (ИС-56, ADR-0240 §2–§4). Легаси-строк рядом ${leg172.length}, и сомовых клеток в них ${legSom172}: старая система близнеца не считала, и в её форме его НЕТ КЛЮЧОМ — не ноль и не пересчёт сегодняшним курсом (ИС-41, ADR-0207 §2)`);
 
   /* #173 — тот же сторож на ПОДБРОШЕННОМ дефекте. Сторож, который не умеет провалиться,
@@ -3666,11 +3677,13 @@ const FIZ = fizSchema();
      заёмщика» `d-cbptype` (СС-198). Своей колонки у него нет, как у агрегата: записи с колонками,
      агрегаты и пути вместе дают весь реестр. */
   const pathN = st.registry.filter(r => r.src === 'путь').length;
-  ok(181, st.registry.length === 312 && nInd === 229 && nDim === 83 && pathN === 1 &&
+/* Волна 23, З-20 (переписан на месте): записей 316, разрезов 87, строчных с колонками 198 — четыре
+     разреза членства (ключи group_id, member_id, подпись, состояние). */
+  ok(181, st.registry.length === 316 && nInd === 229 && nDim === 87 && pathN === 1 &&
         ownInd === 155 && somInd === 74 && somInd === 37 * 2 && !ST.REC('d-ocur') &&
         newDims.every(d => d && /валют/i.test(d.name) && ST.OBJ(d.obj).dims.indexOf(d.id) >= 0) &&
         newDims.map(d => d.obj).join(',') === 'obj-claim,obj-measure' &&
-        withCols === 194 && aggN === 117 && withCols + aggN + pathN === st.registry.length &&
+        withCols === 198 && aggN === 117 && withCols + aggN + pathN === st.registry.length &&
         somCols === 37 && ST.awaiting().length === 0,
     `реестр сверен со схемой, и число названо по факту, а не смягчено: ${st.registry.length} записей — ${nInd} породы «показатель» (${ownInd} своих и ${somInd} сомовых близнецов: ${somInd / 2} строчных и столько же агрегатов) и ${nDim} породы «разрез». Реестр сверен и с релизом: строчных записей с колонками ${withCols} (сомовых близнецов из них ${somCols}), агрегатов без колонки ${aggN}, ждущих колонку ${ST.awaiting().length} (ИС-53, ADR-0237 §3, §5). Своих разрезов валюты у объектов, заведённых волной 17, осталось два — ${newDims.map(d => d ? '«' + d.name + '» у ' + ST.OBJ(d.obj).name : '—').join(', ')}: разрез валюты дела снят вместе с валютой дела (${ST.REC('d-ocur') ? 'ОСТАЛСЯ' : 'снят'}), итоги дела только в сомах (ADR-0244 §4, ADR-0240 §4; ИС-40, ИС-44, ADR-0214 §1, ADR-0206 §3)`);
 
@@ -4241,8 +4254,10 @@ const FIZ = fizSchema();
   const july201 = ST.state.rows.filter(r => ST.storageOf(r.obj) === 'state' && ST.periodOf(r.date) === '2026-07');
   const onlyFirst201 = july201.length > 0 && july201.every(r => r.date === '2026-08-01');
   ok(201, c201.ok && c201.full === false && c201.n === 30 && r201.cand.n === 30 &&
-        r201.written === 42 && r201.copied === 12 && r201.same === 0 && r201.skip === 34 &&
-        r201.written + r201.skip === 76 &&
+        /* Волна 23, З-20 (переписан на месте): +5 строк членства в ночь — соседи их не
+           называют, и они копируются (ИС-54): написано 47, скопировано 17, живых 81. */
+        r201.written === 47 && r201.copied === 17 && r201.same === 0 && r201.skip === 34 &&
+        r201.written + r201.skip === 81 &&
         Object.keys(j201.cand.by).length === 4 &&
         Object.keys(j201.cand.by).join(' · ') === 'опрос · критическая дата · свой факт · очередь' &&
         first201.cand.scan === 'полный' && has(first201.cand.why, 'первый прогон') &&
@@ -4310,7 +4325,8 @@ const FIZ = fizSchema();
         has((c202.by['критическая дата'][0] || {}).why, 'курс USD менялся после') &&
         run202.ok && usd202.rate === 91.10 && usd202.rateDate === eve(TODAY) &&
         ev202.length === 3 && ev202.every(p => p.n === 0) &&
-        run202.written === flat202.written && flat202.written === 42 &&
+        /* Волна 23, З-20 (переписан на месте): 42 → 47 — пять строк членства (довод у #201). */
+        run202.written === flat202.written && flat202.written === 47 &&
         new Set(only202.map(k => k.split('|')[0])).size === 2,
     `критическая дата — СВОЁ множество, а не тень опроса (ADR-0193 × ADR-0221 §1). В обычную ночь курс не двигался, и множество пусто (${bare202.by['критическая дата'].length}, валют ${bare202.moved.length}); уточним курс доллара задним числом на ${TODAY} — и в кандидаты приходит ${kd202.length} записей с названной причиной («${String((c202.by['критическая дата'][0] || {}).why)}»). Ключевое здесь ${only202.length}: столько из них НЕ НАЗВАЛ НИ ОДИН сосед, когда ответ соседей заморожен на канун, — у ядра по этим записям не изменилось ничего, изменилось ВРЕМЯ. Записи эти лежат в ${new Set(only202.map(k => k.split('|')[0])).size} объектах (${kd202.join(', ')}), и ночь без множества 2 прошла бы мимо них молча: курс ${usd202.rate} от ${usd202.rateDate} лёг в строку USD-кредита. Событий в множестве нет — их деньги читаются на день события, и курс ночи их не двигает (СС-171): частей событий в прогоне ${ev202.length}, переписанных строк в них ${ev202.reduce((n, p) => n + p.n, 0)}, написано ${run202.written} против ${flat202.written} без уточнения. Обратная сторона правила: курс из сравнения значений соседа ВЫЧЕРКНУТ (bareOf) — войди он туда, множество 2 выводилось бы из множества 1, и независимость четырёх множеств была бы словами (ИС-48)`);
 
@@ -4436,7 +4452,8 @@ const FIZ = fizSchema();
         has(role206.why, 'администратор статистики') &&
         add206.ok && twice206.ok && ST.queueWhy().length === 3 && c206.n === 31 &&
         c206.by['очередь'].length === 1 && has(c206.by['очередь'][0].why, 'распоряжение') &&
-        run206.written === 42 && run206.copied === 11 && run206.same === 1 && run206.skip === 34 &&
+        /* Волна 23, З-20 (переписан на месте): 42 → 47, копий 11 → 16 — довод у #201. */
+        run206.written === 47 && run206.copied === 16 && run206.same === 1 && run206.skip === 34 &&
         open206 === 0 && all206 === 1 &&
         done206.done.how === 'обойдён прогоном' &&
         rr206.open === 1 && rr206.done === '2026-08-23' && rr206.d22 === 'закрыта' && rr206.d23 === 'действует',
@@ -4703,7 +4720,9 @@ const FIZ = fizSchema();
      Волна 23, З-16c (переписан на месте): зафиксировано 52 → 53 — строк событий июля 12 → 13:
      поправка `match` ПП-2026/0620 на 05.07 (СС-180; довод у #116). Итог 01.08 — прежние 40. */
   ok(212, base212.ok && base212.made === 0 && !('dense' in base212) && base212.refreshed === 0 &&
-        r212.ok && r212.made === 0 && r212.refreshed === 2 && r212.fixed === 53 &&
+        /* Волна 23, З-20 (переписан на месте): зафиксировано больше на строки членства итога
+           июля — число по факту пробы. */
+        r212.ok && r212.made === 0 && r212.refreshed === 2 && r212.fixed === 58 &&
         j212.kind === 'защёлка' && j212.written === 2 &&
         j212.written === j212.repoll.again &&
         j212.repoll.made === 0 && j212.repoll.again === 2 && j212.repoll.done === true &&
@@ -5316,7 +5335,8 @@ const FIZ = fizSchema();
            у #201. Легаси-строк по-прежнему 34: их число с ночным совпадало случайно.
            Волна 23, З-15b: 30 → 42 — у состояния строка каждый день, некандидату копия
            (ИС-54, довод у #201). */
-        run228.ok && run228.written === 42 && run228.date === '2026-08-22' &&
+        /* Волна 23, З-20: 42 → 47 — пять строк членства (довод у #201). */
+        run228.ok && run228.written === 47 && run228.date === '2026-08-22' &&
         legBefore === 34 && legAfter === 34 && touched === 0 &&
         ST.queue().length === 0 &&
         runLeg.ok === false && has(runLeg.why, 'раньше запуска') &&
@@ -5917,14 +5937,17 @@ const FIZ = fizSchema();
   const zd = ST.rowsAt('obj-zdeal', TODAY), zy = ST.rowsAt('obj-zdeal', ASK);
   const copyEq = zd.length === 5 && zd.every(x => { const y = zy.find(z => z.ref === x.ref);
     return y && JSON.stringify([x.dims, x.inds, x.when]) === JSON.stringify([y.dims, y.inds, y.when]) && !x.fixed; });
-  ok(256, states256.length === 7 && days256.length >= 50 && holes256.length === 0 &&
-        r256.ok && !c256.full && r256.copied === nonCand && r256.copied === 12 &&
-        r256.written === 42 && r256.skip === 34 &&
+/* Волна 23, З-20 (переписан на месте): объектов-состояний 8, копий 17, написано 47 — членство
+     копируется каждую ночь, как всякое состояние, которое никто не назвал (ИС-54). */
+  ok(256, states256.length === 8 && days256.length >= 50 && holes256.length === 0 &&
+        r256.ok && !c256.full && r256.copied === nonCand && r256.copied === 17 &&
+        r256.written === 47 && r256.skip === 34 &&
         part256('obj-borrower').copied === 2 && part256('obj-zdeal').copied === 5 && part256('obj-program').copied === 5 &&
+        part256('obj-gmember').copied === 5 &&
         evCopied === 0 && copyEq &&
         stParts.every(p => p.skip === 0 && p.written === p.n + p.same + p.copied &&
           p.n + p.same + p.copied + p.kept === ST.registryList(p.obj, TODAY).length),
-    `строка каждый день (ИС-54, ADR-0238 §1): у ${states256.length} объектов-состояний на ${days256.length} дат открытого периода строк ровно столько, сколько живых записей у владельца, — дыр ${holes256.length}${holes256.length ? ' (' + holes256.slice(0, 5).join(', ') + ')' : ''}. Ночь ${TODAY}: написано ${r256.written}, из них скопировано ${r256.copied} — ровно столько, сколько живых записей ночь не назвала кандидатами (${nonCand}) (заёмщиков ${part256('obj-borrower').copied}, договоров ${part256('obj-zdeal').copied}, программ ${part256('obj-program').copied}) — копия равна вчерашней строке значениями и происхождением (${copyEq}), дата своя, фиксации нет. События не копируются (${evCopied}) и не обходятся некандидатами (${r256.skip}). Тождество части: написано = пересчитано + без изменений + скопировано, и вместе с зафиксированными это все живые (СС-164)`);
+    `строка каждый день (ИС-54, ADR-0238 §1): у ${states256.length} объектов-состояний на ${days256.length} дат открытого периода строк ровно столько, сколько живых записей у владельца, — дыр ${holes256.length}${holes256.length ? ' (' + holes256.slice(0, 5).join(', ') + ')' : ''}. Ночь ${TODAY}: написано ${r256.written}, из них скопировано ${r256.copied} — ровно столько, сколько живых записей ночь не назвала кандидатами (${nonCand}) (заёмщиков ${part256('obj-borrower').copied}, договоров ${part256('obj-zdeal').copied}, программ ${part256('obj-program').copied}, членств ${part256('obj-gmember').copied}) — копия равна вчерашней строке значениями и происхождением (${copyEq}), дата своя, фиксации нет. События не копируются (${evCopied}) и не обходятся некандидатами (${r256.skip}). Тождество части: написано = пересчитано + без изменений + скопировано, и вместе с зафиксированными это все живые (СС-164)`);
 
   /* #257 — пропущенная ночь не оставляет дыры: прогон сперва ДОГОНЯЕТ каждую пропущенную
      дату по порядку полным обходом, и `T` соседей догон не двигает — его двигает только
@@ -5996,7 +6019,8 @@ const FIZ = fizSchema();
      курс ночи не двигает (СС-171), а событие, которое уже писала поздняя ночь, пересчёт ночи
      раньше не трогает (правка ревью 1 З-16a). Сторож не о них. */
   const stW258 = j258.parts.filter(p => stor(p.obj) === 'state').reduce((n, p) => n + p.written, 0);
-  ok(258, re258.ok && stW258 === 42 && re258.copied === 0 && j258.cand.scan === 'полный' &&
+/* Волна 23, З-20 (переписан на месте): 42 → 47 — пять строк членства (довод у #201). */
+  ok(258, re258.ok && stW258 === 47 && re258.copied === 0 && j258.cand.scan === 'полный' &&
         /* Волна 23, З-17 (переписан на месте): уточнённый курс не двигает валютного числа —
            перезапись называет курс строки и сомовые стороны, а не «Остаток ОД» (ИС-56). */
         pc258.n === 1 && pc258.same === 7 &&
@@ -6283,7 +6307,8 @@ const FIZ = fizSchema();
   const KINDS = ['original','reversal','rebind','bind','refund','match','freeze','amount'];
   const stNull = ST.state.rows.filter(r => stor(r.obj) === 'state').every(r => r.part === null);
   const dKinds = ST.state.rows.filter(r => stor(r.obj) === 'event_delta').every(r => KINDS.indexOf(r.part) >= 0);
-  ok(264, ids264.length === 10 && off264.length === 0 && own264.length === 0 &&
+/* Волна 23, З-20 (переписан на месте): таблиц 11 — stat_row_group_member хранит состояние. */
+  ok(264, ids264.length === 11 && off264.length === 0 && own264.length === 0 &&
         ev264 === 'obj-measure,obj-receipt,obj-repay' && evCopies === 0 &&
         juneRows.length === 4 && juneRows.every(r => ST.periodOf(r.date) === '2026-06' && !!r.fixed && r.part === 'original') &&
         stNull && dKinds && ST.ROW_KEY.join() === 'obj,ref,date,part',
@@ -6758,7 +6783,8 @@ const FIZ = fizSchema();
   gone268.rw = pG268.rewrote.filter(x => x.ref === 'ПГ-2026/1102').length;
   const goneOk268 = gone268.r && gone268.cl && gone268.before === '2026-06-06:original*,2026-07-20:reversal*,2026-07-20:rebind*' &&
     gone268.after === gone268.before && gone268.mk === 1 && gone268.mkAfter === 1 && gone268.rw === 0 && wG268 === 0;
-  ok(268, !!wr && objs268.length === 10 && denied.length === 10 && pass268.ok && leg268.ok &&
+/* Волна 23, З-20 (переписан на месте): таблиц 11 — запись в закрытое отбита и у членства. */
+  ok(268, !!wr && objs268.length === 11 && denied.length === 11 && pass268.ok && leg268.ok &&
         grew268 && refused268 && tally268 && goneOk268,
     `запись в закрытое отбита у ${denied.length} таблиц из ${objs268.length} одной функцией — и на 15.06, и на итог июня 01.07 (ИС-8, ADR-0239): разойдись проверка по писателям, поправка события однажды легла бы в закрытый месяц. Поправка в открытый август проходит (${pass268.ok}), выпуск миграции в легаси-период — тоже (${leg268.ok}). Отбитая запись не считается написанной: прогон за закрытое 15.06 написал ${w268} (не тронуто ${j268.parts.reduce((n, p) => n + p.kept, 0)}), доспрос закрытого июня — ${rp268.made} + ${rp268.again}, повторный выпуск миграции — ${leg268n}. Счёт и журнал — после удачной записи: рождено ${j268.parts.reduce((n, p) => n + p.born, 0)}, дозаполнено ${j268.parts.reduce((n, p) => n + p.filled.length, 0)}, тождество «написано = записано + не менялось + скопировано» у состояний — ${j268.parts.filter(p => stor(p.obj) === 'state').every(p => p.written === p.n + p.same + p.copied)} (у заёмщиков «не менялось» ${(j268.parts.find(p => p.obj === 'obj-borrower') || {}).same}, не тронуто ${(j268.parts.find(p => p.obj === 'obj-borrower') || {}).kept}). Снятие поправок идёт через ту же дверь: перепривязка ночи 20.07 после закрытия июля и прогона 20.07 мимо дверей — строк ${gone268.after || '—'} (было ${gone268.before || '—'}), маркеров ${gone268.mk} → ${gone268.mkAfter}, в журнале перезаписей ${gone268.rw}`);
 })();
@@ -7653,7 +7679,8 @@ const FIZ = fizSchema();
       .some(v => v != null && ['pending', 'confirmed', 'reversed'].indexOf(v) < 0)).length +
     W['obj-measure'].filter(m => (m.h.mstate || []).some(x => ['действует', 'сторнирована'].indexOf(x[1]) < 0)).length;
   const legacy282 = ST.state.rows.filter(r => ST.isLegacyRow(r)).length;
-  ok(282, shape282.length === 0 && nCk282 === 19 && bad282.length === 0 && legacy282 > 0 && corr282.length === 0 &&
+/* Волна 23, З-20 (переписан на месте): списков 20 — состояние группы d_group_state. */
+  ok(282, shape282.length === 0 && nCk282 === 20 && bad282.length === 0 && legacy282 > 0 && corr282.length === 0 &&
         pay282 === 'pending,confirmed,reversed' && msr282 === 'действует,сторнирована' && old282 === 0,
     `закрытый словарь — список значений в релизе: у ${nCk282} колонок вида «code» и вида поправки события списки лежат у таблиц, таблиц со списком не на месте ${shape282.length} (${shape282.join(', ') || '—'}); значений вне списка в ${ST.state.rows.length} хранимых строках, из них ${legacy282} легаси, — ${bad282.length}${bad282.length ? ' (' + bad282.slice(0, 3).join('; ') + ')' : ''}; объявленный вид поправки вне списка своей таблицы — у ${corr282.length} объектов. Словари, которые выводит сама статистика, — по схеме: состояние платежа ${pay282}, состояние меры ${msr282}; записей мира с прежними словами ${old282} (ИС-57, ADR-0241 §2, СС-193, СС-194)`);
 
@@ -7958,7 +7985,8 @@ const FIZ = fizSchema();
   ST.setRole('Администратор статистики');
   ok(288, errs288.length === 0 && st288.objects.every(o => Array.isArray(o.scope) && o.scope.length >= 1) &&
         (kinds288.own || []).join() === 'obj-credit,obj-borrower,obj-collateral,obj-claim,obj-repay,obj-measure' &&
-        (kinds288.via || []).join() === 'obj-case,obj-measure' &&
+        /* Волна 23, З-20 (переписан на месте): членство режется через строку заёмщика. */
+        (kinds288.via || []).join() === 'obj-gmember,obj-case,obj-measure' &&
         (kinds288.open || []).join() === 'obj-zdeal,obj-program,obj-receipt' &&
         has(noRule, 'правил охвата нет') && has(noKind, 'без вида') && has(noWhy, 'причина не названа') &&
         has(badKey, 'ключ связи') &&
@@ -7993,7 +8021,8 @@ const FIZ = fizSchema();
   ok(289, bAll.length === 8 && bRows.ok && bRows.rows.length === 3 && bReg.length === 3 &&
         has(bRows.passport.scope, 'ведущий куратор') && bRows.passport.scoped === true &&
         lead.src === 'шов' && lead.seam === 'leadCurator' && noHist289 === 0 &&
-        pairs289.length === 7 && drift289.length === 0,
+        /* Волна 23, З-20 (переписан на месте): пар 8 — членство через заёмщика. */
+        pairs289.length === 8 && drift289.length === 0,
     `own — своя колонка строки: заёмщиков на ${ASK} ${bAll.length}, аналитику видно ${bRows.ok ? bRows.rows.length : '—'} по ведущему куратору — «${bRows.ok ? bRows.passport.scope : '—'}»; реестр владельца отдаёт тех же ${bReg.length}. Ведущий куратор — шов «${lead.seam}», истории «curator» у заёмщика нет ни в одной записи мира (${noHist289}), и охват читается тем же читателем, что разрез. Срез и реестр владельца сходятся у всех ${pairs289.length} объектов с правилами own и via, расхождений ${drift289.length}${drift289.length ? ' (' + drift289.map(x => x.id + ' ' + x.slice + '/' + x.reg).join(', ') + ')' : ''} (ИС-14, ИС-18, ИС-58)`);
 
   /* #290, #291 — via на дату вопроса и ИЛИ у меры. Требование ТВ-2025/11-1 с 20.08 передано
@@ -8045,6 +8074,99 @@ const FIZ = fizSchema();
         mw291.ok && mw291.n === 4 && mw291.inSlice === 4,
     `мера — через требование-цель ИЛИ автору (ADR-0243 §3): до передач аналитику видно ${m290a.ok ? m290a.n : '—'} (${grp(m290a)}), после — ${m291 && m291.ok ? m291.n : '—'} (${grp(m291)}): меры по ТВ-2025/11-1 пришли через цель, меры Бековой по ТВ-2026/03-1 остались за ней как за автором, а чужая претензия МВ-2026/27 не видна. Группы складываются в число видимых строк — охват резал до группировки. Паспорт: «${m291 && m291.ok ? m291.passport.scope : '—'}»; реестр владельца — ${mw291 && mw291.ok ? mw291.n : '—'}. Путь признаков охватом не режется — #287 (ИС-58, ADR-0241 §8, СС-199)`);
 })();
+/* ===== Волна 23 · З-20 — член группы совместного риска (ADR-0244 §2, ADR-0199, СС-200) =====
+   Группа — не разрез заёмщика: у заёмщика групп может быть несколько (ADR-0179). Членство —
+   своя таблица «группа × член × дата», сумм у неё нет: суммы группы — join строк членства со
+   строками заёмщиков-членов ТОЙ ЖЕ даты; итог по всем группам — по различным членам. */
+(() => {
+  /* #292 — членство — своя таблица состояния с ключом «группа × член», а не разрез заёмщика
+     и не копия денег. Адрес строки — пара ключей: заёмщик в двух группах — две строки, и
+     ни одна не поглощает другую. Подпись группы лежит без пары-ключа (`d_group_lbl`, вид
+     `text` — СС-Д27), состояние — закрытым словарём у таблицы (#282). Охват — через строку
+     заёмщика-члена на дату вопроса (ИС-58, ADR-0243 §3): член без строки заёмщика под ролью
+     не виден никому, кроме администратора. */
+  ST.seed();
+  const o292 = ST.OBJ('obj-gmember');
+  const rel292 = vm.runInContext('RELEASE', sandbox).tables['obj-gmember'] || {cols: []};
+  const need292 = ['group_id', 'member_id', 'slice_date', 'run_id', 'src_subj', 'now_cols', 'd_group_lbl', 'd_group_state'];
+  const miss292 = need292.filter(c => rel292.cols.indexOf(c) < 0);
+  const bDims292 = ST.OBJ('obj-borrower').dims.filter(d => /совместн/i.test((ST.DIM(d) || {}).name || '') || (ST.DIM(d) || {}).obj === 'obj-gmember');
+  const at292 = d => ST.state.rows.filter(r => r.obj === 'obj-gmember' && r.date === d);
+  const ask292 = at292(ASK), jul292 = at292('2026-07-01'), jul2292 = at292('2026-07-02');
+  const two292 = ask292.filter(r => r.dims['d-gmember'] === '01234199010101').map(r => r.dims['d-ggroup']).sort().join('+');
+  const money292 = ST.state.rows.filter(r => r.obj === 'obj-gmember' && Object.keys(r.inds).length > 0).length;
+  const col292 = ST.colOf('d-glbl'), key292 = ST.colOf('d-gmember');
+  const sA292 = ST.statSlice({obj: 'obj-gmember', dims: ['d-ggroup'], inds: ['a-count'], date: ASK});
+  ST.setRole('Аналитик');
+  const sB292 = ST.statSlice({obj: 'obj-gmember', dims: ['d-ggroup'], inds: ['a-count'], date: ASK});
+  const rB292 = ST.statRows({obj: 'obj-gmember', date: ASK});
+  const bB292 = ST.statRows({obj: 'obj-borrower', date: ASK});
+  ST.setRole('Администратор статистики');
+  const grp292 = s => s.ok ? s.groups.map(g => g.key + ':' + g.n).join(', ') : s.why;
+  const seenB292 = bB292.ok ? bB292.rows.map(r => r.ref) : [];
+  const viaOk292 = rB292.ok && rB292.rows.every(r => seenB292.indexOf(r.dims['d-gmember']) >= 0) &&
+    !rB292.rows.some(r => r.dims['d-gmember'] === '50101199500017');
+  ok(292, !!o292 && o292.scope.length === 1 && o292.scope[0].kind === 'via' && o292.scope[0].obj === 'obj-borrower' &&
+        o292.scope[0].key === 'd-gmember' && o292.inds.join() === 'a-count' &&
+        rel292.table === 'stat_row_group_member' && rel292.storage === 'state' && miss292.length === 0 &&
+        rel292.cols.indexOf('d_group_id') < 0 && bDims292.length === 0 &&
+        ask292.length === 5 && jul292.length === 3 && jul2292.length === 5 && two292 === 'ГСР-01+ГСР-02' &&
+        money292 === 0 && col292.table === 'stat_row_group_member' && col292.cols.join() === 'd_group_lbl' &&
+        key292.cols.join() === 'member_id' &&
+        grp292(sA292) === 'ГСР-01:3, ГСР-02:2' && grp292(sB292) === 'ГСР-01:2, ГСР-02:1' &&
+        rB292.ok && rB292.rows.length === 3 && viaOk292 && has(sB292.passport.scope, 'через заёмщики'),
+    `группа совместного риска — своя таблица членства «группа × член × дата» (${rel292.table}, способ ${rel292.storage}), а не разрез заёмщика: разрезов с группой у заёмщика ${bDims292.length}, колонок ${need292.length} на месте (недостаёт ${miss292.length}${miss292.length ? ': ' + miss292.join(', ') : ''}), пары d_group_id нет — подпись «${col292.cols.join()}» лежит одна (СС-Д27). Строк членства на ${ASK} ${ask292.length}; 01234199010101 — в двух группах (${two292}), и это две строки, а не одна; на 01.07 строк ${jul292.length}, на 02.07 ${jul2292.length} — «Ош-Агро» заведена 01.07, и срез на начало дня видит её со следующего. Денег в строках членства ${money292}: суммы группы — из строк заёмщиков (#293). Срез по группам: ${grp292(sA292)}; аналитику — ${grp292(sB292)} (строк ${rB292.ok ? rB292.rows.length : '—'}): видны те члены, чья строка заёмщика видна ему на дату вопроса (${viaOk292}), а 50101199500017 без строки заёмщика не виден — «${sB292.ok ? sB292.passport.scope : '—'}» (ИС-58, ADR-0243 §3, ADR-0244 §2)`);
+
+  /* #293 — суммы группы — из строк заёмщиков-членов на ТУ ЖЕ дату (ADR-0244 §2): группа
+     сходится с суммой строк заёмщиков её членов до копейки; итог по всем группам — по
+     различным членам, а не сумма сумм групп (ADR-0199); член без строки заёмщика даёт ноль и
+     из числа членов не выпадает. Правка строки заёмщика на 21.08 двигает сумму группы на
+     21.08 и не трогает 20.08 — join идёт по дате строки, не по кануну. */
+  ST.seed();
+  const I293 = ['m-btotal', 'm-bdebt'];
+  const c293 = x => Math.round(x * 100) / 100;
+  const byRef293 = d => new Map(ST.statRows({obj: 'obj-borrower', date: d}).rows.map(r => [r.ref, r]));
+  const sumOf293 = (refs, m, bor) => c293(refs.reduce((a, x) => a + (((bor.get(x) || {inds: {}}).inds[m] || {}).v || 0), 0));
+  const g293 = ST.groupSums({date: ASK, inds: I293});
+  const bor293 = byRef293(ASK);
+  const agree293 = g293.ok && g293.groups.every(g => I293.every(m => g.values[m] === sumOf293(g.members, m, bor293))) &&
+    I293.every(m => g293.total[m] === sumOf293(g293.members, m, bor293));
+  const G1 = g293.ok ? g293.groups.find(g => g.group === 'ГСР-01') : null;
+  const G2 = g293.ok ? g293.groups.find(g => g.group === 'ГСР-02') : null;
+  const naive293 = g293.ok ? c293(g293.groups.reduce((a, g) => a + g.values['m-btotal'], 0)) : 0;
+  const jul293 = ST.groupSums({date: '2026-07-01', inds: I293});
+  const yday293 = ST.groupSums({date: '2026-08-20', inds: I293});
+  const row293 = ST.state.rows.find(r => r.obj === 'obj-borrower' && r.ref === '10510198203112' && r.date === ASK);
+  row293.inds['m-btotal'] = {v: c293(row293.inds['m-btotal'].v + 1000)};
+  const moved293 = ST.groupSums({date: ASK, inds: I293});
+  const ydayAfter293 = ST.groupSums({date: '2026-08-20', inds: I293});
+  ST.seed();
+  const badAgg293 = ST.groupSums({date: ASK, inds: ['a-sumbtotal']});
+  const badCnt293 = ST.groupSums({date: ASK, inds: ['m-bcnt']});
+  const badCr293 = ST.groupSums({date: ASK, inds: ['m-debt']});
+  const leg293 = ST.groupSums({date: '2025-01-01', inds: I293});
+  ST.setRole('Аналитик');
+  const an293 = ST.groupSums({date: ASK, inds: I293});
+  ST.setRole('Администратор статистики');
+  const gv = (r, g, m) => r.ok ? ((r.groups.find(x => x.group === g) || {values: {}}).values[m]) : null;
+  ok(293, g293.ok && agree293 && g293.asOf === ASK && g293.rows === 5 && g293.members.length === 4 &&
+        G1.values['m-btotal'] === 23769830.97 && G2.values['m-btotal'] === 18379040.65 &&
+        g293.total['m-btotal'] === 31178072.67 && naive293 === 42148871.62 &&
+        G1.n === 3 && G1.noRow.join() === '50101199500017' && G2.noRow.length === 0 &&
+        has(g293.passport.dedup, '4 на 5') &&
+        jul293.ok && jul293.groups.map(g => g.group).join() === 'ГСР-01' && jul293.rows === 3 &&
+        gv(moved293, 'ГСР-01', 'm-btotal') === c293(23769830.97 + 1000) &&
+        gv(moved293, 'ГСР-02', 'm-btotal') === 18379040.65 &&
+        moved293.total['m-btotal'] === c293(31178072.67 + 1000) &&
+        yday293.ok && gv(ydayAfter293, 'ГСР-01', 'm-btotal') === gv(yday293, 'ГСР-01', 'm-btotal') &&
+        !badAgg293.ok && !badCnt293.ok && !badCr293.ok && has(badAgg293.why, 'ADR-0244 §2') &&
+        !leg293.ok && has(leg293.why, 'ИС-41') &&
+        an293.ok && an293.rows === 3 && gv(an293, 'ГСР-01', 'm-btotal') === 23769830.97 &&
+        gv(an293, 'ГСР-02', 'm-btotal') === 10970798.95 && an293.total['m-btotal'] === 23769830.97 &&
+        has(an293.passport.scope, 'через заёмщики'),
+    `суммы группы — из строк заёмщиков-членов на ту же дату (ADR-0244 §2): у каждой группы и у итога расхождений с суммой строк заёмщиков нет (${agree293}). «${G1 ? G1.lbl : '—'}» — ${G1 ? G1.values['m-btotal'] : '—'} сом по ${G1 ? G1.n : '—'} членам, из них без строки заёмщика ${G1 ? G1.noRow.join() : '—'}: субъект без кредитов даёт НОЛЬ и из числа членов не выпадает; «${G2 ? G2.lbl : '—'}» — ${G2 ? G2.values['m-btotal'] : '—'}. Итог по всем группам ${g293.ok ? g293.total['m-btotal'] : '—'} — по ${g293.ok ? g293.members.length : '—'} различным членам на ${g293.ok ? g293.rows : '—'} строк членства, а сумма сумм групп ${naive293} посчитала бы 01234199010101 дважды (ADR-0199): «${g293.ok ? g293.passport.dedup : '—'}». На 01.07 групп ${jul293.ok ? jul293.groups.length : '—'} (${jul293.ok ? jul293.rows : '—'} строк). Правка строки заёмщика 10510198203112 на ${ASK} (+1000) сдвинула «Ала-Тоо» на ${ASK} до ${gv(moved293, 'ГСР-01', 'm-btotal')} и итог до ${moved293.ok ? moved293.total['m-btotal'] : '—'}, а 20.08 осталось ${gv(ydayAfter293, 'ГСР-01', 'm-btotal')} — join по дате строки, не по кануну. Не денежная величина заёмщика отбита: агрегат — «${String(badAgg293.why).slice(0, 70)}…», счётчик и деньги кредита — тоже (${!badCnt293.ok && !badCr293.ok}); дата до запуска — отказ ИС-41. Аналитику: строк ${an293.ok ? an293.rows : '—'}, «Ала-Тоо» ${gv(an293, 'ГСР-01', 'm-btotal')}, «Ош-Агро» ${gv(an293, 'ГСР-02', 'm-btotal')} — по видимым членам, итог ${an293.ok ? an293.total['m-btotal'] : '—'} (ИС-58, ADR-0243 §3)`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
