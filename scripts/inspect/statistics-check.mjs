@@ -9,7 +9,8 @@
 // блок Э — волна 14: спрашивается дата ПРОГОНА, а не «сегодня» (ИС-36, ADR-0202) —
 // хвост отказывает и называет дорогу, дыра внутри истории подставляет с возрастом (ИС-12),
 // блок Ю — волна 15: закрытый СС-Д11 — охват ролей ОБЪЯВЛЕН реквизитом объекта, а не зашит
-// именем разреза (ИС-37, ADR-0203): режется своим разрезом · общий · отказ с дорогой,
+// именем разреза (ИС-37, ADR-0203); снят волной 23 (З-19) — надгробия #132…#136, охват держат
+// правила ИС-58 (#288…#291),
 // блок Я — волна 17: календарь учётных периодов — ОДИН общий справочник ниже всех слоёв
 // (ИС-38, ADR-0204): строка = период, в ней колонка-защёлка на слой со своим актором и
 // своей датой; каскад идёт снизу вверх и стережётся справочником, а не вызывающим,
@@ -114,6 +115,8 @@
 // блок волны 23 З-18c — признак чужого объекта путём «таблица + ключ» (ИС-57, ADR-0241 §8): тип
 // лица заёмщика у кредита — join строки кредита со строкой заёмщика той же даты, копии в строке
 // кредита нет, охват путь не режет.
+// блок волны 23 З-19 — охват правилами (ИС-58, ADR-0243): own · via · open через ИЛИ; объект без
+// правила и правило без вида валят загрузку; общий печатает причину; via — на дату вопроса.
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -357,9 +360,11 @@ const FIZ = fizSchema();
 (() => {
   ST.seed();
   const before = ST.statSlice({obj:'obj-guarantee', dims:[], inds:['a-count'], date: ASK});
+  /* Волна 23, З-19 (переписан на месте): охват — правило, а не состояние (ИС-58, СС-199);
+     смысл прежний — поручительство режется своим куратором. */
   const G_OBJ = {id:'obj-guarantee', name:'Поручительство', plural:'поручительства',
     owner:'Обеспечение', refName:'номер поручительства', born:{src:'поле', key:'gdate'},
-    scope:{dim:'d-gcurator'}, dims:[], inds:['a-count']};
+    scope:[{kind:'own', dim:'d-gcurator'}], dims:[], inds:['a-count']};
   const noTable = ST.addObject(G_OBJ);
   const mig = ST.migrateTable({obj:'obj-guarantee', table:'stat_row_guarantee', storage:'state',
     note:'проба двери: одиннадцатый объект',
@@ -1922,12 +1927,15 @@ const FIZ = fizSchema();
 
   const role0 = st.role;
   ST.setRole('Аналитик');
-  const aR = ST.statRows({obj:'obj-receipt', date: D});
+  /* Волна 23, З-19 (переписан на месте): поступление больше не отвечает отказом — оно общее,
+     решение пользователя 17.09.2026 с названной ценой (ADR-0243 §4; «не спрашивается» снято,
+     §5). СС-Д11 остаётся закрытым: пустого экрана нет — ответ полный и с причиной. */
+  const aR = ST.statSlice({obj:'obj-receipt', dims:[], inds:['a-count'], date: D});
   const aP = ST.statRows({obj:'obj-repay', date: D});
   ST.setRole(role0);
-  ok(117, !aR.ok && has(aR.why, 'не спрашивается') && has(aR.why, 'многозначен') &&
-       has(aR.why, 'Платёж') && aP.ok && aP.rows.length === 9,
-    `СС-Д11 ЗАКРЫТ (волна 15): поступление отвечает ОТКАЗОМ с дорогой, а не пустым экраном — «${String(aR.why).slice(0, 96)}…». Куратор у сводного поступления на дату многозначен (см. #114), и объявленный охват объекта — «отказ», а не «режется d-curator»: показать 15 строк целиком нельзя (§9: объём чужой работы не выдаётся даже итогом), показать 0 — соврать. Дорога настоящая и уровнем ниже: платежей аналитику видно ${aP.rows.length} (ИС-37, ADR-0203)`);
+  ok(117, aR.ok && aR.n === 15 && aR.passport.scoped === false &&
+       has(aR.passport.scope, 'решение пользователя 17.09.2026') && aP.ok && aP.rows.length === 9,
+    `СС-Д11 закрыт иначе (волна 23): поступление под ролью ОБЩЕЕ — аналитику видно ${aR.ok ? aR.n : '—'}, и паспорт называет причину: «${aR.ok ? aR.passport.scope : aR.why}». Куратор у сводного поступления на дату многозначен (см. #114), и объём чужой работы виден итогом — цена названа и принята пользователем (ADR-0243 §4). Платежей аналитику видно ${aP.rows.length} — они режутся своим куратором (ИС-58, СС-199)`);
 
   const byId = {}; (W['obj-receipt'] || []).forEach(r => byId[r.id] = r);
   const kin = W['obj-repay'] || [];
@@ -2200,106 +2208,34 @@ const FIZ = fizSchema();
     `«прогона не было» — это событие журнала, и отказ его называет: «${after.why.slice(0, 96)}…». Запрет не на «сегодня» как таковое: тот же вопрос после прогона отвечает на СВОЮ дату (${now.passport.asOf}, возраст ${now.passport.age}, подстановки нет) — спрашивается написанная строка, а не календарь`);
 })();
 
-/* ---------- Ю. Волна 15: охват объявлен объектом, а не зашит именем разреза ----------
-   СС-Д11 звучал как «объект БЕЗ разреза охвата», и три волны подряд его так и читали.
-   Волна 15 замерила и нашла четвёртый случай — противоположного рода: у ЗАЁМЩИКА разрез
-   охвата ЕСТЬ, он просто зовётся иначе («d-lcurator»: ведущий куратор ВЫЧИСЛЯЕТСЯ, ТЗ 16
-   §11). Зашитое в applyScope имя «d-curator» отдавало аналитику 0 строк из 8 при 3 своих,
-   а паспорт печатал «по 0 объектам, доступным вам» — не пустой экран, а НЕВЕРНЫЙ ответ,
-   заверенный как верный. Класс дефекта, значит, не «объект без разреза», а «охват прибит
-   к имени разреза»: ИС-37, ADR-0203.                                                    */
-(() => {
-  ST.seed();
-  const st = ST.state;
-  const role0 = st.role;
+/* ---------- Ю. Волна 15: охват объявлен объектом — снят волной 23 (З-19) ----------
+   Блок закрывал СС-Д11: охват прибит не к имени разреза, а объявлен реквизитом объекта с
+   тремя состояниями — режется разрезом · общий · отказ с дорогой (ИС-37, ADR-0203). ADR-0243
+   снял ИС-37: охват — одно или несколько правил own · via · open через ИЛИ (ИС-58), состояния
+   «не спрашивается» нет, договор и поступление общие по решению пользователя 17.09.2026. Урок
+   блока — охват читается тем же читателем, что разрез, и срез сходится с реестром владельца —
+   перенесён в #289. На месте каждого сторожа — надгробие; номера не переиспользуются. */
 
-  /* #132 — вход: реквизит обязателен у КАЖДОГО объекта, и состояний ровно три. Тот же
-     урок, что дал #128 (сирота реестра) и СС-Д14: чинится класс, а не случай. */
-  const bad = st.objects.filter(o => {
-    const s = o.scope;
-    if (!s) return true;
-    const kinds = ['dim','open','denied'].filter(k => s[k] != null);
-    if (kinds.length !== 1) return true;
-    if (s.dim) return !ST.DIM(s.dim) || o.dims.indexOf(s.dim) < 0;
-    if (s.denied) return !s.denied.why || !s.denied.road;
-    return typeof s.open !== 'string' || !s.open;
-  });
-  const byKind = k => st.objects.filter(o => o.scope && o.scope[k] != null);
-  const cut = byKind('dim'), open = byKind('open'), den = byKind('denied');
-  const dims = new Set(cut.map(o => o.scope.dim));
-  /* Волна 17: у каждого режущегося объекта разрез охвата теперь СВОЙ и определён НА НЁМ
-     же — «Куратор кредита» и «Куратор меры взыскания» суть разные признаки, и одно имя
-     «Куратор» на семь объектов означало бы, что охват семи объектов сложим (ИС-40). */
-  const alienScope = cut.filter(o => (ST.DIM(o.scope.dim) || {}).obj !== o.id);
-  /* Волна 23 (переписан на месте): режутся разрезом 7 → 6, общими 1 → 2 — у дела разреза
-     куратора больше нет (ADR-0243), и до правила `via` (З-19) оно объявлено общим. Заодно
-     исправлен давний изъян записи: перед текстом стояло `&&` вместо запятой, и пояснение
-     уходило в условие — сторож печатал пустую строку. */
-  ok(132, bad.length === 0 && cut.length + open.length + den.length === st.objects.length &&
-        cut.length === 6 && open.length === 2 && den.length === 2 && dims.size === 6 &&
-        alienScope.length === 0,
-    `охват — ОБЪЯВЛЕННЫЙ реквизит записи объекта, девятый после рождения (ИС-37): объектов без него или с двумя состояниями сразу ${bad.length} из ${st.objects.length}. Режутся разрезом ${cut.length}, объявлены общими ${open.length}, отвечают отказом ${den.length}. Разрезов охвата ШЕСТЬ — по одному на режущийся объект (${[...dims].join(', ')}), и каждый определён НА СВОЁМ объекте (чужих ${alienScope.length}). Ровно в этом был СС-Д11: имя разреза принадлежит ОБЪЕКТУ, а зашитое в движок «d-curator» молча пустило под нож всех, кто назвал свой охват иначе; одно имя «Куратор» на все объекты вдобавок заявляло бы, что их охваты между собой складываются (ИС-40, ADR-0206 §3). У отказа объявлены и причина, и дорога: отказ без дороги — половина ответа (§8.4)`);
+/* #132 — снят волной 23 (З-19): «охват — реквизит записи с ровно одним из трёх состояний
+   dim · open · denied» больше не часть модели (ИС-37 снят ИС-58, ADR-0243 §1, §5). Смысл
+   «охват объявлен у каждого объекта, необъявленный валит загрузку» держит #288. Номер не
+   переиспользуется. */
 
-  /* #133 — тот самый четвёртый случай, ради которого волна и случилась. */
-  ST.setRole('Аналитик');
-  const B = ST.OBJ('obj-borrower');
-  const bAll = ST.rowsAsOf('obj-borrower', ASK);
-  const mine = bAll.filter(r => r.dims['d-lcurator'] === 'Бекова Н.');
-  const bRows = ST.statRows({obj:'obj-borrower', date: ASK});
-  const bReg = ST.registryList('obj-borrower', st.today, null);
-  ok(133, B.scope.dim === 'd-lcurator' && bAll.length === 8 && mine.length === 3 &&
-        bRows.ok && bRows.rows.length === 3 && bReg.length === 3 &&
-        has(bRows.passport.scope, 'ведущий куратор') && bRows.passport.scoped === true,
-    `заёмщик режется СВОИМ разрезом — и до волны 15 не резался вовсе: строк на ${ASK} — ${bAll.length}, из них ведущим куратором Бековой ${mine.length}, а охват показывал 0. Это не «пустой экран вместо отказа», а НЕВЕРНЫЙ ответ: паспорт заверял «по 0 объектам, доступным вам» там, где доступны ${mine.length}. Теперь и срез, и реестр владельца дают ${bRows.rows.length}, а паспорт называет разрез поимённо: «${bRows.passport.scope}»`);
+/* #133 — снят волной 23 (З-19): «заёмщик режется своим разрезом d-lcurator» стоял на форме
+   `scope.dim`; правило own держит тот же случай — #289. Номер не переиспользуется. */
 
-  /* #134 — у охвата ОДИН читатель, тот же, что у разреза (ИС-18). registryList читал
-     «item.h.curator» напрямую: второй читатель, не знающий ни швов, ни полей. Поэтому
-     дорога, которую называет отказ, сама отвечала спрашивающему НОЛЬ. */
-  const seam = ST.DIM('d-lcurator');
-  const world = vm.runInContext('WORLD', sandbox);
-  const noHist = (world['obj-borrower'] || []).filter(i => i.h && i.h.curator).length;
-  const pairs = st.objects.filter(o => o.scope.dim).map(o => ({
-    o, slice: (ST.statRows({obj:o.id, date: ASK}).rows || []).length,
-    reg: ST.registryList(o.id, st.today, null).length}));
-  const drift = pairs.filter(x => x.slice !== x.reg);
-  /* Волна 23 (переписан на месте): режущихся объектов 7 → 6 — дело больше не режется своим
-     разрезом (ADR-0243; до З-19 оно общее). */
-  ok(134, seam.src === 'шов' && seam.seam === 'leadCurator' && noHist === 0 &&
-        drift.length === 0 && pairs.length === 6,
-    `охват читается ТЕМ ЖЕ читателем, что разрез (ИС-18, ИС-37): у «${seam.name}» источник — ${seam.src} «${seam.seam}», истории «curator» у заёмщика нет ни в одной записи мира (${noHist} из ${(world['obj-borrower'] || []).length}), и прежний прямой доступ к item.h.curator не мог его увидеть в принципе. Срез и реестр владельца сходятся на всех ${pairs.length} режущихся объектах, расхождений ${drift.length} (ИС-14): дорога, которую называет отказ, теперь и правда отвечает`);
+/* #134 — снят волной 23 (З-19): «охват читается тем же читателем, что разрез; срез и реестр
+   владельца сходятся на режущихся объектах» — перенесено на правила own и via, теперь у 7
+   объектов, а не у 6: #289. Номер не переиспользуется. */
 
-  /* #135 — «общий» и «не спрашивается» разводит УТЕЧКА, а не вкус (§9, ADR-0203 §3). */
-  const prog = ST.statSlice({obj:'obj-program', dims:['d-pstate'], inds:['a-count'], date: ASK});
-  const rcp = ST.statSlice({obj:'obj-receipt', dims:['d-rchan'], inds:['a-count'], date: ASK});
-  const zd = ST.statSlice({obj:'obj-zdeal', dims:['d-zdate'], inds:['a-count'], date: ASK,
-    buckets:{'d-zdate':'год'}});
-  const rcpWork = ST.workList('obj-receipt');
-  const zdWork = ST.workList('obj-zdeal');
-  const progShort = ST.passportShort(prog.passport);
-  ok(135, prog.ok && prog.n === 5 && prog.passport.scoped === false &&
-        has(prog.passport.scope, 'программа общая') && has(progShort, 'всего 5') &&
-        !rcp.ok && !zd.ok && !rcpWork.ok && !zdWork.ok &&
-        has(rcp.why, 'Платёж') && has(zd.why, 'предмет залога'),
-    `«общий» и «не спрашивается» — РАЗНЫЕ ответы, и разводит их утечка, а не вкус (§9). Программа общая: она не принадлежит куратору, состав программ — общее знание, и аналитик законно видит все ${prog.n}; паспорт это НАЗЫВАЕТ («${prog.passport.scope}»), а краткая форма говорит «всего», не «вам видно» — иначе одно и то же N читалось бы двумя разными утверждениями. Поступление и залоговый договор отказывают: отдать их целиком значит показать объём чужой работы даже итогом. Обе двери закрыты заодно — и срез, и «работать со списком»: иначе отказ обходился бы за один шаг`);
+/* #135 — снят волной 23 (З-19): «общий и не спрашивается разводит утечка» больше не часть
+   модели — «не спрашивается» снято (ADR-0243 §5), договор и поступление общие (§4). Смысл
+   «общий печатает причину, краткая форма — всего N» держит #288. Номер не переиспользуется. */
 
-  /* #136 — ворота стоят в ОБЩЕЙ проверке вопроса, и все двери получают их даром (СС-130). */
-  const doors = [
-    ST.statSlice({obj:'obj-receipt', dims:['d-rchan'], inds:['a-count'], date: ASK}),
-    ST.statRows({obj:'obj-receipt', date: ASK}),
-    ST.statSeries({obj:'obj-receipt', inds:'a-sumrsum', dates:['2026-08-01', ASK]}),
-    ST.exportJob({obj:'obj-receipt', date: ASK}),
-    ST.workList('obj-receipt')];
-  ST.setRole('Администратор статистики');
-  const aSlice = ST.statSlice({obj:'obj-receipt', dims:['d-rchan'], inds:['a-count'], date: ASK});
-  const aRows = ST.statRows({obj:'obj-receipt', date: ASK});
-  const aWork = ST.workList('obj-receipt');
-  ST.setRole(role0);
-  ok(136, doors.every(d => d && d.ok === false && has(d.why, 'не спрашивается')) &&
-        doors.every(d => has(d.why, 'ИС-37')) &&
-        aSlice.ok && aSlice.n === 15 && aWork.ok && aWork.n === 15 &&
-        !aRows.ok && !has(aRows.why, 'не спрашивается') && has(aRows.why, 'порог показа'),
-    `ворота охвата стоят в ОБЩЕЙ проверке вопроса, рядом с воротами даты, и все ${doors.length} дверей получают их даром — срез, строки, ряд, выгрузка и список (СС-130): отказ у всех один и тот же, с причиной и дорогой. Роль без сужения проходит: администратору срез отдаёт ${aSlice.n} поступлений, список — ${aWork.n}. Строкам он отказывает — но ПО ДРУГОЙ причине и другими словами: «${String(aRows.why).slice(0, 60)}…» (ИС-22, порог показа). Два отказа на одной двери не сливаются в один: охват говорит «вам этого не спрашивают», порог — «столько списком не отдаётся». Запрет охвата — не на объект, а на пару «объект + роль»`);
-})();
+/* #136 — снят волной 23 (З-19): «ворота охвата в общей проверке вопроса отбивают все двери»
+   больше не часть модели — ворот нет, охват — фильтр строк у каждой двери. Смысл «все двери
+   режут одними правилами» держат #288 (общие двери отвечают) и #289…#291 (срез и реестр
+   владельца сходятся). Номер не переиспользуется. */
 
 /* ---------- Я. Волна 17: календарь учётных периодов — общий справочник ----------
    Календарей было три, и решения не было ни у одного: учёт закрывал своё 5 июня,
@@ -2704,9 +2640,10 @@ const FIZ = fizSchema();
   const alienObj = ST.addObject({id:'obj-guarantee', name:'Поручительство', plural:'поручительства',
     owner:'Обеспечение', refName:'номер поручительства', born:{src:'поле', key:'gdate'},
     scope:{open:'обеспечение общее'}, dims:['d-bregion'], inds:['a-count']});
+  /* Волна 23, З-19 (переписано на месте): охват — правило «общий» с причиной (ИС-58, СС-199). */
   const ownObj = ST.addObject({id:'obj-guarantee', name:'Поручительство', plural:'поручительства',
     owner:'Обеспечение', refName:'номер поручительства', born:{src:'поле', key:'gdate'},
-    scope:{open:'обеспечение общее'}, dims:[], inds:['a-count']});
+    scope:[{kind:'open', reason:'обеспечение общее'}], dims:[], inds:['a-count']});
   const ownDim = ST.addDim({dates:1, id:'d-gregion2', obj:'obj-guarantee', name:'Территория поручительства',
     src:'поле', key:'region', perObject:'одно', owner:'Справочник административного деления',
     levels: JSON.parse(JSON.stringify(ST.DIM('d-region').levels))});
@@ -7976,6 +7913,137 @@ const FIZ = fizSchema();
         !vBy.ok && has(vBy.why, 'ключ связи') && !vCol.ok && has(vCol.why, 'нет своей колонки') &&
         vOk.ok && !vOk.waiting && !!vSt && vSt.state === 'путь' && vSt.cols.join() === 'd_form_id,d_form_lbl',
     `признак заёмщика у кредита — путём «таблица + ключ», а не копией: срез кредитов по «${ST.REC('d-cbptype').name}» на ${ASK287} — ${byKey287(s0)}, join строк кредита со строками заёмщиков той же даты — ${j0}; фильтр «физическое лицо» — ${fl.ok ? fl.total['a-count'].v : '—'}. Значения пути в хранимых строках кредита ${copy0} до среза и ${copy1} после; колонки у пути своей нет — он читает ${col287 ? col287.table + '.' + col287.cols.join() : '—'} по ключу ${col287 ? col287.key : '—'}. Строка заёмщика 10510198203112 на ${ASK287} переправлена «${was287 || '—'}» → «юридическое лицо»: срез этой даты — ${byKey287(s1)}, срез ${PREV287} прежний — ${byKey287(p1)}. Охват путь не режет: аналитику строка заёмщика КД-2023/210 ${b210 ? 'видна' : 'не видна'}, а срез его кредитов — ${byKey287(sa)}. Собственная запись заёмщика у кредита не спрашивается: «${String(own287.why).slice(0, 60)}…». Дверь реестра: путь «${vOk.ok ? 'Организационно-правовая форма заёмщика' : '—'}» заведён ${vOk.waiting ? 'в ожидание' : 'сразу'} (${vSt ? vSt.table + '.' + vSt.cols.join('/') : '—'}), путь с чужим ключом — «${String(vBy.why).slice(0, 50)}…», с колонкой — «${String(vCol.why).slice(0, 50)}…» (ИС-57, ADR-0241 §8, ADR-0206 §5, СС-198)`);
+})();
+/* ===== Волна 23 · З-19 — охват правилами (ИС-58, ADR-0243). Охват объекта — одно или несколько
+   правил own · via · open, соединённых ИЛИ; объект без правила и правило без вида валят
+   загрузку; общий объект печатает причину; via читает связанные строки на дату вопроса. ===== */
+(() => {
+  /* #288 — правила вместо состояний (ИС-58, ADR-0243 §1–§5, СС-199; преемник #132, #135, #136).
+     У каждого объекта хотя бы одно правило, вид — из трёх; объект без правила, правило без
+     вида, общий без причины и «через» с ключом, не ведущим к таблице, валят загрузку, а у
+     двери объекта — отбиваются. Договор, поступление, программа — общие, и паспорт под ролью
+     печатает причину, а краткая форма говорит «всего N». Состояния «не спрашивается» нет ни у
+     одной двери: ворот охвата больше нет, охват — фильтр строк. */
+  ST.seed();
+  const st288 = ST.state;
+  const kinds288 = {};
+  st288.objects.forEach(o => (o.scope || []).forEach(r => { kinds288[r.kind] = (kinds288[r.kind] || []).concat(o.id); }));
+  const errs288 = ST.scopeErrors();
+  const OB288 = vm.runInContext('OBJECTS', sandbox);
+  const case288 = OB288.find(o => o.id === 'obj-case'), keep288 = JSON.stringify(case288.scope);
+  const load288 = sc => {
+    case288.scope = sc;
+    try { ST.seed(true); return null; } catch(e){ return String(e.message); }
+    finally { case288.scope = JSON.parse(keep288); }
+  };
+  const noRule = load288([]), noKind = load288([{obj:'obj-claim', key:'d-clcase'}]),
+        noWhy = load288([{kind:'open'}]), badKey = load288([{kind:'via', obj:'obj-claim', key:'d-curator'}]);
+  ST.seed();
+  const mig288 = ST.migrateTable({obj:'obj-guarantee', table:'stat_row_guarantee', storage:'state',
+    cols:['object_id','slice_date','run_id','now_cols']});
+  const G288 = sc => ST.addObject({id:'obj-guarantee', name:'Поручительство', plural:'поручительства',
+    owner:'Обеспечение', refName:'номер поручительства', born:{src:'поле', key:'gdate'}, scope: sc,
+    dims:[], inds:['a-count']});
+  const dNone = G288(undefined), dOpen = G288([{kind:'open'}]),
+        dDen = G288({denied:{why:'куратора не отдают', road:'спросите другой объект'}});
+  ST.seed();
+  ST.setRole('Аналитик');
+  const op288 = ['obj-zdeal','obj-program','obj-receipt'].map(id => {
+    const s = ST.statSlice({obj:id, dims:[], inds:['a-count'], date: ASK});
+    return {id, s, short: s.ok ? ST.passportShort(s.passport) : ''};
+  });
+  const zRows = ST.statRows({obj:'obj-zdeal', date: ASK});
+  const rWork = ST.workList('obj-receipt');
+  const rSer = ST.statSeries({obj:'obj-receipt', inds:'a-sumrsum', dates:['2026-08-01', ASK]});
+  ST.setRole('Администратор статистики');
+  ok(288, errs288.length === 0 && st288.objects.every(o => Array.isArray(o.scope) && o.scope.length >= 1) &&
+        (kinds288.own || []).join() === 'obj-credit,obj-borrower,obj-collateral,obj-claim,obj-repay,obj-measure' &&
+        (kinds288.via || []).join() === 'obj-case,obj-measure' &&
+        (kinds288.open || []).join() === 'obj-zdeal,obj-program,obj-receipt' &&
+        has(noRule, 'правил охвата нет') && has(noKind, 'без вида') && has(noWhy, 'причина не названа') &&
+        has(badKey, 'ключ связи') &&
+        mig288.ok && !dNone.ok && has(dNone.why, 'правил охвата нет') && !dOpen.ok && has(dOpen.why, 'причина не названа') &&
+        !dDen.ok && has(dDen.why, 'ИС-58') &&
+        op288.every(x => x.s.ok && x.s.passport.scoped === false && has(x.s.passport.scope, '(ИС-58)') &&
+                         has(x.short, 'всего ' + x.s.n)) &&
+        has(op288[0].s.passport.scope, 'решение пользователя 17.09.2026') &&
+        has(op288[2].s.passport.scope, 'решение пользователя 17.09.2026') &&
+        has(op288[1].s.passport.scope, 'общее знание') &&
+        zRows.ok && zRows.rows.length === op288[0].s.n && rWork.ok && rWork.n === op288[2].s.n && rSer.ok &&
+        typeof ST.scopeGate === 'undefined',
+    `охват — правила, соединённые ИЛИ (ИС-58): у каждого из ${st288.objects.length} объектов правило есть, ошибок сверки правил с реестром ${errs288.length}; своей колонкой режутся ${(kinds288.own || []).length} (${(kinds288.own || []).join(', ')}), через другую таблицу ${(kinds288.via || []).length} (${(kinds288.via || []).join(', ')}), общие ${(kinds288.open || []).length} (${(kinds288.open || []).join(', ')}). Загрузка валится: без правила — «${String(noRule).slice(0, 60)}…», без вида — «${String(noKind).slice(0, 60)}…», общий без причины — «${String(noWhy).slice(0, 60)}…», ключ не к той таблице — «${String(badKey).slice(0, 60)}…»; дверь объекта отбивает то же («${String(dNone.why).slice(0, 60)}…»), и прежнее состояние «отказ» ей не форма. Под ролью аналитика общие отвечают с причиной: ${op288.map(x => x.id + ' — ' + (x.s.ok ? x.s.n + ', «' + x.short + '»' : x.s.why)).join('; ')}; строки договоров ${zRows.ok ? zRows.rows.length : '—'}, список поступлений ${rWork.ok ? rWork.n : '—'}, ряд поступлений ${rSer.ok ? 'отвечает' : '—'} — «не спрашивается» нет ни у одной двери (ADR-0243 §4, §5, СС-199)`);
+
+  /* #289 — own: своя колонка, тот же читатель у среза и у реестра владельца (преемник #133,
+     #134). Заёмщик режется ведущим куратором — вычисляемым швом, а не историей; срез и реестр
+     владельца сходятся у всех объектов с правилами, кроме общих. */
+  ST.seed();
+  const st289 = ST.state;
+  ST.setRole('Аналитик');
+  const bAll = ST.rowsAsOf('obj-borrower', ASK);
+  const bRows = ST.statRows({obj:'obj-borrower', date: ASK});
+  const bReg = ST.registryList('obj-borrower', st289.today, null);
+  const lead = ST.DIM('d-lcurator');
+  const W289 = vm.runInContext('WORLD', sandbox);
+  const noHist289 = (W289['obj-borrower'] || []).filter(i => i.h && i.h.curator).length;
+  const pairs289 = st289.objects.filter(o => !o.scope.some(r => r.kind === 'open')).map(o => ({
+    id: o.id, slice: (ST.statRows({obj:o.id, date: ASK}).rows || []).length,
+    reg: ST.registryList(o.id, st289.today, null).length}));
+  const drift289 = pairs289.filter(x => x.slice !== x.reg);
+  ST.setRole('Администратор статистики');
+  ok(289, bAll.length === 8 && bRows.ok && bRows.rows.length === 3 && bReg.length === 3 &&
+        has(bRows.passport.scope, 'ведущий куратор') && bRows.passport.scoped === true &&
+        lead.src === 'шов' && lead.seam === 'leadCurator' && noHist289 === 0 &&
+        pairs289.length === 7 && drift289.length === 0,
+    `own — своя колонка строки: заёмщиков на ${ASK} ${bAll.length}, аналитику видно ${bRows.ok ? bRows.rows.length : '—'} по ведущему куратору — «${bRows.ok ? bRows.passport.scope : '—'}»; реестр владельца отдаёт тех же ${bReg.length}. Ведущий куратор — шов «${lead.seam}», истории «curator» у заёмщика нет ни в одной записи мира (${noHist289}), и охват читается тем же читателем, что разрез. Срез и реестр владельца сходятся у всех ${pairs289.length} объектов с правилами own и via, расхождений ${drift289.length}${drift289.length ? ' (' + drift289.map(x => x.id + ' ' + x.slice + '/' + x.reg).join(', ') + ')' : ''} (ИС-14, ИС-18, ИС-58)`);
+
+  /* #290, #291 — via на дату вопроса и ИЛИ у меры. Требование ТВ-2025/11-1 с 20.08 передано
+     Бековой, ТВ-2026/03-1 — от неё Осмонову. Дело видно, если видно хоть одно его требование
+     в строке ТОЙ ЖЕ даты: ДВ-2025/11 видно в срезе 21.08 и не видно в срезе 20.08; ДВ-2026/03
+     видно через оставшееся у Бековой ТВ-2026/03-3, и два его требования дают одно дело —
+     счёт дел различный. Мера видна через требование-цель ИЛИ автору: меры по ТВ-2025/11-1
+     пришли через цель, а меры Бековой по ТВ-2026/03-1 остались за ней как за автором после
+     передачи требования. Охват режет до группировки: группы среза мер складываются в число
+     видимых строк. */
+  ST.seed();
+  ST.setRole('Аналитик');
+  const c290a = ST.statSlice({obj:'obj-case', dims:[], inds:['a-count'], date: ASK});
+  const cl290 = (ST.statRows({obj:'obj-claim', date: ASK}).rows || []).filter(r => r.dims['d-clcase'] === 'ДВ-2026/03').length;
+  const m290a = ST.statSlice({obj:'obj-measure', dims:['d-mkind'], inds:['a-count'], date: ASK});
+  ST.setRole('Администратор статистики');
+  const cq1 = W289['obj-claim'].find(x => x.id === 'ТВ-2025/11-1'), cq2 = W289['obj-claim'].find(x => x.id === 'ТВ-2026/03-1');
+  const kq1 = JSON.stringify(cq1.h.curator), kq2 = JSON.stringify(cq2.h.curator);
+  let c290 = null, c290p = null, cw290 = null, m291 = null, mw291 = null;
+  try {
+    cq1.h.curator = cq1.h.curator.concat([['2026-08-20', 'Бекова Н.']]);
+    cq2.h.curator = cq2.h.curator.concat([['2026-08-20', 'Осмонов Т.']]);
+    ST.seed();
+    ST.setRole('Аналитик');
+    c290 = ST.statSlice({obj:'obj-case', dims:[], inds:['a-count'], date: ASK});
+    c290p = ST.statSlice({obj:'obj-case', dims:[], inds:['a-count'], date: '2026-08-20'});
+    cw290 = ST.workList('obj-case');
+    m291 = ST.statSlice({obj:'obj-measure', dims:['d-mkind'], inds:['a-count'], date: ASK});
+    mw291 = ST.workList('obj-measure');
+  } finally {
+    ST.setRole('Администратор статистики');
+    cq1.h.curator = JSON.parse(kq1); cq2.h.curator = JSON.parse(kq2);
+  }
+  ST.seed();
+  const refs = s => s && s.ok ? s.groups.map(g => g.refs.join('+')).join('|') : '—';
+  const grp = s => s && s.ok ? s.groups.map(g => g.key + ':' + g.n).join(', ') : '—';
+  ok(290, c290a.ok && c290a.n === 1 && refs(c290a) === 'ДВ-2026/03' && cl290 === 2 &&
+        c290.ok && c290.n === 2 && c290.total['a-count'].v === 2 && refs(c290) === 'ДВ-2026/03+ДВ-2025/11' &&
+        c290p.ok && c290p.n === 1 && refs(c290p) === 'ДВ-2026/03' &&
+        has(c290.passport.scope, 'через требования взыскания') && c290.passport.scoped === true &&
+        cw290.ok && cw290.list.join() === 'ДВ-2025/11,ДВ-2026/03' && cw290.inSlice === 2,
+    `дело — через свои требования на дату вопроса (ADR-0243 §3): аналитику видно ${c290a.ok ? c290a.n : '—'} дело (${refs(c290a)}) — у него ${cl290} видимых требования, и счёт дел различный. После передачи ТВ-2025/11-1 Бековой с 20.08 срез ${ASK} видит ${c290 && c290.ok ? c290.n : '—'} (${refs(c290)}), срез 2026-08-20 — ${c290p && c290p.ok ? c290p.n : '—'} (${refs(c290p)}): владелец требования для дела — тот, кто владеет им в строке той же даты. Паспорт: «${c290 && c290.ok ? c290.passport.scope : '—'}»; реестр владельца — ${cw290 && cw290.ok ? cw290.list.join(', ') : '—'} (ИС-58, СС-199)`);
+  ok(291, m290a.ok && m290a.n === 2 && grp(m290a) === 'исковое заявление:1, претензия:1' &&
+        m291.ok && m291.n === 4 && grp(m291) === 'исковое заявление:1, исполнительный лист:1, претензия:1, реализация залога:1' &&
+        m291.groups.reduce((a, g) => a + g.n, 0) === m291.n &&
+        m291.groups.some(g => g.refs.indexOf('МВ-2026/12') >= 0) && m291.groups.some(g => g.refs.indexOf('МВ-2025/44') >= 0) &&
+        !m291.groups.some(g => g.refs.indexOf('МВ-2026/27') >= 0) &&
+        has(m291.passport.scope, ' ИЛИ ') && has(m291.passport.scope, 'куратор меры взыскания — Бекова Н.') &&
+        mw291.ok && mw291.n === 4 && mw291.inSlice === 4,
+    `мера — через требование-цель ИЛИ автору (ADR-0243 §3): до передач аналитику видно ${m290a.ok ? m290a.n : '—'} (${grp(m290a)}), после — ${m291 && m291.ok ? m291.n : '—'} (${grp(m291)}): меры по ТВ-2025/11-1 пришли через цель, меры Бековой по ТВ-2026/03-1 остались за ней как за автором, а чужая претензия МВ-2026/27 не видна. Группы складываются в число видимых строк — охват резал до группировки. Паспорт: «${m291 && m291.ok ? m291.passport.scope : '—'}»; реестр владельца — ${mw291 && mw291.ok ? mw291.n : '—'}. Путь признаков охватом не режется — #287 (ИС-58, ADR-0241 §8, СС-199)`);
 })();
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
