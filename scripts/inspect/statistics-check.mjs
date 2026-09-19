@@ -111,6 +111,9 @@
 // блок волны 23 З-18b — разрез значением (ИС-57, ADR-0241 §1, §3, §4): ключ в `dims`, подпись на
 // дату в `lbls`; переименование прошлую строку не меняет; классификатор — код, подпись, порядок
 // из версии без релиза; подразделение — два уровня на дату.
+// блок волны 23 З-18c — признак чужого объекта путём «таблица + ключ» (ИС-57, ADR-0241 §8): тип
+// лица заёмщика у кредита — join строки кредита со строкой заёмщика той же даты, копии в строке
+// кредита нет, охват путь не режет.
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -215,10 +218,13 @@ const FIZ = fizSchema();
   /* Волна 23, З-16b (переписан на месте): разрезов 81 → 82, записей 310 → 311 — у меры заведён
      представитель пары «мера × цель» `d-mprimary` (СС-175, СС-176): без него итог сумм меры о
      двух целях считался бы дважды (ИС-55, схема §11.2). */
+  /* Волна 23, З-18c (переписан на месте): разрезов 82 → 83, записей 311 → 312 — у кредита заведён
+     путь «Тип лица заёмщика» `d-cbptype` (СС-198): признак заёмщика у кредита читается join-ом,
+     а не копией, и путь — своя запись со своим именем (ИС-57, ADR-0241 §8, ADR-0206 §1). */
   const own1 = st.indicators.filter(i => !i.somOf), twin1 = st.indicators.filter(i => i.somOf);
   ok(1, st.objects.length === 10 && st.indicators.length === 229 && own1.length === 155 &&
        twin1.length === 74 && twin1.every(t => !!ST.IND(t.somOf)) &&
-       st.dims.length === 82 && ST.registry().length === 311 && badSrc.length === 0 &&
+       st.dims.length === 83 && ST.registry().length === 312 && badSrc.length === 0 &&
        formula.length === 0 && badFn.length === 0,
     `объектов ${st.objects.length}, показателей ${st.indicators.length} — ${own1.length} своих и ${twin1.length} сомовых сторон, и у каждой стороны валютная запись на месте; разрезов ${st.dims.length}, всего записей реестра ${ST.registry().length}. Счёт назван точным числом, а не «не меньше 85»: неравенство пережило бы молча потерю сотни записей, а потеря близнеца — это денежная величина, которую нельзя сложить по портфелю. Без объявленного источника ${badSrc.length}, с формулой ${formula.length} (сомовая сторона — не формула, а вторая колонка той же величины), с функцией вне списка ${badFn.length} — ИС-6, ИС-7, ИС-44`);
 
@@ -3012,7 +3018,9 @@ const FIZ = fizSchema();
      (ИС-53, ADR-0237 §3, §4). */
   ST.seed();
   const rel0 = ST.release(), relJ0 = JSON.stringify(rel0);
-  const live0 = ST.state.registry.filter(r => r.src !== 'агрегат');
+  /* Волна 23, З-18c (переписан на месте): путь «таблица + ключ» — как агрегат, запись без своей
+     колонки: он читает колонку соседа по ключу (СС-198), и его колонки сверяет #287. */
+  const live0 = ST.state.registry.filter(r => r.src !== 'агрегат' && r.src !== 'путь');
   const inRel = (obj, c) => !!rel0.tables[obj] && rel0.tables[obj].cols.indexOf(c) >= 0;
   const unnamed = live0.filter(r => !ST.physOf(r.id).length);
   const offRel  = live0.filter(r => ST.physOf(r.id).some(c => !inRel(r.obj, c)));
@@ -3717,11 +3725,15 @@ const FIZ = fizSchema();
   /* Волна 23, З-16b (переписан на месте): записей 310 → 311, разрезов 81 → 82, с колонками
      193 → 194 — представитель меры `d_primary` (СС-175, СС-176) заведён вместе с колонкой
      релиза (схема §11.2). Агрегатов по-прежнему 117. */
-  ok(181, st.registry.length === 311 && nInd === 229 && nDim === 82 &&
+  /* Волна 23, З-18c (переписан на месте): записей 311 → 312, разрезов 82 → 83 — путь «Тип лица
+     заёмщика» `d-cbptype` (СС-198). Своей колонки у него нет, как у агрегата: записи с колонками,
+     агрегаты и пути вместе дают весь реестр. */
+  const pathN = st.registry.filter(r => r.src === 'путь').length;
+  ok(181, st.registry.length === 312 && nInd === 229 && nDim === 83 && pathN === 1 &&
         ownInd === 155 && somInd === 74 && somInd === 37 * 2 && !ST.REC('d-ocur') &&
         newDims.every(d => d && /валют/i.test(d.name) && ST.OBJ(d.obj).dims.indexOf(d.id) >= 0) &&
         newDims.map(d => d.obj).join(',') === 'obj-claim,obj-measure' &&
-        withCols === 194 && aggN === 117 && withCols + aggN === st.registry.length &&
+        withCols === 194 && aggN === 117 && withCols + aggN + pathN === st.registry.length &&
         somCols === 37 && ST.awaiting().length === 0,
     `реестр сверен со схемой, и число названо по факту, а не смягчено: ${st.registry.length} записей — ${nInd} породы «показатель» (${ownInd} своих и ${somInd} сомовых близнецов: ${somInd / 2} строчных и столько же агрегатов) и ${nDim} породы «разрез». Реестр сверен и с релизом: строчных записей с колонками ${withCols} (сомовых близнецов из них ${somCols}), агрегатов без колонки ${aggN}, ждущих колонку ${ST.awaiting().length} (ИС-53, ADR-0237 §3, §5). Своих разрезов валюты у объектов, заведённых волной 17, осталось два — ${newDims.map(d => d ? '«' + d.name + '» у ' + ST.OBJ(d.obj).name : '—').join(', ')}: разрез валюты дела снят вместе с валютой дела (${ST.REC('d-ocur') ? 'ОСТАЛСЯ' : 'снят'}), итоги дела только в сомах (ADR-0244 §4, ADR-0240 §4; ИС-40, ИС-44, ADR-0214 §1, ADR-0206 §3)`);
 
@@ -5545,7 +5557,9 @@ const FIZ = fizSchema();
 
   /* #237 — каждая действующая запись ложится в колонки релиза своего объекта. Агрегату
      колонка не нужна — он считается при чтении (ADR-0237 §5). */
-  const recs = ST.state.registry.filter(r => r.src !== 'агрегат' && !r.until);
+  /* Волна 23, З-18c (переписан на месте): путь «таблица + ключ» колонки не заводит — он читает
+     колонку соседа по ключу (СС-198), и его колонки сверяет #287. */
+  const recs = ST.state.registry.filter(r => r.src !== 'агрегат' && r.src !== 'путь' && !r.until);
   const physOf = id => (typeof ST.physOf === 'function' ? ST.physOf(id) : []);
   const unmapped = recs.filter(r => !physOf(r.id).length).map(r => r.id);
   const outside = [];
@@ -7894,6 +7908,75 @@ const FIZ = fizSchema();
     `подразделение — два уровня на дату: Иссык-Кульское РП переподчинено Блоку кредитования с 15.08; КД-2025/088 на 15.08 — «${b286 ? b286.dims['d-branch'].join(' / ') : '—'}», на 16.08 — «${a286 ? a286.dims['d-branch'].join(' / ') : '—'}», его заёмщик на ${ASK} — «${bor286 ? bor286.dims['d-lbranch'].join(' / ') : '—'}». Вышестоящее лежит в строке: срез по блокам — «Блок кредитования» на 01.08 ${s0}, на ${ASK} ${s1}. Уровней ${ST.DIM('d-branch').levels.length}, колонки релиза — ${unitCols} (ИС-57, ADR-0241 §4, СС-197)`);
 })();
 
+/* ===== Волна 23 · З-18c — признак чужого объекта путём «таблица + ключ» (ИС-57, ADR-0241 §8,
+   ADR-0206 §5). Признак заёмщика у кредита лежит в строке заёмщика; срез кредитов берёт его
+   join-ом по ключу заёмщика на ту же дату среза, копии в строке кредита нет. ===== */
+(() => {
+  /* #287 — путь, а не копия. Срез кредитов «по типу лица заёмщика» на 21.08 группирует кредиты
+     ровно так, как их группирует join строк кредита со строками заёмщиков той же даты; ни в
+     одной хранимой строке кредита значения пути нет. Правка строки заёмщика одной даты
+     сдвигает срез кредитов ровно этой даты: значение читается из строки соседа, а не из
+     копии и не из вчерашней строки. Охват путь не режет: аналитик видит кредит КД-2023/210,
+     а строку его заёмщика (ведущий куратор другой) — нет, и тип лица у кредита всё равно
+     назван. Путь — своя запись со своим именем: признак заёмщика его собственной записью у
+     кредита по-прежнему не спрашивается (ИС-40), а у пути нет колонки в таблице кредита.
+     Дверь реестра заводит путь без релиза — колонки у него нет, ждать нечего, — и отбивает
+     путь с чужим ключом и путь, назвавший свою колонку. */
+  const ASK287 = ASK, PREV287 = '2026-08-20';
+  const cmp287 = v => ({sets:[{cmps:[{kind:'dim', id:'d-cbptype', op:'∈', values:[v]}]}]});
+  const byKey287 = s => s.ok ? s.groups.map(g => g.key + ':' + g.n).join(', ') : 'отказ: ' + s.why;
+  const join287 = d => {
+    const b = new Map(ST.rowsAt('obj-borrower', d).map(r => [r.ref, r.dims['d-ptype']]));
+    const out = {};
+    ST.rowsAt('obj-credit', d).forEach(r => { const k = b.get(r.dims['d-binn']); const kk = k == null ? '—' : k; out[kk] = (out[kk] || 0) + 1; });
+    return Object.keys(out).sort((a, c) => a.localeCompare(c, 'ru', {numeric:true})).map(k => k + ':' + out[k]).join(', ');
+  };
+  const q287 = d => ({obj:'obj-credit', dims:['d-cbptype'], inds:['a-count'], date: d});
+  ST.seed();
+  const s0 = ST.statSlice(q287(ASK287));
+  const j0 = join287(ASK287);
+  const fl = ST.statSlice(Object.assign(q287(ASK287), {dims:[], filter: cmp287('физическое лицо')}));
+  const copy0 = ST.state.rows.filter(r => r.obj === 'obj-credit' && r.dims['d-cbptype'] !== undefined).length;
+  const col287 = ST.colOf('d-cbptype');
+  const credT = ST.release().tables['obj-credit'];
+  const own287 = ST.statSlice({obj:'obj-credit', dims:['d-ptype'], inds:['a-count'], date: ASK287});
+  const back287 = ST.statSlice({obj:'obj-borrower', dims:['d-cbptype'], inds:['a-count'], date: ASK287});
+  /* Правка строки заёмщика 10510198203112 на 21.08 — только этой даты. */
+  const br287 = ST.state.rows.find(r => r.obj === 'obj-borrower' && r.ref === '10510198203112' && r.date === ASK287);
+  const was287 = br287 ? br287.dims['d-ptype'] : null;
+  if(br287) br287.dims['d-ptype'] = 'юридическое лицо';
+  const s1 = ST.statSlice(q287(ASK287));
+  const p1 = ST.statSlice(q287(PREV287));
+  const pj = join287(PREV287);
+  if(br287) br287.dims['d-ptype'] = was287;
+  /* Охват: аналитик (куратор Бекова Н.) видит КД-2023/210, а строку его заёмщика — нет. */
+  ST.state.role = 'Аналитик';
+  const sa = ST.statSlice(q287(ASK287));
+  const bSeen = ST.statSlice({obj:'obj-borrower', dims:[], inds:['a-count'], date: ASK287});
+  const b210 = ST.applyScope(ST.rowsAt('obj-borrower', ASK287), 'obj-borrower').some(r => r.ref === '22903197505433');
+  ST.state.role = 'Администратор статистики';
+  const copy1 = ST.state.rows.filter(r => r.obj === 'obj-credit' && r.dims['d-cbptype'] !== undefined).length;
+  const vBy = ST.addDim({dates:1, id:'d-v1', name:'Проба пути чужим ключом', obj:'obj-credit', src:'путь',
+    via:{by:'d-lcurator', dim:'d-bform'}, owner:'Заёмщики'});
+  const vCol = ST.addDim({dates:1, id:'d-v2', name:'Проба пути с колонкой', obj:'obj-credit', src:'путь',
+    via:{by:'d-binn', dim:'d-bform'}, owner:'Заёмщики', col:'d_form', vtype:'ref'});
+  const vOk = ST.addDim({dates:1, id:'d-v3', name:'Организационно-правовая форма заёмщика', obj:'obj-credit', src:'путь',
+    via:{by:'d-binn', dim:'d-bform'}, owner:'Заёмщики'});
+  const vSt = vOk.ok ? ST.colOf('d-v3') : null;
+  ST.seed();
+  ok(287, s0.ok && byKey287(s0) === j0 && j0 === 'индивидуальный предприниматель:1, физическое лицо:3, юридическое лицо:4' &&
+        fl.ok && fl.total['a-count'].v === 3 &&
+        copy0 === 0 && copy1 === 0 && !!col287 && col287.state === 'путь' && col287.table === 'stat_row_borrower' &&
+        col287.cols.join() === 'd_ptype' && col287.key === 'd_borrower_id' && credT.cols.indexOf('d_ptype') < 0 &&
+        !own287.ok && has(own287.why, 'ИС-40') && !back287.ok &&
+        s1.ok && byKey287(s1) === 'физическое лицо:3, юридическое лицо:5' &&
+        p1.ok && byKey287(p1) === pj && pj === 'индивидуальный предприниматель:1, физическое лицо:3, юридическое лицо:4' &&
+        sa.ok && byKey287(sa) === 'индивидуальный предприниматель:1, физическое лицо:1, юридическое лицо:3' &&
+        bSeen.ok && !b210 &&
+        !vBy.ok && has(vBy.why, 'ключ связи') && !vCol.ok && has(vCol.why, 'нет своей колонки') &&
+        vOk.ok && !vOk.waiting && !!vSt && vSt.state === 'путь' && vSt.cols.join() === 'd_form_id,d_form_lbl',
+    `признак заёмщика у кредита — путём «таблица + ключ», а не копией: срез кредитов по «${ST.REC('d-cbptype').name}» на ${ASK287} — ${byKey287(s0)}, join строк кредита со строками заёмщиков той же даты — ${j0}; фильтр «физическое лицо» — ${fl.ok ? fl.total['a-count'].v : '—'}. Значения пути в хранимых строках кредита ${copy0} до среза и ${copy1} после; колонки у пути своей нет — он читает ${col287 ? col287.table + '.' + col287.cols.join() : '—'} по ключу ${col287 ? col287.key : '—'}. Строка заёмщика 10510198203112 на ${ASK287} переправлена «${was287 || '—'}» → «юридическое лицо»: срез этой даты — ${byKey287(s1)}, срез ${PREV287} прежний — ${byKey287(p1)}. Охват путь не режет: аналитику строка заёмщика КД-2023/210 ${b210 ? 'видна' : 'не видна'}, а срез его кредитов — ${byKey287(sa)}. Собственная запись заёмщика у кредита не спрашивается: «${String(own287.why).slice(0, 60)}…». Дверь реестра: путь «${vOk.ok ? 'Организационно-правовая форма заёмщика' : '—'}» заведён ${vOk.waiting ? 'в ожидание' : 'сразу'} (${vSt ? vSt.table + '.' + vSt.cols.join('/') : '—'}), путь с чужим ключом — «${String(vBy.why).slice(0, 50)}…», с колонкой — «${String(vCol.why).slice(0, 50)}…» (ИС-57, ADR-0241 §8, ADR-0206 §5, СС-198)`);
+})();
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
