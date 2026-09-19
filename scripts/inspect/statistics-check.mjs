@@ -120,6 +120,9 @@
 // блок волны 23 З-20 — член группы совместного риска (ADR-0244 §2, ADR-0199): таблица членства
 // «группа × член × дата» без денег; суммы группы — из строк заёмщиков той же даты, итог — по
 // различным членам; охват через строку заёмщика-члена.
+// блок волны 23 З-21 — признак «текущее» массивом имён (ADR-0242): поле `now` вместо карты
+// `when`; копия переносит, пересчёт пишет заново; молчание в массив не попадает; имя сверяет
+// дверь записи.
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -272,8 +275,12 @@ const FIZ = fizSchema();
      ключи двух из них — имена записей реестра, а у третьего ключи закрыты: курс и его дата.
      Записью реестра курс не стал — его колонки `rate` и `rate_date` в схеме служебные, как `cur`. */
   const valKeys = vals.filter(f => f !== 'fx').reduce((a, f) => a.concat(Object.keys(u3[f] || {})), []);
-  const origKeys = Object.keys(u3.when || {});
-  const origVals = origKeys.map(k => u3.when[k]);
+  /* Волна 23, З-21 (переписан на месте): ряд ПРОИСХОЖДЕНИЯ — массив `now` имён величин,
+     собранных «текущими», а не карта «величина → слово» (ADR-0242, СС-201). Критерий снова
+     механический — по форме: ряд значений — карты «запись → значение», ряд происхождения —
+     массив имён без единого значения, и каждое имя называет величину той же строки. */
+  const origKeys = Array.isArray(u3.now) ? u3.now.slice() : [];
+  const origOwn = origKeys.filter(k => k in u3.dims || k in u3.inds);
   const fateKeys = Object.keys(u3.srcs || {});
   /* Волна 23, З-16a (переписан на месте): полей 9 → 10 — `part`, вид поправки события, и он
      в ряду АДРЕСА, а не значений: ключ строки события в схеме — (объект, срез, вид поправки),
@@ -292,18 +299,18 @@ const FIZ = fizSchema();
   const outside3 = ST.state.rows.concat(ans3).filter(r => Object.keys(r).slice().sort().join() !== sorted3);
   ok(3, shape.length === 12 && shape.indexOf('som') < 0 && shape.indexOf('доля') < 0 &&
        evRows3.length > 0 && ans3.length > 0 && outside3.length === 0 &&
-       shape.join(',') === 'obj,ref,date,part,dims,lbls,inds,fx,when,srcs,fixed,by' &&
+       shape.join(',') === 'obj,ref,date,part,dims,lbls,inds,fx,now,srcs,fixed,by' &&
        key.join(',') === 'obj,ref,date,part' &&
        vals.join(',') === 'dims,lbls,inds,fx' && orig.length === 1 && both.length === 0 && cover &&
        Object.keys(u3.lbls).length > 0 && Object.keys(u3.lbls).every(k => k in u3.dims) &&
        !!u3.fx && Object.keys(u3.fx).sort().join() === 'rate,rateDate' &&
        valKeys.length > 0 && valKeys.every(k => !!ST.REC(k)) &&
        origKeys.length > 0 && origKeys.every(k => !!ST.REC(k)) &&
-       ST.DATING.length === 2 && origVals.every(v => ST.DATING.indexOf(v) >= 0) &&
+       Array.isArray(u3.now) && origOwn.length === origKeys.length &&
        fateKeys.length > 0 && fateKeys.every(k => !ST.REC(k)) &&
        som3 === 'm-debt-som' && !('som' in u3) && !('som' in u3.inds['m-debt']) &&
        u3.inds[som3] && u3.inds[som3].v > 0 && ST.IND(som3).unit === 'сом',
-    `форма строки закрыта: ${shape.join(' · ')} — долей и дельт нет (ИС-15). Полей двенадцать — десятое, «part», стоит в адресе (СС-170), одиннадцатое, «fx», курс строки, и двенадцатое, «lbls», подписи разрезов на дату, — в ряду значений (ИС-56, ИС-57); подписей у строки ${Object.keys(u3.lbls).length}, и каждая — у разреза, чей ключ лежит в dims: рядов четыре и вместе они покрывают форму без остатка, не пересекаясь ни одним полем: АДРЕС (${key.join(' · ')}) · ЗНАЧЕНИЯ (${vals.join(' · ')}) · ПРОИСХОЖДЕНИЕ (${orig.join(' · ')}) · СУДЬБА (${fate.join(' · ')}). Прежний критерий различения на четвёртом ряду сломался и заменён: ключей в ряду значений ${valKeys.length} и каждый — запись реестра, но ключей в ряду ПРОИСХОЖДЕНИЯ ${origKeys.length} и каждый — тоже запись реестра, так что по именам эти ряды не разводятся. Разводит их словарь: значений в ряду происхождения ${origVals.length}, и все до одного — слова закрытого списка из двух (${ST.DATING.join(' · ')}), величины среди них нет ни одной (ИС-39, ADR-0205 §1). Ряд судьбы стоит особняком по-прежнему: ключей ${fateKeys.length} (${fateKeys.join(', ')}), и не запись реестра ни один — это имена СОСЕДЕЙ (ИС-42, ADR-0208 §2). Сомовая величина вошла в строку колонкой внутри inds под именем записи реестра «${ST.IND(som3).name}» (${(u3.inds[som3] || {}).v} ${ST.IND(som3).unit}), а не полем формы: поле нельзя назвать в отчёте и прекратить датой, запись — можно (ИС-44, ADR-0214 §2). Форму держит каждая строка: из ${ST.state.rows.length} хранимых (строк событий ${evRows3.length}) и ${ans3.length} действующих ответов событий на 21.08 вне формы ${outside3.length}${outside3.length ? ' (' + outside3[0].obj + ' ' + outside3[0].ref + ': ' + Object.keys(outside3[0]).filter(k => shape.indexOf(k) < 0).join(', ') + ')' : ''}`);
+    `форма строки закрыта: ${shape.join(' · ')} — долей и дельт нет (ИС-15). Полей двенадцать — десятое, «part», стоит в адресе (СС-170), одиннадцатое, «fx», курс строки, и двенадцатое, «lbls», подписи разрезов на дату, — в ряду значений (ИС-56, ИС-57); подписей у строки ${Object.keys(u3.lbls).length}, и каждая — у разреза, чей ключ лежит в dims: рядов четыре и вместе они покрывают форму без остатка, не пересекаясь ни одним полем: АДРЕС (${key.join(' · ')}) · ЗНАЧЕНИЯ (${vals.join(' · ')}) · ПРОИСХОЖДЕНИЕ (${orig.join(' · ')}) · СУДЬБА (${fate.join(' · ')}). Критерий различения на четвёртом ряду — форма: ключей в ряду значений ${valKeys.length} и каждый — запись реестра со значением, а ряд ПРОИСХОЖДЕНИЯ — массив из ${origKeys.length} имён записей реестра без единого значения, и каждое называет величину той же строки (${origOwn.length}): «текущими» собраны они, прочие — «на дату» (ИС-39, ADR-0242). Ряд судьбы стоит особняком по-прежнему: ключей ${fateKeys.length} (${fateKeys.join(', ')}), и не запись реестра ни один — это имена СОСЕДЕЙ (ИС-42, ADR-0208 §2). Сомовая величина вошла в строку колонкой внутри inds под именем записи реестра «${ST.IND(som3).name}» (${(u3.inds[som3] || {}).v} ${ST.IND(som3).unit}), а не полем формы: поле нельзя назвать в отчёте и прекратить датой, запись — можно (ИС-44, ADR-0214 §2). Форму держит каждая строка: из ${ST.state.rows.length} хранимых (строк событий ${evRows3.length}) и ${ans3.length} действующих ответов событий на 21.08 вне формы ${outside3.length}${outside3.length ? ' (' + outside3[0].obj + ' ' + outside3[0].ref + ': ' + Object.keys(outside3[0]).filter(k => shape.indexOf(k) < 0).join(', ') + ')' : ''}`);
 
   const edit = ST.tryEditRow();
   const editors = Object.keys(ST).filter(k => /^(edit|update|setRow|patch)/.test(k) && k !== 'tryEditRow');
@@ -4555,14 +4562,16 @@ const FIZ = fizSchema();
      слова в `ST.DATING` не появится, и ни одно значение `when` за пределы словаря не выходит. */
   ST.seed();
   const REC209  = id => ST.registry().find(r => r.id === id);
-  const row209  = ST.state.rows.find(r => r.obj === 'obj-collateral' && r.when);
-  const pl209   = Object.keys(row209.when).filter(id => (REC209(id) || {}).seam === 'calcPledge');
-  const now209  = pl209.filter(id => row209.when[id] === 'текущее').slice().sort();
-  const asof209 = pl209.filter(id => row209.when[id] === 'на дату');
+  /* Волна 23, З-21 (переписан на месте): признак читается из массива `now` (ADR-0242) —
+     величины двери берутся из значений строки, «текущие» — названные в массиве. */
+  const row209  = ST.state.rows.find(r => r.obj === 'obj-collateral' && Array.isArray(r.now));
+  const pl209   = Object.keys(row209.dims).concat(Object.keys(row209.inds))
+    .filter(id => (REC209(id) || {}).seam === 'calcPledge');
+  const now209  = pl209.filter(id => ST.datingOf(row209, id) === 'текущее').slice().sort();
+  const asof209 = pl209.filter(id => ST.datingOf(row209, id) === 'на дату');
   const kinds209 = [...new Set(now209.map(id => (REC209(id) || {}).kind))].sort();
   const alien209 = ST.state.rows
-    .reduce((a, r) => a.concat(Object.keys(r.when || {}).map(k => r.when[k])), [])
-    .filter(v => ST.DATING.indexOf(v) < 0);
+    .reduce((a, r) => a.concat((r.now || []).filter(k => !ST.REC(k) || ST.REC(k).obj !== r.obj)), []);
   const R209 = id => REC209(id) || {name:'—', seam:'—'};
   /* Волна 23 (переписан на месте): одна дверь отдаёт 11 записей, а не 15, «на дату» — 7,
      а не 11. Ушли четыре сомовых близнеца залоговых сумм: оценка залога всегда в сомах, и
@@ -4570,12 +4579,12 @@ const FIZ = fizSchema();
      внутри одной двери — то, что проверка держит, — от этого не изменилось. */
   ok(209, pl209.length === 11 && asof209.length === 7 && now209.length === 4 &&
         now209.join() === 'd-cctl,m-cnext,m-creval,m-csurv' &&
-        row209.when['m-cpledge'] === 'на дату' && row209.when['m-csurv'] === 'текущее' &&
+        ST.datingOf(row209, 'm-cpledge') === 'на дату' && ST.datingOf(row209, 'm-csurv') === 'текущее' &&
         REC209('m-cpledge').seam === 'calcPledge' && REC209('m-csurv').seam === 'calcPledge' &&
         kinds209.join() === 'показатель,разрез' &&
         ST.DATING.length === 2 && ST.DATING.join() === 'на дату,текущее' &&
-        alien209.length === 0 && ST.ROW_ORIGIN.join() === 'when',
-    `признак «на дату»/«текущее» принадлежит ВЕЛИЧИНЕ, а не шву (ИС-39, ADR-0205 §1). Одна дверь «calcPledge» отдаёт в строку «${row209.ref}» ${pl209.length} записей реестра — и они расходятся по признаку внутри одного вызова: ${asof209.length} собраны на дату, ${now209.length} текущие (${now209.join(' · ')}). Рядом стоят «${R209('m-cpledge').name}» (${String(row209.when['m-cpledge'])}) и «${R209('m-csurv').name}» (${String(row209.when['m-csurv'])}) — обе из «calcPledge», и вторая честно текущая: карточка предмета перезаписывает дату обследования, поэтому на майскую строку сегодня придёт августовский счёт дней. Пометь мы дверь целиком — половина её величин получила бы чужой признак, и паспорт соврал бы уверенно. Текущими при этом оказываются ОБЕ породы (${kinds209.join(' и ')}): разрез стареет ровно так же, как показатель. Словарь закрыт и проверяется счётом: в «ST.DATING» ровно ${ST.DATING.length} слова (${ST.DATING.join(' · ')}), и по всей витрине нет ни одного значения «when» за их пределами (${alien209.length})`);
+        alien209.length === 0 && ST.ROW_ORIGIN.join() === 'now',
+    `признак «на дату»/«текущее» принадлежит ВЕЛИЧИНЕ, а не шву (ИС-39, ADR-0205 §1). Одна дверь «calcPledge» отдаёт в строку «${row209.ref}» ${pl209.length} записей реестра — и они расходятся по признаку внутри одного вызова: ${asof209.length} собраны на дату, ${now209.length} текущие (${now209.join(' · ')}). Рядом стоят «${R209('m-cpledge').name}» (${ST.datingOf(row209, 'm-cpledge')}) и «${R209('m-csurv').name}» (${ST.datingOf(row209, 'm-csurv')}) — обе из «calcPledge», и вторая честно текущая: карточка предмета перезаписывает дату обследования, поэтому на майскую строку сегодня придёт августовский счёт дней. Пометь мы дверь целиком — половина её величин получила бы чужой признак, и паспорт соврал бы уверенно. Текущими при этом оказываются ОБЕ породы (${kinds209.join(' и ')}): разрез стареет ровно так же, как показатель. Словарь закрыт и проверяется счётом: в «ST.DATING» ровно ${ST.DATING.length} слова (${ST.DATING.join(' · ')}), и по всей витрине нет ни одного значения «when» за их пределами (${alien209.length})`);
 
   /* #210 — ПАСПОРТ НЕСЁТ ДАТИРОВКУ ЧЕТВЁРТЫМ ОБЯЗАТЕЛЬНЫМ РЕКВИЗИТОМ И БЕРЁТ ХУДШЕЕ.
      Признак у величины, но ОТВЕТ собран из многих величин, и читателю нужен один вывод.
@@ -4634,7 +4643,8 @@ const FIZ = fizSchema();
   const stMade211 = ST.state.runs[ST.state.runs.length - 1].parts
     .filter(p => ST.storageOf(p.obj) === 'state').reduce((n, p) => n + p.n, 0);
   const cred211 = ST.state.rows.filter(r => r.obj === 'obj-credit' && r.date === J);
-  const held211 = cred211.filter(r => r.when['m-total'] === 'на дату');
+  /* Волна 23, З-21 (переписан на месте): признак читается из массива `now` (ADR-0242). */
+  const held211 = cred211.filter(r => r.inds['m-total'] != null && ST.datingOf(r, 'm-total') === 'на дату');
   CORE.DATING.calcDebt = keep211;
   /* Та же правка объявления, но у защёлки есть НАСТОЯЩАЯ причина переписать: курс на 31.07
      уточнён задним числом, уже после последнего прогона (техника проверки #202). */
@@ -4652,7 +4662,7 @@ const FIZ = fizSchema();
   CORE.DATING.calcDebt = keep211;
   /* Отчёт проверки читает СЛОМАННЫЙ мир тоже: пустой список переписанных — как раз то
      состояние, ради которого проверка написана, и падать на нём она не вправе. */
-  const mv211 = moved211[0] || {ref:'—', when:{}};
+  const mv211 = moved211[0] || {ref:'—', now:[]};
   /* Волна 23 (переписан на месте): защёлка дописывает 20 строк, а не 19 — МВ-2026/12
      больше не меняется каждую ночь («дней с направления» снят, схема §11), и 31.07 для неё
      материализуется слепком (довод у #186). Правка объявления по-прежнему не переписывает
@@ -4672,10 +4682,10 @@ const FIZ = fizSchema();
         cred211.length === 8 && held211.length === 8 &&
         rew211.ok && rew211.refreshed === 2 &&
         moved211.length === 1 && moved211[0].ref === 'КД-2025/043' &&
-        moved211[0].when['m-total'] === 'текущее' &&
-        still211.length === 7 && still211.every(r => r.when['m-total'] === 'на дату') &&
+        ST.datingOf(moved211[0], 'm-total') === 'текущее' &&
+        still211.length === 7 && still211.every(r => r.inds['m-total'] != null && ST.datingOf(r, 'm-total') === 'на дату') &&
         CORE.DATING.calcDebt.length === keep211.length,
-    `датировка в сравнение строк НЕ входит, и это механизм, а не упущение (ADR-0205 §5). Объявление шва «calcDebt» правится — «total» перестаёт быть «на дату», — и защёлка после этого дописывает ${flat211.made} строк (строка первого числа у состояний уже есть, а у событий итога на дату нет, ИС-54) и не переписывает НИ ОДНОЙ (${flat211.refreshed}): все ${cred211.length} кредитных строк на 31.07 держат тот признак, с которым были собраны (${held211.length} из ${cred211.length} — «на дату»). Войди «when» в сравнение — правка ОДНОГО объявления переписала бы витрину целиком, и в журнале это выглядело бы как изменение состояния портфеля, которого не было: сосед сменил происхождение будущих величин, а вчерашний остаток от этого другим не стал. Обратное тоже держится: когда у защёлки появляется НАСТОЯЩАЯ причина переписать (курс на 31.07 уточнён задним числом), переписанная строка уносит ИСПРАВЛЕННЫЙ признак — «${mv211.ref}» вышла с «${String(mv211.when['m-total'])}», а ${still211.length} нетронутых остались с «на дату». Признак ведёт себя ровно как обещано: старые строки — свой, новые — исправленный, и никакая правка объявления не порождает записи`);
+    `датировка в сравнение строк НЕ входит, и это механизм, а не упущение (ADR-0205 §5). Объявление шва «calcDebt» правится — «total» перестаёт быть «на дату», — и защёлка после этого дописывает ${flat211.made} строк (строка первого числа у состояний уже есть, а у событий итога на дату нет, ИС-54) и не переписывает НИ ОДНОЙ (${flat211.refreshed}): все ${cred211.length} кредитных строк на 31.07 держат тот признак, с которым были собраны (${held211.length} из ${cred211.length} — «на дату»). Войди «when» в сравнение — правка ОДНОГО объявления переписала бы витрину целиком, и в журнале это выглядело бы как изменение состояния портфеля, которого не было: сосед сменил происхождение будущих величин, а вчерашний остаток от этого другим не стал. Обратное тоже держится: когда у защёлки появляется НАСТОЯЩАЯ причина переписать (курс на 31.07 уточнён задним числом), переписанная строка уносит ИСПРАВЛЕННЫЙ признак — «${mv211.ref}» вышла с «${ST.datingOf(mv211, 'm-total')}», а ${still211.length} нетронутых остались с «на дату». Признак ведёт себя ровно как обещано: старые строки — свой, новые — исправленный, и никакая правка объявления не порождает записи`);
 
   /* #212 — ДОСПРОС ПЕРЕПИСЫВАЕТ УСТАРЕВШЕЕ, И ДОПИСАННОЕ С ПЕРЕПИСАННЫМ СЧИТАЮТСЯ ПОРОЗНЬ.
      До ADR-0216 §2 защёлка только ДОПОЛНЯЛА состав (ADR-0215 §4): чего не было — написать,
@@ -5068,7 +5078,10 @@ const FIZ = fizSchema();
   const legRows = st.rows.filter(r => ST.isLegacyRow(r));
   const lr = ST.rowsAsOf('obj-credit', '2026-01-01')[0] || {};
   const shape = JSON.stringify(Object.keys(lr)) === JSON.stringify(ST.ROW_SHAPE);
-  const whenVals = Array.from(new Set(Object.values(lr.when || {})));
+  /* Волна 23, З-21 (переписан на месте): «на дату» у легаси — пустой массив `now`, а не шесть
+     пометок (ADR-0242): не названная величина — «на дату». */
+  const nowLeg = Array.isArray(lr.now) ? lr.now : null;
+  const nLeg = Object.keys(lr.dims || {}).length + Object.keys(lr.inds || {}).length;
   const srcKeys = Object.keys(lr.srcs || {});
   const legCal = ST.calendar().filter(pr => pr.legacy);
   const sl223 = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date:'2026-01-01'});
@@ -5100,8 +5113,7 @@ const FIZ = fizSchema();
         lr.fixed.period === '2025-12' && lr.fixed.at === '2026-04-28' &&
         lr.fixed.by === 'миграция, вып. 1' &&
         srcKeys.length === 1 && lr.srcs['ядро'].ok === true && lr.srcs['ядро'].src === 'легаси' &&
-        whenVals.length === 1 && whenVals[0] === 'на дату' &&
-        Object.keys(lr.when).length === 6 &&
+        !!nowLeg && nowLeg.length === 0 && nLeg === 6 &&
         legRows.length === 34 && load.rows === 34 && load.launch === ST.LAUNCH() &&
         load.dates.length === 6 && load.dates.every(d => d < ST.LAUNCH()) &&
         legCal.length === 6 && st.months.every(m => !ST.isLegacyMonth(m)) &&
@@ -5109,7 +5121,7 @@ const FIZ = fizSchema();
         sl223.ok && sl223.passport.fixation === 'зафиксировано' &&
         sl223.passport.mode === 'запись фиксации, окончательно' &&
         sl223.passport.edition === 'легаси' && ST.FORMS().length === 2,
-    `легаси-итог входит СТРОКОЙ, и строка приходит уже в состоянии окончательной фиксации: ${legRows.length} строк на ${load.dates.length} дат (${load.dates[0]}…${load.dates[load.dates.length-1]}), все РАНЬШЕ запуска ${ST.LAUNCH()}, актор — «${String(lr.by)}», основание — «${String(load.act)}». Форма строки при этом НЕ ВЫРОСЛА: полей ${Object.keys(lr).length}, и это тот же список ИС-15 — десятое, адрес события «part», у легаси-строки пусто (${String(lr.part)}), а редакция формы лежит ВНУТРИ записи фиксации (${JSON.stringify(lr.fixed)}), потому что это обстоятельство фиксации, а не ещё одно измерение (ADR-0175 §1). Одиннадцатое поле было бы формой строки, растущей от каждого нового обстоятельства. Источник назван своим именем — «${String((lr.srcs['ядро']||{}).src)}», а не «шов»: шва за ту дату нет и не будет. Датировка всех ${Object.keys(lr.when).length} полей — «${String(whenVals[0])}», ВКЛЮЧАЯ РАЗРЕЗЫ: у легаси-разреза «текущего» значения не бывает вовсе, карточки, из которой его брать, больше нет, и умолчание «текущее» обещало бы поход туда, где никого нет (ИС-39). Ответ на легаси-дату ЧИТАЕТСЯ, а не считается: «${String(sl223.passport.mode)}». Легаси-месяцев ${legCal.length}, и в очереди закрытия периодов (${st.months.join(', ')}) их НЕТ ни одного — правило «периоды закрываются по порядку» осталось про то, что закрывает человек (ИС-41, ADR-0207 §1, §3)`);
+    `легаси-итог входит СТРОКОЙ, и строка приходит уже в состоянии окончательной фиксации: ${legRows.length} строк на ${load.dates.length} дат (${load.dates[0]}…${load.dates[load.dates.length-1]}), все РАНЬШЕ запуска ${ST.LAUNCH()}, актор — «${String(lr.by)}», основание — «${String(load.act)}». Форма строки при этом НЕ ВЫРОСЛА: полей ${Object.keys(lr).length}, и это тот же список ИС-15 — десятое, адрес события «part», у легаси-строки пусто (${String(lr.part)}), а редакция формы лежит ВНУТРИ записи фиксации (${JSON.stringify(lr.fixed)}), потому что это обстоятельство фиксации, а не ещё одно измерение (ADR-0175 §1). Одиннадцатое поле было бы формой строки, растущей от каждого нового обстоятельства. Источник назван своим именем — «${String((lr.srcs['ядро']||{}).src)}», а не «шов»: шва за ту дату нет и не будет. Датировка всех ${nLeg} полей — «на дату» (текущих в массиве ${nowLeg ? nowLeg.length : '—'}), ВКЛЮЧАЯ РАЗРЕЗЫ: у легаси-разреза «текущего» значения не бывает вовсе, карточки, из которой его брать, больше нет, и умолчание «текущее» обещало бы поход туда, где никого нет (ИС-39). Ответ на легаси-дату ЧИТАЕТСЯ, а не считается: «${String(sl223.passport.mode)}». Легаси-месяцев ${legCal.length}, и в очереди закрытия периодов (${st.months.join(', ')}) их НЕТ ни одного — правило «периоды закрываются по порядку» осталось про то, что закрывает человек (ИС-41, ADR-0207 §1, §3)`);
 
   /* Отказ обязан отбиваться ДО единой правки состояния, и это не педантизм: журнал зовёт
      эти же четыре двери ПРЯМО НА ОТРИСОВКЕ — печатать переписанный текст отказа значило бы
@@ -5936,7 +5948,8 @@ const FIZ = fizSchema();
   const evCopied = j256.parts.filter(p => states256.indexOf(p.obj) < 0).reduce((n, p) => n + (p.copied || 0), 0);
   const zd = ST.rowsAt('obj-zdeal', TODAY), zy = ST.rowsAt('obj-zdeal', ASK);
   const copyEq = zd.length === 5 && zd.every(x => { const y = zy.find(z => z.ref === x.ref);
-    return y && JSON.stringify([x.dims, x.inds, x.when]) === JSON.stringify([y.dims, y.inds, y.when]) && !x.fixed; });
+    /* Волна 23, З-21 (переписан на месте): копия несёт массив `now` вчерашней строки (ADR-0242 §3). */
+    return y && JSON.stringify([x.dims, x.inds, x.now]) === JSON.stringify([y.dims, y.inds, y.now]) && !x.fixed; });
 /* Волна 23, З-20 (переписан на месте): объектов-состояний 8, копий 17, написано 47 — членство
      копируется каждую ночь, как всякое состояние, которое никто не назвал (ИС-54). */
   ok(256, states256.length === 8 && days256.length >= 50 && holes256.length === 0 &&
@@ -8165,6 +8178,113 @@ const FIZ = fizSchema();
         gv(an293, 'ГСР-02', 'm-btotal') === 10970798.95 && an293.total['m-btotal'] === 23769830.97 &&
         has(an293.passport.scope, 'через заёмщики'),
     `суммы группы — из строк заёмщиков-членов на ту же дату (ADR-0244 §2): у каждой группы и у итога расхождений с суммой строк заёмщиков нет (${agree293}). «${G1 ? G1.lbl : '—'}» — ${G1 ? G1.values['m-btotal'] : '—'} сом по ${G1 ? G1.n : '—'} членам, из них без строки заёмщика ${G1 ? G1.noRow.join() : '—'}: субъект без кредитов даёт НОЛЬ и из числа членов не выпадает; «${G2 ? G2.lbl : '—'}» — ${G2 ? G2.values['m-btotal'] : '—'}. Итог по всем группам ${g293.ok ? g293.total['m-btotal'] : '—'} — по ${g293.ok ? g293.members.length : '—'} различным членам на ${g293.ok ? g293.rows : '—'} строк членства, а сумма сумм групп ${naive293} посчитала бы 01234199010101 дважды (ADR-0199): «${g293.ok ? g293.passport.dedup : '—'}». На 01.07 групп ${jul293.ok ? jul293.groups.length : '—'} (${jul293.ok ? jul293.rows : '—'} строк). Правка строки заёмщика 10510198203112 на ${ASK} (+1000) сдвинула «Ала-Тоо» на ${ASK} до ${gv(moved293, 'ГСР-01', 'm-btotal')} и итог до ${moved293.ok ? moved293.total['m-btotal'] : '—'}, а 20.08 осталось ${gv(ydayAfter293, 'ГСР-01', 'm-btotal')} — join по дате строки, не по кануну. Не денежная величина заёмщика отбита: агрегат — «${String(badAgg293.why).slice(0, 70)}…», счётчик и деньги кредита — тоже (${!badCnt293.ok && !badCr293.ok}); дата до запуска — отказ ИС-41. Аналитику: строк ${an293.ok ? an293.rows : '—'}, «Ала-Тоо» ${gv(an293, 'ГСР-01', 'm-btotal')}, «Ош-Агро» ${gv(an293, 'ГСР-02', 'm-btotal')} — по видимым членам, итог ${an293.ok ? an293.total['m-btotal'] : '—'} (ИС-58, ADR-0243 §3)`);
+})();
+
+/* ===== Волна 23 · З-21 — признак «текущее» массивом имён (ADR-0242, СС-201, СС-202) =====
+   Карта `when` «величина → слово» снята: в строке — массив `now` имён величин, собранных
+   «текущими»; не названная величина — «на дату». Копия переносит массив как есть, пересчёт
+   пишет заново; величина молчавшего соседа в массив не попадает; имя сверяется дверью записи. */
+(() => {
+  /* #294 — массив имён вместо карты слов, и он замерзает со строкой. Проверяется на всей
+     витрине (формы `when` нет ни у одной строки), на копии (переносит массив вчерашней
+     строки как есть) и на пересчёте (пишет его заново, даже если вчерашний стёрт), на
+     молчании соседа (имени без величины нет) и на паспорте (одно слово из трёх). */
+  ST.seed();
+  const st294 = ST.state;
+  const noArr294 = st294.rows.filter(r => !Array.isArray(r.now) || 'when' in r).length;
+  const leg294 = st294.rows.filter(r => ST.isLegacyRow(r));
+  const own294 = st294.rows.filter(r => !ST.isLegacyRow(r));
+  const full294 = own294.filter(r => r.now.length > 0).length;
+  /* Пустой массив — «всё на дату», а не «признак не известен»: у легаси-строки читается «на
+     дату» каждая величина (ADR-0242, «не названная — на дату»). */
+  const legDate294 = leg294.every(r => Object.keys(r.inds).concat(Object.keys(r.dims))
+    .every(id => ST.datingOf(r, id) === 'на дату'));
+  const alien294 = st294.rows.filter(r => r.now.some(id => {
+    const o = ST.OBJ(r.obj);
+    return (o.dims.indexOf(id) < 0 && o.inds.indexOf(id) < 0) || !((r.dims[id] != null) || (r.inds[id] != null));
+  })).length;
+  /* Сомовая сторона — та же величина: её признак равен признаку валютной (ADR-0242 §1). */
+  const twins294 = ST.registry().filter(x => x.somOf);
+  const pair294 = st294.rows.filter(r => twins294.some(t => r.inds[t.id] != null && r.inds[t.somOf] != null &&
+    (r.now.indexOf(t.id) >= 0) !== (r.now.indexOf(t.somOf) >= 0))).length;
+  const u294 = st294.rows.find(r => r.obj === 'obj-credit' && r.ref === 'КД-2025/043' && r.date === ASK);
+  const cols294 = ST.nowCols(u294);
+  const cl294 = st294.rows.find(r => r.obj === 'obj-collateral' && r.ref === 'ЗЛ-2024/41' && r.date === ASK);
+  /* Копия переносит, пересчёт пишет заново. У вчерашних строк состояний массив стёрт: ночь
+     22.08 копирует некандидатов — их массив остаётся пустым, как у вчерашней строки, — а
+     пересчитанным пишет свой. */
+  const run294a = ST.run(TODAY);
+  const j294a = st294.runs[st294.runs.length - 1];
+  const copied294 = j294a.parts.reduce((n, p) => n + (p.copied || 0), 0);
+  const copies294 = st294.rows.filter(r => r.date === TODAY && ['obj-zdeal', 'obj-program', 'obj-gmember'].indexOf(r.obj) >= 0);
+  const carried294 = copies294.filter(r => {
+    const y = st294.rows.find(x => x.obj === r.obj && x.ref === r.ref && x.date === ASK);
+    return y && y.now.length > 0 && JSON.stringify(y.now) === JSON.stringify(r.now);
+  }).length;
+  ST.seed();
+  const stS294 = ST.state.objects.filter(o => ST.storageOf(o.id) === 'state').map(o => o.id);
+  ST.state.rows.filter(r => r.date === ASK && stS294.indexOf(r.obj) >= 0).forEach(r => { r.now = []; });
+  const run294b = ST.run(TODAY);
+  const todays294 = ST.state.rows.filter(r => r.date === TODAY && stS294.indexOf(r.obj) >= 0);
+  const blank294 = todays294.filter(r => r.now.length === 0);
+  const blankBy294 = blank294.reduce((a, r) => { a[r.obj] = (a[r.obj] || 0) + 1; return a; }, {});
+  const credT294 = todays294.filter(r => r.obj === 'obj-credit');
+  const fresh294 = credT294.length === 8 && credT294.every(r => r.now.length > 0 &&
+    JSON.stringify(r.now) === JSON.stringify(ST.buildRow('obj-credit', vm.runInContext('WORLD', sandbox)['obj-credit'].find(w => w.id === r.ref), TODAY).now));
+  ST.seed();
+  /* Молчание соседа — отсутствие, а не «текущее» (ADR-0242, «Границы»; ADR-0208 §1). */
+  const itC294 = vm.runInContext('WORLD', sandbox)['obj-collateral'].find(w => w.id === 'ЗЛ-2024/41');
+  const talk294 = ST.buildRow('obj-collateral', itC294, ASK);
+  const mute294 = ST.buildRow('obj-collateral', itC294, ASK, {'ядро': 'недоступен'});
+  const gone294 = talk294.now.filter(id => mute294.now.indexOf(id) < 0).sort();
+  const muteOk294 = mute294.now.every(id => (mute294.dims[id] != null) || (mute294.inds[id] != null)) &&
+    gone294.every(id => mute294.inds[id] == null && mute294.dims[id] == null);
+  /* Паспорт — одно слово из трёх по запрошенным величинам (ADR-0242 §4). */
+  const w294 = q => { const s = ST.statSlice(Object.assign({obj: 'obj-collateral', date: ASK}, q)); return s.ok ? s.passport.dating : {word: s.why, now: []}; };
+  const pNow294 = w294({dims: ['d-collkind'], inds: ['a-count']});
+  const pAsof294 = w294({dims: ['d-cbranch'], inds: ['a-sumcpledge']});
+  const pMix294 = w294({dims: ['d-collkind'], inds: ['a-sumcpledge']});
+  ok(294, noArr294 === 0 && ST.ROW_ORIGIN.join() === 'now' && ST.ROW_SHAPE.indexOf('when') < 0 &&
+        leg294.length === 34 && leg294.every(r => r.now.length === 0) && legDate294 && alien294 === 0 && pair294 === 0 &&
+        full294 === 2331 && own294.length === 2457 &&
+        cl294.now.indexOf('m-csurv') >= 0 && cl294.now.indexOf('m-cpledge') < 0 &&
+        ST.datingOf(cl294, 'm-cpledge') === 'на дату' && ST.datingOf(cl294, 'm-csurv') === 'текущее' &&
+        u294.now.indexOf('m-amount') >= 0 && u294.now.indexOf('m-amount-som') >= 0 &&
+        cols294.filter(c => c === 'i_amount').length === 1 && cols294.indexOf('d_terr_region') >= 0 &&
+        cols294.indexOf('d_terr_district') >= 0 && cols294.length === u294.now.length &&
+        run294a.ok && copied294 === 17 && copies294.length === 15 && carried294 === 15 &&
+        run294b.ok && blank294.length === 20 &&
+        JSON.stringify(blankBy294) === JSON.stringify({'obj-borrower': 2, 'obj-gmember': 5, 'obj-zdeal': 5, 'obj-case': 3, 'obj-program': 5}) &&
+        fresh294 &&
+        gone294.join() === 'd-cctl,m-cnext,m-creval,m-csurv' && muteOk294 && mute294.now.length === 5 &&
+        pNow294.word === 'текущее' && pAsof294.word === 'на дату' && pMix294.word === 'смешанно' &&
+        pMix294.now.join() === 'd-collkind',
+    `признак «текущее» — массив имён величин в строке, а не карта слов (ADR-0242): строк без массива или с картой «when» ${noArr294}, ряд происхождения — «${ST.ROW_ORIGIN.join()}». Имён вне величин объекта или без величины в той же строке ${alien294}; у сомовой стороны признак тот же, что у валютной, расхождений ${pair294} (§1). Легаси-строк ${leg294.length}, и у всех массив пуст — каждая величина читается «на дату» (${legDate294}). Строк с «текущими» ${full294} из ${own294.length} своих — доля и есть мера зрелости швов. У «${cl294.ref}» «Залоговая стоимость» — ${ST.datingOf(cl294, 'm-cpledge')}, «Дней с последнего обследования» — ${ST.datingOf(cl294, 'm-csurv')}. Физические имена строки «${u294.ref}»: ${cols294.join(', ')} — ${u294.now.length} имён на ${cols294.length} величин, сумма выдачи с её сомовой стороной — одно «i_amount», территория — оба уровня. Ночь ${TODAY}: скопировано ${copied294}, у 15 копий договоров, программ и членств массив вчерашний (${carried294}); стёрли массив у вчерашних строк — пустыми вышли ${blank294.length} (${JSON.stringify(blankBy294)}: 17 копий и 3 дела, у которых «текущих» нет вовсе), а 8 пересчитанных кредитов записали свой заново (${fresh294}). Молчит ядро — из массива «${cl294.ref}» ушли ${gone294.join(', ')}: их величин нет, и «текущими» они не названы (${muteOk294}). Паспорт: «${pNow294.word}» · «${pAsof294.word}» · «${pMix294.word}» (текущим — ${pMix294.now.join()}) (ADR-0242 §4, ADR-0205 §2)`);
+
+  /* #295 — имя в массиве сверяется дверью записи (ADR-0242 §5, СС-202): чужая величина,
+     величина без значения, повтор и прежняя карта слов отбиты ДО записи; строка без массива
+     ложится с пустым — `DEFAULT '{}'`. Писатель один (ИС-8, ADR-0239 §4), и дверь та же. */
+  ST.seed();
+  const wr295 = vm.runInContext('writeRow', sandbox);
+  const base295 = JSON.parse(JSON.stringify(ST.state.rows.find(r => r.obj === 'obj-collateral' && r.ref === 'ЗЛ-2024/41' && r.date === ASK)));
+  const n295 = ST.state.rows.length;
+  const try295 = (ref, patch) => wr295(ST.state, Object.assign(JSON.parse(JSON.stringify(base295)), {ref}, patch));
+  const foreign295 = try295('проба-1', {now: base295.now.concat('m-debt')});
+  const silent295 = try295('проба-2', {now: base295.now.concat('m-cpledge'), inds: Object.assign({}, base295.inds, {'m-cpledge': null})});
+  const twice295 = try295('проба-3', {now: base295.now.concat(base295.now[0])});
+  const map295 = try295('проба-4', {now: {'m-csurv': 'текущее'}});
+  const grew295 = ST.state.rows.length - n295;
+  const refused295 = grew295 === 0;
+  const bare295 = JSON.parse(JSON.stringify(base295)); delete bare295.now; bare295.ref = 'проба-5';
+  const def295 = wr295(ST.state, bare295);
+  const put295 = ST.state.rows.find(r => r.ref === 'проба-5');
+  ST.seed();
+  ok(295, !foreign295.ok && has(foreign295.why, 'не величина объекта') && has(foreign295.why, 'ADR-0242 §5') &&
+        !silent295.ok && has(silent295.why, 'молчание — не «текущее»') &&
+        !twice295.ok && has(twice295.why, 'названо дважды') &&
+        !map295.ok && has(map295.why, 'массив имён') && refused295 &&
+        def295.ok && !!put295 && Array.isArray(put295.now) && put295.now.length === 0,
+    `имя в массиве сверяется дверью записи, а не отчётом (ADR-0242 §5): чужая величина — «${String(foreign295.why).slice(-60)}», величина без значения — «${String(silent295.why).slice(-70)}», повтор — отбит (${!twice295.ok}), прежняя карта слов — «${String(map295.why).slice(-70)}»; строк от четырёх отказов прибавилось ${grew295}. Строка без массива ложится с пустым (${def295.ok && put295 ? JSON.stringify(put295.now) : '—'}) — «now_cols NOT NULL DEFAULT '{}'»: без массива значит без «текущих» (ИС-8, ADR-0239 §4)`);
 })();
 
 /* ---- отчёт ---- */
