@@ -989,7 +989,7 @@
   заданий» (ТЗ №21, №22) — до владельца, отдающего множество заданий. Все четыре заводятся
   строками реестра, и все четыре названы заказчику письмом 29.08.2026, а не приёмкой.
 
-  SMOKE 2026-09-18 · 280/280 PASS
+  SMOKE 2026-09-18 · 281/281 PASS
      PASS  #1  объектов 11, показателей 229 — 155 своих и 74 сомовых сторон, и у каждой стороны валютная запись на месте; разрезов 87, всего записей реестра 316. Счёт назван точным числом, а не «не меньше 85»: неравенство пережило бы молча потерю сотни записей, а потеря близнеца — это денежная величина, которую нельзя сложить по портфелю. Без объявленного источника 0, с формулой 0 (сомовая сторона — не формула, а вторая колонка той же величины), с функцией вне списка 0 — ИС-6, ИС-7, ИС-44
      PASS  #2  заёмщик — самостоятельный объект со своими показателями, а не свёртка кредита (ИС-19)
      PASS  #3  форма строки закрыта: obj · ref · date · part · dims · lbls · inds · fx · now · srcs · fixed · by — долей и дельт нет (ИС-15). Полей двенадцать — десятое, «part», стоит в адресе (СС-170), одиннадцатое, «fx», курс строки, и двенадцатое, «lbls», подписи разрезов на дату, — в ряду значений (ИС-56, ИС-57); подписей у строки 10, и каждая — у разреза, чей ключ лежит в dims: рядов четыре и вместе они покрывают форму без остатка, не пересекаясь ни одним полем: АДРЕС (obj · ref · date · part) · ЗНАЧЕНИЯ (dims · lbls · inds · fx) · ПРОИСХОЖДЕНИЕ (now) · СУДЬБА (srcs · fixed · by). Критерий различения на четвёртом ряду — форма: ключей в ряду значений 81 и каждый — запись реестра со значением, а ряд ПРОИСХОЖДЕНИЯ — массив из 11 имён записей реестра без единого значения, и каждое называет величину той же строки (11): «текущими» собраны они, прочие — «на дату» (ИС-39, ADR-0242). Ряд судьбы стоит особняком по-прежнему: ключей 2 (классификация, ядро), и не запись реестра ни один — это имена СОСЕДЕЙ (ИС-42, ADR-0208 §2). Сомовая величина вошла в строку колонкой внутри inds под именем записи реестра «Остаток основного долга в сомах» (12631020.96 сом), а не полем формы: поле нельзя назвать в отчёте и прекратить датой, запись — можно (ИС-44, ADR-0214 §2). Форму держит каждая строка: из 2491 хранимых (строк событий 30) и 29 действующих ответов событий на 21.08 вне формы 0
@@ -1270,6 +1270,7 @@
      PASS  #298  журнал перезаписи — имена колонок и причина, значений нет (ADR-0245 §4, ADR-0215 §6): повторная ночь после молчания ядра дописала 23 строк — записей «backfill» 23; внеплановый пересчёт после смены состояния «БК-2021» — «manual: d-pstate». Записей о днях закрытого месяца 0: при закрытии они уходят, первые числа остаются
      PASS  #299  ответ соседа — ключ и самая ранняя дата действия (ADR-0245 §3, ИС-49 сужен): смена куратора «КД-2024/117» с 10.08, названная 22.08, переписала строки с 11.08 (было «Бекова Н.», стало «Касымов Т.»), строка 10.08 прежняя («Бекова Н.»); retro-пересчётов по датам 52, записей журнала «retro» 11. Ночь молчания «кураторства» ответов не забрала (ждут 2). Дата в закрытом июне — retro с первого открытого дня 2026-07-02. Задач открыто 0: ночь 23.08 закрыла обе
      PASS  #300  счётчики прогона — по способу хранения (ADR-0245 §2): у 3 событий «скопировано» не относится, new_rows/corr_rows названы; у 8 состояний — наоборот; markers у всех (true). Потерянная строка программы — сверка «failed»: obj-program: строк на 2026-08-22 — 4, написано 5; срез на 2026-08-22 — «срез на 22.08.2026 не опубликован: прогон «плановый» разошёл…»; повторный прогон «done», срез отвечает
+     PASS  #301  маркер состояния — только при настоящем отличии (ADR-0245 §5): смена куратора «КД-2024/117» с 10.06 в закрытом июне — маркер на итог 2026-07-01 (d-curator); у «КД-2023/210», чей итог пересчёт не меняет, маркеров 0; счётчик ночи 1. Повторная находка 23.08 обновила ту же запись (1, найдена 2026-08-23); мир вернулся — «converged» 2026-08-24; июнь открыт распоряжением — «reopen»
 -->
 <style>
 :root{
@@ -5452,6 +5453,10 @@ function takeFeed(st, dateISO, silent){
        retro начинается с первого открытого дня. */
     let from = dayShift(f.from, 1);
     f.closed = ST.isClosed(from);
+    if(f.closed){
+      const m = markStates(st, f.obj, f.ref, f.from, dateISO);
+      out.marks[f.obj] = (out.marks[f.obj] || 0) + m;
+    }
     while(ST.isClosed(from) && from < dateISO) from = dayShift(from, 1);
     enq(st, f.obj, f.ref, 'retro', dateISO, 'прогон', 'сосед «'+f.nb+'»: действие с '+f.from, from);
     out.n++;
@@ -6294,6 +6299,8 @@ function doRun(st, dateISO, kind, actor, reason, silent, how){
     });
     parts.push(partOf(o, t));
   });
+  /* Маркеры, поставленные ответом соседа этой ночи, — её счётчик `markers` (ADR-0245 §2, §5). */
+  if(how.marks) parts.forEach(p => { p.markers += how.marks[p.obj] || 0; });
   st.runs.push({date: dateISO, kind, at: st.today, actor, reason, written, parts,
     /* Кто молчал в ЭТУ ночь — реквизит журнала, а не вывод из строк: сосед, молчавший по
        объекту, у которого в ту ночь ничего не изменилось, строки не оставил вовсе, и
@@ -7300,6 +7307,8 @@ ST.reopenPeriod = (month, order, who) => {
      порядок и ничьих чисел не трогает (ADR-0204 §6). Ровно так же, как ST.closePeriod
      фиксирует их ПОСЛЕ простановки своей колонки, а не вместо неё. */
   const unfixed = dropped.indexOf(MY_LAYER) >= 0 ? unfixMonth(st, month) : 0;
+  /* Открытый месяц переписывается прогоном: его маркеры закрываются `reopen` (ADR-0245 §5). */
+  const reopened = closeStateMarkers(st, month, at);
   const marked = markExports(st, month, order, at);
   /* ИТОГ ПЕРЕСЧИТЫВАЕТСЯ, ДНИ НЕ ВОССТАНАВЛИВАЮТСЯ (ADR-0238 §5). Строку первого числа
      следующего месяца переписывает прогон «повторное открытие»: полный обход, только
@@ -7318,7 +7327,7 @@ ST.reopenPeriod = (month, order, who) => {
   /* Распоряжение живёт в СТРОКЕ периода: простановка колонок произойдёт другим действием,
      позже и другими людьми, а номер обязан доехать до каждой колонки (ADR-0204 §1). */
   (row.reopens || (row.reopens = [])).push({order: order.no, basis: order.basis, by: who,
-    at, dropped: dropped.slice(), unfixed, marked: marked.slice(), recount: recount ? clone(recount) : null});
+    at, dropped: dropped.slice(), unfixed, reopened, marked: marked.slice(), recount: recount ? clone(recount) : null});
   const reasked = dropped.filter(L => L !== BASE_LAYER);
   log('период '+monLabel(month)+' перезакрыт по распоряжению '+order.no+' ('+order.basis+'), '+
     who+': открыт слой «'+BASE_LAYER+'»'+
@@ -7390,7 +7399,7 @@ ST.run = (dateISO, opts) => {
   const retro = opts.manual ? [] : retroPass(st, dateISO);
   const kind = opts.manual ? 'внеплановый' : 'плановый';
   const written = doRun(st, dateISO, kind, opts.manual ? (opts.actor || st.role) : null,
-                        opts.reason || null, silent);
+                        opts.reason || null, silent, {marks: fed.marks});
   /* «Строк — N» при разрежённом хранении больше не описывает прогон: ноль написанных
      строк значит и «ничего не изменилось», и «писать не дали». Прогон отчитывается о
      СЕБЕ (ADR-0215 §3) — иначе на дату без строк ответ «не менялось» нечем отличить от
@@ -7495,6 +7504,45 @@ ST.enqueue = (objId, ref, why, note) => {
   log('в очередь перестроения: «'+o.name+'» '+ref+' — '+why+(note ? ' ('+note+')' : ''));
   return {ok:true, obj: objId, ref, why, at: rec.at, queued: ST.queue().length};
 };
+/* МАРКЕР СОСТОЯНИЯ — ТОЛЬКО ПРИ НАСТОЯЩЕМ ОТЛИЧИИ (ADR-0245 §5, ADR-0148 §5, СС-210). Дата
+   действия в закрытом месяце: итог каждого закрытого месяца после неё (строка первого числа
+   следующего) пересчитывается и сравнивается со строкой. Отличие — маркер: закрытое не
+   переписывается (ИС-8), расхождение называется. Повторная находка обновляет ту же запись;
+   пересчёт сошёлся — маркер закрывается `converged`; месяц открыт распоряжением — `reopen`.
+   Без отличия маркер не пишется: «сосед назвал» — повод посмотреть, а не находка. */
+function markStates(st, objId, ref, fromISO, night){
+  const item = (WORLD[objId] || []).find(x => x.id === ref);
+  if(!item || storageOf(objId) !== 'state') return 0;
+  const since = periodOf(dayShift(fromISO, 1));
+  let n = 0;
+  st.periods.filter(p => p.month >= since && latchOf(st, p.month, MY_LAYER)).forEach(p => {
+    const S = sliceOfMonth(p.month);
+    const row = st.rows.find(r => r.obj === objId && r.ref === ref && r.date === S && r.part == null);
+    if(!row || isLegacyRow(row)) return;
+    const ch = rowDiff(row, buildRow(objId, item, S, null));
+    const open = st.markers.find(m => m.obj === objId && m.ref === ref && m.slice_date === S &&
+                                      m.target_id == null && m.corr_kind == null && !m.closed_how);
+    if(ch.length && open){
+      open.changed = ch; open.found_run = night; open.basis = 'повторная находка: действие с '+fmt(fromISO);
+    } else if(ch.length){
+      st.markers.push({row_table: (st.release.tables[objId] || {}).table, obj: objId, ref, slice_date: S,
+        target_id: null, corr_kind: null, changed: ch, basis: 'ответ соседа: действие с '+fmt(fromISO),
+        found_run: night, closed_run: null, closed_how: null, corr_slice_date: null});
+      n++;
+    } else if(open){ open.closed_run = night; open.closed_how = 'converged'; }
+  });
+  return n;
+}
+function closeStateMarkers(st, month, atISO){
+  const S = sliceOfMonth(month);
+  let n = 0;
+  st.markers.forEach(m => {
+    if(m.slice_date === S && m.corr_kind == null && m.target_id == null && !m.closed_how){
+      m.closed_run = atISO; m.closed_how = 'reopen'; n++;
+    }
+  });
+  return n;
+}
 /* Ответ соседа «запись + самая ранняя дата действия» (ADR-0245 §3). В макете его подаёт смоук —
    так, как подал бы сосед; требование к соседям — строкой в `docs/ochered-modulei.md`. */
 ST.nbChanged = (nbId, objId, ref, fromISO) => {

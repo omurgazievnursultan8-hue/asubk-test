@@ -133,6 +133,9 @@
 // соседа ждёт; retro пишет журнал перезаписи с причиной «retro».
 // блок волны 23 З-22d — счётчики прогона (ADR-0245 §2): «скопировано» только у состояний,
 // new_rows/corr_rows только у событий, markers у всех; не сошлось — failed, дата не публикуется.
+// блок волны 23 З-23a — маркер состояния (ADR-0245 §5): пишется только при настоящем отличии
+// пересчёта итога закрытого месяца; повторная находка обновляет запись; закрывается
+// converged или reopen.
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -8517,6 +8520,58 @@ const FIZ = fizSchema();
         before300.ok && !rc300.ok && rc300.status === 'failed' && rc300.failed.some(x => has(x, 'obj-program')) &&
         !cut300.ok && has(cut300.why, 'не опубликован') && again300.ok && again300.status === 'done' && back300.ok,
     `счётчики прогона — по способу хранения (ADR-0245 §2): у ${ev300.length} событий «скопировано» не относится, new_rows/corr_rows названы; у ${st300.length} состояний — наоборот; markers у всех (${shape300}). Потерянная строка программы — сверка «${rc300.status}»: ${(rc300.failed || []).join('; ')}; срез на ${TODAY} — «${String(cut300.why || 'ответил').slice(0, 60)}…»; повторный прогон «${again300.status}», срез ${back300.ok ? 'отвечает' : 'отказ'}`);
+})();
+
+/* ===== Волна 23 · З-23a — маркер состояния только при отличии (ADR-0245 §5, СС-210) ===== */
+(() => {
+  /* #301 — дата действия в закрытом июне: маркер на итог июня (строка 01.07) — только если
+     пересчёт действительно отличается; повторная находка обновляет, сошлось — converged,
+     период открыт — reopen. Итог июля не закрыт — маркера на 01.08 нет. */
+  const W301 = vm.runInContext('WORLD', sandbox);
+  const mk301 = ref => ST.markers().filter(m => m.obj === 'obj-credit' && m.ref === ref && m.target_id == null && m.corr_kind == null);
+  const junEdit = fn => {
+    const i = W301['obj-credit'].findIndex(c => c.id === 'КД-2024/117');
+    const keep = JSON.stringify(W301['obj-credit'][i]);
+    try {
+      W301['obj-credit'][i].h.curator = [['2025-01-01', 'Асанов А.'], ['2026-06-10', 'Касымов Т.'], ['2026-07-15', 'Бекова Н.']];
+      return fn();
+    } finally { W301['obj-credit'][i] = JSON.parse(keep); }
+  };
+  ST.seed();
+  const a301 = junEdit(() => {
+    ST.nbChanged('кураторство', 'obj-credit', 'КД-2024/117', '2026-06-10');
+    ST.nbChanged('кураторство', 'obj-credit', 'КД-2023/210', '2026-06-10');
+    const run = ST.run(TODAY);
+    const rec = ST.state.runs.filter(r => r.date === TODAY).slice(-1)[0];
+    const first = mk301('КД-2024/117');
+    const same = mk301('КД-2023/210').length;
+    const part = (rec.parts.find(p => p.obj === 'obj-credit') || {}).markers;
+    ST.state.today = '2026-08-23';
+    ST.nbChanged('кураторство', 'obj-credit', 'КД-2024/117', '2026-06-10');
+    ST.run('2026-08-23');
+    return {run: run.ok, first, same, part, again: mk301('КД-2024/117')};
+  });
+  ST.state.today = '2026-08-24';
+  ST.nbChanged('кураторство', 'obj-credit', 'КД-2024/117', '2026-06-10');
+  ST.run('2026-08-24');
+  const conv301 = mk301('КД-2024/117');
+  ST.seed();
+  const b301 = junEdit(() => {
+    ST.nbChanged('кураторство', 'obj-credit', 'КД-2024/117', '2026-06-10');
+    ST.run(TODAY);
+    const re = ST.reopenPeriod('2026-06', {no: 'РП-118 от 21.08.2026', basis: 'акт сверки № 41 от 14.07.2026'},
+                               'Осмонова Г., главный бухгалтер');
+    return {re: re.ok, m: mk301('КД-2024/117')};
+  });
+  ST.seed();
+  const f301 = a301.first[0] || {changed: []};
+  ok(301, a301.run && a301.first.length === 1 && f301.slice_date === '2026-07-01' &&
+        f301.changed.indexOf('d-curator') >= 0 && !f301.closed_how && f301.found_run === TODAY &&
+        a301.same === 0 && a301.part >= 1 &&
+        a301.again.length === 1 && a301.again[0].found_run === '2026-08-23' && !a301.again[0].closed_how &&
+        conv301.length === 1 && conv301[0].closed_how === 'converged' && conv301[0].closed_run === '2026-08-24' &&
+        b301.re && b301.m.length === 1 && b301.m[0].closed_how === 'reopen',
+    `маркер состояния — только при настоящем отличии (ADR-0245 §5): смена куратора «КД-2024/117» с 10.06 в закрытом июне — маркер на итог ${f301.slice_date} (${f301.changed.join(', ')}); у «КД-2023/210», чей итог пересчёт не меняет, маркеров ${a301.same}; счётчик ночи ${a301.part}. Повторная находка 23.08 обновила ту же запись (${a301.again.length}, найдена ${a301.again[0] ? a301.again[0].found_run : '—'}); мир вернулся — «${conv301[0] ? conv301[0].closed_how : '—'}» ${conv301[0] ? conv301[0].closed_run : ''}; июнь открыт распоряжением — «${b301.m[0] ? b301.m[0].closed_how : '—'}»`);
 })();
 
 /* ---- отчёт ---- */
