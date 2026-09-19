@@ -108,6 +108,9 @@
 // блок волны 23 З-18a — закрытый словарь (ИС-57, ADR-0241 §2): список значений лежит у таблицы
 // в релизе, значение вне списка не пишется и называется в журнале сверки, новое значение —
 // миграцией; состояния платежа и меры — коды схемы.
+// блок волны 23 З-18b — разрез значением (ИС-57, ADR-0241 §1, §3, §4): ключ в `dims`, подпись на
+// дату в `lbls`; переименование прошлую строку не меняет; классификатор — код, подпись, порядок
+// из версии без релиза; подразделение — два уровня на дату.
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -266,15 +269,19 @@ const FIZ = fizSchema();
      у строк событий и у действующих ответов событий тоже. Ночь, записавшая строку события,
      полем строки не становится: одиннадцатое поле («run_id») встало бы вне всех четырёх рядов,
      и запрет ИС-15 его бы не касался. Эта ночь — факт журнала прогона (ADR-0215 §6). */
+  /* Волна 23, З-18b (переписан на месте): полей 11 → 12 — `lbls`, подписи разрезов на дату, и
+     они в ряду ЗНАЧЕНИЙ: пара `_id`/`_lbl` схемы лежит в строке двумя полями — ключ в `dims`,
+     подпись в `lbls` (ИС-57, ADR-0241 §1). Ключи `lbls` — имена записей реестра, как у `dims`. */
   const sorted3 = shape.slice().sort().join();
   const evRows3 = ST.state.rows.filter(r => ST.storageOf(r.obj) === 'event_delta');
   const ans3 = ['obj-repay', 'obj-receipt'].reduce((a, o) => a.concat(ST.rowsAsOf(o, '2026-08-21')), []);
   const outside3 = ST.state.rows.concat(ans3).filter(r => Object.keys(r).slice().sort().join() !== sorted3);
-  ok(3, shape.length === 11 && shape.indexOf('som') < 0 && shape.indexOf('доля') < 0 &&
+  ok(3, shape.length === 12 && shape.indexOf('som') < 0 && shape.indexOf('доля') < 0 &&
        evRows3.length > 0 && ans3.length > 0 && outside3.length === 0 &&
-       shape.join(',') === 'obj,ref,date,part,dims,inds,fx,when,srcs,fixed,by' &&
+       shape.join(',') === 'obj,ref,date,part,dims,lbls,inds,fx,when,srcs,fixed,by' &&
        key.join(',') === 'obj,ref,date,part' &&
-       vals.join(',') === 'dims,inds,fx' && orig.length === 1 && both.length === 0 && cover &&
+       vals.join(',') === 'dims,lbls,inds,fx' && orig.length === 1 && both.length === 0 && cover &&
+       Object.keys(u3.lbls).length > 0 && Object.keys(u3.lbls).every(k => k in u3.dims) &&
        !!u3.fx && Object.keys(u3.fx).sort().join() === 'rate,rateDate' &&
        valKeys.length > 0 && valKeys.every(k => !!ST.REC(k)) &&
        origKeys.length > 0 && origKeys.every(k => !!ST.REC(k)) &&
@@ -282,7 +289,7 @@ const FIZ = fizSchema();
        fateKeys.length > 0 && fateKeys.every(k => !ST.REC(k)) &&
        som3 === 'm-debt-som' && !('som' in u3) && !('som' in u3.inds['m-debt']) &&
        u3.inds[som3] && u3.inds[som3].v > 0 && ST.IND(som3).unit === 'сом',
-    `форма строки закрыта: ${shape.join(' · ')} — долей и дельт нет (ИС-15). Полей одиннадцать — десятое, «part», стоит в адресе (СС-170), одиннадцатое, «fx», курс строки, — в ряду значений (ИС-56): рядов четыре и вместе они покрывают форму без остатка, не пересекаясь ни одним полем: АДРЕС (${key.join(' · ')}) · ЗНАЧЕНИЯ (${vals.join(' · ')}) · ПРОИСХОЖДЕНИЕ (${orig.join(' · ')}) · СУДЬБА (${fate.join(' · ')}). Прежний критерий различения на четвёртом ряду сломался и заменён: ключей в ряду значений ${valKeys.length} и каждый — запись реестра, но ключей в ряду ПРОИСХОЖДЕНИЯ ${origKeys.length} и каждый — тоже запись реестра, так что по именам эти ряды не разводятся. Разводит их словарь: значений в ряду происхождения ${origVals.length}, и все до одного — слова закрытого списка из двух (${ST.DATING.join(' · ')}), величины среди них нет ни одной (ИС-39, ADR-0205 §1). Ряд судьбы стоит особняком по-прежнему: ключей ${fateKeys.length} (${fateKeys.join(', ')}), и не запись реестра ни один — это имена СОСЕДЕЙ (ИС-42, ADR-0208 §2). Сомовая величина вошла в строку колонкой внутри inds под именем записи реестра «${ST.IND(som3).name}» (${(u3.inds[som3] || {}).v} ${ST.IND(som3).unit}), а не полем формы: поле нельзя назвать в отчёте и прекратить датой, запись — можно (ИС-44, ADR-0214 §2). Форму держит каждая строка: из ${ST.state.rows.length} хранимых (строк событий ${evRows3.length}) и ${ans3.length} действующих ответов событий на 21.08 вне формы ${outside3.length}${outside3.length ? ' (' + outside3[0].obj + ' ' + outside3[0].ref + ': ' + Object.keys(outside3[0]).filter(k => shape.indexOf(k) < 0).join(', ') + ')' : ''}`);
+    `форма строки закрыта: ${shape.join(' · ')} — долей и дельт нет (ИС-15). Полей двенадцать — десятое, «part», стоит в адресе (СС-170), одиннадцатое, «fx», курс строки, и двенадцатое, «lbls», подписи разрезов на дату, — в ряду значений (ИС-56, ИС-57); подписей у строки ${Object.keys(u3.lbls).length}, и каждая — у разреза, чей ключ лежит в dims: рядов четыре и вместе они покрывают форму без остатка, не пересекаясь ни одним полем: АДРЕС (${key.join(' · ')}) · ЗНАЧЕНИЯ (${vals.join(' · ')}) · ПРОИСХОЖДЕНИЕ (${orig.join(' · ')}) · СУДЬБА (${fate.join(' · ')}). Прежний критерий различения на четвёртом ряду сломался и заменён: ключей в ряду значений ${valKeys.length} и каждый — запись реестра, но ключей в ряду ПРОИСХОЖДЕНИЯ ${origKeys.length} и каждый — тоже запись реестра, так что по именам эти ряды не разводятся. Разводит их словарь: значений в ряду происхождения ${origVals.length}, и все до одного — слова закрытого списка из двух (${ST.DATING.join(' · ')}), величины среди них нет ни одной (ИС-39, ADR-0205 §1). Ряд судьбы стоит особняком по-прежнему: ключей ${fateKeys.length} (${fateKeys.join(', ')}), и не запись реестра ни один — это имена СОСЕДЕЙ (ИС-42, ADR-0208 §2). Сомовая величина вошла в строку колонкой внутри inds под именем записи реестра «${ST.IND(som3).name}» (${(u3.inds[som3] || {}).v} ${ST.IND(som3).unit}), а не полем формы: поле нельзя назвать в отчёте и прекратить датой, запись — можно (ИС-44, ADR-0214 §2). Форму держит каждая строка: из ${ST.state.rows.length} хранимых (строк событий ${evRows3.length}) и ${ans3.length} действующих ответов событий на 21.08 вне формы ${outside3.length}${outside3.length ? ' (' + outside3[0].obj + ' ' + outside3[0].ref + ': ' + Object.keys(outside3[0]).filter(k => shape.indexOf(k) < 0).join(', ') + ')' : ''}`);
 
   const edit = ST.tryEditRow();
   const editors = Object.keys(ST).filter(k => /^(edit|update|setRow|patch)/.test(k) && k !== 'tryEditRow');
@@ -637,8 +644,11 @@ const FIZ = fizSchema();
   const may = ST.statRows({obj:'obj-credit', date:'2026-06-01'}).rows.find(r => r.ref === 'КД-2024/117');
   const aug = ST.statRows({obj:'obj-credit', date:'2026-08-19'}).rows.find(r => r.ref === 'КД-2024/117');
   ok(31, may.dims['d-curator'] === 'Асанов А.' && aug.dims['d-curator'] === 'Бекова Н.' &&
-        may.dims['d-category'] === 'Низкий кредитный риск' && aug.dims['d-category'] === 'Средний кредитный риск',
-    `смена куратора 15.07 майскую строку не переписала: май — ${may.dims['d-curator']}, август — ${aug.dims['d-curator']} — ИС-4`);
+        /* Волна 23, З-18b (переписан на месте): категория лежит кодом значения классификатора,
+           подпись — рядом, в `lbls` (ИС-57, ADR-0241 §3). Утверждение прежнее. */
+        may.dims['d-category'] === 'low' && may.lbls['d-category'].lbl === 'Низкий кредитный риск' &&
+        aug.dims['d-category'] === 'mid' && aug.lbls['d-category'].lbl === 'Средний кредитный риск',
+    `смена куратора 15.07 майскую строку не переписала: май — ${may.dims['d-curator']}, август — ${aug.dims['d-curator']}; категория — «${may.lbls['d-category'].lbl}» и «${aug.lbls['d-category'].lbl}» — ИС-4`);
 
   /* Волна 23 (переписан на месте): релиз идёт ПЕРЕД записью — колонку `d_segment` заводит
      миграция, запись её называет (ИС-53, ADR-0237 §2, §3). Утверждение прежнее: новый
@@ -5112,7 +5122,11 @@ const FIZ = fizSchema();
      не редакция, а ряд значений, и у легаси-строки он ПУСТ: старая система курса не хранила,
      а пересчитать её остаток сегодняшним курсом значило бы выдать сегодняшнее за историческое
      (ИС-41). Валюта легаси-итога — разрез строки, как у своей. */
-  ok(223, shape && Object.keys(lr).length === 11 && lr.part === null && lr.fx === null &&
+  /* Волна 23, З-18b (переписан на месте): полей 11 → 12 — `lbls`, подписи разрезов (ИС-57). У
+     легаси-строки он ПУСТ: старая система подписей на дату не отдавала, и сегодняшняя подпись
+     в строке 2025 года была бы подписью не её даты. */
+  ok(223, shape && Object.keys(lr).length === 12 && lr.part === null && lr.fx === null &&
+        JSON.stringify(lr.lbls) === '{}' &&
         lr.dims['d-cur'] === 'KGS' && Object.keys(lr.inds).every(id => Object.keys(lr.inds[id]).join() === 'v') &&
         lr.by === 'миграция, вып. 1' && lr.fixed && lr.fixed.edition === 'легаси' &&
         lr.fixed.period === '2025-12' && lr.fixed.at === '2026-04-28' &&
@@ -7593,7 +7607,7 @@ const FIZ = fizSchema();
   ok(280, fxObjs280.join() === 'obj-claim,obj-credit,obj-measure,obj-receipt,obj-repay' &&
         vObjs280.join() === fxObjs280.join() && somOnly280 &&
         badCell280 === 0 && badFx280 === 0 && typeof ST.partsOf === 'undefined' &&
-        ST.ROW_VALUES.join() === 'dims,inds,fx' &&
+        ST.ROW_VALUES.join() === 'dims,lbls,inds,fx' &&
         ST.OBJ('obj-repay').rateDay === 'rdate' &&
         !!lr280 && lr280.date === '2026-08-11' && lr280.fx.rate === 87.45 && lr280.fx.rateDate === '2026-05-31' &&
         !!rb280 && rb280.fx.rate === ev280.rate && rb280.fx.rateDate === ev280.rateDate &&
@@ -7726,6 +7740,158 @@ const FIZ = fizSchema();
         mig283.ok === true && (mig283.widened || []).join() === 'd_status + «приостановлен»' &&
         !!back283 && back283.dims['d-status'] === 'приостановлен',
     `значение вне словаря отбивается: КД-2024/117 со статусом «приостановлен» ночью ${TODAY} строки не получил (${miss283 ? 'строка есть' : 'строки нет'}), прочие легли — ${rest283} из ${all283}; журнал сверки релиза: «${log283.slice(0, 120)}…». Миграция, поставившая список на чужую колонку, — ${wrong283.ok ? 'принята' : 'отказ'}, список не списком — ${flat283.ok ? 'принят' : 'отказ'}; миграция CHECK ${(mig283.widened || []).join(', ') || '—'} — и та же работа строку пишет: «${back283 ? back283.dims['d-status'] : '—'}» (ИС-57, ADR-0241 §2, СС-195)`);
+})();
+
+/* ===== Волна 23 · З-18b — ссылка: ключ и подпись на дату; классификатор: код, подпись, порядок;
+   подразделение: два уровня на дату (ИС-57, ADR-0241 §1, §3, §4). Строка держит ключ разреза в
+   `dims` и подпись на дату среза в `lbls`; группируют по ключу, печатают подпись. ===== */
+(() => {
+  const REF = vm.runInContext('REF', sandbox), W = vm.runInContext('WORLD', sandbox);
+  const lblOf = (r, id, i) => { const l = ((r || {}).lbls || {})[id]; return l == null ? null : i == null ? l : l[i]; };
+
+  /* #284 — переименование в справочнике прошлую строку не меняет. Ошское РП переименовано
+     21.08: ночь 22.08 — обычная ночь с кандидатами, а не полный обход, — пишет его объектам
+     новую подпись, хотя ни один их факт не менялся: проба кандидата видит подпись (СС-196), и
+     копия вчерашней строки со вчерашней подписью не ложится. Строки 21.08 — прежние: подпись
+     та, что была на их дату; ключ тот же, и срез по подразделению на 22.08 группирует по
+     ключу, а печатает новую подпись. Подпись на дату считается от кануна: срез 22.08 видит
+     справочник на 21.08, срез 21.08 — на 20.08. Ссылка без словаря (куратор) подписана своим
+     ключом — у каждой хранимой строки. Поправка события несёт подпись того, что исправляет:
+     перепривязка платежа к другому кредиту — подпись нового кредита. Проба видит подпись и у
+     объекта, о котором молчат все соседи: заёмщика 84302196109115 не называет никто, а его
+     подгруппа «5.2» той же ночью переподписана владельцем лестницы — строка 22.08 с новой
+     подписью, а не копия вчерашней (ИС-54). Повторный прогон пройденной даты — полный обход, и
+     строка, у которой сменилась одна подпись, переписывается на месте: сравнение строк видит
+     подпись, перезапись названа в итоге ночи (ADR-0215 §6). */
+  ST.seed();
+  const was284 = JSON.stringify(REF.org.lbl);
+  let t284 = [], y284 = [], cand284 = null, sl284 = null, eve284 = null, now284 = null, sg284 = null, sy284 = null;
+  const ours284 = r => (r.dims['d-branch'] || r.dims['d-lbranch'] || [])[1] === 'Ошское РП';
+  const pk284 = Object.keys(REF.paygroup.parent);
+  const pv284 = l => pk284.reduce((a, k, i) => (a[k] = {lbl: k === '5.2' ? l : k, ord: i + 1}, a), {});
+  try {
+    REF.org.lbl['Ошское РП'] = [['2026-08-21', 'Ошское региональное представительство']];
+    REF.paygroup.versions = [{since:'2020-01-01', values: pv284('5.2')}, {since:'2026-08-21', values: pv284('5.2 — безнадёжные')}];
+    const res = ST.run(TODAY);
+    sg284 = ST.rowsAt('obj-borrower', TODAY).find(r => r.ref === '84302196109115') || null;
+    sy284 = ST.rowsAt('obj-borrower', ASK).find(r => r.ref === '84302196109115') || null;
+    cand284 = res.ok ? (ST.state.runs[ST.state.runs.length - 1].cand || {}).scan : null;
+    t284 = ['obj-credit', 'obj-borrower'].reduce((a, o) => a.concat(ST.rowsAt(o, TODAY).filter(ours284)), []);
+    y284 = ['obj-credit', 'obj-borrower'].reduce((a, o) => a.concat(ST.rowsAt(o, ASK).filter(ours284)), []);
+    const s = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date: TODAY, levels:{'d-branch': 2}});
+    const g = s.ok ? ST.findNode(s.groups, 'Блок регионального развития / Ошское РП') : null;
+    sl284 = g ? {n: g.n, lbl: g.labels.join(' / ')} : null;
+    eve284 = (ST.lblsOf('d-branch', ['Блок регионального развития', 'Ошское РП'], '2026-08-21') || [])[1];
+    now284 = (ST.lblsOf('d-branch', ['Блок регионального развития', 'Ошское РП'], TODAY) || [])[1];
+  } finally { REF.org.lbl = JSON.parse(was284); delete REF.paygroup.versions; }
+  ST.seed();
+  let rr284 = null, ra284 = null;
+  try {
+    REF.paygroup.versions = [{since:'2020-01-01', values: pv284('5.2')}, {since:'2026-08-20', values: pv284('5.2 — безнадёжные')}];
+    rr284 = ST.run(ASK);
+    ra284 = ST.rowsAt('obj-borrower', ASK).find(r => r.ref === '84302196109115') || null;
+  } finally { delete REF.paygroup.versions; }
+  ST.seed();
+  const newL = 'Ошское региональное представительство';
+  const idOf = r => (r.dims['d-branch'] || r.dims['d-lbranch'])[1];
+  const lbOf = r => lblOf(r, r.dims['d-branch'] ? 'd-branch' : 'd-lbranch', 1);
+  const cur284 = ST.rowsAt('obj-credit', ASK).find(r => r.ref === 'КД-2024/117');
+  let plain284 = 0, off284 = 0;
+  ST.state.rows.forEach(r => {
+    if(ST.isLegacyRow(r)) return;
+    Object.keys(r.dims).forEach(id => {
+      const d = ST.DIM(id);
+      if(!d || d.vtype !== 'ref' || d.ref || d.levels) return;
+      plain284++; if(r.lbls[id] !== r.dims[id]) off284++;
+    });
+  });
+  const p284 = W['obj-repay'].find(x => x.id === 'ПГ-2026/1127');
+  const keep284 = {f: p284.f.credit, h: p284.h.credit};
+  let rb284 = null;
+  try {
+    p284.f.credit = 'КД-2025/101'; p284.h.credit = [['2026-06-18', 'КД-2025/043'], ['2026-08-21', 'КД-2025/101']];
+    ST.enqueue('obj-repay', 'ПГ-2026/1127', 'распоряжение', 'перепривязка к КД-2025/101');
+    ST.run(TODAY);
+    rb284 = ST.state.rows.find(r => r.obj === 'obj-repay' && r.ref === 'ПГ-2026/1127' && r.part === 'rebind') || null;
+  } finally {
+    p284.f.credit = keep284.f;
+    if(keep284.h === undefined) delete p284.h.credit; else p284.h.credit = keep284.h;
+  }
+  ST.seed();
+  ok(284, t284.length === 5 && y284.length === 5 && cand284 === 'кандидаты' &&
+        t284.every(r => idOf(r) === 'Ошское РП' && lbOf(r) === newL) &&
+        y284.every(r => idOf(r) === 'Ошское РП' && lbOf(r) === 'Ошское РП') &&
+        !!sl284 && sl284.n === 3 && sl284.lbl === 'Блок регионального развития / ' + newL &&
+        eve284 === 'Ошское РП' && now284 === newL &&
+        !!cur284 && cur284.lbls['d-curator'] === cur284.dims['d-curator'] && plain284 > 0 && off284 === 0 &&
+        !!rb284 && rb284.dims['d-pcredit'] === 'КД-2025/101' && rb284.lbls['d-pcredit'] === 'КД-2025/101' &&
+        !!sg284 && sg284.dims['d-subgroup'][1] === '5.2' && sg284.lbls['d-subgroup'][1].lbl === '5.2 — безнадёжные' &&
+        !!sy284 && sy284.lbls['d-subgroup'][1].lbl === '5.2' && sg284.lbls['d-subgroup'][1].ord === 10 &&
+        !!rr284 && rr284.ok && rr284.rewrote === 1 && !!ra284 && ra284.lbls['d-subgroup'][1].lbl === '5.2 — безнадёжные',
+    `ссылка — ключ и подпись на дату: Ошское РП переименовано 21.08; ночь ${TODAY} (обход — ${cand284 || '—'}) дала его ${t284.length} объектам (кредиты и заёмщики) подпись ${t284.map(lbOf).filter((x, i, a) => a.indexOf(x) === i).join(', ') || '—'} при ключе ${t284.map(idOf).filter((x, i, a) => a.indexOf(x) === i).join(', ') || '—'}, а строки ${ASK} (${y284.length}) держат прежнюю — ${y284.map(lbOf).filter((x, i, a) => a.indexOf(x) === i).join(', ') || '—'}. Срез по подразделению на ${TODAY} собирает группу по ключу и печатает её «${sl284 ? sl284.lbl : '—'}» (${sl284 ? sl284.n : '—'}). Подпись на дату — от кануна: на срез 21.08 «${eve284 || '—'}», на ${TODAY} «${now284 || '—'}». Ссылка без словаря подписана своим ключом: куратор «${cur284 ? cur284.lbls['d-curator'] : '—'}»; таких подписей в хранимых строках ${plain284}, не равных ключу ${off284}. Перепривязка ПГ-2026/1127 легла поправкой с кредитом «${rb284 ? rb284.dims['d-pcredit'] : '—'}» и его подписью «${rb284 ? rb284.lbls['d-pcredit'] : '—'}». Заёмщик 84302196109115, о котором молчат все соседи, переподписан той же ночью: подгруппа «${sy284 ? sy284.lbls['d-subgroup'][1].lbl : '—'}» → «${sg284 ? sg284.lbls['d-subgroup'][1].lbl : '—'}»; повторный прогон ${ASK} после переподписи с 20.08 переписал строк ${rr284 ? rr284.rewrote : '—'} — подпись «${ra284 ? ra284.lbls['d-subgroup'][1].lbl : '—'}» (ИС-54, ИС-57, ADR-0215 §6, ADR-0241 §1, СС-196)`);
+
+  /* #285 — значение классификатора: код, подпись и порядок из версии на дату, и новая версия
+     релиза не требует. Классификация публикует 21.08 новую версию: «high» подписан иначе, а
+     между «mid» и «high» встал новый код «watch». КД-2025/101 получает «watch»: ночь 22.08
+     строку пишет — CHECK у классификатора нет, релиз тот же, журнал сверки отказов не знает.
+     Порядок — из версии: худшая категория заёмщика 01234199010101 (второй его договор — «mid»)
+     — «watch». Строки 21.08 держат прежнюю подпись «high». */
+  ST.seed();
+  const was285 = JSON.stringify(REF.risk.versions);
+  const c285 = W['obj-credit'].find(x => x.id === 'КД-2025/101');
+  const keepC285 = JSON.stringify(c285.h.category);
+  const rel285 = JSON.stringify(ST.release());
+  let r285 = null, hi285 = null, hy285 = null, b285 = null, relSame285 = false, chk285 = -1, eve285 = null;
+  try {
+    const v2 = JSON.parse(JSON.stringify(REF.risk.versions[0]));
+    v2.since = '2026-08-21'; v2.values.high.lbl = 'Высокий риск'; v2.values.watch = {lbl:'Под наблюдением', ord:25};
+    REF.risk.versions.push(v2);
+    c285.h.category = c285.h.category.concat([['2026-08-21', 'watch']]);
+    const logN = ST.relLog().filter(e => e.who === 'CHECK').length;
+    ST.run(TODAY);
+    r285 = ST.rowsAt('obj-credit', TODAY).find(r => r.ref === 'КД-2025/101') || null;
+    hi285 = ST.rowsAt('obj-credit', TODAY).find(r => r.ref === 'КД-2023/210') || null;
+    hy285 = ST.rowsAt('obj-credit', ASK).find(r => r.ref === 'КД-2023/210') || null;
+    b285 = ST.rowsAt('obj-borrower', TODAY).find(r => r.ref === '01234199010101') || null;
+    relSame285 = JSON.stringify(ST.release()) === rel285;
+    chk285 = ST.relLog().filter(e => e.who === 'CHECK').length - logN;
+    eve285 = (ST.lblsOf('d-category', 'high', ASK) || {}).lbl;
+  } finally { REF.risk.versions = JSON.parse(was285); c285.h.category = JSON.parse(keepC285); }
+  ST.seed();
+  const cl = (r, id) => JSON.stringify(lblOf(r, id));
+  ok(285, !!r285 && r285.dims['d-category'] === 'watch' && cl(r285, 'd-category') === '{"lbl":"Под наблюдением","ord":25}' &&
+        !!hi285 && hi285.dims['d-category'] === 'high' && lblOf(hi285, 'd-category').lbl === 'Высокий риск' &&
+        !!hy285 && hy285.dims['d-category'] === 'high' && lblOf(hy285, 'd-category').lbl === 'Высокий кредитный риск' &&
+        !!b285 && b285.dims['d-bworst'] === 'watch' && lblOf(b285, 'd-bworst').ord === 25 &&
+        relSame285 && chk285 === 0 && eve285 === 'Высокий кредитный риск',
+    `значение классификатора — код, подпись и порядок из версии на дату: КД-2025/101 на ${TODAY} — «${r285 ? r285.dims['d-category'] : '—'}» ${r285 ? cl(r285, 'd-category') : '—'}; КД-2023/210 тем же кодом «high» подписан на ${ASK} «${hy285 ? lblOf(hy285, 'd-category').lbl : '—'}», на ${TODAY} — «${hi285 ? lblOf(hi285, 'd-category').lbl : '—'}»; версия берётся на канун среза — на ${ASK} «${eve285 || '—'}». Худшая заёмщика 01234199010101 по порядку версии — «${b285 ? b285.dims['d-bworst'] : '—'}» (${b285 ? lblOf(b285, 'd-bworst').ord : '—'}). Новая версия классификатора релиза не потребовала: релиз ${relSame285 ? 'тот же' : 'другой'}, отказов CHECK ${chk285} (ИС-57, ADR-0241 §3, ADR-0125, СС-197)`);
+
+  /* #286 — подразделение: два уровня на дату, не дерево владельца. Иссык-Кульское РП
+     переподчинено Блоку кредитования с 15.08: строки до 15.08 включительно держат прежнее
+     вышестоящее, с 16.08 — новое; ключ конечного подразделения тот же. Вышестоящее лежит в
+     строке и при чтении не пересчитывается: срез по блокам на 01.08 и на 21.08 отвечает разным
+     составом. Уровней у подразделения два — у релиза пара `d_unit` и пара `d_unit_parent`, и
+     колонок на тип узла нет. */
+  const was286 = JSON.stringify(REF.org.parent);
+  let b286 = null, a286 = null, s0 = null, s1 = null, bor286 = null;
+  try {
+    REF.org.parent['Иссык-Кульское РП'] = [['2020-01-01', 'Блок регионального развития'], ['2026-08-15', 'Блок кредитования']];
+    ST.seed();
+    b286 = ST.rowsAt('obj-credit', '2026-08-15').find(r => r.ref === 'КД-2025/088') || null;
+    a286 = ST.rowsAt('obj-credit', '2026-08-16').find(r => r.ref === 'КД-2025/088') || null;
+    bor286 = ST.rowsAt('obj-borrower', ASK).find(r => r.ref === '31804196611227') || null;
+    const cnt = d => { const s = ST.statSlice({obj:'obj-credit', dims:['d-branch'], inds:['a-count'], date: d, levels:{'d-branch': 1}});
+      const g = s.ok ? ST.findNode(s.groups, 'Блок кредитования') : null; return g ? g.n : null; };
+    s0 = cnt('2026-08-01'); s1 = cnt(ASK);
+  } finally { REF.org.parent = JSON.parse(was286); }
+  ST.seed();
+  const unitCols = ST.release().tables['obj-credit'].cols.filter(c => /^d_unit/.test(c)).join();
+  ok(286, !!b286 && b286.dims['d-branch'].join(' / ') === 'Блок регионального развития / Иссык-Кульское РП' &&
+        !!a286 && a286.dims['d-branch'].join(' / ') === 'Блок кредитования / Иссык-Кульское РП' &&
+        !!bor286 && bor286.dims['d-lbranch'][0] === 'Блок кредитования' &&
+        s0 === 4 && s1 === 5 && ST.DIM('d-branch').levels.length === 2 &&
+        unitCols === 'd_unit_id,d_unit_lbl,d_unit_parent_id,d_unit_parent_lbl',
+    `подразделение — два уровня на дату: Иссык-Кульское РП переподчинено Блоку кредитования с 15.08; КД-2025/088 на 15.08 — «${b286 ? b286.dims['d-branch'].join(' / ') : '—'}», на 16.08 — «${a286 ? a286.dims['d-branch'].join(' / ') : '—'}», его заёмщик на ${ASK} — «${bor286 ? bor286.dims['d-lbranch'].join(' / ') : '—'}». Вышестоящее лежит в строке: срез по блокам — «Блок кредитования» на 01.08 ${s0}, на ${ASK} ${s1}. Уровней ${ST.DIM('d-branch').levels.length}, колонки релиза — ${unitCols} (ИС-57, ADR-0241 §4, СС-197)`);
 })();
 
 /* ---- отчёт ---- */
