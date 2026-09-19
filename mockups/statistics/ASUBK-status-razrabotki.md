@@ -1,7 +1,7 @@
 # АСУБК · Статистика — статус разработки макета
 
-> Дом-статус макета `mockups/statistics/statistics.html` — **рабочий прототип, 9291 строка,
-> четыре экрана, смоук 228/228 PASS** (`node scripts/inspect/statistics-check.mjs`). Канон логики —
+> Дом-статус макета `mockups/statistics/statistics.html` — **рабочий прототип, 12060 строк,
+> четыре экрана, смоук 283/283 PASS** (на 19.09.2026, волна 23) (`node scripts/inspect/statistics-check.mjs`). Канон логики —
 > [`ASUBK-statistika-logika.md`](ASUBK-statistika-logika.md). Язык предметной области —
 > [`CONTEXT.md`](../../CONTEXT.md). Необратимые решения — `docs/adr/0145`…`docs/adr/0152`,
 > `docs/adr/0176`…`docs/adr/0179`, `docs/adr/0180` (форма фильтра, волна 4),
