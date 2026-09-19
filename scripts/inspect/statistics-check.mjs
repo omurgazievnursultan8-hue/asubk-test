@@ -102,6 +102,9 @@
 // месяца равен приросту состояния за месяц навсегда · снятая цель не оживает, когда меру
 // сторнировали на месте позже · отбитая строка состояния работу не снимает · снятие сторно
 // меры закрытого месяца одинаково у меры о двух целях и об одной.
+// блок волны 23 З-17 — деньги (ИС-56, ADR-0240): валюта, курс и дата курса один раз на строку,
+// клетка — одно число; курс строки только к остаткам, у потока обе колонки от ядра по курсам
+// операций; курс события — на день события; итоги заёмщика, залога, договора, дела — в сомах.
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -244,7 +247,11 @@ const FIZ = fizSchema();
   const rows3f = key.concat(vals, orig, fate);
   const both = rows3f.filter((f, i) => rows3f.indexOf(f) !== i);
   const cover = rows3f.slice().sort().join(',') === shape.slice().sort().join(',');
-  const valKeys = vals.reduce((a, f) => a.concat(Object.keys(u3[f] || {})), []);
+  /* Волна 23, З-17 (переписан на месте): полей 10 → 11 — `fx`, курс строки, и он в ряду
+     ЗНАЧЕНИЙ: это ответ ядра о курсе на дату (ИС-56, ADR-0240 §2). Носителей значений три, и
+     ключи двух из них — имена записей реестра, а у третьего ключи закрыты: курс и его дата.
+     Записью реестра курс не стал — его колонки `rate` и `rate_date` в схеме служебные, как `cur`. */
+  const valKeys = vals.filter(f => f !== 'fx').reduce((a, f) => a.concat(Object.keys(u3[f] || {})), []);
   const origKeys = Object.keys(u3.when || {});
   const origVals = origKeys.map(k => u3.when[k]);
   const fateKeys = Object.keys(u3.srcs || {});
@@ -260,18 +267,19 @@ const FIZ = fizSchema();
   const evRows3 = ST.state.rows.filter(r => ST.storageOf(r.obj) === 'event_delta');
   const ans3 = ['obj-repay', 'obj-receipt'].reduce((a, o) => a.concat(ST.rowsAsOf(o, '2026-08-21')), []);
   const outside3 = ST.state.rows.concat(ans3).filter(r => Object.keys(r).slice().sort().join() !== sorted3);
-  ok(3, shape.length === 10 && shape.indexOf('som') < 0 && shape.indexOf('доля') < 0 &&
+  ok(3, shape.length === 11 && shape.indexOf('som') < 0 && shape.indexOf('доля') < 0 &&
        evRows3.length > 0 && ans3.length > 0 && outside3.length === 0 &&
-       shape.join(',') === 'obj,ref,date,part,dims,inds,when,srcs,fixed,by' &&
+       shape.join(',') === 'obj,ref,date,part,dims,inds,fx,when,srcs,fixed,by' &&
        key.join(',') === 'obj,ref,date,part' &&
-       vals.length === 2 && orig.length === 1 && both.length === 0 && cover &&
+       vals.join(',') === 'dims,inds,fx' && orig.length === 1 && both.length === 0 && cover &&
+       !!u3.fx && Object.keys(u3.fx).sort().join() === 'rate,rateDate' &&
        valKeys.length > 0 && valKeys.every(k => !!ST.REC(k)) &&
        origKeys.length > 0 && origKeys.every(k => !!ST.REC(k)) &&
        ST.DATING.length === 2 && origVals.every(v => ST.DATING.indexOf(v) >= 0) &&
        fateKeys.length > 0 && fateKeys.every(k => !ST.REC(k)) &&
        som3 === 'm-debt-som' && !('som' in u3) && !('som' in u3.inds['m-debt']) &&
        u3.inds[som3] && u3.inds[som3].v > 0 && ST.IND(som3).unit === 'сом',
-    `форма строки закрыта: ${shape.join(' · ')} — долей и дельт нет (ИС-15). Полей десять — десятое, «part», стоит в адресе (СС-170), — но носителей ЗНАЧЕНИЙ по-прежнему два: рядов четыре и вместе они покрывают форму без остатка, не пересекаясь ни одним полем: АДРЕС (${key.join(' · ')}) · ЗНАЧЕНИЯ (${vals.join(' · ')}) · ПРОИСХОЖДЕНИЕ (${orig.join(' · ')}) · СУДЬБА (${fate.join(' · ')}). Прежний критерий различения на четвёртом ряду сломался и заменён: ключей в ряду значений ${valKeys.length} и каждый — запись реестра, но ключей в ряду ПРОИСХОЖДЕНИЯ ${origKeys.length} и каждый — тоже запись реестра, так что по именам эти ряды не разводятся. Разводит их словарь: значений в ряду происхождения ${origVals.length}, и все до одного — слова закрытого списка из двух (${ST.DATING.join(' · ')}), величины среди них нет ни одной (ИС-39, ADR-0205 §1). Ряд судьбы стоит особняком по-прежнему: ключей ${fateKeys.length} (${fateKeys.join(', ')}), и не запись реестра ни один — это имена СОСЕДЕЙ (ИС-42, ADR-0208 §2). Сомовая величина вошла в строку колонкой внутри inds под именем записи реестра «${ST.IND(som3).name}» (${(u3.inds[som3] || {}).v} ${ST.IND(som3).unit}), а не полем формы: поле нельзя назвать в отчёте и прекратить датой, запись — можно (ИС-44, ADR-0214 §2). Форму держит каждая строка: из ${ST.state.rows.length} хранимых (строк событий ${evRows3.length}) и ${ans3.length} действующих ответов событий на 21.08 вне формы ${outside3.length}${outside3.length ? ' (' + outside3[0].obj + ' ' + outside3[0].ref + ': ' + Object.keys(outside3[0]).filter(k => shape.indexOf(k) < 0).join(', ') + ')' : ''}`);
+    `форма строки закрыта: ${shape.join(' · ')} — долей и дельт нет (ИС-15). Полей одиннадцать — десятое, «part», стоит в адресе (СС-170), одиннадцатое, «fx», курс строки, — в ряду значений (ИС-56): рядов четыре и вместе они покрывают форму без остатка, не пересекаясь ни одним полем: АДРЕС (${key.join(' · ')}) · ЗНАЧЕНИЯ (${vals.join(' · ')}) · ПРОИСХОЖДЕНИЕ (${orig.join(' · ')}) · СУДЬБА (${fate.join(' · ')}). Прежний критерий различения на четвёртом ряду сломался и заменён: ключей в ряду значений ${valKeys.length} и каждый — запись реестра, но ключей в ряду ПРОИСХОЖДЕНИЯ ${origKeys.length} и каждый — тоже запись реестра, так что по именам эти ряды не разводятся. Разводит их словарь: значений в ряду происхождения ${origVals.length}, и все до одного — слова закрытого списка из двух (${ST.DATING.join(' · ')}), величины среди них нет ни одной (ИС-39, ADR-0205 §1). Ряд судьбы стоит особняком по-прежнему: ключей ${fateKeys.length} (${fateKeys.join(', ')}), и не запись реестра ни один — это имена СОСЕДЕЙ (ИС-42, ADR-0208 §2). Сомовая величина вошла в строку колонкой внутри inds под именем записи реестра «${ST.IND(som3).name}» (${(u3.inds[som3] || {}).v} ${ST.IND(som3).unit}), а не полем формы: поле нельзя назвать в отчёте и прекратить датой, запись — можно (ИС-44, ADR-0214 §2). Форму держит каждая строка: из ${ST.state.rows.length} хранимых (строк событий ${evRows3.length}) и ${ans3.length} действующих ответов событий на 21.08 вне формы ${outside3.length}${outside3.length ? ' (' + outside3[0].obj + ' ' + outside3[0].ref + ': ' + Object.keys(outside3[0]).filter(k => shape.indexOf(k) < 0).join(', ') + ')' : ''}`);
 
   const edit = ST.tryEditRow();
   const editors = Object.keys(ST).filter(k => /^(edit|update|setRow|patch)/.test(k) && k !== 'tryEditRow');
@@ -567,12 +575,16 @@ const FIZ = fizSchema();
      сомовой величины СВОЯ клетка, и в ней лежит ОСНОВАНИЕ пересчёта — применённый курс
      и дата курса по каждой части. Без основания сомовая колонка была бы недоказуемой;
      с ним её перемножает сторож, не выходя из строки (ADR-0214 §4, §5). */
+  /* Волна 23, З-17 (переписан на месте): валюта, курс и дата курса лежат в СТРОКЕ один раз —
+     валюта разрезом, курс и дата полем `fx`, — и клетка валютной величины несёт одно число;
+     сомовая сторона — своя клетка, тоже одно число (ИС-56, ADR-0240 §2). */
   const somCell = usd.inds[ST.somIdOf('m-debt')];
-  const src27 = somCell && somCell.from && somCell.from[0];
-  ok(27, cell.cur === 'USD' && cell.rate === 88.30 && cell.rateDate === '2026-08-18' && !stored &&
-        somCell && somCell.cur === 'KGS' && somCell.v === Math.round(cell.v * cell.rate * 100)/100 &&
-        src27 && src27.rate === 88.30 && src27.rateDate === '2026-08-18' && src27.cur === 'USD',
-    `сумма — в валюте договора с курсом и датой курса (${cell.v} ${cell.cur} × ${cell.rate} от ${cell.rateDate}); сомовой стороны валютная клетка в себе не несёт (приложением к чужой клетке величина не живёт), а несёт её СОСЕДНЯЯ колонка — ${(somCell || {}).v} ${(somCell || {}).cur}, и рядом с числом лежит основание: ${(src27 || {}).value} ${(src27 || {}).cur} × ${(src27 || {}).rate} от ${(src27 || {}).rateDate}. Перемножить и сверить можно не выходя из строки — ИС-16, ИС-44, ADR-0214 §4, §5`);
+  const fx27 = usd.fx || {};
+  ok(27, ST.rowCur(usd, 'm-debt') === 'USD' && usd.dims['d-cur'] === 'USD' &&
+        fx27.rate === 88.30 && fx27.rateDate === '2026-08-18' && !stored &&
+        Object.keys(cell).join() === 'v' && somCell && Object.keys(somCell).join() === 'v' &&
+        somCell.v === Math.round(cell.v * fx27.rate * 100)/100,
+    `сумма — в валюте договора (${cell.v} ${ST.rowCur(usd, 'm-debt')}), курс и дата курса — в строке один раз (${fx27.rate} от ${fx27.rateDate}); сомовой стороны валютная клетка в себе не несёт (приложением к чужой клетке величина не живёт), а несёт её СОСЕДНЯЯ колонка — ${(somCell || {}).v} сом. Клетка — одно число; перемножить и сверить можно не выходя из строки — ИС-16 сужен, ИС-44, ИС-56, ADR-0240 §2`);
 
   const mixed = ST.statSlice({obj:'obj-credit', dims:[], inds:['a-sumdebt'], date:'2026-08-19'}).total['a-sumdebt'];
   const one = ST.statSlice({obj:'obj-credit', dims:[], inds:['a-sumdebt'], date:'2026-08-19',
@@ -602,7 +614,7 @@ const FIZ = fizSchema();
      ровно там, где были, и ИС-15 для них жив. */
   const somShown = typeof ST.somOf;
   ok(29, somShown === 'undefined' &&
-        ST.somValue(usd, 'm-debt') === Math.round(cell.v * cell.rate * 100)/100 &&
+        ST.somValue(usd, 'm-debt') === Math.round(cell.v * usd.fx.rate * 100)/100 &&
         ST.shareOf(1, 4) === 25 && ST.pointsBetween(12.4, 15.9) === 3.5,
     `доля и дельта по-прежнему считаются при показе (${ST.shareOf(1,4)}% · ${ST.pointsBetween(12.4,15.9)} п.п.) и не хранятся — ИС-15. Сомовая величина показом больше НЕ считается: ST.somOf в модуле нет вовсе (${somShown}), показ берёт готовое число соседней колонки (${ST.somValue(usd, 'm-debt')}) — четвёртое место со своим округлением закрыто (ИС-44, ADR-0214 §3, §6)`);
 
@@ -1089,33 +1101,39 @@ const FIZ = fizSchema();
   const brows = ST.statRows({obj:'obj-borrower', date: ASK}).rows;
   const single = {};
   crows.forEach(r => {
-    const inn = r.dims['d-binn'], c = r.inds['m-total'];
+    const inn = r.dims['d-binn'], c = r.inds['m-total'], cur = ST.rowCur(r, 'm-total');
     if(!inn || !c) return;
     single[inn] = single[inn] || {};
-    single[inn][c.cur] = Math.round(((single[inn][c.cur] || 0) + c.v) * 100) / 100;
+    single[inn][cur] = Math.round(((single[inn][cur] || 0) + c.v) * 100) / 100;
   });
   const broken = [];
   /* Волна 23 (переписан на месте): итог заёмщика — одна сомовая колонка (ADR-0240 §4), и
      состав по валютам лежит не клеткой, а ОСНОВАНИЕМ её пересчёта (`from`: валюта, число,
      курс — по части на валюту). Тождество «свод = сумма одиночных ответов по каждой валюте
      до копейки» сверяется с этим основанием — курса в проверке по-прежнему нет. */
-  const fromOf = c => ((c && c.from) || []).map(p => ({cur: p.cur, v: p.value}));
+  /* Волна 23, З-17 (переписан на месте): основания `from` в клетке больше нет — клетка одно
+     число (ИС-56, ADR-0240 §2, §4). Тождество «свод = сумма одиночных ответов по каждой валюте»
+     сверяется с СОСТАВОМ ОТВЕТА ЯДРА на канун среза — тем, из которого ночь посчитала сомовое
+     число строки, — а сомовое число строки с его сомовой стороной. «Остаток = просрочено +
+     срочно» держится на строке в сомах: три числа округлены порознь, разница не больше двух
+     копеек. */
+  const W70 = vm.runInContext('WORLD', sandbox), CORE70 = vm.runInContext('CORE', sandbox);
+  const port70 = r => {
+    const it = W70['obj-borrower'].find(x => x.id === r.ref);
+    return it ? CORE70.read('calcPortfolio', it, ST.worldAt(ASK)) : null;
+  };
   brows.forEach(r => {
-    const parts = fromOf(r.inds['m-btotal']);
+    const a = port70(r) || {};
+    const parts = ((a.total || {}).parts || []).filter(p => p.value != null).map(p => ({cur: p.cur, v: p.value}));
     const want = single[r.ref] || {};
     Object.keys(want).forEach(cur => {
       const got = parts.find(x => x.cur === cur);
       if(!got || Math.abs(got.v - want[cur]) > 0.01) broken.push(r.ref + ' ' + cur);
     });
     if(parts.length !== Object.keys(want).length) broken.push(r.ref + ' состав');
-    /* Тождество ядра «остаток = просрочено + срочно» держится и на строке заёмщика —
-       по каждой валюте отдельно (ADR-0183 §3 применительно к портфелю). */
-    const o = fromOf(r.inds['m-bover']), c = fromOf(r.inds['m-bcurr']);
-    parts.forEach(t => {
-      const op = (o.find(x => x.cur === t.cur) || {v:0}).v;
-      const cp = (c.find(x => x.cur === t.cur) || {v:0}).v;
-      if(Math.abs(t.v - (op + cp)) > 0.01) broken.push(r.ref + ' ' + t.cur + ' тождество');
-    });
+    const t = r.inds['m-btotal'], o = r.inds['m-bover'], c = r.inds['m-bcurr'];
+    if(t && (!a.total || Math.abs(t.v - a.total.som.value) > 0.005)) broken.push(r.ref + ' сом');
+    if(t && Math.abs(t.v - ((o || {v: 0}).v + (c || {v: 0}).v)) > 0.02) broken.push(r.ref + ' тождество');
   });
   const checked = Object.keys(single).length;
   /* Волна 17, ADR-0206 §4: сторож УСИЛЕН. Тождество сумм по «кредиту» и по «заёмщику»
@@ -1157,20 +1175,25 @@ const FIZ = fizSchema();
      группах — отказывать больше не в чем (ИС-56). */
   const mix = brows.find(r => r.dims['d-bcur'] === 'разновалютный');
   const mixCell = mix ? mix.inds['m-btotal'] : null;
-  const from = (mixCell && mixCell.from) || [];
+  /* Волна 23, З-17 (переписан на месте): основания в клетке нет (ИС-56) — части и их курсы
+     называет ответ ядра на канун среза, и сомовое число строки обязано быть их суммой. */
+  const W71 = vm.runInContext('WORLD', sandbox), CORE71 = vm.runInContext('CORE', sandbox);
+  const it71 = mix ? W71['obj-borrower'].find(x => x.id === mix.ref) : null;
+  const from = it71 ? (CORE71.read('calcPortfolio', it71, ST.worldAt(ASK)).total.parts || [])
+    .filter(p => p.value != null) : [];
   const byHand = from.reduce((a, x) => a + x.value * x.rate, 0);
   const stored = brows.some(r => Object.keys(r.inds).some(k => 'som' in r.inds[k] || 'сом' in r.inds[k]));
   const agg = ST.statSlice({obj:'obj-borrower', dims:['d-ptype'], inds:['a-sumbtotal'], date: ASK});
   const tot = agg.ok ? agg.total['a-sumbtotal'] : null;
   const gAns = agg.ok ? agg.groups.filter(g => g.values['a-sumbtotal'] && !g.values['a-sumbtotal'].refused &&
     g.values['a-sumbtotal'].cur === 'KGS') : [];
-  ok(71, mixCell && mixCell.cur === 'KGS' && mixCell.v === Math.round(byHand * 100)/100 &&
+  ok(71, mixCell && Object.keys(mixCell).join() === 'v' && mix.fx === null && mixCell.v === Math.round(byHand * 100)/100 &&
         from.length === 2 && from.every(x => x.cur && x.rate > 0 && x.rateDate) && !stored &&
         ST.IND('m-btotal').vtype === 'money_som' && ST.unitOf('m-btotal') === 'сом' &&
         ST.somIdOf('m-btotal') === null && ST.somIdOf('a-sumbtotal') === null &&
         tot && !tot.refused && tot.v > 0 && tot.cur === 'KGS' &&
         agg.groups.length === 3 && gAns.length === 3,
-    `разновалютный портфель (${mix ? mix.ref : '—'}) лежит в строке заёмщика ОДНИМ числом в сомах: ${(mixCell || {}).v} ${(mixCell || {}).cur}, и это ровно ${from.map(x => x.value + ' ' + x.cur + '×' + x.rate).join(' + ')}, посчитанное ядром; курс и дата курса по каждой части лежат рядом с числом. Валютной стороны у итога нет, близнеца тоже (${ST.somIdOf('m-btotal')}): состав по валютам без jsonb не хранится, а «сколько в долларах» отвечают строки кредитов (ADR-0240 §4, §5). Свод по разновалютному множеству ОТВЕЧАЕТ — ${(tot || {}).v} ${(tot || {}).cur}, и во всех ${agg.groups.length} группах по виду лица числом в сомах (${gAns.length}): отказывать больше не в чем (ИС-56; до волны 23 здесь стерегли отказ валютного свода, ИС-44, ADR-0214 §1)`);
+    `разновалютный портфель (${mix ? mix.ref : '—'}) лежит в строке заёмщика ОДНИМ числом в сомах: ${(mixCell || {}).v}, и это ровно ${from.map(x => x.value + ' ' + x.cur + '×' + x.rate).join(' + ')}, посчитанное ядром; части и курсы называет ответ ядра, в строке их нет — у заёмщика и курса строки нет (${mix ? String(mix.fx) : '—'}). Валютной стороны у итога нет, близнеца тоже (${ST.somIdOf('m-btotal')}): состав по валютам без jsonb не хранится, а «сколько в долларах» отвечают строки кредитов (ADR-0240 §4, §5). Свод по разновалютному множеству ОТВЕЧАЕТ — ${(tot || {}).v} ${(tot || {}).cur}, и во всех ${agg.groups.length} группах по виду лица числом в сомах (${gAns.length}): отказывать больше не в чем (ИС-56; до волны 23 здесь стерегли отказ валютного свода, ИС-44, ADR-0214 §1)`);
 
   /* Число договоров — клетка шва, а не поле владельца: производная в поле есть второй
      источник (ADR-0001). Доказательство — оно меняется вслед за СТАТУСОМ договора.
@@ -3214,7 +3237,8 @@ const FIZ = fizSchema();
         st.registry.indexOf(som170) >= 0 && reg170.length === 1 &&
         ST.IND('m-debt-som') && ST.DIM('m-debt-som') === undefined &&
         cInds.indexOf('m-debt-som') >= 0 && nextTo &&
-        cell170 && cell170.v > 0 && cell170.cur === 'KGS' &&
+        cell170 && cell170.v > 0 && Object.keys(cell170).join() === 'v' &&
+        ST.rowCur(rows170.rows[0], 'm-debt-som') === 'KGS' &&
         sl170.ok && sl170.total['a-sumdebt-som'].v > 0 &&
         sl170.passport && sl170.passport.asOf && sl170.passport.fixation && sl170.passport.scope &&
         col170 && col170.state === 'включена' && col170.table === cur170c.table &&
@@ -3278,66 +3302,72 @@ const FIZ = fizSchema();
      сомовая запись САМА, валютной клетки рядом нет (ADR-0240 §4); её число сверяется с
      основанием пересчёта в той же клетке — валюта, число, курс, дата курса по каждой части.
      Не сверяй сторож итоги — треть сомовых чисел витрины осталась бы непроверенной. */
-  const somOnlyWhy = (id, c) => {
-    if(!c || c.v == null) return 'сомовой клетки нет';
-    if(c.cur !== 'KGS') return 'итог не в сомах: ' + c.cur;
-    const basis = c.from || [];
-    if(!basis.length) return 'у итога нет основания пересчёта';
-    if(basis.some(b => !(b.rate > 0) || !b.rateDate)) return 'курс не назван';
-    const rule = ST.roundOf(id);
-    if(!rule) return 'запись не назвала правила округления';
-    if(c.round !== rule) return 'применённое правило «' + c.round + '» не равно объявленному «' + rule + '»';
-    const byHand = CORE.somRound(basis.reduce((n, b) => n + b.value * b.rate, 0), rule);
-    if(Math.abs(c.v - byHand) > 0.005) return 'число не равно произведению: ' + c.v + ' ≠ ' + byHand;
-    return null;
+  /* Волна 23, З-17: курс лежит в СТРОКЕ (`r.fx`), а клетка — одно число (ИС-56, ADR-0240 §2).
+     Сомовых клеток по-прежнему два рода, но сверяются они по-разному, и граница — не род
+     клетки, а род величины. ОСТАТОК (долг, просрочка, сумма платежа) — на курс строки: его
+     сомовое число — валютное, перемноженное курсом дня, и перемножить его можно, не выходя
+     из строки. ПОТОК (выдано, погашено, начислено, списано) и ИТОГ В СОМАХ — сумма операций по
+     курсам их дней (ADR-0240 §3, §4): одного курса у него нет, и сверяется он с ЯДРОМ на дату
+     строки. Ядро демо-мира детерминировано и курсов задним числом в засеве не уточняет,
+     поэтому его ответ на канун даты строки и есть то, что ночь записала. */
+  const W172 = vm.runInContext('WORLD', sandbox);
+  const itemOf172 = r => (W172[r.obj] || []).find(x => x.id === r.ref) || null;
+  const coreSom172 = (rec, r) => {
+    const it = itemOf172(r);
+    if(!it) return undefined;
+    if(rec.src === 'поле') return it.f[rec.key] == null ? undefined : it.f[rec.key];
+    const a = CORE.read(rec.seam, it, ST.worldAt(r.date));
+    const c = a && a[rec.field];
+    return c && c.som ? c.som.value : undefined;
   };
+  /* Объект с валютой — тот, в таблице которого релиз вывел колонку курса: схема, а не
+     список в сторож (ADR-0240 §2). */
+  const REL172 = ST.release();
+  const fxObj172 = id => !!REL172.tables[id] && REL172.tables[id].cols.indexOf('rate') >= 0;
+  const oneNumber = c => !!c && Object.keys(c).length === 1 && 'v' in c;
   const audit = () => {
     const bad = [];
-    let seen = 0, som = 0;
-    ST.state.rows.forEach(r => {
+    let seen = 0, som = 0, flow = 0, bal = 0, fxOn = 0, fxOff = 0;
+    ST.state.rows.filter(r => !ST.isLegacyRow(r)).forEach(r => {
+      const withFx = fxObj172(r.obj);
+      if(withFx){
+        fxOn++;
+        if(!r.fx || !(r.fx.rate > 0) || !r.fx.rateDate) bad.push({ref: r.ref, date: r.date, id: 'fx', why: 'курс строки не назван'});
+      } else {
+        fxOff++;
+        if(r.fx !== null) bad.push({ref: r.ref, date: r.date, id: 'fx', why: 'курс у объекта без валюты'});
+      }
       Object.keys(r.inds).forEach(id => {
-        const rec = ST.IND(id);
-        if(rec && rec.vtype === 'money_som' && !rec.somOf && rec.src !== 'агрегат'){
-          const why = somOnlyWhy(id, r.inds[id]);
+        const rec = ST.IND(id), c = r.inds[id];
+        if(!rec) return;
+        if(!oneNumber(c)){ bad.push({ref: r.ref, date: r.date, id, why: 'клетка — не одно число: ' + Object.keys(c).join(',')}); return; }
+        const rule = ST.roundOf(id);
+        if(rec.vtype === 'money_som' && !rec.somOf && rec.src !== 'агрегат'){
           seen++; som++;
-          if(why) bad.push({ref: r.ref, date: r.date, id, why});
+          const want = coreSom172(rec, r);
+          if(want === undefined || Math.abs(c.v - want) > 0.005)
+            bad.push({ref: r.ref, date: r.date, id, why: 'итог разошёлся с ядром: ' + c.v + ' ≠ ' + want});
           return;
         }
-        if(!rec || !rec.somOf) return;
-        const c = r.inds[id], o = r.inds[rec.somOf];
-        const why = (() => {
-          if(!c || c.v == null) return 'сомовой клетки нет';
-          if(!o) return 'валютной клетки нет';
-          /* Состав клетки берётся ТЕМ ЖЕ нормализатором, что и у модуля (`ST.partsOf`):
-             у одновалютной он из одной части, у портфельной — из скольких угодно, и
-             своего понятия «состав» сторож не заводит (ADR-0184 §3). */
-          const parts = ST.partsOf(o);
-          if(!parts.length) return 'у валютной клетки нет состава';
-          const basis = c.from || [];
-          if(basis.length !== parts.length) return 'основание пересчёта не совпало с составом';
-          for(let i = 0; i < parts.length; i++){
-            const b = basis[i], p = parts[i];
-            if(b.cur !== p.cur || b.value !== p.v || b.rate !== p.rate || b.rateDate !== p.rateDate)
-              return 'основание пересчёта разошлось со строкой по части «' + p.cur + '»';
-            if(!(b.rate > 0)) return 'курс не назван';
-          }
-          /* Правило округления берётся ИЗ ЗАПИСИ РЕЕСТРА, а не из кода сторожа, и
-             ПРИМЕНЁННОЕ ядром обязано совпасть с объявленным: иначе сторож доказывал бы
-             арифметику, молча соглашаясь с любой точностью (ADR-0214 §6). */
-          const rule = ST.roundOf(id);
-          if(!rule) return 'запись не назвала правила округления';
-          if(c.round !== rule)
-            return 'применённое правило «' + c.round + '» не равно объявленному «' + rule + '»';
-          const byHand = CORE.somRound(parts.reduce((n, p) => n + p.v * p.rate, 0), rule);
-          if(Math.abs(c.v - byHand) > 0.005)
-            return 'число не равно произведению: ' + c.v + ' ≠ ' + byHand;
-          return null;
-        })();
+        if(!rec.somOf) return;
         seen++;
-        if(why) bad.push({ref: r.ref, date: r.date, id, why});
+        if(!rule){ bad.push({ref: r.ref, date: r.date, id, why: 'запись не назвала правила округления'}); return; }
+        const O = ST.IND(rec.somOf), o = r.inds[rec.somOf];
+        if(!o){ bad.push({ref: r.ref, date: r.date, id, why: 'валютной клетки нет'}); return; }
+        if(O.flow){
+          flow++;
+          const want = coreSom172(O, r);
+          if(want === undefined || Math.abs(c.v - want) > 0.005)
+            bad.push({ref: r.ref, date: r.date, id, why: 'поток разошёлся с ядром: ' + c.v + ' ≠ ' + want});
+          return;
+        }
+        bal++;
+        const byHand = r.fx ? CORE.somRound(o.v * r.fx.rate, rule) : null;
+        if(byHand == null || Math.abs(c.v - byHand) > 0.005)
+          bad.push({ref: r.ref, date: r.date, id, why: 'число не равно произведению: ' + c.v + ' ≠ ' + byHand});
       });
     });
-    return {bad, seen, som};
+    return {bad, seen, som, flow, bal, fxOn, fxOff};
   };
   const a172 = audit();
   /* Волна 17 З-12: сверяются ПО-ПРЕЖНЕМУ все написанные строки — легаси в том числе, — но
@@ -3387,34 +3417,49 @@ const FIZ = fizSchema();
      найденное ночью 05.07, легло строкой-поправкой в месяце исправления, а не на месте июньской
      строки (СС-180, ADR-0239 §3; довод у #116). Сомовых клеток прежние 16109 — у поступления
      сомового близнеца нет; дат прежние 59 — 05.07 уже дата строк. Расхождений — ноль. */
-  ok(172, a172.bad.length === 0 && a172.seen === 16109 && a172.som === 5075 && dates172.length === 59 && objs172.length === 10 &&
-        own172.length === 2196 && leg172.length === 34 && legSom172 === 0,
-    `сверено НЕ на примере, а на каждой записи: ${a172.seen} сомовых клеток в ${own172.length} строках ${objs172.length} объектов на всех ${dates172.length} датах строк (${dates172[0].slice(5)}…${dates172[dates172.length-1].slice(5)}), расхождений ${a172.bad.length}; из них ${a172.som} — итоги в сомах без валютной пары, сверенные со своим основанием пересчёта (ADR-0240 §4). Сверка идёт ВНУТРИ строки: сомовое число обязано равняться сумме частей валютной клетки той же строки, умноженных на курс той же строки, по правилу округления, НАЗВАННОМУ В ЗАПИСИ (и применённое ядром обязано совпасть с объявленным — оно лежит в клетке рядом с курсом), и основание пересчёта обязано совпасть с составом клетки часть в часть — валюта, число, курс, дата курса. Заглядывать в справочник курсов сторожу не нужно и НЕЛЬЗЯ: справочник живой, а строка заморожена, и сверка с живым курсом ловила бы переоценку вместо ошибки (ИС-44, ADR-0214 §4, §5). Легаси-строк рядом ${leg172.length}, и сомовых клеток в них ${legSom172}: старая система близнеца не считала, и в её форме его НЕТ КЛЮЧОМ — не ноль и не пересчёт сегодняшним курсом (ИС-41, ADR-0207 §2)`);
+  /* Волна 23, З-17 (переписан на месте): сверка ушла из основания в клетке в курс строки и в
+     ядро — основания `from` в клетке больше нет (ИС-56, ADR-0240 §2, §3). Остаток сверяется
+     внутри строки: валютная клетка × курс строки по правилу записи. Поток и итог в сомах —
+     с ядром на дату строки: их сомовое число — сумма операций по курсам их дней, и одного
+     курса, которым его можно было бы перемножить в строке, у них нет. Строк, дат и клеток
+     прежнее число; остатков 9338, потоков 1696, итогов 5075, расхождений — ноль. Курс лежит
+     у 745 строк объектов с валютой и пуст у прочих 1451 и у 34 легаси. */
+  ok(172, a172.bad.length === 0 && a172.seen === 16109 && a172.som === 5075 && a172.flow === 1696 &&
+        a172.bal === 9338 && a172.fxOn === 745 && a172.fxOff === 1451 &&
+        dates172.length === 59 && objs172.length === 10 &&
+        own172.length === 2196 && leg172.length === 34 && legSom172 === 0 && leg172.every(r => r.fx === null),
+    `сверено НЕ на примере, а на каждой записи: ${a172.seen} сомовых клеток в ${own172.length} строках ${objs172.length} объектов на всех ${dates172.length} датах строк (${dates172[0].slice(5)}…${dates172[dates172.length-1].slice(5)}), расхождений ${a172.bad.length}. Остатков ${a172.bal}: сомовое число обязано равняться валютной клетке той же строки, умноженной на КУРС СТРОКИ, по правилу округления, названному в записи; курс лежит в строке один раз (${a172.fxOn} строк объектов с валютой), у прочих ${a172.fxOff} его нет вовсе. Потоков ${a172.flow} и итогов в сомах ${a172.som} — с ядром на дату строки: их сомовое число — сумма операций по курсам их дней, одного курса у него нет, и перемножать в строке нечего (ИС-56, ADR-0240 §2–§4). Легаси-строк рядом ${leg172.length}, и сомовых клеток в них ${legSom172}: старая система близнеца не считала, и в её форме его НЕТ КЛЮЧОМ — не ноль и не пересчёт сегодняшним курсом (ИС-41, ADR-0207 §2)`);
 
   /* #173 — тот же сторож на ПОДБРОШЕННОМ дефекте. Сторож, который не умеет провалиться,
      ничего не доказывает: проверяется, что он называет ИМЕННО испорченные строки и
      ИМЕННО их, а после восстановления снова чист. Два разных дефекта — подменённый курс
      в основании и подменённое число в колонке: первый ловится сверкой с составом строки,
      второй — арифметикой, и оба обязаны быть пойманы. */
+  /* Волна 23, З-17 (переписан на месте): основания в клетке больше нет, и два подброшенных
+     дефекта — другие. Первый — КУРС СТРОКИ: он один на строку, и подмена его ломает каждый
+     остаток строки разом, а называется одна строка. Второй — сомовое число ПОТОКА: курса у
+     него нет, и поймать его может только сверка с ядром. */
   const clean0 = audit();
-  const victims = ST.state.rows.filter(r => r.obj === 'obj-credit' && r.inds['m-debt-som']);
-  const vRate = victims[0], vNum = victims[1];
-  const fRate = vRate && (vRate.inds['m-debt-som'].from || [])[0];
-  const keptRate = fRate ? fRate.rate : null;
-  const keptNum = vNum ? vNum.inds['m-debt-som'].v : null;
-  if(fRate) fRate.rate = keptRate + 7;
-  if(vNum) vNum.inds['m-debt-som'].v = keptNum + 0.05;
+  const victims = ST.state.rows.filter(r => r.obj === 'obj-credit' && !ST.isLegacyRow(r) &&
+    ST.rowCur(r, 'm-debt') !== 'KGS' && r.inds['m-debt-som'] && r.inds['m-repaid-som']);
+  const vRate = victims.find(r => ST.rowCur(r, 'm-debt') === 'USD');
+  const vNum = victims.find(r => r.ref !== (vRate || {}).ref);
+  const keptRate = vRate ? vRate.fx.rate : null;
+  const keptNum = vNum ? vNum.inds['m-repaid-som'].v : null;
+  if(vRate) vRate.fx.rate = keptRate + 7;
+  if(vNum) vNum.inds['m-repaid-som'].v = keptNum + 0.05;
   const a173 = audit();
-  const named = a173.bad.map(b => b.ref).sort().join(', ');
+  const named = Array.from(new Set(a173.bad.map(b => b.ref))).sort().join(', ');
   const wanted = [vRate, vNum].filter(Boolean).map(v => v.ref).sort().join(', ');
-  if(fRate) fRate.rate = keptRate;
-  if(vNum) vNum.inds['m-debt-som'].v = keptNum;
+  if(vRate) vRate.fx.rate = keptRate;
+  if(vNum) vNum.inds['m-repaid-som'].v = keptNum;
   const back = audit();
-  ok(173, !!fRate && !!vNum && clean0.bad.length === 0 && a173.bad.length === 2 && named === wanted &&
-        a173.bad.some(b => has(b.why, 'основание пересчёта разошлось')) &&
-        a173.bad.some(b => has(b.why, 'не равно произведению')) &&
+  ok(173, !!vRate && !!vNum && clean0.bad.length === 0 && named === wanted &&
+        a173.bad.filter(b => b.ref === vRate.ref).every(b => has(b.why, 'не равно произведению')) &&
+        a173.bad.filter(b => b.ref === vNum.ref).length === 1 &&
+        a173.bad.some(b => has(b.why, 'поток разошёлся с ядром')) &&
         back.bad.length === 0 && back.seen === clean0.seen,
-    `сторож умеет ПРОВАЛИТЬСЯ, и потому его «чисто» что-то значит. Подброшены два разных дефекта в две разные строки: в «${(vRate || {}).ref}» подменён КУРС в основании пересчёта (${keptRate} → ${keptRate + 7}) — число осталось прежним и на глаз правдоподобным, — в «${(vNum || {}).ref}» подменено само сомовое ЧИСЛО на пять копеек. Сторож назвал ровно две строки (${named}) и ровно теми причинами, какими надо: первую — расхождением основания с составом строки, вторую — арифметикой. Пять копеек ловятся потому, что округление ОБЪЯВЛЕНО: не будь у системы одного правила, эта разница была бы неотличима от законной (ADR-0214 §6). После восстановления сторож снова чист (${back.seen} клеток, ${back.bad.length} расхождений) — значит ловит он дефект, а не собственную обстановку`);
+    `сторож умеет ПРОВАЛИТЬСЯ, и потому его «чисто» что-то значит. Подброшены два разных дефекта в две разные строки: в «${(vRate || {}).ref}» подменён КУРС СТРОКИ (${keptRate} → ${keptRate + 7}) — он один на строку, и сторож назвал её по каждому остатку (${a173.bad.filter(b => b.ref === (vRate || {}).ref).length} клеток) арифметикой; в «${(vNum || {}).ref}» подменено сомовое число ПОТОКА «погашено» на пять копеек — курса у потока нет, и поймала его только сверка с ядром. Названы ровно эти строки (${named}). Пять копеек ловятся потому, что округление ОБЪЯВЛЕНО (ADR-0214 §6). После восстановления сторож снова чист (${back.seen} клеток, ${back.bad.length} расхождений) — ловит он дефект, а не собственную обстановку (ИС-56, ADR-0240 §2, §3)`);
 
   /* #174 — свод валютной записи по разновалютному множеству есть ОТКАЗ, называющий и
      причину, и АДРЕС; по одновалютному та же запись отвечает числом в его валюте; сомовая
@@ -3446,22 +3491,30 @@ const FIZ = fizSchema();
      без валютной пары (ADR-0240 §4), и разновалютный портфель ложится в неё одним числом,
      а основание пересчёта — по части на валюту — лежит в той же клетке. Прежней пары
      «валютная молчит составом + сомовая отвечает числом» у итога больше нет. */
+  /* Волна 23, З-17 (переписан на месте): курс и дата курса лежат в строке ОДИН РАЗ, рядом со
+     всеми её числами (`fx`), а не в каждой клетке; валюта — разрез строки (ИС-56, ADR-0240 §2).
+     Остаток перемножается, не выходя из строки. Итог заёмщика — одна сомовая колонка без
+     основания в клетке: разновалютный портфель ложится в неё одним числом, и число это —
+     ответ ядра, а состав по валютам отвечают строки его кредитов (ADR-0240 §4). */
   const rr = ST.statRows({obj:'obj-credit', date: ASK}).rows;
-  const usd = rr.find(r => r.inds['m-debt'].cur === 'USD');
+  const usd = rr.find(r => ST.rowCur(r, 'm-debt') === 'USD');
   const o175 = usd.inds['m-debt'], s175 = usd.inds['m-debt-som'];
-  const pr = ST.statRows({obj:'obj-borrower', date: ASK}).rows
-    .find(r => ((r.inds['m-btotal'] || {}).from || []).length > 1);
+  const W175 = vm.runInContext('WORLD', sandbox);
+  const pr = ST.statRows({obj:'obj-borrower', date: ASK}).rows.find(r => {
+    const it = W175['obj-borrower'].find(x => x.id === r.ref);
+    const c = it && CORE.read('calcPortfolio', it, ST.worldAt(ASK)).total;
+    return c && (c.parts || []).length > 1;
+  });
+  const it175 = pr ? W175['obj-borrower'].find(x => x.id === pr.ref) : null;
+  const core175 = it175 ? CORE.read('calcPortfolio', it175, ST.worldAt(ASK)).total : null;
   const ps = (pr || {inds:{}}).inds['m-btotal'] || {};
-  const byRow = CORE.somRound((ps.from || []).reduce((n, p) => n + p.value * p.rate, 0), ST.roundOf('m-btotal'));
-  ok(175, !!s175 && !!pr && o175.rate > 1 && o175.rateDate && o175.cur === 'USD' &&
-        (s175.from || []).length === 1 && s175.from[0].rate === o175.rate &&
-        s175.from[0].rateDate === o175.rateDate && s175.from[0].cur === 'USD' &&
-        Math.abs(s175.v - CORE.somRound(o175.v * o175.rate, ST.roundOf('m-debt-som'))) < 0.005 &&
-        ps.cur === 'KGS' && ps.from.length > 1 &&
-        new Set(ps.from.map(x => x.cur)).size === ps.from.length &&
-        ps.from.every(x => x.rate > 0 && x.rateDate) &&
-        Math.abs(ps.v - byRow) < 0.005 && !pr.inds['m-btotal-som'] && ST.somValue(usd, 'm-debt') === s175.v,
-    `курс и дата курса лежат В СТРОКЕ, рядом с сомовым числом: «${usd.ref}» — ${o175.v} ${o175.cur} × ${o175.rate} от ${(((s175 || {}).from || [])[0] || {}).rateDate} = ${(s175 || {}).v} сом. (основание в строке: ${((s175 || {}).from || []).length} част.), и перемножить это можно не выходя из строки, не открывая ни справочника курсов, ни другой строки. То же и там, где валюта не одна: портфель «${(pr || {}).ref}» ложится ОДНОЙ сомовой колонкой — ${ps.v} ${ps.cur}, — а основание у числа по каждой части своё и своё же лежит в клетке: ${(ps.from || []).map(p => p.value + ' ' + p.cur + ' × ' + p.rate).join(' + ')}. Валютной колонки у итога заёмщика нет (${pr && pr.inds['m-btotal-som'] ? 'ЕСТЬ близнец' : 'и близнеца нет'}): состав по валютам отвечают строки его кредитов (ADR-0240 §4). Заморожено ОСНОВАНИЕ, а не только результат: переоценка завтрашним курсом вчерашнюю строку не трогает, потому что сверять её не с чем, кроме неё самой (ИС-16, ИС-44, ADR-0214 §4, §5, ADR-0240 §4)`);
+  ok(175, !!s175 && !!pr && usd.fx && usd.fx.rate > 1 && !!usd.fx.rateDate &&
+        Object.keys(o175).join() === 'v' && Object.keys(s175).join() === 'v' &&
+        Math.abs(s175.v - CORE.somRound(o175.v * usd.fx.rate, ST.roundOf('m-debt-som'))) < 0.005 &&
+        Object.keys(ps).join() === 'v' && pr.fx === null && core175 && core175.parts.length > 1 &&
+        Math.abs(ps.v - core175.som.value) < 0.005 && !pr.inds['m-btotal-som'] &&
+        ST.somValue(usd, 'm-debt') === s175.v,
+    `курс и дата курса лежат В СТРОКЕ, один раз на строку: «${usd.ref}» — ${o175.v} ${ST.rowCur(usd, 'm-debt')} × ${usd.fx.rate} от ${usd.fx.rateDate} = ${(s175 || {}).v} сом., и перемножить это можно, не выходя из строки и не открывая справочника курсов. Клетка — одно число: ни валюты, ни курса, ни состава в ней нет (ИС-16 сужен). Портфель «${(pr || {}).ref}» ложится ОДНОЙ сомовой колонкой — ${ps.v} сом., — и это ответ ядра (${core175 ? core175.parts.map(p => p.cur).join(' + ') : '—'} по курсам своих дней); курса у строки заёмщика нет (${pr ? String(pr.fx) : '—'}), валютной колонки у итога тоже (${pr && pr.inds['m-btotal-som'] ? 'ЕСТЬ близнец' : 'и близнеца нет'}) — состав по валютам отвечают строки его кредитов (ИС-56, ADR-0240 §2, §4)`);
 
   /* #176 — имя сомовой записи ДРУГОЕ, и правило одноимённости (ИС-40) на близнецах не
      срабатывает вхолостую: 114 новых записей прошли ту же проверку имени, что и все
@@ -3659,20 +3712,26 @@ const FIZ = fizSchema();
         somCols === 37 && ST.awaiting().length === 0,
     `реестр сверен со схемой, и число названо по факту, а не смягчено: ${st.registry.length} записей — ${nInd} породы «показатель» (${ownInd} своих и ${somInd} сомовых близнецов: ${somInd / 2} строчных и столько же агрегатов) и ${nDim} породы «разрез». Реестр сверен и с релизом: строчных записей с колонками ${withCols} (сомовых близнецов из них ${somCols}), агрегатов без колонки ${aggN}, ждущих колонку ${ST.awaiting().length} (ИС-53, ADR-0237 §3, §5). Своих разрезов валюты у объектов, заведённых волной 17, осталось два — ${newDims.map(d => d ? '«' + d.name + '» у ' + ST.OBJ(d.obj).name : '—').join(', ')}: разрез валюты дела снят вместе с валютой дела (${ST.REC('d-ocur') ? 'ОСТАЛСЯ' : 'снят'}), итоги дела только в сомах (ADR-0244 §4, ADR-0240 §4; ИС-40, ИС-44, ADR-0214 §1, ADR-0206 §3)`);
 
-  /* #182 — ADR-0151 §3 оставлен в силе (ADR-0214 §7): период по СОМОВОЙ записи не
-     считается, потому что разность двух сомовых снимков несёт курсовую разницу. Отказ
-     называет адрес; период по валютной нарастающей считается и приводится к сому один раз. */
+  /* #182 — Волна 23, З-17 (переписан на месте): ADR-0240 §3 ПЕРЕПИСАЛ ADR-0151 §3 и ADR-0214 §7.
+     Сомовая колонка потока — сумма операций по курсам их дней, от ядра, и разность двух её
+     строк — операции периода по их курсам: курсовой разницы в ней нет, и отказывать больше не
+     в чем. Период по ВАЛЮТНОЙ записи потока отвечает ТЕМ ЖЕ сомовым числом: разности по
+     валютам, приведённые курсом конца периода, дали бы число, которого не было. */
   st = ST.seed();
   const flowSom = ST.flowBetween({obj:'obj-credit', inds:'m-accr-som', from:'2026-07-15', to:'2026-08-19'});
+  const end182 = ST.statRows({obj:'obj-credit', date:'2026-08-19'}).rows;
+  const base182 = ST.statRows({obj:'obj-credit', date:'2026-07-15'}).rows;
+  const s182 = r => ((r && r.inds['m-accr-som']) || {v: 0}).v;
+  const byHand182 = CORE.somRound(end182.reduce((n, r) => n + s182(r) - s182(base182.find(x => x.ref === r.ref)), 0),
+                                  ST.roundOf('m-accr-som'));
   const flowCur = ST.flowBetween({obj:'obj-credit', inds:'m-accr', from:'2026-07-15', to:'2026-08-19'});
   const stock = ST.flowBetween({obj:'obj-credit', inds:'m-total', from:'2026-07-15', to:'2026-08-19'});
   const div = ST.divergence('2026-05', 'obj-credit', 'm-debt');
-  ok(182, !flowSom.ok && has(flowSom.why, 'КУРСОВУЮ РАЗНИЦУ') && has(flowSom.why, 'Начислено процентов всего') &&
-        has(flowSom.why, 'ADR-0151 §3') && has(flowSom.why, 'ADR-0214 §7') &&
-        flowCur.ok && flowCur.value > 0 && flowCur.cur === 'KGS' &&
+  ok(182, flowSom.ok && flowSom.cur === 'KGS' && flowSom.value > 0 && flowSom.value === byHand182 &&
+        flowCur.ok && flowCur.cur === 'KGS' && flowCur.value === flowSom.value &&
         !stock.ok && has(stock.why, 'ИС-17') &&
         div.ok && div.ind === 'm-debt-som' && div.inSom === true && div.delta === 16320.17,
-    `решение, которое ADR-0214 НЕ отменял, стоит на месте: разность двух сомовых снимков — это движение ПЛЮС курсовая разница, и разделить их в этом числе уже нечем, поэтому период по сомовой записи не считается вовсе. Отказ называет адрес: «${String(flowSom.why).slice(0, 84)}…». Тот же период по валютной нарастающей считается (${flowCur.value} ${flowCur.cur}): разность берётся ВНУТРИ каждой валюты и приводится к сому один раз, курсом конца периода. Остаток за период по-прежнему не спрашивается вовсе (ИС-17). Расхождение зафиксированного с сегодняшним пересчётом тоже сводится сомовой записью, а не своим умножением на курс: «${(ST.IND(div.ind) || {}).name || 'ОТКАЗ: ' + div.why}», ${div.fixed} → ${div.today}, дельта ${div.delta} (ИС-11, ИС-44, ADR-0151 §3, ADR-0214 §7)`);
+    `период по сомовой записи потока ОТВЕЧАЕТ (${flowSom.value} ${flowSom.cur}) и равен разности сомовых колонок строк конца и базы (${byHand182}): сомовая колонка потока — сумма операций по курсам их дней, и курсовой разницы в разности нет (ADR-0240 §3 переписал ADR-0151 §3 и ADR-0214 §7). Тот же период по валютной записи — то же сомовое число (${flowCur.value} ${flowCur.cur}): приводить разности курсом конца периода значило бы назвать число, которого не было. Остаток за период по-прежнему не спрашивается вовсе (ИС-17). Расхождение зафиксированного с сегодняшним пересчётом тоже сводится сомовой записью, а не своим умножением на курс: «${(ST.IND(div.ind) || {}).name || 'ОТКАЗ: ' + div.why}», ${div.fixed} → ${div.today}, дельта ${div.delta} (ИС-11, ИС-44, ADR-0151 §3, ADR-0214 §7)`);
 
   /* #183 — ПРАВИЛО ОКРУГЛЕНИЯ ЕСТЬ РЕКВИЗИТ ЗАПИСИ РЕЕСТРА (ADR-0214 §6). Проверка #171
      «у ядра объявление одно» доказывает это ровно наполовину: она говорит, что двух правил
@@ -3735,7 +3794,12 @@ const FIZ = fizSchema();
   const run183 = ST.run(TODAY, {manual:true, reason:'подменено правило округления'});
   const row1183 = ST.statRows({obj:'obj-credit', date: TODAY}).rows[0];
   const gone183 = !row1183.inds['m-debt-som'];
-  const kept183 = (row1183.inds['m-total-som'] || {}).round === RULE;
+  /* Волна 23, З-17 (переписан на месте): клетка — одно число, применённого правила в ней нет
+     (ИС-56). Что соседняя сомовая колонка посчитана ОБЪЯВЛЕННЫМ правилом, доказывает её число:
+     валютное на курс строки, округлённое по RULE. */
+  const tot183 = row1183.inds['m-total'], totS183 = row1183.inds['m-total-som'];
+  const kept183 = !!tot183 && !!totS183 && !!row1183.fx &&
+    totS183.v === CORE.somRound(tot183.v * row1183.fx.rate, RULE);
   ST.REC('m-debt-som').round = RULE;
   /* Волна 23 (переписан на месте): денежных записей 171 → 128 — итоги в сомах без пары
      (ADR-0240 §4) и снятые сверкой. Объявляют правило сами 91 (строчные, включая итоги в
@@ -4255,7 +4319,7 @@ const FIZ = fizSchema();
     C202.read = (seam, item, d) => read202.call(C202, seam, item, d > '2026-08-20' ? '2026-08-20' : d);
     try { c202 = ST.candidates(TODAY); } finally { C202.read = read202; }
     run202 = ST.run(TODAY);
-    usd202 = ((ST.rowsAt('obj-credit', TODAY).find(r => r.ref === 'КД-2025/043') || {inds: {}}).inds['m-debt']) || {};
+    usd202 = (ST.rowsAt('obj-credit', TODAY).find(r => r.ref === 'КД-2025/043') || {}).fx || {};
     ev202 = ST.state.runs[ST.state.runs.length - 1].parts.filter(p => ST.storageOf(p.obj) !== 'state');
   } finally { RATES202.USD.pop(); }
   const keys202 = a => a.map(x => x.obj + '|' + x.ref);
@@ -5041,7 +5105,12 @@ const FIZ = fizSchema();
      «текущим»: карточка жива, и её сегодняшнее значение можно спросить. У легаси-строки
      «текущего» не бывает ВОВСЕ — карточки, из которой его брать, больше нет, — и пометить
      разрез умолчанием «текущее» значило бы обещать поход туда, где никого нет (ИС-39). */
-  ok(223, shape && Object.keys(lr).length === 10 && lr.part === null &&
+  /* Волна 23, З-17 (переписан на месте): полей 10 → 11 — `fx`, курс строки (ИС-56). Завела его
+     не редакция, а ряд значений, и у легаси-строки он ПУСТ: старая система курса не хранила,
+     а пересчитать её остаток сегодняшним курсом значило бы выдать сегодняшнее за историческое
+     (ИС-41). Валюта легаси-итога — разрез строки, как у своей. */
+  ok(223, shape && Object.keys(lr).length === 11 && lr.part === null && lr.fx === null &&
+        lr.dims['d-cur'] === 'KGS' && Object.keys(lr.inds).every(id => Object.keys(lr.inds[id]).join() === 'v') &&
         lr.by === 'миграция, вып. 1' && lr.fixed && lr.fixed.edition === 'легаси' &&
         lr.fixed.period === '2025-12' && lr.fixed.at === '2026-04-28' &&
         lr.fixed.by === 'миграция, вып. 1' &&
@@ -5819,7 +5888,8 @@ const FIZ = fizSchema();
   const W254 = vm.runInContext('WORLD', sandbox);
   const usd254 = W254['obj-credit'].find(x => x.id === 'КД-2025/043');
   const kd254 = W254['obj-credit'].find(x => x.id === 'КД-2024/117');
-  const rd254 = r => ((r && r.inds['m-debt']) || {}).rateDate;
+  /* Волна 23, З-17 (переписан на месте): дата курса — поле строки `fx`, а не клетки (ИС-56). */
+  const rd254 = r => ((r && r.fx) || {}).rateDate;
   const r0701 = ST.state.rows.find(r => r.obj === 'obj-credit' && r.ref === 'КД-2025/043' && r.date === '2026-07-01');
   const b0630 = ST.buildRow('obj-credit', usd254, '2026-06-30');
   const cur15 = ST.readDim('d-curator', kd254, '2026-07-15'), cur16 = ST.readDim('d-curator', kd254, '2026-07-16');
@@ -5949,7 +6019,7 @@ const FIZ = fizSchema();
   try {
     re258 = ST.run(ASK, {manual: true, reason: 'уточнён курс за 20.08'});
     j258 = ST.state.runs[ST.state.runs.length - 1];
-    usd258 = (ST.rowsAt('obj-credit', ASK).find(r => r.ref === 'КД-2025/043') || {inds: {}}).inds['m-debt'] || {};
+    usd258 = (ST.rowsAt('obj-credit', ASK).find(r => r.ref === 'КД-2025/043') || {}).fx || {};
     dup258 = ST.state.rows.filter(r => stor(r.obj) === 'state')
       .map(r => r.obj + '|' + r.ref + '|' + r.date).filter((k, i, a) => a.indexOf(k) !== i).length;
   } finally { R258.USD.pop(); }
@@ -5959,10 +6029,14 @@ const FIZ = fizSchema();
      раньше не трогает (правка ревью 1 З-16a). Сторож не о них. */
   const stW258 = j258.parts.filter(p => stor(p.obj) === 'state').reduce((n, p) => n + p.written, 0);
   ok(258, re258.ok && stW258 === 42 && re258.copied === 0 && j258.cand.scan === 'полный' &&
-        pc258.n === 1 && pc258.same === 7 && pc258.rewrote.some(x => x.ref === 'КД-2025/043' && x.fields.indexOf('m-debt') >= 0) &&
+        /* Волна 23, З-17 (переписан на месте): уточнённый курс не двигает валютного числа —
+           перезапись называет курс строки и сомовые стороны, а не «Остаток ОД» (ИС-56). */
+        pc258.n === 1 && pc258.same === 7 &&
+        pc258.rewrote.some(x => x.ref === 'КД-2025/043' && x.fields.indexOf('fx') >= 0 &&
+          x.fields.indexOf('m-debt-som') >= 0 && x.fields.indexOf('m-debt') < 0) &&
         usd258.rate === 89 && usd258.rateDate === '2026-08-20' &&
         dup258 === 0 && JSON.stringify(ST.rowsAt('obj-credit', TODAY)) === todayRows,
-    `повторный прогон за ${ASK} — полный обход: копий ${re258.copied}, строк состояний написано ${stW258}, у кредитов переписано ${pc258.n} и без изменений ${pc258.same}. Переписанная строка стоит на месте, а не рядом (дублей адреса ${dup258}), и перезапись названа в журнале: КД-2025/043 · m-debt, курс ${usd258.rate} от ${usd258.rateDate}. Строки ${TODAY} не тронуты — пересчитывалась одна дата (ADR-0238 §1, ADR-0215 §6)`);
+    `повторный прогон за ${ASK} — полный обход: копий ${re258.copied}, строк состояний написано ${stW258}, у кредитов переписано ${pc258.n} и без изменений ${pc258.same}. Переписанная строка стоит на месте, а не рядом (дублей адреса ${dup258}), и перезапись названа в журнале: КД-2025/043 · курс строки и сомовые стороны, курс ${usd258.rate} от ${usd258.rateDate}. Строки ${TODAY} не тронуты — пересчитывалась одна дата (ADR-0238 §1, ADR-0215 §6)`);
 
   /* #259 — кэш демо-мира (СС-166): копия независима, ключ — отпечаток данных мира. */
   const sc = () => ST.seedCache ? ST.seedCache() : {size: 0, hits: 0, misses: 0};
@@ -5981,7 +6055,7 @@ const FIZ = fizSchema();
   R259.EUR.push(['2026-08-20', 97.00]);
   try {
     const m0 = sc().misses; ST.seed(); miss259 = sc().misses - m0;
-    eur259 = (ST.rowsAt('obj-credit', ASK).find(r => r.ref === 'КД-2025/101') || {inds: {}}).inds['m-debt'];
+    eur259 = (ST.rowsAt('obj-credit', ASK).find(r => r.ref === 'КД-2025/101') || {}).fx;
   } finally { R259.EUR.pop(); }
   const back259 = sc().hits; ST.seed(); const hit259 = sc().hits - back259;
   /* Фикс-раунд 1: ключ — ровно то, что сборка читает (СС-166). Курс — лишь один из входов;
@@ -6158,7 +6232,11 @@ const FIZ = fizSchema();
   const f7 = fq('2026-08-10', '2026-08-19');
   ok(262, !f1.ok && !!f1.notStored && f1.notStored.prev === '2026-06-01' && f1.notStored.next === '2026-07-01' &&
         has(f1.why, 'не хранится') &&
-        f2.ok && f2.value === 379980 && f2.baseDate === '2026-06-01' &&
+        /* Волна 23, З-17 (переписан на месте): 379980 → 380830 — поток валютной записи отвечает
+           сомовой колонкой потока, операции июня — по курсам их дней, а не разностью по валютам
+           на курс конца периода (ADR-0240 §3). Доказано мутацией M5: вернуть в `flowBetween`
+           приведение разностей курсом конца — и число снова 379980. */
+        f2.ok && f2.value === 380830 && f2.baseDate === '2026-06-01' &&
         has(f2.passport.baseNote, '01.06.2026') && !has(f2.passport.baseNote, 'вместо') &&
         !f3.ok && has(f3.why, 'не хранится') &&
         f4.ok && f4.baseDate === '2026-07-16' && f4.passport.base.asOf === '2026-07-16' &&
@@ -6190,7 +6268,7 @@ const FIZ = fizSchema();
   try {
     re263 = ST.reopenPeriod('2026-05', {no:'Р-2026/112', basis:'уточнён курс НБКР на 31.05.2026'}, 'Осмонова Г., главный бухгалтер');
     rec263 = st263.runs.filter(r => r.kind === 'повторное открытие');
-    usd263 = ((ST.rowsAt('obj-credit', '2026-06-01').find(r => r.ref === 'КД-2025/043') || {inds: {}}).inds['m-debt']) || {};
+    usd263 = (ST.rowsAt('obj-credit', '2026-06-01').find(r => r.ref === 'КД-2025/043') || {}).fx || {};
     run263 = ST.run('2026-05-15');
     ns263 = nsOf('2026-05-15', 'obj-credit');
   } finally { R263.USD.splice(1, 1); }
@@ -6457,20 +6535,19 @@ const FIZ = fizSchema();
     const r = ST.run(ASK, {manual: true, reason: 'пересчёт ночи 21.08'});
     return {r: r.ok, by: byCredit267('ПГ-2026/1102'), rows: rows1102().length, mk: mk1102().length};
   });
-  /* Сверка основания ДЕЙСТВУЮЩЕГО ответа — та же мерка, что у #172 для хранимых строк:
-     основание сомовой клетки обязано совпасть с составом валютной часть в часть, а число —
-     с произведением по объявленному правилу округления. */
+  /* Сверка ДЕЙСТВУЮЩЕГО ответа — та же мерка, что у #172 для хранимых строк: сомовое число
+     остатка — валютное на курс строки по объявленному правилу округления. Волна 23, З-17
+     (переписан на месте): курс — поле строки, у действующего — курс последней строки с
+     деньгами (ИС-56, ADR-0240 §2). */
   const CORE267 = vm.runInContext('CORE', sandbox);
   const auditEff267 = rows => {
     const bad = [];
     rows.forEach(r => Object.keys(r.inds).forEach(id => {
       const rec = ST.IND(id);
       if(!rec || !rec.somOf) return;
-      const c = r.inds[id], parts = ST.partsOf(r.inds[rec.somOf]), basis = c.from || [];
-      const same = basis.length === parts.length && basis.every((b, i) => b.cur === parts[i].cur &&
-        b.value === parts[i].v && b.rate === parts[i].rate && b.rateDate === parts[i].rateDate);
-      const byHand = CORE267.somRound(parts.reduce((n, x) => n + x.v * x.rate, 0), ST.roundOf(id));
-      if(!same || Math.abs(c.v - byHand) > 0.005) bad.push(r.ref + ' ' + id);
+      const c = r.inds[id], o = r.inds[rec.somOf];
+      const byHand = r.fx && o ? CORE267.somRound(o.v * r.fx.rate, ST.roundOf(id)) : null;
+      if(byHand == null || Math.abs(c.v - byHand) > 0.005) bad.push(r.ref + ' ' + id);
     }));
     return bad;
   };
@@ -6487,12 +6564,9 @@ const FIZ = fizSchema();
   const rows1127 = () => ST.state.rows.filter(r => r.obj === 'obj-repay' && r.ref === 'ПГ-2026/1127');
   const mk1127 = () => (ST.markers ? ST.markers() : []).filter(m => m.ref === 'ПГ-2026/1127');
   const repN267 = () => (ST.state.runs[ST.state.runs.length - 1].parts.find(x => x.obj === 'obj-repay') || {n: -1}).n;
-  /* Нулевая часть РЯДОМ с живой — след сторно в составе; у клетки целиком нулевой одна нулевая
-     часть и есть её состав. */
-  const zeroOf267 = r => Object.keys(r.inds).reduce((n, id) => n + ['parts', 'from'].reduce((k, f) => {
-    const arr = r.inds[id][f] || [];
-    return k + (arr.length > 1 ? arr.filter(x => x.value === 0).length : 0);
-  }, 0), 0);
+  /* Волна 23, З-17 (переписан на месте): состава в клетке нет — клетка одно число (ИС-56), и
+     следу сторно в составе лечь некуда. Считается клетка, несущая что-то кроме числа. */
+  const zeroOf267 = r => Object.keys(r.inds).filter(id => Object.keys(r.inds[id]).join() !== 'v').length;
   const nextNights267 = (out, list) => list.forEach(([d, opt]) => {
     if(d > ST.state.today) ST.state.today = d;
     ST.enqueue('obj-repay', 'ПГ-2026/1127', 'досчёт', 'ещё раз');
@@ -6506,10 +6580,9 @@ const FIZ = fizSchema();
       ST.enqueue('obj-repay', 'ПГ-2026/1127', 'распоряжение', 'перепривязка к КД-2025/101');
       ST.run(TODAY);
       const eff = ST.rowsAsOf('obj-repay', TODAY).find(r => r.ref === 'ПГ-2026/1127');
-      const c = (eff.inds || {})['m-ramount'] || {};
       const out = {v: v(eff, 'm-ramount-som'),
               bad: ['obj-repay', 'obj-receipt'].reduce((a, obj) => a.concat(auditEff267(ST.rowsAsOf(obj, TODAY))), []),
-              cell: c.rate + '/' + c.rateDate + (c.parts ? '+parts' : ''), zero: zeroOf267(eff),
+              cell: eff.fx ? eff.fx.rate + '/' + eff.fx.rateDate : '—', zero: zeroOf267(eff),
               rows: [rows1127().length], mk: [mk1127().length], n: []};
       nextNights267(out, [['2026-08-23'], ['2026-08-24']]);
       return out;
@@ -6636,7 +6709,7 @@ const FIZ = fizSchema();
         deq267.rows === `06-06:original,${TODAY.slice(5)}:rebind,${TODAY.slice(5)}:reversal` && deq267.by === 'КД-2025/088:28000' &&
         rr267.same > 0 && rr267.open === 1 && rr267.n === 1 && rr267.done === '2026-08-23' &&
         rr267.rows === '06-06:original,08-23:match' && rr267.eff === 'отозвано',
-    `перепривязка платежа закрытого июня (ИС-55, ADR-0239 §4): исходная строка 06.06 не тронута и зафиксирована; на ${TODAY} легли сторно прежней привязки (КД-2024/117, ${v(rv267, 'm-ramount')}) и перепривязка к новой (КД-2025/088, ${v(rb267, 'm-ramount')}). Сумма трёх строк ${v(o267, 'm-ramount') + v(rv267, 'm-ramount') + v(rb267, 'm-ramount')} — текущий итог, действующий кредит — ${(eff267 || {dims: {}}).dims['d-pcredit']}. Маркер «${mkP.closed_how}» со срезом поправки ${mkP.corr_slice_date}; в журнал перезаписей не попало ничего — закрытое не переписывают. Отзыв сопоставления поступления — строка «${rc267.length ? rc267[0].part : '—'}» без сумм и свой маркер. Поправка сверяется с действующим и строится от состояния до ночи: сторно закрытого июня после повтора ночи и внепланового пересчёта — ${sto267.a} · ${sto267.b} · ${sto267.c}, строк ${sto267.rows}, маркеров ${sto267.mk}, записей и перезаписей повтора ${sto267.touched}; две смены привязки одной ночью — ${dbl267.by} (строк ${dbl267.rows}, маркеров ${dbl267.mk}); июнь открыт повторно и привязка возвращена — ${reo267.by}, действует ${reo267.eff}; ночь 21.08 после 22.08 — ${ear267.by}, строк ${ear267.rows}, маркеров ${ear267.mk}; курс 18.06 уточнён до 90 и валютный платёж перепривязан — действующая сомовая сумма ${usd267.v}, расхождений основания в действующих ответах ${usd267.bad.length}${usd267.bad.length ? ' (' + usd267.bad.slice(0, 3).join(', ') + ')' : ''}; клетка ответа — курс ${usd267.cell}, нулевых частей ${usd267.zero}; ночи 23.08 и 24.08 после перепривязки — строк ${usd267.rows.join(' → ')}, маркеров ${usd267.mk.join(' → ')}, записано ${usd267.n.join(' · ')}; сторнированный валютный платёж при уточнённом курсе (пересчёт 22.08, ночи 23.08 и 24.08) — строк ${stoRate267.rows.join(' → ')}, маркеров ${stoRate267.mk.join(' → ')}, записано ${stoRate267.n.join(' · ')}; поправку ПП-2026/0611 поздняя ночь 22.08 сняла, и пересчёт ночи 20.08 её не вернул — не тронуто ${goneRc267.kept}, записано ${goneRc267.n}, строки ${goneRc267.rows || '—'}, действующее на 22.08 «${goneRc267.eff}»; перепривязка задним числом с 10.06, первым увиденная прогоном за закрытое 15.06 мимо дверей, — не тронуто ${deq267.kept}, записано ${deq267.n}, распоряжение открыто (${deq267.open}); ночь ${deq267.done || '—'} без второго распоряжения его сняла и положила ${deq267.rows || '—'}, разбивка ${deq267.by || '—'}; отзыв сопоставления ПП-2026/0611 задним числом с 20.08, распоряжение 22.08 — пересчёт ночи 15.08 (без изменений ${rr267.same}) его не снял, открыто ${rr267.open}: мир этой ночи раньше распоряжения; ночь 23.08 записала ${rr267.n}, сняла его ${rr267.done || '—'}, строки ${rr267.rows || '—'}, действующее на 23.08 «${rr267.eff || '—'}»`);
+    `перепривязка платежа закрытого июня (ИС-55, ADR-0239 §4): исходная строка 06.06 не тронута и зафиксирована; на ${TODAY} легли сторно прежней привязки (КД-2024/117, ${v(rv267, 'm-ramount')}) и перепривязка к новой (КД-2025/088, ${v(rb267, 'm-ramount')}). Сумма трёх строк ${v(o267, 'm-ramount') + v(rv267, 'm-ramount') + v(rb267, 'm-ramount')} — текущий итог, действующий кредит — ${(eff267 || {dims: {}}).dims['d-pcredit']}. Маркер «${mkP.closed_how}» со срезом поправки ${mkP.corr_slice_date}; в журнал перезаписей не попало ничего — закрытое не переписывают. Отзыв сопоставления поступления — строка «${rc267.length ? rc267[0].part : '—'}» без сумм и свой маркер. Поправка сверяется с действующим и строится от состояния до ночи: сторно закрытого июня после повтора ночи и внепланового пересчёта — ${sto267.a} · ${sto267.b} · ${sto267.c}, строк ${sto267.rows}, маркеров ${sto267.mk}, записей и перезаписей повтора ${sto267.touched}; две смены привязки одной ночью — ${dbl267.by} (строк ${dbl267.rows}, маркеров ${dbl267.mk}); июнь открыт повторно и привязка возвращена — ${reo267.by}, действует ${reo267.eff}; ночь 21.08 после 22.08 — ${ear267.by}, строк ${ear267.rows}, маркеров ${ear267.mk}; курс 18.06 уточнён до 90 и валютный платёж перепривязан — действующая сомовая сумма ${usd267.v}, расхождений основания в действующих ответах ${usd267.bad.length}${usd267.bad.length ? ' (' + usd267.bad.slice(0, 3).join(', ') + ')' : ''}; курс действующего — ${usd267.cell}, клеток не одним числом ${usd267.zero}; ночи 23.08 и 24.08 после перепривязки — строк ${usd267.rows.join(' → ')}, маркеров ${usd267.mk.join(' → ')}, записано ${usd267.n.join(' · ')}; сторнированный валютный платёж при уточнённом курсе (пересчёт 22.08, ночи 23.08 и 24.08) — строк ${stoRate267.rows.join(' → ')}, маркеров ${stoRate267.mk.join(' → ')}, записано ${stoRate267.n.join(' · ')}; поправку ПП-2026/0611 поздняя ночь 22.08 сняла, и пересчёт ночи 20.08 её не вернул — не тронуто ${goneRc267.kept}, записано ${goneRc267.n}, строки ${goneRc267.rows || '—'}, действующее на 22.08 «${goneRc267.eff}»; перепривязка задним числом с 10.06, первым увиденная прогоном за закрытое 15.06 мимо дверей, — не тронуто ${deq267.kept}, записано ${deq267.n}, распоряжение открыто (${deq267.open}); ночь ${deq267.done || '—'} без второго распоряжения его сняла и положила ${deq267.rows || '—'}, разбивка ${deq267.by || '—'}; отзыв сопоставления ПП-2026/0611 задним числом с 20.08, распоряжение 22.08 — пересчёт ночи 15.08 (без изменений ${rr267.same}) его не снял, открыто ${rr267.open}: мир этой ночи раньше распоряжения; ночь 23.08 записала ${rr267.n}, сняла его ${rr267.done || '—'}, строки ${rr267.rows || '—'}, действующее на 23.08 «${rr267.eff || '—'}»`);
 
   /* #268 — в закрытый период не пишет НИКТО: запрет стоит в одной функции записи и
      отбивает все десять таблиц; поправка в открытый месяц проходит, выпуск миграции — тоже. */
@@ -7457,6 +7530,114 @@ const FIZ = fizSchema();
   ok(279, s279.storno === '05-09:03-1+* 05-09:03-2* 08-22:03-1+× 08-22:03-2× | 05-09:03-1+* 08-22:03-1+× | 2/1' &&
         s279.back === '05-09:03-1+* 05-09:03-2* | 05-09:03-1+* | 0/0',
     `(г) снятие сторно меры закрытого месяца — одинаково у меры о двух целях и у меры об одной: сторно ночью 22.08 — ${s279.storno || '—'}; снято ночью 23.08 — ${s279.back || '—'} («+» представитель, «×» сторнирована, «*» зафиксирована; в конце — маркеры двух целей / одной). Поправка, которая ничего не исправляет, не лежит ни у той, ни у другой (ADR-0239 §4, §5; ревью 3 З-16b)`);
+})();
+
+/* ===== Волна 23 · З-17 — деньги (ИС-56, ADR-0240). Валюта, курс и дата курса лежат в строке
+   ОДИН РАЗ; клетка величины — одно число; курс строки применяется только к остаткам; у потока
+   обе колонки от ядра, по курсам операций; курс события — на день события; итоги — в сомах. ===== */
+(() => {
+  const CORE = vm.runInContext('CORE', sandbox), W = vm.runInContext('WORLD', sandbox);
+  const rateOn = vm.runInContext('rateOn', sandbox);
+  const one = c => !!c && Object.keys(c).length === 1 && 'v' in c;
+
+  /* #280 — форма денег. Каждая клетка каждой строки — одно число: хранимые строки, легаси,
+     действующие ответы событий и ответы двери строк. Курс строки — у объектов, в таблице
+     которых релиз вывел колонку `rate`, и только у них; у легаси он пуст. Курс события — на
+     день события: перепривязка валютного платежа от 18.06, легшая строкой 22.08, несёт курс
+     18.06, а не курс кануна 22.08, который несёт строка кредита той же даты (ADR-0240 §3). И
+     платёж, опознанный задним числом: клон ПГ-2026/1127 с привязкой 10.08 заведён ДО сида (ключ
+     кэша его видит, СС-166) — строка ложится 11.08, деньги читаются днём привязки, а курс — дня
+     поступления 18.06 (`rateDay`, СС-187), не 10.08. */
+  const Wp280 = W['obj-repay'];
+  const late280 = JSON.parse(JSON.stringify(Wp280.find(x => x.id === 'ПГ-2026/1127')));
+  late280.id = 'ПГ-2026/1227'; late280.f.bdate = '2026-08-10';
+  Wp280.push(late280);
+  let lr280 = null;
+  try {
+    ST.seed();
+    lr280 = ST.state.rows.find(r => r.obj === 'obj-repay' && r.ref === 'ПГ-2026/1227') || null;
+  } finally { Wp280.splice(Wp280.findIndex(x => x.id === 'ПГ-2026/1227'), 1); }
+  ST.seed();
+  const rel280 = ST.release();
+  const fxObjs280 = Object.keys(rel280.tables).filter(id => rel280.tables[id].cols.indexOf('rate') >= 0).sort();
+  /* `_v` — только у величин, возникших в валюте: таблицы с валютной колонкой — ровно таблицы с
+     курсом; у итогов заёмщика, залога, залогового договора и дела денежные записи — только
+     сомовые (ADR-0240 §1, §4). */
+  const vObjs280 = Object.keys(rel280.tables).filter(id => rel280.tables[id].cols.some(c => /_v$/.test(c))).sort();
+  const somOnly280 = ['obj-borrower', 'obj-collateral', 'obj-zdeal', 'obj-case'].every(o =>
+    ST.OBJ(o).inds.map(ST.IND).filter(i => i && i.money && i.src !== 'агрегат').every(i => i.vtype === 'money_som'));
+  const ans280 = ['obj-repay', 'obj-receipt', 'obj-measure'].reduce((a, o) => a.concat(ST.rowsAsOf(o, ASK)), [])
+    .concat(ST.statRows({obj:'obj-credit', date: ASK}).rows, ST.statRows({obj:'obj-borrower', date: ASK}).rows);
+  const all280 = ST.state.rows.concat(ans280);
+  const badCell280 = all280.reduce((n, r) => n + Object.keys(r.inds).filter(id => !one(r.inds[id])).length, 0);
+  const badFx280 = all280.filter(r => ST.isLegacyRow(r) ? r.fx !== null
+    : (fxObjs280.indexOf(r.obj) >= 0 ? !(r.fx && Object.keys(r.fx).sort().join() === 'rate,rateDate' && r.fx.rate > 0)
+                                      : r.fx !== null)).length;
+  const p280 = W['obj-repay'].find(x => x.id === 'ПГ-2026/1127');
+  const keep280 = {f: p280.f.credit, h: p280.h.credit};
+  let rb280 = null, cr280 = null;
+  try {
+    p280.f.credit = 'КД-2025/101'; p280.h.credit = [['2026-06-18', 'КД-2025/043'], ['2026-08-21', 'КД-2025/101']];
+    ST.enqueue('obj-repay', 'ПГ-2026/1127', 'распоряжение', 'перепривязка к КД-2025/101');
+    ST.run(TODAY);
+    rb280 = ST.state.rows.find(r => r.obj === 'obj-repay' && r.ref === 'ПГ-2026/1127' && r.date === TODAY && r.part === 'rebind');
+    cr280 = ST.rowsAt('obj-credit', TODAY).find(r => r.ref === 'КД-2025/043');
+  } finally {
+    p280.f.credit = keep280.f;
+    if(keep280.h === undefined) delete p280.h.credit; else p280.h.credit = keep280.h;
+  }
+  const ev280 = rateOn('USD', '2026-06-18');
+  ok(280, fxObjs280.join() === 'obj-claim,obj-credit,obj-measure,obj-receipt,obj-repay' &&
+        vObjs280.join() === fxObjs280.join() && somOnly280 &&
+        badCell280 === 0 && badFx280 === 0 && typeof ST.partsOf === 'undefined' &&
+        ST.ROW_VALUES.join() === 'dims,inds,fx' &&
+        ST.OBJ('obj-repay').rateDay === 'rdate' &&
+        !!lr280 && lr280.date === '2026-08-11' && lr280.fx.rate === 87.45 && lr280.fx.rateDate === '2026-05-31' &&
+        !!rb280 && rb280.fx.rate === ev280.rate && rb280.fx.rateDate === ev280.rateDate &&
+        rb280.inds['m-ramount-som'].v === CORE.somRound(rb280.inds['m-ramount'].v * ev280.rate, ST.roundOf('m-ramount-som')) &&
+        !!cr280 && cr280.fx.rateDate === '2026-08-18' && cr280.fx.rate !== rb280.fx.rate,
+    `клетка — одно число: из ${all280.length} строк и ответов (хранимые, легаси, действующие события, двери строк) клеток не одним числом ${badCell280}; нормализатора состава «ST.partsOf» больше нет (${typeof ST.partsOf}). Курс строки — у объектов, в таблице которых релиз вывел колонку курса (${fxObjs280.join(', ')}), и только у них; строк с курсом не на месте ${badFx280}, у легаси курса нет. Валютная колонка «_v» — у тех же таблиц и только у них (${vObjs280.join(', ')}); у заёмщика, залога, залогового договора и дела денежные записи только сомовые (${somOnly280}). Курс события — на день события: перепривязка ПГ-2026/1127 от 18.06 легла строкой ${TODAY} с курсом ${rb280 ? rb280.fx.rate + ' от ' + rb280.fx.rateDate : '—'} — курсом 18.06, а строка кредита той же даты несёт курс кануна ${cr280 ? cr280.fx.rate + ' от ' + cr280.fx.rateDate : '—'}; сомовая сумма платежа посчитана курсом дня события. Платёж, опознанный 10.08 задним числом, лёг строкой ${lr280 ? lr280.date : '—'} с курсом ${lr280 ? lr280.fx.rate + ' от ' + lr280.fx.rateDate : '—'} — дня поступления, а не дня привязки (ИС-56, ADR-0240 §2, §3, СС-187)`);
+
+  /* #281 — поток: обе колонки от ядра, по курсам операций. «Выдано» долларового договора в
+     сомах — по курсу дня выдачи (выдача лежит до якоря зеркала, курс якоря), а не по курсу
+     строки: переоценки у выданного нет. «Погашено» в сомах — сумма платежей, каждый по курсу
+     своего дня, и сторож складывает их сам, днём за днём. Остаток той же строки — на курс
+     строки. Период по потоку — разность сомовых колонок, и курсовой разницы в нём нет: прежнее
+     приведение разностей по валютам курсом конца периода дало бы другое число. Итог заёмщика
+     по потоку — сумма сомовых потоков его договоров (ADR-0240 §3, §4). */
+  ST.seed();
+  const ANCHOR = vm.runInContext('ANCHOR', sandbox);
+  const r281 = ST.statRows({obj:'obj-credit', date: ASK}).rows.find(r => r.ref === 'КД-2025/043');
+  const it281 = W['obj-credit'].find(x => x.id === 'КД-2025/043');
+  const v281 = id => ((r281 || {inds: {}}).inds[id] || {}).v;
+  const R = ST.roundOf('m-repaid-som');
+  let byDay281 = CORE.repaidOf(it281, ANCHOR) * rateOn('USD', ANCHOR).rate, prev281 = CORE.repaidOf(it281, ANCHOR);
+  for(let d = ANCHOR; d < ST.worldAt(ASK); ){
+    d = new Date(Date.parse(d) + 86400000).toISOString().slice(0, 10);
+    const now = CORE.repaidOf(it281, d);
+    byDay281 += (now - prev281) * rateOn('USD', d).rate; prev281 = now;
+  }
+  byDay281 = CORE.somRound(byDay281, R);
+  const iss281 = CORE.somRound(v281('m-issued') * rateOn('USD', ANCHOR).rate, ST.roundOf('m-issued-som'));
+  const fx281 = r281 ? r281.fx.rate : null;
+  const jun281 = ST.flowBetween({obj:'obj-credit', inds:'m-repaid', from:'2026-06-01', to:'2026-07-01'});
+  const e281 = ST.statRows({obj:'obj-credit', date:'2026-07-01'}).rows, b281 = ST.statRows({obj:'obj-credit', date:'2026-06-01'}).rows;
+  const old281 = e281.reduce((n, r) => {
+    const b = b281.find(x => x.ref === r.ref);
+    const dv = ((r.inds['m-repaid'] || {}).v || 0) - (b ? ((b.inds['m-repaid'] || {}).v || 0) : 0);
+    return n + dv * r.fx.rate;
+  }, 0);
+  const bor281 = ST.statRows({obj:'obj-borrower', date: ASK}).rows.find(r => r.ref === '01234199010101');
+  const his281 = ST.statRows({obj:'obj-credit', date: ASK}).rows.filter(r => r.dims['d-binn'] === '01234199010101');
+  const sum281 = CORE.somRound(his281.reduce((n, r) => n + r.inds['m-repaid-som'].v, 0), R);
+  ok(281, !!r281 && fx281 === 88.3 &&
+        v281('m-issued-som') === iss281 && v281('m-issued-som') !== CORE.somRound(v281('m-issued') * fx281, R) &&
+        v281('m-repaid-som') === byDay281 && v281('m-repaid-som') !== CORE.somRound(v281('m-repaid') * fx281, R) &&
+        v281('m-debt-som') === CORE.somRound(v281('m-debt') * fx281, ST.roundOf('m-debt-som')) &&
+        jun281.ok && jun281.value === 380830 && CORE.somRound(old281, R) === 379980 &&
+        !!bor281 && his281.map(r => ST.rowCur(r, 'm-debt')).sort().join() === 'EUR,KGS' &&
+        bor281.inds['m-brepaid'].v === sum281,
+    `поток — обе колонки от ядра, по курсам операций. КД-2025/043 на ${ASK}: выдано ${v281('m-issued')} USD = ${v281('m-issued-som')} сом. по курсу дня выдачи (${rateOn('USD', ANCHOR).rate}), а не ${CORE.somRound(v281('m-issued') * fx281, R)} по курсу строки ${fx281} — выданное не переоценивается; погашено ${v281('m-repaid')} USD = ${v281('m-repaid-som')} сом., и сторож сложил платежи по курсам их дней сам (${byDay281}), а курс строки дал бы ${CORE.somRound(v281('m-repaid') * fx281, R)}. Остаток той же строки — на курс строки: ${v281('m-debt')} × ${fx281} = ${v281('m-debt-som')}. Погашено за июнь — ${jun281.value} сом. разностью сомовых колонок; приведение разностей по валютам курсом конца периода дало бы ${CORE.somRound(old281, R)} — курсовую разницу внутри движения. Итог заёмщика 01234199010101 (кредиты ${his281.map(r => ST.rowCur(r, 'm-debt')).join(' + ')}) по потоку «погашено» — ${bor281 ? bor281.inds['m-brepaid'].v : '—'}, ровно сумма сомовых потоков его договоров (${sum281}) (ИС-56, ADR-0240 §3, §4)`);
 })();
 
 /* ---- отчёт ---- */
