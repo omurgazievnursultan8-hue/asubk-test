@@ -138,6 +138,9 @@
 // converged или reopen.
 // блок волны 23 З-23b — выгрузки (ADR-0245 §11): файл живёт N дней, задание — навсегда,
 // статус expired; дату, которой больше нет, выгрузка называет ошибкой с причиной.
+// блок волны 23 З-23c — слоты классификаторов (ADR-0241 §5, ADR-0245 §1): десять на объект,
+// слот занимается навсегда и не переиспользуется; при восьми — предупреждение, одиннадцатый
+// ждёт релиза.
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -8608,6 +8611,35 @@ const FIZ = fizSchema();
         gone302.n === j302.n && !!gone302.passport && e31.length === 0 &&
         k302.n > 0 && shut302.ok && !err302.ok && errJob302.state === 'ошибка' && has(errJob302.why, 'не хранится'),
     `выгрузка: файл живёт 30 дней, задание — навсегда (ADR-0245 §11): «${j302.id}» готова ${ready302.ready_at}; 20.09 не просрочена (${e29.length}), 21.09 — «${gone302.state}», файл ${gone302.file}, вопрос и паспорт на месте; повтор — ${e31.length}. Задание на 15.07 (строк ${k302.n}) выполнено после закрытия июля — «${errJob302.state}»: ${String(errJob302.why).slice(0, 70)}…`);
+})();
+
+/* ===== Волна 23 · З-23c — слоты классификаторов (ADR-0241 §5, ADR-0245 §1, СС-212) ===== */
+(() => {
+  /* #303 — слотов десять, слот занимается навсегда: освобождённый не отдаётся другому
+     классификатору (в нём история), одиннадцатый ждёт релиза; при восьми занятых —
+     предупреждение. Слоты есть у кредита, заёмщика и залога, и только у них. */
+  ST.seed();
+  ST.setRole('Аналитик');
+  const role303 = ST.takeSlot('obj-credit', 'КЛ-01');
+  ST.setRole('Администратор статистики');
+  const alien303 = ST.takeSlot('obj-program', 'КЛ-01');
+  const takes303 = [];
+  for(let i = 1; i <= 10; i++) takes303.push(ST.takeSlot('obj-credit', 'КЛ-' + String(i).padStart(2, '0')));
+  const dup303 = ST.takeSlot('obj-credit', 'КЛ-03');
+  const rel303 = ST.releaseSlot('obj-credit', 'КЛ-03');
+  const eleventh303 = ST.takeSlot('obj-credit', 'КЛ-11');
+  const other303 = ST.takeSlot('obj-borrower', 'КЛ-11');
+  const slots303 = ST.clsSlots('obj-credit');
+  ST.seed();
+  ok(303, !role303.ok && has(role303.why, 'администратор') && !alien303.ok &&
+        takes303.every(t => t.ok) && takes303.map(t => t.slot).join() === '1,2,3,4,5,6,7,8,9,10' &&
+        takes303.slice(0, 7).every(t => !t.warn) && takes303.slice(7).every(t => has(t.warn, 'из 10')) &&
+        !dup303.ok && rel303.ok && rel303.until === TODAY &&
+        !eleventh303.ok && eleventh303.waits === true && has(eleventh303.why, 'ждёт релиза') &&
+        slots303.length === 10 && slots303.find(s => s.slot === 3).until === TODAY &&
+        other303.ok && other303.slot === 1 &&
+        ST.clsSlotCols(3).join() === 'd_cls3_code,d_cls3_lbl,d_cls3_ord',
+    `слотов классификаторов десять на объект (ADR-0241 §5): заняты ${takes303.filter(t => t.ok).length}, предупреждение с восьмого — «${takes303[7] ? takes303[7].warn : '—'}»; слот 3 освобождён ${rel303.until}, но занят навсегда — одиннадцатый: «${String(eleventh303.why).slice(0, 80)}…»; у заёмщика свои слоты — первый (${other303.slot}); у программы слотов нет (${!alien303.ok}). Колонки слота 3 — ${ST.clsSlotCols(3).join(', ')}`);
 })();
 
 /* ---- отчёт ---- */
