@@ -128,6 +128,9 @@
 // блок волны 23 З-22b — очередь и журнал перезаписи (ADR-0245 §4): у записи одна открытая
 // задача, новая сливается с более ранней датой; дозаполнения в очереди нет — зовут неполные
 // строки; журнал перезаписи — имена колонок и причина, дописанное — backfill.
+// блок волны 23 З-22c — ответ соседа ключом и датой действия (ADR-0245 §3): дата в открытом
+// месяце — retro с её следующего дня, в закрытом — с первого открытого; ответ молчавшего
+// соседа ждёт; retro пишет журнал перезаписи с причиной «retro».
 // Zero-dep: вытаскивает <script> из HTML и исполняет логический слой в node:vm (без DOM —
 // render() и toast() при отсутствии document становятся no-op, экраны не рисуются).
 // Проверяется поведение движка, прогона, защёлки, швов, паспорта и реестров, а не разметка.
@@ -8432,6 +8435,56 @@ const FIZ = fizSchema();
         man298.length === 1 && man298[0].reason === 'manual' && man298[0].changed.indexOf('d-pstate') >= 0 &&
         names298 && closedDays298 === 0,
     `журнал перезаписи — имена колонок и причина, значений нет (ADR-0245 §4, ADR-0215 §6): повторная ночь после молчания ядра дописала ${fill298.filled} строк — записей «backfill» ${back298.length}; внеплановый пересчёт после смены состояния «БК-2021» — «${man298.map(e => e.reason + ': ' + e.changed.join(',')).join('; ')}». Записей о днях закрытого месяца ${closedDays298}: при закрытии они уходят, первые числа остаются`);
+})();
+
+/* ===== Волна 23 · З-22c — ответ соседа ключом и датой действия (ADR-0245 §3, СС-208) ===== */
+(() => {
+  /* #299 — изменение задним числом приходит ключом И датой: строки с дня после даты действия
+     переписываются retro-пересчётом, день действия — нет. Ответ молчавшего соседа ждёт. */
+  ST.seed();
+  const W299 = vm.runInContext('WORLD', sandbox);
+  const iC299 = W299['obj-credit'].findIndex(c => c.id === 'КД-2024/117');
+  const keep299 = JSON.stringify(W299['obj-credit'][iC299]);
+  const cur299 = d => (ST.state.rows.find(r => r.obj === 'obj-credit' && r.ref === 'КД-2024/117' && r.date === d) ||
+    {dims: {}}).dims['d-curator'];
+  let r299 = {bad: [], retro: [], log: [], done: []};
+  try {
+    const c = W299['obj-credit'][iC299];
+    c.h.curator = c.h.curator.concat([['2026-08-10', 'Касымов Т.']]);
+    const before = {d10: cur299('2026-08-10'), d11: cur299('2026-08-11')};
+    const bad = [ST.nbChanged('кураторство', 'obj-credit', 'КД-2024/117'),
+                 ST.nbChanged('кураторство', 'obj-credit', 'КД-2024/117', '2026-09-30'),
+                 ST.nbChanged('нет-соседа', 'obj-credit', 'КД-2024/117', '2026-08-10'),
+                 ST.nbChanged('кураторство', 'obj-credit', 'нет-записи', '2026-08-10')];
+    const fed = ST.nbChanged('кураторство', 'obj-credit', 'КД-2024/117', '2026-08-10');
+    const closedFed = ST.nbChanged('кураторство', 'obj-credit', 'КД-2023/210', '2026-06-10');
+    ST.run(TODAY, {silent: {'кураторство': 'недоступен'}});
+    const waiting = ST.nbFeed().filter(f => !f.taken).length;
+    const d11mute = cur299('2026-08-11');
+    ST.state.today = '2026-08-23';
+    const run = ST.run('2026-08-23');
+    const retroRuns = ST.state.runs.filter(r => r.kind === 'retro');
+    const early = retroRuns.filter(r => r.date < '2026-08-11' && has(r.reason, 'КД-2024/117')).length;
+    r299 = {before, bad, fed, closedFed, waiting, d11mute, run, early,
+      retro: retroRuns.map(r => r.date).filter((d, i, a) => a.indexOf(d) === i),
+      after: {d10: cur299('2026-08-10'), d11: cur299('2026-08-11'), d22: cur299(TODAY)},
+      log: ST.rewriteLog().filter(e => e.reason === 'retro' && e.obj === 'obj-credit' && e.ref === 'КД-2024/117'),
+      open: ST.queue().filter(q => q.obj === 'obj-credit').length,
+      done: ST.queue(true).filter(q => q.obj === 'obj-credit' && q.kind === 'retro'),
+      feed: ST.nbFeed()};
+  } finally { W299['obj-credit'][iC299] = JSON.parse(keep299); }
+  const t117 = r299.done.find(q => q.ref === 'КД-2024/117') || {};
+  const t210 = r299.done.find(q => q.ref === 'КД-2023/210') || {};
+  const f210 = (r299.feed || []).find(f => f.ref === 'КД-2023/210') || {};
+  ST.seed();
+  ok(299, r299.bad.every(x => !x.ok) && has(r299.bad[0].why, 'дата действия') && r299.fed.ok && r299.closedFed.ok &&
+        r299.waiting === 2 && r299.d11mute === 'Бекова Н.' && r299.run.ok &&
+        r299.before.d11 === 'Бекова Н.' && r299.after.d11 === 'Касымов Т.' && r299.after.d22 === 'Касымов Т.' &&
+        r299.after.d10 === r299.before.d10 && r299.early === 0 &&
+        r299.retro.indexOf('2026-08-11') >= 0 && r299.retro.indexOf(TODAY) >= 0 &&
+        r299.log.length > 0 && r299.log.every(e => e.changed.indexOf('d-curator') >= 0 && e.date >= '2026-08-11') &&
+        r299.open === 0 && t117.from === '2026-08-11' && t210.from === '2026-07-02' && f210.closed === true,
+    `ответ соседа — ключ и самая ранняя дата действия (ADR-0245 §3, ИС-49 сужен): смена куратора «КД-2024/117» с 10.08, названная 22.08, переписала строки с 11.08 (было «${r299.before.d11}», стало «${r299.after.d11}»), строка 10.08 прежняя («${r299.after.d10}»); retro-пересчётов по датам ${r299.retro.length}, записей журнала «retro» ${r299.log.length}. Ночь молчания «кураторства» ответов не забрала (ждут ${r299.waiting}). Дата в закрытом июне — retro с первого открытого дня ${t210.from}. Задач открыто ${r299.open}: ночь 23.08 закрыла обе`);
 })();
 
 /* ---- отчёт ---- */
