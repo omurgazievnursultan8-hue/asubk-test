@@ -1,0 +1,26 @@
+// Are the screens that vanished from the drawer still reachable by URL?
+// Checks routes documented in requirements/features/* that no sidebar link points to.
+import { chromium } from 'playwright-core';
+const BASE = 'https://fkftest.okmot.kg/';
+const ROUTES = ['disbursements', 'loan-reserves', 'loan-ledgers', 'loan-credits/1', 'sub-loans'];
+const ctx = await chromium.launchPersistentContext('.auth/profile', {
+  channel: 'chrome', headless: true, ignoreHTTPSErrors: true, viewport: { width: 1600, height: 1000 },
+});
+const page = ctx.pages()[0] || await ctx.newPage();
+await page.goto(BASE, { waitUntil: 'networkidle', timeout: 60000 });
+if (page.url().includes('/login')) {
+  await page.fill('input[name=username]', process.env.OK_USER || 'admin');
+  await page.fill('input[name=password]', process.env.OK_PASS || 'admin');
+  await Promise.all([page.waitForNavigation({ waitUntil: 'networkidle' }).catch(() => {}), page.keyboard.press('Enter')]);
+  await page.waitForTimeout(4000);
+}
+for (const r of ROUTES) {
+  await page.goto(BASE + r, { waitUntil: 'networkidle', timeout: 60000 }).catch(() => {});
+  await page.waitForTimeout(1800);
+  const info = await page.evaluate(() => {
+    const t = (document.body.innerText || '').replace(/\s+/g, ' ').trim();
+    return { title: document.title, head: t.slice(0, 120) };
+  });
+  console.log(`${r}\n  url=${page.url()}\n  title=${info.title}\n  text=${info.head}\n`);
+}
+await ctx.close();
