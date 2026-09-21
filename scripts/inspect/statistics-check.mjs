@@ -613,8 +613,11 @@ const FIZ = fizSchema();
     `итог аналитика (${Math.round(totalMine)}) — не итог системы (${Math.round(totalAll)}): закрытая сумма не добывается вычитанием двух доступных срезов. Складывается СОМОВАЯ запись «${ST.IND(SOMD).name}» (${ST.IND(SOMD).unit}), а итог в валюте договора по разновалютному множеству отбит и в системном срезе, и в урезанном — с адресом на неё (${refMine.som}), потому что урезание множества валют из него не убирает (ИС-44, ADR-0214 §1, §2)`);
 
   ST.setRole('Наблюдатель');
-  ok(26, ST.canBuild() === false && ST.canAdmin() === false && ST.addIndicator({dates:1, id:'x'}).ok === false,
-    `наблюдателю конструктор и реестры закрыты — отказ по праву доступа, а не пропавшая кнопка`);
+  /* Волна 24: ST.canBuild снят вместе с экраном вопросов — собирать вопрос в модуле негде
+     ни одной роли (ИС-59). Осталось то, что роль действительно решает: вести реестр. */
+  ok(26, typeof ST.canBuild === 'undefined' && ST.canAdmin() === false &&
+        ST.addIndicator({dates:1, id:'x'}).ok === false,
+    `наблюдателю реестры закрыты, а конструктора нет ни у кого — отказ по праву доступа, а не пропавшая кнопка`);
   ST.setRole('Администратор статистики');
 })();
 
@@ -813,15 +816,18 @@ const FIZ = fizSchema();
   ok(42, iss.length === 0 && adrs.length === 0,
     `в файле названы все 30 инвариантов и 17 решений${iss.length ? ' · нет: ' + iss.join(',') : ''}${adrs.length ? ' · нет: ' + adrs.join(',') : ''}`);
 
-  /* Волна 19 (ADR-0232, ИС-52): экранов ЧЕТЫРЕ, ровно как в ТЗ 19 §11, и имя
-     «Конструктор среза» носит экран с деревом и рядом. Пятого экрана — сводной
-     таблицы — у статистики нет: свод собирает отчётность, и сторож ловит попытку
-     завести его обратно ПО ИМЕНИ «Швы статистики», под которым волна 18 увела
-     старый экран, а не только по коду. */
-  const screens = ['Конструктор среза','Журнал срезов','Выгрузки','Реестры'].filter(s => !src.includes(s));
-  ok(43, screens.length === 0 && !src.includes('Швы статистики') &&
+  /* Волна 24 (ADR-0247, ИС-59, ИС-60): экранов ДВА. Сторож ловит возврат снятых
+     по КОДУ, а не по имени: имена «Конструктор среза» и «Выгрузки» в файле остались —
+     надгробием в шапке и в комментарии на месте снятого экрана, и это правильно:
+     макет читают разработчики, и снятое должно быть названо. Вернуть экран можно
+     только функцией, кнопкой меню или строкой TITLES — их и стережём. */
+  const screens = ['Журнал прогонов','Реестры'].filter(s => !src.includes(s));
+  const back = [/function viewBuild\(/, /function viewExports\(/, /data-v="build"/,
+                /data-v="exports"/, /ST\.canBuild\s*=/, /TITLES\s*=\s*\{[^}]*build:/]
+    .filter(re => re.test(src));
+  ok(43, screens.length === 0 && back.length === 0 && !src.includes('Швы статистики') &&
         !/ST\.editRow|правка строки среза\s*—\s*экран/i.test(src),
-    `экранов четыре (конструктор среза · журнал · выгрузки · реестры), конструктора свода среди них нет — он у отчётности (ИС-52, ADR-0232); экрана правки строки среза нет — ИС-2`);
+    `экранов два (журнал прогонов · реестры); экрана вопросов и экрана выгрузок нет ни функцией, ни кнопкой, ни строкой TITLES — вопрос собирает отчётность, очередь заданий показывает её журнал файлов (ИС-59, ИС-60, ADR-0247); конструктора свода нет (ИС-52); экрана правки строки среза нет — ИС-2`);
 })();
 
 /* ---------- N. Экраны рисуются (DOM-заглушка, пять экранов × роли) ---------- */
@@ -836,37 +842,27 @@ const FIZ = fizSchema();
 
   ST.seed();
   const errs = [];
-  ['build','journal','exports','setup'].forEach(v => { const e = draw(() => ST.go(v)); if (e) errs.push(v + ': ' + e); });
-  ST.go('build');
-  const b = panel();
+  ['journal','setup'].forEach(v => { const e = draw(() => ST.go(v)); if (e) errs.push(v + ': ' + e); });
   ST.go('journal'); const j = panel();
-  ST.go('exports'); const x = panel();
   ST.go('setup');   const g = panel();
+  /* Имя снятого экрана — не ошибка и не пустой экран: дверь уводит в журнал, потому что
+     он единственный показывает собственный глагол модуля (ADR-0247 §1). */
+  ST.go('build');   const fb1 = ST.state.view;
+  ST.go('exports'); const fb2 = ST.state.view;
   ok(44, errs.length === 0 &&
-        has(b, 'Вопрос к статистике') && has(b, 'statSlice') && has(b, 'Дата расчёта') && has(b, 'Зеркальные плитки') &&
         has(j, 'Прогоны') && has(j, 'Календарь учётных периодов') &&
         has(j, 'Простановка колонок: чужие действия и своё') &&
         ST.layers().every(L => has(j, '<th>' + L + '</th>')) &&
-        has(x, 'Очередь заданий') && has(x, 'Чего на этом экране нет') &&
-        has(g, 'Реестр объектов статистики') && has(g, 'Ссылки потребителей') && has(g, 'Чего здесь завести нельзя'),
-    `четыре экрана рисуются без ошибок${errs.length ? ': ' + errs.join(' · ') : ''}; паспорт стоит НАД результатом, а календарь периодов показан ТРЕМЯ колонками (${ST.layers().join(' · ')}) — одна пилюля «зафиксирован/открыт» не отвечала, до какого слоя доехало закрытие и чья фамилия в каждой колонке (ИС-38). Чужое действие по-прежнему помечено как чужое`);
+        has(g, 'Реестр объектов статистики') && has(g, 'Ссылки потребителей') &&
+        fb1 === 'journal' && fb2 === 'journal',
+    `два экрана рисуются без ошибок${errs.length ? ': ' + errs.join(' · ') : ''}; имена снятых экранов уводят в журнал (${fb1} · ${fb2}), а не падают и не рисуют пустоту`);
 
-  ST.go('build');
-  const s0 = ST.statSlice(ST.state.q);
-  const e1 = draw(() => ST.drillTo(s0.groups[0].key));
-  const d = panel();
-  ok(45, !e1 && has(d, 'Кто именно в числе') && has(d, 'Сходится с реестром') && has(d, 'закрыть детализацию'),
-    `детализация открывается из ячейки среза и сходится со списком реестра прямо на экране (ИС-14)`);
-
-  const modes = ['series','rows'].map(mm => { ST.setMode(mm); return {mm, html: panel()}; });
-  ST.setMode('slice');
-  ST.setRole('Наблюдатель');
-  const obs = panel();
-  ST.setRole('Администратор статистики');
-  ok(46, has(modes[0].html, 'ряд по 4 датам, шаг месяц') && has(modes[0].html, 'смешанно') &&
-        has(modes[1].html, 'Строки среза') && has(modes[1].html, 'Сходится с реестром') &&
-        has(obs, 'Наблюдателю конструктор не открыт') && has(obs, 'Зеркальные плитки'),
-    `ряд («смешанно» назван) и строки рисуются тем же экраном; наблюдателю конструктор закрыт текстом, готовые плитки с паспортом ему открыты`);
+  /* НАДГРОБИЯ волны 24 (ADR-0247). Номера не переиспользуются:
+     #45 — детализация из ячейки среза: ячейки нет, углубление до строк спрашивает
+           отчётность своим конструктором (ADR-0162 §8, ADR-0178); контракт statRows
+           стережёт #52 (полный список или отказ), а не экран;
+     #46 — ряд, строки и отказ наблюдателю рисовались тем же экраном вопросов;
+           у модуля экрана вопросов нет, роль «Аналитик» в нём тоже (канон §13). */
 })();
 
 /* ---------- O. Разрез несёт уровни и корзины (ADR-0176) ---------- */
@@ -1780,67 +1776,38 @@ const FIZ = fizSchema();
    формой, что отказ доходит до человека текстом, а не пустотой, и что снятие идёт по
    одному сравнению, а не всё сразу. ------------------------------------------------- */
 (() => {
-  const el = () => ({ innerHTML:'', textContent:'', dataset:{},
-    classList:{toggle(){}, add(){}, remove(){}}, appendChild(){}, remove(){} });
-  const fields = {};
-  const put = (id, v, sel) => { fields[id] = { value: v, selectedOptions: (sel || []).map(x => ({value:x})) }; };
-  const nodes = {'#panel': el(), '#title': el(), '#foot': el(), '#asOf': el(), '#role': el()};
-  const toasts = [];
-  const wrap = Object.assign(el(), { appendChild(t){ toasts.push(t.textContent); } });
-  sandbox.document = {
-    querySelector: k => nodes[k] || fields[k.slice(1)] || el(),
-    querySelectorAll: () => [],
-    getElementById: id => (id === 'toastWrap' ? wrap : null),
-    createElement: () => el()
-  };
-  const panel = () => nodes['#panel'].innerHTML;
-  /* dropCmp правит фильтр НА МЕСТЕ, поэтому форма снимается сразу, а не ссылкой. */
-  const shape = () => { const f = ST.state.q.filter;
-    return f ? f.sets.map(x => x.cmps.length) : null; };
-
+  /* Форма фильтра — контракт ВОПРОСА (§8.6, ADR-0180): ДНФ без скобок, отказ по домену
+     ДО счёта, «весь домен» — не фильтр. Набирает её тот, кто собирает вопрос, а это с
+     волны 24 конструктор отчётности (ИС-59): редактора сравнений в модуле больше нет.
+     Сторож переписан на СВОЁМ номере — правило то же, изменилась только рука, которая
+     подаёт фильтр: теперь он приходит в шов объектом, а не из полей экрана. */
   ST.seed();
-  ST.state.q.obj = 'obj-credit'; ST.state.q.date = '2026-08-19';
-  ST.go('build');
+  const base = {obj:'obj-credit', date:'2026-08-19', dims:[], inds:['a-sumtotal'], filter:null};
+  const F = sets => ({sets});
+  const cur  = {kind:'dim', id:'d-cur',    op:'=', value:'KGS'};
+  const days = {kind:'ind', id:'m-odays',  op:'>', value:'100'};
+  const reg  = {kind:'dim', id:'d-region', op:'=', value:'Чуйская'};
 
-  /* Первое сравнение — новым набором. */
-  put('fOperand', 'dim:d-cur'); put('fOp', '='); put('fVal', 'KGS'); put('fSet', 'new');
-  ST.addCmp();
-  const one = shape();
+  const one  = ST.statSlice(Object.assign({}, base, {filter: F([{cmps:[cur]}])}));
+  const and2 = ST.statSlice(Object.assign({}, base, {filter: F([{cmps:[cur, days]}])}));
+  const or2  = ST.statSlice(Object.assign({}, base, {filter: F([{cmps:[cur, days]}, {cmps:[reg]}])}));
 
-  /* Второе — В ТОТ ЖЕ набор (И). */
-  put('fOperand', 'ind:m-odays'); put('fOp', '>'); put('fNum', '100'); put('fSet', '0');
-  ST.addCmp();
-  const and2 = shape();
+  /* «Весь домен» отказывается ДО счёта и называет причину текстом, а не пустым ответом. */
+  const whole = ST.statSlice(Object.assign({}, base,
+    {filter: F([{cmps:[{kind:'dim', id:'d-cur', op:'∈', values: ST.operandValues('dim','d-cur')}]}])}));
 
-  /* Третье — новым набором (ИЛИ). */
-  put('fOperand', 'dim:d-region'); put('fOp', '='); put('fVal', 'Чуйская'); put('fSet', 'new');
-  ST.addCmp();
-  const or2 = shape();
-  const built = panel();
+  /* Скобок в форме нет: наборы соединяются ИЛИ, сравнения внутри набора — И, и паспорт
+     проговаривает это словами, потому что уезжает к потребителю вместе с числом. */
+  const t1 = one.ok ? one.passport.filter : '', t3 = or2.ok ? or2.passport.filter : '';
+  const shapeBad = ST.filterCheck(F([{cmps:[]}]), 'obj-credit', null);
 
-  /* Отказ должен ДОЙТИ ДО ЧЕЛОВЕКА текстом и НЕ ТРОНУТЬ уже набранное. */
-  const before = JSON.stringify(ST.state.q.filter);
-  toasts.length = 0;
-  put('fOperand', 'dim:d-cur'); put('fOp', '∈'); put('fVals', '', ['KGS','USD','EUR']); put('fSet', 'new');
-  ST.addCmp();
-  const refused = toasts.join(' | ');
-  const after = JSON.stringify(ST.state.q.filter);
-
-  /* Снятие — по ОДНОМУ сравнению; опустевший набор уходит сам. */
-  ST.dropCmp(1, 0);
-  const dropped = shape();
-  ST.clearFilter();
-  const cleared = ST.state.q.filter;
-  const bare = panel();
-
-  ok(110, String(one) === '1' && String(and2) === '2' && String(or2) === '2,1' &&
-        has(built, 'либо набор 2') && has(built, 'Валюта кредитного договора = KGS') &&
-        /* «&gt;» — оператор в чипе экранирован: подпись рисуется текстом, не разметкой. */
-        has(built, 'Дней просрочки &gt; 100') && has(built, 'Территория выдачи кредита = Чуйская') &&
-        has(built, 'в набор 1 (И)') && has(built, 'новым набором (ИЛИ)') &&
-        has(refused, 'весь домен') && after === before &&
-        String(dropped) === '2' && cleared === null && !has(bare, 'либо набор'),
-    `редактор набирает ровно ту форму, которую считает ядро: три клика дали «${or2.length} набора, сравнений в них ${or2.join(' и ')}», и добавление спрашивает одно — «в набор 1 (И)» или «новым набором (ИЛИ)». Отказ ДОХОДИТ ТЕКСТОМ и не трогает набранное: «${refused.slice(0, 72)}…» — пустой экран вместо ответа отказом не считается. Снятие идёт по одному сравнению, опустевший набор уходит сам (ADR-0180 §1, §6, §8)`);
+  ok(110, one.ok && and2.ok && or2.ok &&
+        and2.n <= one.n && or2.n >= and2.n &&
+        !t1.includes('(') && !t3.includes('(') &&
+        t3.includes('либо') && t3.includes('KGS') && t3.includes('Чуйская') &&
+        !whole.ok && has(whole.why, 'весь домен') &&
+        shapeBad !== null,
+    `фильтр приходит в шов формой ДНФ без скобок: один набор — И (${and2.n} из ${one.n}), второй набор — ИЛИ (${or2.n}); паспорт называет форму словами — «${String(t3).slice(0, 60)}…»; «весь домен» отказан ДО счёта: «${String(whole.why).slice(0, 60)}…»; пустой набор не проходит проверку формы`);
 })();
 
 /* ---------- X. Волна 11 ч.2: погашение — платёж и поступление (ADR-0183) ----------
@@ -5405,69 +5372,11 @@ const FIZ = fizSchema();
       и уводить их на свой экран значило бы показывать числа без даты (ИС-10).
    5. Свёрнутый фильтр печатает СВОЮ форму строкой, а не прячется за словом «фильтр»,
       и разворачивается сам, как только человек набрал первое сравнение. ---------------- */
-(() => {
-  const el = () => ({ innerHTML:'', textContent:'', dataset:{},
-    classList:{toggle(){}, add(){}, remove(){}}, appendChild(){}, remove(){} });
-  const fields = {};
-  const put = (id, v) => { fields[id] = { value: v, selectedOptions: [] }; };
-  const nodes = {'#panel': el(), '#title': el(), '#foot': el(), '#asOf': el(), '#role': el()};
-  const wrap = Object.assign(el(), { appendChild(){} });
-  sandbox.document = {
-    querySelector: k => nodes[k] || fields[k.slice(1)] || el(),
-    querySelectorAll: () => [],
-    getElementById: id => (id === 'toastWrap' ? wrap : null),
-    createElement: () => el()
-  };
-  const panel = () => nodes['#panel'].innerHTML;
-
-  ST.seed();
-  ST.go('build');
-  const slice = panel();
-  const bar   = (slice.match(/<div class="tabs">[\s\S]*?<\/div>/) || [''])[0];
-  const tabs  = (bar.match(/<button/g) || []).length;
-  const named = ['Срез','Ряд и поток','Строки','Зеркальные плитки'].filter(n => !has(bar, n));
-
-  ST.setMode('series');
-  const series = panel();
-  ST.setTab('mirror');
-  const mirror = panel(), doorKept = ST.state.q.mode;
-  ST.setMode('slice');
-  const folded = panel();
-
-  put('fOperand', 'dim:d-cur'); put('fOp', '='); put('fVal', 'KGS'); put('fSet', 'new');
-  ST.addCmp();
-  const opened = panel();
-
-  /* Показатели свёрнуты до ВЫБРАННЫХ, остаток назван числом. Число не зашито в сторож:
-     оно сверяется с тем, сколько чипов даёт развёрнутый список, — иначе реестр вырастет
-     на показатель, а «из 33» останется врать с прежней уверенностью. */
-  ST.toggleInds();
-  const wide  = panel();
-  const block = s => (s.match(/<div style="flex:1 1 340px">[\s\S]*?<\/div><\/div>/) || [''])[0];
-  const chipsIn = s => (block(s).match(/class="chip[ "]/g) || []).length;
-  const said = +((folded.match(/выбрано (\d+) из (\d+)/) || [0, 0, 0])[2]);
-  const foldN = chipsIn(folded), wideN = chipsIn(wide);
-
-  ok(229, tabs === 4 && named.length === 0 &&
-        /* второго списка режимов нет */
-        !has(slice, 'Срез — сколько и на сколько') &&
-        /* на срезе — только срез: ни потока, ни чужих плиток */
-        has(slice, '<h3>Срез</h3>') && !has(slice, 'Поток за произвольный период') &&
-        !has(slice, 'Классификация просит срез') &&
-        /* поток — у ряда, своим корешком не стоит */
-        has(series, 'Поток за произвольный период') && !has(bar, 'Поток') &&
-        /* зеркала не трогают дверь вопроса и не тащат за собой ответ */
-        has(mirror, 'Классификация просит срез') && !has(mirror, '<h3>Срез</h3>') &&
-        doorKept === 'series' &&
-        /* фильтр: свёрнут формой наружу, разворачивается первым же сравнением */
-        has(folded, 'Фильтр не задан') && !has(folded, 'Добавить сравнение') &&
-        has(opened, 'Добавить сравнение') && has(opened, 'Валюта кредитного договора = KGS') &&
-        /* показатели: свёрнуты до выбранных, остаток назван числом, число не врёт */
-        foldN === 2 && wideN === said && said > 20 &&
-        !has(folded, 'chips-grp') && has(wide, 'chips-grp') &&
-        has(wide, 'выбрано 2 из '+said),
-    `конструктор среза сгруппирован корешками: их ${tabs} (${['Срез','Ряд и поток','Строки','Зеркальные плитки'].join(' · ')}), и три из них — ДВЕРИ вопроса, а четвёртый показывает чужое потребление. Корешок не экран: экранов остаётся четыре (#43), пятого корешка «Свод» здесь нет по доводу ADR-0232. Поток корешка НЕ получает — разность двух строк не четвёртая дверь (§8.1), она вторая карточка у ряда, и на срезе её не видно вовсе. Выбор двери стоит в одном месте: чипов «Вопрос» в конструкторе больше нет. Зеркала уходят за корешок, но вопрос над ними тот же и дверь не сбита (q.mode = ${doorKept}): плитка датируется датой вопроса, и своего экрана ей не дают (ИС-10). Фильтр свёрнут СВОЕЙ формой наружу — «Фильтр не задан», а не молчание, — и разворачивается первым же набранным сравнением (ADR-0180 §7, ИС-24). Показатели свёрнуты до выбранных (${foldN}), а остаток назван ЧИСЛОМ — «выбрано 2 из ${said}», и это то же число, что чипов в развёрнутом списке (${wideN}): «ещё показатели» без числа не даёт решить, разворачивать ли (тот же довод, что у отказа statRows — ADR-0178 §4)`);
-})();
+/* НАДГРОБИЕ #229 (волна 24, ADR-0247). Держал корешки экрана вопросов: «Срез» ·
+   «Ряд и поток» · «Строки» · «Зеркальные плитки», свёрнутый фильтр и показатели,
+   названные числом. Экрана нет — держать нечего: три двери остались контрактом швов и
+   стерегутся по швам (#50…#53), а выбор двери и форма вопроса переехали в конструктор
+   отчётности вместе с экраном. Номер не переиспользуется. */
 
 /* ---- #230. Волна 21: экран держит ОТВЕТ, замок — ДОВОД ------------------
    Макет читают разработчики, и довод стоял на экране развёрнутой прозой: у конструктора
@@ -5487,45 +5396,38 @@ const FIZ = fizSchema();
   const el = () => ({ innerHTML:'', textContent:'', dataset:{},
     classList:{toggle(){}, add(){}, remove(){}}, appendChild(){}, remove(){} });
   const nodes = {'#panel': el(), '#title': el(), '#foot': el(), '#asOf': el(), '#role': el()};
-  const wrap = Object.assign(el(), { appendChild(){} });
-  sandbox.document = {
-    querySelector: k => nodes[k] || el(),
-    querySelectorAll: () => [],
-    getElementById: id => (id === 'toastWrap' ? wrap : null),
-    createElement: () => el()
-  };
+  sandbox.document = { querySelector: k => nodes[k] || el(), querySelectorAll: () => [],
+    getElementById: () => null, createElement: () => el() };
   const panel = () => nodes['#panel'].innerHTML;
   const locks = h => (h.match(/<details class="why">/g) || []).length;
   const inside = h => h.split('<details class="why">').slice(1).join(' ');
   const outside = h => h.split('<details class="why">')[0];
   const names = h => (h.match(/<summary>([^<]+)<\/summary>/g) || []).map(x => x.slice(9, -10));
 
-  ST.seed(); ST.go('build');
-  const b = panel(), bFoot = nodes['#foot'].innerHTML;
-  ST.go('setup');  const c = panel();
-  ST.go('exports'); const e = panel();
-  const all = names(b).concat(names(c), names(e));
+  /* Волна 21 завела правило: экран держит ОТВЕТ, замок — ДОВОД. Волна 24 сняла два
+     экрана из четырёх, и сторож переписан на своём номере: правило то же, экранов два. */
+  ST.seed(); ST.go('journal');
+  const j = panel(), jFoot = nodes['#foot'].innerHTML;
+  ST.go('setup');   const c = panel();
+  const all = names(j).concat(names(c));
   const uniq = all.filter((x, i) => all.indexOf(x) === i);
 
   const zam = n => n + ' ' + (n % 10 === 1 && n % 100 !== 11 ? 'замок'
     : [2,3,4].indexOf(n % 10) >= 0 && [12,13,14].indexOf(n % 100) < 0 ? 'замка' : 'замков');
-  ok(230, locks(b) >= 3 && locks(c) >= 4 &&
+  ok(230, locks(j) >= 2 && locks(c) >= 4 &&
         /* довод — под замком */
-        has(inside(b), 'Объект, разрезы и показатели — записи реестров') &&
-        has(inside(b), 'Число объектов — ссылка') &&
         has(inside(c), 'Заёмщик стоит здесь <b>самостоятельным</b> объектом') &&
-        has(inside(e), 'Усечённого и постраничного ответа не бывает') &&
-        /* ответ — снаружи: вопрос, паспорт и число стоят до первого замка */
-        has(outside(b), 'Объект → разрезы → показатели → дата.') &&
-        has(b, '<h3>Срез</h3>') && has(b, 'Дата расчёта') &&
+        /* ответ — снаружи: что посчитано и что пропущено видно до первого замка */
+        has(outside(j), 'Что посчитано, что пропущено и кто закрыл месяц') &&
+        has(outside(j), 'часть контракта') &&
         /* у каждого замка своё имя */
-        all.length >= 8 && uniq.length === all.length &&
+        all.length >= 6 && uniq.length === all.length &&
         all.indexOf('зачем так') < 0 &&
         /* подвал: факты снаружи, довод под замком */
-        has(outside(bFoot), 'Учётный период') && has(outside(bFoot), 'Зафиксировано:') &&
-        has(inside(bFoot), 'Спрашивается дата прогона') &&
-        !has(outside(bFoot), 'Спрашивается дата прогона'),
-    `довод убран под замок, а не из макета: на конструкторе среза ${zam(locks(b))}, на реестрах ${zam(locks(c))}, и текст лежит в разметке целиком — «Объект, разрезы и показатели — записи реестров», «Число объектов — ссылка», «Заёмщик стоит здесь самостоятельным объектом» читаются внутри <details>, а не пропали. Ответ снаружи: дорога вопроса, паспорт и «Срез» стоят до первого замка — спрятать под кат «сколько» было бы ответом без вопроса, тем же дефектом, что «фильтр задан» вместо формы фильтра. Имён замков ${all.length} и все разные (${uniq.length}), «зачем так» на всех подряд не стоит ни разу: одинаковое имя не различает доводы. Подвал держит факты сеанса — период, дату, прогон, фиксацию, — а «почему спрашивается дата прогона» ушло под замок: подвал виден на каждом экране`);
+        has(outside(jFoot), 'Учётный период') && has(outside(jFoot), 'Зафиксировано:') &&
+        has(inside(jFoot), 'Спрашивается дата прогона') &&
+        !has(outside(jFoot), 'Спрашивается дата прогона'),
+    `довод убран под замок, а не из макета: на журнале прогонов ${zam(locks(j))}, на реестрах ${zam(locks(c))}, имён замков ${uniq.length} и все разные; ответ и факты подвала стоят снаружи`);
 })();
 
 /* ===== Волна 23 — макет и сторожа догоняют физическую схему (ИС-53…ИС-58, СС-Д18) ===== */
@@ -8709,14 +8611,80 @@ const FIZ = fizSchema();
     `слотов классификаторов десять на объект (ADR-0241 §5): заняты ${takes303.filter(t => t.ok).length}, предупреждение с восьмого — «${takes303[7] ? takes303[7].warn : '—'}»; слот 3 освобождён ${rel303.until}, но занят навсегда — одиннадцатый: «${String(eleventh303.why).slice(0, 80)}…»; у заёмщика свои слоты — первый (${other303.slot}); у программы слотов нет (${!alien303.ok}). Колонки слота 3 — ${ST.clsSlotCols(3).join(', ')}`);
 })();
 
+/* ===== Волна 24 — экранов два: движок, а не рабочее место (ИС-59…ИС-61, ADR-0247) =====
+   Три сторожа на три утверждения волны: механизм выгрузки пережил свой экран · паспорт
+   несёт ДОРОГУ к записи о том, как ответ получен · проверка записи реестра отвечает
+   одной строкой и вопроса со своим составом не собирает. */
+(() => {
+  const el = () => ({ innerHTML:'', textContent:'', dataset:{},
+    classList:{toggle(){}, add(){}, remove(){}}, appendChild(){}, remove(){} });
+  const nodes = {'#panel': el(), '#title': el(), '#foot': el(), '#asOf': el(), '#role': el()};
+  sandbox.document = { querySelector: k => nodes[k] || el(), querySelectorAll: () => [],
+    getElementById: () => null, createElement: () => el() };
+  const panel = () => nodes['#panel'].innerHTML;
+
+  /* #304. МЕХАНИЗМ БЕЗ ВИТРИНЫ. Задание, файл и паспорт внутри файла остались у владельца
+     строк; очередь заданий показывает журнал файлов отчётности (ИС-60, ИО-41). Сторож
+     держит обе половины: механизм жив И экрана очереди в модуле нет. */
+  ST.seed();
+  const job = ST.exportJob({obj:'obj-repay', date: ST.state.q.date, filter: null});
+  const list = ST.exportsList();
+  const pass = job.ok ? job.job.passport : null;
+  ST.go('exports'); const noScreen = panel();
+  const uiGone = !/ST\.export(Demo|Closed)?UI/.test(src) && !src.includes('Очередь заданий');
+  ok(304, job.ok && job.job.file && pass && pass.asOf && pass.fixation && pass.scope &&
+        list.length === 1 && uiGone && !has(noScreen, 'Очередь заданий') &&
+        has(noScreen, 'Прогоны'),
+    `выгрузка пережила свой экран: задание ${job.ok ? job.job.id : '—'} собрано, файл ${job.ok ? job.job.file : '—'}, паспорт ЛЕЖИТ ВНУТРИ файла (дата ${pass ? pass.asOf : '—'}); очереди на экране нет — витрину показывает журнал файлов отчётности, и адрес «exports» уводит в журнал прогонов (ИС-60, ИО-41)`);
+
+  /* #305. ДОРОГА ИЗ ПАСПОРТА. Замена снятому экрану вопросов: разбор расхождения идёт
+     от числа к ЗАПИСИ О НОЧИ, а не ко второму такому же вопросу (ADR-0247 §6). */
+  const res = ST.statSlice({obj:'obj-credit', date:'2026-08-19', dims:['d-cur'],
+    inds:['a-sumtotal'], filter:null});
+  if (!res.ok) throw new Error('#305: срез не собрался — ' + res.why);
+  const ph = vm.runInContext('passportHtml', sandbox)(res.passport);
+  ST.toRun(res.passport.asOf);
+  const focused = panel();
+  const focusRow = (focused.match(/<tr class="focus"/g) || []).length;
+  ST.dropRunFocus();
+  const clean = panel();
+  ok(305, res.ok && has(ph, 'Как получено') && has(ph, 'ST.toRun') &&
+        has(ph, "ST.toRun('" + res.passport.asOf + "')") &&
+        ST.state.view === 'journal' && has(focused, 'Пришли из паспорта числа') &&
+        focusRow === 1 && !has(clean, 'Пришли из паспорта числа'),
+    `паспорт несёт дорогу к записи: строка «Как получено» ведёт в журнал прогонов на ночь ${res.passport.asOf}, журнал открывается на ней подсвеченной строкой (${focusRow}) и говорит об этом вслух; подсветка снимается`);
+
+  /* #306. ПРОВЕРКА ЗАПИСИ РЕЕСТРА — смоук после правки, а не дверь к клеткам: дата не
+     спрашивается (берётся последний прогон, ИС-36), разрезов и фильтра нет, вид не
+     сохраняется (ADR-0247 §7). */
+  const pr = ST.probe('a-sumtotal');          /* агрегат — statSlice */
+  const prRow = ST.probe('m-odays');          /* строчная величина — statRows */
+  const prDim = ST.probe('d-branch');         /* разрез — statSlice с одним разрезом */
+  const noRec = ST.probe('нет-такой-записи');
+  ST.probeUI('m-odebt');
+  ST.go('setup');
+  const card = panel();
+  const q = ST.state.q;
+  ok(306, pr.ok && pr.date === ST.askDates(pr.rec.obj).slice(-1)[0] &&
+        pr.res.dims.length === 0 && pr.res.passport.filter.startsWith('фильтра нет') &&
+        noRec.ok === false && has(noRec.why, 'записи нет в реестре') &&
+        prDim.ok && prDim.res.groups.length > 0 && prDim.door === 'statSlice' &&
+        pr.door === 'statSlice' && prRow.door === 'statRows' &&
+        (prRow.ok || has(prRow.why, 'строк')) &&
+        has(card, 'Проверка записи') && has(card, 'Дата расчёта') &&
+        !has(card, 'Добавить сравнение') && !has(card, 'сохранить вид') &&
+        JSON.stringify(ST.state.q) === JSON.stringify(q),
+    `проверка записи отвечает одной строкой с паспортом на дату последнего прогона (${pr.date}): у агрегата — объектов ${pr.res.n}, у строчной величины дверь ${prRow.door}, у разреза — групп ${prDim.res.groups.length}; ни фильтра, ни сохранения вида, и вопрос сеанса проверкой не трогается${noRec.ok ? '' : ' · незнакомая запись отвечает отказом'}`);
+})();
+
 /* ---- отчёт ---- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-const stamp = `SMOKE 2026-09-19 · ${pass}/${results.length} PASS\n` + lines.join('\n');
+const stamp = `SMOKE 2026-09-21 · ${pass}/${results.length} PASS\n` + lines.join('\n');
 console.log(stamp);
 
 const body = lines.map(l => '  ' + l).join('\n');
-const injected = `  SMOKE 2026-09-19 · ${pass}/${results.length} PASS\n` + body;
+const injected = `  SMOKE 2026-09-21 · ${pass}/${results.length} PASS\n` + body;
 if (src.includes('  SMOKE_PLACEHOLDER')) {
   writeFileSync(HTML, src.replace('  SMOKE_PLACEHOLDER', injected), 'utf8');
   console.log('\n→ результат вставлен в шапку statistics.html');
