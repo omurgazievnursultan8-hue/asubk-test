@@ -2025,7 +2025,8 @@ const FIZ = fizSchema();
   /* Снятие объекта движка не касается — механизм прогона общий (ADR-0237 §7), — но след
      обязано оставить ОТКАЗОМ, а не пустотой (ИС-24). Волна 23 (переписан на месте): довод
      «вернётся строкой» снят — заведение объекта стоит релиза, таблицы строк (ИС-53,
-     ADR-0237 §5). «ИС-18» в тексте отказа движка — находка СС-Д21. */
+     ADR-0237 §5). Текст отказа приведён к ИС-53 волной 26 — закрыт СС-Д21: отказ цитировал
+     инвариант, снятый волной 22, и сторож эту цитату держал. */
   const gone = ST.statSlice({obj:'obj-task', dims:['d-branch'], inds:['a-count'], date: D});
   const inWorld = Object.keys(W).indexOf('obj-task') >= 0;
   const dangling = [];
@@ -2037,7 +2038,7 @@ const FIZ = fizSchema();
 /* Волна 23, З-20 (переписан на месте): объектов 11 — членство в группе добавлено релизом; снятое
      задание кураторства по-прежнему снято. */
   ok(121, st.objects.length === 11 && !gone.ok && has(gone.why, 'нет в реестре объектов') &&
-        has(gone.why, 'ИС-18') && !inWorld && dangling.length === 0 && orphan.length === 0,
+        has(gone.why, 'ИС-53') && !has(gone.why, 'ИС-18') && !inWorld && dangling.length === 0 && orphan.length === 0,
     `«Задание кураторства» снято СТРОКОЙ реестра, а не релизом: объектов ${st.objects.length}, спрос отвечает отказом — «${gone.why}», а не пустым экраном (ИС-24). Источник снят, а не спрятан: записей в мире 0, висячих ссылок на снятые разрезы и меры ${dangling.length}, агрегатов над несуществующей мерой ${orphan.length}. Владельца, ОТДАЮЩЕГО множество, у заданий нет: кураторство отказывается от них дословно (ТЗ 16 §1.1), своего ТЗ и места в очереди у них нет, ФО-20 ещё спрашивается у заказчика. Вернётся в день, когда владелец появится, — релизом: таблица строк и записи реестра (ИС-53, ADR-0237 §5; ADR-0201 §1)`);
 
   /* #122 — снят волной 23 (З-13): «три оси результата меры независимы попарно, доставка и
@@ -2770,7 +2771,8 @@ const FIZ = fizSchema();
   const N4 = ST.IND('m-n4');
   ok(156, gaps.length === 0 && declared.length === 0 && noHist.length === 0 && bothOK &&
         !noName.ok && has(noName.why, 'наименование') &&
-        !noObjI.ok && has(noObjI.why, 'ИС-18') && !noObjD.ok && has(noObjD.why, 'ИС-40') &&
+        !noObjI.ok && has(noObjI.why, 'ИС-40') && !has(noObjI.why, 'ИС-18') &&
+        !noObjD.ok && has(noObjD.why, 'ИС-40') &&
         born.ok && N4.since === ST.state.today && N4.until === null &&
         ST.actsOn('m-n4', ST.state.today) === true && ST.actsOn('m-n4', '2026-07-01') === false,
     `семь общих реквизитов (§1) стоят у КАЖДОЙ из ${R2.length} записей обеих пород: пустых среди обязательных ${gaps.length}, необъявленных среди «может быть пусто» ${declared.length}, без истории ${noHist.length}. Пустой реквизит и отсутствующий — разные вещи: `+"`until: null`"+` значит «не прекращена», а отсутствие ключа значило бы, что вопроса не задавали. Именно этого у показателей до ADR-0209 не спрашивали вовсе — даты заведения; новая запись действует ВПЕРЁД (заведена ${N4.since}, на 01.07 не действует), и прошлое ею не размечается. Отказ общий, а довод у пород разный: показателю — «${String(noObjI.why).slice(0, 52)}…» (ИС-18), разрезу — «${String(noObjD.why).slice(0, 52)}…» (ИС-40). Обязательность стала свойством ПОРОДЫ, а не двери: раньше объект определения спрашивал `+"`addDim`"+`, а `+"`addIndicator`"+` — нет, и разница жила ровно потому, что двери писали в разные волны`);
@@ -8659,6 +8661,9 @@ const FIZ = fizSchema();
      сохраняется (ADR-0247 §7). */
   const pr = ST.probe('a-sumtotal');          /* агрегат — statSlice */
   const prRow = ST.probe('m-odays');          /* строчная величина — statRows */
+  ST.probeUI('m-odays'); ST.go('setup');
+  const cardRow = panel();                    /* СС-Д30: напечатанное число, а не поле n */
+  const nRow = (cardRow.match(/объектов в ответе: <b>([^<]*)<\/b>/) || [])[1];
   const prDim = ST.probe('d-branch');         /* разрез — statSlice с одним разрезом */
   const noRec = ST.probe('нет-такой-записи');
   ST.probeUI('m-odebt');
@@ -8672,9 +8677,74 @@ const FIZ = fizSchema();
         pr.door === 'statSlice' && prRow.door === 'statRows' &&
         (prRow.ok || has(prRow.why, 'строк')) &&
         has(card, 'Проверка записи') && has(card, 'Дата расчёта') &&
+        nRow !== undefined && nRow !== 'undefined' &&
+        (!prRow.ok || Number(nRow) === prRow.res.rows.length) &&
         !has(card, 'Добавить сравнение') && !has(card, 'сохранить вид') &&
         JSON.stringify(ST.state.q) === JSON.stringify(q),
     `проверка записи отвечает одной строкой с паспортом на дату последнего прогона (${pr.date}): у агрегата — объектов ${pr.res.n}, у строчной величины дверь ${prRow.door}, у разреза — групп ${prDim.res.groups.length}; ни фильтра, ни сохранения вида, и вопрос сеанса проверкой не трогается${noRec.ok ? '' : ' · незнакомая запись отвечает отказом'}`);
+  /* #309. ЗАПИСЬ ДЛЯ ВСЕХ ОБЪЕКТОВ проверяется на НАЗВАННОМ объекте (СС-Д31). Прежде
+     «Число объектов» (obj «*») не проверялось вовсе: `askDates('*')` отдавал пустой список,
+     и проверка отвечала «прогонов ещё не было» — запись была непроверяема. Объект здесь не
+     состав вопроса, а его предмет, и ответ его называет. */
+  const uni = ST.probe('a-count');
+  const uniOn = ST.probe('a-count', 'obj-borrower');
+  ST.probeUI('a-count'); ST.go('setup');
+  const uniCard = panel();
+  const rowsUni = ST.statSlice({obj: uni.obj, date: uni.date, dims: [], inds: ['a-count'],
+    filter: null});
+  ok(309, uni.ok && uni.many === true && uni.obj && uni.obj !== '*' &&
+        uni.date === ST.askDates(uni.obj).slice(-1)[0] && uni.door === 'statSlice' &&
+        rowsUni.ok && uni.res.n === rowsUni.n &&
+        uniOn.ok && uniOn.obj === 'obj-borrower' && uniOn.res.n === ST.statRows(
+          {obj:'obj-borrower', date: uniOn.date}).rows.length &&
+        has(uniCard, 'объявлена для всех объектов') && has(uniCard, 'Проверка записи'),
+    `запись, объявленная для ВСЕХ объектов, проверяется на названном (СС-Д31): «Число объектов» по умолчанию спрошено на «${(ST.OBJ(uni.obj) || {}).name || uni.obj}» за ${uni.date} — объектов ${uni.ok ? uni.res.n : '—'}, и карточка объект называет; тот же вопрос о заёмщике — ${uniOn.ok ? uniOn.res.n : '—'}. Прежде проверка отвечала «прогонов ещё не было»: даты спрашивались у объекта «*»`);
+})();
+
+/* ===== Волна 26 — поток: три числа и база без фильтра (СС-Д34, СС-Д28) =====
+   Разность двух строк (ИС-17) отвечает ТРЕМЯ числами: движением прежних, вкладом
+   новорождённых и итогом — до этой волны расщепление считал сторож #88 по строкам, то есть
+   проверка знала то, чего не знал шов. Рождением при этом считается отсутствие СТРОКИ
+   (ИС-33), а не отсутствие в ОТОБРАННОМ множестве: смена значения фильтра внутри периода
+   клала в поток весь накопленный итог записи и разводила сумму по значениям разреза с
+   итогом без фильтра. */
+(() => {
+  ST.seed();
+
+  /* #307. ТРИ ЧИСЛА ОТ ШВА, А НЕ ОДНО. Ни одна половина итогу не равна, и обе названы: без
+     этого прирост читается движением портфеля, хотя дал его календарь (ИС-17 + ИС-33). */
+  const fl = ST.flowBetween({obj:'obj-credit', inds:'m-issued', from:'2025-01-01',
+    to:'2026-08-21', filter:null});
+  const split = fl.ok && Math.abs(fl.value - (fl.moved + fl.bornValue)) < 0.01;
+  ok(307, fl.ok && split && fl.moved > 0 && fl.bornValue > 0 &&
+        fl.moved !== fl.value && fl.bornValue !== fl.value && fl.born.length === 5 &&
+        fl.born.indexOf('КД-2026/007') >= 0 && (fl.entered || []).length === 0 &&
+        has(fl.passport.splitNote, 'движение прежних') &&
+        has(fl.passport.splitNote, 'вклад новорождённых') && !fl.passport.enteredNote,
+    `поток отвечает тремя числами (СС-Д34): «Выдано всего» за 01.01.2025 → 21.08.2026 — итог ${fl.ok ? fl.value : '—'} = движение прежних ${fl.ok ? fl.moved : '—'} + вклад ${fl.ok ? fl.born.length : '—'} новорождённых ${fl.ok ? fl.bornValue : '—'} (${fl.ok ? fl.born.join(', ') : '—'}); ни одна половина итогу не равна, и паспорт называет обе — «${fl.ok ? fl.passport.splitNote : '—'}» (ИС-17, ИС-33)`);
+
+  /* #308. БАЗА ЧИТАЕТСЯ БЕЗ ФИЛЬТРА И БЕЗ ОХВАТА (СС-Д28). Запись, сменившая значение
+     разреза внутри периода, — не рождение, а ВХОД в множество: движение считается от её
+     строки на дату базы. Проверяется с обоих концов: сумма по значениям разреза равна
+     итогу без фильтра, и вошедшая запись не лежит в «рождённых». */
+  const F = v => ({sets:[{cmps:[{kind:'dim', id:'d-curator', op:'=', value: v}]}]});
+  const FROM = '2026-07-01', TO = '2026-08-21';
+  const fq = f => ST.flowBetween({obj:'obj-credit', inds:'m-issued', from:FROM, to:TO, filter:f});
+  const all = fq(null);
+  const rows308 = (ST.statRows({obj:'obj-credit', date:TO}) || {}).rows || [];
+  const vals308 = [...new Set(rows308.map(r => r.dims['d-curator']).filter(Boolean))];
+  const per = vals308.map(v => fq(F(v)));
+  const sum308 = Math.round(per.reduce((n, r) => n + (r.ok ? r.value : NaN), 0) * 100) / 100;
+  const bek = per[vals308.indexOf('Бекова Н.')] || {};
+  const base308 = ST.statRows({obj:'obj-credit', date:FROM}).rows.find(r => r.ref === 'КД-2024/117');
+  const moved308 = base308 ? base308.dims['d-curator'] : '—';
+  ok(308, all.ok && per.length > 1 && per.every(r => r.ok) &&
+        Math.abs(sum308 - all.value) < 0.01 && bek.ok &&
+        (bek.entered || []).indexOf('КД-2024/117') >= 0 &&
+        bek.born.indexOf('КД-2024/117') < 0 && bek.bornValue === 0 && bek.value !== 1200000 &&
+        has(bek.passport.enteredNote, 'рождением не') &&
+        per.every(r => r.born.every(ref => (r.entered || []).indexOf(ref) < 0)),
+    `смена значения разреза внутри периода — не рождение (СС-Д28): у «КД-2024/117» куратор на ${FROM} — ${moved308}, на ${TO} — Бекова Н.; прежде её накопленные 1 200 000 ложились ей в поток, теперь у неё ${bek.ok ? bek.value : '—'}, запись названа вошедшей (${bek.ok ? (bek.entered || []).join(', ') : '—'}), а не рождённой. Сумма по ${vals308.length} значениям разреза ${sum308} сошлась с итогом без фильтра ${all.ok ? all.value : '—'} (ИС-17, ИС-33)`);
 })();
 
 /* ---- отчёт ---- */
