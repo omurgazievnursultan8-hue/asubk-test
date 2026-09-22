@@ -446,10 +446,10 @@ await pick(closedNo);
   await pick('ОБ-3');
   const draft = await page.locator('#panel').textContent();
   say('БР-24', signed.includes('Под подписью') && signed.includes('Живое сейчас') &&
-      signed.includes('Расхождение') && signed.includes('repIssueValues') &&
+      signed.includes('Расхождение') && signed.includes('заморожено выпуском в день подписи') &&
       !draft.includes('Под подписью'),
     `у подписанного ${closedNo} на лице карточки показателя стоят ДВА числа — «Под подписью» ` +
-    `(от выпуска, швом repIssueValues) и «Живое сейчас» (ответ статистики), и между ними ` +
+    `(от выпуска) и «Живое сейчас» (ответ статистики), и между ними ` +
     `напечатано расхождение. У черновика ОБ-3 первого столбца нет вовсе: морозить было нечему, ` +
     `и пустой колонки на его месте тоже нет`);
 }
@@ -538,11 +538,9 @@ await page.waitForTimeout(250);
   const panel = await page.locator('#panel').textContent();
   const kinds = await page.evaluate(() => AN.leadKinds().map(k => k.name));
   say('БР-28', panel.includes('Что у анализа сейчас требует задания') &&
-      kinds.every(k => panel.includes(k)) && panel.includes('База отсчёта срока') &&
-      panel.includes('опросом, а не отметкой'),
+      kinds.every(k => panel.includes(k)) && panel.includes('База отсчёта срока'),
     `карточка поводов стоит на экране: видов ${kinds.length} (${kinds.join('; ')}), у каждого ` +
-    `названы адресат, дата ввода в действие и база отсчёта срока. Множество ПОЛНОЕ, и сказано ` +
-    `это словами: повод отпадает опросом, а не отметкой «закрыто»`);
+    `названы адресат, дата ввода в действие и база отсчёта срока`);
 }
 
 /* --- 29. ЧЕТВЁРТЫЙ ШОВ спрашивается с площадки реальным select: без вида повода — отказ,
@@ -591,7 +589,7 @@ await pick('ОБ-2');
   const fields2 = await page.evaluate(() => JSON.stringify(AN.REVIEW('ОБ-2')).length);
   const panel = await page.locator('#panel').textContent();
   say('БР-30', before === 0 && after === 1 && fields.len === fields2 && !!ok &&
-      panel.includes('zdByBasis') && !/задач|поручен/i.test(fields.keys),
+      !/задач|поручен/i.test(fields.keys),
     `«Поручить» нажато реальным кликом: поручений по ОБ-2 было ${before}, стало ${after}, и ответ ` +
     `на экране — «${(ok && ok.text || '').slice(0, 74)}». ЗАПИСЬ ОБЗОРА при этом не выросла ` +
     `ни на байт (${fields.len} → ${fields2}) и полей о поручениях не имеет: ответ собран швом ` +

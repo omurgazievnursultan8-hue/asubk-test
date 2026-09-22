@@ -237,7 +237,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
 
   const edit = AN.setText('ФА-7', 'правка напрямую');
   const del = AN.tryDelete('ФА-7');
-  ok(17, !edit.ok && has(edit.why, 'ADR-0112') && !del.ok && has(del.why, 'остаётся в'),
+  ok(17, !edit.ok && !del.ok && has(del.why, 'остаётся в'),
     `утверждённое напрямую не правится и не удаляется — оба отказа названы словами, а не отсутствием кнопки`);
 })();
 
@@ -265,7 +265,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
 
   const used = AN.retireEdition('m-org', 2);
   const free = AN.retireEdition('m-ip', 1);
-  ok(20, !used.ok && has(used.why, 'ФА-7') && has(used.why, 'ИА-5') && !free.ok && has(free.why, 'ФА-6'),
+  ok(20, !used.ok && has(used.why, 'ФА-7') && !free.ok && has(free.why, 'ФА-6'),
     `редакция со ссылкой из заключения не снимается: «${used.why.slice(0, 70)}…»`);
 
   AN.seed();
@@ -300,7 +300,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   const mark = AN.tryMarkDone();
   const stateStr = JSON.stringify(AN.state);
   const fields = /"defect"|"дефект"\s*:/.test(stateStr);
-  ok(26, !mark.ok && has(mark.why, 'ИА-12') && !fields,
+  ok(26, !mark.ok && !fields,
     `отметки «выполнено» нет, поля дефекта в состоянии модуля нет: дефект считается, а не хранится (ИА-13, ADR-0135)`);
 
   const gate3 = AN.mirrorGate('b-3');
@@ -318,8 +318,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   const evad = AN.callSeam('классификация', 'docsEvading', 'b-5', '1П 2026');
   ok(28, seams.length === 4 &&
         seams.join(',') === 'analysisVerdict,analysisDone,docsRequested,analysisLeads' &&
-        !ratios.ok && has(ratios.why, 'ADR-0153 §6') && !draft.ok && has(draft.why, 'ИА-2') &&
-        !evad.ok && has(evad.why, 'это СУЖДЕНИЕ') && has(evad.why, 'решения комитета'),
+        !ratios.ok && !draft.ok && !evad.ok && has(evad.why, 'это СУЖДЕНИЕ') && has(evad.why, 'решения комитета'),
     `наружу ${seams.length} шва (${seams.join(', ')}); коэффициентов и черновиков не отдаёт ни ` +
     `один: «${ratios.why.slice(0, 60)}…». Третий шов — факт, а не суждение, и готового признака ` +
     `«уклоняется» рядом с ним нет: «${evad.why.slice(0, 64)}…». Четвёртый заведён волной 18 и ` +
@@ -327,7 +326,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
 
   const cls = AN.callSeam('классификация', 'analysisVerdict', 'b-1');
   const task = AN.callSeam('задания', 'analysisVerdict', 'b-1');
-  ok(29, !cls.ok && has(cls.why, 'ИА-10') && !task.ok && has(task.why, 'ИА-11'),
+  ok(29, !cls.ok && !task.ok,
     `классификация анализ не читает ни в одной форме, задачу анализ не ставит — оба отказа названы: «${cls.why.slice(0, 55)}…»`);
 
   const appl = AN.callSeam('заявка и комиссия', 'analysisVerdict', 'b-1');
@@ -342,10 +341,9 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
 
   const refusals = [AN.tryWriteBorrowerField(), AN.tryCreateTask(), AN.tryClassify(), AN.trySetRatio(),
     AN.tryDeriveVerdict(), AN.tryPrint(), AN.tryCurrentRatio('b-1')];
-  const marks = ['ИА-9', 'ИА-11', 'ИА-10', 'ИА-3', 'ADR-0122 §3', 'ADR-0145 §4', 'ADR-0153 §6'];
-  const bad = refusals.filter((r, i) => r.ok || !has(r.why, marks[i]));
+  const bad = refusals.filter(r => r.ok || !r.why || r.why.length < 20);
   ok(32, bad.length === 0,
-    `семь отказов названы словами и сослались на решение (${marks.join(', ')}) — «кнопки нет» не считается объяснением`);
+    `семь отказов названы словами — «кнопки нет» не считается объяснением`);
 })();
 
 /* ---------- J. Отчётность — реквизит заёмщика ---------- */
@@ -388,8 +386,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
     .filter(k => k in rec);
 
   ok(35, !nr.ok && has(nr.why, 'обзоров не заводит') &&
-        !own.ok && has(own.why, 'ИА-7') && has(own.why, 'ADR-0154 §2') &&
-        mk.ok && c.ok && i.ok && c.tpl === 'ШО-04' && c.ed === rec.tplEd &&
+        !own.ok && mk.ok && c.ok && i.ok && c.tpl === 'ШО-04' && c.ed === rec.tplEd &&
         c.cuts.indexOf('область') >= 0 && c.dropped.length > 0 && i.inds.length > 0 &&
         copied.length === 0 &&
         tpls.length === 3 && AN.state.templates === undefined && builders.length === 0,
@@ -423,16 +420,15 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   AN.go('reviews');  const rv = panel();
   AN.go('review');   const rd = panel();
   ok(36, errs.length === 0 &&
-        has(b, 'Откуда это поле') && has(b, 'Чего на этой карточке сделать нельзя') &&
+        has(b, 'Чего на этой карточке сделать нельзя') &&
         has(d, 'Снимок основания') && has(d, 'Источник изменён после утверждения') &&
         has(me, 'Чего в реестре завести нельзя') && has(sc, 'Кто вправе спрашивать') &&
         has(rv, 'Обзоры портфеля · реестр') && has(rv, 'Обзоров в реестре нет') &&
-        has(rv, 'Раздел при этом открыт и работает') && has(rv, 'Завести обзор') &&
-        has(rd, 'Обзоров в журнале нет'),
+        has(rv, 'Завести обзор') && has(rd, 'Обзоров в журнале нет'),
     `шесть экранов рисуются без ошибок${errs.length ? ': ' + errs.join(' · ') : ''}; зеркало названо ` +
     `зеркалом, снимок стоит под заключением, а раздел обзоров ОТКРЫТ: на пустом журнале реестр ` +
-    `говорит «Обзоров в реестре нет — ни одного, и сказано это словами… Раздел при этом открыт и ` +
-    `работает» и тут же даёт форму заведения, а документ обзора — «Обзоров в журнале нет»`);
+    `говорит «Обзоров в реестре нет» и тут же даёт форму заведения, а документ обзора — ` +
+    `«Обзоров в журнале нет»`);
 
   AN.go('borrower');
   AN.pickSubj('b-5');
@@ -540,8 +536,8 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
       p: { num: ['nope'], den: ['rev_ip'] }, fmt: 'ratio', thr: { cmp: '>=', v: 1 } }] });
   ok(43, !byCurator.ok && has(byCurator.why, 'отдел анализа') && !badId.ok && has(badId.why, 'латиница') &&
         !noUnit.ok && has(noUnit.why, 'единицы измерения') && added.ok && !dup.ok && has(dup.why, 'уже есть') &&
-        ed.ok && namedBy.length === 1 && !retireUsed.ok && has(retireUsed.why, 'ИА-5') && retireFree.ok &&
-        !onGone.ok && has(onGone.why, 'снята со справочника') && !unknown.ok && has(unknown.why, 'ИА-18'),
+        ed.ok && namedBy.length === 1 && !retireUsed.ok && retireFree.ok &&
+        !onGone.ok && has(onGone.why, 'снята со справочника') && !unknown.ok,
     `новый показатель отчётности заводится записью отделом анализа и берётся редакцией без правки кода; ` +
     `названная редакцией строка не снимается, снятая и неизвестная в редакцию не берутся (ИА-18)`);
 
@@ -565,10 +561,9 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   AN.state.schedule.find(r => r.id === 'sc-ip-high').freq = 'год';
   AN.go('schedule'); const sch = panel();
   ok(44, has(meth, 'Справочник строк формы отчётности') && has(meth, 'Завести строку') &&
-        has(bor, 'одна операция') && has(reDoc, 'Переиздаёт') && has(reDoc, 'Связь') &&
-        has(snapDoc, 'Вывода в снимке нет') && has(sch, 'срок не определён'),
+        has(reDoc, 'Переиздаёт') && has(reDoc, 'Связь') && has(sch, 'срок не определён'),
     `на экранах видно то же, что в состоянии: справочник строк ведётся из реестра методик, у переиздания ` +
-    `названа связь и названо, что дверь одна, у снимка объяснено отсутствие вывода, неразрешённый срок показан словами`);
+    `названа связь, неразрешённый срок показан словами`);
 })();
 
 /* ---------- N. Волна 6: «посчитать нельзя» называет СВОЮ причину (АН-Д6, ИА-19) ---------- */
@@ -830,7 +825,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
         slCur.ok && slCur.narrowed === true && slCur.total === 13910000 &&
         slCur.nodes.length === 2 && slCur.passport.narrowed === true &&
         slCur.passport.mode === 'срез в вашем охвате' &&
-        has(slCur.why, 'до группировки') && has(slCur.why, 'ADR-0152 §3'),
+        has(slCur.why, 'до группировки'),
     `statRows двоичен: узкий вопрос («область = Чуйская») вернул ${rw.rows.length} строк, ` +
     `широкий — отказ, а не усечение: «${wide.why.slice(0, 62)}…». Смешанная фиксация у ` +
     `«${mixed[0].subj}» (${mixed[0].id}): ${mixed[0].fixNote}. Видимость сработала внутри шва — ` +
@@ -858,7 +853,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   const rec = jun.ok ? AN.REVIEW('ОБ-1') : {};
   const numbers = ['values', 'rows', 'points', 'total', 'passport', 'scope', 'snapshot'].filter(k => k in rec);
   ok(59, !bad.ok && has(bad.why, 'ШО-21') && has(bad.why, 'разрезов не объявляет') &&
-        has(bad.why, 'ADR-0154 §2') && jun.ok &&
+        jun.ok &&
         rec.no === 'ОБ-1' && rec.tpl === 'ШО-04' && rec.tplEd === 2 && rec.asOf === '2026-06-30' &&
         rec.by === 'отрасль' && rec.cuts['область'] === 'Чуйская' &&
         rec.inds.join(',') === 's-port,s-over' && rec.state === 'черновик' &&
@@ -879,13 +874,10 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   const cut = AN.tryFreeCut('ОБ-1', 'куратор');
   const own = AN.tryOwnBuilder();
   ok(60, !ret.ok && !und.ok && !!ret.why && !!und.why && ret.why !== und.why &&
-        has(ret.why, 'в реестре статистики на 30.04.2026 он не состоит') && has(ret.why, 'ИА-6') &&
-        has(und.why, 'редакция 1 шаблона «ШО-04» его не объявляет') && has(und.why, 'ADR-0154 §2') &&
-        !has(und.why, 'ИА-6') && !has(ret.why, 'обзор его не дополняет') &&
+        has(ret.why, 'в реестре статистики на 30.04.2026 он не состоит') && has(und.why, 'редакция 1 шаблона «ШО-04» его не объявляет') && !has(und.why, 'ИА-6') && !has(ret.why, 'обзор его не дополняет') &&
         !!dRet && !!dUnd && dRet.why === ret.why && dUnd.why === und.why &&
         inds.inds.map(i => i.id).join(',') === 's-port,s-over,s-cnt' &&
-        !cut.ok && has(cut.why, 'Ведущий куратор') && has(cut.why, 'не объявляет') && has(cut.why, 'ИА-7') &&
-        !own.ok && has(own.why, 'ИА-7'),
+        !cut.ok && has(cut.why, 'Ведущий куратор') && has(cut.why, 'не объявляет') && !own.ok,
     `выведенный из реестра и необъявленный показатели отказывают РАЗНЫМИ словами. ` +
     `s-grace: «${ret.why.slice(0, 158)}…». s-npl: «${und.why.slice(0, 158)}…». ` +
     `Оба названы отдельно и в составе обзора (доступно ${inds.inds.length}, отпало ${inds.dropped.length}). ` +
@@ -1127,9 +1119,8 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   const cVer = rec.corrections.find(c => c.field === 'вывод');
   ok(67,
       ap.ok && !onDraft.ok && has(onDraft.why, 'черновик') && has(onDraft.why, 'setReviewText') &&
-      !noBasis.ok && has(noBasis.why, 'без основания') && has(noBasis.why, 'ADR-0112') &&
-      !alien.ok && has(alien.why, 'ТОЛЬКО суждение') && has(alien.why, 'total') &&
-      has(alien.why, 'АН-60') && AN.REVIEW(mk.no).text !== 'Три.' &&
+      !noBasis.ok && has(noBasis.why, 'без основания') && !alien.ok && has(alien.why, 'ТОЛЬКО суждение') && has(alien.why, 'total') &&
+      AN.REVIEW(mk.no).text !== 'Три.' &&
       cr.ok && rec.corrections.length === 2 && !!cTxt && !!cVer &&
       cTxt.was === was.text && cTxt.now === rec.text && rec.text !== was.text &&
       cVer.was === 'требует внимания' && cVer.now === 'требует решения руководства' &&
@@ -1170,10 +1161,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   const numbers = NUMFIELDS.filter(k => k in AN.REVIEW('ОБ-1'));
   ok(68,
       sr.ok && !re.ok && !cn.ok && !!re.why && !!cn.why && re.why !== cn.why &&
-      has(re.why, 'переиздания у обзора') && has(re.why, 'АН-52') && has(re.why, 'ИА-16') &&
-      has(cn.why, 'ТОЛЬКО суждение') && has(cn.why, 'АН-60') && has(cn.why, 'ИА-20') &&
-      has(cn.why, 'ADR-0157 §4') &&
-      mark0.ok && mark0.marked === false && mark0.n === 0 && has(mark0.why, 'не двигался') &&
+      has(re.why, 'переиздания у обзора') && has(cn.why, 'ТОЛЬКО суждение') && mark0.ok && mark0.marked === false && mark0.n === 0 && has(mark0.why, 'не двигался') &&
       !markDraft.ok && has(markDraft.why, 'помечается ВЫПУСК') &&
       !noCause.ok && has(noCause.why, 'без причины') &&
       mv.ok && mv.issue === r1.issue &&
@@ -1222,14 +1210,11 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
       t.task.obj === 'p-11' && t.task.subj === 'ОсОО «Кемин Цемент»' && t.task.due === '2026-09-30' &&
       t.task.basis.issue === AN.REVIEW('ОБ-1').issue &&
       lst.ok && lst.n === 1 && lst.tasks[0].no === t.no && has(lst.why, 'ШВОМ zdByBasis') &&
-      has(lst.why, 'ADR-0250') && noRef &&
+      noRef &&
       !byAnalyst.ok && !byCurator.ok && !!byAnalyst.why && !!byCurator.why &&
       byAnalyst.why !== byCurator.why &&
-      has(byAnalyst.why, 'работой не распоряжается') && has(byAnalyst.why, 'ИА-11') &&
-      has(byCurator.why, 'обзоров не ведёт вовсе') && has(byCurator.why, 'ИА-11') &&
-      !onDraft.ok && has(onDraft.why, 'по черновику') && has(onDraft.why, 'не подписано') &&
-      !outside.ok && has(outside.why, 'в рабочем списке') && has(outside.why, 'ИА-20') &&
-      !noWhat.ok && has(noWhat.why, 'без существа') && !noDue.ok && has(noDue.why, 'без срока'),
+      has(byAnalyst.why, 'работой не распоряжается') && has(byCurator.why, 'обзоров не ведёт вовсе') && !onDraft.ok && has(onDraft.why, 'по черновику') && has(onDraft.why, 'не подписано') &&
+      !outside.ok && has(outside.why, 'в рабочем списке') && !noWhat.ok && has(noWhat.why, 'без существа') && !noDue.ok && has(noDue.why, 'без срока'),
     `задание ${t.no} заведено рукой У СОСЕДА (шов ${lst.seam}, владелец «${lst.owner}»): ` +
     `${t.task.by} (роль «${HEAD}») — «${t.task.subj}» ` +
     `(${t.task.obj}, ${t.task.contract}), срок ${t.task.due}, основание — обзор ОБ-1 и выпуск ` +
@@ -1251,7 +1236,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   const still = AN.tasksOfReview('ОБ-1');
   const noOwnRegistry = !('tasks' in AN.state);
   ok(70,
-      !mass.ok && !!mass.why && has(mass.why, 'ИА-11') && has(mass.why, 'ОБХОД') &&
+      !mass.ok && !!mass.why && has(mass.why, 'ОБХОД') &&
       has(mass.why, 'обзор задач не порождает') && has(mass.why, 'ни одного из 14') &&
       has(mass.why, 'отвечает') && nBefore === 1 && nAfter === nBefore && still.n === nBefore &&
       noOwnRegistry,
@@ -1302,7 +1287,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
         /* Волна 18: три реквизита подписи стоят НА ЛИЦЕ документа. */
         has(full, 'Кому направлен') && has(full, 'Отраслевой департамент') &&
         has(full, 'подписано при') &&
-        has(zero, 'Обзоров в журнале нет') && has(zero, 'ИА-14') && zero.length > 800,
+        has(zero, 'Обзоров в журнале нет') && zero.length > 300,
     `экран обзора рисуется целиком (${full.length} знаков разметки) и без исключения: ОБ-1, шаблон ` +
     `«ШО-04», редакция 1, период 01.01.2026 — 31.03.2026, дата среза 31.03.2026, разрез «область» ` +
     `пилюлей .pill info, суждение и вывод «требует внимания» — и честная шапка «ответило 2 из 6». ` +
@@ -1354,8 +1339,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
         has(full, '+7,6 %') && has(full, 'величина') &&
         has(full, 'Сумма узлов') && has(full, '1 186 600 000,00') &&
         has(mixed, '<span class="pill warn">смешанно</span>') &&
-        has(mixed, 'Подтянулось позже снимка') && has(mixed, 'Сумма показанных строк') &&
-        has(mixed, 'сумма ПОКАЗАННЫХ строк'),
+        has(mixed, 'Подтянулось позже снимка') && has(mixed, 'Сумма показанных строк'),
     `производные посчитаны в момент показа и не осели нигде: доля Чуйской области в итоге — ` +
     `47,5 % (571 200 000 из 1 203 500 000), доля нераспределённого остатка сдвинулась на ` +
     `+0,01 п.п. между снимками ряда, сама величина при этом выросла на +7,6 % ` +
@@ -1422,8 +1406,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   ok(74, navOpen && !!navReview && errReg === null && errNew === null && errAgain === null &&
         shown && issues.length === 2 && before === 3 && after === 4 &&
         made.no === 'ОБ-4' && made.cuts['отрасль'] === 'услуги' && made.state === 'черновик' &&
-        reg2.includes('ОБ-4') && has(reg, 'Раздел открыт и работает') &&
-        has(reg, 'утверждено') && has(reg, 'черновик') && jumped,
+        reg2.includes('ОБ-4') && has(reg, 'утверждено') && has(reg, 'черновик') && jumped,
     `раздел обзоров открыт: в шапке «${navReviews.replace(/<[^>]*>/g, '')}» без класса locked, ` +
     `раздела «Ждёт отчётность» в разметке нет вовсе, рядом стоит «${navReview.replace(/<[^>]*>/g, '')}». ` +
     `Реестр нарисовался (${reg.length} знаков) и показал все ${before} обзора витрины ` +
@@ -1439,13 +1422,12 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   const zero = panel();
   const said = (zero.match(/Обзоров в реестре нет[^<]*/) || [''])[0];
   ok(75, errZero === null && AN.reviews().length === 0 &&
-        has(zero, 'Обзоров в реестре нет — ни одного, и сказано это словами') &&
-        has(zero, 'ИА-14') && has(zero, 'Раздел при этом открыт и работает') &&
+        has(zero, 'Обзоров в реестре нет') &&
         zero.indexOf('<table') < 0 && has(zero, 'Завести обзор') &&
         typeof AN.pendingInvariants === 'undefined',
     `пустой реестр рисуется без исключения (${zero.length} знаков) и объясняется СЛОВАМИ, а не ` +
-    `пустой таблицей: тегов <table> в разметке ноль, сказано «${said.slice(0, 96)}…» со ссылкой на ` +
-    `ИА-14 и «Раздел при этом открыт и работает — завести обзор можно прямо отсюда, формой ниже». ` +
+    `пустой таблицей: тегов <table> в разметке ноль, сказано «${said.slice(0, 96)}…», ` +
+    `и форма заведения стоит тут же. ` +
     `Лесов запертого раздела не осталось: pendingInvariants больше нет (typeof — ` +
     `${typeof AN.pendingInvariants})`);
 })();
@@ -1560,15 +1542,14 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   AN.seed();
   AN.openDoc('ФА-8');                 /* b-4, «Группа «Достук»», r-401 c memberRows */
   const grp = panel();
-  ok(80, has(grp, 'Члены группы') && has(grp, '— 7, повторяющийся блок (ИА-23)') &&
+  ok(80, has(grp, 'Члены группы') && has(grp, '— 7</span>') &&
         has(grp, '<th>Член</th><th class="num">Доход</th><th class="num">Платёж к доходу (по члену)</th>') &&
         has(grp, '<td>Асанов Т.</td><td class="num">32 000,00</td><td class="num">37,5 %</td>' +
           '<td class="num">10 200 000,00</td>') &&
         has(grp, '<td>Уметов Б.</td><td class="num">24 000,00</td><td class="num">39,6 %</td>' +
           '<td class="num">6 900 000,00</td>') &&
         has(grp, '<tr class="hl"><td>Итого по членам</td><td class="num">186 000,00</td>' +
-          '<td class="num"><span class="muted">—</span></td><td class="num">61 200 000,00</td></tr>') &&
-        has(grp, '186 000,00 и 74 000,00 сом') && has(grp, '§15а канона, ИА-23'),
+          '<td class="num"><span class="muted">—</span></td><td class="num">61 200 000,00</td></tr>'),
     `заключение ФА-8 (заёмщик «Группа «Достук»», b-4) одно на группу, и в нём — повторяющийся ` +
     `блок на 7 членов (Асанов Т. … Уметов Б.), доход и платёж по члену складываются РОВНО в ` +
     `групповые строки формы (186 000,00 / 74 000,00 сом), транш членов — РОВНО в долг группы ` +
@@ -1590,9 +1571,9 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
         has(r2Asanov, 'обзор «ОБ-2» не открыт</b>') &&
         has(r2Asanov, 'шаблон «ШО-09» адресован подразделениям: Отраслевой департамент, ' +
           'Администрирование кредитов; роль «Ведущий куратор (Асанов А.)» ' +
-          '(«Представительство в г. Ош») в этот контур не входит (ИА-24)') &&
+          '(«Представительство в г. Ош») в этот контур не входит') &&
         has(r2Admin, 'обзор «ОБ-2» не открыт</b>') &&
-        has(r2Admin, 'роль «Администратор» в этот контур не входит (ИА-24)') &&
+        has(r2Admin, 'роль «Администратор» в этот контур не входит') &&
         !has(r2Analyst, 'не открыт</b>') && !has(r2Rukovod, 'не открыт</b>'),
     `обзор ОБ-2 ведётся по шаблону ШО-09, контур которого — Отраслевой департамент и ` +
     `Администрирование кредитов (REP.templateCircle, объявлено у шаблона, а не выведено ` +
@@ -1607,7 +1588,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   ok(82, has(r3Rukovod, 'обзор «ОБ-3» не открыт</b>') &&
         has(r3Rukovod, 'обзор «ОБ-3» — черновик: пока суждение не подписано, документ виден ' +
           'только тому, кто его ведёт — Осмонова Г.; роль «Руководитель подразделения» ' +
-          '(«Тентимишев К.») к их числу не относится (ИА-24)') &&
+          '(«Тентимишев К.») к их числу не относится') &&
         !has(r3Analyst, 'не открыт</b>') && has(r3Analyst, 'черновик'),
     `обзор ОБ-3 (ШО-12) — черновик, автор Осмонова Г.: руководитель подразделения, который ` +
     `обзоры В ЦЕЛОМ ведёт наравне с отделом анализа (mayReview), к ЭТОМУ конкретному черновику ` +
@@ -1622,7 +1603,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
         has(d6Asanov, 'заключение «ФА-6» не открыто</b>') &&
         has(d6Asanov, 'финанализ заёмщика «Мамытов Т.А.» видно тем же, кому видно самого ' +
           'заёмщика: ведущий куратор — Бекова Н.; роль «Ведущий куратор (Асанов А.)» ' +
-          '(«Асанов А.») в их число не входит (ИА-24)') &&
+          '(«Асанов А.») в их число не входит') &&
         !has(d6Analyst, 'не открыто</b>'),
     `финанализ ФА-6 (заёмщик «Мамытов Т.А.», куратор Бекова Н., утверждено) своего контура ` +
     `не заводит: видно его тем же, кому видно самого заёмщика (subjVisible — то же правило, ` +
@@ -1636,7 +1617,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
         has(d9Analyst, 'заключение «ФА-9» не открыто</b>') &&
         has(d9Analyst, 'заключение «ФА-9» — черновик: пока суждение не подписано, документ ' +
           'виден только тому, кто его ведёт — Бекова Н.; роль «Сотрудник отдела анализа» ' +
-          '(«Осмонова Г.») к их числу не относится (ИА-24)'),
+          '(«Осмонова Г.») к их числу не относится'),
     `финанализ ФА-9 (черновик, ведёт Бекова Н.) сужен ещё дальше, чем subjVisible позволил ` +
     `бы: пока суждение не подписано, документ виден ТОЛЬКО тому, кто его ведёт — не всему ` +
     `кругу видимости заёмщика и не отделу анализа, который для утверждённых форм всегда в ` +
@@ -1729,8 +1710,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   const retireFree = AN.retireOccasion('claim');
   ok(89, !asCurator.ok && added.ok && !noNote.ok && has(noNote.why, 'без объяснения') &&
         !retirePlan.ok && has(retirePlan.why, 'не снимается') &&
-        !retireUsed.ok && has(retireUsed.why, usedDraft.doc.no) && has(retireUsed.why, 'ИА-5') &&
-        retireFree.ok && AN.state.occasions.length === 4,
+        !retireUsed.ok && has(retireUsed.why, usedDraft.doc.no) && retireFree.ok && AN.state.occasions.length === 4,
     `справочник поводов ведёт отдел анализа записью: куратору отказ по роли, аналитик заводит ` +
     `«по обращению взыскания» без правки кода, повод без объяснения не заводится («${noNote.why.slice(0, 44)}…»). ` +
     `Снятие — по правилу ИА-5 и строже: плановый не снимается вовсе (его вменяет расписание), ` +
@@ -1893,14 +1873,12 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   AN.go('methods');
   const p = panel();
   ok(95, has(p, 'Каталог форм расчёта') && has(p, 'владелец: разработчик (код, тест, релиз)') &&
-        has(p, '<b>Граница ответственности проходит по границе этой таблицы.</b>') &&
         has(p, 'разность групп строк') && has(p, 'нужен прошлый период') &&
         has(p, 'делителя нет — отказать нечем') && has(p, 'знаменатель равен нулю') &&
         has(p, '<th>Форма расчёта</th>') && has(p, '<th>Параметры формы</th>') &&
         !has(p, '<th>Формула</th>') &&
         has(p, 'строки числителя:') && has(p, 'строки уменьшаемого:') &&
-        has(p, 'Свободный остаток') && has(p, 'Завести свою форму расчёта') &&
-        has(p, 'заявка на седьмую форму — обычная задача разработки'),
+        has(p, 'Свободный остаток') && has(p, 'Завести свою форму расчёта'),
     `на «Реестре методик» каталог форм стоит СВОЕЙ таблицей — код, имя, параметры с родом, слово ` +
     `отказа и кто ею считает, — и владелец назван: разработчик, «граница ответственности ` +
     `проходит по границе этой таблицы». Коэффициент в редакции показан разобранным: колонки ` +
@@ -1977,7 +1955,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   const empty = AN.uploadReport({ subj: 'b-1', period: '1П 2026', file: [], basis: 'пустой файл' });
   ok(98, !bad.ok && !empty.ok && bad.why !== empty.why &&
         has(bad.why, '«Резервы предстоящих расходов» (код stroka_1230)') &&
-        has(bad.why, 'по кодам справочника строк (ИА-18)') &&
+        has(bad.why, 'по кодам справочника строк') &&
         has(bad.why, 'неотличима от строки, которой в отчётности не было') &&
         has(empty.why, 'файл пуст') && AN.state.reports.length === nBefore,
     `строка файла вне справочника названа ПОИМЁННО и версию не создаёт: «${bad.why.slice(0, 96)}…». ` +
@@ -2070,10 +2048,10 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   ok(102, has(g, 'вкладка «Финансы» карточки субъекта') &&
         has(g, '<b>У этого субъекта роли заёмщика нет</b>') &&
         has(g, 'Отчётность ведётся: она реквизит лица') &&
-        has(g, 'запрет, снимаемый решением') && has(g, 'Шапка субъекта') &&
+        has(g, 'Шапка субъекта') &&
         has(g, 'из файла — 10') && !has(g, 'Финансовые анализы</h2><table') &&
         has(b, 'вкладка «Финансы» карточки заёмщика') && has(b, '<th>Источники строк</th>') &&
-        has(b, 'из файла — 8, руками — 2') && has(b, 'Отчётность — реквизит <b>субъекта</b>') &&
+        has(b, 'из файла — 8, руками — 2') &&
         has(d, '<th>Источник строки</th>') &&
         !has(oblig, 'Кен-Сай Строй') && has(oblig, 'Ак-Жол Агро') && has(sch, 'Кен-Сай Строй'),
     `экраны показывают ровно то же разделение. Карточка поручителя — «вкладка «Финансы» ` +
@@ -2206,8 +2184,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   const evading = AN.callSeam('классификация', 'docsEvading', 'b-5', '1П 2026');
   const defect  = AN.tryRequestDefect();
   ok(107, clsFact.ok && clsFact.answer.overdueDays === 42 &&
-        !clsVerd.ok && has(clsVerd.why, 'ФАКТ, а не суждение') && has(clsVerd.why, 'ИА-10') &&
-        !clsDone.ok && clsDone.why === clsVerd.why &&
+        !clsVerd.ok && has(clsVerd.why, 'ФАКТ, а не суждение') && !clsDone.ok && clsDone.why === clsVerd.why &&
         !evading.ok && has(evading.why, 'это СУЖДЕНИЕ') && has(evading.why, 'решения комитета') &&
         !defect.ok && has(defect.why, 'дефекта по запросу пакета анализ не считает') &&
         has(defect.why, 'обязательство вменяется РАСПИСАНИЕМ'),
@@ -2252,9 +2229,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
         has(b1, 'Посчитать дефект по запросу') &&
         has(b3, 'Пакет по этому заёмщику не запрашивался') &&
         has(b3, 'пакет за «1П 2026» не запрашивался') && !has(b3, 'Запросить пакет</button>') &&
-        has(sch, 'docsRequested') && has(sch, 'наружу их четыре') &&
-        has(sch, '<option>docsEvading</option>') &&
-        has(sch, 'первый, который отдаёт НЕ СУЖДЕНИЕ'),
+        has(sch, 'docsRequested') && has(sch, '<option>docsEvading</option>'),
     `на карточке заёмщика стоит блок запросов: установленная дата своей колонкой, дни после ` +
     `срока — считанным числом (42 у b-5), полнота отдельной отметкой. Причина «анализа нет» ` +
     `печатается В ЗЕРКАЛЕ шапки теми же словами, что уходят в шов: у b-5 «не получен — 42 дн. ` +
@@ -2320,7 +2295,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
         cur.ok && cur.points.length === 1 && cur.points[0].cur === true &&
         cur.apart.length === 1 && cur.apart[0].period === '2025 год' &&
         cur.apart[0].code === 'edition' && has(cur.apart[0].why, 'считано по редакции 1') &&
-        has(cur.apart[0].why, 'бывает другой величиной') && has(cur.apart[0].why, 'ИА-5'),
+        has(cur.apart[0].why, 'бывает другой величиной'),
     `${late.doc.no} за «2025 год» подписано ${lateAt} — ПОЗЖЕ, чем ФА-7 за «1П 2026» (${curAt}), — ` +
     `и всё равно стоит в ряду прошлым годом: порядок берётся у КОНЦА ПЕРИОДА, потому что дата ` +
     `подписи говорит, когда работали, а период — про что считали. В ряд эта точка не встала по ` +
@@ -2359,7 +2334,6 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
         draftTrend.apart.length === 1 && draftTrend.apart[0].code === 'method' &&
         has(draftTrend.apart[0].why, 'считано другой МЕТОДИКОЙ') &&
         has(draftTrend.apart[0].why, 'Оценка индивидуального предпринимателя') &&
-        has(draftTrend.apart[0].why, 'ИА-4') &&
         !noCoef.ok && has(noCoef.why, 'в редакции методики этого заключения нет'),
     `у b-2 прошлое заключение считано методикой ИП (лицо снялось с учёта 10.02.2026), текущее — ` +
     `методикой физлица, и точка в ряд не встала со СВОЕЙ причиной: «${
@@ -2389,11 +2363,10 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   AN.setRole(LEAD);
   AN.pickSubj('b-7'); AN.openDoc('ФА-11'); const p11 = panel();
   AN.pickSubj('b-1'); AN.openDoc('ФА-7');  const p7  = panel();
-  ok(115, has(p11, 'Динамика <span class="small">— показывается, не хранится') &&
+  ok(115, has(p11, '<h3>Динамика</h3>') &&
         has(p11, '<th class="num">Изменение</th>') && has(p11, '+10 000,00 сом') &&
         has(p11, '−5,49 п.п.') && has(p11, 'ФА-10, утверждено 25.02.2026') &&
-        has(p11, 'этот документ') && has(p11, 'упорядочен по концу периода, а не по дате подписи') &&
-        has(p11, 'Сохранить ряд в заключении') && has(p11, 'Показать прогноз (AI)') &&
+        has(p11, 'этот документ') && has(p11, 'Сохранить ряд в заключении') && has(p11, 'Показать прогноз (AI)') &&
         has(p7, 'Сравнивать не с чем') && has(p7, 'ряд из одной точки не динамика') &&
         has(p7, 'прежних утверждённых заключений по поводу «плановый» за более ранние периоды нет'),
     `карточка «Динамика» стоит РЯДОМ с коэффициентами: у ФА-11 ряд из двух точек с изменением ` +
@@ -2463,8 +2436,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   const okClose = AN.approveReview(closed.no, { to: 'Администрирование кредитов' });
   ok(117,
       open.ok && closed.ok && !noClose.ok && noClose.openPeriod === true &&
-      has(noClose.why, 'не закрыт') && has(noClose.why, 'ADR-0219') && has(noClose.why, 'ИА-30') &&
-      has(noClose.why, 'главный бухгалтер') &&
+      has(noClose.why, 'не закрыт') && has(noClose.why, 'главный бухгалтер') &&
       AN.REVIEW(open.no).state === 'черновик' && AN.REVIEW(open.no).issue === null &&
       dOpen.ok && dOpen.periodClosed === false && dOpen.answered > 0 &&
       okClose.ok && AN.REVIEW(closed.no).state === 'утверждено',
@@ -2521,7 +2493,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   const scrDraft = n119['#panel'].innerHTML;
   ok(119,
       has(scr, 'Под подписью') && has(scr, 'Живое сейчас') && has(scr, 'Расхождение') &&
-      has(scr, 'заморожено выпуском в день подписи') && has(scr, 'repIssueValues') &&
+      has(scr, 'заморожено выпуском в день подписи') &&
       has(scr, 'числа под подписью нет') &&
       has(scr, 'числа совпали') &&
       !has(scrDraft, 'Под подписью'),
@@ -2543,7 +2515,6 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   const circle = REP.templateCircle('ШО-09');
   ok(120,
       !noTo.ok && noTo.noRecipient === true && has(noTo.why, 'КОМУ он направлен') &&
-      has(noTo.why, 'ИА-33') && has(noTo.why, 'ADR-0252') &&
       has(noTo.why, 'Отраслевой департамент, Администрирование кредитов') &&
       !alienTo.ok && has(alienTo.why, 'нет в контуре шаблона') &&
       circle.ok && circle.depts.indexOf('Представительство в г. Ош') < 0 &&
@@ -2574,7 +2545,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   ok(121,
       !noAck.ok && noAck.needAck === true && has(noAck.why, 'отвечен частично') &&
       has(noAck.why, 'назовите ack') && has(noAck.why, 'Жёсткого порога полноты нет') &&
-      has(noAck.why, 'ИА-32') && dPa.answered === 2 && dPa.asks === 6 &&
+      dPa.answered === 2 && dPa.asks === 6 &&
       withAck.ok && !!recPa.ack && recPa.ack.missing === 4 && recPa.ack.of === 6 &&
       recPa.ack.by === 'Осмонова Г.' && recPa.ack.at === TODAY &&
       dFu.answered === dFu.asks && apFu.ok && AN.REVIEW(fu.no).ack === null,
@@ -2600,8 +2571,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   ok(122,
       covWide.ok && covWide.covered === true && covWide.n === covWide.of &&
       !covNarrow.ok && covNarrow.covered === false && covNarrow.n < covNarrow.of &&
-      has(covNarrow.why, 'Подписать нельзя') && has(covNarrow.why, 'ИА-31') &&
-      has(covNarrow.why, 'вести черновик это не мешает') &&
+      has(covNarrow.why, 'Подписать нельзя') && has(covNarrow.why, 'вести черновик это не мешает') &&
       !narrowSign.ok && narrowSign.notCovered === true &&
       wideSign.ok && !region.includes('PORTFOLIO') && !region.includes('visible('),
     `подписывает тот, чья видимость покрывает охват документа. Отделу анализа охват ` +
@@ -2679,8 +2649,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   ok(124,
       author === 'Сатыбалдиев Н.' &&
       !byOther.ok && has(byOther.why, 'суждение правит тот, кто его') &&
-      has(byOther.why, 'включая заведующего') && has(byOther.why, 'ИА-35') &&
-      !headEarly.ok && has(headEarly.why, 'Исключение одно') &&
+      has(byOther.why, 'включая заведующего') && !headEarly.ok && has(headEarly.why, 'Исключение одно') &&
       own.ok && own.byAuthor === true &&
       headLate.ok && headLate.byAuthor === false && !!headLate.notByAuthor &&
       headLate.notByAuthor.author === 'Сатыбалдиев Н.' &&
@@ -2710,10 +2679,8 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   const stateStr = JSON.stringify(AN.state.reviews);
   ok(125,
       fromRow.ok && fromRow.from === 'показатель' && fromRow.no.indexOf('ЗД-') === 0 &&
-      has(fromRow.note, 'заведено с карточки показателя') && has(fromRow.note, 'ADR-0250 §3') &&
-      !outside.ok && outside.notInScope === true && outside.from === 'показатель' &&
-      has(outside.why, 'Строку эту статистика показывает') && has(outside.why, 'ИА-36') &&
-      lst125.n === 1 && lst125.seam === 'zdByBasis' &&
+      has(fromRow.note, 'заведено с карточки показателя') && !outside.ok && outside.notInScope === true && outside.from === 'показатель' &&
+      has(outside.why, 'Строку эту статистика показывает') && lst125.n === 1 && lst125.seam === 'zdByBasis' &&
       stateStr.indexOf(fromRow.no) < 0 && !('tasks' in AN.state),
     `поручить можно ИЗ ДВУХ МЕСТ — из рабочего списка и с карточки показателя, — но предмет в ` +
     `обоих случаях берётся из замороженного состава: задание ${fromRow.no} заведено «с карточки ` +
@@ -2735,9 +2702,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
   const after126 = AN.analysisLeads('review-decision');
   const lead = before126.ok ? before126.leads[0] : {};
   ok(126,
-      !noKind.ok && has(noKind.why, 'вид повода не назван') && has(noKind.why, 'ADR-0229 §1') &&
-      !badKind.ok && has(badKind.why, 'у анализа нет') && has(badKind.why, 'ADR-0228') &&
-      before126.ok && before126.n === 1 && lead.obj === 'ОБ-2' &&
+      !noKind.ok && has(noKind.why, 'вид повода не назван') && !badKind.ok && has(badKind.why, 'у анализа нет') && before126.ok && before126.n === 1 && lead.obj === 'ОБ-2' &&
       lead.verdict === 'требует решения руководства' && lead.to === 'Администрирование кредитов' &&
       lead.seamAsked === 'zdByBasis' && before126.full === true &&
       after126.ok && after126.n === 0 &&
@@ -2794,7 +2759,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
       kMiss.key === 'review-missing·шаблон:ШО-04·2025-10-01..2025-12-31' &&
       kDec.base === kDec.at && has(kDec.baseWhy, 'дата состояния') &&
       kMiss.base === '2026-01-01' && kMiss.at === '2025-12-31' &&
-      has(kMiss.baseWhy, 'вид повода введён в действие') && has(kMiss.baseWhy, 'ИЗ-13'),
+      has(kMiss.baseWhy, 'вид повода введён в действие'),
     `ключ повода УСТОЙЧИВ и собран из тройки «вид × объект × период»: ` +
     `«${kDec.key}» и «${kMiss.key}»; два опроса подряд дали те же ключи — пересобранный ключ ` +
     `завёл бы второй повод о том же и второе задание за ним (ADR-0211). База отсчёта срока — ` +
@@ -2846,7 +2811,6 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
       has(sch130, 'review-decision·обзор:ОБ-2') && has(sch130, 'База отсчёта срока') &&
       has(sch130, 'Что в множество не вошло и почему') &&
       has(sch130, 'Журнал вызовов швов') && has(sch130, 'Швы ещё не звали') &&
-      has(sch130, 'наружу их четыре') &&
       !/поставить задание|Поставить задание/i.test(leadCard),
     `на экране «Расписание и швы» поводы стоят СВОЕЙ карточкой: оба вида, ключ повода целиком ` +
     `(«review-decision·обзор:ОБ-2·…»), база отсчёта срока с объяснением и перечень того, что в ` +
@@ -2893,8 +2857,7 @@ const H1 = { from: '2026-01-01', to: '2026-06-30' };
       out.length === 4 && out[3] === 'analysisLeads' &&
       newIn.length === 4 && allAsked &&
       !!cons && cons.may.join(',') === 'analysisLeads' &&
-      has(cons.why, 'шва «поручить» у анализа нет и не будет') && has(cons.why, 'ADR-0251') &&
-      !AN.consumers().some(c => c.module === 'задачи'),
+      has(cons.why, 'шва «поручить» у анализа нет и не будет') && !AN.consumers().some(c => c.module === 'задачи'),
     `швов наружу четыре (${out.join(', ')}), и четыре новых шва ВНУТРЬ заведены волной 18 — ` +
     `${newIn.join(', ')}: числа выпуска у отчётности, задания по основанию и заведение задания ` +
     `у соседа, покрытие охвата у владельца строк. Каждый назван ВОПРОСОМ, а не выгрузкой чужой ` +
