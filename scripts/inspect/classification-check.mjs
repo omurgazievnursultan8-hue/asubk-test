@@ -166,7 +166,7 @@ const span = iv => iv.from + '…' + (iv.until || '');
 (() => {
   CL.seed();
   const chk = CL.publishChecks('pay');
-  ok(22, has(chk, 'по умолчанию') && has(chk, 'ИК-17') && has(chk, 'основание') && chk.length >= 4,
+  ok(22, has(chk, 'по умолчанию') && has(chk, 'недостижимо') && has(chk, 'основание') && chk.length >= 4,
     `черновик «Группа платёжеспособности»: отказов ${chk.length} — нет значения по умолчанию, значения недостижимы (ИК-17), нет основания`);
 
   const pub = CL.publish('pay', {});
@@ -203,7 +203,7 @@ const span = iv => iv.from + '…' + (iv.until || '');
   const last = d.values[d.values.length - 1];
   last.rules = [{ norm: 'проектное', preds: [{ i: 'everCredits', op: '=', v: true }] }];
   const chk = CL.publishChecks('sub', d);
-  ok(27, has(chk, 'ИК-15') && has(chk, 'вниз не смотрит'),
+  ok(27, has(chk, 'вниз не смотрит'),
     `правило заёмщика с показателем кредита отклонено — ИК-15`);
   ok(28, has(chk, 'снятый показатель') && has(chk, 'не входит в домен'),
     `снятый показатель и константа вне домена отклонены — ИК-5`);
@@ -215,7 +215,7 @@ const span = iv => iv.from + '…' + (iv.until || '');
 (() => {
   CL.seed();
   const used = CL.retireIndicator('daysOverdue');
-  ok(30, !used.ok && /ИК-16/.test(used.why), `снятие используемого показателя отклонено: «${used.why}»`);
+  ok(30, !used.ok && /показатель используется/.test(used.why), `снятие используемого показателя отклонено: «${used.why}»`);
 
   const noOwner = CL.addIndicator({ id: 'pledgeCover', name: 'Покрытие залогом', obj: 'кредит', type: 'булево' });
   const withOwner = CL.addIndicator({ id: 'pledgeCover', name: 'Покрытие залогом', obj: 'кредит', type: 'булево', owner: 'Залог' });
@@ -240,11 +240,11 @@ const span = iv => iv.from + '…' + (iv.until || '');
   const p = CL.period('2026-07');
   const locked = CL.store.add({ clf: 'risk', type: 'кредит', id: 'КД-2025/043', from: '2026-07-15' });
   ok(34, res.ok && res.period === '2026-07' && res.written === 0 && JSON.stringify(CL.state.intervals) === before &&
-       p.klass && p.uchet && !locked.ok && /ИК-26/.test(locked.why),
+       p.klass && p.uchet && !locked.ok && /база правку отклоняет/.test(locked.why),
     `июль закрыт защёлкой: записей 0, интервалы не изменились ни в одном байте, правка июльского интервала отклонена — ИК-26`);
 
   const again = CL.closePeriod();
-  ok(35, CL.openPeriod() === '2026-08' && !again.ok && has(again.refusals, 'не завершён') && has(again.refusals, 'ИК-23'),
+  ok(35, CL.openPeriod() === '2026-08' && !again.ok && has(again.refusals, 'не завершён') && has(again.refusals, 'после колонки учёта'),
     `открылся август; повторное закрытие отклонено: «${again.refusals.join('» · «')}» — ИК-13, ИК-23`);
 
   const rep = CL.report12('2026-07');
@@ -274,7 +274,7 @@ const span = iv => iv.from + '…' + (iv.until || '');
 
   CL.activeVer('risk').comparable = false;   // сторож: конструктор так не даёт, правим состояние
   const forbid = CL.foldBorrower('02107201910148');
-  ok(40, !forbid.ok && forbid.forbidden === true && /ИК-6/.test(forbid.why[0]),
+  ok(40, !forbid.ok && forbid.forbidden === true && /не объявила значения сравнимыми по тяжести/.test(forbid.why[0]),
     `без признака сравнимости свёртка запрещена: «${forbid.why[0]}»`);
 
   CL.seed();
@@ -320,7 +320,7 @@ const span = iv => iv.from + '…' + (iv.until || '');
   const stop = CL.stopClassifier('risk', { reason: 'Порядок №41 отменил классификацию по признаку' });
   const after = CL.valueAt('risk', 'кредит', 'КД-2024/117', CL.state.today);
   const record = CL.riskCategory('кредит', 'КД-2024/117', '2026-07-15');
-  ok(47, !noReason.ok && !early.ok && /ИК-4/.test(early.why) && stop.ok &&
+  ok(47, !noReason.ok && !early.ok && /закрытые периоды неприкосновенны/.test(early.why) && stop.ok &&
         !after.ok && after.stopped === true && /прекращено с 14\.08\.2026/.test(after.why[0]) &&
         record.ok && record.source === 'хранимый интервал' && CL.activeVer('risk') === null,
     `действие прекращено с 14.08 (без причины и задним числом — отказ); на сегодня «${after.why[0].slice(0, 48)}…», интервал июля читается — ИК-19`);
@@ -479,7 +479,7 @@ function fmtD(iso){ return iso.slice(8, 10) + '.' + iso.slice(5, 7) + '.' + iso.
   const card = CL.panelHtml();
   const shows = card.includes('Где используется') && used.every(u => card.includes(u.clf)) &&
                 card.includes('События с меткой пересчёта') && card.includes('сторно платежа');
-  const refusesByList = card.includes('Снять с реестра нельзя') && card.includes('ИК-16');
+  const refusesByList = card.includes('Снять с реестра нельзя') && card.includes('Сначала новая редакция без этого показателя');
   const liveBtn = card.includes('CL.retireIndicator(') && !/<button[^>]*disabled[^>]*>\s*Снять/.test(card);
   CL.openInd('oldRating');
   const retired = CL.panelHtml().includes('снят с реестра') && !CL.panelHtml().includes('CL.retireIndicator(');
@@ -489,12 +489,13 @@ function fmtD(iso){ return iso.slice(8, 10) + '.' + iso.slice(5, 7) + '.' + iso.
 
 (() => {
   CL.seed();
-  const notes = (src.match(/class="note"/g) || []).length;
-  const off = /\.notes-off \.note\{ display:none; \}/.test(src);
-  const wired = m[1].includes("'panel-wrap' + (st.notes ? '' : ' notes-off')") &&
-                m[1].includes('CL.toggleNotes');
-  ok(60, CL.state.notes === false && off && wired && notes >= 15,
-    `пояснения: ${notes} блоков живы в разметке, по умолчанию свёрнуты тумблером в шапке — экран читается, объяснение доступно`);
+  // Экраны без учебных пояснений и без внутренних кодов: на виду только интерфейс и причина отказа.
+  const hints = (src.match(/class="note"/g) || []).length;      // осталось только примечание показателя
+  const leads = src.includes('page-lead') || src.includes('toggleNotes');
+  const screens = ['clf', 'ind', 'facts', 'show', 'wait', 'night', 'per'].map(v => { CL.go(v); return CL.panelHtml(); });
+  const codes = screens.join('\n').match(/ИК-\d+|ADR-\d+|КФ-Д?\d+|P19-R\d+|§\s*\d/g) || [];
+  ok(60, hints <= 1 && !leads && codes.length === 0,
+    `экраны чисты: учебных пояснений ${hints}, тумблера и вводных абзацев нет, внутренних кодов в разметке ${codes.length}`);
 })();
 
 /* ---------- K. Язык правил: ИЛИ, «одно из списка», строгие операторы, область, ИК-20/ИК-21 ---------- */
@@ -519,9 +520,9 @@ const draftOf = clfId => { CL.newDraft(clfId); return CL.draftVer(clfId); };
 
   const mid = d.values.find(v => v.code === 'mid');
   const sameNorm = mid.rules.every(r => r.norm === 'п. 11.2') && mid.rules.every(r => !!r.label);
-  const withLabels = CL.publishChecks('risk', d).filter(x => /ИК-21/.test(x)).length;
+  const withLabels = CL.publishChecks('risk', d).filter(x => /нужна подпись/.test(x)).length;
   CL.setRuleLabel('risk', 'mid', 0, '');
-  const noLabel = CL.publishChecks('risk', d).filter(x => /ИК-21/.test(x));
+  const noLabel = CL.publishChecks('risk', d).filter(x => /нужна подпись/.test(x));
   ok(63, sameNorm && withLabels === 0 && noLabel.length === 1 && /п\. 11\.2/.test(noLabel[0]),
     `повтор пункта внутри значения: с подписями отказов нет, без подписи — «${noLabel[0]}» — ИК-21`);
 })();
@@ -596,7 +597,7 @@ const draftOf = clfId => { CL.newDraft(clfId); return CL.draftVer(clfId); };
   const named = CL.ind('daysOverdue');
   const fold = CL.riskCategory('заёмщик', '01503200110077', CL.state.today);
   ok(69, !blind.ok && blind.nodata === true && blind.state === 'нет данных' && has(blind.why, named.name) &&
-        has(blind.why, named.owner) && has(blind.why, 'ИК-20') && blind.code === undefined,
+        has(blind.why, named.owner) && has(blind.why, 'не отдан') && blind.code === undefined,
     `нет данных → интервал «${blind.why[0]}» — значения нет вовсе, к умолчанию объект не съезжает — ИК-20`);
   ok(70, !fold.ok && fold.nodata === true && has(fold.why, 'КД-2026/012') && fold.interval.from === '2026-08-12',
     `свёртка заёмщика при неполном наборе — интервал «нет данных» с ${fmtD(fold.interval.from)}: «${fold.why[0].slice(0, 70)}…» — худшее из неполного не худшее`);
@@ -819,7 +820,7 @@ const draftOf = clfId => { CL.newDraft(clfId); return CL.draftVer(clfId); };
   // ИК-23: защёлка классификации — только после защёлки учёта того же месяца.
   CL.period('2026-07').uchet = null;
   const r = CL.closePeriod();
-  ok(89, !r.ok && r.refusals.length === 1 && /учёт ещё не закрыл июль 2026/.test(r.refusals[0]) && /ИК-23/.test(r.refusals[0]),
+  ok(89, !r.ok && r.refusals.length === 1 && /учёт ещё не закрыл июль 2026/.test(r.refusals[0]) && /после колонки учёта/.test(r.refusals[0]),
     `без защёлки учёта июль не закрывается: «${r.refusals[0]}» — ИК-23`);
 })();
 
@@ -834,7 +835,7 @@ const draftOf = clfId => { CL.newDraft(clfId); return CL.draftVer(clfId); };
   const cutOk = CL.store.setUntil(JSON.parse(JSON.stringify(cross)), '2026-06-30');
   const del = CL.store.remove(inside);
   const rw = CL.store.rewrite({ clf: 'risk', type: 'кредит', id: 'КД-2024/117' }, '2026-06-15', [], 'тест', CL.now());
-  ok(90, !add.ok && !cut.ok && cutOk.ok && !del.ok && !rw.ok && [add, cut, del, rw].every(x => /ИК-26/.test(x.why)) &&
+  ok(90, !add.ok && !cut.ok && cutOk.ok && !del.ok && !rw.ok && [add, cut, del, rw].every(x => /закрыт/.test(x.why)) &&
        cross.until === '2026-07-05' && CL.store.series('risk', 'кредит', 'КД-2024/117').length === 3,
     `закрытый июнь заперт: создать, удалить и переписать с 15.06 — отказ; «по» интервала 11.06–05.07 ставится на 30.06, но не на 20.06: «${cut.why}»`);
 })();
@@ -969,7 +970,7 @@ const draftOf = clfId => { CL.newDraft(clfId); return CL.draftVer(clfId); };
   const s = series('risk', 'кредит', 'КД-2024/117');
   const on = CL.valueAt('risk', 'кредит', 'КД-2024/117', '2026-08-10');
   const pre = CL.valueAt('risk', 'кредит', 'КД-2024/117', '2026-08-09');
-  ok(99, !bad.ok && /ИК-22/.test(bad.why) && st.ok && ver.until === '2026-08-09' &&
+  ok(99, !bad.ok && /не может закончиться раньше, чем началась/.test(bad.why) && st.ok && ver.until === '2026-08-09' &&
        s[s.length - 1].until === '2026-08-09' && on.stopped && /прекращено с 10\.08\.2026/.test(on.why[0]) &&
        pre.ok && pre.code === 'high' && CL.rewritesOf('кредит', 'КД-2024/117').length === 1,
     `прекращение с 10.08.2026: ред. 2 по 09.08 включительно, ряд укорочен до 09.08 (изменение прошлых дней — в журнале перезаписи), на 10.08 — «${on.why[0].slice(0, 45)}…»; дата не позже ввода редакции отклонена — ИК-19, ИК-22`);
