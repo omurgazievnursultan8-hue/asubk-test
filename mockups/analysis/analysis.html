@@ -779,6 +779,12 @@ table.cgrid td.kid{ padding-left:34px; color:var(--text-muted); }
       <div class="right">
         <span><label>Субъект</label><select id="subj" onchange="AN.pickSubj(this.value)"></select></span>
         <span><label>Роль</label><select id="role" onchange="AN.setRole(this.value)"></select></span>
+        <!-- ДАТА ПРИЛОЖЕНИЯ СТОИТ В ШАПКЕ, РЯДОМ С РОЛЬЮ, и стоит по той же причине:
+             в модуле датировано ВСЁ (ИА-17) — закрытость учётного периода, дни после
+             срока, база отсчёта срока по поводу, активность автора. До волны 19
+             «сегодня» было вшито в seed(), и правила, различающие две даты, на экране
+             не различались ничем: увидеть их можно было только вызовом (АН-Д15). -->
+        <span><label>Сегодня</label><input id="today" type="date" onchange="AN.setTodayUI(this.value)"></span>
       </div>
     </div>
     <div class="content"><div class="panel-wrap" id="panel"></div></div>
@@ -5006,6 +5012,21 @@ const TITLES = {borrower:'Заёмщик · Финансы', doc:'Финанал
   reviews:'Обзоры портфеля · реестр'};
 AN.go = v => { AN.state.view = v; render(); };
 AN.setRole = r => { AN.state.role = r; render(); };
+/* ПЕРЕВОД ДАТЫ — ОПЕРАЦИЯ, А НЕ НАСТРОЙКА ПОКАЗА: от неё меняются закрытость периода,
+   дни после срока, база отсчёта срока по поводу и активность автора. Поэтому негодное
+   значение получает НАЗВАННЫЙ отказ, а не молча откатывается к прежнему (ИА-19).
+   Назад дата двигается наравне с вперёд: «на дату» читается в обе стороны (ИА-17). */
+AN.setToday = iso => {
+  const s = String(iso == null ? '' : iso).trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(s) || isNaN(Date.parse(s)))
+    return {ok:false, why:'дата «'+s+'» не читается: ждём ГГГГ-ММ-ДД. Дата приложения — '+
+      'не оформление, от неё зависит закрытость периода, дни после срока и активность '+
+      'автора, поэтому негодное значение отклоняется названо, а не подставляется молча'};
+  const was = AN.state.today;
+  AN.state.today = s;
+  return {ok:true, was, now:s, note:'было '+fmt(was)+', стало '+fmt(s)};
+};
+AN.setTodayUI = iso => act(AN.setToday(iso), 'дата приложения переведена');
 AN.pickSubj = id => { AN.state.subj = id;
   const own = AN.state.analyses.filter(a => a.subj === id);
   if(own.length) AN.state.doc = own[own.length-1].no;
@@ -5018,6 +5039,7 @@ function render(){
   document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.v === st.view));
   $('#title').textContent = TITLES[st.view];
   $('#role').innerHTML = ROLES.map(r => '<option'+(r === st.role ? ' selected' : '')+'>'+esc(r)+'</option>').join('');
+  $('#today').value = st.today;
   /* В переключателе стоят СУБЪЕКТЫ, а не заёмщики: отчётность — их реквизит, и субъект без
      роли заёмщика с этого экрана не исчезает, а получает названный отказ (ИА-28).      */
   $('#subj').innerHTML = st.subjects.map(s => '<option value="'+s.id+'"'+(s.id === st.subj ? ' selected' : '')+'>'+
@@ -6147,6 +6169,12 @@ function reviewRefusedCard(d){
    прежнее суждение при этом из документа не пропадает (ADR-0112).                  */
 function reviewJudgementCard(d, rec){
   const mine = AN.who() === rec.author;
+  /* КТО ВИДИТ ФОРМУ КОРРЕКТИРОВКИ — спрашивается у ОПЕРАЦИИ, а не выводится экраном
+     заново. До волны 19 здесь стояло «только автор», и экран запрещал то, что правило
+     разрешает: заведующий при неактивном авторе правит (ИА-35, ADR-0254), а формы ему
+     не показывали ни разу — исключение существовало только в вызове (АН-Д15). Второй
+     текст того же правила расходится с первым всегда; разошёлся и этот (ИА-16).   */
+  const may = (d.state === 'утверждено') ? mayCorrectReview(rec.no) : {ok:mine};
   if(d.state === 'утверждено'){
     return '<div class="card"><h3>Суждение <span class="small">— утверждено '+fmt(rec.approvedAt)+', '+
       esc(rec.approvedBy)+'</span></h3><div class="verdict">'+reviewVerdictPill(d.verdict)+'</div>'+
@@ -6175,7 +6203,14 @@ function reviewJudgementCard(d, rec){
         '</b> <span class="muted">— документ остаётся виден и читаем: по нему уже поручали, и '+
         'основание тех поручений не переписывается (ADR-0253 §3)</span></div>' : '')+
       '</div>'+
-      (mine ? '<div class="section-h">Корректировка суждения</div>'+
+      (may.ok ? '<div class="section-h">Корректировка суждения</div>'+
+        (may.byAuthor === false && may.inactive
+          ? '<div class="banner warn"><b>Правите не как автор.</b> Обзор вёл '+esc(rec.author)+
+            ', и он неактивен ('+esc(may.inactive.why)+'). Исключение одно и условие у него '+
+            'ПРОВЕРЯЕМОЕ — уволен или переведён, а не «в отпуске»: отпуск кончается, а чужая '+
+            'правка остаётся. Ваша правка ляжет с отметкой <b>«правка не автором»</b> и '+
+            'останется в документе навсегда (ИА-35, ADR-0254).</div>'
+          : '')+
         '<div class="form-row tight"><div class="fld"><label>Что правим</label>'+
         '<select id="rcField" onchange="AN.render()"><option>текст</option><option>вывод</option></select>'+
         '</div><div class="fld" style="flex:1"><label>Основание корректировки</label>'+
@@ -6187,8 +6222,10 @@ function reviewJudgementCard(d, rec){
           '</option>').join('')+'</select></div>'+
         '<div class="btn-row"><button class="btn btn-primary btn-sm" onclick="AN.correctReviewUI()">'+
         'Внести корректировку суждения</button></div>'
-        : '<div class="banner info">Обзор ведёт '+esc(rec.author)+': суждение правит тот, кто его '+
-          'произнёс и подписал, — он за него и отвечает. Переключите роль в шапке, чтобы '+
+        /* ОТКАЗ ПЕЧАТАЕТСЯ ТОТ САМЫЙ, что произнесёт операция, — не пересказ экрана.
+           Пересказ разошёлся бы с правилом на первой же развилке: «автор активен» и
+           «автор неактивен, но вы не заведующий» — разные отказы (ИА-19).         */
+        : '<div class="banner info">'+esc(may.why)+' Переключите роль или дату в шапке, чтобы '+
           'попробовать.</div>')+
       '<div class="why">Корректировкой правится <em>только суждение</em> — текст и вывод. Числа, '+
       'состав среза и охват ею не правятся и не могли бы: обзор их не хранит, а замороженный их '+
@@ -6229,7 +6266,28 @@ function approvalForm(d, rec){
     !x.replacedBy && x.tpl === rec.tpl && x.period.from === rec.period.from &&
     x.period.to === rec.period.to);
   const miss = d.asks - d.answered;
+  /* ПОКРЫТИЕ ОХВАТА СТОИТ В ФОРМЕ НАРАВНЕ С АДРЕСАТОМ И НЕПОЛНОТОЙ. До волны 19 его
+     здесь не было, и условие подписи проверялось молча: ролей, которые ведут обзор,
+     три, все три покрывают любой охват целиком — отказ ИА-31 на экране не всплывал
+     НИКОГДА, и подпись проходила так, будто условия нет (АН-Д14). Число приходит от
+     ВЛАДЕЛЬЦА СТРОК швом statCoverage и печатается вместе с паспортом: своего счёта
+     видимости анализ не ведёт и завести не вправе (ИА-31, ADR-0152 §3).           */
+  const cov = AN.reviewCoverage(rec.no);
+  const covRow = !cov.ok && !('covered' in cov)
+    ? '<div class="refusal" style="margin-top:10px"><b>покрытие охвата не спрошено</b>'+
+      '<div class="small">'+esc(cov.why)+'</div></div>'
+    : '<div class="'+(cov.covered ? 'pass' : 'banner warn')+'" style="margin-top:10px">'+
+      '<div class="row"><span class="k">Покрытие охвата</span>'+
+      (cov.covered
+        ? '<span class="pill ok">'+cov.n+' из '+cov.of+'</span> <span class="muted">— охват ('+
+          esc(cov.cut)+') виден вам целиком: подписывать можно</span>'
+        : '<span class="pill err">'+cov.n+' из '+cov.of+'</span> <span class="muted">— '+
+          esc(cov.why)+'</span>')+'</div>'+
+      '<div class="row"><span class="k">Кто посчитал</span><span class="small">шов '+
+      '<b>statCoverage</b>, владелец строк — '+esc((cov.passport || {}).owner || 'статистика')+
+      '; ответ приходит <b>двумя числами</b>, без перечня невидимых строк</span></div></div>';
   return '<div class="section-h">Реквизиты подписи</div>'+
+    covRow+
     '<div class="form-row tight"><div class="fld" style="flex:1"><label>Кому направлен обзор</label>'+
       '<select id="rTo"><option value="">— не назван —</option>'+
       depts.map(x => '<option>'+esc(x)+'</option>').join('')+'</select></div>'+
@@ -6412,15 +6470,29 @@ function viewReview(){
     reviewJudgementCard(d, rec)+
     (rec.corrections.length ? '<div class="card"><h3>Корректировки суждения <span class="small">— '+
       'прежнее суждение из документа не пропало</span></h3>'+
+      /* СТОЛБЕЦ ОТМЕТКИ — ради него правило и писалось: «без отметки читатель не
+         отличит правку заведующего от авторской» (ADR-0254). До волны 19 отметка
+         ложилась в запись и не печаталась нигде — правило исполнялось вслепую
+         (АН-Д15). Авторская правка называется здесь ТОЖЕ, а не оставляется пустой:
+         пустая клетка и «отметку не показали» читаются одинаково (ИА-14).        */
       '<table class="cgrid"><thead><tr><th>Когда</th><th>Кто</th><th>Что</th><th>Было</th>'+
-      '<th>Стало</th><th>Основание</th></tr></thead><tbody>'+
-      rec.corrections.map(c => '<tr><td>'+fmt(c.at)+'</td><td>'+esc(c.by)+'</td><td>'+esc(c.field)+
+      '<th>Стало</th><th>Основание</th><th>Отметка</th></tr></thead><tbody>'+
+      rec.corrections.map(c => '<tr'+(c.notByAuthor ? ' class="hl"' : '')+'><td>'+fmt(c.at)+
+        '</td><td>'+esc(c.by)+'</td><td>'+esc(c.field)+
         '</td><td class="small">'+esc(String(c.was).slice(0,60))+'</td>'+
         '<td class="small">'+esc(String(c.now).slice(0,60))+'</td>'+
-        '<td class="small">'+esc(c.basis)+'</td></tr>').join('')+'</tbody></table>'+
+        '<td class="small">'+esc(c.basis)+'</td>'+
+        '<td class="small">'+(c.notByAuthor
+          ? '<span class="pill warn">правка не автором</span> <span class="muted">— автор '+
+            esc(c.notByAuthor.author || rec.author)+' неактивен с '+fmt(c.notByAuthor.since)+
+            '</span>'
+          : '<span class="pill ok">правка автора</span>')+'</td></tr>').join('')+
+      '</tbody></table>'+
       '<div class="why">Правка легла записью «было → стало» с основанием, автором и датой: иначе в '+
       'документе осталось бы новое суждение и ни следа от того, что читатель уже видел. Основание '+
-      'корректировкой не тронуто — его морозил выпуск (ADR-0112, АН-60).</div></div>'
+      'корректировкой не тронуто — его морозил выпуск (ADR-0112, АН-60). <b>Отметка стоит у '+
+      'каждой строки</b>, в том числе у авторской: различать правку автора и правку заведующего '+
+      'обязан документ, а не память читателя (ИА-35, ADR-0254).</div></div>'
       : '<div class="card"><h3>Корректировки суждения</h3><div class="why">Корректировок нет: '+
         'суждение с тех пор не правили. Сказано это словами — пустая лента и «правки не '+
         'показываем» читаются одинаково (ИА-14).</div></div>')+
