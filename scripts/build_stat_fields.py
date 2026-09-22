@@ -40,6 +40,8 @@ SLUG = {
     'stat_row_collateral': 'collateral', 'stat_row_zdeal': 'zdeal', 'stat_row_case': 'case',
     'stat_row_claim': 'claim', 'stat_row_program': 'program', 'stat_row_repay': 'repay',
     'stat_row_receipt': 'receipt', 'stat_row_measure': 'measure',
+    'stat_row_app': 'app', 'stat_row_rs_app': 'rsapp', 'stat_row_rs_calc': 'rscalc',
+    'stat_row_staff': 'staff', 'stat_row_overdue_spell': 'odue',
 }
 # подразделы §12 → адрес группы служебных таблиц на странице
 SVC_SLUG = {'12.1': 'svc-registry', '12.2': 'svc-run', '12.3': 'svc-queue', '12.4': 'svc-marker',

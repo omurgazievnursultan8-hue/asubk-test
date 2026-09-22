@@ -349,7 +349,12 @@ const NEIGHBOURS = [
   {id:'погашения',     name:'Погашения',     asks:true,  layer:'учёт', seams:['payAlloc','receiptSplit']},
   {id:'кураторство',   name:'Кураторство',   asks:true,  layer:null,   seams:['leadCurator']},
   {id:'взыскание',     name:'Взыскание',     asks:false, layer:'учёт',
-   seams:['casePortfolio','claimDebt','measureClock']}
+   seams:['casePortfolio','claimDebt','measureClock']},
+  /* Владельцы заявок, реструктуризации и кадров. */
+  {id:'заявки',        name:'Заявки',        asks:true,  layer:'учёт', seams:['appClock']},
+  {id:'реструктуризация', name:'Реструктуризация', asks:true, layer:'учёт', seams:['rsClock']},
+  /* Кадры слоя не закрывают — как и кураторство. */
+  {id:'сотрудники',    name:'Сотрудники',    asks:true,  layer:null,   seams:['hrClock']}
 ];
 /* Причин ровно ЧЕТЫРЕ, и список закрыт. */
 const SILENCE_REASONS = ['недоступен','ответил ошибкой','не уложился в срок','отказал по правам'];
@@ -671,6 +676,110 @@ const REGISTRY = [
   {kind:'разрез', id:'d-mcurator', col:'d_reg_curator', vtype:'ref', obj:'obj-measure', name:'Куратор меры взыскания', src:'история', key:'curator',
    since:'2020-01-01'},
   /* ЗДЕСЬ БЫЛА «Территория меры взыскания» (`d-mregion`) — снята волной 23: своей территории у меры нет, признаки кредита и заёмщика берутся join'ом требование → кредит → заёмщик на дату (схема §11). */
+  /* ============ разрезы ЗАЯВКИ НА ПОЛУЧЕНИЕ КРЕДИТА ============= */
+  /* Статус и стадия — два ортогональных признака (ТЗ 03 §3.3), не один. */
+  {kind:'разрез', id:'d-astatus', col:'d_status', vtype:'code', obj:'obj-app', name:'Статус заявки', src:'история', key:'astatus',
+   since:'2020-01-01', owner:'Заявки', note:'ТЗ 03 §3.1 — девять статусов одной дорожки'},
+  {kind:'разрез', id:'d-astage', col:'d_stage', vtype:'code', obj:'obj-app', name:'Стадия заявки', src:'история', key:'astage',
+   since:'2020-01-01', owner:'Заявки', note:'ТЗ 03 §3.3 — пять узлов пайплайна, ортогональны статусу (P3-R42)'},
+  {kind:'разрез', id:'d-aflow', col:'d_flow', vtype:'code', obj:'obj-app', name:'Поток происхождения заявки', src:'поле', key:'flow',
+   since:'2020-01-01', owner:'Заявки', note:'ТЗ 03 §1.2 — поток A (от заёмщика) и поток B (по решению)'},
+  {kind:'разрез', id:'d-aprogram', col:'d_program', vtype:'ref', obj:'obj-app', name:'Кредитная программа заявки', src:'поле', key:'program',
+   since:'2020-01-01', owner:'Программы', note:'ТЗ 03 §4.2 — колонка списка и фильтр'},
+  /* Подразделение специалиста и территория заявителя — разные признаки. */
+  {kind:'разрез', id:'d-aunit', obj:'obj-app', name:'Подразделение специалиста заявки', src:'история', key:'branch', since:'2020-01-01',
+   owner:'Оргструктура (кадры)', ref:'org',
+   /* Уровни оргструктуры у всех объектов одни и те же — иначе дерево раздвоится. */
+   levels:[{name:'блок', src:'справочник', col:'d_unit_parent', vtype:'ref'},
+           {name:'подразделение', src:'история', key:'branch', col:'d_unit', vtype:'ref'}]},
+  {kind:'разрез', id:'d-aspec', col:'d_spec', vtype:'ref', obj:'obj-app', name:'Кредитный специалист заявки', src:'история', key:'aspec',
+   since:'2020-01-01', owner:'Заявки', note:'ТЗ 03 §4.4 — фильтр «Кредитный специалист»'},
+  {kind:'разрез', id:'d-aterr', obj:'obj-app', name:'Территория заявителя', src:'поле', key:'region', since:'2020-01-01',
+   owner:'Справочник административного деления',
+   levels:[{name:'область', src:'поле', key:'region', col:'d_terr_region', vtype:'ref'},
+           {name:'район', src:'поле', key:'district', col:'d_terr_district', vtype:'ref'}],
+   note:'ТЗ 03 §4.4 — адрес СУБЪЕКТА-заявителя; объект определения — заявка, а не кредит'},
+  {kind:'разрез', id:'d-asubdate', col:'d_subdate', vtype:'date', obj:'obj-app', name:'Дата подачи заявки', src:'поле', key:'subdate',
+   since:'2020-01-01', buckets:['год','квартал','месяц'], owner:'Заявки',
+   note:'ТЗ 03 §4.9 — номер и дата присваиваются при подаче, черновик их не имеет'},
+  {kind:'разрез', id:'d-acur', col:'cur', vtype:'cur', obj:'obj-app', name:'Валюта запрашиваемой суммы', src:'поле', key:'cur',
+   since:'2020-01-01', owner:'Заявки'},
+  {kind:'разрез', id:'d-abinn', col:'d_borrower', vtype:'ref', obj:'obj-app', name:'Заявитель', src:'поле', key:'inn',
+   since:'2020-01-01', owner:'Субъекты', note:'ТЗ 03 §4.2 — колонка «Заемщик»'},
+
+  /* ========== разрезы ЗАЯВКИ НА РЕСТРУКТУРИЗАЦИЮ ============= */
+  /* Стадия — свёртка журнала актов у владельца (РС-23), читается историей. */
+  {kind:'разрез', id:'d-rstage', col:'d_stage', vtype:'code', obj:'obj-rsapp', name:'Стадия заявки на реструктуризацию', src:'история', key:'rstage',
+   since:'2020-01-01', owner:'Реструктуризация', note:'ТЗ 15 §3 — девять стадий, свёртка журнала актов (РС-23)'},
+  {kind:'разрез', id:'d-routcome', col:'d_outcome', vtype:'code', obj:'obj-rsapp', name:'Исход заявки на реструктуризацию', src:'история', key:'routcome',
+   since:'2020-01-01', owner:'Реструктуризация',
+   note:'ТЗ 15 §3, §9 — одобрено · одобрено с изменёнными условиями · отказ (п. 88) · отпала'},
+  {kind:'разрез', id:'d-runit', obj:'obj-rsapp', name:'Подразделение куратора заявки на реструктуризацию', src:'история', key:'branch', since:'2020-01-01',
+   owner:'Оргструктура (кадры)', ref:'org',
+   levels:[{name:'блок', src:'справочник', col:'d_unit_parent', vtype:'ref'},
+           {name:'подразделение', src:'история', key:'branch', col:'d_unit', vtype:'ref'}]},
+  {kind:'разрез', id:'d-rcurator', col:'d_curator', vtype:'ref', obj:'obj-rsapp', name:'Куратор заявки на реструктуризацию', src:'история', key:'rcurator',
+   since:'2020-01-01', owner:'Реструктуризация', note:'ТЗ 15 §9 — куратор ОД ведёт заявку'},
+  /* Якорь заявки — ключ субъекта (РС-2.1): заёмщик один, кредит — у расчёта. */
+  {kind:'разрез', id:'d-rbinn', col:'d_borrower', vtype:'ref', obj:'obj-rsapp', name:'Заёмщик заявки на реструктуризацию', src:'поле', key:'inn',
+   since:'2020-01-01', owner:'Субъекты', note:'ТЗ 15 §2.1 — якорь заявки'},
+  {kind:'разрез', id:'d-rregdate', col:'d_regdate', vtype:'date', obj:'obj-rsapp', name:'Дата регистрации обращения', src:'поле', key:'regdate',
+   since:'2020-01-01', buckets:['год','квартал','месяц'], owner:'Реструктуризация',
+   note:'ТЗ 15 §3 — якорь регламентного срока (30 дней до комитета)'},
+  {kind:'разрез', id:'d-rmulti', col:'d_multi', vtype:'bool', obj:'obj-rsapp', name:'Многократная реструктуризация', src:'история', key:'rmulti',
+   since:'2020-01-01', owner:'Реструктуризация',
+   note:'РС-32 — признак с ТРЕТЬЕЙ реструктуризации кредита; ничего не блокирует, но невидимой быть не даёт'},
+
+  /* =========== разрезы РАСЧЁТА РЕСТРУКТУРИЗАЦИИ ============== */
+  {kind:'разрез', id:'d-crsapp', col:'d_app', vtype:'id', obj:'obj-rscalc', name:'Заявка расчёта', src:'поле', key:'app',
+   since:'2020-01-01', owner:'Реструктуризация', note:'ключ вверх: расчёт принадлежит заявке, как платёж — поступлению'},
+  {kind:'разрез', id:'d-ccredit', col:'d_credit', vtype:'ref', obj:'obj-rscalc', name:'Кредит расчёта', src:'поле', key:'credit',
+   since:'2020-01-01', owner:'Кредиты'},
+  {kind:'разрез', id:'d-ctranche', col:'d_tranche', vtype:'ref', obj:'obj-rscalc', name:'Транш расчёта', src:'поле', key:'tranche',
+   since:'2020-01-01', owner:'Кредиты', note:'ТЗ 15 §2.2 — охват заявки суть траншы'},
+  {kind:'разрез', id:'d-rccur', col:'cur', vtype:'cur', obj:'obj-rscalc', name:'Валюта расчёта', src:'поле', key:'cur',
+   since:'2020-01-01', owner:'Кредиты'},
+  {kind:'разрез', id:'d-cstep', col:'d_step', vtype:'code', obj:'obj-rscalc', name:'Ступень расхождения', src:'история', key:'cstep',
+   since:'2020-01-01', owner:'Реструктуризация',
+   note:'РС-26 — нет · ступень 1 (виза куратора) · ступень 2 (возврат на комитет); порог считает ВЛАДЕЛЕЦ'},
+  {kind:'разрез', id:'d-cdsstate', col:'d_ds_state', vtype:'code', obj:'obj-rscalc', name:'Состояние ДС расчёта', src:'история', key:'cdsstate',
+   since:'2020-01-01', owner:'Реструктуризация', note:'ТЗ 15 §3 — не зарегистрировано · зарегистрировано · снят с основанием'},
+
+  /* ==================== разрезы СОТРУДНИКА ==================== */
+  /* Три оси статуса ТЗ 11 §5 — три записи: кадровый, доступность, учётная запись. */
+  {kind:'разрез', id:'d-sunit', obj:'obj-staff', name:'Подразделение сотрудника', src:'история', key:'branch', since:'2020-01-01',
+   owner:'Оргструктура (кадры)', ref:'org',
+   levels:[{name:'блок', src:'справочник', col:'d_unit_parent', vtype:'ref'},
+           {name:'подразделение', src:'история', key:'branch', col:'d_unit', vtype:'ref'}],
+   note:'ТЗ 11 §5 — вычисляется на дату из ОСНОВНОГО назначения (deptPostAt)'},
+  {kind:'разрез', id:'d-spost', col:'d_post', vtype:'ref', obj:'obj-staff', name:'Должность сотрудника', src:'история', key:'spost',
+   since:'2020-01-01', owner:'Оргструктура (кадры)'},
+  {kind:'разрез', id:'d-shr', col:'d_hr_state', vtype:'code', obj:'obj-staff', name:'Кадровый статус', src:'история', key:'shr',
+   since:'2020-01-01', owner:'Сотрудники', note:'ТЗ 11 §5, ось 1 — Работает · Уволен · Оформляется (hrStatusAt)'},
+  {kind:'разрез', id:'d-savail', col:'d_avail', vtype:'code', obj:'obj-staff', name:'Доступность сотрудника', src:'история', key:'savail',
+   since:'2020-01-01', owner:'Сотрудники', note:'ТЗ 11 §5, ось 2 — из отсутствий (availabilityAt)'},
+  {kind:'разрез', id:'d-sacct', col:'d_acct', vtype:'code', obj:'obj-staff', name:'Состояние учётной записи', src:'история', key:'sacct',
+   since:'2020-01-01', owner:'Сотрудники',
+   note:'ТЗ 11 §5, ось 3 — активна · заблокирована · не заведена; кураторство висит на ЗАПИСИ, а не на сотруднике'},
+  {kind:'разрез', id:'d-sassign', col:'d_assign_kind', vtype:'code', obj:'obj-staff', name:'Вид назначения', src:'история', key:'sassign',
+   since:'2020-01-01', owner:'Сотрудники', note:'ТЗ 11 §5 — основное · совмещение · и.о.'},
+  {kind:'разрез', id:'d-shired', col:'d_hired', vtype:'date', obj:'obj-staff', name:'Дата приёма', src:'поле', key:'hired',
+   since:'2020-01-01', buckets:['год','квартал'], owner:'Сотрудники'},
+
+  /* ================ разрезы ЭПИЗОДА ПРОСРОЧКИ ================= */
+  /* Строк у объекта нет: перечня эпизодов владелец не отдаёт (P20-R33). */
+  {kind:'разрез', id:'d-ocredit', col:'d_credit', vtype:'ref', obj:'obj-odue', name:'Кредит эпизода просрочки', src:'поле', key:'credit',
+   since:'2020-01-01', owner:'Кредиты'},
+  {kind:'разрез', id:'d-olayer', col:'d_layer', vtype:'code', obj:'obj-odue', name:'Слой долга эпизода', src:'поле', key:'layer',
+   since:'2020-01-01', owner:'Ядро расчёта',
+   note:'ТЗ 18 §5 — дни просрочки считаются ВНУТРИ слоя от своей даты, а не от самой ранней по кредиту'},
+  {kind:'разрез', id:'d-ofrom', col:'d_from', vtype:'date', obj:'obj-odue', name:'Дата выхода в просрочку', src:'поле', key:'from',
+   since:'2020-01-01', buckets:['год','квартал','месяц'], owner:'Ядро расчёта'},
+  {kind:'разрез', id:'d-ostate', col:'d_state', vtype:'code', obj:'obj-odue', name:'Состояние эпизода просрочки', src:'история', key:'ostate',
+   since:'2020-01-01', owner:'Ядро расчёта', note:'тянется · вылечен'},
+  {kind:'разрез', id:'d-oecur', col:'cur', vtype:'cur', obj:'obj-odue', name:'Валюта кредита эпизода', src:'поле', key:'cur',
+   since:'2020-01-01', owner:'Кредиты'},
+
   /* ------ записи породы «показатель» (та же кладовая) ------ */
   /* --- кредит: свод долга; легаси-поля v_ls_total_outstanding / v_ls_total_overdue (ИС-27, ADR-0183). --- */
   {kind:'показатель', id:'m-total', col:'i_total', vtype:'money_cur',  name:'Задолженность всего',     obj:'obj-credit', type:'сумма', src:'шов', grp:'свод',
@@ -954,7 +1063,72 @@ const REGISTRY = [
    key:'amount', money:true, unit:'валюта договора', dedupBy:'d-mcred',
    note:'ТЗ 13 §12.1 — в любом итоге считается один раз на кредит'},
   /* ЗДЕСЬ БЫЛИ «Дней с направления меры» (`m-mdays`) и его своды `a-maxmdays`, `a-avgmdays` — сняты волной 23: число дней от даты среза в событийной строке устаревает назавтра, и схема считает его при чтении как D − `d_sentdate` (схема §11, «Снято из макета … "дней с направления" хранимым числом»). */
-  {kind:'показатель', id:'a-summclaim', name:'Сумма мер, итого',   obj:'obj-measure', src:'агрегат', fn:'sum', over:'m-mclaim'}
+  {kind:'показатель', id:'a-summclaim', name:'Сумма мер, итого',   obj:'obj-measure', src:'агрегат', fn:'sum', over:'m-mclaim'},
+
+  /* --- заявка на получение кредита: две суммы и одни часы ------------------ */
+  /* Запрашиваемая и одобренная лежат в строке порознь: их разница и есть вопрос комиссии. */
+  {kind:'показатель', id:'m-aamount', col:'i_amount', vtype:'money_cur', name:'Запрашиваемая сумма', obj:'obj-app', type:'сумма', src:'поле', grp:'заявка',
+   key:'amount', money:true, unit:'валюта запрашиваемой суммы', note:'ТЗ 03 §4.2 — единственная денежная колонка списка'},
+  {kind:'показатель', id:'m-aapproved', col:'i_approved', vtype:'money_cur', name:'Одобренная сумма', obj:'obj-app', type:'сумма', src:'поле', grp:'заявка',
+   key:'approved', money:true, unit:'валюта запрашиваемой суммы',
+   note:'ТЗ 03 §5.2 — до решения комиссии пусто, и пустое не есть ноль'},
+  {kind:'показатель', id:'m-adays', col:'i_days', vtype:'int', name:'Дней с подачи заявки', obj:'obj-app', type:'число', src:'шов', grp:'заявка',
+   seam:'appClock', field:'days', unit:'дн.',
+   note:'часы владельца: после решения ОСТАНАВЛИВАЮТСЯ, иначе средний срок рассмотрения растёт у решённых вечно'},
+  {kind:'показатель', id:'a-sumaamount', name:'Запрошено, итого', obj:'obj-app', src:'агрегат', grp:'заявка', fn:'sum', over:'m-aamount'},
+  {kind:'показатель', id:'a-sumaapproved', name:'Одобрено, итого', obj:'obj-app', src:'агрегат', grp:'заявка', fn:'sum', over:'m-aapproved'},
+  {kind:'показатель', id:'a-avgadays', name:'Средний срок рассмотрения', obj:'obj-app', src:'агрегат', grp:'заявка', fn:'avg', over:'m-adays'},
+  {kind:'показатель', id:'a-maxadays', name:'Наибольший срок рассмотрения', obj:'obj-app', src:'агрегат', grp:'заявка', fn:'max', over:'m-adays'},
+
+  /* --- заявка на реструктуризацию: сумма её расчётов — ОДНИМ сомовым числом ---- */
+  /* Охват заявки разновалютен (траншы разных кредитов), и потому база отдаётся сомовой
+     величиной, а не валютной парой: складывать доллары с сомами нечем. */
+  {kind:'показатель', id:'m-rbase', col:'i_base', vtype:'money_som', name:'База среза по заявке, в сомах', obj:'obj-rsapp', type:'сумма', src:'шов', grp:'реструктуризация',
+   seam:'rsClock', field:'base', money:true, unit:'сом', roll:'аддитивный',
+   note:'ТЗ 15 §6.1 — согласовательная величина; двигается ТОЛЬКО до отправки письма'},
+  {kind:'показатель', id:'m-rdays', col:'i_days', vtype:'int', name:'Дней с регистрации обращения', obj:'obj-rsapp', type:'число', src:'шов', grp:'реструктуризация',
+   seam:'rsClock', field:'days', unit:'дн.', note:'ТЗ 15 §3 — регламентный срок мягкий: флаг, а не запрет'},
+  {kind:'показатель', id:'m-rcalcs', col:'i_calcs', vtype:'int', name:'Расчётов в заявке', obj:'obj-rsapp', type:'число', src:'шов', grp:'реструктуризация',
+   seam:'rsClock', field:'calcs', unit:'шт.', note:'счёт строк НИЖНЕГО объекта — та же форма, что «требований в деле»'},
+  {kind:'показатель', id:'a-sumrbase', name:'База среза, итого в сомах', obj:'obj-rsapp', src:'агрегат', grp:'реструктуризация', fn:'sum', over:'m-rbase'},
+  {kind:'показатель', id:'a-avgrdays', name:'Средний срок рассмотрения обращения', obj:'obj-rsapp', src:'агрегат', grp:'реструктуризация', fn:'avg', over:'m-rdays'},
+  {kind:'показатель', id:'a-maxrdays', name:'Наибольший срок рассмотрения обращения', obj:'obj-rsapp', src:'агрегат', grp:'реструктуризация', fn:'max', over:'m-rdays'},
+  {kind:'показатель', id:'a-sumrcalcs', name:'Расчётов, итого', obj:'obj-rsapp', src:'агрегат', grp:'реструктуризация', fn:'sum', over:'m-rcalcs'},
+
+  /* --- расчёт реструктуризации: четыре датированных числа ------------------- */
+  /* Расхождение считает ВЛАДЕЛЕЦ и он же решает, какая ступень сработала (РС-26): вывести
+     его вычитанием витрина не вправе — это был бы второй арбитр порога. */
+  {kind:'показатель', id:'m-cbase', col:'i_base', vtype:'money_cur', name:'База среза расчёта', obj:'obj-rscalc', type:'сумма', src:'поле', grp:'расчёт',
+   key:'base', money:true, unit:'валюта расчёта', note:'ТЗ 15 §6.1 — срез долга, согласовательная величина'},
+  {kind:'показатель', id:'m-cfact', col:'i_fact', vtype:'money_cur', name:'Факт на дату вступления ДС', obj:'obj-rscalc', type:'сумма', src:'поле', grp:'расчёт',
+   key:'fact', money:true, unit:'валюта расчёта', note:'ТЗ 15 §6.1, ИР-18 — снимается ДО применения ДС, на состоянии транша-источника'},
+  {kind:'показатель', id:'m-cdiff', col:'i_diff', vtype:'money_cur', name:'Расхождение «срез ↔ факт»', obj:'obj-rscalc', type:'сумма', src:'поле', grp:'расчёт',
+   key:'diff', money:true, unit:'валюта расчёта', note:'ТЗ 15 §6.1 РС-26 — считается по базе ЦЕЛИКОМ, не по статьям'},
+  {kind:'показатель', id:'m-ctransfer', col:'i_transfer', vtype:'money_cur', name:'Сумма переноса', obj:'obj-rscalc', type:'сумма', src:'поле', grp:'расчёт',
+   key:'transfer', money:true, unit:'валюта расчёта', note:'ТЗ 15 §6.4 — реквизит ДС и тело производного транша'},
+  {kind:'показатель', id:'a-sumcbase', name:'База среза расчётов, итого', obj:'obj-rscalc', src:'агрегат', grp:'расчёт', fn:'sum', over:'m-cbase'},
+  {kind:'показатель', id:'a-sumcfact', name:'Факт на дату ДС, итого', obj:'obj-rscalc', src:'агрегат', grp:'расчёт', fn:'sum', over:'m-cfact'},
+  {kind:'показатель', id:'a-sumcdiff', name:'Расхождение, итого', obj:'obj-rscalc', src:'агрегат', grp:'расчёт', fn:'sum', over:'m-cdiff'},
+  {kind:'показатель', id:'a-sumctransfer', name:'Перенесено, итого', obj:'obj-rscalc', src:'агрегат', grp:'расчёт', fn:'sum', over:'m-ctransfer'},
+
+  /* --- сотрудник: кадровые величины, и НИ ОДНОЙ денежной ------------------- */
+  /* Нагрузки куратора здесь нет: она отвечается срезом кредита по разрезу «Куратор». */
+  {kind:'показатель', id:'m-stenure', col:'i_tenure_days', vtype:'int', name:'Стаж в Фонде, дней', obj:'obj-staff', type:'число', src:'шов', grp:'кадры',
+   seam:'hrClock', field:'tenureDays', unit:'дн.', note:'ТЗ 11 §5 — от первого основного назначения; у уволенного часы стоят'},
+  {kind:'показатель', id:'m-srate', col:'i_rate', vtype:'num', name:'Сумма действующих ставок', obj:'obj-staff', type:'число', src:'шов', grp:'кадры',
+   seam:'hrClock', field:'rate', unit:'ставок', note:'ТЗ 11 §7 — сумма ставок действующих назначений на дату, лимит 1.5'},
+  {kind:'показатель', id:'a-avgstenure', name:'Средний стаж', obj:'obj-staff', src:'агрегат', grp:'кадры', fn:'avg', over:'m-stenure'},
+  {kind:'показатель', id:'a-maxstenure', name:'Наибольший стаж', obj:'obj-staff', src:'агрегат', grp:'кадры', fn:'max', over:'m-stenure'},
+  {kind:'показатель', id:'a-sumsrate', name:'Ставок, итого', obj:'obj-staff', src:'агрегат', grp:'кадры', fn:'sum', over:'m-srate'},
+
+  /* --- эпизод просрочки: объявлен, ждёт владельца (P20-R33) ---------------- */
+  {kind:'показатель', id:'m-oedays', col:'i_days', vtype:'int', name:'Длительность эпизода просрочки', obj:'obj-odue', type:'число', src:'поле', grp:'просрочка',
+   key:'days', unit:'дн.', note:'у тянущегося эпизода — дней на дату среза, у вылеченного — дней до лечения'},
+  {kind:'показатель', id:'m-oepeak', col:'i_peak', vtype:'money_cur', name:'Пик просроченной суммы эпизода', obj:'obj-odue', type:'сумма', src:'поле', grp:'просрочка',
+   key:'peak', money:true, unit:'валюта кредита эпизода'},
+  {kind:'показатель', id:'a-avgoedays', name:'Средняя длительность эпизода', obj:'obj-odue', src:'агрегат', grp:'просрочка', fn:'avg', over:'m-oedays'},
+  {kind:'показатель', id:'a-maxoedays', name:'Наибольшая длительность эпизода', obj:'obj-odue', src:'агрегат', grp:'просрочка', fn:'max', over:'m-oedays'},
+  {kind:'показатель', id:'a-sumoepeak', name:'Пик просрочки, итого', obj:'obj-odue', src:'агрегат', grp:'просрочка', fn:'sum', over:'m-oepeak'}
 ];
 
 /* ------------------------- РЕЕСТР ОБЪЕКТОВ -------------------------- */
@@ -1078,7 +1252,51 @@ const OBJECTS = [
    pairOff:['d-mstate', 'сторнирована'],
    dims:['d-mbranch','d-mcurator','d-mcred','d-mkind',
          'd-mresult','d-mstate','d-mcur','d-mprimary'],
-   inds:['m-mclaim','a-count','a-summclaim']}
+   inds:['m-mclaim','a-count','a-summclaim']},
+
+  /* ======================== ПЯТЬ ОБЪЕКТОВ ============================= */
+  /* Заявка на кредит. Рождение — подача: номер владелец выдаёт при ней (ТЗ 03 §4.9). */
+  {id:'obj-app', name:'Заявка на получение кредита', plural:'заявки на получение кредита',
+   owner:'Заявки', refName:'номер заявки',
+   born:{src:'поле', key:'subdate'}, scope:[{kind:'own', dim:'d-aspec'}],
+   dims:['d-astatus','d-astage','d-aflow','d-aprogram','d-aunit','d-aspec','d-aterr',
+         'd-asubdate','d-acur','d-abinn'],
+   inds:['m-aamount','m-aapproved','m-adays',
+         'a-count','a-sumaamount','a-sumaapproved','a-avgadays','a-maxadays']},
+  /* Заявка на реструктуризацию — ОБРАЩЕНИЕ, единица работы модуля (РС-2). Рождение —
+     дата официальной регистрации: с неё же идёт регламентный срок (ТЗ 15 §3). */
+  {id:'obj-rsapp', name:'Заявка на реструктуризацию', plural:'заявки на реструктуризацию',
+   owner:'Реструктуризация', refName:'номер обращения',
+   born:{src:'поле', key:'regdate'}, scope:[{kind:'own', dim:'d-rcurator'}],
+   /* «Кредит», «Транш» и «Вид» у заявки многозначны — кредит и транш живут у расчёта,
+      вид ждёт уровня «применённое изменение условия» у владельца (РС-24). */
+   dims:['d-rstage','d-routcome','d-runit','d-rcurator','d-rbinn','d-rregdate','d-rmulti'],
+   inds:['m-rbase','m-rdays','m-rcalcs',
+         'a-count','a-sumrbase','a-avgrdays','a-maxrdays','a-sumrcalcs']},
+  /* Расчёт — заявка × транш: ступень 1 порога считается по расчёту, ступень 2 — по
+     заявке целиком (РС-26). */
+  {id:'obj-rscalc', name:'Расчёт реструктуризации', plural:'расчёты реструктуризации',
+   owner:'Реструктуризация', refName:'номер расчёта',
+   born:{src:'поле', key:'cdate'},
+   scope:[{kind:'via', obj:'obj-rsapp', key:'d-crsapp'}],
+   dims:['d-crsapp','d-ccredit','d-ctranche','d-rccur','d-cstep','d-cdsstate'],
+   inds:['m-cbase','m-cfact','m-cdiff','m-ctransfer',
+         'a-count','a-sumcbase','a-sumcfact','a-sumcdiff','a-sumctransfer']},
+  /* Сотрудник. Рождение — приём, начало первого основного назначения (ТЗ 11 §5). */
+  {id:'obj-staff', name:'Сотрудник', plural:'сотрудники', owner:'Сотрудники', refName:'табельный номер',
+   born:{src:'поле', key:'hired'},
+   scope:[{kind:'open', reason:'реестр сотрудников — общее знание: список кадров есть рабочий экран поиска (ТЗ 11 §4.2)'}],
+   dims:['d-sunit','d-spost','d-shr','d-savail','d-sacct','d-sassign','d-shired'],
+   inds:['m-stenure','m-srate','a-count','a-avgstenure','a-maxstenure','a-sumsrate']},
+  /* Эпизод просрочки — кредит × слой × непрерывный период. Строк нет: `calcDebt` отдаёт
+     просрочку на дату, перечня эпизодов не отдаёт никто (заявка P20-R33). */
+  {id:'obj-odue', name:'Эпизод просрочки', plural:'эпизоды просрочки', owner:'Ядро расчёта',
+   refName:'кредит · слой · дата выхода',
+   born:{src:'поле', key:'from'},
+   pending:{owner:'Ядро расчёта', seam:'overdueSpells', ask:'P20-R33'},
+   scope:[{kind:'via', obj:'obj-credit', key:'d-ocredit'}],
+   dims:['d-ocredit','d-olayer','d-ofrom','d-ostate','d-oecur'],
+   inds:['m-oedays','m-oepeak','a-count','a-avgoedays','a-maxoedays','a-sumoepeak']}
 ];
 
 /* ====== ПУБЛИЧНЫЙ ПЕРЕЧЕНЬ ПОЛЕЙ КАРТОЧКИ: ОБЪЯВЛЯЕТ ВЛАДЕЛЕЦ ====== */
@@ -1103,6 +1321,12 @@ const CARD = {
   ]}
 };
 const CARD_F = (objId, id) => ((CARD[objId] || {fields:[]}).fields).find(f => f.id === id) || null;
+/* Объект объявлен, а множества ему никто не отдаёт: отказ называет владельца, шов и
+   номер заявки — ту же дорогу, что назван у «освоено по программе». */
+const pendingWhy = o => 'объект «'+o.name+'» объявлен, а строк у него нет: перечень отдаёт '+
+  'владелец «'+o.pending.owner+'» швом «'+o.pending.seam+'», и шва этого пока нет. Это ЗАЯВКА '+
+  'ВЛАДЕЛЬЦУ ('+o.pending.ask+'), а не пустой экран: пустотой ответ неотличим от «ни одного '+
+  'такого не было», а вывести перечень самой витрине запрещено (ИС-1, ИС-24, ADR-0201 §3)';
 /* Отказ «перечня нет» произносится ОДНИМ текстом из одного места: его говорят и шов, и маршрутизатор адреса, и разойдись они — потребитель услышал бы два разных запрета на одно и то же (§8.4: отказ называет причину и дорогу). */
 const noCardWhy = o => 'публичного перечня полей объекта «'+o.name+'» владелец «'+o.owner+
   '» не объявил: в v1 шов отвечает по объектам ядра, и в режиме «сейчас» отдаются кредиты '+
@@ -1446,7 +1670,130 @@ const WORLD = {
     {branch:[['2023-05-04','Ошское РП']], curator:[['2025-01-01','Бекова Н.']]}, {principal:[2870000,-41000]}),
   it('ПР-2025/04', {gdate:'2025-06-30', cur:'KGS', ptype:'физическое лицо', region:'Иссык-Кульская', district:'Тонский'},
     {branch:[['2025-06-30','Иссык-Кульское РП']], curator:[['2025-06-30','Асанов А.']]}, {principal:[612000,-14500]})
-]
+],
+
+/* ======= ЗАЯВКИ, РЕСТРУКТУРИЗАЦИЯ, КАДРЫ, ПРОСРОЧКА ======= */
+/* Заявка на кредит. Номер и дата подачи присваиваются вместе (ТЗ 03 §4.9): черновика
+   в мире нет. */
+'obj-app': [
+  /* Оформлена: заявка стала КД-2024/117. */
+  it('З-2024-000077', {subdate:'2024-02-01', decdate:'2024-03-01', inn:'01234199010101', flow:'A',
+      program:'ФРР-2024', cur:'KGS', amount:1200000, approved:1200000,
+      region:'Чуйская', district:'Сокулукский'},
+    {astatus:[['2024-02-01','Новый'],['2024-02-14','На рассмотрении'],['2024-03-01','Одобрена'],
+              ['2024-03-11','Оформлена']],
+     astage:[['2024-02-01','Комплектация'],['2024-02-14','Комиссия (предв.)'],['2024-03-01','Комитет · решение']],
+     branch:[['2024-02-01','Кредитный департамент']], aspec:[['2024-02-01','Асанов А.']]}, {}),
+  /* Отклонена — терминал без кредита. */
+  it('З-2025-000210', {subdate:'2025-08-05', decdate:'2025-09-10', inn:'45607195804119', flow:'A',
+      program:'БК-2021', cur:'KGS', amount:900000, approved:null,
+      region:'Ошская', district:'Узгенский'},
+    {astatus:[['2025-08-05','Новый'],['2025-08-20','На рассмотрении'],['2025-09-10','Отклонена']],
+     astage:[['2025-08-05','Комплектация'],['2025-08-20','Комиссия (предв.)'],['2025-09-10','Комитет · решение']],
+     branch:[['2025-08-05','Ошское РП']], aspec:[['2025-08-05','Бекова Н.']]}, {}),
+  /* Оформлена: заявка стала КД-2026/007, кредитной линией. */
+  it('З-2026-000098', {subdate:'2026-01-12', decdate:'2026-02-01', inn:'60712199304518', flow:'A',
+      program:'ФРР-2025', cur:'KGS', amount:2500000, approved:2200000,
+      region:'Таласская'},
+    {astatus:[['2026-01-12','Новый'],['2026-01-20','На рассмотрении'],['2026-02-01','Одобрена'],
+              ['2026-02-03','Оформлена']],
+     astage:[['2026-01-12','Комплектация'],['2026-01-20','Комиссия (предв.)'],['2026-02-01','Комитет · решение']],
+     branch:[['2026-01-12','Ошское РП']], aspec:[['2026-01-12','Асанов А.']]}, {}),
+  /* Заёмщик БЕЗ ДОГОВОРОВ: заявка есть, кредита нет — строка заявки живёт своей жизнью. */
+  it('З-2026-000123', {subdate:'2026-04-02', decdate:null, inn:'77105198711204', flow:'A',
+      program:'ФРР-2025', cur:'KGS', amount:2000000, approved:null,
+      region:'Чуйская', district:'Аламудунский'},
+    {astatus:[['2026-04-02','Новый'],['2026-05-05','На рассмотрении']],
+     astage:[['2026-04-02','Комплектация'],['2026-04-20','Заключения отделов'],['2026-05-05','Комиссия (предв.)']],
+     branch:[['2026-04-02','Кредитный департамент']], aspec:[['2026-04-02','Бекова Н.']]}, {}),
+  /* Поток B: одобрено, а кредита нет — ждёт привязки решения и программы (ТЗ 03 §3.1). */
+  it('З-2026-000140', {subdate:'2026-05-18', decdate:'2026-06-22', inn:'10510198203112', flow:'B',
+      program:'РКФР-2023', cur:'USD', amount:45000, approved:45000,
+      region:'Чуйская', district:'Аламудунский'},
+    {astatus:[['2026-05-18','Новый'],['2026-06-01','На рассмотрении'],['2026-06-22','Одобрена'],
+              ['2026-06-25','Ожидает решения/программы']],
+     astage:[['2026-05-18','Комплектация'],['2026-06-01','Комиссия (предв.)'],['2026-06-22','Комитет · решение']],
+     branch:[['2026-05-18','Кредитный департамент']], aspec:[['2026-05-18','Асанов А.']]}, {}),
+  /* Возврат на дозаполнение — не решение, и часы владельца идут дальше. */
+  it('З-2026-000155', {subdate:'2026-06-01', decdate:null, inn:'31804196611227', flow:'A',
+      program:'ФРР-2025', cur:'KGS', amount:350000, approved:null,
+      region:'Иссык-Кульская', district:'Тонский'},
+    {astatus:[['2026-06-01','Новый'],['2026-06-18','На рассмотрении'],['2026-07-02','Требуется доп. информация']],
+     astage:[['2026-06-01','Комплектация'],['2026-06-18','Подтверждение ГФ']],
+     branch:[['2026-06-01','Иссык-Кульское РП']], aspec:[['2026-06-01','Асанов А.']]}, {})
+],
+/* Заявка на реструктуризацию — обращение (РС-2). */
+'obj-rsapp': [
+  it('РС-2025/07', {regdate:'2025-10-01', closed:null, inn:'31804196611227'},
+    {rstage:[['2025-10-01','регистрация обращения'],['2025-10-20','анализ'],['2025-11-14','комитет Холдинга'],
+             ['2025-12-02','письмо направлено'],['2026-01-15','заключение уполномоченного органа'],
+             ['2026-03-04','проект решения КМ'],['2026-05-12','постановление КМ'],['2026-06-01','оформление']],
+     routcome:[['2026-05-12','одобрено']],
+     rmulti:[['2025-10-01',false]],
+     branch:[['2025-10-01','Иссык-Кульское РП']], rcurator:[['2025-10-01','Асанов А.']]}, {}),
+  /* Заявка ОТПАЛА: кредит погашен во время рассмотрения (ТЗ 15 §9, «Края»). */
+  it('РС-2026/01', {regdate:'2026-02-10', closed:'2026-07-25', inn:'45607195804119'},
+    {rstage:[['2026-02-10','регистрация обращения'],['2026-03-01','анализ'],['2026-07-25','закрыта']],
+     routcome:[['2026-07-25','отпала']],
+     rmulti:[['2026-02-10',false]],
+     branch:[['2026-02-10','Ошское РП']], rcurator:[['2026-02-10','Бекова Н.']]}, {}),
+  /* ТРЕТЬЯ реструктуризация кредита: признак стоит, а маршрут не меняется (РС-32). */
+  it('РС-2026/04', {regdate:'2026-06-15', closed:null, inn:'22903197505433'},
+    {rstage:[['2026-06-15','регистрация обращения'],['2026-07-01','анализ'],['2026-08-05','комитет Холдинга']],
+     rmulti:[['2026-06-15',true]],
+     branch:[['2026-06-15','Ошское РП']], rcurator:[['2026-06-15','Бекова Н.']]}, {})
+],
+/* Расчёт — заявка × транш. Ступень 1 порога считается ПО РАСЧЁТУ (РС-26). */
+'obj-rscalc': [
+  it('РС-2025/07-1', {cdate:'2025-10-15', app:'РС-2025/07', credit:'КД-2025/088', tranche:'КД-2025/088-Т1',
+      cur:'KGS', base:612000, fact:640000, diff:28000, transfer:640000},
+    {cstep:[['2025-10-15','нет']], cdsstate:[['2025-10-15','не зарегистрировано'],['2026-06-20','зарегистрировано']]}, {}),
+  it('РС-2026/01-1', {cdate:'2026-02-20', app:'РС-2026/01', credit:'КД-2021/012', tranche:'КД-2021/012-Т1',
+      cur:'KGS', base:300000, fact:300000, diff:0, transfer:0},
+    {cstep:[['2026-02-20','нет']], cdsstate:[['2026-02-20','не зарегистрировано'],['2026-07-25','снят с основанием']]}, {}),
+  it('РС-2026/04-1', {cdate:'2026-06-20', app:'РС-2026/04', credit:'КД-2023/210', tranche:'КД-2023/210-Т1',
+      cur:'KGS', base:2870000, fact:2915000, diff:45000, transfer:2915000},
+    {cstep:[['2026-06-20','нет']], cdsstate:[['2026-06-20','не зарегистрировано']]}, {}),
+  /* Расхождение 15,6 % от базы — ступень 1: виза куратора блокирует регистрацию ЭТОГО ДС,
+     а не всей заявки (РС-26, «При охвате из нескольких траншей»). */
+  it('РС-2026/04-2', {cdate:'2026-06-20', app:'РС-2026/04', credit:'КД-2022/065', tranche:'КД-2022/065-Т1',
+      cur:'KGS', base:3980000, fact:4600000, diff:620000, transfer:4600000},
+    {cstep:[['2026-06-20','нет'],['2026-08-01','ступень 1']],
+     cdsstate:[['2026-06-20','не зарегистрировано']]}, {})
+],
+/* Сотрудник. Рождение — приём; «Оформляется» строки не имеет (ТЗ 11 §5). */
+'obj-staff': [
+  it('ТН-0001', {hired:'2019-03-01', fired:null},
+    {branch:[['2019-03-01','Кредитный департамент']], spost:[['2019-03-01','Главный специалист']],
+     shr:[['2019-03-01','Работает']], savail:[['2019-03-01','На месте']],
+     sacct:[['2019-03-05','активна']], sassign:[['2019-03-01','основное']],
+     rate:[['2019-03-01',1]]}, {}),
+  /* Совмещение: ставок 1,5 — на пределе лимита ТЗ 11 §7. */
+  it('ТН-0002', {hired:'2021-06-15', fired:null},
+    {branch:[['2021-06-15','Ошское РП']], spost:[['2021-06-15','Ведущий специалист']],
+     shr:[['2021-06-15','Работает']], savail:[['2021-06-15','На месте']],
+     sacct:[['2021-06-20','активна']], sassign:[['2021-06-15','основное'],['2026-01-01','совмещение']],
+     rate:[['2021-06-15',1],['2026-01-01',1.5]]}, {}),
+  /* Уволен: строка остаётся, часы стажа стоят, учётная запись заблокирована, а не удалена. */
+  it('ТН-0003', {hired:'2017-09-01', fired:'2026-05-31'},
+    {branch:[['2017-09-01','Иссык-Кульское РП']], spost:[['2017-09-01','Начальник отдела']],
+     shr:[['2017-09-01','Работает'],['2026-05-31','Уволен']], savail:[['2017-09-01','На месте']],
+     sacct:[['2017-09-05','активна'],['2026-05-31','заблокирована']], sassign:[['2017-09-01','основное']],
+     rate:[['2017-09-01',1],['2026-05-31',0]]}, {}),
+  /* Работающий БЕЗ учётной записи — краевой случай ТЗ 11 §5 (ось 3), а не молчаливая норма. */
+  it('ТН-0004', {hired:'2026-03-02', fired:null},
+    {branch:[['2026-03-02','Кредитный департамент']], spost:[['2026-03-02','Специалист']],
+     shr:[['2026-03-02','Работает']], savail:[['2026-03-02','На месте'],['2026-08-01','В отпуске']],
+     sacct:[['2026-03-02','не заведена']], sassign:[['2026-03-02','основное']],
+     rate:[['2026-03-02',1]]}, {}),
+  it('ТН-0005', {hired:'2024-11-04', fired:null},
+    {branch:[['2024-11-04','Ошское РП']], spost:[['2024-11-04','Специалист'],['2026-02-01','и.о. начальника отдела']],
+     shr:[['2024-11-04','Работает']], savail:[['2024-11-04','На месте']],
+     sacct:[['2024-11-10','активна']], sassign:[['2024-11-04','основное'],['2026-02-01','и.о.']],
+     rate:[['2024-11-04',1]]}, {})
+],
+/* ЭПИЗОД ПРОСРОЧКИ: мира у объекта нет — перечня эпизодов не отдаёт никто (P20-R33). */
+'obj-odue': []
 };
 
 /* ===================== ЯДРО РАСЧЁТА (ЗЕРКАЛО) ======================= */
@@ -1865,6 +2212,37 @@ const CORE = {
     const sent = item.f.sent;
     return {sentDays: {value: sent && sent <= dateISO ? daysBetween(sent, dateISO) : null}};
   },
+  /* --- Часы ЗАЯВКИ на кредит. Дни считает владелец: назавтра число другое. */
+  appClock(item, dateISO){
+    CORE.calls++;
+    const sub = item.f.subdate, dec = item.f.decdate;
+    if(!sub || sub > dateISO) return {days: {value:null}};
+    /* После решения часы ОСТАНАВЛИВАЮТСЯ: иначе «средний срок рассмотрения» растёт у решённых заявок вечно. */
+    const end = dec && dec <= dateISO ? dec : dateISO;
+    return {days: {value: daysBetween(sub, end)}};
+  },
+  /* --- Часы ЗАЯВКИ на реструктуризацию. Срок идёт от регистрации обращения (ТЗ 15 §3);
+     база заявки — сумма баз её расчётов, разновалютная, потому сомовая. */
+  rsCalcsOf(appId, dateISO){
+    return (WORLD['obj-rscalc'] || []).filter(x => x.f.app === appId && x.f.cdate <= dateISO);
+  },
+  rsClock(item, dateISO){
+    CORE.calls++;
+    const reg = item.f.regdate, cl = item.f.closed;
+    const cs = CORE.rsCalcsOf(item.id, dateISO);
+    /* Пересчёт в сом живёт в одном месте (`CORE.toSom`), а не вторым умножением здесь. */
+    return {days:  {value: reg && reg <= dateISO ? daysBetween(reg, cl && cl <= dateISO ? cl : dateISO) : null},
+            calcs: {value: cs.length},
+            base:  CORE.portfolioCell(cs, dateISO, x => x.f.base || 0)};
+  },
+  /* --- Часы КАДРОВ. Назначения суть периоды (ТЗ 11 §5): стаж и сумма действующих
+     ставок читаются на дату. */
+  hrClock(item, dateISO){
+    CORE.calls++;
+    const h = item.f.hired, fired = item.f.fired;
+    return {tenureDays: {value: h && h <= dateISO ? daysBetween(h, fired && fired <= dateISO ? fired : dateISO) : null},
+            rate: {value: valueOn((item.h || {}).rate, dateISO)}};
+  },
   /* --- Разнесение ПЛАТЕЖА (волна 11, ч. 2). */
   payAlloc(item, dateISO){
     CORE.calls++;
@@ -1925,7 +2303,11 @@ const CORE = {
     leadCurator:   ['curator','branch','by'],
     casePortfolio: ['claimTotal','claims','credits','expenses'],
     claimDebt:     ['amount','phaseDays'],
-    measureClock:  ['sentDays']
+    measureClock:  ['sentDays'],
+    appClock:      ['days'],
+    rsClock:       ['days','calcs','base'],
+    /* Кадры, как и кураторство, слоя не закрывают, а величины отдают на дату. */
+    hrClock:       ['tenureDays','rate']
   },
   /* Признак ставится на саму КЛЕТКУ, у двери: величина уносит его с собой через шов, и читателю не приходится второй раз узнавать, откуда она пришла. */
   stamp(seam, a){
@@ -1940,6 +2322,7 @@ const CORE = {
     CORE.rowCalls++;
     const o = OBJ(objId), card = CARD[objId];
     if(!o) return {ok:false, why:'объекта «'+objId+'» нет в реестре объектов (ИС-53)'};
+    if(o.pending) return {ok:false, pending:true, why: pendingWhy(o)};
     /* Владелец перечня не объявил — это не «пусто» и не «ошибка», а НЕТ АДРЕСА. Дорога называется: датированное берётся у статистики, а живое ждёт волны владельца. */
     if(!card) return {ok:false, noCard:true, why: noCardWhy(o)};
     const at = q && q.at;
@@ -2111,7 +2494,36 @@ const RELEASE = {id:'макет · волна 23', tables:{
   'obj-measure':    {table:'stat_row_measure',    storage:'event_full',  cols: relCols(
     ['object_id','target_id','slice_date','run_id','src_curation','src_detail','is_partial','now_cols','cur','rate','rate_date'],
     {ref:['d_kind','d_outcome','d_reg_unit','d_reg_unit_parent','d_reg_curator'],
-     code:['d_mstate'], id:['d_credit'], bool:['d_primary'], money_cur:['i_claim']})}
+     code:['d_mstate'], id:['d_credit'], bool:['d_primary'], money_cur:['i_claim']})},
+  /* ========================= ПЯТЬ ТАБЛИЦ ============================= */
+  /* Таблица есть и у «Эпизода просрочки», хотя строк в него не пишет никто: объект
+     заводится таблицей строк, а нет у него шва владельца — это и говорит `pending`. */
+  'obj-app':        {table:'stat_row_app',        storage:'state',       cols: relCols(
+    ['object_id','slice_date','run_id','src_app','src_detail','is_partial','now_cols','cur','rate','rate_date'],
+    {ref:['d_unit','d_unit_parent','d_spec','d_program','d_terr_region','d_terr_district','d_borrower'],
+     code:['d_status','d_stage','d_flow'], date:['d_subdate'],
+     money_cur:['i_amount','i_approved'], int:['i_days']})},
+  /* Итог заявки на реструктуризацию только в сомах — охват разновалютен, и своей
+     валютной стороны у суммы баз нет; потому ни `cur`, ни `rate` у таблицы нет. */
+  'obj-rsapp':      {table:'stat_row_rs_app',     storage:'state',       cols: relCols(
+    ['object_id','slice_date','run_id','src_rs','src_detail','is_partial','now_cols'],
+    {ref:['d_unit','d_unit_parent','d_curator','d_borrower'],
+     code:['d_stage','d_outcome'], bool:['d_multi'], date:['d_regdate'],
+     money_som:['i_base'], int:['i_days','i_calcs']})},
+  'obj-rscalc':     {table:'stat_row_rs_calc',    storage:'state',       cols: relCols(
+    ['object_id','slice_date','run_id','src_rs','src_detail','is_partial','now_cols','cur','rate','rate_date'],
+    {ref:['d_credit','d_tranche'], id:['d_app'], code:['d_step','d_ds_state'],
+     money_cur:['i_base','i_fact','i_diff','i_transfer']})},
+  /* У сотрудника нет ни одной денежной колонки: нагрузка куратора живёт срезом кредита. */
+  'obj-staff':      {table:'stat_row_staff',      storage:'state',       cols: relCols(
+    ['object_id','slice_date','run_id','src_hr','src_detail','is_partial','now_cols'],
+    {ref:['d_unit','d_unit_parent','d_post'],
+     code:['d_hr_state','d_avail','d_acct','d_assign_kind'], date:['d_hired'],
+     int:['i_tenure_days'], num:['i_rate']})},
+  'obj-odue':       {table:'stat_row_overdue_spell', storage:'state',    cols: relCols(
+    ['object_id','slice_date','run_id','src_core','src_detail','is_partial','now_cols','cur','rate','rate_date'],
+    {ref:['d_credit'], code:['d_layer','d_state'], date:['d_from'],
+     money_cur:['i_peak'], int:['i_days']})}
 }};
 /* ЗАКРЫТЫЙ СЛОВАРЬ — СПИСОК ЗНАЧЕНИЙ В РЕЛИЗЕ. Колонка вида `code` — `text` + CHECK: значения задаёт модель, и новое значение приходит релизом вместе с правкой модели, а не записью реестра. */
 const RELEASE_CHECKS = {
@@ -2135,7 +2547,24 @@ const RELEASE_CHECKS = {
   'obj-receipt':    {d_chan:['платёжный шлюз','банк','казначейство','ручной ввод'],
                      d_match:['ожидает','подтверждено','отозвано','восстановлено','расхождение'],
                      d_corr_kind:['original','bind','refund','match','freeze','amount']},
-  'obj-measure':    {d_mstate:['действует','сторнирована']}
+  'obj-measure':    {d_mstate:['действует','сторнирована']},
+  'obj-app':        {d_status:['Новый','На рассмотрении','Требуется доп. информация','Одобрена',
+                               'Отклонена','Ожидает решения/программы','На оформлении','Оформлена','Отозвана'],
+                     d_stage:['Комплектация','Подтверждение ГФ','Заключения отделов',
+                              'Комиссия (предв.)','Комитет · решение'],
+                     d_flow:['A','B']},
+  'obj-rsapp':      {d_stage:['регистрация обращения','анализ','комитет Холдинга','письмо направлено',
+                              'заключение уполномоченного органа','проект решения КМ','постановление КМ',
+                              'оформление','закрыта'],
+                     d_outcome:['одобрено','одобрено с изменёнными условиями','отказ','отпала']},
+  'obj-rscalc':     {d_step:['нет','ступень 1','ступень 2'],
+                     d_ds_state:['не зарегистрировано','зарегистрировано','снят с основанием']},
+  'obj-staff':      {d_hr_state:['Работает','Уволен','Оформляется'],
+                     d_avail:['На месте','В отпуске','На больничном','В командировке'],
+                     d_acct:['активна','заблокирована','не заведена'],
+                     d_assign_kind:['основное','совмещение','и.о.']},
+  'obj-odue':       {d_layer:['свободный','по решению суда'],
+                     d_state:['тянется','вылечен']}
 };
 Object.keys(RELEASE.tables).forEach(o => { RELEASE.tables[o].checks = clone(RELEASE_CHECKS[o] || {}); });
 /* Физические колонки записи. */
@@ -2220,7 +2649,9 @@ function normRec(r){
 const SOM_SUFFIX = '-som';
 /* Обязательный разрез свода — разрез ВАЛЮТЫ СВОЕГО объекта. */
 const CUR_DIM = {'obj-credit':'d-cur', 'obj-claim':'d-clcur', 'obj-repay':'d-pcur',
-  'obj-receipt':'d-rcur', 'obj-measure':'d-mcur'};
+  'obj-receipt':'d-rcur', 'obj-measure':'d-mcur',
+  /* Разрез валюты у каждого объекта свой: им сворачивается его же валютная величина. */
+  'obj-app':'d-acur', 'obj-rscalc':'d-rccur', 'obj-odue':'d-oecur'};
 ST.CUR_DIM = CUR_DIM;
 /* Близнец нужен ТОЛЬКО величине, возникшей в валюте. */
 const isSomRow = r => !!r && r.kind === KIND.IND && r.src !== 'агрегат' && !!r.money &&
@@ -5210,6 +5641,8 @@ const waitsWhy = r => 'запись «'+r.name+'» ждёт колонку: ре
 function checkQuery(q, needAgg){
   const o = OBJ(q.obj);
   if(!o) return 'объекта «'+q.obj+'» нет в реестре объектов (ИС-53)';
+  /* Заявка владельцу произносится на всех дверях: молча пустеющий объект — дефект. */
+  if(o.pending) return pendingWhy(o);
   /* Дата вопроса проверяется ДО разрезов: хвост — отказ, а не подстановка. */
   const tail = dateGate(ST.state, q.obj, q.date);
   if(tail) return tail;
