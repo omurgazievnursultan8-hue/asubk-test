@@ -835,9 +835,26 @@
         не складываются и показываются разными плитками.
    Р-4  Изменение условий после регистрации — только зарегистрированным основанием
         (ДС · решение суда · постановление правительства), записью с датой вступления.
-   Р-5  Платежи — зеркало модуля платежей + ручной ввод формой владельца («Ожидает ЦК»).
+   Р-5  Платежи — зеркало модуля платежей + ДЕЙСТВИЯ ТРАКТОВКИ над платежами ЭТОГО кредита.
         ПЕРЕПИСАНО волной 27.07.2026 (этап 4, шов платежей): «ждёт подтверждения» —
         свойство КАНАЛА, а не статуса, см. Р-27.
+        РАСШИРЕНО волной 23.09.2026 (ADR-0257, ADR-0258): карточка кредита — ВТОРАЯ ТОЧКА
+        ВХОДА для действий над ОДНИМ платежом этого кредита, лента платежей остаётся одна и
+        живёт в модуле (ADR-0056). Строка таблицы открывает карточку платежа — те же четыре
+        вкладки, что в модуле (Реквизиты · Разбивка · Спорная пеня · История), без повтора
+        заёмщика и договора: их печатает шапка кредита.
+        ЧТО ЗДЕСЬ МОЖНО: ручной ввод по списку ЦК (рождает ПОСТУПЛЕНИЕ + ПЛАТЁЖ одной
+        операцией, ADR-0096 §1) · поправка к разбивке · режим остатка сверх наступившего ·
+        подтверждение сопоставления · решение органа по спорной пене.
+        ЧТО ТОЛЬКО В МОДУЛЕ, кнопкой-переходом: перепривязка на другой кредит, невыясненные
+        поступления, акт сверки, возвраты, закрытие периода.
+        ЧЕГО ЗДЕСЬ НЕТ НИ ПРИ КАКОЙ РОЛИ (факт денег, ADR-0257 §5): сторно поступления,
+        корректировка суммы по реестру ЦК, заморозка и разморозка, исполнение возврата.
+        КТО: трактовка — куратор, ЗАКРЕПЛЁННЫЙ за кредитом (curatorAt из зеркала кураторства,
+        ADR-0116); ручной ввод — он же и бухгалтер (ADR-0258 §1). Чужой кредит роль «Куратор»
+        открывает на чтение. Замороженный платёж read-only, как и в модуле.
+        СНИМОК: своё действие двигает mirror.paymentsAsOf по этому кредиту; ОСТАТКИ оно не
+        двигает — их двигает только подтверждение ЦК (paymentCounts, Р-27).
    Р-6  Освоение — owned кредитом, на транше; реестр «Освоение» — сквозной вид, не владелец.
         Закрытие неосвоенного остатка — тоже owned действие (оживлено волной 27.07.2026).
    Р-7  Залог — зеркало: «Создать залоговый договор» нет, только «Привязать существующий».
@@ -1078,7 +1095,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-08-28 · 172/181 PASS
+ SMOKE (node) 2026-09-23 · 182/191 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -1260,6 +1277,16 @@
    #142 ✓
    #143 ✓
    #144 ✓
+   #190 ✓
+   #191 ✓
+   #192 ✓
+   #193 ✓
+   #194 ✓
+   #195 ✓
+   #196 ✓
+   #197 ✓
+   #198 ✓
+   #199 ✓
 -->
 <style>
 
@@ -2002,6 +2029,17 @@ table.dl-grid tr.overdue td:last-child{ font-weight:var(--weight-semibold); }
           <span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
         </div>
       </div>
+      <!-- КТО Я — работник, а не роль (ADR-0258 §3). Трактовка платежей требует
+           ЗАКРЕПЛЕНИЯ за кредитом, и без выбора работника правило нечем показать:
+           «Куратор» их много, а закреплён за кредитом один. Список строится из зеркала
+           кураторства сида, а не хардкодом. -->
+      <div class="role-wrap">
+        <label>Работник:</label>
+        <div class="rsel">
+          <select id="empSel" onchange="if(window.CR&&CR.onEmpChange)CR.onEmpChange()"></select>
+          <span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+        </div>
+      </div>
       <!-- ШПАРГАЛКА ДЕМОНАБОРА — СЛУЖЕБНОЕ ДЛЯ МАКЕТА, В ТРЕБОВАНИЯ НЕ ИДЁТ.
            Здесь же стоял переключатель «Набор» (опорные восемь / все 60) — снят по КВ-52:
            смена набора пересобирала оболочку реестра со списками фильтров и на каждом
@@ -2677,7 +2715,7 @@ function emptyMirror(over){                          // все зеркала (�
        Погашенное и его разнесение по статьям кредит НЕ выводит: матрица разнесения
        живёт у платежей, и при судебном решении слоёв несколько (§10.4). Очередь погашения —
        наоборот, собственность кредита (ADR-0060 §4). */
-    payments:[], paymentsAsOf:null,
+    payments:[], receipts:[], paymentsAsOf:null,
     /* claims — требования взыскания (ADR-0002): единица работы = процесс × кредит ×
        обязанное лицо. Прежнее поле collection несло ПРОЦЕСС и хранило фазу как поле,
        что запретил ADR-0003 (фаза — свёртка журнала мер). Обязанного лица в модели
@@ -2843,7 +2881,7 @@ function seedAllocLines(due, tranche, arts){
    она бывает много позже (опознанное невыясненное поступление), и расчёт идёт от первой. */
 function seedPayment(num, date, tranche, arts, over){
   const amount = round2((arts.principal||0) + (arts.interest||0) + (arts.penalty||0) + (arts.fees||0));
-  return Object.assign({ num, date, bindDate:null, tranche, amount, currency:null, rate:null,
+  return Object.assign({ num, date, bindDate:null, tranche, amount, currency:null,
     reg:'Импорт ЦК', match:'Подтверждён ЦК', dispute:null,
     frozen:true, method:'денежными средствами',
     alloc:seedAllocLines(date, tranche, arts), unalloc:0 }, over || {});
@@ -2993,13 +3031,13 @@ function seedDb(){
          не могла вовсе (КР-44, КР-45, КР-46). */
       payments:[
         seedPayment(1, '20.06.2026', 1, { principal:3781.16, interest:833.33 }),
-        { num:2, date:'22.07.2026', bindDate:'22.07.2026', amount:4614.49, currency:'KGS', rate:null,
+        { num:2, date:'22.07.2026', bindDate:'22.07.2026', amount:4614.49, currency:'KGS',
           tranche:1, reg:'Ручной ввод', match:'Ожидает ЦК', frozen:false, dispute:null,
           method:'денежными средствами' },
-        { num:3, date:'21.07.2026', bindDate:null, amount:2500, currency:'KGS', rate:null,
+        { num:3, date:'21.07.2026', bindDate:null, amount:2500, currency:'KGS',
           tranche:1, reg:'Шлюз', match:'Ожидает ЦК', frozen:false, dispute:null,
           method:'денежными средствами' },
-        { num:4, date:'18.07.2026', bindDate:null, amount:4614.49, currency:'KGS', rate:null,
+        { num:4, date:'18.07.2026', bindDate:null, amount:4614.49, currency:'KGS',
           tranche:1, reg:'Шлюз', match:'Сторно (таймаут)', frozen:false,
           dispute:{ from:'18.07.2026', to:null, status:'Ожидает решения комиссии',
                     protocol:'', outcome:null },
@@ -3567,18 +3605,18 @@ function seedDb(){
     const bgSchedules = (b.life !== 'Проект' && b.od > 0)
       ? [ seedSchedule('12.01.2026', b.od, b.amount, 9, 24, 4, '10.01.2026') ] : [];   // дата освоения фоновых — КР-63
     const bgPayments = (b.pay === 'fx')
-      ? [ { num:1, date:'12.06.2026', bindDate:'03.07.2026', amount:174000, currency:'KGS', rate:87,
+      ? [ { num:1, date:'12.06.2026', bindDate:'03.07.2026', amount:174000, currency:'KGS',
             tranche:1, reg:'Импорт ЦК', match:'Подтверждён ЦК', frozen:true, dispute:null,
             method:'денежными средствами',
             alloc:seedAllocLines('12.06.2026', 1, { principal:1600, interest:400 }), unalloc:0 } ]
       : (b.pay === 'storno')
-      ? [ { num:1, date:'11.07.2026', bindDate:null, amount:9000, currency:b.ccy, rate:null,
+      ? [ { num:1, date:'11.07.2026', bindDate:null, amount:9000, currency:b.ccy,
             tranche:1, reg:'Шлюз', match:'Сторно (таймаут)', frozen:false,
             dispute:{ from:'11.07.2026', to:null, status:'Ожидает решения комиссии',
                       protocol:'', outcome:null },
             method:'денежными средствами' } ]
       : (b.pay === 'restored')
-      ? [ { num:1, date:'25.05.2026', bindDate:null, amount:20000, currency:b.ccy, rate:null,
+      ? [ { num:1, date:'25.05.2026', bindDate:null, amount:20000, currency:b.ccy,
             tranche:1, reg:'Шлюз', match:'Восстановлен', frozen:false,
             dispute:{ from:'25.05.2026', to:'08.06.2026', status:'Снята автоматически',
                       protocol:'', outcome:'снята при восстановлении платежа' },
@@ -4219,6 +4257,11 @@ function seedDb(){
     writeOffTranches(c, { date: c.closure.date, doc: c.closure.doc || null,
                           amount: (c.closure.doc || {}).amount });
   }
+
+  /* ПОСТУПЛЕНИЯ ДОСТРАИВАЮТСЯ ПОСЛЕДНИМ ПРОХОДОМ (ADR-0056): платежи к этому моменту
+     дописаны всеми проходами выше — закрытыми кредитами, досчётом и списанием, — и
+     поступление достраивается ровно на то, что в зеркале осталось. */
+  for (const c of credits) normalizeReceipts(c);
 
   return { credits, applications, pledgesRegistry };
 }
@@ -5510,6 +5553,70 @@ function paymentCounts(p){
    долга выражены в ней, и пересчёт делает владелец, когда раскладывает сумму. */
 function paymentCurrency(p, c){ return (p && p.currency) || (c && c.currency) || 'KGS'; }
 
+/* ---- КУРС — ПРОИЗВОДНАЯ СПРАВОЧНИКА, А НЕ ПОЛЕ ПЛАТЕЖА (ADR-0061, ADR-0090) --------
+   До волны 23.09.2026 зеркало несло `p.rate`, и таблица печатала «курс 87» из него. Это
+   зафиксировало отменённое решение: курс берётся у НБ КР на ДАТУ ПОСТУПЛЕНИЯ, а при
+   отсутствии на дату действует ПОСЛЕДНИЙ УСТАНОВЛЕННЫЙ (ADR-0090) — выходные дырами не
+   являются. Справочник здесь — зеркало-заглушка курсов (значения сомов за единицу валюты);
+   владелец у него общий, кредит его только читает. */
+const NB_RATES = {
+  USD: [{ from:'01.01.2024', v:89.0 }, { from:'01.01.2026', v:86.8 }, { from:'01.06.2026', v:87.0 }],
+  EUR: [{ from:'01.01.2024', v:97.5 }, { from:'01.01.2026', v:94.2 }, { from:'01.06.2026', v:95.1 }],
+  RUB: [{ from:'01.01.2026', v:0.95 }, { from:'01.06.2026', v:1.02 }],
+};
+function nbRateAt(code, date){
+  const rows = NB_RATES[code]; if (!rows || !date) return null;
+  let v = null;
+  for (const r of rows) if (pd(r.from) <= pd(date)) v = r.v;   // последний установленный на дату
+  return v;
+}
+/* Курс пары «валюта поступления → валюта кредита» на дату поступления. null, когда пара
+   совпадает: пересчитывать нечего, и печатать курс не о чем. */
+function fxRateOf(c, p){
+  const cc = (c && c.currency) || 'KGS', pc = paymentCurrency(p, c);
+  if (cc === pc) return null;
+  if (pc === 'KGS') return nbRateAt(cc, paymentDate(c, p));            // сомы за единицу валюты кредита
+  const a = nbRateAt(pc, paymentDate(c, p)), b = nbRateAt(cc, paymentDate(c, p));
+  return (a && b) ? round2(b / a) : null;
+}
+
+/* ---- ПОСТУПЛЕНИЕ И ПЛАТЁЖ — ДВЕ СУЩНОСТИ (ADR-0056), зеркало несёт обе --------------
+   Поступление — ФАКТ ДЕНЕГ: сумма, дата фактического поступления, канал, документ ЦК,
+   плательщик, примечание. Существует независимо от того, нашёлся ли кредит, и порождает
+   ноль, один или N платежей. Платёж — привязка ЧАСТИ поступления к кредиту; своей даты у
+   него нет, он наследует её у поступления (спека платежей §2.2).
+   Кредит видит только платежи по себе, но факт денег за ними обязан быть назван: без него
+   ручной ввод с карточки кредита (ADR-0257 §3) писал бы платёж, за которым нет денег, а
+   сверка не имела бы, с чем сопоставляться. */
+function receiptOf(c, p){
+  const rs = (c && c.mirror && c.mirror.receipts) || [];
+  return rs.find(r => r.num === (p && p.receiptNum)) || null;
+}
+function paymentDate(c, p){ const r = receiptOf(c, p); return (r && r.date) || (p && p.date) || null; }
+
+/* Канал поступления выводится из оси регистрации платежа — это одна и та же величина,
+   названная с двух сторон (спека §3, «три оси»). */
+const CHANNEL_OF_REG = { 'Ручной ввод':'manual', 'Шлюз':'gateway', 'Импорт ЦК':'cbk_import' };
+
+/* НОРМАЛИЗАЦИЯ ЗЕРКАЛА: сид пишет платежи плоско (так он читается), поступления
+   достраиваются ОДИН раз при сборке базы. Инвариант §2.1 («сумма поступления = Σ платежей
+   + возврат + нераспределённое») держится по построению: достроенное поступление несёт
+   ровно сумму своих платежей. Хранимый курс при этом снимается — он производная. */
+function normalizeReceipts(credit){
+  const m = credit.mirror; if (!m) return;
+  m.receipts = m.receipts || [];
+  for (const p of (m.payments || [])){
+    delete p.rate;                                   // ADR-0061/0090: курс не хранится
+    if (p.receiptNum) continue;
+    const num = 'П-' + String(credit.id || '').replace(/[^0-9A-Za-zА-Яа-я]/g,'') + '-' + p.num;
+    m.receipts.push({ num, date:p.date, amount:p.amount, currency:paymentCurrency(p, credit),
+      channel: CHANNEL_OF_REG[p.reg] || 'cbk_import',
+      cbkDoc: p.reg === 'Шлюз' ? null : { num:'ЦК-' + String(p.num).padStart(4,'0'), date:p.date },
+      payer: credit.borrower ? credit.borrower.name : '', note:'', enteredBy:null });
+    p.receiptNum = num;
+  }
+}
+
 /* ---- РАЗНЕСЕНИЕ ПЛАТЕЖА · ЧЕТЫРЕ КООРДИНАТЫ (ADR-0055, ADR-0060 §2, ADR-0073) ------
    ЗДЕСЬ БЫЛ ДЕФЕКТ РЯ-Д5. Зеркало платежа несло `layers` — три-четыре суммы по статьям:
    `{principal:40 000, interest:3 000}`. Сумма отвечает на «сколько ушло на проценты» и
@@ -5534,9 +5641,10 @@ function paymentCurrency(p, c){ return (p && p.currency) || (c && c.currency) ||
 /* СУММА ПЛАТЕЖА В ВАЛЮТЕ КРЕДИТА. `amount` приходит в валюте ПОСТУПЛЕНИЯ: у K-B2 это
    174 000 KGS по курсу 87 при долге в USD. Разнесение считается в валюте долга — иначе
    «Σ разнесённого + нераспределённое = сумма платежа» не сойдётся ни в одной из двух. */
-function paymentBase(p){
+function paymentBase(c, p){
   if (!p) return 0;
-  return round2(p.rate ? (p.amount || 0) / p.rate : (p.amount || 0));
+  const rate = fxRateOf(c, p);
+  return round2(rate ? (p.amount || 0) / rate : (p.amount || 0));
 }
 
 /* ПОРЯДОК СТАТЕЙ ДЛЯ ОСТАТКА СВЕРХ НАСТУПИВШЕГО (ADR-0073 §1 в ред. ADR-0087): та же
@@ -5565,7 +5673,7 @@ function allocDerive(c, p){
   const q    = buildQueue(view, led);
   const rows = q.rows || q;
   const lines = [];
-  let left = paymentBase(p);
+  let left = paymentBase(c, p);
   const take = (r, early) => {
     if (left <= 0.005 || !(r.amount > 0.005)) return;
     const v = round2(Math.min(left, r.amount));
@@ -5598,7 +5706,7 @@ function allocDerive(c, p){
   }
   /* 3. ХВОСТ — к возврату (§7.3 спеки платежей). Молча в переплату он не превращается:
      величина отдаётся ОТДЕЛЬНЫМ полем и сходится с суммой платежа копейка в копейку. */
-  return { lines, unallocated:round2(left), base:paymentBase(p), snapshot:false, asOf:p.date };
+  return { lines, unallocated:round2(left), base:paymentBase(c, p), snapshot:false, asOf:p.date };
 }
 
 /* ПАМЯТЬ ВЫВОДА КЛЮЧОМ НЕСЁТ ВХОД, ОТ КОТОРОГО ВЫВЕДЕНА. Разнесение рекурсивно: чтобы
@@ -5653,7 +5761,7 @@ function allocOf(c, p){
   if (!p) return { lines:[], unallocated:0, base:0, snapshot:false, asOf:null };
   if (p.frozen && Array.isArray(p.alloc))
     return { lines:p.alloc.map(l => allocSnapLine(l, p)),
-             unallocated:round2(p.unalloc || 0), base:paymentBase(p),
+             unallocated:round2(p.unalloc || 0), base:paymentBase(c, p),
              snapshot:true, asOf:p.frozenAt || p.date };
   const m = allocMemo(c), k = p.num | 0;
   if (!m) return allocDerive(c, p);            // отпечатка нет — памяти нет, вывод честный
@@ -7496,8 +7604,38 @@ function gate(credit, action, ctx = {}){
     }
     case 'savePayment':                                                                    // Г-11
       if (!(ctx.amount>0)) r.push('Сумма платежа должна быть > 0');
-      if (ctx.dateAfterToday) r.push('Дата платежа не может быть в будущем');
-      if (!ctx.trancheNo) r.push('Транш обязателен');
+      if (ctx.dateAfterToday) r.push('Дата фактического поступления не может быть в будущем');
+      if (!ctx.trancheNo) r.push('Счёт зачисления (транш) обязателен');
+      /* ДОКУМЕНТ ЦК ОБЯЗАТЕЛЕН (ADR-0258 §6): список ЦК и есть основание ручного ввода
+         (§1 спеки платежей), и без его реквизитов сверке не с чем сопоставляться. */
+      if (!ctx.cbkNum || !ctx.cbkDate) r.push('Номер и дата платёжного документа ЦК обязательны — список ЦК и есть основание ввода');
+      curatorGate(credit, ctx, r);
+      break;
+    /* ---- ДЕЙСТВИЯ ТРАКТОВКИ (Г-31…Г-34, ADR-0257/0258) ----
+       Общее у всех четырёх: закрепление куратора, живой (не замороженный) платёж и
+       принадлежность платежа ЭТОМУ кредиту. Разное — предмет правки. */
+    case 'payAlloc':                                                                       // Г-31
+      payTraktovkaGate(credit, ctx, r);
+      if (!ctx.reason) r.push('Поправка к разбивке — только с основанием (§5.2 спеки платежей)');
+      break;
+    case 'paySurplus':                                                                     // Г-32
+      payTraktovkaGate(credit, ctx, r);
+      if (ctx.mode && !['advance','reserve'].includes(ctx.mode))
+        r.push('Режимов остатка два: «аванс» и «адресный резерв»; дефолт — отсутствие режима (ADR-0073)');
+      if (ctx.mode === 'reserve' && !(ctx.rows||[]).length)
+        r.push('Адресный резерв ставится с указанием строк — без них он и есть аванс');
+      break;
+    case 'payMatch':                                                                       // Г-33
+      payTraktovkaGate(credit, ctx, r);
+      if (ctx.payment && ctx.payment.match === 'Подтверждён ЦК') r.push('Платёж уже подтверждён ЦК');
+      if (ctx.payment && ctx.payment.match === 'Сторно (таймаут)')
+        r.push('Сторнированное не подтверждается — его лечат новым платежом (§8.3 спеки платежей)');
+      if (!ctx.cbkRef) r.push('Сопоставление подтверждается ссылкой на строку реестра ЦК');
+      break;
+    case 'payDispute':                                                                     // Г-34
+      payTraktovkaGate(credit, ctx, r);
+      if (ctx.payment && !ctx.payment.dispute) r.push('У платежа нет спорной пени — решение вносить не к чему');
+      if (!ctx.outcome || !ctx.protocol) r.push('Решение органа — с исходом и номером протокола');
       break;
     case 'writeOff':
       if (!ctx.doc || !ctx.doc.kind || !ctx.doc.num || !ctx.doc.date) r.push('Списание — только с реквизитами решения (вид · номер · дата)'); // Г-12
@@ -7577,12 +7715,50 @@ function gate(credit, action, ctx = {}){
   return { ok: r.length===0, reasons: r };
 }
 
+/* ---- ЗАКРЕПЛЕНИЕ КУРАТОРА (ADR-0116, ADR-0258 §3) ---------------------------------
+   Кураторство — ИЗМЕРЕНИЕ, а не поле: активная запись журнала назначений на дату. Кредит
+   держит журнал зеркалом (Р-9) и читает из него одно — кто закреплён сегодня.
+   Права трактовки платежей смотрят НЕ ТОЛЬКО на роль: роль отвечает «что за работа», а
+   закрепление — «по каким кредитам». Бухгалтера закрепление не ограничивает: факт денег
+   он ведёт по всему портфелю (ADR-0258 §4). */
+function assignedCuratorOf(credit){
+  const cs = (credit && credit.mirror && credit.mirror.curatorship) || [];
+  const act = cs.find(x => !x.to) || null;
+  return act ? act.employee : null;
+}
+function isAssignedCurator(credit, actor){
+  const who = actor || currentEmployee;
+  const cur = assignedCuratorOf(credit);
+  return !!cur && !!who && cur === who;
+}
+/* Причина отказа называет закреплённого поимённо: «нельзя» без имени заставляет куратора
+   искать, к кому идти, в другом модуле. */
+function curatorGate(credit, ctx, r){
+  if (currentRole !== 'Куратор') return;                       // бухгалтер и начальник отдела — вне правила
+  if (isAssignedCurator(credit, ctx && ctx.actor)) return;
+  const cur = assignedCuratorOf(credit);
+  r.push(cur ? ('Кредит закреплён за куратором «' + cur + '» — чужой кредит открыт на чтение')
+             : 'За кредитом не закреплён куратор — трактовать платежи некому');
+}
+function payTraktovkaGate(credit, ctx, r){
+  const p = ctx && ctx.payment;
+  if (!p) { r.push('Платёж не выбран'); return; }
+  if (!((credit.mirror && credit.mirror.payments) || []).includes(p))
+    r.push('Платёж принадлежит другому кредиту — трактовать его отсюда нельзя (ADR-0257 §4)');
+  if (p.frozen) r.push('Платёж заморожен: разнесение под подписью бухгалтера, правка — только после разморозки (§8.1 спеки платежей)');
+  curatorGate(credit, ctx, r);
+}
+
 /* ---- 4.1 canRole(role, action) — матрица прав по ролям (§7). ---- */
 const ROLE_ACTIONS = {
   'Кредитный специалист': new Set(['createCredit','saveContractAmount','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','applyDs','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editClassification','editDocs','addNote']),
-  'Куратор': new Set(['targetUse','inspection','holdAccrual','transferDebt','linkPledge','addNote','setPlan']),
+  /* ПЛАТЕЖИ У КУРАТОРА (ADR-0257, ADR-0258): трактовка — его предмет, и ручной ввод по
+     списку ЦК тоже (ввод вынут из «факта денег» поимённо). Факта денег здесь нет ни у
+     кого: сторно, корректировка по ЦК и заморозка живут в модуле платежей. */
+  'Куратор': new Set(['targetUse','inspection','holdAccrual','transferDebt','linkPledge','addNote','setPlan',
+                      'savePayment','payAlloc','paySurplus','payMatch','payDispute']),
   'Бухгалтер': new Set(['savePayment','addNote']),
-  'Начальник отдела': new Set(['createCredit','saveContractAmount','editContractRequisites','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','applyDs','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editClassification','editDocs','addNote','targetUse','inspection','holdAccrual','transferDebt','linkPledge','savePayment','waiver','setKmDecision','writeOff','repay','terminate','setPlan']),
+  'Начальник отдела': new Set(['createCredit','saveContractAmount','editContractRequisites','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','applyDs','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editClassification','editDocs','addNote','targetUse','inspection','holdAccrual','transferDebt','linkPledge','savePayment','waiver','setKmDecision','writeOff','repay','terminate','setPlan','payAlloc','paySurplus','payMatch','payDispute']),
   'Наблюдатель': new Set(),
 };
 function canRole(role, action){ return (ROLE_ACTIONS[role]||new Set()).has(action); }
@@ -7782,17 +7958,35 @@ function holdAccrual(credit, ctx){
    верхнеуровневого/чистого кода — см. переключение роли ниже, оно живёт
    только в DOM-блоке и на bare-CR вне браузера не полагается). */
 let currentRole = 'Кредитный специалист';
+/* ---- РАБОТНИК — НЕ РОЛЬ (ADR-0258 §3) -----------------------------------------------
+   До волны 23.09.2026 макет знал только роль, и этого хватало: права были свойством
+   работы, а не человека. Платежи это сломали: трактовка требует ЗАКРЕПЛЕНИЯ за кредитом
+   (`curatorAt`, ADR-0116), то есть сравнения «кто я» с журналом кураторства. Роль на этот
+   вопрос не отвечает ни при каком расширении матрицы — «Куратор» их много.
+   Значение — имя из того же зеркала кураторства, что печатает карточка: выдумывать
+   справочник сотрудников кредит не вправе, он его читает (Р-9). */
+let currentEmployee = 'Асанов А. К.';
+/* Единая точка смены действующего лица: роль и работник меняются здесь, а не присваиванием
+   из разных мест. Нужна и оболочке (два селекта в шапке), и смоуку — гейты закрепления
+   иначе нечем проверить без DOM. */
+function setCurrentActor(role, employee){
+  if (role) currentRole = role;
+  if (employee) currentEmployee = employee;
+  return { role: currentRole, employee: currentEmployee };
+}
 
 /* Единая точка записи в append-only журнал (§0.5, Г-17): запись ЗАМОРОЖЕНА —
    Object.freeze — и никогда не редактируется/не удаляется. Нет CR.deleteAudit.
    seq — сквозной счётчик (КР-17): даты в макете без времени, и две записи одного дня
    были неотличимы по порядку. Для версий графика счётчик уже вводился (generatedSeq);
    журналу он нужен по той же причине — иначе «что было раньше» не восстановить.
-   who — роль, а не сотрудник: сотрудников в макете нет (модуль сотрудников, Р-9), и
-   подставлять туда имя было бы выдумкой; в системе здесь будет учётная запись. */
+   who — роль; рядом с ней с волны 23.09.2026 пишется `by` — работник (currentEmployee),
+   потому что закрепление кураторства сделало «кто именно» величиной, от которой зависит
+   допуск (ADR-0258 §3). Имена берутся из зеркала кураторства, а не выдумываются; в
+   системе здесь будет учётная запись. */
 let _auditSeq = 0;
 function pushAudit(credit, what, before, after){
-  const entry = Object.freeze({ seq: ++_auditSeq, when: TODAY, who: currentRole, what, before, after });
+  const entry = Object.freeze({ seq: ++_auditSeq, when: TODAY, who: currentRole, by: currentEmployee, what, before, after });
   credit.audit.push(entry);
   return entry;
 }
@@ -8040,14 +8234,94 @@ function saveWaiver(credit, ctx){
    кредит его не выдумывает (матрица разнесения у платежей). */
 function addPayment(credit, ctx){
   const dateAfterToday = ctx.date ? pd(ctx.date) > pd(TODAY) : false;
-  const g = gate(credit, 'savePayment', { amount: ctx.amount, dateAfterToday, trancheNo: ctx.trancheNo }); // Г-11
+  const g = gate(credit, 'savePayment', { amount: ctx.amount, dateAfterToday, trancheNo: ctx.trancheNo,
+    cbkNum: ctx.cbkNum, cbkDate: ctx.cbkDate, actor: ctx.actor }); // Г-11
   if (!g.ok) return g;
+  /* ДВЕ ЗАПИСИ ОДНОЙ ОПЕРАЦИЕЙ (ADR-0257 §3). Порядок некоммутативен: поступление
+     рождается первым, платёж ссылается на него — состояния «платёж есть, денег за ним
+     нет» не возникает ни на одном шаге, потому что шаг один. */
+  const rnum = 'П-' + String(credit.id || '').replace(/[^0-9A-Za-zА-Яа-я]/g,'') + '-Р' +
+               (((credit.mirror.receipts || []).filter(r => r.channel === 'manual').length) + 1);
+  const receipt = { num: rnum, date: ctx.date, amount: ctx.amount,
+    currency: credit.currency || 'KGS', channel:'manual',
+    cbkDoc: { num: ctx.cbkNum, date: ctx.cbkDate },
+    payer: ctx.payer || (credit.borrower ? credit.borrower.name : ''), note: ctx.note || '',
+    enteredBy: ctx.actor || currentRole, enteredAt: TODAY };
+  credit.mirror.receipts = credit.mirror.receipts || [];
+  credit.mirror.receipts.push(receipt);
   const num = (credit.mirror.payments.length || 0) + 1;
-  const rec = { num, date: ctx.date, bindDate: TODAY, amount: ctx.amount, tranche: ctx.trancheNo,
-    currency: credit.currency || 'KGS', rate: null, dispute: null,
+  /* Платёж СВОЕЙ даты не имеет — она унаследована у поступления (спека §2.2). В строке
+     платежа она разворачивается ради леджера: он читает даты на каждом шаге обхода, и
+     тянуть поступление за каждой было бы дорого и немо. Писатель у величины ОДИН —
+     тот, кто заводит и правит поступление; равенство `p.date == receiptOf(p).date`
+     стережёт смоук (проверка «дата платежа унаследована»), а не договорённость.
+     `bindDate` остаётся своей: привязка произошла сегодня, и это не дата денег. */
+  const rec = { num, receiptNum: rnum, date: ctx.date, bindDate: TODAY, amount: ctx.amount, tranche: ctx.trancheNo,
+    currency: credit.currency || 'KGS', dispute: null, surplusMode: ctx.surplusMode || null,
+    surplusRows: ctx.surplusRows || null,
     reg:'Ручной ввод', match:'Ожидает ЦК', frozen:false, method: ctx.method || 'денежными средствами' };
   credit.mirror.payments.push(rec);
-  pushAudit(credit, 'addPayment', null, rec);
+  /* СВОЁ ДЕЙСТВИЕ ДВИГАЕТ СНИМОК (ADR-0257 §6): внесённое видно сразу, дата снимка честна.
+     Остатки при этом стоят — их двигает подтверждение ЦК (paymentCounts), а не ввод. */
+  credit.mirror.paymentsAsOf = TODAY;
+  pushAudit(credit, 'addPayment', null, { receipt, payment: rec });
+  return g;
+}
+
+/* ---- ДЕЙСТВИЯ ТРАКТОВКИ (ADR-0257 §1, ADR-0258 §3) ---------------------------------
+   Четыре операции куратора над ОДНИМ платежом этого кредита. Все четыре трогают
+   трактовку и ни одна — факт денег: сумма, дата и номер поступления отсюда неприкасаемы
+   (это бухгалтерия, и живёт она в модуле). Замороженный платёж не правится: снимок под
+   подписью бухгалтера, и путь к нему один — разморозка, тоже в модуле. */
+
+/* Поправка к разбивке — ВВОДИМАЯ ПОПРАВКА ВНУТРИ ВЫВОДА (§5.2 спеки, ADR-0055): то, чего
+   она не касается, продолжает выводиться из живых слоёв на дату. */
+function adjustAllocation(credit, p, ctx){
+  const g = gate(credit, 'payAlloc', { payment: p, reason: ctx.reason, actor: ctx.actor });
+  if (!g.ok) return g;
+  const before = p.allocAdjust || null;
+  p.allocAdjust = { rows: ctx.rows || [], reason: ctx.reason, by: ctx.actor || currentRole, at: TODAY };
+  credit.mirror.paymentsAsOf = TODAY;
+  pushAudit(credit, 'adjustAllocation', before, p.allocAdjust);
+  return g;
+}
+
+/* Режим остатка сверх наступившего — ДИРЕКТИВА НА ВХОДЕ ВЫВОДА (§7.2, ADR-0073/0087),
+   а не правка результата: ставится до разнесения и меняется, пока платёж жив. */
+function setSurplusMode(credit, p, ctx){
+  const g = gate(credit, 'paySurplus', { payment: p, mode: ctx.mode, rows: ctx.rows, actor: ctx.actor });
+  if (!g.ok) return g;
+  const before = { mode: p.surplusMode || null, rows: p.surplusRows || null };
+  p.surplusMode = ctx.mode || null;
+  p.surplusRows = ctx.mode === 'reserve' ? (ctx.rows || []) : null;
+  credit.mirror.paymentsAsOf = TODAY;
+  pushAudit(credit, 'setSurplusMode', before, { mode: p.surplusMode, rows: p.surplusRows });
+  return g;
+}
+
+/* Подтверждение сопоставления — ВТОРОЙ ШАГ, повторная проверка (§1 спеки): куратор
+   сверяет наш платёж со строкой реестра ЦК. Заморозку это не делает — она бухгалтерская. */
+function confirmMatch(credit, p, ctx){
+  const g = gate(credit, 'payMatch', { payment: p, cbkRef: ctx.cbkRef, actor: ctx.actor });
+  if (!g.ok) return g;
+  const before = p.match;
+  p.match = 'Подтверждён ЦК';
+  p.matchedBy = ctx.actor || currentRole; p.matchedAt = TODAY;
+  p.cbkRef = ctx.cbkRef || null;
+  credit.mirror.paymentsAsOf = TODAY;
+  pushAudit(credit, 'confirmMatch', before, { match: p.match, ref: p.cbkRef });
+  return g;
+}
+
+/* Решение органа по спорной пене — реквизит ПЛАТЕЖА, не поступления (§2.2, §4.4). */
+function setDisputeOutcome(credit, p, ctx){
+  const g = gate(credit, 'payDispute', { payment: p, outcome: ctx.outcome, protocol: ctx.protocol, actor: ctx.actor });
+  if (!g.ok) return g;
+  const before = Object.assign({}, p.dispute);
+  p.dispute = Object.assign({}, p.dispute, { status:'Решение внесено',
+    outcome: ctx.outcome, protocol: ctx.protocol, decidedBy: ctx.actor || currentRole, decidedAt: TODAY });
+  credit.mirror.paymentsAsOf = TODAY;
+  pushAudit(credit, 'setDisputeOutcome', before, p.dispute);
   return g;
 }
 
@@ -8238,7 +8512,7 @@ function zeroOutForTest(credit){
   const amount = round2(arts.principal + arts.interest + arts.penalty + arts.fees);
   const tr = (credit.tranches[0] || {}).no || 1;
   credit.mirror.payments.push({ num:(credit.mirror.payments.length || 0) + 1, date:TODAY,
-    bindDate:null, amount, currency:credit.currency || 'KGS', rate:null, dispute:null,
+    bindDate:null, amount, currency:credit.currency || 'KGS', dispute:null,
     tranche:tr, reg:'Импорт ЦК', match:'Подтверждён ЦК',
     frozen:true, method:'денежными средствами',
     alloc:seedAllocLines(TODAY, tr, arts), unalloc:0 });
@@ -8267,6 +8541,11 @@ window.CR = {
   restructureApplied, restructureSource, stitchSchedule, closeIfEmptied,
   saveContractAmount, editContractRequisites, addTranche, addDisbursement, setKmDecision, saveWaiver,
   addPayment, paymentEditable, addAgreement, addConditionRecords, closeCredit, linkPledge,
+  /* платежи: поступление как сущность, курс из справочника, четыре действия трактовки
+     (ADR-0056, ADR-0061/0090, ADR-0257/0258) */
+  receiptOf, paymentDate, fxRateOf, nbRateAt, normalizeReceipts, setCurrentActor,
+  assignedCuratorOf, isAssignedCurator,
+  adjustAllocation, setSurplusMode, confirmMatch, setDisputeOutcome,
   editSubject, addSubjectRecords, subjectAt, mkSubjectItem,
   editClassification,
   programClassification, CLASSIFICATION_PARAMS, CLASSIFICATION_DICT,
@@ -8330,10 +8609,31 @@ if (typeof document !== 'undefined') {
   CR.onRoleChange = function(){
     const sel = document.getElementById('roleSel');
     CR.state.role = sel ? sel.value : CR.state.role;
-    currentRole = CR.state.role;                    // синхронизация с audit.who (мутации читают currentRole)
+    setCurrentActor(CR.state.role, null);           // синхронизация с audit.who (мутации читают currentRole)
     toast('Роль: ' + CR.state.role);
     renderRole();                                   // пере-гейтинг доступных действий реестра
     rerenderDetail();                                // пере-гейтинг кнопок открытой карточки кредита (roleBtn/roleIconBtn)
+  };
+  /* Смена работника (ADR-0258 §3). Роль не трогает: это два разных вопроса — «что за
+     работа» и «по каким кредитам». Перерисовка та же, потому что от закрепления зависят
+     ровно те же кнопки, что и от роли. */
+  CR.employees = function(){
+    const set = new Set();
+    for (const c of CR.db.credits) for (const a of ((c.mirror && c.mirror.curatorship) || []))
+      if (a.employee) set.add(a.employee);
+    return [...set].sort((a, b) => String(a).localeCompare(String(b), 'ru'));
+  };
+  CR.renderEmpSel = function(){
+    const sel = document.getElementById('empSel'); if (!sel) return;
+    const list = CR.employees();
+    if (!list.includes(currentEmployee)) currentEmployee = list[0] || currentEmployee;
+    sel.innerHTML = list.map(e => `<option${e === currentEmployee ? ' selected' : ''}>${esc(e)}</option>`).join('');
+  };
+  CR.onEmpChange = function(){
+    const sel = document.getElementById('empSel');
+    setCurrentActor(null, sel ? sel.value : currentEmployee);
+    toast('Работник: ' + currentEmployee);
+    rerenderDetail();
   };
   CR.closeModal = function(){ const h = document.getElementById('modalHost'); if (h){ h.classList.remove('open'); h.innerHTML=''; } };
   /* Единый конструктор модалок (§8, canon modal-h/-b/-f). Одна оболочка на 9 форм —
@@ -8880,6 +9180,20 @@ if (typeof document !== 'undefined') {
   function openFromHash(){
     const h = location.hash.replace(/^#/,'');
     if (!h) return;
+    /* ВХОД ИЗ ЧУЖОГО МОДУЛЯ (ADR-0257 §7). Модуль платежей знает о кредите ИНН заёмщика —
+       общий ключ обоих макетов, — но не знает наших идентификаторов: у него своя база.
+       Поэтому обратная ссылка адресует ИНН, а не id, и открывает РЕЕСТР с фильтром: у
+       заёмщика бывает несколько кредитов, и угадывать, который имелся в виду, нечем. */
+    if (h.startsWith('inn=')){
+      const inn = decodeURIComponent(h.slice(4));
+      suppressHash = true;
+      backToList();
+      const box = document.getElementById('fQ');
+      if (box){ box.value = inn; renderRows(); renderChips(); }
+      suppressHash = false;
+      toast('Реестр отфильтрован по ИНН ' + inn + ' — переход из модуля платежей');
+      return;
+    }
     const [id, tab] = h.split('/').map(decodeURIComponent);
     suppressHash = true;
     if (id && CR.db.credits.some(x=>x.id===id)) openDetail(id, tab); else backToList();
@@ -11607,14 +11921,21 @@ if (typeof document !== 'undefined') {
       const al=counts?CR.allocOf(c,p):null;
       const L=al?CR.allocFold(al.lines):{principal:0,interest:0,penalty:0,fees:0};
       const pr=L.principal, it=L.interest, pe=L.penalty;
-      const cur=CR.paymentCurrency(p,c), fx=cur!==(c.currency||'KGS');
+      /* КУРС ЧИТАЕТСЯ, А НЕ ХРАНИТСЯ (ADR-0061/0090): справочник НБ на дату ПОСТУПЛЕНИЯ,
+         при отсутствии на дату — последний установленный. */
+      const cur=CR.paymentCurrency(p,c), fx=cur!==(c.currency||'KGS'), fxr=fx?CR.fxRateOf(c,p):null;
+      const rcp=CR.receiptOf(c,p), pdate=CR.paymentDate(c,p);
       ptot.amount+=p.amount||0; ptot.principal+=pr; ptot.interest+=it; ptot.penalty+=pe;
       const mTone={'Подтверждён ЦК':'low','Восстановлен':'low','Ожидает ЦК':'mid','Сторно (таймаут)':'high','Расхождение':'mid'}[p.match]||'neutral';
-      return `<tr>
-        <td>${esc(p.num)}</td>
-        <td>${esc(p.date)}${p.bindDate&&p.bindDate!==p.date?`<br><span class="text-muted" style="font:var(--font-label)">привязан ${esc(p.bindDate)}</span>`:''}</td>
+      /* СТРОКА ОТКРЫВАЕТ КАРТОЧКУ ПЛАТЕЖА (ADR-0257 §1–2). Действия по платежу живут в
+         ней, а не колонкой «Действия»: таблица и так тринадцати колонок, а действий у
+         куратора четыре, и каждому нужна форма, а не кнопка. */
+      return `<tr class="payrow" style="cursor:pointer" onclick="CR.openPaymentCard(${p.num})"
+          title="${jsAttr('Открыть карточку платежа №'+p.num)}">
+        <td>${esc(p.num)}<br><span class="text-muted" style="font:var(--font-label)">${esc(rcp?rcp.num:'поступление не названо')}</span></td>
+        <td>${esc(pdate)}${p.bindDate&&p.bindDate!==pdate?`<br><span class="text-muted" style="font:var(--font-label)">привязан ${esc(p.bindDate)}</span>`:''}</td>
         ${multiTr(c)?`<td>№${esc(p.tranche)}</td>`:''}
-        <td style="text-align:right">${money(p.amount)}${fx?`<br><span class="text-muted" style="font:var(--font-label)">${esc(cur)} · курс ${esc(p.rate)}</span>`:''}</td>
+        <td style="text-align:right">${money(p.amount)}${fx?`<br><span class="text-muted" style="font:var(--font-label)">${esc(cur)} · курс ${fxr==null?'нет в справочнике':esc(fxr)}</span>`:''}</td>
         <td style="text-align:right">${money(pr)}</td><td style="text-align:right">${money(it)}</td><td style="text-align:right">${money(pe)}</td>
         <td>${esc(p.method||'денежными средствами')}</td>
         <td>${esc(p.reg)}</td><td><span class="pill ${mTone}">${esc(p.match)}</span></td><td>${p.frozen?'заморожен':'—'}</td>
@@ -11649,8 +11970,17 @@ if (typeof document !== 'undefined') {
         это снимок, пришедший вместе с подтверждением, у остальных — вывод ядра. Три колонки — свод этих строк;
         сами строки раскрыты под каждой.</p>
       ${cgrid([{h:'№'},{h:'Дата'}].concat(multiTr(c)?[{h:'Транш'}]:[]).concat([{h:'Сумма',r:1},{h:'Осн.',r:1},{h:'Проц.',r:1},{h:'Пеня',r:1},{h:'Вид'},{h:'Регистрация'},{h:'Сопоставление'},{h:'Заморозка'},{h:'В расчёте'},{h:'Правка'}]), payRows.concat(payTot?[payTot]:[]), {empty:'Платежей нет'})}
-      <div class="mirror-src">Источник: модуль платежей. Ручной ввод — вызов формы владельца: ему основанием служит список ЦК, поэтому до сверки он остатки не двигает. Разнесение — всегда в валюте кредита; сумма и курс — реквизиты поступления.</div>
-      <div class="gtoolbar" style="margin-top:12px">${roleBtn('savePayment','Внести платёж вручную','CR.openPaymentModal()','btn btn-primary btn-sm')}</div>
+      <div class="mirror-src">Источник: модуль платежей. Ручной ввод — вызов формы владельца: ему основанием служит список ЦК, поэтому до сверки он остатки не двигает. Разнесение — всегда в валюте кредита; сумма — реквизит поступления, курс читается из справочника НБ на его дату (ADR-0061/0090).
+        <b>Строка открывает карточку платежа:</b> трактовка (разбивка, режим остатка, сопоставление, спорная пеня) правится здесь; факт денег — сторно, корректировка суммы по ЦК, заморозка — только в модуле.</div>
+      <div class="gtoolbar" style="margin-top:12px">
+        ${roleBtn('savePayment','Внести платёж по списку ЦК','CR.openPaymentModal()','btn btn-primary btn-sm')}
+        ${/* ПЕРЕХОД, А НЕ ФОРМА (ADR-0257 §4): всё, что выходит за этот кредит, делается у
+             владельца. Предфильтр несёт номер договора — лента открывается на этом кредите. */''}
+        <button class="btn btn-secondary btn-sm" onclick="CR.openPaymentsModule()"
+          title="${jsAttr('Перепривязка на другой кредит, невыясненные поступления, возвраты, акт сверки и закрытие периода живут в модуле платежей. Лента откроется с предфильтром по этому кредиту')}">Открыть в модуле платежей</button>
+        <span class="text-muted" style="font:var(--font-label);align-self:center">${
+          CR.assignedCuratorOf(c) ? 'закреплённый куратор — '+esc(CR.assignedCuratorOf(c)) : 'куратор за кредитом не закреплён'}</span>
+      </div>
       ${d.courtLayers.length?`<div class="info-plate">${svgInfo()}<div>По кредиту есть <b>слой долга под решением суда</b>:
         ${d.courtLayers.map(L=>`${esc(L.kind)} от ${esc(L.date)}${L.il?' · '+esc(L.il):''} на <b>${money(L.amount)}</b> — ${esc(L.mode.label)}`).join('<br>')}<br>
         Режим определяется ДАТОЙ решения и прилипает к нему навсегда: у одного кредита бывает несколько решений с разными режимами одновременно.
@@ -12118,7 +12448,7 @@ if (typeof document !== 'undefined') {
        времени, и две записи одного дня были неотличимы по порядку. Сортируем по seq
        убыванием — свежие сверху; записи без seq (архивные) уходят в конец. */
     const auditRows=(c.audit||[]).slice().sort((a,b)=>(b.seq||0)-(a.seq||0))
-      .map(a=>`<div class="hrow"><div class="hwhen">${esc(a.when)} · ${esc(a.who)}</div><div class="hwhat">${esc(a.what)}</div></div>`);
+      .map(a=>`<div class="hrow"><div class="hwhen">${esc(a.when)} · ${esc(a.who)}${a.by?' · '+esc(a.by):''}</div><div class="hwhat">${esc(a.what)}</div></div>`);
     return `
       <div class="section-h">Документы кредита ${d.docs.complete?'<span class="pill low">комплект собран</span>':''}</div>
       <p class="section-note">Обязательный комплект задаёт кредитная программа <b>${esc(c.origin.programId||'—')}</b> (зеркало: ${prog.req.map(esc).join(' · ')}${prog.opt.length?`; опционально: ${prog.opt.map(esc).join(' · ')}`:''}).</p>
@@ -12564,27 +12894,198 @@ if (typeof document !== 'undefined') {
     CR.closeModal(); toast('Записей условий добавлено: '+r.value.added,'ok'); rerenderDetail(); };
 
   /* 5) manual-payment (addPayment, Г-11, Р-5) — «форма модуля платежей», статус «Ожидает ЦК» */
+  /* ФОРМА ВЛАДЕЛЬЦА РОЖДАЕТ ДВЕ ЗАПИСИ (ADR-0257 §3): поступление — факт денег со своими
+     реквизитами, и платёж — привязку всей суммы к этому кредиту. Реквизиты документа ЦК
+     обязательны: список ЦК и есть основание ручного ввода (§1 спеки платежей, ADR-0258 §6).
+     Режим остатка ставится здесь же — он директива НА ВХОДЕ вывода, а не правка результата
+     (§7.2), и после разнесения его уже не «ставят», а меняют. */
   CR.openPaymentModal=function(){ const c=modalGuard('savePayment'); if(!c) return;
-    const body=`<div class="info-plate">${svgInfo()}<div>Форма модуля платежей. Ручной ввод повисает «Ожидает ЦК» и НЕ двигает остатки/долг — подтверждённые остатки двигает только ЦК своим потоком.</div></div>
+    const body=`<div class="info-plate">${svgInfo()}<div>Форма модуля платежей. Вносится <b>поступление</b> (факт денег) и <b>платёж</b> на этот кредит одной операцией. Ручной ввод повисает «Ожидает ЦК» и НЕ двигает остатки/долг — подтверждённые остатки двигает только ЦК своим потоком.</div></div>
       <div class="mform">
         <div class="field"><span class="flabel">Кредит</span><div class="control"><input value="№ ${esc(c.num)} · ${esc(c.borrower.name)}" readonly></div></div>
         ${trancheField(c,'payTranche',c.tranches.map(t=>`<option value="${t.no}"${t.no===(storedScopeTranche(c)||c.tranches[0]||{}).no?' selected':''}>№${t.no} · ${esc(t.subject.name)}</option>`).join(''))}
-        <div class="field req"><span class="flabel">Сумма платежа</span><div class="control"><input id="payAmount" type="number" min="0" placeholder="0"></div></div>
-        <div class="field req"><span class="flabel">Дата платежа</span><div class="control"><input id="payDate" type="date" value="${esc(toISO(CR.TODAY))}"></div></div>
+        <div class="field req"><span class="flabel">Сумма поступления</span><div class="control"><input id="payAmount" type="number" min="0" placeholder="0"></div></div>
+        <div class="field req"><span class="flabel">Дата фактического поступления</span><div class="control"><input id="payDate" type="date" value="${esc(toISO(CR.TODAY))}"></div></div>
+        <div class="field req"><span class="flabel">Документ ЦК — номер</span><div class="control"><input id="payCbkNum" placeholder="ЦК-0000"></div></div>
+        <div class="field req"><span class="flabel">Документ ЦК — дата</span><div class="control"><input id="payCbkDate" type="date"></div></div>
+        <div class="field"><span class="flabel">Плательщик</span><div class="control"><input id="payPayer" value="${esc(c.borrower.name)}"></div></div>
+        <div class="field"><span class="flabel">Вид платежа</span><div class="control"><select id="payMethod">
+          <option>денежными средствами</option><option>неденежное погашение</option></select></div></div>
+        <div class="field col-span"><span class="flabel">Примечание платёжного документа</span><div class="control"><input id="payNote" placeholder="ФИО и номер кредита из примечания — при вводе с карточки привязка уже задана"></div></div>
+        <div class="field col-span"><span class="flabel">Режим остатка сверх наступившего</span><div class="control"><select id="paySurplus">
+          <option value="">дефолт — гасит непогашенное по общей очерёдности</option>
+          <option value="advance">аванс — гасит наступающее по мере наступления</option>
+          <option value="reserve">адресный резерв — закреплён за строками очереди</option></select></div></div>
       </div>`;
-    CR.openModal('Ручной ввод платежа — форма модуля платежей', body,
+    CR.openModal('Ручной ввод по списку ЦК — форма модуля платежей', body,
       `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitPayment()">Отправить в модуль платежей</button>`);
   };
   CR.submitPayment=function(){ const c=modalGuard('savePayment'); if(!c) return;
     const trancheNo=+document.getElementById('payTranche').value;
     const amount=+document.getElementById('payAmount').value||0;
     const date=toDMY(document.getElementById('payDate').value);
-    const r=CR.addPayment(c,{amount,date,trancheNo}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    const cbkNum=(document.getElementById('payCbkNum').value||'').trim();
+    const cbkDate=toDMY(document.getElementById('payCbkDate').value);
+    const surplusMode=document.getElementById('paySurplus').value||null;
+    const r=CR.addPayment(c,{amount,date,trancheNo,cbkNum,cbkDate,surplusMode,
+      payer:document.getElementById('payPayer').value,
+      note:document.getElementById('payNote').value,
+      method:document.getElementById('payMethod').value,
+      actor:CR.currentEmployee()});
+    if(!r.ok){ CR.modalErr(r.reasons); return; }
     /* КВ-17: платёж — тоже действие на транше, как освоение и график; область карточки
        обязана встать на транш, на который он введён, теми же правилами, что и у соседей
        (submitDisb/submitSched выше). До этой правки не ставила — единственная асимметрия
        из трёх модалок. */
-    CR.closeModal(); cardScope=trancheNo; toast('Платёж отправлен — статус «Ожидает ЦК»','ok'); rerenderDetail(); };
+    CR.closeModal(); cardScope=trancheNo; toast('Поступление и платёж внесены — статус «Ожидает ЦК»','ok'); rerenderDetail(); };
+
+  /* ---- 5а) КАРТОЧКА ПЛАТЕЖА НА КРЕДИТЕ (ADR-0257 §1–2) --------------------------------
+     Те же четыре вкладки, что у владельца: Реквизиты · Разбивка · Спорная пеня · История.
+     Шапка КОРОЧЕ: заёмщика и договор печатает карточка кредита, и второй раз они здесь не
+     повторяются — копия разошлась бы с оригиналом при первой же правке одной из двух. */
+  let payCardNum=null, payCardTab='req';
+  CR.currentEmployee=function(){ return currentEmployee; };
+  CR.openPaymentsModule=function(){
+    const c=currentCredit(); if(!c) return;
+    /* Предфильтр — ИНН заёмщика: общей базы у макетов нет, идентификаторы кредита у них
+       свои, и «тот самый платёж» по id не адресуется. ИНН — единственный ключ, который
+       обе стороны знают одинаково; обратный переход адресует его же (ADR-0257 §7). */
+    window.open('../payments/payments.html#inn='+encodeURIComponent(c.borrower.inn), '_blank');
+  };
+  CR.openPaymentCard=function(num){ payCardNum=num; payCardTab='req'; CR.renderPaymentCard(); };
+  CR.setPayCardTab=function(t){ payCardTab=t; CR.renderPaymentCard(); };
+  CR.renderPaymentCard=function(){
+    const c=currentCredit(); if(!c) return;
+    const p=(c.mirror.payments||[]).find(x=>x.num===payCardNum); if(!p) return;
+    const r=CR.receiptOf(c,p), d=derive(c,cardAsOf);
+    const counts=CR.paymentCounts(p), al=counts?CR.allocOf(c,p):null;
+    const cur=CR.paymentCurrency(p,c), fx=cur!==(c.currency||'KGS'), fxr=fx?CR.fxRateOf(c,p):null;
+    const mTone={'Подтверждён ЦК':'low','Восстановлен':'low','Ожидает ЦК':'mid','Сторно (таймаут)':'high','Расхождение':'mid'}[p.match]||'neutral';
+    const tab=(id,label,mark)=>`<button class="btn ${payCardTab===id?'btn-primary':'btn-secondary'} btn-sm" onclick="CR.setPayCardTab('${id}')">${label}${mark||''}</button>`;
+    /* ТРИ ОСИ — НЕ ОДИН СТАТУС (спека §3). Печатаются рядом именно поэтому: схлопнутые в
+       одно слово, они делают исходы 3 и 4 сверки невыразимыми. */
+    const head=`<div class="f2" style="margin-bottom:10px">
+        ${fld('Сумма поступления', money(p.amount)+(fx?' '+esc(cur)+' · курс '+(fxr==null?'нет в справочнике':esc(fxr)):''))}
+        ${fld('Дата денег', esc(CR.paymentDate(c,p))+(p.bindDate?' · привязан '+esc(p.bindDate):''))}
+        ${fld('Поступление', r?esc(r.num)+(r.cbkDoc?' · документ ЦК '+esc(r.cbkDoc.num)+' от '+esc(r.cbkDoc.date):' · документа ЦК нет (шлюз)'):'—')}
+        ${fld('Оси состояния', '<span class="pill neutral">'+esc(p.reg)+'</span> <span class="pill '+mTone+'">'+esc(p.match)+'</span> <span class="pill '+(p.frozen?'low':'neutral')+'">'+(p.frozen?'заморожен':'живой')+'</span>')}
+      </div>`;
+    let body='';
+    if (payCardTab==='req'){
+      body=`${head}<div class="f2">
+        ${fld('Область разбивки', p.tranche==null?'по кредиту':'транш №'+esc(p.tranche))}
+        ${fld('Вид платежа', esc(p.method||'денежными средствами'))}
+        ${fld('Плательщик', r?esc(r.payer||'—'):'—')}
+        ${fld('Примечание документа', r?esc(r.note||'—'):'—')}
+        ${fld('Канал', esc(p.reg))}
+        ${fld('В расчёте остатка', counts?'двигает остаток':'не двигает — денег за ним нет либо ждёт ЦК')}
+      </div>
+      <div class="mirror-src">Сумму, дату и номер поступления кредит не правит ни при какой роли: это факт денег, и он живёт у бухгалтерии (ADR-0257 §5). Отсюда правится трактовка — чьи это деньги и во что легли.</div>`;
+    } else if (payCardTab==='alloc'){
+      const rows=(al&&al.lines.length)?al.lines.map(l=>`<tr><td>${esc(l.due||'—')}</td><td>${esc(l.layerLabel||l.layer||'—')}</td><td>${l.tranche==null?'—':'№'+esc(l.tranche)}</td><td>${esc(l.article)}</td><td style="text-align:right">${money(l.amount)}</td></tr>`).join(''):'';
+      const adj=p.allocAdjust?`<div class="info-plate">${svgInfo()}<div>Поправка куратора от ${esc(p.allocAdjust.at)} (${esc(p.allocAdjust.by)}): «${esc(p.allocAdjust.reason)}». Поправка участвует в выводе, а не отменяет его — всё, чего она не касается, продолжает выводиться из живых слоёв (§5.2).</div></div>`:'';
+      const sm={advance:'аванс — гасит наступающее по мере наступления',reserve:'адресный резерв — закреплён за строками очереди'}[p.surplusMode]||'дефолт — по общей очерёдности';
+      body=`${head}${adj}
+      <p class="section-note">${al?(al.snapshot?'<b>Снимок</b> разнесения от '+esc(al.asOf)+' — платёж заморожен, строки неподвижны.':'Разнесение <b>выводится</b> на дату '+esc(al.asOf)+': живой платёж следует за слоями сам.'):'Разнесения нет: платёж остатка не двигает.'}
+        Режим остатка сверх наступившего — <b>${esc(sm)}</b>.</p>
+      ${rows?`<table class="cgrid"><thead><tr><th>Срок</th><th>Слой</th><th>Транш</th><th>Статья</th><th style="text-align:right">Сумма</th></tr></thead><tbody>${rows}</tbody></table>`:''}
+      ${al&&al.unallocated?`<p class="section-note"><span class="pill mid">нераспределено ${money(al.unallocated)}</span> — хвост к возврату; переплатой он сам не становится.</p>`:''}
+      <div class="gtoolbar" style="margin-top:12px">
+        ${actBtn(c,'payAlloc',{payment:p,reason:'—'},'Поправка к разбивке','CR.openAllocAdjust()')}
+        ${actBtn(c,'paySurplus',{payment:p},'Режим остатка','CR.openSurplusModal()')}
+      </div>`;
+    } else if (payCardTab==='dispute'){
+      const ds=p.dispute;
+      body=`${head}${ds?`<p class="section-note">Период ${esc(ds.from)} — ${esc(ds.to||'по сегодня')} · <b>${esc(ds.status)}</b>${ds.outcome?' · исход: '+esc(ds.outcome):''}${ds.protocol?' · протокол '+esc(ds.protocol):''}.
+        Сумму считает кредит (пеню начисляет он) — на дату среза <b>${money(d.debt.penalty.disputed)}</b>; в требование не входит, категорию риска не двигает, гейт «Погашен» не блокирует.</p>
+      <div class="gtoolbar">${actBtn(c,'payDispute',{payment:p,outcome:'—',protocol:'—'},'Внести решение органа','CR.openDisputeModal()')}</div>`
+      :'<p class="section-note">Спорной пени по этому платежу нет. Она рождается сторно поступления задним числом: пеня за период посчитана, но до решения органа в требование не входит (§4.4).</p>'}`;
+    } else {
+      /* ИСТОРИЯ — журнал кредита, отфильтрованный по этому платежу. Своего журнала у
+         зеркала нет и быть не может: действия пишет владелец, а кредит пишет СВОИ. */
+      const mine=(c.audit||[]).filter(a=>['addPayment','adjustAllocation','setSurplusMode','confirmMatch','setDisputeOutcome'].includes(a.what));
+      body=`${head}${mine.length?mine.map(a=>`<div class="hrow"><div class="hwhen">${esc(a.when)} · ${esc(a.who)}${a.by?' · '+esc(a.by):''}</div><div class="hwhat">${esc(a.what)}</div></div>`).join(''):'<p class="section-note">Действий с карточки кредита по платежам этого кредита ещё не было. Полная история платежа — у владельца.</p>'}`;
+    }
+    const foot=`<button class="btn btn-secondary" onclick="CR.closeModal()">Закрыть</button>
+      ${actBtn(c,'payMatch',{payment:p,cbkRef:'—'},'Подтвердить сопоставление','CR.openMatchModal()','btn btn-primary')}
+      <button class="btn btn-secondary" onclick="CR.openPaymentsModule()" title="${jsAttr('Перепривязка уводит платёж с этого кредита — она делается у владельца (ADR-0257 §4)')}">Перепривязать — в модуле</button>`;
+    CR.openModal('Платёж № '+esc(p.num)+' — карточка', `<div class="gtoolbar">${tab('req','Реквизиты')}${tab('alloc','Разбивка')}${tab('dispute','Спорная пеня',p.dispute?' <span class="pill mid">спор</span>':'')}${tab('hist','История')}</div>${body}`, foot, {cls:''});
+  };
+
+  /* ---- 5б) ЧЕТЫРЕ ДЕЙСТВИЯ ТРАКТОВКИ ------------------------------------------------- */
+  function payCardPayment(){ const c=currentCredit(); if(!c) return null;
+    return (c.mirror.payments||[]).find(x=>x.num===payCardNum)||null; }
+  CR.openAllocAdjust=function(){ const c=currentCredit(), p=payCardPayment(); if(!c||!p) return;
+    const al=CR.allocOf(c,p), lines=(al&&al.lines)||[];
+    CR.openModal('Поправка к разбивке — платёж № '+esc(p.num),
+      `<p class="section-note">Поправка — <b>вводимая величина, участвующая в выводе</b> (§5.2, ADR-0055), а не отмена вывода: строки, которых она не касается, продолжают выводиться из живых слоёв на дату. Основание обязательно — им же отвечают на вопрос «почему не по очереди».</p>
+      <div class="mform">
+        ${lines.map((l,i)=>`<div class="field"><span class="flabel">${esc(l.article)} · срок ${esc(l.due||'—')}${l.tranche==null?'':' · №'+esc(l.tranche)}</span><div class="control"><input id="adjV_${i}" type="number" step="0.01" value="${l.amount}"></div></div>`).join('')}
+        <div class="field col-span req"><span class="flabel">Основание поправки</span><div class="control"><input id="adjReason" placeholder="исполнительный лист №…, решение комиссии, письмо заёмщика"></div></div>
+      </div>`,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitAllocAdjust()">Сохранить поправку</button>`);
+  };
+  CR.submitAllocAdjust=function(){ const c=currentCredit(), p=payCardPayment(); if(!c||!p) return;
+    const al=CR.allocOf(c,p), lines=(al&&al.lines)||[];
+    const rows=lines.map((l,i)=>Object.assign({},l,{amount:+((document.getElementById('adjV_'+i)||{}).value)||0}));
+    const reason=(document.getElementById('adjReason').value||'').trim();
+    const r=CR.adjustAllocation(c,p,{rows,reason,actor:currentEmployee}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    toast('Поправка к разбивке сохранена','ok'); rerenderDetail(); CR.renderPaymentCard(); };
+
+  CR.openSurplusModal=function(){ const c=currentCredit(), p=payCardPayment(); if(!c||!p) return;
+    const d=derive(c,cardAsOf), q=(d.queue&&d.queue.rows)||[];
+    CR.openModal('Режим остатка сверх наступившего — платёж № '+esc(p.num),
+      `<p class="section-note">Режимов два, и оба — <b>директива на входе вывода</b> (§7.2, ADR-0073/0087): дефолт гасит непогашенное по общей очерёдности, <b>аванс</b> лежит на поступлении и гасит наступающее по мере наступления, <b>адресный резерв</b> закреплён за конкретными строками и гасит их в их даты. Резерв гасит <b>факт, а не план</b>: недобор строка добирает из свободного аванса.</p>
+      <div class="mform">
+        <div class="field col-span"><span class="flabel">Режим</span><div class="control"><select id="spMode" onchange="CR.toggleSurplusRows()">
+          <option value="">дефолт — по общей очерёдности</option>
+          <option value="advance"${p.surplusMode==='advance'?' selected':''}>аванс (безадресный)</option>
+          <option value="reserve"${p.surplusMode==='reserve'?' selected':''}>адресный резерв</option></select></div></div>
+      </div>
+      <div id="spRows" style="display:${p.surplusMode==='reserve'?'block':'none'}">
+        <p class="section-note">Строки очереди погашения этого кредита — их публикует кредит (ADR-0182: выводит ядро, предъявляет кредит):</p>
+        ${q.length?q.map((x,i)=>`<label style="display:block;padding:3px 0"><input type="checkbox" class="spRow" value="${i}"${(p.surplusRows||[]).some(y=>y.due===x.due&&y.article===x.article)?' checked':''}> ${esc(x.due)} · ${esc(x.article)}${x.tranche==null?'':' · №'+esc(x.tranche)} — ${money(x.amount)}${x.future?' (не наступило)':''}</label>`).join(''):'<p class="section-note">Очередь пуста — закреплять резерв не за чем.</p>'}
+      </div>`,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitSurplus()">Сохранить режим</button>`);
+  };
+  CR.toggleSurplusRows=function(){ const m=document.getElementById('spMode').value, box=document.getElementById('spRows');
+    if(box) box.style.display = m==='reserve' ? 'block' : 'none'; };
+  CR.submitSurplus=function(){ const c=currentCredit(), p=payCardPayment(); if(!c||!p) return;
+    const d=derive(c,cardAsOf), q=(d.queue&&d.queue.rows)||[];
+    const mode=document.getElementById('spMode').value||null;
+    const rows=[...document.querySelectorAll('.spRow:checked')].map(x=>q[+x.value]).filter(Boolean)
+      .map(x=>({due:x.due,article:x.article,tranche:x.tranche,amount:x.amount}));
+    const r=CR.setSurplusMode(c,p,{mode,rows,actor:currentEmployee}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    toast(mode?'Режим остатка: '+(mode==='advance'?'аванс':'адресный резерв'):'Режим снят — работает дефолт','ok');
+    rerenderDetail(); CR.renderPaymentCard(); };
+
+  CR.openMatchModal=function(){ const c=currentCredit(), p=payCardPayment(); if(!c||!p) return;
+    CR.openModal('Подтвердить сопоставление — платёж № '+esc(p.num),
+      `<p class="section-note">Сопоставление — <b>второй шаг</b>, повторная проверка (§1 спеки платежей), а не способ опознать деньги. Подтверждение куратора заморозкой не является: морозит бухгалтер по положительной сверке, и это отдельное действие в модуле (§8.1). После сопоставления при расхождении действует <b>сумма ЦК</b> (ADR-0058) — корректировку вносит бухгалтер.</p>
+      <div class="mform">
+        <div class="field col-span req"><span class="flabel">Строка реестра ЦК</span><div class="control"><input id="mtRef" placeholder="№ строки реестра, напр. 3455"></div></div>
+      </div>`,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitMatch()">Подтвердить</button>`);
+  };
+  CR.submitMatch=function(){ const c=currentCredit(), p=payCardPayment(); if(!c||!p) return;
+    const cbkRef=(document.getElementById('mtRef').value||'').trim();
+    const r=CR.confirmMatch(c,p,{cbkRef,actor:currentEmployee}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    toast('Сопоставление подтверждено — платёж двигает остаток','ok'); rerenderDetail(); CR.renderPaymentCard(); };
+
+  CR.openDisputeModal=function(){ const c=currentCredit(), p=payCardPayment(); if(!c||!p) return;
+    CR.openModal('Решение органа по спорной пене — платёж № '+esc(p.num),
+      `<p class="section-note">Решение по спорной пене — реквизит <b>платежа</b>, не поступления (§2.2, §4.4). Орган — комиссия по спорным начислениям (ADR-0089); куратор вносит её решение, а не принимает его.</p>
+      <div class="mform">
+        <div class="field req"><span class="flabel">Исход</span><div class="control"><select id="dsOut">
+          <option>Пеня снята</option><option>Пеня подтверждена</option><option>Пеня снята частично</option></select></div></div>
+        <div class="field req"><span class="flabel">Протокол</span><div class="control"><input id="dsProt" placeholder="№ и дата протокола"></div></div>
+      </div>`,
+      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitDispute()">Внести решение</button>`);
+  };
+  CR.submitDispute=function(){ const c=currentCredit(), p=payCardPayment(); if(!c||!p) return;
+    const outcome=document.getElementById('dsOut').value, protocol=(document.getElementById('dsProt').value||'').trim();
+    const r=CR.setDisputeOutcome(c,p,{outcome,protocol,actor:currentEmployee}); if(!r.ok){ CR.modalErr(r.reasons); return; }
+    toast('Решение органа внесено','ok'); rerenderDetail(); CR.renderPaymentCard(); };
 
   /* 6) KM-decision (setKmDecision, Р-8) — разблокирует освоение с провалом покрытия (К-5) */
   CR.openKmModal=function(){ const c=modalGuard('setKmDecision'); if(!c) return;
@@ -13142,6 +13643,7 @@ if (typeof document !== 'undefined') {
   });
 
   renderNav();
+  CR.renderEmpSel();     // список работников — из зеркала кураторства (ADR-0258 §3)
   renderList();          // реестр §5.1 (Р-19); карточка (11 вкладок) — Task 7
   openFromHash();        // восстановить экран (кредит+вкладка) после F5 — по location.hash
   window.addEventListener('hashchange', openFromHash);

@@ -197,10 +197,13 @@ const pd = CR.pd;
   const a = c.agreements.find(x=>x.source==='реструктуризация');
   ok(14, !!a && CR.gate(c,'editConditions',{field:'rate'}).ok===false);
 })();
-/* 15. Ручной платёж: 0 → блок; корректный → оси «Ручной ввод»+«Ожидает ЦК». */
+/* 15. Ручной ввод: 0 → блок; корректный → оси «Ручной ввод»+«Ожидает ЦК».
+   С волны 23.09.2026 (ADR-0258 §6) форма несёт реквизиты документа ЦК — список ЦК и
+   есть основание ввода, и без него платёж не заводится (проверка 190). */
 (() => { const db=CR.seedDb(); const c=byId(db,'K-1');
-  const bad = CR.addPayment(c,{amount:0,date:'01.07.2026',trancheNo:1}).ok;
-  CR.addPayment(c,{amount:1000,date:'01.07.2026',trancheNo:1});
+  const D = { cbkNum:'ЦК-0777', cbkDate:'01.07.2026' };
+  const bad = CR.addPayment(c,Object.assign({amount:0,date:'01.07.2026',trancheNo:1},D)).ok;
+  CR.addPayment(c,Object.assign({amount:1000,date:'01.07.2026',trancheNo:1},D));
   const p = c.mirror.payments[c.mirror.payments.length-1];
   ok(15, bad===false && p.reg==='Ручной ввод' && p.match==='Ожидает ЦК');
 })();
@@ -221,7 +224,7 @@ const pd = CR.pd;
    чего заморозка не проверялась ни разу — CR.deleteAudit всегда отсутствует). */
 (() => { const db=CR.seedDb(); const c=byId(db,'K-1'); const n0=c.audit.length;
   CR.setKmDecision(c,{kind:'x',num:'1',date:'01.06.2026',scan:'s.pdf'});
-  CR.addPayment(c,{amount:500,date:'01.07.2026',trancheNo:1});
+  CR.addPayment(c,{amount:500,date:'01.07.2026',trancheNo:1,cbkNum:'ЦК-0778',cbkDate:'01.07.2026'});
   const grew = c.audit.length>=n0+2;
   const frozen = Object.isFrozen(c.audit[0]);                          // журнал реально заморожен
   const noDeleteApi = !CR.deleteAudit;                                 // нет интерфейса удаления
@@ -922,13 +925,18 @@ const pd = CR.pd;
     const alloc = CR.paymentAllocated(c, p); if (!alloc) continue;
     seen++;
     const cur = CR.paymentCurrency(p, c);
-    const expect = (cur === (c.currency||'KGS')) ? (p.amount||0) : (p.amount||0) / (p.rate||1);
+    /* КУРС БОЛЬШЕ НЕ ПОЛЕ ПЛАТЕЖА (ADR-0061/0090): читается из справочника НБ на дату
+       ПОСТУПЛЕНИЯ, последний установленный на дату. Прежняя редакция брала `p.rate`,
+       и снятие поля сделало бы сторожа слепым: (p.rate||1) молча дал бы курс 1. */
+    const rate = CR.fxRateOf(c, p);
+    const expect = (cur === (c.currency||'KGS')) ? (p.amount||0) : (p.amount||0) / (rate||1);
     if (Math.abs(alloc - expect) > 0.5) bad.push(c.id + '#' + p.num);
   }
   const fx = db.credits.find(c => (c.mirror.payments||[]).some(p => p.currency && p.currency !== c.currency));
   const pfx = fx && fx.mirror.payments.find(p => p.currency && p.currency !== fx.currency);
-  ok(62, bad.length === 0 && seen > 20 && !!pfx && pfx.rate > 0,
-     `разнесённых платежей=${seen}, нарушителей=${bad.length} · валютный случай: ${fx&&fx.id} ${pfx&&pfx.amount} ${pfx&&pfx.currency} @ ${pfx&&pfx.rate} → ${pfx&&CR.paymentAllocated(fx,pfx)} ${fx&&fx.currency}`);
+  const pfxRate = pfx && CR.fxRateOf(fx, pfx);
+  ok(62, bad.length === 0 && seen > 20 && !!pfx && pfxRate > 0,
+     `разнесённых платежей=${seen}, нарушителей=${bad.length} · валютный случай: ${fx&&fx.id} ${pfx&&pfx.amount} ${pfx&&pfx.currency} @ ${pfxRate} → ${pfx&&CR.paymentAllocated(fx,pfx)} ${fx&&fx.currency}`);
 })();
 /* 62b. ЧЕТЫРЕ КООРДИНАТЫ РАЗНЕСЕНИЯ (РЯ-Д5, ADR-0060 §2). Свод по статьям у платежа
    больше не хранится: платёж несёт СТРОКИ «срок · слой · транш · статья», а пара чисел
@@ -962,8 +970,8 @@ const pd = CR.pd;
         if (!same) bad.push(c.id + '#' + p.num + ': снимок пересчитан');
       }
       const sum = Math.round((a.lines.reduce((x,l) => x + l.amount, 0) + a.unallocated)*100)/100;
-      if (Math.abs(sum - CR.paymentBase(p)) > 0.005)
-        bad.push(c.id + '#' + p.num + ': Σ' + sum + ' ≠ ' + CR.paymentBase(p));
+      if (Math.abs(sum - CR.paymentBase(c, p)) > 0.005)
+        bad.push(c.id + '#' + p.num + ': Σ' + sum + ' ≠ ' + CR.paymentBase(c, p));
       for (const l of a.lines){
         if (!/^\d{2}\.\d{2}\.\d{4}$/.test(String(l.due||''))) bad.push(c.id + '#' + p.num + ': срок пуст');
         if (!ARTS.has(l.article)) bad.push(c.id + '#' + p.num + ': статья «' + l.article + '»');
@@ -4374,6 +4382,169 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
   });
   ok(144, db.credits.length>=59 && bad.length===0,
      `кредитов ${db.credits.length}, вне набора ${bad.length}${bad.length?': '+bad.slice(0,3).map(c=>c.id+'/'+c.kind+'/'+c.fundingSource).join(', '):''}`);
+})();
+
+/* ====================================================================================
+   ВОЛНА 23.09.2026 · ПЛАТЕЖИ С КАРТОЧКИ КРЕДИТА (ADR-0257, ADR-0258)
+   Проверки 190–199. Предмет волны — не новая величина, а новое МЕСТО работы и новый
+   круг тех, кто вправе; сторожится поэтому ровно это: что рождается вводом, чья дата у
+   платежа, откуда берётся курс, кого пускает закрепление и чего в кредите нет вовсе.
+   ==================================================================================== */
+const CBK = { cbkNum:'ЦК-9001', cbkDate:'05.07.2026' };
+const payIn = (c, over) => CR.addPayment(c, Object.assign({ amount:1000, date:'05.07.2026', trancheNo:1 }, CBK, over||{}));
+
+/* 190. ВВОД РОЖДАЕТ ДВЕ ЗАПИСИ, И БЕЗ ДОКУМЕНТА ЦК НЕ РОЖДАЕТ НИ ОДНОЙ (ADR-0257 §3,
+   ADR-0258 §6). Поступление — факт денег со своими реквизитами, платёж — привязка к
+   кредиту; операция одна, поэтому состояния «платёж есть, денег за ним нет» не бывает. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  const r0 = c.mirror.receipts.length, p0 = c.mirror.payments.length;
+  const noDoc = CR.addPayment(c, { amount:1000, date:'05.07.2026', trancheNo:1 });
+  const cleanAfterRefusal = c.mirror.receipts.length===r0 && c.mirror.payments.length===p0;
+  const okRes = payIn(c);
+  const rec = c.mirror.receipts[c.mirror.receipts.length-1];
+  const pay = c.mirror.payments[c.mirror.payments.length-1];
+  ok(190, noDoc.ok===false && /документ/i.test(noDoc.reasons.join(' ')) && cleanAfterRefusal
+       && okRes.ok===true && c.mirror.receipts.length===r0+1 && c.mirror.payments.length===p0+1
+       && rec.channel==='manual' && rec.cbkDoc.num==='ЦК-9001'
+       && pay.receiptNum===rec.num && CR.receiptOf(c,pay)===rec,
+     `отказ без документа ЦК=${noDoc.ok===false}, зеркало чисто после отказа=${cleanAfterRefusal}, поступление ${rec&&rec.num} ↔ платёж №${pay&&pay.num}`);
+})();
+
+/* 191. ДАТА ПЛАТЕЖА УНАСЛЕДОВАНА У ПОСТУПЛЕНИЯ (спека §2.2). Величина развёрнута в
+   строке платежа ради леджера, но писатель у неё один; равенство стережётся по всему
+   набору, иначе развёрнутая копия разойдётся с источником молча. */
+(() => { const db=CR.seedDb();
+  const bad=[]; let seen=0, orphan=0;
+  for (const c of db.credits) for (const p of (c.mirror.payments||[])){
+    seen++; const r = CR.receiptOf(c,p);
+    if (!r) { orphan++; continue; }
+    if (r.date !== p.date) bad.push(c.id+'#'+p.num+': платёж '+p.date+' ≠ поступление '+r.date);
+    if (Math.abs((r.amount||0) - (p.amount||0)) > 0.005) bad.push(c.id+'#'+p.num+': сумма поступления ≠ сумме платежа');
+  }
+  ok(191, bad.length===0 && orphan===0 && seen>30,
+     `платежей=${seen}, без поступления=${orphan}, расхождений=${bad.length}${bad.length?' — '+bad.slice(0,3).join(' | '):''}`);
+})();
+
+/* 192. КУРС — ПРОИЗВОДНАЯ СПРАВОЧНИКА (ADR-0061, ADR-0090). Поля у платежа нет ни у
+   одного; на дату без записи действует ПОСЛЕДНИЙ УСТАНОВЛЕННЫЙ, поэтому выходные и
+   праздники дырами не являются. */
+(() => { const db=CR.seedDb();
+  const stored = [];
+  for (const c of db.credits) for (const p of (c.mirror.payments||[]))
+    if ('rate' in p) stored.push(c.id+'#'+p.num);
+  const fx = db.credits.find(c => (c.mirror.payments||[]).some(p => CR.paymentCurrency(p,c) !== c.currency));
+  const pfx = fx && fx.mirror.payments.find(p => CR.paymentCurrency(p,fx) !== fx.currency);
+  const rate = pfx && CR.fxRateOf(fx,pfx);
+  const held = CR.nbRateAt('USD','15.06.2026') === CR.nbRateAt('USD','01.06.2026');   // между записями — последний
+  const same = CR.fxRateOf({currency:'KGS'}, {currency:'KGS', date:'05.07.2026'});
+  ok(192, stored.length===0 && rate===87 && held===true && same===null,
+     `хранимых курсов=${stored.length}, валютный ${fx&&fx.id} курс=${rate}, последний установленный держится=${held}, у совпавшей пары курса нет=${same===null}`);
+})();
+
+/* 193. ЗАКРЕПЛЕНИЕ, А НЕ ТОЛЬКО РОЛЬ (ADR-0258 §3). Куратор правит кредиты, где он
+   закреплён на дату; на чужом отказ НАЗЫВАЕТ закреплённого поимённо — иначе куратор
+   идёт искать, к кому обратиться, в другой модуль. Бухгалтера правило не касается. */
+(() => { const db=CR.seedDb(); const k1=byId(db,'K-1'), k2=byId(db,'K-2');
+  const mine = CR.assignedCuratorOf(k1), alien = CR.assignedCuratorOf(k2);
+  CR.setCurrentActor('Куратор', mine);
+  const own = payIn(k1, { amount:500 });
+  const notOwn = payIn(k2, { amount:500, trancheNo:(k2.tranches[0]||{}).no });
+  const named = notOwn.ok===false && notOwn.reasons.join(' ').includes(alien);
+  CR.setCurrentActor('Бухгалтер', mine);
+  const acc = payIn(k2, { amount:500, trancheNo:(k2.tranches[0]||{}).no });
+  CR.setCurrentActor('Кредитный специалист', mine);
+  ok(193, mine && alien && mine!==alien && own.ok===true && notOwn.ok===false && named && acc.ok===true,
+     `свой (${mine}) = ${own.ok}, чужой (закреплён ${alien}) = ${notOwn.ok}, отказ называет закреплённого = ${named}, бухгалтер вне правила = ${acc.ok}`);
+})();
+
+/* 194. ЗАМОРОЖЕННЫЙ ПЛАТЁЖ ТРАКТОВКОЙ НЕ ПРАВИТСЯ НИ ПРИ КАКОЙ РОЛИ (§8.1, ADR-0055):
+   снимок под подписью бухгалтера, и путь к нему один — разморозка, и та в модуле. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  const fr = (c.mirror.payments||[]).find(p=>p.frozen);
+  const live = (c.mirror.payments||[]).find(p=>!p.frozen);
+  CR.setCurrentActor('Начальник отдела', null);
+  const a = CR.adjustAllocation(c, fr, { rows:[], reason:'проба' });
+  const b = CR.setSurplusMode(c, fr, { mode:'advance' });
+  const okLive = CR.setSurplusMode(c, live, { mode:'advance' });
+  CR.setCurrentActor('Кредитный специалист', null);
+  ok(194, !!fr && a.ok===false && b.ok===false && /заморож/i.test(a.reasons.join(' ')) && okLive.ok===true,
+     `замороженный: поправка=${a.ok}, режим=${b.ok}; живой: режим=${okLive.ok}`);
+})();
+
+/* 195. ФАКТА ДЕНЕГ В КРЕДИТЕ НЕТ ВОВСЕ (ADR-0257 §5). Проверяется отсутствием, а не
+   настройкой: ни действия в матрице ролей, ни функции в модели. Сторно, корректировка
+   суммы по ЦК и заморозка живут у бухгалтерии, в модуле платежей. */
+(() => { const forbidden = ['reverseReceipt','correctReceipt','freezePayment','unfreezePayment','closePeriod','execReturn'];
+  const inModel = forbidden.filter(f => typeof CR[f] === 'function');
+  const inRoles = [];
+  for (const [role, set] of Object.entries(CR.ROLE_ACTIONS || {}))
+    for (const f of forbidden) if (set.has && set.has(f)) inRoles.push(role+'/'+f);
+  const curatorHas = ['savePayment','payAlloc','paySurplus','payMatch','payDispute']
+    .every(a => CR.canRole('Куратор', a));
+  ok(195, inModel.length===0 && inRoles.length===0 && curatorHas,
+     `функций факта денег в кредите=${inModel.length}, в матрице ролей=${inRoles.length}, у куратора весь набор трактовки=${curatorHas}`);
+})();
+
+/* 196. СВОЁ ДЕЙСТВИЕ ДВИГАЕТ СНИМОК, НО НЕ ОСТАТКИ (ADR-0257 §6). Ввод виден сразу —
+   дата снимка становится датой действия; долг при этом стоит, потому что его двигает
+   подтверждение ЦК, и только оно. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  const bal = x => { const d = CR.derive(x).debt; return d.principal.bal + d.interest.bal + d.penalty.bal; };
+  const before = bal(c), snapBefore = c.mirror.paymentsAsOf;
+  payIn(c, { amount:5000 });
+  const afterIn = bal(c), snapAfter = c.mirror.paymentsAsOf;
+  const p = c.mirror.payments[c.mirror.payments.length-1];
+  const moved = CR.paymentCounts(p);
+  CR.confirmMatch(c, p, { cbkRef:'3455' });
+  const afterMatch = bal(c);
+  ok(196, snapAfter===CR.TODAY && snapBefore!==snapAfter && Math.abs(afterIn-before)<0.005
+       && moved===false && afterMatch < before - 4999,
+     `снимок ${snapBefore}→${snapAfter}; долг после ввода ${Math.abs(afterIn-before)<0.005?'стоит':'сдвинулся'}; после подтверждения упал на ${Math.round(before-afterMatch)}`);
+})();
+
+/* 197. РЕЖИМ ОСТАТКА — ДИРЕКТИВА С ДВУМЯ ЗНАЧЕНИЯМИ (§7.2, ADR-0073/0087). Адресный
+   резерв без строк — это аванс, и назвать его резервом значило бы соврать; третьего
+   режима («обратная очередь») не существует с волны 4. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  const p = (c.mirror.payments||[]).find(x=>!x.frozen);
+  const bare = CR.setSurplusMode(c, p, { mode:'reserve', rows:[] });
+  const ghost = CR.setSurplusMode(c, p, { mode:'queue_back' });
+  const adv = CR.setSurplusMode(c, p, { mode:'advance' });
+  const res = CR.setSurplusMode(c, p, { mode:'reserve', rows:[{ due:'18.08.2026', article:'Основной долг', tranche:1, amount:100 }] });
+  ok(197, bare.ok===false && ghost.ok===false && adv.ok===true && res.ok===true
+       && p.surplusMode==='reserve' && (p.surplusRows||[]).length===1,
+     `резерв без строк=${bare.ok}, несуществующий режим=${ghost.ok}, аванс=${adv.ok}, резерв со строкой=${res.ok}`);
+})();
+
+/* 198. СОПОСТАВЛЕНИЕ — ВТОРОЙ ШАГ, А НЕ ОПОЗНАНИЕ (§1, §8.3). Подтверждается ссылкой на
+   строку реестра; сторнированное не подтверждается вовсе — его лечат новым платежом. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  const wait = (c.mirror.payments||[]).find(x=>x.match==='Ожидает ЦК' && !x.frozen);
+  const storno = (c.mirror.payments||[]).find(x=>x.match==='Сторно (таймаут)');
+  const noRef = CR.confirmMatch(c, wait, {});
+  const done = CR.confirmMatch(c, wait, { cbkRef:'3455' });
+  const twice = CR.confirmMatch(c, wait, { cbkRef:'3455' });
+  const dead = storno && CR.confirmMatch(c, storno, { cbkRef:'3456' });
+  ok(198, noRef.ok===false && done.ok===true && wait.match==='Подтверждён ЦК'
+       && twice.ok===false && (!storno || dead.ok===false),
+     `без ссылки=${noRef.ok}, подтверждение=${done.ok}, повторно=${twice.ok}, сторно=${dead&&dead.ok}`);
+})();
+
+/* 199. ПОПРАВКА К РАЗБИВКЕ — С ОСНОВАНИЕМ И ТОЛЬКО ПО СВОЕМУ ПЛАТЕЖУ (§5.2, ADR-0257 §4).
+   Чужой платёж отсюда не трактуется: он принадлежит другой карточке, и правка вслепую
+   ушла бы в кредит, которого на экране нет. */
+(() => { const db=CR.seedDb(); const c=byId(db,'K-1');
+  const p = (c.mirror.payments||[]).find(x=>!x.frozen);
+  /* «Чужой» берётся у первого соседа, У КОТОРОГО ПЛАТЕЖИ ЕСТЬ: K-2 их не держит, и
+     прежняя редакция проверки ходила по undefined, отчитываясь прочерком. */
+  const other = db.credits.find(x => x.id!=='K-1' && (x.mirror.payments||[]).length);
+  const foreign = other && (other.mirror.payments||[])[0];
+  const noReason = CR.adjustAllocation(c, p, { rows:[], reason:'' });
+  const good = CR.adjustAllocation(c, p, { rows:[{ due:'18.07.2026', article:'Проценты', tranche:1, amount:10 }], reason:'ИЛ №4-12' });
+  const alien = foreign && CR.adjustAllocation(c, foreign, { rows:[], reason:'проба' });
+  ok(199, noReason.ok===false && good.ok===true && p.allocAdjust.reason==='ИЛ №4-12'
+       && (!foreign || (alien.ok===false && /друг/i.test(alien.reasons.join(' ')))),
+     `без основания=${noReason.ok}, с основанием=${good.ok}, чужой платёж=${alien&&alien.ok}`);
 })();
 
 const pass = results.filter(r => r.pass).length;

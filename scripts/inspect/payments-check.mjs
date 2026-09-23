@@ -769,13 +769,39 @@ ok('факт денег (сторно · корректировка · замо�
    g.ev(`(()=>{ROLE='accountant'; return ${JSON.stringify(FACT)}.every(k=>can[k]());})()`));
 ok('трактовка (привязка · разбивка · режим остатка · основание · акт · спор) — куратор',
    g.ev(`(()=>{ROLE='curator'; return ${JSON.stringify(MEAN)}.every(k=>can[k]());})()`));
-ok('роли не пересекаются: каждая способность ровно у одной роли',
-   g.ev(`Object.keys(can).every(k => ['curator','accountant','viewer']
-      .filter(r => { ROLE=r; return can[k](); }).length === 1)`));
+/* ВВОД ПО СПИСКУ ЦК — У ОБОИХ (ADR-0258 §1). Единственная способность, намеренно
+   стоящая у двух ролей: ввод ничем не распоряжается и ничего не удостоверяет — он
+   переносит строку чужого документа, который сам и служит ему основанием. Прежняя
+   редакция проверки требовала «ровно одной роли» на КАЖДУЮ способность и после волны
+   23.09.2026 запрещала бы принятое решение; исключение названо поимённо, а не снято. */
+const BOTH = ['enter'];
+ok('роли не пересекаются, кроме ввода по списку ЦК — он у куратора и бухгалтера',
+   g.ev(`Object.keys(can).every(k => { const n = ['curator','accountant','viewer']
+      .filter(r => { ROLE=r; return can[k](); }).length;
+      return ${JSON.stringify(BOTH)}.includes(k) ? n === 2 : n === 1; })`));
 ok('наблюдатель не может ничего',
    g.ev(`(()=>{ROLE='viewer'; return Object.keys(can).every(k=>can[k]()===false);})()`));
 ok('перечень способностей покрыт принципом целиком (лишних нет)',
-   g.ev(`Object.keys(can).sort().join(',')`) === [...FACT,...MEAN].sort().join(','));
+   g.ev(`Object.keys(can).sort().join(',')`) === [...FACT,...MEAN,...BOTH].sort().join(','));
+
+/* ЗАКРЕПЛЕНИЕ (ADR-0258 §3): трактовка спрашивается по КРЕДИТУ, а не только по роли.
+   Без аргумента способность по-прежнему отвечает на вопрос о роли — этим живут
+   подсказки, которым кредит неизвестен. */
+ok('куратор трактует свои кредиты и не трактует чужие',
+   g.ev(`(()=>{ROLE='curator'; const mine=DATA.credits.find(c=>c.curator===ME),
+      alien=DATA.credits.find(c=>c.curator!==ME);
+      return !!mine && !!alien && can.allocate(mine.id)===true && can.allocate(alien.id)===false
+         && can.surplus(alien.id)===false && can.allocate()===true;})()`));
+ok('бухгалтера закрепление не ограничивает: факт денег он ведёт по всему портфелю',
+   g.ev(`(()=>{ROLE='accountant'; return DATA.credits.every(c=>can.freeze()===true) && can.enter()===true;})()`));
+ok('отказ незакреплённому называет закреплённого поимённо',
+   g.ev(`(()=>{const alien=DATA.credits.find(c=>c.curator!==ME);
+      return assignedHint(alien.id).includes(alien.curator);})()`));
+ok('лента платежей даёт выборку по закреплению («Мои кредиты»)',
+   g.ev(`PAY_CONDS.some(c=>c.key==='mine') && PAY_CONDS.some(c=>c.key==='curator')`));
+ok('строка ленты и карточка платежа ведут обратно в кредит (ADR-0257 §7)',
+   (() => { const h = g.ev(`payRow(DATA.payments[0])`), c = g.pay('P-2054','req','curator');
+     return /openCreditCard\(/.test(h) && /openCreditCard\(/.test(c); })());
 ok('наблюдателю запрет объяснён подсказкой роли, а не молчащей кнопкой',
    (() => { g.rec('R-311','parse','viewer');
      return g.$$('#content .role-hint').length > 0; })());
