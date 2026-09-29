@@ -96,7 +96,7 @@ h1{font-size:28px;line-height:1.15;margin:.25em 0 0;font-weight:700;letter-spaci
 .key span{display:inline-flex;align-items:center;gap:5px}
 .key i{width:10px;height:4px;border-radius:2px;display:inline-block}
 
-/* паспорт */
+/* панель таблицы */
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);min-width:0}
 .head{padding:20px 22px 18px;display:grid;gap:14px}
 .head-row{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 16px}
@@ -272,14 +272,14 @@ pre.code code{background:none;padding:0;font-size:inherit;overflow-wrap:normal;w
           <button type="button" data-g="dim" aria-pressed="false">Разрезы</button>
           <button type="button" data-g="ind" aria-pressed="false">Показатели</button>
         </div>
-        <label class="tog" for="flagOnly" id="flagTog"><input type="checkbox" id="flagOnly"> только ⚑ — у соседа поля пока нет</label>
+        <label class="tog" for="flagOnly" id="flagTog"><input type="checkbox" id="flagOnly"> только ⚑ — источник ещё не готов</label>
         <div class="status" id="status" aria-live="polite"></div>
       </div>
       <section class="body" id="body"></section>
     </main>
   </div>
 
-  <p class="foot">⚑ — у соседа этой величины или поля пока нет, заявка записана в его журнал («Входящее от статистики»). ⚠ — утверждённый список расходится с моделью владельца, вопрос в §15 схемы. <code>NULL</code> в колонке значит «сосед молчал», а не ноль. Деньги — <code>numeric(20,2)</code>; итоги по множествам — только в сомах. «Опора» под «зачем» — где записан потребитель: <code>ТЗ #N</code> — параметр ТЗ (логика §10.1), <code>ФО-NN</code> — форма из каталога отчётности, <code>ADR-…</code>, <code>СС-…</code> — решения модуля.</p>
+  <p class="foot">⚑ — у модуля-источника этой величины или поля пока нет (источник ещё не готов), задача записана в его журнал («Входящее от статистики»). ⚠ — утверждённый список расходится с моделью владельца, вопрос в §15 схемы. <code>NULL</code> в колонке значит «источник не ответил», а не ноль. Деньги — <code>numeric(20,2)</code>; итоги по множествам — только в сомах. «Опора» под «зачем» — где записан потребитель: <code>ТЗ #N</code> — параметр ТЗ (логика §10.1), <code>ФО-NN</code> — форма из каталога отчётности, <code>ADR-…</code>, <code>СС-…</code> — решения модуля.</p>
 </div>
 
 <script>
@@ -338,7 +338,7 @@ function railBtn(slug, inner, cls) {
   b.addEventListener('click', () => go(slug));
   rail.appendChild(b);
 }
-railBtn('logic', `<span class="nm"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 3.5h4a1.5 1.5 0 011.5 1.5v8a1 1 0 00-1-1h-4.5zM13.5 3.5h-4A1.5 1.5 0 008 5v8a1 1 0 011-1h4.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Как хранятся данные</span><span class="ct"></span><span class="tb">правила: строка на дату, события, деньги, разрезы, охват</span>`, 'logic');
+railBtn('logic', `<span class="nm"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 3.5h4a1.5 1.5 0 011.5 1.5v8a1 1 0 00-1-1h-4.5zM13.5 3.5h-4A1.5 1.5 0 008 5v8a1 1 0 011-1h4.5z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>Как хранятся данные</span><span class="ct"></span><span class="tb">правила: строка на дату, события, деньги, разрезы, правила видимости</span>`, 'logic');
 const h2o = document.createElement('h2'); h2o.textContent = `Объекты · ${OBJ.length} таблиц`; rail.appendChild(h2o);
 const MAX = Math.max(...OBJ.map(o => o.total));
 OBJ.forEach(o => {
@@ -374,7 +374,7 @@ function itemMatch(r, g) {
 }
 
 function names(cols) { return `<div class="names">${cols.map(c => `<code>${esc(c)}</code>`).join('')}</div>`; }
-function srcHtml(r) { return (r.flag ? '<span class="fl" title="у соседа пока нет">⚑</span>' : '') + r.source.replace(/\s*⚑\s*/g, ' '); }
+function srcHtml(r) { return (r.flag ? '<span class="fl" title="источник ещё не готов">⚑</span>' : '') + r.source.replace(/\s*⚑\s*/g, ' '); }
 function fieldRow(f, withSrc) {
   return `<tr class="${f.flag ? 'flag' : ''} ${f.warn ? 'warn' : ''}"><td class="fld"><div class="fn">${esc(f.name)}</div>${names(f.cols)}${f.type ? `<div class="ty">${f.type}</div>` : ''}</td>`
     + `<td class="what">${f.what}</td><td class="why">${f.why}${f.basis ? `<div class="basis">опора: ${f.basis}</div>` : ''}</td>`
@@ -461,7 +461,7 @@ function render() {
     head.innerHTML = `<div class="head-row"><h2>${esc(cap(o.title))}</h2><span class="tbl">${esc(o.table)} · ${o.total} ${plural(o.total,'колонка','колонки','колонок')}${nf ? ` · ${nf} ${plural(nf,'поле','поля','полей')}` : ''}</span></div>`
       + (o.about ? `<div class="about">${o.about}</div>` : '')
       + `<div class="comp"><span class="chip s">служебные ${c.svc}</span><span class="chip d">разрезы ${c.dim}</span><span class="chip p">показатели ${c.ind}</span>`
-      + (fc.f ? `<span class="chip f">⚑ ждут соседа: ${fc.f}</span>` : '')
+      + (fc.f ? `<span class="chip f">⚑ источник не готов: ${fc.f}</span>` : '')
       + (fc.w ? `<span class="chip w">⚠ расходится с владельцем: ${fc.w}</span>` : '') + `</div>`
       + `<dl class="facts">${o.facts.map(f => `<div><dt>${esc(f.label)}</dt><dd>${f.value}</dd></div>`).join('')}</dl>`
       + (o.described ? '' : `<div class="pending">Описание полей этой таблицы готовится — ниже смысл колонок из схемы.</div>`);
