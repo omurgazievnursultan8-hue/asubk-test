@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Навигация · АСУБК</title>
+<!--
+  ПРЕДВАРИТЕЛЬНЫЙ МАКЕТ НАВИГАЦИИ (single-file). Не финал: сделан, чтобы посмотреть,
+  что где окажется, и подвигать имена до того, как писать ADR и постановку.
+
+  ИСТОЧНИК ДАННЫХ. Левое меню живого стенда https://fkftest.okmot.kg/ снято 21.09.2026
+  скриптом scripts/inspect/sidebar-full.mjs (дамп .auth/sidebar-full.json, 11 разделов,
+  40 групп, 206 ссылок). Содержимое экранов-двойников сверено scripts/inspect/sidebar-dupes.mjs,
+  недостающие в меню маршруты проверены scripts/inspect/sidebar-orphans.mjs. Ниже разложены
+  ВСЕ 205 пунктов (206-й — пустая корневая ссылка href="."), ни один не потерян и не выдуман.
+
+  ЧТО ЗДЕСЬ РЕШЕНО (итог разбора, 11 вопросов):
+  1. Цель перестройки — управляемость прав. Группа меню = кубик, из которого собирается
+     должностная роль дочерними ролями (guides/access-control.md §4).
+  2. Кубик — функциональный домен, не подразделение (переживает реорганизацию) и не
+     процессная роль (те пересекаются, а дерево — нет).
+  3. Раздел — для глаз, кубик — для прав; это разные уровни дерева.
+  4. Верхний уровень — линии бизнеса + автосхлоп единственного видимого ребёнка.
+  5. Справочники — отдельный раздел, подгруппы зеркалят домены раздела 1.
+  6. Домены раздела 1 — по этапу, «Программы» слиты с «Заявками».
+  7. «Администрирование» тонкое: сервисы проверок, движок отчётности и кадры — не ИТ-работа.
+  8. Сервисы проверок — свой кубик: нужны трём ролям, внутри «Заявок» протекли бы.
+  9. Четыре очевидных дубля скрыты из меню (экраны живы, права не выдаются); две спорные
+     пары оставлены обе — вопрос к разработке.
+  10. Имена доменов — из requirements/tz/index.md, укорочены только служебные хвосты.
+
+  ПРАВКИ ЗАКАЗЧИКА 21.09 (после первого просмотра макета):
+  · Раздела «Моя работа» нет. «Запросы на согласование» вернулись в Администрирование,
+    «Мои объекты» и «Что изменилось» — в Кураторство, туда же, где лежали. Цена решения:
+    эти экраны теперь достаются только владельцам соответствующего кубика, а не всем.
+  · «Заёмщики» и «Кредиты» — один домен «Заёмщики и кредиты».
+  · Освоение, Резерв и Реестр операций в меню не выводятся. Цена: у экрана без пункта меню
+    нет строки в матрице прав — доступ к нему не выдаётся и не закрывается.
+  · Список траншей остаётся в справочниках, в зеркальной подгруппе «Кредиты».
+
+  АВТОСХЛОП — единственная доработка, которую макет требует от разработки: группа, у которой
+  под ролью остался один видимый ребёнок, исчезает, а ребёнок встаёт на её место. Без неё
+  выбранная форма — худшая из рассмотренных. Переключатель ролей слева показывает, как это
+  выглядит: у Бековой «Система кредитования» пропадает, «Залоговое обеспечение» встаёт наверх.
+
+  ЧЕГО ЗДЕСЬ НЕТ. Это карта меню, а не прототип экранов: по ссылкам ничего не открывается.
+  Раскладка внутри СУГС, Поручительства и Корпоративного управления оставлена как на стенде —
+  эти три модуля из разбора исключены заказчиком.
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-link:#005FDB;
+  --asubk-green:#158443; --asubk-red:#E03A3A;
+  --asubk-ink:#192434; --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-grid-line:rgba(26,57,96,0.10);
+  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+  --asubk-red-tint:#FCE6E6; --asubk-green-tint:rgba(21,132,67,0.10);
+  --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --asubk-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --text-xs:12px; --text-sm:14px; --text-base:16px; --text-lg:18px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600;
+  --font-body:var(--weight-regular) var(--text-base)/1.5 var(--asubk-font);
+  --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --control-h:34px; --header-h:56px; --sidebar-w:296px;
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:var(--font-body); color:var(--text-body); background:var(--surface-panel); }
+::-webkit-scrollbar{ width:9px; height:9px; }
+::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
+
+/* ---------- top bar ---------- */
+.top{ height:var(--header-h); background:var(--asubk-white); border-bottom:1px solid var(--border-default);
+  display:flex; align-items:center; gap:18px; padding:0 20px; position:sticky; top:0; z-index:30; }
+.top h1{ margin:0; font:var(--weight-semibold) 17px/1.2 var(--asubk-font); color:var(--text-heading);
+  letter-spacing:0.02em; white-space:nowrap; }
+.top h1 small{ display:block; font:var(--weight-regular) 11px/1.3 var(--asubk-font);
+  color:var(--text-muted); letter-spacing:0; margin-top:2px; }
+.ctl{ display:flex; align-items:center; gap:7px; }
+.ctl label{ font:var(--weight-regular) var(--text-xs)/1 var(--asubk-font); color:var(--text-muted);
+  text-transform:uppercase; letter-spacing:0.05em; }
+select,input[type=search]{ height:var(--control-h); border:1px solid var(--border-default);
+  border-radius:var(--radius-md); background:var(--asubk-white); color:var(--text-body);
+  font:var(--weight-regular) var(--text-sm)/1 var(--asubk-font); padding:0 10px; }
+select:focus,input:focus{ outline:none; border-color:var(--asubk-blue); box-shadow:0 0 0 2px rgba(0,106,245,0.25); }
+.seg{ display:flex; border:1px solid var(--border-default); border-radius:var(--radius-md); overflow:hidden; }
+.seg button{ border:none; background:var(--asubk-white); color:var(--text-muted); cursor:pointer;
+  height:var(--control-h); padding:0 14px; font:var(--weight-medium) var(--text-sm)/1 var(--asubk-font); }
+.seg button + button{ border-left:1px solid var(--border-default); }
+.seg button.on{ background:var(--asubk-blue); color:#fff; }
+.spacer{ flex:1; }
+
+/* ---------- layout ---------- */
+.wrap{ display:flex; align-items:flex-start; gap:0; }
+.side{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
+  border-right:1px solid var(--border-default); min-height:calc(100vh - var(--header-h));
+  position:sticky; top:var(--header-h); max-height:calc(100vh - var(--header-h)); overflow-y:auto; }
+.brand{ padding:16px 16px 6px; font:var(--weight-semibold) 15px/1.2 var(--asubk-font);
+  color:var(--text-heading); letter-spacing:0.04em; }
+.brand small{ display:block; font:var(--weight-regular) 11px/1.4 var(--asubk-font);
+  color:var(--text-muted); letter-spacing:0; margin-top:3px; }
+.nav{ padding:6px 0 24px; }
+.sec{ border:none; background:none; width:100%; text-align:left; cursor:pointer;
+  display:flex; align-items:center; gap:8px; padding:9px 14px 9px 14px;
+  font:var(--weight-semibold) var(--text-xs)/1.3 var(--asubk-font); color:var(--text-placeholder);
+  text-transform:uppercase; letter-spacing:0.05em; }
+.sec:hover{ color:var(--text-muted); }
+.sec .cnt{ margin-left:auto; font:var(--weight-regular) 11px/1 var(--asubk-mono); color:var(--text-disabled); }
+.sec .tw{ width:9px; display:inline-block; transition:transform .12s; font-size:9px; }
+.sec[aria-expanded=false] .tw{ transform:rotate(-90deg); }
+.grp{ border:none; background:none; width:100%; text-align:left; cursor:pointer;
+  display:flex; align-items:center; gap:8px; padding:7px 14px 7px 24px;
+  font:var(--weight-medium) var(--text-sm)/1.35 var(--asubk-font); color:rgba(27,43,65,0.80); }
+.grp:hover{ background:var(--surface-hover); }
+.grp .cnt{ margin-left:auto; font:var(--weight-regular) 11px/1 var(--asubk-mono); color:var(--text-disabled); }
+.grp .tw{ width:9px; display:inline-block; transition:transform .12s; font-size:9px; color:var(--text-disabled); }
+.grp[aria-expanded=false] .tw{ transform:rotate(-90deg); }
+.itm{ border:none; background:none; width:100%; text-align:left; cursor:pointer;
+  display:flex; align-items:center; gap:7px; padding:6px 14px 6px 42px;
+  font:var(--weight-regular) var(--text-sm)/1.35 var(--asubk-font); color:rgba(27,43,65,0.74); }
+.itm.lvl1{ padding-left:24px; }
+.itm:hover{ background:var(--surface-hover); color:var(--asubk-ink); }
+.itm.on{ background:var(--asubk-nav-active); color:var(--asubk-ink); font-weight:var(--weight-medium); }
+.mk{ font-size:11px; line-height:1; flex:none; }
+.mk.mv{ color:var(--asubk-blue); }
+.mk.rn{ color:var(--asubk-amber); }
+.mk.nw{ color:var(--asubk-green); }
+.mk.hd{ color:var(--asubk-red); }
+.lvl-pill{ margin-left:auto; font:var(--weight-medium) 10px/1 var(--asubk-font); padding:2px 5px;
+  border-radius:var(--radius-pill); flex:none; }
+.lvl-pill.W{ background:var(--asubk-green-tint); color:var(--asubk-green); }
+.lvl-pill.R{ background:var(--asubk-blue-tint); color:var(--asubk-link); }
+
+/* ---------- main ---------- */
+.main{ flex:1; min-width:0; padding:20px 24px 60px; }
+.cards{ display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px; }
+.card{ background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--radius-lg);
+  padding:11px 14px; min-width:124px; }
+.card b{ display:block; font:var(--weight-semibold) 21px/1.1 var(--asubk-font); color:var(--text-heading); }
+.card span{ display:block; margin-top:3px; font:var(--weight-regular) var(--text-xs)/1.3 var(--asubk-font);
+  color:var(--text-muted); }
+h2{ margin:26px 0 10px; font:var(--weight-semibold) var(--text-lg)/1.25 var(--asubk-font); color:var(--text-heading); }
+h2:first-of-type{ margin-top:6px; }
+.note{ background:var(--asubk-blue-tint); border:1px solid rgba(0,106,245,0.18); border-radius:var(--radius-lg);
+  padding:11px 14px; font:var(--weight-regular) var(--text-sm)/1.5 var(--asubk-font); color:var(--text-body);
+  margin:10px 0 16px; }
+.note b{ font-weight:var(--weight-semibold); }
+.legend{ display:flex; flex-wrap:wrap; gap:14px; margin:8px 0 14px;
+  font:var(--weight-regular) var(--text-xs)/1.4 var(--asubk-font); color:var(--text-muted); }
+table{ width:100%; border-collapse:collapse; background:var(--surface-card);
+  border:1px solid var(--border-default); border-radius:var(--radius-lg); overflow:hidden; }
+th{ text-align:left; font:var(--weight-semibold) var(--text-xs)/1.3 var(--asubk-font); color:var(--text-muted);
+  text-transform:uppercase; letter-spacing:0.04em; padding:9px 11px; background:var(--asubk-gray-100);
+  border-bottom:1px solid var(--border-default); white-space:nowrap; }
+td{ padding:7px 11px; border-bottom:1px solid var(--asubk-grid-line);
+  font:var(--weight-regular) var(--text-sm)/1.4 var(--asubk-font); vertical-align:top; }
+tr:last-child td{ border-bottom:none; }
+tr.hl td{ background:var(--asubk-nav-active); }
+tr.dim td{ color:var(--text-placeholder); }
+code{ font:var(--weight-regular) 12px/1.4 var(--asubk-mono); color:var(--text-muted);
+  background:var(--asubk-gray-100); padding:1px 5px; border-radius:var(--radius-sm); }
+.tag{ display:inline-block; font:var(--weight-medium) 11px/1 var(--asubk-font); padding:3px 7px;
+  border-radius:var(--radius-pill); white-space:nowrap; }
+.tag.mv{ background:var(--asubk-blue-tint); color:var(--asubk-link); }
+.tag.rn{ background:var(--asubk-amber-tint); color:var(--asubk-amber); }
+.tag.nw{ background:var(--asubk-green-tint); color:var(--asubk-green); }
+.tag.hd{ background:var(--asubk-red-tint); color:var(--asubk-red); }
+.tag.ask{ background:var(--asubk-gray-200); color:var(--text-muted); }
+.filters{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:10px 0 12px; }
+.chip{ border:1px solid var(--border-default); background:var(--asubk-white); border-radius:var(--radius-pill);
+  padding:5px 12px; cursor:pointer; font:var(--weight-medium) var(--text-xs)/1 var(--asubk-font);
+  color:var(--text-muted); }
+.chip.on{ background:var(--asubk-blue); border-color:var(--asubk-blue); color:#fff; }
+.muted{ color:var(--text-muted); }
+.grid2{ display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+@media (max-width:1100px){ .grid2{ grid-template-columns:1fr; } }
+.box{ background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--radius-lg); padding:14px 16px; }
+.box h3{ margin:0 0 8px; font:var(--weight-semibold) var(--text-base)/1.3 var(--asubk-font); color:var(--text-heading); }
+.box ul{ margin:0; padding-left:18px; }
+.box li{ margin:5px 0; font:var(--weight-regular) var(--text-sm)/1.5 var(--asubk-font); }
+.arrow{ color:var(--text-disabled); padding:0 4px; }
+.empty{ padding:24px; text-align:center; color:var(--text-placeholder); font-size:var(--text-sm); }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <h1>Навигация АСУБК<small>предварительный макет · дамп стенда 21.09.2026</small></h1>
+  <div class="ctl">
+    <label for="role">Роль</label>
+    <select id="role"></select>
+  </div>
+  <div class="ctl">
+    <div class="seg" id="view">
+      <button data-v="new" class="on">Стало</button>
+      <button data-v="old">Было</button>
+    </div>
+  </div>
+  <div class="spacer"></div>
+  <div class="ctl">
+    <input type="search" id="q" placeholder="Найти пункт или маршрут…" style="width:280px">
+  </div>
+</div>
+
+<div class="wrap">
+  <aside class="side">
+    <div class="brand">АСУБК<small id="brandSub"></small></div>
+    <nav class="nav" id="nav"></nav>
+  </aside>
+
+  <main class="main">
+    <div class="cards" id="cards"></div>
+
+    <div class="note" id="roleNote"></div>
+
+    <h2>Карта переездов</h2>
+    <div class="grid2">
+      <div class="box">
+        <h3>Что откуда приехало</h3>
+        <ul id="movesIn"></ul>
+      </div>
+      <div class="box">
+        <h3>Что решено отдельно</h3>
+        <ul>
+          <li><b>Три экрана в меню не выводим</b> (решение заказчика 21.09):
+              <code>/disbursements</code>, <code>/loan-reserves</code>, <code>/loan-ledgers</code>.
+              Они живы и открываются по URL. Следствие: пункта меню нет ⇒ строки в матрице прав
+              нет ⇒ выдать или закрыть доступ к ним нечем, они видны всем, у кого есть адрес.</li>
+          <li><b>Раздела «Моя работа» нет</b> (решение заказчика 21.09). «Запросы на согласование»
+              вернулись в Администрирование, «Мои объекты» и «Что изменилось» — в Кураторство.
+              Следствие: эти три экрана достаются только ролям, у которых есть кубик
+              «Администрирование» или «Кураторство», — рядовой сотрудник своих согласований
+              и своих объектов не увидит.</li>
+          <li><b>Скрыли 4 дубля.</b> Экраны живы, данных в них суммарно одна строка («123»).
+              Снос и миграция — отдельной задачей разработке.</li>
+          <li><b>Две пары оставлены обе</b> — «Сотрудники / Информация о сотрудниках» и
+              «Отделы / Оргструктура». Обе заполнены, канон выбирает разработка.</li>
+          <li><b>Автосхлоп</b> — единственная доработка. Переключи роль: «Система кредитования»
+              исчезает, домен встаёт наверх.</li>
+        </ul>
+      </div>
+    </div>
+
+    <h2>Все пункты <span class="muted" id="tblCount"></span></h2>
+    <div class="legend">
+      <span>⬅ переехал в другой раздел</span>
+      <span>✎ переименован</span>
+      <span>✂ не в меню</span>
+      <span>⚠ канон спорный</span>
+    </div>
+    <div class="filters" id="filters"></div>
+    <table>
+      <thead><tr>
+        <th>Новое имя</th><th>Где будет</th><th>Маршрут</th><th>Где было</th><th>Метка</th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </main>
+</div>
+
+<script>
+/* ============================================================================
+   ДАННЫЕ. Каждая строка — один пункт живого меню (дамп 21.09.2026).
+   s  — новый раздел (индекс SECTIONS)      g — новая группа (домен/кубик)
+   n  — новое имя                            r — маршрут (неизменен)
+   o  — где лежал на стенде                  w — старое имя, если переименован
+   hid— скрыт из меню (дубль)                nw— не было в меню вовсе (сирота)
+   ask— канон спорный, вопрос к разработке
+   ========================================================================= */
+const SECTIONS = [
+  'Моя работа', 'Система кредитования', 'СУГС', 'Поручительство',
+  'Корпоративное управление', 'Справочники', 'Администрирование'
+];
+
+const T = [
+/* ---------- 1. СИСТЕМА КРЕДИТОВАНИЯ ------------------------------------ */
+/* Заявки и комиссии */
+{s:1,g:'Заявки и комиссии',n:'Решение правительства',r:'gov-decisions',o:'Система кредитования'},
+{s:1,g:'Заявки и комиссии',n:'Кредитные программы',r:'loan-programs',o:'Система кредитования'},
+{s:1,g:'Заявки и комиссии',n:'Заявки',r:'loan-applications',o:'Система кредитования'},
+{s:1,g:'Заявки и комиссии',n:'Комиссии по заявкам',r:'loan-application-commissions',o:'Система кредитования'},
+/* Заёмщики и кредиты — один домен (решение заказчика 21.09) */
+{s:1,g:'Заёмщики и кредиты',n:'Заёмщики',r:'borrowers',o:'Система кредитования',w:'Заемщики'},
+{s:1,g:'Заёмщики и кредиты',n:'Кредиты',r:'loansCredit',o:'Система кредитования'},
+/* Пункта меню не получают — решение заказчика 21.09. Экраны живы по URL, но строки
+   в матрице прав у них нет, значит и доступ выдать нечем (см. sidebar-orphans.mjs). */
+{s:1,g:'Заёмщики и кредиты',n:'Освоение',r:'disbursements',o:'—',out:'не выводим в меню'},
+{s:1,g:'Заёмщики и кредиты',n:'Резерв',r:'loan-reserves',o:'—',out:'не выводим в меню'},
+{s:1,g:'Заёмщики и кредиты',n:'Реестр операций',r:'loan-ledgers',o:'—',out:'не выводим в меню',w:'LoanLedger'},
+/* Реструктуризация */
+{s:1,g:'Реструктуризация',n:'Реестр заявок',r:'restructuring-applications',o:'Система кредитования ▸ Реструктуризация',w:'Реструктуризация — реестр заявок'},
+{s:1,g:'Реструктуризация',n:'Виды реструктуризации',r:'restructuring-kinds',o:'Система кредитования ▸ Реструктуризация',w:'Реструктуризация — справочник видов'},
+{s:1,g:'Реструктуризация',n:'Нормы',r:'restructuring-norms',o:'Система кредитования ▸ Реструктуризация',w:'Реструктуризация — нормы-справочник'},
+{s:1,g:'Реструктуризация',n:'Производственный календарь',r:'production-calendar',o:'Система кредитования ▸ Реструктуризация'},
+/* Залоговое обеспечение */
+{s:1,g:'Залоговое обеспечение',n:'Предметы залога',r:'loan-collateral-items',o:'Система кредитования ▸ Залог',w:'Предметы залога — бюджетные кредиты'},
+{s:1,g:'Залоговое обеспечение',n:'Залоговые договоры',r:'loan-collateral-agreements',o:'Система кредитования ▸ Залог',w:'Залоговые договоры — бюджетные кредиты'},
+{s:1,g:'Залоговое обеспечение',n:'Договоры поручительства',r:'loan-surety-agreements',o:'Система кредитования ▸ Залог',w:'Договоры поручительства — бюджетные кредиты'},
+{s:1,g:'Залоговое обеспечение',n:'Акты обследования',r:'collateral-monitoring',o:'Система кредитования ▸ Залог',w:'Мониторинг залога'},
+{s:1,g:'Залоговое обеспечение',n:'Проблемы по обеспечению',r:'loan-collateral-monitoring',o:'Система кредитования ▸ Залог',w:'Мониторинг обеспечения — бюджетные кредиты'},
+{s:1,g:'Залоговое обеспечение',n:'Виды залога — регламент',r:'loan-collateral-type-rules',o:'Система кредитования ▸ Залог ▸ Регламентные параметры обеспечения',w:'Регламентные параметры обеспечения — виды залога'},
+{s:1,g:'Залоговое обеспечение',n:'Обязательные документы',r:'item-type-collateral-doc-defaults',o:'Система кредитования ▸ Залог ▸ Регламентные параметры обеспечения',w:'Обязательные документы по видам залога'},
+{s:1,g:'Залоговое обеспечение',n:'Стоп-лист предметов залога',r:'loan-collateral-stop-list',o:'Система кредитования ▸ Залог ▸ Регламентные параметры обеспечения'},
+{s:1,g:'Залоговое обеспечение',n:'Список залоговых договоров',r:'loan-guarantee-collateral-agreements',o:'Система кредитования ▸ Залог',hid:'пусто, экран модуля поручительств'},
+{s:1,g:'Залоговое обеспечение',n:'Список предметов залога',r:'loan-guarantee-collaterals',o:'Система кредитования ▸ Залог',hid:'пусто, экран модуля поручительств'},
+/* Платежи */
+{s:1,g:'Платежи',n:'Платежи',r:'payments',o:'Система кредитования ▸ Платежи ▸ Платежи и возвраты'},
+{s:1,g:'Платежи',n:'Невыясненные',r:'unidentified-receipts',o:'Система кредитования ▸ Платежи ▸ Платежи и возвраты'},
+{s:1,g:'Платежи',n:'Возвраты',r:'funds-returns',o:'Система кредитования ▸ Платежи ▸ Платежи и возвраты'},
+{s:1,g:'Платежи',n:'Поступления',r:'receipts',o:'Система кредитования ▸ Платежи ▸ Поступления и сверка с ЦК'},
+{s:1,g:'Платежи',n:'Реестр ЦК',r:'treasury-registry-entries',o:'Система кредитования ▸ Платежи ▸ Поступления и сверка с ЦК'},
+{s:1,g:'Платежи',n:'Разбивка',r:'payment-allocation',o:'Система кредитования ▸ Платежи ▸ Поступления и сверка с ЦК'},
+{s:1,g:'Платежи',n:'Закрытие периода',r:'payment-period-close',o:'Система кредитования ▸ Платежи ▸ Период и акты'},
+{s:1,g:'Платежи',n:'Акты сверки',r:'internal-reconciliation-acts',o:'Система кредитования ▸ Платежи ▸ Период и акты'},
+/* Взыскание задолженности */
+{s:1,g:'Взыскание задолженности',n:'Требования',r:'collection',o:'Система кредитования ▸ Взыскание задолженности'},
+{s:1,g:'Взыскание задолженности',n:'Претензии',r:'collection/claims',o:'Система кредитования ▸ Взыскание задолженности'},
+{s:1,g:'Взыскание задолженности',n:'Заседания',r:'collection/hearings',o:'Система кредитования ▸ Взыскание задолженности'},
+{s:1,g:'Взыскание задолженности',n:'Вопросы на коллегиальные органы',r:'collection/committee',o:'Система кредитования ▸ Взыскание задолженности'},
+{s:1,g:'Взыскание задолженности',n:'Сроки на контроле',r:'collection/deadlines',o:'Система кредитования ▸ Взыскание задолженности'},
+{s:1,g:'Взыскание задолженности',n:'Двусторонние акты сверки с заёмщиками',r:'borrower-reconciliation-acts',o:'Система кредитования ▸ Взыскание задолженности'},
+{s:1,g:'Взыскание задолженности',n:'Судебные решения',r:'loan-judgements',o:'Справочники ▸ Справочники системы кредитования',w:'Вызыскание'},
+{s:1,g:'Взыскание задолженности',n:'Настройки правил',r:'collection/settings',o:'Система кредитования ▸ Взыскание задолженности'},
+{s:1,g:'Взыскание задолженности',n:'Режимы начисления слоёв долга',r:'debt-layer-accrual-modes',o:'Система кредитования ▸ Взыскание задолженности'},
+/* Проверки */
+{s:1,g:'Проверки',n:'Түндүк ПИН Сервис',r:'tundukPinService',o:'Сервисы'},
+{s:1,g:'Проверки',n:'ССП КР — Санкционный перечень',r:'sanctionsListService',o:'Сервисы'},
+{s:1,g:'Проверки',n:'ГНС — Страховые взносы',r:'gnsInsuranceDebtService',o:'Сервисы'},
+{s:1,g:'Проверки',n:'ГНС — Налоги',r:'gnsTaxService',o:'Сервисы'},
+{s:1,g:'Проверки',n:'Реестр интеграций',r:'external-systems',o:'Администрирование',w:'Интеграции'},
+/* Финансовый анализ */
+{s:1,g:'Финансовый анализ',n:'Методики анализа',r:'analysis-methodologies',o:'Система кредитования ▸ Финансовый анализ'},
+{s:1,g:'Финансовый анализ',n:'Строки форм отчётности',r:'analysis-report-lines',o:'Система кредитования ▸ Финансовый анализ'},
+{s:1,g:'Финансовый анализ',n:'Отчётные периоды',r:'reporting-periods',o:'Система кредитования ▸ Финансовый анализ'},
+{s:1,g:'Финансовый анализ',n:'История типов заёмщиков',r:'borrower-legal-type-history',o:'Система кредитования ▸ Финансовый анализ'},
+{s:1,g:'Финансовый анализ',n:'Расписание финансового анализа',r:'analysis-schedule',o:'Система кредитования ▸ Финансовый анализ'},
+/* Статистика */
+{s:1,g:'Статистика',n:'Статистика по настройкам',r:'statistics-configured-report',o:'Система кредитования ▸ Статистика'},
+{s:1,g:'Статистика',n:'Черновики настроек статистики',r:'stat-object-drafts',o:'Система кредитования ▸ Статистика'},
+{s:1,g:'Статистика',n:'Выдано всего по кредитам',r:'statistics/loan-issued',o:'Система кредитования ▸ Статистика'},
+{s:1,g:'Статистика',n:'Журнал сборов статистики',r:'statistics/runs',o:'Система кредитования ▸ Статистика'},
+{s:1,g:'Статистика',n:'Задания выгрузки',r:'statistics/exports',o:'Система кредитования ▸ Статистика'},
+/* Классификация */
+{s:1,g:'Классификация',n:'Классификаторы',r:'classification/classifiers',o:'Справочники ▸ Классификация'},
+{s:1,g:'Классификация',n:'Реестр показателей',r:'classification/indicators',o:'Справочники ▸ Классификация'},
+{s:1,g:'Классификация',n:'Факты п. 11',r:'classification/facts',o:'Справочники ▸ Классификация'},
+{s:1,g:'Классификация',n:'Витрина результата',r:'classification/showcase',o:'Справочники ▸ Классификация'},
+{s:1,g:'Классификация',n:'Периоды и фиксация',r:'classification/periods',o:'Справочники ▸ Классификация'},
+{s:1,g:'Классификация',n:'Журнал действий',r:'classification/journal',o:'Справочники ▸ Классификация'},
+/* Отчётность */
+{s:1,g:'Отчётность',n:'Отчёты',r:'reports',o:'Отчеты',w:'Отчеты'},
+{s:1,g:'Отчётность',n:'Группы отчётов',r:'reports/groups',o:'Отчеты',w:'Группы отчетов'},
+{s:1,g:'Отчётность',n:'Запуск отчёта',r:'reports/run',o:'Отчеты',w:'Запуск отчета'},
+{s:1,g:'Отчётность',n:'Таблицы отчётов',r:'reports/tables',o:'Отчеты',w:'Таблицы отчетов'},
+/* Оргструктура и кадры */
+{s:1,g:'Оргструктура и кадры',n:'Оргструктура',r:'org-structure-mgmt',o:'Организационная структура',ask:'канон против «Отделов»'},
+{s:1,g:'Оргструктура и кадры',n:'Информация о сотрудниках',r:'employee-info',o:'Администрирование',ask:'канон против «Сотрудников»'},
+/* Кураторство — вместе с личными экранами, как было в исходном меню */
+{s:1,g:'Кураторство',n:'Признаки и группировки',r:'curatorship/features',o:'Справочники ▸ Кураторство'},
+{s:1,g:'Кураторство',n:'Политика распределения',r:'curatorship/distribution',o:'Справочники ▸ Кураторство'},
+{s:1,g:'Кураторство',n:'Мои объекты',r:'curatorship/my-objects',o:'Справочники ▸ Кураторство'},
+{s:1,g:'Кураторство',n:'Что изменилось',r:'curatorship/changes',o:'Справочники ▸ Кураторство'},
+
+/* ---------- 2. СУГС (как есть) ----------------------------------------- */
+{s:2,g:'Документы',n:'Субсидии',r:'subsidies',o:'СУГС ▸ Документы'},
+{s:2,g:'Документы',n:'Запрос субсидии',r:'subsidy-requests',o:'СУГС ▸ Документы'},
+{s:2,g:'Документы',n:'Выплаты субсидий',r:'subsidy-payments',o:'СУГС ▸ Документы'},
+{s:2,g:'Документы',n:'Возвраты выплат',r:'payment-refunds',o:'СУГС ▸ Документы'},
+{s:2,g:'Документы',n:'Сверки',r:'subsidy-reconciliations',o:'СУГС ▸ Документы'},
+{s:2,g:'Документы',n:'Калькулятор субсидий',r:'subsidy-calculator',o:'СУГС ▸ Документы'},
+{s:2,g:'Отчёты',n:'Импорт отчета',r:'import-reports',o:'СУГС ▸ Отчёты'},
+{s:2,g:'Отчёты',n:'Отчет по субсидированию кредитов',r:'Creditsubsidyreportview',o:'СУГС ▸ Отчёты'},
+{s:2,g:'Отчёты',n:'Отчет акт сверки',r:'Reconciliationreportview',o:'СУГС ▸ Отчёты'},
+{s:2,g:'Отчёты',n:'Отчет по выданным кредитным суммам',r:'Issuedcreditreportview',o:'СУГС ▸ Отчёты'},
+{s:2,g:'Регистры',n:'Регистр субсидий',r:'subsidy-request-registrs',o:'СУГС ▸ Регистры'},
+{s:2,g:'Регистры',n:'Регистр сумм субсидий',r:'subsidies-information-registers',o:'СУГС ▸ Регистры'},
+{s:2,g:'Регистры',n:'Регистры выплат субсидий',r:'subsidy-payment-registers',o:'СУГС ▸ Регистры'},
+
+/* ---------- 3. ПОРУЧИТЕЛЬСТВО (как есть) ------------------------------- */
+{s:3,g:'',n:'Анкеты поручительств',r:'loan-guarantees',o:'Поручительства'},
+{s:3,g:'',n:'Поручительствa',r:'loan-guarantees2',o:'Поручительства'},
+{s:3,g:'',n:'Комитет по заявкам',r:'guarantee-committees',o:'Поручительства'},
+{s:3,g:'',n:'Погашение кредита',r:'loan-guarantee-credit-repayments',o:'Поручительства'},
+{s:3,g:'',n:'Архив',r:'guarantee-archive',o:'Поручительства'},
+{s:3,g:'',n:'Отчёты',r:'loan-guarantee-reports',o:'Поручительства'},
+
+/* ---------- 4. КОРПОРАТИВНОЕ УПРАВЛЕНИЕ (как есть) --------------------- */
+{s:4,g:'',n:'Реестр компаний',r:'corporate-companies',o:'Корпоративное управление'},
+{s:4,g:'',n:'Аналитика KPI',r:'corporate-kpi-analytics',o:'Корпоративное управление'},
+{s:4,g:'',n:'Документы',r:'corporate-documents',o:'Корпоративное управление'},
+{s:4,g:'',n:'Финотчетность',r:'corporate-financial-reports',o:'Корпоративное управление'},
+{s:4,g:'Отчёты',n:'Информация по дивидендам АО',r:'corporate-dividends-report',o:'Корпоративное управление ▸ Отчёты'},
+{s:4,g:'Отчёты',n:'Информация по долям компаний',r:'corporate-company-shares-report',o:'Корпоративное управление ▸ Отчёты'},
+{s:4,g:'Отчёты',n:'Информация по руководству компаний',r:'corporate-company-management-report',o:'Корпоративное управление ▸ Отчёты'},
+{s:4,g:'Отчёты',n:'Справка по финансовым показателям',r:'corporate-company-reference-report',o:'Корпоративное управление ▸ Отчёты'},
+
+/* ---------- 5. СПРАВОЧНИКИ (подгруппы зеркалят домены раздела 1) ------- */
+/* ▸ Заявки и комиссии */
+{s:5,g:'Заявки и комиссии',n:'Комиссии',r:'commissions',o:'Справочники ▸ Справочники системы кредитования'},
+{s:5,g:'Заявки и комиссии',n:'Роли проверки документов',r:'loan-document-reviewers',o:'Справочники ▸ Справочники системы кредитования'},
+{s:5,g:'Заявки и комиссии',n:'Отделы для заключений',r:'loan-conclusion-department-settings',o:'Справочники ▸ Справочники системы кредитования'},
+{s:5,g:'Заявки и комиссии',n:'Органы',r:'authorities',o:'Справочники ▸ Справочники системы кредитования'},
+{s:5,g:'Заявки и комиссии',n:'Статус решения',r:'credit-order-states',o:'Справочники ▸ Оформление'},
+{s:5,g:'Заявки и комиссии',n:'Вид решения',r:'credit-order-types',o:'Справочники ▸ Оформление'},
+{s:5,g:'Заявки и комиссии',n:'Статус списка получателей',r:'applied-entity-list-states',o:'Справочники ▸ Оформление'},
+{s:5,g:'Заявки и комиссии',n:'Вид списка получателей',r:'applied-entity-list-types',o:'Справочники ▸ Оформление'},
+{s:5,g:'Заявки и комиссии',n:'Статус получателя',r:'applied-entity-states',o:'Справочники ▸ Оформление'},
+{s:5,g:'Заявки и комиссии',n:'Статус пакета документации',r:'document-package-states',o:'Справочники ▸ Оформление'},
+{s:5,g:'Заявки и комиссии',n:'Вид пакета документации',r:'document-package-types',o:'Справочники ▸ Оформление'},
+{s:5,g:'Заявки и комиссии',n:'Статус документа',r:'entity-document-states',o:'Справочники ▸ Оформление'},
+{s:5,g:'Заявки и комиссии',n:'Вид регистратора документа',r:'entity-document-registered-bies',o:'Справочники ▸ Оформление'},
+{s:5,g:'Заявки и комиссии',n:'Вид документа',r:'order-document-types',o:'Справочники ▸ Оформление'},
+/* ▸ Заёмщики */
+{s:5,g:'Заёмщики',n:'Вид заёмщика',r:'debtor-types',o:'Справочники ▸ Заемщик',w:'Вид заемщика'},
+{s:5,g:'Заёмщики',n:'Вид организационных форм',r:'organization-forms',o:'Справочники ▸ Заемщик'},
+{s:5,g:'Заёмщики',n:'Вид отраслей',r:'work-sectors',o:'Справочники ▸ Заемщик'},
+{s:5,g:'Заёмщики',n:'Группа заёмщика',r:'borrower-groups',o:'Справочники ▸ Справочники системы кредитования',w:'Группа заемщика'},
+{s:5,g:'Заёмщики',n:'Группа платёжеспособности',r:'loan-payment-capacity-groups',o:'Справочники ▸ Справочники системы кредитования',w:'Группа платежоспособности'},
+{s:5,g:'Заёмщики',n:'Учредители юр. лица',r:'organization-ownerships',o:'Справочники ▸ Справочники системы кредитования'},
+/* ▸ Кредиты */
+{s:5,g:'Кредиты',n:'Статус кредита',r:'loan-states',o:'Справочники ▸ Кредит'},
+{s:5,g:'Кредиты',n:'Вид кредита',r:'loan-types',o:'Справочники ▸ Кредит'},
+{s:5,g:'Кредиты',n:'Статус графика погашений',r:'installment-states',o:'Справочники ▸ Кредит'},
+{s:5,g:'Кредиты',n:'Вид погашений',r:'payment-types',o:'Справочники ▸ Кредит'},
+{s:5,g:'Кредиты',n:'Вид товаров',r:'good-types',o:'Справочники ▸ Кредит'},
+{s:5,g:'Кредиты',n:'Счета зачисления',r:'destination-accounts',o:'Справочники ▸ Кредит',w:'Destination accounts'},
+{s:5,g:'Кредиты',n:'Виды обеспечения',r:'collateralTypes',o:'Справочники ▸ Кредит'},
+{s:5,g:'Кредиты',n:'Типовые сроки кредита',r:'creditTerms',o:'Справочники ▸ Кредит',w:'Сроки кредита'},
+{s:5,g:'Кредиты',n:'Расчётные коэффициенты',r:'calculationCoefficients',o:'Справочники ▸ Кредит',w:'Расчетные коэффициенты'},
+{s:5,g:'Кредиты',n:'Категории субсидирования',r:'subsidyCategories',o:'Справочники ▸ Кредит'},
+{s:5,g:'Кредиты',n:'Источник финансирования',r:'source-of-finances',o:'Справочники ▸ Условия кредитования'},
+{s:5,g:'Кредиты',n:'Вид валют',r:'order-term-currencies',o:'Справочники ▸ Условия кредитования'},
+{s:5,g:'Кредиты',n:'Вид цикла начисления',r:'order-term-frequency-types',o:'Справочники ▸ Условия кредитования'},
+{s:5,g:'Кредиты',n:'Вид периода начисления',r:'order-term-rate-periods',o:'Справочники ▸ Условия кредитования'},
+{s:5,g:'Кредиты',n:'Вид расчёта количества дней',r:'order-term-days-methods',o:'Справочники ▸ Условия кредитования',w:'Вид расчета количества дней'},
+{s:5,g:'Кредиты',n:'Методы расчёта кол-ва дней в год',r:'order-term-days-method-years',o:'Справочники ▸ Условия кредитования'},
+{s:5,g:'Кредиты',n:'Вид начисления',r:'order-term-accr-methods',o:'Справочники ▸ Условия кредитования'},
+{s:5,g:'Кредиты',n:'Вид очерёдности погашения',r:'order-term-transaction-orders',o:'Справочники ▸ Условия кредитования',w:'Вид очередности погашения'},
+{s:5,g:'Кредиты',n:'Вид ставок',r:'order-term-floating-rate-types',o:'Справочники ▸ Условия кредитования'},
+{s:5,g:'Кредиты',n:'Кредитные условия',r:'loan-termses',o:'Справочники ▸ Условия кредитования'},
+{s:5,g:'Кредиты',n:'Процентные ставки',r:'interest-rates',o:'Справочники ▸ Справочники системы кредитования'},
+{s:5,g:'Кредиты',n:'Котировки плавающих ставок',r:'floating-rates',o:'Справочники ▸ Справочники системы кредитования',w:'Плавающиая ставка'},
+{s:5,g:'Кредиты',n:'Льготные периоды',r:'loan-grace-periods',o:'Справочники ▸ Справочники системы кредитования'},
+{s:5,g:'Кредиты',n:'Кредитная линия',r:'loan-credit-lines',o:'Справочники ▸ Справочники системы кредитования'},
+{s:5,g:'Кредиты',n:'Назначение кредита',r:'loan-purposes',o:'Справочники ▸ Справочники системы кредитования'},
+{s:5,g:'Кредиты',n:'Кредиторы',r:'lenders',o:'Справочники ▸ Справочники системы кредитования'},
+{s:5,g:'Кредиты',n:'Список траншей',r:'sub-loans',o:'Справочники ▸ Справочники системы кредитования',w:'Список Траншей'},
+{s:5,g:'Кредиты',n:'Фиксированные процентные ставки',r:'loan-percent-rates',o:'Справочники ▸ Справочники системы кредитования',hid:'подмножество «Процентных ставок»'},
+/* ▸ Залоговое обеспечение */
+{s:5,g:'Залоговое обеспечение',n:'Вид предмета залога',r:'item-types',o:'Справочники ▸ Залог'},
+{s:5,g:'Залоговое обеспечение',n:'Ед. изм. предмета залога',r:'quantity-types',o:'Справочники ▸ Залог',w:'Ед изм предмета залога'},
+{s:5,g:'Залоговое обеспечение',n:'Состояние предмета залога',r:'inspection-result-types',o:'Справочники ▸ Залог'},
+{s:5,g:'Залоговое обеспечение',n:'Вид результата акта обследования',r:'inspection-statuses',o:'Справочники ▸ Залог'},
+{s:5,g:'Залоговое обеспечение',n:'Статусы запрета на отчуждение',r:'arrest-free-statuses',o:'Справочники ▸ Залог',w:'Arrest free statuses'},
+/* ▸ Платежи */
+{s:5,g:'Платежи',n:'Счета погашения',r:'payment-accounts',o:'Справочники ▸ Справочники системы кредитования'},
+{s:5,g:'Платежи',n:'Вид счёта погашения',r:'loan-type-repayment-accounts',o:'Справочники ▸ Справочники системы кредитования',w:'Вид счета погашения'},
+{s:5,g:'Платежи',n:'Счёт для оплаты',r:'payment-purpose-requisites',o:'Справочники ▸ Справочники системы кредитования',w:'Счет для оплаты'},
+{s:5,g:'Платежи',n:'Счет погашения',r:'loan-redemption-accounts',o:'Справочники ▸ Справочники системы кредитования',hid:'1 строка «123», дубль «Счетов погашения»'},
+/* ▸ Взыскание задолженности */
+{s:5,g:'Взыскание задолженности',n:'Статус процедуры взыскания',r:'procedure-statuses',o:'Справочники ▸ Взыскание'},
+{s:5,g:'Взыскание задолженности',n:'Вид процедуры взыскания',r:'procedure-types',o:'Справочники ▸ Взыскание'},
+{s:5,g:'Взыскание задолженности',n:'Статус фазы взыскания',r:'phase-statuses',o:'Справочники ▸ Взыскание'},
+{s:5,g:'Взыскание задолженности',n:'Вид фазы взыскания',r:'phase-types',o:'Справочники ▸ Взыскание'},
+{s:5,g:'Взыскание задолженности',n:'Статус события фазы взыскания',r:'event-statuses',o:'Справочники ▸ Взыскание'},
+{s:5,g:'Взыскание задолженности',n:'Вид события фазы взыскания',r:'event-types',o:'Справочники ▸ Взыскание'},
+/* ▸ Оргструктура и кадры */
+{s:5,g:'Оргструктура и кадры',n:'Сотрудники',r:'employees',o:'Справочники ▸ Справочники системы кредитования',ask:'канон против «Информации о сотрудниках»'},
+{s:5,g:'Оргструктура и кадры',n:'Должности',r:'positions',o:'Справочники ▸ Справочники системы кредитования'},
+{s:5,g:'Оргструктура и кадры',n:'Отделы',r:'departments',o:'Справочники ▸ Справочники системы кредитования',ask:'канон против «Оргструктуры»'},
+/* ▸ Общие */
+{s:5,g:'Общие',n:'Организации',r:'organizations',o:'Справочники ▸ Организация'},
+{s:5,g:'Общие',n:'Физ. лица',r:'individuals',o:'Справочники ▸ Организация',w:'Физ лица'},
+{s:5,g:'Общие',n:'Орг. формы',r:'org-forms',o:'Справочники ▸ Организация',w:'Орг формы'},
+{s:5,g:'Общие',n:'Области',r:'regions',o:'Справочники ▸ Организация'},
+{s:5,g:'Общие',n:'Районы',r:'districts',o:'Справочники ▸ Организация'},
+{s:5,g:'Общие',n:'Города',r:'cities',o:'Справочники ▸ Организация'},
+{s:5,g:'Общие',n:'Сельские округи',r:'aokmotus',o:'Справочники ▸ Организация'},
+{s:5,g:'Общие',n:'Сёла',r:'villages',o:'Справочники ▸ Организация'},
+{s:5,g:'Общие',n:'СОАТЕС',r:'soates',o:'Справочники'},
+{s:5,g:'Общие',n:'Орган выдачи документов',r:'identity-doc-given-bies',o:'Справочники ▸ Организация'},
+{s:5,g:'Общие',n:'Вид идент. документов',r:'identity-doc-types',o:'Справочники ▸ Организация',w:'Вид идент документов'},
+{s:5,g:'Общие',n:'Справочник кодов шаблонов',r:'agreement-template-codes',o:'Справочники ▸ Справочники системы кредитования'},
+{s:5,g:'Общие',n:'Шаблоны договоров',r:'agreement-templates',o:'Справочники ▸ Справочники системы кредитования'},
+{s:5,g:'Общие',n:'Печатные формы',r:'print-forms',o:'Справочники ▸ Справочники системы кредитования'},
+{s:5,g:'Общие',n:'Курсы валют',r:'currency-rates',o:'Справочники ▸ Курсы валют'},
+/* ▸ Справочники СУГС / поручительств / корпуправления — как есть */
+{s:5,g:'Справочники СУГС',n:'Выгрузить справочники',r:'sugs-reference-export',o:'Справочники ▸ Справочники СУГС'},
+{s:5,g:'Справочники СУГС',n:'Решения по субсидиям',r:'subsidy-decisions',o:'Справочники ▸ Справочники СУГС'},
+{s:5,g:'Справочники СУГС',n:'Государственные программы',r:'govProgramses',o:'Справочники ▸ Справочники СУГС'},
+{s:5,g:'Справочники СУГС',n:'Проекты субсидирования',r:'subsidyProjects',o:'Справочники ▸ Справочники СУГС'},
+{s:5,g:'Справочники СУГС',n:'Сроки субсидий',r:'subsidy-terms',o:'Справочники ▸ Справочники СУГС'},
+{s:5,g:'Справочники СУГС',n:'Банки',r:'banks',o:'Справочники ▸ Справочники СУГС'},
+{s:5,g:'Справочники СУГС',n:'Подписанты банков',r:'signatories',o:'Справочники ▸ Справочники СУГС'},
+{s:5,g:'Справочники СУГС',n:'Подписанты организаций',r:'organization-signatory-cards',o:'Справочники ▸ Справочники СУГС'},
+{s:5,g:'Справочники СУГС',n:'Соглашения',r:'agreements',o:'Справочники ▸ Справочники СУГС'},
+{s:5,g:'Справочники СУГС',n:'Отрасли и направления',r:'industryDirections',o:'Справочники ▸ Справочники СУГС'},
+{s:5,g:'Справочники СУГС',n:'Журнал входящих данных по субсидиям',r:'subsidy-logs',o:'Справочники ▸ Справочники СУГС'},
+{s:5,g:'Справочники поручительств',n:'Сроки кредита поручительства',r:'loan-guarantee-terms2',o:'Справочники ▸ Справочники поручительств'},
+{s:5,g:'Справочники поручительств',n:'Уставный капитал',r:'authorised-capitals',o:'Справочники ▸ Справочники поручительств'},
+{s:5,g:'Справочники поручительств',n:'Сроки кредита поручительства',r:'loan-guarantee-terms',o:'Справочники ▸ Справочники поручительств'},
+{s:5,g:'Справочники поручительств',n:'Решения по поручительству',r:'loan-guarantee-decisions',o:'Справочники ▸ Справочники поручительств'},
+{s:5,g:'Справочники поручительств',n:'Ставки комиссии поручительства',r:'loan-guarantee-commission-rates',o:'Справочники ▸ Справочники поручительств'},
+{s:5,g:'Справочники поручительств',n:'Отрасль экономики',r:'economic-sectors',o:'Справочники ▸ Справочники поручительств'},
+{s:5,g:'Справочники корпуправления',n:'Отрасли',r:'corporate-industries',o:'Справочники ▸ Справочники корпоративного управления'},
+{s:5,g:'Справочники корпуправления',n:'Акционерные общества',r:'joint-stock-companies',o:'Справочники ▸ Справочники корпоративного управления'},
+{s:5,g:'Справочники корпуправления',n:'Акционеры',r:'shareholders',o:'Справочники ▸ Справочники корпоративного управления'},
+
+/* ---------- 6. АДМИНИСТРИРОВАНИЕ --------------------------------------- */
+{s:6,g:'',n:'Запросы на согласование',r:'approval-requests',o:'Администрирование'},
+{s:6,g:'',n:'Пользователи',r:'users',o:'Администрирование'},
+{s:6,g:'',n:'Роли доступа',r:'access-roles',o:'Администрирование'},
+{s:6,g:'',n:'Ресурсные роли',r:'sec/resourcerolemodels',o:'Безопасность'},
+{s:6,g:'',n:'Роли уровня строк',r:'sec/rowlevelrolemodels',o:'Безопасность'},
+{s:6,g:'',n:'Фиксации объектов',r:'access-locks',o:'Администрирование'},
+{s:6,g:'',n:'Административный аудит',r:'admin-audit-logs',o:'Администрирование'},
+{s:6,g:'',n:'Информация о ведомстве',r:'vedomstvo',o:'Администрирование'},
+{s:6,g:'',n:'Инспектор сущностей',r:'datatl/entityinspector',o:'Инструменты данных'}
+];
+
+/* Порядок групп в новом дереве (пустая строка = прямые ссылки на своём месте) */
+const ORDER = {
+  0:[],                       /* раздел «Моя работа» упразднён — решение заказчика 21.09 */
+  1:['Заявки и комиссии','Заёмщики и кредиты','Реструктуризация','Залоговое обеспечение','Платежи',
+     'Взыскание задолженности','Проверки','Финансовый анализ','Статистика','Классификация',
+     'Отчётность','Оргструктура и кадры','Кураторство'],
+  2:['Документы','Отчёты','Регистры'],
+  3:[''],
+  4:['','Отчёты'],
+  5:['Заявки и комиссии','Заёмщики','Кредиты','Залоговое обеспечение','Платежи',
+     'Взыскание задолженности','Оргструктура и кадры','Общие',
+     'Справочники СУГС','Справочники поручительств','Справочники корпуправления'],
+  6:['']
+};
+
+/* ============================================================================
+   РОЛИ. Кубик = «раздел|группа». П — правка, Ч — чтение.
+   Роли взяты из мокапов модулей (collection.html, kuratorstvo.html,
+   loan-application.html, reports.html, statistics.html) и отделов стенда.
+   ========================================================================= */
+const ROLES = [
+  {id:'admin', t:'Администратор — видит всё', cubes:'*'},
+  {id:'spec_app', t:'Кредитный специалист (заявки)', cubes:{
+     '1|Заявки и комиссии':'П','1|Заёмщики и кредиты':'Ч','1|Проверки':'П',
+     '5|Заявки и комиссии':'Ч','5|Заёмщики':'Ч'}},
+  {id:'cur_loan', t:'Куратор кредита (ДАК)', cubes:{
+     '1|Заёмщики и кредиты':'П','1|Залоговое обеспечение':'Ч','1|Платежи':'Ч',
+     '1|Проверки':'П','5|Кредиты':'Ч'}},
+  {id:'cur_coll', t:'Куратор залога (ОЗО) — Бекова Н.', cubes:{
+     '1|Залоговое обеспечение':'П','1|Заёмщики и кредиты':'Ч','5|Залоговое обеспечение':'Ч'}},
+  {id:'treasury', t:'Главный бухгалтер / казначейство', cubes:{
+     '1|Платежи':'П','1|Заёмщики и кредиты':'Ч','5|Платежи':'Ч'}},
+  {id:'collector', t:'Отдел проблемных кредитов (ОПК)', cubes:{
+     '1|Взыскание задолженности':'П','1|Заёмщики и кредиты':'Ч',
+     '1|Проверки':'П','5|Взыскание задолженности':'Ч'}},
+  {id:'restruct', t:'Заключант ДПО (реструктуризация)', cubes:{
+     '1|Реструктуризация':'П','1|Заёмщики и кредиты':'Ч'}},
+  {id:'analyst', t:'Аналитик', cubes:{
+     '1|Финансовый анализ':'П','1|Статистика':'Ч','1|Заёмщики и кредиты':'Ч'}},
+  {id:'stat_admin', t:'Администратор статистики', cubes:{'1|Статистика':'П'}},
+  {id:'class_admin', t:'Администратор классификации', cubes:{'1|Классификация':'П'}},
+  {id:'rep_auth', t:'Уполномоченный по отчётности', cubes:{'1|Отчётность':'П'}},
+  {id:'hr', t:'Кадровик', cubes:{'1|Оргструктура и кадры':'П','5|Оргструктура и кадры':'П'}},
+  {id:'curator_m', t:'Методолог кураторства', cubes:{
+     '1|Кураторство':'П','1|Оргструктура и кадры':'Ч'}},
+  {id:'sugs', t:'Специалист СУГС', cubes:{
+     '2|Документы':'П','2|Отчёты':'П','2|Регистры':'П','5|Справочники СУГС':'Ч'}},
+  {id:'it', t:'ИТ-администратор', cubes:{'6|':'П'}}
+];
+
+/* ========================== состояние =================================== */
+let roleId = 'admin', view = 'new', sel = null, q = '', flt = 'all';
+const open = new Set();
+
+/* ========================== вспомогательное ============================= */
+const role = () => ROLES.find(r => r.id === roleId);
+const cubeOf = it => it.s + '|' + it.g;
+const lvl = it => {
+  const c = role().cubes;
+  if (c === '*') return 'П';
+  return c[cubeOf(it)] || null;
+};
+const visible = it => !it.hid && !it.out && lvl(it) !== null;
+const flagOf = it => (it.hid || it.out) ? 'hd'
+  : (it.o.split(' ▸ ')[0] !== SECTIONS[it.s] ? 'mv' : (it.w ? 'rn' : ''));
+const mark = it => (it.hid || it.out) ? '✂'
+  : (it.o.split(' ▸ ')[0] !== SECTIONS[it.s] ? '⬅' : (it.w ? '✎' : ''));
+
+/* ========================== новое дерево ================================ */
+function buildNew(){
+  const secs = [];
+  SECTIONS.forEach((name, si) => {
+    const groups = [];
+    (ORDER[si] || []).forEach(g => {
+      const items = T.filter(it => it.s === si && it.g === g && visible(it));
+      if (items.length) groups.push({ name:g, items });
+    });
+    const total = groups.reduce((a,b) => a + b.items.length, 0);
+    if (total) secs.push({ name, si, groups, total });
+  });
+  /* АВТОСХЛОП: раздел с единственной именованной группой уступает ей место.
+     Подгруппы «Справочников» зеркалят домены раздела 1 — после схлопа имена совпали бы
+     («Залоговое обеспечение» рабочее и «Залоговое обеспечение» словарное стоят рядом),
+     поэтому словарное получает хвост. */
+  return secs.map(s => {
+    if (s.groups.length === 1 && s.groups[0].name) {
+      const nm = s.groups[0].name + (s.si === 5 && !/^Справочники/.test(s.groups[0].name)
+        ? ' · справочники' : '');
+      return { name:nm, si:s.si, groups:[{ name:'', items:s.groups[0].items }],
+               total:s.total, collapsed:s.name };
+    }
+    return s;
+  });
+}
+
+/* ========================== старое дерево =============================== */
+function buildOld(){
+  const map = new Map();
+  T.forEach(it => {
+    if (it.o === '—') return;                 /* в старом меню их не было вовсе */
+    if (!visible(it) && !it.hid) return;      /* роль режет и старое дерево тоже */
+    const path = it.o;
+    if (!map.has(path)) map.set(path, []);
+    map.get(path).push(it);
+  });
+  const secs = new Map();
+  [...map.keys()].forEach(path => {
+    const parts = path.split(' ▸ ');
+    const top = parts[0];
+    if (!secs.has(top)) secs.set(top, { name:top, groups:new Map(), total:0 });
+    const s = secs.get(top);
+    const gname = parts.slice(1).join(' ▸ ');
+    if (!s.groups.has(gname)) s.groups.set(gname, []);
+    map.get(path).forEach(it => { s.groups.get(gname).push(it); s.total++; });
+  });
+  /* порядок разделов — как на стенде, а не как пришлось */
+  const LIVE = ['Система кредитования','СУГС','Поручительства','Корпоративное управление',
+    'Сервисы','Справочники','Организационная структура','Администрирование','Отчеты',
+    'Безопасность','Инструменты данных'];
+  return [...secs.values()].sort((a,b) => LIVE.indexOf(a.name) - LIVE.indexOf(b.name)).map(s => ({
+    name:s.name, si:-1, total:s.total,
+    groups:[...s.groups.entries()].map(([name, items]) => ({ name, items }))
+      .sort((a,b) => (a.name === '' ? -1 : b.name === '' ? 1 : a.name.localeCompare(b.name,'ru')))
+  }));
+}
+
+/* ========================== отрисовка дерева ============================ */
+function renderNav(){
+  const tree = view === 'new' ? buildNew() : buildOld();
+  const nav = document.getElementById('nav');
+  nav.innerHTML = '';
+  const total = tree.reduce((a,s) => a + s.total, 0);
+  document.getElementById('brandSub').textContent =
+    (view === 'new' ? 'как станет' : 'как сейчас') + ' · ' + tree.length + ' разд. · ' + total + ' пункт.';
+
+  if (!tree.length){ nav.innerHTML = '<div class="empty">Роль не видит ни одного пункта</div>'; return; }
+
+  tree.forEach((s, i) => {
+    const key = 's' + view + i + s.name;
+    const isOpen = open.has(key) || tree.length <= 3;
+    const b = document.createElement('button');
+    b.className = 'sec'; b.setAttribute('aria-expanded', isOpen);
+    b.innerHTML = '<span class="tw">▼</span>' + esc(s.name) +
+      (s.collapsed ? ' <span class="mk mv" title="автосхлоп: раздел «' + esc(s.collapsed) + '» исчез">⇱</span>' : '') +
+      '<span class="cnt">' + s.total + '</span>';
+    b.onclick = () => { isOpen ? open.delete(key) : open.add(key); renderNav(); };
+    nav.appendChild(b);
+    if (!isOpen) return;
+
+    s.groups.forEach((g, gi) => {
+      if (g.name){
+        const gk = key + '|' + gi;
+        const gOpen = open.has(gk);
+        const gb = document.createElement('button');
+        gb.className = 'grp'; gb.setAttribute('aria-expanded', gOpen);
+        gb.innerHTML = '<span class="tw">▼</span>' + esc(g.name) + '<span class="cnt">' + g.items.length + '</span>';
+        gb.onclick = () => { gOpen ? open.delete(gk) : open.add(gk); renderNav(); };
+        nav.appendChild(gb);
+        if (gOpen) g.items.forEach(it => nav.appendChild(itemEl(it, false)));
+      } else {
+        g.items.forEach(it => nav.appendChild(itemEl(it, true)));
+      }
+    });
+  });
+}
+
+function itemEl(it, lvl1){
+  const b = document.createElement('button');
+  b.className = 'itm' + (lvl1 ? ' lvl1' : '') + (sel === it.r ? ' on' : '');
+  const m = view === 'new' ? mark(it) : (it.hid ? '✂' : '');
+  const f = flagOf(it);
+  const L = lvl(it);
+  b.innerHTML = (m ? '<span class="mk ' + f + '">' + m + '</span>' : '') +
+    '<span>' + esc(view === 'new' ? it.n : (it.w || it.n)) + '</span>' +
+    (roleId !== 'admin' && L ? '<span class="lvl-pill ' + (L === 'П' ? 'W' : 'R') + '">' + L + '</span>' : '');
+  b.title = '/' + it.r;
+  b.onclick = () => { sel = sel === it.r ? null : it.r; render(); scrollToRow(it.r); };
+  return b;
+}
+
+/* ========================== карточки и таблица ========================== */
+function renderCards(){
+  const vis = T.filter(visible);
+  const moved = T.filter(it => visible(it) && flagOf(it) === 'mv').length;
+  const renamed = T.filter(it => visible(it) && it.w).length;
+  const tree = buildNew();
+  const domains = ORDER[1].filter(g => g && T.some(it => it.s === 1 && it.g === g && visible(it))).length;
+  const cards = [
+    [vis.length, 'пунктов видит роль'],
+    [tree.length, 'разделов в меню'],
+    [domains, 'доменов в «Системе кредитования»'],
+    [moved, 'переехало в другой раздел'],
+    [renamed, 'переименовано'],
+    [T.filter(it => it.hid).length, 'скрыто как дубль'],
+    [T.filter(it => it.out).length, 'живы, но в меню не выводим'],
+    [T.filter(it => it.ask).length, 'спорных, вопрос разработке']
+  ];
+  document.getElementById('cards').innerHTML = cards
+    .map(([b, s]) => '<div class="card"><b>' + b + '</b><span>' + s + '</span></div>').join('');
+
+  const r = role();
+  const cubes = r.cubes === '*' ? null : Object.keys(r.cubes);
+  document.getElementById('roleNote').innerHTML = r.cubes === '*'
+    ? '<b>Администратор.</b> Видит всё дерево целиком — ' + tree.length + ' разделов. Именно ему ' +
+      'платится цена ширины; остальные под ролью видят 1–2 раздела. Переключи роль, чтобы увидеть автосхлоп.'
+    : '<b>' + esc(r.t) + '.</b> Роль собирается из <b>' + cubes.length + '</b> кубиков: ' +
+      cubes.map(c => '<code>' + esc(c.replace('|', ' ▸ ').replace(/ ▸ $/, ' (прямые ссылки)')) + '</code> ' +
+        (r.cubes[c] === 'П' ? 'правка' : 'чтение')).join(', ') +
+      '. Лишних экранов — <b>0</b>: ни один кубик не тащит чужой домен.';
+}
+
+function renderTable(){
+  const ql = q.trim().toLowerCase();
+  const rows = T.filter(it => {
+    if (flt === 'moved' && flagOf(it) !== 'mv') return false;
+    if (flt === 'renamed' && !it.w) return false;
+    if (flt === 'out' && !it.out) return false;
+    if (flt === 'hidden' && !it.hid) return false;
+    if (flt === 'ask' && !it.ask) return false;
+    if (!ql) return true;
+    return (it.n + ' ' + (it.w || '') + ' ' + it.r + ' ' + it.o + ' ' + it.g).toLowerCase().includes(ql);
+  });
+  document.getElementById('tblCount').textContent = '— ' + rows.length + ' из ' + T.length;
+  document.getElementById('tbody').innerHTML = rows.map(it => {
+    const where = (it.hid || it.out) ? '<span class="muted">не в меню</span>'
+      : SECTIONS[it.s] + (it.g ? ' <span class="arrow">▸</span> ' + esc(it.g) : '');
+    const tags = [];
+    if (it.hid) tags.push('<span class="tag hd">✂ скрыт как дубль</span>');
+    if (it.out) tags.push('<span class="tag hd">✂ ' + esc(it.out) + '</span>');
+    if (visible(it) && flagOf(it) === 'mv') tags.push('<span class="tag mv">⬅ переехал</span>');
+    if (it.w && !it.hid && !it.out) tags.push('<span class="tag rn">✎ было «' + esc(it.w) + '»</span>');
+    if (it.ask) tags.push('<span class="tag ask">⚠ ' + esc(it.ask) + '</span>');
+    if (it.hid && it.hid !== true) tags.push('<span class="tag ask">' + esc(it.hid) + '</span>');
+    return '<tr data-r="' + esc(it.r) + '" class="' + (sel === it.r ? 'hl ' : '') + ((it.hid || it.out) ? 'dim' : '') + '">' +
+      '<td><b>' + esc(it.n) + '</b></td>' +
+      '<td>' + where + '</td>' +
+      '<td><code>/' + esc(it.r) + '</code></td>' +
+      '<td class="muted">' + esc(it.o) + '</td>' +
+      '<td>' + (tags.join(' ') || '<span class="muted">—</span>') + '</td></tr>';
+  }).join('') || '<tr><td colspan="5" class="empty">Ничего не найдено</td></tr>';
+}
+
+function renderMoves(){
+  const groups = {};
+  T.forEach(it => {
+    if (!visible(it) || flagOf(it) !== 'mv') return;
+    const k = it.o.split(' ▸ ')[0] + ' → ' + SECTIONS[it.s] + (it.g ? ' ▸ ' + it.g : '');
+    groups[k] = (groups[k] || 0) + 1;
+  });
+  document.getElementById('movesIn').innerHTML = Object.entries(groups)
+    .sort((a, b) => b[1] - a[1])
+    .map(([k, n]) => {
+      const [from, to] = k.split(' → ');
+      return '<li><span class="muted">' + esc(from) + '</span> <span class="arrow">→</span> <b>' +
+        esc(to) + '</b> · ' + n + '</li>';
+    }).join('');
+}
+
+function scrollToRow(r){
+  const tr = document.querySelector('tr[data-r="' + CSS.escape(r) + '"]');
+  if (tr) tr.scrollIntoView({ block:'center', behavior:'smooth' });
+}
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function render(){ renderNav(); renderCards(); renderTable(); renderMoves(); }
+
+/* ========================== элементы управления ========================= */
+document.getElementById('role').innerHTML =
+  ROLES.map(r => '<option value="' + r.id + '">' + esc(r.t) + '</option>').join('');
+document.getElementById('role').onchange = e => { roleId = e.target.value; open.clear(); render(); };
+document.querySelectorAll('#view button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#view button').forEach(x => x.classList.remove('on'));
+  b.classList.add('on'); view = b.dataset.v; open.clear(); renderNav();
+});
+document.getElementById('q').oninput = e => { q = e.target.value; renderTable(); };
+document.getElementById('filters').innerHTML = [
+  ['all','Все'],['moved','⬅ Переехали'],['renamed','✎ Переименованы'],
+  ['hidden','✂ Скрыты как дубль'],['out','✂ Не в меню'],['ask','⚠ Спорные']
+].map(([k, t]) => '<button class="chip' + (k === 'all' ? ' on' : '') + '" data-f="' + k + '">' + t + '</button>').join('');
+document.querySelectorAll('#filters .chip').forEach(c => c.onclick = () => {
+  document.querySelectorAll('#filters .chip').forEach(x => x.classList.remove('on'));
+  c.classList.add('on'); flt = c.dataset.f; renderTable();
+});
+
+/* первый показ: раздел 1 раскрыт */
+open.add('snew0Система кредитования');
+render();
+</script>
+</body>
+</html>

@@ -568,6 +568,15 @@ table.mxg td.r{ text-align:right; font:var(--weight-medium) 13px/1.4 var(--mono)
           <span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
         </div>
       </div>
+      <!-- Работник — не роль (ADR-0258 §3): допуск к трактовке даёт ЗАКРЕПЛЕНИЕ за
+           кредитом, и без выбора работника правило нечем ни показать, ни проверить. -->
+      <div class="role-wrap">
+        <label>Работник:</label>
+        <div class="rsel">
+          <select id="empSel" onchange="onEmpChange()"></select>
+          <span class="caret"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>
+        </div>
+      </div>
     </header>
 
     <div class="content" id="content"><!-- views injected --></div>
@@ -585,6 +594,19 @@ table.mxg td.r{ text-align:right; font:var(--weight-medium) 13px/1.4 var(--mono)
    ============================================================ */
 let ROLE = 'curator';
 const ROLE_LABEL = { curator:'Куратор', accountant:'Бухгалтер', viewer:'Наблюдатель' };
+/* ---- КТО Я: работник, а не роль (ADR-0258 §3) ---------------------------------------
+   Трактовка платежа требует ЗАКРЕПЛЕНИЯ куратора за кредитом (`curatorAt`, ADR-0116).
+   Роль на вопрос «по каким кредитам» не отвечает: кураторов много, а закреплён один.
+   Куратор кредита при этом работает и здесь, и на карточке кредита (ADR-0257) —
+   правило допуска обязано быть в обоих местах одно. */
+let ME = 'Асанов А. К.';
+const staffList = () => uniqv(DATA.credits.map(c => c.curator));
+const assignedTo = cid => { const c = DATA.credits.find(x => x.id === cid); return !!c && c.curator === ME; };
+/* Куратор без указания кредита — вопрос о роли («может ли такой работник вообще»);
+   с указанием — о допуске к конкретному кредиту. Точки действия зовут со вторым. */
+const curatorCan = cid => ROLE === 'curator' && (cid == null || assignedTo(cid));
+const assignedHint = cid => { const c = DATA.credits.find(x => x.id === cid);
+  return c ? `кредит закреплён за куратором «${c.curator}» — чужой открыт на чтение` : 'кредит не найден'; };
 const can = {
   // факт денег — бухгалтер
   reverse:     () => ROLE==='accountant',   // сторно поступления (денег не было)
@@ -594,14 +616,18 @@ const can = {
   closePeriod: () => ROLE==='accountant',   // закрытие / открытие периода (ADR-0075)
   execReturn:  () => ROLE==='accountant',   // исполнение возврата
   ownerless:   () => ROLE==='accountant',   // основание возврата у чужих денег (нет заёмщика)
-  // трактовка — куратор
-  bind:        () => ROLE==='curator',      // привязка и перепривязка платежа
-  allocate:    () => ROLE==='curator',      // разбивка и поправка к ней
-  surplus:     () => ROLE==='curator',      // режим остатка сверх наступившего (ADR-0073)
-  returnBasis: () => ROLE==='curator',      // основание возврата (заявление заёмщика)
-  initAct:     () => ROLE==='curator',      // акт сверки инициирует куратор
-  dispute:     () => ROLE==='curator',      // решение органа по спорной пене вносит куратор
-  match:       () => ROLE==='curator',      // сопоставление подтверждает куратор
+  // трактовка — куратор, и ТОЛЬКО по закреплённым за ним кредитам (ADR-0258 §3).
+  // Аргумент необязателен: без него отвечается вопрос о роли, с ним — о допуске.
+  bind:        (cid) => curatorCan(cid),    // привязка и перепривязка платежа
+  allocate:    (cid) => curatorCan(cid),    // разбивка и поправка к ней
+  surplus:     (cid) => curatorCan(cid),    // режим остатка сверх наступившего (ADR-0073)
+  returnBasis: (cid) => curatorCan(cid),    // основание возврата (заявление заёмщика)
+  initAct:     (cid) => curatorCan(cid),    // акт сверки инициирует куратор
+  dispute:     (cid) => curatorCan(cid),    // решение органа по спорной пене вносит куратор
+  match:       (cid) => curatorCan(cid),    // сопоставление подтверждает куратор
+  // ввод по списку ЦК — у обоих (ADR-0258 §1): он ничем не распоряжается и ничего не
+  // удостоверяет, основанием ему служит сам список.
+  enter:       () => ROLE==='curator' || ROLE==='accountant',
 };
 
 /* Порядок меню — по спеке §12 «Новые экраны»:
@@ -827,24 +853,24 @@ const DATA = {
 
   /* ---- кредиты и транши (транш — область разбивки, ADR-0060) ---- */
   credits: [
-    { id:'C-56',  title:'Дог. №56 от 10.04.2024',  borrower:'ОсОО «Бек Кабель»',      inn:'01912201610212', currency:'KGS',
+    { id:'C-56',  title:'Дог. №56 от 10.04.2024',  borrower:'ОсОО «Бек Кабель»',      inn:'01912201610212', currency:'KGS', curator:'Асанов А. К.',
       account:'1298 0000 0000 5600',
       tranches:[ { id:'T-56-1', label:'Транш №1', account:'1298 0000 0000 5601', issued:'10.04.2024', sum:1200000 },
                  { id:'T-56-2', label:'Транш №2', account:'1298 0000 0000 5602', issued:'12.09.2024', sum:800000 } ],
       layers:[ { id:'free', name:'Свободный слой', mode:'по договору: проценты + график + пеня' } ] },
 
-    { id:'C-112', title:'Дог. №112 от 03.02.2025', borrower:'ИП Асанов Т.К.',          inn:'22505199800341', currency:'KGS',
+    { id:'C-112', title:'Дог. №112 от 03.02.2025', borrower:'ИП Асанов Т.К.',          inn:'22505199800341', currency:'KGS', curator:'Ким Л. С.',
       account:'1298 0000 0001 1200',
       tranches:[ { id:'T-112-1', label:'Транш №1', account:'1298 0000 0001 1201', issued:'03.02.2025', sum:2000000 } ],
       layers:[ { id:'peace', name:'Слой мирового соглашения', mode:'график мирового от 14.03.2026; пеня приостановлена' },
                { id:'free',  name:'Свободный слой',           mode:'по договору' } ] },
 
-    { id:'C-78',  title:'Дог. №78 от 15.09.2024',  borrower:'ОсОО «Ак-Суу Агро»',      inn:'00110201512233', currency:'USD',
+    { id:'C-78',  title:'Дог. №78 от 15.09.2024',  borrower:'ОсОО «Ак-Суу Агро»',      inn:'00110201512233', currency:'USD', curator:'Асанов А. К.',
       account:'1298 0000 0000 7800',
       tranches:[ { id:'T-78-1', label:'Транш №1', account:'1298 0000 0000 7801', issued:'15.09.2024', sum:150000 } ],
       layers:[ { id:'free', name:'Свободный слой', mode:'по договору, валюта долга — USD' } ] },
 
-    { id:'C-44',  title:'Дог. №44 от 20.06.2024',  borrower:'ОсОО «Тянь-Шань Строй»',  inn:'02202201611109', currency:'KGS',
+    { id:'C-44',  title:'Дог. №44 от 20.06.2024',  borrower:'ОсОО «Тянь-Шань Строй»',  inn:'02202201611109', currency:'KGS', curator:'Осмонов Б. Т.',
       account:'1298 0000 0000 4400',
       tranches:[ { id:'T-44-1', label:'Транш №1', account:'1298 0000 0000 4401', issued:'20.06.2024', sum:3000000 },
                  { id:'T-44-2', label:'Транш №2', account:'1298 0000 0000 4402', issued:'11.01.2025', sum:1500000 } ],
@@ -852,7 +878,7 @@ const DATA = {
                { id:'il1',  name:'Слой решения №1 (ИЛ №1)', mode:'проценты идут, пеня приостановлена (реш. до 05.09.2025)' },
                { id:'free', name:'Свободный слой',          mode:'полностью по договору' } ] },
 
-    { id:'C-90',  title:'Дог. №90 от 01.11.2024',  borrower:'КХ «Джерге-Тал»',         inn:'33701200900122', currency:'KGS',
+    { id:'C-90',  title:'Дог. №90 от 01.11.2024',  borrower:'КХ «Джерге-Тал»',         inn:'33701200900122', currency:'KGS', curator:'Джумалиева Г. К.',
       account:'1298 0000 0000 9000',
       tranches:[ { id:'T-90-1', label:'Транш №1', account:'1298 0000 0000 9001', issued:'01.11.2024', sum:900000 } ],
       layers:[ { id:'free', name:'Свободный слой', mode:'по договору' } ] },
@@ -2061,7 +2087,12 @@ function recAct(kind, id, arg){
   }
 
   if(kind==='surplus'){
-    if(!can.surplus()) return toast('Режим остатка ставит куратор','warn');
+    /* ЗАКРЕПЛЕНИЕ ПРОВЕРЯЕТСЯ ПО КРЕДИТУ ПОСТУПЛЕНИЯ (ADR-0258 §3): режим остатка —
+       трактовка, а трактует тот, за кем кредит закреплён. У сводной строки ЦК платежей
+       несколько, и достаточно быть куратором хотя бы одного — чужие он всё равно не
+       правит, а режим стоит на поступлении. */
+    const scid = (paymentsOf(r)[0]||{}).credit;
+    if(!can.surplus(scid)) return toast(ROLE==='curator'?assignedHint(scid):'Режим остатка ставит куратор','warn');
     if(r.frozen==='frozen') return toast('Поступление заморожено: сначала разморозка бухгалтером','warn');
     if(r.surplus===arg) return toast('Этот режим уже стоит');
     const from = SURPLUS[r.surplus].t, to = SURPLUS[arg].t;
@@ -2073,7 +2104,7 @@ function recAct(kind, id, arg){
   }
 
   if(kind==='bind'){
-    if(!can.bind()) return toast('Привязку делает куратор','warn');
+    if(!can.bind(arg)) return toast(ROLE==='curator'?assignedHint(arg):'Привязку делает куратор','warn');
     const c = (r.candidates||[]).find(x=>x.credit===arg);
     if(!c) return toast('Кандидат не найден','warn');
     return recModal('Привязка поступления '+r.number,
@@ -2090,7 +2121,9 @@ function recRebind(pid){
   const p = DATA.payments.find(x=>x.id===pid);
   if(!p) return;
   const r = receiptOf(p);
-  if(!can.bind()) return toast('Перепривязку делает куратор','warn');
+  /* Перепривязка трогает ДВА кредита, и закрепление спрашивается у того, С КОТОРОГО
+     платёж уходит: принимающая сторона узнаёт о деньгах из своей ленты. */
+  if(!can.bind(p.credit)) return toast(ROLE==='curator'?assignedHint(p.credit):'Перепривязку делает куратор','warn');
   if(p.void) return toast('Платёж погашен сторно: перепривязывать нечего','warn');
   if(r && r.frozen==='frozen') return toast('Поступление заморожено: сначала разморозка бухгалтером','warn');
   const opts = DATA.credits.map(c=>`<option value="${c.id}"${c.id===p.credit?' selected':''}>${c.title} — ${c.borrower}</option>`).join('');
@@ -2273,6 +2306,16 @@ function viewPayments(){
   </div>`;
 }
 
+/* ОБРАТНЫЙ ПЕРЕХОД В КАРТОЧКУ КРЕДИТА (ADR-0257 §7). Симметричен переходу оттуда сюда:
+   там кредит присылает свой номер, здесь мы адресуем ИНН заёмщика — общий ключ обоих
+   макетов (своих идентификаторов кредита у нас нет, база у модулей разная). Реестр
+   кредитов открывается с фильтром: у заёмщика бывает несколько кредитов, и угадывать,
+   который имелся в виду, нечем. */
+function openCreditCard(cid){
+  const c = creditOf(cid); if (!c) return;
+  window.open('../loan-credit/credit.html#inn=' + encodeURIComponent(c.inn), '_blank');
+}
+
 /* ---- строка ленты платежей ---- */
 function payRow(p){
   const r = receiptOf(p), c = creditOf(p.credit), d = snapshotDrift(p);
@@ -2283,7 +2326,8 @@ function payRow(p){
   const scope = payTrancheLabel(p) || 'Оба транша кредита';
   return `<tr class="${p.void?'muted':''}" onclick="openPayment('${p.id}')">
     <td title="${esc(c.borrower)} · ${esc(c.title)} · ${esc(scope)}"><span class="cell-name">${c.borrower}</span
-      ><span class="sub">${c.title} · ${scope}</span></td>
+      ><span class="sub"><span class="rowlink" onclick="event.stopPropagation();openCreditCard('${esc(p.credit)}')"
+        title="${esc('Открыть кредит в модуле кредитов')}">${c.title}</span> · ${scope}</span></td>
     <td><span class="mono">${p.number}</span>${p.void?' '+pill({t:'Сторнирован',cls:'err'}):''}<span class="sub">${r.date}</span></td>
     <td class="r num">${cur(p.amount, p.currency)}${p.paidKGS?`<span class="sub">${money(p.paidKGS)} сом</span>`:''}</td>
     <td>${alloc}<span class="sub">${a ? ('на ' + payAsOfDate(a.asOf)) : '—'}</span></td>
@@ -2325,6 +2369,16 @@ const PAY_CONDS = [
     optionsB:(cid)=>(cid ? [creditOf(cid)].filter(Boolean) : DATA.credits)
       .flatMap(c=>(c.tranches||[]).map(t=>({ v:t.id, t: cid ? t.label : `${t.label} · ${c.title}` }))),
     test:(p,v)=>(!v.a || p.credit===v.a) && (!v.b || p.tranche===v.b) },
+  /* «МОИ КРЕДИТЫ» — ТО ЖЕ ЗАКРЕПЛЕНИЕ, ТОЛЬКО СО СТОРОНЫ ВЫБОРКИ (ADR-0258 §5). Без
+     него правило допуска читается как череда отказов: куратор видит всю ленту и узнаёт
+     о чужом кредите, только нажав кнопку. Условие стоит в быстрой зоне — это первое, чем
+     куратор сужает ленту, приходя утром. */
+  { key:'mine', kind:'select', zone:'quick', label:'Закрепление', width:200,
+    options:()=>[{ v:'mine', t:'Мои кредиты' }, { v:'alien', t:'Чужие кредиты' }],
+    test:(p,v)=>{ const c = creditOf(p.credit); const mine = !!c && c.curator === ME;
+      return v==='mine' ? mine : !mine; } },
+  { key:'curator', kind:'select', label:'Куратор кредита',
+    options:()=>staffList(), test:(p,v)=>{ const c = creditOf(p.credit); return !!c && c.curator===v; } },
   { key:'currency', kind:'select', label:'Валюта',
     options:()=>uniqv(DATA.payments.map(p=>p.currency)), test:(p,v)=>p.currency===v },
   { key:'alloc', kind:'select', label:'Разбивка',
@@ -2397,7 +2451,8 @@ function paymentDetail(p){
             ${p.void ? pill({t:'Сторнирован — снято сторно', cls:'err'}) : ''}
             ${d ? pill({t:'Разбивка разошлась с текущей', cls:'warn'}) : ''}
           </div>
-          <div class="phead-sub">${c.borrower} · <b>${c.title}</b> · ${payScopeTag(p)} ·
+          <div class="phead-sub">${c.borrower} · <b><span class="rowlink" onclick="openCreditCard('${esc(p.credit)}')"
+            title="${esc('Открыть кредит в модуле кредитов')}">${c.title}</span></b> · ${payScopeTag(p)} ·
             поступление <span class="rowlink" onclick="openReceipt('${r.id}')">${r.number}</span> от <b>${r.date}</b>
             · период учёта <b>${per.label || r.period}</b> ${pill(PSTATE[per.state])}</div>
         </div>
@@ -2793,7 +2848,7 @@ function payOpenWriteOff(id){
 
 function payAdjust(pid){
   const p = DATA.payments.find(x => x.id === pid), r = receiptOf(p);
-  if(!can.allocate()) return toast('Поправку вносит куратор', 'warn');
+  if(!can.allocate(p.credit)) return toast(ROLE==='curator'?assignedHint(p.credit):'Поправку вносит куратор', 'warn');
   if(p.void)          return toast('Платёж погашен сторно — разносить нечего', 'warn');
   if(r.frozen === 'frozen') return toast('Платёж заморожен: сначала разморозка бухгалтером', 'warn');
   openModal(`<div class="modal-h"><span class="mt">Поправка к разбивке ${p.number}</span>
@@ -2831,7 +2886,7 @@ function payAdjustSave(pid){
 
 function payDisputeSave(pid){
   const p = DATA.payments.find(x => x.id === pid), r = receiptOf(p);
-  if(!can.dispute()) return toast('Решение органа вносит куратор', 'warn');
+  if(!can.dispute(p.credit)) return toast(ROLE==='curator'?assignedHint(p.credit):'Решение органа вносит куратор', 'warn');
   if(!r.dispute)     return toast('Спорной пени по этому поступлению нет', 'warn');
   const dec = (document.getElementById('dspDecision') || {}).value || '';
   const doc = ((document.getElementById('dspDoc') || {}).value || '').trim();
@@ -5129,11 +5184,33 @@ function modalNewReceipt(){
    INFRA
    ============================================================ */
 function onRoleChange(){ ROLE = document.getElementById('roleSel').value; render(); toast('Роль: '+ROLE_LABEL[ROLE]); }
+function renderEmpSel(){
+  const sel = document.getElementById('empSel'); if (!sel) return;
+  const list = staffList();
+  if (!list.includes(ME)) ME = list[0] || ME;
+  sel.innerHTML = list.map(e => `<option${e===ME?' selected':''}>${esc(e)}</option>`).join('');
+}
+function onEmpChange(){ ME = document.getElementById('empSel').value; renderEmpSel(); render(); toast('Работник: '+ME); }
+
+/* ВХОД ИЗ КАРТОЧКИ КРЕДИТА (ADR-0257 §4). Кредит присылает ИНН заёмщика — общей базы у
+   макетов нет, идентификаторы кредита у каждого свои, и ИНН единственный ключ, который
+   обе стороны знают одинаково. Поле поиска ленты по ИНН ищет (§PAY_CONDS.q), поэтому
+   предфильтр ложится в него, а не заводит скрытое условие. */
+function prefilterFromHash(){
+  const h = (location.hash||'').replace(/^#/,'');
+  if (!h.startsWith('inn=')) return;
+  const inn = decodeURIComponent(h.slice(4));
+  const f = FEEDS.pay; if (!f) return;
+  f.st.q = inn;
+  toast('Лента отфильтрована по ИНН '+inn+' — переход из карточки кредита');
+}
 function openModal(html){ const h=document.getElementById('modalHost'); h.innerHTML=`<div class="modal">${html}</div>`; h.classList.add('open'); }
 function closeModal(){ const h=document.getElementById('modalHost'); h.classList.remove('open'); h.innerHTML=''; }
 function toast(msg,kind){ const w=document.getElementById('toastWrap'); const t=document.createElement('div'); t.className='toast'+(kind?' '+kind:''); t.innerHTML=`<span>${msg}</span>`; w.appendChild(t); setTimeout(()=>{t.style.opacity='0';t.style.transition='opacity .3s';setTimeout(()=>t.remove(),300);},3400); }
 
+prefilterFromHash();
 render();
+renderEmpSel();
 </script>
 </body>
 </html>

@@ -23,7 +23,10 @@ const r = await page.evaluate(() => ({
   count: document.getElementById('count').textContent.trim(),
   firstCard: document.querySelector('.card h2') ? document.querySelector('.card h2').textContent.trim() : null,
   lead: document.getElementById('hero-lead').textContent.trim().slice(0, 90),
+  revbar: document.getElementById('revbar').textContent.replace(/\s+/g, ' ').trim(),
+  changelogRows: document.querySelectorAll('#hero-lead .blk li').length,
 }));
+await page.screenshot({ path: '.auth/p19-tasks-hero.png', clip: { x: 0, y: 0, width: 1500, height: 1000 } });
 await page.fill('#q', 'фиксац');
 await page.waitForTimeout(200);
 r.searchHits = await page.evaluate(() => document.querySelectorAll('.card').length);
