@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Sync the 13 copied module specs in docs/logika/ with their originals in mockups/.
+"""Sync the 14 copied module specs in docs/logika/ with their originals in mockups/.
 
-Files 01-04 and 17-24 are written in docs/logika/ itself and are never touched here.
-Files 05-16 and 25 are copies of mockups/*/ASUBK-*-logika.md, kept in one folder for export.
+Files 01-04, 17-20 and 22-24 are written in docs/logika/ itself and are never touched here.
+Files 05-16, 21 and 25 are copies of mockups/*/ASUBK-*-logika.md, kept in one folder for export.
 
     python3 scripts/logika_sync.py           # report drift, exit 1 if any
     python3 scripts/logika_sync.py --write   # overwrite the copies from the originals
@@ -29,6 +29,7 @@ PAIRS = {
     "14-finansovyy-analiz.md":   "mockups/analysis/ASUBK-analiz-logika.md",
     "15-statistika.md":          "mockups/statistics/ASUBK-statistika-logika.md",
     "16-otchetnost.md":          "mockups/reports/ASUBK-otchetnost-logika.md",
+    "21-zadaniya.md":            "mockups/zadaniya/ASUBK-zadaniya-logika.md",
     "25-imushchestvo.md":        "mockups/assets/ASUBK-imushchestvo-logika.md",
 }
 
