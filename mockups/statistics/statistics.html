@@ -466,6 +466,8 @@ const REGISTRY = [
   /* Разрез-дата спрашивается КОРЗИНОЙ из объявленного списка. */
   {kind:'разрез', id:'d-cdate', col:'d_cdate', vtype:'date', obj:'obj-credit', name:'Дата кредитного договора', src:'поле', key:'cdate', since:'2020-01-01',
    buckets:['год','квартал','месяц'], owner:'Кредиты', note:'ТЗ #3'},
+  {kind:'разрез', id:'d-maturity', col:'d_maturity', vtype:'date', obj:'obj-credit', name:'Дата окончания кредитного договора', src:'поле', key:'maturity', since:'2020-01-01',
+   buckets:['год','квартал','месяц'], owner:'Кредиты', note:'дата окончания по договору (схема §1.2)'},
   {kind:'разрез', id:'d-zdate', col:'d_zdate', vtype:'date', obj:'obj-zdeal', name:'Дата залогового договора', src:'поле', key:'zdate', since:'2020-01-01',
    buckets:['год','квартал'], owner:'Залог', note:'ТЗ #4'},
   {kind:'разрез', id:'d-line', col:'d_line', vtype:'ref', obj:'obj-credit', name:'Линия кредитования кредита', src:'поле', key:'line', since:'2020-01-01',
@@ -493,6 +495,24 @@ const REGISTRY = [
   {kind:'разрез', id:'d-rf-nomon', col:'d_rf_nomon', vtype:'bool', obj:'obj-credit', name:'Фактор риска: воспрепятствование мониторингу',
    src:'история', key:'rfNomon', since:'2020-01-01', owner:'Кредиты',
    note:'п. 11 Порядка №41, засчитан решением комитета; переехал от заёмщика'},
+  {kind:'разрез', id:'d-rf-pledge', col:'d_rf_pledge', vtype:'bool', obj:'obj-credit', name:'Фактор риска: частичное нарушение договора залога',
+   src:'история', key:'rfPledge', since:'2020-01-01', owner:'Кредиты',
+   note:'п. 11 Порядка №41, засчитан решением комитета'},
+  {kind:'разрез', id:'d-rf-contact', col:'d_rf_contact', vtype:'bool', obj:'obj-credit', name:'Фактор риска: трудности с контактом',
+   src:'история', key:'rfContact', since:'2020-01-01', owner:'Кредиты',
+   note:'п. 11 Порядка №41, засчитан решением комитета'},
+  {kind:'разрез', id:'d-rf-nocoll', col:'d_rf_nocoll', vtype:'bool', obj:'obj-credit', name:'Фактор риска: нет надлежащего обеспечения',
+   src:'история', key:'rfNocoll', since:'2020-01-01', owner:'Кредиты',
+   note:'п. 11 Порядка №41, засчитан решением комитета'},
+  {kind:'разрез', id:'d-rf-pledger', col:'d_rf_pledger', vtype:'bool', obj:'obj-credit', name:'Фактор риска: нарушение залогодателем',
+   src:'история', key:'rfPledger', since:'2020-01-01', owner:'Кредиты',
+   note:'п. 11 Порядка №41, засчитан решением комитета'},
+  {kind:'разрез', id:'d-rf-misuse', col:'d_rf_misuse', vtype:'bool', obj:'obj-credit', name:'Фактор риска: нецелевое использование',
+   src:'история', key:'rfMisuse', since:'2020-01-01', owner:'Кредиты',
+   note:'п. 11 Порядка №41, засчитан решением комитета'},
+  {kind:'разрез', id:'d-rf-other', col:'d_rf_other', vtype:'bool', obj:'obj-credit', name:'Фактор риска: иные обстоятельства',
+   src:'история', key:'rfOther', since:'2020-01-01', owner:'Кредиты',
+   note:'п. 11 Порядка №41, засчитан решением комитета'},
   /* ---------------- разрезы программы ----------------- */
   {kind:'разрез', id:'d-psource', col:'d_source', vtype:'ref_arr', obj:'obj-program', name:'Источник финансирования', src:'поле', key:'source', since:'2020-01-01',
    owner:'Программы', note:'ТЗ 02 вкл. 1 — обязательное поле (R12)'},
@@ -1140,7 +1160,8 @@ const OBJECTS = [
    born:{src:'поле', key:'cdate'}, scope:[{kind:'own', dim:'d-curator'}],
    dims:['d-branch','d-curator','d-category','d-odays','d-industry','d-cur','d-status','d-region',
          'd-cdate','d-line','d-program','d-binn','d-cbptype','d-covstate','d-covreq',
-         'd-kind','d-decision','d-rf-evade','d-rf-nomon'],
+         'd-kind','d-decision','d-maturity','d-rf-evade','d-rf-nomon',
+         'd-rf-pledge','d-rf-contact','d-rf-nocoll','d-rf-pledger','d-rf-misuse','d-rf-other'],
    inds:['m-total','m-over','m-curr',
          'm-coll','m-fee','m-debt','m-aint','m-int','m-apen','m-pen',
          'm-ocoll','m-ofee','m-odebt','m-oaint','m-oint','m-oapen','m-open',
@@ -1359,45 +1380,53 @@ const ANCHOR = '2026-05-31';
 const it = (id, f, h, k) => ({id, f, h, k});
 const WORLD = {
 'obj-credit': [
-  it('КД-2024/117', {cdate:'2024-03-11', inn:'01234199010101', line:'инвестиционная', cur:'KGS', amount:1200000, program:'ФРР-2024', kind:'бюджетный кредит', decision:'ПП КР №14 от 10.01.2024', industry:'Переработка', region:'Чуйская', district:'Сокулукский'},
+  it('КД-2024/117', {cdate:'2024-03-11', maturity:'2029-03-11', inn:'01234199010101', line:'инвестиционная', cur:'KGS', amount:1200000, program:'ФРР-2024', kind:'бюджетный кредит', decision:'ПП КР №14 от 10.01.2024', industry:'Переработка', region:'Чуйская', district:'Сокулукский'},
     {branch:[['2024-03-11','Кредитный департамент']], curator:[['2025-01-01','Асанов А.'],['2026-07-15','Бекова Н.']],
      rfEvade:[['2024-03-11',false]], rfNomon:[['2024-03-11',false]],
+     rfPledge:[['2024-03-11',false]], rfContact:[['2024-03-11',false]], rfNocoll:[['2024-03-11',false]], rfPledger:[['2024-03-11',false]], rfMisuse:[['2024-03-11',false]], rfOther:[['2024-03-11',false]],
      status:[['2024-03-11','действующий']], category:[['2026-01-01','low'],['2026-06-01','mid']]},
     {principal:[940000,-28000], interest:[18400,6200], daysOverdue:[0,0], issuedTotal:[1200000,0], repaidBase:[260000]}),
-  it('КД-2023/210', {cdate:'2023-05-04', inn:'22903197505433', line:'оборотная', cur:'KGS', amount:3400000, program:'БК-2021', kind:'бюджетный кредит', decision:'ПП КР №218 от 12.05.2021', industry:'Сельское хозяйство', region:'Ошская', district:'Кара-Сууйский'},
+  it('КД-2023/210', {cdate:'2023-05-04', maturity:'2027-05-04', inn:'22903197505433', line:'оборотная', cur:'KGS', amount:3400000, program:'БК-2021', kind:'бюджетный кредит', decision:'ПП КР №218 от 12.05.2021', industry:'Сельское хозяйство', region:'Ошская', district:'Кара-Сууйский'},
     {branch:[['2023-05-04','Ошское РП']], curator:[['2025-01-01','Бекова Н.']],
      rfEvade:[['2023-05-04',true]], rfNomon:[['2023-05-04',false]],
+     rfPledge:[['2023-05-04',false]], rfContact:[['2023-05-04',false],['2025-11-10',true]], rfNocoll:[['2023-05-04',false]], rfPledger:[['2023-05-04',false]], rfMisuse:[['2023-05-04',false]], rfOther:[['2023-05-04',false]],
      status:[['2023-05-04','действующий']], category:[['2026-01-01','mid'],['2026-07-01','high']]},
     {principal:[2870000,-41000], interest:[96300,17800], daysOverdue:[128,30], issuedTotal:[3400000,0], repaidBase:[530000], disputedDays:[31,0]}),
-  it('КД-2025/043', {cdate:'2025-02-19', inn:'10510198203112', line:'оборотная', cur:'USD', amount:180000, program:'РКФР-2023', kind:'иностранный кредит', decision:'ПП КР №77 от 30.01.2023', industry:'Торговля', region:'Чуйская', district:'Аламудунский'},
+  it('КД-2025/043', {cdate:'2025-02-19', maturity:'2028-02-19', inn:'10510198203112', line:'оборотная', cur:'USD', amount:180000, program:'РКФР-2023', kind:'иностранный кредит', decision:'ПП КР №77 от 30.01.2023', industry:'Торговля', region:'Чуйская', district:'Аламудунский'},
     {branch:[['2025-02-19','Кредитный департамент']], curator:[['2025-02-19','Бекова Н.']],
      rfEvade:[['2025-02-19',false]], rfNomon:[['2025-02-19',false]],
+     rfPledge:[['2025-02-19',false]], rfContact:[['2025-02-19',false]], rfNocoll:[['2025-02-19',false]], rfPledger:[['2025-02-19',false]], rfMisuse:[['2025-02-19',false]], rfOther:[['2025-02-19',false]],
      status:[['2025-02-19','действующий']], category:[['2026-01-01','low']]},
     {principal:[152000,-3400], interest:[2280,760], daysOverdue:[0,0], issuedTotal:[180000,0], repaidBase:[28000]}),
-  it('КД-2025/088', {cdate:'2025-06-30', inn:'31804196611227', line:'инвестиционная', cur:'KGS', amount:750000, program:'ФРР-2025', kind:'бюджетная ссуда', decision:'ПП КР №102 от 21.02.2025', industry:'Услуги', region:'Иссык-Кульская', district:'Тонский'},
+  it('КД-2025/088', {cdate:'2025-06-30', maturity:'2030-06-30', inn:'31804196611227', line:'инвестиционная', cur:'KGS', amount:750000, program:'ФРР-2025', kind:'бюджетная ссуда', decision:'ПП КР №102 от 21.02.2025', industry:'Услуги', region:'Иссык-Кульская', district:'Тонский'},
     {branch:[['2025-06-30','Иссык-Кульское РП']], curator:[['2025-06-30','Асанов А.']],
      rfEvade:[['2025-06-30',false]], rfNomon:[['2025-06-30',true]],
+     rfPledge:[['2025-06-30',false]], rfContact:[['2025-06-30',false]], rfNocoll:[['2025-06-30',false]], rfPledger:[['2025-06-30',false]], rfMisuse:[['2025-06-30',false],['2026-03-02',true]], rfOther:[['2025-06-30',false]],
      status:[['2025-06-30','действующий']], category:[['2026-01-01','mid']]},
     {principal:[612000,-14500], interest:[13700,4100], daysOverdue:[47,30], issuedTotal:[750000,0], repaidBase:[138000]}),
-  it('КД-2025/101', {cdate:'2025-08-12', inn:'01234199010101', line:'инвестиционная', cur:'EUR', amount:120000, program:'ЕАБР-2025', kind:'иностранный кредит', decision:'ПП КР №140 от 08.04.2025', industry:'Переработка', region:'Чуйская', district:'Сокулукский'},
+  it('КД-2025/101', {cdate:'2025-08-12', maturity:'2030-08-12', inn:'01234199010101', line:'инвестиционная', cur:'EUR', amount:120000, program:'ЕАБР-2025', kind:'иностранный кредит', decision:'ПП КР №140 от 08.04.2025', industry:'Переработка', region:'Чуйская', district:'Сокулукский'},
     {branch:[['2025-08-12','Кредитный департамент']], curator:[['2025-08-12','Бекова Н.']],
      rfEvade:[['2025-08-12',false]], rfNomon:[['2025-08-12',false]],
+     rfPledge:[['2025-08-12',false]], rfContact:[['2025-08-12',false]], rfNocoll:[['2025-08-12',false]], rfPledger:[['2025-08-12',false]], rfMisuse:[['2025-08-12',false]], rfOther:[['2025-08-12',false]],
      status:[['2025-08-12','действующий']], category:[['2026-01-01','mid']]},
     {principal:[104500,-2100], interest:[1830,590], daysOverdue:[45,30], issuedTotal:[120000,0], repaidBase:[15500]}),
-  it('КД-2022/065', {cdate:'2022-04-01', inn:'22903197505433', line:'инвестиционная', cur:'KGS', amount:5100000, program:'БК-2021', kind:'бюджетный кредит', decision:'ПП КР №218 от 12.05.2021', industry:'Строительство', region:'Чуйская', district:'Аламудунский'},
+  it('КД-2022/065', {cdate:'2022-04-01', maturity:'2027-04-01', inn:'22903197505433', line:'инвестиционная', cur:'KGS', amount:5100000, program:'БК-2021', kind:'бюджетный кредит', decision:'ПП КР №218 от 12.05.2021', industry:'Строительство', region:'Чуйская', district:'Аламудунский'},
     {branch:[['2022-04-01','Кредитный департамент']], curator:[['2025-01-01','Асанов А.']],
      rfEvade:[['2022-04-01',true]], rfNomon:[['2022-04-01',false]],
+     rfPledge:[['2022-04-01',false]], rfContact:[['2022-04-01',false]], rfNocoll:[['2022-04-01',false],['2024-09-02',true]], rfPledger:[['2022-04-01',false]], rfMisuse:[['2022-04-01',false]], rfOther:[['2022-04-01',false]],
      status:[['2022-04-01','действующий']], category:[['2026-01-01','high']]},
     {principal:[3980000,-52000], interest:[214000,31500], daysOverdue:[214,30], issuedTotal:[5100000,0], repaidBase:[1120000], disputedDays:[90,0]}),
-  it('КД-2021/012', {cdate:'2021-09-15', inn:'45607195804119', line:'оборотная', cur:'KGS', amount:900000, program:'БК-2021', kind:'бюджетный кредит', decision:'ПП КР №218 от 12.05.2021', industry:'Торговля', region:'Ошская', district:'Узгенский'},
+  it('КД-2021/012', {cdate:'2021-09-15', maturity:'2026-09-15', inn:'45607195804119', line:'оборотная', cur:'KGS', amount:900000, program:'БК-2021', kind:'бюджетный кредит', decision:'ПП КР №218 от 12.05.2021', industry:'Торговля', region:'Ошская', district:'Узгенский'},
     {branch:[['2021-09-15','Ошское РП']], curator:[['2025-01-01','Бекова Н.']],
      rfEvade:[['2021-09-15',false]], rfNomon:[['2021-09-15',false]],
+     rfPledge:[['2021-09-15',false]], rfContact:[['2021-09-15',false]], rfNocoll:[['2021-09-15',false]], rfPledger:[['2021-09-15',false]], rfMisuse:[['2021-09-15',false]], rfOther:[['2021-09-15',false]],
      status:[['2021-09-15','действующий'],['2026-07-20','погашен']], category:[['2026-01-01','low']]},
     {principal:[86000,-43000], interest:[1900,0], daysOverdue:[0,0], issuedTotal:[900000,0], repaidBase:[814000], overpaid:[1250,0]}),
   /* Кредитная линия, освоенная НЕ полностью: выдано 1 540 000 из 2 200 000. */
-  it('КД-2026/007', {cdate:'2026-02-03', inn:'60712199304518', line:'инвестиционная', cur:'KGS', amount:2200000, program:'ФРР-2025', kind:'бюджетная ссуда', decision:'ПП КР №102 от 21.02.2025', industry:'Сельское хозяйство', region:'Таласская'},
+  it('КД-2026/007', {cdate:'2026-02-03', maturity:'2033-02-03', inn:'60712199304518', line:'инвестиционная', cur:'KGS', amount:2200000, program:'ФРР-2025', kind:'бюджетная ссуда', decision:'ПП КР №102 от 21.02.2025', industry:'Сельское хозяйство', region:'Таласская'},
     {branch:[['2026-02-03','Ошское РП']], curator:[['2026-02-03','Асанов А.']],
      rfEvade:[['2026-02-03',false]], rfNomon:[['2026-02-03',false]],
+     rfPledge:[['2026-02-03',false]], rfContact:[['2026-02-03',false]], rfNocoll:[['2026-02-03',false]], rfPledger:[['2026-02-03',false]], rfMisuse:[['2026-02-03',false]], rfOther:[['2026-02-03',false]],
      status:[['2026-02-03','действующий']], category:[['2026-01-01','low']]},
     {principal:[1450000,-21000], interest:[29500,7900], daysOverdue:[0,0], issuedTotal:[1540000,0], repaidBase:[90000]})
 ],
@@ -2438,15 +2467,20 @@ const RELEASE = {id:'макет · миграция № 1', tables:{
   'obj-credit':     {table:'stat_row_credit',     storage:'state',       cols: relCols(
     ['object_id','slice_date','run_id','src_core','src_class','src_detail','is_partial','now_cols','cur','rate','rate_date'],
     {ref:['d_unit','d_unit_parent','d_curator','d_industry','d_terr_region','d_terr_district',
-          /* Айылный округ выдачи — колонка, которую релиз вывел РАНЬШЕ, чем её назвала хоть одна запись реестра: у «Кредитов» уровней территории пока два (схема §1.2, ⚑), и записи «айылный округ» нет. */
-          'd_terr_aokrug',
+          /* Айылный округ и село выдачи — колонки, которые релиз вывел РАНЬШЕ, чем их назвала хоть одна запись реестра: у «Кредитов» уровней территории пока два (схема §1.2, ⚑), и записей «айылный округ» и «село» нет. */
+          'd_terr_aokrug','d_terr_village',
           'd_line','d_program','d_kind','d_decision','d_borrower'],
-     cls:['d_risk'], code:['d_status','d_cov_state'], num:['d_cov_req'], date:['d_cdate'],
-     bool:['d_rf_evade','d_rf_nomon'],
+     /* Десять слотов классификаторов администратора (`stat_cls_slot`): колонку слота заполняет занявший его классификатор, а не запись реестра. */
+     cls:['d_risk'].concat(Array.from({length: 10}, (_, i) => 'd_cls' + (i + 1))),
+     code:['d_status','d_cov_state'], num:['d_cov_req','i_rate_w'], date:['d_cdate','d_maturity'],
+     /* Признаки состояния `d_f_*` — колонки без записи: метода API признаков на дату у «Кредитов» пока нет (схема §1.2, ⚑). */
+     bool:['d_f_restr','d_f_coll','d_f_bankr','d_f_hold','d_f_court','d_f_dispute','d_f_transfer',
+           'd_rf_evade','d_rf_pledge','d_rf_contact','d_rf_nocoll','d_rf_pledger','d_rf_nomon','d_rf_misuse','d_rf_other'],
+     /* Неосвоенный остаток, спорная пеня, начисленная пеня, курсовая разница и средневзвешенная ставка — тоже колонки без записи: у ядра этих величин пока нет (схема §1.3–§1.4, ⚑). */
      money_cur:['i_total','i_over','i_curr','i_coll','i_fee','i_od','i_int_acc','i_int','i_pen_acc','i_pen',
                 'i_over_coll','i_over_fee','i_over_od','i_over_int_acc','i_over_int','i_over_pen_acc','i_over_pen',
-                'i_overpaid','i_npay','i_risk','i_amount','i_issued','i_repaid','i_accr_int','i_woff'],
-     money_som:['i_secured','i_secliq'],
+                'i_overpaid','i_npay','i_risk','i_amount','i_undisb','i_pen_disp','i_issued','i_repaid','i_accr_int','i_accr_pen','i_woff'],
+     money_som:['i_secured','i_secliq','i_fx'],
      int:['i_overdue_days','i_disputed_days','i_npay_days','i_full_days']})},
   /* Член группы совместного риска — таблица ЧЛЕНСТВА «группа × член × дата»: своих сумм у группы нет, они берутся из строк заёмщиков-членов той же даты. */
   'obj-gmember':    {table:'stat_row_group_member', storage:'state',     cols: relCols(
@@ -2705,6 +2739,7 @@ ST.SOM_SUFFIX = SOM_SUFFIX;
 ST.somIdOf = id => (REC(id + SOM_SUFFIX) ? id + SOM_SUFFIX : null);
 
 /* ============ СВЕРКА РЕЕСТРА С РЕЛИЗОМ ============ */
+const CLS_SLOT_COL = /^d_cls\d+_(code|lbl|ord)$/;
 const SERVICE_COL = /^(object_id|group_id|member_id|target_id|slice_date|run_id|src_\w+|is_partial|now_cols|cur|rate|rate_date|d_corr_kind|d_corr_date)$/;
 /* Пара «валютная + в сомах» — одна величина с двумя колонками: она подключается только целиком — «у пары проверяются обе колонки» (схема §12.1). */
 function pairOf(st, r){
@@ -2753,7 +2788,8 @@ function orphansOf(st){
   st.registry.forEach(r => physOf(r).forEach(c => { used[r.obj+'|'+c] = true; }));
   Object.keys(st.release.tables).forEach(obj => {
     const t = st.release.tables[obj];
-    t.cols.forEach(c => { if(!SERVICE_COL.test(c) && !used[obj+'|'+c]) out.push({obj, table: t.table, col: c}); });
+    /* Колонку слота классификатора называет `stat_cls_slot`, а не запись реестра: свободный слот — не колонка без записи. */
+    t.cols.forEach(c => { if(!SERVICE_COL.test(c) && !CLS_SLOT_COL.test(c) && !used[obj+'|'+c]) out.push({obj, table: t.table, col: c}); });
   });
   return out;
 }

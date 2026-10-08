@@ -261,9 +261,11 @@ const FIZ = fizSchema();
      со своими четырьмя разрезами (ADR-0244 §2); показателей у членства нет, кроме счёта. */
 /* Волна 28 (переписан на месте): объектов 11 → 16, записей 316 → 397 — заявка на кредит,
      заявка на реструктуризацию, расчёт реструктуризации, сотрудник и эпизод просрочки. */
+/* Кредит догнан до схемы §1 (переписан на месте): разрезов 122 → 129, записей 397 → 404 —
+     дата окончания и шесть факторов риска п. 11, источник которых у «Кредитов» есть. */
   ok(1, st.objects.length === 16 && st.indicators.length === 275 && own1.length === 187 &&
        twin1.length === 88 && twin1.every(t => !!ST.IND(t.somOf)) &&
-       st.dims.length === 122 && ST.registry().length === 397 && badSrc.length === 0 &&
+       st.dims.length === 129 && ST.registry().length === 404 && badSrc.length === 0 &&
        formula.length === 0 && badFn.length === 0,
     `объектов ${st.objects.length}, показателей ${st.indicators.length} — ${own1.length} своих и ${twin1.length} сомовых сторон, и у каждой стороны валютная запись на месте; разрезов ${st.dims.length}, всего записей реестра ${ST.registry().length}. Счёт назван точным числом, а не «не меньше 85»: неравенство пережило бы молча потерю сотни записей, а потеря близнеца — это денежная величина, которую нельзя сложить по портфелю. Без объявленного источника ${badSrc.length}, с формулой ${formula.length} (сомовая сторона — не формула, а вторая колонка той же величины), с функцией вне списка ${badFn.length} — ИС-6, ИС-7, ИС-44`);
 
@@ -3011,6 +3013,10 @@ const FIZ = fizSchema();
   const shared = Object.keys(byCol).filter(k => byCol[k].length > 1);
   const dupCol = shared.filter(k => byCol[k].some(r => srcOf(r) !== srcOf(byCol[k][0])));
   const orph0 = ST.orphanCols();
+  /* Колонки схемы §1 с пометкой ⚑: релиз их вывел, а источника, который назвала бы запись реестра, ещё нет. Слоты классификаторов в этот счёт не входят — их называет `stat_cls_slot`. */
+  const FLAG_COLS = ['d_terr_aokrug_id','d_terr_aokrug_lbl','d_terr_village_id','d_terr_village_lbl',
+    'd_f_restr','d_f_coll','d_f_bankr','d_f_hold','d_f_court','d_f_dispute','d_f_transfer',
+    'i_undisb_v','i_undisb_som','i_pen_disp_v','i_pen_disp_som','i_accr_pen_v','i_accr_pen_som','i_fx_som','i_rate_w'];
   const addI = ST.addIndicator({dates:1, id:'m-m1', name:'Проба колонки числа', obj:'obj-credit',
     src:'поле', key:'k', type:'сумма', unit:'сом', col:'i_m1', vtype:'num'});
   const addD = ST.addDim({dates:1, id:'d-m2', name:'Проба колонки признака', obj:'obj-credit',
@@ -3022,12 +3028,12 @@ const FIZ = fizSchema();
   const ddl = ST.relLog().filter(x => /ADD COLUMN|DROP|ALTER/.test(x.msg));
   const bw = ST.physOf('m-bworst');
   ok(163, live0.length > 0 && unnamed.length === 0 && offRel.length === 0 && dupCol.length === 0 && shared.length > 0 &&
-        orph0.length > 0 && orph0.every(c => c.col.indexOf('d_terr_aokrug') === 0) &&
+        orph0.length === FLAG_COLS.length && orph0.every(c => c.obj === 'obj-credit' && FLAG_COLS.indexOf(c.col) >= 0) &&
         addI.ok && addD.ok && addI.waiting === true && addD.waiting === true &&
         ST.colOf('m-m1').state === 'колонка ещё не создана' && ST.colOf('d-m2').state === 'колонка ещё не создана' &&
         kept && still && ddl.length === 0 && ST.colOf('d-industry').state === 'включена' &&
         bw.length > 0 && bw.every(c => inRel('obj-borrower', c)),
-    `реестр не порождает схему, а ССЫЛАЕТСЯ на неё: из ${live0.length} записей с колонками безымянных ${unnamed.length}, названных мимо релиза ${offRel.length}, двух записей с разным источником на одной колонке ${dupCol.length} (общая колонка у одной величины в двух ролях — ${shared.length}, §5); колонки релиза без записи — только заведомая пара ${orph0.map(c => c.col).join(', ')} (#241). Дверь реестра схему не меняет: две новые записи любой породы (${(addI.cols || []).join(', ')} и ${(addD.cols || []).join(', ')}) легли в «ждёт колонку», релиз тот же; переезд породы и прекращение записи его тоже не тронули — колонка прекращённой «${ST.REC('m-bworst').name}» (${bw.join(', ')}) на месте, а строк DDL в журнале релиза ${ddl.length}: колонку заводит changeset, журнал колонок ведёт Liquibase. Схема витрины, порождаемая реестром, и «порода момента заведения» у колонки сняты вместе с ADR-0209 §6 (ИС-53, ADR-0237 §2, §3, §4, §6)`);
+    `реестр не порождает схему, а ССЫЛАЕТСЯ на неё: из ${live0.length} записей с колонками безымянных ${unnamed.length}, названных мимо релиза ${offRel.length}, двух записей с разным источником на одной колонке ${dupCol.length} (общая колонка у одной величины в двух ролях — ${shared.length}, §5); колонки релиза без записи — только заведомые ⚑ кредита, чей источник ещё не готов: ${orph0.map(c => c.col).join(', ')} (#241, схема §1). Дверь реестра схему не меняет: две новые записи любой породы (${(addI.cols || []).join(', ')} и ${(addD.cols || []).join(', ')}) легли в «ждёт колонку», релиз тот же; переезд породы и прекращение записи его тоже не тронули — колонка прекращённой «${ST.REC('m-bworst').name}» (${bw.join(', ')}) на месте, а строк DDL в журнале релиза ${ddl.length}: колонку заводит changeset, журнал колонок ведёт Liquibase. Схема витрины, порождаемая реестром, и «порода момента заведения» у колонки сняты вместе с ADR-0209 §6 (ИС-53, ADR-0237 §2, §3, §4, §6)`);
 
   /* #164 — одна величина в двух ролях — ДВЕ записи, связанные явно (§5). */
   ST.seed();
@@ -3724,11 +3730,13 @@ const FIZ = fizSchema();
      с колонками, 117 → 142 агрегата. Ждущих колонку по-прежнему 0: пять объектов волны
      заведены таблицами вместе с записями (ИС-53), включая «Эпизод просрочки», которому
      владелец пока не отдаёт ни одной строки (P20-R33). */
-  ok(181, st.registry.length === 397 && nInd === 275 && nDim === 122 && pathN === 1 &&
+  /* Кредит догнан до схемы §1 (переписан на месте): 397 → 404 записи, 122 → 129 разрезов,
+     254 → 261 строчная с колонками — дата окончания и шесть факторов риска. */
+  ok(181, st.registry.length === 404 && nInd === 275 && nDim === 129 && pathN === 1 &&
         ownInd === 187 && somInd === 88 && somInd === 44 * 2 && !ST.REC('d-ocur') &&
         newDims.every(d => d && /валют/i.test(d.name) && ST.OBJ(d.obj).dims.indexOf(d.id) >= 0) &&
         newDims.map(d => d.obj).join(',') === 'obj-claim,obj-measure' &&
-        withCols === 254 && aggN === 142 && withCols + aggN + pathN === st.registry.length &&
+        withCols === 261 && aggN === 142 && withCols + aggN + pathN === st.registry.length &&
         somCols === 44 && ST.awaiting().length === 0,
     `реестр сверен со схемой, и число названо по факту, а не смягчено: ${st.registry.length} записей — ${nInd} породы «показатель» (${ownInd} своих и ${somInd} сомовых близнецов: ${somInd / 2} строчных и столько же агрегатов) и ${nDim} породы «разрез». Реестр сверен и с релизом: строчных записей с колонками ${withCols} (сомовых близнецов из них ${somCols}), агрегатов без колонки ${aggN}, ждущих колонку ${ST.awaiting().length} (ИС-53, ADR-0237 §3, §5). Своих разрезов валюты у объектов, заведённых волной 17, осталось два — ${newDims.map(d => d ? '«' + d.name + '» у ' + ST.OBJ(d.obj).name : '—').join(', ')}: разрез валюты дела снят вместе с валютой дела (${ST.REC('d-ocur') ? 'ОСТАЛСЯ' : 'снят'}), итоги дела только в сомах (ADR-0244 §4, ADR-0240 §4; ИС-40, ИС-44, ADR-0214 §1, ADR-0206 §3)`);
 
@@ -5181,7 +5189,7 @@ const FIZ = fizSchema();
         dbtTot.refused === true && JSON.stringify(dbtTot.mixed) === '["KGS","USD"]' &&
         dbtTot.som === 'a-sumdebt-som' &&
         byCur.ok && byCur.groups.length === 2 && gv('KGS') === 9286000 && gv('USD') === 160000 &&
-        rows225.ok && has(rows225.passport.editionNote, 'собирала 6 величин из 135') &&
+        rows225.ok && has(rows225.passport.editionNote, 'собирала 6 величин из 142') &&
         has(rows225.passport.editionNote, 'ОТСУТСТВУЮТ КЛЮЧОМ, а не лежат нулём') &&
         an225.ok && an225.n === 0 &&
         has(an225.passport.editionNote, 'не видно НИ ОДНОЙ') &&
@@ -5658,14 +5666,14 @@ const FIZ = fizSchema();
   const noLvl = ST.addDim(Object.assign({id:'d-w23h1', name:'Проба уровня без колонки',
     levels:[lv[0], lv[1], {name:'айылный округ', src:'поле', key:'aokrug'}]}, terr));
   const newLvl = ST.addDim(Object.assign({id:'d-w23h2', name:'Проба нового уровня',
-    levels:[lv[0], lv[1], {name:'село', src:'поле', key:'village', col:'d_terr_village', vtype:'ref'}]}, terr));
+    levels:[lv[0], lv[1], {name:'участок', src:'поле', key:'plot', col:'d_terr_plot', vtype:'ref'}]}, terr));
   const miss248 = ((ST.awaiting ? ST.awaiting() : []).find(x => x.id === 'd-w23h2') || {}).missing || [];
   const derived = ['d-subgroup', 'd-csolv'].map(id => ({id, st: ST.colOf ? ST.colOf(id).state : '—',
     bare: (ST.DIM(id).levels || []).filter(L => !L.col).map(L => L.name)}));
   ok(248, !noLvl.ok && has(noLvl.why, 'айылный округ') && has(noLvl.why, 'ИС-53') &&
-        newLvl.ok && newLvl.waiting === true && miss248.join() === 'd_terr_village_id,d_terr_village_lbl' &&
+        newLvl.ok && newLvl.waiting === true && miss248.join() === 'd_terr_plot_id,d_terr_plot_lbl' &&
         derived.every(d => d.st === 'включена' && d.bare.join() === 'группа'),
-    `иерархия ложится колонками уровней: уровень без колонки отбит поимённо — «${String(noLvl.why).slice(0, 90)}…»; новый уровень «село» с колонкой, которой релиз не завёл, ждёт (${miss248.join(', ')}). Уровень, выводимый при чтении, колонки не требует: ${derived.map(d => d.id + ' — ' + d.st + ', без колонки «' + d.bare.join() + '»').join('; ')} (ИС-53, ADR-0237 §5, ADR-0241 §3, §4)`);
+    `иерархия ложится колонками уровней: уровень без колонки отбит поимённо — «${String(noLvl.why).slice(0, 90)}…»; новый уровень «участок» с колонкой, которой релиз не завёл, ждёт (${miss248.join(', ')}). Уровень, выводимый при чтении, колонки не требует: ${derived.map(d => d.id + ' — ' + d.st + ', без колонки «' + d.bare.join() + '»').join('; ')} (ИС-53, ADR-0237 §5, ADR-0241 §3, §4)`);
 
   /* #249 — агрегат над ждущей записью ждёт вместе с ней (решение СС-155 волны 23). Агрегат
      релиза не стоит (§5), но считается он из колонки основания: пока колонки нет, свод ответил
