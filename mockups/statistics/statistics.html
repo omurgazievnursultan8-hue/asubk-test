@@ -306,12 +306,13 @@ const nextM = m => { let [y,mm]=m.split('-').map(Number); mm++; if(mm>12){mm=1;y
 const prevM = m => { let [y,mm]=m.split('-').map(Number); mm--; if(mm<1){mm=12;y--;} return y+'-'+String(mm).padStart(2,'0'); };
 const monthEnd = m => { const n = nextM(m); const d = new Date(Date.parse(first(n)) - 86400000); return d.toISOString().slice(0,10); };
 
-/* ---- СРЕЗ НА НАЧАЛО ДНЯ ---- */
+/* ---- СРЕЗ НА КОНЕЦ ДНЯ ---- */
+/* Строка за дату D — состояние на конец дня D: мир читается на D, период строки — месяц самой даты, итог месяца — строка его последнего дня. */
 const dayShift = (d, n) => new Date(Date.parse(d) + n*86400000).toISOString().slice(0,10);
 const eveOf = d => dayShift(d, -1);
-const worldAt = eveOf;
-const periodOf = d => ym(eveOf(d));
-const sliceOfMonth = m => first(nextM(m));
+const worldAt = d => d;
+const periodOf = d => ym(d);
+const sliceOfMonth = m => monthEnd(m);
 ST.periodOf = periodOf; ST.sliceOfMonth = sliceOfMonth; ST.worldAt = worldAt;
 
 const plural = (n,a,b,c) => { const x=n%100, y=n%10; return x>4&&x<21 ? c : y===1 ? a : y>1&&y<5 ? b : c; };
@@ -607,7 +608,7 @@ const REGISTRY = [
   /* День привязки и состояние платежа. */
   {kind:'разрез', id:'d-pbdate', col:'d_bdate', vtype:'date', obj:'obj-repay', name:'Дата привязки платежа', src:'поле', key:'bdate', since:'2020-01-01',
    buckets:['год','квартал','месяц'], owner:'Погашения',
-   note:'схема §9.2 — день привязки платежа к кредиту; срез строки платежа — поздний из дней поступления и привязки + 1'},
+   note:'схема §9.2 — день привязки платежа к кредиту; срез строки платежа — поздний из дней поступления и привязки'},
   {kind:'разрез', id:'d-paystate', col:'d_pay_state', vtype:'code', obj:'obj-repay', name:'Состояние платежа', src:'поле', key:'pstate', since:'2020-01-01',
    owner:'Погашения', note:'схема §9.2 — pending ожидает · confirmed подтверждён · reversed сторнирован; сторнированная исходная строка в «погашено» не входит'},
   /* Три оси ПОСТУПЛЕНИЯ, которые владелец запретил схлопывать в один статус (ТЗ 14 §3.1): регистрация · сопоставление · заморозка. */
@@ -1822,8 +1823,13 @@ const CORE = {
     const spec = (item.k || {})[field];
     if(!spec) return null;
     const [base, per30] = spec;
-    const v = base + per30 * (daysBetween(ANCHOR, dateISO) / 30);
+    const v = base + per30 * (daysBetween(ANCHOR, dateISO) / 30) - (field === 'principal' ? CORE.dayPaid(item, dateISO) : 0);
     return Math.round(Math.max(field === 'daysOverdue' ? 0 : 0, v) * 100) / 100;
+  },
+  /* Платежи, внесённые в демо-день (ST.pay), — факт источника на дату платежа: тело долга меньше, погашено больше. */
+  dayPaid(item, dateISO){
+    const list = ST.state && ST.state.pays ? ST.state.pays[item.id] : null;
+    return list ? list.reduce((n, p) => n + (p.date <= dateISO ? p.amount : 0), 0) : 0;
   },
   /* ------ ПЕРЕСЧЁТ В СОМ: ОДНО МЕСТО, ОДНО ОБЪЯВЛЕННОЕ ОКРУГЛЕНИЕ ------ */
   SOM_ROUNDING: {id:'коп-2', digits: 2, name:'до копейки',
@@ -1964,7 +1970,7 @@ const CORE = {
       const x = CORE.payOn(p, dateISO);
       return n + (x.credit === item.id && x.state !== 'reversed' && x.at > ANCHOR && x.at <= dateISO ? p.f.amount : 0);
     }, 0);
-    return Math.round((base + paid) * 100) / 100;
+    return Math.round((base + paid + CORE.dayPaid(item, dateISO)) * 100) / 100;
   },
   calcAllocation(item, dateISO){
     CORE.calls++;
@@ -2896,7 +2902,7 @@ function readSrc(spec, item, dateISO, ask, id){
   if(!spec) return null;
   /* Признак датировки ставится здесь, при чтении, по трём источникам: история отвечает на дату по определению, поле — всегда текущим (карточка перезаписывается, а не версионируется), метод API — тем, что объявил сам. */
   if(spec.src === 'история'){
-    /* Строка за дату D — состояние на конец D−1, поэтому история читается на D−1. */
+    /* Строка за дату D — состояние на конец дня D, поэтому история читается на D. */
     const v = valueOn(item.h[spec.key], worldAt(dateISO));
     if(v != null) markDating(ask, id, DATING.ASOF);
     return v;
@@ -3143,16 +3149,16 @@ function lastRowBefore(st, objId, ref, dateISO){
        (!hit || hit.date < r.date)) hit = r;
   return hit;
 }
-/* Счётчики записываются поимённо и одними и теми же полями у обеих функций записи строки — прогона и закрытия периода. `partial` и `filled` — сколько строк записано неполными и сколько дозаполнено; `skip` — «не в списке к пересчёту, не обходился»; `copied` и `written` — скопировано и записано всего. */
+/* Счётчики записываются поимённо и одними и теми же полями у обеих функций записи строки — прогона и закрытия периода. `partial` и `filled` — сколько строк записано неполными и сколько дозаполнено; `skip` — «не названа, не обходилась» (у ретро и дневного пересчёта); `written` — записано всего. */
 function newTally(){ return {n:0, kept:0, unborn:0, noborn:0, same:0, born:0, have:0,
-                             partial:0, skip:0, copied:0, written:0, corr:0, marks:0,
+                             partial:0, skip:0, written:0, corr:0, marks:0,
                              rewrote:[], filled:[], created:[]}; }
-/* Счётчики по способу хранения: «скопировано» — только у состояний, `new_rows` (новые строки событий) и `corr_rows` (поправки) — только у событий, `markers` — у всех. */
+/* Счётчики по способу хранения: `new_rows` (новые строки событий) и `corr_rows` (поправки) — только у событий, `markers` — у всех. */
 function partOf(o, t){
   const store = storageOf(o.id), ev = store === 'event_delta' || store === 'event_full';
   return {obj: o.id, name: o.name, store, n: t.n, kept: t.kept, unborn: t.unborn, noborn: t.noborn,
           same: t.same, born: t.born, have: t.have, partial: t.partial, skip: t.skip,
-          copied: ev ? null : t.copied, written: t.written, rewrote: t.rewrote, filled: t.filled,
+          written: t.written, rewrote: t.rewrote, filled: t.filled,
           new_rows: ev ? t.born : null, corr_rows: ev ? t.corr : null, markers: t.marks,
           created: t.created};
 }
@@ -3161,14 +3167,15 @@ function eachAlive(o, dateISO, t, fn){
   (WORLD[o.id] || []).forEach(item => {
     const bornAt = bornOn(o, item, dateISO);
     if(bornAt == null){ t.noborn++; return; }
-    /* Объект, появившийся в день X, попадает в срез X+1: строка за дату X — состояние на конец X−1. */
-    if(bornAt >= dateISO){ t.unborn++; return; }
+    /* Объект, появившийся в день X, виден уже в строке за X: строка описывает конец дня. */
+    if(bornAt > dateISO){ t.unborn++; return; }
     fn(item);
   });
 }
 
-/* ========== ОПРОС ИСТОЧНИКОВ И ОБЪЕКТЫ К ПЕРЕСЧЁТУ ========== */
-const CAND_SRC = ['опрос','критическая дата','свой факт','очередь'];
+/* ========== ДНЁМ: ЖУРНАЛ ИЗМЕНЕНИЙ И ОБЪЕКТЫ К ПЕРЕСЧЁТУ ========== */
+/* Ночью отбора нет — полный обход. Днём строку сегодняшнего дня пересчитывают кандидаты — объединение четырёх множеств (ИС-48): названные источником, со сменившимся разрезом, связанные с изменившимся через правило `via`, поставленные в очередь явно. */
+const CAND_SRC = ['назван источником','сменился разрез','связан через via','в очереди'];
 /* Поводы попасть в очередь заданы списком, как причины неответа: очередь — способ поставить работу, а работу без повода нельзя ни разобрать, ни снять. */
 /* ЗАДАЧИ ОЧЕРЕДИ — ТРИ ВИДА: `retro` — пересчёт с даты действия, её ставит ответ источника; `manual` — работа, поставленная человеком или прогоном (досчёт, распоряжение); `reopen` — для открытия периода, его записывает прогон своего вида. */
 const QUEUE_KINDS = ['retro','manual','reopen'];
@@ -3217,129 +3224,91 @@ function probeRec(id, item, dateISO){
 }
 const sameVal = (a, b) => JSON.stringify(bareOf(a)) === JSON.stringify(bareOf(b));
 
-/* ---- 1. ОПРОС: «КТО ИЗМЕНИЛСЯ ПОСЛЕ T» ---- */
-function fedChanged(recs, item, sinceISO, atISO){
-  for(let i = 0; i < recs.length; i++)
-    if(!sameVal(probeRec(recs[i], item, sinceISO), probeRec(recs[i], item, atISO))) return true;
-  return false;
+/* Источники без журнала изменений: днём не опрашиваются, и их колонки в строке сегодняшнего дня остаются со значением на 02:00 (ИС-49). */
+function nightOnlyNbs(o){ return NEIGHBOURS.filter(nb => !nb.asks && nbRecsOf(o, nb.id).length).map(nb => nb.id); }
+function keepNightOnly(o, was, row){
+  if(!was) return row;
+  nightOnlyNbs(o).forEach(nb => {
+    nbRecsOf(o, nb).forEach(id => {
+      const box = DIM(id) ? 'dims' : 'inds';
+      if(was[box][id] === undefined) delete row[box][id]; else row[box][id] = clone(was[box][id]);
+      if(box === 'dims'){
+        if((was.lbls || {})[id] !== undefined) row.lbls[id] = clone(was.lbls[id]); else if(row.lbls) delete row.lbls[id];
+      }
+      const inNow = (was.now || []).indexOf(id) >= 0, k = row.now.indexOf(id);
+      if(inNow && k < 0) row.now.push(id);
+      if(!inNow && k >= 0) row.now.splice(k, 1);
+    });
+    if(was.srcs && was.srcs[nb]) row.srcs[nb] = clone(was.srcs[nb]);
+  });
+  return row;
 }
-/* ---- 2. КРИТИЧЕСКАЯ ДАТА: ВЕЛИЧИНА МЕНЯЕТСЯ ОТ ВРЕМЕНИ, БЕЗ СОБЫТИЯ ---- */
-function movedCurs(sinceISO, atISO){
+/* Справочник называет значение: кандидаты — все строки сегодняшнего дня с этим значением разреза (перенос подразделения, смена подписи). */
+function dictMatches(st, D, dict, key){
   const out = [];
-  Object.keys(RATES).forEach(cur => {
-    if(cur === 'KGS') return;
-    if(RATES[cur].some(r => r[0] > worldAt(sinceISO) && r[0] <= worldAt(atISO))) out.push(cur);
+  st.rows.forEach(r => {
+    if(r.date !== D || r.part != null || storageOf(r.obj) !== 'state') return;
+    const hit = Object.keys(r.dims).some(id => {
+      const d = DIM(id);
+      if(!d || d.ref !== dict) return false;
+      const v = r.dims[id];
+      return Array.isArray(v) ? v.indexOf(key) >= 0 : v === key;
+    });
+    if(hit) out.push(r.obj+'|'+r.ref);
   });
   return out;
 }
-/* В какой валюте объект стоит на дату. */
-function fxCursOf(money, item, dateISO){
+/* Связанные через правило `via`: объекты, видимость которых идёт через изменившийся объект. */
+function viaLinked(st, D, objId, ref){
   const out = [];
-  money.forEach(id => {
-    const m = IND(id);
-    const c = m ? readIndRaw(m, id, item, dateISO, null) : null;
-    if(!c) return;
-    (c.curs || []).forEach(x => { if(x && x !== 'KGS' && out.indexOf(x) < 0) out.push(x); });
-  });
+  st.objects.forEach(o => (o.scope || []).forEach(r => {
+    if(r.kind !== 'via' || r.obj !== objId) return;
+    (WORLD[o.id] || []).forEach(it => {
+      const b = bornOn(o, it, D);
+      if(b == null || b > D) return;
+      const v = DIM(r.key) ? readDim(r.key, it, D) : it.f[r.key];
+      if(v === ref || (Array.isArray(v) && v.indexOf(ref) >= 0)) out.push(o.id+'|'+it.id);
+    });
+  }));
   return out;
 }
-/* ---- 3. СОБСТВЕННЫЙ ФАКТ МОДУЛЯ-ВЛАДЕЛЬЦА СПИСКА ---- */
-function ownChanged(recs, item, sinceISO, atISO){
-  for(let i = 0; i < recs.length; i++)
-    if(!sameVal(probeRec(recs[i], item, sinceISO), probeRec(recs[i], item, atISO))) return true;
-  return false;
-}
-
-/* Последний состоявшийся прогон строго раньше запрошенной даты — окно для курса и для
-   модуля-владельца списка. Пропуск не считается (ИС-20): в тот день ничего не проверялось. */
-function lastScan(st, dateISO){
-  let hit = null;
-  st.runs.forEach(r => { if(r.kind !== 'пропуск' && r.date < dateISO && (hit == null || hit < r.date)) hit = r.date; });
-  return hit;
-}
-/* Был ли прогон на эту дату или позже. */
-function seenAfter(st, dateISO){
-  return st.runs.some(r => r.kind !== 'пропуск' && r.date >= dateISO);
-}
-
-function candidatesOf(st, dateISO, silent){
-  const prev = lastScan(st, dateISO);
-  if(prev == null) return {full:true, from:null, set:{}, by:{}, polls:[], moved:[],
-    why:'первый прогон: сравнивать не с чем, объекты к пересчёту выбрать не из чего'};
-  if(seenAfter(st, dateISO)) return {full:true, from:prev, set:{}, by:{}, polls:[], moved:[],
-    why:'повторный прогон за пройденную дату: он УДОСТОВЕРЯЕТ состояние, а не добавляет изменения (как закрытие периода, ADR-0221 §3)'};
+/* Кандидаты дневного пересчёта на дату D по записям журнала изменений и очереди. */
+function liveCandidates(st, D, feed){
   const by = {}; CAND_SRC.forEach(k => by[k] = []);
   const set = {};
-  const add = (src, objId, ref, why) => {
-    by[src].push({obj: objId, ref, why: why || null});
-    const k = objId+'|'+ref;
-    if(!set[k]) set[k] = src;                    /* Первый источник — для журнала. */
+  const add = (src, k, why) => {
+    const i = k.indexOf('|');
+    if(by[src].some(x => x.obj+'|'+x.ref === k)) return;
+    by[src].push({obj: k.slice(0, i), ref: k.slice(i + 1), why: why || null});
+    if(!set[k]) set[k] = src;
   };
-  /* У каждого источника свой `T`. */
-  const polls = NEIGHBOURS.map(nb => {
-    const T = (st.polls[nb.id] || {}).T || null;
-    const mute = (silent || {})[nb.id] || null;
-    const why = !nb.asks ? 'не умеет отвечать на «кто изменился после T» — обходится полностью (ADR-0221 §5)'
-      : mute ? 'не ответил в этом прогоне: '+mute+' — обходится полностью'
-      : T == null ? 'момент T не установлен: этот источник ещё не опрашивали'
-      : T >= dateISO ? 'окно опроса пусто: T не раньше запрашиваемой даты'
-      : null;
-    return {nb: nb.id, T, from: T, to: dateISO, ok: !why, why, degraded: !!why,
-            named: 0, scanned: 0, asks: !!nb.asks};
+  feed.forEach(f => {
+    if(f.dict) dictMatches(st, D, f.dict, f.key).forEach(k =>
+      add('сменился разрез', k, 'справочник «'+f.dict+'»: значение «'+f.key+'» с '+f.from));
+    else add('назван источником', f.obj+'|'+f.ref, 'источник «'+f.nb+'»: дата факта '+f.from);
   });
-  const pollOf = {}; polls.forEach(p => pollOf[p.nb] = p);
-  /* Очередь — способ поставить работу, опрос — способ её найти; одно дополняет другое. */
-  const queued = {};
-  st.queue.forEach(q => { if(!q.done) queued[q.obj+'|'+q.ref] = q.why; });
-  /* Очередь неполных — сами строки: последняя строка записи с неответившим источником ставит запись в прогон, пока источник не ответит; отдельной задачи для этого нет. */
-  const lastOf = {};
-  st.rows.forEach(r => {
-    if(r.date >= dateISO || isLegacyRow(r)) return;
-    const k = r.obj+'|'+r.ref;
-    if(!lastOf[k] || lastOf[k].date < r.date) lastOf[k] = r;
-  });
-  const moved = movedCurs(prev, dateISO);
-  st.objects.forEach(o => {
-    const plan = scanPlan(o);
-    (WORLD[o.id] || []).forEach(item => {
-      /* Объект до даты появления в объекты к пересчёту не попадает: иначе их число завышало бы объём работы. */
-      const bornAt = bornOn(o, item, dateISO);
-      /* Объект, появившийся в день X, попадает в срез X+1. */
-      if(bornAt == null || bornAt >= dateISO) return;
-      const k = o.id+'|'+item.id;
-      if(queued[k]) add('очередь', o.id, item.id, queued[k]);
-      else if(lastOf[k] && silentOf(lastOf[k]).length)
-        add('очередь', o.id, item.id, 'строка '+lastOf[k].date+' неполна: не ответили '+silentOf(lastOf[k]).join(', '));
-      if(bornAt >= prev) add('свой факт', o.id, item.id, 'дата появления — '+bornAt);
-      else if(ownChanged(plan.own, item, prev, dateISO)) add('свой факт', o.id, item.id, 'изменился собственный датированный факт');
-      if(moved.length && plan.money.length){
-        const cur = fxCursOf(plan.money, item, dateISO).filter(c => moved.indexOf(c) >= 0);
-        if(cur.length) add('критическая дата', o.id, item.id, 'курс '+cur.join(', ')+' менялся после '+prev);
-      }
-      NEIGHBOURS.forEach(nb => {
-        const recs = plan.nb[nb.id];
-        if(!recs || !recs.length) return;        /* Объект не читает данные этого источника. */
-        const p = pollOf[nb.id];
-        if(p.degraded){ p.scanned++; add('опрос', o.id, item.id, 'источник «'+nb.id+'» '+p.why); return; }
-        if(fedChanged(recs, item, p.T, dateISO)){
-          p.named++; add('опрос', o.id, item.id, 'источник «'+nb.id+'» назвал');
-        }
-      });
-    });
-  });
-  return {full:false, why:null, from: prev, set, by, polls, moved};
+  by['назван источником'].concat(by['сменился разрез']).forEach(x =>
+    viaLinked(st, D, x.obj, x.ref).forEach(k => add('связан через via', k, 'видимость через «'+x.obj+'» '+x.ref)));
+  st.queue.forEach(q => { if(!q.done && q.at <= D) add('в очереди', q.obj+'|'+q.ref, q.why); });
+  return {by, set};
 }
-/* Состав объектов к пересчёту — реквизит прогона, а не вывод из строк: иначе «пересчитывать было нечего» неотличимо от «опрос не состоялся». */
+/* Записи журнала, которые ещё не забрал ни дневной опрос, ни ночной прогон. */
+function pendingFeed(st, D, silent){
+  return st.nbFeed.filter(f => !f.taken && f.at <= D && !(silent || {})[f.nb]);
+}
+/* Очередь в метаданных — сколько объектов ждут пересчёта. */
+function liveQueue(st){
+  return Object.keys(liveCandidates(st, st.today, pendingFeed(st, st.today)).set).length;
+}
+/* Состав объектов к пересчёту — реквизит прогона: у ночного — полный обход, у дневного и ретро — названные записи. */
 function candSummary(c){
   if(c.full) return {scan:'полный', why: c.why, from: c.from, n: 0, by: {}, polls: [], moved: []};
   const by = {};
-  CAND_SRC.forEach(k => by[k] = c.by[k].length);
-  return {scan:'кандидаты', why: null, from: c.from, n: Object.keys(c.set).length,
-          by, first: (() => { const f = {}; CAND_SRC.forEach(k => f[k] = 0);
-                              Object.keys(c.set).forEach(k => f[c.set[k]]++); return f; })(),
-          polls: c.polls.map(p => ({nb:p.nb, T:p.T, ok:p.ok, why:p.why, degraded:p.degraded,
-                                    named:p.named, scanned:p.scanned, asks:p.asks})),
-          moved: c.moved.slice()};
+  CAND_SRC.forEach(k => by[k] = (c.by[k] || []).length);
+  return {scan:'кандидаты', why: null, from: c.from, n: Object.keys(c.set).length, by,
+          first: (() => { const f = {}; CAND_SRC.forEach(k => f[k] = 0);
+                          Object.keys(c.set).forEach(k => f[c.set[k]]++); return f; })(),
+          polls: [], moved: []};
 }
 
 /* ------------- ОЧЕРЕДЬ ПЕРЕСТРОЕНИЯ ------------- */
@@ -3350,7 +3319,7 @@ function queueRegChange(st, rec){
   let n = 0;
   (WORLD[o.id] || []).forEach(item => {
     const b = bornOn(o, item, rec.since);
-    if(b == null || b >= rec.since) return;
+    if(b == null || b > rec.since) return;
     enq(st, o.id, item.id, 'досчёт', rec.since, st.role,
         'создана запись реестра «'+rec.name+'» с '+rec.since);
     n++;
@@ -3374,33 +3343,38 @@ function enq(st, objId, ref, why, atISO, by, note, fromISO){
   st.queue.push(rec);
   return rec;
 }
-/* ---------- ОТВЕТ ИСТОЧНИКА — КЛЮЧ И ДАТА ДЕЙСТВИЯ ---------- */
-function takeFeed(st, dateISO, silent){
-  const out = {n: 0, marks: {}};
-  st.nbFeed.forEach(f => {
-    if(f.taken || f.at > dateISO || (silent || {})[f.nb]) return;
-    f.taken = dateISO;
-    /* Действие дня X попадает в срез X+1; день закрытого месяца не записывается — retro начинается с первого открытого дня. */
-    let from = dayShift(f.from, 1);
-    f.closed = ST.isClosed(from);
-    if(f.closed){
-      const m = markStates(st, f.obj, f.ref, f.from, dateISO);
-      out.marks[f.obj] = (out.marks[f.obj] || 0) + m;
-    }
-    while(ST.isClosed(from) && from < dateISO) from = dayShift(from, 1);
-    enq(st, f.obj, f.ref, 'retro', dateISO, 'прогон', 'источник «'+f.nb+'»: действие с '+f.from, from);
+/* ---------- ЖУРНАЛ ИЗМЕНЕНИЙ ИСТОЧНИКА — КЛЮЧ И ДАТА ФАКТА ---------- */
+/* Запись журнала ставит задачу пересчёта с даты факта: дата в открытом месяце — со дня факта по D; в закрытом — маркер на каждый последний день закрытого месяца и пересчёт с первого открытого дня (ИС-49). Забирает её дневной опрос, а если опроса не было — ночной прогон перед закрытием суток. */
+function feedTasks(st, D, feed){
+  const out = {n: 0, marks: {}, keys: []};
+  feed.forEach(f => {
+    f.taken = D; f.takenAt = st.clock;
+    const keys = f.dict ? dictMatches(st, D, f.dict, f.key) : [f.obj+'|'+f.ref];
+    f.closed = ST.isClosed(f.from);
+    keys.forEach(k => {
+      const i = k.indexOf('|'), obj = k.slice(0, i), ref = k.slice(i + 1);
+      let from = f.from;
+      if(f.closed){
+        const m = markStates(st, obj, ref, f.from, D);
+        out.marks[obj] = (out.marks[obj] || 0) + m;
+      }
+      while(ST.isClosed(from) && from < D) from = dayShift(from, 1);
+      enq(st, obj, ref, 'retro', D, 'прогон', 'источник «'+f.nb+'»: действие с '+f.from, from);
+      if(out.keys.indexOf(k) < 0) out.keys.push(k);
+    });
     out.n++;
   });
   return out;
 }
-/* Состав retro-прогона — только записи задач. */
-function onlyScan(keys){
+/* Состав retro-прогона и дневного пересчёта — только названные записи. */
+function onlyScan(keys, by){
   const c = {full:false, why:null, from:null, set:{}, by:{}, polls:[], moved:[]};
   CAND_SRC.forEach(k => c.by[k] = []);
   keys.forEach(k => {
     const i = k.indexOf('|');
-    c.set[k] = 'очередь';
-    c.by['очередь'].push({obj: k.slice(0, i), ref: k.slice(i + 1), why: 'retro'});
+    const src = (by && by[k]) || 'в очереди';
+    c.set[k] = src;
+    c.by[src].push({obj: k.slice(0, i), ref: k.slice(i + 1), why: 'retro'});
   });
   return c;
 }
@@ -3428,11 +3402,16 @@ ST.storageOf = objId => storageOf(objId);
 /* Полный обход объявляется причиной. */
 const CATCHUP_SCAN = 'догон пропущенного прогона: дата удостоверяется, а не добавляются изменения (ADR-0245 §2, ADR-0221 §3)';
 const REOPEN_SCAN = 'открытие периода: пересчитывается итог месяца, дни не восстанавливаются (ADR-0238 §5, ADR-0245 §2)';
+const NIGHT_SCAN = 'ночной прогон: закрывает вчерашние сутки и открывает сегодняшние полным обходом — отбора кандидатов и копий строк нет (ИС-48, ADR-0264 §2)';
 function fullScan(why){ return {full:true, from:null, set:{}, by:{}, polls:[], moved:[], why}; }
-/* Копия вчерашней строки для объекта не из списка к пересчёту: ни один источник не назвал его — источники изменений не сообщали, курс не менялся, собственный факт не менялся. */
-function copyRow(y, dateISO){ return Object.assign(clone(y), {date: dateISO, fixed: null, by: 'прогон'}); }
 /* ---------- ДОГОН ---------- */
 const NIGHTLY = ['плановый','внеплановый','догон'];
+/* Ночной прогон в 02:00: сутки N закрываются прогоном за N+1. */
+const NIGHT_AT = '02:00:00';
+const NIGHT_KINDS = ['плановый','догон'];
+function nightOf(st, d){
+  return st.runs.filter(r => NIGHT_KINDS.indexOf(r.kind) >= 0 && r.date === d && r.status !== 'failed').slice(-1)[0] || null;
+}
 function gapsBefore(st, dateISO){
   const done = st.runs.filter(r => NIGHTLY.indexOf(r.kind) >= 0 && r.date < dateISO).map(r => r.date).sort();
   if(!done.length) return [];
@@ -3450,6 +3429,7 @@ function calendarGap(st, dateISO){
   return calendarRow(st, month) ? null : 'периода '+monLabel(month)+' нет в календаре учётных периодов: срезу '+
     fmt(dateISO)+' некуда лечь (ADR-0245 §6)';
 }
+/* Пропуск — запись журнала, а не прогон: в тот день ничего не проверялось, и ночным прогоном он не считается (ИС-20). */
 function skipRecord(st, dateISO, why){
   const rec = {date: dateISO, kind:'пропуск', at: st.today, actor:'планировщик', reason: why, written:0};
   st.runs.push(rec);
@@ -3467,7 +3447,7 @@ function catchUp(st, dateISO, silent){
       return;
     }
     doRun(st, d, 'догон', 'планировщик', 'догон пропущенного прогона '+fmt(d)+' перед прогоном '+
-      fmt(dateISO)+' (ИС-54, ADR-0245 §2)', silent, {full: true, keepT: true, why: CATCHUP_SCAN});
+      fmt(dateISO)+' (ИС-54, ADR-0245 §2)', silent, {night: true, keepT: true, why: CATCHUP_SCAN});
     /* Перед каким прогоном шёл догон — реквизит записи: предупреждение о пропуске называет его, а `at` у демо-данных один на все прогоны сборки. */
     st.runs[st.runs.length - 1].before = dateISO;
     dates.push(d);
@@ -3543,7 +3523,8 @@ function dropRow(st, row){
   return {ok:true};
 }
 /* ---------- СОБЫТИЕ ДЕЛЬТОЙ ---------- */
-function eventSliceOf(o, item){ const b = bornOn(o, item); return b ? dayShift(b, 1) : null; }
+/* Строка события ложится на день события: строка дня — состояние на его конец. */
+function eventSliceOf(o, item){ const b = bornOn(o, item); return b || null; }
 function eventRow(o, item, D, silent){
   const at = eventSliceOf(o, item);
   const row = buildRow(o.id, item, at < FIRST_OWN ? FIRST_OWN : at, silent);
@@ -3879,17 +3860,19 @@ function reconcileRun(st, i){
     const ev = p.store === 'event_delta' || p.store === 'event_full';
     if(typeof p.markers !== 'number') bad.push(p.obj+': markers не назван');
     if(ev){
-      if(p.copied !== null || p.new_rows == null || p.corr_rows == null)
-        bad.push(p.obj+': у события «скопировано» не относится, new_rows и corr_rows обязательны');
+      if(p.new_rows == null || p.corr_rows == null)
+        bad.push(p.obj+': у события new_rows и corr_rows обязательны');
       else if(p.new_rows + p.corr_rows > p.written)
         bad.push(p.obj+': новых строк и поправок '+(p.new_rows + p.corr_rows)+' при записанных '+p.written);
       return;
     }
     if(p.new_rows !== null || p.corr_rows !== null) bad.push(p.obj+': у состояния new_rows и corr_rows не относятся');
     if(p.store !== 'state') return;
-    /* Тождество состояния: написанное — пересчитанное, «без изменений» и копии. */
-    if(p.written !== p.n + p.same + p.copied)
-      bad.push(p.obj+': написано '+p.written+' ≠ '+p.n+' + '+p.same+' + '+p.copied);
+    /* Тождество состояния: написанное — пересчитанное и «без изменений»; копий нет. */
+    if(p.written !== p.n + p.same)
+      bad.push(p.obj+': написано '+p.written+' ≠ '+p.n+' + '+p.same);
+    /* У прогона по названным записям (ретро) строка пишется не каждому объекту: сверяется написанное с названным. */
+    if(r.cand && r.cand.scan !== 'полный') return;
     const on = st.rows.filter(x => x.obj === p.obj && x.date === r.date && !x.fixed).length;
     if(on !== p.written) bad.push(p.obj+': строк на '+r.date+' — '+on+', написано '+p.written);
   });
@@ -3902,16 +3885,44 @@ ST.reconcileRun = i => {
   const s = reconcileRun(ST.state, k);
   return {ok: s === 'done', status: s, failed: clone((ST.state.runs[k] || {}).failed || [])};
 };
-function doRun(st, dateISO, kind, actor, reason, silent, how){
-  how = how || {};
+/* ШАГ 1 НОЧНОГО ПРОГОНА — ЗАКРЫТИЕ СУТОК D. Все объекты-состояния пересчитываются на конец D полным обходом; значение, отличающееся от строки D, пишется в журнал перезаписи с причиной `missed` — источник днём об изменении не сообщил, это дефект стыка с ним. Колонки источника без журнала изменений днём и не должны были меняться: их перезапись — тоже `missed`, но с пометкой «только ночью» и вне счётчика. Появление величины в неполной строке — дозаполнение, а не `missed`. */
+function closeDay(st, D, silent){
+  const out = {date: D, rows: 0, missed: {}, nightOnly: 0, filled: 0, parts: {}};
+  if(preLaunch(D) || latchOf(st, periodOf(D), MY_LAYER)) return out;
+  st.objects.forEach(o => {
+    if(storageOf(o.id) !== 'state') return;
+    eachAlive(o, D, newTally(), item => {
+      const i = st.rows.findIndex(r => r.obj === o.id && r.ref === item.id && r.date === D && r.part == null);
+      if(i < 0 || st.rows[i].fixed) return;
+      const row = buildRow(o.id, item, D, silent);
+      if(silentOf(row).length) return;
+      const ch = rowDiff(st.rows[i], row);
+      if(!ch.length) return;
+      const sp = splitDiff(st.rows[i], row, ch);
+      if(!writeRow(st, row).ok) return;
+      out.rows++;
+      const p = out.parts[o.id] || (out.parts[o.id] = {missed: [], filled: []});
+      if(sp.filled.length){ p.filled.push({ref: item.id, fields: sp.filled, date: D}); out.filled++; }
+      if(!sp.rewrote.length) return;
+      const nbs = uniq([].concat(...sp.rewrote.map(id => nbsOfRec(id))));
+      if(!nbs.length) nbs.push(o.owner);
+      const counted = nbs.filter(nb => !NB(nb) || NB(nb).asks);
+      p.missed.push({ref: item.id, fields: sp.rewrote, date: D, nbs, nightOnly: !counted.length});
+      counted.forEach(nb => { out.missed[nb] = (out.missed[nb] || 0) + 1; });
+      if(!counted.length) out.nightOnly++;
+    });
+  });
+  return out;
+}
+/* Сборка строк на дату: ночью — полный обход, у ретро и дневного пересчёта — названные записи. Возвращает счётчики по объектам; запись в журнал прогонов — у вызывающего. */
+function runParts(st, dateISO, silent, how){
   let written = 0;
   const parts = [];
-  /* Объекты к пересчёту в этом прогоне. */
-  const cand = how.full ? fullScan(how.why) : how.only ? onlyScan(how.only) : candidatesOf(st, dateISO, silent);
+  const cand = how.full || how.night ? fullScan(how.why || NIGHT_SCAN) : how.only ? onlyScan(how.only, how.by) : fullScan(how.why || NIGHT_SCAN);
   st.objects.forEach(o => {
     const t = newTally();
     const store = storageOf(o.id);
-    /* Прогон после открытия периода пересчитывает итог — строки состояний на первое число; у событий итога на дату нет, их строки и есть месяц. */
+    /* Прогон после открытия периода пересчитывает итог — строки состояний на последний день месяца; у событий итога на дату нет, их строки и есть месяц. */
     if(how.statesOnly && store !== 'state'){ parts.push(partOf(o, t)); return; }
     /* Событие записывается своим путём: исходная строка, правка на месте в месяце строки, поправка и маркер — из другого месяца, открыт он или закрыт. */
     if(store === 'event_delta' || store === 'event_full'){
@@ -3920,24 +3931,17 @@ function doRun(st, dateISO, kind, actor, reason, silent, how){
       parts.push(partOf(o, t)); return;
     }
     eachAlive(o, dateISO, t, item => {
+      /* Отбор есть только у прогона по названным записям: ночью строку получает каждый объект из ответа источников. */
+      if(!cand.full && !cand.set[o.id+'|'+item.id]){ t.skip++; return; }
       const i = st.rows.findIndex(r => r.obj === o.id && r.ref === item.id && r.date === dateISO);
-      if(!cand.full && !cand.set[o.id+'|'+item.id]){
-        /* Состояние получает строку на каждую дату: объекту не из списка к пересчёту — копию вчерашней. */
-        if(i >= 0){ if(st.rows[i].fixed) t.kept++; else { t.same++; t.written++; written++; } return; }
-        const y = lastRowBefore(st, o.id, item.id, dateISO);
-        if(y && y.date === eveOf(dateISO)){
-          /* Отклонённая запись не считается записанной: она «не тронуто», как строка закрытого периода — так у всех функций записи ниже. */
-          if(writeRow(st, copyRow(y, dateISO)).ok){ t.copied++; t.written++; written++; } else t.kept++;
-          return;
-        }
-      }
       /* Поставленная работа снимается обходом, а не записью строки: очередь указывает, что проверить, а не обещает число. */
       /* Работа снимается, только если строка пройдёт проверку записи: строка закрытого периода работу не снимает — её применит ближайший прогон открытого периода, как у событий. */
       if(!rowGate(st, {obj: o.id, ref: item.id, date: dateISO, part: null}).why) dequeueSeen(st, o, item, dateISO);
-      const row = buildRow(o.id, item, dateISO, silent);
+      let row = buildRow(o.id, item, dateISO, silent);
+      /* Днём колонки источника без журнала изменений остаются со значением на 02:00. */
+      if(how.live && i >= 0) row = keepNightOnly(o, st.rows[i], row);
       /* Неполной считается записанная строка, а не собранная. */
       const part = silentOf(row).length > 0;
-      /* ADR-0208 §5: неполная строка сама ставит запись в следующий прогон (`candidatesOf`) — «та же очередь с другим поводом попадания». */
       if(i >= 0){
         if(st.rows[i].fixed){ t.kept++; return; }
         const ch = rowDiff(st.rows[i], row);
@@ -3970,13 +3974,27 @@ function doRun(st, dateISO, kind, actor, reason, silent, how){
     });
     parts.push(partOf(o, t));
   });
-  /* Маркеры, поставленные ответом источника в этом прогоне, — его счётчик `markers`. */
+  /* Маркеры, поставленные записями журнала изменений в этом прогоне, — его счётчик `markers`. */
   if(how.marks) parts.forEach(p => { p.markers += how.marks[p.obj] || 0; });
-  st.runs.push({date: dateISO, kind, at: st.today, actor, reason, written, parts,
-    /* Кто не ответил в этом прогоне — реквизит журнала, а не вывод из строк: источник, не ответивший по объекту без изменений, строк не оставил, и восстановить неответ было бы не из чего (§7 — повод модулю заданий считается по прогонам, а не по строкам). */
+  return {written, parts, cand};
+}
+function doRun(st, dateISO, kind, actor, reason, silent, how){
+  how = how || {};
+  /* Ночной прогон за сутки N сначала закрывает сутки N−1, затем открывает сутки N. */
+  const closed = how.night ? closeDay(st, dayShift(dateISO, -1), silent) : null;
+  const {written, parts, cand} = runParts(st, dateISO, silent, how);
+  if(closed) parts.forEach(p => {
+    const c = closed.parts[p.obj];
+    p.missed = c ? c.missed : [];
+    if(c) p.filled = p.filled.concat(c.filled);
+  });
+  st.runs.push({date: dateISO, kind, at: st.today, time: st.clock, actor, reason, written, parts,
+    /* Кто не ответил в этом прогоне — реквизит журнала, а не вывод из строк. */
     silent: silent ? clone(silent) : null,
-    /* Состав объектов к пересчёту по каждому источнику, моменты `T` и полные обходы — тоже реквизит прогона. */
-    cand: candSummary(cand)});
+    /* Состав обхода — реквизит прогона: ночью полный, у ретро — названные записи. */
+    cand: candSummary(cand),
+    /* Закрытие вчерашних суток: сколько строк переписано и `missed` по источникам. */
+    closed: closed ? {date: closed.date, rows: closed.rows, missed: closed.missed, nightOnly: closed.nightOnly, filled: closed.filled} : null});
   reconcileRun(st, st.runs.length - 1);
   /* `T` сдвигает только ночной прогон: догон и прогон после открытия периода удостоверяют прошлую дату, и сдвиг `T` заставил бы следующий прогон запрашивать источник с уже пройденной даты. */
   if(!how.keepT) NEIGHBOURS.forEach(nb => {
@@ -3985,6 +4003,64 @@ function doRun(st, dateISO, kind, actor, reason, silent, how){
     if(p.T == null || p.T < dateISO){ p.T = dateISO; p.at = st.today; }
   });
   return written;
+}
+/* ДНЕВНОЙ ПРОГОН `live` — один на сутки: его открывает ночной прогон за N, закрывает прогон за N+1. */
+function liveOf(st, D){ return (st.lives || []).find(L => L.date === D && !L.closed) || null; }
+function openLive(st, D){
+  if(!st.lives) st.lives = [];
+  st.lives.forEach(L => { if(!L.closed && L.date < D) L.closed = {by: D, at: st.today, time: st.clock}; });
+  if(liveOf(st, D)) return liveOf(st, D);
+  const by = {}; CAND_SRC.forEach(k => by[k] = 0);
+  const L = {date: D, kind:'live', opened: st.clock, closed: null, polls: 0, by, n: 0, written: 0, parts: []};
+  st.lives.push(L);
+  return L;
+}
+/* НОЧНОЙ ПРОГОН ЗА N: догнать пропущенные ночи · забрать необработанные записи журнала изменений (пересчёт с даты факта) · закрыть сутки N−1 · открыть сутки N · открыть дневной прогон за N. */
+function nightRun(st, N, silent){
+  const cu = catchUp(st, N, silent);
+  const fed = feedTasks(st, N, pendingFeed(st, N, silent));
+  const retro = retroPass(st, N);
+  const written = doRun(st, N, 'плановый', null, null, silent, {night: true, marks: fed.marks});
+  const rec = st.runs[st.runs.length - 1];
+  /* Журналы источников опрошены ночным прогоном до этого момента. */
+  NEIGHBOURS.forEach(nb => {
+    if(!nb.asks || (silent || {})[nb.id]) return;
+    const p = st.polls[nb.id] || (st.polls[nb.id] = {T: null, at: null});
+    p.seen = st.clock;
+  });
+  if(N === st.today && rec.status !== 'failed') openLive(st, N);
+  return {cu, fed, retro, written, rec};
+}
+/* ДНЕВНОЙ ОПРОС ЖУРНАЛОВ ИЗМЕНЕНИЙ. Записи после T дают кандидатов по четырём множествам; строка кандидата пересчитывается целиком, задним числом в открытом месяце — со дня факта. */
+function pollTick(st){
+  const D = st.today, L = liveOf(st, D);
+  if(!L) return {ok:false, why: nightOf(st, D)
+    ? 'дневной прогон за '+fmt(D)+' закрыт'
+    : 'ночной прогон за '+fmt(D)+' не состоялся: дневного прогона нет, записи журнала изменений ждут следующей ночи (ADR-0264 §5)'};
+  NEIGHBOURS.forEach(nb => {
+    if(!nb.asks) return;
+    const p = st.polls[nb.id] || (st.polls[nb.id] = {T: null, at: null});
+    p.seen = st.clock;
+  });
+  const feed = pendingFeed(st, D);
+  const c = liveCandidates(st, D, feed);
+  const fed = feedTasks(st, D, feed);
+  const retro = retroPass(st, D);
+  L.polls++;
+  const keys = Object.keys(c.set);
+  if(!keys.length) return {ok:true, date: D, n: 0, written: 0, rewrote: 0, by: {}, retro: retro.length, taken: feed.length};
+  const r = runParts(st, D, null, {only: keys, by: c.set, live: true, marks: fed.marks});
+  let rewrote = 0;
+  r.parts.forEach(p => {
+    const at = x => Object.assign({time: st.clock}, x);
+    if(!p.rewrote.length && !p.filled.length && !(p.created || []).length) return;
+    rewrote += p.rewrote.length;
+    L.parts.push({obj: p.obj, rewrote: p.rewrote.map(at), filled: p.filled.map(at), created: (p.created || []).map(at)});
+  });
+  CAND_SRC.forEach(k => { L.by[k] += c.by[k].length; });
+  L.n += keys.length; L.written += r.written;
+  const by = {}; CAND_SRC.forEach(k => by[k] = c.by[k].length);
+  return {ok:true, date: D, n: keys.length, written: r.written, rewrote, by, retro: retro.length, taken: feed.length};
 }
 function fixMonth(st, month, who, atISO){
   let n = 0;
@@ -4020,7 +4096,7 @@ function repollNbs(st, month, silent){
 }
 const LATCH_SCAN = 'закрытие периода удостоверяет состояние, а не изменения: обход идёт по всем объектам в пределах правил видимости (ADR-0221 §3)';
 function repoll(st, month, who, atISO, silent){
-  /* Итог месяца — строки состояний на первое число следующего. */
+  /* Итог месяца — строки состояний на его последний день. */
   const dateISO = sliceOfMonth(month);
   const nbs = repollNbs(st, month, silent);
   let made = 0, again = 0, written = 0;
@@ -4081,9 +4157,11 @@ function closeLayerCheck(st, month, layer, who){
   const expected = st.months.find(m => !latchOf(st, m, layer));
   if(month !== expected) return {ok:false, why:'периоды закрываются по порядку: следующий по слою «'+
     layer+'» — '+monLabel(expected)};
-  if(sliceOfMonth(month) > st.today) return {ok:false, why:'период '+monLabel(month)+
-    ' ещё не завершён: его итог — срез на начало '+fmt(sliceOfMonth(month))+
-    ', закрытие возможно с этой даты (ADR-0245 §9)'};
+  /* Статистика закрывает месяц после того, как ночной прогон закрыл сутки его последнего дня. */
+  const S = sliceOfMonth(month);
+  if(layer === MY_LAYER && !st.runs.some(r => NIGHT_KINDS.indexOf(r.kind) >= 0 && r.date > S && r.status !== 'failed'))
+    return {ok:false, why:'период '+monLabel(month)+' ещё не завершён: его итог — строка '+fmt(S)+
+      ', а сутки '+fmt(S)+' закрывает ночной прогон '+fmt(dayShift(S, 1))+' — закрытие возможно после него (ADR-0264 §8)'};
   /* Отказ называет незакрытый слой: «нельзя» без имени препятствия — неполный ответ (§8.4), а незакрытых слоёв может быть и два. */
   const empty = LAYERS.slice(0, i).filter(L => !row.latches[L]);
   if(empty.length) return {ok:false, blockedBy: empty[0], why:'колонка «'+layer+'» периода '+
@@ -4102,7 +4180,7 @@ function closeLayer(st, month, layer, who, atISO){
   return {ok:true, month, layer, by: who, at: atISO, order: re ? re.order : null};
 }
 
-/* Что блокирует закрытие. Неполнота итога: строк состояний на последнюю хранимую дату периода — первое число следующего, а у текущего месяца последний прогон, — и строк событий месяца. */
+/* Что блокирует закрытие. Неполнота итога: строк состояний на последнюю хранимую дату периода — его последний день, а у текущего месяца последний прогон, — и строк событий месяца. */
 function periodBlockers(st, month){
   const S = sliceOfMonth(month);
   const warnings = st.runs.filter(r => r.kind === 'пропуск' && periodOf(r.date) === month).map(s => {
@@ -4137,7 +4215,7 @@ function periodBlockers(st, month){
   }).sort((a, b) => b.n - a.n);
   return {blockers, warnings, at: last};
 }
-/* УДАЛЕНИЕ ДНЕЙ. Закрытый месяц хранит итог — строку первого числа следующего. */
+/* УДАЛЕНИЕ ДНЕЙ. Закрытый месяц хранит итог — строку своего последнего дня. */
 function dropDays(st, month, atISO, who){
   const S = sliceOfMonth(month);
   /* Первый открытый день — не обязательно следующий за итогом: при повторном закрытии мая 02.06 лежит в закрытом июне, и задание там не выполнит ни один прогон. */
@@ -4153,15 +4231,19 @@ function dropDays(st, month, atISO, who){
   const rows = st.rows.filter(gone).length;
   st.rows = st.rows.filter(r => !gone(r));
   let rewrites = 0;
-  st.runs.forEach(run => {
-    if(!run.parts || run.date === S || periodOf(run.date) !== month) return;
-    run.parts.forEach(p => {
-      if(storageOf(p.obj) !== 'state') return;
-      rewrites += p.rewrote.length + p.filled.length;
-      p.rewrote = []; p.filled = [];
+  /* Записи журнала перезаписи об удалённых днях удаляются вместе с ними; у закрытия суток запись несёт свою дату. */
+  const drop = (p, runDate) => {
+    if(storageOf(p.obj) !== 'state') return;
+    ['rewrote','filled','missed'].forEach(k => {
+      if(!p[k]) return;
+      const keep = p[k].filter(x => { const d = x.date || runDate; return periodOf(d) !== month || d === S; });
+      rewrites += p[k].length - keep.length;
+      p[k] = keep;
     });
-  });
-  /* Задание первого числа относится к хранимому дню: итог остаётся, остаются и его записи о перезаписи (выше), и эти задания не трогаются — ни выполненные, ни нет. */
+  };
+  st.runs.forEach(run => (run.parts || []).forEach(p => drop(p, run.date)));
+  (st.lives || []).forEach(L => L.parts.forEach(p => drop(p, L.date)));
+  /* Задание последнего дня относится к хранимому дню: итог остаётся, остаются и его записи о перезаписи (выше), и эти задания не трогаются — ни выполненные, ни нет. */
   const dayOf = q => periodOf(q.at) === month && q.at !== S;
   const was = st.queue.length;
   st.queue = st.queue.filter(q => !(q.done && dayOf(q)));
@@ -4249,10 +4331,10 @@ function openLayer(st, month, layer){
 
 /* ================== ЛЕГАСИ-ИТОГИ ================== */
 const LAUNCH = '2026-05-01';
-/* Сторона запуска определяется по дате среза: срез 01.05 — это состояние на конец 30.04, то есть ещё легаси-сторона, а первая собственная строка — 02.05. */
-const preLaunch = d => d <= LAUNCH;
+/* Сторона запуска определяется по дате среза: строка 30.04 — конец апреля, ещё легаси-сторона, а первая собственная строка — 01.05, конец дня запуска. */
+const preLaunch = d => d < LAUNCH;
 /* Первый собственный прогон: событие до запуска получает исходную строку в нём. */
-const FIRST_OWN = dayShift(LAUNCH, 1);
+const FIRST_OWN = LAUNCH;
 /* Версия формы — не поле строки, а реквизит записи о закрытии: «какой формой собрано» — свойство того же действия, что и «кем и когда закрыто». */
 const FORM = {LEGACY:'легаси', NOW:'действующая'};
 const isLegacyRow = r => !!(r && r.fixed && r.fixed.edition === FORM.LEGACY);
@@ -4270,24 +4352,24 @@ const LEGACY = {
   /* Итоги, как их отдала старая система. */
   totals: {'obj-credit': [
     {ref:'КД-2019/017', cur:'KGS', dims:{'d-branch':'Ошское РП','d-cur':'KGS','d-status':'действующий'},
-     v:{'2025-01-01':[1840000,0,0], '2025-04-01':[1520000,0,0], '2025-07-01':[1180000,64000,21],
-        '2025-10-01':[820000,0,0], '2026-01-01':[410000,0,0]}},
+     v:{'2024-12-31':[1840000,0,0], '2025-03-31':[1520000,0,0], '2025-06-30':[1180000,64000,21],
+        '2025-09-30':[820000,0,0], '2025-12-31':[410000,0,0]}},
     {ref:'КД-2021/044', cur:'KGS', dims:{'d-branch':'Кредитный департамент','d-cur':'KGS','d-status':'действующий'},
-     v:{'2025-01-01':[2650000,118000,44], '2025-04-01':[2410000,96000,31], '2025-07-01':[2180000,0,0],
-        '2025-10-01':[1940000,0,0], '2026-01-01':[1700000,52000,17], '2026-04-01':[1455000,0,0]}},
+     v:{'2024-12-31':[2650000,118000,44], '2025-03-31':[2410000,96000,31], '2025-06-30':[2180000,0,0],
+        '2025-09-30':[1940000,0,0], '2025-12-31':[1700000,52000,17], '2026-03-31':[1455000,0,0]}},
     {ref:'КД-2023/210', cur:'KGS', dims:{'d-branch':'Ошское РП','d-cur':'KGS','d-status':'действующий'},
-     v:{'2025-01-01':[3180000,0,0], '2025-04-01':[3120000,74000,19], '2025-07-01':[3040000,88000,30],
-        '2025-10-01':[2980000,132000,61], '2026-01-01':[2930000,168000,92], '2026-04-01':[2890000,214000,128]}},
+     v:{'2024-12-31':[3180000,0,0], '2025-03-31':[3120000,74000,19], '2025-06-30':[3040000,88000,30],
+        '2025-09-30':[2980000,132000,61], '2025-12-31':[2930000,168000,92], '2026-03-31':[2890000,214000,128]}},
     {ref:'КД-2022/065', cur:'KGS', dims:{'d-branch':'Кредитный департамент','d-cur':'KGS','d-status':'действующий'},
-     v:{'2025-01-01':[4620000,0,0], '2025-04-01':[4480000,0,0], '2025-07-01':[4310000,96000,25],
-        '2025-10-01':[4180000,148000,58], '2026-01-01':[4060000,196000,121], '2026-04-01':[3990000,208000,190]}},
+     v:{'2024-12-31':[4620000,0,0], '2025-03-31':[4480000,0,0], '2025-06-30':[4310000,96000,25],
+        '2025-09-30':[4180000,148000,58], '2025-12-31':[4060000,196000,121], '2026-03-31':[3990000,208000,190]}},
     {ref:'КД-2021/012', cur:'KGS', dims:{'d-branch':'Ошское РП','d-cur':'KGS','d-status':'действующий'},
-     v:{'2025-01-01':[430000,0,0], '2025-04-01':[372000,0,0], '2025-07-01':[310000,0,0],
-        '2025-10-01':[248000,0,0], '2026-01-01':[186000,0,0], '2026-04-01':[124000,0,0]}},
+     v:{'2024-12-31':[430000,0,0], '2025-03-31':[372000,0,0], '2025-06-30':[310000,0,0],
+        '2025-09-30':[248000,0,0], '2025-12-31':[186000,0,0], '2026-03-31':[124000,0,0]}},
     /* Валютный договор: величина в своей валюте и без курса. */
     {ref:'КД-2025/043', cur:'USD', dims:{'d-branch':'Кредитный департамент','d-cur':'USD','d-status':'действующий'},
-     v:{'2025-04-01':[178000,0,0], '2025-07-01':[172000,0,0], '2025-10-01':[166000,0,0],
-        '2026-01-01':[160000,0,0], '2026-04-01':[156000,0,0]}}
+     v:{'2025-03-31':[178000,0,0], '2025-06-30':[172000,0,0], '2025-09-30':[166000,0,0],
+        '2025-12-31':[160000,0,0], '2026-03-31':[156000,0,0]}}
   ]}
 };
 /* §1: колонка источника у легаси-строки заполнена по каждому модулю-источнику, которого действующая форма запросила бы ради этих же величин, и содержит «легаси». */
@@ -4359,7 +4441,11 @@ function seed(){
   const scopeBad = scopeErrors(objs, REGISTRY);
   if(scopeBad.length) throw new Error('загрузка реестра: '+scopeBad.join('; ')+' (ИС-58, ADR-0243)');
   const st = {
-    today: '2026-08-22',
+    today: '2026-08-21',
+    /* Время демо-дня: ночной прогон идёт в 02:00, днём строку сегодняшнего дня меняют события. */
+    clock: NIGHT_AT,
+    /* Дневные прогоны `live` — по одному на сутки; платежи, внесённые в демо-день (`pays`), — факты источника, которых нет в демо-данных. */
+    lives: [], pays: {},
     role: 'Администратор статистики',
     view: 'journal',
     months: MONTHS.slice(),
@@ -4411,16 +4497,19 @@ function seed(){
   reconcile(st);
   /* Легаси загружается первым и не прогоном: строки до запуска должны быть в хранилище до первого прогона — иначе прогон 28 мая не увидел бы, что у КД-2023/210 уже есть история (сравнивать с ней всё равно нельзя — формы разные). */
   loadLegacy(st);
-  /* Строка каждый день: демо-данные прогоняются каждую ночь от первого собственного прогона — 02.05 (срез 01.05 ещё легаси-сторона) — до 21.08. */
-  for(let d = dayShift(LAUNCH, 1); d <= '2026-08-21'; d = dayShift(d, 1)){
+  /* Строка каждый день: демо-данные прогоняются каждую ночь от первого собственного прогона — 01.05, день запуска, — до сегодняшнего 21.08. */
+  for(let d = LAUNCH; d <= st.today; d = dayShift(d, 1)){
+    st.clock = NIGHT_AT;
     if(d === '2026-08-20'){
       st.runs.push({date: d, kind:'пропуск', at: dayShift(d, 1), actor:'планировщик',
         reason:'сбой ночного планировщика: задание не стартовало', written:0});
       continue;
     }
-    catchUp(st, d, null);
-    doRun(st, d, 'плановый', null, null);
+    nightRun(st, d, null);
   }
+  /* Демо-день: ночной прогон за 21.08 прошёл в 02:00, журналы источников опрошены до этой минуты. */
+  st.clock = '14:15:07';
+  pollTick(st);
   /* Дата запроса по умолчанию — последний прогон, а не «сегодня». */
   st.q.date = st.runs.filter(r => (r.parts || []).some(p => p.obj === st.q.obj))
     .map(r => r.date).sort().slice(-1)[0];
@@ -4450,7 +4539,7 @@ const SEED_CACHE = new Map(), SEED_STAT = {hits: 0, misses: 0};
 const SEED_INPUTS = () => ({WORLD, OBJECTS, REF, RATES, LEGACY, NEIGHBOURS, REGISTRY, RELEASE, VTYPES,
   COLL_K, SURVEY_MATRIX, PAY_SPLIT, PAY_LAYER, ARTICLES, BANKRUPT_SUBGROUPS,
   'CORE.DATING': CORE.DATING, 'CORE.SOM_ROUNDING': CORE.SOM_ROUNDING,
-  KIND, DATING, FORM, LAYERS, MON, NIGHTLY, CAND_SRC, FLAT_TYPES, CUR_DIM, SOURCE_STATES});
+  KIND, DATING, FORM, LAYERS, MON, NIGHTLY, NIGHT_KINDS, CAND_SRC, FLAT_TYPES, CUR_DIM, SOURCE_STATES});
 const seedPrint = () => JSON.stringify(SEED_INPUTS());
 ST.seedInputs = () => Object.keys(SEED_INPUTS());
 ST.seed = fresh => {
@@ -4659,7 +4748,7 @@ ST.reopenPeriod = (month, order, who) => {
   /* Открытый месяц переписывается прогоном: его маркеры закрываются с причиной `reopen`. */
   const reopened = closeStateMarkers(st, month, at);
   const marked = markExports(st, month, order, at);
-  /* Итог пересчитывается, удалённые дни не восстанавливаются. Строку первого числа следующего месяца переписывает прогон «повторное открытие»: полный обход, только состояния, `T` источников не сдвигается — прогон удостоверяет прошлую дату, а не изменения. */
+  /* Итог пересчитывается, удалённые дни не восстанавливаются. Строку последнего дня месяца переписывает прогон «повторное открытие»: полный обход, только состояния, `T` источников не сдвигается — прогон удостоверяет прошлую дату, а не изменения. */
   let recount = null;
   if(dropped.indexOf(MY_LAYER) >= 0 && row.daysDropped){
     const S = sliceOfMonth(month);
@@ -4687,10 +4776,12 @@ ST.reopenPeriod = (month, order, who) => {
 /* --------------------------- ПРОГОН --------------------------------- */
 ST.run = (dateISO, opts) => {
   const st = ST.state; opts = opts || {};
+  /* Прогон за завтра — это наступившая ночь: в 02:00 демо-день переходит на следующие сутки. */
+  if(!opts.manual && dateISO === dayShift(st.today, 1)){ st.today = dateISO; st.clock = NIGHT_AT; }
   if(dateISO > st.today) return {ok:false, why:'прогон на будущую дату не запускается'};
   /* §5: легаси-строки прогон не видит и в легаси-период не заходит. */
   if(preLaunch(dateISO)) return {ok:false, why:'прогон за '+fmt(dateISO)+' не запускается: '+
-    'срез на дату '+fmt(dateISO)+' — это состояние на конец '+fmt(eveOf(dateISO))+', а это раньше запуска '+
+    'строка за '+fmt(dateISO)+' — это состояние на конец '+fmt(dateISO)+', а это раньше запуска '+
     fmt(LAUNCH)+'. До запуска историю собирала другая система, и её итоги загружены миграцией '+
     '('+st.legacy.by+', '+fmt(st.legacy.at)+') — прогон их не считает, не видит и не '+
     'перепишет (ИС-41, ИС-54, ADR-0207 §3, §5)'};
@@ -4702,9 +4793,9 @@ ST.run = (dateISO, opts) => {
   const calD = calendarRow(st, periodOf(dateISO));
   if(calD && calD.daysDropped && dateISO !== sliceOfMonth(periodOf(dateISO)))
     return {ok:false, why:'дни месяца '+monLabel(periodOf(dateISO))+' удалены при закрытии ('+calD.daysDropped.by+
-      ', '+fmt(calD.daysDropped.at)+') и не восстанавливаются: закрытый месяц хранит итог — срез на '+
+      ', '+fmt(calD.daysDropped.at)+') и не восстанавливаются: закрытый месяц хранит итог — строку '+
       fmt(sliceOfMonth(periodOf(dateISO)))+', а данные источников за '+fmt(dateISO)+' уже не запросить. Итог '+
-      'пересчитывает повторное открытие (ИС-54, ADR-0238 §5)'};
+      'пересчитывает повторное открытие (ИС-54, ADR-0264 §8)'};
   if(opts.manual){
     if(!ST.canAdmin()) return {ok:false, why:'внеплановый пересчёт запускает администратор статистики'};
     if(!opts.reason) return {ok:false, why:'внеплановый пересчёт без причины не запускается: журнал срезов — часть контракта'};
@@ -4718,6 +4809,8 @@ ST.run = (dateISO, opts) => {
       String(silent[nb])+'» не объявлена: причин четыре, и они требуют разных действий — '+
       SILENCE_REASONS.join(' · ')+' (ИС-42, ADR-0208 §2)'};
   }
+  /* Ночной прогон идёт в 02:00: запущенный раньше, он ставит часы на своё время. */
+  if(!opts.manual && dateISO === st.today && st.clock < NIGHT_AT) st.clock = NIGHT_AT;
   /* Срок хранения файлов выгрузок проверяет ночной прогон: задания остаются, файлы удаляются. */
   if(!opts.manual) expireExports(st, st.today);
   /* ADR-0245 §6: периода нет в календаре — срезу некуда лечь, и прогон записывается ПРОПУСКОМ с причиной (`calendarGap`, то же правило у догона). */
@@ -4727,42 +4820,90 @@ ST.run = (dateISO, opts) => {
     log('пропуск прогона за '+fmt(dateISO)+': '+gapWhy);
     return {ok:false, skipped:true, why: gapWhy};
   }
-  /* Перед своей датой прогон догоняет пропущенные; даты вне календаря догон не пишет, а записывает пропуском. */
-  const cu = catchUp(st, dateISO, silent), caught = cu.dates;
-  /* Ответы источников с датой действия забирает ночной прогон: задачи `retro` и их открытые дни — до своей даты. */
-  const fed = opts.manual ? {n: 0, marks: {}} : takeFeed(st, dateISO, silent);
-  const retro = opts.manual ? [] : retroPass(st, dateISO);
-  const kind = opts.manual ? 'внеплановый' : 'плановый';
-  const written = doRun(st, dateISO, kind, opts.manual ? (opts.actor || st.role) : null,
-                        opts.reason || null, silent, {marks: fed.marks});
+  let cu = {dates: [], noCalendar: []}, fed = {n: 0, marks: {}}, retro = [];
+  if(opts.manual){
+    doRun(st, dateISO, 'внеплановый', opts.actor || st.role, opts.reason || null, silent, {full: true,
+      why: 'внеплановый пересчёт открытой даты: полный обход (ADR-0245 §2)'});
+  } else {
+    const nr = nightRun(st, dateISO, silent);
+    cu = nr.cu; fed = nr.fed; retro = nr.retro;
+  }
+  const caught = cu.dates;
   /* При хранении только изменений «строк — N» не описывает прогон: ноль записанных строк может значить и «ничего не изменилось», и «запись запрещена». */
   const rec = st.runs[st.runs.length-1];
+  const written = rec.written;
   const sum = k => rec.parts.reduce((n, p) => n + (p[k] || 0), 0);
   const same = sum('same'), kept = sum('kept'), born = sum('born'), partial = sum('partial');
-  const skip = sum('skip');
-  const copied = sum('copied');
-  const rewrote = rec.parts.reduce((n, p) => n + p.rewrote.length, 0);
-  const filled  = rec.parts.reduce((n, p) => n + p.filled.length, 0);
-  /* Прогон отчитывается составом объектов к пересчёту, а не одним числом: «объектов 46» не отличает случай, когда источники назвали сорок объектов, от случая, когда сорок пришли полным обходом неотвечающего источника. */
-  const c = rec.cand || {};
-  const candLine = c.scan === 'полный'
-    ? ' · обход полный ('+c.why+')'
-    : ' · объектов к пересчёту — '+c.n+' ('+CAND_SRC.filter(k => c.by[k]).map(k => k+' — '+c.by[k]).join(' · ')+
-      ')'+(skip ? ' · не обходилось — '+skip : '')+
-      (c.polls.filter(p => p.degraded).length
-        ? ' · полностью обойдены источники: '+c.polls.filter(p => p.degraded).map(p => p.nb).join(', ')
-        : '');
-  log((opts.manual ? 'внеплановый пересчёт' : 'прогон')+' за '+fmt(dateISO)+': строк — '+written+
-      ' · без изменений — '+same+(born ? ' · новых объектов — '+born : '')+
+  const skip = sum('skip'), n = sum('n');
+  const rewrote = rec.parts.reduce((x, p) => x + p.rewrote.length, 0);
+  const filled  = rec.parts.reduce((x, p) => x + p.filled.length, 0);
+  const cl = rec.closed;
+  const missedN = cl ? Object.keys(cl.missed).reduce((x, k) => x + cl.missed[k], 0) : 0;
+  log((opts.manual ? 'внеплановый пересчёт' : 'прогон')+' за '+fmt(dateISO)+': '+
+      (cl ? 'закрыты сутки '+fmt(cl.date)+' — переписано '+cl.rows+', missed — '+missedN+' · ' : '')+
+      'строк — '+written+' · изменилось — '+n+' · без изменений — '+same+(born ? ' · новых объектов — '+born : '')+
       (rewrote ? ' · переписано — '+rewrote : '')+(filled ? ' · дозаполнено — '+filled : '')+
       (partial ? ' · неполных — '+partial+' ('+Object.keys(silent || {}).join(', ')+
         ' не ответил'+(Object.keys(silent || {}).length > 1 ? 'и' : '')+')' : '')+
-      (kept ? ' · в закрытом периоде, пропущено — '+kept : '')+' · скопировано — '+copied+
+      (kept ? ' · в закрытом периоде, пропущено — '+kept : '')+
       (caught.length ? ' · догнано — '+caught.map(fmt).join(', ') : '')+
-      (cu.noCalendar.length ? ' · вне календаря, пропуск — '+cu.noCalendar.map(fmt).join(', ') : '')+candLine);
+      (cu.noCalendar.length ? ' · вне календаря, пропуск — '+cu.noCalendar.map(fmt).join(', ') : '')+
+      ' · обход полный');
   return {ok: rec.status !== 'failed', status: rec.status, failed: clone(rec.failed || []),
-          date: dateISO, written, kind, same, kept, born, rewrote, filled, partial,
-          skip, copied, caught, noCalendar: cu.noCalendar, cand: clone(c), fed: fed.n, retro: retro.length};
+          date: dateISO, written, kind: rec.kind, n, same, kept, born, rewrote, filled, partial,
+          skip, caught, noCalendar: cu.noCalendar, cand: clone(rec.cand || {}), fed: fed.n, retro: retro.length,
+          closed: cl ? clone(cl) : null, missed: cl ? clone(cl.missed) : null};
+};
+/* ДНЁМ: опрос журналов изменений источников. В рабочей системе он идёт раз в несколько секунд; в макете — по кнопке или сразу после события. */
+ST.poll = () => {
+  const st = ST.state;
+  const r = pollTick(st);
+  if(r.ok && r.n) log('дневной пересчёт '+fmt(r.date)+' в '+st.clock+': объектов — '+r.n+' · переписано — '+r.rewrote+
+    (r.retro ? ' · задним числом дней — '+r.retro : ''));
+  return r;
+};
+ST.lives = () => clone(ST.state.lives || []);
+ST.clock = () => ({today: ST.state.today, clock: ST.state.clock});
+/* Часы демо-дня идут только вперёд; ночной прогон они не запускают. */
+ST.setClock = (dateISO, time) => {
+  const st = ST.state;
+  if(!/^\d\d:\d\d:\d\d$/.test(String(time || ''))) return {ok:false, why:'время — ЧЧ:ММ:СС'};
+  if(dateISO < st.today || (dateISO === st.today && time < st.clock))
+    return {ok:false, why:'время назад не идёт: сейчас '+fmt(st.today)+' '+st.clock};
+  st.today = dateISO; st.clock = time;
+  return {ok:true, today: st.today, clock: st.clock};
+};
+/* ДНЕВНОЕ СОБЫТИЕ — ПЛАТЁЖ ПО КРЕДИТУ. Погашения сохраняют платёж и в той же транзакции пишут в журнал изменений ключи кредита, его заёмщика и залогов под ним с датой факта; статистика узнаёт об этом ближайшим опросом. `journal: false` — платёж, о котором источник не сообщил: его найдёт ночной прогон как `missed`. */
+ST.pay = (ref, amount, opts) => {
+  const st = ST.state; opts = opts || {};
+  const item = (WORLD['obj-credit'] || []).find(x => x.id === ref);
+  if(!item) return {ok:false, why:'кредита «'+String(ref)+'» нет'};
+  if(!(amount > 0)) return {ok:false, why:'сумма платежа — положительное число'};
+  const date = opts.date || st.today;
+  if(date > st.today) return {ok:false, why:'платёж будущим днём не вносится'};
+  if(preLaunch(date)) return {ok:false, why:'платёж раньше запуска '+fmt(LAUNCH)+' в макете не вносится'};
+  if(opts.at){
+    if(opts.at < st.clock) return {ok:false, why:'время назад не идёт: сейчас '+st.clock};
+    st.clock = opts.at;
+  }
+  (st.pays[item.id] || (st.pays[item.id] = [])).push({date, amount, at: st.today, time: st.clock});
+  const journal = opts.journal !== false;
+  const put = (objId, key) => {
+    const f = {nb: 'погашения', obj: objId, ref: key, from: date, at: st.today, time: st.clock, taken: null, closed: null};
+    st.nbFeed.push(f);
+    return clone(f);
+  };
+  const entries = [];
+  if(journal){
+    entries.push(put('obj-credit', item.id));
+    if((WORLD['obj-borrower'] || []).some(b => b.id === item.f.inn)) entries.push(put('obj-borrower', item.f.inn));
+    /* Обеспеченная часть залога считается от остатка кредита: залоги под кредитом названы той же записью. */
+    (WORLD['obj-collateral'] || []).filter(c => (c.f.alloc || []).some(a => a.credit === item.id))
+      .forEach(c => entries.push(put('obj-collateral', c.id)));
+  }
+  log('платёж '+money(amount, item.f.cur || 'KGS')+' по '+ref+' за '+fmt(date)+' в '+st.clock+
+    (journal ? ': записан в журнал изменений' : ': в журнал изменений НЕ записан'));
+  return {ok:true, ref, amount, date, at: st.clock, journal, entries, queue: liveQueue(st)};
 };
 /* Догон — отдельный метод: прогон начинается с него, и узнать «что догнано и сдвинут ли T» нужно до прогона. */
 ST.catchUp = dateISO => {
@@ -4785,23 +4926,33 @@ ST.skip = (dateISO, reason) => {
 /* Момент `T` по каждому источнику — видимый реквизит: «источник не отвечает третий прогон» и «источник не опрашивался с 31 мая» — разные проблемы с разными действиями, и различает их только `T`. */
 ST.polls = () => NEIGHBOURS.map(nb => {
   const p = ST.state.polls[nb.id] || {};
-  return {nb: nb.id, name: nb.name, asks: !!nb.asks, T: p.T || null, at: p.at || null,
-          why: nb.asks ? null : 'не умеет отвечать на «кто изменился после T»: обходится полностью (ADR-0221 §5)'};
+  return {nb: nb.id, name: nb.name, asks: !!nb.asks, T: p.T || null, at: p.at || null, seen: nb.asks ? (p.seen || null) : null,
+          why: nb.asks ? null : 'журнала изменений не ведёт: днём не опрашивается, обновляется только ночью (ADR-0221 §5, ADR-0264 §5)'};
 });
 /* Очередь показывается целиком: закрытые записи не удаляются, и «работа была и сделана» отличается от «работы не было». */
 /* ЖУРНАЛ ПЕРЕЗАПИСИ. Строка — «прогон + строка + имена изменившихся колонок + причина»; значений нет. */
-const REWRITE_REASONS = ['retro','backfill','reopen','manual','closing','legacy'];
+const REWRITE_REASONS = ['live','missed','retro','backfill','reopen','manual','closing','legacy'];
 const RUN_REASON = {'плановый':'retro', 'догон':'retro', 'retro':'retro', 'внеплановый':'manual',
                     'повторное открытие':'reopen', 'защёлка':'closing'};
 function rewriteLog(st){
   const out = [];
   st.runs.forEach((r, i) => (r.parts || []).forEach(p => {
-    const put = (x, reason) => out.push({run: i, night: r.at, date: r.date, obj: p.obj, ref: x.ref,
-      target: x.target || null, changed: (x.fields || []).slice(), reason});
+    const put = (x, reason) => out.push({run: i, night: r.at, date: x.date || r.date, obj: p.obj, ref: x.ref,
+      target: x.target || null, changed: (x.fields || []).slice(), reason,
+      nbs: x.nbs ? x.nbs.slice() : null, nightOnly: !!x.nightOnly});
     (p.rewrote || []).forEach(x => put(x, RUN_REASON[r.kind] || 'manual'));
     (p.filled || []).forEach(x => put(x, 'backfill'));
+    /* Закрытие суток ночным прогоном: изменение, о котором источник днём не сообщил. */
+    (p.missed || []).forEach(x => put(x, 'missed'));
   }));
-  return out.filter(e => !ST.isClosed(e.date) || e.date.slice(8) === '01');
+  /* Дневной прогон `live`: правки строки сегодняшнего дня. */
+  (st.lives || []).forEach(L => L.parts.forEach(p => {
+    const put = (x, reason) => out.push({run: 'live', night: L.date, date: L.date, time: x.time || null,
+      obj: p.obj, ref: x.ref, target: x.target || null, changed: (x.fields || []).slice(), reason, nbs: null, nightOnly: false});
+    p.rewrote.forEach(x => put(x, 'live'));
+    p.filled.forEach(x => put(x, 'backfill'));
+  }));
+  return out.filter(e => !ST.isClosed(e.date) || e.date === sliceOfMonth(periodOf(e.date)));
 }
 ST.rewriteLog = () => clone(rewriteLog(ST.state));
 ST.rewriteReasons = () => REWRITE_REASONS.slice();
@@ -4822,11 +4973,11 @@ ST.enqueue = (objId, ref, why, note) => {
   log('в очередь перестроения: «'+o.name+'» '+ref+' — '+why+(note ? ' ('+note+')' : ''));
   return {ok:true, obj: objId, ref, why, at: rec.at, queued: ST.queue().length};
 };
-/* МАРКЕР СОСТОЯНИЯ — ТОЛЬКО ПРИ РЕАЛЬНОМ ОТЛИЧИИ. Дата действия в закрытом месяце: итог каждого закрытого месяца после неё (строка первого числа следующего) пересчитывается и сравнивается со строкой. */
+/* МАРКЕР СОСТОЯНИЯ — ТОЛЬКО ПРИ РЕАЛЬНОМ ОТЛИЧИИ. Дата действия в закрытом месяце: итог каждого закрытого месяца с её месяца (строка последнего дня месяца) пересчитывается и сравнивается со строкой. */
 function markStates(st, objId, ref, fromISO, night){
   const item = (WORLD[objId] || []).find(x => x.id === ref);
   if(!item || storageOf(objId) !== 'state') return 0;
-  const since = periodOf(dayShift(fromISO, 1));
+  const since = periodOf(fromISO);
   let n = 0;
   st.periods.filter(p => p.month >= since && latchOf(st, p.month, MY_LAYER)).forEach(p => {
     const S = sliceOfMonth(p.month);
@@ -4867,18 +5018,29 @@ ST.nbChanged = (nbId, objId, ref, fromISO) => {
     return {ok:false, why:'записи «'+String(ref)+'» у объекта «'+o.name+'» нет: источник называет существующую запись'};
   if(!fromISO || fromISO > st.today) return {ok:false, why:'дата действия обязательна и не позже сегодняшней: '+
     'без неё прогон не знает, с какой даты пересчитывать (ADR-0245 §3)'};
-  const f = {nb: nb.id, obj: objId, ref, from: fromISO, at: st.today, taken: null, closed: null};
+  const f = {nb: nb.id, obj: objId, ref, from: fromISO, at: st.today, time: st.clock, taken: null, closed: null};
+  st.nbFeed.push(f);
+  return {ok:true, feed: clone(f)};
+};
+/* Справочник источника сменил значение (переподчинение, переименование): кандидаты — все строки сегодняшнего дня с этим значением разреза. */
+ST.dictChanged = (nbId, dict, key, fromISO) => {
+  const st = ST.state, nb = NB(nbId);
+  if(!nb) return {ok:false, why:'модуля-источника «'+String(nbId)+'» нет (ИС-42)'};
+  if(!nb.asks) return {ok:false, why:'источник «'+nb.id+'» журнала изменений не ведёт: он обновляется только ночью (ADR-0221 §5)'};
+  if(!REF[dict]) return {ok:false, why:'справочника «'+String(dict)+'» нет'};
+  if(!fromISO || fromISO > st.today) return {ok:false, why:'дата факта обязательна и не позже сегодняшней (ADR-0245 §3)'};
+  const f = {nb: nb.id, dict, key, from: fromISO, at: st.today, time: st.clock, taken: null, closed: null};
   st.nbFeed.push(f);
   return {ok:true, feed: clone(f)};
 };
 ST.nbFeed = () => clone(ST.state.nbFeed);
-/* Объекты к пересчёту на дату без записи в журнал — предпросмотр ближайшего прогона. */
-ST.candidates = (dateISO, silent) => {
-  const c = candidatesOf(ST.state, dateISO || ST.state.today, silent || null);
-  return {ok:true, date: dateISO || ST.state.today, full: c.full, why: c.why, from: c.from,
-          by: c.full ? {} : CAND_SRC.reduce((a, k) => (a[k] = c.by[k].map(clone), a), {}),
-          n: c.full ? null : Object.keys(c.set).length,
-          polls: c.polls.map(clone), moved: c.moved.slice()};
+/* Объекты к пересчёту ближайшим дневным опросом — предпросмотр без записи: четыре множества ИС-48. Ночью отбора нет — полный обход. */
+ST.candidates = () => {
+  const st = ST.state, D = st.today;
+  const c = liveCandidates(st, D, pendingFeed(st, D));
+  return {ok:true, date: D, live: !!liveOf(st, D), full: false,
+          by: CAND_SRC.reduce((a, k) => (a[k] = c.by[k].map(clone), a), {}),
+          n: Object.keys(c.set).length, polls: ST.polls()};
 };
 
 /* Правки строки нет и не будет: её существование уничтожило бы смысл датированного среза. */
@@ -4896,7 +5058,7 @@ function rowsAsOf(st, objId, dateISO){
   const o = OBJ(objId);
   return o && o.primary ? rows.filter(r => r.dims[o.primary] === true) : rows;
 }
-/* Хранится ли дата. Состояние хранится на каждую дату открытого месяца, у закрытого — только на первое число следующего (его итог); до запуска — только легаси-итоги на первых числах. */
+/* Хранится ли дата. Состояние хранится на каждую дату открытого месяца, у закрытого — только на его последний день (итог); до запуска — только легаси-итоги на последних днях месяцев. */
 function storedOn(st, objId, d){
   if(storageOf(objId) !== 'state') return true;
   if(preLaunch(d)) return st.rows.some(r => r.obj === objId && r.date === d && isLegacyRow(r));
@@ -4924,17 +5086,41 @@ function datesOf(st, objId){
   return uniq(runs.concat(leg)).filter(d => storedOn(st, objId, d)).sort();
 }
 
+/* ГРАНИЦА ДАТЫ ВОПРОСА: «на конец дня» (по умолчанию) или «на начало дня». «На начало дня X» читает строку X−1 — переводит движок, а не пользователь (ADR-0264 §6). */
+const EDGE = {END:'конец дня', START:'начало дня'};
+ST.EDGE = EDGE;
+/* Дата строки, которой отвечается вопрос. Строка сегодняшнего дня есть после ночного прогона за сегодня; до его конца вопрос «на сегодня» получает строку вчерашнего дня с пометкой — метаданные называют дату строки, и она отличается от спрошенной (ADR-0264 §5). */
+function rowDateOf(st, requested, edge){
+  const start = edge === EDGE.START;
+  const d = start ? eveOf(requested) : requested;
+  const out = {date: d, requested, edge: start ? EDGE.START : EDGE.END, note: null, live: false};
+  if(d !== st.today) return out;
+  if(nightOf(st, d)){ out.live = true; return out; }
+  const y = eveOf(d);
+  out.date = y;
+  /* Прогон, разошедшийся счётчиками при сверке, строку дня не публикует. */
+  const failed = st.runs.some(r => NIGHT_KINDS.indexOf(r.kind) >= 0 && r.date === d && r.status === 'failed');
+  out.note = failed ? 'ночной прогон за '+fmt(d)+' не прошёл сверку и не опубликован: данные на конец '+fmt(y)
+    : st.clock < NIGHT_AT && !st.runs.some(r => r.kind === 'пропуск' && r.date === d)
+    ? 'новый день ещё не посчитан, данные на конец '+fmt(y)
+    : 'ночной прогон за '+fmt(d)+' не состоялся: данные на конец '+fmt(y);
+  return out;
+}
+ST.rowDateOf = (requested, edge) => clone(rowDateOf(ST.state, requested, edge));
 /* Дата отвечается только хранимой строкой; ближайшая предыдущая не подставляется (ИС-12 сужен). */
-function resolveAsOf(st, objId, requested){
-  if(!storedOn(st, objId, requested)) return null;
-  const ds = datesOf(st, objId).filter(d => d <= requested && preLaunch(d) === preLaunch(requested));
+function resolveAsOf(st, objId, requested, edge){
+  const rd = rowDateOf(st, requested, edge);
+  const day = rd.date;
+  if(!storedOn(st, objId, day)) return null;
+  const ds = datesOf(st, objId).filter(d => d <= day && preLaunch(d) === preLaunch(day));
   if(!ds.length) return null;
   const asOf = ds[ds.length - 1];
   /* Состояние отвечает ровно своей датой: строка есть на каждую хранимую дату, подставлять нечего. */
-  if(storageOf(objId) === 'state' && asOf !== requested) return null;
-  return {asOf, age: daysBetween(asOf, requested), edition: preLaunch(asOf) ? FORM.LEGACY : FORM.NOW};
+  if(storageOf(objId) === 'state' && asOf !== day) return null;
+  return {asOf, age: daysBetween(asOf, requested), edition: preLaunch(asOf) ? FORM.LEGACY : FORM.NOW,
+          edge: rd.edge, note: rd.note, live: rd.live && asOf === st.today};
 }
-ST.resolveAsOf = requested => resolveAsOf(ST.state, ST.state.q.obj, requested);
+ST.resolveAsOf = (requested, edge) => resolveAsOf(ST.state, ST.state.q.obj, requested, edge);
 /* Внешний читатель запрашивает срез (rowsAsOf), а `rowsAt` — только когда нужны именно строки, записанные на эту дату. */
 ST.rowsAsOf = (objId, dateISO) => rowsAsOf(ST.state, objId || ST.state.q.obj, dateISO);
 ST.rowsAt = (objId, dateISO) => rowsAt(ST.state, objId || ST.state.q.obj, dateISO);
@@ -4985,7 +5171,18 @@ ST.eventFlow = (objId, indId, from, to, byDim) => {
 /* ADR-0202: запрашивается дата прогона, а не «сегодня». */
 function askDates(st, objId){ return datesOf(st, objId); }
 ST.askDates = objId => askDates(ST.state, objId || ST.state.q.obj);
-function dateGate(st, objId, requested){
+function dateGate(st, objId, asked, edge){
+  /* Будущая дата — отказ: строк за неё нет, а подстановка ответила бы на другой вопрос — завтра тот же вопрос даст другое число (ИС-36). */
+  if(asked > st.today){
+    const lastN = st.runs.filter(r => NIGHT_KINDS.indexOf(r.kind) >= 0).map(r => r.date).sort().slice(-1)[0];
+    const sk = st.runs.filter(r => r.kind === 'пропуск' && r.date === asked);
+    return 'на '+fmt(asked)+' строк нет: дата ещё не наступила — сегодня '+fmt(st.today)+
+      (lastN ? ', последний прогон '+fmt(lastN) : '')+
+      (sk.length ? ' · '+sk.map(g => fmt(g.date)+' — пропуск: '+g.reason).join(' · ') : '')+
+      '. Строк за будущую дату нет, и подстановка ответила бы на другой вопрос (ИС-36)';
+  }
+  /* Вопрос отвечается строкой своей даты: «на начало дня» — предыдущего, «сегодня» до ночного прогона — вчерашней с пометкой. */
+  const requested = rowDateOf(st, asked, edge).date;
   /* Дата, прогон которой разошёлся счётчиками, не публикуется. */
   const fr = st.runs.filter(r => r.date === requested && r.status).slice(-1)[0];
   if(fr && fr.status === 'failed') return 'срез на '+fmt(requested)+' не опубликован: прогон «'+fr.kind+
@@ -5008,14 +5205,14 @@ function dateGate(st, objId, requested){
   /* Дата закрытого месяца, раньше которой по эту сторону запуска хранимого нет (май демо-данных — первый собственный месяц), — тоже «не хранится»: строки на неё были записаны и удалены закрытием, и отказ называет эту причину. */
   const ns = notStored(st, objId, requested);
   if(ns && ns.next && (ns.prev || !ns.legacy)) return 'на '+fmt(requested)+' строки не хранится: '+
-    (ns.legacy ? 'до запуска '+fmt(LAUNCH)+' хранятся только легаси-итоги на первых числах кварталов'
+    (ns.legacy ? 'до запуска '+fmt(LAUNCH)+' хранятся только легаси-итоги на последних днях кварталов'
       : latchOf(st, ns.month, MY_LAYER)
-        ? 'месяц '+monLabel(ns.month)+' закрыт, а закрытый месяц хранит только итог — срез на первое число следующего'
+        ? 'дневные срезы закрытого месяца не хранятся: месяц '+monLabel(ns.month)+' закрыт и хранит только итог — строку последнего дня'
         : 'дни месяца '+monLabel(ns.month)+' удалены закрытием и повторным открытием не восстанавливаются — '+
-          'хранится только итог, срез на первое число следующего')+
+          'хранится только итог, строка последнего дня')+
     '. '+nearStored(ns).replace(/^б/, 'Б')+'; «как было '+fmt(requested)+
     '» отвечает текущий расчёт модуля-владельца «'+(o ? o.owner : '—')+'», а не срез. Ближайшая предыдущая '+
-    'не подставляется (ИС-12 сужен, ИС-54, ADR-0238 §3)';
+    'не подставляется (ИС-12 сужен, ИС-54, ADR-0264 §8)';
   /* Разрыв между последним легаси-итогом и первым прогоном — не пропуск в истории, а граница запуска: подставлять через неё нечего. */
   if(requested < side[0] && ds[0] < side[0])
     return 'на '+fmt(requested)+' строк нет: первая строка по эту сторону запуска '+
@@ -5033,12 +5230,12 @@ function dateGate(st, objId, requested){
     const sk = st.runs.filter(r => r.kind === 'пропуск' && r.date > last && r.date <= requested);
     return 'на '+fmt(requested)+' прогона не было'+
       (sk.length ? ' · '+sk.map(g => fmt(g.date)+' — пропуск: '+g.reason).join(' · ') : '')+
-      ': последний прогон '+fmt(last)+'. Запрашивается дата прогона, а не «сегодня» — '+
-      'текущее состояние отдаёт реестр «'+(o ? o.owner : '—')+'», а не срез (ИС-36)';
+      ': последний прогон '+fmt(last)+'. Запрашивается дата прогона: строк за дату без прогона нет, '+
+      'а ближайшая предыдущая не подставляется (ИС-36)';
   }
   return null;
 }
-ST.dateGate = (requested, objId) => dateGate(ST.state, objId || ST.state.q.obj, requested);
+ST.dateGate = (requested, objId, edge) => dateGate(ST.state, objId || ST.state.q.obj, requested, edge);
 
 /* ИС-13: роль режет СТРОКИ, а не итог. */
 function scopeTest(st, rule, value, asOf){
@@ -5267,7 +5464,7 @@ ST.filterCheck = (filter, objId, rows) => checkFilterShape(filter, objId) ||
 ST.operandValues = (kind, id, bucket) => {
   const st = ST.state;
   const o = operandOf({kind, id, bucket});
-  const res = resolveAsOf(st, st.q.obj, st.q.date);
+  const res = resolveAsOf(st, st.q.obj, st.q.date, st.q.edge);
   if(!res || !o) return [];
   const bk = o.vtype === 'корзина' ? (bucket || o.dim.buckets[0]) : null;
   const set = new Set();
@@ -5461,11 +5658,28 @@ function compositionText(dims, inds, meta){
     .map(id => { const I = IND(id); return I ? '«'+I.name+'»' : id; }).join(', ');
   return dimPart + (indPart ? ' — '+indPart : '');
 }
+/* СВЕЖЕСТЬ СТРОКИ СЕГОДНЯШНЕГО ДНЯ (ИС-62): момент — самое раннее время, до которого обработаны журналы изменений источников; признак «день не закрыт»; длина очереди. Источник без журнала называется отдельно. */
+function freshOf(st, objId){
+  const o = OBJ(objId);
+  const seen = NEIGHBOURS.filter(nb => nb.asks).map(nb => (st.polls[nb.id] || {}).seen).filter(Boolean).sort();
+  const at = seen[0] || NIGHT_AT;
+  const queue = liveQueue(st);
+  const night = o ? nightOnlyNbs(o).map(id => NB(id).name) : [];
+  return {at, queue, open: true, nightOnly: night,
+    text: 'на '+at+' · день не закрыт · в очереди '+queue+(queue ? ', обновление идёт' : '')+
+      (night.length ? ' · обновляется только ночью: '+night.join(', ') : '')};
+}
 function passportFor(st, objId, requested, res, rows, filter, inds, dims, meta){
   /* Фамилия и дата закрытия берутся из отметки закрытия периода ответа, а не из строк ответа: состояние периода — отдельный реквизит от того, кто ответил. */
   const lt = latchFor(st, res.asOf);
   return {
     requested, asOf: res.asOf, age: res.age,
+    /* Граница даты вопроса: «на начало дня» печатает обе даты. */
+    edge: res.edge || EDGE.END,
+    edgeNote: res.edge === EDGE.START ? 'на '+fmt(requested)+' (начало дня) — строка '+fmt(res.asOf) : null,
+    /* Строка вчерашнего дня вместо сегодняшней — пометка, а не подстановка: дата строки названа. */
+    rowNote: res.note || null,
+    fresh: res.live ? freshOf(st, objId) : null,
     fixation: fixationOf(st, res.asOf),
     fixedBy: lt ? lt.by : null,
     fixedAt: lt ? lt.at : null,
@@ -5495,8 +5709,12 @@ function shortPassport(p){
   const dt = p.dating && p.dating.now.length ? ' · ТЕКУЩЕЕ '+p.dating.now.length : '';
   /* Версия формы — с тем же условием: под числом плитки показывается строка метаданных, и без этой пометки потребитель не узнал бы, что ответ собран формой старой системы. */
   const ed = p.edition && p.edition !== FORM.NOW ? ' · ФОРМА '+p.edition.toUpperCase() : '';
-  return 'на '+fmt(p.asOf).slice(0,5)+' ('+ageWord(p.age)+') · '+fx+ed+
-    (p.partial ? ' · НЕПОЛНО '+p.partial.n : '')+dt+' · '+seen+(p.n == null ? '—' : p.n);
+  const tail = ed+(p.partial ? ' · НЕПОЛНО '+p.partial.n : '')+dt+' · '+seen+(p.n == null ? '—' : p.n);
+  /* Строка сегодняшнего дня: момент, «день не закрыт», очередь. */
+  if(p.fresh) return 'на '+fmt(p.asOf).slice(0,5)+' '+p.fresh.at+' · день не закрыт · в очереди '+p.fresh.queue+tail;
+  const head = p.edgeNote ? 'на '+fmt(p.requested).slice(0,5)+' (начало дня) — строка '+fmt(p.asOf).slice(0,5)
+                          : 'на '+fmt(p.asOf).slice(0,5)+' ('+ageWord(p.age)+')';
+  return head+(p.rowNote ? ' · '+p.rowNote : '')+' · '+fx+tail;
 }
 ST.passportShort = shortPassport;
 ST.passportForms = () => ['полная','краткая'];
@@ -5633,7 +5851,7 @@ function checkQuery(q, needAgg){
   /* Отказ «заявка модулю-владельцу» выдаётся всеми методами: объект, молча возвращающий пустоту, — дефект. */
   if(o.pending) return pendingWhy(o);
   /* Дата запроса проверяется до разрезов: дата позже последнего прогона — отказ, а не подстановка. */
-  const tail = dateGate(ST.state, q.obj, q.date);
+  const tail = dateGate(ST.state, q.obj, q.date, q.edge);
   if(tail) return tail;
   for(const d of (q.dims || [])){
     const D = DIM(d);
@@ -5719,7 +5937,7 @@ ST.statSlice = q => {
   const st = ST.state;
   const bad = checkQuery(q, true);
   if(bad) return {ok:false, why: bad};
-  const res = resolveAsOf(st, q.obj, q.date);
+  const res = resolveAsOf(st, q.obj, q.date, q.edge);
   if(!res) return {ok:false, why:'строк на '+fmt(q.date)+' и ранее нет: подстановка запрещена (ИС-12)'};
   let rows = askRows(st, q.obj, res.asOf, q);                /* Правила видимости, затем путь. */
   const badF = checkFilterDomain(q.filter, rows);            /* Отказ ДО счёта. */
@@ -5799,7 +6017,7 @@ ST.groupSums = q => {
     if(!I || I.obj !== 'obj-borrower' || !I.money)
       return {ok:false, why:'сумма группы берётся из денежной величины строки заёмщика: «'+m+'» ею не является (ADR-0244 §2)'};
   }
-  const res = resolveAsOf(st, 'obj-gmember', q.date);
+  const res = resolveAsOf(st, 'obj-gmember', q.date, q.edge);
   if(!res) return {ok:false, why:'строк членства на '+fmt(q.date)+' и ранее нет: подстановка запрещена (ИС-12)'};
   const mem = applyScope(rowsAsOf(st, 'obj-gmember', res.asOf), 'obj-gmember', res.asOf);
   const bor = new Map(rowsAsOf(st, 'obj-borrower', res.asOf).map(r => [r.ref, r]));
@@ -5894,9 +6112,9 @@ ST.rowsLimit = 12;
 
 /* Строки запроса до проверки порога: одна выборка для двух методов — списка и выгрузки. */
 function rowsFor(st, q){
-  const bad = checkQuery({obj:q.obj, dims:[], inds:[], date:q.date, filter:q.filter}, false);
+  const bad = checkQuery({obj:q.obj, dims:[], inds:[], date:q.date, edge:q.edge, filter:q.filter}, false);
   if(bad) return {ok:false, why: bad};
-  const res = resolveAsOf(st, q.obj, q.date);
+  const res = resolveAsOf(st, q.obj, q.date, q.edge);
   if(!res) return {ok:false, why:'строк на '+fmt(q.date)+' и ранее нет: подстановка запрещена (ИС-12)'};
   let rows = askRows(st, q.obj, res.asOf, q);
   const badF = checkFilterDomain(q.filter, rows);
@@ -6010,8 +6228,8 @@ ST.registryList = (objId, dateISO, filter) => {
   return (WORLD[objId] || []).filter(item => {
     /* Реестр модуля-владельца на дату не показывает объектов, которых на неё ещё не было: иначе сверка со срезом разошлась бы. */
     const born = bornOn(o, item, dateISO);
-    /* Объект, появившийся в день X, попадает в срез X+1. */
-    if(born == null || born >= dateISO) return false;
+    /* Объект, появившийся в день X, виден уже в строке за X. */
+    if(born == null || born > dateISO) return false;
     /* Правила видимости читаются той же функцией, что и разрез. */
     if(s && !seesItem(objId, item, dateISO, s)) return false;
     /* Фильтр для списка и фильтр для числа — одно сравнение над разными источниками: у среза строка, у модуля-владельца запись на дату. */
@@ -6867,7 +7085,7 @@ ST.divergence = (month, objId, indId) => {
   if(IND(indId) && waitsCol(indId)) return {ok:false, why: waitsWhy(IND(indId))};
   if(!latchOf(st, month, MY_LAYER)) return {ok:false, why:'период '+monLabel(month)+' не закрыт по статистике: расхождению неоткуда взяться'};
   const cs = st.corrections.filter(c => c.month === month && c.obj === objId && c.inds === indId);
-  /* Расхождение сверяется с итогом месяца — строками первого числа следующего месяца, а не со всеми строками месяца: иначе кредит вошёл бы в сумму столько раз, сколько дней в месяце. */
+  /* Расхождение сверяется с итогом месяца — строками его последнего дня, а не со всеми строками месяца: иначе кредит вошёл бы в сумму столько раз, сколько дней в месяце. */
   const rows = rowsAsOf(st, objId, sliceOfMonth(month)).filter(r => r.fixed);
   /* Сумма в сомах берётся из записи в сомах, а не пересчётом по курсу. */
   const som = ST.somIdOf(indId);
@@ -6995,11 +7213,13 @@ function render(){
   const s = ST.curatorOf();
   /* В подвале — факты сеанса (период, дата, прогон, закрытые периоды, ограничение видимости), а пояснения свёрнуты: подвал виден на каждом экране. */
   $('#foot').innerHTML = 'Учётный период <b>'+monLabel(ST.openPeriod())+'</b> — открыт.<br>'+
-    'Сегодня '+fmt(st.today)+'; последний прогон <b>'+(lastRun ? fmt(lastRun) : '—')+'</b>.<br>'+
+    'Сейчас '+fmt(st.today)+' '+esc(st.clock)+(nightOf(st, st.today) ? ' · день не закрыт' : ' · новый день ещё не посчитан')+
+    '; последний прогон <b>'+(lastRun ? fmt(lastRun) : '—')+'</b>.<br>'+
     'Закрытые периоды: '+(ST.closedMonths().map(monLabel).join(', ') || '—')+'.<br>'+
     (s ? 'Видимость: куратор <b>'+esc(s)+'</b>.' : 'Видимость: без ограничения.')+
-    why('Запрашивается дата прогона: «сегодня» датой запроса не бывает — текущее состояние '+
-      'отдаёт реестр модуля-владельца. Закрытие периода — колонка «статистика» общего календаря. '+
+    why('Строка за дату — состояние на конец дня. Строка сегодняшнего дня текущая: её создаёт ночной '+
+      'прогон, днём её меняют события; будущая дата — отказ. Один объект «сейчас» отдаёт модуль-владелец. '+
+      'Закрытие периода — колонка «статистика» общего календаря. '+
       (s ? 'Как режутся строки, задают правила видимости объекта: одно правило или несколько через '+
            'ИЛИ; объект без правил не проходит загрузку реестра, а не отвечает пустым '+
            'экраном.' : 'Правила видимости задаются ролью, одни на весь сеанс; как и режут ли они '+
@@ -7073,17 +7293,45 @@ function why(html, sum){
 
 
 /* ===================== ЭКРАН 2: ЖУРНАЛ СРЕЗОВ ======================= */
-ST.runUI = () => act(ST.run(ST.state.today, {}), 'прогон за '+fmt(ST.state.today)+' выполнен');
-ST.runClosedUI = () => act(ST.run('2026-07-01', {}));
+/* Ближайшая ночь: если ночной прогон за сегодня уже прошёл — за завтра, иначе — за сегодня. */
+function nextNightOf(st){ return nightOf(st, st.today) ? dayShift(st.today, 1) : st.today; }
+ST.runUI = () => { const n = nextNightOf(ST.state); act(ST.run(n, {}), 'ночной прогон за '+fmt(n)+' выполнен'); };
+ST.nightUI = () => ST.runUI();
+/* Дневное событие: платёж по кредиту. Источник пишет ключ и дату факта в журнал изменений, опрос забирает запись сразу. */
+ST.payUI = () => {
+  const g = id => (($('#'+id) || {}).value || '').trim();
+  const st = ST.state;
+  const t = st.clock.split(':').map(Number);
+  const s = t[0] * 3600 + t[1] * 60 + t[2] + 300;
+  const at = [Math.floor(s / 3600) % 24, Math.floor(s / 60) % 60, s % 60].map(x => String(x).padStart(2, '0')).join(':');
+  const r = ST.pay(g('payRef'), Number(g('payAmount').replace(/\s/g, '').replace(',', '.')),
+    {date: g('payDate') || st.today, at: at > st.clock ? at : st.clock, journal: g('payJournal') !== '0'});
+  act(r, r.ok ? 'платёж записан в '+r.at+(r.journal ? ', в очереди дневного пересчёта — '+r.queue
+                                                   : ': в журнал изменений не записан, днём строка не изменится') : '');
+};
+ST.pollUI = () => {
+  const r = ST.poll();
+  act(r, r.ok ? 'опрос журналов: объектов к пересчёту — '+r.n+', переписано строк — '+r.rewrote+
+    (r.retro ? ', задним числом дней — '+r.retro : '') : '');
+};
+ST.runClosedUI = () => act(ST.run('2026-06-30', {}));
 /* Неответ источника — состояние прогона, и его можно воспроизвести руками: без этой кнопки неполная строка, отказ закрытия периода и дозаполнение были бы видны только в проверках. */
 ST.silentRunUI = () => {
   const nb = ($('#silentNb') || {}).value || '', why = ($('#silentWhy') || {}).value || '';
   const s = {}; s[nb] = why;
-  const r = ST.run(ST.state.today, {silent: s});
-  act(r, 'прогон за '+fmt(ST.state.today)+' выполнен: «'+nb+'» '+why+
+  const n = nextNightOf(ST.state);
+  const r = ST.run(n, {silent: s});
+  act(r, 'прогон за '+fmt(n)+' выполнен: «'+nb+'» '+why+
       ' · неполных строк — '+r.partial);
 };
-ST.skipUI = () => act(ST.skip(ST.state.today, ($('#skipReason') || {}).value || ''), 'пропуск записан');
+/* Пропуск ближайшей ночи: наступает 02:00, прогона нет — вопрос «на сегодня» отвечает вчерашней строкой с пометкой. */
+ST.skipUI = () => {
+  const reason = ($('#skipReason') || {}).value || '';
+  if(!reason) return act(ST.skip(nextNightOf(ST.state), ''));
+  const n = nextNightOf(ST.state);
+  if(n > ST.state.today) ST.setClock(n, NIGHT_AT);
+  act(ST.skip(n, reason), 'пропуск ночи за '+fmt(n)+' записан');
+};
 /* Объект и запись выбираются одним полем «объект|запись»: запись всегда принадлежит объекту, и два связанных списка здесь не нужны. */
 ST.enqueueUI = () => {
   const k = (($('#qKey') || {}).value || '').split('|');
@@ -7127,9 +7375,62 @@ ST.closeMuteUI = () => {
 function viewJournal(){
   const st = ST.state;
   /* Переход из метаданных по ссылке «как получено»: журнал открывается на этом прогоне и подсвечивает его. */
-  const runs = st.runs.slice().sort((a,b) => b.date.localeCompare(a.date)).map(r => '<tr'+
+  /* Состав прогона по объектам: одна функция на ночной и дневной прогон. */
+  const partsCell = r => '<td class="small">'+((r.parts || []).length
+      ? r.parts.filter(x => !r.live || (x.rewrote || []).length || (x.filled || []).length).map(x => esc(x.name || (OBJ(x.obj) || {name: x.obj}).name)+
+          (r.live ? '' : ' <b>'+x.n+'</b>')+
+          (x.same ? ' <span class="muted">(без изм. '+x.same+')</span>' : '')+
+          (x.have ? ' <span class="muted">(уже есть '+x.have+')</span>' : '')+
+          ((x.rewrote || []).length ? ' <span class="pill warn">переписано '+x.rewrote.length+
+            ': '+esc(uniq([].concat.apply([], x.rewrote.map(w => w.fields))).map(id =>
+              (REC(id) || {}).name || id).join(', '))+'</span>' : '')+
+          /* «Неполных» и «дозаполнено» считаются отдельно: первое — состояние прогона, второе — его работа. */
+          (x.partial ? ' <span class="pill warn">неполных '+x.partial+'</span>' : '')+
+          ((x.filled || []).length ? ' <span class="pill ok">дозаполнено '+x.filled.length+
+            ': '+esc(uniq([].concat.apply([], x.filled.map(w => w.fields))).map(id =>
+              (REC(id) || {}).name || id).join(', '))+'</span>' : '')+
+          /* Изменение, о котором источник днём не сообщил: дефект стыка с источником, а не обычный пересчёт. */
+          ((x.missed || []).length ? ' <span class="pill err">missed '+x.missed.length+'</span>' : '')+
+          /* «Не обойдено» и «без изменений» считаются отдельно: первое — объект не проверяли, второе — проверили, состояние прежнее. */
+          (x.skip ? ' <span class="pill neutral">не обойдено '+x.skip+'</span>' : '')+
+          (x.kept ? ' <span class="muted">(+'+x.kept+' в закрытом периоде)</span>' : '')).join(' · ') || '<span class="muted">правок не было</span>'
+      : '<span class="muted">—</span>')+'</td>';
+  /* Ночной прогон показывает два шага: закрытие вчерашних суток со счётчиком missed по источникам и обход сегодняшних. */
+  const scanCell = r => {
+    if(!r.cand) return '<td class="small"><span class="muted">—</span></td>';
+    const cl = r.closed;
+    const miss = cl ? Object.keys(cl.missed) : [];
+    const closedHtml = !cl ? '' : '<br><span class="small">закрыты сутки '+fmt(cl.date)+': переписано '+cl.rows+'</span> '+
+      (miss.length ? '<span class="pill err">missed: '+esc(miss.map(nb => nb+' — '+cl.missed[nb]).join(' · '))+'</span>'
+                   : '<span class="pill ok">missed 0</span>')+
+      (cl.nightOnly ? ' <span class="pill neutral">только ночью: '+cl.nightOnly+'</span>' : '');
+    const repollHtml = !r.repoll ? '' : '<br>'+(r.repoll.done
+      ? '<span class="pill ok">повторный запрос: дописано '+r.repoll.made+' · переписано '+r.repoll.again+'</span>'+
+        (r.repoll.nbs.filter(n => !n.final).length
+          ? '<br><span class="pill neutral">предварительно ответили: '+
+            esc(r.repoll.nbs.filter(n => !n.final).map(n => n.name).join(' · '))+'</span>' : '')
+      : '<span class="pill err">повторный запрос без ответа: '+
+        esc(r.repoll.nbs.filter(n => !n.ok).map(n => n.name+' — '+n.reason).join(' · '))+
+        '</span><br><span class="small muted">строки не тронуты: опрос идёт прежде записи</span>');
+    return '<td class="small">'+(r.cand.scan === 'полный'
+      ? '<span class="pill ok">обход полный</span><br><span class="small muted">'+esc(r.cand.why || '')+'</span>'
+      : '<b>'+r.cand.n+'</b> <span class="muted">названных записей</span>')+closedHtml+repollHtml+'</td>';
+  };
+  /* Дневной прогон live — строка журнала рядом с ночным той же даты: объекты к пересчёту по четырём множествам. */
+  const liveRow = L => '<tr>'+
+    '<td>'+fmt(L.date)+'</td>'+
+    '<td><span class="pill neutral">live</span></td>'+
+    '<td>опрос журналов изменений</td>'+
+    '<td class="small">открыт ночным прогоном в '+esc(L.opened)+' · опросов '+L.polls+' · '+
+      (L.closed ? 'закрыт прогоном за '+fmt(L.closed.by) : '<b>день не закрыт</b>')+'</td>'+
+    '<td class="num">'+(L.written || '—')+'</td>'+
+    '<td>'+(ST.isClosed(L.date) ? '<span class="pill ok">закрыт</span>' : '<span class="pill neutral">открыт</span>')+'</td>'+
+    '<td class="small"><b>'+L.n+'</b> <span class="muted">объектов к пересчёту</span><br>'+
+      CAND_SRC.map(k => '<span class="pill '+(L.by[k] ? 'ok' : 'neutral')+'">'+esc(k)+' '+L.by[k]+'</span>').join(' ')+'</td>'+
+    partsCell({live: true, parts: L.parts})+'</tr>';
+  const runRow = r => '<tr'+
     (r.date === st.runFocus ? ' class="focus"' : r.kind === 'пропуск' ? ' class="out"' : '')+'>'+
-    '<td>'+fmt(r.date)+'</td>'+
+    '<td>'+fmt(r.date)+(r.time ? '<br><span class="small muted">'+esc(r.time)+'</span>' : '')+'</td>'+
     '<td>'+(r.kind === 'пропуск' ? '<span class="pill err">пропуск</span>' :
       r.kind === 'внеплановый' ? '<span class="pill warn">внеплановый</span>' :
       r.kind === 'защёлка' ? '<span class="pill ok">повторный запрос перед закрытием</span>' :
@@ -7141,48 +7442,11 @@ function viewJournal(){
       esc(Object.keys(r.silent).map(nb => nb+' — '+r.silent[nb]).join(' · '))+'</span>' : '')+'</td>'+
     '<td class="num">'+(r.written || '—')+'</td>'+
     '<td>'+(ST.isClosed(r.date) ? '<span class="pill ok">закрыт</span>' : '<span class="pill neutral">открыт</span>')+'</td>'+
-    /* Состав объектов к пересчёту — реквизит прогона: без разбивки по четырём источникам «пересчитывать было нечего» неотличимо от «опрос не состоялся». */
-    /* Повторный запрос перед закрытием выводится в той же колонке: обе строки отвечают на вопрос, кого запрашивал этот прогон. */
-    '<td class="small">'+(!r.cand ? '<span class="muted">—</span>'
-      : r.cand.scan === 'полный'
-        ? '<span class="pill ok">обход полный</span><br><span class="small muted">'+esc(r.cand.why || '')+'</span>'+
-          (r.repoll ? '<br>'+(r.repoll.done
-            ? '<span class="pill ok">повторный запрос: дописано '+r.repoll.made+' · переписано '+r.repoll.again+'</span>'+
-              (r.repoll.nbs.filter(n => !n.final).length
-                ? '<br><span class="pill neutral">предварительно ответили: '+
-                  esc(r.repoll.nbs.filter(n => !n.final).map(n => n.name).join(' · '))+'</span>' : '')
-            : '<span class="pill err">повторный запрос без ответа: '+
-              esc(r.repoll.nbs.filter(n => !n.ok).map(n => n.name+' — '+n.reason).join(' · '))+
-              '</span><br><span class="small muted">строки не тронуты: опрос идёт прежде записи</span>') : '')
-        : '<b>'+r.cand.n+'</b> <span class="muted">объектов к пересчёту, с '+fmt(r.cand.from)+'</span><br>'+
-          CAND_SRC.filter(k => r.cand.by[k]).map(k => '<span class="pill '+
-            (r.cand.first[k] ? 'ok' : 'neutral')+'">'+esc(k)+' '+r.cand.by[k]+
-            (r.cand.first[k] !== r.cand.by[k] ? ' <span class="muted">(впервые '+r.cand.first[k]+')</span>' : '')+
-            '</span>').join(' ')+
-          ((r.cand.polls || []).filter(p => p.degraded).length
-            ? '<br><span class="pill warn">обойдены полностью: '+
-              esc(r.cand.polls.filter(p => p.degraded).map(p => p.nb+' — '+p.scanned).join(' · '))+'</span>'
-            : '')+
-          (r.cand.moved.length ? '<br><span class="pill warn">курс менялся: '+
-            esc(r.cand.moved.join(', '))+'</span>' : ''))+'</td>'+
-    /* Состав прогона показывает и неизменившиеся строки: «строк — 0» при хранении только изменений может значить «всё как вчера», «запись запрещена» или «объектов ещё нет», а это три разных события. */
-    '<td class="small">'+((r.parts || []).length
-      ? r.parts.map(x => esc(x.name)+' <b>'+x.n+'</b>'+
-          (x.same ? ' <span class="muted">(без изм. '+x.same+')</span>' : '')+
-          (x.have ? ' <span class="muted">(уже есть '+x.have+')</span>' : '')+
-          ((x.rewrote || []).length ? ' <span class="pill warn">переписано '+x.rewrote.length+
-            ': '+esc(uniq([].concat.apply([], x.rewrote.map(w => w.fields))).map(id =>
-              (REC(id) || {}).name || id).join(', '))+'</span>' : '')+
-          /* «Неполных» и «дозаполнено» считаются отдельно: первое — состояние прогона, второе — его работа. */
-          (x.partial ? ' <span class="pill warn">неполных '+x.partial+'</span>' : '')+
-          ((x.filled || []).length ? ' <span class="pill ok">дозаполнено '+x.filled.length+
-            ': '+esc(uniq([].concat.apply([], x.filled.map(w => w.fields))).map(id =>
-              (REC(id) || {}).name || id).join(', '))+'</span>' : '')+
-          /* «Не обойдено» и «без изменений» считаются отдельно: первое — объект не проверяли, второе — проверили, состояние прежнее. */
-          (x.skip ? ' <span class="pill neutral">не обойдено '+x.skip+'</span>' : '')+
-          (x.kept ? ' <span class="muted">(+'+x.kept+' в закрытом периоде)</span>' : '')).join(' · ')
-      : '<span class="muted">—</span>')+'</td>'+
-    '</tr>').join('');
+    scanCell(r)+partsCell(r)+'</tr>';
+  /* Сначала свежие даты; в пределах даты дневной прогон идёт после ночного, поэтому стоит выше. */
+  const runs = st.runs.map((r, i) => ({d: r.date, o: i, h: runRow(r)}))
+    .concat((st.lives || []).map((L, i) => ({d: L.date, o: 1e6 + i, h: liveRow(L)})))
+    .sort((a, b) => b.d.localeCompare(a.d) || b.o - a.o).map(x => x.h).join('');
   /* Строка календаря показывается с колонками по слоям: одна пометка «закрыт/открыт» не показывает, до какого слоя дошло закрытие мая и чья фамилия в каждой колонке. */
   const months = st.periods.map(p => {
     const w = ST.periodBlockers(p.month);
@@ -7270,36 +7534,44 @@ function viewJournal(){
   /* Экран запрашивает поводы тем же методом, что и модуль заданий: иначе на экране мог бы оказаться повод, которого модуль заданий не получит. */
   const leadsAsk = ST.askLeads('задания', st.today);
   const leadsNow = leadsAsk.ok ? leadsAsk.leads : [];
-  /* ---------- ОБЪЕКТЫ К ПЕРЕСЧЁТУ В БЛИЖАЙШЕМ ПРОГОНЕ ---------- */
-  const cnd = ST.candidates(st.today);
-  const pOf = {}; cnd.polls.forEach(p => pOf[p.nb] = p);
-  const alive = st.objects.reduce((n, o) => n + (WORLD[o.id] || []).filter(it => {
-    /* Объект, появившийся в день X, попадает в срез X+1. */
-    const b = bornOn(o, it, st.today); return b != null && b < st.today;
-  }).length, 0);
+  /* ---------- ДЕНЬ: ЖУРНАЛЫ ИЗМЕНЕНИЙ И ОБЪЕКТЫ К ПЕРЕСЧЁТУ ---------- */
+  const cnd = ST.candidates();
+  const feed = ST.nbFeed();
+  const live = (st.lives || []).find(L => L.date === st.today && !L.closed);
+  const nextN = nextNightOf(st);
   const pollRows = ST.polls().map(p => {
-    const q = pOf[p.nb] || {};
-    return '<tr'+(q.degraded ? ' class="out"' : '')+'><td>'+esc(p.name)+'</td>'+
-      '<td>'+(p.asks ? '<span class="pill ok">отвечает</span>'
-                     : '<span class="pill err">не умеет</span>')+'</td>'+
-      '<td>'+(p.T ? fmt(p.T) : '<span class="muted">не спрашивали</span>')+'</td>'+
-      '<td>'+(q.ok ? fmt(q.from)+' → '+fmt(q.to) : '<span class="muted">—</span>')+'</td>'+
-      '<td class="num">'+(q.ok ? q.named : '—')+'</td>'+
-      '<td class="num">'+(q.degraded ? q.scanned : '—')+'</td>'+
-      '<td class="small">'+(q.why ? esc(q.why) : '<span class="muted">ответил</span>')+'</td></tr>';
+    const wait = feed.filter(f => f.nb === p.nb && !f.taken).length;
+    return '<tr'+(p.asks ? '' : ' class="out"')+'><td>'+esc(p.name)+'</td>'+
+      '<td>'+(p.asks ? '<span class="pill ok">ведёт</span>'
+                     : '<span class="pill warn">не ведёт</span> <span class="small muted">обновляется только ночью</span>')+'</td>'+
+      '<td>'+(p.T ? fmt(p.T) : '<span class="muted">—</span>')+'</td>'+
+      '<td>'+(p.seen ? esc(p.seen) : '<span class="muted">—</span>')+'</td>'+
+      '<td class="num">'+(p.asks ? wait : '—')+'</td></tr>';
   }).join('');
-  const candBody = cnd.full
-    ? '<div class="banner info"><b>Обход полный, и вот почему:</b> '+esc(cnd.why)+'</div>'
-    : '<table class="cgrid"><thead><tr><th>Множество</th><th>Записей</th>'+
+  const candBody = '<table class="cgrid"><thead><tr><th>Множество</th><th>Записей</th>'+
       '<th>Пример: запись и повод попадания</th></tr></thead><tbody>'+
       CAND_SRC.map(k => '<tr><td>'+esc(k)+'</td><td class="num">'+cnd.by[k].length+'</td>'+
         '<td class="small">'+(cnd.by[k].length
           ? '<span class="mono">'+esc(cnd.by[k][0].ref)+'</span> — '+esc(cnd.by[k][0].why || '')
           : '<span class="muted">пусто</span>')+'</td></tr>').join('')+
       '</tbody></table>'+
-      '<p class="note">Всего объектов к пересчёту <b>'+cnd.n+'</b> — меньше суммы по множествам: '+
-      'один объект может прийти несколькими путями, и сумма посчитала бы его дважды. Существующих объектов на '+
-      fmt(st.today)+' — <b>'+alive+'</b>: остальные прогон не пересчитает.</p>';
+      '<p class="note">В очереди дневного пересчёта <b>'+cnd.n+'</b> объектов — меньше суммы по множествам: '+
+      'один объект может прийти несколькими путями.</p>';
+  const credits = (WORLD['obj-credit'] || []).filter(it => {
+    const b = bornOn(OBJ('obj-credit'), it, st.today); return b != null && b <= st.today; });
+  const dayForm = ST.canAdmin()
+    ? '<div class="form-row" style="margin-top:12px">'+
+      '<div class="fld"><label>Кредит</label><select id="payRef">'+
+        credits.map(it => '<option>'+esc(it.id)+'</option>').join('')+'</select></div>'+
+      '<div class="fld"><label>Сумма</label><input id="payAmount" value="50000"></div>'+
+      '<div class="fld"><label>Дата факта</label><input id="payDate" value="'+esc(st.today)+'"></div>'+
+      '<div class="fld"><label>Запись в журнал изменений</label><select id="payJournal">'+
+        '<option value="1">пишется в той же транзакции</option>'+
+        '<option value="0">не записана (дефект источника)</option></select></div>'+
+      '<button class="btn btn-secondary" onclick="ST.payUI()">Внести платёж</button>'+
+      '<button class="btn btn-secondary" onclick="ST.pollUI()">Опросить журналы</button>'+
+      '<button class="btn btn-primary" onclick="ST.nightUI()">Ночной прогон за '+fmt(nextN)+'</button>'+
+      '</div>' : '';
   const qAll = ST.queue(true);
   const qRows = qAll.length ? qAll.map(x => '<tr'+(x.done ? ' class="out"' : '')+'>'+
       '<td>'+esc((OBJ(x.obj) || {name: x.obj}).name)+'</td>'+
@@ -7322,28 +7594,29 @@ function viewJournal(){
       '<div class="fld"><label>Заметка</label><input id="qNote" placeholder="например: пересчёт по просьбе владельца"></div>'+
       '<button class="btn btn-secondary" onclick="ST.enqueueUI()">Поставить в очередь</button>'+
       '</div>' : '';
-  const nightCard = '<div class="card"><h3>Выбор объектов для ночного пересчёта: опрос источников и очередь</h3>'+
-    '<p class="page-lead">Внутри открытого периода прогон пересчитывает <b>объекты к пересчёту</b>, при '+
-    'закрытии периода — <b>все объекты</b>: закрытие удостоверяет состояние, а не изменения.</p>'+
-    '<table class="cgrid"><thead><tr><th>Модуль-источник</th><th>Умеет ли отвечать</th>'+
-    '<th>Момент <span class="mono">T</span></th><th>Окно опроса на '+fmt(st.today)+'</th>'+
-    '<th>Назвал</th><th>Обойдено полностью</th><th>Что с опросом</th>'+
+  const nightCard = '<div class="card"><h3>Строка сегодняшнего дня: журналы изменений и очередь</h3>'+
+    '<p class="page-lead">Сейчас <b>'+fmt(st.today)+' '+esc(st.clock)+'</b>. '+(live
+      ? 'Дневной прогон за '+fmt(st.today)+' открыт в '+esc(live.opened)+', опросов '+live.polls+': строку '+
+        'сегодняшнего дня меняют только события. Ночью отбора нет — полный обход.'
+      : 'Ночной прогон за '+fmt(st.today)+' не прошёл: дневного пересчёта нет, записи журналов ждут ночи.')+'</p>'+
+    '<table class="cgrid"><thead><tr><th>Модуль-источник</th><th>Журнал изменений</th>'+
+    '<th>Момент <span class="mono">T</span></th><th>Опрошен до</th><th>Записей ждут опроса</th>'+
     '</tr></thead><tbody>'+pollRows+'</tbody></table>'+
-    why('<b>Момент <span class="mono">T</span> хранится для пары «прогон + источник»</b>, а не один на '+
-    'прогон: неответивший источник сохраняет своё <span class="mono">T</span>, и следующий прогон '+
-    'запросит его за больший интервал. При общем <span class="mono">T</span> его изменения были бы '+
-    'потеряны. Опрос инициирует статистика (PULL): потерянное уведомление не обнаружить, а '+
-    'несостоявшийся опрос виден сразу и показан здесь. Источник возвращает <b>список ключей, а не '+
-    'значений</b>: значения прогон берёт через методы API, второго пути к числам нет (§6, E2E-09).', 'зачем момент T у пары')+
-    candBody+
+    candBody+dayForm+
+    why('Источник пишет в свой журнал изменений <b>ключ объекта и дату факта</b> в той же транзакции, что '+
+    'и сам факт; значений в записи нет — значения пересчёт берёт методами API, второго пути к числам нет '+
+    '(E2E-09). Статистика опрашивает журналы непрерывно (PULL): несостоявшийся опрос виден, потерянное '+
+    'уведомление — нет. Момент <span class="mono">T</span> хранится для пары «прогон + источник». Факт '+
+    'задним числом в открытом месяце пересчитывает строки со дня факта по сегодня, в закрытом — маркер '+
+    'и поправка в месяце исправления. Платёж, не записанный в журнал, днём строку не меняет — его найдёт '+
+    'ночь как <b>missed</b>.', 'как меняется строка сегодняшнего дня')+
     '<h3 style="margin-top:18px">Очередь перестроения</h3>'+
     '<table class="cgrid"><thead><tr><th>Объект</th><th>Запись</th><th>Повод</th><th>Кто и когда</th>'+
     '<th>Заметка</th><th>Состояние</th></tr></thead><tbody>'+qRows+'</tbody></table>'+qForm+
-    why('Опрос <b>не заменяет</b> очередь: очередь — способ <i>поставить</i> работу, опрос — способ '+
-    'её <i>найти</i>, и одно наполняет другое. Поводов три, список закрыт: <b>дозаполнение</b> ставит '+
-    'сам прогон, записавший неполную строку, <b>досчёт</b> — реестр, когда посреди периода появилась '+
-    'новая величина, <b>распоряжение</b> — человек. Обработанная запись <b>закрывается отметкой, а не '+
-    'удаляется</b>: иначе «работа была и сделана» не отличалась бы от «работы не было».', 'очередь и объекты к пересчёту')+'</div>';
+    why('Журнал изменений <b>не заменяет</b> очередь: очередь — способ <i>поставить</i> работу, журнал — '+
+    'способ её <i>найти</i>. Поставленная запись — кандидат дневного пересчёта множеством «в очереди», а '+
+    'ночью её снимает полный обход. Обработанная запись <b>закрывается отметкой, а не удаляется</b>: иначе '+
+    '«работа была и сделана» не отличалась бы от «работы не было».', 'очередь')+'</div>';
   /* Состояние повторного запроса перед закрытием — тем же методом, что и в самом закрытии. */
   const rp = ST.repoll();
   const acts = ST.canAdmin()
@@ -7356,9 +7629,9 @@ function viewJournal(){
       '<div class="form-row" style="margin-top:12px">'+
       '<div class="fld"><label>Причина пропуска</label>'+
         '<input id="skipReason" placeholder="например: окно обслуживания СУБД"></div>'+
-      '<button class="btn btn-secondary" onclick="ST.skipUI()">Записать пропуск за сегодня</button>'+
-      '<button class="btn btn-secondary" onclick="ST.runUI()">Прогон за сегодня</button>'+
-      '<button class="btn btn-danger" onclick="ST.runClosedUI()">Попробовать переписать 01.07 (закрыт)</button>'+
+      '<button class="btn btn-secondary" onclick="ST.skipUI()">Записать пропуск ночи за '+fmt(nextNightOf(st))+'</button>'+
+      '<button class="btn btn-secondary" onclick="ST.runUI()">Ночной прогон за '+fmt(nextNightOf(st))+'</button>'+
+      '<button class="btn btn-danger" onclick="ST.runClosedUI()">Попробовать переписать 30.06 (закрыт)</button>'+
       '</div>'+
       why('Внеплановый пересчёт открытого периода — с актором и причиной; закрытый '+
       'период не пересчитывается ни при каких правах. Открытие закрытого периода идёт общим порядком '+
@@ -7410,10 +7683,10 @@ function viewJournal(){
           ' · методов '+n.seams.length+'</option>').join('')+'</select></div>'+
       '<div class="fld"><label>Почему</label><select id="silentWhy">'+
         SILENCE_REASONS.map(w => '<option>'+esc(w)+'</option>').join('')+'</select></div>'+
-      '<button class="btn btn-danger" onclick="ST.silentRunUI()">Прогон за '+fmt(st.today)+
+      '<button class="btn btn-danger" onclick="ST.silentRunUI()">Ночной прогон за '+fmt(nextNightOf(st))+
         ' с неответившим источником</button>'+
-      '<button class="btn btn-secondary" onclick="ST.runUI()">Дозаполнить: обычный прогон '+
-        'той же датой</button>'+
+      '<button class="btn btn-secondary" onclick="ST.runUI()">Дозаполнить: ночной прогон за '+
+        fmt(nextNightOf(st))+'</button>'+
       /* Тот же источник и та же причина, но при повторном запросе перед закрытием. Кнопки две, потому что это разные моменты с разными отказами: неответ ночью отсылает к прогону, неответ перед закрытием — к источнику. */
       '<button class="btn btn-danger" onclick="ST.closeMuteUI()">Закрыть '+
         esc(monLabel(ST.openPeriod()))+', когда источник не отвечает на повторный запрос</button>'+
@@ -7429,10 +7702,9 @@ function viewJournal(){
       why('Отсутствующее остаётся <b>отсутствующим</b>: ни нуля, ни вчерашнего значения — колонки '+
       'неответившего источника не заполняются, а колонка источника говорит «не ответил» и называет одну '+
       'из четырёх причин. Величины ответивших источников записываются: прогон теряется не целиком. '+
-      'Период с неполной строкой <b>закрыть нельзя</b>, а дозаполняет её <b>обычный прогон той же датой</b>: '+
-      'отдельной кнопки «повторить неудачное» нет — это та же очередь с другой причиной попадания. '+
-      'Неполная строка <b>сама встаёт в очередь</b>: иначе при выборочном пересчёте объект мог бы следующей '+
-      'ночью не попасть в объекты к пересчёту вовсе.<br>'+
+      'Период с неполной строкой <b>закрыть нельзя</b>, а дозаполняет её <b>следующий ночной прогон</b>: '+
+      'закрывая вчерашние сутки, он пересчитывает все объекты, и появившаяся величина — дозаполнение, а не '+
+      'missed. Отдельной кнопки «повторить неудачное» нет.<br>'+
       'Источник, не ответивший три прогона подряд, — <b>повод для модуля заданий</b>; повод отдаётся '+
       'методом <span class="mono">ST.askLeads</span>, а не объявляется в журнале. Ключ — «вид + объект + '+
       '<b>период</b>», где период — непрерывная серия неответов: без периода две серии, разделённые '+
@@ -7480,12 +7752,14 @@ function viewJournal(){
     divHtml+
     '<div class="card"><h3>Прогоны</h3><table class="cgrid"><thead><tr>'+
     '<th>Дата среза</th><th>Что было</th><th>Кто</th><th>Причина</th><th>Строк</th><th>Период</th>'+
-    '<th>Объекты к пересчёту</th><th>Состав прогона</th>'+
+    '<th>Обход · закрытие вчерашних суток</th><th>Состав прогона</th>'+
     '</tr></thead><tbody>'+runs+'</tbody></table>'+
-    why('Пропуск — событие журнала, а не дыра: строки за эту дату нет, и на запрос отдаётся ближайшая '+
-    'предыдущая строка с указанием возраста. Колонка <b>«объекты к пересчёту»</b> показывает их число по '+
-    'каждому из четырёх источников: без неё «пересчитывать было нечего» неотличимо от «опрос не '+
-    'состоялся», и прогон, пропустивший половину портфеля, выглядел бы удачным.', 'что значит пропуск')+'</div>'+nightCard+
+    why('Ночной прогон за сутки N идёт в 02:00 и делает два шага: <b>закрывает сутки N−1</b> — пересчитывает '+
+    'все объекты на конец вчерашнего дня, и каждое отличие от вчерашней строки — запись <b>missed</b> со '+
+    'счётчиком по источнику: источник днём о нём не сообщил, это дефект стыка с ним; затем <b>открывает '+
+    'сутки N</b> полным обходом — строку получает каждый объект, копий вчерашних строк нет. Днём строку '+
+    'сегодняшнего дня меняет только дневной прогон <b>live</b> — по записям журналов изменений. Пропуск — '+
+    'событие журнала, а не дыра: пропущенная ночь догоняется своей строкой.', 'ночной и дневной прогон')+'</div>'+nightCard+
     '<div class="card"><h3>Календарь учётных периодов — общий справочник</h3>'+
     '<table class="cgrid"><thead><tr>'+
     '<th>Период</th>'+LAYERS.map(L => '<th>'+esc(L)+'</th>').join('')+
