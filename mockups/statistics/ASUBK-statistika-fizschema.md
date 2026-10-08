@@ -1,7 +1,7 @@
 # АСУБК — статистика: физическая схема (PostgreSQL)
 
 > Поколоночный состав таблиц модуля «Статистика»: таблицы, колонки, типы, ключи, индексы,
-> функции и триггер. Почему именно так — в решениях `docs/adr/0237`…`docs/adr/0245`; как
+> функции и триггер. Почему именно так — в решениях `docs/adr/0237`…`docs/adr/0245` и `docs/adr/0264`; как
 > величина считается — у модуля-источника; как строится ответ — в спецификации модуля
 > (`ASUBK-statistika-logika.md`). Каждый объект утверждён пользователем списком колонок; файл
 > записывает утверждённое и ничего не решает сам.
@@ -95,7 +95,7 @@
 | Колонка | Правило |
 |---|---|
 | `object_id`, `slice_date` | ключ строки. У члена группы вместо `object_id` — `group_id` + `member_id`; у меры — `object_id` + `target_id`; у платежа и поступления в ключ входит `d_corr_kind` |
-| `slice_date` | срез на **начало** дня; период строки — месяц даты `slice_date − 1` (`ADR-0238` §2) |
+| `slice_date` | срез на **конец** дня; период строки — месяц даты `slice_date` (`ADR-0264` §1). Строка сегодняшнего дня — текущая: её создаёт ночной прогон, днём её меняют изменения в источниках (`ADR-0264` §2–§3) |
 | `run_id` | прогон, последним записавший строку; внешнего ключа нет |
 | `src_<источник>` | по колонке на каждый опрашиваемый модуль-источник; состав — в разделе таблицы |
 | `src_detail` | текст ошибки; есть там, где есть `src_*`, кроме члена группы |
@@ -117,8 +117,8 @@
 
 ### 0.6. Вычисляемые колонки
 
-Дни от хранимой даты — `integer GENERATED ALWAYS AS (…) STORED`: при копировании строки на
-следующий день они пересчитываются сами (`ADR-0241` §7). Формула — разность дат, она
+Дни от хранимой даты — `integer GENERATED ALWAYS AS (…) STORED`: при записи строки на
+новую дату они пересчитываются сами (`ADR-0241` §7). Формула — разность дат, она
 неизменяема и допустима в `GENERATED`:
 
 ```sql
@@ -179,7 +179,7 @@ i_age_days    integer GENERATED ALWAYS AS (coalesce(d_cdate, slice_date) - d_oda
 | Колонки | шт. | Тип | Смысл | Источник |
 |---|---|---|---|---|
 | `object_id` | 1 | uuid PK | id объекта у владельца | — |
-| `slice_date` | 1 | date PK | дата среза, начало дня (`ADR-0238` §2) | — |
+| `slice_date` | 1 | date PK | дата среза, конец дня (`ADR-0264` §1) | — |
 | `run_id` | 1 | bigint NOT NULL | прогон, записавший строку (`stat_run`) | — |
 | `src_core` | 1 | stat_source_state NOT NULL | ответ ядра | — |
 | `src_class` | 1 | stat_source_state NOT NULL | ответ классификации | — |
@@ -257,7 +257,7 @@ i_age_days    integer GENERATED ALWAYS AS (coalesce(d_cdate, slice_date) - d_oda
 | Колонки | шт. | Тип | Смысл | Источник |
 |---|---|---|---|---|
 | `object_id` | 1 | uuid PK | id объекта у владельца | — |
-| `slice_date` | 1 | date PK | дата среза, начало дня (`ADR-0238` §2) | — |
+| `slice_date` | 1 | date PK | дата среза, конец дня (`ADR-0264` §1) | — |
 | `run_id` | 1 | bigint NOT NULL | прогон, записавший строку (`stat_run`) | — |
 | `src_core` | 1 | stat_source_state NOT NULL | ответ ядра (`calcPortfolio`) | — |
 | `src_class` | 1 | stat_source_state NOT NULL | ответ классификации | — |
@@ -319,7 +319,7 @@ i_age_days    integer GENERATED ALWAYS AS (coalesce(d_cdate, slice_date) - d_oda
 |---|---|---|---|---|
 | `group_id` | 1 | uuid PK | группа | — |
 | `member_id` | 1 | uuid PK | член группы — субъект; ключ join к `stat_row_borrower` | — |
-| `slice_date` | 1 | date PK | дата среза, начало дня | — |
+| `slice_date` | 1 | date PK | дата среза, конец дня (`ADR-0264` §1) | — |
 | `run_id` | 1 | bigint NOT NULL | прогон, записавший строку | — |
 | `src_subj` | 1 | stat_source_state NOT NULL | ответ «Субъектов» | — |
 | `now_cols` | 1 | text[] NOT NULL DEFAULT '{}' | имена величин, собранных «текущими» | — |
@@ -349,7 +349,7 @@ i_age_days    integer GENERATED ALWAYS AS (coalesce(d_cdate, slice_date) - d_oda
 | Колонки | шт. | Тип | Смысл | Источник |
 |---|---|---|---|---|
 | `object_id` | 1 | uuid PK | id объекта у владельца | — |
-| `slice_date` | 1 | date PK | дата среза, начало дня (`ADR-0238` §2) | — |
+| `slice_date` | 1 | date PK | дата среза, конец дня (`ADR-0264` §1) | — |
 | `run_id` | 1 | bigint NOT NULL | прогон, записавший строку (`stat_run`) | — |
 | `src_core` | 1 | stat_source_state NOT NULL | ответ ядра (`calcPledge`) | — |
 | `src_class` | 1 | stat_source_state NOT NULL | ответ классификации | — |
@@ -408,7 +408,7 @@ i_age_days    integer GENERATED ALWAYS AS (coalesce(d_cdate, slice_date) - d_oda
 | Колонки | шт. | Тип | Смысл | Источник |
 |---|---|---|---|---|
 | `object_id` | 1 | uuid PK | id объекта у владельца | — |
-| `slice_date` | 1 | date PK | дата среза, начало дня (`ADR-0238` §2) | — |
+| `slice_date` | 1 | date PK | дата среза, конец дня (`ADR-0264` §1) | — |
 | `run_id` | 1 | bigint NOT NULL | прогон, записавший строку (`stat_run`) | — |
 | `now_cols` | 1 | text[] NOT NULL DEFAULT '{}' | имена величин, собранных «текущими» (`ADR-0242`) | — |
 
@@ -445,7 +445,7 @@ i_age_days    integer GENERATED ALWAYS AS (coalesce(d_cdate, slice_date) - d_oda
 | Колонки | шт. | Тип | Смысл | Источник |
 |---|---|---|---|---|
 | `object_id` | 1 | uuid PK | id объекта у владельца | — |
-| `slice_date` | 1 | date PK | дата среза, начало дня (`ADR-0238` §2) | — |
+| `slice_date` | 1 | date PK | дата среза, конец дня (`ADR-0264` §1) | — |
 | `run_id` | 1 | bigint NOT NULL | прогон, записавший строку (`stat_run`) | — |
 | `src_core` | 1 | stat_source_state NOT NULL | ответ ядра (долг) | — |
 | `src_pay` | 1 | stat_source_state NOT NULL | ответ погашений (платежи) | — |
@@ -495,7 +495,7 @@ i_age_days    integer GENERATED ALWAYS AS (coalesce(d_cdate, slice_date) - d_oda
 | Колонки | шт. | Тип | Смысл | Источник |
 |---|---|---|---|---|
 | `object_id` | 1 | uuid PK | id объекта у владельца | — |
-| `slice_date` | 1 | date PK | дата среза, начало дня (`ADR-0238` §2) | — |
+| `slice_date` | 1 | date PK | дата среза, конец дня (`ADR-0264` §1) | — |
 | `run_id` | 1 | bigint NOT NULL | прогон, записавший строку (`stat_run`) | — |
 | `src_core` | 1 | stat_source_state NOT NULL | ответ ядра (долг) | — |
 | `src_curation` | 1 | stat_source_state NOT NULL | ответ кураторства (роль «Куратор требования») | — |
@@ -567,7 +567,7 @@ i_age_days    integer GENERATED ALWAYS AS (coalesce(d_cdate, slice_date) - d_oda
 | Колонки | шт. | Тип | Смысл | Источник |
 |---|---|---|---|---|
 | `object_id` | 1 | uuid PK | id объекта у владельца | — |
-| `slice_date` | 1 | date PK | дата среза, начало дня (`ADR-0238` §2) | — |
+| `slice_date` | 1 | date PK | дата среза, конец дня (`ADR-0264` §1) | — |
 | `run_id` | 1 | bigint NOT NULL | прогон, записавший строку (`stat_run`) | — |
 | `now_cols` | 1 | text[] NOT NULL DEFAULT '{}' | имена величин, собранных «текущими» (`ADR-0242`) | — |
 
@@ -603,7 +603,7 @@ i_age_days    integer GENERATED ALWAYS AS (coalesce(d_cdate, slice_date) - d_oda
 
 - **Способ хранения:** `event_delta` · **ключ:** (`object_id`, `slice_date`, `d_corr_kind`)
 - **Модуль-владелец списка:** «Погашения»
-- **Строка есть:** `slice_date` = max(дата поступления, дата привязки) + 1; поправки после закрытия месяца — строками в месяце исправления
+- **Строка есть:** `slice_date` = max(дата поступления, дата привязки); поправки после закрытия месяца — строками в месяце исправления
 - **Правила видимости:** `own`: куратор и подразделение на дату платежа
 
 ### 9.1. Служебные — 7
@@ -611,7 +611,7 @@ i_age_days    integer GENERATED ALWAYS AS (coalesce(d_cdate, slice_date) - d_oda
 | Колонки | шт. | Тип | Смысл | Источник |
 |---|---|---|---|---|
 | `object_id` | 1 | uuid PK | id объекта у владельца | — |
-| `slice_date` | 1 | date PK | дата среза, начало дня (`ADR-0238` §2) | — |
+| `slice_date` | 1 | date PK | день события: max(дата поступления, дата привязки); у поправки — день исправления (`ADR-0264` §7) | — |
 | `run_id` | 1 | bigint NOT NULL | прогон, записавший строку (`stat_run`) | — |
 | `src_curation` | 1 | stat_source_state NOT NULL | ответ кураторства (куратор на дату платежа) | — |
 | `src_detail` | 1 | text | текст ошибки источника, если источник не `ok` | — |
@@ -662,7 +662,7 @@ i_age_days    integer GENERATED ALWAYS AS (coalesce(d_cdate, slice_date) - d_oda
 
 - **Способ хранения:** `event_delta` · **ключ:** (`object_id`, `slice_date`, `d_corr_kind`)
 - **Модуль-владелец списка:** «Погашения»
-- **Строка есть:** исходная строка — на дату поступления + 1; изменения после закрытия месяца — строки-поправки в месяце изменения; в открытом месяце строка переписывается
+- **Строка есть:** исходная строка — на дату поступления; изменения после закрытия месяца — строки-поправки в месяце изменения; в открытом месяце строка переписывается
 - **Правила видимости:** `open`: решение пользователя
 
 ### 10.1. Служебные — 4
@@ -670,7 +670,7 @@ i_age_days    integer GENERATED ALWAYS AS (coalesce(d_cdate, slice_date) - d_oda
 | Колонки | шт. | Тип | Смысл | Источник |
 |---|---|---|---|---|
 | `object_id` | 1 | uuid PK | id объекта у владельца | — |
-| `slice_date` | 1 | date PK | дата среза, начало дня (`ADR-0238` §2) | — |
+| `slice_date` | 1 | date PK | день события: дата поступления; у поправки — день изменения (`ADR-0264` §7) | — |
 | `run_id` | 1 | bigint NOT NULL | прогон, записавший строку (`stat_run`) | — |
 | `now_cols` | 1 | text[] NOT NULL DEFAULT '{}' | имена величин, собранных «текущими» (`ADR-0242`) | — |
 
@@ -717,7 +717,7 @@ i_age_days    integer GENERATED ALWAYS AS (coalesce(d_cdate, slice_date) - d_oda
 |---|---|---|---|---|
 | `object_id` | 1 | uuid PK | мера | — |
 | `target_id` | 1 | uuid PK | цель — требование; ключ join и правил видимости к `stat_row_claim` | — |
-| `slice_date` | 1 | date PK | день события + 1 | — |
+| `slice_date` | 1 | date PK | день события (`ADR-0264` §7) | — |
 | `run_id` | 1 | bigint NOT NULL | прогон, записавший строку (`stat_run`) | — |
 | `src_curation` | 1 | stat_source_state NOT NULL | ответ кураторства (автор меры) | — |
 | `src_detail` | 1 | text | текст ошибки источника, если источник не `ok` | — |
@@ -852,14 +852,21 @@ i_age_days    integer GENERATED ALWAYS AS (coalesce(d_cdate, slice_date) - d_oda
 | Колонка | Тип | Смысл |
 |---|---|---|
 | `id` | bigint PK | |
-| `kind` | text CHECK | `nightly` · `catchup` · `retro` · `manual` · `closing` · `reopen` |
+| `kind` | text CHECK | `nightly` · `live` · `catchup` · `retro` · `manual` · `closing` · `reopen` |
 | `date_from`, `date_to` | date | даты среза |
 | `status` | text CHECK | `running` · `done` · `partial` · `failed` · `skipped` |
 | `started_at`, `finished_at` | timestamptz | |
 | `actor_id` + `actor_lbl`, `reason` | uuid + text, text | обязательны у `manual`, `closing`, `reopen` (`CHECK`); у `skipped` обязательна причина |
 
-- Прогоны идут строго по одному: `UNIQUE ((true)) WHERE status = 'running'`.
-- Дата видна, только если за неё есть прогон `done` или `partial`.
+- Прогоны идут строго по одному: `UNIQUE ((true)) WHERE status = 'running' AND kind <> 'live'`.
+- `nightly` за сутки N запускается в 02:00 дня N: закрывает N−1 полным обходом и открывает N —
+  пишет строку N каждому объекту (`ADR-0264` §2). Копий вчерашних строк нет.
+- `live` — дневные пересчёты строки сегодняшнего дня, по одному на сутки: его открывает
+  `nightly` за N, закрывает `nightly` за N+1. Открытый `live` один:
+  `UNIQUE ((true)) WHERE status = 'running' AND kind = 'live'`; ночные прогоны идут рядом с ним
+  (`ADR-0264` §3).
+- Дата видна, только если за неё есть прогон `done` или `partial`; сегодняшняя — после
+  `nightly` за неё.
 
 **`stat_run_source`** — пара «прогон + источник».
 
@@ -871,11 +878,17 @@ i_age_days    integer GENERATED ALWAYS AS (coalesce(d_cdate, slice_date) - d_oda
 | `t_from`, `t_to` | timestamptz | окно вопроса; `t_to` — момент перед вопросом |
 | `state` | stat_source_state | ответ |
 | `changed`, `failed` | integer | счётчики |
+| `missed` | integer | у `nightly`: объектов, чья строка N−1 при закрытии суток разошлась с полным обходом, — изменения, о которых источник днём не сообщил (`ADR-0264` §2) |
+| `t_done` | timestamptz | у `live`: момент последней обработанной записи журнала изменений источника; самое раннее по источникам печатается в метаданных ответа на сегодня (`ADR-0264` §5) |
 | `detail` | text | |
 
+- `nightly` спрашивает источники в режиме `full`, `live` — в режиме `delta`. Строка пары
+  «`live` + источник» обновляется каждым опросом журнала изменений (раз в несколько секунд).
 - Текущее `T` источника отдельно не хранится: это
   `max(t_to) WHERE state = 'ok' AND mode = 'delta'`.
 - Следующий вопрос задаётся с перекрытием `t_from = T − запас`.
+- Источник без журнала изменений днём не опрашивается: пары с `live` у него нет, его колонки
+  в строке сегодняшнего дня — на 02:00 (`ADR-0264` §5).
 
 **`stat_run_count`** — пара «прогон + объект».
 
@@ -884,10 +897,9 @@ i_age_days    integer GENERATED ALWAYS AS (coalesce(d_cdate, slice_date) - d_oda
 | `run_id`, `object` | PK | |
 | `storage` | text CHECK | способ хранения объекта на момент прогона — копия из реестра для `CHECK` ниже |
 | `owner_total` | integer | отдал владелец |
-| `candidates` | integer | отобрано к пересчёту |
+| `candidates` | integer | у `live`: отобрано к пересчёту |
 | `recomputed` | integer | пересчитано |
 | `changed` | integer | изменилось |
-| `copied` | integer | скопировано со вчерашнего дня |
 | `failed` | integer | упало |
 | `not_born` | integer | дата появления ещё не наступила |
 | `no_birth` | integer | объекты без даты появления |
@@ -898,11 +910,10 @@ i_age_days    integer GENERATED ALWAYS AS (coalesce(d_cdate, slice_date) - d_oda
 | `corr_rows` | integer | строк-поправок |
 | `markers` | integer | поставлено маркеров |
 
-- `CHECK`:
-  - `storage = 'state'` → `new_rows` и `corr_rows` равны `NULL`;
-  - иначе `copied` равно `NULL`.
-- В конце прогона счётчики сверяются: `owner_total` = пересчитано + скопировано + упало +
-  дата появления не наступила + без даты появления. Не сошлось — `failed`, дата не публикуется.
+- `CHECK`: `storage = 'state'` → `new_rows` и `corr_rows` равны `NULL`.
+- В конце `nightly` счётчики сверяются: `owner_total` = пересчитано + упало + дата появления
+  не наступила + без даты появления. Не сошлось — `failed`, дата не публикуется.
+- У `live` счётчики копятся за сутки, `owner_total` равен `NULL`, сверки нет.
 
 **`stat_run_item`** — исключения поимённо.
 
@@ -924,7 +935,7 @@ i_age_days    integer GENERATED ALWAYS AS (coalesce(d_cdate, slice_date) - d_oda
 | Колонка | Тип | Смысл |
 |---|---|---|
 | `id` | uuid PK | |
-| `kind` | text CHECK | `retro` · `manual` · `reopen` |
+| `kind` | text CHECK | `live` · `retro` · `manual` · `reopen` |
 | `obj_table` | text | таблица строк; у `reopen` — `NULL` |
 | `object_id` | uuid | у «всех объектов» — `NULL` |
 | `date_from`, `date_to` | date | `date_to` `NULL` — по последнюю опубликованную дату |
@@ -936,6 +947,9 @@ i_age_days    integer GENERATED ALWAYS AS (coalesce(d_cdate, slice_date) - d_oda
 - У объекта не больше одной открытой задачи:
   `UNIQUE (obj_table, object_id) WHERE status = 'new'`. Новая задача сливается с открытой,
   дата берётся более ранняя.
+- `live` — изменение сегодняшнего дня, `date_from` = сегодня; `retro` — факт задним числом в
+  открытом месяце, с даты факта по сегодня. Обе берёт в работу прогон `live` (`ADR-0264` §3–§4).
+- Длина очереди в метаданных ответа на сегодня — число задач `status = 'new'` (`ADR-0264` §5).
 - Выполненные задачи удаляются при закрытии месяца.
 
 **`stat_rewrite_log`**
@@ -946,12 +960,14 @@ i_age_days    integer GENERATED ALWAYS AS (coalesce(d_cdate, slice_date) - d_oda
 | `run_id` | bigint | |
 | `row_table`, `object_id`, `slice_date`, `target_id` | | строка; `target_id` — только у меры |
 | `changed` | text[] | имена изменившихся колонок; значения не хранятся |
-| `reason` | text CHECK | `retro` · `backfill` · `reopen` · `manual` · `closing` · `legacy` |
+| `reason` | text CHECK | `live` · `missed` · `retro` · `backfill` · `reopen` · `manual` · `closing` · `legacy` |
 | `actor_id` + `actor_lbl` | | обязателен у `manual` и `legacy` |
 | `at` | timestamptz | |
 
 - Индекс `(row_table, slice_date)`.
-- Записи о днях удаляются вместе с днями; о первых числах хранятся всегда.
+- `live` — правка строки сегодняшнего дня по изменению в источнике; `missed` — расхождение
+  строки N−1 с полным обходом при закрытии суток (`ADR-0264` §2–§3).
+- Записи о днях удаляются вместе с днями; о последних днях месяцев хранятся всегда.
 - Строка-поправка события сюда не пишется (`ADR-0239`).
 
 ### 12.4. Маркер расхождения
@@ -1013,7 +1029,8 @@ i_age_days    integer GENERATED ALWAYS AS (coalesce(d_cdate, slice_date) - d_oda
 | Колонка | Тип | Смысл |
 |---|---|---|
 | `id` | uuid PK | |
-| `obj_table`, `slice_date` | text, date | вопрос |
+| `obj_table`, `slice_date` | text, date | вопрос; `slice_date` — дата читаемой строки |
+| `day_bound` | text CHECK | граница даты вопроса: `end` «на конец дня» (по умолчанию) · `start` «на начало дня» — дата вопроса на день позже `slice_date` (`ADR-0264` §6) |
 | `ordered_by_id` + `_lbl`, `ordered_at` | | заказчик |
 | `status` | text CHECK | `queued` · `ready` · `error` · `expired` |
 | `row_count` | integer | строк в файле |
@@ -1069,8 +1086,8 @@ $$;
 
 Для объектов-состояний функции нет: чтение на дату — `WHERE slice_date = D`.
 
-**`v_repay_credit`** — строка платежа рядом со строкой его кредита на первое число месяца,
-следующего за месяцем платежа. Через неё платёж получает разрезы, которые он не копирует:
+**`v_repay_credit`** — строка платежа рядом со строкой его кредита на последний день месяца
+платежа. Через неё платёж получает разрезы, которые он не копирует:
 категорию риска, слоты классификаторов, путь к признакам заёмщика.
 
 ```sql
@@ -1081,10 +1098,10 @@ SELECT p.*,
 FROM stat_row_repay p
 LEFT JOIN stat_row_credit c
   ON  c.object_id  = p.d_credit_id
-  AND c.slice_date = (date_trunc('month', p.slice_date - 1) + interval '1 month')::date;
+  AND c.slice_date = (date_trunc('month', p.slice_date) + interval '1 month - 1 day')::date;
 ```
 
-У платежа открытого месяца строки кредита на следующее первое число ещё нет — см. §15, п. 8.
+У платежа открытого месяца строки кредита на последний день месяца ещё нет — см. §15, п. 8.
 
 ---
 
@@ -1106,7 +1123,7 @@ BEGIN
       ELSE ARRAY[OLD.slice_date, NEW.slice_date] END
   LOOP
     SELECT * INTO per FROM period_calendar
-     WHERE period = date_trunc('month', d - 1)::date;          -- период строки
+     WHERE period = date_trunc('month', d)::date;              -- период строки
     IF per.stat_closed_at IS NOT NULL THEN
       IF current_setting('stat.legacy_fix', true) = 'on'
          AND per.origin = 'legacy'
@@ -1114,7 +1131,7 @@ BEGIN
         CONTINUE;                                               -- правка легаси миграцией
       END IF;
       RAISE EXCEPTION 'stat: период % закрыт, запись в % запрещена',
-                      to_char(d - 1, 'YYYY-MM'), TG_TABLE_NAME;
+                      to_char(d, 'YYYY-MM'), TG_TABLE_NAME;
     END IF;
   END LOOP;
   RETURN CASE TG_OP WHEN 'DELETE' THEN OLD ELSE NEW END;
@@ -1128,8 +1145,10 @@ CREATE TRIGGER stat_guard BEFORE INSERT OR UPDATE OR DELETE ON stat_row_credit
   и только в строки, у которых все `src_*` равны `legacy`. У таблиц без колонок источника
   (договор, программа, поступление) достаточно признака периода. Каждая правка пишется в
   `stat_rewrite_log` с причиной `legacy` и актором (`ADR-0245` §9).
-- **Порядок закрытия** — одна транзакция (`ADR-0245` §7). Сначала удаляются дни, потом
-  ставится `stat_closed_at`: триггер не мешает удалению, пока колонка пуста.
+- **Порядок закрытия** — одна транзакция (`ADR-0245` §7). Остаются строки последнего дня
+  месяца (`ADR-0264` §8): сначала удаляются остальные дни, потом ставится `stat_closed_at`;
+  триггер не мешает удалению, пока колонка пуста. Месяц закрывается только после `nightly`,
+  закрывшего его последние сутки.
 - **Поправка события** пишется в открытый месяц и триггер не задевает.
 - Ключ `period` в календаре показан как первое число месяца; фактический формат — у
   `ADR-0204`.
@@ -1159,8 +1178,8 @@ CREATE TRIGGER stat_guard BEFORE INSERT OR UPDATE OR DELETE ON stat_row_credit
 
 ### 15.2. Открытые вопросы схемы
 
-8. **`v_repay_credit` в открытом месяце.** Строка кредита на следующее первое число появится
-   только после конца месяца. До этого разрезы, которые платёж не копирует, пусты. Вариант
+8. **`v_repay_credit` в открытом месяце.** Строка кредита на последний день месяца появится
+   только в этот день. До этого разрезы, которые платёж не копирует, пусты. Вариант
    — пока месяц открыт, брать строку кредита на `slice_date` платежа.
 9. **Куратор кредита.** У заёмщика, залога и требования куратор приходит от кураторства и
    имеет колонку `src_curation`. У кредита он утверждён как история модуля «Кредиты», без
@@ -1201,7 +1220,7 @@ CREATE TRIGGER stat_guard BEFORE INSERT OR UPDATE OR DELETE ON stat_row_credit
 | Колонки | шт. | Тип | Смысл | Источник |
 |---|---|---|---|---|
 | `object_id` | 1 | uuid PK | id заявки у владельца | — |
-| `slice_date` | 1 | date PK | дата среза, начало дня (`ADR-0238` §2) | — |
+| `slice_date` | 1 | date PK | дата среза, конец дня (`ADR-0264` §1) | — |
 | `run_id` | 1 | bigint NOT NULL | прогон, записавший строку (`stat_run`) | — |
 | `src_app` | 1 | stat_source_state NOT NULL | ответ «Заявок» (`appClock`) | — |
 | `src_detail` | 1 | jsonb | что именно не ответило и почему (`ADR-0208` §2) | — |
@@ -1252,7 +1271,7 @@ CREATE TRIGGER stat_guard BEFORE INSERT OR UPDATE OR DELETE ON stat_row_credit
 | Колонки | шт. | Тип | Смысл | Источник |
 |---|---|---|---|---|
 | `object_id` | 1 | uuid PK | id обращения у владельца | — |
-| `slice_date` | 1 | date PK | дата среза, начало дня | — |
+| `slice_date` | 1 | date PK | дата среза, конец дня (`ADR-0264` §1) | — |
 | `run_id` | 1 | bigint NOT NULL | прогон, записавший строку | — |
 | `src_rs` | 1 | stat_source_state NOT NULL | ответ «Реструктуризации» (`rsClock`) | — |
 | `src_detail` | 1 | jsonb | что именно не ответило и почему | — |
@@ -1296,7 +1315,7 @@ CREATE TRIGGER stat_guard BEFORE INSERT OR UPDATE OR DELETE ON stat_row_credit
 | Колонки | шт. | Тип | Смысл | Источник |
 |---|---|---|---|---|
 | `object_id` | 1 | uuid PK | id расчёта у владельца | — |
-| `slice_date` | 1 | date PK | дата среза, начало дня | — |
+| `slice_date` | 1 | date PK | дата среза, конец дня (`ADR-0264` §1) | — |
 | `run_id` | 1 | bigint NOT NULL | прогон, записавший строку | — |
 | `src_rs` | 1 | stat_source_state NOT NULL | ответ «Реструктуризации» | — |
 | `src_detail` | 1 | jsonb | что именно не ответило и почему | — |
@@ -1343,7 +1362,7 @@ CREATE TRIGGER stat_guard BEFORE INSERT OR UPDATE OR DELETE ON stat_row_credit
 | Колонки | шт. | Тип | Смысл | Источник |
 |---|---|---|---|---|
 | `object_id` | 1 | uuid PK | id сотрудника у владельца | — |
-| `slice_date` | 1 | date PK | дата среза, начало дня | — |
+| `slice_date` | 1 | date PK | дата среза, конец дня (`ADR-0264` §1) | — |
 | `run_id` | 1 | bigint NOT NULL | прогон, записавший строку | — |
 | `src_hr` | 1 | stat_source_state NOT NULL | ответ «Сотрудников» (`hrClock`) | — |
 | `src_detail` | 1 | jsonb | что именно не ответило и почему | — |
@@ -1391,7 +1410,7 @@ CREATE TRIGGER stat_guard BEFORE INSERT OR UPDATE OR DELETE ON stat_row_credit
 | Колонки | шт. | Тип | Смысл | Источник |
 |---|---|---|---|---|
 | `object_id` | 1 | uuid PK | id эпизода у ядра: кредит × слой × дата выхода | — |
-| `slice_date` | 1 | date PK | дата среза, начало дня | — |
+| `slice_date` | 1 | date PK | дата среза, конец дня (`ADR-0264` §1) | — |
 | `run_id` | 1 | bigint NOT NULL | прогон, записавший строку | — |
 | `src_core` | 1 | stat_source_state NOT NULL | ответ ядра (`overdueSpells`) | — |
 | `src_detail` | 1 | jsonb | что именно не ответило и почему | — |
