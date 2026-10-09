@@ -1,0 +1,1593 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Имущество Фонда · АСУБК</title>
+<!--
+  АСУБК · модуль «Имущество Фонда» · исполняемый макет TO-BE.
+  Источник истины — mockups/assets/ASUBK-imushchestvo-logika.md (канон), язык — CONTEXT.md
+  «## Имущество Фонда». Четыре входа по ИМ-25: Предложения · Объекты имущества · Договоры
+  купли-продажи · Настройки.
+
+  Слои скрипта: даты → справочники → seed → ДВИЖОК (производные от фактов) → операции
+  (ввод факта, второй ключ) → экраны.
+  Состояние предложения, позиции и объекта не хранится: каждый раз вычисляется по
+  опубликованным фактам на выбранную дату (ИМ-13, ИИ-2). Кнопки «сменить статус» нет.
+
+  Шов для смоука: window.IM (и тот же объект как window.__im). Функции движка принимают
+  явные аргументы и возвращают {ok, why} — тест не зависит от вёрстки.
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-link:#005FDB;
+  --asubk-green:#158443; --asubk-red:#E03A3A;
+  --asubk-ink:#192434; --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
+  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+  --asubk-red-tint:#FCE6E6; --asubk-green-tint:rgba(21,132,67,0.10);
+  --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong);
+  --action-primary:var(--asubk-blue); --action-danger:var(--asubk-red);
+  --status-success-bg:var(--asubk-green-tint); --status-info-bg:var(--asubk-blue-tint);
+  --status-warning-bg:var(--asubk-amber-tint); --status-error-bg:var(--asubk-red-tint);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --text-sm:14px; --text-base:16px; --text-lg:18px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
+  --font-body:var(--weight-regular) var(--text-base)/1.5 var(--asubk-font);
+  --font-label:var(--weight-regular) var(--text-sm)/1.35 var(--asubk-font);
+  --font-page-title:var(--weight-semibold) var(--text-lg)/1.2 var(--asubk-font);
+  --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --control-h:36px; --header-h:56px; --sidebar-w:270px;
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
+.app{ display:flex; height:100vh; width:100%; }
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
+  display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+.brand{ padding:18px 16px 4px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font); color:var(--text-heading); letter-spacing:0.04em; }
+.brand small{ display:block; font:var(--weight-regular) 12px/1.4 var(--asubk-font); color:var(--text-muted); letter-spacing:0; margin-top:4px; }
+.nav{ flex:1; overflow-y:auto; padding:12px 0 8px; }
+.nav-sec{ padding:9px 16px 4px; font:var(--weight-semibold) 12px/1.3 var(--asubk-font); color:var(--text-placeholder); text-transform:uppercase; letter-spacing:0.05em; }
+.nav-item{ display:flex; align-items:center; gap:9px; padding:8px 16px; width:100%; color:rgba(27,43,65,0.72);
+  font:var(--weight-regular) var(--text-base)/1.4 var(--asubk-font); cursor:pointer; background:none; border:none; text-align:left; }
+.nav-item:hover{ background:rgba(24,39,57,0.05); }
+.nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); font-weight:var(--weight-medium); }
+.nav-item .cnt{ margin-left:auto; color:var(--text-placeholder); font-size:12px; }
+.nav-item .cnt.hot{ color:var(--asubk-red); font-weight:var(--weight-semibold); }
+.sidebar-foot{ padding:12px 16px; border-top:1px solid var(--border-default); font:var(--weight-regular) 12px/1.45 var(--asubk-font); color:var(--text-muted); }
+.main{ flex:1; display:flex; flex-direction:column; min-width:0; }
+.topbar{ min-height:var(--header-h); flex:none; border-bottom:1px solid var(--border-default);
+  display:flex; align-items:center; gap:14px; padding:8px 20px; flex-wrap:wrap; }
+.crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
+.crumb-title .back{ color:var(--text-link); cursor:pointer; font-weight:var(--weight-regular); }
+.topbar .right{ margin-left:auto; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.topbar label{ font:var(--font-label); color:var(--text-muted); margin-right:6px; }
+.topbar select,.topbar input{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 10px; }
+.content{ flex:1; overflow:auto; }
+.panel-wrap{ padding:18px 24px 60px; max-width:1280px; }
+.section-h{ font:var(--weight-semibold) 16px/1.2 var(--asubk-font); color:var(--text-heading); margin:22px 0 8px; }
+.section-h:first-child{ margin-top:0; }
+.banner{ border-radius:var(--radius-md); padding:10px 14px; margin-bottom:10px; font:var(--font-label); }
+.banner.warn{ background:var(--status-warning-bg); color:#7a5a06; }
+.banner.info{ background:var(--status-info-bg); color:#0b4fae; }
+.banner.danger{ background:var(--status-error-bg); color:#b02626; }
+.banner.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.banner b{ font-weight:var(--weight-semibold); }
+.pill{ display:inline-block; padding:2px 9px; border-radius:var(--radius-pill); font:var(--weight-medium) 12px/1.5 var(--asubk-font); white-space:nowrap; }
+.pill.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.pill.warn{ background:var(--status-warning-bg); color:#8a6508; }
+.pill.err{ background:var(--status-error-bg); color:var(--asubk-red); }
+.pill.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.pill.neutral{ background:var(--asubk-tint-fill); color:var(--text-muted); }
+.flag{ display:inline-block; padding:1px 8px; border-radius:var(--radius-pill); font:var(--weight-semibold) 12px/1.5 var(--asubk-font);
+  background:var(--status-error-bg); color:var(--asubk-red); white-space:nowrap; margin-left:4px; }
+.flag.enc{ background:var(--status-warning-bg); color:#8a6508; }
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; height:var(--control-h); padding:0 14px;
+  border:1px solid transparent; border-radius:var(--radius-md); font:var(--weight-semibold) 14px/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
+.btn:disabled{ opacity:.45; cursor:not-allowed; }
+.btn-primary{ background:var(--action-primary); color:#fff; }
+.btn-primary:hover:not(:disabled){ background:var(--asubk-blue-hover); }
+.btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
+.btn-secondary:hover:not(:disabled){ background:var(--surface-hover); }
+.btn-danger{ background:var(--surface-card); color:var(--asubk-red); border-color:rgba(224,58,58,.4); }
+.btn-sm{ height:28px; padding:0 9px; font-size:12.5px; font-weight:var(--weight-medium); }
+.btn-row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+table.cgrid{ width:100%; border-collapse:collapse; font:var(--font-label); border:1px solid var(--border-default); background:var(--surface-card); }
+table.cgrid thead th{ text-align:left; padding:9px 10px; background:var(--surface-panel); border-bottom:1px solid var(--asubk-grid-line);
+  font:var(--weight-semibold) 13px/1.35 var(--asubk-font); color:var(--text-heading); white-space:nowrap; }
+table.cgrid tbody td{ padding:8px 10px; border-bottom:1px solid var(--asubk-grid-line); vertical-align:top; }
+table.cgrid tbody tr:last-child td{ border-bottom:none; }
+table.cgrid tbody tr.click{ cursor:pointer; } table.cgrid tbody tr.click:hover td{ background:var(--surface-hover); }
+table.cgrid tbody tr.over td{ background:#fff6f6; }
+table.cgrid tbody tr.pend td{ background:#fffbea; }
+table.cgrid tbody tr.gone td{ color:var(--text-placeholder); }
+table.cgrid td.num, table.cgrid th.num{ text-align:right; white-space:nowrap; }
+.muted{ color:var(--text-muted); }
+.mono{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12.5px; }
+.small{ font:var(--weight-regular) 12.5px/1.45 var(--asubk-font); color:var(--text-muted); }
+.why{ font:var(--weight-regular) 12px/1.45 var(--asubk-font); color:var(--text-muted); margin-top:3px; }
+.why.err{ color:var(--asubk-red); }
+.linky{ background:none; border:none; padding:0; cursor:pointer; color:var(--text-link); font:inherit; text-decoration:underline; }
+.card{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:14px 16px; margin-bottom:14px; background:var(--surface-card); }
+.card > h3{ margin:0 0 10px; font:var(--weight-semibold) 15px/1.25 var(--asubk-font); color:var(--text-heading); }
+.card-head{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 10px; }
+.card-head h3{ margin:0; font:var(--weight-semibold) 15px/1.25 var(--asubk-font); color:var(--text-heading); }
+.card-head .btn-row{ margin-left:auto; }
+.kv{ display:grid; grid-template-columns:200px 1fr; gap:5px 14px; font:var(--font-label); }
+.kv .k{ color:var(--text-muted); }
+.grid2{ display:grid; grid-template-columns:minmax(0,1.7fr) minmax(300px,1fr); gap:14px; align-items:start; }
+@media(max-width:1100px){ .grid2{ grid-template-columns:1fr; } }
+.filters{ display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:12px; }
+.fld{ display:flex; flex-direction:column; gap:4px; }
+.fld > label{ font:12.5px/1.3 var(--asubk-font); color:var(--text-muted); }
+.fld select,.fld input,.fld textarea{ height:34px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 9px; min-width:160px; }
+.fld textarea{ height:60px; padding:6px 9px; }
+.chk{ display:flex; gap:6px; align-items:center; font:var(--font-label); height:34px; }
+.tabs{ display:flex; gap:2px; border-bottom:1px solid var(--border-default); margin:0 0 12px; flex-wrap:wrap; }
+.tab{ padding:8px 12px; border:none; background:none; cursor:pointer; font:var(--font-label); color:var(--text-muted); border-bottom:2px solid transparent; }
+.tab.on{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:var(--weight-semibold); }
+.tab .c{ color:var(--text-placeholder); font-size:11.5px; margin-left:3px; }
+.facts{ display:flex; flex-direction:column; gap:10px; }
+.fgroup{ display:flex; gap:8px; align-items:flex-start; }
+.fgroup .gname{ width:130px; flex:none; font:var(--weight-semibold) 12.5px/28px var(--asubk-font); color:var(--text-muted); }
+.fgroup .gbody{ flex:1; }
+.fgroup .why{ margin-top:4px; }
+.sum{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+.sum .tile{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:8px 12px; min-width:130px; background:var(--surface-card); }
+.sum .tile .n{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); }
+.sum .tile .l{ font:12px/1.3 var(--asubk-font); color:var(--text-muted); }
+.ro{ border-left:3px solid var(--asubk-gray-200); padding-left:10px; }
+.overlay{ position:fixed; inset:0; background:rgba(16,28,46,0.42); display:none; align-items:center; justify-content:center; z-index:60; padding:24px; }
+.overlay.open{ display:flex; }
+.modal{ background:var(--surface-card); border-radius:var(--radius-lg); width:min(720px,100%); max-height:90vh; display:flex; flex-direction:column; box-shadow:0 24px 70px rgba(16,28,46,0.4); }
+.modal-h{ padding:18px 24px 10px; display:flex; align-items:center; gap:10px; }
+.modal-h .mt{ font:var(--weight-bold) 19px/1.2 var(--asubk-font); color:var(--text-heading); flex:1; }
+.modal-x{ border:none; background:transparent; cursor:pointer; color:var(--text-muted); font-size:20px; }
+.modal-b{ padding:0 24px 8px; overflow:auto; flex:1; }
+.modal-f{ padding:14px 24px 20px; display:flex; gap:12px; justify-content:flex-end; }
+.mform{ display:grid; grid-template-columns:1fr 1fr; gap:12px 22px; padding-top:6px; }
+.mform .fld.wide{ grid-column:1/-1; }
+.mform .fld select,.mform .fld input,.mform .fld textarea{ width:100%; min-width:0; }
+.req::after{ content:" •"; color:var(--action-danger); }
+#toastWrap{ position:fixed; right:18px; bottom:18px; display:flex; flex-direction:column; gap:8px; z-index:70; }
+.toast{ background:var(--asubk-ink); color:#fff; padding:10px 14px; border-radius:var(--radius-md); font:var(--font-label); max-width:460px; box-shadow:0 6px 20px rgba(24,39,57,0.25); }
+.toast.err{ background:var(--asubk-red); } .toast.ok{ background:var(--asubk-green); }
+@media(max-width:760px){
+  .app{ flex-direction:column; height:auto; min-height:100vh; }
+  .sidebar{ width:100%; border-right:none; border-bottom:1px solid var(--border-default); }
+  .nav{ display:flex; flex-wrap:wrap; padding:4px 8px; } .nav-sec,.sidebar-foot{ display:none; }
+  .nav-item{ width:auto; padding:6px 10px; font-size:14px; }
+  .content{ overflow:visible; } .panel-wrap{ padding:12px 16px 40px; }
+  .topbar{ padding:8px 16px; } .topbar .right{ margin-left:0; }
+  .kv{ grid-template-columns:1fr; gap:2px 0; } .kv .k{ margin-top:6px; }
+  table.cgrid{ display:block; overflow-x:auto; }
+  .mform{ grid-template-columns:1fr; } .fgroup{ flex-direction:column; gap:2px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">АСУБК<small>Система кредитования · Имущество Фонда</small></div>
+    <div class="nav">
+      <div class="nav-sec">Имущество</div>
+      <button class="nav-item" data-v="offers" data-testid="nav-offers" onclick="IM.go('offers')">Предложения<span class="cnt" id="cntOffers"></span></button>
+      <button class="nav-item" data-v="objects" data-testid="nav-objects" onclick="IM.go('objects')">Объекты имущества<span class="cnt" id="cntObjects"></span></button>
+      <button class="nav-item" data-v="contracts" data-testid="nav-contracts" onclick="IM.go('contracts')">Договоры купли-продажи<span class="cnt" id="cntContracts"></span></button>
+      <button class="nav-item" data-v="settings" data-testid="nav-settings" onclick="IM.go('settings')">Настройки<span class="cnt" id="cntTrig"></span></button>
+    </div>
+    <div class="sidebar-foot" id="foot"></div>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb-title" id="title"></div>
+      <div class="right">
+        <span><label>Состояние на дату</label><input type="text" id="asOf" data-testid="as-of" placeholder="ДД.ММ.ГГГГ" style="width:110px" onchange="IM.setAsOf(this.value)"></span>
+        <span id="asOfQuick"></span>
+        <span><label>Роль</label><select id="role" data-testid="role" onchange="IM.setRole(this.value)"></select></span>
+      </div>
+    </div>
+    <div class="content"><div class="panel-wrap" id="panel"></div></div>
+  </div>
+</div>
+<div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
+<div id="toastWrap"></div>
+
+<script>
+/* =====================================================================
+ *  МОДУЛЬ «ИМУЩЕСТВО ФОНДА» — исполняемый макет
+ * ===================================================================== */
+const IM = {};
+
+/* ------------------------------ даты -------------------------------- */
+const D        = s => new Date(s + 'T00:00:00Z');
+const isoOf    = dt => dt.toISOString().slice(0, 10);
+const addDays  = (s, n) => { const d = D(s); d.setUTCDate(d.getUTCDate() + n); return isoOf(d); };
+const addMonths= (s, n) => { const d = D(s); d.setUTCMonth(d.getUTCMonth() + n); return isoOf(d); };
+const days     = (a, b) => Math.round((D(b) - D(a)) / 864e5);
+const isWork   = s => { const w = D(s).getUTCDay(); return w !== 0 && w !== 6; };
+const addWork  = (s, n) => { let c = s, k = 0; while (k < n) { c = addDays(c, 1); if (isWork(c)) k++; } return c; };
+const fmt      = s => s ? s.slice(8, 10) + '.' + s.slice(5, 7) + '.' + s.slice(0, 4) : '—';
+const TODAY    = '2028-03-15';
+/* Даты в интерфейсе — ДД.ММ.ГГГГ; внутри — ISO. Возвращает ISO, '' для пустого, null для неверной даты. */
+function toIso(s) {
+  s = String(s == null ? '' : s).trim(); if (!s) return '';
+  let m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(s), iso = null;
+  if (m) iso = m[3] + '-' + m[2] + '-' + m[1]; else if (/^\d{4}-\d{2}-\d{2}$/.test(s)) iso = s;
+  if (!iso) return null;
+  const d = new Date(iso + 'T00:00:00Z'); return !isNaN(d) && d.toISOString().slice(0, 10) === iso ? iso : null;
+}
+const FAR      = '9999-12-31';
+
+/* ----------------------------- деньги ------------------------------- */
+const CCY = { KGS: 'сом', USD: 'USD', EUR: 'EUR' };
+const CCY_OPTS = [['KGS', 'сом (KGS)'], ['USD', 'доллар США (USD)'], ['EUR', 'евро (EUR)']];
+const ccyF = (value = 'KGS') => ({ id: 'ccy', label: 'Валюта документа', type: 'select', options: CCY_OPTS, value });
+function money(v, ccy = 'KGS') {
+  if (v == null || isNaN(v)) return '—';
+  const neg = v < 0, a = Math.abs(Math.round(v * 100)) / 100;
+  const int = Math.floor(a), fr = Math.round((a - int) * 100);
+  const s = String(int).replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + (fr ? ',' + String(fr).padStart(2, '0') : '');
+  return (neg ? '−' : '') + s + ' ' + (CCY[ccy] || ccy);
+}
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const jsq = s => String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+const yes = { ok: true, why: '' };
+const no  = why => ({ ok: false, why });
+
+/* --------------------------- справочники ---------------------------- */
+/* Вид имущества — общий справочник с Залогом (ИМ-12); модулю нужны три признака (ИМ-ДС-12). */
+const KINDS = [
+  { id: 'flat',   name: 'Квартира',               cls: 'вещь',  reg: true,  div: false },
+  { id: 'house',  name: 'Жилой дом',              cls: 'вещь',  reg: true,  div: false },
+  { id: 'garage', name: 'Гараж',                  cls: 'вещь',  reg: true,  div: false },
+  { id: 'nonres', name: 'Нежилое помещение',      cls: 'вещь',  reg: true,  div: false },
+  { id: 'store',  name: 'Склад',                  cls: 'вещь',  reg: true,  div: false },
+  { id: 'tractor',name: 'Трактор',                cls: 'вещь',  reg: false, div: false },
+  { id: 'equip',  name: 'Оборудование',           cls: 'вещь',  reg: false, div: false },
+  { id: 'machine',name: 'Спецтехника',            cls: 'вещь',  reg: false, div: false },
+  { id: 'grain',  name: 'Зерно',                  cls: 'вещь',  reg: false, div: true, unit: 'т' },
+  { id: 'share',  name: 'Доля в уставном капитале', cls: 'имущественное право', reg: true, div: false },
+];
+/* Пять источников и правила по источнику (§2.2). */
+const SOURCES = {
+  pssi:    { name: 'Судебный исполнитель (ПССИ)', doc: 'Постановление о передаче нереализованного имущества взыскателю', alien: 'должник', topup: 'депозит ПССИ' },
+  spec:    { name: 'Специальный администратор',   doc: 'Акт специального администратора по конкурсной массе', alien: 'банкрот', topup: 'конкурсная масса' },
+  debtor:  { name: 'Должник',                     doc: 'Соглашение об отступном', alien: 'должник', topup: 'должник' },
+  pledgor: { name: 'Залогодатель',                doc: 'Соглашение об отступном (п. 49)', alien: 'залогодатель', topup: 'залогодатель' },
+  third:   { name: 'Третье лицо',                 doc: 'Соглашение об исполнении за должника', alien: 'третье лицо', topup: 'третье лицо' },
+};
+const ORGANS = ['Комитет по вопросам правового обеспечения и управления имуществом', 'Правление'];
+const TERM_REASONS = ['Отчуждатель уклоняется от регистрации', 'Вещь погибла или утрачена до перехода права', 'Отчуждатель умер, правопреемника нет', 'Иное (с пояснением)'];
+const ENC_KINDS = ['Аренда', 'Пользование', 'Арест третьего лица', 'Ответственное хранение', 'Иное'];
+const EXP_ITEMS = ['Охрана', 'Налог', 'Коммунальные', 'Оценщик', 'Площадка', 'Страхование', 'Ремонт', 'Хранение'];
+const METHODS = ['Аукцион', 'Конкурс', 'Прямая продажа'];
+const LOSS_CAUSE = ['Гибель', 'Утрата', 'Снос'];
+const CONCL = ['Осмотр', 'Оценка', 'Ликвидность', 'Расходы на содержание'];
+const PATH = { gift: 'безвозмездная передача', loss: 'выбытие', ret: 'возврат', once: 'продажа разовая', inst: 'продажа в рассрочку' };
+
+/* Роли доступа (ИМ-26) — не роли кураторства. */
+const ROLES = [
+  { id: 'spec',   name: 'Специалист по имуществу',                  who: 'Абдраимова Н.К.' },
+  { id: 'sec',    name: 'Секретарь органа',                          who: 'Исакова Д.М.' },
+  { id: 'lawyer', name: 'Юрист',                                     who: 'Мамбетов Ч.А.' },
+  { id: 'acc',    name: 'Бухгалтер',                                 who: 'Сыдыкова А.Т.' },
+  { id: 'head',   name: 'Начальник Управления по работе с активами', who: 'Джумалиев Б.К.' },
+];
+const roleName = r => (ROLES.find(x => x.id === r) || {}).name || r;
+/* Кто готовит факт (§10.2). */
+const ROLE_OF = {
+  offerNew: ['spec'], posEdit: ['spec'], posAdd: ['spec'], letter: ['spec'], concl: ['spec'], withdraw: ['spec'],
+  decision: ['sec'], act: ['spec'], terminate: ['spec'], reg: ['spec'], regRefusal: ['spec'],
+  inspection: ['spec'], appraisal: ['spec'], expense: ['spec'], encumbrance: ['spec'], priceDecision: ['sec', 'spec'],
+  attempt: ['spec'], attemptResult: ['spec'], contract: ['lawyer'], claim: ['lawyer'], cterm: ['lawyer'],
+  payment: ['acc'], topup: ['acc'], split: ['spec'], gift: ['spec'], loss: ['spec'], ret: ['spec'],
+  corr: ['spec', 'sec', 'lawyer', 'acc', 'head'], intro: ['spec'],
+};
+/* Второй ключ — только на факты, двигающие деньги или стоимость (ИИ-15). */
+const KEY = new Set(['act', 'reg', 'regRefusal', 'terminate', 'contract', 'cterm', 'split', 'gift', 'loss', 'ret', 'corr']);
+const FACT_NAME = {
+  letter: 'Промежуточное письмо', concl: 'Заключение', withdraw: 'Отзыв позиции источником', decision: 'Решение органа',
+  act: 'Акт приёма-передачи', terminate: 'Решение о прекращении принятия', reg: 'Регистрация права Фонда',
+  regRefusal: 'Отказ регистратора', inspection: 'Осмотр', appraisal: 'Оценка', expense: 'Расход содержания',
+  encumbrance: 'Обременение', priceDecision: 'Решение органа о снижении стартовой цены', attempt: 'Попытка продажи',
+  attemptResult: 'Итог попытки', contract: 'Договор купли-продажи', claim: 'Претензия покупателю',
+  cterm: 'Расторжение договора КП', payment: 'Оплата по договору КП (из Платежей)', topup: 'Доплата исполнена (Возврат в Платежах)',
+  split: 'Разделение', gift: 'Безвозмездная передача', loss: 'Выбытие', ret: 'Возврат — принятие отменено судом',
+  corr: 'Исправление опубликованного факта', intro: 'Вводный остаток', born: 'Возник разделением',
+};
+const WITHDRAW_AFTER_ACT = 'После акта отзыва нет: до перехода права — прекращение принятия, после — возврат.';
+const LISTED_CLOSE = 'идёт попытка продажи: при публикации она закроется итогом «не состоялась»';
+const RETURN_SOLD = 'Объект продан: путь «возврат» недоступен — по решению суда отчуждателю выплачивается денежная компенсация через Возврат в Платежах.';
+
+/* Обязанные лица — из Взыскания (ADR-0024), только чтение. debt — ответ Взыскания:
+   долг на дату перехода права в сомах (модуль курсов не знает, ИИ-18). */
+const OBL = [
+  { id: 'o_x',  name: 'Асанов Т.Б.',              role: 'заёмщик',   credits: [{ no: 'К-1', ccy: 'KGS' }, { no: 'К-2', ccy: 'KGS' }], debt: 1850000 },
+  { id: 'o_b',  name: 'ОсОО «Ак-Жол Агро»',        role: 'заёмщик',   credits: [{ no: 'К-14', ccy: 'KGS' }], debt: 1000000 },
+  { id: 'o_i',  name: 'Иманов К.Т.',              role: 'заёмщик',   credits: [{ no: 'К-21', ccy: 'KGS' }], debt: 600000 },
+  { id: 'o_z',  name: 'Жумабаев З.А.',            role: 'поручитель', borrower: 'ОсОО «Нур-Сервис»', credits: [{ no: 'К-33', ccy: 'USD' }], debt: 1500000 },
+  { id: 'o_m',  name: 'Мамытов Э.С.',             role: 'заёмщик',   credits: [{ no: 'К-37', ccy: 'KGS' }], debt: 800000 },
+  { id: 'o_k',  name: 'ОсОО «Кара-Суу Дан»',       role: 'заёмщик',   credits: [{ no: 'К-40', ccy: 'KGS' }], debt: 2000000 },
+  { id: 'o_s',  name: 'Садыкова Г.Н.',            role: 'заёмщик',   credits: [{ no: 'К-50', ccy: 'KGS' }], debt: 3000000 },
+  { id: 'o_t',  name: 'ОсОО «Токмок-Строй»',       role: 'заёмщик',   credits: [{ no: 'К-08', ccy: 'KGS' }], debt: 0 },
+  { id: 'o_bk', name: 'Бакиров Н.С.',             role: 'заёмщик',   credits: [{ no: 'К-05', ccy: 'KGS' }], debt: 0 },
+  { id: 'o_kd', name: 'Кадыров А.А.',             role: 'заёмщик',   credits: [{ no: 'К-11', ccy: 'KGS' }], debt: 0 },
+];
+const obl = id => OBL.find(o => o.id === id);
+/* Субъекты (ADR-0016) — общий реестр; отчуждатель и покупатель выбираются из него, ФИО руками не вводится. */
+const SUBJECTS = [...OBL.map(o => o.name), 'Иманов Б.Т. (брат должника)', 'Токтогулов Р.А. (залогодатель)', 'ОсОО «Кара-Суу Дан» (банкрот)',
+  'Бейшеналиев Ы.Т.', 'ОсОО «Жол-Курулуш»', 'ОсОО «Ак-Тилек Трейд»', 'Абдыкадыров М.С.', 'ИП Орозбеков Н.Т.'];
+/* Меры взыскания по делу (чужие, только чтение) — для журнала дела (ИМ-18). */
+const CASE_MEASURES = { o_x: [{ date: '2026-11-10', text: 'Иск подан' }, { date: '2027-01-05', text: 'Торги 1 и 2 по предмету залога ПЗ-88 не состоялись' }] };
+/* Миграция: погашения вида «имущество в счёт погашения», пришедшие из старой системы (ИМ-29). */
+const MIGRATED = [{ obl: 'o_t', sum: 1800000 }, { obl: 'o_bk', sum: 900000 },
+  { obl: 'o_kd', sum: 600000, demo: 'учебный пример расхождения: в ведомости бухгалтерии доля оценена в 650 000 сом, а погашений перенесено 600 000 сом' }];
+/* Кураторство (ИМ-16, ADR-0259) — проекция: правило подразделения по области + ручные закрепления. */
+const REGION_RULE = { 'г. Бишкек': 'Токтосунов Б.Э.', 'Чуйская обл.': 'Абдраимова Н.К.', 'г. Ош': 'Кадыров Т.Ы.', 'Ошская обл.': 'Кадыров Т.Ы.', 'Нарынская обл.': 'Омуров Ж.К.' };
+const ASSIGN = [
+  { obj: 'ИО-1', emp: 'Абдраимова Н.К.', from: '2027-03-12', to: '2027-12-31', why: 'закреплено вручную на время перевода' },
+  { obj: 'ИО-1', emp: 'Токтосунов Б.Э.', from: '2028-01-01', to: FAR, why: 'по правилу: г. Бишкек' },
+];
+
+/* Настройки: пороги поводов и сроки ответа — у каждого значения источник (ИМ-15, ИМ-32). */
+const SETTINGS = {
+  thr: [
+    { id: 'pk-im-offer-overdue',        obj: 'предложение', cond: 'срок ответа истёк, ответа нет',              v: 0,  unit: 'по сроку предложения', src: 'внутренний акт' },
+    { id: 'pk-im-act-pending',          obj: 'предложение', cond: 'позиция принята, акта нет дольше порога',      v: 30, unit: 'к.д.', src: 'внутренний акт' },
+    { id: 'pk-im-registration-pending', obj: 'объект',      cond: '«ждёт регистрации» дольше порога',            v: 60, unit: 'к.д.', src: 'внутренний акт' },
+    { id: 'pk-im-topup-pending',        obj: 'объект',      cond: '⚑ «принятие не завершено» дольше порога',      v: 30, unit: 'к.д.', src: 'внутренний акт' },
+    { id: 'pk-im-no-inspection',        obj: 'объект (вещь)', cond: 'с последнего осмотра прошло больше порога', v: 6,  unit: 'мес.', src: 'внутренний акт' },
+    { id: 'pk-im-not-listed',           obj: 'объект',      cond: 'на учёте больше порога без единой попытки',    v: 6,  unit: 'мес.', src: 'внутренний акт' },
+    { id: 'pk-im-unsold',               obj: 'объект',      cond: 'несостоявшихся попыток не меньше порога',      v: 3,  unit: 'шт.', src: 'внутренний акт' },
+    { id: 'pk-im-instalment-overdue',   obj: 'договор КП',  cond: 'есть просроченный платёж по графику',         v: 1,  unit: 'дн.', src: 'внутренний акт' },
+    { id: 'pk-im-encumbrance-ending',   obj: 'объект',      cond: 'обременение кончается в пределах порога',     v: 30, unit: 'к.д.', src: 'внутренний акт' },
+  ],
+  deadline: {
+    pssi:    { v: 5,  unit: 'р.д.', src: 'внутренний акт' },
+    spec:    { v: 10, unit: 'р.д.', src: 'внутренний акт' },
+    debtor:  { v: 30, unit: 'к.д.', src: 'внутренний акт' },
+    pledgor: { v: 30, unit: 'к.д.', src: 'внутренний акт' },
+    third:   { v: 30, unit: 'к.д.', src: 'внутренний акт' },
+  },
+};
+const thr = id => SETTINGS.thr.find(t => t.id === id).v;
+
+/* ------------------------------ состояние --------------------------- */
+const S = { asOf: TODAY, role: 'spec', view: 'offers', id: null, tab: 'char', seq: 1, objSeq: 11, form: null,
+  f: { oSrc: '', oState: '', oDue: '', oObl: '', oOrgan: '', bDays: '', bCur: '', bState: '', bKind: '', bCls: '', bRegion: '', bSrc: '', bInc: false, bEnc: false } };
+const OFFERS = [], OBJECTS = [];
+const offer = id => OFFERS.find(o => o.id === id);
+const obj   = id => OBJECTS.find(o => o.id === id);
+const kindOf = k => KINDS.find(x => x.id === k);
+
+function mkFact(t, date, data = {}, by = 'spec') {
+  const f = Object.assign({ id: 'f' + (S.seq++), t, date, by, pub: !KEY.has(t), pubBy: null, at: date }, data);
+  if (f.pub && KEY.has(t)) f.pubBy = 'head';
+  return f;
+}
+/* ------------------------------- seed ------------------------------- */
+function seed() {
+  const P = (n, kind, name, value, region, district, extra = {}) => Object.assign({ n, kind, name, value, ccy: 'KGS', region, district, char: {} }, extra);
+  const pub = (f) => { f.pub = true; if (KEY.has(f.t)) f.pubBy = 'head'; return f; };
+  const off = (o) => { o.facts = o.facts || []; OFFERS.push(o); return o; };
+  const sched = (first, n, amt) => Array.from({ length: n }, (_, i) => ({ date: addMonths(first, i), amount: amt }));
+
+  /* П-1 — сквозной пример канона §4.7 / §7.5 */
+  const p1 = off({ id: 'П-1', source: 'pssi', obligor: 'o_x', alien: 'Асанов Т.Б.', alienKind: 'должник',
+    doc: { no: '№ 12-07/27', date: '2027-01-10' }, reg: '2027-01-10', deadline: '2027-01-15', deadlineSrc: 'документ',
+    positions: [
+      P(1, 'flat', 'Квартира, мкр. Джал, д. 14, кв. 32', 2400000, 'г. Бишкек', 'Свердловский р-н', { pledge: 'ПЗ-88',
+        char: { 'Площадь': '54 м²', 'Кадастровый номер': '1-04-07-0012-0045-01-032', 'Этаж': '5 из 9', 'Состояние': 'удовлетворительное (обследование 2025)' } }),
+      P(2, 'garage', 'Гараж, ул. Ахунбаева, 98', 300000, 'г. Бишкек', 'Октябрьский р-н', { char: { 'Площадь': '21 м²' } }),
+      P(3, 'tractor', 'Трактор МТЗ-82, 2009 г. в.', 450000, 'Чуйская обл.', 'Аламудунский р-н', { char: { 'Заводской номер': '82-0911374' } }),
+    ] });
+  p1.facts.push(
+    mkFact('letter', '2027-01-15', { doc: 'Письмо № 01-14/45 «рассматриваем»' }),
+    mkFact('concl', '2027-01-25', { pos: 3, kind: 'Ликвидность', text: 'Неликвид: износ 80 %, спроса нет' }),
+    mkFact('withdraw', '2027-02-01', { pos: 2, doc: 'Постановление ПССИ о возврате должнику № 12-07/27-в' }),
+    mkFact('decision', '2027-02-20', { organ: ORGANS[0], doc: 'Решение № 4/2027', by: 'sec',
+      items: { 1: { v: 'accept' }, 3: { v: 'reject', reason: 'Неликвид' } } }),
+    pub(mkFact('act', '2027-03-12', { pos: 1, doc: 'Акт приёма-передачи № АП-3/27', objId: 'ИО-1' })));
+  /* П-2 — ИМ-43: долг 1 000 000, трактор 500 000 (акт 15.03), квартира 700 000 (переход права 01.06) */
+  const p2 = off({ id: 'П-2', source: 'debtor', obligor: 'o_b', alien: 'ОсОО «Ак-Жол Агро»', alienKind: 'должник',
+    doc: { no: '№ ОТ-3/27', date: '2027-02-01' }, reg: '2027-02-01', deadline: '2027-03-03', deadlineSrc: 'настройка (30 к.д., внутренний акт)',
+    positions: [
+      P(1, 'tractor', 'Трактор Беларус-1221, 2015 г. в.', 500000, 'Чуйская обл.', 'Жайылский р-н', { char: { 'Заводской номер': '1221-15-0457' } }),
+      P(2, 'flat', 'Квартира, г. Кара-Балта, ул. Ленина, 5, кв. 8', 700000, 'Чуйская обл.', 'Жайылский р-н', { char: { 'Площадь': '48 м²' } }),
+    ] });
+  p2.facts.push(
+    mkFact('decision', '2027-03-01', { organ: ORGANS[0], doc: 'Решение № 6/2027', by: 'sec', items: { 1: { v: 'accept' }, 2: { v: 'accept' } } }),
+    pub(mkFact('act', '2027-03-15', { pos: 1, doc: 'Акт № АП-4/27', objId: 'ИО-2' })),
+    pub(mkFact('act', '2027-04-20', { pos: 2, doc: 'Акт № АП-6/27', objId: 'ИО-3' })));
+  /* П-3 — гараж брата должника: обязанное лицо Иманов К.Т., доплата брату; срок ответа истёк */
+  const p3 = off({ id: 'П-3', source: 'third', obligor: 'o_i', alien: 'Иманов Б.Т. (брат должника)', alienKind: 'третье лицо',
+    doc: { no: '№ ИЗ-1/28', date: '2028-02-01' }, reg: '2028-02-01', deadline: '2028-03-01', deadlineSrc: 'документ',
+    positions: [P(1, 'garage', 'Гараж, ул. Курманжан Датка, 210', 750000, 'г. Ош', '—', { char: { 'Площадь': '24 м²' } })] });
+  p3.facts.push(mkFact('concl', '2028-02-10', { pos: 1, kind: 'Осмотр', text: 'Состояние хорошее, подъезд свободный' }));
+  /* П-4 — вещь поручителя Z; кредит в USD, стоимость в KGS */
+  const p4 = off({ id: 'П-4', source: 'debtor', obligor: 'o_z', alien: 'Жумабаев З.А.', alienKind: 'поручитель',
+    doc: { no: '№ ОТ-7/27', date: '2027-11-01' }, reg: '2027-11-01', deadline: '2027-12-01', deadlineSrc: 'настройка (30 к.д., внутренний акт)',
+    positions: [P(1, 'equip', 'Зерносушилка ДСП-32, 2019 г. в.', 1200000, 'Чуйская обл.', 'Сокулукский р-н', { char: { 'Производительность': '32 т/ч' } })] });
+  p4.facts.push(
+    mkFact('decision', '2027-11-20', { organ: ORGANS[0], doc: 'Решение № 19/2027', by: 'sec', items: { 1: { v: 'accept' } } }),
+    pub(mkFact('act', '2027-12-05', { pos: 1, doc: 'Акт № АП-15/27', objId: 'ИО-4' })));
+  /* П-5 — две позиции, одна плановая дата (сценарий 31) и акта нет 34 дня (сценарий 29) */
+  const p5 = off({ id: 'П-5', source: 'pssi', obligor: 'o_m', alien: 'Мамытов Э.С.', alienKind: 'должник',
+    doc: { no: '№ 3-14/28', date: '2028-01-25' }, reg: '2028-01-25', deadline: '2028-02-01', deadlineSrc: 'документ',
+    positions: [
+      P(1, 'store', 'Склад, с. Беловодское, ул. Мира, 3', 500000, 'Чуйская обл.', 'Московский р-н'),
+      P(2, 'nonres', 'Нежилое помещение (офис), с. Беловодское, ул. Мира, 3а', 500000, 'Чуйская обл.', 'Московский р-н'),
+    ] });
+  p5.facts.push(
+    mkFact('letter', '2028-01-30', { doc: 'Письмо № 01-14/12 «рассматриваем»' }),
+    mkFact('decision', '2028-02-10', { organ: ORGANS[0], doc: 'Решение № 2/2028', by: 'sec', items: { 1: { v: 'accept' }, 2: { v: 'accept' } } }));
+  /* П-6 — спецадминистратор, зерно 120 т (разделение, сценарий 15) */
+  const p6 = off({ id: 'П-6', source: 'spec', obligor: 'o_k', alien: 'ОсОО «Кара-Суу Дан» (банкрот)', alienKind: 'банкрот',
+    doc: { no: '№ КМ-2/27', date: '2027-09-01' }, reg: '2027-09-01', deadline: '2027-09-15', deadlineSrc: 'документ',
+    positions: [P(1, 'grain', 'Зерно, пшеница 3 класса, склад с. Кара-Суу', 1440000, 'Ошская обл.', 'Кара-Суйский р-н', { qty: 120, char: { 'Количество': '120 т', 'Влажность': '13 %' } })] });
+  p6.facts.push(
+    mkFact('decision', '2027-09-12', { organ: ORGANS[0], doc: 'Решение № 15/2027', by: 'sec', items: { 1: { v: 'accept' } } }),
+    pub(mkFact('act', '2027-10-01', { pos: 1, doc: 'Акт № АП-12/27', objId: 'ИО-410' })));
+  /* П-7 — залогодатель не должник; ИО-5 ждёт регистрации; акт на дом ждёт второго ключа */
+  const p7 = off({ id: 'П-7', source: 'pledgor', obligor: 'o_s', alien: 'Токтогулов Р.А. (залогодатель)', alienKind: 'залогодатель',
+    doc: { no: '№ ОТ-1/28', date: '2027-12-10' }, reg: '2027-12-10', deadline: '2028-01-09', deadlineSrc: 'настройка (30 к.д., внутренний акт)',
+    positions: [
+      P(1, 'flat', 'Квартира, ул. Токтогула, 120, кв. 5', 2100000, 'г. Бишкек', 'Первомайский р-н', { pledge: 'ПЗ-104', char: { 'Площадь': '62 м²' } }),
+      P(2, 'house', 'Жилой дом, с. Таш-Добо, ул. Садовая, 7', 1300000, 'Чуйская обл.', 'Аламудунский р-н', { pledge: 'ПЗ-105', char: { 'Площадь': '96 м²', 'Участок': '6 соток' } }),
+    ] });
+  p7.facts.push(
+    mkFact('decision', '2027-12-25', { organ: ORGANS[0], doc: 'Решение № 22/2027', by: 'sec', items: { 1: { v: 'accept' }, 2: { v: 'accept' } } }),
+    pub(mkFact('act', '2028-01-10', { pos: 1, doc: 'Акт № АП-1/28', objId: 'ИО-5' })),
+    mkFact('act', '2028-03-01', { pos: 2, doc: 'Акт № АП-4/28', objId: 'ИО-6' }));   // ждёт второго ключа
+
+  OFFERS.forEach(o => o.facts.filter(f => f.t === 'act' && f.pub).forEach(f => createFromAct(o, f)));
+
+  const F = (id, ...facts) => obj(id).facts.push(...facts);
+  /* ИО-1 */
+  F('ИО-1',
+    pub(mkFact('reg', '2027-04-05', { doc: 'Выписка из реестра прав № 2027-04-1187' })),
+    mkFact('topup', '2027-04-20', { amount: 550000, doc: 'Возврат № В-118', by: 'acc' }),
+    mkFact('inspection', '2027-05-20', { who: 'Абдраимова Н.К., представитель ПССИ', cond: 'удовлетворительное', doc: 'Акт осмотра № ОС-9/27' }),
+    mkFact('expense', '2027-05-10', { item: 'Охрана', amount: 30000, ccy: 'KGS', doc: 'Платёжное поручение № 811' }),
+    mkFact('appraisal', '2027-05-25', { appraiser: 'ОсОО «Эксперт-Баа»', amount: 2500000, ccy: 'KGS', doc: 'Отчёт № О-77' }),
+    mkFact('expense', '2027-05-25', { item: 'Оценщик', amount: 15000, ccy: 'KGS', doc: 'Счёт № 77' }),
+    mkFact('expense', '2027-07-01', { item: 'Налог', amount: 20000, ccy: 'KGS', doc: 'Квитанция № 4410' }),
+    mkFact('expense', '2027-08-01', { item: 'Коммунальные', amount: 25000, ccy: 'KGS', doc: 'Счёт № 0801' }));
+  const ap1 = obj('ИО-1').facts.find(f => f.t === 'appraisal');
+  const a1 = mkFact('attempt', '2027-06-01', { method: 'Аукцион', start: 2500000, basis: ap1.id, platform: 'Электронная площадка', lot: 'Л-2027-0412', hold: '2027-06-15', encMark: '' });
+  const pd = mkFact('priceDecision', '2027-08-20', { amount: 2200000, doc: 'Решение Комитета № 11/2027', by: 'sec' });
+  const a2 = mkFact('attempt', '2027-09-01', { method: 'Аукцион', start: 2200000, basis: pd.id, platform: 'Электронная площадка', lot: 'Л-2027-0688', hold: '2027-09-15', encMark: '' });
+  const c1 = pub(mkFact('contract', '2027-09-20', { attempt: a2.id, buyer: 'Бейшеналиев Ы.Т.', price: 2250000, ccy: 'KGS', kind: 'inst',
+    schedule: sched('2027-10-20', 12, 187500), penalty: 0.1, doc: 'Договор КП № КП-5/27', by: 'lawyer' }));
+  F('ИО-1', a1, mkFact('attemptResult', '2027-06-15', { attempt: a1.id, v: 'failed' }), pd, a2,
+    mkFact('attemptResult', '2027-09-15', { attempt: a2.id, v: 'sold', buyer: 'Бейшеналиев Ы.Т.', price: 2250000 }), c1,
+    ...['2027-10-20', '2027-11-20', '2027-12-20'].map(d => mkFact('payment', d, { contract: c1.id, amount: 187500, by: 'acc' })));
+  /* ИО-2 трактор: на учёте с 15.03.2027, ни одной попытки, осмотр давно */
+  F('ИО-2', mkFact('inspection', '2027-04-01', { who: 'Абдраимова Н.К.', cond: 'рабочее', doc: 'Акт осмотра № ОС-4/27' }));
+  /* ИО-3 квартира: доплата 200 000 не исполнена */
+  F('ИО-3', pub(mkFact('reg', '2027-06-01', { doc: 'Выписка № 2027-06-0310' })),
+    mkFact('inspection', '2027-12-15', { who: 'Абдраимова Н.К.', cond: 'хорошее', doc: 'Акт осмотра № ОС-31/27' }));
+  /* ИО-4 зерносушилка: идёт попытка */
+  const ap4 = mkFact('appraisal', '2028-02-01', { appraiser: 'ОсОО «Баалоо-Сервис»', amount: 1250000, ccy: 'KGS', doc: 'Отчёт № О-05/28' });
+  F('ИО-4', mkFact('inspection', '2028-01-20', { who: 'Абдраимова Н.К.', cond: 'рабочее', doc: 'Акт осмотра № ОС-2/28' }), ap4,
+    mkFact('attempt', '2028-03-01', { method: 'Аукцион', start: 1250000, basis: ap4.id, platform: 'Электронная площадка', lot: 'Л-2028-0102', hold: '2028-03-25', encMark: '' }));
+  /* ИО-410 зерно */
+  F('ИО-410', mkFact('encumbrance', '2027-10-01', { kind: 'Ответственное хранение', from: '2027-10-01', to: '2028-03-31', doc: 'Договор хранения № Х-3/27' }),
+    mkFact('appraisal', '2027-10-05', { appraiser: 'ОсОО «Эксперт-Баа»', amount: 1440000, ccy: 'KGS', doc: 'Отчёт № О-93' }),
+    mkFact('inspection', '2028-01-05', { who: 'Кадыров Т.Ы.', cond: 'без потерь', doc: 'Акт осмотра № ОС-1/28' }));
+
+  /* Вводный остаток (ИМ-29) */
+  const intro = (id, kind, name, value, transfer, oblId, src, region, district, extra = {}) => {
+    const o = Object.assign({ id, offer: null, pos: null, kind, name, value, ccy: 'KGS', obligor: oblId, source: src, alien: obl(oblId).name,
+      region, district, char: {}, pledge: null, facts: [] }, extra);
+    o.facts.push(mkFact('intro', transfer, { transfer, doc: 'Ведомость бухгалтерии № ВО-1 от 01.03.2028' }));
+    OBJECTS.push(o); return o;
+  };
+  intro('ИО-7', 'nonres', 'Нежилое помещение (магазин), г. Токмок, ул. Шамсинская, 44', 1800000, '2024-06-10', 'o_t', 'pssi', 'Чуйская обл.', 'г. Токмок', { char: { 'Площадь': '140 м²' } });
+  F('ИО-7', mkFact('encumbrance', '2027-05-01', { kind: 'Аренда', from: '2027-05-01', to: '2028-04-10', doc: 'Договор аренды № А-2/27 (ведётся вне системы)' }),
+    mkFact('inspection', '2027-12-01', { who: 'Абдраимова Н.К.', cond: 'хорошее', doc: 'Акт осмотра № ОС-28/27' }),
+    mkFact('appraisal', '2028-01-15', { appraiser: 'ОсОО «Баалоо-Сервис»', amount: 1900000, ccy: 'KGS', doc: 'Отчёт № О-12/28' }));
+  intro('ИО-8', 'machine', 'Экскаватор ЭО-2621, 2012 г. в.', 900000, '2023-11-01', 'o_bk', 'debtor', 'Нарынская обл.', 'Нарынский р-н');
+  const ap8 = mkFact('appraisal', '2027-11-01', { appraiser: 'ОсОО «Эксперт-Баа»', amount: 950000, ccy: 'KGS', doc: 'Отчёт № О-101' });
+  const a8 = mkFact('attempt', '2027-11-10', { method: 'Прямая продажа', start: 960000, basis: ap8.id, platform: 'Внутренняя процедура', lot: '—', hold: '2027-11-25', encMark: '' });
+  const c8 = pub(mkFact('contract', '2027-12-01', { attempt: a8.id, buyer: 'ОсОО «Жол-Курулуш»', price: 960000, ccy: 'KGS', kind: 'inst',
+    schedule: sched('2028-01-10', 3, 320000), penalty: 0.1, doc: 'Договор КП № КП-9/27', by: 'lawyer' }));
+  F('ИО-8', mkFact('inspection', '2027-11-08', { who: 'Омуров Ж.К.', cond: 'рабочее', doc: 'Акт осмотра № ОС-27/27' }), ap8, a8,
+    mkFact('attemptResult', '2027-11-25', { attempt: a8.id, v: 'sold', buyer: 'ОсОО «Жол-Курулуш»', price: 960000 }), c8,
+    mkFact('payment', '2028-01-10', { contract: c8.id, amount: 320000, by: 'acc' }),
+    mkFact('payment', '2028-02-10', { contract: c8.id, amount: 320000, by: 'acc' }));
+  intro('ИО-9', 'share', 'Доля 25 % в уставном капитале ОсОО «Ала-Тоо Сут»', 650000, '2025-02-20', 'o_kd', 'debtor', 'г. Бишкек', 'место регистрации эмитента', { char: { 'Эмитент': 'ОсОО «Ала-Тоо Сут»', 'Размер доли': '25 %' } });
+}
+
+/* Объект возникает только из принятой позиции актом или вводным остатком (ИИ-1). */
+function createFromAct(of, act) {
+  if (OBJECTS.some(o => o.actFact === act.id)) return obj(act.objId);
+  const p = of.positions.find(x => x.n === act.pos);
+  const id = act.objId || ('ИО-' + (S.objSeq++)); act.objId = id;
+  const o = { id, offer: of.id, pos: p.n, kind: p.kind, name: p.name, value: p.value, ccy: p.ccy, obligor: of.obligor,
+    source: of.source, alien: of.alien, region: p.region, district: p.district, qty: p.qty,
+    char: Object.assign({}, p.char), snapshotAt: act.date, pledge: p.pledge || null, actFact: act.id,
+    facts: [Object.assign({}, act, { id: act.id })] };
+  OBJECTS.push(o); return o;
+}
+
+/* ============================ ДВИЖОК =============================== */
+const live = (arr, asOf) => arr.filter(f => f.pub && f.date <= asOf);
+
+/* Учётная стоимость: стоимость принятия; меняется только исправлением или разделением (ИИ-4). */
+function objValue(id) {
+  const o = obj(id); const c = o.facts.filter(f => f.t === 'corr' && f.pub);
+  return c.length ? c[c.length - 1].newValue : o.value;
+}
+
+function contractInfo(id, asOf = S.asOf) {
+  const o = obj(id); const F = live(o.facts, asOf);
+  const cs = F.filter(f => f.t === 'contract'); if (!cs.length) return null;
+  const c = cs[cs.length - 1];
+  const term = F.find(f => f.t === 'cterm' && f.contract === c.id);
+  const sch = c.kind === 'inst' ? c.schedule : [{ date: c.payBy || addDays(c.date, 10), amount: c.price }];
+  const pays = F.filter(f => f.t === 'payment' && f.contract === c.id).sort((a, b) => a.date < b.date ? -1 : 1);
+  let paid = 0, completeDate = null;
+  pays.forEach(p => { paid += p.amount; if (!completeDate && paid >= c.price - 0.005) completeDate = p.date; });
+  let due = 0, cum = 0, firstUnpaid = null;
+  sch.forEach(s => { cum += s.amount; if (s.date <= asOf) due = cum; if (!firstUnpaid && cum > paid + 0.005) firstUnpaid = s.date; });
+  const overdue = Math.max(0, due - paid);
+  const odDays = overdue > 0 && firstUnpaid && firstUnpaid < asOf ? days(firstUnpaid, asOf) : 0;
+  const claims = F.filter(f => f.t === 'claim' && f.contract === c.id);
+  return { c, kind: c.kind, price: c.price, ccy: c.ccy, paid, rest: Math.max(0, c.price - paid), due, overdue, odDays,
+    penalty: Math.round(overdue * (c.penalty || 0) / 100 * odDays), firstUnpaid, schedule: sch, pays, claims,
+    active: !term, terminated: term || null, complete: !term && !!completeDate, completeDate };
+}
+
+function attempts(id, asOf = S.asOf) {
+  const o = obj(id); const F = live(o.facts, asOf);
+  return F.filter(f => f.t === 'attempt').map(a => {
+    const res = F.find(f => f.t === 'attemptResult' && f.attempt === a.id) || null;
+    const ctr = F.find(f => f.t === 'contract' && f.attempt === a.id) || null;
+    return { a, res, ctr, open: !res || (res.v === 'sold' && !ctr) };
+  });
+}
+
+/* Состояние объекта на дату — производная фактов, не поле (ИМ-13, ИИ-2). */
+function objState(id, asOf = S.asOf) {
+  const o = obj(id); if (!o) return { code: 'none', label: '—' };
+  const F = live(o.facts, asOf); const k = kindOf(o.kind);
+  const one = t => F.find(f => f.t === t);
+  const intro = one('intro') || one('born'), act = one('act');
+  if (!intro && !act) return { code: 'none', label: 'ещё не возник' };
+  const term = one('terminate'); if (term) return { code: 'failed', label: 'принятие не состоялось', date: term.date, reason: term.reason };
+  const rf = F.find(f => f.t === 'regRefusal' && f.final); if (rf) return { code: 'failed', label: 'принятие не состоялось', date: rf.date, reason: 'окончательный отказ регистратора' };
+  let transfer;
+  if (intro) transfer = intro.transfer;
+  else if (k.reg) { const r = one('reg'); if (!r) return { code: 'wait', label: 'принят, ждёт регистрации', since: act.date }; transfer = r.date; }
+  else transfer = act.date;
+  const sp = one('split'); if (sp) return { code: 'split', label: 'разделён', date: sp.date, transfer };
+  const d = F.find(f => f.t === 'gift' || f.t === 'loss' || f.t === 'ret');
+  if (d) return { code: 'removed', label: 'снят с учёта', path: PATH[d.t], pathId: d.t, date: d.date, transfer };
+  const ci = contractInfo(id, asOf);
+  if (ci && ci.active) {
+    if (ci.complete) return { code: 'removed', label: 'снят с учёта', path: PATH[ci.kind], pathId: ci.kind, date: ci.completeDate, transfer };
+    return { code: ci.kind === 'inst' ? 'sold_inst' : 'sold_once', label: ci.kind === 'inst' ? 'продан в рассрочку' : 'продан разово', transfer };
+  }
+  if (attempts(id, asOf).some(x => x.open)) return { code: 'listed', label: 'выставлен на продажу', transfer };
+  return { code: 'onbook', label: 'на учёте', transfer };
+}
+const isIntro = o => o.facts.some(f => f.t === 'intro');
+const TRANSFERRED = ['onbook', 'listed', 'sold_once', 'sold_inst', 'removed', 'split'];
+
+/* Ответ Взыскания: деление по долгу, уменьшенному прежними принятиями, по очереди дат
+   перехода права, при равных — по номеру позиции (ИМ-4, ИМ-43, ИМ-ДС-1). Модуль только читает. */
+function allocation(oblId, asOf = S.asOf) {
+  const debt = obl(oblId).debt; let rest = debt;
+  const rows = OBJECTS.filter(o => o.obligor === oblId && !o.parent && !isIntro(o))
+    .map(o => ({ o, st: objState(o.id, asOf) })).filter(x => TRANSFERRED.includes(x.st.code))
+    .sort((a, b) => a.st.transfer < b.st.transfer ? -1 : a.st.transfer > b.st.transfer ? 1 : (a.o.offer + a.o.pos < b.o.offer + b.o.pos ? -1 : 1))
+    .map(x => { const v = objValue(x.o.id); const dist = Math.min(v, rest); rest -= dist;
+      return { id: x.o.id, date: x.st.transfer, value: v, distributed: dist, notIncluded: v - dist }; });
+  return { debt, rows, rest };
+}
+function topupOf(id, asOf = S.asOf) {
+  const o = obj(id); if (!o || isIntro(o) || o.parent) return null;
+  const r = allocation(o.obligor, asOf).rows.find(x => x.id === id); if (!r) return null;
+  const done = live(o.facts, asOf).find(f => f.t === 'topup');
+  return { amount: r.notIncluded, distributed: r.distributed, date: r.date, to: topupTo(o.source, o.alien), done: done || null };
+}
+const topupTo = (src, alien) => src === 'pssi' ? 'депозит ПССИ' : src === 'spec' ? 'конкурсная масса — ' + alien : alien;
+
+function flags(id, asOf = S.asOf) {
+  const o = obj(id); const st = objState(id, asOf);
+  let incomplete = null;
+  if (TRANSFERRED.includes(st.code) && st.code !== 'split') { const t = topupOf(id, asOf); if (t && t.amount > 0 && !t.done) incomplete = t; }
+  const enc = live(o.facts, asOf).filter(f => f.t === 'encumbrance' && f.from <= asOf && f.to >= asOf);
+  const live_ = !['none', 'failed', 'removed', 'split'].includes(st.code);
+  return { incomplete, encumbered: live_ && enc.length ? enc[0] : null };
+}
+
+/* ---------------------- предложение и позиции ---------------------- */
+function posOutcome(ofId, n, asOf = S.asOf) {
+  const of = offer(ofId); const F = live(of.facts, asOf);
+  const wd = F.find(f => f.t === 'withdraw' && f.pos === n);
+  if (wd) return { code: 'withdrawn', label: 'отозвана', date: wd.date, doc: wd.doc };
+  const dec = F.find(f => f.t === 'decision'); const it = dec && dec.items[n];
+  if (it && it.v === 'reject') return { code: 'rejected', label: 'отказана', date: dec.date, reason: it.reason };
+  if (it && it.v === 'accept') {
+    const term = F.find(f => f.t === 'terminate' && f.pos === n);
+    if (term) return { code: 'failed', label: 'принятие не состоялось', date: term.date, reason: term.reason };
+    const o = OBJECTS.find(x => x.offer === ofId && x.pos === n && !x.parent);
+    if (o) { const st = objState(o.id, asOf);
+      if (st.code === 'failed') return { code: 'failed', label: 'принятие не состоялось', date: st.date, reason: st.reason, obj: o.id };
+      if (st.code !== 'none') return { code: 'accepted', label: 'принята', date: dec.date, obj: o.id, act: true }; }
+    const pend = of.facts.find(f => f.t === 'act' && f.pos === n && !f.pub);
+    return { code: 'accepted', label: 'принята', sub: pend ? 'акт ждёт второго ключа' : 'ждёт акта', date: dec.date, pendingAct: !!pend };
+  }
+  return { code: 'review', label: F.some(f => f.t === 'concl' && f.pos === n) ? 'на рассмотрении' : 'предложена' };
+}
+function offerAnswer(of, asOf = S.asOf) {
+  const a = live(of.facts, asOf).filter(f => f.t === 'letter' || f.t === 'decision').sort((x, y) => x.date < y.date ? -1 : 1)[0];
+  return a || null;
+}
+function offerState(ofId, asOf = S.asOf) {
+  const of = offer(ofId); if (of.reg > asOf) return { code: 'none', label: 'ещё не зарегистрировано' };
+  const outs = of.positions.map(p => posOutcome(ofId, p.n, asOf));
+  const F = live(of.facts, asOf);
+  const ans = offerAnswer(of, asOf);
+  const overdue = !ans && of.deadline && of.deadline < asOf;
+  let st;
+  if (outs.every(x => x.code !== 'review')) st = { code: 'closed', label: 'закрыто' };
+  else if (F.some(f => f.t === 'decision')) st = { code: 'decided', label: 'решение вынесено' };
+  else if (F.some(f => ['letter', 'concl', 'withdraw'].includes(f.t))) st = { code: 'review', label: 'на рассмотрении' };
+  else st = { code: 'registered', label: 'зарегистрировано' };
+  return Object.assign(st, { overdue, answer: ans, waitingAct: outs.filter(x => x.code === 'accepted' && !x.act).length });
+}
+function offerCounts(ofId, asOf = S.asOf) {
+  const c = { accepted: 0, rejected: 0, withdrawn: 0, failed: 0, review: 0 };
+  offer(ofId).positions.forEach(p => { c[posOutcome(ofId, p.n, asOf).code]++; }); return c;
+}
+/* Плановая дата перехода права — только для очерёдности (§4.5). */
+function planDate(of, p, asOf) {
+  const F = live(of.facts, asOf); const dec = F.find(f => f.t === 'decision');
+  const o = OBJECTS.find(x => x.offer === of.id && x.pos === p.n && !x.parent);
+  const act = o && live(o.facts, asOf).find(f => f.t === 'act');
+  if (!act) return dec ? dec.date : null;
+  if (!kindOf(p.kind).reg) return act.date;
+  const r = live(o.facts, asOf).find(f => f.t === 'reg');
+  return r ? r.date : act.date;
+}
+/* Ожидаемая доплата нарастающим итогом (ИМ-43) — оценка, пересчитывается при каждом факте. */
+function expectedTopups(ofId, asOf = S.asOf) {
+  const of = offer(ofId); const debt = obl(of.obligor).debt; let rest = debt;
+  const rows = of.positions.map(p => ({ p, out: posOutcome(ofId, p.n, asOf) }))
+    .filter(x => x.out.code === 'accepted' || (x.out.code === 'review'))
+    .map(x => ({ n: x.p.n, value: x.p.value, plan: x.out.code === 'accepted' ? planDate(of, x.p, asOf) : null, inDecision: x.out.code === 'accepted' }));
+  const acc = rows.filter(r => r.inDecision).sort((a, b) => a.plan < b.plan ? -1 : a.plan > b.plan ? 1 : a.n - b.n);
+  const pend = rows.filter(r => !r.inDecision).sort((a, b) => a.n - b.n);
+  const out = {};
+  [...acc, ...pend].forEach(r => { const used = Math.min(rest, r.value); out[r.n] = { n: r.n, plan: r.plan, before: rest, topup: r.value - used, value: r.value }; rest -= used; });
+  return { debt, rows: out, order: [...acc, ...pend].map(r => r.n) };
+}
+
+/* ------------------------------ гейты ------------------------------ */
+const CLOSED_WHY = {
+  none: 'объект на эту дату ещё не возник', failed: 'принятие не состоялось — на учёте объекта не было',
+  split: 'объект разделён — дальше живут части', removed: 'объект снят с учёта',
+};
+function onbookWhy(st) {
+  if (CLOSED_WHY[st.code]) return CLOSED_WHY[st.code] + (st.path ? ' (' + st.path + ')' : '');
+  if (st.code === 'wait') return 'право ещё не перешло: объект ждёт регистрации';
+  if (st.code === 'listed') return 'идёт попытка продажи — сначала её итог';
+  if (st.code === 'sold_once' || st.code === 'sold_inst') return 'действует договор купли-продажи';
+  return '';
+}
+function canRole(t, role = S.role) { return (ROLE_OF[t] || []).includes(role); }
+function gate(id, t, asOf = S.asOf) {
+  const o = obj(id); if (!o) return no('нет объекта ' + id);
+  const k = kindOf(o.kind), st = objState(id, asOf), fl = flags(id, asOf);
+  if (o.facts.some(f => !f.pub && f.t === t)) return no('такой факт уже ждёт второго ключа');
+  const closed = CLOSED_WHY[st.code];
+  switch (t) {
+    case 'reg': case 'regRefusal': case 'terminate':
+      if (st.code === 'wait') return yes;
+      if (closed) return no(closed);
+      if (!k.reg) return no(`вид «${k.name}» не требует госрегистрации: право перешло актом ${fmt(st.transfer)}`);
+      return no(`право уже перешло к Фонду ${fmt(st.transfer)}` + (t === 'terminate' ? ' — после перехода права выход только путём «возврат» по суду' : ''));
+    case 'inspection':
+      if (k.cls !== 'вещь') return no('у имущественного права осмотров нет');
+      return closed ? no(closed) : yes;
+    case 'appraisal': case 'expense': case 'encumbrance': case 'priceDecision':
+      return closed ? no(closed) : yes;
+    case 'attempt':
+      if (closed) return no(closed);
+      if (st.code === 'wait') return no('до перехода права продавать нельзя: объект ждёт регистрации');
+      if (fl.incomplete) return no(`⚑ принятие не завершено: доплата ${money(fl.incomplete.amount)} отчуждателю не исполнена`);
+      if (st.code === 'listed') return no('идёт попытка продажи — вторую параллельно не открыть');
+      if (st.code === 'sold_once' || st.code === 'sold_inst') return no('действует договор купли-продажи');
+      return yes;
+    case 'attemptResult':
+      return attempts(id, asOf).some(x => !x.res) ? yes : no('нет идущей попытки без итога');
+    case 'contract': {
+      const ci = contractInfo(id, asOf);
+      if (ci && ci.active) return no('у объекта уже есть действующий договор купли-продажи');
+      return attempts(id, asOf).some(x => x.res && x.res.v === 'sold' && !x.ctr) ? yes : no('договор заключается только по состоявшейся попытке продажи');
+    }
+    case 'payment': case 'claim': case 'cterm': {
+      const ci = contractInfo(id, asOf);
+      if (!ci || !ci.active) return no('нет действующего договора купли-продажи');
+      if (ci.complete) return no('договор оплачен полностью');
+      return yes;
+    }
+    case 'topup': return fl.incomplete ? yes : no('доплаты к исполнению нет');
+    case 'split':
+      if (!k.div) return no(`вид «${k.name}» неделимый — разделения нет`);
+      return st.code === 'onbook' ? yes : no(onbookWhy(st));
+    case 'gift':
+      return st.code === 'onbook' ? yes : no(st.code === 'wait' ? 'до перехода права вещь Фонду не принадлежит' : onbookWhy(st));
+    case 'loss':
+      if (st.code === 'wait') return no('до перехода права путь «выбытие» недоступен: вещь Фонду ещё не принадлежит — решение о прекращении принятия с причиной «вещь погибла или утрачена до перехода права»');
+      if (st.code === 'listed') return { ok: true, why: LISTED_CLOSE };
+      return st.code === 'onbook' ? yes : no(onbookWhy(st));
+    case 'ret':
+      if (st.code === 'sold_once' || st.code === 'sold_inst' || (st.code === 'removed' && (st.pathId === 'once' || st.pathId === 'inst'))) return no(RETURN_SOLD);
+      if (st.code === 'wait') return no('право ещё не перешло — возврата нет; выход до перехода права — прекращение принятия');
+      if (st.code === 'listed') return { ok: true, why: LISTED_CLOSE };
+      return st.code === 'onbook' ? yes : no(onbookWhy(st));
+    case 'corr':
+      return st.code === 'none' ? no('нечего исправлять: опубликованного акта на эту дату нет') : yes;
+  }
+  return yes;
+}
+
+/* --------------------------- ввод фактов --------------------------- */
+function objCheck(id, t, d, date) {
+  const g = gate(id, t, date); if (!g.ok) return g.why;
+  const o = obj(id); const act = o.facts.find(f => f.t === 'act' && f.pub);
+  const need = (...ks) => { const m = ks.find(k => d[k] == null || d[k] === ''); return m ? 'не заполнено обязательное поле' : ''; };
+  switch (t) {
+    case 'reg': if (act && date < act.date) return 'регистрация не раньше акта приёма-передачи'; return need('doc');
+    case 'regRefusal': return need('doc');
+    case 'terminate':
+      if (!d.reason) return 'причина прекращения принятия обязательна';
+      if (d.reason === TERM_REASONS[3] && !d.note) return 'для причины «иное» нужно пояснение';
+      return need('doc');
+    case 'inspection': return need('who', 'cond', 'doc');
+    case 'appraisal': return +d.amount > 0 ? need('appraiser', 'doc') : 'сумма оценки должна быть больше нуля';
+    case 'expense': return +d.amount > 0 ? need('item', 'doc') : 'сумма расхода должна быть больше нуля';
+    case 'encumbrance': if (!d.from || !d.to || d.to < d.from) return 'нужны даты «с» и «по»'; return need('kind', 'doc');
+    case 'priceDecision': return +d.amount > 0 ? need('doc') : 'укажите новую стартовую цену';
+    case 'attempt': {
+      if (!d.basis) return 'основание стартовой цены обязательно: отчёт оценщика или решение органа о снижении';
+      const b = o.facts.find(f => f.id === d.basis);
+      if (!b) return 'основание не найдено';
+      if (+d.start < b.amount) return `стартовая цена ${money(+d.start)} ниже основания (${money(b.amount)}) — снижение требует решения органа о снижении цены`;
+      const enc = live(o.facts, date).find(f => f.t === 'encumbrance' && f.from <= date && f.to >= date);
+      if (enc && !d.encMark) return `на дату попытки действует обременение «${enc.kind}» по ${fmt(enc.to)} — отметьте: продаётся с обременением или после снятия`;
+      return need('method', 'platform');
+    }
+    case 'attemptResult': if (d.v === 'sold' && (!d.buyer || !(+d.price > 0))) return 'при состоявшейся попытке нужны покупатель и цена'; return need('v');
+    case 'contract': if (d.kind === 'inst' && !(+d.n >= 2)) return 'у рассрочки не меньше двух платежей'; return need('buyer', 'price', 'doc');
+    case 'payment': return +d.amount > 0 ? '' : 'сумма поступления должна быть больше нуля';
+    case 'claim': case 'cterm': case 'gift': case 'loss': case 'ret': return need('doc');
+    case 'split': {
+      const parts = d.parts || []; const q = o.qty;
+      if (parts.length < 2) return 'нужно не меньше двух частей';
+      if (parts.some(x => !(x > 0))) return 'количество каждой части больше нуля';
+      if (Math.abs(parts.reduce((a, b) => a + b, 0) - q) > 1e-9) return `сумма частей ${parts.reduce((a, b) => a + b, 0)} не равна количеству объекта ${q}`;
+      return need('doc');
+    }
+    case 'corr': if (!(+d.newValue > 0)) return 'укажите исправленную стоимость'; return need('basis');
+    case 'topup': return need('doc');
+  }
+  return '';
+}
+function offerCheck(id, t, d, date) {
+  const of = offer(id); const out = d.pos != null ? posOutcome(id, d.pos, date) : null;
+  const actOf = n => of.facts.find(f => f.t === 'act' && f.pos === n);
+  switch (t) {
+    case 'letter': return d.doc ? '' : 'укажите номер и дату письма';
+    case 'concl': return d.pos && d.text ? '' : 'нужны позиция и текст заключения';
+    case 'withdraw':
+      if (actOf(d.pos) || (out && out.act)) return WITHDRAW_AFTER_ACT;
+      if (out.code !== 'review' && out.code !== 'accepted') return `у позиции уже есть итог «${out.label}»`;
+      return d.doc ? '' : 'нужен документ источника об отзыве';
+    case 'decision': {
+      if (of.facts.some(f => f.t === 'decision')) return 'решение по предложению уже вынесено — оно одно на предложение';
+      const open = of.positions.filter(p => posOutcome(id, p.n, date).code === 'review');
+      if (!open.length) return 'у всех позиций уже есть итог';
+      for (const p of open) {
+        const it = d.items && d.items[p.n];
+        if (!it || !it.v) return `нужен итог по позиции ${p.n}`;
+        if (it.v === 'reject' && !it.reason) return `для отказа по позиции ${p.n} нужно основание`;
+      }
+      return d.organ && d.doc ? '' : 'укажите орган и номер решения';
+    }
+    case 'act':
+      if (!out || out.code !== 'accepted') return 'акт подписывается только по принятой позиции';
+      if (actOf(d.pos)) return 'акт по позиции уже введён';
+      if (date < out.date) return 'акт не раньше решения органа';
+      return d.doc ? '' : 'укажите номер акта';
+    case 'terminate':
+      if (!out || out.code !== 'accepted') return 'прекращение принятия — только для принятой позиции';
+      if (actOf(d.pos) && actOf(d.pos).pub) return 'акт уже подписан — прекращение принятия вводится в карточке объекта';
+      if (actOf(d.pos)) return 'по позиции ждёт второго ключа акт — сначала решение по нему';
+      if (!d.reason) return 'причина прекращения принятия обязательна';
+      if (d.reason === TERM_REASONS[3] && !d.note) return 'для причины «иное» нужно пояснение';
+      return d.doc ? '' : 'укажите номер решения органа';
+  }
+  return '';
+}
+/* Единая точка ввода факта. target — «П-…» (предложение) или «ИО-…» (объект). */
+function addFact(target, t, data = {}, role = S.role) {
+  if (!canRole(t, role)) return no('действие доступно роли: ' + (ROLE_OF[t] || []).map(roleName).join(', '));
+  const isOffer = target.startsWith('П-');
+  if (isOffer ? !offer(target) : !obj(target)) return no('нет такой записи: ' + target);
+  const date = data.date || S.asOf;
+  const d = Object.assign({}, data);
+  if (t === 'decision') { const of = offer(target); d.late = !!(of.deadline && date > of.deadline && !offerAnswer(of, of.deadline)); }
+  if (t === 'cterm') { const ci = contractInfo(target, date); if (ci) { d.contract = ci.c.id; d.paid = ci.paid; d.penaltyAmt = Math.min(ci.paid, ci.penalty); d.refund = ci.paid - Math.min(ci.paid, ci.penalty); } }
+  if ((t === 'payment' || t === 'claim') && !d.contract) { const ci = contractInfo(target, date); if (ci) d.contract = ci.c.id; }
+  if (t === 'contract') { const x = attempts(target, date).find(a => a.res && a.res.v === 'sold' && !a.ctr); if (x) { d.attempt = x.a.id; d.buyer = d.buyer || x.res.buyer; d.price = +(d.price || x.res.price); }
+    if (d.kind === 'inst') { const n = +d.n, base = Math.floor(d.price / n); d.schedule = Array.from({ length: n }, (_, i) => ({ date: addMonths(d.first || addMonths(date, 1), i), amount: i === n - 1 ? d.price - base * (n - 1) : base })); }
+    d.ccy = d.ccy || obj(target).ccy; d.penalty = +(d.penalty || 0.1); }
+  if (t === 'corr') { d.oldValue = objValue(target); d.target = (obj(target).facts.find(f => (f.t === 'act' || f.t === 'intro') && f.pub) || {}).id; }
+  if (t === 'attemptResult' && !d.attempt) { const x = attempts(target, date).find(a => !a.res); if (x) d.attempt = x.a.id; if (d.price) d.price = +d.price; }
+  if ((t === 'appraisal' || t === 'expense') && !d.ccy) d.ccy = isOffer ? 'KGS' : obj(target).ccy;
+  ['amount', 'start', 'price', 'newValue'].forEach(k => { if (d[k] != null && d[k] !== '') d[k] = +d[k]; });
+  const why = isOffer ? offerCheck(target, t, d, date) : objCheck(target, t, d, date);
+  if (why) return no(why);
+  delete d.date;
+  const f = mkFact(t, date, d, role); f.at = TODAY;
+  (isOffer ? offer(target) : obj(target)).facts.push(f);
+  if (f.pub) afterPublish(f, target);
+  return { ok: true, why: '', fact: f, pending: !f.pub };
+}
+function afterPublish(f, owner) {
+  if ((f.t === 'loss' || f.t === 'ret') && !owner.startsWith('П-')) {
+    const o = obj(owner);
+    attempts(owner, f.date).filter(x => x.open && !x.res).forEach(x => o.facts.push(Object.assign(mkFact('attemptResult', f.date, { attempt: x.a.id, v: 'failed', doc: 'закрыта: ' + FACT_NAME[f.t].toLowerCase() }, f.by), { pub: true })));
+  }
+  if (f.t === 'act' && owner.startsWith('П-')) createFromAct(offer(owner), f);
+  if (f.t === 'split') {
+    const o = obj(owner); const v = splitValues(objValue(owner), o.qty, f.parts); const tr = objState(owner, f.date).transfer;
+    f.children = f.parts.map((q, i) => {
+      const c = { id: o.id + '/' + (i + 1), parent: o.id, offer: o.offer, pos: o.pos, kind: o.kind, name: o.name + ' — часть ' + (i + 1), value: v[i], ccy: o.ccy,
+        qty: q, obligor: o.obligor, source: o.source, alien: o.alien, region: o.region, district: o.district,
+        char: Object.assign({}, o.char, { 'Количество': q + ' ' + (kindOf(o.kind).unit || '') }), snapshotAt: o.snapshotAt, pledge: o.pledge,
+        facts: [mkFact('born', f.date, { transfer: tr, from: o.id, doc: f.doc })] };
+      OBJECTS.push(c); return c.id;
+    });
+  }
+}
+/* Учётная стоимость частей — пропорционально количеству, остаток округления — последней (ИИ-8). */
+function splitValues(total, qty, parts) {
+  const t = Math.round(total * 100); let used = 0;
+  return parts.map((q, i) => { const v = i === parts.length - 1 ? t - used : Math.floor(t * q / qty); used += v; return v / 100; });
+}
+function allFacts() {
+  const out = [];
+  OFFERS.forEach(o => o.facts.forEach(f => out.push({ f, owner: o.id })));
+  OBJECTS.forEach(o => o.facts.forEach(f => { if (!(f.t === 'act' && o.actFact === f.id)) out.push({ f, owner: o.id }); }));
+  return out;
+}
+const pending = () => allFacts().filter(x => !x.f.pub);
+/* Второй ключ: публикует начальник Управления по работе с активами. */
+function publish(factId, role = S.role) {
+  if (role !== 'head') return no('публикует вторым ключом начальник Управления по работе с активами');
+  const x = allFacts().find(y => y.f.id === factId); if (!x) return no('нет такого факта');
+  if (x.f.pub) return no('факт уже опубликован');
+  if (x.f.by === role) return no('второй ключ не ставит тот, кто готовил факт');
+  x.f.pub = true; x.f.pubBy = role; x.f.pubAt = TODAY;
+  afterPublish(x.f, x.owner);
+  return { ok: true, why: '', fact: x.f };
+}
+function rejectPending(factId, role = S.role) {
+  if (role !== 'head') return no('вернуть может только начальник Управления');
+  for (const c of [...OFFERS, ...OBJECTS]) { const i = c.facts.findIndex(f => f.id === factId && !f.pub); if (i >= 0) { c.facts.splice(i, 1); return yes; } }
+  return no('нет такого неопубликованного факта');
+}
+function registerOffer(d, role = S.role) {
+  if (!canRole('offerNew', role)) return no('регистрирует специалист по имуществу');
+  if (!d.source || !d.obligor || !d.docNo || !d.docDate || !d.name || !(+d.value > 0)) return no('не заполнены обязательные поля');
+  const set = SETTINGS.deadline[d.source];
+  const deadline = d.deadline || (set.unit === 'р.д.' ? addWork(d.docDate, set.v) : addDays(d.docDate, set.v));
+  const id = 'П-' + (Math.max(...OFFERS.map(o => +o.id.slice(2))) + 1);
+  const o = obl(d.obligor);
+  OFFERS.push({ id, source: d.source, obligor: d.obligor, alien: d.alien || o.name, alienKind: d.alien ? SOURCES[d.source].alien : (o.role === 'поручитель' ? 'поручитель' : 'должник'),
+    doc: { no: d.docNo, date: d.docDate }, reg: d.docDate, deadline, deadlineSrc: d.deadline ? 'документ' : `настройка (${set.v} ${set.unit}, ${set.src})`,
+    positions: [{ n: 1, kind: d.kind || 'flat', name: d.name, value: +d.value, ccy: d.ccy || 'KGS', region: d.region || 'г. Бишкек', district: '—', char: {} }], facts: [] });
+  return { ok: true, why: '', id };
+}
+/* Черновик позиции правится свободно до решения органа (ИМ-23). */
+function editPosition(ofId, n, patch, role = S.role) {
+  if (!canRole('posEdit', role)) return no('правит специалист по имуществу');
+  const of = offer(ofId); if (of.facts.some(f => f.t === 'decision')) return no('после решения органа позиция не правится — только исправлением');
+  const p = of.positions.find(x => x.n === n); if (!p) return no('нет позиции');
+  if (patch.value != null) patch.value = +patch.value;
+  Object.assign(p, patch); return yes;
+}
+function addPosition(ofId, d, role = S.role) {
+  if (!canRole('posAdd', role)) return no('добавляет специалист по имуществу');
+  const of = offer(ofId); if (of.facts.some(f => f.t === 'decision')) return no('после решения органа позиции не добавляются');
+  if (!d.name || !(+d.value > 0)) return no('нужны вещь и стоимость принятия');
+  const n = Math.max(...of.positions.map(p => p.n)) + 1;
+  of.positions.push({ n, kind: d.kind || 'flat', name: d.name, value: +d.value, ccy: d.ccy || 'KGS', region: d.region || of.positions[0].region, district: '—', char: {} });
+  return { ok: true, why: '', n };
+}
+
+/* --------------------------- кураторство --------------------------- */
+function curatorOf(id, date = S.asOf) {
+  const a = ASSIGN.find(x => x.obj === id && x.from <= date && x.to >= date);
+  if (a) return { emp: a.emp, why: a.why };
+  const of = offer(id); const region = of ? of.positions[0].region : (obj(id) || {}).region;
+  return { emp: REGION_RULE[region] || 'не закреплено', why: 'по правилу подразделения: ' + region };
+}
+
+/* ------------------------------ поводы ----------------------------- */
+const TRIG_NAME = {
+  'pk-im-offer-overdue': 'Срок ответа истёк', 'pk-im-act-pending': 'Принятая позиция ждёт акта',
+  'pk-im-registration-pending': 'Долго ждёт регистрации', 'pk-im-topup-pending': 'Доплата долго не исполнена',
+  'pk-im-no-inspection': 'Давно не осматривали', 'pk-im-not-listed': 'Долго не выставлялся на продажу',
+  'pk-im-unsold': 'Много несостоявшихся попыток', 'pk-im-instalment-overdue': 'Просрочка платежа по рассрочке',
+  'pk-im-encumbrance-ending': 'Обременение скоро кончается',
+};
+const MONTHS = ['январь', 'февраль', 'март', 'апрель', 'май', 'июнь', 'июль', 'август', 'сентябрь', 'октябрь', 'ноябрь', 'декабрь'];
+const periodLabel = p => /^\d{4}-\d{2}$/.test(p) ? MONTHS[+p.slice(5) - 1] + ' ' + p.slice(0, 4) : /^\d{4}-\d{2}-\d{2}$/.test(p) ? fmt(p) : p;
+function triggers(asOf = S.asOf) {
+  const out = []; const mon = asOf.slice(0, 7);
+  const add = (kind, id, period, text, to) => out.push({ kind, name: TRIG_NAME[kind], id, key: kind + ' · ' + id + ' · ' + period,
+    keyLabel: TRIG_NAME[kind] + ' · ' + id + ' · ' + periodLabel(period), text, to });
+  OFFERS.forEach(of => {
+    const st = offerState(of.id, asOf); if (st.code === 'none') return;
+    if (st.overdue) add('pk-im-offer-overdue', of.id, of.deadline, `срок ответа ${fmt(of.deadline)} истёк, ответа нет`, curatorOf(of.id, asOf).emp);
+    of.positions.forEach(p => { const o = posOutcome(of.id, p.n, asOf);
+      if (o.code === 'accepted' && !o.act && days(o.date, asOf) > thr('pk-im-act-pending'))
+        add('pk-im-act-pending', of.id + ' · поз. ' + p.n, mon, `решение «принять» ${fmt(o.date)}, акта нет ${days(o.date, asOf)} к.д.`, curatorOf(of.id, asOf).emp); });
+  });
+  OBJECTS.forEach(o => {
+    const st = objState(o.id, asOf); const fl = flags(o.id, asOf); const k = kindOf(o.kind); const F = live(o.facts, asOf); const cur = curatorOf(o.id, asOf).emp;
+    if (st.code === 'wait' && days(st.since, asOf) > thr('pk-im-registration-pending')) add('pk-im-registration-pending', o.id, mon, `ждёт регистрации ${days(st.since, asOf)} к.д.`, cur);
+    if (fl.incomplete && days(fl.incomplete.date, asOf) > thr('pk-im-topup-pending')) add('pk-im-topup-pending', o.id, mon, `доплата ${money(fl.incomplete.amount)} не исполнена ${days(fl.incomplete.date, asOf)} к.д.`, cur);
+    if (['none', 'failed', 'removed', 'split'].includes(st.code)) return;
+    if (k.cls === 'вещь' && st.code !== 'wait') { const li = F.filter(f => f.t === 'inspection').map(f => f.date).sort().pop() || st.transfer;
+      if (addMonths(li, thr('pk-im-no-inspection')) < asOf) add('pk-im-no-inspection', o.id, mon, `последний осмотр ${fmt(li)}`, cur); }
+    const at = attempts(o.id, asOf);
+    if (st.code === 'onbook' && !at.length && addMonths(st.transfer, thr('pk-im-not-listed')) < asOf) add('pk-im-not-listed', o.id, mon, `на учёте с ${fmt(st.transfer)}, попыток не было`, cur);
+    const failed = at.filter(x => x.res && x.res.v !== 'sold').length;
+    if (failed >= thr('pk-im-unsold')) add('pk-im-unsold', o.id, mon, `несостоявшихся попыток: ${failed}`, cur);
+    const ci = contractInfo(o.id, asOf);
+    if (ci && ci.active && !ci.complete && ci.odDays >= thr('pk-im-instalment-overdue')) add('pk-im-instalment-overdue', o.id, 'платёж от ' + fmt(ci.firstUnpaid), `просрочено ${money(ci.overdue, ci.ccy)}, ${ci.odDays} дн.`, cur);
+    if (fl.encumbered && days(asOf, fl.encumbered.to) <= thr('pk-im-encumbrance-ending')) add('pk-im-encumbrance-ending', o.id, mon, `«${fl.encumbered.kind}» кончается ${fmt(fl.encumbered.to)}`, cur);
+  });
+  return out;
+}
+
+/* ---------------------- результат по объекту ----------------------- */
+function result(id, asOf = S.asOf) {
+  const o = obj(id); const F = live(o.facts, asOf); const st = objState(id, asOf);
+  const ex = F.filter(f => f.t === 'expense');
+  const exp = ex.filter(f => (f.ccy || 'KGS') === o.ccy).reduce((a, f) => a + f.amount, 0);
+  const expOther = ex.filter(f => (f.ccy || 'KGS') !== o.ccy).map(f => money(f.amount, f.ccy));
+  const ci = contractInfo(id, asOf); const loss = F.find(f => f.t === 'loss');
+  let price = null, basis = '', priceCcy = o.ccy;
+  if (ci && ci.active) { price = ci.price; priceCcy = ci.ccy || 'KGS'; basis = ci.complete ? 'цена продажи' : 'цена по договору (оплата не завершена)'; }
+  else if (F.find(f => f.t === 'gift')) { price = 0; basis = 'безвозмездная передача'; }
+  else if (loss) { price = loss.insurance || 0; basis = loss.insurance ? 'страховое возмещение' : 'выбытие без возмещения'; }
+  const value = objValue(id);
+  /* Модуль курсов не знает (ИИ-18): при разных валютах результат не считается. */
+  const mixed = priceCcy !== o.ccy;
+  return { value, ccy: o.ccy, expenses: exp, expOther, price, priceCcy, basis, mixed,
+    result: price == null || mixed ? null : price - value - exp, final: st.code === 'removed' };
+}
+
+/* ------------------------- что видят соседи ------------------------ */
+function neighbours(id, asOf = S.asOf) {
+  const o = obj(id); const st = objState(id, asOf); const F = live(o.facts, asOf); const out = { payments: [], collection: [], pledge: [] };
+  if (isIntro(o)) out.payments.push('Погашения не порождает: оно прошло в старой системе и переносится вместе с платежами.');
+  else if (TRANSFERRED.includes(st.code) && !o.parent) {
+    const al = allocation(o.obligor, asOf).rows.find(r => r.id === id) || {};
+    const cr = obl(o.obligor).credits;
+    const corr = F.filter(f => f.t === 'corr').pop();
+    out.payments.push(`Поступление «имущество в счёт погашения» на ${fmt(st.transfer)}: ${money(corr ? corr.oldValue : o.value, o.ccy)} — по долям кредитов ${cr.map(c => c.no + (c.ccy !== o.ccy ? ' (' + c.ccy + ', пересчёт — Платежи по курсу на ' + fmt(st.transfer) + ')' : '')).join(', ')}.`);
+    if (corr) out.payments.push(`Корректировка суммы поступления ${corr.newValue - corr.oldValue > 0 ? '+' : '−'}${money(Math.abs(corr.newValue - corr.oldValue), o.ccy)} с ${fmt(st.transfer)} — не сторно; Взыскание переделит.`);
+    out.collection.push(`Распределено между кредитами ${money(al.distributed)}, не вошло ${money(al.notIncluded)}.`);
+    const t = topupOf(id, asOf);
+    if (t && t.amount > 0) out.payments.push(`Распоряжение на Возврат: доплата ${money(t.amount)} → ${t.to} — ${t.done ? 'исполнен ' + fmt(t.done.date) + ' (' + t.done.doc + ')' : 'ожидает исполнения'}.`);
+    const r = F.find(f => f.t === 'ret');
+    if (r) { out.payments.push(`Сторно поступления от ${fmt(st.transfer)} задним числом; пеня за разрыв ${fmt(st.transfer)} → ${fmt(r.date)} — спорная, на Комиссию по спорным начислениям.`);
+      if (t && t.done) out.payments.push(`Требование к отчуждателю о возврате исполненной доплаты ${money(t.amount)} — взыскивается вне модуля.`); }
+  } else if (st.code === 'wait') out.payments.push('Погашения ещё нет: долг гасится на дату перехода права (регистрации).');
+  else if (st.code === 'failed') out.payments.push('Погашения не было и сторно нет: право так и не перешло.');
+  if (o.obligor && obl(o.obligor).role === 'поручитель') out.collection.push(`Гасится линия поручителя ${obl(o.obligor).name} во взыскании (заёмщик ${obl(o.obligor).borrower}), с ней — в той же сумме — долг заёмщика.`);
+  const ci = contractInfo(id, asOf);
+  if (ci) { out.payments.push(`Оплаты по договору КП — поступления вида «оплата по договору купли-продажи», адресат — договор: получено ${money(ci.paid, ci.ccy)}.`);
+    if (ci.terminated) out.payments.push(`Расторжение: Возврат покупателю ${money(ci.terminated.refund, ci.ccy)} (уплачено ${money(ci.terminated.paid, ci.ccy)} за вычетом неустойки ${money(ci.terminated.penaltyAmt, ci.ccy)}).`); }
+  if (o.pledge) out.pledge.push(TRANSFERRED.includes(st.code) ? `Предмет залога ${o.pledge} — «перешёл к Фонду» (финал, только чтение); запрет на отчуждение снят.` : `Предмет залога ${o.pledge} — в залоге до перехода права.`);
+  return out;
+}
+/* Журнал дела во Взыскании — проекции модуля, только чтение; продажи объекта там нет (ИМ-18). */
+function caseJournal(oblId, asOf = S.asOf) {
+  const rows = (CASE_MEASURES[oblId] || []).map(m => ({ date: m.date, text: m.text, own: false }));
+  OFFERS.filter(o => o.obligor === oblId && o.reg <= asOf).forEach(of => {
+    rows.push({ date: of.reg, text: `Предложение имущества ${of.id} зарегистрировано`, own: true });
+    const dec = live(of.facts, asOf).find(f => f.t === 'decision');
+    if (dec) rows.push({ date: dec.date, text: `Решение органа по ${of.id}: ` + Object.entries(dec.items).map(([n, it]) => `поз. ${n} — ${it.v === 'accept' ? 'принять' : 'отказать'}`).join(', '), own: true });
+  });
+  OBJECTS.filter(o => o.obligor === oblId && !o.parent && !isIntro(o)).forEach(o => {
+    const F = live(o.facts, asOf); const act = F.find(f => f.t === 'act'); const st = objState(o.id, asOf);
+    if (act) rows.push({ date: act.date, text: `Акт приёма-передачи ${o.id}`, own: true });
+    if (TRANSFERRED.includes(st.code)) rows.push({ date: st.transfer, text: `Переход права ${o.id}, ${money(objValue(o.id), o.ccy)}`, own: true });
+    if (st.code === 'failed') rows.push({ date: st.date, text: `Принятие ${o.id} не состоялось`, own: true });
+    const r = F.find(f => f.t === 'ret'); if (r) rows.push({ date: r.date, text: `Принятие ${o.id} отменено судом (возврат)`, own: true });
+  });
+  return rows.sort((a, b) => a.date < b.date ? -1 : 1);
+}
+/* Контроль миграции: сумма мигрированных погашений = сумма стоимостей вводных объектов (§13). */
+function migrationControl() {
+  return MIGRATED.map(m => { const sum = OBJECTS.filter(o => o.obligor === m.obl && isIntro(o)).reduce((a, o) => a + objValue(o.id), 0);
+    return { obl: m.obl, name: obl(m.obl).name, migrated: m.sum, objects: sum, ok: Math.abs(sum - m.sum) < 0.005, demo: m.demo || '' }; });
+}
+function addIntro(d, role = S.role) {
+  if (!canRole('intro', role)) return no('вводит специалист по имуществу');
+  if (!d.name || !(+d.value > 0) || !d.transfer || !d.doc || !d.obligor) return no('не заполнены обязательные поля');
+  const id = 'ИО-' + (S.objSeq++);
+  OBJECTS.push({ id, offer: null, pos: null, kind: d.kind || 'nonres', name: d.name, value: +d.value, ccy: 'KGS', obligor: d.obligor, source: d.source || 'debtor',
+    alien: obl(d.obligor).name, region: d.region || 'г. Бишкек', district: '—', char: {}, pledge: null,
+    facts: [mkFact('intro', d.transfer, { transfer: d.transfer, doc: d.doc, by: role })] });
+  return { ok: true, why: '', id };
+}
+
+/* ============================ ЭКРАНЫ =============================== */
+const $ = s => document.querySelector(s);
+const TITLES = { offers: 'Предложения имущества', offer: 'Карточка предложения', objects: 'Объекты имущества', object: 'Карточка объекта', contracts: 'Договоры купли-продажи', settings: 'Настройки' };
+const STATE_PILL = { none: 'neutral', wait: 'warn', failed: 'err', onbook: 'ok', listed: 'info', sold_once: 'info', sold_inst: 'info', removed: 'neutral', split: 'neutral',
+  registered: 'neutral', review: 'info', decided: 'warn', closed: 'ok', accepted: 'ok', rejected: 'err', withdrawn: 'neutral' };
+const pill = (st, tid) => `<span class="pill ${STATE_PILL[st.code] || 'neutral'}"${tid ? ` data-testid="${tid}"` : ''} data-code="${st.code}">${esc(st.label)}${st.path ? ' · ' + esc(st.path) : ''}</span>`;
+const flagHtml = id => { const f = flags(id); return (f.incomplete ? `<span class="flag" data-testid="flag-incomplete" title="доплата ${money(f.incomplete.amount)} не исполнена">⚑ принятие не завершено</span>` : '')
+  + (f.encumbered ? `<span class="flag enc" data-testid="flag-encumbered" title="${esc(f.encumbered.kind)} по ${fmt(f.encumbered.to)}">⚑ обременён</span>` : ''); };
+const roleMark = r => `<span class="small">${esc(roleName(r))}</span>`;
+
+function render() {
+  if (typeof document === 'undefined') return;
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.v === S.view || b.dataset.v + '' === S.view.replace(/^(offer|object)$/, '$1s')));
+  $('#role').innerHTML = ROLES.map(r => `<option value="${r.id}"${r.id === S.role ? ' selected' : ''}>${esc(r.name)}</option>`).join('');
+  $('#asOf').value = fmt(S.asOf);
+  $('#asOfQuick').innerHTML = [['2027-01-01', '01.01.2027'], ['2027-10-01', '01.10.2027'], [TODAY, 'сегодня']].map(([d, l]) =>
+    `<button class="btn btn-secondary btn-sm"${d === S.asOf ? ' style="border-color:var(--asubk-blue);color:var(--asubk-blue)"' : ''} onclick="IM.setAsOf('${d}')">${l}</button>`).join(' ');
+  const trig = triggers(); const pend = pending();
+  $('#cntOffers').textContent = OFFERS.length; $('#cntObjects').textContent = OBJECTS.length;
+  $('#cntContracts').textContent = OBJECTS.filter(o => contractInfo(o.id)).length;
+  $('#cntTrig').textContent = trig.length ? 'поводов ' + trig.length : ''; $('#cntTrig').className = 'cnt' + (trig.length ? ' hot' : '');
+  const me = ROLES.find(r => r.id === S.role);
+  $('#foot').innerHTML = `${esc(me.who)} · ${esc(me.name)}<br>Сегодня ${fmt(TODAY)} · состояние на ${fmt(S.asOf)}<br>
+    Ждут второго ключа: <b data-testid="pending-count">${pend.length}</b> · поводов для Заданий: <b>${trig.length}</b>`;
+  let html = '', title = TITLES[S.view];
+  if (S.view === 'offers') html = viewOffers();
+  else if (S.view === 'offer') { html = viewOffer(S.id); title = `<span class="back" onclick="IM.go('offers')">Предложения</span> / ${esc(S.id)}`; }
+  else if (S.view === 'objects') html = viewObjects();
+  else if (S.view === 'object') { html = viewObject(S.id); title = `<span class="back" onclick="IM.go('objects')">Объекты имущества</span> / ${esc(S.id)}`; }
+  else if (S.view === 'contracts') html = viewContracts();
+  else if (S.view === 'settings') html = viewSettings();
+  $('#title').innerHTML = title; $('#panel').innerHTML = html;
+}
+
+function pendingCard(filter) {
+  const list = pending().filter(x => !filter || filter(x));
+  if (!list.length) return '';
+  return `<div class="card" data-testid="pending-card"><div class="card-head"><h3>Ждут второго ключа · ${list.length}</h3>
+    <span class="small">Факт не опубликован: другие модули его не видят, состояние от него не меняется.</span></div>
+    <table class="cgrid"><thead><tr><th>Дата</th><th>Факт</th><th>Где</th><th>Документ</th><th>Готовил</th><th></th></tr></thead><tbody>${list.map(({ f, owner }) => `
+    <tr class="pend" data-testid="pending-${f.id}"><td class="mono">${fmt(f.date)}</td><td>${esc(factLabel(f))}</td>
+      <td><button class="linky" onclick="IM.open('${jsq(owner)}')">${esc(owner)}</button></td><td>${esc(f.doc || '')}</td><td>${roleMark(f.by)}</td>
+      <td>${S.role === 'head' ? `<div class="btn-row"><button class="btn btn-primary btn-sm" data-testid="publish-${f.id}" onclick="IM.uiPublish('${f.id}')">Опубликовать вторым ключом</button>
+        <button class="btn btn-secondary btn-sm" onclick="IM.uiReject('${f.id}')">Вернуть</button></div>` : '<span class="small">ждёт начальника Управления</span>'}</td></tr>`).join('')}
+    </tbody></table></div>`;
+}
+function factLabel(f) {
+  const n = FACT_NAME[f.t] || f.t;
+  switch (f.t) {
+    case 'act': return n + (f.pos ? ` · позиция ${f.pos}` : '') + (f.objId ? ` → ${f.objId}` : '');
+    case 'terminate': return n + (f.pos ? ` · позиция ${f.pos}` : '') + ` · ${f.reason}${f.note ? ' (' + f.note + ')' : ''}`;
+    case 'withdraw': return n + ` · позиция ${f.pos}`;
+    case 'concl': return `${n} · поз. ${f.pos} · ${f.kind}: ${f.text}`;
+    case 'decision': return `${n} · ${f.organ}${f.late ? ' · вынесено после истечения срока ответа' : ''}`;
+    case 'regRefusal': return n + (f.final ? ' · окончательный' : ' · устранимый');
+    case 'appraisal': return `${n} · ${f.appraiser} · ${money(f.amount, f.ccy)}`;
+    case 'expense': return `${n} · ${f.item} · ${money(f.amount, f.ccy)}`;
+    case 'encumbrance': return `${n} · ${f.kind} ${fmt(f.from)}–${fmt(f.to)}`;
+    case 'priceDecision': return `${n} · до ${money(f.amount)}`;
+    case 'attempt': return `${n} · ${f.method} · старт ${money(f.start)}`;
+    case 'attemptResult': return `${n} · ${f.v === 'sold' ? 'состоялась: ' + f.buyer + ', ' + money(f.price) : f.v === 'failed' ? 'не состоялась' : 'состоялась, договор не заключён'}`;
+    case 'contract': return `${n} · ${f.kind === 'inst' ? 'рассрочка ' + f.schedule.length + ' платежей' : 'разовый'} · ${f.buyer} · ${money(f.price, f.ccy)}`;
+    case 'payment': case 'topup': return `${n} · ${money(f.amount)}`;
+    case 'cterm': return `${n} · неустойка ${money(f.penaltyAmt)}, Возврат ${money(f.refund)}`;
+    case 'split': return `${n} · ${f.parts.join(' + ')}`;
+    case 'corr': return `${n} · стоимость ${money(f.oldValue)} → ${money(f.newValue)}`;
+    case 'loss': return `${n} · ${f.cause}`;
+  }
+  return n;
+}
+
+/* --------------------- ЭКРАН: реестр предложений -------------------- */
+function viewOffers() {
+  const f = S.f;
+  const rows = OFFERS.filter(o => o.reg <= S.asOf).map(o => ({ o, st: offerState(o.id), c: offerCounts(o.id) }))
+    .filter(r => (!f.oSrc || r.o.source === f.oSrc) && (!f.oState || r.st.code === f.oState)
+      && (!f.oObl || r.o.obligor === f.oObl)
+      && (!f.oOrgan || live(r.o.facts, S.asOf).some(x => x.t === 'decision' && x.organ === f.oOrgan))
+      && (!f.oDue || (f.oDue === 'over' ? r.st.overdue : f.oDue === 'late' ? live(r.o.facts, S.asOf).some(x => x.t === 'decision' && x.late) : !r.st.overdue)));
+  const tot = rows.reduce((a, r) => { Object.keys(a).forEach(k => a[k] += r.c[k]); return a; }, { accepted: 0, rejected: 0, withdrawn: 0, failed: 0, review: 0 });
+  const sel = (key, opts) => `<select onchange="IM.setF('${key}',this.value)" data-testid="f-${key}"><option value="">все</option>${opts.map(([v, l]) => `<option value="${v}"${f[key] === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+  return `${pendingCard(x => x.owner.startsWith('П-'))}
+  <div class="filters">
+    <div class="fld"><label>Источник</label>${sel('oSrc', Object.entries(SOURCES).map(([k, s]) => [k, s.name]))}</div>
+    <div class="fld"><label>Состояние</label>${sel('oState', [['registered', 'зарегистрировано'], ['review', 'на рассмотрении'], ['decided', 'решение вынесено'], ['closed', 'закрыто']])}</div>
+    <div class="fld"><label>Обязанное лицо</label>${sel('oObl', [...new Set(OFFERS.map(o => o.obligor))].map(id => [id, obl(id).name]))}</div>
+    <div class="fld"><label>Орган</label>${sel('oOrgan', ORGANS.map(x => [x, x.length > 40 ? x.slice(0, 38) + '…' : x]))}</div>
+    <div class="fld"><label>Срок ответа</label>${sel('oDue', [['over', '⚑ истёк, ответа нет'], ['late', 'решение после срока'], ['ok', 'в порядке']])}</div>
+    <div style="margin-left:auto">${canRole('offerNew') ? `<button class="btn btn-primary" data-testid="offer-new" onclick="IM.uiNewOffer()">Зарегистрировать предложение</button>` : ''}</div>
+  </div>
+  <div class="sum" data-testid="offer-totals">
+    <div class="tile"><div class="n">${rows.length}</div><div class="l">предложений</div></div>
+    <div class="tile"><div class="n" data-testid="tot-accepted">${tot.accepted}</div><div class="l">позиций принято</div></div>
+    <div class="tile"><div class="n" data-testid="tot-rejected">${tot.rejected}</div><div class="l">отказано решением органа</div></div>
+    <div class="tile"><div class="n" data-testid="tot-withdrawn">${tot.withdrawn}</div><div class="l">отозвано источником</div></div>
+    <div class="tile"><div class="n" data-testid="tot-failed">${tot.failed}</div><div class="l">принятие не состоялось</div></div>
+    <div class="tile"><div class="n">${tot.review}</div><div class="l">на рассмотрении</div></div>
+  </div>
+  <table class="cgrid"><thead><tr><th>№</th><th>Источник</th><th>Обязанное лицо</th><th>Отчуждатель</th><th>Документ</th><th>Срок ответа</th><th>Позиции</th><th>Состояние</th><th>Куратор на дату</th></tr></thead>
+  <tbody>${rows.map(({ o, st, c }) => `<tr class="click${st.overdue ? ' over' : ''}" data-testid="offer-row-${o.id}" onclick="IM.openOffer('${o.id}')">
+    <td><b>${o.id}</b></td><td>${esc(SOURCES[o.source].name)}</td>
+    <td>${esc(obl(o.obligor).name)}<div class="why">${esc(obl(o.obligor).role)}</div></td><td>${esc(o.alien)}</td>
+    <td>${esc(o.doc.no)}<div class="why">от ${fmt(o.doc.date)}</div></td>
+    <td class="mono">${fmt(o.deadline)}${st.overdue ? ' <span class="flag">⚑ истёк</span>' : ''}${st.answer ? `<div class="why">ответ ${fmt(st.answer.date)}</div>` : ''}</td>
+    <td>${o.positions.length}: <span class="small">принято ${c.accepted} · отказано ${c.rejected} · отозвано ${c.withdrawn}${c.failed ? ' · не состоялось ' + c.failed : ''}</span></td>
+    <td>${pill(st)}${st.waitingAct ? `<div class="why">ждёт акта: ${st.waitingAct}</div>` : ''}</td>
+    <td>${esc(curatorOf(o.id).emp)}</td></tr>`).join('') || '<tr><td colspan="9" class="muted">нет предложений по условиям</td></tr>'}</tbody></table>`;
+}
+
+/* --------------------- ЭКРАН: карточка предложения ------------------ */
+function viewOffer(id) {
+  const of = offer(id); if (!of) return '<div class="banner danger">Нет предложения</div>';
+  const st = offerState(id); const o = obl(of.obligor); const F = live(of.facts, S.asOf);
+  const dec = F.find(f => f.t === 'decision'); const exp = expectedTopups(id);
+  const acts = (p) => {
+    const out = posOutcome(id, p.n); const b = [];
+    const btn = (t, label, fn, ok, why) => `<button class="btn btn-secondary btn-sm" data-testid="pos-${p.n}-${t}" data-why="${esc(why || '')}" ${ok ? '' : 'disabled'} title="${esc(why || '')}" onclick="${fn}">${label}</button>`;
+    const roleWhy = t => canRole(t) ? '' : 'доступно роли: ' + ROLE_OF[t].map(roleName).join(', ');
+    const hasDec = of.facts.some(f => f.t === 'decision');
+    b.push(btn('edit', 'Изменить', `IM.uiEditPos('${id}',${p.n})`, !hasDec && canRole('posEdit'), hasDec ? 'после решения органа — только исправлением' : roleWhy('posEdit')));
+    if (out.code === 'review') b.push(btn('concl', 'Заключение', `IM.uiFact('${id}','concl',${p.n})`, canRole('concl'), roleWhy('concl')));
+    const actExists = of.facts.some(f => f.t === 'act' && f.pos === p.n);
+    const wdWhy = actExists || out.act ? WITHDRAW_AFTER_ACT : (out.code !== 'review' && out.code !== 'accepted') ? 'у позиции уже есть итог' : roleWhy('withdraw');
+    if (out.code === 'review' || out.code === 'accepted') b.push(btn('withdraw', 'Отзыв источником', `IM.uiFact('${id}','withdraw',${p.n})`, !wdWhy, wdWhy));
+    if (out.code === 'accepted' && !out.act) {
+      b.push(btn('act', 'Акт приёма-передачи', `IM.uiFact('${id}','act',${p.n})`, !actExists && canRole('act'), actExists ? 'акт ждёт второго ключа' : roleWhy('act')));
+      b.push(btn('terminate', 'Прекращение принятия', `IM.uiFact('${id}','terminate',${p.n})`, !actExists && canRole('terminate'), actExists ? 'акт ждёт второго ключа' : roleWhy('terminate')));
+    }
+    return `<div class="btn-row">${b.join('')}</div>${(actExists || out.act) && out.code === 'accepted' ? `<div class="why">Отзыв: ${esc(WITHDRAW_AFTER_ACT)}</div>` : ''}`;
+  };
+  const rows = of.positions.map(p => { const out = posOutcome(id, p.n); const e = exp.rows[p.n]; const k = kindOf(p.kind);
+    return `<tr data-testid="pos-row-${p.n}"><td>${p.n}</td>
+      <td><b>${esc(p.name)}</b><div class="why">${esc(k.name)} · ${esc(k.cls)}${k.reg ? ' · право подлежит госрегистрации' : ''}${p.pledge ? ' · происходит из предмета залога ' + p.pledge : ''}</div>
+        ${live(of.facts, S.asOf).filter(f => f.t === 'concl' && f.pos === p.n).map(f => `<div class="why">${esc(f.kind)}: ${esc(f.text)} (${fmt(f.date)})</div>`).join('')}</td>
+      <td class="num">${money(p.value, p.ccy)}</td>
+      <td class="mono">${e && e.plan ? fmt(e.plan) : '—'}</td>
+      <td class="num" data-testid="exp-topup-${p.n}">${e ? money(e.topup) : '—'}</td>
+      <td>${pill(out, 'pos-out-' + p.n)}${out.sub ? `<div class="why">${esc(out.sub)}</div>` : ''}${out.reason ? `<div class="why">${esc(out.reason)}</div>` : ''}${out.date ? `<div class="why">${fmt(out.date)}</div>` : ''}</td>
+      <td>${out.obj ? `<button class="linky" onclick="IM.openObject('${out.obj}')">${out.obj}</button>` : '—'}</td>
+      <td>${acts(p)}</td></tr>`; }).join('');
+  return `${pendingCard(x => x.owner === id)}
+  ${st.overdue ? `<div class="banner danger" data-testid="offer-overdue"><b>⚑ Срок ответа ${fmt(of.deadline)} истёк, ответа нет.</b> <span title="pk-im-offer-overdue">Повод для Заданий «${TRIG_NAME['pk-im-offer-overdue']}»</span> — поручение получит куратор предложения. Решение после срока не блокируется — оно вносится с пометкой.</div>` : ''}
+  ${triggers().filter(t => t.kind === 'pk-im-act-pending' && t.id.startsWith(id + ' ')).map(t => `<div class="banner warn" data-testid="act-pending"><b title="pk-im-act-pending">Повод для Заданий «${esc(t.name)}» · ${esc(t.id)}:</b> ${esc(t.text)}. Адресат — куратор предложения ${esc(t.to)}. Выходы: акт, отзыв источником, прекращение принятия.</div>`).join('')}
+  <div class="grid2"><div>
+  <div class="card"><div class="card-head"><h3>${of.id} · ${esc(SOURCES[of.source].name)}</h3>${pill(st, 'offer-state')}
+    <div class="btn-row">
+      ${canRole('letter') ? `<button class="btn btn-secondary btn-sm" onclick="IM.uiFact('${id}','letter')">Промежуточное письмо</button>` : ''}
+      ${canRole('posAdd') && !of.facts.some(f => f.t === 'decision') ? `<button class="btn btn-secondary btn-sm" onclick="IM.uiAddPos('${id}')">Добавить позицию</button>` : ''}
+      <button class="btn btn-primary btn-sm" data-testid="decision-btn" ${!dec && canRole('decision') && st.code !== 'closed' ? '' : 'disabled'} title="${dec ? 'решение одно на предложение' : canRole('decision') ? '' : 'вносит секретарь органа'}" onclick="IM.uiDecision('${id}')">Решение органа</button>
+    </div></div>
+    <div class="kv">
+      <div class="k">Источник</div><div>${esc(SOURCES[of.source].name)}</div>
+      <div class="k">Обязанное лицо</div><div data-testid="offer-obligor">${esc(o.name)} — ${esc(o.role)}${o.borrower ? ' по кредиту заёмщика ' + esc(o.borrower) : ''}</div>
+      <div class="k">Отчуждатель</div><div data-testid="offer-alien">${esc(of.alien)}</div>
+      <div class="k">Кому доплата</div><div data-testid="offer-topup-to">${esc(topupTo(of.source, of.alien))}</div>
+      <div class="k">Документ-основание</div><div>${esc(SOURCES[of.source].doc)} ${esc(of.doc.no)} от ${fmt(of.doc.date)}</div>
+      <div class="k">Срок ответа</div><div>${fmt(of.deadline)} <span class="small">· источник: ${esc(of.deadlineSrc)}</span></div>
+      <div class="k">Ответ</div><div>${st.answer ? `${fmt(st.answer.date)} · ${st.answer.t === 'letter' ? 'промежуточное письмо' : 'решение органа'}${st.answer.date > of.deadline ? ' <span class="pill warn">после срока</span>' : ''}` : '<span class="muted">нет</span>'}</div>
+      <div class="k">Кредиты</div><div>${o.credits.map(c => c.no + ' (' + (CCY[c.ccy] || c.ccy) + ')').join(', ')} <span class="small">· деление — Взыскание</span></div>
+      <div class="k">Куратор на ${fmt(S.asOf)}</div><div>${esc(curatorOf(id).emp)} <span class="small">· из Кураторства, ${esc(curatorOf(id).why)}</span></div>
+    </div>
+    ${st.code !== 'closed' ? `<div class="banner info" style="margin-top:10px">Пока предложение рассматривается, пени начисляются до перехода права и меры взыскания продолжаются.</div>` : ''}
+  </div>
+  </div><div>
+  <div class="card ro"><h3>Журнал дела во Взыскании <span class="small">· только чтение</span></h3>
+    <table class="cgrid"><tbody>${caseJournal(of.obligor).map(r => `<tr><td class="mono">${fmt(r.date)}</td><td>${r.own ? '⟶ ' : ''}${esc(r.text)}<div class="why">${r.own ? 'видно во Взыскании' : 'мера взыскания'}</div></td></tr>`).join('')}</tbody></table>
+    <div class="why">Проекции не правятся и не заводятся во Взыскании. Продажа объекта Фондом в дело должника не попадает.</div></div>
+  </div></div>
+  <div class="card"><h3>Позиции</h3>
+    <table class="cgrid"><thead><tr><th>№</th><th>Вещь</th><th class="num">Стоимость принятия</th><th>Плановая дата перехода права</th><th class="num">Ожидаемая доплата</th><th>Итог</th><th>Объект</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+    <div class="why">Ожидаемая доплата — оценка на ${fmt(S.asOf)} нарастающим итогом: долг обязанного лица ${money(exp.debt)} (ответ Взыскания) уменьшается ранее принятыми позициями этого решения
+      в порядке плановой даты перехода права, при равных датах — по номеру позиции. Окончательную сумму на дату перехода права считает Взыскание по живому долгу.</div>
+  </div>
+  ${dec ? `<div class="card" data-testid="decision-card"><h3>Решение органа</h3><div class="kv">
+    <div class="k">Орган</div><div>${esc(dec.organ)}</div><div class="k">Документ</div><div>${esc(dec.doc)} от ${fmt(dec.date)}${dec.late ? ' <span class="pill warn" data-testid="decision-late">вынесено после истечения срока ответа</span>' : ''}</div>
+    ${Object.entries(dec.items).map(([n, it]) => `<div class="k">Позиция ${n}</div><div>${it.v === 'accept' ? 'принять' : 'отказать — ' + esc(it.reason)}${posOutcome(id, +n).code === 'withdrawn' ? ' <span class="small">(не исполнено: позиция отозвана)</span>' : ''}</div>`).join('')}
+  </div></div>` : ''}
+  <div class="card"><h3>Журнал фактов</h3>${factTable(of.facts)}</div>
+  `;
+}
+function factTable(facts) {
+  const corrected = new Set(facts.filter(f => f.t === 'corr' && f.pub).map(f => f.target));
+  const list = [...facts].sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+  return `<table class="cgrid" data-testid="fact-journal"><thead><tr><th>Дата</th><th>Факт</th><th>Документ</th><th>Ввёл</th><th>Опубликовал</th></tr></thead><tbody>${list.map(f => `
+    <tr class="${!f.pub ? 'pend' : ''}"><td class="mono">${fmt(f.date)}</td><td>${esc(factLabel(f))}${corrected.has(f.id) ? ' <span class="pill warn">исправлен</span>' : ''}${f.date > S.asOf ? ' <span class="small">(после выбранной даты)</span>' : ''}</td>
+    <td>${esc(f.doc || '')}</td><td>${roleMark(f.by)}</td><td>${!f.pub ? '<span class="pill warn">ждёт второго ключа</span>' : f.pubBy ? roleMark(f.pubBy) : '<span class="small">без второго ключа</span>'}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">фактов нет</td></tr>'}</tbody></table>`;
+}
+
+/* ---------------------- ЭКРАН: реестр объектов ---------------------- */
+function viewObjects() {
+  const f = S.f;
+  const regions = [...new Set(OBJECTS.map(o => o.region))];
+  const rows = OBJECTS.map(o => ({ o, st: objState(o.id), fl: flags(o.id) })).filter(r => r.st.code !== 'none' || f.bState === 'none')
+    .filter(r => (!f.bState || r.st.code === f.bState) && (!f.bKind || r.o.kind === f.bKind) && (!f.bCls || kindOf(r.o.kind).cls === f.bCls)
+      && (!f.bRegion || r.o.region === f.bRegion) && (!f.bSrc || r.o.source === f.bSrc) && (!f.bInc || r.fl.incomplete) && (!f.bEnc || r.fl.encumbered)
+      && (!f.bDays || (r.st.transfer && days(r.st.transfer, ['removed', 'split'].includes(r.st.code) ? r.st.date : S.asOf) > +f.bDays))
+      && (!f.bCur || curatorOf(r.o.id).emp === f.bCur));
+  const sel = (key, opts) => `<select onchange="IM.setF('${key}',this.value)" data-testid="f-${key}"><option value="">все</option>${opts.map(([v, l]) => `<option value="${v}"${f[key] === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+  const mc = migrationControl();
+  return `${pendingCard(x => x.owner.startsWith('ИО-'))}
+  <div class="filters">
+    <div class="fld"><label>Состояние на ${fmt(S.asOf)}</label>${sel('bState', [['wait', 'принят, ждёт регистрации'], ['onbook', 'на учёте'], ['listed', 'выставлен на продажу'], ['sold_once', 'продан разово'], ['sold_inst', 'продан в рассрочку'], ['removed', 'снят с учёта'], ['split', 'разделён'], ['failed', 'принятие не состоялось'], ['none', 'ещё не возник']])}</div>
+    <div class="fld"><label>Вид</label>${sel('bKind', KINDS.map(k => [k.id, k.name]))}</div>
+    <div class="fld"><label>Класс</label>${sel('bCls', [['вещь', 'вещь'], ['имущественное право', 'имущественное право']])}</div>
+    <div class="fld"><label>Область</label>${sel('bRegion', regions.map(r => [r, r]))}</div>
+    <div class="fld"><label>Источник</label>${sel('bSrc', Object.entries(SOURCES).map(([k, s]) => [k, s.name]))}</div>
+    <div class="fld"><label>Дней на учёте</label>${sel('bDays', [['180', 'больше 180'], ['365', 'больше 365'], ['730', 'больше 730']])}</div>
+    <div class="fld"><label>Куратор на ${fmt(S.asOf)}</label>${sel('bCur', [...new Set(OBJECTS.map(o => curatorOf(o.id).emp))].sort().map(x => [x, x]))}</div>
+    <label class="chk"><input type="checkbox" ${f.bInc ? 'checked' : ''} onchange="IM.setF('bInc',this.checked)"> ⚑ принятие не завершено</label>
+    <label class="chk"><input type="checkbox" ${f.bEnc ? 'checked' : ''} onchange="IM.setF('bEnc',this.checked)"> ⚑ обременён</label>
+    <div style="margin-left:auto">${canRole('intro') ? `<button class="btn btn-secondary" data-testid="intro-new" onclick="IM.uiIntro()">Ввести вводный остаток</button>` : ''}</div>
+  </div>
+  <table class="cgrid"><thead><tr><th>№</th><th>Вещь</th><th>Вид · класс</th><th>Местоположение</th><th>Источник</th><th class="num">Учётная стоимость</th><th>Состояние на ${fmt(S.asOf)}</th><th class="num">Дней на учёте</th><th class="num">Попыток</th><th>Куратор на дату</th></tr></thead>
+  <tbody>${rows.map(({ o, st }) => { const k = kindOf(o.kind); const at = attempts(o.id).length;
+    const dOn = st.transfer ? days(st.transfer, st.code === 'removed' || st.code === 'split' ? st.date : S.asOf) : null;
+    return `<tr class="click${['removed', 'split', 'failed'].includes(st.code) ? ' gone' : ''}" data-testid="object-row-${o.id}" onclick="IM.openObject('${jsq(o.id)}')">
+    <td><b>${esc(o.id)}</b></td><td>${esc(o.name)}${isIntro(o) ? '<div class="why">вводный остаток</div>' : o.parent ? `<div class="why">часть ${esc(o.parent)}</div>` : ''}</td>
+    <td>${esc(k.name)}<div class="why">${esc(k.cls)}</div></td><td>${esc(o.region)}<div class="why">${esc(o.district)}</div></td>
+    <td>${esc(SOURCES[o.source].name)}</td><td class="num">${money(objValue(o.id), o.ccy)}</td>
+    <td>${pill(st)}${flagHtml(o.id)}</td><td class="num">${dOn != null && dOn >= 0 ? dOn : '—'}</td><td class="num">${at}</td><td>${esc(curatorOf(o.id).emp)}</td></tr>`; }).join('') || '<tr><td colspan="10" class="muted">нет объектов по условиям</td></tr>'}</tbody></table>
+  <div class="card" style="margin-top:14px" data-testid="migration-control"><h3>Контроль миграции вводного остатка</h3>
+    <table class="cgrid"><thead><tr><th>Обязанное лицо</th><th class="num">Мигрировано погашений «имущество в счёт погашения»</th><th class="num">Стоимость вводных объектов</th><th>Итог</th></tr></thead>
+    <tbody>${mc.map(m => `<tr><td>${esc(m.name)}</td><td class="num">${money(m.migrated)}</td><td class="num">${money(m.objects)}</td><td>${m.ok ? '<span class="pill ok">сходится</span>' : '<span class="pill err">расхождение — блокирует миграцию</span>' + (m.demo ? `<div class="why">${esc(m.demo)}</div>` : '')}</td></tr>`).join('')}</tbody></table>
+    <div class="why">Вводный остаток погашения не порождает: оно уже прошло и переносится вместе с платежами. Предложений и решений органа у него нет.</div></div>`;
+}
+
+/* ---------------------- ЭКРАН: карточка объекта --------------------- */
+const OBJ_ACTIONS = [
+  ['Переход права', ['reg', 'regRefusal', 'terminate']],
+  ['Наблюдение', ['inspection', 'appraisal', 'expense', 'encumbrance']],
+  ['Продажа', ['priceDecision', 'attempt', 'attemptResult']],
+  ['Договор КП', ['contract', 'claim', 'cterm']],
+  ['Из Платежей', ['payment', 'topup']],
+  ['Разделение', ['split']],
+  ['Выбытие', ['gift', 'loss', 'ret']],
+  ['Исправление', ['corr']],
+];
+const SHORT = { reg: 'Регистрация права', regRefusal: 'Отказ регистратора', terminate: 'Прекращение принятия', inspection: 'Осмотр', appraisal: 'Оценка',
+  expense: 'Расход', encumbrance: 'Обременение', priceDecision: 'Снижение цены', attempt: 'Попытка продажи', attemptResult: 'Итог попытки',
+  contract: 'Договор КП', claim: 'Претензия', cterm: 'Расторжение', payment: 'Оплата по договору', topup: 'Доплата исполнена',
+  split: 'Разделение', gift: 'Безвозмездная передача', loss: 'Выбытие', ret: 'Возврат по суду', corr: 'Исправление' };
+function actionPanel(id) {
+  return `<div class="facts" data-testid="fact-actions">${OBJ_ACTIONS.map(([g, ts]) => {
+    const items = ts.map(t => { const ga = gate(id, t); const rk = canRole(t); const why = !ga.ok ? ga.why : !rk ? 'роль: ' + ROLE_OF[t].map(roleName).join(', ') : ga.why;
+      return { t, ok: ga.ok && rk, why, gateOk: ga.ok }; });
+    return `<div class="fgroup"><div class="gname">${g}</div><div class="gbody"><div class="btn-row">${items.map(i =>
+      `<button class="btn ${i.ok ? 'btn-secondary' : 'btn-secondary'} btn-sm" data-testid="act-${i.t}" data-why="${esc(i.why)}" ${i.ok ? '' : 'disabled'} title="${esc(i.why)}" onclick="IM.uiFact('${jsq(id)}','${i.t}')">${SHORT[i.t]}${KEY.has(i.t) ? ' 🔑' : ''}</button>`).join('')}</div>
+      ${items.filter(i => !i.gateOk || i.why && i.ok).map(i => `<div class="why" data-testid="why-${i.t}">${SHORT[i.t]}: ${esc(i.why)}</div>`).join('')}</div></div>`; }).join('')}
+    <div class="small">🔑 — публикуется вторым ключом начальника Управления. Кнопки «сменить состояние» нет: состояние выводится из фактов.</div></div>`;
+}
+function viewObject(id) {
+  const o = obj(id); if (!o) return '<div class="banner danger">Нет объекта</div>';
+  const st = objState(id); const k = kindOf(o.kind); const F = live(o.facts, S.asOf); const fl = flags(id); const r = result(id);
+  const ci = contractInfo(id); const at = attempts(id); const t = topupOf(id); const nb = neighbours(id); const cur = curatorOf(id);
+  const cnt = tt => F.filter(f => tt.includes(f.t)).length;
+  const TABS = [['char', 'Характеристики'], ['transfer', 'Переход права'], ['insp', 'Осмотры', cnt(['inspection'])], ['appr', 'Оценки', cnt(['appraisal'])],
+    ['exp', 'Расходы', cnt(['expense'])], ['enc', 'Обременения', cnt(['encumbrance'])], ['att', 'Попытки продажи', at.length],
+    ['ctr', 'Договор КП и оплаты', ci ? 1 : 0], ['out', 'Выбытие'], ['log', 'Журнал фактов', o.facts.length]];
+  const tab = S.tab;
+  let body = '';
+  if (tab === 'char') body = `<div class="kv">${Object.entries(o.char).map(([a, b]) => `<div class="k">${esc(a)}</div><div>${esc(b)}</div>`).join('') || '<div class="k">—</div><div class="muted">характеристик нет</div>'}</div>
+    <div class="why" style="margin-top:8px">${o.pledge ? `Происходит из предмета залога ${o.pledge}: характеристики скопированы снимком на ${fmt(o.snapshotAt)}; дальше у объекта своя история, обследования предмета залога не меняются.` : isIntro(o) ? 'Заведён вводным остатком по документу бухгалтерии.' : o.parent ? `Часть объекта ${o.parent}: наследует источник, дату перехода права, снимок характеристик.` : 'Заведён по схеме параметров вида с нуля.'}
+    Вид «${esc(k.name)}» · класс «${esc(k.cls)}» · ${k.reg ? 'право подлежит госрегистрации' : 'госрегистрация не нужна'} · ${k.div ? 'делимая' : 'неделимая'}.</div>`;
+  else if (tab === 'transfer') { const act = F.find(f => f.t === 'act'), reg = F.find(f => f.t === 'reg'), intro = F.find(f => f.t === 'intro');
+    body = `<div class="kv">
+      ${intro ? `<div class="k">Вводный остаток</div><div>${esc(intro.doc)}; дата перехода права ${fmt(intro.transfer)}</div>` : ''}
+      ${act ? `<div class="k">Акт приёма-передачи</div><div>${esc(act.doc)} от ${fmt(act.date)}</div>` : ''}
+      ${k.reg && !intro ? `<div class="k">Регистрация права</div><div>${reg ? esc(reg.doc) + ' от ' + fmt(reg.date) : '<span class="muted">нет</span>'}</div>` : ''}
+      ${F.filter(f => f.t === 'regRefusal').map(f => `<div class="k">Отказ регистратора</div><div>${f.final ? 'окончательный' : 'устранимый'} · ${esc(f.doc)} от ${fmt(f.date)}</div>`).join('')}
+      ${F.filter(f => f.t === 'terminate').map(f => `<div class="k">Прекращение принятия</div><div>${esc(f.reason)}${f.note ? ' — ' + esc(f.note) : ''} · ${esc(f.doc)} от ${fmt(f.date)}</div>`).join('')}
+      <div class="k">Дата перехода права</div><div data-testid="transfer-date"><b>${st.transfer ? fmt(st.transfer) : '—'}</b> <span class="small">${k.reg ? '— дата регистрации' : '— дата акта'}</span></div>
+      <div class="k">Погашение долга</div><div data-testid="repay-date">${isIntro(o) ? 'не порождается (вводный остаток)' : st.transfer ? 'на ' + fmt(st.transfer) + ' стоимостью принятия' : st.code === 'failed' ? 'не было' : 'ещё нет'}</div></div>`; }
+  else if (tab === 'insp') body = k.cls !== 'вещь' ? '<div class="muted">У имущественного права осмотров нет.</div>' : simpleTable(F.filter(f => f.t === 'inspection'), ['Дата', 'Участники', 'Состояние', 'Документ'], f => [fmt(f.date), f.who, f.cond, f.doc]);
+  else if (tab === 'appr') body = simpleTable(F.filter(f => f.t === 'appraisal'), ['Дата', 'Оценщик', 'Сумма', 'Документ'], f => [fmt(f.date), f.appraiser, money(f.amount, f.ccy), f.doc]) + '<div class="why">Оценка справочна: на учётную стоимость не влияет.</div>';
+  else if (tab === 'exp') body = simpleTable(F.filter(f => f.t === 'expense'), ['Дата', 'Статья', 'Сумма', 'Документ'], f => [fmt(f.date), f.item, money(f.amount, f.ccy), f.doc]);
+  else if (tab === 'enc') body = simpleTable(F.filter(f => f.t === 'encumbrance'), ['Вид', 'С', 'По', 'Документ', 'На дату'], f => [f.kind, fmt(f.from), fmt(f.to), f.doc, f.from <= S.asOf && f.to >= S.asOf ? 'действует' : 'не действует']) + '<div class="why">Денег, графика и дохода у обременения нет — договор использования ведётся вне системы.</div>';
+  else if (tab === 'att') body = `<table class="cgrid"><thead><tr><th>Объявлена</th><th>Способ</th><th class="num">Старт</th><th>Основание цены</th><th>Площадка · лот</th><th>Обременение</th><th>Итог</th></tr></thead><tbody>${at.map(x => {
+      const b = o.facts.find(f => f.id === x.a.basis);
+      return `<tr><td class="mono">${fmt(x.a.date)}<div class="why">проведение ${fmt(x.a.hold)}</div></td><td>${esc(x.a.method)}</td><td class="num">${money(x.a.start, o.ccy)}</td>
+      <td>${b ? esc(b.doc + (b.t === 'appraisal' ? ' (' + b.appraiser + ')' : '')) : '—'}</td><td>${esc(x.a.platform)} · ${esc(x.a.lot)}</td><td>${esc(x.a.encMark || '—')}</td>
+      <td>${x.res ? (x.res.v === 'sold' ? `состоялась: ${esc(x.res.buyer)}, ${money(x.res.price)}` : x.res.v === 'failed' ? 'не состоялась' : 'состоялась, договор не заключён') + ' · ' + fmt(x.res.date) : '<span class="pill info">идёт</span>'}</td></tr>`; }).join('') || '<tr><td colspan="7" class="muted">попыток не было</td></tr>'}</tbody></table>
+      <div class="why">Ход торгов (участники, ставки, задатки) — у площадки; у модуля только итог.</div>`;
+  else if (tab === 'ctr') body = ci ? contractBlock(id, ci) : '<div class="muted">Договора нет.</div>';
+  else if (tab === 'out') body = `<div class="kv">
+      <div class="k">Путь выбытия</div><div data-testid="disposal-path">${st.code === 'removed' ? esc(st.path) + ' · снят с учёта ' + fmt(st.date) : st.code === 'split' ? 'разделён ' + fmt(st.date) + ' — не путь выбытия' : 'нет'}</div>
+      ${F.filter(f => ['gift', 'loss', 'ret'].includes(f.t)).map(f => `<div class="k">${FACT_NAME[f.t]}</div><div>${esc(f.doc)}${f.cause ? ' · ' + esc(f.cause) : ''}${f.insurance ? ' · страховое возмещение ' + money(f.insurance) : ''}</div>`).join('')}
+      ${F.filter(f => f.t === 'split').map(f => `<div class="k">Части</div><div>${(f.children || []).map(c => `<button class="linky" onclick="IM.openObject('${jsq(c)}')">${esc(c)}</button> ${money(objValue(c))}`).join(' · ')}</div>`).join('')}
+    </div><div class="why">Пять путей: продажа разовая, продажа в рассрочку, безвозмездная передача, выбытие, возврат. Снятие с учёта — только следствие завершённого пути.</div>`;
+  else if (tab === 'log') body = factTable(o.facts);
+
+  return `${pendingCard(x => x.owner === id)}
+  ${st.code === 'wait' ? `<div class="banner warn">Принят, ждёт регистрации с ${fmt(st.since)}: Фонду ещё не принадлежит, погашения ещё не было, продавать нельзя.</div>` : ''}
+  ${fl.incomplete ? `<div class="banner danger"><b>⚑ Принятие не завершено.</b> Доплата ${money(fl.incomplete.amount)} → ${esc(fl.incomplete.to)} не исполнена (Возврат в Платежах). Пока не исполнена — продавать нельзя.</div>` : ''}
+  <div class="grid2"><div>
+  <div class="card"><div class="card-head"><h3>${esc(o.id)} · ${esc(o.name)}</h3>${pill(st, 'obj-state')}${flagHtml(id)}<span class="small">на ${fmt(S.asOf)}</span></div>
+    <div class="kv">
+      <div class="k">Происхождение</div><div>${o.offer ? `<button class="linky" onclick="IM.openOffer('${o.offer}')">${o.offer}</button>, позиция ${o.pos}` : ''}${isIntro(o) ? 'вводный остаток' : ''}${o.parent ? ` · часть <button class="linky" onclick="IM.openObject('${jsq(o.parent)}')">${esc(o.parent)}</button>` : ''}${o.pledge ? ' · из предмета залога ' + o.pledge : ''}</div>
+      <div class="k">Источник</div><div>${esc(SOURCES[o.source].name)}</div>
+      <div class="k">Обязанное лицо</div><div>${esc(obl(o.obligor).name)} — ${esc(obl(o.obligor).role)}</div>
+      <div class="k">Отчуждатель</div><div>${esc(o.alien)}</div>
+      <div class="k">Местоположение</div><div>${esc(o.region)}, ${esc(o.district)}</div>
+      <div class="k">Куратор имущества на ${fmt(S.asOf)}</div><div data-testid="curator">${esc(cur.emp)} <span class="small">· из Кураторства: ${esc(cur.why)}</span></div>
+    </div></div>
+  <div class="card"><h3>Ввести факт</h3>${actionPanel(id)}</div>
+  <div class="card"><div class="tabs">${TABS.map(([v, l, c]) => `<button class="tab${tab === v ? ' on' : ''}" data-testid="tab-${v}" onclick="IM.setTab('${v}')">${l}${c ? `<span class="c">${c}</span>` : ''}</button>`).join('')}</div>${body}</div>
+  </div><div>
+  <div class="card" data-testid="money-card"><h3>Стоимость и результат</h3><div class="kv">
+    <div class="k">Учётная стоимость</div><div data-testid="obj-value"><b>${money(r.value, o.ccy)}</b>${r.value !== o.value ? ` <span class="small">исправлено с ${money(o.value)}</span>` : ''}<div class="why">= стоимость принятия, в валюте документа; оценка и курс её не трогают</div></div>
+    <div class="k">Расходы содержания</div><div>${money(r.expenses, r.ccy)}${r.expOther.length ? `<div class="why">ещё в других валютах: ${esc(r.expOther.join(', '))} — в результат не складываются</div>` : ''}</div>
+    <div class="k">${r.basis ? esc(r.basis[0].toUpperCase() + r.basis.slice(1)) : 'Цена продажи'}</div><div>${r.price == null ? '—' : money(r.price, r.priceCcy)}</div>
+    <div class="k">Результат по объекту</div><div data-testid="obj-result">${r.result == null ? (r.mixed ? '<span class="small">валюты договора и учётной стоимости разные — модуль курсов не знает</span>' : '—') : `<b>${money(r.result, r.ccy)}</b>`}${r.result != null && !r.final ? ' <span class="small">ожидаемый</span>' : ''}<div class="why">без учёта доходов от использования — они учитываются вне АСУБК. Долг должника продажа не меняет.</div></div>
+    ${t ? `<div class="k">Доплата отчуждателю</div><div data-testid="obj-topup">${money(t.amount)}${t.amount > 0 ? ' → ' + esc(t.to) + (t.done ? ` · исполнена ${fmt(t.done.date)}` : ' · <b>не исполнена</b>') : ''}<div class="why">ответ Взыскания на ${fmt(t.date)}: распределено ${money(t.distributed)}</div></div>` : ''}
+  </div></div>
+  <div class="card ro" data-testid="neighbours"><h3>Что видят Платежи, Взыскание, Залог <span class="small">· только чтение</span></h3>
+    ${[['Платежи', nb.payments], ['Взыскание', nb.collection], ['Залог', nb.pledge]].filter(x => x[1].length).map(([n, l]) => `<div class="small" style="margin-top:6px"><b>${n}</b></div>${l.map(x => `<div style="font-size:13.5px;margin:3px 0">${esc(x)}</div>`).join('')}`).join('') || '<div class="muted">Ничего не опубликовано.</div>'}
+  </div>
+  ${o.obligor && !isIntro(o) ? `<div class="card ro"><h3>Журнал дела во Взыскании <span class="small">· только чтение</span></h3><table class="cgrid"><tbody>${caseJournal(o.obligor).map(x => `<tr><td class="mono">${fmt(x.date)}</td><td>${x.own ? '⟶ ' : ''}${esc(x.text)}</td></tr>`).join('')}</tbody></table>
+    <div class="why">Попытки продажи и договор КП в дело должника не попадают.</div></div>` : ''}
+  </div></div>`;
+}
+function simpleTable(list, heads, row) {
+  return `<table class="cgrid"><thead><tr>${heads.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${list.map(f => `<tr>${row(f).map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${heads.length}" class="muted">записей нет</td></tr>`}</tbody></table>`;
+}
+function contractBlock(id, ci) {
+  const c = ci.c; let cum = 0;
+  return `<div class="kv" data-testid="contract-kv">
+    <div class="k">Договор</div><div>${esc(c.doc)} от ${fmt(c.date)} · ${c.kind === 'inst' ? 'рассрочка' : 'разовый'}</div>
+    <div class="k">Покупатель</div><div>${esc(c.buyer)}</div><div class="k">Цена</div><div>${money(c.price, c.ccy)}</div>
+    <div class="k">Право</div><div>переходит покупателю после полной оплаты; до неё объект на учёте Фонда</div>
+    <div class="k">Неустойка</div><div>${c.penalty} % от просроченной суммы за день</div>
+    <div class="k">Оплачено / остаток</div><div data-testid="contract-paid">${money(ci.paid, ci.ccy)} / ${money(ci.rest, ci.ccy)}</div>
+    <div class="k">Просрочено</div><div data-testid="contract-overdue">${ci.overdue ? `<span class="pill err">${money(ci.overdue, ci.ccy)} · ${ci.odDays} дн.</span> неустойка ${money(ci.penalty, ci.ccy)}` : 'нет'}</div>
+    <div class="k">Состояние</div><div>${ci.terminated ? 'расторгнут ' + fmt(ci.terminated.date) : ci.complete ? 'оплачен ' + fmt(ci.completeDate) : 'действует'}</div>
+    ${ci.claims.map(x => `<div class="k">Претензия</div><div>${esc(x.doc)} от ${fmt(x.date)}</div>`).join('')}
+  </div>
+  <div class="section-h" style="font-size:14px">График и оплаты</div>
+  <table class="cgrid"><thead><tr><th>№</th><th>Дата по графику</th><th class="num">Сумма</th><th class="num">Нарастающим итогом</th><th>Оплачено</th></tr></thead><tbody>${ci.schedule.map((s, i) => { cum += s.amount;
+    return `<tr class="${s.date <= S.asOf && cum > ci.paid + 0.005 ? 'over' : ''}"><td>${i + 1}</td><td class="mono">${fmt(s.date)}</td><td class="num">${money(s.amount, ci.ccy)}</td><td class="num">${money(cum, ci.ccy)}</td><td>${cum <= ci.paid + 0.005 ? 'да' : s.date <= S.asOf ? '<span class="pill err">просрочен</span>' : '—'}</td></tr>`; }).join('')}</tbody></table>
+  <div class="why">Оплаты приходят из Платежей поступлением вида «оплата по договору купли-продажи» с адресатом «договор». Судебная работа против покупателя — журналом мер по договору, без фаз взыскания.</div>`;
+}
+
+/* --------------------- ЭКРАН: договоры купли-продажи --------------- */
+function viewContracts() {
+  const rows = OBJECTS.map(o => ({ o, ci: contractInfo(o.id) })).filter(r => r.ci);
+  return `<table class="cgrid"><thead><tr><th>Договор</th><th>Объект</th><th>Покупатель</th><th>Вид</th><th class="num">Цена</th><th class="num">Оплачено</th><th class="num">Остаток</th><th>Просрочено</th><th>Претензии</th><th>Состояние</th></tr></thead>
+  <tbody>${rows.map(({ o, ci }) => `<tr class="click${ci.overdue && ci.active ? ' over' : ''}" data-testid="contract-row-${o.id}" onclick="IM.openObject('${jsq(o.id)}','ctr')">
+    <td>${esc(ci.c.doc)}<div class="why">от ${fmt(ci.c.date)}</div></td><td><b>${esc(o.id)}</b><div class="why">${esc(o.name)}</div></td><td>${esc(ci.c.buyer)}</td>
+    <td>${ci.kind === 'inst' ? 'рассрочка, ' + ci.schedule.length + ' пл.' : 'разовый'}</td><td class="num">${money(ci.price, ci.ccy)}</td><td class="num">${money(ci.paid, ci.ccy)}</td><td class="num">${money(ci.rest, ci.ccy)}</td>
+    <td>${ci.overdue && ci.active ? `<span class="pill err">${money(ci.overdue, ci.ccy)} · ${ci.odDays} дн.</span>` : '—'}</td><td>${ci.claims.length || '—'}</td>
+    <td>${ci.terminated ? '<span class="pill neutral">расторгнут</span>' : ci.complete ? '<span class="pill ok">оплачен</span>' : '<span class="pill info">действует</span>'}</td></tr>`).join('') || '<tr><td colspan="10" class="muted">договоров нет</td></tr>'}</tbody></table>
+  <div class="why">Договор КП — не кредит: у рассрочки нет госрешения, программы и заявки. Деньги — только через Платежи.</div>`;
+}
+
+/* ------------------------- ЭКРАН: настройки ------------------------ */
+function viewSettings() {
+  const tr = triggers(); const SRC = ['норма', 'Инструкция', 'внутренний акт'];
+  return `<div class="section-h">Пороги поводов</div>
+  <table class="cgrid"><thead><tr><th>Повод для Заданий</th><th>Объект</th><th>Условие</th><th>Порог</th><th>Источник значения</th></tr></thead><tbody>${SETTINGS.thr.map((t, i) => `
+    <tr><td title="${t.id}">${esc(TRIG_NAME[t.id])}</td><td>${esc(t.obj)}</td><td>${esc(t.cond)}</td>
+    <td>${t.id === 'pk-im-offer-overdue' ? esc(t.unit) : `<input type="number" style="width:70px;height:28px" value="${t.v}" onchange="IM.setThr(${i},this.value)"> ${esc(t.unit)}`}</td>
+    <td><select onchange="IM.setThrSrc(${i},this.value)">${SRC.map(s => `<option${s === t.src ? ' selected' : ''}>${s}</option>`).join('')}</select></td></tr>`).join('')}</tbody></table>
+  <div class="section-h">Сроки ответа по источнику — если в документе источника срока нет</div>
+  <table class="cgrid"><thead><tr><th>Источник</th><th>Срок</th><th>Источник значения</th></tr></thead><tbody>${Object.entries(SETTINGS.deadline).map(([k, d]) => `
+    <tr><td>${esc(SOURCES[k].name)}</td><td>${d.v} ${d.unit}</td><td>${esc(d.src)}</td></tr>`).join('')}</tbody></table>
+  <div class="section-h">Поводы на ${fmt(S.asOf)} · ${tr.length}</div>
+  <div class="why" style="margin-bottom:6px">Модуль показывает поводы для Заданий; по каждому Задания ставят поручение куратору из Кураторства. Один повод — одно поручение на вид, объект и период.</div>
+  <table class="cgrid" data-testid="triggers"><thead><tr><th>Повод для Заданий</th><th>Где</th><th>Что</th><th>Вид · объект · период</th><th>Кому поручение</th></tr></thead><tbody>${tr.map(t => `
+    <tr data-testid="trig-${t.kind}"><td title="${t.kind}">${esc(t.name)}</td><td><button class="linky" onclick="IM.open('${jsq(t.id.split(' ')[0])}')">${esc(t.id)}</button></td><td>${esc(t.text)}</td><td class="small" title="${esc(t.key)}">${esc(t.keyLabel)}</td><td>${esc(t.to)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">поводов нет</td></tr>'}</tbody></table>`;
+}
+
+/* ---------------------------- формы -------------------------------- */
+function openForm(title, fields, onSubmit, note) { S.form = { title, fields, onSubmit, note, err: '' }; renderModal(); }
+function renderModal() {
+  if (typeof document === 'undefined') return;
+  const ov = $('#overlay'); const fm = S.form;
+  if (!fm) { ov.classList.remove('open'); $('#modal').innerHTML = ''; return; }
+  const ctl = f => {
+    const v = f.value == null ? '' : f.value; const id = 'ff_' + f.id;
+    if (f.type === 'select') return `<select id="${id}">${(f.empty ? `<option value="">${esc(f.emptyLabel || '—')}</option>` : '') + f.options.map(o => { const [ov_, ol] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(ov_)}"${String(ov_) === String(v) ? ' selected' : ''}>${esc(ol)}</option>`; }).join('')}</select>`;
+    if (f.type === 'textarea') return `<textarea id="${id}">${esc(v)}</textarea>`;
+    if (f.type === 'date') return `<input id="${id}" type="text" inputmode="numeric" placeholder="ДД.ММ.ГГГГ" value="${esc(/^\d{4}-\d{2}-\d{2}$/.test(v) ? fmt(v) : v)}">`;
+    if (f.type === 'check') return `<label class="chk"><input type="checkbox" id="${id}"${v ? ' checked' : ''}> ${esc(f.text || '')}</label>`;
+    return `<input id="${id}" type="${f.type || 'text'}" value="${esc(v)}"${f.ph ? ` placeholder="${esc(f.ph)}"` : ''}>`;
+  };
+  $('#modal').innerHTML = `<div class="modal-h"><div class="mt">${esc(fm.title)}</div><button class="modal-x" onclick="IM.closeForm()">×</button></div>
+    <div class="modal-b">${fm.note ? `<div class="banner info">${fm.note}</div>` : ''}${fm.err ? `<div class="banner danger" data-testid="form-err">${esc(fm.err)}</div>` : ''}
+    <div class="mform">${fm.fields.map(f => `<div class="fld${f.wide ? ' wide' : ''}"><label class="${f.req ? 'req' : ''}">${esc(f.label)}</label>${ctl(f)}${f.hint ? `<div class="why">${esc(f.hint)}</div>` : ''}</div>`).join('')}</div></div>
+    <div class="modal-f"><button class="btn btn-secondary" onclick="IM.closeForm()">Отмена</button><button class="btn btn-primary" data-testid="form-submit" onclick="IM.submitForm()">${esc(fm.submit || 'Ввести факт')}</button></div>`;
+  ov.classList.add('open');
+}
+function readForm() {
+  const v = {}; S.form.fields.forEach(f => { const el = document.getElementById('ff_' + f.id); if (!el) return; v[f.id] = f.type === 'check' ? el.checked : el.value; f.value = v[f.id]; });
+  return v;
+}
+function submitForm(vals) {
+  if (!S.form) return no('форма не открыта');
+  const v = vals || (typeof document !== 'undefined' ? readForm() : {});
+  if (vals) S.form.fields.forEach(f => { if (vals[f.id] != null) f.value = vals[f.id]; });
+  const miss = S.form.fields.find(f => f.req && (v[f.id] == null || v[f.id] === ''));
+  const badDate = miss ? null : S.form.fields.find(f => f.type === 'date' && toIso(v[f.id]) === null);
+  if (!miss && !badDate) S.form.fields.filter(f => f.type === 'date').forEach(f => { v[f.id] = toIso(v[f.id]); });
+  const r = miss ? no('не заполнено обязательное поле: ' + miss.label) : badDate ? no(`«${badDate.label}»: дата в формате ДД.ММ.ГГГГ, например 15.03.2028`) : S.form.onSubmit(v);
+  if (r && r.ok === false) { S.form.err = r.why; renderModal(); return r; }
+  S.form = null; renderModal(); toast(r && r.msg || (r && r.pending ? 'Факт подготовлен — ждёт второго ключа начальника Управления' : 'Факт введён'), 'ok'); render(); return r;
+}
+function toast(msg, kind) {
+  if (typeof document === 'undefined') return;
+  const d = document.createElement('div'); d.className = 'toast ' + (kind || ''); d.textContent = msg; d.setAttribute('data-testid', 'toast');
+  $('#toastWrap').appendChild(d); setTimeout(() => d.remove(), 3800);
+}
+const dateF = (label = 'Дата') => ({ id: 'date', label, type: 'date', value: S.asOf, req: true });
+const docF = (label = 'Документ (номер, дата)') => ({ id: 'doc', label, req: true, wide: true });
+
+/* Формы ввода фактов. Поля → addFact; отказ движка показывается в форме. */
+function uiFact(target, t, pos) {
+  const isOffer = target.startsWith('П-');
+  const done = d => addFact(target, t, Object.assign(pos != null ? { pos } : {}, d));
+  const o = !isOffer ? obj(target) : null; const name = FACT_NAME[t] + ' · ' + target + (pos ? ', позиция ' + pos : '');
+  const keyNote = KEY.has(t) ? 'Факт двигает деньги или стоимость: после ввода он ждёт второго ключа начальника Управления по работе с активами и до публикации соседям не виден.' : '';
+  const F = {
+    letter: [[dateF(), docF('Письмо (номер, дата) — «рассматриваем», «просим продлить»')]],
+    concl: [[dateF(), { id: 'kind', label: 'Вид заключения', type: 'select', options: CONCL }, { id: 'text', label: 'Заключение', type: 'textarea', req: true, wide: true }]],
+    withdraw: [[dateF(), docF('Документ источника об отзыве')], 'До акта приёма-передачи источник вправе отозвать позицию. Решение «принять», если оно было, остаётся в истории неисполненным.'],
+    act: [[dateF('Дата акта'), docF('Акт приёма-передачи (номер)')]],
+    terminate: [[dateF('Дата решения'), { id: 'reason', label: 'Причина', type: 'select', options: TERM_REASONS, empty: true, req: true, wide: true }, { id: 'note', label: 'Пояснение (для «иное» — обязательно)', wide: true }, docF('Решение органа (номер)')],
+      'Право не перейдёт: итог — «принятие не состоялось». Денег не движет: погашения не было, сторно нет. Это не отзыв, не возврат и не выбытие.'],
+    reg: [[dateF('Дата регистрации'), docF('Выписка из реестра прав')], 'Дата регистрации станет датой перехода права и погашения долга.'],
+    regRefusal: [[dateF(), { id: 'final', label: 'Характер отказа', type: 'check', text: 'окончательный (право не перейдёт)' }, docF('Уведомление об отказе')], 'Устранимый отказ — просто факт: объект ждёт регистрации дальше. Окончательный — «принятие не состоялось».'],
+    inspection: [[dateF(), { id: 'who', label: 'Участники', req: true }, { id: 'cond', label: 'Состояние', req: true }, docF('Акт осмотра')]],
+    appraisal: [[dateF(), { id: 'appraiser', label: 'Оценщик', req: true }, { id: 'amount', label: 'Сумма', type: 'number', req: true }, ccyF(o ? o.ccy : 'KGS'), docF('Отчёт оценщика')], 'Оценка справочна: на учётную стоимость не влияет.'],
+    expense: [[dateF(), { id: 'item', label: 'Статья', type: 'select', options: EXP_ITEMS }, { id: 'amount', label: 'Сумма', type: 'number', req: true }, ccyF(), docF('Платёжный или первичный документ')]],
+    encumbrance: [[{ id: 'kind', label: 'Вид', type: 'select', options: ENC_KINDS }, { id: 'from', label: 'С', type: 'date', value: S.asOf, req: true }, { id: 'to', label: 'По', type: 'date', req: true }, docF('Договор, постановление об аресте')]],
+    priceDecision: [[dateF(), { id: 'amount', label: 'Новая стартовая цена', type: 'number', req: true }, docF('Решение органа о снижении')]],
+    attempt: o && [[dateF('Дата объявления'), { id: 'hold', label: 'Дата проведения', type: 'date' }, { id: 'method', label: 'Способ', type: 'select', options: METHODS },
+      { id: 'start', label: 'Стартовая цена', type: 'number', req: true },
+      { id: 'basis', label: 'Основание стартовой цены', type: 'select', empty: true, wide: true, options: o.facts.filter(f => f.pub && (f.t === 'appraisal' || f.t === 'priceDecision')).map(f => [f.id, f.doc + (f.t === 'appraisal' ? ' (' + f.appraiser + ')' : '') + ' от ' + fmt(f.date) + ' — ' + money(f.amount, f.ccy || o.ccy)]) },
+      { id: 'platform', label: 'Площадка', value: 'Электронная площадка', req: true }, { id: 'lot', label: 'Номер лота на площадке' },
+      { id: 'encMark', label: 'Отметка об обременении', type: 'select', empty: true, options: ['продаётся с обременением', 'после снятия обременения'], wide: true, hint: 'обязательна, если на дату попытки действует обременение' }],
+      'Попытка невозможна до перехода права, при ⚑ «принятие не завершено» и при действующем договоре КП. Ход торгов ведёт площадка.'],
+    attemptResult: [[dateF('Дата итога'), { id: 'v', label: 'Итог', type: 'select', options: [['sold', 'состоялась'], ['failed', 'не состоялась'], ['nocontract', 'состоялась, договор не заключён']] },
+      { id: 'buyer', label: 'Покупатель (если состоялась)', type: 'select', empty: true, options: SUBJECTS }, { id: 'price', label: 'Цена', type: 'number' }, docF('Протокол площадки')]],
+    contract: o && (() => { const x = attempts(target).find(a => a.res && a.res.v === 'sold' && !a.ctr) || { res: {} };
+      return [[dateF('Дата договора'), { id: 'buyer', label: 'Покупатель', type: 'select', options: SUBJECTS, value: x.res.buyer, req: true }, { id: 'price', label: 'Цена', type: 'number', value: x.res.price, req: true }, ccyF(o.ccy),
+        { id: 'kind', label: 'Вид', type: 'select', options: [['once', 'разовый'], ['inst', 'рассрочка']] }, { id: 'n', label: 'Число платежей (рассрочка)', type: 'number', value: 12 },
+        { id: 'first', label: 'Первый платёж', type: 'date', value: addMonths(S.asOf, 1) }, { id: 'penalty', label: 'Неустойка, % в день', type: 'number', value: 0.1 }, docF('Договор КП (номер)')],
+        'Право переходит покупателю после полной оплаты. Деньги — только через Платежи.']; })(),
+    claim: [[dateF(), docF('Претензия покупателю (номер)')]],
+    cterm: o && (() => { const ci = contractInfo(target); return [[dateF('Дата расторжения'), docF('Решение органа и уведомление о расторжении')],
+      ci ? `Уплачено ${money(ci.paid, ci.ccy)}; удерживается неустойка по условию договора ${money(Math.min(ci.paid, ci.penalty))}, остаток ${money(ci.paid - Math.min(ci.paid, ci.penalty))} — Возвратом покупателю. Объект снова «на учёте».` : '']; })(),
+    payment: o && (() => { const ci = contractInfo(target); const next = ci ? ci.schedule.find((s, i) => ci.schedule.slice(0, i + 1).reduce((a, b) => a + b.amount, 0) > ci.paid + 0.005) : null;
+      return [[dateF('Дата поступления'), { id: 'amount', label: 'Сумма', type: 'number', value: next ? next.amount : '', req: true }], 'Имитация: в рабочей системе поступление приходит из Платежей, а не вводится здесь.']; })(),
+    topup: o && [[dateF('Дата исполнения'), { id: 'amount', label: 'Сумма', type: 'number', value: (flags(target).incomplete || {}).amount, req: true }, docF('Возврат (номер)')], 'Имитация: исполнение доплаты — Возврат в Платежах, делает бухгалтер.'],
+    split: o && [[dateF('Дата разделения'), { id: 'parts', label: `Части, ${kindOf(o.kind).unit || 'ед.'} через запятую (всего ${o.qty})`, req: true, ph: '50, 65, 5' }, docF('Решение органа или распоряжение')],
+      'Учётная стоимость частей — пропорционально количеству; сумма частей равна целому до копейки, остаток округления — последней части.'],
+    gift: [[dateF('Дата акта передачи'), { id: 'to', label: 'Кому (например, госорган)', req: true }, docF('Решение органа + акт передачи')]],
+    loss: [[dateF('Дата акта'), { id: 'cause', label: 'Причина', type: 'select', options: LOSS_CAUSE }, { id: 'insurance', label: 'Страховое возмещение, сом (если было)', type: 'number' }, docF('Акт о гибели / утрате / сносе')]],
+    ret: [[dateF('Дата судебного акта'), docF('Судебный акт о недействительности принятия')], 'Платежи сделают сторно поступления задним числом; пеня за разрыв станет спорной и уйдёт на Комиссию по спорным начислениям.'],
+    corr: o && [[dateF(), { id: 'newValue', label: 'Исправленная стоимость принятия', type: 'number', value: objValue(target), req: true }, { id: 'basis', label: 'Основание: исправленный документ или решение органа', req: true, wide: true }],
+      'Исправление замещает исходный факт с его даты; видны оба. Платежи сделают корректировку суммы поступления, не сторно.'],
+  };
+  const def = F[t]; if (!def) return;
+  const [fields, note] = def;
+  const pre = {};
+  openForm(name, fields, v => {
+    const d = Object.assign({}, v);
+    if (t === 'split') d.parts = String(v.parts).split(/[,;\s]+/).filter(Boolean).map(Number);
+    if (t === 'regRefusal') d.final = !!v.final;
+    if (t === 'attempt' && !d.hold) d.hold = d.date;
+    if (t === 'loss' && d.insurance) d.insurance = +d.insurance; else if (t === 'loss') delete d.insurance;
+    return done(d);
+  }, [note, keyNote].filter(Boolean).join(' '));
+  return pre;
+}
+function uiDecision(id) {
+  const of = offer(id); const open = of.positions.filter(p => posOutcome(id, p.n).code === 'review');
+  const late = of.deadline && S.asOf > of.deadline && !offerAnswer(of, of.deadline);
+  const exp = expectedTopups(id);
+  openForm('Решение органа · ' + id, [
+    dateF('Дата решения'), { id: 'organ', label: 'Орган', type: 'select', options: ORGANS },
+    { id: 'doc', label: 'Номер решения', req: true, wide: true },
+    ...open.flatMap(p => [{ id: 'v' + p.n, label: `Позиция ${p.n}: ${p.name} · ${money(p.value)}`, type: 'select', options: [['accept', 'принять'], ['reject', 'отказать']], wide: false,
+      hint: 'ожидаемая доплата, если принять все: ' + money((exp.rows[p.n] || {}).topup) }, { id: 'r' + p.n, label: 'Основание отказа', ph: 'обязательно при отказе' }]),
+  ], v => { const items = {}; open.forEach(p => { items[p.n] = { v: v['v' + p.n] }; if (v['v' + p.n] === 'reject') items[p.n].reason = v['r' + p.n]; });
+    return addFact(id, 'decision', { date: v.date, organ: v.organ, doc: v.doc, items }); },
+  'Решение одно на предложение, итог — по каждой позиции. Стоимость принятия — из документа-основания.' + (late ? ' <b>Срок ответа истёк: решение будет помечено «вынесено после истечения срока ответа».</b>' : ''));
+}
+function uiEditPos(id, n) {
+  const p = offer(id).positions.find(x => x.n === n);
+  openForm(`Позиция ${n} · ${id} (черновик)`, [{ id: 'name', label: 'Вещь', value: p.name, req: true, wide: true }, { id: 'kind', label: 'Вид', type: 'select', options: KINDS.map(k => [k.id, k.name]), value: p.kind },
+    { id: 'value', label: 'Стоимость принятия', type: 'number', value: p.value, req: true }, ccyF(p.ccy)], v => editPosition(id, n, v), 'До решения органа черновик позиции правится свободно.');
+  S.form.submit = 'Сохранить';
+}
+function uiAddPos(id) {
+  openForm('Новая позиция · ' + id, [{ id: 'name', label: 'Вещь', req: true, wide: true }, { id: 'kind', label: 'Вид', type: 'select', options: KINDS.map(k => [k.id, k.name]) },
+    { id: 'value', label: 'Стоимость принятия', type: 'number', req: true }, ccyF()], v => addPosition(id, v)); S.form.submit = 'Добавить';
+}
+function uiNewOffer() {
+  openForm('Регистрация предложения имущества', [
+    { id: 'source', label: 'Источник', type: 'select', options: Object.entries(SOURCES).map(([k, s]) => [k, s.name]) },
+    { id: 'obligor', label: 'Обязанное лицо (из Взыскания)', type: 'select', options: OBL.map(o => [o.id, o.name + ' — ' + o.role]) },
+    { id: 'alien', label: 'Отчуждатель', type: 'select', empty: true, options: SUBJECTS, wide: true, emptyLabel: '— то же лицо, что обязанное —', hint: 'для третьего лица и залогодателя — обязательно другой субъект' },
+    { id: 'docNo', label: 'Документ-основание, номер', req: true }, { id: 'docDate', label: 'Дата документа', type: 'date', value: S.asOf, req: true },
+    { id: 'deadline', label: 'Срок ответа из документа', type: 'date', hint: 'пусто — умолчание из настроек по источнику' },
+    { id: 'name', label: 'Позиция 1: вещь', req: true, wide: true }, { id: 'kind', label: 'Вид', type: 'select', options: KINDS.map(k => [k.id, k.name]) },
+    { id: 'value', label: 'Стоимость принятия', type: 'number', req: true }, ccyF(),
+  ], v => { const r = registerOffer(v); if (r.ok) { S.view = 'offer'; S.id = r.id; r.msg = 'Предложение ' + r.id + ' зарегистрировано'; } return r; }); S.form.submit = 'Зарегистрировать';
+}
+function uiIntro() {
+  openForm('Вводный остаток', [{ id: 'name', label: 'Вещь', req: true, wide: true }, { id: 'kind', label: 'Вид', type: 'select', options: KINDS.map(k => [k.id, k.name]) },
+    { id: 'value', label: 'Стоимость принятия', type: 'number', req: true }, { id: 'transfer', label: 'Дата перехода права (из документов)', type: 'date', req: true },
+    { id: 'obligor', label: 'Обязанное лицо', type: 'select', options: OBL.map(o => [o.id, o.name]) }, { id: 'doc', label: 'Документ бухгалтерии', req: true, wide: true }],
+  v => { const r = addIntro(v); if (r.ok) r.msg = 'Объект ' + r.id + ' заведён вводным остатком'; return r; }, 'Погашения не порождает: оно уже прошло и переносится вместе с платежами.'); S.form.submit = 'Завести';
+}
+
+/* ------------------------- навигация / шов ------------------------- */
+Object.assign(IM, {
+  S, TODAY, KINDS, SOURCES, ORGANS, TERM_REASONS, ROLES, OBL, OFFERS, OBJECTS, KEY, ROLE_OF, SETTINGS, ASSIGN, WITHDRAW_AFTER_ACT, RETURN_SOLD,
+  offer, obj, objState, objValue, flags, posOutcome, offerState, offerCounts, offerAnswer, expectedTopups, planDate, allocation, topupOf,
+  contractInfo, attempts, gate, canRole, addFact, publish, rejectPending, pending, registerOffer, editPosition, addPosition, addIntro,
+  splitValues, triggers, curatorOf, neighbours, caseJournal, result, migrationControl,
+  money, fmt, render, openForm, submitForm, uiFact, uiDecision, uiNewOffer, uiIntro, uiEditPos, uiAddPos,
+  go(v) { S.view = v; S.id = null; render(); },
+  open(id) { id.startsWith('П-') ? IM.openOffer(id) : IM.openObject(id); },
+  openOffer(id) { S.view = 'offer'; S.id = id; render(); },
+  openObject(id, tab) { S.view = 'object'; S.id = id; S.tab = tab || 'char'; render(); },
+  setTab(t) { S.tab = t; render(); },
+  setRole(r) { S.role = r; render(); },
+  setAsOf(d) { const iso = toIso(d); if (iso === null) { toast('Дата в формате ДД.ММ.ГГГГ, например 15.03.2028', 'err'); render(); return no('неверная дата'); } if (iso) S.asOf = iso; render(); return yes; },
+  setF(k, v) { S.f[k] = v; render(); },
+  setThr(i, v) { SETTINGS.thr[i].v = +v; render(); },
+  setThrSrc(i, v) { SETTINGS.thr[i].src = v; render(); },
+  closeForm() { S.form = null; renderModal(); },
+  uiPublish(id) { const r = publish(id); toast(r.ok ? 'Опубликовано вторым ключом' : r.why, r.ok ? 'ok' : 'err'); render(); return r; },
+  uiReject(id) { const r = rejectPending(id); toast(r.ok ? 'Возвращено на доработку' : r.why, r.ok ? '' : 'err'); render(); return r; },
+});
+
+seed();
+if (typeof window !== 'undefined') { window.IM = IM; window.__im = IM; }
+if (typeof document !== 'undefined') render();
+</script>
+</body>
+</html>
