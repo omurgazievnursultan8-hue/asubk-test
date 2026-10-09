@@ -1,0 +1,3149 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Имущество Фонда · редакция 1 · P24 · АСУБК</title>
+<!--
+  Формат — docs/tasks/FORMAT.md, анатомия карточки формата 2 (meta.format = 2). Данные лежат
+  JSON-островом (#tasks-data), проверка — python3 scripts/check_tasks.py
+  docs/tasks/p24-imushchestvo-tasks.html. Пакет передачи — этот файл +
+  mockups/assets/assets.html + requirements/tz/22-imushchestvo.html, все ссылки внутри —
+  по голому имени файла (папка передаётся поштучно). Свод (карта данных, опись экранов, словарь,
+  сквозной пример) читается один раз в начале — карточка несёт только дельту к нему.
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC;
+  --asubk-link:#005FDB; --asubk-green:#158443;
+  --asubk-red:#E03A3A; --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-blue-tint:rgba(0,106,245,0.08);
+  --asubk-green-tint:rgba(21,132,67,0.10);
+  --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --border-default:var(--asubk-border-base);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --shadow-card:0 1px 2px rgba(24,39,57,0.06);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; }
+body{ font:400 16px/1.5 var(--asubk-font); color:var(--text-body); background:var(--asubk-gray-100); }
+.wrap{ max-width:1160px; margin:0 auto; padding:0 24px 64px; }
+
+.hero{ background:var(--asubk-white); border-bottom:1px solid var(--border-default); padding:28px 0 22px; margin-bottom:20px; }
+.hero .wrap{ padding-bottom:0; }
+.crumbs{ font-size:13px; color:var(--text-muted); margin-bottom:8px; }
+h1{ font:600 26px/1.25 var(--asubk-font); color:var(--text-heading); margin:0 0 8px; }
+.lead{ color:var(--text-muted); font-size:15px; max-width:82ch; margin:0 0 14px; }
+.lead code{ background:var(--asubk-gray-150); padding:1px 5px; border-radius:3px; font-size:13px; }
+.lead b{ color:var(--text-body); }
+.revbar{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:16px; }
+.revchip{ font:600 12px/1 var(--asubk-font); padding:6px 10px; border-radius:var(--radius-pill); background:var(--asubk-blue-tint); color:var(--asubk-link); }
+.revchip.replaces{ background:var(--asubk-gray-150); color:var(--text-muted); }
+
+.tiles{ display:flex; flex-wrap:wrap; gap:10px; }
+.tile{ appearance:none; cursor:pointer; text-align:left; background:var(--asubk-white);
+  border:1px solid var(--border-default); border-radius:var(--radius-lg); padding:10px 16px; min-width:118px;
+  font:inherit; color:inherit; transition:border-color .12s, box-shadow .12s; }
+.tile:hover{ border-color:var(--asubk-border-strong); }
+.tile.on{ border-color:var(--asubk-blue); box-shadow:0 0 0 2px var(--asubk-blue-tint); }
+.tile .n{ display:block; font:600 22px/1.15 var(--asubk-font); color:var(--text-heading); }
+.tile .l{ display:block; font-size:12.5px; color:var(--text-muted); margin-top:2px; }
+
+section.panel{ background:var(--asubk-white); border:1px solid var(--border-default); border-radius:var(--radius-lg);
+  padding:18px 20px; margin:12px 0; box-shadow:var(--shadow-card); }
+section.panel > h2{ font:600 16px/1.3 var(--asubk-font); color:var(--text-heading); margin:0 0 10px; }
+section.panel > h2 .sub{ font-weight:400; color:var(--text-muted); font-size:13px; }
+.panel p{ margin:6px 0; font-size:14.5px; }
+.panel ul{ margin:6px 0; padding-left:20px; font-size:14.5px; }
+.panel li{ margin-bottom:4px; }
+
+.guide-item{ padding:12px 0; border-bottom:1px solid var(--asubk-gray-150); }
+.guide-item:last-child{ border-bottom:none; }
+.guide-item h3{ font:600 14.5px/1.3 var(--asubk-font); color:var(--asubk-blue-hover); margin:0 0 6px; }
+
+.openq{ display:flex; gap:10px; align-items:baseline; padding:8px 0; border-bottom:1px dashed var(--asubk-gray-150); font-size:13.5px; }
+.openq:last-child{ border-bottom:none; }
+.openq a{ color:var(--asubk-link); text-decoration:none; font-weight:600; white-space:nowrap; }
+.openq a:hover{ text-decoration:underline; }
+.openq .oq-default{ color:var(--text-muted); }
+
+/* Свод: карта данных, опись экранов, словарь, сквозной пример, номера */
+.ent{ border:1px solid var(--asubk-gray-200); border-radius:var(--radius-md); background:var(--asubk-gray-50);
+  padding:10px 12px; margin:8px 0; }
+.ent h4{ font:600 14px/1.3 var(--asubk-font); color:var(--text-heading); margin:0 0 4px;
+  display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; }
+.ent .key{ font:400 12.5px/1.3 var(--asubk-font); color:var(--asubk-link);
+  background:var(--asubk-blue-tint); border-radius:var(--radius-pill); padding:2px 9px; }
+.ent .note{ font-size:13px; color:var(--text-muted); margin:0 0 6px; }
+.ent ul{ margin:0; padding-left:18px; font-size:14px; }
+.ent li{ margin-bottom:3px; }
+.ent li b{ font-weight:600; color:var(--text-heading); }
+
+.scr{ border:1px solid var(--asubk-gray-200); border-radius:var(--radius-md); background:var(--asubk-white);
+  padding:10px 12px; margin:8px 0; }
+.scr h4{ font:600 14px/1.3 var(--asubk-font); color:var(--text-heading); margin:0 0 5px; }
+.scr .note{ font-size:13px; color:var(--text-muted); margin:0 0 6px; }
+.scr .chips{ display:flex; flex-wrap:wrap; gap:6px; }
+.scr .col{ font-size:12.5px; color:var(--text-body); background:var(--asubk-gray-100);
+  border:1px solid var(--border-default); border-radius:var(--radius-pill); padding:3px 9px; }
+.scr .act{ font-size:12.5px; color:var(--asubk-green); background:var(--asubk-green-tint);
+  border:1px solid rgba(21,132,67,0.22); border-radius:var(--radius-pill); padding:3px 9px; }
+.scr .cap{ font:600 11px/1 var(--asubk-font); text-transform:uppercase; letter-spacing:.06em;
+  color:var(--asubk-ink-45); margin:8px 0 4px; display:block; }
+
+.gloss{ display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:8px; }
+.gloss div{ font-size:13.5px; border-bottom:1px dashed var(--asubk-gray-150); padding:6px 0; }
+.gloss b{ color:var(--text-heading); }
+
+table.idmap{ border-collapse:collapse; width:100%; font-size:13.5px; }
+table.idmap th{ text-align:left; font:600 12px/1 var(--asubk-font); text-transform:uppercase;
+  letter-spacing:.06em; color:var(--asubk-ink-45); padding:6px 8px; border-bottom:1px solid var(--border-default); }
+table.idmap td{ padding:6px 8px; border-bottom:1px solid var(--asubk-gray-150); vertical-align:top; }
+table.idmap td.old{ color:var(--text-muted); white-space:nowrap; }
+table.idmap td.new a{ color:var(--asubk-link); text-decoration:none; font-weight:600; white-space:nowrap; }
+table.idmap td.new a:hover{ text-decoration:underline; }
+
+.bar{ position:sticky; top:0; z-index:5; background:var(--asubk-gray-100);
+  padding:14px 0 12px; margin-bottom:4px; border-bottom:1px solid var(--border-default); }
+.bar .row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.search{ flex:1; min-width:240px; height:36px; padding:0 12px; font:inherit; font-size:14px;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--asubk-white); color:inherit; }
+.search:focus{ outline:none; border-color:var(--asubk-blue); box-shadow:0 0 0 2px var(--asubk-blue-tint); }
+select{ height:36px; padding:0 8px; font:inherit; font-size:14px; background:var(--asubk-white);
+  border:1px solid var(--border-default); border-radius:var(--radius-md); color:inherit; }
+.btn{ height:36px; padding:0 14px; font:inherit; font-size:14px; cursor:pointer;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--asubk-white); color:inherit; }
+.btn:hover{ background:var(--asubk-gray-50); }
+.btn-p{ background:var(--asubk-blue); border-color:var(--asubk-blue); color:#fff; }
+.btn-p:hover{ background:var(--asubk-blue-hover); }
+.count{ font-size:13px; color:var(--text-muted); margin-left:auto; white-space:nowrap; }
+
+.group{ margin-top:26px; }
+.group > h2{ font:600 15px/1.3 var(--asubk-font); color:var(--text-muted); margin:0 0 10px;
+  text-transform:uppercase; letter-spacing:.05em; display:flex; align-items:center; gap:8px; }
+.group > h2 .g-n{ font-weight:400; color:var(--asubk-ink-45); text-transform:none; letter-spacing:0; }
+
+.card{ background:var(--asubk-white); border:1px solid var(--border-default); border-left:3px solid var(--asubk-blue);
+  border-radius:var(--radius-lg); padding:16px 18px; margin-bottom:10px; box-shadow:var(--shadow-card); scroll-margin-top:70px; }
+.c-head{ display:flex; flex-wrap:wrap; align-items:baseline; gap:10px; }
+.id{ font:600 13px/1 var(--asubk-font); letter-spacing:.02em; color:var(--asubk-link);
+  background:var(--asubk-blue-tint); padding:5px 8px; border-radius:var(--radius-md); white-space:nowrap; }
+.step{ font:600 12px/1 var(--asubk-font); color:var(--asubk-ink-45); background:var(--asubk-gray-100);
+  border:1px solid var(--border-default); padding:5px 8px; border-radius:var(--radius-md); white-space:nowrap; }
+.c-title{ font:600 17px/1.35 var(--asubk-font); color:var(--text-heading); flex:1; min-width:260px; margin:0; }
+
+.blk{ margin-top:12px; }
+.blk .lbl{ font:600 12px/1 var(--asubk-font); text-transform:uppercase; letter-spacing:.06em;
+  color:var(--asubk-ink-45); display:block; margin-bottom:5px; }
+.blk p{ margin:0; font-size:15px; }
+.blk ul{ margin:0; padding-left:20px; font-size:15px; }
+.blk li{ margin-bottom:4px; }
+.why{ color:var(--text-muted); }
+.subh{ font:600 13.5px/1.3 var(--asubk-font); color:var(--text-body); margin:8px 0 3px; }
+
+.build{ background:var(--asubk-blue-tint); border-radius:var(--radius-md); padding:11px 13px; margin-top:12px; }
+.build .lbl{ color:var(--asubk-blue-hover); }
+.build p{ font-size:15.5px; color:var(--text-heading); }
+
+.steps{ margin:0; padding-left:22px; font-size:15px; }
+.steps li{ margin-bottom:5px; }
+
+.ex{ border:1px solid rgba(21,132,67,0.22); border-left:3px solid var(--asubk-green);
+  background:var(--asubk-green-tint); border-radius:var(--radius-md); padding:11px 13px; margin-top:12px; }
+.ex .lbl{ color:var(--asubk-green); }
+.ex .src{ font-size:13px; color:var(--text-muted); margin:0 0 7px; }
+.ex .exh{ font:600 12.5px/1 var(--asubk-font); color:var(--asubk-ink-45); display:block; margin:7px 0 3px;
+  text-transform:uppercase; letter-spacing:.05em; }
+.ex ul{ margin:0; padding-left:20px; font-size:14.5px; }
+.ex li{ margin-bottom:3px; }
+
+.terms{ display:flex; flex-wrap:wrap; gap:8px; }
+.terms .term{ font-size:13px; background:var(--asubk-gray-50); border:1px solid var(--asubk-gray-200);
+  border-radius:var(--radius-md); padding:6px 10px; }
+.terms .term b{ color:var(--text-heading); }
+
+.look{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:13px; }
+.look a{ color:var(--asubk-link); text-decoration:none; background:var(--asubk-blue-tint); padding:4px 9px; border-radius:var(--radius-pill); }
+.look a:hover{ text-decoration:underline; }
+.look .route{ color:var(--text-muted); }
+.look .defect{ color:#9E1F1F; background:#FCE6E6; padding:4px 9px; border-radius:var(--radius-pill); }
+
+.openbox{ background:var(--asubk-amber-tint); border-left:3px solid var(--asubk-amber); border-radius:0 var(--radius-md) var(--radius-md) 0;
+  padding:9px 12px; margin-top:6px; font-size:13.5px; }
+.openbox b{ color:#8A6508; }
+
+.c-foot{ margin-top:13px; padding-top:11px; border-top:1px solid var(--asubk-gray-150);
+  display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.tag{ font-size:12px; color:var(--text-muted); background:var(--asubk-gray-100);
+  border:1px solid var(--border-default); border-radius:var(--radius-pill); padding:3px 9px; }
+.dep{ font-size:12px; color:var(--asubk-link); background:var(--asubk-white); text-decoration:none;
+  border:1px solid rgba(0,106,245,0.25); border-radius:var(--radius-pill); padding:3px 9px; }
+.dep:hover{ background:var(--asubk-blue-tint); }
+
+.card details{ margin-top:11px; border-top:1px solid var(--asubk-gray-150); padding-top:9px; }
+.card details summary{ cursor:pointer; font-size:13px; color:var(--text-muted); list-style:none; user-select:none; }
+.card details summary::-webkit-details-marker{ display:none; }
+.card details summary::before{ content:'▸ '; color:var(--asubk-ink-45); }
+.card details[open] summary::before{ content:'▾ '; }
+.card details summary:hover{ color:var(--asubk-link); }
+
+/* Свёрнутые панели свода */
+.panel details.fold > summary{ cursor:pointer; list-style:none; user-select:none;
+  font:600 16px/1.3 var(--asubk-font); color:var(--text-heading);
+  display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; }
+.panel details.fold > summary::-webkit-details-marker{ display:none; }
+.panel details.fold > summary::before{ content:'▸'; color:var(--asubk-ink-45); font-weight:400; }
+.panel details.fold[open] > summary::before{ content:'▾'; }
+.panel details.fold > summary:hover{ color:var(--asubk-link); }
+.panel details.fold > summary .sub{ font-weight:400; color:var(--text-muted); font-size:13px; }
+.panel details.fold > summary .cnt{ font:600 12px/1 var(--asubk-font); color:var(--asubk-link);
+  background:var(--asubk-blue-tint); border-radius:var(--radius-pill); padding:4px 9px; }
+.panel details.fold > .foldbody{ margin-top:12px; }
+.traps{ margin-top:8px; font-size:13.5px; color:var(--text-muted); background:var(--asubk-gray-50);
+  border:1px solid var(--asubk-gray-150); border-radius:var(--radius-md); padding:10px 12px; }
+.traps ul{ margin:0; padding-left:18px; }
+.traps li{ margin-bottom:4px; }
+
+.empty{ text-align:center; padding:48px 0; color:var(--text-muted); font-size:15px; }
+.footerbar{ margin-top:32px; font-size:13px; color:var(--text-muted); border-top:1px solid var(--border-default); padding-top:14px; }
+code{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; }
+@media print{ .bar{ position:static; } .card details{ display:none; }
+  .panel details.fold > .foldbody{ display:block; } .card{ break-inside:avoid; } }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="crumbs">АСУБК · Модуль «Имущество Фонда» · Постановка задач для разработки</div>
+    <h1 id="hero-title">Имущество Фонда — задачи для команды разработки</h1>
+    <div class="revbar" id="revbar"></div>
+    <p class="lead" id="hero-lead"></p>
+    <div class="tiles" id="tiles"></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="panel" id="panel-guide">
+    <details class="fold">
+      <summary>Справка модуля <span class="sub">что модулю принадлежит и где его границы</span>
+        <span class="cnt" id="guide-cnt"></span></summary>
+      <div class="foldbody" id="guide-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-atlas">
+    <details class="fold">
+      <summary>Карта данных <span class="sub">модель целиком: сущности, ключи, поля — карточка несёт только дельту</span>
+        <span class="cnt" id="atlas-cnt"></span></summary>
+      <div class="foldbody" id="atlas-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-screens">
+    <details class="fold">
+      <summary>Опись экранов <span class="sub">весь интерфейс модуля списком: где что живёт</span>
+        <span class="cnt" id="screens-cnt"></span></summary>
+      <div class="foldbody" id="screens-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-gloss">
+    <details class="fold">
+      <summary>Словарь <span class="sub">слова этой постановки в её собственном значении</span>
+        <span class="cnt" id="gloss-cnt"></span></summary>
+      <div class="foldbody" id="gloss-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-walk">
+    <details class="fold">
+      <summary>Сквозной пример <span class="sub">одна квартира от предложения ПССИ до продажи в рассрочку, с числами</span>
+        <span class="cnt" id="walk-cnt"></span></summary>
+      <div class="foldbody" id="walk-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-open">
+    <details class="fold">
+      <summary>Открытые вопросы <span class="sub">умолчания, на которых строим; ответ заказчика переносит в следующую редакцию</span>
+        <span class="cnt" id="openq-cnt"></span></summary>
+      <div class="foldbody" id="openq-list"></div>
+    </details>
+  </section>
+
+  <div class="bar">
+    <div class="row">
+      <input class="search" id="q" type="search" placeholder="Поиск по номеру, заголовку, тексту…" autocomplete="off">
+      <select id="fStage"><option value="">Все этапы</option></select>
+      <button class="btn" id="reset">Сбросить</button>
+      <button class="btn btn-p" id="expand">Раскрыть ловушки</button>
+      <span class="count" id="count"></span>
+    </div>
+  </div>
+
+  <div id="list"></div>
+
+  <div class="footerbar">
+    <p><b>Порядок сборки — по этапам, не строгой очередью.</b> Между этапами — барьер и приёмка
+       пачкой. Внутри этапа карточка берётся, когда готова названная ею зависимость (значок
+       <span class="dep" style="display:inline">↔ P24-Rn</span>) — он указывает только назад, на уже
+       готовую карточку.</p>
+    <p><b>Как читать карточку.</b> Свод наверху читается один раз: карта данных, опись экранов,
+       словарь и сквозной пример. Карточка после этого несёт только своё — что строим, зачем, какие
+       поля добавляются, как выглядит экран, шаги, пример с числами и приёмку. Числа во всех
+       примерах взяты из витрины макета, имя записи стоит в строке «Источник».</p>
+    <p><b>Разделение источников.</b> Модель, правила, приёмка и границы живут только здесь. Приоритет
+       и статус исполнения — в <code>TODO.md</code> (реестр). Расхождение по логике модуля решает эта
+       постановка, расхождение по виду интерфейса — макет <code>assets.html</code>; все числа примеров
+       сняты с его витрины, сценарии приёмки С-1…С-34 совпадают с разделом приёмки ТЗ.</p>
+    <p>Вопросы по постановке — общий чат команды. Ответ, полученный там, попадает в карточку и журнал
+       редакции следующего выпуска этого файла (см. «Версионирование», <code>FORMAT.md</code>).</p>
+  </div>
+</div>
+
+
+<script type="application/json" id="tasks-data">
+{
+ "meta": {
+  "module": "assets",
+  "title": "Имущество Фонда",
+  "phase": 24,
+  "format": 2,
+  "revision": 1,
+  "date": "2026-10-09",
+  "registry": "### Имущество Фонда (целевая модель)",
+  "package": [
+   "assets.html",
+   "22-imushchestvo.html"
+  ]
+ },
+ "guide": [
+  {
+   "h": "Что делает модуль и где его границы",
+   "items": [
+    "Модуль ведёт вещи и имущественные права, которые Фонду предлагают или уже передали в счёт задолженности по бюджетным кредитам, — от предложения до момента, когда вещь перестаёт принадлежать Фонду. Подразделение-владелец — Управление по работе с активами.",
+    "Вход — <b>предложение</b> от одного из пяти источников: ПССИ, спецадминистратор, должник, залогодатель, третье лицо. По каждой вещи коллегиальный орган выносит «принять» или «отказать» (п. 35, п. 49).",
+    "Середина — <b>переход права</b>: с этой даты вещь принадлежит Фонду и с этой же даты долг обязанного лица погашен стоимостью принятия.",
+    "Выход — один из <b>пяти путей выбытия</b> (продажа разовая, продажа в рассрочку, безвозмездная передача, выбытие, возврат по суду), после которого объект снят с учёта.",
+    "<b>Входит:</b> реестр и карточка предложения, решение органа, акт, регистрация права, прекращение принятия, доплата, журналы объекта, попытки продажи, договор купли-продажи, разделение, выбытие, возврат, исправления, второй ключ, поводы мониторинга, вводный остаток, строки статистики. Полностью — <a href=\"22-imushchestvo.html#s1-1\">назначение модуля</a>."
+   ]
+  },
+  {
+   "h": "Чем модуль не владеет",
+   "items": [
+    "Деление стоимости принятия между кредитами обязанного лица — модуль взыскания. Модуль публикует факт принятия и читает результат деления.",
+    "Разнесение внутри кредита, сторно, корректировка суммы поступления, курс валют, исполнение Возврата — модуль платежей.",
+    "Долг должника — модули кредита и платежей. Модуль читает долг на дату только для показа ожидаемой доплаты и нигде его не хранит.",
+    "Торги по предмету залога — модуль залога; модуль читает только итог «торги не состоялись». Ход торгов Фонда (участники, ставки, задатки) — внешняя площадка; модуль хранит итог попытки.",
+    "Бухгалтерский учёт объекта, аренда и доход от использования — вне АСУБК. Модуль хранит только факт обременения.",
+    "Поручения сотрудникам — модуль заданий; модуль объявляет поводы. Кто ведёт предложение и объект — модуль кураторства. Числа на дату и отчётные формы — статистика и отчётность. Таблица границ — <a href=\"22-imushchestvo.html#s1-2\">что в модуль не входит</a>."
+   ]
+  },
+  {
+   "h": "Что не хранится никогда",
+   "items": [
+    "<b>Состояние</b> предложения, позиции и объекта — вычисляется по опубликованным фактам на выбранную дату. Кнопки «сменить статус» нет, есть «ввести факт».",
+    "<b>Ответственный и куратор</b> — запрос в модуль кураторства на дату. Полей «ответственный», «куратор», «статус» у объекта нет.",
+    "<b>Ожидаемая доплата</b>, <b>сумма доплаты</b>, <b>результат по объекту</b>, флаги ⚑ «принятие не завершено» и ⚑ «обременён» — производные.",
+    "<b>Долг обязанного лица</b> и <b>курс валют</b> — читаются у владельцев, в модуле не сохраняются.",
+    "Единственная копия чужих данных — снимок характеристик предмета залога на дату акта."
+   ]
+  },
+  {
+   "h": "Инварианты ИИ-1…ИИ-21 — проверяются на каждой карточке",
+   "items": [
+    "<b>ИИ-1.</b> Объект возникает только из принятой позиции актом или вводом остатка.",
+    "<b>ИИ-2.</b> Состояние предложения, позиции и объекта — производная фактов на дату; не хранится и вручную не ставится.",
+    "<b>ИИ-3.</b> Погашение порождает только переход права, ровно одно на объект; вводный остаток погашения не порождает.",
+    "<b>ИИ-4.</b> Учётная стоимость = стоимость принятия; меняется только исправлением или разделением.",
+    "<b>ИИ-5.</b> Модуль не делит суммы между кредитами и не разносит внутри кредита.",
+    "<b>ИИ-6.</b> Деньги — входящие и исходящие — проходят только через модуль платежей.",
+    "<b>ИИ-7.</b> Путь выбытия берёт объект целиком; завершённый путь у объекта один; снятие с учёта — только его следствие.",
+    "<b>ИИ-8.</b> Сумма учётных стоимостей частей разделения равна целому до 0,01 сом.",
+    "<b>ИИ-9.</b> Попытка продажи невозможна до перехода права и при ⚑ «принятие не завершено».",
+    "<b>ИИ-10.</b> Не больше одной идущей попытки и одного действующего договора КП; при рассрочке право у Фонда до полной оплаты.",
+    "<b>ИИ-11.</b> Отзыв позиции — только до акта; после акта до перехода права — прекращение принятия, после перехода права — возврат.",
+    "<b>ИИ-12.</b> Опубликованный факт не правится; исправление — новый факт с основанием, замещающий исходный с его даты.",
+    "<b>ИИ-13.</b> Обязанное лицо и отчуждатель — разные реквизиты; доплата адресуется отчуждателю.",
+    "<b>ИИ-14.</b> «Принята» и «отказана» выносит только орган; «отозвана» — только документ источника; «принятие не состоялось» — отказ регистратора или решение о прекращении принятия.",
+    "<b>ИИ-15.</b> Факты, двигающие деньги или стоимость, публикуются вторым ключом.",
+    "<b>ИИ-16.</b> Ответственный — только закрепление кураторства на дату.",
+    "<b>ИИ-17.</b> Попытка при активном обременении несёт отметку «с обременением» или «после снятия».",
+    "<b>ИИ-18.</b> Стоимость хранится в валюте документа; модуль курсов не знает.",
+    "<b>ИИ-19.</b> Продажа, расходы и результат по объекту не меняют долг должника.",
+    "<b>ИИ-20.</b> До перехода права выход — только «принятие не состоялось», без денег и сторно; путь «выбытие» — только для объекта на учёте.",
+    "<b>ИИ-21.</b> Отмена раннего принятия исправляет поздние позиции того же обязанного лица; погашение остаётся одно на объект, сторно — только у отменяемой вещи.",
+    "Полный список с привязкой к разделам — <a href=\"22-imushchestvo.html#s17\">инварианты</a>; сценарии приёмки С-1…С-34 — <a href=\"22-imushchestvo.html#s19\">приёмка</a>."
+   ]
+  },
+  {
+   "h": "Что должны сделать другие модули (не задачи этой постановки)",
+   "items": [
+    "<b>Взыскание:</b> ИМ-ДС-1 — деление незалоговой стоимости принятия по долгу на дату перехода права с очередью по датам и номеру позиции, публикация пары «распределено / не вошло»; ИМ-ДС-2 — гейт «принятие имущества», обязанные лица, справочник органов; ИМ-ДС-7 — записи модуля в журнале дела только для чтения; ИМ-ДС-13 — переделение поздних принятий при отмене раннего.",
+    "<b>Платежи:</b> ИМ-ДС-3 — адресат привязки «договор купли-продажи» и вид поступления «оплата по договору купли-продажи»; ИМ-ДС-5 — сверка с ЦК пропускает поступления «имущество в счёт погашения»; ИМ-ДС-14 — корректировка суммы поступления отдельно от сторно.",
+    "<b>Залог:</b> ИМ-ДС-4 — финальное состояние предмета «перешёл к Фонду», снятие запрета на отчуждение. <b>Справочники:</b> ИМ-ДС-12 — признаки вида «право подлежит госрегистрации», «делимая», класс.",
+    "<b>Кураторство:</b> ИМ-ДС-6 — объекты закрепления «предложение имущества», «объект имущества», роль «куратор имущества», пороги фолбэка. <b>Пользователи:</b> ИМ-ДС-10 — роли доступа и право второго ключа.",
+    "<b>Статистика и отчётность:</b> ИМ-ДС-8 — объекты статистики имущества и форма «Реестр имущества на дату»; ИМ-ДС-11 — бланки ответа источнику, промежуточного письма, уведомления о доплате, претензии покупателю.",
+    "До готовности этих доработок карточки строятся против их контрактов, перечисленных в <a href=\"22-imushchestvo.html#s13-1\">сводной таблице контрактов</a>; что именно должно быть готово, названо в «Опирается на» каждой карточки."
+   ]
+  }
+ ],
+ "atlas": [
+  {
+   "n": "Предложение имущества",
+   "key": "номер П-n, присваивает система",
+   "note": "Обращение одного источника принять одну или несколько вещей в счёт долга одного обязанного лица. Живёт недели. Состояние вычисляется.",
+   "fields": [
+    "<b>дата регистрации</b> — дата, обязательно",
+    "<b>источник</b> — закрытый перечень из пяти: ПССИ · спецадминистратор · должник · залогодатель · третье лицо; задаёт вид документа и отчуждателя по умолчанию",
+    "<b>обязанное лицо</b> — ссылка на обязанное лицо модуля взыскания (заёмщик или поручитель), обязательно",
+    "<b>отчуждатель</b> — ссылка на субъекта реестра лиц, обязательно; ФИО текстом не вводится",
+    "<b>документ-основание</b> — вид, номер, дата, вложение",
+    "<b>срок ответа</b> — дата; из документа или из настройки по источнику, рядом — источник значения",
+    "<b>затронутые кредиты</b> — ссылки на кредиты обязанного лица",
+    "<b>позиции</b> — список, может быть пустым при регистрации"
+   ]
+  },
+  {
+   "n": "Позиция предложения",
+   "key": "номер предложения + номер позиции",
+   "note": "Одна предложенная вещь. Несёт своё решение и итог; итог вычисляется.",
+   "fields": [
+    "<b>номер позиции</b> — порядковый внутри предложения; задаёт очерёдность деления при равных датах и выбор куратора",
+    "<b>вид имущества</b> — ссылка на общий с залогом справочник видов",
+    "<b>характеристики</b> — по схеме параметров вида; у вещи из залога — ссылка на предмет залога",
+    "<b>местоположение</b> — область, район, адрес; у имущественного права — место регистрации или эмитента",
+    "<b>количество и единица</b> — у делимых видов",
+    "<b>заключения</b> — список: вид (осмотр · оценка · ликвидность · расходы на содержание), текст",
+    "<b>стоимость принятия и валюта</b> — из документа-основания, в его валюте"
+   ]
+  },
+  {
+   "n": "Объект имущества",
+   "key": "номер ИО-n; части разделения — ИО-n/1, ИО-n/2…",
+   "note": "Вещь или право, перешедшие к Фонду. Возникает только актом по принятой позиции или вводом остатка. Живёт годы.",
+   "fields": [
+    "<b>происхождение</b> — позиция предложения · вводный остаток · разделение (ссылка на исходный объект); отдельно — ссылка на предмет залога, если вещь была в залоге",
+    "<b>вид и класс</b> — из справочника видов",
+    "<b>характеристики</b> — снимок на дату акта; дальше своя история",
+    "<b>местоположение</b>, <b>количество и единица</b> — как у позиции",
+    "<b>источник, обязанное лицо, отчуждатель</b> — наследуются от предложения",
+    "<b>стоимость принятия = учётная стоимость</b>, валюта — меняется только исправлением или разделением",
+    "<b>журналы</b> — осмотры, оценки, расходы, обременения, попытки продажи, договор КП (ниже)"
+   ]
+  },
+  {
+   "n": "Факт",
+   "key": "id факта",
+   "note": "Единица хранения модуля: каждое событие — решение, акт, регистрация, осмотр, попытка, договор, выбытие, исправление — отдельная запись. Все состояния выводятся из фактов.",
+   "fields": [
+    "<b>вид факта</b> — закрытый перечень (<a href=\"22-imushchestvo.html#s4-1\">перечень фактов</a>)",
+    "<b>к чему относится</b> — предложение, позиция или объект",
+    "<b>дата факта</b> — дата, обязательно",
+    "<b>документ</b> — вид, номер, дата, вложение",
+    "<b>кто ввёл</b>, <b>кто опубликовал и когда</b> — ссылки на пользователя и время",
+    "<b>исправляет факт</b> — ссылка на исходный, только у исправления; основание обязательно",
+    "<b>данные вида</b> — поля, которые добавляет конкретная карточка"
+   ]
+  },
+  {
+   "n": "Вид имущества (чужой справочник)",
+   "key": "id вида справочника залога",
+   "note": "Справочник видов и схема параметров общие с залогом; модуль читает, не ведёт.",
+   "fields": [
+    "<b>право подлежит госрегистрации</b> — да/нет; задаёт дату перехода права",
+    "<b>делимая</b> — да/нет; задаёт доступность разделения",
+    "<b>класс</b> — вещь · имущественное право; у права нет осмотров и разделения"
+   ]
+  },
+  {
+   "n": "Попытка продажи",
+   "key": "id факта попытки",
+   "note": "0…N на объект, идущая — не больше одной.",
+   "fields": [
+    "<b>способ</b> — аукцион · конкурс · прямая продажа",
+    "<b>стартовая цена</b> — сумма, валюта, <b>основание</b> — ссылка на оценку или решение органа о снижении, обязательно",
+    "<b>площадка, номер лота</b>, <b>дата объявления</b>, <b>дата проведения</b>",
+    "<b>отметка об обременении</b> — «с обременением» · «после снятия»; обязательна при активном обременении",
+    "<b>итог</b> — состоялась (покупатель, цена) · не состоялась · состоялась, договор не заключён"
+   ]
+  },
+  {
+   "n": "Договор купли-продажи",
+   "key": "id договора",
+   "note": "Порождается удачной попыткой; действующий — не больше одного на объект.",
+   "fields": [
+    "<b>покупатель</b> — ссылка на субъекта реестра лиц",
+    "<b>цена, валюта</b> — из итога попытки",
+    "<b>вид</b> — разовый · рассрочка; <b>график</b> — даты и суммы платежей у рассрочки",
+    "<b>неустойка</b> — ставка в процентах в день от просроченной суммы",
+    "<b>сохранение права</b> — «право переходит после полной оплаты»",
+    "<b>оплаты</b> — ссылки на поступления модуля платежей; <b>претензии</b>, <b>журнал мер</b>, <b>расторжение</b>"
+   ]
+  },
+  {
+   "n": "Журналы объекта",
+   "key": "id факта",
+   "note": "Записи без второго ключа: денег не двигают.",
+   "fields": [
+    "<b>осмотр</b> — дата, участники, состояние вещи, фото и видео, акт осмотра; у права нет",
+    "<b>оценка</b> — дата, оценщик, сумма, валюта, отчёт оценщика",
+    "<b>расход содержания</b> — дата, статья (охрана, налог, коммунальные, оценщик, площадка, страхование, ремонт, хранение), сумма, валюта, документ",
+    "<b>обременение</b> — вид (аренда, пользование, арест третьего лица, ответственное хранение, иное), дата с, дата по, документ"
+   ]
+  },
+  {
+   "n": "Распоряжение на Возврат",
+   "key": "id распоряжения",
+   "note": "Исходящее событие в модуль платежей; исполняет бухгалтер сущностью «Возврат».",
+   "fields": [
+    "<b>основание</b> — доплата · расторжение договора КП · компенсация по суду",
+    "<b>получатель</b> — отчуждатель или покупатель, ссылка на субъекта",
+    "<b>сумма, валюта</b>, <b>ссылка на объект и факт</b>",
+    "<b>исполнено</b> — дата и сумма из события «Возврат исполнен»"
+   ]
+  },
+  {
+   "n": "Настройка порога",
+   "key": "вид повода или источник предложения",
+   "note": "Пороги поводов и сроки ответа по источнику.",
+   "fields": [
+    "<b>значение и единица</b> — число и к.д. · р.д. · мес. · шт.",
+    "<b>источник значения</b> — норма · Инструкция · внутренний акт"
+   ]
+  }
+ ],
+ "screens": [
+  {
+   "n": "Реестр предложений",
+   "note": "Куратор: что предлагают и где ответ просрочен. Кнопка «Зарегистрировать предложение».",
+   "cols": [
+    "номер",
+    "источник",
+    "обязанное лицо",
+    "отчуждатель",
+    "срок ответа",
+    "ответ",
+    "состояние на дату",
+    "куратор"
+   ],
+   "acts": [
+    "зарегистрировать предложение",
+    "фильтр: источник, обязанное лицо, состояние, срок ответа, орган",
+    "открыть карточку"
+   ]
+  },
+  {
+   "n": "Карточка предложения",
+   "note": "Специалист и секретарь органа. Шапка, позиции, решение органа, журнал фактов, блок кураторства.",
+   "cols": [
+    "позиция: вещь",
+    "заключения",
+    "стоимость принятия",
+    "ожидаемая доплата",
+    "итог",
+    "ссылка на объект"
+   ],
+   "acts": [
+    "ввести факт",
+    "внести решение органа",
+    "добавить позицию",
+    "править черновик позиции",
+    "опубликовать (начальник Управления)"
+   ]
+  },
+  {
+   "n": "Реестр объектов имущества",
+   "note": "Руководство и куратор: что у Фонда лежит. Кнопки «добавить объект» нет.",
+   "cols": [
+    "номер",
+    "вещь",
+    "вид",
+    "область",
+    "учётная стоимость",
+    "состояние на дату",
+    "флаги",
+    "дней на учёте",
+    "куратор на дату"
+   ],
+   "acts": [
+    "фильтр: состояние на дату, вид, класс, область, дней на учёте, источник, ⚑ не завершено, ⚑ обременён",
+    "завести вводный остаток",
+    "открыть карточку"
+   ]
+  },
+  {
+   "n": "Карточка объекта",
+   "note": "Специалист, юрист, начальник Управления. В шапке — состояние и флаги на дату среза, учётная стоимость, результат по объекту.",
+   "cols": [
+    "Характеристики (снимок)",
+    "Переход права",
+    "Осмотры",
+    "Оценки",
+    "Расходы",
+    "Обременения",
+    "Попытки продажи",
+    "Договор КП и оплаты",
+    "Выбытие",
+    "Журнал фактов"
+   ],
+   "acts": [
+    "ввести факт",
+    "исправить опубликованный факт",
+    "опубликовать (начальник Управления)",
+    "разделить"
+   ]
+  },
+  {
+   "n": "Реестр договоров купли-продажи",
+   "note": "Юрист и бухгалтерия: кто должен Фонду за проданное.",
+   "cols": [
+    "договор",
+    "объект",
+    "вид",
+    "покупатель",
+    "цена",
+    "оплачено",
+    "остаток к оплате",
+    "просрочка: сумма и дни",
+    "претензии"
+   ],
+   "acts": [
+    "открыть объект на вкладке «Договор КП»"
+   ]
+  },
+  {
+   "n": "Настройки",
+   "note": "Начальник Управления. У каждого значения — источник: норма · Инструкция · внутренний акт.",
+   "cols": [
+    "повод",
+    "объект",
+    "условие",
+    "порог",
+    "единица",
+    "источник значения"
+   ],
+   "acts": [
+    "изменить порог",
+    "изменить срок ответа по источнику",
+    "изменить источник значения"
+   ]
+  }
+ ],
+ "glossary": [
+  {
+   "t": "обязанное лицо",
+   "d": "чей долг гасится: заёмщик или поручитель; ссылка на обязанное лицо модуля взыскания."
+  },
+  {
+   "t": "отчуждатель",
+   "d": "чья вещь до перехода права; ему адресуется доплата. Может не совпадать с обязанным лицом (брат должника, залогодатель)."
+  },
+  {
+   "t": "источник",
+   "d": "кто обратился к Фонду: ПССИ, спецадминистратор, должник, залогодатель, третье лицо. Поручитель источником не является — его вещь идёт источником «должник»."
+  },
+  {
+   "t": "позиция",
+   "d": "одна вещь внутри предложения со своим решением и итогом."
+  },
+  {
+   "t": "итог позиции",
+   "d": "принята · отказана · отозвана · принятие не состоялось; вычисляется по фактам."
+  },
+  {
+   "t": "стоимость принятия",
+   "d": "сумма из документа-основания, которой гасится долг. Модуль её не вычисляет."
+  },
+  {
+   "t": "учётная стоимость",
+   "d": "равна стоимости принятия; меняется только исправлением или разделением."
+  },
+  {
+   "t": "переход права",
+   "d": "момент, с которого вещь принадлежит Фонду: дата регистрации права у видов с признаком госрегистрации, иначе дата акта."
+  },
+  {
+   "t": "плановая дата перехода права",
+   "d": "дата для очерёдности ожидаемой доплаты до фактического перехода: без госрегистрации — дата акта, а пока акта нет — дата решения органа; с госрегистрацией — дата акта, а с регистрации — её дата."
+  },
+  {
+   "t": "погашение",
+   "d": "уменьшение долга стоимостью принятия на дату перехода права; одно на объект."
+  },
+  {
+   "t": "распределено / не вошло",
+   "d": "результат деления модуля взыскания: сумма по каждому кредиту и остаток стоимости сверх долга."
+  },
+  {
+   "t": "доплата",
+   "d": "«не вошло», выплачиваемое отчуждателю Возвратом модуля платежей."
+  },
+  {
+   "t": "⚑ принятие не завершено",
+   "d": "флаг объекта, пока доплата не исполнена; запрещает продажу."
+  },
+  {
+   "t": "⚑ обременён",
+   "d": "флаг объекта, если на дату действует обременение."
+  },
+  {
+   "t": "принятие не состоялось",
+   "d": "итог, когда право к Фонду так и не перешло: окончательный отказ регистратора или решение о прекращении принятия. Денег не движется."
+  },
+  {
+   "t": "путь выбытия",
+   "d": "один из пяти способов, которыми вещь уходит от Фонда; перечень закрыт."
+  },
+  {
+   "t": "снят с учёта",
+   "d": "состояние после завершённого пути выбытия."
+  },
+  {
+   "t": "попытка продажи",
+   "d": "одна попытка продать объект с итогом. Слово «торги» в модуле не используется — оно занято мерой взыскания по предмету залога."
+  },
+  {
+   "t": "договор КП",
+   "d": "договор купли-продажи объекта, разовый или в рассрочку."
+  },
+  {
+   "t": "публикация",
+   "d": "момент, когда факт становится виден другим модулям и начинает влиять на состояние. До неё факт — черновик."
+  },
+  {
+   "t": "второй ключ",
+   "d": "публикация факта вторым пользователем с правом публикации — начальником Управления по работе с активами."
+  },
+  {
+   "t": "исправление",
+   "d": "новый факт с основанием, замещающий опубликованный с его даты; исходный остаётся видимым с пометкой «исправлен»."
+  },
+  {
+   "t": "Возврат",
+   "d": "сущность модуля платежей для исходящих выплат; получатель может быть не заёмщиком."
+  },
+  {
+   "t": "повод",
+   "d": "запись «требует внимания» с устойчивым ключом; модуль заданий забирает поводы опросом и адресует куратору."
+  },
+  {
+   "t": "вводный остаток",
+   "d": "объект, принятый до запуска системы: заводится по документу бухгалтерии, без предложения и без погашения."
+  },
+  {
+   "t": "фолбэк кураторства",
+   "d": "закрепление за заведующим отделом, когда правило подразделения не называет работника."
+  },
+  {
+   "t": "дата среза",
+   "d": "дата, на которую экран вычисляет состояния и флаги; по умолчанию сегодня."
+  }
+ ],
+ "walkthrough": {
+  "src": "П-1 · обязанное лицо Асанов Т.Б. (кредиты К-1 и К-2, долг 1 850 000 сом) · объект ИО-1 · витрина макета на 15.03.2028",
+  "note": "те же числа в разделе <a href=\"22-imushchestvo.html#s6-7\">сквозной пример ТЗ</a> и его продолжении <a href=\"22-imushchestvo.html#s8-5\">пример продажи</a>",
+  "groups": [
+   {
+    "h": "1. Предложение и решение",
+    "items": [
+     "10.01.2027 специалист регистрирует П-1 по постановлению ПССИ № 12-07/27: источник ПССИ, обязанное лицо Асанов Т.Б., отчуждатель — он же, срок ответа 15.01.2027 из документа. Позиции: 1 — квартира 2 400 000 сом (из предмета залога ПЗ-88), 2 — гараж 300 000 сом, 3 — трактор 450 000 сом.",
+     "15.01.2027 — промежуточное письмо № 01-14/45 «рассматриваем»: срок ответа соблюдён.",
+     "01.02.2027 ПССИ отзывает гараж — позиция 2 «отозвана».",
+     "20.02.2027 решение Комитета № 4/2027: квартира — принять, трактор — отказать (неликвид). Ожидаемая доплата по квартире 2 400 000 − 1 850 000 = 550 000 сом. П-1 «закрыто»: принято 1, отказано 1, отозвано 1."
+    ]
+   },
+   {
+    "h": "2. Акт и переход права",
+    "items": [
+     "12.03.2027 акт № АП-3/27, опубликован вторым ключом: возникает ИО-1 «принят, ждёт регистрации» со снимком характеристик ПЗ-88 (54 м², этаж 5 из 9). Погашения нет.",
+     "05.04.2027 регистрация права Фонда (выписка № 2027-04-1187): переход права. Модуль публикует принятие 2 400 000 сом на 05.04.2027."
+    ]
+   },
+   {
+    "h": "3. Деление и доплата",
+    "items": [
+     "Взыскание делит по долгу на 05.04.2027 1 850 000 сом: К-1 925 000 сом, К-2 925 000 сом, не вошло 550 000 сом. Модуль отправляет в платежи два поступления «имущество в счёт погашения» по 925 000 сом.",
+     "Распоряжение на Возврат 550 000 сом на депозит ПССИ; ⚑ «принятие не завершено». ПЗ-88 получает состояние «перешёл к Фонду».",
+     "20.04.2027 Возврат № В-118 исполнен — ⚑ снят, ИО-1 «на учёте»."
+    ]
+   },
+   {
+    "h": "4. На учёте",
+    "items": [
+     "Расходы: охрана 30 000, оценщик 15 000, налог 20 000, коммунальные 25 000 — всего 90 000 сом. Оценка 25.05.2027 — 2 500 000 сом (отчёт № О-77); учётная стоимость остаётся 2 400 000 сом.",
+     "Осмотр 20.05.2027 — последний; на 15.03.2028 прошло больше 6 месяцев, есть повод «давно не осматривали»."
+    ]
+   },
+   {
+    "h": "5. Продажа",
+    "items": [
+     "01.06.2027 попытка 1: аукцион, старт 2 500 000 сом (основание — отчёт № О-77), лот Л-2027-0412; 15.06.2027 не состоялась — снова «на учёте».",
+     "20.08.2027 решение Комитета № 11/2027 о снижении стартовой цены до 2 200 000 сом; 01.09.2027 попытка 2, лот Л-2027-0688; 15.09.2027 состоялась: покупатель Бейшеналиев Ы.Т., цена 2 250 000 сом.",
+     "20.09.2027 договор КП № КП-5/27 в рассрочку, 12 платежей по 187 500 сом с 20.10.2027, неустойка 0,1 % в день. ИО-1 «продан в рассрочку», с учёта не снят."
+    ]
+   },
+   {
+    "h": "6. Где ИО-1 на 15.03.2028",
+    "items": [
+     "Оплачено 3 платежа — 562 500 сом; по графику к этой дате 937 500 сом; просрочено 375 000 сом, 55 дней с 20.01.2028; неустойка 20 625 сом; остаток к оплате 1 687 500 сом. Повод «просрочка платежа по рассрочке».",
+     "Результат по объекту: 2 250 000 − 2 400 000 − 90 000 = −240 000 сом, с пометкой «оплата не завершена». Долг Асанова Т.Б. от продажи не меняется.",
+     "Куратор ИО-1 на эту дату — Токтосунов Б.Э. (по правилу, г. Бишкек); до 31.12.2027 объект был закреплён вручную за Абдраимовой Н.К.",
+     "При последнем платеже 20.09.2028 объект снимается с учёта на эту дату путём «продажа в рассрочку»."
+    ]
+   }
+  ]
+ },
+ "stages": [
+  {
+   "n": 1,
+   "title": "Модель, факты, состояние, второй ключ"
+  },
+  {
+   "n": 2,
+   "title": "Предложение и решение органа"
+  },
+  {
+   "n": 3,
+   "title": "Акт, переход права, погашение, доплата"
+  },
+  {
+   "n": 4,
+   "title": "Объект на учёте"
+  },
+  {
+   "n": 5,
+   "title": "Продажа"
+  },
+  {
+   "n": 6,
+   "title": "Выбытие, возврат, исправления"
+  },
+  {
+   "n": 7,
+   "title": "Кураторство, поводы, журнал дела"
+  },
+  {
+   "n": 8,
+   "title": "Реестры, вводный остаток, статистика"
+  }
+ ],
+ "cards": [
+  {
+   "id": "P24-R1",
+   "stage": 1,
+   "title": "Три сущности: предложение, позиция, объект имущества — и признаки вида из общего справочника",
+   "build": "Таблицы предложения, позиции и объекта имущества со связями, системными номерами П-n и ИО-n и чтением вида имущества с тремя признаками из справочника залога. Полей «статус», «ответственный», «куратор» нет ни в одной таблице.",
+   "why": "У предложения, позиции и объекта разные сроки и разные финалы: отказанной позиции нужен след решения, но не нужна учётная стоимость, а объекту не нужен срок ответа источнику. Если объект можно создать вне акта, в учёте появятся вещи без решения органа и без погашения. Если вид вести своим справочником, «квартира» в залоге и в имуществе разойдётся, и статистика не сможет резать по виду сквозным разрезом.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Предложения → П-1 → позиции; Объекты имущества → ИО-1 → вкладка «Характеристики»",
+    "tz": "22-imushchestvo.html#s3-1"
+   },
+   "data": [
+    {
+     "n": "Связь позиции и объекта",
+     "note": "Одна позиция даёт не больше одного объекта.",
+     "fields": [
+      "<b>объект → позиция</b> — ссылка, заполняется актом",
+      "<b>объект → предмет залога</b> — ссылка, если позиция происходит из залога; только происхождение"
+     ]
+    }
+   ],
+   "steps": [
+    "Завести предложение с системным номером П-n и список позиций с порядковым номером внутри предложения.",
+    "Завести объект имущества с системным номером ИО-n и полем происхождения из четырёх значений: позиция, вводный остаток, разделение, — плюс отдельная ссылка на предмет залога.",
+    "Подключить справочник видов залога на чтение: вид, схема параметров, признаки «право подлежит госрегистрации», «делимая», класс.",
+    "Хранить характеристики позиции и объекта по схеме параметров вида; местоположение — область, район, адрес, у права — место регистрации или эмитента.",
+    "Хранить стоимость принятия в валюте документа-основания без пересчёта.",
+    "Закрыть создание объекта в сервисе: только из акта по принятой позиции и из вводного остатка.",
+    "Проверить, что в таблицах нет колонок состояния, ответственного и куратора."
+   ],
+   "example": {
+    "src": "П-1 · Асанов Т.Б. · витрина макета на 15.03.2028",
+    "given": [
+     "П-1 из трёх позиций: 1 — квартира 2 400 000 сом, вид «Квартира» (регистрация нужна), из предмета залога ПЗ-88; 2 — гараж 300 000 сом; 3 — трактор 450 000 сом, вид «Трактор» (регистрация не нужна).",
+     "Позиция 2 отозвана, позиция 3 отказана, по позиции 1 подписан акт № АП-3/27."
+    ],
+    "do": [
+     "Открыть реестр объектов и найти всё, что произошло из П-1."
+    ],
+    "get": [
+     "Объект один — ИО-1: происхождение «П-1, позиция 1», предмет залога ПЗ-88.",
+     "У позиций 2 и 3 объектов нет; их история — только в карточке П-1."
+    ]
+   },
+   "terms": [
+    {
+     "t": "схема параметров вида",
+     "d": "набор характеристик, который справочник залога задаёт для вида: у квартиры — площадь, этаж, кадастровый номер; у трактора — заводской номер."
+    }
+   ],
+   "rules": [
+    {
+     "h": "Признаки вида",
+     "items": [
+      "«Право подлежит госрегистрации» — дата перехода права равна дате регистрации, а не акта.",
+      "«Делимая» — у объекта доступно разделение.",
+      "Класс «имущественное право» — нет осмотров, адресного местоположения и разделения; кураторство распределяет по месту регистрации или эмитента."
+     ]
+    }
+   ],
+   "accept": [
+    "Предложение П-1 с тремя позициями и одним актом даёт ровно один объект ИО-1 (С-1).",
+    "В реестре объектов нет кнопки «добавить объект», и сервис отказывает в создании объекта без акта или вводного остатка (ИИ-1).",
+    "У объекта, позиции и предложения нет полей «статус», «ответственный», «куратор» (ИИ-2, ИИ-16).",
+    "Вид «Доля в уставном капитале» читается классом «имущественное право», «Зерно» — делимым, «Квартира» — с признаком госрегистрации.",
+    "Вид «Квартира» в залоге и в имуществе — одна строка справочника; своего справочника видов у модуля нет.",
+    "Стоимость принятия хранится в валюте документа и не пересчитывается при сохранении (ИИ-18)."
+   ],
+   "notIn": [
+    "Реквизиты и правила регистрации предложения — P24-R6.",
+    "Общая таблица фактов и публикация — P24-R2.",
+    "Вычисление состояния — P24-R3.",
+    "Возникновение объекта актом — P24-R10; вводный остаток — P24-R29."
+   ],
+   "deps": [],
+   "extDeps": [
+    {
+     "what": "справочник видов залога отдаёт признаки «право подлежит госрегистрации», «делимая» и класс (ИМ-ДС-12)"
+    }
+   ],
+   "open": [
+    {
+     "ask": "ИМ-ВЗ-10. С какой даты право Фонда возникает для недвижимости и долей и какие виды требуют регистрации?",
+     "default": "с даты регистрации; признак стоит у недвижимости и долей.",
+     "impact": "меняется признак вида в справочнике; модель и код те же."
+    }
+   ],
+   "traps": [
+    "<b>Соблазн завести «статус» колонкой ради быстрого реестра.</b> Фильтр «состояние на 01.01.2027» тогда врёт: колонка знает только сегодняшнее. Скорость реестра решается вычислением по индексам фактов, а не копией состояния."
+   ]
+  },
+  {
+   "id": "P24-R2",
+   "stage": 1,
+   "title": "Факт — единица хранения: реквизиты, черновик, публикация, неизменяемость",
+   "build": "Общая таблица фактов модуля с видом, датой, документом, автором, публикатором и ссылкой на исправляемый факт; черновик правится свободно, опубликованный факт сервис не даёт ни изменить, ни удалить.",
+   "why": "Модуль хранит только факты, всё остальное из них вычисляется. Опубликованный факт уже ушёл наружу: взыскание по нему разделило сумму, платежи разнесли поступление. Правка задним числом оставила бы другие модули с данными, которых в источнике больше нет, и стёрла бы след ошибки.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Объекты имущества → ИО-1 → вкладка «Журнал фактов»",
+    "tz": "22-imushchestvo.html#s3-7"
+   },
+   "steps": [
+    "Завести таблицу фактов с видом из закрытого перечня, ссылкой на предложение, позицию или объект и датой факта.",
+    "Хранить документ факта: вид, номер, дату и вложение.",
+    "Хранить автора, признак публикации, публикатора и время публикации.",
+    "Запретить в сервисе изменение и удаление опубликованного факта; вместо правки отдавать действие «Исправить».",
+    "Хранить у исправления ссылку на исходный факт и основание; пометку «исправлен» у исходного вычислять, а не записывать в него.",
+    "Отправлять события другим модулям только в момент публикации, никогда — при сохранении черновика.",
+    "Показывать журнал фактов в карточке с датой, видом, документом, автором, публикатором и пометкой «исправлен»."
+   ],
+   "rules": [
+    {
+     "h": "Что считается публикацией",
+     "items": [
+      "Решение органа, акт, переход права, исполнение доплаты, итог попытки, договор КП, разделение, документ выбытия.",
+      "Факты без второго ключа публикуются в момент сохранения; факты под вторым ключом — подтверждением начальника Управления."
+     ]
+    },
+    {
+     "h": "Что правится свободно",
+     "items": [
+      "Предложение на рассмотрении, позиция без решения, попытка без итога, неопубликованный черновик любого факта."
+     ]
+    }
+   ],
+   "example": {
+    "src": "ИО-1 · акт № АП-3/27 · витрина макета",
+    "given": [
+     "Акт № АП-3/27 от 12.03.2027 введён специалистом Абдраимовой Н.К. и опубликован начальником Управления Джумалиевым Б.К."
+    ],
+    "do": [
+     "Попытаться изменить дату акта на 13.03.2027."
+    ],
+    "get": [
+     "Правка закрыта; доступно «Исправить» с обязательным основанием.",
+     "Если исправить, в журнале ИО-1 видны оба факта, исходный — с пометкой «исправлен», с датой 12.03.2027."
+    ]
+   },
+   "accept": [
+    "Черновик позиции без решения правится свободно, без следа исправления (С-19).",
+    "Опубликованный факт не меняется и не удаляется ни через экран, ни через сервис (ИИ-12).",
+    "Исправление без основания не сохраняется.",
+    "После исправления в журнале видны оба факта, исходный помечен «исправлен» (С-18).",
+    "Неопубликованный факт не порождает событий в другие модули (С-23).",
+    "Каждый факт показывает дату, документ, кто ввёл, кто и когда опубликовал."
+   ],
+   "notIn": [
+    "Кто вправе публиковать и какие факты под вторым ключом — P24-R4.",
+    "Последствия исправления для денег — P24-R23.",
+    "Вычисление состояния по фактам — P24-R3."
+   ],
+   "deps": [
+    "P24-R1"
+   ]
+  },
+  {
+   "id": "P24-R3",
+   "stage": 1,
+   "title": "Состояние на дату: предложение, позиция и объект вычисляются по опубликованным фактам",
+   "build": "Функция состояния предложения, итога позиции и состояния объекта на любую дату по опубликованным фактам, плюс флаги ⚑ «принятие не завершено» и ⚑ «обременён». Ни одно из значений не записывается в базу.",
+   "why": "Отчёт «сколько объектов было нереализовано на 01.01.2027» — тот же расчёт на другую дату, без отдельной истории полей. Хранимое состояние расходится с фактами при первом же исправлении задним числом и требует ручной «смены статуса», которой в модуле быть не должно.",
+   "look": {
+    "mock": "assets.html",
+    "route": "любая карточка → поле «Дата среза» в шапке",
+    "tz": "22-imushchestvo.html#s4"
+   },
+   "steps": [
+    "Выбрать опубликованные факты объекта с датой не позже даты среза; исправленные факты заменить исправляющими.",
+    "Вычислить состояние предложения: зарегистрировано → на рассмотрении → решение вынесено → закрыто, когда у каждой позиции есть итог.",
+    "Вычислить итог позиции: принята, отказана, отозвана, принятие не состоялось — или «на рассмотрении», если итога нет.",
+    "Вычислить состояние объекта по таблице ниже: ещё не возник, принят и ждёт регистрации, на учёте, выставлен на продажу, продан разово или в рассрочку, снят с учёта, разделён, принятие не состоялось.",
+    "Вычислить флаг ⚑ «принятие не завершено»: доплата больше нуля и Возврат не исполнен на дату.",
+    "Вычислить флаг ⚑ «обременён»: на дату действует хотя бы одно обременение.",
+    "Отдавать вместе с состоянием дату, с которой оно действует, и путь выбытия, если объект снят с учёта."
+   ],
+   "rules": [
+    {
+     "h": "Состояния объекта",
+     "items": [
+      "Принят, ждёт регистрации — акт есть, права у Фонда нет, погашения не было.",
+      "На учёте — право перешло, ничего не идёт.",
+      "Выставлен на продажу — есть попытка без итога.",
+      "Продан разово или в рассрочку — договор КП действует, оплата не завершена.",
+      "Снят с учёта — путь выбытия завершён; разделён — закрыт разделением; принятие не состоялось — право не перешло."
+     ]
+    },
+    {
+     "h": "Различия итогов",
+     "items": [
+      "«Отказана» — решение Фонда, «отозвана» — решение источника; это разные итоги и разные строки отчёта (ИИ-14).",
+      "Предложение «закрыто», даже если принятая позиция ещё ждёт акта."
+     ]
+    }
+   ],
+   "example": {
+    "src": "ИО-1 · витрина макета",
+    "given": [
+     "Акт 12.03.2027, регистрация 05.04.2027, доплата 550 000 сом исполнена 20.04.2027, попытка 1 с 01.06.2027, договор КП 20.09.2027."
+    ],
+    "do": [
+     "Поставить дату среза 01.01.2027, 20.03.2027, 10.04.2027, 10.06.2027 и 01.10.2027."
+    ],
+    "get": [
+     "01.01.2027 — «ещё не возник»; 20.03.2027 — «принят, ждёт регистрации»; 10.04.2027 — «на учёте» с ⚑ «принятие не завершено» на 550 000 сом; 10.06.2027 — «выставлен на продажу»; 01.10.2027 — «продан в рассрочку».",
+     "П-5 на 15.03.2028 «закрыто», хотя обе принятые позиции ещё ждут акта."
+    ]
+   },
+   "accept": [
+    "Состояние ИО-1 на 01.01.2027 и на 01.10.2027 различается и получено из одних фактов (С-9).",
+    "В базе нет поля состояния ни у предложения, ни у позиции, ни у объекта (ИИ-2).",
+    "Неопубликованный факт состояние не меняет (С-23).",
+    "П-1 считает принятой 1, отказанной 1, отозванной 1 позицию (С-1).",
+    "Предложение со всеми итогами — «закрыто», даже если принятая позиция ждёт акта.",
+    "Флаг ⚑ «принятие не завершено» исчезает на дату исполнения Возврата, а не на дату его ввода."
+   ],
+   "notIn": [
+    "Факты, из которых считается состояние, вводятся в карточках этапов 2–6.",
+    "Экран выбора даты и вкладки — P24-R5.",
+    "Фильтр реестра по состоянию на дату — P24-R28."
+   ],
+   "deps": [
+    "P24-R2"
+   ],
+   "traps": [
+    "<b>Кэш состояния ради реестра.</b> Если без него не обойтись, кэш пересчитывается событием публикации и исправления и никогда не пишется руками. Источник правды — факты; кэш, расходящийся с вычислением, — дефект."
+   ]
+  },
+  {
+   "id": "P24-R4",
+   "stage": 1,
+   "title": "Роли доступа и второй ключ: денежные и стоимостные факты публикует начальник Управления",
+   "build": "Матрица «кто готовит — кто публикует» для всех фактов модуля, состояние черновика «ждёт публикации» и действия «Опубликовать» и «Вернуть на доработку» у начальника Управления по работе с активами.",
+   "why": "Факты, которые двигают деньги или стоимость, — акт, регистрация, договор, разделение, выбытие, возврат, исправление — уходят в другие модули и меняют долг. Второй ключ ловит ошибку до того, как она разошлась. Ключ на всё подряд превратил бы подтверждение в формальность, поэтому осмотры, оценки и попытки идут без него.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Предложения → П-7 → позиция 2 → акт № АП-4/28 «ждёт публикации»",
+    "tz": "22-imushchestvo.html#s10"
+   },
+   "data": [
+    {
+     "n": "Факт",
+     "note": "дельта к карте данных",
+     "fields": [
+      "<b>состояние публикации</b> — черновик · ждёт публикации · опубликован · возвращён на доработку",
+      "<b>причина возврата</b> — текст, если возвращён"
+     ]
+    }
+   ],
+   "screen": [
+    {
+     "n": "Черновик под вторым ключом",
+     "note": "в карточке и в списке ожидающих публикации у начальника Управления",
+     "cols": [
+      "факт",
+      "к чему относится",
+      "кто ввёл",
+      "дата ввода"
+     ],
+     "acts": [
+      "опубликовать",
+      "вернуть на доработку"
+     ]
+    }
+   ],
+   "steps": [
+    "Завести роли доступа: специалист по имуществу, секретарь органа, юрист, начальник Управления; бухгалтер действует в модуле платежей.",
+    "Записать для каждого вида факта, кто его готовит, и нужен ли второй ключ, по таблице правил.",
+    "Сохранять факт под вторым ключом в состоянии «ждёт публикации», невидимым для других модулей и для вычисления состояния.",
+    "Дать начальнику Управления список ожидающих и действия «Опубликовать» и «Вернуть на доработку» с причиной.",
+    "Запретить публикацию автором собственного факта.",
+    "Проверять права при каждом действии запросом в модуль пользователей."
+   ],
+   "rules": [
+    {
+     "h": "Под вторым ключом",
+     "items": [
+      "Акт приёма-передачи, регистрация права, отказ регистратора, решение о прекращении принятия — готовит специалист.",
+      "Договор КП, условия рассрочки, расторжение — готовит юрист.",
+      "Разделение, безвозмездная передача, выбытие, возврат по суду, исправление позднего принятия при отмене раннего — готовит специалист.",
+      "Исправление любого опубликованного факта — готовит любая роль модуля."
+     ]
+    },
+    {
+     "h": "Без второго ключа",
+     "items": [
+      "Предложение, позиции, заключения, осмотры, оценки, расходы, обременения — специалист.",
+      "Решение органа — секретарь: документ органа сам служит контролем.",
+      "Попытка продажи и её итог — специалист: итог берётся из протокола площадки.",
+      "Исполнение доплаты — бухгалтер в контуре модуля платежей."
+     ]
+    }
+   ],
+   "example": {
+    "src": "П-7 · Садыкова Г.Н. · акт № АП-4/28 · витрина макета на 15.03.2028",
+    "given": [
+     "Позиция 2 П-7 — жилой дом 1 300 000 сом, принят решением № 22/2027 от 25.12.2027.",
+     "01.03.2028 специалист ввела акт № АП-4/28, начальник Управления его ещё не опубликовал."
+    ],
+    "do": [
+     "Открыть реестр объектов и журнал дела Садыковой Г.Н."
+    ],
+    "get": [
+     "Объекта по дому в реестре нет; во взыскании записи об акте нет; позиция 2 по-прежнему ждёт акта, повод «принятая позиция ждёт акта» — 81 к.д.",
+     "После публикации появляется объект «принят, ждёт регистрации» с датой акта 01.03.2028."
+    ]
+   },
+   "accept": [
+    "Акт без второго ключа не опубликован, объект не возник, другие модули его не видят (С-23).",
+    "Факт под вторым ключом показан с меткой «ждёт публикации» и кнопкой «Опубликовать» только у начальника Управления.",
+    "Автор не может опубликовать свой факт.",
+    "Возвращённый на доработку факт снова правится автором и остаётся невидимым другим модулям.",
+    "Осмотр, оценка, расход и попытка продажи публикуются сразу при сохранении (ИИ-15).",
+    "Решение о прекращении принятия без второго ключа не опубликовано (С-27).",
+    "Роль без права на действие не видит кнопки, а сервис отказывает с названием роли."
+   ],
+   "notIn": [
+    "Неизменяемость опубликованного — P24-R2.",
+    "Сами факты — в карточках этапов 2–6."
+   ],
+   "deps": [
+    "P24-R2"
+   ],
+   "extDeps": [
+    {
+     "what": "модуль пользователей отдаёт роли доступа «Специалист по имуществу», «Юрист», «Начальник Управления по работе с активами» и право второго ключа (ИМ-ДС-10)"
+    }
+   ]
+  },
+  {
+   "id": "P24-R5",
+   "stage": 1,
+   "title": "Карточки предложения и объекта: шапка на дату среза, вкладки и единое «Ввести факт»",
+   "build": "Каркас двух карточек: шапка с датой среза, состоянием и флагами, вкладки объекта, журнал фактов и кнопка «Ввести факт» со списком фактов, доступных в текущем состоянии; недоступный факт показан с причиной.",
+   "why": "Модуль управляется фактами, поэтому интерфейс не может предлагать «сменить статус». Если недоступный факт просто прятать, пользователь не понимает, почему не может выставить объект на продажу; причина в отказе — единственная подсказка, что делать дальше.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Объекты имущества → ИО-5 → «Ввести факт»",
+    "tz": "22-imushchestvo.html#s14"
+   },
+   "screen": [
+    {
+     "n": "Шапка карточки объекта",
+     "cols": [
+      "номер и вещь",
+      "состояние на дату среза",
+      "флаги",
+      "учётная стоимость",
+      "результат по объекту",
+      "куратор на дату"
+     ],
+     "acts": [
+      "сменить дату среза",
+      "ввести факт"
+     ]
+    },
+    {
+     "n": "Вкладки карточки объекта",
+     "cols": [
+      "Характеристики (снимок)",
+      "Переход права",
+      "Осмотры",
+      "Оценки",
+      "Расходы",
+      "Обременения",
+      "Попытки продажи",
+      "Договор КП и оплаты",
+      "Выбытие",
+      "Журнал фактов"
+     ]
+    }
+   ],
+   "steps": [
+    "Собрать карточку предложения: шапка (источник, обязанное лицо, отчуждатель, документ, срок ответа, ответ), таблица позиций, решение органа, журнал фактов.",
+    "Собрать карточку объекта с шапкой и десятью вкладками.",
+    "Пересчитывать шапку и вкладки при смене даты среза; формат даты — ДД.ММ.ГГГГ.",
+    "Строить список «Ввести факт» из правил доступности по состоянию на сегодня.",
+    "Показывать недоступный факт приглушённым с текстом причины из проверки.",
+    "Скрывать у объекта класса «имущественное право» вкладку «Осмотры» и действие «Разделить».",
+    "Показывать факты «ждёт публикации» с меткой в журнале и в шапке."
+   ],
+   "example": {
+    "src": "ИО-5 · квартира 2 100 000 сом · П-7 · витрина макета на 15.03.2028",
+    "given": [
+     "Акт № АП-1/28 от 10.01.2028, регистрации нет; состояние «принят, ждёт регистрации»."
+    ],
+    "do": [
+     "Открыть «Ввести факт»."
+    ],
+    "get": [
+     "Доступны регистрация права, отказ регистратора, решение о прекращении принятия.",
+     "«Попытка продажи» недоступна с текстом «до перехода права продавать нельзя: объект ждёт регистрации».",
+     "«Выбытие» недоступно с подсказкой: решение о прекращении принятия с причиной «вещь погибла или утрачена до перехода права»."
+    ]
+   },
+   "accept": [
+    "Ни на одном экране модуля нет кнопки «сменить статус» (ИИ-2).",
+    "Смена даты среза меняет состояние и флаги в шапке без перезагрузки данных.",
+    "Недоступный факт показан с причиной, и причина называет мешающее условие.",
+    "У ИО-9 (доля в уставном капитале) нет вкладки «Осмотры» и действия «Разделить».",
+    "Неверная дата среза отбивается подсказкой «ДД.ММ.ГГГГ».",
+    "Факт «ждёт публикации» виден в журнале с меткой и не влияет на шапку."
+   ],
+   "notIn": [
+    "Содержимое вкладок — в карточках этапов 3–6.",
+    "Блок кураторства — P24-R25.",
+    "Реестры — P24-R28."
+   ],
+   "deps": [
+    "P24-R3",
+    "P24-R4"
+   ]
+  },
+  {
+   "id": "P24-R6",
+   "stage": 2,
+   "title": "Регистрация предложения: источник, обязанное лицо, отчуждатель, срок ответа и позиции",
+   "build": "Форма «Зарегистрировать предложение»: источник из пяти с правилами по источнику, обязанное лицо из взыскания, отчуждатель из реестра лиц, документ-основание, срок ответа из документа или из настройки с источником значения, затронутые кредиты; позиции с видом, характеристиками, местоположением, заключениями и стоимостью.",
+   "why": "Обязанное лицо и отчуждатель — разные реквизиты: долг гасится одному, доплата уходит другому. Если брата должника записать отчуждателем «должник», доплата уйдёт на счёт должника. Срок ответа нужен, чтобы Фонд не пропустил ответ ПССИ, а его источник значения — чтобы было видно, норма это или внутреннее умолчание.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Предложения → «Зарегистрировать предложение»; П-3 → шапка",
+    "tz": "22-imushchestvo.html#s3-2"
+   },
+   "screen": [
+    {
+     "n": "Форма регистрации",
+     "cols": [
+      "источник",
+      "обязанное лицо",
+      "отчуждатель",
+      "документ: номер и дата",
+      "срок ответа из документа",
+      "позиция 1: вещь, вид, стоимость, валюта"
+     ],
+     "acts": [
+      "зарегистрировать",
+      "добавить позицию позже"
+     ]
+    }
+   ],
+   "steps": [
+    "Дать выбор источника из пяти и подставлять по нему вид документа и отчуждателя по умолчанию.",
+    "Выбирать обязанное лицо из обязанных лиц должника модуля взыскания, а кредиты — из его кредитов.",
+    "Выбирать отчуждателя только из реестра лиц; у третьего лица и залогодателя требовать субъекта, отличного от обязанного лица.",
+    "Брать срок ответа из документа; если его нет — из настройки по источнику и хранить рядом источник значения.",
+    "Регистрировать предложение и без позиций; позиции добавлять до решения органа.",
+    "Хранить у позиции вид, характеристики по схеме вида, местоположение, количество, заключения, стоимость принятия и валюту документа.",
+    "Оставлять предложение и позиции черновиком, свободно правимым до решения органа."
+   ],
+   "rules": [
+    {
+     "h": "Источники",
+     "items": [
+      "ПССИ — постановление о передаче нереализованного имущества взыскателю; отчуждатель — должник или залогодатель; доплата — на депозит ПССИ. Срок по умолчанию 5 р.д.",
+      "Спецадминистратор — акт по конкурсной массе; отчуждатель — банкрот; доплата — в конкурсную массу. Срок 10 р.д.",
+      "Должник — соглашение об отступном; залогодатель — соглашение об отступном по п. 49; третье лицо — соглашение об исполнении за должника. Доплата — отчуждателю. Срок 30 к.д.",
+      "Поручитель шестым источником не является: его вещь идёт источником «должник», обязанное лицо и отчуждатель — поручитель."
+     ]
+    },
+    {
+     "h": "Что регистрация не делает",
+     "items": [
+      "Не ставит паузу взыскания: пени начисляются до перехода права, меры продолжаются.",
+      "Не порождает погашения и денежных событий."
+     ]
+    }
+   ],
+   "example": {
+    "src": "П-3 · Иманов К.Т. · П-2 · ОсОО «Ак-Жол Агро» · витрина макета",
+    "given": [
+     "П-3: источник «третье лицо», обязанное лицо Иманов К.Т. (кредит К-21, долг 600 000 сом), отчуждатель Иманов Б.Т. (брат), гараж 750 000 сом, срок ответа 01.03.2028 из документа.",
+     "П-2: источник «должник», зарегистрировано 01.02.2027, срока в документе нет."
+    ],
+    "do": [
+     "Зарегистрировать оба предложения."
+    ],
+    "get": [
+     "У П-3 при будущей доплате 750 000 − 600 000 = 150 000 сом получатель — Иманов Б.Т., долг гасится у Иманова К.Т.",
+     "У П-2 срок ответа 03.03.2027 с пометкой «настройка (30 к.д., внутренний акт)»."
+    ]
+   },
+   "accept": [
+    "Гараж брата должника: обязанное лицо — должник, отчуждатель — брат (С-7, ИИ-13).",
+    "Вещь поручителя Жумабаева З.А. (П-4): источник «должник», обязанное лицо и отчуждатель — поручитель (С-8).",
+    "Отчуждателя нельзя ввести текстом — только выбрать субъекта.",
+    "Срок ответа без документа подставлен из настройки, и рядом виден источник значения.",
+    "Предложение без позиций регистрируется (С-34).",
+    "Черновик позиции без решения правится свободно (С-19).",
+    "Стоимость позиции сохраняется в валюте документа."
+   ],
+   "notIn": [
+    "Решение органа и ответ — P24-R7.",
+    "Запись в журнале дела взыскания — P24-R27.",
+    "Куратор предложения — P24-R25.",
+    "Редактирование умолчаний срока ответа — P24-R26."
+   ],
+   "deps": [
+    "P24-R5"
+   ],
+   "extDeps": [
+    {
+     "what": "взыскание отдаёт обязанных лиц должника с их кредитами и строку гейта «принятие имущества» (ИМ-ДС-2)"
+    },
+    {
+     "what": "реестр лиц отдаёт субъектов для выбора отчуждателя"
+    }
+   ],
+   "open": [
+    {
+     "ask": "ИМ-ВЗ-1. Есть ли правило цены принятия, или её всегда задаёт документ источника?",
+     "default": "цену задаёт документ-основание, модуль её не вычисляет.",
+     "impact": "правило станет подсказкой и проверкой при вводе стоимости; документ останется основанием."
+    },
+    {
+     "ask": "ИМ-ВЗ-9. Ставит ли Инструкция паузу взыскания на время рассмотрения предложения?",
+     "default": "паузы нет: пени и меры взыскания идут до перехода права.",
+     "impact": "появится пауза по образцу реструктуризации (п. 18) — изменение во взыскании, не в этом модуле."
+    }
+   ]
+  },
+  {
+   "id": "P24-R7",
+   "stage": 2,
+   "title": "Решение коллегиального органа: одно на предложение, итог по каждой позиции, ответ источнику в срок",
+   "build": "Форма «Внести решение органа» для секретаря: орган из справочника, номер и дата решения, по каждой позиции без итога — «принять» или «отказать с основанием»; промежуточное письмо как ответ; пометка «вынесено после истечения срока ответа».",
+   "why": "По позиции решает только коллегиальный орган, и одно заседание вправе принять дом и отказаться от трактора, поэтому итог хранится по позиции, а документ — один. Решение после срока не блокируется: запрет оставил бы вещь, которую источник не отозвал, без решения навсегда.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Предложения → П-1 → «Внести решение органа»",
+    "tz": "22-imushchestvo.html#s5"
+   },
+   "screen": [
+    {
+     "n": "Форма решения",
+     "cols": [
+      "орган",
+      "номер и дата",
+      "позиция",
+      "итог",
+      "основание отказа",
+      "ожидаемая доплата"
+     ],
+     "acts": [
+      "внести решение"
+     ]
+    }
+   ],
+   "steps": [
+    "Выбирать орган из справочника коллегиальных органов модуля взыскания, по умолчанию — Комитет по вопросам правового обеспечения и управления имуществом.",
+    "Показывать в форме только позиции без итога: отозванные в решении не участвуют.",
+    "Требовать по каждой позиции «принять» или «отказать»; при отказе — основание.",
+    "Сохранять решение одним фактом с итогами по позициям, без второго ключа.",
+    "Ставить пометку «вынесено после истечения срока ответа», если дата решения позже срока.",
+    "Принимать промежуточное письмо как факт ответа с номером и датой.",
+    "Считать ответом в срок решение или промежуточное письмо, датированное не позже срока."
+   ],
+   "rules": [
+    {
+     "h": "Правило органа",
+     "items": [
+      "Орган — реквизит правила, а не код: порог «до N сом решает начальник Управления», если появится, — настройка поверх того же правила.",
+      "Повторное решение по той же позиции — только исправлением опубликованного решения."
+     ]
+    }
+   ],
+   "example": {
+    "src": "П-1 · Асанов Т.Б. · витрина макета",
+    "given": [
+     "Срок ответа 15.01.2027; 15.01.2027 письмо № 01-14/45 «рассматриваем».",
+     "01.02.2027 позиция 2 (гараж 300 000 сом) отозвана ПССИ."
+    ],
+    "do": [
+     "20.02.2027 секретарь вносит решение № 4/2027: позиция 1 — принять, позиция 3 — отказать, основание «неликвид»."
+    ],
+    "get": [
+     "Ответ в срок — письмо 15.01.2027; пометки «после срока» у решения нет.",
+     "Итоги: позиция 1 «принята», 2 «отозвана», 3 «отказана»; П-1 «закрыто»; в отчёте отказано 1, отозвано 1."
+    ]
+   },
+   "accept": [
+    "Предложение ПССИ из трёх позиций получает три разных итога одним решением и отзывом (С-1).",
+    "Итог «принята» или «отказана» ставится только решением органа (ИИ-14).",
+    "Отказ без основания не сохраняется.",
+    "Решение после срока вносится с пометкой «вынесено после истечения срока ответа» (С-24).",
+    "Промежуточное письмо до срока снимает повод о просроченном ответе.",
+    "Решение органа публикуется без второго ключа.",
+    "Второе решение по позиции с итогом форма не принимает."
+   ],
+   "notIn": [
+    "Ожидаемая доплата в форме — P24-R9.",
+    "Повод «срок ответа истёк» — P24-R26.",
+    "Запись решения в журнале дела — P24-R27."
+   ],
+   "deps": [
+    "P24-R6"
+   ],
+   "open": [
+    {
+     "ask": "ИМ-ВЗ-3. Решает ли принятие Комитет по вопросам правового обеспечения и управления имуществом, есть ли порог суммы для начальника Управления?",
+     "default": "решает этот комитет, источник «внутренний акт», порога нет.",
+     "impact": "меняется строка справочника органов; при пороге — добавляется настройка правила."
+    }
+   ]
+  },
+  {
+   "id": "P24-R8",
+   "stage": 2,
+   "title": "Отзыв позиции источником: до акта — да, после акта — отказ с объяснением выхода",
+   "build": "Факт «отзыв позиции источником» с документом источника, доступный до акта приёма-передачи, и отказ после акта с текстом «После акта отзыва нет: до перехода права — прекращение принятия, после — возврат.»",
+   "why": "Источник вправе передумать, пока вещь физически не передана, и это его решение, а не Фонда. После акта отзыв подменил бы два разных выхода: до перехода права — прекращение принятия решением органа, после — возврат по суду со сторно погашения.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Предложения → П-1 → позиция 2 → «Ввести факт» → «Отзыв позиции»",
+    "tz": "22-imushchestvo.html#s4-2"
+   },
+   "steps": [
+    "Дать факт «отзыв позиции» по позиции без акта, с обязательным документом источника.",
+    "Разрешать отзыв и после решения «принять»: решение остаётся в истории неисполненным.",
+    "Отказывать в отзыве после акта фиксированным текстом с двумя выходами.",
+    "Ставить итог позиции «отозвана» и пересчитывать состояние предложения.",
+    "Исключать отозванную позицию из формы решения, ожидаемой доплаты и выбора куратора."
+   ],
+   "example": {
+    "src": "П-1 · Асанов Т.Б. · витрина макета",
+    "given": [
+     "Позиция 2 — гараж 300 000 сом, акта нет; позиция 1 — квартира, акт № АП-3/27 от 12.03.2027."
+    ],
+    "do": [
+     "01.02.2027 ввести отзыв позиции 2 по постановлению ПССИ № 12-07/27-в.",
+     "После 12.03.2027 попытаться отозвать позицию 1."
+    ],
+    "get": [
+     "Позиция 2 — «отозвана»; в отчёте П-1 «отозвано» = 1, «отказано» не меняется.",
+     "Отзыв позиции 1 отклонён текстом «После акта отзыва нет: до перехода права — прекращение принятия, после — возврат.»"
+    ]
+   },
+   "accept": [
+    "Отзыв после акта отклоняется точным текстом (С-2, ИИ-11).",
+    "Отзыв до акта ставит итог «отозвана» и требует документ источника.",
+    "Позиция «принята», но без акта, отзывается; решение «принять» остаётся видимым неисполненным.",
+    "«Отозвана» и «отказана» считаются в разных строках отчёта по предложению (ИИ-14).",
+    "Отзыв позиции П-5 без акта закрывает повод «принятая позиция ждёт акта» по ней (С-29)."
+   ],
+   "notIn": [
+    "Прекращение принятия — P24-R12.",
+    "Возврат по суду — P24-R22."
+   ],
+   "deps": [
+    "P24-R7"
+   ]
+  },
+  {
+   "id": "P24-R9",
+   "stage": 2,
+   "title": "Ожидаемая доплата при решении: нарастающим итогом по плановой дате перехода права",
+   "build": "Колонка «ожидаемая доплата» по каждой принятой позиции в карточке предложения и в форме решения: стоимость против долга, уже уменьшенного предыдущими позициями в порядке плановой даты перехода права, при равных датах — по номеру позиции. Долг читается у кредита и платежей на дату и не хранится.",
+   "why": "Органу нужна цена решения: принимая вещь дороже долга, Фонд обязуется доплатить. Если считать каждую позицию против полного долга, две позиции дадут 0 + 0 при реальных 200 000 сом.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Предложения → П-2 → позиции, колонка «Ожидаемая доплата»",
+    "tz": "22-imushchestvo.html#s6-5"
+   },
+   "steps": [
+    "Определять плановую дату перехода права по правилу из словаря.",
+    "Упорядочивать принятые позиции по плановой дате, при равных — по номеру позиции.",
+    "Запрашивать долг обязанного лица по затронутым кредитам на дату расчёта у модулей кредита и платежей.",
+    "Идти по очереди: доплата позиции = максимум из нуля и (стоимость − остаток долга); остаток долга уменьшать на стоимость.",
+    "Пересчитывать при каждом новом факте: акт, регистрация, прекращение принятия, отзыв.",
+    "Показывать значение как оценку на дату расчёта; не сохранять его."
+   ],
+   "example": {
+    "src": "П-2 · ОсОО «Ак-Жол Агро» (долг 1 000 000 сом) · П-5 · Мамытов Э.С. (долг 800 000 сом) · витрина макета",
+    "given": [
+     "П-2: трактор 500 000 сом, плановая дата 15.03.2027 (акт); квартира 700 000 сом, плановая дата 01.06.2027 (регистрация).",
+     "П-5: склад 500 000 сом и офис 500 000 сом, обе плановые даты 10.02.2028 (решение, актов нет)."
+    ],
+    "do": [
+     "Открыть колонку «ожидаемая доплата»."
+    ],
+    "get": [
+     "П-2: трактор 500 000 против 1 000 000 → 0 сом; квартира 700 000 против остатка 500 000 → 200 000 сом.",
+     "П-5: позиция 1 → 0 сом; позиция 2 против остатка 300 000 → 200 000 сом."
+    ]
+   },
+   "accept": [
+    "В решении по П-2 ожидаемая доплата: трактор 0 сом, квартира 200 000 сом (С-30).",
+    "При одной плановой дате очередь — по номеру позиции (С-31).",
+    "Отозванная, отказанная и не состоявшаяся позиция в нарастающий итог не входит.",
+    "После прекращения принятия выпавшей позиции доплата следующей пересчитывается.",
+    "Значение не сохраняется в базе; экран называет дату расчёта.",
+    "Долг берётся запросом, без копии в модуле."
+   ],
+   "notIn": [
+    "Окончательная доплата по результату деления — P24-R14.",
+    "Деление между кредитами — модуль взыскания (ИМ-ДС-1)."
+   ],
+   "deps": [
+    "P24-R7"
+   ],
+   "extDeps": [
+    {
+     "what": "модули кредита и платежей отвечают на запрос «долг обязанного лица на дату» по каждому кредиту"
+    }
+   ]
+  },
+  {
+   "id": "P24-R10",
+   "stage": 3,
+   "title": "Акт приёма-передачи: объект возникает при публикации, характеристики предмета залога — снимком",
+   "build": "Факт «акт приёма-передачи» по позиции с итогом «принята»; при публикации вторым ключом возникает объект ИО-n с наследуемыми реквизитами и снимком характеристик предмета залога на дату акта; состояние — «принят, ждёт регистрации» или сразу «на учёте».",
+   "why": "Акт — единственная дверь, через которую вещь входит в учёт Фонда. Снимок нужен потому, что ремонт Фонда не должен переписывать обследования предмета залога, по которым мог идти суд. Если объект появлялся бы при сохранении черновика, другие модули видели бы вещь, которую никто не подтвердил.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Предложения → П-1 → позиция 1 → «Ввести факт» → «Акт приёма-передачи»; ИО-1 → «Характеристики»",
+    "tz": "22-imushchestvo.html#s3-4"
+   },
+   "data": [
+    {
+     "n": "Объект имущества",
+     "note": "дельта",
+     "fields": [
+      "<b>дата снимка характеристик</b> — дата акта",
+      "<b>id акта</b> — ссылка на факт, породивший объект"
+     ]
+    }
+   ],
+   "steps": [
+    "Разрешать акт только по позиции с итогом «принята» и без акта.",
+    "Сохранять акт черновиком под вторым ключом.",
+    "При публикации создавать объект: номер, вид, местоположение, количество, стоимость и валюта из позиции; источник, обязанное лицо, отчуждатель из предложения.",
+    "Если позиция из предмета залога — запросить у залога его характеристики и записать снимок на дату акта.",
+    "Ставить состояние: вид с госрегистрацией — «принят, ждёт регистрации», без неё — переход права в дату акта.",
+    "Не порождать погашения и денежных событий при акте вида с госрегистрацией."
+   ],
+   "example": {
+    "src": "П-1 · ИО-1 · ПЗ-88 · П-2 · ИО-2 · витрина макета",
+    "given": [
+     "П-1 позиция 1 — квартира 2 400 000 сом из ПЗ-88; П-2 позиция 1 — трактор 500 000 сом."
+    ],
+    "do": [
+     "Опубликовать акт № АП-3/27 от 12.03.2027 и акт № АП-4/27 от 15.03.2027."
+    ],
+    "get": [
+     "ИО-1 «принят, ждёт регистрации» со снимком ПЗ-88: площадь 54 м², этаж 5 из 9, кадастровый номер 1-04-07-0012-0045-01-032, дата снимка 12.03.2027.",
+     "ИО-2 сразу «на учёте» с переходом права 15.03.2027."
+    ]
+   },
+   "accept": [
+    "Акт по позиции без итога «принята» отклоняется (ИИ-1).",
+    "Неопубликованный акт объекта не создаёт (С-23).",
+    "Объект наследует источник, обязанное лицо, отчуждатель и стоимость из предложения.",
+    "Снимок характеристик не меняется при последующей правке предмета залога.",
+    "Акт на квартиру не порождает погашения (С-3).",
+    "Акт на трактор даёт переход права в дату акта (С-4).",
+    "Второй акт по той же позиции отклоняется."
+   ],
+   "notIn": [
+    "Регистрация права и отказ регистратора — P24-R11.",
+    "Публикация принятия во взыскание — P24-R13.",
+    "Запись акта в журнале дела — P24-R27."
+   ],
+   "deps": [
+    "P24-R8"
+   ],
+   "extDeps": [
+    {
+     "what": "залог отдаёт характеристики предмета и итог торгов по запросу"
+    }
+   ]
+  },
+  {
+   "id": "P24-R11",
+   "stage": 3,
+   "title": "Регистрация права и отказ регистратора: дата перехода права — дата регистрации или дата акта",
+   "build": "Факты «регистрация права Фонда» и «отказ регистратора» с признаком «устранимый» или «окончательный» для объекта «принят, ждёт регистрации»; вычисление даты перехода права по признаку вида.",
+   "why": "Дата перехода права — дата погашения долга. Между актом и регистрацией вещь Фонду ещё не принадлежит: продать её нельзя, а долг до регистрации продолжает расти. Погашение датой акта уменьшило бы долг раньше, чем Фонд стал собственником.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Объекты имущества → ИО-5 → вкладка «Переход права»",
+    "tz": "22-imushchestvo.html#s6-2"
+   },
+   "data": [
+    {
+     "n": "Отказ регистратора",
+     "note": "факт объекта",
+     "fields": [
+      "<b>вид отказа</b> — устранимый · окончательный",
+      "<b>документ</b> — уведомление об отказе"
+     ]
+    }
+   ],
+   "steps": [
+    "Дать факт регистрации только объекту вида с признаком госрегистрации в состоянии «принят, ждёт регистрации».",
+    "Вычислять дату перехода права: у вида с признаком — дата регистрации, иначе — дата акта.",
+    "Устранимый отказ хранить как факт без смены состояния: объект продолжает ждать регистрации.",
+    "Окончательный отказ переводить объект и позицию в «принятие не состоялось» с основанием.",
+    "Публиковать регистрацию и отказ вторым ключом.",
+    "Показывать на вкладке «Переход права» акт, регистрацию, отказы и вычисленную дату."
+   ],
+   "example": {
+    "src": "ИО-1 · ИО-5 · витрина макета на 15.03.2028",
+    "given": [
+     "ИО-1: акт 12.03.2027, регистрация 05.04.2027 (выписка № 2027-04-1187).",
+     "ИО-5: акт 10.01.2028, регистрации нет."
+    ],
+    "do": [
+     "Открыть вкладку «Переход права» у обоих."
+    ],
+    "get": [
+     "ИО-1: дата перехода права 05.04.2027, погашение — 05.04.2027, а не 12.03.2027.",
+     "ИО-5: «принят, ждёт регистрации» 65 к.д., погашения нет, попытка продажи недоступна."
+    ]
+   },
+   "accept": [
+    "Квартира: акт 12.03.2027, регистрация 05.04.2027 — погашение 05.04.2027; до этой даты попытка продажи недоступна (С-3, ИИ-9).",
+    "Трактор без госрегистрации — переход права в дату акта (С-4).",
+    "Окончательный отказ регистратора — «принятие не состоялось», ни погашения, ни сторно (С-5).",
+    "Устранимый отказ состояние не меняет.",
+    "Регистрация у вида без признака госрегистрации недоступна.",
+    "Регистрация и отказ без второго ключа не опубликованы."
+   ],
+   "notIn": [
+    "Решение о прекращении принятия — P24-R12.",
+    "Событие погашения — P24-R13."
+   ],
+   "deps": [
+    "P24-R10"
+   ],
+   "open": [
+    {
+     "ask": "ИМ-ВЗ-10. Возникает ли право Фонда на недвижимость и доли с даты регистрации или акта?",
+     "default": "с даты регистрации.",
+     "impact": "меняется признак вида; дата перехода права для таких видов станет датой акта, код тот же."
+    }
+   ]
+  },
+  {
+   "id": "P24-R12",
+   "stage": 3,
+   "title": "Прекращение принятия: право не перейдёт — итог «принятие не состоялось» без денег и сторно",
+   "build": "Факт «решение о прекращении принятия» с причиной из закрытого перечня для позиции «принята» без акта и для объекта до перехода права; итог «принятие не состоялось» у позиции и объекта.",
+   "why": "Отчуждатель может уклоняться от регистрации, вещь может погибнуть до перехода права, а окончательного отказа регистратора нет. Без этого решения объект годами висел бы в «ждёт регистрации». Это не путь выбытия: собственности Фонда не было, и сторнировать нечего.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Объекты имущества → ИО-5 → «Ввести факт» → «Решение о прекращении принятия»",
+    "tz": "22-imushchestvo.html#s6-3"
+   },
+   "data": [
+    {
+     "n": "Решение о прекращении принятия",
+     "note": "факт позиции или объекта",
+     "fields": [
+      "<b>причина</b> — отчуждатель уклоняется от регистрации · вещь погибла или утрачена до перехода права · отчуждатель умер, правопреемника нет · иное",
+      "<b>пояснение</b> — обязательно при «иное»",
+      "<b>решение органа</b> — номер и дата"
+     ]
+    }
+   ],
+   "steps": [
+    "Разрешать решение для позиции «принята» без акта и для объекта в состоянии «принят, ждёт регистрации».",
+    "Отказывать после перехода права с подсказкой «после перехода права — только возврат».",
+    "Требовать причину из перечня, при «иное» — пояснение.",
+    "Публиковать вторым ключом начальника Управления.",
+    "Ставить объекту, если он есть, и позиции итог «принятие не состоялось».",
+    "Не порождать никаких денежных событий и записей сторно.",
+    "Пересчитывать ожидаемую доплату остальных позиций предложения."
+   ],
+   "example": {
+    "src": "ИО-5 · П-7 · обязанное лицо Садыкова Г.Н. (долг 3 000 000 сом) · витрина макета на 15.03.2028",
+    "given": [
+     "ИО-5 — квартира 2 100 000 сом из ПЗ-104, акт 10.01.2028, регистрации нет 65 к.д."
+    ],
+    "do": [
+     "15.03.2028 ввести решение Комитета с причиной «отчуждатель уклоняется от регистрации» и опубликовать вторым ключом."
+    ],
+    "get": [
+     "ИО-5 и позиция 1 П-7 — «принятие не состоялось»; погашения не было, сторно нет, долг 3 000 000 сом не тронут.",
+     "ПЗ-104 остаётся в залоге."
+    ]
+   },
+   "accept": [
+    "Отчуждатель уклоняется после акта — «принятие не состоялось», погашения и сторно нет, причина обязательна, без второго ключа не опубликовано (С-27).",
+    "Вещь погибла до регистрации — «принятие не состоялось» с причиной «погибла»; путь «выбытие» недоступен (С-28, ИИ-20).",
+    "Позиция «принята» без акта прекращается тем же решением (С-29).",
+    "После перехода права решение недоступно.",
+    "Причина «иное» без пояснения не сохраняется.",
+    "Позиция с итогом «принятие не состоялось» выпадает из ожидаемой доплаты."
+   ],
+   "notIn": [
+    "Выбытие объекта на учёте — P24-R20.",
+    "Возврат по суду — P24-R22."
+   ],
+   "deps": [
+    "P24-R11"
+   ]
+  },
+  {
+   "id": "P24-R13",
+   "stage": 3,
+   "title": "Публикация принятия и результат деления: одно погашение на объект, деньги — через платежи",
+   "build": "На переход права — событие «принятие опубликовано» во взыскание и «предмет перешёл к Фонду» в залог; приём события «результат деления»; по нему — поступления «имущество в счёт погашения» в платежи по каждому кредиту. Все события с ключами идемпотентности.",
+   "why": "Погашение проходит три шага с тремя владельцами: модуль публикует факт, взыскание делит между кредитами, платежи разносят внутри кредита. Если модуль начнёт делить сам, правило деления окажется в двух местах и разойдётся. Повторная доставка события без ключа дала бы второе погашение.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Объекты имущества → ИО-1 → вкладка «Переход права», блок «Что видят другие модули»",
+    "tz": "22-imushchestvo.html#s6-4"
+   },
+   "data": [
+    {
+     "n": "Результат деления",
+     "note": "принятое событие взыскания; правит только взыскание",
+     "fields": [
+      "<b>id объекта и id факта принятия</b>",
+      "<b>по каждому кредиту</b> — id кредита, сумма «распределено»",
+      "<b>не вошло</b> — сумма, валюта",
+      "<b>дата перехода права</b>"
+     ]
+    }
+   ],
+   "steps": [
+    "На публикацию перехода права отправлять «принятие опубликовано»: id объекта и факта, id предложения, номер позиции, стоимость и валюта, дата перехода права, обязанное лицо, затронутые кредиты, вид, id предмета залога.",
+    "Публиковать принятия одного обязанного лица по очереди дат перехода права, при равных датах — по номеру позиции.",
+    "Отправлять в залог «предмет перешёл к Фонду», если объект из залога.",
+    "Принимать «результат деления» с ключом id объекта + id факта; повтор не создаёт второй записи.",
+    "По результату отправлять в платежи по каждому кредиту поступление «имущество в счёт погашения» на дату перехода права, в валюте документа; ключ — id объекта + id факта + id кредита.",
+    "Не порождать событий погашения у акта, решения органа и регистрации предложения.",
+    "Показывать на вкладке, что ушло каждому модулю и что вернулось."
+   ],
+   "example": {
+    "src": "ИО-1 · Асанов Т.Б. (К-1, К-2) · витрина макета",
+    "given": [
+     "Переход права ИО-1 05.04.2027, стоимость 2 400 000 сом, долг на эту дату 1 850 000 сом, отнесения ПЗ-88 50/50."
+    ],
+    "do": [
+     "Опубликовать регистрацию права."
+    ],
+    "get": [
+     "Взыскание возвращает: К-1 925 000 сом, К-2 925 000 сом, не вошло 550 000 сом.",
+     "В платежи уходят два поступления по 925 000 сом на 05.04.2027; ПЗ-88 — «перешёл к Фонду».",
+     "Повторная доставка результата деления второго поступления не создаёт."
+    ]
+   },
+   "accept": [
+    "Погашение квартиры датировано 05.04.2027, а не датой акта (С-3).",
+    "На объект ровно одно погашение; повтор события его не удваивает (ИИ-3).",
+    "Модуль не делит суммы между кредитами: без результата деления поступлений нет (ИИ-5).",
+    "Две позиции с одной датой перехода права делятся по номеру позиции (С-31).",
+    "Стоимость в KGS при кредите в USD уходит в платежи в KGS; модуль курс не спрашивает (С-20, ИИ-18).",
+    "Акт без регистрации у вида с госрегистрацией событий не порождает."
+   ],
+   "notIn": [
+    "Доплата по «не вошло» — P24-R14.",
+    "Сторно при возврате — P24-R22.",
+    "Корректировка при исправлении — P24-R23.",
+    "Записи в журнале дела — P24-R27."
+   ],
+   "deps": [
+    "P24-R11"
+   ],
+   "extDeps": [
+    {
+     "what": "взыскание делит незалоговую и залоговую стоимость принятия и публикует «распределено / не вошло» (ИМ-ДС-1)"
+    },
+    {
+     "what": "залог ставит предмету «перешёл к Фонду» и снимает запрет на отчуждение (ИМ-ДС-4)"
+    },
+    {
+     "what": "сверка платежей с ЦК пропускает поступления «имущество в счёт погашения» (ИМ-ДС-5)"
+    }
+   ],
+   "traps": [
+    "<b>Делить «временно у себя», пока взыскание не готово.</b> Временное правило деления станет вторым, и деление по ПССИ-торгам и по принятию Фондом разойдутся. До готовности взыскания результат деления подаётся заглушкой контракта, а не формулой модуля."
+   ]
+  },
+  {
+   "id": "P24-R14",
+   "stage": 3,
+   "title": "Доплата отчуждателю: сумма из «не вошло», Возврат через платежи, флаг до исполнения",
+   "build": "Сумма доплаты как «не вошло» из результата деления; распоряжение на Возврат отчуждателю по таблице источников; флаг ⚑ «принятие не завершено» до события «Возврат исполнен»; запрет продажи, пока флаг стоит.",
+   "why": "Если стоимость принятия больше долга, Фонд должен отчуждателю разницу. Пока не заплатил, принятие не завершено, и продать вещь — значит распорядиться тем, за что Фонд ещё не рассчитался. Сумма берётся у взыскания, потому что окончательный долг известен только на дату перехода права.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Объекты имущества → ИО-3 → шапка с ⚑; ИО-1 → вкладка «Переход права»",
+    "tz": "22-imushchestvo.html#s6-5"
+   },
+   "steps": [
+    "Брать сумму доплаты как «не вошло» из результата деления; не считать её заново.",
+    "Если сумма больше нуля — отправлять в платежи «распоряжение на Возврат: доплата» с получателем по таблице источников, суммой, валютой и основанием; ключ — id объекта + id факта.",
+    "Ставить на объект ⚑ «принятие не завершено» с суммой и получателем.",
+    "Принимать «Возврат исполнен» по id распоряжения и снимать флаг датой исполнения.",
+    "Запрещать попытку продажи при флаге с текстом, называющим сумму и получателя."
+   ],
+   "example": {
+    "src": "ИО-1 · П-1 · ИО-3 · П-2 · витрина макета на 15.03.2028",
+    "given": [
+     "ИО-1: не вошло 550 000 сом, источник ПССИ.",
+     "ИО-3: квартира 700 000 сом, распределено 500 000 сом, не вошло 200 000 сом, отчуждатель ОсОО «Ак-Жол Агро»."
+    ],
+    "do": [
+     "Получить результаты деления; 20.04.2027 бухгалтер исполняет Возврат № В-118 по ИО-1."
+    ],
+    "get": [
+     "ИО-1: распоряжение 550 000 сом на депозит ПССИ; флаг снят 20.04.2027.",
+     "ИО-3: распоряжение 200 000 сом ОсОО «Ак-Жол Агро» ждёт исполнения 288 к.д.; попытка отклонена текстом «⚑ принятие не завершено: доплата 200 000 сом отчуждателю не исполнена»."
+    ]
+   },
+   "accept": [
+    "Стоимость 2 400 000 сом при долге 1 850 000 сом — доплата 550 000 сом отчуждателю, флаг до исполнения, продажа недоступна (С-6, ИИ-9).",
+    "Гараж брата должника — доплата адресована брату, а не должнику (С-7, ИИ-13).",
+    "По П-2 на 15.03.2027 «не вошло» 0, на 01.06.2027 — 200 000 сом; флаг только на квартире (С-30).",
+    "При «не вошло» = 0 распоряжения нет и флага нет.",
+    "Повторная доставка результата деления второго распоряжения не создаёт.",
+    "Флаг снимается датой исполнения из события платежей (ИИ-6)."
+   ],
+   "notIn": [
+    "Ожидаемая доплата до перехода права — P24-R9.",
+    "Повод «доплата долго не исполнена» — P24-R26.",
+    "Возврат излишка доплаты при отмене раннего принятия — P24-R24."
+   ],
+   "deps": [
+    "P24-R13"
+   ],
+   "extDeps": [
+    {
+     "what": "платежи принимают распоряжение на Возврат с получателем не заёмщиком и возвращают «Возврат исполнен»"
+    }
+   ],
+   "open": [
+    {
+     "ask": "ИМ-ВЗ-2. Доплата при стоимости выше долга обязательна или Фонд вправе отказаться от принятия?",
+     "default": "доплата обязательна.",
+     "impact": "органу дополнительно показывается альтернатива «отказать»; модель и расчёт те же."
+    }
+   ]
+  },
+  {
+   "id": "P24-R15",
+   "stage": 4,
+   "title": "Журналы объекта: осмотры, оценки, расходы содержания, обременения",
+   "build": "Четыре вкладки карточки объекта с записями без второго ключа: осмотры, оценки, расходы содержания по статьям, обременения с датами с–по; флаг ⚑ «обременён» на дату среза.",
+   "why": "Осмотры показывают, что с вещью, оценки дают основание стартовой цены, расходы входят в результат по объекту, обременение предупреждает, что на вещи есть чужое право. Если оценка меняла бы учётную стоимость, долг, закрытый фиксированной суммой, разошёлся бы с учётом.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Объекты имущества → ИО-1 → вкладки «Осмотры», «Оценки», «Расходы»; ИО-410 → «Обременения»",
+    "tz": "22-imushchestvo.html#s3-6"
+   },
+   "screen": [
+    {
+     "n": "Вкладки журналов",
+     "cols": [
+      "дата",
+      "участники или оценщик",
+      "статья или вид",
+      "сумма и валюта",
+      "дата с — по",
+      "документ"
+     ],
+     "acts": [
+      "ввести осмотр",
+      "ввести оценку",
+      "ввести расход",
+      "ввести обременение"
+     ]
+    }
+   ],
+   "steps": [
+    "Завести четыре вида факта со своими полями из карты данных.",
+    "Публиковать их при сохранении, без второго ключа.",
+    "Хранить статьи расходов закрытым перечнем: охрана, налог, коммунальные, оценщик, площадка, страхование, ремонт, хранение.",
+    "Хранить вид обременения закрытым перечнем; вещь, оставленную у отчуждателя до вывоза, вести видом «ответственное хранение».",
+    "Вычислять ⚑ «обременён» на дату среза по датам с–по.",
+    "Не давать вкладку «Осмотры» объекту класса «имущественное право»."
+   ],
+   "example": {
+    "src": "ИО-1 · ИО-410 · витрина макета на 15.03.2028",
+    "given": [
+     "ИО-1: расходы охрана 30 000, оценщик 15 000, налог 20 000, коммунальные 25 000 сом; оценка 25.05.2027 — 2 500 000 сом (отчёт № О-77).",
+     "ИО-410: ответственное хранение с 01.10.2027 по 31.03.2028 по договору № Х-3/27."
+    ],
+    "do": [
+     "Открыть шапку и вкладки."
+    ],
+    "get": [
+     "ИО-1: расходы всего 90 000 сом; учётная стоимость 2 400 000 сом, оценка её не меняет.",
+     "ИО-410 на 15.03.2028 — ⚑ «обременён»; на 01.04.2028 флага нет."
+    ]
+   },
+   "accept": [
+    "Оценка не меняет учётную стоимость (ИИ-4).",
+    "У ИО-9 (доля) вкладки «Осмотры» нет.",
+    "Расход со статьёй вне перечня не сохраняется.",
+    "Флаг ⚑ «обременён» вычисляется на дату среза.",
+    "Обременение не несёт денег и графика: доход от аренды в модуле не вводится.",
+    "Журналы публикуются без второго ключа."
+   ],
+   "notIn": [
+    "Результат по объекту — P24-R16.",
+    "Гейт попытки при обременении — P24-R17.",
+    "Поводы «давно не осматривали» и «обременение кончается» — P24-R26."
+   ],
+   "deps": [
+    "P24-R5"
+   ]
+  },
+  {
+   "id": "P24-R16",
+   "stage": 4,
+   "title": "Учётная стоимость и результат по объекту: производная, и долг она не меняет",
+   "build": "Блок результата в шапке и на вкладке «Выбытие»: учётная стоимость, сумма расходов, цена (продажи, ноль или страховое возмещение), результат по объекту = цена − учётная стоимость − расходы, с подписью о доходах вне АСУБК.",
+   "why": "Руководству нужно видеть, сколько Фонд потерял или получил на вещи. Долг должника при этом закрыт фиксированной суммой на дату перехода права: после неё все деньги по вещи — деньги Фонда. Если результат пересчитывал бы долг, продажа ниже стоимости принятия вернула бы должнику задолженность.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Объекты имущества → ИО-1 → вкладка «Выбытие»",
+    "tz": "22-imushchestvo.html#s7"
+   },
+   "steps": [
+    "Брать учётную стоимость равной стоимости принятия с учётом исправлений и разделения.",
+    "Суммировать расходы содержания объекта.",
+    "Брать цену: при продаже — цену договора КП, при безвозмездной передаче и выбытии — ноль или страховое возмещение.",
+    "Считать результат и помечать «оплата не завершена», пока договор не оплачен.",
+    "Показывать подпись «без учёта доходов от использования: они учитываются вне АСУБК».",
+    "Не отправлять результат ни в один модуль, кроме строк статистики."
+   ],
+   "example": {
+    "src": "ИО-1 · ИО-8 · витрина макета на 15.03.2028",
+    "given": [
+     "ИО-1: учётная стоимость 2 400 000 сом, расходы 90 000 сом, цена договора 2 250 000 сом.",
+     "ИО-8 (вводный остаток): учётная стоимость 900 000 сом, расходов нет, цена 960 000 сом."
+    ],
+    "do": [
+     "Открыть вкладку «Выбытие»."
+    ],
+    "get": [
+     "ИО-1: 2 250 000 − 2 400 000 − 90 000 = −240 000 сом, «оплата не завершена»; долг Асанова Т.Б. не изменился.",
+     "ИО-8: 960 000 − 900 000 − 0 = 60 000 сом."
+    ]
+   },
+   "accept": [
+    "Продажа ниже стоимости принятия не меняет долг должника; результат отрицательный (С-21, ИИ-19).",
+    "Результат не хранится и пересчитывается при новом расходе.",
+    "У безвозмездной передачи цена 0, результат — минус учётная стоимость и расходы.",
+    "Страховое возмещение при выбытии учитывается как цена.",
+    "Подпись о доходах вне АСУБК видна рядом с результатом."
+   ],
+   "notIn": [
+    "Ввод расходов — P24-R15.",
+    "Пути выбытия — P24-R18, P24-R20."
+   ],
+   "deps": [
+    "P24-R15"
+   ]
+  },
+  {
+   "id": "P24-R17",
+   "stage": 5,
+   "title": "Попытка продажи: способ, цена с основанием, итог — и пять условий, при которых её не открыть",
+   "build": "Журнал попыток продажи на вкладке объекта: способ, стартовая цена с обязательным основанием, площадка и лот, даты, отметка об обременении, итог из трёх; решение органа о снижении стартовой цены как основание; проверки перед открытием.",
+   "why": "Попытка заменяет модель торгов: ход торгов ведёт площадка, а у Фонда — способ, цена и итог. Цена без основания открывает продажу дешевле оценки без следа решения. Две попытки сразу и продажа до перехода права или до доплаты — распоряжение тем, что Фонду не принадлежит или за что он не рассчитался.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Объекты имущества → ИО-1 → вкладка «Попытки продажи»",
+    "tz": "22-imushchestvo.html#s8-2"
+   },
+   "data": [
+    {
+     "n": "Решение органа о снижении стартовой цены",
+     "note": "факт объекта, основание следующей попытки",
+     "fields": [
+      "<b>сумма</b> — новая стартовая цена",
+      "<b>документ</b> — решение органа"
+     ]
+    }
+   ],
+   "steps": [
+    "Перед открытием проверять: право перешло; нет ⚑ «принятие не завершено»; нет идущей попытки; нет действующего договора КП.",
+    "Требовать основание стартовой цены — ссылку на оценку или на решение органа о снижении.",
+    "Требовать отметку «с обременением» или «после снятия», если на дату попытки действует обременение.",
+    "Хранить площадку и номер лота вводом руками со ссылкой на протокол.",
+    "Принимать итог: «состоялась» с покупателем и ценой, «не состоялась», «состоялась, договор не заключён».",
+    "Возвращать объект «на учёт» при итогах «не состоялась» и «договор не заключён».",
+    "Не использовать слово «торги» ни в одной подписи модуля."
+   ],
+   "example": {
+    "src": "ИО-1 · ИО-4 · ИО-410 · витрина макета",
+    "given": [
+     "ИО-1: оценка 2 500 000 сом (№ О-77); решение Комитета № 11/2027 от 20.08.2027 о снижении до 2 200 000 сом.",
+     "ИО-4: попытка с 01.03.2028, итог ожидается 25.03.2028.",
+     "ИО-410: ответственное хранение до 31.03.2028."
+    ],
+    "do": [
+     "Попытка 1 ИО-1 с 01.06.2027, лот Л-2027-0412; 15.06.2027 — «не состоялась». Попытка 2 с 01.09.2027, лот Л-2027-0688; 15.09.2027 — «состоялась», Бейшеналиев Ы.Т., 2 250 000 сом.",
+     "Открыть вторую попытку на ИО-4 и попытку без отметки на ИО-410."
+    ],
+    "get": [
+     "ИО-1 между попытками «на учёте», после итога 2 — «выставлен на продажу» до договора.",
+     "ИО-4: отказ «идёт попытка продажи — вторую параллельно не открыть».",
+     "ИО-410: отказ — нужна отметка об обременении."
+    ]
+   },
+   "accept": [
+    "Вторая попытка со сниженной ценой без основания отклоняется (С-10).",
+    "Вторая попытка при идущей первой отклоняется (С-11, ИИ-10).",
+    "Попытка при активном обременении без отметки отклоняется (С-12, ИИ-17).",
+    "До перехода права и при ⚑ «принятие не завершено» попытка недоступна с названием условия (С-3, С-6, ИИ-9).",
+    "Итог «состоялась, договор не заключён» возвращает объект «на учёт».",
+    "Попытка и итог публикуются без второго ключа.",
+    "Слова «торги» нет в интерфейсе модуля."
+   ],
+   "notIn": [
+    "Договор КП из удачной попытки — P24-R18.",
+    "Повод «не продан после N попыток» — P24-R26."
+   ],
+   "deps": [
+    "P24-R14",
+    "P24-R15"
+   ],
+   "open": [
+    {
+     "ask": "ИМ-ВЗ-5. Какая система торгов имеется в виду, обязательны ли торги или разрешена прямая продажа?",
+     "default": "допустимы аукцион, конкурс и прямая продажа; лот и итог вводятся руками.",
+     "impact": "появится интеграция с площадкой — итог придёт машинно — и список допустимых способов; модель та же."
+    },
+    {
+     "ask": "ИМ-ВЗ-6. Есть ли правило снижения цены между попытками: шаг, минимум, кто решает?",
+     "default": "правила шага и минимума нет; снижение — решением органа или новой оценкой.",
+     "impact": "правило станет проверкой при вводе стартовой цены."
+    }
+   ]
+  },
+  {
+   "id": "P24-R18",
+   "stage": 5,
+   "title": "Договор купли-продажи: разовый или в рассрочку, оплаты из платежей, снятие с учёта по полной оплате",
+   "build": "Договор КП из удачной попытки: покупатель, цена, вид, график, неустойка, сохранение права; приём событий «оплата по договору купли-продажи» и сверка с графиком; снятие с учёта на дату полной оплаты.",
+   "why": "Рассрочка — договор модуля, а не кредит: у неё нет госрешения, программы и заявки. Деньги идут только через платежи, чтобы оплата попала в сверку с казначейством. Право остаётся у Фонда до полной оплаты: при неоплате Фонд возвращает вещь, а не судится годами за деньги.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Объекты имущества → ИО-1 → вкладка «Договор КП и оплаты»",
+    "tz": "22-imushchestvo.html#s8-3"
+   },
+   "screen": [
+    {
+     "n": "Вкладка «Договор КП и оплаты»",
+     "cols": [
+      "дата платежа по графику",
+      "сумма",
+      "оплачено",
+      "просрочено",
+      "дни просрочки",
+      "неустойка"
+     ],
+     "acts": [
+      "ввести договор",
+      "ввести претензию",
+      "расторгнуть"
+     ]
+    }
+   ],
+   "steps": [
+    "Создавать договор только из попытки с итогом «состоялась»; цену и покупателя брать из итога.",
+    "Отказывать, если у объекта уже есть действующий договор.",
+    "Хранить вид, график у рассрочки, ставку неустойки и признак «право переходит после полной оплаты».",
+    "Публиковать договор вторым ключом: готовит юрист, публикует начальник Управления.",
+    "Принимать оплаты событием платежей с адресатом «договор»; ключ — id поступления. Ручного ввода оплаты в модуле нет.",
+    "Считать на дату: оплачено, к оплате по графику, просрочено, дни с первого неоплаченного платежа, неустойку = просрочено × ставка × дни.",
+    "Снимать объект с учёта на дату платежа, закрывшего цену; разовый договор — на дату полной оплаты."
+   ],
+   "example": {
+    "src": "ИО-1 · договор № КП-5/27 · Бейшеналиев Ы.Т. · витрина макета на 15.03.2028",
+    "given": [
+     "Договор 20.09.2027: 2 250 000 сом, 12 платежей по 187 500 сом с 20.10.2027, неустойка 0,1 % в день.",
+     "Оплачены платежи 20.10.2027, 20.11.2027, 20.12.2027."
+    ],
+    "do": [
+     "Открыть вкладку на 15.03.2028."
+    ],
+    "get": [
+     "Оплачено 562 500 сом, к оплате по графику 937 500 сом, просрочено 375 000 сом, 55 дней с 20.01.2028, неустойка 375 000 × 0,1 % × 55 = 20 625 сом, остаток 1 687 500 сом.",
+     "ИО-1 «продан в рассрочку», с учёта не снят; после последнего платежа 20.09.2028 — снят с учёта на 20.09.2028."
+    ]
+   },
+   "accept": [
+    "Рассрочка снимает объект с учёта на дату последнего платежа, а не договора (С-13).",
+    "Второй действующий договор не создаётся (ИИ-10).",
+    "Покупатель — только ссылка на субъекта (ИИ-13).",
+    "Оплату нельзя ввести в модуле руками — только событие платежей (ИИ-6).",
+    "Повторная доставка оплаты её не удваивает.",
+    "Неустойка и дни просрочки совпадают с примером на 15.03.2028.",
+    "Договор без второго ключа не действует."
+   ],
+   "notIn": [
+    "Претензия и расторжение — P24-R19.",
+    "Повод о просрочке — P24-R26.",
+    "Реестр договоров — P24-R28."
+   ],
+   "deps": [
+    "P24-R17"
+   ],
+   "extDeps": [
+    {
+     "what": "платежи ведут адресат «договор купли-продажи» и вид поступления «оплата по договору купли-продажи» (ИМ-ДС-3)"
+    }
+   ],
+   "open": [
+    {
+     "ask": "ИМ-ВЗ-4. При рассрочке право переходит после полной оплаты или при подписании?",
+     "default": "после полной оплаты.",
+     "impact": "добавится режим договора «право при подписании»: при неоплате взыскиваются деньги, вещь не возвращается."
+    }
+   ]
+  },
+  {
+   "id": "P24-R19",
+   "stage": 5,
+   "title": "Неоплата по договору: претензия, журнал мер, расторжение и Возврат уплаченного за вычетом неустойки",
+   "build": "Претензия покупателю, журнал мер по договору (дата, вид, документ, итог) и факт расторжения: объект снова «на учёте», распоряжение на Возврат покупателю уплаченного за вычетом неустойки.",
+   "why": "Долг покупателя — не бюджетный кредит, и Порядок к нему не относится, поэтому фаз взыскания здесь нет — только журнал мер. Расторжение — выход из пути продажи, а не новый путь: вещь возвращается в учёт, а покупателю возвращается его оплата за вычетом неустойки по договору.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Объекты имущества → ИО-1 → вкладка «Договор КП и оплаты» → «Расторгнуть»",
+    "tz": "22-imushchestvo.html#s8-3"
+   },
+   "data": [
+    {
+     "n": "Мера по договору",
+     "note": "журнал договора",
+     "fields": [
+      "<b>дата</b>",
+      "<b>вид</b> — претензия · иск · решение суда · иное",
+      "<b>документ</b>",
+      "<b>итог</b> — текст"
+     ]
+    }
+   ],
+   "steps": [
+    "Дать юристу факт «претензия покупателю» и запись журнала мер.",
+    "Дать факт «расторжение» с решением органа, под вторым ключом.",
+    "Считать неустойку на дату расторжения и удерживать не больше уплаченного.",
+    "Отправлять «распоряжение на Возврат: расторжение договора КП» покупателю на сумму уплаченного минус неустойка; ключ — id объекта + id факта расторжения.",
+    "Возвращать объект «на учёт» датой расторжения; договор — недействующий."
+   ],
+   "example": {
+    "src": "ИО-1 · договор № КП-5/27 · витрина макета на 15.03.2028",
+    "given": [
+     "Уплачено 562 500 сом, неустойка на 15.03.2028 — 20 625 сом."
+    ],
+    "do": [
+     "Ввести и опубликовать расторжение 15.03.2028."
+    ],
+    "get": [
+     "Распоряжение на Возврат Бейшеналиеву Ы.Т. 541 875 сом.",
+     "ИО-1 «на учёте»; можно открыть новую попытку."
+    ]
+   },
+   "accept": [
+    "Расторжение рассрочки возвращает объект «на учёт» и порождает Возврат уплаченного за вычетом неустойки (С-14).",
+    "Неустойка к удержанию не больше уплаченного.",
+    "Расторжение без второго ключа не опубликовано.",
+    "Журнал мер не двигает никаких фаз и не создаёт дела во взыскании.",
+    "После расторжения доступна новая попытка продажи."
+   ],
+   "notIn": [
+    "Повод о просрочке платежа — P24-R26.",
+    "Расчёт просрочки и неустойки — P24-R18."
+   ],
+   "deps": [
+    "P24-R18"
+   ]
+  },
+  {
+   "id": "P24-R20",
+   "stage": 6,
+   "title": "Безвозмездная передача и выбытие: путь берёт объект целиком из разрешённых состояний",
+   "build": "Факты «безвозмездная передача» (решение органа и акт передачи) и «выбытие» (акт о гибели, утрате, сносе) под вторым ключом, с проверкой допустимого состояния и закрытием идущей попытки итогом «не состоялась».",
+   "why": "Пути выбытия различаются поведением денег: у передачи и выбытия денег нет, это потеря стоимости. Путь берёт объект целиком, и он у объекта один: два завершённых пути дали бы вещь, снятую с учёта дважды разными документами. До перехода права выбытия нет — вещь Фонду не принадлежит.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Объекты имущества → ИО-2 → «Ввести факт» → «Выбытие»",
+    "tz": "22-imushchestvo.html#s8-1"
+   },
+   "data": [
+    {
+     "n": "Выбытие",
+     "note": "факт объекта",
+     "fields": [
+      "<b>причина</b> — гибель · утрата · снос",
+      "<b>страховое возмещение</b> — сумма, если объект был застрахован; поступает через платежи"
+     ]
+    }
+   ],
+   "steps": [
+    "Разрешать выбытие из состояний «на учёте» и «выставлен на продажу»; идущую попытку закрывать итогом «не состоялась».",
+    "Разрешать безвозмездную передачу только «на учёте», без идущей попытки и действующего договора, при наличии решения органа.",
+    "Отказывать объекту до перехода права с подсказкой о прекращении принятия.",
+    "Отказывать, если у объекта уже есть завершённый путь.",
+    "Публиковать вторым ключом; снимать объект с учёта на дату акта.",
+    "Учитывать страховое возмещение ценой в результате по объекту."
+   ],
+   "example": {
+    "src": "ИО-2 · ИО-4 · ИО-5 · витрина макета на 15.03.2028",
+    "given": [
+     "ИО-2 — трактор 500 000 сом «на учёте»; ИО-4 — зерносушилка, идёт попытка; ИО-5 ждёт регистрации."
+    ],
+    "do": [
+     "Ввести выбытие ИО-2, безвозмездную передачу ИО-4, выбытие ИО-5."
+    ],
+    "get": [
+     "ИО-2 снят с учёта путём «выбытие», результат −500 000 сом.",
+     "ИО-4: передача отклонена «идёт попытка продажи — сначала её итог».",
+     "ИО-5: выбытие отклонено с подсказкой «решение о прекращении принятия с причиной „вещь погибла или утрачена до перехода права“»."
+    ]
+   },
+   "accept": [
+    "Выбытие объекта «выставлен на продажу» закрывает попытку итогом «не состоялась».",
+    "Безвозмездная передача без решения органа недоступна.",
+    "Второй путь выбытия у объекта со снятием с учёта отклоняется (ИИ-7).",
+    "До перехода права выбытие недоступно (С-28, ИИ-20).",
+    "Без второго ключа объект не снят с учёта.",
+    "Страховое возмещение — поступление через платежи, а не ввод в модуле (ИИ-6)."
+   ],
+   "notIn": [
+    "Продажа — P24-R18.",
+    "Возврат по суду — P24-R22.",
+    "Разделение — P24-R21."
+   ],
+   "deps": [
+    "P24-R16",
+    "P24-R17"
+   ]
+  },
+  {
+   "id": "P24-R21",
+   "stage": 6,
+   "title": "Разделение делимого объекта: части по количеству, сумма частей равна целому до 0,01 сом",
+   "build": "Факт «разделение» для объекта делимого вида «на учёте»: части ИО-n/1, ИО-n/2… с количеством, учётной стоимостью пропорционально количеству и остатком округления у последней части; исходный объект — «разделён».",
+   "why": "Путь выбытия берёт объект целиком, а зерно или скот уходят разным покупателям частями. Разделение даёт каждой части свою жизнь, не трогая путь. Без правила округления сумма частей разойдётся с целым на копейки, и сверка учётной стоимости не сойдётся.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Объекты имущества → ИО-410 → «Разделить»",
+    "tz": "22-imushchestvo.html#s7"
+   },
+   "data": [
+    {
+     "n": "Часть разделения",
+     "note": "новый объект",
+     "fields": [
+      "<b>номер</b> — от исходного: ИО-410/1",
+      "<b>происхождение</b> — разделение, ссылка на исходный",
+      "<b>количество</b> — часть количества исходного"
+     ]
+    }
+   ],
+   "steps": [
+    "Разрешать только видам с признаком «делимая», классу «вещь», объекту «на учёте» без попытки и договора.",
+    "Требовать, чтобы сумма количеств частей равнялась количеству объекта.",
+    "Делить учётную стоимость пропорционально количеству с округлением до 0,01 сом; остаток отдавать последней части.",
+    "Создавать части с наследованием источника, даты перехода права, снимка характеристик и происхождения.",
+    "Начинать историю частей с даты разделения; историю до неё оставлять у исходного.",
+    "Публиковать вторым ключом; ставить исходному «разделён»."
+   ],
+   "example": {
+    "src": "ИО-410 · зерно 120 т · 1 440 000 сом · витрина макета",
+    "given": [
+     "ИО-410 «на учёте», вид «Зерно» делимый."
+    ],
+    "do": [
+     "Разделить на 50, 65 и 5 т."
+    ],
+    "get": [
+     "ИО-410/1 — 600 000 сом, ИО-410/2 — 780 000 сом, ИО-410/3 — 60 000 сом; сумма 1 440 000 сом.",
+     "ИО-410 — «разделён», части «на учёте».",
+     "Деление 1 000 000,01 сом на три равные части: 333 333,33 + 333 333,33 + 333 333,35."
+    ]
+   },
+   "accept": [
+    "120 т зерна → 50 + 65 + 5 т, сумма частей 1 440 000 сом до 0,01 сом, исходный «разделён» (С-15, ИИ-8).",
+    "Квартиру разделить нельзя: «вид „Квартира“ неделимый — разделения нет».",
+    "Части с суммой количеств не равной количеству объекта отклоняются.",
+    "Исходный объект после разделения не берёт ни один путь выбытия (ИИ-7).",
+    "Разделение без второго ключа не опубликовано.",
+    "У имущественного права действия «Разделить» нет."
+   ],
+   "notIn": [
+    "Пути выбытия частей — P24-R18, P24-R20.",
+    "Статистика по частям — P24-R30."
+   ],
+   "deps": [
+    "P24-R20"
+   ]
+  },
+  {
+   "id": "P24-R22",
+   "stage": 6,
+   "title": "Возврат по суду: путь «возврат», сторно погашения, спорная пеня, компенсация если вещь продана",
+   "build": "Факт «принятие отменено» с судебным актом под вторым ключом: путь выбытия «возврат», событие «сторно поступления» в платежи, требование к отчуждателю по исполненной доплате; для проданного объекта — распоряжение на Возврат «компенсация по суду» вместо пути.",
+   "why": "Суд может признать принятие недействительным, и тогда долг восстанавливается — это единственный случай сторно в модуле. Пеня за разрыв «переход права → отмена» спорная: чья вина, заранее не ясно, поэтому её решает Комиссия. Вещь, проданную третьему лицу, вернуть нельзя, и Фонд платит компенсацию.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Объекты имущества → ИО-11 → вкладка «Выбытие»",
+    "tz": "22-imushchestvo.html#s9"
+   },
+   "steps": [
+    "Разрешать возврат из «на учёте» и «выставлен на продажу»; идущую попытку закрывать итогом «не состоялась».",
+    "Для объекта «продан» или снятого с учёта отказывать в пути текстом о компенсации.",
+    "Публиковать вторым ключом; снимать объект с учёта путём «возврат» на дату судебного акта.",
+    "Отправлять в платежи «сторно поступления» со ссылкой на поступление погашения и судебный акт; ключ — id объекта + id факта.",
+    "Если доплата была исполнена — публиковать требование к отчуждателю на её сумму.",
+    "Для проданного объекта — «распоряжение на Возврат: компенсация по суду» отчуждателю на сумму судебного акта.",
+    "Запускать исправление поздних позиций того же обязанного лица."
+   ],
+   "example": {
+    "src": "ИО-11 · П-8 · Турдубаев А.Ж. (К-60) · ИО-1 · витрина макета",
+    "given": [
+     "ИО-11 — трактор 500 000 сом, переход права 15.03.2027, погашение 500 000 сом по К-60.",
+     "ИО-1 «продан в рассрочку»."
+    ],
+    "do": [
+     "10.09.2027 ввести решение суда № 2-418/27 по ИО-11 и опубликовать.",
+     "Попытаться ввести возврат по ИО-1."
+    ],
+    "get": [
+     "ИО-11 снят с учёта путём «возврат» 10.09.2027; в платежи — сторно 500 000 сом задним числом; пеня за 15.03.2027 → 10.09.2027 — спорная, на Комиссию по спорным начислениям.",
+     "ИО-1: «Объект продан: путь „возврат“ недоступен — по решению суда отчуждателю выплачивается денежная компенсация через Возврат в Платежах.»"
+    ]
+   },
+   "accept": [
+    "Возврат через 15 месяцев после перехода права: сторно поступления, пеня за разрыв спорная, объект снят с учёта путём «возврат» (С-16).",
+    "Возврат проданного объекта недоступен, предлагается компенсация (С-17).",
+    "Сторно — только у отменяемой вещи (ИИ-21).",
+    "Возврат из «выставлен на продажу» закрывает попытку итогом «не состоялась».",
+    "Без второго ключа сторно не уходит.",
+    "Исполненная доплата превращается в требование к отчуждателю на ту же сумму."
+   ],
+   "notIn": [
+    "Исправление поздних позиций — P24-R24.",
+    "Взыскание требования с отчуждателя — вне модуля."
+   ],
+   "deps": [
+    "P24-R20"
+   ],
+   "open": [
+    {
+     "ask": "ИМ-ВЗ-7. Как ведётся возврат после продажи вещи третьему лицу и возврат исполненной доплаты, кто взыскивает?",
+     "default": "денежная компенсация через Возврат; требование к отчуждателю публикуется модулем, взыскивается вне модуля.",
+     "impact": "меняется путь компенсации и адресат требования; путь «возврат» тот же."
+    }
+   ]
+  },
+  {
+   "id": "P24-R23",
+   "stage": 6,
+   "title": "Исправление опубликованного факта: новый факт с основанием и корректировка суммы, а не сторно",
+   "build": "Действие «Исправить» у любого опубликованного факта: новый факт с основанием, замещающий исходный с его даты, под вторым ключом; при изменении стоимости — новое «принятие опубликовано» во взыскание и «корректировка суммы поступления» в платежи.",
+   "why": "Опечатку в стоимости после деления нельзя лечить сторно: оно сделало бы пени за недели спорными и вынесло бы опечатку на Комиссию. Корректировка суммы с даты исходного факта сохраняет одно погашение и показывает, почему изменились числа, в том числе в закрытом месяце статистики.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Объекты имущества → ИО-1 → вкладка «Журнал фактов» → «Исправить»",
+    "tz": "22-imushchestvo.html#s9"
+   },
+   "data": [
+    {
+     "n": "Исправление",
+     "note": "факт",
+     "fields": [
+      "<b>исправляет факт</b> — ссылка",
+      "<b>основание</b> — исправленный документ или решение органа",
+      "<b>новые значения</b> — поля исходного факта, которые меняются"
+     ]
+    }
+   ],
+   "steps": [
+    "Давать «Исправить» у опубликованного факта любой роли модуля.",
+    "Требовать основание и публиковать вторым ключом.",
+    "Замещать исходный факт с его даты; исходный оставлять видимым с пометкой «исправлен».",
+    "При изменении стоимости принятия отправлять во взыскание новое «принятие опубликовано» с id исправляемого факта.",
+    "По новому результату деления отправлять в платежи «корректировку суммы поступления» по каждому кредиту; ключ — id объекта + id факта + id кредита.",
+    "Пересчитывать доплату и флаг по новому «не вошло».",
+    "Рассылать событие «факт исправлен» модулям, которые видели исходный."
+   ],
+   "example": {
+    "src": "ИО-1 · акт № АП-3/27 · пример исправления на записи витрины",
+    "given": [
+     "В акте ИО-1 стоимость набрана 2 040 000 сом вместо 2 400 000 сом; погашение уже разделено, месяц закрыт в статистике."
+    ],
+    "do": [
+     "Исправить стоимость на 2 400 000 сом с основанием «исправленный акт»."
+    ],
+    "get": [
+     "В платежи уходит корректировка поступления на +360 000 сом с даты перехода права 05.04.2027, не сторно.",
+     "Оба факта видны, исходный «исправлен»; закрытый месяц статистики помечен с причиной."
+    ]
+   },
+   "accept": [
+    "Опечатка в стоимости после публикации лечится исправлением с основанием; в платежах — корректировка суммы, не сторно; оба факта видны (С-18, ИИ-12).",
+    "Исправление без основания не сохраняется.",
+    "Исправление без второго ключа никуда не уходит.",
+    "Погашение после исправления остаётся одно (ИИ-3).",
+    "Учётная стоимость меняется только исправлением или разделением (ИИ-4).",
+    "Повторная доставка корректировки её не удваивает."
+   ],
+   "notIn": [
+    "Неизменяемость и хранение ссылки — P24-R2.",
+    "Исправление поздних позиций при отмене раннего — P24-R24."
+   ],
+   "deps": [
+    "P24-R13",
+    "P24-R14"
+   ],
+   "extDeps": [
+    {
+     "what": "платежи делают корректировку суммы поступления отдельно от сторно (ИМ-ДС-14)"
+    }
+   ]
+  },
+  {
+   "id": "P24-R24",
+   "stage": 6,
+   "title": "Отмена раннего принятия после поздних: поздние позиции исправляются, а не сторнируются",
+   "build": "При возврате по суду объекта, у обязанного лица которого позже перешло право на другие вещи, — исправление каждой поздней позиции фактом «стоимость распределена» с основанием «отмена более раннего принятия» и с её датой перехода права; корректировка поступления и требование к отчуждателю по излишку доплаты.",
+   "why": "Деление поздней вещи считалось по долгу, уже уменьшенному отменённой вещью, и теперь неверно. Сторно поздней вещи создало бы второе погашение и спорную пеню там, где принятие законно. Исправление меняет только сумму её единственного погашения.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Объекты имущества → ИО-12 → блок «Деление ждёт исправления»",
+    "tz": "22-imushchestvo.html#s9"
+   },
+   "steps": [
+    "После публикации возврата находить объекты того же обязанного лица с датой перехода права позже отменённого.",
+    "Показывать у каждого «деление ждёт исправления» со ссылкой на отменённый объект.",
+    "Готовить исправление «стоимость распределена» с датой перехода права поздней позиции; публиковать вторым ключом.",
+    "Отправлять во взыскание исправленное принятие и принимать новый результат деления.",
+    "Отправлять в платежи корректировку суммы поступления поздней позиции.",
+    "Если доплата по поздней позиции исполнена, публиковать требование к отчуждателю на разницу исполненной и пересчитанной доплаты."
+   ],
+   "example": {
+    "src": "П-8 · Турдубаев А.Ж. (К-60, долг 1 000 000 сом) · ИО-11 · ИО-12 · витрина макета",
+    "given": [
+     "ИО-11 — трактор 500 000 сом, переход права 15.03.2027; ИО-12 — квартира 700 000 сом, переход права 01.06.2027: распределено 500 000, не вошло 200 000 сом, доплата 200 000 сом исполнена 20.06.2027 (Возврат № В-141).",
+     "10.09.2027 суд возвращает ИО-11: сторно 500 000 сом."
+    ],
+    "do": [
+     "Исправить ИО-12 и опубликовать."
+    ],
+    "get": [
+     "ИО-12: распределено 500 000 → 700 000 сом, не вошло 0; корректировка поступления +200 000 сом на 01.06.2027.",
+     "Требование к Турдубаеву А.Ж. 200 000 сом; долг по П-8 — 300 000 сом.",
+     "Оба факта ИО-12 видны, погашение ИО-12 одно."
+    ]
+   },
+   "accept": [
+    "Сценарий П-8 даёт сторно ИО-11, исправление ИО-12 с 500 000 на 700 000 сом, требование 200 000 сом и долг 300 000 сом (С-32, ИИ-21).",
+    "Погашение поздней позиции остаётся одно, меняется его сумма.",
+    "Исходный факт деления ИО-12 виден с пометкой «исправлен».",
+    "Исправление без второго ключа не опубликовано.",
+    "Если доплата не исполнена, требования нет — распоряжение пересчитывается."
+   ],
+   "notIn": [
+    "Сторно отменяемой вещи — P24-R22.",
+    "Переделение — модуль взыскания (ИМ-ДС-13)."
+   ],
+   "deps": [
+    "P24-R22",
+    "P24-R23"
+   ],
+   "extDeps": [
+    {
+     "what": "взыскание переделяет поздние принятия по исправленному факту и публикует новую пару «распределено / не вошло» (ИМ-ДС-13)"
+    }
+   ],
+   "open": [
+    {
+     "ask": "ИМ-ВЗ-7. Кто взыскивает излишек исполненной доплаты с отчуждателя?",
+     "default": "требование публикует модуль, взыскание — вне модуля.",
+     "impact": "меняется адресат требования; исправление поздней позиции то же."
+    }
+   ]
+  },
+  {
+   "id": "P24-R25",
+   "stage": 7,
+   "title": "Кто ведёт: запрос кураторства на дату вместо поля «ответственный»",
+   "build": "Блок кураторства в карточках предложения и объекта и колонка «куратор на дату» в реестрах из запроса в модуль кураторства (объект, роль «куратор имущества», дата); признаки предложения — с позиции с наименьшим номером среди неотозванных и неотказанных.",
+   "why": "Куратор кредита объект не ведёт: это другое подразделение, а вещь остаётся у Фонда годами после закрытия долга. Поле «ответственный» устаревает при каждом переводе сотрудника. Если признаки предложения брать с отозванной позиции, предложение достанется не тому району.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Предложения → П-8 → блок «Кто ведёт»; Объекты имущества → ИО-1",
+    "tz": "22-imushchestvo.html#s11"
+   },
+   "steps": [
+    "Передавать в кураторство признаки предложения: область, район и вид позиции с наименьшим номером без итога «отозвана» и «отказана».",
+    "При таком итоге у этой позиции переходить к следующей по номеру; без подходящих позиций — фолбэк.",
+    "Передавать признаки объекта: его собственное местоположение и вид; у права — место регистрации или эмитента.",
+    "Спрашивать куратора на дату среза и показывать работника, подразделение и источник закрепления.",
+    "Подсвечивать в реестре объект на фолбэке дольше порога.",
+    "Адресовать поводы мониторинга ответом кураторства."
+   ],
+   "example": {
+    "src": "П-8 · ИО-12 · П-9 · ИО-13 · ИО-1 · витрина макета на 15.03.2028",
+    "given": [
+     "П-8: позиция 1 — трактор, Чуйская обл.; позиция 2 — квартира, Ошская обл.",
+     "П-9 и ИО-13 — Баткенская обл., правило работника не называет; П-9 зарегистрировано 20.02.2028, ИО-13 — акт 03.03.2028."
+    ],
+    "do": [
+     "Открыть блоки кураторства."
+    ],
+    "get": [
+     "П-8 — Абдраимова Н.К. «по позиции 1: Чуйская обл., вид „Трактор“»; ИО-12 — Кадыров Т.Ы. по Ошской области.",
+     "П-9 — заведующий отделом Абылкасымов Д.Т., порог 2 р.д. истёк 22.02.2028 — подсвечено; ИО-13 — порог 10 р.д. до 17.03.2028, 15.03.2028 не подсвечен.",
+     "ИО-1 — Абдраимова Н.К. по ручному закреплению до 31.12.2027, с 01.01.2028 Токтосунов Б.Э. по правилу."
+    ]
+   },
+   "accept": [
+    "Куратор объекта на дату — ответ закрепления; поля «ответственный» нет (С-25, ИИ-16).",
+    "Предложение без работника по правилу держит заведующий отделом; порог 2 р.д. для предложения и 10 р.д. для объекта (С-33).",
+    "Куратор предложения — по позиции с наименьшим номером; объект из другой позиции получает своего куратора; предложение без позиций — фолбэк (С-34).",
+    "Отзыв позиции 1 переводит куратора предложения на признаки позиции 2.",
+    "Смена даты среза меняет показанного куратора ИО-1."
+   ],
+   "notIn": [
+    "Правила распределения и пороги фолбэка — модуль кураторства (ИМ-ДС-6).",
+    "Сами поводы — P24-R26."
+   ],
+   "deps": [
+    "P24-R8",
+    "P24-R10"
+   ],
+   "extDeps": [
+    {
+     "what": "кураторство ведёт объекты закрепления «предложение имущества» и «объект имущества», роль «куратор имущества», правило холдинга на Управление по работе с активами и пороги фолбэка (ИМ-ДС-6)"
+    }
+   ],
+   "open": [
+    {
+     "ask": "ИМ-ВЗ-8 (фолбэк). Сколько рабочих дней предложение и объект могут оставаться у заведующего отделом?",
+     "default": "предложение — 2 р.д., объект имущества — 10 р.д., источник «внутренний акт».",
+     "impact": "меняются значения в справочнике кураторства."
+    }
+   ]
+  },
+  {
+   "id": "P24-R26",
+   "stage": 7,
+   "title": "Поводы мониторинга и настройки: девять видов, устойчивый ключ, пороги с источником значения",
+   "build": "Девять видов повода, которые модуль заданий забирает опросом, с устойчивым ключом «вид + id + период» и адресатом из кураторства; экран «Настройки» с порогами поводов и сроками ответа по источнику, у каждого значения — источник.",
+   "why": "Модуль объявляет, что требует внимания, а поручает модуль заданий: своих напоминаний и рассылок у модуля нет. Без устойчивого ключа каждый опрос создавал бы новое задание по той же просрочке. Источник значения показывает, где порог задан нормой, а где стоит внутреннее умолчание до ответа заказчика.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Настройки; Объекты имущества → ИО-1 → поводы",
+    "tz": "22-imushchestvo.html#s12"
+   },
+   "screen": [
+    {
+     "n": "Настройки",
+     "cols": [
+      "повод",
+      "объект",
+      "условие",
+      "порог",
+      "источник значения"
+     ],
+     "acts": [
+      "изменить порог",
+      "изменить срок ответа по источнику",
+      "изменить источник"
+     ]
+    }
+   ],
+   "steps": [
+    "Вычислять поводы на дату опроса по условиям и порогам таблицы ниже.",
+    "Строить ключ: вид + id + период; период — месяц, у просрочки рассрочки — дата платежа, у ожидания акта — id предложения + номер позиции + месяц.",
+    "Адресовать повод куратору предложения или объекта на дату из кураторства.",
+    "Отдавать поводы модулю заданий по запросу; повтор того же периода не создаёт второго.",
+    "Снимать повод, когда условие ушло: акт введён, доплата исполнена, попытка открыта.",
+    "Дать экран «Настройки» с порогами и сроками ответа по источнику и источником значения у каждого."
+   ],
+   "rules": [
+    {
+     "h": "Виды и пороги по умолчанию",
+     "items": [
+      "pk-im-offer-overdue — срок ответа истёк, ни решения, ни письма. pk-im-act-pending — позиция принята, акта нет 30 к.д. от решения.",
+      "pk-im-registration-pending — ждёт регистрации 60 к.д. pk-im-topup-pending — ⚑ «принятие не завершено» 30 к.д.",
+      "pk-im-no-inspection — с осмотра вещи 6 мес. pk-im-not-listed — на учёте 6 мес. без попытки. pk-im-unsold — несостоявшихся попыток 3.",
+      "pk-im-instalment-overdue — просроченный платёж по графику, 1 день. pk-im-encumbrance-ending — обременение кончается в 30 к.д."
+     ]
+    }
+   ],
+   "example": {
+    "src": "витрина макета на 15.03.2028 · П-3 · П-5 · ИО-1 · ИО-410",
+    "given": [
+     "П-3: срок ответа 01.03.2028, ответа нет.",
+     "П-5: решение «принять» по двум позициям 10.02.2028, актов нет.",
+     "ИО-1: не оплачен платёж от 20.01.2028."
+    ],
+    "do": [
+     "Опросить поводы на 11.03.2028 и на 15.03.2028."
+    ],
+    "get": [
+     "11.03.2028 (день 30) повода по П-5 нет; 12.03.2028 — по обеим позициям.",
+     "15.03.2028: П-3 — «срок ответа истёк» Кадырову Т.Ы.; П-5 поз. 1 и 2 — «ждёт акта 34 к.д.» с ключом «… · П-5 · поз. 1 · март 2028»; ИО-1 — «просрочка платежа от 20.01.2028, 375 000 сом, 55 дн.»; ИО-410 — «обременение кончается 31.03.2028»."
+    ]
+   },
+   "accept": [
+    "Срок ответа истёк — повод pk-im-offer-overdue; решение после срока вносится с пометкой (С-24).",
+    "Решение «принять», на 31-й день акта нет — повод pk-im-act-pending куратору предложения; выходы — акт, отзыв, прекращение принятия (С-29).",
+    "Акт гасит повод ожидания акта по своей позиции.",
+    "Повторный опрос того же периода не создаёт второго повода.",
+    "Изменение порога в настройках сразу меняет набор поводов.",
+    "У каждого порога и срока ответа виден источник значения."
+   ],
+   "notIn": [
+    "Сами задания и их адресация — модуль заданий.",
+    "Куратор — P24-R25."
+   ],
+   "deps": [
+    "P24-R25"
+   ],
+   "extDeps": [
+    {
+     "what": "модуль заданий опрашивает поводы и создаёт задания по ключу"
+    }
+   ],
+   "open": [
+    {
+     "ask": "ИМ-ВЗ-8. Каковы пороги мониторинга?",
+     "default": "осмотр 6 мес.; «не выставлен» 6 мес.; 3 попытки; регистрация 60 к.д.; доплата 30 к.д.; ожидание акта 30 к.д.; источник «внутренний акт».",
+     "impact": "меняются значения настроек и их источник."
+    }
+   ]
+  },
+  {
+   "id": "P24-R27",
+   "stage": 7,
+   "title": "Записи модуля в журнале дела взыскания: видны и не правятся, продажи там нет",
+   "build": "Событие «запись в журнал дела» во взыскание на регистрацию предложения, решение органа, акт, переход права с суммой и отмену принятия; запись о регистрации обновляется вместе с черновиком предложения.",
+   "why": "Взыскание должно видеть, что должник предложил вещь и что с ней решили, но владеть этим не может: один факт в двух местах разойдётся. Продажа объекта Фондом в дело не попадает: долг уже закрыт стоимостью принятия, и запись о продаже создала бы ложное впечатление, что она меняет долг.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Предложения → П-1 → «Журнал дела взыскания»",
+    "tz": "22-imushchestvo.html#s13-2"
+   },
+   "steps": [
+    "Отправлять событие с id объекта или предложения, id факта, видом записи, датой, суммой у перехода права и обязанным лицом.",
+    "Отправлять запись о регистрации предложения сразу и обновлять её при правке черновика.",
+    "Отправлять записи об акте, переходе права и отмене только после публикации вторым ключом.",
+    "Использовать ключ id объекта или предложения + id факта.",
+    "Не отправлять записей о попытках, договоре КП, оплатах и снятии с учёта продажей."
+   ],
+   "example": {
+    "src": "П-1 · Асанов Т.Б. · П-8 · Турдубаев А.Ж. · витрина макета",
+    "given": [
+     "Дело Асанова Т.Б.: «Иск подан» 10.11.2026, «Торги 1 и 2 по ПЗ-88 не состоялись» 05.01.2027 — чужие записи."
+    ],
+    "do": [
+     "Открыть журнал дела после всех фактов П-1."
+    ],
+    "get": [
+     "Записи модуля: 10.01.2027 «Предложение имущества П-1 зарегистрировано»; 20.02.2027 «Решение органа по П-1: поз. 1 — принять, поз. 3 — отказать»; 12.03.2027 «Акт приёма-передачи ИО-1»; 05.04.2027 «Переход права ИО-1, 2 400 000 сом».",
+     "Договора КП от 20.09.2027 в деле нет. В деле Турдубаева А.Ж. — 10.09.2027 «Принятие ИО-11 отменено судом (возврат)»."
+    ]
+   },
+   "accept": [
+    "Записи модуля видны в журнале дела и не правятся; продажи объекта Фондом там нет (С-26).",
+    "Запись об акте появляется только после публикации вторым ключом.",
+    "Запись о регистрации предложения меняется вместе с черновиком.",
+    "Повторная доставка не создаёт второй записи.",
+    "Записи фазу взыскания не двигают."
+   ],
+   "notIn": [
+    "Отображение журнала и реакция фаз — модуль взыскания (ИМ-ДС-7)."
+   ],
+   "deps": [
+    "P24-R13",
+    "P24-R22"
+   ],
+   "extDeps": [
+    {
+     "what": "взыскание показывает записи модуля в журнале дела только для чтения и не двигает ими фазу (ИМ-ДС-7)"
+    }
+   ]
+  },
+  {
+   "id": "P24-R28",
+   "stage": 8,
+   "title": "Реестры предложений, объектов и договоров КП: фильтры по состоянию на дату",
+   "build": "Три реестра группы меню «Имущество»: предложения, объекты имущества, договоры купли-продажи — с фильтрами, колонкой «куратор на дату» и фильтром «состояние на дату», вычисляемым по фактам.",
+   "why": "Реестры отвечают руководству и кураторам на вопросы «что предлагают и где ответ просрочен», «что у Фонда лежит» и «кто должен за проданное». Фильтр по текущему статусу вместо вычисления на дату не ответит на «что было нереализовано на 01.01.2027». Кнопка «добавить объект» открыла бы дверь мимо акта.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Имущество → Предложения · Объекты имущества · Договоры купли-продажи",
+    "tz": "22-imushchestvo.html#s14"
+   },
+   "steps": [
+    "Собрать реестр предложений с фильтрами источник, обязанное лицо, состояние, срок ответа, орган и кнопкой «Зарегистрировать предложение».",
+    "Собрать реестр объектов с фильтрами состояние на дату, вид, класс, область, дней на учёте, источник, ⚑ не завершено, ⚑ обременён, куратор на дату; без кнопки «добавить объект».",
+    "Собрать реестр договоров КП с видом, покупателем, остатком к оплате, просрочкой и претензиями.",
+    "Вычислять состояние и флаги на выбранную дату тем же расчётом, что и карточка.",
+    "Подсвечивать объект или предложение на фолбэке кураторства дольше порога.",
+    "Открывать карточку по строке; договор — на вкладке «Договор КП»."
+   ],
+   "example": {
+    "src": "витрина макета на 15.03.2028",
+    "given": [
+     "12 объектов, 9 предложений, 2 действующих договора КП."
+    ],
+    "do": [
+     "Включить фильтры «⚑ не завершено», «⚑ обременён»; открыть реестр договоров."
+    ],
+    "get": [
+     "«⚑ не завершено» — только ИО-3; «⚑ обременён» — ИО-410 и ИО-7.",
+     "Договоры: КП-5/27 по ИО-1 — остаток 1 687 500 сом, просрочка 375 000 сом, 55 дн.; КП-9/27 по ИО-8 — остаток 320 000 сом, просрочка 320 000 сом, 5 дн."
+    ]
+   },
+   "accept": [
+    "Фильтр «состояние на дату» даёт разные списки на 01.01.2027 и на 01.10.2027 из одних фактов (С-9).",
+    "В реестре объектов нет кнопки «добавить объект» (ИИ-1).",
+    "Реестр договоров показывает остаток и просрочку, совпадающие с вкладкой договора.",
+    "П-9 подсвечен в реестре предложений как превысивший порог фолбэка (С-33).",
+    "Колонка «куратор на дату» меняется вместе с датой среза.",
+    "Предложение П-3 с истёкшим сроком видно фильтром по сроку ответа."
+   ],
+   "notIn": [
+    "Вычисление состояния — P24-R3.",
+    "Ввод вводного остатка — P24-R29."
+   ],
+   "deps": [
+    "P24-R18",
+    "P24-R25"
+   ]
+  },
+  {
+   "id": "P24-R29",
+   "stage": 8,
+   "title": "Вводный остаток и контроль миграции: объект без предложения и без нового погашения",
+   "build": "Действие «Завести вводный остаток» в реестре объектов по документу бухгалтерии и блокирующий отчёт миграции: сумма мигрированных погашений «имущество в счёт погашения» по обязанному лицу против суммы стоимостей его вводных объектов.",
+   "why": "На дату запуска у Фонда уже есть объекты прошлых лет, а их погашения переносятся вместе с платежами. Если вводный остаток порождал бы погашение, долг уменьшился бы второй раз. Фиктивные предложения ради этих объектов исказили бы статистику рассмотрения.",
+   "look": {
+    "mock": "assets.html",
+    "route": "Объекты имущества → «Завести вводный остаток»; отчёт миграции",
+    "tz": "22-imushchestvo.html#s15"
+   },
+   "data": [
+    {
+     "n": "Вводный остаток",
+     "note": "факт объекта",
+     "fields": [
+      "<b>документ бухгалтерии</b> — выписка или ведомость",
+      "<b>дата перехода права</b> — из документов",
+      "<b>обязанное лицо, источник, стоимость принятия</b> — из документов, если есть"
+     ]
+    }
+   ],
+   "steps": [
+    "Дать форму вводного остатка: вещь, вид, стоимость, валюта, дата перехода права, обязанное лицо, источник, документ.",
+    "Создавать объект «на учёте» с происхождением «вводный остаток», без ссылки на предложение и решение.",
+    "Не порождать ни погашения, ни доплаты, ни события во взыскание.",
+    "Строить отчёт миграции по обязанным лицам: мигрировано погашений против суммы стоимостей вводных объектов.",
+    "Блокировать завершение миграции при любом расхождении, называя обязанное лицо и разницу.",
+    "Дальше вести вводный объект как любой другой."
+   ],
+   "example": {
+    "src": "ИО-7 · ИО-8 · ИО-9 · ведомость № ВО-1 от 01.03.2028 · витрина макета",
+    "given": [
+     "ОсОО «Токмок-Строй»: ИО-7 1 800 000 сом, мигрировано 1 800 000 сом.",
+     "Бакиров Н.С.: ИО-8 900 000 сом, мигрировано 900 000 сом.",
+     "Кадыров А.А.: ИО-9 650 000 сом, мигрировано 600 000 сом."
+    ],
+    "do": [
+     "Построить отчёт миграции."
+    ],
+    "get": [
+     "«Токмок-Строй» и Бакиров сходятся; по Кадырову расхождение 50 000 сом — отчёт блокирующий.",
+     "Вводный склад на 100 000 сом без мигрированного погашения ломает сходимость «Токмок-Строй»."
+    ]
+   },
+   "accept": [
+    "Вводный остаток погашения не порождает; контроль миграции сходится (С-22, ИИ-3).",
+    "У вводного объекта нет предложения и решения органа.",
+    "Расхождение по обязанному лицу блокирует завершение миграции и называет разницу.",
+    "Вводный объект «на учёте» и доступен для попытки продажи.",
+    "Ввод остатка — единственный способ создать объект вне акта (ИИ-1)."
+   ],
+   "notIn": [
+    "Перенос погашений прежних лет — миграция платежей.",
+    "Формат загрузки — после ответа на ИМ-ВЗ-11."
+   ],
+   "deps": [
+    "P24-R28"
+   ],
+   "extDeps": [
+    {
+     "what": "миграция платежей переносит погашения вида «принятие имущества в счёт погашения» по обязанным лицам"
+    }
+   ],
+   "open": [
+    {
+     "ask": "ИМ-ВЗ-11. Где сейчас учитывается имущество Фонда и в каком виде его передадут на миграцию?",
+     "default": "вводный остаток по документу бухгалтерии, ввод через форму.",
+     "impact": "добавится загрузка файлом и сверка миграции по его формату; правило без погашения то же."
+    }
+   ]
+  },
+  {
+   "id": "P24-R30",
+   "stage": 8,
+   "title": "Строки статистики на дату: объект имущества и предложение имущества",
+   "build": "Производитель строк на дату для двух объектов статистики — «объект имущества» и «предложение имущества» — с показателями и разрезами из таблицы; договор КП — колонками объекта.",
+   "why": "Число на дату берётся только у статистики, поэтому своих отчётов у модуля нет. Модуль отдаёт строки, а статистика и отчётность строят из них «Реестр имущества на дату». Договор отдельным объектом не заводится: у объекта не больше одного действующего договора.",
+   "look": {
+    "mock": "assets.html",
+    "route": "в макете этого нет, постановка словами; числа — из карточек ИО-1 и П-1",
+    "tz": "22-imushchestvo.html#s13-6"
+   },
+   "steps": [
+    "Отдавать строку объекта на дату: количество, учётная стоимость, расходы, результат, дней на учёте, число попыток, остаток к оплате, просрочено (сумма, дни).",
+    "Разрезы объекта: состояние на дату, вид, класс, область и район, источник, путь выбытия, флаги.",
+    "Отдавать строку предложения: позиций принято, отказано, отозвано, не состоялось (штуки и стоимость), дней рассмотрения, ответов после срока.",
+    "Разрезы предложения: источник, итог, орган.",
+    "Строить строки тем же вычислением на дату, что и экран; ключ — id объекта или предложения + дата строки.",
+    "Помечать строку закрытого месяца при исправлении факта."
+   ],
+   "example": {
+    "src": "ИО-1 · П-1 · витрина макета на 15.03.2028",
+    "given": [
+     "ИО-1 «продан в рассрочку», 2 попытки, оплачено 562 500 сом из 2 250 000 сом.",
+     "П-1: зарегистрировано 10.01.2027, решение 20.02.2027."
+    ],
+    "do": [
+     "Построить строки на 15.03.2028."
+    ],
+    "get": [
+     "ИО-1: учётная стоимость 2 400 000, расходы 90 000, результат −240 000, попыток 2, остаток к оплате 1 687 500, просрочено 375 000 сом / 55 дн.",
+     "П-1: принято 1 (2 400 000 сом), отказано 1 (450 000 сом), отозвано 1 (300 000 сом), дней рассмотрения 41, ответов после срока 0."
+    ]
+   },
+   "accept": [
+    "Строка объекта на дату совпадает с шапкой карточки на ту же дату.",
+    "Строка предложения различает «отказано» и «отозвано».",
+    "Договор КП не заводится отдельным объектом статистики.",
+    "Исправление факта помечает строку закрытого месяца.",
+    "Модуль не держит своих отчётных форм."
+   ],
+   "notIn": [
+    "Номера объектов статистики и форма «Реестр имущества на дату» — статистика и отчётность (ИМ-ДС-8).",
+    "Бланки исходящих — отчётность (ИМ-ДС-11)."
+   ],
+   "deps": [
+    "P24-R28"
+   ],
+   "extDeps": [
+    {
+     "what": "статистика заводит объекты «объект имущества» и «предложение имущества» (ИМ-ДС-8)"
+    }
+   ]
+  }
+ ]
+}
+</script>
+
+
+<script>
+const DATA = JSON.parse(document.getElementById('tasks-data').textContent);
+const { meta, guide, atlas, screens, glossary, walkthrough, stages, cards, changelog } = DATA;
+
+document.title = `Имущество Фонда · редакция ${meta.revision} · P24 · АСУБК`;
+document.getElementById('hero-title').textContent =
+  `${meta.title} — задачи для команды разработки`;
+
+document.getElementById('revbar').innerHTML = `
+  <span class="revchip">Редакция ${meta.revision} · ${meta.date}</span>
+  ${meta.replaces ? `<span class="revchip replaces">заменяет редакцию ${meta.replaces.revision} от ${meta.replaces.date}</span>` : ''}
+  <span class="revchip replaces">${cards.length} задач · ${stages.length} этапов</span>
+`;
+
+/* Журнал редакции: получив редакцию N, разработчик читает десять строк и изменившиеся
+   карточки, а не всю постановку заново (FORMAT.md §6). */
+function changelogHtml(){
+  if (!changelog) return '';
+  const added   = (changelog.added   || []).map(id => `<code>${id}</code>`).join(' · ');
+  const changed = (changelog.changed || []).map(c => `<code>${c.id}</code> — ${c.what}`);
+  const removed = (changelog.removed || []).map(c => `<code>${c.id}</code> → ${c.to}`);
+  const rows = [];
+  if (added)          rows.push(`<li><b>Добавлено:</b> ${added}</li>`);
+  changed.forEach(c => rows.push(`<li><b>Изменено:</b> ${c}</li>`));
+  removed.forEach(c => rows.push(`<li><b>Убрано:</b> ${c}</li>`));
+  if (!rows.length) return '';
+  return `<div class="blk" style="margin-top:16px">
+    <span class="lbl">Журнал редакции ${meta.revision}</span>
+    <ul>${rows.join('')}</ul>
+  </div>`;
+}
+
+document.getElementById('hero-lead').innerHTML = `
+  ${cards.length} задач, собранных в ${stages.length} этапов (не строгую очередь — см. подвал страницы).
+  Модуль ведёт вещи, которые Фонду предлагают или передали в счёт задолженности, — от предложения
+  до снятия с учёта. Своих денег и своего деления сумм у него нет: факт принятия он публикует
+  взысканию, деньги проходят через платежи, ответственного называет кураторство. Живого экрана в
+  тестовом стенде и в прежней системе нет — модуль строится с нуля. Макет <code>${meta.package[0]}</code>
+  исполняет описанное здесь на витрине; при расхождении по логике права эта постановка.
+  Начните со свода: карта данных, опись экранов, словарь и сквозной пример — общие для всех карточек,
+  карточка добавляет к ним только своё.
+` + changelogHtml();
+
+function tiles(){
+  const data = [
+    { l:'Задач', n:cards.length },
+    { l:'Этапов', n:stages.length },
+    { l:'Сущностей', n:(atlas||[]).length, fold:'panel-atlas' },
+    { l:'Экранов', n:(screens||[]).length, fold:'panel-screens' },
+    { l:'Терминов', n:(glossary||[]).length, fold:'panel-gloss' },
+    { l:'Сквозной пример', n:((walkthrough||{}).groups||[]).length, fold:'panel-walk' },
+    { l:'Открытых вопросов', n:cards.reduce((a,c)=>a+(c.open||[]).length,0), fold:'panel-open' },
+    { l:'Справка модуля', n:(guide||[]).length, fold:'panel-guide' },
+  ];
+  document.getElementById('tiles').innerHTML = data.map(d =>
+    `<div class="tile"${d.fold?` data-fold="${d.fold}"`:''}><span class="n">${d.n}</span><span class="l">${d.l}</span></div>`).join('');
+  document.querySelectorAll('.tile[data-fold]').forEach(t => t.onclick = () => {
+    const dt = document.querySelector(`#${t.dataset.fold} details.fold`);
+    dt.open = !dt.open;
+    t.classList.toggle('on', dt.open);
+    if (dt.open && dt.scrollIntoView) dt.scrollIntoView({ block:'nearest' });
+  });
+}
+tiles();
+
+// Справка модуля
+document.getElementById('guide-cnt').textContent = `${(guide||[]).length} раздела`;
+document.getElementById('guide-list').innerHTML = (guide||[]).map(g => `
+  <div class="guide-item">
+    <h3>${g.h}</h3>
+    <ul>${(g.items||[]).map(i=>`<li>${i}</li>`).join('')}</ul>
+  </div>`).join('');
+
+// Карта данных
+function entHtml(e){
+  return `<div class="ent">
+    <h4>${e.n}${e.key?`<span class="key">ключ: ${e.key}</span>`:''}</h4>
+    ${e.note?`<p class="note">${e.note}</p>`:''}
+    <ul>${(e.fields||[]).map(f=>`<li>${f}</li>`).join('')}</ul>
+  </div>`;
+}
+document.getElementById('atlas-cnt').textContent = `${(atlas||[]).length} сущностей`;
+document.getElementById('atlas-list').innerHTML = (atlas||[]).map(entHtml).join('');
+
+// Опись экранов
+function scrHtml(s){
+  return `<div class="scr">
+    <h4>${s.n}</h4>
+    ${s.note?`<p class="note">${s.note}</p>`:''}
+    ${(s.cols||[]).length?`<span class="cap">Колонки и поля</span><div class="chips">${s.cols.map(c=>`<span class="col">${c}</span>`).join('')}</div>`:''}
+    ${(s.acts||[]).length?`<span class="cap">Действия</span><div class="chips">${s.acts.map(a=>`<span class="act">${a}</span>`).join('')}</div>`:''}
+  </div>`;
+}
+document.getElementById('screens-cnt').textContent = `${(screens||[]).length} экранов`;
+document.getElementById('screens-list').innerHTML = (screens||[]).map(scrHtml).join('');
+
+// Словарь
+document.getElementById('gloss-cnt').textContent = `${(glossary||[]).length} терминов`;
+document.getElementById('gloss-list').innerHTML =
+  `<div class="gloss">${(glossary||[]).map(t=>`<div><b>${t.t}</b> — ${t.d}</div>`).join('')}</div>`;
+
+// Сквозной пример
+document.getElementById('walk-cnt').textContent = `${((walkthrough||{}).groups||[]).length} шагов`;
+document.getElementById('walk-list').innerHTML = walkthrough ? `
+  <p class="note" style="font-size:13px;color:var(--text-muted);margin:0 0 8px">
+    Источник: ${walkthrough.src}${walkthrough.note?` · ${walkthrough.note}`:''}</p>
+  ${(walkthrough.groups||[]).map(g=>`
+    <div class="guide-item"><h3>${g.h}</h3>
+      <ul>${(g.items||[]).map(i=>`<li>${i}</li>`).join('')}</ul></div>`).join('')}` : '';
+
+// Открытые вопросы — сводка по всем карточкам
+(function renderOpenQ(){
+  const rows = [];
+  cards.forEach(c => (c.open||[]).forEach(o => rows.push({...o, cid:c.id, title:c.title})));
+  document.getElementById('openq-cnt').textContent = rows.length;
+  document.getElementById('openq-list').innerHTML = rows.length
+    ? rows.map(o => `
+        <div class="openq">
+          <a href="#card-${o.cid}">${o.cid}</a>
+          <span><b>${o.ask}</b> — умолчание: <span class="oq-default">${o.default}</span></span>
+        </div>`).join('')
+    : '<p style="color:var(--text-muted)">Открытых вопросов нет.</p>';
+})();
+
+// Фильтр этапов
+const stageSel = document.getElementById('fStage');
+stages.forEach(s => {
+  const n = cards.filter(c => c.stage === s.n).length;
+  stageSel.insertAdjacentHTML('beforeend', `<option value="${s.n}">Этап ${s.n} · ${s.title} (${n})</option>`);
+});
+
+const F = { q:'', stage:'' };
+
+function depChip(id){
+  const c = cards.find(x=>x.id===id);
+  return `<a class="dep" href="#card-${id}" title="${c?c.title:''}">↔ ${id}</a>`;
+}
+
+function groupsHtml(groups){
+  if(!groups) return '';
+  return groups.map(g => `<div class="subh">${g.h}</div><ul>${(g.items||[]).map(i=>`<li>${i}</li>`).join('')}</ul>`).join('');
+}
+
+function lookHtml(look){
+  if(!look) return '';
+  const parts = [];
+  if(look.mock) parts.push(`<a href="${look.mock}" target="_blank" rel="noopener">${look.mock.split('#')[0]}</a>`);
+  if(look.route) parts.push(`<span class="route">${look.route}</span>`);
+  if(look.mockNote) parts.push(`<span class="route">${look.mockNote}</span>`);
+  if(look.tz) parts.push(`<a href="${look.tz}" target="_blank" rel="noopener">ТЗ ${look.tz.split('#')[1]?('· '+look.tz.split('#')[1]):''}</a>`);
+  if(look.defect) parts.push(`<span class="defect">дефект ${look.defect}</span>`);
+  return `<div class="look">${parts.join('')}</div>`;
+}
+
+function exampleHtml(ex){
+  if(!ex) return '';
+  const part = (h, items) => (items||[]).length
+    ? `<span class="exh">${h}</span><ul>${items.map(i=>`<li>${i}</li>`).join('')}</ul>` : '';
+  return `<div class="ex">
+    <span class="lbl">Пример</span>
+    <p class="src">Источник: ${ex.src}</p>
+    ${part('Дано', ex.given)}${part('Делаем', ex.do)}${part('Получаем', ex.get)}
+  </div>`;
+}
+
+function openHtml(open){
+  if(!open || !open.length) return '';
+  return open.map(o => `
+    <div class="openbox">
+      <b>Решения нет:</b> ${o.ask} Умолчание — ${o.default} При другом ответе: ${o.impact}
+    </div>`).join('');
+}
+
+function trapsHtml(traps){
+  if(!traps || !traps.length) return '';
+  return `<details><summary>Ловушки</summary><div class="traps"><ul>${traps.map(t=>`<li>${t}</li>`).join('')}</ul></div></details>`;
+}
+
+function extHtml(ext){
+  if(!ext || !ext.length) return '';
+  return `<div class="blk"><span class="lbl">Нужно от других модулей</span><ul>${
+    ext.map(e=>`<li>${e.href?`<a href="${e.href}">${e.what}</a>`:e.what}</li>`).join('')}</ul></div>`;
+}
+
+function card(c){
+  return `<article class="card" id="card-${c.id}" data-id="${c.id}" data-stage="${c.stage}">
+    <div class="c-head">
+      <span class="id">${c.id}</span>
+      <span class="step">Этап ${c.stage}</span>
+      <h3 class="c-title">${c.title}</h3>
+    </div>
+    <div class="blk build"><span class="lbl">Что строим</span><p>${c.build||''}</p></div>
+    <div class="blk"><span class="lbl">Зачем</span><p class="why">${c.why}</p></div>
+    ${lookHtml(c.look) ? `<div class="blk"><span class="lbl">Где смотреть</span>${lookHtml(c.look)}</div>` : ''}
+    ${c.data ? `<div class="blk"><span class="lbl">Данные</span>${(c.data||[]).map(entHtml).join('')}</div>` : ''}
+    ${c.screen ? `<div class="blk"><span class="lbl">Экран</span>${(c.screen||[]).map(scrHtml).join('')}</div>` : ''}
+    <div class="blk"><span class="lbl">Шаги</span><ol class="steps">${(c.steps||[]).map(s=>`<li>${s}</li>`).join('')}</ol></div>
+    ${c.rules ? `<div class="blk"><span class="lbl">Правила</span>${groupsHtml(c.rules)}</div>` : ''}
+    ${exampleHtml(c.example)}
+    ${c.terms ? `<div class="blk"><span class="lbl">Термины</span><div class="terms">${
+      (c.terms||[]).map(t=>`<span class="term"><b>${t.t}</b> — ${t.d}</span>`).join('')}</div></div>` : ''}
+    <div class="blk"><span class="lbl">Приёмка</span><ul>${(c.accept||[]).map(a=>`<li>${a}</li>`).join('')}</ul></div>
+    ${openHtml(c.open)}
+    ${extHtml(c.extDeps)}
+    <div class="blk"><span class="lbl">Не в этой задаче</span><ul>${(c.notIn||[]).map(a=>`<li>${a}</li>`).join('')}</ul></div>
+    <div class="c-foot">
+      <span class="tag">${stages.find(s=>s.n===c.stage).title}</span>
+      ${(c.deps||[]).map(depChip).join('')}
+    </div>
+    ${trapsHtml(c.traps)}
+  </article>`;
+}
+
+function render(){
+  const q = F.q.trim().toLowerCase();
+  const sel = cards.filter(c => {
+    if (F.stage && String(c.stage) !== String(F.stage)) return false;
+    if (!q) return true;
+    const hay = JSON.stringify(c).toLowerCase();
+    return hay.includes(q);
+  });
+  const list = document.getElementById('list');
+  if(!sel.length){ list.innerHTML = '<div class="empty">Ничего не найдено. Сбросьте фильтры.</div>'; }
+  else {
+    list.innerHTML = stages.filter(s => sel.some(c=>c.stage===s.n)).map(s => {
+      const rows = sel.filter(c => c.stage === s.n);
+      return `<section class="group"><h2>Этап ${s.n} · ${s.title} <span class="g-n">· ${rows.length}</span></h2>
+              ${rows.map(card).join('')}</section>`;
+    }).join('');
+  }
+  document.getElementById('count').textContent = `Показано ${sel.length} из ${cards.length}`;
+}
+
+document.getElementById('q').oninput      = e => { F.q = e.target.value; render(); };
+document.getElementById('fStage').onchange= e => { F.stage = e.target.value; render(); };
+document.getElementById('reset').onclick  = () => {
+  F.q=''; F.stage='';
+  document.getElementById('q').value=''; document.getElementById('fStage').value='';
+  render();
+};
+let expanded = false;
+document.getElementById('expand').onclick = e => {
+  expanded = !expanded;
+  document.querySelectorAll('#list details').forEach(d => d.open = expanded);
+  e.target.textContent = expanded ? 'Свернуть ловушки' : 'Раскрыть ловушки';
+};
+
+render();
+</script>
+</body>
+</html>
