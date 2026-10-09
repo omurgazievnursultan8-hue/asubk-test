@@ -1004,8 +1004,9 @@ function curatorOf(id, date = S.asOf) {
   const a = ASSIGN.find(x => x.obj === id && x.from <= date && x.to >= date);
   if (a) return { emp: a.emp, why: a.why };
   const of = offer(id); let region = null, why;
-  if (of) { const p = of.positions.slice().sort((x, y) => x.n - y.n)[0];
-    if (p) { region = p.region; why = `по позиции ${p.n}: ${p.region}, вид «${kindOf(p.kind).name}»`; } else why = 'у предложения нет позиций'; }
+  if (of) { const p = of.positions.slice().sort((x, y) => x.n - y.n).find(x => !['withdrawn', 'rejected'].includes(posOutcome(id, x.n, date).code));
+    if (p) { region = p.region; why = `по позиции ${p.n}: ${p.region}, вид «${kindOf(p.kind).name}»`; }
+    else why = of.positions.length ? 'все позиции отозваны или отказаны' : 'у предложения нет позиций'; }
   else { const o = obj(id) || {}; region = o.region; why = `по местоположению объекта: ${region}`; }
   if (region && REGION_RULE[region]) return { emp: REGION_RULE[region], why: 'по правилу подразделения, ' + why };
   const birth = birthOf(id, date); const lim = SETTINGS.fallback[of ? 'offer' : 'object'];

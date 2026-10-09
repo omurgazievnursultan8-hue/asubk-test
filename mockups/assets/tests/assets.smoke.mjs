@@ -701,6 +701,16 @@ group('С-34: куратор предложения — по позиции с �
   const c2 = IM.curatorOf(r.id);
   ck('без позиций — держит заведующий отделом', c2.fallback && has(c2.why, 'нет позиций'), c2);
   IM.openOffer('П-8');
+  const w = IM.registerOffer({ source: 'debtor', obligor: 'o_n', docNo: 'ПР-3', docDate: '2028-03-15', name: 'Трактор', value: 100000, kind: 'tractor', region: 'Чуйская обл.' }, 'spec', true);
+  ck('ИМ-46: предложение с позицией 1 зарегистрировано', w.ok && IM.offer(w.id).positions.length === 1, w.why);
+  const a2 = IM.addPosition(w.id, { name: 'Квартира', value: 200000, kind: 'flat', region: 'Ошская обл.' });
+  ck('ИМ-46: позиция 2 добавлена', a2.ok && IM.curatorOf(w.id).emp === 'Абдраимова Н.К.', a2.why);
+  const wd1 = IM.addFact(w.id, 'withdraw', { pos: 1, doc: 'Письмо источника' });
+  const c3 = IM.curatorOf(w.id);
+  ck('ИМ-46: позиция 1 отозвана — куратор по позиции 2 (Ошская обл.)', wd1.ok && c3.emp === 'Кадыров Т.Ы.' && has(c3.why, 'позиции 2') && has(c3.why, 'Ошская'), [wd1, c3]);
+  const wd2 = IM.addFact(w.id, 'withdraw', { pos: 2, doc: 'Письмо источника 2' });
+  const c4 = IM.curatorOf(w.id);
+  ck('ИМ-46: все позиции отозваны — фолбэк, заведующий отделом', wd2.ok && c4.fallback && has(c4.why, 'отозваны'), [wd2, c4]);
   ck('UI: у куратора предложения пояснение «по позиции 1»', has(doc.querySelector('[data-testid=offer-curator]').textContent, 'Абдраимова')
     && has(doc.getElementById('panel').textContent, 'по позиции 1'));
 });
