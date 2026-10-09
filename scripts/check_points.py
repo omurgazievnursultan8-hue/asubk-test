@@ -75,6 +75,7 @@ SCANNED = [
     "scripts/inspect/analysis-check.mjs",
     "docs/tasks/p21-analiz-tasks.html",
     "requirements/tz/21-analiz.html",
+    "requirements/tz/22-imushchestvo.html",
 ]
 
 # Files already carried over to the numbering in force. They are still checked for
@@ -111,6 +112,7 @@ MIGRATED = {
     "scripts/inspect/analysis-check.mjs",
     "docs/tasks/p21-analiz-tasks.html",
     "requirements/tz/21-analiz.html",
+    "requirements/tz/22-imushchestvo.html",
 }
 
 # Deliberately out of scope, with the reason — printed so the exclusion stays honest.
