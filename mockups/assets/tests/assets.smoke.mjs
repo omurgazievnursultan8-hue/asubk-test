@@ -590,7 +590,8 @@ group('Даты ДД.ММ.ГГГГ, субъекты из списка, валю
   IM.setF('bDays', '730');
   ck('фильтр «больше 730 дней» оставляет только давние объекты', [...doc.querySelectorAll('[data-testid^=object-row-]')].map(r => r.dataset.testid).every(id => ['object-row-ИО-7', 'object-row-ИО-8', 'object-row-ИО-9'].includes(id)));
   IM.setF('bDays', ''); IM.setF('bCur', 'Кадыров Т.Ы.');
-  ck('фильтр по куратору на дату', [...doc.querySelectorAll('[data-testid^=object-row-]')].length === 1 && !!doc.querySelector('[data-testid="object-row-ИО-410"]'));
+  ck('фильтр по куратору на дату (Ошская обл.: ИО-410 и ИО-12)', [...doc.querySelectorAll('[data-testid^=object-row-]')].map(r => r.dataset.testid).sort().join() === ['object-row-ИО-12', 'object-row-ИО-410'].sort().join(),
+    [...doc.querySelectorAll('[data-testid^=object-row-]')].map(r => r.dataset.testid));
   IM.setF('bCur', '');
   ck('контроль миграции: расхождение подписано как учебный пример', has(doc.querySelector('[data-testid=migration-control]').textContent, 'учебный пример'));
   IM.go('offers');
@@ -611,6 +612,97 @@ group('Покупатель в договоре КП — из списка су�
   const sel = doc.getElementById('ff_buyer');
   ck('поле покупателя — список, выбран покупатель из итога', sel && sel.tagName === 'SELECT' && sel.value === 'Абдыкадыров М.С.', sel && sel.value);
   ck('у договора есть валюта документа', !!doc.getElementById('ff_ccy'));
+});
+
+/* ================= ИМ-44…ИМ-46 (С-32…С-34, ИИ-21) =================
+   В сиде канонические П-1/ИО-1/ИО-2 сценария 32 — это П-8/ИО-11/ИО-12; ПР-1/ПР-2 сценариев 33–34 —
+   П-9 (правило молчит) и П-8 (позиции в разных областях) + предложение без позиций, заведённое тестом. */
+
+group('С-32: суд отменил раннее принятие после позднего — исправление поздней позиции', ({ IM, doc }) => {
+  const before = IM.allocation('o_r', '2027-08-01');
+  const r11 = before.rows.find(r => r.id === 'ИО-11'), r12 = before.rows.find(r => r.id === 'ИО-12');
+  ck('до суда: трактор 500 000 распределён целиком (переход права 15.03.2027)', r11 && r11.date === '2027-03-15' && r11.distributed === 500000, r11);
+  ck('до суда: квартира — распределено 500 000, не вошло 200 000 (01.06.2027)', r12 && r12.date === '2027-06-01' && r12.distributed === 500000 && r12.notIncluded === 200000, r12);
+  ck('доплата 200 000 исполнена 20.06.2027 — ⚑ на квартире нет', !IM.flags('ИО-12', '2027-08-01').incomplete && IM.topupOf('ИО-12', '2027-08-01').done.date === '2027-06-20');
+  const st11 = IM.objState('ИО-11');
+  ck('10.09.2027 суд: трактор снят с учёта путём «возврат»', st11.code === 'removed' && st11.pathId === 'ret' && st11.date === '2027-09-10', st11);
+  ck('сторно трактора в Платежах', IM.neighbours('ИО-11').payments.some(x => has(x, 'Сторно поступления')));
+  const n = IM.reallocNeeded('ИО-12');
+  ck('квартира ждёт исправления: распределено 500 000 → 700 000, не вошло 200 000 → 0, требование 200 000',
+    n && n.oldDistributed === 500000 && n.distributed === 700000 && n.oldNotIncluded === 200000 && n.notIncluded === 0 && n.claim === 200000 && n.cause.includes('ИО-11'), n);
+  IM.setRole('spec'); IM.openObject('ИО-12', 'char');
+  ck('UI: подсказка «нужно пересчитать деление» на карточке', !!doc.querySelector('[data-testid=realloc-needed]'));
+  const b = doc.querySelector('[data-testid=act-realloc]');
+  ck('UI: кнопка пересчёта активна для специалиста', b && !b.disabled, b && b.dataset.why);
+  ck('без основания исправление не вводится', !IM.addFact('ИО-12', 'realloc', {}, 'spec').ok);
+  const r = IM.addFact('ИО-12', 'realloc', { doc: 'Решение суда № 2-418/27' }, 'spec');
+  ck('исправление ждёт второго ключа', r.ok && r.pending, r.why);
+  ck('до публикации деление не меняется', IM.allocation('o_r').rows.find(x => x.id === 'ИО-12').distributed === 500000);
+  ck('публикует начальник Управления', IM.publish(r.fact.id, 'head').ok);
+  const a = IM.allocation('o_r'); const q = a.rows.find(x => x.id === 'ИО-12');
+  ck('ИО-12 исправлен: распределено 700 000, не вошло 0', q.distributed === 700000 && q.notIncluded === 0, q);
+  ck('требование к отчуждателю 200 000', IM.topupOf('ИО-12').excess === 200000 && IM.neighbours('ИО-12').payments.some(x => has(x, 'Требование к отчуждателю') && digits(x).includes('200000')));
+  ck('долг по обязанному лицу 300 000', a.rest === 300000, a.rest);
+  ck('после исправления пересчитывать нечего', !IM.reallocNeeded('ИО-12') && !IM.gate('ИО-12', 'realloc').ok);
+  IM.openOffer('П-8');
+  ck('UI: в карточке предложения остаток долга 300 000', digits(doc.querySelector('[data-testid=offer-debt-rest]').textContent).startsWith('300000'));
+  IM.openObject('ИО-12', 'char');
+  ck('UI: требование к отчуждателю на карточке объекта', !!doc.querySelector('[data-testid=obj-claim]'));
+});
+
+group('ИИ-21: отмена принятия не правит опубликованное и не создаёт второго погашения', ({ IM }) => {
+  ck('исправление вводит только специалист', !IM.addFact('ИО-12', 'realloc', { doc: 'd' }, 'lawyer').ok);
+  ck('без отменённого раннего принятия исправление недоступно', !IM.gate('ИО-3', 'realloc').ok && !IM.gate('ИО-1', 'realloc').ok);
+  const n0 = IM.obj('ИО-12').facts.length;
+  const r = IM.addFact('ИО-12', 'realloc', { doc: 'Решение суда' }, 'spec');
+  ck('публиковать специалисту нельзя', !IM.publish(r.fact.id, 'spec').ok);
+  IM.publish(r.fact.id, 'head');
+  const f = IM.obj('ИО-12').facts.slice(n0);
+  ck('добавлен ровно один факт — исправление', f.length === 1 && f[0].t === 'realloc', f.map(x => x.t));
+  ck('исправление датировано переходом права поздней вещи (01.06.2027)', f[0].date === '2027-06-01', f[0].date);
+  ck('исходное деление видно в факте (500 000 / 200 000)', f[0].oldDistributed === 500000 && f[0].oldNotIncluded === 200000);
+  ck('погашение у ИО-12 одно, дата перехода права прежняя', IM.allocation('o_r').rows.filter(x => x.id === 'ИО-12').length === 1 && IM.objState('ИО-12').transfer === '2027-06-01');
+  const p12 = IM.neighbours('ИО-12').payments;
+  ck('у поздней вещи — корректировка суммы поступления, не сторно', p12.some(x => has(x, 'Корректировка суммы поступления')) && !p12.some(x => /^Сторно/.test(x)), p12);
+  ck('сторно — только у отменяемой вещи', IM.neighbours('ИО-11').payments.some(x => /^Сторно/.test(x)));
+  ck('исправление видно во Взыскании', IM.caseJournal('o_r').some(x => has(x.text, 'Исправлено распределение ИО-12')));
+});
+
+group('С-33: куратора в ячейке нет — держит заведующий отделом до порога', ({ IM, doc }) => {
+  ck('пороги в настройках: предложение 2 р.д., объект 10 р.д., «внутренний акт»',
+    IM.SETTINGS.fallback.offer.v === 2 && IM.SETTINGS.fallback.object.v === 10 && IM.SETTINGS.fallback.offer.src === 'внутренний акт' && IM.SETTINGS.fallback.object.src === 'внутренний акт');
+  const r = IM.registerOffer({ source: 'debtor', obligor: 'o_n', docNo: 'ПР-1', docDate: '2027-03-03', name: 'Мини-трактор', value: 100000, kind: 'equip', region: 'Баткенская обл.' }, 'spec');
+  ck('предложение зарегистрировано 03.03.2027', r.ok, r.why);
+  const c4 = IM.curatorOf(r.id, '2027-03-04'), c5 = IM.curatorOf(r.id, '2027-03-05');
+  ck('держит заведующий отделом', c4.fallback && has(c4.emp, 'заведующий отделом'), c4);
+  ck('04.03.2027 — порог не превышен', !c4.over, c4);
+  ck('к 05.03.2027 (2 р.д.) порог превышен', c5.over && c5.deadline === '2027-03-05', c5);
+  const o4 = IM.curatorOf('ИО-13', '2028-03-15'), o7 = IM.curatorOf('ИО-13', '2028-03-17');
+  ck('объект по акту 03.03.2028: порог 10 р.д. — 17.03.2028', o4.deadline === '2028-03-17' && !o4.over && o7.over, [o4, o7]);
+  IM.go('offers');
+  ck('UI: реестр предложений подсвечивает П-9', !!doc.querySelector('[data-testid="curator-over-П-9"]'));
+  IM.go('objects');
+  ck('UI: ИО-13 сегодня не подсвечен', !doc.querySelector('[data-testid="curator-over-ИО-13"]'));
+  IM.setAsOf('17.03.2028');
+  ck('UI: 17.03.2028 ИО-13 подсвечен', !!doc.querySelector('[data-testid="curator-over-ИО-13"]'));
+  IM.setAsOf('15.03.2028'); IM.go('settings');
+  ck('UI: таблица порогов кураторства в настройках', !!doc.querySelector('[data-testid=fallback-limits]'));
+  IM.setFb('offer', 30);
+  ck('порог правится: при 30 р.д. П-9 больше не подсвечен', !IM.curatorOf('П-9').over);
+});
+
+group('С-34: куратор предложения — по позиции с наименьшим номером', ({ IM, doc }) => {
+  const c = IM.curatorOf('П-8');
+  ck('П-8: позиция 1 — трактор, Чуйская обл.; позиция 2 — квартира, Ошская обл.', IM.offer('П-8').positions[0].region === 'Чуйская обл.' && IM.offer('П-8').positions[1].region === 'Ошская обл.');
+  ck('куратор П-8 — по Чуйской области и виду позиции 1', c.emp === 'Абдраимова Н.К.' && has(c.why, 'позиции 1') && has(c.why, 'Чуйская') && has(c.why, 'Трактор'), c);
+  ck('объект из позиции 2 получает куратора по Ошской области', IM.curatorOf('ИО-12').emp === 'Кадыров Т.Ы.', IM.curatorOf('ИО-12'));
+  const r = IM.registerOffer({ source: 'debtor', obligor: 'o_n', docNo: 'ПР-2', docDate: '2028-03-15' }, 'spec');
+  ck('предложение без позиций регистрируется', r.ok && IM.offer(r.id).positions.length === 0, r.why);
+  const c2 = IM.curatorOf(r.id);
+  ck('без позиций — держит заведующий отделом', c2.fallback && has(c2.why, 'нет позиций'), c2);
+  IM.openOffer('П-8');
+  ck('UI: у куратора предложения пояснение «по позиции 1»', has(doc.querySelector('[data-testid=offer-curator]').textContent, 'Абдраимова')
+    && has(doc.getElementById('panel').textContent, 'по позиции 1'));
 });
 
 report();
