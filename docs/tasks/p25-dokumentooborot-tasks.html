@@ -1,0 +1,3778 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Документооборот · редакция 1 · P25 · АСУБК</title>
+<!--
+  Формат — docs/tasks/FORMAT.md, анатомия карточки формата 2 (meta.format = 2). Данные лежат
+  JSON-островом (#tasks-data), проверка — python3 scripts/check_tasks.py
+  docs/tasks/p25-dokumentooborot-tasks.html. Пакет передачи — этот файл +
+  mockups/docflow/docflow.html + requirements/tz/23-dokumentooborot.html, все ссылки внутри —
+  по голому имени файла (папка передаётся поштучно). Свод (карта данных, опись экранов, словарь,
+  сквозной пример) читается один раз в начале — карточка несёт только дельту к нему.
+  Источники по приоритету: ADR-0265…ADR-0272 → канон mockups/docflow/ASUBK-dokumentooborot-logika.md
+  → раздел ТЗ 23 (редакция 2) → макет (расхождения ДО-Д1…ДО-Д15 — mockups/docflow/ASUBK-status-razrabotki.md).
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC;
+  --asubk-link:#005FDB; --asubk-green:#158443;
+  --asubk-red:#E03A3A; --asubk-ink:#192434;
+  --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-blue-tint:rgba(0,106,245,0.08);
+  --asubk-green-tint:rgba(21,132,67,0.10);
+  --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --border-default:var(--asubk-border-base);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --shadow-card:0 1px 2px rgba(24,39,57,0.06);
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; }
+body{ font:400 16px/1.5 var(--asubk-font); color:var(--text-body); background:var(--asubk-gray-100); }
+.wrap{ max-width:1160px; margin:0 auto; padding:0 24px 64px; }
+
+.hero{ background:var(--asubk-white); border-bottom:1px solid var(--border-default); padding:28px 0 22px; margin-bottom:20px; }
+.hero .wrap{ padding-bottom:0; }
+.crumbs{ font-size:13px; color:var(--text-muted); margin-bottom:8px; }
+h1{ font:600 26px/1.25 var(--asubk-font); color:var(--text-heading); margin:0 0 8px; }
+.lead{ color:var(--text-muted); font-size:15px; max-width:82ch; margin:0 0 14px; }
+.lead code{ background:var(--asubk-gray-150); padding:1px 5px; border-radius:3px; font-size:13px; }
+.lead b{ color:var(--text-body); }
+.revbar{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:16px; }
+.revchip{ font:600 12px/1 var(--asubk-font); padding:6px 10px; border-radius:var(--radius-pill); background:var(--asubk-blue-tint); color:var(--asubk-link); }
+.revchip.replaces{ background:var(--asubk-gray-150); color:var(--text-muted); }
+
+.tiles{ display:flex; flex-wrap:wrap; gap:10px; }
+.tile{ appearance:none; cursor:pointer; text-align:left; background:var(--asubk-white);
+  border:1px solid var(--border-default); border-radius:var(--radius-lg); padding:10px 16px; min-width:118px;
+  font:inherit; color:inherit; transition:border-color .12s, box-shadow .12s; }
+.tile:hover{ border-color:var(--asubk-border-strong); }
+.tile.on{ border-color:var(--asubk-blue); box-shadow:0 0 0 2px var(--asubk-blue-tint); }
+.tile .n{ display:block; font:600 22px/1.15 var(--asubk-font); color:var(--text-heading); }
+.tile .l{ display:block; font-size:12.5px; color:var(--text-muted); margin-top:2px; }
+
+section.panel{ background:var(--asubk-white); border:1px solid var(--border-default); border-radius:var(--radius-lg);
+  padding:18px 20px; margin:12px 0; box-shadow:var(--shadow-card); }
+section.panel > h2{ font:600 16px/1.3 var(--asubk-font); color:var(--text-heading); margin:0 0 10px; }
+section.panel > h2 .sub{ font-weight:400; color:var(--text-muted); font-size:13px; }
+.panel p{ margin:6px 0; font-size:14.5px; }
+.panel ul{ margin:6px 0; padding-left:20px; font-size:14.5px; }
+.panel li{ margin-bottom:4px; }
+
+.guide-item{ padding:12px 0; border-bottom:1px solid var(--asubk-gray-150); }
+.guide-item:last-child{ border-bottom:none; }
+.guide-item h3{ font:600 14.5px/1.3 var(--asubk-font); color:var(--asubk-blue-hover); margin:0 0 6px; }
+
+.openq{ display:flex; gap:10px; align-items:baseline; padding:8px 0; border-bottom:1px dashed var(--asubk-gray-150); font-size:13.5px; }
+.openq:last-child{ border-bottom:none; }
+.openq a{ color:var(--asubk-link); text-decoration:none; font-weight:600; white-space:nowrap; }
+.openq a:hover{ text-decoration:underline; }
+.openq .oq-default{ color:var(--text-muted); }
+
+/* Свод: карта данных, опись экранов, словарь, сквозной пример, номера */
+.ent{ border:1px solid var(--asubk-gray-200); border-radius:var(--radius-md); background:var(--asubk-gray-50);
+  padding:10px 12px; margin:8px 0; }
+.ent h4{ font:600 14px/1.3 var(--asubk-font); color:var(--text-heading); margin:0 0 4px;
+  display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; }
+.ent .key{ font:400 12.5px/1.3 var(--asubk-font); color:var(--asubk-link);
+  background:var(--asubk-blue-tint); border-radius:var(--radius-pill); padding:2px 9px; }
+.ent .note{ font-size:13px; color:var(--text-muted); margin:0 0 6px; }
+.ent ul{ margin:0; padding-left:18px; font-size:14px; }
+.ent li{ margin-bottom:3px; }
+.ent li b{ font-weight:600; color:var(--text-heading); }
+
+.scr{ border:1px solid var(--asubk-gray-200); border-radius:var(--radius-md); background:var(--asubk-white);
+  padding:10px 12px; margin:8px 0; }
+.scr h4{ font:600 14px/1.3 var(--asubk-font); color:var(--text-heading); margin:0 0 5px; }
+.scr .note{ font-size:13px; color:var(--text-muted); margin:0 0 6px; }
+.scr .chips{ display:flex; flex-wrap:wrap; gap:6px; }
+.scr .col{ font-size:12.5px; color:var(--text-body); background:var(--asubk-gray-100);
+  border:1px solid var(--border-default); border-radius:var(--radius-pill); padding:3px 9px; }
+.scr .act{ font-size:12.5px; color:var(--asubk-green); background:var(--asubk-green-tint);
+  border:1px solid rgba(21,132,67,0.22); border-radius:var(--radius-pill); padding:3px 9px; }
+.scr .cap{ font:600 11px/1 var(--asubk-font); text-transform:uppercase; letter-spacing:.06em;
+  color:var(--asubk-ink-45); margin:8px 0 4px; display:block; }
+
+.gloss{ display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:8px; }
+.gloss div{ font-size:13.5px; border-bottom:1px dashed var(--asubk-gray-150); padding:6px 0; }
+.gloss b{ color:var(--text-heading); }
+
+table.idmap{ border-collapse:collapse; width:100%; font-size:13.5px; }
+table.idmap th{ text-align:left; font:600 12px/1 var(--asubk-font); text-transform:uppercase;
+  letter-spacing:.06em; color:var(--asubk-ink-45); padding:6px 8px; border-bottom:1px solid var(--border-default); }
+table.idmap td{ padding:6px 8px; border-bottom:1px solid var(--asubk-gray-150); vertical-align:top; }
+table.idmap td.old{ color:var(--text-muted); white-space:nowrap; }
+table.idmap td.new a{ color:var(--asubk-link); text-decoration:none; font-weight:600; white-space:nowrap; }
+table.idmap td.new a:hover{ text-decoration:underline; }
+
+.bar{ position:sticky; top:0; z-index:5; background:var(--asubk-gray-100);
+  padding:14px 0 12px; margin-bottom:4px; border-bottom:1px solid var(--border-default); }
+.bar .row{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.search{ flex:1; min-width:240px; height:36px; padding:0 12px; font:inherit; font-size:14px;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--asubk-white); color:inherit; }
+.search:focus{ outline:none; border-color:var(--asubk-blue); box-shadow:0 0 0 2px var(--asubk-blue-tint); }
+select{ height:36px; padding:0 8px; font:inherit; font-size:14px; background:var(--asubk-white);
+  border:1px solid var(--border-default); border-radius:var(--radius-md); color:inherit; }
+.btn{ height:36px; padding:0 14px; font:inherit; font-size:14px; cursor:pointer;
+  border:1px solid var(--border-default); border-radius:var(--radius-md); background:var(--asubk-white); color:inherit; }
+.btn:hover{ background:var(--asubk-gray-50); }
+.btn-p{ background:var(--asubk-blue); border-color:var(--asubk-blue); color:#fff; }
+.btn-p:hover{ background:var(--asubk-blue-hover); }
+.count{ font-size:13px; color:var(--text-muted); margin-left:auto; white-space:nowrap; }
+
+.group{ margin-top:26px; }
+.group > h2{ font:600 15px/1.3 var(--asubk-font); color:var(--text-muted); margin:0 0 10px;
+  text-transform:uppercase; letter-spacing:.05em; display:flex; align-items:center; gap:8px; }
+.group > h2 .g-n{ font-weight:400; color:var(--asubk-ink-45); text-transform:none; letter-spacing:0; }
+
+.card{ background:var(--asubk-white); border:1px solid var(--border-default); border-left:3px solid var(--asubk-blue);
+  border-radius:var(--radius-lg); padding:16px 18px; margin-bottom:10px; box-shadow:var(--shadow-card); scroll-margin-top:70px; }
+.c-head{ display:flex; flex-wrap:wrap; align-items:baseline; gap:10px; }
+.id{ font:600 13px/1 var(--asubk-font); letter-spacing:.02em; color:var(--asubk-link);
+  background:var(--asubk-blue-tint); padding:5px 8px; border-radius:var(--radius-md); white-space:nowrap; }
+.step{ font:600 12px/1 var(--asubk-font); color:var(--asubk-ink-45); background:var(--asubk-gray-100);
+  border:1px solid var(--border-default); padding:5px 8px; border-radius:var(--radius-md); white-space:nowrap; }
+.c-title{ font:600 17px/1.35 var(--asubk-font); color:var(--text-heading); flex:1; min-width:260px; margin:0; }
+
+.blk{ margin-top:12px; }
+.blk .lbl{ font:600 12px/1 var(--asubk-font); text-transform:uppercase; letter-spacing:.06em;
+  color:var(--asubk-ink-45); display:block; margin-bottom:5px; }
+.blk p{ margin:0; font-size:15px; }
+.blk ul{ margin:0; padding-left:20px; font-size:15px; }
+.blk li{ margin-bottom:4px; }
+.why{ color:var(--text-muted); }
+.subh{ font:600 13.5px/1.3 var(--asubk-font); color:var(--text-body); margin:8px 0 3px; }
+
+.build{ background:var(--asubk-blue-tint); border-radius:var(--radius-md); padding:11px 13px; margin-top:12px; }
+.build .lbl{ color:var(--asubk-blue-hover); }
+.build p{ font-size:15.5px; color:var(--text-heading); }
+
+.steps{ margin:0; padding-left:22px; font-size:15px; }
+.steps li{ margin-bottom:5px; }
+
+.ex{ border:1px solid rgba(21,132,67,0.22); border-left:3px solid var(--asubk-green);
+  background:var(--asubk-green-tint); border-radius:var(--radius-md); padding:11px 13px; margin-top:12px; }
+.ex .lbl{ color:var(--asubk-green); }
+.ex .src{ font-size:13px; color:var(--text-muted); margin:0 0 7px; }
+.ex .exh{ font:600 12.5px/1 var(--asubk-font); color:var(--asubk-ink-45); display:block; margin:7px 0 3px;
+  text-transform:uppercase; letter-spacing:.05em; }
+.ex ul{ margin:0; padding-left:20px; font-size:14.5px; }
+.ex li{ margin-bottom:3px; }
+
+.terms{ display:flex; flex-wrap:wrap; gap:8px; }
+.terms .term{ font-size:13px; background:var(--asubk-gray-50); border:1px solid var(--asubk-gray-200);
+  border-radius:var(--radius-md); padding:6px 10px; }
+.terms .term b{ color:var(--text-heading); }
+
+.look{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; font-size:13px; }
+.look a{ color:var(--asubk-link); text-decoration:none; background:var(--asubk-blue-tint); padding:4px 9px; border-radius:var(--radius-pill); }
+.look a:hover{ text-decoration:underline; }
+.look .route{ color:var(--text-muted); }
+.look .defect{ color:#9E1F1F; background:#FCE6E6; padding:4px 9px; border-radius:var(--radius-pill); }
+
+.openbox{ background:var(--asubk-amber-tint); border-left:3px solid var(--asubk-amber); border-radius:0 var(--radius-md) var(--radius-md) 0;
+  padding:9px 12px; margin-top:6px; font-size:13.5px; }
+.openbox b{ color:#8A6508; }
+
+.c-foot{ margin-top:13px; padding-top:11px; border-top:1px solid var(--asubk-gray-150);
+  display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.tag{ font-size:12px; color:var(--text-muted); background:var(--asubk-gray-100);
+  border:1px solid var(--border-default); border-radius:var(--radius-pill); padding:3px 9px; }
+.dep{ font-size:12px; color:var(--asubk-link); background:var(--asubk-white); text-decoration:none;
+  border:1px solid rgba(0,106,245,0.25); border-radius:var(--radius-pill); padding:3px 9px; }
+.dep:hover{ background:var(--asubk-blue-tint); }
+
+.card details{ margin-top:11px; border-top:1px solid var(--asubk-gray-150); padding-top:9px; }
+.card details summary{ cursor:pointer; font-size:13px; color:var(--text-muted); list-style:none; user-select:none; }
+.card details summary::-webkit-details-marker{ display:none; }
+.card details summary::before{ content:'▸ '; color:var(--asubk-ink-45); }
+.card details[open] summary::before{ content:'▾ '; }
+.card details summary:hover{ color:var(--asubk-link); }
+
+/* Свёрнутые панели свода */
+.panel details.fold > summary{ cursor:pointer; list-style:none; user-select:none;
+  font:600 16px/1.3 var(--asubk-font); color:var(--text-heading);
+  display:flex; flex-wrap:wrap; gap:8px; align-items:baseline; }
+.panel details.fold > summary::-webkit-details-marker{ display:none; }
+.panel details.fold > summary::before{ content:'▸'; color:var(--asubk-ink-45); font-weight:400; }
+.panel details.fold[open] > summary::before{ content:'▾'; }
+.panel details.fold > summary:hover{ color:var(--asubk-link); }
+.panel details.fold > summary .sub{ font-weight:400; color:var(--text-muted); font-size:13px; }
+.panel details.fold > summary .cnt{ font:600 12px/1 var(--asubk-font); color:var(--asubk-link);
+  background:var(--asubk-blue-tint); border-radius:var(--radius-pill); padding:4px 9px; }
+.panel details.fold > .foldbody{ margin-top:12px; }
+.traps{ margin-top:8px; font-size:13.5px; color:var(--text-muted); background:var(--asubk-gray-50);
+  border:1px solid var(--asubk-gray-150); border-radius:var(--radius-md); padding:10px 12px; }
+.traps ul{ margin:0; padding-left:18px; }
+.traps li{ margin-bottom:4px; }
+
+.empty{ text-align:center; padding:48px 0; color:var(--text-muted); font-size:15px; }
+.footerbar{ margin-top:32px; font-size:13px; color:var(--text-muted); border-top:1px solid var(--border-default); padding-top:14px; }
+code{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; }
+@media print{ .bar{ position:static; } .card details{ display:none; }
+  .panel details.fold > .foldbody{ display:block; } .card{ break-inside:avoid; } }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="crumbs">АСУБК · Модуль «Документооборот» · Постановка задач для разработки</div>
+    <h1 id="hero-title">Документооборот — задачи для команды разработки</h1>
+    <div class="revbar" id="revbar"></div>
+    <p class="lead" id="hero-lead"></p>
+    <div class="tiles" id="tiles"></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <section class="panel" id="panel-guide">
+    <details class="fold">
+      <summary>Справка модуля <span class="sub">что модулю принадлежит и где его границы</span>
+        <span class="cnt" id="guide-cnt"></span></summary>
+      <div class="foldbody" id="guide-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-atlas">
+    <details class="fold">
+      <summary>Карта данных <span class="sub">модель целиком: сущности, ключи, поля — карточка несёт только дельту</span>
+        <span class="cnt" id="atlas-cnt"></span></summary>
+      <div class="foldbody" id="atlas-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-screens">
+    <details class="fold">
+      <summary>Опись экранов <span class="sub">весь интерфейс модуля списком: где что живёт</span>
+        <span class="cnt" id="screens-cnt"></span></summary>
+      <div class="foldbody" id="screens-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-gloss">
+    <details class="fold">
+      <summary>Словарь <span class="sub">слова этой постановки в её собственном значении</span>
+        <span class="cnt" id="gloss-cnt"></span></summary>
+      <div class="foldbody" id="gloss-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-walk">
+    <details class="fold">
+      <summary>Сквозной пример <span class="sub">один входящий запрос от регистрации через каскад резолюций до ответа и показателей, с числами</span>
+        <span class="cnt" id="walk-cnt"></span></summary>
+      <div class="foldbody" id="walk-list"></div>
+    </details>
+  </section>
+
+  <section class="panel" id="panel-open">
+    <details class="fold">
+      <summary>Открытые вопросы <span class="sub">позиция проекта по каждому вопросу; заказчик подтверждает или правит</span>
+        <span class="cnt" id="openq-cnt"></span></summary>
+      <div class="foldbody" id="openq-list"></div>
+    </details>
+  </section>
+
+  <div class="bar">
+    <div class="row">
+      <input class="search" id="q" type="search" placeholder="Поиск по номеру, заголовку, тексту…" autocomplete="off">
+      <select id="fStage"><option value="">Все этапы</option></select>
+      <button class="btn" id="reset">Сбросить</button>
+      <button class="btn btn-p" id="expand">Раскрыть ловушки</button>
+      <span class="count" id="count"></span>
+    </div>
+  </div>
+
+  <div id="list"></div>
+
+  <div class="footerbar">
+    <p><b>Порядок сборки — по этапам, не строгой очередью.</b> Между этапами — барьер и приёмка
+       пачкой. Внутри этапа карточка берётся, когда готова названная ею зависимость (значок
+       <span class="dep" style="display:inline">↔ P25-Rn</span>) — он указывает только назад, на уже
+       готовую карточку.</p>
+    <p><b>Как читать карточку.</b> Свод наверху читается один раз: карта данных, опись экранов,
+       словарь и сквозной пример. Карточка после этого несёт только своё — что строим, зачем, какие
+       поля добавляются, как выглядит экран, шаги, пример с числами и приёмку. Числа во всех
+       примерах взяты из витрины макета, имя записи стоит в строке «Источник».</p>
+    <p><b>Разделение источников.</b> Модель, правила, приёмка и границы живут только здесь. Приоритет
+       и статус исполнения — в <code>TODO.md</code> (реестр). Расхождение по логике модуля решает эта
+       постановка, расхождение по виду интерфейса — макет <code>docflow.html</code>; все числа примеров
+       сняты с его витрины, сценарии приёмки С-1…С-32 и инварианты ИД-1…ИД-20 совпадают с разделом ТЗ 23.</p>
+    <p>Вопросы по постановке — общий чат команды. Ответ, полученный там, попадает в карточку и журнал
+       редакции следующего выпуска этого файла (см. «Версионирование», <code>FORMAT.md</code>).</p>
+  </div>
+</div>
+
+
+<script type="application/json" id="tasks-data">
+{
+ "meta": {
+  "module": "docflow",
+  "title": "Документооборот",
+  "phase": 25,
+  "format": 2,
+  "revision": 1,
+  "date": "2026-10-10",
+  "registry": "### Документооборот (целевая модель)",
+  "package": [
+   "docflow.html",
+   "23-dokumentooborot.html"
+  ]
+ },
+ "guide": [
+  {
+   "h": "Что делает модуль и где его границы",
+   "items": [
+    "Модуль ведёт входящие, исходящие и внутренние документы Фонда: регистрирует их под номером, проводит по согласованию и подписи, раздаёт поручения резолюциями, фиксирует отправку и вручение по каждому адресату, привязывает документ к делу и сдаёт в архивное дело. <b>Глагол модуля — «регистрирует».</b>",
+    "<b>Видов три</b> — входящий, исходящий, внутренний; они зашиты в модель. Претензия, иск, приказ, акт сверки — <b>типы</b> внутри вида, строки справочника. Новый вид — новый ADR (ADR-0265).",
+    "<b>Цепочка этапов одна:</b> Черновик → Согласование → Подпись → Зарегистрирован → В деле, плюс «Аннулирован». Входящий из черновика идёт сразу в «Зарегистрирован». Отказ согласующего или подписанта возвращает документ в «Черновик».",
+    "<b>Входит:</b> документ и его поля, справочники модуля (типы, фразы, способы отправки, коды отделов, право подписи, номенклатура), маршрут, три ряда номеров, исправление и аннулирование, вложения, резолюции, отправка и вручение, архив и выдача оригиналов, журналы и поиск, ответ на опрос «Заданий», швы с «Отчётностью», взысканием и статистикой, перенос старых данных. Полностью — <a href=\"23-dokumentooborot.html#s1-1\">что делает модуль</a>.",
+    "Модуль строится с нуля: в действующем приложении его нет (пункт «Документы» на стенде — хранилище файлов компаний без номеров и резолюций; проверено 10.10.2026). Макет <a href=\"docflow.html\">docflow.html</a> исполняет описанное здесь на витрине из 22 документов; «сегодня» в макете заморожено на 15.10.2026."
+   ]
+  },
+  {
+   "h": "Чем модуль не владеет",
+   "items": [
+    "<b>Работа «на мне»</b>, уведомления, просрочка, продление, переназначение, эскалация, замещение при выдаче — модуль «Задания». Своей очереди у документооборота нет: он отвечает на опрос поводами и гасит их (ADR-0271). Журнал «Мои» — список документов, а не список работы.",
+    "<b>Текст бланка</b>, подстановка данных, pdf-снимок — «Отчётность». Модуль принимает окончательный выпуск с получателем как черновик исходящего и выдаёт ему номер (ADR-0268).",
+    "<b>Мера взыскания</b>, её сроки и последствия — взыскание. Мера читает из документа номер и даты; документооборот мер не создаёт и не правит (ADR-0270).",
+    "<b>Показатели ТЗ</b> (документы по видам, в работе, просроченные, исполненные в срок) — «Статистика», объект «документ». Модуль отдаёт строки на дату, витрин не строит (ADR-0272).",
+    "<b>Сотрудники и оргструктура</b> — подразделение, руководитель по цепочке, замещение и приказ о замещении на дату — читаются у владельцев. ЭЦП, OCR сканов и общий чат не делаются. Таблица границ — <a href=\"23-dokumentooborot.html#s1-2\">что в модуль не входит</a>."
+   ]
+  },
+  {
+   "h": "Что не хранится никогда",
+   "items": [
+    "<b>Статус исполнения.</b> Сводки «поручений 2: исполнено 1, просрочено 1», «отправлено 2/3: вручено 1, возврат 1», «ознакомлены 12/15», «круг 2: согласовано 2/3» собираются из резолюций, строк отправки, шагов маршрута и сроков «Заданий» в момент показа (ИД-12).",
+    "<b>«Отправлен» и «Исполнен»</b> — не этапы. Документ в этапе «Зарегистрирован» бывает в работе, просрочен или исполнен.",
+    "<b>Установленный срок резолюции</b> (с продлениями) — читается у «Заданий» по ключу повода; документооборот хранит только исходный срок.",
+    "<b>Исходное имя файла</b> — не сохраняется: в именах файлов старой системы стоят ФИО. Имя даёт система.",
+    "<b>Даты меры взыскания</b> — у меры их нет: номер, событие, получение, направлено и вручено она читает из документа."
+   ]
+  },
+  {
+   "h": "Инварианты ИД-1…ИД-20 — проверяются на каждой карточке",
+   "items": [
+    "<b>ИД-1.</b> Пара «ряд, год, номер» уникальна среди документов новой системы.",
+    "<b>ИД-2.</b> В «Черновике», «Согласовании», «Подписи» номера нет; в «Зарегистрирован», «В деле», «Аннулирован» — есть.",
+    "<b>ИД-3.</b> Зарегистрированный документ не удаляется никем. <b>ИД-4.</b> Дата регистрации — системный штамп. <b>ИД-5.</b> Вид не меняется после создания.",
+    "<b>ИД-6.</b> В «Подпись» — только когда все шаги текущего круга согласованы. <b>ИД-7.</b> «Подписано» — только от сотрудника с правом подписи на тип на дату подписи или его замещающего по приказу с правом подписи.",
+    "<b>ИД-8.</b> После регистрации файлы не удаляются и не заменяются. <b>ИД-9.</b> У аннулированного нет отправки ни одному адресату.",
+    "<b>ИД-10.</b> Срок резолюции не позже установленного срока родительской на момент выдачи. <b>ИД-11.</b> У резолюции ровно один ответственный. <b>ИД-12.</b> Хранимого статуса исполнения нет.",
+    "<b>ИД-13.</b> Зарегистрированный документ нового ввода имеет все обязательные для типа привязки. <b>ИД-14.</b> Вручение не раньше отправки, отправка не раньше регистрации. <b>ИД-15.</b> Поступление входящего не позже регистрации.",
+    "<b>ИД-16.</b> Документ «В деле» имеет дело из номенклатуры года сдачи. <b>ИД-17.</b> Журнал документа и лента комментариев только дописываются.",
+    "<b>ИД-18.</b> Каждый открытый шаг и каждая неисполненная резолюция есть в ответе на опрос «Заданий»; закрытых там нет. <b>ИД-19.</b> Перенесённый документ — только на чтение. <b>ИД-20.</b> Каждое чтение, скачивание и действие проходит серверную проверку прав.",
+    "Полный список — <a href=\"23-dokumentooborot.html#s17\">инварианты</a>; сценарии приёмки С-1…С-32 — <a href=\"23-dokumentooborot.html#s18\">приёмка</a>; проверки действий — <a href=\"23-dokumentooborot.html#s16\">проверки действий</a>."
+   ]
+  },
+  {
+   "h": "Постановка, канон и макет: что побеждает",
+   "items": [
+    "Приоритет: ADR-0265…ADR-0272 → канон модуля (ASUBK-dokumentooborot-logika.md) → раздел ТЗ <a href=\"23-dokumentooborot.html#s1\">23. Документооборот</a> (редакция 2) → макет. Где макет решил вопрос, на который канон не отвечает (расхождения <b>ДО-Д1…ДО-Д15</b> журнала макета), карточка называет расхождение и принимает решение макета как позицию проекта, если оно не противоречит канону.",
+    "Где ТЗ и канон расходятся в деталях (роль файла «документ» против «скан входящего», перенос привязок), карточка следует канону и называет расхождение.",
+    "Решения <b>ДО-35…ДО-44</b> приняты при сборке канона и ждут подтверждения; карточки строятся по ним. Вопросы заказчику <b>ДО-ВЗ-1…ДО-ВЗ-6</b> не блокируют работу: у каждого названа позиция проекта, и каждое значение — настройка или строка справочника."
+   ]
+  },
+  {
+   "h": "Что должны сделать другие модули (не задачи этой постановки)",
+   "items": [
+    "<b>Задания:</b> ДО-ДС-1 — формы адресата «названный поводом» (с пометкой «лично») и «очередь роли» со взятием в работу и эскалацией; ДО-ДС-2 — признак вида повода «исполнение у владельца» и отпадение с атрибуцией; ДО-ДС-3 — частота опроса как реквизит вида повода, 5 минут для «документа»; ДО-ДС-4 — отдавать установленный срок и исход задания по ключу шага.",
+    "<b>Отчётность:</b> ДО-ДС-5 — «Создать исходящий» у окончательного выпуска с получателем, ссылка выпуска на документ и номер, снятие серии исходящих. <b>Взыскание:</b> ДО-ДС-6 — реквизит вида меры «документ документооборота», мера читает номер и даты из документа, DELIVERY_PROOF переезжает в справочник способов, метка расхождения.",
+    "<b>Статистика:</b> ДО-ДС-7 — объект «документ» в реестре и показатели ТЗ 711–721. <b>Сотрудники:</b> ДО-ДС-8 — признак приказа о замещении «с правом подписи», руководитель по цепочке на дату. <b>Карточки соседей:</b> ДО-ДС-9 — вкладка «Документы» у заёмщика, кредита, взыскания, залога, имущества. <b>Справочники:</b> ДО-ДС-10 — общий справочник органов-адресатов.",
+    "До готовности этих доработок карточки строятся против контрактов из <a href=\"23-dokumentooborot.html#s13-1\">сводной таблицы интеграций</a>; что именно должно быть готово, названо в «Нужно от других модулей» каждой карточки."
+   ]
+  }
+ ],
+ "atlas": [
+  {
+   "n": "Документ",
+   "key": "внутренний идентификатор; после регистрации — ряд + год + номер",
+   "note": "Одна единица учёта одного из трёх видов. Этап хранится, исполнение выводится. Поля по видам — <a href=\"23-dokumentooborot.html#s3-3\">поля по видам</a>.",
+   "fields": [
+    "<b>вид</b> — входящий · исходящий · внутренний; задаётся при создании, не меняется (ИД-5)",
+    "<b>тип</b> — ссылка на тип своего вида; после регистрации не меняется",
+    "<b>тема</b> — строка до 500 символов, обязательна для действий",
+    "<b>этап</b> — Черновик · Согласование · Подпись · Зарегистрирован · В деле · Аннулирован; меняется только действием",
+    "<b>отметка «подписан»</b> — кто, за кого, когда; факт журнала, этапа не меняет",
+    "<b>ряд, год, номер, код отдела</b> — выдаются при регистрации; до неё пусто (ИД-2)",
+    "<b>дата регистрации</b> — системный штамп (ИД-4); <b>дата документа</b> — дата на бумаге",
+    "<b>автор, подразделение автора, исполнитель документа</b> — у входящего автор = регистратор; подразделение и должность — снимок на дату регистрации",
+    "<b>срочность</b> — Обычно · Срочно · Немедленно; <b>цель</b> — К исполнению · К сведению · Требует ответа",
+    "<b>требует ответа</b> (вх.), <b>на контроле + контролёр</b> (вх., вн.) — флаги",
+    "<b>бумажный оригинал есть</b> — флаг, ставит регистратор",
+    "<b>дело</b> — ссылка на дело номенклатуры, заполняется сдачей в дело",
+    "<b>из старой системы</b> — признак, <b>старый номер</b>, <b>старый год</b>, <b>дата сомнительна</b>",
+    "<b>удалён</b> — момент и кто; только у черновика, удаление логическое"
+   ]
+  },
+  {
+   "n": "Поля входящего",
+   "key": "документ вида «входящий»",
+   "fields": [
+    "<b>отправитель</b> — субъект реестра лиц или наименование текстом",
+    "<b>вид отправителя</b> — Заёмщик · Суд · Госорган · Банк · Прочее; обязателен, если отправитель текстом",
+    "<b>номер и дата отправителя</b> — «б/н» — законное значение",
+    "<b>дата поступления</b> — не позже сегодняшней и не позже регистрации (ИД-15)",
+    "<b>получатели</b> — сотрудники, кому документ направлен на резолюцию"
+   ]
+  },
+  {
+   "n": "Поля исходящего и внутреннего",
+   "key": "документ вида «исходящий» или «внутренний»",
+   "fields": [
+    "<b>согласующие</b> — 0…n сотрудников; <b>подписант</b> — ровно один",
+    "<b>ответ на</b> (исх.) — 0…n входящих; это «основание на подготовку» из ТЗ",
+    "<b>бланк-источник</b> (исх., вн.) — ссылка на выпуск «Отчётности»",
+    "<b>получатели</b> (вн.) — сотрудник или подразделение, каждый в режиме «на ознакомление» или «на исполнение»"
+   ]
+  },
+  {
+   "n": "Тип документа",
+   "key": "устойчивый идентификатор типа",
+   "note": "Строка справочника внутри вида; несёт поведение документа. Переименование меняет только наименование.",
+   "fields": [
+    "<b>вид</b>, <b>наименование</b>",
+    "<b>требует ответа по умолчанию</b> — только у входящих",
+    "<b>цель по умолчанию</b>, <b>срочность по умолчанию</b>",
+    "<b>обязательная привязка</b> — набор видов объектов, например «кредит + фаза взыскания»",
+    "<b>дело по умолчанию</b> — индекс дела номенклатуры",
+    "<b>только для перенесённых</b> — у типа «Документ (из старой системы)»",
+    "<b>действует с / по</b> — тип не удаляется, а закрывается датой"
+   ]
+  },
+  {
+   "n": "Шаг маршрута",
+   "key": "документ + род шага + участник + круг",
+   "note": "Ожидание действия одного человека или роли. Каждый шаг — отдельный повод для «Заданий».",
+   "fields": [
+    "<b>род</b> — доработка · согласование · подпись · регистрация · отправка · рассмотрение входящего · ознакомление · подтверждение контролёра · сдача в дело · возврат оригинала",
+    "<b>кому</b> — сотрудник или роль (Регистратор, Архивариус)",
+    "<b>круг</b> — номер круга согласования",
+    "<b>исход</b> — согласовано · отказано (комментарий обязателен) · подписано · ознакомлен · снят (с причиной)",
+    "<b>кто и когда</b> — фактический исполнитель и время; при замещении — «за кого»"
+   ]
+  },
+  {
+   "n": "Резолюция",
+   "key": "Р-n",
+   "note": "Поручение по документу (ADR-0266). Дерево: родитель пуст — верхний уровень.",
+   "fields": [
+    "<b>документ</b>, <b>автор</b>, <b>дата</b>",
+    "<b>родитель</b> — резолюция выше или пусто",
+    "<b>текст</b> — фраза справочника, можно дописать",
+    "<b>ответственный</b> — ровно один (ИД-11); <b>соисполнители</b> — 0…n",
+    "<b>срок</b> — исходный; установленный с продлениями читается у «Заданий»",
+    "<b>исход</b> — Исполнено (текст результата) · Отказать (основание) · снята (ветка закрыта); пусто — открыта",
+    "<b>отметка контролёра</b> — подтверждено или возвращено с комментарием"
+   ]
+  },
+  {
+   "n": "Привязка",
+   "key": "документ + вид объекта + идентификатор объекта",
+   "fields": [
+    "<b>вид объекта</b> — заёмщик · кредит · процедура взыскания · фаза взыскания · событие (мера) взыскания · договор залога · объект имущества · заявка · госрешение · ведомство",
+    "<b>объект</b> — ссылка на запись модуля-владельца",
+    "<b>источник</b> — вручную · подставлена (кредит → заёмщик) · из бланка"
+   ]
+  },
+  {
+   "n": "Адресат исходящего и строка отправки",
+   "key": "документ + адресат + попытка",
+   "note": "Отправка ведётся по каждому адресату; повторная отправка — новая строка у того же адресата.",
+   "fields": [
+    "<b>адресат</b> — субъект реестра лиц, орган из справочника органов или текст",
+    "<b>адрес отправки</b> — снимок на дату отправки",
+    "<b>способ</b> — из справочника способов; <b>дата отправки</b>; <b>почтовый идентификатор</b>",
+    "<b>исход доставки</b> — вручено · возврат, с датой",
+    "<b>подтверждение</b> — вложение с ролью «вручение»"
+   ]
+  },
+  {
+   "n": "Вложение",
+   "key": "документ + роль + порядковый номер + версия",
+   "fields": [
+    "<b>роль</b> — проект · подписанный · скан входящего · приложение · вручение · результат",
+    "<b>системное имя</b> — <i>ИСХ-2026-2174_подписанный.pdf</i>; до регистрации <i>ЧЕРН-12_проект_v1.docx</i>",
+    "<b>версия</b> и история версий (до регистрации)",
+    "<b>размер</b>, <b>контрольная сумма</b>, <b>тип по содержимому</b>, кто и когда загрузил"
+   ]
+  },
+  {
+   "n": "Запись журнала и комментарий",
+   "key": "документ + момент + порядковый номер",
+   "fields": [
+    "<b>журнал</b> — действие, автор, время, текст; при исправлении «было/стало» и основание; только дописывается (ИД-17)",
+    "<b>комментарий</b> — автор, время, текст, упомянутые сотрудники; не правится и не удаляется"
+   ]
+  },
+  {
+   "n": "Ряд номеров",
+   "key": "вид + год",
+   "fields": [
+    "<b>последний выданный номер</b> — растёт под блокировкой",
+    "<b>стартовое значение</b> — у текущего года при переносе: максимум старой системы"
+   ]
+  },
+  {
+   "n": "Справочники модуля",
+   "key": "строка справочника, устойчивый идентификатор",
+   "fields": [
+    "<b>фраза резолюции</b> — текст",
+    "<b>способ отправки</b> — наименование · нужен ли почтовый идентификатор · какое подтверждение требуется (заменяет DELIVERY_PROOF)",
+    "<b>код отдела</b> — подразделение · код (19-03-01) · действует с / по",
+    "<b>право подписи</b> — сотрудник · типы · основание (доверенность или должность) · действует с / по"
+   ]
+  },
+  {
+   "n": "Дело и выдача оригинала",
+   "key": "год + индекс дела; выдача — В-n",
+   "fields": [
+    "<b>дело</b> — год · индекс · название · подразделение · срок хранения · место хранения (кабинет, шкаф, полка)",
+    "<b>выдача</b> — документ · кому · когда · до какого числа · дата возврата · кто выдал"
+   ]
+  }
+ ],
+ "screens": [
+  {
+   "n": "Журналы «Входящие», «Исходящие», «Внутренние»",
+   "note": "Точка входа. Новые сверху. Красный срок — только просрочка.",
+   "cols": [
+    "ВХ: номер, дата рег., отправитель, № и дата отправителя, тема, тип, этап, исполнение, срок",
+    "ИСХ: номер, дата, адресаты, тема, тип, подписант, этап, отправка",
+    "ВН: номер, дата, автор, тема, тип, этап, ознакомление / исполнение"
+   ],
+   "acts": [
+    "новый документ вида",
+    "из бланка «Отчётности»",
+    "поиск одной строкой",
+    "фильтры: тип, этап, исполнение, период",
+    "группировка",
+    "сохранить набор",
+    "печатная форма журнала"
+   ]
+  },
+  {
+   "n": "«Мои»",
+   "note": "Документы, где я участник; это журнал, а не очередь работы.",
+   "cols": [
+    "вид",
+    "номер",
+    "дата",
+    "тема",
+    "моя роль",
+    "этап",
+    "исполнение"
+   ],
+   "acts": [
+    "открыть карточку"
+   ]
+  },
+  {
+   "n": "Карточка документа",
+   "note": "Шапка: вид, номер с годом, тип, этап, отметки «подписан», «на контроле», «требует ответа», сводки, «вас упомянули», кнопки доступных действий; недоступная кнопка называет причину.",
+   "cols": [
+    "вкладки: Реквизиты · Файлы · Маршрут · Резолюции · Отправка (ИСХ) · Ознакомление (ВН) · Привязки · Журнал · Комментарии"
+   ],
+   "acts": [
+    "изменить",
+    "на согласование / на подпись",
+    "согласовать",
+    "подписать",
+    "отказать",
+    "зарегистрировать",
+    "приложить подписанный",
+    "исправить",
+    "аннулировать",
+    "дать резолюцию",
+    "исполнено",
+    "ознакомлен",
+    "отметить отправку и вручение",
+    "сдать в дело",
+    "направить на ознакомление",
+    "зарегистрировать меру",
+    "печать РКК"
+   ]
+  },
+  {
+   "n": "Форма черновика",
+   "note": "Поля вида; сохраняется без проверки полноты, проверки — на действиях.",
+   "cols": [
+    "тип",
+    "тема",
+    "даты",
+    "отправитель / адресаты / получатели",
+    "согласующие и подписант",
+    "привязки",
+    "срочность и цель"
+   ],
+   "acts": [
+    "сохранить",
+    "удалить черновик"
+   ]
+  },
+  {
+   "n": "Формы действий",
+   "note": "Резолюция, отказ, исправление, аннулирование, отправка, вручение, сдача в дело, выдача оригинала.",
+   "acts": [
+    "каждая форма требует своих обязательных полей и называет нарушенную проверку"
+   ]
+  },
+  {
+   "n": "Архив",
+   "cols": [
+    "номенклатура дел года и состав дела",
+    "ждут сдачи в дело",
+    "журнал выдачи оригиналов с просрочкой"
+   ],
+   "acts": [
+    "завести дело",
+    "скопировать номенклатуру на следующий год",
+    "выдать оригинал",
+    "отметить возврат",
+    "печать описи дела"
+   ]
+  },
+  {
+   "n": "Настройки",
+   "note": "Справочники модуля; ведёт администратор документооборота, номенклатуру — архивариус.",
+   "cols": [
+    "типы",
+    "фразы резолюций",
+    "право подписи",
+    "способы отправки",
+    "коды отделов",
+    "номенклатура"
+   ],
+   "acts": [
+    "добавить",
+    "закрыть датой",
+    "переименовать"
+   ]
+  },
+  {
+   "n": "Вкладка «Документы» у соседей",
+   "note": "Заёмщик, кредит, фаза взыскания, договор залога, объект имущества. Читает привязки, своего списка не ведёт.",
+   "cols": [
+    "вид",
+    "номер",
+    "дата",
+    "тип",
+    "тема",
+    "этап",
+    "сводка исполнения или отправки"
+   ],
+   "acts": [
+    "открыть карточку документа"
+   ]
+  },
+  {
+   "n": "Печатные формы",
+   "cols": [
+    "журнал регистрации за период с фильтром по типу",
+    "лист ознакомления",
+    "опись дела",
+    "регистрационно-контрольная карточка"
+   ]
+  }
+ ],
+ "glossary": [
+  {
+   "t": "вид документа",
+   "d": "одно из трёх значений, зашитых в модель: входящий, исходящий, внутренний"
+  },
+  {
+   "t": "тип документа",
+   "d": "строка справочника внутри вида (претензия, иск, приказ); несёт поведение: требует ответа, обязательную привязку, дело по умолчанию"
+  },
+  {
+   "t": "этап",
+   "d": "хранимое положение документа в цепочке; меняется только действием"
+  },
+  {
+   "t": "регистрация",
+   "d": "выдача номера из ряда вида; с неё документ существует для журнала канцелярии"
+  },
+  {
+   "t": "ряд номеров",
+   "d": "счётчик вида на год; рядов три"
+  },
+  {
+   "t": "код отдела",
+   "d": "префикс номера исходящего и внутреннего — код подразделения автора на дату регистрации; счётчик от него не зависит"
+  },
+  {
+   "t": "номер с годом",
+   "d": "показ номера в виде «4873 / 2026» или «19-03-01/2174 / 2026»: без года номер неоднозначен"
+  },
+  {
+   "t": "отметка «подписан»",
+   "d": "факт журнала: подписант нажал «Подписать»; документ остаётся в этапе «Подпись» до регистрации"
+  },
+  {
+   "t": "скан с номером",
+   "d": "файл с ролью «подписанный» — подписанный экземпляр со штампом номера и даты, прикладывается после регистрации (ДО-38)"
+  },
+  {
+   "t": "круг согласования",
+   "d": "одна отправка на согласование; любой отказ закрывает круг, повторная отправка открывает следующий"
+  },
+  {
+   "t": "шаг маршрута",
+   "d": "ожидание действия одного человека или роли; у каждого свой исход и своё задание"
+  },
+  {
+   "t": "право подписи",
+   "d": "строка справочника: сотрудник, типы документов, основание, срок действия"
+  },
+  {
+   "t": "резолюция верхнего уровня",
+   "d": "резолюция без родительской; по ним считается исполнение документа"
+  },
+  {
+   "t": "установленный срок",
+   "d": "срок резолюции с учётом утверждённых продлений; читается у «Заданий»"
+  },
+  {
+   "t": "требует ответа",
+   "d": "флаг входящего: поручение гаснет, когда ответный исходящий зарегистрирован и отправлен отправителю"
+  },
+  {
+   "t": "на контроле",
+   "d": "флаг: исполнение резолюции верхнего уровня подтверждает названный контролёр"
+  },
+  {
+   "t": "привязка",
+   "d": "ссылка документа на объект системы — заёмщика, кредит, фазу взыскания, залог, имущество и т. д."
+  },
+  {
+   "t": "адресат-должник",
+   "d": "строка отправки, чей адресат совпадает с обязанным лицом цели меры взыскания"
+  },
+  {
+   "t": "отправка закончена",
+   "d": "у каждого адресата есть дата отправки; вручения ждать не нужно"
+  },
+  {
+   "t": "исполнен",
+   "d": "вывод: все резолюции верхнего уровня закрыты; у «требует ответа» — ответ отправлен; у исходящего — отправка закончена"
+  },
+  {
+   "t": "номенклатура дел",
+   "d": "перечень дел года с индексом, сроком и местом хранения"
+  },
+  {
+   "t": "сдача в дело",
+   "d": "перевод исполненного и отправленного документа в этап «В деле»"
+  },
+  {
+   "t": "повод",
+   "d": "запись в ответе документооборота на опрос «Заданий»: «этот шаг ждёт этого человека или роль»; по нему «Задания» открывают задание"
+  },
+  {
+   "t": "очередь роли",
+   "d": "задание, адресованное роли «Регистратор» или «Архивариус»; исполнителем становится взявший его"
+  },
+  {
+   "t": "отпадение с атрибуцией",
+   "d": "повод исчез из ответа, и документооборот называет, кто выполнил шаг; задание закрывается исходом «исполнено» или «снято» с причиной"
+  },
+  {
+   "t": "перенесённый документ",
+   "d": "документ старой системы с признаком «из старой системы»; только для чтения"
+  }
+ ],
+ "walkthrough": {
+  "src": "ВХ 4874 / 2026 · запрос Счётной палаты № 04-3/1187 · ответ ИСХ 19-03-01/2177 / 2026 · витрина макета на 15.10.2026",
+  "note": "числа сняты с витрины <a href=\"docflow.html\">docflow.html</a> (Входящие → 4874 / 2026)",
+  "groups": [
+   {
+    "h": "1. Регистрация входящего",
+    "items": [
+     "05.10.2026 регистратор Исакова Д.М. заводит черновик: отправитель — Счётная палата КР (вид «Госорган»), номер отправителя 04-3/1187 от 03.10.2026, поступил 05.10.2026, тип «Запрос госоргана» (требует ответа, срочно), получатель — Токтосунов Э.А., скан с ролью «скан входящего».",
+     "«Зарегистрировать»: ряд входящих 2026 стоял на 4873 — выдан номер <b>4874 / 2026</b>, дата регистрации 05.10.2026 — штамп. У Токтосунова появляется задание «рассмотреть входящий» (doc-review, 2 р.д.)."
+    ]
+   },
+   {
+    "h": "2. Резолюции каскадом",
+    "items": [
+     "05.10.2026 Токтосунов даёт Р-3 «Прошу подготовить ответ»: ответственный Осмонов К.Ж., срок 12.10.2026. Повод doc-review отпал — задание закрыто исходом «исполнено».",
+     "06.10.2026 Осмонов даёт нижнюю Р-4 «Собрать сведения по кредитам»: ответственный Абдыкадырова Н.Р., срок 09.10.2026 — не позже 12.10.2026, каскад допускает.",
+     "08.10.2026 Абдыкадырова отмечает Р-4 «Исполнено» с результатом «Сведения собраны, справка передана Осмонову К.Ж.».",
+     "12.10.2026 Осмонов запрашивает в «Заданиях» продление, Токтосунов утверждает: установленный срок Р-3 — 20.10.2026, исходный 12.10.2026 виден рядом."
+    ]
+   },
+   {
+    "h": "3. Ответный исходящий",
+    "items": [
+     "14.10.2026 Осмонов создаёт исходящий «О предоставлении сведений по проблемным кредитам»: адресат — Счётная палата, «ответ на» — ВХ 4874 / 2026, подписант Байжанова Г.К., согласующих нет — «На подпись».",
+     "Байжанова подписывает; документ в «Подписи» с отметкой «подписан» встаёт в очередь «Регистратор». Касымова А.Б. регистрирует: ряд исходящих стоял на 2176 — номер <b>19-03-01/2177 / 2026</b> (код отдела автора — Управление по работе с проблемными кредитами).",
+     "Касымова прикладывает скан с номером (ИСХ-2026-2177_подписанный.pdf) и отмечает отправку по СЭД 14.10.2026. Сводка: «отправлено 1/1»."
+    ]
+   },
+   {
+    "h": "4. Исполнение и показатели",
+    "items": [
+     "Ответ отправлен отправителю входящего — Р-3 погашена без ручной отметки. Дата исполнения ВХ 4874 = дата отправки ответа 14.10.2026; сводка «поручений 1: исполнено 1 · ответ отправлен 14.10.2026».",
+     "Статистика за 01.09–15.10.2026: документ входит в «исполнено в срок» (14.10 ≤ установленного 20.10) и в строку «из них с продлением»; по исходному сроку 12.10 он был бы с опозданием — поэтому срок берётся установленный.",
+     "Документ готов к сдаче в дело: в очереди «Архивариус» задание «сдать в дело» со сроком 22.10.2026; дело по умолчанию у типа — 02-01 «Переписка с государственными органами» (каб. 104, шкаф 2, полка 1)."
+    ]
+   }
+  ]
+ },
+ "stages": [
+  {
+   "n": 1,
+   "title": "Модель, справочники, роли"
+  },
+  {
+   "n": 2,
+   "title": "Черновик, переходы, журнал, привязки, вложения"
+  },
+  {
+   "n": 3,
+   "title": "Нумерация"
+  },
+  {
+   "n": 4,
+   "title": "Согласование и подпись"
+  },
+  {
+   "n": 5,
+   "title": "Регистрация, исправление, аннулирование"
+  },
+  {
+   "n": 6,
+   "title": "Резолюции и исполнение"
+  },
+  {
+   "n": 7,
+   "title": "Отправка и вручение"
+  },
+  {
+   "n": 8,
+   "title": "Архив"
+  },
+  {
+   "n": 9,
+   "title": "Видимость и безопасность"
+  },
+  {
+   "n": 10,
+   "title": "Швы с соседними модулями"
+  },
+  {
+   "n": 11,
+   "title": "Экраны"
+  },
+  {
+   "n": 12,
+   "title": "Перенос из старой системы"
+  }
+ ],
+ "cards": [
+  {
+   "id": "P25-R1",
+   "stage": 1,
+   "title": "Документ: три вида, шесть этапов, общие поля и поля по видам",
+   "build": "Сущность «документ» с видом, типом, хранимым этапом, номером и датой регистрации, датой документа, срочностью, целью, флагами и признаком «из старой системы»; поля входящего (отправитель, корреспондент, поступление, получатели) и исходящего или внутреннего (согласующие, подписант, адресаты или получатели, «ответ на», бланк-источник).",
+   "why": "Все остальные карточки пишут в эту сущность. Если этап смешать с исполнением, как в старой системе с её 13 статусами, документ «зарегистрирован и просрочен» или «отправлен двум из трёх» в одно значение не поместится, и статус начнёт врать. Поэтому этап — только движение документа, а исполнение и отправка выводятся.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Исходящие → 19-03-01/2174 / 2026 → вкладка «Реквизиты»",
+    "tz": "23-dokumentooborot.html#s3-2"
+   },
+   "data": [
+    {
+     "n": "Документ",
+     "note": "дельты к своду нет — карточка заводит сущность целиком по карте данных",
+     "fields": [
+      "<b>вид</b> — перечисление из трёх значений в коде, не строка справочника",
+      "<b>этап</b> — перечисление из шести значений",
+      "<b>исполнитель документа</b> — по умолчанию автор; должность — снимок из «Сотрудников» на дату регистрации"
+     ]
+    }
+   ],
+   "steps": [
+    "Завести документ с общими полями карты данных; вид и этап — перечисления в коде.",
+    "Завести поля входящего и поля исходящего или внутреннего; поле чужого вида не принимается сервером.",
+    "Запретить смену вида после создания на уровне сервиса и ограничения базы (ИД-5).",
+    "Хранить номер тройкой «ряд, год, номер» плюс код отдела; пустые до регистрации (ИД-2).",
+    "Не заводить полей «статус исполнения», «отправлен», «исполнен» — их нет в модели (ИД-12).",
+    "Завести признак «из старой системы» со старым номером, старым годом и пометкой «дата сомнительна»."
+   ],
+   "rules": [
+    {
+     "h": "Поля ТЗ без определения (ДО-23)",
+     "items": [
+      "«Важность» — флаг «на контроле» с контролёром; «Категория» исходящего — вид плюс тип, отдельного поля нет.",
+      "«Выполненные действия» — журнал документа (P25-R8); «Комментарии» — лента (P25-R8).",
+      "«ФИО и должность исполнителя» — исполнитель документа; должность не вводится, а берётся на дату регистрации."
+     ]
+    },
+    {
+     "h": "Дата документа",
+     "items": [
+      "У входящего — дата, стоящая на документе отправителя, вводится регистратором.",
+      "У исходящего и внутреннего — дата штампа на подписанном экземпляре, то есть дата регистрации; ставится при регистрации и правится только «Исправить» (позиция ТЗ, <a href=\"23-dokumentooborot.html#s3-2\">общие поля</a>). Макет даёт ввести дату в черновике — постановка следует ТЗ."
+     ]
+    }
+   ],
+   "example": {
+    "src": "ИСХ 19-03-01/2174 / 2026 · претензия ОсОО «Ак-Жол Агро» · ВН 19-01/ВН-1 / 2026 · витрина макета",
+    "given": [
+     "Исходящий типа «Претензия», два адресата, этап «Зарегистрирован», отправлен 07.10.2026 обоим.",
+     "Внутренний приказ ВН-1 зарегистрирован 02.10.2026, ознакомились 3 из 5."
+    ],
+    "do": [
+     "Открыть оба документа и посмотреть, что хранится."
+    ],
+    "get": [
+     "У претензии хранится этап «Зарегистрирован»; «отправлено 2/2: вручено 1, возврат 1» не хранится — вычисляется из строк отправки.",
+     "У приказа этап «Зарегистрирован»; «ознакомлены 3/5» — из шагов ознакомления."
+    ]
+   },
+   "accept": [
+    "Вид документа нельзя сменить ни формой, ни запросом к серверу (ИД-5).",
+    "У документа в «Черновике», «Согласовании», «Подписи» номер и дата регистрации пусты (ИД-2).",
+    "В базе нет колонки статуса исполнения или отправки (ИД-12).",
+    "Входящий не принимает согласующих и подписанта; исходящий не принимает дату поступления.",
+    "Номер отправителя «б/н» сохраняется как значение, а не как пустое поле.",
+    "Должность исполнителя документа показывается на дату регистрации и не меняется после перевода сотрудника."
+   ],
+   "notIn": [
+    "Справочник типов — P25-R2.",
+    "Переходы этапов — P25-R7.",
+    "Выдача номера — P25-R11.",
+    "Сводки исполнения — P25-R20."
+   ],
+   "deps": []
+  },
+  {
+   "id": "P25-R2",
+   "stage": 1,
+   "title": "Справочник типов: поведение документа задаёт тип, а не код",
+   "build": "Справочник типов внутри трёх видов с устойчивым идентификатором, наименованием, «требует ответа» по умолчанию, целью и срочностью по умолчанию, обязательной привязкой (набор видов объектов), делом по умолчанию, признаком «только для перенесённых» и сроком действия; стартовый набор из 29 типов.",
+   "why": "Тип несёт поведение: какую привязку требовать при регистрации, гасится ли поручение ответом, в какое дело сдавать. В старой системе у 37 тыс. входящих один тип «Документ», а переименование типа меняло идентификатор и ломало ссылки. Если поведение зашить в код по наименованию, новый тип потребует релиза.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Настройки → «Типы»",
+    "tz": "23-dokumentooborot.html#s3-9"
+   },
+   "data": [
+    {
+     "n": "Тип документа",
+     "fields": [
+      "полный состав — в карте данных свода",
+      "<b>обязательная привязка</b> — множество видов объектов; пустое — привязка не требуется"
+     ]
+    }
+   ],
+   "screen": [
+    {
+     "n": "Настройки → «Типы»",
+     "cols": [
+      "вид",
+      "наименование",
+      "требует ответа",
+      "цель",
+      "срочность",
+      "обязательная привязка",
+      "дело по умолчанию",
+      "действует с / по"
+     ],
+     "acts": [
+      "добавить тип",
+      "переименовать",
+      "закрыть датой"
+     ]
+    }
+   ],
+   "steps": [
+    "Завести справочник с устойчивым идентификатором; ссылки и фильтры строить по нему.",
+    "Загрузить стартовый набор: 8 входящих, 15 исходящих, 6 внутренних типов.",
+    "Хранить обязательную привязку множеством видов объектов из закрытого перечня привязок.",
+    "Разрешить «требует ответа» только у входящих типов.",
+    "Тип не удалять: закрывать датой «действует по»; закрытый тип не предлагается новым черновикам, старые документы его сохраняют.",
+    "Тип «Документ (из старой системы)» не показывать при выборе вручную."
+   ],
+   "rules": [
+    {
+     "h": "Стартовый набор с поведением",
+     "items": [
+      "Входящие: «Заявление заёмщика» и «Письмо заёмщика или поручителя» — требуют ответа, привязка «заёмщик»; «Решение или определение суда», «Исполнительный лист», «Ответ на претензию» — привязка «кредит + фаза взыскания»; «Запрос госоргана» — требует ответа; «Письмо банка или организации»; «Документ (из старой системы)».",
+      "Исходящие: претензия, иск, жалобы и ходатайство — привязка «кредит + фаза взыскания» (позиция проекта); уведомление, извещение, акт сверки, соглашение — «кредит»; извещение по восстановлению залога — «договор залога»; письмо, заявление, служебная записка — без привязки.",
+      "Внутренние: служебная записка, заявление сотрудника, приказ, протокол, договор, нормативный документ — без привязки."
+     ]
+    },
+    {
+     "h": "Права",
+     "items": [
+      "Справочник ведёт только «Администратор документооборота»; проверка на сервере (P25-R5)."
+     ]
+    }
+   ],
+   "example": {
+    "src": "типы витрины макета: «Заявление заёмщика», «Решение или определение суда»",
+    "given": [
+     "«Заявление заёмщика»: требует ответа, привязка «заёмщик», дело 03-12, срочность «Обычно».",
+     "«Решение или определение суда»: привязка «кредит + фаза взыскания», дело 04-02, срочность «Срочно»."
+    ],
+    "do": [
+     "Переименовать «Решение или определение суда» в «Судебный акт»."
+    ],
+    "get": [
+     "ВХ 4872 / 2026 показывает новый тип «Судебный акт», фильтр журнала по типу находит его, как до переименования; идентификатор не изменился.",
+     "Новый входящий этого типа получает срочность «Срочно» и срок резолюции по умолчанию 3 р.д."
+    ]
+   },
+   "accept": [
+    "Переименование типа не ломает фильтр журнала и сохранённые наборы.",
+    "Закрытый датой тип не предлагается в новом черновике, а у старых документов показывается.",
+    "«Требует ответа» нельзя поставить исходящему или внутреннему типу.",
+    "Тип «Документ (из старой системы)» нельзя выбрать вручную.",
+    "Стартовый набор содержит 29 типов с поведением из правил карточки.",
+    "Не-администратор получает отказ сервера при попытке изменить тип."
+   ],
+   "notIn": [
+    "Проверка обязательной привязки при регистрации — P25-R9.",
+    "Дело по умолчанию при сдаче в дело — P25-R26.",
+    "Флаг «требует ответа» у документа — P25-R21."
+   ],
+   "deps": [
+    "P25-R1"
+   ]
+  },
+  {
+   "id": "P25-R3",
+   "stage": 1,
+   "title": "Справочники фраз резолюций, способов отправки и кодов отделов",
+   "build": "Три справочника модуля: фразы резолюций (стартовая — «Прошу рассмотреть в установленном порядке»), способы отправки с реквизитами «нужен почтовый идентификатор» и «какое подтверждение вручения требуется» (заменяет DELIVERY_PROOF взыскания), коды отделов для номера с датами действия.",
+   "why": "Способов отправки должен быть один список на систему: документ отправляется раньше, чем становится мерой взыскания, и два списка каналов разойдутся (ДО-40). Код отдела берётся на дату регистрации — при реорганизации старые номера должны сохранить свой код.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Настройки → «Способы отправки», «Коды отделов», «Фразы»",
+    "tz": "23-dokumentooborot.html#s3-9"
+   },
+   "data": [
+    {
+     "n": "Способ отправки",
+     "fields": [
+      "<b>наименование</b>",
+      "<b>почтовый идентификатор</b> — требуется / нет",
+      "<b>подтверждение</b> — уведомление о вручении · отметка о получении · квитанция СЭД · не требуется"
+     ]
+    },
+    {
+     "n": "Код отдела",
+     "fields": [
+      "<b>подразделение</b> — ссылка на оргструктуру",
+      "<b>код</b> — строка, например 19-03-01",
+      "<b>действует с / по</b>"
+     ]
+    }
+   ],
+   "screen": [
+    {
+     "n": "Настройки",
+     "cols": [
+      "способ · идентификатор · подтверждение",
+      "подразделение · код · с · по",
+      "фраза"
+     ],
+     "acts": [
+      "добавить",
+      "закрыть датой"
+     ]
+    }
+   ],
+   "steps": [
+    "Завести справочник фраз с одной стартовой фразой; остальные добавляет администратор (долг 2 канона).",
+    "Завести справочник способов со стартовыми шестью значениями и их реквизитами.",
+    "Отдать справочник способов взысканию как источник значений набора каналов вида меры (ДО-ДС-6).",
+    "Завести коды отделов с датами действия; на дату у подразделения не больше одного кода.",
+    "Дать функцию «код отдела подразделения на дату» для нумерации (P25-R11).",
+    "Читать органы-адресаты из общего справочника органов (ДО-ДС-10), своего списка органов не заводить."
+   ],
+   "rules": [
+    {
+     "h": "Стартовые способы",
+     "items": [
+      "Заказное письмо (почта) — идентификатор обязателен, подтверждение — уведомление о вручении.",
+      "Нарочно, курьер — отметка о получении. СЭД — квитанция СЭД. E-mail, публикация — подтверждение не требуется."
+     ]
+    }
+   ],
+   "example": {
+    "src": "справочники витрины макета",
+    "given": [
+     "Подразделения: Управление по работе с проблемными кредитами — код 19-03-01; Юридический отдел — 19-04; Отдел ИТ — кода нет."
+    ],
+    "do": [
+     "Запросить код на 13.10.2026 для Юридического отдела и для Отдела ИТ."
+    ],
+    "get": [
+     "Юридический отдел — 19-04 (так получен номер 19-04/2176 / 2026).",
+     "Отдел ИТ — кода нет: регистрация служебной записки «О замене серверного оборудования» недоступна с причиной «у подразделения автора нет кода отдела»."
+    ]
+   },
+   "accept": [
+    "Отметка отправки заказным письмом без почтового идентификатора отклоняется; e-mail — принимается без него.",
+    "Два действующих кода у одного подразделения на одну дату сохранить нельзя.",
+    "Код, закрытый датой, остаётся у ранее выданных номеров.",
+    "Справочник способов доступен взысканию на чтение одним списком.",
+    "Фраза резолюции добавляется без релиза и сразу предлагается в форме резолюции.",
+    "Правка справочников — только администратором документооборота, проверка на сервере."
+   ],
+   "notIn": [
+    "Выдача номера с кодом — P25-R11.",
+    "Отметка отправки и вручения — P25-R24.",
+    "Форма резолюции — P25-R19."
+   ],
+   "deps": [
+    "P25-R1"
+   ],
+   "extDeps": [
+    {
+     "what": "общий справочник органов-адресатов (суды, госорганы) отдаётся на чтение (ДО-ДС-10)"
+    },
+    {
+     "what": "оргструктура отдаёт подразделения с идентификаторами"
+    }
+   ]
+  },
+  {
+   "id": "P25-R4",
+   "stage": 1,
+   "title": "Право подписи: справочник и список допустимых подписантов на дату",
+   "build": "Справочник «право подписи» (сотрудник × типы × основание × срок) и функция «кто вправе подписать тип на дату», учитывающая приказ о замещении с признаком «с правом подписи»: замещающий подписывает за замещаемого те же типы на срок замещения.",
+   "why": "Доверенности в Фонде выдаются на типы документов: иск, подписанный без доверенности, суд оставит без движения. В старой системе подписанта не было вовсе. Если замещение давать право подписи автоматически, система пропустит подпись, которую приказ не передавал (ДО-36).",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Настройки → «Право подписи», «Замещения»",
+    "tz": "23-dokumentooborot.html#s11"
+   },
+   "data": [
+    {
+     "n": "Право подписи",
+     "fields": [
+      "<b>сотрудник</b>",
+      "<b>типы</b> — множество типов исходящих и внутренних",
+      "<b>основание</b> — должность или доверенность с номером и датой",
+      "<b>действует с / по</b>"
+     ]
+    }
+   ],
+   "screen": [
+    {
+     "n": "Настройки → «Право подписи»",
+     "cols": [
+      "сотрудник",
+      "типы",
+      "основание",
+      "с",
+      "по"
+     ],
+     "acts": [
+      "добавить",
+      "закрыть датой"
+     ]
+    }
+   ],
+   "steps": [
+    "Завести справочник; вести его может только администратор документооборота.",
+    "Дать функцию «подписанты типа на дату»: строки справочника, действующие на дату и содержащие тип.",
+    "Добавить к ним замещающих: если на дату действует приказ о замещении с признаком «с правом подписи», замещающий получает типы замещаемого.",
+    "Отдать список форме черновика: в поле «подписант» только допустимые на сегодня.",
+    "Дать проверку «вправе ли сотрудник подписать документ за себя или за кого» на дату подписи — её вызывает P25-R13."
+   ],
+   "rules": [
+    {
+     "h": "Замещение",
+     "items": [
+      "Замещение без признака «с правом подписи» права подписи не даёт, даже если замещаемый в справочнике есть.",
+      "Подпись замещающего пишется с пометкой «за кого»."
+     ]
+    }
+   ],
+   "example": {
+    "src": "право подписи и замещения витрины макета",
+    "given": [
+     "ПП-3: Осмонов К.Ж., претензия, уведомление, извещения, доверенность № 31 от 10.04.2026, по 10.10.2026.",
+     "ПП-5: Мамбетов Ч.А., иск и жалобы, доверенность № 40, по 30.06.2027.",
+     "Приказ № 87-к: Байжанова Г.К. замещает Токтосунова Э.А. 12.10–23.10.2026 с правом подписи; приказ № 91-к: Жумабеков Т.С. замещает Осмонова 14.10–30.10.2026 без права."
+    ],
+    "do": [
+     "Запросить подписантов типа «Исковое заявление» и типа «Претензия» на 15.10.2026."
+    ],
+    "get": [
+     "«Исковое заявление»: автор выбирает из Токтосунова Э.А. и Мамбетова Ч.А.; за Токтосунова вправе подписать Байжанова Г.К. (приказ № 87-к), хотя своего права на иск у неё нет.",
+     "«Претензия» — Осмонова нет (доверенность истекла 10.10.2026), Жумабекова нет (замещение без права подписи)."
+    ]
+   },
+   "accept": [
+    "В списке подписантов черновика иска нет сотрудника без права на «Исковое заявление» (С-17).",
+    "Истёкшая доверенность убирает сотрудника из списка со следующего дня после «по».",
+    "Проверка права за замещаемого проходит для замещающего по приказу с правом подписи только в срок замещения (С-18).",
+    "Замещающий по приказу без признака в списке не появляется.",
+    "Пустой справочник — подписать не может никто, и черновик это показывает."
+   ],
+   "notIn": [
+    "Сам шаг «Подписать» и повторная проверка на дату подписи — P25-R13.",
+    "Видимость замещающему — P25-R28."
+   ],
+   "deps": [
+    "P25-R2"
+   ],
+   "extDeps": [
+    {
+     "what": "«Сотрудники» отдают приказы о замещении с признаком «с правом подписи» и сроком (ДО-ДС-8)"
+    }
+   ],
+   "open": [
+    {
+     "ask": "ДО-ВЗ-4. Кто в Фонде вправе подписывать какие типы документов, по каким доверенностям и до какого срока?",
+     "default": "справочник запускается пустым и заполняется администратором по списку заказчика; пока строк нет, подписать не может никто — это блокер запуска, а не разработки.",
+     "impact": "меняются только строки справочника; модель и проверки те же."
+    }
+   ]
+  },
+  {
+   "id": "P25-R5",
+   "stage": 1,
+   "title": "Роли доступа модуля и матрица действий с проверкой на сервере",
+   "build": "Роли «Регистратор», «Архивариус», «Администратор документооборота», «Читатель всех документов» и единая серверная проверка «вправе ли пользователь выполнить действие над документом», которую вызывают все действия; отказ возвращается с причиной словами.",
+   "why": "В старой системе право на создание входящего проверялось скрытием кнопки, а админский редактор открывался любым по прямой ссылке. Скрытая кнопка правом не считается: проверка должна стоять в одном месте на сервере, иначе каждое новое действие получит свою, и одна из них окажется дырой.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "переключатель пользователя в шапке → недоступная кнопка с причиной под ней",
+    "tz": "23-dokumentooborot.html#s1-3"
+   },
+   "data": [
+    {
+     "n": "Роль доступа",
+     "fields": [
+      "<b>Регистратор</b> — несколько сотрудников (ДО-2)",
+      "<b>Архивариус</b>",
+      "<b>Администратор документооборота</b>",
+      "<b>Читатель всех документов</b> — канцелярия и руководство"
+     ]
+    }
+   ],
+   "steps": [
+    "Завести четыре роли в модуле пользователей.",
+    "Собрать матрицу «действие → кто вправе» из таблицы прав ТЗ; право участия (согласующий, подписант, ответственный, контролёр, получатель) считать от ролей участника в документе.",
+    "Сделать одну функцию проверки, принимающую пользователя, действие и документ; все действия вызывают её первой.",
+    "Возвращать отказ с причиной («действие доступно регистратору»), и показывать её под недоступной кнопкой.",
+    "Не делать админского редактора «правит всё»: ошибки исправляются только «Исправить» и «Аннулировать»."
+   ],
+   "rules": [
+    {
+     "h": "Матрица (ДО-24)",
+     "items": [
+      "Черновик исходящего и внутреннего — любой сотрудник; черновик входящего, регистрация, приложить подписанный, исправить, аннулировать, «на контроле», отправка и вручение — Регистратор; отправку e-mail может отметить и автор.",
+      "Согласовать — назначенный согласующий; подписать — по праву подписи (P25-R4); резолюция — получатель или исполнитель резолюции выше; исполнение — ответственный; подтверждение — контролёр; ознакомление — получатель «на ознакомление».",
+      "Сдать в дело — Архивариус или Регистратор; номенклатура и выдача оригиналов — Архивариус; справочники — Администратор документооборота."
+     ]
+    }
+   ],
+   "example": {
+    "src": "сотрудники витрины макета",
+    "given": [
+     "Регистраторы — Исакова Д.М. и Касымова А.Б.; архивариус — Сыдыкова А.Т.; администратор — Иманалиев Р.Т.",
+     "Абдыкадырова Н.Р. — главный специалист, ролей модуля нет."
+    ],
+    "do": [
+     "Абдыкадырова пытается создать входящий; Исакова — отметить отправку исходящего 19-04/2176 / 2026."
+    ],
+    "get": [
+     "Абдыкадырова получает отказ сервера «создать входящий может регистратор»; кнопки «Новый входящий» у неё нет.",
+     "Исакова проходит проверку роли; отправка всё равно отклоняется по другой причине — нет файла «подписанный» (P25-R24)."
+    ]
+   },
+   "accept": [
+    "Каждое изменяющее действие при прямом запросе без нужной роли отклоняется сервером.",
+    "Недоступная кнопка показывает причину словами, а не просто серая.",
+    "Двое регистраторов одновременно имеют одинаковые права.",
+    "Адресов вида «админский редактор» в модуле нет.",
+    "Администратор документооборота не получает прав регистратора автоматически."
+   ],
+   "notIn": [
+    "Видимость документа и проверка чтения и скачивания — P25-R28 и P25-R29.",
+    "Право подписи — P25-R4."
+   ],
+   "deps": [
+    "P25-R1"
+   ],
+   "extDeps": [
+    {
+     "what": "модуль пользователей заводит роли модуля документооборота"
+    }
+   ]
+  },
+  {
+   "id": "P25-R6",
+   "stage": 2,
+   "title": "Черновик: создание по виду, сохранение без проверки полноты, удаление со следом",
+   "build": "Создание черновика нужного вида (входящий — регистратором, исходящий и внутренний — любым сотрудником), форма по виду с сохранением без проверки полноты и логическое удаление черновика автором с записью в журнале.",
+   "why": "Регистратору нужно сохранить недозаполненную карточку входящего, а автору — проект письма. Если проверять полноту при сохранении, черновики будут жить в Word вне системы. Удаление логическое: у черновика номера нет, но след должен остаться, иначе «окончательный отказ подписанта» в статистике не посчитать.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Входящие → «Новый входящий»; Входящие → черновик «О реструктуризации задолженности»",
+    "tz": "23-dokumentooborot.html#s14"
+   },
+   "screen": [
+    {
+     "n": "Форма черновика",
+     "note": "по виду: у входящего — отправитель, корреспондент, даты, получатели; у исходящего — адресаты, «ответ на»; у внутреннего — получатели с режимом",
+     "acts": [
+      "сохранить",
+      "удалить черновик"
+     ]
+    }
+   ],
+   "steps": [
+    "Создавать черновик с выбранным видом; вид после этого не меняется.",
+    "Подставлять из типа цель, срочность и «требует ответа»; пользователь может изменить.",
+    "Сохранять любой набор заполненных полей; проверки полноты — только на действиях.",
+    "Давать править черновик автору; входящий черновик — любому регистратору.",
+    "Удалять черновик логически: признак «удалён», кто и когда; в журналах не показывать.",
+    "Писать удаление в журнал документа; если до удаления был отказ подписанта — помечать «удалён после отказа подписанта»."
+   ],
+   "example": {
+    "src": "черновики витрины на 15.10.2026: входящий «О реструктуризации задолженности» (ЧЕРН-22), исходящий «Акт сверки взаиморасчётов по кредиту К-14»",
+    "given": [
+     "Входящий от Токтогулова М.С., тип «Заявление заёмщика», номер отправителя «б/н», поступил 15.10.2026, получатель Осмонов К.Ж., скан приложен, привязки нет."
+    ],
+    "do": [
+     "Сохранить черновик; затем нажать «Зарегистрировать»."
+    ],
+    "get": [
+     "Черновик сохранён без ошибок.",
+     "Регистрация недоступна с причиной «не заполнено: обязательная привязка: заёмщик» — проверка на действии, не на сохранении (С-1)."
+    ]
+   },
+   "accept": [
+    "Черновик сохраняется с одной темой без прочих полей.",
+    "Сотрудник без роли «Регистратор» не может создать входящий.",
+    "Удалённый черновик исчезает из журналов, но запись об удалении видна в журнале документа администратору и автору.",
+    "Зарегистрированный документ удалить нельзя ни кнопкой, ни запросом (ИД-3).",
+    "Тип подставляет цель и срочность в черновик, их можно поменять до регистрации."
+   ],
+   "notIn": [
+    "Переходы из черновика — P25-R7.",
+    "Файлы черновика — P25-R10.",
+    "Подсчёт отказов подписанта — P25-R34."
+   ],
+   "deps": [
+    "P25-R2",
+    "P25-R5"
+   ]
+  },
+  {
+   "id": "P25-R7",
+   "stage": 2,
+   "title": "Переходы этапов: одна таблица на сервере, этап меняется только действием",
+   "build": "Таблица переходов «из этапа · действие · в этап · кто · условие» в одном месте на сервере; каждое действие проверяет текущий этап, право и свои условия, меняет этап атомарно с записью в журнал и возвращает отказ с перечнем невыполненных условий.",
+   "why": "В старой системе конечный автомат в коде есть, но не вызывается, а состояние приходит скрытым полем формы — поэтому статус «часто не отражает, где документ на самом деле». Если этап может поменять форма или запрос с полем «stage», цепочка ломается первой же правкой.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "любая карточка → кнопки действий; недоступные — с причиной",
+    "tz": "23-dokumentooborot.html#s4-2"
+   },
+   "steps": [
+    "Завести таблицу переходов по <a href=\"23-dokumentooborot.html#s4-2\">переходам ТЗ</a>: создать, удалить, на согласование, на подпись, согласовать, отказать, отозвать, подписать, зарегистрировать, приложить подписанный, исправить, аннулировать, сдать в дело.",
+    "Каждое действие — отдельный серверный метод; поля «этап» во входящих данных форм нет.",
+    "Перед действием проверять: текущий этап разрешает действие, пользователь вправе (P25-R5), условия действия выполнены.",
+    "Собирать все невыполненные условия сразу и возвращать списком, а не первое.",
+    "Менять этап и писать запись журнала в одной транзакции.",
+    "Защищать от гонки: действие над документом, этап которого уже сменился, отклоняется с причиной «документ уже в этапе …»."
+   ],
+   "rules": [
+    {
+     "h": "«Отозвать»",
+     "items": [
+      "Автор может отозвать документ из «Согласования» или «Подписи» в «Черновик»: открытые шаги снимаются, данные согласования круга теряют силу (позиция ТЗ, в каноне действия нет)."
+     ]
+    }
+   ],
+   "example": {
+    "src": "Извещение о начале досудебного взыскания по кредиту К-14 (черновик после отказа) · витрина макета",
+    "given": [
+     "Документ ушёл на согласование 09.10.2026, 12.10.2026 Мамбетов Ч.А. отказал — этап «Черновик»."
+    ],
+    "do": [
+     "Запросом к серверу вызвать «Сдать в дело» для этого документа; затем «Согласовать» от Мамбетова."
+    ],
+    "get": [
+     "Оба запроса отклонены: «сдать в дело можно из этапа «Зарегистрирован»», «документ не на согласовании».",
+     "Этап остался «Черновик», журнал не изменился."
+    ]
+   },
+   "accept": [
+    "Этап нельзя сменить запросом с полем этапа — только действием.",
+    "Недоступное действие возвращает все невыполненные условия списком.",
+    "Два одновременных действия над одним документом не дают двух переходов: второе получает отказ.",
+    "Каждый переход оставляет запись в журнале с автором и временем.",
+    "«Отозвать» возвращает документ из «Согласования» в «Черновик» и снимает открытые шаги."
+   ],
+   "notIn": [
+    "Условия конкретных действий — в карточках этих действий (P25-R12…P25-R18, P25-R26).",
+    "Поводы для «Заданий» на переходах — P25-R30."
+   ],
+   "deps": [
+    "P25-R6"
+   ]
+  },
+  {
+   "id": "P25-R8",
+   "stage": 2,
+   "title": "Журнал документа и лента комментариев — только дописываются",
+   "build": "Неизменяемый журнал действий документа (действие, автор, время, текст; при исправлении «было/стало» и основание) и неизменяемая лента комментариев с упоминаниями @сотрудник: отметка на карточке и счётчик «вас упомянули» без уведомления.",
+   "why": "Журнал заменяет «выполненные действия» из ТЗ и служит доказательством в споре: кто зарегистрировал, кто исправил дату вручения. Если запись можно править, журнал перестаёт что-либо доказывать. Уведомления об упоминании нет, потому что уведомления в системе — только о работе (ADR-0230).",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Входящие → 4873 / 2026 → вкладки «Журнал» и «Комментарии»",
+    "tz": "23-dokumentooborot.html#s3-8"
+   },
+   "screen": [
+    {
+     "n": "Вкладки «Журнал» и «Комментарии»",
+     "cols": [
+      "время",
+      "кто (за кого)",
+      "действие",
+      "текст или «было → стало»"
+     ],
+     "acts": [
+      "написать комментарий",
+      "упомянуть @сотрудника"
+     ]
+    }
+   ],
+   "steps": [
+    "Завести журнал append-only: на уровне базы запретить UPDATE и DELETE записей.",
+    "Писать запись из каждого действия P25-R7 в той же транзакции.",
+    "Для исправления хранить поле, значение «было», «стало» и основание.",
+    "Завести ленту комментариев; комментарий тоже пишется в журнал.",
+    "Разбирать упоминания @сотрудник; у упомянутого — отметка на карточке и счётчик «вас упомянули», без уведомления."
+   ],
+   "example": {
+    "src": "ВХ 4873 / 2026 · заявление Асанова Т.Б. об отсрочке · витрина макета",
+    "given": [
+     "02.10.2026 Осмонов К.Ж. пишет: «@Абдыкадырова Н.Р. проект ответа согласуйте с юристами до отправки»."
+    ],
+    "do": [
+     "Войти Абдыкадыровой; попытаться удалить комментарий Осмонову."
+    ],
+    "get": [
+     "У Абдыкадыровой счётчик «вас упомянули: 1» и отметка на карточке 4873 / 2026; уведомления нет.",
+     "Удаление недоступно никому; комментарий остаётся."
+    ]
+   },
+   "accept": [
+    "Запись журнала нельзя изменить или удалить ни через интерфейс, ни прямым запросом (ИД-17).",
+    "Комментарий нельзя править или удалять, можно только дописать новый (ДО-30).",
+    "Упомянутый видит отметку и счётчик, уведомление ему не уходит.",
+    "Каждое действие из таблицы переходов оставляет запись с автором и временем.",
+    "Исправление пишет «было/стало, кто, когда, основание»."
+   ],
+   "notIn": [
+    "Исправление реквизитов — P25-R17.",
+    "Перенос журнала старой системы — P25-R39."
+   ],
+   "deps": [
+    "P25-R7"
+   ],
+   "open": [
+    {
+     "ask": "ДО-ВЗ-3. Согласен ли заказчик заменить общий чат архива (ТЗ стр. 1000) лентой комментариев на карточке документа?",
+     "default": "общего чата нет; лента комментариев с упоминаниями на каждой карточке и «Направить на ознакомление» с файлом вместо обмена файлами.",
+     "impact": "при несогласии чат — отдельная задача вне этой постановки; лента остаётся."
+    }
+   ]
+  },
+  {
+   "id": "P25-R9",
+   "stage": 2,
+   "title": "Привязки к делу: несколько объектов, обязательность из типа, подстановка заёмщика",
+   "build": "Привязка документа к объектам десяти видов (заёмщик, кредит, процедура, фаза и мера взыскания, договор залога, объект имущества, заявка, госрешение, ведомство); выбор кредита подставляет заёмщика, выбор фазы — кредит и заёмщика; проверка «обязательные для типа привязки заполнены».",
+   "why": "ТЗ требует, чтобы каждый направленный документ знал своё дело (стр. 635). В старой системе прямой связи документа с заёмщиком, кредитом или делом нет — есть три косвенных пути, и ни по одному нельзя собрать «все бумаги по кредиту». Без проверки обязательности привязка останется пустой у половины документов.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Входящие → 4872 / 2026 → вкладка «Привязки»",
+    "tz": "23-dokumentooborot.html#s3-7"
+   },
+   "data": [
+    {
+     "n": "Привязка",
+     "fields": [
+      "<b>источник</b> — вручную · подставлена · из бланка; подставленную можно убрать только вместе с причиной"
+     ]
+    }
+   ],
+   "screen": [
+    {
+     "n": "Вкладка «Привязки»",
+     "cols": [
+      "вид объекта",
+      "объект",
+      "источник"
+     ],
+     "acts": [
+      "добавить привязку",
+      "убрать (до регистрации)"
+     ]
+    }
+   ],
+   "steps": [
+    "Хранить привязки списком у документа; дубли одного объекта не допускать.",
+    "При выборе кредита подставлять его заёмщика; при выборе фазы — её кредит и заёмщика.",
+    "Дать функцию «недостающие обязательные привязки» по типу; её вызывают «На согласование» и «Зарегистрировать».",
+    "До регистрации привязки добавляются и убираются свободно.",
+    "После регистрации привязку можно добавить; убрать — только «Исправить» с основанием и не ниже обязательного набора (P25-R17).",
+    "Перенесённые документы от требования освободить."
+   ],
+   "example": {
+    "src": "ВХ 4872 / 2026 · решение суда по иску к ОсОО «Ак-Жол Агро» · витрина макета",
+    "given": [
+     "Тип «Решение или определение суда» требует «кредит + фаза взыскания»."
+    ],
+    "do": [
+     "Привязать «Судебная фаза · К-14»."
+    ],
+    "get": [
+     "Подставлены кредит К-14 и заёмщик ОсОО «Ак-Жол Агро»; обязательный набор заполнен, регистрация доступна.",
+     "Без фазы регистрация недоступна с причиной «не заполнено: обязательная привязка: фаза взыскания»."
+    ]
+   },
+   "accept": [
+    "Выбор кредита К-1 подставляет заёмщика Асанова Т.Б.",
+    "Регистрация входящего «Заявление заёмщика» без привязки к заёмщику недоступна, причина называет недостающую привязку (С-1).",
+    "У зарегистрированного документа привязку нельзя убрать ниже обязательного набора (ИД-13).",
+    "Одна и та же привязка дважды не сохраняется.",
+    "Перенесённый документ без привязок открывается и не требует их."
+   ],
+   "notIn": [
+    "Вкладка «Документы» у соседей — P25-R38.",
+    "Привязка из бланка «Отчётности» — P25-R32.",
+    "Удаление привязки исправлением — P25-R17."
+   ],
+   "deps": [
+    "P25-R2",
+    "P25-R7"
+   ],
+   "extDeps": [
+    {
+     "what": "модули заёмщика, кредита, взыскания, залога, имущества, заявок, госрешений и ведомств отдают поиск своих объектов и связи «кредит → заёмщик», «фаза → кредит»"
+    }
+   ]
+  },
+  {
+   "id": "P25-R10",
+   "stage": 2,
+   "title": "Вложения: роль, системное имя, версии до регистрации, проверка типа по содержимому",
+   "build": "Вложения документа с ролью (проект, подписанный, скан входящего, приложение, вручение, результат), именем от системы, версиями до регистрации и запретом удаления и замены после неё; белый список PDF, DOCX, XLSX, JPG, PNG по содержимому, 20 МБ, размер и контрольная сумма.",
+   "why": "В старой системе в именах файлов стоят ФИО, белого списка нет, размер не записан, а удалить файл может любой, кто знает ссылку. После регистрации файл — доказательство: подменённый скан с номером делает журнал канцелярии бесполезным.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Исходящие → 19-04/2176 / 2026 → вкладка «Файлы»",
+    "tz": "23-dokumentooborot.html#s9"
+   },
+   "screen": [
+    {
+     "n": "Вкладка «Файлы»",
+     "cols": [
+      "роль",
+      "системное имя",
+      "версия",
+      "размер",
+      "кто и когда"
+     ],
+     "acts": [
+      "приложить файл с ролью",
+      "заменить (до регистрации)",
+      "удалить (до регистрации)",
+      "история версий",
+      "скачать"
+     ]
+    }
+   ],
+   "steps": [
+    "Принимать файл только с ролью; имя строить по шаблону «ВИД-ГОД-НОМЕР_роль[_v n | -n | _адресат-n].расш», до регистрации — «ЧЕРН-id_…».",
+    "При регистрации переименовать файлы черновика под номер; исходное имя не хранить нигде.",
+    "Определять тип по содержимому (сигнатура файла), а не по расширению; не из белого списка — отказ.",
+    "Отклонять файлы больше 20 МБ; хранить размер и контрольную сумму.",
+    "До регистрации замена создаёт новую версию, старые видны в истории.",
+    "После регистрации запретить удаление и замену; добавлять файл могут регистратор и автор.",
+    "Отдавать файл на скачивание только после проверки видимости документа (P25-R29)."
+   ],
+   "rules": [
+    {
+     "h": "Роли и расхождения",
+     "items": [
+      "Файл входящего — роль «скан входящего» по канону; в ТЗ он назван «документ» (расхождение ДО-Д10 журнала макета): постановка следует канону.",
+      "Роль «результат» (файл к исполнению резолюции) есть в ТЗ, в каноне не названа; заводится — канону не противоречит.",
+      "Кто добавляет файлы после регистрации, канон не говорит; решение макета (ДО-Д7) — регистратор и автор.",
+      "Замена «проекта» после согласования сбрасывает круг — правило живёт в P25-R12."
+     ]
+    }
+   ],
+   "example": {
+    "src": "ИСХ 19-04/2176 / 2026 · исковое заявление к ОсОО «Ак-Жол Агро» · витрина макета",
+    "given": [
+     "До регистрации у черновика файлы ЧЕРН-15_проект_v1.docx и ЧЕРН-15_приложение-1.xlsx (исходные имена isk.docx, raschet.xlsx)."
+    ],
+    "do": [
+     "Зарегистрировать 13.10.2026; затем попытаться удалить приложение и загрузить файл 25 МБ."
+    ],
+    "get": [
+     "Файлы называются ИСХ-2026-2176_проект_v1.docx и ИСХ-2026-2176_приложение-1.xlsx.",
+     "Удаление отклонено (ИД-8); файл 25 МБ отклонён по лимиту 20 МБ."
+    ]
+   },
+   "accept": [
+    "Файл с расширением .pdf и содержимым исполняемого файла отклоняется.",
+    "Исходное имя файла не видно ни на экране, ни в скачанном файле, ни в базе.",
+    "До регистрации замена файла даёт версию v2, v1 видна в истории.",
+    "После регистрации ни один файл не удаляется и не заменяется, только добавляется (ИД-8).",
+    "Удалить или заменить файл до регистрации может только автор документа.",
+    "Файл больше 20 МБ не принимается.",
+    "Размер и контрольная сумма видны на вкладке «Файлы»."
+   ],
+   "notIn": [
+    "Сброс согласования при замене проекта — P25-R12.",
+    "Скан с номером при регистрации — P25-R16.",
+    "Подтверждение вручения — P25-R24.",
+    "Переименование 38,7 тыс. старых файлов — P25-R39."
+   ],
+   "deps": [
+    "P25-R7",
+    "P25-R8"
+   ]
+  },
+  {
+   "id": "P25-R11",
+   "stage": 3,
+   "title": "Три ряда номеров: выдача при регистрации под блокировкой, с 1 каждый год, код отдела автора",
+   "build": "Счётчик «вид × год» и выдача номера при регистрации под блокировкой ряда с ограничением уникальности «ряд, год, номер» в базе: входящий «1234», исходящий «код отдела/сквозной номер», внутренний «код отдела/ВН-номер»; первый номер года — 1 по правилу; показ номера с годом.",
+   "why": "В старой системе счётчик входящих обнуляют руками в базе, блокировки нет — в данных 5 входящих и 2 исходящих номера-дубля в одном году. Счётчик на тип разрезал бы привычный ряд исходящих на 24 ряда, и номер 19-03-01/215 стал бы неоднозначным. Номер до подписи сжигался бы при отказе подписанта.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Исходящие: 19-03-01/2175 → 19-04/2176 → 19-03-01/2177",
+    "tz": "23-dokumentooborot.html#s6"
+   },
+   "data": [
+    {
+     "n": "Ряд номеров",
+     "fields": [
+      "<b>вид</b>, <b>год</b> — ключ",
+      "<b>последний номер</b>"
+     ]
+    }
+   ],
+   "steps": [
+    "Завести ряды по одному на вид и год; год номера — год даты регистрации.",
+    "Выдавать номер внутри транзакции регистрации с блокировкой строки ряда; уникальность «ряд, год, номер» — ограничением базы.",
+    "Если ряда на год нет — создавать его со значением 0 при первой регистрации года (сброс правилом, не операцией).",
+    "Код отдела брать у подразделения автора на дату регистрации (P25-R3); нет кода — регистрация недоступна.",
+    "Хранить номер тройкой и код отдела отдельно; строку «19-03-01/2174» собирать при показе.",
+    "Показывать номер с годом везде: на карточке, в журналах, поиске, печатных формах.",
+    "Не давать формата строкой с токенами: формат — свойство вида."
+   ],
+   "rules": [
+    {
+     "h": "Что номер не делает",
+     "items": [
+      "Возврата номера нет: аннулированный документ держит номер (P25-R18); у черновика номера нет, поэтому дыр от черновиков нет.",
+      "Код отдела — только префикс: исходящие всех отделов идут одним сквозным рядом.",
+      "Номер внутреннего один, у автора; второго номера у получателя нет (ДО-20)."
+     ]
+    }
+   ],
+   "example": {
+    "src": "ряды витрины макета: после переноса ВХ 4870, ИСХ 2172",
+    "given": [
+     "08.10.2026 регистрируется письмо Жумабекова Т.С. (Управление, 19-03-01); 13.10.2026 — иск Мамбетова Ч.А. (Юридический отдел, 19-04); 14.10.2026 — письмо Осмонова К.Ж. (19-03-01)."
+    ],
+    "do": [
+     "Зарегистрировать по порядку."
+    ],
+    "get": [
+     "Номера 19-03-01/2175, 19-04/2176, 19-03-01/2177 — один ряд, разные префиксы.",
+     "Первая регистрация входящего 01.01.2027 получит 1 / 2027, исходящего — …/1 / 2027 (С-4)."
+    ]
+   },
+   "accept": [
+    "Две одновременные регистрации входящих получают разные номера подряд (С-3).",
+    "Вставка дубля «ряд, год, номер» отклоняется базой, даже в обход кода (ИД-1).",
+    "Первая регистрация нового года получает номер 1 без ручных действий (С-4).",
+    "Исходящие разных отделов идут одним рядом с разными префиксами.",
+    "Регистрация документа автора из подразделения без кода недоступна с понятной причиной.",
+    "Номер везде показывается с годом: «4875 / 2026».",
+    "Внутренний получает номер вида «19-01/ВН-1» в своём ряду, независимом от исходящих."
+   ],
+   "notIn": [
+    "Гейты регистрации — P25-R15, P25-R16.",
+    "Стартовые значения рядов при переносе — P25-R39.",
+    "Печатная форма журнала по типу — P25-R36."
+   ],
+   "deps": [
+    "P25-R3",
+    "P25-R7"
+   ],
+   "extDeps": [
+    {
+     "what": "оргструктура отдаёт подразделение сотрудника на дату"
+    }
+   ]
+  },
+  {
+   "id": "P25-R12",
+   "stage": 4,
+   "title": "Согласование кругами: параллельно, любой отказ — в черновик, замена проекта сбрасывает круг",
+   "build": "Шаги согласования по кругам: «На согласование» открывает круг с шагом на каждого согласующего, согласующие работают параллельно, после всех согласований документ уходит в «Подпись»; любой отказ с комментарием закрывает круг и возвращает документ в «Черновик»; замена «проекта» после чьего-то согласования делает то же.",
+   "why": "В старой системе согласование не блокировало утверждение, а отказ согласующего терялся. Если не сбрасывать круг при замене файла, подпись ляжет на текст, который согласующие не видели. Шаг — отдельная запись, потому что у каждого согласующего свой исход, своя дата и своё задание.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Исходящие → «Ответ на заявление об отсрочке платежа по кредиту К-1» → вкладка «Маршрут»",
+    "tz": "23-dokumentooborot.html#s3-5"
+   },
+   "data": [
+    {
+     "n": "Шаг маршрута",
+     "fields": [
+      "<b>круг</b> — номер; у документа видны все круги",
+      "<b>исход «снят»</b> с причиной: «круг закрыт отказом», «проект заменён», «отозван автором»"
+     ]
+    }
+   ],
+   "screen": [
+    {
+     "n": "Вкладка «Маршрут»",
+     "cols": [
+      "круг",
+      "согласующий",
+      "исход",
+      "когда",
+      "комментарий"
+     ],
+     "acts": [
+      "согласовать",
+      "отказать с комментарием"
+     ]
+    }
+   ],
+   "steps": [
+    "«На согласование»: проверить тему, тип, подписанта с правом на тип на сегодня, файл «проект», обязательную привязку; открыть круг n+1.",
+    "Создать по шагу на каждого согласующего; если согласующих нет — сразу этап «Подпись».",
+    "«Согласовать» закрывает свой шаг; когда закрыты все шаги круга — этап «Подпись».",
+    "«Отказать» требует комментарий: этап «Черновик», открытые шаги круга — «снят», круг закрыт.",
+    "Замена файла «проект» при хотя бы одном согласовании в открытом круге: этап «Черновик», круг закрыт.",
+    "Повторная отправка открывает новый круг с новыми шагами; прошлые круги видны в истории.",
+    "Показывать сводку «круг 2: согласовано 2/3, отказ 0»."
+   ],
+   "example": {
+    "src": "ответ Асанову Т.Б. на ВХ 4873 / 2026 · извещение по К-14 · витрина макета",
+    "given": [
+     "Ответ ушёл на согласование 12.10.2026: Мамбетов Ч.А. согласовал 13.10 «Замечаний нет», Осмонов К.Ж. — нет.",
+     "Извещение по К-14: 12.10.2026 Мамбетов отказал «Неверно указана сумма задолженности: сверить с расчётом на 01.10.2026»."
+    ],
+    "do": [
+     "Посмотреть сводки; автор ответа заменяет файл «проект»."
+    ],
+    "get": [
+     "До замены у ответа «круг 1: согласовано 1/2»; извещение в «Черновике», у автора Жумабекова Т.С. задание «доработать».",
+     "После замены ответ в «Черновике», круг 1 закрыт с причиной «проект заменён», согласование Мамбетова видно в истории (С-14)."
+    ]
+   },
+   "accept": [
+    "Трое согласующих: двое согласовали, третий отказал — документ в «Черновике», комментарий виден, открытый шаг снят (С-12).",
+    "Повторная отправка — круг 2, три новых шага; исходы круга 1 видны в истории (С-13).",
+    "Замена «проекта» после двух согласований — «Черновик», круг закрыт (С-14).",
+    "Документ попадает в «Подпись» только когда согласованы все шаги текущего круга (ИД-6).",
+    "Отказ без комментария не принимается.",
+    "Без согласующих «На подпись» ведёт сразу в этап «Подпись».",
+    "Согласовать может только назначенный согласующий или действующий за него по замещению."
+   ],
+   "notIn": [
+    "Подпись — P25-R13.",
+    "Задания «согласовать» и «доработать» — P25-R30, P25-R31.",
+    "Повтор после возврата в «Заданиях» — P25-R31."
+   ],
+   "deps": [
+    "P25-R4",
+    "P25-R9",
+    "P25-R10"
+   ]
+  },
+  {
+   "id": "P25-R13",
+   "stage": 4,
+   "title": "Подпись по праву подписи на дату: отметка «подписан», замещение с правом подписи, истёкшая доверенность",
+   "build": "Действие «Подписать» на этапе «Подпись»: повторная проверка права подписи на дату подписи, отметка «подписан» (кто, за кого, когда) без смены этапа и постановка документа в очередь регистрации; «Отказать» с комментарием возвращает в «Черновик»; истёкшее право возвращает документ автору выбрать другого подписанта.",
+   "why": "Подпись — отметка в системе, бумагу подписывают руками (ДО-10), поэтому система должна точно знать, кто вправе. Право проверяется дважды: при выборе подписанта и на дату подписи — доверенность могла истечь, пока документ согласовывали. Подпись сама не регистрирует: номер получает только подписанное, и регистрирует канцелярия.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Исходящие → «Уведомление о просрочке платежа по кредиту К-1» → вкладка «Маршрут»",
+    "tz": "23-dokumentooborot.html#s5-2"
+   },
+   "data": [
+    {
+     "n": "Документ",
+     "fields": [
+      "<b>отметка «подписан»</b> — кто нажал, за кого, когда, основание права (строка справочника или приказ о замещении)"
+     ]
+    }
+   ],
+   "steps": [
+    "Показывать «Подписать» и «Отказать» подписанту и замещающему с правом подписи.",
+    "При «Подписать» проверить право на тип на сегодня (P25-R4); при успехе записать отметку «подписан» и запись журнала; этап не менять.",
+    "Если подписывает замещающий — писать «за кого» и приказ.",
+    "Если права нет и нет замещения с правом — отказ сервера (С-17).",
+    "Если право было при выборе, но истекло — вернуть документ в «Черновик», закрыть круг с причиной «право подписи истекло», дать автору выбрать другого подписанта.",
+    "«Отказать» с обязательным комментарием — «Черновик», круг закрыт."
+   ],
+   "rules": [
+    {
+     "h": "Решения макета, принятые постановкой",
+     "items": [
+      "Возврат при истёкшем праве (ДО-Д5): «Черновик», круг закрыт, у автора задание «доработать»; в показатель «отказ подписанта» не идёт — это не отказ по существу."
+     ]
+    }
+   ],
+   "example": {
+    "src": "Уведомление о просрочке платежа по кредиту К-1 · ВП «О графике погашения задолженности» · витрина макета",
+    "given": [
+     "Подписант уведомления — Токтосунов Э.А.; 12.10–23.10.2026 его замещает Байжанова Г.К. по приказу № 87-к с правом подписи.",
+     "Письмо «О графике погашения задолженности» ждёт подписи Токтосунова."
+    ],
+    "do": [
+     "14.10.2026 Байжанова нажимает «Подписать» на уведомлении."
+    ],
+    "get": [
+     "Отметка «подписан: Байжанова Г.К. за Токтосунова Э.А., 14.10.2026, приказ № 87-к» (С-18); этап остался «Подпись».",
+     "Документ встал в очередь «Регистратор»; задание «подписать» у Токтосунова закрыто исходом «исполнено» с пометкой «за Токтосунов Э.А.: Байжанова Г.К.»."
+    ]
+   },
+   "accept": [
+    "Подписант без права на «Исковое заявление» получает отказ сервера (С-17).",
+    "Замещающий по приказу с правом подписи подписывает с пометкой «за кого» (С-18).",
+    "Замещающий по приказу без права подписи кнопки не видит, прямой запрос отклоняется.",
+    "Подпись не меняет этап и не выдаёт номер (ИД-2).",
+    "Отказ подписанта без комментария не принимается; с комментарием — «Черновик».",
+    "Истёкшее к дате подписи право возвращает документ в «Черновик» с причиной.",
+    "Отметка «подписан» стоит только от сотрудника с правом на дату подписи (ИД-7)."
+   ],
+   "notIn": [
+    "Подпись пачкой — P25-R14.",
+    "Регистрация подписанного — P25-R16.",
+    "Подстановка замещающего в задание «подписать» — P25-R30."
+   ],
+   "deps": [
+    "P25-R12"
+   ],
+   "extDeps": [
+    {
+     "what": "«Сотрудники» отдают приказ о замещении с признаком «с правом подписи» (ДО-ДС-8)"
+    }
+   ]
+  },
+  {
+   "id": "P25-R14",
+   "stage": 4,
+   "title": "Подпись пачкой: одно действие подписанта, запись подписи в журнал каждого документа",
+   "build": "Групповое действие «Подписать пачку» над выбранными документами в этапе «Подпись», ожидающими одного подписанта: право проверяется по каждому документу, подписываются прошедшие, по каждому пишется своя отметка «подписан» и своя запись журнала; не прошедшие возвращаются списком с причинами.",
+   "why": "«Отчётность» выпускает до 11 тыс. уведомлений в год, и пачка бланков на подпись — обычный день. Если пачку сделать одним документом, у каждого письма пропадёт свой адресат и своя доставка (ДО-41). Если подписывать по одному — подписант сто раз нажимает одну кнопку.",
+   "look": {
+    "mock": "docflow.html",
+    "mockNote": "в макете подпись пачкой есть в движке и проверена сценарием С-32 через шов; кнопки на экране нет (отложена на волну 2) — постановка словами",
+    "tz": "23-dokumentooborot.html#s13-2"
+   },
+   "steps": [
+    "Дать подписанту список документов «ждут моей подписи» с выбором нескольких.",
+    "Для каждого выбранного выполнить проверки P25-R13 независимо.",
+    "Подписать прошедшие одной транзакцией на документ: отметка «подписан» и запись журнала у каждого.",
+    "Вернуть результат: «подписано 48 из 50», по двум — причина.",
+    "Отказ пачкой не делать: отказ всегда с комментарием к конкретному документу."
+   ],
+   "example": {
+    "src": "сценарий С-32 раздела ТЗ · движок макета (подпись пачкой через шов)",
+    "given": [
+     "50 черновиков уведомлений из пачки выпусков «Отчётности» с общим маршрутом: без согласующих, подписант — Байжанова Г.К., право на тип «Уведомление» по доверенности № 12 до 31.12.2026."
+    ],
+    "do": [
+     "Байжанова выбирает все 50 и нажимает «Подписать пачку»."
+    ],
+    "get": [
+     "Подписано 50 документов одним действием; в журнале каждого из 50 своя запись «подписан»; все 50 встали в очередь «Регистратор»."
+    ]
+   },
+   "accept": [
+    "Пачка из 50 подписывается одним действием, в журнале каждого документа своя запись подписи (С-32).",
+    "Документ, на тип которого у подписанта нет права, не подписывается, остальные подписываются.",
+    "Результат называет число подписанных и причину по каждому неподписанному.",
+    "Отказать пачкой нельзя.",
+    "Каждый подписанный документ остаётся отдельным документом со своими адресатами."
+   ],
+   "notIn": [
+    "Свёртка пачки в одно вал-задание — P25-R30 и модуль «Задания» (ИЗ-26).",
+    "Пачка черновиков из выпусков — P25-R32."
+   ],
+   "deps": [
+    "P25-R13"
+   ]
+  },
+  {
+   "id": "P25-R15",
+   "stage": 5,
+   "title": "Регистрация входящего: проверки полноты, номер ВХ, шаги «рассмотреть» получателям",
+   "build": "Действие «Зарегистрировать» для черновика входящего: проверка отправителя, вида отправителя, даты поступления, темы, типа, получателей, скана и обязательной привязки; выдача номера ряда входящих и штампа даты регистрации; открытие шага «рассмотреть входящий» каждому получателю; флаги «требует ответа» и «на контроле» ставит регистратор.",
+   "why": "Входящий не согласуется и не подписывается — из черновика сразу «Зарегистрирован». Все проверки стоят на регистрации: после неё тип и номер не исправляются, а дата поступления уходит в меру взыскания как «получение». Ошибка, пропущенная здесь, лечится только аннулированием.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Входящие → черновик «О реструктуризации задолженности» → «Зарегистрировать»",
+    "tz": "23-dokumentooborot.html#s5-1"
+   },
+   "steps": [
+    "Проверить роль «Регистратор» и этап «Черновик».",
+    "Проверить: отправитель (субъект или текст с видом), дата поступления не позже сегодняшней, тема, тип, получатели, файл «скан входящего», обязательные привязки.",
+    "Выдать номер ряда входящих (P25-R11) и штамп даты регистрации; проверить, что дата поступления не позже даты регистрации.",
+    "Сменить этап на «Зарегистрирован», переименовать файлы под номер, записать журнал.",
+    "Открыть шаг «рассмотреть входящий» каждому получателю.",
+    "Дать регистратору поставить «на контроле» с контролёром и изменить «требует ответа» у документа.",
+    "Сохранять флаг «бумажный оригинал есть» (по умолчанию — да для входящих, нет — для пришедших по e-mail или СЭД)."
+   ],
+   "example": {
+    "src": "ВХ 4875 / 2026 · письмо ЗАО «Банк Компаньон» · витрина макета",
+    "given": [
+     "Отправитель текстом «ЗАО «Банк Компаньон»», вид «Банк», № 17/2290 от 13.10.2026, поступил 14.10.2026, получатель Осмонов К.Ж., скан приложен. Ряд входящих стоял на 4874."
+    ],
+    "do": [
+     "Касымова А.Б. регистрирует 14.10.2026."
+    ],
+    "get": [
+     "Номер 4875 / 2026, дата регистрации 14.10.2026; у Осмонова задание «рассмотреть входящий» со сроком 16.10.2026 (2 р.д.) (С-2)."
+    ]
+   },
+   "accept": [
+    "Без обязательной привязки регистрация недоступна, причина названа (С-1).",
+    "С привязкой — номер следующий в году, дата регистрации сегодня, получателю — шаг «рассмотреть» (С-2).",
+    "Дата поступления позже сегодняшней не принимается (ИД-15).",
+    "Отправитель текстом без вида отправителя не принимается.",
+    "Без файла «скан входящего» регистрация недоступна.",
+    "Дату регистрации нельзя ввести или изменить (ИД-4).",
+    "Сотрудник без роли «Регистратор» зарегистрировать не может."
+   ],
+   "notIn": [
+    "Резолюции получателей — P25-R19.",
+    "«Требует ответа» и гашение ответом — P25-R21.",
+    "«На контроле» и подтверждение — P25-R22.",
+    "Повод «рассмотреть входящий» для «Заданий» — P25-R30."
+   ],
+   "deps": [
+    "P25-R9",
+    "P25-R10",
+    "P25-R11"
+   ]
+  },
+  {
+   "id": "P25-R16",
+   "stage": 5,
+   "title": "Регистрация исходящего и внутреннего после подписи и скан с номером штампом",
+   "build": "«Зарегистрировать» для документа в «Подписи» с отметкой «подписан»: проверка адресатов или получателей, привязок и кода отдела, номер ряда, дата документа = дата регистрации; затем «Приложить подписанный» — скан экземпляра со штампом номера и даты с ролью «подписанный», без которого отправка и сдача в дело недоступны.",
+   "why": "Номер выдаётся только тому, что подписано, иначе отказ подписанта сжигал бы номер. Номер ставится штампом на бумагу после регистрации, а не впечатывается в pdf «Отчётности»: снимок морозит то, что подписывали, и правке не подлежит (ДО-38). Без скана с номером наружу ушла бы бумага, которой нет в системе.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Исходящие → 19-04/2176 / 2026 (номер есть, скана нет) и «Уведомление о просрочке платежа по кредиту К-1» (подписан, ждёт регистрации)",
+    "tz": "23-dokumentooborot.html#s6"
+   },
+   "steps": [
+    "Проверить роль «Регистратор», этап «Подпись» и отметку «подписан».",
+    "Проверить: у исходящего не меньше одного адресата, у внутреннего — получатели; обязательные привязки; код отдела автора на сегодня.",
+    "Выдать номер ряда вида с кодом отдела (P25-R11), дату регистрации — штамп; дату документа приравнять к дате регистрации.",
+    "Сменить этап на «Зарегистрирован», переименовать файлы, записать журнал.",
+    "Дать «Приложить подписанный»: файл роли «подписанный», один на документ; добавлять можно ещё версии-приложения, заменить нельзя.",
+    "Блокировать отправку и сдачу в дело, пока нет файла «подписанный».",
+    "Внутреннему после регистрации открыть шаги получателям по их режимам (P25-R23)."
+   ],
+   "example": {
+    "src": "ИСХ 19-04/2176 / 2026 · исковое заявление · витрина макета",
+    "given": [
+     "Иск подписан Мамбетовым Ч.А. 13.10.2026 (доверенность № 40); Исакова Д.М. регистрирует его в тот же день, скан с номером не прикладывает."
+    ],
+    "do": [
+     "Исакова пытается отметить отправку иска в Первомайский районный суд."
+    ],
+    "get": [
+     "Номер 19-04/2176 / 2026 выдан; отправка отклонена: «нет файла «подписанный»» (С-19); в очереди «Регистратор» висит задание «отправить»."
+    ]
+   },
+   "accept": [
+    "Без отметки «подписан» регистрация исходящего недоступна.",
+    "Исходящий без адресатов не регистрируется; внутренний без получателей — тоже.",
+    "Номер выдан, скан не приложен — отправка недоступна (С-19).",
+    "Дата документа исходящего равна дате регистрации.",
+    "Подразделение автора без кода — регистрация недоступна с причиной.",
+    "Pdf-снимок «Отчётности» после регистрации не меняется; номер несёт только скан «подписанный»."
+   ],
+   "notIn": [
+    "Отправка — P25-R24.",
+    "Номер обратно в выпуск «Отчётности» — P25-R32.",
+    "Ознакомление и резолюции у внутреннего — P25-R23."
+   ],
+   "deps": [
+    "P25-R11",
+    "P25-R13"
+   ]
+  },
+  {
+   "id": "P25-R17",
+   "stage": 5,
+   "title": "«Исправить»: опечатка в реквизите со следом «было/стало»; вид, тип, номер и дата регистрации не исправляются",
+   "build": "Действие «Исправить» для документа в «Зарегистрирован» или «В деле»: правка темы, дат документа и поступления, номера и даты корреспондента, отправителя, адресатов и дат отправки и вручения, привязок, срочности и цели с обязательным основанием и записью «было/стало, кто, когда, основание»; вид, тип, номер и дата регистрации из формы исключены.",
+   "why": "Зарегистрированный документ не удаляется, но опечатки случаются. В старой системе их правили админским редактором без следа. Тип, номер и дата регистрации не правятся: от них зависят ряд, обязательная привязка и дело; правка типа задним числом поменяла бы обязательную привязку (ДО-42).",
+   "look": {
+    "mock": "docflow.html",
+    "route": "любая зарегистрированная карточка → «Исправить»",
+    "tz": "23-dokumentooborot.html#s4-2"
+   },
+   "screen": [
+    {
+     "n": "Форма «Исправить»",
+     "cols": [
+      "реквизит",
+      "было",
+      "стало",
+      "основание (обязательно)"
+     ],
+     "acts": [
+      "исправить"
+     ]
+    }
+   ],
+   "steps": [
+    "Открыть форму со списком исправляемых реквизитов; вид, тип, номер и дата регистрации в форму не попадают и сервером не принимаются.",
+    "Требовать основание.",
+    "Проверять новые значения теми же правилами, что при вводе (даты ИД-14, ИД-15; привязки не ниже обязательного набора).",
+    "Записать журнал «было/стало, кто, когда, основание» по каждому изменённому реквизиту.",
+    "Не менять этап: исправление из «В деле» документ из дела не возвращает.",
+    "Исправление даты документа или даты вручения сразу видно мере взыскания — мера читает дату, а не копию (P25-R33)."
+   ],
+   "example": {
+    "src": "ВХ 4875 / 2026 · письмо ЗАО «Банк Компаньон» · витрина макета",
+    "given": [
+     "Номер отправителя записан «17/2290», на бумаге «17/2290-1»."
+    ],
+    "do": [
+     "Исакова Д.М. исправляет номер отправителя с основанием «опечатка при регистрации»; затем пытается сменить тип на «Запрос госоргана»."
+    ],
+    "get": [
+     "Номер исправлен; в журнале «№ отправителя: 17/2290 → 17/2290-1, Исакова Д.М., 15.10.2026, опечатка при регистрации».",
+     "Смена типа недоступна: «тип не исправляется — аннулируйте и зарегистрируйте заново» (С-22)."
+    ]
+   },
+   "accept": [
+    "Исправление номера корреспондента пишет «было/стало, кто, когда, основание» (С-22).",
+    "Правка вида, типа, номера, даты регистрации недоступна ни формой, ни запросом (С-22, ИД-4).",
+    "Без основания исправление не сохраняется.",
+    "Удаление привязки ниже обязательного набора отклоняется.",
+    "Документ «В деле» исправляется и остаётся «В деле».",
+    "Исправить может только регистратор."
+   ],
+   "notIn": [
+    "Аннулирование — P25-R18.",
+    "Чтение исправленной даты мерой — P25-R33.",
+    "Добавление получателей после регистрации — P25-R23."
+   ],
+   "deps": [
+    "P25-R15",
+    "P25-R16"
+   ]
+  },
+  {
+   "id": "P25-R18",
+   "stage": 5,
+   "title": "«Аннулировать»: номер остаётся занятым, после первой отправки нельзя, открытые шаги снимаются",
+   "build": "Действие «Аннулировать» для зарегистрированного документа: обязательное основание, этап «Аннулирован», номер остаётся занятым и виден в журнале с основанием, открытые шаги и резолюции снимаются; запрет, если хотя бы одному адресату отправлено; метка расхождения у меры взыскания, ссылающейся на документ.",
+   "why": "Номер уже записан в журнал канцелярии, а иногда и на бумагу: возврат номера даёт дубль. Ушедшая бумага — факт: отозвать её можно только новым исходящим, поэтому после отправки аннулировать нельзя. Меру взыскания документооборот не сторнирует — это решение взыскания.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Исходящие → 19-03-01/2175 / 2026 (аннулирован)",
+    "tz": "23-dokumentooborot.html#s4-2"
+   },
+   "steps": [
+    "Проверить роль «Регистратор», этап «Зарегистрирован», основание.",
+    "Проверить, что ни у одного адресата нет даты отправки (ИД-9); иначе отказ «уже отправлено».",
+    "Сменить этап на «Аннулирован», записать журнал с основанием.",
+    "Снять открытые шаги и резолюции документа (их поводы отпадут с исходом «снято», P25-R31).",
+    "Номер не освобождать: следующий документ получает следующий номер.",
+    "Отдать взысканию признак «документ аннулирован» для метки расхождения у меры.",
+    "Показывать аннулированный в журнале серым с основанием."
+   ],
+   "example": {
+    "src": "ИСХ 19-03-01/2175 / 2026 «О сверке задолженности» · ИСХ 19-03-01/2174 / 2026 претензия · витрина макета",
+    "given": [
+     "Письмо зарегистрировано 08.10.2026, не отправлено; претензия отправлена 07.10.2026 двум адресатам."
+    ],
+    "do": [
+     "09.10.2026 Исакова Д.М. аннулирует письмо с основанием «Ошибка в адресате: документ будет зарегистрирован заново»; затем пытается аннулировать претензию."
+    ],
+    "get": [
+     "Письмо в «Аннулирован», номер 2175 виден с основанием; задание «отправить» закрыто исходом «снято — документ аннулирован»; следующий исходящий получил 2176 (С-21).",
+     "Претензия: отказ «аннулировать нельзя: адресату уже отправлено» (С-20)."
+    ]
+   },
+   "accept": [
+    "Аннулирование отправленного хотя бы одному адресату отклоняется (С-20, ИД-9).",
+    "Аннулированный держит номер; следующий получает следующий номер (С-21).",
+    "Без основания аннулирование не сохраняется.",
+    "Открытые шаги и резолюции сняты, их задания закрыты исходом «снято» с причиной.",
+    "Возврата из «Аннулирован» нет.",
+    "Мера, ссылающаяся на аннулированный документ, получает метку расхождения; сама мера не меняется."
+   ],
+   "notIn": [
+    "Метка расхождения на стороне меры — взыскание (ДО-ДС-6).",
+    "Закрытие заданий — P25-R31.",
+    "Строка «аннулированные» в статистике — P25-R34."
+   ],
+   "deps": [
+    "P25-R15",
+    "P25-R16"
+   ]
+  },
+  {
+   "id": "P25-R19",
+   "stage": 6,
+   "title": "Резолюция и каскад: один ответственный, срок по срочности, не позже установленного срока родительской",
+   "build": "Форма и запись резолюции: фраза из справочника с дописыванием, ровно один ответственный, соисполнители, срок по умолчанию от срочности (10 / 3 / 1 р.д. от регистрации), родительская резолюция; каскад вниз со сроком не позже установленного срока родительской; отметка получателя входящего «к сведению» без резолюции.",
+   "why": "В старой системе резолюция — текст задачи, исполнителей несколько, и документ ждёт последнего: если у человека две задачи, документ не завершается никогда. Один ответственный — потому что ответственность на двоих не делится. Срок нижней позже верхней дал бы просроченный документ при исполнителях «в срок».",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Входящие → 4874 / 2026 → вкладка «Резолюции» (дерево Р-3 → Р-4)",
+    "tz": "23-dokumentooborot.html#s7-1"
+   },
+   "screen": [
+    {
+     "n": "Форма резолюции",
+     "cols": [
+      "фраза (справочник) + текст",
+      "ответственный — один",
+      "соисполнители",
+      "срок (подставлен по срочности)",
+      "родительская (для каскада)"
+     ],
+     "acts": [
+      "дать резолюцию",
+      "к сведению (получатель входящего)"
+     ]
+    }
+   ],
+   "steps": [
+    "Давать резолюцию получателю документа и исполнителю (ответственному или соисполнителю) резолюции выше; остальным — отказ сервера.",
+    "Требовать ровно одного ответственного (ИД-11); соисполнителей — сколько угодно, без повторов и без ответственного среди них.",
+    "Подставлять срок: дата регистрации + 10 / 3 / 1 рабочий день по срочности документа; автор может изменить.",
+    "Проверять срок нижней против установленного срока родительской на момент выдачи (ИД-10); установленный срок читать у «Заданий».",
+    "Срок раньше сегодняшнего не запрещать (решение макета ДО-Д15: у давно зарегистрированного документа срок по умолчанию уже прошёл).",
+    "Открыть шаг исполнения ответственному и каждому соисполнителю.",
+    "Дать получателю входящего «к сведению»: шаг рассмотрения закрывается без резолюции.",
+    "Считать рабочие дни единой функцией системы по производственному календарю."
+   ],
+   "example": {
+    "src": "ВХ 4873 / 2026 · ВХ 4874 / 2026 · ВХ 4875 / 2026 · витрина макета",
+    "given": [
+     "4873: Осмонов К.Ж. даёт резолюцию «Подготовить проект ответа»: ответственный Абдыкадырова Н.Р., соисполнитель Жумабеков Т.С., срок 15.10.2026.",
+     "4874: установленный срок Р-3 после продления — 20.10.2026.",
+     "4875 «Обычно» зарегистрирован 14.10.2026."
+    ],
+    "do": [
+     "Осмонов даёт под Р-3 нижнюю резолюцию со сроком 25.10.2026; открыть форму резолюции на 4875."
+    ],
+    "get": [
+     "По 4873 — два шага исполнения со сроком 15.10.2026 (С-5).",
+     "Нижняя со сроком 25.10.2026 отклонена: «позже установленного срока родительской 20.10.2026» (С-6); 20.10.2026 — принимается.",
+     "На 4875 срок подставлен 28.10.2026 (14.10 + 10 р.д.)."
+    ]
+   },
+   "accept": [
+    "Резолюция с двумя ответственными или без ответственного не сохраняется (ИД-11).",
+    "Ответственный и два соисполнителя — три шага исполнения с одним сроком (С-5).",
+    "Нижняя резолюция со сроком позже установленного срока родительской отклоняется (С-6).",
+    "Продление родительской расширяет допустимый срок нижней.",
+    "Срок по умолчанию считается по срочности от даты регистрации в рабочих днях.",
+    "Резолюцию не может дать сотрудник, не являющийся получателем или исполнителем выше.",
+    "«К сведению» закрывает шаг рассмотрения получателя без резолюции."
+   ],
+   "notIn": [
+    "Исходы и сводка исполнения — P25-R20.",
+    "Продление срока — «Задания», чтение — P25-R31.",
+    "Справочник фраз — P25-R3."
+   ],
+   "deps": [
+    "P25-R15",
+    "P25-R16"
+   ],
+   "open": [
+    {
+     "ask": "ДО-ВЗ-2. Есть ли приказ ФКФ о сроках исполнения документов?",
+     "default": "срочность «Обычно / Срочно / Немедленно» даёт 10 / 3 / 1 рабочий день от регистрации — значения настройки.",
+     "impact": "меняются три значения настройки; модель и проверки каскада те же."
+    }
+   ],
+   "traps": [
+    "Макет считает рабочие дни как пн–пт без праздников (ДО-Д6). В системе — единая функция по производственному календарю КР; своего календаря в модуле не заводить."
+   ]
+  },
+  {
+   "id": "P25-R20",
+   "stage": 6,
+   "title": "Исходы резолюции и сводка исполнения документа — вывод, а не поле",
+   "build": "Исходы «Исполнено» с текстом результата и «Отказать» с основанием; резолюция исполнена, когда исполнен ответственный, соисполнители снимаются; документ исполнен, когда закрыты все резолюции верхнего уровня; сводка «поручений 2: исполнено 1, просрочено 1» собирается в момент показа из резолюций и установленных сроков «Заданий».",
+   "why": "Хранимое поле «исполнено» — вторая правда рядом с заданиями: задание закрыто, поле не обновлено (ADR-0265). «Отказать» — отказ по существу документа (отказ заёмщику в просьбе), а не «это не моя работа»: от работы отказываются в «Заданиях», и тогда задание переназначает автор резолюции.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Входящие → 4872 / 2026 (просрочено), 4871 / 2026 (к сведению)",
+    "tz": "23-dokumentooborot.html#s4-3"
+   },
+   "steps": [
+    "Дать ответственному «Исполнено» с обязательным текстом результата и, по желанию, файлом роли «результат».",
+    "Дать ответственному «Отказать» с обязательным основанием; ветка закрыта.",
+    "При исходе резолюции закрыть шаги соисполнителей с причиной «резолюция исполнена».",
+    "Если под резолюцией открыты нижние — разрешить исход и снять открытые нижние (решение макета ДО-Д11).",
+    "Вычислять исполнение документа: все резолюции верхнего уровня закрыты и все получатели рассмотрели документ.",
+    "Вычислять сводку: число резолюций верхнего уровня, исполнено, отказано, просрочено (установленный срок прошёл, исхода нет).",
+    "Не хранить ни сводку, ни признак исполнения (ИД-12)."
+   ],
+   "rules": [
+    {
+     "h": "Документ без резолюций (ДО-Д3, решение макета)",
+     "items": [
+      "Входящий, где все получатели отметили «к сведению», — исполнен; дата исполнения — последняя отметка.",
+      "Внутренний — исполнен, когда закрыта исполнительная часть и ознакомились все получатели «на ознакомление».",
+      "Исходящий — исполнен, когда отправка закончена (P25-R24); резолюций у исходящего нет."
+     ]
+    }
+   ],
+   "example": {
+    "src": "ВХ 4872 / 2026 решение суда · ВХ 4871 / 2026 письмо банка · витрина макета на 15.10.2026",
+    "given": [
+     "4872: Р-1 «Подготовить апелляционную жалобу в части неустойки», ответственный Мамбетов Ч.А., срок 08.10.2026, исхода нет.",
+     "4871: получатель Осмонов К.Ж. отметил «к сведению» 17.09.2026."
+    ],
+    "do": [
+     "Открыть оба документа."
+    ],
+    "get": [
+     "4872: «поручений 1: просрочено 1», срок в журнале красный.",
+     "4871: исполнен 17.09.2026, резолюций нет."
+    ]
+   },
+   "accept": [
+    "Ответственный исполнил, соисполнители нет — резолюция исполнена, сводка «поручений 1: исполнено 1» (С-7).",
+    "«Исполнено» без текста результата и «Отказать» без основания не сохраняются.",
+    "Сводка меняется сразу после исхода, без пересчёта по расписанию.",
+    "Просрочка считается от установленного срока с продлениями, а не от исходного.",
+    "Документ, где все получатели отметили «к сведению», показывается исполненным.",
+    "В базе нет поля статуса исполнения документа (ИД-12)."
+   ],
+   "notIn": [
+    "«Требует ответа» — P25-R21.",
+    "Подтверждение контролёра — P25-R22.",
+    "Показатель «отказано в исполнении» — P25-R34."
+   ],
+   "deps": [
+    "P25-R19"
+   ]
+  },
+  {
+   "id": "P25-R21",
+   "stage": 6,
+   "title": "«Требует ответа»: поручение гасит отправленный ответ; один исходящий закрывает несколько входящих",
+   "build": "Поле исходящего «ответ на» (0…n входящих) и правило гашения: у входящего с флагом «требует ответа» резолюции гаснут, когда ответный исходящий зарегистрирован и отправлен отправителю входящего; ручное «Исполнено» у резолюций верхнего уровня такого документа недоступно; дата исполнения — дата отправки ответа.",
+   "why": "Заявление заёмщика исполнено, когда заёмщик получил ответ, а не когда исполнитель нажал кнопку. Если позволить ручное «Исполнено», в показателях будет исполнено то, на что ответа нет. Один ответ часто закрывает несколько обращений одного заёмщика.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Входящие → 4873 / 2026 («ответ не отправлен») и 4874 / 2026 («ответ отправлен 14.10.2026»)",
+    "tz": "23-dokumentooborot.html#s7-2"
+   },
+   "data": [
+    {
+     "n": "Исходящий",
+     "fields": [
+      "<b>ответ на</b> — список входящих; у адресата, совпадающего с отправителем входящего, пометка «отправитель входящего»"
+     ]
+    }
+   ],
+   "steps": [
+    "Дать в черновике исходящего выбрать «ответ на» из зарегистрированных входящих, видимых автору.",
+    "Подставлять отправителя каждого входящего адресатом и помечать строку «отправитель входящего».",
+    "Блокировать «Исполнено» у резолюций верхнего уровня входящего с флагом (С-8); нижние закрываются отметкой исполнителя (решение макета ДО-Д1).",
+    "Гасить все открытые резолюции входящего, когда ответ зарегистрирован и строке «отправитель входящего» поставлена дата отправки.",
+    "Датой исполнения входящего считать дату отправки ответа.",
+    "Оставлять «Отказать» доступным: отказ с основанием закрывает ветку без ответа (решение макета ДО-Д2).",
+    "Показывать на входящем «требует ответа: ответ ИСХ … отправлен …» или «ответ не отправлен»."
+   ],
+   "example": {
+    "src": "ВХ 4873 / 2026 и ответ Асанову Т.Б. · ВХ 4874 / 2026 и ИСХ 19-03-01/2177 / 2026 · витрина макета",
+    "given": [
+     "4873 «Заявление заёмщика» требует ответа; ответ «Ответ на заявление об отсрочке платежа по кредиту К-1» на согласовании.",
+     "4874 «Запрос госоргана»: ответ 19-03-01/2177 зарегистрирован и отправлен по СЭД 14.10.2026."
+    ],
+    "do": [
+     "Абдыкадырова Н.Р. жмёт «Исполнено» по Р-2 на 4873; открыть 4874."
+    ],
+    "get": [
+     "4873: «Исполнено» недоступно, сводка «поручений 1 · ответ не отправлен».",
+     "4874: Р-3 погашена 14.10.2026 без ручной отметки; дата исполнения документа 14.10.2026 (С-10)."
+    ]
+   },
+   "accept": [
+    "У входящего «требует ответа» ручное «Исполнено» верхнего уровня недоступно (С-8).",
+    "Ответ зарегистрирован, но не отправлен — поручение не погашено (С-9).",
+    "Ответ отправлен отправителю — поручение погашено, дата исполнения = дата отправки (С-10).",
+    "Один исходящий отвечает на два входящих — оба исполнены (С-11).",
+    "Отправка ответа другому адресату, не отправителю, поручение не гасит.",
+    "«Отказать» с основанием закрывает ветку входящего «требует ответа» без ответа.",
+    "Регистратор может снять или поставить флаг у конкретного документа."
+   ],
+   "notIn": [
+    "Отметка отправки — P25-R24.",
+    "Счёт «в срок» по дате ответа — P25-R34."
+   ],
+   "deps": [
+    "P25-R20"
+   ],
+   "traps": [
+    "Отправитель входящего, введённый текстом, с адресатом ответа не сравнивается по имени: связь задаёт пометка строки «отправитель входящего», поставленная при подстановке. Сравнение строк сломалось бы на первой лишней кавычке."
+   ]
+  },
+  {
+   "id": "P25-R22",
+   "stage": 6,
+   "title": "«На контроле»: исполнение верхнего уровня подтверждает контролёр, возврат открывает поручение заново",
+   "build": "Флаг документа «на контроле» с контролёром, который ставит регистратор; «Исполнено» ответственного по резолюции верхнего уровня такого документа открывает шаг «подтвердить исполнение» контролёру; контролёр подтверждает (резолюция исполнена) или возвращает с комментарием (поручение снова открыто с исходным сроком).",
+   "why": "«Важность» из ТЗ — это контроль руководства: исполнитель не должен сам закрывать то, что взято на контроль. Подтверждение — шаг документа, а не контролёр модуля «Задания»: независимую ось даёт сам документ, второго механизма контроля не нужно.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Входящие → 4872 / 2026 (на контроле, контролёр Осмонов К.Ж.)",
+    "tz": "23-dokumentooborot.html#s7-3"
+   },
+   "steps": [
+    "Дать регистратору поставить «на контроле» и выбрать контролёра у входящего или внутреннего.",
+    "При «Исполнено» ответственного по резолюции верхнего уровня не закрывать резолюцию, а открыть шаг «подтвердить исполнение» контролёру.",
+    "«Подтвердить» — резолюция исполнена датой подтверждения.",
+    "«Вернуть» с обязательным комментарием — исход ответственного снят, поручение открыто снова с исходным сроком.",
+    "Нижние резолюции и резолюции, погашенные ответом, подтверждения не требуют (решение макета ДО-Д12)."
+   ],
+   "example": {
+    "src": "ВХ 4872 / 2026 · решение суда по иску к ОсОО «Ак-Жол Агро» · витрина макета",
+    "given": [
+     "Документ на контроле, контролёр Осмонов К.Ж.; Р-1 ответственный Мамбетов Ч.А., срок 08.10.2026."
+    ],
+    "do": [
+     "Мамбетов отмечает «Исполнено» 15.10.2026; Осмонов возвращает «Жалоба не подана в суд»."
+    ],
+    "get": [
+     "После отметки Мамбетова сводка «поручений 1: ждёт подтверждения»; у Осмонова шаг «подтвердить исполнение».",
+     "После возврата Р-1 снова открыта со сроком 08.10.2026 и остаётся просроченной; у Мамбетова новое задание «повтор»."
+    ]
+   },
+   "accept": [
+    "У документа «на контроле» «Исполнено» ответственного не закрывает резолюцию верхнего уровня.",
+    "Подтверждение контролёра закрывает резолюцию.",
+    "Возврат без комментария не принимается; с комментарием — поручение снова открыто.",
+    "После возврата срок остаётся исходным.",
+    "Подтверждать может только названный контролёр или действующий за него.",
+    "Нижние резолюции подтверждения не требуют."
+   ],
+   "notIn": [
+    "Задание «подтвердить на контроле» и повтор — P25-R30, P25-R31."
+   ],
+   "deps": [
+    "P25-R20"
+   ]
+  },
+  {
+   "id": "P25-R23",
+   "stage": 6,
+   "title": "Внутренний у получателей: ознакомление с листом и сводкой, исполнение резолюциями, «Направить на ознакомление»",
+   "build": "Получатели внутреннего документа в режимах «на ознакомление» (отметка «Ознакомлен» с датой и временем, лист ознакомления, сводка «ознакомлены 12/15» со списком не ознакомившихся) и «на исполнение» (резолюции, как у входящего); подразделение-получатель разворачивается в сотрудников на дату рассылки; действие «Направить на ознакомление» с файлом на карточке любого документа.",
+   "why": "За семь лет в старой системе 37 внутренних документов: получатель присваивал второй номер своего подразделения, и механизм не работал. Номер один — у автора (ДО-20). Приказ требует доказать, кто с ним ознакомлен, — без листа это делают на бумаге вне системы.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Внутренние → 19-01/ВН-1 / 2026 → вкладка «Ознакомление»; «Направить на ознакомление» в макете нет (волна 2) — постановка словами",
+    "tz": "23-dokumentooborot.html#s7-4"
+   },
+   "screen": [
+    {
+     "n": "Вкладка «Ознакомление»",
+     "cols": [
+      "получатель",
+      "должность",
+      "ознакомлен (дата и время)"
+     ],
+     "acts": [
+      "ознакомлен",
+      "печать листа ознакомления",
+      "направить на ознакомление"
+     ]
+    }
+   ],
+   "steps": [
+    "Принимать получателей — сотрудников или подразделения — с режимом у каждого.",
+    "При регистрации развернуть подразделения в сотрудников на дату; открыть шаг «ознакомиться» или «рассмотреть» каждому.",
+    "«Ознакомлен» — только сам получатель, без замещения; пишет дату и время.",
+    "Получатель «на исполнение» даёт резолюцию по P25-R19.",
+    "Сводка «ознакомлены n/m» и список не ознакомившихся; лист ознакомления печатается.",
+    "«Направить на ознакомление» с файлом: открыть шаг «ознакомиться» выбранным сотрудникам, файл приложить ролью «приложение», записать журнал."
+   ],
+   "rules": [
+    {
+     "h": "Добавить получателя после регистрации (ДО-Д13)",
+     "items": [
+      "Канон не называет получателей среди исправляемых реквизитов. Решение постановки: «на ознакомление» добавляется действием «Направить на ознакомление»; «на исполнение» после регистрации не добавляется — действующий получатель даёт резолюцию любому сотруднику."
+     ]
+    }
+   ],
+   "example": {
+    "src": "ВН 19-01/ВН-1 / 2026 приказ · ВН 19-03-01/ВН-2 / 2026 служебная записка · витрина макета",
+    "given": [
+     "Приказ «О порядке работы с просроченной задолженностью в IV квартале» зарегистрирован 02.10.2026, пятеро «на ознакомление»; 05.10.2026 ознакомились Осмонов К.Ж., Абдыкадырова Н.Р., Исакова Д.М.",
+     "Записка Осмонова «О доработке учёта поступлений…»: Токтосунов Э.А. «на исполнение»."
+    ],
+    "do": [
+     "Открыть оба документа."
+    ],
+    "get": [
+     "Приказ: «ознакомлены 3/5», не ознакомились Жумабеков Т.С. и Мамбетов Ч.А.; их задания «ознакомиться» со сроком 07.10.2026 просрочены.",
+     "Записка: Токтосунов дал Р-5 «Прошу подготовить предложения», ответственный Мамбетов, соисполнитель Осмонов, срок 23.10.2026; второго номера у получателя нет."
+    ]
+   },
+   "accept": [
+    "Внутренний не получает второго номера у получателя.",
+    "«Ознакомлен» пишет дату и время; за другого отметить нельзя.",
+    "Сводка «ознакомлены 3/5» и список не ознакомившихся видны на карточке и в журнале «Внутренние».",
+    "Подразделение-получатель разворачивается в сотрудников, работающих в нём на дату регистрации.",
+    "Лист ознакомления печатается со всеми получателями и отметками.",
+    "«Направить на ознакомление» открывает шаги выбранным и пишет журнал."
+   ],
+   "notIn": [
+    "Резолюции — P25-R19.",
+    "Печать листа в составе печатных форм — P25-R37.",
+    "Исполненность внутреннего для сдачи в дело — P25-R26."
+   ],
+   "deps": [
+    "P25-R16",
+    "P25-R19"
+   ]
+  },
+  {
+   "id": "P25-R24",
+   "stage": 7,
+   "title": "Отправка и вручение по каждому адресату: способ, дата, идентификатор, исход и подтверждение по способу",
+   "build": "Строки отправки исходящего по адресатам: адресат (субъект, орган или текст), снимок адреса, способ из справочника, дата отправки, почтовый идентификатор; исход «вручено» или «возврат» с датой и подтверждением, состав которого задаёт способ; повторная отправка — новая строка; сводка «отправлено 2/3: вручено 1, возврат 1».",
+   "why": "В старой системе дата и способ фактической отправки не фиксировались вовсе. От даты вручения должнику зависит переход к следующей мере взыскания, и мера читает её из этой строки (ADR-0270). «Отправлен» этапом быть не может: адресатов три, ушло двоим.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Исходящие → 19-03-01/2174 / 2026 → вкладка «Отправка»",
+    "tz": "23-dokumentooborot.html#s8"
+   },
+   "screen": [
+    {
+     "n": "Вкладка «Отправка»",
+     "cols": [
+      "адресат",
+      "адрес (снимок)",
+      "способ",
+      "дата отправки",
+      "идентификатор",
+      "исход и дата",
+      "подтверждение"
+     ],
+     "acts": [
+      "отметить отправку",
+      "отметить вручение или возврат",
+      "отправить повторно"
+     ]
+    }
+   ],
+   "steps": [
+    "Дать отметку отправки регистратору; автору — только способом e-mail.",
+    "Проверять: документ зарегистрирован, есть файл «подписанный», дата отправки не раньше регистрации и не позже сегодняшней, идентификатор есть, если его требует способ.",
+    "Снимать адрес адресата на дату отправки.",
+    "Отметка исхода: дата не раньше отправки (ИД-14), подтверждение — файл роли «вручение», если его требует способ; для возврата — так же (решение макета ДО-Д14).",
+    "Повторная отправка тому же адресату — новая строка с новой датой; история попыток видна.",
+    "«Отправка закончена» — у каждого адресата есть дата отправки; вручения ждать не нужно.",
+    "Сводку вычислять при показе."
+   ],
+   "example": {
+    "src": "ИСХ 19-03-01/2174 / 2026 · претензия по К-14 · витрина макета",
+    "given": [
+     "Адресаты: ОсОО «Ак-Жол Агро» и поручитель Токтогулов М.С.; зарегистрирован 06.10.2026, скан с номером приложен."
+    ],
+    "do": [
+     "07.10.2026 Касымова А.Б. отправляет обоим заказным письмом (RR123456780KG, RR123456781KG); 12.10 — вручено Ак-Жол Агро с уведомлением; 13.10 — возврат от Токтогулова с конвертом."
+    ],
+    "get": [
+     "Сводка «отправлено 2/2: вручено 1, возврат 1»; файлы ИСХ-2026-2174_вручение_адресат-1.jpg и _адресат-2.jpg.",
+     "Отправка закончена 07.10.2026 — задание «отправить» закрыто; аннулировать документ уже нельзя."
+    ]
+   },
+   "accept": [
+    "Отправка без файла «подписанный» недоступна (С-19).",
+    "Дата отправки раньше регистрации или позже сегодняшней не принимается (ИД-14).",
+    "Заказное письмо без идентификатора не отмечается.",
+    "Дата вручения раньше даты отправки не принимается (ИД-14).",
+    "Вручение без подтверждения, если его требует способ, не отмечается.",
+    "Автор может отметить отправку e-mail, но не почтой.",
+    "Повторная отправка не затирает первую строку.",
+    "Сводка на карточке и в журнале «Исходящие» совпадает со строками."
+   ],
+   "notIn": [
+    "Чтение даты вручения мерой взыскания — P25-R33.",
+    "Гашение «требует ответа» отправкой — P25-R21.",
+    "Справочник способов — P25-R3."
+   ],
+   "deps": [
+    "P25-R16",
+    "P25-R18"
+   ],
+   "extDeps": [
+    {
+     "what": "реестр лиц отдаёт адрес субъекта на дату; справочник органов — адрес органа (ДО-ДС-10)"
+    }
+   ]
+  },
+  {
+   "id": "P25-R25",
+   "stage": 8,
+   "title": "Номенклатура дел года: дела с индексом, сроком и местом хранения, копирование на следующий год",
+   "build": "Номенклатура дел на год, которую ведёт архивариус: индекс, название, подразделение, срок хранения, место хранения (кабинет, шкаф, полка); копирование номенклатуры на следующий год одним действием с последующей правкой; дело по умолчанию у типа ссылается на индекс.",
+   "why": "В старой системе реестр архива пуст, с документами не связан, а сохранение создаёт дубль. Без номенклатуры «Сдать в дело» некуда, и бумага лежит в шкафах без связи с системой. Год — часть ключа: дела 2025 года закрыты, документ 2026 года в них не сдаётся.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Архив → «Номенклатура дел»",
+    "tz": "23-dokumentooborot.html#s10"
+   },
+   "data": [
+    {
+     "n": "Дело",
+     "fields": [
+      "ключ — год + индекс; индекс уникален в пределах года"
+     ]
+    }
+   ],
+   "screen": [
+    {
+     "n": "Архив → «Номенклатура дел»",
+     "cols": [
+      "индекс",
+      "название",
+      "подразделение",
+      "срок хранения",
+      "место хранения",
+      "документов"
+     ],
+     "acts": [
+      "завести дело",
+      "изменить",
+      "скопировать на следующий год",
+      "открыть состав дела"
+     ]
+    }
+   ],
+   "steps": [
+    "Завести дела с ключом «год + индекс».",
+    "Дать архивариусу заводить и править дела; прочим — только чтение.",
+    "Копирование на год N+1 создаёт дела с теми же индексами и реквизитами; уже существующие не трогает.",
+    "Дело по умолчанию у типа хранить индексом и разрешать в год сдачи.",
+    "Показывать состав дела — документы, сданные в него."
+   ],
+   "example": {
+    "src": "номенклатура витрины макета",
+    "given": [
+     "2026: 03-15 «Претензионная работа», 10 лет, каб. 211, шкаф 3, полка 2; 2025: 03-15 «Претензионная работа», архив, стеллаж 4."
+    ],
+    "do": [
+     "Скопировать номенклатуру 2026 на 2027."
+    ],
+    "get": [
+     "В 2027 появляются семь дел с индексами 01-05…04-02; 03-15 2027 года — отдельная запись, 03-15 2025 и 2026 не изменились."
+    ]
+   },
+   "accept": [
+    "Два дела с одним индексом в одном году не сохраняются.",
+    "Копирование на следующий год не дублирует уже заведённые дела.",
+    "Править номенклатуру может только архивариус.",
+    "Состав дела показывает сданные документы с номерами и датами.",
+    "Дело по умолчанию у типа разрешается в дело текущего года по индексу."
+   ],
+   "notIn": [
+    "Сдача в дело — P25-R26.",
+    "Уничтожение дел по сроку хранения — не моделируется (долг 5 канона)."
+   ],
+   "deps": [
+    "P25-R2"
+   ],
+   "open": [
+    {
+     "ask": "ДО-ВЗ-1. Какова номенклатура дел ФКФ на текущий год?",
+     "default": "модуль запускается с пустой номенклатурой; «Сдать в дело» недоступно, пока архивариус не завёл дела.",
+     "impact": "архивариус заводит дела по номенклатуре заказчика; кода не меняет."
+    }
+   ]
+  },
+  {
+   "id": "P25-R26",
+   "stage": 8,
+   "title": "«Сдать в дело»: готовность исполнения и отправки, дело года, опись дела",
+   "build": "Действие «Сдать в дело» архивариуса (из очереди роли) или регистратора: проверка, что исполнение закончено, отправка закончена и у исходящего или внутреннего есть «подписанный»; выбор дела года (по умолчанию из типа); этап «В деле»; место хранения не требуется у документа без бумажного оригинала; печать описи дела.",
+   "why": "Сдача в дело закрывает документ по существу: после неё он не числится в работе. Если сдавать неисполненный, исчезнет просрочка. Исправление опечатки и добавление файла после сдачи остаются — исправленная опечатка документ из дела не возвращает.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Архив → «Ждут сдачи в дело»; Входящие → 4874 / 2026 → «Сдать в дело»",
+    "tz": "23-dokumentooborot.html#s10"
+   },
+   "screen": [
+    {
+     "n": "Архив → «Ждут сдачи в дело»",
+     "cols": [
+      "документ",
+      "тип",
+      "дело по умолчанию",
+      "готов с"
+     ],
+     "acts": [
+      "взять в работу",
+      "сдать в дело",
+      "печать описи дела"
+     ]
+    }
+   ],
+   "steps": [
+    "Проверять: нет неисполненной резолюции верхнего уровня и все получатели рассмотрели или ознакомились; у каждого адресата есть дата отправки; у ИСХ и ВН есть «подписанный».",
+    "Подставлять дело из типа в номенклатуре текущего года; разрешать сменить на любое дело текущего года.",
+    "Отклонять дело другого года (ИД-16).",
+    "Переводить документ в «В деле», писать журнал.",
+    "Место хранения брать из дела; у документа без бумажного оригинала место не показывать.",
+    "После сдачи разрешать только «Исправить» и добавление файлов.",
+    "Печатать опись дела списком документов дела."
+   ],
+   "example": {
+    "src": "ВХ 4874 / 2026 · ВХ 4872 / 2026 · ИСХ 19-03-01/2173 / 2026 · витрина макета",
+    "given": [
+     "4874: Р-3 погашена ответом 14.10.2026; дело по умолчанию типа — 02-01.",
+     "4872: Р-1 просрочена.",
+     "19-03-01/2173 сдан в дело 02-03 «Переписка с банками и организациями» 22.09.2026."
+    ],
+    "do": [
+     "Сыдыкова А.Т. сдаёт 4874 и 4872."
+    ],
+    "get": [
+     "4874 в «В деле», дело 02-01 «Переписка с государственными органами», каб. 104, шкаф 2, полка 1.",
+     "4872: отказ «есть неисполненная резолюция»."
+    ]
+   },
+   "accept": [
+    "Документ с неисполненной резолюцией верхнего уровня в дело не сдаётся.",
+    "Исходящий с адресатом без даты отправки в дело не сдаётся.",
+    "Исходящий или внутренний без «подписанного» в дело не сдаётся.",
+    "Дело прошлого года выбрать нельзя (ИД-16).",
+    "После сдачи «Исправить» доступно, документ остаётся «В деле».",
+    "Опись дела печатается с номерами, датами и темами документов дела.",
+    "При пустой номенклатуре действие недоступно с причиной «номенклатура не заведена»."
+   ],
+   "notIn": [
+    "Номенклатура — P25-R25.",
+    "Задание «сдать в дело» в очереди роли — P25-R30.",
+    "Выдача оригинала — P25-R27."
+   ],
+   "deps": [
+    "P25-R21",
+    "P25-R23",
+    "P25-R24",
+    "P25-R25"
+   ]
+  },
+  {
+   "id": "P25-R27",
+   "stage": 8,
+   "title": "Выдача оригинала: журнал выдачи, срок возврата, шаг «вернуть оригинал»",
+   "build": "Журнал выдачи бумажного оригинала: документ, кому, когда, до какого числа, кто выдал, дата возврата; открытая просроченная выдача даёт шаг «вернуть оригинал» получившему со сроком = «до какого числа»; список выдач с просрочкой в архиве.",
+   "why": "ТЗ требует учёта запросов на бумажный оригинал (стр. 990–1000). Оригинал решения суда, выданный юристу и не возвращённый, — потерянное доказательство. Своего напоминания у модуля нет: напоминает задание.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Архив → «Выдача оригиналов»; Входящие → 4871 / 2026 → «Выдать оригинал»",
+    "tz": "23-dokumentooborot.html#s10"
+   },
+   "data": [
+    {
+     "n": "Выдача оригинала",
+     "fields": [
+      "ключ В-n; полный состав — в карте данных свода"
+     ]
+    }
+   ],
+   "screen": [
+    {
+     "n": "Архив → «Выдача оригиналов»",
+     "cols": [
+      "документ",
+      "кому",
+      "выдан",
+      "до",
+      "возвращён",
+      "просрочка"
+     ],
+     "acts": [
+      "выдать",
+      "отметить возврат"
+     ]
+    }
+   ],
+   "steps": [
+    "Давать выдачу архивариусу для документа с бумажным оригиналом.",
+    "Не выдавать оригинал, уже выданный и не возвращённый.",
+    "Отмечать возврат датой не раньше выдачи.",
+    "Открытую выдачу со сроком в прошлом отдавать поводом «вернуть оригинал» (P25-R30).",
+    "Показывать в архиве просроченные выдачи красным."
+   ],
+   "example": {
+    "src": "В-1 · ВХ 4871 / 2026 · витрина макета на 15.10.2026",
+    "given": [
+     "28.09.2026 Сыдыкова А.Т. выдала оригинал письма ОАО «Айыл Банк» Абдыкадыровой Н.Р. до 09.10.2026; возврата нет."
+    ],
+    "do": [
+     "Открыть архив 15.10.2026."
+    ],
+    "get": [
+     "В-1 просрочена на 6 дней; у Абдыкадыровой задание «вернуть оригинал» со сроком 09.10.2026."
+    ]
+   },
+   "accept": [
+    "Выдача без «до какого числа» не сохраняется.",
+    "Повторная выдача невозвращённого оригинала отклоняется.",
+    "Просроченная выдача даёт задание получившему.",
+    "Отметка возврата закрывает выдачу и задание.",
+    "Выдавать может только архивариус."
+   ],
+   "notIn": [
+    "Задание и его закрытие — P25-R30, P25-R31."
+   ],
+   "deps": [
+    "P25-R26"
+   ]
+  },
+  {
+   "id": "P25-R28",
+   "stage": 9,
+   "title": "Видимость документа: участники, руководитель по цепочке, замещающий, канцелярия и руководство",
+   "build": "Серверное правило «кто видит документ на дату»: участники в любой роли, руководитель — документы подчинённых по оргструктуре, замещающий — то же, что замещаемый, на срок замещения, «Регистратор» и «Читатель всех документов» — всё; архивариус — зарегистрированные, сданные и аннулированные; правило применяется к журналам, поиску, карточке, файлам и вкладке «Документы» у соседей.",
+   "why": "В старой системе администратор не видел чужого, а по прямой ссылке видел любой. Видимость по привязке не наследуется: кто видит кредит, не видит автоматически служебную записку о нём. Если правило собрать в каждом экране отдельно, один из экранов его забудет.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "переключатель пользователя → Асанова Ж.М. → любой журнал",
+    "tz": "23-dokumentooborot.html#s11"
+   },
+   "steps": [
+    "Сделать одну функцию видимости «пользователь × документ × дата» на сервере.",
+    "Участие считать по всем ролям в документе: автор, согласующий, подписант, регистратор, получатель, ответственный, соисполнитель, контролёр.",
+    "Руководителя брать по цепочке оргструктуры на сегодня; замещение — по приказам «Сотрудников» на сегодня.",
+    "Давать роли «Регистратор» и «Читатель всех документов» видеть всё; архивариусу — документы с номером (решение макета ДО-Д8); администратору — только справочники.",
+    "Применять функцию в запросах журналов и поиска на стороне базы, а не фильтром после выборки.",
+    "Давать замещающему действовать в карточке за согласующего, получателя, ответственного и контролёра; подпись — только по праву подписи; «Ознакомлен» — только лично (решение макета ДО-Д9)."
+   ],
+   "example": {
+    "src": "сотрудники и документы витрины макета на 15.10.2026",
+    "given": [
+     "Асанова Ж.М. — кредитный специалист, ни в одном документе не участвует.",
+     "Осмонов К.Ж. — руководитель Абдыкадыровой Н.Р.; она автор письма «О графике погашения задолженности».",
+     "Байжанова Г.К. замещает Токтосунова Э.А. 12.10–23.10.2026."
+    ],
+    "do": [
+     "Асанова открывает ВХ 4873 / 2026 по прямой ссылке; Осмонов открывает письмо Абдыкадыровой; Байжанова открывает журнал «Мои»."
+    ],
+    "get": [
+     "Асанова — отказ сервера; в её журнале «Входящие» 0 документов (С-24).",
+     "Осмонов — письмо открывается (С-25).",
+     "Байжанова видит документы Токтосунова, в том числе письмо, ждущее его подписи."
+    ]
+   },
+   "accept": [
+    "Не участник открывает документ по прямой ссылке — отказ сервера (С-24).",
+    "Руководитель отдела открывает документ подчинённого (С-25).",
+    "Замещающий видит документы замещаемого только в срок замещения.",
+    "Регистратор видит все документы, включая перенесённые.",
+    "Вкладка «Документы» в карточке кредита показывает только видимые смотрящему.",
+    "Число строк журнала совпадает с числом видимых документов, без пустых страниц от фильтрации после выборки."
+   ],
+   "notIn": [
+    "Проверка скачивания и транспортная безопасность — P25-R29.",
+    "Права на действия — P25-R5."
+   ],
+   "deps": [
+    "P25-R5"
+   ],
+   "extDeps": [
+    {
+     "what": "«Сотрудники» и оргструктура отдают руководителя по цепочке и замещение на дату (ДО-ДС-8)"
+    }
+   ],
+   "open": [
+    {
+     "ask": "ДО-ВЗ-5. Нужен ли режим ограниченного доступа (кадровые приказы, документы с ПДн), при котором канцелярия и руководство не видят документ автоматически?",
+     "default": "отдельного режима нет; видимость по правилам карточки для всех документов.",
+     "impact": "появится признак документа «ограниченный доступ», исключающий его из «видят всё»; функция видимости получает одно условие."
+    },
+    {
+     "ask": "Долг 3 канона. Какие должности входят в «руководство», которое видит все документы?",
+     "default": "это роль «Читатель всех документов»; кому её дать, решает администратор, на старте — Председатель Правления и его заместители.",
+     "impact": "меняется список носителей роли; правило то же."
+    }
+   ]
+  },
+  {
+   "id": "P25-R29",
+   "stage": 9,
+   "title": "Каждый запрос проверяется на сервере: чтение, скачивание, изменение; экранирование, параметризованный SQL, CSRF, изменения не GET",
+   "build": "Серверная проверка прав на каждом чтении карточки, списке, скачивании файла и действии; вывод пользовательского текста только с экранированием; поиск и сортировка только параметризованными запросами; изменяющие действия только методом POST с CSRF-токеном.",
+   "why": "В старой системе по прямой ссылке любой вошедший открывал, правил, скачивал и удалял что угодно, поиск собирал SQL склейкой строк, текст документа выводился без экранирования (хранимый XSS), а удаление вызывалось запросом GET. Каждое из этого — отдельный пункт приёмки, потому что любое одно перечёркивает остальную защиту.",
+   "look": {
+    "mock": "docflow.html",
+    "mockNote": "транспортные проверки (CSRF, GET) не предмет макета — постановка словами",
+    "tz": "23-dokumentooborot.html#s11"
+   },
+   "steps": [
+    "Повесить проверку видимости (P25-R28) на каждый адрес чтения, включая скачивание файла и печатные формы.",
+    "Повесить проверку права (P25-R5) на каждый адрес действия.",
+    "Выводить тему, комментарии, имена отправителей и адресатов только экранированными.",
+    "Строить поиск, фильтры и сортировку только параметрами запроса; поле сортировки — из закрытого списка.",
+    "Принимать изменения только методом POST с CSRF-токеном; GET на изменяющем адресе — отказ.",
+    "Писать отказ доступа в журнал безопасности общего слоя."
+   ],
+   "example": {
+    "src": "ИСХ 19-04/2176 / 2026 · сценарии С-24, С-26, С-27",
+    "given": [
+     "Асанова Ж.М. знает адрес файла ИСХ-2026-2176_приложение-1.xlsx.",
+     "В тему черновика вводится «&lt;script&gt;alert(1)&lt;/script&gt;», в поиск — «4873' OR '1'='1»."
+    ],
+    "do": [
+     "Скачать файл по адресу; сохранить черновик и открыть журнал; выполнить поиск; отправить «Аннулировать» запросом GET."
+    ],
+    "get": [
+     "Файл не скачивается — 403; тема показана текстом; поиск вернул 0 строк без ошибки; GET отклонён."
+    ]
+   },
+   "accept": [
+    "Файл по прямой ссылке не скачивается тем, кто не видит документ (С-24).",
+    "Текст «&lt;script&gt;» в теме показывается как текст во всех экранах и печатных формах (С-26).",
+    "Кавычка и SQL в поиске не дают ошибки и инъекции (С-26).",
+    "Изменяющее действие запросом GET или без CSRF-токена отклоняется (С-27).",
+    "Каждое чтение, скачивание и действие проходит серверную проверку (ИД-20).",
+    "Печатная форма недоступна тому, кто не видит документ."
+   ],
+   "notIn": [
+    "Правило видимости — P25-R28.",
+    "Матрица действий — P25-R5."
+   ],
+   "deps": [
+    "P25-R28"
+   ]
+  },
+  {
+   "id": "P25-R30",
+   "stage": 10,
+   "title": "Ответ на опрос «Заданий»: одиннадцать видов doc-*, ключи, адресат из повода и очередь роли, раз в 5 минут",
+   "build": "Шов PULL: на опрос модуля «Задания» документооборот отвечает полным множеством открытых шагов на сейчас — одиннадцать видов повода семейства «документ» с устойчивым ключом, адресатом (сотрудник, «лично» или очередь роли), собственным сроком, где он есть, и формулировкой; не дольше 5 секунд на 10 000 шагов; частота опроса — 5 минут.",
+   "why": "Своей очереди «на мне» у документооборота нет: второй список дел запрещён (ADR-0210). Push в «Задания» нарушает односторонний шов, а потерянное событие не восстанавливается. Ночной опрос не годится: цепочка «согласование → подпись → регистрация → резолюция» теряла бы по дню на шаге (ДО-34).",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Настройки → «Шаги для заданий» — ответ на опрос",
+    "tz": "23-dokumentooborot.html#s12-1"
+   },
+   "data": [
+    {
+     "n": "Повод (ответ на опрос)",
+     "fields": [
+      "<b>вид</b> — doc-revise · doc-approve · doc-sign · doc-register · doc-dispatch · doc-review · doc-execute · doc-control · doc-acquaint · doc-file · doc-return",
+      "<b>объект ключа</b> — документ · документ × участник · резолюция × исполнитель · выдача; период пуст",
+      "<b>адресат</b> — сотрудник · сотрудник «лично» · роль",
+      "<b>собственный срок</b> — у doc-execute (срок резолюции) и doc-return (до какого числа)",
+      "<b>формулировка и признаки</b> — вид и номер документа, тема, срочность, «на контроле»"
+     ]
+    }
+   ],
+   "steps": [
+    "Собирать ответ из текущего состояния документов, шагов, резолюций и выдач — не из журнала событий.",
+    "Ключ строить тройкой «вид · объект · без периода»: у трёх согласующих три ключа.",
+    "doc-sign помечать адресатом «лично»; замещающего с правом подписи подставлять самим (P25-R4).",
+    "doc-register и doc-dispatch адресовать роли «Регистратор», doc-file — роли «Архивариус».",
+    "Отдавать собственный срок только у doc-execute и doc-return; сроки остальных — правила «Заданий» (2 / 3 / 1 / 5 р.д.).",
+    "Не включать шаги перенесённых документов (их задачи закрыты при переносе).",
+    "Отвечать полным множеством за один вызов не дольше 5 секунд на 10 000 открытых шагов; при сбое — отказ, а не частичный ответ."
+   ],
+   "example": {
+    "src": "ответ на опрос витрины макета на 15.10.2026",
+    "given": [
+     "18 открытых шагов: среди них doc-execute «Р-1 × Мамбетов Ч.А.» срок 08.10.2026; doc-sign письма «О графике погашения задолженности» — Токтосунов Э.А. лично; doc-register уведомления — очередь «Регистратор»; doc-return «В-1» — Абдыкадырова Н.Р. срок 09.10.2026."
+    ],
+    "do": [
+     "Документ ушёл на согласование трём согласующим в 10:00."
+    ],
+    "get": [
+     "Следующий ответ содержит три новых ключа doc-approve; не позже 10:05 у каждого согласующего задание в очереди (С-15)."
+    ]
+   },
+   "accept": [
+    "Согласующий видит задание не позже чем через 5 минут после отправки на согласование (С-15).",
+    "Каждый открытый шаг и каждая неисполненная резолюция есть в ответе; закрытых нет (ИД-18).",
+    "У трёх согласующих три разных ключа.",
+    "doc-sign помечен «лично»; doc-register адресован роли.",
+    "Ответ на 10 000 открытых шагов — не дольше 5 секунд.",
+    "Документооборот не вызывает модуль «Задания» сам.",
+    "Пачка из 50 документов на подпись приходит у подписанта одним вал-заданием (С-32)."
+   ],
+   "notIn": [
+    "Закрытие отпадением и чтение сроков — P25-R31.",
+    "Уведомления, эскалация, продление — модуль «Задания»."
+   ],
+   "deps": [
+    "P25-R12",
+    "P25-R13",
+    "P25-R15",
+    "P25-R19",
+    "P25-R22",
+    "P25-R23",
+    "P25-R24",
+    "P25-R26",
+    "P25-R27"
+   ],
+   "extDeps": [
+    {
+     "what": "«Задания» принимают формы адресата «названный поводом» с пометкой «лично» и «очередь роли» со взятием в работу (ДО-ДС-1)"
+    },
+    {
+     "what": "«Задания» опрашивают виды «документ» раз в 5 минут — частота как реквизит вида повода (ДО-ДС-3)"
+    }
+   ]
+  },
+  {
+   "id": "P25-R31",
+   "stage": 10,
+   "title": "Отпадение повода с атрибуцией и чтение установленного срока и исхода у «Заданий»",
+   "build": "К каждому отпавшему поводу документооборот отдаёт, кто выполнил шаг и почему шаг закончен: «исполнено» (адресат, действующий за него, носитель роли или «выполнил другой») либо «снято» с причиной (документ аннулирован, удалён, круг закрыт); и читает у «Заданий» по ключу шага установленный срок с продлениями и исход задания.",
+   "why": "Шаг делается в карточке документа, а не кнопкой «сдано» в «Заданиях». По общей таблице «Заданий» повод, исчезнувший без заявки исполнителя, — «отпало, ждёт разбора»: каждое согласование стало бы разбором. У документооборота всегда известно, почему шаг закончен, и он это говорит (ДО-35).",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Настройки → «Шаги для заданий» → журнал закрытия шагов",
+    "tz": "23-dokumentooborot.html#s12-3"
+   },
+   "data": [
+    {
+     "n": "Атрибуция отпадения",
+     "fields": [
+      "<b>ключ повода</b>",
+      "<b>кто выполнил</b>, <b>за кого</b>",
+      "<b>причина</b> — выполнено · документ аннулирован · черновик удалён · круг закрыт · резолюция исполнена"
+     ]
+    }
+   ],
+   "steps": [
+    "При каждом действии записывать ключи шагов, которые оно закрыло, с исполнителем и причиной.",
+    "Отдавать атрибуцию в ответе на опрос для поводов, исчезнувших с прошлого ответа.",
+    "Отпадение «снято» давать при аннулировании, удалении черновика и закрытии круга чужим отказом.",
+    "Не давать отпадения без причины: разбора «отпало» у видов «документ» нет.",
+    "Повторный круг согласования отдавать тем же ключом «документ × согласующий» — «Задания» откроют новое задание «повтор после З-…».",
+    "Читать у «Заданий» установленный срок резолюции и исход задания по ключу doc-execute; им проверять каскад (P25-R19) и показывать просрочку."
+   ],
+   "example": {
+    "src": "журнал закрытия шагов витрины макета",
+    "given": [
+     "З-44 doc-sign уведомления — адресат Токтосунов Э.А.; подписала Байжанова Г.К. по приказу с правом подписи.",
+     "З-29 doc-dispatch письма 19-03-01/2175 / 2026 — документ аннулирован 09.10.2026.",
+     "Задание doc-register уведомления взяла Касымова А.Б.; регистрирует Исакова Д.М."
+    ],
+    "do": [
+     "Собрать атрибуцию."
+    ],
+    "get": [
+     "З-44 — «исполнено», «за Токтосунов Э.А.: Байжанова Г.К.»; З-29 — «снято: документ аннулирован».",
+     "Задание Касымовой — «исполнено», «выполнил другой: Исакова Д.М.»; разбора «отпало» нет (С-31).",
+     "Р-3 по ВХ 4874: исходный срок 12.10.2026, установленный 20.10.2026 — читается у «Заданий»."
+    ]
+   },
+   "accept": [
+    "Согласование на карточке закрывает задание исходом «исполнено», а не «отпало — ждёт разбора» (С-16).",
+    "Регистрация из чужой взятой очереди — «исполнено» с пометкой «выполнил другой» (С-31).",
+    "Аннулирование закрывает задания документа исходом «снято» с причиной.",
+    "Второй круг согласования порождает новое задание «повтор», закрытое не переоткрывается.",
+    "Продление, утверждённое в «Заданиях», сразу меняет срок на карточке документа.",
+    "Документооборот не хранит установленный срок у себя."
+   ],
+   "notIn": [
+    "Сам механизм заданий, продления и переназначения — модуль «Задания»."
+   ],
+   "deps": [
+    "P25-R30"
+   ],
+   "extDeps": [
+    {
+     "what": "«Задания» принимают признак вида повода «исполнение у владельца» и реквизит «кто выполнил» (ДО-ДС-2)"
+    },
+    {
+     "what": "«Задания» отдают установленный срок и исход задания по ключу шага (ДО-ДС-4)"
+    }
+   ]
+  },
+  {
+   "id": "P25-R32",
+   "stage": 10,
+   "title": "Бланк «Отчётности» становится черновиком исходящего; номер возвращается выпуску",
+   "build": "Приём окончательного выпуска бланка с получателем: черновик исходящего (служебная записка — внутреннего) с pdf-снимком в роли «проект», адресатом = получатель, привязкой = объект бланка, типом из шаблона, ссылкой на выпуск; пачка выпусков — пачка черновиков с общим маршрутом; после регистрации выпуск получает ссылку на документ и номер.",
+   "why": "Если номер даёт и серия бланка, и журнал исходящих, у исходящих два источника номера, и перепечатанный бланк с аннулированным документом разойдутся на первой ошибке (ADR-0268). Pdf-снимок морозит числа, которые подписывали, поэтому номер в него не впечатывается — он ставится штампом на подписанный экземпляр.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Исходящие → «Из бланка «Отчётности»» → ВП-311",
+    "tz": "23-dokumentooborot.html#s13-2"
+   },
+   "data": [
+    {
+     "n": "Документ",
+     "fields": [
+      "<b>бланк-источник</b> — ссылка на выпуск «Отчётности»; у выпуска — обратная ссылка на документ"
+     ]
+    }
+   ],
+   "steps": [
+    "Принимать от «Отчётности» выпуск с получателем, типом шаблона, объектом бланка и pdf-снимком.",
+    "Создавать черновик: вид по шаблону (служебная записка — внутренний), тип из шаблона, адресат = получатель, привязка = объект бланка, файл роли «проект» = снимок.",
+    "Отказывать, если у выпуска нет получателя или он не окончательный; рабочую бумагу (график погашения) не принимать.",
+    "Пачку выпусков превращать в пачку черновиков с общим маршрутом (согласующие и подписант выбираются один раз).",
+    "После регистрации отдавать выпуску номер и дату регистрации документа.",
+    "Снимок не менять: номер несёт только файл «подписанный»."
+   ],
+   "example": {
+    "src": "ВП-311 и ВП-312 · выпуски «Отчётности» витрины макета",
+    "given": [
+     "ВП-311 «Претензия (досудебная)»: получатель Асанов Т.Б., объект — кредит К-1 и досудебная фаза К-1.",
+     "ВП-312 «Служебная записка о ходе взыскания», объект — кредит К-14."
+    ],
+    "do": [
+     "Нажать «Создать исходящий» у обоих."
+    ],
+    "get": [
+     "Из ВП-311 — черновик исходящего типа «Претензия», адресат Асанов Т.Б., привязки К-1 и фаза, файл «проект» — снимок ВП-311.",
+     "Из ВП-312 — черновик внутреннего «Служебная записка» (ряд ВН).",
+     "После регистрации у ВП-311 виден номер исходящего (С-28)."
+    ]
+   },
+   "accept": [
+    "Бланк претензии даёт черновик с файлом «проект», адресатом и привязкой (С-28).",
+    "После регистрации у выпуска виден номер исходящего (С-28).",
+    "Служебная записка из бланка — внутренний документ ряда ВН.",
+    "Выпуск без получателя или не окончательный черновика не даёт.",
+    "Рабочая бумага черновиком не становится.",
+    "Пачка выпусков даёт отдельный черновик на каждый выпуск с одним маршрутом.",
+    "Pdf-снимок после регистрации не изменён."
+   ],
+   "notIn": [
+    "Подпись пачкой — P25-R14.",
+    "Действие «Создать исходящий» и снятие серии на стороне «Отчётности» — ДО-ДС-5."
+   ],
+   "deps": [
+    "P25-R14",
+    "P25-R16"
+   ],
+   "extDeps": [
+    {
+     "what": "«Отчётность» даёт «Создать исходящий» у окончательного выпуска с получателем, хранит ссылку на документ и снимает выдачу номера серией (ДО-ДС-5)"
+    }
+   ]
+  },
+  {
+   "id": "P25-R33",
+   "stage": 10,
+   "title": "Мера взыскания регистрируется из документа и читает номер и даты из него",
+   "build": "Действие «Зарегистрировать меру» в карточке документа, вид которого допускает меры, и шов чтения для взыскания: по документу и обязанному лицу цели отдаётся номер, дата документа, дата поступления, дата и способ отправки и дата вручения с подтверждением по строке адресата-должника; признак «документ аннулирован».",
+   "why": "Одна дата в двух формах расходится на первой опечатке, и в суде предъявят дату журнала канцелярии, а срок посчитан по другой. Поэтому мера своих полей номера и дат не имеет и читает их из документа: исправление даты вручения в документе мера видит сразу (ADR-0270).",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Исходящие → 19-03-01/2174 / 2026 → вкладка «Привязки» → блок «Что читает мера взыскания»; кнопки «Зарегистрировать меру» в макете нет (волна 2)",
+    "tz": "23-dokumentooborot.html#s13-3"
+   },
+   "steps": [
+    "Дать взысканию чтение «документ × обязанное лицо»: номер с годом, дата документа, дата поступления, строка отправки адресата-должника (дата, способ, вручение, файл подтверждения), признак аннулирования.",
+    "Адресатом-должником считать строку отправки, чей адресат-субъект совпадает с обязанным лицом; у меры на двух целях — две строки.",
+    "Показывать в карточке документа блок «Что читает мера взыскания».",
+    "Дать «Зарегистрировать меру» на документе, тип которого привязан к кредиту и фазе: открыть форму меры взыскания с выбранным документом.",
+    "При исправлении даты в документе ничего во взыскание не копировать: мера читает заново.",
+    "При аннулировании отдавать признак — метку расхождения ставит взыскание."
+   ],
+   "example": {
+    "src": "ИСХ 19-03-01/2174 / 2026 · претензия ОсОО «Ак-Жол Агро» по К-14 · витрина макета",
+    "given": [
+     "Дата документа 06.10.2026; отправлено почтой 07.10.2026; вручено Ак-Жол Агро 12.10.2026, подтверждение ИСХ-2026-2174_вручение_адресат-1.jpg."
+    ],
+    "do": [
+     "Прочитать для меры с целью «ОсОО «Ак-Жол Агро»»; затем исправить дату вручения на 11.10.2026."
+    ],
+    "get": [
+     "Мера показывает номер 19-03-01/2174 / 2026, событие 06.10.2026, направлено 07.10.2026 почтой, вручено 12.10.2026 с файлом (С-23).",
+     "После исправления мера показывает 11.10.2026; в журнале документа «было/стало»."
+    ]
+   },
+   "accept": [
+    "Мера из документа показывает его номер и даты; своих полей номера и дат у неё нет (С-23).",
+    "Исправление даты в документе мера видит без повторной регистрации.",
+    "Для поручителя-адресата читается его строка отправки, а не строка заёмщика.",
+    "Аннулирование документа даёт мере метку расхождения, мера не сторнируется.",
+    "Перенесённые документы мерой не читаются: меры по ним ведутся как прежде."
+   ],
+   "notIn": [
+    "Реквизит вида меры «документ документооборота», форма меры, реестр претензий по ссылке — взыскание (ДО-ДС-6).",
+    "Справочник способов как источник каналов — P25-R3."
+   ],
+   "deps": [
+    "P25-R17",
+    "P25-R18",
+    "P25-R24"
+   ],
+   "extDeps": [
+    {
+     "what": "взыскание заводит реквизит вида меры «документ документооборота» и читает номер и даты через этот шов (ДО-ДС-6)"
+    }
+   ]
+  },
+  {
+   "id": "P25-R34",
+   "stage": 10,
+   "title": "Строки статистики «документ» на дату: реквизиты разрезов и даты для показателей ТЗ 711–721",
+   "build": "Шов для «Статистики»: множество документов на дату — одна строка на документ с видом, типом, этапом, подразделением автора, видом отправителя, исполнителем, месяцем регистрации, признаком «из старой системы», датой исполнения, установленным сроком, признаком продления, признаком отказа и аннулирования.",
+   "why": "Показатели ТЗ — документы по видам, в работе, просроченные, исполненные в срок и с опозданием, отказы — считает «Статистика»: витрина в документообороте была бы вторым способом посчитать то же (ADR-0272). «В срок» меряется установленным сроком с продлениями: иначе утверждённое продление превращается в просрочку, и сотрудники перестают его просить.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Показатели → период 01.09.2026–15.10.2026",
+    "tz": "23-dokumentooborot.html#s13-4"
+   },
+   "data": [
+    {
+     "n": "Строка «документ» на дату",
+     "fields": [
+      "<b>разрезы</b> — вид · тип · этап · подразделение автора · вид отправителя · исполнитель · месяц регистрации · из старой системы",
+      "<b>дата исполнения</b> — у «требует ответа» дата отправки ответа, иначе дата исполнения последней резолюции верхнего уровня; у исходящего — дата окончания отправки",
+      "<b>установленный срок</b> — поздний из установленных сроков резолюций верхнего уровня (решение макета ДО-Д4); <b>с продлением</b>",
+      "<b>отказано</b> — верхняя резолюция «Отказать» или черновик удалён после отказа подписанта",
+      "<b>аннулирован</b>"
+     ]
+    }
+   ],
+   "steps": [
+    "Отдавать строки по запросу статистики на дату; одна строка на документ.",
+    "Вычислять дату исполнения и установленный срок по правилам карточки.",
+    "Помечать отказ: верхняя резолюция «Отказать» или удаление черновика после отказа подписанта; возврат на доработку отказом не считать.",
+    "Помечать аннулированные отдельно, чтобы статистика не включала их в остальные показатели.",
+    "У исходящего срока не отдавать: в «в срок» и «с опозданием» он не попадает.",
+    "Резолюцию отдельной строкой не отдавать (ДО-43)."
+   ],
+   "example": {
+    "src": "Показатели макета за 01.09.2026–15.10.2026",
+    "given": [
+     "Зарегистрировано: входящих 5, исходящих 4, внутренних 2, аннулирован 1.",
+     "В работе 6, из них с истёкшим сроком 1 (ВХ 4872); исполнено 5: ВХ 4871, ВХ 4874, ИСХ 2173, 2174, 2177."
+    ],
+    "do": [
+     "Посчитать «в срок» и процент."
+    ],
+    "get": [
+     "В срок 1 (ВХ 4874: 14.10 ≤ установленного 20.10), из них с продлением 1; с опозданием 0; отказано 0.",
+     "Процент по канону: 1 ÷ 5 = 20 %; макет показывает 1 ÷ (1 + 0) = 100 % — см. «Решения нет»."
+    ]
+   },
+   "accept": [
+    "Строк на дату столько же, сколько документов нового ввода и перенесённых.",
+    "Аннулированный документ помечен и не попадает в «в работе».",
+    "ВХ 4874 даёт «исполнено в срок» и «с продлением», а не «с опозданием».",
+    "Возврат на доработку не даёт признака отказа; удаление черновика после отказа подписанта — даёт.",
+    "Дата исполнения входящего «требует ответа» — дата отправки ответа.",
+    "Исходящий не имеет срока в строке."
+   ],
+   "notIn": [
+    "Запись реестра объектов и формулы показателей — «Статистика» (ДО-ДС-7)."
+   ],
+   "deps": [
+    "P25-R20",
+    "P25-R21",
+    "P25-R24",
+    "P25-R31"
+   ],
+   "extDeps": [
+    {
+     "what": "«Статистика» заводит объект «документ» в реестре и показатели ТЗ 711–721 (ДО-ДС-7)"
+    }
+   ],
+   "open": [
+    {
+     "ask": "ДО-Д4 (расхождение макета с каноном, решает владелец статистики). Что в знаменателе «процента исполнения»?",
+     "default": "по канону: исполненные в срок ÷ все исполненные за период; строки отдают признак «срок есть», чтобы формулу можно было сменить без доработки шва.",
+     "impact": "по макету знаменатель — только документы со сроком (в срок + с опозданием); исходящие и документы без резолюций процент не занижают. Меняется формула статистики, шов тот же."
+    }
+   ]
+  },
+  {
+   "id": "P25-R35",
+   "stage": 11,
+   "title": "Журналы «Входящие», «Исходящие», «Внутренние», «Мои» и поиск одной строкой",
+   "build": "Четыре журнала с колонками по виду, новые сверху, фильтры (тип, этап, исполнение, период регистрации) и поиск одной строкой по номеру (новому и старому), номеру корреспондента, теме, отправителю или адресату, ИНН и имени заёмщика, номеру кредита; красный срок — только просрочка; ни одной подписи вида label.*.",
+   "why": "В старой системе срок в списке красный всегда, когда задан, а ключи label.document.* попадали на экран. Поиск по старому номеру нужен: на бумаге у адресатов и в суде стоят старые номера. «Мои» — журнал документов, а не очередь работы: работа живёт в «Заданиях».",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Входящие · Исходящие · Внутренние · Мои; строка «Поиск»",
+    "tz": "23-dokumentooborot.html#s14"
+   },
+   "steps": [
+    "Собрать журналы с колонками из описи экранов; в «Мои» — моя роль в документе.",
+    "Сортировать по дате регистрации, затем по номеру, новые сверху; черновики — по дате создания.",
+    "Сделать поиск одной строкой по перечисленным реквизитам, включая старый номер и ИНН заёмщика привязки.",
+    "Фильтровать на сервере вместе с видимостью (P25-R28).",
+    "Красить срок красным, только если он раньше сегодняшней даты и резолюция не закрыта.",
+    "Аннулированные показывать серым с основанием.",
+    "Проверить все подписи экранов: только русский текст."
+   ],
+   "example": {
+    "src": "журналы витрины макета под регистратором Исаковой Д.М.",
+    "given": [
+     "Во «Входящих» 8 документов: 4871…4875 / 2026, два перенесённых «1203 / 2025» и черновик."
+    ],
+    "do": [
+     "Искать «1203»; искать ИНН ОсОО «Ак-Жол Агро» 01507201010045 в «Исходящих»."
+    ],
+    "get": [
+     "По «1203» — оба перенесённых дубля и 4873 / 2026 (ИНН Асанова Т.Б. 21203198500123 содержит «1203»).",
+     "По ИНН — 5 исходящих, в том числе перенесённый 19-03-01/2101 / 2026 и два черновика."
+    ]
+   },
+   "accept": [
+    "Поиск по старому номеру находит перенесённые документы, включая дубли.",
+    "Поиск по ИНН заёмщика находит документы с привязкой к нему или адресованные ему.",
+    "Красный срок — только у просроченных; срок, равный сегодняшнему, не красный (С-30).",
+    "На экранах нет подписей вида label.* (С-30).",
+    "Журнал не показывает документов, которых пользователь не видит.",
+    "«Мои» показывает мою роль в каждом документе.",
+    "Кавычка в поиске не даёт ошибки (С-26)."
+   ],
+   "notIn": [
+    "Группировка, наборы фильтров, печать — P25-R36.",
+    "OCR сканов — не делается (ДО-33)."
+   ],
+   "deps": [
+    "P25-R20",
+    "P25-R24",
+    "P25-R29"
+   ],
+   "traps": [
+    "Поиск по подстроке ловит цифры внутри ИНН: «1203» находит заявление Асанова. Это не ошибка, а ожидаемое поведение поиска одной строкой; номер с годом в выдаче помогает отличить."
+   ]
+  },
+  {
+   "id": "P25-R36",
+   "stage": 11,
+   "title": "Группировка с итогами, сохранённые наборы фильтров и печатная форма журнала вместо «журнала по шаблону»",
+   "build": "Группировка журнала по типу, этапу, отправителю или адресату, исполнителю, отделу и месяцу регистрации с итогами по группам; сохранение набора фильтров под именем для пользователя; печатная форма журнала регистрации за период с фильтром по типу — она и есть «отдельный журнал по шаблону» из ТЗ.",
+   "why": "ТЗ требует отдельного журнала по каждому шаблону. Отдельный счётчик на тип разрезал бы привычный ряд исходящих на 24, и канцелярия перестала бы узнавать номера; поэтому журнал по шаблону — фильтр и печать (ДО-21). Группировка с итогами — то, чем в старой системе отвечали на вопрос «сколько пришло из судов».",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Исходящие → «Группировка» и «Печатная форма журнала»",
+    "tz": "23-dokumentooborot.html#s19"
+   },
+   "steps": [
+    "Группировать на сервере по выбранному признаку с числом документов в группе.",
+    "Сохранять набор: имя, поиск, фильтры, группировка — для своего пользователя.",
+    "Печатать журнал регистрации за период: номер с годом, дата регистрации, отправитель или адресаты, тема, тип, исполнение; в шапке — тип и период.",
+    "Печать учитывает видимость пользователя."
+   ],
+   "example": {
+    "src": "журнал «Исходящие» витрины макета под регистратором",
+    "given": [
+     "11 исходящих: черновик 2, согласование 1, подпись 2, зарегистрирован 3, аннулирован 1, в деле 2."
+    ],
+    "do": [
+     "Сгруппировать по этапу; отфильтровать тип «Претензия» и напечатать журнал за 2026 год."
+    ],
+    "get": [
+     "Группы с итогами 2 · 1 · 2 · 3 · 1 · 2.",
+     "Печатная форма «Журнал регистрации: Претензия, 2026» с двумя строками: 19-03-01/2174 / 2026 и перенесённый 19-03-01/2101 / 2026."
+    ]
+   },
+   "accept": [
+    "Итоги групп в сумме равны числу документов журнала.",
+    "Сохранённый набор восстанавливает поиск, фильтры и группировку.",
+    "Печать журнала по типу за период содержит только документы этого типа и периода.",
+    "Печать не содержит документов, невидимых пользователю.",
+    "Отдельного счётчика номеров на тип нет."
+   ],
+   "notIn": [
+    "Номера — P25-R11.",
+    "Печать РКК, листа ознакомления, описи — P25-R37, P25-R26."
+   ],
+   "deps": [
+    "P25-R35"
+   ],
+   "open": [
+    {
+     "ask": "ДО-ВЗ-6. Согласен ли заказчик, что «отдельный журнал по каждому шаблону» (ТЗ стр. 948) — журнал с фильтром по типу и печатная форма, а не отдельный счётчик номеров?",
+     "default": "три счётчика — по одному на вид; журнал по типу — фильтр и печать.",
+     "impact": "при несогласии появится счётчик на тип — новый ADR вместо ADR-0267 и правка P25-R11; эта карточка не меняется."
+    }
+   ]
+  },
+  {
+   "id": "P25-R37",
+   "stage": 11,
+   "title": "Карточка документа: шапка со сводками, кнопки с причиной, вкладки, печать РКК и листа ознакомления",
+   "build": "Карточка документа: шапка (вид, номер с годом, тип, этап, «подписан», «на контроле», «требует ответа», сводки согласования, исполнения, отправки, ознакомления, «вас упомянули»), кнопки доступных действий с причиной у недоступных, вкладки Реквизиты · Файлы · Маршрут · Резолюции · Отправка · Ознакомление · Привязки · Журнал · Комментарии; печать регистрационно-контрольной карточки и листа ознакомления.",
+   "why": "Карточка — место, где делается вся работа: шаг выполняется здесь, а задание закрывается само. Если кнопка просто серая, человек идёт в чат спрашивать, почему; причина под кнопкой экономит этот круг. РКК — привычная форма канцелярии для бумажного дела.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Входящие → 4873 / 2026; печать РКК и листа ознакомления в макете нет (волна 2) — постановка словами",
+    "tz": "23-dokumentooborot.html#s14"
+   },
+   "screen": [
+    {
+     "n": "Карточка документа",
+     "note": "состав — в описи экранов свода; вкладки «Отправка» только у исходящего, «Ознакомление» только у внутреннего"
+    }
+   ],
+   "steps": [
+    "Собрать шапку из полей документа и вычисленных сводок.",
+    "Показывать кнопки, которые даёт матрица действий для этого пользователя и этапа; недоступные — с причиной из серверной проверки.",
+    "Собрать вкладки; у перенесённого документа — только чтение и история задач старой системы.",
+    "Показывать на «Резолюциях» дерево с исходным и установленным сроком рядом.",
+    "Печатать РКК: реквизиты, номер с годом, резолюции с исполнителями и сроками, отметки исполнения, дело.",
+    "Печатать лист ознакомления внутреннего документа."
+   ],
+   "example": {
+    "src": "ВХ 4873 / 2026 · заявление Асанова Т.Б. · витрина макета",
+    "given": [
+     "Документ зарегистрирован 01.10.2026, требует ответа, Р-2 открыта, ответ на согласовании; Абдыкадырову упомянули в комментарии."
+    ],
+    "do": [
+     "Открыть карточку под Абдыкадыровой Н.Р."
+    ],
+    "get": [
+     "Шапка: «4873 / 2026 · Заявление заёмщика · Зарегистрирован · требует ответа · поручений 1 · ответ не отправлен · вас упомянули».",
+     "Кнопка «Исполнено» недоступна с причиной «гаснет только ответом отправителю»."
+    ]
+   },
+   "accept": [
+    "Номер в шапке показан с годом.",
+    "Недоступное действие показывает причину словами.",
+    "Сводки шапки совпадают с содержимым вкладок.",
+    "На «Резолюциях» видны исходный и установленный срок.",
+    "Перенесённый документ открывается только на чтение, кнопок изменения нет (ИД-19).",
+    "РКК и лист ознакомления печатаются и доступны только видящим документ."
+   ],
+   "notIn": [
+    "Опись дела — P25-R26.",
+    "Логика действий — в карточках действий."
+   ],
+   "deps": [
+    "P25-R23",
+    "P25-R29",
+    "P25-R33"
+   ]
+  },
+  {
+   "id": "P25-R38",
+   "stage": 11,
+   "title": "Вкладка «Документы» в карточках заёмщика, кредита, фазы взыскания, договора залога и объекта имущества",
+   "build": "Компонент «Документы по привязке» для карточек соседей: список документов, привязанных к объекту (для заёмщика — и через его кредиты), видимых смотрящему; колонки вид, номер, дата, тип, тема, этап, сводка исполнения или отправки; переход в карточку документа.",
+   "why": "Вопрос «все бумаги по этому кредиту» в старой системе собирался сырым SQL по отправителю и адресату и давал случайный результат. Вкладка ничего не хранит, она читает привязки — иначе у карточки кредита появится второй список документов, расходящийся с журналом.",
+   "look": {
+    "mock": "docflow.html",
+    "mockNote": "вкладок в карточках соседей в макете нет; состав виден на вкладке «Привязки» документа — постановка словами",
+    "tz": "23-dokumentooborot.html#s13-5"
+   },
+   "screen": [
+    {
+     "n": "Вкладка «Документы»",
+     "cols": [
+      "вид",
+      "номер",
+      "дата",
+      "тип",
+      "тема",
+      "этап",
+      "сводка"
+     ],
+     "acts": [
+      "открыть документ",
+      "фильтр по виду"
+     ]
+    }
+   ],
+   "steps": [
+    "Дать соседям запрос «документы по объекту» с проверкой видимости смотрящего.",
+    "Для заёмщика собирать документы с привязкой к нему и к его кредитам.",
+    "Отдавать колонки и сводку; черновики показывать только их участникам.",
+    "Ничего не хранить на стороне соседа."
+   ],
+   "example": {
+    "src": "кредит К-14 · ОсОО «Ак-Жол Агро» · витрина макета",
+    "given": [
+     "К К-14 привязаны: перенесённый 19-03-01/2101 / 2026, ВХ 4872 / 2026, ИСХ 19-03-01/2174 и 19-04/2176 / 2026, два черновика."
+    ],
+    "do": [
+     "Открыть вкладку под Исаковой Д.М., под Осмоновым К.Ж. и под Асановой Ж.М."
+    ],
+    "get": [
+     "Исакова — 6 документов; Осмонов — 5 (без перенесённого, где он не участник); Асанова — 0."
+    ]
+   },
+   "accept": [
+    "Вкладка показывает только документы, видимые смотрящему.",
+    "У заёмщика видны документы его кредитов.",
+    "Новая привязка документа сразу появляется во вкладке.",
+    "Вкладка не позволяет создать или изменить документ.",
+    "Сводка в строке совпадает с карточкой документа."
+   ],
+   "notIn": [
+    "Размещение вкладки в карточках соседей — их команды (ДО-ДС-9)."
+   ],
+   "deps": [
+    "P25-R9",
+    "P25-R28"
+   ],
+   "extDeps": [
+    {
+     "what": "модули заёмщика, кредита, взыскания, залога и имущества ставят вкладку «Документы» в свои карточки (ДО-ДС-9)"
+    }
+   ]
+  },
+  {
+   "id": "P25-R39",
+   "stage": 12,
+   "title": "Перенос из старой системы: только чтение, старые номера с дублями, закрытие задач, счётчики года, повторяемость",
+   "build": "Повторяемый перенос 74 101 документа, 38 755 файлов, ≈342 тыс. записей журнала и ≈273 тыс. задач только для чтения: признак «из старой системы», старые номера с дублями, этапы по таблице соответствия, тип «Документ (из старой системы)» у входящих, претензии и акт сверки — исходящими типами, файлы переименованы, открытые задачи закрыты, ряды текущего года — на максимум старой системы.",
+   "why": "Номер уже стоит на бумаге у адресата и в суде — перенумеровать нельзя, даже дубли (ДО-32). 86 тыс. открытых задач с 2019 года — не работа, а мусор: заданиями они стать не должны. Если ряд текущего года начать с 1, новые номера совпадут со старыми.",
+   "look": {
+    "mock": "docflow.html",
+    "route": "Входящие → 1203 / 2025 (два дубля); Исходящие → 19-03-01/2101 / 2026",
+    "tz": "23-dokumentooborot.html#s15"
+   },
+   "steps": [
+    "Переносить документы с ключом id старой системы; повторный прогон не создаёт дублей.",
+    "Ставить признак «из старой системы», старый номер и год; уникальность номеров не проверять среди перенесённых.",
+    "Этапы: DONE → «В деле»; REGISTERED, ACCEPTED, APPROVED, SENT, PENDING → «Зарегистрирован»; NEW, REQUESTED → «Черновик» только для чтения (позиция ТЗ).",
+    "Входящим ставить тип «Документ (из старой системы)»; 35 «Претензий» — исходящие типа «Претензия», 1 акт сверки — «Акт сверки».",
+    "Файлы переименовывать по правилу P25-R10; исходное имя не переносить.",
+    "Журнал действий — в журнал документа; задачи — историей на карточке; 85 931 открытая задача — «закрыта при переносе».",
+    "Даты-заглушки (155 исходящих с годами 1899, 2008, 2018) и регистрацию позже создания (1 431) — как есть, с пометкой «дата сомнительна».",
+    "Ряды входящих и исходящих текущего года ставить на максимум, выданный старой системой в этом году; ряд ВН — с 1."
+   ],
+   "rules": [
+    {
+     "h": "Привязки (расхождение ТЗ и канона)",
+     "items": [
+      "ТЗ: привязки не переносятся. Канон: косвенные связи переносятся там, где их можно установить однозначно, но правило не написано (долг 4). Решение постановки: в этой волне привязки не переносятся; когда правило будет написано, повторный прогон добавит их, не трогая остальное."
+     ]
+    }
+   ],
+   "example": {
+    "src": "перенесённые документы витрины макета; объёмы — база старой системы на 07.08.2026",
+    "given": [
+     "Два входящих «1203 / 2025» (дубль старой системы) и исходящий 19-03-01/2101 / 2026; ряды 2026 после переноса — ВХ 4870, ИСХ 2172 (числа витрины)."
+    ],
+    "do": [
+     "Запустить перенос повторно; зарегистрировать новый входящий и новый исходящий."
+    ],
+    "get": [
+     "Новых документов 0 (С-29); оба дубля 1203 / 2025 на месте.",
+     "Новый входящий — 4871 / 2026, исходящий — …/2173 / 2026; первый внутренний — ВН-1."
+    ]
+   },
+   "accept": [
+    "Повторный прогон не создаёт ни одного нового документа (С-29).",
+    "Счётчик года продолжает максимум старой системы (С-29).",
+    "Перенесённый документ нельзя изменить ни одним действием (ИД-19).",
+    "Дубли старых номеров сохранены и находятся поиском.",
+    "Ни одна задача старой системы не стала заданием; открытые помечены «закрыта при переносе».",
+    "Ни в одном имени перенесённого файла нет исходного имени.",
+    "Документы с датой-заглушкой помечены «дата сомнительна»."
+   ],
+   "notIn": [
+    "Правило переноса привязок — долг 4 канона, отдельная задача после его написания.",
+    "Поиск по старому номеру — P25-R35."
+   ],
+   "deps": [
+    "P25-R10",
+    "P25-R11",
+    "P25-R35"
+   ],
+   "traps": [
+    "Числа рядов в макете (4870, 2172) — витрина. Настоящий максимум берётся из базы на день переноса: по копии от 07.08.2026 входящих 2026 года выдано до 720, а исходящие идут сквозным рядом с префиксом отдела — максимум считается по числу после «/», а не по строке."
+   ]
+  }
+ ]
+}
+</script>
+
+
+<script>
+const DATA = JSON.parse(document.getElementById('tasks-data').textContent);
+const { meta, guide, atlas, screens, glossary, walkthrough, stages, cards, changelog } = DATA;
+
+document.title = `Документооборот · редакция ${meta.revision} · P25 · АСУБК`;
+document.getElementById('hero-title').textContent =
+  `${meta.title} — задачи для команды разработки`;
+
+document.getElementById('revbar').innerHTML = `
+  <span class="revchip">Редакция ${meta.revision} · ${meta.date}</span>
+  ${meta.replaces ? `<span class="revchip replaces">заменяет редакцию ${meta.replaces.revision} от ${meta.replaces.date}</span>` : ''}
+  <span class="revchip replaces">${cards.length} задач · ${stages.length} этапов</span>
+`;
+
+/* Журнал редакции: получив редакцию N, разработчик читает десять строк и изменившиеся
+   карточки, а не всю постановку заново (FORMAT.md §6). */
+function changelogHtml(){
+  if (!changelog) return '';
+  const added   = (changelog.added   || []).map(id => `<code>${id}</code>`).join(' · ');
+  const changed = (changelog.changed || []).map(c => `<code>${c.id}</code> — ${c.what}`);
+  const removed = (changelog.removed || []).map(c => `<code>${c.id}</code> → ${c.to}`);
+  const rows = [];
+  if (added)          rows.push(`<li><b>Добавлено:</b> ${added}</li>`);
+  changed.forEach(c => rows.push(`<li><b>Изменено:</b> ${c}</li>`));
+  removed.forEach(c => rows.push(`<li><b>Убрано:</b> ${c}</li>`));
+  if (!rows.length) return '';
+  return `<div class="blk" style="margin-top:16px">
+    <span class="lbl">Журнал редакции ${meta.revision}</span>
+    <ul>${rows.join('')}</ul>
+  </div>`;
+}
+
+document.getElementById('hero-lead').innerHTML = `
+  ${cards.length} задач, собранных в ${stages.length} этапов (не строгую очередь — см. подвал страницы).
+  Модуль регистрирует входящие, исходящие и внутренние документы Фонда, проводит их по согласованию и
+  подписи, раздаёт поручения резолюциями, фиксирует отправку и вручение по адресатам, привязывает
+  документ к делу и сдаёт в архив. Работу людям он не поручает сам — каждый шаг становится заданием
+  модуля «Задания»; показатели считает «Статистика», номер и даты из документа читает мера взыскания.
+  В тестовом стенде модуля нет — он строится с нуля. Макет <code>${meta.package[0]}</code> исполняет
+  описанное здесь на витрине из 22 документов; при расхождении по логике права эта постановка.
+  Начните со свода: карта данных, опись экранов, словарь и сквозной пример — общие для всех карточек,
+  карточка добавляет к ним только своё.
+` + changelogHtml();
+
+function tiles(){
+  const data = [
+    { l:'Задач', n:cards.length },
+    { l:'Этапов', n:stages.length },
+    { l:'Сущностей', n:(atlas||[]).length, fold:'panel-atlas' },
+    { l:'Экранов', n:(screens||[]).length, fold:'panel-screens' },
+    { l:'Терминов', n:(glossary||[]).length, fold:'panel-gloss' },
+    { l:'Сквозной пример', n:((walkthrough||{}).groups||[]).length, fold:'panel-walk' },
+    { l:'Открытых вопросов', n:cards.reduce((a,c)=>a+(c.open||[]).length,0), fold:'panel-open' },
+    { l:'Справка модуля', n:(guide||[]).length, fold:'panel-guide' },
+  ];
+  document.getElementById('tiles').innerHTML = data.map(d =>
+    `<div class="tile"${d.fold?` data-fold="${d.fold}"`:''}><span class="n">${d.n}</span><span class="l">${d.l}</span></div>`).join('');
+  document.querySelectorAll('.tile[data-fold]').forEach(t => t.onclick = () => {
+    const dt = document.querySelector(`#${t.dataset.fold} details.fold`);
+    dt.open = !dt.open;
+    t.classList.toggle('on', dt.open);
+    if (dt.open && dt.scrollIntoView) dt.scrollIntoView({ block:'nearest' });
+  });
+}
+tiles();
+
+// Справка модуля
+document.getElementById('guide-cnt').textContent = `${(guide||[]).length} раздела`;
+document.getElementById('guide-list').innerHTML = (guide||[]).map(g => `
+  <div class="guide-item">
+    <h3>${g.h}</h3>
+    <ul>${(g.items||[]).map(i=>`<li>${i}</li>`).join('')}</ul>
+  </div>`).join('');
+
+// Карта данных
+function entHtml(e){
+  return `<div class="ent">
+    <h4>${e.n}${e.key?`<span class="key">ключ: ${e.key}</span>`:''}</h4>
+    ${e.note?`<p class="note">${e.note}</p>`:''}
+    <ul>${(e.fields||[]).map(f=>`<li>${f}</li>`).join('')}</ul>
+  </div>`;
+}
+document.getElementById('atlas-cnt').textContent = `${(atlas||[]).length} сущностей`;
+document.getElementById('atlas-list').innerHTML = (atlas||[]).map(entHtml).join('');
+
+// Опись экранов
+function scrHtml(s){
+  return `<div class="scr">
+    <h4>${s.n}</h4>
+    ${s.note?`<p class="note">${s.note}</p>`:''}
+    ${(s.cols||[]).length?`<span class="cap">Колонки и поля</span><div class="chips">${s.cols.map(c=>`<span class="col">${c}</span>`).join('')}</div>`:''}
+    ${(s.acts||[]).length?`<span class="cap">Действия</span><div class="chips">${s.acts.map(a=>`<span class="act">${a}</span>`).join('')}</div>`:''}
+  </div>`;
+}
+document.getElementById('screens-cnt').textContent = `${(screens||[]).length} экранов`;
+document.getElementById('screens-list').innerHTML = (screens||[]).map(scrHtml).join('');
+
+// Словарь
+document.getElementById('gloss-cnt').textContent = `${(glossary||[]).length} терминов`;
+document.getElementById('gloss-list').innerHTML =
+  `<div class="gloss">${(glossary||[]).map(t=>`<div><b>${t.t}</b> — ${t.d}</div>`).join('')}</div>`;
+
+// Сквозной пример
+document.getElementById('walk-cnt').textContent = `${((walkthrough||{}).groups||[]).length} шагов`;
+document.getElementById('walk-list').innerHTML = walkthrough ? `
+  <p class="note" style="font-size:13px;color:var(--text-muted);margin:0 0 8px">
+    Источник: ${walkthrough.src}${walkthrough.note?` · ${walkthrough.note}`:''}</p>
+  ${(walkthrough.groups||[]).map(g=>`
+    <div class="guide-item"><h3>${g.h}</h3>
+      <ul>${(g.items||[]).map(i=>`<li>${i}</li>`).join('')}</ul></div>`).join('')}` : '';
+
+// Открытые вопросы — сводка по всем карточкам
+(function renderOpenQ(){
+  const rows = [];
+  cards.forEach(c => (c.open||[]).forEach(o => rows.push({...o, cid:c.id, title:c.title})));
+  document.getElementById('openq-cnt').textContent = rows.length;
+  document.getElementById('openq-list').innerHTML = rows.length
+    ? rows.map(o => `
+        <div class="openq">
+          <a href="#card-${o.cid}">${o.cid}</a>
+          <span><b>${o.ask}</b> — умолчание: <span class="oq-default">${o.default}</span></span>
+        </div>`).join('')
+    : '<p style="color:var(--text-muted)">Открытых вопросов нет.</p>';
+})();
+
+// Фильтр этапов
+const stageSel = document.getElementById('fStage');
+stages.forEach(s => {
+  const n = cards.filter(c => c.stage === s.n).length;
+  stageSel.insertAdjacentHTML('beforeend', `<option value="${s.n}">Этап ${s.n} · ${s.title} (${n})</option>`);
+});
+
+const F = { q:'', stage:'' };
+
+function depChip(id){
+  const c = cards.find(x=>x.id===id);
+  return `<a class="dep" href="#card-${id}" title="${c?c.title:''}">↔ ${id}</a>`;
+}
+
+function groupsHtml(groups){
+  if(!groups) return '';
+  return groups.map(g => `<div class="subh">${g.h}</div><ul>${(g.items||[]).map(i=>`<li>${i}</li>`).join('')}</ul>`).join('');
+}
+
+function lookHtml(look){
+  if(!look) return '';
+  const parts = [];
+  if(look.mock) parts.push(`<a href="${look.mock}" target="_blank" rel="noopener">${look.mock.split('#')[0]}</a>`);
+  if(look.route) parts.push(`<span class="route">${look.route}</span>`);
+  if(look.mockNote) parts.push(`<span class="route">${look.mockNote}</span>`);
+  if(look.tz) parts.push(`<a href="${look.tz}" target="_blank" rel="noopener">ТЗ ${look.tz.split('#')[1]?('· '+look.tz.split('#')[1]):''}</a>`);
+  if(look.defect) parts.push(`<span class="defect">дефект ${look.defect}</span>`);
+  return `<div class="look">${parts.join('')}</div>`;
+}
+
+function exampleHtml(ex){
+  if(!ex) return '';
+  const part = (h, items) => (items||[]).length
+    ? `<span class="exh">${h}</span><ul>${items.map(i=>`<li>${i}</li>`).join('')}</ul>` : '';
+  return `<div class="ex">
+    <span class="lbl">Пример</span>
+    <p class="src">Источник: ${ex.src}</p>
+    ${part('Дано', ex.given)}${part('Делаем', ex.do)}${part('Получаем', ex.get)}
+  </div>`;
+}
+
+function openHtml(open){
+  if(!open || !open.length) return '';
+  return open.map(o => `
+    <div class="openbox">
+      <b>Решения нет:</b> ${o.ask} Умолчание — ${o.default} При другом ответе: ${o.impact}
+    </div>`).join('');
+}
+
+function trapsHtml(traps){
+  if(!traps || !traps.length) return '';
+  return `<details><summary>Ловушки</summary><div class="traps"><ul>${traps.map(t=>`<li>${t}</li>`).join('')}</ul></div></details>`;
+}
+
+function extHtml(ext){
+  if(!ext || !ext.length) return '';
+  return `<div class="blk"><span class="lbl">Нужно от других модулей</span><ul>${
+    ext.map(e=>`<li>${e.href?`<a href="${e.href}">${e.what}</a>`:e.what}</li>`).join('')}</ul></div>`;
+}
+
+function card(c){
+  return `<article class="card" id="card-${c.id}" data-id="${c.id}" data-stage="${c.stage}">
+    <div class="c-head">
+      <span class="id">${c.id}</span>
+      <span class="step">Этап ${c.stage}</span>
+      <h3 class="c-title">${c.title}</h3>
+    </div>
+    <div class="blk build"><span class="lbl">Что строим</span><p>${c.build||''}</p></div>
+    <div class="blk"><span class="lbl">Зачем</span><p class="why">${c.why}</p></div>
+    ${lookHtml(c.look) ? `<div class="blk"><span class="lbl">Где смотреть</span>${lookHtml(c.look)}</div>` : ''}
+    ${c.data ? `<div class="blk"><span class="lbl">Данные</span>${(c.data||[]).map(entHtml).join('')}</div>` : ''}
+    ${c.screen ? `<div class="blk"><span class="lbl">Экран</span>${(c.screen||[]).map(scrHtml).join('')}</div>` : ''}
+    <div class="blk"><span class="lbl">Шаги</span><ol class="steps">${(c.steps||[]).map(s=>`<li>${s}</li>`).join('')}</ol></div>
+    ${c.rules ? `<div class="blk"><span class="lbl">Правила</span>${groupsHtml(c.rules)}</div>` : ''}
+    ${exampleHtml(c.example)}
+    ${c.terms ? `<div class="blk"><span class="lbl">Термины</span><div class="terms">${
+      (c.terms||[]).map(t=>`<span class="term"><b>${t.t}</b> — ${t.d}</span>`).join('')}</div></div>` : ''}
+    <div class="blk"><span class="lbl">Приёмка</span><ul>${(c.accept||[]).map(a=>`<li>${a}</li>`).join('')}</ul></div>
+    ${openHtml(c.open)}
+    ${extHtml(c.extDeps)}
+    <div class="blk"><span class="lbl">Не в этой задаче</span><ul>${(c.notIn||[]).map(a=>`<li>${a}</li>`).join('')}</ul></div>
+    <div class="c-foot">
+      <span class="tag">${stages.find(s=>s.n===c.stage).title}</span>
+      ${(c.deps||[]).map(depChip).join('')}
+    </div>
+    ${trapsHtml(c.traps)}
+  </article>`;
+}
+
+function render(){
+  const q = F.q.trim().toLowerCase();
+  const sel = cards.filter(c => {
+    if (F.stage && String(c.stage) !== String(F.stage)) return false;
+    if (!q) return true;
+    const hay = JSON.stringify(c).toLowerCase();
+    return hay.includes(q);
+  });
+  const list = document.getElementById('list');
+  if(!sel.length){ list.innerHTML = '<div class="empty">Ничего не найдено. Сбросьте фильтры.</div>'; }
+  else {
+    list.innerHTML = stages.filter(s => sel.some(c=>c.stage===s.n)).map(s => {
+      const rows = sel.filter(c => c.stage === s.n);
+      return `<section class="group"><h2>Этап ${s.n} · ${s.title} <span class="g-n">· ${rows.length}</span></h2>
+              ${rows.map(card).join('')}</section>`;
+    }).join('');
+  }
+  document.getElementById('count').textContent = `Показано ${sel.length} из ${cards.length}`;
+}
+
+document.getElementById('q').oninput      = e => { F.q = e.target.value; render(); };
+document.getElementById('fStage').onchange= e => { F.stage = e.target.value; render(); };
+document.getElementById('reset').onclick  = () => {
+  F.q=''; F.stage='';
+  document.getElementById('q').value=''; document.getElementById('fStage').value='';
+  render();
+};
+let expanded = false;
+document.getElementById('expand').onclick = e => {
+  expanded = !expanded;
+  document.querySelectorAll('#list details').forEach(d => d.open = expanded);
+  e.target.textContent = expanded ? 'Свернуть ловушки' : 'Раскрыть ловушки';
+};
+
+render();
+</script>
+</body>
+</html>
