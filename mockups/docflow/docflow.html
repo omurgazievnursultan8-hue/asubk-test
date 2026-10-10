@@ -5,23 +5,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Документооборот · АСУБК</title>
 <!--
-  АСУБК · модуль «Документооборот» · исполняемый макет TO-BE · волна 1 (ядро).
+  АСУБК · модуль «Документооборот» · исполняемый макет TO-BE · волна 2 (поверх ядра волны 1).
   Источник истины — mockups/docflow/ASUBK-dokumentooborot-logika.md (канон; копия —
   docs/logika/26-dokumentooborot.md), решения — ADR-0265…ADR-0272 (при расхождении канона с ADR
   побеждает ADR), раздел ТЗ 23 — справочно. Журнал волн и расхождения ДО-Д* —
   mockups/docflow/ASUBK-status-razrabotki.md. Смоук — node scripts/inspect/docflow-check.mjs.
 
-  ЧТО ПОКАЗЫВАЕТ ВОЛНА 1
+  ЧТО ПОКАЗЫВАЕТ МАКЕТ
     Журналы: Входящие · Исходящие · Внутренние · Мои (§9.1, ДО-33): поиск одной строкой,
       фильтры (тип, этап, исполнение, период регистрации), группировка с итогами, наборы
       фильтров (в памяти страницы), печатная форма журнала (журнал по шаблону = фильтр по типу,
-      ДО-21, §3.2; согласие заказчика — ДО-ВЗ-6).
+      ДО-21, §3.2; согласие заказчика — ДО-ВЗ-6). «Мои» → «Ждут моей подписи» — подпись пачкой
+      одним действием, запись в журнал каждого документа (ДО-41, С-32; волна 2).
     Карточка документа: Реквизиты · Файлы · Маршрут · Резолюции · Отправка · Ознакомление ·
       Привязки · Журнал · Комментарии; в шапке — этап, номер, сводки и кнопки доступных действий.
-    Архив (§7): номенклатура дел, «ждут сдачи в дело», журнал выдачи оригиналов.
+      Волна 2: печать РКК и листа ознакомления; «Направить на ознакомление» с файлом (ДО-30);
+      «Зарегистрировать меру» — заглушка шва во «Взыскание» (§10.3, ДО-39, ADR-0270).
+    Архив (§7): номенклатура дел (ведёт архивариус: завести, изменить, скопировать на год —
+      волна 2), «ждут сдачи в дело», журнал выдачи оригиналов, печать описи дела.
     Показатели (§9.2, ADR-0272): предпросмотр того, что шов отдаёт «Статистике».
-    Настройки (§1.2, §1.11): справочники только на чтение; вкладка «Шаги для заданий» —
-      ответ на опрос «Заданий» (§10.1, ИД-18) и журнал закрытия шагов.
+    Настройки (§1.2, §1.11): справочники — правка администратором документооборота с журналом
+      (волна 2); производственный календарь (общий, только чтение); «Шаги для заданий» — ответ на
+      опрос, вал-задания, сигналы просрочки «Заданий», порог свёртки, журнал закрытия шагов;
+      «Перенос» — отчёт прогона переноса и повторный прогон (§11, С-29).
 
   ПРАВИЛА, ЗАШИТЫЕ В ДВИЖОК (экраны их не поясняют — только показывают и запрещают)
     ADR-0265 · ДО-15/16/17 — этап хранится (Черновик · Согласование · Подпись ·
@@ -51,7 +57,14 @@
     ADR-0271 · ДО-29/34…37/44 — каждый ждущий шаг — повод для «Заданий»; адресат из повода,
       «подписать» — лично (замещающего подставляет документооборот), регистрация/отправка/сдача
       в дело — очередь роли; закрытие — отпадением с атрибуцией («исполнено», «выполнил другой»,
-      «снято» с причиной). Очереди «на мне» у модуля нет.
+      «снято» с причиной). Очереди «на мне» у модуля нет. Сверка с «Заданиями» (волна 2):
+      у названного адресата шага «Взять в работу» нет (ЗН-17); замещение после выдачи задание не
+      переносит — замещающий действует «Б за А» (ЗН-22); свёртка по паре «вид × адресат», порог
+      по умолчанию 10, вал — больше порога за один прогон (ЗН-23, ЗН-25); просрочка: никем не
+      взятая очередь — сразу «никто не взял» руководителю подразделения роли и «срок истёк»
+      носителям, на 5-й р.д. — администратору документооборота (ЗН-19); взятое и названное —
+      общее правило: «срок истёк» исполнителю, на 5-й р.д. «Просрочено задание» руководителю (ЗН-16).
+      Сигналы — вывод «Заданий» на дату, документооборот их не шлёт.
     ADR-0268 · ДО-11 — бланк «Отчётности» с получателем → черновик исходящего (заглушка шва).
     ADR-0272 · ДО-26/43 — показатели считает «Статистика»; здесь только предпросмотр.
     Инварианты ИД-1…ИД-20 проверяет смоук (ИД-19 — перенесённые только для чтения).
@@ -61,14 +74,22 @@
       доверенности, сроки) не отвечен; в бою, пока справочник пуст, подписать не может никто.
     • Номенклатура дел 2026 — демо (ДО-ВЗ-1).
     • Фразы резолюций — демо (долг 2); перечень «руководство» для видимости — демо (долг 3).
-    • Сроки 10/3/1 р.д. — до ответа на ДО-ВЗ-2. Рабочий день = пн–пт, праздники не учтены (ДО-Д6).
+    • Сроки 10/3/1 р.д. — до ответа на ДО-ВЗ-2. Рабочие дни — по общему производственному календарю
+      системы (§4.2; РС-30 / ЗН-24): постоянные праздники КР + переносы 2026 года записью (демо-даты,
+      те же, что в макете «Реструктуризация»). Год, которого нет в календаре, считается по сб/вс
+      с ВИДИМОЙ отметкой «календарь года не заведён» (ДО-Д27), а не молча.
     • Ограниченной видимости нет (ДО-ВЗ-5). Общего чата нет (ДО-ВЗ-3) — только лента комментариев.
 
   ШВЫ — ЗАГЛУШКИ ВНУТРИ МАКЕТА (соседние макеты не правятся)
     Сотрудники/Оргструктура (коды отделов, руководитель, замещение с признаком права подписи) ·
     Задания (опрос поводов, взятие из очереди, утверждённые продления — EXT) · Заёмщик/Кредит/
-    Взыскание (объекты привязки, чтение мерой) · Отчётность (два демо-выпуска бланков) ·
-    Справочник органов-адресатов (ДО-ДС-10).
+    Взыскание (объекты привязки, чтение мерой, виды мер с реквизитом «документ документооборота»,
+    регистрация меры из карточки) · Отчётность (два демо-выпуска бланков и пачка из 12 уведомлений) ·
+    Справочник органов-адресатов (ДО-ДС-10) · Производственный календарь (РС-30, только чтение) ·
+    Старая система (источник переноса с одним «паспортом» прогона).
+
+  НЕ МОДЕЛИРУЕТСЯ: открытые вопросы ДО-Д16 (переназначение исполнителя резолюции) и ДО-Д17 (отзыв
+  резолюции); частота опроса 5 минут (С-15) — опрос после каждого действия; транспорт (С-27).
 
   «Сегодня» заморожено: TODAY = 2026-10-15; системные штампы берутся из S.clock (смоук сдвигает
   его, чтобы проверить новый год). Шов для смоука — window.DF; действия возвращают {ok, why}.
@@ -274,7 +295,7 @@ table.cgrid td.num, table.cgrid th.num{ text-align:right; white-space:nowrap; }
 
 <script>
 /* =====================================================================
- *  МОДУЛЬ «ДОКУМЕНТООБОРОТ» — исполняемый макет, волна 1
+ *  МОДУЛЬ «ДОКУМЕНТООБОРОТ» — исполняемый макет, волна 2
  *  Слои: даты → справочники → состояние → движок (выводы) → действия → шов заданий →
  *  журналы/показатели → seed → экраны → формы.
  * ===================================================================== */
@@ -284,8 +305,27 @@ const DF = {};
 const D        = s => new Date(s + 'T00:00:00Z');
 const isoOf    = dt => dt.toISOString().slice(0, 10);
 const addDays  = (s, n) => { const d = D(s); d.setUTCDate(d.getUTCDate() + n); return isoOf(d); };
-const isWork   = s => { const w = D(s).getUTCDay(); return w !== 0 && w !== 6; };
+/* Производственный календарь системы (§4.2; РС-30, в «Заданиях» ЗН-24) — заглушка общего шва, тот же
+   справочник, что в макете «Реструктуризация»: постоянные праздники КР — ММ-ДД на любой год;
+   переносы, религиозные праздники и рабочие субботы — записью на год (демо-даты 2026). Своего
+   календаря у документооборота нет. Года нет в справочнике — счёт по сб/вс с видимой отметкой. */
+const CALENDAR_FIXED = ['01-01', '01-07', '02-23', '03-08', '03-21', '04-07', '05-01', '05-05', '05-08', '05-09', '08-31', '11-07', '11-08'];
+const CALENDAR_YEARS = {
+  2026: { holidays: ['2026-03-20', '2026-03-23', '2026-05-27', '2026-05-28', '2026-08-03', '2026-11-09'], workdays: ['2026-03-28', '2026-11-14'] },
+};
+const calendarYearKnown = y => Object.prototype.hasOwnProperty.call(CALENDAR_YEARS, Number(y));
+const isWork   = s => {
+  const rec = CALENDAR_YEARS[+s.slice(0, 4)] || { holidays: [], workdays: [] };
+  if (rec.workdays.includes(s)) return true;
+  if (CALENDAR_FIXED.includes(s.slice(5)) || rec.holidays.includes(s)) return false;
+  const w = D(s).getUTCDay(); return w !== 0 && w !== 6;
+};
 const addWork  = (s, n) => { let c = s, k = 0; while (k < n) { c = addDays(c, 1); if (isWork(c)) k++; } return c; };
+/* Годы промежутка, которых нет в календаре, — для видимой отметки рядом со сроком. */
+function calGap(from, to) { const out = []; if (!from || !to) return out; for (let y = +from.slice(0, 4); y <= +to.slice(0, 4); y++) if (!calendarYearKnown(y)) out.push(y); return out; }
+const calNote = (from, to) => { const g = calGap(from, to); return g.length ? 'календарь ' + g.join(', ') + ' года не заведён — рабочие дни по сб/вс' : ''; };
+/* Рабочих дней после даты по дату включительно. */
+function workBetween(a, b) { let c = a, k = 0; while (c < b) { c = addDays(c, 1); if (isWork(c)) k++; } return k; }
 const fmt      = s => s ? s.slice(8, 10) + '.' + s.slice(5, 7) + '.' + s.slice(0, 4) : '—';
 const TODAY    = '2026-10-15';
 function toIso(s) {
@@ -320,14 +360,16 @@ const SENDER_KINDS = ['Заёмщик', 'Суд', 'Госорган', 'Банк'
 
 /* Сотрудники и оргструктура — заглушка шва (коды отделов, руководитель, замещение). */
 const DEPTS = [
-  { id: 'lead', name: 'Руководство', code: '19-01' },
-  { id: 'kanc', name: 'Канцелярия', code: '19-02' },
-  { id: 'upk',  name: 'Управление по работе с проблемными кредитами', code: '19-03-01' },
-  { id: 'law',  name: 'Юридический отдел', code: '19-04' },
-  { id: 'cred', name: 'Кредитный отдел', code: '19-05' },
-  { id: 'it',   name: 'Отдел информационных технологий', code: '' },
+  { id: 'lead', name: 'Руководство', code: '19-01', head: 'e1' },
+  { id: 'kanc', name: 'Канцелярия', code: '19-02', head: 'e7' },
+  { id: 'upk',  name: 'Управление по работе с проблемными кредитами', code: '19-03-01', head: 'e3' },
+  { id: 'law',  name: 'Юридический отдел', code: '19-04', head: 'e6' },
+  { id: 'cred', name: 'Кредитный отдел', code: '19-05', head: null },
+  { id: 'it',   name: 'Отдел информационных технологий', code: '', head: 'e10' },
 ];
 const SYS_ROLES = { registrar: 'Регистратор', archivist: 'Архивариус', admin: 'Администратор документооборота' };
+/* Подразделение роли — для сигнала «никто не взял» (§10.1 п. 2): обе очереди — канцелярия (ДО-Д25). */
+const ROLE_DEPT = { registrar: 'kanc', archivist: 'kanc' };
 const EMP = [
   { id: 'e1',  name: 'Токтосунов Э.А.',   pos: 'Председатель Правления', dept: 'lead', mgr: null, roles: [] },
   { id: 'e2',  name: 'Байжанова Г.К.',    pos: 'Заместитель Председателя Правления', dept: 'lead', mgr: 'e1', roles: [] },
@@ -448,12 +490,52 @@ const BLANKS = [
   { id: 'ВП-312', template: 'Служебная записка о ходе взыскания', type: 't-int-memo', recipient: null, links: [{ k: 'loan', id: 'L2' }],
     subject: 'О ходе взыскания по кредиту К-14', docId: null },
 ];
+/* Пачка выпусков «Отчётности» (§10.2, ДО-41): 12 уведомлений о просрочке разным заёмщикам. */
+const PACK_NAMES = ['Алымкулов Б.Т.', 'Бообекова Н.А.', 'Дуйшеев М.К.', 'Эсенгулова А.С.', 'Жапаров К.М.', 'Иманкулова Г.Б.',
+  'Кадыров Т.Т.', 'Маматова Ж.К.', 'Нурбеков А.Э.', 'Орозбаева С.Д.', 'Сатыбалдиев Р.А.', 'Турдубаева Э.М.'];
+PACK_NAMES.forEach((nm, k) => {
+  const n = k + 31, b = 'b' + n, l = 'L' + n;
+  SUBJ.push({ id: b, name: nm, inn: '2' + String(1000000000000 + n * 7919).slice(1), kind: 'Заёмщик' });
+  LINK_OBJ.push({ k: 'borrower', id: b, label: nm }, { k: 'loan', id: l, label: `Кредит К-${n} · ${nm}`, borrower: b });
+});
+const PACKS = [
+  { id: 'ПВ-41', template: 'Уведомление о просрочке платежа', type: 't-out-notice',
+    items: PACK_NAMES.map((nm, k) => ({ id: 'ВП-' + (400 + k), recipient: 'b' + (k + 31), links: [{ k: 'loan', id: 'L' + (k + 31) }],
+      subject: `Уведомление о просрочке платежа по кредиту К-${k + 31}` })), docIds: [] },
+];
+/* Виды мер «Взыскания» с реквизитом «документ документооборота» (§10.3, ДО-39) — заглушка шва:
+   our — «наш документ» (исходящий или внутренний), in — «входящий документ», none — не требуется. */
+const MEASURE_KINDS = [
+  { id: 'mk-pret', name: 'Претензия', doc: 'our' }, { id: 'mk-izv', name: 'Извещение о начале взыскания', doc: 'our' },
+  { id: 'mk-isk', name: 'Подача иска', doc: 'our' }, { id: 'mk-court', name: 'Решение суда', doc: 'in' },
+  { id: 'mk-il', name: 'Исполнительный лист', doc: 'in' }, { id: 'mk-call', name: 'Телефонный звонок', doc: 'none' },
+];
+/* Источник переноса (§11) — заглушка старой системы: документы с ключом старой системы, их задачи,
+   максимумы рядов года. Имена файлов старой системы с ФИО не переносятся (§1.7). */
+const LEGACY_SRC = {
+  docs: [
+    { src: 'mf-38811', kind: 'in', type: 't-in-legacy', no: '1203', year: 2025, regDate: '2025-03-11', subject: 'Письмо о реструктуризации задолженности', sender: 'Асанов Т.Б.', senderKind: 'Заёмщик',
+      files: ['Асанов_письмо_скан.pdf'], log: 3, tasks: [{ text: 'Рассмотреть', who: 'Осмонов К.Ж.', open: false }] },
+    { src: 'mf-38812', kind: 'in', type: 't-in-legacy', no: '1203', year: 2025, regDate: '2025-03-12', subject: 'Запрос сведений о залоге', sender: 'Государственная налоговая служба', senderKind: 'Госорган',
+      files: ['ГНС запрос Мамбетов.pdf'], log: 2, tasks: [{ text: 'Подготовить ответ', who: 'Мамбетов Ч.А.', open: true }] },
+    { src: 'mf-74010', kind: 'out', type: 't-out-pret', no: '19-03-01/2101', year: 2026, regDate: '2026-08-20', subject: 'Претензия о погашении задолженности по кредиту К-14', addr: [{ subj: 'b2' }],
+      links: [{ k: 'loan', id: 'L2' }, { k: 'borrower', id: 'b2' }], files: ['претензия_АкЖол_Абдыкадырова.pdf'], log: 4,
+      tasks: [{ text: 'Согласовать', who: 'Мамбетов Ч.А.', open: false }, { text: 'Отметить вручение', who: 'Касымова А.Б.', open: true }] },
+    { src: 'mf-70233', kind: 'out', type: 't-out-act', no: '19-03-01/0457', year: 2026, regDate: '2026-02-11', docDate: '1899-12-30', subject: 'Акт сверки взаиморасчётов по кредиту К-1', addr: [{ subj: 'b1' }],
+      files: ['акт сверки Асанов.pdf'], log: 2, tasks: [{ text: 'Подписать', who: 'Токтосунов Э.А.', open: true }] },
+  ],
+  counters: { in: { 2026: 4870 }, out: { 2026: 2172 } },
+};
 
 /* ---------------------------- состояние ----------------------------- */
 const S = { clock: TODAY, user: 'e7', view: 'in', docId: null, tab: 'req', q: '',
   f: { type: '', stage: '', exec: '', from: '', to: '', group: '' }, saved: [], form: null,
   archTab: 'cases', caseOpen: null, setTab: 'types', indFrom: '2026-09-01', indTo: TODAY };
 let DOCS = [], RES = [], ISSUES = [], COUNTERS = {}, EXT = {}, TASKS = [], STEPBY = {}, SEQ = {};
+let MEASURES = [], MIGRATIONS = [], DICTLOG = [];
+/* Порог свёртки по видам шага (§10.1 п. 6): объявляет документооборот как владелец вида, по умолчанию 10. */
+const BATCH_THRESHOLD = {};
+let SYNC_HOLD = 0;
 
 /* ------------------------------ хелперы ----------------------------- */
 const emp = id => EMP.find(e => e.id === id);
@@ -461,11 +543,15 @@ const empName = id => (emp(id) || {}).name || '—';
 const hasRole = (id, r) => ((emp(id) || {}).roles || []).includes(r);
 const isReg = id => hasRole(id, 'registrar');
 const isArch = id => hasRole(id, 'archivist');
+const isAdmin = id => hasRole(id, 'admin');
+const isExecRec = r => r.mode !== 'acq';          /* получатель «на исполнение» (у входящего — все, кроме направленных на ознакомление) */
 const deptOf = id => DEPTS.find(d => d.id === (emp(id) || {}).dept) || {};
 const typeOf = id => TYPES.find(t => t.id === id);
 const doc = id => DOCS.find(d => d.id === id);
 const res = id => RES.find(r => r.id === id);
 const caseOf = id => CASES.find(c => c.id === id);
+/* Дело по умолчанию у типа разрешается по индексу в номенклатуре года (P25-R25): год сменился — то же дело нового года. */
+function defaultCase(t, year = clockYear()) { const c = t && caseOf(t.caseId); return c ? CASES.find(x => x.year === year && x.idx === c.idx) || null : null; }
 const clockYear = () => +S.clock.slice(0, 4);
 function substFor(actor, date = S.clock) { return SUBST.filter(s => s.who === actor && s.from <= date && date <= s.to).map(s => s.for); }
 function actsFor(actor, who, date = S.clock) { return !!who && (actor === who || substFor(actor, date).includes(who)); }
@@ -575,7 +661,7 @@ function execInfo(d) {
   if (!['registered', 'filed'].includes(d.stage) || d.legacy) return null;
   if (d.kind === 'out') { const x = dispatchInfo(d); return { done: x.done, date: x.date, code: x.done ? 'done' : 'work', deadline: null, ext: false, refused: false }; }
   const tops = topRes(d), st = tops.map(resState);
-  const execRecips = d.recipients.filter(r => d.kind === 'in' || r.mode === 'exec');
+  const execRecips = d.recipients.filter(isExecRec);
   const allReviewed = execRecips.every(r => r.reviewed);
   const deadline = maxIso(tops.map(effDue));
   const ext = tops.some(r => EXT[r.id] && EXT[r.id].due > r.due);
@@ -597,8 +683,10 @@ function dispatchInfo(d) {
   return { total: A.length, sent: sent.length, delivered: A.filter(a => a.outcome === 'delivered').length, returned: A.filter(a => a.outcome === 'returned').length,
     done: d.kind === 'out' && !!d.no && A.length > 0 && sent.length === A.length, date: sent.length === A.length ? maxIso(sent.map(a => a.sentDate)) : null };
 }
-function acqInfo(d) {
-  const R = d.recipients.filter(r => r.mode === 'acq');
+/* Ознакомление. По умолчанию — получатели из самого документа (входят в исполнение внутреннего, ДО-Д3);
+   направленные позже «Направить на ознакомление» в исполнение и сдачу в дело не входят (ДО-Д21), all — все. */
+function acqInfo(d, all = false) {
+  const R = d.recipients.filter(r => r.mode === 'acq' && (all || !r.sent));
   return { total: R.length, done: R.every(r => r.acqAt), count: R.filter(r => r.acqAt).length, date: maxIso(R.map(r => r.acqAt)), missing: R.filter(r => !r.acqAt).map(r => r.emp) };
 }
 function execText(d) {
@@ -610,7 +698,7 @@ function execText(d) {
     const bits = [['исполнено', c('done')], ['отказано', c('refused')], ['просрочено', topRes(d).filter((r, i) => ['open', 'overdue', 'control'].includes(x.st[i].code) && effDue(r) < S.clock).length],
       ['на контроле', c('control')]].filter(b => b[1]).map(b => b[0] + ' ' + b[1]);
     parts.push(`поручений ${x.tops}` + (bits.length ? ': ' + bits.join(', ') : ''));
-  } else if (d.kind === 'in' || d.recipients.some(r => r.mode === 'exec')) parts.push(x.code === 'done' ? 'к сведению' : 'ждёт резолюции');
+  } else if (d.recipients.some(isExecRec)) parts.push(x.code === 'done' ? 'к сведению' : 'ждёт резолюции');
   const rep = replyInfo(d);
   if (rep) parts.push(rep.sentDate ? 'ответ отправлен ' + fmt(rep.sentDate) : rep.registered ? 'ответ зарегистрирован, не отправлен' : 'ответ не отправлен');
   if (d.kind === 'int') { const a = acqInfo(d); if (a.total) parts.push(`ознакомлены ${a.count}/${a.total}`); }
@@ -663,6 +751,7 @@ function create(actor, kind, f = {}) {
   const t = typeOf(f.type);
   if (!t || t.kind !== kind) return no('тип не из справочника этого вида');
   if (t.legacyOnly) return no('тип только для перенесённых документов');
+  if (!t.active) return no('тип выведен из употребления');
   const d = { id: 'D-' + (++SEQ.doc), kind, type: t.id, subject: '', stage: 'draft', deleted: null, no: null, regDate: null, regBy: null, docDate: null,
     receivedDate: null, corrNo: '', corrDate: null, senderKind: '', sender: { subj: '', text: '' }, recipients: [], addressees: [], author: actor, approvers: [],
     signer: null, rounds: [], signed: null, urgency: t.urgency, purpose: t.purpose, needsReply: kind === 'in' ? t.reply : false, control: false, controller: null,
@@ -812,7 +901,14 @@ function sign(id, actor) {
   log(d, actor, 'Подписано', c.onBehalf ? 'за ' + empName(c.onBehalf) + ' по приказу о замещении' : '');
   sync(); return yes;
 }
-function signBatch(ids, actor) { const out = ids.map(id => ({ id, ...sign(id, actor) })); return { ok: out.every(x => x.ok), results: out }; }
+/* Подпись пачкой (ДО-41, С-32, P25-R14): одно действие — один прогон опроса; право проверяется по каждому
+   документу, в журнал каждого пишется своя запись; не прошедшие возвращаются с причиной. Отказа пачкой нет. */
+function signBatch(ids, actor) {
+  const out = oneRun(() => (ids || []).map(id => ({ id, ...sign(id, actor) })));
+  const signed = out.filter(x => x.ok).length;
+  return { ok: out.length > 0 && signed === out.length, signed, total: out.length, results: out,
+    msg: `Подписано ${signed} из ${out.length}` + (signed < out.length ? ': ' + out.filter(x => !x.ok).map(x => (doc(x.id) ? doc(x.id).subject : x.id) + ' — ' + x.why).join('; ') : '') };
+}
 function preRegister(d, actor) {
   if (!isReg(actor)) return no('регистрирует роль «Регистратор»');
   if (d.no) return no('номер уже выдан');
@@ -951,7 +1047,7 @@ function giveRes(docId, actor, o = {}) {
     if (resClosed(p)) return no('родительская резолюция закрыта');
     if (!(actsFor(actor, p.resp) || p.co.some(c => actsFor(actor, c)))) return no('резолюцию ниже даёт исполнитель резолюции выше');
   } else {
-    rec = d.recipients.find(r => actsFor(actor, r.emp) && (d.kind === 'in' || r.mode === 'exec'));
+    rec = d.recipients.find(r => actsFor(actor, r.emp) && isExecRec(r));
     if (!rec) return no('резолюцию даёт получатель документа');
   }
   const resp = Array.isArray(o.resp) ? (o.resp.length === 1 ? o.resp[0] : null) : o.resp;
@@ -970,7 +1066,7 @@ function giveRes(docId, actor, o = {}) {
 function markInfo(docId, actor) {
   const [d, e] = guard(docId, actor); if (e) return e;
   if (d.kind !== 'in' || d.stage !== 'registered') return no('«к сведению» — у зарегистрированного входящего');
-  const rec = d.recipients.find(r => actsFor(actor, r.emp) && !r.reviewed); if (!rec) return no('отметку ставит получатель');
+  const rec = d.recipients.find(r => isExecRec(r) && actsFor(actor, r.emp) && !r.reviewed); if (!rec) return no('отметку ставит получатель');
   rec.reviewed = { kind: 'info', at: S.clock, by: actor }; STEPBY[`doc-review|${d.id}×${rec.emp}`] = { by: actor };
   log(d, actor, 'Отмечено «к сведению»'); sync(); return yes;
 }
@@ -1017,9 +1113,9 @@ function ctrlReturn(resId, actor, comment) {
 }
 function acquaint(docId, actor) {
   const [d, e] = guard(docId, actor); if (e) return e;
-  if (d.kind !== 'int' || !['registered', 'filed'].includes(d.stage)) return no('ознакомление — у зарегистрированного внутреннего');
-  const rec = d.recipients.find(r => r.mode === 'acq' && r.emp === actor); if (!rec) return no('ознакомиться может получатель «на ознакомление»');
-  if (rec.acqAt) return no('уже ознакомлен');
+  if (!['registered', 'filed'].includes(d.stage)) return no('ознакомление — у зарегистрированного документа');
+  const mine = d.recipients.filter(r => r.mode === 'acq' && r.emp === actor); if (!mine.length) return no('ознакомиться может получатель «на ознакомление»');
+  const rec = mine.find(r => !r.acqAt); if (!rec) return no('уже ознакомлен');
   rec.acqAt = S.clock; STEPBY[`doc-acquaint|${d.id}×${actor}`] = { by: actor };
   log(d, actor, 'Ознакомлен'); sync(); return yes;
 }
@@ -1027,7 +1123,7 @@ function fileToCase(docId, actor, caseId) {
   const [d, e] = guard(docId, actor); if (e) return e;
   if (!(isArch(actor) || isReg(actor))) return no('сдаёт в дело архивариус или регистратор');
   const p = fileReady(d); if (!p.ok) return p;
-  const c = caseOf(caseId || (typeOf(d.type) || {}).caseId); if (!c) return no('дело не выбрано');
+  const c = caseOf(caseId || (defaultCase(typeOf(d.type)) || {}).id); if (!c) return no('дело не выбрано');
   if (c.year !== clockYear()) return no('дело не из номенклатуры текущего года');
   d.stage = 'filed'; d.caseId = c.id; d.filedAt = S.clock; STEPBY[`doc-file|${d.id}`] = { by: actor };
   log(d, actor, 'Сдан в дело', `${c.idx} ${c.name}`); sync(); return yes;
@@ -1068,9 +1164,9 @@ function fromBlank(blankId, actor) {
   return r;
 }
 /* Чтение мерой взыскания (заглушка шва): мера своих полей номера и дат не имеет. */
-function measureView(docId) {
+function measureView(docId, target) {
   const d = doc(docId); if (!d || !d.links.some(l => l.k === 'phase')) return null;
-  const loan = d.links.find(l => l.k === 'loan'); const debtor = loan && (linkObj('loan', loan.id) || {}).borrower;
+  const loan = d.links.find(l => l.k === 'loan'); const debtor = target || (loan && (linkObj('loan', loan.id) || {}).borrower);
   const a = d.addressees.find(x => x.subj === debtor) || null;
   return { no: noText(d), event: d.docDate, received: d.kind === 'in' ? d.receivedDate : null, debtor: subjName(debtor),
     sent: a && a.sentDate ? { date: a.sentDate, method: METHODS[a.method].name } : null,
@@ -1091,56 +1187,412 @@ const POVOD_NAME = { 'doc-revise': 'доработать черновик', 'doc
   'doc-acquaint': 'ознакомиться', 'doc-file': 'сдать в дело', 'doc-return': 'вернуть оригинал' };
 function povods() {
   const out = [];
-  const P = (kind, obj, addr, due, docId) => out.push({ key: kind + '|' + obj, kind, obj, addr, due, doc: docId });
+  const P = (kind, obj, addr, due, docId, base) => out.push({ key: kind + '|' + obj, kind, obj, addr, due, doc: docId, base: base || null });
+  const W = (base, n) => addWork(base, n);
   DOCS.filter(d => !d.legacy && !d.deleted).forEach(d => {
     const r = curRound(d);
-    if (d.stage === 'draft' && d.returned) P('doc-revise', d.id, { emp: d.author }, addWork(d.returned.at, 3), d.id);
-    if (d.stage === 'approval') r.steps.filter(s => !s.res).forEach(s => P('doc-approve', d.id + '×' + s.emp, { emp: s.emp }, addWork(r.at, 2), d.id));
-    if (d.stage === 'signing' && !d.signed) P('doc-sign', d.id, { emp: d.signer, personal: true }, addWork(r.at, 2), d.id);
-    if (d.stage === 'signing' && d.signed) P('doc-register', d.id, { role: 'registrar' }, addWork(d.signed.at, 1), d.id);
+    if (d.stage === 'draft' && d.returned) P('doc-revise', d.id, { emp: d.author }, W(d.returned.at, 3), d.id, d.returned.at);
+    if (d.stage === 'approval') r.steps.filter(s => !s.res).forEach(s => P('doc-approve', d.id + '×' + s.emp, { emp: s.emp }, W(r.at, 2), d.id, r.at));
+    if (d.stage === 'signing' && !d.signed) P('doc-sign', d.id, { emp: d.signer, personal: true }, W(r.at, 2), d.id, r.at);
+    if (d.stage === 'signing' && d.signed) P('doc-register', d.id, { role: 'registrar' }, W(d.signed.at, 1), d.id, d.signed.at);
+    /* ознакомление — у любого зарегистрированного или сданного документа (в т.ч. «Направить на ознакомление») */
+    if (['registered', 'filed'].includes(d.stage)) d.recipients.filter(x => x.mode === 'acq' && !x.acqAt).forEach(x => {
+      const base = x.sent ? x.sent.at : d.regDate; P('doc-acquaint', d.id + '×' + x.emp, { emp: x.emp }, W(base, 3), d.id, base); });
     if (d.stage !== 'registered') return;
-    if (d.kind === 'out' && d.addressees.some(a => !a.sentDate)) P('doc-dispatch', d.id, { role: 'registrar' }, addWork(d.regDate, 2), d.id);
+    if (d.kind === 'out' && d.addressees.some(a => !a.sentDate)) P('doc-dispatch', d.id, { role: 'registrar' }, W(d.regDate, 2), d.id, d.regDate);
     if (d.kind !== 'out') {
-      d.recipients.filter(x => (d.kind === 'in' || x.mode === 'exec') && !x.reviewed).forEach(x => P('doc-review', d.id + '×' + x.emp, { emp: x.emp }, addWork(d.regDate, 2), d.id));
-      d.recipients.filter(x => x.mode === 'acq' && !x.acqAt).forEach(x => P('doc-acquaint', d.id + '×' + x.emp, { emp: x.emp }, addWork(d.regDate, 3), d.id));
+      d.recipients.filter(x => isExecRec(x) && !x.reviewed).forEach(x => P('doc-review', d.id + '×' + x.emp, { emp: x.emp }, W(d.regDate, 2), d.id, d.regDate));
       RES.filter(x => x.doc === d.id).forEach(x => {
         const st = resState(x).code; if (['done', 'refused', 'withdrawn'].includes(st)) return;
         if (!x.claim) P('doc-execute', x.id + '×' + x.resp, { emp: x.resp }, effDue(x), d.id);
         x.co.forEach(c => P('doc-execute', x.id + '×' + c, { emp: c }, effDue(x), d.id));
-        if (x.claim) P('doc-control', x.id, { emp: d.controller }, addWork(x.claim.at, 2), d.id);
+        if (x.claim) P('doc-control', x.id, { emp: d.controller }, W(x.claim.at, 2), d.id, x.claim.at);
       });
     }
-    if (fileReady(d).ok) P('doc-file', d.id, { role: 'archivist' }, addWork(S.clock, 5), d.id);
+    if (fileReady(d).ok) P('doc-file', d.id, { role: 'archivist' }, W(S.clock, 5), d.id, S.clock);
   });
   ISSUES.filter(i => !i.returned && i.until < S.clock).forEach(i => P('doc-return', i.id, { emp: i.to }, i.until, i.doc));
   return out;
 }
-/* Модель «Заданий» в миниатюре: открыть задание на новый повод, закрыть отпадением с атрибуцией. */
+/* Модель «Заданий» в миниатюре. Один вызов sync() — один прогон опроса (ДО-Д19): открыть задание на
+   новый повод, свернуть новые поводы пары «вид × адресат» сверх порога в вал (§10.1 п. 6), закрыть
+   отпадением с атрибуцией. Вал — контейнер ключей: каждый ключ отпадает сам, вал закрыт, когда живых нет. */
+const thresholdOf = kind => BATCH_THRESHOLD[kind] || 10;
+const addrKey = a => a.role ? 'role:' + a.role : a.emp;
+function oneRun(fn) { SYNC_HOLD++; let r; try { r = fn(); } finally { SYNC_HOLD--; } if (!SYNC_HOLD) sync(); return r; }
+function closeInfo(t, key, docId) {
+  const d = doc(docId), s = STEPBY[key];
+  let outcome = 'исполнено', note = '';
+  if (d && d.stage === 'annulled') { outcome = 'снято'; note = 'документ аннулирован'; }
+  else if (d && d.deleted) { outcome = 'снято'; note = 'черновик удалён'; }
+  else if (s && s.cancel) { outcome = 'снято'; note = s.cancel; }
+  else if (s && s.by) {
+    const own = t.taken ? actsFor(s.by, t.taken) : t.addr.role ? hasRole(s.by, t.addr.role) : actsFor(s.by, t.addr.emp);
+    if (!own) note = 'выполнил другой: ' + empName(s.by);
+    else if (t.addr.emp && s.by !== t.addr.emp) note = empName(s.by) + ' за ' + empName(t.addr.emp);   /* ЗН-22: «Б за А» */
+  } else if (t.kind === 'doc-execute' || t.kind === 'doc-review') note = 'шаг закрыт документом';
+  return { outcome, note };
+}
 function sync() {
+  if (SYNC_HOLD) return;
   const cur = povods(), keys = new Set(cur.map(p => p.key));
-  TASKS.filter(t => t.open && !keys.has(t.key)).forEach(t => {
-    const d = doc(t.doc), s = STEPBY[t.key];
-    let outcome = 'исполнено', note = '';
-    if (d && d.stage === 'annulled') { outcome = 'снято'; note = 'документ аннулирован'; }
-    else if (d && d.deleted) { outcome = 'снято'; note = 'черновик удалён'; }
-    else if (s && s.cancel) { outcome = 'снято'; note = s.cancel; }
-    else if (s && s.by) {
-      const own = t.taken ? actsFor(s.by, t.taken) : t.addr.role ? hasRole(s.by, t.addr.role) : actsFor(s.by, t.addr.emp);
-      if (!own) note = 'выполнил другой: ' + empName(s.by); else if (t.addr.emp && s.by !== t.addr.emp) note = 'за ' + empName(t.addr.emp) + ': ' + empName(s.by);
-    } else if (t.kind === 'doc-execute' || t.kind === 'doc-review') note = 'шаг закрыт документом';
-    Object.assign(t, { open: false, outcome, note, closedAt: S.clock });
+  TASKS.filter(t => t.open).forEach(t => {
+    if (t.val) {
+      t.items.filter(i => i.live && !keys.has(i.key)).forEach(i => Object.assign(i, { live: false, closedAt: S.clock }, closeInfo(t, i.key, i.doc)));
+      if (!t.items.some(i => i.live)) {
+        const sn = t.items.filter(i => i.outcome === 'снято').length;
+        Object.assign(t, { open: false, outcome: sn === t.items.length ? 'снято' : 'исполнено', closedAt: S.clock,
+          note: `шагов ${t.items.length}: исполнено ${t.items.length - sn}` + (sn ? `, снято ${sn}` : '') });
+      }
+    } else if (!keys.has(t.key)) Object.assign(t, { open: false, closedAt: S.clock }, closeInfo(t, t.key, t.doc));
   });
-  cur.forEach(p => {
-    if (TASKS.some(t => t.open && t.key === p.key)) return;
-    const prev = TASKS.filter(t => t.key === p.key).slice(-1)[0];
-    TASKS.push({ id: 'З-' + (++SEQ.task), key: p.key, kind: p.kind, addr: p.addr, due: p.due, doc: p.doc, at: S.clock, open: true, taken: null, repeatOf: prev ? prev.id : null });
+  /* проверка «есть ли открытое задание» смотрит и на поштучные, и на списки валов */
+  const openKeys = new Set();
+  TASKS.filter(t => t.open).forEach(t => { if (t.val) t.items.filter(i => i.live).forEach(i => openKeys.add(i.key)); else openKeys.add(t.key); });
+  const fresh = cur.filter(p => !openKeys.has(p.key));
+  const prevOf = key => TASKS.filter(t => t.key === key || (t.val && t.items.some(i => i.key === key))).slice(-1)[0];
+  const groups = new Map();
+  fresh.forEach(p => { const g = p.kind + '|' + addrKey(p.addr); if (!groups.has(g)) groups.set(g, []); groups.get(g).push(p); });
+  groups.forEach(list => {
+    const p0 = list[0];
+    if (list.length > thresholdOf(p0.kind)) {
+      const id = 'З-' + (++SEQ.task);
+      TASKS.push({ id, val: true, key: 'вал|' + id, kind: p0.kind, addr: p0.addr, due: list.map(p => p.due).sort()[0], base: p0.base, doc: null, at: S.clock, open: true, taken: null,
+        inWork: !p0.addr.role, items: list.map(p => { const prev = prevOf(p.key); return { key: p.key, doc: p.doc, due: p.due, live: true, repeatOf: prev ? prev.id : null }; }) });
+    } else list.forEach(p => {
+      const prev = prevOf(p.key);
+      TASKS.push({ id: 'З-' + (++SEQ.task), key: p.key, kind: p.kind, addr: p.addr, due: p.due, base: p.base, doc: p.doc, at: S.clock, open: true, taken: null,
+        inWork: !p.addr.role, repeatOf: prev ? prev.id : null });
+    });
   });
   STEPBY = {};
 }
+/* «Взять в работу» — только у очереди роли (ЗН-17): у названного адресата задание сразу в работе. */
 function takeTask(taskId, actor) {
   const t = TASKS.find(x => x.id === taskId); if (!t || !t.open) return no('задание не открыто');
-  if (!t.addr.role || !hasRole(actor, t.addr.role)) return no('взять можно задание очереди своей роли');
-  t.taken = actor; return yes;
+  if (!t.addr.role) return no('у названного адресата шага «Взять в работу» нет — задание сразу в работе');
+  if (!hasRole(actor, t.addr.role)) return no('взять можно задание очереди своей роли');
+  if (t.taken) return no('задание уже взял ' + empName(t.taken));
+  t.taken = actor; t.inWork = true; return yes;
+}
+/* Кто видит задание на дату: адресат или взявший; очередь, пока не взята, — все носители роли;
+   замещающий адресата — видит и действует за него, задание не переезжает (ЗН-22). */
+function taskViewers(t, date = S.clock) {
+  const exec = t.taken || t.addr.emp;
+  const base = exec ? [exec] : EMP.filter(e => hasRole(e.id, t.addr.role)).map(e => e.id);
+  const subs = exec ? SUBST.filter(s => s.for === exec && s.from <= date && date <= s.to && !(t.addr.personal && !s.signRight))
+    .map(s => ({ emp: s.who, for: exec, afterIssue: s.from > t.at })) : [];
+  return { exec: exec || null, base, subs };
+}
+/* Сигналы просрочки «Заданий» на дату (§10.1 пп. 2 и 7) — вывод, документооборот их не шлёт. */
+const roleHolders = r => EMP.filter(e => hasRole(e.id, r)).map(e => e.id);
+function taskSignals(date = S.clock) {
+  const out = [];
+  TASKS.filter(t => t.open && t.due && t.due < date).forEach(t => {
+    const late = workBetween(t.due, date), esc5 = late >= 5;
+    if (t.addr.role && !t.taken) {
+      const head = (DEPTS.find(x => x.id === ROLE_DEPT[t.addr.role]) || {}).head;
+      out.push({ task: t, kind: 'nobody', to: head ? [head] : roleHolders('admin'), text: 'задание «никто не взял» руководителю подразделения роли' });
+      out.push({ task: t, kind: 'expired', to: roleHolders(t.addr.role), text: 'уведомление «срок истёк» носителям роли' });
+      if (esc5) out.push({ task: t, kind: 'escalation', to: roleHolders('admin'), text: 'эскалация администратору документооборота (5-й р.д.)' });
+    } else {
+      const ex = t.taken || t.addr.emp;
+      out.push({ task: t, kind: 'expired', to: [ex], text: 'уведомление «срок истёк» исполнителю' });
+      if (esc5) { const m = (emp(ex) || {}).mgr; out.push({ task: t, kind: 'overdue', to: m ? [m] : roleHolders('admin'), text: 'задание «Просрочено задание» руководителю исполнителя (5-й р.д.)' }); }
+    }
+  });
+  return out;
+}
+
+/* ================== действия волны 2 (ДО-30, §10.3, печать) ================== */
+/* «Направить на ознакомление» с файлом (§4.5, ДО-30, P25-R23): любой зарегистрированный или сданный
+   документ; направляет участник или регистратор (ДО-Д21); новый файл — ролью «приложение» и только
+   тем, кто вправе добавлять файлы после регистрации (ДО-Д7), остальные выбирают файл документа. */
+function sendForAcq(docId, actor, o = {}) {
+  const [d, e] = guard(docId, actor); if (e) return e;
+  if (!['registered', 'filed'].includes(d.stage)) return no('направить на ознакомление можно зарегистрированный документ');
+  if (!(isReg(actor) || participants(d).has(actor))) return no('направляет участник документа или регистратор');
+  const emps = [...new Set((o.emps || []).filter(x => emp(x)))]; if (!emps.length) return no('не выбрано, кому направить');
+  const busy = emps.filter(x => d.recipients.some(r => r.mode === 'acq' && r.emp === x && !r.acqAt));
+  if (busy.length) return no('уже направлено и не ознакомлен: ' + busy.map(empName).join(', '));
+  if (!o.fileId && !String(o.file || '').trim()) return no('нужен файл: новый или из файлов документа');
+  if (o.fileId && !d.files.some(f => f.id === o.fileId)) return no('файл не найден у документа');
+  return oneRun(() => {
+    let f = o.fileId ? d.files.find(x => x.id === o.fileId) : null;
+    if (!f) { const r = attach(d.id, actor, 'appendix', o.file, { size: o.size }); if (!r.ok) return r; f = r.file; }
+    emps.forEach(x => d.recipients.push({ emp: x, mode: 'acq', reviewed: null, acqAt: null, sent: { at: S.clock, by: actor, fileId: f.id } }));
+    log(d, actor, 'Направлен на ознакомление', emps.map(empName).join(', ') + ' · файл ' + fileName(d, f));
+    return { ok: true, why: '', file: f, msg: 'Направлено на ознакомление: ' + emps.length };
+  });
+}
+/* Цели меры — обязанные лица по документу: заёмщик кредита и заёмщики-привязки, адресаты-субъекты
+   (заёмщик, поручитель). */
+function measureTargets(d) {
+  const T_ = [];
+  d.links.forEach(l => { if (l.k === 'loan') T_.push((linkObj('loan', l.id) || {}).borrower); if (l.k === 'borrower') T_.push(l.id); });
+  d.addressees.forEach(a => { const s = SUBJ.find(x => x.id === a.subj); if (s && ['Заёмщик', 'Поручитель'].includes(s.kind)) T_.push(s.id); });
+  if (d.kind === 'in' && d.sender.subj && (SUBJ.find(x => x.id === d.sender.subj) || {}).kind === 'Заёмщик') T_.push(d.sender.subj);
+  return [...new Set(T_.filter(Boolean))];
+}
+function preMeasure(d, actor) {
+  if (d.legacy) return no('меры по перенесённым документам ведутся как прежде');
+  if (d.stage === 'annulled') return no('документ аннулирован');
+  if (!['registered', 'filed'].includes(d.stage)) return no('мера регистрируется из зарегистрированного документа');
+  if (!d.links.some(l => l.k === 'phase')) return no('у документа нет привязки к фазе взыскания');
+  if (!participants(d).has(actor)) return no('меру из документа регистрирует участник документа');
+  if (!measureTargets(d).length) return no('у документа нет обязанного лица для цели меры');
+  return yes;
+}
+/* «Зарегистрировать меру» (§10.3, ДО-39, ADR-0270; ДО-Д22) — заглушка шва «Взыскания»: мера хранит
+   вид, документ, фазу, цель и штамп своей регистрации; номера и дат у неё нет — их читает measureView. */
+function registerMeasure(docId, actor, o = {}) {
+  const [d, e] = guard(docId, actor); if (e) return e;
+  const p = preMeasure(d, actor); if (!p.ok) return p;
+  const mk = MEASURE_KINDS.find(k => k.id === o.kind); if (!mk) return no('вид меры не выбран');
+  if (mk.doc === 'none') return no('вид меры не требует документа — ведётся во «Взыскании»');
+  if (mk.doc !== (d.kind === 'in' ? 'in' : 'our')) return no(d.kind === 'in' ? 'вид меры ждёт наш документ, а это входящий' : 'вид меры ждёт входящий документ');
+  const targets = measureTargets(d), target = o.target || targets[0];
+  if (!targets.includes(target)) return no('цель меры — обязанное лицо по документу');
+  if (MEASURES.some(m => m.doc === d.id && m.target === target)) return no('мера по этому документу и цели уже зарегистрирована');
+  const m = { id: 'М-' + (++SEQ.meas), kind: mk.id, doc: d.id, phase: d.links.find(l => l.k === 'phase').id, target, at: S.clock, by: actor };
+  MEASURES.push(m);
+  log(d, actor, 'Зарегистрирована мера взыскания', `${mk.name} · цель ${subjName(target)} · номер и даты мера читает из документа`);
+  return { ok: true, why: '', id: m.id, measure: m, view: measureView(d.id, target), msg: 'Мера зарегистрирована во «Взыскании»' };
+}
+
+/* Печатные формы (P25-R23, R26, R37; ДО-Д24) — доступны только видящим документ; опись — архив и канцелярия. */
+const P_TBL = (head, rows) => `<table class="cgrid" style="margin-top:8px"><thead><tr>${head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.join('') || `<tr><td colspan="${head.length}" class="muted">нет</td></tr>`}</tbody></table>`;
+const P_ROW = cells => `<tr>${cells.map(c => `<td>${c}</td>`).join('')}</tr>`;
+const P_FOOT = actor => `<div class="small" style="margin-top:10px">Напечатано ${fmt(S.clock)} · ${esc(empName(actor))}</div>`;
+function printRkk(docId, actor = S.user) {
+  const r = openDoc(docId, actor); if (!r.ok) return r; const d = r.doc;
+  if (!d.no && !d.legacy) return no('РКК печатается у зарегистрированного документа');
+  const corr = d.kind === 'in' ? senderName(d) + (d.corrNo ? ` · № ${d.corrNo}` + (d.corrDate ? ' от ' + fmt(d.corrDate) : '') : '') : d.kind === 'out' ? d.addressees.map(addrName).join('; ') : empName(d.author);
+  const resRows = RES.filter(x => x.doc === d.id).map(x => { const st = resState(x);
+    return P_ROW([esc(x.parent ? '↳ ' + x.text : x.text), esc(empName(x.author)) + ', ' + fmt(x.at), esc(empName(x.resp)) + (x.co.length ? '<br><span class="small">соисп.: ' + esc(x.co.map(empName).join(', ')) + '</span>' : ''),
+      fmt(x.due), fmt(effDue(x)), esc(RES_NAME[st.code][1]) + (x.outcome ? ' ' + fmt(x.outcome.at) + ': ' + esc(x.outcome.text) : st.byReply ? ' ответом ' + fmt(st.date) : '')]); });
+  const html = `<div data-testid="print-rkk">
+    ${kv([['Вид', esc(KINDS[d.kind].name)], ['Регистрационный номер', esc(noText(d))], ['Дата регистрации', fmt(d.regDate)], ['Тип', esc(typeOf(d.type).name)],
+      ['Дата документа', fmt(d.docDate) + (d.dubious ? ' · ' + esc(d.dubious) : '')], d.kind === 'in' && ['Дата поступления', fmt(d.receivedDate)],
+      [d.kind === 'in' ? 'Корреспондент' : d.kind === 'out' ? 'Адресаты' : 'Автор', esc(corr || '—')], ['Тема', esc(d.subject)],
+      d.kind !== 'in' && ['Подписант', esc(d.signer ? empName(d.signer) : '—') + (d.signed ? ' · подписано ' + fmt(d.signed.at) : '')],
+      d.kind !== 'out' && d.recipients.length && ['Получатели', esc(d.recipients.map(x => empName(x.emp)).join('; '))],
+      ['Срочность', esc(URG[d.urgency].name)], d.kind !== 'out' && ['На контроле', d.control ? 'да · ' + esc(empName(d.controller)) : 'нет'],
+      ['Исполнение', esc(d.stage === 'annulled' ? 'аннулирован ' + fmt(d.annul.at) + ': ' + d.annul.reason : execText(d) || '—')],
+      ['Дело', d.caseId ? esc(caseOf(d.caseId).idx + ' ' + caseOf(d.caseId).name) + ' · сдан ' + fmt(d.filedAt) : '—']])}
+    ${d.kind !== 'out' ? '<div class="section-h">Резолюции</div>' + P_TBL(['Резолюция', 'Автор, дата', 'Исполнители', 'Срок исходный', 'Срок установленный', 'Отметка исполнения'], resRows) : ''}
+    ${d.kind === 'out' ? '<div class="section-h">Отправка</div>' + P_TBL(['Адресат', 'Способ', 'Отправлено', 'Исход'], d.addressees.map(a => P_ROW([esc(addrName(a)), esc(a.method ? METHODS[a.method].name : '—'), fmt(a.sentDate),
+      a.outcome ? (a.outcome === 'delivered' ? 'вручено ' : 'возврат ') + fmt(a.outcomeDate) : '—']))) : ''}${P_FOOT(actor)}</div>`;
+  return { ok: true, why: '', title: 'Регистрационно-контрольная карточка', html };
+}
+function printAcq(docId, actor = S.user) {
+  const r = openDoc(docId, actor); if (!r.ok) return r; const d = r.doc;
+  const R = d.recipients.filter(x => x.mode === 'acq'); if (!R.length) return no('у документа нет получателей «на ознакомление»');
+  const a = acqInfo(d, true);
+  const html = `<div data-testid="print-acq"><b>Лист ознакомления</b> · ${esc(KINDS[d.kind].name.toLowerCase())} ${esc(noText(d))} · ${esc(d.subject)}
+    <div class="small">ознакомлены ${a.count}/${a.total}${a.missing.length ? ' · не ознакомлены: ' + esc(a.missing.map(empName).join(', ')) : ''}</div>
+    ${P_TBL(['№', 'Сотрудник', 'Должность', 'Направлен', 'Ознакомлен', 'Подпись'], R.map((x, k) => P_ROW([k + 1, esc(empName(x.emp)), esc(emp(x.emp).pos),
+      x.sent ? 'направлен ' + fmt(x.sent.at) + ' · ' + esc(fileName(d, d.files.find(f => f.id === x.sent.fileId))) : 'при регистрации ' + fmt(d.regDate), x.acqAt ? fmt(x.acqAt) : '—', ''])))}${P_FOOT(actor)}</div>`;
+  return { ok: true, why: '', title: 'Лист ознакомления', html };
+}
+function printCase(caseId, actor = S.user) {
+  if (!(isArch(actor) || isReg(actor))) return no('опись дела печатает архивариус или регистратор');
+  const c = caseOf(caseId); if (!c) return no('дело не найдено');
+  const L = DOCS.filter(d => d.caseId === c.id && !d.deleted).sort((x, y) => (x.filedAt + x.regDate).localeCompare(y.filedAt + y.regDate));
+  const html = `<div data-testid="print-case"><b>Опись дела ${esc(c.idx)} «${esc(c.name)}»</b> · ${c.year} год
+    <div class="small">${esc((DEPTS.find(x => x.id === c.dept) || {}).name)} · срок хранения ${esc(c.keep)} · место хранения ${esc(c.place || '—')}</div>
+    ${P_TBL(['№', 'Регистрационный номер', 'Дата регистрации', 'Вид', 'Заголовок (тема)', 'Сдан в дело'], L.map((d, k) => P_ROW([k + 1, esc(noText(d)), fmt(d.regDate), esc(KINDS[d.kind].short), esc(d.subject), fmt(d.filedAt)])))}
+    <div style="margin-top:8px">В дело внесено документов: <b data-testid="case-total">${L.length}</b></div>${P_FOOT(actor)}</div>`;
+  return { ok: true, why: '', title: 'Опись дела', html, count: L.length };
+}
+
+/* ========== справочники: правка с журналом (§1.2, §1.6, §1.11, §1.12; §8.1; ДО-Д18, ДО-Д23) ========== */
+const DSEQ = { type: 0, method: 0 };
+function dlog(by, dict, act, text) { DICTLOG.push({ at: S.clock, by, dict, act, text }); }
+const adminGate = actor => isAdmin(actor) ? null : no('справочник ведёт администратор документооборота');
+const diffText = (was, now) => Object.keys(now).filter(k => String(was[k]) !== String(now[k])).map(k => `${k}: было «${was[k]}», стало «${now[k]}»`).join('; ');
+function typeView(t) {
+  return { 'Наименование': t.name, 'Цель': PURPOSE[t.purpose], 'Требует ответа': t.kind === 'in' ? (t.reply ? 'да' : 'нет') : '—',
+    'Обязательная привязка': t.links.map(k => LINK_KINDS[k].toLowerCase()).join(' + ') || '—', 'Дело по умолчанию': t.caseId ? caseOf(t.caseId).idx : '—',
+    'Срочность': URG[t.urgency].name, 'Действует': t.active ? 'да' : 'нет' };
+}
+function typeSave(actor, o = {}) {
+  const g = adminGate(actor); if (g) return g;
+  const name = String(o.name || '').trim(); if (!name) return no('нет наименования');
+  const links = o.links || []; if (links.some(k => !LINK_KINDS[k])) return no('вид объекта привязки не из списка');
+  if (o.urgency && !URG[o.urgency]) return no('срочность не из шкалы');
+  if (o.purpose && !PURPOSE[o.purpose]) return no('цель не из шкалы');
+  if (o.caseId) { const c = caseOf(o.caseId); if (!c || c.year !== clockYear()) return no('дело по умолчанию — из номенклатуры текущего года'); }
+  const kind = o.id ? (typeOf(o.id) || {}).kind : o.kind;
+  if (TYPES.some(x => x.id !== o.id && x.kind === kind && x.name.toLowerCase() === name.toLowerCase())) return no('тип с таким наименованием у этого вида уже есть');
+  if (o.id) {
+    const t = typeOf(o.id); if (!t) return no('тип не найден');
+    if (t.legacyOnly) return no('тип для перенесённых документов не правится');
+    if (o.kind && o.kind !== t.kind) return no('вид типа не меняется — новый вид означает новый тип');
+    const was = typeView(t);
+    Object.assign(t, { name, links: [...links], caseId: o.caseId || null, urgency: o.urgency || t.urgency, purpose: o.purpose || t.purpose,
+      reply: t.kind === 'in' ? !!o.reply : false, active: o.active !== false });
+    const ch = diffText(was, typeView(t)); if (!ch) return no('изменений нет');
+    dlog(actor, 'Типы документов', 'Изменён тип', `${KINDS[t.kind].short} · ${ch}`); return { ok: true, why: '', id: t.id };
+  }
+  if (!KINDS[kind]) return no('вид не выбран');
+  const t = T('t-n' + (++DSEQ.type), kind, name, { reply: kind === 'in' && !!o.reply, links: [...links], caseId: o.caseId || null, urgency: o.urgency, purpose: o.purpose });
+  TYPES.push(t); dlog(actor, 'Типы документов', 'Добавлен тип', `${KINDS[kind].short} · ${name}`); return { ok: true, why: '', id: t.id };
+}
+function phraseSave(actor, o = {}) {
+  const g = adminGate(actor); if (g) return g;
+  const text = String(o.text || '').trim(); if (!text) return no('пустая фраза');
+  if (PHRASES.some((p, i) => i !== o.idx && p.toLowerCase() === text.toLowerCase())) return no('такая фраза уже есть');
+  if (o.idx != null) { if (!PHRASES[o.idx]) return no('фраза не найдена'); const was = PHRASES[o.idx]; PHRASES[o.idx] = text; dlog(actor, 'Фразы резолюций', 'Изменена фраза', `было «${was}», стало «${text}»`); }
+  else { PHRASES.push(text); dlog(actor, 'Фразы резолюций', 'Добавлена фраза', text); }
+  return yes;
+}
+function phraseRemove(actor, idx) {
+  const g = adminGate(actor); if (g) return g;
+  if (!PHRASES[idx]) return no('фраза не найдена');
+  if (PHRASES.length === 1) return no('справочник фраз не остаётся пустым');
+  const [p] = PHRASES.splice(idx, 1); dlog(actor, 'Фразы резолюций', 'Удалена фраза', `${p} (в выданных резолюциях текст сохранён)`); return yes;
+}
+/* Право подписи не правится задним числом (ДО-Д23): у действующей строки меняются срок окончания (не
+   раньше сегодняшнего) и основание; истёкшая не продлевается, другой набор типов — новой строкой;
+   строки не удаляются. */
+function signRightSave(actor, o = {}) {
+  const g = adminGate(actor); if (g) return g;
+  if (o.id) {
+    const row = SIGN.find(x => x.id === o.id); if (!row) return no('строка не найдена');
+    if (o.emp && o.emp !== row.emp) return no('сотрудник в строке не меняется');
+    if (o.types && [...o.types].sort().join() !== [...row.types].sort().join()) return no('набор типов не меняется — заведите новую строку');
+    if (o.from && toIso(o.from) !== row.from) return no('начало действия не меняется задним числом');
+    const to = o.to != null ? toIso(o.to) : row.to; if (!to) return no('неверная дата окончания');
+    if (to !== row.to && row.to < S.clock) return no('строка истекла — новое право заводится новой строкой');
+    if (to !== row.to && to < S.clock) return no('право не закрывается задним числом: окончание не раньше сегодняшнего дня');
+    if (to < row.from) return no('окончание раньше начала');
+    const basis = o.basis != null ? String(o.basis).trim() : row.basis; if (!basis) return no('нужно основание');
+    const was = { 'Основание': row.basis, 'По': fmt(row.to) }; Object.assign(row, { to, basis });
+    const ch = diffText(was, { 'Основание': row.basis, 'По': fmt(row.to) }); if (!ch) return no('изменений нет');
+    dlog(actor, 'Право подписи', 'Изменена строка', `${row.id} · ${empName(row.emp)} · ${ch}`); return { ok: true, why: '', id: row.id };
+  }
+  if (!emp(o.emp)) return no('сотрудник не выбран');
+  const types = [...new Set(o.types || [])]; if (!types.length) return no('типы документов не выбраны');
+  if (types.some(id => { const t = typeOf(id); return !t || t.kind === 'in' || t.legacyOnly; })) return no('право подписи — на типы исходящих и внутренних');
+  const basis = String(o.basis || '').trim(); if (!basis) return no('нужно основание: доверенность или должность');
+  const from = toIso(o.from), to = toIso(o.to); if (!from || !to) return no('нужен срок «с — по»'); if (from > to) return no('начало позже окончания');
+  const id = 'ПП-' + (Math.max(0, ...SIGN.map(x => +x.id.split('-')[1])) + 1);
+  SIGN.push({ id, emp: o.emp, types, basis, from, to });
+  dlog(actor, 'Право подписи', 'Добавлена строка', `${id} · ${empName(o.emp)} · ${types.map(t => typeOf(t).name).join(', ')} · ${basis} · ${fmt(from)}–${fmt(to)}`); return { ok: true, why: '', id };
+}
+/* Способы отправки (§1.6, ДО-40): ключ устойчив, способ не удаляется; изменение подтверждения действует на следующие отметки. */
+function methodSave(actor, o = {}) {
+  const g = adminGate(actor); if (g) return g;
+  const name = String(o.name || '').trim(); if (!name) return no('нет наименования');
+  if (Object.entries(METHODS).some(([k, m]) => k !== o.key && m.name.toLowerCase() === name.toLowerCase())) return no('способ с таким наименованием уже есть');
+  const view = m => ({ 'Наименование': m.name, 'Почтовый идентификатор': m.track ? 'обязателен' : 'нет', 'Подтверждение': m.proof || '—' });
+  if (o.key) {
+    const m = METHODS[o.key]; if (!m) return no('способ не найден'); const was = view(m);
+    Object.assign(m, { name, track: !!o.track, proof: String(o.proof || '').trim() });
+    const ch = diffText(was, view(m)); if (!ch) return no('изменений нет');
+    dlog(actor, 'Способы отправки', 'Изменён способ', ch); return { ok: true, why: '', key: o.key };
+  }
+  const key = 'm' + (++DSEQ.method); METHODS[key] = { name, track: !!o.track, proof: String(o.proof || '').trim() };
+  dlog(actor, 'Способы отправки', 'Добавлен способ', `${name} · подтверждение: ${METHODS[key].proof || '—'}`); return { ok: true, why: '', key };
+}
+/* Номенклатура дел (§1.12) — ведёт архивариус (ТЗ 23, P25-R25; расхождение с §8.1 канона — ДО-Д18). */
+const archGate = actor => isArch(actor) ? null : no('номенклатуру дел ведёт архивариус');
+function caseSave(actor, o = {}) {
+  const g = archGate(actor); if (g) return g;
+  const name = String(o.name || '').trim(); if (!name) return no('нет названия дела');
+  if (!DEPTS.some(x => x.id === o.dept)) return no('подразделение не выбрано');
+  const keep = String(o.keep || '').trim(); if (!keep) return no('нужен срок хранения');
+  const place = String(o.place || '').trim();
+  const view = c => ({ 'Название': c.name, 'Подразделение': (DEPTS.find(x => x.id === c.dept) || {}).name, 'Срок хранения': c.keep, 'Место хранения': c.place || '—' });
+  if (o.id) {
+    const c = caseOf(o.id); if (!c) return no('дело не найдено');
+    if (o.idx && o.idx !== c.idx) return no('индекс дела не меняется');
+    if (o.year && +o.year !== c.year) return no('год дела не меняется');
+    const was = view(c); Object.assign(c, { name, dept: o.dept, keep, place });
+    const ch = diffText(was, view(c)); if (!ch) return no('изменений нет');
+    dlog(actor, 'Номенклатура дел', 'Изменено дело', `${c.year} · ${c.idx} · ${ch}`); return { ok: true, why: '', id: c.id };
+  }
+  const year = +o.year || clockYear(); if (year < clockYear()) return no('номенклатура прошлого года закрыта');
+  const idx = String(o.idx || '').trim(); if (!/^\d{2}-\d{2}$/.test(idx)) return no('индекс дела — в виде 00-00');
+  if (CASES.some(c => c.year === year && c.idx === idx)) return no(`дело ${idx} в ${year} году уже есть`);
+  const c = { id: 'c' + year + '-' + idx, year, idx, name, dept: o.dept, keep, place }; CASES.push(c);
+  dlog(actor, 'Номенклатура дел', 'Заведено дело', `${year} · ${idx} ${name}`); return { ok: true, why: '', id: c.id };
+}
+function casesCopy(actor, from, to) {
+  const g = archGate(actor); if (g) return g;
+  from = +from; to = +to;
+  if (!(to > from)) return no('копируется на следующий год');
+  if (to < clockYear()) return no('номенклатура прошлого года закрыта');
+  const src = CASES.filter(c => c.year === from); if (!src.length) return no(`номенклатуры ${from} года нет`);
+  const made = [];
+  src.forEach(c => { if (!CASES.some(x => x.year === to && x.idx === c.idx)) { const n = { ...c, id: 'c' + to + '-' + c.idx, year: to }; CASES.push(n); made.push(n.idx); } });
+  dlog(actor, 'Номенклатура дел', 'Номенклатура скопирована', `${from} → ${to}: заведено ${made.length}, уже были ${src.length - made.length}`);
+  return { ok: true, why: '', created: made.length, skipped: src.length - made.length, msg: `Заведено дел: ${made.length}, уже были: ${src.length - made.length}` };
+}
+/* Порог свёртки вида шага (§10.1 п. 6, ЗН-25): объявляет документооборот как владелец вида (ДО-Д19). */
+function thresholdSave(actor, kind, n) {
+  const g = adminGate(actor); if (g) return g;
+  if (!POVOD_NAME[kind]) return no('вид шага не найден');
+  const v = Number(n); if (!Number.isInteger(v) || v < 1) return no('порог — целое число от 1');
+  const was = thresholdOf(kind); if (was === v) return no('изменений нет');
+  BATCH_THRESHOLD[kind] = v; dlog(actor, 'Порог свёртки', 'Изменён порог', `${POVOD_NAME[kind]}: было ${was}, стало ${v}`); return yes;
+}
+
+/* ==================== перенос из старой системы (§11, С-29) ==================== */
+/* Прогон повторяемый (P25-R39): ключ — id старой системы, второй прогон новых документов не создаёт;
+   счётчик года ставится на максимум старой системы и никогда не понижается (ДО-Д26). */
+function migrationRun(actor) {
+  if (!isAdmin(actor)) return no('перенос запускает администратор документооборота');
+  const R = { n: MIGRATIONS.length + 1, at: S.clock, by: actor, found: LEGACY_SRC.docs.length, created: 0, skipped: 0, files: 0, logs: 0, tasks: 0, tasksClosed: 0, dubious: 0, counters: [] };
+  LEGACY_SRC.docs.forEach(x => {
+    if (DOCS.some(d => d.legacySrc === x.src)) { R.skipped++; return; }
+    const docDate = x.docDate || x.regDate;
+    const d = { id: 'D-' + (++SEQ.doc), kind: x.kind, type: x.type, subject: x.subject, stage: 'filed', deleted: null, no: null, regDate: x.regDate, regBy: null, docDate,
+      receivedDate: x.kind === 'in' ? x.regDate : null, corrNo: '', corrDate: null, senderKind: x.senderKind || '', sender: { subj: '', text: x.sender || '' }, recipients: [],
+      addressees: (x.addr || []).map(a => ({ id: 'A-' + (++SEQ.addr), subj: a.subj || '', text: a.text || '', method: 'post', sentDate: x.regDate, track: '', outcome: null, outcomeDate: null, proof: null })),
+      author: null, approvers: [], signer: null, rounds: [], signed: null, urgency: 'normal', purpose: 'exec', needsReply: false, control: false, controller: null, basis: [],
+      links: x.links || [], caseId: null, filedAt: null, legacy: true, legacySrc: x.src, legacyNo: x.no, legacyYear: x.year,
+      dubious: docDate < '2000-01-01' ? 'дата сомнительна: ' + fmt(docDate) + ' — заглушка старой системы' : '',
+      legacyTasks: x.tasks.map(t => ({ text: t.text, who: t.who, state: t.open ? 'закрыта при переносе' : 'выполнена в старой системе' })),
+      files: x.files.map((fn, k) => ({ id: 'F-' + (++SEQ.file), role: x.kind === 'in' ? 'scan' : 'signed', idx: k + 1, ver: 1, ext: fn.split('.').pop().toLowerCase(), size: 340000,
+        sha: fakeSha(x.src + k), at: x.regDate, by: null, hist: [] })),
+      comments: [], log: [{ at: x.regDate, by: null, act: 'Перенесён из старой системы', text: 'номер ' + x.no + ' · прогон ' + R.n }]
+        .concat(Array.from({ length: x.log }, (_, k) => ({ at: x.regDate, by: null, act: 'Из журнала старой системы', text: 'запись ' + (k + 1) }))),
+      returned: null, annul: null, createdAt: x.regDate, fromBlank: null };
+    DOCS.push(d);
+    R.created++; R.files += x.files.length; R.logs += x.log; R.tasks += x.tasks.length; R.tasksClosed += x.tasks.filter(t => t.open).length; if (d.dubious) R.dubious++;
+  });
+  Object.entries(LEGACY_SRC.counters).forEach(([k, ys]) => Object.entries(ys).forEach(([y, mx]) => {
+    COUNTERS[k] = COUNTERS[k] || {}; const before = COUNTERS[k][y] || 0, after = Math.max(before, mx);
+    COUNTERS[k][y] = after; R.counters.push({ kind: k, year: +y, src: mx, before, after });
+  }));
+  const L = DOCS.filter(d => d.legacy), dupKeys = new Set(L.filter(d => L.filter(z => z.kind === d.kind && z.legacyNo === d.legacyNo && z.legacyYear === d.legacyYear).length > 1).map(d => d.kind + d.legacyNo + d.legacyYear));
+  R.dupNumbers = dupKeys.size; R.legacyTotal = L.length;
+  MIGRATIONS.push(R); sync();
+  return { ok: true, why: '', report: R, msg: `Прогон ${R.n}: новых документов ${R.created}, уже перенесены ${R.skipped}` };
+}
+
+/* Пачка выпусков «Отчётности» → пачка черновиков с общим маршрутом (§10.2, ДО-41); с submit — сразу по
+   маршруту одним действием, то есть одним прогоном опроса: у подписанта один вал-задание (С-32). */
+function fromBlankPack(packId, actor, o = {}) {
+  const pk = PACKS.find(x => x.id === packId); if (!pk) return no('пачка не найдена');
+  if (pk.docIds.length) return no('по пачке уже созданы черновики');
+  const t = typeOf(pk.type);
+  if (o.submit) { if (!emp(o.signer)) return no('для отправки по маршруту нужен подписант'); if (!hasSignRight(o.signer, t.id, S.clock)) return no('у подписанта нет права подписи на этот тип на сегодня'); }
+  return oneRun(() => {
+    const ids = [];
+    for (const it of pk.items) {
+      const r = create(actor, t.kind, { type: t.id, subject: it.subject, links: it.links, addressees: [{ subj: it.recipient }], signer: o.signer || null, approvers: o.approvers || [] });
+      if (!r.ok) return r;
+      r.doc.fromBlank = it.id; ids.push(r.id);
+      r.doc.files.push({ id: 'F-' + (++SEQ.file), role: 'project', idx: 1, ver: 1, ext: 'pdf', size: 160000, sha: fakeSha(it.id), at: S.clock, by: actor, hist: [] });
+      log(r.doc, actor, 'Создан из выпуска «Отчётности»', `${it.id} · ${pk.template} · пачка ${pk.id}`);
+    }
+    if (o.submit) for (const id of ids) { const s = submit(id, actor); if (!s.ok) return s; }
+    pk.docIds = ids;
+    return { ok: true, why: '', ids, msg: `Создано черновиков: ${ids.length}` + (o.submit ? ' · отправлены по маршруту' : '') };
+  });
 }
 
 /* ====================== журналы и поиск (§9.1) ====================== */
@@ -1215,24 +1667,15 @@ function indicators(from, to) {
 /* Демо-набор собирается теми же действиями движка с подвинутыми часами — он сам проходит все
    проверки, которые видит пользователь. Отказ любого шага — ошибка сборки. */
 function seed() {
-  DOCS = []; RES = []; ISSUES = []; EXT = {}; TASKS = []; STEPBY = {};
-  SEQ = { doc: 0, res: 0, file: 0, addr: 0, iss: 0, task: 0 };
-  COUNTERS = { in: { 2026: 4870 }, out: { 2026: 2172 }, int: {} };   /* перенос: максимум прежней системы */
-  BLANKS.forEach(b => { b.docId = null; });
+  DOCS = []; RES = []; ISSUES = []; EXT = {}; TASKS = []; STEPBY = {}; MEASURES = []; MIGRATIONS = []; DICTLOG = [];
+  SEQ = { doc: 0, res: 0, file: 0, addr: 0, iss: 0, task: 0, meas: 0 };
+  COUNTERS = { in: {}, out: {}, int: {} };
+  BLANKS.forEach(b => { b.docId = null; }); PACKS.forEach(p => { p.docIds = []; });
   const must = (r, what) => { if (!r || r.ok === false) throw new Error('seed: ' + what + ' — ' + (r && r.why)); return r; };
   const at = d => { S.clock = d; };
-  const legacy = (kind, type, no_, year, regDate, subject, o = {}) => {
-    const d = { id: 'D-' + (++SEQ.doc), kind, type, subject, stage: 'filed', deleted: null, no: null, regDate, regBy: null, docDate: regDate, receivedDate: kind === 'in' ? regDate : null,
-      corrNo: '', corrDate: null, senderKind: o.senderKind || '', sender: { subj: '', text: o.sender || '' }, recipients: [], addressees: (o.addr || []).map(a => ({ id: 'A-' + (++SEQ.addr), subj: a.subj || '', text: a.text || '',
-      method: 'post', sentDate: regDate, track: '', outcome: null, outcomeDate: null, proof: null })), author: null, approvers: [], signer: null, rounds: [], signed: null, urgency: 'normal', purpose: 'exec',
-      needsReply: false, control: false, controller: null, basis: [], links: o.links || [], caseId: null, filedAt: null, legacy: true, legacyNo: no_, legacyYear: year,
-      files: [{ id: 'F-' + (++SEQ.file), role: kind === 'in' ? 'scan' : 'signed', idx: 1, ver: 1, ext: 'pdf', size: 340000, sha: fakeSha(no_ + regDate), at: regDate, by: null, hist: [] }],
-      comments: [], log: [{ at: regDate, by: null, act: 'Перенесён из старой системы', text: 'номер ' + no_ }], returned: null, annul: null, createdAt: regDate, fromBlank: null };
-    DOCS.push(d); return d;
-  };
-  legacy('in', 't-in-legacy', '1203', 2025, '2025-03-11', 'Письмо о реструктуризации задолженности', { sender: 'Асанов Т.Б.', senderKind: 'Заёмщик' });
-  legacy('in', 't-in-legacy', '1203', 2025, '2025-03-12', 'Запрос сведений о залоге', { sender: 'Государственная налоговая служба', senderKind: 'Госорган' });
-  legacy('out', 't-out-pret', '19-03-01/2101', 2026, '2026-08-20', 'Претензия о погашении задолженности по кредиту К-14', { addr: [{ subj: 'b2' }], links: [{ k: 'loan', id: 'L2' }, { k: 'borrower', id: 'b2' }] });
+  /* Перенос (§11): прогон администратора до начала работы — счётчики 2026 года на максимум старой
+     системы (ВХ 4870, ИСХ 2172), ряд ВН с 1; перенесённые — только чтение, дубли номеров сохранены. */
+  at('2026-09-14'); must(migrationRun('e10'), 'перенос');
 
   /* ИСХ 2173 — письмо в ГНС, отправлено по СЭД, сдано в дело */
   at('2026-09-15');
@@ -1305,8 +1748,10 @@ function seed() {
   let o6 = must(create('e6', 'out', { type: 't-out-isk', subject: 'Исковое заявление о взыскании задолженности с ОсОО «Ак-Жол Агро» и обращении взыскания на залог', docDate: '2026-10-12',
     addressees: [{ subj: 'o1' }], links: ['loan:L2', 'phase:F2'], approvers: ['e3'], signer: 'e6' }), 'o6').id;
   must(attach(o6, 'e6', 'project', 'isk.docx'), 'o6 file'); must(attach(o6, 'e6', 'appendix', 'raschet.xlsx'), 'o6 app'); must(submit(o6, 'e6'), 'o6 submit'); must(approve(o6, 'e3'), 'o6 appr');
+  must(sign(o6, 'e6'), 'o6 sign'); must(register(o6, 'e7'), 'o6 reg');          /* «отправить» в очереди никто не взял — к 15.10 просрочено */
+  must(registerMeasure(o2, 'e4', { kind: 'mk-pret', target: 'b2' }), 'o2 мера');  /* мера «Претензия» во «Взыскании» читает документ */
   at('2026-10-13');
-  must(approve(o5, 'e6', 'Замечаний нет'), 'o5 appr'); must(sign(o6, 'e6'), 'o6 sign'); must(register(o6, 'e7'), 'o6 reg');
+  must(approve(o5, 'e6', 'Замечаний нет'), 'o5 appr');
   must(markDelivered(o2, 'e8', doc(o2).addressees[1].id, { outcome: 'returned', date: '2026-10-13', proof: 'konvert.jpg' }), 'o2 ret');
   /* Уведомление — подписано замещающим, ждёт регистрации */
   let o7 = must(create('e5', 'out', { type: 't-out-notice', subject: 'Уведомление о просрочке платежа по кредиту К-1', docDate: '2026-10-13', addressees: [{ subj: 'b1' }], links: ['loan:L1'], signer: 'e1' }), 'o7').id;
@@ -1321,6 +1766,8 @@ function seed() {
   let i5 = must(create('e8', 'in', { type: 't-in-bank', subject: 'О поступлении средств в погашение по кредиту К-14', sender: { text: 'ЗАО «Банк Компаньон»' }, senderKind: 'Банк', corrNo: '17/2290',
     corrDate: '2026-10-13', docDate: '2026-10-13', receivedDate: '2026-10-14', recipients: ['e3'] }), 'i5').id;
   must(attach(i5, 'e8', 'scan', 'bank.pdf'), 'i5 scan'); must(register(i5, 'e8'), 'i5 reg');
+  /* Пачка из 12 уведомлений «Отчётности» — одним действием на подпись Байжановой: у неё один вал-задание */
+  must(fromBlankPack('ПВ-41', 'e5', { signer: 'e2', submit: true }), 'пачка');
   /* Письмо — ждёт подписи Председателя */
   let o9 = must(create('e4', 'out', { type: 't-out-letter', subject: 'О графике погашения задолженности', docDate: '2026-10-14', addressees: [{ subj: 'b2' }], signer: 'e1' }), 'o9').id;
   must(attach(o9, 'e4', 'project', 'grafik.docx'), 'o9 file'); must(submit(o9, 'e4'), 'o9 submit');
@@ -1336,7 +1783,7 @@ function seed() {
   sync();
   const qt = TASKS.find(t => t.open && t.key === 'doc-register|' + o7); if (qt) qt.taken = 'e8';    /* взято из очереди регистратором */
   S.clock = TODAY;
-  return { o1, o2, o3, o4, o5, o6, o7, o8, o9, i1, i2, i3, i4, i5, i6, n1, n2, n3, r4, r4c };
+  return { o1, o2, o3, o4, o5, o6, o7, o8, o9, i1, i2, i3, i4, i5, i6, n1, n2, n3, r4, r4c, pack: PACKS[0].docIds.slice(), legacy: DOCS.filter(d => d.legacy).map(d => d.id) };
 }
 
 /* ============================== ЭКРАНЫ ============================== */
@@ -1377,8 +1824,9 @@ function viewJournal(view) {
   const row = d => `<tr class="${d.stage === 'annulled' ? 'gone' : execCode(d) === 'overdue' ? 'over' : ''}" data-testid="row-${d.id}">${C.map(c => `<td>${c[1](d)}</td>`).join('')}</tr>`;
   if (S.f.group) rows = grouped(list, S.f.group).map(([k, L]) => `<tr class="grp"><td colspan="${C.length}">${esc(k)} · ${L.length}</td></tr>` + L.map(row).join('')).join('');
   else rows = list.map(row).join('');
-  return `<div class="card-head" style="margin-bottom:12px"><div class="btn-row">${newBtns.filter(canNew).map(k => `<button class="btn btn-primary" data-testid="new-${k}" onclick="DF.uiDraft('${k}')">Новый ${KINDS[k].name.toLowerCase()}</button>`).join('')}
-      ${view === 'out' || view === 'mine' ? `<button class="btn btn-secondary" data-testid="from-blank" onclick="DF.uiBlank()">Из бланка «Отчётности»</button>` : ''}</div>
+  return `${view === 'mine' ? signQueue(S.user) : ''}<div class="card-head" style="margin-bottom:12px"><div class="btn-row">${newBtns.filter(canNew).map(k => `<button class="btn btn-primary" data-testid="new-${k}" onclick="DF.uiDraft('${k}')">Новый ${KINDS[k].name.toLowerCase()}</button>`).join('')}
+      ${view === 'out' || view === 'mine' ? `<button class="btn btn-secondary" data-testid="from-blank" onclick="DF.uiBlank()">Из бланка «Отчётности»</button>
+        <button class="btn btn-secondary" data-testid="from-pack" onclick="DF.uiPack()">Пачка из «Отчётности»</button>` : ''}</div>
     <div class="btn-row"><button class="btn btn-secondary" data-testid="print" onclick="DF.uiPrint()">Печатная форма журнала</button></div></div>
   <div class="filters">
     <div class="fld" style="flex:1;min-width:260px"><label>Поиск</label><input data-testid="search" value="${esc(S.q)}" placeholder="номер, тема, отправитель, ИНН, кредит" onchange="DF.search(this.value)"></div>
@@ -1395,13 +1843,28 @@ function viewJournal(view) {
   <table class="cgrid" data-testid="journal"><thead><tr>${C.map(c => `<th>${c[0]}</th>`).join('')}</tr></thead><tbody>${rows || `<tr><td colspan="${C.length}" class="muted">Документов нет</td></tr>`}</tbody></table>`;
 }
 
+/* «Ждут моей подписи» (P25-R14): выбор нескольких и подпись пачкой одним действием (ДО-41, С-32). */
+function waitingSign(u) { return DOCS.filter(d => !d.deleted && !d.legacy && d.stage === 'signing' && !d.signed && actsFor(u, d.signer) && canSee(d, u)); }
+function signQueue(u) {
+  const L = waitingSign(u); if (!L.length) return '';
+  return `<div class="card" data-testid="sign-queue"><div class="card-head"><h3>Ждут моей подписи · ${L.length}</h3><div class="btn-row">
+      <button class="btn btn-secondary btn-sm" onclick="DF.pickAll(true)">Выбрать все</button>
+      <button class="btn btn-primary btn-sm" data-testid="sign-batch" onclick="DF.uiSignBatch()">Подписать пачкой</button></div></div>
+    <table class="cgrid"><thead><tr><th></th><th>Тема</th><th>Тип</th><th>Адресат</th><th>Автор</th><th>Право подписи</th></tr></thead><tbody>
+    ${L.map(d => { const c = canSign(d, u); return `<tr><td><input type="checkbox" class="pick" data-id="${d.id}" data-testid="pick-${d.id}"></td><td>${openLink(d, d.subject)}</td><td>${esc(typeOf(d.type).name)}</td>
+      <td>${esc(d.addressees.map(addrName).join(', ') || '—')}</td><td>${esc(empName(d.author))}</td><td>${c.ok ? (c.onBehalf ? 'за ' + esc(empName(c.onBehalf)) : 'есть') : '<span class="red">' + esc(c.why) + '</span>'}</td></tr>`; }).join('')}</tbody></table>
+    <div class="small" style="margin-top:6px">Подпись пачкой — одно действие; в журнал каждого документа пишется своя запись. Отказ — только по одному документу, с комментарием.</div></div>`;
+}
+
 /* ------------------------------ карточка ----------------------------- */
 function btn(label, on, gate, cls = 'btn-secondary', tid = '') {
   return `<span style="display:inline-flex;flex-direction:column"><button class="btn ${cls} btn-sm" ${tid ? `data-testid="${tid}"` : ''} ${gate && !gate.ok ? 'disabled' : ''} onclick="${on}">${esc(label)}</button>${gate && !gate.ok ? `<span class="why err">${esc(gate.why)}</span>` : ''}</span>`;
 }
 function actions(d, u) {
-  if (d.legacy || d.deleted) return '';
+  if (d.deleted) return '';
   const id = d.id, B = [];
+  if (d.no || d.legacy) B.push(btn('Печать РКК', `DF.uiPrintDoc('rkk','${id}')`, yes, 'btn-secondary', 'act-rkk'));
+  if (d.legacy) return B.join(' ');
   if (d.stage === 'draft') {
     if (canEditDraft(d, u)) {
       B.push(btn('Изменить', `DF.uiDraft('${d.kind}','${id}')`, yes, 'btn-secondary', 'act-edit'));
@@ -1421,21 +1884,24 @@ function actions(d, u) {
   if (d.stage === 'signing' && d.signed && isReg(u)) B.push(btn('Зарегистрировать', `DF.uiDo('register','${id}')`, preRegister(d, u), 'btn-primary', 'act-register'));
   if (d.stage === 'registered') {
     if (d.kind !== 'out') {
-      const rec = d.recipients.find(r => actsFor(u, r.emp) && (d.kind === 'in' || r.mode === 'exec'));
+      const rec = d.recipients.find(r => actsFor(u, r.emp) && isExecRec(r));
       if (rec) B.push(btn('Дать резолюцию', `DF.uiRes('${id}')`, yes, 'btn-primary', 'act-res'));
-      if (d.kind === 'in' && d.recipients.some(r => actsFor(u, r.emp) && !r.reviewed)) B.push(btn('К сведению', `DF.uiDo('markInfo','${id}')`, yes, 'btn-secondary', 'act-info'));
-      const acq = d.recipients.find(r => r.mode === 'acq' && r.emp === u && !r.acqAt);
-      if (acq) B.push(btn('Ознакомлен', `DF.uiDo('acquaint','${id}')`, yes, 'btn-primary', 'act-acq'));
+      if (d.kind === 'in' && d.recipients.some(r => isExecRec(r) && actsFor(u, r.emp) && !r.reviewed)) B.push(btn('К сведению', `DF.uiDo('markInfo','${id}')`, yes, 'btn-secondary', 'act-info'));
     }
     if (isArch(u) || isReg(u)) B.push(btn('Сдать в дело', `DF.uiFile('${id}')`, fileReady(d), 'btn-secondary', 'act-file'));
     if (isReg(u)) B.push(btn('Аннулировать', `DF.uiAnnul('${id}')`, preAnnul(d, u), 'btn-danger', 'act-annul'));
+  }
+  if (['registered', 'filed'].includes(d.stage)) {
+    if (d.recipients.some(r => r.mode === 'acq' && r.emp === u && !r.acqAt)) B.push(btn('Ознакомлен', `DF.uiDo('acquaint','${id}')`, yes, 'btn-primary', 'act-acq'));
+    if (isReg(u) || participants(d).has(u)) B.push(btn('Направить на ознакомление', `DF.uiSendAcq('${id}')`, yes, 'btn-secondary', 'act-sendacq'));
+    if (d.links.some(l => l.k === 'phase') && participants(d).has(u)) B.push(btn('Зарегистрировать меру', `DF.uiMeasure('${id}')`, preMeasure(d, u), 'btn-secondary', 'act-measure'));
   }
   if (['registered', 'filed'].includes(d.stage) && isReg(u)) B.push(btn('Исправить', `DF.uiCorrect('${id}')`, yes, 'btn-secondary', 'act-correct'));
   if (d.stage === 'filed' && isArch(u)) B.push(btn('Выдать оригинал', `DF.uiIssue('${id}')`, ISSUES.some(i => i.doc === id && !i.returned) ? no('оригинал уже выдан') : yes, 'btn-secondary', 'act-issue'));
   return B.join(' ');
 }
 const TABS = [['req', 'Реквизиты'], ['files', 'Файлы'], ['route', 'Маршрут'], ['res', 'Резолюции'], ['send', 'Отправка'], ['acq', 'Ознакомление'], ['links', 'Привязки'], ['log', 'Журнал'], ['com', 'Комментарии']];
-function tabsFor(d) { return TABS.filter(([k]) => !(k === 'send' && d.kind !== 'out') && !(k === 'acq' && d.kind !== 'int') && !(k === 'res' && d.kind === 'out') && !(k === 'route' && d.kind === 'in')); }
+function tabsFor(d) { return TABS.filter(([k]) => !(k === 'send' && d.kind !== 'out') && !(k === 'acq' && d.kind !== 'int' && !d.recipients.some(r => r.mode === 'acq')) && !(k === 'res' && d.kind === 'out') && !(k === 'route' && d.kind === 'in')); }
 function viewDoc(id) {
   const r = openDoc(id, S.user);
   if (!r.ok) return `<div class="banner danger" data-testid="denied">${esc(r.why)}</div>`;
@@ -1460,13 +1926,13 @@ function tabReq(d) {
   const t = typeOf(d.type);
   return `<div class="card">${kv([
     ['Вид', esc(KINDS[d.kind].name)], ['Тип', esc(t.name)], ['Тема', esc(d.subject || '—')], ['Этап', stagePill(d)],
-    ['Регистрационный номер', esc(noText(d) || '—')], ['Дата регистрации', fmt(d.regDate)], ['Дата документа', fmt(d.docDate)],
+    ['Регистрационный номер', esc(noText(d) || '—')], ['Дата регистрации', fmt(d.regDate)], ['Дата документа', fmt(d.docDate) + (d.dubious ? ' ' + pill('warn', d.dubious) : '')],
     d.kind === 'in' && ['Дата поступления', fmt(d.receivedDate)], d.kind === 'in' && ['Номер и дата корреспондента', esc((d.corrNo || '—') + (d.corrDate ? ' от ' + fmt(d.corrDate) : ''))],
     d.kind === 'in' && ['Отправитель', esc(senderName(d) || '—') + (d.senderKind ? ` <span class="muted">· ${esc(d.senderKind)}</span>` : '')],
     d.kind === 'in' && d.author && ['Регистратор', esc(empName(d.regBy || d.author))],
     d.kind !== 'in' && d.author && ['Автор', esc(empName(d.author)) + ` <span class="muted">· ${esc(emp(d.author).pos)}, ${esc(deptOf(d.author).name)}</span>`],
     d.kind === 'out' && ['Адресаты', esc(d.addressees.map(addrName).join('; ') || '—')],
-    d.kind !== 'out' && ['Получатели', esc(d.recipients.map(r => empName(r.emp) + (d.kind === 'int' ? (r.mode === 'acq' ? ' — на ознакомление' : ' — на исполнение') : '')).join('; ') || '—')],
+    (d.kind !== 'out' || d.recipients.length) && ['Получатели', esc(d.recipients.map(r => empName(r.emp) + (d.kind === 'int' || r.mode === 'acq' ? (r.mode === 'acq' ? ' — на ознакомление' + (r.sent ? ' (направлен ' + fmt(r.sent.at) + ')' : '') : ' — на исполнение') : '')).join('; ') || '—')],
     d.kind !== 'in' && ['Согласующие', esc(d.approvers.map(empName).join(', ') || 'нет')], d.kind !== 'in' && ['Подписант', esc(d.signer ? empName(d.signer) : '—')],
     d.signed && ['Подписано', fmt(d.signed.at) + ' · ' + esc(empName(d.signed.by)) + (d.signed.onBehalf ? ' за ' + esc(empName(d.signed.onBehalf)) : '')],
     ['Срочность', esc(URG[d.urgency].name)], ['Цель', esc(PURPOSE[d.purpose])], d.kind === 'in' && ['Требует ответа', d.needsReply ? 'да' : 'нет'],
@@ -1521,7 +1987,7 @@ function resNode(d, r) {
 }
 function tabRes(d) {
   const tops = topRes(d);
-  const recips = d.recipients.filter(r => d.kind === 'in' || r.mode === 'exec');
+  const recips = d.recipients.filter(isExecRec);
   return `<div class="card"><div class="card-head"><h3>Резолюции</h3><span class="small">${esc(execText(d))}</span></div>
     ${recips.length ? `<div class="small" style="margin-bottom:8px">Получатели: ${recips.map(r => esc(empName(r.emp)) + ' — ' + (r.reviewed ? (r.reviewed.kind === 'info' ? 'к сведению ' : 'резолюция ') + fmt(r.reviewed.at) : 'не рассмотрел')).join('; ')}</div>` : ''}
     ${tops.map(r => resNode(d, r)).join('') || '<div class="muted">Резолюций нет</div>'}</div>`;
@@ -1540,11 +2006,15 @@ function tabSend(d) {
   }).join('')}</tbody></table>${x.done ? '<div class="small" style="margin-top:6px">Отправка закончена</div>' : ''}</div>`;
 }
 function tabAcq(d) {
-  const a = acqInfo(d);
-  return `<div class="card"><div class="card-head"><h3>Лист ознакомления · ознакомлены ${a.count}/${a.total}</h3></div>
-  <table class="cgrid"><thead><tr><th>Сотрудник</th><th>Должность</th><th>Ознакомлен</th></tr></thead><tbody>
-  ${d.recipients.filter(r => r.mode === 'acq').map(r => `<tr><td>${esc(empName(r.emp))}</td><td>${esc(emp(r.emp).pos)}</td><td>${r.acqAt ? fmt(r.acqAt) : '<span class="muted">не ознакомлен</span>'}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">Получателей на ознакомление нет</td></tr>'}
-  </tbody></table></div>`;
+  const a = acqInfo(d, true), R = d.recipients.filter(r => r.mode === 'acq');
+  return `<div class="card"><div class="card-head"><h3>Лист ознакомления · ознакомлены ${a.count}/${a.total}</h3><div class="btn-row">
+    ${R.length ? `<button class="btn btn-secondary btn-sm" data-testid="print-acq-btn" onclick="DF.uiPrintDoc('acq','${d.id}')">Печать листа ознакомления</button>` : ''}</div></div>
+  ${a.missing.length ? `<div class="small" style="margin-bottom:6px">Не ознакомлены: ${esc(a.missing.map(empName).join(', '))}</div>` : ''}
+  <table class="cgrid" data-testid="acq-sheet"><thead><tr><th>Сотрудник</th><th>Должность</th><th>Направлен</th><th>Ознакомлен</th></tr></thead><tbody>
+  ${R.map(r => `<tr><td>${esc(empName(r.emp))}</td><td>${esc(emp(r.emp).pos)}</td>
+    <td>${r.sent ? 'направлен позже ' + fmt(r.sent.at) + ' · ' + esc(empName(r.sent.by)) + ' · <span class="mono">' + esc(fileName(d, d.files.find(f => f.id === r.sent.fileId))) + '</span>' : 'при регистрации'}</td>
+    <td>${r.acqAt ? fmt(r.acqAt) : '<span class="muted">не ознакомлен</span>'}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Получателей на ознакомление нет</td></tr>'}
+  </tbody></table>${R.some(r => r.sent) ? '<div class="small" style="margin-top:6px">Направленные позже в исполнение документа и сдачу в дело не входят.</div>' : ''}</div>`;
 }
 function tabLinks(d) {
   const ml = missingLinks(d), m = measureView(d.id);
@@ -1553,10 +2023,19 @@ function tabLinks(d) {
     <table class="cgrid"><thead><tr><th>Вид объекта</th><th>Объект</th></tr></thead><tbody>${d.links.map(l => `<tr><td>${esc(LINK_KINDS[l.k])}</td><td>${esc(linkObj(l.k, l.id).label)}</td></tr>`).join('') || '<tr><td colspan="2" class="muted">Привязок нет</td></tr>'}</tbody></table></div>
     ${m ? `<div class="card" data-testid="measure"><h3>Что читает мера взыскания</h3>${kv([['Номер', esc(m.no || '—')], ['Событие (дата меры)', fmt(m.event)], d.kind === 'in' && ['Получение', fmt(m.received)],
       d.kind === 'out' && ['Адресат-должник', esc(m.debtor || '—')], d.kind === 'out' && ['Направлено', m.sent ? fmt(m.sent.date) + ' · ' + esc(m.sent.method) : '—'],
-      d.kind === 'out' && ['Вручено', m.delivered ? fmt(m.delivered.date) + ' · ' + esc(m.delivered.proof) : '—'], m.discrepancy && ['Метка', pill('err', 'расхождение: документ аннулирован')]])}</div>` : ''}`;
+      d.kind === 'out' && ['Вручено', m.delivered ? fmt(m.delivered.date) + ' · ' + esc(m.delivered.proof) : '—'], m.discrepancy && ['Метка', pill('err', 'расхождение: документ аннулирован')]])}</div>` : ''}
+    ${MEASURES.some(x => x.doc === d.id) ? `<div class="card" data-testid="measures"><h3>Меры взыскания, зарегистрированные из документа</h3>
+      <table class="cgrid"><thead><tr><th>Мера</th><th>Вид</th><th>Цель</th><th>Номер</th><th>Событие</th><th>Направлено</th><th>Вручено</th><th>Зарегистрирована</th></tr></thead><tbody>
+      ${MEASURES.filter(x => x.doc === d.id).map(x => { const v = measureView(d.id, x.target);
+        return `<tr><td class="mono">${esc(x.id)}</td><td>${esc(MEASURE_KINDS.find(k => k.id === x.kind).name)}</td><td>${esc(subjName(x.target))}</td><td>${esc(v.no)}</td><td>${fmt(v.event)}</td>
+          <td>${v.sent ? fmt(v.sent.date) + ' · ' + esc(v.sent.method) : '—'}</td><td>${v.delivered ? fmt(v.delivered.date) : '—'}</td><td>${fmt(x.at)} · ${esc(empName(x.by))}</td></tr>`; }).join('')}</tbody></table>
+      <div class="small" style="margin-top:6px">Номер и даты мера не хранит — читает из документа; исправление в документе мера видит сразу.</div></div>` : ''}`;
 }
 function tabLog(d) {
-  return `<div class="card"><h3>Журнал действий</h3>${d.log.slice().reverse().map(l => `<div class="logrow"><span class="mono">${fmt(l.at)}</span> · ${esc(l.by ? empName(l.by) : 'система')} · <b>${esc(l.act)}</b>${l.text ? ' — ' + esc(l.text) : ''}</div>`).join('')}</div>`;
+  return `<div class="card"><h3>Журнал действий</h3>${d.log.slice().reverse().map(l => `<div class="logrow"><span class="mono">${fmt(l.at)}</span> · ${esc(l.by ? empName(l.by) : 'система')} · <b>${esc(l.act)}</b>${l.text ? ' — ' + esc(l.text) : ''}</div>`).join('')}</div>
+  ${d.legacyTasks ? `<div class="card" data-testid="legacy-tasks"><h3>История задач старой системы</h3><table class="cgrid"><thead><tr><th>Задача</th><th>Исполнитель</th><th>Состояние</th></tr></thead><tbody>
+    ${d.legacyTasks.map(t => `<tr><td>${esc(t.text)}</td><td>${esc(t.who)}</td><td>${esc(t.state)}</td></tr>`).join('')}</tbody></table>
+    <div class="small" style="margin-top:6px">Задачи старой системы заданиями не становятся.</div></div>` : ''}`;
 }
 function tabCom(d) {
   return `<div class="card"><h3>Комментарии</h3>${d.comments.map(c => `<div class="logrow"><span class="mono">${fmt(c.at)}</span> · <b>${esc(empName(c.by))}</b>: ${esc(c.text)}</div>`).join('') || '<div class="muted">Комментариев нет</div>'}
@@ -1570,16 +2049,18 @@ function viewArchive() {
   const vis = DOCS.filter(d => canSee(d, u) && !d.deleted);
   let body = '';
   if (S.archTab === 'cases') {
-    const c = S.caseOpen && caseOf(S.caseOpen);
-    body = `<table class="cgrid" data-testid="cases"><thead><tr><th>Индекс</th><th>Дело</th><th>Год</th><th>Подразделение</th><th>Срок хранения</th><th>Место хранения</th><th class="num">Документов</th></tr></thead><tbody>
-      ${CASES.map(k => `<tr class="click" onclick="DF.openCase('${k.id}')"><td class="mono">${esc(k.idx)}</td><td>${esc(k.name)}</td><td>${k.year}</td><td>${esc((DEPTS.find(x => x.id === k.dept) || {}).name)}</td><td>${esc(k.keep)}</td><td>${esc(k.place)}</td>
-        <td class="num">${vis.filter(d => d.caseId === k.id).length}</td></tr>`).join('')}</tbody></table>
-      ${c ? `<div class="section-h">Дело ${esc(c.idx)} ${esc(c.name)}</div><table class="cgrid"><thead><tr><th>Вид</th><th>Номер</th><th>Тема</th><th>Сдан</th></tr></thead><tbody>
+    const c = S.caseOpen && caseOf(S.caseOpen), ag = archGate(u) || yes, y = clockYear();
+    body = `<div class="btn-row" style="margin-bottom:10px">${btn('Завести дело', `DF.uiCase()`, ag, 'btn-primary', 'case-new')} ${btn('Скопировать номенклатуру ' + y + ' на ' + (y + 1), `DF.uiDo2('casesCopy', ${y}, ${y + 1})`, ag, 'btn-secondary', 'case-copy')}</div>
+      <table class="cgrid" data-testid="cases"><thead><tr><th>Индекс</th><th>Дело</th><th>Год</th><th>Подразделение</th><th>Срок хранения</th><th>Место хранения</th><th class="num">Документов</th><th></th></tr></thead><tbody>
+      ${CASES.slice().sort((a, b) => b.year - a.year || a.idx.localeCompare(b.idx)).map(k => `<tr class="click" onclick="DF.openCase('${k.id}')"><td class="mono">${esc(k.idx)}</td><td>${esc(k.name)}</td><td>${k.year}</td><td>${esc((DEPTS.find(x => x.id === k.dept) || {}).name)}</td><td>${esc(k.keep)}</td><td>${esc(k.place || '—')}</td>
+        <td class="num">${vis.filter(d => d.caseId === k.id).length}</td><td>${isArch(u) ? `<button class="btn btn-secondary btn-sm" data-testid="case-edit-${k.id}" onclick="event.stopPropagation();DF.uiCase('${k.id}')">Изменить</button>` : ''}</td></tr>`).join('')}</tbody></table>
+      ${c ? `<div class="card-head" style="margin-top:18px"><h3>Дело ${esc(c.idx)} ${esc(c.name)} · ${c.year}</h3><div class="btn-row">${btn('Печать описи дела', `DF.uiPrintCase('${c.id}')`, isArch(u) || isReg(u) ? yes : no('опись дела печатает архивариус или регистратор'), 'btn-secondary', 'print-case-btn')}</div></div>
+        <table class="cgrid"><thead><tr><th>Вид</th><th>Номер</th><th>Тема</th><th>Сдан</th></tr></thead><tbody>
         ${vis.filter(d => d.caseId === c.id).map(d => `<tr><td>${KINDS[d.kind].short}</td><td>${openLink(d, noText(d))}</td><td>${esc(d.subject)}</td><td>${fmt(d.filedAt)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Пусто</td></tr>'}</tbody></table>` : ''}`;
   } else if (S.archTab === 'ready') {
     const L = vis.filter(d => !d.legacy && fileReady(d).ok);
     body = `<table class="cgrid" data-testid="ready"><thead><tr><th>Вид</th><th>Номер</th><th>Тема</th><th>Дело по типу</th></tr></thead><tbody>
-      ${L.map(d => `<tr><td>${KINDS[d.kind].short}</td><td>${openLink(d, noText(d))}</td><td>${esc(d.subject)}</td><td>${esc((caseOf(typeOf(d.type).caseId) || {}).name || '—')}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Нет</td></tr>'}</tbody></table>`;
+      ${L.map(d => `<tr><td>${KINDS[d.kind].short}</td><td>${openLink(d, noText(d))}</td><td>${esc(d.subject)}</td><td>${esc((defaultCase(typeOf(d.type)) || {}).name || '—')}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Нет</td></tr>'}</tbody></table>`;
   } else {
     body = `<table class="cgrid" data-testid="issues"><thead><tr><th>Документ</th><th>Кому выдан</th><th>Когда</th><th>До</th><th>Возвращён</th><th></th></tr></thead><tbody>
       ${ISSUES.filter(i => canSee(doc(i.doc), u)).map(i => `<tr class="${!i.returned && i.until < S.clock ? 'over' : ''}"><td>${openLink(doc(i.doc), KINDS[doc(i.doc).kind].short + ' ' + noText(doc(i.doc)))}</td><td>${esc(empName(i.to))}</td>
@@ -1599,27 +2080,75 @@ function viewIndicators() {
     ${R.map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${esc(v)}</td></tr>`).join('')}</tbody></table>`;
 }
 function viewSettings() {
-  const T_ = [['types', 'Типы документов'], ['sign', 'Право подписи'], ['methods', 'Способы отправки'], ['depts', 'Коды отделов'], ['phrases', 'Фразы резолюций'], ['subst', 'Замещения'], ['tasks', 'Шаги для заданий']];
+  const T_ = [['types', 'Типы документов'], ['sign', 'Право подписи'], ['methods', 'Способы отправки'], ['depts', 'Коды отделов'], ['phrases', 'Фразы резолюций'], ['subst', 'Замещения'],
+    ['cal', 'Производственный календарь'], ['tasks', 'Шаги для заданий'], ['migr', 'Перенос'], ['dlog', 'Журнал справочников']];
+  const u = S.user, ag = adminGate(u) || yes, A = isAdmin(u);
+  const top = (label, on, tid) => `<div class="btn-row" style="margin-bottom:10px">${btn(label, on, ag, 'btn-primary', tid)}</div>`;
+  const ed = (on, tid) => A ? `<button class="btn btn-secondary btn-sm" data-testid="${tid}" onclick="${on}">Изменить</button>` : '';
   let b = '';
-  if (S.setTab === 'types') b = `<table class="cgrid"><thead><tr><th>Вид</th><th>Тип</th><th>Цель</th><th>Требует ответа</th><th>Обязательная привязка</th><th>Дело по умолчанию</th><th>Срочность</th><th>Признаки</th></tr></thead><tbody>
-    ${TYPES.map(t => `<tr><td>${KINDS[t.kind].short}</td><td>${esc(t.name)}</td><td>${esc(PURPOSE[t.purpose])}</td><td>${t.kind === 'in' ? (t.reply ? 'да' : 'нет') : '—'}</td><td>${esc(t.links.map(k => LINK_KINDS[k].toLowerCase()).join(' + ') || '—')}</td>
-      <td>${esc(t.caseId ? caseOf(t.caseId).idx : '—')}</td><td>${esc(URG[t.urgency].name)}</td><td>${t.legacyOnly ? 'только для перенесённых' : ''}${t.active ? '' : 'выведен из употребления'}</td></tr>`).join('')}</tbody></table>`;
-  if (S.setTab === 'sign') b = `<table class="cgrid"><thead><tr><th>Сотрудник</th><th>Типы документов</th><th>Основание</th><th>С</th><th>По</th></tr></thead><tbody>
-    ${SIGN.map(s => `<tr class="${s.to < S.clock ? 'gone' : ''}"><td>${esc(empName(s.emp))}</td><td>${s.types.length === OUT_ALL.length ? 'все исходящие и внутренние' : esc(s.types.map(t => KINDS[typeOf(t).kind].short + ' ' + typeOf(t).name).join(', '))}</td><td>${esc(s.basis)}</td><td>${fmt(s.from)}</td><td>${fmt(s.to)}</td></tr>`).join('')}</tbody></table>`;
-  if (S.setTab === 'methods') b = `<table class="cgrid"><thead><tr><th>Способ</th><th>Почтовый идентификатор</th><th>Подтверждение</th></tr></thead><tbody>${Object.values(METHODS).map(m => `<tr><td>${esc(m.name)}</td><td>${m.track ? 'обязателен' : '—'}</td><td>${esc(m.proof || '—')}</td></tr>`).join('')}</tbody></table>`;
-  if (S.setTab === 'depts') b = `<table class="cgrid"><thead><tr><th>Подразделение</th><th>Код отдела</th></tr></thead><tbody>${DEPTS.map(x => `<tr><td>${esc(x.name)}</td><td class="mono">${esc(x.code || '—')}</td></tr>`).join('')}</tbody></table>`;
-  if (S.setTab === 'phrases') b = `<table class="cgrid"><tbody>${PHRASES.map(p => `<tr><td>${esc(p)}</td></tr>`).join('')}</tbody></table>`;
-  if (S.setTab === 'subst') b = `<table class="cgrid"><thead><tr><th>Замещающий</th><th>Кого</th><th>С</th><th>По</th><th>С правом подписи</th><th>Приказ</th></tr></thead><tbody>
-    ${SUBST.map(s => `<tr><td>${esc(empName(s.who))}</td><td>${esc(empName(s.for))}</td><td>${fmt(s.from)}</td><td>${fmt(s.to)}</td><td>${s.signRight ? 'да' : 'нет'}</td><td>${esc(s.order)}</td></tr>`).join('')}</tbody></table>`;
-  if (S.setTab === 'tasks') {
-    const P = povods(), docLbl = id => { const d = doc(id); return d ? KINDS[d.kind].short + ' ' + (noText(d) || 'черновик') : ''; };
-    const addr = a => a.role ? 'очередь роли «' + SYS_ROLES[a.role] + '»' : empName(a.emp) + (a.personal ? ' (лично)' : '');
-    b = `<div class="section-h">Ответ на опрос: открытые шаги · ${P.length}</div><table class="cgrid" data-testid="povods"><thead><tr><th>Шаг</th><th>Документ</th><th>Адресат</th><th>Срок</th><th>Взял</th></tr></thead><tbody>
-      ${P.map(p => { const t = TASKS.find(x => x.open && x.key === p.key); return `<tr><td>${esc(POVOD_NAME[p.kind])}</td><td>${openLink(doc(p.doc), docLbl(p.doc))}</td><td>${esc(addr(p.addr))}</td><td>${dueCell(p.due)}</td><td>${esc(t && t.taken ? empName(t.taken) : '')}</td></tr>`; }).join('')}</tbody></table>
-      <div class="section-h">Закрытые шаги</div><table class="cgrid"><thead><tr><th>Задание</th><th>Шаг</th><th>Документ</th><th>Исход</th><th>Пометка</th><th>Закрыто</th></tr></thead><tbody>
-      ${TASKS.filter(t => !t.open).slice().reverse().map(t => `<tr><td class="mono">${esc(t.id)}${t.repeatOf ? ' <span class="muted">повтор после ' + esc(t.repeatOf) + '</span>' : ''}</td><td>${esc(POVOD_NAME[t.kind])}</td><td>${esc(docLbl(t.doc))}</td><td>${esc(t.outcome)}</td><td>${esc(t.note)}</td><td>${fmt(t.closedAt)}</td></tr>`).join('')}</tbody></table>`;
+  if (S.setTab === 'types') b = top('Добавить тип', `DF.uiType()`, 'type-new') + `<table class="cgrid" data-testid="types"><thead><tr><th>Вид</th><th>Тип</th><th>Цель</th><th>Требует ответа</th><th>Обязательная привязка</th><th>Дело по умолчанию</th><th>Срочность</th><th>Признаки</th><th></th></tr></thead><tbody>
+    ${TYPES.map(t => `<tr class="${t.active ? '' : 'gone'}"><td>${KINDS[t.kind].short}</td><td>${esc(t.name)}</td><td>${esc(PURPOSE[t.purpose])}</td><td>${t.kind === 'in' ? (t.reply ? 'да' : 'нет') : '—'}</td><td>${esc(t.links.map(k => LINK_KINDS[k].toLowerCase()).join(' + ') || '—')}</td>
+      <td>${esc(t.caseId ? caseOf(t.caseId).idx : '—')}</td><td>${esc(URG[t.urgency].name)}</td><td>${t.legacyOnly ? 'только для перенесённых' : ''}${t.active ? '' : 'выведен из употребления'}</td>
+      <td>${t.legacyOnly ? '' : ed(`DF.uiType('${t.id}')`, 'type-edit-' + t.id)}</td></tr>`).join('')}</tbody></table>`;
+  if (S.setTab === 'sign') b = top('Добавить право подписи', `DF.uiSign()`, 'sign-new') + `<table class="cgrid" data-testid="signs"><thead><tr><th>Строка</th><th>Сотрудник</th><th>Типы документов</th><th>Основание</th><th>С</th><th>По</th><th></th></tr></thead><tbody>
+    ${SIGN.map(x => `<tr class="${x.to < S.clock ? 'gone' : ''}"><td class="mono">${esc(x.id)}</td><td>${esc(empName(x.emp))}</td><td>${x.types.length === OUT_ALL.length ? 'все исходящие и внутренние' : esc(x.types.map(t => KINDS[typeOf(t).kind].short + ' ' + typeOf(t).name).join(', '))}</td><td>${esc(x.basis)}</td><td>${fmt(x.from)}</td><td>${fmt(x.to)}</td>
+      <td>${ed(`DF.uiSign('${x.id}')`, 'sign-edit-' + x.id)}</td></tr>`).join('')}</tbody></table>
+    <div class="small" style="margin-top:6px">Строка не правится задним числом: у действующей меняются срок окончания (не раньше сегодняшнего дня) и основание; истёкшая не продлевается, другой набор типов — новой строкой.</div>`;
+  if (S.setTab === 'methods') b = top('Добавить способ', `DF.uiMethod()`, 'method-new') + `<table class="cgrid" data-testid="methods"><thead><tr><th>Способ</th><th>Почтовый идентификатор</th><th>Подтверждение</th><th></th></tr></thead><tbody>
+    ${Object.entries(METHODS).map(([k, m]) => `<tr><td>${esc(m.name)}</td><td>${m.track ? 'обязателен' : '—'}</td><td>${esc(m.proof || '—')}</td><td>${ed(`DF.uiMethod('${k}')`, 'method-edit-' + k)}</td></tr>`).join('')}</tbody></table>`;
+  if (S.setTab === 'depts') b = `<div class="small" style="margin-bottom:8px">Коды отделов ведут «Сотрудники и оргструктура» — здесь только чтение.</div><table class="cgrid"><thead><tr><th>Подразделение</th><th>Код отдела</th><th>Руководитель</th></tr></thead><tbody>${DEPTS.map(x => `<tr><td>${esc(x.name)}</td><td class="mono">${esc(x.code || '—')}</td><td>${esc(x.head ? empName(x.head) : '—')}</td></tr>`).join('')}</tbody></table>`;
+  if (S.setTab === 'phrases') b = top('Добавить фразу', `DF.uiPhrase()`, 'phrase-new') + `<table class="cgrid" data-testid="phrases"><tbody>${PHRASES.map((p, i) => `<tr><td>${esc(p)}</td><td style="width:1%;white-space:nowrap">${A ? `${ed(`DF.uiPhrase(${i})`, 'phrase-edit-' + i)} <button class="btn btn-danger btn-sm" onclick="DF.uiDo2('phraseRemove', ${i})">Удалить</button>` : ''}</td></tr>`).join('')}</tbody></table>`;
+  if (S.setTab === 'subst') b = `<div class="small" style="margin-bottom:8px">Приказы о замещении ведут «Сотрудники» — здесь только чтение.</div><table class="cgrid"><thead><tr><th>Замещающий</th><th>Кого</th><th>С</th><th>По</th><th>С правом подписи</th><th>Приказ</th></tr></thead><tbody>
+    ${SUBST.map(x => `<tr><td>${esc(empName(x.who))}</td><td>${esc(empName(x.for))}</td><td>${fmt(x.from)}</td><td>${fmt(x.to)}</td><td>${x.signRight ? 'да' : 'нет'}</td><td>${esc(x.order)}</td></tr>`).join('')}</tbody></table>`;
+  if (S.setTab === 'cal') {
+    const y = clockYear(), rec = CALENDAR_YEARS[y];
+    b = `<div class="small" style="margin-bottom:8px">Общий производственный календарь системы — ведёт его владелец справочника; своего календаря у документооборота нет. Здесь только чтение.</div>
+    <table class="cgrid" data-testid="calendar" style="max-width:720px"><thead><tr><th>Год</th><th>Состояние</th><th>Праздники и переносы</th><th>Рабочие субботы</th></tr></thead><tbody>
+      ${[...new Set([...Object.keys(CALENDAR_YEARS).map(Number), y, y + 1])].sort().map(k => { const r = CALENDAR_YEARS[k];
+        return `<tr class="${r ? '' : 'over'}"><td>${k}</td><td>${r ? 'заведён' : '<span class="red">не заведён — сроки в рабочих днях считаются по сб/вс с отметкой</span>'}</td><td>${r ? r.holidays.map(fmt).join(', ') : '—'}</td><td>${r ? r.workdays.map(fmt).join(', ') : '—'}</td></tr>`; }).join('')}</tbody></table>
+    <div class="small" style="margin-top:6px">Постоянные праздники (на любой год): ${CALENDAR_FIXED.map(x => x.slice(3) + '.' + x.slice(0, 2)).join(', ')}.${rec ? '' : ' Календарь текущего года не заведён.'}</div>`;
   }
+  if (S.setTab === 'tasks') b = viewTasks();
+  if (S.setTab === 'migr') {
+    b = `<div class="btn-row" style="margin-bottom:10px">${btn('Повторить прогон переноса', `DF.uiDo2('migrationRun')`, isAdmin(u) ? yes : no('перенос запускает администратор документооборота'), 'btn-primary', 'migr-run')}</div>
+    <table class="cgrid" data-testid="migr"><thead><tr><th>Прогон</th><th>Когда · кто</th><th class="num">В источнике</th><th class="num">Новых</th><th class="num">Уже были</th><th class="num">Файлов (переименованы)</th><th class="num">Записей журнала</th>
+      <th class="num">Задач · закрыто при переносе</th><th class="num">Дата сомнительна</th><th class="num">Номеров-дублей</th><th>Счётчики года</th></tr></thead><tbody>
+    ${MIGRATIONS.slice().reverse().map(r => `<tr><td>${r.n}</td><td>${fmt(r.at)} · ${esc(empName(r.by))}</td><td class="num">${r.found}</td><td class="num">${r.created}</td><td class="num">${r.skipped}</td><td class="num">${r.files}</td><td class="num">${r.logs}</td>
+      <td class="num">${r.tasks} · ${r.tasksClosed}</td><td class="num">${r.dubious}</td><td class="num">${r.dupNumbers}</td>
+      <td>${r.counters.map(c => `${KINDS[c.kind].short} ${c.year}: старая система ${c.src}, было ${c.before}, стало ${c.after}`).join('<br>')}</td></tr>`).join('')}</tbody></table>
+    <div class="small" style="margin-top:6px">Ключ переноса — номер записи старой системы: повторный прогон новых документов не создаёт. Счётчик года ставится на максимум старой системы и не понижается: выданные новой системой номера продолжаются. Исходные имена файлов не переносятся, задачи старой системы заданиями не становятся.</div>`;
+  }
+  if (S.setTab === 'dlog') b = `<table class="cgrid" data-testid="dictlog"><thead><tr><th>Когда</th><th>Кто</th><th>Справочник</th><th>Действие</th><th>Что</th></tr></thead><tbody>
+    ${DICTLOG.slice().reverse().map(l => `<tr><td>${fmt(l.at)}</td><td>${esc(empName(l.by))}</td><td>${esc(l.dict)}</td><td>${esc(l.act)}</td><td>${esc(l.text)}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Правок справочников нет</td></tr>'}</tbody></table>`;
   return `<div class="tabs">${T_.map(([k, l]) => `<button class="tab${k === S.setTab ? ' on' : ''}" data-testid="set-${k}" onclick="DF.setTab('${k}')">${l}</button>`).join('')}</div>${b}`;
+}
+/* «Шаги для заданий» — то, что видит шов: ответ на опрос, задания, валы, сигналы «Заданий», порог свёртки. */
+function viewTasks() {
+  const u = S.user, P = povods(), docLbl = id => { const d = doc(id); return d ? KINDS[d.kind].short + ' ' + (noText(d) || 'черновик') : ''; };
+  const addr = a => a.role ? 'очередь роли «' + SYS_ROLES[a.role] + '»' : empName(a.emp) + (a.personal ? ' (лично)' : '');
+  const taskOf = key => TASKS.find(t => t.open && (t.key === key || (t.val && t.items.some(i => i.live && i.key === key))));
+  const dueTxt = (due, base) => { const n = base ? calNote(base, due) : ''; return dueCell(due) + (n ? `<div class="why err" data-testid="cal-note">${esc(n)}</div>` : ''); };
+  const state = t => !t ? '' : t.addr.role ? (t.taken ? 'взял ' + esc(empName(t.taken)) : 'в очереди · не взято')
+    + (!t.taken && hasRole(u, t.addr.role) ? ` <button class="btn btn-secondary btn-sm" data-testid="take-${t.id}" onclick="DF.uiTake('${t.id}')">Взять в работу</button>` : '') : 'в работе';
+  const subsTxt = t => { if (!t) return ''; const v = taskViewers(t); return v.subs.map(x => esc(empName(x.emp)) + ' за ' + esc(empName(x.for)) + (x.afterIssue ? ' · замещение после выдачи — задание не переносится' : '')).join('<br>'); };
+  const vals = TASKS.filter(t => t.val), sig = taskSignals();
+  return `<div class="section-h">Ответ на опрос: открытые шаги · ${P.length}</div><table class="cgrid" data-testid="povods"><thead><tr><th>Шаг</th><th>Документ</th><th>Адресат</th><th>Срок</th><th>Задание</th><th>Состояние</th><th>Действует за адресата</th></tr></thead><tbody>
+      ${P.map(p => { const t = taskOf(p.key); return `<tr><td>${esc(POVOD_NAME[p.kind])}</td><td>${openLink(doc(p.doc), docLbl(p.doc))}</td><td>${esc(addr(p.addr))}</td><td>${dueTxt(p.due, p.base)}</td>
+        <td class="mono">${t ? esc(t.id) + (t.val ? ' (вал)' : '') : ''}</td><td>${state(t)}</td><td>${subsTxt(t)}</td></tr>`; }).join('')}</tbody></table>
+    <div class="small" style="margin-top:6px">У названного адресата шага «Взять в работу» нет — задание сразу в работе; очередь роли берёт любой носитель роли.</div>
+    ${vals.length ? `<div class="section-h">Вал-задания</div><table class="cgrid" data-testid="vals"><thead><tr><th>Задание</th><th>Шаг</th><th>Адресат</th><th>Шагов: живых / всего</th><th>Срок</th><th>Состояние</th><th>Документы</th></tr></thead><tbody>
+      ${vals.slice().reverse().map(t => `<tr class="${t.open ? '' : 'gone'}"><td class="mono">${esc(t.id)}</td><td>${esc(POVOD_NAME[t.kind])}</td><td>${esc(addr(t.addr))}</td><td>${t.items.filter(i => i.live).length} / ${t.items.length}</td>
+        <td>${dueCell(t.open ? t.due : null) === '—' ? fmt(t.due) : dueCell(t.due)}</td><td>${t.open ? state(t) : esc(t.outcome + (t.note ? ' · ' + t.note : ''))}</td>
+        <td class="small">${t.items.map(i => esc(docLbl(i.doc) + ' · ' + (doc(i.doc) || {}).subject) + (i.live ? '' : ' — ' + esc(i.outcome + (i.note ? ': ' + i.note : '')))).join('<br>')}</td></tr>`).join('')}</tbody></table>
+      <div class="small" style="margin-top:6px">Вал собирается, когда за один прогон опроса одному адресату пришло больше шагов одного вида, чем порог. Подписать вал можно пачкой: «Мои» → «Ждут моей подписи».</div>` : ''}
+    <div class="section-h">Сигналы «Заданий» на ${fmt(S.clock)} · ${sig.length}</div><table class="cgrid" data-testid="signals"><thead><tr><th>Задание</th><th>Шаг · документ</th><th>Срок</th><th>Сигнал</th><th>Кому</th></tr></thead><tbody>
+      ${sig.map(x => `<tr class="${x.kind === 'escalation' || x.kind === 'overdue' || x.kind === 'nobody' ? 'over' : ''}"><td class="mono">${esc(x.task.id)}</td><td>${esc(POVOD_NAME[x.task.kind])} · ${esc(x.task.val ? 'вал' : docLbl(x.task.doc))}</td>
+        <td>${fmt(x.task.due)}</td><td>${esc(x.text)}</td><td>${esc(x.to.map(empName).join(', '))}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Просроченных заданий нет</td></tr>'}</tbody></table>
+    <div class="small" style="margin-top:6px">Сигналы шлют «Задания», документооборот только отвечает на опрос. Очередь, которую никто не взял, — сразу руководителю подразделения роли; на 5-й рабочий день — администратору документооборота. Названное или взятое — исполнителю «срок истёк», на 5-й рабочий день руководителю «Просрочено задание».</div>
+    <div class="section-h">Порог свёртки по видам шагов</div><table class="cgrid" data-testid="thresholds" style="max-width:560px"><thead><tr><th>Вид шага</th><th class="num">Порог</th><th></th></tr></thead><tbody>
+      ${Object.keys(POVOD_NAME).map(k => `<tr><td>${esc(POVOD_NAME[k])}</td><td class="num">${thresholdOf(k)}</td><td>${isAdmin(u) ? `<button class="btn btn-secondary btn-sm" data-testid="thr-${k}" onclick="DF.uiThreshold('${k}')">Изменить</button>` : ''}</td></tr>`).join('')}</tbody></table>
+    <div class="section-h">Закрытые шаги</div><table class="cgrid"><thead><tr><th>Задание</th><th>Шаг</th><th>Документ</th><th>Исход</th><th>Пометка</th><th>Закрыто</th></tr></thead><tbody>
+      ${TASKS.filter(t => !t.open).slice().reverse().map(t => `<tr><td class="mono">${esc(t.id)}${t.repeatOf ? ' <span class="muted">повтор после ' + esc(t.repeatOf) + '</span>' : ''}</td><td>${esc(POVOD_NAME[t.kind])}${t.val ? ' (вал)' : ''}</td><td>${esc(t.val ? 'шагов ' + t.items.length : docLbl(t.doc))}</td><td>${esc(t.outcome)}</td><td>${esc(t.note)}</td><td>${fmt(t.closedAt)}</td></tr>`).join('')}</tbody></table>`;
 }
 
 function render() {
@@ -1739,7 +2268,7 @@ function uiRes(docId, parent) {
   openForm({ title: parent ? 'Резолюция ниже' : 'Резолюция', submit: 'Дать резолюцию', fields: [
     { id: 'phrase', label: 'Фраза', type: 'select', options: PHRASES.map(p => [p, p]), value: PHRASES[0], wide: true }, { id: 'extra', label: 'Дописать', wide: true },
     { id: 'resp', label: 'Ответственный', type: 'select', empty: true, options: empOpts(), req: true }, { id: 'co', label: 'Соисполнители', type: 'multi', options: empOpts(), value: [] },
-    { id: 'due', label: 'Срок', type: 'date', value: defaultDue(d, parent), req: true }],
+    { id: 'due', label: 'Срок' + (parent ? '' : (n => n ? ' (' + n + ')' : '')(calNote(d.regDate, defaultDue(d, parent)))), type: 'date', value: defaultDue(d, parent), req: true }],
     run: v => giveRes(docId, S.user, { parent, text: [v.phrase, v.extra].filter(Boolean).join('. '), resp: v.resp, co: v.co, due: toIso(v.due) }) });
 }
 function uiAttach(id, role, replace) {
@@ -1769,7 +2298,7 @@ function uiCorrect(id) {
 }
 function uiFile(id) {
   const d = doc(id);
-  openForm({ title: 'Сдать в дело', submit: 'Сдать', fields: [{ id: 'caseId', label: 'Дело', type: 'select', options: CASES.map(c => [c.id, c.year + ' · ' + c.idx + ' ' + c.name]), value: typeOf(d.type).caseId || '', wide: true }],
+  openForm({ title: 'Сдать в дело', submit: 'Сдать', fields: [{ id: 'caseId', label: 'Дело', type: 'select', options: CASES.map(c => [c.id, c.year + ' · ' + c.idx + ' ' + c.name]), value: (defaultCase(typeOf(d.type)) || {}).id || '', wide: true }],
     run: v => fileToCase(id, S.user, v.caseId) });
 }
 function uiIssue(id) {
@@ -1792,6 +2321,93 @@ function uiSaveSet() { S.saved.push({ name: 'Набор ' + (S.saved.length + 1)
 function applySet(i) { const s = S.saved[i]; if (!s) return; S.view = s.view; S.q = s.q; S.f = Object.assign({}, s.f); render(); }
 function uiComment(id) { const el = document.getElementById('newCom'); const r = comment(id, S.user, el ? el.value : ''); toast(r.ok ? 'Комментарий добавлен' : r.why, r.ok ? 'ok' : 'err'); render(); return r; }
 
+/* --------------------------- формы волны 2 --------------------------- */
+const ACT2 = { casesCopy: (u, a, b) => casesCopy(u, a, b), phraseRemove: (u, i) => phraseRemove(u, i), migrationRun: u => migrationRun(u) };
+function uiDo2(a, ...args) { const r = ACT2[a](S.user, ...args); toast(r.ok ? (r.msg || 'Готово') : r.why, r.ok ? 'ok' : 'err'); render(); return r; }
+function showPrint(r) { if (!r.ok) { toast(r.why, 'err'); return r; } openForm({ title: r.title, noSubmit: true, fields: [{ id: 'p', label: '', type: 'html', html: r.html, wide: true }], run: () => yes }); return r; }
+function uiPrintDoc(kind, id) { return showPrint(kind === 'rkk' ? printRkk(id, S.user) : printAcq(id, S.user)); }
+function uiPrintCase(id) { return showPrint(printCase(id, S.user)); }
+function uiTake(taskId) { const r = takeTask(taskId, S.user); toast(r.ok ? 'Задание взято в работу' : r.why, r.ok ? 'ok' : 'err'); render(); return r; }
+function pickAll(v) { document.querySelectorAll('input.pick').forEach(x => { x.checked = v; }); }
+function uiSignBatch(ids) {
+  if (!ids) { ids = [...document.querySelectorAll('input.pick:checked')].map(x => x.dataset.id); }
+  if (!ids.length) { toast('Не выбрано ни одного документа', 'err'); return no('не выбрано ни одного документа'); }
+  const r = signBatch(ids, S.user); toast(r.msg, r.ok ? 'ok' : 'err'); render(); return r;
+}
+function uiSendAcq(id) {
+  const d = doc(id), canNew = isReg(S.user) || d.author === S.user;
+  openForm({ title: 'Направить на ознакомление', submit: 'Направить', msg: 'Направлено на ознакомление', fields: [
+    { id: 'emps', label: 'Кому', type: 'multi', options: empOpts(), value: [], req: true, wide: true },
+    { id: 'fileId', label: 'Файл документа', type: 'select', empty: true, options: d.files.map(f => [f.id, fileName(d, f)]), value: '', wide: true },
+    { id: 'file', label: canNew ? 'или новый файл (ляжет ролью «приложение»)' : 'новый файл добавляет регистратор или автор', ph: canNew ? 'например, raz-yasnenie.pdf' : '', wide: true }],
+    run: v => sendForAcq(id, S.user, { emps: v.emps, fileId: v.fileId || null, file: v.file }) });
+}
+function uiMeasure(id) {
+  const d = doc(id), need = d.kind === 'in' ? 'in' : 'our', T_ = measureTargets(d);
+  const m = measureView(id, T_[0]) || {};
+  const html = `<div class="small">Мера не принимает номер и даты — читает их из документа: номер <b>${esc(m.no || '—')}</b>, событие ${fmt(m.event)}${d.kind === 'in' ? ', получение ' + fmt(m.received) : ''}${m.sent ? ', направлено ' + fmt(m.sent.date) + ' · ' + esc(m.sent.method) : ''}${m.delivered ? ', вручено ' + fmt(m.delivered.date) : ''}.</div>`;
+  openForm({ title: 'Зарегистрировать меру взыскания', submit: 'Зарегистрировать', msg: 'Мера зарегистрирована во «Взыскании»', fields: [
+    { id: 'kind', label: 'Вид меры', type: 'select', options: MEASURE_KINDS.filter(k => k.doc === need).map(k => [k.id, k.name]), value: MEASURE_KINDS.find(k => k.doc === need).id, req: true },
+    { id: 'target', label: 'Цель меры (обязанное лицо)', type: 'select', options: T_.map(x => [x, subjName(x)]), value: T_[0] || '', req: true },
+    { id: 'info', label: 'Что мера прочитает', type: 'html', html, wide: true }],
+    run: v => registerMeasure(id, S.user, { kind: v.kind, target: v.target }) });
+}
+function uiPack() {
+  openForm({ title: 'Пачка выпусков «Отчётности»', submit: 'Создать черновики', fields: [
+    { id: 'pack', label: 'Пачка', type: 'select', options: PACKS.map(p => [p.id, p.id + ' · ' + p.template + ' · ' + p.items.length + ' шт.' + (p.docIds.length ? ' (черновики созданы)' : '')]), value: PACKS[0].id, wide: true },
+    { id: 'signer', label: 'Подписант (общий маршрут)', type: 'select', empty: true, options: signers(PACKS[0].type).map(e => [e, empName(e)]), value: '' },
+    { id: 'submit', label: 'Сразу отправить по маршруту', type: 'check', text: 'да', value: true }],
+    run: v => { const r = fromBlankPack(v.pack, S.user, { signer: v.signer, submit: !!v.submit }); if (r.ok) { S.view = 'out'; } return r; } });
+}
+function uiType(id) {
+  const t = id ? typeOf(id) : null;
+  openForm({ title: t ? 'Тип документа' : 'Новый тип документа', submit: 'Сохранить', msg: 'Справочник типов сохранён', fields: [
+    { id: 'kind', label: 'Вид', type: 'select', options: Object.entries(KINDS).map(([k, x]) => [k, x.name]), value: t ? t.kind : 'out', req: true },
+    { id: 'name', label: 'Наименование', value: t ? t.name : '', req: true, wide: true },
+    { id: 'purpose', label: 'Цель по умолчанию', type: 'select', options: Object.entries(PURPOSE), value: t ? t.purpose : 'exec' },
+    { id: 'urgency', label: 'Срочность по умолчанию', type: 'select', options: Object.entries(URG).map(([k, x]) => [k, x.name]), value: t ? t.urgency : 'normal' },
+    { id: 'reply', label: 'Требует ответа (входящий)', type: 'check', text: 'да', value: t ? t.reply : false },
+    { id: 'active', label: 'Действует', type: 'check', text: 'да', value: t ? t.active : true },
+    { id: 'links', label: 'Обязательная привязка', type: 'multi', options: Object.entries(LINK_KINDS), value: t ? t.links : [] },
+    { id: 'caseId', label: 'Дело по умолчанию', type: 'select', empty: true, options: CASES.filter(c => c.year === clockYear()).map(c => [c.id, c.idx + ' ' + c.name]), value: t ? (defaultCase(t) || {}).id || '' : '' }],
+    run: v => typeSave(S.user, { id, kind: v.kind, name: v.name, purpose: v.purpose, urgency: v.urgency, reply: v.reply, active: v.active, links: v.links, caseId: v.caseId || null }) });
+}
+function uiPhrase(i) {
+  openForm({ title: i != null ? 'Фраза резолюции' : 'Новая фраза резолюции', submit: 'Сохранить', fields: [{ id: 'text', label: 'Фраза', value: i != null ? PHRASES[i] : '', req: true, wide: true }],
+    run: v => phraseSave(S.user, { idx: i, text: v.text }) });
+}
+function uiSign(id) {
+  const r = id ? SIGN.find(x => x.id === id) : null;
+  openForm({ title: r ? 'Право подписи · ' + r.id : 'Новое право подписи', submit: 'Сохранить', fields: r ? [
+    { id: 'basis', label: 'Основание', value: r.basis, req: true, wide: true }, { id: 'to', label: 'Действует по', type: 'date', value: r.to, req: true }] : [
+    { id: 'emp', label: 'Сотрудник', type: 'select', empty: true, options: empOpts(), req: true, wide: true },
+    { id: 'types', label: 'Типы документов', type: 'multi', options: TYPES.filter(t => t.kind !== 'in' && !t.legacyOnly).map(t => [t.id, KINDS[t.kind].short + ' · ' + t.name]), value: [], req: true, wide: true },
+    { id: 'basis', label: 'Основание (доверенность или должность)', req: true, wide: true },
+    { id: 'from', label: 'С', type: 'date', value: S.clock, req: true }, { id: 'to', label: 'По', type: 'date', value: clockYear() + '-12-31', req: true }],
+    run: v => signRightSave(S.user, r ? { id, basis: v.basis, to: v.to } : { emp: v.emp, types: v.types, basis: v.basis, from: v.from, to: v.to }) });
+}
+function uiMethod(key) {
+  const m = key ? METHODS[key] : null;
+  openForm({ title: m ? 'Способ отправки' : 'Новый способ отправки', submit: 'Сохранить', fields: [
+    { id: 'name', label: 'Наименование', value: m ? m.name : '', req: true, wide: true }, { id: 'track', label: 'Почтовый идентификатор', type: 'check', text: 'обязателен', value: m ? m.track : false },
+    { id: 'proof', label: 'Подтверждение вручения', value: m ? m.proof : '', ph: 'пусто — не требуется' }],
+    run: v => methodSave(S.user, { key, name: v.name, track: v.track, proof: v.proof }) });
+}
+function uiCase(id) {
+  const c = id ? caseOf(id) : null;
+  openForm({ title: c ? 'Дело ' + c.idx + ' · ' + c.year : 'Новое дело номенклатуры', submit: 'Сохранить', fields: [
+    ...(c ? [] : [{ id: 'year', label: 'Год', value: String(clockYear()), req: true }, { id: 'idx', label: 'Индекс', ph: '00-00', req: true }]),
+    { id: 'name', label: 'Название', value: c ? c.name : '', req: true, wide: true },
+    { id: 'dept', label: 'Подразделение', type: 'select', options: DEPTS.map(x => [x.id, x.name]), value: c ? c.dept : 'kanc' },
+    { id: 'keep', label: 'Срок хранения', value: c ? c.keep : '5 лет', req: true },
+    { id: 'place', label: 'Место хранения (кабинет, шкаф, полка)', value: c ? c.place : '', wide: true }],
+    run: v => caseSave(S.user, c ? { id, name: v.name, dept: v.dept, keep: v.keep, place: v.place } : { year: v.year, idx: v.idx, name: v.name, dept: v.dept, keep: v.keep, place: v.place }) });
+}
+function uiThreshold(kind) {
+  openForm({ title: 'Порог свёртки · ' + POVOD_NAME[kind], submit: 'Сохранить', fields: [{ id: 'n', label: 'Вал — когда шагов одному адресату за прогон больше, чем', value: String(thresholdOf(kind)), req: true }],
+    run: v => thresholdSave(S.user, kind, v.n) });
+}
+
 /* ============================ шов для смоука ========================== */
 Object.assign(DF, {
   S, TODAY, KINDS, STAGES, URG, TYPES, EMP, SUBST, SIGN, METHODS, CASES, BLANKS, LINK_OBJ, LEADERSHIP,
@@ -1806,9 +2422,15 @@ Object.assign(DF, {
   setF(k, v) { S.f[k] = (k === 'from' || k === 'to') ? (toIso(v) || '') : v; render(); }, setInd(k, v) { const x = toIso(v); if (x) S[k] = x; render(); },
   archTab(t) { S.archTab = t; render(); }, openCase(id) { S.caseOpen = id; render(); }, setTab(t) { S.setTab = t; render(); },
   uiDraft, uiDo, uiReject, uiAnnul, uiResDone, uiResRefuse, uiCtrlReturn, uiRes, uiAttach, uiSent, uiDeliv, uiCorrect, uiFile, uiIssue, uiBlank, uiPrint, uiSaveSet, applySet, uiComment,
+  uiDo2, uiPrintDoc, uiPrintCase, uiTake, pickAll, uiSignBatch, uiSendAcq, uiMeasure, uiPack, uiType, uiPhrase, uiSign, uiMethod, uiCase, uiThreshold,
+  /* волна 2 */
+  CALENDAR_YEARS, PHRASES, PACKS, MEASURE_KINDS, LEGACY_SRC, isWork, calendarYearKnown, calNote, workBetween, oneRun, thresholdOf, taskViewers, taskSignals,
+  sendForAcq, measureTargets, preMeasure, registerMeasure, printRkk, printAcq, printCase, typeSave, phraseSave, phraseRemove, signRightSave, methodSave, caseSave, casesCopy,
+  thresholdSave, migrationRun, fromBlankPack, waitingSign, defaultCase,
   submitForm, closeForm, render,
 });
-[['DOCS', () => DOCS], ['RES', () => RES], ['ISSUES', () => ISSUES], ['TASKS', () => TASKS], ['COUNTERS', () => COUNTERS], ['EXT', () => EXT]]
+[['DOCS', () => DOCS], ['RES', () => RES], ['ISSUES', () => ISSUES], ['TASKS', () => TASKS], ['COUNTERS', () => COUNTERS], ['EXT', () => EXT],
+  ['MEASURES', () => MEASURES], ['MIGRATIONS', () => MIGRATIONS], ['DICTLOG', () => DICTLOG]]
   .forEach(([k, g]) => Object.defineProperty(DF, k, { get: g, enumerable: true }));
 DF.openDoc = function (id, actor) { if (actor !== undefined) return openDoc(id, actor); DF.openCard(id); };
 DF.SEEDED = seed();
