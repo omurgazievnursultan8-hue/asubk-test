@@ -17,7 +17,8 @@
 //   J  рубильник вида повода (ИЗ-13 п.12): не введён в действие — поводов не порождает,
 //      но факт неактивности сам становится поводом («вид повода не введён в действие»);
 //   K  уведомления — закрытый список из девяти состояний (ИЗ-14 п.1);
-//   L  сторож текста: ADR/ИЗ-номера названы в шапке, «сегодня» заморожено константой.
+//   L  сторож чистоты: в макете нет ссылок на ADR/ИЗ/волны (их место — канон и ТЗ),
+//      «сегодня» заморожено константой.
 // Волна 2 (ADR-0231 п.4-5, ADR-0228 ИЗ-8) — первый настоящий сосед, Оргструктура, подключён
 // вторым источником в SOURCES, движок сверки не менялся:
 //   M  #33-40 — полнота множества у нового соседа, порог свёртки первого подключения (2), три
@@ -39,9 +40,9 @@
 //      источника (не гасит self/orgstruct/statistics), адресация жёстко на E4 (RESPONSIBLE[dep]
 //      соседа — ростер имён, несовместимый с EMP id — исследовано и задокументировано, не угадано).
 // Блоки, которые правят состояние, начинаются с ZD.seed() — состояние между ними не течёт.
-// Отчёт вписывается в шапку макета после маркера «SMOKE (node …):»; выход 1 при любом FAIL.
+// Отчёт печатается в консоль, макет не правится; выход 1 при любом FAIL.
 //   node scripts/inspect/zadaniya-check.mjs
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import vm from 'node:vm';
@@ -61,7 +62,6 @@ if (!ZD) { console.error('window.ZD не экспортирован'); process.e
 
 const results = [];
 const ok = (n, cond, note = '') => results.push({ n, pass: !!cond, note });
-const hdr = (m && src.slice(0, src.indexOf('-->'))) || '';
 ZD.seed();
 const TODAY = ZD.state.today;
 
@@ -179,7 +179,7 @@ const TODAY = ZD.state.today;
   let threw = false, msg = '';
   try { ZD.createFreeTask({ label:'демо без контролёра', assignee:'E1', author:'E4', dueDate:'2026-09-10' }); }
   catch (e) { threw = true; msg = e.message; }
-  ok(19, threw && /контролёр/.test(msg) && /ИЗ-7/.test(msg),
+  ok(19, threw && /контролёр/.test(msg),
     `свободное поручение обязано иметь контролёра — единственную независимую ось подтверждения ` +
     `у работы без собственного повода: «${msg}»`);
   const t = ZD.createFreeTask({ label:'демо с контролёром', assignee:'E1', controller:'E4', author:'E4', dueDate:'2026-09-10' });
@@ -255,15 +255,13 @@ const TODAY = ZD.state.today;
     `самоопрос породил уведомления, и каждое — из закрытого списка (движок бросил бы на восьмом глаголе)`);
 })();
 
-/* ---------- L. Сторож текста: ADR/ИЗ названы, «сегодня» заморожено ---------- */
+/* ---------- L. Сторож чистоты макета, «сегодня» заморожено ---------- */
 (() => {
-  const noComm = m[1]; // с комментариями внутри <script> тут нет конфликта — это отдельный слой от HTML-шапки
-  const adrs = ['ADR-0210','ADR-0211','ADR-0227','ADR-0228','ADR-0229','ADR-0230','ADR-0231'];
-  const izs = ['ИЗ-3','ИЗ-5','ИЗ-6','ИЗ-7','ИЗ-8','ИЗ-9','ИЗ-10','ИЗ-11','ИЗ-12','ИЗ-13','ИЗ-14','ИЗ-16','ИЗ-17'];
-  const missAdr = adrs.filter(a => hdr.indexOf(a) === -1);
-  const missIz = izs.filter(i => hdr.indexOf(i) === -1);
-  ok(30, missAdr.length === 0 && missIz.length === 0,
-    `все семь ADR и все используемые ИЗ-номера названы в шапке файла${missAdr.length?' · нет ADR: '+missAdr.join(','):''}${missIz.length?' · нет ИЗ: '+missIz.join(','):''}`);
+  const noComm = m[1];
+  const refs = src.match(/ADR-\d{4}|ИЗ-\d+|ИО-\d+|[Вв]олн[аеыуой][ -]*\d/g) || [];
+  ok(30, refs.length === 0,
+    `макет чистый: ни ADR-, ни ИЗ-/ИО-номеров, ни истории волн — пояснения живут в ` +
+    `ASUBK-zadaniya-logika.md и журнале волн${refs.length?' · найдено: '+[...new Set(refs)].join(', '):''}`);
   const frozen = /today:\s*'2026-09-02'/.test(noComm) &&
                  !/Date\.now\(\)/.test(noComm) && !/new Date\(\s*\)/.test(noComm);
   ok(31, frozen,
@@ -568,17 +566,6 @@ const TODAY = ZD.state.today;
 /* ---------- отчёт ---------- */
 const pass = results.filter(r => r.pass).length;
 const lines = results.map(r => `   ${r.pass ? 'PASS' : 'FAIL'}  #${r.n}  ${r.note}`);
-const stamp = `SMOKE ${new Date().toISOString().slice(0,10)} · ${pass}/${results.length} PASS\n` + lines.join('\n');
-console.log(stamp);
-
-const marker = 'SMOKE (node scripts/inspect/zadaniya-check.mjs):';
-const reBlock = new RegExp('(' + marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\n)[\\s\\S]*?(\\n-->)');
-const injected = '   ' + stamp.replace(/\n/g, '\n   ');
-if (reBlock.test(src)) {
-  writeFileSync(HTML, src.replace(reBlock, `$1${injected}$2`), 'utf8');
-  console.log('\n→ результат вставлен в шапку zadaniya.html');
-} else {
-  console.log('\n→ маркер SMOKE не найден в шапке — отчёт не вписан');
-}
+console.log(`SMOKE ${new Date().toISOString().slice(0,10)} · ${pass}/${results.length} PASS\n` + lines.join('\n'));
 
 process.exit(pass === results.length ? 0 : 1);
