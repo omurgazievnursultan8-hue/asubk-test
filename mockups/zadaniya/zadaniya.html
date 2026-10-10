@@ -233,6 +233,7 @@ const DEPTS = [ // подразделение → руководитель
 ];
 const ABSENCES = [ // замещение: кто действует за сотрудника на дату
   {emp:'E2', from:'2026-08-31', to:'2026-09-11', sub:'E5', reason:'отпуск'},
+  {emp:'E1', from:'2026-09-09', to:'2026-09-12', sub:'E3', reason:'командировка'},
 ];
 const CURATION = [ // закрепление: роль кураторства × объект → ответственный на дату
   {role:'куратор подразделения', obj:'ЦА — Кредитный отдел',   emp:'E2', from:'2026-01-01', to:null},
@@ -245,6 +246,10 @@ const CURATION = [ // закрепление: роль кураторства ×
   {role:'куратор модуля-соседа', obj:'взыскание',              emp:'E1', from:'2026-01-01', to:null},
   {role:'куратор отчётности подразделения', obj:'dep-admin',   emp:'E1', from:'2026-01-01', to:null},
   {role:'куратор отчётности подразделения', obj:'dep-prom',    emp:'E3', from:'2026-01-01', to:null},
+  ...['rep-batken','rep-jalal','rep-issyk','rep-naryn','rep-talas','rep-chui','rep-bishkek','rep-tokmok','rep-kara-balta']
+    .map(obj=>({role:'куратор отчётности подразделения', obj, emp:'E1', from:'2026-01-01', to:null})),
+  {role:'куратор отчётности подразделения', obj:'rep-karakol', emp:'E1', from:'2026-01-01', to:'2026-09-07'},
+  {role:'куратор отчётности подразделения', obj:'rep-karakol', emp:'E3', from:'2026-09-08', to:null},
 ];
 function curatorOn(role, obj, d){
   const c = CURATION.find(c=>c.role===role && c.obj===obj && c.from<=d && (!c.to || d<=c.to));
@@ -253,17 +258,28 @@ function curatorOn(role, obj, d){
 function actingFor(id, d){ const a = ABSENCES.find(a=>a.emp===id && a.from<=d && d<=a.to); return a ? a.sub : id; }
 function deptHead(id){ const x = DEPTS.find(x=>x.id===id); return x ? x.head : null; }
 
-/* ---------- 1. даты: упрощённый рабочий календарь (сб/вс) ---------- */
-function addDays(iso,n){ const d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); }
-function addWorkdays(iso,n){
-  let d = new Date(iso+'T00:00:00'), c=0;
-  while(c<n){ d.setDate(d.getDate()+1); const wd=d.getDay(); if(wd!==0&&wd!==6) c++; }
-  return d.toISOString().slice(0,10);
+/* ---------- 1. даты: производственный календарь системы (общий справочник, только чтение) ----------
+   постоянные праздники КР — ММ-ДД на любой год; переносы, религиозные праздники и рабочие субботы —
+   записью на год. Года нет в справочнике — счёт по сб/вс с видимой отметкой рядом со сроком. */
+const CALENDAR_FIXED = ['01-01','01-07','02-23','03-08','03-21','04-07','05-01','05-05','05-08','05-09','08-31','11-07','11-08'];
+const CALENDAR_YEARS = {
+  2026: { holidays:['2026-03-20','2026-03-23','2026-05-27','2026-05-28','2026-08-03','2026-11-09'], workdays:['2026-03-28','2026-11-14'] },
+};
+function utc(iso){ return new Date(iso+'T00:00:00Z'); }
+function addDays(iso,n){ const d=utc(iso); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); }
+function calendarYearKnown(y){ return Object.prototype.hasOwnProperty.call(CALENDAR_YEARS, Number(y)); }
+function isWork(iso){
+  const rec = CALENDAR_YEARS[+iso.slice(0,4)] || {holidays:[], workdays:[]};
+  if(rec.workdays.indexOf(iso)!==-1) return true;
+  if(CALENDAR_FIXED.indexOf(iso.slice(5))!==-1 || rec.holidays.indexOf(iso)!==-1) return false;
+  const wd = utc(iso).getUTCDay(); return wd!==0 && wd!==6;
 }
-function workdaysBetween(a,b){ // a..b, a<b
-  let d=new Date(a+'T00:00:00'), end=new Date(b+'T00:00:00'), c=0;
-  while(d<end){ d.setDate(d.getDate()+1); const wd=d.getDay(); if(wd!==0&&wd!==6) c++; }
-  return c;
+function addWorkdays(iso,n){ let d=iso, c=0; while(c<n){ d=addDays(d,1); if(isWork(d)) c++; } return d; }
+function workdaysBetween(a,b){ let d=a, c=0; while(d<b){ d=addDays(d,1); if(isWork(d)) c++; } return c; } // после a по b включительно
+function calNote(from, to){ // годы промежутка, которых нет в календаре
+  const gap = []; if(!from || !to) return '';
+  for(let y=+from.slice(0,4); y<=+to.slice(0,4); y++) if(!calendarYearKnown(y)) gap.push(y);
+  return gap.length ? `календарь ${gap.join(', ')} года не заведён — рабочие дни по сб/вс` : '';
 }
 function fmt(iso){ if(!iso) return '—'; const [y,m,d]=iso.split('-'); return `${d}.${m}.${y}`; }
 
@@ -273,22 +289,22 @@ function seedPovodKinds(){ return [
   {id:'pk-rejected',      title:'Задание отклонено',                     objectType:'task',      traits:[],                    rollup:20, sensitive:false, ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
   {id:'pk-await-long',    title:'Ожидает приёмки дольше срока',          objectType:'task',      traits:['давность_раб_дней'], rollup:20, sensitive:false, ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
   {id:'pk-lapsed-review', title:'Отпавшее задание требует разбора',      objectType:'task',      traits:[],                    rollup:20, sensitive:false, ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
-  {id:'pk-neighbor-silent',title:'Сосед не отвечает',                    objectType:'source',    traits:['прогонов_подряд'],   rollup:5,  sensitive:true,  ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
+  {id:'pk-neighbor-silent',title:'Сосед не отвечает',                    objectType:'source',    traits:['молчит_минут'],   rollup:5,  sensitive:true,  ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
   {id:'pk-kind-inactive', title:'Вид повода не введён в действие',       objectType:'povodKind', traits:['дней_с_заведения'],  rollup:20, sensitive:false, ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
   {id:'pk-addr-missing',  title:'Адресат не найден',                     objectType:'task',      traits:['вид_объекта','роль'], rollup:5, sensitive:false, ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
   {id:'pk-ext-pending',   title:'Запрос продления без ответа',           objectType:'task',      traits:['давность_раб_дней'], rollup:20, sensitive:false, ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
   {id:'pk-returning',     title:'Повод возвращается',                    objectType:'povod',     traits:['повторов'],          rollup:20, sensitive:false, ownerDept:'Администрирование', createdAt:'2026-08-16', activatedAt:'2026-08-16'},
   // Оргструктура
-  {id:'pk-org-head-vacant',     title:'Вакансия руководителя подразделения',      objectType:'unit',     traits:['дней_вакансии'],   rollup:2, sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
-  {id:'pk-org-acting-expiring', title:'Заканчивается и.о. руководителя',          objectType:'unit',     traits:[],                  rollup:2, sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
-  {id:'pk-org-invariant',       title:'Нарушен инвариант основного назначения',   objectType:'employee', traits:[],                  rollup:2, sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
-  {id:'pk-org-no-staff',        title:'Подразделение без штата',                  objectType:'unit',     traits:[],                  rollup:2, sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
-  {id:'pk-org-liq-blocked',     title:'Ликвидация заблокирована',                 objectType:'unit',     traits:[],                  rollup:2, sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
-  {id:'pk-org-orphan-terr',     title:'Территория без обслуживающего подразделения', objectType:'territory', traits:[],               rollup:2, sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
+  {id:'pk-org-head-vacant',     title:'Вакансия руководителя подразделения',      objectType:'unit',     traits:['дней_вакансии'],   rollup:null, sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
+  {id:'pk-org-acting-expiring', title:'Заканчивается и.о. руководителя',          objectType:'unit',     traits:[],                  rollup:null, sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
+  {id:'pk-org-invariant',       title:'Нарушен инвариант основного назначения',   objectType:'employee', traits:[],                  rollup:null, sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
+  {id:'pk-org-no-staff',        title:'Подразделение без штата',                  objectType:'unit',     traits:[],                  rollup:null, sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
+  {id:'pk-org-liq-blocked',     title:'Ликвидация заблокирована',                 objectType:'unit',     traits:[],                  rollup:null, sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
+  {id:'pk-org-orphan-terr',     title:'Территория без обслуживающего подразделения', objectType:'territory', traits:[],               rollup:null, sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
   // Статистика
-  {id:'pk-stat-neighbor-silent', title:'Сосед статистики молчит',                     objectType:'module',   traits:['прогонов_подряд'], rollup:2, sensitive:false, ownerDept:'Аналитика', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
+  {id:'pk-stat-neighbor-silent', title:'Сосед статистики молчит',                     objectType:'module',   traits:['прогонов_подряд'], rollup:null, sensitive:false, ownerDept:'Аналитика', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
   // Отчётность
-  {id:'pk-rep-obligation-overdue', title:'Срок сдачи формы отчётности истёк',          objectType:'obligation', traits:['дней_просрочки'], rollup:2, sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
+  {id:'pk-rep-obligation-overdue', title:'Срок сдачи формы отчётности истёк',          objectType:'obligation', traits:['дней_просрочки'], rollup:null, sensitive:false, ownerDept:'Сопровождение', createdAt:'2026-09-02', activatedAt:'2026-09-02'},
 ].map(k=>Object.assign({
   sumAttr:null,       // реквизит суммы: какая величина объекта повода — «сумма по заданию»; пусто — денежного объекта нет
   periodic:false,     // опрос: событийный / периодический
@@ -342,7 +358,7 @@ function seedRules(){ return [
   {id:'rule-org-head-vacant',     kind:'pk-org-head-vacant',     action:'act-org-head-vacant',     mode:'авто', author:'E4', addressee:A_CUR_UNIT, dueN:2, dueUnit:'workday', editions:[ed(1,'2026-09-02','E4','подключение соседа «Оргструктура»')]},
   {id:'rule-org-acting-expiring', kind:'pk-org-acting-expiring', action:'act-org-acting-expiring', mode:'авто', author:'E4', addressee:A_CUR_UNIT, dueN:2, dueUnit:'workday', editions:[ed(1,'2026-09-02','E4','подключение соседа «Оргструктура»')]},
   {id:'rule-org-invariant',       kind:'pk-org-invariant',       action:'act-org-invariant',       mode:'авто', author:'E4', addressee:A_CUR_UNIT, dueN:2, dueUnit:'workday', editions:[ed(1,'2026-09-02','E4','подключение соседа «Оргструктура»')]},
-  {id:'rule-org-no-staff',        kind:'pk-org-no-staff',        action:'act-org-no-staff',        mode:'авто', author:'E4', addressee:A_CUR_UNIT, dueN:2, dueUnit:'workday', editions:[ed(1,'2026-09-02','E4','подключение соседа «Оргструктура»')]},
+  {id:'rule-org-no-staff',        kind:'pk-org-no-staff',        action:'act-org-no-staff',        mode:'авто', author:'E4', addressee:A_CUR_UNIT, controller:A_ADMIN, dueN:2, dueUnit:'workday', editions:[ed(1,'2026-09-02','E4','подключение соседа «Оргструктура»')]},
   {id:'rule-org-liq-blocked',     kind:'pk-org-liq-blocked',     action:'act-org-liq-blocked',     mode:'авто', author:'E4', addressee:A_CUR_UNIT, dueN:2, dueUnit:'workday', editions:[ed(1,'2026-09-02','E4','подключение соседа «Оргструктура»')]},
   {id:'rule-org-orphan-terr',     kind:'pk-org-orphan-terr',     action:'act-org-orphan-terr',     mode:'авто', author:'E4', addressee:A_CUR_UNIT, dueN:2, dueUnit:'workday', editions:[ed(1,'2026-09-02','E4','подключение соседа «Оргструктура»')]},
   // Статистика
@@ -351,6 +367,16 @@ function seedRules(){ return [
   {id:'rule-rep-overdue',         kind:'pk-rep-obligation-overdue', action:'act-rep-overdue',      mode:'авто', author:'E4', addressee:A_CUR_REP,  dueN:1, dueUnit:'workday', editions:[ed(1,'2026-09-02','E4','подключение соседа «Отчётность»')]},
 ]; }
 function ed(n,from,author,reason){ return {n,from,author,reason}; }
+/* контролёр правила — формула, как адресат; нет формулы — подтверждает повод */
+function controllerOf(rule){
+  const c = rule.controller; if(!c) return null;
+  if(c.by==='должность') return ADMIN;
+  if(c.by==='участник' && c.who==='автор') return rule.author;
+  return null;
+}
+/* порог свёртки: вид объявляет своё, иначе — по умолчанию на систему */
+const ROLLUP_DEFAULT = 10;
+function rollupOf(k){ return k.rollup==null ? ROLLUP_DEFAULT : k.rollup; }
 
 /* собственные виды повода (самоопрос) */
 const SELF_KINDS = ['pk-overdue','pk-rejected','pk-await-long','pk-lapsed-review','pk-neighbor-silent','pk-kind-inactive',
@@ -360,12 +386,15 @@ const SELF_KINDS = ['pk-overdue','pk-rejected','pk-await-long','pk-lapsed-review
 const ORGSTRUCT_KINDS = ['pk-org-head-vacant','pk-org-acting-expiring','pk-org-invariant','pk-org-no-staff','pk-org-liq-blocked','pk-org-orphan-terr'];
 const STAT_KINDS = ['pk-stat-neighbor-silent'];
 const REPORTS_KINDS = ['pk-rep-obligation-overdue'];
+/* источник объявляет интервал опроса и, если умолчание не подходит, порог молчания (минуты) */
 const SOURCES = [
-  {id:'self',       name:'Задания (самоопрос)',       kinds: SELF_KINDS},
-  {id:'orgstruct',  name:'Оргструктура',  kinds: ORGSTRUCT_KINDS},
-  {id:'statistics', name:'Статистика',   kinds: STAT_KINDS},
-  {id:'reports',    name:'Отчётность', kinds: REPORTS_KINDS},
+  {id:'self',       name:'Задания (самоопрос)', kinds: SELF_KINDS,      pollEveryMin:1440, silenceMin:null},
+  {id:'orgstruct',  name:'Оргструктура',        kinds: ORGSTRUCT_KINDS, pollEveryMin:1440, silenceMin:null},
+  {id:'statistics', name:'Статистика',          kinds: STAT_KINDS,      pollEveryMin:1440, silenceMin:null},
+  {id:'reports',    name:'Отчётность',          kinds: REPORTS_KINDS,   pollEveryMin:1440, silenceMin:null},
 ];
+/* порог молчания: объявленный источником, иначе два интервала опроса, но не меньше 30 минут */
+function silenceThreshold(src){ return src.silenceMin!=null ? src.silenceMin : Math.max(2*src.pollEveryMin, 30); }
 /* ответ Оргструктуры (демо-данные) */
 function orgstructMirrorAt(d){
   return {
@@ -378,7 +407,7 @@ function orgstructMirrorAt(d){
       {unit:'Баткенская область', pos:'Руководитель филиала', emp:'Асанов Т.К.', to:'2026-09-10', days:8, reason:'приказ о временном исполнении'},
     ],
     invariant: [],
-    noStaff: [
+    noStaff: d>='2026-09-10' ? [] : [ // 10.09 подразделение укомплектовано
       {unitId:'unit-narynskaya-obl'},
     ],
     liqBlocked: [],
@@ -413,27 +442,38 @@ function statMirrorAt(d){
     leads: state.statCleared ? leads.filter(l=>l.nb!=='взыскание') : leads};
 }
 
-/* ответ Отчётности (демо-данные) */
+/* ответ Отчётности (демо-данные): форма за июнь просрочена у тринадцати подразделений,
+   сдают её 08.09–15.09 */
+const REP_JUNE = [ // подразделение · название · кто сдаёт · дата сдачи
+  ['dep-admin',      'Департамент администрирования кредитов',       'Асанов А.',    '2026-09-10'],
+  ['dep-prom',       'Отраслевой департамент промышленности',        'Осмонова Г.',  '2026-09-08'],
+  ['rep-osh',        'Региональное представительство «Ош»',          'Мамытов Э.',   '2026-09-15'],
+  ['rep-batken',     'Региональное представительство «Баткен»',      'Ибраимова Н.', '2026-09-08'],
+  ['rep-jalal',      'Региональное представительство «Жалал-Абад»',  'Абдыкадыров М.','2026-09-08'],
+  ['rep-issyk',      'Региональное представительство «Иссык-Куль»',  'Токтосунова А.','2026-09-08'],
+  ['rep-naryn',      'Региональное представительство «Нарын»',       'Кадыров Б.',   '2026-09-10'],
+  ['rep-talas',      'Региональное представительство «Талас»',       'Жумабаева С.', '2026-09-10'],
+  ['rep-chui',       'Региональное представительство «Чуй»',         'Исаков Д.',    '2026-09-15'],
+  ['rep-bishkek',    'Представительство «Бишкек»',                   'Орозова Ч.',   '2026-09-15'],
+  ['rep-tokmok',     'Представительство «Токмок»',                   'Сыдыков Т.',   '2026-09-15'],
+  ['rep-kara-balta', 'Представительство «Кара-Балта»',               'Алиева З.',    '2026-09-15'],
+  ['rep-karakol',    'Представительство «Каракол»',                  'Бейшеев У.',   '2026-09-15'],
+];
+const REP_TPL = 'Просроченная задолженность по состоянию на 1-е число';
 function reportsMirrorAt(d){
-  return [
-    {id:'t-overdue/2026-07-01/dep-admin', tpl:'t-overdue', tplName:'Просроченная задолженность по состоянию на 1-е число',
-     dept:'dep-admin', deptName:'Департамент администрирования кредитов', period:'июнь 2026', asOf:'2026-07-01',
-     due:'2026-07-15', state:d>='2026-09-10'?'сдано':'просрочено', who:'Асанов А.'},
-    {id:'t-overdue/2026-07-01/dep-prom', tpl:'t-overdue', tplName:'Просроченная задолженность по состоянию на 1-е число',
-     dept:'dep-prom', deptName:'Отраслевой департамент промышленности', period:'июнь 2026', asOf:'2026-07-01',
-     due:'2026-07-15', state:d>='2026-09-08'?'сдано':'просрочено', who:'Осмонова Г.'},
-    {id:'t-overdue/2026-07-01/rep-osh', tpl:'t-overdue', tplName:'Просроченная задолженность по состоянию на 1-е число',
-     dept:'rep-osh', deptName:'Региональное представительство «Ош»', period:'июнь 2026', asOf:'2026-07-01',
-     due:'2026-07-15', state:d>='2026-09-15'?'сдано':'просрочено', who:'Мамытов Э.'},
+  return REP_JUNE.map(([dept, deptName, who, done])=>
+    ({id:`t-overdue/2026-07-01/${dept}`, tpl:'t-overdue', tplName:REP_TPL, dept, deptName, period:'июнь 2026', asOf:'2026-07-01',
+      due:'2026-07-15', state:d>=done?'сдано':'просрочено', who})
+  ).concat([
     // не повод — сдано:
-    {id:'t-overdue/2026-08-01/dep-admin', tpl:'t-overdue', tplName:'Просроченная задолженность по состоянию на 1-е число',
+    {id:'t-overdue/2026-08-01/dep-admin', tpl:'t-overdue', tplName:REP_TPL,
      dept:'dep-admin', deptName:'Департамент администрирования кредитов', period:'июль 2026', asOf:'2026-08-01',
      due:'2026-08-15', state:'сдано', who:'Асанов А.'},
     // не повод — срок не наступил:
-    {id:'t-overdue/2026-09-01/dep-admin', tpl:'t-overdue', tplName:'Просроченная задолженность по состоянию на 1-е число',
+    {id:'t-overdue/2026-09-01/dep-admin', tpl:'t-overdue', tplName:REP_TPL,
      dept:'dep-admin', deptName:'Департамент администрирования кредитов', period:'август 2026', asOf:'2026-09-01',
      due:'2026-09-15', state:'ожидается', who:'Асанов А.'},
-  ];
+  ]);
 }
 
 /* ---------- 3. состояние ---------- */
@@ -470,6 +510,7 @@ function seedDemoTasks(){
     assignee:'E1', controller:'E4', author:'E4', dueDate:'2026-08-25', createdAt:'2026-08-20'});
   const t2 = mkTask({kind:'free', label:'Уточнить контакт заёмщика по делу 54210',
     assignee:'E3', controller:'E4', author:'E4', dueDate:'2026-08-28', createdAt:'2026-08-21'});
+  takeInternal(t2, '2026-08-24');
   claimInternal(t2, '2026-08-24');
   const t3 = mkTask({kind:'free', label:'Загрузить скан согласия по объекту 33021',
     assignee:'E1', controller:'E4', author:'E4', dueDate:'2026-09-10', createdAt:'2026-09-01'});
@@ -487,14 +528,15 @@ function mkTask(p){
     journal:[{t:p.createdAt||state.today, ev:'поручено'}],
   };
   state.tasks.push(t);
-  notify(t,'поручено');
+  notify(t, p.notifyAs||'поручено'); // задание о просрочке приходит руководителю уведомлением «эскалация»
   return t;
 }
 function log(entity, ev, extra){ entity.journal.push(Object.assign({t:state.today, ev}, extra||{})); }
 function taskOf(id){ return state.tasks.find(t=>t.id===id); }
 function povodByKey(k){ return state.povods.find(p=>p.key===k); }
 /* события, которые состояние не меняют: ход, продление, судьба ключа внутри вала */
-const NEUTRAL_EV = ['отметка о ходе','запрошено продление','продление утверждено','продление отклонено','ключ отпал','ключ вышел'];
+const NEUTRAL_EV = ['отметка о ходе','запрошено продление','продление утверждено','продление отклонено','ключ отпал','ключ вышел',
+  'повод отпал']; // «повод отпал» — ось подтверждения у задания, которое ждёт решения контролёра
 function stateEntry(t){
   for(let i=t.journal.length-1;i>=0;i--) if(NEUTRAL_EV.indexOf(t.journal[i].ev)===-1) return t.journal[i];
   return t.journal[0];
@@ -536,8 +578,8 @@ function coversKey(t, key){
 }
 
 const STATE_LABEL = {
-  'поручено':'в работе', 'принято':'принято', 'заявлено':'заявлено (ждёт опроса)',
-  'ожидает приёмки':'ожидает приёмки', 'возвращено':'возвращено', 'отказано':'отказано',
+  'поручено':'поручено — не взято', 'принято':'в работе', 'заявлено':'заявлено (ждёт опроса)',
+  'ожидает приёмки':'ожидает приёмки', 'возвращено':'возвращено — доделать', 'отказано':'отказано',
   'отпало':'отпало — ждёт разбора',
 };
 function displayState(t){
@@ -559,31 +601,69 @@ function notifiedOnce(taskId, kind, due){ // «срок близко» / «ср�
 }
 
 /* ---------- 5. переходы задания ---------- */
-function claimInternal(t, asOf, proof){
-  const extra = {claimedAt:asOf||state.today};
+/* действует за исполнителя: сам исполнитель или его замещающий на дату (задание не переезжает) */
+function canActFor(t, by){ return !!by && (by===t.assignee || actingFor(t.assignee, state.today)===by); }
+function actor(t, by){ return by===t.assignee ? {by} : {by, for:t.assignee}; }
+function takeInternal(t, asOf){ log(t,'принято',{t:asOf||state.today, by:t.assignee}); }
+function take(taskId, by){ // «Взять в работу»: только это событие защищает от переадресации
+  const t=taskOf(taskId);
+  if(!t || isTerminal(t)) throw new Error('задание закрыто');
+  by = by || t.assignee;
+  if(lastEv(t)!=='поручено') throw new Error('взять в работу можно только порученное задание');
+  if(!canActFor(t, by)) throw new Error('в работу берёт исполнитель или его замещающий');
+  log(t,'принято',actor(t, by));
+  [t.author, t.controller].filter((x,i,a)=>x && x!==by && a.indexOf(x)===i).forEach(x=>notify(t,'принято',x));
+  return t;
+}
+function claimInternal(t, asOf, proof, by){
+  const extra = Object.assign({claimedAt:asOf||state.today}, by ? actor(t, by) : {});
   if(proof) extra.proof = proof; // ссылка на подтверждение — реквизит сдачи
   if(t.controller) log(t,'ожидает приёмки',extra);
   else log(t,'заявлено',extra);
 }
-function claim(taskId, proof){
-  const t = taskOf(taskId); if(!t||isTerminal(t)) return;
+function claim(taskId, proof, by){
+  const t = taskOf(taskId);
+  if(!t || isTerminal(t)) throw new Error('задание закрыто');
+  by = by || t.assignee;
+  const st = lastEv(t);
+  if(st==='поручено') throw new Error('сначала «Взять в работу»');
+  if(st!=='принято' && st!=='возвращено') throw new Error('заявить можно только задание в работе');
+  if(!canActFor(t, by)) throw new Error('заявляет исполнитель или его замещающий');
   const a = t.action ? actionOf(t.action) : null;
   if(a && a.needsProof && !proof) throw new Error('действие требует ссылку на подтверждение');
-  claimInternal(t, null, proof||null);
-  notify(t, t.controller ? 'принято':'принято'); // подача исполнителем фиксируется как «принято» в собственном смысле работы
+  claimInternal(t, null, proof||null, by);
+  return t;
 }
 function rejectInternal(t, note, asOf){
   log(t,'отказано',{note, t:asOf||state.today});
 }
 function reject(taskId, note){
-  const t=taskOf(taskId); if(!t||isTerminal(t)) return;
+  const t=taskOf(taskId);
+  if(!t || isTerminal(t)) throw new Error('задание закрыто');
+  if(['поручено','принято','возвращено'].indexOf(lastEv(t))===-1) throw new Error('отказаться можно до заявления');
   rejectInternal(t, note);
+  return t;
 }
-function releaseTask(taskId, reason){ // «снято» — решение автора после отказа
-  const t=taskOf(taskId); if(!t||isTerminal(t)) return;
-  if(lastEv(t)!=='отказано') return;
-  log(t,'закрыто',{outcome:'снято', reason});
+/* «Снять» — автор, из любого нетерминального, с основанием; ключ, снятый с поручения,
+   по правилу не переиздаётся, пока жив */
+function releaseTask(taskId, by, reason){
+  const t=taskOf(taskId);
+  if(!t || isTerminal(t)) throw new Error('задание закрыто — снимать нечего');
+  if(by!==t.author) throw new Error('снимает автор задания');
+  if(!reason) throw new Error('нужно основание снятия');
+  const keys = t.povodKey ? [t.povodKey] : liveKeys(t);
+  log(t,'закрыто',{outcome:'снято', reason, by});
   notify(t,'закрыто');
+  keys.forEach(k=>{ const p=povodByKey(k); if(p && p.status!=='gone') log(p,'снят без поручения',{task:t.id}); });
+  return t;
+}
+function povodReleased(p){ // последнее событие жизни ключа — снятие с поручения
+  for(let i=p.journal.length-1;i>=0;i--){
+    const ev=p.journal[i].ev;
+    if(ev==='снят без поручения') return true;
+    if(ev==='появился' || ev==='вновь-появился' || ev==='отпал') return false;
+  }
+  return false;
 }
 function reassignTask(taskId, newAssignee, by, reason){ // решение человека: автор или руководитель исполнителя по цепочке
   const t=taskOf(taskId);
@@ -602,11 +682,11 @@ function reassignTask(taskId, newAssignee, by, reason){ // решение чел
 function requestExtension(taskId, by, newDue, reason){
   const t=taskOf(taskId);
   if(!t || isTerminal(t)) throw new Error('задание закрыто');
-  if(by!==t.assignee) throw new Error('продление запрашивает исполнитель');
+  if(!canActFor(t, by)) throw new Error('продление запрашивает исполнитель или его замещающий');
   if(pendingExtension(t)) throw new Error('предыдущий запрос продления ещё без решения');
   if(!newDue || newDue<=dueOf(t)) throw new Error('новая дата должна быть позже установленного срока');
   if(!reason) throw new Error('нужно основание продления');
-  log(t,'запрошено продление',{by, newDue, reason});
+  log(t,'запрошено продление',Object.assign(actor(t, by), {newDue, reason}));
   notify(t,'запрошено-продление', approverOf(t));
   return t;
 }
@@ -628,7 +708,7 @@ function addProgress(taskId, by, text, opts){ // отметка о ходе: с�
   if(!t || isTerminal(t)) throw new Error('задание закрыто');
   if(!visibleTo(t, by)) throw new Error('отметку оставляет участник задания');
   if(!text) throw new Error('нужен текст отметки');
-  const extra = {by, text, link:opts.link||null};
+  const extra = Object.assign(actor(t, by), {text, link:opts.link||null});
   if(opts.fixes!=null){
     const target = t.journal[opts.fixes];
     if(!target || target.ev!=='отметка о ходе') throw new Error('исправлять можно только отметку о ходе');
@@ -637,10 +717,20 @@ function addProgress(taskId, by, text, opts){ // отметка о ходе: с�
   log(t,'отметка о ходе',extra);
   return t;
 }
-function acceptDecision(taskId, approve, note){ // решение контролёра (только свободные поручения)
+/* ось подтверждения повода: у поштучного — ключ отпал, у вала — живых ключей нет */
+function povodGoneFor(t){
+  if(Array.isArray(t.rollupKeys)) return liveKeys(t).length===0;
+  if(!t.povodKey) return true;
+  const p = povodByKey(t.povodKey);
+  return !p || p.status==='gone';
+}
+function acceptDecision(taskId, approve, note){ // решение контролёра; у задания по правилу «Принять» — только когда повод отпал
   const t=taskOf(taskId); if(!t||isTerminal(t)) return;
   if(lastEv(t)!=='ожидает приёмки') return;
-  if(approve){ log(t,'закрыто',{outcome:'исполнено'}); notify(t,'закрыто'); }
+  if(approve){
+    if(t.kind==='rule' && !povodGoneFor(t)) throw new Error('повод ещё жив — принять нельзя, только вернуть');
+    log(t,'закрыто',{outcome:'исполнено'}); notify(t,'закрыто');
+  }
   else { log(t,'возвращено',{note}); notify(t,'возвращено'); }
 }
 function disposeLapsed(taskId, outcome, reason){ // человек разбирает «отпало-до-разбора»
@@ -657,7 +747,7 @@ function createFreeTask(p){ // свободное поручение: объек
 function issueManual(kindId){ // задание по правилу в ручном режиме
   const rule = state.rules.find(r=>r.kind===kindId && r.mode==='ручной');
   if(!rule) return null;
-  const pending = state.povods.filter(p=>p.kind===kindId && p.status!=='gone' &&
+  const pending = state.povods.filter(p=>p.kind===kindId && p.status!=='gone' && !povodReleased(p) &&
     !state.tasks.some(t=>t.povodKey===p.key && !isTerminal(t)));
   const out = [];
   pending.forEach(p=> out.push(issueRuleTask(rule, p)));
@@ -666,7 +756,7 @@ function issueManual(kindId){ // задание по правилу в ручн�
 
 /* ---------- 6. опрос: ожидаемое множество поводов по виду ---------- */
 const AWAIT_THRESHOLD_WD = 3;   // «дольше срока» для ожидания приёмки
-const SILENT_THRESHOLD = 2;     // «сосед не отвечает» — подряд промахов
+const OVERDUE_WD = 5;           // «просрочено задание» — рабочих дней после установленного срока
 const INACTIVE_THRESHOLD_D = 3; // «вид не введён в действие дольше срока» — календарных дней
 const EXT_PENDING_WD = 1;       // «запрос продления без ответа» — рабочих дней
 const RETURN_THRESHOLD = 3;     // «повод возвращается» — появлений ключа вновь…
@@ -683,7 +773,7 @@ function computeExpectedForKind(kindId, asOf){
       const st = lastEv(t);
       if(st!=='поручено' && st!=='принято' && st!=='возвращено') return;
       const due = dueOf(t);
-      if(due >= asOf) return;
+      if(due >= asOf || workdaysBetween(due, asOf) < OVERDUE_WD) return; // до того — исполнителю «срок истёк»
       const key = `pk-overdue|task:${t.id}|`;
       out.set(key, {kind:kindId, objectType:'task', objectId:t.id, stateDate:due, approx:false,
         traits:{давность_раб_дней: workdaysBetween(due, asOf)}});
@@ -715,11 +805,15 @@ function computeExpectedForKind(kindId, asOf){
       out.set(`pk-lapsed-review|task:${t.id}|`, {kind:kindId, objectType:'task', objectId:t.id, stateDate:stDate, approx:false, traits:{}});
     });
   } else if(kindId==='pk-neighbor-silent'){
-    const misses = countTrailingMisses(asOf);
-    if(misses >= SILENT_THRESHOLD){
-      out.set('pk-neighbor-silent|source:self|', {kind:kindId, objectType:'source', objectId:'self',
-        stateDate:asOf, approx:true, traits:{прогонов_подряд:misses}});
-    }
+    // молчание — время без полного ответа, по журналу прошлых прогонов; порог объявляет источник
+    SOURCES.filter(s=>s.id!=='self').forEach(src=>{
+      const sil = silenceOf(src.id, asOf);
+      if(!sil) return;
+      const thr = silenceThreshold(src);
+      if(sil.minutes < thr) return;
+      out.set(`pk-neighbor-silent|source:${src.id}|`, {kind:kindId, objectType:'source', objectId:src.id,
+        stateDate:sil.since, approx:true, traits:{молчит_минут:sil.minutes, порог_минут:thr, молчит_с:sil.since}});
+    });
   } else if(kindId==='pk-kind-inactive'){
     state.povodKinds.forEach(pk=>{
       if(pk.activatedAt && pk.activatedAt<=asOf) return; // введён — не наш случай
@@ -788,17 +882,15 @@ function computeExpectedForKind(kindId, asOf){
   }
   return out;
 }
-function daysBetween(a,b){ return Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000); }
+function daysBetween(a,b){ return Math.round((utc(b)-utc(a))/86400000); }
 /* база срока = max(дата состояния у соседа, дата ввода вида в действие) */
 function dateMax(a,b){ return a>b ? a : b; }
-function countTrailingMisses(asOf){
-  let c=0;
-  for(let i=state.pollRuns.length-1;i>=0;i--){
-    const r = state.pollRuns[i];
-    if(r.date>asOf) continue;
-    if(!r.complete) c++; else break;
-  }
-  return c;
+function silenceOf(srcId, asOf){ // {since, minutes} — с последнего полного ответа; отвечал в последний раз — null
+  const runs = state.pollRuns.filter(r=>r.date<=asOf).map(r=>({date:r.date, s:r.sources.find(x=>x.src===srcId)})).filter(x=>x.s);
+  if(!runs.length || runs[runs.length-1].s.answer==='множество') return null;
+  let i = runs.length-1; while(i>0 && runs[i-1].s.answer!=='множество') i--;
+  const since = runs[i].date, lastOk = i>0 ? runs[i-1].date : null;
+  return {since, minutes: daysBetween(lastOk || since, asOf)*1440};
 }
 
 /* ---------- 7. сверка множества: полная, идемпотентная ---------- */
@@ -828,12 +920,6 @@ function reconcileKind(kindId, asOf){
       matchedKeys.push(key);
       p.stateDate=e.stateDate; p.approx=e.approx; p.traits=e.traits; p.curObj=e.curObj||null;
       if(p.status==='frozen'){ p.status='appeared'; p.frozenSince=null; log(p,'разморожен',{}); }
-      // независимая ось: заявлено/ожидает приёмки БЕЗ контролёра, а повод всё ещё на месте => возвращено
-      state.tasks.filter(t=>t.povodKey===key && !isTerminal(t)).forEach(t=>{
-        if(!t.controller && (lastEv(t)==='заявлено')){
-          log(t,'возвращено',{}); notify(t,'возвращено');
-        }
-      });
     }
   });
   return {new:newKeys, gone:goneKeys, matched:matchedKeys, kindTitle:kindOf(kindId).title};
@@ -851,9 +937,12 @@ function handleGoneForKind(goneKeys, asOf){
     rollups.forEach(t=>{ log(t,'ключ отпал',{key}); settleRollup(t); });
     openTasks.forEach(t=>{
       const st = lastEv(t);
-      if(st==='заявлено' || st==='ожидает приёмки'){
+      if(st==='заявлено'){
         log(t,'закрыто',{outcome:'исполнено'});
         notify(t,'закрыто');
+      } else if(st==='ожидает приёмки'){ // при контролёре нужны обе оси — решает он
+        log(t,'повод отпал',{});
+        notify(t,'повод-отпал', t.controller);
       } else {
         log(t,'отпало',{});
         notify(t,'повод-отпал');
@@ -914,20 +1003,17 @@ function issueRuleTask(rule, povod){
   const ed = rule.editions[rule.editions.length-1];
   const prior = priorTasksForKey(povod.key); // закрытое не переоткрывается — повтор идёт новым заданием
   const t = mkTask({kind:'rule', povodKey:povod.key, originKind:rule.kind, action:action.id,
-    label: action.label + ' — ' + describePovod(povod), assignee:addr.assignee, controller:null, author:rule.author,
+    label: action.label + ' — ' + describePovod(povod), assignee:addr.assignee, controller:controllerOf(rule), author:rule.author,
     dueDate, ruleId:rule.id, ruleEdition:ed.n, importance:computeImportance(action, rule), createdAt:state.today,
-    addr, repeatOf: prior.length ? prior[prior.length-1].id : null, repeatCount: prior.length});
+    addr, repeatOf: prior.length ? prior[prior.length-1].id : null, repeatCount: prior.length,
+    notifyAs: rule.kind==='pk-overdue' ? 'эскалация' : 'поручено'});
   return t;
 }
-function issueRollupTask(kindId, keys){
+function issueRollupTask(kindId, keys, addr, per){ // у вала один ответственный — пара «вид × адресат»
   const rule = ruleForKind(kindId), action = actionOf(rule.action);
-  const per = keys.map(k=>resolveAddressee(rule, povodByKey(k), state.today));
-  // общий ответственный у всех ключей — ему; иначе запасной адресат вида
-  const same = per.every(a=>a.responsible && a.responsible===per[0].responsible);
-  const addr = same ? per[0] : fallbackAddressee(rule, state.today);
   const t = mkTask({kind:'rule', povodKey:null, originKind:kindId, action:action.id,
-    label:`Разобраться с валом: «${kindOf(kindId).title}» — ${keys.length} шт., порог свёртки ${kindOf(kindId).rollup}`,
-    assignee:addr.assignee, controller:null, author:rule.author, dueDate:addWorkdays(state.today,1),
+    label:`Разобраться с валом: «${kindOf(kindId).title}» — ${keys.length} шт., порог свёртки ${rollupOf(kindOf(kindId))}`,
+    assignee:addr.assignee, controller:controllerOf(rule), author:rule.author, dueDate:addWorkdays(state.today,1),
     ruleId:rule.id, ruleEdition:rule.editions.slice(-1)[0].n,
     importance:'высокая', createdAt:state.today, addr});
   t.rollupKeys = keys;
@@ -937,6 +1023,10 @@ function issueRollupTask(kindId, keys){
 }
 function settleRollup(t){ // вал закрыт, когда живых ключей нет
   if(isTerminal(t) || liveKeys(t).length) return;
+  if(lastEv(t)==='ожидает приёмки'){ // при контролёре — решает он
+    if(!t.journal.some(e=>e.ev==='повод отпал')){ log(t,'повод отпал',{}); notify(t,'повод-отпал', t.controller); }
+    return;
+  }
   if(t.rollupKeys.every(k=>keyStatus(t,k)==='отпал')){ log(t,'закрыто',{outcome:'исполнено'}); notify(t,'закрыто'); }
   else if(lastEv(t)!=='отпало'){ log(t,'отпало',{}); notify(t,'повод-отпал'); }
 }
@@ -984,6 +1074,7 @@ function readdressByCuration(asOf){
 function describePovod(p){
   if(p.objectType==='task'){ const t=taskOf(p.objectId); return t ? `«${t.label}» (${p.objectId})` : p.objectId; }
   if(p.objectType==='povodKind'){ return `вид «${kindOf(p.objectId).title}»`; }
+  if(p.objectType==='source'){ const src=SOURCES.find(x=>x.id===p.objectId); return `источник «${src ? src.name : p.objectId}»`; }
   if(p.objectType==='unit'){ return `подразделение «${p.objectId}»`; }
   if(p.objectType==='employee'){ return `сотрудник ${p.objectId}`; }
   if(p.objectType==='territory'){ return `территория подразделения «${p.objectId}»`; }
@@ -996,17 +1087,22 @@ function describePovod(p){
 function handleNewForKind(kindId, newKeys, asOf){
   const rule = ruleForKind(kindId);
   const pk = kindOf(kindId);
+  newKeys = newKeys.filter(key=>!state.tasks.some(t=>coversKey(t, key))); // вернувшийся ключ с открытым заданием — второго не выдаём
   if(newKeys.length===0) return {rollup:false};
-  if(newKeys.length > pk.rollup){
-    issueRollupTask(kindId, newKeys);
-    return {rollup:true};
-  }
-  if(rule.mode!=='авто') return {rollup:false}; // ручной режим — человек нажимает «Поручить вручную»
+  // порог свёртки — по паре «вид × адресат»: ключи сначала раскладываются по ответственным
+  const groups = new Map();
   newKeys.forEach(key=>{
-    const p = povodByKey(key);
-    issueRuleTask(rule, p);
+    const a = resolveAddressee(rule, povodByKey(key), asOf);
+    const g = a.responsible ? 'r:'+a.responsible : 'f:'+a.assignee;
+    if(!groups.has(g)) groups.set(g, {keys:[], per:[]});
+    groups.get(g).keys.push(key); groups.get(g).per.push(a);
   });
-  return {rollup:false};
+  let rolled = false;
+  groups.forEach(g=>{
+    if(g.keys.length > rollupOf(pk)){ issueRollupTask(kindId, g.keys, g.per[0], g.per); rolled = true; }
+    else if(rule.mode==='авто') g.keys.forEach(key=>issueRuleTask(rule, povodByKey(key))); // ручной — по кнопке
+  });
+  return {rollup:rolled};
 }
 function reissueForFreedPairs(kindId, matchedKeys){
   if(kindOf(kindId).activatedAt===null) return;
@@ -1014,7 +1110,7 @@ function reissueForFreedPairs(kindId, matchedKeys){
   if(rule.mode!=='авто') return;
   matchedKeys.forEach(key=>{
     const p = povodByKey(key);
-    if(p.status!=='appeared') return;
+    if(p.status!=='appeared' || povodReleased(p)) return; // снятый с поручения не переиздаётся, пока жив
     // повод покрыт поштучным заданием или вал-заданием свёртки
     const hasOpen = state.tasks.some(t=>coversKey(t, key));
     if(!hasOpen) issueRuleTask(rule, p);
@@ -1022,7 +1118,6 @@ function reissueForFreedPairs(kindId, matchedKeys){
 }
 
 /* ---------- 8. эскалация / срок-близко — периодические проверки ---------- */
-const ESCALATE_WD = 5;
 function checkDeadlines(asOf){
   state.tasks.forEach(t=>{
     if(isTerminal(t)) return;
@@ -1032,12 +1127,20 @@ function checkDeadlines(asOf){
     if(due>=asOf && daysBetween(asOf,due)<=1 && !notifiedOnce(t.id,'срок-близко',due)){
       notify(t,'срок-близко',null,due);
     }
-    if(due<asOf && !notifiedOnce(t.id,'срок-истёк',due)){
+    if(due<asOf && !notifiedOnce(t.id,'срок-истёк',due)){ // руководителю — не звонок, а задание «Просрочено задание»
       notify(t,'срок-истёк',null,due);
     }
-    if(due<asOf && workdaysBetween(due,asOf)>=ESCALATE_WD && !notifiedOnce(t.id,'эскалация')){
-      notify(t,'эскалация', chiefOf(t.assignee) || 'E4');
-    }
+  });
+}
+/* заявленное без контролёра при живом поводе возвращается только на полном прогоне,
+   срез которого позже дня заявления — соседу даётся ночь, чтобы увидеть работу */
+function returnClaimed(asOf){
+  state.tasks.forEach(t=>{
+    if(isTerminal(t) || t.controller || lastEv(t)!=='заявлено' || t.kind!=='rule') return;
+    if(povodGoneFor(t)) return;
+    const claimedAt = stateEntry(t).claimedAt || stateEntry(t).t;
+    if(claimedAt >= asOf) return;
+    log(t,'возвращено',{note:'повод жив на срезе '+fmt(asOf)}); notify(t,'возвращено');
   });
 }
 
@@ -1050,7 +1153,7 @@ function runPoll(opts){
     const isDown = opts.down!==undefined ? opts.down
       : (opts.downSources ? opts.downSources.indexOf(src.id)!==-1 : !!state.sourceDown[src.id]);
     if(isDown){
-      run.sources.push({name:src.name, answer:'таймаут', matched:0, new:0, gone:0, rollup:[]});
+      run.sources.push({src:src.id, name:src.name, answer:'таймаут', matched:0, new:0, gone:0, rollup:[]});
       run.complete = false;
       // замораживаются только поводы этого источника
       state.povods.filter(p=>p.status==='appeared' && src.kinds.indexOf(p.kind)!==-1).forEach(p=>{
@@ -1067,9 +1170,10 @@ function runPoll(opts){
       if(r.rollup) rollupKinds.push(kindId);
       totalNew+=nk.length; totalGone+=gk.length; totalMatched+=mk.length;
     });
-    run.sources.push({name:src.name, answer:'множество', matched:totalMatched, new:totalNew, gone:totalGone, rollup:rollupKinds});
+    run.sources.push({src:src.id, name:src.name, answer:'множество', matched:totalMatched, new:totalNew, gone:totalGone, rollup:rollupKinds});
     if(src.id==='self') checkDeadlines(asOf); // эскалация срока — только при доступном самоопросе
   });
+  if(run.complete) returnClaimed(asOf);
   readdressByCuration(asOf);
   state.pollRuns.push(run);
   return run;
@@ -1083,12 +1187,13 @@ function responsibleNow(t){ // ответственный по кураторс�
 function visibleTo(t, viewerId){
   if(viewerId===t.assignee || viewerId===t.controller || viewerId===t.author) return true;
   if(chiefChainIncludes(t.assignee, viewerId)) return true;
+  if(actingFor(t.assignee, state.today)===viewerId) return true; // замещающий исполнителя на дату
   return responsibleNow(t)===viewerId;
 }
 function queueTasks(scope){
   const v = state.viewer;
   return state.tasks.filter(t=>{
-    if(scope==='mine') return t.assignee===v;
+    if(scope==='mine') return t.assignee===v || (!isTerminal(t) && actingFor(t.assignee, state.today)===v);
     return visibleTo(t, v);
   }).sort((a,b)=> (isTerminal(a)-isTerminal(b)) || (dueOf(a)<dueOf(b)?-1:1));
 }
@@ -1178,20 +1283,20 @@ function renderQueue(){
     <tr class="${isTerminal(t)?'hole':(dueOf(t)<state.today && !isTerminal(t) ? 'over':'')}">
       <td><button class="linky" onclick="ZD.openCard('${t.id}')">${t.id}</button></td>
       <td>${esc(t.label)}</td>
-      <td>${esc(emp(t.assignee)?.name||t.assignee)}</td>
+      <td>${esc(emp(t.assignee)?.name||t.assignee)}${!isTerminal(t) && actingFor(t.assignee, state.today)!==t.assignee ? `<div class="small">действует ${esc(emp(actingFor(t.assignee, state.today))?.name)}</div>` : ''}</td>
       <td>${esc(displayState(t))}${pendingExtension(t)?' <span class="pill warn">запрошено продление</span>':''}</td>
       <td>${fmt(dueOf(t))}${extensionsOf(t)?' <span class="small">(продлён)</span>':''}</td>
       <td><span class="pill ${t.importance==='высокая'?'err':t.importance==='средняя'?'warn':'neutral'}">${t.importance}</span></td>
       <td>${t.kind==='rule'?(t.rollupKeys?'<span class="pill info">вал</span>':'<span class="pill info">по правилу</span>'):'<span class="pill neutral">свободное</span>'}${t.repeatOf?' <span class="pill warn">повтор</span>':''}</td>
     </tr>`).join('') || '<tr><td colspan="7" class="muted">пусто</td></tr>';
-  const pendingManual = state.povods.filter(p=>p.kind==='pk-kind-inactive' && p.status!=='gone' &&
+  const pendingManual = state.povods.filter(p=>p.kind==='pk-kind-inactive' && p.status!=='gone' && !povodReleased(p) &&
     !state.tasks.some(t=>t.povodKey===p.key && !isTerminal(t)));
   return `
     ${banner}
     <div class="section-h">Мои задания (${esc(emp(state.viewer)?.name)})</div>
     <table class="cgrid"><thead><tr><th>№</th><th>Что сделать</th><th>Исполнитель</th><th>Состояние</th><th>Срок</th><th>Важность</th><th>Род</th></tr></thead>
       <tbody>${rows('mine')}</tbody></table>
-    <div class="section-h">Видимые мне (подчинённые, контроль, авторство, кураторство)</div>
+    <div class="section-h">Видимые мне (подчинённые, контроль, авторство, кураторство, замещение)</div>
     <table class="cgrid"><thead><tr><th>№</th><th>Что сделать</th><th>Исполнитель</th><th>Состояние</th><th>Срок</th><th>Важность</th><th>Род</th></tr></thead>
       <tbody>${rows('dept')}</tbody></table>
     ${pendingManual.length ? `
@@ -1255,12 +1360,14 @@ function renderCardDrawer(){
         <div class="k">Род</div><div class="v">${t.kind==='rule'?'по правилу '+esc(t.ruleId)+' (ред. '+t.ruleEdition+')':'свободное поручение'}</div>
         <div class="k">Основание</div><div class="v">${povod ? 'повод «'+esc(kindOf(povod.kind).title)+'» · '+esc(describePovod(povod)) : (t.kind==='rule'?'—':'решение автора '+esc(emp(t.author)?.name))}</div>
         <div class="k">Исполнитель</div><div class="v">${esc(emp(t.assignee)?.name)}</div>
+        ${!isTerminal(t) && actingFor(t.assignee, state.today)!==t.assignee ? `<div class="k">Действует за исполнителя</div><div class="v">${esc(emp(actingFor(t.assignee, state.today))?.name)} (замещение на ${fmt(state.today)})</div>` : ''}
         ${t.addr ? `<div class="k">Адресат (снимок на выдачу)</div><div class="v">${esc(addrText(t.addr))}</div>` : ''}
         ${responsibleNow(t) ? `<div class="k">Ответственный на ${fmt(state.today)}</div><div class="v">${esc(emp(responsibleNow(t))?.name)}</div>` : ''}
-        <div class="k">Контролёр</div><div class="v">${t.controller?esc(emp(t.controller)?.name):'нет — независимая ось: отпадение повода'}</div>
+        <div class="k">Контролёр</div><div class="v">${t.controller?esc(emp(t.controller)?.name)+(t.kind==='rule'?' — и отпадение повода':''):'нет — независимая ось: отпадение повода'}</div>
+        ${t.kind==='rule' ? `<div class="k">Повод</div><div class="v">${povodGoneFor(t) ? 'отпал' : 'жив'}</div>` : ''}
         <div class="k">Автор</div><div class="v">${esc(emp(t.author)?.name)}</div>
         <div class="k">Первоначальный срок</div><div class="v">${fmt(t.dueDate)}</div>
-        <div class="k">Установленный срок</div><div class="v">${fmt(dueOf(t))}${extensionsOf(t)?' · продлений: '+extensionsOf(t):''}</div>
+        <div class="k">Установленный срок</div><div class="v">${fmt(dueOf(t))}${extensionsOf(t)?' · продлений: '+extensionsOf(t):''}${calNote(t.journal[0].t, dueOf(t)) ? `<div class="small" style="color:var(--asubk-red)">${esc(calNote(t.journal[0].t, dueOf(t)))}</div>` : ''}</div>
         ${t.repeatOf ? `<div class="k">Повтор после</div><div class="v"><button class="linky" onclick="ZD.openCard('${t.repeatOf}')">${t.repeatOf}</button> · повторов по ключу: ${t.repeatCount}</div>` : ''}
         <div class="k">Важность</div><div class="v">${t.importance}</div>
         <div class="k">Состояние</div><div class="v"><b>${esc(displayState(t))}</b></div>
@@ -1273,7 +1380,7 @@ function renderCardDrawer(){
       ${renderTaskActions(t)}
       <div class="section-h">Журнал (только дозапись)</div>
       <table class="cgrid"><thead><tr><th>Дата</th><th>Событие</th><th>Подробности</th></tr></thead>
-        <tbody>${t.journal.map(e=>`<tr><td>${fmt(e.t)}</td><td>${esc(e.ev)}</td><td class="small">${esc(JSON.stringify(Object.assign({},e,{t:undefined,ev:undefined})))}</td></tr>`).join('')}</tbody></table>
+        <tbody>${t.journal.map(e=>`<tr><td>${fmt(e.t)}</td><td>${esc(e.ev)}${e.for ? `<div class="small">${esc(emp(e.by)?.name)} за ${esc(emp(e.for)?.name)}</div>` : ''}</td><td class="small">${esc(JSON.stringify(Object.assign({},e,{t:undefined,ev:undefined})))}</td></tr>`).join('')}</tbody></table>
     </div>
   </div>`;
 }
@@ -1282,24 +1389,30 @@ function renderTaskActions(t){
   const st = lastEv(t), v = state.viewer, id = t.id;
   const act = t.action ? actionOf(t.action) : null;
   const empOpts = EMP.map(e=>`<option value="${e.id}">${esc(e.name)}</option>`).join('');
+  const mine = canActFor(t, v);
   let html = '';
-  if(st==='поручено' || st==='принято' || st==='возвращено'){
+  if(st==='поручено' && mine){
+    html += `<div class="btn-row">
+      <button class="btn btn-primary btn-sm" onclick="ZD.ui(()=>ZD.take('${id}', ZD.state.viewer))">Взять в работу</button>
+      <button class="btn btn-secondary btn-sm" onclick="ZD.ui(()=>ZD.reject('${id}', prompt('Причина отказа:')||'без причины'))">Отказаться</button>
+    </div>`;
+  }
+  if((st==='принято' || st==='возвращено') && mine){
     const proof = act && act.needsProof ? `prompt('Ссылка на подтверждение:')` : 'null';
     html += `<div class="btn-row">
-      <button class="btn btn-primary btn-sm" onclick="ZD.ui(()=>ZD.claim('${id}', ${proof}))">Заявить исполнение</button>
+      <button class="btn btn-primary btn-sm" onclick="ZD.ui(()=>ZD.claim('${id}', ${proof}, ZD.state.viewer))">Заявить исполнение</button>
       <button class="btn btn-secondary btn-sm" onclick="ZD.ui(()=>ZD.reject('${id}', prompt('Причина отказа:')||'без причины'))">Отказаться</button>
-      ${t.rollupKeys && v===t.assignee ? `<button class="btn btn-secondary btn-sm" onclick="ZD.ui(()=>ZD.splitRollup('${id}', ZD.state.viewer))">Разобрать вал на поштучные</button>` : ''}
     </div>`;
   }
-  if(st==='ожидает приёмки'){
-    html += `<div class="btn-row">
-      <button class="btn btn-primary btn-sm" onclick="ZD.ui(()=>ZD.acceptDecision('${id}',true))">Принять (исполнено)</button>
-      <button class="btn btn-secondary btn-sm" onclick="ZD.ui(()=>ZD.acceptDecision('${id}',false, prompt('Причина возврата:')||''))">Отклонить приёмку</button>
-    </div>`;
+  if(t.rollupKeys && v===t.assignee && ['поручено','принято','возвращено'].indexOf(st)!==-1){
+    html += `<div class="btn-row"><button class="btn btn-secondary btn-sm" onclick="ZD.ui(()=>ZD.splitRollup('${id}', ZD.state.viewer))">Разобрать вал на поштучные</button></div>`;
   }
-  if(st==='отказано'){
-    html += `<div class="btn-row">
-      <button class="btn btn-secondary btn-sm" onclick="ZD.ui(()=>ZD.releaseTask('${id}', prompt('Причина снятия:')||'решение автора'))">Снять (решение автора)</button>
+  if(st==='ожидает приёмки' && v===t.controller){
+    const gone = povodGoneFor(t), rule = t.kind==='rule';
+    html += `${rule ? `<div class="banner ${gone?'ok':'info'}">${gone ? 'Повод отпал — работа подтверждена соседом, решение за контролёром.' : 'Повод ещё жив — принять нельзя, только вернуть.'}</div>` : ''}
+    <div class="btn-row">
+      <button class="btn btn-primary btn-sm" ${rule && !gone ? 'disabled' : ''} onclick="ZD.ui(()=>ZD.acceptDecision('${id}',true))">Принять (исполнено)</button>
+      <button class="btn btn-secondary btn-sm" onclick="ZD.ui(()=>ZD.acceptDecision('${id}',false, prompt('Что доделать?')||''))">Вернуть</button>
     </div>`;
   }
   if(st==='отпало'){
@@ -1310,6 +1423,12 @@ function renderTaskActions(t){
       <button class="btn btn-secondary btn-sm" onclick="ZD.ui(()=>ZD.disposeLapsed('${id}','отпало', document.getElementById('lapsedReason').value))">Закрыть — отпало (с причиной)</button>
     </div>`;
   }
+  if(v===t.author){
+    html += `<div class="card"><h3>Снять задание</h3><div class="form-row">
+      <div class="fld"><label>Основание</label><input id="releaseReason"></div>
+      <button class="btn btn-secondary btn-sm" onclick="ZD.ui(()=>ZD.releaseTask('${id}', ZD.state.viewer, document.getElementById('releaseReason').value.trim()))">Снять</button>
+    </div>${t.kind==='rule' ? '<div class="small">Пока повод жив, новое задание по нему не выдаётся.</div>' : ''}</div>`;
+  }
   // срок: запрос исполнителя, решение утверждающего
   const req = pendingExtension(t);
   if(req){
@@ -1319,7 +1438,7 @@ function renderTaskActions(t){
         <button class="btn btn-primary btn-sm" onclick="ZD.ui(()=>ZD.decideExtension('${id}', ZD.state.viewer, true))">Утвердить</button>
         <button class="btn btn-secondary btn-sm" onclick="ZD.ui(()=>ZD.decideExtension('${id}', ZD.state.viewer, false, prompt('Почему отклонено?')||''))">Отклонить</button>
       </div>` : ''}</div>`;
-  } else if(v===t.assignee){
+  } else if(mine){
     html += `<div class="card"><h3>Продление срока</h3><div class="form-row">
       <div class="fld"><label>Новый срок</label><input type="date" id="extDue" value="${addWorkdays(dueOf(t),3)}"></div>
       <div class="fld"><label>Основание</label><input id="extReason"></div>
@@ -1348,7 +1467,7 @@ function renderTaskActions(t){
 }
 
 function renderSettings(){
-  const tabs = [['kinds','Виды повода'],['actions','Действия'],['rules','Правила'],['addr','Кураторство и замещение']];
+  const tabs = [['kinds','Виды повода'],['actions','Действия'],['rules','Правила'],['addr','Кураторство и замещение'],['calendar','Производственный календарь']];
   const tabBtns = tabs.map(([k,l])=>`<button class="${state.settingsTab===k?'on':''}" onclick="ZD.setSettingsTab('${k}')">${l}</button>`).join('');
   let body='';
   if(state.settingsTab==='kinds'){
@@ -1362,7 +1481,7 @@ function renderSettings(){
       <td>${esc(k.objectType)}</td><td>${k.traits.join(', ')||'—'}</td>
       <td>${k.periodic ? 'периодический<div class="small">поглощение периодом: '+esc(k.periodAbsorb||'не объявлено')+'</div>' : 'событийный'}</td>
       <td>${esc(k.sumAttr||'—')}</td>
-      <td><input type="number" value="${k.rollup}" style="width:70px" onchange="ZD.setRollup('${k.id}', this.value)"></td>
+      <td><input type="number" value="${k.rollup==null?'':k.rollup}" placeholder="${ROLLUP_DEFAULT}" style="width:70px" onchange="ZD.setRollup('${k.id}', this.value)">${k.rollup==null?'<div class="small">по умолчанию</div>':''}</td>
       <td>${k.activatedAt && k.activatedAt<=state.today ? '<span class="pill ok">'+fmt(k.activatedAt)+'</span>' : '<span class="pill warn">не введён</span>'}
         <div style="margin-top:6px">${k.activatedAt ? `<button class="btn btn-sm btn-secondary" onclick="ZD.deactivateKind('${k.id}')">Деактивировать (демо)</button>`
                            : `<button class="btn btn-sm btn-primary" onclick="ZD.activateKind('${k.id}')">Ввести в действие</button>`}</div></td>
@@ -1371,10 +1490,11 @@ function renderSettings(){
     body = `<table class="cgrid"><thead><tr><th>Действие</th><th>Важность по умолчанию</th><th>Ссылка на подтверждение</th></tr></thead>
     <tbody>${state.actions.map(a=>`<tr><td>${esc(a.label)} <span class="mono small">${a.id}</span></td><td>${a.importance}</td><td>${a.needsProof?'обязательна':'—'}</td></tr>`).join('')}</tbody></table>`;
   } else if(state.settingsTab==='rules'){
-    body = `<table class="cgrid"><thead><tr><th>Правило</th><th>Вид повода</th><th>Действие</th><th>Адресат</th><th>Режим</th><th>Срок</th><th>Редакций</th></tr></thead>
+    body = `<table class="cgrid"><thead><tr><th>Правило</th><th>Вид повода</th><th>Действие</th><th>Адресат</th><th>Контролёр</th><th>Режим</th><th>Срок</th><th>Редакций</th></tr></thead>
     <tbody>${state.rules.map(r=>`<tr>
       <td class="mono small">${r.id}</td><td>${esc(kindOf(r.kind).title)}</td><td>${esc(actionOf(r.action).label)}</td>
       <td>${esc(r.addressee.by==='кураторство' ? 'роль кураторства: '+r.addressee.role : r.addressee.who)}</td>
+      <td>${r.controller ? esc(r.controller.who)+' <div class="small">и отпадение повода</div>' : '<span class="small">отпадение повода</span>'}</td>
       <td><span class="pill ${r.mode==='авто'?'info':'neutral'}">${r.mode}</span></td>
       <td>${r.dueN} ${r.dueUnit==='workday'?'раб.дн.':'кал.дн.'}</td><td>${r.editions.length}</td>
     </tr>`).join('')}</tbody></table>`;
@@ -1391,11 +1511,17 @@ function renderSettings(){
     <div class="section-h">Подразделения — запасной адресат</div>
     <table class="cgrid"><thead><tr><th>Подразделение</th><th>Руководитель</th></tr></thead>
     <tbody>${DEPTS.map(x=>`<tr><td>${esc(x.id)}</td><td>${x.head?esc(who(x.head)):'<span class="pill warn">нет</span>'}</td></tr>`).join('')}</tbody></table>`;
+  } else if(state.settingsTab==='calendar'){
+    const y = +state.today.slice(0,4);
+    body = `<div class="small" style="margin-bottom:8px">Общий справочник системы, только чтение. Постоянные праздники (на любой год): ${CALENDAR_FIXED.map(x=>x.slice(3)+'.'+x.slice(0,2)).join(', ')}.</div>
+    <table class="cgrid"><thead><tr><th>Год</th><th>Состояние</th><th>Переносы и праздники года</th><th>Рабочие субботы</th></tr></thead>
+    <tbody>${[...new Set([...Object.keys(CALENDAR_YEARS).map(Number), y, y+1])].sort().map(k=>{ const r=CALENDAR_YEARS[k];
+      return `<tr class="${r?'':'over'}"><td>${k}</td><td>${r?'заведён':'не заведён — рабочие дни по сб/вс с отметкой у срока'}</td><td>${r?r.holidays.map(fmt).join(', '):'—'}</td><td>${r?r.workdays.map(fmt).join(', '):'—'}</td></tr>`; }).join('')}</tbody></table>`;
   }
   return `<div class="tabs">${tabBtns}</div>${body}`;
 }
 function setSettingsTab(k){ state.settingsTab=k; render(); }
-function setRollup(kindId, v){ kindOf(kindId).rollup = parseInt(v,10)||1; }
+function setRollup(kindId, v){ kindOf(kindId).rollup = v==='' ? null : (parseInt(v,10)||1); render(); }
 function deactivateKind(kindId){ // демонстрация pk-kind-inactive: снимает активацию, обнуляет createdAt на сегодня минус запас
   const k = kindOf(kindId); k.activatedAt=null; k.createdAt = addDays(state.today, -(INACTIVE_THRESHOLD_D+1));
   toast('Вид деактивирован — демо-условие для «вид повода не введён в действие»','ok'); render();
@@ -1419,6 +1545,12 @@ function renderRuns(){
   <div class="btn-row">
     <button class="btn btn-primary btn-sm" onclick="ZD.runPollUI()">Прогнать самоопрос на дату среза (${fmt(state.today)})</button>
   </div>
+  <div class="section-h">Источники</div>
+  <table class="cgrid"><thead><tr><th>Источник</th><th>Интервал опроса</th><th>Порог молчания</th><th>Молчит</th></tr></thead>
+    <tbody>${SOURCES.map(s=>{ const sil = s.id==='self' ? null : silenceOf(s.id, state.today);
+      return `<tr><td>${esc(s.name)}</td><td>${s.pollEveryMin>=1440?'ночной прогон':s.pollEveryMin+' мин'}</td>
+      <td>${silenceThreshold(s)} мин${s.silenceMin==null?' <span class="small">(два интервала, не меньше 30)</span>':''}</td>
+      <td>${sil ? `с ${fmt(sil.since)} · ${sil.minutes} мин` : '—'}</td></tr>`; }).join('')}</tbody></table>
   <div class="section-h">Журнал прогонов</div>
   <table class="cgrid"><thead><tr><th>№</th><th>Дата</th><th>Ответ источника</th><th>Новых</th><th>Отпавших</th><th>Совпало</th><th>Полнота</th><th>Порог</th></tr></thead>
     <tbody>${rows}</tbody></table>
@@ -1426,7 +1558,7 @@ function renderRuns(){
   <table class="cgrid"><thead><tr><th>Ключ</th><th>Вид</th><th>Состояние</th><th>Дата состояния</th><th>Признаки</th></tr></thead>
     <tbody>${state.povods.slice().reverse().map(p=>`<tr>
       <td class="mono small">${esc(p.key)}</td><td>${esc(kindOf(p.kind).title)}</td>
-      <td><span class="pill ${p.status==='gone'?'neutral':p.status==='frozen'?'warn':'ok'}">${p.status}</span></td>
+      <td><span class="pill ${p.status==='gone'?'neutral':p.status==='frozen'?'warn':'ok'}">${p.status}</span>${p.status!=='gone' && povodReleased(p) ? ' <span class="pill neutral">снят без поручения</span>' : ''}</td>
       <td>${fmt(p.stateDate)}${p.approx?' <span class="small">(приблизительно)</span>':''}</td>
       <td class="small">${esc(JSON.stringify(p.traits||{}))}</td>
     </tr>`).join('') || '<tr><td colspan="5" class="muted">пусто</td></tr>'}</tbody></table>
@@ -1452,7 +1584,7 @@ if(typeof document!=='undefined') document.addEventListener('DOMContentLoaded', 
 
 return {
   seed: seedState, get state(){ return state; }, EMP,
-  runPoll, claim, reject, releaseTask, reassignTask, acceptDecision, disposeLapsed,
+  runPoll, take, claim, reject, releaseTask, reassignTask, acceptDecision, disposeLapsed,
   createFreeTask, issueManual, mkTask, notify,
   requestExtension, decideExtension, addProgress, splitRollup,
   deriveState: displayState, lastEv, isTerminal, outcomeOf, describePovod,
@@ -1460,6 +1592,8 @@ return {
   visibleTo, subordinatesOf, chiefOf, chiefChainIncludes,
   resolveAddressee, curatorOn, actingFor, responsibleNow, dueOf, extensionsOf, approverOf, pendingExtension,
   keyStatus, liveKeys, checkRegistry, taskRows,
+  canActFor, povodGoneFor, povodReleased, silenceOf, silenceThreshold, rollupOf, controllerOf,
+  addWorkdays, workdaysBetween, isWork, calNote, SOURCES, ROLLUP_DEFAULT,
   SELF_KINDS, NOTIF_KINDS,
   go, setAsOf, setViewer, openCard, closeCard, renderCardDrawer, render,
   openFreeForm, cancelFree, submitFree, setSettingsTab, setRollup, deactivateKind, activateKind,
