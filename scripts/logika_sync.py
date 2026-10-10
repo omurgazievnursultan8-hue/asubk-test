@@ -2,7 +2,7 @@
 """Sync the 14 copied module specs in docs/logika/ with their originals in mockups/.
 
 Files 01-04, 17-20 and 22-24 are written in docs/logika/ itself and are never touched here.
-Files 05-16, 21 and 25 are copies of mockups/*/ASUBK-*-logika.md, kept in one folder for export.
+Files 05-16, 21, 25 and 26 are copies of mockups/*/ASUBK-*-logika.md, kept in one folder for export.
 
     python3 scripts/logika_sync.py           # report drift, exit 1 if any
     python3 scripts/logika_sync.py --write   # overwrite the copies from the originals
@@ -31,6 +31,7 @@ PAIRS = {
     "16-otchetnost.md":          "mockups/reports/ASUBK-otchetnost-logika.md",
     "21-zadaniya.md":            "mockups/zadaniya/ASUBK-zadaniya-logika.md",
     "25-imushchestvo.md":        "mockups/assets/ASUBK-imushchestvo-logika.md",
+    "26-dokumentooborot.md":     "mockups/docflow/ASUBK-dokumentooborot-logika.md",
 }
 
 
