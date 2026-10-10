@@ -303,4 +303,7 @@
    приёмки `С-1`…`С-32`, вопросы заказчику `ДО-ВЗ-1`…`ДО-ВЗ-6`, задачи другим модулям
    `ДО-ДС-1`…`ДО-ДС-10`, решения `ADR-0265`…`ADR-0272`; живого экрана нет, модуль спроектирован
    с нуля. Канон: `mockups/docflow/ASUBK-dokumentooborot-logika.md`. Основание — обследование
-   прежней системы `requirements/legacy/09-docflow.md` (§13, §15). Макета и постановки пока нет.
+   прежней системы `requirements/legacy/09-docflow.md` (§13, §15). Мокап: `mockups/docflow/docflow.html`
+   (волна 1, смоук `scripts/inspect/docflow-check.mjs` 188/188, расхождения `ДО-Д1`…`ДО-Д15` — в
+   `mockups/docflow/ASUBK-status-razrabotki.md`). Постановка: `docs/tasks/p25-dokumentooborot-tasks.html`
+   (пакет `P25`, формат 2, 39 карточек `P25-R1`…`P25-R39` в 12 этапах, 10.10.2026).

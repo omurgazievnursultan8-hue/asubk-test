@@ -1,0 +1,1819 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Документооборот · АСУБК</title>
+<!--
+  АСУБК · модуль «Документооборот» · исполняемый макет TO-BE · волна 1 (ядро).
+  Источник истины — mockups/docflow/ASUBK-dokumentooborot-logika.md (канон; копия —
+  docs/logika/26-dokumentooborot.md), решения — ADR-0265…ADR-0272 (при расхождении канона с ADR
+  побеждает ADR), раздел ТЗ 23 — справочно. Журнал волн и расхождения ДО-Д* —
+  mockups/docflow/ASUBK-status-razrabotki.md. Смоук — node scripts/inspect/docflow-check.mjs.
+
+  ЧТО ПОКАЗЫВАЕТ ВОЛНА 1
+    Журналы: Входящие · Исходящие · Внутренние · Мои (§9.1, ДО-33): поиск одной строкой,
+      фильтры (тип, этап, исполнение, период регистрации), группировка с итогами, наборы
+      фильтров (в памяти страницы), печатная форма журнала (журнал по шаблону = фильтр по типу,
+      ДО-21, §3.2; согласие заказчика — ДО-ВЗ-6).
+    Карточка документа: Реквизиты · Файлы · Маршрут · Резолюции · Отправка · Ознакомление ·
+      Привязки · Журнал · Комментарии; в шапке — этап, номер, сводки и кнопки доступных действий.
+    Архив (§7): номенклатура дел, «ждут сдачи в дело», журнал выдачи оригиналов.
+    Показатели (§9.2, ADR-0272): предпросмотр того, что шов отдаёт «Статистике».
+    Настройки (§1.2, §1.11): справочники только на чтение; вкладка «Шаги для заданий» —
+      ответ на опрос «Заданий» (§10.1, ИД-18) и журнал закрытия шагов.
+
+  ПРАВИЛА, ЗАШИТЫЕ В ДВИЖОК (экраны их не поясняют — только показывают и запрещают)
+    ADR-0265 · ДО-15/16/17 — этап хранится (Черновик · Согласование · Подпись ·
+      Зарегистрирован · В деле · Аннулирован); исполнение, отправка и ознакомление ВЫВОДЯТСЯ
+      (execInfo / dispatchInfo / acqInfo), поля «статус исполнения» нет (ИД-12). «Отправлен» и
+      «Исполнен» — не этапы. Зарегистрированный не удаляется (ИД-3): «Исправить» (было/стало) или
+      «Аннулировать» (номер остаётся занятым; нельзя после отправки, ИД-9).
+    ADR-0267 · ДО-8/21/32/38 — три ряда (ВХ «1234», ИСХ «<код отдела>/<n>», ВН
+      «<код отдела>/ВН-<n>»), номер при регистрации, с 1 каждый год по правилу (нет счётчика
+      года — ряд начинается с 1). Перенос: счётчики 2026 года поставлены на максимум прежней
+      системы (ВХ 4870, ИСХ 2172), ряд ВН — с 1. Номер исходящего/внутреннего — после подписи,
+      скан «подписанный» прикладывается после выдачи номера; без него нет отправки и сдачи в дело.
+    ADR-0266 · ДО-18/19/20/24 — резолюция: один ответственный (ИД-11), каскад, срок нижней не
+      позже действующего срока верхней на момент выдачи (ИД-10), исход «Исполнено»/«Отказать».
+      «Требует ответа» — гаснет ответным исходящим, отправленным отправителю; «Исполнено»
+      недоступно. «На контроле» — подтверждает контролёр, возврат даёт повтор.
+      Срочность → срок по умолчанию 10 / 3 / 1 р.д. от регистрации (ДО-23; ДО-ВЗ-2).
+    ADR-0269 · ДО-24/36 — право подписи по справочнику «сотрудник × типы × основание × срок»;
+      проверка при выборе подписанта и ещё раз на дату подписи; истекло — документ возвращается
+      автору. Замещающий подписывает только по приказу «с правом подписи» (ДО-ДС-8).
+      Все проверки прав — в движке (стенд «сервера»): скрытая кнопка правом не считается (ИД-20);
+      чтение карточки тоже проверяется (openDoc).
+    §8.3 · ДО-12 — видимость: участники, руководитель по цепочке, замещающий на срок,
+      Регистратор и руководство — всё.
+    ADR-0270 · ДО-6/22/31 — привязки к объектам; обязательность из типа (ИД-13), кредит
+      подставляет заёмщика; мера взыскания ЧИТАЕТ номер и даты из документа (заглушка шва).
+    ADR-0271 · ДО-29/34…37/44 — каждый ждущий шаг — повод для «Заданий»; адресат из повода,
+      «подписать» — лично (замещающего подставляет документооборот), регистрация/отправка/сдача
+      в дело — очередь роли; закрытие — отпадением с атрибуцией («исполнено», «выполнил другой»,
+      «снято» с причиной). Очереди «на мне» у модуля нет.
+    ADR-0268 · ДО-11 — бланк «Отчётности» с получателем → черновик исходящего (заглушка шва).
+    ADR-0272 · ДО-26/43 — показатели считает «Статистика»; здесь только предпросмотр.
+    Инварианты ИД-1…ИД-20 проверяет смоук (ИД-19 — перенесённые только для чтения).
+
+  ДЕМО-ДАННЫЕ ВМЕСТО НЕОТВЕЧЕННЫХ ВОПРОСОВ (заменяются строкой справочника, модель не меняется)
+    • Справочник права подписи заполнен демо-строками: ДО-ВЗ-4 (список лиц с правом подписи,
+      доверенности, сроки) не отвечен; в бою, пока справочник пуст, подписать не может никто.
+    • Номенклатура дел 2026 — демо (ДО-ВЗ-1).
+    • Фразы резолюций — демо (долг 2); перечень «руководство» для видимости — демо (долг 3).
+    • Сроки 10/3/1 р.д. — до ответа на ДО-ВЗ-2. Рабочий день = пн–пт, праздники не учтены (ДО-Д6).
+    • Ограниченной видимости нет (ДО-ВЗ-5). Общего чата нет (ДО-ВЗ-3) — только лента комментариев.
+
+  ШВЫ — ЗАГЛУШКИ ВНУТРИ МАКЕТА (соседние макеты не правятся)
+    Сотрудники/Оргструктура (коды отделов, руководитель, замещение с признаком права подписи) ·
+    Задания (опрос поводов, взятие из очереди, утверждённые продления — EXT) · Заёмщик/Кредит/
+    Взыскание (объекты привязки, чтение мерой) · Отчётность (два демо-выпуска бланков) ·
+    Справочник органов-адресатов (ДО-ДС-10).
+
+  «Сегодня» заморожено: TODAY = 2026-10-15; системные штампы берутся из S.clock (смоук сдвигает
+  его, чтобы проверить новый год). Шов для смоука — window.DF; действия возвращают {ok, why}.
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-link:#005FDB;
+  --asubk-green:#158443; --asubk-red:#E03A3A;
+  --asubk-ink:#192434; --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-grid-line:rgba(26,57,96,0.10); --asubk-tint-fill:rgba(25,59,103,0.05);
+  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+  --asubk-red-tint:#FCE6E6; --asubk-green-tint:rgba(21,132,67,0.10);
+  --asubk-amber:#B8860B; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong);
+  --action-primary:var(--asubk-blue); --action-danger:var(--asubk-red);
+  --status-success-bg:var(--asubk-green-tint); --status-info-bg:var(--asubk-blue-tint);
+  --status-warning-bg:var(--asubk-amber-tint); --status-error-bg:var(--asubk-red-tint);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --text-sm:14px; --text-base:16px; --text-lg:18px;
+  --weight-regular:400; --weight-medium:500; --weight-semibold:600; --weight-bold:700;
+  --font-body:var(--weight-regular) var(--text-base)/1.5 var(--asubk-font);
+  --font-label:var(--weight-regular) var(--text-sm)/1.35 var(--asubk-font);
+  --font-page-title:var(--weight-semibold) var(--text-lg)/1.2 var(--asubk-font);
+  --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --control-h:36px; --header-h:56px; --sidebar-w:270px;
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:var(--font-body); color:var(--text-body); background:var(--surface-page); }
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background:rgba(28,55,90,0.22); border-radius:6px; }
+.app{ display:flex; height:100vh; width:100%; }
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar);
+  display:flex; flex-direction:column; border-right:1px solid var(--border-default); }
+.brand{ padding:18px 16px 4px; font:var(--weight-semibold) 17px/1.2 var(--asubk-font); color:var(--text-heading); letter-spacing:0.04em; }
+.brand small{ display:block; font:var(--weight-regular) 12px/1.4 var(--asubk-font); color:var(--text-muted); letter-spacing:0; margin-top:4px; }
+.nav{ flex:1; overflow-y:auto; padding:12px 0 8px; }
+.nav-sec{ padding:9px 16px 4px; font:var(--weight-semibold) 12px/1.3 var(--asubk-font); color:var(--text-placeholder); text-transform:uppercase; letter-spacing:0.05em; }
+.nav-item{ display:flex; align-items:center; gap:9px; padding:8px 16px; width:100%; color:rgba(27,43,65,0.72);
+  font:var(--weight-regular) var(--text-base)/1.4 var(--asubk-font); cursor:pointer; background:none; border:none; text-align:left; }
+.nav-item:hover{ background:rgba(24,39,57,0.05); }
+.nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,0.96); font-weight:var(--weight-medium); }
+.nav-item .cnt{ margin-left:auto; color:var(--text-placeholder); font-size:12px; }
+.nav-item .cnt.hot{ color:var(--asubk-red); font-weight:var(--weight-semibold); }
+.sidebar-foot{ padding:12px 16px; border-top:1px solid var(--border-default); font:var(--weight-regular) 12px/1.45 var(--asubk-font); color:var(--text-muted); }
+.main{ flex:1; display:flex; flex-direction:column; min-width:0; }
+.topbar{ min-height:var(--header-h); flex:none; border-bottom:1px solid var(--border-default);
+  display:flex; align-items:center; gap:14px; padding:8px 20px; flex-wrap:wrap; }
+.crumb-title{ font:var(--font-page-title); color:var(--text-heading); }
+.crumb-title .back{ color:var(--text-link); cursor:pointer; font-weight:var(--weight-regular); }
+.topbar .right{ margin-left:auto; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.topbar label{ font:var(--font-label); color:var(--text-muted); margin-right:6px; }
+.topbar select,.topbar input{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 10px; }
+.content{ flex:1; overflow:auto; }
+.panel-wrap{ padding:18px 24px 60px; max-width:1280px; }
+.section-h{ font:var(--weight-semibold) 16px/1.2 var(--asubk-font); color:var(--text-heading); margin:22px 0 8px; }
+.section-h:first-child{ margin-top:0; }
+.banner{ border-radius:var(--radius-md); padding:10px 14px; margin-bottom:10px; font:var(--font-label); }
+.banner.warn{ background:var(--status-warning-bg); color:#7a5a06; }
+.banner.info{ background:var(--status-info-bg); color:#0b4fae; }
+.banner.danger{ background:var(--status-error-bg); color:#b02626; }
+.banner.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.banner b{ font-weight:var(--weight-semibold); }
+.pill{ display:inline-block; padding:2px 9px; border-radius:var(--radius-pill); font:var(--weight-medium) 12px/1.5 var(--asubk-font); white-space:nowrap; }
+.pill.ok{ background:var(--status-success-bg); color:var(--asubk-green); }
+.pill.warn{ background:var(--status-warning-bg); color:#8a6508; }
+.pill.err{ background:var(--status-error-bg); color:var(--asubk-red); }
+.pill.info{ background:var(--status-info-bg); color:var(--asubk-blue); }
+.pill.neutral{ background:var(--asubk-tint-fill); color:var(--text-muted); }
+.flag{ display:inline-block; padding:1px 8px; border-radius:var(--radius-pill); font:var(--weight-semibold) 12px/1.5 var(--asubk-font);
+  background:var(--status-error-bg); color:var(--asubk-red); white-space:nowrap; margin-left:4px; }
+.flag.enc{ background:var(--status-warning-bg); color:#8a6508; }
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px; height:var(--control-h); padding:0 14px;
+  border:1px solid transparent; border-radius:var(--radius-md); font:var(--weight-semibold) 14px/1 var(--asubk-font); cursor:pointer; white-space:nowrap; }
+.btn:disabled{ opacity:.45; cursor:not-allowed; }
+.btn-primary{ background:var(--action-primary); color:#fff; }
+.btn-primary:hover:not(:disabled){ background:var(--asubk-blue-hover); }
+.btn-secondary{ background:var(--surface-card); color:var(--text-body); border-color:var(--border-default); }
+.btn-secondary:hover:not(:disabled){ background:var(--surface-hover); }
+.btn-danger{ background:var(--surface-card); color:var(--asubk-red); border-color:rgba(224,58,58,.4); }
+.btn-sm{ height:28px; padding:0 9px; font-size:12.5px; font-weight:var(--weight-medium); }
+.btn-row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+table.cgrid{ width:100%; border-collapse:collapse; font:var(--font-label); border:1px solid var(--border-default); background:var(--surface-card); }
+table.cgrid thead th{ text-align:left; padding:9px 10px; background:var(--surface-panel); border-bottom:1px solid var(--asubk-grid-line);
+  font:var(--weight-semibold) 13px/1.35 var(--asubk-font); color:var(--text-heading); white-space:nowrap; }
+table.cgrid tbody td{ padding:8px 10px; border-bottom:1px solid var(--asubk-grid-line); vertical-align:top; }
+table.cgrid tbody tr:last-child td{ border-bottom:none; }
+table.cgrid tbody tr.click{ cursor:pointer; } table.cgrid tbody tr.click:hover td{ background:var(--surface-hover); }
+table.cgrid tbody tr.over td{ background:#fff6f6; }
+table.cgrid tbody tr.pend td{ background:#fffbea; }
+table.cgrid tbody tr.gone td{ color:var(--text-placeholder); }
+table.cgrid td.num, table.cgrid th.num{ text-align:right; white-space:nowrap; }
+.muted{ color:var(--text-muted); }
+.mono{ font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12.5px; }
+.small{ font:var(--weight-regular) 12.5px/1.45 var(--asubk-font); color:var(--text-muted); }
+.why{ font:var(--weight-regular) 12px/1.45 var(--asubk-font); color:var(--text-muted); margin-top:3px; }
+.why.err{ color:var(--asubk-red); }
+.linky{ background:none; border:none; padding:0; cursor:pointer; color:var(--text-link); font:inherit; text-decoration:underline; }
+.card{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:14px 16px; margin-bottom:14px; background:var(--surface-card); }
+.card > h3{ margin:0 0 10px; font:var(--weight-semibold) 15px/1.25 var(--asubk-font); color:var(--text-heading); }
+.card-head{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:0 0 10px; }
+.card-head h3{ margin:0; font:var(--weight-semibold) 15px/1.25 var(--asubk-font); color:var(--text-heading); }
+.card-head .btn-row{ margin-left:auto; }
+.kv{ display:grid; grid-template-columns:200px 1fr; gap:5px 14px; font:var(--font-label); }
+.kv .k{ color:var(--text-muted); }
+.grid2{ display:grid; grid-template-columns:minmax(0,1.7fr) minmax(300px,1fr); gap:14px; align-items:start; }
+@media(max-width:1100px){ .grid2{ grid-template-columns:1fr; } }
+.filters{ display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; margin-bottom:12px; }
+.fld{ display:flex; flex-direction:column; gap:4px; }
+.fld > label{ font:12.5px/1.3 var(--asubk-font); color:var(--text-muted); }
+.fld select,.fld input,.fld textarea{ height:34px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:var(--font-label); padding:0 9px; min-width:160px; }
+.fld textarea{ height:60px; padding:6px 9px; }
+.chk{ display:flex; gap:6px; align-items:center; font:var(--font-label); height:34px; }
+.tabs{ display:flex; gap:2px; border-bottom:1px solid var(--border-default); margin:0 0 12px; flex-wrap:wrap; }
+.tab{ padding:8px 12px; border:none; background:none; cursor:pointer; font:var(--font-label); color:var(--text-muted); border-bottom:2px solid transparent; }
+.tab.on{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); font-weight:var(--weight-semibold); }
+.tab .c{ color:var(--text-placeholder); font-size:11.5px; margin-left:3px; }
+.facts{ display:flex; flex-direction:column; gap:10px; }
+.fgroup{ display:flex; gap:8px; align-items:flex-start; }
+.fgroup .gname{ width:130px; flex:none; font:var(--weight-semibold) 12.5px/28px var(--asubk-font); color:var(--text-muted); }
+.fgroup .gbody{ flex:1; }
+.fgroup .why{ margin-top:4px; }
+.sum{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+.sum .tile{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:8px 12px; min-width:130px; background:var(--surface-card); }
+.sum .tile .n{ font:var(--weight-semibold) 18px/1.2 var(--asubk-font); color:var(--text-heading); }
+.sum .tile .l{ font:12px/1.3 var(--asubk-font); color:var(--text-muted); }
+.ro{ border-left:3px solid var(--asubk-gray-200); padding-left:10px; }
+.overlay{ position:fixed; inset:0; background:rgba(16,28,46,0.42); display:none; align-items:center; justify-content:center; z-index:60; padding:24px; }
+.overlay.open{ display:flex; }
+.modal{ background:var(--surface-card); border-radius:var(--radius-lg); width:min(720px,100%); max-height:90vh; display:flex; flex-direction:column; box-shadow:0 24px 70px rgba(16,28,46,0.4); }
+.modal-h{ padding:18px 24px 10px; display:flex; align-items:center; gap:10px; }
+.modal-h .mt{ font:var(--weight-bold) 19px/1.2 var(--asubk-font); color:var(--text-heading); flex:1; }
+.modal-x{ border:none; background:transparent; cursor:pointer; color:var(--text-muted); font-size:20px; }
+.modal-b{ padding:0 24px 8px; overflow:auto; flex:1; }
+.modal-f{ padding:14px 24px 20px; display:flex; gap:12px; justify-content:flex-end; }
+.mform{ display:grid; grid-template-columns:1fr 1fr; gap:12px 22px; padding-top:6px; }
+.mform .fld.wide{ grid-column:1/-1; }
+.mform .fld select,.mform .fld input,.mform .fld textarea{ width:100%; min-width:0; }
+.req::after{ content:" •"; color:var(--action-danger); }
+#toastWrap{ position:fixed; right:18px; bottom:18px; display:flex; flex-direction:column; gap:8px; z-index:70; }
+.toast{ background:var(--asubk-ink); color:#fff; padding:10px 14px; border-radius:var(--radius-md); font:var(--font-label); max-width:460px; box-shadow:0 6px 20px rgba(24,39,57,0.25); }
+.toast.err{ background:var(--asubk-red); } .toast.ok{ background:var(--asubk-green); }
+@media(max-width:760px){
+  .app{ flex-direction:column; height:auto; min-height:100vh; }
+  .sidebar{ width:100%; border-right:none; border-bottom:1px solid var(--border-default); }
+  .nav{ display:flex; flex-wrap:wrap; padding:4px 8px; } .nav-sec,.sidebar-foot{ display:none; }
+  .nav-item{ width:auto; padding:6px 10px; font-size:14px; }
+  .content{ overflow:visible; } .panel-wrap{ padding:12px 16px 40px; }
+  .topbar{ padding:8px 16px; } .topbar .right{ margin-left:0; }
+  .kv{ grid-template-columns:1fr; gap:2px 0; } .kv .k{ margin-top:6px; }
+  table.cgrid{ display:block; overflow-x:auto; }
+  .mform{ grid-template-columns:1fr; } .fgroup{ flex-direction:column; gap:2px; }
+}
+.tree{ margin-left:18px; border-left:2px solid var(--asubk-gray-200); padding-left:12px; }
+.resbox{ border:1px solid var(--border-default); border-radius:var(--radius-md); padding:10px 12px; margin:8px 0; background:var(--surface-card); }
+.resbox .rh{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; font:var(--font-label); }
+.grp td{ background:var(--surface-panel); font-weight:var(--weight-semibold); }
+.red{ color:var(--asubk-red); font-weight:var(--weight-semibold); }
+.mfmulti{ height:auto !important; min-height:90px; }
+.logrow{ font:var(--font-label); padding:5px 0; border-bottom:1px solid var(--asubk-grid-line); }
+@media print{ .sidebar,.topbar,.modal-f,.modal-x{ display:none !important; } .overlay{ position:static; background:none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">АСУБК<small>Система кредитования · Документооборот</small></div>
+    <div class="nav">
+      <div class="nav-sec">Журналы</div>
+      <button class="nav-item" data-v="in" data-testid="nav-in" onclick="DF.go('in')">Входящие<span class="cnt" id="cnt-in"></span></button>
+      <button class="nav-item" data-v="out" data-testid="nav-out" onclick="DF.go('out')">Исходящие<span class="cnt" id="cnt-out"></span></button>
+      <button class="nav-item" data-v="int" data-testid="nav-int" onclick="DF.go('int')">Внутренние<span class="cnt" id="cnt-int"></span></button>
+      <button class="nav-item" data-v="mine" data-testid="nav-mine" onclick="DF.go('mine')">Мои<span class="cnt" id="cnt-mine"></span></button>
+      <div class="nav-sec">Дела и сводки</div>
+      <button class="nav-item" data-v="archive" data-testid="nav-archive" onclick="DF.go('archive')">Архив<span class="cnt" id="cnt-archive"></span></button>
+      <button class="nav-item" data-v="indicators" data-testid="nav-indicators" onclick="DF.go('indicators')">Показатели</button>
+      <button class="nav-item" data-v="settings" data-testid="nav-settings" onclick="DF.go('settings')">Настройки</button>
+    </div>
+    <div class="sidebar-foot" id="foot"></div>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb-title" id="title"></div>
+      <div class="right">
+        <span><label>Пользователь</label><select id="user" data-testid="user" onchange="DF.setUser(this.value)"></select></span>
+      </div>
+    </div>
+    <div class="content"><div class="panel-wrap" id="panel"></div></div>
+  </div>
+</div>
+<div class="overlay" id="overlay"><div class="modal" id="modal"></div></div>
+<div id="toastWrap"></div>
+
+<script>
+/* =====================================================================
+ *  МОДУЛЬ «ДОКУМЕНТООБОРОТ» — исполняемый макет, волна 1
+ *  Слои: даты → справочники → состояние → движок (выводы) → действия → шов заданий →
+ *  журналы/показатели → seed → экраны → формы.
+ * ===================================================================== */
+const DF = {};
+
+/* ------------------------------ даты -------------------------------- */
+const D        = s => new Date(s + 'T00:00:00Z');
+const isoOf    = dt => dt.toISOString().slice(0, 10);
+const addDays  = (s, n) => { const d = D(s); d.setUTCDate(d.getUTCDate() + n); return isoOf(d); };
+const isWork   = s => { const w = D(s).getUTCDay(); return w !== 0 && w !== 6; };
+const addWork  = (s, n) => { let c = s, k = 0; while (k < n) { c = addDays(c, 1); if (isWork(c)) k++; } return c; };
+const fmt      = s => s ? s.slice(8, 10) + '.' + s.slice(5, 7) + '.' + s.slice(0, 4) : '—';
+const TODAY    = '2026-10-15';
+function toIso(s) {
+  s = String(s == null ? '' : s).trim(); if (!s) return '';
+  let m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(s), iso = null;
+  if (m) iso = m[3] + '-' + m[2] + '-' + m[1]; else if (/^\d{4}-\d{2}-\d{2}$/.test(s)) iso = s;
+  if (!iso) return null;
+  const d = new Date(iso + 'T00:00:00Z'); return !isNaN(d) && d.toISOString().slice(0, 10) === iso ? iso : null;
+}
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const jsq = s => String(s).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+const yes = { ok: true, why: '' };
+const no  = why => ({ ok: false, why });
+const maxIso = a => a.filter(Boolean).sort().slice(-1)[0] || null;
+
+/* --------------------------- справочники ---------------------------- */
+const KINDS = {
+  in:  { name: 'Входящий',   plural: 'Входящие',   short: 'ВХ' },
+  out: { name: 'Исходящий',  plural: 'Исходящие',  short: 'ИСХ' },
+  int: { name: 'Внутренний', plural: 'Внутренние', short: 'ВН' },
+};
+const STAGES = { draft: 'Черновик', approval: 'Согласование', signing: 'Подпись', registered: 'Зарегистрирован', filed: 'В деле', annulled: 'Аннулирован' };
+const STAGE_PILL = { draft: 'neutral', approval: 'info', signing: 'info', registered: 'ok', filed: 'neutral', annulled: 'err' };
+const URG = { normal: { name: 'Обычно', days: 10 }, urgent: { name: 'Срочно', days: 3 }, immediate: { name: 'Немедленно', days: 1 } };
+const PURPOSE = { exec: 'К исполнению', info: 'К сведению', reply: 'Требует ответа' };
+const FILE_ROLES = { project: 'проект', signed: 'подписанный', appendix: 'приложение', proof: 'подтверждение вручения', scan: 'скан входящего' };
+const EXTS = ['pdf', 'docx', 'xlsx', 'jpg', 'png'];
+const MAX_SIZE = 20 * 1024 * 1024;
+const LINK_KINDS = { borrower: 'Заёмщик', loan: 'Кредит', procedure: 'Процедура взыскания', phase: 'Фаза взыскания', measure: 'Событие (мера) взыскания',
+  pledge: 'Договор залога', asset: 'Объект имущества', application: 'Заявка', decision: 'Госрешение', vedomstvo: 'Ведомство' };
+const SENDER_KINDS = ['Заёмщик', 'Суд', 'Госорган', 'Банк', 'Прочее'];
+
+/* Сотрудники и оргструктура — заглушка шва (коды отделов, руководитель, замещение). */
+const DEPTS = [
+  { id: 'lead', name: 'Руководство', code: '19-01' },
+  { id: 'kanc', name: 'Канцелярия', code: '19-02' },
+  { id: 'upk',  name: 'Управление по работе с проблемными кредитами', code: '19-03-01' },
+  { id: 'law',  name: 'Юридический отдел', code: '19-04' },
+  { id: 'cred', name: 'Кредитный отдел', code: '19-05' },
+  { id: 'it',   name: 'Отдел информационных технологий', code: '' },
+];
+const SYS_ROLES = { registrar: 'Регистратор', archivist: 'Архивариус', admin: 'Администратор документооборота' };
+const EMP = [
+  { id: 'e1',  name: 'Токтосунов Э.А.',   pos: 'Председатель Правления', dept: 'lead', mgr: null, roles: [] },
+  { id: 'e2',  name: 'Байжанова Г.К.',    pos: 'Заместитель Председателя Правления', dept: 'lead', mgr: 'e1', roles: [] },
+  { id: 'e3',  name: 'Осмонов К.Ж.',      pos: 'Начальник Управления по работе с проблемными кредитами', dept: 'upk', mgr: 'e2', roles: [] },
+  { id: 'e4',  name: 'Абдыкадырова Н.Р.', pos: 'Главный специалист по взысканию', dept: 'upk', mgr: 'e3', roles: [] },
+  { id: 'e5',  name: 'Жумабеков Т.С.',    pos: 'Ведущий специалист по взысканию', dept: 'upk', mgr: 'e3', roles: [] },
+  { id: 'e6',  name: 'Мамбетов Ч.А.',     pos: 'Начальник юридического отдела', dept: 'law', mgr: 'e2', roles: [] },
+  { id: 'e7',  name: 'Исакова Д.М.',      pos: 'Заведующая канцелярией', dept: 'kanc', mgr: 'e2', roles: ['registrar'] },
+  { id: 'e8',  name: 'Касымова А.Б.',     pos: 'Делопроизводитель', dept: 'kanc', mgr: 'e7', roles: ['registrar'] },
+  { id: 'e9',  name: 'Сыдыкова А.Т.',     pos: 'Архивариус', dept: 'kanc', mgr: 'e7', roles: ['archivist'] },
+  { id: 'e10', name: 'Иманалиев Р.Т.',    pos: 'Администратор документооборота', dept: 'it', mgr: 'e2', roles: ['admin'] },
+  { id: 'e11', name: 'Асанова Ж.М.',      pos: 'Кредитный специалист', dept: 'cred', mgr: 'e2', roles: [] },
+  { id: 'e12', name: 'Бекова С.К.',       pos: 'Инженер-программист', dept: 'it', mgr: 'e10', roles: [] },
+];
+const LEADERSHIP = ['e1', 'e2'];   /* перечень должностей «руководство» — демо (долг 3) */
+const SUBST = [
+  { who: 'e2', for: 'e1', from: '2026-10-12', to: '2026-10-23', signRight: true,  order: 'Приказ № 87-к от 09.10.2026' },
+  { who: 'e5', for: 'e3', from: '2026-10-14', to: '2026-10-30', signRight: false, order: 'Приказ № 91-к от 13.10.2026' },
+];
+
+/* Типы документов (§1.2). id устойчив, переименование меняет только name. */
+const T = (id, kind, name, o = {}) => ({ id, kind, name, reply: !!o.reply, links: o.links || [], caseId: o.caseId || null,
+  urgency: o.urgency || 'normal', purpose: o.purpose || (o.reply ? 'reply' : 'exec'), legacyOnly: !!o.legacyOnly, active: o.active !== false });
+const LP = ['loan', 'phase'];
+const TYPES = [
+  T('t-in-zayav', 'in', 'Заявление заёмщика', { reply: true, links: ['borrower'], caseId: 'c-03-12' }),
+  T('t-in-letter', 'in', 'Письмо заёмщика или поручителя', { reply: true, links: ['borrower'], caseId: 'c-03-12' }),
+  T('t-in-court', 'in', 'Решение или определение суда', { links: LP, caseId: 'c-04-02', urgency: 'urgent' }),
+  T('t-in-il', 'in', 'Исполнительный лист', { links: LP, caseId: 'c-04-02' }),
+  T('t-in-ans', 'in', 'Ответ на претензию', { links: LP, caseId: 'c-03-15' }),
+  T('t-in-gov', 'in', 'Запрос госоргана', { reply: true, caseId: 'c-02-01', urgency: 'urgent' }),
+  T('t-in-bank', 'in', 'Письмо банка или организации', { caseId: 'c-02-03', purpose: 'info' }),
+  T('t-in-legacy', 'in', 'Документ (из старой системы)', { legacyOnly: true }),
+  T('t-out-letter', 'out', 'Письмо', { caseId: 'c-02-03' }),
+  T('t-out-notice', 'out', 'Уведомление', { links: ['loan'], caseId: 'c-03-12' }),
+  T('t-out-izv', 'out', 'Извещение', { links: ['loan'], caseId: 'c-03-12' }),
+  T('t-out-pret', 'out', 'Претензия', { links: LP, caseId: 'c-03-15' }),
+  T('t-out-act', 'out', 'Акт сверки', { links: ['loan'], caseId: 'c-03-12' }),
+  T('t-out-isk', 'out', 'Исковое заявление', { links: LP, caseId: 'c-04-02' }),
+  T('t-out-hod', 'out', 'Ходатайство', { links: LP, caseId: 'c-04-02' }),
+  T('t-out-vozr', 'out', 'Возражения', { links: LP, caseId: 'c-04-02' }),
+  T('t-out-apel', 'out', 'Апелляционная жалоба', { links: LP, caseId: 'c-04-02' }),
+  T('t-out-kass', 'out', 'Кассационная жалоба', { links: LP, caseId: 'c-04-02' }),
+  T('t-out-chast', 'out', 'Частная жалоба', { links: LP, caseId: 'c-04-02' }),
+  T('t-out-zayav', 'out', 'Заявление', { caseId: 'c-02-03' }),
+  T('t-out-sogl', 'out', 'Соглашение', { links: ['loan'], caseId: 'c-03-12' }),
+  T('t-out-memo', 'out', 'Служебная записка', { caseId: 'c-02-03' }),
+  T('t-out-zalog', 'out', 'Извещение по восстановлению залога', { links: ['pledge'], caseId: 'c-03-12' }),
+  T('t-int-memo', 'int', 'Служебная записка', { caseId: 'c-01-07' }),
+  T('t-int-zayav', 'int', 'Заявление сотрудника', { caseId: 'c-01-07' }),
+  T('t-int-order', 'int', 'Приказ', { caseId: 'c-01-05', purpose: 'info' }),
+  T('t-int-prot', 'int', 'Протокол', { caseId: 'c-01-07' }),
+  T('t-int-dog', 'int', 'Договор', { caseId: 'c-01-07' }),
+  T('t-int-norm', 'int', 'Нормативный документ', { caseId: 'c-01-05', purpose: 'info' }),
+];
+const OUT_ALL = TYPES.filter(t => t.kind !== 'in').map(t => t.id);
+/* Право подписи (§1.11) — ДЕМО: ответ на вопрос о списке лиц с правом подписи ещё не получен. */
+const SIGN = [
+  { id: 'ПП-1', emp: 'e1', types: OUT_ALL, basis: 'Должность (Устав)', from: '2026-01-01', to: '2026-12-31' },
+  { id: 'ПП-2', emp: 'e2', types: ['t-out-letter', 't-out-notice', 't-out-izv', 't-out-pret', 't-out-act', 't-out-sogl', 't-out-memo', 't-int-memo'], basis: 'Доверенность № 12 от 05.01.2026', from: '2026-01-05', to: '2026-12-31' },
+  { id: 'ПП-3', emp: 'e3', types: ['t-out-pret', 't-out-notice', 't-out-izv', 't-out-zalog'], basis: 'Доверенность № 31 от 10.04.2026', from: '2026-04-10', to: '2026-10-10' },
+  { id: 'ПП-4', emp: 'e3', types: ['t-int-memo', 't-int-zayav'], basis: 'Должность', from: '2026-01-01', to: '2026-12-31' },
+  { id: 'ПП-5', emp: 'e6', types: ['t-out-isk', 't-out-hod', 't-out-vozr', 't-out-apel', 't-out-kass', 't-out-chast'], basis: 'Доверенность № 40 от 01.07.2026', from: '2026-07-01', to: '2027-06-30' },
+];
+/* Способы отправки (§1.6): состав подтверждения — реквизит способа. */
+const METHODS = {
+  post:    { name: 'Заказное письмо (почта)', track: true,  proof: 'уведомление о вручении' },
+  hand:    { name: 'Нарочно',                  track: false, proof: 'отметка о получении' },
+  courier: { name: 'Курьер',                   track: false, proof: 'отметка о получении' },
+  email:   { name: 'E-mail',                   track: false, proof: '' },
+  sed:     { name: 'СЭД',                      track: false, proof: 'квитанция СЭД' },
+  pub:     { name: 'Публикация',               track: false, proof: '' },
+};
+/* Номенклатура дел — демо 2026 (+ одно дело 2025 для проверки года). */
+const CASES = [
+  { id: 'c-01-05', year: 2026, idx: '01-05', name: 'Приказы по основной деятельности', dept: 'lead', keep: 'постоянно', place: 'каб. 104, шкаф 1, полка 2' },
+  { id: 'c-01-07', year: 2026, idx: '01-07', name: 'Служебная переписка', dept: 'kanc', keep: '5 лет', place: 'каб. 104, шкаф 1, полка 3' },
+  { id: 'c-02-01', year: 2026, idx: '02-01', name: 'Переписка с государственными органами', dept: 'kanc', keep: '5 лет', place: 'каб. 104, шкаф 2, полка 1' },
+  { id: 'c-02-03', year: 2026, idx: '02-03', name: 'Переписка с банками и организациями', dept: 'kanc', keep: '5 лет', place: 'каб. 104, шкаф 2, полка 2' },
+  { id: 'c-03-12', year: 2026, idx: '03-12', name: 'Переписка с заёмщиками', dept: 'upk', keep: '10 лет', place: 'каб. 211, шкаф 3, полка 1' },
+  { id: 'c-03-15', year: 2026, idx: '03-15', name: 'Претензионная работа', dept: 'upk', keep: '10 лет', place: 'каб. 211, шкаф 3, полка 2' },
+  { id: 'c-04-02', year: 2026, idx: '04-02', name: 'Судебные дела', dept: 'law', keep: '10 лет после решения', place: 'каб. 305, шкаф 1, полка 1' },
+  { id: 'c25-03-15', year: 2025, idx: '03-15', name: 'Претензионная работа', dept: 'upk', keep: '10 лет', place: 'архив, стеллаж 4' },
+];
+const PHRASES = ['Прошу рассмотреть в установленном порядке', 'Подготовить проект ответа', 'Для исполнения', 'Прошу подготовить предложения', 'Ознакомиться и учесть в работе'];
+
+/* Субъекты и органы (заглушки швов Заёмщика и справочника органов). */
+const SUBJ = [
+  { id: 'b1', name: 'Асанов Т.Б.', inn: '21203198500123', kind: 'Заёмщик' },
+  { id: 'b2', name: 'ОсОО «Ак-Жол Агро»', inn: '01507201010045', kind: 'Заёмщик' },
+  { id: 'b3', name: 'Токтогулов М.С.', inn: '20811197800457', kind: 'Поручитель' },
+  { id: 'o1', name: 'Первомайский районный суд г. Бишкек', inn: '', kind: 'Суд' },
+  { id: 'o2', name: 'Счётная палата Кыргызской Республики', inn: '', kind: 'Госорган' },
+  { id: 'o3', name: 'Государственная налоговая служба', inn: '', kind: 'Госорган' },
+];
+const subjName = id => (SUBJ.find(s => s.id === id) || {}).name || '';
+const LINK_OBJ = [
+  { k: 'borrower', id: 'b1', label: 'Асанов Т.Б.' },
+  { k: 'borrower', id: 'b2', label: 'ОсОО «Ак-Жол Агро»' },
+  { k: 'loan', id: 'L1', label: 'Кредит К-1 · Асанов Т.Б.', borrower: 'b1' },
+  { k: 'loan', id: 'L2', label: 'Кредит К-14 · ОсОО «Ак-Жол Агро»', borrower: 'b2' },
+  { k: 'procedure', id: 'PR1', label: 'Процедура взыскания ПВ-7 · К-14', loan: 'L2' },
+  { k: 'phase', id: 'F1', label: 'Досудебная фаза · К-14', loan: 'L2' },
+  { k: 'phase', id: 'F2', label: 'Судебная фаза · К-14', loan: 'L2' },
+  { k: 'phase', id: 'F3', label: 'Досудебная фаза · К-1', loan: 'L1' },
+  { k: 'pledge', id: 'Z1', label: 'Договор залога ДЗ-31 · К-1', loan: 'L1' },
+  { k: 'asset', id: 'A1', label: 'Объект имущества · квартира, г. Бишкек' },
+  { k: 'application', id: 'AP1', label: 'Заявка № 118' },
+  { k: 'decision', id: 'G1', label: 'Госрешение № 245 от 12.03.2026' },
+  { k: 'vedomstvo', id: 'V1', label: 'Министерство сельского хозяйства' },
+];
+const linkObj = (k, id) => LINK_OBJ.find(o => o.k === k && o.id === id);
+const linkKey = l => l.k + ':' + l.id;
+/* Выпуски бланков «Отчётности» с получателем (заглушка шва). */
+const BLANKS = [
+  { id: 'ВП-311', template: 'Претензия (досудебная)', type: 't-out-pret', recipient: 'b1', links: [{ k: 'loan', id: 'L1' }, { k: 'phase', id: 'F3' }],
+    subject: 'Претензия о погашении просроченной задолженности по кредиту К-1', docId: null },
+  { id: 'ВП-312', template: 'Служебная записка о ходе взыскания', type: 't-int-memo', recipient: null, links: [{ k: 'loan', id: 'L2' }],
+    subject: 'О ходе взыскания по кредиту К-14', docId: null },
+];
+
+/* ---------------------------- состояние ----------------------------- */
+const S = { clock: TODAY, user: 'e7', view: 'in', docId: null, tab: 'req', q: '',
+  f: { type: '', stage: '', exec: '', from: '', to: '', group: '' }, saved: [], form: null,
+  archTab: 'cases', caseOpen: null, setTab: 'types', indFrom: '2026-09-01', indTo: TODAY };
+let DOCS = [], RES = [], ISSUES = [], COUNTERS = {}, EXT = {}, TASKS = [], STEPBY = {}, SEQ = {};
+
+/* ------------------------------ хелперы ----------------------------- */
+const emp = id => EMP.find(e => e.id === id);
+const empName = id => (emp(id) || {}).name || '—';
+const hasRole = (id, r) => ((emp(id) || {}).roles || []).includes(r);
+const isReg = id => hasRole(id, 'registrar');
+const isArch = id => hasRole(id, 'archivist');
+const deptOf = id => DEPTS.find(d => d.id === (emp(id) || {}).dept) || {};
+const typeOf = id => TYPES.find(t => t.id === id);
+const doc = id => DOCS.find(d => d.id === id);
+const res = id => RES.find(r => r.id === id);
+const caseOf = id => CASES.find(c => c.id === id);
+const clockYear = () => +S.clock.slice(0, 4);
+function substFor(actor, date = S.clock) { return SUBST.filter(s => s.who === actor && s.from <= date && date <= s.to).map(s => s.for); }
+function actsFor(actor, who, date = S.clock) { return !!who && (actor === who || substFor(actor, date).includes(who)); }
+function managerChain(id) { const out = []; let e = emp(id); let k = 0; while (e && e.mgr && k++ < 10) { out.push(e.mgr); e = emp(e.mgr); } return out; }
+function log(d, by, act, text = '') { d.log.push({ at: S.clock, by, act, text }); }
+const hasFile = (d, role) => d.files.some(f => f.role === role);
+const curRound = d => d.rounds[d.rounds.length - 1] || null;
+function noText(d, withYear = true) {
+  if (d.legacy) return d.legacyNo + (withYear ? ' / ' + d.legacyYear : '');
+  if (!d.no) return '';
+  const n = d.kind === 'in' ? String(d.no.n) : d.kind === 'out' ? d.no.dept + '/' + d.no.n : d.no.dept + '/ВН-' + d.no.n;
+  return n + (withYear ? ' / ' + d.no.year : '');
+}
+function fileName(d, f) {
+  const base = d.no ? `${KINDS[d.kind].short}-${d.no.year}-${d.no.n}` : d.legacy ? `${KINDS[d.kind].short}-${d.legacyYear}-${d.legacyNo.replace(/\//g, '-')}` : `ЧЕРН-${d.id.slice(2)}`;
+  const suf = { project: `_проект_v${f.ver}`, signed: '_подписанный' + (f.idx > 1 ? '-' + f.idx : ''), appendix: `_приложение-${f.idx}`,
+    proof: `_вручение_адресат-${f.addrIdx || f.idx}`, scan: '_скан' + (f.idx > 1 ? '-' + f.idx : '') }[f.role];
+  return base + suf + '.' + f.ext;
+}
+function missingLinks(d) {
+  const t = typeOf(d.type); if (!t || d.legacy) return [];
+  return t.links.filter(k => !d.links.some(l => l.k === k));
+}
+function normLinks(list) {
+  const out = [];
+  (list || []).forEach(l => {
+    if (typeof l === 'string') { const [k, id] = l.split(':'); l = { k, id }; }
+    const o = linkObj(l.k, l.id); if (!o) return;
+    if (!out.some(x => linkKey(x) === linkKey(l))) out.push({ k: l.k, id: l.id });
+    if (o.k === 'loan' && o.borrower && !out.some(x => x.k === 'borrower' && x.id === o.borrower)) out.push({ k: 'borrower', id: o.borrower });
+  });
+  return out;
+}
+const addrName = a => a.subj ? subjName(a.subj) : a.text;
+const senderName = d => d.sender.subj ? subjName(d.sender.subj) : d.sender.text;
+
+/* ----------------------- право подписи (§8.2) ----------------------- */
+function hasSignRight(e, type, date = S.clock) { return SIGN.some(r => r.emp === e && r.types.includes(type) && r.from <= date && date <= r.to); }
+function signers(type, date = S.clock) { return EMP.filter(e => hasSignRight(e.id, type, date)).map(e => e.id); }
+function canSign(d, actor, date = S.clock) {
+  if (actor === d.signer) return hasSignRight(actor, d.type, date) ? { ok: true, onBehalf: null } : { ok: false, expired: true, why: 'у подписанта нет права подписи на этот тип на дату подписи' };
+  const s = SUBST.find(x => x.who === actor && x.for === d.signer && x.from <= date && date <= x.to);
+  if (s) {
+    if (!s.signRight) return no('приказ о замещении не даёт права подписи');
+    return hasSignRight(d.signer, d.type, date) ? { ok: true, onBehalf: d.signer } : no('у замещаемого нет права подписи на этот тип');
+  }
+  return no('подписывает назначенный подписант');
+}
+
+/* ------------------------- видимость (§8.3) ------------------------- */
+function participants(d) {
+  const P = new Set([d.author, d.signer, d.regBy, d.controller, d.signed && d.signed.by]);
+  d.rounds.forEach(r => r.steps.forEach(s => P.add(s.emp)));
+  d.approvers.forEach(a => P.add(a));
+  d.recipients.forEach(r => P.add(r.emp));
+  RES.filter(r => r.doc === d.id).forEach(r => { P.add(r.author); P.add(r.resp); r.co.forEach(c => P.add(c)); });
+  P.delete(null); P.delete(undefined);
+  return P;
+}
+function seesDirect(d, e) {
+  if (isReg(e) || LEADERSHIP.includes(e)) return true;
+  const P = participants(d);
+  if (P.has(e)) return true;
+  return [...P].some(p => managerChain(p).includes(e));
+}
+function canSee(d, e, date = S.clock) {
+  if (!d) return false;
+  if (seesDirect(d, e)) return true;
+  if (isArch(e) && ['registered', 'filed', 'annulled'].includes(d.stage)) return true;
+  return substFor(e, date).some(f => seesDirect(d, f));
+}
+function openDoc(id, actor = S.user) { const d = doc(id); if (!d || d.deleted) return no('документ не найден'); return canSee(d, actor) ? { ok: true, doc: d } : no('нет доступа к документу'); }
+function guard(id, actor) {
+  const d = doc(id); if (!d) return [null, no('документ не найден')];
+  if (!canSee(d, actor)) return [null, no('нет доступа к документу')];
+  if (d.legacy) return [null, no('документ перенесён из старой системы — только чтение')];
+  if (d.deleted) return [null, no('черновик удалён')];
+  return [d, null];
+}
+
+/* ------------------- резолюции и выводы (§4.6) ---------------------- */
+function effDue(r) { const x = EXT[r.id]; return x && x.due > r.due ? x.due : r.due; }
+function ancestors(r) { const out = []; let p = r.parent && res(r.parent); while (p) { out.push(p); p = p.parent && res(p.parent); } return out; }
+function replyInfo(d) {
+  if (d.kind !== 'in' || !d.needsReply) return null;
+  const outs = DOCS.filter(o => o.kind === 'out' && !o.deleted && !o.legacy && o.basis.includes(d.id));
+  const match = a => (d.sender.subj && a.subj === d.sender.subj) || (!d.sender.subj && a.text && a.text === d.sender.text);
+  const dates = [];
+  outs.filter(o => ['registered', 'filed'].includes(o.stage)).forEach(o => o.addressees.forEach(a => { if (match(a) && a.sentDate) dates.push(a.sentDate); }));
+  const sent = dates.sort()[0] || null;
+  return { drafts: outs.length, registered: outs.some(o => ['registered', 'filed'].includes(o.stage)), sentDate: sent };
+}
+function resState(r) {
+  if (r.outcome) return { code: r.outcome.kind, date: r.outcome.at };
+  const d = doc(r.doc);
+  const rep = replyInfo(d); if (rep && rep.sentDate) return { code: 'done', date: rep.sentDate, byReply: true };
+  const anc = ancestors(r).find(a => a.outcome);
+  if (anc) return { code: 'withdrawn', date: anc.outcome.at };
+  if (d.stage === 'annulled') return { code: 'withdrawn', date: d.annul.at };
+  if (r.claim) return { code: 'control' };
+  return { code: effDue(r) < S.clock ? 'overdue' : 'open' };
+}
+const resClosed = r => ['done', 'refused', 'withdrawn'].includes(resState(r).code);
+const topRes = d => RES.filter(r => r.doc === d.id && !r.parent);
+/* Исполнение документа — вывод из резолюций, отметок и отправки; поля нет (ИД-12). */
+function execInfo(d) {
+  if (!['registered', 'filed'].includes(d.stage) || d.legacy) return null;
+  if (d.kind === 'out') { const x = dispatchInfo(d); return { done: x.done, date: x.date, code: x.done ? 'done' : 'work', deadline: null, ext: false, refused: false }; }
+  const tops = topRes(d), st = tops.map(resState);
+  const execRecips = d.recipients.filter(r => d.kind === 'in' || r.mode === 'exec');
+  const allReviewed = execRecips.every(r => r.reviewed);
+  const deadline = maxIso(tops.map(effDue));
+  const ext = tops.some(r => EXT[r.id] && EXT[r.id].due > r.due);
+  const refused = st.some(s => s.code === 'refused');
+  const overdue = tops.some((r, i) => ['open', 'overdue', 'control'].includes(st[i].code) && effDue(r) < S.clock);
+  let done, date;
+  const rep = replyInfo(d);
+  if (rep) { done = !!rep.sentDate; date = rep.sentDate; }
+  else {
+    done = allReviewed && st.every(s => ['done', 'refused', 'withdrawn'].includes(s.code));
+    date = done ? maxIso([...st.map(s => s.date), ...execRecips.map(r => r.reviewed && r.reviewed.at)]) : null;
+  }
+  if (d.kind === 'int') { const a = acqInfo(d); if (a.total) { done = done && a.done; date = done ? maxIso([date, a.date]) : null; } }
+  const code = done ? 'done' : overdue ? 'overdue' : (!tops.length && !allReviewed) ? 'await' : 'work';
+  return { done, date, code, deadline, ext, refused, tops: tops.length, st };
+}
+function dispatchInfo(d) {
+  const A = d.addressees, sent = A.filter(a => a.sentDate);
+  return { total: A.length, sent: sent.length, delivered: A.filter(a => a.outcome === 'delivered').length, returned: A.filter(a => a.outcome === 'returned').length,
+    done: d.kind === 'out' && !!d.no && A.length > 0 && sent.length === A.length, date: sent.length === A.length ? maxIso(sent.map(a => a.sentDate)) : null };
+}
+function acqInfo(d) {
+  const R = d.recipients.filter(r => r.mode === 'acq');
+  return { total: R.length, done: R.every(r => r.acqAt), count: R.filter(r => r.acqAt).length, date: maxIso(R.map(r => r.acqAt)), missing: R.filter(r => !r.acqAt).map(r => r.emp) };
+}
+function execText(d) {
+  const x = execInfo(d); if (!x) return '';
+  if (d.kind === 'out') { const s = dispatchInfo(d); return `отправлено ${s.sent}/${s.total}` + (s.sent ? `: вручено ${s.delivered}, возврат ${s.returned}` : ''); }
+  const parts = [];
+  if (x.tops) {
+    const c = k => x.st.filter(s => s.code === k).length;
+    const bits = [['исполнено', c('done')], ['отказано', c('refused')], ['просрочено', topRes(d).filter((r, i) => ['open', 'overdue', 'control'].includes(x.st[i].code) && effDue(r) < S.clock).length],
+      ['на контроле', c('control')]].filter(b => b[1]).map(b => b[0] + ' ' + b[1]);
+    parts.push(`поручений ${x.tops}` + (bits.length ? ': ' + bits.join(', ') : ''));
+  } else if (d.kind === 'in' || d.recipients.some(r => r.mode === 'exec')) parts.push(x.code === 'done' ? 'к сведению' : 'ждёт резолюции');
+  const rep = replyInfo(d);
+  if (rep) parts.push(rep.sentDate ? 'ответ отправлен ' + fmt(rep.sentDate) : rep.registered ? 'ответ зарегистрирован, не отправлен' : 'ответ не отправлен');
+  if (d.kind === 'int') { const a = acqInfo(d); if (a.total) parts.push(`ознакомлены ${a.count}/${a.total}`); }
+  return parts.join(' · ');
+}
+const EXEC_NAME = { done: 'исполнен', overdue: 'просрочен', work: 'в работе', await: 'ждёт резолюции' };
+function defaultDue(d, parentId) { const p = parentId && res(parentId); return p ? effDue(p) : addWork(d.regDate, URG[d.urgency].days); }
+
+/* -------------------------- готовность к сдаче ---------------------- */
+function fileReady(d) {
+  if (d.stage !== 'registered') return no('сдать в дело можно зарегистрированный документ');
+  const x = execInfo(d), miss = [];
+  if (d.kind !== 'out' && !x.done) miss.push(d.kind === 'int' && acqInfo(d).total && !acqInfo(d).done ? 'исполнение или ознакомление не закончено' : 'есть неисполненная резолюция или нет отметки получателя');
+  if (d.kind === 'out' && !dispatchInfo(d).done) miss.push('есть адресат без отправки');
+  if (d.kind !== 'in' && !hasFile(d, 'signed')) miss.push('нет файла «подписанный»');
+  return miss.length ? no(miss.join('; ')) : yes;
+}
+
+/* ============================ ДЕЙСТВИЯ ============================== */
+function applyPatch(d, f) {
+  if (f.kind && f.kind !== d.kind) return no('вид документа не меняется после создания');
+  if (f.type != null && f.type !== d.type) {
+    const t = typeOf(f.type);
+    if (!t || t.kind !== d.kind) return no('тип не из справочника этого вида');
+    if (t.legacyOnly) return no('тип только для перенесённых документов');
+    if (!t.active) return no('тип выведен из употребления');
+    d.type = t.id;
+  }
+  for (const k of ['docDate', 'receivedDate', 'corrDate']) if (f[k] != null) { const v = toIso(f[k]); if (v === null) return no('неверная дата'); f[k] = v || null; }
+  if (f.receivedDate && f.receivedDate > S.clock) return no('дата поступления позже сегодняшней');
+  ['subject', 'docDate', 'receivedDate', 'corrNo', 'corrDate', 'senderKind', 'urgency', 'purpose', 'signer', 'controller'].forEach(k => { if (f[k] !== undefined) d[k] = f[k] || (k === 'subject' || k === 'corrNo' || k === 'senderKind' ? '' : null); });
+  if (f.urgency && !URG[f.urgency]) return no('срочность не из шкалы');
+  if (f.needsReply !== undefined && d.kind === 'in') d.needsReply = !!f.needsReply;
+  if (f.control !== undefined && d.kind !== 'out') d.control = !!f.control;
+  if (f.sender) d.sender = { subj: f.sender.subj || '', text: f.sender.subj ? '' : (f.sender.text || '') };
+  if (f.recipients) d.recipients = f.recipients.map(r => typeof r === 'string' ? { emp: r, mode: 'exec' } : { emp: r.emp, mode: r.mode || 'exec' }).filter(r => emp(r.emp))
+    .map(r => ({ ...r, mode: d.kind === 'in' ? 'exec' : r.mode, reviewed: null, acqAt: null }));
+  if (f.addressees && d.kind === 'out') d.addressees = f.addressees.filter(a => a.subj || a.text).map(a => ({ id: 'A-' + (++SEQ.addr), subj: a.subj || '', text: a.subj ? '' : a.text,
+    method: null, sentDate: null, track: '', outcome: null, outcomeDate: null, proof: null }));
+  if (f.approvers && d.kind !== 'in') d.approvers = [...new Set(f.approvers.filter(e => emp(e)))];
+  if (f.basis && d.kind === 'out') d.basis = f.basis.filter(id => { const b = doc(id); return b && b.kind === 'in'; });
+  if (f.links) d.links = normLinks(f.links);
+  if (d.kind === 'in') { d.approvers = []; d.signer = null; }
+  if (d.control && !d.controller) return no('для «на контроле» нужен контролёр');
+  return yes;
+}
+function create(actor, kind, f = {}) {
+  if (!KINDS[kind]) return no('неизвестный вид документа');
+  if (kind === 'in' && !isReg(actor)) return no('черновик входящего создаёт регистратор');
+  const t = typeOf(f.type);
+  if (!t || t.kind !== kind) return no('тип не из справочника этого вида');
+  if (t.legacyOnly) return no('тип только для перенесённых документов');
+  const d = { id: 'D-' + (++SEQ.doc), kind, type: t.id, subject: '', stage: 'draft', deleted: null, no: null, regDate: null, regBy: null, docDate: null,
+    receivedDate: null, corrNo: '', corrDate: null, senderKind: '', sender: { subj: '', text: '' }, recipients: [], addressees: [], author: actor, approvers: [],
+    signer: null, rounds: [], signed: null, urgency: t.urgency, purpose: t.purpose, needsReply: kind === 'in' ? t.reply : false, control: false, controller: null,
+    basis: [], links: [], caseId: null, filedAt: null, legacy: false, legacyNo: '', files: [], comments: [], log: [], returned: null, annul: null, createdAt: S.clock, fromBlank: null };
+  DOCS.push(d);
+  const r = applyPatch(d, Object.assign({}, f, { type: undefined }));
+  if (!r.ok) { DOCS.pop(); return r; }
+  log(d, actor, 'Создан черновик', KINDS[kind].name.toLowerCase() + ' · ' + t.name);
+  sync(); return { ok: true, id: d.id, doc: d };
+}
+const canEditDraft = (d, actor) => d.kind === 'in' ? isReg(actor) : d.author === actor;
+function update(id, actor, f) {
+  const [d, e] = guard(id, actor); if (e) return e;
+  if (f.kind && f.kind !== d.kind) return no('вид документа не меняется после создания');
+  if (d.stage !== 'draft') return no('реквизиты меняются только в черновике; после регистрации — «Исправить»');
+  if (!canEditDraft(d, actor)) return no(d.kind === 'in' ? 'черновик входящего правит регистратор' : 'черновик правит автор');
+  const r = applyPatch(d, Object.assign({}, f)); if (!r.ok) return r;
+  log(d, actor, 'Изменены реквизиты черновика'); sync(); return yes;
+}
+function del(id, actor) {
+  const [d, e] = guard(id, actor); if (e) return e;
+  if (d.no || d.stage !== 'draft') return no('зарегистрированный документ не удаляется — только аннулирование');
+  if (!canEditDraft(d, actor)) return no('черновик удаляет автор');
+  d.deleted = { at: S.clock, by: actor, afterSignerRefusal: !!(d.returned && d.returned.by === 'signer') };
+  log(d, actor, 'Черновик удалён'); sync(); return yes;
+}
+function attach(id, actor, role, fname, opts = {}) {
+  const [d, e] = guard(id, actor); if (e) return e;
+  if (!FILE_ROLES[role]) return no('роль файла не из списка');
+  if (role === 'scan' && d.kind !== 'in') return no('скан входящего — только у входящего');
+  if ((role === 'signed' || role === 'project') && d.kind === 'in') return no('у входящего нет проекта и подписанного экземпляра');
+  const ext = String(fname || '').split('.').pop().toLowerCase();
+  if (!fname || !EXTS.includes(ext)) return no('формат не принимается: PDF, DOCX, XLSX, JPG, PNG');
+  const size = opts.size == null ? 180000 : opts.size;
+  if (size > MAX_SIZE) return no('файл больше 20 МБ');
+  if (d.stage === 'annulled') return no('документ аннулирован');
+  if (d.no) {
+    if (!(isReg(actor) || d.author === actor)) return no('после регистрации файл добавляет регистратор или автор');
+    if (opts.replace) return no('после регистрации файлы нельзя заменить — только добавить');
+    if (role === 'project') return no('после регистрации проект не добавляется');
+  } else {
+    if (!canEditDraft(d, actor)) return no('до регистрации файлы меняет автор');
+    if (d.signed) return no('документ подписан: файлы меняются после регистрации, только добавлением');
+    if (role === 'signed' || role === 'proof') return no('подписанный экземпляр прикладывается после выдачи номера');
+  }
+  const same = d.files.filter(f => f.role === role);
+  if (opts.replace) {
+    const cur = same[same.length - 1]; if (!cur) return no('нечего заменять');
+    cur.hist.push({ ver: cur.ver, ext: cur.ext, size: cur.size, at: cur.at, by: cur.by });
+    Object.assign(cur, { ver: cur.ver + 1, ext, size, at: S.clock, by: actor, sha: fakeSha(d.id + role + cur.ver + 1) });
+    log(d, actor, 'Заменён файл', fileName(d, cur));
+    const r = curRound(d);
+    if (role === 'project' && ['approval', 'signing'].includes(d.stage) && r && r.steps.some(s => s.res === 'ok')) {
+      r.closed = { why: 'заменён файл «проект»', at: S.clock };
+      r.steps.filter(s => !s.res).forEach(s => { STEPBY[`doc-approve|${d.id}×${s.emp}`] = { cancel: 'круг сброшен заменой проекта' }; });
+      if (d.stage === 'signing') STEPBY[`doc-sign|${d.id}`] = { cancel: 'круг сброшен заменой проекта' };
+      d.stage = 'draft'; d.returned = null;
+      log(d, actor, 'Согласования сброшены', 'заменён файл «проект» — документ возвращён в черновик');
+    }
+    sync(); return { ok: true, file: cur };
+  }
+  const f = { id: 'F-' + (++SEQ.file), role, idx: same.length + 1, ver: 1, ext, size, sha: fakeSha(d.id + role + SEQ.file), at: S.clock, by: actor, hist: [], addrIdx: opts.addrIdx || null };
+  d.files.push(f); log(d, actor, 'Добавлен файл', fileName(d, f)); sync(); return { ok: true, file: f };
+}
+function fakeSha(s) { let h = 2166136261; for (const c of s) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); } return ('00000000' + (h >>> 0).toString(16)).slice(-8) + '…'; }
+function removeFile(id, actor, fileId) {
+  const [d, e] = guard(id, actor); if (e) return e;
+  if (d.no) return no('после регистрации файлы не удаляются');
+  if (!canEditDraft(d, actor)) return no('файл удаляет автор');
+  if (d.signed) return no('документ подписан');
+  const i = d.files.findIndex(f => f.id === fileId); if (i < 0) return no('файл не найден');
+  log(d, actor, 'Удалён файл', fileName(d, d.files[i])); d.files.splice(i, 1); sync(); return yes;
+}
+function preSubmit(d, actor) {
+  if (d.kind === 'in') return no('у входящего нет согласования и подписи');
+  if (d.stage !== 'draft') return no('отправить можно только черновик');
+  if (d.author !== actor) return no('отправляет автор');
+  const miss = [];
+  if (!d.subject) miss.push('тема');
+  if (!d.signer) miss.push('подписант');
+  if (!hasFile(d, 'project')) miss.push('файл «проект»');
+  const ml = missingLinks(d); if (ml.length) miss.push('обязательная привязка: ' + ml.map(k => LINK_KINDS[k].toLowerCase()).join(', '));
+  if (miss.length) return no('не заполнено: ' + miss.join('; '));
+  if (!hasSignRight(d.signer, d.type, S.clock)) return no('у подписанта нет права подписи на этот тип на сегодня');
+  return yes;
+}
+function submit(id, actor) {
+  const [d, e] = guard(id, actor); if (e) return e;
+  const p = preSubmit(d, actor); if (!p.ok) return p;
+  if (d.returned) STEPBY[`doc-revise|${d.id}`] = { by: actor };
+  d.rounds.push({ n: d.rounds.length + 1, at: S.clock, steps: d.approvers.map(a => ({ emp: a, res: null, at: null, by: null, comment: '' })), sign: null, closed: null });
+  d.returned = null;
+  d.stage = d.approvers.length ? 'approval' : 'signing';
+  log(d, actor, d.approvers.length ? 'Отправлен на согласование' : 'Отправлен на подпись', `круг ${d.rounds.length}`);
+  sync(); return yes;
+}
+function openStepFor(d, actor) { const r = curRound(d); return r && !r.closed ? r.steps.find(s => !s.res && actsFor(actor, s.emp)) : null; }
+function approve(id, actor, comment = '') {
+  const [d, e] = guard(id, actor); if (e) return e;
+  if (d.stage !== 'approval') return no('документ не на согласовании');
+  const s = openStepFor(d, actor); if (!s) return no('согласует назначенный автором согласующий');
+  Object.assign(s, { res: 'ok', at: S.clock, by: actor, comment });
+  STEPBY[`doc-approve|${d.id}×${s.emp}`] = { by: actor };
+  log(d, actor, 'Согласовано', (s.emp !== actor ? 'за ' + empName(s.emp) + ' · ' : '') + comment);
+  const r = curRound(d);
+  if (r.steps.every(x => x.res === 'ok')) { d.stage = 'signing'; log(d, actor, 'Все согласовали — документ на подписи'); }
+  sync(); return yes;
+}
+function reject(id, actor, comment) {
+  const [d, e] = guard(id, actor); if (e) return e;
+  if (!String(comment || '').trim()) return no('комментарий обязателен');
+  const r = curRound(d);
+  if (d.stage === 'approval') {
+    const s = openStepFor(d, actor); if (!s) return no('отказать может назначенный согласующий');
+    Object.assign(s, { res: 'reject', at: S.clock, by: actor, comment });
+    STEPBY[`doc-approve|${d.id}×${s.emp}`] = { by: actor };
+    r.steps.filter(x => !x.res).forEach(x => { STEPBY[`doc-approve|${d.id}×${x.emp}`] = { cancel: 'круг закрыт отказом' }; });
+    r.closed = { why: 'отказ согласующего', at: S.clock };
+    d.returned = { by: 'approver', emp: actor, comment, at: S.clock };
+  } else if (d.stage === 'signing' && !d.signed) {
+    if (!actsFor(actor, d.signer) || !(actor === d.signer || canSign(d, actor).ok)) return no('отказать может подписант');
+    r.sign = { res: 'reject', by: actor, at: S.clock, comment };
+    STEPBY[`doc-sign|${d.id}`] = { by: actor };
+    r.closed = { why: 'отказ подписанта', at: S.clock };
+    d.returned = { by: 'signer', emp: actor, comment, at: S.clock };
+  } else return no('отказать можно на согласовании или до подписи');
+  d.stage = 'draft';
+  log(d, actor, 'Отказ — возвращён в черновик', comment); sync(); return yes;
+}
+function sign(id, actor) {
+  const [d, e] = guard(id, actor); if (e) return e;
+  if (d.stage !== 'signing' || d.signed) return no('документ не ждёт подписи');
+  const c = canSign(d, actor);
+  if (!c.ok) {
+    if (c.expired) {
+      const r = curRound(d); r.closed = { why: 'право подписи истекло', at: S.clock };
+      STEPBY[`doc-sign|${d.id}`] = { by: actor };
+      d.stage = 'draft'; d.returned = { by: 'system', emp: actor, comment: 'Права подписи на этот тип на дату нет — выберите другого подписанта', at: S.clock };
+      log(d, actor, 'Возвращён автору', 'у подписанта нет права подписи на дату подписи'); sync();
+      return { ok: false, returned: true, why: 'права подписи на этот тип на сегодня нет — документ возвращён автору выбрать другого подписанта' };
+    }
+    return c;
+  }
+  d.signed = { by: actor, onBehalf: c.onBehalf, at: S.clock };
+  curRound(d).sign = { res: 'ok', by: actor, at: S.clock, onBehalf: c.onBehalf };
+  STEPBY[`doc-sign|${d.id}`] = { by: actor };
+  log(d, actor, 'Подписано', c.onBehalf ? 'за ' + empName(c.onBehalf) + ' по приказу о замещении' : '');
+  sync(); return yes;
+}
+function signBatch(ids, actor) { const out = ids.map(id => ({ id, ...sign(id, actor) })); return { ok: out.every(x => x.ok), results: out }; }
+function preRegister(d, actor) {
+  if (!isReg(actor)) return no('регистрирует роль «Регистратор»');
+  if (d.no) return no('номер уже выдан');
+  const miss = [];
+  if (d.kind === 'in') {
+    if (d.stage !== 'draft') return no('входящий регистрируется из черновика');
+    if (!(d.sender.subj || d.sender.text)) miss.push('отправитель');
+    if (!d.receivedDate) miss.push('дата поступления');
+    if (!d.subject) miss.push('тема');
+    if (!d.recipients.length) miss.push('получатели');
+    if (!hasFile(d, 'scan')) miss.push('скан входящего');
+  } else {
+    if (d.stage !== 'signing' || !d.signed) return no('нет отметки «Подписано»');
+    if (d.kind === 'out' && !d.addressees.length) miss.push('адресат');
+    if (d.kind === 'int' && !d.recipients.length) miss.push('получатели');
+  }
+  const ml = missingLinks(d); if (ml.length) miss.push('обязательная привязка: ' + ml.map(k => LINK_KINDS[k].toLowerCase()).join(', '));
+  if (miss.length) return no('не заполнено: ' + miss.join('; '));
+  if (d.kind === 'in' && d.receivedDate > S.clock) return no('дата поступления позже сегодняшней');
+  if (d.kind !== 'in' && !deptOf(d.author).code) return no('у подразделения автора нет кода отдела');
+  return yes;
+}
+function register(id, actor) {
+  const [d, e] = guard(id, actor); if (e) return e;
+  const p = preRegister(d, actor); if (!p.ok) return p;
+  const y = clockYear();
+  COUNTERS[d.kind] = COUNTERS[d.kind] || {};
+  const n = (COUNTERS[d.kind][y] || 0) + 1;                     /* нет счётчика года — ряд начинается с 1 */
+  if (DOCS.some(x => !x.legacy && x.no && x.kind === d.kind && x.no.year === y && x.no.n === n)) return no('номер уже занят — повторите регистрацию');
+  COUNTERS[d.kind][y] = n;
+  d.no = { series: d.kind, year: y, n, dept: d.kind === 'in' ? '' : deptOf(d.author).code };
+  d.regDate = S.clock; d.regBy = actor; d.stage = 'registered';
+  STEPBY[`doc-register|${d.id}`] = { by: actor };
+  log(d, actor, 'Зарегистрирован', '№ ' + noText(d)); sync(); return { ok: true, no: noText(d) };
+}
+const CORR_FIELDS = { subject: 'Тема', docDate: 'Дата документа', receivedDate: 'Дата поступления', corrNo: 'Номер корреспондента', corrDate: 'Дата корреспондента',
+  sender: 'Отправитель', senderKind: 'Вид отправителя', urgency: 'Срочность', purpose: 'Цель', links: 'Привязки', addressee: 'Адресат и даты отправки' };
+const NO_CORR = { kind: 'вид', type: 'тип', no: 'номер', regDate: 'дата регистрации' };
+function correct(id, actor, field, value, reason) {
+  const [d, e] = guard(id, actor); if (e) return e;
+  if (!isReg(actor)) return no('исправляет регистратор');
+  if (!['registered', 'filed'].includes(d.stage)) return no('исправляется зарегистрированный документ');
+  if (NO_CORR[field]) return no('вид, тип, номер и дата регистрации не исправляются — только аннулирование и новая регистрация');
+  if (!CORR_FIELDS[field]) return no('это поле не исправляется');
+  if (!String(reason || '').trim()) return no('нужно основание');
+  const show = v => typeof v === 'object' && v ? JSON.stringify(v) : (v == null || v === '' ? '—' : String(v));
+  let was, now;
+  if (['docDate', 'receivedDate', 'corrDate'].includes(field)) {
+    const v = toIso(value); if (!v) return no('неверная дата');
+    if (field === 'receivedDate' && (v > d.regDate || v > S.clock)) return no('дата поступления не позже даты регистрации');
+    was = fmt(d[field]); d[field] = v; now = fmt(v);
+  } else if (field === 'links') {
+    const L = normLinks(value); const t = typeOf(d.type);
+    const lost = t.links.filter(k => !L.some(l => l.k === k));
+    if (lost.length) return no('привязка ниже обязательного набора: ' + lost.map(k => LINK_KINDS[k].toLowerCase()).join(', '));
+    was = d.links.map(l => linkObj(l.k, l.id).label).join('; '); d.links = L; now = L.map(l => linkObj(l.k, l.id).label).join('; ');
+  } else if (field === 'sender') {
+    was = senderName(d); d.sender = typeof value === 'object' ? { subj: value.subj || '', text: value.subj ? '' : value.text || '' } : { subj: '', text: String(value) }; now = senderName(d);
+  } else if (field === 'addressee') {
+    const a = d.addressees.find(x => x.id === value.addrId); if (!a) return no('адресат не найден');
+    const sd = value.sentDate !== undefined ? toIso(value.sentDate) : a.sentDate, od = value.outcomeDate !== undefined ? toIso(value.outcomeDate) : a.outcomeDate;
+    if (sd === null || od === null) return no('неверная дата');
+    if (sd && (sd < d.regDate || sd > S.clock)) return no('дата отправки не раньше регистрации и не позже сегодняшней');
+    if (od && sd && od < sd) return no('дата вручения не раньше даты отправки');
+    was = `${addrName(a)}: отправлено ${fmt(a.sentDate)}, исход ${fmt(a.outcomeDate)}`;
+    if (value.text !== undefined && !a.subj) a.text = value.text;
+    a.sentDate = sd || null; a.outcomeDate = od || null; now = `${addrName(a)}: отправлено ${fmt(a.sentDate)}, исход ${fmt(a.outcomeDate)}`;
+  } else {
+    if (field === 'urgency' && !URG[value]) return no('срочность не из шкалы');
+    if (field === 'purpose' && !PURPOSE[value]) return no('цель не из шкалы');
+    was = show(d[field]); d[field] = value; now = show(value);
+  }
+  log(d, actor, 'Исправлено', `${CORR_FIELDS[field]}: было «${was}», стало «${now}». Основание: ${reason}`);
+  sync(); return yes;
+}
+function preAnnul(d, actor) {
+  if (!isReg(actor)) return no('аннулирует регистратор');
+  if (d.stage !== 'registered') return no('аннулируется зарегистрированный документ');
+  if (d.addressees.some(a => a.sentDate)) return no('аннулировать нельзя: адресату уже отправлено');
+  return yes;
+}
+function annul(id, actor, reason) {
+  const [d, e] = guard(id, actor); if (e) return e;
+  const p = preAnnul(d, actor); if (!p.ok) return p;
+  if (!String(reason || '').trim()) return no('нужно основание');
+  d.stage = 'annulled'; d.annul = { at: S.clock, by: actor, reason };
+  log(d, actor, 'Аннулирован', `№ ${noText(d)} остаётся занятым. Основание: ${reason}`); sync(); return yes;
+}
+function markSent(id, actor, addrId, o = {}) {
+  const [d, e] = guard(id, actor); if (e) return e;
+  if (d.kind !== 'out') return no('отправка — у исходящего');
+  if (d.stage !== 'registered') return no('документ не зарегистрирован');
+  if (!(isReg(actor) || (o.method === 'email' && actor === d.author))) return no('отправку отмечает регистратор (по e-mail — и автор)');
+  if (!hasFile(d, 'signed')) return no('нет файла «подписанный»');
+  const a = d.addressees.find(x => x.id === addrId); if (!a) return no('адресат не найден');
+  if (a.sentDate) return no('отправка этому адресату уже отмечена');
+  const m = METHODS[o.method]; if (!m) return no('способ не из справочника');
+  const date = toIso(o.date); if (!date) return no('нужна дата отправки');
+  if (date < d.regDate) return no('дата отправки раньше даты регистрации');
+  if (date > S.clock) return no('дата отправки позже сегодняшней');
+  if (m.track && !String(o.track || '').trim()) return no('нужен почтовый идентификатор');
+  Object.assign(a, { method: o.method, sentDate: date, track: o.track || '' });
+  log(d, actor, 'Отправлено', `${addrName(a)} · ${m.name} · ${fmt(date)}${o.track ? ' · ' + o.track : ''}`);
+  if (dispatchInfo(d).done) STEPBY[`doc-dispatch|${d.id}`] = { by: actor };
+  sync(); return yes;
+}
+function markDelivered(id, actor, addrId, o = {}) {
+  const [d, e] = guard(id, actor); if (e) return e;
+  if (!isReg(actor)) return no('вручение отмечает регистратор');
+  if (!['registered', 'filed'].includes(d.stage)) return no('документ не зарегистрирован');
+  const a = d.addressees.find(x => x.id === addrId); if (!a) return no('адресат не найден');
+  if (!a.sentDate) return no('нет даты отправки');
+  if (a.outcome) return no('исход доставки уже отмечен — исправляется «Исправить»');
+  if (!['delivered', 'returned'].includes(o.outcome)) return no('исход: вручено или возврат');
+  const date = toIso(o.date); if (!date) return no('нужна дата');
+  if (date < a.sentDate) return no('дата вручения раньше даты отправки');
+  if (date > S.clock) return no('дата позже сегодняшней');
+  const m = METHODS[a.method];
+  if (m.proof && !o.proof) return no('нужно подтверждение: ' + m.proof);
+  if (o.proof) {
+    const ext = String(o.proof).split('.').pop().toLowerCase(); if (!EXTS.includes(ext)) return no('формат не принимается: PDF, DOCX, XLSX, JPG, PNG');
+    const f = { id: 'F-' + (++SEQ.file), role: 'proof', idx: d.files.filter(x => x.role === 'proof').length + 1, ver: 1, ext, size: 95000, sha: fakeSha(a.id), at: S.clock, by: actor, hist: [],
+      addrIdx: d.addressees.indexOf(a) + 1 };
+    d.files.push(f); a.proof = f.id;
+  }
+  Object.assign(a, { outcome: o.outcome, outcomeDate: date });
+  log(d, actor, o.outcome === 'delivered' ? 'Вручено' : 'Возврат', `${addrName(a)} · ${fmt(date)}`); sync(); return yes;
+}
+function giveRes(docId, actor, o = {}) {
+  const [d, e] = guard(docId, actor); if (e) return e;
+  if (d.kind === 'out') return no('у исходящего резолюций нет');
+  if (d.stage !== 'registered') return no('резолюция даётся по зарегистрированному документу');
+  let rec = null, p = null;
+  if (o.parent) {
+    p = res(o.parent); if (!p || p.doc !== d.id) return no('родительская резолюция не найдена');
+    if (resClosed(p)) return no('родительская резолюция закрыта');
+    if (!(actsFor(actor, p.resp) || p.co.some(c => actsFor(actor, c)))) return no('резолюцию ниже даёт исполнитель резолюции выше');
+  } else {
+    rec = d.recipients.find(r => actsFor(actor, r.emp) && (d.kind === 'in' || r.mode === 'exec'));
+    if (!rec) return no('резолюцию даёт получатель документа');
+  }
+  const resp = Array.isArray(o.resp) ? (o.resp.length === 1 ? o.resp[0] : null) : o.resp;
+  if (Array.isArray(o.resp) && o.resp.length !== 1) return no('ответственный — ровно один');
+  if (!resp || !emp(resp)) return no('нет ответственного');
+  if (!String(o.text || '').trim()) return no('нет текста резолюции');
+  const due = toIso(o.due || defaultDue(d, o.parent)); if (!due) return no('нет срока');
+  if (p && due > effDue(p)) return no('срок позже установленного срока родительской резолюции (' + fmt(effDue(p)) + ')');
+  const r = { id: 'Р-' + (++SEQ.res), doc: d.id, parent: p ? p.id : null, author: actor, at: S.clock, text: o.text, resp, co: [...new Set((o.co || []).filter(c => c !== resp && emp(c)))],
+    due, parentDueAtIssue: p ? effDue(p) : null, outcome: null, claim: null, returns: 0 };
+  RES.push(r);
+  if (rec && !rec.reviewed) { rec.reviewed = { kind: 'res', at: S.clock, by: actor }; STEPBY[`doc-review|${d.id}×${rec.emp}`] = { by: actor }; }
+  log(d, actor, 'Резолюция', `${r.text} → ${empName(resp)}${r.co.length ? ' (соисп.: ' + r.co.map(empName).join(', ') + ')' : ''}, срок ${fmt(due)}`);
+  sync(); return { ok: true, id: r.id, res: r };
+}
+function markInfo(docId, actor) {
+  const [d, e] = guard(docId, actor); if (e) return e;
+  if (d.kind !== 'in' || d.stage !== 'registered') return no('«к сведению» — у зарегистрированного входящего');
+  const rec = d.recipients.find(r => actsFor(actor, r.emp) && !r.reviewed); if (!rec) return no('отметку ставит получатель');
+  rec.reviewed = { kind: 'info', at: S.clock, by: actor }; STEPBY[`doc-review|${d.id}×${rec.emp}`] = { by: actor };
+  log(d, actor, 'Отмечено «к сведению»'); sync(); return yes;
+}
+function closeExecKeys(r, by) { STEPBY[`doc-execute|${r.id}×${r.resp}`] = { by }; r.co.forEach(c => { STEPBY[`doc-execute|${r.id}×${c}`] = { cancel: 'резолюция исполнена' }; }); }
+function resDone(resId, actor, text) {
+  const r = res(resId); if (!r) return no('резолюция не найдена');
+  const [d, e] = guard(r.doc, actor); if (e) return e;
+  if (resClosed(r) || r.claim) return no('резолюция не открыта');
+  if (!actsFor(actor, r.resp)) return no('исполнение отмечает ответственный');
+  if (d.needsReply && !r.parent) return no('документ требует ответа: поручение гаснет отправленным ответом');
+  if (!String(text || '').trim()) return no('нет текста результата');
+  if (d.control && !r.parent) {
+    r.claim = { text, at: S.clock, by: actor }; STEPBY[`doc-execute|${r.id}×${r.resp}`] = { by: actor };
+    log(d, actor, 'Исполнение отмечено', `${r.id}: ждёт подтверждения контролёра`);
+  } else { r.outcome = { kind: 'done', text, at: S.clock, by: actor }; closeExecKeys(r, actor); log(d, actor, 'Резолюция исполнена', `${r.id}: ${text}`); }
+  sync(); return yes;
+}
+function resRefuse(resId, actor, basis) {
+  const r = res(resId); if (!r) return no('резолюция не найдена');
+  const [d, e] = guard(r.doc, actor); if (e) return e;
+  if (resClosed(r)) return no('резолюция не открыта');
+  if (!actsFor(actor, r.resp)) return no('отказать может ответственный');
+  if (!String(basis || '').trim()) return no('нужно основание');
+  r.claim = null; r.outcome = { kind: 'refused', text: basis, at: S.clock, by: actor }; closeExecKeys(r, actor);
+  log(d, actor, 'Отказано в исполнении', `${r.id}: ${basis}`); sync(); return yes;
+}
+function ctrlConfirm(resId, actor) {
+  const r = res(resId); if (!r) return no('резолюция не найдена');
+  const [d, e] = guard(r.doc, actor); if (e) return e;
+  if (!r.claim) return no('нечего подтверждать');
+  if (!actsFor(actor, d.controller)) return no('подтверждает контролёр');
+  r.outcome = { kind: 'done', text: r.claim.text, at: S.clock, by: r.claim.by, confirmedBy: actor }; r.claim = null;
+  STEPBY[`doc-control|${r.id}`] = { by: actor }; closeExecKeys(r, actor);
+  log(d, actor, 'Исполнение подтверждено контролёром', r.id); sync(); return yes;
+}
+function ctrlReturn(resId, actor, comment) {
+  const r = res(resId); if (!r) return no('резолюция не найдена');
+  const [d, e] = guard(r.doc, actor); if (e) return e;
+  if (!r.claim) return no('нечего возвращать');
+  if (!actsFor(actor, d.controller)) return no('возвращает контролёр');
+  if (!String(comment || '').trim()) return no('комментарий обязателен');
+  r.claim = null; r.returns++; STEPBY[`doc-control|${r.id}`] = { by: actor };
+  log(d, actor, 'Возвращено контролёром', `${r.id}: ${comment}`); sync(); return yes;
+}
+function acquaint(docId, actor) {
+  const [d, e] = guard(docId, actor); if (e) return e;
+  if (d.kind !== 'int' || !['registered', 'filed'].includes(d.stage)) return no('ознакомление — у зарегистрированного внутреннего');
+  const rec = d.recipients.find(r => r.mode === 'acq' && r.emp === actor); if (!rec) return no('ознакомиться может получатель «на ознакомление»');
+  if (rec.acqAt) return no('уже ознакомлен');
+  rec.acqAt = S.clock; STEPBY[`doc-acquaint|${d.id}×${actor}`] = { by: actor };
+  log(d, actor, 'Ознакомлен'); sync(); return yes;
+}
+function fileToCase(docId, actor, caseId) {
+  const [d, e] = guard(docId, actor); if (e) return e;
+  if (!(isArch(actor) || isReg(actor))) return no('сдаёт в дело архивариус или регистратор');
+  const p = fileReady(d); if (!p.ok) return p;
+  const c = caseOf(caseId || (typeOf(d.type) || {}).caseId); if (!c) return no('дело не выбрано');
+  if (c.year !== clockYear()) return no('дело не из номенклатуры текущего года');
+  d.stage = 'filed'; d.caseId = c.id; d.filedAt = S.clock; STEPBY[`doc-file|${d.id}`] = { by: actor };
+  log(d, actor, 'Сдан в дело', `${c.idx} ${c.name}`); sync(); return yes;
+}
+function issueOriginal(docId, actor, to, until) {
+  const [d, e] = guard(docId, actor); if (e) return e;
+  if (!isArch(actor)) return no('журнал выдачи ведёт архивариус');
+  if (d.stage !== 'filed') return no('выдаётся оригинал документа из дела');
+  if (ISSUES.some(i => i.doc === d.id && !i.returned)) return no('оригинал уже выдан');
+  if (!emp(to)) return no('кому выдан');
+  const u = toIso(until); if (!u || u < S.clock) return no('срок возврата не раньше сегодняшнего');
+  const i = { id: 'В-' + (++SEQ.iss), doc: d.id, to, at: S.clock, until: u, returned: null, by: actor }; ISSUES.push(i);
+  log(d, actor, 'Выдан оригинал', `${empName(to)} до ${fmt(u)}`); sync(); return { ok: true, id: i.id };
+}
+function returnOriginal(issueId, actor) {
+  const i = ISSUES.find(x => x.id === issueId); if (!i) return no('выдача не найдена');
+  const [d, e] = guard(i.doc, actor); if (e) return e;
+  if (!isArch(actor)) return no('журнал выдачи ведёт архивариус');
+  if (i.returned) return no('оригинал уже возвращён');
+  i.returned = S.clock; STEPBY[`doc-return|${i.id}`] = { by: i.to };
+  log(d, actor, 'Оригинал возвращён', empName(i.to)); sync(); return yes;
+}
+function comment(docId, actor, text) {
+  const [d, e] = guard(docId, actor); if (e) return e;
+  if (!String(text || '').trim()) return no('пустой комментарий');
+  const mentions = EMP.filter(x => text.includes('@' + x.name)).map(x => x.id);
+  d.comments.push({ at: S.clock, by: actor, text, mentions }); log(d, actor, 'Комментарий'); return yes;
+}
+function fromBlank(blankId, actor) {
+  const b = BLANKS.find(x => x.id === blankId); if (!b) return no('выпуск не найден');
+  if (b.docId) return no('по выпуску уже создан черновик');
+  const t = typeOf(b.type);
+  const r = create(actor, t.kind, { type: b.type, subject: b.subject, links: b.links, addressees: b.recipient ? [{ subj: b.recipient }] : [] });
+  if (!r.ok) return r;
+  r.doc.fromBlank = b.id; b.docId = r.id;
+  const f = { id: 'F-' + (++SEQ.file), role: 'project', idx: 1, ver: 1, ext: 'pdf', size: 210000, sha: fakeSha(b.id), at: S.clock, by: actor, hist: [] };
+  r.doc.files.push(f); log(r.doc, actor, 'Создан из выпуска «Отчётности»', `${b.id} · ${b.template}`);
+  return r;
+}
+/* Чтение мерой взыскания (заглушка шва): мера своих полей номера и дат не имеет. */
+function measureView(docId) {
+  const d = doc(docId); if (!d || !d.links.some(l => l.k === 'phase')) return null;
+  const loan = d.links.find(l => l.k === 'loan'); const debtor = loan && (linkObj('loan', loan.id) || {}).borrower;
+  const a = d.addressees.find(x => x.subj === debtor) || null;
+  return { no: noText(d), event: d.docDate, received: d.kind === 'in' ? d.receivedDate : null, debtor: subjName(debtor),
+    sent: a && a.sentDate ? { date: a.sentDate, method: METHODS[a.method].name } : null,
+    delivered: a && a.outcome === 'delivered' ? { date: a.outcomeDate, proof: a.proof ? fileName(d, d.files.find(f => f.id === a.proof)) : '' } : null,
+    discrepancy: d.stage === 'annulled' };
+}
+/* Утверждённое продление из «Заданий» (заглушка шва): утверждает автор резолюции. */
+function extendFromTasks(resId, newDue, approver) {
+  const r = res(resId); if (!r) return no('резолюция не найдена');
+  if (approver !== r.author) return no('продление утверждает автор резолюции');
+  const v = toIso(newDue); if (!v || v <= effDue(r)) return no('новый срок позже действующего');
+  EXT[r.id] = { due: v, by: approver, at: S.clock }; sync(); return yes;
+}
+
+/* ===================== шов с «Заданиями» (§10.1) ===================== */
+const POVOD_NAME = { 'doc-revise': 'доработать черновик', 'doc-approve': 'согласовать', 'doc-sign': 'подписать', 'doc-register': 'зарегистрировать',
+  'doc-dispatch': 'отправить', 'doc-review': 'рассмотреть входящий', 'doc-execute': 'исполнить резолюцию', 'doc-control': 'подтвердить на контроле',
+  'doc-acquaint': 'ознакомиться', 'doc-file': 'сдать в дело', 'doc-return': 'вернуть оригинал' };
+function povods() {
+  const out = [];
+  const P = (kind, obj, addr, due, docId) => out.push({ key: kind + '|' + obj, kind, obj, addr, due, doc: docId });
+  DOCS.filter(d => !d.legacy && !d.deleted).forEach(d => {
+    const r = curRound(d);
+    if (d.stage === 'draft' && d.returned) P('doc-revise', d.id, { emp: d.author }, addWork(d.returned.at, 3), d.id);
+    if (d.stage === 'approval') r.steps.filter(s => !s.res).forEach(s => P('doc-approve', d.id + '×' + s.emp, { emp: s.emp }, addWork(r.at, 2), d.id));
+    if (d.stage === 'signing' && !d.signed) P('doc-sign', d.id, { emp: d.signer, personal: true }, addWork(r.at, 2), d.id);
+    if (d.stage === 'signing' && d.signed) P('doc-register', d.id, { role: 'registrar' }, addWork(d.signed.at, 1), d.id);
+    if (d.stage !== 'registered') return;
+    if (d.kind === 'out' && d.addressees.some(a => !a.sentDate)) P('doc-dispatch', d.id, { role: 'registrar' }, addWork(d.regDate, 2), d.id);
+    if (d.kind !== 'out') {
+      d.recipients.filter(x => (d.kind === 'in' || x.mode === 'exec') && !x.reviewed).forEach(x => P('doc-review', d.id + '×' + x.emp, { emp: x.emp }, addWork(d.regDate, 2), d.id));
+      d.recipients.filter(x => x.mode === 'acq' && !x.acqAt).forEach(x => P('doc-acquaint', d.id + '×' + x.emp, { emp: x.emp }, addWork(d.regDate, 3), d.id));
+      RES.filter(x => x.doc === d.id).forEach(x => {
+        const st = resState(x).code; if (['done', 'refused', 'withdrawn'].includes(st)) return;
+        if (!x.claim) P('doc-execute', x.id + '×' + x.resp, { emp: x.resp }, effDue(x), d.id);
+        x.co.forEach(c => P('doc-execute', x.id + '×' + c, { emp: c }, effDue(x), d.id));
+        if (x.claim) P('doc-control', x.id, { emp: d.controller }, addWork(x.claim.at, 2), d.id);
+      });
+    }
+    if (fileReady(d).ok) P('doc-file', d.id, { role: 'archivist' }, addWork(S.clock, 5), d.id);
+  });
+  ISSUES.filter(i => !i.returned && i.until < S.clock).forEach(i => P('doc-return', i.id, { emp: i.to }, i.until, i.doc));
+  return out;
+}
+/* Модель «Заданий» в миниатюре: открыть задание на новый повод, закрыть отпадением с атрибуцией. */
+function sync() {
+  const cur = povods(), keys = new Set(cur.map(p => p.key));
+  TASKS.filter(t => t.open && !keys.has(t.key)).forEach(t => {
+    const d = doc(t.doc), s = STEPBY[t.key];
+    let outcome = 'исполнено', note = '';
+    if (d && d.stage === 'annulled') { outcome = 'снято'; note = 'документ аннулирован'; }
+    else if (d && d.deleted) { outcome = 'снято'; note = 'черновик удалён'; }
+    else if (s && s.cancel) { outcome = 'снято'; note = s.cancel; }
+    else if (s && s.by) {
+      const own = t.taken ? actsFor(s.by, t.taken) : t.addr.role ? hasRole(s.by, t.addr.role) : actsFor(s.by, t.addr.emp);
+      if (!own) note = 'выполнил другой: ' + empName(s.by); else if (t.addr.emp && s.by !== t.addr.emp) note = 'за ' + empName(t.addr.emp) + ': ' + empName(s.by);
+    } else if (t.kind === 'doc-execute' || t.kind === 'doc-review') note = 'шаг закрыт документом';
+    Object.assign(t, { open: false, outcome, note, closedAt: S.clock });
+  });
+  cur.forEach(p => {
+    if (TASKS.some(t => t.open && t.key === p.key)) return;
+    const prev = TASKS.filter(t => t.key === p.key).slice(-1)[0];
+    TASKS.push({ id: 'З-' + (++SEQ.task), key: p.key, kind: p.kind, addr: p.addr, due: p.due, doc: p.doc, at: S.clock, open: true, taken: null, repeatOf: prev ? prev.id : null });
+  });
+  STEPBY = {};
+}
+function takeTask(taskId, actor) {
+  const t = TASKS.find(x => x.id === taskId); if (!t || !t.open) return no('задание не открыто');
+  if (!t.addr.role || !hasRole(actor, t.addr.role)) return no('взять можно задание очереди своей роли');
+  t.taken = actor; return yes;
+}
+
+/* ====================== журналы и поиск (§9.1) ====================== */
+function roleIn(d, e) {
+  const r = [];
+  if (d.author === e && d.kind !== 'in') r.push('автор');
+  if (d.rounds.some(x => x.steps.some(s => s.emp === e)) || d.approvers.includes(e)) r.push('согласующий');
+  if (d.signer === e) r.push('подписант');
+  if (d.regBy === e || (d.kind === 'in' && d.author === e)) r.push('регистратор');
+  const rec = d.recipients.find(x => x.emp === e); if (rec) r.push(rec.mode === 'acq' ? 'получатель (ознакомление)' : 'получатель');
+  if (RES.some(x => x.doc === d.id && x.resp === e)) r.push('ответственный');
+  if (RES.some(x => x.doc === d.id && x.co.includes(e))) r.push('соисполнитель');
+  if (d.controller === e) r.push('контролёр');
+  return r;
+}
+function searchText(d) {
+  const L = d.links.map(l => { const o = linkObj(l.k, l.id) || {}; const s = SUBJ.find(x => x.id === l.id); return [o.label, s && s.inn].join(' '); });
+  return [noText(d), d.legacyNo, d.corrNo, d.subject, senderName(d), ...d.addressees.map(addrName), ...L, (typeOf(d.type) || {}).name].join(' ').toLowerCase();
+}
+function execCode(d) { const x = execInfo(d); return x ? x.code : ''; }
+function journal(view, actor = S.user, o = {}) {
+  let L = DOCS.filter(d => !d.deleted && canSee(d, actor));
+  if (view === 'mine') L = L.filter(d => participants(d).has(actor));
+  else L = L.filter(d => d.kind === view);
+  const q = String(o.q || '').trim().toLowerCase();
+  if (q) L = L.filter(d => searchText(d).includes(q));
+  if (o.type) L = L.filter(d => d.type === o.type);
+  if (o.stage) L = L.filter(d => d.stage === o.stage);
+  if (o.exec) L = L.filter(d => execCode(d) === o.exec);
+  if (o.from) L = L.filter(d => (d.regDate || '') >= o.from);
+  if (o.to) L = L.filter(d => d.regDate && d.regDate <= o.to);
+  const k = d => (d.regDate || d.createdAt) + ' ' + (d.no ? String(d.no.n).padStart(6, '0') : '') + d.id.padStart(6, '0');
+  return L.sort((a, b) => k(b).localeCompare(k(a)));
+}
+const GROUPS = { type: 'Тип', stage: 'Этап', party: 'Отправитель / адресат', exec: 'Исполнитель', dept: 'Отдел', month: 'Месяц регистрации' };
+function groupKey(d, g) {
+  if (g === 'type') return typeOf(d.type).name;
+  if (g === 'stage') return STAGES[d.stage];
+  if (g === 'party') return d.kind === 'in' ? senderName(d) || '—' : d.addressees.map(addrName).join(', ') || '—';
+  if (g === 'exec') { const t = topRes(d); return t.length ? [...new Set(t.map(r => empName(r.resp)))].join(', ') : '—'; }
+  if (g === 'dept') return d.kind === 'in' ? 'Канцелярия (входящие)' : deptOf(d.author).name;
+  if (g === 'month') return d.regDate ? d.regDate.slice(5, 7) + '.' + d.regDate.slice(0, 4) : 'без регистрации';
+  return '';
+}
+function grouped(list, g) { const m = new Map(); list.forEach(d => { const k = groupKey(d, g); if (!m.has(k)) m.set(k, []); m.get(k).push(d); }); return [...m.entries()]; }
+
+/* ===================== показатели (§9.2, предпросмотр) ================ */
+function indicators(from, to) {
+  const inP = x => x && x >= from && x <= to;
+  const N = DOCS.filter(d => !d.legacy && !d.deleted);
+  const reg = N.filter(d => d.no && inP(d.regDate));
+  const row = {};
+  ['in', 'out', 'int'].forEach(k => { row[k] = reg.filter(d => d.kind === k && d.stage !== 'annulled').length; });
+  row.annulled = reg.filter(d => d.stage === 'annulled').length;
+  const live = N.filter(d => ['registered', 'filed'].includes(d.stage));
+  const X = live.map(d => [d, execInfo(d)]);
+  row.inWork = X.filter(([, x]) => !x.done).length;
+  row.overdue = X.filter(([, x]) => !x.done && x.code === 'overdue').length;
+  const ex = X.filter(([, x]) => x.done && inP(x.date));
+  row.executed = ex.length;
+  const timed = ex.filter(([, x]) => x.deadline);
+  row.onTime = timed.filter(([, x]) => x.date <= x.deadline).length;
+  row.onTimeExt = timed.filter(([, x]) => x.date <= x.deadline && x.ext).length;
+  row.late = timed.filter(([, x]) => x.date > x.deadline).length;
+  row.refused = X.filter(([d]) => topRes(d).some(r => r.outcome && r.outcome.kind === 'refused' && inP(r.outcome.at))).length
+    + DOCS.filter(d => d.deleted && d.deleted.afterSignerRefusal && inP(d.deleted.at)).length;
+  row.pct = (row.onTime + row.late) ? Math.round(100 * row.onTime / (row.onTime + row.late)) : null;
+  return row;
+}
+
+/* ============================== SEED ================================ */
+/* Демо-набор собирается теми же действиями движка с подвинутыми часами — он сам проходит все
+   проверки, которые видит пользователь. Отказ любого шага — ошибка сборки. */
+function seed() {
+  DOCS = []; RES = []; ISSUES = []; EXT = {}; TASKS = []; STEPBY = {};
+  SEQ = { doc: 0, res: 0, file: 0, addr: 0, iss: 0, task: 0 };
+  COUNTERS = { in: { 2026: 4870 }, out: { 2026: 2172 }, int: {} };   /* перенос: максимум прежней системы */
+  BLANKS.forEach(b => { b.docId = null; });
+  const must = (r, what) => { if (!r || r.ok === false) throw new Error('seed: ' + what + ' — ' + (r && r.why)); return r; };
+  const at = d => { S.clock = d; };
+  const legacy = (kind, type, no_, year, regDate, subject, o = {}) => {
+    const d = { id: 'D-' + (++SEQ.doc), kind, type, subject, stage: 'filed', deleted: null, no: null, regDate, regBy: null, docDate: regDate, receivedDate: kind === 'in' ? regDate : null,
+      corrNo: '', corrDate: null, senderKind: o.senderKind || '', sender: { subj: '', text: o.sender || '' }, recipients: [], addressees: (o.addr || []).map(a => ({ id: 'A-' + (++SEQ.addr), subj: a.subj || '', text: a.text || '',
+      method: 'post', sentDate: regDate, track: '', outcome: null, outcomeDate: null, proof: null })), author: null, approvers: [], signer: null, rounds: [], signed: null, urgency: 'normal', purpose: 'exec',
+      needsReply: false, control: false, controller: null, basis: [], links: o.links || [], caseId: null, filedAt: null, legacy: true, legacyNo: no_, legacyYear: year,
+      files: [{ id: 'F-' + (++SEQ.file), role: kind === 'in' ? 'scan' : 'signed', idx: 1, ver: 1, ext: 'pdf', size: 340000, sha: fakeSha(no_ + regDate), at: regDate, by: null, hist: [] }],
+      comments: [], log: [{ at: regDate, by: null, act: 'Перенесён из старой системы', text: 'номер ' + no_ }], returned: null, annul: null, createdAt: regDate, fromBlank: null };
+    DOCS.push(d); return d;
+  };
+  legacy('in', 't-in-legacy', '1203', 2025, '2025-03-11', 'Письмо о реструктуризации задолженности', { sender: 'Асанов Т.Б.', senderKind: 'Заёмщик' });
+  legacy('in', 't-in-legacy', '1203', 2025, '2025-03-12', 'Запрос сведений о залоге', { sender: 'Государственная налоговая служба', senderKind: 'Госорган' });
+  legacy('out', 't-out-pret', '19-03-01/2101', 2026, '2026-08-20', 'Претензия о погашении задолженности по кредиту К-14', { addr: [{ subj: 'b2' }], links: [{ k: 'loan', id: 'L2' }, { k: 'borrower', id: 'b2' }] });
+
+  /* ИСХ 2173 — письмо в ГНС, отправлено по СЭД, сдано в дело */
+  at('2026-09-15');
+  let o1 = must(create('e4', 'out', { type: 't-out-letter', subject: 'О предоставлении сведений по залогодателю Асанову Т.Б.', docDate: '2026-09-15', addressees: [{ subj: 'o3' }], signer: 'e2' }), 'o1').id;
+  must(attach(o1, 'e4', 'project', 'pismo-gns.docx'), 'o1 file'); must(submit(o1, 'e4'), 'o1 submit'); must(sign(o1, 'e2'), 'o1 sign');
+  must(register(o1, 'e7'), 'o1 reg'); must(attach(o1, 'e7', 'signed', 'scan.pdf'), 'o1 signed'); must(markSent(o1, 'e7', doc(o1).addressees[0].id, { method: 'sed', date: '2026-09-15' }), 'o1 sent');
+  /* ВХ 4871 — письмо банка «к сведению», сдано в дело, оригинал выдан и не возвращён */
+  at('2026-09-16');
+  let i1 = must(create('e7', 'in', { type: 't-in-bank', subject: 'Об изменении реквизитов счёта погашения', sender: { text: 'ОАО «Айыл Банк»' }, senderKind: 'Банк', corrNo: '01-12/5541', corrDate: '2026-09-14',
+    docDate: '2026-09-14', receivedDate: '2026-09-16', recipients: ['e3'] }), 'i1').id;
+  must(attach(i1, 'e7', 'scan', 'scan.pdf'), 'i1 scan'); must(register(i1, 'e7'), 'i1 reg');
+  at('2026-09-17'); must(markInfo(i1, 'e3'), 'i1 info');
+  at('2026-09-22'); must(fileToCase(o1, 'e9'), 'o1 file'); must(fileToCase(i1, 'e9'), 'i1 file');
+  at('2026-09-28'); must(issueOriginal(i1, 'e9', 'e4', '2026-10-09'), 'i1 issue');
+  /* ВХ 4872 — решение суда, на контроле, резолюция просрочена */
+  at('2026-09-24');
+  let i2 = must(create('e8', 'in', { type: 't-in-court', subject: 'Решение по иску к ОсОО «Ак-Жол Агро» о взыскании задолженности', sender: { subj: 'o1' }, senderKind: 'Суд', corrNo: '2-1144/26', corrDate: '2026-09-22',
+    docDate: '2026-09-22', receivedDate: '2026-09-24', recipients: ['e6'], links: ['loan:L2', 'phase:F2'], control: true, controller: 'e3' }), 'i2').id;
+  must(attach(i2, 'e8', 'scan', 'reshenie.pdf'), 'i2 scan'); must(register(i2, 'e8'), 'i2 reg');
+  at('2026-09-25'); must(giveRes(i2, 'e6', { text: 'Подготовить апелляционную жалобу в части неустойки', resp: 'e6', due: '2026-10-08' }), 'i2 res');
+  /* ВХ 4873 — заявление заёмщика, требует ответа; ответ на согласовании */
+  at('2026-10-01');
+  let i3 = must(create('e7', 'in', { type: 't-in-zayav', subject: 'Об отсрочке платежа по кредиту К-1', sender: { subj: 'b1' }, senderKind: 'Заёмщик', corrNo: 'б/н', docDate: '2026-09-30',
+    receivedDate: '2026-10-01', recipients: ['e3'], links: ['loan:L1'] }), 'i3').id;
+  must(attach(i3, 'e7', 'scan', 'zayav.pdf'), 'i3 scan'); must(register(i3, 'e7'), 'i3 reg');
+  at('2026-10-02'); must(giveRes(i3, 'e3', { text: 'Подготовить проект ответа', resp: 'e4', co: ['e5'], due: '2026-10-15' }), 'i3 res');
+  must(comment(i3, 'e3', '@Абдыкадырова Н.Р. проект ответа согласуйте с юристами до отправки'), 'i3 comment');
+  /* ВН-1 — приказ, ознакомление 3/5 */
+  let n1 = must(create('e2', 'int', { type: 't-int-order', subject: 'О порядке работы с просроченной задолженностью в IV квартале', docDate: '2026-10-02', signer: 'e1',
+    recipients: ['e3', 'e4', 'e5', 'e6', 'e7'].map(e => ({ emp: e, mode: 'acq' })) }), 'n1').id;
+  must(attach(n1, 'e2', 'project', 'prikaz.docx'), 'n1 file'); must(submit(n1, 'e2'), 'n1 submit'); must(sign(n1, 'e1'), 'n1 sign'); must(register(n1, 'e7'), 'n1 reg');
+  must(attach(n1, 'e7', 'signed', 'prikaz.pdf'), 'n1 signed');
+  at('2026-10-05'); must(acquaint(n1, 'e3'), 'acq3'); must(acquaint(n1, 'e4'), 'acq4'); must(acquaint(n1, 'e7'), 'acq7');
+  /* ВХ 4874 — запрос Счётной палаты: каскад, продление, ответ отправлен */
+  let i4 = must(create('e7', 'in', { type: 't-in-gov', subject: 'О предоставлении сведений по проблемным кредитам за 9 месяцев 2026 года', sender: { subj: 'o2' }, senderKind: 'Госорган', corrNo: '04-3/1187',
+    corrDate: '2026-10-03', docDate: '2026-10-03', receivedDate: '2026-10-05', recipients: ['e1'] }), 'i4').id;
+  must(attach(i4, 'e7', 'scan', 'zapros.pdf'), 'i4 scan'); must(register(i4, 'e7'), 'i4 reg');
+  const r4 = must(giveRes(i4, 'e1', { text: 'Прошу подготовить ответ', resp: 'e3', due: '2026-10-12' }), 'r4').id;
+  at('2026-10-06'); const r4c = must(giveRes(i4, 'e3', { parent: r4, text: 'Собрать сведения по кредитам', resp: 'e4', due: '2026-10-09' }), 'r4c').id;
+  /* ИСХ 2174 — претензия двум адресатам: вручено 1, возврат 1 */
+  let o2 = must(create('e4', 'out', { type: 't-out-pret', subject: 'Претензия о погашении просроченной задолженности по кредиту К-14', docDate: '2026-10-06',
+    addressees: [{ subj: 'b2' }, { subj: 'b3' }], links: ['loan:L2', 'phase:F1'], approvers: ['e6'], signer: 'e2' }), 'o2').id;
+  must(attach(o2, 'e4', 'project', 'pretenziya.docx'), 'o2 file'); must(submit(o2, 'e4'), 'o2 submit'); must(approve(o2, 'e6'), 'o2 appr'); must(sign(o2, 'e2'), 'o2 sign');
+  must(register(o2, 'e8'), 'o2 reg'); must(attach(o2, 'e8', 'signed', 'pretenziya.pdf'), 'o2 signed');
+  at('2026-10-07'); doc(o2).addressees.forEach((a, k) => must(markSent(o2, 'e8', a.id, { method: 'post', date: '2026-10-07', track: 'RR12345678' + k + 'KG' }), 'o2 sent'));
+  at('2026-10-08'); must(resDone(r4c, 'e4', 'Сведения собраны, справка передана Осмонову К.Ж.'), 'r4c done');
+  /* ИСХ 2175 — аннулирован до отправки */
+  let o3 = must(create('e5', 'out', { type: 't-out-letter', subject: 'О сверке задолженности', docDate: '2026-10-08', addressees: [{ text: 'ОсОО «Ала-Тоо Сервис»' }], signer: 'e2' }), 'o3').id;
+  must(attach(o3, 'e5', 'project', 'pismo.docx'), 'o3 file'); must(submit(o3, 'e5'), 'o3 submit'); must(sign(o3, 'e2'), 'o3 sign'); must(register(o3, 'e7'), 'o3 reg');
+  /* Извещение — отказ согласующего, ждёт доработки */
+  at('2026-10-09');
+  must(annul(o3, 'e7', 'Ошибка в адресате: документ будет зарегистрирован заново'), 'o3 annul');
+  let o4 = must(create('e5', 'out', { type: 't-out-izv', subject: 'Извещение о начале досудебного взыскания по кредиту К-14', docDate: '2026-10-09', addressees: [{ subj: 'b2' }], links: ['loan:L2'],
+    approvers: ['e6'], signer: 'e2' }), 'o4').id;
+  must(attach(o4, 'e5', 'project', 'izv.docx'), 'o4 file'); must(submit(o4, 'e5'), 'o4 submit');
+  /* ВН-2 — служебная записка на исполнение */
+  let n2 = must(create('e3', 'int', { type: 't-int-memo', subject: 'О доработке учёта поступлений по проблемным кредитам', docDate: '2026-10-09', signer: 'e3', recipients: [{ emp: 'e1', mode: 'exec' }] }), 'n2').id;
+  must(attach(n2, 'e3', 'project', 'zapiska.docx'), 'n2 file'); must(submit(n2, 'e3'), 'n2 submit'); must(sign(n2, 'e3'), 'n2 sign'); must(register(n2, 'e8'), 'n2 reg');
+  must(attach(n2, 'e8', 'signed', 'zapiska.pdf'), 'n2 signed');
+  at('2026-10-12');
+  must(reject(o4, 'e6', 'Неверно указана сумма задолженности: сверить с расчётом на 01.10.2026'), 'o4 reject');
+  must(giveRes(n2, 'e1', { text: 'Прошу подготовить предложения', resp: 'e6', co: ['e3'], due: '2026-10-23' }), 'n2 res');
+  must(markDelivered(o2, 'e8', doc(o2).addressees[0].id, { outcome: 'delivered', date: '2026-10-12', proof: 'uvedomlenie.jpg' }), 'o2 deliv');
+  EXT[r4] = { due: '2026-10-20', by: 'e1', at: '2026-10-12' };                      /* продление утверждено в «Заданиях» */
+  /* Ответ Асанову — на согласовании: юрист согласовал, Осмонов (замещает Жумабеков) — нет */
+  let o5 = must(create('e4', 'out', { type: 't-out-letter', subject: 'Ответ на заявление об отсрочке платежа по кредиту К-1', docDate: '2026-10-12', addressees: [{ subj: 'b1' }],
+    links: ['loan:L1'], basis: [i3], approvers: ['e6', 'e3'], signer: 'e2' }), 'o5').id;
+  must(attach(o5, 'e4', 'project', 'otvet.docx'), 'o5 file'); must(submit(o5, 'e4'), 'o5 submit');
+  /* ИСХ 2176 — исковое: зарегистрировано, скан с номером ещё не приложен */
+  let o6 = must(create('e6', 'out', { type: 't-out-isk', subject: 'Исковое заявление о взыскании задолженности с ОсОО «Ак-Жол Агро» и обращении взыскания на залог', docDate: '2026-10-12',
+    addressees: [{ subj: 'o1' }], links: ['loan:L2', 'phase:F2'], approvers: ['e3'], signer: 'e6' }), 'o6').id;
+  must(attach(o6, 'e6', 'project', 'isk.docx'), 'o6 file'); must(attach(o6, 'e6', 'appendix', 'raschet.xlsx'), 'o6 app'); must(submit(o6, 'e6'), 'o6 submit'); must(approve(o6, 'e3'), 'o6 appr');
+  at('2026-10-13');
+  must(approve(o5, 'e6', 'Замечаний нет'), 'o5 appr'); must(sign(o6, 'e6'), 'o6 sign'); must(register(o6, 'e7'), 'o6 reg');
+  must(markDelivered(o2, 'e8', doc(o2).addressees[1].id, { outcome: 'returned', date: '2026-10-13', proof: 'konvert.jpg' }), 'o2 ret');
+  /* Уведомление — подписано замещающим, ждёт регистрации */
+  let o7 = must(create('e5', 'out', { type: 't-out-notice', subject: 'Уведомление о просрочке платежа по кредиту К-1', docDate: '2026-10-13', addressees: [{ subj: 'b1' }], links: ['loan:L1'], signer: 'e1' }), 'o7').id;
+  must(attach(o7, 'e5', 'project', 'uved.docx'), 'o7 file'); must(submit(o7, 'e5'), 'o7 submit');
+  /* ИСХ 2177 — ответ Счётной палате, отправлен по СЭД */
+  at('2026-10-14');
+  must(sign(o7, 'e2'), 'o7 sign');
+  let o8 = must(create('e3', 'out', { type: 't-out-letter', subject: 'О предоставлении сведений по проблемным кредитам', docDate: '2026-10-14', addressees: [{ subj: 'o2' }], basis: [i4], signer: 'e2' }), 'o8').id;
+  must(attach(o8, 'e3', 'project', 'otvet-sp.docx'), 'o8 file'); must(submit(o8, 'e3'), 'o8 submit'); must(sign(o8, 'e2'), 'o8 sign'); must(register(o8, 'e8'), 'o8 reg');
+  must(attach(o8, 'e8', 'signed', 'otvet-sp.pdf'), 'o8 signed'); must(markSent(o8, 'e8', doc(o8).addressees[0].id, { method: 'sed', date: '2026-10-14' }), 'o8 sent');
+  /* ВХ 4875 — письмо банка, ждёт рассмотрения */
+  let i5 = must(create('e8', 'in', { type: 't-in-bank', subject: 'О поступлении средств в погашение по кредиту К-14', sender: { text: 'ЗАО «Банк Компаньон»' }, senderKind: 'Банк', corrNo: '17/2290',
+    corrDate: '2026-10-13', docDate: '2026-10-13', receivedDate: '2026-10-14', recipients: ['e3'] }), 'i5').id;
+  must(attach(i5, 'e8', 'scan', 'bank.pdf'), 'i5 scan'); must(register(i5, 'e8'), 'i5 reg');
+  /* Письмо — ждёт подписи Председателя */
+  let o9 = must(create('e4', 'out', { type: 't-out-letter', subject: 'О графике погашения задолженности', docDate: '2026-10-14', addressees: [{ subj: 'b2' }], signer: 'e1' }), 'o9').id;
+  must(attach(o9, 'e4', 'project', 'grafik.docx'), 'o9 file'); must(submit(o9, 'e4'), 'o9 submit');
+  /* ВН — служебная записка ИТ: подписана, у отдела нет кода */
+  let n3 = must(create('e12', 'int', { type: 't-int-memo', subject: 'О замене серверного оборудования', docDate: '2026-10-14', signer: 'e1', recipients: [{ emp: 'e10', mode: 'exec' }] }), 'n3').id;
+  must(attach(n3, 'e12', 'project', 'server.docx'), 'n3 file'); must(submit(n3, 'e12'), 'n3 submit'); must(sign(n3, 'e1'), 'n3 sign');
+  /* Черновики сегодняшнего дня */
+  at(TODAY);
+  must(create('e4', 'out', { type: 't-out-act', subject: 'Акт сверки взаиморасчётов по кредиту К-14', links: ['loan:L2'], addressees: [{ subj: 'b2' }] }), 'o10');
+  let i6 = must(create('e7', 'in', { type: 't-in-zayav', subject: 'О реструктуризации задолженности', sender: { text: 'Токтогулов М.С.' }, senderKind: 'Заёмщик', corrNo: 'б/н',
+    docDate: '2026-10-14', receivedDate: TODAY, recipients: ['e3'] }), 'i6').id;
+  must(attach(i6, 'e7', 'scan', 'zayav2.pdf'), 'i6 scan');
+  sync();
+  const qt = TASKS.find(t => t.open && t.key === 'doc-register|' + o7); if (qt) qt.taken = 'e8';    /* взято из очереди регистратором */
+  S.clock = TODAY;
+  return { o1, o2, o3, o4, o5, o6, o7, o8, o9, i1, i2, i3, i4, i5, i6, n1, n2, n3, r4, r4c };
+}
+
+/* ============================== ЭКРАНЫ ============================== */
+const $ = s => document.querySelector(s);
+const TITLES = { in: 'Входящие', out: 'Исходящие', int: 'Внутренние', mine: 'Мои документы', archive: 'Архив', indicators: 'Показатели', settings: 'Настройки' };
+const pill = (cls, t) => `<span class="pill ${cls}">${esc(t)}</span>`;
+const stagePill = d => d.legacy ? pill('neutral', 'из старой системы') : pill(STAGE_PILL[d.stage], STAGES[d.stage]) + (d.stage === 'signing' && d.signed ? ' ' + pill('ok', 'подписан') : '');
+const dueCell = due => due ? `<span class="${due < S.clock ? 'red' : ''}">${fmt(due)}</span>` : '—';
+function execPill(d) {
+  const x = execInfo(d); if (!x) return '—';
+  const cls = { done: 'ok', overdue: 'err', work: 'info', await: 'warn' }[x.code];
+  return pill(cls, d.kind === 'out' ? (x.done ? 'отправлен' : 'не отправлен') : EXEC_NAME[x.code]);
+}
+function nearestDue(d) { const open = topRes(d).filter(r => !resClosed(r)); return open.length ? open.map(effDue).sort()[0] : null; }
+const openLink = (d, label) => `<button class="linky" data-testid="open-${d.id}" onclick="DF.openDoc('${d.id}')">${esc(label)}</button>`;
+function cols(view) {
+  const num = d => openLink(d, noText(d) || 'черновик');
+  const C = {
+    in: [['Номер', num], ['Дата рег.', d => fmt(d.regDate)], ['Отправитель', d => esc(senderName(d))], ['№ и дата отправителя', d => esc((d.corrNo || '—') + (d.corrDate ? ' от ' + fmt(d.corrDate) : ''))],
+      ['Тема', d => esc(d.subject)], ['Тип', d => esc(typeOf(d.type).name)], ['Этап', stagePill], ['Исполнение', execPill], ['Срок', d => dueCell(nearestDue(d))]],
+    out: [['Номер', num], ['Дата', d => fmt(d.regDate || d.docDate)], ['Адресаты', d => esc(d.addressees.map(addrName).join(', '))], ['Тема', d => esc(d.subject)], ['Тип', d => esc(typeOf(d.type).name)],
+      ['Подписант', d => esc(d.signer ? empName(d.signer) : '—')], ['Этап', stagePill], ['Отправка', d => d.no ? esc(execText(d)) : '—']],
+    int: [['Номер', num], ['Дата', d => fmt(d.regDate || d.docDate)], ['Автор', d => esc(empName(d.author))], ['Тема', d => esc(d.subject)], ['Тип', d => esc(typeOf(d.type).name)], ['Этап', stagePill],
+      ['Ознакомление / исполнение', d => d.no ? esc(execText(d)) : '—']],
+    mine: [['Вид', d => KINDS[d.kind].short], ['Номер', num], ['Дата', d => fmt(d.regDate || d.createdAt)], ['Тема', d => esc(d.subject)], ['Моя роль', d => esc(roleIn(d, S.user).join(', '))], ['Этап', stagePill], ['Исполнение', execPill]],
+  };
+  return C[view];
+}
+function viewJournal(view) {
+  const list = journal(view, S.user, Object.assign({ q: S.q }, S.f));
+  const C = cols(view);
+  const kind = view === 'mine' ? null : view;
+  const typeOpts = TYPES.filter(t => !kind || t.kind === kind);
+  const sel = (id, opts, v, all) => `<select data-testid="f-${id}" onchange="DF.setF('${id}', this.value)"><option value="">${all}</option>${opts.map(([k, l]) => `<option value="${esc(k)}"${k === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
+  const canNew = k => k !== 'in' || isReg(S.user);
+  const newBtns = view === 'mine' ? ['out', 'int'] : [view];
+  let rows;
+  const row = d => `<tr class="${d.stage === 'annulled' ? 'gone' : execCode(d) === 'overdue' ? 'over' : ''}" data-testid="row-${d.id}">${C.map(c => `<td>${c[1](d)}</td>`).join('')}</tr>`;
+  if (S.f.group) rows = grouped(list, S.f.group).map(([k, L]) => `<tr class="grp"><td colspan="${C.length}">${esc(k)} · ${L.length}</td></tr>` + L.map(row).join('')).join('');
+  else rows = list.map(row).join('');
+  return `<div class="card-head" style="margin-bottom:12px"><div class="btn-row">${newBtns.filter(canNew).map(k => `<button class="btn btn-primary" data-testid="new-${k}" onclick="DF.uiDraft('${k}')">Новый ${KINDS[k].name.toLowerCase()}</button>`).join('')}
+      ${view === 'out' || view === 'mine' ? `<button class="btn btn-secondary" data-testid="from-blank" onclick="DF.uiBlank()">Из бланка «Отчётности»</button>` : ''}</div>
+    <div class="btn-row"><button class="btn btn-secondary" data-testid="print" onclick="DF.uiPrint()">Печатная форма журнала</button></div></div>
+  <div class="filters">
+    <div class="fld" style="flex:1;min-width:260px"><label>Поиск</label><input data-testid="search" value="${esc(S.q)}" placeholder="номер, тема, отправитель, ИНН, кредит" onchange="DF.search(this.value)"></div>
+    <div class="fld"><label>Тип</label>${sel('type', typeOpts.map(t => [t.id, (kind ? '' : KINDS[t.kind].short + ' · ') + t.name]), S.f.type, 'все типы')}</div>
+    <div class="fld"><label>Этап</label>${sel('stage', Object.entries(STAGES), S.f.stage, 'все этапы')}</div>
+    <div class="fld"><label>Исполнение</label>${sel('exec', Object.entries(EXEC_NAME), S.f.exec, 'любое')}</div>
+    <div class="fld"><label>Зарегистрирован с</label><input style="min-width:110px;width:110px" value="${esc(S.f.from ? fmt(S.f.from) : '')}" placeholder="ДД.ММ.ГГГГ" onchange="DF.setF('from', this.value)"></div>
+    <div class="fld"><label>по</label><input style="min-width:110px;width:110px" value="${esc(S.f.to ? fmt(S.f.to) : '')}" placeholder="ДД.ММ.ГГГГ" onchange="DF.setF('to', this.value)"></div>
+    <div class="fld"><label>Группировка</label>${sel('group', Object.entries(GROUPS), S.f.group, 'без группировки')}</div>
+  </div>
+  <div class="btn-row" style="margin-bottom:10px"><button class="btn btn-secondary btn-sm" data-testid="save-set" onclick="DF.uiSaveSet()">Сохранить набор фильтров</button>
+    ${S.saved.map((s, i) => `<button class="btn btn-secondary btn-sm" onclick="DF.applySet(${i})">${esc(s.name)}</button>`).join('')}
+    <span class="small">Найдено: <b data-testid="found">${list.length}</b></span></div>
+  <table class="cgrid" data-testid="journal"><thead><tr>${C.map(c => `<th>${c[0]}</th>`).join('')}</tr></thead><tbody>${rows || `<tr><td colspan="${C.length}" class="muted">Документов нет</td></tr>`}</tbody></table>`;
+}
+
+/* ------------------------------ карточка ----------------------------- */
+function btn(label, on, gate, cls = 'btn-secondary', tid = '') {
+  return `<span style="display:inline-flex;flex-direction:column"><button class="btn ${cls} btn-sm" ${tid ? `data-testid="${tid}"` : ''} ${gate && !gate.ok ? 'disabled' : ''} onclick="${on}">${esc(label)}</button>${gate && !gate.ok ? `<span class="why err">${esc(gate.why)}</span>` : ''}</span>`;
+}
+function actions(d, u) {
+  if (d.legacy || d.deleted) return '';
+  const id = d.id, B = [];
+  if (d.stage === 'draft') {
+    if (canEditDraft(d, u)) {
+      B.push(btn('Изменить', `DF.uiDraft('${d.kind}','${id}')`, yes, 'btn-secondary', 'act-edit'));
+      if (d.kind !== 'in') B.push(btn(d.approvers.length ? 'На согласование' : 'На подпись', `DF.uiDo('submit','${id}')`, preSubmit(d, u), 'btn-primary', 'act-submit'));
+      B.push(btn('Удалить черновик', `DF.uiDo('del','${id}')`, yes, 'btn-danger', 'act-del'));
+    }
+    if (d.kind === 'in' && isReg(u)) B.push(btn('Зарегистрировать', `DF.uiDo('register','${id}')`, preRegister(d, u), 'btn-primary', 'act-register'));
+  }
+  if (d.stage === 'approval' && openStepFor(d, u)) {
+    B.push(btn('Согласовать', `DF.uiDo('approve','${id}')`, yes, 'btn-primary', 'act-approve'));
+    B.push(btn('Отказать', `DF.uiReject('${id}')`, yes, 'btn-danger', 'act-reject'));
+  }
+  if (d.stage === 'signing' && !d.signed && actsFor(u, d.signer)) {
+    B.push(btn('Подписать', `DF.uiDo('sign','${id}')`, canSign(d, u).ok || canSign(d, u).expired ? yes : canSign(d, u), 'btn-primary', 'act-sign'));
+    B.push(btn('Отказать', `DF.uiReject('${id}')`, yes, 'btn-danger', 'act-reject'));
+  }
+  if (d.stage === 'signing' && d.signed && isReg(u)) B.push(btn('Зарегистрировать', `DF.uiDo('register','${id}')`, preRegister(d, u), 'btn-primary', 'act-register'));
+  if (d.stage === 'registered') {
+    if (d.kind !== 'out') {
+      const rec = d.recipients.find(r => actsFor(u, r.emp) && (d.kind === 'in' || r.mode === 'exec'));
+      if (rec) B.push(btn('Дать резолюцию', `DF.uiRes('${id}')`, yes, 'btn-primary', 'act-res'));
+      if (d.kind === 'in' && d.recipients.some(r => actsFor(u, r.emp) && !r.reviewed)) B.push(btn('К сведению', `DF.uiDo('markInfo','${id}')`, yes, 'btn-secondary', 'act-info'));
+      const acq = d.recipients.find(r => r.mode === 'acq' && r.emp === u && !r.acqAt);
+      if (acq) B.push(btn('Ознакомлен', `DF.uiDo('acquaint','${id}')`, yes, 'btn-primary', 'act-acq'));
+    }
+    if (isArch(u) || isReg(u)) B.push(btn('Сдать в дело', `DF.uiFile('${id}')`, fileReady(d), 'btn-secondary', 'act-file'));
+    if (isReg(u)) B.push(btn('Аннулировать', `DF.uiAnnul('${id}')`, preAnnul(d, u), 'btn-danger', 'act-annul'));
+  }
+  if (['registered', 'filed'].includes(d.stage) && isReg(u)) B.push(btn('Исправить', `DF.uiCorrect('${id}')`, yes, 'btn-secondary', 'act-correct'));
+  if (d.stage === 'filed' && isArch(u)) B.push(btn('Выдать оригинал', `DF.uiIssue('${id}')`, ISSUES.some(i => i.doc === id && !i.returned) ? no('оригинал уже выдан') : yes, 'btn-secondary', 'act-issue'));
+  return B.join(' ');
+}
+const TABS = [['req', 'Реквизиты'], ['files', 'Файлы'], ['route', 'Маршрут'], ['res', 'Резолюции'], ['send', 'Отправка'], ['acq', 'Ознакомление'], ['links', 'Привязки'], ['log', 'Журнал'], ['com', 'Комментарии']];
+function tabsFor(d) { return TABS.filter(([k]) => !(k === 'send' && d.kind !== 'out') && !(k === 'acq' && d.kind !== 'int') && !(k === 'res' && d.kind === 'out') && !(k === 'route' && d.kind === 'in')); }
+function viewDoc(id) {
+  const r = openDoc(id, S.user);
+  if (!r.ok) return `<div class="banner danger" data-testid="denied">${esc(r.why)}</div>`;
+  const d = r.doc, T_ = tabsFor(d);
+  if (!T_.some(t => t[0] === S.tab)) S.tab = 'req';
+  const sums = [];
+  if (d.no && !d.legacy && d.stage !== 'annulled') sums.push(execText(d));
+  if (d.stage === 'annulled') sums.push('аннулирован ' + fmt(d.annul.at) + ': ' + d.annul.reason);
+  if (d.returned && d.stage === 'draft') sums.push('возвращён: ' + d.returned.comment);
+  const unread = d.comments.filter(c => c.mentions.includes(S.user)).length;
+  const body = { req: tabReq, files: tabFiles, route: tabRoute, res: tabRes, send: tabSend, acq: tabAcq, links: tabLinks, log: tabLog, com: tabCom }[S.tab](d);
+  return `<div class="card" data-testid="doc-card"><div class="card-head"><h3>${esc(KINDS[d.kind].name)} · ${esc(noText(d) || 'черновик')} · ${esc(typeOf(d.type).name)}</h3> ${stagePill(d)}
+      ${d.control ? pill('warn', 'на контроле') : ''} ${d.needsReply ? pill('info', 'требует ответа') : ''} ${unread ? pill('warn', 'вас упомянули: ' + unread) : ''}</div>
+    <div style="font-weight:600;margin-bottom:6px">${esc(d.subject || 'без темы')}</div>
+    ${sums.length ? `<div class="small" data-testid="summary">${sums.map(esc).join(' · ')}</div>` : ''}
+    <div class="btn-row" style="margin-top:10px" data-testid="actions">${actions(d, S.user)}</div></div>
+  <div class="tabs">${T_.map(([k, l]) => `<button class="tab${k === S.tab ? ' on' : ''}" data-testid="tab-${k}" onclick="DF.tab('${k}')">${l}</button>`).join('')}</div>
+  <div data-testid="tab-body">${body}</div>`;
+}
+const kv = rows => `<div class="kv">${rows.filter(Boolean).map(([k, v]) => `<div class="k">${esc(k)}</div><div>${v}</div>`).join('')}</div>`;
+function tabReq(d) {
+  const t = typeOf(d.type);
+  return `<div class="card">${kv([
+    ['Вид', esc(KINDS[d.kind].name)], ['Тип', esc(t.name)], ['Тема', esc(d.subject || '—')], ['Этап', stagePill(d)],
+    ['Регистрационный номер', esc(noText(d) || '—')], ['Дата регистрации', fmt(d.regDate)], ['Дата документа', fmt(d.docDate)],
+    d.kind === 'in' && ['Дата поступления', fmt(d.receivedDate)], d.kind === 'in' && ['Номер и дата корреспондента', esc((d.corrNo || '—') + (d.corrDate ? ' от ' + fmt(d.corrDate) : ''))],
+    d.kind === 'in' && ['Отправитель', esc(senderName(d) || '—') + (d.senderKind ? ` <span class="muted">· ${esc(d.senderKind)}</span>` : '')],
+    d.kind === 'in' && d.author && ['Регистратор', esc(empName(d.regBy || d.author))],
+    d.kind !== 'in' && d.author && ['Автор', esc(empName(d.author)) + ` <span class="muted">· ${esc(emp(d.author).pos)}, ${esc(deptOf(d.author).name)}</span>`],
+    d.kind === 'out' && ['Адресаты', esc(d.addressees.map(addrName).join('; ') || '—')],
+    d.kind !== 'out' && ['Получатели', esc(d.recipients.map(r => empName(r.emp) + (d.kind === 'int' ? (r.mode === 'acq' ? ' — на ознакомление' : ' — на исполнение') : '')).join('; ') || '—')],
+    d.kind !== 'in' && ['Согласующие', esc(d.approvers.map(empName).join(', ') || 'нет')], d.kind !== 'in' && ['Подписант', esc(d.signer ? empName(d.signer) : '—')],
+    d.signed && ['Подписано', fmt(d.signed.at) + ' · ' + esc(empName(d.signed.by)) + (d.signed.onBehalf ? ' за ' + esc(empName(d.signed.onBehalf)) : '')],
+    ['Срочность', esc(URG[d.urgency].name)], ['Цель', esc(PURPOSE[d.purpose])], d.kind === 'in' && ['Требует ответа', d.needsReply ? 'да' : 'нет'],
+    d.kind !== 'out' && ['На контроле', d.control ? 'да · контролёр ' + esc(empName(d.controller)) : 'нет'],
+    d.kind === 'out' && ['Основание', d.basis.length ? d.basis.map(b => openLink(doc(b), 'ВХ ' + (noText(doc(b)) || 'черновик'))).join(', ') : '—'],
+    d.kind === 'in' && replyInfo(d) && ['Ответ', DOCS.filter(o => o.basis.includes(d.id) && !o.deleted).map(o => openLink(o, 'ИСХ ' + (noText(o) || 'черновик') + ' · ' + STAGES[o.stage])).join(', ') || '—'],
+    ['Дело', d.caseId ? esc(caseOf(d.caseId).idx + ' ' + caseOf(d.caseId).name) + ' · сдан ' + fmt(d.filedAt) : '—'],
+    d.fromBlank && ['Выпуск «Отчётности»', esc(d.fromBlank)], d.legacy && ['Из старой системы', 'да · номер ' + esc(d.legacyNo)],
+  ])}</div>`;
+}
+function tabFiles(d) {
+  const u = S.user, canAdd = !d.legacy && d.stage !== 'annulled' && (d.no ? (isReg(u) || d.author === u) : canEditDraft(d, u) && !d.signed);
+  return `<div class="card"><div class="card-head"><h3>Файлы · ${d.files.length}</h3><div class="btn-row">${canAdd ? `<button class="btn btn-secondary btn-sm" data-testid="add-file" onclick="DF.uiAttach('${d.id}')">Добавить файл</button>` : ''}</div></div>
+  <table class="cgrid"><thead><tr><th>Имя (даёт система)</th><th>Роль</th><th>Версия</th><th>Размер</th><th>Контрольная сумма</th><th>Добавлен</th><th></th></tr></thead><tbody>
+  ${d.files.map(f => `<tr><td class="mono">${esc(fileName(d, f))}</td><td>${esc(FILE_ROLES[f.role])}</td><td>${f.ver}${f.hist.length ? ` <span class="muted">(прежние: ${f.hist.map(h => 'v' + h.ver).join(', ')})</span>` : ''}</td>
+    <td>${Math.round(f.size / 1024)} КБ</td><td class="mono">${esc(f.sha)}</td><td>${fmt(f.at)} · ${esc(f.by ? empName(f.by) : '—')}</td>
+    <td>${!d.no && canEditDraft(d, u) && !d.signed && !d.legacy ? `<button class="btn btn-secondary btn-sm" onclick="DF.uiAttach('${d.id}','${f.role}',true)">Заменить</button> <button class="btn btn-danger btn-sm" onclick="DF.uiDo('removeFile','${d.id}','${f.id}')">Удалить</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Файлов нет</td></tr>'}
+  </tbody></table></div>`;
+}
+function tabRoute(d) {
+  if (!d.rounds.length) return `<div class="card"><div class="muted">Маршрут не начат</div>${kv([['Согласующие', esc(d.approvers.map(empName).join(', ') || 'нет')], ['Подписант', esc(d.signer ? empName(d.signer) : '—')]])}</div>`;
+  return d.rounds.slice().reverse().map(r => `<div class="card"><div class="card-head"><h3>Круг ${r.n}</h3><span class="small">с ${fmt(r.at)}${r.closed ? ' · закрыт ' + fmt(r.closed.at) + ': ' + esc(r.closed.why) : ''}</span></div>
+    <table class="cgrid"><thead><tr><th>Шаг</th><th>Кто</th><th>Исход</th><th>Когда</th><th>Комментарий</th></tr></thead><tbody>
+    ${r.steps.map(s => `<tr><td>Согласование</td><td>${esc(empName(s.emp))}${s.by && s.by !== s.emp ? ` <span class="muted">(за него ${esc(empName(s.by))})</span>` : ''}</td>
+      <td>${s.res === 'ok' ? pill('ok', 'согласовано') : s.res === 'reject' ? pill('err', 'отказ') : r.closed ? pill('neutral', 'снято') : pill('info', 'ждёт')}</td><td>${fmt(s.at)}</td><td>${esc(s.comment)}</td></tr>`).join('')}
+    <tr><td>Подпись</td><td>${esc(empName(d.signer))}</td><td>${r.sign ? (r.sign.res === 'ok' ? pill('ok', 'подписано') : pill('err', 'отказ')) : r.closed ? pill('neutral', '—') : pill('info', d.stage === 'signing' ? 'ждёт' : 'после согласования')}</td>
+      <td>${fmt(r.sign && r.sign.at)}</td><td>${esc(r.sign ? (r.sign.onBehalf ? 'подписал ' + empName(r.sign.by) + ' за ' + empName(r.sign.onBehalf) : r.sign.comment || '') : '')}</td></tr>
+    </tbody></table></div>`).join('');
+}
+const RES_NAME = { done: ['ok', 'исполнено'], refused: ['err', 'отказано'], withdrawn: ['neutral', 'снята'], control: ['warn', 'ждёт подтверждения контролёра'], overdue: ['err', 'просрочена'], open: ['info', 'в работе'] };
+function resNode(d, r) {
+  const st = resState(r), u = S.user, kids = RES.filter(x => x.parent === r.id);
+  const open = !['done', 'refused', 'withdrawn'].includes(st.code);
+  const B = [];
+  if (open && d.stage === 'registered') {
+    if (!r.claim && actsFor(u, r.resp)) {
+      B.push(btn('Исполнено', `DF.uiResDone('${r.id}')`, d.needsReply && !r.parent ? no('поручение гаснет отправленным ответом') : yes, 'btn-primary'));
+      B.push(btn('Отказать', `DF.uiResRefuse('${r.id}')`, yes, 'btn-danger'));
+    }
+    if (r.claim && actsFor(u, d.controller)) { B.push(btn('Подтвердить исполнение', `DF.uiDo('ctrlConfirm','${r.id}')`, yes, 'btn-primary')); B.push(btn('Вернуть', `DF.uiCtrlReturn('${r.id}')`, yes, 'btn-danger')); }
+    if (actsFor(u, r.resp) || r.co.some(c => actsFor(u, c))) B.push(btn('Резолюция ниже', `DF.uiRes('${d.id}','${r.id}')`, yes));
+  }
+  const ext = EXT[r.id] && EXT[r.id].due > r.due;
+  return `<div class="resbox" data-testid="res-${r.id}"><div class="rh"><b>${esc(r.text)}</b> ${pill(RES_NAME[st.code][0], RES_NAME[st.code][1])}</div>
+    <div class="small">${esc(empName(r.author))}, ${fmt(r.at)} → ответственный <b>${esc(empName(r.resp))}</b>${r.co.length ? ', соисполнители: ' + esc(r.co.map(empName).join(', ')) : ''} ·
+      срок ${dueCell(open ? effDue(r) : null) === '—' ? fmt(effDue(r)) : dueCell(effDue(r))}${ext ? ` (продлён с ${fmt(r.due)})` : ''}${r.returns ? ' · возвратов: ' + r.returns : ''}</div>
+    ${r.outcome ? `<div class="small">Итог ${fmt(r.outcome.at)}: ${esc(r.outcome.text)}${r.outcome.confirmedBy ? ' · подтвердил ' + esc(empName(r.outcome.confirmedBy)) : ''}</div>` : ''}
+    ${st.byReply ? `<div class="small">Погашено ответом, отправленным ${fmt(st.date)}</div>` : ''}
+    ${r.claim ? `<div class="small">Отметка ответственного ${fmt(r.claim.at)}: ${esc(r.claim.text)}</div>` : ''}
+    ${B.length ? `<div class="btn-row" style="margin-top:6px">${B.join(' ')}</div>` : ''}
+    ${kids.length ? `<div class="tree">${kids.map(k => resNode(d, k)).join('')}</div>` : ''}</div>`;
+}
+function tabRes(d) {
+  const tops = topRes(d);
+  const recips = d.recipients.filter(r => d.kind === 'in' || r.mode === 'exec');
+  return `<div class="card"><div class="card-head"><h3>Резолюции</h3><span class="small">${esc(execText(d))}</span></div>
+    ${recips.length ? `<div class="small" style="margin-bottom:8px">Получатели: ${recips.map(r => esc(empName(r.emp)) + ' — ' + (r.reviewed ? (r.reviewed.kind === 'info' ? 'к сведению ' : 'резолюция ') + fmt(r.reviewed.at) : 'не рассмотрел')).join('; ')}</div>` : ''}
+    ${tops.map(r => resNode(d, r)).join('') || '<div class="muted">Резолюций нет</div>'}</div>`;
+}
+function tabSend(d) {
+  const u = S.user, x = dispatchInfo(d);
+  return `<div class="card"><div class="card-head"><h3>Отправка · ${esc(execText(d) || 'не зарегистрирован')}</h3></div>
+  <table class="cgrid" data-testid="dispatch"><thead><tr><th>Адресат</th><th>Способ</th><th>Отправлено</th><th>Почтовый идентификатор</th><th>Исход</th><th>Подтверждение</th><th></th></tr></thead><tbody>
+  ${d.addressees.map(a => {
+    const f = a.proof && d.files.find(z => z.id === a.proof);
+    const canS = d.stage === 'registered' && !a.sentDate && (isReg(u) || u === d.author);
+    const gS = !hasFile(d, 'signed') ? no('нет файла «подписанный»') : yes;
+    return `<tr><td>${esc(addrName(a))}</td><td>${esc(a.method ? METHODS[a.method].name : '—')}</td><td>${fmt(a.sentDate)}</td><td class="mono">${esc(a.track || '—')}</td>
+      <td>${a.outcome ? pill(a.outcome === 'delivered' ? 'ok' : 'warn', (a.outcome === 'delivered' ? 'вручено ' : 'возврат ') + fmt(a.outcomeDate)) : '—'}</td><td class="mono">${f ? esc(fileName(d, f)) : '—'}</td>
+      <td>${canS ? btn('Отметить отправку', `DF.uiSent('${d.id}','${a.id}')`, gS, 'btn-primary', 'act-sent-' + a.id) : ''}${a.sentDate && !a.outcome && isReg(u) ? btn('Отметить вручение', `DF.uiDeliv('${d.id}','${a.id}')`, yes) : ''}</td></tr>`;
+  }).join('')}</tbody></table>${x.done ? '<div class="small" style="margin-top:6px">Отправка закончена</div>' : ''}</div>`;
+}
+function tabAcq(d) {
+  const a = acqInfo(d);
+  return `<div class="card"><div class="card-head"><h3>Лист ознакомления · ознакомлены ${a.count}/${a.total}</h3></div>
+  <table class="cgrid"><thead><tr><th>Сотрудник</th><th>Должность</th><th>Ознакомлен</th></tr></thead><tbody>
+  ${d.recipients.filter(r => r.mode === 'acq').map(r => `<tr><td>${esc(empName(r.emp))}</td><td>${esc(emp(r.emp).pos)}</td><td>${r.acqAt ? fmt(r.acqAt) : '<span class="muted">не ознакомлен</span>'}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">Получателей на ознакомление нет</td></tr>'}
+  </tbody></table></div>`;
+}
+function tabLinks(d) {
+  const ml = missingLinks(d), m = measureView(d.id);
+  return `<div class="card"><div class="card-head"><h3>Привязки</h3></div>
+    ${ml.length && !d.no ? `<div class="banner warn">Не хватает обязательной привязки: ${esc(ml.map(k => LINK_KINDS[k].toLowerCase()).join(', '))}</div>` : ''}
+    <table class="cgrid"><thead><tr><th>Вид объекта</th><th>Объект</th></tr></thead><tbody>${d.links.map(l => `<tr><td>${esc(LINK_KINDS[l.k])}</td><td>${esc(linkObj(l.k, l.id).label)}</td></tr>`).join('') || '<tr><td colspan="2" class="muted">Привязок нет</td></tr>'}</tbody></table></div>
+    ${m ? `<div class="card" data-testid="measure"><h3>Что читает мера взыскания</h3>${kv([['Номер', esc(m.no || '—')], ['Событие (дата меры)', fmt(m.event)], d.kind === 'in' && ['Получение', fmt(m.received)],
+      d.kind === 'out' && ['Адресат-должник', esc(m.debtor || '—')], d.kind === 'out' && ['Направлено', m.sent ? fmt(m.sent.date) + ' · ' + esc(m.sent.method) : '—'],
+      d.kind === 'out' && ['Вручено', m.delivered ? fmt(m.delivered.date) + ' · ' + esc(m.delivered.proof) : '—'], m.discrepancy && ['Метка', pill('err', 'расхождение: документ аннулирован')]])}</div>` : ''}`;
+}
+function tabLog(d) {
+  return `<div class="card"><h3>Журнал действий</h3>${d.log.slice().reverse().map(l => `<div class="logrow"><span class="mono">${fmt(l.at)}</span> · ${esc(l.by ? empName(l.by) : 'система')} · <b>${esc(l.act)}</b>${l.text ? ' — ' + esc(l.text) : ''}</div>`).join('')}</div>`;
+}
+function tabCom(d) {
+  return `<div class="card"><h3>Комментарии</h3>${d.comments.map(c => `<div class="logrow"><span class="mono">${fmt(c.at)}</span> · <b>${esc(empName(c.by))}</b>: ${esc(c.text)}</div>`).join('') || '<div class="muted">Комментариев нет</div>'}
+    ${d.legacy ? '' : `<div class="fld" style="margin-top:10px"><label>Новый комментарий (@Фамилия И.О. — упоминание)</label><textarea id="newCom" data-testid="new-comment"></textarea></div>
+    <div class="btn-row" style="margin-top:6px"><button class="btn btn-primary btn-sm" data-testid="add-comment" onclick="DF.uiComment('${d.id}')">Добавить</button></div>`}</div>`;
+}
+
+/* ------------------------------- архив ------------------------------- */
+function viewArchive() {
+  const u = S.user, T_ = [['cases', 'Номенклатура дел'], ['ready', 'Ждут сдачи в дело'], ['issues', 'Журнал выдачи оригиналов']];
+  const vis = DOCS.filter(d => canSee(d, u) && !d.deleted);
+  let body = '';
+  if (S.archTab === 'cases') {
+    const c = S.caseOpen && caseOf(S.caseOpen);
+    body = `<table class="cgrid" data-testid="cases"><thead><tr><th>Индекс</th><th>Дело</th><th>Год</th><th>Подразделение</th><th>Срок хранения</th><th>Место хранения</th><th class="num">Документов</th></tr></thead><tbody>
+      ${CASES.map(k => `<tr class="click" onclick="DF.openCase('${k.id}')"><td class="mono">${esc(k.idx)}</td><td>${esc(k.name)}</td><td>${k.year}</td><td>${esc((DEPTS.find(x => x.id === k.dept) || {}).name)}</td><td>${esc(k.keep)}</td><td>${esc(k.place)}</td>
+        <td class="num">${vis.filter(d => d.caseId === k.id).length}</td></tr>`).join('')}</tbody></table>
+      ${c ? `<div class="section-h">Дело ${esc(c.idx)} ${esc(c.name)}</div><table class="cgrid"><thead><tr><th>Вид</th><th>Номер</th><th>Тема</th><th>Сдан</th></tr></thead><tbody>
+        ${vis.filter(d => d.caseId === c.id).map(d => `<tr><td>${KINDS[d.kind].short}</td><td>${openLink(d, noText(d))}</td><td>${esc(d.subject)}</td><td>${fmt(d.filedAt)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Пусто</td></tr>'}</tbody></table>` : ''}`;
+  } else if (S.archTab === 'ready') {
+    const L = vis.filter(d => !d.legacy && fileReady(d).ok);
+    body = `<table class="cgrid" data-testid="ready"><thead><tr><th>Вид</th><th>Номер</th><th>Тема</th><th>Дело по типу</th></tr></thead><tbody>
+      ${L.map(d => `<tr><td>${KINDS[d.kind].short}</td><td>${openLink(d, noText(d))}</td><td>${esc(d.subject)}</td><td>${esc((caseOf(typeOf(d.type).caseId) || {}).name || '—')}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Нет</td></tr>'}</tbody></table>`;
+  } else {
+    body = `<table class="cgrid" data-testid="issues"><thead><tr><th>Документ</th><th>Кому выдан</th><th>Когда</th><th>До</th><th>Возвращён</th><th></th></tr></thead><tbody>
+      ${ISSUES.filter(i => canSee(doc(i.doc), u)).map(i => `<tr class="${!i.returned && i.until < S.clock ? 'over' : ''}"><td>${openLink(doc(i.doc), KINDS[doc(i.doc).kind].short + ' ' + noText(doc(i.doc)))}</td><td>${esc(empName(i.to))}</td>
+        <td>${fmt(i.at)}</td><td>${dueCell(i.returned ? null : i.until) === '—' ? fmt(i.until) : dueCell(i.until)}</td><td>${i.returned ? fmt(i.returned) : '—'}</td>
+        <td>${!i.returned && isArch(u) ? `<button class="btn btn-secondary btn-sm" onclick="DF.uiDo('returnOriginal','${i.id}')">Возвращён</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">Выдач нет</td></tr>'}</tbody></table>`;
+  }
+  return `<div class="tabs">${T_.map(([k, l]) => `<button class="tab${k === S.archTab ? ' on' : ''}" data-testid="arch-${k}" onclick="DF.archTab('${k}')">${l}</button>`).join('')}</div>${body}`;
+}
+function viewIndicators() {
+  const r = indicators(S.indFrom, S.indTo);
+  const R = [['Входящих зарегистрировано', r.in], ['Исходящих зарегистрировано', r.out], ['Внутренних зарегистрировано', r.int], ['Аннулировано', r.annulled], ['В работе (на сегодня)', r.inWork],
+    ['В работе с истёкшим сроком', r.overdue], ['Исполнено', r.executed], ['Исполнено в срок', r.onTime], ['из них с продлением', r.onTimeExt], ['Исполнено с опозданием', r.late],
+    ['Отказано в исполнении', r.refused], ['Процент исполнения', r.pct == null ? '—' : r.pct + ' %']];
+  return `<div class="filters"><div class="fld"><label>Период с</label><input value="${fmt(S.indFrom)}" onchange="DF.setInd('indFrom', this.value)"></div>
+    <div class="fld"><label>по</label><input value="${fmt(S.indTo)}" onchange="DF.setInd('indTo', this.value)"></div></div>
+    <table class="cgrid" data-testid="indicators" style="max-width:560px"><thead><tr><th>Показатель</th><th class="num">Значение</th></tr></thead><tbody>
+    ${R.map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${esc(v)}</td></tr>`).join('')}</tbody></table>`;
+}
+function viewSettings() {
+  const T_ = [['types', 'Типы документов'], ['sign', 'Право подписи'], ['methods', 'Способы отправки'], ['depts', 'Коды отделов'], ['phrases', 'Фразы резолюций'], ['subst', 'Замещения'], ['tasks', 'Шаги для заданий']];
+  let b = '';
+  if (S.setTab === 'types') b = `<table class="cgrid"><thead><tr><th>Вид</th><th>Тип</th><th>Цель</th><th>Требует ответа</th><th>Обязательная привязка</th><th>Дело по умолчанию</th><th>Срочность</th><th>Признаки</th></tr></thead><tbody>
+    ${TYPES.map(t => `<tr><td>${KINDS[t.kind].short}</td><td>${esc(t.name)}</td><td>${esc(PURPOSE[t.purpose])}</td><td>${t.kind === 'in' ? (t.reply ? 'да' : 'нет') : '—'}</td><td>${esc(t.links.map(k => LINK_KINDS[k].toLowerCase()).join(' + ') || '—')}</td>
+      <td>${esc(t.caseId ? caseOf(t.caseId).idx : '—')}</td><td>${esc(URG[t.urgency].name)}</td><td>${t.legacyOnly ? 'только для перенесённых' : ''}${t.active ? '' : 'выведен из употребления'}</td></tr>`).join('')}</tbody></table>`;
+  if (S.setTab === 'sign') b = `<table class="cgrid"><thead><tr><th>Сотрудник</th><th>Типы документов</th><th>Основание</th><th>С</th><th>По</th></tr></thead><tbody>
+    ${SIGN.map(s => `<tr class="${s.to < S.clock ? 'gone' : ''}"><td>${esc(empName(s.emp))}</td><td>${s.types.length === OUT_ALL.length ? 'все исходящие и внутренние' : esc(s.types.map(t => KINDS[typeOf(t).kind].short + ' ' + typeOf(t).name).join(', '))}</td><td>${esc(s.basis)}</td><td>${fmt(s.from)}</td><td>${fmt(s.to)}</td></tr>`).join('')}</tbody></table>`;
+  if (S.setTab === 'methods') b = `<table class="cgrid"><thead><tr><th>Способ</th><th>Почтовый идентификатор</th><th>Подтверждение</th></tr></thead><tbody>${Object.values(METHODS).map(m => `<tr><td>${esc(m.name)}</td><td>${m.track ? 'обязателен' : '—'}</td><td>${esc(m.proof || '—')}</td></tr>`).join('')}</tbody></table>`;
+  if (S.setTab === 'depts') b = `<table class="cgrid"><thead><tr><th>Подразделение</th><th>Код отдела</th></tr></thead><tbody>${DEPTS.map(x => `<tr><td>${esc(x.name)}</td><td class="mono">${esc(x.code || '—')}</td></tr>`).join('')}</tbody></table>`;
+  if (S.setTab === 'phrases') b = `<table class="cgrid"><tbody>${PHRASES.map(p => `<tr><td>${esc(p)}</td></tr>`).join('')}</tbody></table>`;
+  if (S.setTab === 'subst') b = `<table class="cgrid"><thead><tr><th>Замещающий</th><th>Кого</th><th>С</th><th>По</th><th>С правом подписи</th><th>Приказ</th></tr></thead><tbody>
+    ${SUBST.map(s => `<tr><td>${esc(empName(s.who))}</td><td>${esc(empName(s.for))}</td><td>${fmt(s.from)}</td><td>${fmt(s.to)}</td><td>${s.signRight ? 'да' : 'нет'}</td><td>${esc(s.order)}</td></tr>`).join('')}</tbody></table>`;
+  if (S.setTab === 'tasks') {
+    const P = povods(), docLbl = id => { const d = doc(id); return d ? KINDS[d.kind].short + ' ' + (noText(d) || 'черновик') : ''; };
+    const addr = a => a.role ? 'очередь роли «' + SYS_ROLES[a.role] + '»' : empName(a.emp) + (a.personal ? ' (лично)' : '');
+    b = `<div class="section-h">Ответ на опрос: открытые шаги · ${P.length}</div><table class="cgrid" data-testid="povods"><thead><tr><th>Шаг</th><th>Документ</th><th>Адресат</th><th>Срок</th><th>Взял</th></tr></thead><tbody>
+      ${P.map(p => { const t = TASKS.find(x => x.open && x.key === p.key); return `<tr><td>${esc(POVOD_NAME[p.kind])}</td><td>${openLink(doc(p.doc), docLbl(p.doc))}</td><td>${esc(addr(p.addr))}</td><td>${dueCell(p.due)}</td><td>${esc(t && t.taken ? empName(t.taken) : '')}</td></tr>`; }).join('')}</tbody></table>
+      <div class="section-h">Закрытые шаги</div><table class="cgrid"><thead><tr><th>Задание</th><th>Шаг</th><th>Документ</th><th>Исход</th><th>Пометка</th><th>Закрыто</th></tr></thead><tbody>
+      ${TASKS.filter(t => !t.open).slice().reverse().map(t => `<tr><td class="mono">${esc(t.id)}${t.repeatOf ? ' <span class="muted">повтор после ' + esc(t.repeatOf) + '</span>' : ''}</td><td>${esc(POVOD_NAME[t.kind])}</td><td>${esc(docLbl(t.doc))}</td><td>${esc(t.outcome)}</td><td>${esc(t.note)}</td><td>${fmt(t.closedAt)}</td></tr>`).join('')}</tbody></table>`;
+  }
+  return `<div class="tabs">${T_.map(([k, l]) => `<button class="tab${k === S.setTab ? ' on' : ''}" data-testid="set-${k}" onclick="DF.setTab('${k}')">${l}</button>`).join('')}</div>${b}`;
+}
+
+function render() {
+  if (typeof document === 'undefined' || !document.getElementById('panel')) return;
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.toggle('active', b.dataset.v === S.view));
+  $('#user').innerHTML = EMP.map(e => `<option value="${e.id}"${e.id === S.user ? ' selected' : ''}>${esc(e.name)} — ${esc(e.roles.length ? e.roles.map(r => SYS_ROLES[r]).join(', ') : e.pos)}</option>`).join('');
+  ['in', 'out', 'int', 'mine'].forEach(v => { $('#cnt-' + v).textContent = journal(v, S.user).length; });
+  const ov = ISSUES.filter(i => !i.returned && i.until < S.clock).length; $('#cnt-archive').textContent = ov ? 'не возвращено ' + ov : ''; $('#cnt-archive').className = 'cnt' + (ov ? ' hot' : '');
+  const me = emp(S.user);
+  $('#foot').innerHTML = `${esc(me.name)}<br>${esc(me.pos)}${me.roles.length ? '<br>Роль: ' + me.roles.map(r => SYS_ROLES[r]).join(', ') : ''}<br>Сегодня ${fmt(S.clock)}`;
+  let html, title = TITLES[S.view];
+  if (S.view === 'doc') { const d = doc(S.docId); const back = S.back || 'in'; title = `<span class="back" onclick="DF.go('${back}')">${TITLES[back]}</span> / ${esc(d ? (noText(d) || 'черновик') : '')}`; html = viewDoc(S.docId); }
+  else if (['in', 'out', 'int', 'mine'].includes(S.view)) html = viewJournal(S.view);
+  else if (S.view === 'archive') html = viewArchive();
+  else if (S.view === 'indicators') html = viewIndicators();
+  else html = viewSettings();
+  $('#title').innerHTML = title; $('#panel').innerHTML = html;
+}
+
+/* =============================== ФОРМЫ =============================== */
+function renderModal() {
+  if (typeof document === 'undefined' || !document.getElementById('overlay')) return;
+  const ov = $('#overlay'), fm = S.form;
+  if (!fm) { ov.classList.remove('open'); $('#modal').innerHTML = ''; return; }
+  const ctl = f => {
+    const v = f.value == null ? '' : f.value, id = 'ff_' + f.id;
+    if (f.type === 'select') return `<select id="${id}">${(f.empty ? `<option value="">—</option>` : '') + f.options.map(([a, b]) => `<option value="${esc(a)}"${String(a) === String(v) ? ' selected' : ''}>${esc(b)}</option>`).join('')}</select>`;
+    if (f.type === 'multi') return `<select id="${id}" multiple class="mfmulti">${f.options.map(([a, b]) => `<option value="${esc(a)}"${(v || []).includes(a) ? ' selected' : ''}>${esc(b)}</option>`).join('')}</select>`;
+    if (f.type === 'textarea') return `<textarea id="${id}">${esc(v)}</textarea>`;
+    if (f.type === 'date') return `<input id="${id}" placeholder="ДД.ММ.ГГГГ" value="${esc(/^\d{4}-\d{2}-\d{2}$/.test(v) ? fmt(v) : v)}">`;
+    if (f.type === 'check') return `<label class="chk"><input type="checkbox" id="${id}"${v ? ' checked' : ''}> ${esc(f.text || '')}</label>`;
+    if (f.type === 'html') return f.html;
+    return `<input id="${id}" value="${esc(v)}"${f.ph ? ` placeholder="${esc(f.ph)}"` : ''}>`;
+  };
+  $('#modal').innerHTML = `<div class="modal-h"><div class="mt">${esc(fm.title)}</div><button class="modal-x" onclick="DF.closeForm()">×</button></div>
+    <div class="modal-b">${fm.err ? `<div class="banner danger" data-testid="form-err">${esc(fm.err)}</div>` : ''}
+    <div class="mform">${fm.fields.map(f => `<div class="fld${f.wide ? ' wide' : ''}"><label class="${f.req ? 'req' : ''}">${esc(f.label)}</label>${ctl(f)}</div>`).join('')}</div></div>
+    ${fm.noSubmit ? `<div class="modal-f"><button class="btn btn-secondary" onclick="window.print()">Печать</button><button class="btn btn-primary" onclick="DF.closeForm()">Закрыть</button></div>`
+      : `<div class="modal-f"><button class="btn btn-secondary" onclick="DF.closeForm()">Отмена</button><button class="btn btn-primary" data-testid="form-submit" onclick="DF.submitForm()">${esc(fm.submit || 'Сохранить')}</button></div>`}`;
+  ov.classList.add('open');
+}
+function openForm(fm) { S.form = fm; renderModal(); }
+function closeForm() { S.form = null; renderModal(); }
+function submitForm(vals) {
+  if (!S.form) return no('форма не открыта');
+  const v = {};
+  S.form.fields.forEach(f => {
+    if (vals && vals[f.id] !== undefined) { v[f.id] = vals[f.id]; return; }
+    const el = typeof document !== 'undefined' && document.getElementById('ff_' + f.id);
+    if (!el) { v[f.id] = f.value; return; }
+    v[f.id] = f.type === 'check' ? el.checked : f.type === 'multi' ? [...el.selectedOptions].map(o => o.value) : el.value;
+  });
+  S.form.fields.forEach(f => { f.value = v[f.id]; });
+  const miss = S.form.fields.find(f => f.req && (v[f.id] == null || v[f.id] === '' || (Array.isArray(v[f.id]) && !v[f.id].length)));
+  const bad = S.form.fields.find(f => f.type === 'date' && v[f.id] && toIso(v[f.id]) === null);
+  const r = miss ? no('не заполнено: ' + miss.label) : bad ? no(`«${bad.label}»: дата в формате ДД.ММ.ГГГГ`) : S.form.run(v);
+  if (r && r.ok === false) { if (S.form) { S.form.err = r.why; renderModal(); } render(); return r; }
+  const msg = S.form.msg; S.form = null; renderModal(); toast(r && r.msg || msg || 'Сохранено', 'ok'); render(); return r;
+}
+function toast(msg, kind) {
+  if (typeof document === 'undefined' || !document.getElementById('toastWrap')) return;
+  const d = document.createElement('div'); d.className = 'toast ' + (kind || ''); d.textContent = msg; d.setAttribute('data-testid', 'toast');
+  $('#toastWrap').appendChild(d); setTimeout(() => d.remove(), 3800);
+}
+const empOpts = (filter = () => true) => EMP.filter(filter).map(e => [e.id, e.name + ' — ' + e.pos]);
+function uiDraft(kind, id) {
+  const d = id ? doc(id) : null, u = S.user;
+  const val = (k, def) => d ? d[k] : def;
+  const types = TYPES.filter(t => t.kind === kind && !t.legacyOnly && t.active).map(t => [t.id, t.name]);
+  const t0 = d ? typeOf(d.type) : typeOf(types[0][0]);
+  const F = [{ id: 'type', label: 'Тип', type: 'select', options: types, value: val('type', t0.id), req: true }, { id: 'subject', label: 'Тема', wide: true, value: val('subject', '') },
+    { id: 'docDate', label: 'Дата документа', type: 'date', value: val('docDate', '') }, { id: 'urgency', label: 'Срочность', type: 'select', options: Object.entries(URG).map(([k, x]) => [k, x.name]), value: val('urgency', t0.urgency) },
+    { id: 'purpose', label: 'Цель', type: 'select', options: Object.entries(PURPOSE), value: val('purpose', t0.purpose) }];
+  if (kind === 'in') F.push({ id: 'senderKind', label: 'Вид отправителя', type: 'select', empty: true, options: SENDER_KINDS.map(s => [s, s]), value: val('senderKind', '') },
+    { id: 'senderSubj', label: 'Отправитель из системы', type: 'select', empty: true, options: SUBJ.map(s => [s.id, s.name]), value: d ? d.sender.subj : '' },
+    { id: 'senderText', label: 'или отправитель строкой', value: d ? d.sender.text : '' }, { id: 'corrNo', label: 'Номер корреспондента', ph: 'б/н', value: val('corrNo', '') },
+    { id: 'corrDate', label: 'Дата корреспондента', type: 'date', value: val('corrDate', '') }, { id: 'receivedDate', label: 'Дата поступления', type: 'date', value: val('receivedDate', S.clock) },
+    { id: 'needsReply', label: 'Требует ответа', type: 'check', text: 'да', value: val('needsReply', t0.reply) }, { id: 'control', label: 'На контроле', type: 'check', text: 'да', value: val('control', false) },
+    { id: 'controller', label: 'Контролёр', type: 'select', empty: true, options: empOpts(), value: val('controller', '') },
+    { id: 'recipients', label: 'Получатели', type: 'multi', options: empOpts(), value: d ? d.recipients.map(r => r.emp) : [], wide: true });
+  if (kind === 'out') F.push({ id: 'addrSubj', label: 'Адресаты из системы', type: 'multi', options: SUBJ.map(s => [s.id, s.name]), value: d ? d.addressees.filter(a => a.subj).map(a => a.subj) : [] },
+    { id: 'addrText', label: 'Адресаты строкой (через «;»)', value: d ? d.addressees.filter(a => !a.subj).map(a => a.text).join('; ') : '' },
+    { id: 'basis', label: 'Основание (входящие)', type: 'multi', options: DOCS.filter(x => x.kind === 'in' && x.no && canSee(x, u)).map(x => [x.id, 'ВХ ' + noText(x) + ' · ' + x.subject]), value: val('basis', []), wide: true });
+  if (kind === 'int') F.push({ id: 'recAcq', label: 'Получатели на ознакомление', type: 'multi', options: empOpts(), value: d ? d.recipients.filter(r => r.mode === 'acq').map(r => r.emp) : [] },
+    { id: 'recExec', label: 'Получатели на исполнение', type: 'multi', options: empOpts(), value: d ? d.recipients.filter(r => r.mode === 'exec').map(r => r.emp) : [] });
+  if (kind !== 'in') F.push({ id: 'approvers', label: 'Согласующие', type: 'multi', options: empOpts(e => e.id !== u), value: val('approvers', []) },
+    { id: 'signer', label: 'Подписант (есть право подписи на сегодня)', type: 'select', empty: true, options: EMP.filter(e => SIGN.some(s => s.emp === e.id && s.from <= S.clock && S.clock <= s.to)).map(e => [e.id, e.name + ' — ' + e.pos]), value: val('signer', '') });
+  F.push({ id: 'links', label: 'Привязки', type: 'multi', options: LINK_OBJ.map(o => [linkKey(o), LINK_KINDS[o.k] + ' · ' + o.label]), value: d ? d.links.map(linkKey) : [], wide: true });
+  openForm({ title: (d ? 'Черновик · ' : 'Новый ') + KINDS[kind].name.toLowerCase(), fields: F, submit: d ? 'Сохранить' : 'Создать черновик', msg: 'Черновик сохранён', run: v => {
+    const p = { type: v.type, subject: v.subject, docDate: v.docDate, urgency: v.urgency, purpose: v.purpose, links: v.links };
+    if (kind === 'in') Object.assign(p, { senderKind: v.senderKind, sender: { subj: v.senderSubj, text: v.senderText }, corrNo: v.corrNo, corrDate: v.corrDate, receivedDate: v.receivedDate,
+      needsReply: v.needsReply, control: v.control, controller: v.controller, recipients: v.recipients });
+    if (kind === 'out') Object.assign(p, { addressees: [...v.addrSubj.map(s => ({ subj: s })), ...String(v.addrText || '').split(';').map(x => x.trim()).filter(Boolean).map(t => ({ text: t }))], basis: v.basis });
+    if (kind === 'int') p.recipients = [...v.recAcq.map(e => ({ emp: e, mode: 'acq' })), ...v.recExec.filter(e => !v.recAcq.includes(e)).map(e => ({ emp: e, mode: 'exec' }))];
+    if (kind !== 'in') Object.assign(p, { approvers: v.approvers, signer: v.signer });
+    if (d) return update(d.id, u, p);
+    const r = create(u, kind, p); if (r.ok) { S.view = 'doc'; S.docId = r.id; S.back = kind; S.tab = 'req'; } return r;
+  } });
+}
+const ACT = { submit: (id, u) => submit(id, u), del: (id, u) => del(id, u), register: (id, u) => register(id, u), approve: (id, u) => approve(id, u), sign: (id, u) => sign(id, u),
+  markInfo: (id, u) => markInfo(id, u), acquaint: (id, u) => acquaint(id, u), ctrlConfirm: (id, u) => ctrlConfirm(id, u), returnOriginal: (id, u) => returnOriginal(id, u),
+  removeFile: (id, u, f) => removeFile(id, u, f) };
+function uiDo(a, id, extra) {
+  const r = ACT[a](id, S.user, extra);
+  toast(r.ok ? 'Готово' + (r.no ? ': № ' + r.no : '') : r.why, r.ok ? 'ok' : 'err');
+  if (a === 'del' && r.ok) S.view = S.back || 'in';
+  render(); return r;
+}
+const textForm = (title, label, run, submit) => openForm({ title, submit, fields: [{ id: 'text', label, type: 'textarea', req: true, wide: true }], run: v => run(v.text) });
+const uiReject = id => textForm('Отказ', 'Комментарий', t => reject(id, S.user, t), 'Отказать');
+const uiAnnul = id => textForm('Аннулировать документ', 'Основание', t => annul(id, S.user, t), 'Аннулировать');
+const uiResDone = id => textForm('Исполнено', 'Результат', t => resDone(id, S.user, t), 'Отметить');
+const uiResRefuse = id => textForm('Отказать в исполнении', 'Основание', t => resRefuse(id, S.user, t), 'Отказать');
+const uiCtrlReturn = id => textForm('Вернуть исполнителю', 'Комментарий', t => ctrlReturn(id, S.user, t), 'Вернуть');
+function uiRes(docId, parent) {
+  const d = doc(docId);
+  openForm({ title: parent ? 'Резолюция ниже' : 'Резолюция', submit: 'Дать резолюцию', fields: [
+    { id: 'phrase', label: 'Фраза', type: 'select', options: PHRASES.map(p => [p, p]), value: PHRASES[0], wide: true }, { id: 'extra', label: 'Дописать', wide: true },
+    { id: 'resp', label: 'Ответственный', type: 'select', empty: true, options: empOpts(), req: true }, { id: 'co', label: 'Соисполнители', type: 'multi', options: empOpts(), value: [] },
+    { id: 'due', label: 'Срок', type: 'date', value: defaultDue(d, parent), req: true }],
+    run: v => giveRes(docId, S.user, { parent, text: [v.phrase, v.extra].filter(Boolean).join('. '), resp: v.resp, co: v.co, due: toIso(v.due) }) });
+}
+function uiAttach(id, role, replace) {
+  const d = doc(id);
+  const roles = Object.entries(FILE_ROLES).filter(([k]) => d.kind === 'in' ? ['scan', 'appendix'].includes(k) : d.no ? ['signed', 'appendix'].includes(k) : ['project', 'appendix'].includes(k));
+  openForm({ title: replace ? 'Заменить файл' : 'Добавить файл', submit: replace ? 'Заменить' : 'Добавить', fields: [
+    { id: 'role', label: 'Роль файла', type: 'select', options: roles, value: role || roles[0][0] },
+    { id: 'file', label: 'Файл (PDF, DOCX, XLSX, JPG, PNG; до 20 МБ)', ph: 'например, otvet.pdf', req: true, wide: true }],
+    run: v => attach(id, S.user, v.role, v.file, { replace: !!replace }) });
+}
+function uiSent(id, addrId) {
+  openForm({ title: 'Отметить отправку', submit: 'Отметить', fields: [{ id: 'method', label: 'Способ', type: 'select', options: Object.entries(METHODS).map(([k, m]) => [k, m.name]), value: 'post' },
+    { id: 'date', label: 'Дата отправки', type: 'date', value: S.clock, req: true }, { id: 'track', label: 'Почтовый идентификатор' }],
+    run: v => markSent(id, S.user, addrId, { method: v.method, date: v.date, track: v.track }) });
+}
+function uiDeliv(id, addrId) {
+  openForm({ title: 'Исход доставки', submit: 'Отметить', fields: [{ id: 'outcome', label: 'Исход', type: 'select', options: [['delivered', 'вручено'], ['returned', 'возврат']], value: 'delivered' },
+    { id: 'date', label: 'Дата', type: 'date', value: S.clock, req: true }, { id: 'proof', label: 'Подтверждающий файл', ph: 'например, uvedomlenie.pdf' }],
+    run: v => markDelivered(id, S.user, addrId, v) });
+}
+function uiCorrect(id) {
+  const d = doc(id);
+  const fields = Object.entries(CORR_FIELDS).filter(([k]) => !['links', 'addressee', 'sender'].includes(k) || k === 'sender').filter(([k]) => d.kind === 'in' || !['receivedDate', 'corrNo', 'corrDate', 'sender', 'senderKind'].includes(k));
+  openForm({ title: 'Исправить реквизит', submit: 'Исправить', fields: [{ id: 'field', label: 'Реквизит', type: 'select', options: [...fields, ['type', 'Тип'], ['no', 'Номер']], value: 'subject' },
+    { id: 'value', label: 'Новое значение', req: true, wide: true }, { id: 'reason', label: 'Основание', req: true, wide: true }],
+    run: v => correct(id, S.user, v.field, v.value, v.reason) });
+}
+function uiFile(id) {
+  const d = doc(id);
+  openForm({ title: 'Сдать в дело', submit: 'Сдать', fields: [{ id: 'caseId', label: 'Дело', type: 'select', options: CASES.map(c => [c.id, c.year + ' · ' + c.idx + ' ' + c.name]), value: typeOf(d.type).caseId || '', wide: true }],
+    run: v => fileToCase(id, S.user, v.caseId) });
+}
+function uiIssue(id) {
+  openForm({ title: 'Выдать оригинал', submit: 'Выдать', fields: [{ id: 'to', label: 'Кому', type: 'select', empty: true, options: empOpts(), req: true }, { id: 'until', label: 'До', type: 'date', value: addWork(S.clock, 5), req: true }],
+    run: v => issueOriginal(id, S.user, v.to, v.until) });
+}
+function uiBlank() {
+  openForm({ title: 'Черновик из выпуска «Отчётности»', submit: 'Создать черновик', fields: [{ id: 'blank', label: 'Выпуск с получателем', type: 'select', options: BLANKS.map(b => [b.id, b.id + ' · ' + b.template + (b.docId ? ' (черновик создан)' : '')]), value: BLANKS[0].id, wide: true }],
+    run: v => { const r = fromBlank(v.blank, S.user); if (r.ok) { S.view = 'doc'; S.docId = r.id; S.back = r.doc.kind; } return r; } });
+}
+function uiPrint() {
+  const view = S.view, list = journal(view, S.user, Object.assign({ q: S.q }, S.f));
+  const t = S.f.type ? typeOf(S.f.type).name : 'все типы';
+  const html = `<div><b>Журнал регистрации · ${esc(TITLES[view])}</b> · тип: ${esc(t)} · период: ${S.f.from ? fmt(S.f.from) : 'с начала'} — ${S.f.to ? fmt(S.f.to) : fmt(S.clock)}</div>
+    <table class="cgrid" style="margin-top:8px"><thead><tr><th>Номер</th><th>Дата рег.</th><th>Корреспондент</th><th>Тема</th><th>Этап</th></tr></thead><tbody>
+    ${list.filter(d => d.no || d.legacy).map(d => `<tr><td>${esc(noText(d))}</td><td>${fmt(d.regDate)}</td><td>${esc(d.kind === 'in' ? senderName(d) : d.kind === 'out' ? d.addressees.map(addrName).join(', ') : empName(d.author))}</td><td>${esc(d.subject)}</td><td>${esc(STAGES[d.stage])}${d.annul ? ': ' + esc(d.annul.reason) : ''}</td></tr>`).join('')}</tbody></table>`;
+  openForm({ title: 'Печатная форма журнала', noSubmit: true, fields: [{ id: 'p', label: '', type: 'html', html, wide: true }], run: () => yes });
+}
+function uiSaveSet() { S.saved.push({ name: 'Набор ' + (S.saved.length + 1) + (S.f.type ? ' · ' + typeOf(S.f.type).name : ''), view: S.view, q: S.q, f: Object.assign({}, S.f) }); render(); }
+function applySet(i) { const s = S.saved[i]; if (!s) return; S.view = s.view; S.q = s.q; S.f = Object.assign({}, s.f); render(); }
+function uiComment(id) { const el = document.getElementById('newCom'); const r = comment(id, S.user, el ? el.value : ''); toast(r.ok ? 'Комментарий добавлен' : r.why, r.ok ? 'ok' : 'err'); render(); return r; }
+
+/* ============================ шов для смоука ========================== */
+Object.assign(DF, {
+  S, TODAY, KINDS, STAGES, URG, TYPES, EMP, SUBST, SIGN, METHODS, CASES, BLANKS, LINK_OBJ, LEADERSHIP,
+  seed, doc, res, noText, fileName, typeOf, setClock: d => { S.clock = d; }, clock: () => S.clock, addWork,
+  create, update, del, attach, removeFile, submit, approve, reject, sign, signBatch, register, correct, annul, markSent, markDelivered,
+  giveRes, markInfo, resDone, resRefuse, ctrlConfirm, ctrlReturn, acquaint, fileToCase, issueOriginal, returnOriginal, comment, fromBlank, measureView, extendFromTasks,
+  canSee, openDoc, participants, hasSignRight, signers, canSign, preSubmit, preRegister, preAnnul, fileReady, missingLinks,
+  execInfo, execText, dispatchInfo, acqInfo, replyInfo, resState, effDue, defaultDue, povods, sync, takeTask, journal, grouped, indicators, roleIn,
+  go(v) { S.view = v; S.docId = null; render(); },
+  openCard(id, tab) { S.back = ['in', 'out', 'int', 'mine'].includes(S.view) ? S.view : (S.back || 'in'); S.view = 'doc'; S.docId = id; S.tab = tab || 'req'; render(); },
+  tab(t) { S.tab = t; render(); }, setUser(u) { S.user = u; render(); }, search(q) { S.q = q; render(); },
+  setF(k, v) { S.f[k] = (k === 'from' || k === 'to') ? (toIso(v) || '') : v; render(); }, setInd(k, v) { const x = toIso(v); if (x) S[k] = x; render(); },
+  archTab(t) { S.archTab = t; render(); }, openCase(id) { S.caseOpen = id; render(); }, setTab(t) { S.setTab = t; render(); },
+  uiDraft, uiDo, uiReject, uiAnnul, uiResDone, uiResRefuse, uiCtrlReturn, uiRes, uiAttach, uiSent, uiDeliv, uiCorrect, uiFile, uiIssue, uiBlank, uiPrint, uiSaveSet, applySet, uiComment,
+  submitForm, closeForm, render,
+});
+[['DOCS', () => DOCS], ['RES', () => RES], ['ISSUES', () => ISSUES], ['TASKS', () => TASKS], ['COUNTERS', () => COUNTERS], ['EXT', () => EXT]]
+  .forEach(([k, g]) => Object.defineProperty(DF, k, { get: g, enumerable: true }));
+DF.openDoc = function (id, actor) { if (actor !== undefined) return openDoc(id, actor); DF.openCard(id); };
+DF.SEEDED = seed();
+if (typeof window !== 'undefined') { window.DF = DF; }
+render();
+</script>
+</body>
+</html>
