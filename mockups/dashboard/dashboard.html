@@ -1,0 +1,1665 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Дашборд · АСУБК</title>
+<!--
+  АСУБК · модуль «Дашборд» · макет.
+  Логика и решения — ASUBK-dashbord-logika.md, история — ASUBK-status-razrabotki.md.
+  Движок window.DB проверяется смоуком: node scripts/inspect/dashboard-check.mjs
+-->
+<style>
+:root{
+  --asubk-blue:#006AF5; --asubk-blue-hover:#0058CC; --asubk-link:#005FDB;
+  --asubk-green:#158443; --asubk-red:#E03A3A; --asubk-red-hover:#C42E2E;
+  --asubk-ink:#192434; --asubk-ink-90:rgba(24,39,57,0.94); --asubk-ink-65:rgba(24,39,57,0.65);
+  --asubk-ink-45:rgba(24,39,57,0.45); --asubk-ink-26:rgba(28,52,84,0.26);
+  --asubk-white:#FFFFFF; --asubk-gray-50:#F8F9FB; --asubk-gray-100:#F5F7FA;
+  --asubk-gray-150:#EFF1F4; --asubk-gray-200:#E4E8EE;
+  --asubk-border-base:rgba(28,55,90,0.16); --asubk-border-strong:rgba(28,55,90,0.30);
+  --asubk-grid-line:rgba(26,57,96,0.10);
+  --asubk-blue-tint:rgba(0,106,245,0.08); --asubk-nav-active:rgba(51,139,255,0.13);
+  --asubk-red-tint:#FCE6E6; --asubk-green-tint:rgba(21,132,67,0.10);
+  --asubk-amber:#9A6B00; --asubk-amber-tint:rgba(184,134,11,0.12);
+  --text-body:var(--asubk-ink-90); --text-heading:var(--asubk-ink); --text-muted:var(--asubk-ink-65);
+  --text-placeholder:var(--asubk-ink-45); --text-disabled:var(--asubk-ink-26); --text-link:var(--asubk-link);
+  --surface-page:var(--asubk-white); --surface-panel:var(--asubk-gray-100); --surface-sidebar:var(--asubk-gray-150);
+  --surface-card:var(--asubk-white); --surface-hover:var(--asubk-gray-50);
+  --border-default:var(--asubk-border-base); --border-strong:var(--asubk-border-strong);
+  --asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --radius-sm:3.5px; --radius-md:4px; --radius-lg:8px; --radius-pill:999px;
+  --header-h:56px; --sidebar-w:260px;
+  /* графики: серии — проверенный порядок (валидатор dataviz, light), шкала — одна синяя */
+  --series-1:#256abf; --series-2:#d97a1f; --series-3:#7a5bc4;
+  --seq-100:#cde2fb; --seq-200:#9ec5f4; --seq-300:#6da7ec; --seq-400:#3987e5; --seq-500:#256abf; --seq-600:#184f95; --seq-700:#0d366b;
+  --st-good:#0ca30c; --st-warn:#fab219; --st-crit:#d03b3b;
+}
+*{ box-sizing:border-box; }
+html,body{ margin:0; height:100%; }
+body{ font:400 15px/1.45 var(--asubk-font); color:var(--text-body); background:var(--surface-page); }
+button{ font:inherit; }
+.app{ display:flex; height:100vh; width:100%; }
+.sidebar{ width:var(--sidebar-w); flex:none; background:var(--surface-sidebar); display:flex; flex-direction:column;
+  border-right:1px solid var(--border-default); }
+.brand{ padding:18px 16px 4px; font:600 17px/1.2 var(--asubk-font); color:var(--text-heading); letter-spacing:.04em; }
+.brand small{ display:block; font:400 12px/1.4 var(--asubk-font); color:var(--text-muted); letter-spacing:0; margin-top:4px; }
+.nav{ flex:1; overflow-y:auto; padding:12px 0 8px; }
+.nav-sec{ padding:9px 16px 4px; font:600 12px/1.3 var(--asubk-font); color:var(--text-placeholder); text-transform:uppercase; letter-spacing:.05em; }
+.nav-item{ display:flex; align-items:center; gap:9px; padding:8px 16px; width:100%; color:rgba(27,43,65,.72);
+  cursor:pointer; background:none; border:none; text-align:left; }
+.nav-item:hover{ background:rgba(24,39,57,.05); }
+.nav-item.active{ background:var(--asubk-nav-active); color:rgba(24,39,57,.96); font-weight:500; }
+.nav-item .cnt{ margin-left:auto; color:var(--text-placeholder); font-size:12px; }
+.main{ flex:1; display:flex; flex-direction:column; min-width:0; }
+#user-sel{ max-width:100%; }
+.topbar{ min-height:var(--header-h); flex:none; border-bottom:1px solid var(--border-default); display:flex; align-items:center;
+  gap:14px; padding:8px 20px; flex-wrap:wrap; }
+.crumb-title{ font:600 18px/1.2 var(--asubk-font); color:var(--text-heading); }
+.topbar .right{ margin-left:auto; display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.muted{ color:var(--text-muted); } .small{ font-size:13px; } .mono{ font-family:var(--mono); font-size:12px; }
+select,input[type=text],input[type=number]{ height:32px; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:400 14px/1.3 var(--asubk-font); padding:0 8px; }
+.btn{ height:32px; padding:0 12px; border-radius:var(--radius-md); border:1px solid var(--border-strong); background:var(--surface-card);
+  color:var(--text-body); cursor:pointer; font-size:14px; white-space:nowrap; }
+.btn:hover{ background:var(--surface-hover); }
+.btn.primary{ background:var(--asubk-blue); border-color:var(--asubk-blue); color:#fff; }
+.btn.primary:hover{ background:var(--asubk-blue-hover); }
+.btn.danger{ color:var(--asubk-red); } .btn.sm{ height:26px; padding:0 8px; font-size:13px; }
+.btn:disabled{ color:var(--text-disabled); cursor:not-allowed; background:var(--surface-card); }
+.linky{ background:none; border:none; color:var(--text-link); cursor:pointer; padding:0; text-align:left; }
+.linky:hover{ text-decoration:underline; }
+.content{ flex:1; overflow:auto; }
+.wrap{ padding:16px 24px 60px; }
+.view{ display:none; } .view.active{ display:block; }
+.h2{ font:600 16px/1.2 var(--asubk-font); color:var(--text-heading); margin:20px 0 8px; }
+.banner{ border-radius:var(--radius-md); padding:9px 13px; margin:0 0 12px; font-size:14px; }
+.banner.info{ background:var(--asubk-blue-tint); } .banner.warn{ background:var(--asubk-amber-tint); color:var(--asubk-amber); }
+.banner.err{ background:var(--asubk-red-tint); color:var(--asubk-red-hover); }
+/* вкладки ролей и своих экранов */
+.tabs{ display:flex; gap:4px; flex-wrap:wrap; border-bottom:1px solid var(--border-default); margin-bottom:10px; }
+.tab{ padding:8px 14px; border:none; background:none; cursor:pointer; color:var(--text-muted); border-bottom:2px solid transparent; }
+.tab.active{ color:var(--text-heading); border-bottom-color:var(--asubk-blue); font-weight:500; }
+.tab.own{ font-style:italic; } .tab .sep{ color:var(--text-disabled); }
+.scope-line{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:10px; font-size:14px; }
+.scope-line .right{ margin-left:auto; display:flex; gap:8px; flex-wrap:wrap; }
+.filterbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; padding:8px 10px; background:var(--surface-panel);
+  border-radius:var(--radius-md); margin-bottom:12px; font-size:14px; }
+.filterbar.on{ outline:2px solid var(--asubk-blue-tint); }
+.chip{ display:inline-flex; align-items:center; gap:6px; padding:2px 10px; border-radius:var(--radius-pill); background:var(--surface-panel);
+  border:1px solid var(--border-default); font-size:13px; }
+/* сетка плиток: 4 колонки → 2 → 1 */
+.grid{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; align-items:stretch; }
+.section-row{ grid-column:1/-1; display:flex; align-items:center; gap:8px; margin-top:8px; font:600 14px/1.2 var(--asubk-font);
+  color:var(--text-heading); border-bottom:1px solid var(--border-default); padding-bottom:4px; }
+.section-row button{ font-size:13px; }
+.tile{ position:relative; background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--radius-lg);
+  padding:10px 12px 8px; display:flex; flex-direction:column; min-height:150px; cursor:pointer; }
+.tile:hover{ border-color:var(--border-strong); }
+.tile.w2{ grid-column:span 2; } .tile.h2{ grid-row:span 2; min-height:312px; }
+.tile.stale{ border:2px solid var(--st-warn); } .tile.err{ border-style:dashed; }
+.tile.tl-red{ box-shadow:inset 4px 0 0 var(--st-crit); } .tile.tl-yellow{ box-shadow:inset 4px 0 0 var(--st-warn); }
+.tile.tl-green{ box-shadow:inset 4px 0 0 var(--st-good); }
+.tile .t-head{ display:flex; align-items:flex-start; gap:6px; }
+.tile .t-title{ font:500 14px/1.3 var(--asubk-font); color:var(--text-heading); flex:1; }
+.tile .t-tools{ display:flex; gap:2px; opacity:.55; } .tile:hover .t-tools{ opacity:1; }
+.tile .t-tools button{ background:none; border:none; cursor:pointer; padding:0 4px; font-size:14px; color:var(--text-muted); }
+.tile .t-tools button.on{ color:var(--asubk-blue); }
+.tile .t-body{ flex:1; display:flex; flex-direction:column; justify-content:center; padding:6px 0; min-height:0; min-width:0; overflow-x:auto; }
+.tile{ min-width:0; }
+.tile .big{ font:600 28px/1.1 var(--asubk-font); color:var(--text-heading); }
+.tile .big small{ font:400 14px/1.2 var(--asubk-font); color:var(--text-muted); margin-left:4px; }
+.tile .sub{ font-size:13px; color:var(--text-muted); margin-top:3px; }
+.tile .shift.up-good,.tile .shift.down-good{ color:var(--asubk-green); } .tile .shift.up-bad,.tile .shift.down-bad{ color:var(--asubk-red); }
+.tile .shift.flat{ color:var(--text-muted); }
+.tile .tl-note{ font-size:12px; margin-top:3px; display:flex; align-items:center; gap:5px; }
+.tile .passport{ font:400 11.5px/1.35 var(--mono); color:var(--text-muted); border-top:1px solid var(--asubk-grid-line); padding-top:5px; margin-top:4px; }
+.tile .kind-link{ font-size:11px; color:var(--asubk-blue); text-transform:uppercase; letter-spacing:.04em; }
+.tile .state-msg{ font-size:13px; color:var(--text-muted); }
+.tile .state-msg b{ color:var(--text-heading); font-weight:500; }
+.tile.skel .t-body{ background:linear-gradient(90deg,var(--asubk-gray-150),var(--asubk-gray-100),var(--asubk-gray-150)); border-radius:6px; margin:8px 0; }
+.tile.arrange{ cursor:grab; outline:1px dashed var(--border-strong); }
+.tile.drag-over{ outline:2px solid var(--asubk-blue); }
+.arr-tools{ display:flex; gap:4px; margin-top:4px; }
+.dot{ width:9px; height:9px; border-radius:50%; display:inline-block; flex:none; }
+/* графики */
+.bars{ display:flex; flex-direction:column; gap:3px; font-size:12.5px; }
+.bar-row{ display:grid; grid-template-columns:minmax(70px,38%) 1fr auto; gap:6px; align-items:center; }
+.bar-row .lab{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text-body); }
+.bar-row .track{ height:10px; } .bar-row .fill{ height:10px; background:var(--series-1); border-radius:0 4px 4px 0; }
+.bar-row .val{ color:var(--text-body); font-variant-numeric:tabular-nums; }
+.bar-row.more .fill{ background:var(--seq-200); } .bar-row:hover .lab{ text-decoration:underline; }
+.total-row{ font-size:12.5px; color:var(--text-muted); border-top:1px solid var(--asubk-grid-line); margin-top:3px; padding-top:2px; }
+.steps{ display:flex; align-items:flex-end; gap:6px; height:86px; }
+.step{ flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; font-size:12px; }
+.step .col{ width:100%; background:var(--series-1); border-radius:4px 4px 0 0; min-height:2px; }
+.step .v{ font-variant-numeric:tabular-nums; } .step .k{ color:var(--text-muted); white-space:nowrap; font-size:11px; }
+.step:hover .col{ background:var(--seq-600); }
+svg.chart text{ font:11px var(--asubk-font); fill:rgba(24,39,57,.65); }
+.legend{ display:flex; gap:12px; font-size:12px; color:var(--text-muted); flex-wrap:wrap; }
+.mv{ display:grid; grid-template-columns:auto 1fr auto; gap:2px 10px; font-size:12.5px; align-items:baseline; }
+.mv .n{ font-variant-numeric:tabular-nums; text-align:right; }
+.mv .head{ font-weight:600; color:var(--text-heading); }
+.mv .flows{ grid-column:1/-1; color:var(--text-muted); font-size:12px; }
+.heat{ border-collapse:separate; border-spacing:2px; font-size:11.5px; width:100%; }
+.heat td,.heat th{ padding:3px 4px; text-align:center; font-weight:400; }
+.heat th{ color:var(--text-muted); } .heat td.rl{ text-align:left; white-space:nowrap; color:var(--text-body); }
+.heat td.c{ border-radius:3px; cursor:pointer; font-variant-numeric:tabular-nums; }
+.tbl{ border-collapse:collapse; width:100%; font-size:12.5px; }
+.tbl th,.tbl td{ padding:4px 6px; border-bottom:1px solid var(--asubk-grid-line); text-align:right; font-variant-numeric:tabular-nums; }
+.tbl th:first-child,.tbl td:first-child{ text-align:left; } .tbl th{ color:var(--text-muted); font-weight:500; }
+.tbl tr.rowlink:hover td{ background:var(--surface-hover); cursor:pointer; }
+/* меню, подсказка, ящик, диалог */
+.menu{ position:fixed; z-index:60; background:var(--surface-card); border:1px solid var(--border-strong); border-radius:var(--radius-md);
+  box-shadow:0 8px 24px rgba(24,39,57,.18); min-width:230px; padding:4px 0; }
+.menu button{ display:block; width:100%; text-align:left; background:none; border:none; padding:7px 14px; cursor:pointer; font-size:14px; }
+.menu button:hover{ background:var(--surface-hover); } .menu .hint{ padding:2px 14px 6px; font-size:12px; color:var(--text-muted); }
+.tip{ position:fixed; z-index:70; pointer-events:none; background:var(--asubk-ink); color:#fff; border-radius:4px; padding:5px 8px; font-size:12px;
+  max-width:280px; display:none; line-height:1.35; }
+.drawer-mask{ position:fixed; inset:0; background:rgba(24,39,57,.28); z-index:40; }
+.drawer{ position:fixed; top:0; right:0; height:100vh; width:min(820px,94vw); z-index:41; background:var(--surface-page);
+  border-left:1px solid var(--border-default); box-shadow:-10px 0 30px rgba(24,39,57,.18); display:flex; flex-direction:column; }
+.drawer.wide{ width:min(1100px,96vw); }
+.drawer-h{ flex:none; display:flex; align-items:center; gap:12px; padding:14px 20px; border-bottom:1px solid var(--border-default); }
+.drawer-h h3{ margin:0; font:600 15px/1.25 var(--asubk-font); color:var(--text-heading); }
+.drawer-x{ margin-left:auto; background:none; border:none; cursor:pointer; font-size:18px; color:var(--text-muted); }
+.drawer-b{ flex:1; overflow:auto; padding:16px 20px 40px; }
+.kv{ display:grid; grid-template-columns:200px 1fr; gap:4px 12px; font-size:14px; margin-bottom:12px; }
+.kv .k{ color:var(--text-muted); }
+.list{ border-collapse:collapse; width:100%; font-size:13.5px; }
+.list th,.list td{ border-bottom:1px solid var(--asubk-grid-line); padding:6px 8px; text-align:left; vertical-align:top; }
+.list th{ color:var(--text-muted); font-weight:500; background:var(--surface-panel); position:sticky; top:0; }
+.list td.n{ text-align:right; font-variant-numeric:tabular-nums; }
+.stamp{ border:1px solid var(--border-strong); border-radius:var(--radius-md); padding:10px 12px; font:12px/1.5 var(--mono); background:var(--surface-panel); }
+.stamp b{ color:var(--asubk-red-hover); }
+.form-step{ border:1px solid var(--border-default); border-radius:var(--radius-lg); padding:10px 12px; margin-bottom:10px; }
+.form-step h4{ margin:0 0 8px; font:600 14px/1.2 var(--asubk-font); }
+.opt{ display:inline-flex; align-items:center; gap:5px; margin:2px 12px 2px 0; font-size:14px; }
+.opt.off{ color:var(--text-disabled); }
+.why{ font-size:12px; color:var(--text-muted); margin-left:20px; }
+.checks li{ margin:2px 0; font-size:14px; } .ok{ color:var(--asubk-green); } .bad{ color:var(--asubk-red); }
+.cols2{ display:grid; grid-template-columns:minmax(0,1.2fr) minmax(0,1fr); gap:16px; }
+.toast{ position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--asubk-ink); color:#fff; padding:9px 16px;
+  border-radius:var(--radius-md); z-index:80; font-size:14px; }
+.notif-dot{ background:var(--asubk-red); color:#fff; border-radius:var(--radius-pill); font-size:11px; padding:0 6px; margin-left:4px; }
+@media (max-width:1000px){ .grid{ grid-template-columns:repeat(2,minmax(0,1fr)); } .sidebar{ display:none; } .cols2{ grid-template-columns:1fr; } }
+@media (max-width:600px){ .grid{ grid-template-columns:minmax(0,1fr); } .topbar{ padding:8px 16px; } .topbar .right{ margin-left:0; min-width:0; } .topbar .right label{ width:100%; } #user-sel{ width:100%; } .steps{ gap:3px; } .step .k{ white-space:normal; text-align:center; } .tile.w2{ grid-column:span 1; } .wrap{ padding:12px 16px 40px; }
+  .arrange-only{ display:none !important; } .kv{ grid-template-columns:1fr; } }
+@media print{ .sidebar,.topbar,.scope-line .right,.filterbar,.t-tools{ display:none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">АСУБК<small>Фонд кредитования · кредитный модуль</small></div>
+    <nav class="nav" id="nav"></nav>
+  </aside>
+  <div class="main">
+    <header class="topbar">
+      <div class="crumb-title" id="crumb">Главная</div>
+      <div class="right">
+        <span class="muted small" id="clock"></span>
+        <button class="btn" id="btn-refresh" onclick="DB.refresh()">Обновить</button>
+        <button class="btn" onclick="DB.openNotifs()">Уведомления<span id="notif-cnt"></span></button>
+        <label class="small muted">Пользователь стенда
+          <select id="user-sel" onchange="DB.switchUser(this.value)"></select></label>
+      </div>
+    </header>
+    <div class="content" id="content">
+      <div class="wrap">
+        <section class="view" id="v-home"></section>
+        <section class="view" id="v-catalog"></section>
+        <section class="view" id="v-builder"></section>
+        <section class="view" id="v-registry"></section>
+        <section class="view" id="v-layouts"></section>
+        <section class="view" id="v-journal"></section>
+        <section class="view" id="v-stand"></section>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="overlay"></div>
+<div class="tip" id="tip"></div>
+<script>
+window.DB = (function(){
+'use strict';
+/* ================= Календарь стенда ================= */
+// «Сегодня» заморожено: 11.10.2026 14:15. Месяц m — смещение от текущего (0 = октябрь 2026).
+const TODAY = { iso:'2026-10-11', day:11, daysInMonth:31, time:'14:15', label:'11.10.2026 14:15' };
+const MONTHS = ['январь','февраль','март','апрель','май','июнь','июль','август','сентябрь','октябрь','ноябрь','декабрь'];
+const MONTHS_GEN = ['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+const MON_SHORT = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'];
+const DAYS_IN = [31,28,31,30,31,30,31,31,30,31,30,31];
+function monthOf(m){ const abs = 2026*12 + 9 + m; return { y:Math.floor(abs/12), mi:abs%12 }; }
+function monthName(m){ const x = monthOf(m); return MONTHS[x.mi]; }
+function monthEndLabel(m){ const x = monthOf(m); return String(DAYS_IN[x.mi]).padStart(2,'0')+'.'+String(x.mi+1).padStart(2,'0')+(x.y!==2026?'.'+x.y:''); }
+function monthShort(m){ const x = monthOf(m); return MON_SHORT[x.mi]+(x.mi===0||m===-23?' '+String(x.y).slice(2):''); }
+
+/* ================= Детерминированный генератор ================= */
+function rng(seed){ let a = seed>>>0; return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a>>>15, 1|a);
+  t = t + Math.imul(t ^ t>>>7, 61|t) ^ t; return ((t ^ t>>>14)>>>0)/4294967296; }; }
+function hash(s){ let h = 2166136261; for(let i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h,16777619); } return h>>>0; }
+function jitter(id, key, amp){ return 1 + ((hash(id+'|'+key)%10000)/10000 - 0.5)*2*amp; }
+function pick(r, arr){ return arr[Math.floor(r()*arr.length)]; }
+function pickW(r, pairs){ const s = pairs.reduce((a,p)=>a+p[1],0); let x = r()*s; for(const p of pairs){ if((x-=p[1])<0) return p[0]; } return pairs[pairs.length-1][0]; }
+
+/* ================= Оргструктура, области, программы ================= */
+const DEPTS = [
+  { id:'go', name:'Головной офис', parent:null },
+  { id:'opk', name:'Отдел проблемных кредитов', parent:'go' },
+  { id:'yur', name:'Юридический отдел', parent:'go' },
+  { id:'risk', name:'Отдел рисков', parent:'go' },
+  { id:'rp-chu', name:'Чуйское РП', parent:'go', region:'Чуйская' },
+  { id:'rp-osh', name:'Ошское РП', parent:'go', region:'Ошская' },
+  { id:'rp-ja', name:'Джалал-Абадское РП', parent:'go', region:'Джалал-Абадская' },
+  { id:'rp-nar', name:'Нарынское РП', parent:'go', region:'Нарынская' },
+  { id:'rp-ik', name:'Иссык-Кульское РП', parent:'go', region:'Иссык-Кульская' },
+  { id:'rp-tal', name:'Таласское РП', parent:'go', region:'Таласская' },
+  { id:'rp-bat', name:'Баткенское РП', parent:'go', region:'Баткенская' },
+];
+const RPS = DEPTS.filter(d=>d.region);
+const REGIONS = RPS.map(d=>d.region);
+const REGION_W = [['Чуйская',30],['Ошская',20],['Джалал-Абадская',16],['Нарынская',8],['Иссык-Кульская',10],['Таласская',7],['Баткенская',9]];
+const PROGRAMS = [
+  { id:'agro', name:'Агрокредит', limit:1.9e9 }, { id:'prom', name:'Промышленность', limit:1.2e9 },
+  { id:'mb', name:'Малый бизнес', limit:0.6e9 }, { id:'tur', name:'Туризм', limit:0.35e9 },
+  { id:'per', name:'Переработка', limit:0.45e9 }, { id:'eko', name:'Экспорт', limit:0.3e9 },
+];
+const PROG_W = [['agro',42],['prom',22],['mb',14],['tur',7],['per',9],['eko',6]];
+function deptName(id){ const d = DEPTS.find(x=>x.id===id); return d ? d.name : id; }
+function deptOfRegion(reg){ const d = RPS.find(x=>x.region===reg); return d ? d.id : 'go'; }
+function subtree(id){ const out=[id]; DEPTS.filter(d=>d.parent===id).forEach(d=>out.push(...subtree(d.id))); return out; }
+function progName(id){ const p = PROGRAMS.find(x=>x.id===id); return p ? p.name : id; }
+
+/* ================= Пользователи и роли ================= */
+// Роли — системные роли модуля пользователей. Дашборд своих ролей не заводит.
+const ROLES = [
+  { id:'lead', name:'Руководство', scope:'all' },
+  { id:'cur', name:'Куратор кредита', scope:'dept' },
+  { id:'prob', name:'Проблемные кредиты', scope:'dept' },
+  { id:'acc', name:'Бухгалтерия', scope:'all' },
+  { id:'zal', name:'Залог', scope:'dept' },
+  { id:'spec', name:'Кредитный специалист', scope:'dept' },
+  { id:'com', name:'Комиссия', scope:'member' },
+  { id:'gof', name:'Головной офис', scope:'deptTree' },
+  { id:'otd', name:'Отдел · заключения', scope:'dept' },
+  { id:'rep', name:'Отчётность', scope:'dept' },
+  { id:'an', name:'Аналитик', scope:'all' },
+  { id:'adm', name:'Администратор дашборда', scope:'all', admin:true },
+  { id:'sys', name:'Системный администратор', scope:'none' },
+];
+const USERS = [
+  { id:'u1', name:'Асанов Б. К.', roles:['lead','an'], dept:'go' },
+  { id:'u2', name:'Бекова А. Т.', roles:['cur'], dept:'rp-chu' },
+  { id:'u3', name:'Жумабаев Н. С.', roles:['prob'], dept:'opk' },
+  { id:'u4', name:'Иманалиева Г. М.', roles:['acc'], dept:'go' },
+  { id:'u5', name:'Кадыров Т. А.', roles:['zal'], dept:'rp-osh' },
+  { id:'u6', name:'Мамытова С. Э.', roles:['spec'], dept:'rp-osh' },
+  { id:'u7', name:'Осмонов Э. Б.', roles:['com'], dept:'go' },
+  { id:'u8', name:'Садыкова Д. Р.', roles:['gof'], dept:'go' },
+  { id:'u9', name:'Токтогулов Р. И.', roles:['otd'], dept:'yur' },
+  { id:'u10', name:'Усенова К. Ж.', roles:['rep'], dept:'go' },
+  { id:'u11', name:'Шамшиев А. О.', roles:['adm','sys'], dept:'go' },
+];
+// Права ролей на объекты статистики (что роль вправе спросить). Второго замка у плитки нет.
+const RIGHTS = {
+  lead:['loan','borrower','program','claim','measure','receipt','payment','coll','app','comm','concl','oblig','task'],
+  an:  ['loan','borrower','program','claim','measure','receipt','payment','coll','app','comm','concl','oblig','task'],
+  cur: ['loan','borrower','coll','payment','task'],
+  prob:['loan','claim','measure','payment','coll','task'],
+  acc: ['receipt','payment','loan','task'],
+  zal: ['coll','loan','task'],
+  spec:['app','comm','concl','program','task'],
+  com: ['app','comm','task'],
+  gof: ['app','concl','task'],
+  otd: ['concl','app','task'],
+  rep: ['oblig','task'],
+  adm: ['loan','borrower','program','claim','measure','receipt','payment','coll','app','comm','concl','oblig','task'],
+  sys: ['task'],
+};
+const CURATORS = [{ id:'u2', name:'Бекова А. Т.', dept:'rp-chu' }];
+(function(){ const r = rng(77); const fam = ['Алиев','Байматов','Дуйшеева','Ибраимов','Касымова','Мамбетов','Нурланова','Орозбаев','Сатыбалдиев','Тойчиева','Эсенбаев','Юсупова'];
+  RPS.forEach((d,i)=>{ for(let k=0;k<3;k++){ CURATORS.push({ id:'c'+i+k, name:fam[(i*3+k)%fam.length]+' '+'АБВГДЕЖЗИКЛМ'[(i+k)%12]+'.', dept:d.id }); } }); r(); })();
+function userName(id){ const u = USERS.find(x=>x.id===id) || CURATORS.find(x=>x.id===id); return u ? u.name : id; }
+
+/* ================= Данные стенда (то, что знает «статистика») ================= */
+const DATA = {};
+function genData(){
+  const r = rng(20261011);
+  // --- кредиты и заёмщики ---
+  const loans = [], borrowers = [];
+  const cats = ['Стандартные','Под наблюдением','Субстандартные','Сомнительные','Потери'];
+  for(let i=0;i<903;i++){ const reg = pickW(r, REGION_W); borrowers.push({ id:'З-'+(5000+i), region:reg, dept:deptOfRegion(reg), from:-40 }); }
+  for(let i=0;i<1248;i++){
+    const b = i<903 ? borrowers[i] : borrowers[Math.floor(r()*903)];
+    let reg = b.region, dept = b.dept, curator;
+    if(i<47){ reg='Чуйская'; dept='rp-chu'; curator='u2'; b.region=reg; b.dept=dept; }
+    else { const cs = CURATORS.filter(c=>c.dept===dept && c.id!=='u2'); curator = pick(r, cs); curator = curator.id; }
+    const program = pickW(r, PROG_W);
+    const balance = Math.round((400000 + r()*r()*9e6) * (program==='prom'?1.6:1));
+    const od = pickW(r, [[0,74],[15,10],[60,6],[120,4],[240,6]]);
+    const overdueDays = od===0 ? 0 : Math.max(1, Math.round(od*(0.5+r()*0.9)));
+    const overdue = overdueDays ? Math.round(balance*(overdueDays>180?0.38:overdueDays>90?0.28:overdueDays>30?0.17:0.09)) : 0;
+    const category = overdueDays===0 ? (r()<0.92?cats[0]:cats[1]) : overdueDays<=30 ? cats[1] : overdueDays<=90 ? cats[2] : overdueDays<=180 ? cats[3] : cats[4];
+    const collection = overdueDays>90 && r()<0.78;
+    const restr = !collection && overdueDays>0 && r()<0.18;
+    const coverage = Math.round(80 + r()*170);
+    const from = i<40 ? -Math.floor(r()*30)-1 : (r()<0.08 ? -Math.floor(r()*9) : -Math.floor(10+r()*40));
+    const paid = Math.round(balance*(0.024+r()*0.012)*(overdueDays>30?0.35:1));
+    const expected = Math.round(paid*(overdueDays>30?2.6:1.06));
+    loans.push({ id:'КД-'+(2000+i), borrower:b.id, region:reg, dept, program, curator, balance, overdue, overdueDays, category,
+      status: collection?'Во взыскании':restr?'В реструктуризации':'Обычный', hasClaim:collection,
+      coverage, risk: overdueDays>0 ? Math.round(balance*coverage/100*0.6) : 0, collateralValue: Math.round(balance*coverage/100),
+      from, issued: Math.round(balance*1.15), paid, expected, plan: r()<0.82 ? Math.round(expected*(0.95+r()*0.08)) : 0,
+      accrued: Math.round(balance*0.011), written: overdueDays>180 && r()<0.1 ? Math.round(overdue*0.3) : 0 });
+  }
+  DATA.loan = loans; DATA.borrower = borrowers;
+  DATA.program = PROGRAMS.map(p=>{ const ls = loans.filter(l=>l.program===p.id);
+    return { id:p.id, name:p.name, limit:p.limit, from:-60,
+      issuedYtd: Math.round(ls.filter(l=>l.from>=-9).reduce((a,l)=>a+l.issued,0) + p.limit*0.12),
+      balance: ls.reduce((a,l)=>a+l.balance,0), overdue: ls.reduce((a,l)=>a+l.overdue,0) }; });
+  // --- взыскание: требования и меры ---
+  const phases = ['Досудебная','Судебная','Исполнение','Банкротство','Урегулирование'];
+  const claims = [];
+  loans.filter(l=>l.hasClaim).forEach((l,k)=>{ claims.push({ id:'ТР-'+(700+k), loan:l.id, region:l.region,
+    leadDept: r()<0.62 ? 'opk' : l.dept, dept: r()<0.62 ? 'opk' : l.dept, phase: pickW(r, phases.map((p,i)=>[p,[58,41,33,6,8][i]])),
+    amount: l.overdue + Math.round(l.balance*0.3), sinceDays: Math.round(20+r()*200), realization: r()<0.08, open:true, from:-Math.floor(r()*18),
+    recovered: Math.round((l.overdue+l.balance*0.3)*0.02*(0.4+r())) }); });
+  DATA.claim = claims;
+  const mkinds = ['Претензия','Иск','Исполнительный лист','Арест имущества','Торги','Мировое соглашение','Заявление о банкротстве'];
+  const measures = []; for(let i=0;i<820;i++){ const c = claims[Math.floor(r()*claims.length)];
+    measures.push({ id:'М-'+(9000+i), claim:c.id, dept:c.dept, region:c.region, kind:pickW(r, mkinds.map((k,j)=>[k,[37,12,9,6,4,3,2][j]])),
+      at:-Math.floor(r()*14), day:1+Math.floor(r()*30), from:-14 }); }
+  DATA.measure = measures;
+  // --- поступления и платежи ---
+  const receipts = []; const srcs = [['Импорт ЦК',62],['Шлюз',28],['Вручную',10]];
+  for(let i=0;i<5200;i++){ const at = -Math.floor(r()*24); const day = 1+Math.floor(r()*(at===0?11:28));
+    let state = 'распределено'; if(at===0 && r()<0.06) state = pickW(r,[['невыяснено',7],['ожидает подтверждения',12],['не закрыжено',31]]);
+    if(at===-1 && r()<0.012) state = 'не закрыжено';
+    receipts.push({ id:'П-'+(40000+i), source:pickW(r,srcs), state, amount:Math.round(30000+r()*r()*2.2e6), at, day, from:-30,
+      refund: r()<0.012, reversed: r()<0.005 }); }
+  DATA.receipt = receipts;
+  const pkinds = [['по графику',71],['досрочно',13],['по решению суда',9],['имуществом',3]];
+  const payments = []; for(let i=0;i<4800;i++){ const l = loans[Math.floor(r()*loans.length)]; const at = -Math.floor(r()*24);
+    payments.push({ id:'ПЛ-'+(60000+i), loan:l.id, region:l.region, dept:l.dept, curator:l.curator, kind:pickW(r,pkinds),
+      amount:Math.round(l.paid*(0.6+r()*0.8)), at, day:1+Math.floor(r()*(at===0?11:28)), from:-30, byClaim: l.hasClaim && r()<0.5 }); }
+  DATA.payment = payments;
+  // --- залог ---
+  const items = []; const ckinds = [['Недвижимость',55],['Транспорт',17],['Оборудование',18],['Товары в обороте',10]];
+  for(let i=0;i<2117;i++){ const l = loans[Math.floor(r()*loans.length)];
+    items.push({ id:'ПЗ-'+(30000+i), loan:l.id, region:l.region, dept:l.dept, kind:pickW(r,ckinds), value:Math.round(l.collateralValue*(0.5+r()*0.9)),
+      revalOverdue: r()<0.02, noInsurance: r()<0.008, noBan: r()<0.0024, registering: r()<0.0045, inSale: r()<0.0052, from:-40,
+      accepted: r()<0.02 ? Math.round(5e5+r()*5e6) : 0, revalUp: r()<0.03 ? Math.round(1e5+r()*1e6) : 0, revalDown: r()<0.02 ? Math.round(1e5+r()*8e5) : 0,
+      released: r()<0.01 ? Math.round(2e5+r()*3e6) : 0 }); }
+  DATA.coll = items;
+  // --- заявки, комиссия, заключения (волна 2) ---
+  const ast = ['Новый','Требуется доп. информация','На рассмотрении','Ожидает решения/программы','На оформлении'];
+  const apps = []; for(let i=0;i<260;i++){ const reg = pickW(r, REGION_W); const dept = deptOfRegion(reg);
+    const mine = i<24; const inWork = mine || r()<0.45;
+    const status = inWork ? pickW(r, ast.map((s,j)=>[s,[11,3,5,1,4][j]])) : 'Закрыта';
+    apps.push({ id:'ЗК-'+(1100+i), region: mine?'Ошская':reg, dept: mine?'rp-osh':dept, specialist: mine?'u6':'s'+(i%9),
+      program: r()<0.92 ? pickW(r, PROG_W) : 'none', status, inWork,
+      stage: status==='Новый' ? pickW(r,[['1 Комплектация',6],['2 Подтверждение ГО',3],['3 Заключения отделов',2]]) : null,
+      requested: Math.round(1e6+r()*r()*2e7), ready: inWork && r()<0.09, negative: inWork && r()<0.05,
+      at:-Math.floor(r()*14), day:1+Math.floor(r()*28), from:-14, waitDays: Math.round(r()*9) }); }
+  DATA.app = apps;
+  const comms = [['Кредитный комитет',11],['Комиссия по реструктуризации',4],['Комиссия по программам',3]];
+  const comm = []; for(let i=0;i<420;i++){ const pending = i<18; const commission = pickW(r, comms);
+    comm.push({ id:'ЗКМ-'+(300+i), commission, status: pending?'На рассмотрении':'Решено',
+      decision: pending?null:pickW(r,[['Одобрено',22],['Доп. информация',9],['Отклонено',4]]), sum: Math.round(2e6+r()*r()*2.4e7),
+      deadlineIn: pending ? Math.round(-3+r()*20) : null, members: ['u7','m1','m2','m3'], myVotePending: pending && r()<0.25,
+      noScan: !pending && r()<0.01, daysPending: pending ? Math.round(1+r()*27) : 0, at: pending?0:-Math.floor(r()*14), day:1+Math.floor(r()*28), from:-14 }); }
+  DATA.comm = comm;
+  const concl = []; for(let i=0;i<420;i++){ const pending = i<6;
+    concl.push({ id:'ЗО-'+(800+i), dept: r()<0.5 ? 'yur' : pick(r,['risk','yur']), app:'ЗК-'+(1100+(i%260)), pending,
+      verdict: pending?null:pickW(r,[['Положительное',27],['С условиями',8],['Отрицательное',3]]),
+      negativeBlocking: !pending && r()<0.006, revoked: !pending && r()<0.003, waitDays: pending ? Math.round(2+r()*11) : 0,
+      at: pending?0:-Math.floor(r()*12), day:1+Math.floor(r()*28), from:-12 }); }
+  DATA.concl = concl;
+  // --- обязательства и задания (волна 3) ---
+  const oblig = []; const forms = ['ФО-01','ФО-02','ФО-04','ФО-07','Акт сверки','ФО-26'];
+  for(let i=0;i<140;i++){ const at = -Math.floor(i/14); const cur = at===0;
+    const state = cur ? pickW(r,[['ожидается',8],['просрочено',1],['сдано в срок',3]]) : pickW(r,[['сдано в срок',11],['сдано с опозданием',2]]);
+    oblig.push({ id:'ОБ-'+(500+i), form:forms[i%forms.length], dept: i%3===0 ? 'go' : pick(r, ['go','rp-chu','rp-osh']), state,
+      dueIn: cur ? Math.round(-2+r()*14) : null, changedAfter: !cur && r()<0.02, at, day:5, from:-12 }); }
+  oblig.filter(o=>o.dept==='go' && o.at===0).forEach((o,k)=>{ if(k<1) o.state='просрочено'; if(k>=1&&k<4){ o.state='ожидается'; o.dueIn=2+k; } });
+  DATA.oblig = oblig;
+  const tasks = []; USERS.forEach((u,k)=>{ const n = [2,5,4,3,6,4,3,2,3,4,1][k];
+    for(let j=0;j<n;j++) tasks.push({ id:'Т-'+(100+k*10+j), assignee:u.id, hot: j<Math.ceil(n/2), from:-2 }); });
+  DATA.task = tasks;
+}
+genData();
+
+/* ================= Реестр статистики: объекты, разрезы, показатели ================= */
+// Дашборд своих показателей и разрезов не заводит — читает реестр статистики.
+const OBJECTS = {
+  loan:    { name:'Кредит', wave:1, vis:'dept', owner:'Кредиты', registry:'Реестр кредитов' },
+  borrower:{ name:'Заёмщик', wave:1, vis:'dept', owner:'Заёмщики', registry:'Реестр заёмщиков' },
+  program: { name:'Кредитная программа', wave:1, vis:'open', owner:'Кредитные программы', registry:'Реестр программ' },
+  claim:   { name:'Требование взыскания', wave:1, vis:'dept', owner:'Взыскание', registry:'Реестр требований' },
+  measure: { name:'Мера взыскания', wave:1, vis:'dept', owner:'Взыскание', registry:'Журнал мер', events:true },
+  receipt: { name:'Поступление', wave:1, vis:'open', owner:'Платежи', registry:'Реестр поступлений', events:true },
+  payment: { name:'Платёж', wave:1, vis:'dept', owner:'Платежи', registry:'Реестр платежей', events:true },
+  coll:    { name:'Предмет залога', wave:1, vis:'dept', owner:'Залог', registry:'Реестр предметов залога' },
+  app:     { name:'Заявка на кредит', wave:2, vis:'dept', owner:'Заявка на кредит', registry:'Реестр заявок' },
+  comm:    { name:'Запись комиссии', wave:2, vis:'member', owner:'Комиссия', registry:'Реестр записей комиссии' },
+  concl:   { name:'Заключение отдела', wave:2, vis:'dept', owner:'Заявка на кредит', registry:'Реестр заключений' },
+  oblig:   { name:'Обязательство', wave:3, vis:'dept', owner:'Отчётность', registry:'Реестр обязательств' },
+  task:    { name:'Задание', wave:3, vis:'self', owner:'Задания', registry:'Мои задания' },
+};
+const BUCKETS = ['1–30','31–90','91–180','181+'];
+function bucketOf(d){ return d<=0 ? 'нет просрочки' : d<=30 ? BUCKETS[0] : d<=90 ? BUCKETS[1] : d<=180 ? BUCKETS[2] : BUCKETS[3]; }
+const DIMS = {
+  region:  { name:'Область', field:'region', values:REGIONS },
+  dept:    { name:'Подразделение', field:'dept', label:deptName },
+  program: { name:'Программа', field:'program', label:id=>id==='none'?'Без программы (поток B)':progName(id) },
+  curator: { name:'Куратор', field:'curator', label:userName },
+  category:{ name:'Категория классификации', field:'category', ordered:true, values:['Стандартные','Под наблюдением','Субстандартные','Сомнительные','Потери'] },
+  bucket:  { name:'Срок просрочки', get:r=>bucketOf(r.overdueDays), ordered:true, values:BUCKETS },
+  lstatus: { name:'Состояние кредита', field:'status' },
+  pname:   { name:'Программа', field:'name' },
+  phase:   { name:'Фаза требования', field:'phase', ordered:true, values:['Досудебная','Судебная','Исполнение','Банкротство','Урегулирование'] },
+  leadDept:{ name:'Ведущее подразделение', field:'leadDept', label:deptName },
+  mkind:   { name:'Вид меры', field:'kind' },
+  source:  { name:'Источник поступления', field:'source' },
+  pkind:   { name:'Вид погашения', field:'kind' },
+  ckind:   { name:'Вид залога', field:'kind' },
+  astatus: { name:'Статус заявки', field:'status', ordered:true, values:['Новый','Требуется доп. информация','На рассмотрении','Ожидает решения/программы','На оформлении'] },
+  astage:  { name:'Стадия новой заявки', field:'stage', ordered:true, values:['1 Комплектация','2 Подтверждение ГО','3 Заключения отделов'] },
+  commission:{ name:'Комиссия', field:'commission' },
+  decision:{ name:'Решение', field:'decision' },
+  verdict: { name:'Вердикт', field:'verdict', ordered:true, values:['Положительное','С условиями','Отрицательное'] },
+  ostate:  { name:'Итог сдачи', field:'state', ordered:true, values:['сдано в срок','сдано с опозданием','просрочено'] },
+};
+const OBJ_DIMS = {
+  loan:['region','dept','program','curator','category','bucket','lstatus'], borrower:['region','dept'], program:['pname'],
+  claim:['phase','leadDept','region'], measure:['mkind','region'], receipt:['source'], payment:['pkind','region','dept'],
+  coll:['ckind','region','dept'], app:['astatus','astage','program','region','dept'], comm:['commission','decision'],
+  concl:['verdict'], oblig:['ostate'], task:[],
+};
+// поля, по которым работает панель фильтров экрана
+const PANEL = { region:'Область', dept:'Подразделение', program:'Программа' };
+function dimValue(d, row){ const D = DIMS[d]; return D.get ? D.get(row) : row[D.field]; }
+function dimLabel(d, v){ const D = DIMS[d]; return D.label ? D.label(v) : v; }
+
+// Показатель: agg count|sum|max · kind stock|flow|event · dir up_good|up_bad|neutral · unit sum|pcs|days
+const IND = {};
+function ind(id, o){ IND[id] = Object.assign({ id, agg:'count', kind:'stock', dir:'neutral', unit:'pcs' }, o); }
+ind('loan.count',     { obj:'loan', name:'Кредитов' });
+ind('loan.balance',   { obj:'loan', name:'Остаток задолженности', agg:'sum', field:'balance', unit:'sum',
+  flows:{ inc:[['выдано','issuedM'],['начислено %','accrued']], dec:[['погашено','paid'],['списано за баланс','written']], other:'курсовая переоценка, принято/передано' } });
+ind('loan.overdue',   { obj:'loan', name:'Просрочено', agg:'sum', field:'overdue', unit:'sum', dir:'up_bad',
+  flows:{ inc:[['вышло в просрочку','odIn']], dec:[['погашено','odPaid'],['реструктурировано, списано','odRestr']], other:'прочее' } });
+ind('loan.risk',      { obj:'loan', name:'Сумма под риском (залог)', agg:'sum', field:'risk', unit:'sum', dir:'up_bad' });
+ind('loan.restr',     { obj:'loan', name:'В реструктуризации', where:r=>r.status==='В реструктуризации', dir:'up_bad' });
+ind('loan.coll',      { obj:'loan', name:'Во взыскании', where:r=>r.status==='Во взыскании', dir:'up_bad' });
+ind('loan.noClaim181',{ obj:'loan', name:'Кредиты 181+ дн. без требования', where:r=>r.overdueDays>180 && !r.hasClaim, dir:'up_bad' });
+ind('loan.issued',    { obj:'loan', name:'Выдано', agg:'sum', kind:'event', field:'issued', unit:'sum', dir:'up_good', atField:'from' });
+ind('loan.paid',      { obj:'loan', name:'Поступило в погашение', agg:'sum', kind:'flow', field:'paid', unit:'sum', dir:'up_good' });
+ind('loan.expected',  { obj:'loan', name:'Ожидалось по графику', agg:'sum', kind:'flow', field:'expected', unit:'sum' });
+ind('loan.plan',      { obj:'loan', name:'План', agg:'sum', kind:'flow', field:'plan', unit:'sum', where:r=>r.plan>0 });
+ind('loan.paidPlanned',{ obj:'loan', name:'Поступило по кредитам с планом', agg:'sum', kind:'flow', field:'paid', unit:'sum', dir:'up_good', where:r=>r.plan>0 });
+ind('loan.episodes',  { obj:'loan', name:'Эпизоды просрочки', refuses:'у расчётного ядра нет шва «эпизоды просрочки»; владелец — расчётное ядро' });
+ind('borrower.count', { obj:'borrower', name:'Заёмщиков' });
+ind('program.limit',  { obj:'program', name:'Лимит программы', agg:'sum', field:'limit', unit:'sum' });
+ind('program.issuedYtd',{ obj:'program', name:'Выдано с начала года', agg:'sum', field:'issuedYtd', unit:'sum', dir:'up_good' });
+ind('program.balance',{ obj:'program', name:'Остаток по программе', agg:'sum', field:'balance', unit:'sum' });
+ind('program.overdue',{ obj:'program', name:'Просрочено по программе', agg:'sum', field:'overdue', unit:'sum', dir:'up_bad' });
+ind('claim.count',    { obj:'claim', name:'Требований открыто', dir:'up_bad' });
+ind('claim.amount',   { obj:'claim', name:'Сумма требований', agg:'sum', field:'amount', unit:'sum', dir:'up_bad' });
+ind('claim.since',    { obj:'claim', name:'Наибольший срок с направления', agg:'max', field:'sinceDays', unit:'days', dir:'up_bad' });
+ind('claim.realization',{ obj:'claim', name:'Под реализацией залога', where:r=>r.realization });
+ind('claim.recovered',{ obj:'claim', name:'Взыскано', agg:'sum', kind:'flow', field:'recovered', unit:'sum', dir:'up_good' });
+ind('measure.count',  { obj:'measure', name:'Мер взыскания', kind:'event' });
+ind('receipt.amount', { obj:'receipt', name:'Поступило', agg:'sum', kind:'event', field:'amount', unit:'sum', dir:'up_good' });
+ind('receipt.refund', { obj:'receipt', name:'Возвраты', agg:'sum', kind:'event', field:'amount', unit:'sum', where:r=>r.refund });
+ind('receipt.reversed',{ obj:'receipt', name:'Сторнировано', kind:'event', where:r=>r.reversed, dir:'up_bad' });
+ind('receipt.unident',{ obj:'receipt', name:'Невыясненные поступления', where:r=>r.state==='невыяснено', dir:'up_bad', currentOnly:true });
+ind('receipt.unidentSum',{ obj:'receipt', name:'Сумма невыясненных', agg:'sum', field:'amount', unit:'sum', where:r=>r.state==='невыяснено', dir:'up_bad', currentOnly:true });
+ind('receipt.await',  { obj:'receipt', name:'Ожидают подтверждения', where:r=>r.state==='ожидает подтверждения', dir:'up_bad', currentOnly:true });
+ind('receipt.unmatched',{ obj:'receipt', name:'Незакрыжено', where:r=>r.state==='не закрыжено', dir:'up_bad', currentOnly:true });
+ind('receipt.unalloc',{ obj:'receipt', name:'Нераспределённый остаток', agg:'sum', field:'amount', unit:'sum', dir:'up_bad',
+  where:r=>r.state!=='распределено', flows:{ inc:[['поступило без распределения','unallocIn']], dec:[['распределено на платежи, возвращено','unallocOut']], other:'курсовая переоценка' } });
+ind('payment.amount', { obj:'payment', name:'Платежи', agg:'sum', kind:'event', field:'amount', unit:'sum', dir:'up_good' });
+ind('coll.count',     { obj:'coll', name:'Предметов в залоге' });
+ind('coll.value',     { obj:'coll', name:'Залоговая стоимость', agg:'sum', field:'value', unit:'sum', dir:'up_good',
+  flows:{ inc:[['принято','accepted'],['переоценка ↑','revalUp']], dec:[['переоценка ↓','revalDown'],['освобождено, реализовано','released']], other:'курсовая переоценка' } });
+ind('coll.reval',     { obj:'coll', name:'Переоценка просрочена', where:r=>r.revalOverdue, dir:'up_bad', currentOnly:true });
+ind('coll.insurance', { obj:'coll', name:'Страховка не оформлена или истекла', where:r=>r.noInsurance, dir:'up_bad', currentOnly:true });
+ind('coll.noBan',     { obj:'coll', name:'Нет запрета на отчуждение', where:r=>r.noBan, dir:'up_bad', currentOnly:true });
+ind('coll.registering',{ obj:'coll', name:'Договоров на регистрации', where:r=>r.registering, currentOnly:true });
+ind('coll.inSale',    { obj:'coll', name:'В реализации', where:r=>r.inSale, currentOnly:true });
+ind('loan.lowCov',    { obj:'loan', name:'Кредиты с обеспеченностью ниже 120 %', where:r=>r.coverage<120, dir:'up_bad' });
+ind('app.inWork',     { obj:'app', name:'Заявок в работе', where:r=>r.inWork });
+ind('app.requested',  { obj:'app', name:'Запрошено по заявкам в работе', agg:'sum', field:'requested', unit:'sum', where:r=>r.inWork });
+ind('app.ready',      { obj:'app', name:'Готовы к отправке', where:r=>r.ready, dir:'up_good', currentOnly:true });
+ind('app.negative',   { obj:'app', name:'Есть отрицательное заключение', where:r=>r.negative, dir:'up_bad', currentOnly:true });
+ind('app.filed',      { obj:'app', name:'Подано заявок', kind:'event' });
+ind('app.waitGo',     { obj:'app', name:'Ждут подтверждения комплекта', where:r=>r.stage==='2 Подтверждение ГО', currentOnly:true });
+ind('app.waitGoMax',  { obj:'app', name:'Наибольшее ожидание подтверждения', agg:'max', field:'waitDays', unit:'days', where:r=>r.stage==='2 Подтверждение ГО', dir:'up_bad', currentOnly:true });
+ind('app.complect',   { obj:'app', name:'В комплектации', where:r=>r.stage==='1 Комплектация', currentOnly:true });
+ind('app.confirmed',  { obj:'app', name:'Подтверждено комплектов', kind:'event', where:r=>!r.inWork || r.status!=='Новый', dir:'up_good' });
+ind('comm.pending',   { obj:'comm', name:'На рассмотрении', where:r=>r.status==='На рассмотрении', currentOnly:true });
+ind('comm.pendingSum',{ obj:'comm', name:'Сумма на рассмотрении', agg:'sum', field:'sum', unit:'sum', where:r=>r.status==='На рассмотрении', currentOnly:true });
+ind('comm.late',      { obj:'comm', name:'Крайний срок прошёл', where:r=>r.status==='На рассмотрении' && r.deadlineIn<0, dir:'up_bad', currentOnly:true });
+ind('comm.soon',      { obj:'comm', name:'Срок истекает ≤ 7 дн.', where:r=>r.status==='На рассмотрении' && r.deadlineIn>=0, dir:'up_bad', currentOnly:true });
+ind('comm.myVote',    { obj:'comm', name:'Ждут моего голоса', where:r=>r.myVotePending, currentOnly:true });
+ind('comm.noScan',    { obj:'comm', name:'Решения без скана протокола', where:r=>r.noScan, dir:'up_bad', currentOnly:true });
+ind('comm.decided',   { obj:'comm', name:'Решений', kind:'event', where:r=>r.status==='Решено' });
+ind('comm.maxPending',{ obj:'comm', name:'Наибольший срок на рассмотрении', agg:'max', field:'daysPending', unit:'days', where:r=>r.status==='На рассмотрении', dir:'up_bad', currentOnly:true });
+ind('concl.pending',  { obj:'concl', name:'Ждут нашего заключения', where:r=>r.pending, currentOnly:true });
+ind('concl.waitMax',  { obj:'concl', name:'Наибольшее ожидание', agg:'max', field:'waitDays', unit:'days', where:r=>r.pending, dir:'up_bad', currentOnly:true });
+ind('concl.negBlock', { obj:'concl', name:'Наше отрицательное — заявка стоит', where:r=>r.negativeBlocking, dir:'up_bad', currentOnly:true });
+ind('concl.revoked',  { obj:'concl', name:'Отозвано нами', kind:'event', where:r=>r.revoked });
+ind('concl.given',    { obj:'concl', name:'Заключений', kind:'event', where:r=>!r.pending });
+ind('oblig.overdue',  { obj:'oblig', name:'Просрочено обязательств', where:r=>r.state==='просрочено', dir:'up_bad', currentOnly:true });
+ind('oblig.soon',     { obj:'oblig', name:'Срок ≤ 7 дн.', where:r=>r.state==='ожидается', dir:'up_bad', currentOnly:true });
+ind('oblig.changed',  { obj:'oblig', name:'Сданные, где числа изменились', where:r=>r.changedAfter, dir:'up_bad' });
+ind('oblig.submitted',{ obj:'oblig', name:'Сдано', kind:'event', where:r=>r.state.startsWith('сдано') });
+ind('oblig.onTime',   { obj:'oblig', name:'Сдано в срок', kind:'event', where:r=>r.state==='сдано в срок', dir:'up_good' });
+ind('task.mine',      { obj:'task', name:'Мои задания', currentOnly:true });
+
+/* ================= Стенд: настройки «соседей» ================= */
+const STAND = { wave:3, statDown:false, nightRunFailed:false, queueLag:0, nightOnly:{}, overdueUp:false, withdrawn:{}, closedThrough:-2, N:150 };
+
+/* ================= Даты, периоды, базы сдвига ================= */
+const DATE_MODES = {
+  today:      { label:'сегодня', point:{ m:0, today:true } },
+  closedDay:  { label:'последний закрытый день', point:{ m:0, day:10 } },
+  prevMonthEnd:{ label:'конец прошлого месяца', point:{ m:-1 } },
+};
+const PERIODS = {
+  today:      { label:'сегодня', months:[0], partial:true, today:true },
+  curMonth:   { label:'текущий месяц', months:[0], partial:true },
+  prevMonth:  { label:'прошлый месяц', months:[-1], base:[-2] },
+  curQuarter: { label:'текущий квартал', months:[0], partial:true },
+  prevQuarter:{ label:'прошлый квартал', months:[-3,-2,-1], base:[-6,-5,-4] },
+  ytd:        { label:'с начала года', months:[-9,-8,-7,-6,-5,-4,-3,-2,-1,0], partial:true },
+  prevYear:   { label:'прошлый год', months:[-21,-20,-19,-18,-17,-16,-15,-14,-13,-12,-11,-10], base:[-33,-32,-31,-30,-29,-28,-27,-26,-25,-24,-23,-22] },
+};
+const STOCK_BASES = {
+  prevMonthEnd:{ label:'к концу прошлого месяца', short:m=>'к '+monthEndLabel(-1), point:{ m:-1 } },
+  yearStart:   { label:'к началу года', short:()=> 'к началу года', point:{ m:-10 } },
+  yearAgo:     { label:'к концу того же месяца прошлого года', short:()=> 'к '+monthEndLabel(-12), point:{ m:-12 } },
+};
+function monthClosed(m){ return m <= STAND.closedThrough; }
+
+/* ================= Значение строки в вопросе ================= */
+function exists(row, m){ return (row.from===undefined || row.from<=m); }
+function scen(row, field){ return (STAND.overdueUp && (field==='overdue' || field==='risk')) ? 1.18 : 1; }
+function stockAt(row, I, pt){
+  if(I.currentOnly && !(pt.m===0)) return null;            // состояние без истории: только «сейчас»
+  if(!exists(row, pt.m)) return null;
+  if(I.where && !I.where(row)) return null;
+  if(I.agg==='count') return 1;
+  let v = row[I.field] || 0;
+  if(pt.m===0 && !pt.day) return v*scen(row, I.field);
+  const k = pt.day ? 'd'+pt.day : 'm'+pt.m; const amp = pt.day ? 0.004 : 0.03*Math.min(1,(Math.abs(pt.m)+1)/4);
+  const trend = pt.day ? 1 : 1 + pt.m*(I.field==='overdue'||I.field==='risk' ? 0.03 : I.field==='balance' ? 0.004 : I.field==='amount' ? 0.08 : 0.002); // портфель и просрочка растут
+  return Math.round(v*trend*jitter(row.id, k+I.field, amp));
+}
+function monthFlow(row, field, m){ return exists(row, m) ? (row[field]||0)*jitter(row.id, 'f'+m+field, 0.12) : 0; }
+function flowIn(row, I, period){
+  if(I.where && !I.where(row)) return null;
+  const P = PERIODS[period]; let s = 0, any = false;
+  for(const m of P.months){
+    if(I.kind==='event'){
+      const at = I.atField ? row[I.atField] : row.at; if(at!==m) continue;
+      const day = row.day || (1 + hash(row.id)%28);
+      if(m===0 && (P.today ? day!==TODAY.day : day>TODAY.day)) continue;
+      any = true; s += I.agg==='count' ? 1 : (row[I.field]||0);
+    } else {
+      if(!exists(row, m)) continue;
+      let v = monthFlow(row, I.field, m); if(m===0) v = P.today ? v/TODAY.daysInMonth : v*TODAY.day/TODAY.daysInMonth;
+      if(v){ any = true; s += v; }
+    }
+  }
+  return any ? (I.agg==='count' ? s : Math.round(s)) : null;
+}
+function valueOf(row, I, ctx){ return ctx.period ? flowIn(row, I, ctx.period) : stockAt(row, I, ctx.point); }
+function aggregate(rows, I, ctx){
+  let acc = I.agg==='max' ? null : 0, n = 0;
+  for(const r of rows){ const v = valueOf(r, I, ctx); if(v===null) continue; n++;
+    if(I.agg==='max') acc = acc===null ? v : Math.max(acc, v); else acc += v; }
+  return { value: acc===null ? null : acc, n };
+}
+function ctxOf(tile){ const I = IND[tile.inds[0]];
+  return (I.kind==='stock') ? { point: DATE_MODES[tile.date||'today'].point } : { period: tile.period || 'curMonth' }; }
+
+/* ================= Охват (область видимости) и права ================= */
+const ROLE_SCOPE_OVERRIDE = { prob:{ loan:'all', payment:'all', coll:'all' }, zal:{ loan:'dept' }, spec:{ program:'all', comm:'all' }, cur:{ payment:'dept' } };
+function scopeOf(roleId, obj){ const R = ROLES.find(x=>x.id===roleId); const o = ROLE_SCOPE_OVERRIDE[roleId] || {}; return o[obj] || R.scope; }
+function hasRight(roleId, obj){ return (RIGHTS[roleId]||[]).includes(obj); }
+function visibleFor(user, roleId, obj){
+  const O = OBJECTS[obj]; const rows = DATA[obj];
+  if(O.vis==='self') return rows.filter(r=>r.assignee===user.id);
+  if(O.vis==='open') return rows;
+  const sc = scopeOf(roleId, obj);
+  if(sc==='all') return rows;
+  if(sc==='none') return [];
+  if(sc==='member') return rows.filter(r=>(r.members||[]).includes(user.id));
+  if(sc==='deptTree'){ const t = subtree(user.dept); return rows.filter(r=>t.includes(r.dept)); }
+  return rows.filter(r=>r.dept===user.dept);
+}
+// роли, через которые человек смотрит плитку: на вкладке роли — эта роль, на своём экране — все его роли
+function viewerRoles(user, roleId){ return roleId ? [roleId] : user.roles; }
+function rowsFor(user, roleId, obj){
+  const rs = viewerRoles(user, roleId).filter(r=>hasRight(r, obj));
+  if(!rs.length) return null;                                // нет права ни у одной роли — «нет доступа»
+  if(rs.length===1) return visibleFor(user, rs[0], obj);
+  const seen = new Set(), out = [];
+  rs.forEach(r=>visibleFor(user, r, obj).forEach(x=>{ if(!seen.has(x.id)){ seen.add(x.id); out.push(x); } }));
+  return out;
+}
+
+/* ================= Фильтр вопроса и относительные параметры ================= */
+// Условие: { f, op:'eq'|'ne'|'gt'|'lt'|'le'|'in'|'true'|'false', v }. Относительные: @me, @myDept, @myDeptTree, @today+N.
+function resolveParam(v, user){
+  if(v==='@me') return user.id;
+  if(v==='@myDept') return user.dept;
+  if(v==='@myDeptTree') return subtree(user.dept);
+  if(typeof v==='string' && v.startsWith('@today+')) return Number(v.slice(7));
+  return v;
+}
+function paramLabel(v){ return v==='@me' ? '«я»' : v==='@myDept' ? '«моё подразделение»' : v==='@myDeptTree' ? '«моё подразделение и ниже»'
+  : (typeof v==='string' && v.startsWith('@today+')) ? '«сегодня + '+v.slice(7)+' дн.»' : null; }
+function testCond(row, c, user){
+  const v = resolveParam(c.v, user); const x = row[c.f];
+  switch(c.op){
+    case 'eq': return Array.isArray(v) ? v.includes(x) : x===v;
+    case 'ne': return x!==v;  case 'gt': return x>v;  case 'lt': return x<v;  case 'le': return x<=v;
+    case 'in': return (Array.isArray(v)?v:[v]).includes(x);
+    case 'true': return !!x;  case 'false': return !x;
+  }
+  return true;
+}
+function applyFilter(rows, filter, user){ return (filter||[]).reduce((rs,c)=>rs.filter(r=>testCond(r,c,user)), rows); }
+function panelApplies(obj, key){ return (OBJ_DIMS[obj]||[]).includes(key); }
+function applyPanel(rows, obj, panel){
+  const applied = [], skipped = [];
+  for(const k of Object.keys(PANEL)){ const v = panel && panel[k]; if(!v) continue;
+    if(panelApplies(obj, k)){ rows = rows.filter(r=>r[k]===v); applied.push(k); } else skipped.push(k); }
+  return { rows, applied, skipped };
+}
+function panelLabel(panel, keys){ return keys.map(k=>k==='dept'?deptName(panel[k]):k==='program'?progName(panel[k]):panel[k]).join(', '); }
+
+/* ================= Формат числа ================= */
+function nbsp(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+function fmtSum(v){ const a = Math.abs(v); const s = v<0?'−':'';
+  if(a>=1e9) return s+(a/1e9).toFixed(2).replace('.',',')+' млрд';
+  if(a>=1e6) return s+(a>=1e8 ? Math.round(a/1e6) : (a/1e6).toFixed(1).replace('.',','))+' млн';
+  if(a>=1e3) return s+Math.round(a/1e3)+' тыс.';
+  return s+Math.round(a); }
+function fmtVal(v, unit){ if(v===null||v===undefined) return '—'; if(unit==='sum') return fmtSum(v); if(unit==='days') return nbsp(Math.round(v))+' дн.';
+  if(unit==='pct') return (Math.round(v*10)/10).toString().replace('.',',')+' %'; return nbsp(Math.round(v)); }
+function fmtDelta(d, unit){ if(unit==='pct') return (d>0?'▲ ':d<0?'▼ ':'')+(Math.abs(Math.round(d*10)/10)).toString().replace('.',',')+' п.п.';
+  return (d>0?'▲ ':d<0?'▼ ':'')+fmtVal(Math.abs(d), unit); }
+
+/* ================= Паспорт ================= */
+function staleOf(tile){
+  const I = IND[tile.inds[0]]; const ctx = ctxOf(tile);
+  const live = ctx.period ? PERIODS[ctx.period].partial : (ctx.point.m===0 && !ctx.point.day);
+  if(live && STAND.nightOnly[I.obj]) return 'источник «'+OBJECTS[I.obj].owner+'» обновляется только ночью — число на конец вчерашнего дня';
+  if(live && STAND.queueLag>15) return 'очередь пересчёта статистики отстала на '+STAND.queueLag+' мин';
+  if(!live && STAND.nightRunFailed) return 'ночной прогон 11.10 не прошёл — последний закрытый день 09.10';
+  return null;
+}
+function passportOf(tile, visible, opts){
+  const I = IND[tile.inds[0]]; const ctx = ctxOf(tile); const parts = [];
+  const lag = STAND.queueLag>15 ? ' (очередь '+STAND.queueLag+' мин)' : '';
+  if(tile.format==='series'){ const n = tile.points||12; let closed = 0; for(let m=-n+1;m<=0;m++) if(monthClosed(m)) closed++;
+    parts.push(closed===n ? n+' мес. · закрыто' : 'смешанно: '+closed+' из '+n+' мес. закрыто'); }
+  else if(ctx.period){ const P = PERIODS[ctx.period];
+    if(ctx.period==='today') parts.push('сегодня, на '+TODAY.time+lag+' · день не закрыт');
+    else if(ctx.period==='curMonth') parts.push('01.10 → '+TODAY.time+' · идёт '+TODAY.day+'-й день · не закрыт');
+    else if(ctx.period==='prevMonth') parts.push(monthName(-1)+' · '+(monthClosed(-1)?'месяц закрыт':'месяц не закрыт'));
+    else if(ctx.period==='ytd') parts.push('01.01 → '+TODAY.time+' · не закрыт');
+    else { const cl = P.months.filter(monthClosed).length; parts.push(P.label+' · '+(cl===P.months.length?'закрыт':'смешанно: '+cl+' из '+P.months.length+' мес. закрыто')); } }
+  else { const pt = ctx.point;
+    if(pt.m===0 && !pt.day) parts.push((STAND.nightOnly[I.obj] ? 'на 10.10 (вчера) · только ночью' : 'на '+TODAY.time+lag+' · день не закрыт'));
+    else if(pt.day) parts.push(STAND.nightRunFailed ? 'на 09.10 (2 дня назад) · день закрыт' : 'на 10.10 (вчера) · день закрыт');
+    else parts.push('на '+monthEndLabel(pt.m)+' · '+(monthClosed(pt.m)?'месяц закрыт':'месяц не закрыт')); }
+  if(opts && opts.fx) parts.push('сом, курс '+(ctx.point && !ctx.point.m ? '11.10' : '30.09'));
+  parts.push('видно '+nbsp(visible));
+  if(opts && opts.panelApplied && opts.panelApplied.length) parts.push('фильтр: '+opts.panelText);
+  if(opts && opts.panelSkipped && opts.panelSkipped.length) parts.push('без фильтра');
+  return parts.join(' · ');
+}
+
+/* ================= Ответ плитке: statSlice / statSeries ================= */
+// Плитка спрашивает статистику при каждом показе. Чисел плитка не хранит.
+function ask(tile, user, roleId, panel){
+  const res = { tileId:tile.id, format:tile.format };
+  const I = IND[tile.inds[0]]; const O = OBJECTS[I.obj];
+  if(STAND.statDown){ res.state='error'; res.msg='Статистика не ответила. Вместо числа ничего не показываем — ни ноль, ни прошлое значение.'; return res; }
+  if(tile.withdrawnStub){ res.state='withdrawn'; res.msg='Плитка снята администратором дашборда.'; return res; }
+  const broken = tile.inds.find(i=>STAND.withdrawn[i]);
+  if(broken){ res.state='broken'; res.msg='Показатель «'+IND[broken].name+'» выведен из реестра статистики '+STAND.withdrawn[broken]+'. Плитка сломана объявлением — администратор видит её в обратном индексе.'; return res; }
+  if(O.wave > STAND.wave){ res.state='refusal'; res.msg='Не отвечается: объект статистики «'+O.name+'» ещё не объявлен; владелец — модуль «'+O.owner+'».'; return res; }
+  if(I.refuses){ res.state='refusal'; res.msg='Не отвечается: '+I.refuses+'.'; return res; }
+  const base = rowsFor(user, roleId, I.obj);
+  if(base===null){ res.state='noaccess'; res.msg='Нельзя: объект «'+O.name+'» не открыт вашей роли.'; return res; }
+  const visible = base.length;
+  let rows = applyFilter(base, tile.filter, user);
+  const pr = applyPanel(rows, I.obj, panel); rows = pr.rows;
+  res.rows = rows; res.visible = visible;
+  res.panelApplied = pr.applied; res.panelSkipped = pr.skipped; res.panelText = panelLabel(panel||{}, pr.applied);
+  res.unit = tile.share ? 'pct' : I.unit;
+  res.passport = passportOf(tile, visible, { fx: I.unit==='sum', panelApplied:pr.applied, panelSkipped:pr.skipped, panelText:res.panelText });
+  res.stale = staleOf(tile);
+  if(visible===0){ res.state='empty'; res.msg = emptyScopeMsg(user, roleId, I.obj); return res; }
+  const ctx = ctxOf(tile);
+  const val = (rs, c) => {                                    // число узла: показатель или доля двух показателей
+    if(tile.share){ const a = aggregate(rs, IND[tile.share[0]], c).value || 0, b = aggregate(rs, IND[tile.share[1]], c).value || 0;
+      return b ? { v:a/b*100, num:a, den:b } : { v:null, num:a, den:0 }; }
+    return { v: aggregate(rs, I, c).value };
+  };
+  switch(tile.format){
+    case 'number': case 'shift': {
+      res.values = tile.inds.map(id=>aggregate(rows, IND[id], ctx).value);
+      if(tile.share){ const s = val(rows, ctx); res.value = s.v; res.num = s.num; res.den = s.den; }
+      else res.value = res.values[0];
+      if(tile.format==='shift' || tile.shift) res.shift = shiftOf(tile, rows, ctx, val);
+      break; }
+    case 'slice': case 'steps': {
+      const d = tile.dims[0]; res.nodes = groupBy(rows, d, r=>val(r, ctx));
+      res.total = val(rows, ctx); break; }
+    case 'heat': {
+      const [d1,d2] = tile.dims; const v1 = valuesOf(d1, rows), v2 = valuesOf(d2, rows);
+      res.heat = { rows:v1, cols:v2, d1, d2, cells: v1.map(a=>v2.map(b=>val(rows.filter(r=>dimValue(d1,r)===a && dimValue(d2,r)===b), ctx).v || 0)) };
+      res.total = val(rows, ctx); break; }
+    case 'table': {
+      const d = tile.dims[0]; const vs = valuesOf(d, rows);
+      res.table = { d, cols: tile.inds.map(i=>IND[i]), rows: vs.map(v=>{ const rs = rows.filter(r=>dimValue(d,r)===v);
+        return { v, label:dimLabel(d,v), cells: tile.inds.map(i=>aggregate(rs, IND[i], ctx).value) }; }) };
+      res.table.rows.sort((a,b)=>(b.cells[0]||0)-(a.cells[0]||0));
+      res.total = tile.inds.map(i=>aggregate(rows, IND[i], ctx).value); break; }
+    case 'series': res.series = seriesOf(tile, rows); break;
+    case 'move': res.move = movementOf(tile, rows); break;
+  }
+  // состояние ответа
+  const headline = tile.format==='number'||tile.format==='shift' ? res.value : tile.format==='move' ? res.move.end : 1;
+  if(tile.share && res.den===0){ res.state='dash'; res.msg='— · не из чего выбирать'; }
+  else if(headline===null){ res.state='dash'; res.msg='— · не из чего выбирать'; }
+  else if((tile.format==='number'||tile.format==='shift') && headline===0 && !tile.share){ res.state='zero'; }
+  else res.state = 'ok';
+  if(res.stale && res.state!=='error') res.staleState = true;
+  res.tl = trafficOf(tile, res);
+  return res;
+}
+function emptyScopeMsg(user, roleId, obj){
+  if(OBJECTS[obj].vis==='self') return 'У вас нет заданий.';
+  return 'В вашем охвате нет объектов «'+OBJECTS[obj].name+'»: подразделение «'+deptName(user.dept)+'» видит только своё.';
+}
+function valuesOf(d, rows){ const D = DIMS[d]; if(D.values) return D.values.slice();
+  const s = new Set(rows.map(r=>dimValue(d,r)).filter(v=>v!==null && v!==undefined)); return [...s]; }
+function groupBy(rows, d, f){
+  const vs = valuesOf(d, rows);
+  const nodes = vs.map(v=>{ const rs = rows.filter(r=>dimValue(d,r)===v); const x = f(rs); return { v, label:dimLabel(d,v), value:x.v, num:x.num, den:x.den, n:rs.length }; });
+  if(!DIMS[d].ordered) nodes.sort((a,b)=>(b.value||0)-(a.value||0));
+  return nodes;
+}
+function shiftOf(tile, rows, ctx, val){
+  const I = IND[tile.inds[0]];
+  if(ctx.period){ const P = PERIODS[ctx.period]; if(P.partial || !P.base) return { none:'неполный период не с чем честно сравнить' };
+    const baseVal = aggregateMonths(rows, tile, P.base);
+    const cur = tile.share ? val(rows, ctx).v : aggregate(rows, I, ctx).value;
+    return { base:baseVal, delta: cur - baseVal, label: ctx.period==='prevMonth' ? 'к '+MONTHS_GEN[monthOf(-2).mi].replace(/я$/,'ю').replace(/а$/,'у') : ctx.period==='prevYear' ? 'к 2024' : 'к пред. кварталу' }; }
+  const B = STOCK_BASES[tile.shift || 'prevMonthEnd']; if(ctx.point.m===B.point.m) return { none:'база совпадает с датой плитки' };
+  const bctx = { point:B.point };
+  const baseVal = tile.share ? val(rows, bctx).v : aggregate(rows, I, bctx).value;
+  const cur = tile.share ? val(rows, ctx).v : aggregate(rows, I, ctx).value;
+  return { base:baseVal, delta:(cur||0)-(baseVal||0), label:B.short() };
+}
+function aggregateMonths(rows, tile, months){
+  // база потока — те же месяцы годом/месяцем раньше; считается той же разностью строк
+  const fake = '__base'; PERIODS[fake] = { months, label:'база' };
+  const I = IND[tile.inds[0]]; let v;
+  if(tile.share){ const a = aggregate(rows, IND[tile.share[0]], { period:fake }).value||0, b = aggregate(rows, IND[tile.share[1]], { period:fake }).value||0; v = b ? a/b*100 : null; }
+  else v = aggregate(rows, I, { period:fake }).value;
+  delete PERIODS[fake]; return v;
+}
+function seriesOf(tile, rows){
+  const n = tile.points || 12; const out = { points:[], lines: tile.share ? [{ name:'доля, %' }] : tile.inds.map(i=>({ name:IND[i].name })) };
+  for(let m=-n+1; m<=0; m++){
+    const vals = (tile.share ? [tile.share] : tile.inds.map(i=>[i])).map(spec=>{
+      const calc = (id)=>{ const I = IND[id];
+        if(I.kind==='stock') return aggregate(rows, I, { point: m===0 ? { m:0 } : { m } }).value || 0;
+        const k = '__s'+m; PERIODS[k] = { months:[m], partial:m===0 }; const v = aggregate(rows, I, { period:k }).value || 0; delete PERIODS[k]; return v; };
+      if(spec.length===2){ const a = calc(spec[0]), b = calc(spec[1]); return b ? a/b*100 : null; }
+      return calc(spec[0]); });
+    out.points.push({ m, label:monthShort(m), closed:monthClosed(m), vals });
+  }
+  return out;
+}
+function rowFlow(row, key, m){ // составляющие оборотов для формата «Движение»
+  const f = (field, k)=> exists(row, m) ? (row[field]||0)*jitter(row.id, 'mv'+m+key, 0.2)*k : 0;
+  const part = m===0 ? TODAY.day/TODAY.daysInMonth : 1;
+  switch(key){
+    case 'issuedM': return row.from===m ? (row.issued||0) : 0;
+    case 'accrued': return f('accrued',1)*part; case 'paid': return f('paid',1)*part; case 'written': return f('written',1)*part;
+    case 'odIn': return f('overdue',0.11)*part; case 'odPaid': return f('overdue',0.06)*part; case 'odRestr': return f('overdue',0.015)*part;
+    case 'accepted': return f('accepted',1); case 'revalUp': return f('revalUp',0.4); case 'revalDown': return f('revalDown',0.4); case 'released': return f('released',0.5);
+    case 'unallocIn': return row.state!=='распределено' ? (row.amount||0)*0.6 : 0; case 'unallocOut': return row.state!=='распределено' ? (row.amount||0)*0.35 : 0;
+  }
+  return 0;
+}
+function movementOf(tile, rows){
+  const I = IND[tile.inds[0]];
+  const start = aggregate(rows, I, { point:{ m:-1 } }).value || 0;
+  const end = aggregate(rows, I, { point:{ m:0 } }).value || 0;
+  const sumFlows = list => list.map(([name,key])=>({ name, v: Math.round(rows.reduce((a,r)=>a+rowFlow(r,key,0),0)) }));
+  const inc = sumFlows(I.flows.inc), dec = sumFlows(I.flows.dec);
+  const ti = inc.reduce((a,x)=>a+x.v,0), td = dec.reduce((a,x)=>a+x.v,0);
+  const other = end - start - ti + td;                         // строка «прочее» показывается всегда, даже при нуле
+  return { start, end, inc, dec, other, otherName:I.flows.other, ti, td, converges: start + ti - td + other === end };
+}
+function trafficOf(tile, res){
+  if(!tile.tl || res.state!=='ok' && res.state!=='zero') return null;
+  const v = res.value; if(v===null || v===undefined) return null;
+  const t = tile.tl; const hit = (x)=> x && (x[0]==='>' ? v > x[1] : v < x[1]);
+  if(hit(t.red)) return 'red'; if(hit(t.yellow)) return 'yellow'; return t.green===false ? null : 'green';
+}
+function tlText(tile){ const t = tile.tl; if(!t) return '';
+  const f = x=> x[0]+' '+(tile.share?(String(x[1]).replace('.',',')+' %'):fmtVal(x[1], IND[tile.inds[0]].unit));
+  return 'порог: '+[t.red?'красный '+f(t.red):'', t.yellow?'жёлтый '+f(t.yellow):''].filter(Boolean).join(', '); }
+
+/* ================= «Кто в этом числе» — statRows: полный список или отказ ================= */
+function statRows(tile, user, roleId, panel, node){
+  const res = ask(tile, user, roleId, panel);
+  if(!res.rows) return { refused:true, msg:res.msg || 'нет ответа' };
+  const I = IND[tile.inds[0]]; const ctx = ctxOf(tile);
+  let rows = res.rows;
+  if(node){ if(node.d) rows = rows.filter(r=>dimValue(node.d, r)===node.v); if(node.d2) rows = rows.filter(r=>dimValue(node.d2, r)===node.v2); }
+  const spec = tile.share ? IND[tile.share[0]] : I;
+  const list = rows.map(r=>({ r, v: valueOf(r, spec, ctx) })).filter(x=>x.v!==null);
+  if(list.length > STAND.N) return { refused:true, count:list.length, msg: nbsp(list.length)+' строк — сузьте вопрос разрезом или возьмите выгрузкой', passport:res.passport };
+  list.sort((a,b)=>b.v-a.v);
+  return { refused:false, list, unit:spec.unit, sum: list.reduce((a,x)=>a+x.v,0), passport:res.passport, obj:I.obj };
+}
+// «Работать со списком» — реестр модуля-владельца с фильтром плитки, на сегодня
+function registryList(tile, user, roleId, panel){
+  const I = IND[tile.inds[0]];
+  const base = rowsFor(user, roleId, I.obj) || [];
+  const rows = applyPanel(applyFilter(base, tile.filter, user), I.obj, panel).rows.filter(r=>stockAt(r, Object.assign({}, I, { agg:'count', currentOnly:false }), { m:0 })!==null || I.kind!=='stock');
+  const sr = statRows(tile, user, roleId, panel);
+  return { registry:OBJECTS[I.obj].registry, owner:OBJECTS[I.obj].owner, today:rows.length, slice: sr.refused ? sr.count : sr.list.length };
+}
+
+/* ================= Плитки: каталог (каноническая модель плитки) ================= */
+// Плитка = вопрос (объект · до 4 показателей · разрезы · фильтр · дата/период) + способ показа. Чисел не хранит.
+const SIZE = { number:'1x1', shift:'1x1', series:'2x1', slice:'2x1', steps:'2x1', move:'2x1', heat:'2x2', table:'2x2' };
+const FORMAT_NAMES = { number:'Число', shift:'Число + сдвиг', series:'Ряд', slice:'Разрез', steps:'Ступени', move:'Движение', heat:'Тепловая карта', table:'Таблица' };
+const TILES = [];
+let tileSeq = 0;
+function T(id, o){ TILES.push(Object.assign({ id, kind:'overview', dims:[], filter:[], state:'published', owner:'catalog', version:1, top:3, points:12 }, o)); }
+const ME = { f:'curator', op:'eq', v:'@me' };
+// — Руководство —
+T('lead-loans', { title:'Кредитов', inds:['loan.count'], format:'number' });
+T('lead-borr',  { title:'Заёмщиков', inds:['borrower.count'], format:'number' });
+T('lead-bal',   { title:'Остаток задолженности', inds:['loan.balance'], format:'move' });
+T('lead-od',    { title:'Просрочено', inds:['loan.overdue'], format:'move' });
+T('lead-odsh',  { title:'Доля просрочки', inds:['loan.overdue','loan.balance'], share:['loan.overdue','loan.balance'], format:'shift', shift:'prevMonthEnd',
+  tl:{ red:['>',5], yellow:['>',4] } });
+T('lead-risk',  { title:'Сумма под риском (залог)', inds:['loan.risk'], format:'number' });
+T('lead-bucket',{ title:'Просрочка по сроку неплатежа', inds:['loan.count'], dims:['bucket'], filter:[{ f:'overdueDays', op:'gt', v:0 }], format:'steps' });
+T('lead-cat',   { title:'Категории классификации', inds:['loan.count'], dims:['category'], format:'steps' });
+T('lead-issued',{ title:'Выдано с начала года', inds:['loan.issued'], period:'ytd', format:'number' });
+T('lead-paid',  { title:'Поступило против графика · прошлый месяц', inds:['loan.paid','loan.expected'], share:['loan.paid','loan.expected'], period:'prevMonth', format:'shift' });
+T('lead-prog',  { title:'Освоение программ', inds:['program.limit','program.issuedYtd','program.balance','program.overdue'], dims:['pname'], format:'table' });
+T('lead-odser', { title:'Доля просрочки, 12 мес.', inds:['loan.overdue','loan.balance'], share:['loan.overdue','loan.balance'], format:'series' });
+T('lead-heat',  { title:'Где просрочка: область × срок', inds:['loan.overdue'], dims:['region','bucket'], filter:[{ f:'overdueDays', op:'gt', v:0 }], format:'heat' });
+T('lead-claims',{ title:'Во взыскании', inds:['claim.count'], format:'number' });
+T('tasks',      { title:'Мои задания', inds:['task.mine'], format:'number', kind:'link', queue:{ module:'Задания', name:'Мои задания' } });
+// — Куратор кредита: «куратор = я» —
+T('cur-loans',  { title:'Мои кредиты', inds:['loan.count'], filter:[ME], format:'number' });
+T('cur-risk',   { title:'Сумма под риском (залог)', inds:['loan.risk'], filter:[ME], format:'number' });
+T('cur-rc',     { title:'В реструктуризации / во взыскании', inds:['loan.restr','loan.coll'], filter:[ME], format:'number' });
+T('cur-odsh',   { title:'Доля просрочки', inds:['loan.overdue','loan.balance'], share:['loan.overdue','loan.balance'], filter:[ME], format:'shift', shift:'prevMonthEnd', tl:{ red:['>',5], yellow:['>',4] } });
+T('cur-bal',    { title:'Остаток задолженности', inds:['loan.balance'], filter:[ME], format:'move' });
+T('cur-od',     { title:'Просрочено', inds:['loan.overdue'], filter:[ME], format:'move' });
+T('cur-bucket', { title:'Просрочка по сроку неплатежа', inds:['loan.count'], dims:['bucket'], filter:[ME,{ f:'overdueDays', op:'gt', v:0 }], format:'steps' });
+T('cur-cat',    { title:'Категории классификации', inds:['loan.count'], dims:['category'], filter:[ME], format:'steps' });
+T('cur-plan0',  { title:'Исполнение плана · текущий месяц', inds:['loan.paidPlanned','loan.plan'], share:['loan.paidPlanned','loan.plan'], filter:[ME], period:'curMonth', format:'number' });
+T('cur-plan1',  { title:'Исполнение плана · прошлый месяц', inds:['loan.paidPlanned','loan.plan'], share:['loan.paidPlanned','loan.plan'], filter:[ME], period:'prevMonth', format:'shift',
+  tl:{ red:['<',80], yellow:['<',95] } });
+// — Проблемные кредиты —
+T('prob-claims',{ title:'Требований открыто', inds:['claim.count'], format:'number' });
+T('prob-amount',{ title:'Сумма требований', inds:['claim.amount'], format:'number' });
+T('prob-181',   { title:'Кредиты 181+ дн. без требования', inds:['loan.noClaim181'], format:'number', tl:{ red:['>',0], green:false } });
+T('prob-since', { title:'Наибольший срок с направления', inds:['claim.since'], format:'number' });
+T('prob-phase', { title:'Требования по фазам', inds:['claim.count'], dims:['phase'], format:'steps' });
+T('prob-lead',  { title:'Требования по ведущему подразделению', inds:['claim.count'], dims:['leadDept'], format:'slice' });
+T('prob-rec',   { title:'Взыскано · прошлый месяц', inds:['claim.recovered'], period:'prevMonth', format:'shift' });
+T('prob-real',  { title:'Под реализацией залога', inds:['claim.realization'], format:'number' });
+T('prob-recser',{ title:'Взыскано, 12 мес.', inds:['claim.recovered'], format:'series' });
+T('prob-meas',  { title:'Меры за прошлый месяц по видам', inds:['measure.count'], dims:['mkind'], period:'prevMonth', format:'slice' });
+// — Бухгалтерия —
+T('acc-unident',{ title:'Невыясненные поступления', inds:['receipt.unident','receipt.unidentSum'], format:'number', kind:'link', queue:{ module:'Платежи', name:'Невыясненные поступления' }, tl:{ yellow:['>',0], green:false } });
+T('acc-await',  { title:'Ожидают подтверждения', inds:['receipt.await'], format:'number', kind:'link', queue:{ module:'Платежи', name:'Ожидают подтверждения' } });
+T('acc-unm',    { title:'Незакрыжено', inds:['receipt.unmatched'], format:'number', kind:'link', queue:{ module:'Платежи', name:'Незакрыжено' } });
+T('acc-today',  { title:'Поступило сегодня', inds:['receipt.amount'], period:'today', format:'number' });
+T('acc-prev',   { title:'Поступило · прошлый месяц', inds:['receipt.amount'], period:'prevMonth', format:'shift' });
+T('acc-refund', { title:'Возвраты · прошлый месяц', inds:['receipt.refund'], period:'prevMonth', format:'number' });
+T('acc-rev',    { title:'Сторнировано · прошлый месяц', inds:['receipt.reversed'], period:'prevMonth', format:'number' });
+T('acc-unalloc',{ title:'Нераспределённый остаток', inds:['receipt.unalloc'], format:'move' });
+T('acc-ser',    { title:'Поступления, 12 мес.', inds:['receipt.amount'], format:'series' });
+T('acc-pkind',  { title:'Платежи прошлого месяца по виду погашения', inds:['payment.amount'], dims:['pkind'], period:'prevMonth', format:'slice' });
+T('acc-src',    { title:'Поступления по источнику · прошлый месяц', inds:['receipt.amount'], dims:['source'], period:'prevMonth', format:'slice' });
+// — Залог —
+T('zal-count',  { title:'Предметов в залоге', inds:['coll.count'], format:'number' });
+T('zal-value',  { title:'Залоговая стоимость', inds:['coll.value'], format:'move' });
+T('zal-kind',   { title:'Стоимость по видам залога', inds:['coll.value'], dims:['ckind'], format:'slice' });
+T('zal-lowcov', { title:'Обеспеченность ниже 120 %', inds:['loan.lowCov'], format:'number', kind:'link', queue:{ module:'Залог', name:'Обеспеченность ниже 120 %' }, tl:{ red:['>',0], green:false } });
+T('zal-reval',  { title:'Переоценка просрочена', inds:['coll.reval'], format:'number', kind:'link', queue:{ module:'Залог', name:'Переоценка просрочена' } });
+T('zal-ins',    { title:'Страховка не оформлена или истекла', inds:['coll.insurance'], format:'number', kind:'link', queue:{ module:'Залог', name:'Страховка' } });
+T('zal-ban',    { title:'Нет запрета на отчуждение', inds:['coll.noBan'], format:'number', kind:'link', queue:{ module:'Залог', name:'Нет запрета на отчуждение' } });
+T('zal-reg',    { title:'Договоров на регистрации', inds:['coll.registering'], format:'number', kind:'link', queue:{ module:'Залог', name:'На регистрации' } });
+T('zal-sale',   { title:'В реализации', inds:['coll.inSale'], format:'number', kind:'link', queue:{ module:'Залог', name:'В реализации' } });
+// — Кредитный специалист: «специалист = я» —
+const SPEC = { f:'specialist', op:'eq', v:'@me' };
+T('spec-work',  { title:'Заявок в работе', inds:['app.inWork'], filter:[SPEC], format:'number' });
+T('spec-req',   { title:'Запрошено по заявкам в работе', inds:['app.requested'], filter:[SPEC], format:'number' });
+T('spec-ready', { title:'Готовы к отправке', inds:['app.ready'], filter:[SPEC], format:'number', kind:'link', queue:{ module:'Заявка на кредит', name:'Готовы к отправке' }, tl:{ green:true } });
+T('spec-neg',   { title:'Есть отрицательное заключение', inds:['app.negative'], filter:[SPEC], format:'number', kind:'link', queue:{ module:'Заявка на кредит', name:'С отрицательным заключением' }, tl:{ red:['>',0], green:false } });
+T('spec-status',{ title:'Мои заявки по статусу', inds:['app.inWork'], dims:['astatus'], filter:[SPEC], format:'steps' });
+T('spec-stage', { title:'Новые заявки по стадии', inds:['app.inWork'], dims:['astage'], filter:[SPEC,{ f:'status', op:'eq', v:'Новый' }], format:'steps' });
+T('spec-dec',   { title:'Решения комиссии · прошлый месяц', inds:['comm.decided'], dims:['decision'], period:'prevMonth', format:'slice' });
+T('spec-prog',  { title:'Мои заявки по программам', inds:['app.inWork'], dims:['program'], filter:[SPEC], format:'slice' });
+T('spec-filed', { title:'Подано заявок, 12 мес.', inds:['app.filed'], filter:[SPEC], format:'series' });
+// — Комиссия —
+T('com-vote',   { title:'Ждут моего голоса', inds:['comm.myVote'], format:'number', kind:'link', queue:{ module:'Комиссия', name:'Ждут моего голоса' } });
+T('com-late',   { title:'Крайний срок прошёл', inds:['comm.late'], format:'number', kind:'link', queue:{ module:'Комиссия', name:'Срок прошёл' }, tl:{ red:['>',0], green:false } });
+T('com-soon',   { title:'Срок истекает ≤ 7 дн.', inds:['comm.soon'], filter:[{ f:'deadlineIn', op:'le', v:'@today+7' }], format:'number', kind:'link', queue:{ module:'Комиссия', name:'Срок истекает' }, tl:{ yellow:['>',0], green:false } });
+T('com-noscan', { title:'Решения без скана протокола', inds:['comm.noScan'], format:'number', kind:'link', queue:{ module:'Комиссия', name:'Без скана протокола' } });
+T('com-pend',   { title:'На рассмотрении', inds:['comm.pending'], format:'number' });
+T('com-sum',    { title:'Сумма на рассмотрении', inds:['comm.pendingSum'], format:'number' });
+T('com-max',    { title:'Наибольший срок на рассмотрении', inds:['comm.maxPending'], format:'number' });
+T('com-by',     { title:'На рассмотрении по комиссиям', inds:['comm.pending'], dims:['commission'], format:'slice' });
+T('com-dec',    { title:'Решения · прошлый месяц', inds:['comm.decided'], dims:['decision'], period:'prevMonth', format:'slice' });
+T('com-ser',    { title:'Рассмотрено, 12 мес.', inds:['comm.decided'], format:'series' });
+// — Головной офис —
+T('gof-wait',   { title:'Ждут подтверждения комплекта', inds:['app.waitGo'], format:'number', kind:'link', queue:{ module:'Заявка на кредит', name:'Ждут подтверждения ГО' } });
+T('gof-max',    { title:'Наибольшее ожидание', inds:['app.waitGoMax'], format:'number', tl:{ yellow:['>',7], green:false } });
+T('gof-compl',  { title:'В комплектации всего', inds:['app.complect'], format:'number' });
+T('gof-conf',   { title:'Подтверждено · прошлый месяц', inds:['app.confirmed'], period:'prevMonth', format:'shift' });
+T('gof-rp',     { title:'Ждут подтверждения по областям', inds:['app.waitGo'], dims:['region'], format:'slice' });
+// — Отдел · заключения —
+T('otd-pend',   { title:'Ждут нашего заключения', inds:['concl.pending'], format:'number', kind:'link', queue:{ module:'Заявка на кредит', name:'Ждут нашего заключения' } });
+T('otd-max',    { title:'Наибольшее ожидание', inds:['concl.waitMax'], format:'number', tl:{ yellow:['>',10], green:false } });
+T('otd-neg',    { title:'Наше отрицательное — заявка стоит', inds:['concl.negBlock'], format:'number', kind:'link', queue:{ module:'Заявка на кредит', name:'Наше отрицательное' }, tl:{ red:['>',0], green:false } });
+T('otd-rev',    { title:'Отозвано нами · прошлый месяц', inds:['concl.revoked'], period:'prevMonth', format:'number' });
+T('otd-verd',   { title:'Заключения по вердикту · прошлый месяц', inds:['concl.given'], dims:['verdict'], period:'prevMonth', format:'slice' });
+// — Отчётность —
+T('rep-od',     { title:'Просрочено обязательств', inds:['oblig.overdue'], format:'number', kind:'link', queue:{ module:'Отчётность', name:'Просроченные обязательства' }, tl:{ red:['>',0], green:false } });
+T('rep-soon',   { title:'Срок сдачи ≤ 7 дн.', inds:['oblig.soon'], filter:[{ f:'dueIn', op:'le', v:'@today+7' }], format:'number', kind:'link', queue:{ module:'Отчётность', name:'Срок близко' }, tl:{ yellow:['>',0], green:false } });
+T('rep-chg',    { title:'Сданные, где числа изменились', inds:['oblig.changed'], format:'number', kind:'link', queue:{ module:'Отчётность', name:'Нужен корректирующий выпуск' }, tl:{ yellow:['>',0], green:false } });
+T('rep-sum',    { title:'Итог сдачи · прошлый месяц', inds:['oblig.submitted'], dims:['ostate'], period:'prevMonth', format:'slice' });
+T('rep-ser',    { title:'Сдано в срок, 12 мес.', inds:['oblig.onTime','oblig.submitted'], share:['oblig.onTime','oblig.submitted'], format:'series' });
+// — Каталог сверх раскладок —
+T('cat-episodes',{ title:'Эпизоды просрочки', inds:['loan.episodes'], format:'number' });
+T('cat-byprog', { title:'Остаток по программам', inds:['loan.balance'], dims:['program'], format:'slice' });
+T('cat-byreg',  { title:'Остаток по областям', inds:['loan.balance'], dims:['region'], format:'slice' });
+T('cat-plan',   { title:'Исполнение плана · прошлый месяц', inds:['loan.paidPlanned','loan.plan'], share:['loan.paidPlanned','loan.plan'], period:'prevMonth', format:'shift', tl:{ red:['<',80], yellow:['<',95] } });
+// — Личная плитка (собрана Бековой для себя) —
+T('p-u2-agro',  { title:'Мои кредиты Агрокредит с просрочкой > 30 дн.', inds:['loan.count'], filter:[ME,{ f:'program', op:'eq', v:'agro' },{ f:'overdueDays', op:'gt', v:30 }],
+  format:'number', owner:'u2', state:'personal' });
+TILES.forEach(t=>{ t.created = '01.10.2026'; });
+function tileById(id){ return TILES.find(t=>t.id===id); }
+
+/* ================= Объявленные раскладки ролей (одна на роль) ================= */
+const ROLE_CORE_WAVE = { lead:1, an:1, cur:1, prob:1, acc:1, zal:1, spec:2, com:2, gof:2, otd:2, rep:3 };
+const DECLARED_SEED = {
+  lead:['s:Картина портфеля','lead-loans','lead-borr','lead-bal','lead-od','lead-odsh','lead-risk','lead-bucket','lead-cat',
+        's:Деньги и план','lead-issued','lead-paid','lead-prog','lead-odser','lead-heat','s:Взыскание','lead-claims','tasks'],
+  cur: ['s:Мой портфель','cur-loans','cur-risk','cur-rc','cur-odsh','cur-bal','cur-od','cur-bucket','cur-cat','s:Мой план и работа','cur-plan0','cur-plan1','tasks'],
+  prob:['s:Требования','prob-claims','prob-amount','prob-181','prob-since','prob-phase','prob-lead','s:Результат','prob-rec','prob-real','prob-recser','prob-meas','tasks'],
+  acc: ['s:Что мешает закрыть период','acc-unident','acc-await','acc-unm','s:Деньги','acc-today','acc-prev','acc-refund','acc-rev','acc-unalloc','acc-ser','acc-pkind','acc-src'],
+  zal: ['s:Портфель обеспечения','zal-count','zal-value','zal-kind','s:Что требует действия','zal-lowcov','zal-reval','zal-ins','zal-ban','zal-reg','zal-sale','tasks'],
+  spec:['s:Мои заявки','spec-work','spec-req','spec-ready','spec-neg','tasks','spec-status','spec-stage','s:Итоги','spec-dec','spec-prog','spec-filed'],
+  com: ['s:Мой голос и сроки','com-vote','com-late','com-soon','com-noscan','s:Обзор','com-pend','com-sum','com-max','com-by','com-dec','com-ser'],
+  gof: ['s:Подтверждение комплектов','gof-wait','gof-max','gof-compl','gof-conf','tasks','gof-rp'],
+  otd: ['s:Наша очередь','otd-pend','otd-max','otd-neg','tasks','s:Итоги','otd-rev','otd-verd'],
+  rep: ['s:Сдача','rep-od','rep-soon','rep-chg','tasks','s:Итоги','rep-sum','rep-ser'],
+};
+const MINIMAL = ['tasks'];
+
+/* ================= Состояние стенда ================= */
+let S;
+function seed(){
+  STAND.wave = 3; STAND.statDown = false; STAND.nightRunFailed = false; STAND.queueLag = 0; STAND.nightOnly = {}; STAND.overdueUp = false; STAND.withdrawn = {};
+  TILES.forEach(t=>{ if(t.owner==='catalog'){ t.state='published'; t.version=1; } });
+  for(let i=TILES.length-1;i>=0;i--) if(TILES[i].id.startsWith('p-') && TILES[i].id!=='p-u2-agro' || TILES[i].id.startsWith('n-')) TILES.splice(i,1);
+  const p = tileById('p-u2-agro'); if(p){ p.state='personal'; p.owner='u2'; p.proposed=false; }
+  S = { userId:'u1', tab:null, panel:{}, arrange:false, declared:JSON.parse(JSON.stringify(DECLARED_SEED)),
+    overlays:{}, screens:{}, subs:{}, notifs:[], journal:[], usage:{}, proposals:[], cache:new Map(), clock:0, cacheHits:0, cacheMiss:0 };
+  S.declared.an = S.declared.lead.slice();                    // Аналитик стартует с копии «Руководства», дальше живёт отдельно
+  S.overlays['u2|cur'] = { order:[], hidden:[], added:['p-u2-agro'] };
+  S.screens.u1 = [{ id:'sc1', name:'Совещание по Ошу', items:['lead-odsh','lead-bal','lead-bucket','cat-byprog'], filter:{ region:'Ошская' } }];
+  return S;
+}
+function user(){ return USERS.find(u=>u.id===S.userId); }
+function journal(action, detail, who){ S.journal.unshift({ at:TODAY.label, who: who || S.userId, action, detail }); }
+
+/* ================= Раскладка: объявленная + личная перекладка ================= */
+function tileAnswers(t){ // в раскладку попадает только плитка, которая отвечает (автопроверка, ИДБ-14)
+  if(!t) return false; if(t.state==='draft') return false;
+  return t.inds.every(i=>OBJECTS[IND[i].obj].wave <= STAND.wave && !IND[i].refuses);
+}
+function roleHasLayout(roleId){ return !!S.declared[roleId] && (ROLE_CORE_WAVE[roleId]||9) <= STAND.wave; }
+function declaredItems(roleId){
+  if(!roleHasLayout(roleId)) return MINIMAL.filter(k=>tileAnswers(tileById(k)));
+  return S.declared[roleId].filter(k=>k.startsWith('s:') || tileAnswers(tileById(k)) || (tileById(k)||{}).state==='withdrawn');
+}
+function overlay(uid, roleId){ const k = uid+'|'+roleId; return S.overlays[k] || (S.overlays[k] = { order:[], hidden:[], added:[] }); }
+function composeLayout(uid, roleId){
+  const D = declaredItems(roleId).filter(k=>!(tileById(k)||{}).state || tileById(k).state!=='withdrawn' || false);
+  const ov = S.overlays[uid+'|'+roleId] || { order:[], hidden:[], added:[] };
+  const pool = new Set([...D, ...ov.added]);
+  let out = ov.order.filter(k=>pool.has(k));
+  [...D, ...ov.added].forEach(k=>{ if(!out.includes(k)) out.push(k); });   // новое у роли — в конец личной раскладки
+  out = out.filter(k=>!ov.hidden.includes(k));
+  return out.map(k=>{ const t = tileById(k);
+    if(t && t.state==='withdrawn') return ov.added.includes(k) ? 'x:'+k : null;   // у роли исчезает, в личной — заглушка
+    return k; }).filter(Boolean);
+}
+function personalized(uid, roleId){ const ov = S.overlays[uid+'|'+roleId]; return !!ov && (ov.order.length || ov.hidden.length || ov.added.length); }
+function arrangeMove(roleId, key, dir){ const u = user(); const ov = overlay(u.id, roleId);
+  const cur = composeLayout(u.id, roleId); const i = cur.indexOf(key), j = i+dir; if(i<0 || j<0 || j>=cur.length) return false;
+  [cur[i], cur[j]] = [cur[j], cur[i]]; ov.order = cur; return true; }
+function arrangeDrop(roleId, key, beforeKey){ const u = user(); const ov = overlay(u.id, roleId);
+  const cur = composeLayout(u.id, roleId).filter(k=>k!==key); const j = beforeKey ? cur.indexOf(beforeKey) : cur.length; cur.splice(j<0?cur.length:j, 0, key); ov.order = cur; return true; }
+function arrangeHide(roleId, key){ const ov = overlay(user().id, roleId); if(ov.added.includes(key)) ov.added = ov.added.filter(k=>k!==key); else ov.hidden.push(key); }
+function arrangeUnhide(roleId, key){ const ov = overlay(user().id, roleId); ov.hidden = ov.hidden.filter(k=>k!==key); }
+function arrangeAdd(roleId, tileId){ const ov = overlay(user().id, roleId); if(composeLayout(user().id, roleId).includes(tileId)) return false;
+  ov.hidden = ov.hidden.filter(k=>k!==tileId); if(!declaredItems(roleId).includes(tileId)) ov.added.push(tileId); return true; }
+function arrangeSection(roleId, name){ const key = 's:'+name; const ov = overlay(user().id, roleId); ov.added.push(key); return key; }
+function resetDeclared(roleId){ delete S.overlays[user().id+'|'+roleId]; journal('вернул как объявлено', roleName(roleId)); }
+function roleName(id){ return (ROLES.find(r=>r.id===id)||{}).name || id; }
+
+/* ================= Свои экраны (до 5) ================= */
+function screens(uid){ return S.screens[uid] || (S.screens[uid] = []); }
+function createScreen(name){ const list = screens(user().id); if(list.length>=5) return { error:'Своих экранов не больше пяти' };
+  const sc = { id:'sc'+(Date.now?Date.now():1)+list.length, name: name || 'Мой экран '+(list.length+1), items:[], filter:null }; list.push(sc); return sc; }
+function screenById(id){ return screens(user().id).find(s=>s.id===id); }
+function screenAdd(id, tileId){ const sc = screenById(id); if(sc && !sc.items.includes(tileId)) sc.items.push(tileId); }
+function screenRemove(id, key){ const sc = screenById(id); if(sc) sc.items = sc.items.filter(k=>k!==key); }
+function screenSaveFilter(id){ const sc = screenById(id); if(sc) sc.filter = Object.keys(S.panel).some(k=>S.panel[k]) ? Object.assign({}, S.panel) : null; }
+function deleteScreen(id){ S.screens[user().id] = screens(user().id).filter(s=>s.id!==id); }
+
+/* ================= Каталог: что видно и почему нельзя ================= */
+function canSee(t, u){ // одно право — право на вопрос у статистики (ИДБ-4)
+  const objs = [...new Set(t.inds.map(i=>IND[i].obj))];
+  const bad = objs.find(o=>!u.roles.some(r=>hasRight(r, o)));
+  return bad ? 'Нельзя: объект «'+OBJECTS[bad].name+'» не открыт вашей роли' : null;
+}
+function catalogFor(u){
+  return TILES.filter(t=> t.state==='published' || (t.state==='personal' && t.owner===u.id))
+    .map(t=>({ t, why: canSee(t, u), ready: tileAnswers(t) }));
+}
+
+/* ================= Конструктор и автопроверка ================= */
+function blankDraft(){ return { id:null, title:'', obj:'loan', inds:['loan.count'], dims:[], filter:[], date:'today', period:'curMonth', format:'number', shift:null, share:null, tl:null, kind:'overview', queue:null, points:12, top:3 }; }
+function draftKind(d){ return IND[d.inds[0]].kind==='stock' ? 'stock' : 'flow'; }
+function formatsFor(d){
+  const I = IND[d.inds[0]]; const dims = d.dims || [];
+  const ord = dims[0] && DIMS[dims[0]].ordered;
+  const flowPartial = draftKind(d)==='flow' && PERIODS[d.period].partial;
+  return Object.keys(FORMAT_NAMES).map(f=>{
+    let why = null;
+    if(f==='number' && dims.length) why = 'у числа разрезов нет — уберите разрез или выберите «Разрез»';
+    if(f==='shift' && dims.length) why = 'у числа разрезов нет';
+    if(f==='shift' && flowPartial) why = 'неполный период не с чем честно сравнить';
+    if(f==='slice' && dims.length!==1) why = 'нужен ровно один разрез';
+    if(f==='steps' && (dims.length!==1 || !ord)) why = dims.length!==1 ? 'нужен ровно один разрез' : 'у разреза «'+DIMS[dims[0]].name+'» нет объявленного порядка значений';
+    if(f==='heat' && dims.length!==2) why = 'нужны два разреза';
+    if(f==='table' && dims.length!==1) why = 'нужен ровно один разрез строк';
+    if(f==='series' && dims.length) why = 'ряд — без разрезов';
+    if(f==='move' && (!I.flows || draftKind(d)!=='stock')) why = 'у показателя не объявлены потоки';
+    if(f!=='table' && f!=='series' && f!=='number' && d.inds.length>1 && !d.share) why = why || 'несколько показателей — только число, ряд или таблица';
+    return { f, ok:!why, why };
+  });
+}
+function shiftsFor(d){
+  if(draftKind(d)==='flow'){ const P = PERIODS[d.period]; return P.partial ? [{ id:null, ok:false, why:'неполный период не с чем честно сравнить' }] : [{ id:'auto', ok:true, label:'к предыдущему такому же периоду' }]; }
+  return Object.keys(STOCK_BASES).map(k=>({ id:k, ok: !(d.date==='prevMonthEnd' && k==='prevMonthEnd'), label:STOCK_BASES[k].label,
+    why: d.date==='prevMonthEnd' && k==='prevMonthEnd' ? 'база совпадает с датой плитки' : null }));
+}
+function autocheck(d){
+  const checks = [];
+  const objs = [...new Set(d.inds.map(i=>IND[i].obj))];
+  checks.push({ ok: objs.length===1, text:'один объект: '+objs.map(o=>OBJECTS[o].name).join(', ') });
+  checks.push({ ok: d.inds.length>=1 && d.inds.length<=4, text:'показателей от 1 до 4' });
+  checks.push({ ok: d.inds.every(i=>!STAND.withdrawn[i]), text:'показатели есть в реестре статистики' });
+  const fm = formatsFor(d).find(x=>x.f===d.format); checks.push({ ok: fm && fm.ok, text:'формат «'+FORMAT_NAMES[d.format]+'» допустим'+(fm && !fm.ok?': '+fm.why:'') });
+  if(d.share) checks.push({ ok: d.share.every(i=>IND[i].obj===objs[0]), text:'доля — два показателя одного объекта' });
+  const pv = ask(Object.assign({ id:'preview', inds:d.inds, dims:d.dims, filter:d.filter, version:1 }, d), user(), null, {});
+  checks.push({ ok: pv.state!=='refusal' && pv.state!=='error' && pv.state!=='broken', text:'предпросмотр без отказа'+(pv.state==='refusal'?': '+pv.msg:'') });
+  checks.push({ ok: !!(d.title||'').trim(), text:'есть подпись' });
+  return { checks, ok: checks.every(c=>c.ok), preview:pv };
+}
+function saveTile(d, mode){ // mode: 'personal' | 'draft' | 'publish'
+  const u = user(); const ac = autocheck(d);
+  if(mode!=='draft' && !ac.ok) return { error:'Автопроверка не пройдена', checks:ac.checks };
+  if(mode!=='personal' && !isAdmin(u)) return { error:'Публикует только администратор дашборда' };
+  const id = (mode==='personal'?'p-':'n-')+u.id+'-'+(++tileSeq);
+  const t = Object.assign({ kind:'overview', points:12, top:3 }, JSON.parse(JSON.stringify(d)), { id, version:1, created:'11.10.2026',
+    owner: mode==='personal' ? u.id : 'catalog', state: mode==='personal' ? 'personal' : mode==='draft' ? 'draft' : 'published' });
+  delete t.obj; TILES.push(t);
+  journal(mode==='personal'?'собрал личную плитку':mode==='draft'?'сохранил черновик':'опубликовал плитку', t.title);
+  return { tile:t };
+}
+function editTile(id, patch){ // правка показа — новая версия у всех; смена объекта или показателя — новая плитка
+  const t = tileById(id); if(!t) return { error:'нет плитки' };
+  if(patch.inds && patch.inds.join()!==t.inds.join()) return { error:'Смена показателя — это новая плитка' };
+  Object.assign(t, patch); t.version++; journal('изменил плитку (версия '+t.version+')', t.title); return { tile:t };
+}
+function isAdmin(u){ return u.roles.some(r=>(ROLES.find(x=>x.id===r)||{}).admin); }
+function propose(id){ const t = tileById(id); if(!t || t.owner!==user().id) return false; t.proposed = true;
+  S.proposals.push({ tile:id, from:user().id, at:TODAY.label }); journal('предложил плитку в каталог', t.title); return true; }
+function moveToCatalog(id){ const t = tileById(id); if(!t || !isAdmin(user())) return false;
+  t.state = 'published'; t.owner = 'catalog'; t.proposed = false; S.proposals = S.proposals.filter(p=>p.tile!==id); journal('перенёс личную плитку в каталог', t.title); return true; }
+function publishDraft(id){ const t = tileById(id); if(!t || t.state!=='draft') return false; const ac = autocheck(Object.assign({}, t));
+  if(!ac.ok) return { error:'Автопроверка не пройдена', checks:ac.checks }; t.state='published'; journal('опубликовал плитку', t.title); return true; }
+function whereUsed(id){
+  const roles = Object.keys(S.declared).filter(r=>S.declared[r].includes(id));
+  const personal = Object.keys(S.overlays).filter(k=>S.overlays[k].added.includes(id)).length;
+  const scr = Object.values(S.screens).reduce((a,l)=>a+l.filter(s=>s.items.includes(id)).length, 0);
+  return { roles, personal, screens:scr };
+}
+function withdraw(id){ const t = tileById(id); if(!t || !isAdmin(user())) return false; const w = whereUsed(id);
+  t.state = 'withdrawn'; journal('снял плитку', t.title+' · роли: '+(w.roles.map(roleName).join(', ')||'—')+' · личных: '+w.personal+' · своих экранов: '+w.screens); return w; }
+function declaredEdit(roleId, op, key, arg){ if(!isAdmin(user())) return false; const L = S.declared[roleId]; if(!L) return false;
+  const i = L.indexOf(key);
+  if(op==='add' && !L.includes(key)) L.push(key);
+  if(op==='remove' && i>=0) L.splice(i,1);
+  if(op==='move' && i>=0){ const j = i+arg; if(j>=0 && j<L.length){ [L[i],L[j]]=[L[j],L[i]]; } }
+  journal('изменил раскладку роли', roleName(roleId)+': '+op+' '+key); return true; }
+
+/* ================= Выгрузка со штампом ================= */
+function stampOf(tile, res){
+  const u = user();
+  return [ 'Плитка: '+tile.title,
+    'Паспорт: '+(res.passport || '—'),
+    'Охват: '+(res.visible!==undefined ? 'видно '+nbsp(res.visible) : '—')+(res.panelApplied && res.panelApplied.length ? ' · фильтр: '+res.panelText : ' · фильтр панели: нет'),
+    'НЕ ЯВЛЯЕТСЯ ОФИЦИАЛЬНЫМ ДОКУМЕНТОМ. Документ с номером и подписью выпускает модуль «Отчётность».',
+    'Выгрузил: '+u.name+', '+TODAY.label ];
+}
+function exportTile(tileId, kind, roleId){ // kind: 'pdf' | 'xlsx'
+  const t = tileById(tileId); const res = cachedAsk(t, user(), roleId, S.panel);
+  const stamp = stampOf(t, res); const rows = [];
+  if(res.value!==undefined && res.value!==null) rows.push([t.title, fmtVal(res.value, res.unit)]);
+  (res.nodes||[]).forEach(n=>rows.push([n.label, fmtVal(n.value, res.unit)]));
+  (res.table ? res.table.rows : []).forEach(r=>rows.push([r.label, ...r.cells.map((c,i)=>fmtVal(c, res.table.cols[i].unit))]));
+  (res.series ? res.series.points : []).forEach(p=>rows.push([p.label, ...p.vals.map(v=>fmtVal(v, res.unit))]));
+  if(res.move) rows.push(['начало', fmtVal(res.move.start,'sum')], ['конец', fmtVal(res.move.end,'sum')]);
+  const csv = [...stamp.map(s=>'# '+s), ...rows.map(r=>r.map(x=>'"'+String(x).replace(/"/g,'""')+'"').join(';'))].join('\n');
+  journal('выгрузил '+(kind==='pdf'?'PDF':'Excel'), t.title+' · '+(res.passport||''));
+  return { stamp, rows, csv, kind };
+}
+
+/* ================= Подписка на светофор ================= */
+function subKey(uid, tileId){ return uid+'|'+tileId; }
+function subscribe(tileId, roleId){ const k = subKey(user().id, tileId);
+  if(k in S.subs){ delete S.subs[k]; return false; }
+  const r = ask(tileById(tileId), user(), roleId, {}); S.subs[k] = { color:r.tl, roleId }; return true; }
+function recheckLights(){ // после ночного прогона и раз в час для «сегодня»; уведомление — только при смене цвета
+  const fired = [];
+  Object.keys(S.subs).forEach(k=>{ const [uid, tid] = k.split('|'); const u = USERS.find(x=>x.id===uid); const t = tileById(tid); if(!t) return;
+    const r = ask(t, u, S.subs[k].roleId, {}); const was = S.subs[k].color;
+    if(r.tl !== was){ const n = { to:uid, tile:tid, at:TODAY.label, text:'«'+t.title+'»: '+(was||'без цвета')+' → '+(r.tl||'без цвета')+' · '+fmtVal(r.value, r.unit)+' · '+tlText(t), read:false };
+      S.notifs.unshift(n); fired.push(n); S.subs[k].color = r.tl; } });
+  return fired;
+}
+
+/* ================= Кэш: ключ «вопрос + охват» ================= */
+function scopeKey(t, u, roleId){
+  const personal = (t.filter||[]).some(c=>typeof c.v==='string' && c.v.startsWith('@')) || t.inds.some(i=>OBJECTS[IND[i].obj].vis==='self');
+  const rs = viewerRoles(u, roleId).slice().sort().join(',');
+  return personal ? 'user:'+u.id+':'+rs : 'roles:'+rs+':'+u.dept;
+}
+function cacheKey(t, u, roleId, panel){ return [t.id, t.version, scopeKey(t,u,roleId), JSON.stringify(panel||{}), JSON.stringify(STAND)].join('§'); }
+function cachedAsk(t, u, roleId, panel){
+  const k = cacheKey(t, u, roleId, panel); const live = t.period ? PERIODS[t.period].partial : (t.date||'today')==='today';
+  const hit = S.cache.get(k); const ttl = live ? 1 : 1e9;      // «сегодня» — не дольше минуты; закрытый день — до следующего прогона
+  if(hit && S.clock - hit.at < ttl){ S.cacheHits++; return hit.res; }
+  S.cacheMiss++; const res = ask(t, u, roleId, panel); S.cache.set(k, { at:S.clock, res, calcAt:TODAY.time }); return res;
+}
+function tick(min){ S.clock += (min||1); }
+function countView(id){ const x = S.usage[id] || (S.usage[id] = { views:0, clicks:0 }); x.views++; }
+function countClick(id){ const x = S.usage[id] || (S.usage[id] = { views:0, clicks:0 }); x.clicks++; }
+
+/* ================= Отрисовка ================= */
+const HAS_DOM = typeof document!=='undefined';
+let view = 'home', loading = false, menuState = null, draft = null, expandState = null, catalogTarget = null;
+function $(id){ return document.getElementById(id); }
+function esc(s){ return String(s===undefined||s===null?'':s).replace(/[&<>"]/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c])); }
+function toast(msg){ if(!HAS_DOM) return; document.querySelectorAll('.toast').forEach(x=>x.remove()); const d = document.createElement('div'); d.className='toast'; d.textContent=msg; document.body.appendChild(d); setTimeout(()=>d.remove(), 2600); }
+function tabsFor(u){
+  const roleTabs = u.roles.filter(r=>r!=='adm' || u.roles.length===1).map(r=>({ kind:'role', id:r, name:roleName(r) }));
+  return roleTabs.concat(screens(u.id).map(s=>({ kind:'screen', id:s.id, name:s.name })));
+}
+function curTab(){ const u = user(); const tabs = tabsFor(u);
+  if(!S.tab || !tabs.find(t=>t.kind===S.tab.kind && t.id===S.tab.id)) S.tab = tabs[0]; return S.tab; }
+function curRole(){ const t = curTab(); return t.kind==='role' ? t.id : null; }
+function render(){
+  if(!HAS_DOM) return;
+  const u = user();
+  $('clock').textContent = 'Сегодня '+TODAY.label;
+  $('user-sel').innerHTML = USERS.map(x=>`<option value="${x.id}" ${x.id===u.id?'selected':''}>${esc(x.name)} — ${esc(x.roles.map(roleName).join(', '))}</option>`).join('');
+  const unread = S.notifs.filter(n=>n.to===u.id && !n.read).length;
+  $('notif-cnt').innerHTML = unread ? '<span class="notif-dot">'+unread+'</span>' : '';
+  const nav = [['home','Главная'],['catalog','Каталог плиток'],['builder','Конструктор плитки']];
+  if(isAdmin(u)) nav.push(['registry','Плитки дашборда'],['layouts','Раскладки ролей'],['journal','Журнал']);
+  nav.push(['stand','Стенд: соседи и сбои']);
+  $('nav').innerHTML = '<div class="nav-sec">Дашборд</div>' + nav.map(([k,n])=>`<button class="nav-item ${view===k?'active':''}" onclick="DB.go('${k}')">${n}${k==='registry'&&S.proposals.length?'<span class="cnt">'+S.proposals.length+'</span>':''}</button>`).join('');
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  $('v-'+view).classList.add('active');
+  $('crumb').textContent = { home:'Главная', catalog:'Каталог плиток', builder:'Конструктор плитки', registry:'Плитки дашборда', layouts:'Раскладки ролей', journal:'Журнал дашборда', stand:'Стенд' }[view];
+  ({ home:renderHome, catalog:renderCatalog, builder:renderBuilder, registry:renderRegistry, layouts:renderLayouts, journal:renderJournal, stand:renderStand })[view]();
+}
+function scopeText(u, roleId){
+  if(!roleId) return 'Охват: все ваши роли ('+u.roles.map(roleName).join(', ')+')';
+  const sc = (ROLES.find(r=>r.id===roleId)||{}).scope;
+  return 'Охват роли: '+({ all:'весь портфель', dept:'подразделение «'+deptName(u.dept)+'»', deptTree:'«'+deptName(u.dept)+'» и всё ниже', member:'комиссии, в которые вы входите', none:'—' }[sc]||sc);
+}
+function renderHome(){
+  const u = user(); const tab = curTab(); const roleId = curRole(); const tabs = tabsFor(u);
+  let items, sc = null;
+  if(tab.kind==='screen'){ sc = screenById(tab.id); items = sc.items.slice(); if(sc.filter && !S.panelTouched) S.panel = Object.assign({}, sc.filter); }
+  else items = composeLayout(u.id, roleId);
+  const minimal = tab.kind==='role' && !roleHasLayout(roleId);
+  const banners = [];
+  if(STAND.statDown) banners.push('<div class="banner err">Статистика не отвечает — плитки показывают «ошибка доставки», а не прошлые числа.</div>');
+  if(minimal) banners.push('<div class="banner info">Для роли «'+esc(roleName(roleId))+'» раскладка ещё не объявлена — показана минимальная. <button class="linky" onclick="DB.go(\'catalog\')">Добавить плитки из каталога →</button></div>');
+  if(sc && sc.filter) banners.push('<div class="banner info">Свой экран «'+esc(sc.name)+'» · сохранённый фильтр: <b>'+esc(panelLabel(sc.filter, Object.keys(sc.filter).filter(k=>sc.filter[k])))+'</b></div>');
+  const panelOn = Object.keys(S.panel).some(k=>S.panel[k]);
+  const sel = (k, opts) => `<label>${PANEL[k]} <select onchange="DB.setPanel('${k}', this.value)"><option value="">все</option>${opts.map(([v,n])=>`<option value="${v}" ${S.panel[k]===v?'selected':''}>${esc(n)}</option>`).join('')}</select></label>`;
+  $('v-home').innerHTML = `
+    <div class="tabs">${tabs.map(t=>`<button class="tab ${t.kind==='screen'?'own':''} ${t.kind===tab.kind&&t.id===tab.id?'active':''}" onclick="DB.setTab('${t.kind}','${t.id}')">${esc(t.name)}</button>`).join('')}
+      <button class="tab" onclick="DB.newScreen()" title="Свой экран — до пяти">+ экран</button></div>
+    ${banners.join('')}
+    <div class="scope-line"><span>${esc(scopeText(u, roleId))}</span>
+      ${tab.kind==='role' && personalized(u.id, roleId) ? '<span class="chip">личная раскладка</span>' : ''}
+      <span class="right">
+        ${S.arrange ? `<button class="btn arrange-only" onclick="DB.addSectionPrompt()">+ секция</button><button class="btn arrange-only" onclick="DB.openCatalogFor()">+ плитка из каталога</button><button class="btn primary" onclick="DB.toggleArrange()">Готово</button>`
+          : `<button class="btn arrange-only" onclick="DB.toggleArrange()">Переложить</button>`}
+        ${tab.kind==='role' ? `<button class="btn" onclick="DB.resetDeclared()" ${personalized(u.id, roleId)?'':'disabled'}>Вернуть как объявлено</button>` : ''}
+        ${sc ? `<button class="btn" onclick="DB.saveScreenFilter()">Сохранить фильтр в экран</button><button class="btn" onclick="DB.renameScreen()">Переименовать</button><button class="btn danger" onclick="DB.deleteScreen()">Удалить экран</button>` : ''}
+        <button class="btn" onclick="DB.exportScreen()">Выгрузить экран (PDF)</button>
+      </span></div>
+    <div class="filterbar ${panelOn?'on':''}">Фильтр на время просмотра:
+      ${sel('region', REGIONS.map(r=>[r,r]))} ${sel('dept', DEPTS.map(d=>[d.id,d.name]))} ${sel('program', PROGRAMS.map(p=>[p.id,p.name]))}
+      ${panelOn ? '<button class="btn sm" onclick="DB.clearPanel()">Сбросить</button>' : '<span class="muted small">сужает плитки, где есть такой разрез; охват не расширяет</span>'}</div>
+    ${hiddenChips(u, roleId)}
+    <div class="grid" id="grid">${items.map(k=>itemHTML(k, u, roleId, sc)).join('')}</div>
+    ${items.length ? '' : '<p class="muted">Здесь пока пусто. <button class="linky" onclick="DB.openCatalogFor()">Добавить плитки из каталога</button></p>'}`;
+  items.forEach(k=>{ if(!k.startsWith('s:') && !k.startsWith('x:')) countView(k); });
+  wireDnD();
+}
+function hiddenChips(u, roleId){ if(!roleId) return ''; const ov = S.overlays[u.id+'|'+roleId]; if(!ov || !ov.hidden.length) return '';
+  return '<div class="small" style="margin-bottom:8px">Скрыты: '+ov.hidden.map(k=>`<span class="chip">${esc(k.startsWith('s:')?k.slice(2):(tileById(k)||{}).title)} <button class="linky" onclick="DB.unhide('${k}')">вернуть</button></span>`).join(' ')+'</div>'; }
+function itemHTML(k, u, roleId, sc){
+  if(k.startsWith('s:')){ const name = k.slice(2); const col = (S.collapsed||{})[k];
+    return `<div class="section-row" data-key="${esc(k)}" ${S.arrange?'draggable="true"':''}><button class="linky" onclick="DB.toggleSection('${esc(k)}')">${col?'▸':'▾'}</button>${esc(name)}
+      ${S.arrange?`<span class="arr-tools"><button class="btn sm" onclick="DB.move('${esc(k)}',-1)">←</button><button class="btn sm" onclick="DB.move('${esc(k)}',1)">→</button><button class="btn sm" onclick="DB.hide('${esc(k)}')">×</button></span>`:''}</div>`; }
+  if(sectionCollapsed(k, u, roleId, sc)) return '';
+  if(k.startsWith('x:')){ const t = tileById(k.slice(2));
+    return `<div class="tile" data-key="${esc(k)}"><div class="t-head"><div class="t-title">${esc(t.title)}</div></div><div class="t-body"><div class="state-msg"><b>Снята администратором дашборда.</b> Плитка ушла из каталога.</div></div>
+      <div class="arr-tools"><button class="btn sm" onclick="DB.hide('${esc(k.slice(2))}')">Убрать у себя</button></div></div>`; }
+  const t = tileById(k); if(!t) return '';
+  if(t.state==='withdrawn') return itemHTML('x:'+k, u, roleId, sc);
+  const res = loading ? null : cachedAsk(t, u, roleId, S.panel);
+  return tileHTML(t, res, { roleId, arrange:S.arrange, key:k });
+}
+function sectionCollapsed(k, u, roleId, sc){ const C = S.collapsed||{}; const items = sc ? sc.items : composeLayout(u.id, roleId);
+  let sec = null; for(const x of items){ if(x.startsWith('s:')) sec = x; if(x===k) break; } return sec && C[sec]; }
+function sizeClass(t){ const s = SIZE[t.format]; return s==='2x2' ? 'w2 h2' : s==='2x1' ? 'w2' : ''; }
+function tileHTML(t, res, o){
+  const roleId = o.roleId; const u = user();
+  if(!res) return `<div class="tile skel ${sizeClass(t)}"><div class="t-head"><div class="t-title">${esc(t.title)}</div></div><div class="t-body"></div><div class="passport">загрузка…</div></div>`;
+  const tlCls = res.tl ? ' tl-'+res.tl : '';
+  const cls = 'tile '+sizeClass(t)+tlCls+(res.staleState?' stale':'')+(res.state==='error'?' err':'')+(o.arrange?' arrange':'');
+  const subbed = (subKey(u.id, t.id) in S.subs);
+  const tools = o.preview ? '' : `<span class="t-tools">
+      ${t.tl ? `<button class="${subbed?'on':''}" title="${subbed?'Не следить':'Следить за светофором'}" onclick="event.stopPropagation();DB.subscribe('${t.id}')">${subbed?'🔔':'🔕'}</button>` : ''}
+      <button title="Развернуть" onclick="event.stopPropagation();DB.expand('${t.id}')">⤢</button>
+      <button title="Действия" onclick="event.stopPropagation();DB.menu(event,'${t.id}')">⋯</button></span>`;
+  let body = '';
+  if(['error','refusal','broken','noaccess','empty','withdrawn'].includes(res.state)) body = `<div class="state-msg"><b>${{ error:'Ошибка доставки', refusal:'Отказ поимённо', broken:'Сломана объявлением', noaccess:'Нет доступа', empty:'Пустой охват', withdrawn:'Снята' }[res.state]}.</b> ${esc(res.msg)}</div>
+    ${res.state==='error'?'<div><button class="btn sm" onclick="event.stopPropagation();DB.refresh()">Повторить</button></div>':''}
+    ${res.state==='broken'?`<div><button class="btn sm" onclick="event.stopPropagation();DB.hide('${t.id}')">Скрыть у себя</button></div>`:''}
+    ${res.state==='empty'?'<div class="passport">видно 0</div>':''}`;
+  else body = formatBody(t, res);
+  const stale = res.staleState ? `<div class="tl-note" style="color:var(--asubk-amber)">⚠ Устарело: ${esc(res.stale)}</div>` : '';
+  const tln = res.tl && t.tl ? `<div class="tl-note"><span class="dot" style="background:var(--st-${res.tl==='red'?'crit':res.tl==='yellow'?'warn':'good'})"></span>${{red:'красный',yellow:'жёлтый',green:'зелёный'}[res.tl]} · ${esc(tlText(t))}</div>` : '';
+  const pp = res.passport && !['error','refusal','broken','noaccess','withdrawn'].includes(res.state) && res.state!=='empty' ? `<div class="passport">${esc(res.passport)}</div>` : '';
+  const arr = o.arrange && !o.preview ? `<div class="arr-tools arrange-only"><button class="btn sm" onclick="event.stopPropagation();DB.move('${o.key}',-1)">←</button><button class="btn sm" onclick="event.stopPropagation();DB.move('${o.key}',1)">→</button><button class="btn sm" onclick="event.stopPropagation();DB.hide('${o.key}')">Скрыть</button></div>` : '';
+  const click = o.preview || o.arrange ? '' : `onclick="DB.primary('${t.id}')"`;
+  return `<div class="${cls}" data-key="${esc(o.key||t.id)}" ${o.arrange&&!o.preview?'draggable="true"':''} ${click}>
+    <div class="t-head"><div class="t-title">${t.kind==='link'?'<div class="kind-link">ждёт меня · '+esc(t.queue.module)+'</div>':''}${esc(t.title)}${t.owner!=='catalog'?' <span class="chip">личная</span>':''}</div>${tools}</div>
+    <div class="t-body">${body}</div>${tln}${stale}${pp}${arr}</div>`;
+}
+function headlineText(t, res){
+  if(res.state==='dash') return '<div class="big">—</div><div class="sub">не из чего выбирать</div>';
+  if(t.share){ const I = IND[t.share[0]];
+    return `<div class="big">${fmtVal(res.value,'pct')}</div><div class="sub">${fmtVal(res.num, I.unit)} из ${fmtVal(res.den, IND[t.share[1]].unit)}</div>`; }
+  if(res.values && res.values.length>1) return `<div class="big">${res.values.map((v,i)=>fmtVal(v, IND[t.inds[i]].unit)).join(' <small>/</small> ')}</div><div class="sub">${t.inds.map(i=>esc(IND[i].name.toLowerCase())).join(' / ')}</div>`;
+  const zero = res.state==='zero' ? '<div class="sub">0 · посчитали — нет</div>' : '';
+  return `<div class="big">${fmtVal(res.value, res.unit)}</div>${zero}`;
+}
+function shiftHTML(t, res){ const s = res.shift; if(!s) return '';
+  if(s.none) return `<div class="sub muted">без сдвига: ${esc(s.none)}</div>`;
+  const I = IND[t.inds[0]]; const dir = s.delta>0 ? 'up' : s.delta<0 ? 'down' : 'flat';
+  const good = I.dir==='up_good' ? (dir==='up'?'good':'bad') : I.dir==='up_bad' ? (dir==='up'?'bad':'good') : null;
+  const cls = dir==='flat' || !good ? 'flat' : dir+'-'+good;
+  return `<div class="sub shift ${cls}">${fmtDelta(s.delta, res.unit)} ${esc(s.label)}</div>`; }
+function formatBody(t, res){
+  const unit = res.unit;
+  switch(t.format){
+    case 'number': case 'shift': return headlineText(t, res) + (t.format==='shift' ? shiftHTML(t, res) : '');
+    case 'slice': {
+      const nodes = res.nodes.filter(n=>n.value); const top = expandState && expandState.full ? nodes.length : (t.top||3);
+      const shown = nodes.slice(0, top), rest = nodes.slice(top); const max = Math.max(...nodes.map(n=>n.value||0), 1);
+      const restSum = rest.reduce((a,n)=>a+(n.value||0),0);
+      const row = (n, more)=>`<div class="bar-row ${more?'more':''}" data-tip="${esc(n.label)}: ${esc(fmtVal(n.value, unit))}${n.den?' ('+fmtVal(n.num, IND[t.share[0]].unit)+' из '+fmtVal(n.den, IND[t.share[1]].unit)+')':''}" ${more?'':`onclick="event.stopPropagation();DB.who('${t.id}','${t.dims[0]}','${esc(n.v)}')"`}>
+          <span class="lab">${esc(n.label)}</span><span class="track"><div class="fill" style="width:${Math.max(2,(n.value||0)/max*100)}%"></div></span><span class="val">${fmtVal(n.value, unit)}</span></div>`;
+      return `<div class="bars">${shown.map(n=>row(n)).join('')}${rest.length?row({ label:'ещё '+rest.length, value:restSum }, true):''}</div>
+        <div class="total-row">итог ${fmtVal(res.total.v, unit)} — узлом, не суммой строк</div>`; }
+    case 'steps': {
+      const max = Math.max(...res.nodes.map(n=>n.value||0), 1);
+      return `<div class="steps">${res.nodes.map(n=>`<div class="step" data-tip="${esc(n.label)}: ${esc(fmtVal(n.value, unit))}" onclick="event.stopPropagation();DB.who('${t.id}','${t.dims[0]}','${esc(n.v)}')">
+        <span class="v">${fmtVal(n.value, unit)}</span><div class="col" style="height:${Math.max(2,(n.value||0)/max*62)}px"></div><span class="k">${esc(n.label)}</span></div>`).join('')}</div>
+        <div class="total-row">итог ${fmtVal(res.total.v, unit)}</div>`; }
+    case 'series': return seriesSVG(t, res);
+    case 'move': { const m = res.move; const I = IND[t.inds[0]]; const inv = I.dir==='up_bad';
+      const d = m.end - m.start; const dcls = d===0 ? '' : ((d>0) !== inv ? 'style="color:var(--asubk-green)"' : 'style="color:var(--asubk-red)"');
+      return `<div class="mv"><span class="head">${fmtVal(m.end,'sum')}</span><span class="muted">на начало ${monthEndLabel(-1)}: ${fmtVal(m.start,'sum')}</span><span ${dcls}>${fmtDelta(d,'sum')}</span>
+        <span>+ увеличение</span><span class="muted">${m.inc.map(x=>esc(x.name)).join(', ')}</span><span class="n">+${fmtVal(m.ti,'sum')}</span>
+        <span>− уменьшение</span><span class="muted">${m.dec.map(x=>esc(x.name)).join(', ')}</span><span class="n">−${fmtVal(m.td,'sum')}</span>
+        <span>прочее</span><span class="muted">${esc(m.otherName)}</span><span class="n">${m.other>=0?'+':'−'}${fmtVal(Math.abs(m.other),'sum')}</span>
+        <span class="flows">${m.converges?'✓ сходится: конец = начало + обороты':'✗ не сходится на '+fmtVal(Math.abs(m.end-m.start-m.ti+m.td-m.other),'sum')}</span></div>`; }
+    case 'heat': { const h = res.heat; const max = Math.max(...h.cells.flat(), 1);
+      const shade = v=> { const k = v/max; return k===0 ? 'var(--asubk-gray-100)' : k<0.15 ? 'var(--seq-100)' : k<0.3 ? 'var(--seq-200)' : k<0.5 ? 'var(--seq-300)' : k<0.7 ? 'var(--seq-400)' : k<0.85 ? 'var(--seq-500)' : 'var(--seq-700)'; };
+      const ink = v=> v/max>=0.5 ? '#fff' : 'var(--asubk-ink)';
+      return `<table class="heat"><tr><th></th>${h.cols.map(c=>`<th>${esc(dimLabel(h.d2,c))}</th>`).join('')}</tr>
+        ${h.rows.map((r,i)=>`<tr><td class="rl">${esc(dimLabel(h.d1,r))}</td>${h.cols.map((c,j)=>`<td class="c" style="background:${shade(h.cells[i][j])};color:${ink(h.cells[i][j])}" data-tip="${esc(dimLabel(h.d1,r))} × ${esc(c)}: ${esc(fmtVal(h.cells[i][j], unit))}" onclick="event.stopPropagation();DB.who('${t.id}','${h.d1}','${esc(r)}','${h.d2}','${esc(c)}')">${unit==='sum' ? (h.cells[i][j]/1e6).toFixed(1).replace('.',',') : fmtVal(h.cells[i][j], unit)}</td>`).join('')}</tr>`).join('')}</table>
+        <div class="total-row">итог ${fmtVal(res.total.v, unit)} · ячейки — ${unit==='sum'?'млн сом':'шт.'}, цвет — величина (одна шкала)</div>`; }
+    case 'table': { const tb = res.table;
+      return `<table class="tbl"><tr><th>${esc(DIMS[tb.d].name)}</th>${tb.cols.map(c=>`<th>${esc(c.name)}</th>`).join('')}</tr>
+        ${tb.rows.map(r=>`<tr class="rowlink" onclick="event.stopPropagation();DB.who('${t.id}','${tb.d}','${esc(r.v)}')">${'<td>'+esc(r.label)+'</td>'+r.cells.map((c,i)=>`<td>${fmtVal(c, tb.cols[i].unit)}</td>`).join('')}</tr>`).join('')}
+        <tr><td><b>итог</b></td>${res.total.map((c,i)=>`<td><b>${fmtVal(c, tb.cols[i].unit)}</b></td>`).join('')}</tr></table>`; }
+  }
+  return '';
+}
+function seriesSVG(t, res){
+  const s = res.series; const W = 520, H = 120, pad = 22; const n = s.points.length; const lines = s.lines.length;
+  const all = s.points.flatMap(p=>p.vals).filter(v=>v!==null); const max = Math.max(...all, 1);
+  const x = i=> pad + i*(W-2*pad)/Math.max(1,n-1); const y = v=> H-18 - (v/max)*(H-34);
+  const colors = ['var(--series-1)','var(--series-2)','var(--series-3)'];
+  let svg = `<svg class="chart" viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="none" style="height:${t.format==='series'?120:120}px">`;
+  svg += `<line x1="${pad}" x2="${W-pad}" y1="${H-18}" y2="${H-18}" stroke="rgba(26,57,96,.18)"/>`;
+  if(lines===1){ const bw = (W-2*pad)/n*0.62;
+    s.points.forEach((p,i)=>{ const v = p.vals[0]||0; const h = (v/max)*(H-34);
+      svg += `<rect x="${x(i)-bw/2}" y="${H-18-h}" width="${bw}" height="${Math.max(1,h)}" rx="3" fill="${p.closed?colors[0]:'var(--seq-200)'}" data-tip="${esc(p.label)}: ${esc(fmtVal(v, res.unit))} · ${p.closed?'месяц закрыт':'не закрыт'}" onclick="event.stopPropagation();DB.whoMonth('${t.id}',${p.m})" style="cursor:pointer"/>`; }); }
+  else s.lines.forEach((L,li)=>{ svg += `<polyline fill="none" stroke="${colors[li]}" stroke-width="2" points="${s.points.map((p,i)=>x(i)+','+y(p.vals[li]||0)).join(' ')}"/>`;
+    s.points.forEach((p,i)=>{ svg += `<circle cx="${x(i)}" cy="${y(p.vals[li]||0)}" r="4" fill="${p.closed?colors[li]:'#fff'}" stroke="${colors[li]}" stroke-width="2" data-tip="${esc(L.name)} · ${esc(p.label)}: ${esc(fmtVal(p.vals[li], res.unit))}"/>`; }); });
+  s.points.forEach((p,i)=>{ if(i===0 || i===n-1 || i===Math.floor(n/2)) svg += `<text x="${x(i)}" y="${H-4}" text-anchor="middle">${esc(p.label)}</text>`; });
+  const last = s.points[n-1].vals[0];
+  svg += `<text x="${W-pad}" y="12" text-anchor="end">${esc(fmtVal(last, res.unit))} — последняя точка = дата среза</text></svg>`;
+  const legend = lines>1 ? `<div class="legend">${s.lines.map((L,i)=>`<span><span class="dot" style="background:${colors[i]}"></span> ${esc(L.name)}</span>`).join('')}</div>` : '';
+  return svg + legend + `<div class="legend"><span><span class="dot" style="background:var(--series-1)"></span> месяц закрыт</span><span><span class="dot" style="background:var(--seq-200)"></span> не закрыт</span></div>`;
+}
+
+/* ---------- меню «⋯» и главный клик ---------- */
+function closeOverlay(){ if(HAS_DOM) $('overlay').innerHTML=''; menuState = null; expandState = null; }
+function openMenu(ev, tileId){
+  const t = tileById(tileId); const u = user(); menuState = tileId;
+  const res = cachedAsk(t, u, curRole(), S.panel); const subbed = subKey(u.id, t.id) in S.subs;
+  const items = [
+    ['Кто в этом числе', `DB.who('${t.id}')`, 'строки объектов на дату среза — проверить и оспорить число'],
+    ['Работать со списком', `DB.registry('${t.id}')`, 'реестр модуля-владельца с фильтром плитки, на сегодня'],
+  ];
+  if(t.kind==='link') items.unshift(['Открыть очередь «'+t.queue.name+'»', `DB.queue('${t.id}')`, 'модуль «'+t.queue.module+'»']);
+  items.push(['Развернуть', `DB.expand('${t.id}')`, 'все строки, длинный ряд, свой разрез на время просмотра'],
+    ['Выгрузить PDF', `DB.exportTile('${t.id}','pdf')`, 'со штампом паспорта'], ['Выгрузить Excel', `DB.exportTile('${t.id}','xlsx')`, 'числа плитки со штампом']);
+  if(t.tl) items.push([subbed?'Не следить за светофором':'Следить за светофором', `DB.subscribe('${t.id}')`, 'уведомление при смене цвета — не задание']);
+  if(t.owner===u.id && !t.proposed) items.push(['Предложить в каталог', `DB.propose('${t.id}')`, 'администратор дашборда решит']);
+  if(S.tab && S.tab.kind==='screen') items.push(['Убрать с экрана', `DB.screenRemove('${t.id}')`, '']);
+  else items.push(['Скрыть у себя', `DB.hide('${t.id}')`, 'вернуть — «Вернуть как объявлено» или чип «Скрыты»']);
+  const x = Math.min(ev.clientX, window.innerWidth-260), y = Math.min(ev.clientY, window.innerHeight-360);
+  $('overlay').innerHTML = `<div class="drawer-mask" style="background:transparent" onclick="DB.close()"></div><div class="menu" style="left:${x}px;top:${y}px">
+    ${items.map(([n,a,h])=>`<button onclick="DB.close();${a}">${esc(n)}</button>${h?'<div class="hint">'+esc(h)+'</div>':''}`).join('')}</div>`;
+  void res;
+}
+function primaryClick(tileId){ const t = tileById(tileId); countClick(tileId);
+  if(t.kind==='link') return openQueue(tileId); return openWho(tileId); }
+function drawer(title, html, wide){ if(!HAS_DOM) return; $('overlay').innerHTML = `<div class="drawer-mask" onclick="DB.close()"></div>
+  <div class="drawer ${wide?'wide':''}"><div class="drawer-h"><h3>${title}</h3><button class="drawer-x" onclick="DB.close()">✕</button></div><div class="drawer-b">${html}</div></div>`; }
+function rowLabel(obj, r){ const nm = { loan:r.borrower, claim:'по '+r.loan, coll:r.kind, app:progName(r.program), comm:r.commission, concl:r.verdict||'ждёт', oblig:r.form, task:r.hot?'горит':'', receipt:r.source, payment:r.kind, measure:r.kind, borrower:r.region, program:r.name }[obj]; return nm||''; }
+function openWho(tileId, node){
+  const t = tileById(tileId); const sr = statRows(t, user(), curRole(), S.panel, node);
+  const nodeTxt = node ? ' · узел: '+[node.d && dimLabel(node.d,node.v), node.d2 && dimLabel(node.d2,node.v2)].filter(Boolean).join(' × ') : '';
+  if(sr.refused){ drawer('Кто в этом числе — «'+esc(t.title)+'»'+esc(nodeTxt), `<div class="banner warn">Отказ статистики: ${esc(sr.msg)}.</div>
+    <p>Усечённого и постраничного списка не бывает: он не сошёлся бы с числом.</p>
+    <p><button class="btn" onclick="DB.registry('${t.id}')">Работать со списком (реестр, можно листать)</button>
+    <button class="btn" onclick="DB.expand('${t.id}')">Развернуть с разрезом</button>
+    <button class="btn" onclick="DB.toast('Выгрузка строк поставлена статистике заданием — файл придёт с метаданными внутри')">Выгрузка строк (задание статистики)</button></p>
+    ${sr.passport?'<div class="passport mono">'+esc(sr.passport)+'</div>':''}`); return sr; }
+  drawer('Кто в этом числе — «'+esc(t.title)+'»'+esc(nodeTxt), `<div class="kv"><div class="k">Строк</div><div>${sr.list.length} — полный список на дату среза</div>
+    <div class="k">Сумма строк</div><div>${fmtVal(sr.sum, sr.unit)}</div><div class="k">Паспорт</div><div class="mono">${esc(sr.passport)}</div></div>
+    <table class="list"><tr><th>Объект</th><th>Кратко</th><th class="n">Значение</th></tr>${sr.list.slice(0,400).map(x=>`<tr><td><button class="linky" onclick="DB.toast('Карточка ${esc(x.r.id)} открывается в модуле «${esc(OBJECTS[sr.obj].owner)}»')">${esc(x.r.id)}</button></td><td>${esc(rowLabel(sr.obj, x.r))}</td><td class="n">${fmtVal(x.v, sr.unit)}</td></tr>`).join('')}</table>`);
+  return sr;
+}
+function openRegistry(tileId){ const t = tileById(tileId); const r = registryList(t, user(), curRole(), S.panel);
+  drawer('Работать со списком — '+esc(r.registry), `<div class="banner info">Открывается «${esc(r.registry)}» модуля «${esc(r.owner)}» с фильтром плитки, на сегодня. Карточки, документы и действия — там.</div>
+    <div class="kv"><div class="k">В реестре сейчас</div><div>${nbsp(r.today)}</div><div class="k">В срезе плитки</div><div>${nbsp(r.slice)}</div></div>
+    <p class="muted small">Подпись в реестре: «в реестре ${nbsp(r.today)}, в срезе было ${nbsp(r.slice)}». Разница в сутки расхождением не является.</p>`); return r; }
+function openQueue(tileId){ const t = tileById(tileId); const res = cachedAsk(t, user(), curRole(), S.panel);
+  drawer('Очередь «'+esc(t.queue.name)+'» — модуль «'+esc(t.queue.module)+'»', `<div class="banner info">Ссылочная плитка ведёт в очередь модуля, где работа делается. Дашборд ничего не поручает и списка дел не держит.</div>
+    <div class="kv"><div class="k">В очереди</div><div>${fmtVal(res.value, IND[t.inds[0]].unit)}</div><div class="k">Модуль</div><div>${esc(t.queue.module)}</div></div>
+    ${(res.rows||[]).filter(r=>valueOf(r, IND[t.inds[0]], ctxOf(t))!==null).slice(0,50).map(r=>`<div class="small">• ${esc(r.id)} ${esc(rowLabel(IND[t.inds[0]].obj, r))}</div>`).join('')}`); }
+function openExpand(tileId){
+  const t = tileById(tileId); expandState = expandState && expandState.tile===tileId ? expandState : { tile:tileId, full:true, dim:null, points:24 };
+  const tmp = Object.assign({}, t, { top:999, points: t.format==='series'?24:t.points });
+  if(expandState.dim && (t.format==='slice' || t.format==='steps')) tmp.dims = [expandState.dim];
+  const res = ask(tmp, user(), curRole(), S.panel);
+  const objDims = OBJ_DIMS[IND[t.inds[0]].obj].filter(d=>t.format==='slice' || DIMS[d].ordered);
+  drawer('Развернуть — «'+esc(t.title)+'»', `${(t.format==='slice'||t.format==='steps') && objDims.length>1 ? `<p>Разрез на время просмотра: <select onchange="DB.expandDim(this.value)">${objDims.map(d=>`<option value="${d}" ${(expandState.dim||t.dims[0])===d?'selected':''}>${esc(DIMS[d].name)}</option>`).join('')}</select></p>`:''}
+    <div style="max-width:900px">${tileHTML(tmp, res, { preview:true, roleId:curRole() })}</div>`, true); }
+function openExport(tileId, kind){ const r = exportTile(tileId, kind, curRole());
+  drawer('Выгрузка '+(kind==='pdf'?'PDF':'Excel')+' — со штампом', `<div class="stamp">${r.stamp.map((s,i)=>i===3?'<b>'+esc(s)+'</b>':esc(s)).join('<br>')}</div>
+    <p class="muted small">Штамп печатается всегда. Выгрузка записана в журнал дашборда.</p>
+    <table class="list">${r.rows.map(x=>'<tr>'+x.map(c=>'<td>'+esc(c)+'</td>').join('')+'</tr>').join('')}</table>
+    ${kind==='xlsx'?'<p><button class="btn primary" onclick="DB.downloadCSV()">Скачать файл</button></p>':'<p><button class="btn primary" onclick="window.print()">Печать в PDF</button></p>'}`);
+  S.lastExport = r; return r; }
+function downloadCSV(){ if(!HAS_DOM || !S.lastExport) return; const b = new Blob(['﻿'+S.lastExport.csv], { type:'text/csv' }); const a = document.createElement('a');
+  a.href = URL.createObjectURL(b); a.download = 'plitka.csv'; a.click(); }
+function openNotifs(){ const u = user(); const list = S.notifs.filter(n=>n.to===u.id); list.forEach(n=>n.read=true);
+  drawer('Уведомления', list.length ? list.map(n=>`<div class="banner info">${esc(n.at)} · ${esc(n.text)} <button class="linky" onclick="DB.close();DB.expand('${n.tile}')">открыть плитку</button></div>`).join('') :
+    '<p class="muted">Уведомлений нет. Поставьте 🔔 на плитку со светофором — придёт уведомление, когда цвет сменится.</p>'); render(); }
+
+/* ---------- Каталог ---------- */
+function renderCatalog(){
+  const u = user(); const q = (S.catQ||'').toLowerCase(); const fmt = S.catF||'';
+  const target = catalogTarget || (S.tab ? S.tab : null);
+  const list = catalogFor(u).filter(x=>(!q || x.t.title.toLowerCase().includes(q) || x.t.inds.some(i=>IND[i].name.toLowerCase().includes(q))) && (!fmt || x.t.format===fmt));
+  const inTarget = id => target ? (target.kind==='screen' ? (screenById(target.id)||{items:[]}).items.includes(id) : composeLayout(u.id, target.id).includes(id)) : false;
+  $('v-catalog').innerHTML = `<p class="muted">Один каталог для раскладок ролей и для личных. Добавленная плитка встаёт в конец ${target?'вкладки «'+esc(target.kind==='screen'?(screenById(target.id)||{}).name:roleName(target.id))+'»':'текущей вкладки'}.</p>
+    <div class="filterbar"><input type="text" placeholder="Поиск по названию или показателю" value="${esc(S.catQ||'')}" oninput="DB.catSearch(this.value)" style="min-width:280px">
+      ${['',...Object.keys(FORMAT_NAMES)].map(f=>`<button class="btn sm ${fmt===f?'primary':''}" onclick="DB.catFormat('${f}')">${f?FORMAT_NAMES[f]:'все форматы'}</button>`).join('')}</div>
+    <table class="list"><tr><th>Плитка</th><th>Вопрос</th><th>Формат</th><th></th></tr>
+    ${list.map(({ t, why, ready })=>`<tr><td><b>${esc(t.title)}</b>${t.owner!=='catalog'?' <span class="chip">личная</span>':''}${t.kind==='link'?' <span class="chip">ждёт меня</span>':''}</td>
+      <td class="small">${esc(OBJECTS[IND[t.inds[0]].obj].name)} · ${t.inds.map(i=>esc(IND[i].name)).join(', ')}${t.dims.length?' · по '+t.dims.map(d=>esc(DIMS[d].name)).join(' × '):''}</td>
+      <td class="small">${FORMAT_NAMES[t.format]} · ${SIZE[t.format]}</td>
+      <td>${why ? '<span class="small bad">'+esc(why)+'</span>' : !ready ? '<span class="small muted">ждёт соседа: '+esc(OBJECTS[IND[t.inds[0]].obj].owner)+'</span>' :
+        inTarget(t.id) ? '<span class="small muted">Есть</span>' : `<button class="btn sm primary" onclick="DB.addFromCatalog('${t.id}')">Добавить</button>`}</td></tr>`).join('')}</table>`;
+}
+/* ---------- Конструктор ---------- */
+function renderBuilder(){
+  const u = user(); if(!draft) draft = blankDraft(); const d = draft; const I = IND[d.inds[0]]; const obj = I.obj;
+  const objs = Object.keys(OBJECTS).filter(o=>u.roles.some(r=>hasRight(r,o)));
+  const inds = Object.values(IND).filter(x=>x.obj===obj);
+  const dims = OBJ_DIMS[obj]; const fm = formatsFor(d); const sh = shiftsFor(d); const ac = autocheck(d);
+  const relFields = { loan:[['curator','куратор'],['dept','подразделение']], app:[['specialist','специалист'],['dept','подразделение']], coll:[['dept','подразделение']], claim:[['dept','подразделение']] }[obj] || [];
+  $('v-builder').innerHTML = `<div class="cols2"><div>
+    <div class="form-step"><h4>1 · Объект</h4><select onchange="DB.dSet('obj', this.value)">${objs.map(o=>`<option value="${o}" ${o===obj?'selected':''}>${esc(OBJECTS[o].name)}${OBJECTS[o].wave>STAND.wave?' — ещё не объявлен':''}</option>`).join('')}</select>
+      <div class="why">Своих показателей и разрезов дашборд не заводит — только записи реестра статистики.</div></div>
+    <div class="form-step"><h4>2 · Показатели (до 4, одного объекта)</h4>${inds.map(x=>`<label class="opt ${STAND.withdrawn[x.id]?'off':''}"><input type="checkbox" ${d.inds.includes(x.id)?'checked':''} ${STAND.withdrawn[x.id]?'disabled':''} onchange="DB.dInd('${x.id}', this.checked)"> ${esc(x.name)}</label>`).join('<br>')}
+      ${d.inds.length===2 ? `<div style="margin-top:6px"><label class="opt"><input type="checkbox" ${d.share?'checked':''} onchange="DB.dSet('share', this.checked)"> показать долю: первый из второго (оба числа видны, изменение в п.п.)</label></div>`:''}</div>
+    <div class="form-step"><h4>3 · Разрезы</h4>${dims.map(x=>`<label class="opt"><input type="checkbox" ${d.dims.includes(x)?'checked':''} onchange="DB.dDim('${x}', this.checked)"> ${esc(DIMS[x].name)}${DIMS[x].ordered?' <span class="muted small">(порядок объявлен)</span>':''}</label>`).join('')}</div>
+    <div class="form-step"><h4>4 · Фильтр</h4>${relFields.map(([f,n])=>{ const c = d.filter.find(x=>x.f===f); const v = c?c.v:'';
+        const opts = f==='dept' ? [['','—'],['@myDept','«моё подразделение»'],['@myDeptTree','«моё подразделение и ниже»']] : [['','—'],['@me','«я»']];
+        return `<label class="opt">${n}: <select onchange="DB.dFilter('${f}', this.value)">${opts.map(([a,b])=>`<option value="${a}" ${a===v?'selected':''}>${b}</option>`).join('')}</select></label>`; }).join('')}
+      <div class="why">Относительные параметры подставляются по смотрящему; охват роли режет сверху. Нормативная граница (например «ниже 120 %») — часть вопроса, а не цвет.</div></div>
+    <div class="form-step"><h4>5 · ${draftKind(d)==='stock'?'Дата':'Период'}</h4>${draftKind(d)==='stock'
+      ? Object.keys(DATE_MODES).map(k=>`<label class="opt"><input type="radio" name="dm" ${d.date===k?'checked':''} onchange="DB.dSet('date','${k}')"> ${DATE_MODES[k].label}</label>`).join('')
+      : Object.keys(PERIODS).filter(k=>!k.startsWith('__')).map(k=>`<label class="opt"><input type="radio" name="pp" ${d.period===k?'checked':''} onchange="DB.dSet('period','${k}')"> ${PERIODS[k].label}</label>`).join('')}
+      ${draftKind(d)==='flow' && d.period==='curMonth' ? '<div class="why">В начале месяца число маленькое: подпись скажет «идёт N-й день». Для руководства поставьте рядом и «прошлый месяц».</div>':''}
+      <div class="why">Только календарные периоды: дневные строки закрытого месяца не хранятся.</div></div>
+    <div class="form-step"><h4>6 · Формат</h4>${fm.map(x=>`<label class="opt ${x.ok?'':'off'}"><input type="radio" name="fm" ${d.format===x.f?'checked':''} ${x.ok?'':'disabled'} onchange="DB.dSet('format','${x.f}')"> ${FORMAT_NAMES[x.f]} <span class="muted small">${SIZE[x.f]}</span></label>${x.ok?'':'<div class="why">'+esc(x.why)+'</div>'}`).join('')}</div>
+    ${d.format==='shift' ? `<div class="form-step"><h4>7 · Сдвиг</h4>${sh.map(x=>`<label class="opt ${x.ok?'':'off'}"><input type="radio" name="sh" ${(d.shift||'prevMonthEnd')===x.id||x.id==='auto'?'checked':''} ${x.ok?'':'disabled'} onchange="DB.dSet('shift','${x.id}')"> ${esc(x.label||'')}</label>${x.why?'<div class="why">'+esc(x.why)+'</div>':''}`).join('')}</div>`:''}
+    <div class="form-step"><h4>8 · Светофор (необязательно)</h4><label class="opt">красный, если значение <select onchange="DB.dTl('red', this.value, null)"><option value=">">></option><option value="<" ${d.tl&&d.tl.red&&d.tl.red[0]==='<'?'selected':''}><</option></select>
+      <input type="number" style="width:90px" value="${d.tl&&d.tl.red?d.tl.red[1]:''}" onchange="DB.dTl('red', null, this.value)"></label>
+      <label class="opt">жёлтый <input type="number" style="width:90px" value="${d.tl&&d.tl.yellow?d.tl.yellow[1]:''}" onchange="DB.dTl('yellow', null, this.value)"></label>
+      <div class="why">Порог печатается на плитке — цвет всегда объясним.</div></div>
+    <div class="form-step"><h4>9 · Подпись</h4><input type="text" style="width:100%" value="${esc(d.title)}" onchange="DB.dTitle(this.value)" placeholder="Название плитки"></div>
+  </div><div>
+    <div class="h2" style="margin-top:0">Предпросмотр · ответ статистики сейчас</div>
+    <div class="grid" style="grid-template-columns:repeat(2,minmax(0,1fr))">${tileHTML(Object.assign({ id:'preview', title:d.title||'(без подписи)', owner:'catalog', kind:'overview' }, d), ac.preview, { preview:true })}</div>
+    <div class="h2">Автопроверка</div><ul class="checks">${ac.checks.map(c=>`<li class="${c.ok?'ok':'bad'}">${c.ok?'✓':'✗'} ${esc(c.text)}</li>`).join('')}</ul>
+    <p class="muted small">Второго ключа нет: плитка чисел не замораживает, ошибка правится новой версией. После публикации ссылка уходит в обратный индекс статистики.</p>
+    <p><button class="btn" onclick="DB.saveDraft('personal')" ${ac.ok?'':'disabled'}>Сохранить как личную</button>
+    ${isAdmin(u)?`<button class="btn" onclick="DB.saveDraft('draft')">Черновик каталога</button> <button class="btn primary" onclick="DB.saveDraft('publish')" ${ac.ok?'':'disabled'}>Опубликовать в каталог</button>`:''}
+    <button class="btn" onclick="DB.newDraft()">Начать заново</button></p>
+  </div></div>`;
+}
+/* ---------- Администратор: реестр, раскладки, журнал ---------- */
+function renderRegistry(){
+  const rows = TILES.filter(t=>t.owner==='catalog' || t.proposed);
+  $('v-registry').innerHTML = `${S.proposals.length?`<div class="banner info">Предложено в каталог: ${S.proposals.map(p=>`«${esc(tileById(p.tile).title)}» от ${esc(userName(p.from))} <button class="btn sm primary" onclick="DB.moveToCatalog('${p.tile}')">Перенести в каталог</button>`).join(' · ')}</div>`:''}
+    <p><button class="btn primary" onclick="DB.go('builder')">Новая плитка</button> <span class="muted small">Цикл: черновик → опубликована → снята. Просмотры и клики — обезличенными счётчиками.</span></p>
+    <table class="list"><tr><th>Плитка</th><th>Вопрос</th><th>Состояние</th><th>Версия</th><th>Где стоит</th><th class="n">Просмотров</th><th class="n">Кликов</th><th></th></tr>
+    ${rows.map(t=>{ const w = whereUsed(t.id); const us = S.usage[t.id]||{views:0,clicks:0};
+      return `<tr><td>${esc(t.title)}</td><td class="small">${esc(OBJECTS[IND[t.inds[0]].obj].name)} · ${FORMAT_NAMES[t.format]}</td><td>${{published:'опубликована',draft:'черновик',withdrawn:'снята',personal:'личная (предложена)'}[t.state]}</td><td>в. ${t.version}</td>
+      <td class="small">${w.roles.map(roleName).join(', ')||'—'}${w.personal?' · личных: '+w.personal:''}${w.screens?' · экранов: '+w.screens:''}</td><td class="n">${us.views}</td><td class="n">${us.clicks}</td>
+      <td>${t.state==='published'?`<button class="btn sm danger" onclick="DB.withdrawAsk('${t.id}')">Снять</button>`:t.state==='draft'?`<button class="btn sm primary" onclick="DB.publishDraft('${t.id}')">Опубликовать</button>`:''}</td></tr>`; }).join('')}</table>`;
+}
+function renderLayouts(){
+  const rid = S.layoutRole || 'lead'; const L = S.declared[rid] || [];
+  $('v-layouts').innerHTML = `<p>Объявленная раскладка — одна на роль на всю систему. Изменение: новая плитка встаёт в конец личных раскладок, убранная исчезает.</p>
+    <p>Роль: <select onchange="DB.layoutRole(this.value)">${Object.keys(S.declared).map(r=>`<option value="${r}" ${r===rid?'selected':''}>${esc(roleName(r))}</option>`).join('')}</select>
+    <span class="muted small">ядро раскладки готово с волны ${ROLE_CORE_WAVE[rid]} · сейчас волна ${STAND.wave}</span></p>
+    <table class="list"><tr><th>#</th><th>Элемент</th><th>Отвечает?</th><th></th></tr>${L.map((k,i)=>{ const t = tileById(k);
+      return `<tr><td>${i+1}</td><td>${k.startsWith('s:')?'<b>секция «'+esc(k.slice(2))+'»</b>':esc(t?t.title:k)}</td><td class="small">${k.startsWith('s:')?'':tileAnswers(t)?'<span class="ok">да</span>':'<span class="bad">нет — черновиком, на главную не попадает</span>'}</td>
+      <td><button class="btn sm" onclick="DB.declMove('${rid}','${esc(k)}',-1)">↑</button><button class="btn sm" onclick="DB.declMove('${rid}','${esc(k)}',1)">↓</button><button class="btn sm danger" onclick="DB.declRemove('${rid}','${esc(k)}')">убрать</button></td></tr>`; }).join('')}</table>
+    <p>Добавить: <select id="decl-add">${TILES.filter(t=>t.state==='published' && !L.includes(t.id)).map(t=>`<option value="${t.id}">${esc(t.title)}</option>`).join('')}</select> <button class="btn" onclick="DB.declAdd('${rid}', document.getElementById('decl-add').value)">Добавить в конец</button></p>`;
+}
+function renderJournal(){ $('v-journal').innerHTML = `<p class="muted">Изменения плиток и раскладок, выгрузки — поимённо. Просмотры — только счётчиками в реестре плиток.</p>
+  <table class="list"><tr><th>Когда</th><th>Кто</th><th>Что</th><th>Подробно</th></tr>${S.journal.map(j=>`<tr><td>${esc(j.at)}</td><td>${esc(userName(j.who))}</td><td>${esc(j.action)}</td><td class="small">${esc(j.detail)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">пусто</td></tr>'}</table>`; }
+function renderStand(){
+  const chk = (k, label) => `<label class="opt"><input type="checkbox" ${STAND[k]?'checked':''} onchange="DB.stand('${k}', this.checked)"> ${label}</label><br>`;
+  $('v-stand').innerHTML = `<div class="banner info">Стенд макета: здесь меняется то, что в системе зависит от соседей и сбоев. Пользователю этот экран не нужен.</div>
+    <div class="form-step"><h4>Готовность соседей (запуск волнами)</h4>${[1,2,3].map(w=>`<label class="opt"><input type="radio" name="wv" ${STAND.wave===w?'checked':''} onchange="DB.stand('wave', ${w})"> волна ${w}</label>`).join('')}
+      <div class="why">Волна 1 — кредит, платёж, поступление, залог, требование. Волна 2 — заявка, комиссия, заключение. Волна 3 — обязательство, задание.</div></div>
+    <div class="form-step"><h4>Сбои статистики</h4>${chk('statDown','статистика не отвечает (ошибка доставки)')}${chk('nightRunFailed','ночной прогон 11.10 не прошёл')}
+      <label class="opt">очередь пересчёта отстала на <input type="number" style="width:70px" value="${STAND.queueLag}" onchange="DB.stand('queueLag', Number(this.value))"> мин (порог 15)</label><br>
+      <label class="opt"><input type="checkbox" ${STAND.nightOnly.receipt?'checked':''} onchange="DB.standNightOnly('receipt', this.checked)"> источник «Платежи» обновляется только ночью</label></div>
+    <div class="form-step"><h4>Реестр показателей</h4><label class="opt"><input type="checkbox" ${STAND.withdrawn['loan.risk']?'checked':''} onchange="DB.standWithdraw('loan.risk', this.checked)"> вывести показатель «Сумма под риском (залог)» из реестра</label></div>
+    <div class="form-step"><h4>Сценарий данных и светофоры</h4>${chk('overdueUp','просрочка выросла на 18 %')}
+      <button class="btn" onclick="DB.recheck()">Перепроверить светофоры (как после ночного прогона)</button> <button class="btn" onclick="DB.tick(2)">Прошло 2 минуты (кэш «сегодня» истекает)</button>
+      <div class="why">Кэш: попаданий ${S.cacheHits}, расчётов ${S.cacheMiss}. Ключ — «вопрос + охват», охваты не смешиваются.</div></div>`;
+}
+
+/* ---------- перетаскивание (мышь) и стрелки (клавиатура) ---------- */
+function wireDnD(){ if(!HAS_DOM || !S.arrange) return; let dragKey = null;
+  document.querySelectorAll('#grid [draggable=true]').forEach(el=>{
+    el.addEventListener('dragstart', e=>{ dragKey = el.dataset.key; e.dataTransfer.effectAllowed='move'; });
+    el.addEventListener('dragover', e=>{ e.preventDefault(); el.classList.add('drag-over'); });
+    el.addEventListener('dragleave', ()=>el.classList.remove('drag-over'));
+    el.addEventListener('drop', e=>{ e.preventDefault(); el.classList.remove('drag-over'); if(dragKey && dragKey!==el.dataset.key){ api.drop(dragKey, el.dataset.key); } }); }); }
+if(HAS_DOM){ document.addEventListener('mousemove', e=>{ const el = e.target.closest && e.target.closest('[data-tip]'); const tip = $('tip');
+  if(el){ tip.textContent = el.dataset.tip; tip.style.display='block'; tip.style.left = Math.min(e.clientX+12, window.innerWidth-290)+'px'; tip.style.top = (e.clientY+14)+'px'; } else tip.style.display='none'; });
+  document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeOverlay(); }); }
+
+/* ================= API (onclick и смоук) ================= */
+const api = {
+  // модель
+  TODAY, STAND, OBJECTS, DIMS, IND, TILES, ROLES, USERS, DATA, PERIODS, FORMAT_NAMES, SIZE, DECLARED_SEED,
+  seed:()=>{ seed(); draft=null; view='home'; return S; }, get state(){ return S; }, user, tileById, ask, cachedAsk, statRows, registryList, composeLayout, declaredItems,
+  roleHasLayout, tileAnswers, catalogFor, canSee, formatsFor, shiftsFor, autocheck, saveTile, editTile, propose, moveToCatalog, whereUsed, withdrawTile:withdraw,
+  exportTile, subscribe, recheckLights, createScreen, screens, screenAdd, screenSaveFilter, scopeKey, tick, fmtVal, rowsFor, overlay, arrangeMove, arrangeAdd, arrangeHide, arrangeSection,
+  resetDeclaredFor:(roleId)=>resetDeclared(roleId), blankDraft, publishDraftId:publishDraft, declaredEdit, stampOf, tlText, monthClosed,
+  // UI
+  go:(v)=>{ view=v; if(v!=='catalog') catalogTarget=null; render(); },
+  setTab:(kind,id)=>{ S.tab={ kind, id }; view='home'; S.panelTouched=false; if(kind==='role') S.panel={}; render(); },
+  switchUser:(id)=>{ S.userId=id; S.tab=null; S.panel={}; S.arrange=false; draft=null; if(['registry','layouts','journal'].includes(view) && !isAdmin(user())) view='home'; render(); },
+  refresh:()=>{ S.cache.clear(); loading=true; render(); setTimeout(()=>{ loading=false; render(); toast('Числа запрошены у статистики заново'); }, 350); },
+  setPanel:(k,v)=>{ S.panel[k]=v||undefined; S.panelTouched=true; render(); }, clearPanel:()=>{ S.panel={}; S.panelTouched=true; render(); },
+  toggleArrange:()=>{ S.arrange=!S.arrange; render(); },
+  move:(key,dir)=>{ if(S.tab.kind==='screen'){ const sc = screenById(S.tab.id); const i = sc.items.indexOf(key), j=i+dir; if(j>=0&&j<sc.items.length){ [sc.items[i],sc.items[j]]=[sc.items[j],sc.items[i]]; } }
+    else arrangeMove(curRole(), key, dir); render(); },
+  drop:(key,before)=>{ if(S.tab.kind==='screen'){ const sc = screenById(S.tab.id); sc.items = sc.items.filter(k=>k!==key); sc.items.splice(sc.items.indexOf(before),0,key); } else arrangeDrop(curRole(), key, before); render(); },
+  hide:(key)=>{ if(S.tab.kind==='screen') screenRemove(S.tab.id, key); else arrangeHide(curRole(), key); render(); },
+  unhide:(key)=>{ arrangeUnhide(curRole(), key); render(); }, screenRemove:(key)=>{ screenRemove(S.tab.id, key); render(); },
+  toggleSection:(k)=>{ S.collapsed = S.collapsed||{}; S.collapsed[k]=!S.collapsed[k]; render(); },
+  addSectionPrompt:()=>{ const n = HAS_DOM ? prompt('Название секции') : 'Секция'; if(!n) return; if(S.tab.kind==='screen') screenById(S.tab.id).items.push('s:'+n); else arrangeSection(curRole(), n); render(); },
+  resetDeclared:()=>{ resetDeclared(curRole()); render(); toast('Личная перекладка стёрта целиком'); },
+  newScreen:()=>{ const n = HAS_DOM ? prompt('Название своего экрана', 'Мой экран') : 'Мой экран'; if(n===null) return; const r = createScreen(n);
+    if(r.error) return toast(r.error); S.tab = { kind:'screen', id:r.id }; S.panel={}; render(); },
+  renameScreen:()=>{ const sc = screenById(S.tab.id); const n = prompt('Новое название', sc.name); if(n){ sc.name=n; render(); } },
+  deleteScreen:()=>{ deleteScreen(S.tab.id); S.tab=null; S.panel={}; render(); },
+  saveScreenFilter:()=>{ screenSaveFilter(S.tab.id); render(); toast('Фильтр сохранён в экран'); },
+  openCatalogFor:()=>{ catalogTarget = S.tab; view='catalog'; render(); },
+  addFromCatalog:(id)=>{ const tg = catalogTarget || S.tab; if(!tg) return; if(tg.kind==='screen') screenAdd(tg.id, id); else arrangeAdd(tg.id, id); render(); toast('Добавлено в конец раскладки'); },
+  catSearch:(q)=>{ S.catQ=q; renderCatalog(); }, catFormat:(f)=>{ S.catF=f; renderCatalog(); },
+  primary:(id)=>primaryClick(id), menu:(e,id)=>openMenu(e,id), close:closeOverlay,
+  who:(id,d,v,d2,v2)=>{ countClick(id); return openWho(id, d ? { d, v, d2, v2 } : null); },
+  whoMonth:(id,m)=>{ toast('Строки за '+monthName(m)+' — тем же швом statRows на конец месяца'); return openWho(id); },
+  registry:(id)=>openRegistry(id), queue:(id)=>openQueue(id), expand:(id)=>openExpand(id), expandDim:(d)=>{ expandState.dim=d; openExpand(expandState.tile); },
+  exportTile:(id,k)=>openExport(id,k), downloadCSV,
+  exportScreen:()=>{ const u = user(); const items = (S.tab.kind==='screen' ? screenById(S.tab.id).items : composeLayout(u.id, curRole())).filter(k=>tileById(k));
+    journal('выгрузил PDF экрана', (S.tab.kind==='screen'?screenById(S.tab.id).name:roleName(curRole()))+' · плиток: '+items.length);
+    drawer('Выгрузка экрана — PDF со штампом', `<div class="stamp">Экран: ${esc(S.tab.kind==='screen'?screenById(S.tab.id).name:roleName(curRole()))}<br>Сформировано ${esc(TODAY.label)} · у каждой плитки — свой паспорт<br><b>НЕ ЯВЛЯЕТСЯ ОФИЦИАЛЬНЫМ ДОКУМЕНТОМ. Документ с номером и подписью выпускает модуль «Отчётность».</b><br>Выгрузил: ${esc(u.name)}</div>
+      <p><button class="btn primary" onclick="window.print()">Печать в PDF</button></p>`); },
+  subscribe:(id, roleId)=>{ const on = subscribe(id, roleId || (S.tab ? curRole() : null)); toast(on?'Следим: уведомим при смене цвета':'Больше не следим'); render(); return on; }, propose:(id)=>{ const r = propose(id); toast('Предложено администратору дашборда'); render(); return r; },
+  openNotifs, recheck:()=>{ const f = recheckLights(); toast(f.length ? 'Сменился цвет у '+f.length+' плит.' : 'Цвета не сменились — уведомлений нет'); render(); },
+  tick:(m)=>{ tick(m); render(); toast('Прошло '+m+' мин'); },
+  stand:(k,v)=>{ STAND[k]=v; S.cache.clear(); render(); }, standNightOnly:(o,v)=>{ if(v) STAND.nightOnly[o]=true; else delete STAND.nightOnly[o]; S.cache.clear(); render(); },
+  standWithdraw:(i,v)=>{ if(v) STAND.withdrawn[i]='11.10'; else delete STAND.withdrawn[i]; S.cache.clear(); render(); },
+  // конструктор
+  newDraft:()=>{ draft=blankDraft(); render(); },
+  dSet:(k,v)=>{ if(k==='obj'){ const first = Object.values(IND).find(x=>x.obj===v && !x.refuses); draft = Object.assign(blankDraft(), { obj:v, inds:[first.id] }); }
+    else if(k==='share') draft.share = v ? draft.inds.slice(0,2) : null; else if(k==='shift') draft.shift = v==='auto'?null:v; else draft[k]=v;
+    const fm = formatsFor(draft).find(x=>x.f===draft.format); if(!fm.ok){ const ok = formatsFor(draft).find(x=>x.ok); draft.format = ok ? ok.f : 'number'; } render(); },
+  dInd:(id,on)=>{ if(on){ if(draft.inds.length>=4) return toast('Не больше четырёх показателей'); draft.inds.push(id); } else if(draft.inds.length>1) draft.inds = draft.inds.filter(x=>x!==id);
+    if(draft.share && draft.inds.length!==2) draft.share=null; api.dSet('format', draft.format); },
+  dDim:(d,on)=>{ draft.dims = on ? [...draft.dims, d].slice(-2) : draft.dims.filter(x=>x!==d); api.dSet('format', draft.format); },
+  dFilter:(f,v)=>{ draft.filter = draft.filter.filter(c=>c.f!==f); if(v) draft.filter.push({ f, op:'eq', v }); render(); },
+  dTl:(k,op,val)=>{ draft.tl = draft.tl || {}; const cur = draft.tl[k] || [k==='red'?'>':(draft.tl.red?draft.tl.red[0]:'>'), 0];
+    if(op) cur[0]=op; if(val!==null && val!==undefined){ if(val==='') { delete draft.tl[k]; if(!draft.tl.red&&!draft.tl.yellow) draft.tl=null; render(); return; } cur[1]=Number(val); }
+    draft.tl[k]=cur; render(); },
+  dTitle:(v)=>{ draft.title=v; render(); },
+  saveDraft:(mode)=>{ const r = saveTile(draft, mode); if(r.error){ toast(r.error); return; }
+    if(mode==='personal' && S.tab){ if(S.tab.kind==='screen') screenAdd(S.tab.id, r.tile.id); else arrangeAdd(S.tab.id, r.tile.id); }
+    toast(mode==='personal'?'Личная плитка добавлена в конец вкладки':mode==='draft'?'Черновик сохранён':'Плитка опубликована в каталог'); draft=null; view = mode==='personal'?'home':'registry'; render(); },
+  // администратор
+  withdrawAsk:(id)=>{ const t = tileById(id); const w = whereUsed(id);
+    drawer('Снять плитку «'+esc(t.title)+'»', `<p>Плитка уйдёт из каталога и из раскладок ролей. В личных раскладках останется заглушка «снята администратором».</p>
+      <div class="kv"><div class="k">Раскладки ролей</div><div>${w.roles.map(roleName).join(', ')||'—'}</div><div class="k">Личных раскладок</div><div>${w.personal}</div><div class="k">Своих экранов</div><div>${w.screens}</div></div>
+      <button class="btn danger" onclick="DB.withdrawDo('${id}')">Снять</button>`); },
+  withdrawDo:(id)=>{ withdraw(id); closeOverlay(); render(); toast('Плитка снята'); },
+  moveToCatalog:(id)=>{ const r = moveToCatalog(id); render(); toast('Перенесена в каталог'); return r; }, publishDraft:(id)=>{ const r = publishDraft(id); if(r&&r.error) toast(r.error); render(); },
+  layoutRole:(r)=>{ S.layoutRole=r; render(); }, declMove:(r,k,d)=>{ declaredEdit(r,'move',k,d); render(); }, declRemove:(r,k)=>{ declaredEdit(r,'remove',k); render(); },
+  declAdd:(r,k)=>{ declaredEdit(r,'add',k); render(); }, toast,
+};
+seed();
+if(HAS_DOM){ document.addEventListener('DOMContentLoaded', render);
+  // тихое обновление: раз в 5 минут, только пока вкладка видна; плитки на закрытую дату остаются в кэше
+  setInterval(()=>{ if(document.visibilityState==='visible' && view==='home'){ tick(5); render(); } }, 5*60*1000); }
+return api;
+})();
+</script>
+</body>
+</html>
