@@ -458,7 +458,7 @@ group('ИИ-15: ключевые факты публикуются вторым 
   ck('payment/topup (контур Платежей) без второго ключа', IM.addFact('ИО-8', 'payment', { amount: 1 }, 'acc').fact.pub === true);
   IM.setRole('spec'); IM.go('objects'); IM.openObject('ИО-2', 'char');
   const bt = doc.querySelector('[data-testid=act-ret]');
-  ck('UI (spec): кнопка «Возврат по суду» помечена 🔑', bt && bt.textContent.includes('🔑'), bt && bt.textContent);
+  ck('UI (spec): пункт «Возврат по суду» помечен значком второго ключа', bt && bt.dataset.key === '1' && !!bt.querySelector('svg.ico'), bt && bt.outerHTML);
 });
 
 group('ИИ-12: опубликованный факт не правится — только замещающий', ({ IM }) => {
@@ -579,7 +579,7 @@ group('Даты ДД.ММ.ГГГГ, субъекты из списка, валю
   const t2 = doc.getElementById('panel').textContent;
   ck('кредиты подписаны в сомах', has(t2, 'К-1 (сом)') && !has(t2, '(KGS)'));
   ck('нет «проекция модуля по имуществам»', !has(t2, 'проекция модуля'));
-  IM.openObject('ИО-1', 'att');
+  IM.openObject('ИО-1', 'links');
   const t3 = doc.getElementById('panel').textContent;
   ck('блок «Что видят Платежи, Взыскание, Залог»', has(t3, 'Что видят Платежи, Взыскание, Залог') && !has(t3, 'соседи'));
   ck('«Разделение» — отдельная группа, не в «Выбытии»', [...doc.querySelectorAll('.fgroup')].some(g => g.querySelector('.gname').textContent === 'Разделение' && !!g.querySelector('[data-testid=act-split]'))
