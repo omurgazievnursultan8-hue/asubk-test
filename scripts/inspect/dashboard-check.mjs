@@ -12,7 +12,10 @@
 //   H  раскладка: одна на роль, перекладка, свои экраны ≤ 5, секции (ДБ-5, ДБ-32, ДБ-34);
 //   I  состояния: ошибка, сломана, отказ, устарело, пустой охват, ноль, волны (ДБ-35, ДБ-53);
 //   J  наружу и сигналы: штамп выгрузки, подписка без поручений, журнал и счётчики (ДБ-36, ДБ-37, ДБ-51, ДБ-57);
-//   K  сторож чистоты: в макете нет номеров решений и ADR, «сегодня» заморожено.
+//   K  сторож чистоты: в макете нет номеров решений и ADR, «сегодня» заморожено;
+//   L  состав объектов 13.10.2026: заявка на реструктуризацию, дело взыскания, эпизод просрочки, объект имущества
+//      — 17 объектов, плитки ролей, черновики эпизодов до готовности ядра, роль «Специалист по имуществу» (ДБ-60…ДБ-64);
+//      плитки заёмщика: «с просрочкой» и «платёж в ближайшие 3 дня», «я» — ведущий куратор (ДБ-65).
 // Блоки, которые правят состояние, начинаются с DB.seed(). Выход 1 при любом FAIL.
 //   node scripts/inspect/dashboard-check.mjs
 import { readFileSync } from 'node:fs';
@@ -47,8 +50,8 @@ const asUser = id => { DB.state.userId = id; };
   ok(3, DB.USERS.every(u => u.roles.some(r => DB.composeLayout(u.id, r).length > 0)),
     'у каждого пользователя главная не пуста — пустой главной нет (ДБ-8)');
   const lead = DB.composeLayout('u1', 'lead');
-  ok(4, lead.filter(k => !k.startsWith('s:')).length === 15 && lead.filter(k => k.startsWith('s:')).length === 3,
-    `стартовая раскладка «Руководства» — 15 плиток в трёх секциях (ДБ-40): ${lead.length} элементов`);
+  ok(4, lead.filter(k => !k.startsWith('s:')).length === 21 && lead.filter(k => k.startsWith('s:')).length === 4,
+    `стартовая раскладка «Руководства» — 21 отвечающая плитка в четырёх секциях, эпизоды ждут ядра (ДБ-40, ДБ-60…ДБ-65): ${lead.length} элементов`);
 })();
 
 /* ---------- B. Плитка — вопрос к статистике ---------- */
@@ -172,7 +175,7 @@ const asUser = id => { DB.state.userId = id; };
   asUser('u11');
   const ad = DB.saveTile(Object.assign(DB.blankDraft(), { title:'Кредиты по областям', dims:['region'], format:'slice' }), 'publish');
   ok(41, ad.tile && ad.tile.state === 'published', 'администратор публикует сразу после автопроверки — второго ключа нет (ДБ-30)');
-  const bad = DB.saveTile(Object.assign(DB.blankDraft(), { title:'x', inds:['loan.episodes'] }), 'publish');
+  const bad = DB.saveTile(Object.assign(DB.blankDraft(), { title:'x', inds:['spell.in'], period:'prevMonth' }), 'publish');
   ok(42, bad.error && bad.checks.some(c => !c.ok && /предпросмотр/.test(c.text)), 'плитка, вопрос которой не отвечает, не публикуется (ИДБ-14)');
   asUser('u2'); DB.propose(per.tile.id); asUser('u11');
   ok(43, DB.state.proposals.length === 1 && DB.moveToCatalog(per.tile.id) && T(per.tile.id).state === 'published' && T(per.tile.id).owner === 'catalog',
@@ -213,8 +216,8 @@ const asUser = id => { DB.state.userId = id; };
   ok(53, e.state === 'error' && e.value === undefined, 'статистика не ответила — ни ноль, ни прошлое значение (ДБ-35)');
   DB.STAND.withdrawn['loan.risk'] = '11.10'; const br = DB.ask(T('lead-risk'), U('u1'), 'lead', {}); delete DB.STAND.withdrawn['loan.risk'];
   ok(54, br.state === 'broken', 'показатель выведен из реестра — плитка «сломана объявлением»');
-  const rf = DB.ask(T('cat-episodes'), U('u1'), 'lead', {});
-  ok(55, rf.state === 'refusal' && /владелец/.test(rf.msg), `настоящий отказ шва назван поимённо: ${rf.msg}`);
+  const rf = DB.ask(T('lead-spin'), U('u1'), 'lead', {});
+  ok(55, rf.state === 'refusal' && /владелец — модуль «Ядро расчёта»/.test(rf.msg), `настоящий отказ шва назван поимённо: ${rf.msg}`);
   DB.STAND.nightRunFailed = true; const st1 = DB.ask(Object.assign({}, T('lead-loans'), { date:'closedDay' }), U('u1'), 'lead', {}); const st2 = DB.ask(T('lead-loans'), U('u1'), 'lead', {});
   DB.STAND.nightRunFailed = false; DB.STAND.queueLag = 25; const st3 = DB.ask(T('lead-loans'), U('u1'), 'lead', {}); DB.STAND.queueLag = 0;
   ok(56, st1.staleState && !st2.staleState && st3.staleState && st1.value !== undefined,
@@ -253,6 +256,101 @@ const asUser = id => { DB.state.userId = id; };
   const body = src.replace(/<!--[\s\S]*?-->/g, '');
   ok(66, !/\b(ДБ-\d|ИДБ-\d|ADR-\d|ИС-\d)/.test(body), 'в макете нет номеров решений и ADR — их место канон');
   ok(67, DB.TODAY.label === '11.10.2026 14:15' && !/new Date\(\)/.test(body), '«сегодня» заморожено константой');
+})();
+
+/* ---------- L. Состав объектов 13.10.2026 ---------- */
+(() => {
+  DB.seed();
+  const O = DB.OBJECTS; const want = { rsapp:['Заявка на реструктуризацию','Реструктуризация',1], case:['Дело взыскания','Взыскание',1],
+    spell:['Эпизод просрочки','Ядро расчёта',1], asset:['Объект имущества','Имущество',2] };
+  ok(68, Object.keys(O).length === 17 && Object.entries(want).every(([k, [n, ow, w]]) => O[k] && O[k].name === n && O[k].owner === ow && O[k].wave === w)
+    && O.spell.gate && !DB.STAND.spells,
+    `в реестре 17 объектов; новые четыре — с владельцем и волной, эпизоды ждут ядра (ДБ-60…ДБ-64): ${Object.keys(O).length}`);
+  ok(69, !Object.values(DB.IND).some(i => i.obj === 'loan' && /эпизод/i.test(i.name)) && Object.values(O).filter(o => /эпизод/i.test(o.name)).length === 1,
+    'эпизоды просрочки — один объект, а не показатель кредита: прежний отказ «эпизоды у кредита» убран (ДБ-62)');
+  // ДБ-60: заявка на реструктуризацию
+  const R = DB.DATA.rsapp; const inW = R.filter(r => r.inWork);
+  const lr = DB.ask(T('lead-rs'), U('u1'), 'lead', {}); const ll = DB.ask(T('lead-rslate'), U('u1'), 'lead', {});
+  ok(70, lr.state === 'ok' && lr.values[0] === inW.length && lr.values[1] === inW.filter(r => r.multi).length && lr.values[1] <= lr.values[0]
+    && ll.value === inW.filter(r => r.late).length && ll.tl === 'red',
+    `Руководство: обращений в работе / многократных ${lr.values.join(' / ')}, срок нарушен ${ll.value} — красный (ДБ-60)`);
+  const mine = R.filter(r => r.curator === 'u2'); const cr = DB.ask(T('cur-rs'), U('u2'), 'cur', {});
+  const cl = DB.ask(T('cur-rslate'), U('u2'), 'cur', {}); const cs = DB.ask(T('cur-rsstage'), U('u2'), 'cur', {});
+  const co = DB.ask(T('cur-rsout'), U('u2'), 'cur', {});
+  ok(71, cr.value === mine.filter(r => r.inWork).length && cr.value > 0 && cl.tl === 'red'
+    && cs.state === 'ok' && cs.nodes.length === 9 && cs.nodes[0].v === 'регистрация обращения' && cs.nodes[8].v === 'закрыта' && cs.total.v === mine.length
+    && co.state === 'ok' && co.total.v === mine.filter(r => r.outAt === -1).length,
+    `Куратор: в работе ${cr.value}, срок нарушен ${cl.value}, девять стадий по порядку, исходы прошлого месяца ${co.total.v} — только «куратор = я» (ДБ-60)`);
+  ok(72, R.filter(r => r.multi || (r.stage === 'закрыта' && /^одобрена/.test(r.outcome || ''))).every(r => DB.DATA.loan.find(l => l.id === r.loan).status === 'В реструктуризации')
+    && new Set(R.map(r => r.loan)).size === R.length,
+    'демо-числа не спорят: многократная и одобренная заявка — по кредиту «в реструктуризации», один кредит — одна заявка (урок «демо-числа противоречат»)');
+  // ДБ-61: дело взыскания
+  const rv = DB.ask(T('lead-recov'), U('u1'), 'lead', {});
+  ok(73, T('lead-recov').share.every(i => DB.IND[i].obj === 'case') && rv.state === 'ok' && Math.abs(rv.value - rv.num / rv.den * 100) < 1e-9 && rv.unit === 'pct',
+    `возвратность по делам — доля двух показателей одного объекта «Дело»: ${rv.value.toFixed(1)} % = ${rv.num} / ${rv.den} (ДБ-61, ИДБ-8)`);
+  const mixed = DB.autocheck(Object.assign(DB.blankDraft(), { title:'x', inds:['claim.recovered','case.base'], share:['claim.recovered','case.base'] }));
+  const loansInCases = DB.DATA.case.flatMap(c => c.loans);
+  ok(74, !mixed.ok && mixed.checks.some(c => !c.ok && /один объект/.test(c.text)) && new Set(loansInCases).size === loansInCases.length,
+    'возвратность «по требованиям» собрать нельзя — доля между объектами не проходит; каждый кредит в делах один раз, долг не считается дважды (ДБ-61)');
+  const pc = DB.ask(T('prob-cases'), U('u3'), 'prob', {}); const pr = DB.ask(T('prob-recov'), U('u3'), 'prob', {});
+  const lc = DB.ask(T('prob-cases'), U('u1'), 'lead', {});
+  ok(75, pc.state === 'ok' && pc.values[1] > 0 && pc.values[1] <= pc.values[0] && pc.visible < lc.visible && pr.state === 'ok'
+    && ['prob-court', 'prob-exp'].every(id => DB.ask(T(id), U('u3'), 'prob', {}).state === 'ok') && DB.composeLayout('u3', 'prob').includes('prob-recov'),
+    `Проблемные кредиты: дел открыто / в карантине ${pc.values.join(' / ')}; дела видны через требования своего охвата (${pc.visible} из ${lc.visible}) (ДБ-61)`);
+  ok(76, /без фильтра/.test(DB.ask(T('prob-cases'), U('u1'), 'lead', { dept:'opk' }).passport),
+    'у дела нет подразделения — фильтр панели «Подразделение» к нему неприменим и печатается «без фильтра» (ДБ-61)');
+  // ДБ-62: эпизод просрочки
+  const spT = ['lead-spin', 'lead-spcure', 'cur-spin'];
+  const notIn = spT.every(id => !DB.tileAnswers(T(id))) && !DB.composeLayout('u1', 'lead').includes('lead-spin') && !DB.composeLayout('u2', 'cur').includes('cur-spin')
+    && DB.catalogFor(U('u1')).filter(x => spT.includes(x.t.id)).every(x => !x.ready) && DB.ask(T('lead-spcure'), U('u1'), 'lead', {}).state === 'refusal';
+  DB.STAND.spells = true;
+  const inNow = spT.every(id => DB.tileAnswers(T(id))) && DB.composeLayout('u1', 'lead').includes('lead-spin') && DB.composeLayout('u1', 'lead').includes('lead-spcure')
+    && DB.composeLayout('u2', 'cur').includes('cur-spin');
+  const si = DB.ask(T('lead-spin'), U('u1'), 'lead', {}); const sc = DB.ask(T('lead-spcure'), U('u1'), 'lead', {}); const cs2 = DB.ask(T('cur-spin'), U('u2'), 'cur', {});
+  ok(77, notIn && inNow && si.state === 'ok' && si.shift && !si.shift.none && sc.value > 0 && cs2.value > 0 && /идёт 11-й день/.test(cs2.passport),
+    `эпизоды — черновики, пока ядро не отдаёт перечень; переключатель стенда — и плитки встают: вышли ${si.value}, вылечены ${sc.value}, у куратора за октябрь ${cs2.value} (ДБ-62, ДБ-53, ИДБ-14)`);
+  const open = DB.DATA.spell.filter(x => x.state === 'тянется');
+  const bk = DB.ask(T('lead-bucket'), U('u1'), 'lead', {});
+  ok(78, open.length === bk.total.v && new Set(open.map(x => x.loan)).size === open.length,
+    `у каждого кредита в просрочке ровно один тянущийся эпизод: ${open.length} = «Просрочка по сроку» ${bk.total.v} (урок «демо-числа противоречат»)`);
+  DB.STAND.spells = false;
+  // ДБ-63: объект имущества, роль «Специалист по имуществу»
+  const ast = DB.USERS.find(u => u.roles.includes('ast'));
+  ok(79, DB.ROLES.find(r => r.id === 'ast' && r.name === 'Специалист по имуществу' && r.scope === 'dept') && ast && DB.state.declared.ast
+    && DB.composeLayout(ast.id, 'ast').filter(k => !k.startsWith('s:')).length === 8,
+    `вкладка «Специалист по имуществу»: системная роль, охват «моё подразделение», 8 плиток (${ast && ast.name}) (ДБ-63, ДБ-38)`);
+  const ai = DB.ask(T('ast-idle'), ast, 'ast', {}); const au = DB.ask(T('ast-unsold'), ast, 'ast', {});
+  ok(80, ai.tl === 'yellow' && ai.value > 0 && T('ast-idle').filter.some(c => c.f === 'daysOnBook' && c.v === 182) && T('ast-unsold').filter.some(c => c.op === 'ge' && c.v === 3)
+    && au.state === 'ok' && ['ast-count', 'ast-state', 'ast-kpod', 'ast-claim', 'ast-exp', 'ast-unsold'].every(id => ['ok', 'zero'].includes(DB.ask(T(id), ast, 'ast', {}).state)),
+    `пороги «6 мес.» и «3 попытки» — фильтр вопроса, цвет — светофор автора: без попытки ${ai.value} (жёлтый), 3+ попыток ${au.value} (ДБ-63, ДБ-24)`);
+  const la = DB.ask(T('lead-ast'), U('u1'), 'lead', {}); const sa = DB.ask(T('ast-count'), ast, 'ast', {});
+  ok(81, la.values.join() === sa.values.join() && la.values[0] === 48,
+    `Руководство «На балансе» и специалист «На учёте» сходятся: ${la.values[0]} объектов / ${DB.fmtVal(la.values[1], 'sum')} (урок «демо-числа противоречат»)`);
+  DB.STAND.wave = 1;
+  const w1 = DB.composeLayout('u1', 'lead');
+  ok(82, !DB.roleHasLayout('ast') && !w1.includes('lead-ast') && !w1.includes('s:Имущество') && w1.includes('lead-rs') && w1.includes('lead-recov')
+    && DB.composeLayout('u2', 'cur').includes('cur-rsstage') && /не объявлен/.test(DB.ask(T('ast-count'), ast, 'ast', {}).msg),
+    'волна 1: заявка на реструктуризацию и дело уже отвечают; имущество — волна 2: у Руководства секции нет, специалист на минимальной (ДБ-63, ДБ-53)');
+  DB.STAND.wave = 3;
+  ok(83, DB.ask(T('lead-ast'), U('u3'), 'prob', {}).state === 'noaccess' && DB.ask(T('cur-rs'), U('u3'), 'prob', {}).state === 'noaccess',
+    'имущество и реструктуризация закрыты ролям без права на эти объекты — «нет доступа» (ИДБ-4)');
+  // ДБ-65: плитки заёмщика
+  const L = DB.DATA.loan, Bs = DB.DATA.borrower;
+  const leadOk = Bs.every(b => { const ls = L.filter(l => l.borrower === b.id); if (!ls.length) return b.curator === null;
+    const top = ls.reduce((a, l) => l.balance > a.balance ? l : a); return b.curator === top.curator && b.overCredits === ls.filter(l => l.overdueDays > 0).length; });
+  const bo = DB.ask(T('lead-borod'), U('u1'), 'lead', {});
+  ok(84, leadOk && T('lead-borod').share.every(i => DB.IND[i].obj === 'borrower') && bo.state === 'ok' && bo.den === Bs.length
+    && bo.num === new Set(L.filter(l => l.overdueDays > 0).map(l => l.borrower)).size && bo.num <= DB.DATA.spell.filter(x => x.state === 'тянется').length,
+    `Руководство: заёмщиков с просрочкой ${bo.num} из ${bo.den} · ${bo.value.toFixed(1)} % — клиенты, а не договоры; «есть просрочка» согласована с кредитами (ДБ-65)`);
+  const cb = DB.ask(T('cur-borod'), U('u2'), 'cur', {}); const mineB = Bs.filter(b => b.curator === 'u2');
+  const split = Bs.some(b => b.curator !== 'u2' && L.some(l => l.borrower === b.id && l.curator === 'u2'));
+  ok(85, cb.state === 'ok' && cb.den === mineB.length && cb.num === mineB.filter(b => b.overCredits > 0).length && cb.den <= 47 && split,
+    `Куратор: заёмщиков с просрочкой ${cb.num} из ${cb.den} — «я» у заёмщика — ведущий куратор; клиент, где Бекова ведёт младший кредит, в эту плитку не входит (ДБ-65)`);
+  const np = DB.ask(T('cur-npay'), U('u2'), 'cur', {}); const lay = DB.composeLayout('u2', 'cur');
+  ok(86, np.state === 'ok' && np.value === mineB.filter(b => b.npayDays <= 3).length && np.value > 0
+    && lay.indexOf('cur-npay') === lay.indexOf('tasks') - 1 && lay.indexOf('cur-borod') === lay.indexOf('cur-loans') + 1
+    && DB.composeLayout('u1', 'lead').indexOf('lead-borod') === DB.composeLayout('u1', 'lead').indexOf('lead-borr') + 1,
+    `Куратор: заёмщиков с платежом в ближайшие 3 дня ${np.value} — один клиент один раз, по ближайшему платежу всего портфеля; плитки стоят на местах канона (ДБ-65)`);
 })();
 
 /* ---------- отчёт ---------- */
