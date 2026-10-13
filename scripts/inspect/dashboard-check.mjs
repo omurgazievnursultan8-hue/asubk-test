@@ -17,6 +17,11 @@
 //      — 17 объектов, плитки ролей, черновики эпизодов до готовности ядра, роль «Специалист по имуществу» (ДБ-60…ДБ-64);
 //      плитки заёмщика: «с просрочкой» и «платёж в ближайшие 3 дня», «я» — ведущий куратор (ДБ-65);
 //      разрезы заёмщика — выборка реестра статистики, свёрнутые по портфелю, «Ступени» доступны (ДБ-66).
+//   M  волна 3, заёмщик: шкала категорий классификатора (ДБ-Д22); «действующие» по умолчанию у заёмщика и кредита
+//      (ДБ-68, ДБ-69); доля с фильтром числителя (ДБ-70, ДБ-80); фильтр по значению в конструкторе (ДБ-Д23); движение
+//      клиентов — черновик до статистики (ДБ-71); «Область» по регистрации (ДБ-72, ДБ-73); плитки клиентов в раскладках,
+//      видимость через требования, подпись куратора (ДБ-74…ДБ-76); деньги, форматы, сдвиг, реестр (ДБ-67, ДБ-77…ДБ-79);
+//      13 разрезов + 4 заявленных, ступени долга, договоров, истории, проверки карточки (ДБ-81…ДБ-84, ДБ-86, ДБ-88).
 // Блоки, которые правят состояние, начинаются с DB.seed(). Выход 1 при любом FAIL.
 //   node scripts/inspect/dashboard-check.mjs
 import { readFileSync } from 'node:fs';
@@ -51,8 +56,8 @@ const asUser = id => { DB.state.userId = id; };
   ok(3, DB.USERS.every(u => u.roles.some(r => DB.composeLayout(u.id, r).length > 0)),
     'у каждого пользователя главная не пуста — пустой главной нет (ДБ-8)');
   const lead = DB.composeLayout('u1', 'lead');
-  ok(4, lead.filter(k => !k.startsWith('s:')).length === 21 && lead.filter(k => k.startsWith('s:')).length === 4,
-    `стартовая раскладка «Руководства» — 21 отвечающая плитка в четырёх секциях, эпизоды ждут ядра (ДБ-40, ДБ-60…ДБ-65): ${lead.length} элементов`);
+  ok(4, lead.filter(k => !k.startsWith('s:')).length === 23 && lead.filter(k => k.startsWith('s:')).length === 4,
+    `стартовая раскладка «Руководства» — 23 отвечающие плитки в четырёх секциях, эпизоды и движение клиентов ждут соседей (ДБ-40, ДБ-60…ДБ-65, ДБ-74): ${lead.length} элементов`);
 })();
 
 /* ---------- B. Плитка — вопрос к статистике ---------- */
@@ -158,7 +163,7 @@ const asUser = id => { DB.state.userId = id; };
   ok(37, narrowed.value === 0, 'фильтр не расширяет охват: кредитов Бековой в Ошской нет — 0 (ИДБ-12)');
   DB.USERS.push({ id:'c00', name:'Тестовый куратор', roles:['cur'], dept:'rp-chu' });
   const other = DB.ask(T('cur-loans'), U('c00'), 'cur', {});
-  ok(38, other.value === DB.DATA.loan.filter(l => l.curator === 'c00').length && other.value !== 47,
+  ok(38, other.value === DB.DATA.loan.filter(l => l.curator === 'c00' && !l.closed).length && other.value !== 47,
     `относительный параметр «я»: одна каталожная плитка «Мои кредиты» у каждого куратора своя — ${other.value} против 47 (ДБ-28)`);
   DB.USERS.pop();
 })();
@@ -336,11 +341,12 @@ const asUser = id => { DB.state.userId = id; };
   ok(83, DB.ask(T('lead-ast'), U('u3'), 'prob', {}).state === 'noaccess' && DB.ask(T('cur-rs'), U('u3'), 'prob', {}).state === 'noaccess',
     'имущество и реструктуризация закрыты ролям без права на эти объекты — «нет доступа» (ИДБ-4)');
   // ДБ-65: плитки заёмщика
-  const L = DB.DATA.loan, Bs = DB.DATA.borrower;
-  const leadOk = Bs.every(b => { const ls = L.filter(l => l.borrower === b.id); if (!ls.length) return b.curator === null;
+  // строки закрытых договоров и погасивших клиентов живут всегда — сверяем с действующими
+  const L = DB.DATA.loan.filter(l => !l.closed), Bs = DB.DATA.borrower.filter(b => DB.pstateAt(b, 0) === 'действующий');
+  const leadOk = Bs.every(b => { const ls = L.filter(l => l.borrower === b.id); if (!ls.length) return false;
     const top = ls.reduce((a, l) => l.balance > a.balance ? l : a); return b.curator === top.curator && b.overCredits === ls.filter(l => l.overdueDays > 0).length; });
   const bo = DB.ask(T('lead-borod'), U('u1'), 'lead', {});
-  ok(84, leadOk && T('lead-borod').share.every(i => DB.IND[i].obj === 'borrower') && bo.state === 'ok' && bo.den === Bs.length
+  ok(84, leadOk && T('lead-borod').share.every(i => DB.IND[i].obj === 'borrower') && bo.state === 'ok' && bo.den === Bs.length && Bs.length === 903
     && bo.num === new Set(L.filter(l => l.overdueDays > 0).map(l => l.borrower)).size && bo.num <= DB.DATA.spell.filter(x => x.state === 'тянется').length,
     `Руководство: заёмщиков с просрочкой ${bo.num} из ${bo.den} · ${bo.value.toFixed(1)} % — клиенты, а не договоры; «есть просрочка» согласована с кредитами (ДБ-65)`);
   const cb = DB.ask(T('cur-borod'), U('u2'), 'cur', {}); const mineB = Bs.filter(b => b.curator === 'u2');
@@ -349,17 +355,17 @@ const asUser = id => { DB.state.userId = id; };
     `Куратор: заёмщиков с просрочкой ${cb.num} из ${cb.den} — «я» у заёмщика — ведущий куратор; клиент, где Бекова ведёт младший кредит, в эту плитку не входит (ДБ-65)`);
   const np = DB.ask(T('cur-npay'), U('u2'), 'cur', {}); const lay = DB.composeLayout('u2', 'cur');
   ok(86, np.state === 'ok' && np.value === mineB.filter(b => b.npayDays <= 3).length && np.value > 0
-    && lay.indexOf('cur-npay') === lay.indexOf('tasks') - 1 && lay.indexOf('cur-borod') === lay.indexOf('cur-loans') + 1
+    && lay.indexOf('cur-obl') === lay.indexOf('cur-npay') + 1 && lay.indexOf('tasks') === lay.indexOf('cur-obl') + 1 && lay.indexOf('cur-borod') === lay.indexOf('cur-loans') + 1
     && DB.composeLayout('u1', 'lead').indexOf('lead-borod') === DB.composeLayout('u1', 'lead').indexOf('lead-borr') + 1,
     `Куратор: заёмщиков с платежом в ближайшие 3 дня ${np.value} — один клиент один раз, по ближайшему платежу всего портфеля; плитки стоят на местах канона (ДБ-65)`);
   // ДБ-66: разрезы заёмщика — из реестра статистики, выборка
   const BD = ['bworst', 'bodays', 'subgroup', 'ptype', 'bindustry'];
-  const bt = (dims, format) => Object.assign(DB.blankDraft(), { obj:'borrower', inds:['borrower.count'], dims, format });
+  const bt = (dims, format) => Object.assign(DB.blankDraft(), { obj:'borrower', inds:['borrower.count'], dims, format, filter:[{ f:'pstate', op:'eq', v:'действующий' }] });
   const steps = BD.filter(d => DB.DIMS[d].ordered).map(d => DB.ask(bt([d], 'steps'), U('u1'), 'lead', {}));
-  ok(87, BD.every(d => DB.OBJ_DIMS.borrower.includes(d)) && DB.OBJ_DIMS.borrower.length === 8
+  ok(87, BD.every(d => DB.OBJ_DIMS.borrower.includes(d)) && DB.OBJ_DIMS.borrower.length === 17
     && BD.filter(d => DB.DIMS[d].ordered).every(d => DB.formatsFor(bt([d], 'steps')).find(x => x.f === 'steps').ok)
     && steps.every(r => r.state === 'ok') && steps[0].nodes.reduce((a, n) => a + n.value, 0) === Bs.length,
-    `у заёмщика 8 разрезов из реестра статистики; «Ступени» больше не погашены — худшая категория, худшая просрочка, подгруппа: ${steps.map(r => r.nodes.length).join(' · ')} ступеней (ДБ-66, ДБ-Д21)`);
+    `у заёмщика 17 разрезов (13 из реестра статистики и 4 заявленных); «Ступени» больше не погашены — худшая категория, худшая просрочка, подгруппа: ${steps.map(r => r.nodes.length).join(' · ')} ступеней (ДБ-66, ДБ-Д21)`);
   const rank = c => DB.DIMS.category.values.indexOf(c);
   const worstOk = Bs.every(b => { const ls = L.filter(l => l.borrower === b.id);
     return b.worst === ls.reduce((a, l) => rank(l.category) > rank(a) ? l.category : a, ls[0].category) && b.worstDays === Math.max(...ls.map(l => l.overdueDays)); });
@@ -370,8 +376,120 @@ const asUser = id => { DB.state.userId = id; };
   const cells = heat.heat.cells.flat().reduce((a, v) => a + v, 0);
   const cur = DB.ask(bt(['ptype'], 'slice'), U('u2'), 'cur', {});
   ok(89, heat.state === 'ok' && cells === Bs.length && heat.heat.rows.length === 3
-    && cur.nodes.reduce((a, n) => a + n.value, 0) === Bs.filter(b => b.dept === 'rp-chu').length,
+    && cur.nodes.reduce((a, n) => a + n.value, 0) === Bs.filter(b => b.dept === 'rp-chu').length && DB.DATA.borrower.length > Bs.length,
     `тип лица × отрасль: ${heat.heat.rows.length}×${heat.heat.cols.length}, в ячейках ${cells} — все заёмщики; у куратора разрез режется охватом подразделения (ДБ-66, ИДБ-12)`);
+})();
+
+/* ---------- M. Волна 3: заёмщик — показатели, разрезы, фильтры, форматы ---------- */
+(() => {
+  DB.seed();
+  const ACT = { f:'pstate', op:'eq', v:'действующий' };
+  const allB = DB.DATA.borrower, Bs = allB.filter(b => DB.pstateAt(b, 0) === 'действующий');
+  const allL = DB.DATA.loan, L = allL.filter(l => !l.closed);
+  const draft = o => Object.assign(DB.blankDraft(), o);
+  // ДБ-Д22: шкала категорий — классификатор владельца
+  const cat = DB.ask(T('lead-cat'), U('u1'), 'lead', {});
+  ok(90, DB.DIMS.category.values.join('|') === 'Низкий кредитный риск|Средний кредитный риск|Высокий кредитный риск|Потери|Убыток'
+    && DB.DIMS.bworst.values === DB.DIMS.category.values && cat.nodes.map(n => n.short).join(' · ') === 'низкий · средний · высокий · потери · убыток'
+    && cat.total.v === L.length,
+    `категории — шкала классификатора: ${cat.nodes.map(n => n.short + ' ' + n.value).join(' · ')} (ДБ-Д22)`);
+  // ДБ-68, ДБ-69: «действующие» по умолчанию, печатается, снимается
+  const lb = DB.ask(T('lead-borr'), U('u1'), 'lead', {}), ll = DB.ask(T('lead-loans'), U('u1'), 'lead', {});
+  const bAll = DB.ask(draft({ obj:'borrower', inds:['borrower.count'], filter:[] }), U('u1'), 'lead', {});
+  const bPaid = DB.ask(draft({ obj:'borrower', inds:['borrower.count'], filter:[{ f:'pstate', op:'eq', v:'весь портфель погашен' }] }), U('u1'), 'lead', {});
+  DB.dSet('obj', 'borrower'); const bd = DB.draft; const hintB = DB.builderHints(draft({ obj:'borrower', inds:['borrower.count'], filter:[] }));
+  DB.newDraft();
+  ok(91, lb.value === 903 && bAll.value === allB.length && allB.length > 903 && bPaid.value > 0 && bAll.value === lb.value + bPaid.value + allB.filter(b => DB.pstateAt(b, 0) === 'без договоров').length
+    && ll.value === L.length && allL.length > L.length && DB.qualOf(T('lead-borr')) === 'действующие' && DB.qualOf(T('lead-loans')) === 'действующие'
+    && bd.filter.length === 1 && bd.filter[0].f === 'pstate' && DB.blankDraft().filter[0].f === 'lact' && hintB.some(h => /складывает действующих и погасивших/.test(h)),
+    `«Заёмщиков» ${lb.value} — действующие из ${allB.length} строк (погасивших ${bPaid.value}); «Кредитов» ${ll.value} из ${allL.length}; конструктор сам ставит фильтр, без него — подсказка (ДБ-68, ДБ-69)`);
+  // ДБ-70, ДБ-80: фильтр числителя — один показатель, клик — строки с обоими фильтрами
+  const bo = DB.ask(T('lead-borod'), U('u1'), 'lead', {}); const who = DB.statRows(T('lead-borod'), U('u1'), 'lead', {});
+  ok(92, T('lead-borod').inds.length === 1 && T('lead-borod').share[0] === T('lead-borod').share[1] && T('lead-borod').numFilter.length === 1
+    && !Object.values(DB.IND).some(i => i.obj === 'borrower' && i.where) && bo.num === Bs.filter(b => b.overCredits > 0).length && bo.den === 903
+    && who.refused && who.count === bo.num,
+    `«Заёмщиков с просрочкой» ${bo.num} из ${bo.den} — Число объектов · фильтр «действующие» · фильтр числителя «договоров с просрочкой > 0»; своих счётов у заёмщика нет; клик — ${who.count} строк числителя (ДБ-70, ДБ-80)`);
+  // ДБ-Д23: фильтр по значению в конструкторе — разрез и число строки
+  DB.dSet('obj', 'borrower'); DB.dCond('filter', 'f', 'bodays'); DB.dCond('filter', 'op', 'in'); DB.dCond('filter', 'v', ['91–180', '181+']);
+  const c1 = DB.dCondAdd('filter'); const p1 = DB.autocheck(DB.draft).preview.value;
+  DB.dCondDel('filter', 1); DB.dCond('filter', 'f', 'worstDays'); DB.dCond('filter', 'op', 'gt'); DB.dCond('filter', 'v', '90');
+  const c2 = DB.dCondAdd('filter'); const p2 = DB.autocheck(DB.draft).preview.value;
+  DB.dNumShare(true); DB.dCond('num', 'f', 'ptype'); DB.dCond('num', 'v', ['юр']); DB.dCondAdd('num'); DB.dTitle('Юрлица среди клиентов с просрочкой 91+');
+  const sh = DB.autocheck(DB.draft); DB.newDraft();
+  ok(93, c1 && c2 && p1 === p2 && p1 === Bs.filter(b => b.worstDays > 90).length && DB.condText(c1) === 'Худшая просрочка по портфелю ∈ 91–180, 181+'
+    && DB.condText(c2) === 'Худшая просрочка по портфелю, дн. > 90' && sh.ok && sh.preview.den === p2 && sh.preview.num === Bs.filter(b => b.worstDays > 90 && b.ptype === 'юр').length,
+    `конструктор собирает фильтр по значению: «${DB.condText(c1)}» = «${DB.condText(c2)}» = ${p1} клиентов; доля юрлиц среди них — фильтр числителя ${sh.preview.num} из ${sh.preview.den} (ДБ-Д23, ДБ-70)`);
+  // ДБ-71, ДБ-74: движение клиентов — черновик до статистики
+  const m0 = DB.ask(T('lead-bmove'), U('u1'), 'lead', {}); const off = !DB.tileAnswers(T('lead-bmove')) && !DB.composeLayout('u1', 'lead').includes('lead-bmove');
+  DB.STAND.clientFlows = true;
+  const mv = DB.ask(T('lead-bmove'), U('u1'), 'lead', {}).move; const lay = DB.composeLayout('u1', 'lead');
+  const at = m => allB.filter(b => b.from <= m && DB.pstateAt(b, m) === 'действующий').length;
+  ok(94, m0.state === 'refusal' && /даты погашения всего портфеля/.test(m0.msg) && off && mv.converges && mv.M === -1
+    && mv.start === at(-2) && mv.end === at(-1) && mv.inc.map(x => x.name).join() === 'новые,вернулись' && mv.dec[0].name === 'погасили всё'
+    && mv.inc[0].v === allB.filter(b => b.firstM === -1).length && mv.dec[0].v > 0 && lay.indexOf('lead-bmove') === lay.indexOf('lead-bodays') + 1,
+    `«Клиенты за прошлый месяц» — черновик, пока статистика не отдаёт потоки; затем ${mv.start} → +${mv.ti} −${mv.td} прочее ${mv.other} → ${mv.end}, сходится (ДБ-71, ДБ-74, ДБ-53)`);
+  DB.STAND.clientFlows = false;
+  // ДБ-72, ДБ-73: «Область» — по регистрации, «Программа» не действует
+  const osh = DB.ask(T('lead-borr'), U('u1'), 'lead', { region:'Ошская' }), pr = DB.ask(T('lead-borr'), U('u1'), 'lead', { program:'agro' });
+  ok(95, osh.value === Bs.filter(b => b.region === 'Ошская').length && /фильтр: Ошская · по регистрации заёмщика/.test(osh.passport)
+    && pr.value === 903 && /без фильтра/.test(pr.passport) && !/по регистрации/.test(DB.ask(T('lead-loans'), U('u1'), 'lead', { region:'Ошская' }).passport),
+    `панель у заёмщика: «Ошская» режет по территории регистрации — ${osh.value} клиентов с подписью; «Программа» — без фильтра; у кредита подписи нет (ДБ-72, ДБ-73)`);
+  // ДБ-74, ДБ-88: ступени худшей просрочки и совокупного долга в «Картине портфеля»
+  const bk = DB.ask(T('lead-bodays'), U('u1'), 'lead', {}); const debt = DB.ask(T('lead-bdebt'), U('u1'), 'lead', {});
+  const bal = DB.ask(T('lead-bal'), U('u1'), 'lead', {}).move.end;
+  ok(96, bk.nodes.reduce((a, n) => a + n.value, 0) === bo.num && debt.table.rows.map(r => r.label).join('|') === 'до 1 млн|1–10 млн|10–50 млн|50+ млн'
+    && debt.total[0] === 903 && Math.round(debt.total[1]) === Math.round(bal) && /⚑/.test(DB.reqOf(T('lead-bdebt')).length ? '⚑' : '')
+    && ['lead-bodays', 'lead-bdebt'].every(id => DB.composeLayout('u1', 'lead').indexOf(id) > DB.composeLayout('u1', 'lead').indexOf('lead-spcure')),
+    `ступени клиентов: худшая просрочка ${bk.nodes.map(n => n.value).join(' · ')} (= ${bo.num}); совокупный долг ${debt.table.rows.map(r => r.cells[0]).join(' · ')} — в порядке ступеней, деньги = остаток портфеля (ДБ-74, ДБ-82, ДБ-88)`);
+  // ДБ-76: Проблемные кредиты видят заёмщика через свои требования
+  const pdP = DB.ask(T('prob-dead'), U('u3'), 'prob', {}), pdL = DB.ask(T('prob-dead'), U('u1'), 'lead', {});
+  const viaC = new Set(DB.DATA.claim.filter(c => c.dept === 'opk').map(c => c.loan));
+  const seen = new Set(allL.filter(l => viaC.has(l.id)).map(l => l.borrower));
+  ok(97, pdP.state === 'ok' && pdP.visible === seen.size && pdP.value > 0 && pdP.value < pdL.value
+    && pdL.value === Bs.filter(b => b.pers !== 'действует').length && DB.composeLayout('u3', 'prob').includes('prob-dead'),
+    `«Должник умер или ликвидирован»: отдел взыскания видит ${pdP.value} — клиентов своих требований (${pdP.visible}), Руководство — ${pdL.value} (ДБ-74, ДБ-76)`);
+  // ДБ-75: подпись куратора
+  ok(98, /клиенты, где вы ведущий куратор/.test(DB.qualOf(T('cur-borod'))) && /клиенты, где вы ведущий куратор/.test(DB.qualOf(T('cur-npay')))
+    && !/ведущий/.test(DB.qualOf(T('cur-loans'))),
+    `плитки куратора на заёмщике печатают «${DB.qualOf(T('cur-borod'))}», на кредите — нет (ДБ-75, ДБ-Д20)`);
+  // ДБ-67: деньги заёмщика есть, итог — у кредита, подсказка
+  const money = Object.values(DB.IND).filter(i => i.obj === 'borrower' && i.unit === 'sum');
+  const byType = DB.ask(draft({ obj:'borrower', inds:['borrower.total'], dims:['ptype'], format:'slice', filter:[ACT] }), U('u1'), 'lead', {});
+  const hint = DB.builderHints(draft({ obj:'borrower', inds:['borrower.total'], filter:[ACT] }));
+  const layB = Object.values(DB.DECLARED_SEED).flat().filter(k => DB.tileById(k)).some(k => DB.tileById(k).inds.some(i => DB.IND[i].obj === 'borrower' && DB.IND[i].unit === 'sum' && DB.tileById(k).format !== 'table'));
+  ok(99, money.length >= 2 && Math.round(byType.total.v) === Math.round(bal) && hint.some(h => /Итог денег — у объекта «Кредит»/.test(h)) && !layB,
+    `у заёмщика деньги портфеля (${money.map(i => i.name).join(', ')}): по типу лица ${byType.nodes.map(n => n.label.split(' ')[0] + ' ' + DB.fmtVal(n.value, 'sum')).join(' · ')}; без разреза — подсказка «итог у кредита» (ДБ-67)`);
+  // ДБ-77, ДБ-78: форматы и сдвиг счёта клиентов
+  const fc = DB.formatsFor(draft({ obj:'borrower', inds:['borrower.count'], filter:[ACT] }));
+  const sPm = DB.ask(draft({ obj:'borrower', inds:['borrower.count'], filter:[ACT], format:'shift', shift:'prevMonthEnd' }), U('u1'), 'lead', {});
+  const sYs = DB.ask(draft({ obj:'borrower', inds:['borrower.count'], filter:[ACT], format:'shift', shift:'yearStart' }), U('u1'), 'lead', {});
+  ok(100, fc.find(x => x.f === 'move').ok && fc.find(x => x.f === 'shift').ok && DB.shiftsFor(draft({ obj:'borrower', inds:['borrower.count'] })).length === 3
+    && sPm.shift.base === at(-1) && sYs.shift.base === at(-10) && sPm.shift.base !== sYs.shift.base,
+    `сдвиг счёта клиентов — как у остатков, «действующий» на дату базы: к 30.09 ${sPm.shift.base}, к началу года ${sYs.shift.base}, сейчас ${sPm.value} (ДБ-77, ДБ-78)`);
+  // ДБ-79: «Работать со списком» — реестр заёмщиков с фильтром плитки
+  const reg = DB.registryList(T('prob-dead'), U('u3'), 'prob', {});
+  ok(101, reg.registry === 'Реестр заёмщиков' && reg.today === pdP.value && reg.slice === pdP.value,
+    `«Работать со списком» у заёмщика — ${reg.registry} с фильтром плитки: ${reg.today} (ДБ-79)`);
+  // ДБ-81: 13 разрезов реестра + 4 заявленных
+  const D = DB.OBJ_DIMS.borrower; const reqD = D.filter(d => DB.DIMS[d].req);
+  ok(102, ['pstate', 'pers', 'bcur', 'bcohort', 'bblack'].every(d => D.includes(d)) && D.length - reqD.length === 13 && reqD.join() === 'bdebt,bcredits,bhist,bcontact'
+    && DB.ask(draft({ obj:'borrower', inds:['borrower.count'], dims:['bcohort'], format:'steps', filter:[ACT] }), U('u1'), 'lead', {}).total.v === 903,
+    `у заёмщика ${D.length - reqD.length} разрезов из реестра и ${reqD.length} заявленных (⚑): ${reqD.map(d => DB.DIMS[d].name).join(', ')} (ДБ-81…ДБ-84, ДБ-86)`);
+  // ДБ-83, ДБ-84, ДБ-88: повторные клиенты и кредитная история — в каталоге, не в раскладке
+  const rp = DB.ask(T('cat-brep'), U('u1'), 'lead', {}), hs = DB.ask(T('cat-bhist'), U('u1'), 'lead', {});
+  const cat3 = DB.catalogFor(U('u1')).filter(x => ['cat-brep', 'cat-bhist', 'cat-brepsh'].includes(x.t.id));
+  ok(103, rp.nodes.map(n => n.label).join() === '1,2,3+' && rp.total.v === 903 && hs.nodes.map(n => n.label).join() === 'без просрочек,1–30,31–90,91+'
+    && hs.nodes.reduce((a, n) => a + n.value, 0) === 903 && hs.nodes[3].value >= Bs.filter(b => b.worstDays > 90).length
+    && cat3.length === 3 && !Object.values(DB.DECLARED_SEED).flat().some(k => ['cat-brep', 'cat-bhist'].includes(k)),
+    `в каталоге: по числу договоров ${rp.nodes.map(n => n.value).join(' · ')}, кредитная история ${hs.nodes.map(n => n.value).join(' · ')} — 91+ не меньше текущей просрочки 91+ (ДБ-83, ДБ-84, ДБ-88)`);
+  // ДБ-86: две проверки карточки — плитки куратора и взыскания, заявка соседу
+  const co = DB.ask(T('cur-obl'), U('u2'), 'cur', {}), nc = DB.ask(T('prob-nocon'), U('u3'), 'prob', {});
+  ok(104, co.value === Bs.filter(b => b.curator === 'u2' && b.oblExpired > 0).length && co.value > 0 && nc.value > 0
+    && DB.reqOf(T('cur-obl')).length === 1 && DB.reqOf(T('prob-nocon')).length === 1 && DB.composeLayout('u3', 'prob').includes('prob-nocon'),
+    `проверки карточки в статистике (⚑ заявка): у куратора клиентов с просроченным обязательством Порядка ${co.value}, у взыскания должников без канала связи ${nc.value} (ДБ-86)`);
+  // фильтр «действующие» у потока режет закрытые в периоде — подсказка
+  ok(105, DB.builderHints(draft({ obj:'loan', inds:['loan.paid'], filter:[{ f:'lact', op:'eq', v:'действующий' }] })).some(h => /отрезает договоры, закрытые в периоде/.test(h)),
+    'у потока фильтр «действующие» отрезает договоры, закрытые в периоде, — конструктор предупреждает (вопрос владельцу)');
 })();
 
 /* ---------- отчёт ---------- */
