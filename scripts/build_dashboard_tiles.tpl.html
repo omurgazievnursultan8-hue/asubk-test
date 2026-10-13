@@ -1,0 +1,509 @@
+<title>Плитки дашборда АСУБК</title>
+<style>
+/* ===== Стили макета mockups/dashboard/dashboard.html — вставляются генератором, чтобы плитки выглядели как на главной ===== */
+/*__MOCKUP_CSS__*/
+
+/* ===== Лист «Плитки дашборда» =====
+   Раскладка: шапка → липкая панель (вид, фильтры, счёт замечаний) → экран роли (сетка 4 колонки, как на главной)
+   или паспорта плиток (образец на подложке · вопрос по шагам конструктора · замечания).
+   Цвет и шрифт — система АСУБК из макета; страница светлая, как сам продукт. */
+:root{
+  color-scheme:light;
+  --rv-ground:var(--asubk-gray-100);
+  --rv-ok:var(--asubk-green); --rv-improve:var(--asubk-amber); --rv-rework:var(--asubk-red-hover); --rv-none:rgba(28,52,84,0.18);
+  --rv-col:272px; --rv-gap:12px;
+}
+html,body{ height:auto; }
+body{ background:var(--rv-ground); color:var(--text-body); }
+button:focus-visible,select:focus-visible,input:focus-visible,[tabindex]:focus-visible{ outline:2px solid var(--asubk-blue); outline-offset:2px; }
+.rv-page{ max-width:1240px; margin:0 auto; padding-inline:24px; }
+
+/* шапка */
+.rv-head{ padding-block:28px 18px; display:flex; flex-direction:column; gap:10px; }
+.rv-eyebrow{ font:600 12px/1.3 var(--asubk-font); text-transform:uppercase; letter-spacing:.06em; color:var(--text-placeholder); }
+.rv-head h1{ margin:0; font:600 26px/1.15 var(--asubk-font); color:var(--text-heading); text-wrap:balance; }
+.rv-lede{ margin:0; max-width:70ch; font-size:15px; }
+.rv-facts{ font-size:13.5px; color:var(--text-muted); }
+.rv-progress{ display:flex; flex-direction:column; gap:6px; max-width:760px; margin-top:4px; }
+.rv-meter{ display:flex; height:8px; border-radius:var(--radius-pill); overflow:hidden; background:var(--rv-none); }
+.rv-meter span{ display:block; height:100%; }
+.rv-legend{ display:flex; flex-wrap:wrap; gap:4px 16px; font-size:13px; color:var(--text-muted); align-items:center; }
+.rv-legend b{ color:var(--text-heading); font-weight:600; font-variant-numeric:tabular-nums; }
+.rv-legend .dot{ margin-right:4px; }
+.rv-store{ font-size:12.5px; color:var(--text-muted); }
+.rv-store.off{ color:var(--asubk-amber); }
+.rv-general{ max-width:1000px; border:1px solid var(--border-default); border-radius:var(--radius-lg); background:var(--surface-card); }
+.rv-general summary{ cursor:pointer; padding:9px 14px; font-weight:500; color:var(--text-heading); font-size:14px; }
+.rv-general summary .rv-m{ font-weight:400; }
+.rv-general .rv-notes{ border-top:1px solid var(--asubk-grid-line); border-radius:0 0 var(--radius-lg) var(--radius-lg); grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+.rv-general .rv-saved{ grid-column:1 / -1; }
+
+/* липкая панель */
+.rv-bar{ position:sticky; top:env(safe-area-inset-top,0px); z-index:20; background:var(--rv-ground); border-bottom:1px solid var(--border-default); }
+.rv-bar-in{ max-width:1240px; margin:0 auto; padding:10px 24px; display:flex; flex-wrap:wrap; gap:10px 16px; align-items:center; }
+.rv-seg{ display:inline-flex; border:1px solid var(--border-strong); border-radius:var(--radius-md); overflow:hidden; background:var(--surface-card); flex:none; }
+.rv-seg button{ border:none; background:none; padding:6px 14px; cursor:pointer; font-size:14px; color:var(--text-muted); }
+.rv-seg button + button{ border-left:1px solid var(--border-default); }
+.rv-seg button[aria-selected="true"]{ background:var(--asubk-blue); color:#fff; }
+.rv-filters{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; flex:1 1 100%; order:3; min-width:0; }
+.rv-filters input[type=search]{ height:32px; width:230px; max-width:100%; border-radius:var(--radius-md); border:1px solid var(--border-strong);
+  background:var(--surface-card); color:var(--text-body); font:400 14px/1.3 var(--asubk-font); padding:0 8px; }
+.rv-filters select{ max-width:100%; }
+.rv-bar-r{ margin-left:auto; display:flex; gap:10px; align-items:center; font-size:13px; color:var(--text-muted); flex-wrap:wrap; }
+.rv-bar-r b{ color:var(--text-heading); font-variant-numeric:tabular-nums; }
+
+/* экран роли */
+.rv-main{ padding-block:16px 64px; }
+.rv-screen{ background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--radius-lg); padding:8px 16px 20px; }
+.rv-screen .tabs{ margin-bottom:10px; }
+.rv-tabn{ font-size:12px; color:var(--text-placeholder); margin-left:3px; font-variant-numeric:tabular-nums; }
+.rv-screen .scope-line .rv-dec{ margin:0; }
+.rv-slot{ position:relative; display:flex; flex-direction:column; min-width:0; border-radius:var(--radius-lg); cursor:pointer; }
+.rv-slot.w2{ grid-column:span 2; } .rv-slot.h2{ grid-row:span 2; }
+.rv-slot > .tile{ flex:1; }
+.rv-slot:hover > .tile{ border-color:var(--asubk-blue); }
+
+/* отметка замечания */
+.rv-pin{ position:absolute; top:-9px; right:10px; z-index:2; font:500 11px/16px var(--asubk-font); padding:0 7px; border-radius:var(--radius-pill);
+  background:var(--surface-card); border:1px solid var(--border-strong); color:var(--text-muted); white-space:nowrap; pointer-events:none; }
+.rv-pin.static{ position:static; margin-left:auto; font-size:12px; line-height:20px; padding:0 9px; }
+.rv-pin.st-ok{ border-color:var(--rv-ok); color:var(--rv-ok); }
+.rv-pin.st-improve{ border-color:var(--rv-improve); color:var(--rv-improve); }
+.rv-pin.st-rework{ border-color:var(--rv-rework); color:#fff; background:var(--rv-rework); }
+
+/* паспорта */
+.rv-count{ font-size:13.5px; color:var(--text-muted); margin:0 0 6px; }
+.rv-group{ font:600 17px/1.2 var(--asubk-font); color:var(--text-heading); margin:26px 0 10px; display:flex; gap:8px; align-items:baseline; }
+.rv-group:first-child{ margin-top:6px; }
+.rv-group span{ font-weight:400; font-size:13px; color:var(--text-muted); }
+.rv-empty{ padding:28px 16px; text-align:center; color:var(--text-muted); background:var(--surface-card); border:1px dashed var(--border-strong); border-radius:var(--radius-lg); }
+.rv-card{ background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--radius-lg); margin-bottom:14px; }
+.drawer .rv-card{ border:none; margin:0; }
+.rv-card-h{ display:flex; flex-wrap:wrap; align-items:center; gap:6px 10px; padding:10px 16px; border-bottom:1px solid var(--asubk-grid-line); }
+.rv-card-h h3{ margin:0; font:600 15px/1.25 var(--asubk-font); color:var(--text-heading); }
+.rv-id{ font:12px/1 var(--mono); color:var(--text-muted); background:var(--surface-panel); border-radius:3px; padding:4px 6px; }
+.rv-chips{ display:flex; flex-wrap:wrap; gap:4px; }
+.rv-chips .chip{ font-size:12px; padding:1px 8px; }
+.rv-card-b{ display:grid; grid-template-columns:auto minmax(0,1fr); gap:20px; padding:16px; }
+.rv-plate{ background:var(--surface-panel); border-radius:var(--radius-lg); padding:12px; align-self:start; max-width:100%; }
+.rv-specimen{ width:var(--rv-col); max-width:100%; display:flex; flex-direction:column; }
+.rv-specimen.s-2x1,.rv-specimen.s-2x2{ width:calc(2 * var(--rv-col) + var(--rv-gap)); }
+.rv-specimen > .tile{ cursor:default; }
+.rv-plate-note{ font-size:11.5px; color:var(--text-placeholder); margin-top:6px; }
+.rv-q{ list-style:none; margin:0; padding:0; counter-reset:q; display:grid; gap:6px; }
+.rv-q > li{ counter-increment:q; display:grid; grid-template-columns:150px minmax(0,1fr); gap:12px; font-size:13.5px; align-items:baseline; }
+.rv-k{ color:var(--text-muted); display:flex; gap:7px; align-items:baseline; }
+.rv-k::before{ content:counter(q); flex:none; width:17px; height:17px; border-radius:50%; border:1px solid var(--border-strong);
+  font:500 10.5px/15px var(--asubk-font); text-align:center; color:var(--text-muted); font-variant-numeric:tabular-nums; }
+.rv-v{ min-width:0; }
+.rv-m{ color:var(--text-muted); font-size:12.5px; }
+.rv-inds{ margin:0; padding:0; list-style:none; display:grid; gap:2px; }
+.rv-cond{ display:inline-block; margin:1px 4px 1px 0; padding:1px 8px; border-radius:var(--radius-pill); background:var(--asubk-blue-tint); color:var(--asubk-ink); font-size:12.5px; }
+.rv-share,.rv-sub{ margin-top:3px; font-size:12.5px; }
+.rv-ex{ display:grid; grid-template-columns:150px minmax(0,1fr); gap:5px 12px; margin:14px 0 0; padding-top:12px; border-top:1px dashed var(--border-default); font-size:13.5px; }
+.rv-ex dt{ color:var(--text-muted); padding-left:24px; } .rv-ex dd{ margin:0; min-width:0; }
+.rv-req{ margin:0; padding-left:16px; color:var(--asubk-amber); }
+.rv-dec{ display:inline-block; font:12px/18px var(--mono); padding:0 6px; border:1px solid var(--border-strong); border-radius:3px; margin:0 4px 3px 0;
+  cursor:help; color:var(--asubk-ink); background:var(--surface-card); }
+.rv-dec.missing{ border-style:dashed; color:var(--text-muted); }
+
+/* замечания */
+.rv-notes{ display:grid; grid-template-columns:auto minmax(0,1fr) minmax(0,1fr); gap:8px 14px; padding:12px 16px 12px; background:var(--asubk-gray-50);
+  border-top:1px solid var(--asubk-grid-line); border-radius:0 0 var(--radius-lg) var(--radius-lg); align-items:start; }
+.rv-status{ display:flex; flex-direction:column; gap:4px; padding-top:18px; }
+.rv-st{ display:flex; align-items:center; gap:7px; height:28px; padding:0 10px; border:1px solid var(--border-default); border-radius:var(--radius-md);
+  background:var(--surface-card); color:var(--text-muted); cursor:pointer; font-size:13px; white-space:nowrap; }
+.rv-st::before{ content:""; width:8px; height:8px; border-radius:50%; background:var(--rv-none); flex:none; }
+.rv-st.st-ok::before{ background:var(--rv-ok); } .rv-st.st-improve::before{ background:var(--rv-improve); } .rv-st.st-rework::before{ background:var(--rv-rework); }
+.rv-st:hover:not(:disabled){ border-color:var(--border-strong); color:var(--text-body); }
+.rv-st[aria-pressed="true"]{ color:var(--text-heading); border-color:var(--asubk-ink-45); font-weight:500; }
+.rv-st.st-ok[aria-pressed="true"]{ background:var(--asubk-green-tint); border-color:var(--rv-ok); color:var(--rv-ok); }
+.rv-st.st-improve[aria-pressed="true"]{ background:var(--asubk-amber-tint); border-color:var(--rv-improve); color:var(--rv-improve); }
+.rv-st.st-rework[aria-pressed="true"]{ background:var(--asubk-red-tint); border-color:var(--rv-rework); color:var(--rv-rework); }
+.rv-st:disabled{ cursor:not-allowed; opacity:.6; }
+.rv-field{ display:flex; flex-direction:column; gap:4px; font-size:12.5px; color:var(--text-muted); min-width:0; }
+.rv-field span{ font-weight:500; }
+.rv-field textarea{ font:14px/1.4 var(--asubk-font); min-height:68px; resize:vertical; padding:6px 8px; border:1px solid var(--border-strong);
+  border-radius:var(--radius-md); background:var(--surface-card); color:var(--text-body); width:100%; }
+.rv-field textarea::placeholder{ color:var(--text-placeholder); }
+.rv-field textarea:focus{ outline:2px solid var(--asubk-blue-tint); border-color:var(--asubk-blue); }
+.rv-field textarea:disabled{ background:var(--asubk-gray-100); }
+.rv-saved{ grid-column:2 / -1; font-size:12px; color:var(--text-placeholder); min-height:16px; }
+.rv-saved.err{ color:var(--asubk-red-hover); }
+
+.drawer-h{ flex-wrap:wrap; gap:8px 12px; }
+.drawer-b{ padding:0; }
+.rv-copybox{ width:100%; min-height:50vh; font:13px/1.45 var(--mono); padding:10px; border:1px solid var(--border-strong); border-radius:var(--radius-md); color:var(--text-body); background:var(--surface-card); }
+
+@media (max-width:1000px){
+  .rv-card-b{ grid-template-columns:minmax(0,1fr); }
+  .rv-notes,.rv-general .rv-notes{ grid-template-columns:minmax(0,1fr); }
+  .rv-status{ flex-direction:row; flex-wrap:wrap; padding-top:0; }
+  .rv-saved{ grid-column:1; }
+}
+@media (max-width:600px){
+  .rv-page,.rv-bar-in{ padding-inline:16px; }
+  .rv-head h1{ font-size:22px; }
+  .rv-slot.w2{ grid-column:span 1; }
+  .rv-screen{ padding:6px 10px 14px; }
+  .rv-screen .tabs{ flex-wrap:nowrap; overflow-x:auto; }
+  .rv-screen .tab{ white-space:nowrap; }
+  .rv-plate{ padding:8px; }
+  .rv-specimen,.rv-specimen.s-2x1,.rv-specimen.s-2x2{ width:100%; }
+  .rv-q > li,.rv-ex{ grid-template-columns:minmax(0,1fr); gap:2px; }
+  .rv-q > li{ margin-bottom:4px; }
+  .rv-ex dt{ padding-left:0; margin-top:6px; }
+  .rv-filters input[type=search]{ width:100%; }
+  .rv-bar-r{ margin-left:0; }
+}
+</style>
+
+<header class="rv-page rv-head">
+  <div class="rv-eyebrow">АСУБК · модуль «Дашборд» · <span id="rv-rev">макет</span></div>
+  <h1>Плитки дашборда</h1>
+  <p class="rv-lede">Все плитки макета на одной странице: как каждая выглядит, какой вопрос она задаёт статистике и в какой раскладке стоит.
+    Отметьте у плитки, что поправить в дизайне и в логике. Замечания сохраняются здесь, их видят все, кто открывает страницу,
+    и по ним собирается следующая волна макета.</p>
+  <div class="rv-facts" id="rv-facts"></div>
+  <div class="rv-progress">
+    <div class="rv-meter" id="rv-meter" aria-hidden="true"></div>
+    <div class="rv-legend" id="rv-legend"></div>
+    <div class="rv-store" id="rv-store">Подключаю хранилище замечаний…</div>
+  </div>
+  <details class="rv-general" id="rv-general">
+    <summary>Общие замечания ко всем плиткам <span class="rv-m">— сетка, типографика, цвет, паспорт, поведение</span></summary>
+    <div id="rv-general-form"></div>
+  </details>
+</header>
+
+<div class="rv-bar">
+  <div class="rv-bar-in">
+    <div class="rv-seg" role="tablist" aria-label="Вид">
+      <button type="button" role="tab" data-view="layout" aria-selected="true">Раскладки ролей</button>
+      <button type="button" role="tab" data-view="list" aria-selected="false">Все плитки</button>
+    </div>
+    <div class="rv-filters" id="rv-filters" hidden>
+      <input type="search" id="rv-q" placeholder="Название, id, показатель, разрез" aria-label="Поиск плитки">
+      <select id="rv-role" aria-label="Роль"></select>
+      <select id="rv-fmt" aria-label="Формат"></select>
+      <select id="rv-obj" aria-label="Объект"></select>
+      <select id="rv-kind" aria-label="Вид плитки">
+        <option value="">обзорные и ссылочные</option><option value="overview">обзорные</option><option value="link">ссылочные «ждёт меня»</option>
+      </select>
+      <select id="rv-mark" aria-label="Замечания">
+        <option value="">все отметки</option><option value="none">не смотрели</option><option value="ok">хорошо</option>
+        <option value="improve">улучшить</option><option value="rework">переделать</option><option value="text">есть текст замечания</option>
+      </select>
+    </div>
+    <div class="rv-bar-r">
+      <span id="rv-barcount"></span>
+      <button type="button" class="btn sm" id="rv-copy">Скопировать замечания</button>
+    </div>
+  </div>
+</div>
+
+<main class="rv-page rv-main">
+  <section id="rv-layout" aria-label="Раскладки ролей"></section>
+  <section id="rv-list" aria-label="Все плитки" hidden></section>
+</main>
+<div id="overlay"></div>
+<div class="tip" id="tip"></div>
+
+<script type="application/json" id="rv-data">__DATA__</script>
+<script>
+(function(){
+'use strict';
+const D = JSON.parse(document.getElementById('rv-data').textContent);
+const T = D.tiles, ORDER = D.order, TABS = D.tabs;
+const TABNAME = Object.fromEntries(TABS.map(t => [t.id, t.name]));
+const MARKS = [['', 'Не смотрели'], ['ok', 'Хорошо'], ['improve', 'Улучшить'], ['rework', 'Переделать']];
+const MARK_NAME = Object.fromEntries(MARKS);
+const MARK_COLOR = { ok:'var(--rv-ok)', improve:'var(--rv-improve)', rework:'var(--rv-rework)' };
+const PH = {
+  design:'Что поправить в виде: заголовок, число, подписи, цвет, график, размер, место в раскладке',
+  logic:'Что не так в вопросе: объект, показатель, разрез, фильтр, период, сдвиг, порог светофора, клик',
+};
+const $ = id => document.getElementById(id);
+const esc = s => String(s === undefined || s === null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
+
+/* ---------- вид страницы: помнится в этом браузере ---------- */
+const ui = { view:'layout', tab:'lead', q:'', role:'', fmt:'', obj:'', kind:'', mark:'' };
+try { const s = JSON.parse(localStorage.getItem('rv-ui') || 'null');
+  if (s && typeof s === 'object') { if (s.view === 'list' || s.view === 'layout') ui.view = s.view; if (TABS.some(t => t.id === s.tab)) ui.tab = s.tab; } } catch (e) {}
+const keepUi = () => { try { localStorage.setItem('rv-ui', JSON.stringify({ view:ui.view, tab:ui.tab })); } catch (e) {} };
+
+/* ---------- замечания: хранилище артефакта, коллекция notes ---------- */
+let notes = {};            // id → { status, design, logic, updatedAt }
+let store = null;
+let storeState = 'wait';   // wait | on | off
+const timers = {};
+const note = id => notes[id] || { status:'', design:'', logic:'', updatedAt:'' };
+const hasText = n => !!n && (!!(n.design || '').trim() || !!(n.logic || '').trim());
+const titleOf = id => id === '_general' ? 'Общие замечания' : T[id].title;
+
+function stamp(iso){ if (!iso) return ''; const d = new Date(iso); if (isNaN(d)) return '';
+  const p = n => String(n).padStart(2, '0'); return p(d.getDate()) + '.' + p(d.getMonth() + 1) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); }
+const savedText = id => { const s = stamp(note(id).updatedAt); return s ? 'Сохранено ' + s : ''; };
+function setSaved(id, text, err){ document.querySelectorAll('[data-saved="' + id + '"]').forEach(el => { el.textContent = text; el.classList.toggle('err', !!err); }); }
+
+function edit(id, field, value){
+  notes[id] = Object.assign({}, note(id), { [field]: value });
+  setSaved(id, 'Сохраняю…'); syncPins(); syncProgress();
+  clearTimeout(timers[id]); timers[id] = setTimeout(() => save(id), 700);
+}
+function setStatus(id, value){
+  notes[id] = Object.assign({}, note(id), { status: value });
+  syncForms(); syncPins(); syncProgress(); save(id);
+}
+async function save(id){
+  clearTimeout(timers[id]); delete timers[id];
+  if (!store) return;
+  const n = note(id);
+  const empty = !n.status && !hasText(n);
+  const ref = store.collection('notes').doc(id);
+  const body = { tileId:id, title:titleOf(id), status:n.status || '', design:n.design || '', logic:n.logic || '', updatedAt:new Date().toISOString() };
+  setSaved(id, 'Сохраняю…');
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      if (empty) { await ref.delete(); notes[id] = { status:'', design:'', logic:'', updatedAt:'' }; setSaved(id, ''); }
+      else { await ref.set(body); notes[id] = Object.assign({}, note(id), { updatedAt: body.updatedAt }); setSaved(id, savedText(id)); }
+      return;
+    } catch (err) {
+      const code = err && err.code;
+      if (code === 'unavailable' && attempt === 0) { await new Promise(r => setTimeout(r, 400 + Math.random() * 600)); continue; }
+      setSaved(id, code === 'quota_exceeded' ? 'Не сохранено: хранилище заполнено.'
+        : code === 'revoked' ? 'Не сохранено: доступ к хранилищу отозван.'
+        : 'Не сохранено: хранилище не ответило. Измените текст ещё раз, чтобы повторить.', true);
+      return;
+    }
+  }
+}
+function readDoc(x){
+  const s = x && typeof x.status === 'string' && MARK_NAME[x.status] !== undefined ? x.status : '';
+  const str = v => typeof v === 'string' ? v : '';
+  return { status:s, design:str(x && x.design), logic:str(x && x.logic), updatedAt:str(x && x.updatedAt) };
+}
+async function connect(){
+  const c = window.claude;
+  if (!c || typeof c.use !== 'function') { storeState = 'off'; syncAll(); return; }
+  let ns = null;
+  try { ns = await c.use('db'); } catch (e) { ns = null; }
+  if (!ns) { storeState = 'off'; syncAll(); return; }
+  store = ns; storeState = 'on'; syncAll();
+  store.collection('notes').onSnapshot(snap => {
+    const next = {};
+    snap.docs.forEach(d => { if (d.id === '_general' || T[d.id]) next[d.id] = readDoc(d.data()); });
+    Object.keys(timers).forEach(id => { if (notes[id]) next[id] = notes[id]; });   // не затирать то, что ещё печатается
+    notes = next; syncAll();
+  }, () => { storeState = 'off'; store = null; syncAll(); });
+}
+
+/* ---------- синхронизация видимого ---------- */
+function syncForms(){
+  const on = storeState === 'on';
+  document.querySelectorAll('textarea[data-field]').forEach(ta => {
+    ta.disabled = !on;
+    if (document.activeElement === ta || timers[ta.dataset.id]) return;
+    const v = note(ta.dataset.id)[ta.dataset.field] || '';
+    if (ta.value !== v) ta.value = v;
+  });
+  document.querySelectorAll('[data-status]').forEach(b => {
+    b.disabled = !on; b.setAttribute('aria-pressed', String((note(b.dataset.id).status || '') === b.dataset.status));
+  });
+  document.querySelectorAll('[data-saved]').forEach(el => { if (!el.classList.contains('err') && !timers[el.dataset.saved]) el.textContent = savedText(el.dataset.saved); });
+}
+function syncPins(){
+  document.querySelectorAll('[data-pin]').forEach(el => {
+    const n = notes[el.dataset.pin]; const st = (n && n.status) || ''; const tx = hasText(n);
+    el.className = 'rv-pin' + (el.dataset.static ? ' static' : '') + (st ? ' st-' + st : '');
+    el.textContent = st ? MARK_NAME[st] + (tx ? ' · ✎' : '') : tx ? '✎ замечание' : '';
+    el.hidden = !st && !tx;
+  });
+}
+function syncProgress(){
+  const c = { ok:0, improve:0, rework:0 }; let text = 0;
+  ORDER.forEach(id => { const n = notes[id]; if (!n) return; if (c[n.status] !== undefined) c[n.status]++; if (hasText(n)) text++; });
+  const total = ORDER.length, marked = c.ok + c.improve + c.rework;
+  $('rv-meter').innerHTML = ['ok', 'improve', 'rework'].map(k => c[k] ? `<span style="width:${c[k] / total * 100}%;background:${MARK_COLOR[k]}"></span>` : '').join('');
+  $('rv-legend').innerHTML = ['ok', 'improve', 'rework'].map(k => `<span><span class="dot" style="background:${MARK_COLOR[k]}"></span>${MARK_NAME[k]} <b>${c[k]}</b></span>`).join('')
+    + `<span><span class="dot" style="background:var(--rv-none)"></span>Не смотрели <b>${total - marked}</b></span><span>С текстом замечания <b>${text}</b></span>`;
+  $('rv-barcount').innerHTML = `Отмечено <b>${marked}</b> из ${total}`;
+  const el = $('rv-store');
+  el.classList.toggle('off', storeState === 'off');
+  el.textContent = storeState === 'on' ? 'Замечания сохраняются сразу и видны всем, кто открывает страницу.'
+    : storeState === 'wait' ? 'Подключаю хранилище замечаний…'
+    : 'Хранилище замечаний в этом окне недоступно — откройте страницу в claude.ai, чтобы оставлять замечания.';
+}
+function syncAll(){ syncForms(); syncPins(); syncProgress(); }
+
+/* ---------- плитка и паспорт ---------- */
+function notesForm(id, noStatus){
+  const n = note(id); const dis = storeState === 'on' ? '' : ' disabled';
+  const status = noStatus ? '' : `<div class="rv-status" role="group" aria-label="Оценка плитки">${MARKS.map(([v, l]) =>
+    `<button type="button" class="rv-st st-${v || 'none'}" data-id="${id}" data-status="${v}" aria-pressed="${(n.status || '') === v}"${dis}>${l}</button>`).join('')}</div>`;
+  const field = (f, l) => `<label class="rv-field"><span>${l}</span><textarea id="n-${id}-${f}" data-id="${id}" data-field="${f}" rows="3" placeholder="${esc(PH[f])}"${dis}>${esc(n[f])}</textarea></label>`;
+  return `<div class="rv-notes" data-notes="${id}">${status}${field('design', 'Дизайн')}${field('logic', 'Логика')}<div class="rv-saved" data-saved="${id}">${esc(savedText(id))}</div></div>`;
+}
+function card(id){
+  const t = T[id];
+  const chips = [t.formatName + ' · ' + t.size.replace('x', '×'), t.objName, t.kind === 'link' ? 'ссылочная «ждёт меня»' : 'обзорная'].concat(t.personal ? ['личная'] : []);
+  return `<article class="rv-card" data-card="${id}">
+    <header class="rv-card-h"><code class="rv-id">${esc(id)}</code><h3>${esc(t.title)}</h3>
+      <div class="rv-chips">${chips.map(c => `<span class="chip">${esc(c)}</span>`).join('')}</div><span class="rv-pin static" data-static="1" data-pin="${id}" hidden></span></header>
+    <div class="rv-card-b">
+      <div class="rv-plate"><div class="rv-specimen s-${t.size}">${t.html}</div><div class="rv-plate-note">в сетке главной — ${t.size.replace('x', '×')}</div></div>
+      <div class="rv-spec">${t.spec}</div>
+    </div>${notesForm(id)}</article>`;
+}
+function slot(x){
+  const t = T[x.id]; const sz = t.size === '2x2' ? 'w2 h2' : t.size === '2x1' ? 'w2' : '';
+  return `<div class="rv-slot ${sz}" data-open="${x.id}" tabindex="0" role="button" aria-label="Паспорт плитки «${esc(t.title)}»">${x.html || t.html}<span class="rv-pin" data-pin="${x.id}" hidden></span></div>`;
+}
+
+/* ---------- вид «Раскладки ролей» ---------- */
+function renderLayout(){
+  const tab = TABS.find(t => t.id === ui.tab) || TABS[0];
+  const items = D.layouts[tab.id];
+  const n = items.filter(x => x.id).length, s = items.filter(x => x.s).length;
+  const tabs = TABS.map(t => `<button type="button" class="tab${t.id === tab.id ? ' active' : ''}" role="tab" aria-selected="${t.id === tab.id}" data-tab="${t.id}">${esc(t.name)}<span class="rv-tabn">${D.layouts[t.id].filter(x => x.id).length}</span></button>`).join('');
+  const dec = D.decisions[tab.dec];
+  const scope = `<div class="scope-line"><span>Глазами: <b>${esc(tab.user)}</b> · ${esc(tab.scope)}</span>
+    <span class="rv-dec" data-tip="${esc(tab.dec + (dec ? ' · ' + dec.q + ': ' + dec.d : ''))}">${esc(tab.dec)}</span>
+    <span class="muted">${n} ${plural(n, 'плитка', 'плитки', 'плиток')}${s ? ' · ' + s + ' ' + plural(s, 'секция', 'секции', 'секций') : ''}</span>
+    <span class="right muted small">Нажмите плитку — откроется её паспорт и замечания</span></div>`;
+  const grid = items.map(x => x.s ? `<div class="section-row">${esc(x.s)}</div>` : slot(x)).join('');
+  $('rv-layout').innerHTML = `<div class="rv-screen"><div class="tabs" role="tablist" aria-label="Раскладки">${tabs}</div>${scope}<div class="grid">${grid}</div></div>`;
+  syncPins();
+}
+function plural(n, one, few, many){ const a = n % 10, b = n % 100; return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many; }
+
+/* ---------- вид «Все плитки» ---------- */
+function matches(id){
+  const t = T[id];
+  if (ui.q && !t.search.includes(ui.q) ) return false;
+  if (ui.role && !(t.roles.includes(ui.role) || t.group === ui.role)) return false;
+  if (ui.fmt && t.format !== ui.fmt) return false;
+  if (ui.obj && t.obj !== ui.obj) return false;
+  if (ui.kind && (ui.kind === 'link') !== (t.kind === 'link')) return false;
+  if (ui.mark) { const n = notes[id]; const st = (n && n.status) || '';
+    if (ui.mark === 'text') return hasText(n); if (ui.mark === 'none') return !st; return st === ui.mark; }
+  return true;
+}
+function renderList(){
+  const ids = ORDER.filter(matches);
+  let html = `<p class="rv-count">Показано ${ids.length} из ${ORDER.length}. Числа — синтетический стенд макета на ${esc(D.meta.today)}.</p>`;
+  if (!ids.length) html += '<div class="rv-empty">Под эти фильтры плиток нет. Сбросьте поиск или выберите «все отметки».</div>';
+  let group = null;
+  ids.forEach(id => {
+    const g = T[id].group;
+    if (g !== group) { group = g; const cnt = ids.filter(x => T[x].group === g).length; html += `<h2 class="rv-group">${esc(TABNAME[g] || g)} <span>${cnt}</span></h2>`; }
+    html += card(id);
+  });
+  $('rv-list').innerHTML = html;
+  syncAll();
+}
+
+/* ---------- ящик паспорта (из раскладки) ---------- */
+let drawerId = null;
+const seq = () => D.layouts[ui.tab].filter(x => x.id).map(x => x.id);
+function openDrawer(id){
+  if (drawerId && timers[drawerId]) save(drawerId);
+  drawerId = id; const L = seq(); const i = L.indexOf(id);
+  $('overlay').innerHTML = `<div class="drawer-mask" data-close="1"></div>
+    <div class="drawer wide" role="dialog" aria-modal="true" aria-label="Паспорт плитки «${esc(T[id].title)}»">
+      <div class="drawer-h"><h3>Паспорт плитки</h3><span class="muted small">${i + 1} из ${L.length} · ${esc(TABNAME[ui.tab])}</span>
+        <button type="button" class="btn sm" data-step="-1"${i <= 0 ? ' disabled' : ''}>← Предыдущая</button>
+        <button type="button" class="btn sm" data-step="1"${i >= L.length - 1 ? ' disabled' : ''}>Следующая →</button>
+        <button type="button" class="drawer-x" data-close="1" aria-label="Закрыть">×</button></div>
+      <div class="drawer-b">${card(id)}</div></div>`;
+  syncAll();
+  const x = $('overlay').querySelector('.drawer-x'); if (x) x.focus({ preventScroll:true });
+}
+function step(d){ const L = seq(); const j = L.indexOf(drawerId) + d; if (j >= 0 && j < L.length) openDrawer(L[j]); }
+function closeDrawer(){
+  if (!drawerId) return;
+  if (timers[drawerId]) save(drawerId);
+  const back = document.querySelector('[data-open="' + drawerId + '"]');
+  drawerId = null; $('overlay').innerHTML = '';
+  if (back) back.focus({ preventScroll:true });
+}
+function overlayText(title, text){
+  drawerId = '_copy';
+  $('overlay').innerHTML = `<div class="drawer-mask" data-close="1"></div><div class="drawer" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+    <div class="drawer-h"><h3>${esc(title)}</h3><button type="button" class="drawer-x" data-close="1" aria-label="Закрыть">×</button></div>
+    <div class="drawer-b" style="padding:16px 20px"><p class="muted small">Буфер обмена недоступен — выделите текст и скопируйте вручную.</p><textarea class="rv-copybox" id="rv-copybox" readonly>${esc(text)}</textarea></div></div>`;
+  const ta = $('rv-copybox'); ta.focus(); ta.select();
+}
+
+/* ---------- выгрузка замечаний текстом ---------- */
+function notesText(){
+  const out = ['# Замечания к плиткам дашборда', ''];
+  const g = notes._general;
+  if (hasText(g)) { out.push('## Общие'); if ((g.design || '').trim()) out.push('Дизайн: ' + g.design.trim()); if ((g.logic || '').trim()) out.push('Логика: ' + g.logic.trim()); out.push(''); }
+  ORDER.forEach(id => { const n = notes[id]; if (!n || (!n.status && !hasText(n))) return;
+    out.push(`## ${id} · ${T[id].title}${n.status ? ' — ' + MARK_NAME[n.status] : ''}`);
+    if ((n.design || '').trim()) out.push('Дизайн: ' + n.design.trim());
+    if ((n.logic || '').trim()) out.push('Логика: ' + n.logic.trim());
+    out.push(''); });
+  return out.length > 2 ? out.join('\n') : '';
+}
+function toast(msg){ document.querySelectorAll('.toast').forEach(x => x.remove()); const d = document.createElement('div'); d.className = 'toast'; d.setAttribute('role', 'status'); d.textContent = msg; document.body.appendChild(d); setTimeout(() => d.remove(), 2600); }
+function copyNotes(){
+  const text = notesText();
+  if (!text) { toast('Замечаний пока нет'); return; }
+  let p; try { p = navigator.clipboard && navigator.clipboard.writeText(text); } catch (e) { p = null; }
+  if (!p) { overlayText('Замечания текстом', text); return; }
+  p.then(() => toast('Замечания скопированы'), () => overlayText('Замечания текстом', text));
+}
+
+/* ---------- переключение вида ---------- */
+function setView(v){
+  ui.view = v; keepUi();
+  document.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.view === v)));
+  $('rv-layout').hidden = v !== 'layout'; $('rv-list').hidden = v !== 'list'; $('rv-filters').hidden = v !== 'list';
+  if (v === 'layout') { $('rv-list').innerHTML = ''; renderLayout(); } else { $('rv-layout').innerHTML = ''; renderList(); }
+}
+
+/* ---------- события ---------- */
+document.addEventListener('click', e => {
+  const el = e.target;
+  const tb = el.closest('[data-tab]'); if (tb) { ui.tab = tb.dataset.tab; keepUi(); renderLayout(); return; }
+  const vb = el.closest('[data-view]'); if (vb) { if (ui.view !== vb.dataset.view) setView(vb.dataset.view); return; }
+  const sb = el.closest('[data-status]'); if (sb) { if (!sb.disabled) setStatus(sb.dataset.id, sb.dataset.status); return; }
+  const st = el.closest('[data-step]'); if (st) { step(+st.dataset.step); return; }
+  if (el.closest('[data-close]')) { closeDrawer(); return; }
+  if (el.closest('#rv-copy')) { copyNotes(); return; }
+  const op = el.closest('[data-open]'); if (op) { openDrawer(op.dataset.open); return; }
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && drawerId) { closeDrawer(); return; }
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.matches && e.target.matches('[data-open]')) { e.preventDefault(); openDrawer(e.target.dataset.open); return; }
+  if (drawerId && drawerId !== '_copy' && !/^(TEXTAREA|INPUT|SELECT)$/.test(e.target.tagName)) {
+    if (e.key === 'ArrowRight') step(1); else if (e.key === 'ArrowLeft') step(-1);
+  }
+});
+document.addEventListener('input', e => { const ta = e.target.closest && e.target.closest('textarea[data-field]'); if (ta) edit(ta.dataset.id, ta.dataset.field, ta.value); });
+document.addEventListener('focusout', e => { const ta = e.target.closest && e.target.closest('textarea[data-field]'); if (ta && timers[ta.dataset.id]) save(ta.dataset.id); });
+document.addEventListener('mousemove', e => {
+  const el = e.target.closest && e.target.closest('[data-tip]'); const tip = $('tip');
+  if (el) { tip.textContent = el.dataset.tip; tip.style.display = 'block'; tip.style.left = Math.max(8, Math.min(e.clientX + 12, window.innerWidth - 290)) + 'px'; tip.style.top = (e.clientY + 14) + 'px'; }
+  else tip.style.display = 'none';
+});
+let qTimer = null;
+$('rv-q').addEventListener('input', e => { clearTimeout(qTimer); qTimer = setTimeout(() => { ui.q = e.target.value.trim().toLowerCase(); renderList(); }, 160); });
+[['rv-role', 'role'], ['rv-fmt', 'fmt'], ['rv-obj', 'obj'], ['rv-kind', 'kind'], ['rv-mark', 'mark']].forEach(([id, k]) =>
+  $(id).addEventListener('change', e => { ui[k] = e.target.value; renderList(); }));
+
+/* ---------- старт ---------- */
+$('rv-role').innerHTML = '<option value="">все раскладки</option>' + TABS.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+$('rv-fmt').innerHTML = '<option value="">все форматы</option>' + Object.entries(D.meta.formats).map(([k, v]) => `<option value="${k}">${esc(v)} · ${D.meta.sizes[k].replace('x', '×')}</option>`).join('');
+$('rv-obj').innerHTML = '<option value="">все объекты</option>' + D.meta.objects.map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('');
+if (D.meta.rev) $('rv-rev').textContent = 'макет ' + D.meta.rev.replace('·', ' от ');
+const roleTabs = TABS.length - 2;
+$('rv-facts').textContent = `${ORDER.length} плиток · ${roleTabs} раскладок ролей, каталог и личная · ${Object.keys(D.meta.formats).length} форматов · ${D.meta.objects.length} объектов статистики · числа синтетические, стенд на ${D.meta.today}`;
+$('rv-general-form').innerHTML = notesForm('_general', true);
+setView(ui.view);
+syncAll();
+connect();
+})();
+</script>

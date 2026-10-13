@@ -118,3 +118,25 @@ Rerun it after every edit to either file. On any mismatch it fails and writes no
 
 So a new schema column needs a dictionary line before the page builds. The page itself is
 never hand-edited.
+
+---
+
+# Dashboard tiles review page
+
+`build_dashboard_tiles.mjs` renders `mockups/dashboard/tiles-review.html` — every tile of the
+dashboard mockup on one page, published as the claude.ai artifact
+https://claude.ai/artifact/HXv2suq9JQ1YhKkAzLXYob. Each tile is drawn by the mockup's own engine
+(`tileHTML` from `mockups/dashboard/dashboard.html`, run in `node:vm`), next to its question to
+statistics in constructor order (canon §3.1), the role layouts it sits in and the `ДБ-*` decisions
+behind it. Two views: role layouts as on the home screen, and all tiles with filters.
+
+Reviewers leave per-tile remarks (status + «Дизайн» + «Логика») on the page. They live in the
+artifact's database, collection `notes`, one document per tile id (`notes/_general` for the
+whole module) — read them with `ArtifactData list notes` and turn them into the next mockup wave.
+
+```bash
+node scripts/build_dashboard_tiles.mjs      # after any change to dashboard.html or the canon
+```
+
+Republish the output to the same artifact URL, or the remarks stay behind with the old page. It
+fails if a decision the script cites is missing from the canon's journal.
