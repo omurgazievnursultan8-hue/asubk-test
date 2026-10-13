@@ -141,6 +141,8 @@ svg.chart text{ font:11px var(--asubk-font); fill:rgba(24,39,57,.65); }
 .legend{ display:flex; gap:12px; font-size:12px; color:var(--text-muted); flex-wrap:wrap; }
 .mv{ display:grid; grid-template-columns:auto 1fr auto; gap:2px 10px; font-size:12.5px; align-items:baseline; }
 .mv .n{ font-variant-numeric:tabular-nums; text-align:right; }
+.cond-box{ margin-top:6px; } .cond-box .chip.cond{ display:inline-block; margin:2px 4px 2px 0; } .cond-add{ display:flex; flex-wrap:wrap; gap:6px; margin-top:4px; align-items:flex-start; }
+.t-qual{ font-size:11.5px; font-weight:400; color:var(--text-muted); margin-top:2px; }
 .mv .head{ font-weight:600; color:var(--text-heading); }
 .mv .flows{ grid-column:1/-1; color:var(--text-muted); font-size:12px; }
 .heat{ border-collapse:separate; border-spacing:2px; font-size:11.5px; width:100%; }
@@ -312,7 +314,7 @@ const ALL_OBJ = ['loan','borrower','program','claim','measure','case','receipt',
 const RIGHTS = {
   lead:ALL_OBJ, an:ALL_OBJ,
   cur: ['loan','borrower','coll','payment','rsapp','spell','task'],
-  prob:['loan','claim','measure','case','payment','coll','task'],
+  prob:['loan','borrower','claim','measure','case','payment','coll','task'],
   acc: ['receipt','payment','loan','task'],
   zal: ['coll','loan','task'],
   spec:['app','comm','concl','program','task'],
@@ -337,7 +339,9 @@ const RS_STAGES = ['регистрация обращения','анализ','�
 const RS_SHORT = ['обращ.','анализ','комитет','письмо','заключ.','проект','пост. КМ','оформл.','закрыта'];
 const RS_OUTCOMES = ['одобрена','одобрена с изменёнными условиями','отказ','отпала','возвращена без рассмотрения'];
 const IM_ACTIVE = ['принят, ждёт регистрации','на учёте','выставлен на продажу','продан'];
-const RISK_CATS = ['Стандартные','Под наблюдением','Субстандартные','Сомнительные','Потери'];
+// шкала — классификатор владельца (модуль «Классификация»); на стенде категория выводится из дней просрочки, у владельца — набор признаков
+const RISK_CATS = ['Низкий кредитный риск','Средний кредитный риск','Высокий кредитный риск','Потери','Убыток'];
+const RISK_SHORT = { 'Низкий кредитный риск':'низкий', 'Средний кредитный риск':'средний', 'Высокий кредитный риск':'высокий', 'Потери':'потери', 'Убыток':'убыток' };
 const PAYGROUPS = { 1:['1.1'], 2:['2.1','2.2','2.3'], 3:['3.1','3.2'], 4:['4.1','4.2'], 5:['5.1','5.2','5.3'] };
 const PTYPES = { 'юр':'Юридическое лицо', 'ИП':'Индивидуальный предприниматель', 'физ':'Физическое лицо' };
 function genData(){
@@ -444,6 +448,7 @@ function genData(){
     for(let j=0;j<n;j++) tasks.push({ id:'Т-'+(100+k*10+j), assignee:u.id, hot: j<Math.ceil(n/2), from:-2 }); });
   DATA.task = tasks;
   genMore(loans, claims, measures);
+  genClosed();
 }
 // Четыре объекта, добавленные 13.10: свой генератор, чтобы прежние данные стенда не сдвинулись.
 function genMore(loans, claims, measures){
@@ -532,6 +537,73 @@ function genMore(loans, claims, measures){
       claimRest: active && (i===7 || i===20) ? Math.round(2e5+q()*6e5) : 0, expM: active ? Math.round(15000+q()*q()*120000) : 0, from:-30 }); }
   DATA.asset = assets;
 }
+// Закрытые договоры и погасившие клиенты: строка статистики живёт всегда, «действующие» задаёт фильтр вопроса.
+// Свой генератор и после прочих — прежние данные стенда не сдвигаются.
+const PAID_ALL = 'весь портфель погашен', NO_CONTRACTS = 'без договоров';
+const PSTATES = ['действующий', PAID_ALL, NO_CONTRACTS];
+const PERS = ['действует','умер','ликвидирован'];
+const LOANS_OF = new Map();
+// состояние портфеля клиента на конец месяца m: строка истории, а не текущий признак
+function pstateAt(b, m){ if(b.firstM===null || b.firstM>m) return NO_CONTRACTS;
+  const out = b.outM!==null && b.outM<=m && !(b.backM!==null && b.backM<=m);
+  return out ? (b.outKind==='прочее' ? NO_CONTRACTS : PAID_ALL) : 'действующий'; }
+function lactAt(l, m){ return l.closed && l.to<=m ? 'закрыт' : 'действующий'; }
+const DEBT_STEPS = ['до 1 млн','1–10 млн','10–50 млн','50+ млн'];
+function debtStep(v){ return !(v>0) ? null : v<1e6 ? DEBT_STEPS[0] : v<1e7 ? DEBT_STEPS[1] : v<5e7 ? DEBT_STEPS[2] : DEBT_STEPS[3]; }
+const HIST_STEPS = ['без просрочек','1–30','31–90','91+'];
+function histStep(d){ return d===null || d===undefined ? null : d<=0 ? HIST_STEPS[0] : d<=30 ? HIST_STEPS[1] : d<=90 ? HIST_STEPS[2] : HIST_STEPS[3]; }
+function genClosed(){
+  const z = rng(20261014); const loans = DATA.loan, borrowers = DATA.borrower;
+  let seq = 0;
+  const closedLoan = (b, from, to, curator)=>{ const bal0 = Math.round(300000 + z()*z()*6e6); const program = pickW(z, PROG_W);
+    const paid = Math.round(bal0*(0.025+z()*0.01));
+    const l = { id:'КД-'+(5000+seq++), borrower:b.id, region:b.region, dept:b.dept, program, curator, balance:0, overdue:0, overdueDays:0, category:null,
+      status:'Закрыт', hasClaim:false, coverage:undefined, risk:0, collateralValue:0, from, to, closed:true, issued:Math.round(bal0*1.15), paid, expected:paid, plan:0,
+      accrued:Math.round(bal0*0.009), written:0 };
+    loans.push(l); return l; };
+  const curOf = dept=>{ const cs = CURATORS.filter(c=>c.dept===dept && c.id!=='u2'); return pick(z, cs).id; };
+  // действующие клиенты: у части — закрытые договоры раньше; закрыты все до первого действующего — клиент уходил и вернулся
+  borrowers.forEach(b=>{ const act = loans.filter(l=>l.borrower===b.id); const first = Math.min(...act.map(l=>l.from));
+    b.firstM = first; b.outM = null; b.backM = null; b.outKind = null;
+    if(z()<0.24){ const n = z()<0.75 ? 1 : 2; let lastTo = -Infinity, earliest = first;
+      for(let k=0;k<n;k++){ const from = -60 + Math.floor(z()*30) + k*6; const to = Math.min(-1, from + 6 + Math.floor(z()*24));
+        closedLoan(b, from, to, act[0].curator); lastTo = Math.max(lastTo, to); earliest = Math.min(earliest, from); }
+      b.firstM = earliest;
+      if(lastTo < first){ b.outM = lastTo; b.backM = first; b.outKind = 'погасил'; } } });
+  // погасившие весь портфель: строка остаётся; немногие ушли «прочим» — перевод долга на другое лицо
+  for(let i=0;i<460;i++){ const reg = pickW(z, REGION_W); const dept = deptOfRegion(reg);
+    const b = { id:'З-'+(7000+i), region:reg, dept, from:0 };
+    const cur = dept==='rp-chu' && z()<0.1 ? 'u2' : curOf(dept); const n = 1 + Math.floor(z()*z()*3);
+    // месяц погашения всего портфеля — равномерно за три года; договоры — назад от него
+    const out = -Math.floor(z()*38); let to = out, last = null;
+    for(let k=0;k<n;k++){ const from = to - 4 - Math.floor(z()*20); const l = closedLoan(b, from, to, cur); if(!last) last = l; to = from - 1; }
+    b.firstM = loans.filter(l=>l.borrower===b.id).reduce((a,l)=>Math.min(a,l.from), 0); b.outM = last.to; b.backM = null;
+    b.outKind = z()<0.03 ? 'прочее' : 'погасил'; b.curator = cur; borrowers.push(b); }
+  // строка без договоров: лицо заведено заёмщиком, договор не заключён
+  for(let i=0;i<12;i++){ const reg = pickW(z, REGION_W); borrowers.push({ id:'З-'+(8200+i), region:reg, dept:deptOfRegion(reg), from:-Math.floor(z()*20),
+    firstM:null, outM:null, backM:null, outKind:null, curator:curOf(deptOfRegion(reg)) }); }
+  loans.forEach(l=>{ if(!LOANS_OF.has(l.borrower)) LOANS_OF.set(l.borrower, []); LOANS_OF.get(l.borrower).push(l); });
+  // признаки клиента: деньги портфеля, договоров всего, признаки лица от «Субъектов», две проверки карточки — из ключа (хеш)
+  const claimed = new Set(DATA.claim.filter(c=>c.open && c.dept==='opk').map(c=>loans.find(l=>l.id===c.loan)).filter(Boolean).map(l=>l.borrower));
+  let dead = 0, deadFree = 0;
+  borrowers.forEach(b=>{ const ls = LOANS_OF.get(b.id) || []; const act = ls.filter(l=>!l.closed);
+    if(b.firstM!==null && b.firstM!==undefined) b.from = b.firstM;
+    b.credits = ls.length; b.total = act.reduce((a,l)=>a+l.balance,0); b.overdueSum = act.reduce((a,l)=>a+l.overdue,0);
+    if(!act.length){ b.overCredits = 0; b.npayDays = null; b.worst = null; b.worstDays = null; b.subgroup = null; }
+    const h = k=>(hash(b.id+'|'+k)%100000)/100000;
+    if(!b.ptype){ b.ptype = pickW(()=>h('ptype'), [['юр',30],['ИП',45],['физ',25]]);
+      b.industry = pickW(()=>h('ind'), [['Сельское хозяйство',34],['Переработка',18],['Торговля',16],['Услуги',12],['Производство',12],['Строительство',8]]); }
+    b.pers = 'действует';
+    if(act.length && ((claimed.has(b.id) && dead<6 && h('dead')<0.08) || (!claimed.has(b.id) && deadFree<3 && h('dead')<0.004))){
+      b.pers = b.ptype==='юр' ? 'ликвидирован' : 'умер'; if(claimed.has(b.id)) dead++; else deadFree++; }
+    b.currency = pickW(()=>h('cur'), [['сом',88],['доллар США',8],['несколько валют',4]]);
+    b.black = h('black')<0.015 ? 'да' : 'нет';
+    b.cohort = b.firstM===null ? null : String(monthOf(b.firstM).y);
+    const past = h('hist')<0.3 ? 5 + Math.floor(h('hd')*150) : 0;
+    b.histDays = b.firstM===null ? null : Math.max(past, b.worstDays || 0);
+    b.oblExpired = act.length && h('obl')<(b.curator==='u2' ? 0.2 : 0.06) ? 1 + Math.floor(h('obn')*2.4) : 0;
+    b.contact = act.length && h('cont')<(claimed.has(b.id) ? 0.12 : 0.03) ? 'нет' : 'есть'; });
+}
 genData();
 
 /* ================= Реестр статистики: объекты, разрезы, показатели ================= */
@@ -565,14 +637,29 @@ const DIMS = {
   dept:    { name:'Подразделение', field:'dept', label:deptName },
   program: { name:'Программа', field:'program', label:id=>id==='none'?'Без программы (поток B)':progName(id) },
   curator: { name:'Куратор', field:'curator', label:userName },
-  category:{ name:'Категория классификации', field:'category', ordered:true, values:RISK_CATS },
+  category:{ name:'Категория классификации', field:'category', ordered:true, values:RISK_CATS, short:RISK_SHORT },
   bucket:  { name:'Срок просрочки', get:r=>bucketOf(r.overdueDays), ordered:true, values:BUCKETS },
   lstatus: { name:'Состояние кредита', field:'status' },
-  bworst:  { name:'Худшая категория', field:'worst', ordered:true, values:RISK_CATS },
+  bworst:  { name:'Худшая категория', field:'worst', ordered:true, values:RISK_CATS, short:RISK_SHORT },
   bodays:  { name:'Худшая просрочка по портфелю', get:r=>r.worstDays===null ? null : bucketOf(r.worstDays), ordered:true, values:BUCKETS },
   subgroup:{ name:'Подгруппа платёжеспособности', field:'subgroup', ordered:true, values:Object.values(PAYGROUPS).flat() },
   ptype:   { name:'Тип лица', field:'ptype', label:v=>PTYPES[v]||v },
   bindustry:{ name:'Отрасль заёмщика', field:'industry' },
+  bregion: { name:'Территория заёмщика (регистрация)', field:'region', values:REGIONS },
+  pstate:  { name:'Состояние портфеля', get:r=>pstateAt(r,0), at:pstateAt, values:PSTATES },
+  pers:    { name:'Состояние лица', field:'pers', values:PERS },
+  bcur:    { name:'Валюта портфеля', field:'currency' },
+  bcohort: { name:'Год первого договора', field:'cohort', ordered:true, values:['2021','2022','2023','2024','2025','2026'] },
+  bblack:  { name:'Чёрный список', field:'black', values:['нет','да'] },
+  bdebt:   { name:'Совокупный долг клиента', get:r=>debtStep(r.total), ordered:true, values:DEBT_STEPS,
+             req:'корзин «совокупный долг клиента» над задолженностью заёмщика в реестре статистики ещё нет; черта 50 млн — из Порядка' },
+  bcredits:{ name:'Договоров у клиента за всё время', get:r=>!r.credits ? null : r.credits>=3 ? '3+' : String(r.credits), ordered:true, values:['1','2','3+'],
+             req:'корзин над «Договоров всего» в реестре статистики ещё нет' },
+  bhist:   { name:'Кредитная история', get:r=>histStep(r.histDays), ordered:true, values:HIST_STEPS,
+             req:'показателя «худшая просрочка за всю историю» в реестре статистики нет; владелец не решён — «Заёмщик» или ядро расчёта' },
+  bcontact:{ name:'Канал связи', field:'contact', values:['есть','нет'],
+             req:'признака «нет действующего канала связи» в строке заёмщика ещё нет — модуль «Заёмщик» считает его только в карточке' },
+  lact:    { name:'Состояние договора', get:r=>lactAt(r,0), at:lactAt, values:['действующий','закрыт'] },
   pname:   { name:'Программа', field:'name' },
   phase:   { name:'Фаза требования', field:'phase', ordered:true, values:['Досудебная','Судебная','Исполнение','Банкротство','Урегулирование'] },
   leadDept:{ name:'Ведущее подразделение', field:'leadDept', label:deptName },
@@ -596,15 +683,32 @@ const DIMS = {
   imkind:  { name:'Вид имущества', field:'kind' },
 };
 const OBJ_DIMS = {
-  loan:['region','dept','program','curator','category','bucket','lstatus'], borrower:['region','dept','curator','bworst','bodays','subgroup','ptype','bindustry'], program:['pname'],
+  loan:['region','dept','program','curator','lact','category','bucket','lstatus'],
+  borrower:['bregion','dept','curator','pstate','pers','bworst','bodays','subgroup','ptype','bindustry','bcur','bcohort','bblack','bdebt','bcredits','bhist','bcontact'], program:['pname'],
   claim:['phase','leadDept','region'], measure:['mkind','region'], receipt:['source'], payment:['pkind','region','dept'],
   coll:['ckind','region','dept'], app:['astatus','astage','program','region','dept'], comm:['commission','decision'],
   concl:['verdict'], oblig:['ostate'], task:[],
   case:['cstate','cbasis','region'], rsapp:['rstage','routcome','dept','curator'], spell:['spstate','layer','region','dept','program','curator'],
   asset:['imstate','imkind','region','dept'],
 };
-// поля, по которым работает панель фильтров экрана
+// поля, по которым работает панель фильтров экрана; у заёмщика «Область» — территория регистрации лица
 const PANEL = { region:'Область', dept:'Подразделение', program:'Программа' };
+const PANEL_DIM = { borrower:{ region:'bregion' } };
+const PANEL_NOTE = { borrower:{ region:'по регистрации заёмщика' } };
+// числа строки, которые фильтр вопроса сравнивает с константой (> ≥ < ≤); разрезы — = ≠ ∈ ∉
+const FIELDS = {
+  loan:    { overdueDays:'Дней просрочки', balance:'Остаток задолженности, сом', coverage:'Обеспеченность залогом, %' },
+  borrower:{ overCredits:'Договоров с просрочкой', credits:'Договоров всего (с закрытыми)', worstDays:'Худшая просрочка по портфелю, дн.',
+             npayDays:'Дней до ближайшего платежа', total:'Задолженность заёмщика, сом', oblExpired:'Обязательств Порядка со сроком «вышел»' },
+  claim:   { sinceDays:'Дней с направления', amount:'Сумма требования, сом' },
+  rsapp:   { regDays:'Дней с регистрации обращения' },
+  app:     { waitDays:'Дней ожидания', requested:'Запрошено, сом' },
+  comm:    { deadlineIn:'Дней до крайнего срока' },
+  oblig:   { dueIn:'Дней до срока сдачи' },
+  asset:   { daysOnBook:'Дней на учёте', attempts:'Попыток продажи', failed:'Несостоявшихся попыток' },
+};
+const FIELD_REQ = { oblExpired:'числа обязательств Порядка со сроком «вышел» в строке заёмщика ещё нет — модуль «Заёмщик» считает его только в карточке' };
+const OPS = { eq:'=', ne:'≠', in:'∈', nin:'∉', gt:'>', ge:'≥', lt:'<', le:'≤' };
 function dimValue(d, row){ const D = DIMS[d]; return D.get ? D.get(row) : row[D.field]; }
 function dimLabel(d, v){ const D = DIMS[d]; return D.label ? D.label(v) : v; }
 
@@ -625,8 +729,14 @@ ind('loan.paid',      { obj:'loan', name:'Поступило в погашени
 ind('loan.expected',  { obj:'loan', name:'Ожидалось по графику', agg:'sum', kind:'flow', field:'expected', unit:'sum' });
 ind('loan.plan',      { obj:'loan', name:'План', agg:'sum', kind:'flow', field:'plan', unit:'sum', where:r=>r.plan>0 });
 ind('loan.paidPlanned',{ obj:'loan', name:'Поступило по кредитам с планом', agg:'sum', kind:'flow', field:'paid', unit:'sum', dir:'up_good', where:r=>r.plan>0 });
-ind('borrower.count', { obj:'borrower', name:'Заёмщиков' });
-ind('borrower.overdue',{ obj:'borrower', name:'Заёмщиков с просрочкой', where:r=>r.overCredits>0, dir:'up_bad' });
+// у заёмщика — счёт клиентов и деньги портфеля по признакам лица; итог денег — у кредита
+ind('borrower.count', { obj:'borrower', name:'Заёмщиков',
+  flows:{ inc:[['новые','bNew'],['вернулись','bBack']], dec:[['погасили всё','bPaid']], other:'смерть, перевод долга, расхождение учёта' }, flowsGate:'clientFlows',
+  flowsMsg:'в строке заёмщика нет даты погашения всего портфеля, у даты первого договора нет корзины «месяц» — статистика не отдаёт потоки счёта клиентов' });
+ind('borrower.total', { obj:'borrower', name:'Задолженность заёмщика', agg:'sum', field:'total', unit:'sum', money:true,
+  flows:{ inc:[['выдано','issuedM'],['начислено %','accrued']], dec:[['погашено','paid'],['списано за баланс','written']], other:'курсовая переоценка, принято/передано' } });
+ind('borrower.overdueSum',{ obj:'borrower', name:'Просрочено по портфелю клиента', agg:'sum', field:'overdueSum', unit:'sum', dir:'up_bad', money:true });
+ind('borrower.worstDays',{ obj:'borrower', name:'Наибольшая просрочка клиента', agg:'max', field:'worstDays', unit:'days', dir:'up_bad' });
 ind('program.limit',  { obj:'program', name:'Лимит программы', agg:'sum', field:'limit', unit:'sum' });
 ind('program.issuedYtd',{ obj:'program', name:'Выдано с начала года', agg:'sum', field:'issuedYtd', unit:'sum', dir:'up_good' });
 ind('program.balance',{ obj:'program', name:'Остаток по программе', agg:'sum', field:'balance', unit:'sum' });
@@ -713,7 +823,7 @@ ind('asset.exp',      { obj:'asset', name:'Расходы на содержан�
 ind('asset.days',     { obj:'asset', name:'Наибольший срок на учёте', agg:'max', field:'daysOnBook', unit:'days', dir:'up_bad', where:IM_ON });
 
 /* ================= Стенд: настройки «соседей» ================= */
-const STAND = { wave:3, spells:false, statDown:false, nightRunFailed:false, queueLag:0, nightOnly:{}, overdueUp:false, withdrawn:{}, closedThrough:-2, N:150 };
+const STAND = { wave:3, spells:false, clientFlows:false, statDown:false, nightRunFailed:false, queueLag:0, nightOnly:{}, overdueUp:false, withdrawn:{}, closedThrough:-2, N:150 };
 
 /* ================= Даты, периоды, базы сдвига ================= */
 const DATE_MODES = {
@@ -739,6 +849,7 @@ function monthClosed(m){ return m <= STAND.closedThrough; }
 
 /* ================= Значение строки в вопросе ================= */
 function exists(row, m){ return (row.from===undefined || row.from<=m); }
+function flows(row, m){ return exists(row, m) && (row.to===undefined || m<=row.to); }   // потоки закрытого договора кончаются месяцем закрытия
 function scen(row, field){ return (STAND.overdueUp && (field==='overdue' || field==='risk')) ? 1.18 : 1; }
 function stockAt(row, I, pt){
   if(I.currentOnly && !(pt.m===0)) return null;            // состояние без истории: только «сейчас»
@@ -751,7 +862,7 @@ function stockAt(row, I, pt){
   const trend = pt.day ? 1 : 1 + pt.m*(I.field==='overdue'||I.field==='risk' ? 0.03 : I.field==='balance' ? 0.004 : I.field==='amount' ? 0.08 : 0.002); // портфель и просрочка растут
   return Math.round(v*trend*jitter(row.id, k+I.field, amp));
 }
-function monthFlow(row, field, m){ return exists(row, m) ? (row[field]||0)*jitter(row.id, 'f'+m+field, 0.12) : 0; }
+function monthFlow(row, field, m){ return flows(row, m) ? (row[field]||0)*jitter(row.id, 'f'+m+field, 0.12) : 0; }
 function flowIn(row, I, period){
   if(I.where && !I.where(row)) return null;
   const P = PERIODS[period]; let s = 0, any = false;
@@ -762,25 +873,28 @@ function flowIn(row, I, period){
       if(m===0 && (P.today ? day!==TODAY.day : day>TODAY.day)) continue;
       any = true; s += I.agg==='count' ? 1 : (row[I.field]||0);
     } else {
-      if(!exists(row, m)) continue;
+      if(!flows(row, m)) continue;
       let v = monthFlow(row, I.field, m); if(m===0) v = P.today ? v/TODAY.daysInMonth : v*TODAY.day/TODAY.daysInMonth;
       if(v){ any = true; s += v; }
     }
   }
   return any ? (I.agg==='count' ? s : Math.round(s)) : null;
 }
-function valueOf(row, I, ctx){ return ctx.period ? flowIn(row, I, ctx.period) : stockAt(row, I, ctx.point); }
+function valueOf(row, I, ctx){
+  if(ctx.tf && ctx.tf.length){ const m = ctx.point ? ctx.point.m : PERIODS[ctx.period].months[PERIODS[ctx.period].months.length-1];
+    if(!ctx.tf.every(c=>testCond(row, c, null, m))) return null; }   // «действующий» — на дату среза, а не сегодня
+  return ctx.period ? flowIn(row, I, ctx.period) : stockAt(row, I, ctx.point); }
 function aggregate(rows, I, ctx){
   let acc = I.agg==='max' ? null : 0, n = 0;
   for(const r of rows){ const v = valueOf(r, I, ctx); if(v===null) continue; n++;
     if(I.agg==='max') acc = acc===null ? v : Math.max(acc, v); else acc += v; }
   return { value: acc===null ? null : acc, n };
 }
-function ctxOf(tile){ const I = IND[tile.inds[0]];
-  return (I.kind==='stock') ? { point: DATE_MODES[tile.date||'today'].point } : { period: tile.period || 'curMonth' }; }
+function ctxOf(tile){ const I = IND[tile.inds[0]]; const tf = timeConds(tile.filter);
+  return (I.kind==='stock') ? { point: DATE_MODES[tile.date||'today'].point, tf } : { period: tile.period || 'curMonth', tf }; }
 
 /* ================= Охват (область видимости) и права ================= */
-const ROLE_SCOPE_OVERRIDE = { prob:{ loan:'all', payment:'all', coll:'all' }, zal:{ loan:'dept' }, spec:{ program:'all', comm:'all' }, cur:{ payment:'dept' } };
+const ROLE_SCOPE_OVERRIDE = { prob:{ loan:'all', payment:'all', coll:'all', borrower:'viaClaim' }, zal:{ loan:'dept' }, spec:{ program:'all', comm:'all' }, cur:{ payment:'dept' } };
 function scopeOf(roleId, obj){ const R = ROLES.find(x=>x.id===roleId); const o = ROLE_SCOPE_OVERRIDE[roleId] || {}; return o[obj] || R.scope; }
 function hasRight(roleId, obj){ return (RIGHTS[roleId]||[]).includes(obj); }
 function visibleFor(user, roleId, obj){
@@ -793,6 +907,8 @@ function visibleFor(user, roleId, obj){
   if(sc==='all') return rows;
   if(sc==='none') return [];
   if(sc==='member') return rows.filter(r=>(r.members||[]).includes(user.id));
+  if(sc==='viaClaim'){ const ls = new Set(visibleFor(user, roleId, 'claim').map(c=>c.loan));   // клиент, по кредиту которого требование ведёт моё подразделение
+    const bs = new Set(DATA.loan.filter(l=>ls.has(l.id)).map(l=>l.borrower)); return rows.filter(r=>bs.has(r.id)); }
   if(sc==='deptTree'){ const t = subtree(user.dept); return rows.filter(r=>t.includes(r.dept)); }
   return rows.filter(r=>r.dept===user.dept);
 }
@@ -818,25 +934,44 @@ function resolveParam(v, user){
 }
 function paramLabel(v){ return v==='@me' ? '«я»' : v==='@myDept' ? '«моё подразделение»' : v==='@myDeptTree' ? '«моё подразделение и ниже»'
   : (typeof v==='string' && v.startsWith('@today+')) ? '«сегодня + '+v.slice(7)+' дн.»' : null; }
-function testCond(row, c, user){
-  const v = resolveParam(c.v, user); const x = row[c.f];
+// Сравнение разреза (= ≠ ∈ ∉) или числа строки (> ≥ < ≤) с константой. Разрез с историей (состояние портфеля, договора)
+// сравнивается на месяц m: на дату среза плитки, в сдвиге — на дату базы.
+function isTimeCond(c){ const D = DIMS[c.f]; return !!(D && D.at); }
+function timeConds(filter){ return (filter||[]).filter(isTimeCond); }
+function testCond(row, c, user, m){
+  const v = user ? resolveParam(c.v, user) : c.v; const D = DIMS[c.f];
+  const x = D && D.at ? D.at(row, m===undefined ? 0 : m) : D ? dimValue(c.f, row) : row[c.f];
+  if((c.op==='gt'||c.op==='lt'||c.op==='le'||c.op==='ge') && (x===null || x===undefined)) return false;
   switch(c.op){
     case 'eq': return Array.isArray(v) ? v.includes(x) : x===v;
     case 'ne': return x!==v;  case 'gt': return x>v;  case 'lt': return x<v;  case 'le': return x<=v;  case 'ge': return x>=v;
     case 'in': return (Array.isArray(v)?v:[v]).includes(x);
+    case 'nin': return !(Array.isArray(v)?v:[v]).includes(x);
     case 'true': return !!x;  case 'false': return !x;
   }
   return true;
 }
-function applyFilter(rows, filter, user){ return (filter||[]).reduce((rs,c)=>rs.filter(r=>testCond(r,c,user)), rows); }
-function panelApplies(obj, key){ return (OBJ_DIMS[obj]||[]).includes(key); }
+// m не задан — условия с историей не режут здесь, их проверяет значение строки на дату (valueOf); m задан — режут на этот месяц
+function applyFilter(rows, filter, user, m){ return (filter||[]).filter(c=>m!==undefined || !isTimeCond(c)).reduce((rs,c)=>rs.filter(r=>testCond(r,c,user,m)), rows); }
+function panelDim(obj, key){ return (PANEL_DIM[obj]||{})[key] || key; }
+function panelApplies(obj, key){ return (OBJ_DIMS[obj]||[]).includes(panelDim(obj, key)); }
 function applyPanel(rows, obj, panel){
   const applied = [], skipped = [];
   for(const k of Object.keys(PANEL)){ const v = panel && panel[k]; if(!v) continue;
     if(panelApplies(obj, k)){ rows = rows.filter(r=>r[k]===v); applied.push(k); } else skipped.push(k); }
   return { rows, applied, skipped };
 }
-function panelLabel(panel, keys){ return keys.map(k=>k==='dept'?deptName(panel[k]):k==='program'?progName(panel[k]):panel[k]).join(', '); }
+function panelLabel(panel, keys, obj){ return keys.map(k=>(k==='dept'?deptName(panel[k]):k==='program'?progName(panel[k]):panel[k])
+  + ((PANEL_NOTE[obj]||{})[k] ? ' · '+PANEL_NOTE[obj][k] : '')).join(', '); }
+function condText(c){ const D = DIMS[c.f]; const name = D ? D.name : ((Object.values(FIELDS).find(F=>F[c.f])||{})[c.f] || c.f);
+  const rel = paramLabel(c.v); const val = rel || (Array.isArray(c.v) ? c.v.map(x=>D?dimLabel(c.f,x):x).join(', ') : D ? dimLabel(c.f, c.v) : (typeof c.v==='number' ? nbsp(c.v) : c.v));
+  return name+' '+(OPS[c.op]||c.op)+' '+val; }
+// подпись вопроса на плитке: «действующие», «клиенты, где вы ведущий куратор»
+function qualOf(t){ const I = IND[t.inds[0]]; const q = [];
+  (t.filter||[]).forEach(c=>{ if(c.f==='pstate' && c.op==='eq') q.push(c.v==='действующий' ? 'действующие' : c.v===PAID_ALL ? 'погасившие весь портфель' : 'без договоров');
+    if(c.f==='lact' && c.op==='eq') q.push(c.v==='действующий' ? 'действующие' : 'закрытые');
+    if(c.f==='curator' && c.v==='@me' && I.obj==='borrower') q.push('клиенты, где вы ведущий куратор'); });
+  return q.join(' · '); }
 
 /* ================= Формат числа ================= */
 function nbsp(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
@@ -893,20 +1028,21 @@ function ask(tile, user, roleId, panel){
   if(O.wave > STAND.wave){ res.state='refusal'; res.msg='Не отвечается: объект статистики «'+O.name+'» ещё не объявлен; владелец — модуль «'+O.owner+'».'; return res; }
   if(O.gate && !STAND[O.gate]){ res.state='refusal'; res.msg='Не отвечается: '+O.gateMsg+'; владелец — модуль «'+O.owner+'».'; return res; }
   if(I.refuses){ res.state='refusal'; res.msg='Не отвечается: '+I.refuses+'.'; return res; }
+  if(tile.format==='move' && I.flowsGate && !STAND[I.flowsGate]){ res.state='refusal'; res.msg='Не отвечается: '+I.flowsMsg+'; владелец — статистика.'; return res; }
   const base = rowsFor(user, roleId, I.obj);
   if(base===null){ res.state='noaccess'; res.msg='Нельзя: объект «'+O.name+'» не открыт вашей роли.'; return res; }
   const visible = base.length;
   let rows = applyFilter(base, tile.filter, user);
   const pr = applyPanel(rows, I.obj, panel); rows = pr.rows;
   res.rows = rows; res.visible = visible;
-  res.panelApplied = pr.applied; res.panelSkipped = pr.skipped; res.panelText = panelLabel(panel||{}, pr.applied);
+  res.panelApplied = pr.applied; res.panelSkipped = pr.skipped; res.panelText = panelLabel(panel||{}, pr.applied, I.obj);
   res.unit = tile.share ? 'pct' : I.unit;
   res.passport = passportOf(tile, visible, { fx: I.unit==='sum', panelApplied:pr.applied, panelSkipped:pr.skipped, panelText:res.panelText });
   res.stale = staleOf(tile);
   if(visible===0){ res.state='empty'; res.msg = emptyScopeMsg(user, roleId, I.obj); return res; }
   const ctx = ctxOf(tile);
-  const val = (rs, c) => {                                    // число узла: показатель или доля двух показателей
-    if(tile.share){ const a = aggregate(rs, IND[tile.share[0]], c).value || 0, b = aggregate(rs, IND[tile.share[1]], c).value || 0;
+  const val = (rs, c) => {                                    // число узла: показатель или доля (два показателя или фильтр числителя)
+    if(tile.share){ const a = aggregate(numRows(tile, rs, user), IND[tile.share[0]], c).value || 0, b = aggregate(rs, IND[tile.share[1]], c).value || 0;
       return b ? { v:a/b*100, num:a, den:b } : { v:null, num:a, den:0 }; }
     return { v: aggregate(rs, I, c).value };
   };
@@ -928,7 +1064,7 @@ function ask(tile, user, roleId, panel){
       const d = tile.dims[0]; const vs = valuesOf(d, rows);
       res.table = { d, cols: tile.inds.map(i=>IND[i]), rows: vs.map(v=>{ const rs = rows.filter(r=>dimValue(d,r)===v);
         return { v, label:dimLabel(d,v), cells: tile.inds.map(i=>aggregate(rs, IND[i], ctx).value) }; }) };
-      res.table.rows.sort((a,b)=>(b.cells[0]||0)-(a.cells[0]||0));
+      if(!DIMS[d].ordered) res.table.rows.sort((a,b)=>(b.cells[0]||0)-(a.cells[0]||0));   // ступени — в объявленном порядке
       res.total = tile.inds.map(i=>aggregate(rows, IND[i], ctx).value); break; }
     case 'series': res.series = seriesOf(tile, rows); break;
     case 'move': res.move = movementOf(tile, rows); break;
@@ -943,6 +1079,8 @@ function ask(tile, user, roleId, panel){
   res.tl = trafficOf(tile, res);
   return res;
 }
+// фильтр числителя режет только числитель доли; фильтр плитки уже срезал оба
+function numRows(tile, rs, user){ return tile.numFilter && tile.numFilter.length ? applyFilter(rs, tile.numFilter.filter(c=>!isTimeCond(c)), user) : rs; }   // разрезы с историей — в фильтре плитки, не в числителе
 function emptyScopeMsg(user, roleId, obj){
   if(OBJECTS[obj].vis==='self') return 'У вас нет заданий.';
   return 'В вашем охвате нет объектов «'+OBJECTS[obj].name+'»: подразделение «'+deptName(user.dept)+'» видит только своё.';
@@ -962,7 +1100,7 @@ function shiftOf(tile, rows, ctx, val){
     const cur = tile.share ? val(rows, ctx).v : aggregate(rows, I, ctx).value;
     return { base:baseVal, delta: cur - baseVal, label: ctx.period==='prevMonth' ? 'к '+MONTHS_GEN[monthOf(-2).mi].replace(/я$/,'ю').replace(/а$/,'у') : ctx.period==='prevYear' ? 'к 2024' : 'к пред. кварталу' }; }
   const B = STOCK_BASES[tile.shift || 'prevMonthEnd']; if(ctx.point.m===B.point.m) return { none:'база совпадает с датой плитки' };
-  const bctx = { point:B.point };
+  const bctx = { point:B.point, tf:ctx.tf };
   const baseVal = tile.share ? val(rows, bctx).v : aggregate(rows, I, bctx).value;
   const cur = tile.share ? val(rows, ctx).v : aggregate(rows, I, ctx).value;
   return { base:baseVal, delta:(cur||0)-(baseVal||0), label:B.short() };
@@ -970,26 +1108,31 @@ function shiftOf(tile, rows, ctx, val){
 function aggregateMonths(rows, tile, months){
   // база потока — те же месяцы годом/месяцем раньше; считается той же разностью строк
   const fake = '__base'; PERIODS[fake] = { months, label:'база' };
-  const I = IND[tile.inds[0]]; let v;
-  if(tile.share){ const a = aggregate(rows, IND[tile.share[0]], { period:fake }).value||0, b = aggregate(rows, IND[tile.share[1]], { period:fake }).value||0; v = b ? a/b*100 : null; }
-  else v = aggregate(rows, I, { period:fake }).value;
+  const I = IND[tile.inds[0]]; let v; const tf = timeConds(tile.filter);
+  if(tile.share){ const a = aggregate(numRows(tile, rows, null), IND[tile.share[0]], { period:fake, tf }).value||0, b = aggregate(rows, IND[tile.share[1]], { period:fake, tf }).value||0; v = b ? a/b*100 : null; }
+  else v = aggregate(rows, I, { period:fake, tf }).value;
   delete PERIODS[fake]; return v;
 }
 function seriesOf(tile, rows){
   const n = tile.points || 12; const out = { points:[], lines: tile.share ? [{ name:'доля, %' }] : tile.inds.map(i=>({ name:IND[i].name })) };
+  const tf = timeConds(tile.filter); const nrows = numRows(tile, rows, null);
   for(let m=-n+1; m<=0; m++){
     const vals = (tile.share ? [tile.share] : tile.inds.map(i=>[i])).map(spec=>{
-      const calc = (id)=>{ const I = IND[id];
-        if(I.kind==='stock') return aggregate(rows, I, { point: m===0 ? { m:0 } : { m } }).value || 0;
-        const k = '__s'+m; PERIODS[k] = { months:[m], partial:m===0 }; const v = aggregate(rows, I, { period:k }).value || 0; delete PERIODS[k]; return v; };
-      if(spec.length===2){ const a = calc(spec[0]), b = calc(spec[1]); return b ? a/b*100 : null; }
-      return calc(spec[0]); });
+      const calc = (id, rs)=>{ const I = IND[id];
+        if(I.kind==='stock') return aggregate(rs, I, { point: m===0 ? { m:0 } : { m }, tf }).value || 0;
+        const k = '__s'+m; PERIODS[k] = { months:[m], partial:m===0 }; const v = aggregate(rs, I, { period:k, tf }).value || 0; delete PERIODS[k]; return v; };
+      if(spec.length===2){ const a = calc(spec[0], nrows), b = calc(spec[1], rows); return b ? a/b*100 : null; }
+      return calc(spec[0], rows); });
     out.points.push({ m, label:monthShort(m), closed:monthClosed(m), vals });
   }
   return out;
 }
 function rowFlow(row, key, m){ // составляющие оборотов для формата «Движение»
-  const f = (field, k)=> exists(row, m) ? (row[field]||0)*jitter(row.id, 'mv'+m+key, 0.2)*k : 0;
+  if(row.firstM!==undefined){ switch(key){                    // заёмщик: счёт клиентов — из дат строки, деньги — по его кредитам
+    case 'bNew': return row.firstM===m ? 1 : 0; case 'bBack': return row.backM===m ? 1 : 0;
+    case 'bPaid': return row.outM===m && row.outKind!=='прочее' && row.backM!==m ? 1 : 0; }
+    return (LOANS_OF.get(row.id)||[]).reduce((a,l)=>a+rowFlow(l, key, m), 0); }
+  const f = (field, k)=> flows(row, m) ? (row[field]||0)*jitter(row.id, 'mv'+m+key, 0.2)*k : 0;
   const part = m===0 ? TODAY.day/TODAY.daysInMonth : 1;
   switch(key){
     case 'issuedM': return row.from===m ? (row.issued||0) : 0;
@@ -1001,14 +1144,14 @@ function rowFlow(row, key, m){ // составляющие оборотов дл
   return 0;
 }
 function movementOf(tile, rows){
-  const I = IND[tile.inds[0]];
-  const start = aggregate(rows, I, { point:{ m:-1 } }).value || 0;
-  const end = aggregate(rows, I, { point:{ m:0 } }).value || 0;
-  const sumFlows = list => list.map(([name,key])=>({ name, v: Math.round(rows.reduce((a,r)=>a+rowFlow(r,key,0),0)) }));
+  const I = IND[tile.inds[0]]; const M = tile.mvMonth || 0; const tf = timeConds(tile.filter);   // месяц движения: текущий или прошлый
+  const start = aggregate(rows, I, { point:{ m:M-1 }, tf }).value || 0;
+  const end = aggregate(rows, I, { point:{ m:M }, tf }).value || 0;
+  const sumFlows = list => list.map(([name,key])=>({ name, v: Math.round(rows.reduce((a,r)=>a+rowFlow(r,key,M),0)) }));
   const inc = sumFlows(I.flows.inc), dec = sumFlows(I.flows.dec);
   const ti = inc.reduce((a,x)=>a+x.v,0), td = dec.reduce((a,x)=>a+x.v,0);
   const other = end - start - ti + td;                         // строка «прочее» показывается всегда, даже при нуле
-  return { start, end, inc, dec, other, otherName:I.flows.other, ti, td, converges: start + ti - td + other === end };
+  return { start, end, inc, dec, other, otherName:I.flows.other, ti, td, M, converges: start + ti - td + other === end };
 }
 function trafficOf(tile, res){
   if(!tile.tl || res.state!=='ok' && res.state!=='zero') return null;
@@ -1027,6 +1170,7 @@ function statRows(tile, user, roleId, panel, node){
   const I = IND[tile.inds[0]]; const ctx = ctxOf(tile);
   let rows = res.rows;
   if(node){ if(node.d) rows = rows.filter(r=>dimValue(node.d, r)===node.v); if(node.d2) rows = rows.filter(r=>dimValue(node.d2, r)===node.v2); }
+  if(tile.share) rows = numRows(tile, rows, user);              // клик по доле — строки числителя: оба фильтра
   const spec = tile.share ? IND[tile.share[0]] : I;
   const list = rows.map(r=>({ r, v: valueOf(r, spec, ctx) })).filter(x=>x.v!==null);
   if(list.length > STAND.N) return { refused:true, count:list.length, msg: nbsp(list.length)+' строк — сузьте вопрос разрезом или возьмите выгрузкой', passport:res.passport };
@@ -1037,7 +1181,7 @@ function statRows(tile, user, roleId, panel, node){
 function registryList(tile, user, roleId, panel){
   const I = IND[tile.inds[0]];
   const base = rowsFor(user, roleId, I.obj) || [];
-  const rows = applyPanel(applyFilter(base, tile.filter, user), I.obj, panel).rows.filter(r=>stockAt(r, Object.assign({}, I, { agg:'count', currentOnly:false }), { m:0 })!==null || I.kind!=='stock');
+  const rows = applyPanel(applyFilter(numRows(tile, base, user), tile.filter, user, 0), I.obj, panel).rows.filter(r=>stockAt(r, Object.assign({}, I, { agg:'count', currentOnly:false }), { m:0 })!==null || I.kind!=='stock');
   const sr = statRows(tile, user, roleId, panel);
   return { registry:OBJECTS[I.obj].registry, owner:OBJECTS[I.obj].owner, today:rows.length, slice: sr.refused ? sr.count : sr.list.length };
 }
@@ -1050,17 +1194,20 @@ const TILES = [];
 let tileSeq = 0;
 function T(id, o){ TILES.push(Object.assign({ id, kind:'overview', dims:[], filter:[], state:'published', owner:'catalog', version:1, top:3, points:12 }, o)); }
 const ME = { f:'curator', op:'eq', v:'@me' };
+// строки закрытых договоров и погасивших клиентов живут всегда: счёт «Кредитов» и «Заёмщиков» — с фильтром «действующие»
+const ACT_L = { f:'lact', op:'eq', v:'действующий' }, ACT_B = { f:'pstate', op:'eq', v:'действующий' };
+const WITH_OD = [{ f:'overCredits', op:'gt', v:0 }];        // фильтр числителя: договоров с просрочкой > 0
 // — Руководство —
-T('lead-loans', { title:'Кредитов', inds:['loan.count'], format:'number' });
-T('lead-borr',  { title:'Заёмщиков', inds:['borrower.count'], format:'number' });
-T('lead-borod', { title:'Заёмщиков с просрочкой', inds:['borrower.overdue','borrower.count'], share:['borrower.overdue','borrower.count'], format:'number' });
+T('lead-loans', { title:'Кредитов', inds:['loan.count'], filter:[ACT_L], format:'number' });
+T('lead-borr',  { title:'Заёмщиков', inds:['borrower.count'], filter:[ACT_B], format:'number' });
+T('lead-borod', { title:'Заёмщиков с просрочкой', inds:['borrower.count'], share:['borrower.count','borrower.count'], filter:[ACT_B], numFilter:WITH_OD, format:'number' });
 T('lead-bal',   { title:'Остаток задолженности', inds:['loan.balance'], format:'move' });
 T('lead-od',    { title:'Просрочено', inds:['loan.overdue'], format:'move' });
 T('lead-odsh',  { title:'Доля просрочки', inds:['loan.overdue','loan.balance'], share:['loan.overdue','loan.balance'], format:'shift', shift:'prevMonthEnd',
   tl:{ red:['>',5], yellow:['>',4] } });
 T('lead-risk',  { title:'Сумма под риском (залог)', inds:['loan.risk'], format:'number' });
 T('lead-bucket',{ title:'Просрочка по сроку неплатежа', inds:['loan.count'], dims:['bucket'], filter:[{ f:'overdueDays', op:'gt', v:0 }], format:'steps' });
-T('lead-cat',   { title:'Категории классификации', inds:['loan.count'], dims:['category'], format:'steps' });
+T('lead-cat',   { title:'Категории классификации', inds:['loan.count'], dims:['category'], filter:[ACT_L], format:'steps' });
 T('lead-issued',{ title:'Выдано с начала года', inds:['loan.issued'], period:'ytd', format:'number' });
 T('lead-paid',  { title:'Поступило против графика · прошлый месяц', inds:['loan.paid','loan.expected'], share:['loan.paid','loan.expected'], period:'prevMonth', format:'shift' });
 T('lead-prog',  { title:'Освоение программ', inds:['program.limit','program.issuedYtd','program.balance','program.overdue'], dims:['pname'], format:'table' });
@@ -1069,6 +1216,9 @@ T('lead-heat',  { title:'Где просрочка: область × срок',
 T('lead-claims',{ title:'Во взыскании', inds:['claim.count'], format:'number' });
 T('lead-spin',  { title:'Вышли в просрочку · прошлый месяц', inds:['spell.in'], period:'prevMonth', format:'shift' });
 T('lead-spcure',{ title:'Вылечены · прошлый месяц', inds:['spell.cured'], period:'prevMonth', format:'number' });
+T('lead-bodays',{ title:'Клиенты по худшей просрочке', inds:['borrower.count'], dims:['bodays'], filter:[ACT_B,{ f:'worstDays', op:'gt', v:0 }], format:'steps' });
+T('lead-bmove', { title:'Клиенты за прошлый месяц', inds:['borrower.count'], filter:[ACT_B], format:'move', mvMonth:-1 });
+T('lead-bdebt', { title:'Клиенты по совокупному долгу', inds:['borrower.count','borrower.total'], dims:['bdebt'], filter:[ACT_B], format:'table' });
 T('lead-recov', { title:'Возвратность по делам', inds:['case.paid','case.base'], share:['case.paid','case.base'], format:'number' });
 T('lead-rs',    { title:'Обращений о реструктуризации в работе / из них многократных', inds:['rsapp.inWork','rsapp.multi'], format:'number' });
 T('lead-rslate',{ title:'Регламентный срок нарушен', inds:['rsapp.late'], format:'number', tl:{ red:['>',0], green:false } });
@@ -1076,17 +1226,18 @@ T('lead-ast',   { title:'На балансе', inds:['asset.count','asset.value'
 T('lead-astod', { title:'Просрочено по договорам купли-продажи', inds:['asset.kpOverdue'], format:'number' });
 T('tasks',      { title:'Мои задания', inds:['task.mine'], format:'number', kind:'link', queue:{ module:'Задания', name:'Мои задания' } });
 // — Куратор кредита: «куратор = я» —
-T('cur-loans',  { title:'Мои кредиты', inds:['loan.count'], filter:[ME], format:'number' });
+T('cur-loans',  { title:'Мои кредиты', inds:['loan.count'], filter:[ME,ACT_L], format:'number' });
 // у заёмщика «я» — ведущий куратор клиента
-T('cur-borod',  { title:'Заёмщиков с просрочкой', inds:['borrower.overdue','borrower.count'], share:['borrower.overdue','borrower.count'], filter:[ME], format:'number' });
-T('cur-npay',   { title:'Заёмщиков с платежом в ближайшие 3 дня', inds:['borrower.count'], filter:[ME,{ f:'npayDays', op:'le', v:'@today+3' }], format:'number' });
+T('cur-borod',  { title:'Заёмщиков с просрочкой', inds:['borrower.count'], share:['borrower.count','borrower.count'], filter:[ME,ACT_B], numFilter:WITH_OD, format:'number' });
+T('cur-npay',   { title:'Заёмщиков с платежом в ближайшие 3 дня', inds:['borrower.count'], filter:[ME,ACT_B,{ f:'npayDays', op:'le', v:'@today+3' }], format:'number' });
+T('cur-obl',    { title:'Клиенты с просроченным обязательством Порядка', inds:['borrower.count'], filter:[ME,ACT_B,{ f:'oblExpired', op:'gt', v:0 }], format:'number' });
 T('cur-risk',   { title:'Сумма под риском (залог)', inds:['loan.risk'], filter:[ME], format:'number' });
 T('cur-rc',     { title:'В реструктуризации / во взыскании', inds:['loan.restr','loan.coll'], filter:[ME], format:'number' });
 T('cur-odsh',   { title:'Доля просрочки', inds:['loan.overdue','loan.balance'], share:['loan.overdue','loan.balance'], filter:[ME], format:'shift', shift:'prevMonthEnd', tl:{ red:['>',5], yellow:['>',4] } });
 T('cur-bal',    { title:'Остаток задолженности', inds:['loan.balance'], filter:[ME], format:'move' });
 T('cur-od',     { title:'Просрочено', inds:['loan.overdue'], filter:[ME], format:'move' });
 T('cur-bucket', { title:'Просрочка по сроку неплатежа', inds:['loan.count'], dims:['bucket'], filter:[ME,{ f:'overdueDays', op:'gt', v:0 }], format:'steps' });
-T('cur-cat',    { title:'Категории классификации', inds:['loan.count'], dims:['category'], filter:[ME], format:'steps' });
+T('cur-cat',    { title:'Категории классификации', inds:['loan.count'], dims:['category'], filter:[ME,ACT_L], format:'steps' });
 T('cur-spin',   { title:'Вышли в просрочку · текущий месяц', inds:['spell.in'], filter:[ME], period:'curMonth', format:'number' });
 T('cur-rs',     { title:'Обращений в работе', inds:['rsapp.inWork'], filter:[ME], format:'number' });
 T('cur-rslate', { title:'Регламентный срок нарушен', inds:['rsapp.late'], filter:[ME], format:'number', tl:{ red:['>',0], green:false } });
@@ -1110,6 +1261,9 @@ T('prob-recov', { title:'Возвратность по делам', inds:['case.
 T('prob-cases', { title:'Дел открыто / из них в карантине', inds:['case.open','case.quar'], format:'number' });
 T('prob-court', { title:'Остаток по решениям суда', inds:['case.court'], format:'number' });
 T('prob-exp',   { title:'Расходы на взыскание по открытым делам', inds:['case.exp'], format:'number' });
+// заёмщика Проблемные кредиты видят через требования, которые ведёт их подразделение
+T('prob-dead',  { title:'Должник умер или ликвидирован', inds:['borrower.count'], filter:[ACT_B,{ f:'pers', op:'in', v:['умер','ликвидирован'] }], format:'number' });
+T('prob-nocon', { title:'Должники без канала связи', inds:['borrower.count'], filter:[ACT_B,{ f:'bcontact', op:'eq', v:'нет' }], format:'number' });
 // — Бухгалтерия —
 T('acc-unident',{ title:'Невыясненные поступления', inds:['receipt.unident','receipt.unidentSum'], format:'number', kind:'link', queue:{ module:'Платежи', name:'Невыясненные поступления' }, tl:{ yellow:['>',0], green:false } });
 T('acc-await',  { title:'Ожидают подтверждения', inds:['receipt.await'], format:'number', kind:'link', queue:{ module:'Платежи', name:'Ожидают подтверждения' } });
@@ -1186,6 +1340,9 @@ T('cat-spopen', { title:'Эпизодов просрочки тянется, п�
 T('cat-spser',  { title:'Вышли в просрочку, 12 мес.', inds:['spell.in'], format:'series' });
 T('cat-byprog', { title:'Остаток по программам', inds:['loan.balance'], dims:['program'], format:'slice' });
 T('cat-byreg',  { title:'Остаток по областям', inds:['loan.balance'], dims:['region'], format:'slice' });
+T('cat-brep',   { title:'Клиенты по числу договоров за всё время', inds:['borrower.count'], dims:['bcredits'], filter:[ACT_B], format:'steps' });
+T('cat-brepsh', { title:'Доля повторных клиентов', inds:['borrower.count'], share:['borrower.count','borrower.count'], filter:[ACT_B], numFilter:[{ f:'credits', op:'ge', v:2 }], format:'shift', shift:'yearStart' });
+T('cat-bhist',  { title:'Клиенты по кредитной истории', inds:['borrower.count'], dims:['bhist'], filter:[ACT_B], format:'steps' });
 T('cat-plan',   { title:'Исполнение плана · прошлый месяц', inds:['loan.paidPlanned','loan.plan'], share:['loan.paidPlanned','loan.plan'], period:'prevMonth', format:'shift', tl:{ red:['<',80], yellow:['<',95] } });
 // — Личная плитка (собрана Бековой для себя) —
 T('p-u2-agro',  { title:'Мои кредиты Агрокредит с просрочкой > 30 дн.', inds:['loan.count'], filter:[ME,{ f:'program', op:'eq', v:'agro' },{ f:'overdueDays', op:'gt', v:30 }],
@@ -1196,13 +1353,13 @@ function tileById(id){ return TILES.find(t=>t.id===id); }
 /* ================= Объявленные раскладки ролей (одна на роль) ================= */
 const ROLE_CORE_WAVE = { lead:1, an:1, cur:1, prob:1, acc:1, zal:1, spec:2, com:2, gof:2, otd:2, ast:2, rep:3 };
 const DECLARED_SEED = {
-  lead:['s:Картина портфеля','lead-loans','lead-borr','lead-borod','lead-bal','lead-od','lead-odsh','lead-risk','lead-bucket','lead-cat','lead-spin','lead-spcure',
+  lead:['s:Картина портфеля','lead-loans','lead-borr','lead-borod','lead-bal','lead-od','lead-odsh','lead-risk','lead-bucket','lead-cat','lead-spin','lead-spcure','lead-bodays','lead-bmove','lead-bdebt',
         's:Деньги и план','lead-issued','lead-paid','lead-prog','lead-odser','lead-heat',
         's:Взыскание и реструктуризация','lead-claims','lead-recov','lead-rs','lead-rslate','tasks','s:Имущество','lead-ast','lead-astod'],
   cur: ['s:Мой портфель','cur-loans','cur-borod','cur-risk','cur-rc','cur-odsh','cur-bal','cur-od','cur-bucket','cur-cat','cur-spin',
-        's:Мои реструктуризации','cur-rs','cur-rslate','cur-rsstage','cur-rsout','s:Мой план и работа','cur-plan0','cur-plan1','cur-npay','tasks'],
+        's:Мои реструктуризации','cur-rs','cur-rslate','cur-rsstage','cur-rsout','s:Мой план и работа','cur-plan0','cur-plan1','cur-npay','cur-obl','tasks'],
   prob:['s:Требования','prob-claims','prob-amount','prob-181','prob-since','prob-phase','prob-lead','s:Результат','prob-rec','prob-real','prob-recser','prob-meas','tasks',
-        's:Дела','prob-recov','prob-cases','prob-court','prob-exp'],
+        's:Дела','prob-recov','prob-cases','prob-court','prob-exp','prob-dead','prob-nocon'],
   acc: ['s:Что мешает закрыть период','acc-unident','acc-await','acc-unm','s:Деньги','acc-today','acc-prev','acc-refund','acc-rev','acc-unalloc','acc-ser','acc-pkind','acc-src'],
   zal: ['s:Портфель обеспечения','zal-count','zal-value','zal-kind','s:Что требует действия','zal-lowcov','zal-reval','zal-ins','zal-ban','zal-reg','zal-sale','tasks'],
   spec:['s:Мои заявки','spec-work','spec-req','spec-ready','spec-neg','tasks','spec-status','spec-stage','s:Итоги','spec-dec','spec-prog','spec-filed'],
@@ -1217,7 +1374,7 @@ const MINIMAL = ['tasks'];
 /* ================= Состояние стенда ================= */
 let S;
 function seed(){
-  STAND.wave = 3; STAND.spells = false; STAND.statDown = false; STAND.nightRunFailed = false; STAND.queueLag = 0; STAND.nightOnly = {}; STAND.overdueUp = false; STAND.withdrawn = {};
+  STAND.wave = 3; STAND.spells = false; STAND.clientFlows = false; STAND.statDown = false; STAND.nightRunFailed = false; STAND.queueLag = 0; STAND.nightOnly = {}; STAND.overdueUp = false; STAND.withdrawn = {};
   TILES.forEach(t=>{ if(t.owner==='catalog'){ t.state='published'; t.version=1; } });
   for(let i=TILES.length-1;i>=0;i--) if(TILES[i].id.startsWith('p-') && TILES[i].id!=='p-u2-agro' || TILES[i].id.startsWith('n-')) TILES.splice(i,1);
   const p = tileById('p-u2-agro'); if(p){ p.state='personal'; p.owner='u2'; p.proposed=false; }
@@ -1234,6 +1391,7 @@ function journal(action, detail, who){ S.journal.unshift({ at:TODAY.label, who: 
 /* ================= Раскладка: объявленная + личная перекладка ================= */
 function tileAnswers(t){ // в раскладку попадает только плитка, которая отвечает (автопроверка, ИДБ-14)
   if(!t) return false; if(t.state==='draft') return false;
+  if(t.format==='move' && IND[t.inds[0]].flowsGate && !STAND[IND[t.inds[0]].flowsGate]) return false;   // потоков ещё нет — черновик
   return t.inds.every(i=>objReady(IND[i].obj) && !IND[i].refuses);
 }
 function roleHasLayout(roleId){ return !!S.declared[roleId] && (ROLE_CORE_WAVE[roleId]||9) <= STAND.wave; }
@@ -1290,7 +1448,9 @@ function catalogFor(u){
 }
 
 /* ================= Конструктор и автопроверка ================= */
-function blankDraft(){ return { id:null, title:'', obj:'loan', inds:['loan.count'], dims:[], filter:[], date:'today', period:'curMonth', format:'number', shift:null, share:null, tl:null, kind:'overview', queue:null, points:12, top:3 }; }
+// выбран кредит или заёмщик — конструктор сам ставит «действующие»; фильтр снимается или меняется
+const DEFAULT_FILTER = { loan:()=>[Object.assign({}, ACT_L)], borrower:()=>[Object.assign({}, ACT_B)] };
+function blankDraft(){ return { id:null, title:'', obj:'loan', inds:['loan.count'], dims:[], filter:DEFAULT_FILTER.loan(), numFilter:null, date:'today', period:'curMonth', format:'number', shift:null, share:null, tl:null, kind:'overview', queue:null, points:12, top:3 }; }
 function draftKind(d){ return IND[d.inds[0]].kind==='stock' ? 'stock' : 'flow'; }
 function formatsFor(d){
   const I = IND[d.inds[0]]; const dims = d.dims || [];
@@ -1323,7 +1483,8 @@ function autocheck(d){
   checks.push({ ok: d.inds.length>=1 && d.inds.length<=4, text:'показателей от 1 до 4' });
   checks.push({ ok: d.inds.every(i=>!STAND.withdrawn[i]), text:'показатели есть в реестре статистики' });
   const fm = formatsFor(d).find(x=>x.f===d.format); checks.push({ ok: fm && fm.ok, text:'формат «'+FORMAT_NAMES[d.format]+'» допустим'+(fm && !fm.ok?': '+fm.why:'') });
-  if(d.share) checks.push({ ok: d.share.every(i=>IND[i].obj===objs[0]), text:'доля — два показателя одного объекта' });
+  if(d.share) checks.push({ ok: d.share.every(i=>IND[i].obj===objs[0]) && (d.share[0]!==d.share[1] || !!(d.numFilter && d.numFilter.length)),
+    text: d.share[0]===d.share[1] ? 'доля с фильтром числителя: фильтр числителя задан' : 'доля — два показателя одного объекта' });
   const pv = ask(Object.assign({ id:'preview', inds:d.inds, dims:d.dims, filter:d.filter, version:1 }, d), user(), null, {});
   checks.push({ ok: pv.state!=='refusal' && pv.state!=='error' && pv.state!=='broken', text:'предпросмотр без отказа'+(pv.state==='refusal'?': '+pv.msg:'') });
   checks.push({ ok: !!(d.title||'').trim(), text:'есть подпись' });
@@ -1528,10 +1689,13 @@ function tileHTML(t, res, o){
   const arr = o.arrange && !o.preview ? `<div class="arr-tools arrange-only"><button class="btn sm" onclick="event.stopPropagation();DB.move('${o.key}',-1)">←</button><button class="btn sm" onclick="event.stopPropagation();DB.move('${o.key}',1)">→</button><button class="btn sm" onclick="event.stopPropagation();DB.hide('${o.key}')">Скрыть</button></div>` : '';
   const click = o.preview || o.arrange ? '' : `onclick="DB.primary('${t.id}')"`;
   return `<div class="${cls}" data-key="${esc(o.key||t.id)}" ${o.arrange&&!o.preview?'draggable="true"':''} ${click}>
-    <div class="t-head"><div class="t-title">${t.kind==='link'?'<div class="kind-link">ждёт меня · '+esc(t.queue.module)+'</div>':''}${esc(t.title)}${t.owner!=='catalog'?' <span class="chip">личная</span>':''}${reqMark(t)}</div>${tools}</div>
+    <div class="t-head"><div class="t-title">${t.kind==='link'?'<div class="kind-link">ждёт меня · '+esc(t.queue.module)+'</div>':''}${esc(t.title)}${t.owner!=='catalog'?' <span class="chip">личная</span>':''}${reqMark(t)}${qualOf(t)?'<div class="t-qual">'+esc(qualOf(t))+'</div>':''}</div>${tools}</div>
     <div class="t-body">${body}</div>${tln}${stale}${pp}${arr}</div>`;
 }
-function reqMark(t){ const r = t.inds.map(i=>IND[i].req).filter(Boolean);
+function reqOf(t){ const conds = [...(t.filter||[]), ...(t.numFilter||[])];
+  return [...t.inds.map(i=>IND[i].req), ...(t.dims||[]).map(d=>DIMS[d].req), ...conds.map(c=>(DIMS[c.f]||{}).req || FIELD_REQ[c.f])].filter(Boolean)
+    .filter((x,i,a)=>a.indexOf(x)===i); }
+function reqMark(t){ const r = reqOf(t);
   return r.length ? ` <span class="req" data-tip="${esc('Заявка соседу: '+r.join('; ')+'. Макет показывает величину как будущую.')}">⚑</span>` : ''; }
 function headlineText(t, res){
   if(res.state==='dash') return '<div class="big">—</div><div class="sub">не из чего выбирать</div>';
@@ -1565,13 +1729,14 @@ function formatBody(t, res){
         <span class="v">${fmtVal(n.value, unit)}</span><div class="col" style="height:${Math.max(2,(n.value||0)/max*62)}px"></div><span class="k">${esc(n.short||n.label)}</span></div>`).join('')}</div>
         <div class="total-row">итог ${fmtVal(res.total.v, unit)}</div>`; }
     case 'series': return seriesSVG(t, res);
-    case 'move': { const m = res.move; const I = IND[t.inds[0]]; const inv = I.dir==='up_bad';
+    case 'move': { const m = res.move; const I = IND[t.inds[0]]; const inv = I.dir==='up_bad'; const u = I.unit;
       const d = m.end - m.start; const dcls = d===0 ? '' : ((d>0) !== inv ? 'style="color:var(--asubk-green)"' : 'style="color:var(--asubk-red)"');
-      return `<div class="mv"><span class="head">${fmtVal(m.end,'sum')}</span><span class="muted">на начало ${monthEndLabel(-1)}: ${fmtVal(m.start,'sum')}</span><span ${dcls}>${fmtDelta(d,'sum')}</span>
-        <span>+ увеличение</span><span class="muted">${m.inc.map(x=>esc(x.name)).join(', ')}</span><span class="n">+${fmtVal(m.ti,'sum')}</span>
-        <span>− уменьшение</span><span class="muted">${m.dec.map(x=>esc(x.name)).join(', ')}</span><span class="n">−${fmtVal(m.td,'sum')}</span>
-        <span>прочее</span><span class="muted">${esc(m.otherName)}</span><span class="n">${m.other>=0?'+':'−'}${fmtVal(Math.abs(m.other),'sum')}</span>
-        <span class="flows">${m.converges?'✓ сходится: конец = начало + обороты':'✗ не сходится на '+fmtVal(Math.abs(m.end-m.start-m.ti+m.td-m.other),'sum')}</span></div>`; }
+      const parts = list => u==='pcs' ? list.map(x=>esc(x.name)+' '+fmtVal(x.v,u)).join(', ') : list.map(x=>esc(x.name)).join(', ');
+      return `<div class="mv"><span class="head">${fmtVal(m.end,u)}</span><span class="muted">${m.M ? 'на конец '+monthEndLabel(m.M)+' · ' : ''}на начало ${monthEndLabel(m.M-1)}: ${fmtVal(m.start,u)}</span><span ${dcls}>${fmtDelta(d,u)}</span>
+        <span>+ увеличение</span><span class="muted">${parts(m.inc)}</span><span class="n">+${fmtVal(m.ti,u)}</span>
+        <span>− уменьшение</span><span class="muted">${parts(m.dec)}</span><span class="n">−${fmtVal(m.td,u)}</span>
+        <span>прочее</span><span class="muted">${esc(m.otherName)}</span><span class="n">${m.other>=0?'+':'−'}${fmtVal(Math.abs(m.other),u)}</span>
+        <span class="flows">${m.converges?'✓ сходится: конец = начало + обороты':'✗ не сходится на '+fmtVal(Math.abs(m.end-m.start-m.ti+m.td-m.other),u)}</span></div>`; }
     case 'heat': { const h = res.heat; const max = Math.max(...h.cells.flat(), 1);
       const shade = v=> { const k = v/max; return k===0 ? 'var(--asubk-gray-100)' : k<0.15 ? 'var(--seq-100)' : k<0.3 ? 'var(--seq-200)' : k<0.5 ? 'var(--seq-300)' : k<0.7 ? 'var(--seq-400)' : k<0.85 ? 'var(--seq-500)' : 'var(--seq-700)'; };
       const ink = v=> v/max>=0.5 ? '#fff' : 'var(--asubk-ink)';
@@ -1580,7 +1745,7 @@ function formatBody(t, res){
         <div class="total-row">итог ${fmtVal(res.total.v, unit)} · ячейки — ${unit==='sum'?'млн сом':'шт.'}, цвет — величина (одна шкала)</div>`; }
     case 'table': { const tb = res.table;
       return `<table class="tbl"><tr><th>${esc(DIMS[tb.d].name)}</th>${tb.cols.map(c=>`<th>${esc(c.name)}</th>`).join('')}</tr>
-        ${tb.rows.map(r=>`<tr class="rowlink" onclick="event.stopPropagation();DB.who('${t.id}','${tb.d}','${esc(r.v)}')">${'<td>'+esc(r.label)+'</td>'+r.cells.map((c,i)=>`<td>${fmtVal(c, tb.cols[i].unit)}</td>`).join('')}</tr>`).join('')}
+        ${tb.rows.map(r=>`<tr class="rowlink" onclick="event.stopPropagation();DB.who('${t.id}','${tb.d}','${esc(r.v)}')">${'<td>'+esc(r.label)+'</td>'+r.cells.map((c,i)=>`<td>${fmtVal(c, tb.cols[i].unit)}${DIMS[tb.d].ordered && tb.cols[i].unit==='sum' && res.total[i] ? ' <span class="muted">· '+fmtVal((c||0)/res.total[i]*100,'pct')+'</span>' : ''}</td>`).join('')}</tr>`).join('')}
         <tr><td><b>итог</b></td>${res.total.map((c,i)=>`<td><b>${fmtVal(c, tb.cols[i].unit)}</b></td>`).join('')}</tr></table>`; }
   }
   return '';
@@ -1629,7 +1794,7 @@ function primaryClick(tileId){ const t = tileById(tileId); countClick(tileId);
   if(t.kind==='link') return openQueue(tileId); return openWho(tileId); }
 function drawer(title, html, wide){ if(!HAS_DOM) return; $('overlay').innerHTML = `<div class="drawer-mask" onclick="DB.close()"></div>
   <div class="drawer ${wide?'wide':''}"><div class="drawer-h"><h3>${title}</h3><button class="drawer-x" onclick="DB.close()">✕</button></div><div class="drawer-b">${html}</div></div>`; }
-function rowLabel(obj, r){ const nm = { loan:r.borrower, claim:'по '+r.loan, coll:r.kind, app:progName(r.program), comm:r.commission, concl:r.verdict||'ждёт', oblig:r.form, task:r.hot?'горит':'', receipt:r.source, payment:r.kind, measure:r.kind, borrower:r.region+(r.overCredits?' · кредитов с просрочкой '+r.overCredits:''), program:r.name,
+function rowLabel(obj, r){ const nm = { loan:r.borrower, claim:'по '+r.loan, coll:r.kind, app:progName(r.program), comm:r.commission, concl:r.verdict||'ждёт', oblig:r.form, task:r.hot?'горит':'', receipt:r.source, payment:r.kind, measure:r.kind, borrower:r.region+' · '+pstateAt(r,0)+(r.overCredits?' · договоров с просрочкой '+r.overCredits:'')+(r.pers!=='действует'?' · лицо: '+r.pers:''), program:r.name,
   case:r.borrower+' · кредитов '+r.loans.length, rsapp:r.stage+(r.outcome?' · '+r.outcome:''), spell:r.loan+' · '+r.state, asset:r.kind+' · '+r.state }[obj]; return nm||''; }
 function openWho(tileId, node){
   const t = tileById(tileId); const sr = statRows(t, user(), curRole(), S.panel, node);
@@ -1701,12 +1866,16 @@ function renderBuilder(){
     <div class="form-step"><h4>1 · Объект</h4><select onchange="DB.dSet('obj', this.value)">${objs.map(o=>`<option value="${o}" ${o===obj?'selected':''}>${esc(OBJECTS[o].name)}${OBJECTS[o].wave>STAND.wave?' — ещё не объявлен':!objReady(o)?' — строк ещё нет':''}</option>`).join('')}</select>
       <div class="why">Своих показателей и разрезов дашборд не заводит — только записи реестра статистики.</div></div>
     <div class="form-step"><h4>2 · Показатели (до 4, одного объекта)</h4>${inds.map(x=>`<label class="opt ${STAND.withdrawn[x.id]?'off':''}"><input type="checkbox" ${d.inds.includes(x.id)?'checked':''} ${STAND.withdrawn[x.id]?'disabled':''} onchange="DB.dInd('${x.id}', this.checked)"> ${esc(x.name)}</label>`).join('<br>')}
-      ${d.inds.length===2 ? `<div style="margin-top:6px"><label class="opt"><input type="checkbox" ${d.share?'checked':''} onchange="DB.dSet('share', this.checked)"> показать долю: первый из второго (оба числа видны, изменение в п.п.)</label></div>`:''}</div>
-    <div class="form-step"><h4>3 · Разрезы</h4>${dims.map(x=>`<label class="opt"><input type="checkbox" ${d.dims.includes(x)?'checked':''} onchange="DB.dDim('${x}', this.checked)"> ${esc(DIMS[x].name)}${DIMS[x].ordered?' <span class="muted small">(порядок объявлен)</span>':''}</label>`).join('')}</div>
-    <div class="form-step"><h4>4 · Фильтр</h4>${relFields.map(([f,n])=>{ const c = d.filter.find(x=>x.f===f); const v = c?c.v:'';
+      ${d.inds.length===2 ? `<div style="margin-top:6px"><label class="opt"><input type="checkbox" ${d.share?'checked':''} onchange="DB.dSet('share', this.checked)"> показать долю: первый из второго (оба числа видны, изменение в п.п.)</label></div>`:''}
+      ${d.inds.length===1 ? `<div style="margin-top:6px"><label class="opt"><input type="checkbox" ${d.numFilter?'checked':''} onchange="DB.dNumShare(this.checked)"> показать долю с фильтром числителя: часть от всего (фильтр плитки режет оба числа, фильтр числителя — только числитель)</label></div>
+        ${d.numFilter ? `<div class="cond-box"><b>Фильтр числителя</b>${condEditor(d, 'num')}</div>`:''}`:''}
+      ${builderHints(d).map(h=>'<div class="why">'+esc(h)+'</div>').join('')}</div>
+    <div class="form-step"><h4>3 · Разрезы</h4>${dims.map(x=>`<label class="opt"><input type="checkbox" ${d.dims.includes(x)?'checked':''} onchange="DB.dDim('${x}', this.checked)"> ${esc(DIMS[x].name)}${DIMS[x].ordered?' <span class="muted small">(порядок объявлен)</span>':''}${DIMS[x].req?` <span class="req" data-tip="${esc('Заявка соседу: '+DIMS[x].req)}">⚑</span>`:''}</label>`).join('')}</div>
+    <div class="form-step"><h4>4 · Фильтр</h4>${relFields.map(([f,n])=>{ const c = d.filter.find(x=>x.f===f && paramLabel(x.v)); const v = c?c.v:'';
         const opts = f==='dept' ? [['','—'],['@myDept','«моё подразделение»'],['@myDeptTree','«моё подразделение и ниже»']] : [['','—'],['@me','«я»']];
         return `<label class="opt">${n}: <select onchange="DB.dFilter('${f}', this.value)">${opts.map(([a,b])=>`<option value="${a}" ${a===v?'selected':''}>${b}</option>`).join('')}</select></label>`; }).join('')}
-      <div class="why">Относительные параметры подставляются по смотрящему; охват роли режет сверху. Нормативная граница (например «ниже 120 %») — часть вопроса, а не цвет.</div></div>
+      <div class="cond-box">${condEditor(d, 'filter')}</div>
+      <div class="why">Относительные параметры подставляются по смотрящему; охват роли режет сверху. Нормативная граница (например «ниже 120 %») — часть вопроса, а не цвет. Разрез сравнивается через = ≠ ∈ ∉, число строки — через &gt; ≥ &lt; ≤.</div></div>
     <div class="form-step"><h4>5 · ${draftKind(d)==='stock'?'Дата':'Период'}</h4>${draftKind(d)==='stock'
       ? Object.keys(DATE_MODES).map(k=>`<label class="opt"><input type="radio" name="dm" ${d.date===k?'checked':''} onchange="DB.dSet('date','${k}')"> ${DATE_MODES[k].label}</label>`).join('')
       : Object.keys(PERIODS).filter(k=>!k.startsWith('__')).map(k=>`<label class="opt"><input type="radio" name="pp" ${d.period===k?'checked':''} onchange="DB.dSet('period','${k}')"> ${PERIODS[k].label}</label>`).join('')}
@@ -1729,6 +1898,30 @@ function renderBuilder(){
     <button class="btn" onclick="DB.newDraft()">Начать заново</button></p>
   </div></div>`;
 }
+// редактор условий: фильтр плитки или фильтр числителя; относительные «я» / «моё подразделение» — выше, своими полями
+let condDraft = { f:'', op:'', v:null };
+function condFields(obj, target){ return [...(OBJ_DIMS[obj]||[]).filter(k=>target!=='num' || !DIMS[k].at).map(k=>({ k, name:DIMS[k].name, dim:true })), ...Object.entries(FIELDS[obj]||{}).map(([k,n])=>({ k, name:n, dim:false }))]; }
+function condEditor(d, target){
+  const obj = IND[d.inds[0]].obj; const list = target==='num' ? (d.numFilter||[]) : d.filter;
+  const chips = list.map((c,i)=>paramLabel(c.v) && target!=='num' ? '' : `<span class="chip cond">${esc(condText(c))}${((DIMS[c.f]||{}).req||FIELD_REQ[c.f])?' ⚑':''} <button class="linky" title="Убрать" onclick="DB.dCondDel('${target}',${i})">×</button></span>`).join(' ').trim();
+  const fs = condFields(obj, target); const cd = condDraft.target===target ? condDraft : { f:'', op:'', v:null };
+  const F = fs.find(x=>x.k===cd.f); const ops = F ? (F.dim ? ['eq','ne','in','nin'] : ['gt','ge','lt','le','eq']) : [];
+  const vals = F && F.dim ? valuesOf(cd.f, DATA[obj]) : [];
+  const multi = cd.op==='in' || cd.op==='nin';
+  const valInput = !F ? '' : F.dim
+    ? `<select ${multi?'multiple size="4" style="min-width:150px"':''} onchange="DB.dCond('${target}','v', Array.from(this.selectedOptions).map(o=>o.value))">${multi?'':'<option value="">значение…</option>'}${vals.map(v=>`<option value="${esc(v)}" ${[].concat(cd.v||[]).includes(v)?'selected':''}>${esc(dimLabel(cd.f, v))}</option>`).join('')}</select>`
+    : `<input type="number" style="width:90px" value="${cd.v===null?'':esc(cd.v)}" onchange="DB.dCond('${target}','v', this.value)">`;
+  return `${chips ? '<div>'+chips+'</div>' : ''}<div class="cond-add"><select onchange="DB.dCond('${target}','f', this.value)"><option value="">${target==='num'?'условие числителя…':'фильтр по значению…'}</option>${fs.map(x=>`<option value="${x.k}" ${x.k===cd.f?'selected':''}>${esc(x.name)}</option>`).join('')}</select>
+    ${F ? `<select onchange="DB.dCond('${target}','op', this.value)">${ops.map(o=>`<option value="${o}" ${o===cd.op?'selected':''}>${OPS[o]}</option>`).join('')}</select>` : ''}${valInput}
+    ${F ? `<button class="btn sm" onclick="DB.dCondAdd('${target}')">Добавить</button>` : ''}</div>`;
+}
+function builderHints(d){ const I = IND[d.inds[0]]; const h = [];
+  const act = (d.filter||[]).some(c=>(c.f==='pstate'||c.f==='lact') && c.op==='eq' && c.v==='действующий');
+  if(I.obj==='borrower' && !(d.filter||[]).some(c=>c.f==='pstate') && I.agg==='count') h.push('Без фильтра «Состояние портфеля» счёт складывает действующих и погасивших клиентов.');
+  if(I.obj==='loan' && !(d.filter||[]).some(c=>c.f==='lact') && I.agg==='count') h.push('Без фильтра «Состояние договора» счёт складывает действующие и закрытые договоры.');
+  if(I.obj==='borrower' && d.inds.some(i=>IND[i].money) && !(d.dims||[]).length) h.push('Итог денег — у объекта «Кредит»; у заёмщика охват по ведущему куратору. Деньги заёмщика — для разрезов по признакам лица: тип лица, отрасль, худшая категория.');
+  if(act && I.kind!=='stock') h.push('Фильтр «действующие» у потока отрезает договоры, закрытые в периоде, — их платежи в число не войдут.');
+  return h; }
 /* ---------- Администратор: реестр, раскладки, журнал ---------- */
 function renderRegistry(){
   const rows = TILES.filter(t=>t.owner==='catalog' || t.proposed);
@@ -1758,7 +1951,9 @@ function renderStand(){
     <div class="form-step"><h4>Готовность соседей (запуск волнами)</h4>${[1,2,3].map(w=>`<label class="opt"><input type="radio" name="wv" ${STAND.wave===w?'checked':''} onchange="DB.stand('wave', ${w})"> волна ${w}</label>`).join('')}
       <div class="why">Волна 1 — кредит, платёж, поступление, залог, требование, дело взыскания, заявка на реструктуризацию. Волна 2 — заявка на кредит, комиссия, заключение, объект имущества. Волна 3 — обязательство, задание.</div>
       <div style="margin-top:6px">${chk('spells','ядро расчёта отдаёт эпизоды просрочки')}</div>
-      <div class="why">Пока ядро не отдаёт перечень эпизодов, объект статистики объявлен, а строк нет: плитки «Вышли в просрочку» и «Вылечены» стоят черновиками и в раскладки не встают.</div></div>
+      <div class="why">Пока ядро не отдаёт перечень эпизодов, объект статистики объявлен, а строк нет: плитки «Вышли в просрочку» и «Вылечены» стоят черновиками и в раскладки не встают.</div>
+      <div style="margin-top:6px">${chk('clientFlows','статистика отдаёт потоки счёта клиентов (дата погашения всего портфеля, месяц первого договора)')}</div>
+      <div class="why">До этого «Клиенты за прошлый месяц» (движение: новые · вернулись · погасили всё · прочее) — черновик и в раскладку Руководства не встаёт.</div></div>
     <div class="form-step"><h4>Сбои статистики</h4>${chk('statDown','статистика не отвечает (ошибка доставки)')}${chk('nightRunFailed','ночной прогон 11.10 не прошёл')}
       <label class="opt">очередь пересчёта отстала на <input type="number" style="width:70px" value="${STAND.queueLag}" onchange="DB.stand('queueLag', Number(this.value))"> мин (порог 15)</label><br>
       <label class="opt"><input type="checkbox" ${STAND.nightOnly.receipt?'checked':''} onchange="DB.standNightOnly('receipt', this.checked)"> источник «Платежи» обновляется только ночью</label></div>
@@ -1786,6 +1981,7 @@ const api = {
   seed:()=>{ seed(); draft=null; view='home'; return S; }, get state(){ return S; }, user, tileById, ask, cachedAsk, statRows, registryList, composeLayout, declaredItems,
   roleHasLayout, tileAnswers, catalogFor, canSee, formatsFor, shiftsFor, autocheck, saveTile, editTile, propose, moveToCatalog, whereUsed, withdrawTile:withdraw,
   exportTile, subscribe, recheckLights, createScreen, screens, screenAdd, screenSaveFilter, scopeKey, tick, fmtVal, rowsFor, overlay, arrangeMove, arrangeAdd, arrangeHide, arrangeSection,
+  get draft(){ return draft; }, builderHints, qualOf, reqOf, condText, condFields, panelLabel, FIELDS, PSTATES, pstateAt, LOANS_OF,
   resetDeclaredFor:(roleId)=>resetDeclared(roleId), blankDraft, publishDraftId:publishDraft, declaredEdit, stampOf, tlText, monthClosed,
   // UI
   go:(v)=>{ view=v; if(v!=='catalog') catalogTarget=null; render(); },
@@ -1826,13 +2022,27 @@ const api = {
   standWithdraw:(i,v)=>{ if(v) STAND.withdrawn[i]='11.10'; else delete STAND.withdrawn[i]; S.cache.clear(); render(); },
   // конструктор
   newDraft:()=>{ draft=blankDraft(); render(); },
-  dSet:(k,v)=>{ if(k==='obj'){ const first = Object.values(IND).find(x=>x.obj===v && !x.refuses); draft = Object.assign(blankDraft(), { obj:v, inds:[first.id] }); }
+  dSet:(k,v)=>{ if(k==='obj'){ const first = Object.values(IND).find(x=>x.obj===v && !x.refuses); draft = Object.assign(blankDraft(), { obj:v, inds:[first.id], filter:DEFAULT_FILTER[v] ? DEFAULT_FILTER[v]() : [] }); condDraft = { f:'', op:'', v:null }; }
     else if(k==='share') draft.share = v ? draft.inds.slice(0,2) : null; else if(k==='shift') draft.shift = v==='auto'?null:v; else draft[k]=v;
     const fm = formatsFor(draft).find(x=>x.f===draft.format); if(!fm.ok){ const ok = formatsFor(draft).find(x=>x.ok); draft.format = ok ? ok.f : 'number'; } render(); },
   dInd:(id,on)=>{ if(on){ if(draft.inds.length>=4) return toast('Не больше четырёх показателей'); draft.inds.push(id); } else if(draft.inds.length>1) draft.inds = draft.inds.filter(x=>x!==id);
-    if(draft.share && draft.inds.length!==2) draft.share=null; api.dSet('format', draft.format); },
+    if(draft.numFilter && draft.inds.length!==1){ draft.numFilter=null; draft.share=null; }
+    if(draft.share && draft.inds.length!==2 && !draft.numFilter) draft.share=null; api.dSet('format', draft.format); },
   dDim:(d,on)=>{ draft.dims = on ? [...draft.dims, d].slice(-2) : draft.dims.filter(x=>x!==d); api.dSet('format', draft.format); },
-  dFilter:(f,v)=>{ draft.filter = draft.filter.filter(c=>c.f!==f); if(v) draft.filter.push({ f, op:'eq', v }); render(); },
+  dFilter:(f,v)=>{ draft.filter = draft.filter.filter(c=>!(c.f===f && paramLabel(c.v))); if(v) draft.filter.push({ f, op:'eq', v }); render(); },
+  dCond:(target,k,v)=>{ if(condDraft.target!==target) condDraft = { target, f:'', op:'', v:null };
+    if(k==='f'){ const F = condFields(IND[draft.inds[0]].obj, target).find(x=>x.k===v); condDraft = { target, f:v, op: F ? (F.dim ? 'eq' : 'gt') : '', v:null }; }
+    else if(k==='op'){ condDraft.op = v; if(v!=='in' && v!=='nin' && Array.isArray(condDraft.v)) condDraft.v = condDraft.v[0] || null; }
+    else condDraft.v = v; render(); },
+  dCondAdd:(target)=>{ const c = condDraft; if(c.target!==target || !c.f || !c.op) return toast('Выберите поле, сравнение и значение');
+    const F = condFields(IND[draft.inds[0]].obj, target).find(x=>x.k===c.f); let v = c.v;
+    if(F.dim){ v = [].concat(v===null||v===undefined ? [] : v).filter(x=>x!==''); if(!v.length) return toast('Выберите значение'); if(c.op==='eq'||c.op==='ne') v = v[0]; }
+    else { if(v===null || v==='' || isNaN(Number(v))) return toast('Введите число'); v = Number(v); }
+    const cond = { f:c.f, op:c.op, v };
+    if(target==='num') draft.numFilter = [...(draft.numFilter||[]), cond]; else draft.filter = [...draft.filter, cond];   // условия складываются по «и»: можно задать полосу «> 30 и ≤ 90»
+    condDraft = { f:'', op:'', v:null }; render(); return cond; },
+  dCondDel:(target,i)=>{ if(target==='num') draft.numFilter = draft.numFilter.filter((_,j)=>j!==i); else draft.filter = draft.filter.filter((_,j)=>j!==i); render(); },
+  dNumShare:(on)=>{ if(on){ draft.numFilter = []; draft.share = [draft.inds[0], draft.inds[0]]; } else { draft.numFilter = null; draft.share = null; } api.dSet('format', draft.format); },
   dTl:(k,op,val)=>{ draft.tl = draft.tl || {}; const cur = draft.tl[k] || [k==='red'?'>':(draft.tl.red?draft.tl.red[0]:'>'), 0];
     if(op) cur[0]=op; if(val!==null && val!==undefined){ if(val==='') { delete draft.tl[k]; if(!draft.tl.red&&!draft.tl.yellow) draft.tl=null; render(); return; } cur[1]=Number(val); }
     draft.tl[k]=cur; render(); },
