@@ -15,7 +15,8 @@
 //   K  сторож чистоты: в макете нет номеров решений и ADR, «сегодня» заморожено;
 //   L  состав объектов 13.10.2026: заявка на реструктуризацию, дело взыскания, эпизод просрочки, объект имущества
 //      — 17 объектов, плитки ролей, черновики эпизодов до готовности ядра, роль «Специалист по имуществу» (ДБ-60…ДБ-64);
-//      плитки заёмщика: «с просрочкой» и «платёж в ближайшие 3 дня», «я» — ведущий куратор (ДБ-65).
+//      плитки заёмщика: «с просрочкой» и «платёж в ближайшие 3 дня», «я» — ведущий куратор (ДБ-65);
+//      разрезы заёмщика — выборка реестра статистики, свёрнутые по портфелю, «Ступени» доступны (ДБ-66).
 // Блоки, которые правят состояние, начинаются с DB.seed(). Выход 1 при любом FAIL.
 //   node scripts/inspect/dashboard-check.mjs
 import { readFileSync } from 'node:fs';
@@ -351,6 +352,26 @@ const asUser = id => { DB.state.userId = id; };
     && lay.indexOf('cur-npay') === lay.indexOf('tasks') - 1 && lay.indexOf('cur-borod') === lay.indexOf('cur-loans') + 1
     && DB.composeLayout('u1', 'lead').indexOf('lead-borod') === DB.composeLayout('u1', 'lead').indexOf('lead-borr') + 1,
     `Куратор: заёмщиков с платежом в ближайшие 3 дня ${np.value} — один клиент один раз, по ближайшему платежу всего портфеля; плитки стоят на местах канона (ДБ-65)`);
+  // ДБ-66: разрезы заёмщика — из реестра статистики, выборка
+  const BD = ['bworst', 'bodays', 'subgroup', 'ptype', 'bindustry'];
+  const bt = (dims, format) => Object.assign(DB.blankDraft(), { obj:'borrower', inds:['borrower.count'], dims, format });
+  const steps = BD.filter(d => DB.DIMS[d].ordered).map(d => DB.ask(bt([d], 'steps'), U('u1'), 'lead', {}));
+  ok(87, BD.every(d => DB.OBJ_DIMS.borrower.includes(d)) && DB.OBJ_DIMS.borrower.length === 8
+    && BD.filter(d => DB.DIMS[d].ordered).every(d => DB.formatsFor(bt([d], 'steps')).find(x => x.f === 'steps').ok)
+    && steps.every(r => r.state === 'ok') && steps[0].nodes.reduce((a, n) => a + n.value, 0) === Bs.length,
+    `у заёмщика 8 разрезов из реестра статистики; «Ступени» больше не погашены — худшая категория, худшая просрочка, подгруппа: ${steps.map(r => r.nodes.length).join(' · ')} ступеней (ДБ-66, ДБ-Д21)`);
+  const rank = c => DB.DIMS.category.values.indexOf(c);
+  const worstOk = Bs.every(b => { const ls = L.filter(l => l.borrower === b.id);
+    return b.worst === ls.reduce((a, l) => rank(l.category) > rank(a) ? l.category : a, ls[0].category) && b.worstDays === Math.max(...ls.map(l => l.overdueDays)); });
+  const late = steps[1].nodes.reduce((a, n) => a + n.value, 0);
+  ok(88, worstOk && late === new Set(L.filter(l => l.overdueDays > 0).map(l => l.borrower)).size && late === bo.num,
+    `худшая категория и худшая просрочка свёрнуты по портфелю: клиент с тремя кредитами — одна строка по худшему; на ступенях просрочки ${late} клиентов — столько же, сколько «Заёмщиков с просрочкой» (ДБ-66)`);
+  const heat = DB.ask(bt(['ptype', 'bindustry'], 'heat'), U('u1'), 'lead', {});
+  const cells = heat.heat.cells.flat().reduce((a, v) => a + v, 0);
+  const cur = DB.ask(bt(['ptype'], 'slice'), U('u2'), 'cur', {});
+  ok(89, heat.state === 'ok' && cells === Bs.length && heat.heat.rows.length === 3
+    && cur.nodes.reduce((a, n) => a + n.value, 0) === Bs.filter(b => b.dept === 'rp-chu').length,
+    `тип лица × отрасль: ${heat.heat.rows.length}×${heat.heat.cols.length}, в ячейках ${cells} — все заёмщики; у куратора разрез режется охватом подразделения (ДБ-66, ИДБ-12)`);
 })();
 
 /* ---------- отчёт ---------- */

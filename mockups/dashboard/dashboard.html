@@ -337,11 +337,14 @@ const RS_STAGES = ['регистрация обращения','анализ','�
 const RS_SHORT = ['обращ.','анализ','комитет','письмо','заключ.','проект','пост. КМ','оформл.','закрыта'];
 const RS_OUTCOMES = ['одобрена','одобрена с изменёнными условиями','отказ','отпала','возвращена без рассмотрения'];
 const IM_ACTIVE = ['принят, ждёт регистрации','на учёте','выставлен на продажу','продан'];
+const RISK_CATS = ['Стандартные','Под наблюдением','Субстандартные','Сомнительные','Потери'];
+const PAYGROUPS = { 1:['1.1'], 2:['2.1','2.2','2.3'], 3:['3.1','3.2'], 4:['4.1','4.2'], 5:['5.1','5.2','5.3'] };
+const PTYPES = { 'юр':'Юридическое лицо', 'ИП':'Индивидуальный предприниматель', 'физ':'Физическое лицо' };
 function genData(){
   const r = rng(20261011);
   // --- кредиты и заёмщики ---
   const loans = [], borrowers = [];
-  const cats = ['Стандартные','Под наблюдением','Субстандартные','Сомнительные','Потери'];
+  const cats = RISK_CATS;
   for(let i=0;i<903;i++){ const reg = pickW(r, REGION_W); borrowers.push({ id:'З-'+(5000+i), region:reg, dept:deptOfRegion(reg), from:-40 }); }
   for(let i=0;i<1248;i++){
     const b = i<903 ? borrowers[i] : borrowers[Math.floor(r()*903)];
@@ -452,7 +455,15 @@ function genMore(loans, claims, measures){
   DATA.borrower.forEach(b=>{ const ls = byBorrower.get(b.id) || [];
     const lead = ls.reduce((a,l)=>!a || l.balance > a.balance ? l : a, null);
     b.curator = lead ? lead.curator : null; b.credits = ls.length; b.overCredits = ls.filter(l=>l.overdueDays>0).length;
-    b.npayDays = ls.length ? Math.min(...ls.map(nextPay)) : null; });
+    b.npayDays = ls.length ? Math.min(...ls.map(nextPay)) : null;
+    // свёрнутые по портфелю: худшая категория и худшая просрочка; подгруппа — своя ось классификации, с категорией не совпадает;
+    // признаки лица — от «Субъектов», из ключа заёмщика (хеш), чтобы прежние данные стенда не сдвинулись
+    const hr = k=>()=>(hash(b.id+'|'+k)%100000)/100000;
+    const ci = ls.length ? Math.max(...ls.map(l=>RISK_CATS.indexOf(l.category))) : -1;
+    b.worst = ci<0 ? null : RISK_CATS[ci]; b.worstDays = ls.length ? Math.max(...ls.map(l=>l.overdueDays)) : null;
+    const g = ci<0 ? null : Math.min(5, ci + 1 + (hr('grp')()<0.2 ? 1 : 0)); b.subgroup = g ? PAYGROUPS[g][hash(b.id+'|sub')%PAYGROUPS[g].length] : null;
+    b.ptype = pickW(hr('ptype'), [['юр',30],['ИП',45],['физ',25]]);
+    b.industry = pickW(hr('ind'), [['Сельское хозяйство',34],['Переработка',18],['Торговля',16],['Услуги',12],['Производство',12],['Строительство',8]]); });
   // --- дело взыскания: требования одного заёмщика — одно дело, каждый кредит в нём один раз ---
   const MCOST = { 'Претензия':2000, 'Иск':25000, 'Исполнительный лист':5000, 'Арест имущества':8000, 'Торги':60000, 'Мировое соглашение':3000, 'Заявление о банкротстве':40000 };
   const byB = new Map(); claims.forEach(c=>{ const b = loanById.get(c.loan).borrower; if(!byB.has(b)) byB.set(b, []); byB.get(b).push(c); });
@@ -554,9 +565,14 @@ const DIMS = {
   dept:    { name:'Подразделение', field:'dept', label:deptName },
   program: { name:'Программа', field:'program', label:id=>id==='none'?'Без программы (поток B)':progName(id) },
   curator: { name:'Куратор', field:'curator', label:userName },
-  category:{ name:'Категория классификации', field:'category', ordered:true, values:['Стандартные','Под наблюдением','Субстандартные','Сомнительные','Потери'] },
+  category:{ name:'Категория классификации', field:'category', ordered:true, values:RISK_CATS },
   bucket:  { name:'Срок просрочки', get:r=>bucketOf(r.overdueDays), ordered:true, values:BUCKETS },
   lstatus: { name:'Состояние кредита', field:'status' },
+  bworst:  { name:'Худшая категория', field:'worst', ordered:true, values:RISK_CATS },
+  bodays:  { name:'Худшая просрочка по портфелю', get:r=>r.worstDays===null ? null : bucketOf(r.worstDays), ordered:true, values:BUCKETS },
+  subgroup:{ name:'Подгруппа платёжеспособности', field:'subgroup', ordered:true, values:Object.values(PAYGROUPS).flat() },
+  ptype:   { name:'Тип лица', field:'ptype', label:v=>PTYPES[v]||v },
+  bindustry:{ name:'Отрасль заёмщика', field:'industry' },
   pname:   { name:'Программа', field:'name' },
   phase:   { name:'Фаза требования', field:'phase', ordered:true, values:['Досудебная','Судебная','Исполнение','Банкротство','Урегулирование'] },
   leadDept:{ name:'Ведущее подразделение', field:'leadDept', label:deptName },
@@ -580,7 +596,7 @@ const DIMS = {
   imkind:  { name:'Вид имущества', field:'kind' },
 };
 const OBJ_DIMS = {
-  loan:['region','dept','program','curator','category','bucket','lstatus'], borrower:['region','dept','curator'], program:['pname'],
+  loan:['region','dept','program','curator','category','bucket','lstatus'], borrower:['region','dept','curator','bworst','bodays','subgroup','ptype','bindustry'], program:['pname'],
   claim:['phase','leadDept','region'], measure:['mkind','region'], receipt:['source'], payment:['pkind','region','dept'],
   coll:['ckind','region','dept'], app:['astatus','astage','program','region','dept'], comm:['commission','decision'],
   concl:['verdict'], oblig:['ostate'], task:[],
@@ -1766,7 +1782,7 @@ if(HAS_DOM){ document.addEventListener('mousemove', e=>{ const el = e.target.clo
 /* ================= API (onclick и смоук) ================= */
 const api = {
   // модель
-  TODAY, STAND, OBJECTS, DIMS, IND, TILES, ROLES, USERS, DATA, PERIODS, FORMAT_NAMES, SIZE, DECLARED_SEED,
+  TODAY, STAND, OBJECTS, DIMS, OBJ_DIMS, IND, TILES, ROLES, USERS, DATA, PERIODS, FORMAT_NAMES, SIZE, DECLARED_SEED,
   seed:()=>{ seed(); draft=null; view='home'; return S; }, get state(){ return S; }, user, tileById, ask, cachedAsk, statRows, registryList, composeLayout, declaredItems,
   roleHasLayout, tileAnswers, catalogFor, canSee, formatsFor, shiftsFor, autocheck, saveTile, editTile, propose, moveToCatalog, whereUsed, withdrawTile:withdraw,
   exportTile, subscribe, recheckLights, createScreen, screens, screenAdd, screenSaveFilter, scopeKey, tick, fmtVal, rowsFor, overlay, arrangeMove, arrangeAdd, arrangeHide, arrangeSection,
