@@ -22,6 +22,7 @@
 //      клиентов — черновик до статистики (ДБ-71); «Область» по регистрации (ДБ-72, ДБ-73); плитки клиентов в раскладках,
 //      видимость через требования, подпись куратора (ДБ-74…ДБ-76); деньги, форматы, сдвиг, реестр (ДБ-67, ДБ-77…ДБ-79);
 //      13 разрезов + 4 заявленных, ступени долга, договоров, истории, проверки карточки (ДБ-81…ДБ-84, ДБ-86, ДБ-88).
+//   N  кредитная программа: состав и состояние, мер и лимита нет, деньги — срез кредита по программе (ДБ-89…ДБ-98).
 // Блоки, которые правят состояние, начинаются с DB.seed(). Выход 1 при любом FAIL.
 //   node scripts/inspect/dashboard-check.mjs
 import { readFileSync } from 'node:fs';
@@ -56,8 +57,8 @@ const asUser = id => { DB.state.userId = id; };
   ok(3, DB.USERS.every(u => u.roles.some(r => DB.composeLayout(u.id, r).length > 0)),
     'у каждого пользователя главная не пуста — пустой главной нет (ДБ-8)');
   const lead = DB.composeLayout('u1', 'lead');
-  ok(4, lead.filter(k => !k.startsWith('s:')).length === 23 && lead.filter(k => k.startsWith('s:')).length === 4,
-    `стартовая раскладка «Руководства» — 23 отвечающие плитки в четырёх секциях, эпизоды и движение клиентов ждут соседей (ДБ-40, ДБ-60…ДБ-65, ДБ-74): ${lead.length} элементов`);
+  ok(4, lead.filter(k => !k.startsWith('s:')).length === 24 && lead.filter(k => k.startsWith('s:')).length === 4,
+    `стартовая раскладка «Руководства» — 24 отвечающие плитки в четырёх секциях, эпизоды и движение клиентов ждут соседей (ДБ-40, ДБ-60…ДБ-65, ДБ-74): ${lead.length} элементов`);
 })();
 
 /* ---------- B. Плитка — вопрос к статистике ---------- */
@@ -490,6 +491,42 @@ const asUser = id => { DB.state.userId = id; };
   // фильтр «действующие» у потока режет закрытые в периоде — подсказка
   ok(105, DB.builderHints(draft({ obj:'loan', inds:['loan.paid'], filter:[{ f:'lact', op:'eq', v:'действующий' }] })).some(h => /отрезает договоры, закрытые в периоде/.test(h)),
     'у потока фильтр «действующие» отрезает договоры, закрытые в периоде, — конструктор предупреждает (вопрос владельцу)');
+})();
+
+/* ---------- N. Кредитная программа ---------- */
+(() => {
+  DB.seed();
+  const draft = o => Object.assign(DB.blankDraft(), o);
+  const PI = Object.values(DB.IND).filter(i => i.obj === 'program');
+  ok(106, PI.length === 1 && PI[0].agg === 'count' && !Object.values(DB.IND).some(i => /лимит/i.test(i.name)) && DB.OBJ_DIMS.program.length === 9
+    && !DB.TILES.some(t => t.inds.some(i => DB.IND[i].obj === 'program' && DB.IND[i].unit === 'sum')),
+    `у программы один показатель «${PI[0].name}» и ${DB.OBJ_DIMS.program.length} разрезов реестра; денежных мер и лимита нет (ДБ-89, ДБ-90, ДБ-93, ДБ-Д26)`);
+  const pr = DB.ask(T('lead-prog'), U('u1'), 'lead', {}), ll = DB.ask(T('lead-loans'), U('u1'), 'lead', {});
+  const bal = DB.ask(T('lead-bal'), U('u1'), 'lead', {}).move.end, pis = DB.ask(T('lead-progis'), U('u1'), 'lead', {}), iss = DB.ask(T('lead-issued'), U('u1'), 'lead', {});
+  ok(107, DB.IND[T('lead-prog').inds[0]].obj === 'loan' && T('lead-prog').dims[0] === 'program' && pr.total[0] === ll.value && Math.round(pr.total[1]) === Math.round(bal)
+    && pr.table.rows.length === 6 && pis.total.v === iss.value && DB.composeLayout('u1', 'lead').indexOf('lead-progis') === DB.composeLayout('u1', 'lead').indexOf('lead-prog') + 1,
+    `«Портфель по программам» — срез кредита: ${pr.table.rows.length} программ, ${pr.total[0]} кредитов = «Кредитов», остаток = итог портфеля; «выдано по программам» ${DB.fmtVal(pis.total.v, 'sum')} = «Выдано с начала года» (ДБ-91, ДБ-98)`);
+  const mix = DB.autocheck(draft({ title:'смесь', inds:['loan.balance', 'loan.issued'], format:'table', dims:['program'] }));
+  DB.newDraft(); DB.dInd('loan.issued', true); const kept = DB.draft.inds.slice(); DB.newDraft();
+  ok(108, !mix.ok && mix.checks.some(c => !c.ok && /одного рода/.test(c.text)) && kept.length === 1,
+    'остаток и поток в одной плитке не собрать: автопроверка «показатели одного рода», конструктор не даёт отметить (ДБ-92)');
+  const pa = DB.ask(T('cat-progn'), U('u1'), 'lead', {}), all = DB.ask(draft({ obj:'program', inds:['program.count'], filter:[] }), U('u1'), 'lead', {});
+  DB.dSet('obj', 'program'); const pd = DB.draft; const hp = DB.builderHints(pd); DB.newDraft();
+  ok(109, pa.value === 6 && all.value === 8 && DB.qualOf(T('cat-progn')) === 'действующие' && pd.filter[0].f === 'pgstate'
+    && hp.some(h => /Денег у программы нет/.test(h)) && DB.builderHints(draft({ obj:'program', inds:['program.count'], filter:[] })).some(h => /действующие и закрытые программы/.test(h)),
+    `«Программ действует» ${pa.value} из ${all.value} строк; конструктор ставит «действующие» и подсказывает, что деньги — у кредита (ДБ-94, ДБ-89)`);
+  const pf = DB.ask(T('cat-progn'), U('u1'), 'lead', { program:'agro' }), rf = DB.ask(T('cat-progn'), U('u1'), 'lead', { region:'Ошская' });
+  const tf = DB.ask(T('lead-prog'), U('u1'), 'lead', { program:'agro' });
+  ok(110, pf.value === 1 && /фильтр: Агрокредит/.test(pf.passport) && rf.value === 6 && /без фильтра/.test(rf.passport) && tf.table.rows.length === 1,
+    `панель «Программа» режет объект программы по самой программе (${pf.value}), «Область» — без фильтра; таблица по программам — одна строка (ДБ-95, ДБ-Д27)`);
+  const sp = DB.ask(T('spec-pend'), U('u6'), 'spec', {});
+  ok(111, sp.value === DB.DATA.program.filter(p => p.state === 'действует' && p.pendDays !== null && p.pendDays <= 90).length && sp.value === 1 && sp.tl === 'yellow'
+    && DB.reqOf(T('spec-pend')).length === 1 && DB.composeLayout('u6', 'spec').includes('spec-pend'),
+    `«Программы, истекающие в ближайшие 90 дней» у специалиста: ${sp.value}, жёлтый; дата окончания — заявка статистике ⚑ (ДБ-96, ДБ-98)`);
+  const bs = DB.ask(T('cat-balsrc'), U('u1'), 'lead', {});
+  ok(112, Math.round(bs.nodes.reduce((a, n) => a + n.value, 0)) === Math.round(bal) && bs.nodes.length === 3 && DB.reqOf(T('cat-balsrc')).length === 1
+    && DB.OBJ_DIMS.loan.includes('lpsource') && DB.OBJ_DIMS.loan.includes('lpline'),
+    `«Остаток по источникам финансирования» — разрез кредита через ключ программы: ${bs.nodes.map(n => n.label + ' ' + DB.fmtVal(n.value, 'sum')).join(' · ')} ⚑ (ДБ-97)`);
 })();
 
 /* ---------- отчёт ---------- */
