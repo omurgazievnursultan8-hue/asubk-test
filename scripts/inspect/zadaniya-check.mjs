@@ -114,6 +114,16 @@
 //      выпуск правит свои поля новой редакцией; «вид не введён» — авто.
 //   Поменялись по канону: #12/#13, #22/#23 (ручной — «решить» у надзора), #25-#27 (рубильник надзора), #34/#75/#86/#88/#181 (свёртка
 //   в правиле), #97/#119/#161 (правка — редакцией администратора, порогов в правиле нет).
+// Входящие от дашборда (ЗДБ-1…ЗДБ-16, ADR-0291; канон §7, §8.2), волна 14 макета 14.10.2026:
+//   X  #199-211 — у отчётности вид «срок сдачи близко или прошёл» (надзор, работа у владельца): порог «близко» — настройка
+//      отчётности (7 к.д.); адресат — очередь роли «Отчётность» подразделения, за которым обязательство; срок — за N к.д. до
+//      срока сдачи, прошедший к выдаче — 1 р.д.; в день срока задание то же, просрочка — общим механизмом (руководителю роли
+//      сразу, взявшему — его руководителю на 5-й р.д.); выпуск закрывает с атрибуцией, снятие формы — «снято»; старый вид
+//      «срок истёк» выведен выпуском 06.10 — открытые «снято: вид выведен выпуском», рубильник его не возвращает; «Мои» —
+//      нетерминальные, где я исполнитель или действую за него, закрытые отдельно, меню — то же число; плитка «мои · просрочено
+//      · в очередях» по строкам дня сходится с очередью у 11 человек на 5 дат; строка — одна на задание на дату, состав и
+//      состояние на дату, охват — исполнитель, у очереди — роль; обязательство не основание свободного поручения.
+//   Поменялись по канону: #88 (пятьдесят два вида соседей), #190 (61 вид, надзор 28); #30 ловит и ЗДБ-*, ЗНС-*.
 // Блоки, которые правят состояние, начинаются с ZD.seed() — состояние между ними не течёт.
 // Отчёт печатается в консоль, макет не правится; выход 1 при любом FAIL.
 //   node scripts/inspect/zadaniya-check.mjs
@@ -360,7 +370,7 @@ const TODAY = ZD.state.today;
 /* ---------- L. Сторож чистоты макета, «сегодня» заморожено ---------- */
 (() => {
   const noComm = m[1];
-  const refs = src.match(/ADR-\d{4}|ИЗ-\d+|ИО-\d+|ЗН-\d+|ЗГ-\d+|ЗКП-\d+|ЗЗ-\d+|ЗА-\d+|ИА-\d+|P\d+-R\d+|[Вв]олн[аеыуой][ -]*\d/g) || [];
+  const refs = src.match(/ADR-\d{4}|ИЗ-\d+|ИО-\d+|ЗН-\d+|ЗГ-\d+|ЗКП-\d+|ЗЗ-\d+|ЗА-\d+|ИА-\d+|ЗДБ-\d+|ЗНС-\d+|P\d+-R\d+|[Вв]олн[аеыуой][ -]*\d/g) || [];
   ok(30, refs.length === 0,
     `макет чистый: ни ADR-, ни ИЗ-/ИО-/ЗН-/ЗГ-/ЗКП-/ЗЗ-/ЗА-/ИА-номеров, ни истории волн — пояснения живут в ` +
     `ASUBK-zadaniya-logika.md и журнале волн${refs.length?' · найдено: '+[...new Set(refs)].join(', '):''}`);
@@ -1256,9 +1266,9 @@ const statTask = () => ZD.state.tasks.find(t => t.originKind === 'pk-stat-neighb
   ZD.seed();
   const neigh = ZD.state.povodKinds.filter(k => !ZD.SELF_KINDS.includes(k.id));
   const own = ZD.SELF_KINDS.map(id => ZD.ruleForKind(id).rollup);
-  ok(88, ZD.ROLLUP_DEFAULT === 10 && neigh.length === 51 && neigh.every(k => ZD.ruleForKind(k.id).rollup === null && ZD.rollupOf(ZD.ruleForKind(k.id)) === 10) &&
+  ok(88, ZD.ROLLUP_DEFAULT === 10 && neigh.length === 52 && neigh.every(k => ZD.ruleForKind(k.id).rollup === null && ZD.rollupOf(ZD.ruleForKind(k.id)) === 10) &&
        own.every(x => typeof x === 'number') && own.filter(x => x === 5).length === 2,
-    `у правил пятидесяти одного вида соседей (восемь — Госрешение и программы, двенадцать — заявки, одиннадцать — документооборот, десять — имущество, два — анализ) своего порога нет — действует умолчание 10; правила собственных видов объявили своё ` +
+    `у правил пятидесяти двух видов соседей (восемь — Госрешение и программы, двенадцать — заявки, одиннадцать — документооборот, десять — имущество, два — анализ, два — отчётность, один из них выведен выпуском) своего порога нет — действует умолчание 10; правила собственных видов объявили своё ` +
 
     `(20, у «сосед не отвечает» и «адресат не найден» — 5)`);
 })();
@@ -2902,9 +2912,9 @@ const poruch = (no, obj, by, extra) => ZD.createFreeTask(Object.assign(ZD.review
   const step = throws(() => setRule('rule-doc-sign', 'mode', 'ручной'));
   const self = throws(() => setRule('rule-overdue', 'mode', 'ручной'));
   const nad = setRule('rule-pk-im-unsold', 'mode', 'ручной');
-  ok(190, g('самоопрос') === 9 && g('шаг') === 24 && g('надзор') === 27 && /всегда авто/.test(step) && /всегда авто/.test(self) &&
+  ok(190, g('самоопрос') === 9 && g('шаг') === 24 && g('надзор') === 28 && /всегда авто/.test(step) && /всегда авто/.test(self) &&
        nad.values.mode === 'ручной' && ZD.checkRegistry().length === 0,
-    `род объявлен у всех 60 видов: самоопрос 9, шаг 24 (согласования, заявка на передачах работы, документ), надзор 27; ` +
+    `род объявлен у всех 61 вида: самоопрос 9, шаг 24 (согласования, заявка на передачах работы, документ), надзор 28; ` +
     `ручной режим у шага подписи и у самоопроса — отказ, у надзора «не продан» — новая редакция; реестр сходится`);
 })();
 
@@ -3030,6 +3040,253 @@ const poruch = (no, obj, by, extra) => ZD.createFreeTask(Object.assign(ZD.review
        !ZD.state.tasks.some(x => x.decide),
     `вид «ликвидация заблокирована» пришёл выпуском 28.08 и не введён — прогон 02.09 сам выдал задание «ввести вид в действие» ` +
     `администратору, без «решить по поводам»: самоопрос ручным не бывает`);
+})();
+
+
+/* ---------- X. Входящие от дашборда: строки «Задание», очередь «Мои задания», обязательство одним видом ---------- */
+const REP_DUE = 'pk-rep-obligation-due';
+const repTask = re => ZD.state.tasks.find(t => t.originKind === REP_DUE && re.test(t.povodKey || ''));
+const overOf = id => ZD.state.tasks.filter(t => t.originKind === 'pk-overdue' && (t.povodKey || '').indexOf(`task:${id}|`) !== -1);
+const walk = (until, hooks = {}) => { // по рабочим дням от сегодняшнего: прогон в конце дня, действия людей — до него
+  for (let d = ZD.state.today; d <= until; d = ZD.addWorkdays(d, 1)) { at(d); if (hooks[d]) hooks[d](); ZD.runPoll(); }
+};
+const outc = t => (ZD.outcomeOf(t) || {});
+
+/* реестр: новый вид — надзор с исполнением у владельца, старый выведен выпуском и рубильником не возвращается */
+(() => {
+  ZD.seed();
+  const k = ZD.kindOf(REP_DUE), old = ZD.kindOf('pk-rep-obligation-overdue'), r = ZD.ruleForKind(REP_DUE);
+  const src = ZD.SOURCES.find(s => s.id === 'reports');
+  walk('2026-10-06');
+  const back = throws(() => ZD.activateKind('pk-rep-obligation-overdue', 'E4', 'приказ'));
+  ok(199, k.genus === 'надзор' && k.ownerExec && k.addrForm === 'очередь' && k.take === 'через очередь' &&
+       old.retiredAt === '2026-10-06' && src.kinds.length === 2 && src.kinds.includes(REP_DUE) &&
+       r.dueUnit === 'beforeDate' && r.dueN === 0 && r.addressee.by === 'очередь' && !('threshold' in r) &&
+       ZD.checkRegistry().length === 0 && /выведен выпуском/.test(back) && !ZD.activeOn(old, '2026-10-06') &&
+       !ZD.state.povods.some(p => p.kind === 'pk-rep-obligation-overdue' && p.status === 'appeared'),
+    `ЗДБ-8/13/14 — у отчётности два вида: «срок сдачи близко или прошёл» (надзор, очередь роли, работа у владельца, срок — ` +
+    `${r.dueN} к.д. до срока сдачи) и выведенный 06.10 выпуском «срок истёк» — рубильник его не возвращает («${back}»); ` +
+    `«числа изменились» поводом не стал; реестр сходится`);
+})();
+
+/* порог «близко» — настройка отчётности, 7 к.д.: повод с 08.10 под срок 15.10 */
+(() => {
+  ZD.seed();
+  walk('2026-10-07');
+  const on7 = !!repTask(/sopr/);
+  walk('2026-10-08');
+  const p = ZD.state.povods.find(x => x.kind === REP_DUE && /sopr/.test(x.key));
+  ZD.seed(); ZD.state.neighborSet.rp.soonDays = 3;
+  walk('2026-10-09');
+  const on3 = !!repTask(/sopr/);
+  walk('2026-10-12');
+  ok(200, !on7 && p && p.stateDate === '2026-10-08' && p.traits.состояние === 'срок близко' && !on3 && !!repTask(/sopr/),
+    `ЗДБ-10 — при настройке отчётности «за 7 к.д.» повода 07.10 нет, 08.10 есть (дата состояния 08.10, «срок близко»); ` +
+    `отчётность поставила 3 к.д. — 09.10 повода нет, 12.10 есть; у правила заданий порога нет`);
+})();
+
+/* адресат — очередь роли «Отчётность» подразделения, за которым обязательство */
+(() => {
+  ZD.seed();
+  walk('2026-10-08');
+  const s = repTask(/sopr/), kp = repTask(/kp/), gf = repTask(/overdue\/2026-10-01\/gf/);
+  ZD.state.viewer = 'E6'; const e6 = ZD.queueTasks('role').map(t => t.id);
+  ZD.state.viewer = 'E3'; const e3 = ZD.queueTasks('role').map(t => t.id);
+  ok(201, s && kp && gf && s.queue.role === 'rep-sopr' && kp.queue.role === 'rep-kp' && gf.queue.role === 'rep-gf' &&
+       !s.assignee && e6.includes(kp.id) && !e6.includes(s.id) && e3.includes(s.id) && !e3.includes(kp.id) &&
+       ZD.queueHolders(s).join() === 'E1,E3',
+    `ЗДБ-9 — три задания «${ZD.actionOf('act-rep-due').label}» в три очереди роли «Отчётность»: Сопровождения (E1, E3), ` +
+    `Кредитных программ (E6), Головного филиала (E9); чужую очередь носитель не видит`);
+})();
+
+/* срок — за N к.д. до срока сдачи; прошедший к выдаче — 1 р.д. от выдачи; N правится редакцией, в том числе 0 */
+(() => {
+  ZD.seed();
+  walk('2026-10-06');
+  const loans = repTask(/t-loans/);
+  setRule('rule-rep-due', 'dueN', 2);
+  walk('2026-10-08');
+  const s = repTask(/sopr/);
+  const zero = throws(() => setRule('rule-rep-due', 'dueN', '0'));
+  ok(202, loans && loans.journal[0].t === '2026-10-06' && loans.dueDate === '2026-10-07' && s && s.dueDate === '2026-10-13' &&
+       zero === '' && ZD.ruleForKind(REP_DUE).dueN === 0 && /к\.д\. до срока сдачи/.test(ZD.dueText(ZD.ruleForKind(REP_DUE))),
+    `ЗДБ-11 — форма со сроком 05.10 к вводу вида 06.10 уже просрочена: срок задания ${loans && loans.dueDate} (1 р.д. от выдачи), ` +
+    `а не 05.10; правило «за 2 к.д.» дало сдаче к 15.10 срок ${s && s.dueDate}; «0» принимается — в самый день срока`);
+})();
+
+/* исполнение у владельца: выпуск закрывает задание с атрибуцией, снятие формы — «снято» с причиной отчётности */
+(() => {
+  ZD.seed();
+  walk('2026-10-30', { '2026-10-09': () => ZD.take(repTask(/kp/).id, 'E6') });
+  const s = repTask(/sopr/), kp = repTask(/kp/), loans = repTask(/t-loans/);
+  ok(203, outc(s).outcome === 'исполнено' && ZD.lastEv(s) === 'закрыто' && s.journal.slice(-1)[0].t === '2026-10-14' &&
+       s.journal.slice(-1)[0].by === 'E3' && outc(kp).outcome === 'исполнено' && kp.journal.slice(-1)[0].t === '2026-10-26' &&
+       outc(loans).outcome === 'снято' && /снята с расписания/.test(outc(loans).reason || ''),
+    `ЗДБ-12 — Сопровождение: в работу никто не взял, 14.10 Нурланова выпустила окончательно — «исполнено», выпустила E3; ` +
+    `Кредитные программы: взяла E6, выпустила 26.10 — «исполнено» после срока; «Сведения о выданных кредитах» сняты с ` +
+    `расписания 30.10 — «снято: ${outc(loans).reason}»`);
+})();
+
+/* прошёл срок — то же задание просрочено; дальше общий механизм: очередь — руководителю роли сразу, взявший — его руководителю на 5-й р.д. */
+(() => {
+  ZD.seed();
+  walk('2026-10-26', { '2026-10-09': () => ZD.take(repTask(/kp/).id, 'E6') });
+  const gf = repTask(/overdue\/2026-10-01\/gf/), kp = repTask(/kp/);
+  const pov = ZD.state.povods.find(x => x.kind === REP_DUE && /overdue\/2026-10-01\/gf/.test(x.key));
+  const gfEsc = overOf(gf.id), kpEsc = overOf(kp.id);
+  const first = gfEsc.find(t => /\|никто не взял$/.test(t.povodKey));
+  const kpE = kpEsc[0];
+  ok(204, pov && pov.journal.filter(j => /появился/.test(j.ev)).length === 1 && pov.traits.состояние === 'просрочено' &&
+       !ZD.isTerminal(gf) && first && first.assignee === 'E10' && first.journal[0].t === '2026-10-16' &&
+       kpE && kpE.assignee === 'E7' && kpE.journal[0].t === '2026-10-22' && ZD.isTerminal(kp),
+    `ЗДБ-8/9 — Головной филиал: один повод с 08.10, в день срока не сменился — 16.10 он «просрочено», задание то же, ` +
+    `открыто; никто не взял — 16.10 задание Иманалиеву (руководитель подразделения роли); Кредитные программы: взяла E6, ` +
+    `просрочила — 22.10 (5-й р.д.) задание её руководителю Мамбетову; 26.10 выпуск закрыл и её задание`);
+})();
+
+/* вывод вида выпуском: «снято: вид выведен» — только задание, чей повод держался бы и без вывода; отпавшее — обычным порядком */
+(() => {
+  ZD.seed();
+  ZD.state.owner.rp.filter(o => o.period === 'июнь 2026').forEach(o => { o.ev = o.ev.filter(e => !e.issue); }); // июнь так и не сдан
+  ZD.runPoll();
+  const open = ZD.state.tasks.filter(t => t.originKind === 'pk-rep-obligation-overdue' && !ZD.isTerminal(t)).map(t => t.id);
+  at('2026-10-06'); ZD.runPoll();
+  const after = open.map(ZD.taskOf);
+  const povs = ZD.state.povods.filter(p => p.kind === 'pk-rep-obligation-overdue');
+  const gone = povs.every(p => p.status !== 'appeared') && povs.every(p => (p.journal.slice(-1)[0] || {}).reason !== 'поручения не было');
+  ZD.seed(); ZD.runPoll(); // июнь сдан 08.09–15.09, а прогона между 02.09 и 06.10 не было
+  const skip = ZD.state.tasks.filter(t => t.originKind === 'pk-rep-obligation-overdue' && !ZD.isTerminal(t)).map(t => t.id);
+  at('2026-10-06'); ZD.runPoll();
+  const skipAfter = skip.map(ZD.taskOf);
+  ZD.seed(); walk('2026-10-06'); // день за днём: задания отпали в сентябре
+  const lapsed = ZD.state.tasks.filter(t => t.originKind === 'pk-rep-obligation-overdue');
+  ok(205, open.length > 0 && after.every(t => outc(t).outcome === 'снято' && outc(t).reason === 'вид выведен выпуском') && gone &&
+       skipAfter.length > 0 && skipAfter.every(t => outc(t).reason !== 'вид выведен выпуском') &&
+       lapsed.length > 0 && lapsed.every(t => ZD.lastEv(t) === 'отпало'),
+    `ЗНС-1 — июнь не сдан: ${open.length} задания старого вида 06.10 закрыты «снято: вид выведен выпуском», у поводов — та же ` +
+    `причина, не «поручения не было»; июнь сдан, а прогона между 02.09 и 06.10 не было — задания ` +
+    `«${skipAfter.map(t => ZD.deriveState(t)).join('», «')}», выпуск их не закрывает; при ежедневном опросе — ` +
+    `${lapsed.length} задания «отпало» ждут разбора`);
+})();
+
+/* «Мои» — нетерминальные, где я исполнитель или действую за исполнителя; контролёр — нет; закрытые — отдельно; меню — то же число */
+(() => {
+  ZD.seed();
+  walk('2026-09-10');
+  ZD.state.viewer = 'E3';
+  const mineE3 = ZD.queueTasks('mine');
+  const forE1 = mineE3.filter(t => t.assignee === 'E1');
+  ZD.state.viewer = 'E4';
+  const ctl = ZD.state.tasks.filter(t => t.controller === 'E4' && t.assignee !== 'E4' && !ZD.isTerminal(t));
+  const mineE4 = ZD.queueTasks('mine');
+  ZD.state.viewer = 'E3';
+  const seenE3 = ZD.queueTasks('dept'), closedE1 = ZD.state.tasks.filter(t => t.assignee === 'E1' && ZD.isTerminal(t) && ZD.visibleTo(t, 'E3'));
+  const early = forE1.length > 0 && mineE3.every(t => !ZD.isTerminal(t)) && ctl.length > 0 && ctl.every(t => !mineE4.includes(t)) &&
+    closedE1.length > 0 && closedE1.every(t => seenE3.includes(t));
+  walk('2026-10-26', { '2026-10-09': () => ZD.take(repTask(/kp/).id, 'E6') });
+  ZD.state.viewer = 'E6';
+  const m = ZD.queueTasks('mine'), c = ZD.queueTasks('closed'), kp = repTask(/kp/);
+  ok(206, early && m.every(t => !ZD.isTerminal(t)) && c.includes(kp) && !m.includes(kp) && c.every(t => ZD.isTerminal(t) && t.assignee === 'E6'),
+    `ЗДБ-2/4 — 10.09 Нурланова замещает Есенову (командировка): ${forE1.length} заданий E1 в «Мои» у E3, закрытых там нет; задания, где E4 только ` +
+    `контролёр (${ctl.length}), в его «Мои» нет; закрытые задания E1 (${closedE1.length}) замещающая видит в «Видимые мне»; у E6 26.10 задание по форме закрыто — оно в свёрнутых «Мои закрытые», не в «Мои»`);
+})();
+
+/* плитка «Мои задания» по строкам дня сходится с очередью строка в строку — у каждого и в разные дни */
+(() => {
+  ZD.seed();
+  const VIEW = ['E1','E2','E3','E4','E5','E6','E7','E9','E10','E21','E22'];
+  const bad = [], seen = [];
+  const check = () => VIEW.forEach(v => {
+    ZD.state.viewer = v;
+    const t = ZD.myTile(v, ZD.state.today), m = ZD.queueTasks('mine'), q = ZD.queueTasks('role');
+    const over = m.filter(x => ZD.dueOf(x) < ZD.state.today && ['поручено','принято','возвращено'].includes(ZD.lastEv(x))).length;
+    if (t.mine !== m.length || t.overdue !== over || t.queues !== q.length || t.light !== (over > 0 ? 'красный' : 'норма'))
+      bad.push(`${ZD.state.today} ${v}: плитка ${t.mine}/${t.overdue}/${t.queues}, очередь ${m.length}/${over}/${q.length}`);
+    if (t.mine || t.queues) seen.push(`${v} ${t.mine}·${t.overdue}·${t.queues}`);
+  });
+  const days = ['2026-09-03','2026-09-10','2026-10-08','2026-10-16','2026-10-22'];
+  ZD.seed();
+  for (const d of days) { walk(d, { '2026-10-09': () => ZD.take(repTask(/kp/).id, 'E6') }); check(); }
+  at('2026-10-16'); ZD.state.viewer = 'E9';
+  ok(207, bad.length === 0 && seen.length > 10,
+    `ЗДБ-3/16 — по ${VIEW.length} людям на ${days.length} дат «мои · просрочено · в очередях» из строк дня совпали с ` +
+    `очередью; просрочено — только где ход за исполнителем (не «ожидает приёмки», «отказано», «отпало»); светофор красный при просрочке${bad.length ? ' · расхождения: ' + bad.slice(0, 3).join('; ') : ''}; ` +
+    `например ${seen.slice(-3).join(', ')}`);
+})();
+
+/* строка — одна на задание на дату; закрытые остаются, вал — одна строка с числом ключей */
+(() => {
+  ZD.seed();
+  walk('2026-10-16', { '2026-10-09': () => ZD.take(repTask(/kp/).id, 'E6') });
+  const rows = ZD.taskRows('2026-10-16'), early = ZD.taskRows('2026-09-02');
+  const ids = rows.map(r => r.task), val = rows.find(r => r.genus === 'вал');
+  const closed = rows.filter(r => r.closed);
+  const total = ZD.state.tasks.filter(t => t.journal[0].t <= '2026-10-16').length;
+  ZD.seed();
+  at('2026-10-05'); setRule('rule-rep-due', 'mode', 'ручной');
+  walk('2026-10-08');
+  const dec = ZD.state.tasks.find(t => t.decide && t.ruleId === 'rule-rep-due');
+  const k6 = dec && ZD.taskRows('2026-10-06').find(r => r.task === dec.id), k8 = dec && ZD.taskRows('2026-10-08').find(r => r.task === dec.id);
+  ok(208, k6 && k8 && k6.genus === 'решить' && k6.keys === 1 && k8.keys === 4 &&
+       new Set(ids).size === ids.length && ids.length === total &&
+       early.length < rows.length && early.every(r => r.issued <= '2026-09-02') && val && val.keys === val.rollupKeys.length && val.keys > 1 &&
+       closed.length > 0 && rows.every(r => r.date === '2026-10-16'),
+    `ЗДБ-5 — на 16.10 ${rows.length} строк, по одной на задание, из них закрытых ${closed.length}; на 02.09 — ${early.length} ` +
+    `(только выданные к той дате); вал ${val && val.task} — одна строка, ключей ${val && val.keys}; «решить по поводам» ` +
+    `при ручном правиле — на 06.10 ключей ${k6 && k6.keys}, на 08.10 — ${k8 && k8.keys}`);
+})();
+
+/* состав строки и состояние на дату: одно задание в четыре дня; охват — исполнитель, у очереди — роль */
+(() => {
+  ZD.seed();
+  walk('2026-10-26', { '2026-10-09': () => ZD.take(repTask(/kp/).id, 'E6') });
+  const id = repTask(/kp/).id, row = d => ZD.taskRows(d).find(r => r.task === id);
+  const a = row('2026-10-08'), b = row('2026-10-09'), c = row('2026-10-20'), e = row('2026-10-26');
+  const gf = ZD.taskRows('2026-10-20').find(r => r.task === repTask(/overdue\/2026-10-01\/gf/).id);
+  const sopr = ZD.taskRows('2026-10-16').find(r => r.task === repTask(/sopr/).id);
+  ok(209, a.assignee === null && a.queueRole === 'rep-kp' && a.dept === 'Кредитные программы' && /поручено/i.test(a.state) && !a.overdue &&
+       b.assignee === 'E6' && b.queueRole === null && /принято|в работе/i.test(b.state) &&
+       c.overdue && c.overdueWd === 3 && c.closed === null && e.closed === '2026-10-26' && e.outcome === 'исполнено' && !e.overdue &&
+       a.genus === 'по правилу' && a.kindGenus === 'надзор' && a.importance === 'высокая' && a.authorPost && a.keys === 1 &&
+       gf.assignee === null && gf.dept === 'Головной филиал' && gf.overdue && sopr.closed && sopr.dept === 'Сопровождение' && sopr.queueRole === null,
+    `ЗДБ-6/7 — задание ${id}: 08.10 «${a.state}» в очереди «Отчётность · Кредитные программы», охват — подразделение роли; ` +
+    `09.10 «${b.state}» у E6; 20.10 просрочено ${c.overdueWd} р.д.; 26.10 закрыто «${e.outcome}»; род — по правилу, вид — ` +
+    `надзор, важность высокая; неразобранная очередь Головного филиала — в охвате своего подразделения; закрытое без ` +
+    `взятия задание Сопровождения на 16.10 — тоже`);
+})();
+
+/* действие «действует за исполнителя» на дату — в строке; «лично» — без замещения */
+(() => {
+  ZD.seed();
+  walk('2026-09-14');
+  const r = ZD.taskRows('2026-09-10').filter(x => x.assignee === 'E1' && !x.closed);
+  const after = ZD.taskRows('2026-09-14').filter(x => x.assignee === 'E1' && !x.closed);
+  const pers = x => !!x.kind && ZD.kindOf(x.kind).personal;
+  ok(210, r.filter(x => !pers(x)).length > 0 && r.filter(x => !pers(x)).every(x => x.actingFor === 'E3') &&
+       r.filter(pers).length > 0 && r.filter(pers).every(x => x.actingFor === null) && after.length > 0 && after.every(x => x.actingFor === null),
+    `ЗДБ-6 — строки на 10.09: у ${r.filter(x => !pers(x)).length} открытых заданий Есеновой «действует за исполнителя» — ` +
+    `Нурланова (командировка 09.09–12.09), у ${r.filter(pers).length} «лично» (голос члена комиссии) — пусто; на 14.09 ` +
+    `замещения нет — у ${after.length} строк поле пусто`);
+})();
+
+/* обязательство не основание свободного поручения; демо-карточка: выпускает только носитель роли подразделения */
+(() => {
+  ZD.seed();
+  walk('2026-10-12');
+  const s = repTask(/sopr/);
+  const free = throws(() => ZD.createFreeTask({ label:'сдать форму', assignee:'E1', controller:'E2', author:'E2', dueDate:'2026-10-15',
+    basis:'t-overdue/2026-10-01/sopr' }));
+  const stranger = throws(() => ZD.repIssue('t-overdue/2026-10-01/sopr', 'E6'));
+  const okIssue = throws(() => ZD.repIssue('t-overdue/2026-10-01/sopr', 'E1'));
+  const twice = throws(() => ZD.repIssue('t-overdue/2026-10-01/sopr', 'E3'));
+  ZD.runPoll();
+  ZD.repIssue('t-overdue/2026-10-01/kp', 'E6');                      // в стенде Кредитные программы выпускают 26.10 — поздно
+  const kpLater = ZD.obligationAt(ZD.state.owner.rp.find(o => o.id === 't-overdue/2026-10-01/kp'), '2026-10-30');
+  ok(211, /нет/.test(free) && /подразделение, за которым/.test(stranger) && okIssue === '' && /уже закрыто/.test(twice) &&
+       outc(s).outcome === 'исполнено' && s.journal.slice(-1)[0].by === 'E1' && kpLater.state === 'сдано' && kpLater.issued.t === '2026-10-12',
+    `ЗДБ-15/12 — основание свободного поручения — только обзор анализа, обязательство отбито как любое другое («${free}»); в карточке отчётности чужой выпуск отбит, ` +
+    `12.10 выпустила Есенова — прогон закрыл задание «исполнено», выпустила E1; выпуск Кредитных программ 12.10 — на 30.10 ` +
+    `обязательство «${kpLater.state}» от 12.10, повторный выпуск 26.10 его не перекрыл`);
 })();
 
 
