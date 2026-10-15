@@ -102,6 +102,9 @@ button:focus-visible,select:focus-visible,input:focus-visible,[tabindex]:focus-v
 .rv-share,.rv-sub{ margin-top:3px; font-size:12.5px; }
 .rv-ex{ display:grid; grid-template-columns:150px minmax(0,1fr); gap:5px 12px; margin:14px 0 0; padding-top:12px; border-top:1px dashed var(--border-default); font-size:13.5px; }
 .rv-ex dt{ color:var(--text-muted); padding-left:24px; } .rv-ex dd{ margin:0; min-width:0; }
+.rv-final{ margin:0; font-size:13.5px; color:var(--text-body); max-width:70ch; }
+.rv-views{ margin:0; padding:0; list-style:none; display:grid; gap:2px; }
+.rv-views li.off b{ color:var(--text-muted); font-weight:500; }
 .rv-req{ margin:0; padding-left:16px; color:var(--asubk-amber); }
 .rv-dec{ display:inline-block; font:12px/18px var(--mono); padding:0 6px; border:1px solid var(--border-strong); border-radius:3px; margin:0 4px 3px 0;
   cursor:help; color:var(--asubk-ink); background:var(--surface-card); }
@@ -164,6 +167,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,[tabindex]:focus-v
   <p class="rv-lede">Все плитки макета на одной странице: как каждая выглядит, какой вопрос она задаёт статистике и в какой раскладке стоит.
     Отметьте у плитки, что поправить в дизайне и в логике. Замечания сохраняются здесь, их видят все, кто открывает страницу,
     и по ним собирается следующая волна макета.</p>
+  <p class="rv-final">Плитка — ссылка на отчёт (ДБ-99): вопрос объявляет отчёт, плитка добавляет значения параметров, главное и второе число, умолчания пяти видов, светофор и подпись. Основа у всех плиток одна, размер 1×1; под ней кнопки видов — Ряд, Разрез, Карта, Движение, Таблица (ДБ-115…ДБ-129). В паспорте каждой плитки видно, что вид покажет при первом раскрытии и почему погашен тот, которому нечего показать.</p>
   <div class="rv-facts" id="rv-facts"></div>
   <div class="rv-progress">
     <div class="rv-meter" id="rv-meter" aria-hidden="true"></div>
@@ -185,7 +189,7 @@ button:focus-visible,select:focus-visible,input:focus-visible,[tabindex]:focus-v
     <div class="rv-filters" id="rv-filters" hidden>
       <input type="search" id="rv-q" placeholder="Название, id, показатель, разрез" aria-label="Поиск плитки">
       <select id="rv-role" aria-label="Роль"></select>
-      <select id="rv-fmt" aria-label="Формат"></select>
+      <select id="rv-rep" aria-label="Отчёт"></select>
       <select id="rv-obj" aria-label="Объект"></select>
       <select id="rv-kind" aria-label="Вид плитки">
         <option value="">обзорные и ссылочные</option><option value="overview">обзорные</option><option value="link">ссылочные «ждёт меня»</option>
@@ -227,7 +231,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s === undefined || s === null ? '' : s).replace(/[&<>"]/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c]));
 
 /* ---------- вид страницы: помнится в этом браузере ---------- */
-const ui = { view:'layout', tab:'lead', q:'', role:'', fmt:'', obj:'', kind:'', mark:'' };
+const ui = { view:'layout', tab:'lead', q:'', role:'', rep:'', obj:'', kind:'', mark:'' };
 try { const s = JSON.parse(localStorage.getItem('rv-ui') || 'null');
   if (s && typeof s === 'object') { if (s.view === 'list' || s.view === 'layout') ui.view = s.view; if (TABS.some(t => t.id === s.tab)) ui.tab = s.tab; } } catch (e) {}
 const keepUi = () => { try { localStorage.setItem('rv-ui', JSON.stringify({ view:ui.view, tab:ui.tab })); } catch (e) {} };
@@ -346,18 +350,18 @@ function notesForm(id, noStatus){
 }
 function card(id){
   const t = T[id];
-  const chips = [t.formatName + ' · ' + t.size.replace('x', '×'), t.objName, t.kind === 'link' ? 'ссылочная «ждёт меня»' : 'обзорная'].concat(t.personal ? ['личная'] : []);
+  const chips = [t.repName, t.objName, t.kind === 'link' ? 'ссылочная «ждёт меня»' : 'обзорная'].concat(t.personal ? ['личная'] : []);
   return `<article class="rv-card" data-card="${id}">
     <header class="rv-card-h"><code class="rv-id">${esc(id)}</code><h3>${esc(t.title)}</h3>
       <div class="rv-chips">${chips.map(c => `<span class="chip">${esc(c)}</span>`).join('')}</div><span class="rv-pin static" data-static="1" data-pin="${id}" hidden></span></header>
     <div class="rv-card-b">
-      <div class="rv-plate"><div class="rv-specimen s-${t.size}">${t.html}</div><div class="rv-plate-note">в сетке главной — ${t.size.replace('x', '×')}</div></div>
+      <div class="rv-plate"><div class="rv-specimen">${t.html}</div><div class="rv-plate-note">основа 1×1; кнопки видов раскрывают полосу на главной</div></div>
       <div class="rv-spec">${t.spec}</div>
     </div>${notesForm(id)}</article>`;
 }
 function slot(x){
-  const t = T[x.id]; const sz = t.size === '2x2' ? 'w2 h2' : t.size === '2x1' ? 'w2' : '';
-  return `<div class="rv-slot ${sz}" data-open="${x.id}" tabindex="0" role="button" aria-label="Паспорт плитки «${esc(t.title)}»">${x.html || t.html}<span class="rv-pin" data-pin="${x.id}" hidden></span></div>`;
+  const t = T[x.id];
+  return `<div class="rv-slot" data-open="${x.id}" tabindex="0" role="button" aria-label="Паспорт плитки «${esc(t.title)}»">${x.html || t.html}<span class="rv-pin" data-pin="${x.id}" hidden></span></div>`;
 }
 
 /* ---------- вид «Раскладки ролей» ---------- */
@@ -382,7 +386,7 @@ function matches(id){
   const t = T[id];
   if (ui.q && !t.search.includes(ui.q) ) return false;
   if (ui.role && !(t.roles.includes(ui.role) || t.group === ui.role)) return false;
-  if (ui.fmt && t.format !== ui.fmt) return false;
+  if (ui.rep && t.rep !== ui.rep) return false;
   if (ui.obj && t.obj !== ui.obj) return false;
   if (ui.kind && (ui.kind === 'link') !== (t.kind === 'link')) return false;
   if (ui.mark) { const n = notes[id]; const st = (n && n.status) || '';
@@ -491,16 +495,16 @@ document.addEventListener('mousemove', e => {
 });
 let qTimer = null;
 $('rv-q').addEventListener('input', e => { clearTimeout(qTimer); qTimer = setTimeout(() => { ui.q = e.target.value.trim().toLowerCase(); renderList(); }, 160); });
-[['rv-role', 'role'], ['rv-fmt', 'fmt'], ['rv-obj', 'obj'], ['rv-kind', 'kind'], ['rv-mark', 'mark']].forEach(([id, k]) =>
+[['rv-role', 'role'], ['rv-rep', 'rep'], ['rv-obj', 'obj'], ['rv-kind', 'kind'], ['rv-mark', 'mark']].forEach(([id, k]) =>
   $(id).addEventListener('change', e => { ui[k] = e.target.value; renderList(); }));
 
 /* ---------- старт ---------- */
 $('rv-role').innerHTML = '<option value="">все раскладки</option>' + TABS.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
-$('rv-fmt').innerHTML = '<option value="">все форматы</option>' + Object.entries(D.meta.formats).map(([k, v]) => `<option value="${k}">${esc(v)} · ${D.meta.sizes[k].replace('x', '×')}</option>`).join('');
+$('rv-rep').innerHTML = '<option value="">все отчёты</option>' + D.meta.reports.map(r => `<option value="${esc(r.id)}">${esc(r.name)} · ${r.n}</option>`).join('');
 $('rv-obj').innerHTML = '<option value="">все объекты</option>' + D.meta.objects.map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('');
 if (D.meta.rev) $('rv-rev').textContent = 'макет ' + D.meta.rev.replace('·', ' от ');
 const roleTabs = TABS.length - 2;
-$('rv-facts').textContent = `${ORDER.length} плиток · ${roleTabs} раскладок ролей, каталог и личная · ${Object.keys(D.meta.formats).length} форматов · ${D.meta.objects.length} объектов статистики · числа синтетические, стенд на ${D.meta.today}`;
+$('rv-facts').textContent = `${ORDER.length} плиток · ${roleTabs} раскладок ролей, каталог и личная · ${D.meta.reports.length} отчётов и очередей · пять видов: ${D.meta.views.join(', ')} · ${D.meta.objects.length} объектов статистики · числа синтетические, стенд на ${D.meta.today}`;
 $('rv-general-form').innerHTML = notesForm('_general', true);
 setView(ui.view);
 syncAll();

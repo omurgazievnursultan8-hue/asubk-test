@@ -126,15 +126,13 @@ never hand-edited.
 `build_dashboard_tiles.mjs` renders `mockups/dashboard/tiles-review.html` — every tile of the
 dashboard mockup on one page, published as the claude.ai artifact
 https://claude.ai/artifact/HXv2suq9JQ1YhKkAzLXYob. Each tile is drawn by the mockup's own engine
-(`tileHTML` from `mockups/dashboard/dashboard.html`, run in `node:vm`), next to its question to
-statistics in constructor order (canon §3.1), the role layouts it sits in and the `ДБ-*` decisions
-behind it. Two views: role layouts as on the home screen, and all tiles with filters.
+(`tileHTML` from `mockups/dashboard/dashboard.html`, run in `node:vm`), next to its passport: the report it
+links to (canon §3), parameter values, main and second number, the defaults of the five views (§5), the
+role layouts it sits in and the `ДБ-*` decisions behind it. Two views: role layouts as on the home screen,
+and all tiles with filters (including by report). The generator reaches into the engine through names it
+injects at `const api = {` — `rawTileHTML` and `rawClickOf` are prefixed because `api` already has its own
+`tileHTML` and `clickOf` wrappers that would shadow them. Reviewer notes live in the artifact's db by tile id.
 
-Reviewers leave per-tile remarks (status + «Дизайн» + «Логика») on the page. They live in the
-artifact's database, collection `notes`, one document per tile id (`notes/_general` for the
-whole module) — read them with `ArtifactData list notes` and turn them into the next mockup wave.
-
-```bash
 node scripts/build_dashboard_tiles.mjs      # after any change to dashboard.html or the canon
 ```
 
