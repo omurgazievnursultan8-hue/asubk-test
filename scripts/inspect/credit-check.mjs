@@ -1577,8 +1577,17 @@ const pd = CR.pd;
         /* кредит без наступивших позиций (K-2 — графика нет вовсе) листа не имеет, и это
            не поломка: вместо таблицы стоит подпись «считать нечего». Требовать от него
            колонок значило бы требовать таблицу пустоты. */
+        /* ADR-0299 §9 (ревью 15.10.2026): у кредита без освоений и без начислений вкладка —
+           одна строка «Расчёта нет — освоений не было». Обоими концами: строка стоит ровно
+           там, где модель не знает ни освоения, ни долга, ни строк листа. */
+        const dm = CR2.derive(c);
+        const noCalc = !(dm.disbursed > 0.005) && !(dm.debtBalance > 0.005)
+          && !(dm.fee && dm.fee.applies && dm.fee.accrued > 0.005)
+          && !(dm.ledger.dateSheet || []).some(s => (s.rows || []).length);
+        if (/Расчёта нет — освоений не было/.test(html) !== noCalc)
+          bad.push(`${c.id}: строка «Расчёта нет — освоений не было» ${noCalc ? 'нужна, а её нет' : 'стоит у кредита с расчётом'}`);
         if (!tbl){
-          if (!/считать нечего/.test(html)) bad.push(`${c.id}: ни листа, ни подписи «считать нечего»`);
+          if (!noCalc && !/считать нечего/.test(html)) bad.push(`${c.id}: ни листа, ни подписи «считать нечего»`);
         } else {
         rowsDates += checkArity(tbl, 'даты', bad, c.id);
         const hrows = ((tbl.match(/<thead>[\s\S]*?<\/thead>/) || [''])[0].match(/<tr[\s\S]*?<\/tr>/g) || []);
@@ -1681,7 +1690,16 @@ const pd = CR.pd;
            (начислено · потребовано графиком · погашено, КВ-65) + одно по пене (всего пени,
            КВ-73: остаток пени в модели единый, поэтому нарастающее у неё одно, а не по
            базам); освоение, перенос, списание и накопленные добавляют свои. */
-        if (nRun < 7) bad.push(`${c.id}: нарастающих по всем разборам ${nRun}, а обязано быть не меньше семи (КВ-51, КВ-65, КВ-73)`);
+        /* КВ-96 (ревью 15.10.2026): колонка-поток без единого числа скрыта вместе со своим
+           «Нарастающим». Прежнее «не меньше семи» предполагало, что все потоки стоят всегда;
+           теперь число нарастающих считается из МОДЕЛИ — по одному на каждый поток, у которого
+           на листах есть хоть одно число, — и сверяется точным равенством (обе стороны). */
+        const nz = f => mrows.some(r => Math.abs(f(r) || 0) > 0.005);
+        const P = r => r.paid || {};
+        const wantRun = [r => r.disb, r => r.movedIn, r => r.dueP, r => P(r).principal, r => r.offAmt, r => r.movedOut,
+                         r => r.accrued, r => r.accDue, r => r.dueI, r => P(r).interest, r => r.offInt,
+                         r => r.penalty].filter(nz).length;
+        if (nRun !== wantRun) bad.push(`${c.id}: нарастающих по всем разборам ${nRun}, а потоков с числами в модели ${wantRun} (КВ-51, КВ-65, КВ-73, КВ-96)`);
         for (const [re, want] of [[/>Ставка</g, 1], [/>Дней</g, 1]]){
           if ((tbl.match(re) || []).length !== 0)
             bad.push(`${c.id}: параметр отрезка ${re.source} показан по умолчанию — он уходит под «детали» (КВ-67)`);
@@ -1700,9 +1718,10 @@ const pd = CR.pd;
              (3) при разборе пени каждый множитель приходит РОВНО ОДИН раз, а «Ставка»
                  процентов остаётся свёрнутой (КВ-68) — иначе на листе снова стоят две
                  «Ставки» разом, и читатель не знает, какая из них чья. */
-        for (const need of ['Начислено ОД','Начислено %','Всего'])
-          if (!tbl.includes('>' + need + '<'))
-            bad.push(`${c.id}: «${need}» не стоит в умолчании — начисления пени врозь и общей цифрой это ответ (КВ-73)`);
+        /* КВ-96: начисление пени стоит в умолчании ровно тогда, когда у него есть числа. */
+        for (const [need, f] of [['Начислено ОД', r => r.penaltyP], ['Начислено %', r => r.penaltyI], ['Всего', r => r.penalty]])
+          if (tbl.includes('>' + need + '<') !== mrows.some(r => Math.abs(f(r) || 0) > 0.005))
+            bad.push(`${c.id}: «${need}» ${tbl.includes('>' + need + '<') ? 'стоит без единого числа' : 'не стоит в умолчании — начисления пени врозь и общей цифрой это ответ'} (КВ-73, КВ-96)`);
         if (/>За день</.test(html))
           bad.push(`${c.id}: вернулась «За день» — цена дня читается из баз и ставок той же строки (КВ-73)`);
         for (const [re, want] of [[/>Просрочено ОД</g, 1], [/>Ставка ОД</g, 1], [/>Просрочено %</g, 1],
@@ -2574,7 +2593,16 @@ const pd = CR.pd;
         if (due && !/Итого просроченного/.test(h2)) bad.push(`${c.id}: итог пропал при раскрытии`);
         CR2.toggleQueueTail();
       } else if (/CR\.toggleQueueTail/.test(h)) bad.push(`${c.id}: кнопка хвоста при пустом хвосте`);
-      if (/Свод по кредиту на /.test(CR2.renderTab('Расчёты', c))) svod++;
+      /* ADR-0299 §9: у кредита без освоений, долга и строк листа «Расчёты» — одна строка
+         «Расчёта нет — освоений не было», свода там нет; у остальных свод обязан стоять.
+         Считается в обе стороны, и сумма по-прежнему обязана равняться числу кредитов. */
+      { const rs = CR2.renderTab('Расчёты', c), dm = CR2.derive(c);
+        const noCalc = !(dm.disbursed > 0.005) && !(dm.debtBalance > 0.005)
+          && !(dm.fee && dm.fee.applies && dm.fee.accrued > 0.005)
+          && !(dm.ledger.dateSheet || []).some(s => (s.rows || []).length);
+        if (noCalc ? (/Расчёта нет — освоений не было/.test(rs) && !/Свод по кредиту на /.test(rs))
+                   : /Свод по кредиту на /.test(rs)) svod++;
+        else bad.push(`${c.id}: на «Расчётах» ${noCalc ? 'нет строки «Расчёта нет»' : 'нет свода'}`); }
     }
     /* Умолчание возвращается на каждую карточку: разворачиваем хвост, уходим к соседу,
        возвращаемся — серых строк быть не должно. */
@@ -2776,7 +2804,10 @@ const pd = CR.pd;
                      .find(t => !CR2.trancheScheduleRows(t).length) || {}).no;
   const grf1empty = k1noSched ? grf('K-1', k1noSched) : '';
   const grfHead = grf('K-1', 1);
-  const emptyNoBtn = /cgrid-empty"[^>]*>Позиций нет — график построится сам от даты первого освоения<\/div>/.test(grf1empty);
+  /* ADR-0299 §9 (ревью 15.10.2026): пустой график — одна строка вместо плиток нулей и пустой
+     сетки. Строка называет транш и то, от чего график появится, и ячейки действия не несёт. */
+  const emptyNoBtn = grf1empty.includes(`<div class="none-line"><span>Графика по траншу №${k1noSched} нет — построится сам от даты первого освоения</span></div>`)
+                     && !/none-act/.test(grf1empty) && !/cgrid-empty/.test(grf1empty);
   ok(138, sweep.length === 0 && /<div class="section-h">График погашения<\/div>/.test(grfHead)
           && !!k1noSched && emptyNoBtn
           && typeof CR2.openSchedModal === 'undefined' && typeof CR2.submitSched === 'undefined',
@@ -2902,10 +2933,23 @@ const pd = CR.pd;
          впереди есть, прошлое не покрыто — там отвечает таблица, а шапка была бы её
          пересказом (ADR-0119 §1). Во всех прочих состояниях шапка обязана быть: без неё
          вкладка молчала бы там, где таблицы нет или она не отвечает. */
-      const sm = CR2.forecastSummary(c, c.tranches, CR2.derive(c, CR2.TODAY).ledger.index, CR2.TODAY);
+      const dm = CR2.derive(c, CR2.TODAY);
+      const sm = CR2.forecastSummary(c, c.tranches, dm.ledger.index, CR2.TODAY);
       const tableAnswers = sm.fut.length > 0 && sm.payoff && sm.tail > 0.005 && !(c.mirror && c.mirror.settlement);
       const heroes = (h.match(/class="fc-hero"/g) || []).length;
-      if (heroes !== (tableAnswers ? 0 : 1)) noHero.push(`${c.id}/${heroes}`);
+      /* ADR-0299 §9 (ревью 15.10.2026): закрытый кредит и кредит без позиций и без просрочки —
+         одна строка вместо шапки над пустой таблицей. Состояние берётся из модели (терминал —
+         тем же признаком, что isTerminal карточки; просрочка — d.overdueAmount, как в плитке
+         «К оплате»), и в нём обязаны стоять ровно одна строка, ноль шапок и ни одной таблицы. */
+      const terminal = c.lifecycle === 'Закрыт' || !!(c.closure && c.closure.reason);
+      const noneState = terminal || (!sm.rows.length && !(dm.overdueAmount > 0.005));
+      const nNone = (h.match(/class="none-line"/g) || []).length;
+      if (noneState){
+        if (heroes || nNone !== 1 || h.includes('class="cgrid"')
+            || !(terminal ? /Кредит закрыт [\d.]+ — ожидать нечего/ : /Прогноза нет/).test(h))
+          noHero.push(`${c.id}/строка:${nNone}/шапок:${heroes}`);
+      } else if (nNone) noHero.push(`${c.id}/строка «нет» при прогнозе`);
+      else if (heroes !== (tableAnswers ? 0 : 1)) noHero.push(`${c.id}/${heroes}`);
       if (tableAnswers && !h.includes('class="cgrid"')) noHero.push(`${c.id}/без таблицы`);
       /* КОЛОНКИ ПО КВ-94 (ADR-0299 §10; переписано — прежде здесь сторожились ссылки на ADR в
          тултипах прежнего набора колонок): Дата · Основной долг · Проценты · Пеня · Итого, а
@@ -2949,12 +2993,18 @@ const pd = CR.pd;
        просрочку погасят», шапкой она не становится (ступень 6 лестницы в силе); первая строка
        таблицы — просрочка на сегодня одной суммой (переписано: прежде дата не называлась вовсе). */
     const ovFirst = new RegExp('<tbody>\\s*<tr class="fc-over"><td>Просрочено на ' + CR2.TODAY.replace(/\./g, '\\.') + ' — к оплате сейчас</td>');
-    ok(152, /кредит закрыт:/.test(k6b) && /Расчёт замер на дате закрытия/.test(k6b) && !/к оплате сейчас/.test(k6b)
+    /* ADR-0299 §9 (ревью 15.10.2026, переписано): закрытый кредит — одной строкой. Прежде здесь
+       стояла шапка «кредит закрыт: … · Расчёт замер на дате закрытия» над пустой таблицей. Дата
+       закрытия K-6b — из модели. K-2 (графика нет, но просрочена плата) строкой не становится:
+       у него есть строка просрочки, и шапка «Графика нет» объясняет, почему будущего нет. */
+    const c6b = CR2.db.credits.find(x => x.id === 'K-6b');
+    const k6bLine = `<div class="none-line"><span>Кредит закрыт ${(c6b.closure && c6b.closure.date) || CR2.derive(c6b, CR2.TODAY).calcUntil} — ожидать нечего</span></div>`;
+    ok(152, k6b.includes(k6bLine) && !/к оплате сейчас/.test(k6b) && !k6b.includes('fc-hero')
             && s1.tail > 0.005 && k1NoHero && k1.includes(`<td>${nd}</td>`) && k1.includes(`<b>${nsum}</b>`)
             && k1.includes(`Ожидаемое закрытие <b>${s1.payoff}</b> — если просрочку погасят`) && ovFirst.test(k1)
             && sb1.tail <= 0.005 && kb1.includes(`${sb1.payoff}<span class="fl">ожидаемое закрытие`)
             && /Графика нет<span class="fl">прогнозировать нечего/.test(k2),
-       `K-6b закрыт (${/кредит закрыт:/.test(k6b)}) · K-1 (непокрыто ${CR2.money(s1.tail)}) → шапки нет ${k1NoHero},`
+       `K-6b закрыт одной строкой (${k6b.includes(k6bLine)}) · K-1 (непокрыто ${CR2.money(s1.tail)}) → шапки нет ${k1NoHero},`
        + ` ближайшая ${nd} и взнос ${nsum} только в таблице ${k1.includes(`<td>${nd}</td>`) && k1.includes(`<b>${nsum}</b>`)},`
        + ` дата закрытия ${s1.payoff} с условием ${k1.includes(`Ожидаемое закрытие <b>${s1.payoff}</b> — если просрочку погасят`)},`
        + ` просрочка первой строкой ${ovFirst.test(k1)}`
@@ -3264,7 +3314,13 @@ const pd = CR.pd;
       if (!/своего журнала условий у него нет/.test(us)) bad.push(`${c.id}: плата не отослала к журналу кредита`);
       if (!/освоений нет и не будет/.test(st)) bad.push(`${c.id}: «Состав» не сказал, что по плате не выдают`);
       /* ADR-0134 §6: агрегат, названный «проценты», говорит про плату сам. */
-      if (!/в «Σ проценты» не входит/.test(scoped(c, 'credit', 'График'))) bad.push(`${c.id}: плитка процентов молчит про плату`);
+      /* ADR-0299 §9: без позиций график — одна строка, плиток «Σ» нет, и оговорку несёт
+         подпись под строкой. Какая из двух — решает модель (позиции есть / нет), а не разметка. */
+      { const gc = scoped(c, 'credit', 'График');
+        const hasPos = c.tranches.some(t => (CR2.trancheScheduleRows(t) || []).length);
+        const tileNote = /в «Σ проценты» не входит/.test(gc);
+        const lineNote = /class="none-line"/.test(gc) && /Плата за неосвоенный остаток идёт своим графиком/.test(gc);
+        if (hasPos ? !tileNote : !lineNote) bad.push(`${c.id}: плитка процентов молчит про плату${hasPos ? '' : ' (строка «Графика нет» без оговорки)'}`); }
       if (!/в прогноз процентов не входит/.test(scoped(c, 'credit', 'Прогноз'))) bad.push(`${c.id}: прогноз молчит про плату`);
       if (!/в т\.ч\. плата за неосвоенный остаток/.test(scoped(c, 'credit', 'Расчёты'))) bad.push(`${c.id}: свод статей молчит про плату`);
     }
@@ -3283,6 +3339,7 @@ const pd = CR.pd;
                    [/Прогноз платы за неосвоенный остаток/, 'прогноз платы'],
                    [/Транш платы/, 'область/строка «Транш платы»'],
                    [/в «Σ проценты» не входит/, 'оговорка §6 у плитки процентов'],
+                   [/Плата за неосвоенный остаток идёт своим графиком/, 'оговорка §6 под строкой «Графика нет»'],
                    [/в прогноз процентов не входит/, 'оговорка §6 в прогнозе'],
                    [/в т\.ч\. плата за неосвоенный остаток/, 'разрез платы в своде статей']];
     const dead = CR2.db.credits.filter(c => !CR2.feeTranche(c, TODAY)).slice(0, 5);
@@ -3449,6 +3506,12 @@ const pd = CR.pd;
                                       ['Всего', r.penalty], ['Просрочено ОД', r.penBaseP],
                                       ['Просрочено %', r.penBaseI]]){
             const cell = col(cs, name);
+            /* КВ-96 (ревью 15.10.2026): колонка-поток без единого числа по листам скрыта. Её
+               отсутствие законно только тогда, когда модель на ВСЕХ листах даёт по ней ноль —
+               иначе это потерянная колонка. Базы пени (run) правилом не скрываются никогда. */
+            const FLOW = { 'Начислено ОД':'penaltyP', 'Начислено %':'penaltyI', 'Всего':'penalty' };
+            if (cell === undefined && FLOW[name]
+                && !sheets.some(s => s.rows.some(x => Math.abs(x[FLOW[name]] || 0) > 0.005))) continue;
             if (cell === undefined){ bad.push(`${id}: колонки «${name}» нет на разобранном листе`); continue; }
             const got = numOf(cell);
             if (want > 0.005 ? Math.abs((got || 0) - want) > 0.02 : got !== null)
@@ -3833,7 +3896,7 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
   const gated  = !/mirror\s*&&\s*\w+\.mirror\.pledgeWaiver/.test(src);       // гейты не читают зеркало
   /* оба места вывода: карточка «Договора» и раздел «Обеспечения» */
   const shownDogovor = /const km=c\.kmDecision,\s*wv=c\.pledgeWaiver/.test(src) && /Освобождение от порога обеспечения/.test(src);
-  const shownObesp   = /Основания освобождения от порога/.test(src) && /гейт снят waiver/.test(src);
+  const shownObesp   = /Основания освобождения от порога/.test(src) && /блокировка снята решением комиссии по залогу/.test(src);
   ok(96, owned && seeded && gated && shownDogovor && shownObesp,
      `owned=${owned} сид=${seeded} гейты=${gated} «Договор»=${shownDogovor} «Обеспечение»=${shownObesp}`);
 })();
@@ -4063,46 +4126,57 @@ const seedPay = (c, date, principal) => { c.mirror.payments.push({
    основного долга, а не на тот, который график СЧИТАЕТ оставшимся: недобор тела
    удорожает кредит процентами, а не только пенёй. */
 
-/* 107. ВЗНОС ПО ПРОГНОЗУ ВЫШЕ КОНТРАКТНОГО, КОГДА ТЕЛО ПРОСРОЧЕНО (ADR-0108).
-   Амортизируется контрактное ТЕЛО позиции, проценты идут на фактическое непогашенное —
-   значит просрочка поднимает сам ожидаемый платёж, а не только его состав. Тело в
-   позиции остаётся контрактным: график гасится в свой срок, дорожает обслуживание. */
+/* 107. ПРОСРОЧКА НЕ ДОРОЖИТ БУДУЩИЙ ВЗНОС ПРОГНОЗА (КВ-94, ADR-0299 п. 10; до неё —
+   ADR-0108 «взнос выше контрактного»). Прогноз считает будущее при допущении, что
+   просрочку, стоящую первой строкой, внесли сейчас: база будущих процентов — тело после
+   её погашения, и первая будущая позиция равна строке графика до копейки (то, что плитка
+   «К оплате» называет «далее <дата> — <сумма> по графику»). Проценты на фактическое
+   непогашенное тело при этом не пропали — их начисляет расчёт: Σ начисленного по
+   наступившим позициям выше контрактного (ADR-0105 в расчёте в силе, см. и №109). */
 (() => { const db = CR.seedDb(); const c = byId(db,'K-4');
   const t = c.tranches[0]; const d = CR.derive(c);
   const fr = CR.trancheForecastRows(c, t, d.ledger.index, '23.07.2026');
   const fut = fr.filter(r => !r.past);
   const first = fut[0] || {};
-  const ctr = CR.trancheScheduleRows(t).find(x => x.no === first.no) || {};
+  const srows = CR.trancheScheduleRows(t);
+  const ctr = srows.find(x => x.no === first.no) || {};
   const over = [...d.ledger.index.values()].filter(e => e.trancheNo === t.no)
     .reduce((a, e) => a + (e.principalOverdue || 0), 0);
+  const led = d.ledger.rows.filter(r => r.trancheNo === t.no);
+  const accSum = led.reduce((a, r) => a + (r.interestAccrued || 0), 0);
+  const ctrSum = led.reduce((a, r) => a + ((srows.find(x => x.no === r.no) || {}).interest || 0), 0);
   ok(107, over > 0.005 && fut.length > 0
-       && first.interest > (ctr.interest || 0) + 0.005
-       && Math.abs(first.principal - (ctr.principal || 0)) < 0.05
-       && (first.delta || 0) > 0.05
-       && Math.abs((first.delta || 0) - (first.interest - (ctr.interest || 0))) < 0.05,
+       && Math.abs(first.interest - (ctr.interest || 0)) < 0.005
+       && Math.abs(first.principal - (ctr.principal || 0)) < 0.005
+       && Math.abs(first.forecast - (ctr.total || 0)) < 0.005
+       && Math.abs(first.delta || 0) < 0.005
+       && accSum > ctrSum + 0.05,
      `просроченное тело=${over.toFixed(2)}; первая будущая ${first.date}:`
      + ` %% ${ctr.interest} → ${first.interest}, тело ${ctr.principal} → ${first.principal},`
-     + ` взнос ${first.scheduled} → ${first.forecast} (Δ ${first.delta})`);
+     + ` взнос ${first.scheduled} → ${first.forecast} (Δ ${first.delta});`
+     + ` расчёт: начислено ${accSum.toFixed(2)} против контрактных ${ctrSum.toFixed(2)}`);
 })();
 
-/* 108. РАСХОЖДЕНИЕ РАЗЛОЖЕНО ПО ПОЗИЦИЯМ, А НЕ СВАЛЕНО БАЛЛОНОМ (ADR-0108). Каждая
-   будущая строка расходится ровно на свои проценты сверх контракта, и Σ расхождения
-   равна цене недобора. Прежнее правило держало взнос контрактным, и весь недобор тела
-   копился в последнюю позицию графика: сорок строк молчали, одна отвечала за всё. */
+/* 108. БУДУЩЕЕ ПРОГНОЗА = НЕНАСТУПИВШЕЕ ОЧЕРЕДИ = ГРАФИК (КВ-94, ADR-0299 п. 10). Каждая
+   будущая строка равна позиции графика, Σ будущего — «Ненаступившему» в очереди погашения
+   на «Платежах» (тот же перечень, что buildQueue публикует серым хвостом), цены недобора
+   в прогнозе нет. Итог «Всего должно поступить» = остаток долга + проценты будущих
+   позиций графика. Прежде (ADR-0108) каждая строка дорожала на проценты с просроченного
+   тела, и Σ впереди расходилась и с графиком, и с очередью. */
 (() => { const db = CR.seedDb(); const c = byId(db,'K-4');
   const d = CR.derive(c);
   const sm = CR.forecastSummary(c, c.tranches, d.ledger.index, '23.07.2026');
-  const last  = sm.fut[sm.fut.length - 1] || {};
-  const first = sm.fut[0] || {};
-  const byRow = sm.fut.every(r => Math.abs((r.delta || 0)
-    - ((r.interest || 0) - (r.interestCtr || 0))) < 0.05);
-  ok(108, sm.futSum > sm.futSched + 0.05 && byRow
-       && Math.abs(sm.delta - sm.extraInterest) < 0.05
-       && Math.abs(last.delta || 0) < Math.abs(first.delta || 0) * 2 + 0.05,
-     `Σ впереди: график ${sm.futSched} → прогноз ${sm.futSum} (Δ ${sm.delta},`
-     + ` проценты сверх контракта ${sm.extraInterest}); Δ по строкам: первая ${first.delta},`
-     + ` последняя ${last.delta}; строк вне правила=${sm.fut.filter(r => Math.abs((r.delta || 0)
-         - ((r.interest || 0) - (r.interestCtr || 0))) >= 0.05).length}`);
+  const q = CR.buildQueue(c, d.ledger); const qRows = Array.isArray(q) ? q : (q.rows || []);
+  const tail = Math.round(qRows.filter(x => x.future).reduce((a, x) => a + (x.amount || 0), 0) * 100) / 100;
+  const sched = c.tranches.flatMap(t => CR.trancheScheduleRows(t)).filter(r => pd(r.date) > pd('23.07.2026'));
+  const schedInt = Math.round(sched.reduce((a, r) => a + (r.interest || 0), 0) * 100) / 100;
+  const offRow = sm.fut.filter(r => Math.abs(r.delta || 0) >= 0.005).length;
+  ok(108, sm.fut.length > 0 && offRow === 0
+       && Math.abs(sm.futSum - sm.futSched) < 0.005 && Math.abs(sm.extraInterest) < 0.005
+       && Math.abs(sm.futSum - tail) < 0.005 && Math.abs(sm.futInterest - schedInt) < 0.005,
+     `Σ впереди: график ${sm.futSched} · прогноз ${sm.futSum} · «Ненаступившее» очереди ${tail};`
+     + ` будущие %% ${sm.futInterest} против графика ${schedInt}; сверх графика ${sm.extraInterest};`
+     + ` строк не по графику=${offRow}; итог ${CR.money(Math.round((d.debtBalance + sm.futInterest) * 100) / 100)}`);
 })();
 
 /* 109. «РАСЧЁТЫ» НАЧИСЛЯЮТ ПО ТОМУ ЖЕ ПРАВИЛУ. Правка одного прогноза развела бы его с

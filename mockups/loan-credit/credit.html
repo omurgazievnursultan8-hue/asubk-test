@@ -1423,6 +1423,9 @@ a{ color:inherit; }
 .btn-tint:disabled{ opacity:1; color:var(--text-disabled); cursor:not-allowed; }
 .btn-tint.danger{ color:var(--action-danger); }
 .btn-tint.danger:hover:not(:disabled){ background:var(--status-error-bg); }
+/* Заблокированная кнопка — серая и у «опасных» (ADR-0299 §8): `.btn-tint.danger` специфичнее
+   `.btn-tint:disabled` и красил серый «Расторгнут» тем же красным, что живой «Списан». */
+.btn-tint.danger:disabled{ color:var(--text-disabled); }
 
 .split{ position:relative; display:inline-flex; }
 .split > .btn{ border-radius:0; }
@@ -1639,7 +1642,10 @@ table.grid tbody tr.sel td{ background:var(--asubk-nav-active); }
 .phead-banner .b-act{ margin-left:auto; }
 /* auto-fit, а не фиксированные 5 колонок: плиток стало 7, и на узком экране они должны
    перетекать, а не сжиматься до нечитаемого основания под значением. */
-.phead-dims{ display:grid; grid-template-columns:repeat(auto-fit,minmax(232px,1fr)); gap:12px; align-items:stretch; }
+/* minmax 200, а не 232 (КВ-83, ревью 15.10.2026): пять постоянных плиток + до трёх
+   необязательных встают в один ряд при 1920 (1552 px шапки: 7 × 200 + 6 × 12 = 1472); пять
+   плиток по-прежнему делят ряд поровну — пустые дорожки auto-fit схлопывает. */
+.phead-dims{ display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; align-items:stretch; }
 .phead-acts{ display:flex; align-items:flex-start; gap:8px; flex:none; }
 .dim{ background:var(--surface-panel); border-radius:var(--radius-md); padding:10px 14px; }
 .dim.clickable{ cursor:pointer; } .dim.clickable:hover{ background:var(--surface-hover); }
@@ -1812,6 +1818,11 @@ table.cgrid.tiered thead tr:nth-child(2) th{ top:var(--cgrid-tier1); z-index:2; 
 table.cgrid.tiered thead th.grp{ border-left:2px solid var(--border-strong); }
 table.cgrid.tiered tbody td.grp{ border-left:2px solid var(--border-default); }
 table.cgrid.tiered thead th.rspan{ z-index:4; }
+/* «Дата и событие» переносит пилюли событий (КВ-96: лист обязан влезть в 1550 px при 1920):
+   одна длинная пилюля «условия: …» держала колонку в 390 px на весь лист. Дата защищена
+   своим nowrap, числа справа не переносятся. */
+table.cgrid.tiered tbody tr:not(.gyear):not(.gtot) td:first-child{ white-space:normal; min-width:200px; }
+table.cgrid.tiered tbody tr:not(.gyear):not(.gtot) td:first-child .pill{ white-space:normal; }
 /* ПЕРЕКЛЮЧАТЕЛЬ ДЕТАЛЕЙ (разбор 16.08.2026, подпись и место — КВ-58). Стоит в шапке СВОЕЙ
    статьи, потому что называет предмет разбора: детали есть у всех трёх блоков (у пени свои
    с КВ-67). Кнопкой во всю силу не выглядит намеренно: это не действие над данными, а
@@ -2338,6 +2349,25 @@ const COND_CARD_REPAY_CREDIT = CREDIT_PARAM_KEYS.filter(k => !COND_CARD_RATES_CR
 
 const paramLabel = k => (PARAMS.find(p => p.key === k) || {}).label
   || (CREDIT_PARAMS.find(p => p.key === k) || {}).label || k;
+/* ЗНАЧЕНИЕ УСЛОВИЯ ДЛЯ ЭКРАНА (ревью 15.10.2026). Хранится как есть (0.1, 0), читается по-русски:
+   дробь — с запятой («0,1»), «День платежа» 0 — словами: ноль в модели значит «по дате освоения»
+   (buildSchedule берёт день из даты освоения, гейт editConditions: «0 — по дате освоения»), у
+   платы за неосвоенный остаток — «по дате начала начисления» (feePeriods). Только показ:
+   записи, гейты и расчёт видят прежнее значение. */
+/* ПРИЧИНА ОТКАЗА ДЛЯ ЭКРАНА (ревью 15.10.2026). Гейты пишут причину с кодом правила в скобках
+   — «(Г-10)», «(ADR-0257 §4)»: по коду их проверяет смоук и находит разработчик. Пользователю
+   код ничего не говорит, поэтому под кнопкой, в окне и в тосте скобка с кодом снимается. */
+function plainReason(s){
+  return String(s == null ? '' : s).replace(/\s*\((?:Г|Р|КР|КВ|ADR)-\d[^()]*\)/g, '').trim();
+}
+function condValText(k, v){
+  if (v === undefined || v === null || v === '') return '—';
+  if (k === 'payDay' && !(+v > 0)) return 'по дате освоения';
+  if (k === 'feePayDay' && !(+v > 0)) return 'по дате начала начисления';
+  if (typeof v === 'number' || (typeof v === 'string' && /^-?\d+\.\d+$/.test(v)))
+    return Number(v).toLocaleString('ru-RU', { maximumFractionDigits:4 });
+  return String(v);
+}
 
 /* Типы основания. owned=false → документ живёт в другом модуле, кредит только
    ссылается (Д-4, паттерн Р-7/Р-16). retro=true → допустима дата вступления
@@ -4129,6 +4159,16 @@ function seedDb(){
      false), иначе #35 ложно ловит К-4 наравне с К-3, а журнал (Task 7+)
      отрисовал бы «документ от 12.06.26 · вступает 01.05.26» без ретро-плашки. */
   const k4 = credits.find(c => c.id === 'K-4');
+  /* ВЕРСИИ ГРАФИКА К-4 — ТЕМ ЖЕ ПУТЁМ, ЧТО У ЖИВОГО ДС (КВ-93, ADR-0299 §6, ADR-0130). Раньше
+     записи ДС-РС-1004 (ставка 7 %, срок 48) лежали в реестре, а версии графика не было: «Условия»
+     говорили «срок 48 с 01.05.2026», «График» строился на лету от освоения — 36 позиций до
+     10.11.2028, «Версий графика» нет. Ровно дефект стенда «два графика» (P5-11). Теперь: v1 —
+     первичный график от освоения по условиям договора (до записей ДС), v2 — docScheduleVersion
+     с даты вступления ДС, как его родил бы addConditionRecords; дата построения — дата ДС. */
+  const k4V1 = k4 && k4.tranches.map(t => ({ t, rows: buildSchedule(t, trancheStartDate(t)).rows }));
+  if (k4) for (const { t, rows } of k4V1)
+    t.schedules = [{ ver:1, validFrom:trancheStartDate(t), by:{ kind:'engine', label:'Первичный график по договору' },
+                     generatedFrom:trancheStartDate(t), generatedAt:trancheStartDate(t), generatedSeq:0, rows }];
   if (k4) for (const t of k4.tranches){
     t.conditionRecords.push(mkConditionRecord({
       param:'rate', value:7, effectiveFrom:'01.05.2026',
@@ -4166,6 +4206,19 @@ function seedDb(){
     }));
   }
   if (k4) k4.agreements.push({ num:'ДС-1010', date:'20.07.2026', source:'кредит', scan:'ds-1010.pdf' });
+  /* v2 по ДС-РС-1004: параметры графика документа — ставка и срок (пеня графика не трогает,
+     ДС-1010 версии не даёт). Дата построения — дата ДС: соглашение заведено 01.05.2026, а не в
+     «сегодня» демо. Запись журнала, которую кладёт дверь, снимается: след сида восстанавливает
+     общий проход КР-21 ниже по версиям графика, второй строкой она бы задвоилась. */
+  if (k4) for (const t of k4.tranches){
+    const n0 = k4.audit.length;
+    const v = docScheduleVersion(k4, t, '01.05.2026',
+      { kind:'agreement', ref:'ДС-РС-1004', label:'Доп. соглашение ДС-РС-1004 (реструктуризация)', date:'01.05.2026' },
+      ['rate','term']);
+    if (!v) continue;
+    v.generatedAt = '01.05.2026';
+    k4.audit.splice(n0);
+  }
 
   /* Демо Д-7: расхождение условий по траншам. Берём первый двухтраншевый
      сценарный кредит (K-C*, tr2:true) и меняем метод погашения только
@@ -5140,8 +5193,11 @@ function calcEventsAt(c, t, ds){
   const prim = (t.conditionRecords || []).find(r => (r.basis || {}).kind === 'application');
   const primFrom = prim ? fd(pd(prim.effectiveFrom)) : null;
   const chg = (t.conditionRecords || []).filter(r => same(r.effectiveFrom) && ds !== primFrom);
+  /* имя параметра без единицы («Ставка, %» → «ставка»): через запятую единицы читались как
+     отдельные параметры — «Ставка, %, Срок, мес., Пеня по %, %/дн» */
   if (chg.length) out.push({ kind:'cond', amount:0, label:'условия: ' +
-    [...new Set(chg.map(r => (PARAMS.find(p => p.key === r.param) || {}).label || r.param))].join(', ') });
+    [...new Set(chg.map(r => String((PARAMS.find(p => p.key === r.param) || {}).label || r.param)
+      .replace(/,\s*[^,]*$/, '').replace(/^./, s => s.toLowerCase())))].join(' · ') });
   for (const h of (t.accrualHold || [])){
     if (h.from){ const d = new Date(pd(h.from)); d.setDate(d.getDate() - 1);
       if (fd(d) === ds) out.push({ kind:'hold', amount:0, label:'приостановка начисления с ' + h.from }); }
@@ -5339,13 +5395,20 @@ function trancheForecastRows(c, t, ledgerIndex, asOf, opts){
                delta:round2(uncovered - (r.total || 0)), past:true });
   }
   const atCut = !!(opts && opts.atCut);
-  /* ДВЕ БАЗЫ, А НЕ ОДНА (ADR-0105). Просроченное тело вычитается из базы АМОРТИЗАЦИИ —
-     будущими взносами оно не гасится, оно уже показано своими позициями (ADR-0104 §2), —
-     но НЕ из базы НАЧИСЛЕНИЯ: непогашенное тело у заёмщика на руках, и проценты по
-     договору идут на него. Пока база была одна, обе роли несла она: на просроченном
-     кредите база прогноза совпадала с контрактной до копейки, и вкладка отвечала «ждём
-     ровно график» при 88 тыс. недобора. Взнос остаётся контрактным (ADR-0104 §1) —
-     дорожает СОСТАВ: процентов больше, тела меньше, остаток гаснет медленнее. */
+  /* БАЗА БУДУЩИХ ПРОЦЕНТОВ — ТЕЛО ПОСЛЕ ПОГАШЕНИЯ ПРОСРОЧКИ (КВ-94, ADR-0299 п. 10; уточняет
+     ADR-0105 для прогноза). Прогноз отвечает «сколько должно поступить», и первой строкой
+     вкладки стоит просрочка «к оплате сейчас». Значит будущее считается при допущении, что её
+     внесли сейчас: просроченное тело уходит и из базы АМОРТИЗАЦИИ (будущими взносами оно не
+     гасится, ADR-0104 §2), и из базы НАЧИСЛЕНИЯ. Будущие проценты — по графику: у заёмщика,
+     платящего в срок, база равна остатку тела по графику, и строка прогноза совпадает со
+     строкой графика (плитка «К оплате»: «далее <дата> — <сумма> по графику»; «Ненаступившее»
+     очереди на «Платежах»). Досрочка базу уменьшает — проценты дешевле графика, хвост гаснет.
+     Прежде база начисления держала просроченное тело (ADR-0105 в прогнозе): будущие проценты
+     росли на «цену непогашенного тела», и итог «Всего должно поступить» на К-4 выходил
+     712 290,27 вместо 692 678,04 = остаток + проценты по графику (на прежнем графике в 36
+     позиций, до версии по ДС-РС-1004). Фактическое тело по-прежнему считает
+     расчёт («Расчёты», buildLedger): там проценты на непогашенное начисляются, как и были.
+     accrBal ниже — фактическое тело (освоено − погашено платежами); наружу — accrAfter. */
   /* перенос по ДС вычитается и здесь (КВ-54): ожидание считается на фактическом теле, а
      тело, ушедшее в другой транш, ждут по ЕГО графику — иначе прогноз кредита складывал
      бы одну и ту же сумму дважды */
@@ -5362,7 +5425,7 @@ function trancheForecastRows(c, t, ledgerIndex, asOf, opts){
   fut.forEach((r, k) => {
     const cnd = conditionsAt(t, atCut ? fd(lim) : r.date);
     const mpp = freqMonths(cnd.freq) || 1;
-    const interest = periodInterest(t, cnd, prev, pd(r.date), accrBal, mpp);
+    const interest = periodInterest(t, cnd, prev, pd(r.date), bal, mpp);   // база — тело без просрочки
     prev = pd(r.date);
     const method = cnd.method || 'аннуитет';
     let principal;
@@ -7492,7 +7555,7 @@ function gate(credit, action, ctx = {}){
         if (disbursedSum(t) < (t.amount || 0) - 0.005 && !ctx.reason)
           r.push('Транш освоен не полностью — закрытие требует основания');
       }
-      if (!ctx.reason || !String(ctx.reason).trim()) r.push('Закрытие транша требует основания (Г-17: удаления нет, только soft-close)');
+      if (!ctx.reason || !String(ctx.reason).trim()) r.push('Закрытие транша требует основания: транш не удаляется, а закрывается с причиной');   // Г-17
       /* ИР-5: «перенос» — причина ДВЕРИ, а не человека. Она ВЫВОДИТСЯ операцией, обнулившей
          тело (closeIfEmptied), и введённая руками означала бы закрытие транша без переноса,
          которого не было: остаток пропал бы из кредита молча. */
@@ -7552,12 +7615,12 @@ function gate(credit, action, ctx = {}){
           (d.docs.missing.length ? ': ' + d.docs.missing.join(' · ') : '') +
           (d.docs.blocked.length ? ' · отклонены/просрочены: ' + d.docs.blocked.map(x => x.kind).join(' · ') : ''));
       if (!d.coverage.ok && !credit.pledgeWaiver)
-        r.push('Не пройден гейт обеспеченности (или исключение Г-6)');
+        r.push('Обеспечения недостаточно: залог ниже порога — нужен дополнительный залог, решение КМ о пороге или отступление от порога по решению комиссии по залогу');   // Г-6
       break;
     }
     case 'activate':                                                                       // Г-31: «Зарегистрирован» → «Действует»
       if (credit.lifecycle !== 'Зарегистрирован') r.push('Перевод в «Действует» возможен только из ЖЦ «Зарегистрирован» (сейчас «' + credit.lifecycle + '»)');
-      if (d.disbursed <= 0) r.push('Кредит начинает действовать с первого освоения — освоений нет (Г-8/Г-22)');
+      if (d.disbursed <= 0) r.push('Кредит начинает действовать с первого освоения — освоений нет');   // Г-8/Г-22
       break;
     /* Г-8 — две ветки (ADR-0092 §1): производному траншу §1 прямо даёт «дату начала,
        равную дате вступления ДС, и свой график». Освоения у него нет и не будет, поэтому
@@ -7835,15 +7898,20 @@ function payTraktovkaGate(credit, ctx, r){
 /* requestRestructuring (КВ-102) — «Подать на реструктуризацию» на «Проблемных». Заявку заводит
    модуль реструктуризации, кредит её не создаёт; право на кнопку-переход всё равно ролевое —
    кредитный специалист, куратор, начальник отдела. Наблюдателю и бухгалтеру кнопки нет. */
+/* РЕКВИЗИТЫ ДОГОВОРА — ДВА ПРАВА (ADR-0299 §1). editContractRequisites — ввод № и даты в форме
+   «Проекта»: кредитный специалист заполняет карточку разом, и без этого права поля стояли у него
+   только для чтения. fixContractRequisites — исправление ошибки ввода после регистрации (карандаш,
+   окно с причиной, КВ-32): осталось у того, у кого было, — у начальника отдела. Гейт у обоих один
+   (editContractRequisites: номер и дата обязательны), различается только роль. */
 const ROLE_ACTIONS = {
-  'Кредитный специалист': new Set(['createCredit','saveContractAmount','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','applyDs','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editClassification','editDocs','addNote','requestRestructuring']),
+  'Кредитный специалист': new Set(['createCredit','saveContractAmount','editContractRequisites','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','applyDs','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editClassification','editDocs','addNote','requestRestructuring']),
   /* ПЛАТЕЖИ У КУРАТОРА (ADR-0257, ADR-0258): трактовка — его предмет, и ручной ввод по
      списку ЦК тоже (ввод вынут из «факта денег» поимённо). Факта денег здесь нет ни у
      кого: сторно, корректировка по ЦК и заморозка живут в модуле платежей. */
   'Куратор': new Set(['targetUse','inspection','holdAccrual','transferDebt','linkPledge','addNote','setPlan',
                       'savePayment','payAlloc','paySurplus','payMatch','payDispute','requestRestructuring']),
   'Бухгалтер': new Set(['savePayment','addNote']),
-  'Начальник отдела': new Set(['createCredit','saveContractAmount','editContractRequisites','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','applyDs','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editClassification','editDocs','addNote','targetUse','inspection','holdAccrual','transferDebt','linkPledge','savePayment','waiver','setKmDecision','writeOff','repay','terminate','setPlan','payAlloc','paySurplus','payMatch','payDispute','requestRestructuring']),
+  'Начальник отдела': new Set(['createCredit','saveContractAmount','editContractRequisites','fixContractRequisites','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','applyDs','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editClassification','editDocs','addNote','targetUse','inspection','holdAccrual','transferDebt','linkPledge','savePayment','waiver','setKmDecision','writeOff','repay','terminate','setPlan','payAlloc','paySurplus','payMatch','payDispute','requestRestructuring']),
   'Наблюдатель': new Set(),
 };
 function canRole(role, action){ return (ROLE_ACTIONS[role]||new Set()).has(action); }
@@ -8861,8 +8929,8 @@ if (typeof document !== 'undefined') {
   /* Гейт-провал внутри модалки: причины показываются в шапке тела формы (не молчаливый отказ, §0.3). */
   CR.modalErr = function(reasons){
     const box = document.getElementById('modalErr'); const list = [].concat(reasons||[]);
-    if (box) box.innerHTML = `<div class="gate-inline">${svgInfo()}<div>${list.map(esc).join('<br>')}</div></div>`;
-    toast(list.join(' · '), 'warn');
+    if (box) box.innerHTML = `<div class="gate-inline">${svgInfo()}<div>${list.map(x=>esc(plainReason(x))).join('<br>')}</div></div>`;
+    toast(list.map(plainReason).join(' · '), 'warn');
   };
   /* Пояснения к меткам плиток шапки (замена слов «выводится»/«зеркало» иконкой ⓘ). */
   CR.openDerivedInfo = function(){
@@ -9452,7 +9520,7 @@ if (typeof document !== 'undefined') {
   function pickApplication(id){
     const app = CR.db.applications.find(a => a.id===id);
     const g = gate(null, 'createCredit', { application: app });   // подтверждаем Г-2 перед созданием
-    if (!g.ok){ toast(g.reasons.join('; '), 'err'); return; }
+    if (!g.ok){ toast(g.reasons.map(plainReason).join('; '), 'err'); return; }
     CR.closeModal();
     toast('Заявка ' + id + ' выбрана — черновик кредита (форма создания — Task 7)', 'ok');
   }
@@ -9708,7 +9776,7 @@ if (typeof document !== 'undefined') {
      reasons — строка или массив строк (причины гейта), экранируются здесь. */
   function disabledBtn(label, reasons, cls){ cls=cls||'btn btn-secondary btn-sm';
     const why=[].concat(reasons).filter(Boolean);
-    return `<span class="btn-gated"><button class="${cls}" disabled>${esc(label)}</button><span class="btn-why">нельзя: ${why.map(esc).join('; ')}</span></span>`;
+    return `<span class="btn-gated"><button class="${cls}" disabled>${esc(label)}</button><span class="btn-why">нельзя: ${why.map(x=>esc(plainReason(x))).join('; ')}</span></span>`;
   }
   function terminalReason(c){ return 'Кредит в терминальном состоянии («'+esc((c.closure&&c.closure.reason)||c.lifecycle)+'») — действия недоступны'; }
 
@@ -9806,7 +9874,12 @@ if (typeof document !== 'undefined') {
        сумма просрочки — в «К оплате», дни — в метке стадии у номера (просрочка один раз, КВ-83). */
     const ART_SHORT = { principal:'ОД', interest:'проценты', accInterest:'накопленные проценты',
                         penalty:'пеня', accPenalty:'накопленная пеня', fees:'сборы' };
-    parts.push(debtArticlesOf(d.debt).map(a => `${ART_SHORT[a.key] || esc(a.label)}&nbsp;<b>${money(d.debt[a.key].bal)}</b>`).join(' · '));
+    /* В плитке — ОСТАТОК, а не история статьи: ОД и проценты всегда, прочие (пеня, сборы,
+       накопленные) — только с ненулевым остатком. «пеня 0,00 · сборы 0,00» у K-1 говорили лишь
+       о собственном отсутствии; свод на «Расчётах» держит свои правила показа (debtArticlesOf). */
+    parts.push(debtArticlesOf(d.debt)
+      .filter(a => a.key === 'principal' || a.key === 'interest' || Math.abs(d.debt[a.key].bal || 0) > 0.005)
+      .map(a => `${ART_SHORT[a.key] || esc(a.label)}&nbsp;<b>${money(d.debt[a.key].bal)}</b>`).join(' · '));
     /* приостановленное решением суда НАЧИСЛЕНО, но в остаток не входит: иначе куратор
        требует то, чего требовать нельзя, и разница молча живёт между экранами. Расходы
        взыскания, спорная пеня и «погашено» отсюда убраны (не удвоенная информация —
@@ -9822,17 +9895,22 @@ if (typeof document !== 'undefined') {
      со сроком и основанием. Прежняя плитка называлась «Оверлеи» — слово, запрещённое
      CONTEXT.md в статье «Послабление», — и складывала в одну кучу подавление 181-го дня
      с просрочкой, взысканием и паузой начисления, которые ничего не снимают (КР-26). */
+  /* КВ-83 (разбор ревью 15.10.2026): плитка одинарной ширины и без повтора. Основание
+     («заявка РС-1004 направлена в Минфин») и срок, совпадающий с дедлайном реструктуризации,
+     уже стоят в «Признаках состояния» — здесь только то, что послабление СНИМАЕТ; полное
+     основание и даты — подсказкой на плитке. */
   function tileRelief(c,d){
     const list = d.relief;
     if (!list.length) return '';
-    const lines = list.map(r => {
-      const label = r.kind === 'suppress181' ? 'подавление 181-го дня' : esc(r.kind);
-      return `${label} — <b>${esc(r.basis || '')}</b><br>действует ${esc(r.from)} — <b>${esc(r.deadline || 'без срока')}</b>`
-        + (r.kind === 'suppress181' ? `<br>дни просрочки для категории ограничены 180 (факт ${d.riskBasis.raw})` : '');
-    });
-    return `<div class="dim"><div class="dl">Послабления ${infoBtn('CR.openDerivedInfo()','Как считается')}</div>`
-      + `<div class="dv"><span style="font-size:15px">${list.length === 1 ? 'Действует 1' : 'Действует ' + list.length}</span></div>`
-      + `<div class="src">${lines.join('<br>')}</div></div>`;
+    const rs = c.mirror && c.mirror.restructuring && c.mirror.restructuring.active;
+    const labelOf = r => r.kind === 'suppress181' ? 'подавление 181-го дня' : String(r.kind);
+    const effect = r => (r.kind === 'suppress181' ? `категория — по 180 дн. просрочки (факт ${d.riskBasis.raw})` : '')
+      + (rs && r.deadline && r.deadline === rs.deadline ? (r.kind === 'suppress181' ? ', ' : '') + 'пока идёт реструктуризация'
+         : (r.kind === 'suppress181' ? ', ' : '') + 'до <b>' + esc(r.deadline || 'без срока') + '</b>');
+    const tip = list.map(r => labelOf(r) + ': ' + (r.basis || '') + ' · действует ' + r.from + ' — ' + (r.deadline || 'без срока')).join('\n');
+    return `<div class="dim" title="${jsAttr(tip)}"><div class="dl">Послабления ${infoBtn('CR.openDerivedInfo()','Как считается')}</div>`
+      + `<div class="dv"><span style="font-size:15px">${list.length === 1 ? esc(labelOf(list[0])) : 'Действует ' + list.length}</span></div>`
+      + `<div class="src">${list.map(r => (list.length > 1 ? esc(labelOf(r)) + ': ' : '') + effect(r)).join('<br>')}</div></div>`;
   }
 
   /* Плитка «Признаки состояния» — то, что описывает положение дел и ничего не снимает:
@@ -9846,7 +9924,10 @@ if (typeof document !== 'undefined') {
     const top  = list.slice().sort((a,b) => (rank[b.tone]||0) - (rank[a.tone]||0))[0];
     const r = c.mirror && c.mirror.restructuring && c.mirror.restructuring.active;
     const lines = [];
-    if (r) lines.push(`реструктуризация <b>${esc(r.id)}</b> — ${esc(r.stage)}`
+    /* стадия реструктуризации уже стоит крупно, когда она главный признак, — второй раз мелко
+       не пишется (КВ-83: плитка одинарной ширины) */
+    if (r) lines.push(`реструктуризация <b>${esc(r.id)}</b>`
+        + (String(top.text || '').includes(r.stage) ? '' : ` — ${esc(r.stage)}`)
         + (r.deadline ? ` · дедлайн <b>${esc(r.deadline)}</b>` : '')
         + (r.pause && r.pause.days ? ` · пауза ${r.pause.days} дн.` : ''));
     for (const cl of (c.mirror && c.mirror.claims || []))
@@ -9861,7 +9942,7 @@ if (typeof document !== 'undefined') {
       lines.push(`спорная пеня <b>${money(d.debt.penalty.disputed)}</b> за ${d.overdue.disputedDays} дн. — ждёт решения комиссии, категорию не двигает`);
     const val = `<span style="font-size:15px">${esc(top.text)}</span>`
       + (list.length > 1 ? ` <span style="color:var(--text-muted);font-weight:400;font-size:13px">· ещё ${list.length-1}</span>` : '');
-    return `<div class="dim wide"><div class="dl">Признаки состояния ${infoBtn('CR.openDerivedInfo()','Как считается')}</div>`
+    return `<div class="dim"><div class="dl">Признаки состояния ${infoBtn('CR.openDerivedInfo()','Как считается')}</div>`
       + `<div class="dv">${val}</div><div class="src">${lines.join('<br>')}</div></div>`;
   }
 
@@ -9897,11 +9978,19 @@ if (typeof document !== 'undefined') {
         + (nx ? `<br>далее <b>${esc(nx.date)}</b> — <b>${money(nx.total)}</b> по графику`
               : d.disbursed === 0 ? '<br>график строится от фактической даты освоения'
               : `<br>по графику платежей больше нет${term ? ' · ' + term : ''}`));
+    /* «Проект» (КВ-93): на «Графике» стоит предварительный график от плановой даты — плитка
+       говорит о нём, а не «строится от фактической даты»: иначе шапка и вкладка спорят. */
+    const proj = c.lifecycle === 'Проект';
+    const projHas = proj && c.tranches.some(t => projectedSchedule(c, t));
     if (!nx)
       return dimTile(title,
-        '<span style="font-size:14px;color:var(--text-muted);font-weight:400">Нет позиций</span>',
-        (d.disbursed === 0 ? 'график строится от фактической даты освоения'
-                           : 'все позиции графика погашены')
+        /* «Нет позиций» рядом с предварительным графиком на вкладке читалось как противоречие:
+           позиции есть, платить по ним нечего — кредит ещё не выдан (ревью 15.10.2026). */
+        `<span style="font-size:14px;color:var(--text-muted);font-weight:400">${proj ? 'Платить нечего' : 'Нет позиций'}</span>`,
+        (projHas ? 'до освоения; график предварительный — от плановой даты освоения'
+         : proj ? 'график появится, когда у транша будут сумма и плановая дата'
+         : d.disbursed === 0 ? 'график строится от фактической даты освоения'
+                             : 'все позиции графика погашены')
         + (term ? '<br>' + term : ''));
     return dimTile(title, money(nx.total) + cur,
       `дата платежа <b style="font-weight:var(--weight-bold)">${esc(nx.date)}</b>` + (term ? '<br>' + term : ''));
@@ -10054,9 +10143,10 @@ if (typeof document !== 'undefined') {
         ${tileNextPay(c,d)}
         ${dimTile(`Категория риска ${infoBtn('CR.openCategoryInfo()','Основание')}`, `<span class="cat-${catClsOf(d.riskCategory)}">${esc(d.riskCategory)}</span>`)}
         ${tileCoverage(c,d)}
-        ${/* КВ-82 (ADR-0299 §1): правка суммы на месте — только в «Проекте»; после регистрации
-              поле только для чтения. */''}
-        ${dimTile(`Сумма договора ${c.lifecycle==='Проект'?roleIconBtn('saveContractAmount','Изменить сумму договора','CR.openContractAmountModal()',svgPencil()):''}`,
+        ${/* КВ-82 (ADR-0299 §1): карандаша на плитке нет ни на какой стадии. В «Проекте» сумму
+              правит форма «Договора» (одна дверь, «Сохранить» / «Отмена»); карандаш здесь был второй
+              дверью мимо формы. После регистрации сумма только для чтения. */''}
+        ${dimTile(`Сумма договора`,
           money(c.contractAmount) + ` <span style="font-size:13px;color:var(--text-muted);font-weight:400">${esc(c.currency)}</span>`,
           `освоено <b>${money(d.disbursed)}</b> (${pctDisb(c,d)}%)`
           + (c.currency !== 'KGS' ? `<br>≈ <b>${money0(toKgs(c.contractAmount, c.currency))} KGS</b>` : ''))}
@@ -10131,7 +10221,7 @@ if (typeof document !== 'undefined') {
       <div class="pcards">
         <div class="pcard">
           <div class="section-h" style="display:flex;align-items:center;justify-content:space-between">Реквизиты договора
-            ${draft?'':roleIconBtn('editContractRequisites','Исправить № и дату договора — ошибка ввода','CR.openContractRequisitesModal()',svgPencil())}</div>
+            ${draft?'':roleIconBtn('fixContractRequisites','Исправить № и дату договора — ошибка ввода','CR.openContractRequisitesModal()',svgPencil())}</div>
           <div class="f2">
             ${formReq ? inFld('№ договора', `<input id="dgNum" value="${esc(c.num)}">`) : fld('№ договора', esc(c.num))}
             ${formReq ? inFld('Дата договора', `<input id="dgDate" type="date" value="${esc(toISO(c.date))}">`) : fld('Дата договора', esc(c.date))}
@@ -10227,7 +10317,7 @@ if (typeof document !== 'undefined') {
     const trMark = multiTr(c) && g.trancheNos.length <= 1;
     const line = i => `<div class="cdiff-row"><span class="cdiff-p">${esc(paramLabel(i.param))}${
         i.trancheNo==null ? (multiTr(c)?' · кредит':'') : (trMark?' · №'+i.trancheNo:'')}:</span>
-      <span class="diff-old">${esc(i.from===undefined||i.from===''?'—':i.from)}</span> → <span class="diff-new">${esc(i.to)}</span>${
+      <span class="diff-old">${esc(condValText(i.param,i.from))}</span> → <span class="diff-new">${esc(condValText(i.param,i.to))}</span>${
         i.effectiveFrom!==g.effectiveFrom?` <span class="cdiff-note">с ${esc(i.effectiveFrom)}</span>`:''}${
         i.note?` <span class="cdiff-note">— ${esc(i.note)}</span>`:''}</div>`;
     const list = items => `<div class="cdiff">${items.map(line).join('')}</div>`;
@@ -10284,7 +10374,7 @@ if (typeof document !== 'undefined') {
     const unitOf=k=>{ const m=String(paramLabel(k)).match(/, (%\/дн|%|мес\.)$/); return m?' '+m[1]:''; };
     const nextRec=(recs,param)=>(recs||[])
       .filter(r=>r.param===param && r.effectiveFrom && pd(r.effectiveFrom)>pd(cardAsOf)).sort(crOrder)[0];
-    const nextMark=(r,param,pre)=>r ? ` <span class="pill info cond-next" title="${jsAttr('Ещё не вступило: '+(r.basis.label||docOf(r,true))+(r.note?' — '+r.note:''))}">${esc(pre||'')}${esc(r.value)}${esc(unitOf(param))} с ${esc(r.effectiveFrom)} · ${esc(docOf(r,true))}</span>` : '';
+    const nextMark=(r,param,pre)=>r ? ` <span class="pill info cond-next" title="${jsAttr('Ещё не вступило: '+(r.basis.label||docOf(r,true))+(r.note?' — '+r.note:''))}">${esc(pre||'')}${esc(condValText(param,r.value))}${esc(unitOf(param))} с ${esc(r.effectiveFrom)} · ${esc(docOf(r,true))}</span>` : '';
     /* По кредиту: одинаковое будущее у всех действующих траншей — одна пометка; иначе по
        траншу с номером (у однотраншевого номера нет, КВ-70). */
     const nextFor=(param)=>{
@@ -10301,20 +10391,20 @@ if (typeof document !== 'undefined') {
       const st = storedScopeTranche(c);
       if (st){
         const v=conditionsAt(st,cardAsOf)[param];
-        return `<div class="val">${esc(v===undefined?'—':v)}${nextFor(param)}</div>${srcLine(st,param)}`;
+        return `<div class="val">${esc(condValText(param,v))}${nextFor(param)}</div>${srcLine(st,param)}`;
       }
       const agg=creditConditionsAt(c,cardAsOf)[param]||{};
       if (agg.divergent){
-        const list=agg.values.map(v=>esc(v.value)).join(' / ');
+        const list=agg.values.map(v=>esc(condValText(param,v.value))).join(' / ');
         return `<div class="val">${list} <span class="pill mid" style="cursor:pointer" onclick="CR.scrollToDivergence()"
           title="Значения различаются по траншам — см. «Расхождения по траншам»">⚠ расх.</span></div>
-          <span class="src">${agg.values.map(v=>'№'+v.trancheNo+': '+esc(v.value)).join(' · ')}</span>`;
+          <span class="src">${agg.values.map(v=>'№'+v.trancheNo+': '+esc(condValText(param,v.value))).join(' · ')}</span>`;
       }
       const actives=c.tranches.filter(activeTranche);
       const t0=actives[0]||c.tranches[0];
       const refs=[...new Set(actives.map(t=>{ const r=recFor(t,param); return r?(r.basis.ref||''):''; }).filter(Boolean))];
       const basisLine = refs.length>1 ? '<span class="src">несколько оснований</span>' : (t0?srcLine(t0,param):'');
-      return `<div class="val">${esc(agg.value===undefined?'—':agg.value)}${nextFor(param)}</div>${basisLine}`;
+      return `<div class="val">${esc(condValText(param,agg.value))}${nextFor(param)}</div>${basisLine}`;
     };
     const cf=(param)=>`<div class="field"><span class="flabel">${esc(paramLabel(param))}</span>
       <div class="lookup cond-lookup">${condCell(param)}</div></div>`;
@@ -10331,7 +10421,7 @@ if (typeof document !== 'undefined') {
       const v=creditOwnConditionsAt(c,cardAsOf)[param];
       return `<div class="field"><span class="flabel">${esc(creditParamLabel(param))}</span>
         <div class="lookup cond-lookup">
-          <div class="val">${esc(v===undefined||v===''?'—':v)}${nextMark(nextRec(c.conditionRecords,param),param)}</div>${srcOf(r)}</div></div>`; };
+          <div class="val">${esc(condValText(param,v))}${nextMark(nextRec(c.conditionRecords,param),param)}</div>${srcOf(r)}</div></div>`; };
     /* ПОЛЕ ФОРМЫ «ПРОЕКТА» (КВ-82) — по описанию параметра из PARAMS / CREDIT_PARAMS: те же
        kind и options, что у окна изменения условий, без предпросмотра «было → станет» (было у
        проекта нет). Значение — из шаблона baseConditions: его правит editConditions, первичный
@@ -10578,7 +10668,7 @@ if (typeof document !== 'undefined') {
                 : `<div style="color:var(--text-muted);font-size:11px;margin-bottom:4px">приложение: ${plur(rows.length,'позиция','позиции','позиций')}
                      на ${money(moved)}${multiTr(c)?' с транша №'+ds.sourceTranche:''}, с ${esc(ds.effectiveFrom)}</div>`
                   + actBtn(c,'applyDs',{ds},'Применить ДС',`CR.applyDsByNum('${jsAttr(a.num)}')`,'btn btn-primary btn-sm');
-              return `<tr><td>ДС ${esc(a.num)}</td><td>${esc(a.date)}</td><td>${esc(a.source||'—')}</td>
+              return `<tr><td>${esc(/^ДС/.test(a.num) ? a.num : 'ДС № ' + a.num)}</td><td>${esc(a.date)}</td><td>${esc(a.source||'—')}</td>
                 <td>${a.scan?esc(a.scan):'—'}</td><td>${cell}</td></tr>`; });
             return `<div class="section-h" style="margin-top:16px;font-size:13px">Документы без изменения условий</div>
               <p class="section-note">Зарегистрированы, но ни одна запись условий на них не ссылается.</p>
@@ -10613,7 +10703,7 @@ if (typeof document !== 'undefined') {
               const trs=PARAMS.filter(p=>keys.includes(p.key)).map(p=>{
                 const cells=dates.map(d=>{ const hit=zr.filter(x=>x.r.param===p.key && x.r.effectiveFrom===d);
                   if(!hit.length) return '<td style="color:var(--text-placeholder)">·</td>';
-                  const vals=[...new Set(hit.map(x=>String(x.r.value)))].join(' / ');
+                  const vals=[...new Set(hit.map(x=>condValText(p.key,x.r.value)))].join(' / ');
                   return `<td>${esc(vals)}<br><span class="src">${esc(hit[0].r.basis.ref||'')}</span></td>`; }).join('');
                 return `<tr><td>${esc(p.label)}</td>${cells}</tr>`; });
               return `<div><div class="section-h" style="font-size:13px;margin-bottom:6px">${esc(title)}</div>
@@ -11303,6 +11393,17 @@ if (typeof document !== 'undefined') {
         <b>Предварительный график.</b> Освоения ещё нет — график построен из условий проекта от
         ${src} на сумму транша и пересобирается при каждой правке условий. После регистрации
         график строится от даты первого освоения. Статусов нет — платить пока нечего.</div></div>`; })();
+    /* ПУСТО — ОДНОЙ СТРОКОЙ (ADR-0299 §9). Позиций нет ни в действующей, ни в предварительной
+       версии, версий нет — шесть плиток нулей и пустая таблица не рисуются. В «Проекте» с
+       суммой и плановой датой сюда не попадаем: предварительный график стоит таблицей (КВ-93). */
+    if (!posSrc.length && !viewing && !needsCtx){
+      const whose = (sel && multiTr(c)) ? ' по траншу №' + sel.no : '';
+      return `<div class="section-h">График погашения</div>
+        ${noneLine(c.lifecycle==='Проект'
+          ? `Графика${whose} нет — построится сам, когда у транша будут сумма и плановая дата`
+          : `Графика${whose} нет — построится сам от даты первого освоения`)}
+        ${(d.fee&&d.fee.applies)?`<p class="section-note">Плата за неосвоенный остаток идёт своим графиком — область <b>«Транш платы»</b>. Начислено платы на ${esc(cardAsOf)} — <b>${money(d.fee.accrued)}</b>.</p>`:''}`;
+    }
     return `
       ${!d5Flags.length ? '' : `<div class="warn-inline">${svgInfo()}<div>
           Условия изменены задним числом (с ${esc(d5Flags[0].effectiveFrom)}, ${esc(d5Flags[0].basisLabel)}).
@@ -11429,6 +11530,19 @@ if (typeof document !== 'undefined') {
        кончился, а остаток, если он есть у «Расторгнут», — предмет взыскания, не взнос. Плитка
        «К оплате» его показывает подписью «расчёт остановлен», без призыва внести. */
     const hasOv = !isTerminal(c) && ov.sum > 0.005;
+    /* ПУСТО — ОДНОЙ СТРОКОЙ (ADR-0299 §9). Шапка «Графика нет / прогнозировать нечего» над
+       пустой таблицей «Ожидаемые платежи» — таблица пустоты; у закрытого кредита — то же самое
+       про дату закрытия. В «Проекте» графика нет только для прогноза: предварительный график
+       стоит на «Графике», и строка туда отсылает, а не говорит «графика нет» (КВ-93). */
+    if (isTerminal(c))
+      return noneLine(`Кредит закрыт ${(c.closure && c.closure.date) || d.calcUntil} — ожидать нечего`);
+    if (noGraf && !hasOv){
+      const anyDisb = srcTranches.some(t => (t.disbursements || []).length);
+      return noneLine(c.lifecycle === 'Проект'
+        ? 'Прогноза нет до первого освоения — предварительный график на вкладке «График»'
+        : anyDisb ? 'Прогноза нет — графика нет'
+        : `Прогноза нет — ${sel && multiTr(c) ? 'по траншу №' + sel.no + ' ' : ''}освоений не было, график построится сам от даты первого освоения`);
+    }
     /* ОТСЕЧЁННЫЕ ДОСРОЧКОЙ ПОЗИЦИИ — свойство ДАТЫ закрытия, а не отдельный факт: они и есть
        причина, по которой дата уехала влево. Прежде стояли самостоятельным пунктом строки-
        контекста и читались как ещё один ответ вкладки. */
@@ -11609,7 +11723,7 @@ if (typeof document !== 'undefined') {
        остаётся НАЗВАННЫМ («в конце срока» даёт тело 0,00 во всех позициях, кроме последней). */
     const posRow = r => `<tr><td>${esc(r.date)}</td>
         ${R(money(r.principal))}
-        ${R(money(r.interest), Math.abs(r.interest - r.interestCtr) > 0.005 ? { t:'по графику процентов '+money(r.interestCtr)+' — разница на непогашенном теле' } : null)}
+        ${R(money(r.interest), Math.abs(r.interest - r.interestCtr) > 0.005 ? { t:'по графику процентов '+money(r.interestCtr)+' — остаток тела меньше графика (погашено досрочно)' } : null)}
         ${dash}${hasFee?dash:''}
         ${R(money(r.forecast), { b:1, t: r.parts.length > 1 ? r.parts.map(x => 'транш №'+x._t.no+' — '+money(x.forecast)).join(' · ') : '' })}</tr>`;
     const rws = [];
@@ -11646,7 +11760,7 @@ if (typeof document !== 'undefined') {
           fut.length ? `<span class="fc-sub">${prognozShowAll ? plur(fut.length,'позиция','позиции','позиций') + ' впереди'
             : `показаны ближайшие ${plur(winDates.size,'дата','даты','дат')} из ${futDates.length} · итог по всем ${fut.length}`} — ${money(sm.futSum)}</span>` : ''}</td>
         ${R(money(round2(ov.p + sm.futPrincipal + rest.p)), { b:1 })}
-        ${R(money(round2(ov.i + sm.futInterest + rest.i)), { b:1, t: fut.length ? 'будущие проценты '+money(sm.futInterest)+', из них сверх графика '+(sm.extraInterest>0?'+':'')+money(sm.extraInterest)+' — цена непогашенного тела' : '' })}
+        ${R(money(round2(ov.i + sm.futInterest + rest.i)), { b:1, t: fut.length ? 'будущие проценты '+money(sm.futInterest)+' — по графику, если просрочку внесут сейчас'+(Math.abs(sm.extraInterest)>0.005?'; меньше графика на '+money(-sm.extraInterest)+' — тело погашено досрочно':'') : '' })}
         ${R(money(round2(ov.n + rest.n)), { b:1 })}${hasFee?R(money(round2(ov.f + rest.f)), { b:1 }):''}
         <td style="text-align:right"${cond?` title="${jsAttr('условия читаются на дату позиции, и датированные записи после '+cardAsOf+' уже в реестре: их эффект — '+(sm.condEffect>0?'+':'')+money(sm.condEffect))}"`:''}><b>${money(total)}</b>${cond?'<span class="gcnt">*</span>':''}</td></tr>`);
     }
@@ -11671,7 +11785,7 @@ if (typeof document !== 'undefined') {
       ${cgrid([
         {h:'Дата',t:'первая строка — просрочка на сегодня одной суммой по статьям, как плитка «К оплате»; дальше будущие даты графика. Наступившие позиции построчно — в «Расчётах»'},
         {h:'Основной долг',r:1,t:'тело позиции — КОНТРАКТНОЕ: график есть расписание тела и от факта не растягивается. Досрочка не уменьшает тело каждой позиции — она гасит хвостовые целиком'},
-        {h:'Проценты',r:1,t:'проценты на ФАКТИЧЕСКОЕ непогашенное тело: пока висит просрочка, они выше графика, разница — подсказкой на сумме'},
+        {h:'Проценты',r:1,t:'проценты будущих дат — по графику: на тело после погашения просрочки из первой строки. Если тело погашено досрочно, они меньше графика — разница подсказкой на сумме'},
         {h:'Пеня',r:1,t:'только начисленная на сегодня — в строке просрочки. Во взнос будущей даты пеня не входит и после сегодня не прогнозируется'}]
         .concat(hasFee ? [{h:'Сборы и комиссии',r:1}] : [])
         .concat([{h:'Итого',r:1,t:'сумма статей строки. У будущей даты — основной долг + проценты'}]), rws,
@@ -11683,6 +11797,13 @@ if (typeof document !== 'undefined') {
   function tabRaschety(c,d){
     const sel=scopeTranche(c);
     const isFee=scopeIsFee(c);                        // КВ-72: область «Транш платы»
+    /* ПУСТО — ОДНОЙ СТРОКОЙ (ADR-0299 §9). До первого освоения считать нечего: свод из нулей и
+       пустой лист с полем даты над ними — таблица пустоты. Плата за неосвоенный остаток идёт и
+       без освоения (ADR-0134) — тогда расчёт есть, и вкладка рисуется целиком. */
+    if (!isFee && !(d.disbursed > 0.005) && !(d.debtBalance > 0.005)
+        && !(d.fee && d.fee.applies && d.fee.accrued > 0.005)
+        && !(d.ledger.dateSheet || []).some(s => (s.rows || []).length))
+      return noneLine('Расчёта нет — освоений не было');
     /* Валютных переменных у вкладки больше нет: приведений к сому она не делает ни одного
        (плитки сняты), а курс — реквизит «Состава». Мультивалюта видна на своих вкладках. */
     const repaid=DEBT_ARTICLES.reduce((a,x)=>a+d.debt[x.key].paid,0);
@@ -11705,7 +11826,10 @@ if (typeof document !== 'undefined') {
            вкладки остаются на сегодня (renderTab); уход с «Расчётов» возвращает сегодня. */''}
       <div class="section-h" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <span>Свод по кредиту на ${esc(d.calcUntil)}${d.calcStopped?' — расчёт остановлен':''}</span>
-        <div class="control" style="width:132px"><input type="date" class="asof-date" title="Дата свода и детального расчёта" value="${esc(cardAsOf.split('.').reverse().join('-'))}" onchange="CR.setCardAsOf(this.value.split('-').reverse().join('.'))"></div>
+        ${/* Расчёт остановлен (кредит закрыт) — в поле дата остановки, та же, что в заголовке:
+             «на 20.06.2026 — расчёт остановлен» рядом с полем «23.07.2026» читалось как две
+             разные даты свода. Выбрать дату раньше закрытия по-прежнему можно. */''}
+        <div class="control" style="width:132px"><input type="date" class="asof-date" title="Дата свода и детального расчёта" value="${esc((d.calcStopped ? d.calcUntil : cardAsOf).split('.').reverse().join('-'))}" onchange="CR.setCardAsOf(this.value.split('-').reverse().join('.'))"></div>
         ${cardAsOf!==TODAY?`<button class="btn btn-secondary btn-sm" onclick="CR.setCardAsOf('${TODAY}')">на сегодня</button>`:''}
       </div>
       ${/* Плашка «Кредит закрыт …» снята волной 14.08.2026: тот же факт называли три места
@@ -11809,11 +11933,14 @@ if (typeof document !== 'undefined') {
              пени при 63 553,86 числившихся; без этой строки 16 775,65 пропадали молча, а
              безветочная проекция показывала ячейку в минусе. */''}
         ${(d.debt.writeOffExcess||{}).total>0?`<tr><td>Решение назвало сверх числившегося</td><td colspan="2" class="text-muted" style="font:var(--font-label)">решение о безнадёжности назвало по статье больше, чем по ней числилось (${excessParts(d.debt)}): снято только числившееся, разница на баланс не легла и задним числом не досписывается</td><td style="text-align:right">${money(d.debt.writeOffExcess.total)}</td><td></td></tr>`:''}
-        ${d.collectionCosts>0?`<tr><td>Расходы по обращению взыскания ${lockHtml()}</td><td colspan="2" class="text-muted" style="font:var(--font-label)">статья взыскания — в остаток кредита и в гейт «Погашен» не входит</td><td style="text-align:right">${money(d.collectionCosts)}</td><td></td></tr>`:''}
+        ${d.collectionCosts>0?`<tr><td>Расходы по обращению взыскания ${lockHtml()}</td><td colspan="2" class="text-muted" style="font:var(--font-label)">статья взыскания — в остаток кредита и в проверку закрытия «Погашен» не входит</td><td style="text-align:right">${money(d.collectionCosts)}</td><td></td></tr>`:''}
         ${(d.debt.interest.frozen>0||d.debt.penalty.frozen>0)?`<tr><td>Приостановлено решением суда</td><td colspan="2" class="text-muted" style="font:var(--font-label)">начислению по договору подлежало, но на присуждённую долю начисление остановлено (проценты ${money(d.debt.interest.frozen)} · пеня ${money(d.debt.penalty.frozen)}) — в остаток не входит</td><td style="text-align:right">${money(round2(d.debt.interest.frozen+d.debt.penalty.frozen))}</td><td></td></tr>`:''}
         ${d.debt.penalty.disputed>0?`<tr><td>Спорная пеня</td><td colspan="2" class="text-muted" style="font:var(--font-label)">пеня за период сторнированного платежа: вычислена, но до решения комиссии в требование не входит и категорию не двигает</td><td style="text-align:right">${money(d.debt.penalty.disputed)}</td><td></td></tr>`:''}
-        ${d.overpay.total>0?`<tr><td>Переплата</td><td colspan="2" class="text-muted" style="font:var(--font-label)">разнесено больше, чем начислено${d.overpay.interest>0?' (проценты '+money(d.overpay.interest)+')':''} — идёт обратной очередью ОД → проценты → штрафы → возврат заёмщику; правило принадлежит модулю платежей</td><td style="text-align:right">${money(d.overpay.total)}</td><td></td></tr>`:''}
-      </tbody></table></div>`;
+        ${/* ПЕРЕПЛАТА — СТРОКОЙ ПОД СВОДОМ, а не строкой-исключением в нём: длинная подпись в
+             colspan сжимала колонки свода (K-6). В таблице её числу места нет — в остаток она
+             не входит и колонки «Остаток» не касается. */''}
+      </tbody></table></div>
+      ${d.overpay.total>0?`<p class="section-note" style="margin-top:8px">Переплата <b>${money(d.overpay.total)}</b> — разнесено больше, чем начислено${d.overpay.interest>0?' (проценты '+money(d.overpay.interest)+')':''}: идёт обратной очередью ОД → проценты → штрафы → возврат заёмщику; правило принадлежит модулю платежей.</p>`:''}`;
     /* ДЕТАЛЬНЫЙ РАСЧЁТ — ОДИН ЛИСТ, ОСЬ «ПО ДАТАМ» (КВ-64, решение владельца 16.08.2026).
        Ось — КРИТИЧЕСКАЯ ДАТА: строка несёт событие и период ПОСЛЕ него, и произведение
        «База × Ставка × Дней» сходится в ней глазом (ADR-0129 в этой части в силе).
@@ -11853,8 +11980,8 @@ if (typeof document !== 'undefined') {
        три таблицы с разными шапками, и читатель сравнит несравнимое. Выбран транш — набор
        честно сужается вместе с ним: у производного транша «Освоено» исчезает, и прочерк,
        который прежде надо было объяснять, объяснять больше не приходится.
-       «По графику» и «Погашено» в правило НЕ входят — хребет листа: ноль в них значим
-       («срок не наступил», «не платили»), а не пуст. */
+       С КВ-96 правило общее для всех колонок-потоков, включая «По графику» и «Погашено»
+       (pruneEmpty ниже): прочерк на всю высоту — тоже «показывать нечего». */
     const any = (f) => sheets.some(s => s.rows.some(f));
     const hasAcc  = any(r => (r.accDue||0)   > 0.005 || (r.runAcc||0)  > 0.005);
     const hasDisb = any(r => (r.disb||0)     > 0.005 || (r.runDisb||0) > 0.005);
@@ -12040,7 +12167,23 @@ if (typeof document !== 'undefined') {
       run: !!(opt && opt.run), ans: !!(opt && opt.ans), tdTitle: opt && opt.tdTitle,
       sum: opt && opt.sum, last: opt && opt.last, end: opt && opt.end,
       fmt: (opt && opt.fmt) || num });
-    const odAll = [
+    /* КОЛОНКИ БЕЗ ЧИСЕЛ СКРЫТЫ (КВ-96, решение владельца 15.10.2026). Колонка-ПОТОК (у неё
+       есть итог `sum`: освоено, по графику, погашено, начислено, пеня за отрезок), у которой по
+       листам области нет ни одного числа, печатала бы прочерк в каждой строке и итоге — у К-4
+       без платежей это три «Погашено» подряд, и лист вылезал за ширину экрана. Её нарастающий
+       итог (следующая колонка «Нарастающим» в разборе) уходит вместе с ней — он был бы нулём на
+       всю высоту. Прежнее исключение «По графику» и «Погашено» как хребта листа снято этим
+       решением. Колонки-СОСТОЯНИЯ («Остаток», «Просрочено») остаются: 0,00 в них — ответ.
+       Параметры отрезка (run: «Дней», ставки) правилом не трогаются — они деталь разбора. */
+    const pruneEmpty = arr => { const out = []; let dropRun = false;
+      for (const cl of arr){
+        if (dropRun && cl.run && cl.label === 'Нарастающим'){ dropRun = false; continue; }
+        dropRun = false;
+        if (cl.sum && !cl.run && !sheets.some(s => s.rows.some(r => Math.abs(cl.sum(r) || 0) > 0.005))){ dropRun = true; continue; }
+        out.push(cl);
+      }
+      return out; };
+    const odAll = pruneEmpty([
       hasDisb && col('Освоено', 'выдано заёмщику в эту дату: проценты с неё идут на фактическое тело', r => num(r.disb),
         {sum: r => r.disb}),
       hasDisb && col('Нарастающим', 'выдано с начала транша по эту строку включительно', r => state(r.runDisb), {run:true, last:true}),
@@ -12076,8 +12219,8 @@ if (typeof document !== 'undefined') {
         r => state(r.base == null ? endBal(r) : r.base), {last:true, ans:true}),
       col('Просрочено', 'тело, срок которого наступил и не покрыт — база пени по основному долгу. Минус — аванс: погашено больше, чем график потребовал к этой дате', overdueCell,
         {last:true, ans:true, end: r => overdueCell(r, endOvdP(r))}),
-    ].filter(Boolean);
-    const intAll = [
+    ].filter(Boolean));
+    const intAll = pruneEmpty([
       /* СТАВКА И ДНИ — ДЕТАЛЬ, А НЕ ВЕЛИЧИНА (КВ-67, владелец 17.08.2026: «колонки ставка
          и дней скрыть, показывать при нажатии на кнопку детали»). Обе отвечают не «сколько
          должен», а «из чего получено соседнее „Начислено“»: они множители произведения
@@ -12125,7 +12268,7 @@ if (typeof document !== 'undefined') {
         : state(r.intLeft), {last:true, ans:true}),
       col('Просрочено', 'проценты, срок которых наступил и не покрыт — вторая база пени. Минус — аванс: разнесено больше, чем график потребовал к этой дате', overdueICell,
         {last:true, ans:true, end: r => overdueICell(r, endOvdI(r))}),
-    ].filter(Boolean);
+    ].filter(Boolean));
     /* СТАВКА ПЕНИ В ЯЧЕЙКЕ — ПРИМЕНЁННАЯ, А НЕ ОБЪЯВЛЕННАЯ (КВ-73). Лист обещает
        проверяемое произведение «база × ставка × дней = начислено», и обещание держится
        только на той ставке, по которой начисление шло на самом деле, — на взвешенной,
@@ -12144,7 +12287,7 @@ if (typeof document !== 'undefined') {
       if (!got && !cond) return dash;
       if (Math.abs(got - cond) < 0.00005) return got ? esc(txt(got)) : dash;
       return `<span class="warn-badge" title="${jsAttr('условия на начало отрезка называют ' + txt(cond)
-        + ', а начисление шло по ' + txt(got) + ' — расходиться они не должны: после КР-64 обе величины читают условия транша на одну и ту же дату. Расхождение здесь означает ошибку расчёта, а не особенность договора; «Начислено» рядом посчитано по показанной ставке')}">${esc(txt(got))} ≠ ${esc(txt(cond))}</span>`;
+        + ', а начисление шло по ' + txt(got) + ' — расходиться они не должны: обе величины читают условия транша на одну и ту же дату. Расхождение здесь означает ошибку расчёта, а не особенность договора; «Начислено» рядом посчитано по показанной ставке')}">${esc(txt(got))} ≠ ${esc(txt(cond))}</span>`;
     };
     /* БЛОК ПЕНИ РАЗБИРАЕТСЯ ДО МНОЖИТЕЛЕЙ (КВ-73, запрос владельца 17.08.2026: «количество
        дней, ставка делим на два… начислено за просрочку основной суммы и процентов отдельно
@@ -12170,7 +12313,7 @@ if (typeof document !== 'undefined') {
        двенадцатой колонкой разбор пени становился шире листа у однотраншевого кредита.
        В МОДЕЛИ цена дня осталась (`penPerDay`): на ней стоит тождество «цена дня × дней =
        начислено» проверки №165, и снимать проверяемость ради показа незачем. */
-    const penAll = [
+    const penAll = pruneEmpty([
       col('Просрочено ОД', 'просроченное тело на начало отрезка — первая база пени. То же число, что «Просрочено» в блоке основного долга', r => num(r.penBaseP), {run:true}),
       col('Ставка ОД', 'ставка пени по основному долгу на этом отрезке, % в день. Расхождение со ставкой условий подписано в самой ячейке', r => penRateCell(r, 'p'),
         {run:true}),
@@ -12195,7 +12338,7 @@ if (typeof document !== 'undefined') {
          блок пени — один столбец, а правило звучит «до колонок-ответов, сколько их есть», а
          не «до пары». */
       col('Остаток', 'пеня нарастающим − погашено нарастающим − списано нарастающим', r => state(r.penLeft), {last:true, ans:true}),
-    ].filter(Boolean);
+    ].filter(Boolean));
     /* СОСТАВ БЛОКА — ТРИ СОСТОЯНИЯ, А НЕ ДВА (КВ-68). Умолчание (никого не разбирают) —
        прежний свёрнутый лист: всё, кроме деталей. Разбираемая статья — целиком. Соседняя —
        только колонки-ответы. Порядок ветвей важен: `calcDetail === block` проверяется до
@@ -12345,7 +12488,7 @@ if (typeof document !== 'undefined') {
         <button class="btn btn-secondary btn-sm" onclick="CR.setCalcYears([${allYOpen?'':allYears.join(',')}])">${allYOpen?'Свернуть все годы':'Развернуть все годы'}</button>
       </div>`:''}
       ${sheets.map(sheetHtml).join('')}`
-      : `<div class="cgrid-wrap"><table class="cgrid"><tbody><tr><td><div class="cgrid-empty">На дату среза ${esc(cardAsOf)} не наступила ни одна позиция графика — считать нечего</div></td></tr></tbody></table></div>`;
+      : noneLine(`На ${cardAsOf} не наступила ни одна позиция графика — считать нечего`);   // ADR-0299 §9
 
     /* ПЛАТА ЗА НЕОСВОЕННЫЙ ОСТАТОК (КВ-72; ADR-0132, ADR-0134). Здесь стоял блок «Резерв за
        неполное освоение» — плитка в стороне от расчёта: своя база (потраншевая), свой
@@ -12537,7 +12680,7 @@ if (typeof document !== 'undefined') {
             .concat(hasFee?[{h:'Комиссия',r:1}]:[]).concat([{h:'Источник'},{h:'Состояние'}]), payRows.concat([payTot]))
         : noneLine('Платежей нет', manualBtn)}
       ${payLegend}
-      <div class="mirror-src">Источник: модуль платежей. Ручной ввод — вызов формы владельца: ему основанием служит список ЦК, поэтому до сверки он остатки не двигает. Разнесение — всегда в валюте кредита; сумма — реквизит поступления, курс читается из справочника НБ на его дату (ADR-0061/0090).
+      <div class="mirror-src">Источник: модуль платежей. Ручной ввод — вызов формы владельца: ему основанием служит список ЦК, поэтому до сверки он остатки не двигает. Разнесение — всегда в валюте кредита; сумма — реквизит поступления, курс читается из справочника НБ на его дату.
         <b>Строка открывает карточку платежа:</b> трактовка (разбивка, режим остатка, сопоставление, спорная пеня) правится в ней; факт денег — сторно, перепривязка, корректировка суммы по ЦК, заморозка — только в модуле платежей.</div>
       <div class="gtoolbar" style="margin-top:12px">
         ${pays.length?manualBtn:''}
@@ -12631,19 +12774,24 @@ if (typeof document !== 'undefined') {
            снята волной 11.08.2026 (третья): итоговая строка таблицы называет ту же сумму.
            Свод, с которым её сверяют, с КВ-71 живёт только на «Расчётах» — здешняя его
            копия снята секцией выше, и слова «выше» из подписи ушли вместе с ней. */
+        /* ПУСТО — ОДНОЙ СТРОКОЙ (ADR-0299 §9): таблица из одной строки-подписи не рисуется.
+           Заголовок секции стоит всегда — очередь публикуется на каждом кредите (ADR-0060 §4). */
+        const noDisb = !(d.disbursed > 0.005);
+        const emptyTxt = tail.length ? 'Просроченного нет'
+          : noDisb ? 'Очереди нет — освоений не было' : 'Непогашенного нет';
         return `
       <div class="section-h" style="margin-top:22px;display:flex;align-items:center;justify-content:space-between;gap:12px"><span>Очередь погашения <span class="pill info">отдаётся в ПЛАТЕЖИ</span></span>
         ${tail.length?`<button class="btn btn-secondary btn-sm" onclick="CR.toggleQueueTail()" title="${jsAttr(queueTailOpen
             ? 'свернуть хвост: в перечне останутся только наступившие строки — те, что идут в разнесение платежей'
             : 'показать ненаступившие строки: '+tail.length+' на '+money(tailSum)+'. В разнесение платежей они не идут; чтобы погасить будущий взнос досрочно, куратор выбирает его явным действием')}"
           >${queueTailOpen?'Только наступившее':`Ненаступившее (${tail.length} · ${money(tailSum)})`}</button>`:''}</div>
-      <p class="section-note">Непогашенное ${when}. Порядок один — по дате наступления${showTr?', независимо от того, чей это транш':''};
+      ${!q.rows.length ? noneLine(emptyTxt) : `<p class="section-note">Непогашенное ${when}. Порядок один — по дате наступления${showTr?', независимо от того, чей это транш':''};
         внутри даты — по очерёдности статей${q.rows.some(r=>r.fee)?', а внутри статьи плата стоит последней — она производна от всех траншей':''}. Показаны наступившие строки — те, что идут в разнесение платежей
 ; ненаступившее открывается кнопкой и в разнесение не попадает.${d.calcProvisional
           ? ` <b>Расчёт предварительный:</b> снимок зеркала платежей от ${esc(d.paymentsAsOf)} старше даты расчёта — хвост очереди посчитан по платежам, которых владелец ещё не прислал.`
           : ''}</p>
-      ${cgrid([{h:'Срок'},{h:'Слой'}].concat(showTr?[{h:'Транш'}]:[]).concat([{h:'Статья'},{h:'Сумма',r:1}]),
-              body, {empty:tail.length?'Просроченного нет':'Непогашенного нет'})}`;
+      ${body.length ? cgrid([{h:'Срок'},{h:'Слой'}].concat(showTr?[{h:'Транш'}]:[]).concat([{h:'Статья'},{h:'Сумма',r:1}]), body)
+                    : noneLine(emptyTxt)}`}`;
       })()}
 
       <div class="section-h" style="margin-top:22px">Счета и код оплаты</div>
@@ -12653,9 +12801,13 @@ if (typeof document !== 'undefined') {
         ${/* КВ-89/КВ-95: «Код оплаты» живёт здесь (отдельной вкладки нет). Код читают вслух и
               вставляют в платёжное поручение — отсюда «Копировать»; текст кода в узле с id, чтобы
               при отказе буфера его можно было выделить (CR.copyPayCode). */''}
-        ${fld('Код оплаты', c.accounts.payCode
-          ? `<span id="payCodeText">${esc(c.accounts.payCode)}</span> <button class="btn btn-secondary btn-sm" style="margin-left:8px" onclick="CR.copyPayCode()">Копировать</button>`
-          : '')}
+        ${/* Кнопка — РЯДОМ с полем, а не внутри .lookup: правило `.lookup button` (иконка 32 px)
+              сжимало «Копировать» и рисовало его поверх кода («PC-4Копировать»). */''}
+        ${c.accounts.payCode
+          ? `<div class="field"><span class="flabel">Код оплаты</span><div style="display:flex;align-items:center;gap:8px">
+              <div class="lookup" style="flex:1;min-width:0"><span class="val" id="payCodeText">${esc(c.accounts.payCode)}</span></div>
+              <button class="btn btn-secondary btn-sm" onclick="CR.copyPayCode()">Копировать</button></div></div>`
+          : fld('Код оплаты', '')}
       </div>`;
   }
 
@@ -12770,6 +12922,16 @@ if (typeof document !== 'undefined') {
     });
     const pt = pe.total;
     const setPlanBtn = actBtn(c,'setPlan',{rows:[{month:monthKey(now),amount:1}]},'Поставить план','CR.openPlanModal()','btn btn-primary btn-sm');
+    /* ПУСТО — ОДНОЙ СТРОКОЙ (ADR-0299 §9). До первого освоения у кредита нет ни прогноза, ни
+       факта, а плана нет — четыре квартала прочерков под строкой «План не поставлен» были
+       таблицей пустоты. Селектор года тогда тоже не нужен: листать нечего. */
+    const nothing = !(d.disbursed > 0.005) && !showOver
+      && !(c.plan || []).some(p => p.amount != null)
+      && !pe.rows.some(r => r.forecast != null || r.plan != null || (r.fact || 0) > 0.005);
+    if (nothing) return `
+      <div class="section-h">План и его исполнение</div>
+      ${noneLine(c.lifecycle === 'Проект' ? 'Плана нет'
+        : `План на ${pe.year} не поставлен — освоений не было, прогноза и платежей нет`, setPlanBtn)}`;
     return `
       <div class="section-h">План и его исполнение ${derivedHtml()}</div>
       ${/* Абзаца-подсказки над таблицей НЕТ (правило волны 11.08.2026: правило живёт там, где его
@@ -12919,10 +13081,14 @@ if (typeof document !== 'undefined') {
     /* Обследования — работа куратора по графику, поэтому строкой ВСЕГДА, где есть что обследовать (ADR-0299 §9):
        последнее и следующее по графику (график ведёт модуль залога, здесь зеркало mirror.nextInspection). */
     const nextI = (c.mirror.nextInspection && !isTerminal(c)) ? esc(c.mirror.nextInspection) : null;
+    /* Дата следующего — часть исключения §9: без неё строка не отвечает, когда куратору ехать.
+       Нет даты в зеркале — так и сказано («не назначено»); у закрытого кредита обследовать нечего. */
+    const nextTxt = nextI ? `следующее по графику ${nextI}`
+      : isTerminal(c) ? 'кредит закрыт — следующих нет' : 'следующее не назначено';
     const inspLine = insp.length
-      ? `<b>Обследования:</b> последнее ${esc(insp[0].date)} — <span${insp[0].ok?'':' style="color:var(--asubk-red)"'}>${esc(insp[0].res)}</span>${nextI?`; следующее ${nextI}`:''}`
+      ? `<b>Обследования:</b> последнее ${esc(insp[0].date)} — <span${insp[0].ok?'':' style="color:var(--asubk-red)"'}>${esc(insp[0].res)}</span>; ${nextTxt}`
         +` <span class="cov-sub">· ${esc(insp[0].obj)}${insp[0].file?', акт '+esc(insp[0].file):''}</span>`
-      : `<b>Обследований не было</b>${nextI?`; следующее по графику ${nextI}`:''}`;
+      : `<b>Обследований не было</b>; ${nextTxt}`;
     return `
       <div class="section-h">Обеспеченность ${lockHtml()}</div>
       ${/* КВ-98: сверху — ответ в деньгах, под ним расчёт. Девять плиток (три свода + пять показателей)
@@ -12932,7 +13098,7 @@ if (typeof document !== 'undefined') {
           /* Волна 03.08.2026: вердикт остаётся красным — обеспеченности действительно нет. Waiver
              не делает её достаточной, он снимает БЛОКИРОВКУ Г-6/Г-7; подкрашивать вывод
              зелёным значило бы врать о составе обеспечения. */
-          waiverActive?'<span class="cov-sub">гейт снят waiver’ом комиссии — освоение и регистрация возможны</span>':''}</div>
+          waiverActive?'<span class="cov-sub">блокировка снята решением комиссии по залогу — освоение и регистрация возможны</span>':''}</div>
       ${calcHtml}
       <div class="mirror-src">${m?`Источник: модуль залога, снимок ${esc(m.asOf)}. `:''}${esc(cov.source)}</div>
       <div class="section-h" style="margin-top:22px">Договоры и предметы залога ${lockHtml()}</div>
@@ -13052,7 +13218,7 @@ if (typeof document !== 'undefined') {
     return `
       <div class="pcards">
         ${claimBlocks.join('')}
-        ${claimBlocks.length?`<div class="mirror-src" style="grid-column:1 / -1;margin-top:-6px">Источник: модуль взыскания${c.mirror.claimsAsOf?`, снимок ${esc(c.mirror.claimsAsOf)}`:''}. Read-only.${d.collectionCosts>0?` Расходы по обращению взыскания: <b>${money(d.collectionCosts)}</b> — пятая статья долга, собственность взыскания; в остаток кредита и в гейт «Погашен» не входит.`:''}</div>`:''}
+        ${claimBlocks.length?`<div class="mirror-src" style="grid-column:1 / -1;margin-top:-6px">Источник: модуль взыскания${c.mirror.claimsAsOf?`, снимок ${esc(c.mirror.claimsAsOf)}`:''}. Здесь только просмотр.${d.collectionCosts>0?` Расходы по обращению взыскания: <b>${money(d.collectionCosts)}</b> — пятая статья долга, её ведёт модуль взыскания; в остаток кредита и в проверку закрытия «Погашен» не входит.`:''}</div>`:''}
 
         <div class="pcard">
           <div class="section-h">Категория риска — <b class="cat-${catClsOf(d.riskCategory)}">${d.riskCategory}</b> ${derivedHtml()}</div>
@@ -13073,7 +13239,7 @@ if (typeof document !== 'undefined') {
             <div class="row"><span class="ck">Подгруппа:</span> <b>${esc(d.subgroupLabel||'нет данных')}</b></div>
           </div>
           ${grpWord?`<p class="section-note" style="margin:10px 0 0">${esc(GROUP_MEANS[d.group])}</p>`:''}
-          <div class="mirror-src">Считается по всем кредитам заёмщика, не только по этому. Источник: карточка заёмщика, снимок ${esc((c.mirror.borrower||{}).asOf||'—')}. Read-only.</div>
+          <div class="mirror-src">Считается по всем кредитам заёмщика, не только по этому. Источник: карточка заёмщика, снимок ${esc((c.mirror.borrower||{}).asOf||'—')}. Здесь только просмотр.</div>
         </div>
 
         ${(rs.active||rs.count)?`<div class="pcard wide">
@@ -13081,14 +13247,14 @@ if (typeof document !== 'undefined') {
           ${rs.active?`<div class="f4">${fld('Стадия',esc(rs.active.stage))}${fld('Дедлайн',esc(rs.active.deadline))}${rs.active.amount?fld('Сумма реструктуризации',money(rs.active.amount)+(rs.active.currency&&rs.active.currency!=='KGS'?' '+esc(rs.active.currency):'')):''}${fld('Всего заявок',esc(rs.count))}</div>
             <p class="section-note" style="margin:12px 0 0">Реструктуризация последствий не снимает — их снимает запись послабления${rb.relief?`, она действует (см. категорию выше)`:`, сейчас её нет`}.</p>`
             :`<p class="section-note" style="margin:0">Активной реструктуризации нет. Всего заявок: ${rs.count}.</p>`}
-          <div class="mirror-src">Источник: модуль реструктуризации. Read-only — из кредита не заводится.</div>
+          <div class="mirror-src">Источник: модуль реструктуризации. Здесь только просмотр — из кредита заявка не заводится.</div>
           <div class="gtoolbar"><button class="btn btn-secondary btn-sm" onclick="CR.toast('Открытие модуля реструктуризации — вне объёма макета')">Открыть в модуле реструктуризации</button>${rs.active?'':fileRsBtn}</div>
         </div>`:''}
 
         ${courtRows.length?`<div class="pcard wide">
           <div class="section-h">${hasBankruptcy?'Банкротство и судебные решения':'Судебные решения'} ${hasBankruptcy?'<span class="pill high">банкротство</span> ':''}${lockHtml()}</div>
           ${cgrid([{h:'Дата'},{h:'Вид'},{h:'Орган / суд'},{h:'Результат'},{h:'Документ'}], courtRows)}
-          <div class="mirror-src">Источник: модуль взыскания. Read-only.</div>
+          <div class="mirror-src">Источник: модуль взыскания. Здесь только просмотр.</div>
         </div>`:''}
 
         ${(c.factors||[]).length?`<div class="pcard wide">
@@ -13235,6 +13401,11 @@ if (typeof document !== 'undefined') {
     const reqN=d.docs.required.length, okN=d.docs.required.filter(r=>r.ok).length;
     const setPill=`<span class="pill ${okN<reqN?'high':d.docs.complete?'low':'mid'}">комплект собран ${okN} из ${reqN}</span>`;
     const lack=d.docs.required.filter(r=>!r.ok).map(r=>esc(r.kind)+(r.doc?' ('+esc(r.doc.state)+')':''));
+    /* Документ называется в предупреждении один раз (ревью 15.10.2026): обязательный, которого
+       не хватает из-за отказа или просрочки, уже стоит в «Не хватает» с состоянием в скобках —
+       второй список («Отклонены либо просрочены») держит только остальные, не из комплекта. */
+    const lackKinds=new Set(d.docs.required.filter(r=>!r.ok).map(r=>r.kind));
+    const blockedOnly=d.docs.blocked.filter(x=>!lackKinds.has(x.kind));
     const curRows=(c.mirror.curatorship||[]).map(x=>`<tr><td>${esc(x.unit)}</td><td>${esc(x.employee)}</td><td>${esc(x.role)}</td><td>${esc(x.from)}</td><td>${esc(x.to||'—')}</td></tr>`);
     const tu=c.targetUse||{};
     const tuN=(tu.docs||[]).length+(tu.checks||[]).length+(tu.measures||[]).length;
@@ -13249,7 +13420,7 @@ if (typeof document !== 'undefined') {
       <div class="section-h">Документы ${setPill}</div>
       <p class="section-note">Обязательный комплект задаёт кредитная программа <b>${esc(c.origin.programId||'—')}</b> (зеркало: ${prog.req.map(esc).join(' · ')}${prog.opt.length?`; опционально: ${prog.opt.map(esc).join(' · ')}`:''}). Документ, поданный с заявкой, засчитывается в комплект кредита.</p>
       ${d.docs.complete ? ''
-        : `<div class="warn-inline">${svgInfo()}<div>${lack.length?`Не хватает: ${lack.join(' · ')}.`:''}${d.docs.blocked.length?` Отклонены либо просрочены: ${d.docs.blocked.map(x=>esc(x.kind)).join(' · ')}.`:''}${c.lifecycle==='Проект'?' Регистрация договора заблокирована.':''}</div></div>`}
+        : `<div class="warn-inline">${svgInfo()}<div>${lack.length?`Не хватает: ${lack.join(' · ')}.`:''}${blockedOnly.length?` Отклонены либо просрочены: ${blockedOnly.map(x=>esc(x.kind)).join(' · ')}.`:''}${c.lifecycle==='Проект'?' Регистрация договора заблокирована.':''}</div></div>`}
       ${cgrid([{h:'Документ'},{h:'Обязательный'},{h:'Откуда'},{h:'Загружен'},{h:'Файл'},{h:''}], docRows, {empty:'Документов нет'})}
 
       <div class="section-h" style="margin-top:22px">Регистрация договора — файл и пометка</div>
@@ -13354,8 +13525,8 @@ if (typeof document !== 'undefined') {
     const why=steps.flatMap(s=>canRole(currentRole,s.action) ? gate(c,s.action,s.ctx).reasons
                                                              : ['Роль «'+currentRole+'» не может менять это поле']);
     if(why.length){ const box=el('dgFormErr');
-      if(box) box.innerHTML=`<div class="gate-inline">${svgInfo()}<div>нельзя сохранить: ${why.map(esc).join('<br>')}</div></div>`;
-      toast(why.join(' · '),'warn'); return; }
+      if(box) box.innerHTML=`<div class="gate-inline">${svgInfo()}<div>нельзя сохранить: ${why.map(x=>esc(plainReason(x))).join('<br>')}</div></div>`;
+      toast(why.map(plainReason).join(' · '),'warn'); return; }
     steps.forEach(s=>s.run());
     toast('Договор сохранён','ok'); rerenderDetail(); };
   CR.cancelDogovorForm=function(){ rerenderDetail(); };    // «Отмена» — поля заново из кредита
@@ -13380,10 +13551,10 @@ if (typeof document !== 'undefined') {
     const why = canRole(currentRole,'editConditions') ? gate(c,'editConditions',{values}).reasons
                                                       : ['Роль «'+currentRole+'» не может править условия'];
     if(why.length){ const box=document.getElementById('ucFormErr');
-      if(box) box.innerHTML=`<div class="gate-inline">${svgInfo()}<div>нельзя сохранить: ${why.map(esc).join('<br>')}</div></div>`;
-      toast(why.join(' · '),'warn'); return; }
+      if(box) box.innerHTML=`<div class="gate-inline">${svgInfo()}<div>нельзя сохранить: ${why.map(x=>esc(plainReason(x))).join('<br>')}</div></div>`;
+      toast(why.map(plainReason).join(' · '),'warn'); return; }
     const r=CR.editConditions(c,{values});
-    if(!r.ok){ toast((r.reasons||[]).join(' · '),'warn'); return; }
+    if(!r.ok){ toast((r.reasons||[]).map(plainReason).join(' · '),'warn'); return; }
     const rebuilt=c.tranches.map(t=>CR.projectedSchedule(c,t)).filter(Boolean);
     const n=rebuilt.reduce((a,p)=>a+p.rows.length,0);
     toast('Условия сохранены'+(rebuilt.length?' · график пересобран: '+plur(n,'платёж','платежа','платежей'):''),'ok'); rerenderDetail(); };
@@ -13472,7 +13643,7 @@ if (typeof document !== 'undefined') {
     if(!ds){ CR.toast('Приложение к '+num+' не пришло из реструктуризации — применять нечего','warn');
       return { ok:false, reasons:['Приложения к ДС нет в зеркале'] }; }
     const r=restructureApplied(c, ds);
-    if(!r.ok){ CR.toast((r.reasons||[]).join(' · '),'warn'); return r; }
+    if(!r.ok){ CR.toast((r.reasons||[]).map(plainReason).join(' · '),'warn'); return r; }
     CR.toast(num+' применено: транш №'+r.tranche.no+' на '+money(r.tranche.amount));
     rerenderDetail(); return r; };
   /* CR.stubAction удалён: канон §0.1 запрещает заглушки, а она обслуживала три кнопки
@@ -13835,7 +14006,7 @@ if (typeof document !== 'undefined') {
         ${fld('Канал', esc(p.reg))}
         ${fld('В расчёте остатка', counts?'двигает остаток':'не двигает — денег за ним нет либо ждёт ЦК')}
       </div>
-      <div class="mirror-src">Сумму, дату и номер поступления кредит не правит ни при какой роли: это факт денег, и он живёт у бухгалтерии (ADR-0257 §5). Отсюда правится трактовка — чьи это деньги и во что легли.</div>`;
+      <div class="mirror-src">Сумму, дату и номер поступления кредит не правит ни при какой роли: это факт денег, и он живёт у бухгалтерии. Отсюда правится трактовка — чьи это деньги и во что легли.</div>`;
     } else if (payCardTab==='alloc'){
       const rows=(al&&al.lines.length)?al.lines.map(l=>`<tr><td>${esc(l.due||'—')}</td><td>${esc(l.layerLabel||l.layer||'—')}</td><td>${l.tranche==null?'—':'№'+esc(l.tranche)}</td><td>${esc(l.article)}</td><td style="text-align:right">${money(l.amount)}</td></tr>`).join(''):'';
       const adj=p.allocAdjust?`<div class="info-plate">${svgInfo()}<div>Поправка куратора от ${esc(p.allocAdjust.at)} (${esc(p.allocAdjust.by)}): «${esc(p.allocAdjust.reason)}». Поправка участвует в выводе, а не отменяет его — всё, чего она не касается, продолжает выводиться из живых слоёв (§5.2).</div></div>`:'';
@@ -13870,7 +14041,7 @@ if (typeof document !== 'undefined') {
   CR.openAllocAdjust=function(){ const c=currentCredit(), p=payCardPayment(); if(!c||!p) return;
     const al=CR.allocOf(c,p), lines=(al&&al.lines)||[];
     CR.openModal('Поправка к разбивке — платёж № '+esc(p.num),
-      `<p class="section-note">Поправка — <b>вводимая величина, участвующая в выводе</b> (§5.2, ADR-0055), а не отмена вывода: строки, которых она не касается, продолжают выводиться из живых слоёв на дату. Основание обязательно — им же отвечают на вопрос «почему не по очереди».</p>
+      `<p class="section-note">Поправка — <b>вводимая величина, участвующая в выводе</b>, а не отмена вывода: строки, которых она не касается, продолжают выводиться из живых слоёв на дату. Основание обязательно — им же отвечают на вопрос «почему не по очереди».</p>
       <div class="mform">
         ${lines.map((l,i)=>`<div class="field"><span class="flabel">${esc(l.article)} · срок ${esc(l.due||'—')}${l.tranche==null?'':' · №'+esc(l.tranche)}</span><div class="control"><input id="adjV_${i}" type="number" step="0.01" value="${l.amount}"></div></div>`).join('')}
         <div class="field col-span req"><span class="flabel">Основание поправки</span><div class="control"><input id="adjReason" placeholder="исполнительный лист №…, решение комиссии, письмо заёмщика"></div></div>
@@ -13887,7 +14058,7 @@ if (typeof document !== 'undefined') {
   CR.openSurplusModal=function(){ const c=currentCredit(), p=payCardPayment(); if(!c||!p) return;
     const d=derive(c,cardAsOf), q=(d.queue&&d.queue.rows)||[];
     CR.openModal('Режим остатка сверх наступившего — платёж № '+esc(p.num),
-      `<p class="section-note">Режимов два, и оба — <b>директива на входе вывода</b> (§7.2, ADR-0073/0087): дефолт гасит непогашенное по общей очерёдности, <b>аванс</b> лежит на поступлении и гасит наступающее по мере наступления, <b>адресный резерв</b> закреплён за конкретными строками и гасит их в их даты. Резерв гасит <b>факт, а не план</b>: недобор строка добирает из свободного аванса.</p>
+      `<p class="section-note">Режимов два, и оба — <b>директива на входе вывода</b>: дефолт гасит непогашенное по общей очерёдности, <b>аванс</b> лежит на поступлении и гасит наступающее по мере наступления, <b>адресный резерв</b> закреплён за конкретными строками и гасит их в их даты. Резерв гасит <b>факт, а не план</b>: недобор строка добирает из свободного аванса.</p>
       <div class="mform">
         <div class="field col-span"><span class="flabel">Режим</span><div class="control"><select id="spMode" onchange="CR.toggleSurplusRows()">
           <option value="">дефолт — по общей очерёдности</option>
@@ -13895,7 +14066,7 @@ if (typeof document !== 'undefined') {
           <option value="reserve"${p.surplusMode==='reserve'?' selected':''}>адресный резерв</option></select></div></div>
       </div>
       <div id="spRows" style="display:${p.surplusMode==='reserve'?'block':'none'}">
-        <p class="section-note">Строки очереди погашения этого кредита — их публикует кредит (ADR-0182: выводит ядро, предъявляет кредит):</p>
+        <p class="section-note">Строки очереди погашения этого кредита — их публикует кредит: выводит расчёт, предъявляет кредит:</p>
         ${q.length?q.map((x,i)=>`<label style="display:block;padding:3px 0"><input type="checkbox" class="spRow" value="${i}"${(p.surplusRows||[]).some(y=>y.due===x.due&&y.article===x.article)?' checked':''}> ${esc(x.due)} · ${esc(x.article)}${x.tranche==null?'':' · №'+esc(x.tranche)} — ${money(x.amount)}${x.future?' (не наступило)':''}</label>`).join(''):'<p class="section-note">Очередь пуста — закреплять резерв не за чем.</p>'}
       </div>`,
       `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitSurplus()">Сохранить режим</button>`);
@@ -13913,7 +14084,7 @@ if (typeof document !== 'undefined') {
 
   CR.openMatchModal=function(){ const c=currentCredit(), p=payCardPayment(); if(!c||!p) return;
     CR.openModal('Подтвердить сопоставление — платёж № '+esc(p.num),
-      `<p class="section-note">Сопоставление — <b>второй шаг</b>, повторная проверка (§1 спеки платежей), а не способ опознать деньги. Подтверждение куратора заморозкой не является: морозит бухгалтер по положительной сверке, и это отдельное действие в модуле (§8.1). После сопоставления при расхождении действует <b>сумма ЦК</b> (ADR-0058) — корректировку вносит бухгалтер.</p>
+      `<p class="section-note">Сопоставление — <b>второй шаг</b>, повторная проверка (§1 спеки платежей), а не способ опознать деньги. Подтверждение куратора заморозкой не является: морозит бухгалтер по положительной сверке, и это отдельное действие в модуле (§8.1). После сопоставления при расхождении действует <b>сумма ЦК</b> — корректировку вносит бухгалтер.</p>
       <div class="mform">
         <div class="field col-span req"><span class="flabel">Строка реестра ЦК</span><div class="control"><input id="mtRef" placeholder="№ строки реестра, напр. 3455"></div></div>
       </div>`,
@@ -13926,7 +14097,7 @@ if (typeof document !== 'undefined') {
 
   CR.openDisputeModal=function(){ const c=currentCredit(), p=payCardPayment(); if(!c||!p) return;
     CR.openModal('Решение органа по спорной пене — платёж № '+esc(p.num),
-      `<p class="section-note">Решение по спорной пене — реквизит <b>платежа</b>, не поступления (§2.2, §4.4). Орган — комиссия по спорным начислениям (ADR-0089); куратор вносит её решение, а не принимает его.</p>
+      `<p class="section-note">Решение по спорной пене — реквизит <b>платежа</b>, не поступления (§2.2, §4.4). Орган — комиссия по спорным начислениям; куратор вносит её решение, а не принимает его.</p>
       <div class="mform">
         <div class="field req"><span class="flabel">Исход</span><div class="control"><select id="dsOut">
           <option>Пеня снята</option><option>Пеня подтверждена</option><option>Пеня снята частично</option></select></div></div>
@@ -14119,7 +14290,7 @@ if (typeof document !== 'undefined') {
   function fixReasonFld(id){ return `<div class="field req col-span"><span class="flabel">Причина исправления</span><textarea id="${id}" class="note-area" placeholder="в чём ошибка ввода и откуда верное значение"></textarea></div>`; }
   function fixReason(id){ const el=document.getElementById(id); return el ? String(el.value||'').trim() : ''; }
   /* 10б) реквизиты договора (editContractRequisites) — № и дата договора, роль «Начальник отдела» */
-  CR.openContractRequisitesModal=function(){ const c=modalGuard('editContractRequisites'); if(!c) return;
+  CR.openContractRequisitesModal=function(){ const c=modalGuard('fixContractRequisites'); if(!c) return;
     const body=`<p class="section-note">Исправление ошибки ввода: № или дата договора записаны неверно. Изменение самого договора так не оформляется. Доступно роли «Начальник отдела».</p>
       <div class="mform">
         <div class="field req"><span class="flabel">№ договора</span><div class="control"><input id="crNum" value="${esc(c.num)}"></div></div>
@@ -14129,7 +14300,7 @@ if (typeof document !== 'undefined') {
     CR.openModal('Исправить реквизиты договора', body,
       `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitContractRequisites()">Исправить</button>`);
   };
-  CR.submitContractRequisites=function(){ const c=modalGuard('editContractRequisites'); if(!c) return;
+  CR.submitContractRequisites=function(){ const c=modalGuard('fixContractRequisites'); if(!c) return;
     const num=document.getElementById('crNum').value, date=toDMY(document.getElementById('crDate').value);
     const reason=fixReason('crReason');
     const g=gate(c,'editContractRequisites',{num,date});
@@ -14218,7 +14389,7 @@ if (typeof document !== 'undefined') {
   CR.openRegisterModal=function(){ const c=modalGuard('register'); if(!c) return; const d=derive(c, TODAY);   // кнопка шапки — на сегодня (КВ-85)
     const g=gate(c,'register',{});
     const body=`${g.ok?`<div class="info-plate">${svgInfo()}<div>Все условия выполнены.</div></div>`
-            :`<div class="warn-inline">${svgInfo()}<div>${g.reasons.map(esc).join('<br>')}</div></div>`}
+            :`<div class="warn-inline">${svgInfo()}<div>${g.reasons.map(x=>esc(plainReason(x))).join('<br>')}</div></div>`}
       <div class="mform">
         <div class="field req"><span class="flabel">№ регистрации</span><div class="control"><input id="rgNum" value="${esc(c.reg.num||c.num||'')}"></div></div>
         <div class="field req"><span class="flabel">Дата регистрации</span><div class="control"><input id="rgDate" type="date" value="${esc(toISO(c.reg.date||CR.TODAY))}"></div></div>
@@ -14239,7 +14410,7 @@ if (typeof document !== 'undefined') {
     const g=gate(c,'activate',{});
     const body=`<p class="section-note">Кредит начинает действовать с первого освоения.</p>
       ${g.ok?`<div class="info-plate">${svgInfo()}<div>Освоено ${money(d.disbursed)} — условие выполнено.</div></div>`
-            :`<div class="warn-inline">${svgInfo()}<div>${g.reasons.map(esc).join('<br>')}</div></div>`}`;
+            :`<div class="warn-inline">${svgInfo()}<div>${g.reasons.map(x=>esc(plainReason(x))).join('<br>')}</div></div>`}`;
     CR.openModal('Перевести в «Действует»', body,
       `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitActivate()">Перевести</button>`, {cls:'narrow'});
   };
