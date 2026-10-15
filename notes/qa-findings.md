@@ -1349,6 +1349,73 @@ gating. Routes: list `/loansCredit`, detail `/loan-credits/{id}`, view
     design system.
   - **Expected:** one font-size / row-height across all dictionary grids. → P8-R6.
 
+> **Blank settings (настройка бланков)** — verified 2026-10-15 via
+> `scripts/inspect/blanks-menu-probe.mjs` (menu), `blanks-live.mjs` + `blanks-editors.mjs`
+> (lists and editors), `blanks-reports-probe.mjs` (Jmix Reports error), `blanks-consumers.mjs` +
+> `blanks-program-binding.mjs` + `blanks-program-pick.mjs` (where blanks are used),
+> `blanks-validate.mjs` + `blanks-validate-upload.mjs` («Проверить шаблон», test docx uploaded and
+> discarded with «Не сохранять» — nothing saved). Screens: «Шаблоны договоров», «Справочник кодов
+> шаблонов», «Печатные формы» (menu «Справочники системы кредитования»), menu «Отчеты» (Jmix
+> Reports add-on), loan-program tab «7. Документы». Target model: ADR-0295 (Jmix Reports is the
+> output engine under the reporting blank model; contract templates become blanks).
+
+- **P8-11** — `/reports`, `/reports/groups`, `/reports/run`, `/reports/tables` (menu «Отчеты») — 🔴 blocker — _verified 2026-10-15_
+  - **Issue:** every screen of the Jmix Reports add-on opens with «Непредвиденная ошибка»;
+    «Подробности» shows `PSQLException: ERROR: relation "report_report" does not exist`. The
+    add-on is wired into the menu, but its database tables were never created.
+  - **Expected:** add-on migrations applied; screens visible to the system administrator only —
+    the add-on is the blank output engine, not a user tool (ADR-0295 §1–§3). → P8-R7.
+
+- **P8-12** — blank chain, program → application → loan — 🔴 blocker — _verified 2026-10-15_
+  - **Issue:** no screen produces a document from any template. Templates and print forms bind
+    to a loan program (tab «7. Документы», «Добавить/Исключить»), but **none of the 9 programs has
+    anything bound**, and neither the application card (`/loan-applications/102`) nor the loan
+    card (`/loan-credits/43`) has a generate/print action — the loan card only uploads «Скан
+    зарегистрированного договора». The «Печатные формы» menu of the loan card is absent.
+    Legacy printed five documents from the loan card (Расчет, Акт сверки, Детальный расчет,
+    Претензия, Реестр погашений — `requirements/legacy/10-reports.md` §15), the new app prints none.
+  - **Expected:** documents issued through the blank engine; print menu of the object card built
+    by `reportForms`. → P23-R20, P23-R30 (ADR-0295).
+
+- **P8-13** — `/agreement-templates/{id}` — 🟠 major — _verified 2026-10-15_
+  - **Issue:** the uploaded file is invisible: no file name, no download link — only the
+    «Загрузить» button, both for VALID template id 3 and right after a fresh upload. The file is
+    there («Проверить шаблон» reads its codes), but the administrator cannot see or fetch it.
+  - **Expected:** file name + «Скачать» next to «Загрузить». → P8-R8.
+
+- **P8-14** — `/agreement-templates` — 🟠 major — _verified 2026-10-15_
+  - **Issue:** the list shows an «Активен» column (`AgreementTemplate.active`), the editor has no
+    such field — a template cannot be switched off.
+  - **Expected:** «Активен» checkbox in the editor. → P8-R8.
+
+- **P8-15** — `/agreement-templates/{id}`, «Выбор шаблонов договоров» — 🟠 major — _verified 2026-10-15_
+  - **Issue:** P8-04 now reaches the editor: five raw labels (`AgreementTemplate.fileRef`,
+    `.status`, `.validationMessage`, `.detectedCodes`, `.lastValidatedAt`); enum values are raw
+    too — `CREDIT` / `COLLATERAL`, `VALID` / `INVALID`; the program's template picker repeats the
+    raw column headers. Notifications read «Шаблон валиден ✅» / «Шаблон невалиден ❌».
+  - **Expected:** Russian labels and enum captions, no emoji in notifications. → P8-R2.
+
+- **P8-16** — `/agreement-templates` data — 🟡 minor — _verified 2026-10-15_
+  - **Issue:** ids 1 «Стандартный шаблон 2024» and 2 «тест швблон1» have no type, no file and an
+    empty status, yet «Активен = Да»; opening either shows «Заполните поле
+    "AgreementTemplate.templateType"» at once. Required fields are not enforced on existing rows.
+  - **Expected:** type and file required on save; test rows completed or removed. → P8-R8.
+
+- **P8-17** — `/agreement-template-codes`, «Проверить шаблон» — 🟡 minor — _verified 2026-10-15_
+  - **Issue:** 11 hand-typed codes (application 4, program 6, client 1) — none for the loan
+    (contract number and date, amount, rate, term, schedule) and none for collateral, though
+    type COLLATERAL exists. Codes are free-text entity paths, not checked against the model.
+    Validation accepts both `${…}` and `{{…}}`: a test docx with `{{borrower}}` reported the
+    code `borrower` as unsupported, i.e. parsed it as a placeholder.
+  - **Expected:** placeholders taken from the object's public field list, one syntax `${…}`
+    (ADR-0295 §6–§7). → P8-R9.
+
+- **P8-18** — `/print-forms`, program picker «Выбор печатных форм» — 🟡 minor — _verified 2026-10-15_
+  - **Issue:** the dictionary is empty (0 rows), so the program picker is empty too; none of the
+    P2-R20 blanks (application form, consent to personal-data processing, consent to a credit
+    history request) is loaded.
+  - **Expected:** the three P2-R20 blanks loaded as files. → P8-R9.
+
 ---
 
 ## Phase 11 — Org structure (Оргструктура)
