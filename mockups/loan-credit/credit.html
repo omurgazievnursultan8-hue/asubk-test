@@ -1095,7 +1095,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-09-23 · 182/191 PASS
+ SMOKE (node) 2026-10-15 · 182/191 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -1840,6 +1840,11 @@ table.cgrid tbody tr.pmonth td:first-child{ padding-left:26px; }
 /* Сторнированная мера — запись остаётся, зачёркнута с пометкой основания (И-3). */
 table.cgrid tbody tr.storno td{ color:var(--text-placeholder); text-decoration:line-through; }
 table.cgrid tbody tr.storno td.storno-reason{ text-decoration:none; color:var(--asubk-red); }
+.none-line{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:10px 14px;
+  border:1px dashed var(--border-default); border-radius:6px; color:var(--text-muted); font-size:13.5px; }
+.none-line .none-act{ margin-left:auto; display:flex; gap:8px; }
+.btn-why{ display:block; font-size:12px; line-height:1.35; color:var(--status-error); margin-top:4px; max-width:340px; white-space:normal; }
+.btn-gated{ display:inline-flex; flex-direction:column; align-items:flex-start; vertical-align:top; }
 .cgrid-empty{ display:flex; align-items:center; justify-content:center; min-height:120px;
   color:var(--text-placeholder); font:var(--font-label); }
 .rowlink{ color:var(--text-link); cursor:pointer; }
@@ -9471,6 +9476,13 @@ if (typeof document !== 'undefined') {
       /* flex-direction:column — .cgrid-empty (:1467) центрирует РЯДОМ, и кнопка встала бы
          сбоку от подписи. Ставится только с кнопкой: пустоте без неё колонка не нужна. */
       + `<tbody>${rows.length?rows.join(''):`<tr><td colspan="${cols.length}"><div class="cgrid-empty"${o.emptyAct?' style="flex-direction:column"':''}>${esc(o.empty||'Нет записей')}${o.emptyAct?`<div style="margin-top:10px">${o.emptyAct}</div>`:''}</div></td></tr>`}</tbody></table></div>`;
+  }
+  /* Пустой раздел — одной строкой (ADR-0299 §9, КВ-90/КВ-98…КВ-100): раздел без записей не рисует
+     пустую таблицу или форму с прочерками. items — массив отсутствующего («Нет: суда · банкротства»)
+     или готовая фраза строкой («Предмет не указан»); act — сырой HTML кнопки со своим гейтом. */
+  function noneLine(items, act){
+    const txt = Array.isArray(items) ? 'Нет: ' + items.map(esc).join(' · ') : esc(items);
+    return `<div class="none-line"><span>${txt}</span>${act?`<span class="none-act">${act}</span>`:''}</div>`;
   }
   /* Терминал (Р-20): «Закрыт»/списан — карточка только для чтения под ЛЮБОЙ ролью (К-6).
      UI-слой поверх gate(): логику gate() не трогаем (её проверяет smoke), но кнопки
