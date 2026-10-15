@@ -1188,6 +1188,110 @@ gating. Routes: list `/loansCredit`, detail `/loan-credits/{id}`, view
     uses is not shown on the terms tab.
   - **Action:** surface the effective rate (likely inherited from the program). → P5-R5.
 
+### Карточка кредита 39 — разбор по вкладкам (2026-10-15)
+
+Loan `/loan-credits/39` — № 05-214-846-05-0/2025-15 от 28.07.2025, borrower МАРАИМОВ О. М., ФРР,
+2 500 000, overdue 334 days, collection В-2025-000004. Verified 2026-10-15 with
+`scripts/inspect/loan-credit-39.mjs` (all tabs), `-39b` (close-ups, «Обновить сводку»), `-39c`
+(«Область»), `-39d` (Договор sub-tabs), `-39e` (Досье). Target design for each finding:
+`docs/adr/0299-kartochka-kredita-stadiya-zadaet-rezhim-vkladku-i-knopki.md` and `КВ-81`…`КВ-102` in
+`mockups/loan-credit/ASUBK-status-razrabotki.md`.
+
+- **P5-09** — `/loan-credits/39` → Договор — 🟠 major — _stage is a free field_
+  - **Issue:** «Статус кредита» is a combo with a free pick; loan 39 (active, overdue 334 days, in
+    collection) shows **«Оформлена»**. Page title is «Редактирование кредита» for a registered loan.
+  - **Expected:** stage changes only through transitions («Зарегистрировать», «Перевести в „Действует“»,
+    closure with a basis); after registration the card is read-only with actions. ADR-0299 §1–2.
+    Same class as P5-02.
+
+- **P5-10** — `/loan-credits/39` → header — 🟠 major — _two interest bases_
+  - **Issue:** outstanding balance in the header is **2 168,98 less** than the total of «Детальный расчет»
+    (2 558 046,72). Header interest 57 557,09 is taken on the **planned** balance by schedule; the calc
+    takes 59 726,07 on the **actual** body 2 500 000.
+  - **Expected:** header uses the same base as the calc — interest on the actual unpaid body (ADR-0105);
+    header balance = calc total on the same date. ADR-0299 §5.
+
+- **P5-11** — `/loan-credits/39` → Условия / График — 🟠 major — _two schedules_
+  - **Issue:** loan terms carry «Начало действия **06.10.2026**» (the record's entry date, not the
+    contract or disbursement date). The schedule built from it has 60 payments to **15.10.2031**; the
+    calc engine uses its own 54 × 46 296,30 to **15.08.2030**. Header, Договор («дата погашения
+    15.10.2031») and График show the first; Прогноз and Детальный расчет show the second.
+  - **Expected:** one schedule, built from the terms automatically; terms start at the contract /
+    first disbursement date. ADR-0299 §6.
+
+- **P5-12** — `/loan-credits/39` → Условия — 🟠 major — _penalties edited without an agreement_
+  - **Issue:** penalty terms («Штрафы») are editable in place on an active loan; no supplementary
+    agreement, no effective date, no history entry.
+  - **Expected:** any term change after registration only via «Изменить по допсоглашению» with
+    document and effective date; history shows «parameter: было → стало». Same class as P5-02.
+
+- **P5-13** — `/loan-credits/39` → Досье — 🟠 major — _set ignores application documents_
+  - **Issue:** «Комплект не собран» lists Паспорт, Свидетельство о браке, Согласие супруга(и) as
+    missing, while the same three sit in «Документы заявки» below (uploaded 06.10.2026).
+  - **Expected:** a required document filed with the application counts toward the loan set
+    («из заявки З-…»); one document list. ADR-0299 §7.
+
+- **P5-14** — `/loan-credits/39` → Детальный расчет — 🟡 minor — _overdue days are wrong_
+  - **Issue:** column «Просрочка, дней» holds days since the previous row: on 15.10.2026 it shows **30**,
+    while the oldest unpaid due date is 15.11.2025 (**334** days).
+  - **Expected:** days since the oldest unpaid due date on that row's date.
+
+- **P5-15** — `/loan-credits/39` → Детальный расчет — 🟡 minor — _due day counted as overdue_ —
+  _needs confirmation_
+  - **Issue:** the 15.10.2026 instalment (ОД 46 296,30 + % 4 109,59) is already in «Просрочено» on
+    15.10.2026 itself.
+  - **Expected (to confirm with the business):** an instalment becomes overdue the day after its due date.
+
+- **P5-16** — `/loan-credits/39` → Проблемные — 🟡 minor — _raw codes on screen_
+  - **Issue:** the requirement block shows `BORROWER`,
+    `DebtCollectionProjectionEngine$Scope.OVERDUE_AMOUNT`, `…$DerivedStage.OBSERVATION`;
+    «В-2025-000004: 1.1» without a caption.
+  - **Expected:** words («Заёмщик», «Сумма просрочки», «Наблюдение»); the subgroup with its meaning.
+
+- **P5-17** — `/loan-credits/39` → header / Проблемные — 🟡 minor — _group does not follow the loan_ —
+  _question to the business_
+  - **Issue:** group «1. Платежеспособные» with 334 days overdue and an open collection case.
+  - **Expected:** clarify who changes the group and on what trigger; the card shows the current one.
+
+- **P5-18** — `/loan-credits/39` → Досье → журнал изменений — 🟡 minor — _technical entries_
+  - **Issue:** entries like `Loan.subLoans … IndirectList`, `LoanPaymentSchedule-58 [detached]`,
+    `2025-07-28T00:00`.
+  - **Expected:** business events in words: who, when, what changed (was → became).
+
+- **P5-19** — `/loan-credits/39` → header — 🟡 minor — _stored summary and refresh_
+  - **Issue:** «Сохранённые данные · на …» and «Обновить сводку» (the button recomputes the stored
+    summary; `-39b`).
+  - **Expected:** header always shows the current state without a refresh button. ADR-0299 §4.
+
+- **P5-20** — `/loan-credits/39` → Прогноз / План — 🟡 minor — _overdue missing_
+  - **Issue:** Прогноз lists only future dates (2 213 110,06); the overdue 428 417,12 is not in it, so
+    «всего должно поступить» is understated (with overdue — 2 641 527,18). План 2026 has no overdue line.
+  - **Expected:** first row «Просрочено на <сегодня> — к оплате сейчас» by article; on План a separate
+    line outside the months.
+
+- **P5-21** — `/loan-credits/39` → Прогноз / План / Проблемные — 🔵 cosmetic — _refresh buttons_
+  - **Issue:** «Обновить», «Пересчитать факт и прогноз» on tabs.
+  - **Expected:** none; tabs show the current state. ADR-0299 §4.
+
+- **P5-22** — `/loan-credits/39` → Договор / Состав / Обеспечение — 🟡 minor — _money format_
+  - **Issue:** «2500000.00» (Договор «Сумма», Состав «Освоено» / «Распределено»); Обеспечение shows
+    sums without kopecks. Same class as P5-05.
+  - **Expected:** one money format everywhere: «2 500 000,00».
+
+- **P5-23** — `/loan-credits/39` → Обеспечение — 🟡 minor — _labels_
+  - **Issue:** «Доля кредита» shows a sum, not a share; service captions on screen («Нормативный
+    источник … не настроен», «Минимальная доля ликвида: —»).
+  - **Expected:** caption matches the value; empty settings are not shown.
+
+- **P5-24** — `/loan-credits/39` → Детальный расчет — 🔵 cosmetic — _headers and empty rows_
+  - **Issue:** glued column headers («Полученосредств»); a zero row «Сборы и комиссии».
+  - **Expected:** spaced headers; articles with no numbers on the loan hidden.
+
+- **P5-25** — `/loan-credits/39` → Договор / Условия — 🔵 cosmetic — _texts_
+  - **Issue:** «Active» in English (Условия); «шрафы» in the repayment-order dictionary; «срок
+    возврата» in lower case; the word «waiver»; empty field «Основной» with unclear meaning.
+  - **Expected:** Russian words, correct spelling; drop or caption «Основной».
+
 ---
 
 ## Phase 6 — Disbursement & tranches (Освоение и транши)
