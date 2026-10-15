@@ -857,7 +857,7 @@
         двигает — их двигает только подтверждение ЦК (paymentCounts, Р-27).
    Р-6  Освоение — owned кредитом, на транше; реестр «Освоение» — сквозной вид, не владелец.
         Закрытие неосвоенного остатка — тоже owned действие (оживлено волной 27.07.2026).
-   Р-7  Залог — зеркало: «Создать залоговый договор» нет, только «Привязать существующий».
+   Р-7  Залог — зеркало: «Создать залоговый договор» нет, только «Привязать договор» (существующий, из модуля залога).
    Р-8  Реквизиты решения КМ об освобождении от залога — owned поле кредита (гейт §2.6).
         РАСШИРЕНО 03.08.2026 (КР-56/КР-57): waiver залоговой комиссии — ВТОРОЕ основание
         того же рода и тоже owned (`credit.pledgeWaiver`, прежде лежал в `mirror.*`,
@@ -1095,7 +1095,7 @@
       с оговоркой: последствия банкротства принадлежат взысканию (КР-33).
 
   SMOKE (node)
- SMOKE (node) 2026-10-15 · 176/191 PASS
+ SMOKE (node) 2026-10-15 · 192/197 PASS
    #0a ✓
    #0b ✓
    #19 ✓
@@ -1179,7 +1179,7 @@
    #53 ✓
    #168 ✓
    #111 ✓
-   #112 ✗ Действует=2 Проект=0/Г-22×0 Закрыт=0/терм×0
+   #112 ✓
    #129 ✓
    #145 ✓
    #146 ✓
@@ -1201,7 +1201,7 @@
    #174 ✓
    #175 ✗ итоговых строк года сверено 57 на 51 листах · нарастающее года 100000 · нарушений 2 — K-7: остаток конца листа 366573.39 против свода 363252.94 | K-1: нарастающее в итоге года 100000 против 7593.83 последней строки
    #176 ✓
-   #177 ✗ одиночных 56 (из них с живой платой 3) · многотраншевых 5 · журнал сохранил номер у 46 · модалок с полем транша 24 одиночных / 20 многотраншевых · нарушений 5 — K-1/Прогноз: 2 транша, а колонки «Транш» нет | K-2b/Прогноз: 2 транша, а колонки «Транш» нет | K-7/Прогноз: 3 транша, а колонки «Транш» нет
+   #177 ✓
    #178 ✓
    #130 ✗ К-1: статьи false · производный: статьи true, ИР-2′ false · по кредиту: статьи true
    #156 ✓
@@ -1210,17 +1210,17 @@
    #134 ✓
    #135 ✓
    #136 ✓
-   #137 ✗ кнопка погашена с причиной false · после возврата: статус true, плашки нет true, гейт снят true
-   #138 ✗ заголовок true · своей строки нет true · пустое состояние (транш №2) false · плашка Д-5 (K-3) false · кнопок на экране 1/1/1 (норма 1/1/1)
+   #137 ✓
+   #138 ✓
    #100 ✓
    #54 ✓
    #55 ✓
-   #151 ✗ старый носитель у 0 (—), без тултипов правил 60 (K-1 K-2 K-2b), с неверным числом главных ответов 0 (—)
-   #152 ✗ K-6b закрыт (true) · K-1 (непокрыто 3 131,28) → шапки нет true, ближайшая 18.08.2026 и взнос 4 649,12 только в таблице true, дата закрытия 18.05.2028 не названа false · K-B1 (покрыто) → «10.01.2028 — ожидаемое закрытие» true · K-2 графика нет true
-   #153 ✗ свёрнуто: цифр нет, кнопка true · раскрыто: договорная подпись true, вторая ступень «Ожидания нет — график исчерпан, срок кончился», непокрытых 43 995,17 на экране ПОКАЗАНО
-   #157 ✗ в окне строк 3 (ближайшие 3 из 28), все позиции 28/28; Σ впереди 541 951,55 не зависит от окна false
-   #158 ✗ строк с датой ≤ 23.07.2026: 0 (—); слов о прошлом: 120 (K-1/пеня K-1/пеня K-2/пеня); сумма недобора на экране у 44 из 25 кредитов с непокрытым прошлым (K-1/3 131,28 K-1/3 131,28 K-4/170 338,72)
-   #159 ✗ осн. долг + проценты = платёж: расхождений 17 (K-1/итог не разложен K-2b/итог не разложен K-4/итог не разложен); шапка со статьями и без пени: нарушений 68 (K-1/нет статей K-1/третья статья K-2b/нет статей)
+   #151 ✓
+   #152 ✓
+   #153 ✓
+   #157 ✓
+   #158 ✓
+   #159 ✓
    #179 ✓
    #180 ✓
    #131 ✓
@@ -1287,6 +1287,12 @@
    #197 ✓
    #198 ✓
    #199 ✓
+   #200 ✓
+   #201 ✓
+   #202 ✓
+   #203 ✓
+   #204 ✓
+   #205 ✓
 -->
 <style>
 
@@ -2678,9 +2684,9 @@ function basisGroups(credit){
     g.items.sort((a,b) => PARAM_KEYS.indexOf(a.param)-PARAM_KEYS.indexOf(b.param) || a.trancheNo-b.trancheNo); });
   return out.sort((a,b) => pd(b.effectiveFrom) - pd(a.effectiveFrom));
 }
-/* retroFlags — Д-5: записи, вступившие в силу раньше дня своего создания.
-   Автопересчёта нет: флаги питают красную плашку «требуется перегенерация
-   графика» на вкладке «Условия» и близнецов на «Графике» и «Расчётах». */
+/* retroFlags — Д-5: записи, вступившие в силу раньше дня своего создания. Это ИСТОРИЯ
+   («изменено задним числом»), а не индикатор пересчёта: версию графика по записи строит
+   сама addConditionRecords (КВ-93), остаток предупреждения — retroPendingFlags ниже. */
 function retroFlags(credit){
   const out = [];
   for (const t of credit.tranches) for (const r of (t.conditionRecords || [])){
@@ -2699,15 +2705,24 @@ function retroFlags(credit){
    Даты в макете без времени, поэтому В ОДИН ДЕНЬ порядок разрешается счётчиком записей
    (_crSeq в id 'CR-n', снимок generatedSeq на версии графика): запись, созданная после
    перегенерации того же дня, снова зажигает предупреждение. */
+/* КВ-93 (ADR-0299 §6): версию графика по документу рождает сама addConditionRecords
+   (docScheduleVersion), поэтому «перегенерируйте» больше некому говорить. Признак остаётся
+   ТОЛЬКО там, где пересчёт ещё по-настоящему ждёт: запись меняет параметр ГРАФИКА
+   (SCHED_PARAM_KEYS — пеня и плата график не трогают, флаг на них не горит), у транша есть
+   график (есть освоение), и ни одна его версия не построена после записи. Через дверь такого
+   не бывает — версия встаёт в том же действии; признак ловит данные, пришедшие мимо неё.
+   retroFlags (история «задним числом») не меняется. */
 function crSeqOf(r){ const n = +String((r && r.id) || '').split('-')[1]; return isFinite(n) ? n : 0; }
 function retroPendingFlags(credit){
   return retroFlags(credit).filter(f => {
+    if (!SCHED_PARAM_KEYS.includes(f.param)) return false;
     const t = credit.tranches.find(x => x.no === f.trancheNo);
-    const act = t ? scheduleAt(t, TODAY) : null;
-    if (!act || !act.generatedAt) return true;
-    const d = pd(f.record.createdAt) - pd(act.generatedAt);
-    if (d) return d > 0;
-    return crSeqOf(f.record) > (act.generatedSeq || 0);
+    if (!t || !activeTranche(t) || !trancheStartDate(t)) return false;
+    return !(t.schedules || []).some(s => {
+      if (!s.generatedAt) return false;
+      const d = pd(f.record.createdAt) - pd(s.generatedAt);
+      return d ? d < 0 : crSeqOf(f.record) <= (s.generatedSeq || 0);
+    });
   });
 }
 let _subjItemSeq = 0;
@@ -4180,7 +4195,7 @@ function seedDb(){
     for (const t of k3.tranches) t.conditionRecords.push(mkConditionRecord({
       param:'penaltyMain', value:0, effectiveFrom:'01.05.2026',
       basis:{ kind:'court', ref:courtR, label:courtBasisLabel(courtR), date:court.date || '' },
-      note:'Пеня по основному долгу списана судом с 01.05.2026; график требует перегенерации',
+      note:'Пеня по основному долгу списана судом с 01.05.2026; график не меняется — пеню считает расчёт',
       createdAt:'12.07.2026'
     }));
   }
@@ -4305,12 +4320,24 @@ function seedDb(){
     ];
     /* МНОГОЛЕТНИЙ РАЗРЕЗ (КВ-22) на K-6: выдан 15.01.2024, закрыт «Погашен» 20.06.2026 —
        три календарных года в одной карточке. Тело этот заёмщик держал у себя весь срок и
-       погасил одним платежом в конце (142 000 в июне 2026), поэтому 2024 и 2025 честно
-       стоят с целью и нулевым сбором, а 2026 — со 101 %: ровно те три состояния года,
+       погасил одним платежом в конце (июнь 2026: тело, проценты и пеня за опоздание — см.
+       ниже), поэтому 2024 и 2025 честно стоят с целью и нулевым сбором, а 2026 — с
+       перевыполнением: ровно те три состояния года,
        которых разрез требует, чтобы его можно было рецензировать.
        Кредит закрыт, и гейт Г-30 «Поставить план» на нём не пустит — это верно: план
        здесь исторический, новую цель на закрытый кредит не ставят. */
     const c6 = credits.find(x => x.id === 'K-6');
+    /* К-6 ПЛАТИТ И ПЕНЮ (ADR-0129 §2, то же правило, что у закрытых сценарных выше). Платёж
+       был сеян телом и процентами, а тело опаздывало все 24 позиции — пеня за эти дни
+       начислена, и «Погашен» стоял с непогашенной пеней 68 669,93: гейт Г-14 такой кредит не
+       закрыл бы, а «Прогноз» показывал закрытому кредиту строку «к оплате сейчас». Сумма
+       пени не зашивается — берётся из построенного расчёта на дату закрытия. */
+    if (c6){
+      const led6 = buildLedger(c6, c6.closure.date);
+      const pen6 = round2(debtOf(led6, disbursedSum(c6.tranches[0])).penalty.accrued);
+      if (pen6 > 0.005) c6.mirror.payments[0] = seedPayment(1, c6.closure.date, 1,
+        { principal:120000, interest:22000, penalty:pen6 });
+    }
     if (c6) c6.plan = [
       { month:'2024-06', amount:6000, setBy:'Куратор', setAt:'20.05.2024', seededFrom:5800, history:[] },
       { month:'2024-12', amount:6000, setBy:'Куратор', setAt:'20.11.2024', seededFrom:5800, history:[] },
@@ -4799,7 +4826,11 @@ function buildSchedule(tranche, fromDate, opts){
     (r.effectiveFrom && (!m || pd(r.effectiveFrom) < pd(m)) ? r.effectiveFrom : m), null);
   const floor = firstCr ? pd(firstCr) : null;
   const at0   = (floor && pd(fromDate) < floor) ? floor : pd(fromDate);
-  const c = conditionsAt(tranche, fd(at0));      // Р-21: условия транша — производное от записей
+  /* ВЕРСИЯ ПО ДОКУМЕНТУ (КВ-93, ADR-0299 §6) строится от последней позиции ДО даты вступления,
+     чтобы сетка дат не съехала, а конструктивные величины берёт на дату вступления (opts.condAt):
+     иначе от позиции-якоря прочитался бы прежний комплект. Без opts поведение прежнее. */
+  const atC   = (opts && opts.condAt && pd(opts.condAt) > at0) ? pd(opts.condAt) : at0;
+  const c = conditionsAt(tranche, fd(atC));      // Р-21: условия транша — производное от записей
   /* БАЗА ВЕРСИИ (ADR-0130 §1). По умолчанию — освоенный ОД: так строится ПЕРВАЯ версия, от
      даты освоения. Перестроение середины срока обязано вести амортизацию от ОСТАТКА тела, а
      не от всей выданной суммы, иначе новая версия заново гасит уже погашенное. Остаток
@@ -4809,19 +4840,25 @@ function buildSchedule(tranche, fromDate, opts){
   const P = (opts && opts.base != null) ? opts.base
           : (disbursedSum(tranche) || tranche.amount || 0);
   const mpp = freqMonths(c.freq);                                // месяцев в периоде платежа
-  const termM = Math.max(1, c.term | 0);                         // срок, мес.
+  /* opts.termM — ОСТАВШИЙСЯ срок версии середины срока (до прежнего окончания либо до нового
+     по документу); opts.k0 — сколько периодов прошло до старта версии: льготы и окно
+     распределения отсроченных % считаются от начала срока транша, а не от старта версии,
+     иначе смена ставки на десятом месяце заново дала бы льготу по ОД. opts.deferred0 —
+     отсроченные %, не распределённые до старта версии. Без opts — 0 и прежнее поведение. */
+  const termM = Math.max(1, ((opts && opts.termM != null) ? opts.termM : c.term) | 0);   // срок, мес.
+  const k0 = Math.max(0, (opts && opts.k0) | 0);
   const n = Math.max(1, Math.ceil(termM / mpp));                 // число ПЛАТЕЖЕЙ
   const i = (c.rate || 0) / 100 / 12 * mpp;                      // ставка за период
   const method = c.method || 'аннуитет';
-  const gMainP = Math.ceil(Math.max(0, c.graceMain | 0) / mpp);       // льгота по ОД, периодов
-  const gAccrP = Math.ceil(Math.max(0, c.graceAccrual | 0) / mpp);    // отсрочка начисления, периодов
-  const gIntP  = Math.ceil(Math.max(0, c.graceInterest | 0) / mpp);   // льгота по %, периодов
+  const gMainP = Math.max(0, Math.ceil(Math.max(0, c.graceMain | 0) / mpp) - k0);       // льгота по ОД, периодов
+  const gAccrP = Math.max(0, Math.ceil(Math.max(0, c.graceAccrual | 0) / mpp) - k0);    // отсрочка начисления, периодов
+  const gIntP  = Math.max(0, Math.ceil(Math.max(0, c.graceInterest | 0) / mpp) - k0);   // льгота по %, периодов
   /* Шаг 18 (Q5): окно распределения отсроченных % — по умолчанию (0/0, как у всех
      59 демо-кредитов до этого шага) поведение не меняется — распределяем по ВСЕМ
      периодам после льготы, как раньше. Заданное окно [from,to] сужает распределение;
      непопавшее в окно копится и — как и раньше — гасится последним платежом (ниже). */
-  const gIntDistFrom = (c.graceIntDistFrom | 0) > 0 ? (c.graceIntDistFrom | 0) : (gIntP + 1);
-  const gIntDistTo   = (c.graceIntDistTo   | 0) > 0 ? (c.graceIntDistTo   | 0) : n;
+  const gIntDistFrom = (c.graceIntDistFrom | 0) > 0 ? Math.max(1, (c.graceIntDistFrom | 0) - k0) : (gIntP + 1);
+  const gIntDistTo   = (c.graceIntDistTo   | 0) > 0 ? ((c.graceIntDistTo | 0) - k0) : n;
   const start = pd(fromDate);
   /* Шаг 18 (Q1/Q2): день платежа (payDay) и привязка последнего платежа
      (lastPaymentAnchor) — по умолчанию (payDay=0, anchor='по дате выдачи') поведение
@@ -4837,8 +4874,8 @@ function buildSchedule(tranche, fromDate, opts){
     : P / principalPeriods;
   const diffPrincipal = P / principalPeriods;
   const rows = [];
-  let bal = P, deferred = 0, deferredPer = 0;                    // deferred — отложенные проценты (graceInterest)
-  let prevDate = start;
+  let bal = P, deferred = round2(Math.max(0, (opts && opts.deferred0) || 0)), deferredPer = 0;   // deferred — отложенные проценты (graceInterest)
+  let prevDate = (opts && opts.accrFrom) ? pd(opts.accrFrom) : start;   // accrFrom — начисление первой позиции от прежней позиции (новая сетка, КВ-93)
   for (let k = 1; k <= n; k++){
     const date = anchorFirst
       ? (k === 1 ? firstPay : addM(firstPay, (k - 1) * mpp, payDay))
@@ -7795,15 +7832,18 @@ function payTraktovkaGate(credit, ctx, r){
 }
 
 /* ---- 4.1 canRole(role, action) — матрица прав по ролям (§7). ---- */
+/* requestRestructuring (КВ-102) — «Подать на реструктуризацию» на «Проблемных». Заявку заводит
+   модуль реструктуризации, кредит её не создаёт; право на кнопку-переход всё равно ролевое —
+   кредитный специалист, куратор, начальник отдела. Наблюдателю и бухгалтеру кнопки нет. */
 const ROLE_ACTIONS = {
-  'Кредитный специалист': new Set(['createCredit','saveContractAmount','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','applyDs','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editClassification','editDocs','addNote']),
+  'Кредитный специалист': new Set(['createCredit','saveContractAmount','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','applyDs','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editClassification','editDocs','addNote','requestRestructuring']),
   /* ПЛАТЕЖИ У КУРАТОРА (ADR-0257, ADR-0258): трактовка — его предмет, и ручной ввод по
      списку ЦК тоже (ввод вынут из «факта денег» поимённо). Факта денег здесь нет ни у
      кого: сторно, корректировка по ЦК и заморозка живут в модуле платежей. */
   'Куратор': new Set(['targetUse','inspection','holdAccrual','transferDebt','linkPledge','addNote','setPlan',
-                      'savePayment','payAlloc','paySurplus','payMatch','payDispute']),
+                      'savePayment','payAlloc','paySurplus','payMatch','payDispute','requestRestructuring']),
   'Бухгалтер': new Set(['savePayment','addNote']),
-  'Начальник отдела': new Set(['createCredit','saveContractAmount','editContractRequisites','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','applyDs','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editClassification','editDocs','addNote','targetUse','inspection','holdAccrual','transferDebt','linkPledge','savePayment','waiver','setKmDecision','writeOff','repay','terminate','setPlan','payAlloc','paySurplus','payMatch','payDispute']),
+  'Начальник отдела': new Set(['createCredit','saveContractAmount','editContractRequisites','register','activate','addTranche','addDisbursement','closeDisbursement','closeTranche','buildSchedule','applyDs','addAgreement','addConditionRecords','editConditions','editSubject','addSubjectRecords','editClassification','editDocs','addNote','targetUse','inspection','holdAccrual','transferDebt','linkPledge','savePayment','waiver','setKmDecision','writeOff','repay','terminate','setPlan','payAlloc','paySurplus','payMatch','payDispute','requestRestructuring']),
   'Наблюдатель': new Set(),
 };
 function canRole(role, action){ return (ROLE_ACTIONS[role]||new Set()).has(action); }
@@ -7864,6 +7904,77 @@ function generateSchedule(credit, trancheNo, params){
   t.schedules.push(version);
   pushAudit(credit, `Сформирован график погашения v${ver} по траншу №${trancheNo} от ${params.from}`,
     prev || null, version);
+  return version;
+}
+
+/* ВЕРСИЯ ГРАФИКА ПО ДОКУМЕНТУ — САМА (КВ-93, ADR-0299 §6). Кнопки «Сформировать график» нет:
+   после регистрации новая версия появляется, когда вступает документ, меняющий параметр
+   графика. Её рождает addConditionRecords — та же дверь, что пишет записи, поэтому записи без
+   версии не бывает.
+   ПАРАМЕТРЫ ГРАФИКА — ровно то, что читает buildSchedule: ставка и метод дней (начисление
+   позиции), срок, периодичность, день платежа, привязка последнего платежа, метод, льготы и окно
+   распределения отсроченных %. Пеня графика не трогает (её считает расчёт по просрочке), плата
+   за неосвоенный остаток — журнал кредита, не траншей; payMonths движок не читает.
+   СИЛА ОСНОВАНИЯ — та же, что в ADR-0130 §1, и различает её дата вступления, а не новый флаг:
+   доп. соглашение задним числом не входит (Г-19), поэтому его версия начинается не раньше
+   сегодня и прошлых позиций не трогает; решение суда и постановление действуют с объявленной
+   даты, в том числе прошлой, — позиции после неё пересчитываются, включая наступившие.
+   Как строится (общая часть):
+     • позиции раньше даты вступления остаются как были (stitchSchedule);
+     • сетка дат и окончание не меняются, если документ их не трогает: версия строится от
+       последней позиции ДО даты вступления, период, разрезанный датой, считается по отрезкам
+       (ADR-0130 §2); меняет документ периодичность / день платежа / привязку — новая сетка
+       идёт от даты вступления, а начисление первой позиции — от той же последней позиции;
+     • срок: документ меняет срок — это срок транша от освоения, версия получает остаток до него;
+       не меняет — версия кончается там же, где прежняя;
+     • база — тело, которое прежний график ещё ждёт (Σ основного долга позиций с даты вступления):
+       прошлые позиции стоят в версии со своим телом, и база «по факту» посчитала бы просроченное
+       тело дважды;
+     • льготы считаются от начала срока транша (opts.k0), не от старта версии.
+   Не строится: транш закрыт; освоения нет (графика ещё нет — он построится от освоения уже по
+   новым условиям); прежний график исчерпан и срок не продлён (ждать нечего). */
+const SCHED_PARAM_KEYS = ['rate','dayMethod','term','freq','payDay','lastPaymentAnchor','method',
+  'graceMain','graceInterest','graceIntDistFrom','graceIntDistTo','graceAccrual'];
+const SCHED_GRID_KEYS = ['freq','payDay','lastPaymentAnchor'];
+function trancheStartDate(t){
+  const disb = (t.disbursements || []).slice().sort((a,b) => pd(a.date) - pd(b.date))[0];
+  const inTr = originTransfer(t);
+  return disb ? disb.date : (inTr ? inTr.date : null);
+}
+const monthsBetween = (a, b) => Math.round(dd(pd(a), pd(b)) / 30.4375);
+function docScheduleVersion(credit, t, eff, basis, keys){
+  if (!t || !activeTranche(t)) return null;
+  if (!gate(credit, 'buildSchedule', { tranche: t }).ok) return null;
+  const start = trancheStartDate(t); if (!start) return null;
+  const X = pd(eff);
+  const act = scheduleAt(t, eff);
+  const old = (act && (act.rows || []).length) ? act.rows : trancheScheduleRows(t);
+  const before = old.filter(r => pd(r.date) < X), after = old.filter(r => pd(r.date) >= X);
+  const termDoc = keys.includes('term'), gridDoc = keys.some(k => SCHED_GRID_KEYS.includes(k));
+  if (!after.length && !termDoc) return null;                       // график исчерпан, срок не продлён
+  const anchor = before.length ? before[before.length - 1].date : (pd(start) < X ? start : null);
+  const cnd = conditionsAt(t, eff), mpp = freqMonths(cnd.freq);
+  let base = round2(after.reduce((s, r) => s + (r.principal || 0), 0));
+  if (base <= 0.005) base = termDoc ? trancheBalanceAt(credit, t, eff) : 0;
+  if (base <= 0.005) return null;
+  const deferred0 = before.every(r => r.accrued != null)
+    ? before.reduce((s, r) => s + (r.accrued - (r.interest || 0)), 0) : 0;
+  const build = (from, accrFrom) => buildSchedule(t, from, { base, condAt: eff, accrFrom, deferred0,
+    termM: termDoc ? Math.max(mpp, (cnd.term | 0) - monthsBetween(start, from))
+                   : Math.max(mpp, monthsBetween(from, old[old.length - 1].date)),
+    k0: Math.round(monthsBetween(start, from) / mpp) });
+  /* от якоря — если сетка та же и первая новая позиция не раньше даты вступления (у засеянных
+     графиков сетка бывает не от освоения); иначе новая сетка от даты вступления */
+  let from = !anchor ? start : anchor, built = build(from, null);
+  if (anchor && (gridDoc || (built.rows[0] && pd(built.rows[0].date) < X))){ from = eff; built = build(eff, anchor); }
+  const ver = (t.schedules || []).reduce((m, s) => Math.max(m, s.ver || 0), 0) + 1;
+  const version = { ver, validFrom: eff,
+    by: { kind:'engine', label:'Перестроение по ' + (basis.label || basis.ref), basis: { kind: basis.kind, ref: basis.ref, label: basis.label, date: basis.date } },
+    generatedFrom: from, generatedAt: TODAY, generatedSeq: _crSeq,
+    rows: stitchSchedule(t, eff, built.rows) };
+  t.schedules = (t.schedules || []).concat([version]);
+  pushAudit(credit, `График погашения v${ver} по траншу №${t.no} с ${eff} — по ${basis.label || basis.ref}`,
+    act || null, version);
   return version;
 }
 
@@ -8437,7 +8548,24 @@ function addConditionRecords(credit, ctx){
       added++;
     }
   }
-  return { ok:true, value:{ added } };
+  /* ВЕРСИЯ ГРАФИКА — СЛЕДСТВИЕ ЗАПИСЕЙ, А НЕ ОТДЕЛЬНОЕ ДЕЙСТВИЕ (КВ-93). По траншу и дате
+     вступления — одна версия на документ, сколько бы параметров графика он ни менял; даты по
+     возрастанию, чтобы поздняя строилась поверх ранней. Только пеня — версии нет. */
+  const versions = [];
+  const plan = new Map();
+  for (const rec of ctx.records){
+    if (!SCHED_PARAM_KEYS.includes(rec.param)) continue;
+    for (const no of (rec.trancheNos || [])){
+      const key = no + '@' + rec.effectiveFrom;
+      if (!plan.has(key)) plan.set(key, { no, eff: rec.effectiveFrom, keys: [] });
+      plan.get(key).keys.push(rec.param);
+    }
+  }
+  for (const p of [...plan.values()].sort((a, b) => pd(a.eff) - pd(b.eff) || a.no - b.no)){
+    const v = docScheduleVersion(credit, credit.tranches.find(x => x.no === p.no), p.eff, basis, p.keys);
+    if (v) versions.push({ trancheNo: p.no, ver: v.ver, validFrom: v.validFrom });
+  }
+  return { ok:true, value:{ added, versions } };
 }
 
 /* editSubject(credit, ctx) — КР-55: правка предмета кредита НАПРЯМУЮ, только пока
@@ -8613,6 +8741,7 @@ window.CR = {
   creditOwnConditionsAt, mkCreditPrimaryRecords,
   feeAccrual, feeTranche, allTranches, undrawnAt,
   creditConditionsAt, divergenceRows, basisGroups, retroFlags, retroPendingFlags, activeTranche,
+  SCHED_PARAM_KEYS, docScheduleVersion,
   trancheKind, originTransfer, originDs, transferredOut, transferredIn, movedNetAt, trancheBalanceAt,
   writeOffsOf, writtenOffAt, writeOffTranches,                    // КВ-53: списание тела по траншам
   courtRef, courtBasisLabel,
@@ -10278,8 +10407,8 @@ if (typeof document !== 'undefined') {
         return `<div class="warn-inline" style="margin-bottom:14px">${svgInfo()}<div>
           Условия изменены задним числом: ${esc(paramLabel(first.param))} действует с
           <b>${esc(first.effectiveFrom)}</b> (${esc(first.basisLabel)})${rf.length>1?` и ещё ${rf.length-1} записи`:''}.
-          Автоматического пересчёта нет: график и начисления построены по прежним условиям;
-          пока расхождение не снято, оно стоит в препятствиях закрытия периода.
+          Версии графика по этой записи нет — график и начисления построены по прежним условиям
+          (запись пришла мимо действия «Изменить по допсоглашению», которое строит версию само).
         </div></div>`; })()}
       <div class="pcards">
         ${/* «ДЕЙСТВУЮТ СЕГОДНЯ» (КВ-92) — один блок наверху: ставки слева, погашение справа, у
@@ -11177,7 +11306,7 @@ if (typeof document !== 'undefined') {
     return `
       ${!d5Flags.length ? '' : `<div class="warn-inline">${svgInfo()}<div>
           Условия изменены задним числом (с ${esc(d5Flags[0].effectiveFrom)}, ${esc(d5Flags[0].basisLabel)}).
-          Автоматического пересчёта нет: действующая версия графика построена по прежним условиям.</div></div>`}
+          Версии графика по этой записи нет: действующая версия построена по прежним условиям.</div></div>`}
       <div class="section-h">График погашения</div>
       ${!viewing?'':(()=>{ /* Плашка режима стоит НАД плитками: в просмотре по показанной версии
            идут и они (плитки — свод таблицы под ними), значит предупреждение обязано
@@ -11296,7 +11425,10 @@ if (typeof document !== 'undefined') {
           p:round2(a.p + (r.principalOverdue || 0)), i:round2(a.i + (r.interestOverdue || 0)),
           n:round2(a.n + (r.penaltyBal || 0)), f:0 }), { p:0, i:0, n:0, f:0 });
     if (!whole) ov.sum = round2(ov.p + ov.i + ov.n);
-    const hasOv = ov.sum > 0.005;
+    /* Закрытому кредиту строки «к оплате сейчас» нет (как «Плану», showOver): прогноз у него
+       кончился, а остаток, если он есть у «Расторгнут», — предмет взыскания, не взнос. Плитка
+       «К оплате» его показывает подписью «расчёт остановлен», без призыва внести. */
+    const hasOv = !isTerminal(c) && ov.sum > 0.005;
     /* ОТСЕЧЁННЫЕ ДОСРОЧКОЙ ПОЗИЦИИ — свойство ДАТЫ закрытия, а не отдельный факт: они и есть
        причина, по которой дата уехала влево. Прежде стояли самостоятельным пунктом строки-
        контекста и читались как ещё один ответ вкладки. */
@@ -11323,7 +11455,8 @@ if (typeof document !== 'undefined') {
       } else if (noGraf){
         heroV = 'Графика нет'; heroL = 'прогнозировать нечего';
         sub.push('Ожидание строится по действующему графику — пока его нет, строить не из чего');
-        sub.push('график формируется на вкладке <b>«График»</b>');
+        /* КВ-93: кнопки «Сформировать график» нет — график встаёт сам с первым освоением */
+        sub.push('график построится сам от даты первого освоения');
       } else if (uncoveredPast){
         /* СРОК КОНЧИЛСЯ, А ДОЛГ ОСТАЛСЯ — это ответ о БУДУЩЕМ («ждать больше нечего»), и он
            обязан отличаться от пройденного графика: иначе дефолт выглядит как погашенный
@@ -11458,7 +11591,7 @@ if (typeof document !== 'undefined') {
        итог. «Вне позиций графика» — часть остатка долга без будущей даты в этой таблице:
        начисленное за незакрытый период платы, накопленные по своему графику документа, тело
        при исчерпанном графике. Её нет у большинства кредитов, и тогда строки нет. */
-    const rest = whole
+    const rest = (whole && !isTerminal(c))
       ? { p:round2(Math.max(0, D.principal.bal - ov.p - sm.futPrincipal)),
           i:round2(D.interest.term + D.accInterest.term),
           n:round2(D.penalty.term + D.accPenalty.term), f:D.fees.term }
@@ -12268,7 +12401,7 @@ if (typeof document !== 'undefined') {
       ${(()=>{ const rf=retroPendingFlags(c); if(!rf.length) return '';   // Д-5: тот же признак, что на «Условиях»
         return `<div class="warn-inline" style="margin-top:14px">${svgInfo()}<div>
           Условия изменены задним числом (с ${esc(rf[0].effectiveFrom)}, ${esc(rf[0].basisLabel)}).
-          Автоматического пересчёта нет: расчёт ниже построен по прежним условиям графика.
+          Версии графика по этой записи нет: расчёт ниже построен по прежним условиям графика.
           <div class="gtoolbar" style="margin-top:8px"><button class="btn btn-secondary btn-sm"
             onclick="CR.goToSchedule()">Перейти к графику</button></div></div></div>`; })()}
       ${/* ЧИП РАЗБОРА (КВ-68.1). Единственное место, где разбираемая статья названа СЛОВОМ:
@@ -12777,8 +12910,7 @@ if (typeof document !== 'undefined') {
       +` <span class="cov-sub">· в индексе, со своим порогом</span>`);
     /* Отсутствующее — одной строкой (ADR-0299 §9, КВ-98); кнопка «Привязать договор» — в строке, когда залога нет,
        иначе она стоит в панели внизу. */
-    const linkBtn = roleBtn('linkPledge','Привязать договор','CR.openPledgePicker()','btn btn-primary btn-sm')
-      .replace('<button ','<button title="Привязать существующий залоговый договор из модуля залога" ');
+    const linkBtn = roleBtn('linkPledge','Привязать договор','CR.openPledgePicker()','btn btn-primary btn-sm');
     const absent=[];
     if(!pledgeList.length) absent.push('залога');
     if(!guars.length) absent.push('поручительства');
@@ -12812,7 +12944,10 @@ if (typeof document !== 'undefined') {
               написано на кнопке под секцией, и она туда же ведёт. */''}
         ${km?`<div class="cov-calc">${esc(km.kind||'Решение КМ')}: ${esc(km.num||'')}${km.date?' от '+esc(km.date):''} — порог ${km.coverPct==null?'не задан':esc(km.coverPct)+' %'+(+km.coverPct===0?' (полное освобождение от порога)':'')}${km.scan?` <span class="cov-sub">· скан ${esc(km.scan)}</span>`:''}</div>`:''}
         ${wv?`<div class="cov-calc">Waiver комиссии по залогу: выдан ${esc(wv.when)} — ${waiverActive?'<span class="pill info">применён</span>':' <span class="pill neutral">не требуется — порог пройден</span>'}<div class="cov-cap">${esc(wv.reason)}</div></div>`:''}
-        <div class="gtoolbar" style="margin-top:6px"><button class="btn btn-secondary btn-sm" onclick="CR.openTab('Договор')">Изменить во вкладке «Договор»</button></div>`:''}
+        ${/* КВ-102 (ADR-0299 §8): переход «Изменить…» обещает действие — у роли без права на
+              основание (решение КМ / waiver) и у закрытого кредита его нет, и кнопки нет. */''}
+        ${!isTerminal(c) && (canRole(currentRole,'setKmDecision') || canRole(currentRole,'waiver'))
+          ? `<div class="gtoolbar" style="margin-top:6px"><button class="btn btn-secondary btn-sm" onclick="CR.openTab('Договор')">Изменить во вкладке «Договор»</button></div>` : ''}`:''}
       ${pledgeList.length||insp.length ? `<div class="cov-calc" style="margin-top:14px">${inspLine}</div>
         ${insp.length>1?`<details class="cov-insp"><summary>Все обследования (${insp.length})</summary>${cgrid([{h:'Дата'},{h:'Договор / предмет'},{h:'Куратор'},{h:'Результат'},{h:'Вложение'}], inspRows)}</details>`:''}` : ''}
       <div class="gtoolbar" style="margin-top:16px">
@@ -12900,10 +13035,10 @@ if (typeof document !== 'undefined') {
       '3':'Заёмщик в банкротстве: процедура идёт или уже завершена.',
       '4':'Долг признан безнадёжным и списан за баланс; на учёте заёмщика он остаётся.',
       '5':'Долги заёмщика погашены.'};
-    /* «Подать на реструктуризацию» — действия в ROLE_ACTIONS нет (заявку заводит модуль
-       реструктуризации, из кредита она не создаётся), поэтому кнопка — переход в модуль, как
-       «Открыть в модуле реструктуризации»; у закрытого кредита подавать нечего. */
-    const fileRsBtn=isTerminal(c)?'':`<button class="btn btn-secondary btn-sm" onclick="CR.toast('Подача заявки на реструктуризацию — в модуле реструктуризации, вне объёма макета')">Подать на реструктуризацию</button>`;
+    /* «Подать на реструктуризацию» — переход в модуль реструктуризации (заявку заводит он, из
+       кредита она не создаётся). Право — requestRestructuring (КВ-102): кредитный специалист,
+       куратор, начальник отдела; у остальных ролей и у закрытого кредита кнопки нет (roleBtn). */
+    const fileRsBtn=isTerminal(c)?'':roleBtn('requestRestructuring','Подать на реструктуризацию',"CR.toast('Подача заявки на реструктуризацию — в модуле реструктуризации, вне объёма макета')");
     const absent=[];
     if(!rs.active&&!rs.count) absent.push('реструктуризации');
     if(!courtRows.length) absent.push('суда');
@@ -13135,7 +13270,8 @@ if (typeof document !== 'undefined') {
              пустой у документов и проверок — «—» в двух третях таблицы. */
           (tu.measures||[]).map(x=>`<tr><td>Мера</td><td>${esc(x.date)}</td><td>${esc(x.title)}${x.committeeRef?` · <b>${esc(x.committeeRef)}</b>`:''}</td><td>${esc(x.result||'')}</td><td>${x.file?esc(x.file):'—'}</td></tr>`)
         ), {empty:'Записей нет'})}
-      ${!tuN?'':`<div class="gtoolbar">${roleBtn('targetUse','+ Запись целевого использования','CR.openTargetUseModal()')}</div>`}   ${/* КВ-100: пусто — строкой выше, кнопка в ней */''}
+      ${(()=>{ const b=tuN?roleBtn('targetUse','+ Запись целевого использования','CR.openTargetUseModal()'):'';
+        return b?`<div class="gtoolbar">${b}</div>`:''; })()}   ${/* КВ-100: пусто — строкой выше, кнопка в ней; без права — ни кнопки, ни пустой полосы (КВ-102) */''}
 
       <div class="section-h" style="margin-top:22px">Кураторство ${lockHtml()}</div>
       ${cgrid([{h:'Подразделение'},{h:'Сотрудник'},{h:'Роль'},{h:'С'},{h:'По'}], curRows, {empty:'Назначений нет'})}
@@ -13401,45 +13537,9 @@ if (typeof document !== 'undefined') {
     const r=CR.addDisbursement(c,{trancheNo:no,amount,order,purpose,date}); if(!r.ok){ CR.modalErr(r.reasons); return; }
     CR.closeModal(); cardScope=no; toast('Освоение внесено: '+money(amount),'ok'); rerenderDetail(); };
 
-  /* 3) schedule-params (generateSchedule, Г-8) — апгрейд: параметры → предпросмотр (1·2·посл.) → новая версия.
-     КВ-93 (ADR-0299 §6): с карточки окно больше не открывается — кнопки «Сформировать график»
-     нет, график строится из условий сам. Оставлено только для смоука (№54 и проба поля
-     «Транш» открывают все окна) до его переписи; снимать вместе с ним. */
-  CR.openSchedModal=function(previewFrom){ const c=modalGuard('buildSchedule'); if(!c) return;
-    const sel=storedScopeTranche(c)||c.tranches[0]; const cnd=CR.conditionsAt(sel,CR.TODAY);
-    previewFrom=toDMY(previewFrom);
-    const from=(previewFrom!=null?previewFrom:((sel.disbursements[0]&&sel.disbursements[0].date)||''));
-    let preview;
-    if(from && sel.disbursements.length){
-      /* Предпросмотр строится ТОЙ ЖЕ базой, что и сама версия (ADR-0130 §1): остаток тела
-         на дату старта. Иначе окно обещало бы одни суммы, а кнопка записывала другие. */
-      const pBase=CR.trancheBalanceAt(c, sel, from);
-      const rows=CR.buildSchedule(sel, from, pBase>0.005?{base:pBase}:null).rows;
-      const show=[rows[0], rows[1], rows[rows.length-1]].filter(Boolean);
-      preview=`<div class="section-h" style="margin-top:14px;font-size:15px">Предпросмотр (платёж 1 · 2 · последний)</div>
-        ${/* Шапка и порядок колонок — те же, что в таблице «График — позиции» (волна 13.08.2026):
-             предпросмотр показывает те же строки того же графика, и «ОД · %» против
-             «Основной долг · Проценты» читалось как другая таблица. */''}
-        ${cgrid([{h:'№'},{h:'Дата'},{h:'Основной долг',r:1},{h:'Проценты',r:1},{h:'Итого',r:1}], show.map(r=>`<tr><td>№${r.no}</td><td>${esc(r.date)}</td><td style="text-align:right">${money(r.principal)}</td><td style="text-align:right">${money(r.interest)}</td><td style="text-align:right">${money(r.total)}</td></tr>`))}`;
-    } else { preview=`<div class="warn-inline">${svgInfo()}<div>График строится только от фактической даты освоения транша. У выбранного транша нет освоения либо не задана дата.</div></div>`; }
-    const body=`<div class="mform">
-        ${trancheField(c,'schedTranche',c.tranches.map(t=>`<option value="${t.no}"${t.no===sel.no?' selected':''}>Транш №${t.no}${t.disbursements.length?'':' (не освоен)'}</option>`).join(''),'onchange="CR.setCardScope(+this.value);CR.openSchedModal()"')}
-        <div class="field req"><span class="flabel">Дата освоения (старт графика)</span><div class="control"><input id="schedFrom" type="date" value="${esc(toISO(from))}"></div></div>
-        <div class="field"><span class="flabel">Периодичность</span><div class="control"><input value="${esc(cnd.freq||'ежемесячно')}" readonly></div></div>
-        <div class="field"><span class="flabel">Метод погашения</span><div class="control"><input value="${esc(cnd.method||'аннуитет')}" readonly></div></div>
-        <div class="field"><span class="flabel">Льгота по ОД, мес.</span><div class="control"><input value="${esc(cnd.graceMain||0)}" readonly></div></div>
-        <div class="field"><span class="flabel">Льгота по %, мес.</span><div class="control"><input value="${esc(cnd.graceInterest||0)}" readonly></div></div>
-      </div>
-      <p class="section-note" style="margin-top:8px">Периодичность/метод/льготы наследуются из условий транша (правка — только зарегистрированным основанием). Прежняя версия уходит в архив, не удаляется.</p>
-      <div class="gtoolbar"><button class="btn btn-secondary btn-sm" onclick="CR.openSchedModal(document.getElementById('schedFrom').value)">Обновить предпросмотр</button></div>
-      ${preview}`;
-    CR.openModal('Сформировать график', body,
-      `<button class="btn btn-secondary" onclick="CR.closeModal()">Отмена</button><button class="btn btn-primary" onclick="CR.submitSched()">Сформировать (новая версия)</button>`);
-  };
-  CR.submitSched=function(){ const c=modalGuard('buildSchedule'); if(!c) return;
-    const no=+document.getElementById('schedTranche').value, from=toDMY(document.getElementById('schedFrom').value);
-    const r=CR.generateSchedule(c,no,{from}); if(r&&r.ok===false){ CR.modalErr(r.reasons); return; }
-    CR.closeModal(); cardScope=no; toast('График сформирован: версия v'+(r.ver||'?'),'ok'); rerenderDetail(); };
+  /* 3) окна «Сформировать график» нет (КВ-93, ADR-0299 §6): версию графика по документу строит
+     addConditionRecords (docScheduleVersion), первую — освоение. generateSchedule остаётся
+     функцией модели (перестроение по основанию, напр. заявлению о досрочном погашении). */
 
   /* 4) конструктор условий (addConditionRecords, Р-21 · Г-10 · Г-18…Г-20):
      основание → дата вступления → транши → параметры → предпросмотр «было → станет». */
@@ -13630,7 +13730,11 @@ if (typeof document !== 'undefined') {
                trancheNos: CR.CREDIT_PARAM_KEYS.includes(k) ? [] : nos, note }; });
     const r=CR.addConditionRecords(c,{basis,records});
     if(!r.ok){ CR.modalErr(r.reasons); return; }
-    CR.closeModal(); toast('Записей условий добавлено: '+r.value.added,'ok'); rerenderDetail(); };
+    /* КВ-93: версия графика встаёт тем же действием — тост её называет, чтобы новая строка
+       «Версий графика» не стала сюрпризом */
+    const vs=(r.value.versions||[]);
+    CR.closeModal(); toast('Записей условий добавлено: '+r.value.added
+      +(vs.length?' · график: '+vs.map(v=>(multiTr(c)?'№'+v.trancheNo+' ':'')+'v'+v.ver+' с '+v.validFrom).join(', '):''),'ok'); rerenderDetail(); };
 
   /* 5) manual-payment (addPayment, Г-11, Р-5) — «форма модуля платежей», статус «Ожидает ЦК» */
   /* ФОРМА ВЛАДЕЛЬЦА РОЖДАЕТ ДВЕ ЗАПИСИ (ADR-0257 §3): поступление — факт денег со своими
@@ -13672,10 +13776,8 @@ if (typeof document !== 'undefined') {
       method:document.getElementById('payMethod').value,
       actor:CR.currentEmployee()});
     if(!r.ok){ CR.modalErr(r.reasons); return; }
-    /* КВ-17: платёж — тоже действие на транше, как освоение и график; область карточки
-       обязана встать на транш, на который он введён, теми же правилами, что и у соседей
-       (submitDisb/submitSched выше). До этой правки не ставила — единственная асимметрия
-       из трёх модалок. */
+    /* КВ-17: платёж — тоже действие на транше, как освоение; область карточки обязана встать
+       на транш, на который он введён, теми же правилами, что и у соседа (submitDisb выше). */
     CR.closeModal(); cardScope=trancheNo; toast('Поступление и платёж внесены — статус «Ожидает ЦК»','ok'); rerenderDetail(); };
 
   /* ---- 5а) КАРТОЧКА ПЛАТЕЖА НА КРЕДИТЕ (ADR-0257 §1–2) --------------------------------
