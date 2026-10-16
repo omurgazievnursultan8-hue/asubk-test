@@ -88,6 +88,10 @@ const Q = id => DB.questionOf(DB.tileById(id));      // вопрос плитк�
 const Q2 = id => { const t = T(id), r = DB.reportById(t.report), s = t.second;
   return DB.compile(r, t.params, s.share ? { inds:s.share.slice(), share:s.share.slice() } : s.pct ? { inds:[s.col || r.cols[0]], pct:s.pct } : { inds:[s.col || s.of] }); };
 const sum = a => a.reduce((x, y) => x + y, 0);
+// денежное Движение в контракте строк: приходы и уходы (по модулю) оборотами, «прочее» — остатком
+const mvInc = mv => mv.rows.filter(x => x.kind === 'flow' && x.sg === '+').map(x => x.v);
+const mvDec = mv => mv.rows.filter(x => x.kind === 'flow' && x.sg === '−').map(x => -x.v);
+const mvOth = mv => (mv.rows.find(x => x.key === 'other') || {}).v;
 const withParams = (t, p) => Object.assign({}, t, { params:Object.assign({}, t.params, p) });
 const asUser = id => { DB.state.userId = id; };
 
@@ -184,8 +188,11 @@ const asUser = id => { DB.state.userId = id; };
   DB.STAND.overdueUp = true; const upb = DB.base('lead-od', 'u1', 'lead'), up = Object.assign({ tl:upb.tl }, upb.second); DB.STAND.overdueUp = false;
   ok(26, up.tl === 'red', `при росте просрочки светофор краснеет: ${up.value.toFixed(2)} % (ДБ-24)`);
   const mv = DB.view('lead-bal', 'move', null, [], 'u1', 'lead', {}).move;
-  ok(27, mv.converges && typeof mv.other === 'number' && mv.otherName && mv.start + mv.ti - mv.td + mv.other === mv.end,
-    'движение (вид «Движение» в полосе) сходится: конец = начало + обороты, строка «прочее» есть всегда (ДБ-17, ДБ-118)');
+  const mvo = mv.rows.find(x => x.key === 'other'), mvt = DB.view('lead-od', 'move', null, [], 'u1', 'lead', {}).move;
+  ok(27, mv.model === 'money' && !('converges' in mv) && mvo && mvo.kind === 'other' && typeof mvo.v === 'number' && /^прочее/.test(mvo.name) && mv.start + sum(mv.rows.map(x => x.v)) === mv.end
+    && mvt.model === 'transitions' && Math.abs(mvt.start + sum(mvt.rows.map(x => x.v)) - mvt.end) < 1e-6
+    && (sr => mvt.start === sr.at(-2)[0] && mvt.end === sr.at(-1)[0])(DB.at('lead-od', 'series(12)', 'u1', 'lead', {})),
+    'движение (вид «Движение» в полосе): конец = начало + строки со знаком; у денежного — строка «прочее» есть всегда, у «Просрочено» — переходы, начало и конец = точкам Ряда на 30.09 и сегодня (ДБ-17, ДБ-118, ДБ-176)');
 })();
 
 /* ---------- E. Клик и два действия ---------- */
@@ -498,10 +505,11 @@ const asUser = id => { DB.state.userId = id; };
   DB.STAND.clientFlows = true;
   const mv = DB.view('lead-borr', 'move', { month:-1 }, [], 'u1', 'lead', {}).move, vm1 = DB.views('lead-borr', 'u1', 'lead').find(x => x.kind === 'move'), lay = DB.composeLayout('u1', 'lead');
   const at = m => allB.filter(b => b.from <= m && DB.pstateAt(b, m) === 'действующий').length;
-  ok(94, !vm0.ok && /даты погашения всего портфеля/.test(vm0.why) && m0.state === 'off' && off && vm1.ok && mv.converges && mv.M === -1
-    && mv.start === at(-2) && mv.end === at(-1) && mv.inc.map(x => x.name).join() === 'новые,вернулись' && mv.dec[0].name === 'погасили всё'
-    && mv.inc[0].v === allB.filter(b => b.firstM === -1).length && mv.dec[0].v > 0 && lay.includes('lead-borr'),
-    `у «Заёмщиков» вид Движение за прошлый месяц погашен, пока статистика не отдаёт потоки (плитка в раскладке отвечает); затем ${mv.start} → +${mv.ti} −${mv.td} прочее ${mv.other} → ${mv.end}, сходится (ДБ-71, ДБ-74, ДБ-53)`);
+  const mInc = mv.rows.filter(x => x.kind === 'flow' && x.sg === '+'), mDec = mv.rows.filter(x => x.kind === 'flow' && x.sg === '−'), mOth = mv.rows.find(x => x.key === 'other');
+  ok(94, !vm0.ok && /даты погашения всего портфеля/.test(vm0.why) && m0.state === 'off' && off && vm1.ok && mv.M === -1 && mv.start + sum(mv.rows.map(x => x.v)) === mv.end
+    && mv.start === at(-2) && mv.end === at(-1) && mInc.map(x => x.name).join() === 'новые,вернулись' && mDec[0].name === 'погасили всё'
+    && mInc[0].v === allB.filter(b => b.firstM === -1).length && mDec[0].v < 0 && lay.includes('lead-borr'),
+    `у «Заёмщиков» вид Движение за прошлый месяц погашен, пока статистика не отдаёт потоки (плитка в раскладке отвечает); затем ${mv.start} → +${sum(mInc.map(x => x.v))} ${sum(mDec.map(x => x.v))} прочее ${mOth.v} → ${mv.end}, сходится (ДБ-71, ДБ-74, ДБ-53)`);
   DB.STAND.clientFlows = false;
   // ДБ-72, ДБ-73: «Область» — по регистрации, «Программа» не действует
   const osh = DB.ask(T('lead-borr'), U('u1'), 'lead', { region:'Ошская' }), pr = DB.ask(T('lead-borr'), U('u1'), 'lead', { program:'agro' });
@@ -1311,16 +1319,18 @@ const asUser = id => { DB.state.userId = id; };
     && lsh.second.of && lsh.second.value === lsh.num && lsh.second.den === lsh.den
     && wd.state === 'ok' && wd.value === bl.value && wd.second.value === null && /выведен из реестра статистики/.test(wd.second.none) && wdb === null,
     `второе число: «Просрочено» ${DB.fmtVal(b.second.value, 'pct')} ${b.second.label}, светофор по второму — ${b.tl}, при росте — ${up.tl}; у доли главным второе — «${lsh.num} из ${lsh.den}»; выведенное второе — «—» с причиной, плитка отвечает (ДБ-116)`);
-  // пять видов: доступность и причина; Движение с разрезом с историей в пути гаснет
+  // пять видов: доступность и причина; Движение с разрезом с историей в пути доступно — сменившие значение дают «пришли из / ушли в»
   const vod = vw('lead-od'), vsh = vw('cat-brepsh'), vco = vw('p-co'), vfo = vw('p-form'), vtk = vw('tasks', 'u2', 'cur'), vno = vw('acc-unident', 'u2', 'cur');
   const pAt = vw('lead-bal', 'u1', 'lead', [{ dim:'lact', v:'действующий' }]).move, mvO = at('lead-bal', 'move(0)>region=Ошская');
+  const pBk = vw('lead-od', 'u1', 'lead', [{ dim:'bucket', v:'91–180' }]).move, mBk = at('lead-od', 'move(0)>bucket=91–180'), mLa = at('lead-bal', 'move(0)>lact=действующий');
   ok(162, Object.values(vod).every(x => x.ok && x.why === null) && Object.keys(vod).join() === 'series,slice,map,move,table'
     && !vsh.move.ok && vsh.move.why === 'у доли оборотов нет' && !vco.series.ok && vco.series.why === 'показатель без истории' && vco.slice.ok
     && !vfo.series.ok && /не объявил дату/.test(vfo.series.why) && !vfo.move.ok && /не объявил дату/.test(vfo.move.why) && vfo.slice.ok
     && !vtk.slice.ok && vtk.slice.why === 'очередь модуля не объявила разрезов' && !vtk.table.ok && !vtk.map.ok && DB.dimsFor('tasks').length === 0
     && Object.values(vno).every(x => !x.ok && /не открыт вашей роли/.test(x.why))
-    && !pAt.ok && /обороты с ним не сходятся/.test(pAt.why) && at('lead-bal', 'move(0)>lact=действующий') === 'state:off' && mvO.end === at('lead-bal', 'main>region=Ошская'),
-    `пять видов «Просрочено» доступны; погашенные называют причину: доля — «${vsh.move.why}», «${vco.series.why}», «${vfo.series.why}», у ссылочной — «${vtk.slice.why}», путь с разрезом с историей — «${pAt.why}» (ДБ-118, ДБ-119)`);
+    && pAt.ok && pAt.why === null && pBk.ok && pBk.why === null && mvO.end === at('lead-bal', 'main>region=Ошская') && mLa.end === at('lead-bal', 'main>lact=действующий')
+    && mBk.end === at('lead-od', 'main>bucket=91–180') && mBk.rows.some(x => /^пришли из /.test(x.name) && x.kind === 'scope') && mBk.rows.some(x => /^ушли в /.test(x.name) && x.kind === 'scope'),
+    `пять видов «Просрочено» доступны; погашенные называют причину: доля — «${vsh.move.why}», «${vco.series.why}», «${vfo.series.why}», у ссылочной — «${vtk.slice.why}»; путь с разрезом с историей Движение не гасит: в «91–180» — ${mBk.rows.filter(x => x.kind === 'scope').map(x => x.name + ' ☰ ' + x.cnt).join(', ')} (ДБ-118, ДБ-119, ДБ-183)`);
   // разрезы и колонки полосы: объявленные отчётом сверху, остальные — «на время просмотра»; панель и путь их убирают
   const rp = JSON.parse(JSON.stringify(DB.reportById('r-portfolio'))), dl = DB.dimsFor('lead-od'), cl = DB.colsFor('lead-od').filter(x => !x.share);   // «доля» — вычисляемая колонка, не показатель реестра: проверяется в блоке P ниже
   const dp = DB.dimsFor('lead-od', [{ dim:'bucket', v:'181+' }], { region:'Ошская' }).map(x => x.dim);
@@ -1356,10 +1366,10 @@ const asUser = id => { DB.state.userId = id; };
   let unk = ''; try { at('lead-od', 'pie(bucket)'); } catch (e) { unk = e.message; }
   ok(166, typeof at('lead-od', 'main') === 'number' && sl.every(p => p.length === 2 && typeof p[1] === 'number') && near(sum(sl.map(p => p[1])), at('lead-od', 'slice(bucket).total')) && near(at('lead-od', 'slice(bucket).total'), b.value)
     && hm.length === 7 && near(sum(hm.flat()), b.value) && s12.length === 12 && s12[11][0] === b.second.value && s6.length === 6 && s6[5][0] === b.value
-    && mv.end === bl.value && near(mv.start + sum(mv.inc.map(x => x.v)) - sum(mv.dec.map(x => x.v)) + mv.other, mv.end)
+    && mv.end === bl.value && mv.model === 'money' && near(mv.start + sum(mv.rows.map(x => x.v)), mv.end)
     && tb.length === 6 && tb.every(r => r[1].length === 3) && near(sum(tb.map(r => r[1][1])), bl.value) && t1.every(r => typeof r[1] === 'number') && at('lead-bal', 'table(category;loan.count).total') === bl.second.value
     && at('lead-od', 'shift') === b.shift.delta && at('lead-od', 'tl') === 'yellow' && at('lead-od', 'second.den') === bl.value && at('lead-bal', 'second.num') === null && /нет такого выражения/.test(unk),
-    'DB.at: главное, второе и его доли, сдвиг, светофор; Разрез — [[значение, число]] и .total; Карта — ячейки; Ряд(N, второе); Движение — {start, end, inc, dec, other}; Таблица — строки, у одной колонки — число (ДБ-115, ДБ-118)');
+    'DB.at: главное, второе и его доли, сдвиг, светофор; Разрез — [[значение, число]] и .total; Карта — ячейки; Ряд(N, второе); Движение — {model, start, end, rows}; Таблица — строки, у одной колонки — число (ДБ-115, ДБ-118)');
   // «% от итога группы» в своём разрезе — знаменатель по ячейкам и их доли; провал по своему узлу — строки знаменателя
   mk('p-pct', { report:'r-borover', params:{ curator:'*' }, main:{ pct:{ dim:'bover', cells:['больше 0'] } }, tl:{ red:['>', 20], on:'main' }, views:{ slice:{ dim:'bover' } } });
   const pb = DB.base('p-pct', 'u1', 'lead'), po = DB.view('p-pct', 'slice', null, [], 'u1', 'lead', {}), pr = DB.view('p-pct', 'slice', { dim:'bregion' }, [], 'u1', 'lead', {});
@@ -1733,7 +1743,7 @@ const asUser = id => { DB.state.userId = id; };
     'сдвиг «Просрочено» и «Поступило» — по главному числу в сомах (было — п.п. доли: 0,116 → 9,6 млн, −0,522 → 60 501, у Куратора 0,114 → 667 800; волна 10: база — строки кредитов на 30.09); доля — во втором числе без собственного сдвига');
   const m0 = at('lead-borr', 'move(-1)'); DB.STAND.clientFlows = true; const m1 = at('lead-borr', 'move(-1)'); DB.STAND.clientFlows = false;
   ok(193, m0 === 'state:off' && DB.composeLayout('u1', 'lead').includes('lead-borr') && DB.ask(T('lead-borr'), U('u1'), 'lead', {}).state === 'ok'
-    && m1.start === 914 && m1.end === 907 && sum(m1.inc.map(x => x.v)) === 4 && sum(m1.dec.map(x => x.v)) === 10 && m1.other === -1 && m1.start + 4 - 10 + m1.other === m1.end,
+    && m1.start === 914 && m1.end === 907 && sum(mvInc(m1)) === 4 && sum(mvDec(m1)) === 10 && mvOth(m1) === -1 && m1.start + 4 - 10 + mvOth(m1) === m1.end,
     'вид Движение у «Заёмщиков» погашен, пока статистика не отдаёт потоки клиентов — плитка в раскладке отвечает (раньше отдельная плитка движения уходила в отказ и в раскладку не вставала); с потоками: 914 + 4 − 10 − 1 = 907');
   // отчёты после слияния: колонки и разрезы, на которых стоят виды новых плиток; числа соседей по отчёту не сдвинулись (проверено выше по литералам)
   const R = id => DB.reportById(id);
@@ -1917,7 +1927,7 @@ const asUser = id => { DB.state.userId = id; };
   const miss = []; let nLit = 0;
   for (const [sel, rows] of Object.entries(LIT)) { const [uid, rl2] = sel.split('|');
     for (const [id, ex, want] of rows) { nLit++; let got; try { got = at(id, ex, uid, rl2); } catch (e) { got = 'ERR ' + e.message; }
-      if (/^move\(/.test(ex) && got && typeof got === 'object') got = [got.start, got.end, got.inc.map(x => x.v), got.dec.map(x => x.v), got.other];
+      if (/^move\(/.test(ex) && got && typeof got === 'object') got = [got.start, got.end, mvInc(got), mvDec(got), mvOth(got)];
       if (!eqv(srt(got), srt(want))) miss.push(`${sel} ${id} ${ex} → ${JSON.stringify(got).slice(0, 60)}`); } }
   ok(197, nLit === 109 && miss.length === 0,
     `${nLit} чисел новых плиток девяти ролей равны прежним значениям до слияния: главное, второе и его числитель со знаменателем, светофор, сдвиг, узлы Разрезов и Таблиц, Ряды, Движение; у разрезов — прежние строки плюс строки полного списка (волна 9: «Закрыта», «ожидается», «не новая», «нет решения», значения поля без вклада — нулём, ДБ-168…ДБ-170)${miss.length ? '; расходятся: ' + miss.join('; ') : ''}`);
@@ -2221,8 +2231,8 @@ const asUser = id => { DB.state.userId = id; };
   asUser('u1'); DB.setTab('role', 'lead'); DB.openView('lead-od', 'move'); const ho = DB.stripHTML('lead-od', 'u1', 'lead');
   ok(220, mv.sel.month === -1 && w1.node.m === -1 && !w1.refused && w1.matches && near(w1.sum, mv.move.end) && w1.list.length === mv.cnt && w1.nodeText === 'на конец 30.09'
     && w0.node === null && w0.matches && near(w0.sum, mv0.move.end) && mv.move.end !== mv0.move.end && new RegExp('<div class="rz-r mv-e" data-edge="end">[\\s\\S]*?DB\\.whoAt\\(\'cur-bal\'\\)">☰ ' + mv.cnt + '<').test(hm) && !/Кто в этом числе<\/button>|☰ \d+ Кто в этом числе/.test(hm)
-    && /<span class="rz-nm"><span class="mv-sg">±<\/span>прочее<\/span>/.test(ho) && !/прочее[^<]*прочее/.test(ho.replace(/data-tip="[^"]*"/g, '')) && /<span class="rz-nm"><span class="mv-sg">±<\/span>прочее — курсовая переоценка[^<]*<\/span>/.test(hm) && !/прочее[^<]*прочее/.test(hm.replace(/data-tip="[^"]*"/g, '')),
-    `Движение «Остатка» куратора за прошлый месяц: «☰ ${mv.cnt}» и список — на конец 30.09, сумма списка = концу движения (${DB.fmtVal(mv.move.end, 'sum')}), за текущий — на сегодня; «☰» на строке «на 30.09» конца движения, не в подвале; строка «прочее» печатает название один раз (ДБ-118, ДБ-123, ДБ-155; волна 7)`);
+    && /<span class="rz-nm"><span class="mv-sg">−<\/span>прочее<\/span>/.test(ho) && !/прочее[^<]*прочее/.test(ho.replace(/data-tip="[^"]*"/g, '')) && /<span class="rz-nm"><span class="mv-sg">±<\/span>прочее — курсовая переоценка[^<]*<\/span>/.test(hm) && !/прочее[^<]*прочее/.test(hm.replace(/data-tip="[^"]*"/g, '')),
+    `Движение «Остатка» куратора за прошлый месяц: «☰ ${mv.cnt}» и список — на конец 30.09, сумма списка = концу движения (${DB.fmtVal(mv.move.end, 'sum')}), за текущий — на сегодня; «☰» на строке «на 30.09» конца движения, не в подвале; строка «прочее» печатает название один раз, у «Просрочено» — причина ухода «− прочее» (ДБ-118, ДБ-123, ДБ-155, ДБ-177; волна 7)`);
   // разрез, зафиксированный панелью, в открытой полосе не остаётся: вид — по свободному разрезу, глубже можно; панель сняли — выбор вернулся
   DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.openView('lead-od', 'map'); DB.viewSet('lead-od', 'dims', ['region', 'bucket']); DB.openView('lead-od', 'slice'); DB.viewSet('lead-od', 'dim', 'region');
   const po = DB.state.open['lead-od']; DB.setPanel('region', 'Ошская'); const sd = po.sel.dim;
@@ -2453,7 +2463,7 @@ const asUser = id => { DB.state.userId = id; };
     && (hhm.match(/class="hm-q"/g) || []).length === 6 * 4 + 6 + 4 + 1 && vhm.heat.cols[0] === 'нет просрочки' && vhm.heat.cnt.every(r => r[0] === 0)
     && cnts(hhm.split('<tr class="tr">')[0]).slice(0, 5).join() === vhm.heat.cnt[0].filter(Boolean).concat(vhm.heat.rowTot[0].cnt).join()
     && (hsr.match(/class="sr-q"/g) || []).length === 12 && cnts(hsr).join() === vsr.series.points.map(p => p.cnt).join()
-    && cnts(hmv).join() === [vmv.move.cnt0, vmv.move.inc[0].cnt, vmv.move.dec[0].cnt, vmv.move.dec[1].cnt, vmv.move.otherCnt, vmv.cnt].join()
+    && cnts(hmv).join() === [vmv.move.cnt0, ...vmv.move.rows.map(x => x.cnt), vmv.cnt].join() && vmv.move.rows.length === 7
     && /\.hm-q\{[^}]*opacity:0/.test(src) && /\.heat td:hover \.hm-q,\.heat td:focus-within \.hm-q\{ opacity:1; \}/.test(src) && /\.sr-q\{[^}]*opacity:0; \} \.sr-c:hover \.sr-q,\.sr-c:focus-within \.sr-q\{ opacity:1; \}/.test(src) && !/\.rz-c\{[^}]*opacity:0/.test(src) && !/\.tb td\.tb-l\{[^}]*opacity:0/.test(src),
     '«☰ N» в Разрезе, Таблице и Движении — тихой колонкой, число в ней равно «☰» узла у каждой строки; в Карте — в углу каждой из 24 ячеек с объектами и итогов (видна при наведении; столбец «нет просрочки» стоит, но пуст — без «☰»), в Ряде — под каждым из 12 месяцев при наведении (ДБ-149; волна 7: было «Кто в этом числе» одним подвалом на всю полосу)');
 
@@ -2511,18 +2521,18 @@ const asUser = id => { DB.state.userId = id; };
     && /\.heat col\.hm-lab\{ width:220px; \} \.heat col\.hm-tc\{ width:150px; \}/.test(src) && /\.heat\{[^}]*table-layout:fixed; font-size:13px;/.test(src) && /\.hm-r1\{[^}]*#7a1d1d/.test(src) && /\.hm-g1\{[^}]*#14532d/.test(src),
     `Карта «программа × срок» у «Просрочено»: итог строки справа, итог столбца снизу, общий — в углу, и три суммы сходятся (${DB.fmtVal(vms.total.v, 'sum')}); в ячейке одно число — сумма в «Сумме» и разница в «Изменении» (красные: просрочки стало больше; ячеек с ростом ${dlC.filter(d => d > 0).length} из 24; столбец «нет просрочки» — пустой, «—»), под числом в итогах мелко второе — разница или сумма, «☰ N» в углу ячейки при наведении (ДБ-154, ДБ-160; волна 7: было 100 % ширины, ячейки 18 px и итогов нет)`);
 
-  // ДБ-155: Движение — потоки полосами от нуля, сверка под ними
+  // ДБ-155, ДБ-182: Движение — строки переходов полосами от нуля, под ними цепочка-пояснение без «✓»
   DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.openView('lead-od', 'move');
   const hmo = tab(DB.stripHTML('lead-od', 'u1', 'lead')), mvv = V('lead-od', 'move', DB.state.open['lead-od'].sel), mv = mvv.move; DB.state.open = {};
-  const flowRow = k => (new RegExp('<div class="rz-r mv-f" data-flow="' + k + '"[\\s\\S]*?(?=<div class="rz-r|<div class="mv-ok)').exec(hmo) || [''])[0], wd = k => +((/class="rz-f[^"]*" style="[^"]*width:([\d.]+)%/.exec(flowRow(k)) || [])[1] || NaN), fc = k => (/<span class="rz-f ([^"]*)"/.exec(flowRow(k)) || [])[1];
-  const flows = [['odIn', mv.inc[0].v], ['odPaid', mv.dec[0].v], ['odRestr', mv.dec[1].v], ['other', Math.abs(mv.other)]], vmax = Math.max(...flows.map(f => f[1])), wmax = Math.max(...flows.map(f => wd(f[0])));
+  const flowRow = k => (new RegExp('<div class="rz-r mv-f" data-flow="' + k + '"[\\s\\S]*?(?=<div class="rz-r|<div class="mv-chain)').exec(hmo) || [''])[0], wd = k => +((/class="rz-f[^"]*" style="[^"]*width:([\d.]+)%/.exec(flowRow(k)) || [])[1] || NaN), fc = k => (/<span class="rz-f ([^"]*)"/.exec(flowRow(k)) || [])[1];
+  const flows = mv.rows.filter(x => x.v).map(x => [x.key, Math.abs(x.v)]), vmax = Math.max(...flows.map(f => f[1])), wmax = Math.max(...flows.map(f => wd(f[0])));
   // строка сверки — по правилу единиц полосы: от 100 млн целые, ниже — один знак
-  const chainNums = ((/✓ сходится: ([^<]*) млн<\/div>/.exec(hmo) || [])[1] || '').split(/ [+−=] /).map(x => x.replace(/\s/g, ''));
-  const chainOk = chainNums.length === 6 && chainNums.every(x => /^\d+$/.test(x) ? +x >= 100 : /^\d{1,2},\d$/.test(x));
-  ok(251, near(mv.start + sum(mv.inc.map(x => x.v)) - sum(mv.dec.map(x => x.v)) + mv.other, mv.end, 1) && mv.converges && near(mv.end, DB.base('lead-od', 'u1', 'lead').value, 1) && mvv.mode === null && !/strip-mode/.test(hmo) && !/class="mv"[ >]/.test(hmo)
+  const chainNums = ((/<div class="mv-chain"[^>]*>([^<]*) млн<\/div>/.exec(hmo) || [])[1] || '').split(/ [+−=] /).map(x => x.replace(/\s/g, ''));
+  const chainOk = chainNums.length === mv.rows.length + 2 && chainNums.every(x => /^\d+$/.test(x) ? +x >= 100 : /^\d{1,2},\d$/.test(x));
+  ok(251, near(mv.start + sum(mv.rows.map(x => x.v)), mv.end, 1e-6) && !('converges' in mv) && near(mv.end, DB.base('lead-od', 'u1', 'lead').value, 1) && mvv.mode === null && !/strip-mode/.test(hmo) && !/class="mv"[ >]/.test(hmo)
     && /<div class="rz-r mv-e" data-edge="start">/.test(hmo) && /<div class="rz-r mv-e" data-edge="end">/.test(hmo) && !/mv-e[^>]*>[\s\S]{0,400}?class="rz-f/.test(hmo.split('data-flow')[0]) && flows.every(f => flowRow(f[0]).length > 50 && /class="rz-z"/.test(flowRow(f[0])) && near(wd(f[0]) / wmax, f[1] / vmax, 0.02)) && new Set([...hmo.matchAll(/class="rz-z" style="left:([\d.]+)%"/g)].map(x => x[1])).size === 1
-    && fc('odIn') === 'bad' && fc('odPaid') === 'good neg' && fc('odRestr') === 'good neg' && fc('other') === 'neu' && /<div class="mv-ok" data-tip="[^"]*">✓ сходится: [^<]* млн<\/div>/.test(hmo) && /\.mv-w \.rz-f\.neu\{ background:var\(--asubk-ink-45\); \}/.test(src) && /\.rz\.mv-w\{ --rz-cols:260px 104px 60px minmax\(0,1fr\); \}/.test(src) && chainOk,
-    `Движение «Просрочено»: «на 30.09» и «на сегодня» числами, каждый поток своей строкой с полосой от общей нулевой линии (вышло в просрочку — вправо красным, погашено и реструктурировано — влево зелёным, «прочее» серым), длина полосы пропорциональна потоку (шкала по самому большому — ${DB.fmtVal(flows.sort((a, b) => b[1] - a[1])[0][1], 'sum')}), внизу «✓ сходится»: ${DB.fmtVal(mv.start, 'sum')} + потоки = ${DB.fmtVal(mv.end, 'sum')} с точностью до рубля; переключателя «Сумма | Изменение» нет; колонки 260 / 104 / 60 px (ДБ-155, ДБ-157, ДБ-165; волна 7: было потоки текстом, рисунка нет; волна 8: было 260 / 90 / 60 px). Строка сверки — по правилу единиц полосы: «${chainNums.join(' · ')}» (от 100 млн целые, ниже — один знак), «✓» ставит проверка по точным числам`);
+    && fc('new') === 'bad' && fc('paid') === 'good neg' && fc('up') === 'bad' && fc('down') === 'good neg' && /^neu/.test(fc('other')) && /<div class="mv-chain" data-tip="[^"]*">[^<]* млн<\/div>/.test(hmo) && !/✓|сходится|mv-ok/.test(hmo) && /\.mv-w \.rz-f\.neu\{ background:var\(--asubk-ink-45\); \}/.test(src) && /\.rz\.mv-w\{ --rz-cols:260px 104px 60px minmax\(0,1fr\); \}/.test(src) && chainOk,
+    `Движение «Просрочено»: «на 30.09» и «на сегодня» числами, каждый поток своей строкой с полосой от общей нулевой линии (новые в просрочке и выросла у прежних — вправо красным, погасили и снизилась — влево зелёным, «прочее» серым), длина полосы пропорциональна строке (шкала по самой большой — ${DB.fmtVal(flows.sort((a, b) => b[1] - a[1])[0][1], 'sum')}), сумма строк = ${DB.fmtVal(mv.end, 'sum')} − ${DB.fmtVal(mv.start, 'sum')} точно; «✓ сходится» снят (ДБ-182); переключателя «Сумма | Изменение» нет; колонки 260 / 104 / 60 px (ДБ-155, ДБ-157, ДБ-165; волна 7: было потоки текстом, рисунка нет; волна 8: было 260 / 90 / 60 px). Строка сверки — по правилу единиц полосы: «${chainNums.join(' · ')}» (от 100 млн целые, ниже — один знак), это пояснение, не проверка`);
 
   // ДБ-156: Таблица — первая колонка показатель плитки и порядок по ней; колонки по 170 px; «Изменение» сортирует по разнице
   DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.openView('lead-od', 'table'); DB.viewSet('lead-od', 'dim', 'program');
