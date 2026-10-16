@@ -1330,7 +1330,7 @@ function compile(src, p, spec){
     // значение параметра — условие перед постоянным фильтром отчёта; «все» (*) или пусто — условия нет; «я» остаётся относительным
     const pc = Object.keys(src.params).filter(n=>src.params[n].dim && p[n]!=null && p[n]!=='*').map(n=>({ f:src.params[n].dim, op:src.params[n].op || 'eq', v:p[n] }));
     q.filter = cp([...pc, ...src.filter]); }
-  if(spec.conds && spec.conds.length) q.filter.push(...cp(spec.conds));   // путь крошек — условия «=» на время просмотра
+  if(spec.conds && spec.conds.length){ q.filter.push(...cp(spec.conds)); q.path = cp(spec.conds); }   // путь крошек — условия «=» на время просмотра; отдельно — для строк разреза
   if(spec.pct){ q.share = [q.inds[0], q.inds[0]]; q.numFilter = [{ f:spec.pct.dim, op:'in', v:spec.pct.cells.slice() }]; }   // «% от итога группы»: ячейки разреза — числитель
   else if(spec.share) q.share = spec.share.slice();
   if(!queue){ if(src.params.date) q.date = p.date || 'today';   // у остатка — дата среза, у потока — период
@@ -1458,6 +1458,9 @@ function answer(q, user, roleId, panel){
   res.stale = staleOf(q);
   if(visible===0){ res.state='empty'; res.msg = emptyScopeMsg(user, roleId, I.obj); return res; }
   const ctx = ctxOf(q), cm = ctxMonth(ctx), dv = (d, r)=>dimAt(d, r, cm);
+  // строки разреза без своего списка — из охвата смотрящего, суженного панелью и путём вглубь, но не фильтром плитки:
+  // нуль внутри вопроса — тоже ответ (куратор без просрочки = 0); объявленный список печатается целиком
+  const scope = ()=>applyPanel(applyFilter(base, q.path, user, cm), I.obj, panel).rows;
   const val = (rs, c) => {                                    // число узла: показатель или доля (два показателя или фильтр числителя)
     if(q.share){ const a = aggregate(numRows(q, rs, user), IND[q.share[0]], c).value || 0, b = aggregate(rs, IND[q.share[1]], c).value || 0;
       return b ? { v:a/b*100, num:a, den:b } : { v:null, num:a, den:0 }; }
@@ -1471,19 +1474,19 @@ function answer(q, user, roleId, panel){
       if(q.format==='shift' || q.shift) res.shift = shiftOf(q, rows, ctx, val);
       break; }
     case 'slice': case 'steps': {
-      const d = q.dims[0]; res.nodes = groupBy(rows, d, r=>val(r, ctx), cm, base);
+      const d = q.dims[0]; res.nodes = groupBy(rows, d, r=>val(r, ctx), cm, scope());
       res.total = val(rows, ctx); break; }
     case 'heat': {
-      // обе оси — весь список разреза; у неупорядоченной оси пустые строки и столбцы уходят в конец, у упорядоченной — шкала как есть
+      // обе оси — весь список разреза (без своего списка — по охвату после панели и пути); у неупорядоченной оси пустые строки и столбцы уходят в конец, у упорядоченной — шкала как есть
       const [d1,d2] = q.dims, down = d=>vs=>{ if(DIMS[d].ordered) return vs; const z = vs.map(v=>!val(rows.filter(r=>dv(d,r)===v), ctx).v);
         return [...vs.filter((v, i)=>!z[i]), ...vs.filter((v, i)=>z[i])]; };
-      const v1 = down(d1)(valuesOf(d1, rows, base, cm)), v2 = down(d2)(valuesOf(d2, rows, base, cm));
+      const sc = scope(), v1 = down(d1)(valuesOf(d1, rows, sc, cm)), v2 = down(d2)(valuesOf(d2, rows, sc, cm));
       res.heat = { rows:v1, cols:v2, d1, d2, cells: v1.map(a=>v2.map(b=>val(rows.filter(r=>dv(d1,r)===a && dv(d2,r)===b), ctx).v || 0)) };
       const tot = rs=>{ const x = val(rs, ctx); return { value:x.v, num:x.num, den:x.den }; };   // итоги строк (справа) и столбцов (снизу) — узлом
       res.heat.rowTot = v1.map(a=>tot(rows.filter(r=>dv(d1,r)===a))); res.heat.colTot = v2.map(b=>tot(rows.filter(r=>dv(d2,r)===b)));
       res.total = val(rows, ctx); break; }
     case 'table': {
-      const d = q.dims[0]; const vs = valuesOf(d, rows, base, cm);
+      const d = q.dims[0]; const vs = valuesOf(d, rows, scope(), cm);
       res.table = { d, cols: q.inds.map(i=>IND[i]), rows: vs.map(v=>{ const rs = rows.filter(r=>dv(d,r)===v);
         return { v, label:dimLabel(d,v), cells: q.inds.map(i=>aggregate(rs, IND[i], ctx).value) }; }) };
       if(!DIMS[d].ordered) res.table.rows.sort((a,b)=>(b.cells[0]||0)-(a.cells[0]||0));   // ступени — в объявленном порядке
@@ -1509,12 +1512,16 @@ function emptyScopeMsg(user, roleId, obj){
   if(OBJECTS[obj].vis==='self') return 'У вас нет заданий.';
   return 'В вашем охвате нет объектов «'+OBJECTS[obj].name+'»: подразделение «'+deptName(user.dept)+'» видит только своё.';
 }
-// строки разреза: список реестра (у разреза без списка — все значения поля по всем строкам объекта all, а не только по выборке), затем
-// значения, встреченные у выборки вне списка (сигнал реестру), последним — «пусто» со своим именем; m — месяц разреза с историей
+// строки разреза: объявленный список реестра — целиком, затем значения, встреченные у выборки вне списка (сигнал реестру); у разреза
+// без своего списка — значения поля по строкам all (охват смотрящего после панели и пути), а не только по выборке; последним — «пусто»
+// со своим именем; m — месяц разреза с историей
 function valuesOf(d, rows, all, m){ const D = DIMS[d], E = D.empty;
   const seen = rs=>[...new Set(rs.map(r=>dimAt(d, r, m)))].filter(v=>v!==null && v!==undefined && v!==E);
-  const decl = D.values ? D.values.filter(v=>v!==E) : seen(all || rows);
-  return [...decl, ...seen(rows).filter(v=>!decl.includes(v)), ...(E ? [E] : [])]; }
+  const decl = D.values ? D.values.filter(v=>v!==E) : seen(all || rows), extra = D.values ? seen(rows).filter(v=>!decl.includes(v)) : [];
+  return [...decl, ...extra, ...(E ? [E] : [])]; }
+// значения разреза на выбор автору конструктора: объявленный список — целиком; у разреза без своего списка — по строкам охвата автора
+// (всех его ролей), а не по всем строкам объекта; объект не открыт ни одной роли — выбирать не из чего
+function pickValues(d, obj, u){ return valuesOf(d, DIMS[d].values ? DATA[obj] : rowsFor(u || user(), null, obj) || []); }
 function groupBy(rows, d, f, m, all){
   const vs = valuesOf(d, rows, all, m);
   const nodes = vs.map(v=>{ const rs = rows.filter(r=>dimAt(d, r, m)===v); const x = f(rs); return { v, label:dimLabel(d,v), short:DIMS[d].short && DIMS[d].short[v], value:x.v, num:x.num, den:x.den, n:rs.length }; });
@@ -3112,7 +3119,7 @@ function stripHTML(k, u, roleId, sc, place){
   const views = viewsFor(t, u, roleId, path, panel).map(v=>`<button class="${v.ok ? '' : 'off '}${kind===v.kind ? 'on' : ''}" ${v.ok ? `onclick="DB.openView('${id}','${v.kind}')"` : `aria-disabled="true" data-tip="${esc(v.why)}"`}>${VIEW_NAMES[v.kind]}</button>`).join('');
   const line = `<div class="strip-line"><span class="sl-path">${crumbs}</span>${live ? stripNum(t, b, !path.length, pass) : ''}${shift ? `<span class="sl-shift" data-fit="shift" data-cut="${esc(shiftText(q, b))}">${shift}</span>` : ''}${marks}${stripDims(k, t, kind, s, free)}
     <span class="sl-sp"></span>${passRow ? `<span class="sl-pass" data-fit="pass">${esc(passRow)}</span>` : ''}<span class="seg sl-views">${views}</span>
-    ${ok && r.nodeCnt!==undefined ? `<button class="sl-cnt" aria-label="Кто в этом числе" data-tip="Кто в этом числе: только объекты с вкладом в число" onclick="DB.whoNode('${id}')">${ICON_LIST}<span>${nbsp(r.nodeCnt)}${r.nodeOf!==undefined ? ' из '+nbsp(r.nodeOf) : ''}</span></button>` : ''}<button class="btn sl-list" data-fit="list" onclick="DB.registryAt('${id}')">Работать со списком</button>
+    ${ok && r.nodeCnt!==undefined ? `<button class="sl-cnt" aria-label="Кто в этом числе: ${nbsp(r.nodeCnt)}${r.nodeOf!==undefined ? ' из '+nbsp(r.nodeOf) : ''}" data-tip="${r.nodeOf!==undefined ? nbsp(r.nodeCnt)+' — в числе, '+nbsp(r.nodeOf)+' — группа' : 'Кто в этом числе: только объекты с вкладом в число'}" onclick="DB.whoNode('${id}')">${ICON_LIST}<span>${nbsp(r.nodeCnt)}${r.nodeOf!==undefined ? ' из '+nbsp(r.nodeOf) : ''}</span></button>` : ''}<button class="btn sl-list" data-fit="list" onclick="DB.registryAt('${id}')">Работать со списком</button>
     <button class="sl-icon sl-more" aria-label="Действия полосы" data-tip="Действия полосы" onclick="DB.stripMenu(event,'${id}')">${ICON_DOTS}</button><button class="sl-icon sl-x" aria-label="Закрыть" data-tip="Закрыть" onclick="DB.closeView('${id}')">${ICON_X}</button></div>`;
   const tools = stripMode(k, r)+stripCtl(k, t, kind, s, r);
   const arrow = place ? `<span class="strip-arrow" style="left:calc((100% - ${(place.cols - 1) * 16}px) / ${place.cols} * ${place.col + .5} + ${place.col * 16}px)"></span>` : '';
@@ -3213,8 +3220,8 @@ function rzBody(res, q, ops, go){
   const lab = diff ? res.baseLabel : '', asOf = String(res.passport || '').split(' · ')[0].replace(/^сегодня, /, '');   // «на 14:15», «Сентябрь» — над суммой
   const maxV = Math.max(...lines.map(n=>n.value || 0), 1e-9);
   const up = Math.max(0, ...lines.map(n=>n.delta || 0)), dn = Math.max(0, ...lines.map(n=>-(n.delta || 0))), span = (up + dn) || 1, zero = dn / span * 100;   // линия нуля «Изменения»
-  const tip = n=>{ const names = n.more ? ' ('+n.vs.map(v=>dimLabel(dim, v)).join(', ')+')' : '';
-    return n.label+names+': '+fmtVal(n.value, unit)+(n.den ? ' ('+fmtVal(n.num, IND[q.share[0]].unit)+' из '+fmtVal(n.den, IND[q.share[1]].unit)+')' : ''); };
+  const tip = n=>{ const names = n.more ? ' ('+n.vs.map(v=>dimLabel(dim, v)).join(', ')+')' : '', top = n.more && res.agg==='max' && !q.share ? 'наибольшее ' : '';   // «ещё N» у наибольшего — не сумма
+    return n.label+names+': '+top+fmtVal(n.value, unit)+(n.den ? ' ('+fmtVal(n.num, IND[q.share[0]].unit)+' из '+fmtVal(n.den, IND[q.share[1]].unit)+')' : ''); };
   const dtip = n=>{ const p = rzPct(n.pct); return 'Изменение '+(p ? p+' ' : '')+lab+(n.base!==null && n.base!==undefined ? ' · было '+fmtVal(n.base, unit) : ''); };
   const vCell = n=>`<span class="rz-v">${fmtVal(n.value, unit)}</span>`;
   const dCell = (n, quiet)=>{ const x = rzDelta(q, res, n.delta); return `<span class="rz-d ${quiet ? 'flat' : x.tone}"${x.dir==='none' ? '' : tipAttr(dtip(n))}>${x.text}</span>`; };
@@ -3599,7 +3606,7 @@ function tileFormHTML(d, r, dt, vs){
   const opt = (cur, list) => list.map(i=>`<option value="${i}" ${i===cur?'selected':''}>${esc(IND[i].name)}</option>`).join('');
   const sel = (fn, cur, list) => `<select onchange="DB.${fn}(this)">${opt(cur, list || r.cols)}</select>`;
   const dsel = (fn, cur) => `<select onchange="DB.${fn}(this)">${r.dims.map(x=>`<option value="${x}" ${x===cur?'selected':''}>${esc(DIMS[x].name)}</option>`).join('')}</select>`;
-  const cells = (fn, x, on) => `<div class="pick">${valuesOf(x, DATA[r.obj]).map(v=>`<label class="opt"><input type="checkbox" value="${esc(v)}" ${on.includes(v)?'checked':''} onchange="DB.${fn}(this)"> ${esc(dimLabel(x, v))}</label>`).join('')}</div>`;
+  const cells = (fn, x, on) => `<div class="pick">${pickValues(x, r.obj).map(v=>`<label class="opt"><input type="checkbox" value="${esc(v)}" ${on.includes(v)?'checked':''} onchange="DB.${fn}(this)"> ${esc(dimLabel(x, v))}</label>`).join('')}</div>`;
   const row = (fn, k, on, label, inner, off) => `<div class="nrow" data-k="${k}"><label class="opt${off ? ' off' : ''}"><input type="radio" name="${fn}" ${on?'checked':''} ${off?'disabled':''} onchange="DB.${fn}(this)"> ${label}</label>${off ? why(off) : inner}</div>`;
   // доля и «% от итога группы» — общие строки главного и второго числа
   const shareRow = (fn, x) => { const p = x && x.share || [r.cols[0], r.cols[1] || r.cols[0]];
@@ -3721,7 +3728,7 @@ function condEditor(d, target){
   const chips = list.map((c,i)=>paramLabel(c.v) ? '' : `<span class="chip cond">${esc(condText(c))}${((DIMS[c.f]||{}).req||FIELD_REQ[c.f])?' ⚑':''} <button class="linky" title="Убрать" onclick="DB.rCondDel('${target}',${i})">×</button></span>`).join(' ').trim();
   const fs = condFields(obj); const cd = condDraft.target===target ? condDraft : { f:'', op:'', v:null };
   const F = fs.find(x=>x.k===cd.f); const ops = F ? (F.dim ? ['eq','ne','in','nin'] : ['gt','ge','lt','le','eq']) : [];
-  const vals = F && F.dim ? valuesOf(cd.f, DATA[obj]) : [];
+  const vals = F && F.dim ? pickValues(cd.f, obj) : [];
   const multi = cd.op==='in' || cd.op==='nin';
   const valInput = !F ? '' : F.dim
     ? `<select ${multi?'multiple size="4" style="min-width:150px"':''} onchange="DB.rCond('${target}','v', Array.from(this.selectedOptions).map(o=>o.value))">${multi?'':'<option value="">значение…</option>'}${vals.map(v=>`<option value="${esc(v)}" ${[].concat(cd.v||[]).includes(v)?'selected':''}>${esc(dimLabel(cd.f, v))}</option>`).join('')}</select>`
@@ -3863,7 +3870,7 @@ const api = {
   mini:(id, uid, roleId, panel)=>cachedMini(tileArg(id), userArg(uid), roleId, panel),
   views:(id, uid, roleId, path, panel)=>viewsFor(tileArg(id), userArg(uid), roleId, path, panel),
   view:(id, kind, sel, path, uid, roleId, panel)=>cachedView(tileArg(id), kind, sel, path, userArg(uid), roleId, panel),
-  at:atOf, compile, dimsFor:(id, path, panel)=>dimsFor(tileArg(id), path, panel), colsFor:(id)=>colsFor(tileArg(id)), viewSel,
+  at:atOf, compile, pickValues:(d, obj, uid)=>pickValues(d, obj, uid ? userArg(uid) : null), dimsFor:(id, path, panel)=>dimsFor(tileArg(id), path, panel), colsFor:(id)=>colsFor(tileArg(id)), viewSel,
   REPORTS, R, reportById, questionOf, answer, QUEUES, queueById, queueOf, tilesOfReport, reportEdit, reportDelete, reportBroken,
   resetDeclaredFor:(roleId)=>resetDeclared(roleId), blankDraft, blankReportDraft, stripReportDraft, TILE_EDIT, reportsFor, pinFromReport, rcheck:checkReportDraft, publishDraftId:publishDraft, declaredEdit, stampOf, tlText, monthClosed,
   // UI

@@ -55,11 +55,13 @@
 //   S  волна 9 (16.10.2026), строки разреза ДБ-167…ДБ-170, ДБ-173: объект разреза не пропадает — итог = сумме строк во всех
 //      плитках × разрезах (Разрез, Таблица, Карта); список значений полный, «нет просрочки» первой корзиной, «пусто» последним
 //      со своим именем, значение вне списка — после объявленных; нули печатаются, у неупорядоченного — внизу и в «ещё N»; у
-//      разреза без своего списка значения — по строкам объекта в охвате смотрящего; упорядоченный держит шкалу и в «Изменении»;
-//      «ещё N» у наибольшего — наибольшее из скрытых строк;
+//      разреза без своего списка значения — по строкам охвата смотрящего после панели и пути вглубь, не после фильтра плитки
+//      (объявленный список — целиком при любой панели); в конструкторе — по охвату автора; упорядоченный держит шкалу и в
+//      «Изменении»; «ещё N» у наибольшего — наибольшее из скрытых строк, в подсказке «наибольшее»;
 //   T  метки ДБ-171, ДБ-172: ночной источник по плану — серая «◷ только ночью», «⚠ устарело» — только при сбое прогона;
 //      «✎ отчёт изменён» — янтарная в ряду меток, пропадает после открытия отчёта смотрящим;
-//   U  ДБ-174: у доли «☰ 435 из 903» в строке полосы, итог тела — сумма строк; окно ввода держит фокус, Escape, возврат фокуса.
+//   U  ДБ-174: у доли «☰ 435 из 903» в строке полосы (и в aria-label), итог тела — сумма строк; окно ввода держит фокус, Escape,
+//      возврат фокуса.
 // Блоки, которые правят состояние, начинаются с DB.seed(). Выход 1 при любом FAIL.
 //   node scripts/inspect/dashboard-check.mjs
 import { readFileSync } from 'node:fs';
@@ -2155,10 +2157,11 @@ const asUser = id => { DB.state.userId = id; };
   asUser('u4'); DB.setTab('role', 'acc'); DB.openView('acc-unm', 'slice'); const x5 = DB.exportTile('acc-unm', 'xlsx', 'acc', DB.state.open['acc-unm']);
   asUser('u3'); const x6 = DB.exportTile('tasks', 'xlsx', 'prob', { kind:'slice', sel:{}, path:[] });
   const has = (x, re) => x.stamp.some(s => re.test(s));
-  const nDept = new Set(DB.DATA.loan.map(l => l.dept)).size;   // строки разреза — все подразделения из строк объекта, вклад — только у Ошского РП
+  // строки разреза без своего списка — подразделения строк пути «Ошская › 181+» в охвате смотрящего (путь сужает список), а не все подразделения объекта
+  const nAll = new Set(DB.DATA.loan.map(l => l.dept)).size, nDept = new Set(DB.DATA.loan.filter(l => l.region === 'Ошская' && DB.DIMS.bucket.get(l) === '181+').map(l => l.dept)).size;
   ok(216, x1.stamp.length === 10 && x1.stamp[3] === 'Вид: Разрез по «Подразделение»' && x1.stamp[4] === 'Путь: Ошская › 181+' && x1.stamp[5] === 'Разрез на время просмотра' && x1.stamp[0] === 'Плитка: Просрочено'
     && has(x1, /^Отчёт: «Портфель кредитов», версия 1/) && has(x1, /^Паспорт: на 14:15 · день не закрыт · сом, курс 11\.10 · видно 2\s149$/) && has(x1, /НЕ ЯВЛЯЕТСЯ ОФИЦИАЛЬНЫМ ДОКУМЕНТОМ/) && has(x1, /^Выгрузил: Асанов/)
-    && x1.rows.length === nDept + 1 && x1.rows[0][1] === tot1 && x1.rows.slice(1, -1).every(r => r[1] === DB.fmtVal(0, 'sum')) && x1.rows[x1.rows.length - 1].join() === 'итог,' + tot1 && /^# Вид: Разрез по «Подразделение»$/m.test(x1.csv) && /^# Путь: Ошская › 181\+$/m.test(x1.csv)
+    && nDept >= 1 && nDept < nAll && x1.rows.length === nDept + 1 && x1.rows[0][0] === DB.DIMS.dept.label('rp-osh') && x1.rows[0][1] === tot1 && x1.rows.slice(1, -1).every(r => r[1] === DB.fmtVal(0, 'sum')) && x1.rows[x1.rows.length - 1].join() === 'итог,' + tot1 && /^# Вид: Разрез по «Подразделение»$/m.test(x1.csv) && /^# Путь: Ошская › 181\+$/m.test(x1.csv)
     && L1.view.kind === 'slice' && L1.view.sel.dim === 'dept' && L1.view.temp === true && JSON.stringify(L1.path) === '[{"dim":"region","v":"Ошская"},{"dim":"bucket","v":"181+"}]' && L1.tile === 'lead-od' && L1.report === 'r-portfolio' && L1.version === 1 && L1.kind === 'xlsx'
     && x2.stamp.length === 9 && x2.stamp[3] === 'Вид: Разрез по «Категория классификации»' && !has(x2, /на время просмотра/) && DB.state.exportLog.filter(l => l.kind === 'pdf').length === 1
     && x3.stamp.length === 8 && x3.stamp[3] === 'Вид: Разрез по «Срок просрочки»' && !has(x3, /^Путь:/) && JSON.stringify(DB.state.exportLog[2].path) === '[]'
@@ -2167,7 +2170,7 @@ const asUser = id => { DB.state.userId = id; };
     && xb.stamp.length === 7 && !has(xb, /^(Вид|Путь):/) && Lb.view === null && Lb.path.length === 0 && xb.rows.length === 3 && xb.rows[0][0] === 'Просрочено' && xb.rows[1][0] === 'портфеля' && /^сдвиг к 30\.09$/.test(xb.rows[2][0]) && xb.view === null
     && oa.view === 'table' && ob.view === null && x5.stamp[1] === 'Вид: Разрез по «Срок ожидания»' && !has(x5, /^Отчёт:/) && !has(x5, /на время просмотра/) && x5.rows.length === 4 && x5.rows[3].join() === 'итог,16'
     && x6.refused && /не объявила разрезов/.test(x6.msg) && DB.exportTile.length === 3,
-    `выгрузка из открытой полосы «Просрочено › Ошская › 181+» по подразделению: «${x1.stamp[3]}», «${x1.stamp[4]}», «${x1.stamp[5]}» — штамп из десяти строк, в выгрузке все ${nDept} подразделений (вклад у одного, остальные нулём — волна 9, ДБ-169), итог ${tot1} = числу узла; разрез отчёта — без пометки; Таблица — «${x4.stamp[3].slice(5, 28)}…» с колонкой «доля»; журнал выгрузок несёт вид и путь (у выгрузки с плитки — пусто, штамп из семи строк: главное, второе число, сдвиг); у ссылочной — без строки «Отчёт», погашенный вид не выгружается; колонки Таблицы в штампе — с показателя плитки (волна 7, ДБ-156); «⤓ Выгрузить» — пункт «⋯» полосы, подвала нет (ДБ-129, ДБ-113, ДБ-146)`);
+    `выгрузка из открытой полосы «Просрочено › Ошская › 181+» по подразделению: «${x1.stamp[3]}», «${x1.stamp[4]}», «${x1.stamp[5]}» — штамп из десяти строк, в выгрузке — подразделения строк пути: ${nDept} из ${nAll}, первым «${x1.rows[0][0]}» (путь сужает список разреза без своего списка; фильтр плитки — нет; ДБ-169), итог ${tot1} = числу узла; разрез отчёта — без пометки; Таблица — «${x4.stamp[3].slice(5, 28)}…» с колонкой «доля»; журнал выгрузок несёт вид и путь (у выгрузки с плитки — пусто, штамп из семи строк: главное, второе число, сдвиг); у ссылочной — без строки «Отчёт», погашенный вид не выгружается; колонки Таблицы в штампе — с показателя плитки (волна 7, ДБ-156); «⤓ Выгрузить» — пункт «⋯» полосы, подвала нет (ДБ-129, ДБ-113, ДБ-146)`);
   DB.seed();
 })();
 
@@ -2752,11 +2755,11 @@ const asUser = id => { DB.state.userId = id; };
   // ДБ-Д39, счёт: «Заёмщиков» по худшей просрочке, «Подтверждено» Головного офиса по статусу, «Срок сдачи ≤ 7 дн.» по итогу сдачи
   const rw = V('lead-borr', 'slice', { dim:'bodays' }), ug = roleUser('gof'), ur = roleUser('rep');
   const rg = V('gof-conf', 'slice', { dim:'astatus' }, [], ug, 'gof'), rs = V('rep-soon', 'slice', { dim:'ostate' }, [], ur, 'rep');
-  const named = (v, x) => (v.lines.find(l => l.v === x) || {}).value;
+  const named = (v, x) => (v.lines.find(l => l.v === x) || {}).value, without = (v, x) => sum(v.nodes.filter(n => n.v !== x).map(n => n.value || 0));   // сумма строк движка без одной
   ok(277, sum(rw.lines.map(l => l.value)) === 903 && rw.total.v === 903 && rw.lines.map(l => l.v).join() === [...DB.DIMS.bodays.values, DB.DIMS.bodays.empty].join() && sum(rw.lines.slice(1, 5).map(l => l.value)) === 270 && named(rw, DB.DIMS.bodays.empty) === 0
-    && rg.total.v === 22 && sum(rg.lines.map(l => l.value)) === 22 && rg.lines.at(-1)?.v === 'Закрыта' && named(rg, 'Закрыта') === 12 && 22 - named(rg, 'Закрыта') === 10
+    && rg.total.v === 22 && sum(rg.lines.map(l => l.value)) === 22 && rg.lines.at(-1)?.v === 'Закрыта' && named(rg, 'Закрыта') === 12 && without(rg, 'Закрыта') === 10
     && rs.total.v === 4 && sum(rs.lines.map(l => l.value)) === 4 && rs.lines[0].v === 'ожидается' && named(rs, 'ожидается') === 4,
-    `«Заёмщиков» → «Худшая просрочка по портфелю»: все ${rw.total.v} (было ${sum(rw.lines.slice(1, 5).map(l => l.value))}; «нет просрочки» ${named(rw, 'нет просрочки')}, «${DB.DIMS.bodays.empty}» ${named(rw, DB.DIMS.bodays.empty)}); Головной офис → «Подтверждено · прошлый месяц» → «Статус заявки»: ${rg.total.v} (было 10, «Закрыта» ${named(rg, 'Закрыта')} — последней в справочнике); Отчётность → «Срок сдачи ≤ 7 дн.» → «Итог сдачи»: ${rs.total.v} (было 0, «ожидается» ${named(rs, 'ожидается')}) (ДБ-Д39, ДБ-168)`);
+    `«Заёмщиков» → «Худшая просрочка по портфелю»: все ${rw.total.v} (было ${sum(rw.lines.slice(1, 5).map(l => l.value))}; «нет просрочки» ${named(rw, 'нет просрочки')}, «${DB.DIMS.bodays.empty}» ${named(rw, DB.DIMS.bodays.empty)}); Головной офис → «Подтверждено · прошлый месяц» → «Статус заявки»: ${rg.total.v} (было 10 — столько и в строках без «Закрыта»: ${without(rg, 'Закрыта')}; «Закрыта» ${named(rg, 'Закрыта')} — последней в справочнике); Отчётность → «Срок сдачи ≤ 7 дн.» → «Итог сдачи»: ${rs.total.v} (было 0, «ожидается» ${named(rs, 'ожидается')}) (ДБ-Д39, ДБ-168)`);
 
   // ДБ-170 и эталон канона: «На рассмотрении · Решение» — три нуля и «нет решения 18»; «не новая» и «нет исхода»
   const uc = roleUser('com'), rc = V('com-pend', 'slice', { dim:'decision' }, [], uc, 'com');
@@ -2764,9 +2767,9 @@ const asUser = id => { DB.state.userId = id; };
   const rsw = V('spec-work', 'slice', { dim:'astage' }, [], roleUser('spec'), 'spec'), rrs = V('lead-rs', 'slice', { dim:'routcome' });
   ok(278, JSON.stringify(rc.lines.map(l => [l.label, l.value, l.cnt])) === JSON.stringify([['Одобрено', 0, 0], ['Доп. информация', 0, 0], ['Отклонено', 0, 0], ['нет решения', 18, 18]]) && rc.total.v === 18 && rc.cnt === 18
     && rzNames(hc).join() === 'Одобрено,Доп. информация,Отклонено,нет решения,итог' && rzRows(hc).slice(0, 3).every(r => /<span class="rz-v">0<\/span>/.test(r) && /class="ls zero"[^>]*>☰ 0</.test(r)) && !/rz-more/.test(hc)
-    && rsw.total.v === 24 && named(rsw, 'не новая') === 16 && rsw.lines.at(-1)?.v === 'не новая' && 24 - 16 === 8
+    && rsw.total.v === 24 && named(rsw, 'не новая') === 16 && rsw.lines.at(-1)?.v === 'не новая' && without(rsw, 'не новая') === 8 && sum(rsw.nodes.map(n => n.value || 0)) === rsw.total.v
     && rrs.total.v === 14 && sum(rrs.lines.map(l => l.value)) === 14 && named(rrs, 'нет исхода') === 14,
-    `Комиссия → «На рассмотрении» → «Решение»: ${rc.lines.map(l => l.label + ' ' + l.value).join(' · ')} · итог ${rc.total.v} — нули печатаются с «☰ 0», «ещё N» нет; Кредитный специалист → «Заявок в работе» → «Стадия новой заявки»: ${rsw.total.v} (было 8, «не новая» ${named(rsw, 'не новая')}); Руководство → «Обращений о реструктуризации в работе» → «Исход обращения»: ${rrs.total.v} (было 0, «нет исхода» ${named(rrs, 'нет исхода')}) (ДБ-Д39, ДБ-169, ДБ-170)`);
+    `Комиссия → «На рассмотрении» → «Решение»: ${rc.lines.map(l => l.label + ' ' + l.value).join(' · ')} · итог ${rc.total.v} — нули печатаются с «☰ 0», «ещё N» нет; Кредитный специалист → «Заявок в работе» → «Стадия новой заявки»: ${rsw.total.v} (было 8 — столько и в строках без «не новая»: ${without(rsw, 'не новая')}; «не новая» ${named(rsw, 'не новая')}); Руководство → «Обращений о реструктуризации в работе» → «Исход обращения»: ${rrs.total.v} (было 0, «нет исхода» ${named(rrs, 'нет исхода')}) (ДБ-Д39, ДБ-169, ДБ-170)`);
 
   // ДБ-169, Карта: «Остаток» срок × категория — обе оси полным списком, столбец «Низкий кредитный риск» не пуст
   const mb = V('lead-bal', 'map', { dims:['bucket', 'category'] }), jL = mb.heat.cols.indexOf('Низкий кредитный риск'), jE = mb.heat.cols.indexOf('нет категории');
@@ -2815,8 +2818,9 @@ const asUser = id => { DB.state.userId = id; };
     && rzNames(hn).join() === 'нет просрочки,1–30,31–90,91–180,181+,итог' && /<span class="rz-v">0<\/span>/.test(rzRows(hn)[0] || '') && /☰ 0</.test(rzRows(hn)[0] || '') && !/rz-more/.test(hn),
     `«Просрочено › Нарынская · Срок просрочки»: ${vn.lines.map(l => l.label + ' ' + mln(l.value) + ' ☰ ' + l.cnt).join(' · ')} · итог ${mln(vn.total.v)} ☰ ${vn.cnt} — пять строк всегда, «ещё N» нет и при «первых 1» (ДБ-169)`);
 
-  // ДБ-169, неупорядоченный: все значения поля по строкам объекта в охвате смотрящего, нулевые — вниз и в «ещё N»; Таблица и Карта — те же строки.
-  // Охват сужает и список: куратор видит кураторов своего подразделения, а не всех; Руководство — всех
+  // ДБ-169, неупорядоченный: все значения поля по строкам охвата смотрящего (после панели и пути, не после фильтра плитки), нулевые — вниз
+  // и в «ещё N»; Таблица и Карта — те же строки. Охват сужает и список: куратор видит кураторов своего подразделения, а не всех; Руководство —
+  // всех; фильтр плитки «куратор = я» список не сужает — остальные кураторы подразделения стоят нулями
   const u2 = U('u2'), own = [...new Set(DB.DATA.loan.filter(l => l.dept === u2.dept).map(l => l.curator))], all = new Set(DB.DATA.loan.map(l => l.curator));
   const vd = V('cur-bal', 'slice', { dim:'curator' }, [], 'u2', 'cur'), td = V('cur-bal', 'table', { dim:'curator' }, [], 'u2', 'cur'), md = V('cur-bal', 'map', { dims:['curator', 'region'] }, [], 'u2', 'cur');
   const vdd = V('cur-bal', 'slice', { dim:'dept' }, [], 'u2', 'cur'), vl = V('lead-od', 'slice', { dim:'curator' }), mo = vd.lines.find(l => l.more);
@@ -2826,7 +2830,7 @@ const asUser = id => { DB.state.userId = id; };
     && near(sum(vd.lines.map(l => l.value)), vd.total.v) && vdd.nodes.length === 1 && vdd.nodes[0].v === u2.dept && vl.nodes.length === all.size
     && td.table.rows.length === own.length && td.table.rows.slice(nz).every(r => !r.cells[0])
     && md.heat.rows.length === own.length && md.heat.cols.length === DB.DIMS.region.values.length && md.heat.cells.slice(nz).every(r => r.every(x => !x)),
-    `Куратор → «Остаток» по куратору: ${vd.nodes.length} строк — кураторы своего подразделения, не все ${all.size} (Руководство видит ${vl.nodes.length}); с вкладом ${nz}, нулевые внизу и в «ещё ${mo ? mo.more : '?'}» (0 · ☰ 0); по подразделению — одна строка «${vdd.nodes[0]?.label}»; Таблица — те же ${td.table.rows.length} строк, нули внизу; Карта куратор × область — ${md.heat.rows.length} × ${md.heat.cols.length}, пустые строки в конце (ДБ-169)`);
+    `Куратор → «Остаток» по куратору: ${vd.nodes.length} строк — кураторы своего подразделения, не все ${all.size} (Руководство без панели видит ${vl.nodes.length}); фильтр плитки «куратор = я» список не сужает: с вкладом ${nz}, нулевые внизу и в «ещё ${mo ? mo.more : '?'}» (0 · ☰ 0); по подразделению — одна строка «${vdd.nodes[0]?.label}»; Таблица — те же ${td.table.rows.length} строк, нули внизу; Карта куратор × область — ${md.heat.rows.length} × ${md.heat.cols.length}, пустые строки в конце (ДБ-169)`);
 
   // ДБ-173: упорядоченный разрез в «Изменении» держит свой порядок — в Разрезе и в Таблице; разница — полосой в своей строке
   const vcS = V('lead-od', 'slice', { dim:'bucket', mode:'sum' }), vcC = V('lead-od', 'slice', { dim:'bucket', mode:'change' }), tcC = V('lead-od', 'table', { dim:'bucket', mode:'change' });
@@ -2941,8 +2945,9 @@ const asUser = id => { DB.state.userId = id; };
   // ДБ-174: «Доля повторных клиентов» — «% от группы»; во всех видах строка полосы печатает «☰ числитель из группы», как второе число плитки
   DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.STAND.N = 5000;   // списки — полностью, без отказа «сузьте вопрос»; DB.seed() в конце блока возвращает 150
   const sec = second('cat-brepsh', 'u1', 'lead'), b0 = DB.base('cat-brepsh', 'u1', 'lead'), vs = ['slice', 'table', 'map', 'series'].map(k => Object.assign({ k }, strip('cat-brepsh', k)));
-  ok(295, sec && sec.join() === '435,903' && b0.num === sec[0] && b0.den === sec[1] && vs[0].r.sel.dim === 'bcredits' && vs.every(v => same(v, sec)),
-    `«Доля повторных клиентов»: второе число плитки «${sec && sec.join(' из ')}»; в строке полосы один «☰» — «☰ ${vs.map(v => cntOf(v.h).join('|')).join(' · ')}» в Разрезе (по своему разрезу «Договоров у клиента»), Таблице, Карте и Ряде: числитель и группа — те же числа, что у плитки (ДБ-174)`);
+  ok(295, sec && sec.join() === '435,903' && b0.num === sec[0] && b0.den === sec[1] && vs[0].r.sel.dim === 'bcredits' && vs.every(v => same(v, sec))
+    && vs.every(v => v.h.includes('<button class="sl-cnt" aria-label="Кто в этом числе: ' + sec.join(' из ') + '" data-tip="' + sec[0] + ' — в числе, ' + sec[1] + ' — группа"')),
+    `«Доля повторных клиентов»: второе число плитки «${sec && sec.join(' из ')}»; в строке полосы один «☰» — «☰ ${vs.map(v => cntOf(v.h).join('|')).join(' · ')}» в Разрезе (по своему разрезу «Договоров у клиента»), Таблице, Карте и Ряде: числитель и группа — те же числа, что у плитки; aria-label кнопки — «Кто в этом числе: ${sec && sec.join(' из ')}» (видимый текст не подменён), подсказка — «${sec && sec[0]} — в числе, ${sec && sec[1]} — группа» (ДБ-174)`);
 
   // ДБ-174, ДБ-Д44: клик по «☰» строки — числитель (ячейки 2 и 3+), итог тела — «☰ 903», сумма строк, без новой подписи
   const sv = vs[0], tot = /<button class="ls quiet"[^>]*onclick="event\.stopPropagation\(\);DB\.whoAt\('cat-brepsh'\)">☰ ([\d\s]+)<\/button>/.exec(sv.h);
@@ -2965,10 +2970,11 @@ const asUser = id => { DB.state.userId = id; };
     `Куратор «Заёмщиков с просрочкой» (второе число «${sb && sb.join(' из ')}»): в строке полосы «☰ ${cntOf(co.h)[0]}» и по своему разрезу «Договоров с просрочкой» (итог тела ${co.r.cnt} — вся группа), и по региону (итог ${cr.r.cnt} — числитель), клик — ${co.w.list.length}; доля двух колонок: «Возвратность по делам» — «☰ ${cntOf(lr.h)[0]}» (дела с платежами из дел с базой), «Просрочено / остаток» — ${ra.nodeCnt} из ${ra.nodeOf} = «☰» «Просрочено» из «☰» «Остатка» (ДБ-174)`);
 
   // ДБ-174 уточняет ДБ-149: у не-доли строка полосы — прежнее «☰ N»; доля во втором числе не делает плитку долей (Ряд второго числа тоже)
-  const plain = v => { const c = cntOf(v.h); return c.length === 1 && /^[\d\s]+$/.test(c[0]) && num(c[0]) === v.r.nodeCnt && v.r.nodeOf === undefined && v.w.list.length === v.r.nodeCnt; };
+  const plain = v => { const c = cntOf(v.h), a = /<button class="sl-cnt" aria-label="Кто в этом числе: ([\d\s]+)" data-tip="Кто в этом числе: только объекты с вкладом в число"/.exec(v.h);
+    return c.length === 1 && /^[\d\s]+$/.test(c[0]) && num(c[0]) === v.r.nodeCnt && v.r.nodeOf === undefined && v.w.list.length === v.r.nodeCnt && !!a && num(a[1]) === v.r.nodeCnt; };
   const np = [strip('lead-borr', 'slice'), strip('lead-od', 'table'), strip('lead-od', 'series', { of:'second' }), strip('rep-sum', 'series', { of:'second' }, 'u10', 'rep')];
   ok(298, np.every(plain) && T('lead-borr').second.pct && T('lead-od').second.share && T('rep-sum').second.share && np[2].r.nodeCnt === rod.r.nodeCnt && !/ из /.test(np.map(v => cntOf(v.h)[0]).join()),
-    `не доля — «☰ N» без «из»: «Заёмщиков» ${cntOf(np[0].h)[0]}, «Просрочено» в Таблице ${cntOf(np[1].h)[0]} и в Ряде второго числа (доля портфеля) ${cntOf(np[2].h)[0]}, «Итог сдачи» в Ряде второго числа ${cntOf(np[3].h)[0]}; клик открывает список той же длины (ДБ-174, ДБ-149)`);
+    `не доля — «☰ N» без «из»: «Заёмщиков» ${cntOf(np[0].h)[0]}, «Просрочено» в Таблице ${cntOf(np[1].h)[0]} и в Ряде второго числа (доля портфеля) ${cntOf(np[2].h)[0]}, «Итог сдачи» в Ряде второго числа ${cntOf(np[3].h)[0]}; клик открывает список той же длины; aria-label — «Кто в этом числе: N» (ДБ-174, ДБ-149)`);
 
   // мелочи волны 8: окно ввода держит фокус, Escape — как «Отмена», фокус возвращается на кнопку, пустое не сохраняется
   ok(299, /<form class="ask" id="ask-form" role="dialog" aria-modal="true" aria-labelledby="ask-t" tabindex="-1">/.test(src) && /ring = \[i, \.\.\.f\.querySelectorAll\('button'\)\]/.test(src)
@@ -3023,9 +3029,67 @@ const asUser = id => { DB.state.userId = id; };
   DB.seed(); asUser('u3'); DB.setTab('role', 'prob');
   const v = DB.view('prob-since', 'slice', { dim:'leadDept', top:2 }, [], 'u3', 'prob', {}), mo = v.lines.find(l => l.more);
   const hid = v.nodes.filter(n => mo && mo.vs.includes(n.v)).map(n => n.value).filter(x => x !== null && x !== undefined);
+  // подсказка строки «ещё N» у наибольшего — «ещё 5 (…): наибольшее 216 дн.»; у суммы — без слова «наибольшее»
+  const moreTip = (uid, role, id, sel) => { asUser(uid); DB.setTab('role', role); DB.state.open = {}; DB.openView(id, 'slice'); Object.assign(DB.state.open[id].sel, sel);
+    const h = DB.stripHTML(id, uid, role); DB.state.open = {}; return (/<div class="rz-r rz-more"><span class="rz-nm" data-tip="([^"]*)">/.exec(h) || [])[1] || null; };
+  const tMax = moreTip('u3', 'prob', 'prob-since', { dim:'leadDept', top:2 }), tSum = moreTip('u1', 'lead', 'lead-od', { dim:'curator' });
   ok(301, DB.IND[DB.questionOf(DB.tileById('prob-since')).inds[0]].agg === 'max' && mo && hid.length === mo.more && mo.value === Math.max(...hid)
-    && mo.value < hid.reduce((a, b) => a + b, 0) && v.total.v === Math.max(...v.nodes.map(n => n.value || 0)),
-    `Проблемные кредиты → «Наибольший срок с направления» по ведущему подразделению, первые 2: «ещё ${mo ? mo.more : '?'}» — ${mo ? mo.value : '?'} дн., наибольшее из скрытых строк (${hid.join(', ')}), не сумма; итог ${v.total.v} — наибольшая строка`);
+    && mo.value < hid.reduce((a, b) => a + b, 0) && v.total.v === Math.max(...v.nodes.map(n => n.value || 0))
+    && !!tMax && tMax.startsWith('ещё ' + mo.more + ' (') && tMax.endsWith('): наибольшее ' + DB.fmtVal(mo.value, v.unit)) && !!tSum && /^ещё \d+ \(/.test(tSum) && !/наибольшее/.test(tSum),
+    `Проблемные кредиты → «Наибольший срок с направления» по ведущему подразделению, первые 2: «ещё ${mo ? mo.more : '?'}» — ${mo ? mo.value : '?'} дн., наибольшее из скрытых строк (${hid.join(', ')}), не сумма; итог ${v.total.v} — наибольшая строка; подсказка «${tMax ? tMax.replace(/\(.*\)/, '(…)') : '?'}», у суммы («Просрочено» по куратору) — «${tSum ? tSum.replace(/\(.*\)/, '(…)') : '?'}»`);
+  DB.seed();
+})();
+
+/* ---------- S (продолжение). Правки по ревью волны 9: строки разреза без своего списка — по охвату после панели и пути, не после фильтра плитки ---------- */
+(() => {
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
+  const V = (id, kind, sel, path = [], uid = 'u1', role = 'lead', panel = {}) => DB.view(id, kind, sel, path, uid, role, panel);
+  const near = (a, b) => Math.abs((a || 0) - (b || 0)) <= 1e-6 * Math.max(1, Math.abs(a || 0), Math.abs(b || 0)), mln = v => DB.fmtVal(v, 'sum');
+  const set = a => [...new Set(a)].sort().join(), curs = ls => set(ls.map(l => l.curator)), depts = ls => set(ls.map(l => l.dept)), vs = v => set(v.nodes.map(n => n.v));
+  const L = DB.DATA.loan, nCur = new Set(L.map(l => l.curator)).size, nDept = new Set(L.map(l => l.dept)).size;
+
+  // панель экрана сужает список разреза без своего списка: Руководство, «Подразделение = Ошское РП», «Остаток» по куратору — кураторы Ошского РП, не все
+  const PO = { dept:'rp-osh' }, oshL = L.filter(l => l.dept === 'rp-osh'), regL = L.filter(l => l.region === 'Ошская');
+  const p0 = V('lead-bal', 'slice', { dim:'curator' }), pv = V('lead-bal', 'slice', { dim:'curator' }, [], 'u1', 'lead', PO), pt = V('lead-bal', 'table', { dim:'curator' }, [], 'u1', 'lead', PO);
+  const pm = V('lead-bal', 'map', { dims:['curator', 'bucket'] }, [], 'u1', 'lead', PO), pr = V('lead-bal', 'slice', { dim:'curator' }, [], 'u1', 'lead', { region:'Ошская' });
+  const pd = V('lead-od', 'slice', { dim:'curator' }, [], 'u1', 'lead', PO), bO = DB.base('lead-bal', 'u1', 'lead', PO).value;
+  ok(302, p0.nodes.length === nCur && pv.sel.dim === 'curator' && pv.panelApplied.join() === 'dept' && vs(pv) === curs(oshL) && pv.nodes.length < nCur
+    && near(sum(pv.nodes.map(n => n.value)), bO) && near(pv.total.v, bO) && set(pt.table.rows.map(r => r.v)) === curs(oshL) && set(pm.heat.rows) === curs(oshL) && pm.heat.cols.join() === DB.DIMS.bucket.values.join()
+    && pr.panelApplied.join() === 'region' && vs(pr) === curs(regL) && pd.sel.dim === 'curator' && vs(pd) === curs(oshL) && near(sum(pd.nodes.map(n => n.value)), pd.total.v),
+    `Руководство, панель «Подразделение = Ошское РП» → «Остаток» по куратору: ${pv.nodes.length} строк — кураторы Ошского РП (нулевых ${pv.nodes.filter(n => !n.value).length}), не все ${nCur} (без панели — ${p0.nodes.length}; было: ${nCur} строк, из них ${nCur - pv.nodes.length} нулевых — кураторы других подразделений); итог ${mln(pv.total.v)} = основе плитки с панелью; Таблица и Карта куратор × срок — те же ${pt.table.rows.length} строк (у срока — все ${pm.heat.cols.length} корзин); панель «Область = Ошская» — ${pr.nodes.length} кураторов области; «Просрочено» по куратору с той же панелью — те же ${pd.nodes.length}, итог ${mln(pd.total.v)} = сумме строк`);
+
+  // путь вглубь сужает так же; то же условие в фильтре вопроса список не сужает — нули внутри вопроса остаются (куратор без вклада = 0)
+  const OSH = [{ dim:'region', v:'Ошская' }], qd = V('lead-od', 'slice', { dim:'dept' }), qp = V('lead-od', 'slice', { dim:'dept' }, OSH), qc = V('lead-od', 'table', { dim:'curator' }, OSH);
+  const rp = DB.reportById('r-portfolio'), t = DB.tileById('lead-od'), sp = () => ({ format:'slice', inds:['loan.overdue'], dims:['dept'] }), cond = { f:'region', op:'eq', v:'Ошская' };
+  const qP = DB.compile(rp, t.params, Object.assign(sp(), { conds:[cond] })), qF = DB.compile(rp, t.params, sp()); qF.filter.push(Object.assign({}, cond));
+  const aP = DB.answer(qP, U('u1'), 'lead', {}), aF = DB.answer(qF, U('u1'), 'lead', {}), zF = aF.nodes.filter(n => !n.value);
+  const u2 = U('u2'), own = L.filter(l => l.dept === u2.dept), cb = V('cur-bal', 'slice', { dim:'curator' }, [], 'u2', 'cur'), cbQ = DB.questionOf(DB.tileById('cur-bal'));
+  ok(303, qd.nodes.length === nDept && vs(qp) === depts(regL) && qp.nodes.length === 1 && near(qp.total.v, DB.at('lead-od', 'main>region=Ошская', 'u1', 'lead', {})) && set(qc.table.rows.map(r => r.v)) === curs(regL)
+    && qP.path.length === 1 && !qF.path && vs(aP) === depts(regL) && aF.nodes.length === nDept && zF.length === nDept - 1 && near(aP.total.v, aF.total.v) && near(sum(aF.nodes.map(n => n.value)), aF.total.v)
+    && cbQ.filter.some(c => c.f === 'curator' && c.v === '@me') && vs(cb) === curs(own) && cb.nodes.filter(n => n.value).length === 1 && cb.nodes[0].v === 'u2' && cb.nodes.slice(1).every(n => n.value === 0),
+    `«Просрочено › Ошская» по подразделению: ${qp.nodes.length} строка «${qp.nodes[0]?.label}» (без пути — ${qd.nodes.length}; было: ${nDept} строк, ${nDept - 1} нулевых), по куратору — ${qc.table.rows.length} кураторов области; то же условие «Область = Ошская» в фильтре вопроса, а не в пути — ${aF.nodes.length} строк, ${zF.length} нулевых, итог тот же ${mln(aF.total.v)}; Куратор, «Остаток» с фильтром «куратор = я» — ${cb.nodes.length} строк (кураторы подразделения), вклад только у «${cb.nodes[0]?.label}», остальные нулём`);
+
+  // объявленный список панелью не сужается: срок просрочки — все 5 корзин при любой панели; категория и область — тоже целиком, нули печатаются
+  const panels = [...new Set(L.map(l => l.dept))].map(v => ({ dept:v })).concat(DB.DIMS.region.values.map(v => ({ region:v })), [...new Set(L.map(l => l.program))].map(v => ({ program:v })));
+  const BK = DB.DIMS.bucket.values.join(), RG = set(DB.DIMS.region.values), CT = set([...DB.DIMS.category.values, DB.DIMS.category.empty]), bad = []; let n4 = 0, z4 = 0;
+  panels.forEach(P => { const k = Object.entries(P)[0].join('='), b = V('lead-od', 'slice', { dim:'bucket' }, [], 'u1', 'lead', P), c = V('lead-bal', 'table', { dim:'category' }, [], 'u1', 'lead', P);
+    const m = V('lead-od', 'map', { dims:['bucket', 'category'] }, [], 'u1', 'lead', P); n4++;
+    if (b.sel.dim !== 'bucket' || b.lines.map(l => l.v).join() !== BK || b.lines.some(l => l.more) || !b.panelApplied.length) bad.push(k + ' срок');
+    if (c.sel.dim !== 'category' || set(c.table.rows.map(r => r.v)) !== CT) bad.push(k + ' категория');
+    if (m.heat.rows.join() !== BK || set(m.heat.cols) !== CT) bad.push(k + ' Карта');
+    if (!P.region) { const r = V('lead-od', 'slice', { dim:'region' }, [], 'u1', 'lead', P); if (r.sel.dim !== 'region' || vs(r) !== RG) bad.push(k + ' область'); else z4 += r.nodes.filter(n => !n.value).length; } });
+  const ro = V('lead-od', 'slice', { dim:'region' }, [], 'u1', 'lead', PO);
+  ok(304, n4 === nDept + DB.DIMS.region.values.length + new Set(L.map(l => l.program)).size && bad.length === 0 && ro.nodes.length === DB.DIMS.region.values.length && ro.nodes.filter(n => n.value).length === 1 && z4 > 0,
+    `объявленный список печатается целиком при любой панели (${n4}: подразделения, области, программы): «Просрочено» по сроку — всегда ${DB.DIMS.bucket.values.length} корзин по шкале без «ещё N», «Остаток» в Таблице по категории — ${DB.DIMS.category.values.length + 1} строк с «нет категории», Карта срок × категория — полные оси; по области — все ${ro.nodes.length} (с панелью «Ошское РП» вклад у одной; нулевых строк по всем панелям ${z4}); не сходится ${bad.length}${bad.length ? ': ' + bad.slice(0, 5).join('; ') : ''}`);
+
+  // конструктор: значения на выбор («% от итога группы», «Фильтр отчёта») — по охвату автора; объявленный список — целиком; проверки значений — по всем строкам
+  const pk = (d, uid) => DB.pickValues(d, 'loan', uid), pAst = DB.pickValues('curator', 'loan', 'u12');
+  const fsrc = src.slice(src.indexOf('function tileFormHTML('), src.indexOf('function renderBuilder(')), csrc = src.slice(src.indexOf('function condEditor('), src.indexOf('function reportHints('));
+  ok(305, set(pk('curator', 'u2')) === curs(own) && pk('dept', 'u2').join() === u2.dept && pk('curator', 'u1').length === nCur && pk('dept', 'u1').length === nDept && set(pk('curator', 'c30')) === curs(L.filter(l => l.dept === U('c30').dept))
+    && pk('bucket', 'u2').join() === BK && set(pk('region', 'u2')) === RG && set(pk('category', 'u2')) === CT && pAst.length === 0 && DB.rowsFor(U('u12'), null, 'loan') === null
+    && /<div class="pick">\$\{pickValues\(x, r\.obj\)/.test(fsrc) && !/valuesOf\(/.test(fsrc) && /const vals = F && F\.dim \? pickValues\(cd\.f, obj\) : \[\];/.test(csrc) && !/valuesOf\(/.test(csrc)
+    && /valuesOf\(x\.pct\.dim, DATA\[obj\]\)/.test(src) && /const vs = valuesOf\(b, DATA\[r\.obj\]\);/.test(src),
+    `конструктор, автор Бекова (Куратор Чуйского РП): кураторы на выбор — ${pk('curator', 'u2').length} своего подразделения (было ${nCur}), подразделение — одно «${DB.DIMS.dept.label(u2.dept)}» (было ${nDept}); Руководство — все ${nCur} и ${nDept}; срок, область, категория — объявленные списки целиком; у автора без права на кредит выбирать не из чего; автопроверка «% от итога группы» и разбор колонки сверяют значения по всем строкам объекта, как прежде`);
   DB.seed();
 })();
 
