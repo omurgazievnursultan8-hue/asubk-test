@@ -2752,6 +2752,96 @@ const asUser = id => { DB.state.userId = id; };
   DB.seed();
 })();
 
+/* ---------- U. Волна 9: «☰» у доли, окно ввода ---------- */
+(() => {
+  const tab = html => html.replace(/<svg[\s\S]*?<\/svg>/g, ''), num = s => +String(s).replace(/\s/g, '');
+  // открыть полосу вида, взять строку полосы, ответ вида и список «☰» строки (клик по «☰» узла)
+  const strip = (id, kind, sel, uid = 'u1', role = 'lead') => { asUser(uid); DB.state.open = {}; DB.openView(id, kind); if (sel) Object.assign(DB.state.open[id].sel, sel);
+    const h = tab(DB.stripHTML(id, uid, role)), r = DB.view(id, kind, DB.state.open[id].sel, [], uid, role, {}), w = DB.whoNode(id); DB.state.open = {}; asUser('u1'); return { h, r, w }; };
+  const cntOf = h => [...h.matchAll(/<button class="sl-cnt"[^>]*onclick="DB\.whoNode\('[^']+'\)"><span>([^<]*)<\/span><\/button>/g)].map(x => x[1]);
+  const pair = s => { const x = /^([\d\s]+) из ([\d\s]+)$/.exec(s || ''); return x ? [num(x[1]), num(x[2])] : null; };
+  const second = (id, uid, role) => { const x = /<div class="second"><span><b>([\d\s]+)<\/b> из ([\d\s]+)<\/span><\/div>/.exec(tab(DB.tileHTML(id, uid, role))); return x ? [num(x[1]), num(x[2])] : null; };
+  const same = (v, p) => { const c = cntOf(v.h), q = c.length === 1 && pair(c[0]); return !!q && !!p && q.join() === p.join() && v.r.nodeCnt === p[0] && v.r.nodeOf === p[1]; };
+
+  // ДБ-174: «Доля повторных клиентов» — «% от группы»; во всех видах строка полосы печатает «☰ числитель из группы», как второе число плитки
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.STAND.N = 5000;   // списки — полностью, без отказа «сузьте вопрос»; DB.seed() в конце блока возвращает 150
+  const sec = second('cat-brepsh', 'u1', 'lead'), b0 = DB.base('cat-brepsh', 'u1', 'lead'), vs = ['slice', 'table', 'map', 'series'].map(k => Object.assign({ k }, strip('cat-brepsh', k)));
+  ok(297, sec && sec.join() === '435,903' && b0.num === sec[0] && b0.den === sec[1] && vs[0].r.sel.dim === 'bcredits' && vs.every(v => same(v, sec)),
+    `«Доля повторных клиентов»: второе число плитки «${sec && sec.join(' из ')}»; в строке полосы один «☰» — «☰ ${vs.map(v => cntOf(v.h).join('|')).join(' · ')}» в Разрезе (по своему разрезу «Договоров у клиента»), Таблице, Карте и Ряде: числитель и группа — те же числа, что у плитки (ДБ-174)`);
+
+  // ДБ-174, ДБ-Д44: клик по «☰» строки — числитель (ячейки 2 и 3+), итог тела — «☰ 903», сумма строк, без новой подписи
+  const sv = vs[0], tot = /<button class="ls quiet"[^>]*onclick="event\.stopPropagation\(\);DB\.whoAt\('cat-brepsh'\)">☰ ([\d\s]+)<\/button>/.exec(sv.h);
+  const rows = [...sv.h.matchAll(/<button class="ls"[^>]*onclick="event\.stopPropagation\(\);DB\.whoAt\('cat-brepsh','bcredits','([^']+)'\)">☰ ([\d\s]+)<\/button>/g)].map(x => [x[1], num(x[2])]);
+  asUser('u1'); DB.state.open = {}; DB.openView('cat-brepsh', 'slice');
+  const wN = DB.whoNode('cat-brepsh'), w2 = DB.whoAt('cat-brepsh', 'bcredits', '2'), w3 = DB.whoAt('cat-brepsh', 'bcredits', '3+'), wT = DB.whoAt('cat-brepsh'); DB.state.open = {};
+  const ids = l => l.map(x => x.r.id).sort().join(), bodyB = sv.h.slice(sv.h.indexOf('<div class="strip-b">'));
+  ok(298, wN.list.length === sec[0] && ids(wN.list) === ids([...w2.list, ...w3.list]) && tot && num(tot[1]) === sec[1] && rows.length === 3 && sum(rows.map(x => x[1])) === sec[1] && wT.list.length === sec[1]
+    && sv.r.cnt === sec[1] && !/☰ [\d\s]+ из/.test(bodyB) && !/вся группа/.test(src),
+    `«Доля повторных клиентов» по своему разрезу: «☰ ${cntOf(sv.h)[0]}» в строке полосы открывает числитель — ${wN.list.length} клиентов, те же, что в строках «2» и «3+»; итог тела «☰ ${tot && tot[1]}» = сумма строк ${rows.map(x => x[0] + ': ' + x[1]).join(' + ')}, список итога ${wT.list.length}; у итога подписи «вся группа» нет — два «☰» различает сама запись: «435 из 903» в строке, «903» в итоге (ДБ-174, ДБ-Д44)`);
+
+  // ДБ-174: Куратор «Заёмщиков с просрочкой» — по своему разрезу и по чужому; доля двух колонок — числитель и группа объектов знаменателя
+  const sb = second('cur-borod', 'u2', 'cur'), co = strip('cur-borod', 'slice', null, 'u2', 'cur'), cr = strip('cur-borod', 'slice', { dim:'bregion' }, 'u2', 'cur');
+  const lr = strip('lead-recov', 'slice'), lrDen = DB.view(Object.assign({}, T('lead-recov'), { id:'u-recov-base', main:{ col:'case.base' } }), 'slice', null, [], 'u1', 'lead', {});
+  const adhoc = Object.assign({}, T('lead-od'), { id:'u-od-share', title:'Доля просрочки в портфеле', main:{ share:['loan.overdue', 'loan.balance'] }, second:null, tl:null });
+  const ra = DB.view(adhoc, 'slice', null, [], 'u1', 'lead', {}), rod = strip('lead-od', 'slice'), rbal = strip('lead-bal', 'slice'), lrp = pair(cntOf(lr.h)[0]);
+  ok(299, sb && same(co, sb) && same(cr, sb) && co.r.sel.dim === 'bover' && cr.r.sel.dim === 'bregion' && co.w.list.length === sb[0] && cr.w.list.length === sb[0]
+    && co.r.cnt === sb[1] && sum(co.r.nodes.map(n => n.cnt)) === sb[1] && cr.r.cnt === sb[0] && sum(cr.r.nodes.map(n => n.cnt)) === sb[0]
+    && lrp && lrp[0] === lr.w.list.length && lrp[1] === lrDen.nodeCnt && ra.state === 'ok' && ra.nodeCnt === rod.r.nodeCnt && ra.nodeOf === rbal.r.nodeCnt && ra.nodeCnt < ra.nodeOf,
+    `Куратор «Заёмщиков с просрочкой» (второе число «${sb && sb.join(' из ')}»): в строке полосы «☰ ${cntOf(co.h)[0]}» и по своему разрезу «Договоров с просрочкой» (итог тела ${co.r.cnt} — вся группа), и по региону (итог ${cr.r.cnt} — числитель), клик — ${co.w.list.length}; доля двух колонок: «Возвратность по делам» — «☰ ${cntOf(lr.h)[0]}» (дела с платежами из дел с базой), «Просрочено / остаток» — ${ra.nodeCnt} из ${ra.nodeOf} = «☰» «Просрочено» из «☰» «Остатка» (ДБ-174)`);
+
+  // ДБ-174 уточняет ДБ-149: у не-доли строка полосы — прежнее «☰ N»; доля во втором числе не делает плитку долей (Ряд второго числа тоже)
+  const plain = v => { const c = cntOf(v.h); return c.length === 1 && /^[\d\s]+$/.test(c[0]) && num(c[0]) === v.r.nodeCnt && v.r.nodeOf === undefined && v.w.list.length === v.r.nodeCnt; };
+  const np = [strip('lead-borr', 'slice'), strip('lead-od', 'table'), strip('lead-od', 'series', { of:'second' }), strip('rep-sum', 'series', { of:'second' }, 'u10', 'rep')];
+  ok(300, np.every(plain) && T('lead-borr').second.pct && T('lead-od').second.share && T('rep-sum').second.share && np[2].r.nodeCnt === rod.r.nodeCnt && !/ из /.test(np.map(v => cntOf(v.h)[0]).join()),
+    `не доля — «☰ N» без «из»: «Заёмщиков» ${cntOf(np[0].h)[0]}, «Просрочено» в Таблице ${cntOf(np[1].h)[0]} и в Ряде второго числа (доля портфеля) ${cntOf(np[2].h)[0]}, «Итог сдачи» в Ряде второго числа ${cntOf(np[3].h)[0]}; клик открывает список той же длины (ДБ-174, ДБ-149)`);
+
+  // мелочи волны 8: окно ввода держит фокус, Escape — как «Отмена», фокус возвращается на кнопку, пустое не сохраняется
+  ok(301, /<form class="ask" id="ask-form" role="dialog" aria-modal="true" aria-labelledby="ask-t" tabindex="-1">/.test(src) && /ring = \[i, \.\.\.f\.querySelectorAll\('button'\)\]/.test(src)
+    && /if\(e\.key==='Escape'\)\{ e\.preventDefault\(\); e\.stopPropagation\(\); closeOverlay\(\); return; \}/.test(src) && /ring\[k < 0 \? \(e\.shiftKey \? n - 1 : 0\) : \(k \+ \(e\.shiftKey \? n - 1 : 1\)\) % n\]\.focus\(\)/.test(src)
+    && /function closeOverlay\(\)\{[^\n]*if\(askBack\)\{ const b = askBack; askBack = null; b\(\); \} \}/.test(src) && /close:closeOverlay,/.test(src) && /onclick="DB\.close\(\)">Отмена<\/button>/.test(src)
+    && /if\(!v\)\{ i\.focus\(\); return; \}/.test(src) && /ev\.target\.closest\('button'\)\) \|\| document\.activeElement/.test(src) && /\.ask:focus\{ outline:none; \}/.test(src),
+    'окно ввода по тексту кода: форма берёт фокус (tabindex -1), Tab и Shift+Tab ходят по кругу поле → «Отмена» → «Сохранить»; Escape закрывает так же, как «Отмена» (closeOverlay), и не уходит странице; любое закрытие возвращает фокус на кнопку, которая открыла окно; пустое название оставляет окно открытым (мелочи волны 8)');
+
+  // то же поведением: askText и closeOverlay из макета на поддельной странице — поле, две кнопки, кнопка-открыватель
+  const pick = (a, b) => { const i = src.indexOf(a); return i < 0 ? '' : src.slice(i, src.indexOf(b, i) + b.length); };
+  const code = pick('let askBack = null;', '\n') + pick('function closeOverlay(){', '\n') + pick('function askText(title, value, ok, dflt){', '\n}\n');
+  let active = null, page = [], parts = {};
+  const el = (tag, attrs = {}) => ({ tag, attrs, on:{}, kids:[], isConnected:true, value:attrs.value || '', getAttribute(k){ return k in this.attrs ? this.attrs[k] : null; },
+    focus(){ active = this; }, select(){}, closest(s){ return s === 'button' && this.tag === 'button' ? this : null; }, addEventListener(t, f){ (this.on[t] = this.on[t] || []).push(f); }, querySelectorAll(){ return this.kids; } });
+  const overlay = { h:'', get innerHTML(){ return this.h; }, set innerHTML(h){ Object.values(parts).flat().forEach(x => { x.isConnected = false; }); parts = {}; this.h = h;
+    if (/id="ask-form"/.test(h)) { const form = el('form'), input = el('input', { value:(/id="ask-input" value="([^"]*)"/.exec(h) || [])[1] || '' });
+      form.kids = [...h.matchAll(/<button type="\w+"[^>]*>([^<]+)<\/button>/g)].map(x => el('button', { name:x[1] })); parts = { form:[form], input:[input], btns:form.kids }; } } };
+  const ctx = vm.createContext({ HAS_DOM:true, esc:s => String(s), menuState:null, rcOpen:false, window:{ event:null },
+    $:id => id === 'overlay' ? overlay : id === 'ask-form' ? (parts.form || [])[0] : id === 'ask-input' ? (parts.input || [])[0] : null,
+    document:{ get activeElement(){ return active; }, querySelectorAll(s){ return s === 'button[onclick]' ? page : []; } } });
+  let ran = true; try { vm.runInContext(code, ctx); } catch (e) { ran = false; }
+  const nm = x => x === (parts.input || [])[0] ? 'поле' : x && x.attrs.name ? x.attrs.name : x && x.tag === 'form' ? 'окно' : x && x.attrs.onclick ? 'кнопка' : '?';
+  const key = (k, shift) => { const e = { key:k, shiftKey:!!shift, dp:false, sp:false, preventDefault(){ this.dp = true; }, stopPropagation(){ this.sp = true; } }; ((parts.form || [])[0].on.keydown || []).forEach(f => f(e)); return e; };
+  const saved = []; let walk = [], esc1 = null, focusEsc = false, emptyKept = false, focusSave = false, focusMask = false, focusNoEv = false, inForm = [];
+  if (ran) {
+    // 1) Tab и Shift+Tab по кругу; фокус на самом окне — Tab к полю, Shift+Tab к «Сохранить»; Escape — закрыто, фокус на «+ секция»
+    const plus = el('button', { onclick:'DB.addSectionPrompt()' }); page = [plus]; active = plus; ctx.window.event = { target:plus };
+    ctx.askText('Название секции', '', v => saved.push(v), 'Секция');
+    walk.push(nm(active)); for (let i = 0; i < 4; i++) { key('Tab'); walk.push(nm(active)); } for (let i = 0; i < 3; i++) { key('Tab', true); walk.push(nm(active)); }
+    active = parts.form[0]; key('Tab'); inForm.push(nm(active)); active = parts.form[0]; key('Tab', true); inForm.push(nm(active));
+    esc1 = key('Escape'); focusEsc = overlay.h === '' && active === plus && saved.length === 0;
+    // 2) пустое название — окно открыто, фокус в поле; «Сохранить» с названием — страница перерисована, фокус на новой кнопке с тем же onclick
+    let plus2 = null; active = plus; ctx.window.event = { target:plus };
+    ctx.askText('Название секции', '', v => { saved.push(v); plus.isConnected = false; plus2 = el('button', { onclick:'DB.addSectionPrompt()' }); page = [plus2]; }, 'Секция');
+    const i2 = parts.input[0], f2 = parts.form[0]; i2.value = '   '; f2.on.submit.forEach(f => f({ preventDefault(){} })); emptyKept = overlay.h !== '' && saved.length === 0 && active === i2;
+    i2.value = ' Риски '; f2.on.submit.forEach(f => f({ preventDefault(){} })); focusSave = overlay.h === '' && saved.join() === 'Риски' && plus2 && active === plus2;
+    // 3) клик мимо окна (DB.close) — фокус на «Переименовать»; кнопка без фокуса при клике (window.event) тоже находится
+    const ren = el('button', { onclick:'DB.renameScreen()' }); page = [ren]; active = ren; ctx.window.event = null;
+    ctx.askText('Новое название', 'Совещание', v => saved.push(v)); const openVal = parts.input[0].value; ctx.closeOverlay(); focusMask = active === ren && openVal === 'Совещание' && saved.length === 1;
+    const scr = el('button', { onclick:'DB.newScreen()' }); page = [scr]; active = null; ctx.window.event = { target:scr };
+    ctx.askText('Название своего экрана', 'Мой экран', v => saved.push(v)); key('Escape'); focusNoEv = active === scr && saved.length === 1;
+  }
+  ok(302, ran && walk.join(' → ') === 'поле → Отмена → Сохранить → поле → Отмена → поле → Сохранить → Отмена' && inForm.join() === 'поле,Сохранить' && esc1 && esc1.dp && esc1.sp && focusEsc
+    && emptyKept && focusSave && focusMask && focusNoEv,
+    `окно ввода на поддельной странице (askText и closeOverlay из макета): Tab / Shift+Tab — ${walk.join(' → ')}; с самого окна Tab — ${inForm[0]}, Shift+Tab — ${inForm[1]}; Escape закрыл без сохранения и не ушёл странице, фокус — на «+ секция»; пустое «   » не сохранено (окно открыто, фокус в поле); «Риски» сохранено, после перерисовки фокус — на новой «+ секция»; клик мимо окна — фокус на «Переименовать»; кнопка без фокуса находится по клику (мелочи волны 8)`);
+  DB.seed();
+})();
+
 /* ---------- отчёт ---------- */
 const fail = results.filter(r => !r.pass);
 for (const r of results) console.log(`${r.pass ? 'PASS' : 'FAIL'} #${r.n} ${r.note}`);

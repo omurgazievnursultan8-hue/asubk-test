@@ -207,7 +207,7 @@ select:hover,input[type=text]:hover,input[type=number]:hover{ border-color:var(-
 .strip-line select,.ctl select{ height:30px; max-width:220px; font-size:13px; font-weight:500; field-sizing:content; }
 .sl-pass{ font-size:12px; color:var(--text-muted); font-variant-numeric:tabular-nums; }
 .sl-cnt,.sl-icon{ display:inline-flex; align-items:center; justify-content:center; gap:5px; height:32px; border-radius:var(--r-md); font-size:13px; font-weight:500; font-variant-numeric:tabular-nums; }
-.sl-cnt{ padding:0 10px; border:1px solid var(--border-strong); background:var(--surface-card); color:var(--text-heading); } .sl-cnt:hover{ border-color:var(--text-placeholder); background:var(--surface-hover); }
+.sl-cnt{ padding:0 10px; white-space:nowrap; border:1px solid var(--border-strong); background:var(--surface-card); color:var(--text-heading); } .sl-cnt:hover{ border-color:var(--text-placeholder); background:var(--surface-hover); }
 .sl-cnt svg{ color:var(--text-muted); }
 .sl-icon{ width:32px; padding:0; border:1px solid transparent; background:none; color:var(--text-muted); } .sl-icon:hover{ background:var(--surface-sunk); color:var(--text-heading); }
 .sl-cnt svg,.sl-icon svg{ width:16px; height:16px; display:block; }
@@ -359,6 +359,7 @@ svg.chart text{ font:11px var(--asubk-font); fill:var(--text-muted); }
 .stamp b{ color:var(--asubk-red-hover); font-weight:600; }
 .toast{ position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:80; padding:10px 16px; border-radius:10px; background:var(--asubk-ink); color:var(--asubk-white); font-size:13.5px; box-shadow:var(--shadow-lift); max-width:min(560px, calc(100vw - 32px)); }
 .ask{ position:fixed; z-index:41; left:50%; top:22%; transform:translateX(-50%); width:min(420px, calc(100vw - 32px)); padding:18px; background:var(--surface-card); border:1px solid var(--border-strong); border-radius:var(--r-xl); box-shadow:var(--shadow-lift); }
+.ask:focus{ outline:none; }
 .ask h3{ margin:0 0 12px; font-size:16px; font-weight:600; color:var(--text-heading); }
 .ask input{ width:100%; height:38px; padding:0 10px; font-size:14px; }
 .ask-b{ display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }
@@ -2620,7 +2621,7 @@ function viewOf(t, kind, sel, path, u, roleId, panel){
   if(res.rows){ countNodes(res, numQ(t, path, kind==='series' ? s.of : 'main'), u, kind==='slice' ? s.dim : null, kind==='move' && s.month ? s.month : undefined);
     // nodeCnt — «☰ N» в строке полосы: кто в главном числе узла на дату плитки (то же, что .sl-num); Ряд второго числа и Движение прошлого месяца считают свой счёт у точек и строк
     if((kind==='series' && s.of==='second') || (kind==='move' && s.month)){ const mb = cachedBase(t, u, roleId, panel, path), mq = numQ(t, path, 'main');
-      if(mb && mb.rows && mq){ const tmp = { rows:mb.rows }; countNodes(tmp, mq, u, null); res.nodeCnt = tmp.cnt; } } }
+      if(mb && mb.rows && mq){ const tmp = { rows:mb.rows }; countNodes(tmp, mq, u, null); res.nodeCnt = tmp.cnt; res.nodeOf = tmp.nodeOf; } } }
   delete res.rows;
   if(sh && res.table){ const T0 = res.table, tot = res.total, at = (a, c)=>c===SHARE_COL ? (a[ask.indexOf(sh.inds[1])] ? a[ask.indexOf(sh.inds[0])] / a[ask.indexOf(sh.inds[1])] * 100 : null) : a[ask.indexOf(c)];
     const re = a=>s.cols.map(c=>at(a, c));                    // и сумма, и база — по колонкам выбора; доля на базе — из числителя и знаменателя на базе
@@ -2654,6 +2655,8 @@ function countNodes(res, mq, u, dim, m){
   const cnt = (d, v, d2, v2)=>live.filter(r=>(!d || dimAt(d, r, cm)===v) && (!d2 || dimAt(d2, r, cm)===v2) && (!num || alt || own(d) || own(d2) || num.has(r))).length;
   res.cnt = cnt();
   res.nodeCnt = alt ? live.filter(r=>!num || num.has(r)).length : res.cnt;   // «☰ N» в строке полосы: кто в главном числе узла (числитель доли), а не строки итога Разреза
+  // у доли (обоих видов) «☰» в строке полосы — «числитель из группы», как второе число плитки; группа — объекты с вкладом в знаменатель
+  const den = mq.share && IND[mq.share[1]]; res.nodeOf = den ? res.rows.filter(r=>contributes(den, valueOf(r, den, ctx))).length : undefined;
   if(res.nodes) res.nodes.forEach(n=>{ n.cnt = cnt(dim, n.v); });
   if(res.table) res.table.rows.forEach(r=>{ r.cnt = cnt(res.table.d, r.v); });
   if(res.heat){ const h = res.heat; h.cnt = h.rows.map(a=>h.cols.map(b=>cnt(h.d1, a, h.d2, b)));
@@ -3092,7 +3095,7 @@ function stripHTML(k, u, roleId, sc, place){
   const views = viewsFor(t, u, roleId, path, panel).map(v=>`<button class="${v.ok ? '' : 'off '}${kind===v.kind ? 'on' : ''}" ${v.ok ? `onclick="DB.openView('${id}','${v.kind}')"` : `aria-disabled="true" data-tip="${esc(v.why)}"`}>${VIEW_NAMES[v.kind]}</button>`).join('');
   const line = `<div class="strip-line"><span class="sl-path">${crumbs}</span>${live ? stripNum(t, b, !path.length, pass) : ''}${shift ? `<span class="sl-shift" data-fit="shift" data-cut="${esc(shiftText(q, b))}">${shift}</span>` : ''}${marks}${stripDims(k, t, kind, s, free)}
     <span class="sl-sp"></span>${passRow ? `<span class="sl-pass" data-fit="pass">${esc(passRow)}</span>` : ''}<span class="seg sl-views">${views}</span>
-    ${ok && r.nodeCnt!==undefined ? `<button class="sl-cnt" aria-label="Кто в этом числе" data-tip="Кто в этом числе: только объекты с вкладом в число" onclick="DB.whoNode('${id}')">${ICON_LIST}<span>${nbsp(r.nodeCnt)}</span></button>` : ''}<button class="btn sl-list" data-fit="list" onclick="DB.registryAt('${id}')">Работать со списком</button>
+    ${ok && r.nodeCnt!==undefined ? `<button class="sl-cnt" aria-label="Кто в этом числе" data-tip="Кто в этом числе: только объекты с вкладом в число" onclick="DB.whoNode('${id}')">${ICON_LIST}<span>${nbsp(r.nodeCnt)}${r.nodeOf!==undefined ? ' из '+nbsp(r.nodeOf) : ''}</span></button>` : ''}<button class="btn sl-list" data-fit="list" onclick="DB.registryAt('${id}')">Работать со списком</button>
     <button class="sl-icon sl-more" aria-label="Действия полосы" data-tip="Действия полосы" onclick="DB.stripMenu(event,'${id}')">${ICON_DOTS}</button><button class="sl-icon sl-x" aria-label="Закрыть" data-tip="Закрыть" onclick="DB.closeView('${id}')">${ICON_X}</button></div>`;
   const tools = stripMode(k, r)+stripCtl(k, t, kind, s, r);
   const arrow = place ? `<span class="strip-arrow" style="left:calc((100% - ${(place.cols - 1) * 16}px) / ${place.cols} * ${place.col + .5} + ${place.col * 16}px)"></span>` : '';
@@ -3395,7 +3398,9 @@ function hmBody(res, q, ops, go){
 }
 
 /* ---------- меню «⋯» и главный клик ---------- */
-function closeOverlay(){ if(HAS_DOM) $('overlay').innerHTML=''; menuState = null; rcOpen = false; }
+// окно ввода закрыто любым путём («Отмена», Escape, клик мимо окна) — фокус возвращается на кнопку, которая его открыла
+let askBack = null;
+function closeOverlay(){ if(HAS_DOM) $('overlay').innerHTML=''; menuState = null; rcOpen = false; if(askBack){ const b = askBack; askBack = null; b(); } }
 function openMenu(ev, tileId){
   const t = tileById(tileId); const u = user(); menuState = tileId;
   const res = cachedAsk(t, u, curRole(), S.panel); const sig = signalsOf(u.id, t.id).length > 0;
@@ -3426,11 +3431,22 @@ function drawer(title, html, wide){ if(!HAS_DOM) return; rcOpen = false; $('over
 // название секции и своего экрана — окно на странице, не системное окно браузера; без страницы — значение по умолчанию
 function askText(title, value, ok, dflt){
   if(!HAS_DOM) return ok(dflt === undefined ? value : dflt);
-  $('overlay').innerHTML = `<div class="drawer-mask" onclick="DB.close()"></div><form class="ask" id="ask-form" role="dialog" aria-modal="true" aria-labelledby="ask-t">
+  // кто открыл окно — кнопка под кликом (не все браузеры дают ей фокус) или то, что в фокусе
+  const ev = window.event, from = (ev && ev.target && ev.target.closest && ev.target.closest('button')) || document.activeElement, key = from && from.getAttribute ? from.getAttribute('onclick') : null;
+  $('overlay').innerHTML = `<div class="drawer-mask" onclick="DB.close()"></div><form class="ask" id="ask-form" role="dialog" aria-modal="true" aria-labelledby="ask-t" tabindex="-1">
     <h3 id="ask-t">${esc(title)}</h3><label class="vh" for="ask-input">${esc(title)}</label><input type="text" id="ask-input" value="${esc(value || '')}" maxlength="60" autocomplete="off">
     <div class="ask-b"><button type="button" class="btn" onclick="DB.close()">Отмена</button><button type="submit" class="btn primary">Сохранить</button></div></form>`;
-  const f = $('ask-form'), i = $('ask-input'); i.focus(); i.select();
-  f.addEventListener('submit', e=>{ e.preventDefault(); const v = i.value.trim(); if(!v){ i.focus(); return; } closeOverlay(); ok(v); });
+  const f = $('ask-form'), i = $('ask-input'), ring = [i, ...f.querySelectorAll('button')]; i.focus(); i.select();
+  // куда вернуть фокус: та же кнопка, а после перерисовки страницы — кнопка с тем же onclick
+  askBack = ()=>{ const el = from && from.isConnected ? from : key ? [...document.querySelectorAll('button[onclick]')].find(b=>b.getAttribute('onclick')===key) : null; if(el && el.focus) el.focus(); };
+  // фокус не уходит из окна: Tab и Shift+Tab — по кругу между полем, «Отмена» и «Сохранить»; Escape — как «Отмена»
+  f.addEventListener('keydown', e=>{
+    if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); closeOverlay(); return; }
+    if(e.key!=='Tab') return;
+    e.preventDefault(); const n = ring.length, k = ring.indexOf(document.activeElement);
+    ring[k < 0 ? (e.shiftKey ? n - 1 : 0) : (k + (e.shiftKey ? n - 1 : 1)) % n].focus(); });
+  // пустое название не сохраняется; сохранили — окно закрыто, страница перерисована, фокус — на кнопку, которая открыла окно
+  f.addEventListener('submit', e=>{ e.preventDefault(); const v = i.value.trim(); if(!v){ i.focus(); return; } const back = askBack; askBack = null; closeOverlay(); ok(v); if(back) back(); });
 }
 // подпись строки по виду объекта; у каждого вида свой разбор, чужие поля не читаются
 const ROW_LABEL = {
