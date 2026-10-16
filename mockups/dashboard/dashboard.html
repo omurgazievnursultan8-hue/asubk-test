@@ -880,34 +880,39 @@ const OBJECTS = {
   task:    { name:'Задание', wave:3, vis:'self', owner:'Задания', registry:'Мои задания' },
 };
 function objReady(o){ const O = OBJECTS[o]; return O.wave <= STAND.wave && (!O.gate || !!STAND[O.gate]); }
-const BUCKETS = ['1–30','31–90','91–180','181+'];
-function bucketOf(d){ return d<=0 ? 'нет просрочки' : d<=30 ? BUCKETS[0] : d<=90 ? BUCKETS[1] : d<=180 ? BUCKETS[2] : BUCKETS[3]; }
+// Список значений разреза ведёт статистика и держит его полным: у срока просрочки первая корзина — «нет просрочки», у статусов — весь
+// справочник. Где признак к части объектов не применим, «пусто» — последнее значение списка со своим именем (empty); где пусто
+// невозможно, такого значения нет. Объект разреза не пропадает: итог разреза — сумма его строк.
+const BUCKETS = ['нет просрочки','1–30','31–90','91–180','181+'];
+function bucketOf(d){ return d<=0 ? BUCKETS[0] : d<=30 ? BUCKETS[1] : d<=90 ? BUCKETS[2] : d<=180 ? BUCKETS[3] : BUCKETS[4]; }
+const COHORTS = ['2019','2020','2021','2022','2023','2024','2025','2026'];
 const DIMS = {
   region:  { name:'Область', field:'region', values:REGIONS },
   dept:    { name:'Подразделение', field:'dept', label:deptName },
   program: { name:'Программа', field:'program', label:id=>id==='none'?'Без программы (поток B)':progName(id) },
   curator: { name:'Куратор', field:'curator', label:userName },
-  category:{ name:'Категория классификации', field:'category', ordered:true, values:RISK_CATS, short:RISK_SHORT },
+  category:{ name:'Категория классификации', field:'category', ordered:true, values:RISK_CATS, short:RISK_SHORT, empty:'нет категории' },
   bucket:  { name:'Срок просрочки', get:r=>bucketOf(r.overdueDays), ordered:true, values:BUCKETS },
   lstatus: { name:'Состояние кредита', field:'status' },
-  bworst:  { name:'Худшая категория', field:'worst', ordered:true, values:RISK_CATS, short:RISK_SHORT },
-  bodays:  { name:'Худшая просрочка по портфелю', get:r=>r.worstDays===null ? null : bucketOf(r.worstDays), ordered:true, values:BUCKETS },
-  subgroup:{ name:'Подгруппа платёжеспособности', field:'subgroup', ordered:true, values:Object.values(PAYGROUPS).flat() },
+  bworst:  { name:'Худшая категория', field:'worst', ordered:true, values:RISK_CATS, short:RISK_SHORT, empty:'нет категории' },
+  bodays:  { name:'Худшая просрочка по портфелю', get:r=>r.worstDays===null || r.worstDays===undefined ? null : bucketOf(r.worstDays), ordered:true, values:BUCKETS,
+             empty:'нет действующих договоров' },
+  subgroup:{ name:'Подгруппа платёжеспособности', field:'subgroup', ordered:true, values:Object.values(PAYGROUPS).flat(), empty:'нет подгруппы' },
   ptype:   { name:'Тип лица', field:'ptype', label:v=>PTYPES[v]||v },
   bindustry:{ name:'Отрасль заёмщика', field:'industry' },
   bregion: { name:'Территория заёмщика (регистрация)', field:'region', values:REGIONS },
   pstate:  { name:'Состояние портфеля', get:r=>pstateAt(r,0), at:pstateAt, values:PSTATES },
   pers:    { name:'Состояние лица', field:'pers', values:PERS },
   bcur:    { name:'Валюта портфеля', field:'currency' },
-  bcohort: { name:'Год первого договора', field:'cohort', ordered:true, values:['2021','2022','2023','2024','2025','2026'] },
+  bcohort: { name:'Год первого договора', field:'cohort', ordered:true, values:COHORTS, empty:'нет договоров' },
   bblack:  { name:'Чёрный список', field:'black', values:['нет','да'] },
-  bdebt:   { name:'Совокупный долг клиента', get:r=>debtStep(r.total), ordered:true, values:DEBT_STEPS,
+  bdebt:   { name:'Совокупный долг клиента', get:r=>debtStep(r.total), ordered:true, values:DEBT_STEPS, empty:'нет долга',
              req:'корзин «совокупный долг клиента» над задолженностью заёмщика в реестре статистики ещё нет; черта 50 млн — из Порядка' },
-  bcredits:{ name:'Договоров у клиента за всё время', get:r=>!r.credits ? null : r.credits>=3 ? '3+' : String(r.credits), ordered:true, values:['1','2','3+'],
+  bcredits:{ name:'Договоров у клиента за всё время', get:r=>!r.credits ? '0' : r.credits>=3 ? '3+' : String(r.credits), ordered:true, values:['0','1','2','3+'],
              req:'корзин над «Договоров всего» в реестре статистики ещё нет' },
   bover:   { name:'Договоров с просрочкой', get:r=>r.overCredits>0 ? 'больше 0' : '0', ordered:true, values:['0','больше 0'],
              req:'корзин над «Договоров с просрочкой» в реестре статистики ещё нет' },
-  bhist:   { name:'Кредитная история', get:r=>histStep(r.histDays), ordered:true, values:HIST_STEPS,
+  bhist:   { name:'Кредитная история', get:r=>histStep(r.histDays), ordered:true, values:HIST_STEPS, empty:'нет истории',
              req:'показателя «худшая просрочка за всю историю» в реестре статистики нет; владелец не решён — «Заёмщик» или ядро расчёта' },
   bcontact:{ name:'Канал связи', field:'contact', values:['есть','нет'],
              req:'признака «нет действующего канала связи» в строке заёмщика ещё нет — модуль «Заёмщик» считает его только в карточке' },
@@ -934,14 +939,14 @@ const DIMS = {
              req:'корзин «срок ожидания» над датой поступления (дней, пока поступление не распределено) в реестре статистики ещё нет' },
   pkind:   { name:'Вид погашения', field:'kind' },
   ckind:   { name:'Вид залога', field:'kind' },
-  astatus: { name:'Статус заявки', field:'status', ordered:true, values:['Новый','Требуется доп. информация','На рассмотрении','Ожидает решения/программы','На оформлении'] },
-  astage:  { name:'Стадия новой заявки', field:'stage', ordered:true, values:['1 Комплектация','2 Подтверждение ГО','3 Заключения отделов'] },
+  astatus: { name:'Статус заявки', field:'status', ordered:true, values:['Новый','Требуется доп. информация','На рассмотрении','Ожидает решения/программы','На оформлении','Закрыта'] },
+  astage:  { name:'Стадия новой заявки', field:'stage', ordered:true, values:['1 Комплектация','2 Подтверждение ГО','3 Заключения отделов'], empty:'не новая' },
   commission:{ name:'Комиссия', field:'commission' },
-  decision:{ name:'Решение', field:'decision' },
-  verdict: { name:'Вердикт', field:'verdict', ordered:true, values:['Положительное','С условиями','Отрицательное'] },
-  ostate:  { name:'Итог сдачи', field:'state', ordered:true, values:['сдано в срок','сдано с опозданием','просрочено'] },
+  decision:{ name:'Решение', field:'decision', ordered:true, values:['Одобрено','Доп. информация','Отклонено'], empty:'нет решения' },
+  verdict: { name:'Вердикт', field:'verdict', ordered:true, values:['Положительное','С условиями','Отрицательное'], empty:'нет вердикта' },
+  ostate:  { name:'Итог сдачи', field:'state', ordered:true, values:['ожидается','сдано в срок','сдано с опозданием','просрочено'] },
   rstage:  { name:'Стадия обращения', field:'stage', ordered:true, values:RS_STAGES, short:Object.fromEntries(RS_STAGES.map((s,i)=>[s,RS_SHORT[i]])) },
-  routcome:{ name:'Исход обращения', field:'outcome', values:RS_OUTCOMES },
+  routcome:{ name:'Исход обращения', field:'outcome', values:RS_OUTCOMES, empty:'нет исхода' },
   cstate:  { name:'Состояние дела', field:'state', ordered:true, values:['открыто','карантин','закрыто'] },
   cbasis:  { name:'Основание открытия дела', field:'basis' },
   layer:   { name:'Слой долга', field:'layer' },
@@ -977,7 +982,7 @@ const FIELDS = {
 };
 const FIELD_REQ = { pendDays:'даты окончания программы в реестре статистики нет — в схеме она есть, разрезом не объявлена', oblExpired:'числа обязательств Порядка со сроком «вышел» в строке заёмщика ещё нет — модуль «Заёмщик» считает его только в карточке' };
 const OPS = { eq:'=', ne:'≠', in:'∈', nin:'∉', gt:'>', ge:'≥', lt:'<', le:'≤' };
-function dimValue(d, row){ const D = DIMS[d]; return D.get ? D.get(row) : row[D.field]; }
+function dimValue(d, row){ const D = DIMS[d], v = D.get ? D.get(row) : row[D.field]; return (v===null || v===undefined) && D.empty ? D.empty : v; }   // «пусто» — значение со своим именем
 // разрез с историей группирует на месяц ответа — как условие пути и число узла
 function dimAt(d, row, m){ const D = DIMS[d]; return D && D.at && m ? D.at(row, m) : dimValue(d, row); }
 function dimLabel(d, v){ const D = DIMS[d]; return D.label ? D.label(v) : v; }
@@ -1466,16 +1471,19 @@ function answer(q, user, roleId, panel){
       if(q.format==='shift' || q.shift) res.shift = shiftOf(q, rows, ctx, val);
       break; }
     case 'slice': case 'steps': {
-      const d = q.dims[0]; res.nodes = groupBy(rows, d, r=>val(r, ctx), cm);
+      const d = q.dims[0]; res.nodes = groupBy(rows, d, r=>val(r, ctx), cm, DATA[I.obj]);
       res.total = val(rows, ctx); break; }
     case 'heat': {
-      const [d1,d2] = q.dims; const v1 = valuesOf(d1, rows), v2 = valuesOf(d2, rows);
+      // обе оси — весь список разреза; у неупорядоченной оси пустые строки и столбцы уходят в конец, у упорядоченной — шкала как есть
+      const [d1,d2] = q.dims, down = d=>vs=>{ if(DIMS[d].ordered) return vs; const z = vs.map(v=>!val(rows.filter(r=>dv(d,r)===v), ctx).v);
+        return [...vs.filter((v, i)=>!z[i]), ...vs.filter((v, i)=>z[i])]; };
+      const v1 = down(d1)(valuesOf(d1, rows, DATA[I.obj], cm)), v2 = down(d2)(valuesOf(d2, rows, DATA[I.obj], cm));
       res.heat = { rows:v1, cols:v2, d1, d2, cells: v1.map(a=>v2.map(b=>val(rows.filter(r=>dv(d1,r)===a && dv(d2,r)===b), ctx).v || 0)) };
       const tot = rs=>{ const x = val(rs, ctx); return { value:x.v, num:x.num, den:x.den }; };   // итоги строк (справа) и столбцов (снизу) — узлом
       res.heat.rowTot = v1.map(a=>tot(rows.filter(r=>dv(d1,r)===a))); res.heat.colTot = v2.map(b=>tot(rows.filter(r=>dv(d2,r)===b)));
       res.total = val(rows, ctx); break; }
     case 'table': {
-      const d = q.dims[0]; const vs = valuesOf(d, rows);
+      const d = q.dims[0]; const vs = valuesOf(d, rows, DATA[I.obj], cm);
       res.table = { d, cols: q.inds.map(i=>IND[i]), rows: vs.map(v=>{ const rs = rows.filter(r=>dv(d,r)===v);
         return { v, label:dimLabel(d,v), cells: q.inds.map(i=>aggregate(rs, IND[i], ctx).value) }; }) };
       if(!DIMS[d].ordered) res.table.rows.sort((a,b)=>(b.cells[0]||0)-(a.cells[0]||0));   // ступени — в объявленном порядке
@@ -1501,10 +1509,14 @@ function emptyScopeMsg(user, roleId, obj){
   if(OBJECTS[obj].vis==='self') return 'У вас нет заданий.';
   return 'В вашем охвате нет объектов «'+OBJECTS[obj].name+'»: подразделение «'+deptName(user.dept)+'» видит только своё.';
 }
-function valuesOf(d, rows){ const D = DIMS[d]; if(D.values) return D.values.slice();
-  const s = new Set(rows.map(r=>dimValue(d,r)).filter(v=>v!==null && v!==undefined)); return [...s]; }
-function groupBy(rows, d, f, m){
-  const vs = valuesOf(d, rows);
+// строки разреза: список реестра (у разреза без списка — все значения поля по всем строкам объекта all, а не только по выборке), затем
+// значения, встреченные у выборки вне списка (сигнал реестру), последним — «пусто» со своим именем; m — месяц разреза с историей
+function valuesOf(d, rows, all, m){ const D = DIMS[d], E = D.empty;
+  const seen = rs=>[...new Set(rs.map(r=>dimAt(d, r, m)))].filter(v=>v!==null && v!==undefined && v!==E);
+  const decl = D.values ? D.values.filter(v=>v!==E) : seen(all || rows);
+  return [...decl, ...seen(rows).filter(v=>!decl.includes(v)), ...(E ? [E] : [])]; }
+function groupBy(rows, d, f, m, all){
+  const vs = valuesOf(d, rows, all, m);
   const nodes = vs.map(v=>{ const rs = rows.filter(r=>dimAt(d, r, m)===v); const x = f(rs); return { v, label:dimLabel(d,v), short:DIMS[d].short && DIMS[d].short[v], value:x.v, num:x.num, den:x.den, n:rs.length }; });
   if(!DIMS[d].ordered) nodes.sort((a,b)=>(b.value||0)-(a.value||0));
   return nodes;
@@ -2666,15 +2678,16 @@ function countNodes(res, mq, u, dim, m){
     if(c0.period){ PERIODS[key] = { months:[p.m], partial:p.m===0 }; pc = { period:key, tf:c0.tf }; } else pc = { point:{ m:p.m }, tf:c0.tf };
     try { p.cnt = res.rows.filter(r=>contributes(spec, valueOf(r, spec, pc)) && (!num || num.has(r))).length; } finally { delete PERIODS[key]; } });
 }
-// строки Разреза в порядке показа (res.lines): «Сумма» — упорядоченный разрез в своём порядке, остальные по убыванию, первые N, «ещё N»
-// внизу; «Изменение» — от роста к падению, первые N — самые большие сдвиги в любую сторону, «ещё N» с самыми малыми — между ростом и
-// падением; у упорядоченного «ещё N» нет. «ещё N» — узел-сводка { more:N, vs, value, base, delta, pct, cnt }
+// строки Разреза в порядке показа (res.lines): строки — весь список разреза, нули тоже. Упорядоченный разрез — все строки по шкале
+// в обоих режимах, «ещё N» нет; в «Изменении» разница — полосой в своей строке. Неупорядоченный: «Сумма» — по убыванию, первые N,
+// нулевые уходят вниз и в «ещё N»; «Изменение» — от роста к падению, первые N — самые большие сдвиги в любую сторону, «ещё N» с самыми
+// малыми — между ростом и падением. «ещё N» — узел-сводка { more:N, vs, value, base, delta, pct, cnt }
 const byDelta = (a, b)=>{ const x = v=>v===null || v===undefined ? -Infinity : v, d = x(b) - x(a); return isNaN(d) ? 0 : d; };   // от роста к падению, без пары — в конце
 function sliceLines(res, mode, top){
   const u = res.unit;
-  if(mode==='change') res.nodes.sort((a, b)=>byDelta(a.delta, b.delta));
   if(!top){ res.lines = res.nodes.slice(); res.top = null; res.more = 0; return; }
-  const cand = res.nodes.filter(n=>n.value || n.delta);   // узел с нулём и разницей остаётся (строкой или в «ещё N») в обоих режимах: сумма разниц строк = разнице итога
+  if(mode==='change') res.nodes.sort((a, b)=>byDelta(a.delta, b.delta));
+  const cand = res.nodes;   // все значения списка: строкой или в «ещё N», в обоих режимах; сумма строк = итогу, сумма разниц строк = разнице итога
   const keep = new Set(mode==='change' ? cand.slice().sort((a, b)=>Math.abs(b.delta || 0) - Math.abs(a.delta || 0)).slice(0, top) : cand.slice(0, top));
   const shown = cand.filter(n=>keep.has(n)), rest = cand.filter(n=>!keep.has(n));
   const more = rest.length ? moreNode(rest, u) : null; res.top = top; res.more = rest.length;
@@ -2686,13 +2699,15 @@ function moreNode(rest, u){ const sum = f=>rest.reduce((a, n)=>a + (n[f] || 0), 
     if(has){ const bn = sum('baseNum'), bd = sum('baseDen'); setDiff(o, o.value, bd ? bn/bd*100 : null, u); } }
   else { o.value = sum('value'); if(has) setDiff(o, o.value, sum('base'), u); }
   return o; }
-// Таблица: порядок строк — по первой колонке (показатель плитки); «Изменение» — по её разнице, от роста к падению; итог — оба числа
+// Таблица: строки те же, что у Разреза; порядок — по первой колонке (показатель плитки); «Изменение» — по её разнице, от роста к падению;
+// упорядоченный разрез — свой порядок в обоих режимах; итог — оба числа
 function tableRows(res, mode){ const tb = res.table, us = tb.cols.map(c=>c.unit);
   if(tb.total && tb.total.bases){ const nh = tb.cols.map(c=>!!c.currentOnly);
     tb.rows.forEach(r=>Object.assign(r, diffCells(r.cells, r.bases, us, nh))); Object.assign(tb.total, diffCells(res.total, tb.total.bases, us, nh)); }
   tb.total = Object.assign(tb.total || {}, { cells:res.total, cnt:res.cnt });
+  if(DIMS[tb.d].ordered) return;
   if(mode==='change') tb.rows.sort((a, b)=>byDelta(a.deltas[0], b.deltas[0]));
-  else if(!DIMS[tb.d].ordered) tb.rows.sort((a, b)=>(b.cells[0] || 0) - (a.cells[0] || 0)); }
+  else tb.rows.sort((a, b)=>(b.cells[0] || 0) - (a.cells[0] || 0)); }
 /* ---------- Полоса в сетке: место, выбор, путь ---------- */
 // Полоса идёт сразу за последней плиткой ряда, где стоит открытая. items — раскладка: плитки, секции «s:» на всю строку,
 // заглушки «x:» (ячейка, как плитка); collapsed — свёрнутые секции, их плитки не рисуются; renders — что рисуется вообще.
@@ -3249,7 +3264,7 @@ function mvBody(res, q, ops){
     +`<div class="mv-ok${ok ? '' : ' bad'}"${tipAttr('Сверка по точным числам; в строке они округлены')}>${ok ? '✓ сходится' : '✗ не сходится на '+fmtVal(Math.abs(gap), u)}: ${chain}</div>`;
 }
 // Таблица: названия 220 px, числа — колонками по 170 px, «☰ N» — последней, тихо; таблица не растягивается — справа пусто. Первая колонка — показатель плитки (viewSel ставит её первой):
-// выделена, по ней порядок строк (упорядоченный разрез при «Сумме» — свой порядок, маркера нет). «Сумма» — в ячейке значение, разница к базе — в подсказке; «Изменение» — в ячейке разница
+// выделена, по ней порядок строк (упорядоченный разрез — свой порядок в обоих режимах, маркера нет). «Сумма» — в ячейке значение, разница к базе — в подсказке; «Изменение» — в ячейке разница
 // цветом по направлению показателя колонки (у доли — п.п.), порядок — по разнице первой колонки, от роста к падению. Итог — строкой снизу с обоими числами: основное по режиму
 // (сумма или разница), под ним мелко второе. Направление и текст разницы — rzDelta (как у Разреза): ему нужны только показатель и единица колонки, у доли — показатель плитки
 function tbBody(res, q, ops, go, t){
@@ -3268,7 +3283,7 @@ function tbBody(res, q, ops, go, t){
     if(!x) return `<td${k ? ' class="key"' : ''}>${val(tot, i)}</td>`;
     return chg ? `<td${k ? ' class="key"' : ''}><span class="${x.tone}"${tip}>${x.text}</span><span class="s2">${val(tot, i)}</span></td>`
       : `<td${k ? ' class="key"' : ''}><span>${val(tot, i)}</span><span class="s2 ${x.tone}"${tip}>${x.text}</span></td>`; };
-  const mark = ord && !chg ? '' : `<span class="tb-ord"${tipAttr(chg ? 'Порядок строк — по разнице этой колонки, от роста к падению' : 'Порядок строк — по этой колонке, от большего к меньшему')}>↓</span>`;
+  const mark = ord ? '' : `<span class="tb-ord"${tipAttr(chg ? 'Порядок строк — по разнице этой колонки, от роста к падению' : 'Порядок строк — по этой колонке, от большего к меньшему')}>↓</span>`;
   const cap = diff ? `<div class="tb-cap">${chg ? `<b>${esc('изменение '+lab)}</b>; в итоге под разницей — значение` : `${asOf ? `<b>${esc(asOf)}</b>; ` : ''}в итоге под значением — разница ${esc(lab)}`}</div>` : '';
   const head = `<tr><th>${esc(DIMS[tb.d].name)}</th>${cols.map((c, i)=>`<th${i ? '' : ' class="key"'}>${esc(c.name)}${i ? '' : mark}</th>`).join('')}<th></th></tr>`;
   const rows = tb.rows.map(r=>`<tr class="rowlink" onclick="event.stopPropagation();${go(tb.d, r.v)}"><td${tipAttr(r.label)}>${esc(r.label)}</td>${cols.map((c, i)=>cell(r, i)).join('')}<td class="tb-l">${ops ? ops.ls(tb.d, r.v, null, null, r.cnt) : ''}</td></tr>`).join('');
