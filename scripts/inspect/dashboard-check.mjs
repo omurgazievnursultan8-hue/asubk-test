@@ -2537,15 +2537,31 @@ const asUser = id => { DB.state.userId = id; };
   const hmo = tab(DB.stripHTML('lead-od', 'u1', 'lead')), mvv = V('lead-od', 'move', DB.state.open['lead-od'].sel), mv = mvv.move; DB.state.open = {};
   const flowRow = k => (new RegExp('<div class="rz-r mv-f" data-flow="' + k + '"[\\s\\S]*?(?=<div class="rz-r|<div class="mv-chain)').exec(hmo) || [''])[0], wd = k => +((/class="rz-f[^"]*" style="[^"]*width:([\d.]+)%/.exec(flowRow(k)) || [])[1] || NaN), fc = k => (/<span class="rz-f ([^"]*)"/.exec(flowRow(k)) || [])[1];
   const flows = mv.rows.filter(x => x.v).map(x => [x.key, Math.abs(x.v)]), vmax = Math.max(...flows.map(f => f[1])), wmax = Math.max(...flows.map(f => wd(f[0])));
-  // строка сверки — числа теми же округлениями, что в строках (от 100 млн целые, ниже — один знак, меньше миллиона — «тыс.»), «млн» — один раз в конце;
-  // нулевые строки в цепочку не идут (волна 10: было — все строки, «0,0» у малых и нулевых)
-  const chainNums = ((/<div class="mv-chain"[^>]*>([^<]*) млн<\/div>/.exec(hmo) || [])[1] || '').split(/ [+−=] /).map(x => x.replace(/\s/g, ''));
-  const chainWant = [mv.start, ...mv.rows.filter(x => x.v).map(x => Math.abs(x.v)), mv.end].map(v => DB.fmtVal(v, 'sum').replace(/ млн$/, '').replace(/\s/g, ''));
-  const chainOk = chainNums.length === chainWant.length && chainNums.every((x, i) => x === chainWant[i]) && chainNums.every(x => /^\d+$/.test(x) ? +x >= 100 : /^\d{1,2},\d$|^\d{1,3}тыс\.$/.test(x)) && !/0,0/.test(chainNums.join(' '));
+  // строка сверки (волна 10, правка отрисовки): все числа — в единице конца («млн» один раз в конце, «тыс.» внутри нет), каждое — своё число строки в этой единице:
+  // один знак, меньше единицы конца — два (третий — только если и двух мало), нулевых («0,0») нет, нулевые строки в цепочку не идут; знаки — как у строк; конец — с одним знаком.
+  // Если сумма показанных чисел с концом в его знаке не сходится — вся цепочка на знак точнее (не меньше двух у каждого числа и у конца); ожидаемое считается здесь заново
+  // (волна 10, задача 4: было «169 + 9,9 − 8,1 − 186 тыс. − 55 тыс. … = 179 млн» — смесь единиц)
+  const chainRule = (html, m) => {
+    const txt = (/<div class="mv-chain"[^>]*>([^<]*)<\/div>/.exec(html) || [])[1] || '', k = 1e6;
+    if (!/ млн$/.test(txt) || /тыс\./.test(txt) || (txt.match(/млн/g) || []).length !== 1) return { ok:false, why:'единица', txt };
+    const toks = txt.replace(/ млн$/, '').split(/ (?=[+−=] )/), sg = toks.map((t, i) => i ? t[0] : ''), nums = toks.map((t, i) => (i ? t.slice(2) : t).replace(/\s/g, ''));
+    const want = [{ sg:'', v:m.start }, ...m.rows.filter(x => x.v).map(x => ({ sg:x.v < 0 ? '−' : '+', v:Math.abs(x.v) }))];
+    if (nums.length !== want.length + 1 || sg[sg.length - 1] !== '=') return { ok:false, why:'число членов', txt };
+    const need = (v, p) => { let d = Math.max(p, Math.abs(v) >= k ? 1 : 2); while (d < 3 && !Math.round(Math.abs(v) / k * 10 ** d)) d++; return d; };
+    const shownSum = p => { const D = Math.max(p, ...want.map(w => need(w.v, p))); return want.reduce((a, w) => a + (w.sg === '−' ? -1 : 1) * Math.round(+(w.v / k).toFixed(need(w.v, p)) * 10 ** D), 0) / 10 ** D; };
+    const p = Math.round(shownSum(1) * 10) === Math.round(m.end / k * 10) ? 1 : 2;
+    const dec = x => (x.split(',')[1] || '').length, val = x => +x.replace('−', '-').replace(',', '.');
+    const termsOk = want.every((w, i) => sg[i] === w.sg && dec(nums[i]) === need(w.v, p) && near(val(nums[i]), +(w.v / k).toFixed(need(w.v, p)), 1e-9) && val(nums[i]) !== 0);
+    const endTxt = nums[nums.length - 1], endOk = dec(endTxt) === p && near(val(endTxt), +(m.end / k).toFixed(p), 1e-9);
+    const gap = Math.abs(shownSum(p) - val(endTxt)) * 10 ** p;   // расхождение показанной арифметики в единицах последнего знака
+    return { ok:termsOk && endOk && (p === 1 ? gap < 0.5 + 1e-9 : gap <= want.length / 2 + 1e-9), txt, p, gap:Math.round(gap) }; };
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.openView('lead-bal', 'move');   // и на денежном Движении с началом от 100 млн («3 770,…»)
+  const hbm = tab(DB.stripHTML('lead-bal', 'u1', 'lead')), mvb = V('lead-bal', 'move', DB.state.open['lead-bal'].sel).move; DB.state.open = {};
+  const chainOd = chainRule(hmo, mv), chainBal = chainRule(hbm, mvb), chainOk = chainOd.ok && chainBal.ok;
   ok(251, near(mv.start + sum(mv.rows.map(x => x.v)), mv.end, 1e-6) && !('converges' in mv) && near(mv.end, DB.base('lead-od', 'u1', 'lead').value, 1) && mvv.mode === null && !/strip-mode/.test(hmo) && !/class="mv"[ >]/.test(hmo)
     && /<div class="rz-r mv-e" data-edge="start">/.test(hmo) && /<div class="rz-r mv-e" data-edge="end">/.test(hmo) && !/mv-e[^>]*>[\s\S]{0,400}?class="rz-f/.test(hmo.split('data-flow')[0]) && flows.every(f => flowRow(f[0]).length > 50 && /class="rz-z"/.test(flowRow(f[0])) && near(wd(f[0]) / wmax, f[1] / vmax, 0.02)) && new Set([...hmo.matchAll(/class="rz-z" style="left:([\d.]+)%"/g)].map(x => x[1])).size === 1
     && fc('new') === 'bad' && fc('paid') === 'good neg' && fc('up') === 'bad' && fc('down') === 'good neg' && /^neu/.test(fc('other')) && /<div class="mv-chain" data-tip="[^"]*">[^<]* млн<\/div>/.test(hmo) && !/✓|сходится|mv-ok/.test(hmo) && /\.mv-w \.rz-f\.neu\{ background:var\(--asubk-ink-45\); \}/.test(src) && /\.rz\.mv-w\{ --rz-cols:260px 104px 60px minmax\(0,1fr\); \}/.test(src) && chainOk,
-    `Движение «Просрочено»: «на 30.09» и «на сегодня» числами, каждый поток своей строкой с полосой от общей нулевой линии (новые в просрочке и выросла у прежних — вправо красным, погасили и снизилась — влево зелёным, «прочее» серым), длина полосы пропорциональна строке (шкала по самой большой — ${DB.fmtVal(flows.sort((a, b) => b[1] - a[1])[0][1], 'sum')}), сумма строк = ${DB.fmtVal(mv.end, 'sum')} − ${DB.fmtVal(mv.start, 'sum')} точно; «✓ сходится» снят (ДБ-182); переключателя «Сумма | Изменение» нет; колонки 260 / 104 / 60 px (ДБ-155, ДБ-157, ДБ-165; волна 7: было потоки текстом, рисунка нет; волна 8: было 260 / 90 / 60 px). Строка сверки — теми же округлениями, что строки: «${chainNums.join(' · ')}» (от 100 млн целые, ниже — один знак, меньше миллиона — «тыс.»; нулевых строк в ней нет), это пояснение, не проверка`);
+    `Движение «Просрочено»: «на 30.09» и «на сегодня» числами, каждый поток своей строкой с полосой от общей нулевой линии (новые в просрочке и выросла у прежних — вправо красным, погасили и снизилась — влево зелёным, «прочее» серым), длина полосы пропорциональна строке (шкала по самой большой — ${DB.fmtVal(flows.sort((a, b) => b[1] - a[1])[0][1], 'sum')}), сумма строк = ${DB.fmtVal(mv.end, 'sum')} − ${DB.fmtVal(mv.start, 'sum')} точно; «✓ сходится» снят (ДБ-182); переключателя «Сумма | Изменение» нет; колонки 260 / 104 / 60 px (ДБ-155, ДБ-157, ДБ-165; волна 7: было потоки текстом, рисунка нет; волна 8: было 260 / 90 / 60 px). Строка сверки — «${chainOd.txt}»: все числа в единице конца, каждое = своей строке (один знак, меньше миллиона — два; «тыс.» и «0,0» нет, нулевых строк нет), ${chainOd.p === 1 ? 'один знак — сумма показанных сходится с концом' : 'на знак точнее — с одним знаком сумма показанных не сошлась бы с концом, расхождение теперь ' + chainOd.gap + ' в последнем знаке'}; у «Остатка» — «${chainBal.txt}» (волна 10: было «169 + … − 186 тыс. … = 179 млн»), это пояснение, не проверка`);
 
   // ДБ-156: Таблица — первая колонка показатель плитки и порядок по ней; колонки по 170 px; «Изменение» сортирует по разнице
   DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.openView('lead-od', 'table'); DB.viewSet('lead-od', 'dim', 'program');

@@ -253,7 +253,8 @@ select:hover,input[type=text]:hover,input[type=number]:hover{ border-color:var(-
 .mv-w .rz-v.bad{ color:var(--asubk-red); } .mv-w .rz-v.good{ color:var(--asubk-green); } .mv-w .rz-v.neu{ color:var(--text-muted); }
 .mv-w .rz-f.neu{ background:var(--asubk-ink-45); }
 .mv-w .mv-e{ cursor:default; background:var(--surface-panel); } .mv-w .mv-e:hover{ background:var(--surface-panel); } .mv-w .mv-e:hover .rz-nm{ color:var(--text-heading); } .mv-w .mv-e .rz-v{ font-weight:600; }
-.mv-chain{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; font-size:12px; line-height:1.4; color:var(--text-muted); cursor:help; font-variant-numeric:tabular-nums; }
+/* цепочка не уходит под прокрутку полосы: прилипает к низу видимой части (bottom — минус нижний отступ .strip-b), на белом поверх строк */
+.mv-chain{ position:sticky; bottom:-16px; z-index:1; display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 -16px; padding:8px 0 16px; border-top:1px solid var(--asubk-grid-line); background:var(--surface-card); font-size:12px; line-height:1.4; color:var(--text-muted); cursor:help; font-variant-numeric:tabular-nums; }
 .mv-w .rz-nm .pill{ margin-left:8px; vertical-align:1px; }
 /* «пришли из … / ушли в …» под строкой узла Разреза в «Изменении»: серая мелкая подстрока под суммой, «☰» — список перехода */
 .rz-r.has-mv{ row-gap:1px; }
@@ -405,8 +406,9 @@ svg.chart text{ font:11px var(--asubk-font); fill:var(--text-muted); }
   .grid,.grid.pv{ grid-template-columns:minmax(0,1fr); } .scope-line .right{ margin-left:0; }
   .arrange-only{ display:none !important; } .kv{ grid-template-columns:1fr; }
   .list{ display:block; overflow-x:auto; } .btn{ white-space:normal; height:auto; min-height:32px; } select{ max-width:100%; }
-  .rz{ --rz-cols:minmax(0,1fr) 70px 76px 44px; } .rz.c4{ --rz-cols:minmax(0,1fr) 70px 44px; } .rz-hd,.rz-r{ gap:4px 10px; } .rz-hd span:nth-child(5){ display:none; } .rz-t{ grid-column:1/-1; } .rz-tot .rz-t{ display:none; }
-  .rz.mv-w{ --rz-cols:minmax(0,1fr) 84px 44px; } .mv-w .mv-e .rz-t{ display:none; } .mv-w .mv-warn .rz-nm{ white-space:normal; } .mv-w .mv-warn .rz-nm .pill{ margin:2px 0 0; }
+  .rz{ --rz-cols:minmax(0,1fr) 70px 76px 44px; } .rz.c4{ --rz-cols:minmax(0,1fr) 70px 44px; } .rz.c5.chg{ --rz-cols:minmax(0,1fr) 78px 70px 44px; } .rz-hd,.rz-r{ gap:4px 10px; } .rz-hd span:nth-child(5){ display:none; } .rz-t{ grid-column:1/-1; } .rz-tot .rz-t{ display:none; }
+  /* Движение на телефоне: «☰ 1 258» целиком (52 px), название переносится с висячим знаком, метка «⚠» — второй строкой от левого края названия */
+  .rz.mv-w{ --rz-cols:minmax(0,1fr) 84px 52px; } .rz.mv-w .rz-r{ column-gap:8px; } .mv-w .mv-e .rz-t{ display:none; } .mv-w .rz-nm{ white-space:normal; padding-left:14px; text-indent:-14px; } .mv-w .rz-nm .pill,.mv-w .rz-nm .mv-sg{ text-indent:0; } .mv-w .mv-warn .rz-nm .pill{ margin:2px 0 0 -14px; }
   .rz-mv{ grid-column:1/-1; } .rz-mvp{ white-space:normal; flex-wrap:wrap; }
   .heat{ min-width:560px; } .heat th.l{ white-space:nowrap; } .heat col.hm-lab{ width:110px; } .heat col.hm-tc{ width:76px; } .heat td,.heat th{ padding-left:3px; padding-right:3px; }
   .tb{ --tb-nm:120px; --tb-n:112px; --tb-ls:58px; font-size:12.5px; } .tb th,.tb td{ padding-left:6px; padding-right:6px; }
@@ -3660,14 +3662,26 @@ function rzBody(res, q, ops, go){
     return `<div class="rz-r${kind ? ' rz-'+kind : ''}${sub ? ' has-mv' : ''}"${kind ? '' : ` data-tip="${esc(rt)}" onclick="event.stopPropagation();${go(dim, n.v)}"`}><span class="rz-nm"${kind==='more' ? tipAttr(tip(n)) : ''}>${esc(kind==='tot' ? 'итог' : n.label)}</span>${num}${cCell(n, kind)}${bar(n, kind)}${sub}</div>`; };
   const head = diff ? `<div class="rz-hd"><span></span>${chg ? `<span>${esc(lab)}</span><span>${esc(asOf)}</span>` : `<span>${esc(asOf)}</span><span>${esc(lab)}</span>`}<span></span><span></span></div>` : '';
   return `<div class="rz ${diff ? 'c5' : 'c4'}${chg ? ' chg' : ''}">${head}${lines.map(n=>row(n, n.more ? 'more' : '')).join('')}${row(Object.assign({}, tot, { value:tot.v, cnt:res.cnt }), 'tot')}</div>`; }
-// строка-пояснение Движения: «26,6 + 3,4 − 0,9 − 186 тыс. … = 29,2 млн». Каждое число — тем же округлением, что в своей строке (fmtVal):
-// от 100 млн целые, ниже — один знак, меньше миллиона — «тыс.»; единица конца печатается один раз, в конце, у числа в другой единице она остаётся.
-// Это пояснение, не проверка: показанная арифметика может разойтись на округлении. terms — начало и строки по модулю со знаком перед ними
-function mvChain(terms, end, u){
-  const e = fmtVal(end, u), unit = u==='sum' ? (/ (млн|тыс\.)$/.exec(e) || [''])[0] : '';
-  const f = v=>{ const t = fmtVal(v, u); return unit && t.endsWith(unit) ? t.slice(0, -unit.length) : t; };
-  return terms.map((x, i)=>(i ? x.sg+' ' : '')+f(x.v)).join(' ')+' = '+f(end)+unit;
-}
+// строка-пояснение Движения: «169,1 + 9,9 − 8,1 − 0,19 − 0,06 + 10,7 − 2,6 = 178,8 млн» — все числа в единице конца (млн или тыс.), единица один раз, в конце.
+// Знаков — один; число меньше единицы конца (в строке оно «тыс.») — с двумя, чтобы не стать «0,0» (третий — только если и двух мало); конец — с одним.
+// Если сумма показанных чисел с концом в этом знаке не сходится (округление), вся цепочка печатается на знак точнее — и слагаемые, и конец
+// («169,13 + 9,86 − … = 178,78 млн»). Счётные показатели — целыми. Это пояснение, не проверка: строки над цепочкой — в своём округлении.
+// terms — начало и строки по модулю со знаком перед ними
+function mvChainParts(terms, end, u){
+  if(u!=='sum') return { k:1, unit:'', p:0, terms:terms.map(x=>({ sg:x.sg, d:0, t:fmtVal(x.v, u) })), end:{ d:0, t:fmtVal(end, u) } };
+  const ref = Math.abs(end) >= 1e3 ? Math.abs(end) : Math.max(Math.abs(end), ...terms.map(x=>Math.abs(x.v))), k = ref >= 1e6 ? 1e6 : ref >= 1e3 ? 1e3 : 1, unit = k===1e6 ? ' млн' : k===1e3 ? ' тыс.' : '';
+  const rnd = x=>Math.sign(x) * Math.round(Math.abs(x));
+  const txt = (v, d)=>{ const r = (Math.abs(v) / k).toFixed(d).split('.'); return (v<0 && +r.join('.') ? '−' : '')+nbsp(+r[0])+(r[1] ? ','+r[1] : ''); };
+  const at = p=>{   // p — наименьшее число знаков цепочки
+    const digits = v=>{ if(k===1) return 0; let d = Math.max(p, Math.abs(v) >= k ? 1 : 2); while(d < 3 && v && !Math.round(Math.abs(v) / k * 10**d)) d++; return d; };
+    const ts = terms.map(x=>{ const d = digits(x.v); return { sg:x.sg, d, v:x.v, t:txt(x.v, d) }; }), D = Math.max(p, ...ts.map(x=>x.d));
+    // сумма показанных чисел — в целых единицах знака D, без плавающей ошибки; сверка с концом — в знаке конца (p)
+    const S = ts.reduce((a, x, i)=>a + (i && x.sg==='−' ? -1 : 1) * rnd(x.v / k * 10**x.d) * 10**(D - x.d), 0);
+    return { k, unit, p, terms:ts, end:{ d:p, t:txt(end, p) }, fits: rnd(S / 10**(D - p)) === rnd(end / k * 10**p) }; };
+  if(k===1) return at(0);
+  const c1 = at(1); return c1.fits ? c1 : at(2); }
+function mvChain(terms, end, u){ const c = mvChainParts(terms, end, u);
+  return c.terms.map((x, i)=>(i ? x.sg+' ' : '')+x.t).join(' ')+' = '+c.end.t+c.unit; }
 // «пришли из … / ушли в …» узла разреза (n.moves): части по значениям со вкладом — сначала пришедшие, затем ушедшие; охват — одной частью
 function mvParts(mv){ if(!mv) return [];
   const one = dir=>x=>({ dir, v:x.v, fd:x.fd, cnt:x.cnt, sum:x.sum, name: x.scope ? (dir==='from' ? 'пришли в охват' : 'ушли из охвата') : (dir==='from' ? 'пришли из ' : 'ушли в ')+x.label });
@@ -3704,7 +3718,7 @@ function mvBody(res, q, ops){
   const startLs = ls(m.cnt0, ops && ops.month(M - 1), true, 'на '+from);
   return `<div class="mv-cap"><b>${esc(when)}</b>; вправо — пришло, влево — ушло</div>`
     +`<div class="rz mv-w">${edge('start', 'на '+from, m.start, startLs)}${flows.map(flowRow).join('')}${edge('end', M===0 ? 'на сегодня'+(clock ? ', '+clock : '') : 'на '+to, m.end, ops ? ops.all(m.cntEnd) : '')}</div>`
-    +`<div class="mv-chain"${tipAttr('Пояснение, не проверка: начало, ненулевые строки и конец — теми же округлёнными числами, что в строках')}>${chain}</div>`;
+    +`<div class="mv-chain"${tipAttr('Пояснение, не проверка: начало, ненулевые строки и конец — в одной единице, той же, что у конца; малые строки — с двумя знаками')}>${chain}</div>`;
 }
 // Таблица: названия 220 px, числа — колонками по 170 px, «☰ N» — последней, тихо; таблица не растягивается — справа пусто. Первая колонка — показатель плитки (viewSel ставит её первой):
 // выделена, по ней порядок строк (упорядоченный разрез — свой порядок в обоих режимах, маркера нет). «Сумма» — в ячейке значение, разница к базе — в подсказке; «Изменение» — в ячейке разница
@@ -3929,7 +3943,11 @@ function openWho(tileId, node, path){
     <button class="btn" onclick="DB.close();DB.openView('${t.id}','slice')">Открыть Разрез</button>
     <button class="btn" onclick="DB.toast('Выгрузка строк поставлена статистике заданием — файл придёт с метаданными внутри')">Выгрузка строк (задание статистики)</button></p>
     ${sr.passport?'<div class="passport mono">'+esc(sr.passport)+'</div>':''}`); return sr; }
-  const sumLine = sr.matches ? fmtVal(sr.sum, sr.unit)+' = числу на плитке' : fmtVal(sr.sum, sr.unit)+(sr.number!==null ? ' · на плитке '+fmtVal(sr.number, sr.unit) : '');
+  // сумма списка — со знаком, как у своего числа: у строки Движения и части «пришли из / ушли в» он печатается («+8,0 млн», «−5,1 млн»);
+  // сверяется с числом своего узла — строки, точки ряда, ячейки карты; без узла — с числом на плитке
+  const n = sr.node, signed = !!n && (!!n.flow || mvNode(n)), fv = v=>signed ? mvSum(v, sr.unit) : fmtVal(v, sr.unit);
+  const eq = !n ? ['= числу на плитке', 'на плитке'] : n.flow || mvNode(n) ? ['= числу строки', 'в строке'] : n.m!==undefined ? ['= числу точки', 'в точке'] : n.d2 ? ['= числу ячейки', 'в ячейке'] : n.d ? ['= числу строки', 'в строке'] : ['= числу на плитке', 'на плитке'];
+  const sumLine = sr.matches ? fv(sr.sum)+' '+eq[0] : fv(sr.sum)+(sr.number!==null ? ' · '+eq[1]+' '+fv(sr.number) : '');
   drawer(head, `<div class="kv"><div class="k">Строк</div><div>${sr.list.length} — полный список на дату среза</div>
     <div class="k">Сумма списка</div><div>${sumLine}</div><div class="k">Паспорт</div><div class="mono">${esc(sr.passport)}</div></div>
     <table class="list"><tr><th>Объект</th><th>Кратко</th><th class="n">Значение</th></tr>${sr.list.slice(0,400).map(x=>`<tr><td><button class="linky" onclick="DB.toast('Карточка ${esc(x.r.id)} открывается в модуле «${esc(OBJECTS[sr.obj].owner)}»')">${esc(x.r.id)}</button></td><td>${esc(rowLabel(sr.obj, x.r))}</td><td class="n">${fmtVal(x.v, sr.unit)}</td></tr>`).join('')}</table>`);
