@@ -68,7 +68,10 @@
 //      старшинству; «нет ответа источника» (STAND.noAnswer); строки событий с нулями, охват — только где меняется; «новые в просрочке»
 //      против плитки эпизодов; строки пяти Движений по таблице п. 7 и «☰» каждой строки = строке; без «✓», «⚠ большое необъяснённое»
 //      (STAND.bigOther) и граница порога MV_BIG; «пришли из / ушли в» в узле, в Движении пути и подстрокой rz-mv; Движение в пути по
-//      разрезу с историей и Движение клиентов — без отказа и черновика.
+//      разрезу с историей и Движение клиентов — без отказа и черновика. 321…329 — находки ревью волны 10: значения разреза в «Изменении» —
+//      объединение на две даты; охват роли по подразделению на свою дату; строки охвата — только где у объекта есть история; «Состояние
+//      кредита» с историей; одна часть — одно число и одна подпись в Разрезе и Движении; «☰» конца и точек — по спискам на дату; дата
+//      плитки не «сегодня»; «нет ответа» на обе даты.
 // Блоки, которые правят состояние, начинаются с DB.seed(). Выход 1 при любом FAIL.
 //   node scripts/inspect/dashboard-check.mjs
 import { readFileSync } from 'node:fs';
@@ -3189,9 +3192,9 @@ const asUser = id => { DB.state.userId = id; };
   const naR = dN.list.map(x => x.r), wasOd = naR.filter(r => od(r, -1) > 0);
   ok(311, rN && rN.name === 'нет ответа источника' && rN.kind === 'noanswer' && rN.sg === '±' && rN.cnt === dN.list.length && near(dN.sum, rN.v) && dN.matches && /пусто, а не ноль/.test(rN.tip)
     && mN.rows.at(-1).key === 'noanswer' && near(mN.start + sum(mN.rows.map(x => x.v)), mN.end, 1e-6) && near(mN.start, bN.shift.base) && near(mN.end, bN.value)
-    && naIds.every(i => !newIds.has(i)) && wasOd.length > 0 && near(rN.v, sum(dN.list.map(x => x.v))) && /data-flow="noanswer"/.test(hN) && />нет ответа источника</.test(hN)
+    && naIds.every(i => !newIds.has(i)) && wasOd.length > 0 && near(rN.v, sum(dN.list.map(x => x.v))) && dN.list.some(x => x.v > 0) && dN.list.some(x => x.v < 0) && /data-flow="noanswer"/.test(hN) && />нет ответа источника</.test(hN)
     && !m0.rows.some(x => x.key === 'noanswer') && !/data-flow="noanswer"/.test(h0) && !/нет ответа источника/.test(h0) && near(m0.start, sh().base),
-    `флаг «источник не ответил»: строка «± нет ответа источника ☰ ${rN && rN.cnt} ${fm(rN ? rN.v : 0)}» последней, список сходится; ${wasOd.length} из них были просрочены и на 30.09, но в «новые в просрочке» не попали — пусто, а не ноль; цепочка ${fm(mN.start)} + строки = ${fm(mN.end)} = числам плитки (база сдвига и главное); без флага строки нет, начало снова ${fm(m0.start)} (ДБ-178)`);
+    `флаг «источник не ответил»: строка «± нет ответа источника ☰ ${rN && rN.cnt} ${fm(rN ? rN.v : 0)}» последней (вклады «+» ${dN.list.filter(x => x.v > 0).length}, «−» ${dN.list.filter(x => x.v < 0).length}), список сходится; ${wasOd.length} из них были просрочены и на 30.09, но в «новые в просрочке» не попали — пусто, а не ноль; цепочка ${fm(mN.start)} + строки = ${fm(mN.end)} = числам плитки (база сдвига и главное); без флага строки нет, начало снова ${fm(m0.start)} (ДБ-178)`);
 
   // ДБ-179: строки событий видны и с нулём; строки охвата — только где охват может меняться
   const EV = ['new', 'paid', 'restr', 'written', 'other', 'up', 'down'], keys = mv => mv.rows.map(x => x.key).join();
@@ -3276,6 +3279,113 @@ const asUser = id => { DB.state.userId = id; };
   const hK = strip('lead-borr', 'u1', 'lead');
   ok(320, vP.ok && vP.why === null && vC.ok && vC.why === null && vK.ok && vK.why === null && !('clientFlows' in DB.STAND) && !/черновик|даты погашения всего портфеля/.test(hK) && /data-flow="paidAll"/.test(hK) && mK.start + sum(mK.rows.map(x => x.v)) === mK.end,
     `Движение в пути по сроку («91–180») и по категории («Потери») доступно — отказа «обороты с ним не сходятся» нет; Движение клиентов отвечает сразу, без черновика и флага стенда: ${mK.start} ${mK.rows.map(x => (x.v < 0 ? '− ' : '+ ') + Math.abs(x.v)).join(' ')} = ${mK.end} (ДБ-181, ДБ-71)`);
+  DB.seed();
+})();
+
+/* ---------- V (продолжение). Находки ревью волны 10: база по значению на свою дату, одна часть — одно число (ДБ-175…ДБ-183) ---------- */
+(() => {
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.stand('N', 100000);
+  const u1 = U('u1'), u2 = U('u2'), L = DB.DATA.loan, near = (a, b, e = 0.5) => typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) < e, fm = v => DB.fmtVal(v, 'sum'), nz = x => x || 0;
+  const V = (id, kind, sel, path = [], uid = 'u1', role = 'lead', panel = {}) => DB.view(id, kind, sel, path, uid, role, panel);
+  const tab = html => html.replace(/<svg[\s\S]*?<\/svg>/g, '');
+  const od = (r, m) => (r.from === undefined || r.from <= m) && DB.DIMS.lact.at(r, m) === 'действующий' ? (DB.loanAt(r, m).overdue || 0) : 0;
+  const ids = d => (d.list || []).map(x => x.r.id).sort().join();
+  const dn = v => DB.DIMS.dept.label(v);
+
+  // «Изменение» разреза без объявленного списка в пути по разрезу с историей: значения — объединение на сегодня и на 30.09; строка, которая
+  // была только на базе, — с числом 0 сегодня; итог = сумме строк (Разрез, Таблица, Карта)
+  const P31 = [{ dim:'bucket', v:'31–90' }], cu = V('lead-od', 'slice', { dim:'curator', mode:'change' }, P31), sh31 = V('lead-od', 'slice', { dim:'bucket', mode:'change' }).nodes.find(n => n.v === '31–90');
+  const onlyB = cu.nodes.filter(n => !n.value && n.base > 0), tP = V('lead-bal', 'table', { dim:'program', mode:'change' }, [{ dim:'bucket', v:'1–30' }], 'u1', 'lead', { dept:'rp-nar' }).table;
+  const mP = V('lead-bal', 'map', { dims:['category', 'program'], mode:'change' }, [{ dim:'bucket', v:'1–30' }], 'u1', 'lead', { dept:'rp-nar' }), h = mP.heat;
+  const hs = [sum(h.rowTot.map(x => nz(x.delta))), sum(h.colTot.map(x => nz(x.delta))), sum(h.deltas.flat().map(nz))];
+  const tCnt = tP.rows.map(w => nz(w.deltas[1])), tBal = tP.rows.map(w => nz(w.deltas[0]));
+  ok(321, near(sum(cu.nodes.map(n => nz(n.delta))), cu.total.delta) && near(sum(cu.nodes.map(n => nz(n.base))), cu.total.base) && near(cu.total.delta, sh31.delta) && onlyB.length > 0
+    && hs.every(x => near(x, mP.total.delta)) && near(sum(tBal), tP.total.deltas[0]) && near(sum(tCnt), nz(tP.total.deltas[1])) && h.cols.length === tP.rows.length,
+    `«Просрочено › 31–90» по куратору в «Изменении»: ${cu.nodes.length} строк, ${onlyB.length} — только на 30.09 (число сегодня 0, было ${onlyB.map(n => fm(n.base)).join(', ')}); сумма разниц ${fm(sum(cu.nodes.map(n => nz(n.delta))))} = итогу ${fm(cu.total.delta)} = разнице узла «31–90» по сроку; «Остаток › 1–30» на панели «${dn('rp-nar')}»: Карта «категория × программа» — итоги строк, столбцов и ячеек ${hs.map(fm).join(' · ')} = итогу ${fm(mP.total.delta)}, Таблица по программе — ${tP.rows.length} строк, сумма разниц остатка ${fm(sum(tBal))} и числа кредитов ${sum(tCnt)} = итогу (ДБ-175, ИДБ-18)`);
+
+  // охват роли по подразделению — на свою дату: у куратора Чуйского РП база сдвига, начало Движения, точка Ряда, база разницы и список на 30.09 —
+  // те же, что у Руководства с панелью «Чуйское»; список «на сегодня» — по сегодняшнему охвату
+  const PC = { dept:'rp-chu' }, bL = DB.base('lead-od', 'u1', 'lead', PC), bU = DB.base('lead-od', 'u2', 'cur'), mL = V('lead-od', 'move', null, [], 'u1', 'lead', PC).move, mU = V('lead-od', 'move', null, [], 'u2', 'cur').move;
+  const sc = mv => mv.rows.filter(x => x.kind === 'scope').map(x => x.key + ':' + x.cnt + ':' + x.v).join();
+  const srL = DB.at('lead-od', 'series(12)', 'u1', 'lead', PC), srU = DB.at('lead-od', 'series(12)', 'u2', 'cur', {});
+  const dL = DB.drill('lead-od', u1, 'lead', PC, { m:-1 }), dU = DB.drill('lead-od', u2, 'cur', {}, { m:-1 }), out = DB.drill('lead-od', u2, 'cur', {}, { flow:'scopeOut', mv:0 });
+  const X = (out.list || [])[0] && (out.list || [])[0].r, now = DB.drill('lead-od', u2, 'cur', {}), zL = V('lead-od', 'slice', { dim:'bucket', mode:'change' }, [], 'u1', 'lead', PC), zU = V('lead-od', 'slice', { dim:'bucket', mode:'change' }, [], 'u2', 'cur');
+  ok(322, near(bU.shift.base, bL.shift.base) && near(mU.start, mL.start) && near(mU.start, bU.shift.base) && sc(mU) === sc(mL) && near(srU.at(-2)[0], srL.at(-2)[0]) && ids(dU) === ids(dL) && dU.matches
+    && near(zU.total.base, zL.total.base) && zU.nodes.every((n, i) => near(n.base, zL.nodes[i].base)) && X && DB.loanAt(X, -1).dept === 'rp-chu' && X.dept !== 'rp-chu'
+    && (dU.list || []).some(x => x.r === X) && !(now.list || []).some(x => x.r === X) && !DB.rowsFor(u2, 'cur', 'loan').includes(X) && near(bU.value, bL.value),
+    `«Просрочено» у ${u2.name} (охват — Чуйское РП) на 30.09: база сдвига ${fm(bU.shift.base)} = начало Движения = точка Ряда = база разницы по сроку = Руководству с панелью «${dn('rp-chu')}» (${fm(bL.shift.base)}); ${X && X.id} на 30.09 был в Чуйском, сегодня — в «${X && dn(X.dept)}»: в списке «☰ на 30.09» (${(dU.list || []).length} = ${(dL.list || []).length}) он есть, в Движении — «ушли из охвата ☰ ${(out.list || []).length} ${fm(out.sum)}» у обоих; в списке на сегодня и реестре его нет (ДБ-175)`);
+
+  // строки охвата — только там, где у объекта охват меняется: у залога и заёмщика подразделение и куратор без истории
+  const noScope = [['zal-value', 'u5', 'zal', {}], ['zal-value', 'u1', 'lead', { dept:'rp-osh' }], ['lead-borr', 'u3', 'prob', {}], ['lead-borr', 'u1', 'lead', { dept:'rp-osh' }], ['cur-npay', 'u2', 'cur', {}], ['cur-obl', 'u2', 'cur', {}], ['lead-borr', 'c30', 'cur', {}]];
+  const withScope = [['lead-od', 'u2', 'cur', {}], ['lead-bal', 'u1', 'lead', { dept:'rp-osh' }], ['cur-bal', 'c30', 'cur', {}], ['lead-od', 'u5', 'zal', {}]];
+  const sk = ([id, uid, role, P]) => { const r = V(id, 'move', null, [], uid, role, P); return r.move ? r.move.rows.filter(x => x.kind === 'scope').length : -1; };
+  const ns = noScope.map(sk), ws = withScope.map(sk);
+  ok(323, ns.every(n => n === 0) && ws.every(n => n === 2) && !DB.dimHist('borrower', 'dept') && !DB.dimHist('coll', 'dept') && DB.dimHist('loan', 'dept') && DB.dimHist('borrower', 'pstate'),
+    `«пришли / ушли из охвата» нет у ${noScope.map(([id, uid, , P]) => id + ' ' + uid + (P.dept ? ' + «' + dn(P.dept) + '»' : '')).join(', ')} — у залога и заёмщика подразделение и куратор без истории (строк охвата ${ns.join('/')}); есть у кредита — охват роли по подразделению, панель, «я» куратора (${ws.join('/')}) (ДБ-179)`);
+
+  // «Состояние кредита» — с историей: значение на 30.09 из строки кредита, полный справочник; КД-2634 «Обычный → Во взыскании»
+  const D = DB.DIMS.lstatus, chg = L.filter(r => DB.loanAt(r, -1).status !== DB.loanAt(r, 0).status), K = L.find(r => r.id === 'КД-2634');
+  const ls = V('lead-od', 'slice', { dim:'lstatus', mode:'change' }), nO = ls.nodes.find(n => n.v === 'Обычный'), nV = ls.nodes.find(n => n.v === 'Во взыскании');
+  const kTo = DB.drill('lead-od', u1, 'lead', {}, { d:'lstatus', v:'Обычный', to:'Во взыскании' }), kFrom = DB.drill('lead-od', u1, 'lead', {}, { d:'lstatus', v:'Во взыскании', from:'Обычный' });
+  const kT = (kTo.list || []).find(x => x.r === K), kF = (kFrom.list || []).find(x => x.r === K), gB = new Map(); L.forEach(r => { const k = DB.loanAt(r, -1).status; gB.set(k, (gB.get(k) || 0) + od(r, -1)); });
+  ok(324, D.rowAt && typeof D.at === 'function' && (D.values || []).join() === 'Обычный,В реструктуризации,Во взыскании,Закрыт' && ls.nodes.map(n => n.v).sort().join() === (D.values || []).slice().sort().join()
+    && chg.length === 13 && chg.filter(r => r.status === 'Во взыскании').length === 3 && chg.filter(r => r.status === 'Закрыт').length === 10 && L.every(r => DB.loanAt(r, 0).status === r.status)
+    && K && DB.loanAt(K, -1).status === 'Обычный' && K.status === 'Во взыскании' && kT && near(kT.v, -od(K, -1)) && kF && near(kF.v, od(K, 0)) && kTo.matches && kFrom.matches
+    && ls.nodes.every(n => near(nz(n.base), gB.get(n.v) || 0)) && near(sum(ls.nodes.map(n => nz(n.delta))), ls.total.delta) && near(ls.total.delta, DB.base('lead-od', 'u1', 'lead').shift.delta),
+    `«Состояние кредита» с историей: справочник «${(D.values || []).join(' · ')}», сменили состояние за месяц ${chg.length} кредитов (${chg.filter(r => r.status === 'Во взыскании').length} → «Во взыскании», ${chg.filter(r => r.status === 'Закрыт').length} → «Закрыт»); КД-2634 «Обычный» на 30.09 → «Во взыскании» сегодня: ${fm(-od(K, -1))} в «Обычный» («ушли в Во взыскании ☰ ${(kTo.list || []).length}»), +${fm(od(K, 0))} во «Во взыскании»; база узлов — по состоянию на 30.09, сумма разниц ${fm(ls.total.delta)} = сдвигу (ДБ-175)`);
+  void nO; void nV;
+
+  // одна часть — одно число: у Остатка «пришли из …» узла Разреза = строке Движения в пути — число на 30.09 (потоки периода — уже в новом узле);
+  // разница узла = части + потоки и «прочее» строк Движения узла
+  const bb = V('lead-bal', 'slice', { dim:'bucket', mode:'change' }), bad5 = []; let nParts = 0;
+  bb.nodes.forEach(n => { const mv = V('lead-bal', 'move', { month:0 }, [{ dim:'bucket', v:n.v }]).move, pr = mv.rows.filter(x => /^(in|out):/.test(x.key)), want = [...n.moves.from, ...n.moves.to].filter(x => !x.scope);
+    nParts += want.length; if (pr.length !== want.length || pr.some((x, i) => x.cnt !== want[i].cnt || !near(x.v, want[i].sum)) || !near(sum(mv.rows.map(x => x.v)), n.delta) || !near(mv.start, n.base) || !near(mv.end, n.value)) bad5.push(n.v); });
+  const n0 = bb.nodes.find(n => n.v === 'нет просрочки'), f181 = n0.moves.from.find(x => x.v === '181+'), d181 = DB.drill('lead-bal', u1, 'lead', {}, { d:'bucket', v:'нет просрочки', from:'181+' });
+  ok(325, !bad5.length && nParts > 10 && f181 && d181.matches && near(f181.sum, sum((d181.list || []).map(x => DB.loanAt(x.r, -1).balance))) && near(f181.sum, 21725705),
+    `«Остаток» по сроку: ${nParts} частей «пришли из / ушли в» у ${bb.nodes.length} узлов — каждая = строке Движения в пути того же узла (☰ и сумма), разница узла = сумме строк Движения; «нет просрочки» «пришли из 181+ ☰ ${f181 && f181.cnt} ${fm(f181 ? f181.sum : 0)}» — остатком на 30.09 (было 15 573 624 — остатком сегодня)${bad5.length ? '; расходятся: ' + bad5.join(', ') : ''} (ДБ-183, ДБ-181)`);
+
+  // «☰ N» конца Движения прошлого месяца и точки Ряда с панелью подразделения — списки на ту дату
+  const mvP = V('lead-bal', 'move', { month:-1 }, [], 'u1', 'lead', PC), endL = DB.drill('lead-bal', u1, 'lead', PC, { m:-1 });
+  const srv = V('lead-bal', 'series', { points:12 }, [], 'u1', 'lead', { dept:'rp-osh' }), badS = srv.series.points.filter(p => DB.drill('lead-bal', u1, 'lead', { dept:'rp-osh' }, { m:p.m }).list.length !== p.cnt);
+  DB.setPanel('dept', 'rp-chu'); DB.state.open = {}; DB.openView('lead-bal', 'move'); DB.viewSet('lead-bal', 'month', '-1'); const hP = tab(DB.stripHTML('lead-bal', 'u1', 'lead')); DB.state.open = {}; DB.clearPanel();
+  const endHtml = (/data-edge="end"[\s\S]*?☰ ([\d ]+)</.exec(hP) || [])[1];
+  ok(326, mvP.cnt === mvP.move.cntEnd && mvP.cnt === (endL.list || []).length && !badS.length && endHtml && +endHtml.replace(/\D/g, '') === (endL.list || []).length,
+    `«Остаток» на панели «${dn('rp-chu')}», Движение прошлого месяца: «☰ ${mvP.cnt}» конца = списку на 30.09 (${(endL.list || []).length}); Ряд на панели «${dn('rp-osh')}»: ${srv.series.points.length} точек, «☰» каждой = списку на её дату${badS.length ? '; расходятся: ' + badS.map(p => p.m + ':' + p.cnt).join(', ') : ''} (ДБ-176)`);
+
+  // одна часть — одна подпись в обоих видах: (а) объект на другой дате вне панели — «ушли из охвата», а не значение пути;
+  // (б) условие пути с историей на другой дате не выполнено — часть по значению этого поля («пришли из 31–90» в узле «Потери» под «91–180»)
+  const cA = V('lead-bal', 'slice', { dim:'curator', mode:'change' }, [], 'u1', 'lead', PC).nodes.find(n => n.v === 'c00'), mA = V('lead-bal', 'move', { month:0 }, [{ dim:'curator', v:'c00' }], 'u1', 'lead', PC).move;
+  const aOut = mA.rows.find(x => x.key === 'scopeOut'), aNode = cA.moves.to.find(x => x.scope), aVal = mA.rows.filter(x => /^(in|out):/.test(x.key));
+  const PB = [{ dim:'bucket', v:'91–180' }], cB = V('lead-od', 'slice', { dim:'category', mode:'change' }, PB).nodes.find(n => n.v === 'Потери'), mB = V('lead-od', 'move', { month:0 }, PB.concat({ dim:'category', v:'Потери' })).move;
+  const bPr = mB.rows.filter(x => /^(in|out):/.test(x.key)), bWant = [...cB.moves.from, ...cB.moves.to].filter(x => !x.scope);
+  const bLs = bWant.map(x => DB.drill('lead-od', u1, 'lead', {}, { d:'category', v:'Потери', [cB.moves.from.includes(x) ? 'from' : 'to']:x.v, fd:x.fd }, PB));
+  ok(327, aOut && aNode && aOut.cnt === aNode.cnt && near(aOut.v, aNode.sum) && aVal.length === cA.moves.from.filter(x => !x.scope).length + cA.moves.to.filter(x => !x.scope).length && !aVal.some(x => /^out:/.test(x.key) && x.cnt === aOut.cnt && near(x.v, aOut.v))
+    && bPr.map(x => x.name).join() === 'пришли из 31–90,ушли в 181+' && bWant.map(x => x.fd).join() === 'bucket,bucket' && !cB.moves.from.some(x => x.scope) && !cB.moves.to.some(x => x.scope)
+    && bPr.every((x, i) => x.cnt === bWant[i].cnt && near(x.v, bWant[i].sum)) && bLs.every((d, i) => (d.list || []).length === bWant[i].cnt && near(d.sum, bWant[i].sum) && d.matches),
+    `панель «${dn('rp-chu')}», куратор c00 (Остаток): кредит, ушедший к куратору другого подразделения, — «ушли из охвата ☰ ${aOut && aOut.cnt} ${fm(aOut ? aOut.v : 0)}» и в Движении, и в Разрезе; «Просрочено › 91–180» по категории, узел «Потери»: «${bPr.map(x => x.name + ' ☰ ' + x.cnt + ' ' + fm(x.v)).join('», «')}» — те же части в Разрезе по значению срока, списки сходятся (ДБ-183)`);
+
+  // дата плитки не «сегодня»: конец прошлого месяца — Движение только прошлого месяца, конец = главному числу; последний закрытый день — вид погашен
+  const t0 = T('lead-od'), keep = t0.params.date;
+  t0.params.date = 'prevMonthEnd'; DB.state.cache.clear();
+  const bE = DB.base('lead-od', 'u1', 'lead'), vE = V('lead-od', 'move', { month:0 }), sE = DB.viewSel(t0, 'move', { month:0 }, u1, [], {});
+  DB.state.open = {}; DB.openView('lead-od', 'move'); const rE = DB.viewSet('lead-od', 'month', '0'), hE = tab(DB.stripHTML('lead-od', 'u1', 'lead')); DB.state.open = {};
+  t0.params.date = 'closedDay'; DB.state.cache.clear();
+  const bD = DB.base('lead-od', 'u1', 'lead'), vD = DB.views('lead-od', 'u1', 'lead').find(x => x.kind === 'move'), mD = V('lead-od', 'move');
+  t0.params.date = keep; DB.state.cache.clear();
+  ok(328, vE.move && vE.move.M === -1 && sE.month === -1 && near(vE.move.end, bE.value) && rE && /только прошлый месяц/.test(rE.error || '') && /aria-disabled="true" data-tip="[^"]*только прошлый месяц[^"]*">текущий</.test(hE)
+    && !vD.ok && /не сегодня и не конец месяца/.test(vD.why) && mD.state === 'off' && bD.state === 'ok',
+    `дата плитки «конец прошлого месяца»: Движение — только прошлый месяц (${vE.move && DB.monthEndLabel(vE.move.M - 1)} → ${vE.move && DB.monthEndLabel(vE.move.M)}), конец ${fm(vE.move ? vE.move.end : 0)} = главному числу ${fm(bE.value)}, «текущий» погашен: «${rE && rE.error}»; дата «последний закрытый день» — вид погашен: «${vD.why}» (ДБ-176)`);
+
+  // сбой источника на одну из дат — и сегодня, и на 30.09: строка «нет ответа» несёт «+» и «−», цепочка сходится с числами плитки за оба месяца
+  DB.stand('noAnswer', true);
+  const na = L.filter(r => DB.noAnswerAt(r, 0) || DB.noAnswerAt(r, -1)), na0 = na.filter(r => DB.noAnswerAt(r, 0)).length, na1 = na.filter(r => DB.noAnswerAt(r, -1)).length;
+  const sN = DB.at('lead-od', 'series(12)', 'u1', 'lead', {}), bN = DB.base('lead-od', 'u1', 'lead');
+  const nm = [0, -1].map(M => { const mv = V('lead-od', 'move', { month:M }).move, r = mv.rows.find(x => x.key === 'noanswer'), d = DB.drill('lead-od', u1, 'lead', {}, { flow:'noanswer', mv:M }); return { mv, r, d }; });
+  const pos = (nm[0].d.list || []).filter(x => x.v > 0).length, neg = (nm[0].d.list || []).filter(x => x.v < 0).length;
+  DB.stand('noAnswer', false);
+  ok(329, na.length === 18 && na0 > 0 && na1 > 0 && na0 + na1 === 18 && pos > 0 && neg > 0 && nm.every(o => o.r && o.r.cnt === (o.d.list || []).length && near(o.d.sum, o.r.v) && o.d.matches && near(o.mv.start + sum(o.mv.rows.map(x => x.v)), o.mv.end, 1e-6))
+    && near(nm[0].mv.start, bN.shift.base) && near(nm[0].mv.end, bN.value) && near(nm[0].mv.end, sN.at(-1)[0]) && near(nm[1].mv.end, sN.at(-2)[0]) && near(nm[1].mv.start, sN.at(-3)[0]),
+    `«нет ответа источника»: ${na.length} кредитов, сбой сегодня у ${na0}, на 30.09 — у ${na1}; в строке текущего месяца ☰ ${nm[0].r && nm[0].r.cnt} ${fm(nm[0].r ? nm[0].r.v : 0)}: «+» у ${pos} (не ответил на 30.09), «−» у ${neg} (не ответил сегодня); цепочка ${fm(nm[0].mv.start)} → ${fm(nm[0].mv.end)} = базе сдвига и главному числу, прошлого месяца ${fm(nm[1].mv.start)} → ${fm(nm[1].mv.end)} = точкам Ряда (ДБ-178)`);
   DB.seed();
 })();
 
