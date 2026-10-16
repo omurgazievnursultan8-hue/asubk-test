@@ -207,7 +207,7 @@ select:hover,input[type=text]:hover,input[type=number]:hover{ border-color:var(-
 .strip-line select,.ctl select{ height:30px; max-width:220px; font-size:13px; font-weight:500; field-sizing:content; }
 .sl-pass{ font-size:12px; color:var(--text-muted); font-variant-numeric:tabular-nums; }
 .sl-cnt,.sl-icon{ display:inline-flex; align-items:center; justify-content:center; gap:5px; height:32px; border-radius:var(--r-md); font-size:13px; font-weight:500; font-variant-numeric:tabular-nums; }
-.sl-cnt{ padding:0 10px; border:1px solid var(--border-strong); background:var(--surface-card); color:var(--text-heading); } .sl-cnt:hover{ border-color:var(--text-placeholder); background:var(--surface-hover); }
+.sl-cnt{ padding:0 10px; white-space:nowrap; border:1px solid var(--border-strong); background:var(--surface-card); color:var(--text-heading); } .sl-cnt:hover{ border-color:var(--text-placeholder); background:var(--surface-hover); }
 .sl-cnt svg{ color:var(--text-muted); }
 .sl-icon{ width:32px; padding:0; border:1px solid transparent; background:none; color:var(--text-muted); } .sl-icon:hover{ background:var(--surface-sunk); color:var(--text-heading); }
 .sl-cnt svg,.sl-icon svg{ width:16px; height:16px; display:block; }
@@ -359,6 +359,7 @@ svg.chart text{ font:11px var(--asubk-font); fill:var(--text-muted); }
 .stamp b{ color:var(--asubk-red-hover); font-weight:600; }
 .toast{ position:fixed; bottom:20px; left:50%; transform:translateX(-50%); z-index:80; padding:10px 16px; border-radius:10px; background:var(--asubk-ink); color:var(--asubk-white); font-size:13.5px; box-shadow:var(--shadow-lift); max-width:min(560px, calc(100vw - 32px)); }
 .ask{ position:fixed; z-index:41; left:50%; top:22%; transform:translateX(-50%); width:min(420px, calc(100vw - 32px)); padding:18px; background:var(--surface-card); border:1px solid var(--border-strong); border-radius:var(--r-xl); box-shadow:var(--shadow-lift); }
+.ask:focus{ outline:none; }
 .ask h3{ margin:0 0 12px; font-size:16px; font-weight:600; color:var(--text-heading); }
 .ask input{ width:100%; height:38px; padding:0 10px; font-size:14px; }
 .ask-b{ display:flex; justify-content:flex-end; gap:8px; margin-top:14px; }
@@ -879,34 +880,39 @@ const OBJECTS = {
   task:    { name:'Задание', wave:3, vis:'self', owner:'Задания', registry:'Мои задания' },
 };
 function objReady(o){ const O = OBJECTS[o]; return O.wave <= STAND.wave && (!O.gate || !!STAND[O.gate]); }
-const BUCKETS = ['1–30','31–90','91–180','181+'];
-function bucketOf(d){ return d<=0 ? 'нет просрочки' : d<=30 ? BUCKETS[0] : d<=90 ? BUCKETS[1] : d<=180 ? BUCKETS[2] : BUCKETS[3]; }
+// Список значений разреза ведёт статистика и держит его полным: у срока просрочки первая корзина — «нет просрочки», у статусов — весь
+// справочник. Где признак к части объектов не применим, «пусто» — последнее значение списка со своим именем (empty); где пусто
+// невозможно, такого значения нет. Объект разреза не пропадает: итог разреза — сумма его строк.
+const BUCKETS = ['нет просрочки','1–30','31–90','91–180','181+'];
+function bucketOf(d){ return d<=0 ? BUCKETS[0] : d<=30 ? BUCKETS[1] : d<=90 ? BUCKETS[2] : d<=180 ? BUCKETS[3] : BUCKETS[4]; }
+const COHORTS = ['2019','2020','2021','2022','2023','2024','2025','2026'];
 const DIMS = {
   region:  { name:'Область', field:'region', values:REGIONS },
   dept:    { name:'Подразделение', field:'dept', label:deptName },
   program: { name:'Программа', field:'program', label:id=>id==='none'?'Без программы (поток B)':progName(id) },
   curator: { name:'Куратор', field:'curator', label:userName },
-  category:{ name:'Категория классификации', field:'category', ordered:true, values:RISK_CATS, short:RISK_SHORT },
+  category:{ name:'Категория классификации', field:'category', ordered:true, values:RISK_CATS, short:RISK_SHORT, empty:'нет категории' },
   bucket:  { name:'Срок просрочки', get:r=>bucketOf(r.overdueDays), ordered:true, values:BUCKETS },
   lstatus: { name:'Состояние кредита', field:'status' },
-  bworst:  { name:'Худшая категория', field:'worst', ordered:true, values:RISK_CATS, short:RISK_SHORT },
-  bodays:  { name:'Худшая просрочка по портфелю', get:r=>r.worstDays===null ? null : bucketOf(r.worstDays), ordered:true, values:BUCKETS },
-  subgroup:{ name:'Подгруппа платёжеспособности', field:'subgroup', ordered:true, values:Object.values(PAYGROUPS).flat() },
+  bworst:  { name:'Худшая категория', field:'worst', ordered:true, values:RISK_CATS, short:RISK_SHORT, empty:'нет категории' },
+  bodays:  { name:'Худшая просрочка по портфелю', get:r=>r.worstDays===null || r.worstDays===undefined ? null : bucketOf(r.worstDays), ordered:true, values:BUCKETS,
+             empty:'нет действующих договоров' },
+  subgroup:{ name:'Подгруппа платёжеспособности', field:'subgroup', ordered:true, values:Object.values(PAYGROUPS).flat(), empty:'нет подгруппы' },
   ptype:   { name:'Тип лица', field:'ptype', label:v=>PTYPES[v]||v },
   bindustry:{ name:'Отрасль заёмщика', field:'industry' },
   bregion: { name:'Территория заёмщика (регистрация)', field:'region', values:REGIONS },
   pstate:  { name:'Состояние портфеля', get:r=>pstateAt(r,0), at:pstateAt, values:PSTATES },
   pers:    { name:'Состояние лица', field:'pers', values:PERS },
   bcur:    { name:'Валюта портфеля', field:'currency' },
-  bcohort: { name:'Год первого договора', field:'cohort', ordered:true, values:['2021','2022','2023','2024','2025','2026'] },
+  bcohort: { name:'Год первого договора', field:'cohort', ordered:true, values:COHORTS, empty:'нет договоров' },
   bblack:  { name:'Чёрный список', field:'black', values:['нет','да'] },
-  bdebt:   { name:'Совокупный долг клиента', get:r=>debtStep(r.total), ordered:true, values:DEBT_STEPS,
+  bdebt:   { name:'Совокупный долг клиента', get:r=>debtStep(r.total), ordered:true, values:DEBT_STEPS, empty:'нет долга',
              req:'корзин «совокупный долг клиента» над задолженностью заёмщика в реестре статистики ещё нет; черта 50 млн — из Порядка' },
-  bcredits:{ name:'Договоров у клиента за всё время', get:r=>!r.credits ? null : r.credits>=3 ? '3+' : String(r.credits), ordered:true, values:['1','2','3+'],
+  bcredits:{ name:'Договоров у клиента за всё время', get:r=>!r.credits ? '0' : r.credits>=3 ? '3+' : String(r.credits), ordered:true, values:['0','1','2','3+'],
              req:'корзин над «Договоров всего» в реестре статистики ещё нет' },
   bover:   { name:'Договоров с просрочкой', get:r=>r.overCredits>0 ? 'больше 0' : '0', ordered:true, values:['0','больше 0'],
              req:'корзин над «Договоров с просрочкой» в реестре статистики ещё нет' },
-  bhist:   { name:'Кредитная история', get:r=>histStep(r.histDays), ordered:true, values:HIST_STEPS,
+  bhist:   { name:'Кредитная история', get:r=>histStep(r.histDays), ordered:true, values:HIST_STEPS, empty:'нет истории',
              req:'показателя «худшая просрочка за всю историю» в реестре статистики нет; владелец не решён — «Заёмщик» или ядро расчёта' },
   bcontact:{ name:'Канал связи', field:'contact', values:['есть','нет'],
              req:'признака «нет действующего канала связи» в строке заёмщика ещё нет — модуль «Заёмщик» считает его только в карточке' },
@@ -933,14 +939,14 @@ const DIMS = {
              req:'корзин «срок ожидания» над датой поступления (дней, пока поступление не распределено) в реестре статистики ещё нет' },
   pkind:   { name:'Вид погашения', field:'kind' },
   ckind:   { name:'Вид залога', field:'kind' },
-  astatus: { name:'Статус заявки', field:'status', ordered:true, values:['Новый','Требуется доп. информация','На рассмотрении','Ожидает решения/программы','На оформлении'] },
-  astage:  { name:'Стадия новой заявки', field:'stage', ordered:true, values:['1 Комплектация','2 Подтверждение ГО','3 Заключения отделов'] },
+  astatus: { name:'Статус заявки', field:'status', ordered:true, values:['Новый','Требуется доп. информация','На рассмотрении','Ожидает решения/программы','На оформлении','Закрыта'] },
+  astage:  { name:'Стадия новой заявки', field:'stage', ordered:true, values:['1 Комплектация','2 Подтверждение ГО','3 Заключения отделов'], empty:'не новая' },
   commission:{ name:'Комиссия', field:'commission' },
-  decision:{ name:'Решение', field:'decision' },
-  verdict: { name:'Вердикт', field:'verdict', ordered:true, values:['Положительное','С условиями','Отрицательное'] },
-  ostate:  { name:'Итог сдачи', field:'state', ordered:true, values:['сдано в срок','сдано с опозданием','просрочено'] },
+  decision:{ name:'Решение', field:'decision', ordered:true, values:['Одобрено','Доп. информация','Отклонено'], empty:'нет решения' },
+  verdict: { name:'Вердикт', field:'verdict', ordered:true, values:['Положительное','С условиями','Отрицательное'], empty:'нет вердикта' },
+  ostate:  { name:'Итог сдачи', field:'state', ordered:true, values:['ожидается','сдано в срок','сдано с опозданием','просрочено'] },
   rstage:  { name:'Стадия обращения', field:'stage', ordered:true, values:RS_STAGES, short:Object.fromEntries(RS_STAGES.map((s,i)=>[s,RS_SHORT[i]])) },
-  routcome:{ name:'Исход обращения', field:'outcome', values:RS_OUTCOMES },
+  routcome:{ name:'Исход обращения', field:'outcome', values:RS_OUTCOMES, empty:'нет исхода' },
   cstate:  { name:'Состояние дела', field:'state', ordered:true, values:['открыто','карантин','закрыто'] },
   cbasis:  { name:'Основание открытия дела', field:'basis' },
   layer:   { name:'Слой долга', field:'layer' },
@@ -976,7 +982,7 @@ const FIELDS = {
 };
 const FIELD_REQ = { pendDays:'даты окончания программы в реестре статистики нет — в схеме она есть, разрезом не объявлена', oblExpired:'числа обязательств Порядка со сроком «вышел» в строке заёмщика ещё нет — модуль «Заёмщик» считает его только в карточке' };
 const OPS = { eq:'=', ne:'≠', in:'∈', nin:'∉', gt:'>', ge:'≥', lt:'<', le:'≤' };
-function dimValue(d, row){ const D = DIMS[d]; return D.get ? D.get(row) : row[D.field]; }
+function dimValue(d, row){ const D = DIMS[d], v = D.get ? D.get(row) : row[D.field]; return (v===null || v===undefined) && D.empty ? D.empty : v; }   // «пусто» — значение со своим именем
 // разрез с историей группирует на месяц ответа — как условие пути и число узла
 function dimAt(d, row, m){ const D = DIMS[d]; return D && D.at && m ? D.at(row, m) : dimValue(d, row); }
 function dimLabel(d, v){ const D = DIMS[d]; return D.label ? D.label(v) : v; }
@@ -1260,27 +1266,32 @@ function fmtDelta(d, unit){ if(unit==='pct') return (d>0?'▲ ':d<0?'▼ ':'')+(
   return (d>0?'▲ ':d<0?'▼ ':'')+fmtVal(Math.abs(d), unit); }
 
 /* ================= Паспорт ================= */
+// число «сегодня»: остаток на текущий момент или незакрытый период потока
+function liveOf(q){ const ctx = ctxOf(q); return ctx.period ? !!PERIODS[ctx.period].partial : (ctx.point.m===0 && !ctx.point.day); }
+// источник без журнала изменений днём не опрашивается: его колонки в сегодняшней строке держат значение на 02:00 — это план, не сбой
+const nightOnlyOf = q => !!STAND.nightOnly[IND[q.inds[0]].obj];
+// «устарело» — только сбой: отстало против плана
 function staleOf(q){
-  const I = IND[q.inds[0]]; const ctx = ctxOf(q);
-  const live = ctx.period ? PERIODS[ctx.period].partial : (ctx.point.m===0 && !ctx.point.day);
-  if(live && STAND.nightOnly[I.obj]) return 'источник «'+OBJECTS[I.obj].owner+'» обновляется только ночью — число на конец вчерашнего дня';
-  if(live && STAND.queueLag>15) return 'очередь пересчёта статистики отстала на '+STAND.queueLag+' мин';
+  const I = IND[q.inds[0]], live = liveOf(q), night = nightOnlyOf(q);
+  if(live && night && STAND.nightRunFailed) return 'ночной прогон 11.10 не прошёл — источник «'+OBJECTS[I.obj].owner+'» обновляется только ночью, значение на 02:00 10.10, старше сегодняшних 02:00';
+  if(live && !night && STAND.queueLag>15) return 'очередь пересчёта статистики отстала на '+STAND.queueLag+' мин';
   if(!live && STAND.nightRunFailed) return 'ночной прогон 11.10 не прошёл — последний закрытый день 09.10';
   return null;
 }
 function passportOf(q, visible, opts){
-  const I = IND[q.inds[0]]; const ctx = ctxOf(q); const parts = [];
-  const lag = STAND.queueLag>15 ? ' (очередь '+STAND.queueLag+' мин)' : '';
+  const ctx = ctxOf(q); const parts = [], night = nightOnlyOf(q);
+  const at = night ? (STAND.nightRunFailed ? '02:00 10.10 · ночной прогон 11.10 не прошёл' : '02:00 · только ночью') : TODAY.time;   // на какое время число «сегодня»
+  const lag = !night && STAND.queueLag>15 ? ' (очередь '+STAND.queueLag+' мин)' : '';
   if(q.format==='series'){ const n = q.points||12; let closed = 0; for(let m=-n+1;m<=0;m++) if(monthClosed(m)) closed++;
     parts.push(closed===n ? n+' мес. · закрыто' : 'смешанно: '+closed+' из '+n+' мес. закрыто'); }
   else if(ctx.period){ const P = PERIODS[ctx.period];
-    if(ctx.period==='today') parts.push('сегодня, на '+TODAY.time+lag+' · день не закрыт');
-    else if(ctx.period==='curMonth') parts.push('01.10 → '+TODAY.time+' · идёт '+TODAY.day+'-й день · не закрыт');
+    if(ctx.period==='today') parts.push('сегодня, на '+at+lag+' · день не закрыт');
+    else if(ctx.period==='curMonth') parts.push('01.10 → '+at+' · идёт '+TODAY.day+'-й день · не закрыт');
     else if(ctx.period==='prevMonth') parts.push(monthName(-1)+' · '+(monthClosed(-1)?'месяц закрыт':'месяц не закрыт'));
-    else if(ctx.period==='ytd') parts.push('01.01 → '+TODAY.time+' · не закрыт');
+    else if(ctx.period==='ytd') parts.push('01.01 → '+at+' · не закрыт');
     else { const cl = P.months.filter(monthClosed).length; parts.push(P.label+' · '+(cl===P.months.length?'закрыт':'смешанно: '+cl+' из '+P.months.length+' мес. закрыто')); } }
   else { const pt = ctx.point;
-    if(pt.m===0 && !pt.day) parts.push((STAND.nightOnly[I.obj] ? 'на 10.10 (вчера) · только ночью' : 'на '+TODAY.time+lag+' · день не закрыт'));
+    if(pt.m===0 && !pt.day) parts.push('на '+at+lag+' · день не закрыт');
     else if(pt.day) parts.push(STAND.nightRunFailed ? 'на 09.10 (2 дня назад) · день закрыт' : 'на 10.10 (вчера) · день закрыт');
     else parts.push('на '+monthEndLabel(pt.m)+' · '+(monthClosed(pt.m)?'месяц закрыт':'месяц не закрыт')); }
   if(opts && opts.fx) parts.push('сом, курс '+(ctx.point && !ctx.point.m ? '11.10' : '30.09'));
@@ -1319,7 +1330,7 @@ function compile(src, p, spec){
     // значение параметра — условие перед постоянным фильтром отчёта; «все» (*) или пусто — условия нет; «я» остаётся относительным
     const pc = Object.keys(src.params).filter(n=>src.params[n].dim && p[n]!=null && p[n]!=='*').map(n=>({ f:src.params[n].dim, op:src.params[n].op || 'eq', v:p[n] }));
     q.filter = cp([...pc, ...src.filter]); }
-  if(spec.conds && spec.conds.length) q.filter.push(...cp(spec.conds));   // путь крошек — условия «=» на время просмотра
+  if(spec.conds && spec.conds.length){ q.filter.push(...cp(spec.conds)); q.path = cp(spec.conds); }   // путь крошек — условия «=» на время просмотра; отдельно — для строк разреза
   if(spec.pct){ q.share = [q.inds[0], q.inds[0]]; q.numFilter = [{ f:spec.pct.dim, op:'in', v:spec.pct.cells.slice() }]; }   // «% от итога группы»: ячейки разреза — числитель
   else if(spec.share) q.share = spec.share.slice();
   if(!queue){ if(src.params.date) q.date = p.date || 'today';   // у остатка — дата среза, у потока — период
@@ -1425,8 +1436,8 @@ function miniOf(t, user, roleId, panel){
   return { vals:ps.map(p=>p.vals[0]), months:ps.map(p=>p.m), labels:ps.map(p=>p.label), closed:ps.map(p=>p.closed), unit:r.unit };
 }
 function answer(q, user, roleId, panel){
-  const res = { tileId:q.id, format:q.format };
   const I = IND[q.inds[0]]; const O = OBJECTS[I.obj];
+  const res = { tileId:q.id, format:q.format, agg:I.agg };
   if(STAND.statDown){ res.state='error'; res.msg='Статистика не ответила. Вместо числа ничего не показываем — ни ноль, ни прошлое значение.'; return res; }
   if(q.withdrawnStub){ res.state='withdrawn'; res.msg='Плитка снята администратором дашборда.'; return res; }
   const broken = q.inds.find(i=>STAND.withdrawn[i]);
@@ -1447,6 +1458,9 @@ function answer(q, user, roleId, panel){
   res.stale = staleOf(q);
   if(visible===0){ res.state='empty'; res.msg = emptyScopeMsg(user, roleId, I.obj); return res; }
   const ctx = ctxOf(q), cm = ctxMonth(ctx), dv = (d, r)=>dimAt(d, r, cm);
+  // строки разреза без своего списка — из охвата смотрящего, суженного панелью и путём вглубь, но не фильтром плитки:
+  // нуль внутри вопроса — тоже ответ (куратор без просрочки = 0); объявленный список печатается целиком
+  const scope = ()=>applyPanel(applyFilter(base, q.path, user, cm), I.obj, panel).rows;
   const val = (rs, c) => {                                    // число узла: показатель или доля (два показателя или фильтр числителя)
     if(q.share){ const a = aggregate(numRows(q, rs, user), IND[q.share[0]], c).value || 0, b = aggregate(rs, IND[q.share[1]], c).value || 0;
       return b ? { v:a/b*100, num:a, den:b } : { v:null, num:a, den:0 }; }
@@ -1460,16 +1474,19 @@ function answer(q, user, roleId, panel){
       if(q.format==='shift' || q.shift) res.shift = shiftOf(q, rows, ctx, val);
       break; }
     case 'slice': case 'steps': {
-      const d = q.dims[0]; res.nodes = groupBy(rows, d, r=>val(r, ctx), cm);
+      const d = q.dims[0]; res.nodes = groupBy(rows, d, r=>val(r, ctx), cm, scope());
       res.total = val(rows, ctx); break; }
     case 'heat': {
-      const [d1,d2] = q.dims; const v1 = valuesOf(d1, rows), v2 = valuesOf(d2, rows);
+      // обе оси — весь список разреза (без своего списка — по охвату после панели и пути); у неупорядоченной оси пустые строки и столбцы уходят в конец, у упорядоченной — шкала как есть
+      const [d1,d2] = q.dims, down = d=>vs=>{ if(DIMS[d].ordered) return vs; const z = vs.map(v=>!val(rows.filter(r=>dv(d,r)===v), ctx).v);
+        return [...vs.filter((v, i)=>!z[i]), ...vs.filter((v, i)=>z[i])]; };
+      const sc = scope(), v1 = down(d1)(valuesOf(d1, rows, sc, cm)), v2 = down(d2)(valuesOf(d2, rows, sc, cm));
       res.heat = { rows:v1, cols:v2, d1, d2, cells: v1.map(a=>v2.map(b=>val(rows.filter(r=>dv(d1,r)===a && dv(d2,r)===b), ctx).v || 0)) };
       const tot = rs=>{ const x = val(rs, ctx); return { value:x.v, num:x.num, den:x.den }; };   // итоги строк (справа) и столбцов (снизу) — узлом
       res.heat.rowTot = v1.map(a=>tot(rows.filter(r=>dv(d1,r)===a))); res.heat.colTot = v2.map(b=>tot(rows.filter(r=>dv(d2,r)===b)));
       res.total = val(rows, ctx); break; }
     case 'table': {
-      const d = q.dims[0]; const vs = valuesOf(d, rows);
+      const d = q.dims[0]; const vs = valuesOf(d, rows, scope(), cm);
       res.table = { d, cols: q.inds.map(i=>IND[i]), rows: vs.map(v=>{ const rs = rows.filter(r=>dv(d,r)===v);
         return { v, label:dimLabel(d,v), cells: q.inds.map(i=>aggregate(rs, IND[i], ctx).value) }; }) };
       if(!DIMS[d].ordered) res.table.rows.sort((a,b)=>(b.cells[0]||0)-(a.cells[0]||0));   // ступени — в объявленном порядке
@@ -1495,10 +1512,18 @@ function emptyScopeMsg(user, roleId, obj){
   if(OBJECTS[obj].vis==='self') return 'У вас нет заданий.';
   return 'В вашем охвате нет объектов «'+OBJECTS[obj].name+'»: подразделение «'+deptName(user.dept)+'» видит только своё.';
 }
-function valuesOf(d, rows){ const D = DIMS[d]; if(D.values) return D.values.slice();
-  const s = new Set(rows.map(r=>dimValue(d,r)).filter(v=>v!==null && v!==undefined)); return [...s]; }
-function groupBy(rows, d, f, m){
-  const vs = valuesOf(d, rows);
+// строки разреза: объявленный список реестра — целиком, затем значения, встреченные у выборки вне списка (сигнал реестру); у разреза
+// без своего списка — значения поля по строкам all (охват смотрящего после панели и пути), а не только по выборке; последним — «пусто»
+// со своим именем; m — месяц разреза с историей
+function valuesOf(d, rows, all, m){ const D = DIMS[d], E = D.empty;
+  const seen = rs=>[...new Set(rs.map(r=>dimAt(d, r, m)))].filter(v=>v!==null && v!==undefined && v!==E);
+  const decl = D.values ? D.values.filter(v=>v!==E) : seen(all || rows), extra = D.values ? seen(rows).filter(v=>!decl.includes(v)) : [];
+  return [...decl, ...extra, ...(E ? [E] : [])]; }
+// значения разреза на выбор автору конструктора: объявленный список — целиком; у разреза без своего списка — по строкам охвата автора
+// (всех его ролей), а не по всем строкам объекта; объект не открыт ни одной роли — выбирать не из чего
+function pickValues(d, obj, u){ return valuesOf(d, DIMS[d].values ? DATA[obj] : rowsFor(u || user(), null, obj) || []); }
+function groupBy(rows, d, f, m, all){
+  const vs = valuesOf(d, rows, all, m);
   const nodes = vs.map(v=>{ const rs = rows.filter(r=>dimAt(d, r, m)===v); const x = f(rs); return { v, label:dimLabel(d,v), short:DIMS[d].short && DIMS[d].short[v], value:x.v, num:x.num, den:x.den, n:rs.length }; });
   if(!DIMS[d].ordered) nodes.sort((a,b)=>(b.value||0)-(a.value||0));
   return nodes;
@@ -2615,7 +2640,7 @@ function viewOf(t, kind, sel, path, u, roleId, panel){
   if(res.rows){ countNodes(res, numQ(t, path, kind==='series' ? s.of : 'main'), u, kind==='slice' ? s.dim : null, kind==='move' && s.month ? s.month : undefined);
     // nodeCnt — «☰ N» в строке полосы: кто в главном числе узла на дату плитки (то же, что .sl-num); Ряд второго числа и Движение прошлого месяца считают свой счёт у точек и строк
     if((kind==='series' && s.of==='second') || (kind==='move' && s.month)){ const mb = cachedBase(t, u, roleId, panel, path), mq = numQ(t, path, 'main');
-      if(mb && mb.rows && mq){ const tmp = { rows:mb.rows }; countNodes(tmp, mq, u, null); res.nodeCnt = tmp.cnt; } } }
+      if(mb && mb.rows && mq){ const tmp = { rows:mb.rows }; countNodes(tmp, mq, u, null); res.nodeCnt = tmp.cnt; res.nodeOf = tmp.nodeOf; } } }
   delete res.rows;
   if(sh && res.table){ const T0 = res.table, tot = res.total, at = (a, c)=>c===SHARE_COL ? (a[ask.indexOf(sh.inds[1])] ? a[ask.indexOf(sh.inds[0])] / a[ask.indexOf(sh.inds[1])] * 100 : null) : a[ask.indexOf(c)];
     const re = a=>s.cols.map(c=>at(a, c));                    // и сумма, и база — по колонкам выбора; доля на базе — из числителя и знаменателя на базе
@@ -2649,6 +2674,8 @@ function countNodes(res, mq, u, dim, m){
   const cnt = (d, v, d2, v2)=>live.filter(r=>(!d || dimAt(d, r, cm)===v) && (!d2 || dimAt(d2, r, cm)===v2) && (!num || alt || own(d) || own(d2) || num.has(r))).length;
   res.cnt = cnt();
   res.nodeCnt = alt ? live.filter(r=>!num || num.has(r)).length : res.cnt;   // «☰ N» в строке полосы: кто в главном числе узла (числитель доли), а не строки итога Разреза
+  // у доли (обоих видов) «☰» в строке полосы — «числитель из группы», как второе число плитки; группа — объекты с вкладом в знаменатель
+  const den = mq.share && IND[mq.share[1]]; res.nodeOf = den ? res.rows.filter(r=>contributes(den, valueOf(r, den, ctx))).length : undefined;
   if(res.nodes) res.nodes.forEach(n=>{ n.cnt = cnt(dim, n.v); });
   if(res.table) res.table.rows.forEach(r=>{ r.cnt = cnt(res.table.d, r.v); });
   if(res.heat){ const h = res.heat; h.cnt = h.rows.map(a=>h.cols.map(b=>cnt(h.d1, a, h.d2, b)));
@@ -2658,33 +2685,38 @@ function countNodes(res, mq, u, dim, m){
     if(c0.period){ PERIODS[key] = { months:[p.m], partial:p.m===0 }; pc = { period:key, tf:c0.tf }; } else pc = { point:{ m:p.m }, tf:c0.tf };
     try { p.cnt = res.rows.filter(r=>contributes(spec, valueOf(r, spec, pc)) && (!num || num.has(r))).length; } finally { delete PERIODS[key]; } });
 }
-// строки Разреза в порядке показа (res.lines): «Сумма» — упорядоченный разрез в своём порядке, остальные по убыванию, первые N, «ещё N»
-// внизу; «Изменение» — от роста к падению, первые N — самые большие сдвиги в любую сторону, «ещё N» с самыми малыми — между ростом и
-// падением; у упорядоченного «ещё N» нет. «ещё N» — узел-сводка { more:N, vs, value, base, delta, pct, cnt }
+// строки Разреза в порядке показа (res.lines): строки — весь список разреза, нули тоже. Упорядоченный разрез — все строки по шкале
+// в обоих режимах, «ещё N» нет; в «Изменении» разница — полосой в своей строке. Неупорядоченный: «Сумма» — по убыванию, первые N,
+// нулевые уходят вниз и в «ещё N»; «Изменение» — от роста к падению, первые N — самые большие сдвиги в любую сторону, «ещё N» с самыми
+// малыми — между ростом и падением. «ещё N» — узел-сводка { more:N, vs, value, base, delta, pct, cnt }
 const byDelta = (a, b)=>{ const x = v=>v===null || v===undefined ? -Infinity : v, d = x(b) - x(a); return isNaN(d) ? 0 : d; };   // от роста к падению, без пары — в конце
 function sliceLines(res, mode, top){
   const u = res.unit;
-  if(mode==='change') res.nodes.sort((a, b)=>byDelta(a.delta, b.delta));
   if(!top){ res.lines = res.nodes.slice(); res.top = null; res.more = 0; return; }
-  const cand = res.nodes.filter(n=>n.value || n.delta);   // узел с нулём и разницей остаётся (строкой или в «ещё N») в обоих режимах: сумма разниц строк = разнице итога
+  if(mode==='change') res.nodes.sort((a, b)=>byDelta(a.delta, b.delta));
+  const cand = res.nodes;   // все значения списка: строкой или в «ещё N», в обоих режимах; сумма строк = итогу, сумма разниц строк = разнице итога
   const keep = new Set(mode==='change' ? cand.slice().sort((a, b)=>Math.abs(b.delta || 0) - Math.abs(a.delta || 0)).slice(0, top) : cand.slice(0, top));
   const shown = cand.filter(n=>keep.has(n)), rest = cand.filter(n=>!keep.has(n));
-  const more = rest.length ? moreNode(rest, u) : null; res.top = top; res.more = rest.length;
+  const more = rest.length ? moreNode(rest, u, res.agg) : null; res.top = top; res.more = rest.length;
   res.lines = mode==='change' ? [...shown.filter(n=>n.delta>0), ...(more ? [more] : []), ...shown.filter(n=>!(n.delta>0))] : [...shown, ...(more ? [more] : [])];
 }
-function moreNode(rest, u){ const sum = f=>rest.reduce((a, n)=>a + (n[f] || 0), 0), has = rest.some(n=>n.base!==undefined);
+function moreNode(rest, u, agg){ const sum = f=>rest.reduce((a, n)=>a + (n[f] || 0), 0), has = rest.some(n=>n.base!==undefined);
+  const top = f=>{ const xs = rest.map(n=>n[f]).filter(x=>x!==null && x!==undefined); return xs.length ? Math.max(...xs) : null; };   // у наибольшего «ещё N» — наибольшее из скрытых строк, не сумма
   const o = { more:rest.length, label:'ещё '+rest.length, vs:rest.map(n=>n.v), cnt:sum('cnt'), n:sum('n') };
   if(u==='pct'){ const num = sum('num'), den = sum('den'); o.num = num; o.den = den; o.value = den ? num/den*100 : null;   // у доли «ещё N» — доля группы
     if(has){ const bn = sum('baseNum'), bd = sum('baseDen'); setDiff(o, o.value, bd ? bn/bd*100 : null, u); } }
+  else if(agg==='max'){ o.value = top('value'); if(has) setDiff(o, o.value, top('base'), u); }
   else { o.value = sum('value'); if(has) setDiff(o, o.value, sum('base'), u); }
   return o; }
-// Таблица: порядок строк — по первой колонке (показатель плитки); «Изменение» — по её разнице, от роста к падению; итог — оба числа
+// Таблица: строки те же, что у Разреза; порядок — по первой колонке (показатель плитки); «Изменение» — по её разнице, от роста к падению;
+// упорядоченный разрез — свой порядок в обоих режимах; итог — оба числа
 function tableRows(res, mode){ const tb = res.table, us = tb.cols.map(c=>c.unit);
   if(tb.total && tb.total.bases){ const nh = tb.cols.map(c=>!!c.currentOnly);
     tb.rows.forEach(r=>Object.assign(r, diffCells(r.cells, r.bases, us, nh))); Object.assign(tb.total, diffCells(res.total, tb.total.bases, us, nh)); }
   tb.total = Object.assign(tb.total || {}, { cells:res.total, cnt:res.cnt });
+  if(DIMS[tb.d].ordered) return;
   if(mode==='change') tb.rows.sort((a, b)=>byDelta(a.deltas[0], b.deltas[0]));
-  else if(!DIMS[tb.d].ordered) tb.rows.sort((a, b)=>(b.cells[0] || 0) - (a.cells[0] || 0)); }
+  else tb.rows.sort((a, b)=>(b.cells[0] || 0) - (a.cells[0] || 0)); }
 /* ---------- Полоса в сетке: место, выбор, путь ---------- */
 // Полоса идёт сразу за последней плиткой ряда, где стоит открытая. items — раскладка: плитки, секции «s:» на всю строку,
 // заглушки «x:» (ячейка, как плитка); collapsed — свёрнутые секции, их плитки не рисуются; renders — что рисуется вообще.
@@ -2979,7 +3011,7 @@ function marksOf(t, res){
   if(res.staleState) out.push({ kind:'warn', text:'⚠ устарело', tip:'Устарело: '+res.stale });
   if(res.panelSkipped && res.panelSkipped.length) out.push({ kind:'warn', text:'⊘ без фильтра', tip:'Фильтр панели ('+res.panelSkipped.map(k=>'«'+PANEL[k]+'»').join(', ')+') к этой плитке неприменим: у объекта «'+OBJECTS[I.obj].name+'» нет такого разреза' });
   if(pt && pt.day) out.push({ kind:'info', text:'◷ вчера', tip:'Плитка на последний закрытый день: '+(STAND.nightRunFailed ? 'на 09.10 (2 дня назад)' : 'на 10.10 (вчера)')+' · день закрыт' });
-  else if(pt && pt.m===0 && STAND.nightOnly[I.obj] && !res.staleState) out.push({ kind:'info', text:'◷ только ночью', tip:'Источник «'+OBJECTS[I.obj].owner+'» обновляется только ночным прогоном: число на конец вчерашнего дня' });
+  else if(liveOf(q) && nightOnlyOf(q) && !res.staleState) out.push({ kind:'info', text:'◷ только ночью', tip:'на 02:00, источник «'+OBJECTS[I.obj].owner+'» обновляется ночью' });
   if(ctx.period && !['today','curMonth','prevMonth','ytd'].includes(ctx.period)){ const P = PERIODS[ctx.period], cl = P.months.filter(monthClosed).length;
     if(cl > 0 && cl < P.months.length) out.push({ kind:'info', text:'≈ смешанно', tip:'В числе есть незакрытые месяцы: закрыто '+cl+' из '+P.months.length }); }
   return out; }
@@ -3087,7 +3119,7 @@ function stripHTML(k, u, roleId, sc, place){
   const views = viewsFor(t, u, roleId, path, panel).map(v=>`<button class="${v.ok ? '' : 'off '}${kind===v.kind ? 'on' : ''}" ${v.ok ? `onclick="DB.openView('${id}','${v.kind}')"` : `aria-disabled="true" data-tip="${esc(v.why)}"`}>${VIEW_NAMES[v.kind]}</button>`).join('');
   const line = `<div class="strip-line"><span class="sl-path">${crumbs}</span>${live ? stripNum(t, b, !path.length, pass) : ''}${shift ? `<span class="sl-shift" data-fit="shift" data-cut="${esc(shiftText(q, b))}">${shift}</span>` : ''}${marks}${stripDims(k, t, kind, s, free)}
     <span class="sl-sp"></span>${passRow ? `<span class="sl-pass" data-fit="pass">${esc(passRow)}</span>` : ''}<span class="seg sl-views">${views}</span>
-    ${ok && r.nodeCnt!==undefined ? `<button class="sl-cnt" aria-label="Кто в этом числе" data-tip="Кто в этом числе: только объекты с вкладом в число" onclick="DB.whoNode('${id}')">${ICON_LIST}<span>${nbsp(r.nodeCnt)}</span></button>` : ''}<button class="btn sl-list" data-fit="list" onclick="DB.registryAt('${id}')">Работать со списком</button>
+    ${ok && r.nodeCnt!==undefined ? `<button class="sl-cnt" aria-label="Кто в этом числе: ${nbsp(r.nodeCnt)}${r.nodeOf!==undefined ? ' из '+nbsp(r.nodeOf) : ''}" data-tip="${r.nodeOf!==undefined ? nbsp(r.nodeCnt)+' — в числе, '+nbsp(r.nodeOf)+' — группа' : 'Кто в этом числе: только объекты с вкладом в число'}" onclick="DB.whoNode('${id}')">${ICON_LIST}<span>${nbsp(r.nodeCnt)}${r.nodeOf!==undefined ? ' из '+nbsp(r.nodeOf) : ''}</span></button>` : ''}<button class="btn sl-list" data-fit="list" onclick="DB.registryAt('${id}')">Работать со списком</button>
     <button class="sl-icon sl-more" aria-label="Действия полосы" data-tip="Действия полосы" onclick="DB.stripMenu(event,'${id}')">${ICON_DOTS}</button><button class="sl-icon sl-x" aria-label="Закрыть" data-tip="Закрыть" onclick="DB.closeView('${id}')">${ICON_X}</button></div>`;
   const tools = stripMode(k, r)+stripCtl(k, t, kind, s, r);
   const arrow = place ? `<span class="strip-arrow" style="left:calc((100% - ${(place.cols - 1) * 16}px) / ${place.cols} * ${place.col + .5} + ${place.col * 16}px)"></span>` : '';
@@ -3188,8 +3220,8 @@ function rzBody(res, q, ops, go){
   const lab = diff ? res.baseLabel : '', asOf = String(res.passport || '').split(' · ')[0].replace(/^сегодня, /, '');   // «на 14:15», «Сентябрь» — над суммой
   const maxV = Math.max(...lines.map(n=>n.value || 0), 1e-9);
   const up = Math.max(0, ...lines.map(n=>n.delta || 0)), dn = Math.max(0, ...lines.map(n=>-(n.delta || 0))), span = (up + dn) || 1, zero = dn / span * 100;   // линия нуля «Изменения»
-  const tip = n=>{ const names = n.more ? ' ('+n.vs.map(v=>dimLabel(dim, v)).join(', ')+')' : '';
-    return n.label+names+': '+fmtVal(n.value, unit)+(n.den ? ' ('+fmtVal(n.num, IND[q.share[0]].unit)+' из '+fmtVal(n.den, IND[q.share[1]].unit)+')' : ''); };
+  const tip = n=>{ const names = n.more ? ' ('+n.vs.map(v=>dimLabel(dim, v)).join(', ')+')' : '', top = n.more && res.agg==='max' && !q.share ? 'наибольшее ' : '';   // «ещё N» у наибольшего — не сумма
+    return n.label+names+': '+top+fmtVal(n.value, unit)+(n.den ? ' ('+fmtVal(n.num, IND[q.share[0]].unit)+' из '+fmtVal(n.den, IND[q.share[1]].unit)+')' : ''); };
   const dtip = n=>{ const p = rzPct(n.pct); return 'Изменение '+(p ? p+' ' : '')+lab+(n.base!==null && n.base!==undefined ? ' · было '+fmtVal(n.base, unit) : ''); };
   const vCell = n=>`<span class="rz-v">${fmtVal(n.value, unit)}</span>`;
   const dCell = (n, quiet)=>{ const x = rzDelta(q, res, n.delta); return `<span class="rz-d ${quiet ? 'flat' : x.tone}"${x.dir==='none' ? '' : tipAttr(dtip(n))}>${x.text}</span>`; };
@@ -3241,7 +3273,7 @@ function mvBody(res, q, ops){
     +`<div class="mv-ok${ok ? '' : ' bad'}"${tipAttr('Сверка по точным числам; в строке они округлены')}>${ok ? '✓ сходится' : '✗ не сходится на '+fmtVal(Math.abs(gap), u)}: ${chain}</div>`;
 }
 // Таблица: названия 220 px, числа — колонками по 170 px, «☰ N» — последней, тихо; таблица не растягивается — справа пусто. Первая колонка — показатель плитки (viewSel ставит её первой):
-// выделена, по ней порядок строк (упорядоченный разрез при «Сумме» — свой порядок, маркера нет). «Сумма» — в ячейке значение, разница к базе — в подсказке; «Изменение» — в ячейке разница
+// выделена, по ней порядок строк (упорядоченный разрез — свой порядок в обоих режимах, маркера нет). «Сумма» — в ячейке значение, разница к базе — в подсказке; «Изменение» — в ячейке разница
 // цветом по направлению показателя колонки (у доли — п.п.), порядок — по разнице первой колонки, от роста к падению. Итог — строкой снизу с обоими числами: основное по режиму
 // (сумма или разница), под ним мелко второе. Направление и текст разницы — rzDelta (как у Разреза): ему нужны только показатель и единица колонки, у доли — показатель плитки
 function tbBody(res, q, ops, go, t){
@@ -3260,7 +3292,7 @@ function tbBody(res, q, ops, go, t){
     if(!x) return `<td${k ? ' class="key"' : ''}>${val(tot, i)}</td>`;
     return chg ? `<td${k ? ' class="key"' : ''}><span class="${x.tone}"${tip}>${x.text}</span><span class="s2">${val(tot, i)}</span></td>`
       : `<td${k ? ' class="key"' : ''}><span>${val(tot, i)}</span><span class="s2 ${x.tone}"${tip}>${x.text}</span></td>`; };
-  const mark = ord && !chg ? '' : `<span class="tb-ord"${tipAttr(chg ? 'Порядок строк — по разнице этой колонки, от роста к падению' : 'Порядок строк — по этой колонке, от большего к меньшему')}>↓</span>`;
+  const mark = ord ? '' : `<span class="tb-ord"${tipAttr(chg ? 'Порядок строк — по разнице этой колонки, от роста к падению' : 'Порядок строк — по этой колонке, от большего к меньшему')}>↓</span>`;
   const cap = diff ? `<div class="tb-cap">${chg ? `<b>${esc('изменение '+lab)}</b>; в итоге под разницей — значение` : `${asOf ? `<b>${esc(asOf)}</b>; ` : ''}в итоге под значением — разница ${esc(lab)}`}</div>` : '';
   const head = `<tr><th>${esc(DIMS[tb.d].name)}</th>${cols.map((c, i)=>`<th${i ? '' : ' class="key"'}>${esc(c.name)}${i ? '' : mark}</th>`).join('')}<th></th></tr>`;
   const rows = tb.rows.map(r=>`<tr class="rowlink" onclick="event.stopPropagation();${go(tb.d, r.v)}"><td${tipAttr(r.label)}>${esc(r.label)}</td>${cols.map((c, i)=>cell(r, i)).join('')}<td class="tb-l">${ops ? ops.ls(tb.d, r.v, null, null, r.cnt) : ''}</td></tr>`).join('');
@@ -3390,7 +3422,9 @@ function hmBody(res, q, ops, go){
 }
 
 /* ---------- меню «⋯» и главный клик ---------- */
-function closeOverlay(){ if(HAS_DOM) $('overlay').innerHTML=''; menuState = null; rcOpen = false; }
+// окно ввода закрыто любым путём («Отмена», Escape, клик мимо окна) — фокус возвращается на кнопку, которая его открыла
+let askBack = null;
+function closeOverlay(){ if(HAS_DOM) $('overlay').innerHTML=''; menuState = null; rcOpen = false; if(askBack){ const b = askBack; askBack = null; b(); } }
 function openMenu(ev, tileId){
   const t = tileById(tileId); const u = user(); menuState = tileId;
   const res = cachedAsk(t, u, curRole(), S.panel); const sig = signalsOf(u.id, t.id).length > 0;
@@ -3421,11 +3455,22 @@ function drawer(title, html, wide){ if(!HAS_DOM) return; rcOpen = false; $('over
 // название секции и своего экрана — окно на странице, не системное окно браузера; без страницы — значение по умолчанию
 function askText(title, value, ok, dflt){
   if(!HAS_DOM) return ok(dflt === undefined ? value : dflt);
-  $('overlay').innerHTML = `<div class="drawer-mask" onclick="DB.close()"></div><form class="ask" id="ask-form" role="dialog" aria-modal="true" aria-labelledby="ask-t">
+  // кто открыл окно — кнопка под кликом (не все браузеры дают ей фокус) или то, что в фокусе
+  const ev = window.event, from = (ev && ev.target && ev.target.closest && ev.target.closest('button')) || document.activeElement, key = from && from.getAttribute ? from.getAttribute('onclick') : null;
+  $('overlay').innerHTML = `<div class="drawer-mask" onclick="DB.close()"></div><form class="ask" id="ask-form" role="dialog" aria-modal="true" aria-labelledby="ask-t" tabindex="-1">
     <h3 id="ask-t">${esc(title)}</h3><label class="vh" for="ask-input">${esc(title)}</label><input type="text" id="ask-input" value="${esc(value || '')}" maxlength="60" autocomplete="off">
     <div class="ask-b"><button type="button" class="btn" onclick="DB.close()">Отмена</button><button type="submit" class="btn primary">Сохранить</button></div></form>`;
-  const f = $('ask-form'), i = $('ask-input'); i.focus(); i.select();
-  f.addEventListener('submit', e=>{ e.preventDefault(); const v = i.value.trim(); if(!v){ i.focus(); return; } closeOverlay(); ok(v); });
+  const f = $('ask-form'), i = $('ask-input'), ring = [i, ...f.querySelectorAll('button')]; i.focus(); i.select();
+  // куда вернуть фокус: та же кнопка, а после перерисовки страницы — кнопка с тем же onclick
+  askBack = ()=>{ const el = from && from.isConnected ? from : key ? [...document.querySelectorAll('button[onclick]')].find(b=>b.getAttribute('onclick')===key) : null; if(el && el.focus) el.focus(); };
+  // фокус не уходит из окна: Tab и Shift+Tab — по кругу между полем, «Отмена» и «Сохранить»; Escape — как «Отмена»
+  f.addEventListener('keydown', e=>{
+    if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); closeOverlay(); return; }
+    if(e.key!=='Tab') return;
+    e.preventDefault(); const n = ring.length, k = ring.indexOf(document.activeElement);
+    ring[k < 0 ? (e.shiftKey ? n - 1 : 0) : (k + (e.shiftKey ? n - 1 : 1)) % n].focus(); });
+  // пустое название не сохраняется; сохранили — окно закрыто, страница перерисована, фокус — на кнопку, которая открыла окно
+  f.addEventListener('submit', e=>{ e.preventDefault(); const v = i.value.trim(); if(!v){ i.focus(); return; } const back = askBack; askBack = null; closeOverlay(); ok(v); if(back) back(); });
 }
 // подпись строки по виду объекта; у каждого вида свой разбор, чужие поля не читаются
 const ROW_LABEL = {
@@ -3561,7 +3606,7 @@ function tileFormHTML(d, r, dt, vs){
   const opt = (cur, list) => list.map(i=>`<option value="${i}" ${i===cur?'selected':''}>${esc(IND[i].name)}</option>`).join('');
   const sel = (fn, cur, list) => `<select onchange="DB.${fn}(this)">${opt(cur, list || r.cols)}</select>`;
   const dsel = (fn, cur) => `<select onchange="DB.${fn}(this)">${r.dims.map(x=>`<option value="${x}" ${x===cur?'selected':''}>${esc(DIMS[x].name)}</option>`).join('')}</select>`;
-  const cells = (fn, x, on) => `<div class="pick">${valuesOf(x, DATA[r.obj]).map(v=>`<label class="opt"><input type="checkbox" value="${esc(v)}" ${on.includes(v)?'checked':''} onchange="DB.${fn}(this)"> ${esc(dimLabel(x, v))}</label>`).join('')}</div>`;
+  const cells = (fn, x, on) => `<div class="pick">${pickValues(x, r.obj).map(v=>`<label class="opt"><input type="checkbox" value="${esc(v)}" ${on.includes(v)?'checked':''} onchange="DB.${fn}(this)"> ${esc(dimLabel(x, v))}</label>`).join('')}</div>`;
   const row = (fn, k, on, label, inner, off) => `<div class="nrow" data-k="${k}"><label class="opt${off ? ' off' : ''}"><input type="radio" name="${fn}" ${on?'checked':''} ${off?'disabled':''} onchange="DB.${fn}(this)"> ${label}</label>${off ? why(off) : inner}</div>`;
   // доля и «% от итога группы» — общие строки главного и второго числа
   const shareRow = (fn, x) => { const p = x && x.share || [r.cols[0], r.cols[1] || r.cols[0]];
@@ -3683,7 +3728,7 @@ function condEditor(d, target){
   const chips = list.map((c,i)=>paramLabel(c.v) ? '' : `<span class="chip cond">${esc(condText(c))}${((DIMS[c.f]||{}).req||FIELD_REQ[c.f])?' ⚑':''} <button class="linky" title="Убрать" onclick="DB.rCondDel('${target}',${i})">×</button></span>`).join(' ').trim();
   const fs = condFields(obj); const cd = condDraft.target===target ? condDraft : { f:'', op:'', v:null };
   const F = fs.find(x=>x.k===cd.f); const ops = F ? (F.dim ? ['eq','ne','in','nin'] : ['gt','ge','lt','le','eq']) : [];
-  const vals = F && F.dim ? valuesOf(cd.f, DATA[obj]) : [];
+  const vals = F && F.dim ? pickValues(cd.f, obj) : [];
   const multi = cd.op==='in' || cd.op==='nin';
   const valInput = !F ? '' : F.dim
     ? `<select ${multi?'multiple size="4" style="min-width:150px"':''} onchange="DB.rCond('${target}','v', Array.from(this.selectedOptions).map(o=>o.value))">${multi?'':'<option value="">значение…</option>'}${vals.map(v=>`<option value="${esc(v)}" ${[].concat(cd.v||[]).includes(v)?'selected':''}>${esc(dimLabel(cd.f, v))}</option>`).join('')}</select>`
@@ -3761,7 +3806,8 @@ function renderStand(){
       <div class="why">До этого у «Заёмщиков» вид Движение (новые · вернулись · погасили всё · прочее) погашен с причиной.</div></div>
     <div class="form-step"><h4>Сбои статистики</h4>${chk('statDown','статистика не отвечает (ошибка доставки)')}${chk('nightRunFailed','ночной прогон 11.10 не прошёл')}
       <label class="opt">очередь пересчёта отстала на <input type="number" style="width:70px" value="${STAND.queueLag}" onchange="DB.stand('queueLag', Number(this.value))"> мин (порог 15)</label><br>
-      <label class="opt"><input type="checkbox" ${STAND.nightOnly.receipt?'checked':''} onchange="DB.standNightOnly('receipt', this.checked)"> источник «Платежи» обновляется только ночью</label></div>
+      <label class="opt"><input type="checkbox" ${STAND.nightOnly.receipt?'checked':''} onchange="DB.standNightOnly('receipt', this.checked)"> источник «Платежи» обновляется только ночью</label>
+      <div class="why">Это план, а не сбой: источник без журнала изменений днём не опрашивается, плитки «сегодня» на нём (у Бухгалтерии — «Поступило сегодня», «Нераспределённый остаток», очереди поступлений) держат значение на 02:00 и несут серую метку «◷ только ночью». «⚠ устарело» в жёлтой рамке — только вместе со сбоем «ночной прогон 11.10 не прошёл».</div></div>
     <div class="form-step"><h4>Реестр показателей</h4><label class="opt"><input type="checkbox" ${STAND.withdrawn['loan.risk']?'checked':''} onchange="DB.standWithdraw('loan.risk', this.checked)"> вывести показатель «Сумма под риском (залог)» из реестра</label></div>
     <div class="form-step"><h4>Круг отчёта</h4><label class="opt"><input type="checkbox" ${circleNarrowed()?'checked':''} onchange="DB.standCircle(this.checked)"> Сузить круг отчёта «${esc((reportById(NARROW.report)||{}).title)}»: без ${esc(NARROW.of)}</label>
       <div class="why">Плитки на этом отчёте не прячутся: у подразделения вне круга они пишут «Нельзя: отчёт не открыт вашему подразделению». Новая плитка на этом отчёте для роли с держателями в таком подразделении не проходит автопроверку.</div></div>
@@ -3824,7 +3870,7 @@ const api = {
   mini:(id, uid, roleId, panel)=>cachedMini(tileArg(id), userArg(uid), roleId, panel),
   views:(id, uid, roleId, path, panel)=>viewsFor(tileArg(id), userArg(uid), roleId, path, panel),
   view:(id, kind, sel, path, uid, roleId, panel)=>cachedView(tileArg(id), kind, sel, path, userArg(uid), roleId, panel),
-  at:atOf, compile, dimsFor:(id, path, panel)=>dimsFor(tileArg(id), path, panel), colsFor:(id)=>colsFor(tileArg(id)), viewSel,
+  at:atOf, compile, pickValues:(d, obj, uid)=>pickValues(d, obj, uid ? userArg(uid) : null), dimsFor:(id, path, panel)=>dimsFor(tileArg(id), path, panel), colsFor:(id)=>colsFor(tileArg(id)), viewSel,
   REPORTS, R, reportById, questionOf, answer, QUEUES, queueById, queueOf, tilesOfReport, reportEdit, reportDelete, reportBroken,
   resetDeclaredFor:(roleId)=>resetDeclared(roleId), blankDraft, blankReportDraft, stripReportDraft, TILE_EDIT, reportsFor, pinFromReport, rcheck:checkReportDraft, publishDraftId:publishDraft, declaredEdit, stampOf, tlText, monthClosed,
   // UI
