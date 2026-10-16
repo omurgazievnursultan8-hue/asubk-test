@@ -831,8 +831,9 @@ function loanHist(row){
   // признак «реструктуризирован» у кредита в реструктуризации — с месяца решения, до начала тянущейся просрочки
   const restrM = row.status==='В реструктуризации' ? Math.min(0, -Math.ceil(d0/30)) - (h('rm')%6) : null;
   const cleanCat = row.overdueDays===0 || row.closed ? row.category : (h('cat')%100<92 ? RISK_CATS[0] : RISK_CATS[1]);
-  let paidCum = 0, writtenCum = 0, restr = false, prev = null;
+  let restr = false, prev = null; const fl = new Map();
   for(let m=lo; m<=0; m++){
+    // доля просроченного у кончившихся эпизодов — от прежней оценки остатка (просрочено — своё поле строки, от потоков не выводится)
     const balance = m===0 ? row.balance : Math.round(row.balance * (1 + m*0.004) * jitter(row, 'm'+m+'balance', 0.03*Math.min(1, (Math.abs(m)+1)/4)));
     let days = 0, overdue = 0;
     if(m===0){ days = d0; overdue = row.overdue || 0; }
@@ -844,19 +845,41 @@ function loanHist(row){
     // ушла просрочка за месяц m — причина эпизода, тянувшегося на конец прошлого месяца
     const left = prev && prev.overdue>0 && overdue===0 ? eps.find(s=>epDays(s, m-1)>0) : null, why = left ? left.why : null;
     if(why==='реструктурирован' || (restrM!==null && m>=restrM)) restr = true;
-    writtenCum += rowFlow(row, 'written', m) + (why==='списан' ? prev.overdue : 0);
-    paidCum += (why==='прочее' ? 0 : rowFlow(row, 'paid', m)) + (why==='погасил' ? prev.overdue : 0);   // «прочее» — ушла без платежа
+    // потоки месяца: начислено %, погашено по графику («прочее» — ушла без платежа), списано (пока кредит в 181+, и списанная просрочка),
+    // погашенная просрочка, начисленные комиссии и расходы взыскания (потоков у ядра нет — они и есть малое «прочее» Остатка)
+    const on = flows(row, m), part = m===0 ? TODAY.day/TODAY.daysInMonth : 1, B0 = row.balance || 0;
+    fl.set(m, { acc: on ? (row.accrued||0)*jitter(row, 'mv'+m+'accrued', 0.2)*part : 0,
+      base: on && why!=='прочее' ? (row.paid||0)*jitter(row, 'mv'+m+'paid', 0.2)*part : 0,
+      wr: (on && days>180 ? (row.written||0)*jitter(row, 'mv'+m+'written', 0.2)*part : 0) + (why==='списан' ? prev.overdue : 0),
+      ev: why==='погасил' ? prev.overdue : 0,
+      sm: on ? (B0*0.0006*jitter(row, 'sm'+m, 0.5) + (row.status==='Во взыскании' && days>90 ? B0*0.0012 : 0))*part : 0 });
     const moved = tm!==null && m<tm;
     const status = row.closed ? (m<row.to ? 'Обычный' : row.status) : row.status==='Во взыскании' ? (days>90 ? row.status : 'Обычный')
       : row.status==='В реструктуризации' ? (restr ? row.status : 'Обычный') : row.status;
-    const s = { m, days, overdue, risk: m===0 ? row.risk : days>0 ? Math.round(balance*(row.coverage||0)/100*0.6) : 0, balance, restr, status,
-      paidCum:Math.round(paidCum), writtenCum:Math.round(writtenCum), dept: moved ? pDept : row.dept, curator: moved ? pCur : row.curator,
+    const s = { m, days, overdue, risk: m===0 ? row.risk : 0, balance, restr, status, paidCum:0, writtenCum:0,
+      dept: moved ? pDept : row.dept, curator: moved ? pCur : row.curator,
       category: m===0 ? row.category : days>0 ? catOfDays(days) : cleanCat, bucket: bucketOf(days) };
     out.set(m, s); prev = s; }
-  return { lo, out };
+  // Остаток на дату — из потоков, назад от сегодняшнего: остаток на m−1 = остаток на m − выдано − начислено + погашено + списано − комиссии.
+  // Выдача внутри окна истории: погашение по графику масштабируется так, чтобы до выдачи остаток был нулём, а «выдано» — суммой договора.
+  const iss0 = row.from===lo ? (row.issued||0) : 0, ms = [...fl.keys()], F = m=>fl.get(m), tot = f=>ms.reduce((a, m)=>a + f(F(m)), 0);
+  const need = iss0 + tot(x=>x.acc + x.sm - x.wr - x.ev) - (row.balance||0), bs = tot(x=>x.base);
+  const k = !iss0 ? 1 : need>0 && bs>0 ? need/bs : 0;
+  ms.forEach(m=>{ const x = F(m); x.acc = Math.round(x.acc); x.wr = Math.round(x.wr); x.sm = Math.round(x.sm); x.paid = Math.round(x.base*k + x.ev); x.iss = 0; });
+  let bal = row.balance || 0;
+  for(let m=0; m>=lo; m--){ const x = F(m); out.get(m).balance = bal;
+    if(m===lo && iss0){ x.iss = bal - x.acc + x.paid + x.wr - x.sm;                    // до выдачи остатка нет
+      if(k>0){ x.paid += iss0 - x.iss; x.iss = iss0; } }                              // округление — в погашенное месяца выдачи
+    bal = bal - x.iss - x.acc + x.paid + x.wr - x.sm; }
+  let paidCum = 0, writtenCum = 0;
+  ms.forEach(m=>{ const x = F(m), s = out.get(m); paidCum += x.paid; writtenCum += x.wr; s.paidCum = paidCum; s.writtenCum = writtenCum;
+    if(m<0) s.risk = s.days>0 ? Math.round(s.balance*(row.coverage||0)/100*0.6) : 0; });
+  return { lo, out, fl };
 }
 function loanAt(row, m){ let H = SNAP.get(row); if(!H) SNAP.set(row, H = loanHist(row));
   return H.out.get(Math.min(0, Math.max(H.lo, m))); }
+// потоки кредита за месяц m из той же истории, что и остаток: issued, acc, paid, wr, sm — целыми; до окна истории — нули
+function loanFlow(row, key, m){ loanAt(row, m); const x = SNAP.get(row).fl.get(m); return x ? x[key] : 0; }
 // значение разреза кредита на месяц m — из его строки на дату; у прочих объектов разрез без истории — сегодняшнее значение
 const atLoan = (d, f)=>(r, m)=>{ if(!isLoanRow(r)) return dimValue(d, r); const v = loanAt(r, m)[f], E = DIMS[d].empty; return (v===null || v===undefined) && E ? E : v; };
 const DEBT_STEPS = ['до 1 млн','1–10 млн','10–50 млн','50+ млн'];
@@ -925,7 +948,34 @@ function genQueueFields(){
   const w = rng(20261015);
   DATA.task.forEach(t=>{ t.dueIn = t.hot ? (w()<0.5 ? -(1+Math.floor(w()*9)) : Math.floor(w()*3)) : 3+Math.floor(w()*25); });
 }
+// История предмета залога и поступления на дату, добавленная 16.10: строка статистики на конец месяца. Без случайных чисел — из ключа
+// (хеш); прежние данные стенда не сдвигаются, сегодняшние значения те же.
+// Предмет залога: принят в этом или прошлом месяце (до приёма строки нет), переоценён вверх или вниз в один из трёх последних месяцев;
+// строка остаётся и после выхода из залога — освобождён (кредит погашен) или реализован (продан во взыскании): стоимость 0, состояние своё.
+function collAt(c, m){ if(c.outM!==undefined) return m<c.outM ? { value:c.v0, state:'в залоге' } : { value:0, state:c.outKind };
+  const rv = c.revM!==undefined && m<c.revM ? c.revD : 0;
+  return { value:Math.max(0, c.value - rv), state:'в залоге' }; }
+// Поступление: на конец месяца нераспределено — то, что сегодня ещё ждёт (с месяца поступления), и пришедшее в конце месяца, разнесённое
+// (или возвращённое) в следующем; у поступления в валюте сумма в сомах на конец месяца меняется курсом.
+function unallocAt(r, m){ if(m<r.at) return 0;
+  const k = r.fx ? 1 + 0.004*m*(hash(r.id+'|fxs')%2 ? 1 : -1) : 1;
+  return r.state!=='распределено' || (r.late && m===r.at) ? Math.round((r.amount||0)*k) : 0; }
+function genHist(){
+  const h = (id, k)=>hash(id+'|'+k);
+  DATA.coll.forEach(c=>{ c.cstate = 'в залоге';
+    if(c.accepted>0){ c.from = -(h(c.id, 'acc')%2); return; }
+    const d = c.revalUp>0 ? Math.min(c.revalUp, Math.round(c.value*0.4)) : c.revalDown>0 ? -c.revalDown : 0;
+    if(d){ c.revM = -(h(c.id, 'rev')%3); c.revD = d; } });
+  const act = DATA.loan.filter(l=>!l.closed);
+  for(let i=0;i<26;i++){ const l = act[h('ПЗ-out', i)%act.length], v0 = Math.round((l.collateralValue||1e6)*(0.5 + (h('ПЗ-out', 'v'+i)%900)/1000));
+    const sold = l.hasClaim || h('ПЗ-out', 's'+i)%4===0;                              // реализовано старше освобождено: продан — значит реализован
+    DATA.coll.push({ id:'ПЗ-'+(33000+i), loan:l.id, region:l.region, dept:l.dept, kind:['Недвижимость','Транспорт','Оборудование','Товары в обороте'][h('ПЗ-out', 'k'+i)%4],
+      value:0, v0, outM: -(i%2), outKind: sold ? 'реализован' : 'освобождён', cstate: sold ? 'реализован' : 'освобождён',
+      revalOverdue:false, noInsurance:false, noBan:false, registering:false, inSale:false, from:-40, accepted:0, revalUp:0, revalDown:0, released:0 }); }
+  DATA.receipt.forEach(r=>{ r.late = r.state==='распределено' && r.at<0 && h(r.id, 'late')%100<12; r.fx = h(r.id, 'fx')%40===0; });
+}
 genData();
+genHist();
 
 /* ================= Реестр статистики: объекты, разрезы, показатели ================= */
 // Дашборд своих показателей и разрезов не заводит — читает реестр статистики.
@@ -1064,9 +1114,9 @@ function dimLabel(d, v){ const D = DIMS[d]; return D.label ? D.label(v) : v; }
 const IND = {};
 function ind(id, o){ IND[id] = Object.assign({ id, agg:'count', kind:'stock', dir:'neutral', unit:'pcs' }, o); }
 ind('loan.count',     { obj:'loan', name:'Кредитов' });
-ind('loan.balance',   { obj:'loan', name:'Остаток задолженности', agg:'sum', field:'balance', unit:'sum',
-  flows:{ inc:[['выдано','issuedM'],['начислено %','accrued']], dec:[['погашено','paid'],['списано за баланс','written']], other:'курсовая переоценка, принято/передано' } });
-// move:'transitions' — Движение на переходах объектов между двумя датами (строки событий, прежних, охвата); без признака — денежные обороты (flows)
+// move — модель Движения на переходах объектов между двумя датами (MV_MODELS): строки событий, охвата, «нет ответа»; у денежных
+// (Остаток, Нераспределённый) — потоки владельца и «прочее» остатком. Без move, с flows — прежние денежные обороты
+ind('loan.balance',   { obj:'loan', name:'Остаток задолженности', agg:'sum', field:'balance', unit:'sum', move:'balance' });
 ind('loan.overdue',   { obj:'loan', name:'Просрочено', agg:'sum', field:'overdue', unit:'sum', dir:'up_bad', move:'transitions' });
 ind('loan.risk',      { obj:'loan', name:'Сумма под риском (залог)', agg:'sum', field:'risk', unit:'sum', dir:'up_bad' });
 ind('loan.restr',     { obj:'loan', name:'В реструктуризации', where:r=>r.status==='В реструктуризации', dir:'up_bad' });
@@ -1078,9 +1128,7 @@ ind('loan.expected',  { obj:'loan', name:'Ожидалось по графику
 ind('loan.plan',      { obj:'loan', name:'План', agg:'sum', kind:'flow', field:'plan', unit:'sum', where:r=>r.plan>0 });
 ind('loan.paidPlanned',{ obj:'loan', name:'Поступило по кредитам с планом', agg:'sum', kind:'flow', field:'paid', unit:'sum', dir:'up_good', where:r=>r.plan>0 });
 // у заёмщика — счёт клиентов и деньги портфеля по признакам лица; итог денег — у кредита
-ind('borrower.count', { obj:'borrower', name:'Заёмщиков',
-  flows:{ inc:[['новые','bNew'],['вернулись','bBack']], dec:[['погасили всё','bPaid']], other:'смерть, перевод долга, расхождение учёта' }, flowsGate:'clientFlows',
-  flowsMsg:'в строке заёмщика нет даты погашения всего портфеля, у даты первого договора нет корзины «месяц» — статистика не отдаёт потоки счёта клиентов' });
+ind('borrower.count', { obj:'borrower', name:'Заёмщиков', move:'clients' });
 ind('borrower.total', { obj:'borrower', name:'Задолженность заёмщика', agg:'sum', field:'total', unit:'sum', money:true,
   flows:{ inc:[['выдано','issuedM'],['начислено %','accrued']], dec:[['погашено','paid'],['списано за баланс','written']], other:'курсовая переоценка, принято/передано' } });
 ind('borrower.overdueSum',{ obj:'borrower', name:'Просрочено по портфелю клиента', agg:'sum', field:'overdueSum', unit:'sum', dir:'up_bad', money:true });
@@ -1100,11 +1148,10 @@ ind('receipt.unidentSum',{ obj:'receipt', name:'Сумма невыясненн�
 ind('receipt.await',  { obj:'receipt', name:'Ожидают подтверждения', where:r=>r.state==='ожидает подтверждения', dir:'up_bad', currentOnly:true });
 ind('receipt.unmatched',{ obj:'receipt', name:'Незакрыжено', where:r=>r.state==='не закрыжено', dir:'up_bad', currentOnly:true });
 ind('receipt.unalloc',{ obj:'receipt', name:'Нераспределённый остаток', agg:'sum', field:'amount', unit:'sum', dir:'up_bad',
-  where:r=>r.state!=='распределено', flows:{ inc:[['поступило без распределения','unallocIn']], dec:[['распределено на платежи, возвращено','unallocOut']], other:'курсовая переоценка' } });
+  where:r=>r.state!=='распределено', hist:(r, m)=>unallocAt(r, m) || null, move:'unalloc' });
 ind('payment.amount', { obj:'payment', name:'Платежи', agg:'sum', kind:'event', field:'amount', unit:'sum', dir:'up_good' });
-ind('coll.count',     { obj:'coll', name:'Предметов в залоге' });
-ind('coll.value',     { obj:'coll', name:'Залоговая стоимость', agg:'sum', field:'value', unit:'sum', dir:'up_good',
-  flows:{ inc:[['принято','accepted'],['переоценка ↑','revalUp']], dec:[['переоценка ↓','revalDown'],['освобождено, реализовано','released']], other:'курсовая переоценка' } });
+ind('coll.count',     { obj:'coll', name:'Предметов в залоге', where:r=>r.cstate==='в залоге', hist:(c, m)=>collAt(c, m).state==='в залоге' ? 1 : null });
+ind('coll.value',     { obj:'coll', name:'Залоговая стоимость', agg:'sum', field:'value', unit:'sum', dir:'up_good', hist:(c, m)=>collAt(c, m).value, move:'coll' });
 ind('coll.reval',     { obj:'coll', name:'Переоценка просрочена', where:r=>r.revalOverdue, dir:'up_bad', currentOnly:true });
 ind('coll.insurance', { obj:'coll', name:'Страховка не оформлена или истекла', where:r=>r.noInsurance, dir:'up_bad', currentOnly:true });
 ind('coll.noBan',     { obj:'coll', name:'Нет запрета на отчуждение', where:r=>r.noBan, dir:'up_bad', currentOnly:true });
@@ -1169,7 +1216,7 @@ ind('asset.exp',      { obj:'asset', name:'Расходы на содержан�
 ind('asset.days',     { obj:'asset', name:'Наибольший срок на учёте', agg:'max', field:'daysOnBook', unit:'days', dir:'up_bad', where:IM_ON });
 
 /* ================= Стенд: настройки «соседей» ================= */
-const STAND = { wave:3, spells:false, clientFlows:false, statDown:false, nightRunFailed:false, queueLag:0, nightOnly:{}, overdueUp:false, noAnswer:false, withdrawn:{}, closedThrough:-2, N:150 };
+const STAND = { wave:3, spells:false, statDown:false, nightRunFailed:false, queueLag:0, nightOnly:{}, overdueUp:false, noAnswer:false, withdrawn:{}, closedThrough:-2, N:150 };
 const STAND_SEED = JSON.stringify(STAND);
 
 /* ================= Даты, периоды, базы сдвига ================= */
@@ -1203,6 +1250,7 @@ function stockAt(row, I, pt){
   if(I.currentOnly && !(pt.m===0)) return null;            // состояние без истории: только «сейчас»
   if(!exists(row, pt.m)) return null;
   if(!pt.day && noAnswerAt(row, pt.m)) return null;           // источник не ответил по строке на эту дату — пусто, а не ноль
+  if(I.hist && !pt.day && pt.m<0){ const v = I.hist(row, pt.m); return v===undefined ? null : v; }   // строка объекта на ту дату (залог, поступление)
   if(I.where && !I.where(row)) return null;
   if(I.agg==='count') return 1;
   let v = row[I.field] || 0;
@@ -1526,7 +1574,6 @@ function answer(q0, user, roleId, panel){
   if(O.wave > STAND.wave){ res.state='refusal'; res.msg='Не отвечается: объект статистики «'+O.name+'» ещё не объявлен; владелец — модуль «'+O.owner+'».'; return res; }
   if(O.gate && !STAND[O.gate]){ res.state='refusal'; res.msg='Не отвечается: '+O.gateMsg+'; владелец — модуль «'+O.owner+'».'; return res; }
   if(I.refuses){ res.state='refusal'; res.msg='Не отвечается: '+I.refuses+'.'; return res; }
-  if(q.format==='move' && I.flowsGate && !STAND[I.flowsGate]){ res.state='refusal'; res.msg='Не отвечается: '+I.flowsMsg+'; владелец — статистика.'; return res; }
   const base = rowsFor(user, roleId, I.obj);
   if(base===null){ res.state='noaccess'; res.msg='Нельзя: объект «'+O.name+'» не открыт вашей роли.'; return res; }
   const visible = base.length;
@@ -1539,6 +1586,8 @@ function answer(q0, user, roleId, panel){
   res.stale = staleOf(q0);
   if(visible===0){ res.state='empty'; res.msg = emptyScopeMsg(user, roleId, I.obj); return res; }
   const ctx = ctxOf(q), cm = ctxMonth(ctx), dv = (d, r)=>dimAt(d, r, cm);
+  // строки на другую дату (база сдвига и разницы, точка Ряда): панель по полю с историей — на ту дату, охват роли — сегодняшний
+  const env = { base, user, roleId, panel }, rowsAt = m=>panelRowsAt(rows, I.obj, panel, env, q.filter, m);
   // строки разреза без своего списка — из охвата смотрящего, суженного панелью и путём вглубь, но не фильтром плитки:
   // нуль внутри вопроса — тоже ответ (куратор без просрочки = 0); объявленный список печатается целиком
   const scope = ()=>applyPanel(applyFilter(base, q.path, user, cm), I.obj, panel).rows;
@@ -1552,7 +1601,7 @@ function answer(q0, user, roleId, panel){
       res.values = q.inds.map(id=>aggregate(rows, IND[id], ctx).value);
       if(q.share){ const s = val(rows, ctx); res.value = s.v; res.num = s.num; res.den = s.den; }
       else res.value = res.values[0];
-      if(q.format==='shift' || q.shift) res.shift = shiftOf(q, rows, ctx, val);
+      if(q.format==='shift' || q.shift) res.shift = shiftOf(q, rows, ctx, val, rowsAt);
       break; }
     case 'slice': case 'steps': {
       const d = q.dims[0]; res.nodes = groupBy(rows, d, r=>val(r, ctx), cm, scope());
@@ -1572,11 +1621,11 @@ function answer(q0, user, roleId, panel){
         return { v, label:dimLabel(d,v), cells: q.inds.map(i=>aggregate(rs, IND[i], ctx).value) }; }) };
       if(!DIMS[d].ordered) res.table.rows.sort((a,b)=>(b.cells[0]||0)-(a.cells[0]||0));   // ступени — в объявленном порядке
       res.total = q.inds.map(i=>aggregate(rows, IND[i], ctx).value); break; }
-    case 'series': res.series = seriesOf(q, rows); break;
-    case 'move': res.move = movementOf(q, rows, { base, user, roleId, panel }); break;
+    case 'series': res.series = seriesOf(q, rows, rowsAt); break;
+    case 'move': res.move = movementOf(q, rows, env); break;
   }
   if(q.diff && ['slice','steps','heat','table'].includes(q.format)){ const B = diffBase(ctx, q.diff);
-    if(!B.none) try { addDiff(res, q, rows, B, val); } finally { B.done(); } }
+    if(!B.none) try { addDiff(res, q, rows, B, val, rowsAt, I.obj, panel); } finally { B.done(); } }
   // состояние ответа
   const headline = q.format==='number'||q.format==='shift' ? res.value : q.format==='move' ? res.move.end : 1;
   if(q.share && res.den===0){ res.state='dash'; res.msg='— · не из чего выбирать'; }
@@ -1626,9 +1675,10 @@ function setDiff(o, v, b, unit){
   o.delta = (unit==='pct' ? miss(v) || miss(o.base) : miss(v) && miss(o.base)) ? null : (v || 0) - (o.base || 0);
   o.pct = o.delta===null || unit==='pct' || !o.base ? null : o.delta / Math.abs(o.base) * 100;
   return o; }
-function shiftOf(q, rows, ctx, val){
+function shiftOf(q, rows, ctx, val, rowsAt){
   const I = IND[q.inds[0]], B = diffBase(ctx, q.shift); if(B.none) return { none:B.none };
-  try { const at = c=>q.share ? val(rows, c).v : aggregate(rows, I, c).value, baseVal = at(B.ctx), cur = at(ctx);
+  try { const at = (c, rs)=>q.share ? val(rs, c).v : aggregate(rs, I, c).value;   // база остатка — строки на её дату (панель по полю с историей)
+    const baseVal = at(B.ctx, B.ctx.point && rowsAt ? rowsAt(B.ctx.point.m) : rows), cur = at(ctx, rows);
     return { base:baseVal, delta: ctx.period ? cur - baseVal : (cur||0)-(baseVal||0), label:B.label }; }
   finally { B.done(); }
 }
@@ -1637,12 +1687,13 @@ function shiftOf(q, rows, ctx, val){
 // переходы узла разреза с историей между базой и датой числа: кто пришёл в значение v из других значений (вклад — его число на дату
 // числа) и кто ушёл в другие (вклад — минус его число на базе); только значения со вкладом, в объявленном порядке разреза; объект, который
 // на другой дате вне охвата плитки (сменился куратор или подразделение условия), — одной строкой охвата последней
-function nodeMoves(rows, d, v, I, ctx, bctx){
-  const cm = ctxMonth(ctx), bm = ctxMonth(bctx), D = DIMS[d], memb = (ctx.tf || []).filter(c=>DIMS[c.f].rowAt);
-  const outOf = (r, m)=>memb.some(c=>!testCond(r, c, null, m));
+// rows — строки числа и строки базы вместе; inP(r, m) — строка в панели по полю с историей на дату m (вне панели — тоже охват)
+function nodeMoves(rows, d, v, I, ctx, bctx, inP){
+  const cm = ctxMonth(ctx), bm = ctxMonth(bctx), D = DIMS[d], memb = (ctx.tf || []).filter(c=>DIMS[c.f].rowAt), inPanel = inP || (()=>true);
+  const outOf = (r, m)=>!inPanel(r, m) || memb.some(c=>!testCond(r, c, null, m));
   const from = new Map(), to = new Map(), put = (M, k, x)=>{ const e = M.get(k) || { cnt:0, sum:0 }; e.cnt++; e.sum += x; M.set(k, e); };
   for(const r of rows){ const a = dimAt(d, r, bm), b = dimAt(d, r, cm);
-    const ve = valueOf(r, I, ctx), vb = valueOf(r, I, bctx), rawAt = m=>stockAt(r, I, { m });
+    const ve = inPanel(r, cm) ? valueOf(r, I, ctx) : null, vb = inPanel(r, bm) ? valueOf(r, I, bctx) : null, rawAt = m=>stockAt(r, I, { m });
     if(b===v && contributes(I, ve)){
       if(vb===null && outOf(r, bm) && contributes(I, rawAt(bm))) put(from, null, ve);
       else if(a!==v && contributes(I, vb)) put(from, a, ve); }
@@ -1654,12 +1705,16 @@ function nodeMoves(rows, d, v, I, ctx, bctx){
     .map(([k, e])=>k===null ? { v:null, label:'охват', scope:true, cnt:e.cnt, sum:e.sum } : { v:k, label:dimLabel(d, k), cnt:e.cnt, sum:e.sum });
   return { from:list(from), to:list(to) };
 }
-function addDiff(res, q, rows, B, val){
+function addDiff(res, q, rows0, B, val, rowsAt, obj, panel){
   const bm = ctxMonth(B.ctx), at = (d, r)=>dimAt(d, r, bm), u = res.unit, bv = rs=>val(rs, B.ctx).v;
+  // строки базы — на дату базы (панель по полю с историей); у потока база — тот же состав
+  const rows = B.ctx.point && rowsAt ? rowsAt(bm) : rows0, ph = obj ? panelHist(obj, panel) : [];
+  const both = rows===rows0 ? rows0 : [...new Set(rows0.concat(rows))];
+  const inP = ph.length ? (r, m)=>ph.every(k=>dimAt(panelDim(obj, k), r, m)===panel[k]) : null;
   res.baseLabel = B.label;
   // «пришли из … / ушли в …» у узла разреза с историей — у остатка (числа на дату), не у доли и не у наибольшего
   const I0 = IND[q.inds[0]], mvOK = d=>!!DIMS[d].at && !!B.ctx.point && !q.share && I0.agg!=='max';
-  const mv = (d, v)=>nodeMoves(rows, d, v, I0, ctxOf(q), B.ctx);
+  const mv = (d, v)=>nodeMoves(both, d, v, I0, ctxOf(q), B.ctx, inP);
   if(res.nodes){ const d = q.dims[0]; res.nodes.forEach(n=>{ const x = val(rows.filter(r=>at(d, r)===n.v), B.ctx); setDiff(n, n.value, x.v, u);
     if(q.share){ n.baseNum = x.num; n.baseDen = x.den; }   // у доли — числитель и знаменатель на базе: для «ещё N»
     if(mvOK(d)) n.moves = mv(d, n.v); }); }
@@ -1679,13 +1734,14 @@ function addDiff(res, q, rows, B, val){
 // разница строки таблицы по колонкам: bases, deltas, pcts — того же порядка, что cells; у колонки без истории (nh) базы и разницы нет — «—», а не всё значение
 function diffCells(cells, bases, units, nh){ const ps = cells.map((v, i)=>nh && nh[i] ? { base:null, delta:null, pct:null } : setDiff({}, v, bases[i], units[i]));
   return { bases:ps.map(x=>x.base), deltas:ps.map(x=>x.delta), pcts:ps.map(x=>x.pct) }; }
-function seriesOf(q, rows){
+function seriesOf(q, rows0, rowsAt){
   const n = q.points || 12, e = q.end || 0; const out = { points:[], lines: q.share ? [{ name:'доля, %' }] : q.inds.map(i=>({ name:IND[i].name })) };
   const tf = timeConds(q.filter);
   const flow = qKind(q)==='flow', unit = q.share ? 'pct' : IND[q.inds[0]].unit; let prev = null;
   out.ind = q.inds[0]; out.flow = flow;   // показатель точек (направление «хорошо/плохо» — у него) и род числа: поток — «за месяц», остаток — «на конец месяца»
   // точка перед первой — только пара для её разницы; строк на ту дату нет — у первой точки пары нет
   for(let m=e-n; m<=e; m++){ let any = false;
+    const rows = rowsAt && !flow ? rowsAt(m) : rows0;   // точка остатка — строки на её дату (панель по полю с историей)
     const vals = (q.share ? [q.share] : q.inds.map(i=>[i])).map(spec=>{
       const calc = (id, rs)=>{ const I = IND[id]; let r;
         if(I.kind==='stock') r = aggregate(rs, I, { point: m===0 ? { m:0 } : { m }, tf });
@@ -1703,56 +1759,108 @@ function seriesOf(q, rows){
   }
   return out;
 }
-function rowFlow(row, key, m){ // составляющие оборотов для формата «Движение»
-  if(row.firstM!==undefined){ switch(key){                    // заёмщик: счёт клиентов — из дат строки, деньги — по его кредитам
-    case 'bNew': return row.firstM===m ? 1 : 0; case 'bBack': return row.backM===m ? 1 : 0;
-    case 'bPaid': return row.outM===m && row.outKind!=='прочее' && row.backM!==m ? 1 : 0; }
-    return (LOANS_OF.get(row.id)||[]).reduce((a,l)=>a+rowFlow(l, key, m), 0); }
-  const f = (field, k)=> flows(row, m) ? (row[field]||0)*jitter(row, 'mv'+m+key, 0.2)*k : 0;
-  const part = m===0 ? TODAY.day/TODAY.daysInMonth : 1;
-  switch(key){
-    case 'issuedM': return row.from===m ? (row.issued||0) : 0;
-    case 'accrued': return f('accrued',1)*part; case 'paid': return f('paid',1)*part; case 'written': return f('written',1)*part;
-    case 'accepted': return f('accepted',1); case 'revalUp': return f('revalUp',0.4); case 'revalDown': return f('revalDown',0.4); case 'released': return f('released',0.5);
-    case 'unallocIn': return row.state!=='распределено' ? (row.amount||0)*0.6 : 0; case 'unallocOut': return row.state!=='распределено' ? (row.amount||0)*0.35 : 0;
-  }
-  return 0;
+function rowFlow(row, key, m){ // потоки за месяц m для формата «Движение»
+  if(row.firstM!==undefined)                                    // заёмщик: деньги — по его кредитам (счёт клиентов — переходами по состоянию портфеля)
+    return (LOANS_OF.get(row.id)||[]).reduce((a,l)=>a+rowFlow(l, key, m), 0);
+  // кредит: потоки — из его истории (остаток на дату из них и сложен)
+  const LK = { issuedM:'iss', accrued:'acc', paid:'paid', written:'wr', small:'sm' };
+  return isLoanRow(row) && LK[key] ? loanFlow(row, LK[key], m) : 0;
 }
 // вклад строки в поток не ноль — полшага единицы шумом не считается; «☰ N» потока и его список считают так же
 const mvLive = x => Math.abs(x) >= 0.5;
 const mvOtherName = name => name && name!=='прочее' ? 'прочее — '+name : 'прочее';   // название «прочего» печатается один раз
-// «прочее» строки: её конец минус начало, минус приходы, плюс уходы — то, что потоки не объяснили
+// «прочее» строки прежних оборотов (задолженность заёмщика): её конец минус начало, минус приходы, плюс уходы — то, что обороты не объяснили
 function mvOtherOf(row, I, M, tf){
   const at = m=>valueOf(row, I, { point:{ m }, tf }) || 0, fl = list=>list.reduce((a, [, k])=>a + rowFlow(row, k, M), 0);
   return at(M) - at(M - 1) - fl(I.flows.inc) + fl(I.flows.dec);
 }
 const mvFlowOf = (row, I, key, M, tf)=>key==='other' ? mvOtherOf(row, I, M, tf) : rowFlow(row, key, M);
-const mvTransitions = I=>!!I && I.move==='transitions';
 const mvWhen = M=>M===0 ? 'сегодня' : 'на '+monthEndLabel(M);
-// строки событий Движения на переходах — всегда, нули тоже: «списаны 0» — ответ «не было»
-const MV_EVENTS = [
-  ['new', 'новые в просрочке', '+', 'event', M=>'просрочены '+mvWhen(M)+', на '+monthEndLabel(M - 1)+' — нет; кто вышел и вылечился внутри периода — плитка „Вышли в просрочку“'],
-  ['paid', 'погасили', '−', 'event', M=>'просрочка на '+monthEndLabel(M - 1)+' была, '+mvWhen(M)+' нет; выросло погашено'],
-  ['restr', 'реструктурированы', '−', 'event', ()=>'просрочку сняло решение о реструктуризации — включился признак'],
-  ['written', 'списаны', '−', 'event', ()=>'просрочка ушла списанием — выросло списано'],
-  ['other', 'прочее', '−', 'other', ()=>'ушла без платежа, решения и списания: перевод долга, исправление учёта'],
-  ['up', 'выросла у прежних', '+', 'prior', M=>'просрочены в обе даты, сумма выросла; без изменения — ни в одной строке'],
-  ['down', 'снизилась у прежних', '−', 'prior', M=>'просрочены в обе даты, сумма снизилась'],
-];
+// «прочее» денежного Движения больше четверти изменения и больше 1 % начала — «большое необъяснённое» (warn), ниже — тихо, серым (quiet);
+// share — доля «прочего» в изменении (изменения нет — null). Порог — здесь, в одном месте
+const MV_BIG = { share:0.25, start:0.01 };
+function mvBig(other, start, end){ const d = end - start, a = Math.abs(other || 0);
+  return { level: a > MV_BIG.share*Math.abs(d) && a > MV_BIG.start*Math.abs(start) ? 'warn' : 'quiet', share: d ? a / Math.abs(d) : null }; }
+// Модели Движения на переходах — по показателю (move): строки событий в порядке показа (всегда, нули тоже), хвост — после охвата и
+// «нет ответа» («прочее» денежных — остаток, последним). Объект без изменения — ни в одной строке. Объект, у которого число появилось
+// внутри охвата, — gain; пропало — loss (причина по старшинству); изменилось у прежних — up / down. У денежной модели с потоками (flows)
+// изменение объекта в охвате раскрывается потоками владельца, остаток — в «прочее»; money — у Движения есть «⚠ большое необъяснённое».
+const MV_MODELS = {
+  // Просрочено: каждый кредит — в одной строке
+  transitions: { money:false,
+    rows: [
+      ['new', 'новые в просрочке', '+', 'event', M=>'просрочены '+mvWhen(M)+', на '+monthEndLabel(M - 1)+' — нет; кто вышел и вылечился внутри периода — плитка „Вышли в просрочку“'],
+      ['paid', 'погасили', '−', 'event', M=>'просрочка на '+monthEndLabel(M - 1)+' была, '+mvWhen(M)+' нет; выросло погашено'],
+      ['restr', 'реструктурированы', '−', 'event', ()=>'просрочку сняло решение о реструктуризации — включился признак'],
+      ['written', 'списаны', '−', 'event', ()=>'просрочка ушла списанием — выросло списано'],
+      ['other', 'прочее', '−', 'other', ()=>'ушла без платежа, решения и списания: перевод долга, исправление учёта'],
+      ['up', 'выросла у прежних', '+', 'prior', M=>'просрочены в обе даты, сумма выросла; без изменения — ни в одной строке'],
+      ['down', 'снизилась у прежних', '−', 'prior', M=>'просрочены в обе даты, сумма снизилась'] ],
+    gain:()=>'new', up:'up', down:'down',
+    // ушла просрочка: причина по старшинству — списан → реструктурирован → погасил → прочее
+    loss:(r, M)=>{ const s0 = isLoanRow(r) ? loanAt(r, M - 1) : null, s1 = s0 && loanAt(r, M);
+      return !s0 ? 'other' : s1.writtenCum > s0.writtenCum ? 'written' : !s0.restr && s1.restr ? 'restr' : s1.paidCum > s0.paidCum ? 'paid' : 'other'; } },
+  // Остаток задолженности: потоки кредита из его истории; пришедший в охват — своим остатком на базу, его потоки — в новом охвате
+  balance: { money:true,
+    rows: [
+      ['issued', 'выдано', '+', 'flow', ()=>'выдачи по договорам за период'],
+      ['accrued', 'начислено %', '+', 'flow', ()=>'начисленные проценты за период'],
+      ['paid', 'погашено', '−', 'flow', ()=>'погашено за период: по графику и просрочка'],
+      ['written', 'списано', '−', 'flow', ()=>'списано за баланс за период'] ],
+    flows: [['issued', 'issuedM', 1], ['accrued', 'accrued', 1], ['paid', 'paid', -1], ['written', 'written', -1]],
+    tail: [['other', 'прочее', '±', 'other', ()=>'то, что потоки не объяснили: начисленные комиссии и расходы взыскания (потоков нет), пеня и курсовая']] },
+  // Заёмщиков: по состоянию портфеля клиента на двух датах
+  clients: { money:false,
+    rows: [
+      ['new', 'новые', '+', 'event', M=>'строки заёмщика на '+monthEndLabel(M - 1)+' не было, '+mvWhen(M)+' — действующий'],
+      ['back', 'вернулись', '+', 'event', M=>'на '+monthEndLabel(M - 1)+' — «весь портфель погашен», '+mvWhen(M)+' — действующий'],
+      ['paidAll', 'погасили всё', '−', 'event', M=>'на '+monthEndLabel(M - 1)+' — действующий, '+mvWhen(M)+' — «весь портфель погашен»'],
+      ['other', 'прочее', '−', 'event', ()=>'ушли не погашением: смерть, ликвидация, перевод долга — старше «погасили всё»'] ],
+    gain:(r, M)=>pstateAt(r, M - 1)===PAID_ALL ? 'back' : 'new', up:null, down:null,
+    loss:r=>r.outKind==='прочее' || (r.pers && r.pers!=='действует') ? 'other' : 'paidAll' },
+  // Залоговая стоимость: по строке предмета на двух датах; реализовано старше освобождено
+  coll: { money:false,
+    rows: [
+      ['accepted', 'принято', '+', 'event', M=>'на '+monthEndLabel(M - 1)+' предмета в залоге не было, '+mvWhen(M)+' — есть'],
+      ['revalUp', 'переоценка ↑', '+', 'prior', ()=>'в залоге в обе даты, стоимость выросла переоценкой'],
+      ['revalDown', 'переоценка ↓', '−', 'prior', ()=>'в залоге в обе даты, стоимость снизилась переоценкой'],
+      ['released', 'освобождено', '−', 'event', ()=>'вышел из залога: обязательство исполнено, предмет освобождён'],
+      ['realized', 'реализовано', '−', 'event', ()=>'вышел из залога продажей во взыскании; продан и освобождён — здесь'] ],
+    gain:()=>'accepted', up:'revalUp', down:'revalDown',
+    loss:(r, M)=>r.outKind!==undefined && collAt(r, M).state==='реализован' ? 'realized' : 'released' },
+  // Нераспределённый остаток: по поступлению на двух датах; изменение суммы ждущего в обе даты (курс) — «прочее»
+  unalloc: { money:true,
+    rows: [
+      ['in', 'поступило без распределения', '+', 'flow', M=>'на '+monthEndLabel(M - 1)+' не было или распределено, '+mvWhen(M)+' ждёт распределения'],
+      ['distributed', 'распределено', '−', 'flow', ()=>'ждало распределения, разнесено на платежи'],
+      ['returned', 'возвращено', '−', 'flow', ()=>'ждало распределения, возвращено плательщику'] ],
+    tail: [['other', 'прочее', '±', 'other', ()=>'изменение суммы у ждущих в обе даты: курсовая переоценка поступлений в валюте']],
+    gain:()=>'in', up:'other', down:'other', loss:r=>r.refund ? 'returned' : 'distributed' },
+};
+const mvModel = I=>I && I.move ? MV_MODELS[I.move] || null : null;
+const mvTransitions = I=>!!mvModel(I);                       // Движение по объектам (одна из моделей), а не прежними оборотами
 // у кредита без ответа источника на одну из дат строка ядра неполна (флаг стенда): на эту дату значения нет — пусто, а не ноль
 function noAnswerAt(row, m){ if(!STAND.noAnswer || !isLoanRow(row) || !(row.overdue>0) || hash(row.id+'|na')%20) return false;
   return m===(hash(row.id+'|nad')%2 ? 0 : -1); }
 // ключ строки «пришли из / ушли в» по значению разреза пути: значение кодируется — ключ идёт в onclick
 const mvValKey = (dir, d, v)=>dir+':'+d+':'+encodeURIComponent(String(v)).replace(/'/g, '%27');
-// панель по полю с историей (подразделение) в Движении — на свою дату; прочие поля панели — сегодня
+// панель по полю с историей (подразделение) — на свою дату: в Движении, у базы сдвига, разницы и списка на дату; прочие поля панели — сегодня
 function panelHist(obj, panel){ return Object.keys(PANEL).filter(k=>panel && panel[k] && panelApplies(obj, k) && PANEL_SELF[obj]!==k && DIMS[panelDim(obj, k)] && DIMS[panelDim(obj, k)].at); }
-// Движение на переходах: каждый объект выборки сравнивается с собой на конец месяца M−1 (база) и на M и попадает ровно в одну строку.
+// строки вопроса на месяц m: охват роли и фильтр — как у числа (охват роли — по сегодняшнему значению), панель по полю с историей — на дату m;
+// без такой панели и на сегодня — строки числа как есть
+function panelRowsAt(rows, obj, panel, env, filter, m){ const ph = panelHist(obj, panel);
+  if(!ph.length || !m || !env || !env.base) return rows;
+  const rest = Object.assign({}, panel); ph.forEach(k=>{ delete rest[k]; });
+  return applyPanel(applyFilter(env.base, filter, env.user), obj, rest).rows.filter(r=>ph.every(k=>dimAt(panelDim(obj, k), r, m)===panel[k])); }
+// Движение на переходах: каждый объект выборки сравнивается с собой на конец месяца M−1 (база) и на M.
 // В охвате на дату — условия фильтра, пути и панели по полям строки с историей (подразделение, куратор, срок, категория) на эту дату;
-// условие состояния («действующий») не охват: кредит, ушедший из состояния, уходит с нулём. Пришёл в охват с просрочкой (она была и
-// вне охвата) — «пришли в охват» или «пришли из 31–90» по значению разреза пути; без неё — «новые в просрочке». Неизменная сумма у прежних
-// в строку не попадает. env — { base, user, roleId, panel }: строки охвата смотрящего до панели (панель с историей режет на дату)
+// условие состояния («действующий») не охват: объект, ушедший из состояния, уходит с нулём. Пришёл в охват с числом (оно было и вне
+// охвата) — «пришли в охват» или «пришли из 31–90» по значению разреза пути; без него — событие модели. Неизменное число у прежних
+// в строку не попадает. У денежной модели с потоками объект в охвате на сегодня даёт свои потоки периода и «прочее» остатком; пришедший —
+// ещё «пришли в охват» своим числом на базу; ушедший — «ушли из охвата» своим числом на базу. Объект может стоять в нескольких строках,
+// у каждой — один раз. env — { base, user, roleId, panel }: строки охвата смотрящего до панели (панель с историей режет на дату)
 function mvObjects(q, rows, env){
-  const I = IND[q.inds[0]], M = q.mvMonth || 0, tf = timeConds(q.filter), np = (q.path || []).length, nf = (q.filter || []).length;
+  const I = IND[q.inds[0]], Md = mvModel(I), M = q.mvMonth || 0, tf = timeConds(q.filter), np = (q.path || []).length, nf = (q.filter || []).length;
   const isPath = c=>{ const i = q.filter.indexOf(c); return i >= nf - np; };
   const memb = tf.filter(c=>DIMS[c.f].rowAt), state = tf.filter(c=>!DIMS[c.f].rowAt);
   const ph = env && env.panel ? panelHist(I.obj, env.panel) : [];
@@ -1761,34 +1869,45 @@ function mvObjects(q, rows, env){
     cand = applyPanel(applyFilter(env.base, q.filter, env.user), I.obj, rest).rows; }
   const panelOK = (r, m)=>ph.every(k=>dimAt(panelDim(I.obj, k), r, m)===env.panel[k]);
   const fail = (r, m)=>memb.find(c=>!testCond(r, c, null, m));                    // первое не выполненное условие охвата на дату
+  const live = v=>I.agg==='count' ? v>0 : contributes(I, v);                     // у счёта ноль — «нет объекта», а не вклад
   const at = r=>m=>{ if(noAnswerAt(r, m)) return { na:true };
     const raw0 = stockAt(r, I, { m }), ok = state.every(c=>testCond(r, c, null, m)), raw = ok && raw0!==null ? raw0 : 0;
     const f = fail(r, m), inn = !f && panelOK(r, m);
-    return { inn, raw, f, x: inn ? raw : 0 }; };
+    return { inn, raw, ok, f, x: inn ? raw : 0 }; };
   const roles = env && env.user ? viewerRoles(env.user, env.roleId).filter(x=>hasRight(x, I.obj)) : [];
   const scopeCan = memb.some(c=>!isPath(c)) || ph.length>0 || roles.some(x=>scopeOf(x, I.obj)!=='all');
+  const inKey = (A, r)=>A.f && isPath(A.f) ? mvValKey('in', A.f.f, dimAt(A.f.f, r, M - 1)) : 'scopeIn';
+  const outKey = (B, r)=>B.f && isPath(B.f) ? mvValKey('out', B.f.f, dimAt(B.f.f, r, M)) : 'scopeOut';
   const out = []; let start = 0, end = 0, cnt0 = 0, cntEnd = 0;
   for(const r of cand){ const A = at(r)(M - 1), B = at(r)(M);
-    if(!A.na){ start += A.x; if(contributes(I, A.x) && A.inn) cnt0++; }
-    if(!B.na){ end += B.x; if(contributes(I, B.x) && B.inn) cntEnd++; }
+    if(!A.na){ start += A.x; if(A.inn && live(A.x)) cnt0++; }
+    if(!B.na){ end += B.x; if(B.inn && live(B.x)) cntEnd++; }
     if(A.na || B.na){ const v = (B.na ? 0 : B.x) - (A.na ? 0 : A.x); if(v) out.push({ r, key:'noanswer', v }); continue; }
-    const x = A.x, y = B.x; if(x===y) continue;
+    const x = A.x, y = B.x;
+    if(Md.flows){                                                // денежная модель с потоками владельца
+      if(!B.inn){ if(A.inn && x) out.push({ r, key:outKey(B, r), v:-x }); continue; }
+      let b = x;
+      if(!A.inn && live(A.raw)){ out.push({ r, key:inKey(A, r), v:A.raw }); b = A.raw; }
+      let rest = y - b;
+      if(A.ok || B.ok) Md.flows.forEach(([k, fk, sg])=>{ const v = sg*rowFlow(r, fk, M); if(v){ out.push({ r, key:k, v }); rest -= v; } });
+      if(rest) out.push({ r, key:'other', v:rest });
+      continue; }
+    if(x===y) continue;
     let key;
-    if(A.inn && B.inn) key = x===0 ? 'new' : y===0 ? null : y>x ? 'up' : 'down';
-    else if(B.inn) key = contributes(I, A.raw) ? (A.f && isPath(A.f) ? mvValKey('in', A.f.f, dimAt(A.f.f, r, M - 1)) : 'scopeIn') : 'new';
-    else key = contributes(I, B.raw) ? (B.f && isPath(B.f) ? mvValKey('out', B.f.f, dimAt(B.f.f, r, M)) : 'scopeOut') : null;
-    if(key===null){                                             // ушла просрочка: причина по старшинству — списан → реструктурирован → погасил → прочее
-      const s0 = isLoanRow(r) ? loanAt(r, M - 1) : null, s1 = s0 && loanAt(r, M);
-      key = !s0 ? 'other' : s1.writtenCum > s0.writtenCum ? 'written' : !s0.restr && s1.restr ? 'restr' : s1.paidCum > s0.paidCum ? 'paid' : 'other'; }
+    if(A.inn && B.inn) key = x===0 ? Md.gain(r, M) : y===0 ? null : y>x ? Md.up : Md.down;
+    else if(B.inn) key = live(A.raw) ? inKey(A, r) : Md.gain(r, M);
+    else key = live(B.raw) ? outKey(B, r) : null;
+    if(key===null) key = Md.loss(r, M);
     out.push({ r, key, v:y - x }); }
-  return { I, M, start, end, cnt0, cntEnd, list:out, scopeCan, pathDims:(q.path || []).map(c=>c.f) };
+  return { I, Md, M, start, end, cnt0, cntEnd, list:out, scopeCan, pathDims:(q.path || []).map(c=>c.f) };
 }
-// строки Движения на переходах в порядке показа: события и прежние — всегда; «пришли из … / ушли в …» по значениям разреза пути —
-// только со вкладом, в объявленном порядке; «пришли в охват / ушли из охвата» — где охват может меняться; «нет ответа» — только при сбое
+// строки Движения на переходах в порядке показа: события модели — всегда; «пришли из … / ушли в …» по значениям разреза пути —
+// только со вкладом, в объявленном порядке; «пришли в охват / ушли из охвата» — где охват может меняться; «нет ответа» — только при сбое;
+// хвост модели («прочее» денежных) — всегда, последним
 function mvRowsOf(o){
   const M = o.M, from = monthEndLabel(M - 1), sum = k=>o.list.filter(x=>x.key===k).reduce((a, x)=>a + x.v, 0), cnt = k=>o.list.filter(x=>x.key===k).length;
   const row = (key, name, sg, kind, tip)=>({ key, name, sg, v:sum(key), cnt:cnt(key), kind, tip });
-  const rows = MV_EVENTS.map(([k, n, sg, kind, tip])=>row(k, n, sg, kind, tip(M)));
+  const rows = o.Md.rows.map(([k, n, sg, kind, tip])=>row(k, n, sg, kind, tip(M)));
   const vals = dir=>{ const out = [];
     [...new Set(o.pathDims)].forEach(d=>{ const D = DIMS[d], seen = new Map();
       o.list.forEach(x=>{ const p = x.key.split(':'); if(p[0]===dir && p[1]===d){ const v = dimAt(d, x.r, dir==='in' ? M - 1 : M); seen.set(x.key, v); } });
@@ -1797,19 +1916,23 @@ function mvRowsOf(o){
         .forEach(([k, v])=>out.push(row(k, (dir==='in' ? 'пришли из ' : 'ушли в ')+dimLabel(d, v), dir==='in' ? '+' : '−', 'scope',
           dir==='in' ? 'на '+from+' — «'+dimLabel(d, v)+'», '+mvWhen(M)+' — в этом узле' : 'на '+from+' — в этом узле, '+mvWhen(M)+' — «'+dimLabel(d, v)+'»'))); });
     return out; };
+  const who = o.I.obj==='borrower' ? 'сменился ведущий куратор' : 'сменился куратор или подразделение';
   rows.push(...vals('in'));
-  if(o.scopeCan || cnt('scopeIn')) rows.push(row('scopeIn', 'пришли в охват', '+', 'scope', 'на '+from+' вне охвата плитки, '+mvWhen(M)+' в нём: сменился куратор или подразделение'));
+  if(o.scopeCan || cnt('scopeIn')) rows.push(row('scopeIn', 'пришли в охват', '+', 'scope', 'на '+from+' вне охвата плитки, '+mvWhen(M)+' в нём: '+who+(o.Md.flows ? '; число на '+from+', потоки периода — здесь' : '')));
   rows.push(...vals('out'));
-  if(o.scopeCan || cnt('scopeOut')) rows.push(row('scopeOut', 'ушли из охвата', '−', 'scope', 'на '+from+' в охвате плитки, '+mvWhen(M)+' вне его: сменился куратор или подразделение'));
+  if(o.scopeCan || cnt('scopeOut')) rows.push(row('scopeOut', 'ушли из охвата', '−', 'scope', 'на '+from+' в охвате плитки, '+mvWhen(M)+' вне его: '+who));
   if(cnt('noanswer')) rows.push(row('noanswer', 'нет ответа источника', '±', 'noanswer', 'источник не ответил на одну из дат — строка несёт известную сумму со своей даты; пусто, а не ноль'));
+  (o.Md.tail || []).forEach(([k, n, sg, kind, tip])=>rows.push(row(k, n, sg, kind, tip(M))));
   return rows;
 }
-// результат Движения — один контракт у обеих моделей: { M, model, start, end, cnt0, cntEnd, rows:[{ key, name, sg, v, cnt, kind, tip }], big }
-// v строки — со знаком, сумма строк = конец − начало; у денежной модели (пока) — обороты строк и «прочее» остатком
+// результат Движения — один контракт у всех моделей: { M, model, start, end, cnt0, cntEnd, rows:[{ key, name, sg, v, cnt, kind, tip }], big }
+// v строки — со знаком, сумма строк = конец − начало; model — 'money' у денежных (есть «прочее» остатком, big — его подсветка), иначе
+// 'transitions' (big — null); у прежних оборотов (без модели) — обороты строк, «прочее» остатком
 function movementOf(q, rows, env){
-  const I = IND[q.inds[0]]; const M = q.mvMonth || 0; const tf = timeConds(q.filter);   // месяц движения: текущий или прошлый
-  if(mvTransitions(I)){ const o = mvObjects(q, rows, env);
-    return { M, model:'transitions', start:o.start, end:o.end, cnt0:o.cnt0, cntEnd:o.cntEnd, rows:mvRowsOf(o), big:null }; }
+  const I = IND[q.inds[0]], Md = mvModel(I); const M = q.mvMonth || 0; const tf = timeConds(q.filter);   // месяц движения: текущий или прошлый
+  if(Md){ const o = mvObjects(q, rows, env), rs = mvRowsOf(o), oth = rs.find(x=>x.key==='other');
+    return { M, model: Md.money ? 'money' : 'transitions', start:o.start, end:o.end, cnt0:o.cnt0, cntEnd:o.cntEnd, rows:rs,
+      big: Md.money ? mvBig(oth ? oth.v : 0, o.start, o.end) : null }; }
   const start = aggregate(rows, I, { point:{ m:M-1 }, tf }).value || 0;
   const end = aggregate(rows, I, { point:{ m:M }, tf }).value || 0;
   const sumFlows = (list, sg) => list.map(([name,key])=>{ const v = Math.round(rows.reduce((a,r)=>a+rowFlow(r,key,M),0));
@@ -1819,11 +1942,11 @@ function movementOf(q, rows, env){
   fl.push({ key:'other', name:mvOtherName(I.flows.other), sg:'±', v:other, cnt:rows.filter(r=>mvLive(mvOtherOf(r, I, M, tf))).length, kind:'other', tip:'то, что обороты не объяснили' });
   return { M, model:'money', start, end,
     cnt0: rows.filter(r=>contributes(I, valueOf(r, I, { point:{ m:M-1 }, tf }))).length,   // «☰ N» начала: строки списка на конец прошлого месяца
-    cntEnd: rows.filter(r=>contributes(I, valueOf(r, I, { point:{ m:M }, tf }))).length, rows:fl, big:null };
+    cntEnd: rows.filter(r=>contributes(I, valueOf(r, I, { point:{ m:M }, tf }))).length, rows:fl, big:mvBig(other, start, end) };
 }
 // название строки Движения по ключу — для подписи списка «☰»
-function mvRowName(q, key, M, env){ const I = IND[q.inds[0]];
-  if(mvTransitions(I)){ const e = MV_EVENTS.find(x=>x[0]===key); if(e) return e[1];
+function mvRowName(q, key, M, env){ const I = IND[q.inds[0]], Md = mvModel(I);
+  if(Md){ const e = Md.rows.concat(Md.tail || []).find(x=>x[0]===key); if(e) return e[1];
     const p = key.split(':'); if(p.length===3) return (p[0]==='in' ? 'пришли из ' : 'ушли в ')+dimLabel(p[1], decodeURIComponent(p[2]));
     return { scopeIn:'пришли в охват', scopeOut:'ушли из охвата', noanswer:'нет ответа источника' }[key] || key; }
   const f = I.flows.inc.concat(I.flows.dec).find(x=>x[1]===key); return f ? f[0] : mvOtherName(I.flows.other); }
@@ -1846,6 +1969,8 @@ function statRows(tile, user, roleId, panel, node, path){
   const q = userConds(numQ(tile, path, node && node.of), user); const I = IND[q.inds[0]]; let ctx = ctxOf(q);
   const cm = node && node.m!==undefined ? node.m : ctxMonth(ctx);
   let rows = res.rows;
+  if(node && node.m!==undefined && I.kind==='stock')        // список на дату — панель по полю с историей на ту же дату, как число
+    rows = panelRowsAt(rows, I.obj, panel, { base:rowsFor(user, roleId, I.obj), user, roleId, panel }, q.filter, node.m);
   if(node){ if(node.d) rows = rows.filter(r=>dimAt(node.d, r, cm)===node.v); if(node.d2) rows = rows.filter(r=>dimAt(node.d2, r, cm)===node.v2); }
   if(node && node.flow){                                        // строка Движения (mv — месяц движения): её объекты, значение — вклад объекта в строку со знаком
     const M = node.mv || 0, tf = timeConds(q.filter); let all, list;
@@ -2214,7 +2339,6 @@ function journal(action, detail, who){ S.journal.unshift({ at:TODAY.label, who: 
 function tileAnswers(t){ // в раскладку попадает только плитка, которая отвечает (автопроверка)
   if(!t) return false; if(t.state==='draft') return false;
   const q = questionOf(t); if(!q) return true;                 // отчёт не найден — плитка встаёт сломанной и называет причину
-  if(q.format==='move' && IND[q.inds[0]].flowsGate && !STAND[IND[q.inds[0]].flowsGate]) return false;   // потоков ещё нет — черновик
   return q.inds.every(i=>objReady(IND[i].obj) && !IND[i].refuses);
 }
 function roleHasLayout(roleId){ return !!S.declared[roleId] && (ROLE_CORE_WAVE[roleId]||9) <= STAND.wave; }
@@ -2812,8 +2936,7 @@ function viewsFor(t, u, roleId, path, panel){
     series: !hist ? NO_HIST : !timed ? NO_DATE : null,
     slice: free ? null : noDims,
     map: free>=2 ? null : 'нужны два разреза — свободных '+free,
-    move: !(I.flows || mvTransitions(I)) || qKind(q)!=='stock' ? 'у показателя не объявлены потоки' : q.share ? 'у доли оборотов нет' : !timed ? 'отчёт не объявил дату — движение недоступно'
-      : I.flowsGate && !STAND[I.flowsGate] ? I.flowsMsg : null,
+    move: !(I.flows || mvTransitions(I)) || qKind(q)!=='stock' ? 'у показателя не объявлены потоки' : q.share ? 'у доли оборотов нет' : !timed ? 'отчёт не объявил дату — движение недоступно' : null,
     table: free ? null : noDims };
   return VIEW_KINDS.map(kind=>({ kind, ok:!why[kind], why:why[kind] }));
 }
@@ -3998,9 +4121,7 @@ function renderStand(){
     <div class="form-step"><h4>Готовность соседей (запуск волнами)</h4>${[1,2,3].map(w=>`<label class="opt"><input type="radio" name="wv" ${STAND.wave===w?'checked':''} onchange="DB.stand('wave', ${w})"> волна ${w}</label>`).join('')}
       <div class="why">Волна 1 — кредит, платёж, поступление, залог, требование, дело взыскания, заявка на реструктуризацию. Волна 2 — заявка на кредит, комиссия, заключение, объект имущества. Волна 3 — обязательство, задание.</div>
       <div style="margin-top:6px">${chk('spells','ядро расчёта отдаёт эпизоды просрочки')}</div>
-      <div class="why">Пока ядро не отдаёт перечень эпизодов, объект статистики объявлен, а строк нет: плитки «Вышли в просрочку» и «Вылечены» стоят черновиками и в раскладки не встают.</div>
-      <div style="margin-top:6px">${chk('clientFlows','статистика отдаёт потоки счёта клиентов (дата погашения всего портфеля, месяц первого договора)')}</div>
-      <div class="why">До этого у «Заёмщиков» вид Движение (новые · вернулись · погасили всё · прочее) погашен с причиной.</div></div>
+      <div class="why">Пока ядро не отдаёт перечень эпизодов, объект статистики объявлен, а строк нет: плитки «Вышли в просрочку» и «Вылечены» стоят черновиками и в раскладки не встают.</div></div>
     <div class="form-step"><h4>Сбои статистики</h4>${chk('statDown','статистика не отвечает (ошибка доставки)')}${chk('nightRunFailed','ночной прогон 11.10 не прошёл')}
       <label class="opt">очередь пересчёта отстала на <input type="number" style="width:70px" value="${STAND.queueLag}" onchange="DB.stand('queueLag', Number(this.value))"> мин (порог 15)</label><br>
       <label class="opt"><input type="checkbox" ${STAND.nightOnly.receipt?'checked':''} onchange="DB.standNightOnly('receipt', this.checked)"> источник «Платежи» обновляется только ночью</label>

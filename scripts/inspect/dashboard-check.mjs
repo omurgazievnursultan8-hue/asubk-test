@@ -89,9 +89,11 @@ const Q2 = id => { const t = T(id), r = DB.reportById(t.report), s = t.second;
   return DB.compile(r, t.params, s.share ? { inds:s.share.slice(), share:s.share.slice() } : s.pct ? { inds:[s.col || r.cols[0]], pct:s.pct } : { inds:[s.col || s.of] }); };
 const sum = a => a.reduce((x, y) => x + y, 0);
 // денежное Движение в контракте строк: приходы и уходы (по модулю) оборотами, «прочее» — остатком
-const mvInc = mv => mv.rows.filter(x => x.kind === 'flow' && x.sg === '+').map(x => x.v);
-const mvDec = mv => mv.rows.filter(x => x.kind === 'flow' && x.sg === '−').map(x => -x.v);
-const mvOth = mv => (mv.rows.find(x => x.key === 'other') || {}).v;
+// волна 10: приходы и уходы — строки событий, прежних и потоков (без охвата, «нет ответа» и «прочего»); «прочего» нет — null
+const mvRow = (mv, sg) => mv.rows.filter(x => ['flow', 'event', 'prior'].includes(x.kind) && x.key !== 'other' && x.sg === sg);
+const mvInc = mv => mvRow(mv, '+').map(x => x.v);
+const mvDec = mv => mvRow(mv, '−').map(x => -x.v);
+const mvOth = mv => { const o = mv.rows.find(x => x.key === 'other'); return o ? o.v : null; };
 const withParams = (t, p) => Object.assign({}, t, { params:Object.assign({}, t.params, p) });
 const asUser = id => { DB.state.userId = id; };
 
@@ -499,18 +501,17 @@ const asUser = id => { DB.state.userId = id; };
     && DB.condText(c2) === 'Худшая просрочка по портфелю, дн. > 90' && sh.ok && DB.autocheck(DB.draft).ok && shRep.dims.join() === 'ptype' && shT.state === 'ok' && shT.den === p2
     && shT.num === Bs.filter(b => b.worstDays > 90 && b.ptype === 'юр').length,
     `конструктор собирает фильтр по значению: «${DB.condText(c1)}» = «${DB.condText(c2)}» = ${p1} клиентов; доля юрлиц среди них — разрез «Тип лица» в отчёте и ячейка «юр» на плитке: ${shT.num} из ${shT.den} (ДБ-Д23, ДБ-111)`);
-  // ДБ-71, ДБ-74: движение клиентов — черновик до статистики
+  // ДБ-71, ДБ-74: движение клиентов — переходами по состоянию портфеля на двух датах; черновика до статистики больше нет
   const vm0 = DB.views('lead-borr', 'u1', 'lead').find(x => x.kind === 'move'), m0 = DB.view('lead-borr', 'move', { month:-1 }, [], 'u1', 'lead', {});
   const off = DB.tileAnswers(T('lead-borr')) && DB.composeLayout('u1', 'lead').includes('lead-borr') && DB.ask(T('lead-borr'), U('u1'), 'lead', {}).state === 'ok';
-  DB.STAND.clientFlows = true;
-  const mv = DB.view('lead-borr', 'move', { month:-1 }, [], 'u1', 'lead', {}).move, vm1 = DB.views('lead-borr', 'u1', 'lead').find(x => x.kind === 'move'), lay = DB.composeLayout('u1', 'lead');
+  const mv = m0.move, lay = DB.composeLayout('u1', 'lead'), ev = k => mv.rows.find(x => x.key === k);
   const at = m => allB.filter(b => b.from <= m && DB.pstateAt(b, m) === 'действующий').length;
-  const mInc = mv.rows.filter(x => x.kind === 'flow' && x.sg === '+'), mDec = mv.rows.filter(x => x.kind === 'flow' && x.sg === '−'), mOth = mv.rows.find(x => x.key === 'other');
-  ok(94, !vm0.ok && /даты погашения всего портфеля/.test(vm0.why) && m0.state === 'off' && off && vm1.ok && mv.M === -1 && mv.start + sum(mv.rows.map(x => x.v)) === mv.end
-    && mv.start === at(-2) && mv.end === at(-1) && mInc.map(x => x.name).join() === 'новые,вернулись' && mDec[0].name === 'погасили всё'
-    && mInc[0].v === allB.filter(b => b.firstM === -1).length && mDec[0].v < 0 && lay.includes('lead-borr'),
-    `у «Заёмщиков» вид Движение за прошлый месяц погашен, пока статистика не отдаёт потоки (плитка в раскладке отвечает); затем ${mv.start} → +${sum(mInc.map(x => x.v))} ${sum(mDec.map(x => x.v))} прочее ${mOth.v} → ${mv.end}, сходится (ДБ-71, ДБ-74, ДБ-53)`);
-  DB.STAND.clientFlows = false;
+  const act = (b, m) => b.from <= m && DB.pstateAt(b, m) === 'действующий', gain = allB.filter(b => !act(b, -2) && act(b, -1));
+  ok(94, vm0.ok && vm0.why === null && m0.state === 'ok' && off && mv.model === 'transitions' && mv.big === null && mv.M === -1 && mv.start + sum(mv.rows.map(x => x.v)) === mv.end
+    && mv.start === at(-2) && mv.end === at(-1) && mv.rows.map(x => x.name).join() === 'новые,вернулись,погасили всё,прочее'
+    && ev('new').v === gain.filter(b => DB.pstateAt(b, -2) !== 'весь портфель погашен').length && ev('back').v === gain.filter(b => DB.pstateAt(b, -2) === 'весь портфель погашен').length
+    && ev('new').v === allB.filter(b => b.firstM === -1).length && -ev('paidAll').v - ev('other').v === allB.filter(b => act(b, -2) && !act(b, -1)).length && ev('paidAll').v < 0 && lay.includes('lead-borr'),
+    `у «Заёмщиков» вид Движение за прошлый месяц — переходами по состоянию портфеля на двух датах, черновика больше нет (плитка в раскладке отвечает): ${mv.start} → новые ${ev('new').v}, вернулись ${ev('back').v}, погасили всё ${ev('paidAll').v}, прочее ${ev('other').v} → ${mv.end}, сходится (ДБ-71, ДБ-74, ДБ-53; волна 10: черновик снят)`);
   // ДБ-72, ДБ-73: «Область» — по регистрации, «Программа» не действует
   const osh = DB.ask(T('lead-borr'), U('u1'), 'lead', { region:'Ошская' }), pr = DB.ask(T('lead-borr'), U('u1'), 'lead', { program:'agro' });
   ok(95, osh.value === Bs.filter(b => b.region === 'Ошская').length && /фильтр: Ошская · по регистрации заёмщика/.test(osh.passport)
@@ -547,7 +548,7 @@ const asUser = id => { DB.state.userId = id; };
   const fm = DB.views(tb({ id:'tb100' }), 'u1', 'lead').find(x => x.kind === 'move');
   const sPm = DB.ask(tb({ shift:'prevMonthEnd' }), U('u1'), 'lead', {});
   const sYs = DB.ask(tb({ shift:'yearStart' }), U('u1'), 'lead', {});
-  ok(100, !fm.ok && /даты погашения всего портфеля/.test(fm.why) && DB.shiftsFor(tb({})).length === 3 && DB.shiftsFor(tb({})).every(x => x.ok)
+  ok(100, fm.ok && fm.why === null && DB.shiftsFor(tb({})).length === 3 && DB.shiftsFor(tb({})).every(x => x.ok)
     && sPm.shift.base === at(-1) && sYs.shift.base === at(-10) && sPm.shift.base !== sYs.shift.base && sPm.value === 903,
     `сдвиг счёта клиентов — как у остатков, «действующий» на дату базы: к 30.09 ${sPm.shift.base}, к началу года ${sYs.shift.base}, сейчас ${sPm.value} (ДБ-77, ДБ-78)`);
   // ДБ-79: «Работать со списком» — реестр заёмщиков с фильтром плитки
@@ -1741,10 +1742,10 @@ const asUser = id => { DB.state.userId = id; };
   ok(192, at('lead-od', 'shift') === 9649146 && bd.shift.delta === 9649146 && sh(bd, 169129709) && bd.shift.label === 'к 30.09' && at('cur-od', 'shift', 'u2', 'cur') === 667800 && sh(cd, 8054492)
     && at('lead-paid', 'shift') === 60501 && sh(pd, 104653028) && pd.shift.label === 'к августу' && !('pp' in bd.shift),
     'сдвиг «Просрочено» и «Поступило» — по главному числу в сомах (было — п.п. доли: 0,116 → 9,6 млн, −0,522 → 60 501, у Куратора 0,114 → 667 800; волна 10: база — строки кредитов на 30.09); доля — во втором числе без собственного сдвига');
-  const m0 = at('lead-borr', 'move(-1)'); DB.STAND.clientFlows = true; const m1 = at('lead-borr', 'move(-1)'); DB.STAND.clientFlows = false;
-  ok(193, m0 === 'state:off' && DB.composeLayout('u1', 'lead').includes('lead-borr') && DB.ask(T('lead-borr'), U('u1'), 'lead', {}).state === 'ok'
+  const m1 = at('lead-borr', 'move(-1)');
+  ok(193, m1.model === 'transitions' && DB.composeLayout('u1', 'lead').includes('lead-borr') && DB.ask(T('lead-borr'), U('u1'), 'lead', {}).state === 'ok'
     && m1.start === 914 && m1.end === 907 && sum(mvInc(m1)) === 4 && sum(mvDec(m1)) === 10 && mvOth(m1) === -1 && m1.start + 4 - 10 + mvOth(m1) === m1.end,
-    'вид Движение у «Заёмщиков» погашен, пока статистика не отдаёт потоки клиентов — плитка в раскладке отвечает (раньше отдельная плитка движения уходила в отказ и в раскладку не вставала); с потоками: 914 + 4 − 10 − 1 = 907');
+    'вид Движение у «Заёмщиков» отвечает сразу — переходами по состоянию портфеля, без черновика до статистики; плитка в раскладке отвечает (раньше отдельная плитка движения уходила в отказ и в раскладку не вставала): 914 + 4 − 10 − 1 = 907');
   // отчёты после слияния: колонки и разрезы, на которых стоят виды новых плиток; числа соседей по отчёту не сдвинулись (проверено выше по литералам)
   const R = id => DB.reportById(id);
   ok(194, R('r-borrowers').cols.join() === 'borrower.count,borrower.total' && ['bover', 'bodays', 'bdebt', 'bcredits', 'bhist'].every(d => R('r-borrowers').dims.includes(d))
@@ -1830,7 +1831,7 @@ const asUser = id => { DB.state.userId = id; };
     ['acc-prev', 'shift', 17929534],
     ['acc-refund', 'main', 3108293],
     ['acc-rev', 'main', 1],
-    ['acc-unalloc', 'move(0)', [12032988,13057964,[7834778],[4570287],-2239515]],
+    ['acc-unalloc', 'move(0)', [25616606,13057964,[12740493],[24198243,1100892],0]],
     ['acc-prev', 'series(12)', prevEnd([139248882], [[136776387],[134792788],[97903433],[116176437],[136663065],[118347844],[124427349],[127567481],[125885127],[124960688],[142890222],[150065611]])],
     ['acc-pkind', 'slice(pkind)', [['по графику',11416013],['по решению суда',2917184],['досрочно',1422685],['имуществом',733317]]],
     ['acc-pkind', 'main', 16489199],
@@ -1838,7 +1839,7 @@ const asUser = id => { DB.state.userId = id; };
   ],
   'u5|zal': [
     ['zal-value', 'second', 404],
-    ['zal-value', 'move(0)', [2023995601,2028385418,[13706737,2459447],[1184794,5730001],-4861572]],
+    ['zal-value', 'move(0)', [2021313093,2028385418,[10097994,2674565],[1132271,4567963,0],null]],
     ['zal-value', 'slice(ckind)', [['Недвижимость',1187347462],['Оборудование',361511165],['Транспорт',334487558],['Товары в обороте',145039233]]],
     ['zal-value', 'main', 2028385418],
     ['zal-lowcov', 'main', 49],
@@ -2017,7 +2018,7 @@ const asUser = id => { DB.state.userId = id; };
     'автопроверка плитки: второе число другого объекта, повторяющее главное, «из N» у доли; светофор на втором без второго, с порогом не «больше/меньше», на третьем числе; Карта из одного разреза; Таблица больше четырёх колонок или разного рода; 7 точек ряда, месяц движения не из списка; разрез вида, которого нет или чужого объекта; ряд по второму без второго; без главного; вид, которого нет — отказ с причиной (ДБ-116, ДБ-127, ДБ-128)');
   // автопроверка: допускает умолчание вида, которому нечего показать (вид погашен), разрез и колонку объекта не из отчёта
   const gf = on('r-form', {}), vf = DB.views(asT(Object.assign(DB.blankDraft('r-form'), { title:'x' }), 'gf'), 'u1', 'lead');
-  const gm = on('r-borrowers', { views:{ move:{ month:-1 } } }), vm0 = DB.views(asT(Object.assign(DB.blankDraft('r-borrowers'), { title:'x', views:{ move:{ month:-1 } } }), 'gm'), 'u1', 'lead');
+  const gm = on('r-portfolio', { main:{ col:'loan.risk' }, views:{ move:{ month:-1 } } }), vm0 = DB.views(asT(Object.assign(DB.blankDraft('r-portfolio'), { title:'x', main:{ col:'loan.risk' }, views:{ move:{ month:-1 } } }), 'gm'), 'u1', 'lead');
   const gt = on('r-bucket', { views:{ slice:{ dim:'region', top:5 }, table:{ dim:'bucket', cols:['loan.count', 'loan.balance'] } } });
   const gtv = DB.view(asT(Object.assign(DB.blankDraft('r-bucket'), { title:'x', views:{ slice:{ dim:'region', top:5 } } }), 'gt'), 'slice', null, [], 'u1', 'lead', {});
   ok(205, gf.ok && !vf.find(v => v.kind === 'series').ok && gm.ok && !vm0.find(v => v.kind === 'move').ok && gt.ok && gtv.sel.dim === 'region' && gtv.sel.top === 5 && gtv.temp,
@@ -2231,7 +2232,7 @@ const asUser = id => { DB.state.userId = id; };
   asUser('u1'); DB.setTab('role', 'lead'); DB.openView('lead-od', 'move'); const ho = DB.stripHTML('lead-od', 'u1', 'lead');
   ok(220, mv.sel.month === -1 && w1.node.m === -1 && !w1.refused && w1.matches && near(w1.sum, mv.move.end) && w1.list.length === mv.cnt && w1.nodeText === 'на конец 30.09'
     && w0.node === null && w0.matches && near(w0.sum, mv0.move.end) && mv.move.end !== mv0.move.end && new RegExp('<div class="rz-r mv-e" data-edge="end">[\\s\\S]*?DB\\.whoAt\\(\'cur-bal\'\\)">☰ ' + mv.cnt + '<').test(hm) && !/Кто в этом числе<\/button>|☰ \d+ Кто в этом числе/.test(hm)
-    && /<span class="rz-nm"><span class="mv-sg">−<\/span>прочее<\/span>/.test(ho) && !/прочее[^<]*прочее/.test(ho.replace(/data-tip="[^"]*"/g, '')) && /<span class="rz-nm"><span class="mv-sg">±<\/span>прочее — курсовая переоценка[^<]*<\/span>/.test(hm) && !/прочее[^<]*прочее/.test(hm.replace(/data-tip="[^"]*"/g, '')),
+    && /<span class="rz-nm"><span class="mv-sg">−<\/span>прочее<\/span>/.test(ho) && !/прочее[^<]*прочее/.test(ho.replace(/data-tip="[^"]*"/g, '')) && /<span class="rz-nm"><span class="mv-sg">±<\/span>прочее<\/span>/.test(hm) && !/прочее[^<]*прочее/.test(hm.replace(/data-tip="[^"]*"/g, '')),
     `Движение «Остатка» куратора за прошлый месяц: «☰ ${mv.cnt}» и список — на конец 30.09, сумма списка = концу движения (${DB.fmtVal(mv.move.end, 'sum')}), за текущий — на сегодня; «☰» на строке «на 30.09» конца движения, не в подвале; строка «прочее» печатает название один раз, у «Просрочено» — причина ухода «− прочее» (ДБ-118, ДБ-123, ДБ-155, ДБ-177; волна 7)`);
   // разрез, зафиксированный панелью, в открытой полосе не остаётся: вид — по свободному разрезу, глубже можно; панель сняли — выбор вернулся
   DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.openView('lead-od', 'map'); DB.viewSet('lead-od', 'dims', ['region', 'bucket']); DB.openView('lead-od', 'slice'); DB.viewSet('lead-od', 'dim', 'region');
