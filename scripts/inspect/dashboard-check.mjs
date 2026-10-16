@@ -1676,10 +1676,10 @@ const asUser = id => { DB.state.userId = id; };
     ['cur-plan0', 'main', 84.340601],
     ['cur-plan0', 'second.num', 1043036],
     ['cur-plan0', 'second.den', 1236695],
-    ['cur-plan1', 'main', 83.913041],
-    ['cur-plan1', 'second.num', 2974938],
-    ['cur-plan1', 'second.den', 3545263],
-    ['cur-plan1', 'shift', -0.210501],
+    ['cur-plan1', 'main', 83.978353],
+    ['cur-plan1', 'second.num', 3071258],
+    ['cur-plan1', 'second.den', 3657202],
+    ['cur-plan1', 'shift', -0.72909],
     ['cur-npay', 'main', 8],
     ['cur-obl', 'main', 6],
     ['p-u2-agro', 'main', 1]
@@ -1728,9 +1728,9 @@ const asUser = id => { DB.state.userId = id; };
     && eqv(rCR, MON.cur_rs) && sum(rCR.map(x => x[1])) === at('cur-rs', 'main', 'u2', 'cur') && at('cur-rs', 'table(rstage;rsapp.count).total', 'u2', 'cur') === 4,
     'Разрезы «Просрочено» по сроку, «Остатка» по категории и обращений по стадии считают главное число плитки: в сомах (было — счёт кредитов), сумма узлов = главному; строки — весь список, «нет просрочки 0» и «нет категории 0» тоже (волна 9, ДБ-169); обращения по стадиям — только в работе (1 + 1 = 2), все четыре — в Таблице; счёт — в Таблицах «Просрочено» и «Остатка»');
   const sh = (b, base) => near(b.shift.delta, b.value - base);
-  ok(192, at('lead-od', 'shift') === 7405971 && bd.shift.delta === 7405971 && sh(bd, 171372884) && bd.shift.label === 'к 30.09' && at('cur-od', 'shift', 'u2', 'cur') === 217667 && sh(cd, 8504625)
+  ok(192, at('lead-od', 'shift') === 9649146 && bd.shift.delta === 9649146 && sh(bd, 169129709) && bd.shift.label === 'к 30.09' && at('cur-od', 'shift', 'u2', 'cur') === 667800 && sh(cd, 8054492)
     && at('lead-paid', 'shift') === 60501 && sh(pd, 104653028) && pd.shift.label === 'к августу' && !('pp' in bd.shift),
-    'сдвиг «Просрочено» и «Поступило» — по главному числу в сомах (было — п.п. доли: 0,116 → 7,4 млн, −0,522 → 60 501, у Куратора 0,114 → 217 667); доля — во втором числе без собственного сдвига');
+    'сдвиг «Просрочено» и «Поступило» — по главному числу в сомах (было — п.п. доли: 0,116 → 9,6 млн, −0,522 → 60 501, у Куратора 0,114 → 667 800; волна 10: база — строки кредитов на 30.09); доля — во втором числе без собственного сдвига');
   const m0 = at('lead-borr', 'move(-1)'); DB.STAND.clientFlows = true; const m1 = at('lead-borr', 'move(-1)'); DB.STAND.clientFlows = false;
   ok(193, m0 === 'state:off' && DB.composeLayout('u1', 'lead').includes('lead-borr') && DB.ask(T('lead-borr'), U('u1'), 'lead', {}).state === 'ok'
     && m1.start === 914 && m1.end === 907 && sum(m1.inc.map(x => x.v)) === 4 && sum(m1.dec.map(x => x.v)) === 10 && m1.other === -1 && m1.start + 4 - 10 + m1.other === m1.end,
@@ -2383,9 +2383,9 @@ const asUser = id => { DB.state.userId = id; };
   // ДБ-140: сдвиг в единицах главного числа с базой, процент — в подсказке
   const tipOf = h => (/<span class="shift[^"]*" data-tip="([^"]*)"/.exec(h) || [])[1] || '';
   const bl = DB.base('lead-od', 'u1', 'lead').shift;
-  ok(236, sh(hod).slice(1).join('|') === '▲|' + DB.fmtVal(bl.delta, 'sum') + ' ' + bl.label && sh(hod)[2] === '7,4 млн к 30.09' && sh(DB.tileHTML('lead-claims', 'u1', 'lead')).slice(1).join('|') === '▲|8 к 30.09' && sh(hborr).slice(1).join('|') === '▼|4 к 30.09'
-    && sh(hc1).slice(1).join('|') === '▼|0,2 п.п. к августу' && sh(hpaid)[2] === '61 тыс. к августу' && !/%/.test(sh(hod)[2]) && /^Изменение \+4,3 % к 30\.09 · было 171 млн$/.test(tipOf(hod)) && /п\.п\.|%/.test(tipOf(hc1)) && !/\d\s?%\s?к/.test(sh(hc1)[2]),
-    'сдвиг считается в единицах главного числа и называет базу: «▲ 7,4 млн к 30.09» у суммы, «▲ 8 к 30.09» у счёта, «▼ 0,2 п.п. к августу» у доли; процент изменения и «было 171 млн» — в подсказке (ДБ-140; волна 7)');
+  ok(236, sh(hod).slice(1).join('|') === '▲|' + DB.fmtVal(bl.delta, 'sum') + ' ' + bl.label && sh(hod)[2] === '9,6 млн к 30.09' && sh(DB.tileHTML('lead-claims', 'u1', 'lead')).slice(1).join('|') === '▲|8 к 30.09' && sh(hborr).slice(1).join('|') === '▼|4 к 30.09'
+    && sh(hc1).slice(1).join('|') === '▼|0,7 п.п. к августу' && sh(hpaid)[2] === '61 тыс. к августу' && !/%/.test(sh(hod)[2]) && /^Изменение \+5,7 % к 30\.09 · было 169 млн$/.test(tipOf(hod)) && /п\.п\.|%/.test(tipOf(hc1)) && !/\d\s?%\s?к/.test(sh(hc1)[2]),
+    'сдвиг считается в единицах главного числа и называет базу: «▲ 9,6 млн к 30.09» у суммы, «▲ 8 к 30.09» у счёта, «▼ 0,7 п.п. к августу» у доли; процент изменения и «было 169 млн» — в подсказке (ДБ-140; волна 7; волна 10 — база по строкам кредитов на дату)');
 
 
   // ДБ-141: показ решает только автор плитки; смотрящему — «Скрыть у себя»
@@ -2400,8 +2400,8 @@ const asUser = id => { DB.state.userId = id; };
   DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
   ok(238, /\.tile \.second\{ display:flex; align-items:center; flex-wrap:wrap; gap:5px; font-size:13px; color:var\(--text-secondary\); font-variant-numeric:tabular-nums; \}/.test(src) && /\.tile \.second b\{ font-weight:600; color:var\(--text-heading\)/.test(src)
     && /<div class="second">\s*<span>\s*<b><span class="chipv yellow"[^>]*>4,6 %<\/span><\/b> портфеля <span class="thr">/.test(hod) && /<div class="second">\s*<span>\s*<b>1\s248<\/b> кредитов<\/span>/.test(hbal)
-    && /<div class="second">\s*<span>\s*<b>3,0<\/b> из 3,5 млн<\/span>/.test(hc1) && /\.tile \.thr\{ font-size:12px; font-weight:400; color:var\(--text-muted\)/.test(src),
-    'второе число: 13 px, значение жирное тёмное, подпись обычная вторым тоном текста (--text-secondary) — «4,6 % портфеля», «1 248 кредитов», «3,0 из 3,5 млн»; плашка светофора и граница стоят на нём, пока светофор оценивает второе, а у плитки с оценкой главного числа второе без плашки (ДБ-142, ДБ-165; волна 8: подпись была --text-body)');
+    && /<div class="second">\s*<span>\s*<b>3,1<\/b> из 3,7 млн<\/span>/.test(hc1) && /\.tile \.thr\{ font-size:12px; font-weight:400; color:var\(--text-muted\)/.test(src),
+    'второе число: 13 px, значение жирное тёмное, подпись обычная вторым тоном текста (--text-secondary) — «4,6 % портфеля», «1 248 кредитов», «3,1 из 3,7 млн»; плашка светофора и граница стоят на нём, пока светофор оценивает второе, а у плитки с оценкой главного числа второе без плашки (ДБ-142, ДБ-165; волна 8: подпись была --text-body)');
 
   // ДБ-143: нет сдвига — серое «без сдвига» с причиной; текущий месяц — прогресс к плану; автор не поставил — место пусто
   clone('cur-plan0', 'x-plan', { main:{ col:'loan.paidPlanned' }, tl:null, params:{ curator:'*', period:'curMonth' } }); clone('lead-paid', 'x-cm', { params:{ curator:'*', period:'curMonth' } });
@@ -2491,12 +2491,12 @@ const asUser = id => { DB.state.userId = id; };
   const nb = DB.base('lead-od', 'u1', 'lead', { region:'Ошская' }), shown = vch.lines.filter(l => !l.more), hidden = vch.nodes.filter(n => !shown.some(l => l.v === n.v)), absd = n => Math.abs(n.delta);
   DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.openView('lead-borr', 'slice'); DB.viewSet('lead-borr', 'dim', 'dept'); DB.mode('lead-borr', 'change');
   const bo = DB.state.open['lead-borr'], hbr = tab(DB.stripHTML('lead-borr', 'u1', 'lead')), vbr = V('lead-borr', 'slice', bo.sel, bo.path); DB.state.open = {};
-  const bd = vbr.lines.filter(l => !l.more).map(l => l.delta), mi = vbr.lines.findIndex(l => l.more);
-  ok(249, vch.mode === 'change' && vch.baseLabel === 'к 30.09' && vsm.mode === 'sum' && vsm.baseLabel === 'к 30.09' && near(vch.total.delta, nb.shift.delta, 1) && near(sum(vch.nodes.map(n => n.delta)), vch.total.delta, 1) && near(vch.total.delta, 2606748, 1)
-    && shown.every((l, i) => !i || l.delta <= shown[i - 1].delta) && vch.lines.length === 4 && vch.lines.at(-1).more === 3 && hidden.length === 3 && Math.min(...shown.map(absd)) >= Math.max(...hidden.map(absd)) && shown.map(l => l.label).join() === 'Экспорт,Агрокредит,Промышленность'
+  const bd = vbr.lines.filter(l => !l.more).map(l => l.delta), mi = vbr.lines.findIndex(l => l.more), vmi = vch.lines.findIndex(l => l.more);
+  ok(249, vch.mode === 'change' && vch.baseLabel === 'к 30.09' && vsm.mode === 'sum' && vsm.baseLabel === 'к 30.09' && near(vch.total.delta, nb.shift.delta, 1) && near(sum(vch.nodes.map(n => n.delta)), vch.total.delta, 1) && near(vch.total.delta, 2832074, 1)
+    && shown.every((l, i) => !i || l.delta <= shown[i - 1].delta) && vch.lines.length === 4 && vch.lines.filter(l => l.more).length === 1 && vch.lines[vmi].more === 3 && vch.lines[vmi - 1].delta >= 0 && vch.lines[vmi + 1].delta <= 0 && hidden.length === 3 && Math.min(...shown.map(absd)) >= Math.max(...hidden.map(absd)) && shown.map(l => l.label).join() === 'Агрокредит,Экспорт,Промышленность'
     && /<div class="rz c[45] chg">/.test(hch) && /<span>к 30\.09<\/span>/.test(hch) && /class="rz-d bad"[^>]*>▲ 1,9 млн<\/span>/.test(hch) && /class="rz-z"/.test(hch)
     && vbr.mode === 'change' && bd.some(d => d > 0) && bd.some(d => d < 0) && bd.every((d, i) => !i || d <= bd[i - 1]) && (hbr.match(/class="rz-f[^"]*\bneg\b/g) || []).length >= 1 && (mi < 0 || (vbr.lines[mi - 1].delta >= 0 || vbr.lines[mi + 1].delta <= 0)),
-    `«Просрочено › Ошская» по программам: рядом с суммой колонка разницы «к 30.09», итог разницы ${DB.fmtVal(vch.total.delta, 'sum')} = сдвигу плитки на панели «Ошская» и сумме по программам (Экспорт +1,9, Агрокредит и Промышленность по +0,3, остальные три сливаются в «ещё 3»); «Изменение» ставит первыми самые большие сдвиги в любую сторону, рисует их полосами от нулевой линии, у заёмщиков с просрочкой есть и рост, и падение — порядок от роста к падению (ДБ-153, ДБ-160; волна 7: было сумма без разницы)`);
+    `«Просрочено › Ошская» по программам: рядом с суммой колонка разницы «к 30.09», итог разницы ${DB.fmtVal(vch.total.delta, 'sum')} = сдвигу плитки на панели «Ошская» и сумме по программам (Агрокредит +1,9, Экспорт +1,8, Промышленность −1,3, остальные три сливаются в «ещё 3» между ростом и падением; волна 10 — база по строкам кредитов на 30.09); «Изменение» ставит первыми самые большие сдвиги в любую сторону, рисует их полосами от нулевой линии, у заёмщиков с просрочкой есть и рост, и падение — порядок от роста к падению (ДБ-153, ДБ-160; волна 7: было сумма без разницы)`);
 
   // ДБ-154: Карта — итоги справа и снизу, в ячейке одно число, «Изменение» красит по разнице
   DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
