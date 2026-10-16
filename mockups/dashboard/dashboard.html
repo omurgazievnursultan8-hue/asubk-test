@@ -253,7 +253,12 @@ select:hover,input[type=text]:hover,input[type=number]:hover{ border-color:var(-
 .mv-w .rz-v.bad{ color:var(--asubk-red); } .mv-w .rz-v.good{ color:var(--asubk-green); } .mv-w .rz-v.neu{ color:var(--text-muted); }
 .mv-w .rz-f.neu{ background:var(--asubk-ink-45); }
 .mv-w .mv-e{ cursor:default; background:var(--surface-panel); } .mv-w .mv-e:hover{ background:var(--surface-panel); } .mv-w .mv-e:hover .rz-nm{ color:var(--text-heading); } .mv-w .mv-e .rz-v{ font-weight:600; }
-.mv-chain{ display:flex; gap:8px; margin-top:10px; font-size:12.5px; color:var(--text-muted); cursor:help; font-variant-numeric:tabular-nums; }
+.mv-chain{ display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; font-size:12px; line-height:1.4; color:var(--text-muted); cursor:help; font-variant-numeric:tabular-nums; }
+.mv-w .rz-nm .pill{ margin-left:8px; vertical-align:1px; }
+/* «пришли из … / ушли в …» под строкой узла Разреза в «Изменении»: серая мелкая подстрока под суммой, «☰» — список перехода */
+.rz-r.has-mv{ row-gap:1px; }
+.rz-mv{ grid-column:2/-1; display:flex; flex-wrap:wrap; align-items:center; gap:0 6px; min-width:0; font-size:12px; line-height:1.35; color:var(--text-muted); }
+.rz-mvp{ display:inline-flex; align-items:center; gap:2px; white-space:nowrap; } .rz-mv .ls{ font-size:12px; padding:1px 3px; } .rz-mvs{ font-variant-numeric:tabular-nums; } .rz-mvd{ color:var(--text-placeholder); }
 .total-row{ font-size:12.5px; color:var(--text-muted); border-top:1px solid var(--asubk-grid-line); margin-top:3px; padding-top:2px; }
 svg.chart text{ font:11px var(--asubk-font); fill:var(--text-muted); }
 /* Ряд: столбцы по числу точек (6/12/24) — HTML, не растянутый рисунок; сумма над каждым, под месяцем — разница (в «Изменении» — сумма), «☰ N» — при наведении;
@@ -401,7 +406,8 @@ svg.chart text{ font:11px var(--asubk-font); fill:var(--text-muted); }
   .arrange-only{ display:none !important; } .kv{ grid-template-columns:1fr; }
   .list{ display:block; overflow-x:auto; } .btn{ white-space:normal; height:auto; min-height:32px; } select{ max-width:100%; }
   .rz{ --rz-cols:minmax(0,1fr) 70px 76px 44px; } .rz.c4{ --rz-cols:minmax(0,1fr) 70px 44px; } .rz-hd,.rz-r{ gap:4px 10px; } .rz-hd span:nth-child(5){ display:none; } .rz-t{ grid-column:1/-1; } .rz-tot .rz-t{ display:none; }
-  .rz.mv-w{ --rz-cols:minmax(0,1fr) 84px 44px; } .mv-w .mv-e .rz-t{ display:none; }
+  .rz.mv-w{ --rz-cols:minmax(0,1fr) 84px 44px; } .mv-w .mv-e .rz-t{ display:none; } .mv-w .mv-warn .rz-nm{ white-space:normal; } .mv-w .mv-warn .rz-nm .pill{ margin:2px 0 0; }
+  .rz-mv{ grid-column:1/-1; } .rz-mvp{ white-space:normal; flex-wrap:wrap; }
   .heat{ min-width:560px; } .heat th.l{ white-space:nowrap; } .heat col.hm-lab{ width:110px; } .heat col.hm-tc{ width:76px; } .heat td,.heat th{ padding-left:3px; padding-right:3px; }
   .tb{ --tb-nm:120px; --tb-n:112px; --tb-ls:58px; font-size:12.5px; } .tb th,.tb td{ padding-left:6px; padding-right:6px; }
 }
@@ -852,7 +858,7 @@ function loanHist(row){
       base: on && why!=='прочее' ? (row.paid||0)*jitter(row, 'mv'+m+'paid', 0.2)*part : 0,
       wr: (on && days>180 ? (row.written||0)*jitter(row, 'mv'+m+'written', 0.2)*part : 0) + (why==='списан' ? prev.overdue : 0),
       ev: why==='погасил' ? prev.overdue : 0,
-      sm: on ? (B0*0.0006*jitter(row, 'sm'+m, 0.5) + (row.status==='Во взыскании' && days>90 ? B0*0.0012 : 0))*part : 0 });
+      sm: on ? (B0*0.0006*jitter(row, 'sm'+m, 0.5) + (row.status==='Во взыскании' && days>90 ? B0*0.0012 : 0))*part + bigOtherAt(row, m) : 0 });
     const moved = tm!==null && m<tm;
     const status = row.closed ? (m<row.to ? 'Обычный' : row.status) : row.status==='Во взыскании' ? (days>90 ? row.status : 'Обычный')
       : row.status==='В реструктуризации' ? (restr ? row.status : 'Обычный') : row.status;
@@ -876,7 +882,10 @@ function loanHist(row){
     if(m<0) s.risk = s.days>0 ? Math.round(s.balance*(row.coverage||0)/100*0.6) : 0; });
   return { lo, out, fl };
 }
-function loanAt(row, m){ let H = SNAP.get(row); if(!H) SNAP.set(row, H = loanHist(row));
+// флаг стенда «комиссии без потоков»: у каждого пятого кредита в двух последних месяцах крупное начисление комиссий (8 % остатка) —
+// потока у ядра нет, оно уходит в «прочее» Остатка, и Движение получает «большое необъяснённое»; история кредита пересчитывается при смене флага
+function bigOtherAt(row, m){ return STAND.bigOther && m>=-1 && !row.closed && hash(row.id+'|bigo')%5===0 ? (row.balance || 0)*0.08 : 0; }
+function loanAt(row, m){ let H = SNAP.get(row); if(!H || H.big!==!!STAND.bigOther){ SNAP.set(row, H = loanHist(row)); H.big = !!STAND.bigOther; }
   return H.out.get(Math.min(0, Math.max(H.lo, m))); }
 // потоки кредита за месяц m из той же истории, что и остаток: issued, acc, paid, wr, sm — целыми; до окна истории — нули
 function loanFlow(row, key, m){ loanAt(row, m); const x = SNAP.get(row).fl.get(m); return x ? x[key] : 0; }
@@ -1216,7 +1225,7 @@ ind('asset.exp',      { obj:'asset', name:'Расходы на содержан�
 ind('asset.days',     { obj:'asset', name:'Наибольший срок на учёте', agg:'max', field:'daysOnBook', unit:'days', dir:'up_bad', where:IM_ON });
 
 /* ================= Стенд: настройки «соседей» ================= */
-const STAND = { wave:3, spells:false, statDown:false, nightRunFailed:false, queueLag:0, nightOnly:{}, overdueUp:false, noAnswer:false, withdrawn:{}, closedThrough:-2, N:150 };
+const STAND = { wave:3, spells:false, statDown:false, nightRunFailed:false, queueLag:0, nightOnly:{}, overdueUp:false, noAnswer:false, bigOther:false, withdrawn:{}, closedThrough:-2, N:150 };
 const STAND_SEED = JSON.stringify(STAND);
 
 /* ================= Даты, периоды, базы сдвига ================= */
@@ -1688,33 +1697,36 @@ function shiftOf(q, rows, ctx, val, rowsAt){
 // числа) и кто ушёл в другие (вклад — минус его число на базе); только значения со вкладом, в объявленном порядке разреза; объект, который
 // на другой дате вне охвата плитки (сменился куратор или подразделение условия), — одной строкой охвата последней
 // rows — строки числа и строки базы вместе; inP(r, m) — строка в панели по полю с историей на дату m (вне панели — тоже охват)
-function nodeMoves(rows, d, v, I, ctx, bctx, inP){
+function nodeMoves(rows, d, v, I, ctx, bctx, inP, keep){
   const cm = ctxMonth(ctx), bm = ctxMonth(bctx), D = DIMS[d], memb = (ctx.tf || []).filter(c=>DIMS[c.f].rowAt), inPanel = inP || (()=>true);
   const outOf = (r, m)=>!inPanel(r, m) || memb.some(c=>!testCond(r, c, null, m));
-  const from = new Map(), to = new Map(), put = (M, k, x)=>{ const e = M.get(k) || { cnt:0, sum:0 }; e.cnt++; e.sum += x; M.set(k, e); };
+  const from = new Map(), to = new Map(), put = (M, k, x, r)=>{ const e = M.get(k) || { cnt:0, sum:0, list:[] }; e.cnt++; e.sum += x; if(keep) e.list.push({ r, v:x }); M.set(k, e); };
   for(const r of rows){ const a = dimAt(d, r, bm), b = dimAt(d, r, cm);
     const ve = inPanel(r, cm) ? valueOf(r, I, ctx) : null, vb = inPanel(r, bm) ? valueOf(r, I, bctx) : null, rawAt = m=>stockAt(r, I, { m });
     if(b===v && contributes(I, ve)){
-      if(vb===null && outOf(r, bm) && contributes(I, rawAt(bm))) put(from, null, ve);
-      else if(a!==v && contributes(I, vb)) put(from, a, ve); }
+      if(vb===null && outOf(r, bm) && contributes(I, rawAt(bm))) put(from, null, ve, r);
+      else if(a!==v && contributes(I, vb)) put(from, a, ve, r); }
     if(a===v && contributes(I, vb)){
-      if(ve===null && outOf(r, cm) && contributes(I, rawAt(cm))) put(to, null, -vb);
-      else if(b!==v && contributes(I, ve)) put(to, b, -vb); } }
+      if(ve===null && outOf(r, cm) && contributes(I, rawAt(cm))) put(to, null, -vb, r);
+      else if(b!==v && contributes(I, ve)) put(to, b, -vb, r); } }
   const ord = x=>x===null ? 2e6 : D.values && D.values.includes(x) ? D.values.indexOf(x) : 1e6;
   const list = M=>[...M.entries()].sort((x, y)=>ord(x[0]) - ord(y[0]) || String(dimLabel(d, x[0])).localeCompare(String(dimLabel(d, y[0]))))
-    .map(([k, e])=>k===null ? { v:null, label:'охват', scope:true, cnt:e.cnt, sum:e.sum } : { v:k, label:dimLabel(d, k), cnt:e.cnt, sum:e.sum });
+    .map(([k, e])=>Object.assign(k===null ? { v:null, label:'охват', scope:true, cnt:e.cnt, sum:e.sum } : { v:k, label:dimLabel(d, k), cnt:e.cnt, sum:e.sum }, keep ? { list:e.list } : {}));
   return { from:list(from), to:list(to) };
 }
+// переходы узлов разреза для вопроса q: rows0 — строки числа, rowsB — строки базы (на её дату), bctx — время базы; (d, v, keep) → nodeMoves
+function nodeMovesOf(q, rows0, rowsB, bctx, obj, panel){
+  const ph = obj ? panelHist(obj, panel) : [], both = rowsB===rows0 ? rows0 : [...new Set(rows0.concat(rowsB))];
+  const inP = ph.length ? (r, m)=>ph.every(k=>dimAt(panelDim(obj, k), r, m)===panel[k]) : null;
+  return (d, v, keep)=>nodeMoves(both, d, v, IND[q.inds[0]], ctxOf(q), bctx, inP, keep); }
 function addDiff(res, q, rows0, B, val, rowsAt, obj, panel){
   const bm = ctxMonth(B.ctx), at = (d, r)=>dimAt(d, r, bm), u = res.unit, bv = rs=>val(rs, B.ctx).v;
   // строки базы — на дату базы (панель по полю с историей); у потока база — тот же состав
-  const rows = B.ctx.point && rowsAt ? rowsAt(bm) : rows0, ph = obj ? panelHist(obj, panel) : [];
-  const both = rows===rows0 ? rows0 : [...new Set(rows0.concat(rows))];
-  const inP = ph.length ? (r, m)=>ph.every(k=>dimAt(panelDim(obj, k), r, m)===panel[k]) : null;
+  const rows = B.ctx.point && rowsAt ? rowsAt(bm) : rows0;
   res.baseLabel = B.label;
   // «пришли из … / ушли в …» у узла разреза с историей — у остатка (числа на дату), не у доли и не у наибольшего
   const I0 = IND[q.inds[0]], mvOK = d=>!!DIMS[d].at && !!B.ctx.point && !q.share && I0.agg!=='max';
-  const mv = (d, v)=>nodeMoves(both, d, v, I0, ctxOf(q), B.ctx, inP);
+  const mv = nodeMovesOf(q, rows0, rows, B.ctx, obj, panel);
   if(res.nodes){ const d = q.dims[0]; res.nodes.forEach(n=>{ const x = val(rows.filter(r=>at(d, r)===n.v), B.ctx); setDiff(n, n.value, x.v, u);
     if(q.share){ n.baseNum = x.num; n.baseDen = x.den; }   // у доли — числитель и знаменатель на базе: для «ещё N»
     if(mvOK(d)) n.moves = mv(d, n.v); }); }
@@ -1971,6 +1983,12 @@ function statRows(tile, user, roleId, panel, node, path){
   let rows = res.rows;
   if(node && node.m!==undefined && I.kind==='stock')        // список на дату — панель по полю с историей на ту же дату, как число
     rows = panelRowsAt(rows, I.obj, panel, { base:rowsFor(user, roleId, I.obj), user, roleId, panel }, q.filter, node.m);
+  if(mvNode(node)){                                             // «пришли из … / ушли в …» узла разреза: объекты перехода, значение — вклад со знаком
+    const e = mvEntry(tile, user, roleId, panel, path, node, q, rows, true);
+    if(!e) return { refused:true, msg:'переходов узла нет: у разреза нет истории или у вида нет базы' };
+    const list = e.list.slice().sort((a,b)=>Math.abs(b.v) - Math.abs(a.v));
+    if(list.length > STAND.N) return { refused:true, count:list.length, inFilter:rows.length, msg: nbsp(list.length)+' строк — сузьте вопрос разрезом или возьмите выгрузкой', passport:res.passport };
+    return { refused:false, list, inFilter:rows.length, unit:I.unit, sum: list.reduce((a,x)=>a+x.v,0), passport:res.passport, obj:I.obj }; }
   if(node){ if(node.d) rows = rows.filter(r=>dimAt(node.d, r, cm)===node.v); if(node.d2) rows = rows.filter(r=>dimAt(node.d2, r, cm)===node.v2); }
   if(node && node.flow){                                        // строка Движения (mv — месяц движения): её объекты, значение — вклад объекта в строку со знаком
     const M = node.mv || 0, tf = timeConds(q.filter); let all, list;
@@ -1992,8 +2010,20 @@ function statRows(tile, user, roleId, panel, node, path){
   list.sort((a,b)=>b.v-a.v);
   return { refused:false, list, inFilter:all.length, unit:spec.unit, sum: list.reduce((a,x)=>a+x.v,0), passport:res.passport, obj:I.obj };
 }
+// узел перехода разреза: { d, v, from:v2 } — пришли в v из v2, { d, v, to:v2 } — ушли из v в v2; v2 = null — охват
+const mvNode = node=>!!node && !!node.d && (node.from!==undefined || node.to!==undefined);
+// строка «пришли из / ушли в» узла: база — база разницы вида (база сдвига плитки), строки базы — на её дату; keep — с объектами
+function mvEntry(tile, user, roleId, panel, path, node, q, rows, keep){
+  const I = IND[q.inds[0]], key = shiftRule(tile, srcOf(tile), mainQ(tile, path)).key; if(!key || !DIMS[node.d].at) return null;
+  const B = diffBase(ctxOf(q), key); if(B.none || !B.ctx.point) return null;
+  try { const env = { base:rowsFor(user, roleId, I.obj), user, roleId, panel }, rowsB = panelRowsAt(rows, I.obj, panel, env, q.filter, ctxMonth(B.ctx));
+    const mv = nodeMovesOf(q, rows, rowsB, B.ctx, I.obj, panel)(node.d, node.v, keep), dir = node.from!==undefined ? 'from' : 'to', v2 = node[dir];
+    return mv[dir].find(x=>x.v===v2) || { cnt:0, sum:0, list:[] }; }
+  finally { B.done(); } }
+const mvNodeName = (d, dir, v2)=>v2===null ? (dir==='from' ? 'пришли в охват' : 'ушли из охвата') : (dir==='from' ? 'пришли из ' : 'ушли в ')+dimLabel(d, v2);
 function nodeText(q, node){
   if(!node) return '';
+  if(mvNode(node)){ const dir = node.from!==undefined ? 'from' : 'to'; return dimLabel(node.d, node.v)+' · '+mvNodeName(node.d, dir, node[dir]); }
   if(node.flow){ const M = node.mv || 0;   // строка Движения: «новые в просрочке · с 30.09 по сегодня»
     return mvRowName(q, node.flow, M)+' · с '+monthEndLabel(M - 1)+' по '+(M===0 ? 'сегодня' : monthEndLabel(M)); }
   if(node.m!==undefined) return IND[q.inds[0]].kind==='stock' ? (node.m===0 ? 'на сегодня' : 'на конец '+monthEndLabel(node.m)) : 'за '+monthName(node.m);
@@ -2013,6 +2043,11 @@ function drill(tileId, user, roleId, panel, node, path){
 function nodeNum(t, user, roleId, panel, node, path){
   const q = numQ(t, path, node && node.of); if(!q) return null;
   if((q.share ? IND[q.share[0]] : IND[q.inds[(node && node.line) || 0]]).agg==='max') return null;
+  if(mvNode(node)){                                             // число перехода узла — из того же Разреза с разницей, что рисует вид
+    const key = shiftRule(t, srcOf(t), mainQ(t, path)).key; if(!key) return null;
+    const r = answer(Object.assign(q, { format: DIMS[node.d].ordered ? 'steps' : 'slice', dims:[node.d], diff:key }), user, roleId, panel);
+    const n = r.nodes && r.nodes.find(x=>x.v===node.v), dir = node.from!==undefined ? 'from' : 'to', e = n && n.moves && n.moves[dir].find(x=>x.v===node[dir]);
+    return !n || !n.moves ? null : e ? e.sum : 0; }
   if(node && (node.all || (q.numFilter || []).some(c=>c.f===node.d || c.f===node.d2))){ delete q.share; delete q.numFilter; }
   if(node && node.d) q.filter.push({ f:node.d, op:'eq', v:node.v }); if(node && node.d2) q.filter.push({ f:node.d2, op:'eq', v:node.v2 });
   if(node && node.flow){                                        // число потока Движения — из того же движения, что рисует вид
@@ -3370,7 +3405,9 @@ function stripOps(k, r){
     go:(d, v, d2, v2)=>r.next ? `DB.deeper(${a(d, v, d2, v2)})` : `DB.whoAt(${a(d, v, d2, v2)})`,
     all:n=>n===undefined || n===null ? '' : `<button class="ls quiet${n ? '' : ' zero'}" data-tip="Кто в этом числе: ${nbsp(n)} стр." onclick="event.stopPropagation();DB.whoAt('${id}')">☰ ${nbsp(n)}</button>`,   // «☰ N» итога — список самого узла полосы
     ls:(d, v, d2, v2, n)=>n===undefined || n===null ? '' : `<button class="ls${n ? '' : ' zero'}" data-tip="Кто в этом числе: ${nbsp(n)} стр." onclick="event.stopPropagation();DB.whoAt(${a(d, v, d2, v2)})">☰ ${nbsp(n)}</button>`,
-    month:(m, line)=>`DB.whoMonthAt('${id}',${m}${line ? ','+line : ''})` };
+    month:(m, line)=>`DB.whoMonthAt('${id}',${m}${line ? ','+line : ''})`,
+    // «☰ N» части «пришли из / ушли в» узла: объекты перехода (v2 = null — охват)
+    mv:(d, v, dir, v2, n, name)=>`<button class="ls quiet" data-tip="${esc('Кто перешёл: '+nbsp(n)+' стр. · '+name)}" onclick="event.stopPropagation();DB.whoMoveAt('${id}','${d}','${esc(v)}','${dir}',${v2===null ? 'null' : `'${esc(v2)}'`})">☰ ${nbsp(n)}</button>` };
 }
 function dimOptions(list, cur, src){
   const opt = x=>`<option value="${x.dim}" ${x.dim===cur?'selected':''}>${DIMS[x.dim].req ? '⚑ ' : ''}${esc(x.name)}</option>`, own = list.filter(x=>!x.temp), rest = list.filter(x=>x.temp);
@@ -3554,43 +3591,60 @@ function rzBody(res, q, ops, go){
     if(!chg){ const w = Math.max(0, n.value || 0) / maxV * 100; return `<span class="rz-t">${w>0 ? `<span class="rz-f" style="width:${Math.max(.3, w)}%"></span>` : ''}</span>`; }
     const d = n.delta, w = d===null || d===undefined ? 0 : Math.abs(d) / span * 100, x = rzDelta(q, res, d);
     return `<span class="rz-t"><span class="rz-z" style="left:${zero.toFixed(2)}%"></span>${w>0 ? `<span class="rz-f ${x.tone}${d<0 ? ' neg' : ''}" style="left:${(d<0 ? zero - w : zero).toFixed(2)}%;width:${Math.max(.3, w).toFixed(2)}%"></span>` : ''}</span>`; };
-  const row = (n, kind)=>{ const num = chg ? dCell(n, kind==='tot') + vCell(n) : vCell(n) + (diff ? dCell(n) : '');
-    return `<div class="rz-r${kind ? ' rz-'+kind : ''}"${kind ? '' : ` data-tip="${esc(tip(n))}" onclick="event.stopPropagation();${go(dim, n.v)}"`}><span class="rz-nm"${kind==='more' ? tipAttr(tip(n)) : ''}>${esc(kind==='tot' ? 'итог' : n.label)}</span>${num}${cCell(n, kind)}${bar(n, kind)}</div>`; };
+  // «Изменение» узла разреза с историей: под строкой серая подстрока «пришли из 31–90 ☰ 5 +4,3 млн · ушли в 181+ ☰ 4 −5,1 млн» — только у узлов
+  // с переходами; «☰» — список объектов перехода. В «Сумме» те же части — в подсказке строки
+  const mvLine = n=>{ const ps = chg ? mvParts(n.moves) : []; if(!ps.length) return '';
+    return `<div class="rz-mv">${ps.map(p=>`<span class="rz-mvp">${esc(p.name)} ${ops && ops.mv ? ops.mv(dim, n.v, p.dir, p.v, p.cnt, p.name) : `<span class="st">☰ ${nbsp(p.cnt)}</span>`} <span class="rz-mvs">${mvSum(p.sum, unit)}</span></span>`).join('<span class="rz-mvd">·</span>')}</div>`; };
+  const row = (n, kind)=>{ const num = chg ? dCell(n, kind==='tot') + vCell(n) : vCell(n) + (diff ? dCell(n) : ''), sub = kind ? '' : mvLine(n);
+    const rt = kind ? '' : [tip(n), ...(chg ? [] : mvTipLines(n.moves, unit))].join('\n');
+    return `<div class="rz-r${kind ? ' rz-'+kind : ''}${sub ? ' has-mv' : ''}"${kind ? '' : ` data-tip="${esc(rt)}" onclick="event.stopPropagation();${go(dim, n.v)}"`}><span class="rz-nm"${kind==='more' ? tipAttr(tip(n)) : ''}>${esc(kind==='tot' ? 'итог' : n.label)}</span>${num}${cCell(n, kind)}${bar(n, kind)}${sub}</div>`; };
   const head = diff ? `<div class="rz-hd"><span></span>${chg ? `<span>${esc(lab)}</span><span>${esc(asOf)}</span>` : `<span>${esc(asOf)}</span><span>${esc(lab)}</span>`}<span></span><span></span></div>` : '';
   return `<div class="rz ${diff ? 'c5' : 'c4'}${chg ? ' chg' : ''}">${head}${lines.map(n=>row(n, n.more ? 'more' : '')).join('')}${row(Object.assign({}, tot, { value:tot.v, cnt:res.cnt }), 'tot')}</div>`; }
-// строка сверки Движения: «171 + 6,9 − 3,8 − 0,9 + 5,2 = 179 млн» — одна единица на все числа, не выше «млн», знаки по правилу сумм полосы: от 100 млн — целые,
-// ниже — один знак (в «тыс.» и «сом» — целые). Это пояснение, не проверка: показанная арифметика может разойтись на округлении.
-// terms — начало и потоки по модулю со знаком перед ними; не деньги — числа как есть
+// строка-пояснение Движения: «26,6 + 3,4 − 0,9 − 186 тыс. … = 29,2 млн». Каждое число — тем же округлением, что в своей строке (fmtVal):
+// от 100 млн целые, ниже — один знак, меньше миллиона — «тыс.»; единица конца печатается один раз, в конце, у числа в другой единице она остаётся.
+// Это пояснение, не проверка: показанная арифметика может разойтись на округлении. terms — начало и строки по модулю со знаком перед ними
 function mvChain(terms, end, u){
-  if(u!=='sum') return terms.map((x, i)=>(i ? x.sg+' ' : '')+fmtVal(x.v, u)).join(' ')+' = '+fmtVal(end, u);
-  const mx = Math.max(Math.abs(end), ...terms.map(x=>Math.abs(x.v))), k = mx>=1e6 ? 1e6 : mx>=1e3 ? 1e3 : 1, name = k===1e6 ? ' млн' : k===1e3 ? ' тыс.' : '';
-  const f = v=>{ const a = Math.abs(v) / k, s = v<0 ? '−' : '';
-    return s+(k===1e6 && Math.round(a * 10)<1000 ? a.toFixed(1).replace('.', ',') : nbsp(Math.round(a))); };
-  return terms.map((x, i)=>(i ? x.sg+' ' : '')+f(x.v)).join(' ')+' = '+f(end)+name;
+  const e = fmtVal(end, u), unit = u==='sum' ? (/ (млн|тыс\.)$/.exec(e) || [''])[0] : '';
+  const f = v=>{ const t = fmtVal(v, u); return unit && t.endsWith(unit) ? t.slice(0, -unit.length) : t; };
+  return terms.map((x, i)=>(i ? x.sg+' ' : '')+f(x.v)).join(' ')+' = '+f(end)+unit;
 }
+// «пришли из … / ушли в …» узла разреза (n.moves): части по значениям со вкладом — сначала пришедшие, затем ушедшие; охват — одной частью
+function mvParts(mv){ if(!mv) return [];
+  const one = dir=>x=>({ dir, v:x.v, cnt:x.cnt, sum:x.sum, name: x.scope ? (dir==='from' ? 'пришли в охват' : 'ушли из охвата') : (dir==='from' ? 'пришли из ' : 'ушли в ')+x.label });
+  return [...mv.from.map(one('from')), ...mv.to.map(one('to'))]; }
+const mvSum = (v, u)=>(v>0 ? '+' : v<0 ? '−' : '')+fmtVal(Math.abs(v), u);
+// те же части строками подсказки: «пришли из 31–90: ☰ 5, +4,3 млн»
+const mvTipLines = (mv, u)=>mvParts(mv).map(p=>p.name+': ☰ '+nbsp(p.cnt)+', '+mvSum(p.sum, u));
 // Движение: строки той же формы, что у Разреза («название · сумма · ☰ N · полоса», колонки .rz-*, название шире), начало и конец — числами без полос на сером;
-// каждая строка (res.move.rows) — полоса от общей линии нуля: пришло — вправо, ушло — влево, цвет по направлению показателя, «прочее» и «нет ответа» серым;
+// каждая строка (res.move.rows) — полоса от общей линии нуля: пришло — вправо, ушло — влево, цвет по направлению показателя, «прочее», «нет ответа» и охват
+// серым (у Заёмщиков «прочее» — событие, по направлению); большое «прочее» денежных — янтарная метка «⚠ большое необъяснённое» у строки;
 // шкала — по самой большой строке. «☰ N» строки — её объекты (начало — cnt0, конец — res.cnt); клик по строке — их список (DB.whoFlowAt).
 // Под строками — цепочка-пояснение «начало ± строки = конец»; галочки нет: у переходов сумма сходится по построению
 function mvBody(res, q, ops){
   const m = res.move, I = IND[q.inds[0]], u = res.unit, M = m.M, id = esc(res.tileId), from = monthEndLabel(M - 1), to = M===0 ? 'сегодня' : monthEndLabel(M), when = 'с '+from+' по '+to;
   const clock = M===0 ? (/^на (\d{1,2}:\d{2})/.exec(res.passport || '') || [])[1] : '';
-  const flows = m.rows.map(f=>Object.assign({ other:f.kind==='other' || f.kind==='noanswer' }, f));
+  // серые: «прочее» (остаток денежных, у Просрочено — ушла без причины), «нет ответа» и охват; события и потоки — по направлению показателя
+  const flows = m.rows.map(f=>Object.assign({ other:f.kind==='other' || f.kind==='noanswer' || f.kind==='scope' }, f));
   const up = Math.max(0, ...flows.map(f=>f.v)), dn = Math.max(0, ...flows.map(f=>-f.v)), span = (up + dn) || 1, zero = (dn / span * 100).toFixed(2);   // шкала — по самому большому потоку
   const tone = f=>f.other || !f.v ? 'neu' : I.dir==='up_good' || I.dir==='up_bad' ? ((I.dir==='up_good')===(f.v>0) ? 'good' : 'bad') : 'flat';
   const sgn = v=>v>0 ? '+' : v<0 ? '−' : '', num = v=>sgn(v)+fmtVal(Math.abs(v), u);
   const ls = (n, code, quiet, tip)=>!ops || n===undefined || n===null ? '' : `<button class="ls${quiet ? ' quiet' : ''}${n ? '' : ' zero'}" data-tip="${esc('Кто в этом числе: '+nbsp(n)+' стр.'+(tip ? ' · '+tip : ''))}" onclick="event.stopPropagation();${code}">☰ ${nbsp(n)}</button>`;
   const zl = `<span class="rz-z" style="left:${zero}%"></span>`;
   const edge = (kind, name, v, c)=>`<div class="rz-r mv-e" data-edge="${kind}"><span class="rz-nm">${esc(name)}</span><span class="rz-v">${fmtVal(v, u)}</span><span class="rz-c">${c}</span><span class="rz-t">${zl}</span></div>`;
-  const flowRow = f=>{ const t = tone(f), w = Math.abs(f.v) / span * 100, go = ops ? `DB.whoFlowAt('${id}','${f.key}')` : '';
-    return `<div class="rz-r mv-f" data-flow="${f.key}" data-kind="${f.kind}"${tipAttr(f.name+': '+num(f.v)+' · '+when+(f.tip ? ' · '+f.tip : ''))}${go ? ` onclick="event.stopPropagation();${go}"` : ''}><span class="rz-nm"><span class="mv-sg">${f.sg}</span>${esc(f.name)}</span>`
+  // большое «прочее» денежного Движения — янтарная метка у строки «прочее»; ниже порога — только серый тон строки
+  const warn = m.big && m.big.level==='warn', pct = x=>(Math.round(x*1000)/10).toString().replace('.', ',')+' %';
+  const bigTip = f=>'Большое необъяснённое: «прочее» '+num(f.v)+(m.big.share===null ? ' при нулевом изменении' : ' — '+pct(m.big.share)+' изменения '+when)
+    +', больше четверти изменения и больше 1 % начала. Потоки владельца его не покрыли; в нём — '+(f.tip || '').replace(/^[^:]*: /, '');
+  const bigMark = f=>warn && f.key==='other' ? `<span class="pill warn mv-big"${tipAttr(bigTip(f))}>⚠ большое необъяснённое</span>` : '';
+  const flowRow = f=>{ const t = tone(f), w = Math.abs(f.v) / span * 100, go = ops ? `DB.whoFlowAt('${id}','${f.key}')` : '', mk = bigMark(f);
+    return `<div class="rz-r mv-f${mk ? ' mv-warn' : ''}" data-flow="${f.key}" data-kind="${f.kind}"${tipAttr(f.name+': '+num(f.v)+' · '+when+(f.tip ? ' · '+f.tip : ''))}${go ? ` onclick="event.stopPropagation();${go}"` : ''}><span class="rz-nm"><span class="mv-sg">${f.sg}</span>${esc(f.name)}${mk}</span>`
       +`<span class="rz-v ${t}">${num(f.v)}</span><span class="rz-c">${ls(f.cnt, go, false, f.name)}</span>`
       +`<span class="rz-t">${zl}${w>0 ? `<span class="rz-f ${t}${f.v<0 ? ' neg' : ''}" style="left:${(f.v<0 ? Math.max(0, zero - w) : +zero).toFixed(2)}%;width:${Math.max(.3, w).toFixed(2)}%"></span>` : ''}</span></div>`; };
-  const chain = mvChain([{ sg:'', v:m.start }].concat(flows.map(f=>({ sg:f.v<0 || (!f.v && f.sg==='−') ? '−' : '+', v:Math.abs(f.v) }))), m.end, u);
+  const chain = mvChain([{ sg:'', v:m.start }].concat(flows.filter(f=>f.v).map(f=>({ sg:f.v<0 ? '−' : '+', v:Math.abs(f.v) }))), m.end, u);   // нулевые строки в цепочку не идут
   const startLs = ls(m.cnt0, ops && ops.month(M - 1), true, 'на '+from);
   return `<div class="mv-cap"><b>${esc(when)}</b>; вправо — пришло, влево — ушло</div>`
     +`<div class="rz mv-w">${edge('start', 'на '+from, m.start, startLs)}${flows.map(flowRow).join('')}${edge('end', M===0 ? 'на сегодня'+(clock ? ', '+clock : '') : 'на '+to, m.end, ops ? ops.all(res.cnt) : '')}</div>`
-    +`<div class="mv-chain"${tipAttr('Пояснение: начало, строки и конец; числа в строке округлены')}>${chain}</div>`;
+    +`<div class="mv-chain"${tipAttr('Пояснение, не проверка: начало, ненулевые строки и конец — теми же округлёнными числами, что в строках')}>${chain}</div>`;
 }
 // Таблица: названия 220 px, числа — колонками по 170 px, «☰ N» — последней, тихо; таблица не растягивается — справа пусто. Первая колонка — показатель плитки (viewSel ставит её первой):
 // выделена, по ней порядок строк (упорядоченный разрез — свой порядок в обоих режимах, маркера нет). «Сумма» — в ячейке значение, разница к базе — в подсказке; «Изменение» — в ячейке разница
@@ -3604,9 +3658,11 @@ function tbBody(res, q, ops, go, t){
   const dl = (a, i)=>rzDelta({ inds:[cols[i].id===SHARE_COL ? (sh ? sh.inds[0] : q.inds[0]) : cols[i].id] }, { unit:cols[i].unit }, a.deltas[i]);
   const val = (a, i)=>fmtVal(a.cells[i], cols[i].unit);
   // подсказка разницы: процент, база и «было»; при «Сумме» разница в ячейке не видна — подсказка называет и её
-  const dtip = (a, i, x)=>{ if(x.dir==='none') return ''; const p = rzPct(a.pcts[i]), b = a.bases[i];
-    return tipAttr('Изменение '+(chg ? '' : x.text+' ')+(p ? p+' ' : '')+lab+(b!==null && b!==undefined ? ' · было '+fmtVal(b, cols[i].unit) : '')); };
-  const cell = (a, i)=>{ const x = diff ? dl(a, i) : null, k = i ? '' : ' key', tip = x ? dtip(a, i, x) : '';
+  const dtip = (a, i, x, more)=>{ if(x.dir==='none') return ''; const p = rzPct(a.pcts[i]), b = a.bases[i];
+    return tipAttr('Изменение '+(chg ? '' : x.text+' ')+(p ? p+' ' : '')+lab+(b!==null && b!==undefined ? ' · было '+fmtVal(b, cols[i].unit) : '')+(more || '')); };
+  // у ключевой колонки разреза с историей — «пришли из … / ушли в …» строки в подсказке
+  const mvt = (a, i)=>{ const ls = i ? [] : mvTipLines(a.moves, cols[0].unit); return ls.length ? '\n'+ls.join('\n') : ''; };
+  const cell = (a, i)=>{ const x = diff ? dl(a, i) : null, k = i ? '' : ' key', tip = x ? dtip(a, i, x, mvt(a, i)) : '';
     return chg ? `<td class="d ${x.tone}${k}"${tip}>${x.text}</td>` : `<td${k ? ' class="key"' : ''}${tip}>${val(a, i)}</td>`; };
   const total = i=>{ const x = diff ? dl(tot, i) : null, k = i ? '' : ' key', tip = x ? dtip(tot, i, x) : '';
     if(!x) return `<td${k ? ' class="key"' : ''}>${val(tot, i)}</td>`;
@@ -3718,7 +3774,7 @@ function hmBody(res, q, ops, go){
     return (dirOk ? (x.tone==='bad' ? 'hm-r' : 'hm-g') : 'hm-n')+lv; };
   const dTip = n=>{ if(!diff || !has(n.delta)) return ''; const x = rzDelta(q, res, n.delta), p = rzPct(n.pct);
     return 'Изменение '+x.text+(p ? ' ('+p+')' : '')+' '+lab+(has(n.base) ? ' · было '+fmtVal(n.base, unit) : ''); };
-  const tip = (name, n)=>tipAttr([name+': '+fmtVal(n.value, unit), dTip(n)].filter(Boolean).join('\n'));
+  const tip = (name, n)=>tipAttr([name+': '+fmtVal(n.value, unit), dTip(n), ...mvTipLines(n.moves, unit)].filter(Boolean).join('\n'));   // у итогов строк и столбцов — «пришли из / ушли в»
   const cell = (i, j)=>({ value:h.cells[i][j], base:diff ? h.bases[i][j] : null, delta:diff ? h.deltas[i][j] : null, pct:diff ? h.pcts[i][j] : null, cnt:h.cnt ? h.cnt[i][j] : undefined });
   const corner = html=>html ? `<span class="hm-q">${html}</span>` : '', lsOf = (d, v, n)=>ops && n ? corner(ops.ls(d, v, null, null, n)) : '';   // «☰ 0» в углу не нужен: пустому нечего показывать
   // итог: главное число и мелко второе — в «Сумме» разница, в «Изменении» сумма
@@ -4137,7 +4193,7 @@ function renderStand(){
       <div class="why">Сейчас: ${['r-portfolio','r-claims'].map(id=>{ const r = reportById(id); return r ? '«'+esc(r.title)+'» в. '+r.version+' · '+REPORT_STATE[r.state]+' · плиток '+tilesOfReport(id).length : '«'+esc(standTitle(id))+'» удалён'; }).join('; ')}. Отчёт с плитками не удаляется — только в архив.</div></div>
     <div class="form-step"><h4>Начало дня</h4><button class="btn" onclick="DB.morning()">Наступило утро</button>
       <div class="why">Раскрытые плитки закрываются: раскрытие не хранится. Закреплённые на своих экранах встают раскрытыми, выбор видов и разрезов у каждого человека остаётся. Ночной снимок не запускается.</div></div>
-    <div class="form-step"><h4>Сценарий данных и светофоры</h4>${chk('overdueUp','просрочка выросла на 18 %')} ${chk('noAnswer','источник не ответил по нескольким кредитам на одну из дат')}
+    <div class="form-step"><h4>Сценарий данных и светофоры</h4>${chk('overdueUp','просрочка выросла на 18 %')} ${chk('noAnswer','источник не ответил по нескольким кредитам на одну из дат')} ${chk('bigOther','комиссии без потоков: у части кредитов крупное начисление комиссий, Остаток получает большое «прочее»')}
       <button class="btn" onclick="DB.nightCheckRun()">Ночной снимок и проверка сигналов</button> <button class="btn" onclick="DB.tick(2)">Прошло 2 минуты (кэш «сегодня» истекает)</button>
       <div class="why">Кэш: попаданий ${S.cacheHits}, расчётов ${S.cacheMiss}. Ключ — «вопрос + охват», охваты не смешиваются.</div></div>`;
 }
@@ -4225,6 +4281,9 @@ const api = {
   whoMonthAt:(id,m,line)=>{ countClick(id); const o = S.open[id], b = stripNode(tileById(id), o, user(), S.panel);
     return openWho(id, Object.assign({ m }, line ? { line } : {}, b.of ? { of:b.of } : {}), (o || {}).path); },
   // поток Движения открытой полосы (key — ключ потока из res.move, 'other' — «прочее»; mv — месяц движения, по умолчанию выбранный в полосе): кто в этом потоке
+  // «☰» строки «пришли из / ушли в» узла Разреза: dir — 'from' | 'to', v2 — значение (null — охват)
+  whoMoveAt:(id,d,v,dir,v2)=>{ countClick(id); const o = S.open[id], node = Object.assign(stripNode(tileById(id), o, user(), S.panel), { d, v, [dir]:v2===undefined ? null : v2 });
+    return openWho(id, node, (o || {}).path); },
   whoFlowAt:(id,key,mv)=>{ countClick(id); const o = S.open[id], t = tileById(id), s = viewSel(t, 'move', o && o.sel, user(), (o || {}).path || [], S.panel);
     return openWho(id, { flow:key, mv:mv!==undefined ? mv : s.month }, (o || {}).path); },
   registryAt:(id)=>openRegistry(id, (S.open[id] || {}).path),
