@@ -2679,6 +2679,79 @@ const asUser = id => { DB.state.userId = id; };
   DB.seed();
 })();
 
+/* ---------- T. Волна 9: метки «только ночью» и «отчёт изменён» ---------- */
+(() => {
+  DB.seed(); asUser('u4'); DB.setTab('role', 'acc');
+  const pills = (h, k) => [...h.matchAll(new RegExp('<span class="pill ' + k + '" data-tip="([^"]*)">([^<]*)</span>', 'g'))].map(x => ({ tip:x[1], text:x[2] }));
+  const night = h => pills(h, 'info').filter(p => p.text === '◷ только ночью'), stale = h => pills(h, 'warn').filter(p => p.text === '⚠ устарело');
+  const ptip = h => (h.match(/<span class="big" data-tip="([^"]*)"/) || [])[1] || '';
+  const u4 = U('u4'), acc = DB.composeLayout('u4', 'acc').filter(k => !k.startsWith('s:'));
+  const snap = () => { DB.state.cache.clear(); return Object.fromEntries(acc.map(id => [id, DB.tileHTML(id, 'u4', 'acc')])); };
+  const live = ['acc-unident', 'acc-await', 'acc-unm', 'acc-today', 'acc-unalloc'], past = ['acc-prev', 'acc-refund', 'acc-rev'];
+  const NIGHT_TIP = 'на 02:00, источник «Платежи» обновляется ночью';
+  const h0 = snap();
+  DB.standNightOnly('receipt', true);                                     // переключатель экрана стенда
+  const h1 = snap(), a1 = DB.ask(T('acc-unalloc'), u4, 'acc', {}), a2 = DB.ask(T('acc-today'), u4, 'acc', {});
+  DB.primary('acc-unalloc'); const strip1 = DB.stripHTML('acc-unalloc', 'u4', 'acc');
+  DB.stand('nightRunFailed', true);
+  const h2 = snap(), a3 = DB.ask(T('acc-unalloc'), u4, 'acc', {});
+  DB.stand('nightRunFailed', false); DB.stand('queueLag', 25);
+  const h3 = snap(), a4 = DB.ask(T('acc-unalloc'), u4, 'acc', {});
+  const hOrd = DB.tileHTML('lead-od', 'u1', 'lead'), aOrd = DB.ask(T('lead-od'), U('u1'), 'lead', {});
+  DB.stand('queueLag', 0); DB.standNightOnly('receipt', false); DB.stand('nightRunFailed', true);
+  const h4 = snap(), a5 = DB.ask(T('acc-unalloc'), u4, 'acc', {});
+  DB.stand('nightRunFailed', false);
+
+  // ночной источник по плану — серая «◷ только ночью» на плитках «сегодня» Бухгалтерии
+  const onNight = acc.filter(id => night(h1[id]).length);
+  ok(290, acc.every(id => !night(h0[id]).length) && onNight.join() === live.join()
+    && live.every(id => night(h1[id]).length === 1 && night(h1[id])[0].tip === NIGHT_TIP) && past.every(id => !/class="pill/.test(h1[id]))
+    && /\.pill\.info\{ background:var\(--surface-sunk\); color:var\(--text-secondary\); \}/.test(src)
+    && /onchange="DB\.standNightOnly\('receipt', this\.checked\)"> источник «Платежи» обновляется только ночью<\/label>/.test(src),
+    `переключатель стенда «источник «Платежи» обновляется только ночью»: на главной Бухгалтерии ${onNight.length} плиток «сегодня» (${onNight.join(', ')}) несут серую метку «◷ только ночью» (pill info на --surface-sunk), подсказка — «${NIGHT_TIP}»; плитки закрытого периода (${past.join(', ')}) — без меток; выключено — метки нет ни на одной`);
+
+  ok(291, live.every(id => !stale(h1[id]).length && !/class="tile stale/.test(h1[id]) && !pills(h1[id], 'warn').length)
+    && !a1.staleState && a1.stale === null && !a2.staleState && a2.stale === null && a1.value !== undefined,
+    'ночной источник по плану — не сбой: «⚠ устарело» нет, жёлтой рамки (tile stale) нет, staleState пуст у остатка «Нераспределённый остаток» и у потока «Поступило сегодня»; число отвечает');
+
+  // ночной источник и ночной прогон не прошёл — «⚠ устарело», серой метки нет
+  ok(292, live.every(id => stale(h2[id]).length === 1 && /^Устарело: ночной прогон 11\.10 не прошёл/.test(stale(h2[id])[0].tip) && /старше сегодняшних 02:00/.test(stale(h2[id])[0].tip)
+      && /class="tile stale/.test(h2[id]) && !night(h2[id]).length)
+    && a3.staleState === true && live.every(id => !stale(h4[id]).length && !/class="tile stale/.test(h4[id])) && !a5.staleState,
+    `ночной источник и сбой «ночной прогон 11.10 не прошёл»: ${live.length} плиток «сегодня» в жёлтой рамке с «⚠ устарело» («${(stale(h2['acc-unalloc'])[0] || {}).tip}»), «◷ только ночью» снята; у источника с журналом изменений тот же сбой плитку «сегодня» не старит`);
+
+  // очередь пересчёта > 15 мин — «устарело» у обычного источника, как прежде; ночной источник очередь не питает
+  ok(293, aOrd.staleState === true && /очередь пересчёта статистики отстала на 25 мин/.test(aOrd.stale) && /class="tile stale/.test(hOrd) && stale(hOrd).length === 1
+    && !a4.staleState && live.every(id => night(h3[id]).length === 1 && !stale(h3[id]).length) && !/\(очередь 25 мин\)/.test(ptip(h3['acc-unalloc'])),
+    'очередь пересчёта отстала на 25 мин: «Просрочено» Руководства — «⚠ устарело» в жёлтой рамке, как прежде; ночной источник днём из очереди не пересчитывается — у него по-прежнему серая «◷ только ночью», без «(очередь 25 мин)» в паспорте');
+
+  // паспорт ночного источника — про 02:00 сегодня, а не про вчера
+  ok(294, /^на 02:00 · только ночью · день не закрыт · /.test(ptip(h1['acc-unalloc'])) && /^сегодня, на 02:00 · только ночью · день не закрыт · /.test(ptip(h1['acc-today']))
+    && !/вчера|14:15/.test(ptip(h1['acc-unalloc']) + ptip(h1['acc-today'])) && strip1.includes('на 02:00 · только ночью · день не закрыт')
+    && /^на 02:00 10\.10 · ночной прогон 11\.10 не прошёл · день не закрыт/.test(ptip(h2['acc-unalloc'])) && /^на 14:15 · день не закрыт/.test(ptip(h0['acc-unalloc'])),
+    `паспорт ночного источника при наведении на число и в строке полосы — «${ptip(h1['acc-unalloc'])}»; сбой прогона — «${ptip(h2['acc-unalloc']).split(' · сом')[0]}»; обычный источник — «на 14:15 · день не закрыт»`);
+
+  // «✎ отчёт изменён» — янтарная метка в одном ряду с метками за названием
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.stand('queueLag', 25);
+  const ed = DB.standReport('filter'), rc = DB.reportById(T('lead-od').report).changed;
+  const nameRow = h => (h.match(/<div class="t-name">([\s\S]*?)<\/div>/) || [])[1] || '';
+  const chg = h => pills(nameRow(h), 'warn').filter(p => p.text === '✎ отчёт изменён');
+  const hc = DB.tileHTML('lead-od', 'u1', 'lead'), row = nameRow(hc), cm = chg(hc)[0] || { tip:'' }, fm = cm.tip.match(/^отчёт изменён (\d\d\.\d\d) \(([А-ЯЁ][а-яё]+)\): (.+)$/);
+  ok(295, ed.ok && chg(hc).length === 1 && fm && fm[1] === rc.at && fm[2] === DB.USERS.find(x => x.id === rc.who).name.split(' ')[0] && fm[3] === 'фильтр'
+    && stale(row).length === 1 && row.indexOf('t-title') < row.indexOf('⚠ устарело') && row.indexOf('⚠ устарело') < row.indexOf('✎ отчёт изменён')
+    && /\.pill\.warn\{ background:var\(--asubk-amber-tint\); color:var\(--asubk-amber\); \}/.test(src),
+    `правка фильтра отчёта на стенде: у «Просрочено» Руководства за названием в одном ряду «⚠ устарело» и янтарная «✎ отчёт изменён» (pill warn на --asubk-amber-tint), подсказка — «${cm.tip}» (дата, автор в скобках, что изменено)`);
+  DB.stand('queueLag', 0);
+
+  // открыл отчёт — метка снялась у него; у другого смотрящего осталась
+  const pre = DB.tileHTML('cur-od', 'u2', 'cur'), view = DB.openReport('lead-od');
+  const hSelf = DB.tileHTML('lead-od', 'u1', 'lead'), hSib = DB.tileHTML('cur-od', 'u1', 'cur'), hOther = DB.tileHTML('cur-od', 'u2', 'cur');
+  ok(296, chg(pre).length === 1 && view && view.report && view.report.version === DB.reportById(T('lead-od').report).version
+    && !chg(hSelf).length && !chg(hSib).length && chg(hOther).length === 1 && chg(hOther)[0].tip === cm.tip,
+    'смотрящий открыл отчёт (название плитки → «Отчёт «…»»): «✎ отчёт изменён» снялась у его плитки и у плитки-соседа на том же отчёте; у Куратора, не открывавшего новую версию, — осталась с той же подсказкой');
+  DB.seed();
+})();
+
 /* ---------- отчёт ---------- */
 const fail = results.filter(r => !r.pass);
 for (const r of results) console.log(`${r.pass ? 'PASS' : 'FAIL'} #${r.n} ${r.note}`);

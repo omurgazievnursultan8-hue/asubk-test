@@ -1260,27 +1260,32 @@ function fmtDelta(d, unit){ if(unit==='pct') return (d>0?'▲ ':d<0?'▼ ':'')+(
   return (d>0?'▲ ':d<0?'▼ ':'')+fmtVal(Math.abs(d), unit); }
 
 /* ================= Паспорт ================= */
+// число «сегодня»: остаток на текущий момент или незакрытый период потока
+function liveOf(q){ const ctx = ctxOf(q); return ctx.period ? !!PERIODS[ctx.period].partial : (ctx.point.m===0 && !ctx.point.day); }
+// источник без журнала изменений днём не опрашивается: его колонки в сегодняшней строке держат значение на 02:00 — это план, не сбой
+const nightOnlyOf = q => !!STAND.nightOnly[IND[q.inds[0]].obj];
+// «устарело» — только сбой: отстало против плана
 function staleOf(q){
-  const I = IND[q.inds[0]]; const ctx = ctxOf(q);
-  const live = ctx.period ? PERIODS[ctx.period].partial : (ctx.point.m===0 && !ctx.point.day);
-  if(live && STAND.nightOnly[I.obj]) return 'источник «'+OBJECTS[I.obj].owner+'» обновляется только ночью — число на конец вчерашнего дня';
-  if(live && STAND.queueLag>15) return 'очередь пересчёта статистики отстала на '+STAND.queueLag+' мин';
+  const I = IND[q.inds[0]], live = liveOf(q), night = nightOnlyOf(q);
+  if(live && night && STAND.nightRunFailed) return 'ночной прогон 11.10 не прошёл — источник «'+OBJECTS[I.obj].owner+'» обновляется только ночью, значение на 02:00 10.10, старше сегодняшних 02:00';
+  if(live && !night && STAND.queueLag>15) return 'очередь пересчёта статистики отстала на '+STAND.queueLag+' мин';
   if(!live && STAND.nightRunFailed) return 'ночной прогон 11.10 не прошёл — последний закрытый день 09.10';
   return null;
 }
 function passportOf(q, visible, opts){
-  const I = IND[q.inds[0]]; const ctx = ctxOf(q); const parts = [];
-  const lag = STAND.queueLag>15 ? ' (очередь '+STAND.queueLag+' мин)' : '';
+  const ctx = ctxOf(q); const parts = [], night = nightOnlyOf(q);
+  const at = night ? (STAND.nightRunFailed ? '02:00 10.10 · ночной прогон 11.10 не прошёл' : '02:00 · только ночью') : TODAY.time;   // на какое время число «сегодня»
+  const lag = !night && STAND.queueLag>15 ? ' (очередь '+STAND.queueLag+' мин)' : '';
   if(q.format==='series'){ const n = q.points||12; let closed = 0; for(let m=-n+1;m<=0;m++) if(monthClosed(m)) closed++;
     parts.push(closed===n ? n+' мес. · закрыто' : 'смешанно: '+closed+' из '+n+' мес. закрыто'); }
   else if(ctx.period){ const P = PERIODS[ctx.period];
-    if(ctx.period==='today') parts.push('сегодня, на '+TODAY.time+lag+' · день не закрыт');
-    else if(ctx.period==='curMonth') parts.push('01.10 → '+TODAY.time+' · идёт '+TODAY.day+'-й день · не закрыт');
+    if(ctx.period==='today') parts.push('сегодня, на '+at+lag+' · день не закрыт');
+    else if(ctx.period==='curMonth') parts.push('01.10 → '+at+' · идёт '+TODAY.day+'-й день · не закрыт');
     else if(ctx.period==='prevMonth') parts.push(monthName(-1)+' · '+(monthClosed(-1)?'месяц закрыт':'месяц не закрыт'));
-    else if(ctx.period==='ytd') parts.push('01.01 → '+TODAY.time+' · не закрыт');
+    else if(ctx.period==='ytd') parts.push('01.01 → '+at+' · не закрыт');
     else { const cl = P.months.filter(monthClosed).length; parts.push(P.label+' · '+(cl===P.months.length?'закрыт':'смешанно: '+cl+' из '+P.months.length+' мес. закрыто')); } }
   else { const pt = ctx.point;
-    if(pt.m===0 && !pt.day) parts.push((STAND.nightOnly[I.obj] ? 'на 10.10 (вчера) · только ночью' : 'на '+TODAY.time+lag+' · день не закрыт'));
+    if(pt.m===0 && !pt.day) parts.push('на '+at+lag+' · день не закрыт');
     else if(pt.day) parts.push(STAND.nightRunFailed ? 'на 09.10 (2 дня назад) · день закрыт' : 'на 10.10 (вчера) · день закрыт');
     else parts.push('на '+monthEndLabel(pt.m)+' · '+(monthClosed(pt.m)?'месяц закрыт':'месяц не закрыт')); }
   if(opts && opts.fx) parts.push('сом, курс '+(ctx.point && !ctx.point.m ? '11.10' : '30.09'));
@@ -2979,7 +2984,7 @@ function marksOf(t, res){
   if(res.staleState) out.push({ kind:'warn', text:'⚠ устарело', tip:'Устарело: '+res.stale });
   if(res.panelSkipped && res.panelSkipped.length) out.push({ kind:'warn', text:'⊘ без фильтра', tip:'Фильтр панели ('+res.panelSkipped.map(k=>'«'+PANEL[k]+'»').join(', ')+') к этой плитке неприменим: у объекта «'+OBJECTS[I.obj].name+'» нет такого разреза' });
   if(pt && pt.day) out.push({ kind:'info', text:'◷ вчера', tip:'Плитка на последний закрытый день: '+(STAND.nightRunFailed ? 'на 09.10 (2 дня назад)' : 'на 10.10 (вчера)')+' · день закрыт' });
-  else if(pt && pt.m===0 && STAND.nightOnly[I.obj] && !res.staleState) out.push({ kind:'info', text:'◷ только ночью', tip:'Источник «'+OBJECTS[I.obj].owner+'» обновляется только ночным прогоном: число на конец вчерашнего дня' });
+  else if(liveOf(q) && nightOnlyOf(q) && !res.staleState) out.push({ kind:'info', text:'◷ только ночью', tip:'на 02:00, источник «'+OBJECTS[I.obj].owner+'» обновляется ночью' });
   if(ctx.period && !['today','curMonth','prevMonth','ytd'].includes(ctx.period)){ const P = PERIODS[ctx.period], cl = P.months.filter(monthClosed).length;
     if(cl > 0 && cl < P.months.length) out.push({ kind:'info', text:'≈ смешанно', tip:'В числе есть незакрытые месяцы: закрыто '+cl+' из '+P.months.length }); }
   return out; }
@@ -3761,7 +3766,8 @@ function renderStand(){
       <div class="why">До этого у «Заёмщиков» вид Движение (новые · вернулись · погасили всё · прочее) погашен с причиной.</div></div>
     <div class="form-step"><h4>Сбои статистики</h4>${chk('statDown','статистика не отвечает (ошибка доставки)')}${chk('nightRunFailed','ночной прогон 11.10 не прошёл')}
       <label class="opt">очередь пересчёта отстала на <input type="number" style="width:70px" value="${STAND.queueLag}" onchange="DB.stand('queueLag', Number(this.value))"> мин (порог 15)</label><br>
-      <label class="opt"><input type="checkbox" ${STAND.nightOnly.receipt?'checked':''} onchange="DB.standNightOnly('receipt', this.checked)"> источник «Платежи» обновляется только ночью</label></div>
+      <label class="opt"><input type="checkbox" ${STAND.nightOnly.receipt?'checked':''} onchange="DB.standNightOnly('receipt', this.checked)"> источник «Платежи» обновляется только ночью</label>
+      <div class="why">Это план, а не сбой: источник без журнала изменений днём не опрашивается, плитки «сегодня» на нём (у Бухгалтерии — «Поступило сегодня», «Нераспределённый остаток», очереди поступлений) держат значение на 02:00 и несут серую метку «◷ только ночью». «⚠ устарело» в жёлтой рамке — только вместе со сбоем «ночной прогон 11.10 не прошёл».</div></div>
     <div class="form-step"><h4>Реестр показателей</h4><label class="opt"><input type="checkbox" ${STAND.withdrawn['loan.risk']?'checked':''} onchange="DB.standWithdraw('loan.risk', this.checked)"> вывести показатель «Сумма под риском (залог)» из реестра</label></div>
     <div class="form-step"><h4>Круг отчёта</h4><label class="opt"><input type="checkbox" ${circleNarrowed()?'checked':''} onchange="DB.standCircle(this.checked)"> Сузить круг отчёта «${esc((reportById(NARROW.report)||{}).title)}»: без ${esc(NARROW.of)}</label>
       <div class="why">Плитки на этом отчёте не прячутся: у подразделения вне круга они пишут «Нельзя: отчёт не открыт вашему подразделению». Новая плитка на этом отчёте для роли с держателями в таком подразделении не проходит автопроверку.</div></div>
