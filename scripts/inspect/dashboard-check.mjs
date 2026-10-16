@@ -1,7 +1,7 @@
-// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–7, 11–15.10.2026).
+// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–8, 11–16.10.2026).
 // Zero-dep: вытаскивает <script> из HTML и исполняет движок window.DB в node:vm (без DOM — render() и
 // toast() становятся no-op). Проверяется не «код есть», а поведение по решениям канона
-// mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-160, ИДБ-1…ИДБ-17):
+// mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-166, ИДБ-1…ИДБ-17):
 //   A  рамка и главная: вкладки — системные роли, роль без раскладки — минимальная (ДБ-8, ДБ-38, ДБ-50);
 //   B  плитка ссылается на отчёт и чисел не хранит: числа приходят от статистики через отчёт; «ждёт меня» — через очередь
 //      модуля-владельца, тоже от статистики (ДБ-99, ДБ-10, ДБ-11);
@@ -41,11 +41,17 @@
 //      и разницей, «☰» в строке полосы — главное число узла, цвет доли в Таблице по числителю): основа плитки — три строки,
 //      метки паспорта, плашка светофора и граница порога, «☰ / ⋯» при наведении и колокольчик сигнала, подпись,
 //      суммы не выше «млн», число и сдвиг (стрелка цветом, единицы числа, база), показ решает автор, «без сдвига»
-//      и прогресс к плану, телефон, состояния (ДБ-130…ДБ-145); полоса — одна строка, белая, потолок 500 px,
+//      и прогресс к плану, телефон, состояния (ДБ-130…ДБ-145); полоса — одна строка, белая, потолок 520 px (ДБ-164),
 //      «☰ N» у строк, Разрез, Ряд, Карта, Движение, Таблица с разницей к базе плитки, «Сумма | Изменение» один на
 //      полосу, «☰» только с вкладом, незакрытый период потока, итоги и единицы (ДБ-146…ДБ-160, ДБ-Д37). Числа сходятся
 //      с движком и друг с другом (итог строк = итогу, сумма разниц = сдвигу плитки, список = «☰»), вёрстку без DOM
-//      (высоты, порядок ухода из строки, наведение) проверяют по тексту стилей и кода.
+//      (высоты, порядок ухода из строки, наведение) проверяют по тексту стилей и кода. С волны 8 правила стилей
+//      в проверках 226…263 читаются в новой редакции (размеры ДБ-161…ДБ-164, вид ДБ-165).
+//   R  вид волны 8 (16.10.2026), ДБ-161…ДБ-166: окно ввода на странице вместо prompt() браузера (секция «Секция»,
+//      экран «Мой экран» без DOM), одна светлая тема без внешних шрифтов, сетка с зазором 16 px, плитка r 12 с тенью,
+//      серая страница и синие токены, переключатель — белая пилюля на серой дорожке, первая колонка Таблицы на мягком
+//      синем, анимации только при prefers-reduced-motion:no-preference, шапка — значки, аватар, меню слева, полоса
+//      на старте закрыта.
 // Блоки, которые правят состояние, начинаются с DB.seed(). Выход 1 при любом FAIL.
 //   node scripts/inspect/dashboard-check.mjs
 import { readFileSync } from 'node:fs';
@@ -1487,13 +1493,14 @@ const asUser = id => { DB.state.userId = id; };
   DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.state.panel = { region:'Ошская' }; DB.openView('lead-od', 'slice'); DB.deeper('lead-od', 'bucket', '181+');
   const po = DB.state.open['lead-od'], hp = tab(DB.stripHTML('lead-od', 'u1', 'lead')), rp = DB.view('lead-od', 'slice', po.sel, po.path, 'u1', 'lead', { region:'Ошская' });
   const fx = DB.viewSet('lead-od', 'dim', 'region'), wlp = DB.whoAt('lead-od', 'category', rp.nodes.find(n => n.cnt).v), rg = DB.registryAt('lead-od'), dr0 = DB.drill('lead-od', u1, 'lead', { region:'Ошская' }, null, po.path);
+  // стрелка: зазор сетки 16 px (ДБ-165) — у первой колонки «* 0.5 + 0px», у четвёртой «* 3.5 + 48px» (3 × 16)
   const arrows = [0, 3].map(i => { DB.state.open = {}; DB.openView(['lead-bal', 'lead-od', 'lead-borr', 'lead-risk'][i], 'slice'); return (DB.stripHTML(['lead-bal', 'lead-od', 'lead-borr', 'lead-risk'][i], 'u1', 'lead').match(/class="strip-arrow" style="left:([^"]+)"/) || [])[1]; });
   ok(180, /<span class="sl-path"><button class="linky"[^>]*onclick="DB\.crumb\('lead-od',0\)">Просрочено<\/button><span class="sep">›<\/span><b>181\+<\/b><\/span>/.test(hp)
     && /class="sl-pass"[^>]*>[^<]*фильтр: Ошская[^<]*</.test(hp) && /class="sl-num" data-tip="[^"]*фильтр: Ошская · путь: 181\+"/.test(hp)
     && fx.error && /фильтром панели/.test(fx.error) && !DB.dimsFor('lead-od', po.path, { region:'Ошская' }).some(x => x.dim === 'region')
     && !wlp.refused && wlp.path.length === 1 && rg.slice === dr0.list.length && rg.today >= rg.slice && /v\.visible|видно/.test(rp.passport) && /фильтр: Ошская/.test(rp.passport)
-    && /\* 0\.5 \+ 0px/.test(arrows[0]) && /\* 3\.5 \+ 36px/.test(arrows[1]) && /<button class="btn sl-list"[^>]*onclick="DB\.registryAt\('lead-od'\)">Работать со списком<\/button>/.test(hp) && !/strip-f|class="crumbs"|class="passport"/.test(hp),
-    `крошки «Просрочено › 181+» в строке полосы ведут назад, путь и фильтр — в подсказке числа узла, паспорт — в строке; разрез из панели в полосе не предлагается; «Работать со списком» — кнопка той же строки, несёт путь (${rg.slice} в срезе из ${rg.today} в реестре); подвала нет; стрелка стоит под колонкой своей плитки (ДБ-129, ДБ-117, ДБ-146; волна 7)`);
+    && /\* 0\.5 \+ 0px/.test(arrows[0]) && /\* 3\.5 \+ 48px/.test(arrows[1]) && /<button class="btn sl-list"[^>]*onclick="DB\.registryAt\('lead-od'\)">Работать со списком<\/button>/.test(hp) && !/strip-f|class="crumbs"|class="passport"/.test(hp),
+    `крошки «Просрочено › 181+» в строке полосы ведут назад, путь и фильтр — в подсказке числа узла, паспорт — в строке; разрез из панели в полосе не предлагается; «Работать со списком» — кнопка той же строки, несёт путь (${rg.slice} в срезе из ${rg.today} в реестре); подвала нет; стрелка стоит под колонкой своей плитки с учётом зазора сетки 16 px («* 3.5 + 48px» у четвёртой колонки) (ДБ-129, ДБ-117, ДБ-146, ДБ-165; волна 8: зазор был 12 px)`);
   DB.seed();
 })();
 
@@ -2275,7 +2282,7 @@ const asUser = id => { DB.state.userId = id; };
   DB.state.open = {}; DB.openView('lead-od', 'table'); DB.primary('lead-od'); const afterClose = Object.keys(DB.state.open).length; DB.primary('lead-od'); const reopened = DB.state.open['lead-od'] && DB.state.open['lead-od'].kind; DB.state.open = {};
   ok(226, all.length >= 30 && all.every(x => (x.h.match(/class="t-head"/g) || []).length === 1 && (x.h.match(/class="t-row"/g) || []).length === 1 && (x.h.match(/class="second/g) || []).length <= 1 && !GONE.test(x.h) && (x.h.match(/<svg /g) || []).length <= 3)
     && typeof DB.mini === 'function' && T('lead-od').views.series && stripOf('lead-od', 'series').includes('class="sr ') && afterClose === 0 && reopened === 'table',
-    `${all.length} плиток трёх ролей: у каждой одна шапка, одна строка числа и не больше одного второго числа, рисунка нет (только значки «☰», «⋯» и колокольчик); мини-ряд ушёл — ряд это вид «Ряд» в полосе, а клик по числу открывает полосу последним видом человека (после «Таблицы»: ${reopened}) (ДБ-130; волна 7: было мини-ряд из 12 точек и строки паспорта и порога). Высоту 95–130 px и «6 / 10 / 12 плиток на экране» без вёрстки не проверить`);
+    `${all.length} плиток трёх ролей: у каждой одна шапка, одна строка числа и не больше одного второго числа, рисунка нет (только значки «☰», «⋯» и колокольчик); мини-ряд ушёл — ряд это вид «Ряд» в полосе, а клик по числу открывает полосу последним видом человека (после «Таблицы»: ${reopened}) (ДБ-130; волна 7: было мини-ряд из 12 точек и строки паспорта и порога). Высоту по содержимому 99–145 px (на стенде у Руководства 122–139 px) и «на 1920×1080 Руководство 12 из 12, Куратор 11 из 13» без вёрстки не проверить (ДБ-163, переигрывает 95–130 px ДБ-130)`);
 
   // ДБ-131: паспорт при наведении, отличие — меткой за названием; дата автора — часть уточнения
   DB.STAND.queueLag = 25; DB.state.cache.clear(); const hst = DB.tileHTML('lead-od', 'u1', 'lead'); DB.STAND.queueLag = 0; DB.state.cache.clear();
@@ -2288,8 +2295,9 @@ const asUser = id => { DB.state.userId = id; };
     && pills(hday, 'info').length === 1 && pills(hday, 'info')[0].text === '◷ вчера' && /на 10\.10/.test(pills(hday, 'info')[0].tip)
     && pills(hqq, 'info').length === 1 && pills(hqq, 'info')[0].text === '≈ смешанно' && /закрыто 2 из 3/.test(pills(hqq, 'info')[0].tip)
     && /<span class="t-qual">· действующие · на 30\.09<\/span>/.test(hpme) && !/class="pill/.test(hpme) && !/class="pill/.test(hod) && !all.some(x => /class="passport"/.test(x.h))
-    && /<span class="big" data-tip="на 14:15 · день не закрыт/.test(hod) && /\.pill\.info\{ background:var\(--asubk-gray-150\)/.test(src) && /\.pill\.warn\{ background:var\(--asubk-amber-tint\)/.test(src) && /\.tile\.stale\{ border:2px solid var\(--st-warn\)/.test(src),
-    'отличие паспорта — меткой за названием: серая справка («◷ вчера», «≈ смешанно») и янтарное внимание («⊘ без фильтра», «⚠ устарело» с рамкой вместо строки «Устарело: …»); полный текст — в подсказке метки, паспорт целиком — в подсказке числа; дата автора — в уточнении «· действующие · на 30.09» (ДБ-131, ДБ-145; волна 7: строки паспорта на плитке больше нет). Метка «◷ только ночью» не появляется ни на одной плитке — модель считает такой источник устаревшим (дефект волны)');
+    && /<span class="big" data-tip="на 14:15 · день не закрыт/.test(hod) && /\.pill\.info\{ background:var\(--surface-sunk\); color:var\(--text-secondary\); \}/.test(src) && /--surface-sunk:var\(--asubk-gray-150\);/.test(src) && /\.pill\.warn\{ background:var\(--asubk-amber-tint\); color:var\(--asubk-amber\); \}/.test(src)
+    && /\.tile\.stale\{ border-color:var\(--asubk-amber-line\); box-shadow:0 0 0 1px var\(--asubk-amber-line\); \}/.test(src),
+    'отличие паспорта — меткой за названием: серая справка на утопленном сером (--surface-sunk = gray-150: «◷ вчера», «≈ смешанно») и янтарное внимание («⊘ без фильтра», «⚠ устарело» с янтарной рамкой --asubk-amber-line вместо строки «Устарело: …»; ДБ-165); полный текст — в подсказке метки, паспорт целиком — в подсказке числа; дата автора — в уточнении «· действующие · на 30.09» (ДБ-131, ДБ-145; волна 7: строки паспорта на плитке больше нет). Метка «◷ только ночью» не появляется ни на одной плитке — модель считает такой источник устаревшим (дефект волны)');
 
   // ДБ-132: кнопки видов — только в строке полосы; клик по числу — полоса последним видом
   const kindsOf = h => { const s = /<span class="seg sl-views">([\s\S]*?)<\/span>/.exec(h); return [...(s ? s[1] : '').matchAll(/<button class="([^"]*)" onclick="DB\.openView\('([^']+)','([^']+)'\)">([^<]+)<\/button>/g)].map(x => ({ on:/\bon\b/.test(x[1]), kind:x[3], name:x[4] })); };
@@ -2304,8 +2312,8 @@ const asUser = id => { DB.state.userId = id; };
   const hgr = DB.tileHTML('lead-od', 'u1', 'lead', { region:'Ошская' }), hng = DB.tileHTML('x-ng', 'u1', 'lead', { region:'Ошская' });
   ok(229, /chipv yellow/.test(postO) && !/chipv/.test(preO) && DB.base('lead-od', 'u1', 'lead').tl === 'yellow' && /chipv yellow/.test(preP) && !/chipv/.test(postP) && DB.base('cur-plan1', 'u2', 'cur').tl === 'yellow'
     && /chipv green/.test(hgr) && !/chipv/.test(hng) && /<b>3,8 %<\/b>/.test(hng) && !all.some(x => /tl-(?:red|yellow|green)|class="dot"/.test(x.h)) && !/\.tile\.tl-(?:red|yellow|green)/.test(src)
-    && /\.chipv\.red\{ background:var\(--tl-red-bg\)/.test(src) && /\.big \.chipv\{ padding:0 6px; margin-left:-6px; \}/.test(src),
-    'светофор — плашка на том числе, которое оценено: «Просрочено» — на втором (4,6 % жёлтая), «Исполнение плана» — на главном; на 3,8 % (область Ошская) плашка зелёная, а у копии с «зелёный не показывать» её нет; полосы по краю, точки и рамки светофора нет (ДБ-133; волна 7: было полоса слева и точка)');
+    && /\.chipv\.red\{ background:var\(--tl-red-bg\)/.test(src) && /\.big \.chipv\{ display:inline-block; padding:0 7px 1px; margin-left:-7px; border-radius:var\(--r-md\); \}/.test(src),
+    'светофор — плашка на том числе, которое оценено: «Просрочено» — на втором (4,6 % жёлтая), «Исполнение плана» — на главном; на 3,8 % (область Ошская) плашка зелёная, а у копии с «зелёный не показывать» её нет; полосы по краю, точки и рамки светофора нет; у главного числа плашка выступает на 7 px влево, скругление 8 px (ДБ-133, ДБ-165; волна 7: было полоса слева и точка; волна 8: было 6 px)');
 
   // ДБ-134: рядом с окрашенным числом — только граница, давшая цвет; полный порог — в подсказке плашки и числа полосы
   const thr = h => [...h.matchAll(/<span class="thr">([^<]*)<\/span>/g)].map(x => x[1].replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/\s/g, ' '));
@@ -2317,18 +2325,20 @@ const asUser = id => { DB.state.userId = id; };
 
   // ДБ-135: «☰» и «⋯» — при наведении; включённый сигнал виден всегда колокольчиком за названием
   const sig1 = DB.signalToggle('lead-od', 'lead'), hsig = DB.tileHTML('lead-od', 'u1', 'lead'), sig0 = DB.signalToggle('lead-od', 'lead'), hnos = DB.tileHTML('lead-od', 'u1', 'lead');
-  ok(231, /\.tile \.t-tools\{[^}]*position:absolute; top:7px; right:7px;[^}]*opacity:0/.test(src) && /\.tile:hover \.t-tools,\.tile \.t-tools:focus-within\{ opacity:1; \}/.test(src)
+  ok(231, /\.tile \.t-tools\{[^}]*position:absolute; top:9px; right:9px;[^}]*opacity:0/.test(src) && /\.tile:hover \.t-tools,\.tile \.t-tools:focus-within\{ opacity:1; \}/.test(src)
     && all.every(x => /<div class="t-tools">\s*<button class="who"[\s\S]*?<button class="more"/.test(x.h) && !/🔔|🔕/.test(x.h) && !/class="ic"/.test(x.h))
     && Array.isArray(sig1) && sig1.length >= 1 && /<span class="t-qual">· действующие<\/span>\s*<span class="ic" data-tip="Сигнал включён[^"]*">/.test(hsig) && !sig0 && !/class="ic"/.test(hnos)
     && /if\(!link && tlLimits\(t\.tl\)\.length\) items\.push\(\[sig\?'Снять сигналы':'Сигнал по порогам'/.test(src),
-    'значки «☰» и «⋯» одноцветные, поверх правого края шапки, видны при наведении и фокусе; ни у одной из плиток нет 🔔/🔕; сигнал включается и снимается в «⋯» — пока включён, за названием стоит синий колокольчик с подсказкой, после снятия его нет (ДБ-135; волна 7: было эмодзи 🔔/🔕 на каждой плитке)');
+    'значки «☰» и «⋯» одноцветные, поверх правого края шапки в 9 px от угла, видны при наведении и фокусе; ни у одной из плиток нет 🔔/🔕; сигнал включается и снимается в «⋯» — пока включён, за названием стоит синий колокольчик с подсказкой, после снятия его нет (ДБ-135, ДБ-165; волна 7: было эмодзи 🔔/🔕 на каждой плитке; волна 8: отступ был 7 px)');
 
-  // ДБ-136: название — подпись; уточнение светло-серое; «↗» при наведении
-  ok(232, /\.tile \.t-title\{ font:500 13px\/1\.3 var\(--asubk-font\); color:var\(--text-muted\)/.test(src) && /\.tile \.t-qual\{ font-size:12px; font-weight:400; color:var\(--text-placeholder\)/.test(src)
+  // ДБ-162 (переигрывает 13 px серое ДБ-136): название — 13,5 px · 500 вторым тоном текста; уточнение 12,5 px серое; ссылка вида не капслоком; «↗» при наведении
+  ok(232, /\.tile \.t-title\{ font-size:13\.5px; line-height:1\.35; font-weight:500; color:var\(--text-secondary\); min-width:0; \}/.test(src) && /--text-secondary:var\(--asubk-ink-80\);/.test(src)
+    && /\.tile \.t-qual\{ font-size:12\.5px; font-weight:400; color:var\(--text-muted\); \}/.test(src)
+    && /\.tile \.kind-link\{ display:block; flex-basis:100%; margin-bottom:1px; font-size:12px; font-weight:500; color:var\(--text-link\); \}/.test(src) && !/\.kind-link\{[^}]*text-transform:uppercase/.test(src)
     && /\.tile \.t-title \.tt\{ display:-webkit-box; -webkit-line-clamp:2/.test(src) && /\.tile \.t-link:hover,\.tile \.t-link:focus-visible\{ color:var\(--text-link\); text-decoration:underline/.test(src) && /\.tile \.t-link \.ar\{ display:none/.test(src)
     && all.every(x => { const m = /data-full="([^"]*)"/.exec(x.h); return m && m[1].replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&quot;/g, '"').replace(/&amp;/g, '&') === T(x.id).title; }) && all.filter(x => T(x.id).kind !== 'link').every(x => /<button class="t-link"[^>]*><span class="tt" data-full="[^"]*">[^<]*<span class="ar">&nbsp;↗<\/span>/.test(x.h) || !T(x.id).report)
     && /<span class="t-qual">· действующие<\/span>/.test(hod),
-    'название — серая подпись 13 px · 500 в две строки с полным текстом в подсказке, уточнение «· действующие» — 12 px светло-серое, «↗» скрыта и появляется синей при наведении (ДБ-136; волна 7: было тёмное 14 px и «↗» у каждой плитки)');
+    'название — подпись 13,5 px · 500 вторым тоном текста (--text-secondary = ink-80) в две строки с полным текстом в подсказке, уточнение «· действующие» — 12,5 px серое (--text-muted), ссылка вида над названием — 12 px синяя, не капслоком, «↗» скрыта и появляется синей при наведении (ДБ-162, переигрывает 13 px серое ДБ-136; волна 7: было тёмное 14 px и «↗» у каждой плитки)');
 
   // ДБ-137: суммы не выше «млн»
   const big = h => (/<span class="big"[^>]*>([^<]*)<span class="u">([^<]*)<\/span>/.exec(h) || []).slice(1, 3);
@@ -2338,18 +2348,18 @@ const asUser = id => { DB.state.userId = id; };
     && !/млрд/i.test(src) && !all.some(x => /млрд/i.test(x.h)) && !sw.some(h => /млрд/i.test(h)) && sw.length === 25,
     'сумма не выше «млн»: от 100 млн целые с разрядами («3 861 млн», «179 млн»), 1–100 млн с одним знаком («64,2 млн»), меньше миллиона — «тыс.»; слова «млрд» нет ни в макете, ни на плитках, ни в 25 полосах (5 плиток × 5 видов) (ДБ-137, ДБ-160, уточняет ДБ-59; волна 7: было «3861 млн» без разряда и «млрд» у больших сумм)');
 
-  // ДБ-138: главное число — 28 px · 600, единица — 16 px · 500 серая
-  ok(234, /\.tile \.big\{ font:600 28px\/1\.1 var\(--asubk-font\); color:var\(--text-heading\)/.test(src) && /\.tile \.big \.u\{ font-size:16px; font-weight:500; color:var\(--text-muted\)/.test(src)
+  // ДБ-161 (переигрывает ДБ-138): главное число — 30 px · 600 с трекингом −0,022em, единица — 15 px · 500 серая
+  ok(234, /\.tile \.big\{ font-size:30px; line-height:1\.08; font-weight:600; letter-spacing:-\.022em; color:var\(--text-heading\);/.test(src) && /\.tile \.big \.u\{ font-size:15px; font-weight:500; letter-spacing:0; color:var\(--text-muted\);/.test(src)
     && all.filter(x => T(x.id).main && /млн|тыс/.test(txt(x.h).split('|').slice(0, 12).join('|'))).length > 10 && all.filter(x => /<span class="big"/.test(x.h) && (big(x.h)[1] || '').length).every(x => /^(?:млн|тыс\.|%)$/.test(big(x.h)[1]) && /^[\d\s,.−-]+$/.test(big(x.h)[0].replace(/<[^>]*>/g, ''))),
-    'у главного числа единица стоит отдельным серым элементом поменьше (28 px · 600 и 16 px · 500), число и единица не склеены; единица — «млн», «тыс.» или «%» (ДБ-138; волна 7)');
+    'у главного числа единица стоит отдельным серым элементом поменьше (30 px · 600 с трекингом −0,022em и 15 px · 500), число и единица не склеены; единица — «млн», «тыс.» или «%» (ДБ-161, переигрывает 28 / 16 px ДБ-138; волна 8)');
 
   // ДБ-139: у сдвига цветная только стрелка
   const sh = h => (/<span class="shift ([a-z-]+)"[^>]*>(?:<span class="a">([▲▼])<\/span> )?([^<]*)<\/span>/.exec(h) || []).slice(1, 4);
   const hpaid = DB.tileHTML('lead-paid', 'u1', 'lead'), hborr = DB.tileHTML('lead-borr', 'u1', 'lead');
   ok(235, sh(hod)[0] === 'up-bad' && sh(hpaid)[0] === 'up-good' && sh(hc1)[0] === 'down-bad' && sh(hbal)[0] === 'flat' && sh(hborr)[0] === 'flat'
-    && !/\.tile \.shift\.(?:up|down)-(?:bad|good)\s*\{/.test(src) && /\.tile \.shift\.up-bad \.a,\.tile \.shift\.down-bad \.a,[^{]*\{ color:var\(--asubk-red\); \}/.test(src) && /\.tile \.note,\.tile \.shift\{ font-size:13px; color:var\(--text-muted\)/.test(src)
-    && /\.tile \.shift \.a,\.strip \.shift \.a\{ font-size:11px; \}/.test(src),
-    'сдвиг: красной или зелёной бывает только стрелка — по направлению показателя (рост просрочки — красная «up-bad», рост поступлений — зелёная, остаток без направления и заёмщики — серая), сумма и база серые 13 px (ДБ-139; волна 7)');
+    && !/\.tile \.shift\.(?:up|down)-(?:bad|good)\s*\{/.test(src) && /\.tile \.shift\.up-bad \.a,\.tile \.shift\.down-bad \.a,[^{]*\{ color:var\(--asubk-red\); \}/.test(src) && /\.tile \.note,\.tile \.shift\{ font-size:13px; color:var\(--text-secondary\);/.test(src)
+    && /\.tile \.note\{ color:var\(--text-muted\); \}/.test(src) && /\.tile \.shift\.none,\.tile \.shift\.plan\{ color:var\(--text-muted\); \}/.test(src) && /\.tile \.shift \.a,\.strip \.shift \.a\{ font-size:10\.5px; margin-right:1px; \}/.test(src),
+    'сдвиг: красной или зелёной бывает только стрелка (10,5 px) — по направлению показателя (рост просрочки — красная «up-bad», рост поступлений — зелёная, остаток без направления и заёмщики — серая), сумма и база — 13 px вторым тоном текста (--text-secondary), «без сдвига», прогресс к плану и заметка — серые (ДБ-139, ДБ-165; волна 8: сумма и база были серыми --text-muted, стрелка 11 px)');
 
   // ДБ-140: сдвиг в единицах главного числа с базой, процент — в подсказке
   const tipOf = h => (/<span class="shift[^"]*" data-tip="([^"]*)"/.exec(h) || [])[1] || '';
@@ -2369,10 +2379,10 @@ const asUser = id => { DB.state.userId = id; };
 
   // ДБ-142: второе число — 13 px, значение 600 тёмное, подпись обычная; плашка и граница — на нём, если светофор на втором
   DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
-  ok(238, /\.tile \.second\{ display:flex; align-items:center; flex-wrap:wrap; gap:5px; font-size:13px; color:var\(--text-body\)/.test(src) && /\.tile \.second b\{ font-weight:600; color:var\(--text-heading\)/.test(src)
+  ok(238, /\.tile \.second\{ display:flex; align-items:center; flex-wrap:wrap; gap:5px; font-size:13px; color:var\(--text-secondary\); font-variant-numeric:tabular-nums; \}/.test(src) && /\.tile \.second b\{ font-weight:600; color:var\(--text-heading\)/.test(src)
     && /<div class="second">\s*<span>\s*<b><span class="chipv yellow"[^>]*>4,6 %<\/span><\/b> портфеля <span class="thr">/.test(hod) && /<div class="second">\s*<span>\s*<b>1\s248<\/b> кредитов<\/span>/.test(hbal)
     && /<div class="second">\s*<span>\s*<b>3,0<\/b> из 3,5 млн<\/span>/.test(hc1) && /\.tile \.thr\{ font-size:12px; font-weight:400; color:var\(--text-muted\)/.test(src),
-    'второе число: значение жирное тёмное, подпись обычная («4,6 % портфеля», «1 248 кредитов», «3,0 из 3,5 млн»); плашка светофора и граница стоят на нём, пока светофор оценивает второе, а у плитки с оценкой главного числа второе без плашки (ДБ-142)');
+    'второе число: 13 px, значение жирное тёмное, подпись обычная вторым тоном текста (--text-secondary) — «4,6 % портфеля», «1 248 кредитов», «3,0 из 3,5 млн»; плашка светофора и граница стоят на нём, пока светофор оценивает второе, а у плитки с оценкой главного числа второе без плашки (ДБ-142, ДБ-165; волна 8: подпись была --text-body)');
 
   // ДБ-143: нет сдвига — серое «без сдвига» с причиной; текущий месяц — прогресс к плану; автор не поставил — место пусто
   clone('cur-plan0', 'x-plan', { main:{ col:'loan.paidPlanned' }, tl:null, params:{ curator:'*', period:'curMonth' } }); clone('lead-paid', 'x-cm', { params:{ curator:'*', period:'curMonth' } });
@@ -2388,11 +2398,11 @@ const asUser = id => { DB.state.userId = id; };
     && menu2.indexOf('if(touch) items.push(who);') > 0 && menu2.indexOf('if(touch) items.push(who);') < menu2.indexOf("items.push(['Работать со списком'") && /if\(!touch\) items\.push\(who\)/.test(menu2),
     'на телефоне и без наведения «⋯» виден всегда, «☰» с плитки уходит в «⋯» первым пунктом («Кто в этом числе»), у ссылочной плитки — после «Открыть очередь» только при наведении; подсказки по касанию — вёрстка, без DOM не проверить (ДБ-144)');
 
-  // ДБ-145: состояния — «устарело» жёлтой рамкой и меткой, ошибка — без числа
+  // ДБ-145: состояния — «устарело» янтарной рамкой и меткой, ошибка — без числа (вид рамок — ДБ-165)
   DB.STAND.statDown = true; DB.state.cache.clear(); const herr = DB.tileHTML('lead-od', 'u1', 'lead'); DB.STAND.statDown = false; DB.state.cache.clear();
-  ok(241, /class="tile stale"/.test(hst) && pills(hst, 'warn')[0].text === '⚠ устарело' && /<span class="big"/.test(hst) && /\.tile\.stale\{ border:2px solid var\(--st-warn\)/.test(src) && !/>[^<]*Устарело:[^<]*</.test(hst)
-    && /class="tile err"/.test(herr) && /Ошибка доставки\./.test(herr) && /Вместо числа ничего не показываем/.test(herr) && /Повторить/.test(herr) && !/<span class="big"/.test(herr) && !GONE.test(herr + hst) && /\.tile\.err\{ border-style:dashed; \}/.test(src),
-    'устаревшая плитка — жёлтая рамка и метка «⚠ устарело» (число видно, строки «Устарело: …» нет); сбой статистики — плитка с пунктирной рамкой «Ошибка доставки.», без числа, ни нуля, ни прошлого значения, с «Повторить» (ДБ-145; канон §10 в силе)');
+  ok(241, /class="tile stale"/.test(hst) && pills(hst, 'warn')[0].text === '⚠ устарело' && /<span class="big"/.test(hst) && /\.tile\.stale\{ border-color:var\(--asubk-amber-line\); box-shadow:0 0 0 1px var\(--asubk-amber-line\); \}/.test(src) && /--asubk-amber-line:var\(--st-warn\);/.test(src) && !/>[^<]*Устарело:[^<]*</.test(hst)
+    && /class="tile err"/.test(herr) && /Ошибка доставки\./.test(herr) && /Вместо числа ничего не показываем/.test(herr) && /Повторить/.test(herr) && !/<span class="big"/.test(herr) && !GONE.test(herr + hst) && /\.tile\.err\{ border-style:dashed; border-color:var\(--border-strong\); box-shadow:none; \}/.test(src),
+    'устаревшая плитка — янтарная рамка (--asubk-amber-line = --st-warn, рамка 1 px и обводка 1 px) и метка «⚠ устарело» (число видно, строки «Устарело: …» нет); сбой статистики — плитка с пунктирной серой рамкой без тени «Ошибка доставки.», без числа, ни нуля, ни прошлого значения, с «Повторить» (ДБ-145, ДБ-165; канон §10 в силе; волна 8: было 2 px --st-warn)');
 
   // ДБ-146: полоса начинается одной строкой над графиком
   DB.state.open = {}; DB.openView('lead-od', 'slice'); DB.deeper('lead-od', 'region', 'Ошская'); DB.deeper('lead-od', 'bucket', '181+'); const hdeep = tab(DB.stripHTML('lead-od', 'u1', 'lead')); DB.state.open = {};
@@ -2404,14 +2414,15 @@ const asUser = id => { DB.state.userId = id; };
   // ДБ-147: полоса белая, без карточки внутри, рамка серая, стрелка к своей плитке; синяя рамка — только у открытой плитки
   DB.state.open = {}; DB.openView('lead-od', 'slice'); const hopen = DB.tileHTML('lead-od', 'u1', 'lead'), hother = DB.tileHTML('lead-bal', 'u1', 'lead'), hst7 = tab(DB.stripHTML('lead-od', 'u1', 'lead')); DB.state.open = {};
   ok(243, /^<div class="tile open" data-key="lead-od"/.test(hopen.trimStart()) && /^<div class="tile" data-key="lead-bal"/.test(hother.trimStart()) && /<div class="strip" data-strip="lead-od">\s*<span class="strip-arrow" style="left:calc\(/.test(hst7)
-    && /\.strip\{[^}]*background:var\(--surface-card\); border:1px solid var\(--border-strong\)/.test(src) && /\.tile\.open\{ border-color:var\(--asubk-blue\); \}/.test(src) && /\.strip-b\{[^}]*border-top:1px solid var\(--asubk-grid-line\)/.test(src)
+    && /\.strip\{[^}]*background:var\(--surface-card\); border:1px solid var\(--border-strong\); border-radius:var\(--r-xl\); padding:8px 18px 0; box-shadow:var\(--shadow-lift\); \}/.test(src) && /--r-xl:14px;/.test(src)
+    && /\.tile\.open\{ border-color:var\(--asubk-blue-ring\); \} \.tile\.open:not\(\.stale\)\{ box-shadow:0 0 0 1px var\(--asubk-blue-ring\), var\(--shadow\); \}/.test(src) && /\.strip-b\{[^}]*border-top:1px solid var\(--border-default\)/.test(src)
     && !/\.strip-card|\.strip \.card|\.strip-in\b/.test(src) && !/class="card"/.test(hst7) ,
-    'полоса — белая рамка серым с острием к своей плитке, внутри нет второй карточки, строку от графика отделяет одна тонкая линия; синей рамки удостоена только открытая плитка (ДБ-147; волна 7: было серо-голубой фон, синяя рамка и белая карточка с графиком внутри)');
+    'полоса — белая, рамка серым, скругление 14 px и тень, с острием к своей плитке, внутри нет второй карточки, строку от графика отделяет одна тонкая линия (--border-default); синей рамки (--asubk-blue-ring с обводкой 1 px) удостоена только открытая плитка, у устаревшей открытой остаётся янтарная обводка (ДБ-147, ДБ-165; волна 7: было серо-голубой фон, синяя рамка и белая карточка с графиком внутри; волна 8: рамка плитки была --asubk-blue, линия — --asubk-grid-line)');
 
-  // ДБ-148: высота по содержимому, потолок 500 px; строка сверху остаётся при прокрутке
-  ok(244, /\.strip\{[^}]*max-height:500px/.test(src) && /\.strip-b\{ flex:1 1 auto; min-height:0; overflow:auto;/.test(src) && /\.strip-line\{ flex:none;/.test(src) && /\.strip-tools\{ position:sticky; top:0;/.test(src)
+  // ДБ-164 (переигрывает 500 px ДБ-148): высота по содержимому, потолок 520 px; строка сверху остаётся при прокрутке
+  ok(244, /\.strip\{[^}]*max-height:520px;/.test(src) && /\.strip-b\{ flex:1 1 auto; min-height:0; overflow:auto;/.test(src) && /\.strip-line\{ flex:none;/.test(src) && /\.strip-tools\{ position:sticky; top:0;/.test(src)
     && DB.VIEW_KINDS.every(k => !/<div class="strip"[^>]*style="[^"]*height/.test(stripOf('lead-od', k))) && !/\.strip\{[^}]*(?<!max-)height:\d+px/.test(src),
-    'высота полосы по содержимому (фиксированной нет ни у одного из пяти видов), потолок 500 px, дальше прокрутка внутри полосы, строка сверху и «Сумма | Изменение» остаются на месте; сами высоты (168 → 273 → 502 px) измеряет вёрстка — без DOM не проверить (ДБ-148)');
+    'высота полосы по содержимому (фиксированной нет ни у одного из пяти видов), потолок 520 px, дальше прокрутка внутри полосы, строка сверху и «Сумма | Изменение» остаются на месте; сами высоты (на стенде 164–520 px) измеряет вёрстка — без DOM не проверить (ДБ-164, переигрывает 500 px ДБ-148)');
 
   // ДБ-149: «☰ N» у строк — тихой колонкой в Разрезе, Таблице и Движении; в Карте — в углу ячейки, в Ряде — под месяцем при наведении
   DB.state.open = {}; DB.openView('lead-od', 'slice'); DB.viewSet('lead-od', 'dim', 'region'); const hrg = tab(DB.stripHTML('lead-od', 'u1', 'lead')), vrg = V('lead-od', 'slice', DB.state.open['lead-od'].sel);
@@ -2432,8 +2443,8 @@ const asUser = id => { DB.state.userId = id; };
   ok(246, vbk.format === 'steps' && rows(hbk).length === 5 && rows(hbk).slice(0, 4).every(r => /<span class="rz-nm">[^<]*<\/span><span class="rz-v">[^<]*<\/span><span class="rz-d[^"]*"[^>]*>[^<]*<\/span><span class="rz-c">[\s\S]*?<\/span><span class="rz-t"><span class="rz-f"/.test(r))
     && [...hbk.matchAll(/<span class="rz-nm">([^<]*)<\/span>/g)].map(x => x[1]).join() === '1–30,31–90,91–180,181+,итог' && /<div class="rz-r rz-tot">/.test(hbk) && !/class="steps?"|class="bar-row|class="bars"/.test(hbk)
     && vrg.format === 'slice' && rows(hrg).length === 5 && /<div class="rz-r rz-more"/.test(hrg) && vrg.lines.filter(l => !l.more).every((l, i, a) => !i || l.value <= a[i - 1].value) && vrg.top === 3 && vrg.more === 4 && vrg.lines.at(-1).more === 4 && vrg.lines.at(-1).vs.length === 4
-    && vbk.lines.every(l => !l.more) && /\.rz\{ --rz-cols:220px 90px 90px 60px minmax\(0,1fr\);/.test(src) && /\.rz-t\{ position:relative; height:14px;/.test(src),
-    'Разрез по сроку (разрез с порядком) и по области (без порядка) нарисованы одной формой — «название · сумма · разница · ☰ · полоса»: сроки в своём порядке без «ещё N», области по убыванию с тремя первыми, строкой «ещё 4» и итогом; сумма стоит сразу за названием (колонки 220 / 90 / 90 / 60 px), ступеней больше нет (ДБ-150, уточняет ДБ-118; волна 7: было ступени для порядка и «название · полоса · сумма»)');
+    && vbk.lines.every(l => !l.more) && /\.rz\{ --rz-cols:220px 96px 104px 60px minmax\(0,1fr\);/.test(src) && /\.rz-t\{ position:relative; height:12px; min-width:0; \}/.test(src),
+    'Разрез по сроку (разрез с порядком) и по области (без порядка) нарисованы одной формой — «название · сумма · разница · ☰ · полоса»: сроки в своём порядке без «ещё N», области по убыванию с тремя первыми, строкой «ещё 4» и итогом; сумма стоит сразу за названием (колонки 220 / 96 / 104 / 60 px, полоса 12 px), ступеней больше нет (ДБ-150, уточняет ДБ-118; ДБ-165; волна 7: было ступени для порядка и «название · полоса · сумма»; волна 8: было 220 / 90 / 90 / 60 px и полоса 14 px)');
 
   // ДБ-151: Ряд — столбцы, сумма над каждым, подписаны все 12 месяцев, незакрытый светлее и подписан
   DB.state.open = {}; const hsi = stripOf('lead-issued', 'series'), vsi = V('lead-issued', 'series', { mode:'sum' }); const lt = (h) => (h.match(/class="sr-b[^"]*\blt\b/g) || []).length;
@@ -2488,8 +2499,8 @@ const asUser = id => { DB.state.userId = id; };
   const chainOk = chainNums.length === 6 && chainNums.every(x => /^\d+$/.test(x) ? +x >= 100 : /^\d{1,2},\d$/.test(x));
   ok(251, near(mv.start + sum(mv.inc.map(x => x.v)) - sum(mv.dec.map(x => x.v)) + mv.other, mv.end, 1) && mv.converges && near(mv.end, DB.base('lead-od', 'u1', 'lead').value, 1) && mvv.mode === null && !/strip-mode/.test(hmo) && !/class="mv"[ >]/.test(hmo)
     && /<div class="rz-r mv-e" data-edge="start">/.test(hmo) && /<div class="rz-r mv-e" data-edge="end">/.test(hmo) && !/mv-e[^>]*>[\s\S]{0,400}?class="rz-f/.test(hmo.split('data-flow')[0]) && flows.every(f => flowRow(f[0]).length > 50 && /class="rz-z"/.test(flowRow(f[0])) && near(wd(f[0]) / wmax, f[1] / vmax, 0.02)) && new Set([...hmo.matchAll(/class="rz-z" style="left:([\d.]+)%"/g)].map(x => x[1])).size === 1
-    && fc('odIn') === 'bad' && fc('odPaid') === 'good neg' && fc('odRestr') === 'good neg' && fc('other') === 'neu' && /<div class="mv-ok" data-tip="[^"]*">✓ сходится: [^<]* млн<\/div>/.test(hmo) && /\.mv-w \.rz-f\.neu\{ background:var\(--asubk-ink-45\); \}/.test(src) && /\.rz\.mv-w\{ --rz-cols:260px 90px 60px minmax\(0,1fr\); \}/.test(src) && chainOk,
-    `Движение «Просрочено»: «на 30.09» и «на сегодня» числами, каждый поток своей строкой с полосой от общей нулевой линии (вышло в просрочку — вправо красным, погашено и реструктурировано — влево зелёным, «прочее» серым), длина полосы пропорциональна потоку (шкала по самому большому — ${DB.fmtVal(flows.sort((a, b) => b[1] - a[1])[0][1], 'sum')}), внизу «✓ сходится»: ${DB.fmtVal(mv.start, 'sum')} + потоки = ${DB.fmtVal(mv.end, 'sum')} с точностью до рубля; переключателя «Сумма | Изменение» нет (ДБ-155, ДБ-157; волна 7: было потоки текстом, рисунка нет). Строка сверки — по правилу единиц полосы: «${chainNums.join(' · ')}» (от 100 млн целые, ниже — один знак), «✓» ставит проверка по точным числам`);
+    && fc('odIn') === 'bad' && fc('odPaid') === 'good neg' && fc('odRestr') === 'good neg' && fc('other') === 'neu' && /<div class="mv-ok" data-tip="[^"]*">✓ сходится: [^<]* млн<\/div>/.test(hmo) && /\.mv-w \.rz-f\.neu\{ background:var\(--asubk-ink-45\); \}/.test(src) && /\.rz\.mv-w\{ --rz-cols:260px 104px 60px minmax\(0,1fr\); \}/.test(src) && chainOk,
+    `Движение «Просрочено»: «на 30.09» и «на сегодня» числами, каждый поток своей строкой с полосой от общей нулевой линии (вышло в просрочку — вправо красным, погашено и реструктурировано — влево зелёным, «прочее» серым), длина полосы пропорциональна потоку (шкала по самому большому — ${DB.fmtVal(flows.sort((a, b) => b[1] - a[1])[0][1], 'sum')}), внизу «✓ сходится»: ${DB.fmtVal(mv.start, 'sum')} + потоки = ${DB.fmtVal(mv.end, 'sum')} с точностью до рубля; переключателя «Сумма | Изменение» нет; колонки 260 / 104 / 60 px (ДБ-155, ДБ-157, ДБ-165; волна 7: было потоки текстом, рисунка нет; волна 8: было 260 / 90 / 60 px). Строка сверки — по правилу единиц полосы: «${chainNums.join(' · ')}» (от 100 млн целые, ниже — один знак), «✓» ставит проверка по точным числам`);
 
   // ДБ-156: Таблица — первая колонка показатель плитки и порядок по ней; колонки по 170 px; «Изменение» сортирует по разнице
   DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.openView('lead-od', 'table'); DB.viewSet('lead-od', 'dim', 'program');
@@ -2590,6 +2601,81 @@ const asUser = id => { DB.state.userId = id; };
   ok(263, !['up_good', 'up_bad'].includes(DB.IND['oblig.submitted'].dir) && DB.IND['oblig.onTime'].dir === 'up_good' && rv6.table.total.deltas[1] > 0 && /<td><span class="good"[^>]*>▲ [\d,]+ п\.п\.<\/span><span class="s2">/.test(tr6) && /<td class="key"><span class="flat"/.test(tr6)
     && rowTones6.length === rv6.table.rows.length && rowTones6.every((t, i) => t[1] === (rv6.table.rows[i].deltas[1] > 0 ? 'good' : rv6.table.rows[i].deltas[1] < 0 ? 'bad' : 'flat')),
     `ревью волны 7: Таблица «Итог сдачи» с колонкой «доля»: рост доли в срок (${DB.fmtVal(rv6.table.total.deltas[1], 'pct').replace(' %', '')} п.п.) окрашен как «лучше» — направление берётся у числителя («Сдано в срок», больше — лучше), а не у главного показателя плитки «Сдано» (без направления); колонка самого главного показателя остаётся серой`);
+  DB.seed();
+})();
+
+/* ---------- R. Вид волны 8 (16.10.2026): ДБ-161…ДБ-166 ---------- */
+(() => {
+  const tab = html => html.replace(/<svg[\s\S]*?<\/svg>/g, '');
+  const css = src.slice(src.indexOf('<style>'), src.indexOf('</style>')), body = src.slice(src.indexOf('<body>'), src.indexOf('<script>'));
+
+  // ДБ-166: название секции — окно на странице, а не prompt() браузера; без страницы — значение по умолчанию «Секция»
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
+  const ls0 = DB.composeLayout('u1', 'lead'); DB.addSectionPrompt(); const ls1 = DB.composeLayout('u1', 'lead');
+  DB.setTab('screen', 'sc1'); const sc1 = DB.screens('u1').find(s => s.id === 'sc1'), it0 = sc1.items.length; DB.addSectionPrompt(); const scAdd = sc1.items.slice(it0);
+  ok(264, !/\bprompt\s*\(/.test(src) && /function askText\(title, value, ok, dflt\)\{/.test(src) && /if\(!HAS_DOM\) return ok\(dflt === undefined \? value : dflt\);/.test(src) && /<form class="ask" id="ask-form" role="dialog" aria-modal="true"/.test(src)
+    && /<button type="button" class="btn" onclick="DB\.close\(\)">Отмена<\/button><button type="submit" class="btn primary">Сохранить<\/button>/.test(src) && /addSectionPrompt:\(\)=>askText\('Название секции', '', [\s\S]{0,200}?, 'Секция'\)/.test(src)
+    && ls1.length === ls0.length + 1 && ls1.at(-1) === 's:Секция' && ls0.every(k => ls1.includes(k)) && scAdd.join() === 's:Секция',
+    `секция добавляется через окно ввода на странице (форма «ask» с «Отмена» и «Сохранить»), вызова prompt() браузера в макете нет; без страницы движок берёт имя по умолчанию: на вкладке роли в конце раскладки встала «Секция» (${ls0.length} → ${ls1.length} ключей), на своём экране «Совещание по Ошу» — тоже «Секция» (ДБ-166)`);
+
+  // ДБ-166: свой экран — то же окно; без страницы — «Мой экран», не больше пяти; переименование без страницы имя не трогает
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
+  const n0 = DB.screens('u1').length; DB.newScreen(); const n1 = DB.screens('u1').length, nsc = DB.screens('u1').at(-1), tabNew = Object.assign({}, DB.state.tab);
+  DB.renameScreen(); const nameAfter = nsc.name;
+  for (let i = 0; i < 5; i++) DB.newScreen(); const nMax = DB.screens('u1').length;
+  ok(265, n1 === n0 + 1 && nsc.name === 'Мой экран' && tabNew.kind === 'screen' && tabNew.id === nsc.id && nameAfter === 'Мой экран' && nMax === 5 && DB.screens('u1').slice(n0).every(s => s.name === 'Мой экран')
+    && /newScreen:\(\)=>askText\('Название своего экрана', 'Мой экран'/.test(src) && /renameScreen:\(\)=>\{ const sc = screenById\(S\.tab\.id\); askText\('Новое название', sc\.name/.test(src),
+    `«Новый экран» без страницы создаёт «Мой экран» (было ${n0}, стало ${n1}) и открывает его вкладку; «Переименовать» без страницы оставляет прежнее имя; ещё пять нажатий — экранов ${nMax}, правило «не больше пяти» держится (ДБ-166, ДБ-32)`);
+
+  // ДБ-165: одна светлая тема, системный шрифт, внешних шрифтов и импортов нет
+  ok(266, !/prefers-color-scheme\s*:\s*dark/.test(src) && !/data-theme/.test(src) && !/fonts\.googleapis|fonts\.gstatic/.test(src) && !/@import/.test(src) && !/@font-face/.test(src) && !/<link\b/.test(src)
+    && /--asubk-font:-apple-system,BlinkMacSystemFont,Roboto,"Segoe UI",Helvetica,Arial,sans-serif;/.test(src) && /body\{ font:400 14px\/1\.45 var\(--asubk-font\);/.test(src),
+    'тема одна, светлая: нет prefers-color-scheme: dark и data-theme, нет Google Fonts, @import, @font-face и <link> — шрифт системный (-apple-system, Segoe UI, Roboto…) (ДБ-165)');
+
+  // ДБ-165: сетка с зазором 16 px, плитка — белая, r 12 с лёгкой тенью; кнопки и поля — r 8
+  ok(267, /\.grid\{ display:grid; grid-template-columns:repeat\(4,minmax\(0,1fr\)\); gap:16px;/.test(src) && /--r-sm:6px; --r-md:8px; --r-lg:12px; --r-xl:14px;/.test(src)
+    && /\.tile\{[^}]*background:var\(--surface-card\); border:1px solid var\(--border-default\); border-radius:var\(--r-lg\);[^}]*box-shadow:var\(--shadow\);/.test(src) && /--shadow:0 1px 2px rgba\(24,39,57,\.05\);/.test(src) && /--shadow-lift:/.test(src)
+    && /\.btn\{[^}]*border-radius:var\(--r-md\);/.test(src) && /select,input\[type=text\],input\[type=number\]\{ height:32px; border-radius:var\(--r-md\);/.test(src),
+    'сетка плиток — четыре колонки с зазором 16 px; плитка белая, рамка серая, скругление 12 px и лёгкая тень (--shadow); кнопки и поля — скругление 8 px; шкала скруглений 6 / 8 / 12 / 14 px (ДБ-165; волна 8: зазор был 12 px)');
+
+  // ДБ-165: серая страница, белые плитки и меню слева, цвета — синие токены АСУБК
+  ok(268, /body\{ font:400 14px\/1\.45 var\(--asubk-font\); color:var\(--text-body\); background:var\(--surface-page\);/.test(src) && /--surface-page:var\(--asubk-canvas\);/.test(src) && /--asubk-canvas:#F1F3F6;/.test(src)
+    && /\.content\{[^}]*background:var\(--surface-page\); \}/.test(src) && /--surface-card:var\(--asubk-white\);/.test(src) && /--surface-sidebar:var\(--asubk-white\);/.test(src) && /\.sidebar\{[^}]*background:var\(--surface-sidebar\);/.test(src)
+    && /--asubk-blue:#006AF5;/.test(src) && /\.btn\.primary\{ background:var\(--asubk-blue\);/.test(src) && /--text-secondary:var\(--asubk-ink-80\);/.test(src) && /--asubk-blue-ring:rgba\(0,106,245,0\.55\);/.test(src),
+    'страница серая (--surface-page = --asubk-canvas #F1F3F6), плитки и меню слева белые; синий остаётся гос-синим (--asubk-blue #006AF5 у главной кнопки), второй тон текста — ink-80, кольцо выделения — синее 55 % (ДБ-165)');
+
+  // ДБ-165: переключатель — серая дорожка, выбранное — белая пилюля; в полосе выбранный вид и «Сумма» помечены классом on
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.openView('lead-od', 'table'); DB.viewSet('lead-od', 'dim', 'program');
+  const htb = tab(DB.stripHTML('lead-od', 'u1', 'lead')), segBtns = re => { const s = re.exec(htb); return [...(s ? s[1] : '').matchAll(/<button class="([^"]*)"[^>]*>([^<]+)<\/button>/g)].map(x => ({ on:/\bon\b/.test(x[1]), name:x[2] })); };
+  const sv = segBtns(/<span class="seg sl-views">([\s\S]*?)<\/span>/), sm = segBtns(/<span class="strip-mode"><span class="seg">([\s\S]*?)<\/span>/);
+  ok(269, /\.seg\{ display:inline-flex; padding:3px; gap:2px; border-radius:10px; background:var\(--surface-sunk\); \}/.test(src) && /\.seg button\.on\{ background:var\(--surface-card\); color:var\(--text-heading\);/.test(src)
+    && sv.length === 5 && sv.filter(b => b.on).map(b => b.name).join() === 'Таблица' && sm.length === 2 && sm.filter(b => b.on).map(b => b.name).join() === 'Сумма',
+    `переключатель — серая дорожка (--surface-sunk), выбранное — белая пилюля (--surface-card); в полосе «Просрочено» из пяти видов выбран один — «${sv.filter(b => b.on).map(b => b.name).join()}», в «Сумма | Изменение» — «${sm.filter(b => b.on).map(b => b.name).join()}» (класс on) (ДБ-165)`);
+
+  // ДБ-166: первая колонка Таблицы — показатель плитки на мягком синем
+  const trK = [...htb.matchAll(/<tr class="(?:rowlink|tot)"[^>]*>([\s\S]*?)<\/tr>/g)].map(x => [...x[1].matchAll(/<td(?: class="([^"]*)")?/g)].map(y => y[1] || ''));
+  ok(270, /\.tb td\.key\{ background:var\(--asubk-blue-tint\); \}/.test(src) && /--asubk-blue-tint:rgba\(0,106,245,0\.08\);/.test(src) && /<th class="key">Просрочено/.test(htb)
+    && trK.length === 7 && trK.every(r => r[1] === 'key' && r.filter(c => /\bkey\b/.test(c)).length === 1),
+    `Таблица «Просрочено» по программам: в каждой из ${trK.length - 1} строк и в итоге ровно одна ячейка с классом key — первая колонка чисел (показатель плитки), она на мягком синем (--asubk-blue-tint), заголовок над ней темнее (ДБ-166, ДБ-156)`);
+
+  // ДБ-166: пульс заготовки и выезд ящика — только при prefers-reduced-motion:no-preference
+  const anim = css.split('\n').filter(l => /animation:/.test(l));
+  ok(271, anim.length === 2 && anim.every(l => l.startsWith('@media (prefers-reduced-motion:no-preference){')) && anim.some(l => /\.tile\.skel \.t-body\{ animation:pulse /.test(l)) && anim.some(l => /\.drawer\{ animation:drIn /.test(l))
+    && /@keyframes pulse\{/.test(css) && /@keyframes drIn\{/.test(css) && !/\.animate\(|requestAnimationFrame/.test(src),
+    'анимаций две — пульс заготовки плитки и выезд ящика справа, обе внутри @media (prefers-reduced-motion:no-preference); у кого движение в системе выключено, страница стоит (ДБ-166)');
+
+  // ДБ-165: шапка — значки и аватар, меню слева на месте; render() пишет инициалы и «Сегодня …»
+  ok(272, (body.match(/class="tbtn"/g) || []).length === 2 && /<label class="whob"[^>]*><span class="ava" id="ava"/.test(body) && /<span id="clock"><\/span>/.test(body) && /<nav class="nav" id="nav"><\/nav>/.test(body)
+    && /\$\('ava'\)\.textContent = u\.name\.split\(/.test(src) && /\$\('clock'\)\.textContent = 'Сегодня '\+TODAY\.label\.replace\(' ', ', '\);/.test(src) && 'Сегодня ' + DB.TODAY.label.replace(' ', ', ') === 'Сегодня 11.10.2026, 14:15'
+    && /\.whob\{[^}]*border-radius:var\(--radius-pill\);/.test(src) && /\.ava\{[^}]*border-radius:50%;/.test(src) && /\.tbtn\{[^}]*border-radius:var\(--r-md\);/.test(src),
+    'шапка: две кнопки-значка (обновить, уведомления), пилюля пользователя с аватаром-инициалами и выбором пользователя стенда, часы «Сегодня 11.10.2026, 14:15»; меню слева (nav#nav) осталось (ДБ-165)');
+
+  // ДБ-166: на старте полоса закрыта — ни одна плитка не раскрыта
+  DB.seed(); const open0 = Object.keys(DB.state.open).length;
+  const anyOpen = [['u1', 'lead'], ['u2', 'cur'], ['u4', 'acc']].some(([uid, role]) => { asUser(uid); DB.setTab('role', role); return Object.keys(DB.state.open).length > 0 || DB.composeLayout(uid, role).filter(k => !k.startsWith('s:')).some(id => /class="tile open"/.test(DB.tileHTML(id, uid, role))); });
+  asUser('u1');
+  ok(273, open0 === 0 && !anyOpen,
+    'после входа полоса закрыта: раскрытых плиток нет (state.open пуст), ни одна плитка Руководства, Куратора и Бухгалтерии не помечена «open» — полосу открывает только клик по числу (ДБ-166)');
   DB.seed();
 })();
 
