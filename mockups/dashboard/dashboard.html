@@ -1436,8 +1436,8 @@ function miniOf(t, user, roleId, panel){
   return { vals:ps.map(p=>p.vals[0]), months:ps.map(p=>p.m), labels:ps.map(p=>p.label), closed:ps.map(p=>p.closed), unit:r.unit };
 }
 function answer(q, user, roleId, panel){
-  const res = { tileId:q.id, format:q.format };
   const I = IND[q.inds[0]]; const O = OBJECTS[I.obj];
+  const res = { tileId:q.id, format:q.format, agg:I.agg };
   if(STAND.statDown){ res.state='error'; res.msg='Статистика не ответила. Вместо числа ничего не показываем — ни ноль, ни прошлое значение.'; return res; }
   if(q.withdrawnStub){ res.state='withdrawn'; res.msg='Плитка снята администратором дашборда.'; return res; }
   const broken = q.inds.find(i=>STAND.withdrawn[i]);
@@ -1471,19 +1471,19 @@ function answer(q, user, roleId, panel){
       if(q.format==='shift' || q.shift) res.shift = shiftOf(q, rows, ctx, val);
       break; }
     case 'slice': case 'steps': {
-      const d = q.dims[0]; res.nodes = groupBy(rows, d, r=>val(r, ctx), cm, DATA[I.obj]);
+      const d = q.dims[0]; res.nodes = groupBy(rows, d, r=>val(r, ctx), cm, base);
       res.total = val(rows, ctx); break; }
     case 'heat': {
       // обе оси — весь список разреза; у неупорядоченной оси пустые строки и столбцы уходят в конец, у упорядоченной — шкала как есть
       const [d1,d2] = q.dims, down = d=>vs=>{ if(DIMS[d].ordered) return vs; const z = vs.map(v=>!val(rows.filter(r=>dv(d,r)===v), ctx).v);
         return [...vs.filter((v, i)=>!z[i]), ...vs.filter((v, i)=>z[i])]; };
-      const v1 = down(d1)(valuesOf(d1, rows, DATA[I.obj], cm)), v2 = down(d2)(valuesOf(d2, rows, DATA[I.obj], cm));
+      const v1 = down(d1)(valuesOf(d1, rows, base, cm)), v2 = down(d2)(valuesOf(d2, rows, base, cm));
       res.heat = { rows:v1, cols:v2, d1, d2, cells: v1.map(a=>v2.map(b=>val(rows.filter(r=>dv(d1,r)===a && dv(d2,r)===b), ctx).v || 0)) };
       const tot = rs=>{ const x = val(rs, ctx); return { value:x.v, num:x.num, den:x.den }; };   // итоги строк (справа) и столбцов (снизу) — узлом
       res.heat.rowTot = v1.map(a=>tot(rows.filter(r=>dv(d1,r)===a))); res.heat.colTot = v2.map(b=>tot(rows.filter(r=>dv(d2,r)===b)));
       res.total = val(rows, ctx); break; }
     case 'table': {
-      const d = q.dims[0]; const vs = valuesOf(d, rows, DATA[I.obj], cm);
+      const d = q.dims[0]; const vs = valuesOf(d, rows, base, cm);
       res.table = { d, cols: q.inds.map(i=>IND[i]), rows: vs.map(v=>{ const rs = rows.filter(r=>dv(d,r)===v);
         return { v, label:dimLabel(d,v), cells: q.inds.map(i=>aggregate(rs, IND[i], ctx).value) }; }) };
       if(!DIMS[d].ordered) res.table.rows.sort((a,b)=>(b.cells[0]||0)-(a.cells[0]||0));   // ступени — в объявленном порядке
@@ -2690,13 +2690,15 @@ function sliceLines(res, mode, top){
   const cand = res.nodes;   // все значения списка: строкой или в «ещё N», в обоих режимах; сумма строк = итогу, сумма разниц строк = разнице итога
   const keep = new Set(mode==='change' ? cand.slice().sort((a, b)=>Math.abs(b.delta || 0) - Math.abs(a.delta || 0)).slice(0, top) : cand.slice(0, top));
   const shown = cand.filter(n=>keep.has(n)), rest = cand.filter(n=>!keep.has(n));
-  const more = rest.length ? moreNode(rest, u) : null; res.top = top; res.more = rest.length;
+  const more = rest.length ? moreNode(rest, u, res.agg) : null; res.top = top; res.more = rest.length;
   res.lines = mode==='change' ? [...shown.filter(n=>n.delta>0), ...(more ? [more] : []), ...shown.filter(n=>!(n.delta>0))] : [...shown, ...(more ? [more] : [])];
 }
-function moreNode(rest, u){ const sum = f=>rest.reduce((a, n)=>a + (n[f] || 0), 0), has = rest.some(n=>n.base!==undefined);
+function moreNode(rest, u, agg){ const sum = f=>rest.reduce((a, n)=>a + (n[f] || 0), 0), has = rest.some(n=>n.base!==undefined);
+  const top = f=>{ const xs = rest.map(n=>n[f]).filter(x=>x!==null && x!==undefined); return xs.length ? Math.max(...xs) : null; };   // у наибольшего «ещё N» — наибольшее из скрытых строк, не сумма
   const o = { more:rest.length, label:'ещё '+rest.length, vs:rest.map(n=>n.v), cnt:sum('cnt'), n:sum('n') };
   if(u==='pct'){ const num = sum('num'), den = sum('den'); o.num = num; o.den = den; o.value = den ? num/den*100 : null;   // у доли «ещё N» — доля группы
     if(has){ const bn = sum('baseNum'), bd = sum('baseDen'); setDiff(o, o.value, bd ? bn/bd*100 : null, u); } }
+  else if(agg==='max'){ o.value = top('value'); if(has) setDiff(o, o.value, top('base'), u); }
   else { o.value = sum('value'); if(has) setDiff(o, o.value, sum('base'), u); }
   return o; }
 // Таблица: строки те же, что у Разреза; порядок — по первой колонке (показатель плитки); «Изменение» — по её разнице, от роста к падению;

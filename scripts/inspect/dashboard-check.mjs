@@ -1,7 +1,7 @@
-// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–8, 11–16.10.2026).
+// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–9, 11–16.10.2026).
 // Zero-dep: вытаскивает <script> из HTML и исполняет движок window.DB в node:vm (без DOM — render() и
 // toast() становятся no-op). Проверяется не «код есть», а поведение по решениям канона
-// mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-166, ИДБ-1…ИДБ-17):
+// mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-174, ИДБ-1…ИДБ-18):
 //   A  рамка и главная: вкладки — системные роли, роль без раскладки — минимальная (ДБ-8, ДБ-38, ДБ-50);
 //   B  плитка ссылается на отчёт и чисел не хранит: числа приходят от статистики через отчёт; «ждёт меня» — через очередь
 //      модуля-владельца, тоже от статистики (ДБ-99, ДБ-10, ДБ-11);
@@ -52,6 +52,14 @@
 //      серая страница и синие токены, переключатель — белая пилюля на серой дорожке, первая колонка Таблицы на мягком
 //      синем, анимации только при prefers-reduced-motion:no-preference, шапка — значки, аватар, меню слева, полоса
 //      на старте закрыта.
+//   S  волна 9 (16.10.2026), строки разреза ДБ-167…ДБ-170, ДБ-173: объект разреза не пропадает — итог = сумме строк во всех
+//      плитках × разрезах (Разрез, Таблица, Карта); список значений полный, «нет просрочки» первой корзиной, «пусто» последним
+//      со своим именем, значение вне списка — после объявленных; нули печатаются, у неупорядоченного — внизу и в «ещё N»; у
+//      разреза без своего списка значения — по строкам объекта в охвате смотрящего; упорядоченный держит шкалу и в «Изменении»;
+//      «ещё N» у наибольшего — наибольшее из скрытых строк;
+//   T  метки ДБ-171, ДБ-172: ночной источник по плану — серая «◷ только ночью», «⚠ устарело» — только при сбое прогона;
+//      «✎ отчёт изменён» — янтарная в ряду меток, пропадает после открытия отчёта смотрящим;
+//   U  ДБ-174: у доли «☰ 435 из 903» в строке полосы, итог тела — сумма строк; окно ввода держит фокус, Escape, возврат фокуса.
 // Блоки, которые правят состояние, начинаются с DB.seed(). Выход 1 при любом FAIL.
 //   node scripts/inspect/dashboard-check.mjs
 import { readFileSync } from 'node:fs';
@@ -1781,7 +1789,7 @@ const asUser = id => { DB.state.userId = id; };
     ['prob-181', 'tl', 'red'],
     ['prob-since', 'main', 218],
     ['prob-claims', 'slice(phase)', [['Досудебная',28],['Судебная',9],['Исполнение',11],['Банкротство',4],['Урегулирование',1]]],
-    ['prob-claims', 'slice(leadDept)', [['opk',35],['rp-chu',8],['rp-tal',4],['rp-osh',3],['rp-bat',1],['rp-nar',1],['rp-ik',1],['rp-ja',0]]],
+    ['prob-claims', 'slice(leadDept)', [['opk',35],['rp-chu',8],['rp-tal',4],['rp-osh',3],['rp-bat',1],['rp-nar',1],['rp-ik',1]]],
     ['prob-rec', 'main', 1699839],
     ['prob-rec', 'shift', 27645],
     ['prob-real', 'main', 4],
@@ -2807,14 +2815,18 @@ const asUser = id => { DB.state.userId = id; };
     && rzNames(hn).join() === 'нет просрочки,1–30,31–90,91–180,181+,итог' && /<span class="rz-v">0<\/span>/.test(rzRows(hn)[0] || '') && /☰ 0</.test(rzRows(hn)[0] || '') && !/rz-more/.test(hn),
     `«Просрочено › Нарынская · Срок просрочки»: ${vn.lines.map(l => l.label + ' ' + mln(l.value) + ' ☰ ' + l.cnt).join(' · ')} · итог ${mln(vn.total.v)} ☰ ${vn.cnt} — пять строк всегда, «ещё N» нет и при «первых 1» (ДБ-169)`);
 
-  // ДБ-169, неупорядоченный: все значения поля по строкам объекта, нулевые — вниз и в «ещё N»; Таблица и Карта — те же строки
-  const vd = V('cur-bal', 'slice', { dim:'dept' }, [], 'u2', 'cur'), td = V('cur-bal', 'table', { dim:'dept' }, [], 'u2', 'cur'), md = V('cur-bal', 'map', { dims:['dept', 'region'] }, [], 'u2', 'cur');
-  const nD = new Set(DB.DATA.loan.map(l => l.dept)).size, mo = vd.lines.find(l => l.more);
-  ok(284, vd.format === 'slice' && vd.nodes.length === nD && vd.nodes.filter(n => n.value).length === 1 && vd.nodes[0]?.v === 'rp-chu' && vd.nodes.every((n, i, a) => !i || (n.value || 0) <= (a[i - 1].value || 0))
-    && mo && mo.more === nD - 3 && mo.value === 0 && mo.cnt === 0 && near(sum(vd.lines.map(l => l.value)), vd.total.v)
-    && td.table.rows.length === nD && td.table.rows[0]?.v === 'rp-chu' && td.table.rows.slice(1).every(r => !r.cells[0])
-    && md.heat.rows.length === nD && md.heat.cols.length === DB.DIMS.region.values.length && md.heat.rows[0] === 'rp-chu' && md.heat.cols[0] === 'Чуйская' && md.heat.cells.slice(1).every(r => r.every(x => !x)) && md.heat.cells.every(r => r.slice(1).every(x => !x)),
-    `Куратор → «Остаток» по подразделению: ${nD} строк из строк объекта (вклад у одной — ${vd.nodes[0]?.label} ${mln(vd.nodes[0]?.value)}), нулевые внизу и в «ещё ${mo ? mo.more : '?'}» (0 · ☰ 0); Таблица — те же ${td.table.rows.length} строк, нули внизу; Карта подразделение × область — ${md.heat.rows.length} × ${md.heat.cols.length}, пустые строки и столбцы в конце (ДБ-169)`);
+  // ДБ-169, неупорядоченный: все значения поля по строкам объекта в охвате смотрящего, нулевые — вниз и в «ещё N»; Таблица и Карта — те же строки.
+  // Охват сужает и список: куратор видит кураторов своего подразделения, а не всех; Руководство — всех
+  const u2 = U('u2'), own = [...new Set(DB.DATA.loan.filter(l => l.dept === u2.dept).map(l => l.curator))], all = new Set(DB.DATA.loan.map(l => l.curator));
+  const vd = V('cur-bal', 'slice', { dim:'curator' }, [], 'u2', 'cur'), td = V('cur-bal', 'table', { dim:'curator' }, [], 'u2', 'cur'), md = V('cur-bal', 'map', { dims:['curator', 'region'] }, [], 'u2', 'cur');
+  const vdd = V('cur-bal', 'slice', { dim:'dept' }, [], 'u2', 'cur'), vl = V('lead-od', 'slice', { dim:'curator' }), mo = vd.lines.find(l => l.more);
+  const nz = vd.nodes.filter(n => n.value).length;
+  ok(284, vd.format === 'slice' && vd.nodes.length === own.length && vd.nodes.every(n => own.includes(n.v)) && nz >= 1 && nz < own.length
+    && vd.nodes.every((n, i, a) => !i || (n.value || 0) <= (a[i - 1].value || 0)) && mo && mo.more === own.length - vd.top && mo.value === 0 && mo.cnt === 0
+    && near(sum(vd.lines.map(l => l.value)), vd.total.v) && vdd.nodes.length === 1 && vdd.nodes[0].v === u2.dept && vl.nodes.length === all.size
+    && td.table.rows.length === own.length && td.table.rows.slice(nz).every(r => !r.cells[0])
+    && md.heat.rows.length === own.length && md.heat.cols.length === DB.DIMS.region.values.length && md.heat.cells.slice(nz).every(r => r.every(x => !x)),
+    `Куратор → «Остаток» по куратору: ${vd.nodes.length} строк — кураторы своего подразделения, не все ${all.size} (Руководство видит ${vl.nodes.length}); с вкладом ${nz}, нулевые внизу и в «ещё ${mo ? mo.more : '?'}» (0 · ☰ 0); по подразделению — одна строка «${vdd.nodes[0]?.label}»; Таблица — те же ${td.table.rows.length} строк, нули внизу; Карта куратор × область — ${md.heat.rows.length} × ${md.heat.cols.length}, пустые строки в конце (ДБ-169)`);
 
   // ДБ-173: упорядоченный разрез в «Изменении» держит свой порядок — в Разрезе и в Таблице; разница — полосой в своей строке
   const vcS = V('lead-od', 'slice', { dim:'bucket', mode:'sum' }), vcC = V('lead-od', 'slice', { dim:'bucket', mode:'change' }), tcC = V('lead-od', 'table', { dim:'bucket', mode:'change' });
@@ -3002,6 +3014,18 @@ const asUser = id => { DB.state.userId = id; };
   ok(300, ran && walk.join(' → ') === 'поле → Отмена → Сохранить → поле → Отмена → поле → Сохранить → Отмена' && inForm.join() === 'поле,Сохранить' && esc1 && esc1.dp && esc1.sp && focusEsc
     && emptyKept && focusSave && focusMask && focusNoEv,
     `окно ввода на поддельной странице (askText и closeOverlay из макета): Tab / Shift+Tab — ${walk.join(' → ')}; с самого окна Tab — ${inForm[0]}, Shift+Tab — ${inForm[1]}; Escape закрыл без сохранения и не ушёл странице, фокус — на «+ секция»; пустое «   » не сохранено (окно открыто, фокус в поле); «Риски» сохранено, после перерисовки фокус — на новой «+ секция»; клик мимо окна — фокус на «Переименовать»; кнопка без фокуса находится по клику (мелочи волны 8)`);
+  DB.seed();
+})();
+
+/* ---------- S (продолжение). Волна 9 после сведения: «ещё N» у наибольшего ---------- */
+(() => {
+  // у показателя «наибольший» строка «ещё N» — наибольшее из скрытых строк, а не их сумма; итог — наибольшая строка
+  DB.seed(); asUser('u3'); DB.setTab('role', 'prob');
+  const v = DB.view('prob-since', 'slice', { dim:'leadDept', top:2 }, [], 'u3', 'prob', {}), mo = v.lines.find(l => l.more);
+  const hid = v.nodes.filter(n => mo && mo.vs.includes(n.v)).map(n => n.value).filter(x => x !== null && x !== undefined);
+  ok(301, DB.IND[DB.questionOf(DB.tileById('prob-since')).inds[0]].agg === 'max' && mo && hid.length === mo.more && mo.value === Math.max(...hid)
+    && mo.value < hid.reduce((a, b) => a + b, 0) && v.total.v === Math.max(...v.nodes.map(n => n.value || 0)),
+    `Проблемные кредиты → «Наибольший срок с направления» по ведущему подразделению, первые 2: «ещё ${mo ? mo.more : '?'}» — ${mo ? mo.value : '?'} дн., наибольшее из скрытых строк (${hid.join(', ')}), не сумма; итог ${v.total.v} — наибольшая строка`);
   DB.seed();
 })();
 
