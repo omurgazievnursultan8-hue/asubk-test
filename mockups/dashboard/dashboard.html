@@ -429,8 +429,70 @@ svg.chart text{ font:11px var(--asubk-font); fill:var(--text-muted); }
 .pv-side{ min-width:0; position:sticky; top:8px; align-self:start; max-height:calc(100vh - 90px); overflow:auto; }
 .grid.pv{ grid-template-columns:repeat(2,minmax(0,1fr)); }
 
+/* ---------- Каталог — витрина: секции по объекту, строка — название, значения параметров, живое число, действие ---------- */
+.cat-lead{ margin:0 0 12px; }
+.cat-bar input[type=text]{ flex:1 1 260px; min-width:0; }
+/* переключатель «только доступные мне»: пилюля-дорожка с белым бегунком */
+.sw{ display:inline-flex; align-items:center; gap:8px; font-size:13.5px; color:var(--text-secondary); cursor:pointer; white-space:nowrap; }
+.sw input{ appearance:none; -webkit-appearance:none; position:relative; flex:none; width:32px; height:18px; margin:0; border-radius:var(--radius-pill); background:var(--surface-sunk); box-shadow:inset 0 0 0 1px var(--border-strong); cursor:pointer; }
+.sw input::after{ content:""; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:var(--surface-card); box-shadow:0 1px 2px rgba(24,39,57,.25); }
+.sw input:checked{ background:var(--asubk-blue); box-shadow:none; } .sw input:checked::after{ left:16px; }
+@media (prefers-reduced-motion:no-preference){ .sw input,.sw input::after{ transition:background .12s, left .12s; } }
+.cat-n{ margin-left:auto; color:var(--text-muted); font-size:13px; white-space:nowrap; }
+.cat-sec{ margin:0 0 18px; }
+.cat-h{ display:flex; align-items:baseline; gap:8px; margin:0 0 8px; font-size:15px; font-weight:600; letter-spacing:-.005em; color:var(--text-heading); }
+.cat-c{ font-size:13px; font-weight:400; color:var(--text-muted); }
+.cat-list{ background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--r-lg); box-shadow:var(--shadow); overflow:hidden; }
+.cat-row{ display:grid; grid-template-columns:minmax(0,1fr) 150px 250px; gap:4px 20px; align-items:center; min-height:56px; padding:9px 16px; border-bottom:1px solid var(--asubk-grid-line); }
+.cat-row:last-child{ border-bottom:0; } .cat-row:hover{ background:var(--surface-hover); }
+.cat-m{ min-width:0; } .cat-t{ font-weight:500; color:var(--text-heading); overflow-wrap:anywhere; }
+.cat-m .chip,.cat-m .pill{ height:20px; margin-left:4px; padding:0 7px; font-size:11.5px; vertical-align:1px; }
+.cat-p{ margin-top:2px; font-size:12.5px; line-height:1.4; color:var(--text-muted); }
+.cat-v{ justify-self:end; font-size:18px; line-height:1.2; font-weight:600; letter-spacing:-.01em; color:var(--text-heading); font-variant-numeric:tabular-nums; white-space:nowrap; cursor:help; }
+.cat-v .u{ margin-left:3px; font-size:12.5px; font-weight:500; letter-spacing:0; color:var(--text-muted); }
+.cat-v .st{ font-size:12.5px; font-weight:400; letter-spacing:0; color:var(--text-muted); }
+.cat-a{ min-width:0; font-size:12.5px; line-height:1.4; } .cat-has{ color:var(--text-muted); }
+.cat-empty{ display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 8px; padding:16px; margin-bottom:18px; background:var(--surface-card); border:1px dashed var(--border-strong); border-radius:var(--r-lg); font-size:14px; }
+.cat-empty .sep{ color:var(--text-disabled); }
+/* ---------- Мастерская: шаг 1 — показатель, отчёты с ним ---------- */
+.m-pick{ display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; margin-bottom:8px; } .m-pick .opt{ margin:0; } .m-pick input[type=text]{ flex:1 1 240px; min-width:0; }
+.ind-list{ display:flex; flex-wrap:wrap; gap:6px; max-height:236px; overflow:auto; padding:2px; margin-top:8px; }
+.ind{ display:inline-flex; flex-direction:column; align-items:flex-start; gap:1px; max-width:100%; padding:5px 11px 6px; border:1px solid var(--border-default); border-radius:var(--r-md); background:var(--surface-card); color:var(--text-heading); font-size:13px; font-weight:500; line-height:1.3; text-align:left; }
+.ind small{ font-size:11.5px; font-weight:400; color:var(--text-muted); }
+.ind:hover{ border-color:var(--border-strong); background:var(--surface-hover); }
+.ind.sel{ border-color:var(--asubk-blue-ring); background:var(--asubk-blue-tint); box-shadow:inset 0 0 0 1px var(--asubk-blue-ring); }
+.m-own{ display:flex; flex-wrap:wrap; align-items:center; gap:6px 12px; margin-top:10px; } .m-own .why{ margin:0; }
+/* ---------- Реестр плиток: очередь предложений, кандидат на снятие; заглушка снятой; правка раскладки роли ---------- */
+.prop{ display:grid; grid-template-columns:minmax(240px,300px) minmax(0,1fr); gap:14px 20px; padding:14px 16px; margin-bottom:12px; background:var(--surface-card); border:1px solid var(--border-default); border-radius:var(--r-lg); box-shadow:var(--shadow); }
+.prop-cap{ margin-bottom:6px; font-size:12px; color:var(--text-muted); } .prop-pv{ min-width:0; max-width:360px; } .prop-pv .tile{ cursor:default; }
+.prop-h{ margin-bottom:2px; font-size:14px; } .prop-c{ margin:10px 0 8px; } .prop-c li{ margin:2px 0; font-size:13px; }
+.prop-dup{ margin:0 0 4px; } .prop-a{ display:flex; gap:8px; margin-top:10px; }
+.pill.cand{ background:var(--asubk-amber-tint); color:var(--asubk-amber); } .pill.new{ background:var(--asubk-blue-tint); color:var(--asubk-link); }
+.tile.flash{ border-color:var(--asubk-blue-ring); box-shadow:0 0 0 2px var(--asubk-blue-ring), var(--shadow); }
+.tile.gone{ cursor:default; background:var(--surface-panel); border-style:dashed; box-shadow:none; }
+.gone-act{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.news{ position:relative; display:flex; flex-wrap:wrap; align-items:center; gap:4px 14px; padding-right:44px; }
+.news-x{ position:absolute; top:6px; right:6px; width:28px; height:28px; display:grid; place-items:center; padding:0; border:0; border-radius:var(--r-sm); background:none; color:var(--text-muted); }
+.news-x:hover{ background:rgba(0,106,245,.12); color:var(--text-heading); } .news-x svg{ width:12px; height:12px; }
+.news-note{ margin:0 0 12px; font-size:13px; color:var(--text-muted); }
+.ld-bar{ position:sticky; top:0; z-index:3; display:flex; flex-wrap:wrap; align-items:center; gap:6px 14px; padding:10px 14px; margin:0 0 12px; border-radius:var(--r-lg);
+  background:linear-gradient(var(--asubk-blue-tint), var(--asubk-blue-tint)), var(--surface-card); box-shadow:0 0 0 1px var(--asubk-blue-ring); font-size:13.5px; color:var(--text-heading); }
+.ld-bar .ld-r{ margin-left:auto; display:flex; gap:8px; }
+.ask.wwin,.ask.rwin{ width:min(560px, calc(100vw - 32px)); max-height:calc(100vh - 32px); overflow:auto; top:50%; transform:translate(-50%, -50%); }
+.ask select{ width:100%; max-width:100%; } .ask .kv{ grid-template-columns:170px minmax(0,1fr); margin:10px 0 12px; }
+.rw-s{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.chip-b{ min-height:26px; padding:2px 10px; border:1px solid var(--border-default); border-radius:var(--radius-pill); background:var(--surface-sunk); color:var(--text-secondary); font-size:12.5px; text-align:left; }
+.chip-b:hover{ border-color:var(--border-strong); color:var(--text-heading); }
+/* телефон: каталог — просмотр и «Добавить»; мастерская и реестр плиток — только на компьютере */
+.phone-only{ display:none; }
+.nav-m{ display:none; } .nav-m select{ height:32px; max-width:min(260px, 64vw); padding:0 6px; border-color:transparent; background:none; font-size:16px; font-weight:600; color:var(--text-heading); field-sizing:content; }
+.nav-m select:hover{ border-color:var(--border-strong); background:var(--surface-card); }
+#v-catalog{ max-width:1200px; }
+.prop-c summary{ cursor:pointer; font-size:13px; font-weight:500; } .prop-c .checks{ margin:6px 0 0; }
+
 /* ---------- Ширины ---------- */
-@media (max-width:1000px){ .grid{ grid-template-columns:repeat(2,minmax(0,1fr)); } .sidebar{ display:none; } #clock{ display:none; } .cols2{ grid-template-columns:minmax(0,1fr); } .pv-side{ position:static; max-height:none; overflow:visible; } }
+@media (max-width:1000px){ .grid{ grid-template-columns:repeat(2,minmax(0,1fr)); } .sidebar{ display:none; } #clock{ display:none; } .cols2{ grid-template-columns:minmax(0,1fr); } .pv-side{ position:static; max-height:none; overflow:visible; }
+  .crumb-title{ display:none; } .nav-m{ display:block; } .cat-row{ grid-template-columns:minmax(0,1fr) 130px 200px; gap:4px 14px; } .prop{ grid-template-columns:minmax(0,1fr); } }
 @media (max-width:600px){
   .topbar{ padding:8px 16px; gap:8px; } .topbar .right{ margin-left:0; min-width:0; } .tbtn .lbl{ display:none; } .whob{ min-width:0; } .whob select{ max-width:220px; }
   .wrap{ padding:12px 16px 40px; }
@@ -443,6 +505,9 @@ svg.chart text{ font:11px var(--asubk-font); fill:var(--text-muted); }
   .top-r .btn{ height:36px; min-height:36px; } .top-r .more{ width:36px; }
   .scope-m{ display:block; margin-top:6px; font-size:12.5px; color:var(--text-muted); }
   .fw-b{ grid-template-columns:minmax(0,1fr); } .fwin .ask-b{ flex-wrap:wrap; }
+  .desk-only{ display:none !important; } .phone-only{ display:block; } .cat-empty .phone-only{ display:inline; }
+  .cat-row{ grid-template-columns:minmax(0,1fr) auto; gap:6px 12px; padding:10px 12px; } .cat-m{ grid-column:1/-1; } .cat-v{ justify-self:start; } .cat-a{ justify-self:end; text-align:right; }
+  .cat-n{ margin-left:0; } .ask .kv{ grid-template-columns:1fr; } .ld-bar .ld-r{ margin-left:0; }
   .strip{ padding:6px 12px 0; }
   /* строка полосы на телефоне переносится; пять видов — одной прокручиваемой строкой внутри; паспорт и «Работать со списком» уходят в «⋯» */
   .strip-line{ flex-wrap:wrap; overflow:visible; white-space:normal; } .strip-line .sl-sp,.strip-line .sl-pass,.strip-line .sl-list{ display:none; }
@@ -474,6 +539,7 @@ svg.chart text{ font:11px var(--asubk-font); fill:var(--text-muted); }
   <div class="main">
     <header class="topbar">
       <div class="crumb-title" id="crumb">Главная</div>
+      <label class="nav-m"><span class="vh">Раздел дашборда</span><select id="nav-m" onchange="DB.go(this.value)"></select></label>
       <div class="right">
         <span id="clock"></span>
         <button class="tbtn" id="btn-refresh" type="button" aria-label="Обновить" onclick="DB.refresh()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg><span class="lbl">Обновить</span></button>
@@ -2486,10 +2552,11 @@ T('cat-plan',   { title:'Исполнение плана · прошлый ме�
 T('cat-rsmulti',{ title:'Многократных обращений в работе', report:'r-rsapps', params:{ curator:'*' }, main:{ col:'rsapp.multi' }, second:{ share:['rsapp.multi','rsapp.inWork'], label:'обращений в работе' }, tl:null, shift:'prevMonthEnd', views:{} });
 // — Личная плитка (собрана Бековой для себя) —
 T('p-u2-agro',  { title:'Мои кредиты Агрокредит с просрочкой > 30 дн.', report:'r-u2-agro', params:{ curator:'@me' }, main:{ col:'loan.count' }, second:null, tl:null, shift:'prevMonthEnd', views:{}, owner:'u2', state:'personal' });
-TILES.forEach(t=>{ t.created = '01.10.2026'; });
+TILES.forEach(t=>{ t.created = '01.06.2026'; });                // каталог стенда живёт с июня: счётчик «открывали за 90 дней» у него полный
 const REPORT_TITLES = Object.fromEntries(REPORTS.map(r=>[r.id, r.title]));
 const REPORTS_SEED = JSON.stringify(REPORTS);               // снимок объявленных отчётов: seed() возвращает каталог к нему
 const TILES_SEED = JSON.stringify(TILES);                   // снимок плиток каталога: правки, версии и собранные на ходу не переходят между прогонами
+const TILES_SEED_IDS = new Set(TILES.map(t=>t.id));          // плитки стенда — у собранных на ходу счётчика за 90 дней нет
 function tileById(id){ return TILES.find(t=>t.id===id); }
 
 /* ================= Объявленные раскладки ролей (одна на роль) ================= */
@@ -2524,7 +2591,10 @@ function seed(){
   // свёрнутые секции («человек|вкладка|секция») помнятся между входами. Вход на стенде — смена пользователя; seed() — новый стенд.
   // asked — сколько раз плитка спросила у статистики основу (главное число, сдвиг, второе): свёрнутая секция не спрашивает
   S = { userId:'u1', tab:null, panels:{}, lastTab:{}, collapsed:{}, asked:{}, arrange:false, declared:JSON.parse(JSON.stringify(DECLARED_SEED)),
-    overlays:{}, screens:{}, signals:[], sigN:0, notifs:[], journal:[], usage:{}, proposals:[], cache:new Map(), clock:0, cacheHits:0, cacheMiss:0, seen:{}, exportLog:[], viewMem:{}, open:{} };
+    overlays:{}, screens:{}, signals:[], sigN:0, notifs:[], journal:[], usage:{}, proposals:[], cache:new Map(), clock:0, cacheHits:0, cacheMiss:0, seen:{}, exportLog:[], viewMem:{}, open:{},
+    roleNews:{}, newMark:{}, newsFlash:null, layoutDraft:null, catQ:'', catOnly:false, mObj:'', mQ:'', mInd:null };
+  // roleNews — разовая плашка «Раскладка роли обновлена …» у держателя («человек|роль»), newMark — плитки с меткой «новая»; layoutDraft —
+  // правка раскладки роли в редакторе до «Сохранить»; catQ, catOnly — поиск и «только доступные мне» каталога; mObj, mQ, mInd — шаг 1 мастерской
   // S.panel — фильтр текущей вкладки; запись нормализует: значения поля — список, пустые поля выброшены
   Object.defineProperty(S, 'panel', { get:()=>panelOfTab(), set:v=>{ S.panels[tabKey()] = normPanel(v); }, enumerable:false, configurable:true });
   S.overlays['u2|cur'] = { order:[], hidden:[], added:['p-u2-agro'] };
@@ -2614,6 +2684,50 @@ function catalogFor(u){
   return TILES.filter(t=> t.state==='published' || (t.state==='personal' && t.owner===u.id))
     .map(t=>({ t, why: canSee(t, u), ready: tileAnswers(t) }));
 }
+/* ---------- Каталог — витрина: секции по объекту, в строке — значения параметров и живое число ---------- */
+// секция — объект вопроса плитки; объекты одного модуля-владельца — одной секцией (взыскание: требование, мера, дело; заявки: заявка,
+// запись комиссии, заключение); эпизод просрочки — просрочка кредита, он в секции «Кредит»
+const CAT_SECTIONS = [['Кредит', ['loan','spell']], ['Заёмщик', ['borrower']], ['Взыскание', ['claim','measure','case']], ['Имущество', ['asset']],
+  ['Заявки', ['app','comm','concl']], ['Реструктуризация', ['rsapp']], ['Залог', ['coll']], ['Платежи и поступления', ['receipt','payment']],
+  ['Кредитная программа', ['program']], ['Обязательства', ['oblig']], ['Задания', ['task']]];
+function catSection(t){ const q = questionOf(t), o = q && q.inds.length ? IND[q.inds[0]].obj : null, s = CAT_SECTIONS.find(([, os])=>os.includes(o)); return s ? s[0] : 'Прочее'; }
+// значения параметров плитки словами — то, чем различаются плитки с одним именем: «куратор: я», «за прошлый месяц», «на конец прошлого
+// месяца»; у ссылочной — очередь модуля-владельца
+function paramChips(t){
+  if(!t) return [];
+  if(t.kind==='link'){ const qu = queueOf(t); return qu ? ['очередь «'+qu.name+'» · '+qu.module] : []; }
+  const r = reportById(t.report); if(!r) return [];
+  const p = t.params || {}, out = [];
+  Object.keys(r.params).forEach(n=>{
+    if(n==='date') out.push('на '+(DATE_MODES[p.date || 'today'] || { label:String(p.date) }).label);
+    else if(n==='period'){ const v = p.period || 'curMonth'; out.push(v==='ytd' ? 'с начала года' : 'за '+(PERIODS[v] || { label:String(v) }).label); }
+    else out.push(r.params[n].name.toLowerCase()+': '+paramText(r, n, p[n])); });
+  if(r.asOf) out.push('на '+DATE_MODES[r.asOf].label);
+  return out; }
+// живое главное число строки — тот же вопрос, что у плитки, в охвате смотрящего (роль вкладки, куда добавят; у своего экрана — все роли),
+// без фильтра вкладки; сдвиг, второе число и светофор каталогу не нужны
+function catNum(t, u, roleId){ return cachedBy(cacheKey(t, u, roleId, {}, 'cat'), mainQ(t) || {}, ()=>{
+  const why = reportBroken(t), q = !why && mainQ(t); if(!q) return { state:'broken', msg:why || 'Плитка не ссылается на отчёт.' };
+  const lock = circleWhy(t, u); if(lock) return { state:'noaccess', msg:lock };
+  return answer(q, u, roleId, {}); }); }
+// число строки словами — как на плитке: доля в процентах, суммы не выше «млн»
+function catNumText(t, res){ if(!res || !LIVE.includes(res.state)) return null; if(res.state==='dash') return '—';
+  const q = mainQ(t); return q && q.share ? fmtVal(res.value, 'pct') : fmtVal(res.value, res.unit); }
+// витрина: строки по секциям; status — 'has' (уже стоит во вкладке), 'add', 'no' (нельзя: причина), 'wait' (ждёт соседа);
+// only — «только доступные мне» (есть или можно добавить); q — поиск по названию, показателю, объекту, параметрам, отчёту и очереди
+function catalogView(u, opts){
+  opts = opts || {}; const qs = String(opts.q || '').trim().toLowerCase(), target = opts.target || null;
+  const roleId = target && target.kind==='role' ? target.id : null;
+  const inTarget = id=>!target ? false : target.kind==='screen' ? ((screens(u.id).find(s=>s.id===target.id) || { items:[] }).items.includes(id)) : composeLayout(u.id, target.id).includes(id);
+  const rows = catalogFor(u).map(({ t, why, ready })=>{ const q = questionOf(t) || { inds:[] }, I = q.inds.length ? IND[q.inds[0]] : null, src = srcOf(t);
+    let status = why ? 'no' : !ready ? 'wait' : inTarget(t.id) ? 'has' : 'add', res = status==='has' || status==='add' ? catNum(t, u, roleId) : null;
+    // на вкладке роли плитка смотрит правами этой роли: не открыто ей — «Нельзя» с причиной, а не «Добавить» с «нет доступа» на плитке
+    if(res && res.state==='noaccess' && status==='add'){ status = 'no'; why = 'Нельзя на вкладке «'+roleName(roleId)+'»: '+String(res.msg || '').replace(/^Нельзя: /, '').replace(/\.$/, '').replace('вашей роли', 'этой роли'); res = null; }
+    const text = [t.title, catSection(t), ...q.inds.map(i=>IND[i].name), I ? OBJECTS[I.obj].name : '', ...paramChips(t), src ? (src.title || src.name || '') : ''].join(' · ').toLowerCase();
+    return { t, why, ready, status, section:catSection(t), params:paramChips(t), res, num:catNumText(t, res), owner: I ? OBJECTS[I.obj].owner : '—', text }; })
+    .filter(x=>(!qs || x.text.includes(qs)) && (!opts.only || x.status==='has' || x.status==='add'));
+  const sections = CAT_SECTIONS.map(([name])=>({ name, rows:rows.filter(x=>x.section===name) })).concat([{ name:'Прочее', rows:rows.filter(x=>x.section==='Прочее') }]).filter(s=>s.rows.length);
+  return { sections, rows, n:rows.length, q:qs, only:!!opts.only, roleId }; }
 
 /* ================= Доступные отчёты ================= */
 // отчёт открыт кругом отчётности (все · подразделения · только автор) и правом роли на его объект
@@ -2627,6 +2741,21 @@ function reportsFor(u, query){ const qs = String(query||'').trim().toLowerCase()
   return REPORTS.filter(r=>r.state==='active' && circleOpen(r, u) && u.roles.some(x=>hasRight(x, r.obj)) && (!qs || reportText(r).includes(qs)))
     .map(r=>({ r, feeds: TILES.filter(x=>x.report===r.id).length })); }
 function timedReport(r){ return !!(r && (r.params.date || r.params.period)); }
+/* ---------- Мастерская «+ Плитка» начинается с показателя ---------- */
+// показатели реестра, открытые смотрящему: объект открыт хотя бы одной его роли, показатель не выведен и отвечает; поиск — по названию
+// показателя и объекта (пустой поиск каталога приходит сюда словами плитки — тогда ищется любое из слов)
+function indsFor(u, obj, query){ const qs = String(query || '').trim().toLowerCase(), words = qs.split(/[\s·,]+/).filter(w=>w.length>2);
+  const all = Object.values(IND).filter(I=>u.roles.some(x=>hasRight(x, I.obj)) && (!obj || I.obj===obj) && !STAND.withdrawn[I.id] && !I.refuses);
+  const hay = I=>(I.name+' · '+OBJECTS[I.obj].name).toLowerCase(), whole = all.filter(I=>!qs || hay(I).includes(qs));
+  return whole.length || !words.length ? whole : all.filter(I=>words.some(w=>hay(I).includes(w.slice(0, Math.max(4, w.length - 2))))); }
+// отчёты, открытые смотрящему, с этим показателем в колонках: первым — тот, что кормит больше плиток
+function reportsWith(u, indId){ return reportsFor(u).filter(x=>x.r.cols.includes(indId)).map(x=>({ r:x.r, feeds:tilesOfReport(x.r.id).length }))
+  .sort((a, b)=>b.feeds - a.feeds || a.r.title.localeCompare(b.r.title, 'ru')); }
+// плитка на выбранном отчёте сразу берёт выбранный показатель главным числом
+function draftWith(reportId, indId){ const r = reportById(reportId); if(!r) return null; const d = blankDraft(r.id);
+  if(indId && r.cols.includes(indId)){ d.main = { col:indId }; d.views = viewDefaults(r, indId); }
+  d.title = IND[d.main.col].name;                                          // подпись — название показателя, автор поправит
+  return d; }
 
 /* ================= Отчёт плитки: что за отчёт, с какими значениями, что отвечает ================= */
 const SHELF_LABEL = { catalog:'Общий отчёт каталога', personal:'Личный', official:'Официальный' };
@@ -2649,7 +2778,7 @@ function reportChangedFor(t, uid){ const r = t && t.report && reportById(t.repor
   return S.seen[uid+'|'+r.id]===r.version ? null : r.changed; }
 // отчёты ведёт модуль «Отчётность»; макет имитирует его правки, чтобы показать, как они доходят до плиток
 const tilesWord = n=>n+' '+(n%10===1 && n%100!==11 ? 'плитка' : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 'плитки' : 'плиток');
-function tilesOfReport(reportId){ return TILES.filter(t=>t.kind!=='link' && t.report===reportId && t.state!=='withdrawn'); }
+function tilesOfReport(reportId){ return TILES.filter(t=>t.kind!=='link' && t.report===reportId && t.state!=='withdrawn' && t.state!=='accepted'); }
 function reportEdit(id, change, who){
   const r = reportById(id); if(!r) return { error:'Отчёта нет в каталоге' }; const c = change || {}; let what;
   if(who && !canEditReport(r, who)) return { error:'Отчёт «'+r.title+'» правят владелец и соавторы: '+[r.owner, ...reportCoauthors(r)].map(userName).join(', ') };
@@ -2968,14 +3097,61 @@ function roleOn(uid, roleId){ const u = USERS.find(x=>x.id===uid), R = ROLES.fin
   if(!u || !R || u.roles.includes(roleId)) return { error:'Роль уже назначена' };
   u.roles = ROLES.map(x=>x.id).filter(id=>id===roleId || u.roles.includes(id)); S.cache.clear();
   journal('назначил роль', u.name+' · «'+R.name+'»'); return { ok:true }; }
-function propose(id){ const t = tileById(id); if(!t || t.owner!==user().id) return false; t.proposed = true;
-  S.proposals.push({ tile:id, from:user().id, at:TODAY.label }); journal('предложил плитку в каталог', t.title); return true; }
-// в каталог — только плитка на отчёте, открытом не одному автору; автопроверка — как у публикации
-function moveToCatalog(id){ const t = tileById(id); if(!t || !isAdmin(user())) return false;
-  const r = t.kind!=='link' && reportById(t.report);
-  if(r && (r.shelf==='personal' || (r.circle || {}).owner)) return { error:'Не перенесено: отчёт «'+r.title+'» личный — сначала откройте его кругу в отчётности' };
-  const ac = t.kind==='link' ? { ok:true } : autocheck(t); if(!ac.ok) return { error:'Автопроверка не пройдена', checks:ac.checks };
-  t.state = 'published'; t.owner = 'catalog'; t.proposed = false; S.proposals = S.proposals.filter(p=>p.tile!==id); journal('перенёс личную плитку в каталог', t.title); return true; }
+/* ---------- «Предложить в каталог»: очередь администратора с ответом ---------- */
+// предложение: плитка, автор, когда; state — ждёт · принято · отклонено (с причиной). У плитки, пока ждёт, — «предложена · ждёт»
+function propose(id){ const t = tileById(id); if(!t || t.owner!==user().id || t.state!=='personal' || t.proposed) return false; t.proposed = true;
+  S.proposals.push({ tile:id, from:user().id, at:TODAY.label, state:'wait' }); journal('предложил плитку в каталог', t.title); return true; }
+function proposalsWaiting(){ return S.proposals.filter(p=>p.state==='wait'); }
+function proposalOf(id){ return S.proposals.find(p=>p.tile===id && p.state==='wait') || null; }
+// личный отчёт (полка автора или круг «только автор») при принятии копируется в общий отчёт каталога: владелец — принявший администратор,
+// соавторы — держатели роли (по роли), круг — все; общий и официальный отчёт не копируются — каталожная плитка встаёт на него же
+function personalReport(r){ return !!r && (r.shelf==='personal' || !!(r.circle || {}).owner); }
+function candidateReport(t, adminId){ const r = reportById(t.report); if(!personalReport(r)) return r;
+  return Object.assign(cp(r), { id:'r-c-'+t.id, shelf:'catalog', owner:adminId, circle:{ all:true }, version:1, changed:null, from:r.id }); }
+// подпись вопроса главного числа: показатели, условия (со значениями параметров), дата или период — две плитки с одной подписью спрашивают одно
+function qSig(t){ const q = mainQ(t); if(!q) return null;
+  return JSON.stringify([q.inds.slice(0, q.share ? 2 : 1), q.share || null, q.numFilter || null, (q.filter || []).map(c=>JSON.stringify(c)).sort(), q.date || null, q.period || null]); }
+// такая же плитка в каталоге — тот же вопрос главного числа: подсказка причины «есть такая: …»
+function dupOf(t){ const s = qSig(t); return s ? TILES.filter(x=>x.state==='published' && x.owner==='catalog' && x.id!==t.id && qSig(x)===s) : []; }
+// предпросмотр и автопроверка предложения — на копии отчёта, будто она уже в каталоге (копия стоит в списке отчётов только на время
+// проверки); автопроверка — глазами администратора, предпросмотр — как у автора
+function proposalCheck(id){ const t = tileById(id), u = user(); if(!t || !t.report) return { ok:false, checks:[{ ok:false, text:'плитка на отчёте не найдена' }] };
+  const r0 = reportById(t.report); if(!r0) return { ok:false, checks:[{ ok:false, text:'отчёт не найден' }] };
+  const cand = candidateReport(t, u.id), temp = cand!==r0 && !reportById(cand.id); if(temp) REPORTS.push(cand);
+  try { const d = Object.assign({ id:'prop-'+t.id, kind:'overview', owner:'catalog', state:'published', version:1 }, cleanTile(t), { report:cand.id });
+    const ac = autocheck(d), author = USERS.find(x=>x.id===t.owner) || u;
+    return { ok:ac.ok, checks:ac.checks, preview:baseOf(d, author, null, {}), tile:d, author, report:cand, from:r0, copy:cand!==r0, dup:dupOf(t) }; }
+  finally { if(temp) REPORTS.splice(REPORTS.indexOf(cand), 1); } }
+function notify(to, text, extra){ S.notifs.push(Object.assign({ to, at:TODAY.label, text, read:false }, extra || {})); }
+// «Принять»: личный отчёт копируется в общий, личная плитка автора заменяется каталожной там, где стоит (личные раскладки, свои экраны),
+// его сигналы переходят на неё; автор получает уведомление
+function acceptProposal(id){ const t = tileById(id), u = user(), p = proposalOf(id);
+  if(!isAdmin(u)) return { error:'Принимает администратор дашборда' };
+  if(!t || !p) return { error:'Предложения нет в очереди' };
+  const pc = proposalCheck(id); if(!pc.ok) return { error:'Автопроверка не пройдена', checks:pc.checks };
+  const r = pc.report; if(pc.copy) REPORTS.push(r);
+  const nt = Object.assign({ id:'c-'+t.id, kind:'overview' }, cleanTile(t), { report:r.id, owner:'catalog', state:'published', version:1, created:'11.10.2026', from:t.id });
+  TILES.push(nt);
+  Object.keys(S.overlays).filter(k=>k.startsWith(t.owner+'|')).forEach(k=>{ const ov = S.overlays[k]; ['added','order','hidden'].forEach(f=>{ ov[f] = ov[f].map(x=>x===id ? nt.id : x); }); });
+  screens(t.owner).forEach(sc=>{ sc.items = sc.items.map(x=>x===id ? nt.id : x); if(sc.pinned && sc.pinned[id]){ sc.pinned[nt.id] = sc.pinned[id]; delete sc.pinned[id]; } });
+  S.signals.filter(x=>x.tile===id).forEach(x=>{ x.tile = nt.id; x.version = nt.version; });
+  t.state = 'accepted'; t.proposed = false; t.acceptedAs = nt.id;
+  Object.assign(p, { state:'accepted', by:u.id, answeredAt:TODAY.label, as:nt.id });
+  notify(t.owner, 'Предложение «'+t.title+'» принято: плитка в каталоге, у вас она заменена каталожной'+(pc.copy ? '; ваш отчёт скопирован в общий «'+r.title+'»' : '')+' ('+u.name+')', { kind:'proposal', tile:nt.id });
+  journal('принял предложение', '«'+t.title+'» от '+userName(t.owner)+(pc.copy ? ' · личный отчёт скопирован в общий «'+r.title+'», владелец — '+u.name : ' · на отчёте «'+r.title+'»'));
+  S.cache.clear();
+  return { tile:nt, report:r, copy:pc.copy }; }
+// «Отклонить» — с причиной; автор получает её уведомлением, плитка остаётся личной, предложить можно снова
+function rejectProposal(id, reason){ const t = tileById(id), u = user(), p = proposalOf(id), why = String(reason || '').trim();
+  if(!isAdmin(u)) return { error:'Отклоняет администратор дашборда' };
+  if(!t || !p) return { error:'Предложения нет в очереди' };
+  if(!why) return { error:'Причина обязательна: её получит автор' };
+  t.proposed = false;
+  Object.assign(p, { state:'rejected', reason:why, by:u.id, answeredAt:TODAY.label });
+  const dup = dupOf(t).find(x=>why.includes(x.title));
+  notify(t.owner, 'Предложение «'+t.title+'» отклонено: '+why+' ('+u.name+')', Object.assign({ kind:'proposal', tile:id }, dup ? { find:dup.title } : {}));
+  journal('отклонил предложение', '«'+t.title+'» от '+userName(t.owner)+' · причина: '+why);
+  return { ok:true, reason:why }; }
 function publishDraft(id){ const t = tileById(id); if(!t || t.state!=='draft') return false;
   const ac = autocheck(t); if(!ac.ok) return { error:reportBroken(t) || 'Автопроверка не пройдена', checks:ac.checks }; t.state='published'; delete t.forRoles; journal('опубликовал плитку', t.title); return true; }
 function whereUsed(id){
@@ -2984,16 +3160,81 @@ function whereUsed(id){
   const scr = Object.values(S.screens).reduce((a,l)=>a+l.filter(s=>s.items.includes(id)).length, 0);
   return { roles, personal, screens:scr };
 }
-function withdraw(id){ const t = tileById(id); if(!t || !isAdmin(user())) return false; const w = whereUsed(id);
-  t.state = 'withdrawn'; journal('снял плитку', t.title+' · роли: '+(w.roles.map(roleName).join(', ')||'—')+' · личных: '+w.personal+' · своих экранов: '+w.screens); return w; }
+/* ---------- Неиспользуемые — подсказкой, снятие — руками, с заменой ---------- */
+// «открывали за 90 дней» — обезличенный счётчик стенда: из ключа плитки (у плиток раскладок ролей — сотни, у остальных — от нуля до
+// сорока; собранные на ходу — с нуля) плюс открытия в этом сеансе
+function opens90(t){ if(!t) return 0; const h = hash(t.id+'|o90'), inRoles = Object.values(DECLARED_SEED).some(L=>L.includes(t.id));
+  const seedN = !TILES_SEED_IDS.has(t.id) ? 0 : inRoles ? 40 + h%360 : h%4===0 ? 0 : 1 + h%40;
+  return seedN + ((S.usage[t.id] || {}).views || 0); }
+function daysSince(dmy){ const m = /^(\d\d)\.(\d\d)\.(\d{4})/.exec(dmy || ''), [y, mo, d] = TODAY.iso.split('-').map(Number); if(!m) return 0;
+  return Math.round((Date.UTC(y, mo - 1, d) - Date.UTC(+m[3], +m[2] - 1, +m[1])) / 864e5); }
+// кандидат на снятие — подсказка, не автоснятие: в каталоге не меньше 90 дней, за 90 дней ни одного открытия, ни в одной раскладке роли
+function withdrawCandidate(t){ return !!t && t.state==='published' && t.owner==='catalog' && daysSince(t.created)>=90 && opens90(t)===0 && !whereUsed(t.id).roles.length; }
+// снятие называет, где плитка стоит; из раскладок ролей она уходит сразу (у держателей — «−1» в плашке), в личных раскладках и своих
+// экранах остаётся заглушка «снята, замена: … · Заменить · Убрать» — живёт, пока человек её не уберёт; замена необязательна
+function withdraw(id, repl){ const t = tileById(id); if(!t || !isAdmin(user())) return false; const w = whereUsed(id);
+  const R = repl ? tileById(repl) : null;
+  if(repl && (!R || R.state!=='published' || R.owner!=='catalog' || R.id===id)) return { error:'Замена — другая опубликованная плитка каталога' };
+  t.state = 'withdrawn'; if(R) t.replacement = R.id; else delete t.replacement;
+  w.roles.forEach(rid=>applyDeclared(rid, S.declared[rid].filter(k=>k!==id)));
+  journal('снял плитку', t.title+' · роли: '+(w.roles.map(roleName).join(', ')||'—')+' · личных: '+w.personal+' · своих экранов: '+w.screens+' · замена: '+(R ? '«'+R.title+'»' : 'нет'));
+  return Object.assign(w, { replacement: R ? R.id : null }); }
+// «Заменить» на заглушке: замена встаёт на место снятой — в личной раскладке вкладки или в своём экране; уже стоит — заглушка просто уходит
+function swapGone(id){ const t = tileById(id), R = t && t.replacement && tileById(t.replacement), u = user(), tab = curTab();
+  if(!t || t.state!=='withdrawn') return { error:'Плитка не снята' };
+  if(!R || R.state!=='published') return { error:'Замены нет — плитку можно только убрать' };
+  if(tab.kind==='screen'){ const sc = screenById(tab.id); if(!sc || !sc.items.includes(id)) return { error:'Заглушки нет на этом экране' };
+    sc.items = sc.items.includes(R.id) ? sc.items.filter(k=>k!==id) : sc.items.map(k=>k===id ? R.id : k); }
+  else { const ov = overlay(u.id, tab.id); if(!ov.added.includes(id)) return { error:'Заглушки нет на этой вкладке' };
+    const has = composeLayout(u.id, tab.id).includes(R.id);
+    ov.added = has ? ov.added.filter(k=>k!==id) : ov.added.map(k=>k===id ? R.id : k);
+    ov.order = has ? ov.order.filter(k=>k!==id) : ov.order.map(k=>k===id ? R.id : k); }
+  return { ok:true, tile:R.id }; }
+/* ---------- Раскладка роли: правка сразу, с отметкой у держателей ---------- */
+function roleHolders(roleId){ return USERS.filter(u=>u.roles.includes(roleId)); }
+const tileKeys = L=>L.filter(k=>!k.startsWith('s:'));
+// разница двух раскладок: плитки «+» и «−»; перестановка, новая или убранная секция — «порядок»
+function layoutDiff(before, after){ const add = tileKeys(after).filter(k=>!before.includes(k)), rem = tileKeys(before).filter(k=>!after.includes(k));
+  const moved = before.filter(k=>after.includes(k)).join()!==after.filter(k=>before.includes(k)).join() || after.some(k=>k.startsWith('s:') && !before.includes(k)) || before.some(k=>k.startsWith('s:') && !after.includes(k));
+  return { add, rem, moved }; }
+function newsText(N){ return [N.add.length ? '+'+N.add.length : '', N.rem.length ? '−'+N.rem.length : '', N.moved ? 'порядок' : ''].filter(Boolean).join(', '); }
+// новая раскладка роли — сразу у всех держателей; у каждого правки копятся в разовую плашку до «Показать» или «✕», новые плитки — «новая»
+function applyDeclared(roleId, L2){ const L = S.declared[roleId], ch = layoutDiff(L.slice(), L2); L.splice(0, L.length, ...L2);
+  const hs = roleHolders(roleId); if(ch.add.length || ch.rem.length || ch.moved) hs.forEach(h=>roleNewsAdd(h.id, roleId, ch));
+  return Object.assign(ch, { holders:hs.map(h=>h.id) }); }
+function roleNewsAdd(uid, roleId, ch){ const k = uid+'|'+roleId, N = S.roleNews[k] || { at:'', add:[], rem:[], moved:false };
+  ch.add.forEach(x=>{ if(N.rem.includes(x)) N.rem = N.rem.filter(y=>y!==x); else if(!N.add.includes(x)) N.add.push(x); });
+  ch.rem.forEach(x=>{ if(N.add.includes(x)) N.add = N.add.filter(y=>y!==x); else if(!N.rem.includes(x)) N.rem.push(x); });
+  N.moved = N.moved || ch.moved; N.at = TODAY.label.slice(0, 5);
+  if(N.add.length || N.rem.length || N.moved) S.roleNews[k] = N; else delete S.roleNews[k];
+  const M = new Set(S.newMark[k] || []); ch.add.forEach(x=>M.add(x)); ch.rem.forEach(x=>M.delete(x)); S.newMark[k] = [...M]; }
+function isNewTile(uid, roleId, id){ return !!roleId && (S.newMark[uid+'|'+roleId] || []).includes(id); }
+// «новая» снимается при первом открытии полосы плитки — на любой вкладке человека
+function unmarkNew(uid, id){ Object.keys(S.newMark).forEach(k=>{ if(k.startsWith(uid+'|')) S.newMark[k] = S.newMark[k].filter(x=>x!==id); }); }
+// «новая» — до первого открытия полосы плитки или до закрытия плашки. «Показать»: плашка закрывается (метки — с ней), новые подсвечены
+// рамкой, снятые названы строкой над сеткой — до ухода с вкладки
+function roleNewsShow(uid, roleId){ const k = uid+'|'+roleId, N = S.roleNews[k]; if(!N) return null; delete S.roleNews[k]; delete S.newMark[k];
+  S.newsFlash = { k, add:N.add.slice(), rem:N.rem.slice() }; return N; }
+// «✕»: плашка закрыта, метки «новая» сняты
+function roleNewsClose(uid, roleId){ const k = uid+'|'+roleId, had = !!S.roleNews[k]; delete S.roleNews[k]; delete S.newMark[k];
+  if(S.newsFlash && S.newsFlash.k===k) S.newsFlash = null; return had; }
+// круг отчёта новой плитки роли покрывает всех её держателей
+function declGap(roleId, key){ const t = tileById(key), r = t && t.kind!=='link' && t.report && reportById(t.report), gaps = r ? circleGaps(r, [roleId]) : [];
+  return gaps.length ? { error:'Не поставлено: '+gaps.map(gapText).join('; '), checks:gaps.map(g=>({ ok:false, text:gapText(g) })) } : null; }
 function declaredEdit(roleId, op, key, arg){ if(!isAdmin(user())) return false; const L = S.declared[roleId]; if(!L) return false;
-  const i = L.indexOf(key);
-  if(op==='add' && !L.includes(key)){ const t = tileById(key), r = t && t.kind!=='link' && t.report && reportById(t.report);   // круг отчёта покрывает всех держателей роли
-    const gaps = r ? circleGaps(r, [roleId]) : []; if(gaps.length) return { error:'Не поставлено: '+gaps.map(gapText).join('; '), checks:gaps.map(g=>({ ok:false, text:gapText(g) })) };
-    L.push(key); }
-  if(op==='remove' && i>=0) L.splice(i,1);
-  if(op==='move' && i>=0){ const j = i+arg; if(j>=0 && j<L.length){ [L[i],L[j]]=[L[j],L[i]]; } }
-  journal('изменил раскладку роли', roleName(roleId)+': '+op+' '+key); return true; }
+  const L2 = L.slice(), i = L2.indexOf(key);
+  if(op==='add' && !L2.includes(key)){ const g = declGap(roleId, key); if(g) return g; L2.push(key); }
+  if(op==='remove' && i>=0) L2.splice(i,1);
+  if(op==='move' && i>=0){ const j = i+arg; if(j>=0 && j<L2.length){ [L2[i],L2[j]]=[L2[j],L2[i]]; } }
+  const ch = applyDeclared(roleId, L2);
+  journal('изменил раскладку роли', roleName(roleId)+': '+op+' '+key+' · держателей: '+ch.holders.length); return true; }
+// правка в редакторе раскладок — черновиком на странице; «Сохранить» применяет её сразу, до этого видно, скольких держателей она затронет
+function declaredSave(roleId, items){ if(!isAdmin(user())) return { error:'Раскладки ролей правит администратор дашборда' }; const L = S.declared[roleId];
+  if(!L) return { error:'У роли нет объявленной раскладки' };
+  for(const k of tileKeys(items).filter(k=>!L.includes(k))){ const g = declGap(roleId, k); if(g) return g; }
+  const ch = applyDeclared(roleId, items.slice());
+  journal('изменил раскладку роли', roleName(roleId)+': '+(newsText(ch) || 'без изменений')+' · держателей: '+ch.holders.length);
+  return Object.assign({ ok:true }, ch); }
 
 /* ================= Выгрузка со штампом ================= */
 // вид словами — для штампа и журнала: какой вид, по каким разрезам и колонкам
@@ -3443,7 +3684,7 @@ function countClick(id){ const x = S.usage[id] || (S.usage[id] = { views:0, clic
 /* ================= Отрисовка ================= */
 const HAS_DOM = typeof document!=='undefined';
 let lastCols = 4, resizeTimer = null;
-let view = 'home', loading = false, menuState = null, draft = null, rdraft = null, catalogTarget = null, rcOpen = false;
+let view = 'home', lastView = null, loading = false, menuState = null, draft = null, rdraft = null, catalogTarget = null, rcOpen = false;
 function $(id){ return document.getElementById(id); }
 function esc(s){ return String(s===undefined||s===null?'':s).replace(/[&<>"]/g, c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c])); }
 function toast(msg){ if(!HAS_DOM) return; document.querySelectorAll('.toast').forEach(x=>x.remove()); const d = document.createElement('div'); d.className='toast'; d.textContent=msg; document.body.appendChild(d); setTimeout(()=>d.remove(), 2600); }
@@ -3457,7 +3698,8 @@ function curTab(){ const t = peekTab(); if(!S.tab || S.tab.kind!==t.kind || S.ta
   S.lastTab[S.userId] = { kind:S.tab.kind, id:S.tab.id }; return S.tab; }
 function curRole(){ const t = curTab(); return t.kind==='role' ? t.id : null; }
 // открыть вкладку и запомнить её человеку: при следующем входе откроется она
-function goTab(kind, id){ S.tab = { kind, id }; S.lastTab[S.userId] = { kind, id }; }
+// строка «убраны из раскладки» после «Показать» живёт до ухода с вкладки
+function goTab(kind, id){ S.tab = { kind, id }; S.lastTab[S.userId] = { kind, id }; S.newsFlash = null; }
 const tabKey = t=>{ t = t || peekTab(); return S.userId+'|'+t.kind+':'+t.id; };
 // фильтр вкладки: у каждой свой до конца сеанса; свой экран при первом открытии в сеансе берёт сохранённый фильтр
 function panelOfTab(){ const t = peekTab(), k = tabKey(t);
@@ -3476,9 +3718,13 @@ function render(){
   const nav = [['home','Главная'],['catalog','Каталог плиток'],['builder','+ Плитка']];
   if(isAdmin(u)) nav.push(['registry','Плитки дашборда'],['layouts','Раскладки ролей'],['journal','Журнал']);
   nav.push(['stand','Стенд: соседи и сбои']);
-  $('nav').innerHTML = '<div class="nav-sec">Дашборд</div>' + nav.map(([k,n])=>`<button class="nav-item ${view===k?'active':''}" onclick="DB.go('${k}')">${n}${k==='registry'&&S.proposals.length?'<span class="cnt">'+S.proposals.length+'</span>':''}</button>`).join('');
+  const nWait = proposalsWaiting().length;
+  $('nav').innerHTML = '<div class="nav-sec">Дашборд</div>' + nav.map(([k,n])=>`<button class="nav-item ${view===k?'active':''}" onclick="DB.go('${k}')">${n}${k==='registry'&&nWait?'<span class="cnt" aria-label="предложений: '+nWait+'">'+nWait+'</span>':''}</button>`).join('');
+  // узкое окно и телефон: меню слева скрыто — разделы списком в шапке (каталог на телефоне — просмотр и «Добавить»)
+  $('nav-m').innerHTML = nav.map(([k,n])=>`<option value="${k}"${view===k ? ' selected' : ''}>${n}${k==='registry' && nWait ? ' · '+nWait : ''}</option>`).join('');
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   $('v-'+view).classList.add('active');
+  if(view!==lastView){ if(lastView!==null) $('content').scrollTop = 0; lastView = view; }   // другой раздел — с начала страницы
   $('crumb').textContent = { home:'Главная', catalog:'Каталог плиток', builder:'+ Плитка', registry:'Плитки дашборда', layouts:'Раскладки ролей', journal:'Журнал дашборда', stand:'Стенд' }[view];
   ({ home:renderHome, catalog:renderCatalog, builder:renderBuilder, registry:renderRegistry, layouts:renderLayouts, journal:renderJournal, stand:renderStand })[view]();
   if(rcOpen){ if(rdraft && (view==='builder' || view==='home')) renderRC(); else closeOverlay(); }   // ящик конструктора отчётности перерисовывается вместе со страницей
@@ -3534,6 +3780,7 @@ function homeHTML(){
   const banners = [];
   if(STAND.statDown) banners.push('<div class="banner err">Статистика не отвечает — плитки показывают «ошибка доставки», а не прошлые числа.</div>');
   if(minimal) banners.push(minimalBanner(roleId));
+  if(tab.kind==='role') banners.push(newsBanner(u, roleId));
   const html = `${topHTML(u, tab, roleId, sc)}
     ${banners.join('')}
     ${hiddenChips(u, roleId)}
@@ -3541,6 +3788,12 @@ function homeHTML(){
     ${items.length ? '' : '<p class="muted">Здесь пока пусто. <button class="linky" onclick="DB.openCatalogFor()">Добавить плитки из каталога</button></p>'}`;
   return { html, items, anyOpen, cols, col };
 }
+// правка раскладки роли у держателя: разовая плашка «Раскладка роли обновлена 11.10: +2, −1 · Показать ✕»; «Показать» подсвечивает новые,
+// называет снятые строкой над сеткой и закрывает плашку; «✕» просто закрывает; метки «новая» уходят вместе с плашкой
+function newsBanner(u, roleId){ const k = u.id+'|'+roleId, N = S.roleNews[k], nm = id=>'«'+(tileById(id) || { title:id }).title+'»';
+  if(N) return `<div class="banner info news" role="status"><span>Раскладка роли обновлена ${esc(N.at)}: ${esc(newsText(N))}</span>${N.add.length || N.rem.length ? '<button class="linky" onclick="DB.newsShow()">Показать</button>' : ''}<button class="news-x" aria-label="Закрыть сообщение о раскладке роли" onclick="DB.newsClose()">${ICON_X}</button></div>`;
+  const F = S.newsFlash; if(F && F.k===k && (F.add.length || F.rem.length)) return `<div class="news-note" role="status">${F.add.length ? 'Новые в раскладке роли — подсвечены'+(F.rem.length ? '; ' : '.') : ''}${F.rem.length ? 'убраны из раскладки: '+esc(F.rem.map(nm).join(', '))+'.' : ''}</div>`;
+  return ''; }
 // роль без своей раскладки — минимальная: «Мои задания» и «добавить из каталога»; у роли с образцом (Аналитик) — ещё «+ экран — копия
 // «Руководства»»; у роли, чьё ядро ещё не готово, раскладка объявлена, но не показана
 function minimalBanner(roleId){ const R = ROLES.find(x=>x.id===roleId) || {};
@@ -3567,14 +3820,18 @@ function itemHTML(k, u, roleId, sc, items, col){
     return `<div class="section-row${shut ? ' shut' : ''}" data-key="${esc(k)}" ${S.arrange?'draggable="true"':''}><button class="linky" aria-expanded="${!shut}" aria-label="${shut ? 'Показать плитки секции' : 'Свернуть секцию'} «${esc(name)}»" onclick="DB.toggleSection('${esc(k)}')">${shut?'▸':'▾'}</button>${esc(name)}${sum ? `<span class="sec-n">${sum.n} ${plural(sum.n, 'плитка', 'плитки', 'плиток')}</span>${dot}` : ''}
       ${S.arrange?`<span class="arr-tools"><button class="btn sm" onclick="DB.move('${esc(k)}',-1)">←</button><button class="btn sm" onclick="DB.move('${esc(k)}',1)">→</button><button class="btn sm" onclick="DB.hide('${esc(k)}')">×</button></span>`:''}</div>`; }
   if(inShut(items, k, col)) return '';
-  if(k.startsWith('x:')){ const t = tileById(k.slice(2));
-    return `<div class="tile" data-key="${esc(k)}"><div class="t-head"><div class="t-name"><span class="t-title">${esc(t.title)}</span></div></div><div class="t-body"><div class="state-msg"><b>Снята администратором дашборда.</b> Плитка ушла из каталога.</div></div>
-      <div class="arr-tools"><button class="btn sm" onclick="DB.hide('${esc(k.slice(2))}')">Убрать у себя</button></div></div>`; }
+  if(k.startsWith('x:')) return goneHTML(tileById(k.slice(2)), k);
   const t = tileById(k); if(!t) return '';
   if(t.state==='withdrawn') return itemHTML('x:'+k, u, roleId, sc, items, col);
   const res = loading ? null : cachedBase(t, u, roleId, S.panel);
   return tileHTML(t, res, { roleId, arrange:S.arrange, key:k, user:u, panel:S.panel });
 }
+// заглушка снятой плитки в личной раскладке и своём экране: «снята, замена: … · Заменить · Убрать» — живёт, пока человек её не уберёт;
+// «Заменить» ставит замену на её место (у замены — значения параметров, чтобы отличить от плитки с тем же именем)
+function goneHTML(t, k){ const id = t.id, R = t.replacement && tileById(t.replacement), live = !!R && R.state==='published', pc = live ? paramChips(R) : [];
+  return `<div class="tile gone" data-key="${esc(k)}"><div class="t-head"><div class="t-name"><span class="t-title">${esc(t.title)}</span></div></div>
+    <div class="t-body"><div class="state-msg"><b>Снята</b>${live ? `, замена: «${esc(R.title)}»${pc.length ? ' <span class="state-sub">· '+esc(pc.join(' · '))+'</span>' : ''}` : ' администратором дашборда, замены нет'}</div></div>
+    <div class="gone-act">${live ? `<button class="btn sm primary" onclick="DB.swapGone('${esc(id)}')">Заменить</button>` : ''}<button class="btn sm" onclick="DB.hide('${esc(id)}')">Убрать</button></div></div>`; }
 // плитка стоит в свёрнутой секции
 function inShut(items, k, col){ let sec = null; for(const x of items){ if(x.startsWith('s:')) sec = x; if(x===k) break; } return !!(sec && col[sec]); }
 const DEAD_STATES = ['error','refusal','broken','noaccess','empty','withdrawn'];
@@ -3639,7 +3896,8 @@ function tileHTML(t, res, o){
   const u = o.user || user(), m = t, act = !o.arrange && !o.preview;
   if(!res) return `<div class="tile skel"><div class="t-head"><div class="t-name"><span class="t-title">${esc(t.title)}</span></div></div><div class="t-body"></div></div>`;
   const live = LIVE.includes(res.state);
-  const cls = 'tile'+(res.staleState?' stale':'')+(res.state==='error'?' err':'')+(o.arrange?' arrange':'')+(S.open[t.id] && !o.arrange ? ' open' : '');
+  const fresh = !o.preview && isNewTile(u.id, o.roleId, t.id), F = S.newsFlash, flash = !o.preview && !!F && F.k===u.id+'|'+o.roleId && F.add.includes(t.id);
+  const cls = 'tile'+(res.staleState?' stale':'')+(res.state==='error'?' err':'')+(o.arrange?' arrange':'')+(S.open[t.id] && !o.arrange ? ' open' : '')+(flash ? ' flash' : '');
   const sig = signalsOf(u.id, t.id).length > 0;
   const tools = o.preview ? '' : `<div class="t-tools">
       <button class="who" aria-label="Кто в этом числе"${tipAttr('Кто в этом числе')} onclick="event.stopPropagation();DB.who('${t.id}')">${ICON_LIST}</button>
@@ -3650,7 +3908,7 @@ function tileHTML(t, res, o){
     body = `<div class="t-row">${headlineText(q, res, t)}${dash ? '' : shiftHTML(q, res)+(res.tl && tlOn(m)==='main' ? boundHTML(t, res.tl) : '')}</div>${dash ? '' : secondHTML(t, m, res)}`; }
   const arr = o.arrange ? `<div class="arr-tools arrange-only"><button class="btn sm" onclick="event.stopPropagation();DB.move('${o.key}',-1)">←</button><button class="btn sm" onclick="event.stopPropagation();DB.move('${o.key}',1)">→</button><button class="btn sm" onclick="event.stopPropagation();DB.hide('${o.key}')">Скрыть</button></div>` : '';
   const ql = qualLine(t);
-  const name = `<div class="t-name">${t.kind==='link' ? '<span class="kind-link">ждёт меня · '+esc((queueOf(t)||{ module:'—' }).module)+'</span>' : ''}<span class="t-title">${titleHTML(t, o)}</span>${ql ? '<span class="t-qual">· '+esc(ql)+'</span>' : ''}${t.owner!=='catalog' ? '<span class="chip">личная</span>' : ''}${reqMark(t)}${marksHTML(res)}${changedHTML(t, u, o)}${sig ? `<span class="ic"${tipAttr('Сигнал включён: сообщим, когда значение зайдёт за порог светофора')}>${ICON_BELL}</span>` : ''}</div>`;
+  const name = `<div class="t-name">${t.kind==='link' ? '<span class="kind-link">ждёт меня · '+esc((queueOf(t)||{ module:'—' }).module)+'</span>' : ''}<span class="t-title">${titleHTML(t, o)}</span>${ql ? '<span class="t-qual">· '+esc(ql)+'</span>' : ''}${t.owner!=='catalog' ? '<span class="chip">личная</span>' : ''}${t.proposed && !o.preview ? `<span class="pill info"${tipAttr('Предложена в каталог — ждёт ответа администратора дашборда')}>предложена · ждёт</span>` : ''}${fresh ? `<span class="pill new"${tipAttr('Новая в раскладке роли — метка уйдёт, когда откроете плитку')}>новая</span>` : ''}${reqMark(t)}${marksHTML(res)}${changedHTML(t, u, o)}${sig ? `<span class="ic"${tipAttr('Сигнал включён: сообщим, когда значение зайдёт за порог светофора')}>${ICON_BELL}</span>` : ''}</div>`;
   return `<div class="${cls}" data-key="${esc(o.key||t.id)}" ${o.arrange?'draggable="true"':''} ${act ? `onclick="DB.primary('${t.id}')"` : ''}>
     <div class="t-head">${name}</div>${tools}${body}${arr}</div>`;
 }
@@ -4173,6 +4431,42 @@ function askText(title, value, ok, dflt, opts){
   f.addEventListener('submit', e=>{ e.preventDefault(); const v = i.value.trim(); if(!v){ i.focus(); return; } const c = cs.length ? ([...f.querySelectorAll('input[type=radio]')].find(x=>x.checked) || {}).value : undefined;
     const back = askBack; askBack = null; closeOverlay(); ok(v, c); if(back) back(); });
 }
+// окно на странице (не системное) для снятия плитки и отказа в предложении: фокус в окне, Tab по кругу, Escape — «Отмена», после
+// «Сохранить» страница перерисована и фокус вернулся на кнопку, которая открыла окно; onSubmit вернул keep — окно остаётся
+function pageWin(id, html, onSubmit, cls){
+  if(!HAS_DOM) return null;
+  const ev = window.event, from = (ev && ev.target && ev.target.closest && ev.target.closest('button')) || document.activeElement, key = from && from.getAttribute ? from.getAttribute('onclick') : null;
+  $('overlay').innerHTML = `<div class="drawer-mask" onclick="DB.close()"></div><form class="ask ${cls || ''}" id="${id}" role="dialog" aria-modal="true" aria-labelledby="${id}-t" tabindex="-1">${html}</form>`;
+  const f = $(id), ring = ()=>[...f.querySelectorAll('input, select, button')].filter(x=>!x.disabled);
+  askBack = ()=>{ const el = from && from.isConnected ? from : key ? [...document.querySelectorAll('button[onclick]')].find(b=>b.getAttribute('onclick')===key) : null; if(el && el.focus) el.focus(); };
+  f.addEventListener('keydown', e=>{
+    if(e.key==='Escape'){ e.preventDefault(); e.stopPropagation(); closeOverlay(); return; }
+    if(e.key!=='Tab') return;
+    const R = ring(), n = R.length, k = R.indexOf(document.activeElement); e.preventDefault();
+    R[k < 0 ? (e.shiftKey ? n - 1 : 0) : (k + (e.shiftKey ? n - 1 : 1)) % n].focus(); });
+  f.addEventListener('submit', e=>{ e.preventDefault(); const r = onSubmit(f); if(r && r.keep) return;
+    const back = askBack; askBack = null; closeOverlay(); render(); if(back) back(); });
+  const first = f.querySelector('[data-first]') || ring()[0]; if(first) first.focus();
+  return f; }
+// снятие: где стоит (роли, личные раскладки, свои экраны) и необязательная замена — опубликованная плитка каталога, по секциям
+function openWithdraw(id){ const t = tileById(id); if(!t) return; const w = whereUsed(id), n = opens90(t);
+  const pool = TILES.filter(x=>x.state==='published' && x.owner==='catalog' && x.id!==id), opt = x=>`<option value="${esc(x.id)}">${esc(x.title)}${paramChips(x).length ? ' · '+esc(paramChips(x).join(', ')) : ''}</option>`;
+  const groups = CAT_SECTIONS.map(([name])=>[name, pool.filter(x=>catSection(x)===name)]).filter(([, l])=>l.length), mine = catSection(t);
+  groups.sort((a, b)=>(b[0]===mine) - (a[0]===mine));
+  const roles = w.roles.length ? w.roles.map(r=>esc(roleName(r))+' <span class="muted">('+roleHolders(r).length+' '+plural(roleHolders(r).length, 'держатель', 'держателя', 'держателей')+')</span>').join(', ')+' — уйдёт сразу, у держателей «−1» в плашке' : 'нет';
+  return pageWin('ww', `<h3 id="ww-t">Снять плитку «${esc(t.title)}»</h3><p class="fw-n">${esc(paramChips(t).join(' · '))}. Плитка уйдёт из каталога.</p>
+    <div class="kv"><div class="k">Раскладки ролей</div><div>${roles}</div><div class="k">Личных раскладок</div><div>${w.personal}</div><div class="k">Своих экранов</div><div>${w.screens}</div><div class="k">Открывали за 90 дней</div><div>${n}</div></div>
+    <label class="ask-l" for="ww-r">Замена — необязательно</label><select id="ww-r" data-first><option value="">без замены</option>${groups.map(([name, l])=>`<optgroup label="${esc(name)}">${l.map(opt).join('')}</optgroup>`).join('')}</select>
+    <p class="why" style="margin:6px 0 0">В личных раскладках и своих экранах останется заглушка «снята, замена: … · Заменить · Убрать» — пока человек её не уберёт.</p>
+    <div class="ask-b"><button type="button" class="btn" onclick="DB.close()">Отмена</button><button type="submit" class="btn danger">Снять</button></div>`,
+    f=>{ const v = f.querySelector('#ww-r').value || null, r = withdraw(id, v); toast(r && r.error ? r.error : 'Плитка снята'+(v ? ', замена: «'+tileById(v).title+'»' : ', без замены')); }, 'wwin'); }
+// отказ в предложении — с причиной, её получит автор; похожая плитка каталога — готовой причиной «есть такая: …»
+function openReject(id){ const t = tileById(id); if(!t) return; const dup = dupOf(t), why = x=>'есть такая: «'+x.title+'» ('+paramChips(x).join(', ')+')';
+  return pageWin('rw', `<h3 id="rw-t">Отклонить предложение «${esc(t.title)}»</h3><p class="fw-n">Причину получит автор — ${esc(userName(t.owner))}: уведомлением, со ссылкой в каталог, если плитка уже есть.</p>
+    <label class="ask-l" for="rw-i">Причина</label><input type="text" id="rw-i" data-first value="${esc(dup[0] ? why(dup[0]) : '')}" maxlength="200" autocomplete="off">
+    ${dup.length > 1 ? `<div class="rw-s">${dup.map(x=>`<button type="button" class="chip-b" onclick="document.getElementById('rw-i').value=this.dataset.v" data-v="${esc(why(x))}">${esc(why(x))}</button>`).join('')}</div>` : ''}
+    <div class="ask-b"><button type="button" class="btn" onclick="DB.close()">Отмена</button><button type="submit" class="btn danger">Отклонить</button></div>`,
+    f=>{ const i = f.querySelector('#rw-i'), r = rejectProposal(id, i.value); if(r.error){ toast(r.error); i.focus(); return { keep:true }; } toast('Отклонено: автору — уведомление с причиной'); }, 'rwin'); }
 // подпись строки по виду объекта; у каждого вида свой разбор, чужие поля не читаются
 const ROW_LABEL = {
   loan:r=>r.borrower, claim:r=>'по '+r.loan, coll:r=>r.kind, app:r=>progName(r.program), comm:r=>r.commission, concl:r=>r.verdict || 'ждёт', oblig:r=>r.form,
@@ -4250,8 +4544,12 @@ function openExport(tileId, kind, fromStrip){ const r = exportTile(tileId, kind,
   S.lastExport = r; return r; }
 function downloadCSV(){ if(!HAS_DOM || !S.lastExport) return; const b = new Blob(['﻿'+S.lastExport.csv], { type:'text/csv' }); const a = document.createElement('a');
   a.href = URL.createObjectURL(b); a.download = 'plitka.csv'; a.click(); }
+// уведомления: ответы администратора на предложения в каталог и сигналы отчётности; открыть — прочитать (счётчик в шапке гаснет)
 function openNotifs(){ const u = user(); const list = S.notifs.filter(n=>n.to===u.id); list.forEach(n=>n.read=true); const mine = S.signals.filter(s=>s.owner===u.id);
-  drawer('Сигналы отчётности', (list.length ? list.map(n=>`<div class="banner info">${esc(n.at)} · ${esc(n.text)} ${n.dropped ? '' : `<button class="linky" onclick="DB.close();DB.openView('${n.tile}','slice')">открыть плитку</button>`}</div>`).join('') :
+  const props = list.filter(n=>n.kind==='proposal'), sigs = list.filter(n=>n.kind!=='proposal');
+  drawer('Уведомления', (props.length ? '<h4 style="margin:0 0 6px">Ответы на предложения в каталог</h4>'+props.map(n=>`<div class="banner info">${esc(n.at)} · ${esc(n.text)}${n.find ? ` <button class="linky" onclick="DB.close();DB.catFind('${esc(n.find)}')">найти в каталоге</button>` : ''}</div>`).join('') : '')
+    + `<h4 style="margin:${props.length ? '16px' : '0'} 0 6px">Сигналы отчётности</h4>`
+    + (sigs.length ? sigs.map(n=>`<div class="banner info">${esc(n.at)} · ${esc(n.text)} ${n.dropped ? '' : `<button class="linky" onclick="DB.close();DB.openView('${n.tile}','slice')">открыть плитку</button>`}</div>`).join('') :
     '<p class="muted">Сигналов нет. Поставьте 🔔 на плитку со светофором — сообщим, когда значение зайдёт за порог.</p>')
     + '<h4 style="margin:16px 0 6px">На что я подписан</h4>'
     + (mine.length ? '<table class="list">'+mine.map(s=>`<tr><td>${esc((tileById(s.tile)||{title:s.tile}).title)}</td><td class="small">${esc(s.label)}</td><td><button class="btn sm" onclick="DB.signalOff('${s.id}')">Снять</button></td></tr>`).join('')+'</table>' : '<p class="muted">Подписок нет.</p>')
@@ -4264,22 +4562,34 @@ function baseLine(t){
   const first = (src.cols || src.inds)[0], nm = s=>s.share ? IND[s.share[0]].name+' к '+IND[s.share[1]].name.toLowerCase() : s.pct ? IND[s.col || first].name+', % от итога группы' : IND[s.col || s.of || first].name;
   const sec = !m.second ? '' : m.second.label ? (m.second.share ? 'доля ' : m.second.pct ? '% ' : m.second.of ? 'из ' : '')+m.second.label : nm(m.second).toLowerCase();
   return nm(m.main)+(sec ? ' · '+sec : ''); }
+// каталог — витрина готовых плиток: «возьми и поставь». Секции по объекту, в строке — значения параметров и живое главное число в охвате
+// смотрящего (как на плитке, с единицей); поиск и «только доступные мне» сверху; пустой поиск ведёт в мастерскую с тем же запросом.
+// На телефоне — то же: просмотр и «Добавить»
 function renderCatalog(){
-  const u = user(); const qs = (S.catQ||'').toLowerCase();
-  const target = catalogTarget || (S.tab ? S.tab : null); const qOf = t=>questionOf(t) || { inds:[], dims:[] };
-  const list = catalogFor(u).filter(x=>(!qs || x.t.title.toLowerCase().includes(qs) || qOf(x.t).inds.some(i=>IND[i].name.toLowerCase().includes(qs))));
-  const inTarget = id => target ? (target.kind==='screen' ? (screenById(target.id)||{items:[]}).items.includes(id) : composeLayout(u.id, target.id).includes(id)) : false;
-  $('v-catalog').innerHTML = `<p class="muted">Один каталог для раскладок ролей и для личных. Добавленная плитка встаёт в конец ${target?'вкладки «'+esc(target.kind==='screen'?(screenById(target.id)||{}).name:roleName(target.id))+'»':'текущей вкладки'}.</p>
-    <div class="filterbar"><input type="text" placeholder="Поиск по названию или показателю" value="${esc(S.catQ||'')}" oninput="DB.catSearch(this.value)" style="min-width:280px"></div>
-    <table class="list"><tr><th>Плитка</th><th>Вопрос</th><th>Основа</th><th></th></tr>
-    ${list.map(({ t, why, ready })=>{ const q = qOf(t); const O = q.inds.length ? OBJECTS[IND[q.inds[0]].obj] : null;
-      return `<tr><td><b>${esc(t.title)}</b>${t.owner!=='catalog'?' <span class="chip">личная</span>':''}${t.kind==='link'?' <span class="chip">ждёт меня</span>':''}</td>
-      <td class="small">${O ? esc(O.name)+' · '+q.inds.map(i=>esc(IND[i].name)).join(', ')+(q.dims.length?' · по '+q.dims.map(d=>esc(DIMS[d].name)).join(' × '):'') : 'отчёт не найден'}</td>
-      <td class="small">${esc(baseLine(t))}</td>
-      <td>${why ? '<span class="small bad">'+esc(why)+'</span>' : !ready ? '<span class="small muted">ждёт соседа: '+esc(O ? O.owner : '—')+'</span>' :
-        inTarget(t.id) ? '<span class="small muted">Есть</span>' : `<button class="btn sm primary" onclick="DB.addFromCatalog('${t.id}')">Добавить</button>`}</td></tr>`; }).join('')}</table>`;
+  if(!HAS_DOM) return;
+  const hadFocus = HAS_DOM && document.activeElement && document.activeElement.id==='cat-q';
+  $('v-catalog').innerHTML = catalogHTML();
+  if(hadFocus){ const el = $('cat-q'); if(el){ el.focus(); const n = el.value.length; el.setSelectionRange(n, n); } }
 }
-/* ---------- «+ Плитка»: шаг 1 — выбрать отчёт, шаг 2 — плитка на нём ---------- */
+function catalogHTML(){
+  const u = user(), target = catalogTarget || (S.tab ? S.tab : null);
+  const v = catalogView(u, { q:S.catQ, only:S.catOnly, target }), tname = target ? (target.kind==='screen' ? (screenById(target.id)||{}).name : roleName(target.id)) : '';
+  const empty = !v.n ? `<div class="cat-empty">${v.q ? `<b>Нет такой плитки</b> <span class="sep">·</span> <button class="linky desk-only" onclick="DB.catToMaster()">Собрать из отчёта →</button><span class="phone-only muted">собрать из отчёта можно на компьютере</span>`
+    : '<b>Доступных плиток нет</b> — снимите «только доступные мне», чтобы увидеть остальные с причиной'}</div>` : '';
+  return `<p class="muted cat-lead">Готовые плитки администратора дашборда: возьмите и поставьте. Добавленная встаёт в конец ${target ? 'вкладки «'+esc(tname)+'»' : 'текущей вкладки'}; число — в вашем охвате, как на плитке.</p>
+    <div class="filterbar cat-bar"><label class="vh" for="cat-q">Поиск в каталоге</label><input id="cat-q" type="text" placeholder="Поиск: название, показатель, «куратор: я»" value="${esc(S.catQ || '')}" oninput="DB.catSearch(this.value)" autocomplete="off">
+      <label class="sw"><input type="checkbox" role="switch"${S.catOnly ? ' checked' : ''} onchange="DB.catOnly(this.checked)">только доступные мне</label><span class="cat-n">${v.q || v.only ? 'найдено '+v.n : tilesWord(v.n)}</span></div>
+    ${empty}${v.sections.map((s, i)=>`<section class="cat-sec" aria-labelledby="cs-${i}"><h3 class="cat-h" id="cs-${i}">${esc(s.name)}<span class="cat-c">${s.rows.length}</span></h3><div class="cat-list">${s.rows.map(catRowHTML).join('')}</div></section>`).join('')}`;
+}
+// строка витрины: название с метками, значения параметров, живое число (основа и паспорт — подсказкой), «Есть / Добавить / Нельзя: … / ждёт соседа»
+function catRowHTML(x){ const t = x.t, res = x.res;
+  const marks = (t.owner!=='catalog' ? ' <span class="chip">личная</span>' : '')+(t.proposed ? ' <span class="pill info"'+tipAttr('Предложена в каталог — ждёт администратора дашборда')+'>предложена · ждёт</span>' : '')+(t.kind==='link' ? ' <span class="chip">ждёт меня</span>' : '');
+  const num = x.num!==null ? `<span class="cat-v"${tipAttr('Основа: '+baseLine(t)+(res && res.passport ? '\n'+res.passport : ''))}>${numUnit(x.num)}</span>`
+    : res ? `<span class="cat-v"><span class="st"${tipAttr(res.msg || '')}>${esc((STATE_WORD[res.state] || 'нет ответа').toLowerCase())}</span></span>` : '<span class="cat-v"></span>';
+  const act = x.status==='no' ? `<span class="bad">${esc(x.why)}</span>` : x.status==='wait' ? `<span class="muted">ждёт соседа: ${esc(x.owner)}</span>`
+    : x.status==='has' ? '<span class="cat-has">Есть</span>' : `<button class="btn sm primary" onclick="DB.addFromCatalog('${t.id}')" aria-label="Добавить «${esc(t.title)}»${x.params.length ? ' · '+esc(x.params.join(', ')) : ''}">Добавить</button>`;
+  return `<div class="cat-row" data-tile="${esc(t.id)}"><div class="cat-m"><b class="cat-t">${esc(t.title)}</b>${marks}<div class="cat-p">${esc(x.params.join(' · ') || 'без параметров')}</div></div>${num}<div class="cat-a">${act}</div></div>`; }
+/* ---------- «+ Плитка» — мастерская: шаг 1 — что хотите видеть (показатель и отчёт с ним), шаг 2 — плитка на отчёте ---------- */
 const SHELF_NAMES = { catalog:'отчёт каталога', personal:'мой отчёт', official:'официальный' };
 const plur = (n, f) => { const m = n % 100, k = n % 10; return n + ' ' + (m > 10 && m < 20 ? f[2] : k === 1 ? f[0] : k > 1 && k < 5 ? f[1] : f[2]); };
 // значение параметра отчёта: только то, что для него имеет смысл — «я» у куратора, подразделение у подразделения, «сегодня + N» у сроков
@@ -4292,13 +4602,11 @@ function paramControl(d, n, p){
   const o = p.dim==='dept' ? [['*','все'],['@myDept','моё подразделение'],['@myDeptTree','моё подразделение и ниже']] : [['*','все'],['@me','я']];
   if(!o.some(x=>x[0]===v)) o.push([v, (paramLabel(v) || String(v)).replace(/[«»]/g, '')]);
   return `<div><label class="opt">${esc(p.name)}: <select onchange="DB.dParam('${n}', this.value)">${o.map(([a,b])=>`<option value="${esc(a)}" ${a===v?'selected':''}>${esc(b)}</option>`).join('')}</select></label></div>`; }
-// строка списка отчётов: название, полка, владелец, объект, колонки, сколько плиток кормит
-function repRowHTML(x, sel){ const r = x.r; const meta = ['владелец: '+userName(r.owner), OBJECTS[r.obj].name, 'колонки: '+r.cols.map(i=>IND[i].name).join(', ')];
-  if(r.dims.length) meta.push('по '+r.dims.map(dd=>'«'+DIMS[dd].name+'»').join(' × '));
-  meta.push('кормит '+plur(x.feeds, ['плитку','плитки','плиток']));
-  return `<button class="rep-row ${sel?'sel':''}" ${sel?'':`onclick="DB.dReport('${r.id}');var s=document.getElementById('step2');if(s&&window.innerWidth<1000)s.scrollIntoView({block:'start'})"`}>
+// строка отчёта с выбранным показателем: название, полка, владелец, сколько плиток кормит; первый — кормит больше всех
+function repRowHTML(x, sel){ const r = x.r;
+  return `<button class="rep-row ${sel?'sel':''}" ${sel?'aria-current="true"':`onclick="DB.mReport('${r.id}');var s=document.getElementById('step2');if(s&&window.innerWidth<1000)s.scrollIntoView({block:'start'})"`}>
     <b>${esc(r.title)}</b> <span class="chip">${esc(SHELF_NAMES[r.shelf]||r.shelf)}</span>${sel?' <span class="small ok">выбран</span>':''}
-    <span class="small muted">${esc(meta.join(' · '))}</span></button>`; }
+    <span class="small muted">владелец: ${esc(userName(r.owner))} · кормит ${esc(plur(x.feeds, ['плитку','плитки','плиток']))}${r.dims.length ? ' · по '+esc(r.dims.map(d=>'«'+DIMS[d].name+'»').join(' × ')) : ''}</span></button>`; }
 // шаг 2: значения параметров, главное и второе число, сдвиг, светофор, умолчания пяти видов, подпись; dt — черновик как плитка, vs — его пять видов
 function tileFormHTML(d, r, dt, vs){
   const radios = (name, keys, labels, cur, n) => keys.map(m=>`<label class="opt"><input type="radio" name="${name}" ${cur===m?'checked':''} onchange="DB.dParam('${n}','${m}')"> ${esc(labels[m].label)}</label>`).join('');
@@ -4355,33 +4663,47 @@ function tileFormHTML(d, r, dt, vs){
     <div class="form-step"><h4>Умолчания видов</h4>${views}<div class="why" style="margin-left:0">Что откроется по кнопке вида, пока смотрящий не выбрал своё. Вид, которому нечего показать, погашен — умолчание можно оставить.</div></div>
     <div class="form-step"><h4>Подпись плитки</h4><input type="text" style="width:100%" value="${esc(d.title)}" onchange="DB.dTitle(this.value)" placeholder="Название плитки"></div>`;
 }
+// шаг 1 — «что хотите видеть»: объект и показатель из реестра (поиск по открытым смотрящему), затем отчёты с ним — первым тот, что кормит
+// больше плиток, — или «собрать личный отчёт с этим показателем» (конструктор отчётности с подставленным объектом и показателем);
+// отчёт виден как источник плитки. На телефоне мастерской нет — «Собрать плитку можно на компьютере»
 function renderBuilder(){
-  const u = user(); const all = reportsFor(u); const avail = reportsFor(u, S.repQ);
-  const d = draft && reportById(draft.report) ? draft : null; const r = d && reportById(d.report);
-  const hadFocus = HAS_DOM && document.activeElement && document.activeElement.id==='rep-q';
-  const list = r && !avail.some(x=>x.r.id===r.id) ? [{ r, feeds:TILES.filter(x=>x.report===r.id).length }, ...avail] : avail;
-  const step1 = `<div class="h2" style="margin-top:0">Шаг 1 · Отчёт</div><div class="form-step">
-    <div class="filterbar" style="margin-bottom:8px"><input id="rep-q" type="text" style="flex:1 1 200px;min-width:0" placeholder="Поиск: название, объект, колонка, разрез" value="${esc(S.repQ||'')}" oninput="DB.repSearch(this.value)">
-      <button class="btn" onclick="DB.openRC()">Собрать новый отчёт</button></div>
-    <div class="muted small" style="margin-bottom:6px">${S.repQ ? 'Найдено '+avail.length+' из '+all.length : 'Доступно отчётов: '+all.length}. Плитка берёт вопрос у отчёта: правка отчёта доходит до всех плиток на нём.</div>
-    <div class="rep-list">${list.map(x=>repRowHTML(x, !!r && x.r.id===r.id)).join('') || '<div class="muted small" style="padding:10px">Ничего не нашлось — уточните запрос или соберите новый отчёт.</div>'}</div></div>`;
-  let step2 = '', side = '<div class="muted">Выберите отчёт в шаге 1 — здесь появятся плитка и автопроверка.</div>';
+  const hadFocus = HAS_DOM && document.activeElement && document.activeElement.id==='m-q';
+  $('v-builder').innerHTML = builderHTML();
+  if(hadFocus){ const el = $('m-q'); if(el){ el.focus(); const n = el.value.length; el.setSelectionRange(n, n); } }
+}
+function builderHTML(){
+  const u = user(), d = draft && reportById(draft.report) ? draft : null, r = d && reportById(d.report);
+  // показатель шага 1 — выбранный; у плитки на отчёте без него (пришла «📌» из отчёта) — её главная колонка
+  const indId = r && !(S.mInd && r.cols.includes(S.mInd)) ? (d.main && d.main.col) || r.cols[0] : S.mInd, I = indId && IND[indId];
+  const objs = Object.keys(OBJECTS).filter(o=>u.roles.some(x=>hasRight(x, o))), inds = indsFor(u, S.mObj, S.mQ), all = indsFor(u, '', '');
+  const reps = I ? reportsWith(u, I.id) : [], list = r && I && !reps.some(x=>x.r.id===r.id) ? [{ r, feeds:tilesOfReport(r.id).length }, ...reps] : reps;
+  const step1 = `<div class="h2" style="margin-top:0">Шаг 1 · Что хотите видеть</div><div class="form-step">
+    <div class="m-pick"><label class="opt">Объект <select onchange="DB.mObj(this.value)"><option value="">все объекты</option>${objs.map(o=>`<option value="${o}"${o===S.mObj?' selected':''}>${esc(OBJECTS[o].name)}</option>`).join('')}</select></label>
+      <label class="vh" for="m-q">Показатель</label><input id="m-q" type="text" placeholder="Показатель: просрочено, остаток, выдано…" value="${esc(S.mQ || '')}" oninput="DB.mSearch(this.value)" autocomplete="off"></div>
+    <div class="muted small">${S.mQ || S.mObj ? 'Найдено '+inds.length+' из '+all.length : 'Показателей реестра статистики, открытых вашим ролям: '+all.length}. Плитка берёт вопрос у отчёта с этим показателем.</div>
+    <div class="ind-list">${inds.map(x=>`<button class="ind${I && x.id===I.id ? ' sel' : ''}" aria-pressed="${!!(I && x.id===I.id)}" onclick="DB.mInd('${x.id}')">${esc(x.name)}<small>${esc(OBJECTS[x.obj].name)} · ${x.kind==='stock' ? 'на дату' : 'за период'}</small></button>`).join('')
+      || '<div class="muted small" style="padding:6px 2px">Такого показателя нет — уточните запрос или выберите объект.</div>'}</div></div>
+    ${I ? `<div class="form-step"><h4>Отчёты с показателем «${esc(I.name)}» · ${esc(OBJECTS[I.obj].name)}</h4>
+      ${list.length ? `<div class="rep-list">${list.map(x=>repRowHTML(x, !!r && x.r.id===r.id)).join('')}</div>` : '<div class="muted small">Отчётов с этим показателем вам не открыто — соберите личный.</div>'}
+      <div class="m-own"><button class="btn" onclick="DB.mOwnReport()">Собрать личный отчёт с этим показателем</button><span class="why">конструктор отчётности откроется с объектом «${esc(OBJECTS[I.obj].name)}» и показателем «${esc(I.name)}»; отчёт встанет на вашу полку</span></div></div>` : ''}`;
+  let step2 = '', side = '<div class="muted">Выберите показатель и отчёт с ним — здесь появятся плитка и автопроверка.</div>';
   if(r){ const ac = autocheck(d), dt = Object.assign({ id:'preview', owner:'catalog' }, d, { title:d.title||'(без подписи)' }), vs = viewsFor(dt, u, null, [], {});
-    step2 = `<div class="h2" id="step2">Шаг 2 · Плитка</div><div class="form-step"><h4>Отчёт «${esc(r.title)}»</h4>
+    step2 = `<div class="h2" id="step2">Шаг 2 · Плитка</div><div class="form-step"><h4>Источник — отчёт «${esc(r.title)}»</h4>
       <div class="small">${esc(OBJECTS[r.obj].name)} · колонки: ${r.cols.map(i=>esc(IND[i].name)).join(', ')}${r.dims.length ? ' · по '+r.dims.map(x=>'«'+esc(DIMS[x].name)+'»').join(' × ') : ''}</div>
       <div class="small" style="margin-top:3px">Фильтр отчёта: ${r.filter.length ? r.filter.map(c=>`<span class="chip cond">${esc(condText(c))}</span>`).join(' ') : 'нет'}</div>
       <div class="muted small" style="margin-top:3px">${esc(SHELF_NAMES[r.shelf]||r.shelf)} · владелец: ${esc(userName(r.owner))} · круг: ${esc(circleWord(r))}</div></div>${tileFormHTML(d, r, dt, vs)}
       ${isAdmin(u) ? `<div class="form-step"><h4>Для каких ролей (необязательно)</h4>${Object.keys(S.declared).map(x=>`<label class="opt"><input type="checkbox" ${(d.forRoles||[]).includes(x)?'checked':''} onchange="DB.dRoles('${x}', this.checked)"> ${esc(roleName(x))}</label>`).join(' ')}
         <div class="why" style="margin-left:0">Автопроверка сверяет круг отчёта с держателями выбранных ролей и ролей, в чьих раскладках плитка уже стоит.</div></div>` : ''}`;
     side = `<div class="h2" style="margin-top:0">Предпросмотр · основа плитки сейчас</div>
+      <div class="muted small" style="margin:-4px 0 8px">Источник — отчёт «${esc(r.title)}» · ${esc(SHELF_NAMES[r.shelf]||r.shelf)}</div>
       <div class="grid pv">${tileHTML(dt, ac.preview, { preview:true, user:u, panel:{} })}</div>
       <div class="h2">Автопроверка</div><ul class="checks">${ac.checks.map(c=>`<li class="${c.ok?'ok':'bad'}">${c.ok?'✓':'✗'} ${esc(c.text)}</li>`).join('')}</ul>
       <p class="muted small">Плитка чисел не хранит: правка значений параметров, чисел, светофора или умолчаний видов — новая версия плитки; другой отчёт — новая плитка.</p>
       <p><button class="btn primary" onclick="DB.saveDraft('personal')" ${ac.ok?'':'disabled'}>Поставить себе</button>
       ${isAdmin(u)?`<button class="btn" onclick="DB.saveDraft('draft')">Черновик в каталог</button> <button class="btn primary" onclick="DB.saveDraft('publish')" ${ac.ok?'':'disabled'}>Опубликовать в каталог</button>`:''}
       <button class="btn" onclick="DB.newDraft('${r.id}')">Начать заново</button></p>`; }
-  $('v-builder').innerHTML = `<div class="cols2"><div>${step1}${step2}</div><div class="pv-side">${side}</div></div>`;
-  if(hadFocus){ const el = $('rep-q'); if(el){ el.focus(); const n = el.value.length; el.setSelectionRange(n, n); } }
+  return `<div class="banner info phone-only">Собрать плитку можно на компьютере. <button class="linky" onclick="DB.go('catalog')">Готовые плитки — в каталоге →</button></div>
+    <div class="cols2 desk-only"><div>${step1}${step2}</div><div class="pv-side">${side}</div></div>`;
 }
 // ящик «Конструктор отчётности»: конструктор принадлежит модулю «Отчётность», дашборд открывает его поверх себя
 const REL_FIELDS = { loan:[['curator','куратор'],['dept','подразделение']], borrower:[['curator','ведущий куратор'],['dept','подразделение']], app:[['specialist','специалист'],['dept','подразделение']],
@@ -4471,26 +4793,56 @@ function reportsTable(){
       <td class="small">${ts.length ? `<details><summary>${tilesWord(ts.length)}</summary>${ts.map(t=>`<div class="${reportBroken(t) ? 'bad' : ''}">${esc(t.title)}</div>`).join('')}</details>` : '—'}</td>
       <td class="n ${bad.length ? 'bad' : ''}">${bad.length}</td></tr>`; }).join('')}</table>`;
 }
-function renderRegistry(){
-  const rows = TILES.filter(t=>t.owner==='catalog' || t.proposed);
-  $('v-registry').innerHTML = `${S.proposals.length?`<div class="banner info">Предложено в каталог: ${S.proposals.map(p=>`«${esc(tileById(p.tile).title)}» от ${esc(userName(p.from))} <button class="btn sm primary" onclick="DB.moveToCatalog('${p.tile}')">Перенести в каталог</button>`).join(' · ')}</div>`:''}
-    <p><button class="btn primary" onclick="DB.go('builder')">Новая плитка</button> <span class="muted small">Цикл: черновик → опубликована → снята. Просмотры и клики — обезличенными счётчиками.</span></p>
-    <table class="list"><tr><th>Плитка</th><th>Отчёт</th><th>Вопрос</th><th>Основа</th><th>Состояние</th><th>Версия</th><th>Где стоит</th><th class="n">Просмотров</th><th class="n">Кликов</th><th></th></tr>
-    ${rows.map(t=>{ const w = whereUsed(t.id); const us = S.usage[t.id]||{views:0,clicks:0}; const q = questionOf(t);
-      return `<tr><td>${esc(t.title)}</td><td class="small">${reportCell(t)}</td><td class="small">${q ? esc(OBJECTS[IND[q.inds[0]].obj].name) : 'отчёт не найден'}</td><td class="small">${esc(baseLine(t))}</td><td>${{published:'опубликована',draft:'черновик',withdrawn:'снята',personal:'личная (предложена)'}[t.state]}</td><td>в. ${t.version}</td>
-      <td class="small">${w.roles.map(roleName).join(', ')||'—'}${w.personal?' · личных: '+w.personal:''}${w.screens?' · экранов: '+w.screens:''}</td><td class="n">${us.views}</td><td class="n">${us.clicks}</td>
+// предложение в очереди: предпросмотр как у автора, автопроверка на копии отчёта, похожая плитка каталога, «Принять · Отклонить»
+function proposalHTML(p){ const t = tileById(p.tile), pc = proposalCheck(p.tile), u = user(), dup = pc.dup || [];
+  const co = adminHolders().filter(x=>x.id!==u.id).map(x=>x.name), pv = Object.assign({}, t, { owner:'catalog', proposed:false });
+  const from = pc.from ? (pc.copy ? `Личный отчёт «${esc(pc.from.title)}» при принятии копируется в общий отчёт каталога: владелец — вы${co.length ? ', соавторы — держатели роли ('+esc(co.join(', '))+')' : ''}.`
+    : `Отчёт «${esc(pc.from.title)}» — ${esc((SHELF_LABEL[pc.from.shelf] || pc.from.shelf).toLowerCase())}: копировать нечего, каталожная плитка встанет на него же.`) : 'Отчёт не найден.';
+  return `<article class="prop" data-tile="${esc(t.id)}" aria-labelledby="pr-${esc(t.id)}">
+    <div class="prop-pv"><div class="prop-cap">Предпросмотр — как у автора</div>${pc.preview ? tileHTML(pv, pc.preview, { preview:true, user:pc.author, panel:{} }) : ''}</div>
+    <div class="prop-b"><div class="prop-h"><b id="pr-${esc(t.id)}">«${esc(t.title)}»</b> <span class="muted">от ${esc(userName(p.from))} · ${esc(p.at)}</span></div>
+      <div class="small muted">${esc(paramChips(t).join(' · '))}</div><div class="small" style="margin-top:4px">${from}</div>
+      ${checksHTML(pc.checks || [], pc.ok)}
+      ${dup.length ? `<div class="banner warn prop-dup">Похожая уже в каталоге: ${dup.map(x=>'«'+esc(x.title)+'» · '+esc(paramChips(x).join(', '))).join('; ')}</div>` : ''}
+      <div class="prop-a"><button class="btn primary" onclick="DB.accept('${t.id}')"${pc.ok ? '' : ' disabled'}>Принять</button><button class="btn" onclick="DB.rejectAsk('${t.id}')">Отклонить</button></div></div></article>`; }
+// автопроверка предложения одной строкой: пройдена — пункты под раскрытием, нет — непройденные на виду
+function checksHTML(cs, ok){ const bad = cs.filter(c=>!c.ok), li = c=>`<li class="${c.ok?'ok':'bad'}">${c.ok?'✓':'✗'} ${esc(c.text)}</li>`;
+  return `<details class="prop-c"${ok ? '' : ' open'}><summary class="${ok ? 'ok' : 'bad'}">${ok ? '✓ Автопроверка пройдена — '+cs.length+' '+plural(cs.length, 'пункт', 'пункта', 'пунктов') : '✗ Автопроверка: не пройдено '+bad.length+' из '+cs.length}</summary><ul class="checks">${(ok ? cs : bad).map(li).join('')}</ul></details>`; }
+// реестр плиток: очередь предложений, плитки каталога с «открывали за 90 дней» и меткой «кандидат на снятие», отчёты каталога.
+// На телефоне — только на компьютере
+function renderRegistry(){ $('v-registry').innerHTML = registryHTML(); }
+function registryHTML(){
+  const wait = proposalsWaiting(), rows = TILES.filter(t=>t.owner==='catalog');
+  const cand = `<span class="pill cand"${tipAttr('За 90 дней ни одного открытия и нет ни в одной раскладке роли. Снимает администратор — автоснятия нет: сезонная плитка ждёт своего сезона')}>кандидат на снятие</span>`;
+  return `<div class="banner info phone-only">Собрать плитку можно на компьютере: реестр плиток, предложения и снятие — там же.</div><div class="desk-only">
+    <div class="h2" style="margin-top:0">Предложения${wait.length ? ' <span class="cat-c">'+wait.length+'</span>' : ''}</div>
+    ${wait.length ? wait.map(proposalHTML).join('') : '<p class="muted small">Предложений нет. Личную плитку предлагают из «⋯» на ней — «Предложить в каталог».</p>'}
+    <div class="h2">Плитки каталога</div>
+    <p><button class="btn primary" onclick="DB.go('builder')">Новая плитка</button> <span class="muted small">Цикл: черновик → опубликована → снята. Открытия и клики — обезличенными счётчиками.</span></p>
+    <table class="list"><tr><th>Плитка</th><th>Отчёт</th><th>Вопрос</th><th>Основа</th><th>Состояние</th><th>Версия</th><th>Где стоит</th><th class="n">Открывали за 90 дней</th><th class="n">Кликов</th><th></th></tr>
+    ${rows.map(t=>{ const w = whereUsed(t.id); const us = S.usage[t.id]||{views:0,clicks:0}; const q = questionOf(t), R = t.replacement && tileById(t.replacement);
+      return `<tr data-tile="${esc(t.id)}"><td>${esc(t.title)}${withdrawCandidate(t) ? ' '+cand : ''}<div class="muted small">${esc(paramChips(t).join(' · '))}</div></td><td class="small">${reportCell(t)}</td><td class="small">${q ? esc(OBJECTS[IND[q.inds[0]].obj].name) : 'отчёт не найден'}</td><td class="small">${esc(baseLine(t))}</td>
+      <td>${{published:'опубликована',draft:'черновик',withdrawn:'снята'}[t.state]}${t.state==='withdrawn' ? `<div class="muted small">замена: ${R ? '«'+esc(R.title)+'»' : 'нет'}</div>` : ''}</td><td>в. ${t.version}</td>
+      <td class="small">${w.roles.map(roleName).join(', ')||'—'}${w.personal?' · личных: '+w.personal:''}${w.screens?' · экранов: '+w.screens:''}</td><td class="n">${opens90(t)}</td><td class="n">${us.clicks}</td>
       <td>${t.state==='published'?`<button class="btn sm danger" onclick="DB.withdrawAsk('${t.id}')">Снять</button>`:t.state==='draft'?`<button class="btn sm primary" onclick="DB.publishDraft('${t.id}')">Опубликовать</button>`:''}</td></tr>`; }).join('')}</table>
-    ${reportsTable()}`;
+    ${reportsTable()}</div>`;
 }
-function renderLayouts(){
-  const rid = S.layoutRole || 'lead'; const L = S.declared[rid] || [];
-  $('v-layouts').innerHTML = `<p>Объявленная раскладка — одна на роль на всю систему. Изменение: новая плитка встаёт в конец личных раскладок, убранная исчезает.</p>
+// раскладка роли: правка — черновиком на странице, «Сохранить» применяет сразу; перед сохранением — «затронет N держателей роли»
+function renderLayouts(){ $('v-layouts').innerHTML = layoutsHTML(); }
+function layoutsHTML(){
+  const rid = S.layoutRole || 'lead', base = S.declared[rid] || [], D = S.layoutDraft && S.layoutDraft.role===rid ? S.layoutDraft.items : null, L = D || base;
+  const ch = D ? layoutDiff(base, D) : null, dirty = !!ch && (ch.add.length || ch.rem.length || ch.moved), hs = roleHolders(rid);
+  const who = `${hs.length} ${plural(hs.length, 'держателя', 'держателей', 'держателей')} роли «${esc(roleName(rid))}»${hs.length ? ': '+esc(hs.map(x=>x.name).join(', ')) : ''}`;
+  const nm = k=>k.startsWith('s:') ? 'секция «'+k.slice(2)+'»' : '«'+(tileById(k) || { title:k }).title+'»';
+  return `<p>Объявленная раскладка — одна на роль на всю систему. Правка действует сразу после «Сохранить»: новая плитка встаёт в конец личных раскладок, убранная исчезает; у держателей — разовая плашка «Раскладка роли обновлена» и метка «новая» на новых плитках.</p>
     <p>Роль: <select onchange="DB.layoutRole(this.value)">${Object.keys(S.declared).map(r=>`<option value="${r}" ${r===rid?'selected':''}>${esc(roleName(r))}</option>`).join('')}</select>
-    <span class="muted small">ядро раскладки готово с волны ${ROLE_CORE_WAVE[rid]} · сейчас волна ${STAND.wave}</span></p>
-    <table class="list"><tr><th>#</th><th>Элемент</th><th>Отвечает?</th><th></th></tr>${L.map((k,i)=>{ const t = tileById(k);
-      return `<tr><td>${i+1}</td><td>${k.startsWith('s:')?'<b>секция «'+esc(k.slice(2))+'»</b>':esc(t?t.title:k)}</td><td class="small">${k.startsWith('s:')?'':tileAnswers(t)?'<span class="ok">да</span>':'<span class="bad">нет — черновиком, на главную не попадает</span>'}</td>
-      <td><button class="btn sm" onclick="DB.declMove('${rid}','${esc(k)}',-1)">↑</button><button class="btn sm" onclick="DB.declMove('${rid}','${esc(k)}',1)">↓</button><button class="btn sm danger" onclick="DB.declRemove('${rid}','${esc(k)}')">убрать</button></td></tr>`; }).join('')}</table>
-    <p>Добавить: <select id="decl-add">${TILES.filter(t=>t.state==='published' && !L.includes(t.id)).map(t=>`<option value="${t.id}">${esc(t.title)}</option>`).join('')}</select> <button class="btn" onclick="DB.declAdd('${rid}', document.getElementById('decl-add').value)">Добавить в конец</button></p>`;
+    <span class="muted small">держателей роли: ${hs.length} · ядро раскладки готово с волны ${ROLE_CORE_WAVE[rid]} · сейчас волна ${STAND.wave}</span></p>
+    ${dirty ? `<div class="ld-bar" role="status"><b>Не сохранено: ${esc(newsText(ch))}</b><span>Затронет ${who}${ch.rem.length ? ' · уберётся '+esc(ch.rem.map(nm).join(', ')) : ''}</span>
+      <span class="ld-r"><button class="btn" onclick="DB.ldCancel()">Отменить</button><button class="btn primary" onclick="DB.ldSave()">Сохранить</button></span></div>` : ''}
+    <table class="list"><tr><th>#</th><th>Элемент</th><th>Отвечает?</th><th></th></tr>${L.map((k,i)=>{ const t = tileById(k), fresh = D && !base.includes(k);
+      return `<tr><td>${i+1}</td><td>${k.startsWith('s:')?'<b>секция «'+esc(k.slice(2))+'»</b>':esc(t?t.title:k)}${fresh ? ' <span class="pill new">новая</span>' : ''}${t && !k.startsWith('s:') ? '<div class="muted small">'+esc(paramChips(t).join(' · '))+'</div>' : ''}</td><td class="small">${k.startsWith('s:')?'':tileAnswers(t)?'<span class="ok">да</span>':'<span class="bad">нет — черновиком, на главную не попадает</span>'}</td>
+      <td><button class="btn sm" aria-label="Выше" onclick="DB.ldMove('${esc(k)}',-1)">↑</button><button class="btn sm" aria-label="Ниже" onclick="DB.ldMove('${esc(k)}',1)">↓</button><button class="btn sm danger" onclick="DB.ldRemove('${esc(k)}')">убрать</button></td></tr>`; }).join('')}</table>
+    <p>Добавить: <select id="decl-add">${TILES.filter(t=>t.state==='published' && t.owner==='catalog' && !L.includes(t.id)).map(t=>`<option value="${t.id}">${esc(t.title)}${paramChips(t).length ? ' · '+esc(paramChips(t).join(', ')) : ''}</option>`).join('')}</select> <button class="btn" onclick="DB.ldAdd(document.getElementById('decl-add').value)">Добавить в конец</button></p>`;
 }
 function renderJournal(){ $('v-journal').innerHTML = `<p class="muted">Изменения плиток и раскладок, выгрузки — поимённо. Просмотры — только счётчиками в реестре плиток.</p>
   <table class="list"><tr><th>Когда</th><th>Кто</th><th>Что</th><th>Подробно</th></tr>${S.journal.map(j=>`<tr><td>${esc(j.at)}</td><td>${esc(userName(j.who))}</td><td>${esc(j.action)}</td><td class="small">${esc(j.detail)}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">пусто</td></tr>'}</table>`; }
@@ -4552,7 +4904,7 @@ if(HAS_DOM){ document.addEventListener('mousemove', e=>{ const el = e.target.clo
 
 /* ================= API (onclick и смоук) ================= */
 // вид плитки — полосой под рядом: в ряду одна, в разных рядах может быть по одной; путь, выбор и вид живут в S.open
-function openTileView(id, kind){ const t = tileArg(id); if(!VIEW_KINDS.includes(kind)) return null; countClick(id); const o = openStrip(id, kind); view = 'home'; render();
+function openTileView(id, kind){ const t = tileArg(id); if(!VIEW_KINDS.includes(kind)) return null; countClick(id); const o = openStrip(id, kind); unmarkNew(S.userId, t.id); view = 'home'; render();
   if(HAS_DOM){ const el = document.querySelector('[data-strip="'+id+'"]'); if(el) el.scrollIntoView({ block:'nearest' }); else toast('Плитки «'+t.title+'» нет на этом экране'); }
   return o; }
 function closeStrip(id){ delete S.open[id]; render(); }
@@ -4567,12 +4919,17 @@ function numFrom(r, kind, a, b, c){ const col = i=>r.cols.includes(i), no = i=>(
   return null; }
 function tileDraft(){ return draft || (draft = blankDraft()); }
 function reportDraft(){ return rdraft || (rdraft = blankReportDraft()); }
+// черновик правки раскладки роли в редакторе: до «Сохранить» объявленная раскладка не меняется
+function ldItems(){ const rid = S.layoutRole || 'lead'; if(!S.layoutDraft || S.layoutDraft.role!==rid) S.layoutDraft = { role:rid, items:(S.declared[rid] || []).slice() }; return S.layoutDraft.items; }
 // формат, ставший недопустимым после правки выбора или значений, меняется на первый допустимый
 const api = {
   // модель
   TODAY, STAND, OBJECTS, DIMS, OBJ_DIMS, IND, TILES, ROLES, USERS, DATA, PERIODS, VIEW_KINDS, DECLARED_SEED,
   seed:()=>{ seed(); draft=null; rdraft=null; rcOpen=false; view='home'; return S; }, get state(){ return S; }, user, tileById, ask, cachedAsk, statRows, registryList, composeLayout, declaredItems,
-  roleHasLayout, tileAnswers, catalogFor, canSee, shiftsFor, autocheck, saveTile, editTile, propose, moveToCatalog, whereUsed, withdrawTile:withdraw,
+  roleHasLayout, tileAnswers, catalogFor, canSee, shiftsFor, autocheck, saveTile, editTile, propose, whereUsed, withdrawTile:withdraw,
+  catalogView, CAT_SECTIONS, catSection, paramChips, catNum, indsFor, reportsWith, draftWith, acceptProposal, rejectProposal, proposalCheck, proposalsWaiting, dupOf, qSig, personalReport,
+  opens90, daysSince, withdrawCandidate, swapGoneOf:swapGone, applyDeclared, declaredSave, layoutDiff, roleHolders, roleNewsShow, roleNewsClose, isNewTile, unmarkNew, newsText, newsBanner, goneHTML,
+  catalogHTML, builderHTML, registryHTML, layoutsHTML, proposalHTML, get page(){ return view; },
   exportTile, signalToggle, signalRemove, nightCheck, createScreen, screens, screenAdd, screenSaveFilter, screenFilterChanged, tabSnapshot, screenExport, scopeKey,
   panelVals, normPanel, panelOn, lightOnly, tabsFor, scopeCaption, homeHTML:()=>homeHTML().html, topHTML:()=>{ const u = user(), t = curTab(); return topHTML(u, t, curRole(), t.kind==='screen' ? screenById(t.id) : null); }, tick, fmtVal, rowsFor, dimHist, noAnswerAt, monthEndLabel, overlay, arrangeMove, arrangeAdd, arrangeHide, arrangeSection,
   get draft(){ return draft; }, get rdraft(){ return rdraft; }, reportHints, buildReport, similarReport, saveAndPlace, qualOf, reqOf, condText, condFields, panelLabel, FIELDS, PSTATES, pstateAt, LOANS_OF, loanAt, isLoanRow,
@@ -4595,7 +4952,7 @@ const api = {
   // список «Экран: …» на телефоне: значение «роль:id» / «screen:id», «new» — новый свой экран
   pickTab:(v)=>{ if(v==='new'){ render(); return api.newScreen(); } const i = String(v).indexOf(':'); return api.setTab(v.slice(0, i), v.slice(i + 1)); },
   // смена пользователя стенда — его вход: открыта последняя открытая им вкладка (нет её — первая роль), фильтры вкладок — с чистого листа
-  switchUser:(id)=>{ S.userId=id; Object.keys(S.panels).forEach(k=>{ if(k.startsWith(id+'|')) delete S.panels[k]; }); S.tab = S.lastTab[id] || null; S.arrange=false;
+  switchUser:(id)=>{ S.userId=id; Object.keys(S.panels).forEach(k=>{ if(k.startsWith(id+'|')) delete S.panels[k]; }); S.tab = S.lastTab[id] || null; S.arrange=false; S.newsFlash = null; S.layoutDraft = null;
     resetOpen(); draft=null; rdraft=null; if(['registry','layouts','journal'].includes(view) && !isAdmin(user())) view='home'; render(); },
   refresh:()=>{ S.cache.clear(); loading=true; render(); setTimeout(()=>{ loading=false; render(); toast('Числа запрошены у статистики заново'); }, 350); },
   // поле фильтра вкладки: значение или список значений; пустое — поле снято
@@ -4624,6 +4981,16 @@ const api = {
   openCatalogFor:()=>{ catalogTarget = S.tab; view='catalog'; render(); },
   addFromCatalog:(id)=>{ const tg = catalogTarget || S.tab; if(!tg) return; if(tg.kind==='screen') screenAdd(tg.id, id); else arrangeAdd(tg.id, id); render(); toast('Добавлено в конец раскладки'); },
   catSearch:(q)=>{ S.catQ=q; renderCatalog(); },
+  // «только доступные мне»: есть во вкладке или можно добавить; «найти в каталоге» из уведомления — поиск по названию
+  catOnly:(on)=>{ S.catOnly = !!on; renderCatalog(); return S.catOnly; },
+  catFind:(q)=>{ S.catQ = q || ''; S.catOnly = false; catalogTarget = null; view = 'catalog'; render(); return S.catQ; },
+  // пустой поиск каталога — «Собрать из отчёта →»: мастерская с тем же запросом в поиске показателя
+  catToMaster:()=>{ S.mQ = S.catQ || ''; S.mObj = ''; S.mInd = null; draft = null; view = 'builder'; render(); return S.mQ; },
+  // заглушка снятой плитки: «Заменить» ставит замену на её место
+  swapGone:(id)=>{ const r = swapGone(id); toast(r.error || 'Замена встала на место снятой: «'+tileById(r.tile).title+'»'); render(); return r; },
+  // плашка правки раскладки роли у держателя
+  newsShow:()=>{ const N = roleNewsShow(S.userId, curRole()); render(); if(HAS_DOM && N && N.add.length){ const el = document.querySelector('.tile.flash'); if(el) el.scrollIntoView({ block:'nearest' }); } return N; },
+  newsClose:()=>{ const r = roleNewsClose(S.userId, curRole()); render(); return r; },
   primary:(id)=>primaryClick(id), menu:(e,id)=>openMenu(e,id), stripMenu:(e,id)=>openStripMenu(e,id), close:closeOverlay,
   who:(id,d,v,d2,v2,path)=>{ countClick(id); return openWho(id, d ? { d, v, d2, v2 } : null, path); },
   whoMonth:(id,m,line)=>{ countClick(id); return openWho(id, line ? { m, line } : { m }); },
@@ -4668,7 +5035,7 @@ const api = {
     drawer('Выгрузка экрана — PDF со штампом', `<div class="stamp">${x.stamp.map(s=>/^НЕ ЯВЛЯЕТСЯ/.test(s) ? '<b>'+esc(s)+'</b>' : esc(s)).join('<br>')}</div>
       <p><button class="btn primary" onclick="window.print()">Печать в PDF</button></p>`); return x; },
   signal:(id, roleId)=>{ const r = signalToggle(id, roleId || (S.tab ? curRole() : null));
-    toast(r.error ? r.error : r ? 'Сигналы поставлены: '+r.map(s=>s.label).join(', ')+' — проверка раз в день после ночного снимка' : 'Сигналы сняты'); render(); return r; }, propose:(id)=>{ const r = propose(id); toast('Предложено администратору дашборда'); render(); return r; },
+    toast(r.error ? r.error : r ? 'Сигналы поставлены: '+r.map(s=>s.label).join(', ')+' — проверка раз в день после ночного снимка' : 'Сигналы сняты'); render(); return r; }, propose:(id)=>{ const r = propose(id); toast(r ? 'Предложено в каталог: ждёт ответа администратора дашборда' : 'Уже предложена или не ваша'); render(); return r; },
   openNotifs, signalOff:(id)=>{ const r = signalRemove(id); toast(r ? 'Сигнал снят' : 'Сигнала нет'); openNotifs(); return r; },
   nightCheckRun:()=>{ const f = nightCheck(); toast(f.skipped ? f.skipped : (f.length ? 'Сигналов сработало: '+f.length : 'Сигналы проверены — новых нет')+(f.dropped && f.dropped.length ? ' · снято на изменённых плитках: '+f.dropped.length : '')); render(); return f; },
   tick:(m)=>{ tick(m); render(); toast('Прошло '+m+' мин'); },
@@ -4679,10 +5046,15 @@ const api = {
   standWithdraw:(i,v)=>{ if(v) STAND.withdrawn[i]='11.10'; else delete STAND.withdrawn[i]; S.cache.clear(); render(); },
   // сборка плитки на отчёте
   newDraft:(reportId)=>{ draft = blankDraft(reportId); render(); return draft; },
-  pin:(reportId)=>{ const d = pinFromReport(reportId); if(!d){ toast('Отчёт не найден'); return null; } draft = d; view = 'builder'; render(); return d; },
-  repSearch:(q)=>{ S.repQ = q; render(); },
-  dReport:(id)=>{ if(!reportById(id)){ render(); return toast('Отчёт не найден'); } draft = blankDraft(id); render(); },
-  rTake:(id)=>{ const d = rdraft && takeSimilar(rdraft, id); if(!d){ render(); toast('Отчёт не подходит черновику'); return null; } draft = d; view = 'builder'; render(); return d; },
+  pin:(reportId)=>{ const d = pinFromReport(reportId); if(!d){ toast('Отчёт не найден'); return null; } draft = d; S.mInd = d.main.col; S.mObj = ''; S.mQ = ''; view = 'builder'; render(); return d; },
+  // шаг 1 мастерской: объект, поиск показателя, показатель; отчёт с ним — плитка на нём с этим показателем главным числом
+  mObj:(o)=>{ S.mObj = OBJECTS[o] ? o : ''; if(S.mInd && S.mObj && IND[S.mInd].obj!==S.mObj){ S.mInd = null; draft = null; } render(); return S.mObj; },
+  mSearch:(q)=>{ S.mQ = String(q || ''); render(); return indsFor(user(), S.mObj, S.mQ).map(x=>x.id); },
+  mInd:(id)=>{ if(!IND[id]){ render(); return toast('Такого показателя нет'); } S.mInd = id; if(draft && !(reportById(draft.report) || { cols:[] }).cols.includes(id)) draft = null; render(); return reportsWith(user(), id); },
+  mReport:(id)=>{ const d = draftWith(id, S.mInd); if(!d){ render(); return toast('Отчёт не найден'); } draft = d; render(); return d; },
+  mOwnReport:()=>{ const I = IND[S.mInd]; if(!I){ render(); return toast('Сначала выберите показатель'); }
+    rdraft = Object.assign(blankReportDraft(), { obj:I.obj, inds:[I.id] }); rdraft.filter = defaultFilterOf(rdraft); condDraft = { f:'', op:'', v:null }; view = 'builder'; rcOpen = true; render(); return rdraft; },
+  rTake:(id)=>{ const d = rdraft && takeSimilar(rdraft, id); if(!d){ render(); toast('Отчёт не подходит черновику'); return null; } draft = d; S.mInd = (d.main || {}).col || null; view = 'builder'; render(); return d; },
   dParam:(n,v)=>{ const d = tileDraft(); const r = reportById(d.report);
     if(!r || !r.params[n]){ render(); return toast(n==='date' || n==='period' ? 'Отчёт не объявил дату — плитка её не перекраивает' : 'Отчёт не объявил параметр «'+n+'»'); }
     if((n==='date' && !DATE_MODES[v]) || (n==='period' && !PERIODS[v])){ render(); return toast('Такой даты нет'); }
@@ -4755,14 +5127,20 @@ const api = {
     if(r.error){ const f = (r.checks || []).find(c=>!c.ok); toast(r.error+(f ? ': '+f.text : '')); render(); return r; }
     toast('Личный отчёт «'+r.report.title+'» собран, плитка на нём добавлена в конец вкладки'); rdraft = null; draft = null; condDraft = { f:'', op:'', v:null }; view = 'home'; render(); return r; },
   // администратор
-  withdrawAsk:(id)=>{ const t = tileById(id); const w = whereUsed(id);
-    drawer('Снять плитку «'+esc(t.title)+'»', `<p>Плитка уйдёт из каталога и из раскладок ролей. В личных раскладках останется заглушка «снята администратором».</p>
-      <div class="kv"><div class="k">Раскладки ролей</div><div>${w.roles.map(roleName).join(', ')||'—'}</div><div class="k">Личных раскладок</div><div>${w.personal}</div><div class="k">Своих экранов</div><div>${w.screens}</div></div>
-      <button class="btn danger" onclick="DB.withdrawDo('${id}')">Снять</button>`); },
-  withdrawDo:(id)=>{ withdraw(id); closeOverlay(); render(); toast('Плитка снята'); },
-  moveToCatalog:(id)=>{ const r = moveToCatalog(id); render(); toast(r && r.error ? r.error : r ? 'Перенесена в каталог' : 'Переносит только администратор дашборда'); return r; }, publishDraft:(id)=>{ const r = publishDraft(id); if(r&&r.error) toast(r.error); render(); },
-  layoutRole:(r)=>{ S.layoutRole=r; render(); }, declMove:(r,k,d)=>{ declaredEdit(r,'move',k,d); render(); }, declRemove:(r,k)=>{ declaredEdit(r,'remove',k); render(); },
-  declAdd:(r,k)=>{ const x = declaredEdit(r,'add',k); if(x && x.error) toast(x.error); render(); }, toast,
+  // снятие — окно на странице: где стоит и необязательная замена
+  withdrawAsk:(id)=>openWithdraw(id),
+  // очередь предложений: «Принять» — копия личного отчёта в общий, каталожная плитка вместо личной у автора; «Отклонить» — окно с причиной
+  accept:(id)=>{ const r = acceptProposal(id); toast(r.error ? r.error+(r.checks ? ': '+((r.checks.find(c=>!c.ok) || {}).text || '') : '') : 'Принято: «'+r.tile.title+'» в каталоге, автору — уведомление'); render(); return r; },
+  rejectAsk:(id)=>openReject(id),
+  publishDraft:(id)=>{ const r = publishDraft(id); if(r&&r.error) toast(r.error); render(); },
+  // редактор раскладки роли: правка черновиком на странице, «Сохранить» — сразу у держателей; до сохранения видно, скольких затронет
+  layoutRole:(r)=>{ S.layoutRole = r; S.layoutDraft = null; render(); },
+  ldMove:(k, d)=>{ const L = ldItems(), i = L.indexOf(k), j = i + d; if(i>=0 && j>=0 && j<L.length){ [L[i], L[j]] = [L[j], L[i]]; } render(); return L; },
+  ldRemove:(k)=>{ const L = ldItems(), i = L.indexOf(k); if(i>=0) L.splice(i, 1); render(); return L; },
+  ldAdd:(id)=>{ const L = ldItems(); if(!id || L.includes(id)){ render(); return L; } const g = declGap(S.layoutRole || 'lead', id); if(g){ toast(g.error); render(); return g; } L.push(id); render(); return L; },
+  ldSave:()=>{ const D = S.layoutDraft; if(!D) return null; const r = declaredSave(D.role, D.items); if(r.error){ toast(r.error); render(); return r; }
+    S.layoutDraft = null; toast('Раскладка «'+roleName(D.role)+'» сохранена: '+(newsText(r) || 'без изменений')+' · держателей роли: '+r.holders.length+' — у них плашка «Раскладка роли обновлена»'); render(); return r; },
+  ldCancel:()=>{ S.layoutDraft = null; render(); }, toast,
 };
 seed();
 if(HAS_DOM){ document.addEventListener('DOMContentLoaded', render);
