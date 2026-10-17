@@ -8,7 +8,7 @@
   Рабочий прототип (single-file) — модуль «Отчётность» (TO-BE). Логика исполняется.
   Канон логики — ASUBK-otchetnost-logika.md; журнал волн — ASUBK-status-razrabotki.md.
   Смоук: node scripts/inspect/reports-check.mjs
-  SMOKE 2026-10-17 · 276/276 PASS
+  SMOKE 2026-10-17 · 298/298 PASS
      PASS  #1  личный черновик «Справка о задолженности» не виден даже уполномоченному, пока автор не попросил публикации — ИО-1
      PASS  #2  пользователь опубликовать не может: «утверждает уполномоченный по отчётности: роль «Пользователь (Осмонова …»
      PASS  #3  состояние шаблона СЧИТАЕТСЯ, а не хранится: «черновик» → «утверждён» после публикации
@@ -19,7 +19,7 @@
      PASS  #8  неисчислимый налету показатель в режиме «сейчас» отклонён причиной владельца реестра — ADR-0159
      PASS  #9  чистый черновик проходит все пять проверок и становится шаблоном организации
      PASS  #10  основание, вписанное не публикующим, остаётся просьбой: «сослаться на пункт нормы может только утверждающий: основание «п. 12 П…»
-     PASS  #11  в движке состава (17163 симв.) и движке бланка (2537) нет ни базы, ни формулы: запрещённых имён 0 — ИО-2, ИО-3
+     PASS  #11  в движке состава (17269 симв.) и движке бланка (2537) нет ни базы, ни формулы: запрещённых имён 0 — ИО-2, ИО-3
      PASS  #12  «свой запрос» — названный отказ; «своя формула» — названная граница: в официальный не входит (ADR-0281)
      PASS  #13  шов вернул 3 строк и произнёс «скрыто 5»; итог посчитан по видимым строкам (15000000 против 62650000) — иначе итог рассказал бы то, чего в строках нет, §13.2
      PASS  #14  снимка на 01.09.2026 нет — подставлен ближайший на 2026-08-01; на 01.12.2024 (глубже переноса) снимка нет вовсе
@@ -68,7 +68,7 @@
      PASS  #57  список — законный параметр отбора следующего выпуска: перечень объектов ушёл в разрез и спрошен тем же швом, пятого шва не понадобилось
      PASS  #58  переданный список видит круг подразделения, а не весь модуль; закрытый читается, но не передаётся и не пополняется — работа окончена (§9)
      PASS  #59  вход в модуль — ровно четыре шва: три у статистики (ADR-0152) и objectRows у ядра (ADR-0158)
-     PASS  #60  двенадцать экранов × все роли = 60 отрисовок без исключений (428 КБ разметки)
+     PASS  #60  двенадцать экранов × все роли = 60 отрисовок без исключений (453 КБ разметки)
      PASS  #61  отказы и границы проговорены на самих экранах, а не спрятаны за отсутствием кнопки
      PASS  #62  число уровня приходит узлом дерева, а не сложением: доли по 3 подразделениям в сумме дают 83.3 %, а корень того же дерева равен 25 % — складывать детей нельзя (ИО-17, ИС-24)
      PASS  #63  разрезы печатаются уровнями: подразделение+итог → состояние кредита; 3 группы первого уровня, 5 второго, строк в группах 8 из 8
@@ -285,6 +285,28 @@
      PASS  #274  ИО-57, ИО-62: строки Движения в ответе reportAnswer (и у дашборда тем же швом) = строкам окна отчёта; у «Суммы просрочки» потоков запись не объявляет — строки переходов «пришёл · снизилось», без «прочего»
      PASS  #275  ОД-36: «нет объектов» — признак ответа: «под значениями параметров объектов нет: подразделение = «Департамент правового обеспечения»» (число 0 остаётся); законный ноль — просрочка на 01.01.2026 = 0 при 7 кредитах, без признака; пользователю «Ош» — «охват», скрыто 2; окно отчёта — тот же признак
      PASS  #276  экраны: плашка «Нет объектов» над итогами при подразделении без кредитов; провал «Изменения» «Остатка» — строки Движения с цепочкой, колонки «Погашено» и «Прочее» у объектов; клик по «прочему» сужает список; номеров решений в интерфейсе нет
+     PASS  #277  ОД-3, ОД-35: относительные значения закрытым набором — «моё подразделение» подставляется по смотрящему (уполномоченному — администрирование, пользователю — промышленность), паспорт печатает конкретное; значение вне набора — отказ; выпуск фиксирует 01.07.2026 и dep-admin; «прошлый квартал» — 01.04–01.07.2026, «текущий год» — с 01.01 по сегодня
+     PASS  #278  ОГ-7: руководителю (зона — администрирование) шире зоны видны только итоги — промышленность 3 объекта, просрочка 5 300 000; «Ош» (2 объекта) — «скрыто»; фонд в целом 10300000 = итогу уполномоченного; строки, провал и уровень мельче подразделения — отказ; пользователю без права — «по умолчанию строго»
+     PASS  #279  ОГ-33: журнал просмотров пишет показ со строками (3 строки, два показа подряд — одна запись «×2») и провал (1); показ одних итогов не пишется; пользователю журнал закрыт — у него «Недавние отчёты»; уполномоченный читает
+     PASS  #280  ОГ-17: оценка у статистики — динамика 36 месяцев по двум разрезам 28 с — фоновое задание МЗ-1 с уведомлением, результат в «Моих заданиях» до 31.08.2026; 8 месяцев без разрезов — 7 с, на экране; «сейчас» по всему портфелю — в фоне, по одному подразделению — на экране
+     PASS  #281  ОГ-26: итог «Остатка» на 01.08.2026 — 64 100 000 сом = сом 59 100 000 + USD-группа 5 000 000; КД-2025/126 в долларах — 61 538,46 USD и на 01.06, и на 01.07 (снижение в сомах на 200 000 — курс, «прочее» Движения); пересчёт итога в USD — отображение (766196.51); сумма в исходной валюте по смешанной группе — отказ
+     PASS  #282  ОГ-23: неоткрываемый 194 дня общий отчёт предложен в архив; удалить с подпиской нельзя — зависимые названы; архив убирает с полки «Общие», возврат — владелец; передача владения — след «передан владельцем», дальше передаёт уже новый владелец; официальный не удаляется; личный без зависимых удаляется
+     PASS  #283  ОД-4: отчёт, поставленный на плитку, остаётся обычным личным на полке «Мои» с отметкой «на плитке: Главная»; удалить его, пока плитка ссылается, нельзя
+     PASS  #284  ОГ-10: разрез в колонках — подразделение × состояние, клетки складываются в итог строки, итоги колонок — в общий 10300000; седьмой уровень группировки — отказ и на показе, и в конструкторе
+     PASS  #285  ОГ-32: план — показатель рода «план» из справочника «Плановые показатели»: промышленность — план 6 000 000, выдано 2 500 000, 41,7 %; список из перечня 5 номеров — найдено 2, не найдены поимённо КД-2023/999, КД-2022/045, вне видимости — 1 числом
+     PASS  #286  ОД-6: «Обязательство» — строки объекта с восемью реквизитами (форма · подразделение · исполнитель · срок · состояние · дата сдачи · «числа изменились» · получатель); плитки — счёт строк: просрочено 2, сдано 7 из 12
+     PASS  #287  ОД-8, ОД-13: пакет вопросов экрана одним вызовом — два ответа, каждый за себя; ставшее невозможным снято из вопроса с пометкой («Доля проблемных кредитов» выведена, неизвестный показатель), ответ несёт версию отчёта
+     PASS  #288  ОД-12: круг общего отчёта (промышленность и администрирование) не покрывает куратора из «Ош» — ответ поимённый; держателей «Администратор дашборда» покрывает; тот же ответ — ключом шва reportAnswer
+     PASS  #289  ОД-11, ОД-14: сигнал с плитки — обычный сигнал на тот же отчёт с тем же порогом, виден в «на что я подписан» с пометкой плитки; выгрузка с плитки — предварительный выпуск ВП-105: паспорт с источником-плиткой, «НЕ ОФИЦИАЛЬНЫЙ ДОКУМЕНТ», строка журнала
+     PASS  #290  ОГ-30: кто утверждает — выводится из круга и получателей: «Просроченная задолженность по состоянию на 1-е число» с внешним получателем — уполномоченный фонда; общий отчёт одного подразделения — уполномоченный подразделения; экран редакции это печатает
+     PASS  #291  ОГ-15: сдача Минэкономики («требует xlsx») — PDF и XLSX из тех же замороженных чисел, у каждого контрольная сумма; csv при сдаче не выдаётся; исправленную в Excel цифру сверка показывает; Минфину — только PDF
+     PASS  #292  ADR-0311 п. 5: декабрь 2024 г. перенесён без событий — поток «за отчётный месяц — прошлый год» формы «Портфель к прошлому году» на 01.01.2026 пуст «события в легаси не перенесены», сдача законна; версия М-2 даёт событие pm-10 (400 000) — строкой журнала «было: нет → стало», клетка и «за период» получают число, сданный ВП-105 метится; дубль, чужой месяц и договор, которого не было, — отказ; затравка возвращает стенд
+     PASS  #293  хвост волны 42: личный отчёт автора показывается на экране «Показ и выпуск» тем же окном, режим и фильтр — его умолчанием («Режим времени из отчёта: сравнение 01.06.2026 → 01.08.2026»)
+     PASS  #294  ОД-7: конструктор ставит «действующие» сам при первом остатке («Остаток основного долга») — видимым чипом, 45 строк вместо 47 (два закрытых договора); паспорт печатает; автор снимает — 47 и подсказка «складывает действующих и погасивших»; средняя чип не ставит
+     PASS  #295  ОГ-27, входящие имущества: «начать с готового» — четыре заготовки; «Реестр имущества на дату» на 31.08.2026 — 8 объектов имущества, учётная стоимость 22 460 000, по состоянию «на продаже · продано»; второй объект — предложения имущества (5)
+     PASS  #296  ОГ-Д1: оболочка «Формирования» — экран «Конструктор» внутри общей оболочки АСУБК (топбар, меню трёх столов, одна палитра); с витрины в него ведёт «Собрать в конструкторе»
+     PASS  #297  ОГ-10а: подсветка по порогам — в общем отчёте задана автором («Сумма просрочки» 10 300 000 — «плохо», на 01.06 5 400 000 — «внимание»), правка порога — версия общего; чужой не правит; в официальном — формой («Кредитов с просрочкой» 2 — «внимание»), помимо редакции порог не ставится
+     PASS  #298  экраны: на показе — значения по смотрящему, валюта договора, сводная, итоги шире зоны, план и факт; «Мои задания»; журнал просмотров и события декабря 2024; список из перечня; архив общего; номеров решений в новых карточках нет
 -->
 <style>
 :root{
@@ -865,7 +887,7 @@ const POST = id => POSTS.find(p => p.id === id);
 const ADDRESSEES = [
   {id:'a-mf',  name:'Министерство финансов Кыргызской Республики', short:'Минфин КР'},
   {id:'a-kab', name:'Комитет по администрированию бюджетных кредитов', short:'Комитет'},
-  {id:'a-me',  name:'Министерство экономики и коммерции Кыргызской Республики', short:'Минэконом'}
+  {id:'a-me',  name:'Министерство экономики и коммерции Кыргызской Республики', short:'Минэконом', needsXlsx:true}
 ];
 const ADDR = id => ADDRESSEES.find(a => a.id === id);
 
@@ -1232,6 +1254,15 @@ LEGACY.months['декабрь 2025'].notCollected = ['s-avg-late'];
    не «ещё нет»: ИО-8 у такого месяца не срабатывает, остаток не восстанавливается
    ни из соседнего итога и событий, ни нулём (ADR-0309 п. 1–3, ОГ-Д12).          */
 LEGACY.months['июль 2025'].totals = false;
+/* Декабрь 2024 г. перенесён итогом без событий (допущение стенда: платёжные
+   поручения первого месяца переноса в легаси не выгружались). Поток за него —
+   пустая клетка «события в легаси не перенесены», а не ноль; события может
+   дать новая версия миграции — симметрично итогу (ADR-0311 п. 5).            */
+LEGACY.months['декабрь 2024'].events = false;
+/* Найденный позже архив платёжных поручений за декабрь 2024 г.: взнос по
+   графику КД-2023/311. Входит только новой версией миграции (ADR-0311 п. 5). */
+const LEGACY_EVENTS_ARCHIVE = {'декабрь 2024': {
+  'pm-10':{type:'payment', credit:'kr-5', dept:'dep-admin', date:'2024-12-05', amount:400000, kind:'основной долг'}}};
 /* Найденный позже архив сальдо: итог на конец июля 2025 г. по каждому договору,
    действовавшему на 01.08.2025 (допущение стенда). В систему он попадает только
    новой версией миграции, утверждённой человеком, — и тогда целиком: остаток
@@ -1542,6 +1573,7 @@ function twistCheck(ed, twist){
     why:'раскладки «'+w.layout+'» не бывает: '+LAYOUTS.join(' · ')};
   if(uniq(w.cuts).length !== w.cuts.length) return {ok:false,
     why:'разрез назван дважды: уровень бывает один'};
+  if(w.cuts.length > 6) return {ok:false, why:'группировка — до 6 уровней: седьмой уровень не ставится'};
   if(uniq(w.stats).length !== w.stats.length) return {ok:false,
     why:'показатель назван дважды: второй такой же колонки не бывает'};
   const badCut = w.cuts.filter(c => !CUT_NAMES[c]);
@@ -2069,7 +2101,7 @@ function templatesSeed(){ return [
 
   {id:'t-sh-big', kind:'отчёт', level:'общий', name:'Крупные кредиты — для правления',
    owner:'Асанов А.', coauthors:[], share:{depts:['dep-admin'], people:['Осмонова Г.']},
-   users:3, lastOpen:'2026-08-12', asked:false, basis:null,
+   users:3, lastOpen:'2026-02-11', asked:false, basis:null,
    circle:['dep-admin'], forReview:false, fullCoverage:false, schedule:null,
    editions:[{n:1, state:'версия', since:'2026-08-10', by:'Асанов А.', at:'2026-08-10',
      changed:'открыт кругу 10.08.2026 (Асанов А.)',
@@ -2327,7 +2359,14 @@ function seed(){
   RP.gcFiles();
   return st;
 }
-RP.seed = () => { seed(); return RP.state; };
+RP.seed = () => { seed();
+  /* Пороги подсветки в затравке: у общего отчёта — автора (ОГ-10а). */
+  const sp = TPL('t-sh-plan'), ve = sp && verEd(sp);
+  if(ve) ve.thresholds = {'s-overdue-sum': {warn: 5000000, bad: 10000000}};
+  /* У официального — формы: порог утверждён редакцией вместе с составом. */
+  const ov = TPL('t-overdue'), pe = ov && pubEd(ov);
+  if(pe) pe.thresholds = {'s-overdue-cnt': {warn: 2, bad: 4}};
+  return RP.state; };
 RP.roles = () => ROLE_TITLES.slice();
 RP.kinds = () => KINDS.slice();
 RP.viewer = () => ROLE(RP.state.role);
@@ -3264,9 +3303,19 @@ RP.migrationRevision = spec => {
       if(f) return {ok:false, why:'в строке '+OBJ(id).no+' нет величины «'+REWRITE_FIELD[f]+'»: итог дополняется '+
         'всеми величинами, которые перенос даёт в итоге'}; }
   }
+  /* События месяцу, который перенос дал без событий, — тоже дополнение
+     состава (ADR-0311 п. 5, симметрично итогу): строки новых событий месяца. */
+  const addingEv = Object.keys(evs).length > 0 && !!lm && !lm.events;
+  if(addingEv) for(const id of Object.keys(evs)){ const e = evs[id];
+    if(OBJECTS.some(x => x.id === id)) return {ok:false, why:'событие «'+id+'» уже есть: дополняются события, которых перенос не дал'};
+    if(!e || !e.date || e.date.localeCompare(monthIso(period)) === -1 || e.date.localeCompare(end) !== -1)
+      return {ok:false, why:'событие «'+id+'» не из месяца «'+period+'»'};
+    const cr = OBJ(e.credit);
+    if(!cr || cr.issued.localeCompare(e.date) === 1) return {ok:false, why:'событие «'+id+'»: договора '+(cr ? cr.no : e.credit)+' на '+fmt(e.date)+' ещё не было'};
+    if(!(e.amount > 0)) return {ok:false, why:'в событии «'+id+'» нет суммы: событие дополняется всеми величинами'}; }
   if(!adding && Object.keys(tot).length && !HIST[end]) return {ok:false, why:'итога на '+fmt(end)+' в стенде нет — править нечего'};
   if(!adding) for(const id of Object.keys(tot)) if(!HIST[end][id]) return {ok:false, why:'в итоге на '+fmt(end)+' строки «'+id+'» нет'};
-  for(const id of Object.keys(evs)){ const o = OBJECTS.find(x => x.id === id && x.type === 'payment');
+  if(!addingEv) for(const id of Object.keys(evs)){ const o = OBJECTS.find(x => x.id === id && x.type === 'payment');
     if(!o || o.date.localeCompare(monthIso(period)) === -1 || o.date.localeCompare(end) !== -1)
       return {ok:false, why:'событие «'+id+'» не из месяца «'+period+'»'}; }
   const ver = migVersion(), at = RP.state.today, by = RP.who(), rows = [];
@@ -3281,7 +3330,12 @@ RP.migrationRevision = spec => {
   else Object.keys(tot).forEach(id => Object.keys(tot[id]).forEach(f => { if(HIST[end][id][f] === tot[id][f]) return;
     rows.push({release: ver, period, at, by, why: s.why, what:'итог на '+fmt(end)+' · '+(OBJ(id) || {no:id}).no+' · '+(REWRITE_FIELD[f] || f),
       was: HIST[end][id][f], now: tot[id][f], apply: () => { HIST[end][id][f] = tot[id][f]; }}); }));
-  Object.keys(evs).forEach(id => { const o = OBJECTS.find(x => x.id === id);
+  if(addingEv){ const k0 = rows.length; Object.keys(evs).forEach(id => rows.push({release: ver, period, at, by, why: s.why,
+      what:'событие '+id+' от '+fmt(evs[id].date)+' · '+OBJ(evs[id].credit).no+' · строка события добавлена', was: null, wasText:'нет (события не перенесены)',
+      now: money(evs[id].amount)+' · '+evs[id].kind}));
+    const add = clone(evs); rows[k0].apply = () => { Object.keys(add).forEach(id => OBJECTS.push(Object.assign({id}, add[id])));
+      lm.events = true; lm.eventsBy = ver; }; }
+  else Object.keys(evs).forEach(id => { const o = OBJECTS.find(x => x.id === id);
     Object.keys(evs[id]).forEach(f => { if(o[f] === evs[id][f]) return; rows.push({release: ver, period, at, by, why: s.why,
       what:'событие '+id+' от '+fmt(o.date)+' · '+(REWRITE_FIELD[f] || f), was: o[f], now: evs[id][f], apply: () => { o[f] = evs[id][f]; }}); }); });
   if(!rows.length) return {ok:false, why:'менять нечего: в переносе уже эти числа — версия без замен не выпускается'};
@@ -3296,12 +3350,12 @@ RP.migrationRevision = spec => {
   RP.state.issues.forEach(i => { if(!i.snapshot || !touches(i)) return;
     const r = RP.recompute(i.id);
     if(r && r.changed){ i.diverged = true; i.divergedAt = at;
-      i.divergedWhy = divergedWhy(i, 'новая версия миграции '+ver+' ('+period+(adding ? ': итог дополнен' : '')+')');
+      i.divergedWhy = divergedWhy(i, 'новая версия миграции '+ver+' ('+period+(adding ? ': итог дополнен' : addingEv ? ': события дополнены' : '')+')');
       marked.push(i.id); } });
   log('новая версия миграции '+ver+': '+period+' — замен '+rows.length+'; '+s.why);
   return {ok:true, release: ver, period, rewrites: rows.length, marked,
-    added: adding ? Object.keys(tot).length : 0,
-    note:'версия '+ver+' записана, '+(adding ? 'итог за '+period+' дополнен, строк' : 'замен')+' в журнале перезаписи: '+
+    added: adding ? Object.keys(tot).length : 0, addedEvents: addingEv ? Object.keys(evs).length : 0,
+    note:'версия '+ver+' записана, '+(adding ? 'итог за '+period+' дополнен, строк' : addingEv ? 'события за '+period+' дополнены, строк' : 'замен')+' в журнале перезаписи: '+
       rows.length+'; выпусков на прежних числах помечено: '+
       marked.length+' — они не переиздаются, уточнить можно корректирующим выпуском'};
 };
@@ -4004,7 +4058,7 @@ function timeTable(ed, asOf, cut, scope){
        которые правили или дополнили месяцы колонки (ADR-0311 п. 1).          */
     const revs = c.legacy.filter(m => (RP.state.periods[m].revisions || []).length);
     if(c.source && revs.length) c.source += '; новые версии: '+revs.map(m => m+' — '+RP.state.periods[m].revisions
-      .map(v => v === legacyMonth(m).totalsBy ? v+' (итог дополнен)' : v).join(', ')).join('; ');
+      .map(v => v === legacyMonth(m).totalsBy ? v+' (итог дополнен)' : v === legacyMonth(m).eventsBy ? v+' (события дополнены)' : v).join(', ')).join('; ');
     /* Поток за месяц, по которому перенос событий не дал, — не ноль. */
     c.noEvents = c.months.filter(m => { const ps = SEAM.periodSource(m); return ps && !ps.events; });
     /* Остаток на конец месяца, который перенос дал одними событиями, без итога. */
@@ -4545,7 +4599,7 @@ RP.setSheetOnIssue = (id, patch) => {
 RP.exportIssue = (id, fmt) => {
   const i = ISS(id); if(!i) return {ok:false, why:'выпуска нет'};
   if(i.state !== 'готов') return {ok:false, why:'выпуск ещё '+i.state+': выгружать нечего'};
-  if(i.kind === 'окончательный' && fmt !== 'pdf') return {ok:false,
+  if(i.kind === 'окончательный' && fmt !== 'pdf' && (i.formats || []).indexOf(fmt) === -1) return {ok:false,
     why:'наружу с получателем уходит только pdf: снимок в редактируемом формате — не снимок '+
     '('+fmt+' отклонён, ИО-10)'};
   if((i.formats || []).indexOf(fmt) === -1) return {ok:false,
@@ -4981,7 +5035,11 @@ RP.monthEnds = (to, n) => { const out = []; let d = to;
 /* ===== СОАВТОР — ЧЕЛОВЕК ИЛИ РОЛЬ; ПРИНЯТИЕ В КАТАЛОГ — КОПИЯ (ОД-26…ОД-28) =====
    Держателей роли ведёт модуль пользователей и ролей — здесь его зеркало:
    отчётность читает их при каждой правке и не копирует.                    */
-const ROLE_HOLDERS0 = {'Администратор дашборда':[{who:'Бекова Н.', since:'2026-01-15'}, {who:'Асанов А.', since:'2026-04-01'}]};
+const ROLE_HOLDERS0 = {'Администратор дашборда':[{who:'Бекова Н.', since:'2026-01-15'}, {who:'Асанов А.', since:'2026-04-01'}],
+  /* Кураторы кредитов — держатели роли по подразделениям (зеркало модуля
+     пользователей): круг отчёта плитки сверяется с ними поимённо (ОД-12).   */
+  'Куратор кредитов':[{who:'Осмонова Г.', since:'2025-03-01', dept:'dep-prom'}, {who:'Асанов А.', since:'2025-06-01', dept:'dep-admin'},
+    {who:'Мамытов Э.', since:'2025-09-01', dept:'rep-osh'}]};
 const CATALOG_ROLE = 'Администратор дашборда';
 const roleHolders = role => ((RP.state.roleHolders || {})[role] || []).slice().sort((a, b) => a.since.localeCompare(b.since));
 SEAM.roleHolders = role => clone(roleHolders(role));
@@ -5414,7 +5472,7 @@ RP.shelves = q => {
     .concat(RP.myViews(null).map(vw => ({kind:'вид', id:vw.id, tpl:vw.tpl, name:vw.name,
       compo: (TPL(vw.tpl) ? 'вид поверх «'+TPL(vw.tpl).name+'» · '+compoText(TPL(vw.tpl)) : ''), at:vw.at})))
     .filter(r => matchQ(q, r.name, r.compo));
-  const shared = vis.map(TPL).filter(t => levelOf(t) === 'общий')
+  const shared = vis.map(TPL).filter(t => levelOf(t) === 'общий' && !t.archived)
     .map(t => ({id:t.id, name:t.name, owner:t.owner, coauthors:(t.coauthors || []).slice(),
       users:t.users || 0, lastOpen:t.lastOpen || null, version: verEd(t).n, changed: verEd(t).changed || null,
       ownerNote: (t.ownerLog || []).length ? (l => 'владелец с '+fmt(l.at)+', прежде — '+l.from+' ('+l.why+')')(t.ownerLog[t.ownerLog.length - 1]) : null,
@@ -5902,11 +5960,13 @@ const drillLink = (text, node) => { DRILL_NODES.push(node);
     'onclick="RP.uiDrill('+(DRILL_NODES.length - 1)+');return false">'+text+'</a>'; };
 function scIssue(){
   DRILL_NODES = [];
-  const vis = RP.visibleTemplates().filter(id => liveEd(TPL(id)) && TPL(id).kind === 'отчёт');
+  /* Личный отчёт автора показывается тем же окном: режим и фильтр — его умолчанием. */
+  const vis = RP.visibleTemplates().filter(id => TPL(id).kind === 'отчёт' &&
+    (liveEd(TPL(id)) || (levelOf(TPL(id)) === 'личный' && TPL(id).owner === RP.who())));
   if(!vis.length) return '<div class="banner warn">Отчётов, доступных вам для показа, нет.</div>';
   let tid = RP.state.sel.tpl;
   if(vis.indexOf(tid) === -1) tid = vis[0];
-  const t = TPL(tid), ed = liveEd(t), sel = RP.state.sel, level = levelOf(t);
+  const t = TPL(tid), ed = liveEd(t) || draftEd(t), sel = RP.state.sel, level = levelOf(t);
   const params = {asOf: sel.params.asOf, dept: sel.params.dept};
   /* Сначала ПОКАЗ, и только потом выпуск: показ свободен, выпуск — нет.      */
   const wTwist = sel.twist ? Object.assign({}, sel.twist, {dropped: sel.dropped || null}) : null;
@@ -5920,7 +5980,7 @@ function scIssue(){
   h += '<div class="form-row"><div class="fld"><label>Отчёт</label>'+
     '<select onchange="RP.selTpl(this.value)">'+vis.map(id =>
       '<option value="'+id+'"'+(id===tid?' selected':'')+'>'+esc(TPL(id).name)+
-      (levelOf(TPL(id)) === 'общий' ? ' · общий' : '')+'</option>').join('')+'</select></div>';
+      (levelOf(TPL(id)) === 'общий' ? ' · общий' : levelOf(TPL(id)) === 'личный' ? ' · личный' : '')+'</option>').join('')+'</select></div>';
   if(ed.mode === 'на дату') h += '<div class="fld"><label>Отчётный месяц</label>'+
     '<select onchange="RP.setAsOf(this.value)">'+HIST_DATES.map(d =>
       '<option value="'+d+'"'+(d===sel.params.asOf?' selected':'')+'>'+esc(periodOfAsOf(d))+
@@ -6447,7 +6507,7 @@ function scJournal(){
     (lgs.length ? '<tr><td>'+esc(monthSpan(lgs))+' <span class="small muted">('+lgs.length+' мес.)</span></td><td>'+
       pill('закрыт', 'neutral')+' '+pill('из легаси', 'info')+'</td><td class="small">перенос, '+esc(MIGRATION.text)+
       lgs.filter(m => RP.state.periods[m].revisions).map(m => '<div>'+esc(m)+' — правка версией '+
-        esc(RP.state.periods[m].revisions.map(v => v === (legacyMonth(m) || {}).totalsBy ? v+' (итог дополнен)' : v).join(', '))+'</div>').join('')+
+        esc(RP.state.periods[m].revisions.map(v => v === (legacyMonth(m) || {}).totalsBy ? v+' (итог дополнен)' : v === (legacyMonth(m) || {}).eventsBy ? v+' (события дополнены)' : v).join(', '))+'</div>').join('')+
       '</td><td class="small muted">открыть нельзя — переспрашивать некого; правка — новой версией миграции (ADR-0207 п. 4)</td></tr>' : '')+
     owns.map(m => { const a = RP.periodActions(m);
       return '<tr><td>'+esc(m)+'</td><td>'+pill(a.state, a.state === 'закрыт' ? 'neutral' : 'warn')+'</td><td class="small">прогон системы</td><td>'+
@@ -6463,7 +6523,7 @@ function scJournal(){
     (RP.state.rewrites.length ? '<h4 style="margin-top:12px">Журнал перезаписи</h4><div class="tw"><table class="cgrid"><thead><tr>'+
       '<th>Версия</th><th>Период</th><th>Что</th><th>Было → стало</th><th>Кто, когда, почему</th></tr></thead><tbody>'+
       RP.state.rewrites.map(w => '<tr><td class="mono">'+esc(w.release)+'</td><td>'+esc(w.period)+'</td><td class="small">'+
-        esc(w.what)+'</td><td class="num">'+rwVal(w.was)+' → '+rwVal(w.now)+'</td><td class="small">'+esc(w.by)+', '+
+        esc(w.what)+'</td><td class="num">'+rwVal(w.was, w)+' → '+rwVal(w.now)+'</td><td class="small">'+esc(w.by)+', '+
         fmt(w.at)+'<div class="muted">'+esc(w.why)+'</div></td></tr>').join('')+'</tbody></table></div>' : '')+
     '</div>';
   h += '<div class="card"><h3>Период открыли заново — что мы отдали наружу</h3>'+
@@ -6483,7 +6543,7 @@ RP.doSheetIssue = id => act(RP.setSheetOnIssue(id, {orient:'альбомная'}
 RP.doExport = (id, f) => act(RP.exportIssue(id, f));
 RP.doDelete = id => act(RP.deleteIssue(id));
 RP.doCorrective = id => { const r = RP.corrective(id); if(r.ok) RP.state.sel.issue = r.id; act(r, r.note); };
-const rwVal = v => v == null ? 'нет (итог не перенесён)' : typeof v === 'number' ? money(v) : esc(v);
+const rwVal = (v, w) => v == null ? esc((w && w.wasText) || 'нет (итог не перенесён)') : typeof v === 'number' ? money(v) : esc(v);
 RP.doMigrationRevision = () => { const r = RP.migrationRevision({period:'декабрь 2025',
   why:'перенос М-1 взял остаток КД-2025/126 до последней проводки декабря', totals:{'kr-6':{debt_main: 6300000}}});
   act(r, r.note); };
@@ -7460,9 +7520,36 @@ const FIELDS = {
     {id:'qdate',   name:'Дата открытия',               type:'дата'},
     {id:'sum',     name:'Сумма требования',            type:'число', unit:'сом'},
     {id:'phdays',  name:'Дней в текущей фазе',         type:'число', unit:'дн.'}
-  ], drill:['no', 'credit', 'person', 'role', 'phase', 'sum']}
+  ], drill:['no', 'credit', 'person', 'role', 'phase', 'sum']},
+  /* ОБЪЕКТ ИМУЩЕСТВА и ПРЕДЛОЖЕНИЕ ИМУЩЕСТВА — объекты 17 и 18 статистики
+     (ИМ-22, ИМ-ДС-8). Перечень полей — зеркало строк статистики: публичного
+     перечня у модуля имущества пока нет. Живых строк в v1 нет (ИО-30).      */
+  asset: {name:'объект имущества', owner:'имущество · объекты (строки статистики)', word: n => n + ' ' + plural(n, 'объект имущества', 'объекта имущества', 'объектов имущества'), fields:[
+    {id:'no',      name:'Номер объекта',               type:'текст'},
+    {id:'akind',   name:'Вид имущества',               type:'словарь', dict:'akind'},
+    {id:'astate',  name:'Состояние на дату',           type:'словарь', dict:'astate'},
+    {id:'region',  name:'Область',                     type:'словарь', dict:'region'},
+    {id:'source',  name:'Источник',                    type:'словарь', dict:'asource'},
+    {id:'dept',    name:'Подразделение',               type:'словарь', dict:'dept'},
+    {id:'book',    name:'Учётная стоимость',           type:'число', unit:'сом'},
+    {id:'upkeep',  name:'Расходы содержания',          type:'число', unit:'сом'},
+    {id:'onbook',  name:'Дней на учёте',               type:'число', unit:'дн.'},
+    {id:'tries',   name:'Попыток продажи',             type:'число', unit:'ед.'}
+  ], drill:['no', 'akind', 'astate', 'book', 'onbook']},
+  offer: {name:'предложение имущества', owner:'имущество · предложения (строки статистики)', word: n => n + ' ' + plural(n, 'предложение', 'предложения', 'предложений'), fields:[
+    {id:'no',      name:'Номер предложения',           type:'текст'},
+    {id:'source',  name:'Источник',                    type:'словарь', dict:'asource'},
+    {id:'result',  name:'Итог',                        type:'словарь', dict:'oresult'},
+    {id:'dept',    name:'Подразделение',               type:'словарь', dict:'dept'},
+    {id:'odays',   name:'Дней рассмотрения',           type:'число', unit:'дн.'}
+  ], drill:['no', 'source', 'result', 'odays']}
 };
 FIELDS.credit.drill = ['no', 'borrower', 'debt_main', 'days'];
+/* Строки кредита живут после закрытия (строка закрытого договора остаётся в
+   срезе) — признак записи объекта в реестре статистики. Конструктор ставит
+   «действующие» сам, видимым чипом (ОД-7). В зеркале стенда признак объявлен
+   у кредита; у залога и требования запись его пока не несёт.               */
+FIELDS.credit.afterClose = {field:'status', closed:'закрыт', open:['действующий', 'просроченный', 'на взыскании']};
 /* В v1 живые строки (objectRows) ядро отдаёт только по кредиту (ИО-30, ADR-0181 §4). */
 const LIVE_OBJECTS = ['credit'];
 
@@ -7485,7 +7572,12 @@ const DICTS = {
   role: ['заёмщик', 'поручитель', 'залогодатель'],
   basis: ['просрочка', 'привлечение обеспечителя', 'сведения о банкротстве'],
   phase: ['Претензия', 'Иск', 'Решение суда', 'На исполнении', 'закрыто'],
-  scope: ['просроченная сумма · деньгами', 'полный остаток · деньгами', 'полный остаток · на предмет залога']
+  scope: ['просроченная сумма · деньгами', 'полный остаток · деньгами', 'полный остаток · на предмет залога'],
+  /* имущество */
+  akind: ['недвижимость', 'земельный участок', 'транспорт', 'оборудование'],
+  astate: ['принято', 'на продаже', 'продано', 'передано'],
+  asource: ['взыскание', 'отступное', 'спецадминистратор'],
+  oresult: ['принято', 'отказано', 'на рассмотрении']
 };
 const KIND_CLASS = {'депозит':'высоколиквидный', 'недвижимость':'высоколиквидный', 'транспорт':'средней ликвидности',
   'земельный участок':'средней ликвидности', 'оборудование':'низколиквидный', 'товары в обороте':'низколиквидный'};
@@ -7534,8 +7626,25 @@ const STATS = [
   {id:'s-q-sum',       object:'claim', name:'Сумма требований, итого',             unit:'сом', live:false, agg:'сумма · дедуп по кредиту (ИС-34)',
    dedup:'кредит требования', why:'строки требования в v1 отдаёт только прогон статистики (ИО-30)'},
   {id:'s-q-avgph',     object:'claim', name:'Средний срок в фазе',                 unit:'дн.', live:false, agg:'среднее',
-   why:'строки требования в v1 отдаёт только прогон статистики (ИО-30)'}
+   why:'строки требования в v1 отдаёт только прогон статистики (ИО-30)'},
+  /* Объект имущества и предложение имущества — показатели объектов 17 и 18 (ИМ-22). */
+  {id:'s-a-count',     object:'asset', name:'Объектов имущества',                   unit:'ед.', live:false, agg:'количество',
+   why:'строки объекта имущества в v1 отдаёт только прогон статистики (ИО-30)'},
+  {id:'s-a-book',      object:'asset', name:'Учётная стоимость, итого',             unit:'сом', live:false, agg:'сумма',
+   why:'строки объекта имущества в v1 отдаёт только прогон статистики (ИО-30)'},
+  {id:'s-a-upkeep',    object:'asset', name:'Расходы содержания, итого',            unit:'сом', live:false, agg:'сумма',
+   why:'строки объекта имущества в v1 отдаёт только прогон статистики (ИО-30)'},
+  {id:'s-a-avgdays',   object:'asset', name:'Средний срок на учёте',                unit:'дн.', live:false, agg:'среднее',
+   why:'строки объекта имущества в v1 отдаёт только прогон статистики (ИО-30)'},
+  {id:'s-o-count',     object:'offer', name:'Предложений',                          unit:'ед.', live:false, agg:'количество',
+   why:'строки предложения в v1 отдаёт только прогон статистики (ИО-30)'},
+  {id:'s-o-avgdays',   object:'offer', name:'Средний срок рассмотрения',            unit:'дн.', live:false, agg:'среднее',
+   why:'строки предложения в v1 отдаёт только прогон статистики (ИО-30)'}
 ];
+/* Сорт показателя — реквизит записи реестра статистики: остаток · счёт · поток ·
+   средняя. Конструктор по нему решает, ставить ли «действующие» (ОД-7).      */
+const SORT_OF = {'количество':'счёт', 'сумма':'остаток', 'сумма · дедуп по кредиту':'остаток', 'сумма · дедуп по кредиту (ИС-34)':'остаток',
+  'среднее':'средняя', 'максимум':'средняя'};
 /* Агрегат объявлен НАД строчной мерой — реквизит записи реестра (`over` у a-* статистики).
    Страница читает его, чтобы строка объекта печатала меру под колонкой своего агрегата:
    одна колонка — одна величина в двух породах (волна 22, ADR-0185 §3). У «количества» меры нет. */
@@ -7544,9 +7653,10 @@ const OVER = {
   's-b-debt':'portfolio', 's-b-cnt':'contracts', 's-b-worst':'worst',
   's-c-val':'val', 's-c-pledge':'pledge', 's-c-alloc':'alloc', 's-c-free':'free', 's-c-sec':'sec',
   's-c-maxsurv':'surv', 's-c-avgsurv':'surv',
-  's-q-sum':'sum', 's-q-avgph':'phdays'
+  's-q-sum':'sum', 's-q-avgph':'phdays',
+  's-a-book':'book', 's-a-upkeep':'upkeep', 's-a-avgdays':'onbook', 's-o-avgdays':'odays'
 };
-STATS.forEach(s => { if(OVER[s.id]) s.over = OVER[s.id]; });
+STATS.forEach(s => { if(OVER[s.id]) s.over = OVER[s.id]; s.sort = SORT_OF[s.agg] || 'остаток'; });
 const STAT = id => STATS.find(s => s.id === id);
 
 /* СТАТИСТИКА: разрезы. `declared` — прогон собирает по нему строки среза; без
@@ -7590,7 +7700,16 @@ const CUTS = [
   {id:'q-scope',   object:'claim', name:'охват требования',         declared:true, field:'scope'},
   {id:'q-cur',     object:'claim', name:'валюта требования',        declared:true, field:'cur'},
   {id:'q-case',    object:'claim', name:'дело взыскания',           declared:true, field:'caseNo'},
-  {id:'q-credit',  object:'claim', name:'кредит требования',        declared:true, field:'credit'}
+  {id:'q-credit',  object:'claim', name:'кредит требования',        declared:true, field:'credit'},
+  /* Объект имущества и предложение — разрезы объектов 17 и 18 (ИМ-22). */
+  {id:'a-state',   object:'asset', name:'состояние на дату',        declared:true, field:'astate'},
+  {id:'a-kind',    object:'asset', name:'вид имущества',            declared:true, field:'akind'},
+  {id:'a-region',  object:'asset', name:'область',                  declared:true, field:'region'},
+  {id:'a-source',  object:'asset', name:'источник',                 declared:true, field:'source'},
+  {id:'a-dept',    object:'asset', name:'подразделение',            declared:true, field:'dept'},
+  {id:'o-source',  object:'offer', name:'источник предложения',     declared:true, field:'source'},
+  {id:'o-result',  object:'offer', name:'итог предложения',         declared:true, field:'result'},
+  {id:'o-dept',    object:'offer', name:'подразделение',            declared:true, field:'dept'}
 ];
 const CUT = id => CUTS.find(c => c.id === id);
 
@@ -7768,13 +7887,48 @@ function borrowerAt(b, D){
   return {id:b.id, name:b.name, inn:b.inn, dept:b.dept, curator:b.curator, risk,
     portfolio: cs.reduce((s, c) => s + c.debt_main, 0), contracts: cs.length, worst};
 }
+/* ---------- данные: имущество, принятое Фондом (владелец — модуль имущества) ----------
+   Отдельным генератором после прежних, своим зерном: числа кредита, залога и
+   требования не сдвигаются. Девять объектов, шесть предложений.              */
+const ASSETS = (() => { const rnd = mulberry32(20261017), out = [];
+  for(let i = 0; i < 9; i++){
+    const acc = addDays('2025-10-01', Math.floor(rnd() * 300));
+    const sold = i % 4 === 3 ? addDays(acc, 40 + Math.floor(rnd() * 60)) : null;
+    out.push({id:'a' + pad2(i + 1), no:'ИО-' + acc.slice(0, 4) + '-' + String(i * 3 + 2).padStart(3, '0'),
+      akind: DICTS.akind[i % 4], region: DICTS.region[i % 4], source: DICTS.asource[i % 3], dept: i % 5 === 4 ? 'rep-osh' : 'dep-prom',
+      acc, sold, book: Math.round((800000 + rnd() * 6200000) / 10000) * 10000, upkeepM: Math.round((5000 + rnd() * 25000) / 100) * 100,
+      saleFrom: addDays(acc, 30)});
+  }
+  return out; })();
+function assetAt(a, D){
+  if(a.acc > D) return null;                                         // до принятия объекта нет
+  const sold = a.sold && a.sold <= D;
+  const onbook = daysBetween(a.acc, sold ? a.sold : D);
+  const astate = sold ? 'продано' : a.saleFrom <= D ? 'на продаже' : 'принято';
+  return {id:a.id, no:a.no, akind:a.akind, astate, region:a.region, source:a.source, dept:a.dept, book: sold ? 0 : a.book,
+    upkeep: Math.round(a.upkeepM * onbook / 30 / 100) * 100, onbook, tries: astate === 'принято' ? 0 : 1 + (onbook > 120 ? 1 : 0)};
+}
+const OFFERS = (() => { const out = [];
+  [['2025-11-12', 'взыскание', 'принято', 31], ['2026-01-20', 'отступное', 'принято', 18], ['2026-03-04', 'взыскание', 'отказано', 44],
+   ['2026-05-15', 'спецадминистратор', 'принято', 27], ['2026-07-02', 'взыскание', 'на рассмотрении', null], ['2026-08-10', 'отступное', 'на рассмотрении', null]]
+    .forEach((x, i) => out.push({id:'o' + pad2(i + 1), no:'ПИ-' + x[0].slice(0, 4) + '-' + String(i * 2 + 5).padStart(3, '0'), at:x[0], source:x[1],
+      result:x[2], days:x[3], dept: i === 2 ? 'rep-osh' : 'dep-prom'}));
+  return out; })();
+function offerAt(o, D){
+  if(o.at > D) return null;
+  const done = o.days != null && addDays(o.at, o.days) <= D;
+  return {id:o.id, no:o.no, source:o.source, result: done ? o.result : 'на рассмотрении', dept:o.dept,
+    odays: done ? o.days : daysBetween(o.at, D)};
+}
 /* Строки среза, собранные «прогоном» на объявленные даты. */
 const HIST = {};
 SNAPSHOTS.forEach(D => { HIST[D] = {
   credit:     CREDITS.map(c => creditAt(c, D)).filter(Boolean),
   borrower:   BORROWERS.map(b => borrowerAt(b, D)).filter(Boolean),
   collateral: COLLATERAL.map(z => collateralAt(z, D)).filter(Boolean),
-  claim:      CLAIMS.map(q => claimAt(q, D)).filter(Boolean) }; });
+  claim:      CLAIMS.map(q => claimAt(q, D)).filter(Boolean),
+  asset:      ASSETS.map(a => assetAt(a, D)).filter(Boolean),
+  offer:      OFFERS.map(o => offerAt(o, D)).filter(Boolean) }; });
 const LIVE = () => ({ credit: CREDITS.map(c => creditAt(c, TODAY)).filter(Boolean) });
 
 /* ======================================================================
@@ -7858,6 +8012,13 @@ function statValue(statId, rows){
     case 's-q-count':     return rows.length;
     case 's-q-sum':       return dedupSum(r => [[r.creditId, r.sum]]);   // солидарные требования — один долг
     case 's-q-avgph':     return avg('phdays', r => r.phase !== 'закрыто');
+    /* имущество */
+    case 's-a-count':     return rows.length;
+    case 's-a-book':      return sum('book');
+    case 's-a-upkeep':    return sum('upkeep');
+    case 's-a-avgdays':   return avg('onbook');
+    case 's-o-count':     return rows.length;
+    case 's-o-avgdays':   return avg('odays');
   }
   return null;
 }
@@ -7931,6 +8092,11 @@ KB.seed = () => {
     stats:['s-overdue-sum', 's-overdue-cnt'],
     cuts:[{id:'late', bucket:'ступени', total:true}, {id:'status', bucket:null, total:false}],
     filters:[],
+    /* «Действующие» — видимый чип: конструктор ставит его сам у объекта, чьи
+       строки живут после закрытия, при первом остатке или счёте (ОД-7).
+       Сохранённый до этого состав не правится молча: null — автор ещё не
+       решал, экран показывает подсказку и кнопку «только действующие».      */
+    active:null,
     drill:{on:false, fields:['no', 'borrower', 'debt_main', 'days']},
     live:null,                 // {hash, answer} — «сейчас» считается по кнопке
     notices:[],                // баннеры до следующего действия
@@ -7942,7 +8108,12 @@ KB.seed = () => {
 };
 const S = () => KB.state;
 const composition = () => { const s = S(); return {object:s.object, mode:s.mode, asOf: s.mode === 'на дату' ? s.asOf : null,
-  stats: s.stats.slice(), cuts: clone(s.cuts), filters: clone(s.filters), drill: clone(s.drill)}; };
+  stats: s.stats.slice(), cuts: clone(s.cuts), filters: clone(s.filters), drill: clone(s.drill), active: activeOn()}; };
+/* Чип «действующие» стоит, когда у объекта строки живут после закрытия и автор
+   его не снял; в вопрос он уходит обычным фильтром по состоянию.            */
+const activeOn = () => { const s = S(); return !!(FIELDS[s.object].afterClose && s.active); };
+const activeFilter = () => { const ac = FIELDS[S().object].afterClose; return {field: ac.field, op:'в списке', value: ac.open.join(', ')}; };
+const firstStockOrCount = () => S().stats.some(id => { const m = STAT(id); return m && (m.sort === 'остаток' || m.sort === 'счёт'); });
 const hashOf = () => JSON.stringify(composition());
 const notice = (kind, text) => { S().notices.push({kind, text}); };
 const clearNotices = () => { S().notices = []; };
@@ -7952,7 +8123,7 @@ KB.setObject = obj => {
   const s = S(); if(!FIELDS[obj]) return {ok:false, why:'объекта «' + obj + '» никто не объявил: публичного перечня полей у него нет'};
   if(obj === s.object) return {ok:true, switched:false};
   clearNotices();
-  s.object = obj; s.stats = []; s.cuts = []; s.filters = []; s.live = null;
+  s.object = obj; s.stats = []; s.cuts = []; s.filters = []; s.live = null; s.active = null;
   s.drill = {on:false, fields: FIELDS[obj].drill.slice()};
   let switched = false, why = null;
   if(s.mode === 'сейчас' && LIVE_OBJECTS.indexOf(obj) === -1){
@@ -7966,6 +8137,7 @@ KB.setObject = obj => {
   s.stats = st.slice(0, 2).map(x => x.id);
   const c0 = SEAM.cutList(obj).filter(c => c.declared)[0];
   if(c0) s.cuts = [{id: c0.id, bucket: c0.buckets ? Object.keys(c0.buckets)[0] : null, total: true}];
+  if(FIELDS[obj].afterClose && firstStockOrCount()) s.active = true;
   return {ok:true, switched, why};
 };
 KB.setMode = mode => {
@@ -8004,7 +8176,38 @@ KB.statAvail = id => { const s = S(), m = STAT(id);
 KB.toggleStat = id => { const s = S(); clearNotices();
   const i = s.stats.indexOf(id); if(i !== -1){ s.stats.splice(i, 1); s.live = null; return {ok:true, on:false}; }
   const a = KB.statAvail(id); if(!a.ok) return a;
-  s.stats.push(id); s.live = null; return {ok:true, on:true}; };
+  s.stats.push(id); s.live = null;
+  const m = STAT(id);
+  if(s.active == null && FIELDS[s.object].afterClose && (m.sort === 'остаток' || m.sort === 'счёт')){ s.active = true;
+    notice('info', 'поставлен фильтр «действующие»: строки закрытых договоров остаются в срезе, и без фильтра «' + m.name +
+      '» сложил бы действующих и погасивших. Чип можно снять'); }
+  return {ok:true, on:true}; };
+/* Чип «действующие»: автор снимает и возвращает; без него — подсказка. */
+KB.setActive = on => { const s = S(); clearNotices();
+  if(!FIELDS[s.object].afterClose) return {ok:false, why:'у объекта «' + FIELDS[s.object].name + '» строки после закрытия не живут — фильтр «действующие» не нужен'};
+  s.active = !!on; s.live = null; return {ok:true, on: s.active}; };
+KB.activeHint = () => { const s = S(); const ac = FIELDS[s.object].afterClose;
+  if(ac && !s.active && firstStockOrCount()) return 'складывает действующих и погасивших: строки закрытых договоров остаются в срезе';
+  if(s.object === 'borrower' && s.stats.some(id => (STAT(id) || {}).unit === 'сом') && !s.cuts.some(c => c.id === 'b-risk' || c.id === 'b-cur'))
+    return 'итог денег — у объекта «кредит»: свод долга заёмщика повторяет его договоры';
+  return null; };
+/* «Начать с готового» — заготовки: готовые составы, копируются в черновик, связи нет. */
+const PRESETS = [
+  {id:'p-late',   name:'Просрочка по ступеням',     object:'credit',     stats:['s-overdue-sum', 's-overdue-cnt'], cuts:[{id:'late', bucket:'ступени', total:true}]},
+  {id:'p-port',   name:'Портфель по подразделениям', object:'credit',    stats:['s-portfolio', 's-count'], cuts:[{id:'dept', bucket:null, total:true}]},
+  {id:'p-pledge', name:'Залог по видам обеспечения', object:'collateral', stats:['s-c-count', 's-c-pledge'], cuts:[{id:'c-kind', bucket:'класс ликвидности', total:true}]},
+  {id:'p-assets', name:'Реестр имущества на дату',  object:'asset',      stats:['s-a-count', 's-a-book', 's-a-upkeep', 's-a-avgdays'],
+   cuts:[{id:'a-state', bucket:null, total:true}, {id:'a-kind', bucket:null, total:false}], drill:true}
+];
+KB.presets = () => clone(PRESETS);
+KB.startFrom = id => { const s = S(); const p = PRESETS.find(x => x.id === id);
+  if(!p) return {ok:false, why:'заготовки «' + id + '» нет: ' + PRESETS.map(x => x.name).join(' · ')};
+  clearNotices();
+  if(s.mode === 'сейчас' && LIVE_OBJECTS.indexOf(p.object) === -1) s.mode = 'на дату';
+  s.object = p.object; s.stats = p.stats.slice(); s.cuts = clone(p.cuts); s.filters = []; s.live = null;
+  s.drill = {on: !!p.drill, fields: FIELDS[p.object].drill.slice()};
+  s.active = FIELDS[p.object].afterClose ? true : null; s.name = p.name;
+  return {ok:true, note:'начато с заготовки «' + p.name + '»: состав скопирован в ваш черновик, связи с заготовкой нет'}; };
 KB.cutAvail = id => { const s = S(), c = CUT(id);
   if(!c || c.object !== s.object) return {ok:false, why:'разреза «' + id + '» у объекта «' + FIELDS[s.object].name + '» нет'};
   if(s.cuts.some(x => x.id === id)) return {ok:false, why:'разрез «' + c.name + '» уже стоит уровнем'};
@@ -8012,6 +8215,7 @@ KB.cutAvail = id => { const s = S(), c = CUT(id);
     'не собирает, и в срезе на дату его физически нет. В режиме «сейчас» доступен как поле перечня'};
   return {ok:true}; };
 KB.addCut = id => { const s = S(); clearNotices(); const a = KB.cutAvail(id); if(!a.ok) return a;
+  if(s.cuts.length >= 6) return {ok:false, why:'группировка — до 6 уровней: седьмой уровень не ставится; нижний уровень раскрывается до объектов'};
   const c = CUT(id); s.cuts.push({id, bucket: c.buckets ? Object.keys(c.buckets)[0] : null, total:false}); s.live = null; return {ok:true}; };
 KB.removeCut = id => { const s = S(); clearNotices(); s.cuts = s.cuts.filter(c => c.id !== id); s.live = null; return {ok:true}; };
 KB.moveCut = (id, dir) => { const s = S(); clearNotices(); const i = s.cuts.findIndex(c => c.id === id); const j = i + dir;
@@ -8064,7 +8268,7 @@ KB.rowPlan = rowPlan;
 /* ---------- ответ ---------- */
 function computeNow(){
   const s = S(), c = composition();
-  const r = SEAM.statSlice(c.object, c.stats, c.cuts, c.filters, c.asOf, ME.scope);
+  const r = SEAM.statSlice(c.object, c.stats, c.cuts, c.active ? c.filters.concat([activeFilter()]) : c.filters, c.asOf, ME.scope);
   if(!r.ok) return r;
   const visible = r.root.count;
   const p = r.passport;
@@ -8073,7 +8277,9 @@ function computeNow(){
   if(s.drill.on) p.seams = p.seams.concat([c.asOf ? 'statRows' : 'objectRows']);
   p.shown = {stats: c.stats.map(id => STAT(id).name),
     cuts: c.cuts.map(x => CUT(x.id).name + (x.bucket ? ' · ' + x.bucket : '') + (x.total ? ' · с итогом' : '')),
-    filters: c.filters.filter(f => f.value !== '').map(f => fieldOf(c.object, f.field).name + ' ' + f.op + ' ' + f.value),
+    filters: c.filters.filter(f => f.value !== '').map(f => fieldOf(c.object, f.field).name + ' ' + f.op + ' ' + f.value)
+      .concat(c.active ? ['действующие (закрытые не входят)'] : []),
+    hint: KB.activeHint(),
     drill: s.drill.on ? (() => { const pl = rowPlan(); const nm = f => fieldOf(c.object, f).name;
       return pl.ident.concat(pl.chips).map(nm)
         .concat(pl.underFields.map(f => nm(f) + ' — под своим агрегатом'))
@@ -8107,6 +8313,7 @@ KB.openDraft = id => { const s = S(); const d = s.drafts.find(x => x.id === id);
   if(d.author !== ME.who) return {ok:false, why:'черновик чужой: он личный'};
   clearNotices(); const c = clone(d.comp);
   s.object = c.object; s.mode = c.mode; if(c.asOf) s.asOf = c.asOf; s.stats = c.stats; s.cuts = c.cuts; s.filters = c.filters; s.drill = c.drill;
+  s.active = c.active === undefined ? s.active : c.active;
   s.name = d.name; s.live = null; return {ok:true}; };
 
 KB.exportIssue = fmtName => { const s = S(); clearNotices();
@@ -8179,7 +8386,9 @@ const fval = (fd, x) => x == null ? '—' : fd.type === 'число' ? (fd.unit 
 
 function scCompose(){
   const s = S(), fl = KB.fields();
-  let h = '';
+  let h = '<div class="card"><h3>Начать <span class="small">· с нуля, с готового отчёта или с заготовки</span></h3><div class="btn-row" style="margin:0">' +
+    PRESETS.map(p => '<button class="btn btn-secondary btn-sm" onclick="kbAct(KB.startFrom(\'' + p.id + '\'))">' + esc(p.name) + '</button>').join('') +
+    '</div><div class="why">Заготовка копирует состав в ваш черновик; дальше он ваш и с заготовкой не связан.</div></div>';
   /* --- вопрос --- */
   h += '<div class="card"><h3>Вопрос</h3>' +
     '<div class="form-row"><div class="fld" style="flex:1"><label>Имя черновика</label>' +
@@ -8226,6 +8435,10 @@ function scCompose(){
 
   /* --- фильтры --- */
   h += '<div class="card"><h3>Фильтры <span class="small">· сужают вопрос; разрез делит ответ</span></h3>';
+  if(FIELDS[s.object].afterClose) h += '<div class="chips" style="margin-bottom:6px">' + (s.active
+      ? '<span class="chip on">действующие <button class="btn btn-secondary btn-xs" title="снять" onclick="kbAct(KB.setActive(false))">×</button></span>'
+      : '<button class="btn btn-secondary btn-sm" onclick="kbAct(KB.setActive(true))">+ только действующие</button>') + '</div>';
+  if(KB.activeHint()) h += '<div class="why amb">' + esc(KB.activeHint()[0].toUpperCase() + KB.activeHint().slice(1)) + '.</div>';
   h += s.filters.map((f, i) => { const fd = fieldOf(s.object, f.field);
     const ops = OPS[fd.type];
     let vin;
@@ -8623,6 +8836,641 @@ function render(){
     '<div class="row">выпусков: '+st.issues.length+', просрочено обязательств: '+
       obl.filter(o => o.state === 'просрочено').length+'</div>';
 }
+
+/* =================== ДОБОР СТАРЫХ РЕШЕНИЙ (волна 45) ===================
+   Решения волн 27 и 31, которые макет до сих пор не собирал, и хвосты волн
+   42–43. Всё ниже — частные случаи принятого (ADR-0279…ADR-0288, ADR-0304,
+   ADR-0311, ADR-0316): права итогов шире зоны и журнал просмотров, тяжёлый
+   показ в фоне, валюта, жизнь общего отчёта, сводная, план и перечень номеров,
+   относительные значения параметров, «Обязательство» строками объекта, пакет
+   вопросов и отвалившееся в ответе, круг для автопроверки, сигнал и выгрузка
+   с плитки, кто утверждает, сдача PDF + XLSX.                               */
+const W45 = () => { const s = RP.state;
+  if(!s.viewLog) Object.assign(s, {viewLog:[], jobs:[], jseq:0, tiles:{}, xseq:0});
+  return s; };
+
+/* ---- Относительные значения параметров — закрытым набором (ОД-3, ОД-35) ----
+   Хранится значение набора («@моё подразделение»), подставляется по
+   смотрящему при каждом ответе; паспорт печатает конкретное, выпуск
+   фиксирует конкретное в момент заказа.                                    */
+const REL_DEPT = ['моё подразделение', 'моё подразделение и ниже'];
+const REL_DATE = ['конец прошлого месяца', 'конец прошлого квартала', 'конец прошлого года'];
+const REL_PERIOD = ['текущий месяц', 'текущий квартал', 'текущий год', 'прошлый месяц', 'прошлый квартал', 'прошлый год'];
+const REL_SET = REL_DEPT.concat(REL_DATE, ['сегодня ± N дней'], REL_PERIOD);
+RP.relSet = () => REL_SET.slice();
+const qStart = iso => iso.slice(0, 5)+String(Math.floor((+iso.slice(5, 7) - 1) / 3) * 3 + 1).padStart(2, '0')+'-01';
+const prevMonthStart = iso => { const y = +iso.slice(0, 4), m = +iso.slice(5, 7);
+  return (m === 1 ? (y - 1)+'-12' : y+'-'+String(m - 1).padStart(2, '0'))+'-01'; };
+/* Период набора — [с, по): «текущий» — с начала по сегодня, «прошлый» — целиком. */
+function relPeriod(name, today){
+  const m0 = today.slice(0, 8)+'01', q0 = qStart(today), y0 = today.slice(0, 4)+'-01-01';
+  if(name === 'текущий месяц') return {from: m0, to: today};
+  if(name === 'текущий квартал') return {from: q0, to: today};
+  if(name === 'текущий год') return {from: y0, to: today};
+  if(name === 'прошлый месяц') return {from: prevMonthStart(m0), to: m0};
+  if(name === 'прошлый квартал') { let d = q0; for(let i = 0; i < 3; i++) d = prevMonthStart(d); return {from: d, to: q0}; }
+  if(name === 'прошлый год') return {from: (+today.slice(0, 4) - 1)+'-01-01', to: y0};
+  return null;
+}
+function relValue(key, raw, v, today){
+  const name = String(raw).slice(1).trim();
+  if(key === 'dept'){
+    if(REL_DEPT.indexOf(name) === -1) return {why:'значения «'+name+'» у подразделения в наборе нет: '+REL_DEPT.join(' · ')};
+    return {value: v.dept, text: name+' = '+deptName(v.dept)+(name === REL_DEPT[1] ? ' (ниже в оргструктуре стенда подразделений нет)' : '')};
+  }
+  if(key === 'asOf'){
+    let d = null;
+    if(name === 'конец прошлого месяца') d = today.slice(0, 8)+'01';
+    else if(name === 'конец прошлого квартала') d = qStart(today);
+    else if(name === 'конец прошлого года') d = today.slice(0, 4)+'-01-01';
+    else if(/^сегодня\s*[+−-]\s*\d+$/.test(name) || name === 'сегодня'){
+      const mm = name.match(/([+−-])\s*(\d+)/); d = mm ? addDays(today, (mm[1] === '+' ? 1 : -1) * +mm[2]) : today; }
+    else if(REL_PERIOD.indexOf(name) !== -1){ const p = relPeriod(name, today);
+      /* У остатка значение-период подставляется концом периода: у текущего — сегодня. */
+      d = name.indexOf('текущий') === 0 ? today : p.to; }
+    else return {why:'значения «'+name+'» у даты в наборе нет: '+REL_DATE.concat(['сегодня ± N дней'], REL_PERIOD).join(' · ')};
+    return {value: d, text: name+' = '+fmt(d)};
+  }
+  return {why:'параметр «'+key+'» относительных значений не принимает: только подразделение и дата'};
+}
+function resolveRel(params){
+  const p = clone(params || {}), v = RP.viewer(), today = RP.state.today, texts = [];
+  for(const k of Object.keys(p)){
+    if(typeof p[k] !== 'string' || p[k].charAt(0) !== '@') continue;
+    const r = relValue(k, p[k], v, today);
+    if(r.why) return {ok:false, why: r.why};
+    p[k] = r.value; texts.push(r.text);
+  }
+  return {ok:true, params: p, rel: texts};
+}
+RP.resolveParams = params => resolveRel(params);
+RP.relPeriod = name => { const p = relPeriod(name, RP.state.today);
+  return p ? {ok:true, from: p.from, to: p.to} : {ok:false, why:'периода «'+name+'» в наборе нет: '+REL_PERIOD.join(' · ')}; };
+
+/* ---- Журнал просмотров (ОГ-33, ADR-0283 п. 3) ----
+   Пишется показ, где видны СТРОКИ объектов: отчёт-список, провал, рабочий
+   список. Показ одних итогов не пишется. Подряд одинаковый показ — одна
+   строка с числом повторов: перерисовка экрана — не новый просмотр.       */
+function viewLogPut(what, tid, params, rows, asOf){
+  const s = W45(), t = TPL(tid), who = RP.who();
+  const key = [who, what, tid, JSON.stringify(params || {}), rows].join('|'), last = s.viewLog[0];
+  if(last && last.key === key){ last.times++; return; }
+  s.viewLog.unshift({key, at: RP.state.today, who, what, tpl: tid, tplName: t ? t.name : tid,
+    params: clone(params || {}), asOf: asOf || null, rows, times: 1});
+}
+RP.viewLog = () => RP.isAuth()
+  ? {ok:true, rows: W45().viewLog.map(r => { const x = clone(r); delete x.key; return x; })}
+  : {ok:false, why:'журнал просмотров читает служба безопасности или администратор; ваша история — «Недавние отчёты» на полке «Мои»'};
+RP.recentReports = () => { const seen = {}, out = [];
+  W45().viewLog.filter(r => r.who === RP.who()).forEach(r => { if(seen[r.tpl]) return; seen[r.tpl] = 1;
+    out.push({tpl: r.tpl, name: r.tplName, at: r.at, what: r.what, rows: r.rows}); });
+  return out; };
+
+/* Обёртки входа: относительные значения подставляются до вопроса, журнал
+   просмотров пишется после ответа. Внутренние вызовы идут через них же.     */
+const _show = RP.show;
+RP.show = (tid, params, twist) => {
+  const r = resolveRel(params); if(!r.ok) return r;
+  const res = _show(tid, r.params, twist);
+  if(res.ok){ if(r.rel.length) res.head.relative = r.rel.slice();
+    if(res.kind === 'отчёт' && res.data && (res.data.rows || []).length)
+      viewLogPut('показ со строками', tid, r.params, res.data.rows.length, res.head.asOf); }
+  return res; };
+const _issue = RP.issue;
+RP.issue = (tid, spec) => {
+  const sp = Object.assign({}, spec || {});
+  const r = resolveRel(sp.params); if(!r.ok) return r;
+  sp.params = r.params;
+  const res = _issue(tid, sp);
+  const i = res.ok ? ISS(res.id) : null;
+  if(i && r.rel.length){ i.relative = r.rel.slice(); i.passport.relative = r.rel.slice(); }
+  /* Сдача: PDF — документ; получателю «требует xlsx» — ещё XLSX из тех же
+     замороженных чисел; у каждого файла контрольная сумма (ОГ-15).        */
+  if(i && i.kind === 'окончательный' && i.snapshot){
+    const a = i.recipient && i.recipient.kind === 'адресат сдачи' ? ADDR(i.recipient.ref) : null;
+    if(a && a.needsXlsx && i.formats.indexOf('xlsx') === -1) i.formats = i.formats.concat(['xlsx']);
+    const body = JSON.stringify(i.snapshot);
+    i.checksums = {}; i.formats.forEach(f => { i.checksums[f] = sum32(f+'|'+body); });
+  }
+  return res; };
+const _drill = RP.drill;
+RP.drill = (tid, params, twist, node, opt) => {
+  const r = resolveRel(params); if(!r.ok) return r;
+  const res = _drill(tid, r.params, twist, node, opt);
+  if(res.ok && (res.items || []).length) viewLogPut('провал', tid, r.params, res.items.length, res.asOf);
+  return res; };
+const _wlRows = RP.worklistRows;
+RP.worklistRows = id => { const res = _wlRows(id); const w = WL(id);
+  if(res && w) viewLogPut('рабочий список', w.from && ISS(w.from) ? ISS(w.from).tpl : (w.tpl || '—'), {list: w.id}, res.rows.filter(Boolean).length, null);
+  return res; };
+
+/* ---- Пакет вопросов, отвалившееся и круг в ответе отчёта (ОД-8, ОД-12, ОД-13) ---- */
+const _answer = RP.reportAnswer;
+RP.reportAnswer = spec => {
+  const s = Object.assign({}, spec || {});
+  /* Пакет — вопросы экрана одним вызовом: каждый отвечает сам за себя. */
+  if(s.batch) return {ok:true, form:'пакет', answers: (s.batch || []).map(q => RP.reportAnswer(q)),
+    passport:{seam:'reportAnswer · пакет', who: RP.who(), size: (s.batch || []).length}};
+  const r = resolveRel(s.params); if(!r.ok) return r;
+  s.params = r.params;
+  /* Ставшее невозможным — как у вида: показатель снят из вопроса с пометкой. */
+  const dropped = [];
+  if(s.stats) s.stats = s.stats.filter(sid => { const m = SEAM.statMeta(sid);
+    if(!m){ dropped.push({stat: sid, why:'показателя в реестре нет'}); return false; }
+    if(m.withdrawn){ dropped.push({stat: sid, name: m.name, why:'выведен '+fmt(m.withdrawn)+' — '+m.why}); return false; }
+    return true; });
+  const res = _answer(s);
+  if(!res.ok) return res;
+  res.dropped = dropped;
+  if(r.rel.length){ res.relative = r.rel.slice(); if(res.passport) res.passport.relative = r.rel.slice(); }
+  if(s.covers) res.circle = RP.circleCovers(s.tpl, s.covers);
+  return res; };
+
+/* ---- Круг для автопроверки (ОД-12) ----
+   Покрывает ли круг отчёта держателей названных ролей — поимённо. Держатель
+   покрыт, если его подразделение в круге, он назван человеком или он владелец. */
+RP.circleCovers = (tid, roles) => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'отчёта нет'};
+  const circle = (t.circle || []).slice(), people = ((t.share && t.share.people) || []).slice();
+  const missing = [];
+  (roles || []).forEach(role => roleHolders(role).forEach(h => {
+    const dept = h.dept || deptOfWho(h.who);
+    if(h.who === t.owner || people.indexOf(h.who) !== -1 || circle.indexOf(dept) !== -1) return;
+    missing.push({role, who: h.who, dept}); }));
+  const byRole = uniq(missing.map(m => m.role));
+  return {ok:true, covers: !missing.length, missing,
+    text: !missing.length ? 'круг покрывает всех держателей: '+(roles || []).join(', ')
+      : byRole.map(role => { const ms = missing.filter(m => m.role === role);
+          return 'не покрывает '+ms.length+' '+plural(ms.length, 'держателя', 'держателей', 'держателей')+' роли «'+role+'»: '+
+            ms.map(m => m.who+' ('+deptName(m.dept)+')').join(', '); }).join('; ')}; };
+
+/* ---- Итоги шире зоны (ОГ-7, ADR-0283 п. 2) ----
+   По умолчанию строго. Право — у роли; за пределами зоны только итоги: без
+   строк и провала, уровень не мельче подразделения, в группе не меньше N
+   объектов, иначе «скрыто». Сдача на это право не опирается.               */
+const WIDE_RIGHT = {head:{level:'подразделение', n:3}};
+RP.wideRight = () => clone(WIDE_RIGHT[RP.viewer().id] || null);
+RP.wideTotals = (tid, params, opt) => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'отчёта нет'};
+  if(t.kind !== 'отчёт') return {ok:false, why:'бланк говорит об одном объекте: итогов у него нет'};
+  const right = WIDE_RIGHT[RP.viewer().id], o = opt || {};
+  if(!right) return {ok:false, why:'по умолчанию строго: за пределами вашей зоны отчёт чисел не показывает — права '+
+    '«итоги шире зоны» у вашей роли нет'};
+  if(o.rows || o.drill) return {ok:false, why:'за пределами зоны — только итоги: строк объектов и провала нет'};
+  if(o.by && o.by !== 'dept') return {ok:false, why:'уровень мельче объявленного: шире зоны итоги видны не мельче, '+
+    'чем «'+right.level+'»'};
+  const ed = liveEd(t) || draftEd(t), v = RP.viewer();
+  const r = resolveRel(params); if(!r.ok) return r;
+  const asOf = ed.mode === 'на дату' ? r.params.asOf : null;
+  const stats = ed.stats.slice();
+  const cnt = d => (asOf ? SEAM.statRows(ed.object, asOf, {dept: d}, ALL_DEPTS.slice())
+                         : SEAM.objectRows(ed.object, {dept: d}, ALL_DEPTS.slice())).rows.length;
+  const vals = d => stats.map(sid => ({id: sid, name: statName(sid), unit: (SEAM.statMeta(sid) || {}).unit || '',
+    value: SEAM.statSlice(sid, null, d ? {dept: d} : null, asOf, ALL_DEPTS.slice()).value}));
+  const rows = ALL_DEPTS.filter(d => v.scope.indexOf(d) === -1).map(d => { const n = cnt(d);
+    return n < right.n ? {dept: d, name: deptName(d), hidden: true, why:'скрыто: в группе меньше '+right.n+' объектов'}
+      : {dept: d, name: deptName(d), count: n, values: vals(d)}; });
+  const all = ALL_DEPTS.reduce((a, d) => a + cnt(d), 0);
+  return {ok:true, tpl: tid, asOf, level: right.level, n: right.n, rows,
+    own: v.scope.map(d => ({dept: d, name: deptName(d), count: cnt(d), values: vals(d)})),
+    fund: all >= right.n ? {count: all, values: vals(null)} : null,
+    passport:{text:'итоги шире зоны: только итоги по подразделениям, группа не меньше '+right.n+' объектов; без строк и провала'}}; };
+
+/* ---- Тяжёлый показ — в фоне (ОГ-17, ADR-0284 п. 5) ----
+   Оценку даёт статистика по объёму вопроса (заглушка шва): точки ряда ×
+   уровни, «сейчас» по всему портфелю — дорого. До 15 с — на экране, свыше —
+   фоновое задание с уведомлением; результат лежит в «Моих заданиях» 7 дней. */
+const HEAVY_SEC = 15, JOB_DAYS = 7;
+SEAM.costEstimate = q => { const d = Math.max(1, q.dates || 1), l = q.levels || 0;
+  return {sec: Math.round((1 + 0.25 * d * (1 + l) + (q.live && q.whole ? 17 : 0)) * 10) / 10,
+    passport:{seam:'оценка объёма', owner:'статистика'}}; };
+RP.estimate = (tid, spec, params, twist) => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'отчёта нет'};
+  const ed = liveEd(t) || draftEd(t), sp = spec || {}, pr = params || {};
+  const chk = twistCheck(ed, twist || null); if(!chk.ok) return chk;
+  const dates = sp.mode === 'динамика' ? stepDates(sp.from, sp.to, sp.step === 'квартал' ? 'квартал' : 'месяц').length
+    : sp.mode === 'сравнение' ? 2 : 1;
+  const e = SEAM.costEstimate({dates, levels: chk.twist.cuts.length, live: ed.mode === 'сейчас' && !sp.mode, whole: !pr.dept});
+  return {ok:true, sec: e.sec, dates, levels: chk.twist.cuts.length, heavy: e.sec > HEAVY_SEC,
+    text:'оценка '+String(e.sec).replace('.', ',')+' с — '+(e.sec > HEAVY_SEC ? 'в фоне, с уведомлением' : 'на экране')}; };
+RP.runShow = (tid, spec, params, twist) => {
+  const e = RP.estimate(tid, spec, params, twist); if(!e.ok) return e;
+  const answer = () => spec && spec.mode ? RP.timeAnswer(tid, spec, params) : RP.show(tid, params, twist);
+  if(!e.heavy) return {ok:true, onScreen:true, est: e, answer: answer()};
+  const s = W45(), t = TPL(tid), res = answer();
+  if(!res.ok) return res;
+  const job = {id:'МЗ-'+(++s.jseq), tpl: tid, tplName: t.name, what: spec && spec.mode ? timeText(spec) : 'показ',
+    est: e.sec, by: RP.who(), at: RP.state.today, state:'готов', until: addDays(RP.state.today, JOB_DAYS), result: res};
+  s.jobs.push(job);
+  RP.state.notices.push({id:'nj-'+job.id, to: RP.who(), kind:'задание', at: RP.state.today, tpl: tid,
+    text:'задание '+job.id+' готово: «'+t.name+'» — '+job.what+'; результат в «Мои задания» до '+fmt(job.until),
+    mail:'ссылка на задание в АСУБК (без чисел)'});
+  log('тяжёлый показ «'+t.name+'» ушёл фоновым заданием '+job.id+' ('+e.text+')');
+  return {ok:true, onScreen:false, background:true, job: job.id, est: e,
+    note:'оценка больше '+HEAVY_SEC+' с: показ ушёл фоновым заданием '+job.id+', придёт уведомление'}; };
+RP.myJobs = () => W45().jobs.filter(j => j.by === RP.who()).map(j => ({id:j.id, tpl:j.tpl, tplName:j.tplName, what:j.what,
+  est:j.est, at:j.at, state:j.state, until:j.until}));
+
+/* ---- Валюта (ОГ-26, ADR-0240) ----
+   Итоги — только в сомах. Исходная валюта — в однородной группе разреза
+   «валюта договора». Пересчёт итога в USD — отображение по курсу НБКР на
+   дату, с пометкой; курсовая разница — показатель ядра, пока его нет — в
+   строке «прочее» Движения.                                                 */
+const FX_USD = {'2026-01-01':89.00, '2026-06-01':87.75, '2026-07-01':84.50, '2026-08-01':83.66};   /* курс НБКР на дату — справочник курсов (допущение стенда; сведён с курсовой «прочего» июня — июля) */
+const CUR_OF = {'kr-6':'USD'};                 /* валюта договора — реквизит ядра (допущение стенда) */
+SEAM.fxRate = (cur, d) => cur === 'сом' ? 1 : (cur === 'USD' ? (FX_USD[d] || null) : null);
+const round2 = x => Math.round(x * 100) / 100;
+const fx2 = x => x == null ? '—' : money(Math.floor(x))+','+String(Math.round((x - Math.floor(x)) * 100)).padStart(2, '0');
+RP.currencyAnswer = (tid, params, opt) => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'отчёта нет'};
+  const ed = liveEd(t) || draftEd(t), o = opt || {};
+  if(ed.object !== 'credit') return {ok:false, why:'валюта — реквизит договора: разрез «валюта договора» есть у кредита'};
+  const r = resolveRel(params); if(!r.ok) return r;
+  const asOf = ed.mode === 'на дату' ? r.params.asOf : null;
+  if(!asOf) return {ok:false, why:'пересчёт берёт курс на дату состояния: у «сейчас» спросите отчёт на дату'};
+  const sid = o.stat || ed.stats.find(x => (SEAM.statMeta(x) || {}).unit === 'сом');
+  if(!sid) return {ok:false, why:'в отчёте нет денежного показателя'};
+  const scope = RP.viewer().scope.slice(), cut = {dept: r.params.dept || null};
+  const rows = SEAM.statRows('credit', asOf, cut, scope).rows;
+  const curs = uniq(rows.map(x => CUR_OF[x.id] || 'сом'));
+  if(o.origTotal && curs.length > 1) return {ok:false, why:'сумма в исходной валюте — только в однородной группе: в итоге '+
+    'смешаны '+curs.join(' и ')+'. Итог — в сомах; исходная валюта — в строке группы «валюта договора»'};
+  const groups = curs.map(cur => { const ids = rows.filter(x => (CUR_OF[x.id] || 'сом') === cur).map(x => x.id);
+    const som = SEAM.statSlice(sid, null, Object.assign({}, cut, {ids}), asOf, scope).value, rate = SEAM.fxRate(cur, asOf);
+    return {cur, count: ids.length, som, orig: cur === 'сом' ? som : (rate ? round2(som / rate) : null), rate}; });
+  const total = SEAM.statSlice(sid, null, cut, asOf, scope).value;
+  const out = {ok:true, tpl: tid, stat: sid, statName: statName(sid), asOf, total, groups,
+    fx:'курсовая разница — показатель ядра; пока ядро его не отдаёт, она входит в строку «прочее» Движения'};
+  if(o.show && o.show !== 'сом'){ const rate = SEAM.fxRate(o.show, asOf);
+    if(!rate) return {ok:false, why:'курса '+o.show+' на '+fmt(asOf)+' у справочника курсов нет'};
+    out.shown = {cur: o.show, rate, value: round2(total / rate),
+      note:'пересчёт итога — отображение по курсу НБКР на '+fmt(asOf)+' ('+String(rate).replace('.', ',')+'): данные и сдача — в сомах'}; }
+  return out; };
+
+/* ---- Жизнь общего отчёта (ОГ-23, ADR-0279 п. 6) ---- */
+const ARCHIVE_DAYS = 183;
+RP.dependents = tid => { const s = W45();
+  const views = RP.state.views.filter(x => x.tpl === tid).map(x => 'вид «'+x.name+'» ('+x.owner+')');
+  const subs = RP.state.subs.filter(x => x.tpl === tid).map(x => x.kind+' '+x.owner);
+  const tiles = (s.tiles[tid] || []).map(x => 'плитка на дашборде «'+x.dash+'»');
+  const lists = RP.state.worklists.filter(w => w.from && ISS(w.from) && ISS(w.from).tpl === tid).map(w => 'рабочий список «'+w.name+'»');
+  return views.concat(subs, tiles, lists); };
+RP.transferOwner = (tid, to) => {
+  const t = TPL(tid); if(!t || levelOf(t) !== 'общий') return {ok:false, why:'передают общий отчёт'};
+  if(t.owner !== RP.who()) return {ok:false, why:'передаёт владелец ('+t.owner+')'};
+  if(!roleOfWho(to)) return {ok:false, why:'владелец — человек из оргструктуры: «'+to+'» не найден'};
+  if(to === t.owner) return {ok:false, why:'«'+to+'» уже владелец'};
+  t.ownerLog = (t.ownerLog || []).concat([{at: RP.state.today, from: t.owner, why:'передан владельцем'}]);
+  const was = t.owner; t.owner = to;
+  t.coauthors = (t.coauthors || []).filter(c => c !== to);
+  log('общий отчёт «'+t.name+'» передан: '+was+' → '+to);
+  return {ok:true, note:'владелец теперь '+to+'; круг, соавторы и версии остались'}; };
+RP.archiveCandidates = () => RP.visibleTemplates().map(TPL).filter(t => levelOf(t) === 'общий' && !t.archived &&
+  t.lastOpen && daysBetween(t.lastOpen, RP.state.today) > ARCHIVE_DAYS)
+  .map(t => ({id:t.id, name:t.name, lastOpen:t.lastOpen, days: daysBetween(t.lastOpen, RP.state.today)}));
+RP.toArchive = tid => {
+  const t = TPL(tid); if(!t || levelOf(t) !== 'общий') return {ok:false, why:'в архив отправляют общий отчёт; официальный выводится из обращения'};
+  if(t.owner !== RP.who()) return {ok:false, why:'в архив отправляет владелец ('+t.owner+')'};
+  t.archived = RP.state.today; log('общий отчёт «'+t.name+'» отправлен в архив');
+  return {ok:true, note:'«'+t.name+'» в архиве: с полки «Общие» убран, открывается из архива, виды и подписки живы'}; };
+RP.fromArchive = tid => { const t = TPL(tid); if(!t || !t.archived) return {ok:false, why:'отчёт не в архиве'};
+  if(t.owner !== RP.who()) return {ok:false, why:'из архива возвращает владелец ('+t.owner+')'};
+  delete t.archived; t.lastOpen = RP.state.today; return {ok:true, note:'«'+t.name+'» снова на полке «Общие»'}; };
+RP.archived = () => RP.state.templates.filter(t => t.archived && t.owner === RP.who()).map(t => ({id:t.id, name:t.name, at:t.archived}));
+RP.deleteReport = tid => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'отчёта нет'};
+  if(levelOf(t) === 'официальный') return {ok:false, why:'официальный отчёт не удаляется: он выводится из обращения, сданное остаётся'};
+  if(t.owner !== RP.who()) return {ok:false, why:'удаляет владелец ('+t.owner+')'};
+  const dep = RP.dependents(tid);
+  if(dep.length) return {ok:false, dependents: dep, why:'удалить нельзя — от отчёта зависят: '+dep.join('; ')};
+  RP.state.templates = RP.state.templates.filter(x => x.id !== tid);
+  log('отчёт «'+t.name+'» удалён'); return {ok:true, note:'отчёт «'+t.name+'» удалён: зависимых не было'}; };
+
+/* ---- Плитка ссылается на отчёт; отчёт с дашборда — обычный личный (ОД-4) ---- */
+const _pin = RP.pinToDashboard;
+RP.pinToDashboard = (tid, viewId, params, dash) => {
+  const res = _pin(tid, viewId, params);
+  if(res.ok){ const s = W45(); (s.tiles[tid] = s.tiles[tid] || []).push({dash: dash || 'Главная', view: viewId || null, at: RP.state.today}); }
+  return res; };
+RP.tilesOf = tid => clone(W45().tiles[tid] || []);
+
+/* ---- «Обязательство» — строки объекта статистики (ОД-6) ----
+   Запись реестра объявляет отчётность; статистика пишет строку как у всех
+   объектов. Плитки «Просрочено», «Срок ≤ 7 дн.», «Итог сдачи» — счёт строк. */
+RP.obligationRows = () => RP.obligations().map(o => ({id: o.id, form: o.tplName, dept: o.dept, who: o.who, due: o.due,
+  state: o.state, submitted: o.issue && ISS(o.issue) ? ISS(o.issue).at : null,
+  diverged: !!(o.issue && ISS(o.issue) && ISS(o.issue).diverged), recipient: o.toName}));
+RP.obligationTiles = () => { const rows = RP.obligationRows(), today = RP.state.today;
+  const done = rows.filter(r => r.state === 'сдано' || r.state === 'сдано с опозданием').length;
+  return {late: rows.filter(r => r.state === 'просрочено').length,
+    soon: rows.filter(r => r.state === 'ожидается' && daysBetween(today, r.due) >= 0 && daysBetween(today, r.due) <= 7).length,
+    done, total: rows.length}; };
+
+/* ---- Сигнал и выгрузка с плитки (ОД-11, ОД-14) ----
+   Плитка ставит обычный сигнал на тот же отчёт с теми же значениями и порогом;
+   выгрузка с плитки — выгрузка показанного: паспорт, метка, строка журнала.   */
+RP.signalFromTile = spec => { const sp = spec || {};
+  const r = RP.addSignal(sp.tpl, {stat: sp.stat, cmp: sp.cmp, value: sp.value, dept: sp.params && sp.params.dept});
+  if(!r.ok) return r;
+  const s = RP.state.subs.find(x => x.id === r.id); s.fromTile = sp.tile || 'плитка'; s.params = clone(sp.params || {});
+  return Object.assign(r, {note:'сигнал поставлен с плитки «'+s.fromTile+'»: тот же отчёт и порог; виден в «на что я подписан»'}); };
+RP.exportFromTile = spec => { const sp = spec || {};
+  const res = RP.exportShown(sp.tpl, sp.params || {}, sp.twist || null, 'xlsx');
+  if(!res.ok) return res;
+  const i = ISS(res.id); i.passport.source = 'плитка «'+(sp.tile || '—')+'» дашборда «'+(sp.dash || 'Главная')+'»';
+  return Object.assign(res, {source: i.passport.source}); };
+
+/* ---- Кто утверждает (ОГ-30) ----
+   Круг в одном подразделении и только внутренние получатели — уполномоченный
+   подразделения; внешний получатель или круг шире — уполномоченный фонда.   */
+RP.approverOf = tid => { const t = TPL(tid); if(!t) return {ok:false, why:'отчёта или бланка нет'};
+  const rec = (t.schedule && t.schedule.recipients) || [];
+  const external = rec.some(x => x.kind === 'адресат сдачи' || x.kind === 'субъект объекта');
+  const depts = uniq(t.circle || []);
+  const fund = external || depts.length !== 1;
+  return {ok:true, area: fund ? 'фонд' : depts[0], who: fund ? 'уполномоченный фонда' : 'уполномоченный подразделения «'+deptName(depts[0])+'»',
+    why: external ? 'получатель внешний' : depts.length > 1 ? 'круг — несколько подразделений' : 'внутри одного подразделения'}; };
+
+/* ---- План и перечень номеров (ОГ-32, ADR-0288) ----
+   План — показатель реестра рода «план» из справочника «Плановые показатели»
+   (владелец справочника, загрузка по образцу файла). Рабочий список — из
+   внешнего перечня номеров договоров: найдено и не найдено поимённо.        */
+const PLANS = {meta:{id:'s-plan-issue', name:'План выдачи', kind:'план', unit:'сом',
+    source:'справочник «Плановые показатели» · владелец — планово-экономический отдел · загрузка по образцу файла'},
+  '2026':{'dep-prom':6000000, 'dep-admin':20000000, 'rep-osh':4000000}};
+SEAM.planMeta = () => clone(PLANS.meta);
+RP.planFact = (asOf, params) => {
+  const pr = resolveRel(params); if(!pr.ok) return pr;
+  const d = asOf || pr.params.asOf || RP.defaultAsOf(), y = d.slice(0, 4), plan = PLANS[y];
+  if(!plan) return {ok:false, why:'плана на '+y+' г. в справочнике нет'};
+  const scope = RP.viewer().scope.slice();
+  const rows = scope.filter(dep => plan[dep] != null && (!pr.params.dept || pr.params.dept === dep)).map(dep => {
+    const src = SEAM.statRows('credit', d, {dept: dep}, scope).rows.filter(r => r.issued && r.issued.slice(0, 4) === y);
+    const fact = src.reduce((a, r) => a + r.sum, 0);
+    return {dept: dep, name: deptName(dep), plan: plan[dep], fact, count: src.length,
+      pct: plan[dep] ? Math.round(fact / plan[dep] * 1000) / 10 : null}; });
+  return {ok:true, asOf: d, year: y, plan: PLANS.meta, rows,
+    passport:{text:'план — '+PLANS.meta.source+'; факт — выдано с начала '+y+' г. по снимку на '+fmt(d)}}; };
+RP.worklistFromNumbers = (name, numbers) => {
+  if(!String(name || '').trim()) return {ok:false, why:'список называется при создании'};
+  const list = uniq((numbers || []).map(x => String(x).trim()).filter(Boolean));
+  if(!list.length) return {ok:false, why:'перечень пуст: загружать нечего'};
+  const scope = RP.viewer().scope;
+  const all = OBJECTS.filter(o => o.type === 'credit');
+  const found = all.filter(o => list.indexOf(o.no) !== -1 && scope.indexOf(o.dept) !== -1);
+  const hidden = all.filter(o => list.indexOf(o.no) !== -1 && scope.indexOf(o.dept) === -1).length;
+  const notFound = list.filter(n => !all.some(o => o.no === n));
+  if(!found.length) return {ok:false, why:'ни один номер не найден среди видимых вам договоров', notFound, hidden};
+  const id = 'РС-' + (++RP.state.wseq);
+  RP.state.worklists.push({id, name: String(name).trim(), from: null, fromName:'загрузка перечня номеров',
+    at: RP.state.today, by: RP.who(), dept: null, state:'открыт', closed:null, why:null,
+    objects: found.map(o => o.id), marks:{}, source:'перечень: '+list.length+' '+plural(list.length, 'номер', 'номера', 'номеров')});
+  log('рабочий список «'+name+'» загружен из перечня: найдено '+found.length+', не найдены '+notFound.length);
+  return {ok:true, id, found: found.length, notFound, hidden,
+    note: found.length+' '+plural(found.length, 'найден', 'найдено', 'найдено')+', '+notFound.length+' не '+plural(notFound.length, 'найден', 'найдены', 'найдены')+
+      (notFound.length ? ': '+notFound.join(', ') : '')+(hidden ? '; вне вашей видимости — '+hidden : '')}; };
+
+/* ---- Сводная: разрез в колонках (ОГ-10) ----
+   Строки — первый разрез, колонки — второй, клетка — один показатель; итоги
+   строк и колонок — узлами дерева статистики, не суммой клеток.            */
+const PIVOT_COLS_MAX = 12;
+RP.pivot = (tid, params, spec) => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'отчёта нет'};
+  const ed = liveEd(t) || draftEd(t), sp = spec || {};
+  if(!CUT_NAMES[sp.rows] || !CUT_NAMES[sp.cols]) return {ok:false, why:'разрез в колонках — два разреза отчёта: '+Object.values(CUT_NAMES).join(' · ')};
+  if(sp.rows === sp.cols) return {ok:false, why:'строки и колонки — разные разрезы'};
+  const sid = sp.stat || ed.stats[0];
+  const r = resolveRel(params); if(!r.ok) return r;
+  const asOf = ed.mode === 'на дату' ? r.params.asOf : null, scope = RP.viewer().scope.slice(), cut = {dept: r.params.dept || null};
+  const tree = SEAM.statSlice(sid, [sp.rows, sp.cols], cut, asOf, scope);
+  if(tree.value == null) return {ok:false, why: tree.why || 'величины нет'};
+  const colKeys = uniq([].concat.apply([], tree.groups.map(g => (g.children || []).map(c => c.key))));
+  if(colKeys.length > PIVOT_COLS_MAX) return {ok:false, why:'колонок '+colKeys.length+' — больше '+PIVOT_COLS_MAX+': сводная ограничена, возьмите разрез мельче строками'};
+  const byCol = SEAM.statSlice(sid, [sp.cols], cut, asOf, scope);
+  const lv = (by, k) => by === 'dept' ? deptName(k) : String(k);
+  return {ok:true, stat: sid, statName: statName(sid), unit: (SEAM.statMeta(sid) || {}).unit || '', asOf,
+    rowsBy: cutName(sp.rows), colsBy: cutName(sp.cols), cols: colKeys.map(k => lv(sp.cols, k)),
+    rows: tree.groups.map(g => ({name: lv(sp.rows, g.key), total: g.value,
+      cells: colKeys.map(k => { const c = (g.children || []).find(x => x.key === k); return c ? c.value : null; })})),
+    colTotals: colKeys.map(k => { const c = byCol.groups.find(x => x.key === k); return c ? c.value : null; }),
+    total: tree.value}; };
+
+/* ---- События месяцу без событий (ADR-0311 п. 5) ----
+   «За период», касающийся месяца из легаси без событий, — пустота с причиной,
+   а не ноль; после версии, давшей события, — число.                        */
+const _time = RP.timeAnswer;
+RP.timeAnswer = (tid, spec, params) => {
+  const r = resolveRel(params); if(!r.ok) return r;
+  const res = _time(tid, spec, r.params);
+  if(res.ok && spec && spec.mode === 'за период'){
+    const months = []; let d = spec.from.slice(0, 8)+'01';
+    for(let g = 0; g < 60 && d.localeCompare(spec.to) === -1; g++){ months.push(monthLabel(d)); d = firstOfNext(d); }
+    const none = months.filter(m => { const ps = SEAM.periodSource(m); return ps && !ps.events; });
+    if(none.length){ res.rows.forEach(x => { x.value = null; x.gap = 'события в легаси не перенесены ('+none.join(', ')+')'; });
+      res.lines = []; res.noEvents = none; }
+  }
+  if(res.ok && r.rel.length) res.relative = r.rel.slice();
+  return res; };
+
+/* ---- Сдача PDF + XLSX (ОГ-15, ADR-0284 п. 3) ----
+   Официальный документ — PDF; получатель, у которого в справочнике отмечено
+   «требует xlsx», получает ещё XLSX из тех же замороженных чисел. Оба файла
+   с контрольной суммой: исправленную в присланном Excel цифру покажет сверка. */
+const sum32 = s => { let h = 0; for(let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h.toString(16).padStart(8, '0'); };
+RP.checkFile = (id, fmtName, totals) => {
+  const i = ISS(id); if(!i) return {ok:false, why:'выпуска нет'};
+  if(!i.checksums || !i.checksums[fmtName]) return {ok:false, why:'файла «'+fmtName+'» у выпуска нет'};
+  const was = (i.snapshot && i.snapshot.totals) || [];
+  const diff = was.filter(x => totals && totals[x.id] != null && totals[x.id] !== x.value)
+    .map(x => ({id:x.id, name:x.name, was:x.value, now: totals[x.id]}));
+  return {ok:true, match: !diff.length, diff, checksum: i.checksums[fmtName],
+    note: diff.length ? 'файл не совпадает с выпуском: '+diff.map(x => x.name+' '+money(x.was)+' → '+money(x.now)).join('; ') : 'файл совпадает с выпуском'}; };
+
+/* ---- Подсветка по порогам (ОГ-10а) ----
+   В личном и общем отчёте пороги задаёт автор (владелец и соавторы), в
+   официальном — форма: порог входит в редакцию и утверждается с ней. Показ
+   несёт состояние каждого итога: норма · внимание · плохо.                  */
+RP.setThresholds = (tid, stat, th) => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'отчёта нет'};
+  const lv = levelOf(t), who = RP.who(), x = th || {};
+  if(!SEAM.statMeta(stat)) return {ok:false, why:'порог ставится на показатель реестра'};
+  if(x.warn == null || x.bad == null || !(+x.bad >= +x.warn)) return {ok:false, why:'порогов два — «внимание» и «плохо», второй не меньше первого'};
+  if(lv === 'официальный'){ const dr = draftEd(t);
+    if(!dr) return {ok:false, why:'в официальном отчёте подсветку задаёт форма: пороги — часть редакции, правятся черновой редакцией и утверждаются с ней'};
+    if(!RP.isAuth()) return {ok:false, why:'пороги официальной формы утверждает уполномоченный вместе с редакцией'};
+    dr.thresholds = Object.assign({}, dr.thresholds || {}, {[stat]: {warn:+x.warn, bad:+x.bad}});
+    return {ok:true, note:'пороги вписаны в черновую редакцию — заработают после утверждения'}; }
+  if(lv === 'личный' && t.owner !== who) return {ok:false, why:'пороги личного отчёта ставит его автор'};
+  if(lv === 'общий' && !mayEditShared(t, who)) return {ok:false, why:'пороги общего отчёта ставят владелец и соавторы'};
+  const ed = lv === 'общий' ? verEd(t) : draftEd(t);
+  ed.thresholds = Object.assign({}, ed.thresholds || {}, {[stat]: {warn:+x.warn, bad:+x.bad}});
+  if(lv === 'общий') ed.changed = 'изменён '+fmt(RP.state.today)+' ('+who+'): порог «'+statName(stat)+'»';
+  return {ok:true, note:'подсветка «'+statName(stat)+'»: внимание от '+money(x.warn)+', плохо от '+money(x.bad)}; };
+RP.highlight = (tid, params) => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'отчёта нет'};
+  const ed = liveEd(t) || draftEd(t), th = ed.thresholds || {};
+  const sh = RP.show(tid, params, null); if(!sh.ok) return sh;
+  return {ok:true, by: levelOf(t) === 'официальный' ? 'форма' : 'автор', items: (sh.data.totals || []).filter(x => th[x.id]).map(x => {
+    const v = x.value, z = th[x.id];
+    return {id:x.id, name:x.name, value:v, warn:z.warn, bad:z.bad, state: v == null ? 'нет числа' : v >= z.bad ? 'плохо' : v >= z.warn ? 'внимание' : 'норма'}; })}; };
+/* ---- Экранные действия ---- */
+RP.uiShowPersonal = tid => { const sel = RP.state.sel;
+  sel.tpl = tid; sel.twist = null; sel.view = null; sel.dropped = null; sel.live = false; sel.drillRes = null;
+  RP.state.view = 'issue'; render(); };
+RP.doWide = () => { RP.state.sel.wide = !RP.state.sel.wide; render(); };
+RP.doPivot = () => { RP.state.sel.pivot = !RP.state.sel.pivot; render(); };
+RP.doUsd = () => { RP.state.sel.usd = !RP.state.sel.usd; render(); };
+RP.doRel = k => { RP.state.sel.rel = k || null; render(); };
+RP.doHeavy = tid => { const r = RP.runShow(tid, {mode:'динамика', from:'2023-09-01', to:'2026-08-01', step:'месяц'},
+  {asOf: RP.state.sel.params.asOf, dept:''}, {cuts:['dept', 'status']}); act(r, r.note || 'показано на экране'); };
+RP.doTransfer = tid => act(RP.transferOwner(tid, 'Бекова Н.'));
+RP.doArchive = tid => act(RP.toArchive(tid));
+RP.doUnarchive = tid => act(RP.fromArchive(tid));
+RP.doDeleteReport = tid => act(RP.deleteReport(tid));
+RP.doNumbers = () => { const r = RP.worklistFromNumbers('Обзвон по письму Минфина', ['КД-2024/203', 'КД-2025/126', 'КД-2024/117', 'КД-2023/999', 'КД-2022/045']);
+  act(r, r.note); };
+RP.doMigrationEvents = () => { const r = RP.migrationRevision({period:'декабрь 2024',
+  why:'найден архив платёжных поручений за декабрь 2024 г.: события месяца, которых перенос М-1 не дал', events: clone(LEGACY_EVENTS_ARCHIVE['декабрь 2024'])});
+  act(r, r.note); };
+
+/* Карточки экрана показа — дописываются к экрану, не меняя его устройства. */
+function w45IssueCards(){
+  const sel = RP.state.sel;
+  const vis = RP.visibleTemplates().filter(id => TPL(id).kind === 'отчёт' && (liveEd(TPL(id)) || (levelOf(TPL(id)) === 'личный' && TPL(id).owner === RP.who())));
+  if(!vis.length) return '';
+  const tid = vis.indexOf(sel.tpl) !== -1 ? sel.tpl : vis[0], t = TPL(tid), ed = liveEd(t) || draftEd(t);
+  const relDept = sel.rel === 'dept' ? '@моё подразделение' : null;
+  const params = {asOf: sel.rel === 'date' ? '@конец прошлого месяца' : sel.params.asOf, dept: relDept || sel.params.dept};
+  let h = '<div class="card"><h3>Значения параметров, валюта, сводная, зона</h3><div class="btn-row">'+
+    '<button class="btn btn-sm '+(sel.rel === 'dept' ? 'btn-primary' : 'btn-secondary')+'" onclick="RP.doRel(\''+(sel.rel === 'dept' ? '' : 'dept')+'\')">Подразделение: моё</button>'+
+    (ed.mode === 'на дату' ? '<button class="btn btn-sm '+(sel.rel === 'date' ? 'btn-primary' : 'btn-secondary')+'" onclick="RP.doRel(\''+(sel.rel === 'date' ? '' : 'date')+'\')">Дата: конец прошлого месяца</button>' : '')+
+    (ed.object === 'credit' && ed.mode === 'на дату' ? '<button class="btn btn-sm '+(sel.usd ? 'btn-primary' : 'btn-secondary')+'" onclick="RP.doUsd()">Валюта договора и пересчёт в USD</button>' : '')+
+    '<button class="btn btn-sm '+(sel.pivot ? 'btn-primary' : 'btn-secondary')+'" onclick="RP.doPivot()">Разрез в колонках</button>'+
+    (RP.wideRight() ? '<button class="btn btn-sm '+(sel.wide ? 'btn-primary' : 'btn-secondary')+'" onclick="RP.doWide()">Итоги шире зоны</button>' : '')+
+    '<button class="btn btn-sm btn-secondary" onclick="RP.doHeavy(\''+tid+'\')">Динамика за 36 месяцев по двум разрезам</button></div>';
+  const est = RP.estimate(tid, {mode:'динамика', from:'2023-09-01', to:'2026-08-01', step:'месяц'}, {dept:''}, {cuts:['dept', 'status']});
+  if(est.ok) h += '<div class="small muted">Скорость: '+esc(est.text)+'. Обычный отчёт на дату — до 5 с.</div>';
+  if(sel.rel){ const sh = RP.show(tid, params, null);
+    h += sh.ok ? '<div class="small">Подставлено по вам: <b>'+esc((sh.head.relative || []).join('; '))+'</b>. Сохраняется значение набора, '+
+        'а не число: у коллеги подставится его подразделение; выпуск запомнит конкретное.</div>'
+      : '<div class="banner warn">'+esc(sh.why)+'</div>'; }
+  if(sel.usd){ const c = RP.currencyAnswer(tid, params, {show:'USD'});
+    h += c.ok ? '<h4 style="margin-top:12px">«'+esc(c.statName)+'» по валюте договора на '+fmt(c.asOf)+'</h4><div class="tw"><table class="cgrid"><thead><tr>'+
+        '<th>Валюта договора</th><th class="num">Договоров</th><th class="num">В сомах</th><th class="num">В валюте договора</th></tr></thead><tbody>'+
+        c.groups.map(g => '<tr><td>'+esc(g.cur)+'</td><td class="num">'+g.count+'</td><td class="num">'+money(g.som)+'</td><td class="num">'+
+          (g.cur === 'сом' ? '<span class="muted">—</span>' : fx2(g.orig)+' '+esc(g.cur)+' <span class="small muted">курс '+String(g.rate).replace('.', ',')+'</span>')+'</td></tr>').join('')+
+        '<tr class="gtot"><td>Итог</td><td></td><td class="num"><b>'+money(c.total)+'</b></td><td class="num small">'+
+          (c.shown ? '≈ '+fx2(c.shown.value)+' USD' : '')+'</td></tr></tbody></table></div>'+
+        (c.shown ? '<div class="small muted">'+esc(c.shown.note)+'.</div>' : '')+'<div class="small muted">'+esc(c.fx[0].toUpperCase()+c.fx.slice(1))+'.</div>'
+      : '<div class="banner warn">'+esc(c.why)+'</div>'; }
+  if(sel.pivot){ const p = RP.pivot(tid, params, {rows:'dept', cols:'status'});
+    h += p.ok ? '<h4 style="margin-top:12px">«'+esc(p.statName)+'»: '+esc(p.rowsBy)+' × '+esc(p.colsBy)+'</h4><div class="tw"><table class="cgrid"><thead><tr><th>'+esc(p.rowsBy)+'</th>'+
+        p.cols.map(c => '<th class="num">'+esc(c)+'</th>').join('')+'<th class="num">Итог</th></tr></thead><tbody>'+
+        p.rows.map(r => '<tr><td>'+esc(r.name)+'</td>'+r.cells.map(x => '<td class="num">'+(x == null ? '<span class="muted">—</span>' : money(x))+'</td>').join('')+
+          '<td class="num"><b>'+money(r.total)+'</b></td></tr>').join('')+
+        '<tr class="gtot"><td>Итог</td>'+p.colTotals.map(x => '<td class="num">'+money(x)+'</td>').join('')+'<td class="num"><b>'+money(p.total)+'</b></td></tr></tbody></table></div>'
+      : '<div class="banner warn">'+esc(p.why)+'</div>'; }
+  if(sel.wide && RP.wideRight()){ const w = RP.wideTotals(tid, params);
+    h += w.ok ? '<h4 style="margin-top:12px">Итоги шире зоны — только итоги, без строк и провала</h4><div class="tw"><table class="cgrid"><thead><tr><th>Подразделение</th><th class="num">Объектов</th>'+
+        (ed.stats.map(sid => '<th class="num">'+esc(statName(sid))+'</th>').join(''))+'</tr></thead><tbody>'+
+        w.own.map(r => '<tr><td>'+esc(r.name)+' <span class="small muted">ваша зона</span></td><td class="num">'+r.count+'</td>'+r.values.map(x => '<td class="num">'+money(x.value)+'</td>').join('')+'</tr>').join('')+
+        w.rows.map(r => '<tr><td>'+esc(r.name)+'</td>'+(r.hidden ? '<td class="num muted" colspan="'+(1 + ed.stats.length)+'">'+esc(r.why)+'</td>'
+          : '<td class="num">'+r.count+'</td>'+r.values.map(x => '<td class="num">'+money(x.value)+'</td>').join(''))+'</tr>').join('')+
+        (w.fund ? '<tr class="gtot"><td>Фонд в целом</td><td class="num">'+w.fund.count+'</td>'+w.fund.values.map(x => '<td class="num"><b>'+money(x.value)+'</b></td>').join('')+'</tr>' : '')+
+        '</tbody></table></div><div class="small muted">Группа меньше '+w.n+' объектов скрыта; уровень — не мельче подразделения. Сдача на это право не опирается.</div>'
+      : '<div class="banner warn">'+esc(w.why)+'</div>'; }
+  const hl = RP.highlight(tid, {asOf: sel.params.asOf, dept: sel.params.dept});
+  if(hl.ok && hl.items.length) h += '<div class="small" style="margin-top:8px">Подсветка по порогам ('+(hl.by === 'форма' ? 'задана формой' : 'задана автором')+'): '+
+    hl.items.map(x => esc(x.name)+' '+money(x.value)+' '+pill(x.state, x.state === 'плохо' ? 'err' : x.state === 'внимание' ? 'warn' : 'ok')).join(' · ')+'</div>';
+  if(levelOf(t) === 'официальный'){ const pf = RP.planFact(null, {asOf: sel.params.asOf, dept:''});
+    if(pf.ok && pf.rows.length) h += '<h4 style="margin-top:12px">План выдачи и факт '+esc(pf.year)+' г.</h4><div class="tw"><table class="cgrid"><thead><tr><th>Подразделение</th>'+
+      '<th class="num">План</th><th class="num">Выдано</th><th class="num">Исполнение</th></tr></thead><tbody>'+
+      pf.rows.map(r => '<tr><td>'+esc(r.name)+'</td><td class="num">'+money(r.plan)+'</td><td class="num">'+money(r.fact)+'</td><td class="num">'+
+        String(r.pct).replace('.', ',')+' %</td></tr>').join('')+'</tbody></table></div><div class="small muted">План — '+esc(pf.plan.source)+'.</div>'; }
+  return h+'</div>';
+}
+
+/* Полка «Мои»: недавние отчёты, плитки, архив; «Общие»: жизнь общего. */
+function w45ShowcaseCards(){
+  const sel = RP.state.sel, tab = sel.scTab || (RP.shelves('').mine.length ? 'мои' : 'отчёт');
+  let h = '';
+  if(tab === 'мои'){
+    const mine = RP.shelves('').mine.filter(r => r.kind === 'отчёт');
+    h += '<div class="card"><h3>Мои отчёты: показать, плитки, удаление</h3>'+
+      '<div class="btn-row"><button class="btn btn-primary btn-sm" onclick="RP.go(\'draft\')">Собрать в конструкторе</button></div>'+
+      (mine.length ? '<div class="tw"><table class="cgrid"><thead><tr><th>Отчёт</th><th>На плитках</th><th></th></tr></thead><tbody>'+
+        mine.map(r => { const tl = RP.tilesOf(r.id);
+          return '<tr><td>'+esc(r.name)+'</td><td class="small">'+(tl.length ? tl.map(x => 'на плитке: '+esc(x.dash)).join('; ') : '<span class="muted">—</span>')+'</td>'+
+            '<td class="act"><button class="btn btn-secondary btn-sm" onclick="RP.uiShowPersonal(\''+r.id+'\')">Показать</button> '+
+            '<button class="btn btn-secondary btn-sm" onclick="RP.doDeleteReport(\''+r.id+'\')">Удалить</button></td></tr>'; }).join('')+
+        '</tbody></table></div>' : '')+'</div>';
+    const rec = RP.recentReports();
+    h += '<div class="card"><h3>Недавние отчёты</h3>'+(rec.length ? rec.slice(0, 5).map(r => '<div class="small">'+fmt(r.at)+' — «'+esc(r.name)+'» · '+
+      esc(r.what)+', строк '+r.rows+'</div>').join('') : '<div class="small muted">Показов со строками объектов пока не было.</div>')+'</div>';
+  }
+  if(tab === 'общие'){
+    const own = RP.state.templates.filter(t => levelOf(t) === 'общий' && t.owner === RP.who());
+    const cand = RP.archiveCandidates().filter(c => TPL(c.id).owner === RP.who()), arch = RP.archived();
+    if(own.length || arch.length) h += '<div class="card"><h3>Мои общие отчёты: передача, архив, удаление</h3>'+
+      (cand.length ? cand.map(c => '<div class="banner info">«'+esc(c.name)+'» не открывали '+c.days+' дн. — предлагается в архив.</div>').join('') : '')+
+      own.filter(t => !t.archived).map(t => '<div class="seam"><b>«'+esc(t.name)+'»</b><div class="btn-row" style="margin:6px 0 0">'+
+        (t.owner !== 'Бекова Н.' ? '<button class="btn btn-secondary btn-sm" onclick="RP.doTransfer(\''+t.id+'\')">Передать Бековой Н.</button>' : '')+
+        '<button class="btn btn-secondary btn-sm" onclick="RP.doArchive(\''+t.id+'\')">В архив</button>'+
+        '<button class="btn btn-secondary btn-sm" onclick="RP.doDeleteReport(\''+t.id+'\')">Удалить</button></div></div>').join('')+
+      (arch.length ? '<h4>Архив</h4>'+arch.map(a => '<div class="small">«'+esc(a.name)+'» — в архиве с '+fmt(a.at)+
+        ' <button class="btn btn-secondary btn-sm" onclick="RP.doUnarchive(\''+a.id+'\')">Вернуть</button></div>').join('') : '')+'</div>';
+  }
+  return h;
+}
+
+/* «Мои задания» — карточка экрана уведомлений; сигналы с плитки помечены. */
+function w45SubsCards(){
+  const jobs = RP.myJobs(), fromTile = RP.mySubs().filter(s => s.fromTile);
+  let h = '<div class="card"><h3>Мои задания</h3>'+(jobs.length ? '<div class="tw"><table class="cgrid"><thead><tr><th>Задание</th><th>Отчёт</th><th>Что</th><th>Состояние</th><th>Хранится до</th></tr></thead><tbody>'+
+    jobs.map(j => '<tr><td class="mono">'+esc(j.id)+'</td><td class="small">'+esc(j.tplName)+'</td><td class="small">'+esc(j.what)+' · оценка '+String(j.est).replace('.', ',')+' с</td><td>'+
+      pill(j.state, 'ok')+'</td><td class="small">'+fmt(j.until)+'</td></tr>').join('')+'</tbody></table></div>'
+    : '<div class="small muted">Тяжёлых показов в фоне нет: показ с оценкой больше 15 с уходит сюда сам.</div>')+'</div>';
+  if(fromTile.length) h += '<div class="card"><h3>Сигналы, поставленные с плиток</h3>'+fromTile.map(s => '<div class="small">«'+esc(TPL(s.tpl).name)+'» — '+
+    esc(statName(s.stat))+' '+esc(s.cmp)+' '+money(s.value)+' · с плитки «'+esc(s.fromTile)+'»</div>').join('')+'</div>';
+  return h;
+}
+
+/* Журнал выпусков: журнал просмотров и события месяцу без событий. */
+function w45JournalCards(){
+  let h = '<div class="card"><h3>События месяцу без событий</h3><div class="small">Декабрь 2024 г. перенесён итогом без событий: поток за него — пустая '+
+    'клетка «события в легаси не перенесены». Новая версия миграции может дать события; сданные выпуски на прежних числах метятся.</div>'+
+    '<div class="btn-row"><button class="btn btn-secondary btn-sm" style="white-space:normal;text-align:left" onclick="RP.doMigrationEvents()">'+
+    'Новая версия миграции: события декабря 2024 по найденному архиву платёжных поручений</button></div></div>';
+  const vl = RP.viewLog();
+  h += '<div class="card"><h3>Журнал просмотров</h3>'+(vl.ok ? (vl.rows.length ? '<div class="tw"><table class="cgrid"><thead><tr><th>Когда</th><th>Кто</th><th>Отчёт</th><th>Что</th><th class="num">Строк</th></tr></thead><tbody>'+
+      vl.rows.slice(0, 12).map(r => '<tr><td>'+fmt(r.at)+'</td><td>'+esc(r.who)+'</td><td class="small">'+esc(r.tplName)+'</td><td class="small">'+esc(r.what)+
+        (r.asOf ? ' на '+fmt(r.asOf) : '')+(r.times > 1 ? ' · ×'+r.times : '')+'</td><td class="num">'+r.rows+'</td></tr>').join('')+'</tbody></table></div>'
+      : '<div class="small muted">Показов со строками объектов пока не было. Показы одних итогов не пишутся.</div>')
+    : '<div class="small muted">'+esc(vl.why)+'.</div>')+'</div>';
+  return h;
+}
+function w45WorklistCards(){
+  return '<div class="card"><h3>Список из внешнего перечня номеров</h3><div class="small">Перечень договоров из письма или файла: '+
+    'найденные становятся списком, не найденные называются поимённо, невидимые вам — только числом.</div>'+
+    '<div class="btn-row"><button class="btn btn-secondary btn-sm" onclick="RP.doNumbers()">Загрузить перечень: 5 номеров</button></div></div>';
+}
+function w45BuilderCards(){
+  const tid = RP.state.sel.draft, t = TPL(tid); if(!t) return '';
+  const a = RP.approverOf(tid); if(!a.ok) return '';
+  return '<div class="card"><h3>Кто утверждает</h3><div class="small"><b>'+esc(a.who)+'</b> — '+esc(a.why)+'.</div></div>';
+}
+/* Бланки имущества — четыре строки каталога: шаблонов нет, пока модуль имущества
+   не объявит публичный перечень полей предложения, объекта и договора купли-продажи. */
+function w45BoundsCards(){
+  return '<div class="card"><h3>Бланки имущества — ждут перечня полей</h3><div class="small">Ответ источнику, промежуточное письмо, '+
+    'уведомление о доплате, претензия покупателю — четыре бланка того же вида шаблона, что остальные. Шаблонов в макете нет: '+
+    'модуль имущества ещё не объявил публичный перечень полей предложения, объекта имущества и договора купли-продажи. '+
+    'Форма «Реестр имущества на дату» собирается в конструкторе — заготовкой.</div></div>';
+}
+[['issue', w45IssueCards], ['showcase', w45ShowcaseCards], ['subs', w45SubsCards], ['journal', w45JournalCards],
+ ['worklists', w45WorklistCards], ['builder', w45BuilderCards], ['bounds', w45BoundsCards]].forEach(p => { const f = VIEWS[p[0]].fn;
+  VIEWS[p[0]].fn = () => f() + p[1](); });
+/* ==/ДОБОР СТАРЫХ РЕШЕНИЙ== */
 RP.seed();
 if(typeof window !== 'undefined'){ window.RP = RP; window.SEAM = SEAM; window.act = act;
   window.VIEWS = VIEWS; }
