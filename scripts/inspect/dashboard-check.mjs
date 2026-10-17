@@ -1,7 +1,7 @@
-// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–14, 11–17.10.2026).
+// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–15, 11–17.10.2026).
 // Zero-dep: вытаскивает <script> из HTML и исполняет движок window.DB в node:vm (без DOM — render() и
 // toast() становятся no-op). Проверяется не «код есть», а поведение по решениям канона
-// mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-221, ИДБ-1…ИДБ-19):
+// mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-233, ИДБ-1…ИДБ-20):
 //   A  рамка и главная: вкладки — системные роли, роль без раскладки — минимальная (ДБ-8, ДБ-38, ДБ-50);
 //   B  плитка ссылается на отчёт и чисел не хранит: числа приходят от статистики через отчёт; «ждёт меня» — через очередь
 //      модуля-владельца, тоже от статистики (ДБ-99, ДБ-10, ДБ-11);
@@ -112,6 +112,15 @@
 //      «Фильтр». Переписаны под модель волны без ослабления: 59, 60, 82 (волны — прогноз: готовность — модули, объявившие объекты статистике,
 //      STAND.down вместо STAND.wave, и число отвечающих плиток роли), 145 (куратор без кредитов — «у вас пусто», законный ноль при непустом
 //      охвате — число), 271 (анимаций три: пульс скелета полосы — тоже только при разрешённом движении), 272 (часы шапки — время данных стенда).
+//   AB волна 15 (17.10.2026), новые виды полосы ДБ-222…ДБ-233, ADR-0308: Когорты — шестой вид пунктом «⋯» (в строке пять кнопок, открытые — нажатой
+//      пилюлей за ними, погашен с причиной у объектов без даты начала); ячейка Когорт = показатель у объектов когорты на конец месяца «начало + возраст − 1»,
+//      треугольник, итогов нет, «☰» ячейки сходится; у заёмщика, дела, заявки, на пути вглубь; Переходы — режим Карты: итоги строк = Разрез на базе, столбцов —
+//      сегодня, ячейка = «ушли в / пришли из» Движения в узле, цвет по диагонали, без «Сумма | Изменение»; план-факт — режим Разреза сам (доля к «плану»):
+//      факт, план, процент, недобор, от худшего, светофор; воронка — разрез «докуда дошла» (заявка в одном значении, итог — все поданные) и режим «воронкой»;
+//      Ряд по разрезу — строки в каждой точке = Ряду, одна шкала, «ещё N», клик — Ряд узла; «крупнейшие» — первые N объектов, «остальные N», накопленная
+//      доля, объект с собой на базе, во всех видах; сторож запретов: географической карты, точечной, круговой, каскада и прочих нет; 383 — находки ревью
+//      (выбор новых режимов помнится, нет базы — «—» в строках Ряда по разрезу, Переходы ждут базу скелетом, подпись погашенных осей). Переписаны под данные
+//      волны без ослабления: 122 (плиток Куратора и каталога на отчётах 18 — добавлена «Подано заявок · с начала года»), 196 (в каталоге 92 плитки).
 // Блоки, которые правят состояние, начинаются с DB.seed(). Выход 1 при любом FAIL.
 //   node scripts/inspect/dashboard-check.mjs
 import { readFileSync } from 'node:fs';
@@ -774,7 +783,7 @@ const asUser = id => { DB.state.userId = id; };
   const pa2 = T('p-u2-agro');
   ok(122, pr && pr.shelf === 'personal' && pr.owner === 'u2' && pr.circle.owner === 'u2' && pa.owner === 'u2' && pa.state === 'personal' && !own(pa) && pa.params.curator === '@me'
     && aa.state === 'ok' && aa.value === oa.value && aa.value > 0 && aa.passport === oa.passport
-    && cc.length === 17 && noOwnC && DB.REPORTS.filter(r => r.shelf === 'personal').length === 1
+    && cc.length === 18 && cc.some(t => t.id === 'cat-appfun') && noOwnC && DB.REPORTS.filter(r => r.shelf === 'personal').length === 1   // с волны 15 в каталоге и «Подано заявок · с начала года»
     && DB.reportById('r-u2-agro').title === hold && pa2.report === 'r-u2-agro' && pa2.state === 'personal' && DB.composeLayout('u2', 'cur').includes('p-u2-agro'),
     `«${pa.title}» ссылается на личный отчёт «${hold}» на полке Бековой (круг — она одна), значение «я» даёт плитка: ${aa.value} = прежнему вопросу; все ${cc.length} плиток Куратора и каталога на отчётах (${new Set(cc.map(t => t.report)).size} шт.), своего вопроса нет; отчёт переживает сброс стенда (ДБ-99, ДБ-103)`);
   // ни у одной плитки каталога нет своего вопроса: обзорная ссылается на отчёт, ссылочная — на очередь модуля-владельца
@@ -1859,7 +1868,7 @@ const asUser = id => { DB.state.userId = id; };
     ...Object.values(DB.state.screens).flat().flatMap(s => [...s.items, ...Object.keys(s.pinned)])];
   const left = REMOVED.filter(id => DB.tileById(id) || DB.TILES.some(t => t.id === id) || inLay.includes(id) || new RegExp('[\'"`]' + id + '[\'"`]').test(src));
   ok(196, REMOVED.length === 19 && new Set(REMOVED).size === 19 && left.length === 0 && !DB.catalogFor(U('u1')).some(x => REMOVED.includes(x.t.id))
-    && DB.TILES.length === 91 && DB.TILES.every(t => t.main && !('pick' in t) && !('format' in t) && !('top' in t) && !('points' in t)),
+    && DB.TILES.length === 92 && DB.tileById('cat-appfun') && DB.TILES.every(t => t.main && !('pick' in t) && !('format' in t) && !('top' in t) && !('points' in t)),
     `19 снятых плиток (${REMOVED.slice(0, 4).join(', ')}…) нет ни в списке плиток, ни в раскладках, личных перекладках и экранах, ни в тексте страницы; плиток в каталоге ${DB.TILES.length} (было 135), у каждой главное число и умолчания видов, прежних «выбор из ответа» и «формат» нет ни у одной`);
   // числа без намеренных изменений равны прежним: литералы из снимка до слияния, по умолчанию стенда, по одному пользователю на роль
   // Ряд плитки за прошлый месяц кончается её периодом: прежние 11 точек те же, неполный текущий месяц ушёл, слева — месяц годом раньше
@@ -4132,6 +4141,213 @@ const asUser = id => { DB.state.userId = id; };
   ok(371, ['com', 'otd', 'rep'].every(r => fo[r].off && fo[r].btn === OFF) && ['lead', 'cur'].every(r => !fo[r].off && /onclick="DB\.openFilter\(\)"/.test(fo[r].btn) && !/aria-disabled/.test(fo[r].btn))
     && /\.btn:disabled,\.btn\[aria-disabled="true"\]\{ color:var\(--text-disabled\);/.test(src) && /if\(filterOff\(user\(\), curRole\(\)\)\) return toast\(NO_FILTER\);/.test(src),
     'Комиссия, Отдел · заключения, Отчётность: в охвате нет ни одного значения области, подразделения и программы — «Фильтр» погашен (серый, без окна) с подсказкой «У плиток этой вкладки нет области, подразделения и программы»; у Руководства и Куратора — обычная кнопка (ДБ-221, ДБ-210, ДБ-Д60)');
+  DB.seed();
+})();
+
+/* ---------- AB. Волна 15 (17.10.2026): новые виды полосы — Когорты в «⋯», режимы Карты, Разреза и Ряда, ДБ-222…ДБ-233 ---------- */
+(() => {
+  const u1 = U('u1'), mln = n => (n / 1e6).toFixed(1).replace('.', ','), near = (a, b, e = 0.5) => a !== null && b !== null && a !== undefined && b !== undefined && Math.abs(a - b) < e;
+  const V = (id, kind, sel, path = [], uid = 'u1', role = 'lead', panel = {}) => DB.view(id, kind, sel, path, uid, role, panel);
+  const pc1 = x => (Math.round(x * 10) / 10).toString().replace('.', ',') + ' %';
+  const L = () => DB.DATA.loan, inQ = (s, len) => r => r.from >= s && r.from < s + len;
+
+  // ДБ-232, ДБ-225: Когорты — шестой вид пунктом «⋯»: в строке пять кнопок; открытые — нажатой пилюлей сразу за пятью, клик по любой из пяти
+  // возвращает; где нечего показать — пункт погашен с причиной
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
+  DB.openView('lead-od', 'slice'); const h0 = DB.stripHTML('lead-od'), btn0 = (h0.match(/<span class="seg sl-views">([\s\S]*?)<\/span>/) || ['', ''])[1];
+  const ci = DB.cohortItem('lead-od', 'u1', 'lead'), cz = DB.cohortItem('zal-value', 'u5', 'zal'), cr = DB.cohortItem('acc-prev', 'u4', 'acc'), co = DB.cohortItem('rep-od', 'u10', 'rep');
+  DB.openView('lead-od', 'cohort'); const h1 = DB.stripHTML('lead-od'), btn1 = (h1.match(/<span class="seg sl-views">([\s\S]*?)<\/span>/) || ['', ''])[1], md1 = DB.mode('lead-od');
+  DB.openView('lead-od', 'table'); const h2 = DB.stripHTML('lead-od'); DB.closeView('lead-od'); const back = DB.clickOf('lead-od', 'u1', 'lead');
+  const zOpen = DB.openView('zal-value', 'cohort');
+  ok(372, DB.VIEW_KINDS.join() === 'series,slice,map,move,table' && (btn0.match(/<button/g) || []).length === 5 && !/Когорты/.test(btn0)
+    && ci.ok && /период выдачи/.test(ci.hint) && !cz.ok && /у объекта «Предмет залога» нет даты начала/.test(cz.why) && !cr.ok && /нет даты начала/.test(cr.why) && !co.ok && /показатель без истории|нет даты начала/.test(co.why)
+    && (btn1.match(/<button/g) || []).length === 6 && /<button class="on sl-coh" aria-pressed="true"[^>]*>Когорты<\/button>$/.test(btn1) && (btn1.match(/class="[^"]*\bon\b/g) || []).length === 1
+    && !/class="strip-mode"/.test(h1) && md1.shown === null && /<button class="on" onclick="DB\.openView\('lead-od','table'\)">Таблица<\/button>|<button class="on"[^>]*>Таблица/.test(h2) && !/sl-coh/.test(h2)
+    && back.act === 'view' && back.kind === 'table' && zOpen === null && /co\.ok \? `DB\.openView\('\$\{id\}','cohort'\)` : null/.test(src),
+    `в строке полосы пять кнопок; «⋯» — пункт «Когорты» (${ci.hint}); у залога погашен: «${cz.why.slice(0, 60)}…»; открытые Когорты — шестой нажатой пилюлей за пятью, «Сумма | Изменение» нет; клик по «Таблица» — назад (ДБ-232, ДБ-225, ДБ-119)`);
+
+  // ДБ-225: Когорты кредита — строка — квартал выдачи, колонка — 3…24 мес. с начала, ячейка — показатель плитки у кредитов когорты на конец
+  // месяца «начало + возраст − 1»; треугольник; итогов нет; слева — выдано; «☰» ячейки — её кредиты, сумма = ячейке
+  DB.seed();
+  const cq = V('lead-od', 'cohort', { per:'q' }).cohort, hq = (DB.openView('lead-od', 'cohort'), DB.stripHTML('lead-od'));
+  const want = (s, len, m) => sum(L().filter(inQ(s, len)).filter(l => l.from <= m && DB.DIMS.lact.at(l, m) === 'действующий').map(l => DB.loanAt(l, m).overdue || 0));
+  const cellsOk = cq.rows.every(r => r.cells.every((x, i) => x === null ? r.s + cq.ages[i] - 1 > 0 : x.m === r.s + cq.ages[i] - 1 && near(x.v, want(r.s, 3, x.m))));
+  const volOk = cq.rows.every(r => r.vol.n === L().filter(inQ(r.s, 3)).length && r.vol.sum === sum(L().filter(inQ(r.s, 3)).map(l => l.issued)));
+  const r24 = cq.rows[0], c24 = r24.cells[7], w24 = DB.drill('lead-od', u1, 'lead', {}, { m:c24.m, coh:{ s:r24.s, len:3 } });
+  const young = cq.rows.find(r => r.label === '1 кв 2026'), cy = young.cells[2], wy = DB.drill('lead-od', u1, 'lead', {}, { m:cy.m, coh:{ s:young.s, len:3 } });
+  const cm = V('lead-od', 'cohort', { per:'m' }).cohort;
+  ok(373, cq.rows.map(r => r.label).join() === '4 кв 2024,1 кв 2025,2 кв 2025,3 кв 2025,4 кв 2025,1 кв 2026,2 кв 2026,3 кв 2026,4 кв 2026' && cq.ages.join() === '3,6,9,12,15,18,21,24'
+    && cq.rows.map(r => r.cells.filter(Boolean).length).join() === '8,7,6,5,4,3,2,1,0' && cellsOk && volOk && !('total' in cq) && /class="heat co"/.test(hq) && !/>итог</.test(hq.split('class="heat co"')[1] || '')
+    && w24.matches && w24.list.length === c24.cnt && near(w24.sum, c24.v) && wy.matches && wy.list.length === cy.cnt
+    && cm.rows.length === 24 && cm.rows[0].label === 'ноя 2024' && cm.rows[0].cells.filter(Boolean).length === 8 && cm.rows[23].cells.filter(Boolean).length === 0 && cm.rows[21].cells[0].open,
+    `«Просрочено» по кварталам выдачи: 9 когорт (4 кв 2024 … 4 кв 2026), клеток 8, 7 … 1, 0 — треугольник; 4 кв 2024: выдано ${mln(r24.vol.sum)} млн (${r24.vol.n} кредитов), через 24 мес. — ${mln(c24.v)} млн (☰ ${c24.cnt}, список сходится), 1 кв 2026 через 9 мес. — ${mln(cy.v)} млн из ${mln(young.vol.sum)}; каждая ячейка = сумме просроченного на конец месяца у действующих кредитов когорты; итогов нет; по месяцам — 24 строки, ноя 2024 … окт 2026 (ДБ-225)`);
+
+  // ДБ-225: у заёмщика — от первого договора (клиенты когорты, ещё действующие на конец месяца), у дела взыскания — от открытия, у заявки —
+  // от подачи; на пути вглубь — тоже; у остальных объектов погашено
+  DB.seed();
+  const cb = V('lead-borr', 'cohort', { per:'q' }).cohort, B = DB.DATA.borrower;
+  const bOk = cb.rows.every(r => r.vol.n === B.filter(b => b.firstM !== null && b.firstM >= r.s && b.firstM < r.s + 3).length
+    && r.cells.every(x => !x || x.v === B.filter(b => b.firstM !== null && b.firstM >= r.s && b.firstM < r.s + 3 && DB.pstateAt(b, x.m) === 'действующий').length));
+  const cc = V('prob-cases', 'cohort', { per:'q' }, [], 'u3', 'prob'), ca = V('spec-work', 'cohort', { per:'q' }, [], 'u6', 'spec');
+  const deep = V('lead-od', 'cohort', { per:'q' }, [{ dim:'region', v:'Ошская' }]).cohort, all = V('lead-od', 'cohort', { per:'q' }).cohort;
+  const regs = DB.DIMS.region.values.map(v => V('lead-od', 'cohort', { per:'q' }, [{ dim:'region', v }]).cohort);
+  const addUp = all.rows.every((r, i) => r.cells.every((x, j) => !x || near(x.v, sum(regs.map(c => (c.rows.find(y => y.s === r.s) || { cells:[] }).cells[j]).filter(Boolean).map(y => y.v)))));
+  const off = ['zal-value', 'acc-prev', 'prob-claims'].map(id => DB.view(id, 'cohort', null, [], id === 'zal-value' ? 'u5' : id === 'acc-prev' ? 'u4' : 'u3', id === 'zal-value' ? 'zal' : id === 'acc-prev' ? 'acc' : 'prob', {}));
+  ok(374, cb.rows.length >= 8 && bOk && cb.rows[0].cells[0].v > cb.rows[0].cells[7].v && cc.state === 'ok' && cc.cohort.rows.length > 0 && cc.cohort.vol === 'дел' && ca.state === 'ok' && ca.cohort.vol === 'подано'
+    && deep.rows.length > 0 && deep.rows.every(r => r.vol.n === L().filter(inQ(r.s, 3)).filter(l => l.region === 'Ошская').length) && addUp
+    && off.every(r => r.state === 'off' && /нет даты начала/.test(r.msg)),
+    `«Заёмщиков» по кварталу первого договора: клиенты когорты, ещё действующие на конец месяца (4 кв 2024: ${cb.rows[0].cells[0].v} → ${cb.rows[0].cells[7].v} за 24 мес.); дела — от открытия, заявки — от подачи; на пути «Ошская» — только её кредиты, когорты семи областей складываются в общие; залог, поступление, требование — погашено «нет даты начала» (ДБ-225)`);
+
+  // ДБ-223: Переходы — режим Карты: срок на 30.09 × сегодня; итог строки — Разрез на 30.09, итог столбца — сегодня; ячейка = «ушли в» узла строки
+  // на базе и «пришли из» узла столбца сегодня (данные Движения в узле); «ушли» и «новые» с причинами; переключателя «Сумма | Изменение» нет
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
+  const tr = V('lead-od', 'map', { axes:'trans', tdim:'bucket' }), T5 = tr.trans, rz = V('lead-od', 'slice', { dim:'bucket', mode:'change' }), bs = DB.base('lead-od', 'u1', 'lead', {});
+  const node = v => rz.nodes.find(n => n.v === v), ix = v => T5.vals.indexOf(v), c34 = T5.cells[ix('31–90')][ix('91–180')];
+  const outE = node('31–90').moves.to.find(x => x.v === '91–180'), inE = node('91–180').moves.from.find(x => x.v === '31–90');
+  const totOk = T5.vals.every((v, i) => near(T5.rowTot[i].value, node(v).base || 0) && near(T5.colTot[i].value, node(v).value || 0)
+    && near(T5.rowTot[i].value, sum(T5.cells[i].map(c => c.base)) + T5.gone[i].base) && near(T5.colTot[i].value, sum(T5.cells.map(r => r[i].now)) + T5.neu[i].now));
+  const whyN = T5.gone.every(g => sum(Object.values(g.why)) === g.n) && T5.neu.every(g => sum(Object.values(g.why)) === g.n) && T5.neu[ix('1–30')].why['новые в просрочке'] === T5.neu[ix('1–30')].n;
+  const wc = DB.drill('lead-od', u1, 'lead', {}, { d:'bucket', tr:['31–90', '91–180'] }), wg = DB.drill('lead-od', u1, 'lead', {}, { d:'bucket', tr:['181+', null] }), wn = DB.drill('lead-od', u1, 'lead', {}, { d:'bucket', tr:[null, '1–30'] });
+  DB.openView('lead-od', 'map'); DB.viewSet('lead-od', 'axes', 'trans'); const ht = DB.stripHTML('lead-od'), mt = DB.mode('lead-od');
+  const cls = (a, b) => (ht.match(new RegExp('<td class="c (hm-[a-z]\\d)"[^>]*data-tip="' + a + ' на 30\\.09 → ' + b + ' сегодня')) || [])[1];
+  const lb = V('lead-bal', 'map', { axes:'trans', tdim:'bucket' }).trans, li = lb.vals.indexOf('31–90'), lj = lb.vals.indexOf('нет просрочки');
+  DB.openView('lead-bal', 'map'); DB.viewSet('lead-bal', 'axes', 'trans'); const hb = DB.stripHTML('lead-bal');
+  ok(375, tr.state === 'ok' && tr.axes === 'trans' && tr.mode === null && totOk && near(T5.base, bs.shift.base) && near(T5.now, bs.value)
+    && near(c34.base, -outE.sum) && c34.n === outE.cnt && near(c34.now, inE.sum) && c34.n === inE.cnt && whyN
+    && wc.matches && wc.list.length === c34.n && near(wc.sum, c34.base) && wg.matches && wg.list.length === T5.gone[ix('181+')].n && wn.matches && near(wn.sum, T5.neu[ix('1–30')].now)
+    && !/class="strip-mode"/.test(ht) && mt.shown === null && /^hm-r\d$/.test(cls('31–90', '91–180')) && /^hm-s\d$/.test(cls('91–180', '91–180'))
+    && /<td class="c hm-x\d"[^>]*data-tip="181\+ на 30\.09 → ушли/.test(ht) && /<td class="c hm-x\d"[^>]*data-tip="новые → 1–30 сегодня/.test(ht)
+    && lb.cells[li][lj].n > 0 && new RegExp('<td class="c hm-g\\d"[^>]*data-tip="31–90 на 30\\.09 → нет просрочки сегодня').test(hb),
+    `«Просрочено» срок на 30.09 × сегодня: итоги строк = Разрез на 30.09 (${T5.vals.map((v, i) => mln(T5.rowTot[i].value)).join(' · ')}), столбцов — сегодня (${T5.colTot.map(c => mln(c.value)).join(' · ')}), всего ${mln(T5.base)} → ${mln(T5.now)} = база и число плитки; 31–90 → 91–180: ☰ ${c34.n}, ${mln(c34.base)} млн на 30.09 = «ушли в 91–180» узла 31–90, ${mln(c34.now)} млн сегодня = «пришли из 31–90» узла 91–180; «ушли» и «новые» с причинами; правее диагонали красным, левее (у «Остатка» 31–90 → нет просрочки) — зелёным, диагональ — синяя; «Сумма | Изменение» нет (ДБ-223, ДБ-233)`);
+
+  // ДБ-223: Переходы — у остатка-суммы или счёта с базой, по разрезу со значением на дату базы; иначе кнопка осей погашена с причиной
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
+  const tp = DB.transFor('lead-paid', 'u1', 'lead'), ts = DB.transFor('lead-recov', 'u1', 'lead'), tmx = DB.transFor('prob-since', 'u3', 'prob'), tod = DB.transFor('lead-od', 'u1', 'lead');
+  DB.openView('lead-od', 'map'); const er = DB.viewSet('lead-od', 'tdim', 'region'); DB.viewSet('lead-od', 'axes', 'trans'); const er2 = DB.viewSet('lead-od', 'tdim', 'region'); const hs = DB.stripHTML('lead-od'), selT = (hs.match(/<select aria-label="Разрез на дату базы и сегодня"[\s\S]*?<\/select>/) || [''])[0];
+  DB.openView('lead-paid', 'map'); const hp = DB.stripHTML('lead-paid'), ep = DB.viewSet('lead-paid', 'axes', 'trans');
+  DB.stand('baseDown', true); const tdn = DB.transFor('lead-od', 'u1', 'lead'); DB.stand('baseDown', false);
+  const deepT = V('lead-od', 'map', { axes:'trans', tdim:'bucket' }, [{ dim:'region', v:'Ошская' }]), deepR = V('lead-od', 'slice', { dim:'bucket', mode:'change' }, [{ dim:'region', v:'Ошская' }]);
+  ok(376, !tp.ok && /у потока нет значения на дату базы/.test(tp.why) && !ts.ok && /у доли переходов нет/.test(ts.why) && !tmx.ok && /у наибольшего/.test(tmx.why)
+    && tod.ok && tod.dims.includes('bucket') && tod.dims.includes('category') && !tod.dims.includes('region') && !tod.dims.includes('program')
+    && er2.error && /нет значения на дату базы/.test(er2.error) && /value="bucket"/.test(selT) && !/value="region"|value="program"/.test(selT)
+    && /<button class="off" aria-disabled="true" data-tip="Переходы недоступны: у потока нет значения на дату базы/.test(hp) && ep.error
+    && !tdn.ok && /нужна база: нет ответа на 30\.09/.test(tdn.why)
+    && deepT.state === 'ok' && deepT.trans.vals.every((v, i) => near(deepT.trans.colTot[i].value, (deepR.nodes.find(n => n.v === v) || {}).value || 0) && near(deepT.trans.rowTot[i].value, (deepR.nodes.find(n => n.v === v) || {}).base || 0)),
+    `Переходы: у потока («Поступило») — «${tp.why}», у доли — «${ts.why}», у наибольшего — нет; разрезы — только со значением на дату базы (${tod.dims.join(', ')}), «Область» не предлагается; нет ответа на 30.09 — «${tdn.why}»; на пути «Ошская» итоги = Разрез узла на две даты (ДБ-223, ДБ-175)`);
+
+  // ДБ-224: план-факт — режим Разреза, сам: второе число — доля к «Ожидалось по графику»: строка — факт из плана, % исполнения, полоса и метка
+  // плана, недобор; от худшего; итог — оба числа и процент; светофор плитки красит процент; у доли не к плану режима нет; «Изменение» — как Разрез
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
+  const pf = V('lead-paid', 'slice', { dim:'program' }), exp = DB.at('lead-paid', 'table(program;loan.expected)', 'u1', 'lead', {});
+  const pfOk = pf.nodes.every(n => n.plan.fact === n.value && near(n.plan.plan, (exp.find(x => x[0] === n.v) || [])[1]) && near(n.plan.pct, n.plan.fact / n.plan.plan * 100, 1e-9));
+  const pt = pf.plan.total, b2 = DB.base('lead-paid', 'u1', 'lead', {});
+  DB.openView('lead-paid', 'slice'); const hpf = DB.stripHTML('lead-paid'), names = [...hpf.matchAll(/<div class="rz-r"[^>]*><span class="rz-nm">([^<]+)<\/span>/g)].map(x => x[1]);
+  const worst = pf.nodes.slice().sort((a, b) => a.plan.pct - b.plan.pct).slice(0, 3).map(n => n.label);
+  DB.mode('lead-paid', 'change'); const hpc = DB.stripHTML('lead-paid');
+  DB.seed(); asUser('u2'); DB.setTab('role', 'cur'); DB.openView('cur-plan1', 'slice'); const hcp = DB.stripHTML('cur-plan1'), cp = V('cur-plan1', 'slice', { dim:'program' }, [], 'u2', 'cur');
+  const chips = [...hcp.matchAll(/<span class="pf-p"><span class="chipv (red|yellow|green)"/g)].map(x => x[1]), tlw = cp.nodes.slice().sort((a, b) => a.plan.pct - b.plan.pct).slice(0, 3).map(n => n.plan.pct < 80 ? 'red' : n.plan.pct < 95 ? 'yellow' : 'green');
+  const od = V('lead-od', 'slice', { dim:'program' });
+  ok(377, DB.planShareOf('lead-paid').join() === 'loan.paid,loan.expected' && DB.planShareOf('cat-plan').join() === 'loan.paidPlanned,loan.plan' && DB.planShareOf('lead-od') === null && !od.plan
+    && pfOk && pt.fact === b2.value && near(pt.plan, b2.second.den) && near(pt.pct, b2.second.value, 1e-9) && names.join() === worst.join()
+    && /<div class="rz pf">/.test(hpf) && /class="pf-mk"/.test(hpf) && /class="pf-n bad"[^>]*>−/.test(hpf) && !/chipv/.test(hpf.split('class="rz pf"')[1])
+    && !/class="rz pf"/.test(hpc) && /<div class="rz c5 chg">/.test(hpc) && chips.length === 5 && chips.slice(0, 3).join() === tlw.join() && !/план-факт<\/button>|>с планом</.test(hpf),
+    `«Поступило · прошлый месяц» (второе число — к графику) по программам: строки — факт из плана, процент исполнения, полоса до плана с меткой и недобор, от худшего (${worst.join(', ')}); итог ${mln(pt.fact)} из ${mln(pt.plan)} млн, ${pc1(pt.pct)} = главное и второе число плитки; у «Исполнения плана» куратора процент окрашен светофором плитки (${chips.join(', ')}); «Изменение» — обычный Разрез; переключателя нет (ДБ-224, ДБ-233)`);
+
+  // ДБ-226: воронка — разрез «докуда дошла» (каждая заявка в одном значении, итог — сумма строк, все поданные) и режим Разреза «воронкой»:
+  // дошли до этапа нарастающим снизу, переход от прошлого этапа, «−N» выбывших с причиной, «в работе» серым; в Таблице — обычные строки
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
+  const fu = V('cat-appfun', 'slice', { dim:'afunnel' }), F = DB.FUNNEL, fv = v => (fu.nodes.find(n => n.v === v) || {}).value || 0;
+  const reach = F.map((x, k) => sum(F.slice(k).flatMap(y => [y.work, y.loss, y.done].filter(Boolean)).map(fv)));
+  const ytd = DB.DATA.app.filter(a => a.at >= -9 && (a.at < 0 || a.day <= DB.TODAY.day));
+  const one = DB.DATA.app.every(a => DB.FUNNEL.flatMap(y => [y.work, y.loss, y.done].filter(Boolean)).filter(v => v === a.fate).length === 1)
+    && DB.DATA.app.every(a => a.inWork ? /^в работе/.test(a.fate) : !/^в работе/.test(a.fate)) && DB.DATA.app.filter(a => a.status === 'На оформлении').every(a => a.fate === 'в работе: оформление');
+  DB.addFromCatalog('cat-appfun'); DB.openView('cat-appfun', 'slice'); const hf = DB.stripHTML('cat-appfun');
+  const wf = DB.drill('cat-appfun', u1, 'lead', {}, { d:'afunnel', fk:3, vs:F.slice(3).flatMap(y => [y.work, y.loss, y.done].filter(Boolean)) });
+  const tb = V('cat-appfun', 'table', { dim:'afunnel', cols:['app.filed'] }), sp = V('cat-appfun', 'slice', { dim:'program' }), dpf = V('cat-appfun', 'slice', { dim:'afunnel' }, [{ dim:'program', v:'agro' }]);
+  ok(378, fu.state === 'ok' && fu.funnel === 'afunnel' && fu.nodes.map(n => n.v).join() === DB.DIMS.afunnel.values.join() && sum(fu.nodes.map(n => n.value)) === fu.total.v
+    && fu.total.v === DB.at('cat-appfun', 'main', 'u1', 'lead', {}) && fu.total.v === ytd.length && reach[0] === fu.total.v && one && !!DB.DIMS.afunnel.req
+    && /<div class="rz fn">/.test(hf) && F.every((x, k) => new RegExp('<span class="rz-nm">' + x.stage + '</span><span class="rz-v">' + reach[k] + '</span><span class="fn-c">' + (k ? pc1(reach[k] / reach[k - 1] * 100) : '') + '</span>').test(hf))
+    && new RegExp('−' + fv('отказ комиссии') + ' отказ комиссии').test(hf) && new RegExp(fv('в работе: комиссия') + ' в работе').test(hf) && /class="fn-s work"/.test(hf)
+    && new RegExp('итог · все поданные</span><span class="rz-v">' + fu.total.v + '<').test(hf) && wf.matches && wf.list.length === reach[3]
+    && tb.table && tb.table.rows.length === 9 && !sp.funnel && dpf.state === 'ok' && dpf.funnel && sum(dpf.nodes.map(n => n.value)) === dpf.total.v,
+    `«Подано заявок · с начала года» (${fu.total.v}) по «Докуда дошла»: каждая заявка в одном значении, строки складываются в итог; воронка — ${F.map((x, k) => x.stage + ' ' + reach[k]).join(' → ')}; «−${fv('не прошли проверку')} не прошли проверку», «−${fv('отказ комиссии')} отказ комиссии», «−${fv('отказ заёмщика')} отказ заёмщика»; ☰ «Комиссия» — ${wf.list.length} заявок; в Таблице и по программе — обычные строки; на пути «Агрокредит» — тоже воронка (ДБ-226, ИДБ-18)`);
+
+  // ДБ-227: Ряд по разрезу — режим Ряда «итог | по разрезу ▾»: строка на значение, одна шкала, первые N и «ещё N», итог — сам Ряд; в каждой точке
+  // строки складываются в итог; клик по строке — Ряд узла (глубже); «Изменение» — разница к прошлому месяцу в каждой строке
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
+  const sr = V('lead-od', 'series', { points:12, of:'main', by:'region' }), SB = sr.series.by, P = sr.series.points;
+  const addPts = P.every((p, i) => near(sum(SB.lines.map(l => l.vals[i])), p.vals[0])) && near(sum([...SB.shown, SB.more].map(l => l.last)), P[11].vals[0]);
+  const top3 = SB.lines.slice().sort((a, b) => b.last - a.last).slice(0, 3).map(l => l.v), dOk = SB.lines.every(l => l.deltas.every((d, i) => i === 0 || near(d, l.vals[i] - l.vals[i - 1])));
+  const sb = V('lead-bal', 'series', { points:12, by:'bucket' }).series.by;
+  DB.openView('lead-od', 'series'); DB.viewSet('lead-od', 'of', 'main'); DB.viewSet('lead-od', 'by', 'region'); const hs1 = DB.stripHTML('lead-od');
+  const hts = [...hs1.matchAll(/<span class="sb-b" style="height:(\d+)px"><\/span>/g)].map(x => +x[1]), mxV = Math.max(...[...SB.shown, SB.more].flatMap(l => l.vals));
+  DB.deeper('lead-od', 'region', 'Чуйская'); const o = DB.state.open['lead-od'], dv = DB.view('lead-od', 'series', o.sel, o.path, 'u1', 'lead', {});
+  const chu = SB.lines.find(l => l.v === 'Чуйская');
+  ok(379, sr.state === 'ok' && SB.lines.length === 7 && addPts && SB.shown.map(l => l.v).join() === top3.join() && SB.more.label === 'ещё 4' && dOk
+    && sb.shown.map(l => l.v).join() === DB.DIMS.bucket.values.join() && sb.more === null && /class="strip-mode"/.test(hs1) && /<div class="sb">/.test(hs1)
+    && Math.max(...hts) === 34 && hts.every(h => h <= 34) && /<span class="sb-p lt"/.test(hs1) && /onclick="event\.stopPropagation\(\);DB\.deeper\('lead-od','region','Чуйская'\)"/.test(hs1)
+    && o.kind === 'series' && o.path.length === 1 && !o.sel.by && !dv.series.by && near(dv.series.points[11].vals[0], chu.last) && near(dv.series.points[0].vals[0], chu.vals[0]),
+    `«Просрочено» по областям за 12 мес.: в каждой точке 7 строк = Ряду (сегодня ${mln(P[11].vals[0])} млн); показаны ${SB.shown.map(l => l.label).join(', ')} и «ещё 4», шкала одна (самый высокий столбец — ${mln(mxV)} млн, 34 px); незакрытые месяцы светлее; по сроку — пять строк своей шкалой; клик «Чуйская» — Ряд узла (${mln(chu.last)} млн), выбор «по разрезу» сброшен; «Изменение» — разница к прошлому месяцу в каждой строке (ДБ-227, ДБ-233)`);
+
+  // ДБ-228: «крупнейшие» — первые N объектов по показателю плитки и «остальные N», накопленная доля; в «Изменении» объект — с собой на базе;
+  // работает в Таблице, Карте и Ряде по разрезу; не у счёта и доли
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
+  const bg = V('lead-od', 'slice', { dim:'big', bn:10 }), act = L().filter(l => !l.closed && l.overdue > 0).sort((a, b) => b.overdue - a.overdue || (a.id < b.id ? -1 : 1));
+  const ids = bg.lines.filter(n => n.v !== 'остальные').map(n => n.v), rest = bg.lines.find(n => n.v === 'остальные');
+  const share10 = sum(act.slice(0, 10).map(l => l.overdue)) / bg.total.v * 100;
+  DB.openView('lead-od', 'slice'); DB.viewSet('lead-od', 'dim', 'big'); const hbg = DB.stripHTML('lead-od');
+  const bc = V('lead-od', 'slice', { dim:'big', bn:10, mode:'change' }), bcOk = bc.nodes.filter(n => n.v !== 'остальные').every(n => { const l = L().find(x => x.id === n.v); return near(n.base, DB.DIMS.lact.at(l, -1) === 'действующий' ? DB.loanAt(l, -1).overdue : 0); });
+  const btb = V('lead-od', 'table', { dim:'big', bn:5, cols:['loan.overdue', 'loan.balance'] }), bmp = V('lead-od', 'map', { dims:['big', 'bucket'], bn:5 });
+  const bsr = V('lead-od', 'series', { points:6, of:'main', by:'big', bn:5 }).series, bsrOk = bsr.points.every((p, i) => near(sum([...bsr.by.lines].map(l => l.vals[i])), p.vals[0]));
+  const w1 = DB.drill('lead-od', u1, 'lead', {}, { d:'big', v:ids[0], bn:10 }), wr = DB.drill('lead-od', u1, 'lead', {}, { d:'big', v:'остальные', bn:10 });
+  DB.openView('lead-borr', 'slice'); const eb = DB.viewSet('lead-borr', 'dim', 'big');
+  ok(380, bg.state === 'ok' && ids.join() === act.slice(0, 10).map(l => l.id).join() && rest.label === 'остальные ' + (act.length - 10).toLocaleString('ru-RU').replace(/\s/g, ' ')
+    && near(sum(bg.lines.map(n => n.value)), bg.total.v) && bg.total.v === DB.at('lead-od', 'main', 'u1', 'lead', {}) && bg.lines[0].label === ids[0] + ' · ' + act[0].borrower
+    && new RegExp('10 крупнейших — ' + pc1(share10).replace('.', '\\.') + '</b>').test(hbg) && /<span class="rz-k"[^>]*>100 %<\/span>/.test(hbg) && /<div class="rz c5 big">/.test(hbg) && /⚑ Крупнейшие/.test(hbg)
+    && bcOk && btb.table.rows.length === 6 && near(btb.total[0], bg.total.v) && bmp.heat.rows.length === 6 && near(bmp.total.v, bg.total.v) && bsrOk
+    && w1.matches && w1.list.length === 1 && w1.list[0].r.id === ids[0] && wr.refused && wr.count === act.length - 10 && eb.error && /у плитки-суммы/.test(eb.error)
+    && DB.bigOK('lead-od') && DB.bigOK('lead-bal') && !DB.bigOK('lead-borr') && !DB.bigOK('lead-recov') && !DB.bigOK('acc-unident'),
+    `«Просрочено» по «крупнейшим»: 10 кредитов с наибольшим просроченным (${ids.slice(0, 3).join(', ')}…) и «остальные ${act.length - 10}» одной строкой, итог ${mln(bg.total.v)} млн = число плитки; 10 крупнейших — ${pc1(share10)}; в «Изменении» каждый кредит — со своим числом на 30.09; Таблица, Карта «крупнейшие × срок» и Ряд по разрезу — те же строки; у счёта и доли не предлагается (ДБ-228)`);
+
+  // ДБ-233: у Когорт и Переходов «Сумма | Изменение» нет; у Ряда по разрезу, план-факта, воронки и «крупнейших» — есть; выбор режима — в теле полосы
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
+  // выбор вида помнится — каждый вид с чистого стенда
+  const tools = (id, kind, sets) => { DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.openView(id, kind); sets.forEach(([k, v]) => DB.viewSet(id, k, v)); const h = DB.stripHTML(id); DB.closeView(id);
+    const line = (h.match(/<div class="strip-line">([\s\S]*?)<div class="strip-b">/) || ['', ''])[1], body = (h.match(/<div class="strip-tools">([\s\S]*?)<\/div><\/div>/) || ['', ''])[1];
+    return { mode:/class="strip-mode"/.test(h), line, body }; };
+  const tC = tools('lead-od', 'cohort', []), tT = tools('lead-od', 'map', [['axes', 'trans']]), tS = tools('lead-od', 'series', [['by', 'region']]), tP = tools('lead-paid', 'slice', []), tB = tools('lead-od', 'slice', [['dim', 'big']]), tM = tools('lead-od', 'map', []);
+  ok(381, !tC.mode && !tT.mode && tS.mode && tP.mode && tB.mode && tM.mode && /Оси <span class="seg">/.test(tM.body) && /Оси <span class="seg">/.test(tT.body) && !/Оси/.test(tM.line)
+    && /Ряд <span class="seg"><button class=""[^>]*>итог<\/button><button class="on"[^>]*>по разрезу<\/button>/.test(tS.body) && !/по разрезу/.test(tS.line) && /Начало <span class="seg">/.test(tC.body)
+    && /Крупнейших <span class="seg">/.test(tB.body) && /<option value="big" selected>⚑ Крупнейшие<\/option>/.test(tB.line),
+    'Когорты и Карта в режиме Переходов — без «Сумма | Изменение» (вид сам сравнивает); Ряд по разрезу, план-факт, «крупнейшие» — с ним; оси Карты, «итог | по разрезу» Ряда и начало Когорт — в теле полосы, «крупнейшие» — в выборе разреза (ДБ-233)');
+
+  // ДБ-222, ДБ-229…ДБ-231: кнопку получает только вид с новым вопросом — пять и Когорты в «⋯»; новые рисунки — режимы этих видов. Географической
+  // карты, точечной, круговой, каскада, календаря по дням, спидометра, дерева-прямоугольников и Sankey нет ни видом, ни режимом
+  const body2 = src.replace(/<!--[\s\S]*?-->/g, '');
+  const fmts = [...new Set([...body2.matchAll(/case '([a-z]+)':/g)].map(x => x[1]))].filter(f => ['number', 'shift', 'slice', 'steps', 'series', 'move', 'heat', 'table', 'cohort', 'trans'].includes(f));
+  ok(382, DB.VIEW_KINDS.length === 5 && /const VIEW_NAMES = \{ series:'Ряд', slice:'Разрез', map:'Карта', move:'Движение', table:'Таблица', cohort:'Когорты' \};/.test(src)
+    && !/карт[аоуы]грамм|географ|точечн|кругов|каскад|календар[ья] по дням|спидометр|sankey|дерев[оа]-прямоуг|treemap|scatter|\bpie\b|waterfall|gauge|choropleth/i.test(body2)
+    && /\{ format:'trans', dims:\[s\.tdim\] \}/.test(src) && /res\.plan && res\.mode!=='change' \? pfBody/.test(src) && /res\.funnel && res\.mode!=='change' \? fnBody/.test(src) && /res\.series && res\.series\.by \? srByBody/.test(src)
+    && fmts.length === 10,
+    'видов пять и Когорты (шестой — из «⋯»); Переходы — режим Карты, план-факт и воронка — режимы Разреза, Ряд по разрезу — режим Ряда, «крупнейшие» — разрез; географической карты, точечной, круговой, каскада, календаря по дням, спидометра, дерева-прямоугольников и Sankey в макете нет (ДБ-222, ДБ-229, ДБ-230, ДБ-231)');
+
+  // находки ревью волны 15: выбор новых режимов помнится у человека; нет ответа на дату базы — точка «—» и в строках Ряда по разрезу; медленная
+  // отчётность — Переходы ждут базу скелетом (без неё вида нет); у потока кнопка Переходов не печатает «на августу»
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
+  DB.openView('lead-od', 'series'); DB.viewSet('lead-od', 'by', 'region'); DB.closeView('lead-od'); DB.openView('lead-od', 'series'); const mBy = DB.state.open['lead-od'].sel; DB.closeView('lead-od');
+  const sBy = DB.viewSel(T('lead-od'), 'series', {}, u1, [], {});
+  DB.openView('lead-od', 'cohort'); DB.viewSet('lead-od', 'per', 'm'); DB.closeView('lead-od'); const sPer = DB.viewSel(T('lead-od'), 'cohort', {}, u1, [], {});
+  DB.stand('baseDown', true); const bdr = V('lead-od', 'series', { points:12, of:'main', by:'region' }).series, i30 = bdr.points.findIndex(p => p.m === -1);
+  const bdOk = bdr.points[i30].vals[0] === null && bdr.by.lines.every(l => l.vals[i30] === null && l.deltas[i30] === null && l.deltas[i30 + 1] === null && l.change !== null) && bdr.by.more.vals[i30] === null;
+  DB.stand('baseDown', false);
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.stand('slow', true); DB.openView('lead-od', 'map'); DB.viewSet('lead-od', 'axes', 'trans');
+  const h0s = DB.stripHTML('lead-od'); DB.loadTick(1600); const h1s = DB.stripHTML('lead-od'); DB.loadTick(1600); const h2s = DB.stripHTML('lead-od'); DB.stand('slow', false);
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.openView('lead-paid', 'map'); const hpl = DB.stripHTML('lead-paid');
+  DB.addFromCatalog('cat-appfun'); DB.stand('partDown', true); DB.openView('cat-appfun', 'slice'); const hfd = DB.stripHTML('cat-appfun'), fdn = V('cat-appfun', 'slice', { dim:'afunnel' }).nodes.find(n => n.down); DB.stand('partDown', false);
+  ok(383, sBy.by === 'region' && sPer.per === 'm' && bdOk && /class="sk-w"/.test(h0s) && /class="sk-w"/.test(h1s) && !/class="sk-w"/.test(h2s) && /class="heat tr-m"/.test(h2s)
+    && /<button class="off" aria-disabled="true" data-tip="Переходы недоступны: у потока[^"]*">на дату базы → сегодня<\/button>/.test(hpl) && !/на августу/.test(hpl)
+    && fdn && fdn.v === 'выдана' && (hfd.match(/<div class="rz-r fn-r dn"/g) || []).length === 6 && !/<span class="rz-v">0<\/span>/.test(hfd.split('class="rz fn"')[1] || ''),
+    'ревью волны 15: «по разрезу», оси, начало Когорт помнятся у человека; нет ответа на 30.09 — точка «—» и разница у неё и следующей в каждой строке Ряда по разрезу и в «ещё N»; медленная отчётность — Переходы скелетом до базы (1,5 с — ещё скелет, 3 с — матрица); у потока кнопка «на дату базы → сегодня» погашена с причиной; статистика не ответила по «выдана» — воронка не подставляет ноль: все шесть этапов «—» с причиной (нарастающий итог снизу), итог — как есть (ДБ-233, ДБ-213, ДБ-215, ДБ-223, ДБ-212)');
   DB.seed();
 })();
 
