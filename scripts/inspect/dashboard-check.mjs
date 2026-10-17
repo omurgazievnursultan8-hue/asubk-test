@@ -1,7 +1,7 @@
-// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–10, 11–16.10.2026).
+// Headless смоук для mockups/dashboard/dashboard.html — макет модуля «Дашборд» (волны 1–11, 11–17.10.2026).
 // Zero-dep: вытаскивает <script> из HTML и исполняет движок window.DB в node:vm (без DOM — render() и
 // toast() становятся no-op). Проверяется не «код есть», а поведение по решениям канона
-// mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-183, ИДБ-1…ИДБ-19):
+// mockups/dashboard/ASUBK-dashbord-logika.md (ДБ-1…ДБ-196, ИДБ-1…ИДБ-19):
 //   A  рамка и главная: вкладки — системные роли, роль без раскладки — минимальная (ДБ-8, ДБ-38, ДБ-50);
 //   B  плитка ссылается на отчёт и чисел не хранит: числа приходят от статистики через отчёт; «ждёт меня» — через очередь
 //      модуля-владельца, тоже от статистики (ДБ-99, ДБ-10, ДБ-11);
@@ -72,6 +72,14 @@
 //      объединение на две даты; охват роли по подразделению на свою дату; строки охвата — только где у объекта есть история; «Состояние
 //      кредита» с историей; одна часть — одно число и одна подпись в Разрезе и Движении; «☰» конца и точек — по спискам на дату; дата
 //      плитки не «сегодня»; «нет ответа» на обе даты.
+//   W  волна 11 (17.10.2026), верх экрана ДБ-184…ДБ-196: один ряд — вкладки ролей, свои экраны, «+ экран», охват серой подписью,
+//      «Фильтр» и «⋯» экрана; бюджет до первой строки содержимого ≤ 150 px по стилям; вкладка на роль; последняя вкладка при входе
+//      (вход — смена пользователя стенда, seed() — новый стенд); «⋯» роли и своего экрана, полоса «Готово»; окно фильтра и фишки;
+//      несколько значений в поле — «∈», объединение = сумме по значениям, все области = без фильтра, паспорт, «⊘ без фильтра», клик,
+//      выгрузка, разрез по полю с двумя значениями, Движение; фильтр у вкладки до конца сеанса; «+ экран» — копия или пустой; «изменён ·
+//      Сохранить в экран · Вернуть»; свёрнутая секция — по человеку и вкладке, без вопросов основы, «N плиток» и красная точка
+//      (светофор без основы = светофору плитки); телефон — список «Экран», в «⋯» только выгрузка (ДБ-Д51, ДБ-Д52). Переписаны под
+//      модель волны 11 без ослабления: 51, 185 (сохранённый фильтр — список), 264, 299, 300 (окно ввода с выбором), 265 («+ экран»).
 // Блоки, которые правят состояние, начинаются с DB.seed(). Выход 1 при любом FAIL.
 //   node scripts/inspect/dashboard-check.mjs
 import { readFileSync } from 'node:fs';
@@ -289,7 +297,7 @@ const asUser = id => { DB.state.userId = id; };
   let err = null; for (let i = 0; i < 6; i++) { const r = DB.createScreen('Экран ' + i); if (r.error) err = r.error; }
   ok(50, DB.screens('u1').length === 5 && /не больше пяти/.test(err), 'своих экранов не больше пяти (ДБ-32)');
   const sc = DB.screens('u1')[0];
-  ok(51, sc.filter && sc.filter.region === 'Ошская', 'свой экран хранит сохранённый фильтр панели (ДБ-32)');
+  ok(51, sc.filter && Array.isArray(sc.filter.region) && sc.filter.region.join() === 'Ошская', `свой экран хранит сохранённый фильтр панели — значения поля списком: «${sc.filter && [].concat(sc.filter.region).join(', ')}» (ДБ-32; волна 11: в поле — несколько значений, ДБ-190)`);
   ok(52, Object.values(DB.DECLARED_SEED).every(L => L[0].startsWith('s:')), 'раскладки ролей разбиты на секции (ДБ-34)');
 })();
 
@@ -1601,7 +1609,7 @@ const asUser = id => { DB.state.userId = id; };
   DB.openView('lead-issued', 'table'); const pt = DB.pinOpen('lead-issued'), pk = sc.pinned['lead-issued'];
   DB.switchUser('u2'); DB.switchUser('u1'); DB.setTab('screen', 'sc1'); const pr = open() + ':' + kinds();
   const un = DB.pinOpen('lead-issued'); DB.morning(); const po1 = open(); DB.openView('lead-od', 'map'); DB.pinOpen('lead-od'); DB.morning(); const po2 = open();
-  ok(185, sc.items.includes('lead-od') && sc.items.includes('lead-bal') && sc.filter.region === 'Ошская' && kp === 'map' && po.sel.dims.join() === 'program,bucket' && rm.heat.d1 === 'program' && rm.heat.d2 === 'bucket'
+  ok(185, sc.items.includes('lead-od') && sc.items.includes('lead-bal') && sc.filter.region.join() === 'Ошская' && kp === 'map' && po.sel.dims.join() === 'program,bucket' && rm.heat.d1 === 'program' && rm.heat.d2 === 'bucket'
     && /onclick="DB\.stripMenu\(event,'lead-od'\)"/.test(hp) && !/class="pin|📍/.test(hp) && /if\(scr\) items\.push\(\[pinned \? '📍 Открепить' : '📍 Закрепить раскрытой', `DB\.pinOpen\('\$\{id\}'\)`/.test(menuSrc) && pm1 === 'lead-od:map' && pt.pinned && same(Object.keys(pk), ['kind', 'sel']) && pk.kind === 'table' && !('path' in pk.sel)
     && pr === 'lead-issued,lead-od:table,map' && un.pinned === false && po1 === 'lead-od' && po2 === '' && same(sc.pinned, {}) && same(DB.createScreen('Новый').pinned, {}),
     'экран «Совещание по Ошу»: «Просрочено» стоит раскрытой Картой «программа × срок» (область — фильтр экрана); закрепление переживает «утро» и повторный вход, «Открепить» снимает — пункт «⋯» полосы, кнопки 📍 в строке нет; закрепляются вид и выбор, путь — нет (ДБ-122, ДБ-146; волна 7)');
@@ -2674,7 +2682,7 @@ const asUser = id => { DB.state.userId = id; };
   DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
   const ls0 = DB.composeLayout('u1', 'lead'); DB.addSectionPrompt(); const ls1 = DB.composeLayout('u1', 'lead');
   DB.setTab('screen', 'sc1'); const sc1 = DB.screens('u1').find(s => s.id === 'sc1'), it0 = sc1.items.length; DB.addSectionPrompt(); const scAdd = sc1.items.slice(it0);
-  ok(264, !/\bprompt\s*\(/.test(src) && /function askText\(title, value, ok, dflt\)\{/.test(src) && /if\(!HAS_DOM\) return ok\(dflt === undefined \? value : dflt\);/.test(src) && /<form class="ask" id="ask-form" role="dialog" aria-modal="true"/.test(src)
+  ok(264, !/\bprompt\s*\(/.test(src) && /function askText\(title, value, ok, dflt, opts\)\{/.test(src) && /if\(!HAS_DOM\) return ok\(dflt === undefined \? value : dflt\);/.test(src) && /<form class="ask" id="ask-form" role="dialog" aria-modal="true"/.test(src)
     && /<button type="button" class="btn" onclick="DB\.close\(\)">Отмена<\/button><button type="submit" class="btn primary">Сохранить<\/button>/.test(src) && /addSectionPrompt:\(\)=>askText\('Название секции', '', [\s\S]{0,200}?, 'Секция'\)/.test(src)
     && ls1.length === ls0.length + 1 && ls1.at(-1) === 's:Секция' && ls0.every(k => ls1.includes(k)) && scAdd.join() === 's:Секция',
     `секция добавляется через окно ввода на странице (форма «ask» с «Отмена» и «Сохранить»), вызова prompt() браузера в макете нет; без страницы движок берёт имя по умолчанию: на вкладке роли в конце раскладки встала «Секция» (${ls0.length} → ${ls1.length} ключей), на своём экране «Совещание по Ошу» — тоже «Секция» (ДБ-166)`);
@@ -2685,7 +2693,7 @@ const asUser = id => { DB.state.userId = id; };
   DB.renameScreen(); const nameAfter = nsc.name;
   for (let i = 0; i < 5; i++) DB.newScreen(); const nMax = DB.screens('u1').length;
   ok(265, n1 === n0 + 1 && nsc.name === 'Мой экран' && tabNew.kind === 'screen' && tabNew.id === nsc.id && nameAfter === 'Мой экран' && nMax === 5 && DB.screens('u1').slice(n0).every(s => s.name === 'Мой экран')
-    && /newScreen:\(\)=>askText\('Название своего экрана', 'Мой экран'/.test(src) && /renameScreen:\(\)=>\{ const sc = screenById\(S\.tab\.id\); askText\('Новое название', sc\.name/.test(src),
+    && /newScreen:\(\)=>\{[^\n]*\n[^\n]*\n    askText\('Новый свой экран', 'Мой экран', \(n, how\)=>/.test(src) && /renameScreen:\(\)=>\{ const sc = screenById\(S\.tab\.id\); askText\('Новое название', sc\.name/.test(src),
     `«Новый экран» без страницы создаёт «Мой экран» (было ${n0}, стало ${n1}) и открывает его вкладку; «Переименовать» без страницы оставляет прежнее имя; ещё пять нажатий — экранов ${nMax}, правило «не больше пяти» держится (ДБ-166, ДБ-32)`);
 
   // ДБ-165: одна светлая тема, системный шрифт, внешних шрифтов и импортов нет
@@ -3016,7 +3024,7 @@ const asUser = id => { DB.state.userId = id; };
     `не доля — «☰ N» без «из»: «Заёмщиков» ${cntOf(np[0].h)[0]}, «Просрочено» в Таблице ${cntOf(np[1].h)[0]} и в Ряде второго числа (доля портфеля) ${cntOf(np[2].h)[0]}, «Итог сдачи» в Ряде второго числа ${cntOf(np[3].h)[0]}; клик открывает список той же длины; aria-label — «Кто в этом числе: N» (ДБ-174, ДБ-149)`);
 
   // мелочи волны 8: окно ввода держит фокус, Escape — как «Отмена», фокус возвращается на кнопку, пустое не сохраняется
-  ok(299, /<form class="ask" id="ask-form" role="dialog" aria-modal="true" aria-labelledby="ask-t" tabindex="-1">/.test(src) && /ring = \[i, \.\.\.f\.querySelectorAll\('button'\)\]/.test(src)
+  ok(299, /<form class="ask" id="ask-form" role="dialog" aria-modal="true" aria-labelledby="ask-t" tabindex="-1">/.test(src) && /ring = \[i, \.\.\.f\.querySelectorAll\('input\[type=radio\], button'\)\]/.test(src)
     && /if\(e\.key==='Escape'\)\{ e\.preventDefault\(\); e\.stopPropagation\(\); closeOverlay\(\); return; \}/.test(src) && /ring\[k < 0 \? \(e\.shiftKey \? n - 1 : 0\) : \(k \+ \(e\.shiftKey \? n - 1 : 1\)\) % n\]\.focus\(\)/.test(src)
     && /function closeOverlay\(\)\{[^\n]*if\(askBack\)\{ const b = askBack; askBack = null; b\(\); \} \}/.test(src) && /close:closeOverlay,/.test(src) && /onclick="DB\.close\(\)">Отмена<\/button>/.test(src)
     && /if\(!v\)\{ i\.focus\(\); return; \}/.test(src) && /ev\.target\.closest\('button'\)\) \|\| document\.activeElement/.test(src) && /\.ask:focus\{ outline:none; \}/.test(src),
@@ -3024,7 +3032,7 @@ const asUser = id => { DB.state.userId = id; };
 
   // то же поведением: askText и closeOverlay из макета на поддельной странице — поле, две кнопки, кнопка-открыватель
   const pick = (a, b) => { const i = src.indexOf(a); return i < 0 ? '' : src.slice(i, src.indexOf(b, i) + b.length); };
-  const code = pick('let askBack = null;', '\n') + pick('function closeOverlay(){', '\n') + pick('function askText(title, value, ok, dflt){', '\n}\n');
+  const code = pick('let askBack = null;', '\n') + pick('function closeOverlay(){', '\n') + pick('function askText(title, value, ok, dflt, opts){', '\n}\n');
   let active = null, page = [], parts = {};
   const el = (tag, attrs = {}) => ({ tag, attrs, on:{}, kids:[], isConnected:true, value:attrs.value || '', getAttribute(k){ return k in this.attrs ? this.attrs[k] : null; },
     focus(){ active = this; }, select(){}, closest(s){ return s === 'button' && this.tag === 'button' ? this : null; }, addEventListener(t, f){ (this.on[t] = this.on[t] || []).push(f); }, querySelectorAll(){ return this.kids; } });
@@ -3402,6 +3410,151 @@ const asUser = id => { DB.state.userId = id; };
   ok(329, na.length === 18 && na0 > 0 && na1 > 0 && na0 + na1 === 18 && pos > 0 && neg > 0 && nm.every(o => o.r && o.r.cnt === (o.d.list || []).length && near(o.d.sum, o.r.v) && o.d.matches && near(o.mv.start + sum(o.mv.rows.map(x => x.v)), o.mv.end, 1e-6))
     && near(nm[0].mv.start, bN.shift.base) && near(nm[0].mv.end, bN.value) && near(nm[0].mv.end, sN.at(-1)[0]) && near(nm[1].mv.end, sN.at(-2)[0]) && near(nm[1].mv.start, sN.at(-3)[0]),
     `«нет ответа источника»: ${na.length} кредитов, сбой сегодня у ${na0}, на 30.09 — у ${na1}; в строке текущего месяца ☰ ${nm[0].r && nm[0].r.cnt} ${fm(nm[0].r ? nm[0].r.v : 0)}: «+» у ${pos} (не ответил на 30.09), «−» у ${neg} (не ответил сегодня); цепочка ${fm(nm[0].mv.start)} → ${fm(nm[0].mv.end)} = базе сдвига и главному числу, прошлого месяца ${fm(nm[1].mv.start)} → ${fm(nm[1].mv.end)} = точкам Ряда (ДБ-178)`);
+  DB.seed();
+})();
+
+/* ---------- W. Волна 11 (17.10.2026): верх экрана — вкладки, охват, «⋯», фильтр фишками, свои экраны, секции ---------- */
+(() => {
+  const tab = html => html.replace(/<svg[\s\S]*?<\/svg>/g, ''), u1 = U('u1'), near = (a, b) => typeof a === 'number' && typeof b === 'number' && Math.abs(a - b) < 0.5;
+  const css = src.slice(src.indexOf('<style>'), src.indexOf('</style>')), phoneCss = (css.match(/@media \(max-width:600px\)\{([\s\S]*?)\n\}/) || [])[1] || '';
+  const px = re => +((re.exec(css) || [])[1] || NaN), nb = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  const home = () => tab(DB.homeHTML()), labels = items => items.map(x => x[0]).join(' · ');
+  const OSH = 'Ошская', JA = 'Джалал-Абадская';
+
+  // ДБ-184, ДБ-196: верх — один ряд; бюджет до первой строки содержимого на 1920 — шапка + отступ страницы + ряд + отступ под ним
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
+  const hH = home(), budget = { head:px(/--header-h:(\d+)px/), wrap:px(/\.wrap\{ padding:(\d+)px/), row:px(/\.topline\{[^}]*min-height:(\d+)px/), tab:px(/\.tab\{[^}]*height:(\d+)px/), gap:px(/\.top\{ margin-bottom:(\d+)px; \}/) };
+  const toFirst = budget.head + budget.wrap + Math.max(budget.row, budget.tab) + budget.gap, gridFirst = (/<div class="grid" id="grid">\s*<div class="(section-row|tile)/.exec(hH) || [])[1];
+  ok(330, (hH.match(/class="topline"/g) || []).length === 1 && !/scope-line|filterbar|Охват роли:|Фильтр на время просмотра|>Переложить<|>Вернуть как объявлено<|>Выгрузить экран/.test(hH)
+    && toFirst <= 150 && gridFirst === 'section-row' && /\.section-row:first-child\{ margin-top:0; \}/.test(css) && !/class="fchips"/.test(hH),
+    `верх отвечает «что я сейчас вижу» одним рядом: вкладки, охват, «Фильтр», «⋯»; строки охвата с кнопками и карточки фильтра нет; до первой строки содержимого (заголовок секции «Картина портфеля») — шапка ${budget.head} + отступ ${budget.wrap} + ряд ${Math.max(budget.row, budget.tab)} + ${budget.gap} = ${toFirst} px ≤ 150 (было 286) (ДБ-184, ДБ-196)`);
+
+  // ДБ-185: роли первыми, свои экраны со значком, «+ экран» последним; на телефоне — тот же набор списком
+  const tb = [...hH.matchAll(/<button class="tab([^"]*)"[^>]*>([^<]+)<\/button>/g)].map(x => [x[1].trim(), x[2]]), opts = [...hH.matchAll(/<option value="([^"]+)"[^>]*>([^<]+)<\/option>/g)].map(x => x[1]);
+  const T1 = DB.tabsFor(u1);
+  ok(331, tb.map(x => x[1]).join(' · ') === 'Руководство · Аналитик · Совещание по Ошу · + экран' && tb[0][0].includes('active') && tb[2][0].includes('own') && !tb[0][0].includes('own') && tb.at(-1)[0] === 'add'
+    && /<nav class="tabs" aria-label="Экраны">/.test(hH) && /aria-current="true"/.test(hH) && opts.join() === T1.map(t => t.kind + ':' + t.id).join() + ',new'
+    && /<optgroup label="Роли">[\s\S]*<optgroup label="Свои экраны">[\s\S]*<option value="new">\+ экран<\/option><\/select>/.test(hH),
+    `один ряд выбора набора: «${tb.map(x => x[1]).join(' · ')}» — роли, свой экран со значком, «+ экран» последним; на телефоне тот же набор списком «Экран: …» (${opts.length - 1} экрана и «+ экран») (ДБ-185)`);
+
+  // ДБ-186: вкладка на каждую роль — и при одинаковых раскладках; правка администратора вкладок не меняет
+  const tabsOf = () => DB.USERS.map(u => DB.tabsFor(u).filter(t => t.kind === 'role').map(t => t.id).join('+')).join(' ');
+  const t0 = tabsOf(), sameLay = DB.composeLayout('u1', 'an').join() === DB.composeLayout('u1', 'lead').join();
+  asUser('u11'); DB.declaredEdit('an', 'remove', 'lead-risk'); asUser('u1'); const t1 = tabsOf();
+  ok(332, sameLay && t0 === t1 && DB.USERS.every(u => DB.tabsFor(u).filter(t => t.kind === 'role').length === u.roles.filter(r => r !== 'adm' || u.roles.length === 1).length) && /lead\+an/.test(t0),
+    `вкладка на каждую роль: у Асанова «Руководство» и «Аналитик» при одинаковых раскладках (по ${DB.composeLayout('u1', 'lead').length} ключей), после правки раскладки Аналитика администратором вкладки те же; у всех ${DB.USERS.length} пользователей вкладок ролей столько же, сколько ролей (ДБ-186)`);
+
+  // ДБ-187: вход — смена пользователя стенда: последняя открытая вкладка; её нет — первая роль; фильтр между входами не помнится
+  DB.seed(); asUser('u1'); DB.switchUser('u1'); DB.homeHTML(); const first = DB.state.tab.id;
+  DB.setTab('screen', 'sc1'); DB.setPanel('region', [OSH, JA]); DB.switchUser('u2'); DB.homeHTML(); const u2first = DB.state.tab.id;
+  DB.switchUser('u1'); DB.homeHTML(); const back = Object.assign({}, DB.state.tab), backF = DB.state.panel.region.join(', ');
+  DB.setTab('role', 'an'); DB.switchUser('u2'); const R1 = U('u1').roles; U('u1').roles = ['lead']; const lastGone = DB.state.lastTab.u1.id;   // роль «Аналитик» сняли, пока Асанова не было
+  DB.switchUser('u1'); DB.homeHTML(); const gone = DB.state.tab.id; U('u1').roles = R1;
+  DB.setTab('role', 'an'); DB.seed(); DB.switchUser('u1'); DB.homeHTML(); const afterSeed = DB.state.tab.id;
+  ok(333, first === 'lead' && u2first === 'cur' && lastGone === 'an' && back.kind === 'screen' && back.id === 'sc1' && backF === OSH && gone === 'lead' && afterSeed === 'lead' && /S\.tab = S\.lastTab\[id\] \|\| null;/.test(src),
+    `вход Асанова после Бековой — «Совещание по Ошу», последняя открытая вкладка; фильтр «${OSH}, ${JA}» не пережил вход — на экране снова сохранённый «${backF}»; последней была «Аналитик», роль сняли — первая роль «Руководство»; новый стенд (seed) — первая роль (ДБ-187, ДБ-27)`);
+
+  // ДБ-188: охват — серой подписью всегда; действия экрана — в «⋯»; перекладка — полоса «Готово» поверх ряда
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
+  const capL = (/<span class="scope"[^>]*>([^<]+)</.exec(home()) || [])[1], mRole = DB.screenMenuItems(false), offBack = mRole.find(x => x[0] === 'Вернуть как объявлено')[3];
+  DB.arrangeHide('lead', 'lead-risk'); const mPers = DB.screenMenuItems(false).find(x => x[0] === 'Вернуть как объявлено'), capP = (/<span class="scope"[^>]*>([^<]+)</.exec(home()) || [])[1];
+  DB.toggleArrange(); const hA = home(); DB.toggleArrange();
+  DB.setTab('screen', 'sc1'); const mScr = DB.screenMenuItems(false), capS = (/<span class="scope"[^>]*>([^<]+)</.exec(home()) || [])[1];
+  asUser('u2'); DB.setTab('role', 'cur'); const capC = (/<span class="scope"[^>]*>([^<]+)</.exec(home()) || [])[1]; asUser('u1');
+  ok(334, capL === 'охват: весь портфель' && capC === 'охват: подразделение «Чуйское РП» · личная раскладка' && /^охват: все ваши роли/.test(capS) && capP === 'охват: весь портфель · личная раскладка'
+    && labels(mRole) === 'Переложить · Вернуть как объявлено · Выгрузить экран (PDF)' && offBack === true && mPers && !mPers[3]
+    && labels(mScr) === 'Переложить · Выгрузить экран (PDF) · Переименовать · Удалить экран' && ![...mRole, ...mScr].some(x => /Сохранить фильтр/.test(x[0]))
+    && /<div class="topline">[\s\S]*<div class="arrange-bar"[^>]*><b>Перекладка «Руководство»<\/b>[\s\S]*>Готово<\/button><\/span><\/div><\/div>/.test(hA) && /\.arrange-bar\{ position:absolute; inset:0;/.test(css),
+    `охват серой подписью всегда — «${capL}» (широкий тоже), у Куратора «${capC}», на своём экране «${capS}», с перекладкой «${capP}»; «⋯» вкладки роли: ${labels(mRole)} (без перекладки «Вернуть» погашено), своего экрана: ${labels(mScr)}; «Сохранить фильтр в экран» ушло к фишкам; перекладка — полоса «Перекладка «Руководство» … Готово» поверх ряда (ДБ-188)`);
+
+  // ДБ-189: «Фильтр» — окно на странице с пояснением; выключен — строки нет; включён — синие фишки и «Сбросить»
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
+  const off = home(); DB.setPanel('region', [OSH, JA]); DB.setPanel('program', ['agro']); const on = home();
+  const chips = [...on.matchAll(/<span class="fchip">([^<]+)<button class="fchip-x" aria-label="([^"]+)" onclick="DB\.setPanel\('(\w+)', \[\]\)">/g)].map(x => [x[1], x[3]]);
+  const fwin = src.slice(src.indexOf('function openFilter(){'), src.indexOf('function screenExport('));
+  ok(335, !/class="fchips"/.test(off) && /class="btn sm fbtn" aria-haspopup="dialog" onclick="DB\.openFilter\(\)">Фильтр</.test(off) && /class="btn sm fbtn on"/.test(on)
+    && chips.map(x => x[0]).join(' | ') === `Область: ${OSH}, ${JA} | Программа: Агрокредит` && chips.map(x => x[1]).join() === 'region,program' && /<button class="linky" onclick="DB\.clearPanel\(\)">Сбросить<\/button>/.test(on)
+    && /<form class="ask fwin" id="fw-form" role="dialog" aria-modal="true"/.test(fwin) && /Сужает плитки, где есть такой разрез; охват не расширяет\./.test(fwin) && /type="checkbox" name="fw-\$\{k\}"/.test(fwin) && /Применить<\/button>/.test(fwin) && !/\bprompt\s*\(/.test(src)
+    && /\.fchips\{ display:flex; flex-wrap:wrap;/.test(css) && /\.fchip\{[^}]*background:var\(--asubk-blue-tint\)/.test(css),
+    `«Фильтр» открывает окно на странице: три поля флажками и пояснение «сужает плитки, где есть такой разрез; охват не расширяет»; выключен — строки фишек нет; включён — синие фишки «${chips.map(x => x[0]).join('», «')}» с × и «Сбросить» тонкой строкой под рядом (ДБ-189)`);
+
+  // ДБ-190: в поле несколько значений — «∈»; объединение = сумме по значениям; паспорт, «⊘ без фильтра», клик, выгрузка, свой экран
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead');
+  const B = (id, P) => DB.base(id, 'u1', 'lead', P), add = ['lead-od', 'lead-bal', 'lead-borr', 'lead-claims', 'lead-issued'];
+  const un = add.map(id => { const a = B(id, { region:[OSH] }), b = B(id, { region:[JA] }), c = B(id, { region:[OSH, JA] }), s = B(id, { region:OSH });
+    return { id, a:a.value, b:b.value, c:c.value, ok:near(a.value + b.value, c.value) && s.value === a.value && /фильтр: Ошская, Джалал-Абадская/.test(c.passport) }; });
+  const all = add.map(id => ({ id, all:B(id, { region:DB.DIMS.region.values }).value, none:B(id, {}).value }));
+  const R7 = add.map(id => near(DB.DIMS.region.values.reduce((s, v) => s + B(id, { region:[v] }).value, 0), B(id, {}).value));
+  const skip = DB.composeLayout('u1', 'lead').filter(k => !k.startsWith('s:')).map(id => [id, B(id, { region:[OSH, JA] })]).filter(([, r]) => (r.marks || []).some(x => x.text === '⊘ без фильтра' && /«Область»/.test(x.tip)));
+  const skipHtml = skip.length ? tab(DB.tileHTML(skip[0][0], 'u1', 'lead', { region:[OSH, JA] })) : '';
+  const cntU = DB.view('lead-od', 'slice', null, [], 'u1', 'lead', { region:[OSH, JA] }).cnt;
+  DB.setPanel('region', [OSH, JA]); const pv = DB.state.panel.region, dr = DB.drill('lead-od', u1, 'lead', DB.state.panel), xt = DB.exportTile('lead-od', 'pdf', 'lead'), xs = DB.exportScreen();
+  const one = DB.dimsFor('lead-od', [], { region:[OSH] }).some(x => x.dim === 'region'), two = DB.view('lead-od', 'slice', { dim:'region' }, [], 'u1', 'lead', { region:[OSH, JA] });
+  const mvD = ['rp-chu', 'rp-osh'].map(d => DB.view('lead-od', 'move', { month:0 }, [], 'u1', 'lead', { dept:[d] }).move), mvU = DB.view('lead-od', 'move', { month:0 }, [], 'u1', 'lead', { dept:['rp-chu', 'rp-osh'] }).move;
+  const mvOk = mvU.rows.every(r => near(r.v, mvD.reduce((s, m) => s + ((m.rows.find(x => x.key === r.key) || {}).v || 0), 0))) && near(mvU.end, mvD[0].end + mvD[1].end);
+  DB.setTab('screen', 'sc1'); DB.setPanel('region', [JA, OSH]); DB.saveScreenFilter(); const saved = DB.screens('u1')[0].filter;
+  ok(336, un.every(x => x.ok) && all.every(x => x.all === x.none) && R7.every(Boolean) && Array.isArray(pv) && pv.join() === OSH + ',' + JA
+    && skip.length > 0 && /⊘ без фильтра/.test(skipHtml) && dr.matches && dr.list.length === cntU && near(dr.number, un[0].c)
+    && xt.stamp.some(s => /^Охват: видно [\d\s\u00a0\u202f]+ · фильтр: Ошская, Джалал-Абадская$/.test(s)) && xs.stamp.includes('Фильтр: Область — Ошская, Джалал-Абадская')
+    && !one && two.sel.dim === 'region' && near(two.nodes.find(n => n.v === OSH).value, un[0].a) && near(two.nodes.find(n => n.v === JA).value, un[0].b) && near(two.total.v, un[0].c)
+    && mvOk && Array.isArray(saved.region) && saved.region.join() === OSH + ',' + JA,
+    `в поле несколько значений, сравнение «∈»: «Просрочено» Ошская ${nb(un[0].a)} + Джалал-Абадская ${nb(un[0].b)} = ${nb(un[0].c)} сом, «Остаток» ${nb(un[1].a)} + ${nb(un[1].b)} = ${nb(un[1].c)}, «Заёмщиков» ${un[2].a} + ${un[2].b} = ${un[2].c}; одно значение строкой и списком — одно число; все 7 областей = без фильтра; паспорт «фильтр: Ошская, Джалал-Абадская»; «⊘ без фильтра» у ${skip.length} плиток без области (${skip.map(x => '«' + T(x[0]).title + '»').join(', ')}); клик — ${dr.list.length} кредитов на ${nb(dr.number)} сом = «☰ ${cntU}»; штамп выгрузки плитки и экрана несут фильтр; при двух значениях разрез «Область» свободен (две строки = итогу), при одном — закреплён; Движение по двум подразделениям — сумма строк по каждому; свой экран сохранил список «${saved.region.join(', ')}» (ДБ-190)`);
+
+  // ДБ-191: у каждой вкладки свой фильтр до конца сеанса; свой экран при первом открытии — сохранённый
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.setPanel('region', [JA]);
+  DB.setTab('role', 'an'); const anP = JSON.stringify(DB.state.panel); DB.setTab('screen', 'sc1'); const scP = DB.state.panel.region.join();
+  DB.setPanel('program', ['agro']); DB.setTab('role', 'lead'); const leadP = DB.state.panel.region.join(); DB.setTab('screen', 'sc1'); const scP2 = JSON.stringify(DB.state.panel);
+  ok(337, anP === '{}' && scP === OSH && leadP === JA && scP2 === JSON.stringify({ region:[OSH], program:['agro'] }) && Object.keys(DB.state.panels).length === 3 && /setTab:\(kind,id\)=>\{ goTab\(kind, id\); view='home'; resetOpen\(\); render\(\); \}/.test(src),
+    `фильтр живёт у вкладки: «Руководство» — «${leadP}», «Аналитик» — без фильтра, «Совещание по Ошу» открылся сохранённым «${scP}», дописанная программа пережила уход на «Руководство» и возврат; переключение ничего не сбрасывает (ДБ-191)`);
+
+  // ДБ-192: «+ экран» — копия текущей вкладки с фильтром (по умолчанию) или пустой; копия — снимок
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); DB.arrangeHide('lead', 'lead-risk'); DB.arrangeMove('lead', 'lead-borr', -1); DB.setPanel('region', [OSH, JA]);
+  const want = DB.composeLayout('u1', 'lead').filter(k => !k.startsWith('x:')); DB.newScreen(); const nsc = DB.screens('u1').at(-1), nTab = Object.assign({}, DB.state.tab), nP = DB.state.panel.region.join(', ');
+  DB.setTab('role', 'lead'); DB.resetDeclaredFor('lead'); asUser('u11'); DB.declaredEdit('lead', 'remove', 'lead-od'); asUser('u1');
+  const empty = DB.createScreen('Пустой'), ns = src.slice(src.indexOf('  newScreen:()=>{'), src.indexOf('  renameScreen:'));
+  ok(338, nsc.name === 'Мой экран' && nsc.items.join() === want.join() && !nsc.items.includes('lead-risk') && nsc.items.filter(k => k.startsWith('s:')).length === 4 && nsc.filter.region.join(', ') === `${OSH}, ${JA}`
+    && nTab.kind === 'screen' && nTab.id === nsc.id && nP === `${OSH}, ${JA}` && nsc.items.includes('lead-od') && empty.items.length === 0 && empty.filter === null
+    && /'копия «'\+snap\.name\+'» '\+fl/.test(ns) && /\['empty', 'пустой'/.test(ns) && /'с фильтром «'\+panelLabel\(f, Object\.keys\(f\)\)\+'»'/.test(ns) && /if\(screens\(user\(\)\.id\)\.length>=5\) return toast\('Своих экранов не больше пяти'\)/.test(ns),
+    `«+ экран» без страницы — копия «Руководства» с фильтром «${OSH}, ${JA}»: ${nsc.items.filter(k => !k.startsWith('s:')).length} плиток и ${nsc.items.filter(k => k.startsWith('s:')).length} секции с личной перекладкой (без скрытой «Суммы под риском»), фильтр открыт на новой вкладке; снимок: «Вернуть как объявлено» и снятие «Просрочено» из раскладки роли экран не тронули; «пустой» — без плиток и фильтра; лимит пять — до окна (ДБ-192)`);
+
+  // ДБ-193: фильтр своего экрана меняется только явно — «изменён · Сохранить в экран · Вернуть»
+  DB.seed(); asUser('u1'); DB.setTab('screen', 'sc1'); const c0 = home();
+  DB.setPanel('region', [OSH, JA]); const c1 = home(), ch1 = DB.screenFilterChanged(DB.screens('u1')[0]); DB.revertScreenFilter(); const c2 = home(), r2 = DB.state.panel.region.join();
+  DB.clearPanel(); const c3 = home(); DB.saveScreenFilter(); const c4 = home(), sv = DB.screens('u1')[0].filter;
+  DB.setTab('role', 'lead'); DB.setPanel('region', [OSH]); const c5 = home();
+  const CH = /<span class="fchg"><span class="muted">изменён<\/span><span class="sep">·<\/span><button class="linky" onclick="DB\.saveScreenFilter\(\)">Сохранить в экран<\/button><span class="sep">·<\/span><button class="linky" onclick="DB\.revertScreenFilter\(\)">Вернуть<\/button><\/span>/;
+  ok(339, /class="fchips"/.test(c0) && !CH.test(c0) && ch1 && CH.test(c1) && !CH.test(c2) && r2 === OSH && CH.test(c3) && /фильтр снят/.test(c3) && sv === null && !/class="fchips"/.test(c4) && /class="fchips"/.test(c5) && !CH.test(c5),
+    `«Совещание по Ошу»: сохранённый «${OSH}» — фишка без пометки; «${OSH}, ${JA}» — «изменён · Сохранить в экран · Вернуть»; «Вернуть» — снова «${r2}»; фильтр сняли — «фильтр снят · изменён …», «Сохранить в экран» сохранил «без фильтра» и строка ушла; на вкладке роли пометки нет (ДБ-193)`);
+
+  // ДБ-194: свёрнутая секция помнится для человека на вкладке; её плитки чисел не спрашивают; «N плиток» и красная точка
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); const L0 = DB.composeLayout('u1', 'lead');
+  const secTiles = s => { const i = L0.indexOf(s), out = []; for (let j = i + 1; j < L0.length && !L0[j].startsWith('s:'); j++) out.push(L0[j]); return out; };
+  const S1 = 's:Картина портфеля', S3 = 's:Взыскание и реструктуризация', in1 = secTiles(S1), in3 = secTiles(S3);
+  DB.toggleSection(S1); DB.toggleSection(S3); DB.state.cache.clear(); DB.state.asked = {}; const hc = home(), asked = Object.keys(DB.state.asked);
+  const red3 = in3.filter(id => DB.base(id, 'u1', 'lead', {}).tl === 'red').map(id => T(id).title);
+  const row = s => (new RegExp('<div class="section-row shut" data-key="' + s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '"[^>]*>[\\s\\S]*?</div>').exec(hc) || [''])[0];
+  const r1 = row(S1), r3 = row(S3), keys = Object.keys(DB.state.collapsed);
+  DB.setTab('role', 'an'); const anShut = !/section-row shut/.test(home()); DB.switchUser('u2'); DB.switchUser('u1'); DB.setTab('role', 'lead'); const kept = (home().match(/section-row shut/g) || []).length;
+  const lights = DB.USERS.flatMap(u => u.roles.map(r => [u, r])).flatMap(([u, r]) => DB.composeLayout(u.id, r).filter(k => T(k) && T(k).tl && (T(k).tl.red || T(k).tl.yellow)).map(k => [u.id, r, k]))
+    .flatMap(([uid, r, k]) => [{}, { region:[OSH] }, { region:[OSH, JA], dept:['rp-osh'] }].map(P => [k, DB.lightOnly(T(k), U(uid), r, P), DB.base(k, uid, r, P).tl])), lBad = lights.filter(x => x[1] !== x[2]);
+  const pl = [1, 2, 4, 5, 11, 21, 22, 25].map(n => n + ' ' + (n % 100 > 10 && n % 100 < 20 ? 'плиток' : n % 10 === 1 ? 'плитка' : n % 10 > 1 && n % 10 < 5 ? 'плитки' : 'плиток')).join(', ');
+  ok(340, keys.join() === 'u1|role:lead|' + S1 + ',u1|role:lead|' + S3 && in1.every(id => !asked.includes(id) && !hc.includes('data-key="' + id + '"')) && in3.every(id => !asked.includes(id)) && asked.length > 0
+    && new RegExp('<span class="sec-n">' + in1.length + ' плитк[иа]</span>').test(r1) && !/sec-dot/.test(r1) && red3.length > 0 && /<span class="sec-dot" role="img" aria-label="Красный светофор: /.test(r3) && red3.every(t => r3.includes(t))
+    && anShut && kept === 2 && lights.length > 10 && !lBad.length && /const plural = \(n, one, few, many\)=>/.test(src) && pl === '1 плитка, 2 плитки, 4 плитки, 5 плиток, 11 плиток, 21 плитка, 22 плитки, 25 плиток',
+    `свёрнуты «Картина портфеля» и «Взыскание и реструктуризация» — ключи «человек|вкладка|секция»; спросили основу ${asked.length} плиток, из ${in1.length + in3.length} свёрнутых — ни одна; заголовки «${in1.length} плитки» и «${in3.length} плитки ●» — красный у «${red3.join('», «')}»; у «Аналитика» не свёрнуто, после смены пользователя и возврата свёрнуто ${kept}; светофор без основы совпал со светофором плитки ${lights.length} раз (плитки с порогами всех раскладок × три фильтра); склонение: ${pl} (ДБ-194, ДБ-34)`);
+
+  // ДБ-195: телефон — список «Экран: …», «Фильтр» и «⋯» (только выгрузка), охват строкой под списком, фишки переносятся
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); const mPh = DB.screenMenuItems(true); DB.setTab('screen', 'sc1'); const mPhS = DB.screenMenuItems(true);
+  const n0 = DB.screens('u1').length; DB.pickTab('new'); const n1 = DB.screens('u1').length; DB.pickTab('role:an'); const pAn = DB.state.tab.id;
+  ok(341, labels(mPh) === 'Выгрузить экран (PDF)' && labels(mPhS) === 'Выгрузить экран (PDF)' && /\.tabs\{ display:none; \}/.test(phoneCss) && /\.scr-pick\{ display:flex;/.test(phoneCss) && /\.topline > \.scope\{ display:none; \}/.test(phoneCss)
+    && /\.scope-m\{ display:block;/.test(phoneCss) && /\.scr-pick\{ display:none; \}/.test(css) && /\.scope-m\{ display:none; \}/.test(css) && n1 === n0 + 1 && pAn === 'an' && /<div class="scope-m">охват: /.test(home()),
+    `на телефоне ряд вкладок — список «Экран: …» (выбор «+ экран» создал экран: ${n0} → ${n1}; «Аналитик» — открыл вкладку), рядом «Фильтр» и «⋯» — в нём только «${labels(mPh)}» и на роли, и на своём экране; охват — серой строкой под списком; фишки переносятся (ДБ-195)`);
+
+  // ДБ-Д51, ДБ-Д52: на телефоне нет «Вернуть как объявлено»; ряд вкладок не обрезается — на телефоне его заменяет список
+  DB.seed(); asUser('u1'); DB.setTab('role', 'lead'); const hD = home();
+  ok(342, !mPh.some(x => /Вернуть|Переложить|Переименовать|Удалить/.test(x[0])) && !/>Вернуть как объявлено</.test(hD) && /\.tabs\{[^}]*overflow-x:auto;/.test(css) && /\.tab\{ position:relative; flex:none;/.test(css)
+    && /<option value="screen:sc1">Совещание по Ошу<\/option>/.test(hD) && /<option value="new">\+ экран<\/option>/.test(hD),
+    'на телефоне «Вернуть как объявлено» нет ни на странице, ни в «⋯» (только выгрузка); ряд вкладок на телефоне заменён списком, где есть «Совещание по Ошу» и «+ экран»; на узком компьютере ряд прокручивается, вкладки не сжимаются (ДБ-Д51, ДБ-Д52)');
   DB.seed();
 })();
 
