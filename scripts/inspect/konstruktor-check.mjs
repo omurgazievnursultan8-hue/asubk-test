@@ -121,7 +121,7 @@ const ME = 'Осмонова Г.', AUTH = 'Тентимишев К.';
     `список без строк отказан; «${wl.name}» заморожен на ${wl.count} объектах через выпуск ${wl.issue}, хотя экран уже показывает ${rowsNow} — состав под ногами не меняется`);
   const p1 = KB.askPublish(), p2 = KB.askPublish();
   const bs = KB.setBasis(), db = KB.pinToDashboard(), pb = KB.publish();
-  ok(16, p1.ok && !p2.ok && S().asked.to === AUTH && !bs.ok && has(bs.why, 'публикующий') && db.ok && has(db.note, 'раскладка — в модуле дашборда') && !pb.ok && has(pb.why, AUTH),
+  ok(16, p1.ok && !p2.ok && S().asked.to === AUTH && !bs.ok && has(bs.why, 'утверждающий') && db.ok && has(db.note, 'раскладка — в модуле дашборда') && !pb.ok && has(pb.why, AUTH),
     `просьба о публикации уходит ${AUTH}; норму и публикацию черновику отказывают словами, а «📌 на дашборд» сохранённого черновика — только ссылка: раскладку ведёт модуль дашборда`);
 })();
 
