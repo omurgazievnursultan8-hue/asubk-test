@@ -748,7 +748,8 @@ const OBJECTS = [
   {id:'pm-3', type:'payment', credit:'kr-2', dept:'dep-prom', date:'2025-09-15', amount:550000, kind:'основной долг',
    was:{amount:500000, until:'2026-02-10'}},
   {id:'pm-4', type:'payment', credit:'kr-2', dept:'dep-prom', date:'2025-12-15', amount:0,      kind:'пропущен'},
-  {id:'pm-5', type:'payment', credit:'kr-1', dept:'dep-prom', date:'2025-06-12', amount:1200000, kind:'основной долг'},
+  /* pm-5 — событие июля 2025 г.: месяц перенесён одними событиями, без итога (волна 38, ADR-0309). */
+  {id:'pm-5', type:'payment', credit:'kr-1', dept:'dep-prom', date:'2025-07-12', amount:1200000, kind:'основной долг'},
   {id:'pm-6', type:'payment', credit:'kr-1', dept:'dep-prom', date:'2025-12-12', amount:1200000, kind:'основной долг'},
   {id:'pm-7', type:'payment', credit:'kr-6', dept:'rep-osh',  date:'2025-10-01', amount:100000,  kind:'проценты'},
   /* pm-8 внесён после 1 января: в живом ответе он есть, в снимке на 1 января — нет */
@@ -903,7 +904,19 @@ const LEGACY = {months:{}};
 /* Средней просрочки на конец месяца легаси не хранило: дни просрочки оно
    пересчитывало пакетом и не сохраняло (допущение стенда).                   */
 LEGACY.months['декабрь 2025'].notCollected = ['s-avg-late'];
+/* Июль 2025 г. перенесён одними событиями, без итога (допущение стенда: месячного
+   итога за июль в легаси нет — пакетный пересчёт сальдо в тот месяц не прошёл).
+   Клетки остатков на его конец пусты «в легаси не собиралось», окончательная
+   сдача законна; потоки — из перенесённых событий (pm-5). Это «нет навсегда», а
+   не «ещё нет»: ИО-8 у такого месяца не срабатывает, остаток не восстанавливается
+   ни из соседнего итога и событий, ни нулём (ADR-0309 п. 1–3, ОГ-Д12).          */
+LEGACY.months['июль 2025'].totals = false;
 const legacyMonth = m => LEGACY.months[m] || null;
+/* Итога на эту дату нет навсегда: дата — конец месяца из легаси, перенесённого
+   без итога. Шов отвечает «нет» с признаком «из легаси», а не «снимка ещё нет». */
+const legacyNoTotal = asOf => { if(!asOf || asOf.slice(8) !== '01') return null;
+  const m = periodOfAsOf(asOf), lm = legacyMonth(m);
+  return lm && !lm.totals ? m : null; };
 /* Объекты, по которым статистика держит строки на дату. Повтор бланка «на
    дату» возможен только по ним: строк графика на дату нет (ADR-0305 п. 4). */
 const STAT_OBJECTS = ['credit', 'payment'];
@@ -980,6 +993,12 @@ const SEAM = {
   },
   /* СТАТИСТИКА. Строки объектов на дату — из её снимков, не из живой базы.   */
   statRows(objType, asOf, cut, scope){
+    /* Конец месяца из легаси без итога — «нет навсегда»: соседний снимок не
+       подставляется, остаток не выводится из него и событий (ADR-0309 п. 2–3). */
+    const nt = objType === 'credit' ? legacyNoTotal(asOf) : null;
+    if(nt) return {rows:[], hidden:0, substituted:null, missing:true, never:true,
+      why:'в легаси не собиралось: итог за '+nt+' перенос не дал',
+      passport:{seam:'statRows', owner:'статистика', asOf, mode:'на дату', scope: scope.slice(), source:'легаси'}};
     const real = nearestSnapshot(asOf);
     if(!real) return {rows:[], hidden:0, substituted:null, missing:true,
       passport:{seam:'statRows', owner:'статистика', asOf, mode:'на дату', scope: scope.slice()}};
@@ -1027,6 +1046,9 @@ const SEAM = {
     if(!meta) return {levels, value:null, groups:[],
       why:'показателя «'+statId+'» в реестре нет', passport:null};
     const src = asOf ? SEAM.statRows('credit', asOf, cut, scope) : SEAM.objectRows('credit', cut, scope);
+    if(src.never) return {levels, value:null, groups:[], unit: meta.unit, why:'в легаси не собиралось',
+      legacy:true, never:true, passport:{seam:'statSlice', owner:'статистика', form:'дерево',
+        by: levels.slice(), asOf, mode:'на дату', scope: scope.slice(), source:'легаси'}};
     if(src.missing) return {levels, value:null, groups:[],
       why:'снимка на '+fmt(asOf)+' у статистики нет', passport:null};
     /* Месяц из легаси: величины, которых легаси не собирало, приходят
@@ -1292,14 +1314,15 @@ function compose(tpl, ed, params, viewer){
     ' — охват ответа неполный');
   if(src.substituted) soft.push('снимка на '+fmt(asOf)+' нет, подставлен ближайший на '+
     fmt(src.substituted));
-  if(src.missing) soft.push('снимка статистики на '+fmt(asOf)+' нет вовсе');
+  if(src.missing) soft.push(src.never ? 'итога на '+fmt(asOf)+' нет и не будет: '+src.why
+    : 'снимка статистики на '+fmt(asOf)+' нет вовсе');
   /* Колонки-даты формы (ОГ-35): каждая дата — в паспорт; колонка без снимка
      делает выпуск предварительным так же, как подстановка снимка (ИО-8).    */
   const tt = asOf && (ed.timeCols || []).length && !src.missing ? timeTable(ed, asOf, cut, scope) : null;
   if(tt) tt.gaps.forEach(g => soft.push('колонка '+g));
   return {
     cols, rows, totals, levels, groups, sheet, timeTable: tt,
-    hidden: src.hidden, substituted: src.substituted, missing: !!src.missing,
+    hidden: src.hidden, substituted: src.substituted, missing: !!src.missing, never: !!src.never,
     soft,
     passport:{
       asOf: asOf ? src.passport.asOf : null,
@@ -1704,6 +1727,26 @@ function templatesSeed(){ return [
      params:[{id:'period', role:'вопроса', name:'Отчётный месяц'},
              {id:'dept',   role:'отбора',  name:'Подразделение'}]}]},
 
+  /* --- форма «к прошлому году» (волна 38): колонка-остаток «на отчётную дату —
+     прошлый год» на 01.08.2026 касается июля 2025 г., перенесённого одними
+     событиями, без итога (ADR-0309). Клетки остатков пусты «в легаси не
+     собиралось», поток за месяц прошлого года — из перенесённых событий. --- */
+  {id:'t-port-ly', kind:'отчёт', name:'Портфель к прошлому году',
+   owner:'Тентимишев К.', asked:false,
+   basis:{doc:'Регламент оперативного мониторинга ФКФ', point:null},
+   circle:ALL_DEPTS.slice(), forReview:true, fullCoverage:false, schedule:null, docType:'Отчёт',
+   editions:[{n:1, state:'утверждена', since:'2026-08-20', by:'Тентимишев К.', at:'2026-08-20',
+     object:'credit', mode:'на дату', order:'по номеру',
+     fields:['no','borrower','dept','debt_main'],
+     stats:['s-portfolio','s-overdue-cnt'], cuts:[], levelTotals:[],
+     dp:{'s-portfolio':0, 's-overdue-cnt':0}, subs:[], flows:['pay-sum','pay-cnt'],
+     timeCols:[{id:'c-now', kind:'на дату', at:'отчётная дата', name:'На отчётную дату'},
+               {id:'c-m',   kind:'за период', span:'отчётный месяц', name:'За отчётный месяц'},
+               {id:'c-nly', kind:'аналогичный период', of:'c-now', name:'На отчётную дату — прошлый год'},
+               {id:'c-mly', kind:'аналогичный период', of:'c-m', name:'За отчётный месяц — прошлый год'}],
+     params:[{id:'period', role:'вопроса', name:'Отчётный месяц'},
+             {id:'dept',   role:'отбора',  name:'Подразделение'}]}]},
+
   /* --- личные черновики: шаблоном их делает публикация (ИО-1) --- */
   {id:'t-avg', kind:'отчёт', name:'Средняя просрочка по департаментам',
    owner:'Осмонова Г.', asked:true, basis:null,
@@ -1837,10 +1880,22 @@ RP.FILE_DAYS = FILE_DAYS;
 
 /* Строки календаря, заведённые выпуском миграции: закрыты во всех
    колонках-защёлках разом, один раз, с origin и актором (ADR-0307 п. 1).    */
-function legacyPeriods(){ const out = {};
-  Object.keys(LEGACY.months).forEach(m => { out[m] = {state:'закрыт', origin:'легаси', release: MIGRATION.id,
-    at: MIGRATION.at, by: MIGRATION.by, latches:{'учёт':'закрыт', 'классификация':'закрыт', 'статистика':'закрыт'}}; });
-  return out; }
+/* Месяц перед запуском обязан нести итог: это входящий остаток системы. Без
+   итога он не перенесён и закрытым не объявляется (ADR-0309 п. 4). Остальные
+   месяцы закрываются и одними событиями (ADR-0309 п. 1).                    */
+const PRE_LAUNCH_MONTH = monthLabel(addDays(LAUNCH, -1));
+function migrationCalendar(comp){ const periods = {}, notMigrated = [];
+  Object.keys(comp.months).forEach(m => {
+    if(m === PRE_LAUNCH_MONTH && !comp.months[m].totals){
+      notMigrated.push({month: m, why:'итог месяца перед запуском не перенесён — это входящий остаток системы: '+
+        'месяц не перенесён и закрытым не объявлен'}); return; }
+    periods[m] = {state:'закрыт', origin:'легаси', release: MIGRATION.id,
+      at: MIGRATION.at, by: MIGRATION.by, latches:{'учёт':'закрыт', 'классификация':'закрыт', 'статистика':'закрыт'}}; });
+  return {periods, notMigrated}; }
+const legacyPeriods = () => migrationCalendar(LEGACY).periods;
+/* Какой календарь заведёт выпуск миграции с таким составом — без записи. */
+RP.migrationCalendar = comp => clone(migrationCalendar(comp || LEGACY));
+RP.legacyComposition = () => clone(LEGACY);
 function seed(){
   restoreMirrors();
   const st = {
@@ -1855,6 +1910,10 @@ function seed(){
     periods: Object.assign(legacyPeriods(), {'январь 2026':{state:'закрыт'}, 'февраль 2026':{state:'закрыт'},
       'март 2026':{state:'закрыт'}, 'апрель 2026':{state:'закрыт'},
       'май 2026':{state:'закрыт'}, 'июнь 2026':{state:'закрыт'}, 'июль 2026':{state:'закрыт'}}),
+    /* Версии миграции и журнал перезаписи — зеркало соседа (ADR-0245 §9): М-1
+       завёл месяцы до запуска, правка их — только следующей версией.        */
+    migrations: [{id: MIGRATION.id, of: null, at: MIGRATION.at, by: MIGRATION.by, why:'перенос при запуске',
+      periods: Object.keys(legacyPeriods())}], rewrites: [],
     worklists: [], wseq: 0,
     views: [], vseq: 0, fseq: 0,                /* личные виды — восьмая сущность (§2.8) */
     subs: [], notices: [], notes: [], subSeq: 0, /* подписки и сигналы (§2.9), заметки (§2.10) */
@@ -2549,7 +2608,8 @@ RP.step = id => {
     soft = data.soft.slice();
     if(data.missing){
       rec.state = 'ошибка';
-      rec.error = 'снимка статистики на '+fmt(rec.params.asOf)+' нет вовсе: спросить нечего (ИО-6)';
+      rec.error = data.never ? 'итога на '+fmt(rec.params.asOf)+' нет и не будет — в легаси не собиралось: '+
+        'спросить нечего (ИО-6)' : 'снимка статистики на '+fmt(rec.params.asOf)+' нет вовсе: спросить нечего (ИО-6)';
       log('выпуск '+id+' кончился ошибкой: снимка на '+fmt(rec.params.asOf)+' нет');
       return {ok:false, id, state:'ошибка', done:true, why: rec.error};
     }
@@ -2735,6 +2795,14 @@ RP.recompute = id => {
     const nv = n ? (n.shown != null ? n.shown : n.value) : null;
     return {name: s.name, unit: s.unit, was: s.value, now: nv};
   }).filter(d => d.was !== d.now);
+  /* Колонки-даты формы морозятся тем же снимком: их клетки сверяются так же —
+     правка месяца из легаси задевает выпуск через колонку, а не через период
+     выпуска (ADR-0307 п. 6).                                                  */
+  const st = i.snapshot.timeTable, nt = now.timeTable;
+  if(st && nt) st.rows.forEach(r => { const nr = nt.rows.find(x => x.id === r.id);
+    r.cells.forEach(c => { const nc = nr && nr.cells.find(x => x.col === c.col), nv = nc ? nc.value : null;
+      if(c.value !== nv) diffs.push({name: r.name+' × «'+st.cols.find(x => x.id === c.col).name+'»', unit: r.unit,
+        was: c.value, now: nv}); }); });
   return {diffs, changed: diffs.length > 0};
 };
 /* Период из легаси не переоткрывается (ADR-0207 п. 4, ADR-0307 п. 6):
@@ -2747,6 +2815,8 @@ RP.periodActions = period => { const p = RP.state.periods[period];
   if(p.origin === 'легаси') return {period, state:p.state, origin:'легаси', release:p.release, by:p.by, actions:[], why: LEGACY_NO_REOPEN};
   return {period, state:p.state, origin:'система', actions: p.state === 'закрыт' && asOfOfPeriod(period) ? ['открыть заново'] : []};
 };
+/* Почему выпуск помечен: причины копятся — второй повод не стирает первый. */
+const divergedWhy = (i, cause) => (i.divergedWhy ? i.divergedWhy+'; затем '+cause : 'числа изменились после сдачи: '+cause);
 RP.reopenPeriod = (period, why) => {
   const lp = RP.state.periods[period];
   if(lp && lp.origin === 'легаси') return {ok:false, why:'период «'+period+'» '+LEGACY_NO_REOPEN};
@@ -2764,12 +2834,73 @@ RP.reopenPeriod = (period, why) => {
   RP.state.issues.forEach(i => {
     if(!i.snapshot || i.period !== period) return;
     const r = RP.recompute(i.id);
-    if(r && r.changed){ i.diverged = true; i.divergedAt = RP.state.today; marked++; }
+    if(r && r.changed){ i.diverged = true; i.divergedAt = RP.state.today;
+      i.divergedWhy = divergedWhy(i, 'период «'+period+'» открыт заново'); marked++; }
   });
   log('период «'+period+'» открыт заново: '+why);
   return {ok:true, marked, note:'выпусков со снимком помечено: '+marked+
     '; предварительные выпуски метки не получают — метить нечего (§6)'};
 };
+/* Исправление периода из легаси — новой версией миграции, а не открытием
+   (ADR-0307 п. 6, ADR-0245 §9). Действие принадлежит миграции: отчётность
+   календаря не пишет, а читает его и журнал перезаписи; здесь — зеркало соседа
+   на ширину вопроса. Версия утверждается человеком (ИС-9), каждая заменённая
+   величина ложится строкой журнала перезаписи «было → стало». Период остаётся
+   закрытым из легаси, действия «открыть» у него не появляется. Выпуски на
+   прежних числах метятся «числа изменились после сдачи», как при перезакрытии
+   (ИО-34), и сами не переиздаются.                                          */
+const REWRITE_FIELD = {debt_main:'остаток основного долга', days:'дней просрочки', status:'состояние', amount:'сумма'};
+const migVersion = () => MIGRATION.id.replace(/\d+$/, '')+(RP.state.migrations.length + 1);
+RP.migrationRevision = spec => {
+  const s = spec || {}, period = s.period, p = RP.state.periods[period];
+  if(!p) return {ok:false, why:'месяц «'+period+'» перенос не дал: закрытым он не объявлен, правка миграции его не '+
+    'закроет — по колонке, которая его касается, только предварительный выпуск'};
+  if(p.origin !== 'легаси') return {ok:false, why:'период «'+period+'» закрыт прогоном системы: правка — открытием '+
+    'периода главным бухгалтером, а не версией миграции'};
+  if(RP.viewer().id !== 'buh') return {ok:false, why:'версию миграции утверждает человек, отвечающий за перенос, — '+
+    'как М-1 утвердил '+MIGRATION.by+'; роль «'+RP.state.role+'» её не утверждает'};
+  if(!String(s.why || '').trim()) return {ok:false, why:'правка без основания не записывается: журнал перезаписи '+
+    'хранит, кто, когда и почему заменил перенесённое'};
+  const lm = legacyMonth(period), end = firstOfNext(monthIso(period));
+  const tot = s.totals || {}, evs = s.events || {};
+  if(!Object.keys(tot).length && !Object.keys(evs).length) return {ok:false, why:'менять нечего: версия миграции '+
+    'называет заменяемые итоги или события'};
+  if(Object.keys(tot).length && !(lm && lm.totals)) return {ok:false, why:'итог за '+period+' перенос не давал: дополнить '+
+    'перенос итогом новой версией модель пока не решила (ОГ-Д13, к гриллингу)'};
+  if(Object.keys(tot).length && !HIST[end]) return {ok:false, why:'итога на '+fmt(end)+' в стенде нет — править нечего'};
+  for(const id of Object.keys(tot)) if(!HIST[end][id]) return {ok:false, why:'в итоге на '+fmt(end)+' строки «'+id+'» нет'};
+  for(const id of Object.keys(evs)){ const o = OBJECTS.find(x => x.id === id && x.type === 'payment');
+    if(!o || o.date.localeCompare(monthIso(period)) === -1 || o.date.localeCompare(end) !== -1)
+      return {ok:false, why:'событие «'+id+'» не из месяца «'+period+'»'}; }
+  const ver = migVersion(), at = RP.state.today, by = RP.who(), rows = [];
+  /* В журнал ложится только настоящая замена: версия, не меняющая ни одного
+     числа, — не версия.                                                      */
+  Object.keys(tot).forEach(id => Object.keys(tot[id]).forEach(f => { if(HIST[end][id][f] === tot[id][f]) return;
+    rows.push({release: ver, period, at, by, why: s.why, what:'итог на '+fmt(end)+' · '+(OBJ(id) || {no:id}).no+' · '+(REWRITE_FIELD[f] || f),
+      was: HIST[end][id][f], now: tot[id][f], apply: () => { HIST[end][id][f] = tot[id][f]; }}); }));
+  Object.keys(evs).forEach(id => { const o = OBJECTS.find(x => x.id === id);
+    Object.keys(evs[id]).forEach(f => { if(o[f] === evs[id][f]) return; rows.push({release: ver, period, at, by, why: s.why,
+      what:'событие '+id+' от '+fmt(o.date)+' · '+(REWRITE_FIELD[f] || f), was: o[f], now: evs[id][f], apply: () => { o[f] = evs[id][f]; }}); }); });
+  if(!rows.length) return {ok:false, why:'менять нечего: в переносе уже эти числа — версия без замен не выпускается'};
+  rows.forEach(r => { r.apply(); delete r.apply; });
+  RP.state.migrations.push({id: ver, of: MIGRATION.id, at, by, why: s.why, periods:[period]});
+  RP.state.rewrites = RP.state.rewrites.concat(rows);
+  p.release = ver; p.revisions = (p.revisions || []).concat(ver);
+  /* Метится выпуск, чей снимок касается месяца: периодом выпуска или колонкой. */
+  const touches = i => i.period === period || !!(i.snapshot && i.snapshot.timeTable &&
+    i.snapshot.timeTable.cols.some(c => (c.months || []).indexOf(period) !== -1));
+  const marked = [];
+  RP.state.issues.forEach(i => { if(!i.snapshot || !touches(i)) return;
+    const r = RP.recompute(i.id);
+    if(r && r.changed){ i.diverged = true; i.divergedAt = at;
+      i.divergedWhy = divergedWhy(i, 'новая версия миграции '+ver+' ('+period+')'); marked.push(i.id); } });
+  log('новая версия миграции '+ver+': '+period+' — замен '+rows.length+'; '+s.why);
+  return {ok:true, release: ver, period, rewrites: rows.length, marked,
+    note:'версия '+ver+' записана, замен в журнале перезаписи: '+rows.length+'; выпусков на прежних числах помечено: '+
+      marked.length+' — они не переиздаются, уточнить можно корректирующим выпуском'};
+};
+RP.rewriteLog = () => clone(RP.state.rewrites);
+RP.migrations = () => clone(RP.state.migrations);
 RP.whatWentOut = period => RP.state.issues
   .filter(i => i.period === period && i.recipient)
   .map(i => ({id:i.id, at:i.at, to:i.recipient.name, tpl:i.tplName, number: issueNumber(i), doc: i.doc,
@@ -3337,7 +3468,9 @@ function timeTable(ed, asOf, cut, scope){
       : 'состав: из легаси ('+monthSpan(c.legacy)+') — перенос, '+MIGRATION.text+
         (own.length ? '; свои — '+monthSpan(own) : '')+(lost.length ? '; до запуска, переносом не закрыты — '+monthSpan(lost) : '');
     /* Поток за месяц, по которому перенос событий не дал, — не ноль. */
-    c.noEvents = c.months.filter(m => { const ps = SEAM.periodSource(m); return ps && !ps.events; }); });
+    c.noEvents = c.months.filter(m => { const ps = SEAM.periodSource(m); return ps && !ps.events; });
+    /* Остаток на конец месяца, который перенос дал одними событиями, без итога. */
+    c.noTotal = c.sort === 'остаток' && c.legacy.length ? legacyNoTotal(c.at) : null; });
   /* Платёж режется подразделением; отбор строк отчёта (перечень кредитов) —
      по кредиту платежа, а не по id самого платежа.                          */
   const pays = SEAM.statRows('payment', asOf, {dept: (cut || {}).dept || null}, scope);
@@ -3346,6 +3479,10 @@ function timeTable(ed, asOf, cut, scope){
     return fid === 'pay-sum' ? ev.reduce((a, p) => a + p.amount, 0) : ev.length; };
   const rows = ed.stats.map(sid => ({id:sid, name: statName(sid), unit:(SEAM.statMeta(sid) || {}).unit || '', sort:'остаток',
       cells: cols.map(c => { if(c.sort !== 'остаток') return {col:c.id, value:null, gap:'остаток за период не складывается'};
+        /* Конец месяца из легаси без итога — «нет навсегда»: клетка пустая с
+           причиной, выпуск не предварительный; «снимка нет» (ИО-8) — только у
+           месяца, у которого снимок ещё может появиться (ADR-0309 п. 1–2).    */
+        if(c.noTotal) return {col:c.id, value:null, gap:'в легаси не собиралось', note:'итог месяца не перенесён ('+c.noTotal+')'};
         if(HIST_DATES.indexOf(c.at) === -1) return {col:c.id, value:null, gap:'снимка на '+fmt(c.at)+' нет'};
         const sl = SEAM.statSlice(sid, null, cut, c.at, scope);
         if(sl.value == null) return {col:c.id, value:null, gap: sl.why || 'величины нет'};
@@ -3364,7 +3501,7 @@ function timeTable(ed, asOf, cut, scope){
        клетки, которых в легаси нет, — поимённо (ADR-0307 п. 5, 7).          */
     sources: cols.filter(c => c.source).map(c => '«'+c.name+'»: '+c.source),
     legacyGaps: rows.reduce((a, r) => a.concat(r.cells.filter(x => x.gap && /в легаси/.test(x.gap))
-      .map(x => r.name+' × «'+cols.find(c => c.id === x.col).name+'» — '+x.gap)), []),
+      .map(x => r.name+' × «'+cols.find(c => c.id === x.col).name+'» — '+x.gap+(x.note ? ': '+x.note : ''))), []),
     seams: ['statSlice ×'+cols.filter(c => c.sort === 'остаток').length, 'statRows (платёж)']};
 }
 /* Месяцы подряд — диапазоном: «январь 2025 — июль 2025». */
@@ -5156,7 +5293,8 @@ function scJournal(){
         (i.state !== 'готов' ? '<div class="small">задание: '+esc(i.state)+
           ', ступень при заказе — '+esc(i.asked)+'</div>' : '')+
         (i.error ? '<div class="why">'+esc(i.error)+'</div>' : '')+
-        (i.diverged ? '<div>'+pill('расхождение со сданным','err')+'</div>' : '')+
+        (i.diverged ? '<div>'+pill('расхождение со сданным','err')+'</div>'+
+          (i.divergedWhy ? '<div class="small">'+esc(i.divergedWhy)+'</div>' : '') : '')+
         (i.correctionOf ? '<div class="small">уточняет '+esc(i.correctionOf)+'</div>' : '')+
         (i.correctedBy ? '<div class="small">уточнён выпуском '+esc(i.correctedBy)+'</div>' : '')+
         (i.note ? '<div class="why">'+esc(i.note)+'</div>' : '')+'</td>'+
@@ -5220,12 +5358,24 @@ function scJournal(){
     '<th>Состояние</th><th>Кем закрыт</th><th>Действие</th></tr></thead><tbody>'+
     (lgs.length ? '<tr><td>'+esc(monthSpan(lgs))+' <span class="small muted">('+lgs.length+' мес.)</span></td><td>'+
       pill('закрыт', 'neutral')+' '+pill('из легаси', 'info')+'</td><td class="small">перенос, '+esc(MIGRATION.text)+
+      lgs.filter(m => RP.state.periods[m].revisions).map(m => '<div>'+esc(m)+' — правка версией '+
+        esc(RP.state.periods[m].revisions.join(', '))+'</div>').join('')+
       '</td><td class="small muted">открыть нельзя — переспрашивать некого; правка — новой версией миграции (ADR-0207 п. 4)</td></tr>' : '')+
     owns.map(m => { const a = RP.periodActions(m);
       return '<tr><td>'+esc(m)+'</td><td>'+pill(a.state, a.state === 'закрыт' ? 'neutral' : 'warn')+'</td><td class="small">прогон системы</td><td>'+
         (a.actions.length ? '<span class="small">открыть заново — главный бухгалтер (ADR-0089)</span>'
           : '<span class="small muted">—</span>')+'</td></tr>'; }).join('')+
-    '</tbody></table></div></div>';
+    '</tbody></table></div>'+
+    /* Правка периода из легаси — версией миграции; журнал перезаписи читается,
+       выпуски на прежних числах метятся, но сами не переиздаются.            */
+    '<div class="btn-row"><button class="btn btn-secondary btn-sm" style="white-space:normal;text-align:left" '+
+      'onclick="RP.doMigrationRevision()">Новая версия миграции: правка итога декабря 2025 (КД-2025/126)</button></div>'+
+    (RP.state.rewrites.length ? '<h4 style="margin-top:12px">Журнал перезаписи</h4><div class="tw"><table class="cgrid"><thead><tr>'+
+      '<th>Версия</th><th>Период</th><th>Что</th><th>Было → стало</th><th>Кто, когда, почему</th></tr></thead><tbody>'+
+      RP.state.rewrites.map(w => '<tr><td class="mono">'+esc(w.release)+'</td><td>'+esc(w.period)+'</td><td class="small">'+
+        esc(w.what)+'</td><td class="num">'+rwVal(w.was)+' → '+rwVal(w.now)+'</td><td class="small">'+esc(w.by)+', '+
+        fmt(w.at)+'<div class="muted">'+esc(w.why)+'</div></td></tr>').join('')+'</tbody></table></div>' : '')+
+    '</div>';
   h += '<div class="card"><h3>Период открыли заново — что мы отдали наружу</h3>'+
     '<div class="btn-row"><button class="btn btn-secondary btn-sm" onclick="RP.doReopen()">'+
       'Открыть заново период «июль 2026» (сторно платежа по КД-2024/259)</button></div>';
@@ -5243,6 +5393,10 @@ RP.doSheetIssue = id => act(RP.setSheetOnIssue(id, {orient:'альбомная'}
 RP.doExport = (id, f) => act(RP.exportIssue(id, f));
 RP.doDelete = id => act(RP.deleteIssue(id));
 RP.doCorrective = id => { const r = RP.corrective(id); if(r.ok) RP.state.sel.issue = r.id; act(r, r.note); };
+const rwVal = v => typeof v === 'number' ? money(v) : esc(v);
+RP.doMigrationRevision = () => { const r = RP.migrationRevision({period:'декабрь 2025',
+  why:'перенос М-1 взял остаток КД-2025/126 до последней проводки декабря', totals:{'kr-6':{debt_main: 6300000}}});
+  act(r, r.note); };
 RP.doReopen = () => act(RP.reopenPeriod('июль 2026',
   'сторнирован ошибочно отражённый платёж по КД-2024/259'), 'период открыт заново');
 
