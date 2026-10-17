@@ -8,7 +8,7 @@
   Рабочий прототип (single-file) — модуль «Отчётность» (TO-BE). Логика исполняется.
   Канон логики — ASUBK-otchetnost-logika.md; журнал волн — ASUBK-status-razrabotki.md.
   Смоук: node scripts/inspect/reports-check.mjs
-  SMOKE 2026-10-17 · 268/268 PASS
+  SMOKE 2026-10-17 · 276/276 PASS
      PASS  #1  личный черновик «Справка о задолженности» не виден даже уполномоченному, пока автор не попросил публикации — ИО-1
      PASS  #2  пользователь опубликовать не может: «утверждает уполномоченный по отчётности: роль «Пользователь (Осмонова …»
      PASS  #3  состояние шаблона СЧИТАЕТСЯ, а не хранится: «черновик» → «утверждён» после публикации
@@ -19,7 +19,7 @@
      PASS  #8  неисчислимый налету показатель в режиме «сейчас» отклонён причиной владельца реестра — ADR-0159
      PASS  #9  чистый черновик проходит все пять проверок и становится шаблоном организации
      PASS  #10  основание, вписанное не публикующим, остаётся просьбой: «сослаться на пункт нормы может только утверждающий: основание «п. 12 П…»
-     PASS  #11  в движке состава (16247 симв.) и движке бланка (2537) нет ни базы, ни формулы: запрещённых имён 0 — ИО-2, ИО-3
+     PASS  #11  в движке состава (17163 симв.) и движке бланка (2537) нет ни базы, ни формулы: запрещённых имён 0 — ИО-2, ИО-3
      PASS  #12  «свой запрос» — названный отказ; «своя формула» — названная граница: в официальный не входит (ADR-0281)
      PASS  #13  шов вернул 3 строк и произнёс «скрыто 5»; итог посчитан по видимым строкам (15000000 против 62650000) — иначе итог рассказал бы то, чего в строках нет, §13.2
      PASS  #14  снимка на 01.09.2026 нет — подставлен ближайший на 2026-08-01; на 01.12.2024 (глубже переноса) снимка нет вовсе
@@ -277,6 +277,14 @@
      PASS  #266  ОД-27: снятие роли с владельца отчёта с соавтором-ролью — уход владельца: «Просрочка по подразделениям — к планёрке» → Асанов А. (старший держатель); версии не порождает, полка называет прежнего владельца
      PASS  #267  ОД-28: предложение открывает личный отчёт держателям роли (делопроизводителю — нет); «похожий уже есть» — «Погашения и портфель за период»; принятие — копия t-cat-1: владелец Асанов А., соавтор — роль, автор в круге; личный остаётся у автора; «принять на найденный» копии не делает
      PASS  #268  экраны: «Крупнейшие 3» и ссылки «Изменения» у сравнения; панель провала «Изменения» с переходами, поиском, «Колонки ▾» и выгрузкой; динамика по периоду начала; очередь «Предложены в каталог» у держателя роли; номеров решений в интерфейсе нет
+     PASS  #269  ОД-29: «Остаток, всего» 01.06 → 01.08.2026 — потоками записи объекта: 70 100 000 + 0 − 5 750 000 + 0 − 250 000 = 64 100 000; «прочее» −250 000 — КД-2025/126 (курсовая, потока нет); сумма объектов каждой строки = строке; «списано 0» печатается
+     PASS  #270  ОД-30: правило — к каждому объекту узла на любой из дат: КД-2026/007 без строки на 01.02 — «выдано» +2 500 000, а не «пришёл»; в узле «просрочен» КД-2024/203 — строкой «пришли из «действует»» +5 900 000 (остаток на базу), его «погашено» −600 000 — в этом узле: 5 400 000 + 0 − 750 000 + 0 − 250 000 + 5 900 000 = 10 300 000; 01.01.2025 → 01.08.2026 — «выдано» 4 кредитам 56 700 000
+     PASS  #271  ОД-31: источник не ответил колонкой у КД-2024/117 — «нет ответа источника» −700 000 всей разницей, потоки и «прочее» по нему не считаются, «погашено» −5 050 000; строка «нет ответа» — только при сбое
+     PASS  #272  ОД-32, ОД-33: «прочее» — остаток со своим списком: клик по строке — строка «прочее»: показано 1 из 7 · сумма показанных -250 000 = строке -250 000; поиск внутри строки сужает и её; рабочий список из строки «прочее» — один объект, имя по пути с именем строки
+     PASS  #273  ОД-34: частичное погашение — объект обеих дат: КД-2024/203 остаётся в узле, «погашено» −600 000 = разнице, «прочее» 0 — тот же случай, что частичное распределение поступления; особого правила нет
+     PASS  #274  ИО-57, ИО-62: строки Движения в ответе reportAnswer (и у дашборда тем же швом) = строкам окна отчёта; у «Суммы просрочки» потоков запись не объявляет — строки переходов «пришёл · снизилось», без «прочего»
+     PASS  #275  ОД-36: «нет объектов» — признак ответа: «под значениями параметров объектов нет: подразделение = «Департамент правового обеспечения»» (число 0 остаётся); законный ноль — просрочка на 01.01.2026 = 0 при 7 кредитах, без признака; пользователю «Ош» — «охват», скрыто 2; окно отчёта — тот же признак
+     PASS  #276  экраны: плашка «Нет объектов» над итогами при подразделении без кредитов; провал «Изменения» «Остатка» — строки Движения с цепочкой, колонки «Погашено» и «Прочее» у объектов; клик по «прочему» сужает список; номеров решений в интерфейсе нет
 -->
 <style>
 :root{
@@ -517,6 +525,7 @@ a.drill{ color:var(--text-link); text-decoration:none; border-bottom:1px dashed 
 a.drill:hover{ border-bottom-style:solid; }
 .vbar{ display:inline-block; height:6px; min-width:2px; max-width:100px; border-radius:3px; background:var(--asubk-blue); vertical-align:middle; }
 tr.cut80 td{ border-bottom:2px dashed var(--asubk-amber); }
+tr.mvsel td{ background:var(--asubk-blue-tint); font-weight:600; }
 .prog{ display:inline-flex; align-items:center; gap:8px; white-space:nowrap; }
 .prog .bar{ display:inline-block; width:90px; height:6px; border-radius:3px; background:var(--asubk-gray-200); overflow:hidden; }
 .prog .bar span{ display:block; height:100%; background:var(--asubk-green); }
@@ -1232,6 +1241,25 @@ const LEGACY_ARCHIVE = {'июль 2025': {
   'kr-3':{debt_main:2700000,  days:0,  status:'действует'}, 'kr-4':{debt_main:40200000,days:0,  status:'действует'},
   'kr-5':{debt_main:5100000,  days:0,  status:'действует'}, 'kr-6':{debt_main:6200000, days:0,  status:'действует'},
   'kr-8':{debt_main:13600000, days:0,  status:'действует'}}};
+/* Потоки строки кредита нарастающим итогом (волна 44) — колонки строки
+   статистики, которыми запись кредита объясняет «Остаток основного долга»:
+   выдано (i_issued_som), погашено ОД (i_repaid_od_som), списано ОД
+   (i_woff_od_som); «за период» — разность двух строк. Генератор идёт после
+   прежних и чисел остатка не трогает. Все кредиты стенда выданы одним траншем;
+   погашено ОД = выдано − остаток + курсовая: в погашение входят и взносы по
+   графику, событий которых стенд не держит. Списаний на стенде нет.
+   КД-2025/126 — в долларах (допущение стенда): в июне — июле 2026 г. сом
+   укрепился, и остаток в сомах снизился на 200 000 и 50 000 без платежа.
+   Потока курсовой разницы ядро пока не отдаёт (⚑ i_fx_som), и запись кредита
+   его не объявляет — это «прочее» Движения.                                  */
+(() => {
+  const FX = {'kr-6':{'2026-07-01':-200000, '2026-08-01':-250000}};
+  const fill = (D, snap) => Object.keys(snap).forEach(id => { const o = OBJECTS.find(x => x.id === id), r = snap[id];
+    const issued = o && o.issued < D ? o.sum : 0, fx = (FX[id] || {})[D] || 0;
+    r.i_issued_som = issued; r.i_repaid_od_som = issued - r.debt_main + fx; r.i_woff_od_som = 0; });
+  Object.keys(HIST).forEach(D => fill(D, HIST[D]));
+  fill('2025-08-01', LEGACY_ARCHIVE['июль 2025']);
+})();
 const legacyMonth = m => LEGACY.months[m] || null;
 /* Итога на эту дату нет навсегда: дата — конец месяца из легаси, перенесённого
    без итога. Шов отвечает «нет» с признаком «из легаси», а не «снимка ещё нет». */
@@ -1346,7 +1374,8 @@ const SEAM = {
       const s = snap[o.id] || {};
       return {id:o.id, no:o.no, borrower:o.borrower, dept:o.dept, sum:o.sum,
               issued:o.issued, guarantor:o.guarantor, start: startOf(o.issued),
-              debt_main:s.debt_main, days:s.days, status:s.status, closed:o.closed};
+              debt_main:s.debt_main, days:s.days, status:s.status, closed:o.closed,
+              i_issued_som:s.i_issued_som, i_repaid_od_som:s.i_repaid_od_som, i_woff_od_som:s.i_woff_od_som};
     }), cut);
     const vis = all.filter(o => scope.indexOf(o.dept) !== -1);
     return {rows: clone(vis), hidden: all.length - vis.length,
@@ -1598,6 +1627,19 @@ function bandsFor(ed, levels, li, rows, cut, asOf, scope){
   });
 }
 
+/* «Нет объектов» (ОД-36): состав вопроса пуст — признак рядом с числом, а
+   не замена числа. Причина: «параметр» — под значениями параметров объектов
+   нет вовсе; «охват» — объекты есть, но все вне охвата смотрящего. Законный
+   ноль (состав есть, сумма ноль) признака не несёт.                         */
+function emptyOf(src, params){
+  if(!src || src.missing || (src.rows || []).length) return null;
+  const pr = params || {}, named = [];
+  if(pr.dept) named.push('подразделение = «'+deptName(pr.dept)+'»');
+  if(pr.ids) named.push('объекты = '+pr.ids.length+' по списку');
+  if(src.hidden) return {cause:'охват', hidden: src.hidden,
+    why:'объекты под параметрами есть, но все вне вашего охвата: скрыто '+objWord(src.hidden)};
+  return {cause:'параметр', params: named, why:'под значениями параметров объектов нет'+(named.length ? ': '+named.join(', ') : '')};
+}
 function compose(tpl, ed, params, viewer){
   const scope = viewer.scope.slice();
   const cut = {dept: params.dept || null, ids: params.ids || null};
@@ -1646,7 +1688,7 @@ function compose(tpl, ed, params, viewer){
   const tt = asOf && (ed.timeCols || []).length && !src.missing ? timeTable(ed, asOf, cut, scope) : null;
   if(tt) tt.gaps.forEach(g => soft.push('колонка '+g));
   return {
-    cols, rows, totals, levels, groups, sheet, timeTable: tt,
+    cols, rows, totals, levels, groups, sheet, timeTable: tt, empty: drill ? emptyOf(src, params) : null,
     hidden: src.hidden, substituted: src.substituted, missing: !!src.missing, never: !!src.never,
     soft,
     passport:{
@@ -4558,10 +4600,17 @@ const OBJECT_REG = {
     reasons:[{why:'списан',            test:(a, b) => !!b && b.status === 'списан'},
              {why:'реструктурирован',  test:(a, b) => !!b && b.status === 'реструктурирован'},
              {why:'погасил',           test:(a, b) => !b || b.status === 'закрыт' || b.debt_main === 0},
-             {why:'просрочка погашена', test:(a, b) => !!a && a.days > 0 && !!b && b.days === 0}]}
+             {why:'просрочка погашена', test:(a, b) => !!a && a.days > 0 && !!b && b.days === 0}],
+    /* Потоки, объясняющие остаток (ADR-0313): у показателя-остатка — перечень,
+       показатель-источник (колонка строки нарастающим итогом) и знак. Отчётность
+       берёт разность источника в двух строках объекта и смысла потока не знает. */
+    flows:{'s-portfolio':[{id:'issued', name:'выдано',   src:'i_issued_som',    sign: 1},
+                          {id:'repaid', name:'погашено', src:'i_repaid_od_som', sign:-1},
+                          {id:'woff',   name:'списано',  src:'i_woff_od_som',   sign:-1}]}}
 };
 SEAM.objectMeta = type => { const r = OBJECT_REG[type]; return r ? {cols: r.cols.slice(), weight: r.weight,
-  weightName: (FIELD(type, r.weight) || {}).name || null, reasons: r.reasons.map(x => x.why)} : null; };
+  weightName: (FIELD(type, r.weight) || {}).name || null, reasons: r.reasons.map(x => x.why),
+  flows: Object.keys(r.flows || {}).reduce((m, sid) => (m[sid] = r.flows[sid].map(f => ({name: f.name, src: f.src, sign: f.sign})), m), {})} : null; };
 /* Разрезы ответа шире разрезов экрана: «период начала» объявлен у кредита в
    реестре статистики (квартал выдачи) — для ряда по разрезу (Когорты).      */
 const ANSWER_CUTS = Object.assign({start:'период начала'}, CUT_NAMES);
@@ -4614,10 +4663,19 @@ function drillDress(items, unit, obj, cols, key){
   }
 }
 /* Поиск сужает ПОКАЗ, а не итог: «показано k из n · сумма показанных X из Y». */
-function drillSearch(d, q){ const s = String(q || '').trim().toLowerCase();
+/* Строка Движения (ОД-33) сужает показ так же, как поиск: её объекты, сумма
+   показанных — значение этой строки, а не их разницы целиком.               */
+function drillSearch(d, q, mv){ const s = String(q || '').trim().toLowerCase();
   const key = d.form === 'изменение' ? 'diff' : 'part';
-  d.q = s; d.shown = !s ? d.items.slice() : d.items.filter(x => (x.label+' '+Object.values(x.cells).join(' ')).toLowerCase().indexOf(s) !== -1);
-  d.sumShown = d.additive ? d.shown.reduce((a, x) => a + x[key], 0) : null;
+  const row = mv && d.movement ? d.movement.rows.find(r => r.key === mv) || null : null;
+  d.q = s; d.mv = row ? row.key : null; d.mvName = row ? row.name : null;
+  d.shown = !s ? d.items.slice() : d.items.filter(x => (x.label+' '+Object.values(x.cells).join(' ')).toLowerCase().indexOf(s) !== -1);
+  if(row) d.shown = d.shown.filter(x => (x.mv || []).indexOf(row.key) !== -1);
+  const partOf = x => !row ? x[key] : row.kind === 'поток' ? x.flows[row.key.slice(2)] : row.kind === 'прочее' ? x.other
+    : row.kind === 'нет ответа' ? x.noans : (d.movement.flows ? x.move : x.diff);
+  d.sumShown = d.additive ? d.shown.reduce((a, x) => a + partOf(x), 0) : null;
+  if(row){ d.shownText = 'строка «'+row.name+'»: показано '+d.shown.length+' из '+d.items.length+' · сумма показанных '+
+    money(d.sumShown)+' = строке '+money(row.value); return d; }
   d.shownText = 'показано '+d.shown.length+' из '+d.items.length+(d.additive
     ? ' · сумма показанных '+money(d.sumShown)+' из '+money(d.form === 'изменение' ? d.sumDiff : d.sum) : '');
   return d; }
@@ -4716,19 +4774,63 @@ RP.drillChange = (tid, params, twist, node, opt) => {
   const A = nodeParts(sid, path, a, cut, scope), B = nodeParts(sid, path, b, cut, scope);
   if(A.why || B.why) return {ok:false, why: A.why || B.why};
   const reg = OBJECT_REG[ed.object] || {reasons:[]};
+  /* Потоки записи объекта (ОД-29…ОД-31): у показателя-остатка с объявленными
+     потоками изменение раскладывается разностью источника в двух строках
+     каждого объекта, бывшего в узле на любой из дат; без потоков — переходы. */
+  const flows = (reg.flows || {})[sid] || null;
+  const FA = flows ? nodeParts(sid, [], a, cut, scope) : null, FB = flows ? nodeParts(sid, [], b, cut, scope) : null;
+  /* Есть ли строка у статистики вообще (без охвата и отбора): нет строки —
+     «нет ответа источника»; строка есть, но вне охвата — переход охвата.     */
+  const rawAt = d => { const m2 = {}; SEAM.statRows(ed.object, d, {ids: pr.ids || null}, DEPTS.map(x => x.id)).rows.forEach(r => { m2[r.id] = r; }); return m2; };
+  const RA = flows ? rawAt(a) : {}, RB = flows ? rawAt(b) : {};
   const elsewhere = r => r ? path.find(p => r[p.by] !== p.key) : null;
   const ids = uniq(Object.keys(A.parts).concat(Object.keys(B.parts)));
   let items = ids.map(id => {
     const was = A.parts[id] || 0, now = B.parts[id] || 0, ra = A.rows[id], rb = B.rows[id];
-    let how;
-    if(!was && now){ const e = elsewhere(ra); how = e && ra ? 'перешёл из «'+levelName(e.by, ra[e.by])+'»' : 'пришёл'; }
+    let how, move = 0, moveName = null;
+    if(!was && now){ const e = elsewhere(ra); how = e && ra ? 'перешёл из «'+levelName(e.by, ra[e.by])+'»' : 'пришёл';
+      if(e && ra){ move = FA ? (FA.parts[id] || 0) : 0; moveName = 'пришли из «'+levelName(e.by, ra[e.by])+'»'; } }
     else if(was && !now){ const e = elsewhere(rb);
-      if(e && rb) how = 'перешёл в «'+levelName(e.by, rb[e.by])+'»';
+      if(e && rb){ how = 'перешёл в «'+levelName(e.by, rb[e.by])+'»'; move = FB ? -(FB.parts[id] || 0) : 0;
+        moveName = 'ушли в «'+levelName(e.by, rb[e.by])+'»'; }
       else { const rs = reg.reasons.find(x => x.test(ra, rb)); how = 'ушёл: '+(rs ? rs.why : 'прочее'); } }
     else how = now > was ? 'выросло' : now < was ? 'снизилось' : 'без изменений';
-    return {id, row: rb || ra, base: was, now, diff: now - was, how};
+    const x = {id, row: rb || ra, base: was, now, diff: now - was, how};
+    if(flows){
+      /* Строки нет на одну из дат (у нового — законно: строки на базу ещё нет,
+         источники — нули) или источник не ответил колонкой — «нет ответа». */
+      /* Пришёл в охват или ушёл из него (сменились подразделение, куратор):
+         потоки такого объекта — в чужом охвате, его разница — строкой охвата
+         целиком. На стенде охват не меняется.                                 */
+      const scopeIn = !ra && rb && RA[id], scopeOut = ra && !rb && RB[id];
+      if(scopeIn || scopeOut){ x.how = scopeIn ? 'пришёл в охват' : 'ушёл из охвата'; move = x.diff;
+        moveName = scopeIn ? 'пришли в охват' : 'ушли из охвата'; }
+      const noans = !scopeIn && !scopeOut && ((ra && !rb) || flows.some(f => (ra && ra[f.src] == null) || (rb && rb[f.src] == null)));
+      const skip = noans || scopeIn || scopeOut;
+      x.flows = {}; flows.forEach(f => { x.flows[f.id] = skip ? 0 : f.sign * (((rb || {})[f.src] || 0) - ((ra || {})[f.src] || 0)); });
+      x.move = noans ? 0 : move; x.moveName = noans ? null : moveName; x.noans = noans ? x.diff : 0;
+      x.other = noans ? 0 : x.diff - x.move - flows.reduce((s2, f) => s2 + x.flows[f.id], 0);
+    }
+    return x;
   });
-  if(!o.all) items = items.filter(x => x.diff !== 0);
+  /* Строки Движения узла: на базу · потоки (нули тоже) · прочее (всегда) ·
+     переходы · нет ответа · на сегодня; у каждой — объекты и их сумма. Без
+     потоков — строки по переходу ИО-58. Считаются по всем объектам до отбора
+     нулевых разниц: поток и «прочее» объекта могут гасить друг друга.        */
+  const mvRows = [];
+  const addRow = (key, name, kind, pick) => { const sel2 = items.filter(x => pick(x) !== 0);
+    mvRows.push({key, name, kind, value: items.reduce((s2, x) => s2 + pick(x), 0), n: sel2.length, ids: sel2.map(x => x.id)}); };
+  if(flows){
+    flows.forEach(f => addRow('f:'+f.id, f.name, 'поток', x => x.flows[f.id]));
+    addRow('other', 'прочее', 'прочее', x => x.other);
+    uniq(items.filter(x => x.moveName).map(x => x.moveName)).forEach(nm => addRow('m:'+nm, nm, 'переход', x => x.moveName === nm ? x.move : 0));
+    if(items.some(x => x.noans)) addRow('noans', 'нет ответа источника', 'нет ответа', x => x.noans);
+  } else uniq(items.filter(x => x.diff).map(x => x.how)).forEach(h => addRow('h:'+h, h, 'переход', x => x.how === h ? x.diff : 0));
+  items.forEach(x => { x.mv = mvRows.filter(r => r.ids.indexOf(x.id) !== -1).map(r => r.key); });
+  const mvSum = mvRows.reduce((s2, r) => s2 + r.value, 0);
+  const movement = {flows: !!flows, rows: mvRows, base: A.cell, end: B.cell, equal: A.cell + mvSum === B.cell,
+    chain: money(A.cell)+mvRows.map(r => (r.value < 0 ? ' − ' : ' + ')+money(Math.abs(r.value))).join('')+' = '+money(B.cell)};
+  if(!o.all) items = items.filter(x => x.diff !== 0 || (x.mv || []).length);
   const lim = overLimit(items.length); if(lim) return lim;
   const cols = drillCols(ed.object, path, chk.twist);
   drillDress(items, meta.unit, ed.object, cols, 'diff');
@@ -4737,15 +4839,16 @@ RP.drillChange = (tid, params, twist, node, opt) => {
   return drillSearch({ok:true, tpl: tid, tplName: t.name, form:'изменение', stat: sid, statName: meta.name, unit: meta.unit,
     additive:true, count: meta.unit === 'ед.', obj: ed.object, cols, colNames: cols.map(c => fieldName(ed.object, c)),
     node: path.map(p => levelName(p.by, p.key)).join(' → ') || 'итог', path, dates:[a, b], a, b,
-    baseCell: A.cell, cell: B.cell, change, sumDiff, equal: sumDiff === change, items,
+    baseCell: A.cell, cell: B.cell, change, sumDiff, equal: sumDiff === change, items, movement,
+    flowCols: flows ? flows.map(f => ({id: f.id, name: f.name})) : [],
     hidden: Math.max(A.hidden, B.hidden), params: clone(pr), twist: twist ? clone(twist) : null,
-    from: o.from || 'окно отчёта', tilePath: o.tilePath || null}, o.q);
+    from: o.from || 'окно отчёта', tilePath: o.tilePath || null}, o.q, o.mv);
 };
 /* Имя рабочего списка по умолчанию — путь: «отчёт · узел · на дату»; у
    вопроса от плитки — путь плитки, который передал смотрящий.               */
 const drillPathName = d => d.tilePath || (d.tplName+' · '+(d.statName || '')+' · '+d.node+
   (d.form === 'изменение' ? ' · '+fmt(d.a)+' → '+fmt(d.b) : (d.asOf ? ' · на '+fmt(d.asOf) : ' · сейчас'))+
-  (d.form === 'доля' ? ' · '+d.side : ''));
+  (d.form === 'доля' ? ' · '+d.side : '')+(d.mvName ? ' · '+d.mvName : ''));
 const drillOf = (tid, params, twist, node, opt) => opt && opt.a && opt.b
   ? RP.drillChange(tid, params, twist, node, opt) : RP.drill(tid, params, twist, node, opt);
 /* Рабочий список из провала: тот же замороженный состав, отобранный не
@@ -4777,7 +4880,7 @@ RP.exportDrill = (tid, params, twist, node, opt) => {
   if(!res.ok) return res;
   const i = ISS(res.id);
   i.passport.drill = {form: d.form, node: d.node, stat: d.statName, asOf: d.asOf || null, dates: d.dates || null,
-    side: d.side || null, q: d.q || null, shown: d.shown.length, of: d.items.length, text: d.shownText,
+    side: d.side || null, q: d.q || null, mv: d.mvName || null, shown: d.shown.length, of: d.items.length, text: d.shownText,
     from: d.from, objects: d.shown.map(x => x.id)};
   i.passport.label = 'НЕ ОФИЦИАЛЬНЫЙ ДОКУМЕНТ · список провала: '+drillPathName(d);
   const ex = RP.exportIssue(res.id, 'xlsx'); if(!ex.ok) return ex;
@@ -4858,7 +4961,8 @@ RP.reportAnswer = spec => {
   const stats = (s.stats || chk.twist.stats).slice();
   const answers = dates.map(d => {
     const gap = d && HIST_DATES.indexOf(d) === -1 ? (legacyNoTotal(d) ? 'в легаси не собиралось' : 'снимка нет') : null;
-    return {asOf: d, gap, stats: stats.map(sid => {
+    const rowsAt = gap ? null : (d ? SEAM.statRows(ed.object, d, cut, scope) : SEAM.objectRows(ed.object, cut, scope));
+    return {asOf: d, gap, empty: gap ? null : emptyOf(rowsAt, pr), stats: stats.map(sid => {
       if(gap) return {id: sid, value: null, groups: [], gap};
       if(s.top) { const r = topAnswer(sid, d, cut, scope, s.top); return r.ok ? {id: sid, value: r.value, top: r} : {id: sid, why: r.why}; }
       const tr = SEAM.statSlice(sid, by, cut, d, scope);
@@ -5921,6 +6025,8 @@ function scIssue(){
   if(!d.rows.length && !(d.groups && d.groups.length))
     h += '<tr><td colspan="'+Math.max(1,d.cols.length)+'" class="muted">строк нет</td></tr>';
   h += '</tbody></table>';
+  if(d.empty) h += '<div class="banner '+(d.empty.cause === 'охват' ? 'warn' : 'info')+'"><b>Нет объектов.</b> '+esc(d.empty.why)+
+    '. Нули ниже — пустой состав, а не посчитанный ноль.</div>';
   h += '<div class="totals">'+d.totals.map(x => '<div class="tot'+(x.own ? ' own-f' : '')+'"><div class="tn">'+esc(x.name)+
       (x.own ? ' <span class="own" title="'+esc(x.expr)+'">ƒ своя формула</span>' : '')+'</div>'+
     '<div class="tv">'+(x.shown == null ? '—' : (x.own ? drillLink(esc(ownNum(x)), {path:[], formula:x.id}) : drillLink(esc(money(x.shown)), {path:[], stat:x.id})))+
@@ -6020,6 +6126,23 @@ function scIssue(){
   h += '</div>';
   return h;
 }
+const sgn = v => v == null ? '—' : v ? (v > 0 ? '+' : '')+money(v) : '0';
+/* Строки Движения «Изменения» (ОД-29…ОД-33): те же, что в ответе шва; клик по
+   строке сужает список до её объектов. «Прочее» печатается всегда и без
+   порога — порог необъяснённого у смотрящего свой.                        */
+function movementBox(d){ const m = d.movement; if(!m) return '';
+  const sel = RP.state.sel;
+  return '<h4 style="margin-top:10px">Как сложилось изменение'+(m.flows ? ' — потоки записи объекта' : ' — переходы объектов')+'</h4>'+
+    '<div class="tw"><table class="cgrid mvt"><thead><tr><th>Строка</th><th class="num">Объектов</th><th class="num">Сумма</th></tr></thead><tbody>'+
+    '<tr><td>на '+fmt(d.a)+'</td><td></td><td class="num">'+esc(money(m.base))+'</td></tr>'+
+    m.rows.map((r, i) => '<tr'+(sel.drillMv === r.key ? ' class="mvsel"' : '')+'><td>'+(r.n
+        ? '<a href="#" onclick="RP.uiDrillMvAt('+i+');return false">'+esc(r.name)+'</a>' : esc(r.name))+
+      (r.kind === 'прочее' ? ' <span class="small muted">не объяснено потоками</span>' : '')+'</td>'+
+      '<td class="num">'+r.n+'</td><td class="num">'+esc(sgn(r.value))+'</td></tr>').join('')+
+    '<tr class="gtot"><td>на '+fmt(d.b)+'</td><td></td><td class="num"><b>'+esc(money(m.end))+'</b></td></tr></tbody></table></div>'+
+    '<div class="small muted">'+esc(m.chain)+' '+(m.equal ? pill('сходится','ok') : pill('не сходится','err'))+
+    (sel.drillMv ? ' · <a href="#" onclick="RP.uiDrillMv(null);return false">все объекты</a>' : '')+'</div>';
+}
 function drillPanel(d){
   const sel = RP.state.sel;
   const head = d.form === 'изменение' ? 'Изменение: '+esc(d.statName)+' · '+esc(d.node)+' · '+fmt(d.a)+' → '+fmt(d.b)
@@ -6027,7 +6150,8 @@ function drillPanel(d){
   let h = '<div class="card drillp"><h3>'+head+'</h3>';
   if(d.form === 'изменение') h += '<div class="small">Изменение узла <b>'+esc(money(d.baseCell))+' → '+esc(money(d.cell))+
     ' = '+esc((d.change > 0 ? '+' : '')+money(d.change))+' '+esc(d.unit)+'</b>; сумма разниц объектов — <b>'+esc(money(d.sumDiff))+'</b> '+
-    (d.equal ? pill('равна изменению','ok') : pill('не равна изменению','err'))+'. Объекты — бывшие в узле на любой из двух дат.</div>';
+    (d.equal ? pill('равна изменению','ok') : pill('не равна изменению','err'))+'. Объекты — бывшие в узле на любой из двух дат.</div>'+
+    movementBox(d);
   else if(d.form === 'доля') h += '<div class="small">«'+esc(d.statName)+'» = '+esc(String(d.share).replace('.', ','))+' '+esc(d.unit)+
     ' — «'+esc(d.numName)+'» '+esc(money(d.num))+' ÷ «'+esc(d.denName)+'» '+esc(money(d.den))+'. '+
     '<span class="btn-row" style="display:inline-flex;margin:0 0 0 6px">'+['в числе', 'группа'].map(s =>
@@ -6049,7 +6173,8 @@ function drillPanel(d){
     '<div class="fld"><label>&nbsp;</label><span class="small">'+esc(d.shownText)+'</span></div></div>';
   const key = d.form === 'изменение' ? 'diff' : 'part';
   h += '<div class="tw"><table class="cgrid"><thead><tr><th>Объект</th>'+d.colNames.map(n => '<th>'+esc(n)+'</th>').join('')+
-    (d.form === 'изменение' ? '<th class="num">На '+fmt(d.a)+'</th><th class="num">На '+fmt(d.b)+'</th><th class="num">Разница</th><th>Как изменился</th>'
+    (d.form === 'изменение' ? '<th class="num">На '+fmt(d.a)+'</th><th class="num">На '+fmt(d.b)+'</th><th class="num">Разница</th>'+
+        d.flowCols.map(f => '<th class="num">'+esc(f.name[0].toUpperCase()+f.name.slice(1))+'</th>').join('')+(d.flowCols.length ? '<th class="num">Прочее</th>' : '')+'<th>Как изменился</th>'
       : (d.form === 'доля' && d.side === 'группа' ? '<th>В числе</th>' : '')+
         (d.count ? '<th class="num">'+esc(d.weightName || 'Вес')+'</th>' : '<th class="num">'+esc(d.form === 'доля' ? (d.side === 'в числе' ? d.numName : d.denName) : d.statName)+'</th>')+
         (d.unit === 'сом' || d.form === 'доля' ? '<th>Доля вклада</th>' : ''))+'</tr></thead><tbody>'+
@@ -6057,15 +6182,16 @@ function drillPanel(d){
       '<td class="mono"><a href="#" onclick="RP.uiDrillCard('+i+');return false">'+esc(x.label)+'</a></td>'+
       d.cols.map(c => '<td class="small">'+esc(x.cells[c])+'</td>').join('')+
       (d.form === 'изменение' ? '<td class="num">'+esc(money(x.base))+'</td><td class="num">'+esc(money(x.now))+'</td><td class="num">'+
-          esc((x.diff > 0 ? '+' : '')+money(x.diff))+'</td><td class="small">'+esc(x.how)+'</td>'
+          esc((x.diff > 0 ? '+' : '')+money(x.diff))+'</td>'+d.flowCols.map(f => '<td class="num">'+esc(sgn(x.flows[f.id]))+'</td>').join('')+
+          (d.flowCols.length ? '<td class="num">'+esc(sgn(x.other))+'</td>' : '')+'<td class="small">'+esc(x.how)+(x.noans ? ' · нет ответа источника' : '')+'</td>'
         : (d.form === 'доля' && d.side === 'группа' ? '<td>'+(x.inNum ? pill('в числе','warn') : '<span class="muted small">нет</span>')+'</td>' : '')+
           (d.count ? '<td class="num">'+esc(money(x.weight))+'</td>' : '<td class="num">'+esc(d.additive ? money(x.part) : money(x.part))+'</td>')+
           (d.unit === 'сом' || d.form === 'доля' ? '<td><span class="vbar" style="width:'+Math.round(x.share || (d.sum ? x.part / d.sum * 100 : 0))+
             'px"></span> <span class="small">'+esc(String(x.share != null ? x.share : (d.sum ? Math.round(x.part / d.sum * 1000) / 10 : 0)).replace('.', ','))+' %</span>'+
             (x.cut80 ? ' <span class="small muted">— 80 % числа</span>' : '')+'</td>' : ''))+'</tr>').join('')+
     (d.additive && !d.count ? '<tr class="gtot"><td colspan="'+(1 + d.cols.length + (d.form === 'изменение' ? 2 : (d.form === 'доля' && d.side === 'группа' ? 1 : 0)))+'">'+
-      (d.q ? 'Сумма показанных' : 'Сумма списка')+'</td><td class="num"><b>'+esc(money(d.sumShown))+'</b></td>'+
-      (d.form === 'изменение' ? '<td></td>' : (d.unit === 'сом' || d.form === 'доля' ? '<td></td>' : ''))+'</tr>' : '')+
+      (d.mv ? 'Сумма показанных по строке «'+esc(d.mvName)+'»' : d.q ? 'Сумма показанных' : 'Сумма списка')+'</td><td class="num"><b>'+esc(money(d.sumShown))+'</b></td>'+
+      (d.form === 'изменение' ? '<td colspan="'+(1 + d.flowCols.length + (d.flowCols.length ? 1 : 0))+'"></td>' : (d.unit === 'сом' || d.form === 'доля' ? '<td></td>' : ''))+'</tr>' : '')+
     '</tbody></table></div>';
   if(d.hidden) h += '<div class="small muted">'+objWord(d.hidden)+' скрыто областью видимости — '+
     'в провал не входят, как и в число.</div>';
@@ -6093,11 +6219,13 @@ function drillPanel(d){
 function drillRerun(){ const sel = RP.state.sel, n = sel.drillNode; if(!n) return;
   const a = shownArgs();
   const params = Object.assign({}, a.params, n.ids ? {ids: n.ids} : {});
-  const r = drillOf(a.tid, params, a.twist, n, {a: n.a, b: n.b, side: sel.drillSide, q: sel.drillQ});
+  const r = drillOf(a.tid, params, a.twist, n, {a: n.a, b: n.b, side: sel.drillSide, q: sel.drillQ, mv: sel.drillMv});
   if(!r.ok) return act(r);
   sel.drillRes = r; render(); }
 RP.uiDrill = i => { const n = DRILL_NODES[i]; if(!n) return; const sel = RP.state.sel;
-  sel.drillNode = n; sel.drillQ = ''; sel.drillSide = 'в числе'; sel.drillCard = null; drillRerun(); };
+  sel.drillNode = n; sel.drillQ = ''; sel.drillMv = null; sel.drillSide = 'в числе'; sel.drillCard = null; drillRerun(); };
+RP.uiDrillMvAt = i => { const d = RP.state.sel.drillRes, r = d && d.movement ? d.movement.rows[i] : null; RP.uiDrillMv(r ? r.key : null); };
+RP.uiDrillMv = k => { RP.state.sel.drillMv = k || null; RP.state.sel.drillCard = null; drillRerun(); };
 RP.uiDrillQ = v => { RP.state.sel.drillQ = v; RP.state.sel.drillCard = null; drillRerun(); };
 RP.uiDrillSide = s => { RP.state.sel.drillSide = s; RP.state.sel.drillCard = null; drillRerun(); };
 RP.uiDrillCol = f => { if(!f) return; const d = RP.state.sel.drillRes; if(!d) return;
@@ -6107,12 +6235,12 @@ RP.uiDrillCard = i => { RP.state.sel.drillCard = i; render(); };
 RP.uiWorklistFromDrill = () => { const sel = RP.state.sel, d = sel.drillRes, n = sel.drillNode; if(!d || !n) return;
   const inp = $('#drillWl'); const nm = inp ? inp.value : sel.drillWlName;
   const a = shownArgs(), params = Object.assign({}, a.params, n.ids ? {ids: n.ids} : {});
-  const r = RP.worklistFromDrill(a.tid, params, a.twist, n, nm, {a: n.a, b: n.b, side: sel.drillSide, q: sel.drillQ});
+  const r = RP.worklistFromDrill(a.tid, params, a.twist, n, nm, {a: n.a, b: n.b, side: sel.drillSide, q: sel.drillQ, mv: sel.drillMv});
   if(r.ok){ sel.wl = r.id; sel.drillRes = null; sel.drillWlName = ''; }
   act(r); };
 RP.uiDrillExport = () => { const sel = RP.state.sel, n = sel.drillNode; if(!n) return;
   const a = shownArgs(), params = Object.assign({}, a.params, n.ids ? {ids: n.ids} : {});
-  act(RP.exportDrill(a.tid, params, a.twist, n, {a: n.a, b: n.b, side: sel.drillSide, q: sel.drillQ})); };
+  act(RP.exportDrill(a.tid, params, a.twist, n, {a: n.a, b: n.b, side: sel.drillSide, q: sel.drillQ, mv: sel.drillMv})); };
 RP.doPin = () => { const sel = RP.state.sel;
   act(RP.pinToDashboard(sel.tpl, sel.view || null, {asOf: sel.params.asOf, dept: sel.params.dept})); };
 RP.selTpl = id => { const sel = RP.state.sel;

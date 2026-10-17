@@ -26,6 +26,8 @@
 // и вес из записи объекта, «Изменение» объектами на двух датах, «в числе | вся группа», поиск, рабочий список и выгрузка
 // показанного, контекст карточки; «крупнейшие» и ряд по разрезу «период начала» — ответ reportAnswer; соавтор-роль, снятие
 // роли с владельца, принятие в каталог копией.
+// Волна 44 (блок NN, #269–#276): потоки Движения из записи объекта (ADR-0313, ADR-0315) — разность двух строк у каждого
+// объекта узла, «прочее» остатком, «нет ответа источника», строки в ответе = в окне, клик по строке; признак «нет объектов».
 // Блоки, которые правят состояние, начинаются с RP.seed() — состояние между ними не течёт.
 //   node scripts/inspect/reports-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -2989,6 +2991,110 @@ const DEV = 'изменено — не утверждённый состав';
         has(s4, 'Принять — копия в общий') && clean,
     `экраны: «Крупнейшие 3» и ссылки «Изменения» у сравнения; панель провала «Изменения» с переходами, поиском, «Колонки ▾» ` +
     `и выгрузкой; динамика по периоду начала; очередь «Предложены в каталог» у держателя роли; номеров решений в интерфейсе нет`);
+})();
+
+/* ---- NN. Входящие от дашборда, волна 44: потоки Движения записи объекта, «прочее» остатком,
+        «нет ответа источника», признак «нет объектов» в ответе (ОД-29…ОД-36, ADR-0315, ИО-62) ---- */
+(() => {
+  RP.seed(); as('auth');
+  const ev = c2 => vm.runInContext(c2, sandbox);
+  const tot = { path:[], stat:'s-portfolio' }, AB = { a:'2026-06-01', b:'2026-08-01' };
+  const rowOf = (d, k) => d.movement.rows.find(r => r.key === k) || {};
+  const sumRows = d => d.movement.rows.reduce((s2, r) => s2 + r.value, 0);
+  const objSum = (d, r) => d.items.filter(x => (x.mv || []).indexOf(r.key) !== -1).reduce((s2, x) => s2 +
+    (r.kind === 'поток' ? x.flows[r.key.slice(2)] : r.kind === 'прочее' ? x.other : r.kind === 'нет ответа' ? x.noans : x.move), 0);
+  const meta = SEAM.objectMeta('credit');
+  const pf = RP.drillChange('t-overdue', {}, null, tot, AB);
+  const kr6 = pf.items.find(x => x.id === 'kr-6');
+  ok(269, meta.flows['s-portfolio'].map(f => f.name+(f.sign > 0 ? '+' : '−')).join(' ') === 'выдано+ погашено− списано−' &&
+        pf.ok && pf.movement.flows && pf.change === -6000000 && rowOf(pf, 'f:issued').value === 0 && rowOf(pf, 'f:repaid').value === -5750000 &&
+        rowOf(pf, 'f:repaid').n === 7 && rowOf(pf, 'f:woff').value === 0 && rowOf(pf, 'other').value === -250000 && rowOf(pf, 'other').n === 1 &&
+        kr6.flows.repaid === -150000 && kr6.other === -250000 && pf.movement.base + sumRows(pf) === pf.movement.end && pf.movement.equal &&
+        pf.movement.rows.every(r => objSum(pf, r) === r.value),
+    `ОД-29: «Остаток, всего» 01.06 → 01.08.2026 — потоками записи объекта: ${pf.movement.chain}; «прочее» −250 000 — ` +
+    `КД-2025/126 (курсовая, потока нет); сумма объектов каждой строки = строке; «списано 0» печатается`);
+
+  const fe = RP.drillChange('t-overdue', {}, null, tot, { a:'2026-02-01', b:'2026-03-01' });
+  const st = RP.drillChange('t-overdue', {}, { cuts:['status'] }, { path:[{ by:'status', key:'просрочен' }], stat:'s-portfolio' }, AB);
+  const kr2 = st.items.find(x => x.id === 'kr-2'), inRow = rowOf(st, 'm:пришли из «действует»');
+  const yr = RP.drillChange('t-overdue', {}, null, tot, { a:'2025-01-01', b:'2026-08-01' });
+  ok(270, fe.ok && rowOf(fe, 'f:issued').value === 2500000 && rowOf(fe, 'f:issued').ids.join() === 'kr-7' &&
+        fe.items.find(x => x.id === 'kr-7').how === 'пришёл' && !fe.movement.rows.some(r => r.kind === 'переход') && fe.movement.equal &&
+        st.ok && inRow.value === 5900000 && kr2.move === 5900000 && kr2.flows.repaid === -600000 && kr2.diff === 5300000 &&
+        rowOf(st, 'f:repaid').value === -750000 && st.movement.equal && st.sumDiff === st.change &&
+        yr.ok && rowOf(yr, 'f:issued').value === 56700000 && rowOf(yr, 'f:issued').n === 4 && yr.movement.equal,
+    `ОД-30: правило — к каждому объекту узла на любой из дат: КД-2026/007 без строки на 01.02 — «выдано» +2 500 000, а не ` +
+    `«пришёл»; в узле «просрочен» КД-2024/203 — строкой «пришли из «действует»» +5 900 000 (остаток на базу), его ` +
+    `«погашено» −600 000 — в этом узле: ${st.movement.chain}; 01.01.2025 → 01.08.2026 — «выдано» 4 кредитам 56 700 000`);
+
+  ev("delete HIST['2026-08-01']['kr-1'].i_repaid_od_som");
+  const na = RP.drillChange('t-overdue', {}, null, tot, AB);
+  const kr1 = na.items.find(x => x.id === 'kr-1');
+  RP.seed(); as('auth');
+  const back = RP.drillChange('t-overdue', {}, null, tot, AB);
+  ok(271, na.ok && rowOf(na, 'noans').value === -700000 && rowOf(na, 'noans').ids.join() === 'kr-1' && kr1.noans === -700000 &&
+        kr1.flows.repaid === 0 && kr1.other === 0 && rowOf(na, 'f:repaid').value === -5050000 && na.movement.equal &&
+        !back.movement.rows.some(r => r.key === 'noans'),
+    `ОД-31: источник не ответил колонкой у КД-2024/117 — «нет ответа источника» −700 000 всей разницей, потоки и «прочее» ` +
+    `по нему не считаются, «погашено» −5 050 000; строка «нет ответа» — только при сбое`);
+
+  const mo = RP.drillChange('t-overdue', {}, null, tot, Object.assign({ mv:'other' }, AB));
+  const mr = RP.drillChange('t-overdue', {}, null, tot, Object.assign({ mv:'f:repaid', q:'ош' }, AB));
+  const wl = RP.worklistFromDrill('t-overdue', {}, null, tot, '', Object.assign({ mv:'other' }, AB));
+  const wlo = wl.ok ? RP.state.worklists.find(w => w.id === wl.id) : null;
+  ok(272, mo.ok && mo.shown.length === 1 && mo.shown[0].id === 'kr-6' && mo.sumShown === -250000 &&
+        mo.shownText === 'строка «прочее»: показано 1 из 7 · сумма показанных -250 000 = строке -250 000' &&
+        mr.ok && mr.shown.length === 2 && mr.shown.every(x => has(x.cells.dept, 'Ош')) && mr.sumShown === mr.shown.reduce((s2, x) => s2 + x.flows.repaid, 0) && mr.sumShown !== mr.sumDiff &&
+        wl.ok && wlo.objects.join() === 'kr-6' && has(wlo.name, '· прочее'),
+    `ОД-32, ОД-33: «прочее» — остаток со своим списком: клик по строке — ${mo.shownText}; поиск внутри строки сужает и её; ` +
+    `рабочий список из строки «прочее» — один объект, имя по пути с именем строки`);
+
+  const k2 = pf.items.find(x => x.id === 'kr-2');
+  ok(273, k2 && k2.how === 'снизилось' && k2.flows.repaid === -600000 && k2.other === 0 && k2.diff === -600000 &&
+        k2.mv.join() === 'f:repaid',
+    `ОД-34: частичное погашение — объект обеих дат: КД-2024/203 остаётся в узле, «погашено» −600 000 = разнице, «прочее» 0 — ` +
+    `тот же случай, что частичное распределение поступления; особого правила нет`);
+
+  const seam = RP.reportAnswer({ tpl:'t-overdue', form:'объекты на двух датах', params:{}, node: tot, a: AB.a, b: AB.b });
+  const viaD = RP.callSeamOut('дашборд', 'reportAnswer', { tpl:'t-overdue', form:'объекты на двух датах', params:{}, node: tot, a: AB.a, b: AB.b });
+  const od = RP.drillChange('t-overdue', {}, null, { path:[], stat:'s-overdue-sum' }, AB);
+  ok(274, seam.ok && viaD.ok && JSON.stringify(seam.movement) === JSON.stringify(pf.movement) && JSON.stringify(viaD.movement) === JSON.stringify(pf.movement) &&
+        od.ok && !od.movement.flows && !od.movement.rows.some(r => r.kind === 'прочее') && od.movement.rows.map(r => r.name).join(' · ') === 'пришёл · снизилось' &&
+        od.movement.equal,
+    `ИО-57, ИО-62: строки Движения в ответе reportAnswer (и у дашборда тем же швом) = строкам окна отчёта; у «Суммы просрочки» ` +
+    `потоков запись не объявляет — строки переходов «${od.movement.rows.map(r => r.name).join(' · ')}», без «прочего»`);
+
+  const leg = RP.reportAnswer({ tpl:'t-overdue', form:'ответ', params:{ asOf:'2026-08-01', dept:'dep-legal' } });
+  const zero = RP.reportAnswer({ tpl:'t-overdue', form:'ответ', params:{ asOf:'2026-01-01' } });
+  const winLeg = RP.show('t-overdue', { asOf:'2026-08-01', dept:'dep-legal' }, null);
+  as('user'); const osh = RP.reportAnswer({ tpl:'t-overdue', form:'ответ', params:{ asOf:'2026-08-01', dept:'rep-osh' } }); as('auth');
+  const z = zero.ok ? zero.answers[0].stats.find(x => x.id === 's-overdue-sum') : {};
+  ok(275, leg.ok && leg.answers[0].empty && leg.answers[0].empty.cause === 'параметр' && has(leg.answers[0].empty.why, 'Департамент правового обеспечения') &&
+        leg.answers[0].stats.find(x => x.id === 's-overdue-sum').value === 0 &&
+        zero.ok && z.value === 0 && zero.answers[0].empty === null &&
+        osh.ok && osh.answers[0].empty && osh.answers[0].empty.cause === 'охват' && osh.answers[0].empty.hidden === 2 &&
+        winLeg.ok && winLeg.data.empty && winLeg.data.empty.cause === 'параметр',
+    `ОД-36: «нет объектов» — признак ответа: «${leg.answers[0].empty.why}» (число 0 остаётся); законный ноль — просрочка на ` +
+    `01.01.2026 = 0 при 7 кредитах, без признака; пользователю «Ош» — «охват», скрыто ${osh.answers[0].empty.hidden}; окно отчёта — тот же признак`);
+
+  RP.seed(); as('auth');
+  RP.state.view = 'issue'; RP.state.sel.tpl = 't-overdue'; RP.state.sel.params = { asOf:'2026-08-01', dept:'dep-legal' };
+  RP.state.sel.view = null; RP.state.sel.twist = null; RP.state.sel.time = null; RP.state.sel.top = false; RP.state.sel.drillRes = null;
+  const e1 = win.VIEWS.issue.fn();
+  RP.state.sel.tpl = 't-sh-plan'; RP.state.sel.params = { asOf:'2026-08-01', dept:'' }; RP.state.sel.time = 'сравнение';
+  win.VIEWS.issue.fn();
+  const iPf = ev('DRILL_NODES').findIndex(n => n.a && n.stat === 's-portfolio' && !n.path.length);
+  RP.uiDrill(iPf); const e2 = win.VIEWS.issue.fn();
+  const iOther = RP.state.sel.drillRes.movement.rows.findIndex(r => r.key === 'other');
+  RP.uiDrillMvAt(iOther); const e3 = win.VIEWS.issue.fn();
+  RP.uiDrillMv(null); const e4 = win.VIEWS.issue.fn();
+  const clean = [e1, e2, e3].every(x => !/ОД-\d|ADR-031\d|ИО-6[0-2]/.test(x.replace(/<!--[\s\S]*?-->/g, '')));
+  ok(276, has(e1, 'Нет объектов.') && has(e1, 'Департамент правового обеспечения') && iPf !== -1 &&
+        has(e2, 'Как сложилось изменение — потоки записи объекта') && has(e2, 'не объяснено потоками') && has(e2, '<th class="num">Погашено</th>') &&
+        has(e2, '<th class="num">Прочее</th>') && has(e2, '70 100 000 + 0 − 5 750 000 + 0 − 250 000 = 64 100 000') &&
+        has(e3, 'строка «прочее»: показано 1 из 7') && has(e3, 'class="mvsel"') && has(e3, 'все объекты') && !has(e4, 'class="mvsel"') && clean,
+    `экраны: плашка «Нет объектов» над итогами при подразделении без кредитов; провал «Изменения» «Остатка» — строки Движения ` +
+    `с цепочкой, колонки «Погашено» и «Прочее» у объектов; клик по «прочему» сужает список; номеров решений в интерфейсе нет`);
 })();
 
 /* ---- отчёт ---- */
