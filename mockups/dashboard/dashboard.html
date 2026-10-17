@@ -253,7 +253,13 @@ select:hover,input[type=text]:hover,input[type=number]:hover{ border-color:var(-
 .mv-w .rz-v.bad{ color:var(--asubk-red); } .mv-w .rz-v.good{ color:var(--asubk-green); } .mv-w .rz-v.neu{ color:var(--text-muted); }
 .mv-w .rz-f.neu{ background:var(--asubk-ink-45); }
 .mv-w .mv-e{ cursor:default; background:var(--surface-panel); } .mv-w .mv-e:hover{ background:var(--surface-panel); } .mv-w .mv-e:hover .rz-nm{ color:var(--text-heading); } .mv-w .mv-e .rz-v{ font-weight:600; }
-.mv-ok{ display:flex; gap:8px; margin-top:10px; font-size:12.5px; font-weight:500; color:var(--asubk-green); cursor:help; font-variant-numeric:tabular-nums; } .mv-ok.bad{ color:var(--asubk-red); }
+/* цепочка не уходит под прокрутку полосы: прилипает к низу видимой части (bottom — минус нижний отступ .strip-b), на белом поверх строк */
+.mv-chain{ position:sticky; bottom:-16px; z-index:1; display:flex; flex-wrap:wrap; gap:8px; margin:6px 0 -16px; padding:8px 0 16px; border-top:1px solid var(--asubk-grid-line); background:var(--surface-card); font-size:12px; line-height:1.4; color:var(--text-muted); cursor:help; font-variant-numeric:tabular-nums; }
+.mv-w .rz-nm .pill{ margin-left:8px; vertical-align:1px; }
+/* «пришли из … / ушли в …» под строкой узла Разреза в «Изменении»: серая мелкая подстрока под суммой, «☰» — список перехода */
+.rz-r.has-mv{ row-gap:1px; }
+.rz-mv{ grid-column:2/-1; display:flex; flex-wrap:wrap; align-items:center; gap:0 6px; min-width:0; font-size:12px; line-height:1.35; color:var(--text-muted); }
+.rz-mvp{ display:inline-flex; align-items:center; gap:2px; white-space:nowrap; } .rz-mv .ls{ font-size:12px; padding:1px 3px; } .rz-mvs{ font-variant-numeric:tabular-nums; } .rz-mvd{ color:var(--text-placeholder); }
 .total-row{ font-size:12.5px; color:var(--text-muted); border-top:1px solid var(--asubk-grid-line); margin-top:3px; padding-top:2px; }
 svg.chart text{ font:11px var(--asubk-font); fill:var(--text-muted); }
 /* Ряд: столбцы по числу точек (6/12/24) — HTML, не растянутый рисунок; сумма над каждым, под месяцем — разница (в «Изменении» — сумма), «☰ N» — при наведении;
@@ -400,8 +406,10 @@ svg.chart text{ font:11px var(--asubk-font); fill:var(--text-muted); }
   .grid,.grid.pv{ grid-template-columns:minmax(0,1fr); } .scope-line .right{ margin-left:0; }
   .arrange-only{ display:none !important; } .kv{ grid-template-columns:1fr; }
   .list{ display:block; overflow-x:auto; } .btn{ white-space:normal; height:auto; min-height:32px; } select{ max-width:100%; }
-  .rz{ --rz-cols:minmax(0,1fr) 70px 76px 44px; } .rz.c4{ --rz-cols:minmax(0,1fr) 70px 44px; } .rz-hd,.rz-r{ gap:4px 10px; } .rz-hd span:nth-child(5){ display:none; } .rz-t{ grid-column:1/-1; } .rz-tot .rz-t{ display:none; }
-  .rz.mv-w{ --rz-cols:minmax(0,1fr) 84px 44px; } .mv-w .mv-e .rz-t{ display:none; }
+  .rz{ --rz-cols:minmax(0,1fr) 70px 76px 44px; } .rz.c4{ --rz-cols:minmax(0,1fr) 70px 44px; } .rz.c5.chg{ --rz-cols:minmax(0,1fr) 78px 70px 44px; } .rz-hd,.rz-r{ gap:4px 10px; } .rz-hd span:nth-child(5){ display:none; } .rz-t{ grid-column:1/-1; } .rz-tot .rz-t{ display:none; }
+  /* Движение на телефоне: «☰ 1 258» целиком (52 px), название переносится с висячим знаком, метка «⚠» — второй строкой от левого края названия */
+  .rz.mv-w{ --rz-cols:minmax(0,1fr) 84px 52px; } .rz.mv-w .rz-r{ column-gap:8px; } .mv-w .mv-e .rz-t{ display:none; } .mv-w .rz-nm{ white-space:normal; padding-left:14px; text-indent:-14px; } .mv-w .rz-nm .pill,.mv-w .rz-nm .mv-sg{ text-indent:0; } .mv-w .mv-warn .rz-nm .pill{ margin:2px 0 0 -14px; }
+  .rz-mv{ grid-column:1/-1; } .rz-mvp{ white-space:normal; flex-wrap:wrap; }
   .heat{ min-width:560px; } .heat th.l{ white-space:nowrap; } .heat col.hm-lab{ width:110px; } .heat col.hm-tc{ width:76px; } .heat td,.heat th{ padding-left:3px; padding-right:3px; }
   .tb{ --tb-nm:120px; --tb-n:112px; --tb-ls:58px; font-size:12.5px; } .tb th,.tb td{ padding-left:6px; padding-right:6px; }
 }
@@ -788,6 +796,103 @@ function pstateAt(b, m){ if(b.firstM===null || b.firstM>m) return NO_CONTRACTS;
   const out = b.outM!==null && b.outM<=m && !(b.backM!==null && b.backM<=m);
   return out ? (b.outKind==='прочее' ? NO_CONTRACTS : PAID_ALL) : 'действующий'; }
 function lactAt(l, m){ return l.closed && l.to<=m ? 'закрыт' : 'действующий'; }
+// Строка кредита на конец месяца m (m ≤ 0, 0 — сегодня): то, что статистика хранит в строке дня, — дни просрочки, просрочено, сумма под
+// риском, остаток, признак «реструктуризирован», состояние, погашено и списано нарастающим итогом, подразделение, куратор, категория.
+// Сегодняшняя строка — поля кредита как есть. Прошлое восстановлено из того, что стенд уже знает: тянущийся эпизод просрочки стареет
+// по календарю (на 30.09 — на 11 дней моложе), вылеченные эпизоды перечня — прошлая короткая просрочка; у части кредитов — давняя
+// долгая просрочка, кончившаяся до сегодня. У каждой ушедшей просрочки своя причина: погасил, реструктурирован (признак включается,
+// просрочка снимается целиком), списан, прочее (ушла без платежа). У малой доли кредитов — передача из другого подразделения или от
+// другого куратора. Без случайных чисел — из ключа кредита (хеш); прочие данные стенда не сдвигаются.
+const isLoanRow = r=>!!r && typeof r.id==='string' && r.id.startsWith('КД-');
+const OD_RATE = d=>d>180 ? 0.38 : d>90 ? 0.28 : d>30 ? 0.17 : 0.09;          // доля просроченного в остатке по сроку — как в данных стенда
+const catOfDays = d=>d<=30 ? RISK_CATS[1] : d<=90 ? RISK_CATS[2] : d<=180 ? RISK_CATS[3] : RISK_CATS[4];
+const SNAP = new WeakMap(), SNAP_LO = -48;
+let SPELLS_OF = null;                                                        // вылеченные эпизоды перечня по кредиту
+function backDays(m){ let n = m<0 ? TODAY.day : 0; for(let k=m+1;k<0;k++) n += DAYS_IN[monthOf(k).mi]; return n; }   // дней от конца месяца m до сегодня
+function epDays(s, m){ if(s.fromM>m || s.cureM<=m) return 0;                   // эпизод тянется на конец месяца m — дней с его начала
+  let n = DAYS_IN[monthOf(s.fromM).mi] - s.fromDay; for(let k=s.fromM+1;k<=m;k++) n += DAYS_IN[monthOf(k).mi]; return Math.max(1, n); }
+function epWhy(id, w){ const h = hash(id+'|why')%100; return h<w[0] ? 'списан' : h<w[1] ? 'реструктурирован' : h<w[2] ? 'прочее' : 'погасил'; }
+// давняя долгая просрочка кредита: началась до двух лет назад, кончилась до сегодня и до тянущейся просрочки, с эпизодами перечня не пересекается
+function oldEpisode(row, sps, n){
+  const h = k=>hash(row.id+'|o'+k+n), d0 = row.overdueDays || 0;
+  if(row.closed || h('old')%100 >= (n ? 60 : 80)) return null;
+  const fromM = -(1 + h('os')%24), fromDay = 1 + h('osd')%28, len = 45 + Math.floor(Math.pow((h('ol')%1000)/1000, 0.8)*380);
+  if(row.from!==undefined && fromM<=row.from) return null;
+  let cureM = fromM, cureDay = fromDay + len; while(cureDay > DAYS_IN[monthOf(cureM).mi]){ cureDay -= DAYS_IN[monthOf(cureM).mi]; cureM++; }
+  const ago = cureM<0 ? backDays(cureM) + DAYS_IN[monthOf(cureM).mi] - cureDay : TODAY.day - cureDay;   // дней от конца до сегодня
+  if(cureM>0 || ago <= (d0>0 ? d0 + 15 : 0)) return null;
+  const a = fromM*31 + fromDay, b = cureM*31 + cureDay;
+  if(sps.some(s=>a<=s.cureM*31+s.cureDay+1 && b>=s.fromM*31+s.fromDay-1)) return null;
+  return { id:row.id+'|old'+n, fromM, fromDay, cureM, cureDay, why:epWhy(row.id+'|old'+n, [10,25,30]) };
+}
+function loanHist(row){
+  if(!SPELLS_OF){ SPELLS_OF = new Map(); DATA.spell.forEach(s=>{ if(s.state!=='вылечен') return; if(!SPELLS_OF.has(s.loan)) SPELLS_OF.set(s.loan, []); SPELLS_OF.get(s.loan).push(s); }); }
+  const h = k=>hash(row.id+'|'+k), d0 = row.overdueDays || 0, sps = SPELLS_OF.get(row.id) || [];
+  const eps = sps.map(s=>Object.assign({ why:epWhy(s.id, [1,4,8]) }, s));   // короткая просрочка уходит почти всегда платежом; решение и списание — в основном у долгой
+  for(const n of ['', 2]){ const o = oldEpisode(row, eps, n); if(o) eps.push(o); }          // до двух давних эпизодов, не пересекаются
+  const lo = Math.max(SNAP_LO, row.from===undefined ? SNAP_LO : row.from), out = new Map();
+  // передача: из другого подразделения (2 %) или от другого куратора того же подразделения (4 %) в месяц tm; до него — прежние
+  let tm = null, pDept = row.dept, pCur = row.curator;
+  if(!row.closed){ const t = -(h('tm')%12);
+    if(t>lo && h('dept')%1000<20){ const ds = RPS.filter(d=>d.id!==row.dept); pDept = ds[h('pdept')%ds.length].id; }
+    if(t>lo && (pDept!==row.dept || h('cur')%1000<45)){ const cs = CURATORS.filter(c=>c.dept===pDept && c.id!==row.curator); if(cs.length){ pCur = cs[h('pcur')%cs.length].id; tm = t; } } }
+  // признак «реструктуризирован» у кредита в реструктуризации — с месяца решения, до начала тянущейся просрочки
+  const restrM = row.status==='В реструктуризации' ? Math.min(0, -Math.ceil(d0/30)) - (h('rm')%6) : null;
+  const cleanCat = row.overdueDays===0 || row.closed ? row.category : (h('cat')%100<92 ? RISK_CATS[0] : RISK_CATS[1]);
+  let restr = false, prev = null; const fl = new Map();
+  for(let m=lo; m<=0; m++){
+    // доля просроченного у кончившихся эпизодов — от прежней оценки остатка (просрочено — своё поле строки, от потоков не выводится)
+    const balance = m===0 ? row.balance : Math.round(row.balance * (1 + m*0.004) * jitter(row, 'm'+m+'balance', 0.03*Math.min(1, (Math.abs(m)+1)/4)));
+    let days = 0, overdue = 0;
+    if(m===0){ days = d0; overdue = row.overdue || 0; }
+    else if(d0 - backDays(m) > 0){ days = d0 - backDays(m);                // тянущийся эпизод на конец месяца m
+      overdue = Math.round((row.overdue || 0) * OD_RATE(days) / OD_RATE(d0) * jitter(row, 'od'+m, 0.08)); }
+    else { const ep = eps.find(s=>epDays(s, m)>0);                           // кончившийся эпизод, тянувшийся на конец месяца m
+      if(ep){ days = epDays(ep, m); overdue = ep.peak ? Math.round(ep.peak * (0.55 + 0.45*Math.min(1, days/ep.days)))
+        : Math.round(balance * OD_RATE(days) * jitter(row, 'oo'+m, 0.1)); } }
+    // ушла просрочка за месяц m — причина эпизода, тянувшегося на конец прошлого месяца
+    const left = prev && prev.overdue>0 && overdue===0 ? eps.find(s=>epDays(s, m-1)>0) : null, why = left ? left.why : null;
+    if(why==='реструктурирован' || (restrM!==null && m>=restrM)) restr = true;
+    // потоки месяца: начислено %, погашено по графику («прочее» — ушла без платежа), списано (пока кредит в 181+, и списанная просрочка),
+    // погашенная просрочка, начисленные комиссии и расходы взыскания (потоков у ядра нет — они и есть малое «прочее» Остатка)
+    const on = flows(row, m), part = m===0 ? TODAY.day/TODAY.daysInMonth : 1, B0 = row.balance || 0;
+    fl.set(m, { acc: on ? (row.accrued||0)*jitter(row, 'mv'+m+'accrued', 0.2)*part : 0,
+      base: on && why!=='прочее' ? (row.paid||0)*jitter(row, 'mv'+m+'paid', 0.2)*part : 0,
+      wr: (on && days>180 ? (row.written||0)*jitter(row, 'mv'+m+'written', 0.2)*part : 0) + (why==='списан' ? prev.overdue : 0),
+      ev: why==='погасил' ? prev.overdue : 0,
+      sm: on ? (B0*0.0006*jitter(row, 'sm'+m, 0.5) + (row.status==='Во взыскании' && days>90 ? B0*0.0012 : 0))*part + bigOtherAt(row, m) : 0 });
+    const moved = tm!==null && m<tm;
+    const status = m===0 ? row.status : row.closed ? (m<row.to ? 'Обычный' : row.status) : row.status==='Во взыскании' ? (days>90 ? row.status : 'Обычный')
+      : row.status==='В реструктуризации' ? (restr ? row.status : 'Обычный') : row.status;
+    const s = { m, days, overdue, risk: m===0 ? row.risk : 0, balance, restr, status, paidCum:0, writtenCum:0,
+      dept: moved ? pDept : row.dept, curator: moved ? pCur : row.curator,
+      category: m===0 ? row.category : days>0 ? catOfDays(days) : cleanCat, bucket: bucketOf(days) };
+    out.set(m, s); prev = s; }
+  // Остаток на дату — из потоков, назад от сегодняшнего: остаток на m−1 = остаток на m − выдано − начислено + погашено + списано − комиссии.
+  // Выдача внутри окна истории: погашение по графику масштабируется так, чтобы до выдачи остаток был нулём, а «выдано» — суммой договора.
+  const iss0 = row.from===lo ? (row.issued||0) : 0, ms = [...fl.keys()], F = m=>fl.get(m), tot = f=>ms.reduce((a, m)=>a + f(F(m)), 0);
+  const need = iss0 + tot(x=>x.acc + x.sm - x.wr - x.ev) - (row.balance||0), bs = tot(x=>x.base);
+  const k = !iss0 ? 1 : need>0 && bs>0 ? need/bs : 0;
+  ms.forEach(m=>{ const x = F(m); x.acc = Math.round(x.acc); x.wr = Math.round(x.wr); x.sm = Math.round(x.sm); x.paid = Math.round(x.base*k + x.ev); x.iss = 0; });
+  let bal = row.balance || 0;
+  for(let m=0; m>=lo; m--){ const x = F(m); out.get(m).balance = bal;
+    if(m===lo && iss0){ x.iss = bal - x.acc + x.paid + x.wr - x.sm;                    // до выдачи остатка нет
+      if(k>0){ x.paid += iss0 - x.iss; x.iss = iss0; } }                              // округление — в погашенное месяца выдачи
+    bal = bal - x.iss - x.acc + x.paid + x.wr - x.sm; }
+  let paidCum = 0, writtenCum = 0;
+  ms.forEach(m=>{ const x = F(m), s = out.get(m); paidCum += x.paid; writtenCum += x.wr; s.paidCum = paidCum; s.writtenCum = writtenCum;
+    if(m<0) s.risk = s.days>0 ? Math.round(s.balance*(row.coverage||0)/100*0.6) : 0; });
+  return { lo, out, fl };
+}
+// флаг стенда «комиссии без потоков»: у каждого пятого кредита в двух последних месяцах крупное начисление комиссий (8 % остатка) —
+// потока у ядра нет, оно уходит в «прочее» Остатка, и Движение получает «большое необъяснённое»; история кредита пересчитывается при смене флага
+function bigOtherAt(row, m){ return STAND.bigOther && m>=-1 && !row.closed && hash(row.id+'|bigo')%5===0 ? (row.balance || 0)*0.08 : 0; }
+function loanAt(row, m){ let H = SNAP.get(row); if(!H || H.big!==!!STAND.bigOther){ SNAP.set(row, H = loanHist(row)); H.big = !!STAND.bigOther; }
+  return H.out.get(Math.min(0, Math.max(H.lo, m))); }
+// потоки кредита за месяц m из той же истории, что и остаток: issued, acc, paid, wr, sm — целыми; до окна истории — нули
+function loanFlow(row, key, m){ loanAt(row, m); const x = SNAP.get(row).fl.get(m); return x ? x[key] : 0; }
+// значение разреза кредита на месяц m — из его строки на дату; у прочих объектов разрез без истории — сегодняшнее значение
+const atLoan = (d, f)=>(r, m)=>{ if(!isLoanRow(r)) return dimValue(d, r); const v = loanAt(r, m)[f], E = DIMS[d].empty; return (v===null || v===undefined) && E ? E : v; };
 const DEBT_STEPS = ['до 1 млн','1–10 млн','10–50 млн','50+ млн'];
 function debtStep(v){ return !(v>0) ? null : v<1e6 ? DEBT_STEPS[0] : v<1e7 ? DEBT_STEPS[1] : v<5e7 ? DEBT_STEPS[2] : DEBT_STEPS[3]; }
 const HIST_STEPS = ['без просрочек','1–30','31–90','91+'];
@@ -854,7 +959,34 @@ function genQueueFields(){
   const w = rng(20261015);
   DATA.task.forEach(t=>{ t.dueIn = t.hot ? (w()<0.5 ? -(1+Math.floor(w()*9)) : Math.floor(w()*3)) : 3+Math.floor(w()*25); });
 }
+// История предмета залога и поступления на дату, добавленная 16.10: строка статистики на конец месяца. Без случайных чисел — из ключа
+// (хеш); прежние данные стенда не сдвигаются, сегодняшние значения те же.
+// Предмет залога: принят в этом или прошлом месяце (до приёма строки нет), переоценён вверх или вниз в один из трёх последних месяцев;
+// строка остаётся и после выхода из залога — освобождён (кредит погашен) или реализован (продан во взыскании): стоимость 0, состояние своё.
+function collAt(c, m){ if(c.outM!==undefined) return m<c.outM ? { value:c.v0, state:'в залоге' } : { value:0, state:c.outKind };
+  const rv = c.revM!==undefined && m<c.revM ? c.revD : 0;
+  return { value:Math.max(0, c.value - rv), state:'в залоге' }; }
+// Поступление: на конец месяца нераспределено — то, что сегодня ещё ждёт (с месяца поступления), и пришедшее в конце месяца, разнесённое
+// (или возвращённое) в следующем; у поступления в валюте сумма в сомах на конец месяца меняется курсом.
+function unallocAt(r, m){ if(m<r.at) return 0;
+  const k = r.fx ? 1 + 0.004*m*(hash(r.id+'|fxs')%2 ? 1 : -1) : 1;
+  return r.state!=='распределено' || (r.late && m===r.at) ? Math.round((r.amount||0)*k) : 0; }
+function genHist(){
+  const h = (id, k)=>hash(id+'|'+k);
+  DATA.coll.forEach(c=>{ c.cstate = 'в залоге';
+    if(c.accepted>0){ c.from = -(h(c.id, 'acc')%2); return; }
+    const d = c.revalUp>0 ? Math.min(c.revalUp, Math.round(c.value*0.4)) : c.revalDown>0 ? -c.revalDown : 0;
+    if(d){ c.revM = -(h(c.id, 'rev')%3); c.revD = d; } });
+  const act = DATA.loan.filter(l=>!l.closed);
+  for(let i=0;i<26;i++){ const l = act[h('ПЗ-out', i)%act.length], v0 = Math.round((l.collateralValue||1e6)*(0.5 + (h('ПЗ-out', 'v'+i)%900)/1000));
+    const sold = l.hasClaim || h('ПЗ-out', 's'+i)%4===0;                              // реализовано старше освобождено: продан — значит реализован
+    DATA.coll.push({ id:'ПЗ-'+(33000+i), loan:l.id, region:l.region, dept:l.dept, kind:['Недвижимость','Транспорт','Оборудование','Товары в обороте'][h('ПЗ-out', 'k'+i)%4],
+      value:0, v0, outM: -(i%2), outKind: sold ? 'реализован' : 'освобождён', cstate: sold ? 'реализован' : 'освобождён',
+      revalOverdue:false, noInsurance:false, noBan:false, registering:false, inSale:false, from:-40, accepted:0, revalUp:0, revalDown:0, released:0 }); }
+  DATA.receipt.forEach(r=>{ r.late = r.state==='распределено' && r.at<0 && h(r.id, 'late')%100<12; r.fx = h(r.id, 'fx')%40===0; });
+}
 genData();
+genHist();
 
 /* ================= Реестр статистики: объекты, разрезы, показатели ================= */
 // Дашборд своих показателей и разрезов не заводит — читает реестр статистики.
@@ -883,17 +1015,19 @@ function objReady(o){ const O = OBJECTS[o]; return O.wave <= STAND.wave && (!O.g
 // Список значений разреза ведёт статистика и держит его полным: у срока просрочки первая корзина — «нет просрочки», у статусов — весь
 // справочник. Где признак к части объектов не применим, «пусто» — последнее значение списка со своим именем (empty); где пусто
 // невозможно, такого значения нет. Объект разреза не пропадает: итог разреза — сумма его строк.
+// at — значение на конец месяца: у срока, категории, подразделения, куратора и состояния кредита — из строки кредита на эту дату (rowAt), поэтому
+// число на базе группируется по значению на дату базы: кредит, перешедший из 31–90 в 91–180, даёт «−» в одной строке и «+» в другой.
 const BUCKETS = ['нет просрочки','1–30','31–90','91–180','181+'];
 function bucketOf(d){ return d<=0 ? BUCKETS[0] : d<=30 ? BUCKETS[1] : d<=90 ? BUCKETS[2] : d<=180 ? BUCKETS[3] : BUCKETS[4]; }
 const COHORTS = ['2019','2020','2021','2022','2023','2024','2025','2026'];
 const DIMS = {
   region:  { name:'Область', field:'region', values:REGIONS },
-  dept:    { name:'Подразделение', field:'dept', label:deptName },
+  dept:    { name:'Подразделение', field:'dept', label:deptName, at:atLoan('dept', 'dept'), rowAt:true },
   program: { name:'Программа', field:'program', label:id=>id==='none'?'Без программы (поток B)':progName(id) },
-  curator: { name:'Куратор', field:'curator', label:userName },
-  category:{ name:'Категория классификации', field:'category', ordered:true, values:RISK_CATS, short:RISK_SHORT, empty:'нет категории' },
-  bucket:  { name:'Срок просрочки', get:r=>bucketOf(r.overdueDays), ordered:true, values:BUCKETS },
-  lstatus: { name:'Состояние кредита', field:'status' },
+  curator: { name:'Куратор', field:'curator', label:userName, at:atLoan('curator', 'curator'), rowAt:true },
+  category:{ name:'Категория классификации', field:'category', ordered:true, values:RISK_CATS, short:RISK_SHORT, empty:'нет категории', at:atLoan('category', 'category'), rowAt:true },
+  bucket:  { name:'Срок просрочки', get:r=>bucketOf(r.overdueDays), ordered:true, values:BUCKETS, at:atLoan('bucket', 'bucket'), rowAt:true },
+  lstatus: { name:'Состояние кредита', field:'status', values:['Обычный','В реструктуризации','Во взыскании','Закрыт'], at:atLoan('lstatus', 'status'), rowAt:true },
   bworst:  { name:'Худшая категория', field:'worst', ordered:true, values:RISK_CATS, short:RISK_SHORT, empty:'нет категории' },
   bodays:  { name:'Худшая просрочка по портфелю', get:r=>r.worstDays===null || r.worstDays===undefined ? null : bucketOf(r.worstDays), ordered:true, values:BUCKETS,
              empty:'нет действующих договоров' },
@@ -991,10 +1125,10 @@ function dimLabel(d, v){ const D = DIMS[d]; return D.label ? D.label(v) : v; }
 const IND = {};
 function ind(id, o){ IND[id] = Object.assign({ id, agg:'count', kind:'stock', dir:'neutral', unit:'pcs' }, o); }
 ind('loan.count',     { obj:'loan', name:'Кредитов' });
-ind('loan.balance',   { obj:'loan', name:'Остаток задолженности', agg:'sum', field:'balance', unit:'sum',
-  flows:{ inc:[['выдано','issuedM'],['начислено %','accrued']], dec:[['погашено','paid'],['списано за баланс','written']], other:'курсовая переоценка, принято/передано' } });
-ind('loan.overdue',   { obj:'loan', name:'Просрочено', agg:'sum', field:'overdue', unit:'sum', dir:'up_bad',
-  flows:{ inc:[['вышло в просрочку','odIn']], dec:[['погашено','odPaid'],['реструктурировано, списано','odRestr']], other:'прочее' } });
+// move — модель Движения на переходах объектов между двумя датами (MV_MODELS): строки событий, охвата, «нет ответа»; у денежных
+// (Остаток, Нераспределённый) — потоки владельца и «прочее» остатком. Без move, с flows — прежние денежные обороты
+ind('loan.balance',   { obj:'loan', name:'Остаток задолженности', agg:'sum', field:'balance', unit:'sum', move:'balance' });
+ind('loan.overdue',   { obj:'loan', name:'Просрочено', agg:'sum', field:'overdue', unit:'sum', dir:'up_bad', move:'transitions' });
 ind('loan.risk',      { obj:'loan', name:'Сумма под риском (залог)', agg:'sum', field:'risk', unit:'sum', dir:'up_bad' });
 ind('loan.restr',     { obj:'loan', name:'В реструктуризации', where:r=>r.status==='В реструктуризации', dir:'up_bad' });
 ind('loan.coll',      { obj:'loan', name:'Во взыскании', where:r=>r.status==='Во взыскании', dir:'up_bad' });
@@ -1005,9 +1139,7 @@ ind('loan.expected',  { obj:'loan', name:'Ожидалось по графику
 ind('loan.plan',      { obj:'loan', name:'План', agg:'sum', kind:'flow', field:'plan', unit:'sum', where:r=>r.plan>0 });
 ind('loan.paidPlanned',{ obj:'loan', name:'Поступило по кредитам с планом', agg:'sum', kind:'flow', field:'paid', unit:'sum', dir:'up_good', where:r=>r.plan>0 });
 // у заёмщика — счёт клиентов и деньги портфеля по признакам лица; итог денег — у кредита
-ind('borrower.count', { obj:'borrower', name:'Заёмщиков',
-  flows:{ inc:[['новые','bNew'],['вернулись','bBack']], dec:[['погасили всё','bPaid']], other:'смерть, перевод долга, расхождение учёта' }, flowsGate:'clientFlows',
-  flowsMsg:'в строке заёмщика нет даты погашения всего портфеля, у даты первого договора нет корзины «месяц» — статистика не отдаёт потоки счёта клиентов' });
+ind('borrower.count', { obj:'borrower', name:'Заёмщиков', move:'clients' });
 ind('borrower.total', { obj:'borrower', name:'Задолженность заёмщика', agg:'sum', field:'total', unit:'sum', money:true,
   flows:{ inc:[['выдано','issuedM'],['начислено %','accrued']], dec:[['погашено','paid'],['списано за баланс','written']], other:'курсовая переоценка, принято/передано' } });
 ind('borrower.overdueSum',{ obj:'borrower', name:'Просрочено по портфелю клиента', agg:'sum', field:'overdueSum', unit:'sum', dir:'up_bad', money:true });
@@ -1027,11 +1159,10 @@ ind('receipt.unidentSum',{ obj:'receipt', name:'Сумма невыясненн�
 ind('receipt.await',  { obj:'receipt', name:'Ожидают подтверждения', where:r=>r.state==='ожидает подтверждения', dir:'up_bad', currentOnly:true });
 ind('receipt.unmatched',{ obj:'receipt', name:'Незакрыжено', where:r=>r.state==='не закрыжено', dir:'up_bad', currentOnly:true });
 ind('receipt.unalloc',{ obj:'receipt', name:'Нераспределённый остаток', agg:'sum', field:'amount', unit:'sum', dir:'up_bad',
-  where:r=>r.state!=='распределено', flows:{ inc:[['поступило без распределения','unallocIn']], dec:[['распределено на платежи, возвращено','unallocOut']], other:'курсовая переоценка' } });
+  where:r=>r.state!=='распределено', hist:(r, m)=>unallocAt(r, m) || null, move:'unalloc' });
 ind('payment.amount', { obj:'payment', name:'Платежи', agg:'sum', kind:'event', field:'amount', unit:'sum', dir:'up_good' });
-ind('coll.count',     { obj:'coll', name:'Предметов в залоге' });
-ind('coll.value',     { obj:'coll', name:'Залоговая стоимость', agg:'sum', field:'value', unit:'sum', dir:'up_good',
-  flows:{ inc:[['принято','accepted'],['переоценка ↑','revalUp']], dec:[['переоценка ↓','revalDown'],['освобождено, реализовано','released']], other:'курсовая переоценка' } });
+ind('coll.count',     { obj:'coll', name:'Предметов в залоге', where:r=>r.cstate==='в залоге', hist:(c, m)=>collAt(c, m).state==='в залоге' ? 1 : null });
+ind('coll.value',     { obj:'coll', name:'Залоговая стоимость', agg:'sum', field:'value', unit:'sum', dir:'up_good', hist:(c, m)=>collAt(c, m).value, move:'coll' });
 ind('coll.reval',     { obj:'coll', name:'Переоценка просрочена', where:r=>r.revalOverdue, dir:'up_bad', currentOnly:true });
 ind('coll.insurance', { obj:'coll', name:'Страховка не оформлена или истекла', where:r=>r.noInsurance, dir:'up_bad', currentOnly:true });
 ind('coll.noBan',     { obj:'coll', name:'Нет запрета на отчуждение', where:r=>r.noBan, dir:'up_bad', currentOnly:true });
@@ -1096,7 +1227,7 @@ ind('asset.exp',      { obj:'asset', name:'Расходы на содержан�
 ind('asset.days',     { obj:'asset', name:'Наибольший срок на учёте', agg:'max', field:'daysOnBook', unit:'days', dir:'up_bad', where:IM_ON });
 
 /* ================= Стенд: настройки «соседей» ================= */
-const STAND = { wave:3, spells:false, clientFlows:false, statDown:false, nightRunFailed:false, queueLag:0, nightOnly:{}, overdueUp:false, withdrawn:{}, closedThrough:-2, N:150 };
+const STAND = { wave:3, spells:false, statDown:false, nightRunFailed:false, queueLag:0, nightOnly:{}, overdueUp:false, noAnswer:false, bigOther:false, withdrawn:{}, closedThrough:-2, N:150 };
 const STAND_SEED = JSON.stringify(STAND);
 
 /* ================= Даты, периоды, базы сдвига ================= */
@@ -1124,14 +1255,18 @@ function monthClosed(m){ return m <= STAND.closedThrough; }
 /* ================= Значение строки в вопросе ================= */
 function exists(row, m){ return (row.from===undefined || row.from<=m); }
 function flows(row, m){ return exists(row, m) && (row.to===undefined || m<=row.to); }   // потоки закрытого договора кончаются месяцем закрытия
+const LOAN_AT_FIELDS = { overdue:true, risk:true, balance:true };
 function scen(row, field){ return (STAND.overdueUp && (field==='overdue' || field==='risk')) ? 1.18 : 1; }
 function stockAt(row, I, pt){
   if(I.currentOnly && !(pt.m===0)) return null;            // состояние без истории: только «сейчас»
   if(!exists(row, pt.m)) return null;
+  if(!pt.day && noAnswerAt(row, pt.m)) return null;           // источник не ответил по строке на эту дату — пусто, а не ноль
+  if(I.hist && !pt.day && pt.m<0){ const v = I.hist(row, pt.m); return v===undefined ? null : v; }   // строка объекта на ту дату (залог, поступление)
   if(I.where && !I.where(row)) return null;
   if(I.agg==='count') return 1;
   let v = row[I.field] || 0;
   if(pt.m===0 && !pt.day) return v*scen(row, I.field);
+  if(!pt.day && LOAN_AT_FIELDS[I.field] && isLoanRow(row)) return loanAt(row, pt.m)[I.field];   // кредит на конец прошлого месяца — его строка на ту дату
   const k = pt.day ? 'd'+pt.day : 'm'+pt.m; const amp = pt.day ? 0.004 : 0.03*Math.min(1,(Math.abs(pt.m)+1)/4);
   const trend = pt.day ? 1 : 1 + pt.m*(I.field==='overdue'||I.field==='risk' ? 0.03 : I.field==='balance' ? 0.004 : I.field==='amount' ? 0.08 : 0.002); // портфель и просрочка растут
   return Math.round(v*trend*jitter(row, k+I.field, amp));
@@ -1189,6 +1324,29 @@ function visibleFor(user, roleId, obj){
   if(sc==='deptTree'){ const t = subtree(user.dept); return rows.filter(r=>t.includes(r.dept)); }
   return rows.filter(r=>r.dept===user.dept);
 }
+// разрез с историей у объекта: у кредита срок, категория, подразделение, куратор, состояние — из его строки на дату (rowAt);
+// у залога и заёмщика те же поля без истории — на любую дату сегодняшнее значение; состояния (портфеля, договора, программы) — с историей
+function dimHist(obj, d){ const D = DIMS[d]; return !!(D && D.at) && (!D.rowAt || obj==='loan'); }
+// охват роли по подразделению с историей: у кредита подразделение на дату — из его строки (переданный кредит до передачи — у прежнего);
+// видимость через другой объект, участие и «свои» — сегодняшние
+function scopeHist(roleId, obj){ const O = OBJECTS[obj]; if(['self','open','via'].includes(O.vis)) return false;
+  const sc = scopeOf(roleId, obj); return (sc==='dept' || sc==='deptTree') && dimHist(obj, 'dept'); }
+// охват смотрящего на дату m: env — { base, user, roleId }; ok(r, m) — строка в охвате хотя бы одной роли на ту дату, rows(m) — строки охвата
+// на ту дату (на сегодня — env.base); hist — охват может меняться между датами. Права «что видно сегодня» (реестр, список на сегодня) — по сегодняшнему
+const SCOPE_AT = new WeakMap();
+function scopeEnv(env, obj){
+  if(!env || !env.user || !env.base) return { hist:false, ok:()=>true, rows:()=>env && env.base };
+  const k = obj+'|'+env.user.id+'|'+env.user.dept+'|'+(env.roleId || '*'); let byEnv = SCOPE_AT.get(DATA[obj]);
+  if(!byEnv || byEnv.n!==DATA[obj].length){ SCOPE_AT.set(DATA[obj], byEnv = new Map()); byEnv.n = DATA[obj].length; }
+  let E = byEnv.get(k); if(E) return E;
+  const rs = viewerRoles(env.user, env.roleId).filter(x=>hasRight(x, obj)), hs = rs.filter(x=>scopeHist(x, obj)), u = env.user;
+  const today = new Set(rs.filter(x=>!scopeHist(x, obj)).flatMap(x=>visibleFor(u, x, obj).map(r=>r.id)));
+  const one = (x, r, m)=>{ const d = dimAt('dept', r, m); return scopeOf(x, obj)==='deptTree' ? subtree(u.dept).includes(d) : d===u.dept; };
+  let now = null; const at = new Map();
+  const ok = (r, m)=>!m ? (now || (now = new Set(env.base.map(x=>x.id)))).has(r.id) : today.has(r.id) || hs.some(x=>one(x, r, m));
+  E = { hist:hs.length>0, ok: hs.length ? ok : ()=>true,
+    rows: m=>!m || !hs.length ? env.base : at.get(m) || (at.set(m, DATA[obj].filter(r=>ok(r, m))), at.get(m)) };
+  byEnv.set(k, E); return E; }
 // роли, через которые человек смотрит плитку: на вкладке роли — эта роль, на своём экране — все его роли
 function viewerRoles(user, roleId){ return roleId ? [roleId] : user.roles; }
 function rowsFor(user, roleId, obj){
@@ -1215,6 +1373,11 @@ function paramLabel(v){ return v==='@me' ? '«я»' : v==='@myDept' ? '«моё 
 // сравнивается на месяц m: на дату среза плитки, в сдвиге — на дату базы.
 function isTimeCond(c){ const D = DIMS[c.f]; return !!(D && D.at); }
 function timeConds(filter){ return (filter||[]).filter(isTimeCond); }
+// относительное значение условия с историей («я», «моё подразделение») раскрывается до вопроса: такое условие режет строку на дату
+// числа, там смотрящего уже нет; паспорт и подпись плитки читают нераскрытый вопрос
+function userConds(q, user){ const rel = c=>isTimeCond(c) && paramLabel(c.v)!==null;
+  if(!q || !user || !(q.filter || []).some(rel)) return q;
+  return Object.assign({}, q, { filter:q.filter.map(c=>rel(c) ? Object.assign({}, c, { v:resolveParam(c.v, user) }) : c) }); }
 function testCond(row, c, user, m){
   const v = user ? resolveParam(c.v, user) : c.v; const D = DIMS[c.f];
   const x = D && D.at ? D.at(row, m===undefined ? 0 : m) : D ? dimValue(c.f, row) : row[c.f];
@@ -1435,8 +1598,8 @@ function miniOf(t, user, roleId, panel){
   const ps = r.series.points;
   return { vals:ps.map(p=>p.vals[0]), months:ps.map(p=>p.m), labels:ps.map(p=>p.label), closed:ps.map(p=>p.closed), unit:r.unit };
 }
-function answer(q, user, roleId, panel){
-  const I = IND[q.inds[0]]; const O = OBJECTS[I.obj];
+function answer(q0, user, roleId, panel){
+  const q = userConds(q0, user), I = IND[q.inds[0]]; const O = OBJECTS[I.obj];
   const res = { tileId:q.id, format:q.format, agg:I.agg };
   if(STAND.statDown){ res.state='error'; res.msg='Статистика не ответила. Вместо числа ничего не показываем — ни ноль, ни прошлое значение.'; return res; }
   if(q.withdrawnStub){ res.state='withdrawn'; res.msg='Плитка снята администратором дашборда.'; return res; }
@@ -1445,7 +1608,6 @@ function answer(q, user, roleId, panel){
   if(O.wave > STAND.wave){ res.state='refusal'; res.msg='Не отвечается: объект статистики «'+O.name+'» ещё не объявлен; владелец — модуль «'+O.owner+'».'; return res; }
   if(O.gate && !STAND[O.gate]){ res.state='refusal'; res.msg='Не отвечается: '+O.gateMsg+'; владелец — модуль «'+O.owner+'».'; return res; }
   if(I.refuses){ res.state='refusal'; res.msg='Не отвечается: '+I.refuses+'.'; return res; }
-  if(q.format==='move' && I.flowsGate && !STAND[I.flowsGate]){ res.state='refusal'; res.msg='Не отвечается: '+I.flowsMsg+'; владелец — статистика.'; return res; }
   const base = rowsFor(user, roleId, I.obj);
   if(base===null){ res.state='noaccess'; res.msg='Нельзя: объект «'+O.name+'» не открыт вашей роли.'; return res; }
   const visible = base.length;
@@ -1454,15 +1616,27 @@ function answer(q, user, roleId, panel){
   res.rows = rows; res.visible = visible;
   res.panelApplied = pr.applied; res.panelSkipped = pr.skipped; res.panelText = panelLabel(panel||{}, pr.applied, I.obj);
   res.unit = q.share ? 'pct' : I.unit;
-  res.passport = passportOf(q, visible, { fx: I.unit==='sum', panelApplied:pr.applied, panelSkipped:pr.skipped, panelText:res.panelText });
-  res.stale = staleOf(q);
+  res.passport = passportOf(q0, visible, { fx: I.unit==='sum', panelApplied:pr.applied, panelSkipped:pr.skipped, panelText:res.panelText });
+  res.stale = staleOf(q0);
   if(visible===0){ res.state='empty'; res.msg = emptyScopeMsg(user, roleId, I.obj); return res; }
   const ctx = ctxOf(q), cm = ctxMonth(ctx), dv = (d, r)=>dimAt(d, r, cm);
+  // строки на другую дату (база сдвига и разницы, точка Ряда): охват роли по подразделению и панель по полю с историей — на ту дату
+  const env = { base, user, roleId, panel }, rowsAt = m=>panelRowsAt(rows, I.obj, panel, env, q.filter, m);
+  Object.defineProperty(res, 'rowsAt', { value:rowsAt, enumerable:false, configurable:true });   // строки на дату — счёту «☰» точек Ряда
   // строки разреза без своего списка — из охвата смотрящего, суженного панелью и путём вглубь, но не фильтром плитки:
   // нуль внутри вопроса — тоже ответ (куратор без просрочки = 0); объявленный список печатается целиком
   const scope = ()=>applyPanel(applyFilter(base, q.path, user, cm), I.obj, panel).rows;
+  // база разницы вида: в «Изменении» значения разреза — объединение значений на дату числа и на дату базы (охват, панель и путь — на ту
+  // дату): значение, которое было только на базе, — строкой с числом 0 сегодня, итог по-прежнему = сумме строк
+  const B = q.diff && ['slice','steps','heat','table'].includes(q.format) ? diffBase(ctx, q.diff) : null, Bk = B && !B.none ? B : null;
+  const bm = Bk ? ctxMonth(Bk.ctx) : null, rowsB = Bk ? (Bk.ctx.point ? rowsAt(bm) : rows) : null;
+  const scopeB = ()=>{ const pt = !!Bk.ctx.point, ph = pt ? panelHist(I.obj, panel || {}) : [], rest = Object.assign({}, panel); ph.forEach(k=>{ delete rest[k]; });
+    return applyPanel(applyFilter(pt ? scopeEnv(env, I.obj).rows(bm) : base, q.path, user, bm), I.obj, rest).rows.filter(r=>ph.every(k=>dimAt(panelDim(I.obj, k), r, bm)===panel[k])); };
+  const vals = d=>{ const vs = valuesOf(d, rows, scope(), cm); if(!Bk) return vs;
+    const E = DIMS[d].empty, more = valuesOf(d, rowsB, scopeB(), bm).filter(v=>v!==E && !vs.includes(v)); if(!more.length) return vs;
+    const hasE = E && vs.includes(E); return [...vs.filter(v=>v!==E), ...more, ...(hasE ? [E] : [])]; };
   const val = (rs, c) => {                                    // число узла: показатель или доля (два показателя или фильтр числителя)
-    if(q.share){ const a = aggregate(numRows(q, rs, user), IND[q.share[0]], c).value || 0, b = aggregate(rs, IND[q.share[1]], c).value || 0;
+    if(q.share){ const a = aggregate(numRows(q, rs, user, ctxMonth(c)), IND[q.share[0]], c).value || 0, b = aggregate(rs, IND[q.share[1]], c).value || 0;
       return b ? { v:a/b*100, num:a, den:b } : { v:null, num:a, den:0 }; }
     return { v: aggregate(rs, I, c).value };
   };
@@ -1471,31 +1645,30 @@ function answer(q, user, roleId, panel){
       res.values = q.inds.map(id=>aggregate(rows, IND[id], ctx).value);
       if(q.share){ const s = val(rows, ctx); res.value = s.v; res.num = s.num; res.den = s.den; }
       else res.value = res.values[0];
-      if(q.format==='shift' || q.shift) res.shift = shiftOf(q, rows, ctx, val);
+      if(q.format==='shift' || q.shift) res.shift = shiftOf(q, rows, ctx, val, rowsAt);
       break; }
     case 'slice': case 'steps': {
-      const d = q.dims[0]; res.nodes = groupBy(rows, d, r=>val(r, ctx), cm, scope());
+      const d = q.dims[0]; res.nodes = groupBy(rows, d, r=>val(r, ctx), cm, scope(), vals(d));
       res.total = val(rows, ctx); break; }
     case 'heat': {
       // обе оси — весь список разреза (без своего списка — по охвату после панели и пути); у неупорядоченной оси пустые строки и столбцы уходят в конец, у упорядоченной — шкала как есть
       const [d1,d2] = q.dims, down = d=>vs=>{ if(DIMS[d].ordered) return vs; const z = vs.map(v=>!val(rows.filter(r=>dv(d,r)===v), ctx).v);
         return [...vs.filter((v, i)=>!z[i]), ...vs.filter((v, i)=>z[i])]; };
-      const sc = scope(), v1 = down(d1)(valuesOf(d1, rows, sc, cm)), v2 = down(d2)(valuesOf(d2, rows, sc, cm));
+      const v1 = down(d1)(vals(d1)), v2 = down(d2)(vals(d2));
       res.heat = { rows:v1, cols:v2, d1, d2, cells: v1.map(a=>v2.map(b=>val(rows.filter(r=>dv(d1,r)===a && dv(d2,r)===b), ctx).v || 0)) };
       const tot = rs=>{ const x = val(rs, ctx); return { value:x.v, num:x.num, den:x.den }; };   // итоги строк (справа) и столбцов (снизу) — узлом
       res.heat.rowTot = v1.map(a=>tot(rows.filter(r=>dv(d1,r)===a))); res.heat.colTot = v2.map(b=>tot(rows.filter(r=>dv(d2,r)===b)));
       res.total = val(rows, ctx); break; }
     case 'table': {
-      const d = q.dims[0]; const vs = valuesOf(d, rows, scope(), cm);
+      const d = q.dims[0]; const vs = vals(d);
       res.table = { d, cols: q.inds.map(i=>IND[i]), rows: vs.map(v=>{ const rs = rows.filter(r=>dv(d,r)===v);
         return { v, label:dimLabel(d,v), cells: q.inds.map(i=>aggregate(rs, IND[i], ctx).value) }; }) };
       if(!DIMS[d].ordered) res.table.rows.sort((a,b)=>(b.cells[0]||0)-(a.cells[0]||0));   // ступени — в объявленном порядке
       res.total = q.inds.map(i=>aggregate(rows, IND[i], ctx).value); break; }
-    case 'series': res.series = seriesOf(q, rows); break;
-    case 'move': res.move = movementOf(q, rows); break;
+    case 'series': res.series = seriesOf(q, rows, rowsAt); break;
+    case 'move': res.move = movementOf(q, rows, env); break;
   }
-  if(q.diff && ['slice','steps','heat','table'].includes(q.format)){ const B = diffBase(ctx, q.diff);
-    if(!B.none) try { addDiff(res, q, rows, B, val); } finally { B.done(); } }
+  if(Bk) try { addDiff(res, q, rows, Bk, val, rowsAt, I.obj, panel, env); } finally { Bk.done(); }
   // состояние ответа
   const headline = q.format==='number'||q.format==='shift' ? res.value : q.format==='move' ? res.move.end : 1;
   if(q.share && res.den===0){ res.state='dash'; res.msg='— · не из чего выбирать'; }
@@ -1507,7 +1680,8 @@ function answer(q, user, roleId, panel){
   return res;
 }
 // фильтр числителя режет только числитель доли; фильтр плитки уже срезал оба
-function numRows(q, rs, user){ return q.numFilter && q.numFilter.length ? applyFilter(rs, q.numFilter.filter(c=>!isTimeCond(c)), user) : rs; }   // разрезы с историей — в фильтре плитки, не в числителе
+// m — месяц числа: разрез с историей в фильтре числителя режет строки на ту же дату, что и число (на базе — по значению на дату базы)
+function numRows(q, rs, user, m){ return q.numFilter && q.numFilter.length ? applyFilter(rs, q.numFilter, user, m===undefined ? 0 : m) : rs; }
 function emptyScopeMsg(user, roleId, obj){
   if(OBJECTS[obj].vis==='self') return 'У вас нет заданий.';
   return 'В вашем охвате нет объектов «'+OBJECTS[obj].name+'»: подразделение «'+deptName(user.dept)+'» видит только своё.';
@@ -1522,8 +1696,8 @@ function valuesOf(d, rows, all, m){ const D = DIMS[d], E = D.empty;
 // значения разреза на выбор автору конструктора: объявленный список — целиком; у разреза без своего списка — по строкам охвата автора
 // (всех его ролей), а не по всем строкам объекта; объект не открыт ни одной роли — выбирать не из чего
 function pickValues(d, obj, u){ return valuesOf(d, DIMS[d].values ? DATA[obj] : rowsFor(u || user(), null, obj) || []); }
-function groupBy(rows, d, f, m, all){
-  const vs = valuesOf(d, rows, all, m);
+function groupBy(rows, d, f, m, all, vs0){
+  const vs = vs0 || valuesOf(d, rows, all, m);
   const nodes = vs.map(v=>{ const rs = rows.filter(r=>dimAt(d, r, m)===v); const x = f(rs); return { v, label:dimLabel(d,v), short:DIMS[d].short && DIMS[d].short[v], value:x.v, num:x.num, den:x.den, n:rs.length }; });
   if(!DIMS[d].ordered) nodes.sort((a,b)=>(b.value||0)-(a.value||0));
   return nodes;
@@ -1544,45 +1718,85 @@ function setDiff(o, v, b, unit){
   o.delta = (unit==='pct' ? miss(v) || miss(o.base) : miss(v) && miss(o.base)) ? null : (v || 0) - (o.base || 0);
   o.pct = o.delta===null || unit==='pct' || !o.base ? null : o.delta / Math.abs(o.base) * 100;
   return o; }
-function shiftOf(q, rows, ctx, val){
+function shiftOf(q, rows, ctx, val, rowsAt){
   const I = IND[q.inds[0]], B = diffBase(ctx, q.shift); if(B.none) return { none:B.none };
-  try { const at = c=>q.share ? val(rows, c).v : aggregate(rows, I, c).value, baseVal = at(B.ctx), cur = at(ctx);
+  try { const at = (c, rs)=>q.share ? val(rs, c).v : aggregate(rs, I, c).value;   // база остатка — строки на её дату (панель по полю с историей)
+    const baseVal = at(B.ctx, B.ctx.point && rowsAt ? rowsAt(B.ctx.point.m) : rows), cur = at(ctx, rows);
     return { base:baseVal, delta: ctx.period ? cur - baseVal : (cur||0)-(baseVal||0), label:B.label }; }
   finally { B.done(); }
 }
 // база разницы в ответе вида (q.diff — ключ базы сдвига плитки): узлы, ячейки, итоги строк и столбцов, строки таблицы — на дату базы,
 // перегруппированные на месяц базы (разрез с историей); сумма разниц узлов — разница итога
-function addDiff(res, q, rows, B, val){
+// переходы узла разреза с историей между базой и датой числа — то же правило объекта, что у Движения в пути «разрез = v» (mvSplit):
+// «пришли из …» — объект на базе вне узла, на дату числа в нём (вклад — как у строки Движения: у показателя с потоками — число на базу,
+// потоки периода — уже в узле; иначе — число на дату числа); «ушли в …» — наоборот (минус число на базе). Ключ — значение поля первого
+// не выполненного условия на другой дате: разрез узла или условие пути с историей («пришли из 31–90» в узле «Потери» под путём «91–180»);
+// не прошёл панель или охват роли на другой дате, или условие плитки — одной частью охвата, последней. Только части со вкладом, по
+// порядку полей пути, затем разреза узла, внутри — в объявленном порядке. rows0 — строки числа, rowsB — строки базы (на её дату),
+// bctx — время базы, env — охват смотрящего; (d, v, keep) → { from, to }, keep — с объектами
+const MV_PARTS = { gain:()=>'gain', up:'up', down:'down', loss:()=>'loss' };   // у показателя без своей модели — только части перехода
+function nodeMovesOf(q, rows0, rowsB, bctx, obj, panel, env){
+  const I = IND[q.inds[0]], ctx = ctxOf(q), cm = ctxMonth(ctx), bm = ctxMonth(bctx), tf = ctx.tf || [], Md0 = mvModel(I), Md = Md0 && Md0.flows ? Md0 : MV_PARTS;
+  const memb = tf.filter(c=>DIMS[c.f].rowAt), state = tf.filter(c=>!DIMS[c.f].rowAt), np = (q.path || []).length, nf = q.filter.length;
+  const isPath = c=>q.filter.indexOf(c) >= nf - np, sc = scopeOKAt(obj, panel, env), both = rowsB===rows0 ? rows0 : [...new Set(rows0.concat(rowsB))];
+  const pdims = [...new Set((q.path || []).map(c=>c.f))], memo = new Map();
+  return (d, v, keep)=>{
+    let pre = memo.get(d);
+    if(!pre) memo.set(d, pre = both.map(r=>({ r, A:mvAt(r, I, bctx.point, memb, state, sc.ok), B:mvAt(r, I, ctx.point, memb, state, sc.ok), a:dimAt(d, r, bm), b:dimAt(d, r, cm) })));
+    const node = { f:d, op:'eq', v }, dims = [...pdims.filter(x=>x!==d), d];
+    const inNode = (S, w)=>S.na || S.f || w===v ? S : Object.assign({}, S, { f:node, inn:false, x:0 });   // условие узла — последним
+    const M = new Map(), part = (dir, S, r, m)=>S.p && S.f && (S.f===node || isPath(S.f)) ? { dir, fd:S.f.f, v:S.f===node ? (dir==='in' ? dimAt(d, r, bm) : dimAt(d, r, cm)) : dimAt(S.f.f, r, m) } : { dir, fd:null, v:null };
+    for(const x of pre){ const A = inNode(x.A, x.a), B = inNode(x.B, x.b);
+      mvSplit(Md, I, x.r, cm, A, B, S=>part('in', S, x.r, bm), S=>part('out', S, x.r, cm), (k, w)=>{ if(!k || typeof k!=='object') return;
+        const id = k.dir+'|'+k.fd+'|'+k.v, e = M.get(id) || (M.set(id, { k, cnt:0, sum:0, list:[] }), M.get(id)); e.cnt++; e.sum += w; if(keep) e.list.push({ r:x.r, v:w }); }, false); }
+    const ord = k=>k.fd===null ? [1e9, 0] : [dims.indexOf(k.fd), (DIMS[k.fd].values || []).includes(k.v) ? DIMS[k.fd].values.indexOf(k.v) : 1e6];
+    const list = dir=>[...M.values()].filter(e=>e.k.dir===dir && e.cnt).sort((x, y)=>{ const a = ord(x.k), b = ord(y.k); return a[0] - b[0] || a[1] - b[1]
+        || (x.k.fd===null ? 0 : String(dimLabel(x.k.fd, x.k.v)).localeCompare(String(dimLabel(y.k.fd, y.k.v)))); })
+      .map(e=>Object.assign(e.k.fd===null ? { v:null, fd:null, label:'охват', scope:true } : { v:e.k.v, fd:e.k.fd, label:dimLabel(e.k.fd, e.k.v) }, { cnt:e.cnt, sum:e.sum }, keep ? { list:e.list } : {}));
+    return { from:list('in'), to:list('out') }; }; }
+// часть перехода узла по значению v2 (null — охват); fd — поле значения (по умолчанию — разрез узла, иначе — первое совпавшее)
+const mvPick = (xs, v2, fd, d)=>fd!==undefined ? xs.find(x=>x.v===v2 && x.fd===fd) : xs.find(x=>x.v===v2 && (v2===null || x.fd===d)) || xs.find(x=>x.v===v2);
+function addDiff(res, q, rows0, B, val, rowsAt, obj, panel, env){
   const bm = ctxMonth(B.ctx), at = (d, r)=>dimAt(d, r, bm), u = res.unit, bv = rs=>val(rs, B.ctx).v;
+  // строки базы — на дату базы (охват роли и панель по полю с историей — на ту дату); у потока база — тот же состав
+  const rows = B.ctx.point && rowsAt ? rowsAt(bm) : rows0;
   res.baseLabel = B.label;
+  // «пришли из … / ушли в …» у узла разреза с историей — у остатка (числа на дату), не у доли и не у наибольшего
+  const I0 = IND[q.inds[0]], mvOK = d=>dimHist(obj, d) && !!B.ctx.point && !q.share && I0.agg!=='max';
+  const mv = nodeMovesOf(q, rows0, rows, B.ctx, obj, panel, env);
   if(res.nodes){ const d = q.dims[0]; res.nodes.forEach(n=>{ const x = val(rows.filter(r=>at(d, r)===n.v), B.ctx); setDiff(n, n.value, x.v, u);
-    if(q.share){ n.baseNum = x.num; n.baseDen = x.den; } }); }   // у доли — числитель и знаменатель на базе: для «ещё N»
+    if(q.share){ n.baseNum = x.num; n.baseDen = x.den; }   // у доли — числитель и знаменатель на базе: для «ещё N»
+    if(mvOK(d)) n.moves = mv(d, n.v); }); }
   if(res.total && !Array.isArray(res.total)) setDiff(res.total, res.total.v, bv(rows), u);
   if(res.heat){ const h = res.heat;   // ячейка на базе — как ячейка: пустая — ноль; у доли без знаменателя на базе пары нет — «—», а не вся текущая доля
     const ps = h.rows.map((a, i)=>h.cols.map((b, j)=>{ const x = bv(rows.filter(r=>at(h.d1, r)===a && at(h.d2, r)===b)); return setDiff({}, h.cells[i][j], u==='pct' ? x : x || 0, u); }));
     h.bases = ps.map(r=>r.map(x=>x.base)); h.deltas = ps.map(r=>r.map(x=>x.delta)); h.pcts = ps.map(r=>r.map(x=>x.pct));
     h.rowTot.forEach((x, i)=>setDiff(x, x.value, bv(rows.filter(r=>at(h.d1, r)===h.rows[i])), u));
-    h.colTot.forEach((x, j)=>setDiff(x, x.value, bv(rows.filter(r=>at(h.d2, r)===h.cols[j])), u)); }
+    h.colTot.forEach((x, j)=>setDiff(x, x.value, bv(rows.filter(r=>at(h.d2, r)===h.cols[j])), u));
+    if(mvOK(h.d1)) h.rowTot.forEach((x, i)=>{ x.moves = mv(h.d1, h.rows[i]); });
+    if(mvOK(h.d2)) h.colTot.forEach((x, j)=>{ x.moves = mv(h.d2, h.cols[j]); }); }
   if(res.table){ const tb = res.table, us = q.inds.map(i=>IND[i].unit), nh = q.inds.map(i=>!!IND[i].currentOnly);   // nh — колонка без истории: базы нет
-    tb.rows.forEach(w=>{ const rs = rows.filter(r=>at(tb.d, r)===w.v); Object.assign(w, diffCells(w.cells, q.inds.map(i=>aggregate(rs, IND[i], B.ctx).value), us, nh)); });
+    tb.rows.forEach(w=>{ const rs = rows.filter(r=>at(tb.d, r)===w.v); Object.assign(w, diffCells(w.cells, q.inds.map(i=>aggregate(rs, IND[i], B.ctx).value), us, nh));
+      if(mvOK(tb.d) && !nh[0]) w.moves = mv(tb.d, w.v); });   // переходы — по первой колонке
     tb.total = Object.assign({ cells:res.total }, diffCells(res.total, q.inds.map(i=>aggregate(rows, IND[i], B.ctx).value), us, nh)); }
 }
 // разница строки таблицы по колонкам: bases, deltas, pcts — того же порядка, что cells; у колонки без истории (nh) базы и разницы нет — «—», а не всё значение
 function diffCells(cells, bases, units, nh){ const ps = cells.map((v, i)=>nh && nh[i] ? { base:null, delta:null, pct:null } : setDiff({}, v, bases[i], units[i]));
   return { bases:ps.map(x=>x.base), deltas:ps.map(x=>x.delta), pcts:ps.map(x=>x.pct) }; }
-function seriesOf(q, rows){
+function seriesOf(q, rows0, rowsAt){
   const n = q.points || 12, e = q.end || 0; const out = { points:[], lines: q.share ? [{ name:'доля, %' }] : q.inds.map(i=>({ name:IND[i].name })) };
-  const tf = timeConds(q.filter); const nrows = numRows(q, rows, null);
+  const tf = timeConds(q.filter);
   const flow = qKind(q)==='flow', unit = q.share ? 'pct' : IND[q.inds[0]].unit; let prev = null;
   out.ind = q.inds[0]; out.flow = flow;   // показатель точек (направление «хорошо/плохо» — у него) и род числа: поток — «за месяц», остаток — «на конец месяца»
   // точка перед первой — только пара для её разницы; строк на ту дату нет — у первой точки пары нет
   for(let m=e-n; m<=e; m++){ let any = false;
+    const rows = rowsAt && !flow ? rowsAt(m) : rows0;   // точка остатка — строки на её дату (панель по полю с историей)
     const vals = (q.share ? [q.share] : q.inds.map(i=>[i])).map(spec=>{
       const calc = (id, rs)=>{ const I = IND[id]; let r;
         if(I.kind==='stock') r = aggregate(rs, I, { point: m===0 ? { m:0 } : { m }, tf });
         else { const k = '__s'+m; PERIODS[k] = { months:[m], partial:m===0 }; r = aggregate(rs, I, { period:k, tf }); delete PERIODS[k]; }
         if(r.n) any = true; return r.value || 0; };
-      if(spec.length===2){ const a = calc(spec[0], nrows), b = calc(spec[1], rows); return b ? a/b*100 : null; }
+      if(spec.length===2){ const a = calc(spec[0], numRows(q, rows, null, m)), b = calc(spec[1], rows); return b ? a/b*100 : null; }   // числитель — на дату точки
       return calc(spec[0], rows); });
     if(m===e-n){ prev = any ? vals[0] : null; continue; }
     // разница к прошлой точке — по первой линии; незакрытый месяц (текущий) подписан, у потока он не сравнивается
@@ -1594,43 +1808,211 @@ function seriesOf(q, rows){
   }
   return out;
 }
-function rowFlow(row, key, m){ // составляющие оборотов для формата «Движение»
-  if(row.firstM!==undefined){ switch(key){                    // заёмщик: счёт клиентов — из дат строки, деньги — по его кредитам
-    case 'bNew': return row.firstM===m ? 1 : 0; case 'bBack': return row.backM===m ? 1 : 0;
-    case 'bPaid': return row.outM===m && row.outKind!=='прочее' && row.backM!==m ? 1 : 0; }
-    return (LOANS_OF.get(row.id)||[]).reduce((a,l)=>a+rowFlow(l, key, m), 0); }
-  const f = (field, k)=> flows(row, m) ? (row[field]||0)*jitter(row, 'mv'+m+key, 0.2)*k : 0;
-  const part = m===0 ? TODAY.day/TODAY.daysInMonth : 1;
-  switch(key){
-    case 'issuedM': return row.from===m ? (row.issued||0) : 0;
-    case 'accrued': return f('accrued',1)*part; case 'paid': return f('paid',1)*part; case 'written': return f('written',1)*part;
-    case 'odIn': return f('overdue',0.11)*part; case 'odPaid': return f('overdue',0.06)*part; case 'odRestr': return f('overdue',0.015)*part;
-    case 'accepted': return f('accepted',1); case 'revalUp': return f('revalUp',0.4); case 'revalDown': return f('revalDown',0.4); case 'released': return f('released',0.5);
-    case 'unallocIn': return row.state!=='распределено' ? (row.amount||0)*0.6 : 0; case 'unallocOut': return row.state!=='распределено' ? (row.amount||0)*0.35 : 0;
-  }
-  return 0;
+function rowFlow(row, key, m){ // потоки за месяц m для формата «Движение»
+  if(row.firstM!==undefined)                                    // заёмщик: деньги — по его кредитам (счёт клиентов — переходами по состоянию портфеля)
+    return (LOANS_OF.get(row.id)||[]).reduce((a,l)=>a+rowFlow(l, key, m), 0);
+  // кредит: потоки — из его истории (остаток на дату из них и сложен)
+  const LK = { issuedM:'iss', accrued:'acc', paid:'paid', written:'wr', small:'sm' };
+  return isLoanRow(row) && LK[key] ? loanFlow(row, LK[key], m) : 0;
 }
 // вклад строки в поток не ноль — полшага единицы шумом не считается; «☰ N» потока и его список считают так же
 const mvLive = x => Math.abs(x) >= 0.5;
 const mvOtherName = name => name && name!=='прочее' ? 'прочее — '+name : 'прочее';   // название «прочего» печатается один раз
-// «прочее» строки: её конец минус начало, минус приходы, плюс уходы — то, что потоки не объяснили
+// «прочее» строки прежних оборотов (задолженность заёмщика): её конец минус начало, минус приходы, плюс уходы — то, что обороты не объяснили
 function mvOtherOf(row, I, M, tf){
   const at = m=>valueOf(row, I, { point:{ m }, tf }) || 0, fl = list=>list.reduce((a, [, k])=>a + rowFlow(row, k, M), 0);
   return at(M) - at(M - 1) - fl(I.flows.inc) + fl(I.flows.dec);
 }
 const mvFlowOf = (row, I, key, M, tf)=>key==='other' ? mvOtherOf(row, I, M, tf) : rowFlow(row, key, M);
-function movementOf(q, rows){
-  const I = IND[q.inds[0]]; const M = q.mvMonth || 0; const tf = timeConds(q.filter);   // месяц движения: текущий или прошлый
+const mvWhen = M=>M===0 ? 'сегодня' : 'на '+monthEndLabel(M);
+// «прочее» денежного Движения больше четверти изменения и больше 1 % начала — «большое необъяснённое» (warn), ниже — тихо, серым (quiet);
+// share — доля «прочего» в изменении (изменения нет — null). Порог — здесь, в одном месте
+const MV_BIG = { share:0.25, start:0.01 };
+function mvBig(other, start, end){ const d = end - start, a = Math.abs(other || 0);
+  return { level: a > MV_BIG.share*Math.abs(d) && a > MV_BIG.start*Math.abs(start) ? 'warn' : 'quiet', share: d ? a / Math.abs(d) : null }; }
+// Модели Движения на переходах — по показателю (move): строки событий в порядке показа (всегда, нули тоже), хвост — после охвата и
+// «нет ответа» («прочее» денежных — остаток, последним). Объект без изменения — ни в одной строке. Объект, у которого число появилось
+// внутри охвата, — gain; пропало — loss (причина по старшинству); изменилось у прежних — up / down. У денежной модели с потоками (flows)
+// изменение объекта в охвате раскрывается потоками владельца, остаток — в «прочее»; money — у Движения есть «⚠ большое необъяснённое».
+const MV_MODELS = {
+  // Просрочено: каждый кредит — в одной строке
+  transitions: { money:false,
+    rows: [
+      ['new', 'новые в просрочке', '+', 'event', M=>'просрочены '+mvWhen(M)+', на '+monthEndLabel(M - 1)+' — нет; кто вышел и вылечился внутри периода — плитка „Вышли в просрочку“'],
+      ['paid', 'погасили', '−', 'event', M=>'просрочка на '+monthEndLabel(M - 1)+' была, '+mvWhen(M)+' нет; выросло погашено'],
+      ['restr', 'реструктурированы', '−', 'event', ()=>'просрочку сняло решение о реструктуризации — включился признак'],
+      ['written', 'списаны', '−', 'event', ()=>'просрочка ушла списанием — выросло списано'],
+      ['other', 'прочее', '−', 'other', ()=>'ушла без платежа, решения и списания: перевод долга, исправление учёта'],
+      ['up', 'выросла у прежних', '+', 'prior', M=>'просрочены в обе даты, сумма выросла; без изменения — ни в одной строке'],
+      ['down', 'снизилась у прежних', '−', 'prior', M=>'просрочены в обе даты, сумма снизилась'] ],
+    gain:()=>'new', up:'up', down:'down',
+    // ушла просрочка: причина по старшинству — списан → реструктурирован → погасил → прочее
+    loss:(r, M)=>{ const s0 = isLoanRow(r) ? loanAt(r, M - 1) : null, s1 = s0 && loanAt(r, M);
+      return !s0 ? 'other' : s1.writtenCum > s0.writtenCum ? 'written' : !s0.restr && s1.restr ? 'restr' : s1.paidCum > s0.paidCum ? 'paid' : 'other'; } },
+  // Остаток задолженности: потоки кредита из его истории; пришедший в охват — своим остатком на базу, его потоки — в новом охвате
+  balance: { money:true,
+    rows: [
+      ['issued', 'выдано', '+', 'flow', ()=>'выдачи по договорам за период'],
+      ['accrued', 'начислено %', '+', 'flow', ()=>'начисленные проценты за период'],
+      ['paid', 'погашено', '−', 'flow', ()=>'погашено за период: по графику и просрочка'],
+      ['written', 'списано', '−', 'flow', ()=>'списано за баланс за период'] ],
+    flows: [['issued', 'issuedM', 1], ['accrued', 'accrued', 1], ['paid', 'paid', -1], ['written', 'written', -1]],
+    tail: [['other', 'прочее', '±', 'other', ()=>'то, что потоки не объяснили: начисленные комиссии и расходы взыскания (потоков нет), пеня и курсовая']] },
+  // Заёмщиков: по состоянию портфеля клиента на двух датах
+  clients: { money:false,
+    rows: [
+      ['new', 'новые', '+', 'event', M=>'строки заёмщика на '+monthEndLabel(M - 1)+' не было, '+mvWhen(M)+' — действующий'],
+      ['back', 'вернулись', '+', 'event', M=>'на '+monthEndLabel(M - 1)+' — «весь портфель погашен», '+mvWhen(M)+' — действующий'],
+      ['paidAll', 'погасили всё', '−', 'event', M=>'на '+monthEndLabel(M - 1)+' — действующий, '+mvWhen(M)+' — «весь портфель погашен»'],
+      ['other', 'прочее', '−', 'event', ()=>'ушли не погашением: смерть, ликвидация, перевод долга — старше «погасили всё»'] ],
+    gain:(r, M)=>pstateAt(r, M - 1)===PAID_ALL ? 'back' : 'new', up:null, down:null,
+    loss:r=>r.outKind==='прочее' || (r.pers && r.pers!=='действует') ? 'other' : 'paidAll' },
+  // Залоговая стоимость: по строке предмета на двух датах; реализовано старше освобождено
+  coll: { money:false,
+    rows: [
+      ['accepted', 'принято', '+', 'event', M=>'на '+monthEndLabel(M - 1)+' предмета в залоге не было, '+mvWhen(M)+' — есть'],
+      ['revalUp', 'переоценка ↑', '+', 'prior', ()=>'в залоге в обе даты, стоимость выросла переоценкой'],
+      ['revalDown', 'переоценка ↓', '−', 'prior', ()=>'в залоге в обе даты, стоимость снизилась переоценкой'],
+      ['released', 'освобождено', '−', 'event', ()=>'вышел из залога: обязательство исполнено, предмет освобождён'],
+      ['realized', 'реализовано', '−', 'event', ()=>'вышел из залога продажей во взыскании; продан и освобождён — здесь'] ],
+    gain:()=>'accepted', up:'revalUp', down:'revalDown',
+    loss:(r, M)=>r.outKind!==undefined && collAt(r, M).state==='реализован' ? 'realized' : 'released' },
+  // Нераспределённый остаток: по поступлению на двух датах; изменение суммы ждущего в обе даты (курс) — «прочее»
+  unalloc: { money:true,
+    rows: [
+      ['in', 'поступило без распределения', '+', 'flow', M=>'на '+monthEndLabel(M - 1)+' не было или распределено, '+mvWhen(M)+' ждёт распределения'],
+      ['distributed', 'распределено', '−', 'flow', ()=>'ждало распределения, разнесено на платежи'],
+      ['returned', 'возвращено', '−', 'flow', ()=>'ждало распределения, возвращено плательщику'] ],
+    tail: [['other', 'прочее', '±', 'other', ()=>'изменение суммы у ждущих в обе даты: курсовая переоценка поступлений в валюте']],
+    gain:()=>'in', up:'other', down:'other', loss:r=>r.refund ? 'returned' : 'distributed' },
+};
+const mvModel = I=>I && I.move ? MV_MODELS[I.move] || null : null;
+const mvTransitions = I=>!!mvModel(I);                       // Движение по объектам (одна из моделей), а не прежними оборотами
+// у кредита без ответа источника на одну из дат строка ядра неполна (флаг стенда): на эту дату значения нет — пусто, а не ноль
+function noAnswerAt(row, m){ if(!STAND.noAnswer || !isLoanRow(row) || !(row.overdue>0) || hash(row.id+'|na')%20) return false;
+  return m===(hash('nad|'+row.id)>>>7 & 1 ? 0 : -1); }   // дата сбоя — свой хеш, не связанный с отбором: есть сбои и сегодня, и на 30.09
+// ключ строки «пришли из / ушли в» по значению разреза пути: значение кодируется — ключ идёт в onclick
+const mvValKey = (dir, d, v)=>dir+':'+d+':'+encodeURIComponent(String(v)).replace(/'/g, '%27');
+// панель по полю с историей (подразделение) — на свою дату: в Движении, у базы сдвига, разницы и списка на дату; прочие поля панели — сегодня
+function panelHist(obj, panel){ return Object.keys(PANEL).filter(k=>panel && panel[k] && panelApplies(obj, k) && PANEL_SELF[obj]!==k && dimHist(obj, panelDim(obj, k))); }
+// строки вопроса на месяц m: фильтр — как у числа, охват роли по подразделению и панель по полю с историей — на дату m (как у кредита
+// в его строке на ту дату); без истории охвата и панели и на сегодня — строки числа как есть
+function panelRowsAt(rows, obj, panel, env, filter, m){ const ph = panelHist(obj, panel), sc = scopeEnv(env, obj);
+  if((!ph.length && !sc.hist) || !m || !env || !env.base) return rows;
+  const rest = Object.assign({}, panel); ph.forEach(k=>{ delete rest[k]; });
+  return applyPanel(applyFilter(sc.rows(m), filter, env.user), obj, rest).rows.filter(r=>ph.every(k=>dimAt(panelDim(obj, k), r, m)===panel[k])); }
+// строка в панели по полю с историей и в охвате роли на дату m — «в охвате плитки» для Движения и переходов узла
+function scopeOKAt(obj, panel, env){ const ph = panelHist(obj, panel || {}), sc = scopeEnv(env, obj);
+  return { hist: ph.length>0 || sc.hist, ok:(r, m)=>ph.every(k=>dimAt(panelDim(obj, k), r, m)===panel[k]) && sc.ok(r, m),
+    pool:ms=>[...new Set(ms.flatMap(m=>sc.rows(m) || []))] }; }
+// Движение на переходах: каждый объект выборки сравнивается с собой на конец месяца M−1 (база) и на M.
+// В охвате на дату — условия фильтра, пути и панели по полям строки с историей (подразделение, куратор, срок, категория) на эту дату;
+// условие состояния («действующий») не охват: объект, ушедший из состояния, уходит с нулём. Пришёл в охват с числом (оно было и вне
+// охвата) — «пришли в охват» или «пришли из 31–90» по значению разреза пути; без него — событие модели. Неизменное число у прежних
+// в строку не попадает. У денежной модели с потоками объект в охвате на сегодня даёт свои потоки периода и «прочее» остатком; пришедший —
+// ещё «пришли в охват» своим числом на базу; ушедший — «ушли из охвата» своим числом на базу. Объект может стоять в нескольких строках,
+// у каждой — один раз. env — { base, user, roleId, panel }: строки охвата смотрящего до панели (панель с историей режет на дату)
+function mvObjects(q, rows, env){
+  const I = IND[q.inds[0]], Md = mvModel(I), M = q.mvMonth || 0, tf = timeConds(q.filter), np = (q.path || []).length, nf = (q.filter || []).length;
+  const isPath = c=>{ const i = q.filter.indexOf(c); return i >= nf - np; };
+  const memb = tf.filter(c=>DIMS[c.f].rowAt), state = tf.filter(c=>!DIMS[c.f].rowAt);
+  const panel = env && env.panel, ph = panel ? panelHist(I.obj, panel) : [], sc = scopeOKAt(I.obj, panel, env);
+  // кандидаты — охват смотрящего на обе даты (подразделение кредита — на свою дату), после фильтра и панели по полям без истории
+  let cand = rows;
+  if(sc.hist && env.base){ const rest = Object.assign({}, panel); ph.forEach(k=>{ delete rest[k]; });
+    cand = applyPanel(applyFilter(sc.pool([M - 1, M]), q.filter, env.user), I.obj, rest).rows; }
+  const live = v=>I.agg==='count' ? v>0 : contributes(I, v);
+  // охват может меняться: условие плитки по полю с историей у этого объекта, панель по такому полю или охват роли по подразделению
+  const scopeCan = memb.some(c=>!isPath(c) && dimHist(I.obj, c.f)) || sc.hist;
+  // не прошёл панель или охват роли на другой дате — охват, а не значение пути; иначе — значение первого не выполненного условия пути
+  const inKey = (A, r)=>A.p && A.f && isPath(A.f) ? mvValKey('in', A.f.f, dimAt(A.f.f, r, M - 1)) : 'scopeIn';
+  const outKey = (B, r)=>B.p && B.f && isPath(B.f) ? mvValKey('out', B.f.f, dimAt(B.f.f, r, M)) : 'scopeOut';
+  const out = []; let start = 0, end = 0, cnt0 = 0, cntEnd = 0;
+  for(const r of cand){ const A = mvAt(r, I, { m:M - 1 }, memb, state, sc.ok), B = mvAt(r, I, { m:M }, memb, state, sc.ok);
+    if(!A.na){ start += A.x; if(A.inn && live(A.x)) cnt0++; }
+    if(!B.na){ end += B.x; if(B.inn && live(B.x)) cntEnd++; }
+    mvSplit(Md, I, r, M, A, B, S=>inKey(S, r), S=>outKey(S, r), (key, v)=>out.push({ r, key, v }), true); }
+  return { I, Md, M, start, end, cnt0, cntEnd, list:out, scopeCan, pathDims:(q.path || []).map(c=>c.f) };
+}
+// объект на дату (pt): na — источник не ответил; raw — число строки (условие состояния не выполнено — ноль); p — в панели по полю
+// с историей и в охвате роли (pOK); f — первое не выполненное условие охвата (фильтр плитки, путь); inn — в охвате плитки; x — вклад
+function mvAt(r, I, pt, memb, state, pOK){
+  if(!pt.day && noAnswerAt(r, pt.m)) return { na:true };
+  const raw0 = stockAt(r, I, pt), ok = state.every(c=>testCond(r, c, null, pt.m)), raw = ok && raw0!==null ? raw0 : 0;
+  const p = pOK(r, pt.m), f = memb.find(c=>!testCond(r, c, null, pt.m)), inn = p && !f;
+  return { inn, raw, ok, f, p, x: inn ? raw : 0 };
+}
+// один объект между базой (A) и датой числа (B) — в строки: push(key, v). Пришёл в охват с числом — inKey(A), ушёл — outKey(B); у модели
+// с потоками пришедший — своим числом на базу, его потоки периода (withFlows) — здесь же, остаток — «прочее»; без потоков — событие модели
+function mvSplit(Md, I, r, M, A, B, inKey, outKey, push, withFlows){
+  const live = v=>I.agg==='count' ? v>0 : contributes(I, v);
+  if(A.na || B.na){ const v = (B.na ? 0 : B.x) - (A.na ? 0 : A.x); if(v) push('noanswer', v); return; }
+  const x = A.x, y = B.x;
+  if(Md.flows){                                                  // денежная модель с потоками владельца
+    if(!B.inn){ if(A.inn && x) push(outKey(B), -x); return; }
+    let b = x;
+    if(!A.inn && live(A.raw)){ push(inKey(A), A.raw); b = A.raw; }
+    if(withFlows){ let rest = y - b;
+      if(A.ok || B.ok) Md.flows.forEach(([k, fk, sg])=>{ const v = sg*rowFlow(r, fk, M); if(v){ push(k, v); rest -= v; } });
+      if(rest) push('other', rest); }
+    return; }
+  if(x===y) return;
+  let key;
+  if(A.inn && B.inn) key = x===0 ? Md.gain(r, M) : y===0 ? null : y>x ? Md.up : Md.down;
+  else if(B.inn) key = live(A.raw) ? inKey(A) : Md.gain(r, M);
+  else key = live(B.raw) ? outKey(B) : null;
+  if(key===null) key = Md.loss(r, M);
+  push(key, y - x);
+}
+// строки Движения на переходах в порядке показа: события модели — всегда; «пришли из … / ушли в …» по значениям разреза пути —
+// только со вкладом, в объявленном порядке; «пришли в охват / ушли из охвата» — где охват может меняться; «нет ответа» — только при сбое;
+// хвост модели («прочее» денежных) — всегда, последним
+function mvRowsOf(o){
+  const M = o.M, from = monthEndLabel(M - 1), sum = k=>o.list.filter(x=>x.key===k).reduce((a, x)=>a + x.v, 0), cnt = k=>o.list.filter(x=>x.key===k).length;
+  const row = (key, name, sg, kind, tip)=>({ key, name, sg, v:sum(key), cnt:cnt(key), kind, tip });
+  const rows = o.Md.rows.map(([k, n, sg, kind, tip])=>row(k, n, sg, kind, tip(M)));
+  const vals = dir=>{ const out = [];
+    [...new Set(o.pathDims)].forEach(d=>{ const D = DIMS[d], seen = new Map();
+      o.list.forEach(x=>{ const p = x.key.split(':'); if(p[0]===dir && p[1]===d){ const v = dimAt(d, x.r, dir==='in' ? M - 1 : M); seen.set(x.key, v); } });
+      const ord = v=>{ const i = D.values ? D.values.indexOf(v) : -1; return i<0 ? 1e6 : i; };
+      [...seen.entries()].sort((a, b)=>ord(a[1]) - ord(b[1]) || String(dimLabel(d, a[1])).localeCompare(String(dimLabel(d, b[1]))))
+        .forEach(([k, v])=>out.push(row(k, (dir==='in' ? 'пришли из ' : 'ушли в ')+dimLabel(d, v), dir==='in' ? '+' : '−', 'scope',
+          dir==='in' ? 'на '+from+' — «'+dimLabel(d, v)+'», '+mvWhen(M)+' — в этом узле' : 'на '+from+' — в этом узле, '+mvWhen(M)+' — «'+dimLabel(d, v)+'»'))); });
+    return out; };
+  const who = o.I.obj==='borrower' ? 'сменился ведущий куратор' : 'сменился куратор или подразделение';
+  rows.push(...vals('in'));
+  if(o.scopeCan || cnt('scopeIn')) rows.push(row('scopeIn', 'пришли в охват', '+', 'scope', 'на '+from+' вне охвата плитки, '+mvWhen(M)+' в нём: '+who+(o.Md.flows ? '; число на '+from+', потоки периода — здесь' : '')));
+  rows.push(...vals('out'));
+  if(o.scopeCan || cnt('scopeOut')) rows.push(row('scopeOut', 'ушли из охвата', '−', 'scope', 'на '+from+' в охвате плитки, '+mvWhen(M)+' вне его: '+who));
+  if(cnt('noanswer')) rows.push(row('noanswer', 'нет ответа источника', '±', 'noanswer', 'источник не ответил на одну из дат — строка несёт известную сумму со своей даты; пусто, а не ноль'));
+  (o.Md.tail || []).forEach(([k, n, sg, kind, tip])=>rows.push(row(k, n, sg, kind, tip(M))));
+  return rows;
+}
+// результат Движения — один контракт у всех моделей: { M, model, start, end, cnt0, cntEnd, rows:[{ key, name, sg, v, cnt, kind, tip }], big }
+// v строки — со знаком, сумма строк = конец − начало; model — 'money' у денежных (есть «прочее» остатком, big — его подсветка), иначе
+// 'transitions' (big — null); у прежних оборотов (без модели) — обороты строк, «прочее» остатком
+function movementOf(q, rows, env){
+  const I = IND[q.inds[0]], Md = mvModel(I); const M = q.mvMonth || 0; const tf = timeConds(q.filter);   // месяц движения: текущий или прошлый
+  if(Md){ const o = mvObjects(q, rows, env), rs = mvRowsOf(o), oth = rs.find(x=>x.key==='other');
+    return { M, model: Md.money ? 'money' : 'transitions', start:o.start, end:o.end, cnt0:o.cnt0, cntEnd:o.cntEnd, rows:rs,
+      big: Md.money ? mvBig(oth ? oth.v : 0, o.start, o.end) : null }; }
   const start = aggregate(rows, I, { point:{ m:M-1 }, tf }).value || 0;
   const end = aggregate(rows, I, { point:{ m:M }, tf }).value || 0;
-  const sumFlows = list => list.map(([name,key])=>({ name, key, v: Math.round(rows.reduce((a,r)=>a+rowFlow(r,key,M),0)), cnt: rows.filter(r=>mvLive(rowFlow(r,key,M))).length }));   // cnt — «☰ N»: объекты с вкладом в поток
-  const inc = sumFlows(I.flows.inc), dec = sumFlows(I.flows.dec);
-  const ti = inc.reduce((a,x)=>a+x.v,0), td = dec.reduce((a,x)=>a+x.v,0);
-  const other = end - start - ti + td;                         // строка «прочее» показывается всегда, даже при нуле
-  return { start, end, inc, dec, other, otherName:I.flows.other, ti, td, M, converges: start + ti - td + other === end,
+  const sumFlows = (list, sg) => list.map(([name,key])=>{ const v = Math.round(rows.reduce((a,r)=>a+rowFlow(r,key,M),0));
+    return { key, name, sg, v: sg==='−' ? -v : v, cnt: rows.filter(r=>mvLive(rowFlow(r,key,M))).length, kind:'flow', tip:'' }; });   // cnt — «☰ N»: объекты с вкладом в поток
+  const fl = sumFlows(I.flows.inc, '+').concat(sumFlows(I.flows.dec, '−'));
+  const other = end - start - fl.reduce((a, x)=>a + x.v, 0);   // строка «прочее» показывается всегда, даже при нуле
+  fl.push({ key:'other', name:mvOtherName(I.flows.other), sg:'±', v:other, cnt:rows.filter(r=>mvLive(mvOtherOf(r, I, M, tf))).length, kind:'other', tip:'то, что обороты не объяснили' });
+  return { M, model:'money', start, end,
     cnt0: rows.filter(r=>contributes(I, valueOf(r, I, { point:{ m:M-1 }, tf }))).length,   // «☰ N» начала: строки списка на конец прошлого месяца
-    otherCnt: rows.filter(r=>mvLive(mvOtherOf(r, I, M, tf))).length };
+    cntEnd: rows.filter(r=>contributes(I, valueOf(r, I, { point:{ m:M }, tf }))).length, rows:fl, big:mvBig(other, start, end) };
 }
+// название строки Движения по ключу — для подписи списка «☰»
+function mvRowName(q, key, M, env){ const I = IND[q.inds[0]], Md = mvModel(I);
+  if(Md){ const e = Md.rows.concat(Md.tail || []).find(x=>x[0]===key); if(e) return e[1];
+    const p = key.split(':'); if(p.length===3) return (p[0]==='in' ? 'пришли из ' : 'ушли в ')+dimLabel(p[1], decodeURIComponent(p[2]));
+    return { scopeIn:'пришли в охват', scopeOut:'ушли из охвата', noanswer:'нет ответа источника' }[key] || key; }
+  const f = I.flows.inc.concat(I.flows.dec).find(x=>x[1]===key); return f ? f[0] : mvOtherName(I.flows.other); }
 function trafficOf(t, v, state){
   if(!t || state!=='ok' && state!=='zero') return null;
   if(v===null || v===undefined) return null;
@@ -1647,17 +2029,29 @@ function statRows(tile, user, roleId, panel, node, path){
   const res = ask(tile, user, roleId, panel, path);
   if(!res.rows) return { refused:true, msg:res.msg || 'нет ответа' };
   if(node && node.of==='second' && res.second && res.second.none) return { refused:true, msg:res.second.none };
-  const q = numQ(tile, path, node && node.of); const I = IND[q.inds[0]]; let ctx = ctxOf(q);
+  const q = userConds(numQ(tile, path, node && node.of), user); const I = IND[q.inds[0]]; let ctx = ctxOf(q);
   const cm = node && node.m!==undefined ? node.m : ctxMonth(ctx);
   let rows = res.rows;
+  if(node && node.m!==undefined && I.kind==='stock')        // список на дату — панель по полю с историей на ту же дату, как число
+    rows = panelRowsAt(rows, I.obj, panel, { base:rowsFor(user, roleId, I.obj), user, roleId, panel }, q.filter, node.m);
+  if(mvNode(node)){                                             // «пришли из … / ушли в …» узла разреза: объекты перехода, значение — вклад со знаком
+    const e = mvEntry(tile, user, roleId, panel, path, node, q, rows, true);
+    if(!e) return { refused:true, msg:'переходов узла нет: у разреза нет истории или у вида нет базы' };
+    const list = e.list.slice().sort((a,b)=>Math.abs(b.v) - Math.abs(a.v));
+    if(list.length > STAND.N) return { refused:true, count:list.length, inFilter:rows.length, msg: nbsp(list.length)+' строк — сузьте вопрос разрезом или возьмите выгрузкой', passport:res.passport };
+    return { refused:false, list, inFilter:rows.length, unit:I.unit, sum: list.reduce((a,x)=>a+x.v,0), passport:res.passport, obj:I.obj }; }
   if(node){ if(node.d) rows = rows.filter(r=>dimAt(node.d, r, cm)===node.v); if(node.d2) rows = rows.filter(r=>dimAt(node.d2, r, cm)===node.v2); }
-  if(node && node.flow){                                        // поток Движения (mv — месяц движения): объекты с вкладом в поток, значение строки — её доля потока
-    const M = node.mv || 0, tf = timeConds(q.filter), all = rows.map(r=>({ r, v:mvFlowOf(r, I, node.flow, M, tf) })), list = all.filter(x=>mvLive(x.v));
+  if(node && node.flow){                                        // строка Движения (mv — месяц движения): её объекты, значение — вклад объекта в строку со знаком
+    const M = node.mv || 0, tf = timeConds(q.filter); let all, list;
+    if(mvTransitions(I)){ const o = mvObjects(Object.assign({}, q, { mvMonth:M }), rows, { base:rowsFor(user, roleId, I.obj), user, roleId, panel });
+      all = o.list; list = all.filter(x=>x.key===node.flow).map(x=>({ r:x.r, v:x.v })); }
+    else { const sg = I.flows.dec.some(x=>x[1]===node.flow) ? -1 : 1;   // уход — со знаком «−», как в строке
+      all = rows.map(r=>({ r, v:sg*mvFlowOf(r, I, node.flow, M, tf) })); list = all.filter(x=>mvLive(x.v)); }
     if(list.length > STAND.N) return { refused:true, count:list.length, inFilter:all.length, msg: nbsp(list.length)+' строк — сузьте вопрос разрезом или возьмите выгрузкой', passport:res.passport };
     list.sort((a,b)=>Math.abs(b.v) - Math.abs(a.v));
     return { refused:false, list, inFilter:all.length, unit:I.unit, sum: list.reduce((a,x)=>a+x.v,0), passport:res.passport, obj:I.obj }; }
   const own = node && (node.all || (q.numFilter || []).some(c=>c.f===node.d || c.f===node.d2));   // «% от итога группы» по своему разрезу — узел знаменателя (all — итог такого вида)
-  if(q.share && !own) rows = numRows(q, rows, user);            // клик по доле — строки числителя: оба фильтра
+  if(q.share && !own) rows = numRows(q, rows, user, cm);        // клик по доле — строки числителя: оба фильтра
   const spec = q.share ? IND[q.share[0]] : IND[q.inds[(node && node.line) || 0]];
   const pk = node && node.m!==undefined ? '__d'+node.m : null;
   if(pk){ if(ctx.period){ PERIODS[pk] = { months:[node.m], partial:node.m===0 }; ctx = { period:pk, tf:ctx.tf }; } else ctx = { point:{ m:node.m }, tf:ctx.tf }; }
@@ -1667,10 +2061,22 @@ function statRows(tile, user, roleId, panel, node, path){
   list.sort((a,b)=>b.v-a.v);
   return { refused:false, list, inFilter:all.length, unit:spec.unit, sum: list.reduce((a,x)=>a+x.v,0), passport:res.passport, obj:I.obj };
 }
+// узел перехода разреза: { d, v, from:v2 } — пришли в v из v2, { d, v, to:v2 } — ушли из v в v2; v2 = null — охват
+const mvNode = node=>!!node && !!node.d && (node.from!==undefined || node.to!==undefined);
+// строка «пришли из / ушли в» узла: база — база разницы вида (база сдвига плитки), строки базы — на её дату; keep — с объектами
+function mvEntry(tile, user, roleId, panel, path, node, q, rows, keep){
+  const I = IND[q.inds[0]], key = shiftRule(tile, srcOf(tile), mainQ(tile, path)).key; if(!key || !dimHist(I.obj, node.d)) return null;
+  const B = diffBase(ctxOf(q), key); if(B.none || !B.ctx.point) return null;
+  try { const env = { base:rowsFor(user, roleId, I.obj), user, roleId, panel }, rowsB = panelRowsAt(rows, I.obj, panel, env, q.filter, ctxMonth(B.ctx));
+    const mv = nodeMovesOf(q, rows, rowsB, B.ctx, I.obj, panel, env)(node.d, node.v, keep), dir = node.from!==undefined ? 'from' : 'to', v2 = node[dir];
+    return mvPick(mv[dir], v2, node.fd, node.d) || { cnt:0, sum:0, list:[] }; }
+  finally { B.done(); } }
+const mvNodeName = (d, dir, v2)=>v2===null ? (dir==='from' ? 'пришли в охват' : 'ушли из охвата') : (dir==='from' ? 'пришли из ' : 'ушли в ')+dimLabel(d, v2);
 function nodeText(q, node){
   if(!node) return '';
-  if(node.flow){ const I = IND[q.inds[0]], f = I.flows.inc.concat(I.flows.dec).find(x=>x[1]===node.flow), M = node.mv || 0;   // поток Движения: «вышло в просрочку · с 30.09 по сегодня»
-    return (f ? f[0] : mvOtherName(I.flows.other))+' · с '+monthEndLabel(M - 1)+' по '+(M===0 ? 'сегодня' : monthEndLabel(M)); }
+  if(mvNode(node)){ const dir = node.from!==undefined ? 'from' : 'to'; return dimLabel(node.d, node.v)+' · '+mvNodeName(node.fd || node.d, dir, node[dir]); }
+  if(node.flow){ const M = node.mv || 0;   // строка Движения: «новые в просрочке · с 30.09 по сегодня»
+    return mvRowName(q, node.flow, M)+' · с '+monthEndLabel(M - 1)+' по '+(M===0 ? 'сегодня' : monthEndLabel(M)); }
   if(node.m!==undefined) return IND[q.inds[0]].kind==='stock' ? (node.m===0 ? 'на сегодня' : 'на конец '+monthEndLabel(node.m)) : 'за '+monthName(node.m);
   return [node.d && dimLabel(node.d, node.v), node.d2 && dimLabel(node.d2, node.v2)].filter(Boolean).join(' × ');
 }
@@ -1682,19 +2088,24 @@ function drill(tileId, user, roleId, panel, node, path){
   const sr = statRows(t, user, roleId, panel, node, path);
   const number = sr.refused ? null : nodeNum(t, user, roleId, panel, node, path);
   const two = node && node.of==='second' && t.second ? 'второе число — «'+IND[(q.share || q.inds)[0]].name+'»' : '';
-  return Object.assign(sr, { node:node || null, nodeText:[two, nodeText(q, node)].filter(Boolean).join(' · '), path:(path || []).slice(), number, matches: number!==null && Math.abs(sr.sum - number) < (node && node.flow ? 3 : 0.5) });   // потоки Движения округлены каждый до единицы — «прочее» это копит
+  return Object.assign(sr, { node:node || null, nodeText:[two, nodeText(q, node)].filter(Boolean).join(' · '), path:(path || []).slice(), number, matches: number!==null && Math.abs(sr.sum - number) < (node && node.flow && !mvTransitions(IND[q.inds[0]]) ? 3 : 0.5) });   // денежные обороты Движения округлены каждый до единицы — «прочее» это копит; у переходов строка — точная сумма объектов
 }
 // число узла полосы: главное (или второе) число с условиями пути и узла (у «% от итога группы» по своему разрезу — знаменатель)
 function nodeNum(t, user, roleId, panel, node, path){
   const q = numQ(t, path, node && node.of); if(!q) return null;
   if((q.share ? IND[q.share[0]] : IND[q.inds[(node && node.line) || 0]]).agg==='max') return null;
+  if(mvNode(node)){                                             // число перехода узла — из того же Разреза с разницей, что рисует вид
+    const key = shiftRule(t, srcOf(t), mainQ(t, path)).key; if(!key) return null;
+    const r = answer(Object.assign(q, { format: DIMS[node.d].ordered ? 'steps' : 'slice', dims:[node.d], diff:key }), user, roleId, panel);
+    const n = r.nodes && r.nodes.find(x=>x.v===node.v), dir = node.from!==undefined ? 'from' : 'to', e = n && n.moves && mvPick(n.moves[dir], node[dir], node.fd, node.d);
+    return !n || !n.moves ? null : e ? e.sum : 0; }
   if(node && (node.all || (q.numFilter || []).some(c=>c.f===node.d || c.f===node.d2))){ delete q.share; delete q.numFilter; }
   if(node && node.d) q.filter.push({ f:node.d, op:'eq', v:node.v }); if(node && node.d2) q.filter.push({ f:node.d2, op:'eq', v:node.v2 });
   if(node && node.flow){                                        // число потока Движения — из того же движения, что рисует вид
-    const r = answer(Object.assign(q, { format:'move', mvMonth:node.mv || 0 }), user, roleId, panel), f = r.move && r.move.inc.concat(r.move.dec).find(x=>x.key===node.flow);
-    return !r.move ? null : node.flow==='other' ? r.move.other : f ? f.v : null; }
+    const r = answer(Object.assign(q, { format:'move', mvMonth:node.mv || 0 }), user, roleId, panel), f = r.move && r.move.rows.find(x=>x.key===node.flow);
+    return !r.move ? null : f ? f.v : 0; }                    // строки нет в показе (путь без такого значения) — объектов в ней нет
   if(node && node.m!==undefined){
-    if(q.share){ q.filter.push(...(q.numFilter || []).filter(c=>!isTimeCond(c))); q.inds = [q.share[0]]; delete q.share; delete q.numFilter; }   // точка доли — её числитель, как строки списка
+    if(q.share){ q.filter.push(...(q.numFilter || [])); q.inds = [q.share[0]]; delete q.share; delete q.numFilter; }   // точка доли — её числитель, как строки списка
     const r = answer(Object.assign(q, { format:'series', points:1 - Math.min(0, node.m) }), user, roleId, panel);
     const p = r.series && r.series.points.find(x=>x.m===node.m); return p ? p.vals[node.line || 0] : null; }
   const r = answer(Object.assign(q, { format:'number' }), user, roleId, panel);
@@ -2014,7 +2425,6 @@ function journal(action, detail, who){ S.journal.unshift({ at:TODAY.label, who: 
 function tileAnswers(t){ // в раскладку попадает только плитка, которая отвечает (автопроверка)
   if(!t) return false; if(t.state==='draft') return false;
   const q = questionOf(t); if(!q) return true;                 // отчёт не найден — плитка встаёт сломанной и называет причину
-  if(q.format==='move' && IND[q.inds[0]].flowsGate && !STAND[IND[q.inds[0]].flowsGate]) return false;   // потоков ещё нет — черновик
   return q.inds.every(i=>objReady(IND[i].obj) && !IND[i].refuses);
 }
 function roleHasLayout(roleId){ return !!S.declared[roleId] && (ROLE_CORE_WAVE[roleId]||9) <= STAND.wave; }
@@ -2332,7 +2742,7 @@ function numChecks(d, r){ const m = d.main, s = d.second, out = [], cols = r.col
   [m, s].filter(x=>x && x.share).forEach(x=>out.push({ ok: x.share.length===2 && x.share[0]!==x.share[1] && x.share.every(i=>cols.includes(i)), text:'доля — две колонки '+where }));
   [m, s].filter(x=>x && x.pct).forEach(x=>{ const vals = r.dims.includes(x.pct.dim) ? valuesOf(x.pct.dim, DATA[obj]) : [];
     out.push({ ok: vals.length>0 && x.pct.cells.length>0 && x.pct.cells.every(c=>vals.includes(c)), text:'«% от итога группы» — разрез '+where+' и его значения' });
-    const D = DIMS[x.pct.dim]; if(D && D.at) out.push({ ok:false, text:'у разреза «'+D.name+'» значение меняется со временем — «% от итога группы» по нему не считается; возьмите разрез без истории' }); });
+    const D = DIMS[x.pct.dim]; if(D && D.at && !D.rowAt) out.push({ ok:false, text:'у разреза «'+D.name+'» значение меняется со временем — «% от итога группы» по нему не считается; возьмите разрез без истории' }); });
   return out; }
 // светофор: пороги «больше / меньше» числа; висит на числе, которое есть на плитке
 function tlChecks(d){ const t = d.tl; if(!t) return [];
@@ -2582,7 +2992,7 @@ function viewSel(t, kind, sel, u, path, panel){
   if(kind==='slice') return { dim:dimOf('dim'), top:[sel.top, mem.top, def.top].find(n=>n>0) || 3 };
   if(kind==='map'){ const want = (sel.dims || mem.dims || def.dims || []).filter(d=>free.includes(d));
     return { dims:[...new Set([...want, ...free])].slice(0, 2) }; }
-  if(kind==='move') return { month: [sel.month, mem.month, def.month].find(n=>n===0 || n===-1) || 0 };
+  if(kind==='move'){ const dt = mvDateOf(t); return { month: dt && dt.only!==undefined ? dt.only : [sel.month, mem.month, def.month].find(n=>n===0 || n===-1) || 0 }; }
   const cs = colsFor(t).map(x=>x.id), pick = a=>(a || []).filter(i=>cs.includes(i)), main = mainCol(t, cs);
   let cols = [sel.cols, mem.cols, def.cols].map(pick).find(a=>a.length) || pick(numSpec(m, 'main', src).inds);
   if(main) cols = [main, ...cols.filter(c=>c!==main)];      // первая колонка — показатель плитки: по ней порядок строк
@@ -2601,6 +3011,13 @@ function changeOff(t, u, roleId, panel, path){
   const b = cachedBase(t, u, roleId, panel || {}, path); if(!LIVE.includes(b.state)) return b.msg || 'плитка не отвечает';
   const sh = b.shift; if(!sh) return 'у плитки нет базы сравнения'; if(!sh.none) return null;
   const q = mainQ(t, path); return sh.none===PARTIAL && qKind(q)==='flow' && (q.period || 'curMonth')==='curMonth' ? OPEN_MONTH : sh.none; }
+// Движение кончается датой плитки: сегодня — текущий или прошлый месяц; конец прошлого месяца — только прошлый (конец Движения — главное
+// число); дата не сегодня и не конец месяца (последний закрытый день) — вид погашен: Движение идёт от конца месяца до конца следующего
+const MV_PREV_ONLY = 'текущий месяц кончается сегодня, а дата плитки — конец прошлого месяца: Движение — только прошлый месяц';
+function mvDateOf(t){ const q = mainQ(t); if(!q || qKind(q)!=='stock') return null; const k = q.date || 'today', D = DATE_MODES[k] || DATE_MODES.today, pt = D.point;
+  if(pt.m===0 && !pt.day) return null;
+  if(pt.m===-1 && !pt.day) return { only:-1 };
+  return { off:'Движение — с конца месяца по конец следующего или по сегодня; дата плитки — «'+D.label+'», не сегодня и не конец месяца' }; }
 // пять видов плитки: доступен ли и почему погашен
 function viewsFor(t, u, roleId, path, panel){
   const b = t && cachedBase(t, u, roleId, panel || {}, path);
@@ -2608,13 +3025,11 @@ function viewsFor(t, u, roleId, path, panel){
   const src = srcOf(t), q = mainQ(t, path), I = IND[q.inds[0]], free = dimsFor(t, path, panel).length;
   const hist = !(q.share || q.inds.slice(0, 1)).some(i=>IND[i].currentOnly), timed = !!src.module || timedReport(src);
   const noDims = src.module && !src.dims.length ? 'очередь модуля не объявила разрезов' : path && path.length ? 'разрезы объекта кончились на пути' : src.module ? 'разрез очереди зафиксирован фильтром панели' : 'у объекта нет разрезов';
-  const atDim = (path || []).map(x=>DIMS[x.dim]).find(D=>D && D.at);
   const why = {
     series: !hist ? NO_HIST : !timed ? NO_DATE : null,
     slice: free ? null : noDims,
     map: free>=2 ? null : 'нужны два разреза — свободных '+free,
-    move: !I.flows || qKind(q)!=='stock' ? 'у показателя не объявлены потоки' : q.share ? 'у доли оборотов нет' : !timed ? 'отчёт не объявил дату — движение недоступно'
-      : I.flowsGate && !STAND[I.flowsGate] ? I.flowsMsg : atDim ? 'в пути разрез с историей «'+atDim.name+'» — обороты с ним не сходятся' : null,
+    move: !(I.flows || mvTransitions(I)) || qKind(q)!=='stock' ? 'у показателя не объявлены потоки' : q.share ? 'у доли оборотов нет' : !timed ? 'отчёт не объявил дату — движение недоступно' : (mvDateOf(t) || {}).off || null,
     table: free ? null : noDims };
   return VIEW_KINDS.map(kind=>({ kind, ok:!why[kind], why:why[kind] }));
 }
@@ -2640,8 +3055,9 @@ function viewOf(t, kind, sel, path, u, roleId, panel){
   if(res.rows){ countNodes(res, numQ(t, path, kind==='series' ? s.of : 'main'), u, kind==='slice' ? s.dim : null, kind==='move' && s.month ? s.month : undefined);
     // nodeCnt — «☰ N» в строке полосы: кто в главном числе узла на дату плитки (то же, что .sl-num); Ряд второго числа и Движение прошлого месяца считают свой счёт у точек и строк
     if((kind==='series' && s.of==='second') || (kind==='move' && s.month)){ const mb = cachedBase(t, u, roleId, panel, path), mq = numQ(t, path, 'main');
-      if(mb && mb.rows && mq){ const tmp = { rows:mb.rows }; countNodes(tmp, mq, u, null); res.nodeCnt = tmp.cnt; res.nodeOf = tmp.nodeOf; } } }
-  delete res.rows;
+      if(mb && mb.rows && mq){ const tmp = { rows:mb.rows }; countNodes(tmp, mq, u, null); res.nodeCnt = tmp.cnt; res.nodeOf = tmp.nodeOf; } }
+    if(res.move) res.cnt = res.move.cntEnd; }   // «☰ N» конца Движения — объекты в охвате на конец (панель и охват роли — на ту дату), как список конца
+  delete res.rows; delete res.rowsAt;
   if(sh && res.table){ const T0 = res.table, tot = res.total, at = (a, c)=>c===SHARE_COL ? (a[ask.indexOf(sh.inds[1])] ? a[ask.indexOf(sh.inds[0])] / a[ask.indexOf(sh.inds[1])] * 100 : null) : a[ask.indexOf(c)];
     const re = a=>s.cols.map(c=>at(a, c));                    // и сумма, и база — по колонкам выбора; доля на базе — из числителя и знаменателя на базе
     T0.rows.forEach(r=>{ r.cells = re(r.cells); if(r.bases) r.bases = re(r.bases); }); res.total = re(tot);   // в итоге доля — второе число плитки
@@ -2666,9 +3082,9 @@ function viewOf(t, kind, sel, path, u, roleId, panel){
   return res;
 }
 // «☰ N» у узла: столько же строк, сколько в списке «кто в этом числе» — строки числа вида с вкладом (у суммы — не нулевым); m — конец месяца Движения
-function countNodes(res, mq, u, dim, m){
+function countNodes(res, mq, u, dim, m){ mq = userConds(mq, u);
   const spec = mq.share ? IND[mq.share[0]] : IND[mq.inds[0]], c0 = ctxOf(mq), ctx = m!==undefined && c0.point ? { point:{ m }, tf:c0.tf } : c0, cm = ctxMonth(ctx), own = f=>(mq.numFilter || []).some(c=>c.f===f);
-  const num = mq.share ? new Set(numRows(mq, res.rows, u)) : null, live = res.rows.filter(r=>contributes(spec, valueOf(r, spec, ctx)));
+  const num = mq.share ? new Set(numRows(mq, res.rows, u, cm)) : null, live = res.rows.filter(r=>contributes(spec, valueOf(r, spec, ctx)));
   // «% от итога группы» по своему разрезу вида: строки считают всю группу, и итог (и итоги строк / столбцов) — те же строки: сумма «☰» строк = «☰» узла
   const alt = [dim, res.table && res.table.d, res.heat && res.heat.d1, res.heat && res.heat.d2].some(d=>d && own(d));
   const cnt = (d, v, d2, v2)=>live.filter(r=>(!d || dimAt(d, r, cm)===v) && (!d2 || dimAt(d2, r, cm)===v2) && (!num || alt || own(d) || own(d2) || num.has(r))).length;
@@ -2683,7 +3099,9 @@ function countNodes(res, mq, u, dim, m){
   // Ряд: «☰ N» под месяцем — строки списка точки (тот же счёт, что у statRows узла { m }: период или дата точки)
   if(res.series) res.series.points.forEach(p=>{ const key = '__c'+p.m; let pc = c0;
     if(c0.period){ PERIODS[key] = { months:[p.m], partial:p.m===0 }; pc = { period:key, tf:c0.tf }; } else pc = { point:{ m:p.m }, tf:c0.tf };
-    try { p.cnt = res.rows.filter(r=>contributes(spec, valueOf(r, spec, pc)) && (!num || num.has(r))).length; } finally { delete PERIODS[key]; } });
+    const prs = c0.point && res.rowsAt ? res.rowsAt(p.m) : res.rows;     // точка остатка — строки на её дату (охват роли и панель с историей)
+    const pn = mq.share ? new Set(numRows(mq, prs, u, p.m)) : null;   // числитель — на дату точки
+    try { p.cnt = prs.filter(r=>contributes(spec, valueOf(r, spec, pc)) && (!pn || pn.has(r))).length; } finally { delete PERIODS[key]; } });
 }
 // строки Разреза в порядке показа (res.lines): строки — весь список разреза, нули тоже. Упорядоченный разрез — все строки по шкале
 // в обоих режимах, «ещё N» нет; в «Изменении» разница — полосой в своей строке. Неупорядоченный: «Сумма» — по убыванию, первые N,
@@ -2799,7 +3217,8 @@ function setViewSel(t, o, key, value, panel){
   else if(key==='points'){ if(![6, 12, 24].includes(+value)) return fail('Ряд — 6, 12 или 24 точки'); o.sel.points = +value; }
   else if(key==='of'){ if(value!=='main' && value!=='second') return fail('Ряд — главное или второе число'); if(value==='second' && !m.second) return fail('У плитки нет второго числа');
     if(value==='second' && !secondHist(t)) return fail('Ряд по второму числу недоступен: '+NO_HIST); o.sel.of = value; }
-  else if(key==='month'){ if(+value!==0 && +value!==-1) return fail('Движение — текущий или прошлый месяц'); o.sel.month = +value; }
+  else if(key==='month'){ if(+value!==0 && +value!==-1) return fail('Движение — текущий или прошлый месяц'); const dt = mvDateOf(t);
+    if(dt && dt.only!==undefined && +value!==dt.only) return fail(MV_PREV_ONLY); o.sel.month = +value; }
   else if(key==='top'){ const n = Math.round(+value); if(!(n>=1 && n<=20)) return fail('Топ — от 1 до 20 строк'); o.sel.top = n; }
   else if(key==='mode'){ if(value!=='sum' && value!=='change') return fail('Сумма или Изменение');   // один на полосу: держится при смене вида и пути
     const off = value==='change' && changeOff(t, user(), curRole(), panel || S.panel, o.path); if(off) return fail(off); o.sel.mode = value; }
@@ -2854,7 +3273,7 @@ function atOf(id, spec, uid, roleId, panel){
   if((x = h.match(/^slice\(([^)]+)\)$/))){ const r = view('slice', { dim:x[1].trim() }); return !r.nodes ? st(r) : total ? r.total.v : r.nodes.map(n=>[n.v, n.value]); }
   if((x = h.match(/^map\(([^,]+),([^)]+)\)$/))){ const r = view('map', { dims:[x[1].trim(), x[2].trim()] }); return !r.heat ? st(r) : total ? r.total.v : r.heat.cells; }
   if((x = h.match(/^move\((-?\d+)\)$/))){ const r = view('move', { month:+x[1] }); const mv = r.move;
-    return !mv ? st(r) : { start:mv.start, end:mv.end, inc:mv.inc, dec:mv.dec, other:mv.other }; }
+    return !mv ? st(r) : { model:mv.model, start:mv.start, end:mv.end, rows:mv.rows.map(x=>({ key:x.key, name:x.name, sg:x.sg, v:x.v, cnt:x.cnt, kind:x.kind })) }; }
   if((x = h.match(/^table\(([^;]+);([^)]+)\)$/))){ const cols = x[2].split(',').map(c=>c.trim()), one = cols.length===1; const r = view('table', { dim:x[1].trim(), cols });
     if(!r.table) return st(r); const ix = cols.map(c=>r.table.cols.findIndex(k=>k.id===c)), pick = a=>one ? a[ix[0]] : ix.map(i=>a[i]);   // колонки — в порядке выражения: первой в виде стоит показатель плитки
     return total ? pick(r.total) : r.table.rows.map(w=>[w.v, pick(w.cells)]); }
@@ -3047,7 +3466,9 @@ function stripOps(k, r){
     go:(d, v, d2, v2)=>r.next ? `DB.deeper(${a(d, v, d2, v2)})` : `DB.whoAt(${a(d, v, d2, v2)})`,
     all:n=>n===undefined || n===null ? '' : `<button class="ls quiet${n ? '' : ' zero'}" data-tip="Кто в этом числе: ${nbsp(n)} стр." onclick="event.stopPropagation();DB.whoAt('${id}')">☰ ${nbsp(n)}</button>`,   // «☰ N» итога — список самого узла полосы
     ls:(d, v, d2, v2, n)=>n===undefined || n===null ? '' : `<button class="ls${n ? '' : ' zero'}" data-tip="Кто в этом числе: ${nbsp(n)} стр." onclick="event.stopPropagation();DB.whoAt(${a(d, v, d2, v2)})">☰ ${nbsp(n)}</button>`,
-    month:(m, line)=>`DB.whoMonthAt('${id}',${m}${line ? ','+line : ''})` };
+    month:(m, line)=>`DB.whoMonthAt('${id}',${m}${line ? ','+line : ''})`,
+    // «☰ N» части «пришли из / ушли в» узла: объекты перехода (v2 = null — охват)
+    mv:(d, v, dir, v2, n, name, fd)=>`<button class="ls quiet" data-tip="${esc('Кто перешёл: '+nbsp(n)+' стр. · '+name)}" onclick="event.stopPropagation();DB.whoMoveAt('${id}','${d}','${esc(v)}','${dir}',${v2===null ? 'null' : `'${esc(v2)}'`}${fd && fd!==d ? `,'${fd}'` : ''})">☰ ${nbsp(n)}</button>` };
 }
 function dimOptions(list, cur, src){
   const opt = x=>`<option value="${x.dim}" ${x.dim===cur?'selected':''}>${DIMS[x.dim].req ? '⚑ ' : ''}${esc(x.name)}</option>`, own = list.filter(x=>!x.temp), rest = list.filter(x=>x.temp);
@@ -3080,7 +3501,8 @@ function stripCtl(k, t, kind, s, r){
   if(kind==='slice') c = r.format==='slice' ? `<label class="opt">Топ <select onchange="DB.viewSet('${id}','top',this.value)">${[...new Set([3, 5, 10, 20, s.top])].sort((a, b)=>a - b).map(n=>`<option ${n===s.top?'selected':''}>${n}</option>`).join('')}</select></label>` : '';
   else if(kind==='series') c = `<span class="opt">Точек ${seg('points', s.points, [[6, '6'], [12, '12'], [24, '24']])}</span>` + (!m.second ? '' : secondHist(t) ? `<span class="opt">Число ${seg('of', s.of, [['main', 'главное'], ['second', 'второе']])}</span>`
     : `<span class="opt">Число <span class="seg"><button class="on">главное</button><button class="off" aria-disabled="true" data-tip="${esc('Ряд по второму числу недоступен: '+NO_HIST)}">второе</button></span></span>`);
-  else if(kind==='move') c = `<span class="opt">Месяц ${seg('month', s.month, [[0, 'текущий'], [-1, 'прошлый']])}</span>`;
+  else if(kind==='move'){ const dt = mvDateOf(t);   // дата плитки — конец прошлого месяца: «текущий» погашен с причиной
+    c = `<span class="opt">Месяц ${dt && dt.only!==undefined ? `<span class="seg"><button class="off" aria-disabled="true" data-tip="${esc(MV_PREV_ONLY)}">текущий</button><button class="on">прошлый</button></span>` : seg('month', s.month, [[0, 'текущий'], [-1, 'прошлый']])}</span>`; }
   else if(kind==='table'){ const cols = colsFor(t), full = (s.cols || []).length>=4, main = mainCol(t, cols.map(x=>x.id));
     // показатель плитки — всегда первой колонкой: флажок погашен, не снимается
     const box = x=>{ const on = (s.cols || []).includes(x.id), key = on && x.id===main, dis = (!on && full) || key;
@@ -3231,46 +3653,72 @@ function rzBody(res, q, ops, go){
     if(!chg){ const w = Math.max(0, n.value || 0) / maxV * 100; return `<span class="rz-t">${w>0 ? `<span class="rz-f" style="width:${Math.max(.3, w)}%"></span>` : ''}</span>`; }
     const d = n.delta, w = d===null || d===undefined ? 0 : Math.abs(d) / span * 100, x = rzDelta(q, res, d);
     return `<span class="rz-t"><span class="rz-z" style="left:${zero.toFixed(2)}%"></span>${w>0 ? `<span class="rz-f ${x.tone}${d<0 ? ' neg' : ''}" style="left:${(d<0 ? zero - w : zero).toFixed(2)}%;width:${Math.max(.3, w).toFixed(2)}%"></span>` : ''}</span>`; };
-  const row = (n, kind)=>{ const num = chg ? dCell(n, kind==='tot') + vCell(n) : vCell(n) + (diff ? dCell(n) : '');
-    return `<div class="rz-r${kind ? ' rz-'+kind : ''}"${kind ? '' : ` data-tip="${esc(tip(n))}" onclick="event.stopPropagation();${go(dim, n.v)}"`}><span class="rz-nm"${kind==='more' ? tipAttr(tip(n)) : ''}>${esc(kind==='tot' ? 'итог' : n.label)}</span>${num}${cCell(n, kind)}${bar(n, kind)}</div>`; };
+  // «Изменение» узла разреза с историей: под строкой серая подстрока «пришли из 31–90 ☰ 5 +4,3 млн · ушли в 181+ ☰ 4 −5,1 млн» — только у узлов
+  // с переходами; «☰» — список объектов перехода. В «Сумме» те же части — в подсказке строки
+  const mvLine = n=>{ const ps = chg ? mvParts(n.moves) : []; if(!ps.length) return '';
+    return `<div class="rz-mv">${ps.map(p=>`<span class="rz-mvp">${esc(p.name)} ${ops && ops.mv ? ops.mv(dim, n.v, p.dir, p.v, p.cnt, p.name, p.fd) : `<span class="st">☰ ${nbsp(p.cnt)}</span>`} <span class="rz-mvs">${mvSum(p.sum, unit)}</span></span>`).join('<span class="rz-mvd">·</span>')}</div>`; };
+  const row = (n, kind)=>{ const num = chg ? dCell(n, kind==='tot') + vCell(n) : vCell(n) + (diff ? dCell(n) : ''), sub = kind ? '' : mvLine(n);
+    const rt = kind ? '' : [tip(n), ...(chg ? [] : mvTipLines(n.moves, unit))].join('\n');
+    return `<div class="rz-r${kind ? ' rz-'+kind : ''}${sub ? ' has-mv' : ''}"${kind ? '' : ` data-tip="${esc(rt)}" onclick="event.stopPropagation();${go(dim, n.v)}"`}><span class="rz-nm"${kind==='more' ? tipAttr(tip(n)) : ''}>${esc(kind==='tot' ? 'итог' : n.label)}</span>${num}${cCell(n, kind)}${bar(n, kind)}${sub}</div>`; };
   const head = diff ? `<div class="rz-hd"><span></span>${chg ? `<span>${esc(lab)}</span><span>${esc(asOf)}</span>` : `<span>${esc(asOf)}</span><span>${esc(lab)}</span>`}<span></span><span></span></div>` : '';
   return `<div class="rz ${diff ? 'c5' : 'c4'}${chg ? ' chg' : ''}">${head}${lines.map(n=>row(n, n.more ? 'more' : '')).join('')}${row(Object.assign({}, tot, { value:tot.v, cnt:res.cnt }), 'tot')}</div>`; }
-// строка сверки Движения: «171 + 6,9 − 3,8 − 0,9 + 5,2 = 179 млн» — одна единица на все числа, не выше «млн», знаки по правилу сумм полосы: от 100 млн — целые,
-// ниже — один знак (в «тыс.» и «сом» — целые). Показанная арифметика может разойтись на округлении — «✓» ставит проверка по точным числам, не строка.
-// terms — начало и потоки по модулю со знаком перед ними; не деньги — числа как есть
-function mvChain(terms, end, u){
-  if(u!=='sum') return terms.map((x, i)=>(i ? x.sg+' ' : '')+fmtVal(x.v, u)).join(' ')+' = '+fmtVal(end, u);
-  const mx = Math.max(Math.abs(end), ...terms.map(x=>Math.abs(x.v))), k = mx>=1e6 ? 1e6 : mx>=1e3 ? 1e3 : 1, name = k===1e6 ? ' млн' : k===1e3 ? ' тыс.' : '';
-  const f = v=>{ const a = Math.abs(v) / k, s = v<0 ? '−' : '';
-    return s+(k===1e6 && Math.round(a * 10)<1000 ? a.toFixed(1).replace('.', ',') : nbsp(Math.round(a))); };
-  return terms.map((x, i)=>(i ? x.sg+' ' : '')+f(x.v)).join(' ')+' = '+f(end)+name;
-}
+// строка-пояснение Движения: «169,1 + 9,9 − 8,1 − 0,19 − 0,06 + 10,7 − 2,6 = 178,8 млн» — все числа в единице конца (млн или тыс.), единица один раз, в конце.
+// Знаков — один; число меньше единицы конца (в строке оно «тыс.») — с двумя, чтобы не стать «0,0» (третий — только если и двух мало); конец — с одним.
+// Если сумма показанных чисел с концом в этом знаке не сходится (округление), вся цепочка печатается на знак точнее — и слагаемые, и конец
+// («169,13 + 9,86 − … = 178,78 млн»). Счётные показатели — целыми. Это пояснение, не проверка: строки над цепочкой — в своём округлении.
+// terms — начало и строки по модулю со знаком перед ними
+function mvChainParts(terms, end, u){
+  if(u!=='sum') return { k:1, unit:'', p:0, terms:terms.map(x=>({ sg:x.sg, d:0, t:fmtVal(x.v, u) })), end:{ d:0, t:fmtVal(end, u) } };
+  const ref = Math.abs(end) >= 1e3 ? Math.abs(end) : Math.max(Math.abs(end), ...terms.map(x=>Math.abs(x.v))), k = ref >= 1e6 ? 1e6 : ref >= 1e3 ? 1e3 : 1, unit = k===1e6 ? ' млн' : k===1e3 ? ' тыс.' : '';
+  const rnd = x=>Math.sign(x) * Math.round(Math.abs(x));
+  const txt = (v, d)=>{ const r = (Math.abs(v) / k).toFixed(d).split('.'); return (v<0 && +r.join('.') ? '−' : '')+nbsp(+r[0])+(r[1] ? ','+r[1] : ''); };
+  const at = p=>{   // p — наименьшее число знаков цепочки
+    const digits = v=>{ if(k===1) return 0; let d = Math.max(p, Math.abs(v) >= k ? 1 : 2); while(d < 3 && v && !Math.round(Math.abs(v) / k * 10**d)) d++; return d; };
+    const ts = terms.map(x=>{ const d = digits(x.v); return { sg:x.sg, d, v:x.v, t:txt(x.v, d) }; }), D = Math.max(p, ...ts.map(x=>x.d));
+    // сумма показанных чисел — в целых единицах знака D, без плавающей ошибки; сверка с концом — в знаке конца (p)
+    const S = ts.reduce((a, x, i)=>a + (i && x.sg==='−' ? -1 : 1) * rnd(x.v / k * 10**x.d) * 10**(D - x.d), 0);
+    return { k, unit, p, terms:ts, end:{ d:p, t:txt(end, p) }, fits: rnd(S / 10**(D - p)) === rnd(end / k * 10**p) }; };
+  if(k===1) return at(0);
+  const c1 = at(1); return c1.fits ? c1 : at(2); }
+function mvChain(terms, end, u){ const c = mvChainParts(terms, end, u);
+  return c.terms.map((x, i)=>(i ? x.sg+' ' : '')+x.t).join(' ')+' = '+c.end.t+c.unit; }
+// «пришли из … / ушли в …» узла разреза (n.moves): части по значениям со вкладом — сначала пришедшие, затем ушедшие; охват — одной частью
+function mvParts(mv){ if(!mv) return [];
+  const one = dir=>x=>({ dir, v:x.v, fd:x.fd, cnt:x.cnt, sum:x.sum, name: x.scope ? (dir==='from' ? 'пришли в охват' : 'ушли из охвата') : (dir==='from' ? 'пришли из ' : 'ушли в ')+x.label });
+  return [...mv.from.map(one('from')), ...mv.to.map(one('to'))]; }
+const mvSum = (v, u)=>(v>0 ? '+' : v<0 ? '−' : '')+fmtVal(Math.abs(v), u);
+// те же части строками подсказки: «пришли из 31–90: ☰ 5, +4,3 млн»
+const mvTipLines = (mv, u)=>mvParts(mv).map(p=>p.name+': ☰ '+nbsp(p.cnt)+', '+mvSum(p.sum, u));
 // Движение: строки той же формы, что у Разреза («название · сумма · ☰ N · полоса», колонки .rz-*, название шире), начало и конец — числами без полос на сером;
-// каждый поток — полоса от общей линии нуля: пришло — вправо, ушло — влево, цвет по направлению показателя, «прочее» серым; шкала — по самому большому потоку.
-// «☰ N» потока — объекты с вкладом в поток (res.move: inc/dec[].cnt, otherCnt; начало — cnt0, конец — res.cnt); клик по строке — их список (DB.whoFlowAt).
-// Под строками — проверка по точным числам: потоки сходятся с концом или нет, без подгонки; в строке числа округлены, как везде
+// каждая строка (res.move.rows) — полоса от общей линии нуля: пришло — вправо, ушло — влево, цвет по направлению показателя, «прочее», «нет ответа» и охват
+// серым (у Заёмщиков «прочее» — событие, по направлению); большое «прочее» денежных — янтарная метка «⚠ большое необъяснённое» у строки;
+// шкала — по самой большой строке. «☰ N» строки — её объекты (начало — cnt0, конец — res.cnt); клик по строке — их список (DB.whoFlowAt).
+// Под строками — цепочка-пояснение «начало ± строки = конец»; галочки нет: у переходов сумма сходится по построению
 function mvBody(res, q, ops){
   const m = res.move, I = IND[q.inds[0]], u = res.unit, M = m.M, id = esc(res.tileId), from = monthEndLabel(M - 1), to = M===0 ? 'сегодня' : monthEndLabel(M), when = 'с '+from+' по '+to;
   const clock = M===0 ? (/^на (\d{1,2}:\d{2})/.exec(res.passport || '') || [])[1] : '';
-  const flows = m.inc.map(f=>({ key:f.key, name:f.name, v:f.v, cnt:f.cnt, sg:'+' })).concat(m.dec.map(f=>({ key:f.key, name:f.name, v:-f.v, cnt:f.cnt, sg:'−' })),
-    [{ key:'other', name:mvOtherName(m.otherName), v:m.other, cnt:m.otherCnt, sg:'±', other:true }]);
+  // серые: «прочее» (остаток денежных, у Просрочено — ушла без причины), «нет ответа» и охват; события и потоки — по направлению показателя
+  const flows = m.rows.map(f=>Object.assign({ other:f.kind==='other' || f.kind==='noanswer' || f.kind==='scope' }, f));
   const up = Math.max(0, ...flows.map(f=>f.v)), dn = Math.max(0, ...flows.map(f=>-f.v)), span = (up + dn) || 1, zero = (dn / span * 100).toFixed(2);   // шкала — по самому большому потоку
   const tone = f=>f.other || !f.v ? 'neu' : I.dir==='up_good' || I.dir==='up_bad' ? ((I.dir==='up_good')===(f.v>0) ? 'good' : 'bad') : 'flat';
   const sgn = v=>v>0 ? '+' : v<0 ? '−' : '', num = v=>sgn(v)+fmtVal(Math.abs(v), u);
   const ls = (n, code, quiet, tip)=>!ops || n===undefined || n===null ? '' : `<button class="ls${quiet ? ' quiet' : ''}${n ? '' : ' zero'}" data-tip="${esc('Кто в этом числе: '+nbsp(n)+' стр.'+(tip ? ' · '+tip : ''))}" onclick="event.stopPropagation();${code}">☰ ${nbsp(n)}</button>`;
   const zl = `<span class="rz-z" style="left:${zero}%"></span>`;
   const edge = (kind, name, v, c)=>`<div class="rz-r mv-e" data-edge="${kind}"><span class="rz-nm">${esc(name)}</span><span class="rz-v">${fmtVal(v, u)}</span><span class="rz-c">${c}</span><span class="rz-t">${zl}</span></div>`;
-  const flowRow = f=>{ const t = tone(f), w = Math.abs(f.v) / span * 100, go = ops ? `DB.whoFlowAt('${id}','${f.key}')` : '';
-    return `<div class="rz-r mv-f" data-flow="${f.key}"${tipAttr(f.name+': '+num(f.v)+' · '+when)}${go ? ` onclick="event.stopPropagation();${go}"` : ''}><span class="rz-nm"><span class="mv-sg">${f.sg}</span>${esc(f.name)}</span>`
+  // большое «прочее» денежного Движения — янтарная метка у строки «прочее»; ниже порога — только серый тон строки
+  const warn = m.big && m.big.level==='warn', pct = x=>(Math.round(x*1000)/10).toString().replace('.', ',')+' %';
+  const bigTip = f=>'Большое необъяснённое: «прочее» '+num(f.v)+(m.big.share===null ? ' при нулевом изменении' : ' — '+pct(m.big.share)+' изменения '+when)
+    +', больше четверти изменения и больше 1 % начала. Потоки владельца его не покрыли; в нём — '+(f.tip || '').replace(/^[^:]*: /, '');
+  const bigMark = f=>warn && f.key==='other' ? `<span class="pill warn mv-big"${tipAttr(bigTip(f))}>⚠ большое необъяснённое</span>` : '';
+  const flowRow = f=>{ const t = tone(f), w = Math.abs(f.v) / span * 100, go = ops ? `DB.whoFlowAt('${id}','${f.key}')` : '', mk = bigMark(f);
+    return `<div class="rz-r mv-f${mk ? ' mv-warn' : ''}" data-flow="${f.key}" data-kind="${f.kind}"${tipAttr(f.name+': '+num(f.v)+' · '+when+(f.tip ? ' · '+f.tip : ''))}${go ? ` onclick="event.stopPropagation();${go}"` : ''}><span class="rz-nm"><span class="mv-sg">${f.sg}</span>${esc(f.name)}${mk}</span>`
       +`<span class="rz-v ${t}">${num(f.v)}</span><span class="rz-c">${ls(f.cnt, go, false, f.name)}</span>`
       +`<span class="rz-t">${zl}${w>0 ? `<span class="rz-f ${t}${f.v<0 ? ' neg' : ''}" style="left:${(f.v<0 ? Math.max(0, zero - w) : +zero).toFixed(2)}%;width:${Math.max(.3, w).toFixed(2)}%"></span>` : ''}</span></div>`; };
-  // проверка по точным числам: начало + приходы − уходы ± прочее = конец
-  const gap = m.end - (m.start + m.ti - m.td + m.other), ok = Math.abs(gap) < 0.5;
-  const chain = mvChain([{ sg:'', v:m.start }].concat(flows.map(f=>({ sg:f.v<0 ? '−' : '+', v:Math.abs(f.v) }))), m.end, u);
+  const chain = mvChain([{ sg:'', v:m.start }].concat(flows.filter(f=>f.v).map(f=>({ sg:f.v<0 ? '−' : '+', v:Math.abs(f.v) }))), m.end, u);   // нулевые строки в цепочку не идут
   const startLs = ls(m.cnt0, ops && ops.month(M - 1), true, 'на '+from);
   return `<div class="mv-cap"><b>${esc(when)}</b>; вправо — пришло, влево — ушло</div>`
-    +`<div class="rz mv-w">${edge('start', 'на '+from, m.start, startLs)}${flows.map(flowRow).join('')}${edge('end', M===0 ? 'на сегодня'+(clock ? ', '+clock : '') : 'на '+to, m.end, ops ? ops.all(res.cnt) : '')}</div>`
-    +`<div class="mv-ok${ok ? '' : ' bad'}"${tipAttr('Сверка по точным числам; в строке они округлены')}>${ok ? '✓ сходится' : '✗ не сходится на '+fmtVal(Math.abs(gap), u)}: ${chain}</div>`;
+    +`<div class="rz mv-w">${edge('start', 'на '+from, m.start, startLs)}${flows.map(flowRow).join('')}${edge('end', M===0 ? 'на сегодня'+(clock ? ', '+clock : '') : 'на '+to, m.end, ops ? ops.all(m.cntEnd) : '')}</div>`
+    +`<div class="mv-chain"${tipAttr('Пояснение, не проверка: начало, ненулевые строки и конец — в одной единице, той же, что у конца; малые строки — с двумя знаками')}>${chain}</div>`;
 }
 // Таблица: названия 220 px, числа — колонками по 170 px, «☰ N» — последней, тихо; таблица не растягивается — справа пусто. Первая колонка — показатель плитки (viewSel ставит её первой):
 // выделена, по ней порядок строк (упорядоченный разрез — свой порядок в обоих режимах, маркера нет). «Сумма» — в ячейке значение, разница к базе — в подсказке; «Изменение» — в ячейке разница
@@ -3284,9 +3732,11 @@ function tbBody(res, q, ops, go, t){
   const dl = (a, i)=>rzDelta({ inds:[cols[i].id===SHARE_COL ? (sh ? sh.inds[0] : q.inds[0]) : cols[i].id] }, { unit:cols[i].unit }, a.deltas[i]);
   const val = (a, i)=>fmtVal(a.cells[i], cols[i].unit);
   // подсказка разницы: процент, база и «было»; при «Сумме» разница в ячейке не видна — подсказка называет и её
-  const dtip = (a, i, x)=>{ if(x.dir==='none') return ''; const p = rzPct(a.pcts[i]), b = a.bases[i];
-    return tipAttr('Изменение '+(chg ? '' : x.text+' ')+(p ? p+' ' : '')+lab+(b!==null && b!==undefined ? ' · было '+fmtVal(b, cols[i].unit) : '')); };
-  const cell = (a, i)=>{ const x = diff ? dl(a, i) : null, k = i ? '' : ' key', tip = x ? dtip(a, i, x) : '';
+  const dtip = (a, i, x, more)=>{ if(x.dir==='none') return ''; const p = rzPct(a.pcts[i]), b = a.bases[i];
+    return tipAttr('Изменение '+(chg ? '' : x.text+' ')+(p ? p+' ' : '')+lab+(b!==null && b!==undefined ? ' · было '+fmtVal(b, cols[i].unit) : '')+(more || '')); };
+  // у ключевой колонки разреза с историей — «пришли из … / ушли в …» строки в подсказке
+  const mvt = (a, i)=>{ const ls = i ? [] : mvTipLines(a.moves, cols[0].unit); return ls.length ? '\n'+ls.join('\n') : ''; };
+  const cell = (a, i)=>{ const x = diff ? dl(a, i) : null, k = i ? '' : ' key', tip = x ? dtip(a, i, x, mvt(a, i)) : '';
     return chg ? `<td class="d ${x.tone}${k}"${tip}>${x.text}</td>` : `<td${k ? ' class="key"' : ''}${tip}>${val(a, i)}</td>`; };
   const total = i=>{ const x = diff ? dl(tot, i) : null, k = i ? '' : ' key', tip = x ? dtip(tot, i, x) : '';
     if(!x) return `<td${k ? ' class="key"' : ''}>${val(tot, i)}</td>`;
@@ -3398,7 +3848,7 @@ function hmBody(res, q, ops, go){
     return (dirOk ? (x.tone==='bad' ? 'hm-r' : 'hm-g') : 'hm-n')+lv; };
   const dTip = n=>{ if(!diff || !has(n.delta)) return ''; const x = rzDelta(q, res, n.delta), p = rzPct(n.pct);
     return 'Изменение '+x.text+(p ? ' ('+p+')' : '')+' '+lab+(has(n.base) ? ' · было '+fmtVal(n.base, unit) : ''); };
-  const tip = (name, n)=>tipAttr([name+': '+fmtVal(n.value, unit), dTip(n)].filter(Boolean).join('\n'));
+  const tip = (name, n)=>tipAttr([name+': '+fmtVal(n.value, unit), dTip(n), ...mvTipLines(n.moves, unit)].filter(Boolean).join('\n'));   // у итогов строк и столбцов — «пришли из / ушли в»
   const cell = (i, j)=>({ value:h.cells[i][j], base:diff ? h.bases[i][j] : null, delta:diff ? h.deltas[i][j] : null, pct:diff ? h.pcts[i][j] : null, cnt:h.cnt ? h.cnt[i][j] : undefined });
   const corner = html=>html ? `<span class="hm-q">${html}</span>` : '', lsOf = (d, v, n)=>ops && n ? corner(ops.ls(d, v, null, null, n)) : '';   // «☰ 0» в углу не нужен: пустому нечего показывать
   // итог: главное число и мелко второе — в «Сумме» разница, в «Изменении» сумма
@@ -3493,7 +3943,11 @@ function openWho(tileId, node, path){
     <button class="btn" onclick="DB.close();DB.openView('${t.id}','slice')">Открыть Разрез</button>
     <button class="btn" onclick="DB.toast('Выгрузка строк поставлена статистике заданием — файл придёт с метаданными внутри')">Выгрузка строк (задание статистики)</button></p>
     ${sr.passport?'<div class="passport mono">'+esc(sr.passport)+'</div>':''}`); return sr; }
-  const sumLine = sr.matches ? fmtVal(sr.sum, sr.unit)+' = числу на плитке' : fmtVal(sr.sum, sr.unit)+(sr.number!==null ? ' · на плитке '+fmtVal(sr.number, sr.unit) : '');
+  // сумма списка — со знаком, как у своего числа: у строки Движения и части «пришли из / ушли в» он печатается («+8,0 млн», «−5,1 млн»);
+  // сверяется с числом своего узла — строки, точки ряда, ячейки карты; без узла — с числом на плитке
+  const n = sr.node, signed = !!n && (!!n.flow || mvNode(n)), fv = v=>signed ? mvSum(v, sr.unit) : fmtVal(v, sr.unit);
+  const eq = !n ? ['= числу на плитке', 'на плитке'] : n.flow || mvNode(n) ? ['= числу строки', 'в строке'] : n.m!==undefined ? ['= числу точки', 'в точке'] : n.d2 ? ['= числу ячейки', 'в ячейке'] : n.d ? ['= числу строки', 'в строке'] : ['= числу на плитке', 'на плитке'];
+  const sumLine = sr.matches ? fv(sr.sum)+' '+eq[0] : fv(sr.sum)+(sr.number!==null ? ' · '+eq[1]+' '+fv(sr.number) : '');
   drawer(head, `<div class="kv"><div class="k">Строк</div><div>${sr.list.length} — полный список на дату среза</div>
     <div class="k">Сумма списка</div><div>${sumLine}</div><div class="k">Паспорт</div><div class="mono">${esc(sr.passport)}</div></div>
     <table class="list"><tr><th>Объект</th><th>Кратко</th><th class="n">Значение</th></tr>${sr.list.slice(0,400).map(x=>`<tr><td><button class="linky" onclick="DB.toast('Карточка ${esc(x.r.id)} открывается в модуле «${esc(OBJECTS[sr.obj].owner)}»')">${esc(x.r.id)}</button></td><td>${esc(rowLabel(sr.obj, x.r))}</td><td class="n">${fmtVal(x.v, sr.unit)}</td></tr>`).join('')}</table>`);
@@ -3801,9 +4255,7 @@ function renderStand(){
     <div class="form-step"><h4>Готовность соседей (запуск волнами)</h4>${[1,2,3].map(w=>`<label class="opt"><input type="radio" name="wv" ${STAND.wave===w?'checked':''} onchange="DB.stand('wave', ${w})"> волна ${w}</label>`).join('')}
       <div class="why">Волна 1 — кредит, платёж, поступление, залог, требование, дело взыскания, заявка на реструктуризацию. Волна 2 — заявка на кредит, комиссия, заключение, объект имущества. Волна 3 — обязательство, задание.</div>
       <div style="margin-top:6px">${chk('spells','ядро расчёта отдаёт эпизоды просрочки')}</div>
-      <div class="why">Пока ядро не отдаёт перечень эпизодов, объект статистики объявлен, а строк нет: плитки «Вышли в просрочку» и «Вылечены» стоят черновиками и в раскладки не встают.</div>
-      <div style="margin-top:6px">${chk('clientFlows','статистика отдаёт потоки счёта клиентов (дата погашения всего портфеля, месяц первого договора)')}</div>
-      <div class="why">До этого у «Заёмщиков» вид Движение (новые · вернулись · погасили всё · прочее) погашен с причиной.</div></div>
+      <div class="why">Пока ядро не отдаёт перечень эпизодов, объект статистики объявлен, а строк нет: плитки «Вышли в просрочку» и «Вылечены» стоят черновиками и в раскладки не встают.</div></div>
     <div class="form-step"><h4>Сбои статистики</h4>${chk('statDown','статистика не отвечает (ошибка доставки)')}${chk('nightRunFailed','ночной прогон 11.10 не прошёл')}
       <label class="opt">очередь пересчёта отстала на <input type="number" style="width:70px" value="${STAND.queueLag}" onchange="DB.stand('queueLag', Number(this.value))"> мин (порог 15)</label><br>
       <label class="opt"><input type="checkbox" ${STAND.nightOnly.receipt?'checked':''} onchange="DB.standNightOnly('receipt', this.checked)"> источник «Платежи» обновляется только ночью</label>
@@ -3819,7 +4271,7 @@ function renderStand(){
       <div class="why">Сейчас: ${['r-portfolio','r-claims'].map(id=>{ const r = reportById(id); return r ? '«'+esc(r.title)+'» в. '+r.version+' · '+REPORT_STATE[r.state]+' · плиток '+tilesOfReport(id).length : '«'+esc(standTitle(id))+'» удалён'; }).join('; ')}. Отчёт с плитками не удаляется — только в архив.</div></div>
     <div class="form-step"><h4>Начало дня</h4><button class="btn" onclick="DB.morning()">Наступило утро</button>
       <div class="why">Раскрытые плитки закрываются: раскрытие не хранится. Закреплённые на своих экранах встают раскрытыми, выбор видов и разрезов у каждого человека остаётся. Ночной снимок не запускается.</div></div>
-    <div class="form-step"><h4>Сценарий данных и светофоры</h4>${chk('overdueUp','просрочка выросла на 18 %')}
+    <div class="form-step"><h4>Сценарий данных и светофоры</h4>${chk('overdueUp','просрочка выросла на 18 %')} ${chk('noAnswer','источник не ответил по нескольким кредитам на одну из дат')} ${chk('bigOther','комиссии без потоков: у части кредитов крупное начисление комиссий, Остаток получает большое «прочее»')}
       <button class="btn" onclick="DB.nightCheckRun()">Ночной снимок и проверка сигналов</button> <button class="btn" onclick="DB.tick(2)">Прошло 2 минуты (кэш «сегодня» истекает)</button>
       <div class="why">Кэш: попаданий ${S.cacheHits}, расчётов ${S.cacheMiss}. Ключ — «вопрос + охват», охваты не смешиваются.</div></div>`;
 }
@@ -3864,8 +4316,8 @@ const api = {
   TODAY, STAND, OBJECTS, DIMS, OBJ_DIMS, IND, TILES, ROLES, USERS, DATA, PERIODS, VIEW_KINDS, DECLARED_SEED,
   seed:()=>{ seed(); draft=null; rdraft=null; rcOpen=false; view='home'; return S; }, get state(){ return S; }, user, tileById, ask, cachedAsk, statRows, registryList, composeLayout, declaredItems,
   roleHasLayout, tileAnswers, catalogFor, canSee, shiftsFor, autocheck, saveTile, editTile, propose, moveToCatalog, whereUsed, withdrawTile:withdraw,
-  exportTile, signalToggle, signalRemove, nightCheck, createScreen, screens, screenAdd, screenSaveFilter, scopeKey, tick, fmtVal, rowsFor, overlay, arrangeMove, arrangeAdd, arrangeHide, arrangeSection,
-  get draft(){ return draft; }, get rdraft(){ return rdraft; }, reportHints, buildReport, similarReport, saveAndPlace, qualOf, reqOf, condText, condFields, panelLabel, FIELDS, PSTATES, pstateAt, LOANS_OF,
+  exportTile, signalToggle, signalRemove, nightCheck, createScreen, screens, screenAdd, screenSaveFilter, scopeKey, tick, fmtVal, rowsFor, dimHist, noAnswerAt, monthEndLabel, overlay, arrangeMove, arrangeAdd, arrangeHide, arrangeSection,
+  get draft(){ return draft; }, get rdraft(){ return rdraft; }, reportHints, buildReport, similarReport, saveAndPlace, qualOf, reqOf, condText, condFields, panelLabel, FIELDS, PSTATES, pstateAt, LOANS_OF, loanAt, isLoanRow,
   base:(id, uid, roleId, panel)=>baseOut(cachedBase(tileArg(id), userArg(uid), roleId, panel)),
   mini:(id, uid, roleId, panel)=>cachedMini(tileArg(id), userArg(uid), roleId, panel),
   views:(id, uid, roleId, path, panel)=>viewsFor(tileArg(id), userArg(uid), roleId, path, panel),
@@ -3907,6 +4359,9 @@ const api = {
   whoMonthAt:(id,m,line)=>{ countClick(id); const o = S.open[id], b = stripNode(tileById(id), o, user(), S.panel);
     return openWho(id, Object.assign({ m }, line ? { line } : {}, b.of ? { of:b.of } : {}), (o || {}).path); },
   // поток Движения открытой полосы (key — ключ потока из res.move, 'other' — «прочее»; mv — месяц движения, по умолчанию выбранный в полосе): кто в этом потоке
+  // «☰» строки «пришли из / ушли в» узла Разреза: dir — 'from' | 'to', v2 — значение (null — охват)
+  whoMoveAt:(id,d,v,dir,v2,fd)=>{ countClick(id); const o = S.open[id], node = Object.assign(stripNode(tileById(id), o, user(), S.panel), { d, v, [dir]:v2===undefined ? null : v2 }, fd ? { fd } : {});
+    return openWho(id, node, (o || {}).path); },
   whoFlowAt:(id,key,mv)=>{ countClick(id); const o = S.open[id], t = tileById(id), s = viewSel(t, 'move', o && o.sel, user(), (o || {}).path || [], S.panel);
     return openWho(id, { flow:key, mv:mv!==undefined ? mv : s.month }, (o || {}).path); },
   registryAt:(id)=>openRegistry(id, (S.open[id] || {}).path),

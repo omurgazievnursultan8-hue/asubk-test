@@ -8,6 +8,32 @@
   Рабочий прототип (single-file) — модуль «Отчётность» (TO-BE). Логика исполняется.
   Канон логики — ASUBK-otchetnost-logika.md; журнал волн — ASUBK-status-razrabotki.md.
   Смоук: node scripts/inspect/reports-check.mjs
+  SMOKE 2026-10-17 · 25/25 PASS
+  PASS  # 1  на 31.08 вам видно 47, скрыто областью видимости 3; краткий паспорт: «на 31.08 (5 дней назад) · не зафикс. · вам видно 47»
+  PASS  # 2  снимок — это и СОСТАВ: на 31.07 видно 45 (два договора рождены в августе); 31.07 — «зафиксировано», 31.08 — «не зафиксировано»
+  PASS  # 3  дата без снимка подставляется ВСЛУХ: спрошено 2026-09-05, показано 2026-08-31, баннер называет подстановку (ИО-26)
+  PASS  # 4  «сейчас» считается по кнопке: до compute() ответа нет — «режим «сейчас» считается по кнопке «посчитать»: это живой за…»
+  PASS  # 5  живой ответ отвечает objectRows ядра; числа другие, чем в снимке (0 дней: 28 против 26 — двое погасили после 31.08)
+  PASS  # 6  неисчислимый показатель в «сейчас» отказан причиной: «налету не берётся — считается ночным прогоном по ж…»
+  PASS  # 7  необъявленный разрез «кредитная программа» доступен в «сейчас» и снят С ПОМЕТКОЙ при возврате в «на дату»: «в реестре статистики не объявлен: прогон по нему строк не со…»
+  PASS  # 8  заёмщик в режиме «сейчас» переключает режим и объясняет: «объекту «заёмщик» режим «сейчас» в v1 недоступен: живые строки отдаёт …»
+  PASS  # 9  и прямой запрос «сейчас» для заёмщика отказан причиной, а не погашенной кнопкой
+  PASS  #10  выведенный показатель не добавляется: «выведен 12.08 — выведен владельцем реестра: методи…»
+  PASS  #11  число узла — по строкам узла: средняя по корню 136.5 дн., сумма средних детей 569.6 — складывать нельзя; счёт строк при этом сходится (47)
+  PASS  #12  корзина применена при чтении: пять ступеней в объявленном порядке, строки узла «31–90» хранят дни как есть (35, 48, 61, 77, 88)
+  PASS  #13  черновик без имени отказан; сохранённый виден автору (1) и не виден уполномоченному (0)
+  PASS  #14  выгрузка = предварительный личный выпуск В-Л-1 с паспортом в файле; окончательный отказан: «окончательный выпуск у личного черновика невозможен: числа м…»
+  PASS  #15  список без строк отказан; «Долг 181+» заморожен на 5 объектах через выпуск В-Л-2, хотя экран уже показывает 10 — состав под ногами не меняется
+  PASS  #16  просьба о публикации уходит Тентимишев К.; норму и публикацию черновику отказывают словами, а «📌 на дашборд» сохранённого черновика — только ссылка: раскладку ведёт модуль дашборда
+  PASS  #17  предмет залога: перечень объявил «залог · предметы» (16 полей), палитра — 8 показателей и 10 разрезов, и все СВОИ (ИС-40: «подразделение» кредита к предмету не прикладывается); вам видно 41, скрыто 3
+  PASS  #18  у предмета залога живых строк в v1 нет: «сейчас» отказан причиной, а выбор объекта в «сейчас» переключает режим и объясняет (ИО-30)
+  PASS  #19  «вид обеспечения» двухуровневый: корзина «класс ликвидности» даёт 3 узла справочником владельца (ADR-0176 §7), «вид» — 6; строки узла «высоколиквидный» хранят вид как есть (депозит, недвижимость)
+  PASS  #20  «обеспечено залогом» дедупится по кредиту: итог 132 млн меньше суммы классов 220 млн — один кредит под двумя предметами есть один долг (ИС-34); аддитивная «залоговая стоимость» сходится копейка в копейку
+  PASS  #21  требование = дело × кредит × роль: 28 требований (21 к заёмщику, 6 к поручителю, 1 к залогодателю), скрыто 4; сумма солидарна — итог 40 млн равен узлу «заёмщик», а сумма ролей 77 млн больше: паспорт называет дедуп-ключ «кредит требования» (ИС-34, ADR-0199)
+  PASS  #22  фазы стоят порядком закрытого словаря владельца, не алфавитом; «средний срок в фазе» узла — по строкам узла (сумма средних 224 против 60 по корню); снимок — это и состав: на 31.07 требований 21, на 31.08 — 28 (семь открыты в августе)
+  PASS  #23  «состояние контроля» приходит швом calcPledge: у 5 необследованных срок — прочерк, не ноль (средняя по корню считается по 36 строкам); фильтр «дней с обследования > 180» и разрез «контроль просрочен» читают одну клетку — 18 строк, все в одном узле
+  PASS  #24  план строки: «залоговая стоимость» и «дней с обследования» встали ПОД колонками своих агрегатов (over реестра), «вид обеспечения» не печатается — стоит уровнем; номер и залогодатель — идентификатор, залоговый статус — чип; 41 строк × 4 ячеек, лишних колонок нет
+  PASS  #25  мера без агрегата — своя колонка «только строки» («остаток» у кредита); «дней просрочки» стоит уровнем «срок неплатежа» и не повторяется; включили «Остаток, всего» — остаток ушёл под свой агрегат, колонок «только строки» 0, паспорт называет размещение
 -->
 <style>
 :root{
@@ -244,6 +270,41 @@ table.cgrid tfoot td{ padding:9px 12px; background:var(--surface-panel);
   font:var(--weight-regular) 12px/1.5 var(--asubk-font); color:var(--text-muted); }
 .foot-pass b{ color:var(--text-body); font-weight:var(--weight-medium); }
 .totals{ display:flex; gap:20px; flex-wrap:wrap; margin:10px 0 2px; }
+a.drill{ color:var(--text-link); text-decoration:none; border-bottom:1px dashed currentColor; }
+a.drill:hover{ border-bottom-style:solid; }
+.prog{ display:inline-flex; align-items:center; gap:8px; white-space:nowrap; }
+.prog .bar{ display:inline-block; width:90px; height:6px; border-radius:3px; background:var(--asubk-gray-200); overflow:hidden; }
+.prog .bar span{ display:block; height:100%; background:var(--asubk-green); }
+.wlprog{ margin:6px 0 10px; font:var(--font-label); }
+/* ---- верстальщик: проверка документом ---- */
+.lcheck{ position:relative; border:1px solid var(--border-default); border-radius:var(--radius-md);
+  background:var(--surface-card); padding:10px 12px; font-family:'Times New Roman',Georgia,serif; font-size:14px;
+  line-height:1.55; overflow-x:auto; }
+.lcheck.sample::after{ content:'ОБРАЗЕЦ'; position:absolute; right:14px; top:8px; font:600 22px/1 var(--font-family, sans-serif);
+  letter-spacing:4px; color:rgba(224,58,58,0.18); transform:rotate(-8deg); pointer-events:none; }
+.lcheck .ln{ display:flex; gap:10px; min-height:20px; }
+.lcheck .ln .no{ flex:0 0 22px; color:var(--text-placeholder); font:11px/22px ui-monospace,Menlo,Consolas,monospace; text-align:right; }
+.lcheck .ln .tx{ flex:1; min-width:0; overflow-wrap:anywhere; }
+.tk{ border-radius:3px; padding:0 2px; }
+.tk.ok{ background:rgba(21,132,67,0.14); box-shadow:inset 0 -1px 0 var(--asubk-green); }
+.tk.bad{ background:var(--asubk-red-tint); color:var(--asubk-red); box-shadow:inset 0 -2px 0 var(--asubk-red); cursor:help; }
+.tk.mark{ color:var(--text-muted); font-family:ui-monospace,Menlo,Consolas,monospace; font-size:12px; }
+.tk.frag{ background:var(--asubk-tint-fill); color:var(--text-muted); font-style:italic; }
+.blk{ border:2px solid var(--asubk-green); border-radius:var(--radius-md); padding:2px 6px 4px; margin:4px 0; }
+.blk.cond{ border-color:var(--asubk-amber); }
+.blk.cond.off{ opacity:.45; border-style:dashed; }
+.blk.bad{ border-color:var(--asubk-red); }
+.blk-h{ display:block; font:11px/18px var(--font-family, sans-serif); color:var(--text-muted); }
+.legend{ margin-top:8px; display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+.blk-l{ border:2px solid var(--asubk-green); border-radius:4px; padding:0 6px; }
+.blk-l.cond{ border-color:var(--asubk-amber); }
+.errlist .er{ padding:5px 0; border-bottom:1px dashed var(--asubk-grid-line); font:var(--font-label); color:var(--asubk-red); }
+.errlist .er a{ color:var(--text-link); margin-right:6px; }
+.pal{ display:flex; align-items:center; gap:8px; padding:4px 0; border-bottom:1px dashed var(--asubk-grid-line); flex-wrap:wrap; }
+.pal .mono{ font-size:12px; overflow-wrap:anywhere; }
+.pal .ex{ flex:1; min-width:80px; color:var(--text-muted); font:var(--font-label); }
+.cols > .side.wide{ flex-basis:320px; }
+.pal-g{ margin:10px 0 2px; font:var(--font-label); font-weight:var(--weight-semibold); color:var(--text-heading); }
 .tot{ border:1px solid var(--border-default); border-radius:var(--radius-md);
   padding:9px 14px; background:var(--surface-panel); min-width:210px; }
 .tot .tn{ font:var(--font-label); color:var(--text-muted); }
@@ -262,6 +323,8 @@ table.cgrid tfoot td{ padding:9px 12px; background:var(--surface-panel);
 .tabs button:hover{ color:var(--text-heading); background:var(--surface-hover); }
 .tabs button.on{ color:var(--asubk-blue); border-bottom-color:var(--asubk-blue); }
 .tabs .n{ font-variant-numeric:tabular-nums; color:var(--text-placeholder); }
+.tabs.sub{ border-bottom:none; margin-top:-6px; }
+.tabs.sub button{ font-size:13px; padding-top:4px; padding-bottom:4px; }
 .tabs button.on .n{ color:var(--asubk-blue); }
 .tabs .burn{ background:var(--asubk-red); color:var(--asubk-white); border-radius:var(--radius-pill);
   font:var(--weight-semibold) 11px/1 var(--asubk-font); padding:3px 6px; }
@@ -361,6 +424,8 @@ td.act{ text-align:right; white-space:nowrap; }
 .snap .hd b{ font:var(--weight-semibold) 15px/1.3 var(--asubk-font); color:var(--text-heading); }
 /* Висячий отступ: перенесённая строка значения не уходит под ключ. */
 .snap .row{ font:var(--font-label); color:var(--text-body); margin-bottom:3px; padding-left:178px; text-indent:-178px; }
+/* ключ строки — сам по себе блок: висячий отступ строки на него не наследуется */
+.snap .row .k{ text-indent:0; min-width:178px; }
 
 /* ---- дерево ---- */
 table.cgrid thead th.num{ text-align:right; }
@@ -404,7 +469,6 @@ table.cgrid tr.root td{ background:var(--surface-panel); font-weight:var(--weigh
       <button class="nav-item" data-v="issue"    onclick="RP.go('issue')">Показ и выпуск</button>
       <button class="nav-item" data-v="calendar" onclick="RP.go('calendar')">Календарь сдачи</button>
       <button class="nav-item" data-v="worklists" onclick="RP.go('worklists')">Рабочие списки</button>
-      <button class="nav-item" data-v="dash"     onclick="RP.go('dash')">Дашборд</button>
       <div class="nav-sec">Настраивать<small>стол уполномоченного; личный черновик собирает всякий</small></div>
       <button class="nav-item" data-v="registry" onclick="RP.go('registry')">Реестр шаблонов</button>
       <button class="nav-item" data-v="draft"    onclick="RP.go('draft')">Конструктор</button>
@@ -442,7 +506,7 @@ table.cgrid tr.root td{ background:var(--surface-panel); font-weight:var(--weigh
  *  Слои файла: даты → мир соседей зеркалом (подразделения, адресаты, публичные
  *  перечни полей ядра, реестр показателей статистики, объекты и их снимки по датам)
  *  → ЧЕТЫРЕ ШВА → движок состава → состояние → операции (публикация, выпуск,
- *  открытие периода, обязательства, серии) → швы наружу → экраны.
+ *  открытие периода, обязательства, черновики документооборота) → швы наружу → экраны.
  *
  *  Главное, что этот файл доказывает исполнением: движок состава не знает базы.
  *  Он умеет спросить четыре вопроса и напечатать ответ с паспортом — ни одного
@@ -511,14 +575,27 @@ const ADDR = id => ADDRESSEES.find(a => a.id === id);
    и своих не заводит. Переименование поля здесь ломает публикацию шаблона и
    называет виновником ядро, а не автора шаблона.                             */
 const FIELDS = {
+  /* `ru` — русское имя поля для макета бланка: ${Заёмщик.ФИО}. Оно часть
+     публичного перечня наравне с техническим ключом; движку при утверждении
+     отдаётся копия макета с техническими ключами. Поля связанных лиц стоят в
+     перечне объекта под именем роли.                                        */
   credit: {name:'кредит', owner:'ядро · кредиты', fields:[
-    {id:'no',        name:'Номер договора'},
-    {id:'borrower',  name:'Заёмщик'},
-    {id:'dept',      name:'Подразделение'},
-    {id:'sum',       name:'Сумма договора'},
-    {id:'debt_main', name:'Остаток основного долга'},
-    {id:'days',      name:'Дней просрочки'},
-    {id:'status',    name:'Состояние'}
+    {id:'no',        name:'Номер договора',          ru:'Кредит.Номер'},
+    {id:'borrower',  name:'Заёмщик',                 ru:'Заёмщик.ФИО'},
+    {id:'dept',      name:'Подразделение',           ru:'Кредит.Подразделение'},
+    {id:'sum',       name:'Сумма договора',          ru:'Кредит.Сумма'},
+    {id:'debt_main', name:'Остаток основного долга', ru:'Кредит.ОстатокОсновногоДолга'},
+    {id:'days',      name:'Дней просрочки',          ru:'Кредит.ДнейПросрочки'},
+    {id:'status',    name:'Состояние',               ru:'Кредит.Состояние'},
+    {id:'issued',    name:'Дата выдачи',             ru:'Кредит.ДатаВыдачи'},
+    {id:'guarantor', name:'Поручитель',              ru:'Поручитель.ФИО'}
+  ]},
+  /* Платёж — строка тела бланка: повторяющийся блок объявляет свой объект с
+     отбором «принадлежит объекту бланка», отвечает на него тот же objectRows. */
+  payment: {name:'платёж', owner:'ядро · погашения', fields:[
+    {id:'date',   name:'Дата платежа',  ru:'Платёж.Дата'},
+    {id:'amount', name:'Сумма платежа', ru:'Платёж.Сумма'},
+    {id:'kind',   name:'Вид платежа',   ru:'Платёж.Вид'}
   ]},
   borrower: {name:'заёмщик', owner:'ядро · заёмщики', fields:[
     {id:'name',   name:'Наименование'},
@@ -567,14 +644,22 @@ const OBJECTS = [
          (ADR-0167 §2). КД-2025/088 и КД-2024/259 — ДВА договора одного лица:
          без этой пары расхождение «договоров больше, чем заёмщиков» в зеркале
          не видно, а норма п. 9 считает заёмщиками (ОЧ-61).                    */
-  {id:'kr-1', type:'credit', no:'КД-2024/117', borrower:'ОсОО «Ак-Дан»',          dept:'dep-prom',  sum:12000000, debt_main:7400000,  days:0,  status:'действует', closed:null, subjects:[{ref:'su-1', role:'заёмщик'}]},
-  {id:'kr-2', type:'credit', no:'КД-2024/203', borrower:'ОсОО «Нарын-Агро»',      dept:'dep-prom',  sum:8500000,  debt_main:5100000,  days:42, status:'просрочен', closed:null, subjects:[{ref:'su-2', role:'заёмщик'}, {ref:'su-2', role:'залогодатель'}]},
-  {id:'kr-3', type:'credit', no:'КД-2025/014', borrower:'ИП Садыков А. Т.',       dept:'rep-osh',   sum:3000000,  debt_main:1850000,  days:17, status:'просрочен', closed:null, subjects:[{ref:'su-3', role:'заёмщик'}]},
-  {id:'kr-4', type:'credit', no:'КД-2025/088', borrower:'ОсОО «Тянь-Шань Строй»', dept:'dep-admin', sum:45000000, debt_main:31200000, days:0,  status:'действует', closed:null, subjects:[{ref:'su-4', role:'заёмщик'}]},
-  {id:'kr-5', type:'credit', no:'КД-2023/311', borrower:'ОсОО «Кара-Балта Мел»',  dept:'dep-admin', sum:20000000, debt_main:0,        days:0,  status:'закрыт',    closed:'2026-08-14', subjects:[{ref:'su-5', role:'заёмщик'}]},
-  {id:'kr-6', type:'credit', no:'КД-2025/126', borrower:'ОсОО «Ош-Текстиль»',     dept:'rep-osh',   sum:6200000,  debt_main:4900000,  days:93, status:'просрочен', closed:null, subjects:[{ref:'su-6', role:'заёмщик'}, {ref:'su-8', role:'поручитель'}, {ref:'su-7', role:'залогодатель'}]},
-  {id:'kr-7', type:'credit', no:'КД-2026/007', borrower:'КФХ «Жайыл»',            dept:'dep-prom',  sum:2500000,  debt_main:2500000,  days:0,  status:'действует', closed:null, subjects:[{ref:'su-7', role:'заёмщик'}]},
-  {id:'kr-8', type:'credit', no:'КД-2024/259', borrower:'ОсОО «Тянь-Шань Строй»', dept:'dep-admin', sum:15000000, debt_main:9700000,  days:5,  status:'просрочен', closed:null, subjects:[{ref:'su-4', role:'заёмщик'}]}
+  {id:'kr-1', type:'credit', issued:'2024-03-12', guarantor:null, no:'КД-2024/117', borrower:'ОсОО «Ак-Дан»',          dept:'dep-prom',  sum:12000000, debt_main:7400000,  days:0,  status:'действует', closed:null, subjects:[{ref:'su-1', role:'заёмщик'}]},
+  {id:'kr-2', type:'credit', issued:'2024-06-20', guarantor:null, no:'КД-2024/203', borrower:'ОсОО «Нарын-Агро»',      dept:'dep-prom',  sum:8500000,  debt_main:5100000,  days:42, status:'просрочен', closed:null, subjects:[{ref:'su-2', role:'заёмщик'}, {ref:'su-2', role:'залогодатель'}]},
+  {id:'kr-3', type:'credit', issued:'2025-01-28', guarantor:null, no:'КД-2025/014', borrower:'ИП Садыков А. Т.',       dept:'rep-osh',   sum:3000000,  debt_main:1850000,  days:17, status:'просрочен', closed:null, subjects:[{ref:'su-3', role:'заёмщик'}]},
+  {id:'kr-4', type:'credit', issued:'2025-04-15', guarantor:null, no:'КД-2025/088', borrower:'ОсОО «Тянь-Шань Строй»', dept:'dep-admin', sum:45000000, debt_main:31200000, days:0,  status:'действует', closed:null, subjects:[{ref:'su-4', role:'заёмщик'}]},
+  {id:'kr-5', type:'credit', issued:'2023-09-05', guarantor:null, no:'КД-2023/311', borrower:'ОсОО «Кара-Балта Мел»',  dept:'dep-admin', sum:20000000, debt_main:0,        days:0,  status:'закрыт',    closed:'2026-08-14', subjects:[{ref:'su-5', role:'заёмщик'}]},
+  {id:'kr-6', type:'credit', issued:'2025-07-01', guarantor:'Асанов Т. К.', no:'КД-2025/126', borrower:'ОсОО «Ош-Текстиль»',     dept:'rep-osh',   sum:6200000,  debt_main:4900000,  days:93, status:'просрочен', closed:null, subjects:[{ref:'su-6', role:'заёмщик'}, {ref:'su-8', role:'поручитель'}, {ref:'su-7', role:'залогодатель'}]},
+  {id:'kr-7', type:'credit', issued:'2026-02-10', guarantor:null, no:'КД-2026/007', borrower:'КФХ «Жайыл»',            dept:'dep-prom',  sum:2500000,  debt_main:2500000,  days:0,  status:'действует', closed:null, subjects:[{ref:'su-7', role:'заёмщик'}]},
+  {id:'kr-8', type:'credit', issued:'2024-11-18', guarantor:null, no:'КД-2024/259', borrower:'ОсОО «Тянь-Шань Строй»', dept:'dep-admin', sum:15000000, debt_main:9700000,  days:5,  status:'просрочен', closed:null, subjects:[{ref:'su-4', role:'заёмщик'}]},
+  /* --- платежи: строки тела акта сверки и графика (повторяющийся блок) --- */
+  {id:'pm-1', type:'payment', credit:'kr-2', dept:'dep-prom', date:'2025-03-15', amount:600000, kind:'основной долг'},
+  {id:'pm-2', type:'payment', credit:'kr-2', dept:'dep-prom', date:'2025-06-15', amount:600000, kind:'основной долг'},
+  {id:'pm-3', type:'payment', credit:'kr-2', dept:'dep-prom', date:'2025-09-15', amount:500000, kind:'основной долг'},
+  {id:'pm-4', type:'payment', credit:'kr-2', dept:'dep-prom', date:'2025-12-15', amount:0,      kind:'пропущен'},
+  {id:'pm-5', type:'payment', credit:'kr-1', dept:'dep-prom', date:'2025-06-12', amount:1200000, kind:'основной долг'},
+  {id:'pm-6', type:'payment', credit:'kr-1', dept:'dep-prom', date:'2025-12-12', amount:1200000, kind:'основной долг'},
+  {id:'pm-7', type:'payment', credit:'kr-6', dept:'rep-osh',  date:'2025-10-01', amount:100000,  kind:'проценты'}
 ];
 const OBJ  = id => OBJECTS.find(o => o.id === id);
 const SUBJ = id => OBJECTS.find(o => o.id === id && o.type === 'borrower');
@@ -746,6 +831,9 @@ function applyCut(rows, cut){
   if(cut.dept) r = r.filter(x => x.dept === cut.dept);
   if(cut.obj)  r = r.filter(x => x.id === cut.obj);
   if(cut.ids)  r = r.filter(x => cut.ids.indexOf(x.id) !== -1);
+  /* «принадлежит объекту бланка» — отбор повторяющегося блока (платежи кредита) */
+  if(cut.of)   r = r.filter(x => x.credit === cut.of);
+  if(cut.before) r = r.filter(x => String(x.date) < cut.before);
   /* Значение уровня разреза — такой же отбор, как подразделение: второй уровень
      спрашивается внутри значения первого (ОЧ-25).                             */
   if(cut.at)   r = r.filter(x => x[cut.at.by] === cut.at.key);
@@ -778,6 +866,7 @@ const SEAM = {
     const all = applyCut(OBJECTS.filter(o => o.type === objType && snap[o.id]).map(o => {
       const s = snap[o.id] || {};
       return {id:o.id, no:o.no, borrower:o.borrower, dept:o.dept, sum:o.sum,
+              issued:o.issued, guarantor:o.guarantor,
               debt_main:s.debt_main, days:s.days, status:s.status, closed:o.closed};
     }), cut);
     const vis = all.filter(o => scope.indexOf(o.dept) !== -1);
@@ -829,6 +918,7 @@ const SEAM = {
   fieldList(objType){ const o = FIELDS[objType];
     return o ? {object:objType, name:o.name, owner:o.owner, fields: clone(o.fields)} : null; },
   statMeta(statId){ const s = STAT(statId); return s ? clone(s) : null; },
+  statList(){ return clone(STATS); },
   objectTypes(){ return Object.keys(FIELDS); }
 };
 /* ==/ШВЫ== */
@@ -867,23 +957,30 @@ function levelTotals(ed, by, cut, asOf, scope){
       why: p.why || null, seam:'statSlice (дерево)'};
   });
 }
-/* ============ ГРАНИЦЫ КРУТИЛКИ И НАКРУТКА (§3 п. 9, ADR-0162) =========
-   Редакция объявляет ДВА списка: состав по умолчанию и перечень допустимых
-   отклонений. Экран крутится только внутри второго; вышел за него — это уже
-   другой вопрос, то есть личный черновик, а не показ (ИО-20).
-   Перечень РАЗРЕШЁННОГО, а не признак «жёсткий/свободный» на весь отчёт и не
-   флаг на каждой ячейке: по второй дороге легаси пришло к 928 ячейкам с
-   личным position (ОЧ-33).                                                  */
+/* ======================= СВОБОДНЫЙ ПОКАЗ И НАКРУТКА =====================
+   У показа границ нет: у любого доступного отчёта, официального включительно,
+   на экране доступно всё, что доступно отчёту вообще, — любой разрез, любой
+   показатель реестра, строки объектов, раскладка. Перечня допустимых
+   отклонений редакция не объявляет. Замок стоит на сдаче: накрутка
+   официального видна («изменено — не утверждённый состав»), а окончательно
+   сдаётся только утверждённый состав. Отказывает показ только тому, чего
+   нет вовсе: разреза, которым отчётность не разрезает, показателя, которого
+   нет в реестре или который выведен.                                        */
 const LAYOUTS = ['показатели в колонках','показатели в строках'];
-const boundsOf = ed => { const f = ed.free || {};
-  return {cuts:(f.cuts || []).slice(), stats:(f.stats || []).slice(), drill: !!f.drill}; };
 const baseOf = ed => ({cuts:(ed.cuts || []).slice(), stats:(ed.stats || []).slice(),
   drill: ed.drill !== false, layout: LAYOUTS[0]});
 const statName = sid => (SEAM.statMeta(sid) || {name:sid}).name;
 const sameOrder = (a, b) => a.join('|') === b.join('|');
+const DEVIATED = 'изменено — не утверждённый состав';
+/* Что вообще доступно показу: все разрезы отчётности и все живые показатели
+   реестра; в режиме «сейчас» — только исчислимые налету.                    */
+function choicesOf(ed){
+  return {cuts: Object.keys(CUT_NAMES),
+    stats: SEAM.statList().filter(m => !m.withdrawn && (ed.mode !== 'сейчас' || m.live)).map(m => m.id)};
+}
 
 function twistCheck(ed, twist){
-  const base = baseOf(ed), B = boundsOf(ed);
+  const base = baseOf(ed);
   if(!twist) return {ok:true, twist:base, deviated:false, dev:null};
   const w = {cuts:  twist.cuts  ? twist.cuts.slice()  : base.cuts.slice(),
              stats: twist.stats ? twist.stats.slice() : base.stats.slice(),
@@ -895,49 +992,31 @@ function twistCheck(ed, twist){
     why:'разрез назван дважды: уровень бывает один'};
   if(uniq(w.stats).length !== w.stats.length) return {ok:false,
     why:'показатель назван дважды: второй такой же колонки не бывает'};
-  const addC = w.cuts.filter(c => base.cuts.indexOf(c) === -1);
-  const hidC = base.cuts.filter(c => w.cuts.indexOf(c) === -1);
-  const badAddC = addC.filter(c => B.cuts.indexOf(c) === -1);
-  if(badAddC.length) return {ok:false, why:'разрез «'+cutName(badAddC[0])+'» редакция '+ed.n+
-    ' допустимым отклонением не объявила: добавить его — задать другой вопрос. Такой состав '+
-    'собирается ЛИЧНЫМ ЧЕРНОВИКОМ, а не крутилкой показа (ИО-20)'};
-  const badHidC = hidC.filter(c => B.cuts.indexOf(c) === -1);
-  if(badHidC.length) return {ok:false, why:'разрез «'+cutName(badHidC[0])+'» объявлен составом '+
-    'редакции '+ed.n+' и отклонением не назван: убрать его — уже другой отчёт (ИО-20)'};
-  const hardC = base.cuts.filter(c => B.cuts.indexOf(c) === -1);
-  if(!sameOrder(w.cuts.filter(c => hardC.indexOf(c) !== -1), hardC)) return {ok:false,
-    why:'жёсткие уровни переставлены: редакция '+ed.n+' объявила порядок «'+
-    hardC.map(cutName).join(' → ')+'», переставляются только объявленные отклонения (ИО-20)'};
-  const addS = w.stats.filter(s => base.stats.indexOf(s) === -1);
-  const hidS = base.stats.filter(s => w.stats.indexOf(s) === -1);
-  const badAddS = addS.filter(s => B.stats.indexOf(s) === -1);
-  if(badAddS.length) return {ok:false, why:'показатель «'+statName(badAddS[0])+'» редакция '+ed.n+
-    ' допустимым отклонением не объявила: перечень отклонений — список разрешённого, а не всё, '+
-    'что есть в реестре (ИО-20)'};
-  const badHidS = hidS.filter(s => B.stats.indexOf(s) === -1);
-  if(badHidS.length) return {ok:false, why:'показатель «'+statName(badHidS[0])+'» объявлен '+
-    'составом редакции '+ed.n+' и отклонением не назван: спрятать его — уже другой отчёт (ИО-20)'};
-  const hardS = base.stats.filter(s => B.stats.indexOf(s) === -1);
-  if(!sameOrder(w.stats.filter(s => hardS.indexOf(s) !== -1), hardS)) return {ok:false,
-    why:'жёсткие показатели переставлены: их порядок объявлен редакцией '+ed.n};
+  const badCut = w.cuts.filter(c => !CUT_NAMES[c]);
+  if(badCut.length) return {ok:false, why:'разрезом «'+badCut[0]+'» отчётность не разрезает: '+
+    'разрезы — '+Object.keys(CUT_NAMES).map(cutName).join(' · ')};
   const nometa = w.stats.filter(s => !SEAM.statMeta(s));
   if(nometa.length) return {ok:false, why:'показателя «'+nometa[0]+'» в реестре статистики нет'};
   const dead = w.stats.map(s => SEAM.statMeta(s)).filter(m => m && m.withdrawn);
   if(dead.length) return {ok:false, why:'показатель «'+dead[0].name+'» выведен из реестра '+
-    fmt(dead[0].withdrawn)+': показать его нельзя ни составом, ни отклонением'};
-  /* Углубление до строк объектов — ОТКЛОНЕНИЕ, требующее объявления: это
-     другой шов, другой объём ответа и другая видимость полей (ADR-0162 §8). */
-  if(w.drill !== base.drill && !B.drill) return {ok:false, why:'углубление до строк объектов '+
-    'редакция '+ed.n+' отклонением не объявила: это другой шов — statRows вместо дерева '+
-    'statSlice, другой объём ответа и другая видимость полей объекта (ADR-0162 §8)'};
+    fmt(dead[0].withdrawn)+': показать его нельзя'};
+  if(ed.mode === 'сейчас'){
+    const slow = w.stats.map(s => SEAM.statMeta(s)).filter(m => m && !m.live);
+    if(slow.length) return {ok:false, why:'показатель «'+slow[0].name+'» налету не берётся: '+
+      slow[0].why+' — в режиме «сейчас» его не показать'};
+  }
   if(!w.drill && !w.stats.length) return {ok:false, why:'без строк объектов и без показателей '+
-    'смотреть нечего: углубление снимают тогда, когда остаются итоги разрезов'};
+    'смотреть нечего: строки снимают тогда, когда остаются итоги разрезов'};
+  const addC = w.cuts.filter(c => base.cuts.indexOf(c) === -1);
+  const hidC = base.cuts.filter(c => w.cuts.indexOf(c) === -1);
+  const addS = w.stats.filter(s => base.stats.indexOf(s) === -1);
+  const hidS = base.stats.filter(s => w.stats.indexOf(s) === -1);
   const dev = {addedCuts:addC, hiddenCuts:hidC, addedStats:addS, hiddenStats:hidS,
     movedCuts: !addC.length && !hidC.length && !sameOrder(w.cuts, base.cuts),
     movedStats: !addS.length && !hidS.length && !sameOrder(w.stats, base.stats),
     drill: w.drill !== base.drill, layout: w.layout !== base.layout};
-  /* Раскладка в отклонение НЕ засчитывается: клетки те же, вопрос тот же —
-     и в выпуск она не уходит вовсе, лист принадлежит редакции (ИО-18).      */
+  /* Раскладка накруткой НЕ считается: клетки те же, вопрос тот же — и в
+     выпуск она не уходит вовсе, лист принадлежит редакции.                  */
   const deviated = !!(addC.length || hidC.length || addS.length || hidS.length || dev.drill ||
     !sameOrder(w.cuts, base.cuts) || !sameOrder(w.stats, base.stats));
   return {ok:true, twist:w, deviated, dev};
@@ -1094,14 +1173,16 @@ const RESPONSIBLE = {'dep-admin':'Асанов А.', 'dep-prom':'Осмонов�
 /* ===================== ШАБЛОНЫ ОТЧЁТНОСТИ (§2.1–2.3) ==================
    Вид — один из двух и только: отчёт о множестве объектов, бланк об одном
    (§2.2, ADR-0156). Вне редакции живут круг, расписание, «пригоден для
-   обзора», «полный охват обязателен» и серия: они меняются, не порождая
-   новой редакции, потому что не меняют вопроса.                             */
+   обзора», «полный охват обязателен» и тип документа для документооборота:
+   они меняются, не порождая новой редакции, потому что не меняют вопроса.
+   Серий исходящих у бланка нет: номер выдаёт журнал документооборота при
+   регистрации после подписи, у договора номер — реквизит его объекта.       */
 const KINDS = ['отчёт','бланк'];
 function templatesSeed(){ return [
   {id:'t-overdue', kind:'отчёт', name:'Просроченная задолженность по состоянию на 1-е число',
    owner:'Тентимишев К.', asked:true, form:'ФО-01',
    basis:{doc:'Порядок №41 (ред. 06.07.2026)', point:'12'},
-   circle:ALL_DEPTS.slice(), forReview:true, fullCoverage:true, series:null,
+   circle:ALL_DEPTS.slice(), forReview:true, fullCoverage:true, docType:'Отчёт',
    schedule:{freq:'ежемесячно', dueDay:15, since:'2026-05-01',
      asOfRule:'первое число месяца, следующего за отчётным',
      text:'ежемесячно, не позднее 15-го числа месяца, следующего за отчётным'},
@@ -1109,10 +1190,6 @@ function templatesSeed(){ return [
      object:'credit', mode:'на дату', order:'по просрочке',
      fields:['no','borrower','dept','debt_main','days'],
      stats:['s-overdue-sum','s-overdue-cnt'], cuts:['dept','status'], levelTotals:['dept'],
-     /* Границы крутилки объявлены редакцией: состояние кредита можно снимать
-        и переставлять, остаток — добавлять; уровень «подразделение» и оба
-        объявленных показателя жёсткие, углубление не крутится (§3 п. 9).   */
-     free:{cuts:['status'], stats:['s-portfolio'], drill:false},
      dp:{'s-overdue-sum':0, 's-overdue-cnt':0}, subs:[],
      sheet:{orient:'книжная', repeatHeader:true, footer:'паспорт',
        bands:['заголовок','шапка','уровни','итог','подвал'], formats:['xlsx','pdf'],
@@ -1123,14 +1200,11 @@ function templatesSeed(){ return [
   {id:'t-portfolio', kind:'отчёт', name:'Портфель — оперативный срез',
    owner:'Тентимишев К.', asked:true, form:'ФО-26',
    basis:{doc:'Регламент оперативного мониторинга ФКФ', point:null},
-   circle:ALL_DEPTS.slice(), forReview:true, fullCoverage:false, series:null, schedule:null,
+   circle:ALL_DEPTS.slice(), forReview:true, fullCoverage:false, schedule:null,
    editions:[{n:1, state:'опубликована', since:'2026-04-01', by:'Тентимишев К.', at:'2026-04-01',
      object:'credit', mode:'сейчас', order:'по номеру',
      fields:['no','borrower','dept','debt_main','days','status'],
      stats:['s-portfolio','s-overdue-cnt'], cuts:['dept','status'], levelTotals:['dept'],
-     /* Обратный случай: оба уровня жёсткие, зато разрешено углубление снимать
-        (тогда statRows не спрашивается вовсе) и добавлять сумму просрочки.  */
-     free:{cuts:['borrower'], stats:['s-overdue-sum'], drill:true},
      dp:{'s-portfolio':0, 's-overdue-cnt':0}, subs:[],
      params:[{id:'dept', role:'отбора', name:'Подразделение'}]}]},
 
@@ -1138,15 +1212,15 @@ function templatesSeed(){ return [
    owner:'Абдырахманова С.', asked:true, form:'ФО-29',
    basis:{doc:'Порядок №41 (ред. 06.07.2026)', point:'15'},
    circle:ALL_DEPTS.slice(), forReview:false, fullCoverage:false, schedule:null,
-   series:{prefix:'УВ-2026/', manual:false, next:37, used:[]},
+   docType:'Уведомление',
    editions:[{n:1, state:'опубликована', since:'2026-05-20', by:'Тентимишев К.', at:'2026-05-20',
      object:'credit', mode:'сейчас', order:'по номеру', fields:[], stats:[], cuts:[],
      subs:[], layout:'бланк уведомления (docx)', addressee:{kind:'роль', role:'заёмщик'},
      layoutText:'УВЕДОМЛЕНИЕ о наступающем платеже\n\n'+
-       'Кому: {{borrower}}\n'+
-       'По кредитному договору {{no}}\n\n'+
-       'Уведомляем, что по договору {{no}} наступает срок очередного платежа.\n'+
-       'Остаток основного долга на дату уведомления — {{debt_main}} сом.\n\n'+
+       'Кому: ${Заёмщик.ФИО | дат.}\n'+
+       'По кредитному договору ${Кредит.Номер}\n\n'+
+       'Уведомляем, что по договору ${Кредит.Номер} наступает срок очередного платежа.\n'+
+       'Остаток основного долга на дату уведомления — ${Кредит.ОстатокОсновногоДолга} сом.\n\n'+
        'Просим обеспечить наличие средств на счёте.',
      params:[{id:'obj', role:'вопроса', name:'Кредит'}]}]},
 
@@ -1158,15 +1232,15 @@ function templatesSeed(){ return [
    owner:'Абдырахманова С.', asked:true, form:'ФО-30',
    basis:{doc:'Порядок №41 (ред. 06.07.2026)', point:'16'},
    circle:['dep-admin','rep-osh'], forReview:false, fullCoverage:false, schedule:null,
-   series:{prefix:'ПР-2026/', manual:true, next:null, used:['ПР-2026/014']},
+   docType:'Претензия',
    editions:[{n:1, state:'опубликована', since:'2026-06-01', by:'Тентимишев К.', at:'2026-06-01',
      object:'credit', mode:'сейчас', order:'по номеру', fields:[], stats:[], cuts:[],
      subs:[], layout:'бланк претензии (docx)', addressee:{kind:'роль', role:'заёмщик'},
      layoutText:'ПРЕТЕНЗИЯ\n\n'+
-       'Кому: {{borrower}}\n'+
-       'По кредитному договору {{no}}\n\n'+
-       'По состоянию на дату претензии просрочка составляет {{days}} дней,\n'+
-       'остаток основного долга — {{debt_main}} сом.\n\n'+
+       'Кому: ${Заёмщик.ФИО}\n'+
+       'По кредитному договору ${Кредит.Номер}\n\n'+
+       'По состоянию на дату претензии просрочка составляет ${Кредит.ДнейПросрочки} дней,\n'+
+       'остаток основного долга — ${Кредит.ОстатокОсновногоДолга} сом.\n\n'+
        'Требуем погасить задолженность в срок, установленный договором.',
      params:[{id:'obj', role:'вопроса', name:'Кредит'}]}]},
 
@@ -1176,7 +1250,7 @@ function templatesSeed(){ return [
      поручителю ломает это чтение — объект тот же кредит, а получатель другой,
      и выбирает его не человек на выпуске, а РЕДАКЦИЯ полем `addressee`
      (ADR-0167 §2). Заодно видно, что подстановка и получатель — разные вещи:
-     в теле печатается {{borrower}}, то есть заёмщик, а уходит бумага
+     в теле печатается ${Заёмщик.ФИО}, то есть заёмщик, а уходит бумага
      поручителю (ADR-0167 §3). Срок событийный — «одновременно с повторной
      претензией», — поэтому расписания нет и обязательства он не порождает
      (ADR-0164 §2).                                                           */
@@ -1184,14 +1258,14 @@ function templatesSeed(){ return [
    owner:'Абдырахманова С.', asked:true, form:'ФО-32',
    basis:{doc:'Порядок №41 (ред. 06.07.2026)', point:'16'},
    circle:['dep-admin','rep-osh'], forReview:false, fullCoverage:false, schedule:null,
-   series:{prefix:'ТП-2026/', manual:false, next:1, used:[]},
+   docType:'Требование',
    editions:[{n:1, state:'опубликована', since:'2026-06-01', by:'Тентимишев К.', at:'2026-06-01',
      object:'credit', mode:'сейчас', order:'по номеру', fields:[], stats:[], cuts:[],
      subs:[], layout:'бланк требования (docx)', addressee:{kind:'роль', role:'поручитель'},
      layoutText:'ТРЕБОВАНИЕ ПОРУЧИТЕЛЮ\n\n'+
-       'По кредитному договору {{no}}, заёмщик — {{borrower}}.\n\n'+
-       'Задолженность не погашена: просрочка {{days}} дней,\n'+
-       'остаток основного долга — {{debt_main}} сом.\n\n'+
+       'По кредитному договору ${Кредит.Номер}, заёмщик — ${Заёмщик.ФИО}.\n\n'+
+       'Задолженность не погашена: просрочка ${Кредит.ДнейПросрочки} дней,\n'+
+       'остаток основного долга — ${Кредит.ОстатокОсновногоДолга} сом.\n\n'+
        'Требуем исполнить обязательство поручителя в установленный срок.',
      params:[{id:'obj', role:'вопроса', name:'Кредит'}]}]},
 
@@ -1213,16 +1287,21 @@ function templatesSeed(){ return [
      asOfRule:'1 января текущего года',
      text:'ежегодно: состояние на 1 января, подписать со всеми действующими заёмщиками '+
        'в срок до 1 сентября текущего года'},
-   series:{prefix:'АС-2026/', manual:false, next:1, used:[]},
+   docType:'Акт сверки',
    editions:[{n:1, state:'опубликована', since:'2026-02-01', by:'Тентимишев К.', at:'2026-02-01',
      object:'credit', mode:'на дату', order:'по номеру', fields:[], stats:[], cuts:[],
      subs:[], layout:'акт сверки (docx)', addressee:{kind:'роль', role:'заёмщик'},
-     layoutText:'АКТ СВЕРКИ ЗАДОЛЖЕННОСТИ\n'+
+     layoutText:'${Фрагмент: Шапка}\n'+
+       'АКТ СВЕРКИ ЗАДОЛЖЕННОСТИ\n'+
        'по состоянию на 1 января\n\n'+
-       'Заёмщик: {{borrower}}\n'+
-       'Кредитный договор: {{no}}\n\n'+
-       'Остаток основного долга на дату сверки — {{debt_main}} сом.\n'+
-       'Просрочено дней на дату сверки — {{days}}.\n\n'+
+       'Заёмщик: ${Заёмщик.ФИО}\n'+
+       'Кредитный договор: ${Кредит.Номер} от ${Кредит.ДатаВыдачи | «15» октября 2026 г.}\n\n'+
+       'Платежи за год:\n'+
+       '${Повтор: каждый Платёж}\n'+
+       '${Платёж.Дата | ДД.ММ.ГГГГ} — ${Платёж.Вид} — ${Платёж.Сумма} сом\n'+
+       '${Конец повтора}\n\n'+
+       'Остаток основного долга на дату сверки — ${Кредит.ОстатокОсновногоДолга} сом.\n'+
+       'Просрочено дней на дату сверки — ${Кредит.ДнейПросрочки}.\n\n'+
        'Подписи сторон: ______________ / ______________',
      params:[{id:'obj',  role:'вопроса', name:'Кредит'},
              {id:'asOf', role:'вопроса', name:'Дата состояния'}]}]},
@@ -1236,15 +1315,15 @@ function templatesSeed(){ return [
    owner:'Абдырахманова С.', asked:true, form:'ФО-31',
    basis:{doc:'Порядок №41 (ред. 06.07.2026)', point:'16'},
    circle:['dep-admin','rep-osh'], forReview:false, fullCoverage:false, schedule:null,
-   series:{prefix:'ПВ-2026/', manual:false, next:1, used:[]},
+   docType:'Претензия',
    editions:[{n:1, state:'опубликована', since:'2026-06-01', by:'Тентимишев К.', at:'2026-06-01',
      object:'credit', mode:'сейчас', order:'по номеру', fields:[], stats:[], cuts:[],
      subs:[], layout:'бланк повторной претензии (docx)', addressee:{kind:'роль', role:'заёмщик'},
      layoutText:'ПОВТОРНАЯ ПРЕТЕНЗИЯ\n\n'+
-       'Кому: {{borrower}}\n'+
-       'По кредитному договору {{no}}\n\n'+
+       'Кому: ${Заёмщик.ФИО}\n'+
+       'По кредитному договору ${Кредит.Номер}\n\n'+
        'Ранее направленная претензия оставлена без удовлетворения.\n'+
-       'Просрочка на дату претензии — {{days}} дней, остаток основного долга — {{debt_main}} сом.\n\n'+
+       'Просрочка на дату претензии — ${Кредит.ДнейПросрочки} дней, остаток основного долга — ${Кредит.ОстатокОсновногоДолга} сом.\n\n'+
        'Требуем погасить задолженность. В противном случае взыскание будет обращено\n'+
        'на предмет залога и предъявлено требование поручителю.',
      params:[{id:'obj', role:'вопроса', name:'Кредит'}]}]},
@@ -1261,14 +1340,14 @@ function templatesSeed(){ return [
    owner:'Абдырахманова С.', asked:true, form:'ФО-33',
    basis:{doc:'Порядок №41 (ред. 06.07.2026)', point:'20'},
    circle:['dep-admin','rep-osh'], forReview:false, fullCoverage:false, schedule:null,
-   series:{prefix:'ИЗ-2026/', manual:false, next:1, used:[]},
+   docType:'Извещение',
    editions:[{n:1, state:'опубликована', since:'2026-06-01', by:'Тентимишев К.', at:'2026-06-01',
      object:'credit', mode:'сейчас', order:'по номеру', fields:[], stats:[], cuts:[],
      subs:[], layout:'бланк извещения (docx)', addressee:{kind:'роль', role:'залогодатель'},
      layoutText:'ИЗВЕЩЕНИЕ о начале обращения взыскания на предмет залога\n\n'+
-       'По кредитному договору {{no}}, заёмщик — {{borrower}}.\n\n'+
-       'Задолженность не погашена: просрочка {{days}} дней,\n'+
-       'остаток основного долга — {{debt_main}} сом.\n\n'+
+       'По кредитному договору ${Кредит.Номер}, заёмщик — ${Заёмщик.ФИО}.\n\n'+
+       'Задолженность не погашена: просрочка ${Кредит.ДнейПросрочки} дней,\n'+
+       'остаток основного долга — ${Кредит.ОстатокОсновногоДолга} сом.\n\n'+
        'Извещаем о начале процедуры обращения взыскания на заложенное имущество.',
      params:[{id:'obj', role:'вопроса', name:'Кредит'}]}]},
 
@@ -1276,22 +1355,23 @@ function templatesSeed(){ return [
      получатель — НЕ ЛИЦО: обязательная бумага уходит внутрь организации, в
      подразделение. Лица в роли у неё нет вовсе, поэтому вид получателя объявлен
      «подразделение», а значение — ссылка в оргструктуру (ADR-0168 §1, ИО-29).
-     «Внутрь» не значит «не выпуск»: записка выходит за пределы экрана, тратит
-     номер серии и морозит числа ровно так же (ADR-0157 §1).                   */
+     «Внутрь» не значит «не выпуск»: записка выходит за пределы экрана и
+     морозит числа ровно так же; в документообороте она — черновик
+     внутреннего документа, а не исходящего.                                  */
   {id:'t-memo-dpo', kind:'бланк', name:'Служебная записка об инициировании принудительного взыскания',
    owner:'Абдырахманова С.', asked:true, form:'ФО-36',
    basis:{doc:'Порядок №41 (ред. 06.07.2026)', point:'19'},
    circle:['dep-admin','rep-osh'], forReview:false, fullCoverage:false, schedule:null,
-   series:{prefix:'СЗ-2026/', manual:false, next:1, used:[]},
+   docType:'Служебная записка',
    editions:[{n:1, state:'опубликована', since:'2026-06-01', by:'Тентимишев К.', at:'2026-06-01',
      object:'credit', mode:'сейчас', order:'по номеру', fields:[], stats:[], cuts:[],
      subs:[], layout:'служебная записка (docx)',
      addressee:{kind:'подразделение', unit:'dep-legal'},
      layoutText:'СЛУЖЕБНАЯ ЗАПИСКА\n'+
        'об инициировании принудительного взыскания\n\n'+
-       'По кредитному договору {{no}}, заёмщик — {{borrower}}.\n'+
-       'Ведёт договор: {{dept}}.\n\n'+
-       'Просрочка — {{days}} дней, остаток основного долга — {{debt_main}} сом.\n'+
+       'По кредитному договору ${Кредит.Номер}, заёмщик — ${Заёмщик.ФИО}.\n'+
+       'Ведёт договор: ${Кредит.Подразделение}.\n\n'+
+       'Просрочка — ${Кредит.ДнейПросрочки} дней, остаток основного долга — ${Кредит.ОстатокОсновногоДолга} сом.\n'+
        'Досудебные меры исчерпаны.\n\n'+
        'Просим инициировать принудительное взыскание.',
      params:[{id:'obj', role:'вопроса', name:'Кредит'}]}]},
@@ -1304,15 +1384,15 @@ function templatesSeed(){ return [
    owner:'Абдырахманова С.', asked:true, form:'ФО-37',
    basis:{doc:'Порядок №41 (ред. 06.07.2026)', point:'21'},
    circle:['dep-admin'], forReview:false, fullCoverage:false, schedule:null,
-   series:{prefix:'СЗ-П-2026/', manual:false, next:1, used:[]},
+   docType:'Служебная записка',
    editions:[{n:1, state:'опубликована', since:'2026-06-01', by:'Тентимишев К.', at:'2026-06-01',
      object:'credit', mode:'сейчас', order:'по номеру', fields:[], stats:[], cuts:[],
      subs:[], layout:'служебная записка (docx)',
      addressee:{kind:'должность', post:'p-chair'},
      layoutText:'СЛУЖЕБНАЯ ЗАПИСКА\n'+
        'об инициировании судебного взыскания\n\n'+
-       'По кредитному договору {{no}}, заёмщик — {{borrower}}.\n'+
-       'Просрочка — {{days}} дней, остаток основного долга — {{debt_main}} сом.\n\n'+
+       'По кредитному договору ${Кредит.Номер}, заёмщик — ${Заёмщик.ФИО}.\n'+
+       'Просрочка — ${Кредит.ДнейПросрочки} дней, остаток основного долга — ${Кредит.ОстатокОсновногоДолга} сом.\n\n'+
        'Просим согласовать обращение в судебные органы.',
      params:[{id:'obj', role:'вопроса', name:'Кредит'}]}]},
 
@@ -1326,22 +1406,71 @@ function templatesSeed(){ return [
    owner:'Абдырахманова С.', asked:true, form:'ФО-39',
    basis:{doc:'Порядок №41 (ред. 06.07.2026)', point:'20'},
    circle:['dep-legal'], forReview:false, fullCoverage:false, schedule:null,
-   series:{prefix:'ВЗ-2026/', manual:false, next:1, used:[]},
+   docType:'Служебная записка',
    editions:[{n:1, state:'опубликована', since:'2026-06-01', by:'Тентимишев К.', at:'2026-06-01',
      object:'credit', mode:'сейчас', order:'по номеру', fields:[], stats:[], cuts:[],
      subs:[], layout:'служебная записка (docx)',
      addressee:{kind:'подразделение объекта'},
      layoutText:'СЛУЖЕБНАЯ ЗАПИСКА\n'+
        'о возврате материалов на доработку\n\n'+
-       'По кредитному договору {{no}}, заёмщик — {{borrower}}.\n'+
-       'Ведёт договор: {{dept}}.\n\n'+
+       'По кредитному договору ${Кредит.Номер}, заёмщик — ${Заёмщик.ФИО}.\n'+
+       'Ведёт договор: ${Кредит.Подразделение}.\n\n'+
        'Представленные материалы неполны. Возвращаем на доработку.',
      params:[{id:'obj', role:'вопроса', name:'Кредит'}]}]},
+
+  /* КРЕДИТНЫЙ ДОГОВОР (ФО-44). Договор — бланк своего объекта: печатается из
+     кредита в состоянии «Проект» и остаётся с ним после подписания. Номер
+     договора — реквизит кредита, он стоит в тексте до подписи, поэтому в
+     журналы документооборота договор не идёт. Раздел о поручительстве есть
+     не у каждого кредита — его включает условие из закрытого списка.          */
+  {id:'t-contract', kind:'бланк', name:'Кредитный договор',
+   owner:'Абдырахманова С.', asked:true, form:'ФО-44',
+   basis:{doc:'практика', point:null},
+   circle:ALL_DEPTS.slice(), forReview:false, fullCoverage:false, schedule:null,
+   docType:null, numberIsObject:true,
+   editions:[{n:1, state:'опубликована', since:'2026-09-01', by:'Тентимишев К.', at:'2026-09-01',
+     object:'credit', mode:'сейчас', order:'по номеру', fields:[], stats:[], cuts:[],
+     subs:[], layout:'кредитный договор (docx)', addressee:{kind:'роль', role:'заёмщик'},
+     layoutText:'${Фрагмент: Шапка}\n'+
+       'КРЕДИТНЫЙ ДОГОВОР № ${Кредит.Номер}\n'+
+       'от ${Кредит.ДатаВыдачи | «15» октября 2026 г.}\n\n'+
+       'Фонд, с одной стороны, и ${Заёмщик.ФИО | тв.}, именуемым «Заёмщик», с другой,\n'+
+       'заключили договор о предоставлении кредита в сумме ${Кредит.Сумма | число и прописью} сом.\n\n'+
+       '${Если: есть Поручитель}\n'+
+       'Исполнение обязательств Заёмщика обеспечивается поручительством ${Поручитель.ФИО | род.}.\n'+
+       '${Конец условия}\n\n'+
+       '${Фрагмент: Подпись председателя}',
+     params:[{id:'obj', role:'вопроса', name:'Кредит'}]}]},
+
+  /* --- общие отчёты: круг называет владелец, правят владелец и соавторы, каждое
+         сохранение — версия с «изменён ДД.ММ (кто): что». Не официальные:
+         выгружаются, но не сдаются. --- */
+  {id:'t-sh-plan', kind:'отчёт', level:'общий', name:'Просрочка по подразделениям — к планёрке',
+   owner:'Бекова Н.', coauthors:['Асанов А.'], share:{depts:['dep-prom','dep-admin'], people:[]},
+   users:9, lastOpen:'2026-08-22', asked:false, basis:null,
+   circle:['dep-prom','dep-admin'], forReview:false, fullCoverage:false, schedule:null,
+   editions:[{n:3, state:'версия', since:'2026-08-21', by:'Асанов А.', at:'2026-08-21',
+     changed:'изменён 21.08.2026 (Асанов А.): добавлен показатель «Остаток основного долга, всего»',
+     object:'credit', mode:'на дату', order:'по просрочке',
+     fields:['no','borrower','dept','days','debt_main'], stats:['s-overdue-sum','s-portfolio'],
+     cuts:['dept'], levelTotals:['dept'], dp:{'s-overdue-sum':0, 's-portfolio':0}, subs:[],
+     params:[{id:'period', role:'вопроса', name:'Отчётный месяц'}]}]},
+
+  {id:'t-sh-big', kind:'отчёт', level:'общий', name:'Крупные кредиты — для правления',
+   owner:'Асанов А.', coauthors:[], share:{depts:['dep-admin'], people:['Осмонова Г.']},
+   users:3, lastOpen:'2026-08-12', asked:false, basis:null,
+   circle:['dep-admin'], forReview:false, fullCoverage:false, schedule:null,
+   editions:[{n:1, state:'версия', since:'2026-08-10', by:'Асанов А.', at:'2026-08-10',
+     changed:'открыт кругу 10.08.2026 (Асанов А.)',
+     object:'credit', mode:'сейчас', order:'по номеру',
+     fields:['no','borrower','sum','debt_main'], stats:['s-portfolio'],
+     cuts:['dept'], levelTotals:['dept'], dp:{'s-portfolio':0}, subs:[],
+     params:[{id:'dept', role:'отбора', name:'Подразделение'}]}]},
 
   /* --- личные черновики: шаблоном их делает публикация (ИО-1) --- */
   {id:'t-avg', kind:'отчёт', name:'Средняя просрочка по департаментам',
    owner:'Осмонова Г.', asked:true, basis:null,
-   circle:ALL_DEPTS.slice(), forReview:false, fullCoverage:false, series:null, schedule:null,
+   circle:ALL_DEPTS.slice(), forReview:false, fullCoverage:false, schedule:null,
    editions:[{n:1, state:'черновик', since:null, by:'Осмонова Г.', at:'2026-08-20',
      object:'credit', mode:'сейчас', order:'по номеру',
      fields:['dept'], stats:['s-avg-late'], cuts:['dept'], levelTotals:['dept'],
@@ -1350,7 +1479,7 @@ function templatesSeed(){ return [
 
   {id:'t-npl', kind:'отчёт', name:'Доля проблемных кредитов',
    owner:'Осмонова Г.', asked:true, basis:null,
-   circle:ALL_DEPTS.slice(), forReview:true, fullCoverage:false, series:null, schedule:null,
+   circle:ALL_DEPTS.slice(), forReview:true, fullCoverage:false, schedule:null,
    editions:[{n:1, state:'черновик', since:null, by:'Осмонова Г.', at:'2026-08-21',
      object:'credit', mode:'на дату', order:'по номеру',
      fields:['no','borrower','days'], stats:['s-npl'], cuts:['dept'], levelTotals:['dept'],
@@ -1361,18 +1490,18 @@ function templatesSeed(){ return [
    owner:'Осмонова Г.', asked:false, form:'ФО-40', basis:null,
    basisAsk:{doc:'Порядок №41', point:'12'},
    circle:['dep-prom'], forReview:false, fullCoverage:false, schedule:null,
-   series:{prefix:'СП-2026/', manual:false, next:1, used:[]},
+   docType:'Справка',
    editions:[{n:1, state:'черновик', since:null, by:'Осмонова Г.', at:'2026-08-22',
      object:'credit', mode:'сейчас', order:'по номеру', fields:[], stats:[], cuts:[],
      subs:[], layout:'бланк справки (docx)', addressee:{kind:'роль', role:'заёмщик'},
      layoutText:'СПРАВКА о задолженности\n\n'+
-       'Выдана {{borrower}} по договору {{no}}.\n'+
-       'Остаток основного долга — {{остаток_осн}} сом.',
+       'Выдана ${Заёмщик.ФИО} по договору ${Кредит.Номер}.\n'+
+       'Остаток основного долга — ${Кредит.ОстатокОсн} сом.',
      params:[{id:'obj', role:'вопроса', name:'Кредит'}]}]},
 
   {id:'t-osh', kind:'отчёт', name:'Просрочка свыше 60 дней — свод для комитета',
    owner:'Осмонова Г.', asked:true, basis:null,
-   circle:ALL_DEPTS.slice(), forReview:true, fullCoverage:false, series:null, schedule:null,
+   circle:ALL_DEPTS.slice(), forReview:true, fullCoverage:false, schedule:null,
    editions:[{n:1, state:'черновик', since:null, by:'Осмонова Г.', at:'2026-08-23',
      object:'credit', mode:'на дату', order:'по просрочке',
      fields:['no','borrower','dept','days','debt_main'], stats:['s-overdue-sum'], cuts:['dept'],
@@ -1441,7 +1570,9 @@ const FORMS = [
    obligatory:true, to:'отраслевое подразделение'},
   {id:'ФО-40', name:'Справка о задолженности', kind:'бланк', object:'кредит',
    basis:{doc:'спрос легаси, нормативного основания нет', point:null}, obligatory:false,
-   to:'заёмщик'}
+   to:'заёмщик'},
+  {id:'ФО-44', name:'Кредитный договор', kind:'бланк', object:'кредит',
+   basis:{doc:'практика', point:null}, obligatory:false, to:'заёмщик'}
 ];
 const FORM = id => FORMS.find(f => f.id === id);
 /* Кто закрывает пробел — тот же, кто публикует редакции (ADR-0163 §7). */
@@ -1471,10 +1602,10 @@ function seed(){
     today: TODAY, role: ROLES[1].title, view: 'showcase',
     templates: templatesSeed(),
     issues: [], seq: 100,
+    docs: [], dseq: 0, nseq: 0,          /* зеркало документооборота: черновики по выпускам */
     periods: {'май 2026':{state:'закрыт'}, 'июнь 2026':{state:'закрыт'}, 'июль 2026':{state:'закрыт'}},
     worklists: [], wseq: 0,
     views: [], vseq: 0,                /* личные виды — восьмая сущность (§2.8) */
-    dash: {personal:{}},              /* личная перекладка поверх объявленной на роль (§10) */
     log: [],
     sel: {tpl:'t-overdue', draft:'t-avg', issue:null, obj:'kr-2', blank:'t-notice', wl:null,
           /* Период умолчанием — последний СО СНИМКОМ, а не сегодняшний (ИО-26). */
@@ -1529,7 +1660,7 @@ RP.subjectsOf = objId => { const o = OBJ(objId); if(!o) return [];
 /* Кого назовёт бланк, видно ДО заказа: роль объявлена редакцией, лицо ищется по
    роли у объекта. Если такого лица нет — отказ виден на экране, а не на выпуске. */
 RP.blankRecipient = (tid, objId) => { const t = TPL(tid); if(!t || t.kind !== 'бланк') return null;
-  const ed = pubEd(t) || draftEd(t); const a = ed ? (ed.addressee || null) : null;
+  const ed = liveEd(t) || draftEd(t); const a = ed ? (ed.addressee || null) : null;
   const r = resolveAddressee(a, objId);
   return {kind: a ? a.kind : null, text: addresseeText(a),
     ok: r.ok, rec: r.ok ? clone(r.rec) : null, why: r.ok ? null : r.why}; };
@@ -1541,6 +1672,14 @@ const ISS = id => RP.state.issues.find(i => i.id === id);
 RP.TPL = TPL; RP.ISS = ISS;
 const pubEd = t => t.editions.filter(e => e.state === 'опубликована').slice(-1)[0] || null;
 const draftEd = t => t.editions.filter(e => e.state === 'черновик').slice(-1)[0] || null;
+/* Уровень отчёта: личный → общий → официальный. Отчёт растёт по уровням, а не
+   пересоздаётся. У общего редакций нет — у него версии на каждую правку;
+   черновик и утверждение — процедура официального.                         */
+const verEd = t => t.level === 'общий'
+  ? (t.editions.filter(e => e.state === 'версия').slice(-1)[0] || null) : null;
+const liveEd = t => pubEd(t) || verEd(t);
+const levelOf = t => t.level === 'общий' ? 'общий' : (pubEd(t) ? 'официальный' : 'личный');
+RP.levelOf = tid => { const t = TPL(tid); return t ? levelOf(t) : null; };
 RP.pubEd = tid => { const t = TPL(tid); return t ? clone(pubEd(t)) : null; };
 RP.draftEd = tid => { const t = TPL(tid); return t ? clone(draftEd(t)) : null; };
 
@@ -1609,6 +1748,9 @@ RP.formGaps = () => FORMS.filter(f => f.obligatory && !RP.formTpl(f.id)).map(f =
 RP.visibleTemplates = () => {
   const v = RP.viewer();
   return RP.state.templates.filter(t => {
+    /* Общий виден кругу, названному владельцем: подразделениям и/или людям. */
+    if(t.level === 'общий') return t.owner === v.who || t.circle.indexOf(v.dept) !== -1 ||
+      !!(t.share && t.share.people.indexOf(v.who) !== -1);
     const pub = pubEd(t);
     if(pub) return t.circle.indexOf(v.dept) !== -1 || v.scope.length === ALL_DEPTS.length;
     if(t.owner === v.who) return true;
@@ -1621,6 +1763,7 @@ RP.maySee = tid => RP.visibleTemplates().indexOf(tid) !== -1;
    вопрос «что сейчас с перечнем и реестром», а не поле в записи.            */
 RP.tplState = tid => {
   const t = TPL(tid); if(!t) return null;
+  if(levelOf(t) === 'общий') return {state:'общий', why:'общий, не официальный: версия '+verEd(t).n};
   const ed = pubEd(t);
   if(!ed) return {state:'черновик', why:'состав собран, но не опубликован: шаблоном его делает публикация (ИО-1)'};
   const b = brokenBy(t, ed);
@@ -1656,7 +1799,12 @@ RP.publishChecks = tid => {
   /* 1. подстановка не из публичного перечня */
   (ed.subs || []).forEach(s => { if(!list.fields.some(f => f.id === s))
     out.push({check:'подстановка', ok:false,
-      why:'в макете {{'+s+'}}, объект «'+list.name+'» такого поля не объявляет'}); });
+      why:'в макете ${'+s+'} — объект «'+list.name+'» такого поля не объявляет'}); });
+  /* 1а. проверка макета документом: старая запись {{…}}, вид значения не из
+     набора, условие не из списка, незакрытый повтор — ошибка с местом.     */
+  if(t.kind === 'бланк') parseLayout(ed.layoutText, ed.object).errors
+    .filter(e => e.why.indexOf('такого поля не объявляет') === -1)
+    .forEach(e => out.push({check:'проверка макета', ok:false, why:'стр. '+e.line+': '+e.why}));
   /* 2. показатель выведен из реестра */
   ed.stats.forEach(sid => { const m = SEAM.statMeta(sid);
     if(m && m.withdrawn) out.push({check:'показатель выведен', ok:false,
@@ -1678,20 +1826,6 @@ RP.publishChecks = tid => {
     out.push({check:'поле ядра', ok:false,
       why:'поле «'+fid+'» объект «'+list.name+'» больше не объявляет: перечень изменил его '+
         'владелец ('+list.owner+') — виноват не шаблон'}); });
-  /* 6. допустимое отклонение, которого не может быть: перечень отклонений —
-     подмножество доступного, а не список пожеланий (ADR-0162 §1).          */
-  const B = boundsOf(ed);
-  B.cuts.forEach(c => { if(!CUT_NAMES[c]) out.push({check:'допустимое отклонение', ok:false,
-    why:'разрезом «'+c+'» отчётность не разрезает: отклонения берутся из того же перечня, '+
-      'что и состав'}); });
-  B.stats.forEach(sid => { const m = SEAM.statMeta(sid);
-    if(!m) out.push({check:'допустимое отклонение', ok:false,
-      why:'показателя «'+sid+'» в реестре статистики нет: перечень отклонений — не список пожеланий'});
-    else if(m.withdrawn) out.push({check:'допустимое отклонение', ok:false,
-      why:'показатель «'+m.name+'» выведен '+fmt(m.withdrawn)+': разрешать экрану выведенное нечего'});
-    else if(ed.mode === 'сейчас' && !m.live) out.push({check:'допустимое отклонение', ok:false,
-      why:'показатель «'+m.name+'» налету не берётся: '+m.why+' — разрешить его экрану значит '+
-        'пообещать невыполнимое'}); });
   return out;
 };
 RP.publish = tid => {
@@ -1723,7 +1857,7 @@ RP.setBasis = (tid, basis) => {
   t.basis = basis; t.basisAsk = null; log('основание шаблона «'+t.name+'» — п. '+basis.point);
   return {ok:true, note:'основание названо уполномоченным'};
 };
-/* Круг, расписание, «пригоден для обзора» и серия живут ВНЕ редакции: их
+/* Круг, расписание, «пригоден для обзора» и тип документа живут ВНЕ редакции: их
    правка не порождает новой редакции, потому что не меняет вопроса (§2.1).  */
 RP.setCircle = (tid, depts) => { const t = TPL(tid);
   if(!RP.isAuth()) return {ok:false, why:'круг подразделений ведёт уполномоченный по отчётности'};
@@ -1769,17 +1903,23 @@ function composeBlank(tpl, ed, objId, viewer, asOf){
    тратит, следа в журнале не оставляет, — и потому несёт ШАПКУ. Скриншот
    уходит в переписку и обязан отвечать за себя сам (ИО-6, ADR-0162 §5).    */
 function showHead(t, ed, params, v, chk, viewName, dropped){
+  const level = levelOf(t), dev = chk ? chk.deviated : false;
   return {kind:'показ', label:'не выпуск', template: t.name, edition: ed.n, editionState: ed.state,
+    level, version: level === 'общий' ? ed.n : null, changed: level === 'общий' ? (ed.changed || null) : null,
     mode: ed.mode, asOf: ed.mode === 'на дату' ? (params.asOf || null) : null,
     params: clone(params), scope: v.scope.map(deptName), who: v.who,
     view: viewName || null, dropped: (dropped || []).slice(),
     composition: chk ? shownOf(withTwist(ed, chk.twist), chk.twist.drill) : null,
-    deviated: chk ? chk.deviated : false,
-    note:'снимка не морозит, номера не тратит, следа в журнале не оставляет'};
+    deviated: dev,
+    /* Накрутка официального видна всегда: скриншот и выгрузка не выдают себя
+       за форму. У личного и общего «утверждённого» состава нет — там просто
+       показ поверх сохранённого.                                            */
+    deviatedLabel: dev ? (level === 'официальный' ? DEVIATED : 'изменено на экране — сохранённый отчёт не тронут') : null,
+    note:'снимка не морозит, документа не заводит, следа в журнале не оставляет'};
 }
 RP.show = (tid, params, twist) => {
   const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
-  const ed = pubEd(t) || draftEd(t);
+  const ed = liveEd(t) || draftEd(t);
   if(!ed) return {ok:false, why:'у шаблона нет ни опубликованной редакции, ни черновой'};
   const v = RP.viewer();
   const pr = params || {};
@@ -1804,22 +1944,24 @@ RP.preview = (tid, params) => RP.show(tid, params, null);
    Личная именованная накрутка: «как я привык смотреть этот отчёт». Не
    черновик и не редакция — живёт ПОВЕРХ чужой опубликованной редакции,
    чисел не хранит и на публикацию не идёт никогда (ADR-0162 §3).          */
-RP.bounds = tid => { const t = TPL(tid); if(!t) return null;
-  const ed = pubEd(t) || draftEd(t); if(!ed) return null;
-  const B = boundsOf(ed), b = baseOf(ed);
-  return {ed: ed.n, cuts: B.cuts.slice(), stats: B.stats.slice(), drill: B.drill,
-    cutNames: B.cuts.map(cutName), statNames: B.stats.map(statName),
+/* Что доступно показу этого отчёта — всё, что доступно отчёту вообще, — и
+   утверждённый состав, к которому возвращает «вернуть утверждённый».        */
+RP.choices = tid => { const t = TPL(tid); if(!t) return null;
+  const ed = liveEd(t) || draftEd(t); if(!ed) return null;
+  const C = choicesOf(ed), b = baseOf(ed);
+  return {ed: ed.n, cuts: C.cuts, stats: C.stats, drill: true,
+    cutNames: C.cuts.map(cutName), statNames: C.stats.map(statName),
     base:{cuts: b.cuts.slice(), stats: b.stats.slice(), drill: b.drill, layout: b.layout},
     layouts: LAYOUTS.slice()}; };
-RP.defaultOf = tid => { const b = RP.bounds(tid); return b ? b.base : null; };
+RP.defaultOf = tid => { const b = RP.choices(tid); return b ? b.base : null; };
 RP.layouts = () => LAYOUTS.slice();
 
 RP.saveView = (tid, name, twist) => {
   const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
   if(t.kind === 'бланк') return {ok:false, why:'у бланка вида не бывает: крутить нечего (§2.2)'};
-  const ed = pubEd(t);
-  if(!ed) return {ok:false, why:'вид живёт ПОВЕРХ опубликованной редакции, а у «'+t.name+
-    '» её нет: пока состав личный черновик, вид ему не нужен (ИО-1)'};
+  const ed = liveEd(t);
+  if(!ed) return {ok:false, why:'вид живёт поверх чужого отчёта — общего или официального, а «'+t.name+
+    '» пока личный: свой отчёт правят сами, вид ему не нужен'};
   const nm = String(name || '').trim();
   if(!nm) return {ok:false, why:'у вида должно быть имя: безымянный вид — это состояние экрана, '+
     'а не способ смотреть'};
@@ -1846,103 +1988,51 @@ RP.deleteView = id => { const i = RP.state.views.findIndex(x => x.id === id);
 RP.shareView = (id, who) => { const vw = RP.state.views.find(x => x.id === id);
   if(!vw) return {ok:false, why:'вида нет'};
   return {ok:false, why:'вид «'+vw.name+'» не передаётся '+(who ? '('+who+') ' : '')+
-    '— он личный. Общим состав становится ровно одним способом — публикацией редакции '+
-    '(ADR-0156); передают ВЫПУСК: у него есть паспорт, дата состояния и показанный состав'}; };
+    '— он личный. Чтобы поделиться, из вида делают свой отчёт, и он проходит путь личный → общий; '+
+    'а передают ВЫПУСК: у него есть паспорт, дата состояния и показанный состав'}; };
 RP.publishView = id => { const vw = RP.state.views.find(x => x.id === id);
   if(!vw) return {ok:false, why:'вида нет'};
-  return {ok:false, why:'вид «'+vw.name+'» на публикацию не идёт: он живёт поверх чужой '+
-    'опубликованной редакции, а не вместо неё. Нужен общий состав — нужна новая редакция '+
-    'шаблона (ИО-1, ADR-0162 §3)'}; };
+  return {ok:false, why:'вид «'+vw.name+'» на утверждение не идёт: он живёт поверх чужого '+
+    'отчёта, а не вместо него. Нужен общий состав — из вида делают свой отчёт и открывают его '+
+    'кругу; официальным он становится утверждением'}; };
 
-/* Жёсткая часть состава возвращается в показ В ОБЪЯВЛЕННОМ ПОРЯДКЕ: вид
-   переживает правку редакции, но не отменяет её (ADR-0162 §4).            */
-function reconcile(baseList, freeList, kept){
-  const hard = baseList.filter(x => freeList.indexOf(x) === -1);
-  const res = kept.slice();
-  hard.filter(x => res.indexOf(x) === -1).forEach(x => {
-    const prev = hard[hard.indexOf(x) - 1];
-    const at = prev ? res.indexOf(prev) + 1 : 0;
-    res.splice(at < 0 ? res.length : at, 0, x);
-  });
-  return res;
-}
-/* Вид привязан к ШАБЛОНУ и сверяется при каждом показе: ставшая недопустимой
-   часть отваливается С ПОМЕТКОЙ, остальное работает. Ни молчаливой подмены,
-   ни блокировки всего вида из-за чужой правки соседнего столбца.           */
+/* Вид связан с оригиналом и сверяется при каждом показе: правки владельца
+   доходят до вида сами, а ставшее невозможным — разрез, которым больше не
+   разрезают, выведенный показатель — отваливается С ПОМЕТКОЙ, остальное
+   работает. Ни молчаливой подмены, ни блокировки всего вида.               */
 RP.applyView = id => {
   const vw = RP.state.views.find(x => x.id === id);
   if(!vw) return {ok:false, why:'вида нет'};
   if(vw.owner !== RP.who()) return {ok:false, why:'вид «'+vw.name+'» принадлежит '+vw.owner+
-    ': вид личный, чужим способом смотреть не пользуются (ADR-0162 §3)'};
-  const t = TPL(vw.tpl); if(!t) return {ok:false, why:'шаблона нет'};
-  const ed = pubEd(t);
-  if(!ed) return {ok:false, why:'у шаблона «'+t.name+'» нет опубликованной редакции'};
-  const base = baseOf(ed), B = boundsOf(ed), dropped = [];
-  const okCut = c => base.cuts.indexOf(c) !== -1 || B.cuts.indexOf(c) !== -1;
+    ': вид личный, чужим способом смотреть не пользуются'};
+  const t = TPL(vw.tpl); if(!t) return {ok:false, why:'отчёта нет'};
+  const ed = liveEd(t);
+  if(!ed) return {ok:false, why:'у отчёта «'+t.name+'» нет действующей редакции'};
+  const dropped = [];
+  const okCut = c => !!CUT_NAMES[c];
   vw.twist.cuts.filter(c => !okCut(c)).forEach(c => dropped.push('разрез «'+cutName(c)+
-    '» редакция '+ed.n+' допустимым отклонением больше не объявляет — отвалился'));
-  const cuts = reconcile(base.cuts, B.cuts, vw.twist.cuts.filter(okCut));
-  cuts.filter(c => vw.twist.cuts.indexOf(c) === -1).forEach(c => dropped.push('уровень «'+
-    cutName(c)+'» редакция '+ed.n+' объявила составом — вернулся в показ'));
+    '» больше недоступен в отчёте — убран из вашего вида'));
   const okStat = s => { const m = SEAM.statMeta(s);
-    return !!m && !m.withdrawn && (base.stats.indexOf(s) !== -1 || B.stats.indexOf(s) !== -1); };
+    return !!m && !m.withdrawn && (ed.mode !== 'сейчас' || m.live); };
   vw.twist.stats.filter(s => !okStat(s)).forEach(s => { const m = SEAM.statMeta(s);
-    dropped.push('показатель «'+(m ? m.name : s)+'» '+(m && m.withdrawn
-      ? 'выведен из реестра '+fmt(m.withdrawn)
-      : 'редакцией '+ed.n+' отклонением больше не объявлен')+' — отвалился'); });
-  const stats = reconcile(base.stats, B.stats, vw.twist.stats.filter(okStat));
-  stats.filter(s => vw.twist.stats.indexOf(s) === -1).forEach(s => dropped.push('показатель «'+
-    statName(s)+'» редакция '+ed.n+' объявила составом — вернулся в показ'));
-  let drill = vw.twist.drill;
-  if(drill !== base.drill && !B.drill){ drill = base.drill;
-    dropped.push('углубление до строк объектов редакция '+ed.n+' отклонением больше не '+
-      'объявляет — вернулось как объявлено'); }
-  let chk = twistCheck(ed, {cuts, stats, drill, layout: vw.twist.layout});
-  if(!chk.ok){ dropped.push('остаток вида редакции '+ed.n+' не годится ('+chk.why+
-    ') — показан состав по умолчанию'); chk = twistCheck(ed, null); }
+    dropped.push('показатель «'+(m ? m.name : s)+'» больше недоступен в отчёте — убран из вашего вида'+
+      (m && m.withdrawn ? ' (выведен из реестра '+fmt(m.withdrawn)+')' : '')); });
+  const cuts = vw.twist.cuts.filter(okCut), stats = vw.twist.stats.filter(okStat);
+  let chk = twistCheck(ed, {cuts, stats, drill: vw.twist.drill, layout: vw.twist.layout});
+  if(!chk.ok){ dropped.push('остаток вида не годится ('+chk.why+') — показан утверждённый состав');
+    chk = twistCheck(ed, null); }
   return {ok:true, view: clone(vw), ed: ed.n, dropped, deviated: chk.deviated,
     twist: Object.assign({}, chk.twist, {view: vw.name, dropped}),
     note: dropped.length
-      ? 'вид «'+vw.name+'» сверен с редакцией '+ed.n+': отвалилось пунктов — '+dropped.length+
+      ? 'вид «'+vw.name+'» сверен с отчётом: отвалилось пунктов — '+dropped.length+
         ', остальное работает'
-      : 'вид «'+vw.name+'» сверен с редакцией '+ed.n+' целиком'};
+      : 'вид «'+vw.name+'» сверен с отчётом целиком'};
 };
 RP.showView = (id, params) => { const a = RP.applyView(id); if(!a.ok) return a;
   const r = RP.show(a.view.tpl, params, a.twist);
   if(!r.ok) return r;
   return Object.assign({}, r, {view: a.view, dropped: a.dropped, note: a.note}); };
 
-/* Перечень допустимых отклонений — часть РЕДАКЦИИ, а не настройка экрана:
-   границы объявляются там же, где состав, и задним числом не расширяются.  */
-RP.setFree = (tid, patch) => {
-  const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
-  if(!RP.isAuth()) return {ok:false, why:'перечень допустимых отклонений объявляет '+
-    'уполномоченный по отчётности: границы крутилки — часть состава, а не настройка экрана '+
-    '(ИО-20, §13.1)'};
-  const ed = draftEd(t);
-  if(!ed) return {ok:false, why:'редакция «'+t.name+'» опубликована: границы крутилки объявлены '+
-    'ею и задним числом не расширяются — иначе вчерашний показ и сегодняшний спорят о том, что '+
-    'было можно. Нужна НОВАЯ РЕДАКЦИЯ (ИО-2, ИО-20)'};
-  const f = Object.assign({}, boundsOf(ed), patch || {});
-  const badCut = (f.cuts || []).filter(c => !CUT_NAMES[c]);
-  if(badCut.length) return {ok:false, why:'разрезом «'+badCut[0]+'» отчётность не разрезает: '+
-    'отклонения берутся из того же перечня, что и состав (ADR-0162 §1)'};
-  const badStat = (f.stats || []).filter(s => !SEAM.statMeta(s));
-  if(badStat.length) return {ok:false, why:'показателя «'+badStat[0]+'» в реестре статистики '+
-    'нет: перечень отклонений — не список пожеланий'};
-  const dead = (f.stats || []).map(s => SEAM.statMeta(s)).filter(m => m.withdrawn);
-  if(dead.length) return {ok:false, why:'показатель «'+dead[0].name+'» выведен '+
-    fmt(dead[0].withdrawn)+': разрешать экрану выведенное нечего — его не покажет и состав'};
-  if(ed.mode === 'сейчас'){
-    const slow = (f.stats || []).map(s => SEAM.statMeta(s)).filter(m => !m.live);
-    if(slow.length) return {ok:false, why:'показатель «'+slow[0].name+'» налету не берётся: '+
-      slow[0].why+' — разрешить его экрану значит пообещать невыполнимое (ADR-0159)'};
-  }
-  ed.free = {cuts:(f.cuts || []).slice(), stats:(f.stats || []).slice(), drill: !!f.drill};
-  log('границы крутилки «'+t.name+'» объявлены в черновике ред. '+ed.n);
-  return {ok:true, note:'отклонения объявлены в черновике: разрезов — '+ed.free.cuts.length+
-    ', показателей — '+ed.free.stats.length+', углубление '+(ed.free.drill ? 'крутится' : 'жёсткое')};
-};
 /* ======================= ВЫПУСК — ЗАКАЗ, А НЕ НАЖАТИЕ ==================
    Легаси считает синхронно: 90–107 с на портфеле в 51 268 субъектов, окно
    висит, отмены нет (ОЧ-30). Здесь заказ и счёт разведены. Дешёвые проверки —
@@ -1974,7 +2064,7 @@ function orderPassport(t, ed, params, v, edEff){
    Отдельного права на роли не заводится: это был бы второй источник ответа
    на вопрос «кто сдаёт», и он разошёлся бы с обязательствами (ОЧ-45).
    Крутилка при этом не спрашивается вовсе: она ничего не тратит
-   (ADR-0162 §9), а окончательный выпуск тратит номер и закрывает срок.     */
+   (ADR-0162 §9), а окончательный выпуск закрывает срок.                    */
 RP.finalRight = (tid, coverage) => {
   const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
   const v = RP.viewer();
@@ -1998,9 +2088,9 @@ RP.finalRight = (tid, coverage) => {
     why:'окончательно выпускает тот, за кем обязательство: по охвату «'+
       alien.map(deptName).join('; ')+'» отвечает '+
       alien.map(dep => (RESPONSIBLE[dep] || '—')).join('; ')+', а не '+RP.who()+
-      '. Посмотреть и выгрузить предварительно вы вправе — смотреть волен всякий в круге, '+
-      'крутилка ничего не тратит; окончательный выпуск тратит номер серии и закрывает срок, '+
-      'и спрашивать за него надо с того, с кого и так спросят (ИО-25, §13.6)'};
+      '. Посмотреть, накрутить и выгрузить вы вправе — смотреть волен всякий в круге, '+
+      'показ ничего не тратит; окончательный выпуск закрывает срок, и спрашивать за него надо '+
+      'с того, с кого и так спросят'};
 };
 RP.whoSubmits = tid => { const t = TPL(tid);
   if(!t || !t.schedule) return null;
@@ -2010,10 +2100,15 @@ RP.whoSubmits = tid => { const t = TPL(tid);
 RP.order = (tid, spec) => {
   const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
   const v = RP.viewer();
-  const ed = pubEd(t);
+  const ed = liveEd(t);
   if(!ed) return {ok:false, why:'выпускать можно только опубликованную редакцию: «'+t.name+
     '» — личный черновик (ИО-1)'};
-  if(t.circle.indexOf(v.dept) === -1) return {ok:false, why:'шаблон «'+t.name+'» не в круге '+
+  /* Общий отчёт выгружается, но не сдаётся: сдача — дело официального отчёта
+     утверждённым составом, у общего нет ни редакции, ни обязательства.      */
+  if(levelOf(t) === 'общий' && spec.kind === 'окончательный') return {ok:false,
+    why:'«'+t.name+'» — общий отчёт, не официальный: его выгружают, а сдают только официальный '+
+      'отчёт утверждённым составом'};
+  if(levelOf(t) === 'общий' ? !RP.maySee(tid) : t.circle.indexOf(v.dept) === -1) return {ok:false, why:'шаблон «'+t.name+'» не в круге '+
     'подразделения «'+deptName(v.dept)+'»: круг ведёт уполномоченный (§13.1)'};
   const br = brokenBy(t, ed);
   if(br) return {ok:false, why:'шаблон неисполним: '+br};
@@ -2033,9 +2128,9 @@ RP.order = (tid, spec) => {
   if(t.kind === 'отчёт'){
     const chk = twistCheck(ed, spec.twist || null);
     if(!chk.ok) return chk;
-    if(chk.deviated && asked === 'окончательный') return {ok:false, why:'окончательный выпуск '+
-      'идёт только составом по умолчанию: накрученное сдать нельзя — получатель сравнивает '+
-      'присланное с прошлым разом, а не с паспортом (ИО-21, ADR-0162 §6)'};
+    if(chk.deviated && asked === 'окончательный') return {ok:false, why:'показ '+DEVIATED+
+      ': сдаётся только утверждённый состав — получатель сравнивает присланное с прошлым разом, '+
+      'а не с паспортом. Нажмите «вернуть утверждённый» и сдайте его; накрученное можно выгрузить'};
     twist = Object.assign({}, chk.twist, {layout: baseOf(ed).layout});
     edEff = withTwist(ed, twist);
   }
@@ -2056,7 +2151,7 @@ RP.order = (tid, spec) => {
     if(!data.row) return {ok:false, why:'объект «'+o.no+'» вне области видимости роли «'+
       RP.state.role+'»: бланк печатает тот, у кого шаблон в круге И объект видим — два замка (§13.3)'};
     const lost = data.subs.filter(s => s.lost);
-    if(lost.length) return {ok:false, why:'в макете {{'+lost[0].id+'}}, объект «'+
+    if(lost.length) return {ok:false, why:'в макете ${'+lost[0].id+'} — объект «'+
       SEAM.fieldList(ed.object).name+'» такого поля не объявляет'};
   }
   /* Охват бланка — подразделение ЕГО объекта, а не весь круг смотрящего: бумага
@@ -2082,12 +2177,11 @@ RP.order = (tid, spec) => {
       'получателем: числа морозит получатель, а не кнопка (ИО-4, ADR-0157 §2)'};
     if(spec.format && spec.format !== 'pdf') return {ok:false, why:'наружу с получателем уходит '+
       'только pdf: снимок в редактируемом формате — не снимок ('+spec.format+' отклонён, ИО-10)'};
-    if(t.kind === 'бланк' && t.series && t.series.manual){
-      if(!spec.number) return {ok:false, why:'серия «'+t.series.prefix+'» ручная: журнал '+
-        'исходящих ведёт канцелярия, номер вводится рукой — система его не выдаёт'};
-      if(t.series.used.indexOf(spec.number) !== -1) return {ok:false, why:'номер «'+spec.number+
-        '» в серии уже занят: система номера не выдаёт, но дубль ловит'};
-    }
+    /* Номер у бумаги не вводится и не выдаётся здесь: его выдаёт журнал
+       документооборота при регистрации после подписи.                       */
+    if(spec.number && !t.numberIsObject) return {ok:false, why:'номер «'+spec.number+'» здесь не '+
+      'вводится: окончательный выпуск становится черновиком документа, номер выдаст журнал '+
+      'документооборота при регистрации после подписи'};
   }
 
   const id = 'ВП-' + (++RP.state.seq);
@@ -2100,7 +2194,7 @@ RP.order = (tid, spec) => {
     period: t.kind === 'отчёт' ? periodOfAsOf(params.asOf) : null,
     obj: t.kind === 'бланк' ? params.obj : null,
     formats: null, snapshot: null,
-    ask:{recipient: spec.recipient || null, format: spec.format || null, number: spec.number || null},
+    ask:{recipient: spec.recipient || null, format: spec.format || null}, doc: null,
     fileAlive: true, fileUntil: null, fileDeadAt: null,
     diverged: false, divergedAt: null, correctionOf: null, correctedBy: null,
     note: null, error: null
@@ -2160,29 +2254,28 @@ RP.step = id => {
     }
   }
 
-  /* Номер серии тратится ВМЕСТЕ СО СНИМКОМ, то есть в этом шаге, а не при
-     заказе: заказ, кончившийся отказом, номера не жжёт (ИО-9).             */
-  let number = null;
-  if(rec.kindTpl === 'бланк' && kind === 'окончательный'){
-    if(t.series.manual){
-      if(t.series.used.indexOf(rec.ask.number) !== -1){
-        rec.state = 'ошибка';
-        rec.error = 'номер «'+rec.ask.number+'» в серии уже занят: система номера не выдаёт, но дубль ловит';
-        return {ok:false, id, state:'ошибка', done:true, why: rec.error};
-      }
-      number = rec.ask.number; t.series.used.push(number);
-    } else {
-      number = t.series.prefix + String(t.series.next).padStart(3,'0');
-      t.series.next += 1; t.series.used.push(number);
-    }
+  /* Номер выдаёт документооборот, а не бланк. Окончательный выпуск с внешним
+     получателем становится ЧЕРНОВИКОМ ИСХОДЯЩЕГО: pdf-снимок — вложение с
+     ролью «проект», объект — привязка, получатель — адресат, тип задан
+     бланком; служебная записка — черновиком внутреннего документа. Номер
+     выдаёт журнал при регистрации после подписи; выпуск ссылается на
+     документ, документ — на выпуск. У договора номер — реквизит его объекта:
+     он в тексте до подписи, и в журналы документооборота договор не идёт.  */
+  let number = null, doc = null;
+  if(kind === 'окончательный'){
+    if(t.numberIsObject) number = OBJ(rec.params.obj) ? OBJ(rec.params.obj).no : null;
+    else if(!t.workPaper) doc = draftDoc(rec, t, recipient);
   }
-
   const passport = clone(data.passport);
   passport.frozen = kind === 'окончательный';
   passport.deviated = !!rec.deviated;
+  /* Файл сам говорит, что он такое: выгрузка — «не официальный документ», у
+     накрутки официального — ещё и «изменено — не утверждённый состав».      */
+  passport.label = kind === 'окончательный' ? null : 'НЕ ОФИЦИАЛЬНЫЙ ДОКУМЕНТ'+
+    (rec.deviated && levelOf(t) === 'официальный' ? ' · '+DEVIATED : '');
   passport.issuedAt = rec.at; passport.by = rec.by; passport.ordered = false;
   rec.kind = kind; rec.state = 'готов'; rec.note = note; rec.recipient = recipient;
-  rec.number = number; rec.passport = passport;
+  rec.number = number; rec.doc = doc ? doc.id : null; rec.passport = passport;
   rec.formats = kind === 'окончательный' ? ['pdf']
     : (rec.kindTpl === 'бланк' ? ['docx','pdf'] : sheetOfEd(ed).formats.slice());
   /* В снимок ложится ПОКАЗАННАЯ величина: сдано то, что напечатано, иначе
@@ -2199,11 +2292,35 @@ RP.step = id => {
     ' готов по шаблону «'+t.name+'»'+(recipient ? ', получатель '+recipient.name : ''));
   return doneResult(rec);
 };
+/* Документооборот — зеркало соседа на ширину шва: черновик документа по
+   выпуску и регистрация с номером после подписи.                           */
+const DOC = id => RP.state.docs.find(d => d.id === id);
+RP.DOC = id => { const d = DOC(id); return d ? clone(d) : null; };
+function draftDoc(rec, t, recipient){
+  const internal = !!(recipient && recipient.kind !== 'роль' && recipient.kind !== 'адресат сдачи');
+  const d = {id:'ДО-'+String(++RP.state.dseq).padStart(3,'0'),
+    kind: internal ? 'черновик внутреннего документа' : 'черновик исходящего',
+    type: t.docType || (t.kind === 'отчёт' ? 'Отчёт' : 'Письмо'), to: recipient ? recipient.name : null,
+    issue: rec.id, obj: rec.obj, attach:'pdf-снимок · роль «проект»', state:'черновик', number:null, at: rec.at};
+  RP.state.docs.push(d);
+  return d;
+}
+/* Демонстрация соседа: документооборот регистрирует подписанный документ и
+   ставит номер штампом на подписанный экземпляр; снимок номера не несёт.   */
+RP.registerDoc = id => { const d = DOC(id); if(!d) return {ok:false, why:'документа нет'};
+  if(d.state !== 'черновик') return {ok:false, why:'документ уже зарегистрирован: '+d.number};
+  const internal = d.kind === 'черновик внутреннего документа';
+  d.state = 'зарегистрирован'; d.kind = internal ? 'внутренний документ' : 'исходящий';
+  d.number = (internal ? 'ВН-' : 'Исх-')+String(411 + (++RP.state.nseq));
+  d.registered = RP.state.today;
+  return {ok:true, number: d.number, note:'документооборот зарегистрировал '+d.id+' под номером '+d.number+
+    ' — номер стоит на подписанном экземпляре, выпуск '+d.issue+' ссылается на документ'}; };
 function doneResult(rec){
   return {ok:true, id: rec.id, kind: rec.kind, state:'готов', done:true,
     note: rec.note || (rec.kind === 'окончательный'
-      ? 'числа и файл заморожены снимком'+(rec.number ? ', номер '+rec.number : '')
-      : 'обязательства не закрывает, снимка не даёт, номера не тратит'),
+      ? 'числа и файл заморожены снимком'+(rec.number ? '; номер договора — реквизит кредита: '+rec.number
+        : (rec.doc ? '; '+DOC(rec.doc).kind+' '+rec.doc+' — номер выдаст журнал документооборота после подписи' : ''))
+      : 'обязательства не закрывает, снимка не даёт, документа не заводит'),
     rec: clone(rec)};
 }
 /* Синхронная обёртка: заказ + шаги до конца. Экран так не делает — так делает
@@ -2271,7 +2388,7 @@ RP.reopenPeriod = (period, why) => {
 };
 RP.whatWentOut = period => RP.state.issues
   .filter(i => i.period === period && i.recipient)
-  .map(i => ({id:i.id, at:i.at, to:i.recipient.name, tpl:i.tplName, number:i.number,
+  .map(i => ({id:i.id, at:i.at, to:i.recipient.name, tpl:i.tplName, number: issueNumber(i), doc: i.doc,
               diverged:i.diverged, coverage:i.coverage.map(deptName)}));
 RP.corrective = id => {
   const prev = ISS(id); if(!prev) return {ok:false, why:'выпуска нет'};
@@ -2455,7 +2572,12 @@ const issueRow = i => ({id:i.id, kind:i.kind, at:i.at, tpl:i.tplName,
   to: i.recipient ? i.recipient.name : null, toRef: i.recipient ? (i.recipient.ref || null) : null,
   toKind: i.recipient ? (i.recipient.kind || null) : null,
   role: i.recipient ? (i.recipient.role || null) : null,
-  obj: i.obj, objNo: OBJ(i.obj) ? OBJ(i.obj).no : null, number:i.number});
+  obj: i.obj, objNo: OBJ(i.obj) ? OBJ(i.obj).no : null, doc: i.doc || null, number: issueNumber(i)});
+/* Номер выпуска — не его поле: у договора это номер кредита, у остального —
+   номер, который журнал документооборота дал документу при регистрации.     */
+function issueNumber(i){ if(i.number) return i.number;
+  const d = i.doc ? DOC(i.doc) : null; return d ? d.number : null; }
+RP.issueNumber = id => { const i = ISS(id); return i ? issueNumber(i) : null; };
 RP.reportIssues = objId => RP.state.issues.filter(i => i.obj === objId).map(issueRow);
 /* Ключ «лицо» отбирает по ВИДУ получателя, а не по совпадению ссылки: служебная
    записка ушла подразделению, и попасть в историю лица она не должна, даже если
@@ -2508,13 +2630,97 @@ RP.ownFormula = () => ({ok:false, why:'своей формулы у отчётн
    Подстановки не ведутся списком — они ЕСТЬ текст макета: список выводится
    разбором. Список рядом с текстом со временем разошёлся бы с ним, и тогда
    проверка на публикации проверяла бы не то, что напечатается.              */
-function parseSubs(text){
-  const out = [], re = /\{\{([^{}]+)\}\}/g;
-  let m2;
-  while((m2 = re.exec(String(text || '')))) out.push(m2[1].trim());
-  return uniq(out);
+/* Синтаксис один — ${…}. Поле пишется русским именем из публичного перечня:
+   ${Заёмщик.ФИО}; вид значения — после черты, из закрытого набора:
+   ${Заёмщик.ФИО | род.}. Повтор и условие — парами русских меток; условие —
+   из закрытого списка; общая часть — фрагментом. Языка шаблонов нет: ни
+   вложенных повторов, ни арифметики, ни выражений в условии. Запись {{…}}
+   проверка отклоняет.                                                      */
+const VALUE_VIEWS = ['род.','дат.','вин.','тв.','прописью','число и прописью',
+  '«15» октября 2026 г.','ДД.ММ.ГГГГ'];
+const REPEATS = {'каждый Платёж':'payment'};
+const CONDITIONS = ['есть Поручитель','есть Залогодатель',
+  'Кредит.Состояние = действует','Кредит.Состояние = просрочен','Кредит.Состояние = закрыт'];
+const FRAGMENTS = {
+  'Шапка': 'ОАО «Государственный фонд кредитования» · 720040, г. Бишкек',
+  'Подпись председателя': 'Председатель Правления ______________ / подпись, печать',
+  'Реквизиты': 'Реквизиты фонда: р/с 1280016000000000 · БИК 128001'};
+RP.valueViews = () => VALUE_VIEWS.slice();
+RP.conditions = () => CONDITIONS.slice();
+RP.fragments = () => Object.keys(FRAGMENTS);
+const fieldByRu = path => { for(const obj of SEAM.objectTypes()){
+    const f = SEAM.fieldList(obj).fields.find(x => x.ru === path);
+    if(f) return {obj, f}; }
+  return null; };
+function parseLayout(text, objType){
+  const obj = objType || 'credit', list = SEAM.fieldList(obj);
+  const items = [], errors = [], fields = [], repeats = [], conds = [];
+  let rep = null, cond = null;
+  const err = (line, raw, why) => { errors.push({line, raw, why}); return false; };
+  String(text || '').split('\n').forEach((ln, i) => {
+    const line = i + 1;
+    for(const m of ln.matchAll(/\{\{([^{}]+)\}\}/g))
+      items.push({line, raw:m[0], kind:'старая запись', ok: err(line, m[0], 'запись '+m[0]+
+        ' не принимается: поле пишется ${…} русским именем — например ${Заёмщик.ФИО}')});
+    for(const m of ln.matchAll(/\$\{([^{}]+)\}/g)){
+      const inner = m[1].trim(), raw = m[0];
+      let mm;
+      if((mm = inner.match(/^Повтор:\s*(.+)$/))){
+        const ro = REPEATS[mm[1].trim()];
+        let ok = true;
+        if(rep) ok = err(line, raw, 'повтор внутри повтора не бывает: закройте ${Конец повтора}');
+        else if(!ro) ok = err(line, raw, 'повтора «'+mm[1].trim()+'» нет: повторяются '+
+          Object.keys(REPEATS).join(' · '));
+        else rep = {obj: ro, line, fields: []};
+        items.push({line, raw, kind:'повтор', ok});
+      } else if(inner === 'Конец повтора'){
+        let ok = true;
+        if(!rep) ok = err(line, raw, '${Конец повтора} без начала повтора');
+        else { repeats.push(rep); rep = null; }
+        items.push({line, raw, kind:'конец повтора', ok});
+      } else if((mm = inner.match(/^Если:\s*(.+)$/))){
+        const c = mm[1].trim();
+        let ok = true;
+        if(cond) ok = err(line, raw, 'условие внутри условия не бывает: закройте ${Конец условия}');
+        else if(CONDITIONS.indexOf(c) === -1) ok = err(line, raw, 'условие «'+c+'» не из списка: '+
+          CONDITIONS.join(' · '));
+        else { cond = {text: c, line}; conds.push(c); }
+        items.push({line, raw, kind:'условие', ok, cond: c});
+      } else if(inner === 'Конец условия'){
+        let ok = true;
+        if(!cond) ok = err(line, raw, '${Конец условия} без начала условия');
+        else cond = null;
+        items.push({line, raw, kind:'конец условия', ok});
+      } else if((mm = inner.match(/^Фрагмент:\s*(.+)$/))){
+        const fr = mm[1].trim();
+        const ok = !!FRAGMENTS[fr] || err(line, raw, 'фрагмента «'+fr+'» нет: '+Object.keys(FRAGMENTS).join(' · '));
+        items.push({line, raw, kind:'фрагмент', ok, fragment: fr});
+      } else {
+        const parts = inner.split('|').map(x => x.trim());
+        const path = parts[0], view = parts[1] || null;
+        const hit = fieldByRu(path);
+        let ok = true;
+        if(rep && hit && hit.obj === rep.obj){ rep.fields.push(hit.f.id); }
+        else if(hit && hit.obj === obj){ fields.push(hit.f.id); }
+        else { fields.push(path);
+          ok = err(line, raw, 'в макете ${'+path+'} — объект «'+list.name+'» такого поля не объявляет'+
+            (rep && hit ? '' : '')); }
+        if(view && VALUE_VIEWS.indexOf(view) === -1) ok = err(line, raw, 'вид значения «'+view+
+          '» неизвестен: '+VALUE_VIEWS.join(' · '));
+        items.push({line, raw, kind:'поле', ok, path, view, id: hit ? hit.f.id : null,
+          obj: hit ? hit.obj : null, inRepeat: !!rep});
+      }
+    }
+  });
+  if(rep) err(rep.line, '${Повтор: …}', 'повтор не закрыт: нет ${Конец повтора}');
+  if(cond) err(cond.line, '${Если: '+cond.text+'}', 'условие не закрыто: нет ${Конец условия}');
+  return {fields: uniq(fields), items, errors, repeats, conds};
 }
+function parseSubs(text){ return parseLayout(text, 'credit').fields; }
+RP.parseLayout = parseLayout;
 RP.parseSubs = parseSubs;
+/* Русское имя поля по техническому ключу — для палитры и подсказок. */
+const ruOf = (obj, id) => { const f = FIELD(obj, id); return f && f.ru ? f.ru : id; };
 RP.layoutOf = tid => { const t = TPL(tid); if(!t) return null;
   const ed = draftEd(t) || pubEd(t);
   return ed ? {n: ed.n, state: ed.state, text: ed.layoutText || '', subs: parseSubs(ed.layoutText)} : null; };
@@ -2553,13 +2759,13 @@ RP.insertToken = (tid, kind, id) => {
       'бланк говорит об одном, и места ей в нём нет (§2.2). Такой вопрос задаётся отчётом'}; }
   const ed = draftEd(t);
   if(!ed) return {ok:false, why:'текст опубликованного макета не правится: заведите новую редакцию (§8)'};
-  return RP.setLayout(tid, (ed.layoutText || '') + '{{' + id + '}}');
+  return RP.setLayout(tid, (ed.layoutText || '') + '${' + ruOf(ed.object, id) + '}');
 };
 /* ================= МАКЕТ ВЫГРУЗКИ И УРОВНИ (§3 пп. 4, 8) ===============
    Лист — часть редакции: «как было напечатано» предъявлено вместе с числами
    (ИО-18). Правится он там же, где состав, — в черновике и уполномоченным.  */
 RP.sheetOf = tid => { const t = TPL(tid); if(!t) return null;
-  const ed = pubEd(t) || draftEd(t); if(!ed) return null;
+  const ed = liveEd(t) || draftEd(t); if(!ed) return null;
   const s = sheetOfEd(ed);
   return {ed: ed.n, state: ed.state, orient: s.orient, repeatHeader: s.repeatHeader,
     footer: s.footer, bands: s.bands.slice(), formats: s.formats.slice(), widths: s.widths,
@@ -2656,9 +2862,9 @@ RP.exportShown = (tid, params, twist, fmt) => {
   const f = fmt || (i.formats || []).filter(x => x !== 'pdf')[0] || (i.formats || [])[0];
   const ex = RP.exportIssue(res.id, f);
   if(!ex.ok) return ex;
-  return {ok:true, id: res.id, fmt: f, note:'выгрузка — это выпуск '+res.id+
-    ' (предварительный): строка в журнале, паспорт и показанный состав целиком. Файл живёт '+
-    dayWord(FILE_DAYS)+' и гаснет, строка остаётся (ИО-11, ОЧ-49)'};
+  return {ok:true, id: res.id, fmt: f, label: i.passport.label, note:'выгрузка — это выпуск '+res.id+
+    ' (предварительный): строка в журнале, паспорт и показанный состав целиком, в файле — «'+
+    i.passport.label+'». Файл живёт '+dayWord(FILE_DAYS)+' и гаснет, строка остаётся'};
 };
 /* Рабочий список тоже идёт через предварительный выпуск: список по определению
    ЗАМОРОЖЕННЫЙ состав, а морозить нечего, пока у ответа нет паспорта (ИО-14). */
@@ -2674,11 +2880,105 @@ RP.worklistShown = (tid, params, twist, name) => {
     ': состав заморожен паспортом, а не кнопкой. '+wl.note};
 };
 
+/* ======================= ПРОВАЛ ИЗ ЛЮБОЙ ЦИФРЫ =========================
+   Клик по итогу, подытогу или ячейке даёт объекты, из которых число
+   сложилось, — на ту же дату и из того же снимка. Узел спрашивается тем же
+   деревом statSlice, только на уровень глубже — до объекта: вклад каждого
+   объекта считает статистика, а не отчётность, поэтому сумма списка равна
+   ячейке по устройству. У денежного показателя и счёта в список идут только
+   объекты с ненулевым вкладом: у «Просрочено» — кредиты с просрочкой, а не
+   все по фильтру отчёта. Доля и средняя не складываются — у них список
+   объектов узла без суммы.                                                  */
+RP.drill = (tid, params, twist, node) => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'отчёта нет'};
+  if(t.kind !== 'отчёт') return {ok:false, why:'провал бывает у числа отчёта: бланк говорит об одном объекте'};
+  const ed = liveEd(t) || draftEd(t); if(!ed) return {ok:false, why:'у отчёта нет действующей редакции'};
+  const chk = twistCheck(ed, twist || null); if(!chk.ok) return chk;
+  const sid = node && node.stat, meta = SEAM.statMeta(sid);
+  if(!meta) return {ok:false, why:'провал спрашивают у числа показателя, а показатель не назван'};
+  if(chk.twist.stats.indexOf(sid) === -1) return {ok:false, why:'«'+meta.name+'» в показе нет: '+
+    'проваливаются в то число, которое видно'};
+  const path = (node.path || []).slice();
+  const v = RP.viewer(), scope = v.scope.slice(), pr = params || {};
+  const asOf = ed.mode === 'на дату' ? pr.asOf : null;
+  const cut = {dept: pr.dept || null, ids: pr.ids || null};
+  const tree = SEAM.statSlice(sid, path.map(p => p.by).concat('id'), cut, asOf, scope);
+  if(tree.why) return {ok:false, why: tree.why};
+  let level = tree.groups, cell = tree.value;
+  for(const p of path){ const g = (level || []).find(x => x.key === p.key);
+    if(!g) return {ok:false, why:'узла «'+levelName(p.by, p.key)+'» в ответе нет'};
+    cell = g.value; level = g.children || []; }
+  const src = asOf ? SEAM.statRows(ed.object, asOf, cut, scope) : SEAM.objectRows(ed.object, cut, scope);
+  const additive = meta.unit === 'сом' || meta.unit === 'ед.';
+  let items = (level || []).map(g => { const r = src.rows.find(x => x.id === g.key) || {};
+    return {id: g.key, no: r.no, borrower: r.borrower, dept: r.dept, part: g.value}; });
+  if(additive) items = items.filter(x => x.part !== 0);
+  const sum = additive ? items.reduce((a, x) => a + x.part, 0) : null;
+  return {ok:true, tpl: tid, stat: sid, statName: meta.name, unit: meta.unit, additive,
+    node: path.map(p => levelName(p.by, p.key)).join(' → ') || 'итог',
+    path, asOf: tree.passport ? tree.passport.asOf : null, mode: ed.mode,
+    cell, sum, equal: additive ? sum === cell : null, items,
+    hidden: tree.hidden || 0, params: clone(pr), twist: twist ? clone(twist) : null};
+};
+/* Рабочий список из провала: тот же замороженный состав, отобранный не
+   выпуском, а щелчком по числу. Объекты — те, что в списке провала. */
+RP.worklistFromDrill = (tid, params, twist, node, name) => {
+  const nm = String(name || '').trim();
+  if(!nm) return {ok:false, why:'список называется при создании: безымянный список нельзя передать '+
+    'и нельзя спросить «чем кончилось»'};
+  const d = RP.drill(tid, params, twist, node); if(!d.ok) return d;
+  if(!d.items.length) return {ok:false, why:'в провале нет объектов: замораживать нечего'};
+  const id = 'РС-' + (++RP.state.wseq);
+  RP.state.worklists.push({id, name: nm, from:'провал', fromName: TPL(tid).name+' · '+d.statName+
+    ' · '+d.node+(d.asOf ? ' на '+fmt(d.asOf) : ''),
+    at: RP.state.today, by: RP.who(), dept: null, state:'открыт', closed:null, why:null,
+    objects: d.items.map(x => x.id), marks:{}});
+  log('рабочий список «'+nm+'» заведён провалом, объектов: '+d.items.length);
+  return {ok:true, id, note:'список «'+nm+'» заведён из провала: '+objWord(d.items.length)+
+    ', состав заморожен; отметки «отработан» ставятся у каждого объекта'};
+};
+/* Отметка «отработан» — пометка «по этому прошёлся», а не факт работы: звонок
+   и претензия записываются в модуле-владельце, список на них ссылается.    */
+RP.markWorked = (wlId, objId, comment) => {
+  const w = WL(wlId); if(!w) return {ok:false, why:'списка нет'};
+  if(w.state === 'закрыт') return {ok:false, why:'список закрыт '+fmt(w.closed)+': отметки больше не ставятся'};
+  if(w.objects.indexOf(objId) === -1) return {ok:false, why:'объекта в составе списка нет: состав заморожен'};
+  w.marks = w.marks || {};
+  w.marks[objId] = {by: RP.who(), at: RP.state.today, comment: String(comment || '').trim()};
+  const pr = RP.worklistProgress(wlId);
+  return {ok:true, note:'отмечен отработанным — '+pr.done+' из '+pr.total};
+};
+RP.unmarkWorked = (wlId, objId) => {
+  const w = WL(wlId); if(!w) return {ok:false, why:'списка нет'};
+  if(w.state === 'закрыт') return {ok:false, why:'список закрыт: отметки не снимаются'};
+  if(!w.marks || !w.marks[objId]) return {ok:false, why:'отметки нет'};
+  delete w.marks[objId];
+  return {ok:true, note:'отметка снята'};
+};
+RP.worklistProgress = wlId => { const w = WL(wlId); if(!w) return null;
+  const done = w.objects.filter(o => w.marks && w.marks[o]).length;
+  return {done, total: w.objects.length}; };
+
+/* «📌 на дашборд» — только ссылка. Плитка хранит, на какой отчёт или вид она
+   смотрит и с какими значениями параметров; раскладку, вид показа и
+   светофор ведёт модуль дашборда, своего экрана плиток у отчётности нет.   */
+RP.pinToDashboard = (tid, viewId, params) => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'отчёта нет'};
+  if(t.kind !== 'отчёт') return {ok:false, why:'бланк говорит об одном объекте: на дашборд ставят '+
+    'отчёт или вид'};
+  if(!RP.maySee(tid)) return {ok:false, why:'этого отчёта вам не видно'};
+  const vw = viewId ? RP.state.views.find(x => x.id === viewId) : null;
+  if(viewId && !vw) return {ok:false, why:'вида нет'};
+  const what = vw ? 'вид «'+vw.name+'»' : 'отчёт «'+t.name+'»';
+  return {ok:true, ref:{tpl: tid, view: vw ? vw.id : null, params: clone(params || {})},
+    note:'плитка ссылается на '+(vw ? 'этот вид' : 'этот отчёт')+' ('+what+'); раскладка — в модуле дашборда'};
+};
+
 /* Легаси даёт «На дату» КАЖДОЙ ячейке: один лист может смешать остаток на
    01.07 со ставкой на 01.08, и ответ перестаёт быть ответом на одну дату.   */
 RP.setColumnDate = (tid, fid, date) => {
   const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
-  const list = SEAM.fieldList((pubEd(t) || draftEd(t)).object);
+  const list = SEAM.fieldList((liveEd(t) || draftEd(t)).object);
   const f = list.fields.find(x => x.id === fid);
   return {ok:false, why:'дата состояния у ответа ОДНА: «'+(f ? f.name : fid)+'» нельзя взять '+
     'на '+fmt(date)+', пока остальные столбцы стоят на другой дате — иначе лист перестаёт быть '+
@@ -2693,7 +2993,7 @@ RP.setColumnDate = (tid, fid, date) => {
    если бы модуль всё-таки сложил детей вместо того, чтобы прочитать узел.   */
 RP.foldLevelsSelf = tid => {
   const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
-  const ed = pubEd(t) || draftEd(t);
+  const ed = liveEd(t) || draftEd(t);
   const sid = (ed.stats || [])[0];
   if(!sid) return {ok:false, why:'показателей у редакции нет — складывать нечего'};
   const v = RP.viewer();
@@ -2738,7 +3038,7 @@ RP.makeWorklist = (issueId, name) => {
   const id = 'РС-' + (++RP.state.wseq);
   RP.state.worklists.push({id, name, from: i.id, fromName: i.tplName,
     at: RP.state.today, by: RP.who(), dept: null, state:'открыт', closed:null, why:null,
-    objects: rows.map(r => r.id)});
+    objects: rows.map(r => r.id), marks:{}});
   log('рабочий список «'+name+'» отобран выпуском '+i.id+', объектов: '+rows.length);
   return {ok:true, id, note:'состав заморожен: '+objWord(rows.length)+
     '; чисел список не хранит — величины всегда текущие'};
@@ -2806,61 +3106,6 @@ RP.demoCloseObject = objId => {
     '» — выбывший показан выбывшим, а не исчезает (§9)'};
 };
 
-/* ========================= ДАШБОРДЫ (§10) ============================
-   Плитка — способ показать ОБЪЯВЛЕННЫЙ отчёт; своего состава у неё нет.
-   Раскладка объявлена на роль, поверх живёт личная перекладка с возвратом.  */
-const DASH_ROLE = {
-  auth:  [{tpl:'t-overdue',   params:{asOf:'2026-08-01', dept:''}},
-          {tpl:'t-portfolio', params:{dept:''}}],
-  head:  [{tpl:'t-portfolio', params:{dept:'dep-admin'}},
-          {tpl:'t-overdue',   params:{asOf:'2026-08-01', dept:'dep-admin'}}],
-  user:  [{tpl:'t-portfolio', params:{dept:'dep-prom'}}],
-  clerk: [],
-  buh:   [{tpl:'t-overdue',   params:{asOf:'2026-08-01', dept:''}}]
-};
-RP.declaredTiles = () => clone(DASH_ROLE[RP.viewer().id] || []);
-RP.dashTiles = () => { const p = RP.state.dash.personal[RP.viewer().id];
-  return p ? clone(p) : RP.declaredTiles(); };
-RP.dashPersonal = () => !!RP.state.dash.personal[RP.viewer().id];
-function personalTiles(){ const id = RP.viewer().id;
-  if(!RP.state.dash.personal[id]) RP.state.dash.personal[id] = RP.declaredTiles();
-  return RP.state.dash.personal[id]; }
-RP.addTile = (tid, params) => {
-  const t = TPL(tid); if(!t) return {ok:false, why:'шаблона нет'};
-  if(!RP.maySee(tid)) return {ok:false, why:'этого шаблона вам не видно: личная раскладка — не '+
-    'личный отчёт, добавить можно только доступное (§10)'};
-  if(!pubEd(t)) return {ok:false, why:'на дашборд ставится ОБЪЯВЛЕННЫЙ отчёт: «'+t.name+'» — '+
-    'личный черновик, плитки из него не бывает (ИО-1, §10)'};
-  if(t.kind !== 'отчёт') return {ok:false, why:'плитка показывает отчёт о множестве объектов: '+
-    'бланк говорит об одном и на дашборде ничего не сообщает'};
-  personalTiles().push({tpl:tid, params: clone(params || {})});
-  return {ok:true, note:'плитка добавлена в личную раскладку; объявленная на роль не тронута'};
-};
-RP.removeTile = i => { const p = personalTiles();
-  if(i < 0 || i >= p.length) return {ok:false, why:'плитки нет'};
-  const t = p.splice(i, 1)[0];
-  return {ok:true, note:'плитка «'+TPL(t.tpl).name+'» убрана из личной раскладки'}; };
-RP.resetDash = () => { const id = RP.viewer().id;
-  if(!RP.state.dash.personal[id]) return {ok:false, why:'личной перекладки нет: раскладка и так '+
-    'та, что объявлена на роль'};
-  delete RP.state.dash.personal[id];
-  return {ok:true, note:'вернулась раскладка, объявленная на роль — первый день не начинается '+
-    'с пустого экрана (§10)'}; };
-RP.addExternalTile = url => ({ok:false, why:'внешние источники на дашборде запрещены: плитка '+
-  'своего состава не имеет — она показывает объявленный отчёт, и клик раскрывает его целиком (§10)'});
-RP.dashPassport = () => ({ok:false, why:'общего паспорта у дашборда нет и быть не может: рядом '+
-  'стоят плитки «на дату» и «сейчас», и один паспорт сверху создавал бы вид единой даты, '+
-  'которого нет (ИО-15, §10)'});
-RP.tileData = tile => {
-  const t = TPL(tile.tpl); if(!t) return null;
-  const ed = pubEd(t); if(!ed) return null;
-  const br = brokenBy(t, ed);
-  if(br) return {broken: br, name: t.name};
-  const d = compose(t, ed, tile.params, RP.viewer());
-  return {name: t.name, tpl: t.id, totals: d.totals, rows: d.rows.length,
-    passport: d.passport, soft: d.soft};
-};
-
 /* ============================== ЭКРАНЫ =============================== */
 const pill = (t, c) => '<span class="pill'+(c?' '+c:'')+'">'+esc(t)+'</span>';
 const kv = rows => '<div class="kv">'+rows.map(r =>
@@ -2871,6 +3116,7 @@ const oblCls = s => s === 'сдано' ? 'ok' : s === 'сдано с опозд�
 
 function passportBox(p, frozen){
   const rows = [];
+  if(p.label) rows.push(['метка в файле', p.label]);
   rows.push(['режим', p.mode]);
   if(p.mode === 'на дату') rows.push(['состояние на', fmt(p.asOf)]);
   rows.push(['редакция шаблона', 'ред. '+p.edition]);
@@ -2892,8 +3138,11 @@ function passportBox(p, frozen){
 function showBox(head){
   if(!head) return '';
   const rows = [['показ', 'НЕ ВЫПУСК — '+head.note]];
-  rows.push(['отчёт', head.template+' · ред. '+head.edition+
+  rows.push(['отчёт', head.template+' · '+
+    (head.level === 'общий' ? 'общий, не официальный · версия '+head.version
+      : (head.level === 'личный' ? 'личный' : 'официальный · ред. '+head.edition))+
     (head.editionState === 'черновик' ? ' (черновик: личный состав)' : '')]);
+  if(head.changed) rows.push(['изменён', head.changed]);
   rows.push(['режим', head.mode]);
   if(head.asOf) rows.push(['состояние на', fmt(head.asOf)]);
   rows.push(['область видимости', head.scope.join(', ')]);
@@ -2903,15 +3152,19 @@ function showBox(head){
     '; показатели: '+(head.composition.stats.join('; ') || 'нет')+
     '; строки объектов: '+(head.composition.drill ? 'печатаются' : 'не печатаются — спрошены '+
       'только итоги разрезов')+'; раскладка: '+head.composition.layout]);
-  rows.push(['состав', head.deviated
-    ? 'НАКРУЧЕН на экране в границах, объявленных редакцией (ИО-20)'
-    : 'по умолчанию, как объявила редакция']);
+  rows.push(['состав', head.deviated ? head.deviatedLabel
+    : (head.level === 'официальный' ? 'утверждённый' : 'как сохранён')]);
   if(head.view) rows.push(['вид', head.view+' — личный: передают не его, а выпуск']);
-  let h = '<div class="snap prelim">'+rows.map(r =>
+  let h = '';
+  if(head.deviated && head.level === 'официальный') h += '<div class="banner warn devmark"><b>'+
+    esc(DEVIATED)+'.</b> Смотреть и выгружать так можно — выгрузка напечатает ту же пометку; '+
+    'сдаётся только утверждённый состав.<div class="btn-row"><button class="btn btn-primary btn-sm" '+
+    'onclick="RP.twistReset()">Вернуть утверждённый</button></div></div>';
+  h += '<div class="snap prelim">'+rows.map(r =>
     '<div class="row"><span class="k">'+esc(r[0])+'</span>'+esc(r[1])+'</div>').join('')+'</div>';
   if(head.dropped && head.dropped.length) h += '<div class="banner warn"><b>Вид сверен с '+
-    'редакцией.</b> '+head.dropped.map(esc).join('; ')+'. Отвалившееся названо, остальное '+
-    'работает — молчаливой подмены не бывает (ADR-0162 §4).</div>';
+    'отчётом.</b> '+head.dropped.map(esc).join('; ')+'. Отвалившееся названо, остальное '+
+    'работает — молчаливой подмены не бывает.</div>';
   return h;
 }
 
@@ -2945,13 +3198,13 @@ RP.showcase = () => {
     const fin = RP.state.issues.filter(i => i.tpl === t.id && i.kind === 'окончательный' &&
       i.recipient).slice(-1)[0] || null;
     rows.push({
-      kind:'шаблон', id: t.id, form: t.form || null, name: t.name, tplKind: t.kind,
+      kind:'шаблон', id: t.id, form: t.form || null, name: t.name, tplKind: t.kind, compo: compoText(t),
       object: SEAM.fieldList(ed.object).name,
       basis: basisOf(t.basis), to: f ? f.to : null,
       obligatory: !!(f && f.obligatory), state: st.state, why: st.why,
       schedule: t.schedule ? t.schedule.text : null,
       obligation: cur ? {period: cur.period, due: cur.due, state: cur.state, who: cur.who} : null,
-      lastFinal: fin ? {id: fin.id, at: fin.at, to: fin.recipient.name, number: fin.number} : null,
+      lastFinal: fin ? {id: fin.id, at: fin.at, to: fin.recipient.name, number: issueNumber(fin)} : null,
       submits: RP.whoSubmits(t.id),
       access: inCircle ? {ok:true} : {ok:false,
         why:'шаблон не в круге подразделения «'+deptName(v.dept)+'»: круг ведёт уполномоченный',
@@ -2961,7 +3214,7 @@ RP.showcase = () => {
   /* Незаведённые ОБЯЗАТЕЛЬНЫЕ формы — строкой без кнопки. Круга у них нет,
      потому что нет шаблона, а основание публично: оно в норме (§13.7).      */
   RP.formGaps().forEach(g => rows.push({
-    kind:'норма', id: g.id, form: g.id, name: g.name, tplKind: g.kind, object: g.object,
+    kind:'норма', id: g.id, form: g.id, name: g.name, tplKind: g.kind, object: g.object, compo: g.object,
     basis: basisOf(g.basis),
     obligatory:true, state:'шаблон не заведён', why: g.why, schedule:null,
     obligation:null, lastFinal:null, submits:null, nowhere: g.nowhere, to: g.to,
@@ -3007,65 +3260,171 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
    разные глаголы (отчёт смотрят, бланк печатают адресату), и деление по
    обязательности на живом каталоге вырождается — обязательных 12 из 41, всё
    прочее валится в одну кучу. Вид формы режет и на затравке, и на бою (ОЧ-75). */
+/* ======================= ТРИ ПОЛКИ ВИТРИНЫ ============================
+   «Мои» — личные отчёты и виды смотрящего; «Общие» — отчёты, открытые кругу
+   их владельцем, с числом пользователей и последним открытием, популярные
+   сверху; «Официальные» — формы организации: обязательные по сроку и
+   остальные. Поиск ищет и по названию, и по составу — основному объекту,
+   показателям, разрезам, реквизитам: «где у нас просрочка по заёмщикам»
+   спрашивают составом, а не названием.                                     */
+const compoText = t => { const ed = liveEd(t) || draftEd(t); if(!ed) return '';
+  const list = SEAM.fieldList(ed.object);
+  return [list ? list.name : ed.object].concat((ed.stats || []).map(statName),
+    (ed.cuts || []).map(cutName),
+    (ed.fields || []).map(f => { const x = list && list.fields.find(y => y.id === f); return x ? x.name : f; }))
+    .join(' · '); };
+RP.compoText = tid => { const t = TPL(tid); return t ? compoText(t) : ''; };
+const matchQ = (q, name, compo) => { q = String(q || '').trim().toLowerCase();
+  return !q || String(name).toLowerCase().indexOf(q) !== -1 || String(compo || '').toLowerCase().indexOf(q) !== -1; };
+RP.shelves = q => {
+  const v = RP.viewer(), vis = RP.visibleTemplates();
+  const mine = vis.map(TPL).filter(t => t.kind === 'отчёт' && t.owner === v.who && levelOf(t) === 'личный')
+    .map(t => ({kind:'отчёт', id:t.id, name:t.name, compo: compoText(t), at:(draftEd(t) || {}).at}))
+    .concat(RP.myViews(null).map(vw => ({kind:'вид', id:vw.id, tpl:vw.tpl, name:vw.name,
+      compo: (TPL(vw.tpl) ? 'вид поверх «'+TPL(vw.tpl).name+'» · '+compoText(TPL(vw.tpl)) : ''), at:vw.at})))
+    .filter(r => matchQ(q, r.name, r.compo));
+  const shared = vis.map(TPL).filter(t => levelOf(t) === 'общий')
+    .map(t => ({id:t.id, name:t.name, owner:t.owner, coauthors:(t.coauthors || []).slice(),
+      users:t.users || 0, lastOpen:t.lastOpen || null, version: verEd(t).n, changed: verEd(t).changed || null,
+      circle: t.circle.map(deptName).concat((t.share && t.share.people) || []), compo: compoText(t)}))
+    .filter(r => matchQ(q, r.name, r.compo))
+    .sort((a, b) => b.users - a.users || a.name.localeCompare(b.name));
+  return {mine, shared};
+};
+/* «Похожий уже есть»: тот же основной объект и хотя бы один общий показатель
+   среди общих и официальных отчётов, видимых автору. Подсказка, а не запрет:
+   отчёт растёт по уровням, и второй такой же общий — шум на чужих полках.  */
+RP.similarTo = tid => { const t = TPL(tid); if(!t) return [];
+  const ed = draftEd(t) || liveEd(t); if(!ed) return [];
+  return RP.visibleTemplates().map(TPL).filter(o => o.id !== tid && o.kind === 'отчёт' &&
+      levelOf(o) !== 'личный')
+    .map(o => { const e = liveEd(o);
+      const st = (e.stats || []).filter(x => (ed.stats || []).indexOf(x) !== -1).length;
+      const ct = (e.cuts || []).filter(x => (ed.cuts || []).indexOf(x) !== -1).length;
+      return {id:o.id, name:o.name, level: levelOf(o), owner:o.owner, same: e.object === ed.object,
+        score: st * 2 + ct}; })
+    .filter(x => x.same && x.score >= 2)
+    .sort((a, b) => b.score - a.score || (a.level === 'общий' ? -1 : 1));
+};
+RP.openToCircle = (tid, opts) => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'отчёта нет'};
+  const o = opts || {}, v = RP.viewer();
+  if(t.kind !== 'отчёт') return {ok:false, why:'бланки бывают только официальными: их ведут '+
+    'делопроизводитель и уполномоченный'};
+  if(t.owner !== v.who) return {ok:false, why:'открыть кругу может автор отчёта ('+t.owner+')'};
+  if(levelOf(t) !== 'личный') return {ok:false, why:'«'+t.name+'» уже '+levelOf(t)};
+  const sim = RP.similarTo(tid);
+  if(sim.length && !o.force) return {ok:false, hint:true, similar: sim,
+    why:'похожий уже есть: «'+sim[0].name+'» ('+sim[0].level+', '+sim[0].owner+') — откройте его '+
+      'или сохраните свой вид поверх него'};
+  const depts = (o.depts && o.depts.length) ? o.depts.slice() : [v.dept];
+  const ed = draftEd(t);
+  ed.state = 'версия'; ed.changed = 'открыт кругу '+fmt(RP.state.today)+' ('+v.who+')';
+  t.level = 'общий'; t.circle = depts; t.share = {depts, people:(o.people || []).slice()};
+  t.coauthors = []; t.users = 1; t.lastOpen = RP.state.today; t.asked = false;
+  log('отчёт «'+t.name+'» открыт кругу: '+depts.map(deptName).join('; '));
+  return {ok:true, note:'«'+t.name+'» стал общим: видят '+depts.map(deptName).join('; ')+
+    '; каждое сохранение — версия; сдавать его нельзя — сдаётся официальный'};
+};
+RP.uiOpenToCircle = (tid, force) => { const r = RP.openToCircle(tid, {force: !!force});
+  RP.state.sel.similar = r.hint ? {tid, list: r.similar} : null;
+  if(r.hint){ render(); return; }
+  act(r); };
+RP.uiOpenShared = tid => { const sel = RP.state.sel;
+  sel.tpl = tid; sel.twist = null; sel.view = null; sel.dropped = null; sel.live = false;
+  sel.drillRes = null; RP.state.view = 'issue'; render(); };
+RP.uiViewOver = tid => { const sel = RP.state.sel, src = sel.similar ? TPL(sel.similar.tid) : null;
+  sel.similar = null; RP.uiOpenShared(tid);
+  sel.viewName = src ? src.name : ''; render(); };
+RP.uiOpenPersonal = tid => { RP.state.sel.draft = tid; RP.state.view = 'builder'; render(); };
+
 function scShowcase(){
   const sel = RP.state.sel, sc = RP.showcase();
-  const all = sc.must.concat(sc.rest), mine = RP.myViews(null);
+  const all = sc.must.concat(sc.rest);
+  const q = String(sel.scQ || '').trim().toLowerCase();
+  const sh = RP.shelves(q), shAll = RP.shelves('');
 
-  /* Вкладка по умолчанию — свои виды, если они есть, иначе отчёты. Не «последняя
-     открытая» и не «та, где горит»: вкладка решает, ЧТО показано, но не то, КАК
-     оно посчитано, и витрина должна открываться у двоих одинаково (ОЧ-48).    */
-  const tab = sel.scTab || (mine.length ? 'виды' : 'отчёт');
+  /* Полка по умолчанию — «Мои», если там что-то есть, иначе официальные отчёты.
+     Не «последняя открытая»: витрина открывается у двоих одинаково.          */
+  const tab = sel.scTab || (shAll.mine.length ? 'мои' : 'отчёт');
+  const official = tab === 'отчёт' || tab === 'бланк';
   const cnt  = k => all.filter(r => r.tplKind === k).length;
   const burn = k => all.filter(r => r.tplKind === k && r.obligation &&
     r.obligation.state === 'просрочено').length;
 
-  /* Счётчик на корешке несёт срочность, чтобы не открывать вкладку ради проверки. */
-  let h = '<div class="tabs">'+
-    [['виды', 'Мои виды', mine.length, 0],
-     ['отчёт', 'Отчёты', cnt('отчёт'), burn('отчёт')],
+  let h = '<div class="tabs shelves">'+
+    [['мои', 'Мои', shAll.mine.length, 0, tab === 'мои'],
+     ['общие', 'Общие', shAll.shared.length, 0, tab === 'общие'],
+     ['отчёт', 'Официальные', all.length, burn('отчёт') + burn('бланк'), official]]
+    .map(t => '<button class="'+(t[4] ? 'on' : '')+'" onclick="RP.scSet(\'scTab\',\''+
+      t[0]+'\')">'+esc(t[1])+'<span class="n">'+t[2]+'</span>'+
+      (t[3] ? '<span class="burn shelf">'+t[3]+'</span>' : '')+'</button>').join('')+'</div>';
+
+  h += '<div class="form-row"><div class="fld"><label>Поиск по названию и составу</label>'+
+    '<input class="wide" value="'+esc(sel.scQ || '')+'" onchange="RP.scSet(\'scQ\', this.value)" '+
+    'placeholder="просрочка, заёмщик, остаток, претензия…"></div></div>';
+
+  if(tab === 'мои'){
+    if(sel.similar){ const s0 = sel.similar.list[0];
+      h += '<div class="banner info"><b>Похожий уже есть:</b> «'+esc(s0.name)+'» — '+esc(s0.level)+
+        ', владелец '+esc(s0.owner)+'<div class="btn-row">'+
+        '<button class="btn btn-primary btn-sm" onclick="RP.uiOpenShared(\''+s0.id+'\')">Открыть его</button>'+
+        '<button class="btn btn-secondary btn-sm" onclick="RP.uiViewOver(\''+s0.id+'\')">Свой вид поверх него</button>'+
+        '<button class="btn btn-secondary btn-sm" onclick="RP.uiOpenToCircle(\''+sel.similar.tid+'\', true)">'+
+        'Всё равно открыть кругу</button></div></div>'; }
+    if(!shAll.mine.length) return h + '<div class="banner ok">Своих отчётов и видов нет. Отчёт '+
+      'собирается в «Конструкторе», вид сохраняется на показе.</div>';
+    if(!sh.mine.length) return h + '<div class="banner warn">Под отбор не попало ничего.</div>';
+    return h + '<div class="tblwrap"><table class="cgrid">'+
+      '<colgroup><col style="width:34%"><col style="width:36%"><col style="width:10%"><col style="width:20%"></colgroup>'+
+      '<thead><tr><th>Название</th><th>Состав</th><th>Изменён</th><th></th></tr></thead><tbody>'+
+      sh.mine.map(r => '<tr><td><div class="fname">'+esc(r.name)+'</div>'+
+        '<div class="fmeta"><span class="tag">'+(r.kind === 'вид' ? 'вид' : 'личный отчёт')+'</span></div></td>'+
+        '<td class="small">'+esc(r.compo)+'</td><td class="small">'+fmt(r.at)+'</td>'+
+        '<td class="act">'+(r.kind === 'вид'
+          ? '<button class="btn btn-secondary btn-sm" onclick="RP.openViewOf(\''+r.id+'\')">Открыть видом</button>'
+          : '<button class="btn btn-secondary btn-sm" onclick="RP.uiOpenPersonal(\''+r.id+'\')">Открыть</button> '+
+            '<button class="btn btn-secondary btn-sm" onclick="RP.uiOpenToCircle(\''+r.id+'\')">Открыть кругу</button>')+
+        '</td></tr>').join('')+'</tbody></table></div>';
+  }
+
+  if(tab === 'общие'){
+    if(!shAll.shared.length) return h + '<div class="banner ok">Общих отчётов в вашем круге нет.</div>';
+    if(!sh.shared.length) return h + '<div class="banner warn">Под отбор не попало ничего.</div>';
+    return h + '<div class="tblwrap"><table class="cgrid">'+
+      '<colgroup><col style="width:36%"><col style="width:24%"><col style="width:10%"><col style="width:16%"><col style="width:14%"></colgroup>'+
+      '<thead><tr><th>Отчёт</th><th>Круг</th><th>Пользуются</th><th>Последнее открытие</th><th></th></tr></thead><tbody>'+
+      sh.shared.map(r => '<tr><td><div class="fname">'+esc(r.name)+'</div>'+
+        '<div class="fmeta"><span class="tag">общий, не официальный</span><span class="to">'+esc(r.owner)+
+          (r.coauthors.length ? ' · соавторы: '+esc(r.coauthors.join(', ')) : '')+'</span></div>'+
+        '<div class="small muted">версия '+r.version+(r.changed ? ' · '+esc(r.changed) : '')+'</div></td>'+
+        '<td class="small">'+esc(r.circle.join('; '))+'</td>'+
+        '<td class="num">'+r.users+'</td><td class="small">'+fmt(r.lastOpen)+'</td>'+
+        '<td class="act"><button class="btn btn-primary btn-sm" onclick="RP.uiOpenShared(\''+r.id+'\')">Открыть</button></td>'+
+        '</tr>').join('')+'</tbody></table></div>';
+  }
+
+  /* Официальные: вид формы — второй корешок. У отчёта и бланка разные глаголы
+     (отчёт смотрят, бланк печатают адресату); счётчик несёт срочность.      */
+  h += '<div class="tabs sub">'+
+    [['отчёт', 'Отчёты', cnt('отчёт'), burn('отчёт')],
      ['бланк', 'Бланки', cnt('бланк'), burn('бланк')]]
     .map(t => '<button class="'+(tab === t[0] ? 'on' : '')+'" onclick="RP.scSet(\'scTab\',\''+
       t[0]+'\')">'+esc(t[1])+'<span class="n">'+t[2]+'</span>'+
       (t[3] ? '<span class="burn">'+t[3]+'</span>' : '')+'</button>').join('')+'</div>';
 
-  if(tab === 'виды'){
-    return h + (mine.length
-      ? '<div class="tblwrap"><table class="cgrid">'+
-        '<colgroup><col style="width:40%"><col style="width:33%"><col style="width:13%">'+
-        '<col style="width:14%"></colgroup>'+
-        '<thead><tr><th>Вид</th><th>Форма</th><th>Сохранён</th><th></th></tr></thead><tbody>'+
-        mine.map(vw => '<tr><td><div class="fname">'+esc(vw.name)+'</div>'+
-          '<div class="fmeta"><span class="code">'+esc(vw.id)+'</span></div></td>'+
-          '<td class="small">'+esc(TPL(vw.tpl) ? TPL(vw.tpl).name : vw.tpl)+'</td>'+
-          '<td class="small">'+fmt(vw.at)+'</td>'+
-          '<td class="act"><button class="btn btn-secondary btn-sm" onclick="RP.openViewOf(\''+
-          vw.id+'\')">Открыть видом</button></td></tr>').join('')+'</tbody></table></div>'
-      /* Пустой экран говорит, чем он заполняется, и называет кнопку, а не себя. */
-      : '<div class="banner ok">Сохранённых видов нет. Вид заводится на показе '+
-        'кнопкой «Сохранить вид».</div>');
-  }
-
   /* Отбор считается по строкам ОТКРЫТОЙ вкладки: объекты у отчётов и бланков
      разные, и общий список чипов половину времени вёл бы в пустоту.          */
   const kin = all.filter(r => r.tplKind === tab);
-  const q = String(sel.scQ || '').trim().toLowerCase();
   const objs = uniq(kin.map(r => r.object)).sort();
   const obj = objs.indexOf(sel.scObj) === -1 ? '' : sel.scObj;
-  const pass = r => (!q || r.name.toLowerCase().indexOf(q) !== -1) &&
-    (!obj || r.object === obj);
-
-  h += '<div class="form-row"><div class="fld"><label>Поиск по названию</label>'+
-    '<input class="wide" value="'+esc(sel.scQ || '')+'" onchange="RP.scSet(\'scQ\', this.value)" '+
-    'placeholder="просрочка, претензия, акт…"></div>'+
-    /* Чипы объекта появляются, только когда есть из чего выбирать: единственный
-       объект — не отбор, а мёртвый переключатель, занимающий строку. */
-    (objs.length > 1
-      ? '<div class="fld"><label>Объект</label><div class="btn-row" style="margin:0">'+
-        [''].concat(objs).map(o => '<button class="btn btn-sm '+
-          (obj === o ? 'btn-primary' : 'btn-secondary')+'" onclick="RP.scSet(\'scObj\',\''+
-          esc(o)+'\')">'+esc(o || 'все')+'</button>').join('')+'</div></div>'
-      : '')+'</div>';
-
+  const pass = r => matchQ(q, r.name, r.compo) && (!obj || r.object === obj);
+  /* Чипы объекта появляются, только когда есть из чего выбирать. */
+  if(objs.length > 1) h += '<div class="form-row"><div class="fld"><label>Объект</label>'+
+    '<div class="btn-row" style="margin:0">'+
+    [''].concat(objs).map(o => '<button class="btn btn-sm '+
+      (obj === o ? 'btn-primary' : 'btn-secondary')+'" onclick="RP.scSet(\'scObj\',\''+
+      esc(o)+'\')">'+esc(o || 'все')+'</button>').join('')+'</div></div></div>';
   /* Обязательность делит строки ВНУТРИ одной таблицы, а не двумя таблицами:
      столбцы и действия у групп одни и те же, и вторая шапка ради одной-двух
      строк ничего не объясняет. Пустой группы не бывает вовсе — её нет в
@@ -3143,15 +3502,21 @@ function scShowcase(){
 }
 
 /* ------------------------------ РЕЕСТР ------------------------------- */
+/* Откуда у бумаги номер — одной строкой: у договора это номер его объекта, у
+   рабочей бумаги номера нет, у остального — журнал документооборота.       */
+const numberRule = t => t.numberIsObject ? 'реквизит кредита — номер договора'
+  : (t.workPaper ? 'рабочая бумага — без номера'
+  : 'документооборот: '+(t.docType || 'документ')+' — номер при регистрации после подписи');
 function scRegistry(){
-  const v = RP.viewer(), vis = RP.visibleTemplates();
-  const hiddenDrafts = RP.state.templates.filter(t => vis.indexOf(t.id) === -1);
+  /* Реестр — официальные отчёты, бланки и черновики к утверждению; общие живут на витрине. */
+  const v = RP.viewer(), vis = RP.visibleTemplates().filter(id => levelOf(TPL(id)) !== 'общий');
+  const hiddenDrafts = RP.state.templates.filter(t => vis.indexOf(t.id) === -1 && levelOf(t) !== 'общий');
 
   const cnt  = k => vis.filter(tid => TPL(tid).kind === k).length;
   const burn = k => vis.filter(tid => TPL(tid).kind === k && RP.tplState(tid).state === 'неисполним').length;
-  /* Тот же приём, что на витрине (scShowcase): у бланка есть серия исходящих,
-     у отчёта её не бывает, общая колонка половину времени пустовала бы —
-     вид формы стал корешком вкладки, а не колонкой строки. */
+  /* Тот же приём, что на витрине (scShowcase): у бланка есть тип документа
+     для документооборота и откуда берётся номер, у отчёта колонка пустовала
+     бы — вид формы стал корешком вкладки, а не колонкой строки. */
   const tab = RP.state.sel.regTab || 'отчёт';
 
   let h = '<div class="tabs">'+
@@ -3163,7 +3528,7 @@ function scRegistry(){
 
   const kin = vis.filter(tid => TPL(tid).kind === tab), isBlank = tab === 'бланк';
   h += '<table class="cgrid"><thead><tr><th>Шаблон</th>'+
-    (isBlank ? '<th>Серия</th>' : '')+
+    (isBlank ? '<th>Номер</th>' : '')+
     '<th>Состояние</th><th>Ред.</th><th>Основание</th><th>Круг</th><th>Расписание</th><th></th></tr></thead><tbody>';
   if(!kin.length) h += '<tr><td colspan="'+(isBlank ? 8 : 7)+'">'+
     '<div class="banner ok">Шаблонов этого вида вам не видно.</div></td></tr>';
@@ -3172,8 +3537,7 @@ function scRegistry(){
     h += '<tr'+(st.state === 'неисполним' ? ' class="out"' : '')+'>'+
       '<td><b>'+esc(t.name)+'</b><div class="small mono">'+esc(t.id)+'</div>'+
         (st.why ? '<div class="why">'+esc(st.why)+'</div>' : '')+'</td>'+
-      (isBlank ? '<td class="small mono">'+(t.series ? esc(t.series.prefix)+
-          (t.series.manual ? ' · ручная' : ' · сквозная') : '<span class="muted">—</span>')+'</td>' : '')+
+      (isBlank ? '<td class="small">'+numberRule(t)+'</td>' : '')+
       '<td>'+pill(st.state, stateCls(st.state))+'</td>'+
       '<td>'+(RP.pubEd(tid) ? 'ред. '+RP.pubEd(tid).n : '—')+'</td>'+
       '<td class="small">'+(t.basis ? esc((t.basis.point ? 'п. '+t.basis.point+' ' : '')+t.basis.doc)
@@ -3222,7 +3586,7 @@ RP.reset = () => { const view = RP.state.view; RP.seed(); RP.state.view = view;
 
 /* ---------------------------- КОНСТРУКТОР ---------------------------- */
 function scBuilder(){
-  const vis = RP.visibleTemplates();
+  const vis = RP.visibleTemplates().filter(id => levelOf(TPL(id)) !== 'общий');
   let tid = RP.state.sel.draft;
   if(vis.indexOf(tid) === -1) tid = vis[0];
   const t = TPL(tid), ed = draftEd(t) || pubEd(t), list = SEAM.fieldList(ed.object);
@@ -3241,7 +3605,7 @@ function scBuilder(){
         return x ? esc(x.name) : '<span style="color:var(--asubk-red)">'+esc(f)+' — нет в перечне</span>'; }).join(', ')
         : '<span class="muted">—</span>', true],
       ['Подстановки бланка', (ed.subs||[]).length ? (ed.subs||[]).map(s => { const x = list.fields.find(y => y.id === s);
-        return '{{'+esc(s)+'}}' + (x ? '' : ' <span style="color:var(--asubk-red)">— нет в перечне</span>'); }).join(', ')
+        return '${'+esc(x && x.ru ? x.ru : s)+'}' + (x ? '' : ' <span style="color:var(--asubk-red)">— нет в перечне</span>'); }).join(', ')
         : '<span class="muted">—</span>', true],
       ['Показатели', ed.stats.length ? ed.stats.map(s => { const m = SEAM.statMeta(s);
         return m ? esc(m.name)+(m.withdrawn ? ' <span style="color:var(--asubk-red)">— выведен '+fmt(m.withdrawn)+'</span>'
@@ -3267,23 +3631,14 @@ function scBuilder(){
     '<button class="btn btn-secondary btn-sm" onclick="RP.doBasis(\''+t.id+'\')">Сослаться на п. 12 Порядка №41</button>'+
     '</div></div>';
 
-  /* Границы крутилки — часть РЕДАКЦИИ: объявляются там же, где состав, и
-     задним числом не расширяются (ИО-20, ADR-0162 §1).                     */
-  const bo = RP.bounds(t.id);
-  h += '<div class="card"><h3>Допустимые отклонения</h3>'+
-    kv([['Разрезы — включать, убирать, переставлять', bo.cutNames.join('; ') ||
-          '<span class="muted">нет — уровни жёсткие</span>', true],
-        ['Показатели — скрывать и добавлять', bo.statNames.join('; ') ||
-          '<span class="muted">нет — состав показателей жёсткий</span>', true],
-        ['Углубление до строк объектов', bo.drill
-          ? 'крутится: снятое углубление меняет шов — statRows не спрашивается вовсе'
-          : 'объявлено редакцией, экраном не трогается'],
-        ['Раскладка', 'свободна всегда: '+bo.layouts.join(' · ')+' — клетки те же, вопрос тот же'],
-        ['Окончательный выпуск', 'только составом по умолчанию: накрученное сдать нельзя']])+
-    '<div class="btn-row">'+
-      '<button class="btn btn-secondary btn-sm" onclick="RP.doFreeWithdrawn(\''+t.id+'\')">Разрешить экрану выведенный показатель</button>'+
-      '<button class="btn btn-secondary btn-sm" onclick="RP.doFreePub()">Расширить границы опубликованной редакции</button>'+
-    '</div></div>';
+  /* Границ показа редакция не объявляет: на экране доступно всё, что доступно
+     отчёту, а замок стоит на сдаче.                                          */
+  h += '<div class="card"><h3>Показ</h3>'+
+    kv([['На экране', 'любые разрезы, реквизиты и показатели реестра, строки объектов, раскладка — '+
+          'перечня допустимых отклонений нет'],
+        ['Накрутка', 'видна: в шапке показа и в файле выгрузки — «'+DEVIATED+'» и кнопка «вернуть утверждённый»'],
+        ['Окончательный выпуск', 'только утверждённым составом и только тем, за кем обязательство']])+
+    '</div>';
 
   h += '<div class="card"><h3>Что правится без новой редакции</h3>'+
     kv([['Круг подразделений', t.circle.map(deptName).join('; ')],
@@ -3332,8 +3687,6 @@ RP.selDraft = id => { RP.state.sel.draft = id; render(); };
 RP.doPublish = id => act(RP.publish(id), 'редакция опубликована');
 RP.doAsk = id => act(RP.askPublish(id), 'черновик передан на публикацию');
 RP.doBasis = id => act(RP.setBasis(id, {doc:'Порядок №41 (ред. 06.07.2026)', point:'12'}), 'основание названо');
-RP.doFreeWithdrawn = id => act(RP.setFree(id, {stats:['s-npl']}));
-RP.doFreePub = () => act(RP.setFree('t-overdue', {cuts:['dept','status'], stats:['s-portfolio']}));
 RP.doCircle = id => act(RP.setCircle(id, ['dep-prom']), 'круг изменён');
 RP.doBands = id => act(RP.setBands(id, ['заголовок','шапка','итог','уровни','подвал']));
 RP.doLandscape = id => act(RP.setSheet(id, {orient:'альбомная'}), 'лист развёрнут альбомно');
@@ -3348,19 +3701,22 @@ RP.doSchedule = id => act(RP.setSchedule(id, {freq:'ежемесячно', dueDa
 /* Полосы уровней. Итог печатается ПОСЛЕ строк своей группы и приходит швом:
    складывать частные итоги модуль не вправе (ИО-17, ОЧ-25).                 */
 function cellRow(r, cols){
-  return '<tr>'+cols.map(c => { const val = r[c.id];
+  return '<tr>'+cols.map(c => { const val = c.id === 'dept' && r.dept ? deptName(r.dept) : r[c.id];
     return '<td'+(typeof val === 'number' ? ' class="num"' : '')+'>'+
       esc(typeof val === 'number' ? money(val) : (val == null ? '—' : val))+'</td>'; }).join('')+'</tr>';
 }
-function bandRows(gs, cols, depth){
+function bandRows(gs, cols, depth, path){
   const lvl = depth || 1;
   return gs.map(g => {
+    const here = (path || []).concat({by: g.by, key: g.key});
     let out = '<tr class="grp g'+lvl+'"><td colspan="'+cols.length+'">'+
       '<b>'+esc(g.name)+'</b> <span class="small">'+esc(objWord(g.count))+'</span></td></tr>';
-    out += g.children ? bandRows(g.children, cols, lvl + 1)
+    out += g.children ? bandRows(g.children, cols, lvl + 1, here)
                       : (g.rows || []).map(r => cellRow(r, cols)).join('');
+    /* Число итога уровня — ссылка на провал, если экран просил провал (path). */
     if(g.totals) out += '<tr class="gtot"><td colspan="'+cols.length+'">Итог по «'+esc(g.name)+'»: '+
-      g.totals.map(x => esc(x.name)+' — <b>'+(x.shown == null ? '—' : esc(money(x.shown)))+'</b> '+
+      g.totals.map(x => esc(x.name)+' — <b>'+(x.shown == null ? '—'
+        : (path ? drillLink(esc(money(x.shown)), {path: here, stat: x.id}) : esc(money(x.shown))))+'</b> '+
         esc(x.unit)).join(' · ')+
       '</td></tr>';
     return out;
@@ -3368,27 +3724,33 @@ function bandRows(gs, cols, depth){
 }
 
 /* ------------------------------ ВЫПУСК ------------------------------- */
+/* Провал: каждое число итога — ссылка. Узлы складываются в список на время
+   отрисовки, ссылка несёт номер узла — в разметке нет ни JSON, ни кавычек.  */
+let DRILL_NODES = [];
+const drillLink = (text, node) => { DRILL_NODES.push(node);
+  return '<a href="#" class="drill" title="провал: объекты, из которых сложилось число" '+
+    'onclick="RP.uiDrill('+(DRILL_NODES.length - 1)+');return false">'+text+'</a>'; };
 function scIssue(){
-  const vis = RP.visibleTemplates().filter(id => RP.pubEd(id) && TPL(id).kind === 'отчёт');
-  if(!vis.length) return '<div class="banner warn">Опубликованных шаблонов вам не видно: '+
-    'выпускать можно только опубликованную редакцию.</div>';
+  DRILL_NODES = [];
+  const vis = RP.visibleTemplates().filter(id => liveEd(TPL(id)) && TPL(id).kind === 'отчёт');
+  if(!vis.length) return '<div class="banner warn">Отчётов, доступных вам для показа, нет.</div>';
   let tid = RP.state.sel.tpl;
   if(vis.indexOf(tid) === -1) tid = vis[0];
-  const t = TPL(tid), ed = pubEd(t), sel = RP.state.sel;
+  const t = TPL(tid), ed = liveEd(t), sel = RP.state.sel, level = levelOf(t);
   const params = {asOf: sel.params.asOf, dept: sel.params.dept};
-  /* Сначала ПОКАЗ, и только потом выпуск: показ крутится в границах редакции,
-     выпуск — нет (ИО-20, ИО-21, ADR-0162).                                  */
+  /* Сначала ПОКАЗ, и только потом выпуск: показ свободен, выпуск — нет.      */
   const wTwist = sel.twist ? Object.assign({}, sel.twist, {dropped: sel.dropped || null}) : null;
   let prev = RP.show(tid, params, wTwist), twistWhy = null;
   if(!prev.ok){ twistWhy = prev.why; prev = RP.show(tid, params, null); }
 
   let h = '';
-  if(twistWhy) h += '<div class="banner danger"><b>Накрутка не принята.</b> '+esc(twistWhy)+
-    '. Показан состав по умолчанию.</div>';
+  if(twistWhy) h += '<div class="banner danger"><b>Так показать нельзя.</b> '+esc(twistWhy)+
+    '. Показан '+(level === 'официальный' ? 'утверждённый состав' : 'сохранённый состав')+'.</div>';
 
-  h += '<div class="form-row"><div class="fld"><label>Шаблон</label>'+
+  h += '<div class="form-row"><div class="fld"><label>Отчёт</label>'+
     '<select onchange="RP.selTpl(this.value)">'+vis.map(id =>
-      '<option value="'+id+'"'+(id===tid?' selected':'')+'>'+esc(TPL(id).name)+'</option>').join('')+'</select></div>';
+      '<option value="'+id+'"'+(id===tid?' selected':'')+'>'+esc(TPL(id).name)+
+      (levelOf(TPL(id)) === 'общий' ? ' · общий' : '')+'</option>').join('')+'</select></div>';
   if(ed.mode === 'на дату') h += '<div class="fld"><label>Отчётный месяц</label>'+
     '<select onchange="RP.setAsOf(this.value)">'+HIST_DATES.map(d =>
       '<option value="'+d+'"'+(d===sel.params.asOf?' selected':'')+'>'+esc(periodOfAsOf(d))+
@@ -3402,81 +3764,71 @@ function scIssue(){
   h += '</div>';
   /* Экран открывается на периоде, у которого снимок ЕСТЬ, и говорит вслух, когда
      выбран период без снимка: молчаливая подстановка соседней даты — это ответ
-     на другой вопрос под именем заказанного (ИО-26, ОЧ-44).                   */
+     на другой вопрос под именем заказанного.                                  */
   if(ed.mode === 'на дату' && !RP.hasSnapshot(sel.params.asOf))
     h += '<div class="banner warn"><b>За этот период снимка нет.</b> Ночной прогон до '+
       esc(fmt(sel.params.asOf))+' не доходил; числа ниже посчитаны по ближайшему более раннему '+
       'состоянию, и шапка показа назовёт подставленную дату. Сдавать такой показ окончательно '+
       'нельзя: обязательство берётся на объявленном периоде, а не на соседнем.</div>';
 
-  /* --- как смотреть: крутилка в границах редакции (§3 п. 9, ИО-20) --- */
-  const bo = RP.bounds(tid), w = prev.twist, base = bo.base, mine = RP.myViews(tid);
-  h += '<div class="card"><h3>Как смотреть — в границах, объявленных редакцией '+bo.ed+'</h3>';
+  /* --- как смотреть: всё, что доступно отчёту --- */
+  const ch = RP.choices(tid), w = prev.twist, base = ch.base, mine = RP.myViews(tid);
+  const isBase = (list, x) => list.indexOf(x) !== -1;
+  h += '<div class="card"><h3>Как смотреть — всё, что доступно отчёту</h3>';
   h += '<div class="form-row"><div class="fld"><label>Разрезы — уровни слева направо</label>'+
     '<div class="btn-row" style="margin:0">'+
-    uniq(base.cuts.concat(bo.cuts)).map(c => { const on = w.cuts.indexOf(c) !== -1,
-      hard = bo.cuts.indexOf(c) === -1;
+    uniq(base.cuts.concat(ch.cuts)).map(c => { const on = w.cuts.indexOf(c) !== -1;
       return '<button class="btn btn-sm '+(on ? 'btn-primary' : 'btn-secondary')+'"'+
-        (hard ? ' disabled title="уровень объявлен составом: отклонением не назван"' : '')+
         ' onclick="RP.twistCut(\''+c+'\')">'+esc(cutName(c))+
-        (hard ? ' · жёстко' : '')+'</button>'; }).join('')+
-    w.cuts.filter(c => bo.cuts.indexOf(c) !== -1).map(c =>
+        (isBase(base.cuts, c) ? '' : ' ＋')+'</button>'; }).join('')+
+    w.cuts.slice(1).map(c =>
       '<button class="btn btn-secondary btn-sm" onclick="RP.twistUp(\''+c+'\')" '+
       'title="поднять уровень выше">↑ '+esc(cutName(c))+'</button>').join('')+
     '</div></div>';
-  h += '<div class="fld"><label>Показатели</label><div class="btn-row" style="margin:0">'+
-    uniq(base.stats.concat(bo.stats)).map(s => { const on = w.stats.indexOf(s) !== -1,
-      hard = bo.stats.indexOf(s) === -1;
+  h += '<div class="fld"><label>Показатели реестра</label><div class="btn-row" style="margin:0">'+
+    uniq(base.stats.concat(ch.stats)).map(s2 => { const on = w.stats.indexOf(s2) !== -1;
       return '<button class="btn btn-sm '+(on ? 'btn-primary' : 'btn-secondary')+'"'+
-        (hard ? ' disabled title="показатель объявлен составом: отклонением не назван"' : '')+
-        ' onclick="RP.twistStat(\''+s+'\')">'+esc(statName(s))+
-        (hard ? ' · жёстко' : '')+'</button>'; }).join('')+'</div></div></div>';
-  h += '<div class="form-row"><div class="fld"><label>Строки объектов (углубление)</label>'+
+        ' onclick="RP.twistStat(\''+s2+'\')">'+esc(statName(s2))+
+        (isBase(base.stats, s2) ? '' : ' ＋')+'</button>'; }).join('')+'</div></div></div>';
+  h += '<div class="form-row"><div class="fld"><label>Строки объектов</label>'+
     '<button class="btn btn-sm '+(w.drill ? 'btn-primary' : 'btn-secondary')+'"'+
-      (bo.drill ? '' : ' disabled title="редакция углубление отклонением не объявила"')+
       ' onclick="RP.twistDrill()">'+(w.drill ? 'печатаются — спрошен statRows'
-        : 'не печатаются — спрошен только statSlice')+'</button></div>'+
-    '<div class="fld"><label>Раскладка (объявления не требует)</label>'+
+        : 'не печатаются — спрошены только итоги разрезов')+'</button></div>'+
+    '<div class="fld"><label>Раскладка</label>'+
     '<select onchange="RP.twistLayout(this.value)">'+RP.layouts().map(l =>
       '<option'+(l === w.layout ? ' selected' : '')+'>'+esc(l)+'</option>').join('')+
     '</select></div>'+
-    '<div class="fld"><label>Личный вид</label><select onchange="RP.useView(this.value)">'+
-      '<option value="">— без вида, состав по умолчанию —</option>'+mine.map(vw =>
+    '<div class="fld"><label>Мой вид</label><select onchange="RP.useView(this.value)">'+
+      '<option value="">— без вида —</option>'+mine.map(vw =>
         '<option value="'+vw.id+'"'+(vw.id === sel.view ? ' selected' : '')+'>'+
         esc(vw.name)+'</option>').join('')+'</select></div>'+
-    '<div class="fld"><label>Сохранить накрутку видом</label>'+
+    '<div class="fld"><label>Сохранить как вид</label>'+
       '<input value="'+esc(sel.viewName || '')+'" onchange="RP.setViewName(this.value)" '+
       'placeholder="как я смотрю просрочку"></div></div>';
   h += '<div class="btn-row">'+
     '<button class="btn btn-primary btn-sm" onclick="RP.doSaveView()">Сохранить вид</button>'+
-    '<button class="btn btn-secondary btn-sm" onclick="RP.twistReset()">Вернуть состав по умолчанию</button>'+
+    (prev.deviated ? '<button class="btn btn-secondary btn-sm" onclick="RP.twistReset()">'+
+      (level === 'официальный' ? 'Вернуть утверждённый' : 'Вернуть сохранённый')+'</button>' : '')+
     (sel.view ? '<button class="btn btn-secondary btn-sm" onclick="RP.doDropView()">Удалить вид</button>'+
-      '<button class="btn btn-secondary btn-sm" onclick="RP.doShareView()">Передать вид коллеге</button>'+
-      '<button class="btn btn-secondary btn-sm" onclick="RP.doPublishView()">Опубликовать вид для всех</button>' : '')+
-    '<button class="btn btn-secondary btn-sm" onclick="RP.doTwistOut()">Добавить разрез «заёмщик»</button>'+
-    '</div></div>';
+      '<button class="btn btn-secondary btn-sm" onclick="RP.doShareView()">Передать вид коллеге</button>' : '')+
+    '</div><div class="small muted">＋ — нет в сохранённом составе: добавится на экране.</div></div>';
 
   /* --- показ: шапка, потом числа --- */
   h += showBox(prev.head);
-  /* Момент показа выведен из РЕЖИМА ВРЕМЕНИ, а не назначен: «на дату» читает
-     готовые строки ночного прогона — считается сразу; «сейчас» — живой запрос
-     к ядру, и гонять его оттого, что кто-то промахнулся мимо строки списка,
-     незачем. Легаси мерил: весь портфель 107 с, отбор вчетверо уже — 90 с;
-     стоимость сидит не в числе строк, и кнопка её не лечит (ОЧ-44).         */
+  /* «На дату» читает готовые строки ночного прогона — считается сразу; «сейчас» —
+     живой запрос к ядру, его гоняют по кнопке.                               */
   const liveGate = ed.mode === 'сейчас' && !sel.live;
   if(liveGate){
     h += '<div class="card"><h3>Числа не запрошены</h3>'+
-      '<div class="small">Режим редакции — <em>сейчас</em>: величины берутся живым запросом.</div>'+
+      '<div class="small">Режим — <em>сейчас</em>: величины берутся живым запросом.</div>'+
       '<div class="btn-row"><button class="btn btn-primary" onclick="RP.askLive()">'+
       'Посчитать на сейчас</button></div></div>';
   } else {
   h += '<div class="sheet" style="margin-top:14px"><div class="sheet-h">'+esc(t.name)+'</div>'+
-    '<div class="sheet-sub">ред. '+ed.n+' · '+esc(t.basis ? (t.basis.point ? 'п. '+t.basis.point+' ' : '')+t.basis.doc
-      : 'основание не названо')+'</div>';
+    '<div class="sheet-sub">'+(level === 'общий' ? 'общий, не официальный · версия '+ed.n
+      : 'ред. '+ed.n+' · '+esc(t.basis ? (t.basis.point ? 'п. '+t.basis.point+' ' : '')+t.basis.doc
+      : 'основание не названо'))+'</div>';
   const d = prev.data;
-  /* Порядок полос берётся из ЛИСТА редакции, а не из порядка кода: в легаси
-     он выведен из номеров строк макета, и ИТОГО печатается перед группами
-     (ОЧ-26, ОЧ-33).                                                        */
   h += '<div class="bands">'+d.sheet.bands.map((b, i) => '<span class="band'+(b === 'итог' ? ' tot' :
     (b === 'уровни' ? ' lv' : ''))+'">'+(i+1)+'. '+esc(b)+'</span>').join('<span class="arr">→</span>')+
     '<span class="arr">·</span><span class="small">лист '+esc(d.sheet.orient)+
@@ -3484,13 +3836,16 @@ function scIssue(){
   h += '<table class="cgrid"><thead><tr>'+d.cols.map(c =>
     '<th>'+(c.lost ? '<span style="color:var(--asubk-red)">'+esc(c.id)+' — нет в перечне</span>' : esc(c.name))+
     '</th>').join('')+'</tr></thead><tbody>';
-  if(d.groups && d.groups.length) h += bandRows(d.groups, d.cols);
+  if(d.groups && d.groups.length) h += bandRows(d.groups, d.cols, 1, []);
   else d.rows.forEach(r => { h += cellRow(r, d.cols); });
-  if(!d.rows.length) h += '<tr><td colspan="'+Math.max(1,d.cols.length)+'" class="muted">строк нет</td></tr>';
+  if(!d.rows.length && !(d.groups && d.groups.length))
+    h += '<tr><td colspan="'+Math.max(1,d.cols.length)+'" class="muted">строк нет</td></tr>';
   h += '</tbody></table>';
   h += '<div class="totals">'+d.totals.map(x => '<div class="tot"><div class="tn">'+esc(x.name)+'</div>'+
-    '<div class="tv">'+(x.shown == null ? '—' : esc(money(x.shown)))+' <span class="small">'+esc(x.unit)+'</span></div>'+
+    '<div class="tv">'+(x.shown == null ? '—' : drillLink(esc(money(x.shown)), {path:[], stat:x.id}))+
+    ' <span class="small">'+esc(x.unit)+'</span></div>'+
     '<div class="tp">'+esc(x.why || 'считается по видимым строкам')+'</div></div>').join('')+'</div>';
+  h += '<div class="small muted">Щёлкните число итога — провал покажет объекты, из которых оно сложилось.</div>';
   h += passportBox(d.passport, false);
   if(d.soft.length) h += '<div class="banner warn"><b>Проверить заранее это было нельзя.</b> '+
     d.soft.map(esc).join('; ')+'. Такой выпуск станет предварительным, даже если запросить '+
@@ -3498,18 +3853,48 @@ function scIssue(){
   h += '</div>';
   }
 
-  /* --- ступень --- */
+  /* --- провал --- */
+  if(sel.drillRes && sel.drillRes.tpl === tid) h += drillPanel(sel.drillRes);
+
+  /* --- действия с показанным --- */
+  h += '<div class="card"><h3>Что делают с показанным</h3>'+
+    '<div class="form-row"><div class="fld"><label>Выгрузить (не официальный документ)</label>'+
+      '<div class="btn-row" style="margin:0">'+
+      sheetOfEd(ed).formats.map(f =>
+        '<button class="btn btn-secondary btn-sm" onclick="RP.doExportShown(\''+f+'\')">'+
+        esc(f)+'</button>').join('')+
+    '</div></div>'+
+    '<div class="fld"><label>Рабочий список выгрузкой показанного</label>'+
+      '<input value="'+esc(sel.wlName || '')+'" onchange="RP.setWlName(this.value)" '+
+      'placeholder="обзвон по просрочке, август"></div>'+
+      '<div class="fld"><label>&nbsp;</label><button class="btn btn-secondary" '+
+      'onclick="RP.doWorklistShown()">Завести рабочий список</button></div>'+
+      '<div class="fld"><label>&nbsp;</label><button class="btn btn-secondary" '+
+      'onclick="RP.doPin()">📌 на дашборд</button></div>'+
+    '</div><div class="facts">'+
+      '<div class="f">выгрузка — строка журнала и паспорт; файл с пометкой «не официальный документ»'+
+        (prev.deviated && level === 'официальный' ? ' и «'+esc(DEVIATED)+'»' : '')+
+        ' живёт '+dayWord(RP.FILE_DAYS)+'</div>'+
+      '<div class="f">рабочий список — из провала (щёлкните число) или выгрузкой всех строк показа</div>'+
+      '<div class="f">«📌 на дашборд» — плитка ссылается на этот '+(sel.view ? 'вид' : 'отчёт')+
+        '; раскладка — в модуле дашборда</div>'+
+    '</div></div>';
+
+  /* --- сдача --- */
   /* Право окончательного выпуска — не роль и не флаг: это то же обязательство,
-     прочитанное с другого конца. Сдаёт тот, за кем оно числится (ИО-25).      */
+     прочитанное с другого конца. Сдаёт тот, за кем оно числится.              */
   const fin = RP.finalRight(t.id, sel.params.dept ? [sel.params.dept] : null);
-  h += '<div class="card"><h3>Ступень выпуска</h3><div class="form-row">'+
+  const noFinal = level !== 'официальный' ? 'сдаётся только официальный отчёт — этот '+level+
+      ', его выгружают'
+    : (prev.deviated ? 'показ '+DEVIATED+': сдаётся только утверждённый состав — «вернуть утверждённый»'
+    : (!fin.ok ? fin.why : null));
+  if(noFinal && sel.kind === 'окончательный') sel.kind = 'предварительный';
+  h += '<div class="card"><h3>Сдача — окончательный выпуск</h3><div class="form-row">'+
     '<div class="fld"><label>Ступень</label><select onchange="RP.setKind(this.value)">'+
       ['предварительный','окончательный'].map(k => '<option'+(k===sel.kind?' selected':'')+
-        (k === 'окончательный' && (prev.deviated || !fin.ok) ? ' disabled' : '')+'>'+k+'</option>').join('')+
-    '</select>'+(prev.deviated ? '<div class="why">состав накручен на экране: окончательный '+
-      'выпуск идёт только составом по умолчанию</div>'
-      : (!fin.ok ? '<div class="why">'+esc(fin.why)+'</div>'
-        : (fin.note ? '<div class="why">'+esc(fin.note)+'</div>' : '')))+'</div>'+
+        (k === 'окончательный' && noFinal ? ' disabled' : '')+'>'+k+'</option>').join('')+
+    '</select>'+(noFinal ? '<div class="why">'+esc(noFinal)+'</div>'
+        : (fin.note ? '<div class="why">'+esc(fin.note)+'</div>' : ''))+'</div>'+
     '<div class="fld"><label>Получатель (справочник адресатов)</label>'+
       '<select onchange="RP.setRecipient(this.value)"'+
         (sel.kind==='окончательный' ?'':' disabled')+'>'+
@@ -3518,41 +3903,15 @@ function scIssue(){
   h += '<div class="fld"><label>&nbsp;</label>'+
     '<button class="btn btn-primary" onclick="RP.doOrder()">Заказать выпуск</button></div></div>';
   h += '<div class="facts">'+
-    '<div class="f">предварительный — обязательств не закрывает, номера не тратит; '+
+    '<div class="f">предварительный — обязательств не закрывает, числа не морозит; '+
       'файл живёт '+dayWord(RP.FILE_DAYS)+' и гаснет</div>'+
-    '<div class="f">окончательный — только с названным получателем и только pdf</div>'+
-    (prev.deviated ? '<div class="f no">накрученный показ выпускается <b>предварительно</b>; '+
-      'сдать его нельзя</div>' : '')+
+    '<div class="f">окончательный — только утверждённым составом, с названным получателем, pdf; '+
+      'становится черновиком исходящего документа, номер выдаст журнал документооборота при '+
+      'регистрации после подписи</div>'+
     '</div>';
   h += '<div class="btn-row">'+
     '<button class="btn btn-secondary btn-sm" onclick="RP.demoStringRecipient()">Вписать получателя строкой «Минфин КР»</button>'+
     '<button class="btn btn-secondary btn-sm" onclick="RP.demoDocx()">Отдать получателю docx</button>'+
-    '</div></div>';
-
-  /* --- четыре действия с показанным (ОЧ-49) --- */
-  /* С показанного ответа уходят четырьмя дорогами, и три из них — выпуск. Excel
-     «просто посмотреть» в легаси и есть та дорога, по которой числа уходят из
-     системы без паспорта: файл на почте живёт дольше снимка, а спросить у него
-     «чем это считано» уже некому (ОЧ-30, ОЧ-49).                              */
-  h += '<div class="card"><h3>Что делают с показанным — четыре дороги</h3>'+
-    '<div class="facts">'+
-      '<div class="f">выгрузить файлом — предварительный выпуск, файл гаснет через '+
-        dayWord(RP.FILE_DAYS)+', строка журнала остаётся</div>'+
-      '<div class="f">выпустить окончательно — снимок и получатель</div>'+
-      '<div class="f">сохранить видом — накрутка, а не числа: вид ничего не морозит</div>'+
-      '<div class="f">завести рабочий список — предварительный выпуск и замороженный состав</div>'+
-    '</div>'+
-    '<div class="form-row"><div class="fld"><label>Формат выгрузки</label>'+
-      '<div class="btn-row" style="margin:0">'+
-      sheetOfEd(ed).formats.map(f =>
-        '<button class="btn btn-secondary btn-sm" onclick="RP.doExportShown(\''+f+'\')">'+
-        esc(f)+'</button>').join('')+
-    '</div></div>'+
-    '<div class="fld"><label>Имя рабочего списка</label>'+
-      '<input value="'+esc(sel.wlName || '')+'" onchange="RP.setWlName(this.value)" '+
-      'placeholder="обзвон по просрочке, август"></div>'+
-      '<div class="fld"><label>&nbsp;</label><button class="btn btn-secondary" '+
-      'onclick="RP.doWorklistShown()">Завести рабочий список</button></div>'+
     '</div></div>';
 
   /* --- задания --- */
@@ -3560,7 +3919,7 @@ function scIssue(){
   h += '<div class="card"><h3>Задания на выпуск</h3>'+
     '<div class="small">Состояния: '+RP.jobStates().join(' → ')+'.</div>';
   if(!jobs.length) h += '<div class="banner ok">Незакрытых заданий нет.</div>';
-  else h += '<table class="cgrid"><thead><tr><th>Заказ</th><th>Шаблон</th><th>Ступень при заказе</th>'+
+  else h += '<table class="cgrid"><thead><tr><th>Заказ</th><th>Отчёт</th><th>Ступень при заказе</th>'+
     '<th>Состояние</th><th></th></tr></thead><tbody>'+jobs.map(j =>
       '<tr><td class="mono">'+esc(j.id)+'<div class="small">'+fmt(j.at)+' · '+esc(j.by)+'</div></td>'+
       '<td class="small">'+esc(j.tplName)+'<div class="small">ред. '+j.ed+'</div></td>'+
@@ -3573,10 +3932,49 @@ function scIssue(){
   h += '</div>';
   return h;
 }
+function drillPanel(d){
+  let h = '<div class="card drillp"><h3>Провал: '+esc(d.statName)+' · '+esc(d.node)+
+    (d.asOf ? ' · на '+fmt(d.asOf) : ' · сейчас')+'</h3>';
+  h += '<div class="small">'+(d.additive
+    ? 'В числе <b>'+esc(money(d.cell))+' '+esc(d.unit)+'</b> — '+objWord(d.items.length)+
+      ' с ненулевым вкладом; сумма списка — <b>'+esc(money(d.sum))+'</b> '+
+      (d.equal ? pill('равна числу','ok') : pill('не равна числу','err'))
+    : 'Величина не складывается из объектов — список объектов узла без суммы: '+objWord(d.items.length))+
+    '. Тот же снимок, та же дата.</div>';
+  h += '<table class="cgrid" style="margin-top:8px"><thead><tr><th>Кредит</th><th>Заёмщик</th>'+
+    '<th>Подразделение</th><th class="num">'+esc(d.statName)+'</th></tr></thead><tbody>'+
+    d.items.map(x => '<tr><td class="mono">'+esc(x.no || x.id)+'</td><td>'+esc(x.borrower || '—')+'</td>'+
+      '<td class="small">'+esc(x.dept ? deptName(x.dept) : '—')+'</td>'+
+      '<td class="num">'+esc(money(x.part))+'</td></tr>').join('')+
+    (d.additive ? '<tr class="gtot"><td colspan="3">Сумма списка</td><td class="num"><b>'+
+      esc(money(d.sum))+'</b></td></tr>' : '')+'</tbody></table>';
+  if(d.hidden) h += '<div class="small muted">'+objWord(d.hidden)+' скрыто областью видимости — '+
+    'в провал не входят, как и в число.</div>';
+  h += '<div class="form-row"><div class="fld"><label>Название рабочего списка</label>'+
+    '<input id="drillWl" value="'+esc(RP.state.sel.drillWlName || '')+'" '+
+    'onchange="RP.state.sel.drillWlName=this.value" placeholder="обзвон: '+esc(d.node)+'"></div>'+
+    '<div class="fld"><label>&nbsp;</label><button class="btn btn-primary btn-sm" '+
+    'onclick="RP.uiWorklistFromDrill()">Завести рабочий список</button></div>'+
+    '<div class="fld"><label>&nbsp;</label><button class="btn btn-secondary btn-sm" '+
+    'onclick="RP.state.sel.drillRes=null;render()">Закрыть провал</button></div></div></div>';
+  return h;
+}
+RP.uiDrill = i => { const n = DRILL_NODES[i]; if(!n) return;
+  const a = shownArgs();
+  const r = RP.drill(a.tid, a.params, a.twist, n);
+  if(!r.ok) return act(r);
+  RP.state.sel.drillRes = r; render(); };
+RP.uiWorklistFromDrill = () => { const d = RP.state.sel.drillRes; if(!d) return;
+  const inp = $('#drillWl'); const nm = inp ? inp.value : RP.state.sel.drillWlName;
+  const r = RP.worklistFromDrill(d.tpl, d.params, d.twist, {path: d.path, stat: d.stat}, nm);
+  if(r.ok){ RP.state.sel.wl = r.id; RP.state.sel.drillRes = null; RP.state.sel.drillWlName = ''; }
+  act(r); };
+RP.doPin = () => { const sel = RP.state.sel;
+  act(RP.pinToDashboard(sel.tpl, sel.view || null, {asOf: sel.params.asOf, dept: sel.params.dept})); };
 RP.selTpl = id => { const sel = RP.state.sel;
   /* Накрутка привязана к шаблону: смена шаблона её не переносит.            */
   sel.tpl = id; sel.twist = null; sel.view = null; sel.dropped = null; sel.live = false;
-  render(); };
+  sel.drillRes = null; render(); };
 function shownArgs(){ const sel = RP.state.sel;
   return {tid: sel.tpl,
     params: {asOf: sel.params.asOf, dept: sel.params.dept},
@@ -3594,7 +3992,7 @@ function curTwist(){ const sel = RP.state.sel;
 function setTwist(w){ const sel = RP.state.sel;
   const r = RP.show(sel.tpl, {asOf: sel.params.asOf, dept: sel.params.dept}, w);
   if(!r.ok) return act(r);
-  sel.twist = w; sel.view = null; sel.dropped = null;
+  sel.twist = w; sel.view = null; sel.dropped = null; sel.drillRes = null;
   if(r.deviated && sel.kind === 'окончательный') sel.kind = 'предварительный';
   render(); }
 RP.twistCut = c => { const w = curTwist(); const i = w.cuts.indexOf(c);
@@ -3606,7 +4004,7 @@ RP.twistLayout = v => { const w = curTwist(); w.layout = v; setTwist(w); };
 RP.twistUp = c => { const w = curTwist(); const i = w.cuts.indexOf(c);
   if(i > 0){ w.cuts.splice(i, 1); w.cuts.splice(i - 1, 0, c); } setTwist(w); };
 RP.twistReset = () => { const sel = RP.state.sel;
-  sel.twist = null; sel.view = null; sel.dropped = null; render(); };
+  sel.twist = null; sel.view = null; sel.dropped = null; sel.drillRes = null; render(); };
 RP.doTwistOut = () => { const w = curTwist();
   if(w.cuts.indexOf('borrower') === -1) w.cuts.push('borrower'); setTwist(w); };
 RP.setViewName = v => { RP.state.sel.viewName = v; };
@@ -3639,14 +4037,12 @@ RP.setDept = v => { RP.state.sel.params.dept = v; RP.state.sel.live = false; ren
 RP.askLive = () => { RP.state.sel.live = true; render(); };
 RP.setKind = v => { RP.state.sel.kind = v; render(); };
 RP.setRecipient = v => { RP.state.sel.recipient = v; render(); };
-RP.setNumber = v => { RP.state.sel.number = v; render(); };
 function issueSpec(){
   const sel = RP.state.sel, t = TPL(sel.tpl) || TPL(RP.visibleTemplates()[0]);
   const params = t.kind === 'бланк' ? {obj: sel.obj} : {asOf: sel.params.asOf, dept: sel.params.dept};
   return {t, spec:{params, kind: sel.kind,
     twist: t.kind === 'бланк' ? null : (sel.twist || null),
-    recipient: (sel.kind === 'окончательный' && t.kind !== 'бланк') ? sel.recipient : null,
-    number: sel.number}};
+    recipient: (sel.kind === 'окончательный' && t.kind !== 'бланк') ? sel.recipient : null}};
 }
 RP.doOrder = () => { const q = issueSpec();
   const r = RP.order(q.t.id, q.spec);
@@ -3667,10 +4063,21 @@ RP.demoDocx = () => { const sel = RP.state.sel, t = TPL(sel.tpl);
     kind:'окончательный', recipient:sel.recipient, format:'docx'})); };
 
 /* ------------------------------ ЖУРНАЛ ------------------------------- */
+/* «Что ушло» — журнал выпусков, «под каким номером» — журнал документооборота:
+   строка выпуска ссылается на документ, номер появляется после регистрации.  */
+function docCell(i){
+  if(i.number) return '<span class="mono">'+esc(i.number)+'</span><div class="muted">номер договора — реквизит кредита</div>';
+  const d = i.doc ? DOC(i.doc) : null;
+  if(!d) return '<span class="muted">—</span>';
+  return '<span class="mono">'+esc(d.id)+'</span> · '+esc(d.kind)+
+    (d.number ? '<div><b class="mono">'+esc(d.number)+'</b> от '+fmt(d.registered)+'</div>'
+      : '<div class="muted">номер выдаст журнал документооборота после подписи</div>'+
+        '<a href="#" onclick="act(RP.registerDoc(\''+d.id+'\'));return false">подписан — зарегистрировать</a>');
+}
 function scJournal(){
   const iss = RP.state.issues.slice().reverse();
   let h = '<table class="cgrid"><thead><tr><th>Выпуск</th><th>Шаблон</th><th>Ступень</th>'+
-    '<th>Получатель</th><th>Номер</th><th>Охват</th><th>Файл</th><th></th></tr></thead><tbody>';
+    '<th>Получатель</th><th>Документ и номер</th><th>Охват</th><th>Файл</th><th></th></tr></thead><tbody>';
   iss.forEach(i => {
     h += '<tr'+(i.diverged ? ' class="hl"' : (i.fileAlive ? '' : ' class="out"'))+'>'+
       '<td><b class="mono">'+esc(i.id)+'</b><div class="small">'+fmt(i.at)+' · '+esc(i.by)+'</div>'+
@@ -3695,7 +4102,7 @@ function scJournal(){
             (i.recipient.byObject ? ' · по объекту' : '')+'</div>' : '')+
           (i.recipient.viaNo ? '<div class="muted">по договору '+esc(i.recipient.viaNo)+'</div>' : '')
         : '<span class="muted">не назывался</span>')+'</td>'+
-      '<td class="mono">'+(i.number ? esc(i.number) : '—')+'</td>'+
+      '<td class="small">'+docCell(i)+'</td>'+
       '<td class="small">'+esc(i.coverage.map(deptName).join('; ') || '—')+
         (i.passport.hidden ? '<div class="why">скрыто видимостью: '+objWord(i.passport.hidden)+'</div>' : '')+'</td>'+
       '<td class="small">'+(i.state !== 'готов' ? '<span class="muted">файла ещё нет — задание '+
@@ -3876,92 +4283,262 @@ RP.demoOutSubj = mod => { const s = subjectInRole(RP.state.sel.obj, 'заёмщ�
   if(r.ok) toast(mod+' ← reportIssues по лицу «'+s.name+'»: '+
     (r.data.length ? JSON.stringify(r.data).slice(0,220) : 'бумаг не уходило'), 'ok'); else act(r); };
 
-/* -------------------- ВЕРСТАЛЬЩИК МАКЕТА БЛАНКА (§8) ----------------- */
+/* -------------------- ВЕРСТАЛЬЩИК МАКЕТА БЛАНКА -------------------------
+   Макет верстают в Word или LibreOffice у себя: файл ходит «скачать →
+   поправить → загрузить», проверка идёт на каждой загрузке. Загрузка с
+   ошибками сохраняется черновиком редакции — ошибки закрывают только
+   отправку на утверждение, а не работу. Проверка — документ, а не список:
+   поля подсвечены зелёным (найдено) или красным, повтор обведён зелёной
+   рамкой, условие — жёлтой; рядом список ошибок с местом. В макете файл
+   docx изображён его текстом — поле «Загружаемый файл».                     */
 RP.selBlank = tid => { RP.state.sel.blank = tid; render(); };
-RP.uiSetLayout = () => { const el = $('#layoutText');
-  act(RP.setLayout(RP.state.sel.blank, el ? el.value : '')); };
+RP.downloadLayout = tid => { const t = TPL(tid); if(!t || t.kind !== 'бланк') return {ok:false, why:'бланка нет'};
+  const ed = draftEd(t) || pubEd(t);
+  return {ok:true, file: t.id+'-ред'+ed.n+'.docx', note:'макет «'+t.name+'» ред. '+ed.n+' скачан ('+
+    t.id+'-ред'+ed.n+'.docx) — правьте в Word или LibreOffice и загрузите обратно'}; };
+RP.uploadLayout = (tid, text) => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'бланка нет'};
+  if(t.kind !== 'бланк') return {ok:false, why:'макет загружается у бланка: у отчёта состав — колонки и показатели'};
+  if(!RP.isAuth() && !RP.isClerk()) return {ok:false, why:'бланки ведут делопроизводитель и уполномоченный'};
+  let ed = draftEd(t);
+  if(!ed){ const base = pubEd(t); ed = clone(base);
+    ed.n = base.n + 1; ed.state = 'черновик'; ed.since = null; ed.at = RP.state.today; ed.by = RP.who();
+    t.editions.push(ed); }
+  ed.layoutText = String(text || ''); ed.subs = parseSubs(ed.layoutText);
+  const errs = parseLayout(ed.layoutText, ed.object).errors;
+  log('загружен макет бланка «'+t.name+'», черновик ред. '+ed.n+', ошибок: '+errs.length);
+  return {ok:true, n: ed.n, errors: errs.length, note: errs.length
+    ? 'загружено черновиком ред. '+ed.n+': ошибок '+errs.length+' — работа сохранена, отправка на утверждение закрыта до исправления'
+    : 'загружено черновиком ред. '+ed.n+': проверка пройдена, можно отправлять на утверждение'};
+};
+RP.checkLayout = tid => { const t = TPL(tid); if(!t) return null;
+  const ed = draftEd(t) || pubEd(t); return parseLayout(ed.layoutText, ed.object); };
+RP.sendForApproval = tid => {
+  const t = TPL(tid); if(!t) return {ok:false, why:'бланка нет'};
+  const ed = draftEd(t);
+  if(!ed) return {ok:false, why:'черновика нет: сначала загрузите исправленный макет'};
+  const errs = parseLayout(ed.layoutText, ed.object).errors;
+  if(errs.length) return {ok:false, errors: errs.length, why:'макет не прошёл проверку — ошибок '+errs.length+
+    '; первая: стр. '+errs[0].line+' — '+errs[0].why};
+  t.asked = true; log('черновик ред. '+ed.n+' бланка «'+t.name+'» отправлен на утверждение');
+  return {ok:true, note:'ред. '+ed.n+' отправлена на утверждение: уполномоченный увидит изменённые места '+
+    'и бумагу «до и после» на тех же примерах'};
+};
+/* Палитра полей — по ролям, с поиском и примером значения на живом объекте. */
+RP.palette = (tid, q, objId) => {
+  const t = TPL(tid); if(!t) return [];
+  const ed = draftEd(t) || pubEd(t), v = RP.viewer();
+  const row = SEAM.objectRows(ed.object, {obj: objId}, v.scope.slice()).rows[0] || {};
+  const pay = SEAM.objectRows('payment', {of: objId}, v.scope.slice()).rows[0] || {};
+  const qq = String(q || '').trim().toLowerCase();
+  const groups = {};
+  SEAM.fieldList(ed.object).fields.forEach(f => { const role = f.ru.split('.')[0];
+    (groups[role] = groups[role] || []).push({ru: f.ru, name: f.name,
+      example: f.id === 'dept' && row.dept ? deptName(row.dept) : row[f.id]}); });
+  groups['Платёж — в повторе'] = SEAM.fieldList('payment').fields.map(f =>
+    ({ru: f.ru, name: f.name, example: pay[f.id]}));
+  return Object.keys(groups).map(role => ({role, items: groups[role].filter(x => !qq ||
+    x.ru.toLowerCase().indexOf(qq) !== -1 || x.name.toLowerCase().indexOf(qq) !== -1)}))
+    .filter(g => g.items.length);
+};
+RP.copyToken = (ru, view) => { const tok = '${'+ru+(view ? ' | '+view : '')+'}';
+  RP.state.sel.copied = tok;
+  return {ok:true, token: tok, note:'скопировано: '+tok+' — вставьте в макет в Word'}; };
+/* Набор примеров: трудные объекты подбирает АСУБК — где условие не
+   выполнено, где повтор длинный или пустой; бланк рисуется на них с
+   водяным знаком «ОБРАЗЕЦ» и без номера.                                    */
+RP.samples = tid => { const t = TPL(tid); if(!t) return [];
+  const ed = draftEd(t) || pubEd(t), p = parseLayout(ed.layoutText, ed.object);
+  const out = [];
+  if(p.conds.indexOf('есть Поручитель') !== -1){
+    out.push({obj:'kr-6', why:'условие выполнено — поручитель есть'});
+    out.push({obj:'kr-2', why:'условие не выполнено — поручителя нет'}); }
+  if(p.repeats.length){
+    out.push({obj:'kr-2', why:'повтор длинный — 4 платежа'});
+    out.push({obj:'kr-4', why:'повтор пустой — платежей нет'}); }
+  if(!out.length) out.push({obj:'kr-2', why:'обычный объект'});
+  return out;
+};
+
+/* --- отрисовка проверки: тем же разбором, что и проверка утверждения --- */
+const MONTHS_G = ['января','февраля','марта','апреля','мая','июня','июля','августа',
+  'сентября','октября','ноября','декабря'];
+const ONES = ['','один','два','три','четыре','пять','шесть','семь','восемь','девять','десять',
+  'одиннадцать','двенадцать','тринадцать','четырнадцать','пятнадцать','шестнадцать',
+  'семнадцать','восемнадцать','девятнадцать'];
+const TENS = ['','','двадцать','тридцать','сорок','пятьдесят','шестьдесят','семьдесят','восемьдесят','девяносто'];
+const HUNDS = ['','сто','двести','триста','четыреста','пятьсот','шестьсот','семьсот','восемьсот','девятьсот'];
+function triad(n, fem){ const w = [];
+  w.push(HUNDS[Math.floor(n / 100)]); const r = n % 100;
+  if(r < 20) w.push(fem && r === 1 ? 'одна' : (fem && r === 2 ? 'две' : ONES[r]));
+  else { w.push(TENS[Math.floor(r / 10)]); const o = r % 10;
+    w.push(fem && o === 1 ? 'одна' : (fem && o === 2 ? 'две' : ONES[o])); }
+  return w.filter(Boolean).join(' '); }
+function inWords(n){ n = Math.round(n || 0); if(!n) return 'ноль';
+  const m = Math.floor(n / 1e6), th = Math.floor(n / 1e3) % 1000, rest = n % 1000, w = [];
+  if(m) w.push(triad(m) + ' ' + plural(m, 'миллион', 'миллиона', 'миллионов'));
+  if(th) w.push(triad(th, true) + ' ' + plural(th, 'тысяча', 'тысячи', 'тысяч'));
+  if(rest) w.push(triad(rest));
+  return w.join(' '); }
+/* Склонение — у отчётности, а не у автора макета: здесь — достаточная
+   имитация для фамилии с инициалами; наименование организации не склоняется. */
+function declined(v, view){ const m = String(v || '').match(/^([А-ЯЁ][а-яё]+ов)(\s.*)$/);
+  if(!m) return v;
+  const end = {'род.':'а','дат.':'у','вин.':'а','тв.':'ым'}[view];
+  return end ? m[1] + end + m[2] : v; }
+function viewValue(v, view){
+  if(v == null || v === '') return '';
+  if(!view) return typeof v === 'number' ? money(v) : String(v);
+  if(view === 'число и прописью') return money(v) + ' (' + inWords(v) + ')';
+  if(view === 'прописью') return inWords(v);
+  if(view === 'ДД.ММ.ГГГГ') return fmt(v);
+  if(view === '«15» октября 2026 г.') return '«' + String(v).slice(8, 10) + '» ' +
+    MONTHS_G[+String(v).slice(5, 7) - 1] + ' ' + String(v).slice(0, 4) + ' г.';
+  return declined(v, view);
+}
+function condHolds(c, row, objId){
+  if(c === 'есть Поручитель') return !!row.guarantor;
+  if(c === 'есть Залогодатель') return !!subjectInRole(objId, 'залогодатель');
+  const m = c.match(/^Кредит\.Состояние = (.+)$/); return m ? row.status === m[1] : false;
+}
+function layoutCheckDoc(t, ed, objId, showVals){
+  const p = parseLayout(ed.layoutText, ed.object), v = RP.viewer();
+  const row = SEAM.objectRows(ed.object, {obj: objId}, v.scope.slice()).rows[0] || {};
+  const pays = SEAM.objectRows('payment', {of: objId}, v.scope.slice()).rows;
+  const bad = {}; p.errors.forEach(e => { bad[e.line + '|' + e.raw] = e.why; });
+  const tok = (raw, line, kind, item) => {
+    const why = bad[line + '|' + raw];
+    if(why) return '<span class="tk bad" title="'+esc(why)+'">'+esc(raw)+'</span>';
+    if(kind === 'поле' && showVals && !item.inRepeat){ const val = viewValue(row[item.id], item.view);
+      return '<span class="tk ok" title="'+esc(raw)+'">'+(val ? esc(val) : '<i>пусто</i>')+'</span>'; }
+    if(kind === 'фрагмент' && showVals) return '<span class="tk frag">'+esc(FRAGMENTS[item.fragment] || '')+'</span>';
+    return '<span class="tk '+(kind === 'поле' ? 'ok' : 'mark')+'">'+esc(raw)+'</span>'; };
+  const lines = String(ed.layoutText || '').split('\n');
+  /* одна метка на строке может стоять дважды — заменяется один раз */
+  const itemsAt = ln => p.items.filter((x, k, a) => x.line === ln &&
+    a.findIndex(y => y.line === ln && y.raw === x.raw) === k);
+  let out = '', i = 0, inRep = false, repBuf = [], inCond = null, condBuf = [];
+  const renderLine = (txt, ln) => { let s = esc(txt);
+    itemsAt(ln).forEach(it => { s = s.split(esc(it.raw)).join(tok(it.raw, ln, it.kind, it)); });
+    return '<div class="ln" id="ln-'+ln+'"><span class="no">'+ln+'</span><span class="tx">'+(s || '&nbsp;')+'</span></div>'; };
+  lines.forEach((txt, k) => { const ln = k + 1;
+    const its = itemsAt(ln);
+    const opensRep = its.some(x => x.kind === 'повтор' && x.ok), closesRep = its.some(x => x.kind === 'конец повтора' && x.ok);
+    const opensCond = its.find(x => x.kind === 'условие' && x.ok), closesCond = its.some(x => x.kind === 'конец условия' && x.ok);
+    if(opensRep){ inRep = true; repBuf = [renderLine(txt, ln)]; return; }
+    if(inRep && !closesRep){ repBuf.push({txt, ln}); return; }
+    if(inRep && closesRep){ inRep = false;
+      const body = repBuf.slice(1);
+      let inner = repBuf[0];
+      if(showVals){
+        inner = pays.length ? pays.map(pm => body.map(b => { let s = esc(b.txt);
+          itemsAt(b.ln).forEach(it => { s = s.split(esc(it.raw)).join(it.kind === 'поле' && it.inRepeat && !bad[b.ln+'|'+it.raw]
+            ? '<span class="tk ok">'+esc(viewValue(pm[it.id], it.view))+'</span>' : tok(it.raw, b.ln, it.kind, it)); });
+          return '<div class="ln"><span class="no"></span><span class="tx">'+s+'</span></div>'; }).join('')).join('')
+          : '<div class="ln"><span class="no"></span><span class="tx muted">строк нет — у объекта платежей нет</span></div>';
+      } else inner += body.map(b => renderLine(b.txt, b.ln)).join('') + renderLine(txt, ln);
+      out += '<div class="blk rep"><span class="blk-h">повтор · каждый платёж'+(showVals ? ' · строк '+pays.length : '')+'</span>'+inner+'</div>';
+      return; }
+    if(opensCond){ inCond = opensCond; condBuf = [renderLine(txt, ln)]; return; }
+    if(inCond && !closesCond){ condBuf.push(renderLine(txt, ln)); return; }
+    if(inCond && closesCond){ condBuf.push(renderLine(txt, ln));
+      const holds = condHolds(inCond.cond, row, objId);
+      out += '<div class="blk cond'+(showVals && !holds ? ' off' : '')+'"><span class="blk-h">условие · '+
+        esc(inCond.cond)+(showVals ? (holds ? ' — выполнено, раздел войдёт' : ' — не выполнено, раздела не будет') : '')+
+        '</span>'+(showVals ? condBuf.slice(1, -1).join('') : condBuf.join(''))+'</div>';
+      inCond = null; return; }
+    out += renderLine(txt, ln);
+  });
+  if(inRep) out += '<div class="blk rep bad">'+repBuf.map(b => typeof b === 'string' ? b : renderLine(b.txt, b.ln)).join('')+'</div>';
+  if(inCond) out += '<div class="blk cond">'+condBuf.join('')+'</div>';
+  return {html: out, parse: p};
+}
+
 function scBlank(){
   const vis = RP.visibleTemplates().filter(id => TPL(id).kind === 'бланк');
   if(!vis.length) return '<div class="banner info">Роли не видно ни одного бланка: '+
     'верстать нечего.</div>';
-  const tid = vis.indexOf(RP.state.sel.blank) !== -1 ? RP.state.sel.blank : vis[0];
+  const sel = RP.state.sel;
+  const tid = vis.indexOf(sel.blank) !== -1 ? sel.blank : vis[0];
   const t = TPL(tid), pub = pubEd(t), dr = draftEd(t), ed = dr || pub;
-  const list = RP.fieldsOf(ed.object);
-  const subs = parseSubs(ed.layoutText);
+  const showVals = sel.blankVals !== false;
 
   let h = '<div class="form-row"><div class="fld"><label>Бланк</label>'+
     '<select onchange="RP.selBlank(this.value)">'+vis.map(id =>
-      '<option value="'+id+'"'+(id===tid?' selected':'')+'>'+esc(TPL(id).name)+'</option>').join('')+
+      '<option value="'+id+'"'+(id===tid?' selected':'')+'>'+esc(TPL(id).name)+
+      (TPL(id).form ? ' · '+esc(TPL(id).form) : '')+'</option>').join('')+
     '</select></div>'+
     '<div class="fld"><label>Редакция в работе</label><select disabled><option>ред. '+ed.n+' · '+
-      esc(ed.state)+'</option></select></div></div>';
+      esc(ed.state)+'</option></select></div>'+
+    '<div class="fld"><label>Макет</label><div class="btn-row" style="margin:0">'+
+      '<button class="btn btn-secondary btn-sm" onclick="act(RP.downloadLayout(\''+tid+'\'))">⬇ Скачать макет (docx)</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.uiUpload()">⬆ Загрузить исправленный</button>'+
+      '<button class="btn btn-primary btn-sm" onclick="act(RP.sendForApproval(\''+tid+'\'))">Отправить на утверждение</button>'+
+    '</div></div></div>';
+  if(!dr) h += '<div class="banner info">Ред. '+pub.n+' утверждена и печатается. Загрузка исправленного '+
+    'макета заведёт черновик ред. '+(pub.n+1)+' — прежняя печатается, пока новая не утверждена.</div>';
 
-  if(!dr) h += '<div class="banner warn"><b>Правится только черновая редакция.</b> Ред. '+pub.n+
-    ' опубликована и работает: другой текст насовсем — это <b>новая редакция</b>, а не правка на '+
-    'месте. Прежняя продолжает печататься, пока новая не опубликована.'+
-    '<div class="btn-row"><button class="btn btn-primary btn-sm" onclick="act(RP.newEdition(\''+tid+
-      '\'))">Завести редакцию '+(pub.n+1)+'</button>'+
-      '<button class="btn btn-secondary btn-sm" onclick="act(RP.setLayout(\''+tid+
-      '\',\'другой текст\'))">Править текст опубликованной</button></div></div>';
-
-  h += '<div class="cols"><div>';
-  h += '<div class="card"><h3>Макет '+(dr ? '(ред. '+dr.n+' · черновик)' : '(ред. '+pub.n+' · только чтение)')+'</h3>'+
-    '<div class="fld"><textarea id="layoutText" rows="9"'+(dr ? '' : ' disabled')+'>'+
-      esc(ed.layoutText || '')+'</textarea></div>'+
-    (dr ? '<div class="btn-row"><button class="btn btn-primary btn-sm" onclick="RP.uiSetLayout()">'+
-      'Сохранить макет</button>'+
-      '<button class="btn btn-secondary btn-sm" onclick="act(RP.docxNote())">Выгрузить docx получателю</button>'+
-      '</div>' : '')+'</div>';
-
-  h += '<div class="card"><h3>Подстановки — выведены разбором текста</h3>';
-  if(!subs.length) h += '<div class="muted small">в тексте нет ни одной подстановки</div>';
-  else h += '<div class="mirror">'+subs.map(id => {
-    const f = list.fields.find(x => x.id === id);
-    return '<div class="row"><span class="k mono">{{'+esc(id)+'}}</span>'+
-      (f ? esc(f.name) : '<span class="err">поля нет в перечне «'+esc(list.name)+'» — бланк неисполним</span>')+
-      '</div>'; }).join('')+'</div>';
-  h += '<div class="foot-pass">Подстановок в тексте: <b>'+subs.length+'</b>.</div></div>';
-  h += '</div><div class="side">';
-
-  h += '<div class="card"><h3 class="small">Вставить из перечня «'+esc(list.name)+'»</h3>'+
-    '<div class="chips">'+list.fields.map(f =>
-      '<button class="btn btn-secondary btn-sm" onclick="act(RP.insertToken(\''+tid+'\',\'field\',\''+
-      f.id+'\'))">'+esc(f.name)+'</button>').join('')+'</div>'+
+  /* --- проверка документом --- */
+  const samples = RP.samples(tid);
+  const obj = samples.some(x => x.obj === sel.blankObj) ? sel.blankObj : samples[0].obj;
+  const doc = layoutCheckDoc(t, ed, obj, showVals);
+  const errs = doc.parse.errors;
+  h += '<div class="cols"><div class="body">';
+  h += '<div class="card"><h3>Проверка документом</h3>'+
+    '<div class="form-row"><div class="fld"><label>Показать</label><div class="btn-row" style="margin:0">'+
+      '<button class="btn btn-sm '+(showVals ? 'btn-secondary' : 'btn-primary')+'" onclick="RP.state.sel.blankVals=false;render()">Имена полей</button>'+
+      '<button class="btn btn-sm '+(showVals ? 'btn-primary' : 'btn-secondary')+'" onclick="RP.state.sel.blankVals=true;render()">Значения</button>'+
+    '</div></div><div class="fld"><label>Набор примеров</label><div class="btn-row" style="margin:0">'+
+      samples.map(x => '<button class="btn btn-sm '+(x.obj === obj ? 'btn-primary' : 'btn-secondary')+'" '+
+        'onclick="RP.state.sel.blankObj=\''+x.obj+'\';render()" title="'+esc(x.why)+'">'+
+        esc((OBJ(x.obj) || {}).no || x.obj)+' · '+esc(x.why)+'</button>').join('')+
+    '</div></div></div>'+
+    '<div class="lcheck'+(showVals ? ' sample' : '')+'">'+doc.html+'</div>'+
+    '<div class="legend small"><span class="tk ok">поле найдено</span> <span class="tk bad">ошибка</span> '+
+      '<span class="blk-l rep">повтор</span> <span class="blk-l cond">условие</span>'+
+      (showVals ? ' · водяной знак «ОБРАЗЕЦ», номера нет' : '')+'</div></div>';
+  h += '<div class="card"><h3>Ошибки проверки'+(errs.length ? ' · '+errs.length : '')+'</h3>'+
+    (errs.length ? '<div class="errlist">'+errs.map(e => '<div class="er"><a href="#ln-'+e.line+'">стр. '+e.line+
+      '</a> <span class="mono">'+esc(e.raw)+'</span> — '+esc(e.why)+'</div>').join('')+'</div>'+
+      '<div class="small muted">Ошибки закрывают отправку на утверждение, а не сохранение: загруженный файл лежит черновиком.</div>'
+    : '<div class="banner ok">Ошибок нет: поля из перечня, виды значений и условия — из списков, повтор закрыт.</div>')+
     '</div>';
+  h += '<div class="card"><h3>Загружаемый файл</h3>'+
+    '<div class="small muted">Текст docx, как его сохранил Word у автора; «Загрузить исправленный» отдаёт его на проверку.</div>'+
+    '<div class="fld"><textarea id="layoutText" rows="10">'+esc(ed.layoutText || '')+'</textarea></div></div>';
+  h += '</div><div class="side wide">';
 
-  h += '<div class="card"><h3 class="small">Вставить показатель</h3><div class="chips">'+
-    RP.stats().map(s => '<button class="btn btn-secondary btn-sm" onclick="act(RP.insertToken(\''+
-      tid+'\',\'stat\',\''+s.id+'\'))">'+esc(s.name)+'</button>').join('')+'</div>'+
+  /* --- палитра --- */
+  const pal = RP.palette(tid, sel.palQ, obj);
+  h += '<div class="card"><h3 class="small">Палитра полей</h3>'+
+    '<div class="fld"><input value="'+esc(sel.palQ || '')+'" placeholder="поиск: ФИО, сумма, дата…" '+
+      'onchange="RP.state.sel.palQ=this.value;render()"></div>'+
+    pal.map(g => '<div class="pal-g">'+esc(g.role)+'</div>'+g.items.map(x =>
+      '<div class="pal"><span class="mono">${'+esc(x.ru)+'}</span>'+
+      '<span class="ex">'+(x.example == null || x.example === '' ? '<i>пусто у примера</i>'
+        : esc(typeof x.example === 'number' ? money(x.example) : (/^\d{4}-\d\d-\d\d$/.test(x.example) ? fmt(x.example) : x.example)))+'</span>'+
+      '<button class="btn btn-secondary btn-sm" onclick="act(RP.copyToken(\''+esc(x.ru)+'\'))">копировать</button></div>').join('')).join('')+
+    (sel.copied ? '<div class="small">в буфере: <span class="mono">'+esc(sel.copied)+'</span></div>' : '')+
     '</div>';
-
-  h += '<div class="card"><h3 class="small">Серия и номер</h3>'+kv([
-    ['серия', t.series ? t.series.prefix : '—'],
-    ['порядок', t.series ? (t.series.manual ? 'ручная — номер вводит делопроизводитель'
-      : 'сквозная — следующий '+t.series.prefix+String(t.series.next).padStart(3,'0')) : '—'],
-    ['занято номеров', t.series ? String(t.series.used.length) : '—'],
-    ['номера', t.series && t.series.used.length ? t.series.used.join(', ') : '—']
-  ])+'</div>';
-
+  h += '<div class="card"><h3 class="small">Готовые пары меток</h3>'+
+    '<div class="pal"><span class="mono">${Повтор: каждый Платёж} … ${Конец повтора}</span></div>'+
+    CONDITIONS.map(c => '<div class="pal"><span class="mono">${Если: '+esc(c)+'} … ${Конец условия}</span></div>').join('')+
+    Object.keys(FRAGMENTS).map(f => '<div class="pal"><span class="mono">${Фрагмент: '+esc(f)+'}</span></div>').join('')+
+    '<div class="pal-g">Вид значения — после черты</div>'+
+    '<div class="small">'+VALUE_VIEWS.map(x => '<span class="mono">| '+esc(x)+'</span>').join(' · ')+'</div>'+
+    '<div class="small muted">Пример: <span class="mono">${Заёмщик.ФИО | род.}</span></div></div>';
+  h += '<div class="card"><h3 class="small">Номер бумаги</h3><div class="small">'+esc(numberRule(t))+'</div></div>';
   h += '</div></div>';
 
-  /* --- печать из карточки объекта (§14 п. 7) ---
-     Та же механика заказа, что у отчёта (два шага, паспорт, два замка
-     видимости), приложенная к ОДНОМУ названному объекту. В проде объект
-     приходит уже названным из карточки объекта или рабочего списка — своей
-     витрины объектов у отчётности нет и не будет (ОЧ-43, ADR-0224); выбор
-     ниже держится ради мокапа.                                            */
+  /* --- печать из карточки объекта --- */
   h += '<div class="card"><h3>Печать из карточки объекта</h3>'+
-    '<div class="small muted">Мокап: объект выбирается вручную только потому, что своей витрины '+
-    'объектов у модуля нет — в проде печать открывается уже с названным объектом из его карточки '+
-    'или рабочего списка (ОЧ-43, ADR-0224).</div>';
-  if(!pub) h += '<div class="banner warn">Редакция ещё не опубликована — печатать нечего: '+
-    'выпускать можно только опубликованную (ИО-1).</div></div>';
+    '<div class="small muted">В приложении печать открывается уже с названным объектом — из карточки '+
+    'объекта или рабочего списка; выбор ниже держится ради макета.</div>';
+  if(!pub) h += '<div class="banner warn">Редакция ещё не утверждена — печатать нечего.</div></div>';
   else {
-    const sel = RP.state.sel;
     const params = {obj: sel.obj};
     if(pub.mode === 'на дату') params.asOf = sel.params.asOf;
     const prev = RP.show(tid, params, null), d = prev.data;
-
     h += '<div class="form-row"><div class="fld"><label>Кредит (объект бланка)</label>'+
       '<select onchange="RP.setObj(this.value)">'+CREDITS().map(o =>
         '<option value="'+o.id+'"'+(o.id===sel.obj?' selected':'')+'>'+esc(o.no+' · '+o.borrower)+'</option>').join('')+
@@ -3971,21 +4548,17 @@ function scBlank(){
           '<option value="'+dt+'"'+(dt===sel.params.asOf?' selected':'')+'>'+esc(fmt(dt))+'</option>').join('')+
         '</select></div>' : '')+
       '</div>';
-
     h += showBox(prev.head);
-    h += '<div class="sheet" style="margin-top:14px"><div class="sheet-h">'+esc(t.name)+'</div>'+
-      '<div class="sheet-sub">ред. '+pub.n+' · '+esc(t.basis ? (t.basis.point ? 'п. '+t.basis.point+' ' : '')+t.basis.doc
-        : 'основание не названо')+'</div>';
     if(!d.row) h += '<div class="banner danger">Объект вне области видимости роли: бланк печатает '+
-      'тот, у кого шаблон в круге <b>и</b> объект видим — два замка.</div>';
-    else h += '<div class="lineform">'+d.subs.map(s => '<div class="small"><b>{{'+esc(s.id)+'}}</b> → '+
-      (s.lost ? '<span style="color:var(--asubk-red)">поля нет в перечне</span>'
-        : esc(typeof s.value === 'number' ? money(s.value) : s.value))+
-      '<div class="muted">'+esc(s.name || '—')+'</div></div>').join('')+'</div>';
-    h += '</div>';
+      'тот, у кого бланк в круге <b>и</b> объект видим — два замка.</div>';
+    else h += '<div class="lineform">'+d.subs.map(s2 => '<div class="small"><b>${'+esc(ruOf(pub.object, s2.id))+'}</b> → '+
+      (s2.lost ? '<span style="color:var(--asubk-red)">поля нет в перечне</span>'
+        : esc(typeof s2.value === 'number' ? money(s2.value) : (s2.value == null ? '—'
+          : (s2.id === 'dept' ? deptName(s2.value) : (/^\d{4}-\d\d-\d\d$/.test(s2.value) ? fmt(s2.value) : s2.value)))))+
+      '<div class="muted">'+esc(s2.name || '—')+'</div></div>').join('')+'</div>';
 
     const fin = RP.finalRight(tid, null);
-    h += '<div class="card" style="margin-top:0"><h3>Ступень выпуска</h3><div class="form-row">'+
+    h += '<div class="form-row">'+
       '<div class="fld"><label>Ступень</label><select onchange="RP.setKind(this.value)">'+
         ['предварительный','окончательный'].map(k => '<option'+(k===sel.kind?' selected':'')+
           (k === 'окончательный' && !fin.ok ? ' disabled' : '')+'>'+k+'</option>').join('')+
@@ -3993,36 +4566,21 @@ function scBlank(){
         : (fin.note ? '<div class="why">'+esc(fin.note)+'</div>' : ''))+'</div>'+
       (function(){
         /* Получатель бланка не выбирается: редакция объявила ВИД, значение
-           пришло от соседа — ядро называет лицо в роли (ADR-0168 §1).       */
+           пришло от соседа. */
         const br = RP.blankRecipient(tid, sel.obj) || {};
         const r = br.rec;
-        const why = {
-          'роль': 'роль объявлена редакцией, лицо взято по роли у объекта',
-          'подразделение': r && r.byObject
-            ? 'подразделение взято то, что ведёт '+esc(r.viaNo || '')
-            : 'подразделение записано в редакции ссылкой в оргструктуру',
-          'должность': 'адресат — должность, а не человек'
-        };
         return '<div class="fld"><label>Получатель — '+esc(br.text || '—')+'</label>'+
           '<div class="mono" style="padding:6px 0">'+(r
-            ? esc(r.name)+' <span class="small muted">'+esc(r.ref)+
-              (r.inn ? ' · ИНН '+esc(r.inn) : '')+'</span>'
+            ? esc(r.name)+' <span class="small muted">'+esc(r.ref)+(r.inn ? ' · ИНН '+esc(r.inn) : '')+'</span>'
             : '<span class="muted">назвать некем</span>')+'</div>'+
-          '<div class="why">'+(r ? (why[r.kind] || '') : esc(br.why || ''))+'</div></div>';
+          (r ? '' : '<div class="why">'+esc(br.why || '')+'</div>')+'</div>';
       })()+
-      (t.series && t.series.manual ? '<div class="fld"><label>Номер (серия ручная)</label>'+
-        '<input value="'+esc(sel.number||'')+'" onchange="RP.setNumber(this.value)" '+
-        'placeholder="ПР-2026/015"></div>' : '')+
       '<div class="fld"><label>&nbsp;</label>'+
       '<button class="btn btn-primary" onclick="RP.doOrderBlank(\''+tid+'\')">Заказать выпуск</button></div></div>';
     h += '<div class="facts">'+
-      '<div class="f">предварительный — обязательств не закрывает, номера не тратит; '+
+      '<div class="f">предварительный — обязательств не закрывает, числа не морозит; '+
         'файл живёт '+dayWord(RP.FILE_DAYS)+' и гаснет</div>'+
-      '<div class="f">окончательный — только с названным получателем и только pdf</div>'+
-      (t.series ? '<div class="f">серия <b>'+esc(t.series.prefix)+'</b>'+
-        (t.series.manual ? ' ручная — номер вводит канцелярия, система ловит дубль'
-          : ' сквозная — следующий номер '+esc(t.series.prefix+String(t.series.next).padStart(3,'0')))+
-        '</div>' : '')+
+      '<div class="f">окончательный — pdf, числа заморожены снимком; '+esc(numberRule(t))+'</div>'+
       '</div>';
     h += '<div class="btn-row">'+
       '<button class="btn btn-secondary btn-sm" onclick="RP.doExportBlank(\''+tid+'\',\'docx\')">Выгрузить docx</button>'+
@@ -4044,10 +4602,13 @@ function scBlank(){
   }
   return h;
 }
+RP.uiUpload = () => { const el = $('#layoutText');
+  act(RP.uploadLayout(RP.state.sel.blank || RP.visibleTemplates().filter(id => TPL(id).kind === 'бланк')[0],
+    el ? el.value : '')); };
 RP.doOrderBlank = tid => { const sel = RP.state.sel, t = TPL(tid), ed = pubEd(t);
   const params = {obj: sel.obj};
   if(ed && ed.mode === 'на дату') params.asOf = sel.params.asOf;
-  const r = RP.order(tid, {params, kind: sel.kind, twist:null, recipient:null, number: sel.number});
+  const r = RP.order(tid, {params, kind: sel.kind, twist:null, recipient:null});
   act(r, r.ok ? 'заказ '+r.id+' принят: чисел ещё нет, строка журнала уже есть' : ''); };
 RP.doExportBlank = (tid, f) => { const sel = RP.state.sel, t = TPL(tid), ed = pubEd(t);
   const params = {obj: sel.obj};
@@ -4065,26 +4626,31 @@ RP.uiCloseWL = id => { const s = $('#wlWhy'); act(RP.closeWorklist(id, s ? s.val
 function scWorklists(){
   const mine = RP.visibleWorklists();
   const src = RP.state.issues.filter(i => i.kind === 'окончательный' && i.kindTpl === 'отчёт');
-  let h = '<div class="card"><h3>Отобрать выпуском</h3><div class="form-row">'+
+  let h = '<div class="card"><h3>Откуда берётся список</h3>'+
+    '<div class="small">Рабочий список заводится из провала — щёлкните число в «Показе и выпуске» — '+
+    'или выпуском: состав замораживается и называется.</div><div class="form-row">'+
     '<div class="fld"><label>Выпуск (окончательный отчёт)</label><select id="wlFrom">'+
       (src.length ? src.map(i => '<option value="'+i.id+'">'+esc(i.id+' · '+i.tplName+
         (i.period ? ' · '+i.period : ''))+'</option>').join('')
         : '<option value="">окончательных выпусков ещё нет</option>')+'</select></div>'+
     '<div class="fld"><label>Название списка</label><input id="wlName" placeholder="Обзвон по просрочке, август"></div>'+
     '</div><div class="btn-row">'+
-      '<button class="btn btn-primary btn-sm" onclick="RP.uiMakeWorklist()">Отобрать и заморозить</button>'+
+      '<button class="btn btn-primary btn-sm" onclick="RP.uiMakeWorklist()">Отобрать выпуском и заморозить</button>'+
+      '<button class="btn btn-secondary btn-sm" onclick="RP.go(\'issue\')">Перейти к показу — провал из числа</button>'+
       '<button class="btn btn-secondary btn-sm" onclick="RP.doRuleList()">Завести список правилом '+
         '«остаток &gt; 100 млн»</button>'+
     '</div></div>';
 
   if(!mine.length) return h + '<div class="banner info">Рабочих списков пока нет.</div>';
 
-  h += '<table class="cgrid"><thead><tr><th>Список</th><th>Отобран</th><th>Объектов</th>'+
+  h += '<table class="cgrid"><thead><tr><th>Список</th><th>Отобран</th><th>Отработано</th>'+
     '<th>Передан</th><th>Состояние</th><th></th></tr></thead><tbody>';
-  mine.forEach(w => { h += '<tr'+(w.state === 'закрыт' ? ' class="out"' : '')+'>'+
+  mine.forEach(w => { const pr = RP.worklistProgress(w.id);
+    h += '<tr'+(w.state === 'закрыт' ? ' class="out"' : '')+'>'+
     '<td><b>'+esc(w.name)+'</b><div class="small mono">'+esc(w.id)+'</div></td>'+
-    '<td class="small">выпуском '+esc(w.from)+'<div class="muted">'+esc(w.fromName)+' · '+fmt(w.at)+'</div></td>'+
-    '<td class="num">'+w.objects.length+'</td>'+
+    '<td class="small">'+(w.from === 'провал' ? 'провалом' : 'выпуском '+esc(w.from))+
+      '<div class="muted">'+esc(w.fromName)+' · '+fmt(w.at)+'</div></td>'+
+    '<td class="small">'+progBar(pr)+'</td>'+
     '<td class="small">'+esc(w.dept ? deptName(w.dept) : '—')+'</td>'+
     '<td>'+pill(w.state, w.state === 'закрыт' ? 'neutral' : 'ok')+
       (w.why ? '<div class="small muted">'+esc(w.why)+'</div>' : '')+'</td>'+
@@ -4093,32 +4659,43 @@ function scWorklists(){
   h += '</tbody></table>';
 
   const w = WL(RP.state.sel.wl) || mine[0];
-  const d = RP.worklistRows(w.id);
+  const d = RP.worklistRows(w.id), pr = RP.worklistProgress(w.id), open = w.state !== 'закрыт';
   h += '<div class="section-h">Список «'+esc(w.name)+'»</div>';
   h += '<div class="sheet"><div class="sheet-h">'+esc(w.name)+'</div>'+
-    '<div class="sheet-sub">состав заморожен '+fmt(w.at)+' выпуском '+esc(w.from)+
+    '<div class="sheet-sub">состав заморожен '+fmt(w.at)+' '+(w.from === 'провал' ? 'провалом' : 'выпуском '+esc(w.from))+
       ' · величины — текущие, на момент показа</div>';
+  h += '<div class="wlprog">'+progBar(pr)+'</div>';
   h += '<table class="cgrid"><thead><tr><th>Кредит</th><th>Заёмщик</th><th>Подразделение</th>'+
-    '<th>Долг, сом</th><th>Дней</th><th>Состояние</th></tr></thead><tbody>';
+    '<th>Долг, сом</th><th>Дней</th><th>Состояние</th><th>Отработан</th></tr></thead><tbody>';
   d.rows.forEach((r, i) => {
-    if(!r) { h += '<tr class="out"><td colspan="6" class="muted small">объект '+
-      esc(w.objects[i])+' — вне области видимости роли: строка не показана, но из состава не '+
+    const oid = w.objects[i], mk = w.marks && w.marks[oid];
+    if(!r) { h += '<tr class="out"><td colspan="7" class="muted small">объект '+
+      esc(oid)+' — вне области видимости роли: строка не показана, но из состава не '+
       'исчезла</td></tr>'; return; }
     h += '<tr'+(r.closed ? ' class="out"' : '')+'>'+
       '<td class="mono">'+esc(r.no)+'</td><td>'+esc(r.borrower)+'</td>'+
       '<td class="small">'+esc(deptName(r.dept))+'</td>'+
       '<td class="num">'+esc(money(r.debt_main))+'</td><td class="num">'+r.days+'</td>'+
-      '<td>'+(r.closed ? pill('выбыл '+fmt(r.closed),'neutral') : pill(r.status || 'в работе','info'))+'</td></tr>';
+      '<td>'+(r.closed ? pill('выбыл '+fmt(r.closed),'neutral') : pill(r.status || 'в работе','info'))+'</td>'+
+      '<td class="small">'+(mk
+        ? pill('✓ отработан','ok')+'<div class="muted">'+esc(mk.by)+' · '+fmt(mk.at)+
+          (mk.comment ? ' · '+esc(mk.comment) : '')+'</div>'+
+          (open ? '<a href="#" onclick="act(RP.unmarkWorked(\''+w.id+'\',\''+oid+'\'));return false">снять</a>' : '')
+        : (open ? '<button class="btn btn-secondary btn-sm" onclick="RP.uiMark(\''+w.id+'\',\''+oid+'\')">Отработан</button>'
+          : '<span class="muted">—</span>'))+'</td></tr>';
   });
   h += '</tbody></table>';
+  h += '<div class="small muted">«Отработан» — пометка «по этому прошёлся», а не факт работы: звонок, '+
+    'претензия, обещание оплатить записываются в карточке объекта.</div>';
   if(d.hidden) h += '<div class="banner warn">Область видимости скрыла '+objWord(d.hidden)+
     ': охват показа неполный.</div>';
   if(d.gone) h += '<div class="banner info"><b>Выбывший показан выбывшим.</b> '+objWord(d.gone)+
-    ' закрыт ядром уже после заморозки состава — строка осталась с отметкой.</div>';
+    ' закрыт уже после заморозки состава — строка осталась с отметкой.</div>';
   h += '</div>';
 
   h += '<div class="cols"><div>';
   h += '<div class="card"><h3>Работа со списком</h3><div class="form-row">'+
+    '<div class="fld"><label>Комментарий к отметке</label><input id="wlNote" placeholder="дозвонились, обещал оплатить до 05.09"></div>'+
     '<div class="fld"><label>Передать подразделению</label><select id="wlDept">'+DEPTS.map(x =>
       '<option value="'+x.id+'"'+(x.id===w.dept?' selected':'')+'>'+esc(x.name)+'</option>').join('')+
     '</select></div>'+
@@ -4139,50 +4716,14 @@ function scWorklists(){
   h += '</div></div>';
   return h;
 }
-
-/* ---------------------------- ДАШБОРД (§10) -------------------------- */
-RP.uiAddTile = () => { const s = $('#dashTpl');
-  act(RP.addTile(s ? s.value : null, {asOf:'2026-08-01', dept:''})); };
-function scDash(){
-  const tiles = RP.dashTiles(), personal = RP.dashPersonal();
-  const vis = RP.visibleTemplates();
-  let h = '<div class="banner '+(personal ? 'warn' : 'info')+'">Раскладка: <b>'+
-    (personal ? 'личная перекладка' : 'как объявлено на роль «'+esc(RP.viewer().title)+'»')+
-    '</b> · плиток '+tiles.length+
-    '<div class="btn-row"><button class="btn btn-secondary btn-sm" onclick="act(RP.resetDash())">'+
-      'Вернуть как объявлено</button>'+
-      '<button class="btn btn-secondary btn-sm" onclick="act(RP.dashPassport())">Паспорт дашборда</button>'+
-      '<button class="btn btn-secondary btn-sm" onclick="act(RP.addExternalTile(\'https://bi.example/kpi\'))">'+
-      'Плитка из внешнего источника</button></div></div>';
-
-  if(!tiles.length) h += '<div class="banner info">На эту роль плиток не объявлено.</div>';
-  tiles.forEach((tile, i) => {
-    const d = RP.tileData(tile);
-    h += '<div class="card"><h3>'+esc(d ? d.name : tile.tpl)+'</h3>';
-    if(!d) h += '<div class="banner danger">Шаблона нет.</div>';
-    else if(d.broken) h += '<div class="banner danger"><b>Отчёт неисполним:</b> '+esc(d.broken)+'</div>';
-    else {
-      h += '<div class="totals">'+d.totals.map(x => '<div class="tot"><div class="tn">'+esc(x.name)+
-        '</div><div class="tv">'+(x.value == null ? '—' : esc(money(x.value)))+' <span class="small">'+
-        esc(x.unit)+'</span></div><div class="tp">'+esc(x.why || 'по видимым строкам')+
-        '</div></div>').join('')+'</div>';
-      h += '<div class="small muted">строк в ответе: '+d.rows+'</div>';
-      h += passportBox(d.passport, false);
-      if(d.soft.length) h += '<div class="banner warn">'+esc(d.soft.join('; '))+'</div>';
-    }
-    h += '<div class="btn-row"><button class="btn btn-secondary btn-sm" onclick="RP.openIssue(\''+
-      tile.tpl+'\')">Раскрыть целиком</button>'+
-      '<button class="btn btn-secondary btn-sm" onclick="act(RP.removeTile('+i+'))">Убрать плитку</button>'+
-      '</div></div>';
-  });
-
-  h += '<div class="card"><h3>Добавить плитку</h3><div class="form-row"><div class="fld">'+
-    '<label>Шаблон (только видимый)</label><select id="dashTpl">'+vis.map(id =>
-      '<option value="'+id+'">'+esc(TPL(id).name)+' · '+esc(TPL(id).kind)+
-      (pubEd(TPL(id)) ? '' : ' · черновик')+'</option>').join('')+'</select></div></div>'+
-    '<div class="btn-row"><button class="btn btn-primary btn-sm" onclick="RP.uiAddTile()">Добавить</button></div></div>';
-  return h;
+/* Прогресс «N из M» — над списком и в строке перечня. */
+function progBar(pr){
+  if(!pr) return '';
+  const pct = pr.total ? Math.round(pr.done / pr.total * 100) : 0;
+  return '<span class="prog"><span class="bar"><span style="width:'+pct+'%"></span></span>'+
+    '<b>'+pr.done+' из '+pr.total+'</b></span>';
 }
+RP.uiMark = (wl, oid) => { const n = $('#wlNote'); act(RP.markWorked(wl, oid, n ? n.value : '')); };
 
 /* --------------------------- ГРАНИЦЫ МАКЕТА -------------------------- */
 function scBounds(){
@@ -4999,8 +5540,13 @@ KB.exportIssue = fmtName => { const s = S(); clearNotices();
     ' (' + FILE_DAYS + ' дней, ИО-11); паспорт вшит в файл (ИО-6)'}; };
 KB.finalIssue = () => ({ok:false, why:'окончательный выпуск у личного черновика невозможен: числа морозит НАЗВАННЫЙ ПОЛУЧАТЕЛЬ (ИО-4), ' +
   'а получатель и обязательство бывают только у опубликованной редакции, и то составом по умолчанию (ИО-21)'});
-KB.toDashboard = () => ({ok:false, why:'плиткой на дашборд встаёт только объявленный отчёт: за плиткой всегда стоит шаблон отчётности, ' +
-  'а личный черновик шаблоном не является (ИО-1, §10)'});
+/* «📌 на дашборд» — только ссылка: плитка хранит, на какой отчёт она смотрит, а раскладку,
+   вид показа и светофор ведёт модуль дашборда. Ссылаться можно лишь на сохранённое. */
+KB.pinToDashboard = () => { const s = S(); clearNotices();
+  const d = s.drafts.filter(x => x.author === ME.who && x.name === s.name).slice(-1)[0];
+  if(!d) return {ok:false, why:'плитка ссылается на сохранённый отчёт, а этот ещё не сохранён: сначала «Сохранить черновик»'};
+  note('ok', 'плитка ссылается на «' + d.name + '»');
+  return {ok:true, ref:{draft: d.id, name: d.name}, note:'плитка ссылается на этот отчёт («' + d.name + '»); раскладка — в модуле дашборда'}; };
 KB.publish = () => ({ok:false, why:'публикует уполномоченный по отчётности (' + AUTH.who + '), а не автор: шаблоном состав становится публикацией, ' +
   'не сборкой (ИО-1, ADR-0156 §2). Вам доступно «попросить публикации»'});
 KB.setBasis = () => ({ok:false, why:'сослаться на пункт нормы из личного черновика нельзя: нормативное основание называет только публикующий (§4)'});
@@ -5225,10 +5771,10 @@ function scActions(){
     '<button class="btn btn-secondary btn-sm" onclick="kbAct(KB.exportIssue(\'xlsx\'))">Выгрузить xlsx</button>' +
     '<button class="btn btn-secondary btn-sm" onclick="kbAct(KB.exportIssue(\'pdf\'))">Выгрузить pdf</button>' +
     '<button class="btn btn-secondary btn-sm" onclick="kbAct(KB.makeWorklist(S().drill.on ? prompt(\'Имя рабочего списка\', S().name) : \'\'))">Завести рабочий список</button>' +
+    '<button class="btn btn-secondary btn-sm" onclick="kbAct(KB.pinToDashboard())">📌 на дашборд</button>' +
     '<button class="btn btn-primary btn-sm" onclick="kbAct(KB.askPublish())">Попросить публикации</button></div>' +
     '<div style="margin-top:10px">' +
     '<div class="refuse"><b>Выпустить окончательно</b><span class="no">нельзя:</span><span>у черновика нет получателя и обязательства — окончательный выпуск делается по опубликованной редакции составом по умолчанию (ИО-4, ИО-21)</span></div>' +
-    '<div class="refuse"><b>Поставить на дашборд</b><span class="no">нельзя:</span><span>плитка бывает только из объявленного отчёта (ИО-1)</span></div>' +
     '<div class="refuse"><b>Опубликовать</b><span class="no">не вам:</span><span>публикует ' + esc(AUTH.who) + '; шаблоном состав становится публикацией, не сборкой (ADR-0156 §2)</span></div>' +
     '</div></div>';
   /* --- след --- */
@@ -5279,7 +5825,6 @@ const VIEWS = {
   calendar:{title:'Календарь сдачи', fn:scCalendar},
   blank:   {title:'Верстальщик макета бланка', fn:scBlank},
   worklists:{title:'Рабочие списки',  fn:scWorklists},
-  dash:    {title:'Дашборд',          fn:scDash},
   seams:   {title:'Швы и соседи',    fn:scSeams},
   bounds:  {title:'Границы макета',  fn:scBounds}
 };
