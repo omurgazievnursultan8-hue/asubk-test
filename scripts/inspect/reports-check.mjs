@@ -13,6 +13,15 @@
 // Волна 38 (блок HH, #219–#227): месяц из легаси без итога (ОГ-Д12, ADR-0309) — пустые клетки
 // остатков, сдача законна, ИО-8 не срабатывает, остаток не восстанавливается, декабрь 2025 без итога
 // не перенесён; правка периода из легаси новой версией миграции с меткой выпусков (ADR-0307 п. 6).
+// Волна 39 (блок II, #228–#233): итог месяцу из легаси без итога даёт новая версия миграции (ОГ-Д13,
+// ADR-0311) — целиком, строкой журнала «было: нет → стало»; сданная пустота метится, не переиздаётся.
+// Волна 40 (блок JJ, #234–#239): итоги концов месяцев 2025 г. в данных стенда — колонка-остаток на конец
+// месяца из легаси находит снимок, выпуск не предварительный; шов платежей внутри 2025 г. отвечает событиями.
+// Волна 41 (блок KK, #240–#246): хвост ОГ-Д6 — снимки своих месяцев 01.02…01.05.2026; смена методики показателя
+// между датами колонок, сравнения и динамики (ADR-0285 п. 2, 4); подписка на вид; сигнал по фильтру и «в любой строке».
+// Волна 42 (блок LL, #247–#252): майский взнос КД-2024/203 (pm-9) и сверка «остаток ↔ события» по снимкам; смена
+// методики официальной формы после утверждения — уведомление, «ожидает решения», отказ окончательной сдачи на даты
+// новой версии, подтверждение новой редакцией (ADR-0285 п. 3).
 // Блоки, которые правят состояние, начинаются с RP.seed() — состояние между ними не течёт.
 //   node scripts/inspect/reports-check.mjs
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -138,9 +147,10 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
     `строкам (${slice.value} против ${all.value}) — иначе итог рассказал бы то, чего в строках нет, §13.2`);
 
   const sub = SEAM.statRows('credit', '2026-09-01', { dept:null }, RP.viewer().scope.slice());
-  const none = SEAM.statRows('credit', '2025-12-01', { dept:null }, RP.viewer().scope.slice());
+  /* 01.12.2024 — конец ноября 2024 г., глубже переноса: снимка нет вовсе (волна 40 засеяла 2025 г.). */
+  const none = SEAM.statRows('credit', '2024-12-01', { dept:null }, RP.viewer().scope.slice());
   ok(14, sub.substituted === '2026-08-01' && none.missing === true,
-    `снимка на 01.09.2026 нет — подставлен ближайший на ${sub.substituted}; на 01.12.2025 снимка нет вовсе`);
+    `снимка на 01.09.2026 нет — подставлен ближайший на ${sub.substituted}; на 01.12.2024 (глубже переноса) снимка нет вовсе`);
 })();
 
 /* ---------- E. Две ступени выпуска: числа морозит получатель (ИО-4, ИО-8) ---------- */
@@ -631,13 +641,13 @@ const docShort = d => String(d).replace(/\s*\(ред\.[^)]*\)/, '');
     `выпуск — заказ, а не нажатие: строка журнала и паспорт заведены в момент заказа (редакция, ` +
     `дата, охват известны), числа — в шаге «считается»; состояния ${RP.jobStates().join(' → ')}`);
 
-  const bad = RP.order('t-overdue', { params:{ asOf:'2025-12-01', dept:null }, kind:'предварительный' });
+  const bad = RP.order('t-overdue', { params:{ asOf:'2024-12-01', dept:null }, kind:'предварительный' });
   RP.step(bad.id);
   const err = RP.step(bad.id);
   const errRow = RP.ISS(bad.id);
   ok(73, bad.ok && !err.ok && err.state === 'ошибка' && has(err.why, 'ИО-6') &&
         errRow.state === 'ошибка' && errRow.snapshot === null && RP.ISS(bad.id) !== undefined,
-    `задание кончается СОСТОЯНИЕМ, а не пустотой: снимка на 01.12.2025 нет — ошибка, строка ` +
+    `задание кончается СОСТОЯНИЕМ, а не пустотой: снимка на 01.12.2024 нет — ошибка, строка ` +
     `в журнале осталась и говорит почему`);
 
   as('clerk');
@@ -1721,7 +1731,7 @@ const DEV = 'изменено — не утверждённый состав';
   const live = SEAM.objectRows('payment', { of:'kr-2' }, RP.viewer().scope.slice()).rows;
   const pm3 = rp.rows.find(x => x.id === 'pm-3') || {};
   ok(173, rp.seam === 'statRows' && rp.asOf === '2026-01-01' && rp.rows.length === 4 && pm3.amount === 500000 &&
-        !rp.rows.some(x => x.id === 'pm-8') && live.length === 5 && live.find(x => x.id === 'pm-3').amount === 550000 &&
+        !rp.rows.some(x => x.id === 'pm-8') && live.length === 6 && live.find(x => x.id === 'pm-3').amount === 550000 &&
         at.data.passport.repeats[0].seam === 'statRows',
     `акт сверки на 01.01.2026 — тело из того же снимка, что шапка: ${rp.rows.length} строки statRows, pm-3 — ` +
     `${pm3.amount} (исправлен 10.02 на 550 000 — в акт не попадает), pm-8 от 15.03.2026 в снимке нет; ` +
@@ -1794,11 +1804,11 @@ const DEV = 'изменено — не утверждённый состав';
   RP.seed(); as('clerk');
   const f2 = RP.pdfFill('t-bankform', 'kr-2'), f6 = RP.pdfFill('t-bankform', 'kr-6');
   const fin = RP.issue('t-bankform', { params:{ obj:'kr-2' }, kind:'окончательный' });
-  ok(180, f2.ok && f2.continuation === 2 && f2.inForm === 3 && f2.pages === 2 && f2.baked &&
+  ok(180, f2.ok && f2.continuation === 3 && f2.inForm === 3 && f2.pages === 2 && f2.baked &&
         f2.fields.find(x => x.name === 'chkGuarantee').value === '☐' && f6.fields.find(x => x.name === 'chkGuarantee').value === '☒' &&
         f2.fields.find(x => x.name === 'BankNote').how === 'оставлено пустым' &&
         has(f2.fields.find(x => x.name === 'DebtAmount').value, 'пять миллионов сто тысяч') &&
-        fin.ok && fin.rec.pdf && fin.rec.pdf.pages === 2 && fin.rec.pdf.continuation === 2 &&
+        fin.ok && fin.rec.pdf && fin.rec.pdf.pages === 2 && fin.rec.pdf.continuation === 3 &&
         RP.state.issues.filter(i => i.tpl === 't-bankform').length === 1,
     `PDF-форма заполняется своим кодом: поля запечены, флажок — условием (☐ у КД-2024/203, ☒ у КД-2025/126), ` +
     `«оставить пустым» — явный выбор; 5 платежей — 3 в форме и 2 на листе продолжения того же PDF: один выпуск (ADR-0297 п. 7–8)`);
@@ -1946,18 +1956,25 @@ const DEV = 'изменено — не утверждённый состав';
   const long = RP.timeAnswer('t-overdue', { mode:'динамика', from:'2023-01-01', to:'2026-08-01' }, P);
   const q = RP.timeAnswer('t-overdue', { mode:'динамика', from:'2023-01-01', to:'2026-08-01', step:'квартал' }, P);
   const pts = dyn.ok ? dyn.tracks[0].points : [];
-  ok(191, dyn.ok && pts.length === 8 && pts[6].value === 10800000 && pts[1].gap === 'снимка нет' &&
+  /* Волна 41: у своих месяцев 2026 г. снимки на каждое 1-е число до 01.08 — пробел ряда ищется за его концом
+     (01.09, 01.10.2026 — «снимка нет») и в июле 2025 (без итога — «в легаси не собиралось»). */
+  const fut = RP.timeAnswer('t-overdue', { mode:'динамика', from:'2026-07-01', to:'2026-10-01' }, P);
+  const leg = RP.timeAnswer('t-overdue', { mode:'динамика', from:'2025-06-01', to:'2025-10-01' }, P);
+  const fp = fut.ok ? fut.tracks[0].points : [], lp = leg.ok ? leg.tracks[0].points : [];
+  ok(191, dyn.ok && pts.length === 8 && pts[6].value === 10800000 && pts.every(p => p.value != null) &&
+        fp.length === 4 && fp[2].gap === 'снимка нет' && fp[2].value === null && fp[3].gap === 'снимка нет' &&
+        lp.length === 5 && lp[2].value === null && lp[2].gap === 'в легаси не собиралось' && lp[3].value === 7300000 &&
         dyn.passport.seam === 'statSeries' && !long.ok && has(long.why, 'длиннее 36') && q.ok && q.dates.length === 15,
-    `динамика — ряд statSeries по месяцам (8 точек, июль — 10 800 000, без снимка — «снимка нет», а не ноль); ` +
+    `динамика — ряд statSeries по месяцам (8 точек, июль — 10 800 000; без снимка — «снимка нет», конец июля 2025 — «в легаси не собиралось», а не ноль); ` +
     `44 месяца — отказ «длиннее 36», по кварталам — ${q.ok ? q.dates.length : '?'} точек (ОГ-6)`);
 
   const stock = RP.timeAnswer('t-overdue', { mode:'за период', from:'2026-01-01', to:'2026-08-01' }, P);
   const turn = RP.timeAnswer('t-overdue', { mode:'за период', from:'2026-01-01', to:'2026-08-01', turnover:true }, P);
   ok(192, !stock.ok && has(stock.why, 'остаток: за период он не складывается') &&
-        turn.ok && turn.rows[0].value === 400000 && turn.lines.map(l => l.id).join() === 'pm-8' &&
+        turn.ok && turn.rows[0].value === 900000 && turn.lines.map(l => l.id).join() === 'pm-8,pm-9' &&
         turn.passport.seam === 'statRows (платёж)',
     `«за период» — обороты событий: остаток за период не складывается (отказ с путём «сравнение»), платежи ` +
-    `01.01–01.08.2026 — 400 000 сом из снимка статистики (pm-8)`);
+    `01.01–01.08.2026 — 900 000 сом из снимка статистики (pm-8, pm-9)`);
 
   const orF = { groups:[[{ field:'days', op:'больше', value:30 }], [{ field:'dept', op:'равно', value:'rep-osh' }]] };
   const or = RP.filterAnswer('t-overdue', P, orF);
@@ -2055,7 +2072,7 @@ const DEV = 'изменено — не утверждённый состав';
   ok(200, fc.ok && fc.cols.length === 5 && fc.dates.length === 5 &&
         has(fc.dates.join(), 'На начало года — на 01.01.2026') && has(fc.dates.join(), '01.01.2025 — 31.07.2025') &&
         cell('s-portfolio', 'c-now').value === now.shown && cell('s-portfolio', 'c-y0').value === jan.shown &&
-        cell('pay-sum', 'c-ytd').value === ytd && ytd === 400000 && cell('pay-sum', 'c-ly').value === 2400000 &&
+        cell('pay-sum', 'c-ytd').value === ytd && ytd === 900000 && cell('pay-sum', 'c-ly').value === 2400000 &&
         cell('pay-cnt', 'c-ly').value === 3 && cell('pay-sum', 'c-m').value === 0 &&
         cell('s-portfolio', 'c-m').value === null && has(cell('s-portfolio', 'c-m').gap, 'не складывается') &&
         cell('pay-sum', 'c-now').value === null && has(cell('pay-sum', 'c-now').gap, 'за период'),
@@ -2167,13 +2184,15 @@ const DEV = 'изменено — не утверждённый состав';
     `заметка ставится на строку (объект ответа) и ячейку (объект × колонка состава): ${seen.map(n => n.at).join('; ')}; ` +
     `к чужой колонке и невидимому объекту — отказ (ОГ-31)`);
 
-  const ln = RP.chartOf('t-overdue', { asOf:'2026-08-01', dept:'' }, null, { kind:'линия', time:{ from:'2026-01-01', to:'2026-08-01' } });
-  const tbl = RP.timeAnswer('t-overdue', dyn, { asOf:'2026-08-01', dept:'' });
+  /* Волна 41: середина 2026 г. без пробелов — разрыв линии показывается на июле 2025 г. (без итога). */
+  const lnT = { from:'2025-06-01', to:'2026-01-01' };
+  const ln = RP.chartOf('t-overdue', { asOf:'2026-08-01', dept:'' }, null, { kind:'линия', time: lnT });
+  const tbl = RP.timeAnswer('t-overdue', Object.assign({ mode:'динамика' }, lnT), { asOf:'2026-08-01', dept:'' });
   const pie = RP.chartOf('t-overdue', { asOf:'2026-08-01', dept:'' }, null, { kind:'круг' });
-  ok(209, ln.ok && ln.kind === 'линия' && ln.segments.length === 2 && ln.segments[0].length === 1 && ln.segments[1].length === 3 &&
-        ln.gaps.length === 4 && JSON.stringify(ln.points.map(p => p.value)) === JSON.stringify(tbl.tracks[0].points.map(p => p.value)) &&
+  ok(209, ln.ok && ln.kind === 'линия' && ln.segments.length === 2 && ln.segments[0].length === 2 && ln.segments[1].length === 5 &&
+        ln.gaps.length === 1 && ln.gaps[0] === '2025-08-01' && JSON.stringify(ln.points.map(p => p.value)) === JSON.stringify(tbl.tracks[0].points.map(p => p.value)) &&
         ln.passport.seam === 'statSeries' && !pie.ok && has(pie.why, 'графиков два'),
-    `линия динамики — тот же ряд statSeries, что таблица (8 точек); 4 месяца без снимка рвут линию на 2 отрезка, ` +
+    `линия динамики — тот же ряд statSeries, что таблица (8 точек); конец июля 2025 без итога рвёт линию на 2 отрезка, ` +
     `а не падают в ноль (ОГ-10, ОГ-6)`);
 
   RP.seed(); as('auth');
@@ -2267,7 +2286,7 @@ const DEV = 'изменено — не утверждённый состав';
   vm.runInContext("LEGACY.months['май 2025'].events = true", sandbox);
   const lyPay = nf.rows.find(r => r.id === 'pay-sum').cells.find(c => c.col === 'c-ly');
   ok(217, lyPay.value === null && lyPay.gap === 'события в легаси не перенесены (май 2025)' &&
-        nf.rows.find(r => r.id === 'pay-sum').cells.find(c => c.col === 'c-ytd').value === 400000 && nfFin.ok,
+        nf.rows.find(r => r.id === 'pay-sum').cells.find(c => c.col === 'c-ytd').value === 900000 && nfFin.ok,
     `поток за месяц без перенесённых событий — пустая клетка «${lyPay.gap}», а не «платежей не было»; месяц закрыт — ` +
     `сдаче не мешает (ADR-0307 п. 7)`);
 
@@ -2278,7 +2297,7 @@ const DEV = 'изменено — не утверждённый состав';
         has(s1, '«На начало года»: из легаси — перенос, выпуск миграции М-1') && has(s1, 'в легаси не собиралось') &&
         has(s1, 'источник колонок') && has(s1, 'нет в легаси') &&
         has(jr, 'Учётные периоды') && has(jr, 'декабрь 2024 — декабрь 2025') && has(jr, 'открыть нельзя') &&
-        (jr.match(/открыть заново — главный бухгалтер/g) || []).length === 3 &&
+        (jr.match(/открыть заново — главный бухгалтер/g) || []).length === 7 &&
         !has(sb, "RP.doNight('2026-01-01')") && has(sb, "RP.doNight('2026-08-01')"),
     `экраны: форма — сноска у колонки «из легаси» и пустая клетка с причиной, паспорт — источник колонок; журнал — ` +
     `строка периодов из легаси без кнопки «открыть»; подписки — нет ночного прогона по снимку переноса`);
@@ -2321,7 +2340,7 @@ const DEV = 'изменено — не утверждённый состав';
   const soft = RP.show('t-port-ly', { asOf:'2026-08-01', dept:'' }, null).data.soft;
   const pre = RP.issue('t-port-ly', { params:{ asOf:'2026-08-01' }, kind:'окончательный', recipient:'a-mf' });
   const preRec = RP.state.issues.find(i => i.id === pre.id);
-  vm.runInContext("HIST['2026-07-01'] = clone(HIST0['2026-07-01']); HIST_DATES.splice(2, 0, '2026-07-01')", sandbox);
+  vm.runInContext("HIST['2026-07-01'] = clone(HIST0['2026-07-01']); HIST_DATES.push('2026-07-01'); HIST_DATES.sort()", sandbox);
   RP.seed(); as('auth');
   ok(221, fin.ok && rec.kind === 'окончательный' && rec.passport.frozen && rec.passport.legacyGaps.length === 2 &&
         rec.snapshot.timeTable.rows.find(r => r.id === 's-portfolio').cells.find(c => c.col === 'c-nly').value === null &&
@@ -2330,17 +2349,15 @@ const DEV = 'изменено — не утверждённый состав';
     `окончательная сдача проходит (${fin.id}): пустота морозится с причиной; ИО-8 у месяца из легаси не срабатывает, ` +
     `а у системного месяца без снимка — по-прежнему: «${preRec.note.slice(0, 80)}…» (ADR-0309 п. 2)`);
 
-  /* Восстановления нет: даже если рядом лежит итог июня 2025 (вкладывается на время проверки), конец июля
+  /* Восстановления нет: итоги концов июня и августа 2025 г. в стенде есть (волна 40), а конец июля
      не подставляется соседним снимком и не выводится из него и событий; ноль не ставится. */
-  vm.runInContext("HIST['2025-07-01'] = clone(HIST['2026-01-01']); HIST_DATES.push('2025-07-01')", sandbox);
   const nb = SEAM.statSlice('s-portfolio', null, {}, '2025-08-01', RP.viewer().scope);
   const nbRows = SEAM.statRows('credit', '2025-08-01', {}, RP.viewer().scope);
   const nbCell = RP.formColumns('t-port-ly', '2026-08-01').rows.find(r => r.id === 's-portfolio').cells.find(c => c.col === 'c-nly');
-  vm.runInContext("delete HIST['2025-07-01']; HIST_DATES.pop()", sandbox);
   ok(222, nb.value === null && nb.never && nbRows.substituted === null && nbRows.rows.length === 0 &&
         nbCell.value === null && nbCell.gap === 'в легаси не собиралось' &&
-        !RP.hasSnapshot('2025-07-01'),
-    `остаток на конец месяца без итога не восстанавливается: соседний итог на 01.07.2025 есть, а конец июля — пусто ` +
+        RP.hasSnapshot('2025-07-01') && RP.hasSnapshot('2025-09-01') && !RP.hasSnapshot('2025-08-01'),
+    `остаток на конец месяца без итога не восстанавливается: соседние итоги на 01.07.2025 и 01.09.2025 есть, а конец июля — пусто ` +
     `«в легаси не собиралось», не подстановка соседнего снимка, не итог плюс события и не ноль (ADR-0309 п. 3)`);
 
   const comp = RP.legacyComposition(); comp.months['декабрь 2025'].totals = false;
@@ -2379,13 +2396,13 @@ const DEV = 'изменено — не утверждённый состав';
   const log = RP.rewriteLog();
   ok(224, !noRole.ok && has(noRole.why, 'утверждает человек') && !noWhy.ok && has(noWhy.why, 'без основания') &&
         !own.ok && has(own.why, 'открытием периода') && !lostM.ok && has(lostM.why, 'перенос не дал') &&
-        !addT.ok && has(addT.why, 'ОГ-Д13') && !same.ok && has(same.why, 'версия без замен') &&
+        !addT.ok && has(addT.why, 'дополняется целиком: не хватает строк') && !same.ok && has(same.why, 'версия без замен') &&
         rev.ok && rev.release === 'М-2' && log.length === 1 && log[0].by === 'Бекова Н.' && log[0].release === 'М-2' &&
         log[0].was === 6100000 && log[0].now === 6300000 && has(log[0].what, 'итог на 01.01.2026 · КД-2025/126') &&
         was01 === 77000000 && now01 === 77200000 && RP.migrations().length === 2 && RP.migrations()[1].of === 'М-1',
     `правка периода из легаси — новая версия миграции ${rev.release}: утверждает человек (${log[0].by}), основание обязательно, ` +
     `строка журнала перезаписи «было → стало» (${log[0].was} → ${log[0].now}); итог на 01.01.2026 ${was01} → ${now01}; ` +
-    `свой период, не перенесённый месяц, итог месяцу без итога и версия без замен — отказы (ADR-0307 п. 6)`);
+    `свой период, не перенесённый месяц, частичный итог месяцу без итога и версия без замен — отказы (ADR-0307 п. 6, ADR-0311 п. 4)`);
 
   const I = id => RP.state.issues.find(i => i.id === id);
   const rc = RP.recompute(f4.id);
@@ -2425,6 +2442,359 @@ const DEV = 'изменено — не утверждённый состав';
         !has(s1, 'Не закрыты:') && has(sc, 'Портфель к прошлому году'),
     `экраны: форма «Портфель к прошлому году» — две пустые клетки «в легаси не собиралось» и поток июля 2025 из ` +
     `событий, паспорт называет клетки; форма стоит в витрине`);
+})();
+
+/* ---- II. Итог месяцу из легаси без итога — новой версией миграции (ОГ-Д13, ADR-0311), волна 39 ---- */
+(() => {
+  RP.seed(); as('auth');
+  const I = id => RP.state.issues.find(i => i.id === id);
+  const fLy = RP.issue('t-port-ly', { params:{ asOf:'2026-08-01' }, kind:'окончательный', recipient:'a-mf' });
+  const f4  = RP.issue('t-pay04', { params:{ asOf:'2026-08-01' }, kind:'окончательный', recipient:'a-mf' });
+  const fPre = RP.issue('t-port-ly', { params:{ asOf:'2026-08-01' }, kind:'предварительный' });
+  const n0 = RP.state.issues.length;
+  const arch = vm.runInContext("clone(LEGACY_ARCHIVE['июль 2025'])", sandbox);
+  const why = 'найден архив сальдо за июль 2025 г.';
+  const noRole = RP.migrationRevision({ period:'июль 2025', why, totals: arch });
+  as('buh');
+  const part = Object.assign({}, arch); delete part['kr-4']; delete part['kr-6'];
+  const partial = RP.migrationRevision({ period:'июль 2025', why, totals: part });
+  const extra = RP.migrationRevision({ period:'июль 2025', why, totals: Object.assign({ 'kr-7':{ debt_main:1, days:0, status:'действует' } }, arch) });
+  const noField = RP.migrationRevision({ period:'июль 2025', why, totals: Object.assign({}, arch, { 'kr-3':{ debt_main:2700000 } }) });
+  const untouched = !RP.hasSnapshot('2025-08-01') && RP.rewriteLog().length === 0 && RP.migrations().length === 1 &&
+    SEAM.periodSource('июль 2025').totals === false;
+  ok(228, !noRole.ok && has(noRole.why, 'утверждает человек') &&
+        !partial.ok && has(partial.why, 'дополняется целиком: не хватает строк КД-2025/088, КД-2025/126') &&
+        !extra.ok && has(extra.why, 'КД-2026/007') && has(extra.why, 'не действовал') &&
+        !noField.ok && has(noField.why, 'КД-2025/014') && has(noField.why, 'дней просрочки') && untouched,
+    `итог дополняется только целиком и только человеком: частичный — «${partial.why.slice(0, 90)}…»; строка договора, ` +
+    `которого тогда не было, и строка без величины — отказ; стенд не тронут (ADR-0311 п. 4)`);
+
+  const rev = RP.migrationRevision({ period:'июль 2025', why, totals: arch });
+  const ps = SEAM.periodSource('июль 2025'), log = RP.rewriteLog();
+  const cr = SEAM.statRows('credit', '2025-08-01', {}, RP.viewer().scope);
+  const sl = SEAM.statSlice('s-portfolio', null, {}, '2025-08-01', RP.viewer().scope);
+  const sum = Object.values(arch).reduce((a, r) => a + r.debt_main, 0);
+  const act = RP.periodActions('июль 2025');
+  ok(229, rev.ok && rev.release === 'М-2' && rev.added === 7 && log.length === 7 && log.every(w => w.was === null && w.release === 'М-2' &&
+        w.by === 'Бекова Н.' && w.why === why) && has(log[0].what, 'итог на 01.08.2025 · КД-2024/117 · строка итога добавлена') &&
+        log[0].now === '10 800 000 · 0 дн. · действует' &&
+        ps.totals === true && ps.totalsBy === 'М-2' && RP.hasSnapshot('2025-08-01') &&
+        !cr.missing && !cr.never && cr.rows.length === 7 && sl.value === sum && sum === 85900000 && !sl.never &&
+        act.actions.length === 0 && act.origin === 'легаси' && RP.periods()['июль 2025'].state === 'закрыт',
+    `новая версия миграции ${rev.release} дала итог июлю 2025 г.: ${log.length} строк журнала «было: нет → стало», ` +
+    `шов на 01.08.2025 отдаёт ${cr.rows.length} строк, портфель ${sl.value}; месяц по-прежнему закрыт из легаси, «открыть» нет ` +
+    `(ADR-0311 п. 1–2)`);
+
+  const rc = RP.recompute(fLy.id);
+  ok(230, rev.marked.join() === fLy.id && I(fLy.id).diverged &&
+        has(I(fLy.id).divergedWhy, 'числа изменились после сдачи: новая версия миграции М-2 (июль 2025: итог дополнен)') &&
+        rc.diffs.length === 2 && rc.diffs.every(d => d.was === null && d.now != null) &&
+        rc.diffs.some(d => d.name === 'Остаток основного долга, всего × «На отчётную дату — прошлый год»' && d.now === 85900000) &&
+        !I(f4.id).diverged && !I(fPre.id).diverged && RP.state.issues.length === n0 && I(fLy.id).kind === 'окончательный' &&
+        I(fLy.id).snapshot.timeTable.rows.find(r => r.id === 's-portfolio').cells.find(c => c.col === 'c-nly').value === null,
+    `сданная пустота стала расхождением: ${fLy.id} помечен «${I(fLy.id).divergedWhy}», клеток изменилось ${rc.diffs.length} ` +
+    `(было пусто → число); ФО-04 (поток июля не менялся) и предварительный выпуск не помечены; сданный снимок не ` +
+    `переписан, новых выпусков нет (ИО-34, ADR-0311 п. 3)`);
+
+  as('auth');
+  const fc = RP.formColumns('t-port-ly', '2026-08-01');
+  const cell = (rid, cid) => fc.rows.find(r => r.id === rid).cells.find(c => c.col === cid);
+  const col = fc.cols.find(c => c.id === 'c-nly');
+  const soft = RP.show('t-port-ly', { asOf:'2026-08-01', dept:'' }, null).data.soft;
+  const cor = RP.corrective(fLy.id), corRec = I(cor.id);
+  ok(231, fc.ok && cell('s-portfolio', 'c-nly').value === 85900000 && cell('s-overdue-cnt', 'c-nly').value === 1 &&
+        !cell('s-portfolio', 'c-nly').gap && fc.legacyGaps.length === 0 && cell('pay-sum', 'c-mly').value === 1200000 &&
+        has(col.source, 'новые версии: июль 2025 — М-2 (итог дополнен)') && soft.length === 0 &&
+        cor.ok && corRec.kind === 'окончательный' && corRec.correctionOf === fLy.id && !corRec.passport.legacyGaps &&
+        corRec.snapshot.timeTable.rows.find(r => r.id === 's-portfolio').cells.find(c => c.col === 'c-nly').value === 85900000,
+    `форма на 01.08.2026: «На отчётную дату — прошлый год» — ${cell('s-portfolio', 'c-nly').value} и просроченных ` +
+    `${cell('s-overdue-cnt', 'c-nly').value}, пустых клеток нет; паспорт колонки называет версию; уточнение — корректирующим ` +
+    `выпуском ${cor.id} по решению человека (ADR-0311 п. 3)`);
+
+  as('buh');
+  const again = RP.migrationRevision({ period:'июль 2025', why:'повтор', totals: arch });
+  const fix = RP.migrationRevision({ period:'июль 2025', why:'в архиве опечатка по КД-2025/014',
+    totals:{ 'kr-3':{ debt_main:2750000 } } });
+  RP.state.view = 'journal'; const jr = win.VIEWS.journal.fn();
+  RP.state.view = 'issue'; RP.state.sel.tpl = 't-port-ly'; RP.state.sel.params = { asOf:'2026-08-01', dept:'' };
+  RP.state.sel.view = null; RP.state.sel.twist = null; RP.state.sel.chart = false; RP.state.sel.time = null;
+  const s1 = win.VIEWS.issue.fn();
+  ok(232, !again.ok && has(again.why, 'версия без замен') && fix.ok && fix.release === 'М-3' && fix.added === 0 &&
+        RP.rewriteLog().length === 8 && RP.rewriteLog()[7].was === 2700000 && RP.rewriteLog()[7].now === 2750000 &&
+        has(jr, 'итог июля 2025 по найденному архиву сальдо') && has(jr, 'нет (итог не перенесён) → 10 800 000 · 0 дн. · действует') &&
+        has(jr, 'июль 2025 — правка версией М-2 (итог дополнен), М-3') &&
+        has(s1, '85 950 000') && !has(s1, '>в легаси не собиралось<') && !has(s1, 'итог месяца не перенесён'),
+    `после дополнения месяц правится как любой перенесённый (${fix.release}: замена, а не дополнение), повтор архива — ` +
+    `«версия без замен»; журнал выпусков печатает добавленные строки и кнопку демо, форма — числа вместо пустых клеток`);
+
+  RP.seed(); as('auth');
+  const back = RP.formColumns('t-port-ly', '2026-08-01');
+  ok(233, !RP.hasSnapshot('2025-08-01') && SEAM.periodSource('июль 2025').totals === false && !SEAM.periodSource('июль 2025').totalsBy &&
+        back.legacyGaps.length === 2 && RP.rewriteLog().length === 0 && !/модель пока не решила/.test(m[1]),
+    `затравка возвращает стенд: снимка на 01.08.2025 нет, июль 2025 снова без итога, пустых клеток ${back.legacyGaps.length}; ` +
+    `заглушки «модель пока не решила» в макете нет`);
+})();
+
+/* ---- JJ. Итоги концов месяцев 2025 г. в данных стенда (пробел волны 37), волна 40 ---- */
+(() => {
+  RP.seed(); as('auth');
+  const ev = c => vm.runInContext(c, sandbox);
+  const H = ev('HIST'), D = ev('HIST_DATES.slice()'), ARCH = ev("clone(LEGACY_ARCHIVE['июль 2025'])");
+  const P = RP.periods(), lm = Object.keys(P).filter(m => P[m].origin === 'легаси');
+  const endOf = m => ev(`firstOfNext(monthIso(${JSON.stringify(m)}))`);
+  const withTot = lm.filter(m => SEAM.periodSource(m).totals);
+  const credits = RP.objects();
+  const setOk = d => Object.keys(H[d]).sort().join() === credits.filter(o => o.issued < d && (!o.closed || o.closed >= d))
+    .map(o => o.id).sort().join();
+  const d25 = D.filter(d => d < '2026-01-01');
+  ok(234, lm.length === 13 && withTot.length === 12 && withTot.every(m => RP.hasSnapshot(endOf(m))) &&
+        !RP.hasSnapshot(endOf('июль 2025')) && d25.length === 11 && d25.every(setOk) && setOk('2026-01-01') &&
+        D.join() === D.slice().sort().join() && !RP.hasSnapshot('2024-12-01'),
+    `у каждого из ${withTot.length} месяцев из легаси с итогом есть снимок на конец (2025 г. — ${d25.length} дат), у июля ` +
+    `2025 (без итога) — нет; состав каждого снимка — договоры, выданные раньше конца месяца`);
+
+  const dm = (d, id) => (H[d][id] || {}).debt_main;
+  const mono = ['kr-1', 'kr-2', 'kr-3', 'kr-4', 'kr-5', 'kr-6', 'kr-8'].every(id => {
+    const v = D.filter(d => d <= '2026-01-01' && H[d][id]).map(d => dm(d, id));
+    return v.every((x, i) => i === 0 || x <= v[i - 1]); });
+  ok(235, dm('2025-03-01', 'kr-2') - dm('2025-04-01', 'kr-2') === 600000 &&
+        dm('2025-06-01', 'kr-2') - dm('2025-07-01', 'kr-2') === 600000 &&
+        dm('2025-09-01', 'kr-2') - dm('2025-10-01', 'kr-2') === 500000 && dm('2025-12-01', 'kr-2') === dm('2026-01-01', 'kr-2') &&
+        dm('2025-07-01', 'kr-1') - dm('2025-09-01', 'kr-1') === 1200000 && dm('2025-12-01', 'kr-1') - dm('2026-01-01', 'kr-1') === 1200000 &&
+        ARCH['kr-2'].debt_main === dm('2025-07-01', 'kr-2') && ARCH['kr-1'].debt_main === dm('2025-09-01', 'kr-1') &&
+        H['2025-09-01']['kr-2'].days === 49 && H['2025-10-01']['kr-2'].days === 0 && mono,
+    `итоги сведены с событиями переноса: КД-2024/203 гасится pm-1, pm-2 и pm-3 (500 000 — сумма, как её знал перенос), ` +
+    `пропуск декабря не меняет остаток; КД-2024/117 — pm-5 и pm-6; найденный архив июля ложится между июнем и августом; ` +
+    `остатки 2025 г. не растут`);
+
+  const asOfs = ['2026-01-01', '2026-02-01', '2026-03-01', '2026-04-01', '2026-05-01', '2026-06-01', '2026-07-01'];
+  const nly = asOfs.map(d => RP.formColumns('t-port-ly', d)).map(fc => fc.rows.find(r => r.id === 's-portfolio').cells.find(c => c.col === 'c-nly'));
+  const fc7 = RP.formColumns('t-port-ly', '2026-07-01');
+  const fin7 = RP.issue('t-port-ly', { params:{ asOf:'2026-07-01' }, kind:'окончательный', recipient:'a-mf' });
+  const rec7 = RP.state.issues.find(i => i.id === fin7.id);
+  ok(236, nly.every(c => typeof c.value === 'number' && !c.gap) && nly[6].value === 83350000 && nly[5].value === 86550000 &&
+        nly[0].value === 43300000 && fc7.gaps.length === 0 && fc7.legacyGaps.length === 0 &&
+        has(fc7.cols.find(c => c.id === 'c-nly').source, 'из легаси') &&
+        fin7.ok && rec7.kind === 'окончательный' && !has(rec7.note, 'ИО-8'),
+    `«Портфель к прошлому году»: колонка «На отчётную дату — прошлый год» на 01.01…01.07.2026 даёт числа ` +
+    `(${nly.map(c => c.value).join(', ')}); выпуск на 01.07.2026 — окончательный, а не предварительный «снимка на 01.07.2025 нет»`);
+
+  const fc8 = RP.formColumns('t-port-ly', '2026-08-01');
+  /* Свой месяц без снимка: снимок 01.03.2026 (волна 41) на время проверки убирается. */
+  vm.runInContext("delete HIST['2026-03-01']; HIST_DATES.splice(HIST_DATES.indexOf('2026-03-01'), 1)", sandbox);
+  const soft3 = RP.show('t-port-ly', { asOf:'2026-03-01', dept:'' }, null).data.soft;
+  RP.seed(); as('auth');
+  ok(237, fc8.legacyGaps.length === 2 && fc8.rows.find(r => r.id === 's-portfolio').cells.find(c => c.col === 'c-nly').gap === 'в легаси не собиралось' &&
+        soft3.some(x => has(x, 'колонка «На отчётную дату»: снимка на 01.03.2026 нет')) && !soft3.some(x => has(x, 'прошлый год')),
+    `границы не сдвинулись: конец июля 2025 (без итога) — по-прежнему пустота «в легаси не собиралось»; свой месяц без ` +
+    `снимка (01.03.2026) по-прежнему делает выпуск предварительным, колонка прошлого года — нет (ИО-8)`);
+
+  const p8 = SEAM.statRows('payment', '2025-08-01', {}, RP.viewer().scope);
+  const p10 = SEAM.statRows('payment', '2025-10-01', {}, RP.viewer().scope);
+  const c8 = SEAM.statRows('credit', '2025-08-01', {}, RP.viewer().scope);
+  ok(238, !p8.missing && p8.substituted === null && p8.rows.some(r => r.id === 'pm-5') && has(p8.passport.depth, 'события переноса') &&
+        !p10.missing && p10.rows.find(r => r.id === 'pm-3').amount === 500000 && p10.substituted === null &&
+        c8.missing && c8.never,
+    `шов платежей на дату внутри 2025 г. отвечает событиями переноса, а не «снимка нет»: на 01.08.2025 — ${p8.rows.length} ` +
+    `платежа, включая июльский pm-5, без подстановки; pm-3 на 01.10.2025 — 500 000, как его знал перенос; итог на ` +
+    `01.08.2025 — по-прежнему «нет»`);
+
+  RP.state.view = 'issue'; RP.state.sel.tpl = 't-port-ly'; RP.state.sel.params = { asOf:'2026-07-01', dept:'' };
+  RP.state.sel.view = null; RP.state.sel.twist = null; RP.state.sel.chart = false; RP.state.sel.time = null;
+  const s7 = win.VIEWS.issue.fn();
+  ok(239, has(s7, '83 350 000') && !has(s7, 'снимка на 01.07.2025 нет') && !has(s7, '>в легаси не собиралось<'),
+    `экран формы на 01.07.2026: в колонке прошлого года — 83 350 000, без «снимка нет»`);
+})();
+
+/* ---- KK. Хвост ОГ-Д6: снимки своих месяцев 2026 г., методика между датами, подписка на вид,
+        сигнал по фильтру и «в любой строке» (ADR-0285, ADR-0287), волна 41 ---- */
+(() => {
+  RP.seed(); as('auth');
+  const ev = c => vm.runInContext(c, sandbox);
+  const H = ev('HIST'), sc = RP.viewer().scope;
+  const own = ['2026-02-01', '2026-03-01', '2026-04-01', '2026-05-01'];
+  const pf = d => SEAM.statSlice('s-portfolio', null, {}, d, sc).value;
+  const f4 = RP.formColumns('t-pay04', '2026-03-01'), ly3 = RP.formColumns('t-port-ly', '2026-03-01');
+  const fin3 = RP.issue('t-port-ly', { params:{ asOf:'2026-03-01' }, kind:'окончательный', recipient:'a-mf' });
+  const rec3 = RP.state.issues.find(i => i.id === fin3.id);
+  ok(240, own.every(d => RP.hasSnapshot(d)) && !H['2026-02-01']['kr-7'] && H['2026-03-01']['kr-7'].debt_main === 2500000 &&
+        H['2026-03-01']['kr-2'].debt_main - H['2026-04-01']['kr-2'].debt_main === 400000 &&
+        H['2026-05-01']['kr-6'].days === 1 && H['2026-06-01']['kr-6'].days === 32 &&
+        own.every((d, i) => ['kr-1', 'kr-3', 'kr-4', 'kr-5', 'kr-8'].every(id => H[d][id].debt_main <= H[i ? own[i - 1] : '2026-01-01'][id].debt_main &&
+          H[d][id].debt_main >= H['2026-06-01'][id].debt_main)) &&
+        pf('2026-03-01') === 76150000 && f4.rows.find(r => r.id === 's-portfolio').cells.find(c => c.col === 'c-now').value === 76150000 &&
+        ly3.gaps.length === 0 && fin3.ok && rec3.kind === 'окончательный' &&
+        RP.periodActions('февраль 2026').actions.indexOf('открыть заново') !== -1,
+    `снимки своих месяцев 01.02…01.05.2026: портфель ${own.map(pf).join(' · ')}; КД-2026/007 входит с 01.03, КД-2024/203 ` +
+    `гасит pm-8 (400 000) в марте; колонка «На отчётную дату» на 01.03.2026 — число, выпуск окончательный`);
+
+  const fc7 = RP.formColumns('t-port-ly', '2026-07-01');
+  const cnt = fc7.rows.find(r => r.id === 's-overdue-cnt'), port = fc7.rows.find(r => r.id === 's-portfolio');
+  const fin7 = RP.issue('t-port-ly', { params:{ asOf:'2026-07-01' }, kind:'окончательный', recipient:'a-mf' });
+  const rec7 = RP.state.issues.find(i => i.id === fin7.id);
+  const fc8 = RP.formColumns('t-port-ly', '2026-08-01');
+  ok(241, has(cnt.method, 'методика изменилась между датами — сравнение некорректно: версия 2 с 01.01.2026') &&
+        has(cnt.method, '«На отчётную дату» — версия 2') && has(cnt.method, '«На отчётную дату — прошлый год» — версия 1') &&
+        !port.method && fc7.methods.length === 1 && has(fc7.methods[0], 'Кредитов с просрочкой: методика изменилась') &&
+        fin7.ok && rec7.passport.methods.length === 1 &&
+        rec7.snapshot.timeTable.rows.find(r => r.id === 's-overdue-cnt').cells.find(c => c.col === 'c-nly').ver === 1 &&
+        rec7.snapshot.timeTable.rows.find(r => r.id === 's-overdue-cnt').cells.find(c => c.col === 'c-now').ver === 2 &&
+        fc8.methods.length === 0,
+    `смена методики между датами колонок помечена у строки и в паспорте; выпуск хранит версию каждой клетки ` +
+    `(прошлый год — 1, отчётная дата — 2); на 01.08.2026 клетка прошлого года пуста — пометки нет (ADR-0285 п. 2, 4)`);
+
+  const P7 = { asOf:'2026-07-01', dept:'' };
+  const cx = RP.timeAnswer('t-port-ly', { mode:'сравнение', a:'2025-07-01', b:'2026-07-01' }, P7);
+  const cin = RP.timeAnswer('t-port-ly', { mode:'сравнение', a:'2026-06-01', b:'2026-08-01' }, P7);
+  const dx = RP.timeAnswer('t-port-ly', { mode:'динамика', from:'2025-11-01', to:'2026-02-01' }, P7);
+  ok(242, cx.ok && has(cx.rows.find(r => r.id === 's-overdue-cnt').method, 'сравнение некорректно') &&
+        cx.rows.find(r => r.id === 's-portfolio').method === null && cin.ok && cin.rows.every(r => !r.method) &&
+        dx.ok && has(dx.tracks.find(x => x.id === 's-overdue-cnt').method, 'версия 2 с 01.01.2026') &&
+        !dx.tracks.find(x => x.id === 's-portfolio').method,
+    `сравнение 01.07.2025 → 01.07.2026 и динамика через 01.01.2026 помечают «Кредитов с просрочкой»; внутри одной ` +
+    `версии и у показателя без версий пометки нет (ADR-0285 п. 2)`);
+
+  const vw = RP.saveView('t-overdue', 'крупные', { cuts:['dept'] }, { filter:{ groups:[[{ field:'debt_main', op:'больше', value:5000000 }]] } });
+  as('user'); const alien = RP.subscribe('t-overdue', { freq:'ежемесячно', view: vw.id }); as('auth');
+  const sub = RP.subscribe('t-overdue', { freq:'ежемесячно', view: vw.id });
+  RP.nightRun('2026-07-01');
+  const n7 = RP.notices().find(n => n.kind === 'подписка' && n.at === '2026-07-01');
+  RP.deleteView(vw.id);
+  RP.nightRun('2026-08-01'); RP.nightRun('2026-08-01');
+  const broken = RP.notices().filter(n => n.kind === 'подписка' && has(n.text, 'подписка на вид не посчитана'));
+  ok(243, vw.ok && !alien.ok && has(alien.why, 'подписываются на свой вид') && sub.ok &&
+        has(n7.text, '· вид «крупные» на 01.07.2026') && has(n7.text, 'Сумма просроченной задолженности — 10 800 000') &&
+        has(n7.text, 'фильтр: Остаток основного долга больше') && has(n7.mail, 'без чисел') &&
+        broken.length === 1 && has(broken[0].text, 'вида нет'),
+    `подписка на свой вид считает отчёт видом и его фильтром: «${n7.text.slice(0, 110)}…»; чужой вид — отказ; вид ` +
+    `удалён — одно уведомление «не посчитана», а не молчание и не повтор (ADR-0287 п. 1)`);
+
+  RP.seed(); as('auth');
+  const each = RP.addSignal('t-overdue', { stat:'s-overdue-sum', cmp:'больше', value:5000000, each:'dept' });
+  const badEach = RP.addSignal('t-overdue', { stat:'s-overdue-sum', cmp:'больше', value:1, each:'moon' });
+  const badF = RP.addSignal('t-overdue', { stat:'s-overdue-sum', cmp:'больше', value:1, filter:{ groups:[[{ field:'moon', op:'больше', value:1 }]] } });
+  const runs = ['2026-04-01', '2026-05-01', '2026-06-01', '2026-07-01', '2026-08-01'].map(d => RP.nightRun(d).fired.length);
+  const sn = RP.notices().filter(n => n.kind === 'сигнал');
+  const hs = RP.mySubs().find(x => x.id === each.id).history;
+  ok(244, each.ok && !badEach.ok && has(badEach.why, 'по разрезу отчёта') && !badF.ok && has(badF.why, 'фильтр условия') &&
+        runs.join() === '0,1,0,1,0' && sn.length === 2 &&
+        has(sn[0].text, 'стало выполняться на 01.05.2026: Региональное представительство «Ош» — 5 550 000 (было 0)') &&
+        has(sn[1].text, 'на 01.07.2026: Отраслевой департамент промышленности — 5 600 000 (было 0)') &&
+        hs[1].rows.join() === 'rep-osh' && hs[3].rows.length === 2 && hs[4].rows.join() === 'dep-prom',
+    `сигнал «в любой строке» разреза «подразделение»: Ош — на 01.05.2026, промышленность — на 01.07.2026, с прежним значением строки «(было 0)»; ` +
+    `по каждой строке один раз, на переходе (сработало по прогонам ${runs.join(', ')}) (ADR-0287 п. 2)`);
+
+  const vw2 = RP.saveView('t-overdue', 'крупные', null, { filter:{ groups:[[{ field:'debt_main', op:'больше', value:5000000 }]] } });
+  const sv = RP.addSignal('t-overdue', { stat:'s-overdue-cnt', cmp:'больше', value:0, view: vw2.id });
+  const both = RP.addSignal('t-overdue', { stat:'s-overdue-cnt', cmp:'больше', value:0, view: vw2.id, filter:{ top:{ n:1, by:'debt_main' } } });
+  const before = RP.notices().length;
+  RP.nightRun('2026-05-01'); RP.nightRun('2026-06-01');
+  const sv5 = RP.notices().slice(before).filter(n => n.sub === sv.id);
+  RP.deleteView(vw2.id); RP.nightRun('2026-07-01'); RP.nightRun('2026-08-01');
+  const svAll = RP.notices().filter(n => n.sub === sv.id);
+  ok(245, sv.ok && !both.ok && has(both.why, 'либо свой, либо вида') && sv5.length === 1 &&
+        has(sv5[0].text, '(фильтр вида «крупные»: Остаток основного долга больше') && has(sv5[0].text, 'на 01.05.2026 (1)') &&
+        svAll.length === 2 && has(svAll[1].text, 'условие больше не проверяется — вида больше нет'),
+    `сигнал по фильтру своего вида: сработал на 01.05.2026 (1 крупный договор с просрочкой); вид удалён — одно ` +
+    `уведомление «больше не проверяется», дальше тишина без ложных срабатываний`);
+
+  RP.seed(); as('auth');
+  RP.state.view = 'issue'; RP.state.sel.tpl = 't-port-ly'; RP.state.sel.params = { asOf:'2026-07-01', dept:'' };
+  RP.state.sel.view = null; RP.state.sel.twist = null; RP.state.sel.chart = false; RP.state.sel.time = null;
+  const s7 = win.VIEWS.issue.fn();
+  RP.addSignal('t-overdue', { stat:'s-overdue-sum', cmp:'больше', value:5000000, each:'dept' }); RP.nightRun('2026-05-01');
+  const subsScr = win.VIEWS.subs.fn();
+  ok(246, has(s7, '<sup class="fn">м</sup>') && has(s7, 'методика изменилась между датами') && has(s7, '>методика<') &&
+        has(subsScr, 'Региональное представительство «Ош» — 5 550 000'),
+    `экраны: форма на 01.07.2026 — пометка «м» у строки и сноска о смене методики, паспорт — строка «методика»; ` +
+    `подписки — уведомление сигнала по строке`);
+})();
+
+/* ---- LL. Майский взнос и сверка «остаток ↔ события»; смена методики после утверждения формы
+        (ADR-0285 п. 3), волна 42 ---- */
+(() => {
+  RP.seed(); as('auth');
+  const ev = c => vm.runInContext(c, sandbox);
+  const H = ev('HIST'), D = ev('HIST_DATES.slice()'), O = ev('OBJECTS');
+  const pays = O.filter(o => o.type === 'payment' && o.kind === 'основной долг');
+  /* Сверка: изменение остатка между соседними снимками против основных платежей между ними
+     (сумма — как её знал поздний снимок). ДОПУЩЕНИЕ СТЕНДА (подтверждено владельцем 17.10.2026):
+     погашения по графику событиями не заводятся — снижение остатка без события законно; сверка
+     сторожит, что роста без события нет и что договоры, ведомые событиями, сходятся. */
+  const gaps = [];
+  for (let i = 1; i < D.length; i++) { const a = D[i - 1], b = D[i];
+    Object.keys(H[b]).forEach(id => { if (!H[a][id]) return;
+      const delta = H[a][id].debt_main - H[b][id].debt_main;
+      const evs = pays.filter(p => p.credit === id && p.date >= a && p.date < b)
+        .reduce((x, p) => x + (p.was && b < p.was.until ? p.was.amount : p.amount), 0);
+      if (delta !== evs) gaps.push({ id, a, b, delta, evs }); }); }
+  const kr2 = gaps.filter(g => g.id === 'kr-2'), kr1 = gaps.filter(g => g.id === 'kr-1');
+  const f6 = RP.formColumns('t-pay04', '2026-06-01');
+  const may = f6.rows.find(r => r.id === 'pay-sum').cells.find(c => c.col === 'c-m');
+  ok(247, kr2.length === 2 && kr2.every(g => g.a >= '2026-06-01') && kr1.every(g => g.a >= '2026-01-01') &&
+        !gaps.some(g => g.a === '2026-05-01' && g.id === 'kr-2') && gaps.every(g => g.delta > 0 && g.evs === 0) &&
+        may.value === 500000 && f6.rows.find(r => r.id === 'pay-cnt').cells.find(c => c.col === 'c-m').value === 1,
+    `майский взнос КД-2024/203 (pm-9, 500 000) закрыл разрыв 01.05 → 01.06.2026: поток за май — ${may.value}; сверка ` +
+    `«остаток ↔ события»: КД-2024/203 сходится по 01.06.2026, КД-2024/117 — весь 2025 г.; остальные ${gaps.length} ` +
+    `снижений остатка — погашения по графику без событий (допущение стенда), роста без события нет`);
+
+  const pend = RP.methodPending('t-pay04'), auth = RP.notices().filter(n => n.kind === 'методика');
+  as('user'); const userN = RP.notices().filter(n => n.kind === 'методика'); as('auth');
+  ok(248, pend.length === 1 && pend[0].stat === 's-avg-late' && pend[0].n === 2 && pend[0].declared === '2026-08-22' &&
+        RP.methodPending('t-port-ly').length === 0 && RP.methodPending('t-overdue').length === 0 &&
+        auth.length === 1 && has(auth[0].text, '«Погашения и портфель за период»: показатель формы изменился — «Средняя просрочка» изменён 22.08.2026: версия 2 с 01.09.2026') &&
+        has(auth[0].text, 'Подтвердите новую редакцию') && userN.length === 0,
+    `версия «Средней просрочки», объявленная 22.08.2026 после утверждения формы (20.08), ставит форму в «ожидает ` +
+    `решения»; уполномоченный получает уведомление, пользователь — нет; версия «Кредитов с просрочкой» с запуска ` +
+    `(раньше утверждения) решения не ждёт (ADR-0285 п. 3)`);
+
+  const f8 = RP.issue('t-pay04', { params:{ asOf:'2026-08-01' }, kind:'окончательный', recipient:'a-mf' });
+  const rec8 = RP.state.issues.find(i => i.id === f8.id);
+  /* Даты новой версии: снимок 01.10.2026 (состояние на 30.09) и закрытые август, сентябрь — на время проверки. */
+  ev("HIST['2026-10-01'] = clone(HIST['2026-08-01']); HIST_DATES.push('2026-10-01')");
+  RP.state.periods['август 2026'] = { state:'закрыт' }; RP.state.periods['сентябрь 2026'] = { state:'закрыт' };
+  const f9 = RP.issue('t-pay04', { params:{ asOf:'2026-10-01' }, kind:'окончательный', recipient:'a-mf' });
+  const p9 = RP.issue('t-pay04', { params:{ asOf:'2026-10-01' }, kind:'предварительный' });
+  const recP9 = RP.state.issues.find(i => i.id === p9.id);
+  ok(249, f8.ok && rec8.kind === 'окончательный' && !rec8.passport.awaiting &&
+        !f9.ok && has(f9.why, 'форма ожидает решения по методике: «Средняя просрочка» изменён 22.08.2026: версия 2 с 01.09.2026') &&
+        p9.ok && recP9.passport.awaiting.length === 1,
+    `окончательная сдача на 01.08.2026 (все даты — прежней версии) проходит без пометки; на 01.10.2026 — отказ ` +
+    `«${String(f9.why).slice(0, 70)}…»; предварительный выпуск законен и несёт пометку в паспорте (ADR-0285 п. 3)`);
+
+  as('user'); const noRole = RP.confirmMethod('t-pay04'); as('auth');
+  const conf = RP.confirmMethod('t-pay04');
+  const t4 = RP.TPL('t-pay04'), ed2 = t4.editions.find(e => e.n === 2);
+  const g9 = RP.issue('t-pay04', { params:{ asOf:'2026-10-01' }, kind:'окончательный', recipient:'a-mf' });
+  const rec9 = RP.state.issues.find(i => i.id === g9.id);
+  const again = RP.confirmMethod('t-pay04');
+  ok(250, !noRole.ok && has(noRole.why, 'утверждает уполномоченный') && conf.ok && conf.edition === 2 &&
+        ed2.state === 'утверждена' && JSON.stringify(ed2.stats) === JSON.stringify(t4.editions[0].stats) &&
+        has(ed2.changed, '«Средняя просрочка» версия 2 с 01.09.2026') && RP.methodPending('t-pay04').length === 0 &&
+        RP.notices().filter(n => n.kind === 'методика').length === 0 && g9.ok && rec9.ed === 2 && !rec9.passport.awaiting &&
+        RP.state.issues.find(i => i.id === f8.id).ed === 1 && RP.state.issues.find(i => i.id === f8.id).kind === 'окончательный' &&
+        !again.ok && has(again.why, 'не ждёт'),
+    `решение — новая редакция ${conf.edition} того же состава (утвердил уполномоченный): ожидание снято, ` +
+    `уведомления нет, сдача на 01.10.2026 проходит по ред. 2; сданное по ред. 1 не тронуто (ADR-0285 п. 3–4)`);
+  ev("delete HIST['2026-10-01']; HIST_DATES.pop()");
+
+  RP.seed(); as('auth');
+  RP.state.view = 'issue'; RP.state.sel.tpl = 't-pay04'; RP.state.sel.params = { asOf:'2026-08-01', dept:'' };
+  RP.state.sel.view = null; RP.state.sel.twist = null; RP.state.sel.chart = false; RP.state.sel.time = null;
+  const s8 = win.VIEWS.issue.fn(), sub = win.VIEWS.subs.fn();
+  as('user'); const s8u = win.VIEWS.issue.fn(); as('auth');
+  ok(251, has(s8, 'Ожидает решения по методике.') && has(s8, 'RP.doConfirmMethod(\'t-pay04\')') &&
+        has(s8u, 'Ожидает решения по методике.') && !has(s8u, 'RP.doConfirmMethod') &&
+        has(sub, 'показатель формы изменился'),
+    `экраны: у формы — плашка «ожидает решения по методике», кнопка «Подтвердить новую редакцию» — только ` +
+    `уполномоченному; уведомление — на экране подписок`);
+
+  RP.seed(); as('auth');
+  const fc7 = RP.formColumns('t-port-ly', '2026-07-01');
+  ok(252, fc7.methods.length === 1 && RP.methodPending('t-port-ly').length === 0 &&
+        RP.formColumns('t-pay04', '2026-08-01').methods.length === 0,
+    `пометки волны 41 не сдвинулись: «Кредитов с просрочкой» в «Портфеле к прошлому году» на 01.07.2026 — как было; ` +
+    `у «Средней просрочки» до 01.09.2026 версия одна — пометки сравнения нет`);
 })();
 
 /* ---- отчёт ---- */
